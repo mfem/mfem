@@ -186,11 +186,11 @@ int main(int argc, char *argv[])
       return 3;
    }
 
-   ParLinearForm b(fespace);
-   b.AddDomainIntegrator(new VectorDomainLFIntegrator(f_coeff));
-   b.Assemble();
    // 8. Set up the parallel linear form b(⋅) which corresponds to the
    //    right-hand side of the FEM linear system.
+   ParLinearForm *b = new ParLinearForm(fespace);
+   b->AddDomainIntegrator(new VectorDomainLFIntegrator(f_coeff));
+   b->Assemble();
 
    // 9. Define the solution vector u as a parallel finite element grid
    //    function corresponding to fespace. Initialize u with initial guess of
@@ -233,20 +233,18 @@ int main(int argc, char *argv[])
 
    real_t iter_error = 0;
    real_t l2_error = 0;
-
-   // 17. Iterate:
-   for (int iter = 1; iter <= max_iterations; iter++)
+   if (myid == 0)
    {
-      if (!logger)
-      {
-         if (myid == 0)
-         {
-            mfem::out << "Iteration " << iter << "/" << max_iterations << std::endl;
-         }
-      }
+      mfem::out << "\nk" << setw(14) << "iter_error" << setw(14) << "l2_error"
+                << std::endl;
+      mfem::out << "-----------------------------" << std::endl;
+   }
 
-      // Reassemble the linear form b(⋅).
-      b.Assemble();
+   // 13. Iterate:
+   for (int k = 1; k <= max_iterations; k++)
+   {
+      // Step 1: Reassemble the linear form b(⋅).
+      b->Assemble();
 
       // Step 2: Create the boundary condition coefficient using previous solution.
       TractionBoundary trac_coeff(dim, &u_previous, n_tilde, lambda, mu, alpha);
@@ -256,7 +254,7 @@ int main(int argc, char *argv[])
       // conditions, applying AMR constraints, and other transformations.
       HypreParMatrix A;
       Vector B, X;
-      a->FormLinearSystem(ess_tdof_list_all, u_current, b, A, X, B);
+      a->FormLinearSystem(ess_tdof_list, u_current, *b, A, X, B);
 
       // Step 4: Define and apply a parallel PCG solver for A X = B with the BoomerAMG
       // preconditioner from hypre.
@@ -274,8 +272,8 @@ int main(int argc, char *argv[])
       delete amg;
       delete pcg;
 
-      a->RecoverFEMSolution(X, b, u_current);
       // Step 5: Recover the solution.
+      a->RecoverFEMSolution(X, *b, u_current);
 
       // Step 6: Compute difference between current and previous solutions.
       iter_error = u_current.ComputeL2Error(u_previous_coeff);
@@ -283,8 +281,8 @@ int main(int argc, char *argv[])
 
       if (myid == 0)
       {
-         mfem::out << "L2 iter difference: " << iter_error << std::endl;
-         mfem::out << "L2 true difference: " << l2_error << std::endl;
+         mfem::out << k << setw(14) << iter_error << setw(14) << l2_error
+                   << std::endl;
       }
 
       // Step 7: Send the above data by socket to a GLVis server. Use the "n"
@@ -302,7 +300,7 @@ int main(int argc, char *argv[])
          {
             if (myid == 0)
             {
-               mfem::out << "Converged after " << iter << " iterations." << std::endl;
+               mfem::out << "\nConverged after " << k << " iterations." << std::endl;
             }
             if (visualization)
             {
@@ -326,6 +324,7 @@ int main(int argc, char *argv[])
 
    // 15. Free used memory.
    delete a;
+   delete b;
    if (fec)
    {
       delete fespace;
