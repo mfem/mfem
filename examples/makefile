@@ -97,11 +97,13 @@ $(SUBDIRS_TPRINT):
 ex18: $(SRC)ex18.hpp
 ex33: $(SRC)ex33.hpp
 ex37: $(SRC)ex37.hpp
+signorini: $(SRC)signorini.hpp
 
 ifeq ($(MFEM_USE_MPI),YES)
 ex18p: $(SRC)ex18.hpp
 ex33p: $(SRC)ex33.hpp
 ex37p: $(SRC)ex37.hpp
+signorinip: $(SRC)signorini.hpp
 endif
 
 MFEM_TESTS = EXAMPLES
