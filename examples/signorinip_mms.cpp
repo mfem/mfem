@@ -42,9 +42,9 @@ int main(int argc, char *argv[])
    int myid = Mpi::WorldRank();
    Hypre::Init();
 
-   const char* mesh_file = "../data/ref-cube.mesh";
    int order = 2;
    // 1. Parse command-line options.
+   const char* mesh_file = "../data/ref-cube.mesh";
    real_t alpha = 1.0;
    real_t lambda = 1.0;
    real_t mu = 1.0;
@@ -216,8 +216,8 @@ int main(int argc, char *argv[])
    socketstream sol_sock(vishost, visport);
    sol_sock.precision(8);
 
-   ParaViewDataCollection paraview_dc("signorini", &pmesh);
    // 12. Initialize ParaView output.
+   ParaViewDataCollection paraview_dc("signorini_mms", &pmesh);
    if (paraview_output)
    {
       paraview_dc.SetPrefixPath("ParaView");

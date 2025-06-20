@@ -1,6 +1,5 @@
 #include "mfem.hpp"
 
-using namespace std;
 using namespace mfem;
 
 enum Domain
@@ -107,7 +106,7 @@ void ComputeStress(const DenseMatrix &grad_u, const real_t lambda,
 
    // Compute stress: σ(u) = λ div(u) I + 2μ ε(u)
    DenseMatrix I;
-   I.Diag(1, dim);
+   I.Diag(1.0, dim);
    sigma = 0.0;
    Add(lambda * div_u, I, 2 * mu, epsilon, sigma);
 }

@@ -40,7 +40,6 @@ int main(int argc, char *argv[])
    const char* mesh_file = "../data/ref-cube.mesh";
    int order = 2;
    real_t alpha = 1;
-   // 1. Parse command-line options.
    real_t lambda = 1.0;
    real_t mu = 1.0;
    int ref_levels = 0;
@@ -199,10 +198,8 @@ int main(int argc, char *argv[])
    // 7. Determine the list of true (i.e. parallel conforming) essential
    //    boundary dofs.
    Array<int> ess_bdr(pmesh.bdr_attributes.Max());
-   ess_bdr = 0;
-   ess_bdr[0] = 1; // boundary attribute 1 is Dirichlet
-
    Array<int> ess_tdof_list;
+   ess_bdr = 0; ess_bdr[0] = 1;
    fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
 
    // 8. Define coefficients for later.
@@ -257,7 +254,7 @@ int main(int argc, char *argv[])
       paraview_dc.SetHighOrderOutput(true);
       paraview_dc.SetCycle(0);
       paraview_dc.SetTime(0.0);
-      paraview_dc.RegisterField("Displacement",&u_previous);
+      paraview_dc.RegisterField("displacement",&u_previous);
       paraview_dc.Save();
    }
 
