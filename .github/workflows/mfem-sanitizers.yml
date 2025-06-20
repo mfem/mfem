@@ -50,7 +50,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       # Avoid canceling all in-progress and queued jobs in the matrix if any one fails
-      fail-fast: true  # false
+      fail-fast: false
       matrix:
         sanitizer: [AddressSanitizer, UndefinedBehaviorSanitizer, MemorySanitizer]
         mpi: [seq, par]
@@ -117,6 +117,10 @@ jobs:
           echo "CC=cc" >> $GITHUB_ENV
           echo "CXX=c++" >> $GITHUB_ENV
           echo "MPICXX=c++" >> $GITHUB_ENV
+
+      - name: Setup Clang Environment (Parallel)
+        if: matrix.mpi == 'par'
+        run: |
           echo "MPI_INC=$(mpicxx --showme:compile)" >> $GITHUB_ENV
           echo "MPI_LIB=$(mpicxx --showme:link)" >> $GITHUB_ENV
 
@@ -128,17 +132,18 @@ jobs:
 
       - name: Echo Environment
         run: |
-          echo "> ${{env.CC}} -v"
+          echo "[CC] ${{env.CC}} -v"
           ${{env.CC}} -v
-          echo "> ${{env.CXX}} -v"
+          echo "[CXX] ${{env.CXX}} -v"
           ${{env.CXX}} -v
-          echo "> ${{env.MPICXX}} -v"
+          echo "[MPICXX] ${{env.MPICXX}} -v"
           ${{env.MPICXX}} -v
-          echo "> LLVM_CXXFLAGS: ${{env.LLVM_CXXFLAGS}}"
-          echo "> LLVM_LDFLAGS: ${{env.LLVM_LDFLAGS}}"
+          echo "[LLVM_CXXFLAGS] ${{env.LLVM_CXXFLAGS}}"
+          echo "[LLVM_LDFLAGS] ${{env.LLVM_LDFLAGS}}"
 
       ### LLVM libcxx Build Steps
       - name: LLVM Cache
+        if: matrix.sanitizer != 'AddressSanitizer'
         id: llvm-cache
         uses: actions/cache@v4
         with:
@@ -231,7 +236,7 @@ jobs:
       - name: MFEM Build
         uses: mfem/github-actions/build-mfem@v2.5
         env:
-          MPICXX: clang++
+          MPICXX: c++
           CXXFLAGS: "-g -O1 -std=c++17 ${{matrix.cxxflags}} ${{env.LLVM_CXXFLAGS}}"
           LDFLAGS: "${{matrix.ldflags}} ${{env.LLVM_LDFLAGS}}"
         with:
