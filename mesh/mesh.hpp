@@ -683,8 +683,34 @@ protected:
                        Array<int> &elem_vtx, Array<int> &attr) const;
 
    // Internal helper used in MakeSimplicial (and ParMesh::MakeSimplicial).
-   void MakeSimplicial_(const Mesh &orig_mesh, int *vglobal);
 
+   /**
+    * @brief Internal helper user in MakeSimplicial (and
+    * ParMesh::MakeSimplicial). Optional return is used in assembling a higher
+    * order mesh.
+    * @details The construction of the higher order nodes must be separated out
+    * because the
+    *
+    * @param orig_mesh The mesh from to create the simplices
+    * @param vglobal An optional global ordering of vertices. Necessary for
+    * parallel splitting.
+    * @return Array<int> parent elements from the orig_mesh for each split
+    * element
+    */
+   Array<int> MakeSimplicial_(const Mesh &orig_mesh, int *vglobal);
+
+   /**
+    * @brief Helper function for constructing higher order nodes from a mesh
+    *   transformed into simplices. Only to be called as part of MakeSimplicial
+    *   or ParMesh::MakeSimplicial.
+    *
+    * @param orig_mesh The mesh that was used to transform this mesh into
+    * simplices.
+    * @param parent_elements parent_elements[i] gives the element in orig_mesh
+    *   split to give element i.
+    */
+   void MakeHigherOrderSimplicial_(const Mesh &orig_mesh,
+                                   const Array<int> &parent_elements);
 public:
 
    /// @anchor mfem_Mesh_ctors
