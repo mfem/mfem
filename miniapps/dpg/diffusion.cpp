@@ -382,7 +382,7 @@ int main(int argc, char *argv[])
                 << " Systm dofs |"
                 << "  L2 Error  |"
                 << "  Rate  |"
-                << " PCG it |"
+                << "  Iters |"
                 << " Totl time |"
                 << " Mult time |"
                 << std::endl;
@@ -537,7 +537,7 @@ int main(int argc, char *argv[])
       }
 
       solver->SetRelTol(1e-10);
-      solver->SetMaxIter(2000);
+      solver->SetMaxIter(20000);
       solver->SetPrintLevel(prob== prob_type::general ? 3 : 0);
       solver->SetPreconditioner(*prec);
       solver->SetOperator(*Ah);
