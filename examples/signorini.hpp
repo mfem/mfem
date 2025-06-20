@@ -38,10 +38,10 @@ real_t GapFunction(const Vector &x)
 
    if (dim == 3 && angled_plane)
    {
-      int a = 0;
-      int b = 1;
-      int c = 5;
-      int d = -5;
+      const int a = 0;
+      const int b = 1;
+      const int c = 5;
+      const int d = -5;
 
       return abs((d - a*x(0) - b*x(1))/c);
    }
@@ -63,6 +63,8 @@ real_t GapFunction(const Vector &x)
  */
 void ForceFunction(const Vector &x, Vector &f)
 {
+   const int dim = x.Size();
+
    real_t force;
    switch (mesh)
    {
@@ -79,7 +81,6 @@ void ForceFunction(const Vector &x, Vector &f)
          MFEM_ABORT("Unsupported mesh type: " << mesh);
    }
 
-   const int dim = x.Size();
    f = 0.0;
    f(dim-1) = force;
 }
@@ -99,7 +100,7 @@ void ComputeStress(const DenseMatrix &grad_u, const real_t lambda,
    const int dim = grad_u.Size();
 
    // Compute div(u): trace of Jacobian ∇u
-   real_t div_u = grad_u.Trace();
+   const real_t div_u = grad_u.Trace();
 
    // Compute strain: ε(u) = (∇u + ∇uᵀ)/2
    DenseMatrix epsilon = grad_u;
@@ -177,10 +178,10 @@ public:
       // Compute pressure σ(uᵏ⁻¹)n · ñ
       Vector sigma_n(dim);
       sigma.Mult(n, sigma_n);
-      real_t pressure = sigma_n * n_tilde;
+      const real_t pressure = sigma_n * n_tilde;
 
       // Evaluate the gap function φ₁
-      real_t phi_1 = GapFunction(x);
+      const real_t phi_1 = GapFunction(x);
 
       // Set the boundary condition
       // uᵏ · ñ = φ₁ - (φ₁ - uᵏ⁻¹ · ñ) exp((αₖ σ(uᵏ⁻¹) n) · ñ)
