@@ -492,7 +492,8 @@ int main(int argc, char *argv[])
    real_t err0 = 0.;
    int dof0 = 0; // init to suppress gcc warning
    std::cout << "\n  Ref |"
-             << "    Dofs    |"
+             << " Total dofs |"
+             << " Systm dofs |"
              << "  L2 Error  |"
              << "  Rate  |"
              << " Totl time |"
@@ -502,12 +503,12 @@ int main(int argc, char *argv[])
       std::cout << "  Residual  |"
                 << "  Rate  |"
                 << std::endl;
-      std::cout << std::string(88,'-') << std::endl;
+      std::cout << std::string(102,'-') << std::endl;
    }
    else
    {
       std::cout << std::endl;
-      std::cout << std::string(65,'-') << std::endl;
+      std::cout << std::string(79,'-') << std::endl;
    }
 
    //set hybridization / assembly level
@@ -717,6 +718,7 @@ int main(int argc, char *argv[])
 
       chrono_total.Stop();
 
+      const int sysdofs = Ah->Height();
       real_t u_err = u_gf.ComputeL2Error(uex);
       real_t sigma_err = sigma_gf.ComputeL2Error(sigmaex);
       real_t L2Error = sqrt(u_err*u_err + sigma_err*sigma_err);
@@ -733,7 +735,8 @@ int main(int argc, char *argv[])
       std::ios oldState(nullptr);
       oldState.copyfmt(std::cout);
       std::cout << std::right << std::setw(5) << it << " | "
-                << std::setw(10) <<  dof0 << " | "
+                << std::setw(10) <<  dofs << " | "
+                << std::setw(10) <<  sysdofs << " | "
                 << std::setprecision(3)
                 << std::setw(10) << std::scientific <<  err0 << " | "
                 << std::setprecision(2)
