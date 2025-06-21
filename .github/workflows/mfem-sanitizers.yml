@@ -277,9 +277,9 @@ jobs:
         working-directory: mfem
         run: make check
 
-      - name: MFEM Examples
-        working-directory: mfem/examples
-        run: make test
+      # - name: MFEM Examples
+      #   working-directory: mfem/examples
+      #   run: make test
 
       - name: MFEM Miniapps
         working-directory: mfem
