@@ -88,7 +88,8 @@ jobs:
       - name: Setup GITHUB_ENV (Directories)
         run: |
           echo "ASAN_DIR=${GITHUB_WORKSPACE}/asan" >> $GITHUB_ENV
-          echo "LLVM_DIR=${GITHUB_WORKSPACE}/llvm-build" >> $GITHUB_ENV
+          mkdir -p ${{env.ASAN_DIR}}
+          echo "LLVM_DIR=${GITHUB_WORKSPACE}/llvm" >> $GITHUB_ENV
 
       - name: Setup GITHUB_ENV (LLVM, HYPRE, METIS)
         run: |
