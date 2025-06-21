@@ -85,8 +85,8 @@ jobs:
           echo "CXX=c++" >> $GITHUB_ENV
           echo "MPICXX=c++" >> $GITHUB_ENV
           echo "LLVM_DIR=${{env.GITHUB_WORKSPACE}}/llvm-build" >> $GITHUB_ENV
-          echo "LLVM_INC=${{env.LLVM_DIR}/include/c++/v1" >> $GITHUB_ENV
-          echo "LLVM_LIB=${{env.LLVM_DIR}/lib" >> $GITHUB_ENV
+          echo "LLVM_INC=${{env.LLVM_DIR}}/include/c++/v1" >> $GITHUB_ENV
+          echo "LLVM_LIB=${{env.LLVM_DIR}}/lib" >> $GITHUB_ENV
           echo "HYPRE_TGZ=v${{env.HYPRE_VER}}.tar.gz" >> $GITHUB_ENV
           echo "HYPRE_DIR=hypre-${{env.HYPRE_VER}}" >> $GITHUB_ENV
           echo "METIS_TGZ=metis-${{env.METIS_VER}}.tar.gz" >> $GITHUB_ENV
