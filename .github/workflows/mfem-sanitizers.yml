@@ -39,9 +39,9 @@ env:
   # LLVM libcxx build options
   LLVM_INC: ${GITHUB_WORKSPACE}/llvm-build/include/c++/v1
   LLVM_LIB: ${GITHUB_WORKSPACE}/llvm-build/lib
-  LLVM_VER: 18.1.3
+  LLVM_VER: 20.1.6  # 18.1.3
   # Parallel MFEM build Hypre/Metis options
-  HYPRE_ARCHIVE: v2.19.0.tar.gz
+  HYPRE_ARCHIVE: v2.33.0.tar.gz  # v2.19.0.tar.gz
   HYPRE_TOP_DIR: hypre-2.19.0
   METIS_ARCHIVE: metis-4.0.3.tar.gz
   METIS_TOP_DIR: metis-4.0.3
