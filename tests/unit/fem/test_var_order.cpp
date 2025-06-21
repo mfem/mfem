@@ -1054,16 +1054,9 @@ static void TestRandomPRefinement(Mesh & mesh)
    const real_t discontinuity = CheckH1Continuity(*solParallel);
    REQUIRE(discontinuity == MFEM_Approx(0.0));
 
-   // FiniteElementSpace *fespace = solSerial->FESpace();
-   // ParFiniteElementSpace *pfespace = solParallel->ParFESpace();
-
    delete solParallel->ParFESpace()->GetParMesh();
    delete solSerial;
    delete solParallel;
-   // delete fespace->FEColl();
-   // delete fespace;
-   // delete pfespace->FEColl();
-   // delete pfespace;
 }
 
 static void TestSolveParVec(ParFiniteElementSpace &fespace)
