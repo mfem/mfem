@@ -88,10 +88,22 @@ public:
    /// Operator application: `y=A(x)`.
    virtual void Mult(const Vector &x, Vector &y) const = 0;
 
+   /** @brief Action of the absolute-value operator: `y=|A|(x)`. The default
+     behavior in class Operator is to generate an error. If the Operator is a
+     composition of several operators, the composition unfold into a product
+     of absolute-value operators too. */
+   virtual void AbsMult(const Vector &x, Vector &y) const
+   { MFEM_ABORT("Operator::AbsMult() is not overridden!"); }
+
    /** @brief Action of the transpose operator: `y=A^t(x)`. The default behavior
        in class Operator is to generate an error. */
    virtual void MultTranspose(const Vector &x, Vector &y) const
-   { mfem_error("Operator::MultTranspose() is not overridden!"); }
+   { MFEM_ABORT("Operator::MultTranspose() is not overridden!"); }
+
+   /** @brief Action of the transpose absolute-value operator: `y=|A|^t(x)`.
+      The default behavior in class Operator is to generate an error. */
+   virtual void AbsMultTranspose(const Vector &x, Vector &y) const
+   { MFEM_ABORT("Operator::AbsMultTranspose() is not overridden!"); }
 
    /// Operator application: `y+=A(x)` (default) or `y+=a*A(x)`.
    virtual void AddMult(const Vector &x, Vector &y, const real_t a = 1.0) const;
@@ -121,7 +133,7 @@ public:
        behavior in class Operator is to generate an error. */
    virtual Operator &GetGradient(const Vector &x) const
    {
-      mfem_error("Operator::GetGradient() is not overridden!");
+      MFEM_ABORT("Operator::GetGradient() is not overridden!");
       return const_cast<Operator &>(*this);
    }
 
@@ -691,7 +703,7 @@ public:
                                  const Vector &xB, const Vector &fxB,
                                  int jokB, int *jcurB, real_t gammaB)
    {
-      mfem_error("TimeDependentAdjointOperator::SUNImplicitSetupB() is not "
+      MFEM_ABORT("TimeDependentAdjointOperator::SUNImplicitSetupB() is not "
                  "overridden!");
       return (-1);
    }
@@ -709,7 +721,7 @@ public:
        see the SUNDIALS User Guides. */
    virtual int SUNImplicitSolveB(Vector &x, const Vector &b, real_t tol)
    {
-      mfem_error("TimeDependentAdjointOperator::SUNImplicitSolveB() is not "
+      MFEM_ABORT("TimeDependentAdjointOperator::SUNImplicitSolveB() is not "
                  "overridden!");
       return (-1);
    }
@@ -930,6 +942,10 @@ public:
    void Mult(const Vector & x, Vector & y) const override
    { P.Mult(x, Px); A.Mult(Px, APx); Rt.MultTranspose(APx, y); }
 
+   /// Operator-wise absolute-value application.
+   void AbsMult(const Vector & x, Vector & y) const override
+   { P.AbsMult(x, Px); A.AbsMult(Px, APx); Rt.AbsMultTranspose(APx, y); }
+
    /// Approximate diagonal of the RAP Operator.
    /** Returns the diagonal of A, as returned by its AssembleDiagonal method,
        multiplied be P^T.
@@ -950,6 +966,14 @@ public:
    /// Application of the transpose.
    void MultTranspose(const Vector & x, Vector & y) const override
    { Rt.Mult(x, APx); A.MultTranspose(APx, Px); P.MultTranspose(Px, y); }
+
+   /// Operator-wise absolute-value application of the transpose
+   void AbsMultTranspose(const Vector & x, Vector & y) const override
+   {
+      Rt.AbsMult(x, APx);
+      A.AbsMultTranspose(APx, Px);
+      P.AbsMultTranspose(Px, y);
+   }
 };
 
 
@@ -1045,12 +1069,20 @@ public:
 
    void AddMult(const Vector &x, Vector &y, const real_t a = 1.0) const override;
 
+   void AbsMult(const Vector &x, Vector &y) const override;
+
    void MultTranspose(const Vector &x, Vector &y) const override;
 
+   void AbsMultTranspose(const Vector &x, Vector &y) const override;
+
    /** @brief Implementation of Mult or MultTranspose.
-    *  TODO - Generalize to allow constraining rows and columns differently.
-   */
+       TODO - Generalize to allow constraining rows and columns differently. */
    void ConstrainedMult(const Vector &x, Vector &y, const bool transpose) const;
+
+   /** @brief Implementation of AbsMult or AbsMultTranspose.
+       TODO - Generalize to allow constraining rows and columns differently. */
+   void ConstrainedAbsMult(const Vector &x, Vector &y,
+                           const bool transpose) const;
 
    /// Destructor: destroys the unconstrained Operator, if owned.
    ~ConstrainedOperator() override { if (own_A) { delete A; } }

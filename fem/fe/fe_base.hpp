@@ -219,6 +219,9 @@ public:
        - #ndof x #nqpt, for H(div) vector elements, or
        - #ndof x #nqpt x cdim, for H(curl) vector elements. */
    Array<real_t> Gt;
+
+   /// Returns absolute value of the maps
+   DofToQuad Abs() const;
 };
 
 /// Describes the function space on each element
