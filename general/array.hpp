@@ -316,7 +316,10 @@ public:
        the Size to match this Capacity after this.*/
    template <typename U>
    inline void CopyFrom(const U *src)
-   { std::memcpy(begin(), src, MemoryUsage()); }
+   {
+      if (src == nullptr) { return; }
+      std::memcpy(begin(), src, MemoryUsage());
+   }
 
    /// STL-like begin.  Returns pointer to the first element of the array.
    inline T* begin() { return data; }
