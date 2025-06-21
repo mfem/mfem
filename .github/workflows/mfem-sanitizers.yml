@@ -37,9 +37,10 @@ env:
                  detect_stack_use_after_return=1"
   LSAN_OPTIONS: "suppressions=/home/runner/work/asan.supp"
   # LLVM libcxx build options
+  # https://github.com/llvm/llvm-project/releases?page=2
   LLVM_INC: ${GITHUB_WORKSPACE}/llvm-build/include/c++/v1
   LLVM_LIB: ${GITHUB_WORKSPACE}/llvm-build/lib
-  LLVM_VER: 20.1.6  # 18.1.3
+  LLVM_VER: 19.1.7  # 18.1.3
   # Parallel MFEM build Hypre/Metis options
   HYPRE_ARCHIVE: v2.33.0.tar.gz  # v2.19.0.tar.gz
   HYPRE_TOP_DIR: hypre-2.19.0
