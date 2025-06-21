@@ -162,7 +162,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${GITHUB_WORKSPACE}/llvm-build
-          key: ubuntu-latest-llvm-build-${{env.LLVM_VER}}-${{matrix.llvm_sanitizer}}
+          key: Linux-llvm-build-${{env.LLVM_VER}}-${{matrix.llvm_sanitizer}}
 
       - name: LLVM Clone
         if: matrix.sanitizer != 'AddressSanitizer' && steps.llvm-cache.outputs.cache-hit != 'true'
@@ -219,7 +219,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{env.HYPRE_TOP_DIR}}
-          key: ubuntu-latest-ompi-build-${{env.HYPRE_TOP_DIR}}-int32-fp64-v2.5
+          key: Linux-ompi-build-${{env.HYPRE_TOP_DIR}}-v2.5
 
       - name: HYPRE Build
         if: matrix.mpi == 'par' && steps.hypre-cache.outputs.cache-hit != 'true'
@@ -238,7 +238,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{env.METIS_TOP_DIR}}
-          key: ubuntu-latest-build-${{env.METIS_TOP_DIR}}-v2.5
+          key: Linux-build-${{env.METIS_TOP_DIR}}-v2.5
 
       - name: METIS Build
         if: matrix.mpi == 'par' && steps.metis-cache.outputs.cache-hit != 'true'

@@ -14,10 +14,9 @@
 
 #include "mfem.hpp"
 
-namespace mfem
+namespace mfem::blocksolvers
 {
-namespace blocksolvers
-{
+
 struct IterSolveParameters
 {
    int print_level = 0;
@@ -30,8 +29,6 @@ struct IterSolveParameters
    real_t rel_tol = 1e-5;
 #else
 #error "Only single and double precision are supported!"
-   real_t abs_tol = 1e-12;
-   real_t rel_tol = 1e-9;
 #endif
 };
 
@@ -66,7 +63,7 @@ public:
    void SetEssZeroDofs(const Array<int>& dofs) { dofs.Copy(ess_zero_dofs_); }
    int GetNumIterations() const override { return solver_.GetNumIterations(); }
 };
-} // namespace blocksolvers
-} // namespace mfem
+
+} // namespace mfem::blocksolvers
 
 #endif // MFEM_DARCY_SOLVER_HPP
