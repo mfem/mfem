@@ -79,12 +79,19 @@ jobs:
 
     steps:
       ### GITHUB_ENV
-      - name: Setup GITHUB_ENV
+      - name: Setup GITHUB_ENV (Compilers)
         run: |
           echo "CC=cc" >> $GITHUB_ENV
           echo "CXX=c++" >> $GITHUB_ENV
           echo "MPICXX=c++" >> $GITHUB_ENV
+
+      - name: Setup GITHUB_ENV (Directories)
+        run: |
+          echo "ASAN_DIR=${GITHUB_WORKSPACE}/asan" >> $GITHUB_ENV
           echo "LLVM_DIR=${GITHUB_WORKSPACE}/llvm-build" >> $GITHUB_ENV
+
+      - name: Setup GITHUB_ENV (LLVM, HYPRE, METIS)
+        run: |
           echo "LLVM_INC=${LLVM_DIR}/include/c++/v1" >> $GITHUB_ENV
           echo "LLVM_LIB=${LLVM_DIR}/lib" >> $GITHUB_ENV
           echo "HYPRE_TGZ=v${{env.HYPRE_VER}}.tar.gz" >> $GITHUB_ENV
@@ -149,7 +156,7 @@ jobs:
       ### ASan suppression file
       - name: Create ASan suppression file
         run: |
-          cat << EOF > /home/runner/work/asan.supp
+          cat << EOF > ${{env.ASAN_DIR}}/asan.supp
           leak:ompi_mpi_finalize
           leak:ompi_mpi_init
           leak:PMPI_Init
