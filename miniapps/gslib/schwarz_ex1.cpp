@@ -325,9 +325,6 @@ int main(int argc, char *argv[])
       }
    }
 
-   // Free the used memory.
-   finder1.FreeData();
-   finder2.FreeData();
    for (int i = 0; i < nmeshes; i++)
    {
       delete a_ar[i];
