@@ -317,7 +317,8 @@ public:
    template <typename U>
    inline void CopyFrom(const U *src)
    {
-      if (src == nullptr) { return; }
+      // [UndefinedBehaviorSanitizer-par] mpirun -np 2 psedov_tests_debug
+      if (begin() == nullptr || src == nullptr) { return; }
       std::memcpy(begin(), src, MemoryUsage());
    }
 
