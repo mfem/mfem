@@ -27,7 +27,7 @@
 //
 // Sample runs:
 //    mpirun -np 4 abs-l1-jacobi
-//    mpirun -np 4 abs-l1-jacobi -s 1 -i 2
+//    mpirun -np 4 abs-l1-jacobi -s 0 -i 0
 //    mpirun -np 4 abs-l1-jacobi -m ../meshing/icf.mesh -f 0.5
 //    mpirun -np 4 abs-l1-jacobi -rs 3 -rp 1
 //    mpirun -np 4 abs-l1-jacobi -t 1e-5 -ni 100
