@@ -283,8 +283,8 @@ jobs:
           target: opt
           mpi: ${{matrix.mpi}}
           build-system: make
-          hypre-dir: ${{env.HYPRE_TOP_DIR}}
-          metis-dir: ${{env.METIS_TOP_DIR}}
+          hypre-dir: ${{env.HYPRE_DIR}}
+          metis-dir: ${{env.METIS_DIR}}
           mfem-dir: mfem
           library-only: true  # false
           config-options: CXX=${{env.CXX}} MPICXX=${{env.MPICXX}} MFEM_USE_MEMALLOC=NO
