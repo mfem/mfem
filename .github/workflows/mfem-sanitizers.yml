@@ -266,7 +266,7 @@ jobs:
           archive: ${{env.METIS_TGZ}}
           dir: ${{env.METIS_DIR}}
 
-      ### MFEM 
+      ### MFEM
       - name: MFEM Checkout
         uses: actions/checkout@v4
         with:
@@ -286,7 +286,7 @@ jobs:
           hypre-dir: ${{env.HYPRE_DIR}}
           metis-dir: ${{env.METIS_DIR}}
           mfem-dir: mfem
-          library-only: true  # false
+          library-only: true
           config-options: CXX=${{env.CXX}} MPICXX=${{env.MPICXX}} MFEM_USE_MEMALLOC=NO
 
       - name: MFEM Info
@@ -297,13 +297,13 @@ jobs:
         working-directory: mfem
         run: make check
 
-      # - name: MFEM Examples  # ✅
-      #   working-directory: mfem/examples
-      #   run: make test
+      - name: MFEM Examples
+        working-directory: mfem/examples
+        run: make test
 
-      # - name: MFEM Miniapps  # ✅
-      #   working-directory: mfem
-      #   run: make test-miniapps
+      - name: MFEM Miniapps
+        working-directory: mfem
+        run: make test-miniapps
 
       - name: MFEM Unittest
         working-directory: mfem
