@@ -40,11 +40,15 @@ GPU computing
   conditions. A new function Vector::SetSubVectorHost has been added in cases
   where host execution is always needed (e.g. when the DOFs array is small).
 
-API changes:
+API changes
 -----------
 - mfem::internal::tensor and mfem::internal::dual have been moved to
   mfem::future::tensor and mfem::future::dual.
 
+Miscellaneous
+-------------
+
+- Added parallel Address Sanitizer (https://clang.llvm.org/docs/AddressSanitizer.html), serial and parallel Undefined Behavior Sanitizer (https://clang.llvm.org/docs/UndefinedBehaviorSanitizer.html) and serial Memory Sanitizer (https://clang.llvm.org/docs/MemorySanitizer.html) GitHub actions tests on Ubuntu.
 
 Version 4.8, released on Apr 9, 2025
 ====================================

@@ -1702,12 +1702,12 @@ std::array<DofToQuadMap, N> load_dtq_mem(
    std::array<DofToQuadMap, N> f;
    for (std::size_t i = 0; i < N; i++)
    {
-      const auto [nqp_b, dim_b, ndof_b] = dtq[i].B.GetShape();
-      const auto B = Reshape(&dtq[i].B[0], nqp_b, dim_b, ndof_b);
-      auto mem_Bi = Reshape(reinterpret_cast<real_t *>(mem) + offset, nqp_b, dim_b,
-                            ndof_b);
       if (dtq[i].which_input != -1)
       {
+         const auto [nqp_b, dim_b, ndof_b] = dtq[i].B.GetShape();
+         const auto B = Reshape(&dtq[i].B[0], nqp_b, dim_b, ndof_b);
+         auto mem_Bi = Reshape(reinterpret_cast<real_t *>(mem) + offset, nqp_b, dim_b,
+                               ndof_b);
          MFEM_FOREACH_THREAD(q, x, nqp_b)
          {
             MFEM_FOREACH_THREAD(d, y, ndof_b)
