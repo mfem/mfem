@@ -40,17 +40,17 @@ env:
   MSAN_OPTIONS: "poison_in_dtor=1"
   # LLVM libcxx build options       (https://github.com/llvm/llvm-project/releases?page=2)
   LLVM_DIR: ${GITHUB_WORKSPACE}/llvm-build
-  LLVM_INC: ${LLVM_DIR}/include/c++/v1
-  LLVM_LIB: ${LLVM_DIR}/lib
+  LLVM_INC: ${{env.LLVM_DIR}}/include/c++/v1
+  LLVM_LIB: ${{env.LLVM_DIR}}/lib
   LLVM_VER: 19.1.7 
   # HYPRE
   HYPRE_VER: 2.33.0
-  HYPRE_TGZ: v${HYPRE_VER}.tar.gz
-  HYPRE_DIR: hypre-${HYPRE_VER}
+  HYPRE_TGZ: v${{env.HYPRE_VER}}.tar.gz
+  HYPRE_DIR: hypre-${{env.HYPRE_VER}}
   # Metis
   METIS_VER: 4.0.3
-  METIS_TGZ: metis-${METIS_VER}.tar.gz
-  METIS_DIR: metis-${METIS_VER}
+  METIS_TGZ: metis-${{env.METIS_VER}}.tar.gz
+  METIS_DIR: metis-${{env.METIS_VER}}
 
 jobs:
   Sanitizers:
