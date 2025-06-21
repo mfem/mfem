@@ -85,10 +85,18 @@ jobs:
           echo "CXX=c++" >> $GITHUB_ENV
           echo "MPICXX=c++" >> $GITHUB_ENV
 
+      - name: Echo GITHUB_ENV (Compilers)
+        run: |
+          echo "[CC] ${{env.CC}} -v"
+          ${{env.CC}} -v
+          echo "[CXX] ${{env.CXX}} -v"
+          ${{env.CXX}} -v
+          echo "[MPICXX] ${{env.MPICXX}} -v"
+          ${{env.MPICXX}} -v
+
       - name: Setup GITHUB_ENV (Directories)
         run: |
           echo "ASAN_DIR=${GITHUB_WORKSPACE}/asan" >> $GITHUB_ENV
-          mkdir -p ${{env.ASAN_DIR}}
           echo "LLVM_DIR=${GITHUB_WORKSPACE}/llvm" >> $GITHUB_ENV
 
       - name: Setup GITHUB_ENV (LLVM, HYPRE, METIS)
@@ -100,14 +108,8 @@ jobs:
           echo "METIS_TGZ=metis-${{env.METIS_VER}}.tar.gz" >> $GITHUB_ENV
           echo "METIS_DIR=metis-${{env.METIS_VER}}" >> $GITHUB_ENV
 
-      - name: Echo GITHUB_ENV
+      - name: Echo GITHUB_ENV (LLVM, HYPRE, METIS)
         run: |
-          echo "[CC] ${{env.CC}} -v"
-          ${{env.CC}} -v
-          echo "[CXX] ${{env.CXX}} -v"
-          ${{env.CXX}} -v
-          echo "[MPICXX] ${{env.MPICXX}} -v"
-          ${{env.MPICXX}} -v
           echo "[LLVM_DIR] ${{env.LLVM_DIR}}"
           echo "[LLVM_INC] ${{env.LLVM_INC}}"
           echo "[LLVM_LIB] ${{env.LLVM_LIB}}"
@@ -157,6 +159,7 @@ jobs:
       ### ASan suppression file
       - name: Create ASan suppression file
         run: |
+          mkdir -p ${{env.ASAN_DIR}}
           cat << EOF > ${{env.ASAN_DIR}}/asan.supp
           leak:ompi_mpi_finalize
           leak:ompi_mpi_init
