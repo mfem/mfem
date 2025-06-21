@@ -84,7 +84,7 @@ jobs:
           echo "CC=cc" >> $GITHUB_ENV
           echo "CXX=c++" >> $GITHUB_ENV
           echo "MPICXX=c++" >> $GITHUB_ENV
-          echo "LLVM_DIR=${GITHUB_WORKSPACE}/llvm-build" >> $GITHUB_ENV
+          echo "LLVM_DIR=${{env.GITHUB_WORKSPACE}}/llvm-build" >> $GITHUB_ENV
           echo "LLVM_INC=${{env.LLVM_DIR}/include/c++/v1" >> $GITHUB_ENV
           echo "LLVM_LIB=${{env.LLVM_DIR}/lib" >> $GITHUB_ENV
           echo "HYPRE_TGZ=v${{env.HYPRE_VER}}.tar.gz" >> $GITHUB_ENV
