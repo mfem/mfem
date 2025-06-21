@@ -27,30 +27,21 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  # AddressSanitizer                (https://clang.llvm.org/docs/AddressSanitizer.html)
+  # AddressSanitizer (https://clang.llvm.org/docs/AddressSanitizer.html)
   ASAN_OPTIONS: "detect_leaks=1,
                  strict_init_order=1,
                  strict_string_checks=1,
                  check_initialization_order=1,
                  detect_stack_use_after_return=1"
   LSAN_OPTIONS: "suppressions=/home/runner/work/asan.supp"
-  # UndefinedBehaviorSanitizer      (https://clang.llvm.org/docs/UndefinedBehaviorSanitizer.html)
+  # UndefinedBehaviorSanitizer (https://clang.llvm.org/docs/UndefinedBehaviorSanitizer.html)
   UBSAN_OPTIONS: "halt_on_error=1, print_stacktrace=1"
-  # MemorySanitizer                 (https://clang.llvm.org/docs/MemorySanitizer.html)
+  # MemorySanitizer (https://clang.llvm.org/docs/MemorySanitizer.html)
   MSAN_OPTIONS: "poison_in_dtor=1"
-  # LLVM libcxx build options       (https://github.com/llvm/llvm-project/releases?page=2)
-  LLVM_DIR: /home/runner/work/llvm-build
-  LLVM_INC: ${LLVM_DIR}/include/c++/v1
-  LLVM_LIB: ${LLVM_DIR}/lib
-  LLVM_VER: 19.1.7 
-  # HYPRE
+  # LLVM libcxx (https://github.com/llvm/llvm-project/releases?page=2)
+  LLVM_VER: 19.1.7
   HYPRE_VER: 2.33.0
-  HYPRE_TGZ: v${HYPRE_VER}.tar.gz
-  HYPRE_DIR: hypre-${HYPRE_VER}
-  # Metis
   METIS_VER: 4.0.3
-  METIS_TGZ: metis-${METIS_VER}.tar.gz
-  METIS_DIR: metis-${METIS_VER}
 
 jobs:
   Sanitizers:
@@ -87,8 +78,44 @@ jobs:
     name: "${{matrix.sanitizer}}-${{matrix.mpi}}"
 
     steps:
+      ### GITHUB_ENV
+      - name: Setup GITHUB_ENV
+        run: |
+          echo "CC=cc" >> $GITHUB_ENV
+          echo "CXX=c++" >> $GITHUB_ENV
+          echo "MPICXX=c++" >> $GITHUB_ENV
+          echo "LLVM_DIR=${GITHUB_WORKSPACE}/llvm-build" >> $GITHUB_ENV
+          echo "LLVM_INC=${{env.LLVM_DIR}/include/c++/v1" >> $GITHUB_ENV
+          echo "LLVM_LIB=${{env.LLVM_DIR}/lib" >> $GITHUB_ENV
+          echo "HYPRE_TGZ=v${{env.HYPRE_VER}}.tar.gz" >> $GITHUB_ENV
+          echo "HYPRE_DIR=hypre-${{env.HYPRE_VER}}" >> $GITHUB_ENV
+          echo "METIS_TGZ=metis-${{env.METIS_VER}}.tar.gz" >> $GITHUB_ENV
+          echo "METIS_DIR=metis-${{env.METIS_VER}}" >> $GITHUB_ENV
 
-      ### MPI Setup
+      - name: Echo GITHUB_ENV
+        run: |
+          echo "[CC] ${{env.CC}} -v"
+          ${{env.CC}} -v
+          echo "[CXX] ${{env.CXX}} -v"
+          ${{env.CXX}} -v
+          echo "[MPICXX] ${{env.MPICXX}} -v"
+          ${{env.MPICXX}} -v
+          echo "[LLVM_DIR] ${{env.LLVM_DIR}}"
+          echo "[LLVM_INC] ${{env.LLVM_INC}}"
+          echo "[LLVM_LIB] ${{env.LLVM_LIB}}"
+          echo "[HYPRE_TGZ] ${{env.HYPRE_TGZ}}"
+          echo "[HYPRE_DIR] ${{env.HYPRE_DIR}}"
+          echo "[METIS_TGZ] ${{env.METIS_TGZ}}"
+          echo "[METIS_DIR] ${{env.METIS_DIR}}"
+
+      ### Clang
+      - name: Setup Clang
+        uses: egor-tensin/setup-clang@v1
+        with:
+          version: latest
+          platform: x64
+
+      ### MPI
       - name: Setup MPI
         if: matrix.mpi == 'par'
         run: |
@@ -119,7 +146,7 @@ jobs:
           echo "> mpicxx --showme:version"
           mpicxx --showme:version
 
-      ### Create ASan suppression file
+      ### ASan suppression file
       - name: Create ASan suppression file
         run: |
           cat << EOF > /home/runner/work/asan.supp
@@ -130,32 +157,7 @@ jobs:
           leak:strdup
           EOF
 
-      ### Clang Setup
-      - name: Setup Clang
-        uses: egor-tensin/setup-clang@v1
-        with:
-          version: latest
-          platform: x64
-
-      - name: Setup Clang Environment
-        run: |
-          echo "CC=cc" >> $GITHUB_ENV
-          echo "CXX=c++" >> $GITHUB_ENV
-          echo "MPICXX=c++" >> $GITHUB_ENV
-
-      - name: Echo Environment
-        run: |
-          echo "[CC] ${{env.CC}} -v"
-          ${{env.CC}} -v
-          echo "[CXX] ${{env.CXX}} -v"
-          ${{env.CXX}} -v
-          echo "[MPICXX] ${{env.MPICXX}} -v"
-          ${{env.MPICXX}} -v
-          echo "[LLVM_CXXFLAGS] ${{env.LLVM_CXXFLAGS}}"
-          echo "[LLVM_LDFLAGS] ${{env.LLVM_LDFLAGS}}"
-
-      ### LLVM libcxx Build Steps
-      ### https://github.com/llvm/llvm-project/tree/main/libcxx
+      ### LLVM libcxx (https://github.com/llvm/llvm-project/tree/main/libcxx)
       - name: LLVM Cache
         if: matrix.sanitizer != 'AddressSanitizer'
         id: llvm-cache
@@ -206,13 +208,19 @@ jobs:
         working-directory: llvm-build
         run: cmake --build . -- cxx cxxabi
 
-      - name: Setup LLVM Environment
+      - name: Setup LLVM GITHUB_ENV
         if: matrix.sanitizer != 'AddressSanitizer'
         run: |
           echo "LLVM_CXXFLAGS=-stdlib=libc++ -I${{env.LLVM_INC}} -Isystem${{env.LLVM_INC}}" >> $GITHUB_ENV
           echo "LLVM_LDFLAGS=-L${{env.LLVM_LIB}} -lc++abi -Wl,-rpath,${{env.LLVM_LIB}}" >> $GITHUB_ENV
 
-        ### HYPRE Build Steps
+      - name: Echo LLVM GITHUB_ENV
+        if: matrix.sanitizer != 'AddressSanitizer'
+        run: |
+          echo "[LLVM_CXXFLAGS] ${{env.LLVM_CXXFLAGS}}"
+          echo "[LLVM_LDFLAGS] ${{env.LLVM_LDFLAGS}}"
+
+      ### HYPRE
       - name: HYPRE Cache
         id: hypre-cache
         if: matrix.mpi == 'par'
@@ -231,7 +239,7 @@ jobs:
           precision: fp64
           build-system: make
 
-        ### METIS Build Steps
+      ### METIS
       - name: METIS Cache
         id: metis-cache
         if: matrix.mpi == 'par'
@@ -247,7 +255,7 @@ jobs:
           archive: ${{env.METIS_TGZ}}
           dir: ${{env.METIS_DIR}}
 
-      ### MFEM Build and Test Steps
+      ### MFEM 
       - name: MFEM Checkout
         uses: actions/checkout@v4
         with:
