@@ -33,7 +33,6 @@ env:
                  strict_string_checks=1,
                  check_initialization_order=1,
                  detect_stack_use_after_return=1"
-  LSAN_OPTIONS: "suppressions=/home/runner/work/asan.supp"
   # UndefinedBehaviorSanitizer (https://clang.llvm.org/docs/UndefinedBehaviorSanitizer.html)
   UBSAN_OPTIONS: "halt_on_error=1, print_stacktrace=1"
   # MemorySanitizer (https://clang.llvm.org/docs/MemorySanitizer.html)
@@ -79,13 +78,13 @@ jobs:
 
     steps:
       ### GITHUB_ENV
-      - name: Setup GITHUB_ENV (Compilers)
+      - name: GITHUB_ENV Setup (Compilers)
         run: |
           echo "CC=cc" >> $GITHUB_ENV
           echo "CXX=c++" >> $GITHUB_ENV
           echo "MPICXX=c++" >> $GITHUB_ENV
 
-      - name: Echo GITHUB_ENV (Compilers)
+      - name: GITHUB_ENV Echo (Compilers)
         run: |
           echo "[CC] ${{env.CC}} -v"
           ${{env.CC}} -v
@@ -94,12 +93,12 @@ jobs:
           echo "[MPICXX] ${{env.MPICXX}} -v"
           ${{env.MPICXX}} -v
 
-      - name: Setup GITHUB_ENV (Directories)
+      - name: GITHUB_ENV Setup (Directories)
         run: |
           echo "ASAN_DIR=${GITHUB_WORKSPACE}/asan" >> $GITHUB_ENV
           echo "LLVM_DIR=${GITHUB_WORKSPACE}/llvm" >> $GITHUB_ENV
 
-      - name: Setup GITHUB_ENV (LLVM, HYPRE, METIS)
+      - name: GITHUB_ENV Setup (LLVM, HYPRE, METIS)
         run: |
           echo "LLVM_INC=${LLVM_DIR}/include/c++/v1" >> $GITHUB_ENV
           echo "LLVM_LIB=${LLVM_DIR}/lib" >> $GITHUB_ENV
@@ -108,7 +107,7 @@ jobs:
           echo "METIS_TGZ=metis-${{env.METIS_VER}}.tar.gz" >> $GITHUB_ENV
           echo "METIS_DIR=metis-${{env.METIS_VER}}" >> $GITHUB_ENV
 
-      - name: Echo GITHUB_ENV (LLVM, HYPRE, METIS)
+      - name: GITHUB_ENV Echo (LLVM, HYPRE, METIS)
         run: |
           echo "[LLVM_DIR] ${{env.LLVM_DIR}}"
           echo "[LLVM_INC] ${{env.LLVM_INC}}"
@@ -119,20 +118,20 @@ jobs:
           echo "[METIS_DIR] ${{env.METIS_DIR}}"
 
       ### Clang
-      - name: Setup Clang
+      - name: Clang Setup
         uses: egor-tensin/setup-clang@v1
         with:
           version: latest
           platform: x64
 
       ### MPI
-      - name: Setup MPI
+      - name: MPI Setup
         if: matrix.mpi == 'par'
         run: |
           sudo apt-get install openmpi-bin libopenmpi-dev
           export OMPI_MCA_rmaps_base_oversubscribe=1
 
-      - name: Showme MPI
+      - name: MPI Showme
         if: matrix.mpi == 'par'
         run: |
           echo "MPI_INC=$(mpicxx --showme:compile)" >> $GITHUB_ENV
@@ -156,10 +155,11 @@ jobs:
           echo "> mpicxx --showme:version"
           mpicxx --showme:version
 
-      ### ASan suppression file
-      - name: Create ASan suppression file
+      ### LSAN_OPTIONS & ASan suppression file
+      - name: ASAN Setup
         run: |
           mkdir -p ${{env.ASAN_DIR}}
+          echo LSAN_OPTIONS="suppressions=${{env.ASAN_DIR}}/asan.supp" >> $GITHUB_ENV
           cat << EOF > ${{env.ASAN_DIR}}/asan.supp
           leak:ompi_mpi_finalize
           leak:ompi_mpi_init
@@ -175,7 +175,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{env.LLVM_DIR}}
-          key: Linux-llvm-build-${{env.LLVM_VER}}-${{matrix.llvm_sanitizer}}
+          key: Linux-llvm-${{env.LLVM_VER}}-${{matrix.llvm_sanitizer}}
 
       - name: LLVM Clone
         if: matrix.sanitizer != 'AddressSanitizer' && steps.llvm-cache.outputs.cache-hit != 'true'
@@ -194,11 +194,11 @@ jobs:
 
       - name: LLVM Mkdir
         if: matrix.sanitizer != 'AddressSanitizer' && steps.llvm-cache.outputs.cache-hit != 'true'
-        run: mkdir llvm-build
+        run: mkdir ${{env.LLVM_DIR}}
 
       - name: LLVM Configure
         if: matrix.sanitizer != 'AddressSanitizer' && steps.llvm-cache.outputs.cache-hit != 'true'
-        working-directory: llvm-build
+        working-directory: ${{env.LLVM_DIR}}
         run: >
           VERBOSE=1
           cmake -GNinja ../llvm-project/runtimes/
@@ -216,7 +216,7 @@ jobs:
 
       - name: LLVM CMake
         if: matrix.sanitizer != 'AddressSanitizer' && steps.llvm-cache.outputs.cache-hit != 'true'
-        working-directory: llvm-build
+        working-directory: ${{env.LLVM_DIR}}
         run: cmake --build . -- cxx cxxabi
 
       - name: Setup LLVM GITHUB_ENV
@@ -238,7 +238,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{env.HYPRE_DIR}}
-          key: Linux-ompi-build-${{env.HYPRE_DIR}}-v2.5
+          key: Linux-${{env.HYPRE_DIR}}-v2.5
 
       - name: HYPRE Build
         if: matrix.mpi == 'par' && steps.hypre-cache.outputs.cache-hit != 'true'
@@ -257,7 +257,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{env.METIS_DIR}}
-          key: Linux-build-${{env.METIS_DIR}}-v2.5
+          key: Linux-${{env.METIS_DIR}}-v2.5
 
       - name: METIS Build
         if: matrix.mpi == 'par' && steps.metis-cache.outputs.cache-hit != 'true'
