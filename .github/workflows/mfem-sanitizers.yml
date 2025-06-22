@@ -287,8 +287,8 @@ jobs:
         uses: mfem/github-actions/build-mfem@v2.5
         env:
           MPICXX: c++
-          CXXFLAGS: "-g -O1 -std=c++17 ${{matrix.cxxflags}} ${{env.LLVM_CXXFLAGS}} ${{env.MPI_INC}} ${{env.MPI_LIB}} ${{env.LLVM_LDFLAGS}} -Wno-unused-command-line-argument"
-          LDFLAGS: "${{matrix.ldflags}}"  # LLVM_LDFLAGS & MPI_LIB, but get_hypre_version needs -lc++ path and ldflags
+          CXXFLAGS: "-g -O1 -std=c++17 ${{matrix.cxxflags}} ${{env.LLVM_CXXFLAGS}} ${{env.MPI_INC}} ${{env.MPI_LIB}}
+          LDFLAGS: "${{matrix.ldflags}} ${{env.LLVM_LDFLAGS}}"
         with:
           os: ${{runner.os}}
           target: opt
@@ -308,30 +308,26 @@ jobs:
             -DMFEM_PRECISION=double
             -DCMAKE_C_COMPILER=${{env.CC}}
             -DCMAKE_CXX_COMPILER=${{env.CXX}}
-            -DCMAKE_CXX_FLAGS='${{env.CXXFLAGS}}'
-            -DCMAKE_EXE_LINKER_FLAGS='${{env.LDFLAGS}}'
+            -DCMAKE_CXX_FLAGS_RELWITHDEBINFO='${{env.CXXFLAGS}}'
+            -DCMAKE_EXE_LINKER_FLAGS_RELWITHDEBINFO='${{env.LDFLAGS}}'
             -DMFEM_USE_MEMALLOC=OFF
             -DMFEM_ENABLE_TESTING=ON
             -DMFEM_ENABLE_EXAMPLES=OFF
             -DMFEM_ENABLE_MINIAPPS=OFF
             -DMFEM_ENABLE_BENCHMARKS=OFF
 
-      - name: MFEM Info
-        working-directory: mfem
-        run: make info
-
       - name: MFEM Check
-        working-directory: mfem
-        run: make check
+        working-directory: mfem/build
+        run: ninja ex1p && ninja check
 
       - name: MFEM Examples
-        working-directory: mfem/examples
-        run: make test
+        working-directory: mfem/build
+        run: ninja examples/test 
 
       - name: MFEM Miniapps
-        working-directory: mfem
-        run: make test-miniapps
+        working-directory: mfem/build
+        run: ninja miniapps/test 
 
       - name: MFEM Unittest
-        working-directory: mfem
-        run: make unittest
+        working-directory: mfem/build
+        run: ninja test
