@@ -303,13 +303,13 @@ jobs:
           config-options: >-
             -GNinja
             -DCMAKE_VERBOSE_MAKEFILE=ON
-            -DCMAKE_BUILD_TYPE=RelWithDebInfo
-            -DCMAKE_CXX_STANDARD=17
-            -DMFEM_PRECISION=double
+            -DCMAKE_BUILD_TYPE=Release
             -DCMAKE_C_COMPILER=${{env.CC}}
             -DCMAKE_CXX_COMPILER=${{env.CXX}}
-            -DCMAKE_CXX_FLAGS_RELWITHDEBINFO='${{env.CXXFLAGS}}'
-            -DCMAKE_EXE_LINKER_FLAGS_RELWITHDEBINFO='${{env.LDFLAGS}}'
+            -DCMAKE_CXX_FLAGS_RELEASE='${{env.CXXFLAGS}}'
+            -DCMAKE_EXE_LINKER_FLAGS_RELEASE='${{env.LDFLAGS}}'
+            -DCMAKE_CXX_STANDARD=17
+            -DMFEM_PRECISION=double
             -DMFEM_USE_MEMALLOC=OFF
             -DMFEM_ENABLE_TESTING=ON
             -DMFEM_ENABLE_EXAMPLES=OFF
