@@ -267,8 +267,8 @@ jobs:
         uses: mfem/github-actions/build-mfem@v2.5
         env:
           MPICXX: c++
-          CXXFLAGS: ${{matrix.cxxflags}} ${{env.LLVM_CXXFLAGS}} ${{env.MPI_INC}} ${{env.MPI_LIB}}
-          LDFLAGS: ${{matrix.ldflags}} ${{env.LLVM_LDFLAGS}}
+          CXXFLAGS: ${{matrix.cxxflags}} ${{env.LLVM_CXXFLAGS}} ${{env.MPI_INC}}
+          LDFLAGS: ${{matrix.ldflags}} ${{env.LLVM_LDFLAGS}} ${{env.MPI_LIB}}
         with:
           os: ${{runner.os}}
           target: opt
@@ -298,6 +298,10 @@ jobs:
         working-directory: mfem/build
         run: ninja check
 
+      - name: MFEM Tests
+        working-directory: mfem/build
+        run: ninja tests/unit/all && ninja tests/unit/test
+
       - name: MFEM Examples
         working-directory: mfem/build
         run: ninja examples && ninja examples/test
@@ -305,7 +309,3 @@ jobs:
       - name: MFEM Miniapps
         working-directory: mfem/build
         run: ninja miniapps && ninja miniapps/test
-
-      - name: MFEM Unittest
-        working-directory: mfem/build
-        run: ninja tests/unit/all && ninja tests/unit/test
