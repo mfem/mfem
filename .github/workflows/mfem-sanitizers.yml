@@ -42,34 +42,26 @@ env:
 
 jobs:
   Sanitizers:
-    # Ubuntu 24.04 (https://github.com/actions/runner-images/blob/main/images/ubuntu/Ubuntu2404-Readme.md)
     runs-on: ubuntu-latest
     strategy:
-      # Avoid canceling all in-progress and queued jobs in the matrix if any one fails
       fail-fast: false
       matrix:
-        sanitizer: [AddressSanitizer, UndefinedBehaviorSanitizer, MemorySanitizer]
+        sanitizer: [Address, Memory, UndefinedBehavior]
         mpi: [seq, par]
         exclude:
-          # Avoid running MemorySanitizer with MPI
-          - sanitizer: MemorySanitizer
+          - sanitizer: Memory  # Avoid running MemorySanitizer with MPI
             mpi: par
         include:
-          # AddressSanitizer
-          - sanitizer: AddressSanitizer
-            cxxflags: "-fsanitize=address -fno-omit-frame-pointer
-                       -fsanitize-address-use-after-scope"
+          - sanitizer: Address
+            cxxflags: "-fsanitize=address -fsanitize-address-use-after-scope"
             ldflags: "-fsanitize=address"
             llvm_sanitizer: "Address"
-          # UndefinedBehaviorSanitizer
-          - sanitizer: UndefinedBehaviorSanitizer
-            cxxflags: "-fsanitize=undefined -fno-omit-frame-pointer"
+          - sanitizer: UndefinedBehavior
+            cxxflags: "-fsanitize=undefined"
             ldflags: "-fsanitize=undefined"
             llvm_sanitizer: "Undefined"
-          # MemorySanitizer
-          - sanitizer: MemorySanitizer
-            cxxflags: "-fsanitize=memory -fno-omit-frame-pointer
-                       -fsanitize-memory-track-origins -fsanitize-memory-use-after-dtor"
+          - sanitizer: Memory
+            cxxflags: "-fsanitize=memory -fsanitize-memory-track-origins -fsanitize-memory-use-after-dtor"
             ldflags: "-fsanitize=memory"
             llvm_sanitizer: "MemoryWithOrigins"
 
@@ -156,7 +148,7 @@ jobs:
 
       ### LLVM libcxx (https://github.com/llvm/llvm-project/tree/main/libcxx)
       - name: LLVM Cache
-        if: matrix.sanitizer != 'AddressSanitizer'
+        if: matrix.sanitizer != 'Address'
         id: llvm-cache
         uses: actions/cache@v4
         with:
@@ -164,14 +156,14 @@ jobs:
           key: Linux-llvm-${{env.LLVM_VER}}-${{matrix.llvm_sanitizer}}
 
       - name: LLVM Clone
-        if: matrix.sanitizer != 'AddressSanitizer' && steps.llvm-cache.outputs.cache-hit != 'true'
+        if: matrix.sanitizer != 'Address' && steps.llvm-cache.outputs.cache-hit != 'true'
         run: >
           git clone --filter=blob:none --depth=1
           --branch llvmorg-${{env.LLVM_VER}}
           --no-checkout https://github.com/llvm/llvm-project.git llvm-project
 
       - name: LLVM Checkout
-        if: matrix.sanitizer != 'AddressSanitizer' && steps.llvm-cache.outputs.cache-hit != 'true'
+        if: matrix.sanitizer != 'Address' && steps.llvm-cache.outputs.cache-hit != 'true'
         working-directory: llvm-project
         run: |
           git sparse-checkout set --cone
@@ -179,11 +171,11 @@ jobs:
           git sparse-checkout set cmake llvm/cmake runtimes libcxx libcxxabi
 
       - name: LLVM Mkdir
-        if: matrix.sanitizer != 'AddressSanitizer' && steps.llvm-cache.outputs.cache-hit != 'true'
+        if: matrix.sanitizer != 'Address' && steps.llvm-cache.outputs.cache-hit != 'true'
         run: mkdir ${{env.LLVM_DIR}}
 
       - name: LLVM Configure
-        if: matrix.sanitizer != 'AddressSanitizer' && steps.llvm-cache.outputs.cache-hit != 'true'
+        if: matrix.sanitizer != 'Address' && steps.llvm-cache.outputs.cache-hit != 'true'
         working-directory: ${{env.LLVM_DIR}}
         run: >
           VERBOSE=1
@@ -201,18 +193,18 @@ jobs:
           -DLLVM_ENABLE_RUNTIMES='libcxx;libcxxabi'
 
       - name: LLVM CMake
-        if: matrix.sanitizer != 'AddressSanitizer' && steps.llvm-cache.outputs.cache-hit != 'true'
+        if: matrix.sanitizer != 'Address' && steps.llvm-cache.outputs.cache-hit != 'true'
         working-directory: ${{env.LLVM_DIR}}
         run: cmake --build . -- cxx cxxabi
 
       - name: GITHUB_ENV Setup (LLVM)
-        if: matrix.sanitizer != 'AddressSanitizer'
+        if: matrix.sanitizer != 'Address'
         run: |
           echo "LLVM_CXXFLAGS=-stdlib=libc++ -I${{env.LLVM_INC}} -Isystem${{env.LLVM_INC}}" >> $GITHUB_ENV
           echo "LLVM_LDFLAGS=-L${{env.LLVM_LIB}} -lc++abi -Wl,-rpath,${{env.LLVM_LIB}}" >> $GITHUB_ENV
 
       - name: GITHUB_ENV Echo (LLVM)
-        if: matrix.sanitizer != 'AddressSanitizer'
+        if: matrix.sanitizer != 'Address'
         run: |
           echo "[LLVM_CXXFLAGS] ${{env.LLVM_CXXFLAGS}}"
           echo "[LLVM_LDFLAGS] ${{env.LLVM_LDFLAGS}}"
@@ -276,18 +268,12 @@ jobs:
           library-only: true
           config-options: >-
             -GNinja
-            -DCMAKE_VERBOSE_MAKEFILE=ON
             -DCMAKE_BUILD_TYPE=Release
-            -DCMAKE_C_COMPILER=${{env.CC}}
+            -DCMAKE_VERBOSE_MAKEFILE=ON
             -DCMAKE_CXX_COMPILER=${{env.CXX}}
-            -DCMAKE_CXX_FLAGS_RELEASE='-g -O1'
+            -DCMAKE_CXX_FLAGS_RELEASE='-g -O2 -fno-omit-frame-pointer'
             -DCMAKE_CXX_STANDARD=17
-            -DMFEM_PRECISION=double
             -DMFEM_USE_MEMALLOC=OFF
-            -DMFEM_ENABLE_TESTING=ON
-            -DMFEM_ENABLE_EXAMPLES=OFF
-            -DMFEM_ENABLE_MINIAPPS=OFF
-            -DMFEM_ENABLE_BENCHMARKS=OFF
 
       - name: MFEM Check
         working-directory: mfem/build
@@ -295,12 +281,12 @@ jobs:
 
       - name: MFEM Tests
         working-directory: mfem/build
-        run: ninja -v -j 3 tests/unit/all && ninja tests/unit/test
+        run: ninja -v tests/unit/all && ninja tests/unit/test
 
       - name: MFEM Examples
         working-directory: mfem/build
-        run: ninja -v -j 3 examples && ninja examples/test
+        run: ninja -v examples && ninja examples/test
 
       - name: MFEM Miniapps
         working-directory: mfem/build
-        run: ninja -v -j 3 miniapps && ninja miniapps/test
+        run: ninja -v miniapps && ninja miniapps/test

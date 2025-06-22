@@ -41,7 +41,9 @@ Mesh MakeCartesianMesh(int nx, int dim)
 // Check basic functioning of variable order spaces, hp interpolation and
 // some corner cases.
 TEST_CASE("Variable Order FiniteElementSpace",
-          "[FiniteElementCollection][FiniteElementSpace][NCMesh]")
+          "[FiniteElementCollection]"
+          "[FiniteElementSpace]"
+          "[NCMesh]")
 {
    SECTION("Quad mesh")
    {
@@ -343,7 +345,9 @@ TEST_CASE("Variable Order FiniteElementSpace",
 
 #ifdef MFEM_USE_MPI
 TEST_CASE("Parallel Variable Order FiniteElementSpace",
-          "[FiniteElementCollection][FiniteElementSpace][NCMesh][Parallel]")
+          "[FiniteElementCollection]"
+          "[FiniteElementSpace]"
+          "[NCMesh][Parallel]")
 {
    SECTION("Quad mesh")
    {
@@ -576,7 +580,9 @@ TEST_CASE("Parallel Variable Order FiniteElementSpace",
 }
 
 TEST_CASE("Serial-parallel Comparison for Variable Order FiniteElementSpace",
-          "[FiniteElementCollection][FiniteElementSpace][NCMesh][Parallel]")
+          "[FiniteElementCollection]"
+          "[FiniteElementSpace]"
+          "[NCMesh][Parallel]")
 {
 
    int dimension = GENERATE(2, 3);
