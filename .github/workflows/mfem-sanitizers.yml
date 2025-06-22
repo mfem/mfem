@@ -299,12 +299,13 @@ jobs:
           mfem-dir: mfem
           precision: fp64
           library-only: true
-          config-options: >
+          # config-options: CXX=${{env.CXX}} MPICXX=${{env.MPICXX}} MFEM_USE_MEMALLOC=NO  # make
+          config-options: >-
             -GNinja
             -DCMAKE_VERBOSE_MAKEFILE=ON
+            -DCMAKE_BUILD_TYPE=RelWithDebInfo
             -DCMAKE_CXX_STANDARD=17
             -DMFEM_PRECISION=double
-            -DCMAKE_BUILD_TYPE=RelWithDebInfo
             -DCMAKE_C_COMPILER=${{env.CC}}
             -DCMAKE_CXX_COMPILER=${{env.CXX}}
             -DCMAKE_CXX_FLAGS='${{env.CXXFLAGS}}'
@@ -314,7 +315,6 @@ jobs:
             -DMFEM_ENABLE_EXAMPLES=OFF
             -DMFEM_ENABLE_MINIAPPS=OFF
             -DMFEM_ENABLE_BENCHMARKS=OFF
-          # config-options: CXX=${{env.CXX}} MPICXX=${{env.MPICXX}} MFEM_USE_MEMALLOC=NO  # make
 
       - name: MFEM Info
         working-directory: mfem
