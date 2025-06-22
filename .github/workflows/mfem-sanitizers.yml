@@ -25,6 +25,11 @@ concurrency:
   cancel-in-progress: true
 
 env:
+  # Versions
+  CLANG_VER: 18
+  LLVM_VER: 19.1.7    # LLVM libcxx (https://github.com/llvm/llvm-project/releases?page=2)
+  HYPRE_VER: 2.19.0   # 2.33.0
+  METIS_VER: 4.0.3
   # AddressSanitizer (https://clang.llvm.org/docs/AddressSanitizer.html)
   ASAN_OPTIONS: "detect_leaks=1,
                  strict_init_order=1,
@@ -34,11 +39,7 @@ env:
   # UndefinedBehaviorSanitizer (https://clang.llvm.org/docs/UndefinedBehaviorSanitizer.html)
   UBSAN_OPTIONS: "halt_on_error=1, print_stacktrace=1"
   # MemorySanitizer (https://clang.llvm.org/docs/MemorySanitizer.html)
-  MSAN_OPTIONS: "poison_in_dtor=1"
-  # LLVM libcxx (https://github.com/llvm/llvm-project/releases?page=2)
-  LLVM_VER: 19.1.7
-  HYPRE_VER: 2.19.0  # 2.33.0
-  METIS_VER: 4.0.3
+  MSAN_OPTIONS: "poison_in_dtor=1"  
 
 jobs:
   Sanitizers:
@@ -46,7 +47,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       # Avoid canceling all in-progress and queued jobs in the matrix if any one fails
-      fail-fast: true  # false
+      fail-fast: false
       matrix:
         sanitizer: [AddressSanitizer, UndefinedBehaviorSanitizer, MemorySanitizer]
         mpi: [seq, par]
@@ -77,11 +78,11 @@ jobs:
 
     steps:
       ### GITHUB_ENV
-      - name: GITHUB_ENV Setup (Compilers)
+      - name: GITHUB_ENV Setup (Clang)
         run: |
-          echo "CC=cc" >> $GITHUB_ENV
-          echo "CXX=c++" >> $GITHUB_ENV
-          echo "MPICXX=c++" >> $GITHUB_ENV
+          echo "CC=clang-${{env.CLANG_VER}}" >> $GITHUB_ENV
+          echo "CXX=clang++-${{env.CLANG_VER}}" >> $GITHUB_ENV
+          echo "MPICXX=clang++-${{env.CLANG_VER}}" >> $GITHUB_ENV
 
       - name: GITHUB_ENV Setup (Directories)
         run: |
@@ -108,22 +109,22 @@ jobs:
           echo "[METIS_DIR] ${{env.METIS_DIR}}"
 
       ### Clang
-      - name: Clang Local
-        run: |
-          echo "\x1b[33mls -la /usr/local\x1b[m"
-          ls -la /usr/local
-          echo "ls -la /usr/local/bin"
-          ls -la /usr/local/bin
-          echo "which clang++"
-          which clang++
-          echo "ls -la /usr/bin"
-          ls -la /usr/bin
+      # - name: Clang Local
+      #   run: |
+      #     echo "\x1b[33mls -la /usr/local\x1b[m"
+      #     ls -la /usr/local
+      #     echo "ls -la /usr/local/bin"
+      #     ls -la /usr/local/bin
+      #     echo "which clang++"
+      #     which clang++
+      #     echo "ls -la /usr/bin"
+      #     ls -la /usr/bin
 
-      - name: Clang Setup
-        uses: egor-tensin/setup-clang@v1
-        with:
-          version: latest
-          platform: x64
+      # - name: Clang Setup
+      #   uses: egor-tensin/setup-clang@v1
+      #   with:
+      #     version: latest
+      #     platform: x64
 
       - name: GITHUB_ENV Echo (Compilers)
         run: |
