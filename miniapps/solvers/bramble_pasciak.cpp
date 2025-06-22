@@ -13,10 +13,9 @@
 
 using namespace std;
 
-namespace mfem
+namespace mfem::blocksolvers
 {
-namespace blocksolvers
-{
+
 /// Bramble-Pasciak Solver
 BramblePasciakSolver::BramblePasciakSolver(ParBilinearForm &mVarf,
                                            ParMixedBilinearForm &bVarf,
@@ -32,7 +31,7 @@ BramblePasciakSolver::BramblePasciakSolver(ParBilinearForm &mVarf,
    M_->GetDiag(diagM);
    std::unique_ptr<HypreParMatrix> invDBt(B_->Transpose());
    invDBt->InvScaleRows(diagM);
-   S_.reset(ParMult(B_.get(), invDBt.get()));
+   S_.reset(ParMult(B_.get(), invDBt.get(), true));
    M0_.Reset(new HypreDiagScale(*M_));
    M1_.Reset(new HypreBoomerAMG(*S_));
    M1_.As<HypreBoomerAMG>()->SetPrintLevel(0);
@@ -393,5 +392,5 @@ void BPCGSolver::Mult(const Vector &b, Vector &x) const
    final_norm = sqrt(delta);
    Monitor(final_iter, final_norm, r, x, true);
 }
-} // namespace blocksolvers
-} // namespace mfem
+
+} // namespace mfem::blocksolvers

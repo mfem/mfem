@@ -153,17 +153,10 @@ void DFSSpaces::CollectDFSData()
                    ParFiniteElementSpace& fes, const bool remove_zero)
    {
       fes.Update();
-
-      auto P_hdl = new OperatorHandle(Operator::Hypre_ParCSR);
-      // OperatorHandle P_hdl(P.get(), true);
-      fes.GetTrueTransferOperator(*cfes, *P_hdl);
-      P.reset(P_hdl);
-      assert(P);
-
-      if (remove_zero)
-      {
-         P->As<HypreParMatrix>()->DropSmallEntries(1e-16);
-      }
+      auto T = new OperatorHandle(Operator::Hypre_ParCSR);
+      fes.GetTrueTransferOperator(*cfes, *T);
+      P.reset(T);
+      if (remove_zero) { P->As<HypreParMatrix>()->DropSmallEntries(1e-16); }
       (level_ < (int)data_.P_l2.size()-1) ? cfes->Update() : cfes.reset();
    };
 

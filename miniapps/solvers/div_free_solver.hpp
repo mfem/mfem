@@ -15,10 +15,9 @@
 #include "darcy_solver.hpp"
 #include <memory>
 
-namespace mfem
+namespace mfem::blocksolvers
 {
-namespace blocksolvers
-{
+
 /// Parameters for the divergence free solver
 struct DFSParameters : IterSolveParameters
 {
@@ -97,8 +96,7 @@ public:
 /// Compute the product B * B^T and solve it with CG preconditioned by BoomerAMG
 class BBTSolver : public Solver
 {
-   OperatorPtr BBT_;
-   OperatorPtr BBT_prec_;
+   OperatorPtr BBT_, BBT_prec_;
    CGSolver BBT_solver_;
 public:
    BBTSolver(const HypreParMatrix &B, IterSolveParameters param);
@@ -120,14 +118,11 @@ public:
 ///                      [ B   0  ]
 class SaddleSchwarzSmoother : public Solver
 {
-   const SparseMatrix& agg_hdivdof_;
-   const SparseMatrix& agg_l2dof_;
+   const SparseMatrix &agg_hdivdof_, &agg_l2dof_;
    OperatorPtr coarse_l2_projector_;
 
    Array<int> offsets_;
-   mutable Array<int> offsets_loc_;
-   mutable Array<int> hdivdofs_loc_;
-   mutable Array<int> l2dofs_loc_;
+   mutable Array<int> offsets_loc_, hdivdofs_loc_, l2dofs_loc_;
    std::vector<OperatorPtr> solvers_loc_;
 public:
    /** SaddleSchwarzSmoother solves local saddle point problems defined on a
@@ -186,8 +181,7 @@ class DivFreeSolver : public DarcySolver
    std::vector<std::unique_ptr<BlockOperator>> ops_;
    std::vector<std::unique_ptr<BlockOperator>> blk_Ps_;
    std::vector<std::unique_ptr<Solver>> smoothers_;
-   OperatorPtr prec_;
-   OperatorPtr solver_;
+   OperatorPtr prec_, solver_;
 
    void SolveParticular(const Vector& rhs, Vector& sol) const;
    void SolveDivFree(const Vector& rhs, Vector& sol) const;
@@ -200,8 +194,6 @@ public:
    int GetNumIterations() const override;
 };
 
-} // namespace blocksolvers
-
-} // namespace mfem
+} // namespace mfem::blocksolvers
 
 #endif // MFEM_DIVFREE_SOLVER_HPP
