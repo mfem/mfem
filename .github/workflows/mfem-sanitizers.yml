@@ -37,7 +37,7 @@ env:
   MSAN_OPTIONS: "poison_in_dtor=1"
   # LLVM libcxx (https://github.com/llvm/llvm-project/releases?page=2)
   LLVM_VER: 19.1.7
-  HYPRE_VER: 2.33.0
+  HYPRE_VER: 2.19.0  # 2.33.0
   METIS_VER: 4.0.3
 
 jobs:
@@ -117,11 +117,11 @@ jobs:
           echo "[METIS_DIR] ${{env.METIS_DIR}}"
 
       ### Clang
-      # - name: Clang Setup
-      #   uses: egor-tensin/setup-clang@v1
-      #   with:
-      #     version: latest
-      #     platform: x64
+      - name: Clang Setup
+        uses: egor-tensin/setup-clang@v1
+        with:
+          version: latest
+          platform: x64
 
       ### MPI
       # export OMPI_MCA_rmaps_base_oversubscribe=1
