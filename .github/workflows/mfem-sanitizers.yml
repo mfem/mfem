@@ -287,8 +287,8 @@ jobs:
         uses: mfem/github-actions/build-mfem@v2.5
         env:
           MPICXX: c++
-          CXXFLAGS: "-g -O1 -std=c++17 ${{matrix.cxxflags}} ${{env.LLVM_CXXFLAGS}} ${{env.MPI_INC}} ${{env.MPI_LIB}}"
-          LDFLAGS: "${{matrix.ldflags}} ${{env.LLVM_LDFLAGS}}"
+          CXXFLAGS: ${{matrix.cxxflags}} ${{env.LLVM_CXXFLAGS}} ${{env.MPI_INC}} ${{env.MPI_LIB}}
+          LDFLAGS: ${{matrix.ldflags}} ${{env.LLVM_LDFLAGS}}
         with:
           os: ${{runner.os}}
           target: opt
@@ -306,6 +306,7 @@ jobs:
             -DCMAKE_BUILD_TYPE=Release
             -DCMAKE_C_COMPILER=${{env.CC}}
             -DCMAKE_CXX_COMPILER=${{env.CXX}}
+            -DCMAKE_CXX_FLAGS_RELEASE='-g -O1'
             -DCMAKE_CXX_STANDARD=17
             -DMFEM_PRECISION=double
             -DMFEM_USE_MEMALLOC=OFF
