@@ -25,10 +25,9 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  # Versions
   CLANG_VER: 18
-  LLVM_VER: 19.1.7    # LLVM libcxx (https://github.com/llvm/llvm-project/releases?page=2)
-  HYPRE_VER: 2.19.0   # 2.33.0
+  LLVM_VER: 19.1.7    # https://github.com/llvm/llvm-project/releases
+  HYPRE_VER: 2.19.0   # https://github.com/hypre-space/hypre/releases
   METIS_VER: 4.0.3
   # AddressSanitizer (https://clang.llvm.org/docs/AddressSanitizer.html)
   ASAN_OPTIONS: "detect_leaks=1,
@@ -78,11 +77,10 @@ jobs:
 
     steps:
       ### GITHUB_ENV
-      - name: GITHUB_ENV Setup (Clang)
+      - name: GITHUB_ENV Setup (Compilers)
         run: |
           echo "CC=clang-${{env.CLANG_VER}}" >> $GITHUB_ENV
           echo "CXX=clang++-${{env.CLANG_VER}}" >> $GITHUB_ENV
-          echo "MPICXX=clang++-${{env.CLANG_VER}}" >> $GITHUB_ENV
 
       - name: GITHUB_ENV Setup (Directories)
         run: |
@@ -98,8 +96,12 @@ jobs:
           echo "METIS_TGZ=metis-${{env.METIS_VER}}.tar.gz" >> $GITHUB_ENV
           echo "METIS_DIR=metis-${{env.METIS_VER}}" >> $GITHUB_ENV
 
-      - name: GITHUB_ENV Echo (LLVM, HYPRE, METIS)
+      - name: GITHUB_ENV Echo (Compilers, LLVM, HYPRE, METIS)
         run: |
+          echo "[CC] ${{env.CC}} -v"
+          ${{env.CC}} -v
+          echo "[CXX] ${{env.CXX}} -v"
+          ${{env.CXX}} -v
           echo "[LLVM_DIR] ${{env.LLVM_DIR}}"
           echo "[LLVM_INC] ${{env.LLVM_INC}}"
           echo "[LLVM_LIB] ${{env.LLVM_LIB}}"
@@ -107,13 +109,6 @@ jobs:
           echo "[HYPRE_DIR] ${{env.HYPRE_DIR}}"
           echo "[METIS_TGZ] ${{env.METIS_TGZ}}"
           echo "[METIS_DIR] ${{env.METIS_DIR}}"
-
-      - name: GITHUB_ENV Echo (Compilers)
-        run: |
-          echo "[CC] ${{env.CC}} -v"
-          ${{env.CC}} -v
-          echo "[CXX] ${{env.CXX}} -v"
-          ${{env.CXX}} -v
 
       ### MPI
       - name: MPI Setup
@@ -210,13 +205,13 @@ jobs:
         working-directory: ${{env.LLVM_DIR}}
         run: cmake --build . -- cxx cxxabi
 
-      - name: Setup LLVM GITHUB_ENV
+      - name: GITHUB_ENV Setup (LLVM)
         if: matrix.sanitizer != 'AddressSanitizer'
         run: |
           echo "LLVM_CXXFLAGS=-stdlib=libc++ -I${{env.LLVM_INC}} -Isystem${{env.LLVM_INC}}" >> $GITHUB_ENV
           echo "LLVM_LDFLAGS=-L${{env.LLVM_LIB}} -lc++abi -Wl,-rpath,${{env.LLVM_LIB}}" >> $GITHUB_ENV
 
-      - name: Echo LLVM GITHUB_ENV
+      - name: GITHUB_ENV Echo (LLVM)
         if: matrix.sanitizer != 'AddressSanitizer'
         run: |
           echo "[LLVM_CXXFLAGS] ${{env.LLVM_CXXFLAGS}}"
@@ -270,14 +265,14 @@ jobs:
           CXXFLAGS: ${{matrix.cxxflags}} ${{env.LLVM_CXXFLAGS}} ${{env.MPI_INC}}
           LDFLAGS: ${{matrix.ldflags}} ${{env.LLVM_LDFLAGS}} ${{env.MPI_LIB}}
         with:
-          os: ${{runner.os}}
           target: opt
+          mfem-dir: mfem
+          precision: fp64
+          os: ${{runner.os}}
           mpi: ${{matrix.mpi}}
           build-system: cmake
           hypre-dir: ${{env.HYPRE_DIR}}
           metis-dir: ${{env.METIS_DIR}}
-          mfem-dir: mfem
-          precision: fp64
           library-only: true
           config-options: >-
             -GNinja
@@ -300,12 +295,12 @@ jobs:
 
       - name: MFEM Tests
         working-directory: mfem/build
-        run: ninja -v tests/unit/all -j3 && ninja tests/unit/test
+        run: ninja -v -j 3 tests/unit/all && ninja tests/unit/test
 
       - name: MFEM Examples
         working-directory: mfem/build
-        run: ninja -v examples -j3 && ninja examples/test
+        run: ninja -v -j 3 examples && ninja examples/test
 
       - name: MFEM Miniapps
         working-directory: mfem/build
-        run: ninja -v miniapps -j3 && ninja miniapps/test
+        run: ninja -v -j 3 miniapps && ninja miniapps/test
