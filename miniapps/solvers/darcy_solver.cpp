@@ -13,10 +13,9 @@
 
 using namespace std;
 
-namespace mfem
+namespace mfem::blocksolvers
 {
-namespace blocksolvers
-{
+
 void SetOptions(IterativeSolver& solver, const IterSolveParameters& param)
 {
    solver.SetPrintLevel(param.print_level);
@@ -61,5 +60,5 @@ void BDPMinresSolver::Mult(const Vector & x, Vector & y) const
    solver_.Mult(x, y);
    for (int dof : ess_zero_dofs_) { y[dof] = 0.0; }
 }
-} // namespace blocksolvers
-} // namespace mfem
+
+} // namespace mfem::blocksolvers

@@ -52,12 +52,13 @@
 //        (respectively 0), essential (respectively natural) boundary condition
 //        will be imposed on boundary with the i-th attribute.
 
-#include "mfem.hpp"
-#include "bramble_pasciak.hpp"
-#include "div_free_solver.hpp"
 #include <fstream>
 #include <iostream>
 #include <functional>
+
+#include "mfem.hpp"
+#include "bramble_pasciak.hpp"
+#include "div_free_solver.hpp"
 
 using namespace std;
 using namespace mfem;
@@ -108,8 +109,8 @@ public:
    DarcyProblem(Mesh &mesh, int num_refines, int order, const char *coef_file,
                 Array<int> &ess_bdr, DFSParameters param);
 
-   HypreParMatrix& GetM() { return *M_.As<HypreParMatrix>(); }
-   HypreParMatrix& GetB() { return *B_.As<HypreParMatrix>(); }
+   const HypreParMatrix& GetM() const { return *M_.As<HypreParMatrix>(); }
+   const HypreParMatrix& GetB() const { return *B_.As<HypreParMatrix>(); }
    const Vector& GetRHS() { return rhs_; }
    const Vector& GetEssentialBC() { return ess_data_; }
    const DFSData& GetDFSData() const { return dfs_spaces_.GetDFSData(); }
@@ -343,8 +344,8 @@ int main(int argc, char *argv[])
 
    // Generate components of the saddle point problem
    DarcyProblem darcy(*mesh, par_ref_levels, order, coef_file, ess_bdr, param);
-   HypreParMatrix& M = darcy.GetM();
-   HypreParMatrix& B = darcy.GetB();
+   const HypreParMatrix &M = darcy.GetM();
+   const HypreParMatrix &B = darcy.GetB();
    const DFSData& DFS_data = darcy.GetDFSData();
    delete mesh;
 

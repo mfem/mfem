@@ -49,9 +49,7 @@
 #include "darcy_solver.hpp"
 #include <memory>
 
-namespace mfem
-{
-namespace blocksolvers
+namespace mfem::blocksolvers
 {
 
 /// Parameters for the BramblePasciakSolver method
@@ -70,11 +68,11 @@ protected:
    void UpdateVectors();
 
 public:
-   BPCGSolver(const Operator *ipc, const Operator *ppc) { pprec = ppc; iprec = ipc; }
+   BPCGSolver(const Operator *ipc, const Operator *ppc): iprec(ipc), pprec(ppc) {}
 
 #ifdef MFEM_USE_MPI
    BPCGSolver(MPI_Comm comm_, const Operator *ipc, const Operator *ppc)
-      : IterativeSolver(comm_) { pprec = ppc; iprec = ipc; }
+      : IterativeSolver(comm_), iprec(ipc), pprec(ppc) { }
 #endif
 
    void SetOperator(const Operator &op) override
@@ -83,11 +81,9 @@ public:
    void SetPreconditioner(Solver &pc) override
    { if (Mpi::Root()) { MFEM_WARNING("SetPreconditioner has no effect on BPCGSolver.\n"); } }
 
-   virtual void SetIncompletePreconditioner(const Operator *ipc)
-   { iprec = ipc; }
+   virtual void SetIncompletePreconditioner(const Operator *ipc) { iprec = ipc; }
 
-   virtual void SetParticularPreconditioner(const Operator *ppc)
-   { pprec = ppc; }
+   virtual void SetParticularPreconditioner(const Operator *ppc) { pprec = ppc; }
 
    void Mult(const Vector &b, Vector &x) const override;
 };
@@ -156,7 +152,7 @@ public:
                                 M_T x_T = lambda_T diag(M_T) x_T.
        We set Q_T = alpha * min(lambda_T) * diag(M_T), 0 < alpha < 1. */
    static HypreParMatrix *ConstructMassPreconditioner(const ParBilinearForm &mVarf,
-                                                      real_t alpha = 0.5);
+                                                      const real_t alpha = 0.5);
 
    void Mult(const Vector &x, Vector &y) const override;
    void SetOperator(const Operator &op) override { }
@@ -164,7 +160,6 @@ public:
    int GetNumIterations() const override { return solver_->GetNumIterations(); }
 };
 
-} // namespace blocksolvers
-} // namespace mfem
+} // namespace mfem::blocksolvers
 
 #endif // MFEM_BP_SOLVER_HPP
