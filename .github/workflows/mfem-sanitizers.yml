@@ -253,9 +253,10 @@ jobs:
       - name: MFEM Build
         uses: mfem/github-actions/build-mfem@v2.5
         env:
-          MPICXX: c++
+          MPICXX: ${{env.CXX}}
           CXXFLAGS: ${{matrix.cxxflags}} ${{env.LLVM_CXXFLAGS}} ${{env.MPI_INC}}
           LDFLAGS: ${{matrix.ldflags}} ${{env.LLVM_LDFLAGS}} ${{env.MPI_LIB}}
+          CTEST: "ctest -j --stop-on-failure --output-on-failure --test-dir $(nproc)"
         with:
           target: opt
           mfem-dir: mfem
@@ -281,12 +282,12 @@ jobs:
 
       - name: MFEM Tests
         working-directory: mfem/build
-        run: ninja -v tests/unit/all && ninja tests/unit/test
+        run: ninja -v tests/unit/all && ${{env.CTEST}} tests/unit
 
       - name: MFEM Examples
         working-directory: mfem/build
-        run: ninja -v examples && ninja examples/test
+        run: ninja -v examples && ${{env.CTEST}} examples
 
       - name: MFEM Miniapps
         working-directory: mfem/build
-        run: ninja -v miniapps && ninja miniapps/test
+        run: ninja -v miniapps && ${{env.CTEST}} miniapps
