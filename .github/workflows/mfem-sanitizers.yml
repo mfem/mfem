@@ -79,7 +79,7 @@ jobs:
           echo "ASAN_DIR=${GITHUB_WORKSPACE}/asan" >> $GITHUB_ENV
           echo "LLVM_DIR=${GITHUB_WORKSPACE}/llvm" >> $GITHUB_ENV
 
-      - name: GITHUB_ENV Setup (LLVM, HYPRE, METIS)
+      - name: GITHUB_ENV Setup (LLVM, HYPRE, METIS, CTEST)
         run: |
           echo "LLVM_INC=${LLVM_DIR}/include/c++/v1" >> $GITHUB_ENV
           echo "LLVM_LIB=${LLVM_DIR}/lib" >> $GITHUB_ENV
@@ -87,8 +87,9 @@ jobs:
           echo "HYPRE_DIR=hypre-${{env.HYPRE_VER}}" >> $GITHUB_ENV
           echo "METIS_TGZ=metis-${{env.METIS_VER}}.tar.gz" >> $GITHUB_ENV
           echo "METIS_DIR=metis-${{env.METIS_VER}}" >> $GITHUB_ENV
+          echo "CTEST=ctest -j --test-load $(nproc) --stop-on-failure --schedule-random --output-on-failure --test-dir" >> $GITHUB_ENV
 
-      - name: GITHUB_ENV Echo (Compilers, LLVM, HYPRE, METIS)
+      - name: GITHUB_ENV Echo (Compilers, LLVM, HYPRE, METIS, CTEST)
         run: |
           echo "[CC] ${{env.CC}} -v"
           ${{env.CC}} -v
@@ -101,6 +102,7 @@ jobs:
           echo "[HYPRE_DIR] ${{env.HYPRE_DIR}}"
           echo "[METIS_TGZ] ${{env.METIS_TGZ}}"
           echo "[METIS_DIR] ${{env.METIS_DIR}}"
+          echo "[CTEST] ${{env.CTEST}}"
 
       ### MPI
       - name: MPI Setup
@@ -256,7 +258,6 @@ jobs:
           MPICXX: ${{env.CXX}}
           CXXFLAGS: ${{matrix.cxxflags}} ${{env.LLVM_CXXFLAGS}} ${{env.MPI_INC}}
           LDFLAGS: ${{matrix.ldflags}} ${{env.LLVM_LDFLAGS}} ${{env.MPI_LIB}}
-          CTEST: ctest -j --test-load $(nproc) --stop-on-failure --schedule-random --output-on-failure --test-dir
         with:
           target: opt
           mfem-dir: mfem
@@ -282,12 +283,12 @@ jobs:
 
       - name: MFEM Tests
         working-directory: mfem/build
-        run: ninja -v tests/unit/all && $CTEST tests/unit
+        run: ninja -v tests/unit/all && ${{env.CTEST}} tests/unit
 
       - name: MFEM Examples
         working-directory: mfem/build
-        run: ninja -v examples && $CTEST examples
+        run: ninja -v examples && ${{env.CTEST}} examples
 
       - name: MFEM Miniapps
         working-directory: mfem/build
-        run: ninja -v miniapps && $CTEST miniapps
+        run: ninja -v miniapps && ${{env.CTEST}} miniapps
