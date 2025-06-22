@@ -256,7 +256,7 @@ jobs:
           MPICXX: ${{env.CXX}}
           CXXFLAGS: ${{matrix.cxxflags}} ${{env.LLVM_CXXFLAGS}} ${{env.MPI_INC}}
           LDFLAGS: ${{matrix.ldflags}} ${{env.LLVM_LDFLAGS}} ${{env.MPI_LIB}}
-          CTEST: "ctest -j --test-load $(nproc) --stop-on-failure --schedule-random --output-on-failure --test-dir"
+          CTEST: ctest -j --test-load $(nproc) --stop-on-failure --schedule-random --output-on-failure --test-dir
         with:
           target: opt
           mfem-dir: mfem
@@ -282,12 +282,12 @@ jobs:
 
       - name: MFEM Tests
         working-directory: mfem/build
-        run: ninja -v tests/unit/all && ${{env.CTEST}} tests/unit
+        run: ninja -v tests/unit/all && $CTEST tests/unit
 
       - name: MFEM Examples
         working-directory: mfem/build
-        run: ninja -v examples && ${{env.CTEST}} examples
+        run: ninja -v examples && $CTEST examples
 
       - name: MFEM Miniapps
         working-directory: mfem/build
-        run: ninja -v miniapps && ${{env.CTEST}} miniapps
+        run: ninja -v miniapps && $CTEST miniapps
