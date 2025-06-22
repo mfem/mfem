@@ -287,7 +287,7 @@ jobs:
         uses: mfem/github-actions/build-mfem@v2.5
         env:
           MPICXX: c++
-          CXXFLAGS: "-g -O1 -std=c++17 ${{matrix.cxxflags}} ${{env.LLVM_CXXFLAGS}} ${{env.MPI_INC}} ${{env.MPI_LIB}}
+          CXXFLAGS: "-g -O1 -std=c++17 ${{matrix.cxxflags}} ${{env.LLVM_CXXFLAGS}} ${{env.MPI_INC}} ${{env.MPI_LIB}}"
           LDFLAGS: "${{matrix.ldflags}} ${{env.LLVM_LDFLAGS}}"
         with:
           os: ${{runner.os}}
@@ -322,11 +322,11 @@ jobs:
 
       - name: MFEM Examples
         working-directory: mfem/build
-        run: ninja examples/test 
+        run: ninja examples/test
 
       - name: MFEM Miniapps
         working-directory: mfem/build
-        run: ninja miniapps/test 
+        run: ninja miniapps/test
 
       - name: MFEM Unittest
         working-directory: mfem/build
