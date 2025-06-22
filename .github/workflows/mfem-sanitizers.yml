@@ -296,16 +296,16 @@ jobs:
 
       - name: MFEM Check
         working-directory: mfem/build
-        run: ninja check
+        run: ninja -v check
 
       - name: MFEM Tests
         working-directory: mfem/build
-        run: ninja tests/unit/all && ninja tests/unit/test
+        run: ninja -v tests/unit/all -j3 && ninja tests/unit/test
 
       - name: MFEM Examples
         working-directory: mfem/build
-        run: ninja examples && ninja examples/test
+        run: ninja -v examples -j3 && ninja examples/test
 
       - name: MFEM Miniapps
         working-directory: mfem/build
-        run: ninja miniapps && ninja miniapps/test
+        run: ninja -v miniapps -j3 && ninja miniapps/test
