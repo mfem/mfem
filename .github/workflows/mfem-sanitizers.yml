@@ -116,6 +116,8 @@ jobs:
           ls -la /usr/local/bin
           echo "which clang++"
           which clang++
+          echo "ls -la /usr/bin"
+          ls -la /usr/bin
 
       - name: Clang Setup
         uses: egor-tensin/setup-clang@v1
