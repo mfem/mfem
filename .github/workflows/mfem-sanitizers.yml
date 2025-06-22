@@ -255,7 +255,6 @@ jobs:
       - name: MFEM Build
         uses: mfem/github-actions/build-mfem@v2.5
         env:
-          MPICXX: ${{env.CXX}}
           CXXFLAGS: ${{matrix.cxxflags}} ${{env.LLVM_CXXFLAGS}} ${{env.MPI_INC}}
           LDFLAGS: ${{matrix.ldflags}} ${{env.LLVM_LDFLAGS}} ${{env.MPI_LIB}}
         with:
@@ -276,6 +275,7 @@ jobs:
             -DCMAKE_CXX_FLAGS_RELEASE='-g -O2 -fno-omit-frame-pointer'
             -DCMAKE_CXX_STANDARD=17
             -DMFEM_USE_MEMALLOC=OFF
+            -DMPICXX=${{env.CXX}}
 
       - name: MFEM Check
         working-directory: mfem/build
