@@ -108,24 +108,6 @@ jobs:
           echo "[METIS_TGZ] ${{env.METIS_TGZ}}"
           echo "[METIS_DIR] ${{env.METIS_DIR}}"
 
-      ### Clang
-      # - name: Clang Local
-      #   run: |
-      #     echo "\x1b[33mls -la /usr/local\x1b[m"
-      #     ls -la /usr/local
-      #     echo "ls -la /usr/local/bin"
-      #     ls -la /usr/local/bin
-      #     echo "which clang++"
-      #     which clang++
-      #     echo "ls -la /usr/bin"
-      #     ls -la /usr/bin
-
-      # - name: Clang Setup
-      #   uses: egor-tensin/setup-clang@v1
-      #   with:
-      #     version: latest
-      #     platform: x64
-
       - name: GITHUB_ENV Echo (Compilers)
         run: |
           echo "[CC] ${{env.CC}} -v"
@@ -134,8 +116,6 @@ jobs:
           ${{env.CXX}} -v
 
       ### MPI
-      # export OMPI_MCA_rmaps_base_oversubscribe=1
-      # export PRTE_MCA_rmaps_default_mapping_policy=:oversubscribe
       - name: MPI Setup
         if: matrix.mpi == 'par'
         run: |
@@ -293,13 +273,12 @@ jobs:
           os: ${{runner.os}}
           target: opt
           mpi: ${{matrix.mpi}}
-          build-system: cmake  # make
+          build-system: cmake
           hypre-dir: ${{env.HYPRE_DIR}}
           metis-dir: ${{env.METIS_DIR}}
           mfem-dir: mfem
           precision: fp64
           library-only: true
-          # config-options: CXX=${{env.CXX}} MPICXX=${{env.MPICXX}} MFEM_USE_MEMALLOC=NO  # make
           config-options: >-
             -GNinja
             -DCMAKE_VERBOSE_MAKEFILE=ON
@@ -317,16 +296,16 @@ jobs:
 
       - name: MFEM Check
         working-directory: mfem/build
-        run: ninja ex1p && ninja check
+        run: ninja check
 
       - name: MFEM Examples
         working-directory: mfem/build
-        run: ninja examples/test
+        run: ninja examples && ninja examples/test
 
       - name: MFEM Miniapps
         working-directory: mfem/build
-        run: ninja miniapps/test
+        run: ninja miniapps && ninja miniapps/test
 
       - name: MFEM Unittest
         working-directory: mfem/build
-        run: ninja test
+        run: ninja tests/unit/all && ninja tests/unit/test
