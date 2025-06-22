@@ -16,9 +16,7 @@ permissions:
 
 on:
   push:
-    branches:
-      - master
-      - next
+    branches: ["master", "next"]
   pull_request:
   workflow_dispatch:
 
@@ -44,6 +42,7 @@ env:
 
 jobs:
   Sanitizers:
+    # Ubuntu 24.04 (https://github.com/actions/runner-images/blob/main/images/ubuntu/Ubuntu2404-Readme.md)
     runs-on: ubuntu-latest
     strategy:
       # Avoid canceling all in-progress and queued jobs in the matrix if any one fails
@@ -118,18 +117,20 @@ jobs:
           echo "[METIS_DIR] ${{env.METIS_DIR}}"
 
       ### Clang
-      - name: Clang Setup
-        uses: egor-tensin/setup-clang@v1
-        with:
-          version: latest
-          platform: x64
+      # - name: Clang Setup
+      #   uses: egor-tensin/setup-clang@v1
+      #   with:
+      #     version: latest
+      #     platform: x64
 
       ### MPI
+      # export OMPI_MCA_rmaps_base_oversubscribe=1
+      # export PRTE_MCA_rmaps_default_mapping_policy=:oversubscribe
       - name: MPI Setup
         if: matrix.mpi == 'par'
         run: |
           sudo apt-get install openmpi-bin libopenmpi-dev
-          export OMPI_MCA_rmaps_base_oversubscribe=1
+          echo "PRTE_MCA_rmaps_default_mapping_policy=:oversubscribe" >> $GITHUB_ENV
 
       - name: MPI Showme
         if: matrix.mpi == 'par'
@@ -282,12 +283,14 @@ jobs:
           os: ${{runner.os}}
           target: opt
           mpi: ${{matrix.mpi}}
-          build-system: make
+          build-system: cmake  # make
           hypre-dir: ${{env.HYPRE_DIR}}
           metis-dir: ${{env.METIS_DIR}}
           mfem-dir: mfem
+          precision: fp64
           library-only: true
-          config-options: CXX=${{env.CXX}} MPICXX=${{env.MPICXX}} MFEM_USE_MEMALLOC=NO
+          config-options: CXX=${{env.CXX}} MPICXX=${{env.MPICXX}} -GNinja MFEM_USE_MEMALLOC=OFF
+          # config-options: CXX=${{env.CXX}} MPICXX=${{env.MPICXX}} MFEM_USE_MEMALLOC=NO  # make
 
       - name: MFEM Info
         working-directory: mfem
