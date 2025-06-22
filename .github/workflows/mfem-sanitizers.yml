@@ -83,15 +83,6 @@ jobs:
           echo "CXX=c++" >> $GITHUB_ENV
           echo "MPICXX=c++" >> $GITHUB_ENV
 
-      - name: GITHUB_ENV Echo (Compilers)
-        run: |
-          echo "[CC] ${{env.CC}} -v"
-          ${{env.CC}} -v
-          echo "[CXX] ${{env.CXX}} -v"
-          ${{env.CXX}} -v
-          echo "[MPICXX] ${{env.MPICXX}} -v"
-          ${{env.MPICXX}} -v
-
       - name: GITHUB_ENV Setup (Directories)
         run: |
           echo "ASAN_DIR=${GITHUB_WORKSPACE}/asan" >> $GITHUB_ENV
@@ -122,6 +113,13 @@ jobs:
         with:
           version: latest
           platform: x64
+
+      - name: GITHUB_ENV Echo (Compilers)
+        run: |
+          echo "[CC] ${{env.CC}} -v"
+          ${{env.CC}} -v
+          echo "[CXX] ${{env.CXX}} -v"
+          ${{env.CXX}} -v
 
       ### MPI
       # export OMPI_MCA_rmaps_base_oversubscribe=1
@@ -289,7 +287,7 @@ jobs:
           mfem-dir: mfem
           precision: fp64
           library-only: true
-          config-options: CXX=${{env.CXX}} MPICXX=${{env.MPICXX}} -GNinja MFEM_USE_MEMALLOC=OFF
+          config-options: -DCMAKE_C_COMPILER=${{env.CC}} -DCMAKE_CXX_COMPILER=${{env.CXX}} MPICXX=${{env.MPICXX}} -GNinja MFEM_USE_MEMALLOC=OFF
           # config-options: CXX=${{env.CXX}} MPICXX=${{env.MPICXX}} MFEM_USE_MEMALLOC=NO  # make
 
       - name: MFEM Info
