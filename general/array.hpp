@@ -317,7 +317,7 @@ public:
    template <typename U>
    inline void CopyFrom(const U *src)
    {
-      // if (begin() == nullptr || src == nullptr) { return; }
+      if (begin() == nullptr || src == nullptr) { return; }
       std::memcpy(begin(), src, MemoryUsage());
    }
 
