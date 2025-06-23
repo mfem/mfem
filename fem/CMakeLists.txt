@@ -64,6 +64,7 @@ set(SRCS
   datacollection.cpp
   dgmassinv.cpp
   doftrans.cpp
+  dfem/doperator.cpp
   eltrans.cpp
   batchitrans.cpp
   estimators.cpp
@@ -194,6 +195,14 @@ set(HDRS
   dgmassinv.hpp
   dgmassinv_kernels.hpp
   doftrans.hpp
+  dfem/doperator.hpp
+  dfem/fieldoperator.hpp
+  dfem/integrate.hpp
+  dfem/parameterspace.hpp
+  dfem/qfunction_apply.hpp
+  dfem/qfunction_transform.hpp
+  dfem/tuple.hpp
+  dfem/util.hpp
   eltrans.hpp
   estimators.hpp
   fe.hpp
