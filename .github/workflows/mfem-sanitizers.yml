@@ -254,9 +254,14 @@ jobs:
             -DCMAKE_CXX_COMPILER=${{env.CXX}}
             -DCMAKE_CXX_FLAGS_RELEASE='-g -O2 -fno-omit-frame-pointer'
 
+      - name: MFEM ex1p
+        if: matrix.mpi == 'par'
+        working-directory: mfem/build
+        run: ninja -v ex1p && ${{env.CTEST}} examples -R "^ex1p"
+
       - name: MFEM Check
         working-directory: mfem/build
-        run: ninja -v check
+        run: ninja -v check        
 
       - name: MFEM Tests
         working-directory: mfem/build
