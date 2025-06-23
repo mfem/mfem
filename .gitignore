@@ -65,7 +65,8 @@ examples/ex4[0-9]
 examples/ex4[0-9]p
 examples/signorini
 examples/signorinip
-examples/signorinip_man
+examples/signorinip_mms
+examples/signorinip_wbc
 
 examples/refined.mesh
 examples/displaced.mesh
