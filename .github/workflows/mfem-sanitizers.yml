@@ -15,9 +15,12 @@ permissions:
   actions: write
 
 on:
+  # Run on pushes to main development branches
   push:
     branches: ["master", "next"]
+  # Run on all pull requests
   pull_request:
+  # Allow manual triggering for debugging
   workflow_dispatch:
 
 concurrency:
@@ -55,7 +58,6 @@ jobs:
           - sanitizer: Address
             cxxflags: "-fsanitize=address -fsanitize-address-use-after-scope"
             ldflags: "-fsanitize=address"
-            llvm_sanitizer: "Address"
           - sanitizer: UndefinedBehavior
             cxxflags: "-fsanitize=undefined"
             ldflags: "-fsanitize=undefined"
@@ -68,19 +70,16 @@ jobs:
     name: "${{matrix.sanitizer}}-${{matrix.mpi}}"
 
     steps:
-      ### GITHUB_ENV
-      - name: GITHUB_ENV Setup (Compilers)
-        run: |
-          echo "CC=clang-${{env.CLANG_VER}}" >> $GITHUB_ENV
-          echo "CXX=clang++-${{env.CLANG_VER}}" >> $GITHUB_ENV
-
-      - name: GITHUB_ENV Setup (Directories)
+      ### GITHUB_WORKSPACE & GITHUB_ENV
+      - name: Workspace Setup
         run: |
           echo "ASAN_DIR=${GITHUB_WORKSPACE}/asan" >> $GITHUB_ENV
           echo "LLVM_DIR=${GITHUB_WORKSPACE}/llvm" >> $GITHUB_ENV
 
-      - name: GITHUB_ENV Setup (LLVM, HYPRE, METIS, CTEST)
+      - name: Env Setup (Clang, LLVM, HYPRE, METIS, CTEST)
         run: |
+          echo "CC=clang-${{env.CLANG_VER}}" >> $GITHUB_ENV
+          echo "CXX=clang++-${{env.CLANG_VER}}" >> $GITHUB_ENV
           echo "LLVM_INC=${LLVM_DIR}/include/c++/v1" >> $GITHUB_ENV
           echo "LLVM_LIB=${LLVM_DIR}/lib" >> $GITHUB_ENV
           echo "HYPRE_TGZ=v${{env.HYPRE_VER}}.tar.gz" >> $GITHUB_ENV
@@ -89,12 +88,10 @@ jobs:
           echo "METIS_DIR=metis-${{env.METIS_VER}}" >> $GITHUB_ENV
           echo "CTEST=ctest -j --test-load $(nproc) --stop-on-failure --schedule-random --output-on-failure --test-dir" >> $GITHUB_ENV
 
-      - name: GITHUB_ENV Echo (Compilers, LLVM, HYPRE, METIS, CTEST)
+      - name: GITHUB_ENV Echo (Clang, LLVM, HYPRE, METIS, CTEST)
         run: |
-          echo "[CC] ${{env.CC}} -v"
-          ${{env.CC}} -v
-          echo "[CXX] ${{env.CXX}} -v"
-          ${{env.CXX}} -v
+          echo "[CC] ${{env.CC}}"
+          echo "[CXX] ${{env.CXX}}"
           echo "[LLVM_DIR] ${{env.LLVM_DIR}}"
           echo "[LLVM_INC] ${{env.LLVM_INC}}"
           echo "[LLVM_LIB] ${{env.LLVM_LIB}}"
@@ -110,30 +107,11 @@ jobs:
         run: |
           sudo apt-get install openmpi-bin libopenmpi-dev
           echo "PRTE_MCA_rmaps_default_mapping_policy=:oversubscribe" >> $GITHUB_ENV
-
-      - name: MPI Showme
-        if: matrix.mpi == 'par'
-        run: |
           echo "MPI_INC=$(mpicxx --showme:compile)" >> $GITHUB_ENV
           echo "MPI_LIB=$(mpicxx --showme:link)" >> $GITHUB_ENV
-          echo "[MPI_INC] ${{env.MPI_INC}}"
-          echo "[MPI_LIB] ${{env.MPI_LIB}}"
-          echo "> mpicxx --version"
-          mpicxx --version
-          echo "> mpicxx --showme:compile"
-          mpicxx --showme:compile
-          echo "> mpicxx --showme:link"
-          mpicxx --showme:link
-          echo "> mpicxx --showme:command"
-          mpicxx --showme:command
-          echo "> mpicxx --showme:incdirs"
-          mpicxx --showme:incdirs
-          echo "> mpicxx --showme:libdirs"
-          mpicxx --showme:libdirs
-          echo "> mpicxx --showme:libs"
-          mpicxx --showme:libs
-          echo "> mpicxx --showme:version"
-          mpicxx --showme:version
+          echo "[MPI] Version: $(mpicxx --showme:version)"
+          echo "[MPI] Compile: $(mpicxx --showme:compile)"
+          echo "[MPI] Link: $(mpicxx --showme:link)"
 
       ### LSAN_OPTIONS & ASan suppression file
       - name: ASAN Setup
@@ -141,11 +119,10 @@ jobs:
           mkdir -p ${{env.ASAN_DIR}}
           echo LSAN_OPTIONS="suppressions=${{env.ASAN_DIR}}/asan.supp" >> $GITHUB_ENV
           cat << EOF > ${{env.ASAN_DIR}}/asan.supp
+          leak:libevent_core-2.1.so
           leak:ompi_mpi_finalize
           leak:ompi_mpi_init
           leak:PMPI_Init
-          leak:libevent_core-2.1.so
-          leak:strdup
           EOF
 
       ### LLVM libcxx (https://github.com/llvm/llvm-project/tree/main/libcxx)
@@ -218,7 +195,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{env.HYPRE_DIR}}
-          key: Linux-${{env.HYPRE_DIR}}-v2.5
+          key: ${{runner.os}}-ompi-build-${{env.HYPRE_DIR}}-int32-fp64-v2.5
 
       - name: HYPRE Build
         if: matrix.mpi == 'par' && steps.hypre-cache.outputs.cache-hit != 'true'
@@ -237,7 +214,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{env.METIS_DIR}}
-          key: Linux-${{env.METIS_DIR}}-v2.5
+          key: ${{runner.os}}-build-${{env.METIS_DIR}}-v2.5
 
       - name: METIS Build
         if: matrix.mpi == 'par' && steps.metis-cache.outputs.cache-hit != 'true'
@@ -262,20 +239,20 @@ jobs:
           mfem-dir: mfem
           precision: fp64
           os: ${{runner.os}}
-          mpi: ${{matrix.mpi}}
+          library-only: true
           build-system: cmake
+          mpi: ${{matrix.mpi}}
           hypre-dir: ${{env.HYPRE_DIR}}
           metis-dir: ${{env.METIS_DIR}}
-          library-only: true
           config-options: >-
             -GNinja
+            -DMPICXX=${{env.CXX}}
+            -DCMAKE_CXX_STANDARD=17
+            -DMFEM_USE_MEMALLOC=OFF
             -DCMAKE_BUILD_TYPE=Release
             -DCMAKE_VERBOSE_MAKEFILE=ON
             -DCMAKE_CXX_COMPILER=${{env.CXX}}
             -DCMAKE_CXX_FLAGS_RELEASE='-g -O2 -fno-omit-frame-pointer'
-            -DCMAKE_CXX_STANDARD=17
-            -DMFEM_USE_MEMALLOC=OFF
-            -DMPICXX=${{env.CXX}}
 
       - name: MFEM Check
         working-directory: mfem/build
