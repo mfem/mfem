@@ -43,6 +43,8 @@ void gradp_exact(const Vector &, Vector &);
 real_t div_gradp_exact(const Vector &x);
 void v_exact(const Vector &x, Vector &v);
 void curlv_exact(const Vector &x, Vector &cv);
+template <typename CoefficientType>
+void Project(GridFunction &gf, CoefficientType &coef, bool global_proj);
 
 int dim;
 real_t freq = 1.0, kappa;
@@ -57,6 +59,7 @@ int main(int argc, char *argv[])
    int prob = 0;
    bool static_cond = false;
    bool pa = false;
+   bool global_proj = true;
    const char *device_config = "cpu";
    int visport = 19916;
    bool visualization = 1;
@@ -76,6 +79,9 @@ int main(int argc, char *argv[])
                   "--no-static-condensation", "Enable static condensation.");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
                   "--no-partial-assembly", "Enable Partial Assembly.");
+   args.AddOption(&global_proj, "-gp", "--global-projection", "-no-gp",
+                  "--no-global-projection",
+                  "Use global projection. If false, uses a local projection.");
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
@@ -204,19 +210,16 @@ int main(int argc, char *argv[])
 
    if (prob == 0)
    {
-      gftrial.ProjectCoefficientGlobalL2(p_coef);
+      Project(gftrial, p_coef, global_proj);
    }
    else if (prob == 1)
    {
-      gftrial.ProjectCoefficientGlobalL2(v_coef);
+      Project(gftrial, v_coef, global_proj);
    }
    else
    {
-      gftrial.ProjectCoefficientGlobalL2(gradp_coef);
+      Project(gftrial, gradp_coef, global_proj);
    }
-
-   gftrial.SetTrueVector();
-   gftrial.SetFromTrueVector();
 
    // 7. Set up the bilinear forms for L2 projection.
    ConstantCoefficient one(1.0);
@@ -300,19 +303,16 @@ int main(int argc, char *argv[])
    GridFunction exact_proj(&test_fes);
    if (prob == 0)
    {
-      exact_proj.ProjectCoefficientGlobalL2(gradp_coef);
+      Project(exact_proj, gradp_coef, global_proj);
    }
    else if (prob == 1)
    {
-      exact_proj.ProjectCoefficientGlobalL2(curlv_coef);
+      Project(exact_proj, curlv_coef, global_proj);
    }
    else
    {
-      exact_proj.ProjectCoefficientGlobalL2(divgradp_coef);
+      Project(exact_proj, divgradp_coef, global_proj);
    }
-
-   exact_proj.SetTrueVector();
-   exact_proj.SetFromTrueVector();
 
    // 11. Compute and print the L_2 norm of the error.
    if (prob == 0)
@@ -452,4 +452,19 @@ void curlv_exact(const Vector &x, Vector &cv)
    {
       cv = 0.0;
    }
+}
+
+template <typename CoefficientType>
+void Project(GridFunction &gf, CoefficientType &coef, bool global_proj)
+{
+   if (global_proj)
+   {
+      gf.ProjectCoefficientGlobalL2(coef);
+   }
+   else
+   {
+      gf.ProjectCoefficient(coef);
+   }
+   gf.SetTrueVector();
+   gf.SetFromTrueVector();
 }
