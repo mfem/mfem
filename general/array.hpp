@@ -317,7 +317,8 @@ public:
    template <typename U>
    inline void CopyFrom(const U *src)
    {
-      if (begin() == nullptr || src == nullptr) { return; }
+      if (!begin() || size == 0) { return; }
+      MFEM_ASSERT(begin() && src, "Error in Array::CopyFrom");
       std::memcpy(begin(), src, MemoryUsage());
    }
 
