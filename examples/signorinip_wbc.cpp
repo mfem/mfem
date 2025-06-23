@@ -79,7 +79,7 @@ public:
          v->GetVectorValue(T, ip, v_val);
          v->GetVectorGradient(T, grad_v);
       }
-      // Evaluate the stress tensor σ(uᵏ⁻¹)
+      // Evaluate the stress tensor σ(v)
       DenseMatrix sigma(dim,dim);
       ComputeStress(grad_v, lambda, mu, sigma);
 
@@ -88,7 +88,7 @@ public:
       CalcOrtho(T.Jacobian(), n);
       n /= n.Norml2();
 
-      // Compute pressure σ(uᵏ⁻¹)n · ñ
+      // Compute pressure σ(v)n · ñ
       Vector sigma_n(dim);
       sigma.Mult(n, sigma_n);
       const real_t pressure = sigma_n * n_tilde;
