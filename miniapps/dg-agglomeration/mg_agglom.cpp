@@ -47,8 +47,10 @@ std::vector<std::vector<int>> Agglomerate(Mesh &mesh)
       const int i = partitioning[k];
       macro_elements[i].push_back(k);
    }
-   for (int j = 1; j < num_partitions; ++j)
+   int j = 1;
+   while (E[j-1].size() != ne)
    {
+      if(j >= num_partitions){E.resize(E.size()+1);}
       std::vector<std::vector<int>> macro_elements(E[j-1].size());
       for (int i = 0; i < p.Size(); ++i)
       {
@@ -72,6 +74,7 @@ std::vector<std::vector<int>> Agglomerate(Mesh &mesh)
          for (int k = 0; k <= num_actual_parts; ++k) {E[j].push_back(e);}
          num_total_parts = num_total_parts + num_actual_parts + 1;
       }
+      j = j+1;
    }
 
    return E;
@@ -165,6 +168,7 @@ AgglomerationMultigrid::AgglomerationMultigrid(
    // Create the prolongations using 'E' using the SparseMatrix class
    for (int l = num_levels - 2; l >= 0; --l)
    {
+      std::cout << "size " << E[l].size() << std::endl;
       SparseMatrix *P;
       if (l < num_levels - 2)
       {

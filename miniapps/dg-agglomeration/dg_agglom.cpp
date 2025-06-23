@@ -140,8 +140,8 @@ using namespace mfem;
 
 int main(int argc, char *argv[])
 {
-   const char *mesh_file = "../../data/star.mesh";
-   int ref_levels = 0;
+   const char *mesh_file = "../../data/inline-quad.mesh";
+   int ref_levels = 2;
    int order = 1;
    real_t kappa_0 = 10.0;
 
