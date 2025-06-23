@@ -287,8 +287,6 @@ int main(int argc, char *argv[])
    ConstantCoefficient one(1.0);
    ParBilinearForm *a = new ParBilinearForm(fespace);
    a->AddDomainIntegrator(new ElasticityIntegrator(one,lambda_g,mu_g));
-   a->AddInteriorFaceIntegrator(
-      new NitscheElasticityIntegrator(n_tilde_c, lambda_c, mu_c));
    a->AddBdrFaceIntegrator(
       new NitscheElasticityIntegrator(n_tilde_c, lambda_c, mu_c, kappa), ess_bdr);
    if (myid == 0)
