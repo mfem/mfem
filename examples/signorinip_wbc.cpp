@@ -11,14 +11,26 @@
 //               boundary condition is defined through a unit vector field
 //               ñ. We aim to (iteratively) find uᵏ ∈ V such that
 //
-//               (σ(uᵏ), ε(v)) = (f, v)                      for all v ∈ V
-//               uᵏ · ñ = φ₁ + (uᵏ⁻¹ · ñ - φ₁) exp(αₖ (σ(uᵏ⁻¹)n · ñ)) on Γₜ
+//                             a(uᵏ,v) = b(v)    for all v ∈ V
 //
-//               where σ is the stress tensor, ε is the strain tensor,
-//               f is the body force, uᵏ is the displacement at iteration k, ϕ₁
-//               is a prescribed gap function, αₖ is a positive sequence of
-//               step-size parameters, and n is the normal vector to the
-//               boundary.
+//               where
+//
+//                          a(u,v) := ∫_Ω σ(u) : ε(v) dx
+//                                    - ∫_Γₜ (σ(u) n ⋅ ñ) (v ⋅ ñ) dS
+//                                    − ∫_Γₜ (σ(v) n ⋅ ñ) (u ⋅ ñ) dS
+//                                    + κ ∫_Γₜ h⁻¹ (u ⋅ ñ) (v ⋅ ñ) dS,
+//
+//                            b(v) := ∫_Ω f ⋅ v dx
+//                                    − ∫_Γₜ σ(v) n ⋅ ñ g dS
+//                                    + κ ∫_Γₜ h⁻¹ (v ⋅ ñ) g dS,
+//
+//               and g := φ₁ + (uᵏ⁻¹ · ñ - φ₁) exp(αₖ (σ(uᵏ⁻¹)n · ñ)). Here,
+//               where σ is the (compressible, homogeneous, isotropic) stress
+//               tensor, ε is the strain tensor, f is the body force, uᵏ is the
+//               displacement at iteration k, ϕ₁ is a prescribed gap function,
+//               αₖ is a positive sequence of step-size parameters, n is the
+//               normal vector to the boundary, and κ is a (positive) penalty
+//               parameter.
 
 #include "mfem.hpp"
 #include <iostream>
