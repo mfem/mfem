@@ -64,30 +64,30 @@ struct TMOP_PA_Metric_3D
 #if ((defined(MFEM_USE_CUDA) && defined(__CUDA_ARCH__)) || \
      (defined(MFEM_USE_HIP)  && defined(__HIP_DEVICE_COMPILE__)))
 template <int N>
-using regs2d_t = mfem::internal::tensor<real_t, 0, 0>;
+using regs2d_t = mfem::future::tensor<real_t, 0, 0>;
 
 template <int N>
-using regs3d_t = mfem::internal::tensor<real_t, N, 0, 0>;
+using regs3d_t = mfem::future::tensor<real_t, N, 0, 0>;
 
 template <int VDIM, int DIM, int N>
-using regs4d_t = mfem::internal::tensor<real_t, VDIM, DIM, 0, 0>;
+using regs4d_t = mfem::future::tensor<real_t, VDIM, DIM, 0, 0>;
 
 template <int VDIM, int DIM, int N>
-using regs5d_t = mfem::internal::tensor<real_t, VDIM, DIM, N, 0, 0>;
+using regs5d_t = mfem::future::tensor<real_t, VDIM, DIM, N, 0, 0>;
 
 constexpr int SetMaxOf(int n) { return n; }
 #else
 template <int N>
-using regs2d_t = mfem::internal::tensor<real_t, N, N>;
+using regs2d_t = mfem::future::tensor<real_t, N, N>;
 
 template <int N>
-using regs3d_t = mfem::internal::tensor<real_t, N, N, N>;
+using regs3d_t = mfem::future::tensor<real_t, N, N, N>;
 
 template <int VDIM, int DIM, int N>
-using regs4d_t = mfem::internal::tensor<real_t, VDIM, DIM, N, N>;
+using regs4d_t = mfem::future::tensor<real_t, VDIM, DIM, N, N>;
 
 template <int VDIM, int DIM, int N>
-using regs5d_t = mfem::internal::tensor<real_t, VDIM, DIM, N, N, N>;
+using regs5d_t = mfem::future::tensor<real_t, VDIM, DIM, N, N, N>;
 
 template<int N>
 constexpr int NextMultipleOf(int n)
