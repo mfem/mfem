@@ -117,7 +117,6 @@ int main(int argc, char *argv[])
    const char *mesh_file = "../data/ref-cube.mesh";
    int order = 1;
    real_t alpha = 1.0;
-   real_t beta = -1.0;
    real_t kappa = 1.0;
    int ref_levels = 0;
    int max_iterations = 7;
@@ -137,9 +136,6 @@ int main(int argc, char *argv[])
                   "Lamé's first parameter.");
    args.AddOption(&mu_g, "-mu", "--mu",
                   "Lamé's second parameter.");
-   args.AddOption(&beta, "-b", "--beta",
-                  "One of the two DG penalty parameters, typically +1/-1."
-                  " See the documentation of class DGElasticityIntegrator.");
    args.AddOption(&kappa, "-k", "--kappa",
                   "One of the two DG penalty parameters, should be positive."
                   " Negative values are replaced with (order+1)^2.");
