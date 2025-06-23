@@ -629,7 +629,7 @@ public:
  * conditions, in a Nitsche elasticity formulation. Specifically, the linear
  * form is given by
  *
- * b(v) := −∫_Γ (λ div(v) I + μ (∇v + ∇vᵀ))n ⋅ w g dS + ∫_Γ h⁻¹ (v ⋅ w) g dS
+ * b(v) := −∫_Γ (λ div(v) I + μ (∇v + ∇vᵀ))n ⋅ w g dS + κ ∫_Γ h⁻¹ (v ⋅ w) g dS
  *
  * where g is the given Dirichlet data, n is the unit normal, and w is a vector
  * field. The parameters λ and μ should match the parameters with the same names
@@ -641,6 +641,7 @@ protected:
    Coefficient &g;
    VectorCoefficient &w;
    Coefficient *lambda, *mu;
+   real_t kappa;
 
 #ifndef MFEM_THREAD_SAFE
    Vector shape;
@@ -657,8 +658,8 @@ protected:
 public:
    NitscheElasticityDirichletLFIntegrator(Coefficient &g_,
                                           VectorCoefficient &w_,
-                                          Coefficient &lambda_, Coefficient &mu_)
-      : g(g_), w(w_), lambda(&lambda_), mu(&mu_) {}
+                                          Coefficient &lambda_, Coefficient &mu_, real_t kappa_)
+      : g(g_), w(w_), lambda(&lambda_), mu(&mu_), kappa(kappa_) {}
 
    void AssembleRHSElementVect(const FiniteElement &el,
                                ElementTransformation &Tr,

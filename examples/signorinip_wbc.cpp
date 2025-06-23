@@ -118,7 +118,7 @@ int main(int argc, char *argv[])
    int order = 1;
    real_t alpha = 1.0;
    real_t beta = -1.0;
-   real_t kappa = -1.0;
+   real_t kappa = 1.0;
    int ref_levels = 0;
    int max_iterations = 7;
    real_t itol = 1e-6;
@@ -294,7 +294,7 @@ int main(int argc, char *argv[])
    a->AddInteriorFaceIntegrator(
       new NitscheElasticityIntegrator(n_tilde_c, lambda_c, mu_c));
    a->AddBdrFaceIntegrator(
-      new NitscheElasticityIntegrator(n_tilde_c, lambda_c, mu_c), ess_bdr);
+      new NitscheElasticityIntegrator(n_tilde_c, lambda_c, mu_c, kappa), ess_bdr);
    if (myid == 0)
    {
       cout << "matrix ... " << flush;
@@ -347,7 +347,7 @@ int main(int argc, char *argv[])
       b->AddDomainIntegrator(new VectorDomainLFIntegrator(f_coeff));
       b->AddBdrFaceIntegrator(
          new NitscheElasticityDirichletLFIntegrator(
-            trac_coeff, n_tilde_c, lambda_c, mu_c), ess_bdr);
+            trac_coeff, n_tilde_c, lambda_c, mu_c, kappa), ess_bdr);
       b->Assemble();
 
       // Step 3: Form the linear system A X = B. This includes eliminating boundary

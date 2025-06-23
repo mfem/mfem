@@ -4439,7 +4439,7 @@ void NitscheElasticityIntegrator::AssembleFaceMatrix(
          dshape1_ps.Mult(nM1, dshape1_dnM);
       }
 
-      const real_t jmatcoef = nor*nor;
+      const real_t jmatcoef = kappa * nor*nor;
 
       // (1,1) block
       AssembleBlock(

@@ -3638,7 +3638,7 @@ public:
  * a(u,v) := -<σ(u) n⃗ ⋅ w, v ⋅ w> - <σ(v) n⃗ ⋅ w, u ⋅ w> + <h⁻¹ u ⋅ w, v ⋅ w>
  *         = - ∫_Γ (σ(u) n ⋅ w) (v ⋅ w) dS
  *           − ∫_Γ (σ(v) n ⋅ w) (u ⋅ w) dS
- *           + h⁻¹ ∫_Γ (u ⋅ w) (v ⋅ w) dS.
+ *           + κ ∫_Γ h⁻¹ (u ⋅ w) (v ⋅ w) dS.
  *
  * For isotropic media,
  *
@@ -3657,8 +3657,8 @@ class NitscheElasticityIntegrator : public BilinearFormIntegrator
 {
 public:
    NitscheElasticityIntegrator(VectorCoefficient &w_, Coefficient &lambda_,
-                               Coefficient &mu_)
-      : w(w_), lambda(&lambda_), mu(&mu_) { }
+                               Coefficient &mu_, real_t kappa_)
+      : w(w_), lambda(&lambda_), mu(&mu_), kappa(kappa_) { }
 
    using BilinearFormIntegrator::AssembleFaceMatrix;
    void AssembleFaceMatrix(const FiniteElement &el1,
@@ -3669,6 +3669,7 @@ public:
 protected:
    VectorCoefficient &w;
    Coefficient *lambda, *mu;
+   real_t kappa;
 
 #ifndef MFEM_THREAD_SAFE
    // values of all scalar basis functions for one component of u (which is a
@@ -3688,7 +3689,7 @@ protected:
    Vector nM1, nM2;  // nM1 = (mu1     * ip.weight / detJ1) nor
    Vector dshape1_dnM, dshape2_dnM; // dshape1_dnM = dshape1_ps . nM1
    Vector w_val;
-   // 'jmat' corresponds to the term: <h⁻¹ u ⋅ w, v ⋅ w>
+   // 'jmat' corresponds to the term: kappa <h⁻¹ u ⋅ w, v ⋅ w>
    DenseMatrix jmat;
 #endif
 

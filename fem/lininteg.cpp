@@ -1116,13 +1116,13 @@ void NitscheElasticityDirichletLFIntegrator::AssembleRHSElementVect(
          const real_t W = ip.weight / Tr.Elem1->Weight();
          WL = W * lambda->Eval(*Tr.Elem1, eip);
          WM = W * mu->Eval(*Tr.Elem1, eip);
-         jcoef = nor*nor;
+         jcoef = kappa * nor*nor;
          dshape_ps.Mult(nor, dshape_dn);
          dshape_ps.Mult(w_val, dshape_du);
       }
 
       // -< g, (lambda div(v) I + mu (grad(v) + grad(v)^T)) n . w > +
-      //   + < h^{-1} g, v . w >
+      //   + kappa < h^{-1} g, v . w >
 
       // i = idof + ndofs * im
       // v_phi(i,d) = delta(im,d) phi(idof)
@@ -1150,12 +1150,12 @@ void NitscheElasticityDirichletLFIntegrator::AssembleRHSElementVect(
       //   -ip.weight/det(J1) mu g nor(im) dshape_ps(idof,l) w(l) =
       //   -WM * g_val * nor(im) * dshape_du(idof)
       // term j:
-      //   < h^{-1} g, w . v_phi(i) > =
-      //   1/h g w(k) v_phi(i,k) =
-      //   1/h g w(k) delta(im,k) phi(idof) =
-      //   1/h g w(im) phi(idof) --> quadrature -->
+      //   < kappa h^{-1} g, w . v_phi(i) > =
+      //   kappa/h g w(k) v_phi(i,k) =
+      //   kappa/h g w(k) delta(im,k) phi(idof) =
+      //   kappa/h g w(im) phi(idof) --> quadrature -->
       //      [ 1/h = |nor|/det(J1) ]
-      //   ip.weight/det(J1) |nor|^2 g w(im) phi(idof) =
+      //   ip.weight/det(J1) |nor|^2 kappa g w(im) phi(idof) =
       //   jcoef * g_val * w_val(im) * shape(idof)
 
       const real_t t1 = -WL * g_val * (nor*w_val);
