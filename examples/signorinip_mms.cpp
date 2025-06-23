@@ -110,6 +110,8 @@ public:
 real_t lambda_g = 1.0;
 real_t mu_g = 1.0;
 
+const real_t plane_g = -0.5;
+
 int main(int argc, char *argv[])
 {
    // 0. Initialize MPI and HYPRE.
@@ -433,7 +435,7 @@ void ManufacturedSolution(const Vector &x, Vector &u)
 
    u = 0.0;
    u(dim-1) = -fz / (2 * (lambda_g + 2*mu_g)) * (z - 2.0) * z;
-   u(dim-1) += -0.5;
+   u(dim-1) += plane_g;
 }
 
 /**
@@ -459,9 +461,8 @@ void InitDisplacement(const Vector &x, Vector &u)
 real_t GapFunction(const Vector &x)
 {
    const int dim = x.Size();
-   const real_t d = -0.5;
 
-   return x(dim-1) - d;
+   return x(dim-1) - plane_g;
 }
 
 /**
