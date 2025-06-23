@@ -238,13 +238,9 @@ int main(int argc, char *argv[])
    Array<int> ess_bdr_x(pmesh.bdr_attributes.Max());
    Array<int> ess_bdr_y(pmesh.bdr_attributes.Max());
    Array<int> ess_bdr_z(pmesh.bdr_attributes.Max());
-   Array<int> ess_bdr(pmesh.bdr_attributes.Max());
    ess_bdr_x = 0; ess_bdr_x[2] = 1; ess_bdr_x[4] = 1;
    ess_bdr_y = 0; ess_bdr_y[1] = 1; ess_bdr_y[3] = 1;
    ess_bdr_z = 0; ess_bdr_z[0] = 1;
-
-   ess_bdr = 0;
-   ess_bdr[0] = 1;
 
    Array<int> ess_tdof_list_x, ess_tdof_list_y, ess_tdof_list_z;
    fespace->GetEssentialTrueDofs(ess_bdr_x, ess_tdof_list_x, 0);
@@ -295,7 +291,7 @@ int main(int argc, char *argv[])
    ParBilinearForm *a = new ParBilinearForm(fespace);
    a->AddDomainIntegrator(new ElasticityIntegrator(one,lambda_g,mu_g));
    a->AddBdrFaceIntegrator(
-      new NitscheElasticityIntegrator(n_tilde_c, lambda_c, mu_c, kappa), ess_bdr);
+      new NitscheElasticityIntegrator(n_tilde_c, lambda_c, mu_c, kappa), ess_bdr_z);
    if (myid == 0)
    {
       cout << "matrix ... " << flush;
@@ -348,7 +344,7 @@ int main(int argc, char *argv[])
       b->AddDomainIntegrator(new VectorDomainLFIntegrator(f_coeff));
       b->AddBdrFaceIntegrator(
          new NitscheElasticityDirichletLFIntegrator(
-            trac_coeff, n_tilde_c, lambda_c, mu_c, kappa), ess_bdr);
+            trac_coeff, n_tilde_c, lambda_c, mu_c, kappa), ess_bdr_z);
       b->Assemble();
 
       // Step 3: Form the linear system A X = B. This includes eliminating boundary
