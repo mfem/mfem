@@ -600,7 +600,8 @@ void VectorBoundaryFluxLFIntegrator::AssembleRHSElementVect(
    const IntegrationRule *ir = IntRule;
    if (ir == NULL)
    {
-      ir = &IntRules.Get(el.GetGeomType(), el.GetOrder() + 1);
+      const int intorder = 2 * el.GetOrder();  // <----------
+      ir = &IntRules.Get(el.GetGeomType(), intorder);
    }
 
    elvect = 0.0;
@@ -632,7 +633,8 @@ void VectorBoundaryFluxLFIntegrator::AssembleRHSElementVect(
    const IntegrationRule *ir = IntRule;
    if (ir == NULL)
    {
-      ir = &IntRules.Get(el.GetGeomType(), el.GetOrder() + 1);
+      const int intorder = 2 * el.GetOrder();  // <----------
+      ir = &IntRules.Get(el.GetGeomType(), intorder);
    }
 
    elvect = 0.0;
