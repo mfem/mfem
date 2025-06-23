@@ -18,9 +18,13 @@
 using namespace std;
 using namespace mfem;
 
-using SampleParticle = Particle<2,2,3,2,1,5>;
+using SampleParticle = Particle<2,1>;
 static constexpr int N = 100;
+static constexpr int N_rm = 32;
 
+// using SampleParticle = Particle<2,0,3,2,1,5>;
+// static constexpr int N = 5;
+// static constexpr int N_rm = 2;
 
 void InitializeRandom(SampleParticle &p, int seed)
 {
@@ -37,55 +41,79 @@ void InitializeRandom(SampleParticle &p, int seed)
    }
 }
 
-TEST_CASE("Add Particles",
-          "[ParticleSet]")
+template<Ordering::Type VOrdering>
+void TestParticleSet()
 {
-   // Initialize a random set of particles
+   // Initialize a vector of random particles
    int seed = 17;
-
-   SampleParticle particles[N];
+   std::vector<SampleParticle> particles(N);
    for (int i = 0; i < N; i++)
    {
       InitializeRandom(particles[i], seed);
+      particles[i].Print();
       seed++;
    }
 
-   SECTION("byNODES")
+   // Generate random set of unique indices to remove particles from
+   int rm_seed = 2;
+   std::array<int, N> indices;
+   std::iota(indices.begin(), indices.end(), 0);
+   std::shuffle(indices.begin(), indices.end(), std::default_random_engine(rm_seed));
+   Array<int> indices_rm(N_rm);
+   for (int i = 0; i < N_rm; i++)
    {
-      ParticleSet<SampleParticle, Ordering::byNODES> pset;
-      for (int i = 0; i < N; i++)
-         pset.AddParticle(particles[i]);
+      indices_rm[i] = indices[i];
+   }
+   indices_rm.Sort();
 
-      int err_count = 0;
-
-      for (int i = 0; i < N; i++)
-      {
-         // mfem::out << "Particle " << i << ":\n";
-         // particles[i].Print();
-         // cout << "\n";
-         // pset.GetParticleData(i).Print();
-         // mfem::out << "\n\n";
-         if (particles[i] != pset.GetParticleData(i))
-            err_count++;
-      }
-
-      REQUIRE(err_count == 0);
+   // Create new vector of particles after removal
+   std::vector<SampleParticle> particles_rm = particles;
+   for (int i = 0; i < N_rm; i++)
+   {
+      particles_rm.erase(particles_rm.begin() + indices_rm[i] - i);
    }
 
-   SECTION("byVDIM")
+   SECTION(std::string("Ordering: ") + (VOrdering == Ordering::byNODES ? "byNODES" : "byVDIM"))
    {
-      ParticleSet<SampleParticle, Ordering::byVDIM> pset;
-      for (int i = 0; i < N; i++)
-         pset.AddParticle(particles[i]);
+      ParticleSet<SampleParticle, VOrdering> pset;
 
-      int err_count = 0;
-
-      for (int i = 0; i < N; i++)
+      SECTION("Add")
       {
-         if (particles[i] != pset.GetParticleData(i))
-            err_count++;
-      }
+         for (int i = 0; i < N; i++)
+            pset.AddParticle(particles[i]);
+         REQUIRE(particles.size() == pset.GetNP());
 
-      REQUIRE(err_count == 0);
+
+         int add_err_count = 0;
+         for (int i = 0; i < N; i++)
+         {
+            if (particles[i] != pset.GetParticleData(i))
+               add_err_count++;
+         }
+         REQUIRE(add_err_count == 0);
+
+         SECTION("Remove")
+         {
+            pset.RemoveParticles(indices_rm);
+            REQUIRE(particles_rm.size() == pset.GetNP());
+
+
+            int rm_err_count = 0;
+            for (int i = 0; i < particles_rm.size(); i++)
+            {
+               if (particles_rm[i] != pset.GetParticleData(i))
+                  rm_err_count++;
+            }
+            REQUIRE(rm_err_count == 0);
+         }
+      }
    }
+}
+
+TEST_CASE("Adding + Removing Particles",
+          "[ParticleSet]")
+{
+
+   TestParticleSet<Ordering::byNODES>();
+   TestParticleSet<Ordering::byVDIM>();
 }
