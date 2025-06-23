@@ -32,12 +32,68 @@ class Particle
 private:
    static constexpr std::array<int, sizeof...(VectorVDims)> VDims = { VectorVDims... };
 
-   const bool owning;
+   bool owning;
 
    Vector coords;
    std::array<real_t*, NumScalars> scalars;
    std::array<Vector, sizeof...(VectorVDims)> vectors;
 
+   void Destroy()
+   {
+      coords.Destroy();
+      coords.SetSize(SpaceDim);
+      for (int v = 0; v < vectors.size(); v++)
+      {
+         vectors[v].Destroy();
+         vectors[v].SetSize(VDims[v]);
+      }
+      if (owning)
+      {
+         for (int s = 0; s < scalars.size(); s++)
+            delete scalars[s];
+      }
+      for (int s = 0; s < scalars.size(); s++)
+         scalars[s] = nullptr;
+      
+   }
+
+   void Copy(const Particle &p)
+   {
+      Destroy();
+      owning = p.owning;
+      if (owning)
+      {
+         coords = Vector(p.coords);
+         for (int s = 0; s < scalars.size(); s++)
+            scalars[s] = new real_t(p.GetScalar(s));
+         for (int v = 0; v < vectors.size(); v++)
+            vectors[v] = Vector(p.vectors[v]);
+      }
+      else
+      {
+         coords = Vector(p.coords.GetData(), SpaceDim);
+         for (int s = 0; s < scalars.size(); s++)
+            scalars[s] = p.scalars[s];
+         for (int v = 0; v < vectors.size(); v++)
+            vectors[v] = Vector(p.vectors[v].GetData(), VDims[v]);
+      }
+   }
+
+   void Steal(Particle &p)
+   {
+      Destroy();
+      owning = p.owning;
+      coords = std::move(p.coords);
+      for (int v = 0; v < vectors.size(); v++)
+      vectors[v] = std::move(p.vectors[v]);
+      for (int s = 0; s < scalars.size(); s++)
+      {
+         if (owning)
+            scalars[s] = std::exchange(p.scalars[s], nullptr);
+         else
+            scalars[s] = p.scalars[s];
+      }
+   }
 public:
    // static constexpr int SpaceDim() { return SpaceDim; };
    static constexpr int GetNumScalars() { return NumScalars; };
@@ -63,7 +119,7 @@ public:
       }
    }
 
-   // Create a new particle whose data references external data
+   /// Create a new particle whose data references external data
    Particle(real_t *in_coords, real_t *in_scalars[], real_t *in_vectors[])
    : owning(false)
    {
@@ -75,16 +131,18 @@ public:
          vectors[i] = Vector(in_vectors[i], VDims[i]);
    }
 
-   // Copy constructor
+   /// Copy ctor
    explicit Particle(const Particle &p)
-   : owning(true)
-   {
-      coords = Vector(p.GetCoords());
-      for (int s = 0; s < scalars.size(); s++)
-         scalars[s] = new real_t(p.GetScalar(s));
-      for (int v = 0; v < vectors.size(); v++)
-         vectors[v] = Vector(p.GetVector(v));
-   }
+   : Particle() { Copy(p); }
+
+   /// Move ctor
+   explicit Particle(Particle &&p) : Particle() { Steal(p); }
+
+   /// Copy assign
+   Particle& operator=(const Particle &p) { Copy(p); return *this; }
+
+   /// Move assign
+   Particle& operator=(Particle &&p) { Steal(p); return *this; }   
 
    Vector& GetCoords() { return coords; }
 
@@ -122,16 +180,9 @@ public:
       return equal;
    }
 
-   bool operator!=(const Particle &rhs) const { return !operator==(rhs); };
+   bool operator!=(const Particle &rhs) const { return !operator==(rhs); }
 
-   ~Particle()
-   {
-      if (owning)
-      {
-         for (int i = 0; i < NumScalars; i++)
-            delete scalars[i];
-      }
-   }
+   ~Particle() { Destroy(); }
 
    void Print(std::ostream &out=mfem::out)
    {
@@ -254,13 +305,9 @@ template<int SpaceDim, int NumScalars, int... VectorVDims, Ordering::Type VOrder
 void ParticleSet<Particle<SpaceDim,NumScalars,VectorVDims...>, VOrdering>::SyncVectors()
 {
    // Reset Vector references to data
-   int offset = 0;
-   int size;
    for (int f = 0; f < TotalFields; f++)
    {
-      size = GetNP()*FieldVDims[f];
-      fields[f] = Vector(data.data() + offset, size);
-      offset += fields[f].Size();
+      fields[f] = Vector(data.data() + GetNP()*ExclScanFieldVDims[f], GetNP()*FieldVDims[f]);
    }
 }
 
@@ -342,7 +389,6 @@ void ParticleSet<Particle<SpaceDim,NumScalars,VectorVDims...>, VOrdering>::Remov
             data[i-rm_count] = data[i]; // Shift elements rm_count
          }
       }
-
    }
    else // byVDIM
    {
@@ -351,13 +397,17 @@ void ParticleSet<Particle<SpaceDim,NumScalars,VectorVDims...>, VOrdering>::Remov
       int f = 0;
       for (int i = sorted_list[0]*FieldVDims[0]; i < data.size();  i++)
       {
-         if (i == FieldVDims[f]*GetNP())
+         if (f + 1 < FieldVDims.size() && i == ExclScanFieldVDims[f+1]*GetNP())
          {
             f++;
          }
-         if ( (i / FieldVDims[f]) % ( ExclScanFieldVDims[f]*GetNP() ) == sorted_list[(rm_count / FieldVDims[f]) % sorted_list.Size()])
+
+         int d_idx = (i - ExclScanFieldVDims[f]*GetNP())/FieldVDims[f];
+         int s_idx = ((rm_count - ExclScanFieldVDims[f]*sorted_list.Size())/FieldVDims[f]);
+         if (s_idx < sorted_list.Size() && d_idx == sorted_list[s_idx])
          {
-            rm_count++;
+            rm_count += FieldVDims[f];
+            i += FieldVDims[f] - 1;
          }
          else
          {
