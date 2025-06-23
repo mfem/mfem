@@ -114,6 +114,7 @@ jobs:
           echo "[MPI] Link: $(mpicxx --showme:link)"
 
       ### LSAN_OPTIONS & ASan suppression file
+      ### strdup is required for ex1p with Hypre 2.19.0
       - name: ASAN Setup
         run: |
           mkdir -p ${{env.ASAN_DIR}}
@@ -123,6 +124,7 @@ jobs:
           leak:ompi_mpi_finalize
           leak:ompi_mpi_init
           leak:PMPI_Init
+          leak:strdup
           EOF
 
       ### LLVM libcxx (https://github.com/llvm/llvm-project/tree/main/libcxx)
@@ -254,14 +256,9 @@ jobs:
             -DCMAKE_CXX_COMPILER=${{env.CXX}}
             -DCMAKE_CXX_FLAGS_RELEASE='-g -O2 -fno-omit-frame-pointer'
 
-      - name: MFEM ex1p
-        if: matrix.mpi == 'par'
-        working-directory: mfem/build
-        run: ninja -v ex1p && ${{env.CTEST}} examples -R "^ex1p"
-
       - name: MFEM Check
         working-directory: mfem/build
-        run: ninja -v check        
+        run: ninja -v check
 
       - name: MFEM Tests
         working-directory: mfem/build
