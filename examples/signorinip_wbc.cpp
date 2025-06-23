@@ -137,7 +137,7 @@ int main(int argc, char *argv[])
    args.AddOption(&mu_g, "-mu", "--mu",
                   "Lamé's second parameter.");
    args.AddOption(&kappa, "-k", "--kappa",
-                  "One of the two DG penalty parameters, should be positive."
+                  "The penalty parameter, should be positive."
                   " Negative values are replaced with (order+1)^2.");
    args.AddOption(&ref_levels, "-r", "--ref_levels",
                   "Number of uniform mesh refinements.");
