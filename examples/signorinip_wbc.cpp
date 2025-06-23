@@ -260,11 +260,16 @@ int main(int argc, char *argv[])
    Vector n_tilde(dim);
    n_tilde = 0.0;
    n_tilde(dim-1) = -1.0;
-   if (n_tilde.Norml2() != 1.0)
    {
-      std::cerr << "Vector field n_tilde is not normalized." << std::endl
-                << "n_tilde norm: " << n_tilde.Norml2() << std::endl;
-      return 3;
+      real_t n_tilde_norm = n_tilde.Norml2();
+      if (n_tilde_norm != 1.0)
+      {
+         if (myid == 0)
+         {
+            cout << "Warning: n_tilde norm is not 1.0, normalizing it." << endl;
+         }
+         n_tilde /= n_tilde_norm;
+      }
    }
    VectorConstantCoefficient n_tilde_c(n_tilde);
    ConstantCoefficient lambda_c(lambda_g);
