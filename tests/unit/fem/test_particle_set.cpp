@@ -22,10 +22,6 @@ using SampleParticle = Particle<2,1>;
 static constexpr int N = 100;
 static constexpr int N_rm = 32;
 
-// using SampleParticle = Particle<2,0,3,2,1,5>;
-// static constexpr int N = 5;
-// static constexpr int N_rm = 2;
-
 void InitializeRandom(SampleParticle &p, int seed)
 {
    p.GetCoords().Randomize(seed);
