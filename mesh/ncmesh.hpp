@@ -483,6 +483,7 @@ public:
 
    int PrintMemoryDetail() const;
 
+   /// Return true for ParNCMesh with more than one MPI process.
    virtual bool IsParallel() const { return false; }
 
    using RefCoord = std::int64_t;

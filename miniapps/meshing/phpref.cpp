@@ -93,6 +93,9 @@ int main(int argc, char *argv[])
       args.PrintOptions(cout);
    }
 
+   MFEM_VERIFY(!anisotropic || fixedOrder,
+               "Variable-order is not supported with anisotropic refinement");
+
    // 3. Enable hardware devices such as GPUs, and programming models such as
    //    CUDA, OCCA, RAJA and OpenMP based on command line options.
    Device device(device_config);
@@ -195,7 +198,8 @@ int main(int argc, char *argv[])
          refs.Append(Refinement(elem, htype));
          if (anisotropic)
          {
-            const bool conflict = pmesh.CheckForConflicts(refs);
+            std::set<int> conflicts; // Indices in refs of conflicting elements
+            const bool conflict = pmesh.AnisotropicConflict(refs, conflicts);
             if (conflict)
             {
                if (myid == 0)
