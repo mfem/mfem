@@ -44,9 +44,9 @@ void TMOP_MinDetJpr_3D(const int NE,
 
       for (int qz = 0; qz < Q1D; ++qz)
       {
-         tmop::foreach_y_thread(Q1D, [&](int qy)
+         MFEM_FOREACH_THREAD(qy, y, Q1D)
          {
-            tmop::foreach_x_thread(Q1D, [&](int qx)
+            MFEM_FOREACH_THREAD(qx, x, Q1D)
             {
                const real_t J[9] =
                {
@@ -55,8 +55,8 @@ void TMOP_MinDetJpr_3D(const int NE,
                   r1(0, 2, qz, qy, qx), r1(1, 2, qz, qy, qx), r1(2, 2, qz, qy, qx)
                };
                DetJ(qx, qy, qz, e) = kernels::Det<3>(J);
-            });
-         });
+            }
+         }
       }
    });
 }

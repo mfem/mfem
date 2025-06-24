@@ -45,20 +45,20 @@ void TMOP_DatcSize_2D(const int NE,
       MFEM_SHARED real_t smem[MQ1][MQ1];
       MFEM_SHARED real_t min_size[BLOCK_DIM];
 
-      kernels::internal::vd_regs2d_t<1,1,MQ1> r0, r1; // scalar X (component sizeidx)
+      kernels::internal::v_regs2d_t<1,MQ1> r0, r1; // scalar X (component sizeidx)
 
       kernels::internal::LoadDofs2d(e, D1D, X, r0);
 
       DeviceTensor<2, real_t> M((real_t *)(min_size), D1D, D1D);
       MFEM_FOREACH_THREAD(t, x, BLOCK_DIM) { min_size[t] = infinity; }
       MFEM_SYNC_THREAD;
-      tmop::foreach_y_thread(D1D, [&](int dy)
+      MFEM_FOREACH_THREAD(dy, y, D1D)
       {
-         tmop::foreach_x_thread(D1D, [&](int dx)
+         MFEM_FOREACH_THREAD(dx, x, D1D)
          {
-            M(dy, dx) = r0(sizeidx, 0, dy, dx);
-         });
-      });
+            M(dy, dx) = r0(sizeidx, dy, dx);
+         }
+      }
 
       MFEM_SYNC_THREAD;
       for (int wrk = BLOCK_DIM >> 1; wrk > 0; wrk >>= 1)
@@ -78,11 +78,11 @@ void TMOP_DatcSize_2D(const int NE,
       kernels::internal::LoadMatrix(D1D, Q1D, b, sB);
       kernels::internal::Eval2d(D1D, Q1D, smem, sB, r0, r1);
 
-      tmop::foreach_y_thread(Q1D, [&](int qy)
+      MFEM_FOREACH_THREAD(qy, y, Q1D)
       {
-         tmop::foreach_x_thread(Q1D, [&](int qx)
+         MFEM_FOREACH_THREAD(qx, x, Q1D)
          {
-            const real_t T = r1(0, 0, qy, qx);
+            const real_t T = r1(0, qy, qx);
 
             const real_t shape_par_vals = T;
             const real_t size = fmax(shape_par_vals, min) / nc_reduce[e];
@@ -94,8 +94,8 @@ void TMOP_DatcSize_2D(const int NE,
                   J(i, j, qx, qy, e) = alpha * W(i, j);
                }
             }
-         });
-      });
+         }
+      }
    });
 }
 
@@ -129,7 +129,7 @@ void TMOP_DatcSize_3D(const int NE,
       MFEM_SHARED real_t smem[MQ1][MQ1];
       MFEM_SHARED real_t min_size[BLOCK_DIM];
 
-      kernels::internal::vd_regs3d_t<1,1,MQ1> r0, r1; // scalar X (component sizeidx)
+      kernels::internal::v_regs3d_t<1,MQ1> r0, r1; // scalar X (component sizeidx)
 
       kernels::internal::LoadDofs3d(e, D1D, X, r0);
 
@@ -138,13 +138,13 @@ void TMOP_DatcSize_3D(const int NE,
       MFEM_SYNC_THREAD;
       for (int dz = 0; dz < D1D; ++dz)
       {
-         tmop::foreach_y_thread(D1D, [&](int dy)
+         MFEM_FOREACH_THREAD(dy, y, D1D)
          {
-            tmop::foreach_x_thread(D1D, [&](int dx)
+            MFEM_FOREACH_THREAD(dx, x, D1D)
             {
-               M(dz, dy, dx) = r0(sizeidx, 0, dz, dy, dx);
-            });
-         });
+               M(dz, dy, dx) = r0(sizeidx, dz, dy, dx);
+            }
+         }
       }
       MFEM_SYNC_THREAD;
       for (int wrk = BLOCK_DIM >> 1; wrk > 0; wrk >>= 1)
@@ -166,11 +166,11 @@ void TMOP_DatcSize_3D(const int NE,
 
       for (int qz = 0; qz < Q1D; ++qz)
       {
-         tmop::foreach_y_thread(Q1D, [&](int qy)
+         MFEM_FOREACH_THREAD(qy, y, Q1D)
          {
-            tmop::foreach_x_thread(Q1D, [&](int qx)
+            MFEM_FOREACH_THREAD(qx, x, Q1D)
             {
-               const real_t T = r1(0, 0, qz, qy, qx);
+               const real_t T = r1(0, qz, qy, qx);
 
                const real_t shape_par_vals = T;
                const real_t size = fmax(shape_par_vals, min) / nc_reduce[e];
@@ -182,8 +182,8 @@ void TMOP_DatcSize_3D(const int NE,
                      J(i, j, qx, qy, qz, e) = alpha * W(i, j);
                   }
                }
-            });
-         });
+            }
+         }
       }
    });
 }

@@ -36,16 +36,16 @@ void TMOP_AddMultGradPA_C0_2D(const int NE,
       MFEM_SHARED real_t smem[MQ1][MQ1];
       kernels::internal::LoadMatrix(D1D, Q1D, b, sB);
 
-      kernels::internal::vd_regs2d_t<2,1,MQ1> r0, r1;
+      kernels::internal::v_regs2d_t<2,MQ1> r0, r1;
       kernels::internal::LoadDofs2d(e, D1D, X, r0);
       kernels::internal::Eval2d(D1D, Q1D, smem, sB, r0, r1);
 
-      tmop::foreach_y_thread(Q1D, [&](int qy)
+      MFEM_FOREACH_THREAD(qy, y, Q1D)
       {
-         tmop::foreach_x_thread(Q1D, [&](int qx)
+         MFEM_FOREACH_THREAD(qx, x, Q1D)
          {
             // Xh = X^T . Sh
-            const real_t Xh[2] = { r1(0, 0, qy, qx), r1(1, 0, qy, qx) };
+            const real_t Xh[2] = { r1(0, qy, qx), r1(1, qy, qx) };
 
             real_t H_data[4];
             DeviceMatrix H(H_data, 2, 2);
@@ -57,10 +57,10 @@ void TMOP_AddMultGradPA_C0_2D(const int NE,
             // p2 = H . Xh
             real_t p2[2];
             kernels::Mult(2, 2, H_data, Xh, p2);
-            r0(0,0, qy,qx) = p2[0];
-            r0(1,0, qy,qx) = p2[1];
-         });
-      });
+            r0(0,qy,qx) = p2[0];
+            r0(1,qy,qx) = p2[1];
+         }
+      }
       MFEM_SYNC_THREAD;
       kernels::internal::EvalTranspose2d(D1D, Q1D, smem, sB, r0, r1);
       kernels::internal::WriteDofs2d(e, D1D, r1, Y);

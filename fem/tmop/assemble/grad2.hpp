@@ -73,9 +73,9 @@ public:
          kernels::internal::LoadDofs2d(e, D1D, X, r0);
          kernels::internal::Grad2d(D1D, Q1D, smem, sB, sG, r0, r1);
 
-         tmop::foreach_y_thread(Q1D, [&](int qy)
+         MFEM_FOREACH_THREAD(qy, y, Q1D)
          {
-            tmop::foreach_x_thread(Q1D, [&](int qx)
+            MFEM_FOREACH_THREAD(qx, x, Q1D)
             {
                const real_t *Jtr = &J(0, 0, qx, qy, e);
                const real_t detJtr = kernels::Det<2>(Jtr);
@@ -98,8 +98,8 @@ public:
                kernels::Mult(2, 2, 2, Jpr, Jrt, Jpt);
 
                METRIC{}.AssembleH(qx, qy, e, weight, Jpt, w, H);
-            });
-         });
+            }
+         }
       });
    }
 };

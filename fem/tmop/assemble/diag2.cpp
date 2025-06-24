@@ -68,9 +68,9 @@ void TMOP_AssembleDiagPA_2D(const int NE,
       DeviceTensor<5, real_t> Href(Href_data, 2, 2, 2, MQ1, MQ1);
       for (int v = 0; v < 2; v++)
       {
-         tmop::foreach_x_thread(Q1D, [&](int qx)
+         MFEM_FOREACH_THREAD(qx, x, Q1D)
          {
-            tmop::foreach_y_thread(Q1D, [&](int qy)
+            MFEM_FOREACH_THREAD(qy, y, Q1D)
             {
                const real_t *Jtr = &J(0, 0, qx, qy, e);
                real_t Jrt_data[4];
@@ -94,8 +94,8 @@ void TMOP_AssembleDiagPA_2D(const int NE,
                      }
                   }
                }
-            });
-         });
+            }
+         }
       }
 
       MFEM_SHARED real_t qd[2 * 2 * MQ1 * MD1];
@@ -104,9 +104,9 @@ void TMOP_AssembleDiagPA_2D(const int NE,
       for (int v = 0; v < 2; v++)
       {
          // Contract in y.
-         tmop::foreach_x_thread(Q1D, [&](int qx)
+         MFEM_FOREACH_THREAD(qx, x, Q1D)
          {
-            tmop::foreach_y_thread(D1D, [&](int dy)
+            MFEM_FOREACH_THREAD(dy, y, D1D)
             {
                for (int m = 0; m < 2; m++)
                {
@@ -126,14 +126,14 @@ void TMOP_AssembleDiagPA_2D(const int NE,
                      }
                   }
                }
-            });
-         });
+            }
+         }
          MFEM_SYNC_THREAD;
 
          // Contract in x.
-         tmop::foreach_y_thread(D1D, [&](int dy)
+         MFEM_FOREACH_THREAD(dy, y, D1D)
          {
-            tmop::foreach_x_thread(D1D, [&](int dx)
+            MFEM_FOREACH_THREAD(dx, x, D1D)
             {
                real_t d = 0.0;
                for (int qx = 0; qx < Q1D; ++qx)
@@ -152,8 +152,8 @@ void TMOP_AssembleDiagPA_2D(const int NE,
                   }
                }
                D(dx, dy, v, e) += d;
-            });
-         });
+            }
+         }
          MFEM_SYNC_THREAD;
       }
    });

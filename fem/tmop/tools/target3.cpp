@@ -72,9 +72,9 @@ void TMOP_TcIdealShapeGivenSize_3D(const int NE,
 
       for (int qz = 0; qz < Q1D; ++qz)
       {
-         tmop::foreach_y_thread(Q1D, [&](int qy)
+         MFEM_FOREACH_THREAD(qy, y, Q1D)
          {
-            tmop::foreach_x_thread(Q1D, [&](int qx)
+            MFEM_FOREACH_THREAD(qx, x, Q1D)
             {
                const real_t *Wid = &W(0, 0);
                const real_t Jtr[9] =
@@ -86,8 +86,8 @@ void TMOP_TcIdealShapeGivenSize_3D(const int NE,
                const real_t detJ = kernels::Det<3>(Jtr);
                const real_t alpha = std::pow(detJ / detW, 1. / 3);
                kernels::Set(3, 3, alpha, Wid, &J(0, 0, qx, qy, qz, e));
-            });
-         });
+            }
+         }
       }
    });
 }

@@ -30,16 +30,16 @@ void TMOP_AssembleDiagPA_C0_3D(const int NE,
    mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
    {
       MFEM_SHARED real_t smem[MQ1][MQ1];
-      kernels::internal::regs3d_t<MQ1> r0, r1;
+      kernels::internal::s_regs3d_t<MQ1> r0, r1;
 
       for (int v = 0; v < 3; ++v)
       {
          // first tensor contraction, along z direction
          for (int dz = 0; dz < D1D; ++dz)
          {
-            tmop::foreach_y_thread(Q1D, [&](int qy)
+            MFEM_FOREACH_THREAD(qy, y, Q1D)
             {
-               tmop::foreach_x_thread(Q1D, [&](int qx)
+               MFEM_FOREACH_THREAD(qx, x, Q1D)
                {
                   real_t u = 0.0;
                   for (int qz = 0; qz < Q1D; ++qz)
@@ -48,26 +48,26 @@ void TMOP_AssembleDiagPA_C0_3D(const int NE,
                      u += Bz * H0(v, v, qx, qy, qz, e) * Bz;
                   }
                   r0[dz][qy][qx] = u;
-               });
-            });
+               }
+            }
             MFEM_SYNC_THREAD;
          }
 
          // second tensor contraction, along y direction
          for (int dz = 0; dz < D1D; ++dz)
          {
-            tmop::foreach_y_thread(Q1D, [&](int qy)
+            MFEM_FOREACH_THREAD(qy, y, Q1D)
             {
-               tmop::foreach_x_thread(Q1D, [&](int qx)
+               MFEM_FOREACH_THREAD(qx, x, Q1D)
                {
                   smem[qy][qx] = r0[dz][qy][qx];
-               });
-            });
+               }
+            }
             MFEM_SYNC_THREAD;
 
-            tmop::foreach_y_thread(D1D, [&](int dy)
+            MFEM_FOREACH_THREAD(dy, y, D1D)
             {
-               tmop::foreach_x_thread(Q1D, [&](int qx)
+               MFEM_FOREACH_THREAD(qx, x, Q1D)
                {
                   real_t u = 0.0;
                   for (int qy = 0; qy < Q1D; ++qy)
@@ -76,26 +76,26 @@ void TMOP_AssembleDiagPA_C0_3D(const int NE,
                      u += By * smem[qy][qx] * By;
                   }
                   r1[dz][dy][qx] = u;
-               });
-            });
+               }
+            }
             MFEM_SYNC_THREAD;
          }
 
          // third tensor contraction, along x direction
          for (int dz = 0; dz < D1D; ++dz)
          {
-            tmop::foreach_y_thread(D1D, [&](int dy)
+            MFEM_FOREACH_THREAD(dy, y, D1D)
             {
-               tmop::foreach_x_thread(Q1D, [&](int qx)
+               MFEM_FOREACH_THREAD(qx, x, Q1D)
                {
                   smem[dy][qx] = r1[dz][dy][qx];
-               });
-            });
+               }
+            }
             MFEM_SYNC_THREAD;
 
-            tmop::foreach_y_thread(D1D, [&](int dy)
+            MFEM_FOREACH_THREAD(dy, y, D1D)
             {
-               tmop::foreach_x_thread(D1D, [&](int dx)
+               MFEM_FOREACH_THREAD(dx, x, D1D)
                {
                   real_t u = 0.0;
                   for (int qx = 0; qx < Q1D; ++qx)
@@ -104,8 +104,8 @@ void TMOP_AssembleDiagPA_C0_3D(const int NE,
                      u += Bx * smem[dy][qx] * Bx;
                   }
                   D(dx, dy, dz, v, e) += u;
-               });
-            });
+               }
+            }
             MFEM_SYNC_THREAD;
          }
       }

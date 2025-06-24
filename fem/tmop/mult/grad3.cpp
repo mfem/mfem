@@ -44,9 +44,9 @@ void TMOP_AddMultGradPA_3D(const int NE,
 
       for (int qz = 0; qz < Q1D; ++qz)
       {
-         tmop::foreach_y_thread(Q1D, [&](int qy)
+         MFEM_FOREACH_THREAD(qy, y, Q1D)
          {
-            tmop::foreach_x_thread(Q1D, [&](int qx)
+            MFEM_FOREACH_THREAD(qx, x, Q1D)
             {
                const real_t *Jtr = &J(0, 0, qx, qy, qz, e);
 
@@ -91,8 +91,8 @@ void TMOP_AddMultGradPA_3D(const int NE,
                r0(0,0, qz,qy,qx) = A[0], r0(0,1, qz,qy,qx) = A[1], r0(0,2, qz,qy,qx) = A[2];
                r0(1,0, qz,qy,qx) = A[3], r0(1,1, qz,qy,qx) = A[4], r0(1,2, qz,qy,qx) = A[5];
                r0(2,0, qz,qy,qx) = A[6], r0(2,1, qz,qy,qx) = A[7], r0(2,2, qz,qy,qx) = A[8];
-            });
-         });
+            }
+         }
       }
       MFEM_SYNC_THREAD;
       kernels::internal::GradTranspose3d(D1D, Q1D, smem, sB, sG, r0, r1);

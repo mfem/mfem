@@ -44,25 +44,25 @@ void TMOP_EnergyPA_C0_3D(const real_t lim_normal,
       MFEM_SHARED real_t sB[MD1][MQ1];
       kernels::internal::LoadMatrix(D1D, Q1D, bld, sB);
 
-      kernels::internal::vd_regs3d_t<1,1,MQ1> rm0, rm1; // scalar LD
+      kernels::internal::s_regs3d_t<MQ1> rm0, rm1; // scalar LD
       kernels::internal::LoadDofs3d(e, D1D, LD, rm0);
       kernels::internal::Eval3d(D1D, Q1D, smem, sB, rm0, rm1);
 
       kernels::internal::LoadMatrix(D1D, Q1D, b, sB);
 
-      kernels::internal::vd_regs3d_t<3,1,MQ1> r00, r01; // vector X0
+      kernels::internal::v_regs3d_t<3,MQ1> r00, r01; // vector X0
       kernels::internal::LoadDofs3d(e, D1D, X0, r00);
       kernels::internal::Eval3d(D1D, Q1D, smem, sB, r00, r01);
 
-      kernels::internal::vd_regs3d_t<3,1,MQ1> r10, r11; // vector X1
+      kernels::internal::v_regs3d_t<3,MQ1> r10, r11; // vector X1
       kernels::internal::LoadDofs3d(e, D1D, X1, r10);
       kernels::internal::Eval3d(D1D, Q1D, smem, sB, r10, r11);
 
       for (int qz = 0; qz < Q1D; ++qz)
       {
-         tmop::foreach_y_thread(Q1D, [&](int qy)
+         MFEM_FOREACH_THREAD(qy, y, Q1D)
          {
-            tmop::foreach_x_thread(Q1D, [&](int qx)
+            MFEM_FOREACH_THREAD(qx, x, Q1D)
             {
                const real_t *Jtr = &J(0, 0, qx, qy, qz, e);
                const real_t detJtr = kernels::Det<3>(Jtr);
@@ -71,18 +71,18 @@ void TMOP_EnergyPA_C0_3D(const real_t lim_normal,
                                      ? C0(0, 0, 0, 0)
                                      : C0(qx, qy, qz, e);
 
-               const real_t D = rm1(0, 0, qz, qy, qx);
+               const real_t D = rm1(qz, qy, qx);
                const real_t p0[3] =
                {
-                  r01(0, 0, qz, qy, qx),
-                  r01(1, 0, qz, qy, qx),
-                  r01(2, 0, qz, qy, qx)
+                  r01(0, qz, qy, qx),
+                  r01(1, qz, qy, qx),
+                  r01(2, qz, qy, qx)
                };
                const real_t p1[3] =
                {
-                  r11(0, 0, qz, qy, qx),
-                  r11(1, 0, qz, qy, qx),
-                  r11(2, 0, qz, qy, qx)
+                  r11(0, qz, qy, qx),
+                  r11(1, qz, qy, qx),
+                  r11(2, qz, qy, qx)
                };
 
                const real_t dist = D; // GetValues, default comp set to 0
@@ -101,8 +101,8 @@ void TMOP_EnergyPA_C0_3D(const real_t lim_normal,
                   E(qx, qy, qz, e) =
                      weight * lim_normal * exp(10.0 * (dsq - 1.0)) * coeff0;
                }
-            });
-         });
+            }
+         }
       }
    });
 }

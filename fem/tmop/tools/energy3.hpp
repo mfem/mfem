@@ -170,9 +170,9 @@ public:
 
          for (int qz = 0; qz < Q1D; ++qz)
          {
-            tmop::foreach_y_thread(Q1D, [&](int qy)
+            MFEM_FOREACH_THREAD(qy, y, Q1D)
             {
-               tmop::foreach_x_thread(Q1D, [&](int qx)
+               MFEM_FOREACH_THREAD(qx, x, Q1D)
                {
                   const real_t *Jtr = &J(0, 0, qx, qy, qz, e);
                   const real_t coeff = const_m0 ? MC(0, 0, 0, 0) : MC(qx, qy, qz, e);
@@ -200,8 +200,8 @@ public:
 
                   E(qx, qy, qz, e) = weight * EvalW;
                   L(qx, qy, qz, e) = weight;
-               });
-            });
+               }
+            }
          }
       });
       ker.metric_energy = ker.E * ker.O;

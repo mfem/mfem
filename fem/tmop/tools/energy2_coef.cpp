@@ -45,32 +45,32 @@ void TMOP_EnergyPA_C0_2D(const real_t lim_normal,
 
       kernels::internal::LoadMatrix(D1D, Q1D, bld, sB);
 
-      kernels::internal::vd_regs2d_t<1,1,MQ1> rm0, rm1; // scalar LD
+      kernels::internal::s_regs2d_t<MQ1> rm0, rm1; // scalar LD
       kernels::internal::LoadDofs2d(e, D1D, LD, rm0);
       kernels::internal::Eval2d(D1D, Q1D, smem, sB, rm0, rm1);
 
       kernels::internal::LoadMatrix(D1D, Q1D, b, sB);
 
-      kernels::internal::vd_regs2d_t<2,1,MQ1> r00, r01; // vector X0
+      kernels::internal::v_regs2d_t<2,MQ1> r00, r01; // vector X0
       kernels::internal::LoadDofs2d(e, D1D, X0, r00);
       kernels::internal::Eval2d(D1D, Q1D, smem, sB, r00, r01);
 
-      kernels::internal::vd_regs2d_t<2,1,MQ1> r10, r11; // vector X1
+      kernels::internal::v_regs2d_t<2,MQ1> r10, r11; // vector X1
       kernels::internal::LoadDofs2d(e, D1D, X1, r10);
       kernels::internal::Eval2d(D1D, Q1D, smem, sB, r10, r11);
 
-      tmop::foreach_y_thread(Q1D, [&](int qy)
+      MFEM_FOREACH_THREAD(qy, y, Q1D)
       {
-         tmop::foreach_x_thread(Q1D, [&](int qx)
+         MFEM_FOREACH_THREAD(qx, x, Q1D)
          {
             const real_t *Jtr = &J(0, 0, qx, qy, e);
             const real_t detJtr = kernels::Det<2>(Jtr);
             const real_t weight = W(qx, qy) * detJtr;
             const real_t coeff0 = const_c0 ? C0(0, 0, 0) : C0(qx, qy, e);
 
-            const real_t ld = rm1(0, 0, qy, qx);
-            const real_t p0[2] = { r01(0, 0, qy, qx), r01(1, 0, qy, qx) };
-            const real_t p1[2] = { r11(0, 0, qy, qx), r11(1, 0, qy, qx) };
+            const real_t ld = rm1(qy, qx);
+            const real_t p0[2] = { r01(0, qy, qx), r01(1, qy, qx) };
+            const real_t p1[2] = { r11(0, qy, qx), r11(1, qy, qx) };
 
             const real_t dist = ld; // GetValues, default comp set to 0
             real_t id2 = 0.0;
@@ -87,8 +87,8 @@ void TMOP_EnergyPA_C0_2D(const real_t lim_normal,
                dsq = kernels::DistanceSquared<2>(p1, p0) * id2;
                E(qx, qy, e) = weight * lim_normal * exp(10.0 * (dsq - 1.0)) * coeff0;
             }
-         });
-      });
+         }
+      }
    });
 }
 

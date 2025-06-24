@@ -41,9 +41,9 @@ void TMOP_AssembleDiagPA_3D(const int NE,
          // Takes into account Jtr by replacing H with Href at all quad points.
          for (int qz = 0; qz < Q1D; ++qz)
          {
-            tmop::foreach_y_thread(Q1D, [&](int qy)
+            MFEM_FOREACH_THREAD(qy, y, Q1D)
             {
-               tmop::foreach_x_thread(Q1D, [&](int qx)
+               MFEM_FOREACH_THREAD(qx, x, Q1D)
                {
                   const real_t *Jtr = &J(0, 0, qx, qy, qz, e);
                   real_t Jrt_data[9];
@@ -75,17 +75,17 @@ void TMOP_AssembleDiagPA_3D(const int NE,
                         }
                      }
                   }
-               });
-            });
+               }
+            }
             MFEM_SYNC_THREAD;
          }
 
          // Contract in z.
          for (int dz = 0; dz < D1D; ++dz)
          {
-            tmop::foreach_y_thread(Q1D, [&](int qy)
+            MFEM_FOREACH_THREAD(qy, y, Q1D)
             {
-               tmop::foreach_x_thread(Q1D, [&](int qx)
+               MFEM_FOREACH_THREAD(qx, x, Q1D)
                {
                   for (int m = 0; m < 3; m++)
                   {
@@ -108,8 +108,8 @@ void TMOP_AssembleDiagPA_3D(const int NE,
                         }
                      }
                   }
-               });
-            });
+               }
+            }
             MFEM_SYNC_THREAD;
          }
 
@@ -120,20 +120,20 @@ void TMOP_AssembleDiagPA_3D(const int NE,
             {
                for (int n = 0; n < 3; n++)
                {
-                  tmop::foreach_y_thread(Q1D, [&](int qy)
+                  MFEM_FOREACH_THREAD(qy, y, Q1D)
                   {
-                     tmop::foreach_x_thread(Q1D, [&](int qx)
+                     MFEM_FOREACH_THREAD(qx, x, Q1D)
                      {
                         smem[m][n][qy][qx] = r0(m, n, dz, qy, qx);
-                     });
-                  });
+                     }
+                  }
                }
             }
             MFEM_SYNC_THREAD;
 
-            tmop::foreach_y_thread(D1D, [&](int dy)
+            MFEM_FOREACH_THREAD(dy, y, D1D)
             {
-               tmop::foreach_x_thread(Q1D, [&](int qx)
+               MFEM_FOREACH_THREAD(qx, x, Q1D)
                {
                   for (int m = 0; m < 3; m++)
                   {
@@ -157,8 +157,8 @@ void TMOP_AssembleDiagPA_3D(const int NE,
                         }
                      }
                   }
-               });
-            });
+               }
+            }
             MFEM_SYNC_THREAD;
          }
 
@@ -169,20 +169,20 @@ void TMOP_AssembleDiagPA_3D(const int NE,
             {
                for (int n = 0; n < 3; n++)
                {
-                  tmop::foreach_y_thread(D1D, [&](int dy)
+                  MFEM_FOREACH_THREAD(dy, y, D1D)
                   {
-                     tmop::foreach_x_thread(Q1D, [&](int qx)
+                     MFEM_FOREACH_THREAD(qx, x, Q1D)
                      {
                         smem[m][n][dy][qx] = r1(m, n, dz, dy, qx);
-                     });
-                  });
+                     }
+                  }
                }
             }
             MFEM_SYNC_THREAD;
 
-            tmop::foreach_y_thread(D1D, [&](int dy)
+            MFEM_FOREACH_THREAD(dy, y, D1D)
             {
-               tmop::foreach_x_thread(D1D, [&](int dx)
+               MFEM_FOREACH_THREAD(dx, x, D1D)
                {
                   real_t d = 0.0;
                   for (int qx = 0; qx < Q1D; ++qx)
@@ -200,8 +200,8 @@ void TMOP_AssembleDiagPA_3D(const int NE,
                      }
                   }
                   D(dx, dy, dz, v, e) += d;
-               });
-            });
+               }
+            }
             MFEM_SYNC_THREAD;
          }
       }

@@ -37,22 +37,22 @@ void TMOP_AddMultGradPA_C0_3D(const int NE,
 
       kernels::internal::LoadMatrix(D1D, Q1D, b, sB);
 
-      kernels::internal::vd_regs3d_t<3,1,MQ1> r0, r1; // vector X
+      kernels::internal::v_regs3d_t<3,MQ1> r0, r1; // vector X
       kernels::internal::LoadDofs3d(e, D1D, X, r0);
       kernels::internal::Eval3d(D1D, Q1D, smem, sB, r0, r1);
 
       for (int qz = 0; qz < Q1D; ++qz)
       {
-         tmop::foreach_y_thread(Q1D, [&](int qy)
+         MFEM_FOREACH_THREAD(qy, y, Q1D)
          {
-            tmop::foreach_x_thread(Q1D, [&](int qx)
+            MFEM_FOREACH_THREAD(qx, x, Q1D)
             {
                // Xh = X^T . Sh
                const real_t Xh[3] =
                {
-                  r1(0, 0, qz, qy, qx),
-                  r1(1, 0, qz, qy, qx),
-                  r1(2, 0, qz, qy, qx)
+                  r1(0, qz, qy, qx),
+                  r1(1, qz, qy, qx),
+                  r1(2, qz, qy, qx)
                };
 
                real_t H_data[9];
@@ -68,11 +68,11 @@ void TMOP_AddMultGradPA_C0_3D(const int NE,
                // p2 = H . Xh
                real_t p2[3];
                kernels::Mult(3, 3, H_data, Xh, p2);
-               r0(0,0, qz,qy,qx) = p2[0];
-               r0(1,0, qz,qy,qx) = p2[1];
-               r0(2,0, qz,qy,qx) = p2[2];
-            });
-         });
+               r0(0,qz,qy,qx) = p2[0];
+               r0(1,qz,qy,qx) = p2[1];
+               r0(2,qz,qy,qx) = p2[2];
+            }
+         }
       }
       MFEM_SYNC_THREAD;
       kernels::internal::EvalTranspose3d(D1D, Q1D, smem, sB, r0, r1);
