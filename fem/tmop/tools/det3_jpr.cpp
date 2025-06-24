@@ -11,12 +11,15 @@
 
 #include "../pa.hpp"
 #include "../../tmop.hpp"
+#include "../../kernels.hpp"
 #include "../../tmop_tools.hpp"
 #include "../../../general/forall.hpp"
 #include "../../../linalg/kernels.hpp"
 
 namespace mfem
 {
+
+using namespace kernels::internal;
 
 template <int MD1, int MQ1, int T_D1D = 0, int T_Q1D = 0>
 void TMOP_MinDetJpr_3D(const int NE,
@@ -33,7 +36,7 @@ void TMOP_MinDetJpr_3D(const int NE,
    {
       MFEM_SHARED real_t smem[MQ1][MQ1];
       MFEM_SHARED real_t sB[MD1][MQ1], sG[MD1][MQ1];
-      regs5d_t<3, 3, MQ1> r0, r1;
+      vd_regs3d_t<3, 3, MQ1> r0, r1;
 
       LoadMatrix(D1D, Q1D, b, sB);
       LoadMatrix(D1D, Q1D, g, sG);

@@ -11,10 +11,13 @@
 
 #include "../pa.hpp"
 #include "../../tmop.hpp"
+#include "../../kernels.hpp"
 #include "../../../general/forall.hpp"
 
 namespace mfem
 {
+
+using namespace kernels::internal;
 
 template <int MD1, int MQ1, int T_D1D = 0, int T_Q1D = 0>
 void TMOP_DatcSize_2D(const int NE,
@@ -44,7 +47,7 @@ void TMOP_DatcSize_2D(const int NE,
       MFEM_SHARED real_t smem[MQ1][MQ1];
       MFEM_SHARED real_t min_size[BLOCK_DIM];
 
-      regs4d_t<1,1,MQ1> r0, r1; // scalar X (component sizeidx)
+      vd_regs2d_t<1,1,MQ1> r0, r1; // scalar X (component sizeidx)
 
       LoadDofs2d(e, D1D, X, r0);
 
@@ -128,7 +131,7 @@ void TMOP_DatcSize_3D(const int NE,
       MFEM_SHARED real_t smem[MQ1][MQ1];
       MFEM_SHARED real_t min_size[BLOCK_DIM];
 
-      regs5d_t<1,1,MQ1> r0, r1; // scalar X (component sizeidx)
+      vd_regs3d_t<1,1,MQ1> r0, r1; // scalar X (component sizeidx)
 
       LoadDofs3d(e, D1D, X, r0);
 

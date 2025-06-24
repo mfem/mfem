@@ -11,11 +11,14 @@
 
 #include "../pa.hpp"
 #include "../../tmop.hpp"
+#include "../../kernels.hpp"
 #include "../../../general/forall.hpp"
 #include "../../../linalg/kernels.hpp"
 
 namespace mfem
 {
+
+using namespace kernels::internal;
 
 template <int MD1, int MQ1, int T_D1D = 0, int T_Q1D = 0>
 void TMOP_AddMultGradPA_C0_3D(const int NE,
@@ -36,7 +39,7 @@ void TMOP_AddMultGradPA_C0_3D(const int NE,
 
       LoadMatrix(D1D, Q1D, b, sB);
 
-      regs5d_t<3,1,MQ1> r0, r1; // vector X
+      vd_regs3d_t<3,1,MQ1> r0, r1; // vector X
       LoadDofs3d(e, D1D, X, r0);
       Eval3d(D1D, Q1D, smem, sB, r0, r1);
 

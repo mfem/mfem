@@ -11,11 +11,14 @@
 
 #include "../pa.hpp"
 #include "../../tmop.hpp"
+#include "../../kernels.hpp"
 #include "../../../general/forall.hpp"
 #include "../../../linalg/kernels.hpp"
 
 namespace mfem
 {
+
+using namespace kernels::internal;
 
 template <int MD1, int MQ1, int T_D1D = 0, int T_Q1D = 0>
 void TMOP_AssembleGradPA_C0_3D(const real_t lim_normal,
@@ -43,17 +46,17 @@ void TMOP_AssembleGradPA_C0_3D(const real_t lim_normal,
       MFEM_SHARED real_t smem[MQ1][MQ1];
       LoadMatrix(D1D, Q1D, bld, sB);
 
-      regs5d_t<1,1,MQ1> rm0, rm1; // scalar LD
+      vd_regs3d_t<1,1,MQ1> rm0, rm1; // scalar LD
       LoadDofs3d(e, D1D, LD, rm0);
       Eval3d(D1D, Q1D, smem, sB, rm0, rm1);
 
       LoadMatrix(D1D, Q1D, b, sB);
 
-      regs5d_t<3,1,MQ1> r00, r01; // vector X0
+      vd_regs3d_t<3,1,MQ1> r00, r01; // vector X0
       LoadDofs3d(e, D1D, X0, r00);
       Eval3d(D1D, Q1D, smem, sB, r00, r01);
 
-      regs5d_t<3,1,MQ1> r10, r11; // vector X1
+      vd_regs3d_t<3,1,MQ1> r10, r11; // vector X1
       LoadDofs3d(e, D1D, X1, r10);
       Eval3d(D1D, Q1D, smem, sB, r10, r11);
 

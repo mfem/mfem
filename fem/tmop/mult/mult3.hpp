@@ -12,6 +12,7 @@
 
 #include "../pa.hpp"
 #include "../../tmop.hpp"
+#include "../../kernels.hpp"
 #include "../../../general/forall.hpp"
 #include "../../../linalg/kernels.hpp"
 
@@ -70,13 +71,13 @@ public:
       {
          MFEM_SHARED real_t smem[MQ1][MQ1];
          MFEM_SHARED real_t sB[MD1][MQ1], sG[MD1][MQ1];
-         regs5d_t<3, 3, MQ1> r0, r1;
+         kernels::internal::vd_regs3d_t<3, 3, MQ1> r0, r1;
 
-         LoadMatrix(D1D, Q1D, b, sB);
-         LoadMatrix(D1D, Q1D, g, sG);
+         kernels::internal::LoadMatrix(D1D, Q1D, b, sB);
+         kernels::internal::LoadMatrix(D1D, Q1D, g, sG);
 
-         LoadDofs3d(e, D1D, X, r0);
-         Grad3d(D1D, Q1D, smem, sB, sG, r0, r1);
+         kernels::internal::LoadDofs3d(e, D1D, X, r0);
+         kernels::internal::Grad3d(D1D, Q1D, smem, sB, sG, r0, r1);
 
          for (int qz = 0; qz < Q1D; ++qz)
          {
@@ -122,8 +123,8 @@ public:
             });
          }
          MFEM_SYNC_THREAD;
-         GradTranspose3d(D1D, Q1D, smem, sB, sG, r0, r1);
-         WriteDofs3d(e, D1D, r1, Y);
+         kernels::internal::GradTranspose3d(D1D, Q1D, smem, sB, sG, r0, r1);
+         kernels::internal::WriteDofs3d(e, D1D, r1, Y);
       });
    }
 };

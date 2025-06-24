@@ -12,6 +12,7 @@
 
 #include "../pa.hpp"
 #include "../../tmop.hpp"
+#include "../../kernels.hpp"
 #include "../../../general/forall.hpp"
 #include "../../../linalg/kernels.hpp"
 
@@ -71,13 +72,13 @@ public:
       {
          MFEM_SHARED real_t smem[MQ1][MQ1];
          MFEM_SHARED real_t sB[MD1][MQ1], sG[MD1][MQ1];
-         regs4d_t<2, 2, MQ1> r0, r1;
+         kernels::internal::vd_regs2d_t<2, 2, MQ1> r0, r1;
 
-         LoadMatrix(D1D, Q1D, b, sB);
-         LoadMatrix(D1D, Q1D, g, sG);
+         kernels::internal::LoadMatrix(D1D, Q1D, b, sB);
+         kernels::internal::LoadMatrix(D1D, Q1D, g, sG);
 
-         LoadDofs2d(e, D1D, X, r0);
-         Grad2d(D1D, Q1D, smem, sB, sG, r0, r1);
+         kernels::internal::LoadDofs2d(e, D1D, X, r0);
+         kernels::internal::Grad2d(D1D, Q1D, smem, sB, sG, r0, r1);
 
          mfem::tmop::foreach_y_thread(Q1D, [&](int qy)
          {
@@ -116,8 +117,8 @@ public:
             });
          });
          MFEM_SYNC_THREAD;
-         GradTranspose2d(D1D, Q1D, smem, sB, sG, r0, r1);
-         WriteDofs2d(e, D1D, r1, Y);
+         kernels::internal::GradTranspose2d(D1D, Q1D, smem, sB, sG, r0, r1);
+         kernels::internal::WriteDofs2d(e, D1D, r1, Y);
       });
    }
 };
