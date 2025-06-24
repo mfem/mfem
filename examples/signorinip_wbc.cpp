@@ -131,8 +131,8 @@ int main(int argc, char *argv[])
    const char *mesh_file = "../data/ref-cube.mesh";
    int order = 1;
    real_t alpha = 1.0;
-   real_t kappa = 1.0;
    real_t beta = -1.0;
+   real_t kappa = -1.0;
    int ref_levels = 0;
    int max_iterations = 7;
    real_t itol = 1e-6;
