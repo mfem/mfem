@@ -57,7 +57,7 @@ void SmemPAVectorMassApply2D(const int NE,
       constexpr int MQ1 = T_Q1D > 0 ? SetMaxOf(T_Q1D) : DofQuadLimits::MAX_T1D;
 
       MFEM_SHARED real_t sB[MD1][MQ1], smem[MQ1][MQ1];
-      kernels::internal::vd_regs2d_t<VDIM, 1, MQ1> r0, r1;
+      kernels::internal::v_regs2d_t<VDIM, MQ1> r0, r1;
       kernels::internal::LoadMatrix(D1D, Q1D, B, sB);
       kernels::internal::LoadDofs2d(e, D1D, X, r0);
       kernels::internal::Eval2d(D1D, Q1D, smem, sB, r0, r1);
@@ -66,28 +66,28 @@ void SmemPAVectorMassApply2D(const int NE,
       {
          MFEM_FOREACH_THREAD(qx, x, Q1D)
          {
-            const real_t Qx = r1[0][0][qy][qx];
-            const real_t Qy = r1[1][0][qy][qx];
+            const real_t Qx = r1[0][qy][qx];
+            const real_t Qy = r1[1][qy][qx];
             const real_t D0 = D(qx, qy, 0, e);
 
             if (const_coeff)
             {
-               r0[0][0][qy][qx] = D0 * Qx;
-               r0[1][0][qy][qx] = D0 * Qy;
+               r0[0][qy][qx] = D0 * Qx;
+               r0[1][qy][qx] = D0 * Qy;
             }
             if (vector_coeff)
             {
                const real_t D1 = D(qx, qy, 1, e);
-               r0[0][0][qy][qx] = D0 * Qx;
-               r0[1][0][qy][qx] = D1 * Qy;
+               r0[0][qy][qx] = D0 * Qx;
+               r0[1][qy][qx] = D1 * Qy;
             }
             if (matrix_coeff)
             {
                const real_t D1 = D(qx, qy, 1, e);
                const real_t D2 = D(qx, qy, 2, e);
                const real_t D3 = D(qx, qy, 3, e);
-               r0[0][0][qy][qx] = D0 * Qx + D1 * Qy;
-               r0[1][0][qy][qx] = D2 * Qx + D3 * Qy;
+               r0[0][qy][qx] = D0 * Qx + D1 * Qy;
+               r0[1][qy][qx] = D2 * Qx + D3 * Qy;
             }
          }
       }
@@ -125,7 +125,7 @@ static void SmemPAVectorMassApply3D(const int NE,
       constexpr int MQ1 = T_Q1D > 0 ? SetMaxOf(T_Q1D) : DofQuadLimits::MAX_T1D;
 
       MFEM_SHARED real_t sB[MD1][MQ1], smem[MQ1][MQ1];
-      kernels::internal::vd_regs3d_t<VDIM, 1, MQ1> r0, r1;
+      kernels::internal::v_regs3d_t<VDIM, MQ1> r0, r1;
       kernels::internal::LoadMatrix(D1D, Q1D, B, sB);
       kernels::internal::LoadDofs3d(e, D1D, X, r0);
       kernels::internal::Eval3d(D1D, Q1D, smem, sB, r0, r1);
@@ -136,23 +136,23 @@ static void SmemPAVectorMassApply3D(const int NE,
          {
             MFEM_FOREACH_THREAD(qx, x, Q1D)
             {
-               const real_t Qx = r1[0][0][qz][qy][qx];
-               const real_t Qy = r1[1][0][qz][qy][qx];
-               const real_t Qz = r1[2][0][qz][qy][qx];
+               const real_t Qx = r1[0][qz][qy][qx];
+               const real_t Qy = r1[1][qz][qy][qx];
+               const real_t Qz = r1[2][qz][qy][qx];
                const real_t D0 = D(qx, qy, qz, 0, e);
                if (const_coeff)
                {
-                  r0[0][0][qz][qy][qx] = D0 * Qx;
-                  r0[1][0][qz][qy][qx] = D0 * Qy;
-                  r0[2][0][qz][qy][qx] = D0 * Qz;
+                  r0[0][qz][qy][qx] = D0 * Qx;
+                  r0[1][qz][qy][qx] = D0 * Qy;
+                  r0[2][qz][qy][qx] = D0 * Qz;
                }
                if (vector_coeff)
                {
                   const real_t D1 = D(qx, qy, qz, 1, e);
                   const real_t D2 = D(qx, qy, qz, 2, e);
-                  r0[0][0][qz][qy][qx] = D0 * Qx;
-                  r0[1][0][qz][qy][qx] = D1 * Qy;
-                  r0[2][0][qz][qy][qx] = D2 * Qz;
+                  r0[0][qz][qy][qx] = D0 * Qx;
+                  r0[1][qz][qy][qx] = D1 * Qy;
+                  r0[2][qz][qy][qx] = D2 * Qz;
                }
                if (matrix_coeff)
                {
@@ -164,9 +164,9 @@ static void SmemPAVectorMassApply3D(const int NE,
                   const real_t D6 = D(qx, qy, qz, 6, e);
                   const real_t D7 = D(qx, qy, qz, 7, e);
                   const real_t D8 = D(qx, qy, qz, 8, e);
-                  r0[0][0][qz][qy][qx] = D0 * Qx + D1 * Qy + D2 * Qz;
-                  r0[1][0][qz][qy][qx] = D3 * Qx + D4 * Qy + D5 * Qz;
-                  r0[2][0][qz][qy][qx] = D6 * Qx + D7 * Qy + D8 * Qz;
+                  r0[0][qz][qy][qx] = D0 * Qx + D1 * Qy + D2 * Qz;
+                  r0[1][qz][qy][qx] = D3 * Qx + D4 * Qy + D5 * Qz;
+                  r0[2][qz][qy][qx] = D6 * Qx + D7 * Qy + D8 * Qz;
                }
             }
          }
