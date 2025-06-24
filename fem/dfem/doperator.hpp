@@ -23,10 +23,6 @@
 #include "integrate.hpp"
 #include "qfunction_apply.hpp"
 
-#undef NVTX_COLOR
-#define NVTX_COLOR nvtx::kPurple
-#include "general/nvtx.hpp"
-
 namespace mfem::future
 {
 
@@ -237,18 +233,16 @@ public:
 
    /// @brief Compute the action of the operator on a given vector.
    ///
-   /// @param solutions_t The solution vector in which to compute the action. This has to be a T-dof vector.
+   /// @param solutions_t The solution vector in which to compute the action.
+   /// This has to be a T-dof vector.
    /// @param result_t Result vector of the action of the operator on
    /// solutions_t. The result is a T-dof vector.
    void Mult(const Vector &solutions_t, Vector &result_t) const override
    {
-      // dbg();
       MFEM_ASSERT(!action_callbacks.empty(), "no integrators have been set");
-      // dbg("prolongation");
       prolongation(solutions, solutions_t, solutions_l);
       for (auto &action : action_callbacks)
       {
-         // dbg("action");
          action(solutions_l, parameters_l, residual_l);
       }
       prolongation_transpose(residual_l, result_t);
@@ -261,18 +255,23 @@ public:
    /// function.
    /// @param outputs Tuple of FieldOperators for the outputs of the quadrature
    /// function.
+   /// @param integration_rule IntegrationRule to use with this integrator.
+   /// @param domain_attributes Domain attributes marker array indicating over
+   /// which attributes this integrator will integrate over.
+   /// @param derivative_ids Derivatives to be made available for this
+   /// integrator.
    template <
-      typename func_t,
-      typename... input_ts,
-      typename... output_ts,
+      typename qfunc_t,
+      typename input_t,
+      typename output_t,
       typename derivative_ids_t = decltype(std::make_index_sequence<0> {})>
    void AddDomainIntegrator(
-      func_t &qfunc,
-      tuple<input_ts...> inputs,
-      tuple<output_ts...> outputs,
+      qfunc_t &qfunc,
+      input_t inputs,
+      output_t outputs,
       const IntegrationRule &integration_rule,
-      const Array<int> domain_attributes,
-      const derivative_ids_t derivative_ids = std::make_index_sequence<0> {});
+      const Array<int> &domain_attributes,
+      derivative_ids_t derivative_ids = std::make_index_sequence<0> {});
 
    /// @brief Set the parameters for the operator.
    ///
@@ -304,10 +303,10 @@ public:
    /// derivative action to be performed.
    ///
    /// @param derivative_id The ID of the derivative to be computed.
-   /// @param solutions_l The solution vectors to be used for the derivative
+   /// @param sol_l The solution vectors to be used for the derivative
    /// computation. This should be a vector of pointers to the solution
    /// vectors. The vectors have to be L-vectors (e.g. GridFunctions).
-   /// @param parameters_l The parameter vectors to be used for the derivative
+   /// @param par_l The parameter vectors to be used for the derivative
    /// computation. This should be a vector of pointers to the parameter
    /// vectors. The vectors have to be L-vectors (e.g. GridFunctions).
    /// @return A shared pointer to the DerivativeOperator.
@@ -380,15 +379,15 @@ private:
 
 template <
    typename qfunc_t,
-   typename... input_ts,
-   typename... output_ts,
+   typename input_t,
+   typename output_t,
    typename derivative_ids_t>
 void DifferentiableOperator::AddDomainIntegrator(
    qfunc_t &qfunc,
-   tuple<input_ts...> inputs,
-   tuple<output_ts...> outputs,
+   input_t inputs,
+   output_t outputs,
    const IntegrationRule &integration_rule,
-   const Array<int> domain_attributes,
+   const Array<int> &domain_attributes,
    derivative_ids_t derivative_ids)
 {
    using entity_t = Entity::Element;
@@ -425,8 +424,8 @@ void DifferentiableOperator::AddDomainIntegrator(
    static_assert(num_qf_outputs == num_outputs,
                  "quadrature function outputs and descriptor outputs have to match");
 
-   constexpr auto inout_tuple = std::tuple_cat(std::tuple<input_ts...> {},
-                                               std::tuple<output_ts...> {});
+   constexpr auto inout_tuple =
+      merge_mfem_tuples_as_empty_std_tuple(inputs, outputs);
    constexpr auto filtered_inout_tuple = filter_fields(inout_tuple);
    static constexpr size_t num_fields =
       count_unique_field_ids(filtered_inout_tuple);
@@ -436,7 +435,7 @@ void DifferentiableOperator::AddDomainIntegrator(
                " This indicates that some fields are not used in the integrator,"
                " which currently is not supported.");
 
-   auto dependency_map = make_dependency_map(tuple<input_ts...> {});
+   auto dependency_map = make_dependency_map(inputs);
 
    // pretty_print(dependency_map);
 
@@ -488,7 +487,6 @@ void DifferentiableOperator::AddDomainIntegrator(
    auto &output_e_size = output_e_sz;
 
    output_restriction_transpose = output_rt;
-   residual_e.UseDevice(true);
    residual_e.SetSize(output_e_size);
 
    // The explicit captures are necessary to avoid dependency on
@@ -513,13 +511,6 @@ void DifferentiableOperator::AddDomainIntegrator(
    [[maybe_unused]] const int num_elements = GetNumEntities<Entity::Element>(mesh);
    const int num_entities = GetNumEntities<entity_t>(mesh);
    const int num_qp = integration_rule.GetNPoints();
-   dbg("num_qp:{}", num_qp);
-   dbg("num_entities:{}", num_entities);
-   dbg("dimension:{}", dimension);
-   dbg("num_fields:{}", num_fields);
-   dbg("num_inputs:{}", num_inputs);
-   dbg("num_outputs:{}", num_outputs);
-   dbg("num_elements:{}", num_entities);
 
    if constexpr (is_sum_fop<decltype(output_fop)>::value)
    {
@@ -532,12 +523,9 @@ void DifferentiableOperator::AddDomainIntegrator(
       residual_l.SetSize(residual_lsize);
       height = GetTrueVSize(fields[test_space_field_idx]);
    }
-   dbg("residual_lsize:{}", residual_l.Size());
-   dbg("height:{}", height);
 
    // TODO: Is this a hack?
    width = GetTrueVSize(fields[0]);
-   dbg("width:{}", width);
 
    std::vector<const DofToQuad*> dtq;
    for (const auto &field : fields)
@@ -548,12 +536,10 @@ void DifferentiableOperator::AddDomainIntegrator(
                           doftoquad_mode));
    }
    const int q1d = (int)floor(std::pow(num_qp, 1.0/dimension) + 0.5);
-   dbg("q1d:{}", q1d);
 
    const int residual_size_on_qp =
       GetSizeOnQP<entity_t>(output_fop,
                             fields[test_space_field_idx]);
-   dbg("residual_size_on_qp:{}", residual_size_on_qp);
 
    auto input_dtq_maps = create_dtq_maps<entity_t>(inputs, dtq, input_to_field);
    auto output_dtq_maps = create_dtq_maps<entity_t>(outputs, dtq, output_to_field);
@@ -598,13 +584,45 @@ void DifferentiableOperator::AddDomainIntegrator(
    }
 
    action_callbacks.push_back(
-      [=, restriction_cb = this->restriction_callback]
-      (std::vector<Vector> &sol, const std::vector<Vector> &par, Vector &res) mutable
+      // Explicitly capture everything we need, so we can make explicit choice
+      // how to capture every variable, by copy or by ref.
+      [
+         // capture by copy:
+         dimension,             // int
+         num_entities,          // int
+         num_test_dof,          // int
+         num_qp,                // int
+         q1d,                   // int
+         residual_size_on_qp,   // int
+         test_vdim,             // int (= output_fop.vdim)
+         test_op_dim,           // int (derived from output_fop)
+         inputs,                // mfem::future::tuple
+         domain_attributes,     // Array<int>
+         ir_weights,            // DeviceTensor
+         use_sum_factorization, // bool
+         input_dtq_maps,        // std::array<DofToQuadMap, num_fields>
+         output_dtq_maps,       // std::array<DofToQuadMap, num_fields>
+         input_to_field,        // std::array<int, s>
+         output_fop,            // class derived from FieldOperator
+         qfunc,                 // qfunc_t
+         thread_blocks,         // ThreadBlocks
+         shmem_cache,           // Vector (local)
+         action_shmem_info,     // SharedMemoryInfo
+         // TODO: make this Array<int> a member of the DifferentiableOperator
+         //       and capture it by ref.
+         elem_attributes,       // Array<int>
+
+         // capture by ref:
+         &restriction_cb = this->restriction_callback,
+         &fields_e = this->fields_e,
+         &residual_e = this->residual_e,
+         &output_restriction_transpose = this->output_restriction_transpose
+      ]
+      (std::vector<Vector> &sol, const std::vector<Vector> &par, Vector &res)
+      mutable // mutable: needed to modify 'shmem_cache'
    {
       restriction_cb(sol, par, fields_e);
 
-      // MFEM_GPU_CHECK(hipGetLastError());
-      // dbg("residual_e = 0.0");
       residual_e = 0.0;
       auto ye = Reshape(residual_e.ReadWrite(), test_vdim, num_test_dof, num_entities);
 
@@ -635,13 +653,6 @@ void DifferentiableOperator::AddDomainIntegrator(
 
          auto fhat = Reshape(&residual_shmem(0, 0), test_vdim, test_op_dim, num_qp);
          auto y = Reshape(&ye(0, 0, e), num_test_dof, test_vdim);
-
-         const DofToQuadMap &dtq_0 = output_dtq_shmem[0];
-         // dbg("dtq_0.B.GetShape()[0]:{}", dtq_0.B.GetShape()[0]);
-         // dbg("dtq_0.B.GetShape()[1]:{}", dtq_0.B.GetShape()[1]);
-         // dbg("dtq_0.B.GetShape()[2]:{}", dtq_0.B.GetShape()[2]);
-         assert(dtq_0.B.GetShape()[0] == q1d);
-
          map_quadrature_data_to_fields(
             y, fhat, output_fop, output_dtq_shmem[0],
             scratch_shmem, dimension, use_sum_factorization);
@@ -649,78 +660,136 @@ void DifferentiableOperator::AddDomainIntegrator(
       output_restriction_transpose(residual_e, res);
    });
 
-   // Create the action of the derivatives
-   for_constexpr([&](const auto derivative_id)
+   // Without this compile-time check, some valid instantiations of this method
+   // will fail.
+   if constexpr (derivative_ids_t::size() != 0)
    {
-      const size_t d_field_idx = FindIdx(derivative_id, fields);
-      const auto direction = fields[d_field_idx];
-      const int da_size_on_qp = GetSizeOnQP<entity_t>(output_fop,
-                                                      fields[test_space_field_idx]);
-
-      auto shmem_info =
-         get_shmem_info<entity_t, num_fields, num_inputs, num_outputs>
-         (input_dtq_maps, output_dtq_maps, fields, num_entities, inputs, num_qp,
-          input_size_on_qp, residual_size_on_qp, element_dof_ordering, d_field_idx);
-
-      Vector shmem_cache(shmem_info.total_size);
-
-      // print_shared_memory_info(shmem_info);
-
-      Vector direction_e;
-      Vector derivative_action_e(output_e_size);
-      derivative_action_e = 0.0;
-
-      // Lookup the derivative_id key in the dependency map
-      auto it = dependency_map.find(derivative_id);
-      if (it == dependency_map.end())
+      // Create the action of the derivatives
+      for_constexpr([&, &or_transpose =
+                        this->output_restriction_transpose](const std::size_t derivative_id)
       {
-         MFEM_ABORT("Derivative ID not found in dependency map");
-      }
-      const auto input_is_dependent = it->second;
+         const size_t d_field_idx = FindIdx(derivative_id, fields);
+         const auto direction = fields[d_field_idx];
+         const int da_size_on_qp =
+            GetSizeOnQP<entity_t>(output_fop, fields[test_space_field_idx]);
 
-      derivative_action_callbacks[derivative_id].push_back(
-         [=, output_restriction_transpose = this->output_restriction_transpose](
-            std::vector<Vector> &f_e, const Vector &dir_l,
-            Vector &der_action_l) mutable
-      {
-         restriction<entity_t>(direction, dir_l, direction_e, element_dof_ordering);
-         auto ye = Reshape(derivative_action_e.ReadWrite(), num_test_dof, test_vdim, num_entities);
-         auto wrapped_fields_e = wrap_fields(f_e, shmem_info.field_sizes, num_entities);
-         auto wrapped_direction_e = Reshape(direction_e.ReadWrite(), shmem_info.direction_size, num_entities);
+         auto shmem_info =
+            get_shmem_info<entity_t, num_fields, num_inputs, num_outputs>(
+               input_dtq_maps, output_dtq_maps, fields, num_entities, inputs,
+               num_qp, input_size_on_qp, residual_size_on_qp,
+               element_dof_ordering, d_field_idx);
 
+         Vector shmem_cache(shmem_info.total_size);
+
+         // print_shared_memory_info(shmem_info);
+
+         Vector direction_e;
+         Vector derivative_action_e(output_e_size);
          derivative_action_e = 0.0;
-         forall([=] MFEM_HOST_DEVICE (int e, real_t *shmem)
+
+         // Lookup the derivative_id key in the dependency map
+         auto it = dependency_map.find(derivative_id);
+         if (it == dependency_map.end())
          {
-            auto [input_dtq_shmem, output_dtq_shmem, fields_shmem, direction_shmem,
-                                   input_shmem, shadow_shmem_, residual_shmem, scratch_shmem] =
-            unpack_shmem(shmem, shmem_info, input_dtq_maps,
-                         output_dtq_maps, wrapped_fields_e, wrapped_direction_e, num_qp, e);
-            auto &shadow_shmem = shadow_shmem_;
+            MFEM_ABORT("Derivative ID not found in dependency map");
+         }
+         const auto input_is_dependent = it->second;
 
-            map_fields_to_quadrature_data(
-               input_shmem, fields_shmem, input_dtq_shmem, input_to_field, inputs, ir_weights,
-               scratch_shmem, dimension, use_sum_factorization);
+         derivative_action_callbacks[derivative_id].push_back(
+            [
+               // capture by copy:
+               dimension,             // int
+               num_entities,          // int
+               num_test_dof,          // int
+               num_qp,                // int
+               q1d,                   // int
+               test_vdim,             // int (= output_fop.vdim)
+               test_op_dim,           // int (derived from output_fop)
+               inputs,                // mfem::future::tuple
+               domain_attributes,     // Array<int>
+               ir_weights,            // DeviceTensor
+               use_sum_factorization, // bool
+               input_dtq_maps,        // std::array<DofToQuadMap, num_fields>
+               output_dtq_maps,       // std::array<DofToQuadMap, num_fields>
+               input_to_field,        // std::array<int, s>
+               output_fop,            // class derived from FieldOperator
+               qfunc,                 // qfunc_t
+               thread_blocks,         // ThreadBlocks
+               shmem_cache,           // Vector (local)
+               shmem_info,            // SharedMemoryInfo
+               // TODO: make this Array<int> a member of the DifferentiableOperator
+               //       and capture it by ref.
+               elem_attributes,       // Array<int>
 
-            // TODO: Probably redundant
-            set_zero(shadow_shmem);
+               input_is_dependent,    // std::array<bool, num_inputs>
+               direction,             // FieldDescriptor
+               direction_e,           // Vector
+               derivative_action_e,   // Vector
+               element_dof_ordering,  // ElementDofOrdering
+               da_size_on_qp,         // int
 
-            map_direction_to_quadrature_data_conditional(
-               shadow_shmem, direction_shmem, input_dtq_shmem, inputs, ir_weights,
-               scratch_shmem, input_is_dependent, dimension, use_sum_factorization);
+               // capture by ref:
+               &or_transpose
+            ](
+               std::vector<Vector> &f_e, const Vector &dir_l,
+               Vector &der_action_l) mutable
+         {
+            restriction<entity_t>(direction, dir_l, direction_e,
+                                  element_dof_ordering);
+            auto ye = Reshape(derivative_action_e.ReadWrite(), num_test_dof,
+                              test_vdim, num_entities);
+            auto wrapped_fields_e = wrap_fields(f_e, shmem_info.field_sizes,
+                                                num_entities);
+            auto wrapped_direction_e = Reshape(direction_e.ReadWrite(),
+                                               shmem_info.direction_size,
+                                               num_entities);
 
-            call_qfunction_derivative_action<qf_param_ts>(
-               qfunc, input_shmem, shadow_shmem, residual_shmem,
-               da_size_on_qp, num_qp, q1d, dimension, use_sum_factorization);
+            const auto d_elem_attr = elem_attributes.Read();
+            const bool has_attr = domain_attributes.Size() > 0;
+            const auto d_domain_attr = domain_attributes.Read();
 
-            auto fhat = Reshape(&residual_shmem(0, 0), test_vdim, test_op_dim, num_qp);
-            auto y = Reshape(&ye(0, 0, e), num_test_dof, test_vdim);
-            map_quadrature_data_to_fields(
-               y, fhat, output_fop, output_dtq_shmem[0],
-               scratch_shmem, dimension, use_sum_factorization);
-         }, num_entities, thread_blocks, shmem_info.total_size, shmem_cache.ReadWrite());
-         output_restriction_transpose(derivative_action_e, der_action_l);
-      });
-   }, derivative_ids);
+            derivative_action_e = 0.0;
+            forall([=] MFEM_HOST_DEVICE (int e, real_t *shmem)
+            {
+               if (has_attr && !d_domain_attr[d_elem_attr[e] - 1]) { return; }
+
+               auto [input_dtq_shmem, output_dtq_shmem, fields_shmem,
+                                      direction_shmem, input_shmem,
+                                      shadow_shmem_, residual_shmem,
+                                      scratch_shmem] =
+                        unpack_shmem(shmem, shmem_info, input_dtq_maps, output_dtq_maps,
+                                     wrapped_fields_e, wrapped_direction_e, num_qp, e);
+               auto &shadow_shmem = shadow_shmem_;
+
+               map_fields_to_quadrature_data(
+                  input_shmem, fields_shmem, input_dtq_shmem, input_to_field,
+                  inputs, ir_weights, scratch_shmem, dimension,
+                  use_sum_factorization);
+
+               // TODO: Probably redundant
+               set_zero(shadow_shmem);
+
+               map_direction_to_quadrature_data_conditional(
+                  shadow_shmem, direction_shmem, input_dtq_shmem, inputs,
+                  ir_weights, scratch_shmem, input_is_dependent, dimension,
+                  use_sum_factorization);
+
+               call_qfunction_derivative_action<qf_param_ts>(
+                  qfunc, input_shmem, shadow_shmem, residual_shmem,
+                  da_size_on_qp, num_qp, q1d, dimension, use_sum_factorization);
+
+               auto fhat = Reshape(&residual_shmem(0, 0), test_vdim,
+                                   test_op_dim, num_qp);
+               auto y = Reshape(&ye(0, 0, e), num_test_dof, test_vdim);
+               map_quadrature_data_to_fields(
+                  y, fhat, output_fop, output_dtq_shmem[0],
+                  scratch_shmem, dimension, use_sum_factorization);
+            }, num_entities, thread_blocks, shmem_info.total_size,
+            shmem_cache.ReadWrite());
+            or_transpose(derivative_action_e, der_action_l);
+         });
+      }, derivative_ids);
+   }
 }
 
 } // namespace mfem::future

@@ -10,6 +10,8 @@
 // CONTRIBUTING.md for details.
 #pragma once
 
+#include <type_traits>
+
 namespace mfem::future
 {
 
@@ -67,16 +69,10 @@ public:
 };
 
 template< typename T >
-struct is_identity_fop
-{
-   static const bool value = false;
-};
+struct is_identity_fop : std::false_type {};
 
 template <int FIELD_ID>
-struct is_identity_fop<Identity<FIELD_ID>>
-{
-   static const bool value = true;
-};
+struct is_identity_fop<Identity<FIELD_ID>> : std::true_type {};
 
 /// @brief Weight FieldOperator.
 ///
@@ -89,16 +85,10 @@ public:
 };
 
 template< typename T >
-struct is_weight_fop
-{
-   static const bool value = false;
-};
+struct is_weight_fop : std::false_type {};
 
 template <>
-struct is_weight_fop<Weight>
-{
-   static const bool value = true;
-};
+struct is_weight_fop<Weight> : std::true_type {};
 
 /// @brief Value FieldOperator.
 ///
@@ -112,16 +102,10 @@ public:
 };
 
 template< typename T >
-struct is_value_fop
-{
-   static const bool value = false;
-};
+struct is_value_fop : std::false_type {};
 
 template <int FIELD_ID>
-struct is_value_fop<Value<FIELD_ID>>
-{
-   static const bool value = true;
-};
+struct is_value_fop<Value<FIELD_ID>> : std::true_type {};
 
 /// @brief Gradient FieldOperator.
 ///
@@ -135,16 +119,10 @@ public:
 };
 
 template< typename T >
-struct is_gradient_fop
-{
-   static const bool value = false;
-};
+struct is_gradient_fop : std::false_type {};
 
 template <int FIELD_ID>
-struct is_gradient_fop<Gradient<FIELD_ID>>
-{
-   static const bool value = true;
-};
+struct is_gradient_fop<Gradient<FIELD_ID>> : std::true_type {};
 
 /// @brief Sum FieldOperator.
 ///
@@ -158,15 +136,9 @@ public:
 };
 
 template< typename T >
-struct is_sum_fop
-{
-   static const bool value = false;
-};
+struct is_sum_fop : std::false_type {};
 
 template <int FIELD_ID>
-struct is_sum_fop<Sum<FIELD_ID>>
-{
-   static const bool value = true;
-};
+struct is_sum_fop<Sum<FIELD_ID>> : std::true_type {};
 
 } // namespace mfem::future

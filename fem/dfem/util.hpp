@@ -11,6 +11,7 @@
 #pragma once
 
 #include <algorithm>
+#include <array>
 #include <cstdlib>
 #include <iostream>
 #include <unordered_map>
@@ -33,17 +34,13 @@
 #include "parameterspace.hpp"
 #include "tuple.hpp"
 
-#undef NVTX_COLOR
-#define NVTX_COLOR nvtx::kGreenYellow
-#include "general/nvtx.hpp"
-
 namespace mfem::future
 {
 
 template<typename... Ts>
 constexpr auto to_array(const std::tuple<Ts...>& tuple)
 {
-   constexpr auto get_array = [](const Ts&... x) { return std::array{ x... }; };
+   constexpr auto get_array = [](const Ts&... x) { return std::array<typename std::common_type<Ts...>::type, sizeof...(Ts)> { x... }; };
    return std::apply(get_array, tuple);
 }
 
@@ -370,8 +367,6 @@ void print_mpi_sync(const std::string& msg)
 /// @brief Pretty print an mfem::Vector with MPI rank
 ///
 /// @param v vector to print
-/// @param myrank MPI rank
-/// @param comm MPI communicator
 inline
 void pretty_print_mpi(const mfem::Vector& v)
 {
@@ -470,7 +465,7 @@ constexpr bool contains(const int* arr, std::size_t size, int value)
 template <typename... Ts>
 constexpr std::size_t count_unique_field_ids(const std::tuple<Ts...>& t)
 {
-   constexpr auto ids = extract_field_ids(decltype(t) {});
+   auto ids = extract_field_ids(t);
    constexpr std::size_t size = sizeof...(Ts);
 
    std::array<int, size> unique_ids = {};
@@ -525,13 +520,25 @@ constexpr auto filter_fields(const std::tuple<Ts...>& t)
 /// This struct is used to store information about a field.
 struct FieldDescriptor
 {
+   using data_variant_t =
+      std::variant<const FiniteElementSpace *,
+      const ParFiniteElementSpace *,
+      const ParameterSpace *>;
+
    /// Field ID
    std::size_t id;
 
    /// Field variant
-   std::variant<const FiniteElementSpace *,
-       const ParFiniteElementSpace *,
-       const ParameterSpace *> data;
+   data_variant_t data;
+
+   /// Default constructor
+   FieldDescriptor() :
+      id(SIZE_MAX), data(data_variant_t{}) {}
+
+   /// Constructor
+   template <typename T>
+   FieldDescriptor(std::size_t field_id, const T* v) :
+      id(field_id), data(v) {}
 };
 
 namespace dfem
@@ -548,7 +555,7 @@ struct Element;
 struct BoundaryElement;
 struct Face;
 struct BoundaryFace;
-};
+}
 
 /// @brief ThreadBlocks struct
 ///
@@ -588,26 +595,11 @@ void forall(func_t f,
       // int gridsize = (N + Z - 1) / Z;
       int num_bytes = num_shmem * sizeof(decltype(shmem));
       dim3 block_size(blocks.x, blocks.y, blocks.z);
-#if defined(MFEM_USE_CUDA)
       forall_kernel_shmem<<<N, block_size, num_bytes>>>(f, N);
+#if defined(MFEM_USE_CUDA)
       MFEM_GPU_CHECK(cudaGetLastError());
 #elif defined(MFEM_USE_HIP)
-      // static int loop = 0;
-      // if (loop++ < 128)
-      // { dbg("N:{} {}x{}x{} smem:{}", N, blocks.x, blocks.y, blocks.z, num_bytes); }
-      if (num_bytes >= 64*1024)
-      {
-         dbg("\x1b[31mNot enough shared memory per block!");
-         assert(false && "Not enough shared memory per block!");
-      }
-      else
-      {
-         MFEM_GPU_CHECK(hipGetLastError());
-         hipLaunchKernelGGL(forall_kernel_shmem, N, block_size, num_bytes, 0, f, N);
-         MFEM_GPU_CHECK(hipGetLastError());
-         MFEM_GPU_CHECK(hipDeviceSynchronize());
-         MFEM_GPU_CHECK(hipGetLastError());
-      }
+      MFEM_GPU_CHECK(hipGetLastError());
 #endif
       MFEM_DEVICE_SYNC;
 #endif
@@ -627,7 +619,7 @@ void forall(func_t f,
    }
 }
 
-/// @TODO: To be removed.
+/// @todo To be removed.
 class FDJacobian : public Operator
 {
 public:
@@ -644,7 +636,10 @@ public:
       xpev.SetSize(Width());
 
       op.Mult(x, f);
-      xnorm = x.Norml2();
+
+      const real_t xnorm_local = x.Norml2();
+      MPI_Allreduce(&xnorm_local, &xnorm, 1, MPITypeMap<real_t>::mpi_type, MPI_SUM,
+                    MPI_COMM_WORLD);
    }
 
    void Mult(const Vector &v, Vector &y) const override
@@ -662,7 +657,11 @@ public:
       }
       else
       {
-         eps = lambda * (lambda + xnorm / v.Norml2());
+         const real_t vnorm_local = v.Norml2();
+         real_t vnorm;
+         MPI_Allreduce(&vnorm_local, &vnorm, 1, MPITypeMap<real_t>::mpi_type, MPI_SUM,
+                       MPI_COMM_WORLD);
+         eps = lambda * (lambda + xnorm / vnorm);
       }
 
       // x + eps * v
@@ -746,12 +745,13 @@ int GetVSize(const FieldDescriptor &f)
       }
       else if constexpr (std::is_same_v<T, const ParameterSpace *>)
       {
-         return arg->GetTotalSize();
+         return arg->GetVSize();
       }
       else
       {
          static_assert(dfem::always_false<T>, "can't use GetVSize on type");
       }
+      return 0; // Unreachable, but avoids compiler warning
    }, f.data);
 }
 
@@ -817,12 +817,13 @@ int GetTrueVSize(const FieldDescriptor &f)
       }
       else if constexpr (std::is_same_v<T, const ParameterSpace *>)
       {
-         return arg->GetTotalSize();
+         return arg->GetTrueVSize();
       }
       else
       {
          static_assert(dfem::always_false<T>, "can't use GetTrueVSize on type");
       }
+      return 0; // Unreachable, but avoids compiler warning
    }, f.data);
 }
 
@@ -846,12 +847,13 @@ int GetVDim(const FieldDescriptor &f)
       }
       else if constexpr (std::is_same_v<T, const ParameterSpace *>)
       {
-         return arg->GetLocalSize();
+         return arg->GetVDim();
       }
       else
       {
          static_assert(dfem::always_false<T>, "can't use GetVDim on type");
       }
+      return 0; // Unreachable, but avoids compiler warning
    }, f.data);
 }
 
@@ -886,6 +888,7 @@ int GetDimension(const FieldDescriptor &f)
       {
          static_assert(dfem::always_false<T>, "can't use GetDimension on type");
       }
+      return 0; // Unreachable, but avoids compiler warning
    }, f.data);
 }
 
@@ -907,12 +910,13 @@ const Operator *get_prolongation(const FieldDescriptor &f)
       }
       else if constexpr (std::is_same_v<T, const ParameterSpace *>)
       {
-         return arg->GetProlongation();
+         return arg->GetProlongationMatrix();
       }
       else
       {
          static_assert(dfem::always_false<T>, "can't use GetProlongation on type");
       }
+      return nullptr; // Unreachable, but avoids compiler warning
    }, f.data);
 }
 
@@ -936,12 +940,13 @@ const Operator *get_element_restriction(const FieldDescriptor &f,
       }
       else if constexpr (std::is_same_v<T, const ParameterSpace *>)
       {
-         return arg->GetRestriction();
+         return arg->GetElementRestriction(o);
       }
       else
       {
          static_assert(dfem::always_false<T>, "can't use GetElementRestriction on type");
       }
+      return nullptr; // Unreachable, but avoids compiler warning
    }, f.data);
 }
 
@@ -984,17 +989,22 @@ get_restriction_transpose(
       {
          v_l = v_e;
       };
-      return std::tuple{RT, 1};
+      return std::make_tuple(RT, 1);
    }
    else
    {
       const Operator *R = get_restriction<entity_t>(f, o);
-      auto RT = [=](const Vector &x, Vector &y)
+      std::function<void(const Vector&, Vector&)> RT = [=](const Vector &x, Vector &y)
       {
          R->MultTranspose(x, y);
       };
-      return std::tuple{RT, R->Height()};
+      return std::make_tuple(RT, R->Height());
    }
+   return std::make_tuple(
+             std::function<void(const Vector&, Vector&)>([](const Vector&, Vector&)
+   {
+      /* no-op */
+   }), 0); // Never reached, but avoids compiler warning.
 }
 
 /// @brief Apply the prolongation operator to a field.
@@ -1077,36 +1087,35 @@ void prolongation(const std::vector<FieldDescriptor> fields,
 /// @tparam fop_t the field operator type.
 template <typename fop_t>
 inline
-auto get_prolongation_transpose(const FieldDescriptor &f, const fop_t &fop,
-                                MPI_Comm mpi_comm)
+std::function<void(const Vector&, Vector&)> get_prolongation_transpose(
+   const FieldDescriptor &f,
+   const fop_t &fop,
+   MPI_Comm mpi_comm)
 {
    if constexpr (is_sum_fop<fop_t>::value)
    {
       auto PT = [=](const Vector &r_local, Vector &y)
       {
+         MFEM_ASSERT(y.Size() == 1, "output size doesn't match kernel description");
          real_t local_sum = r_local.Sum();
          MPI_Allreduce(&local_sum, y.GetData(), 1, MPI_DOUBLE, MPI_SUM, mpi_comm);
-         MFEM_ASSERT(y.Size() == 1, "output size doesn't match kernel description");
       };
       return PT;
    }
    else if constexpr (is_identity_fop<fop_t>::value)
    {
-      auto PT = [](Vector &r_local, Vector &y)
+      auto PT = [=](const Vector &r_local, Vector &y)
       {
          y = r_local;
       };
       return PT;
    }
-   else
+   const Operator *P = get_prolongation(f);
+   auto PT = [=](const Vector &r_local, Vector &y)
    {
-      const Operator *P = get_prolongation(f);
-      auto PT = [=](const Vector &r_local, Vector &y)
-      {
-         P->MultTranspose(r_local, y);
-      };
-      return PT;
-   }
+      P->MultTranspose(r_local, y);
+   };
+   return PT;
 }
 
 /// @brief Apply the restriction operator to a field.
@@ -1195,6 +1204,7 @@ int GetNumEntities(const mfem::Mesh &mesh)
    {
       static_assert(dfem::always_false<entity_t>, "can't use GetNumEntites on type");
    }
+   return 0; // Unreachable, but avoids compiler warning
 }
 
 /// @brief Get the GetDofToQuad object for a given entity type.
@@ -1205,7 +1215,7 @@ int GetNumEntities(const mfem::Mesh &mesh)
 /// @param f the field descriptor.
 /// @param ir the integration rule.
 /// @param mode the mode of the DofToQuad object.
-/// @param entity_t the entity type (see Entity).
+/// @tparam entity_t the entity type (see Entity).
 template <typename entity_t>
 inline
 const DofToQuad *GetDofToQuad(const FieldDescriptor &f,
@@ -1235,16 +1245,17 @@ const DofToQuad *GetDofToQuad(const FieldDescriptor &f,
       {
          static_assert(dfem::always_false<T>, "can't use GetDofToQuad on type");
       }
+      return nullptr; // Unreachable, but avoids compiler warning
    }, f.data);
 }
 
-/// @brief Check the compatibility of a field operator type with a FieldDescriptor.
+/// @brief Check the compatibility of a field operator type with a
+/// FieldDescriptor.
 ///
 /// This function checks if the field operator type is compatible with the
 /// FieldDescriptor type.
 ///
 /// @param f the field descriptor.
-/// @param field_operator_t the field operator type.
 /// @tparam field_operator_t the field operator type.
 template <typename field_operator_t>
 void CheckCompatibility(const FieldDescriptor &f)
@@ -1323,6 +1334,7 @@ int GetSizeOnQP(const field_operator_t &, const FieldDescriptor &f)
    {
       MFEM_ABORT("can't get size on quadrature point for field descriptor");
    }
+   return 0; // Unreachable, but avoids compiler warning
 }
 
 /// @brief Create a map from field operator types to FieldDescriptor indices.
@@ -1356,8 +1368,6 @@ create_descriptors_to_fields_map(
 
    auto f = [&](auto &fop, auto &map)
    {
-      int i;
-
       if constexpr (std::is_same_v<std::decay_t<decltype(fop)>, Weight>)
       {
          // TODO-bug: stealing dimension from the first field
@@ -1366,16 +1376,20 @@ create_descriptors_to_fields_map(
          fop.size_on_qp = 1;
          map = -1;
       }
-      else if ((i = find_id(fields, fop.GetFieldId())) != -1)
-      {
-         fop.dim = GetDimension<entity_t>(fields[i]);
-         fop.vdim = GetVDim(fields[i]);
-         fop.size_on_qp = GetSizeOnQP<entity_t>(fop, fields[i]);
-         map = i;
-      }
       else
       {
-         MFEM_ABORT("can't find field for id: " << fop.GetFieldId());
+         int i = find_id(fields, fop.GetFieldId());
+         if (i != -1)
+         {
+            fop.dim = GetDimension<entity_t>(fields[i]);
+            fop.vdim = GetVDim(fields[i]);
+            fop.size_on_qp = GetSizeOnQP<entity_t>(fop, fields[i]);
+            map = i;
+         }
+         else
+         {
+            MFEM_ABORT("can't find field for id: " << fop.GetFieldId());
+         }
       }
    };
 
@@ -1705,15 +1719,14 @@ std::array<DofToQuadMap, N> load_dtq_mem(
                }
             }
          }
-      }
-      offset += sizes[i][0];
 
-      const auto [nqp_g, dim_g, ndof_g] = dtq[i].G.GetShape();
-      const auto G = Reshape(&dtq[i].G[0], nqp_g, dim_g, ndof_g);
-      auto mem_Gi = Reshape(reinterpret_cast<real_t *>(mem) + offset, nqp_g, dim_g,
-                            ndof_g);
-      if (dtq[i].which_input != -1)
-      {
+         offset += sizes[i][0];
+
+         const auto [nqp_g, dim_g, ndof_g] = dtq[i].G.GetShape();
+         const auto G = Reshape(&dtq[i].G[0], nqp_g, dim_g, ndof_g);
+         auto mem_Gi = Reshape(reinterpret_cast<real_t *>(mem) + offset, nqp_g, dim_g,
+                               ndof_g);
+
          MFEM_FOREACH_THREAD(q, x, nqp_g)
          {
             MFEM_FOREACH_THREAD(d, y, ndof_g)
@@ -1724,12 +1737,18 @@ std::array<DofToQuadMap, N> load_dtq_mem(
                }
             }
          }
-      }
-      offset += sizes[i][1];
 
-      f[i] = DofToQuadMap{DeviceTensor<3, const real_t>(&mem_Bi[0], nqp_b, dim_b, ndof_b),
-                          DeviceTensor<3, const real_t>(&mem_Gi[0], nqp_g, dim_g, ndof_g),
-                          dtq[i].which_input};
+         offset += sizes[i][1];
+
+         f[i] = DofToQuadMap{DeviceTensor<3, const real_t>(&mem_Bi[0], nqp_b, dim_b, ndof_b),
+                             DeviceTensor<3, const real_t>(&mem_Gi[0], nqp_g, dim_g, ndof_g),
+                             dtq[i].which_input};
+      }
+      else
+      {
+         // When which_input is -1, just copy the original DofToQuadMap with empty data.
+         f[i] = dtq[i];
+      }
    }
    return f;
 }
@@ -1896,8 +1915,10 @@ auto unpack_shmem(
 
    MFEM_SYNC_THREAD;
 
-   return std::make_tuple(input_dtq_shmem, output_dtq_shmem, fields_shmem,
-                          input_shmem, residual_shmem, scratch_mem);
+   // nvcc needs make_tuple to be fully qualified
+   return mfem::future::make_tuple(
+             input_dtq_shmem, output_dtq_shmem, fields_shmem,
+             input_shmem, residual_shmem, scratch_mem);
 }
 
 template <typename shared_mem_info_t, std::size_t num_inputs, std::size_t num_outputs, std::size_t num_fields>
@@ -1973,9 +1994,11 @@ auto unpack_shmem(
 
    MFEM_SYNC_THREAD;
 
-   return std::make_tuple(input_dtq_shmem, output_dtq_shmem, fields_shmem,
-                          direction_shmem, input_shmem, shadow_shmem,
-                          residual_shmem, scratch_mem);
+   // nvcc needs make_tuple to be fully qualified
+   return mfem::future::make_tuple(
+             input_dtq_shmem, output_dtq_shmem, fields_shmem,
+             direction_shmem, input_shmem, shadow_shmem,
+             residual_shmem, scratch_mem);
 }
 
 template <std::size_t... i>
@@ -2046,10 +2069,10 @@ void copy(DeviceTensor<n> &u, DeviceTensor<n> &v)
    }
 }
 
-/// @brief Copy data from array of DeviceTensor x to array of DeviceTensor y
+/// @brief Copy data from array of DeviceTensor u to array of DeviceTensor v
 ///
-/// @param x source DeviceTensor array
-/// @param y destination DeviceTensor array
+/// @param u source DeviceTensor array
+/// @param v destination DeviceTensor array
 /// @tparam n DeviceTensor rank
 /// @tparam m number of DeviceTensors
 template <int n, std::size_t m>
@@ -2066,6 +2089,7 @@ void copy(std::array<DeviceTensor<n>, m> &u,
 /// @brief Wraps plain data in DeviceTensors for fields
 ///
 /// @param fields array of field data
+/// @param field_sizes for each field, number of values stored for each entity
 /// @param num_entities number of entities (elements, faces, etc) in mesh
 /// @tparam num_fields number of fields
 /// @return array of field data wrapped in DeviceTensors
@@ -2085,7 +2109,8 @@ std::array<DeviceTensor<2>, num_fields> wrap_fields(
    return f;
 }
 
-/// @brief Accumulates the sizes of field operators on quadrature points for dependent inputs
+/// @brief Accumulates the sizes of field operators on quadrature points for
+/// dependent inputs
 ///
 /// @tparam input_t Type of input field operators tuple
 /// @tparam num_fields Number of fields
@@ -2100,18 +2125,19 @@ std::array<DeviceTensor<2>, num_fields> wrap_fields(
 /// @return Sum of sizes on quadrature points for all dependent inputs
 ///
 /// @details
-/// This function accumulates the sizes needed on quadrature points for all dependent input
-/// field operators. For each dependent input, it calculates the size required on quadrature
-/// points using GetSizeOnQP() and adds it to the total. Non-dependent inputs contribute
-/// zero to the total size.
+/// This function accumulates the sizes needed on quadrature points for all
+/// dependent input field operators. For each dependent input, it calculates the
+/// size required on quadrature points using GetSizeOnQP() and adds it to the
+/// total. Non-dependent inputs contribute zero to the total size.
 template <typename input_t, std::size_t num_fields, std::size_t... i>
 int accumulate_sizes_on_qp(
    const input_t &inputs,
    std::array<bool, sizeof...(i)> &kinput_is_dependent,
    const std::array<int, sizeof...(i)> &input_to_field,
    const std::array<FieldDescriptor, num_fields> &fields,
-   std::index_sequence<i...>)
+   std::index_sequence<i...> seq)
 {
+   MFEM_CONTRACT_VAR(seq); // 'seq' is needed for doxygen
    return (... + [](auto &input, auto is_dependent, auto field)
    {
       if (!is_dependent)
@@ -2138,7 +2164,7 @@ std::array<DofToQuadMap, N> create_dtq_maps_impl(
 {
    auto f = [&](auto fop, std::size_t idx)
    {
-      auto g = [&](int idx)
+      [[maybe_unused]] auto g = [&](int idx)
       {
          auto dtq = dtqs[field_map[idx]];
 
@@ -2191,6 +2217,12 @@ std::array<DofToQuadMap, N> create_dtq_maps_impl(
          static_assert(dfem::always_false<decltype(fop)>,
                        "field operator type is not implemented");
       }
+      return DofToQuadMap
+      {
+         DeviceTensor<3, const real_t>(nullptr, 0, 0, 0),
+         DeviceTensor<3, const real_t>(nullptr, 0, 0, 0),
+         -1
+      }; // Unreachable, but avoids compiler warning
    };
    return std::array<DofToQuadMap, N>
    {
