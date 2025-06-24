@@ -94,11 +94,7 @@ void dfem_functional(const char *filename, int p, const int r)
    auto dRdu = dop.GetDerivative(U, {&x}, {nodes});
    Vector d(1);
    dRdu->Mult(X, d);
-
-   INFO("action: " << d(0) << " vs " << sum(0));
-
    REQUIRE(MFEM_Approx(0.0) == std::abs(d(0) - sum(0)));
-
 
    MPI_Barrier(MPI_COMM_WORLD);
 }
