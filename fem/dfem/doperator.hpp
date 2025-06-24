@@ -695,6 +695,25 @@ void DifferentiableOperator::AddDomainIntegrator(
          }
          const auto input_is_dependent = it->second;
 
+         const int trial_vdim = GetVDim(fields[d_field_idx]);
+         int total_trial_op_dim = 0;
+         for_constexpr<num_inputs>([&](auto s)
+         {
+            if (!input_is_dependent[s])
+            {
+               return;
+            }
+            auto B = is_value_fop<decltype(get<s>(inputs))>::value ?
+                     input_dtq_maps[s].B : input_dtq_maps[s].G;
+            total_trial_op_dim += B.GetShape()[DofToQuadMap::Index::DIM];
+         });
+
+         // Quadrature point local derivative cache for each element, with data
+         // layout:
+         // [test_vdim, test_op_dim, trial_vdim, trial_op_dim, qp, num_entities].
+         Vector qpdc_mem(test_vdim * test_op_dim * trial_vdim *
+                         total_trial_op_dim * num_qp * num_entities);
+
          derivative_action_callbacks[derivative_id].push_back(
             [
                // capture by copy:
