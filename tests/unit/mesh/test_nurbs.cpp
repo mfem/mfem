@@ -211,7 +211,6 @@ TEST_CASE("Location conversion check", "[NURBS]")
 
 }
 
-
 TEST_CASE("Greville, Botella and Demko points", "[NURBS]")
 {
 
@@ -290,4 +289,3 @@ TEST_CASE("Greville, Botella and Demko points", "[NURBS]")
    kv.PrintFunction(mfem::out, a, 21);
 
 }
-
