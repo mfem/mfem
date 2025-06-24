@@ -86,6 +86,8 @@ public:
        date. */
    void Refine(const Array<Refinement> &refinements) override;
 
+   bool CheckForConflicts(const Array<Refinement> &refinements);
+
    /// Parallel version of NCMesh::LimitNCLevel.
    void LimitNCLevel(int max_nc_level) override;
 
@@ -212,6 +214,7 @@ public:
    // utility
 
    int GetMyRank() const { return MyRank; }
+   bool IsParallel() const override { return NRanks > 1; }
 
    /// Use the communication pattern from last Rebalance() to send element DOFs.
    void SendRebalanceDofs(int old_ndofs, const Table &old_element_dofs,
@@ -586,6 +589,24 @@ protected: // implementation
 
    std::size_t GroupsMemoryUsage() const;
 
+   bool CheckRefAnisoFace(int elem, int vn1, int vn2, int vn3, int vn4,
+                          const Array<Refinement> &refinements,
+                          std::map<int, int>& elemToRef);
+
+   bool CheckRefIsoFace(int elem, int vn1, int vn2, int vn3, int vn4,
+                        int en1, int en2, int en3, int en4,
+                        const Array<Refinement> &refinements,
+                        std::map<int, int>& elemToRef);
+
+   bool CheckRefinementMaster(const Array<Refinement> &refinements,
+                              std::map<int, int>& elemToRef);
+
+   bool CheckRefinement(int elem, char ref_type,
+                        const Array<Refinement> &refinements,
+                        std::map<int, int>& elemToRef);
+
+   bool CheckRefAnisoFaceSplits(int vn1, int vn2, int vn3, int vn4,
+                                int level = 0);
    friend class NeighborRowMessage;
    friend class NeighborOrderMessage;
 };

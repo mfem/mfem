@@ -3885,6 +3885,12 @@ void ParMesh::LocalRefinement(const Array<int> &marked_el, int type)
 #endif
 }
 
+bool ParMesh::CheckForConflicts(const Array<Refinement> &refinements)
+{
+   MFEM_VERIFY(pncmesh, "CheckForConflicts should be called only for NCMesh");
+   return pncmesh->CheckForConflicts(refinements);
+}
+
 void ParMesh::NonconformingRefinement(const Array<Refinement> &refinements,
                                       int nc_limit)
 {

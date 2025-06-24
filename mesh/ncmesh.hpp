@@ -483,6 +483,8 @@ public:
 
    int PrintMemoryDetail() const;
 
+   virtual bool IsParallel() const { return false; }
+
    using RefCoord = std::int64_t;
 
    static constexpr int MaxElemNodes =
