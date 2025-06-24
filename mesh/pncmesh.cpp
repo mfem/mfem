@@ -1672,16 +1672,12 @@ void ParNCMesh::CheckRefinementMaster(const Array<Refinement> &refinements,
 
       const int refIndex = elemToRef.at(mf.element);
       const Refinement& ref = refinements[refIndex];
-      const char refType = ref.GetType();
 
       bool refDir[3];
       for (int i=0; i<3; ++i)
          refDir[i] = ref.s[i] > real_t{0};
 
       const char faceRefType = GetHexFaceRefType(refDir, mf.local);
-      const bool faceAniso = faceRefType == 1 ||
-                             faceRefType == 2; // X or Y w.r.t. the face.
-
       if (faceRefType == 0) { continue; } // No refinement on this face
 
       std::array<int, 4> fv;
@@ -1792,7 +1788,6 @@ void ParNCMesh::CheckRefAnisoFace(int elem, int vn1, int vn2, int vn3, int vn4,
    {
       const int refIndex = elemToRef.at(nghbIndex);
       const Refinement& ref = refinements[refIndex];
-      const char ref_type = ref.GetType();
 
       bool refDir[3];
       for (int i=0; i<3; ++i)
