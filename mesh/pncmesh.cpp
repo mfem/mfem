@@ -1560,12 +1560,15 @@ bool ParNCMesh::AnisotropicConflict(const Array<Refinement> &refinements,
    // compared to local refinements. There is no need for ghost-to-ghost
    // comparisons.
    std::map<int, int> elemToRef; // Only for local refinements, not ghosts.
+   for (int i = 0; i < refinements.Size(); i++)
+   {
+      elemToRef[leaf_elements[refinements[i].index]] = i;
+   }
 
    // Check local refinements
    for (int i = 0; i < refinements.Size(); i++)
    {
       const Refinement &ref = refinements[i];
-      elemToRef[leaf_elements[ref.index]] = i;
       CheckRefinement(leaf_elements[ref.index], ref.GetType(), refinements,
                       elemToRef, conflicts);
    }
