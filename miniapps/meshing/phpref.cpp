@@ -306,7 +306,7 @@ int main(int argc, char *argv[])
    if (fespaceDim == 1)
    {
       const real_t h1error = CheckH1Continuity(x);
-      cout << myid << ": H1 continuity error " << h1error << endl;
+      if (myid == 0) { cout << "H1 continuity error " << h1error << endl; }
       MFEM_VERIFY(h1error < 1.0e-12, "H1 continuity is not satisfied");
    }
 
@@ -450,7 +450,10 @@ real_t CheckH1Continuity(ParGridFunction & x)
       }
    }
 
-   return errorMax;
+   real_t errorMaxGlobal = 0.0;
+   MPI_Allreduce(&errorMax, &errorMaxGlobal, 1, MFEM_MPI_REAL_T, MPI_MAX,
+                 fes->GetComm());
+   return errorMaxGlobal;
 }
 
 void f_exact(const Vector &x, Vector &f)
