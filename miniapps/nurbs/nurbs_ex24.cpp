@@ -1,4 +1,4 @@
-//                                MFEM Example 24 -- modified for NURBS FE
+//               MFEM Example 24 -- modified for NURBS FE
 //
 // Compile with: make nurbs_ex24
 //
@@ -43,6 +43,8 @@ void gradp_exact(const Vector &, Vector &);
 real_t div_gradp_exact(const Vector &x);
 void v_exact(const Vector &x, Vector &v);
 void curlv_exact(const Vector &x, Vector &cv);
+template <typename CoefficientType>
+void Project(GridFunction &gf, CoefficientType &coef, bool global_proj);
 
 int dim;
 real_t freq = 1.0, kappa;
@@ -57,6 +59,7 @@ int main(int argc, char *argv[])
    int prob = 0;
    bool static_cond = false;
    bool pa = false;
+   bool global_proj = true;
    const char *device_config = "cpu";
    int visport = 19916;
    bool visualization = 1;
@@ -68,14 +71,17 @@ int main(int argc, char *argv[])
                   "Number of times to refine the mesh uniformly, -1 for auto.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree).");
-   args.AddOption(&NURBS, "-n", "--nurbs", "-nn","--no-nurbs",
-                  "NURBS.");
+   args.AddOption(&NURBS, "-n", "--nurbs", "-nn", "--no-nurbs",
+                  "Use NURBS spaces if the mesh is a NURBS mesh.");
    args.AddOption(&prob, "-p", "--problem-type",
                   "Choose between 0: grad, 1: curl, 2: div");
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
                   "--no-static-condensation", "Enable static condensation.");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
                   "--no-partial-assembly", "Enable Partial Assembly.");
+   args.AddOption(&global_proj, "-gp", "--global-projection", "-no-gp",
+                  "--no-global-projection",
+                  "Use global projection. If false, uses a local projection.");
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
@@ -102,7 +108,7 @@ int main(int argc, char *argv[])
    //    the same code.
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
    dim = mesh->Dimension();
-   if ((prob == 1) &&(dim != 3))
+   if ((prob == 1) && (dim != 3))
    {
       MFEM_ABORT("The curl problem is only defined in 3D.");
    }
@@ -130,10 +136,10 @@ int main(int argc, char *argv[])
    NURBSExtension *NURBSext = nullptr;
    if (mesh->NURBSext && NURBS)
    {
-      NURBSext  = new NURBSExtension(mesh->NURBSext, order);
+      NURBSext = new NURBSExtension(mesh->NURBSext, order);
       if (prob == 0)
       {
-         trial_fec  = new NURBSFECollection(order);
+         trial_fec = new NURBSFECollection(order);
          test_fec = new NURBS_HCurlFECollection(order, dim);
       }
       else if (prob == 1)
@@ -146,7 +152,7 @@ int main(int argc, char *argv[])
          trial_fec = new NURBS_HDivFECollection(order, dim);
          test_fec  = new NURBSFECollection(order);
       }
-      mfem::out<<"Create NURBS fec and ext"<<std::endl;
+      cout << "Create NURBS fec and ext" << endl;
    }
    else
    {
@@ -181,8 +187,8 @@ int main(int argc, char *argv[])
    else if (prob == 1)
    {
       cout << "Number of Nedelec finite element unknowns: " << trial_size << endl;
-      cout << "Number of Raviart-Thomas finite element unknowns: " << test_size <<
-           endl;
+      cout << "Number of Raviart-Thomas finite element unknowns: " << test_size
+           << endl;
    }
    else
    {
@@ -204,19 +210,16 @@ int main(int argc, char *argv[])
 
    if (prob == 0)
    {
-      gftrial.ProjectCoefficient(p_coef);
+      Project(gftrial, p_coef, global_proj);
    }
    else if (prob == 1)
    {
-      gftrial.ProjectCoefficient(v_coef);
+      Project(gftrial, v_coef, global_proj);
    }
    else
    {
-      gftrial.ProjectCoefficient(gradp_coef);
+      Project(gftrial, gradp_coef, global_proj);
    }
-
-   gftrial.SetTrueVector();
-   gftrial.SetFromTrueVector();
 
    // 7. Set up the bilinear forms for L2 projection.
    ConstantCoefficient one(1.0);
@@ -300,19 +303,16 @@ int main(int argc, char *argv[])
    GridFunction exact_proj(&test_fes);
    if (prob == 0)
    {
-      exact_proj.ProjectCoefficient(gradp_coef);
+      Project(exact_proj, gradp_coef, global_proj);
    }
    else if (prob == 1)
    {
-      exact_proj.ProjectCoefficient(curlv_coef);
+      Project(exact_proj, curlv_coef, global_proj);
    }
    else
    {
-      exact_proj.ProjectCoefficient(divgradp_coef);
+      Project(exact_proj, divgradp_coef, global_proj);
    }
-
-   exact_proj.SetTrueVector();
-   exact_proj.SetFromTrueVector();
 
    // 11. Compute and print the L_2 norm of the error.
    if (prob == 0)
@@ -452,4 +452,19 @@ void curlv_exact(const Vector &x, Vector &cv)
    {
       cv = 0.0;
    }
+}
+
+template <typename CoefficientType>
+void Project(GridFunction &gf, CoefficientType &coef, bool global_proj)
+{
+   if (global_proj)
+   {
+      gf.ProjectCoefficientGlobalL2(coef);
+   }
+   else
+   {
+      gf.ProjectCoefficient(coef);
+   }
+   gf.SetTrueVector();
+   gf.SetFromTrueVector();
 }

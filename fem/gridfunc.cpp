@@ -2486,8 +2486,7 @@ void GridFunction::ProjectCoefficientGlobalL2(VectorCoefficient &vcoeff,
    LinearForm b(fes);
    BilinearForm a(fes);
 
-   // Dimension argument to GetRangeType is arbitrary to be 3, could also be 2.
-   if (fes->FEColl()->GetRangeType(3)  == mfem::FiniteElement::VECTOR)
+   if (fes->GetTypicalFE()->GetRangeType() == mfem::FiniteElement::VECTOR)
    {
       b.AddDomainIntegrator(new VectorFEDomainLFIntegrator(vcoeff));
       a.AddDomainIntegrator(new VectorFEMassIntegrator());
