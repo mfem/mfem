@@ -97,25 +97,31 @@ inline MFEM_HOST_DEVICE void LoadMatrix(const int d1d, const int q1d,
    MFEM_SYNC_THREAD;
 }
 
+/// Load 2D input VDIM*DIM vector into given register tensor, specific component
+template <int VDIM, int DIM, int MQ1 = 0>
+inline MFEM_HOST_DEVICE void LoadDofs2d(const int e, const int d1d, const int c,
+                                        const DeviceTensor<4, const real_t> &X,
+                                        vd_regs2d_t<VDIM, DIM, MQ1> &Y)
+{
+   for (int d = 0; d < DIM; d++)
+   {
+      MFEM_FOREACH_THREAD(dy, y, d1d)
+      {
+         MFEM_FOREACH_THREAD(dx, x, d1d)
+         {
+            Y[c][d][dy][dx] = X(dx, dy, c, e);
+         }
+      }
+   }
+}
+
 /// Load 2D input VDIM*DIM vector into given register tensor
 template <int VDIM, int DIM, int MQ1 = 0>
 inline MFEM_HOST_DEVICE void LoadDofs2d(const int e, const int d1d,
                                         const DeviceTensor<4, const real_t> &X,
                                         vd_regs2d_t<VDIM, DIM, MQ1> &Y)
 {
-   for (int c = 0; c < VDIM; ++c)
-   {
-      for (int d = 0; d < DIM; d++)
-      {
-         MFEM_FOREACH_THREAD(dy, y, d1d)
-         {
-            MFEM_FOREACH_THREAD(dx, x, d1d)
-            {
-               Y[c][d][dy][dx] = X(dx, dy, c, e);
-            }
-         }
-      }
-   }
+   for (int c = 0; c < VDIM; ++c) { LoadDofs2d(e, d1d, c, X, Y); }
 }
 
 /// Load 2D input VDIM vector into given register tensor
@@ -196,28 +202,34 @@ inline MFEM_HOST_DEVICE void WriteDofs2d(const int e, const int d1d,
    }
 }
 
+/// Load 3D input VDIM*DIM vector into given register tensor, specific component
+template <int VDIM, int DIM, int MQ1>
+inline MFEM_HOST_DEVICE void LoadDofs3d(const int e, const int d1d, const int c,
+                                        const DeviceTensor<5, const real_t> &X,
+                                        vd_regs3d_t<VDIM, DIM, MQ1> &Y)
+{
+   for (int d = 0; d < DIM; d++)
+   {
+      for (int dz = 0; dz < d1d; ++dz)
+      {
+         MFEM_FOREACH_THREAD(dy, y, d1d)
+         {
+            MFEM_FOREACH_THREAD(dx, x, d1d)
+            {
+               Y[c][d][dz][dy][dx] = X(dx, dy, dz, c, e);
+            }
+         }
+      }
+   }
+}
+
 /// Load 3D input VDIM*DIM vector into given register tensor
 template <int VDIM, int DIM, int MQ1>
 inline MFEM_HOST_DEVICE void LoadDofs3d(const int e, const int d1d,
                                         const DeviceTensor<5, const real_t> &X,
                                         vd_regs3d_t<VDIM, DIM, MQ1> &Y)
 {
-   for (int c = 0; c < VDIM; ++c)
-   {
-      for (int d = 0; d < DIM; d++)
-      {
-         for (int dz = 0; dz < d1d; ++dz)
-         {
-            MFEM_FOREACH_THREAD(dy, y, d1d)
-            {
-               MFEM_FOREACH_THREAD(dx, x, d1d)
-               {
-                  Y[c][d][dz][dy][dx] = X(dx, dy, dz, c, e);
-               }
-            }
-         }
-      }
-   }
+   for (int c = 0; c < VDIM; ++c) { LoadDofs3d(e, d1d, c, X, Y); }
 }
 
 /// Load 3D input VDIM vector into given register tensor
