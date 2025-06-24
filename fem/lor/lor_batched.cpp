@@ -485,10 +485,17 @@ void BatchedLORAssembly::Assemble(
 #endif
 
    AssembleWithoutBC(a, A);
-   SparseMatrix *A_mat = A.As<SparseMatrix>();
 
-   A_mat->EliminateBC(ess_dofs,
-                      Operator::DiagonalPolicy::DIAG_KEEP);
+   const SparseMatrix *P = fes_ho.GetConformingProlongation();
+   if (P)
+   {
+      std::unique_ptr<SparseMatrix> R(Transpose(*P));
+      std::unique_ptr<SparseMatrix> RA(mfem::Mult(*R, *A.As<SparseMatrix>()));
+      A.Reset(mfem::Mult(*RA, *P));
+   }
+
+   A.As<SparseMatrix>()->EliminateBC(ess_dofs,
+                                     Operator::DiagonalPolicy::DIAG_KEEP);
 }
 
 BatchedLORAssembly::BatchedLORAssembly(FiniteElementSpace &fes_ho_)
