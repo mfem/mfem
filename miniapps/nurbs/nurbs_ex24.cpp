@@ -1,4 +1,4 @@
-//                                MFEM Example 24 -- modified for NURBS FE
+//               MFEM Example 24 -- modified for NURBS FE
 //
 // Compile with: make nurbs_ex24
 //
@@ -71,8 +71,8 @@ int main(int argc, char *argv[])
                   "Number of times to refine the mesh uniformly, -1 for auto.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree).");
-   args.AddOption(&NURBS, "-n", "--nurbs", "-nn","--no-nurbs",
-                  "NURBS.");
+   args.AddOption(&NURBS, "-n", "--nurbs", "-nn", "--no-nurbs",
+                  "Use NURBS spaces if the mesh is a NURBS mesh.");
    args.AddOption(&prob, "-p", "--problem-type",
                   "Choose between 0: grad, 1: curl, 2: div");
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
@@ -108,7 +108,7 @@ int main(int argc, char *argv[])
    //    the same code.
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
    dim = mesh->Dimension();
-   if ((prob == 1) &&(dim != 3))
+   if ((prob == 1) && (dim != 3))
    {
       MFEM_ABORT("The curl problem is only defined in 3D.");
    }
@@ -136,10 +136,10 @@ int main(int argc, char *argv[])
    NURBSExtension *NURBSext = nullptr;
    if (mesh->NURBSext && NURBS)
    {
-      NURBSext  = new NURBSExtension(mesh->NURBSext, order);
+      NURBSext = new NURBSExtension(mesh->NURBSext, order);
       if (prob == 0)
       {
-         trial_fec  = new NURBSFECollection(order);
+         trial_fec = new NURBSFECollection(order);
          test_fec = new NURBS_HCurlFECollection(order, dim);
       }
       else if (prob == 1)
@@ -152,7 +152,7 @@ int main(int argc, char *argv[])
          trial_fec = new NURBS_HDivFECollection(order, dim);
          test_fec  = new NURBSFECollection(order);
       }
-      mfem::out<<"Create NURBS fec and ext"<<std::endl;
+      cout << "Create NURBS fec and ext" << endl;
    }
    else
    {
@@ -187,8 +187,8 @@ int main(int argc, char *argv[])
    else if (prob == 1)
    {
       cout << "Number of Nedelec finite element unknowns: " << trial_size << endl;
-      cout << "Number of Raviart-Thomas finite element unknowns: " << test_size <<
-           endl;
+      cout << "Number of Raviart-Thomas finite element unknowns: " << test_size
+           << endl;
    }
    else
    {
