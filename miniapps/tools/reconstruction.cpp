@@ -106,6 +106,38 @@ int main(int argc, char* argv[])
 {
    Mpi::Init(argc, argv);
 
+   // Default command-line options
+   int ser_ref_levels = 0;
+   int par_ref_levels = 0;
+   bool show_error = false;
+   // TODO: Extrapolate logic
+   // int order_original = 3;
+   // int order_reconstruction = 1;
+
+
+   // Parse options
+   OptionsParser args(argc, argv);
+   args.AddOption(&ser_ref_levels, "-rs", "--refine",
+                  "Number of serial refinement steps.");
+   args.AddOption(&par_ref_levels, "-rp", "--refine",
+                  "Number of parallel refinement steps.");
+   // TODO: Extrapolate logic
+   // args.AddOption(&order_original, "-oo", "--order-original",
+   //                "Original order of interpolation")
+   // args.AddOption(&order_reconstruction, "-or", "--order-reconstruction",
+   //                "Order of reconstructed function")
+   args.AddOption(&show_error, "-se", "--show-error", "-no-se",
+                  "--no-show-error",
+                  "Show or not show approximation error.");
+
+   if (Mpi::Root())
+   {
+      args.ParseCheck();
+      MFEM_VERIFY((ser_ref_levels >= 0) && (par_ref_levels >= 0), "")
+      mfem::out << "Number of serial refinements:     " << ser_ref_levels << "\n";
+      mfem::out << "Number of parallel refinements:   " << par_ref_levels << "\n";
+   }
+
    // define u(x,y) to be represented
    const int k_x = 1;
    const int k_y = 2;
@@ -121,7 +153,9 @@ int main(int argc, char* argv[])
    const int num_y = 10;
    Mesh serial_mesh = Mesh::MakeCartesian2D(num_x, num_y,
                                             Element::QUADRILATERAL);
+   for (int i = 0; i < ser_ref_levels; ++i) { serial_mesh.UniformRefinement(); }
    ParMesh mesh(MPI_COMM_WORLD, serial_mesh);
+   for (int i = 0; i < par_ref_levels; ++i) { mesh.UniformRefinement(); }
 
    // compute finite element representation of u(x,y)
    const int order_original = 3; // arbitrarily chosen order
