@@ -29,7 +29,8 @@ void reconstructField(const ParGridFunction& src, ParGridFunction& dst)
    Vector b_xhat(mesh.GetNE());
    ParBilinearForm B_xhat(src.ParFESpace());
    B_xhat.AddInteriorFaceIntegrator(new DGTraceIntegrator(xhat, 1.0, 0.0));
-   B_xhat.AddBdrFaceIntegrator(new DGTraceIntegrator(xhat, 2.0, 0.0)); // note the 2 enforces du/dx=0 at the x boundaries
+   B_xhat.AddBdrFaceIntegrator(new DGTraceIntegrator(xhat, 2.0,
+                                                     0.0)); // note the 2 enforces du/dx=0 at the x boundaries
    B_xhat.Assemble();
    B_xhat.Finalize();
    matrix = std::unique_ptr<HypreParMatrix>(B_xhat.ParallelAssemble());
@@ -40,7 +41,8 @@ void reconstructField(const ParGridFunction& src, ParGridFunction& dst)
    Vector b_yhat(mesh.GetNE());
    ParBilinearForm B_yhat(src.ParFESpace());
    B_yhat.AddInteriorFaceIntegrator(new DGTraceIntegrator(yhat, 1.0, 0.0));
-   B_yhat.AddBdrFaceIntegrator(new DGTraceIntegrator(yhat, 2.0, 0.0)); // note the 2 enforces du/dy=0 at the y boundaries
+   B_yhat.AddBdrFaceIntegrator(new DGTraceIntegrator(yhat, 2.0,
+                                                     0.0)); // note the 2 enforces du/dy=0 at the y boundaries
    B_yhat.Assemble();
    B_yhat.Finalize();
    matrix = std::unique_ptr<HypreParMatrix>(B_yhat.ParallelAssemble());
@@ -52,7 +54,8 @@ void reconstructField(const ParGridFunction& src, ParGridFunction& dst)
    {
       const FiniteElement& src_element = *(src_fe_space.GetFE(element_ind));
       const FiniteElement& dst_element = *(dst_fe_space.GetFE(element_ind));
-      ElementTransformation& transform = *(src_fe_space.GetElementTransformation(element_ind));
+      ElementTransformation& transform = *(src_fe_space.GetElementTransformation(
+                                              element_ind));
       DenseMatrix A(dst_element.GetDof());
       Vector b(dst_element.GetDof());
       DenseMatrix Arow;
@@ -108,16 +111,16 @@ int main(int argc, char* argv[])
    const int k_y = 2;
    std::function<real_t(const Vector &)> u_function =
       [=](const Vector& x)
-      {
-         return std::cos(2*M_PI*k_x * x(0)) * std::sin(2*M_PI*k_y * x(1));
-      };
+   {
+      return std::cos(2*M_PI*k_x * x(0)) * std::sin(2*M_PI*k_y * x(1));
+   };
    FunctionCoefficient u_coefficient(u_function);
 
    // create simple 2D mesh
    const int num_x = 10;
    const int num_y = 10;
    Mesh serial_mesh = Mesh::MakeCartesian2D(num_x, num_y,
-      Element::QUADRILATERAL);
+                                            Element::QUADRILATERAL);
    ParMesh mesh(MPI_COMM_WORLD, serial_mesh);
 
    // compute finite element representation of u(x,y)
@@ -136,9 +139,9 @@ int main(int argc, char* argv[])
    // compute reconstruction
    const int order_reconstruction = 1; // only order currently supported
    L2_FECollection fe_collection_reconstruction(order_reconstruction,
-      mesh.Dimension());
+                                                mesh.Dimension());
    ParFiniteElementSpace fe_space_reconstruction(&mesh,
-      &fe_collection_reconstruction);
+                                                 &fe_collection_reconstruction);
    ParGridFunction u_reconstruction(&fe_space_reconstruction);
    reconstructField(u_averages, u_reconstruction);
 
@@ -152,27 +155,27 @@ int main(int argc, char* argv[])
    {
       //glvis_original.precision(8);
       glvis_original << "parallel " << mesh.GetNRanks()
-                                    << " " << mesh.GetMyRank() << "\n"
+                     << " " << mesh.GetMyRank() << "\n"
                      << "solution\n" << mesh << u_original
                      << "window_title 'original'\n" << std::flush;
       MPI_Barrier(mesh.GetComm());
       //glvis_averages.precision(8);
       glvis_averages << "parallel " << mesh.GetNRanks()
-                                    << " " << mesh.GetMyRank() << "\n"
+                     << " " << mesh.GetMyRank() << "\n"
                      << "solution\n" << mesh << u_averages
                      << "window_title 'averages'\n" << std::flush;
       MPI_Barrier(mesh.GetComm());
       //glvis_reconstruction.precision(8);
       glvis_reconstruction << "parallel " << mesh.GetNRanks()
-                                          << " " << mesh.GetMyRank() << "\n"
-                     << "solution\n" << mesh << u_reconstruction
-                     << "window_title 'reconstruction'\n" << std::flush;
+                           << " " << mesh.GetMyRank() << "\n"
+                           << "solution\n" << mesh << u_reconstruction
+                           << "window_title 'reconstruction'\n" << std::flush;
    }
    else
       MFEM_WARNING("Cannot connect to glvis server, disabling visualization.")
-   // TODO: quantitatively compare (e.g. L2 norm) original & reconstruction
+      // TODO: quantitatively compare (e.g. L2 norm) original & reconstruction
 
-   Mpi::Finalize();
+      Mpi::Finalize();
 
    return 0;
 }
