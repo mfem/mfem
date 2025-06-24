@@ -74,10 +74,10 @@ int main(int argc, char *argv[])
                   "Whether to fix the finite element order on all elements");
    args.AddOption(&deterministic, "-det", "--deterministic", "-not-det",
                   "--not-deterministic",
-                  "Whether to use deterministic random refinements");
+                  "Use deterministic random refinements");
    args.AddOption(&projectSolution, "-proj", "--project-solution", "-no-proj",
                   "--no-project",
-                  "Whether to project a coefficient to solution");
+                  "Project a coefficient to solution");
 
    args.Parse();
    if (!args.Good())
