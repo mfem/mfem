@@ -4416,7 +4416,7 @@ void NitscheElasticityIntegrator::AssembleFaceMatrix(
       w.Eval(w1, *Trans.Elem1, eip1);
       if (ndofs2) { w.Eval(w2, *Trans.Elem2, eip2); }
 
-      real_t W;
+      real_t W, WLM;
       if (ndofs2)
       {
          el2.CalcShape(eip2, shape2);
@@ -4430,11 +4430,13 @@ void NitscheElasticityIntegrator::AssembleFaceMatrix(
          const real_t WM2 = W2 * mu->Eval(*Trans.Elem2, eip2);
          nL2.Set(WL2, nor);
          nM2.Set(WM2, nor);
+         WLM = (WL2 + 2.0*WM2);
          dshape2_ps.Mult(nM2, dshape2_dnM);
       }
       else
       {
          W = ip.weight;
+         WLM = 0.0;
       }
 
       {
@@ -4443,10 +4445,11 @@ void NitscheElasticityIntegrator::AssembleFaceMatrix(
          const real_t WM1 = W1 * mu->Eval(*Trans.Elem1, eip1);
          nL1.Set(WL1, nor);
          nM1.Set(WM1, nor);
+         WLM += (WL1 + 2.0*WM1);
          dshape1_ps.Mult(nM1, dshape1_dnM);
       }
 
-      const real_t jmatcoef = kappa * (nor*nor);
+      const real_t jmatcoef = kappa * (nor*nor) * WLM;
 
       // (1,1) block
       AssembleBlock(

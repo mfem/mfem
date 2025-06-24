@@ -1116,13 +1116,13 @@ void NitscheElasticityDirichletLFIntegrator::AssembleRHSElementVect(
          const real_t W = ip.weight / Tr.Elem1->Weight();
          WL = W * lambda->Eval(*Tr.Elem1, eip);
          WM = W * mu->Eval(*Tr.Elem1, eip);
-         jcoef = kappa * (nor*nor);
+         jcoef = kappa * (WL + 2.0*WM) * (nor*nor);
          dshape_ps.Mult(nor, dshape_dn);
          dshape_ps.Mult(w_val, dshape_du);
       }
 
       // alpha < g, (lambda div(v) I + mu (grad(v) + grad(v)^T)) n . w > +
-      //   + kappa < h^{-1} g, v . w >
+      //   + kappa < h^{-1} (lambda + 2 mu) g, v . w >
 
       // i = idof + ndofs * im
       // v_phi(i,d) = delta(im,d) phi(idof)

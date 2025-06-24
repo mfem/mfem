@@ -3635,10 +3635,12 @@ public:
 
 /* Integrator for the Nitsche elasticity form,
  *
- * a(u,v) := -<σ(u) n⃗ ⋅ w, v ⋅ w> - <σ(v) n⃗ ⋅ w, u ⋅ w> + κ <h⁻¹ u ⋅ w, v ⋅ w>
+ * a(u,v) := - <σ(u) n⃗ ⋅ w, v ⋅ w>
+ *           - <σ(v) n⃗ ⋅ w, u ⋅ w>
+ *           + κ <h⁻¹ (λ + 2μ) u ⋅ w, v ⋅ w>
  *         = - ∫_Γ (σ(u) n ⋅ w) (v ⋅ w) dS
  *           + α ∫_Γ (σ(v) n ⋅ w) (u ⋅ w) dS
- *           + κ ∫_Γ h⁻¹ (u ⋅ w) (v ⋅ w) dS.
+ *           + κ ∫_Γ h⁻¹ (λ + 2μ) (u ⋅ w) (v ⋅ w) dS.
  *
  * For isotropic media,
  *

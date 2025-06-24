@@ -18,11 +18,11 @@
 //                          a(u,v) := ∫_Ω σ(u) : ε(v) dx
 //                                    - ∫_Γₜ (σ(u) n ⋅ ñ) (v ⋅ ñ) dS
 //                                    + β ∫_Γₜ (σ(v) n ⋅ ñ) (u ⋅ ñ) dS
-//                                    + κ ∫_Γₜ h⁻¹ (u ⋅ ñ) (v ⋅ ñ) dS,
+//                                    + κ ∫_Γₜ h⁻¹ (λ + 2μ) (u ⋅ ñ) (v ⋅ ñ) dS,
 //
 //                            b(v) := ∫_Ω f ⋅ v dx
 //                                    + β ∫_Γₜ σ(v) n ⋅ ñ g dS
-//                                    + κ ∫_Γₜ h⁻¹ (v ⋅ ñ) g dS,
+//                                    + κ ∫_Γₜ h⁻¹ (λ + 2μ) (v ⋅ ñ) g dS,
 //
 //               and g := φ₁ + (uᵏ⁻¹ · ñ - φ₁) exp(αₖ (σ(uᵏ⁻¹)n · ñ)). Here,
 //               where σ is the (compressible, homogeneous, isotropic) stress
