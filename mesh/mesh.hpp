@@ -39,6 +39,7 @@ namespace mfem
 class GeometricFactors;
 class FaceGeometricFactors;
 class KnotVector;
+class NURBSPatch;
 class NURBSExtension;
 class FiniteElementSpace;
 class GridFunction;
@@ -472,7 +473,7 @@ protected:
                          const int *fine, int nfine, int op);
 
    /// Read NURBS patch/macro-element mesh
-   void LoadPatchTopo(std::istream &input, Array<int> &edge_to_knot);
+   void LoadPatchTopo(std::istream &input, Array<int> &edge_to_ukv);
 
    void UpdateNURBS();
 
@@ -789,6 +790,29 @@ public:
 
    /// Destroys Mesh.
    virtual ~Mesh() { DestroyPointers(); }
+
+   /** Get the edge to unique knotvector map used by NURBS patch topology meshes
+       Various index maps are defined using the following indices:
+
+       edge:   Edge index in the patch topology mesh
+       pkv:    Patch knotvector index, equivalent to (p * dim + d) where
+               p is the patch index, dim is the topological dimension of
+               the patch, and d is the local dimension
+       rpkv:   Root patch knotvector index; the lowest index pkv for all
+               equivalent pkv.
+       ukv:    (signed) Unique knotvector index. Equivalent to rpkv reordered
+               from 0 to N-1, where N is the number of unique knotvectors +
+               sign, which indicates the orientation of the edge.
+       @param[in,out] edge_to_ukv Array<int> Map from edge index to (signed)
+                                  unique knotvector index. Will be resized
+                                  to the number of edges.
+       @param[in,out] ukv_to_rpkv Array<int> Map from (unsigned) unique
+                                  knotvector index to the (unsigned) root
+                                  patch knotvector index. Will be resized
+                                  to the number of unique knotvectors.
+   */
+   void GetEdgeToUniqueKnotvector(Array<int> &edge_to_ukv,
+                                  Array<int> &ukv_to_rpkv) const;
 
    /// @}
 
@@ -1435,6 +1459,12 @@ public:
 
    /// Set the attribute of patch boundary element i, for a NURBS mesh.
    void SetPatchBdrAttribute(int i, int attr);
+
+   /** Returns a deep copy of all patches. This method is not const
+       as it first sets the patches in NURBSext using control points
+       defined by Nodes. Caller gets ownership of the returned object,
+       and is responsible for deletion.*/
+   void GetNURBSPatches(Array<NURBSPatch*> &patches);
 
    /// Returns the type of element i.
    Element::Type GetElementType(int i) const;
