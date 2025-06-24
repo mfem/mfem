@@ -306,7 +306,8 @@ int main(int argc, char *argv[])
    ParBilinearForm *a = new ParBilinearForm(fespace);
    a->AddDomainIntegrator(new ElasticityIntegrator(one,lambda_g,mu_g));
    a->AddBdrFaceIntegrator(
-      new NitscheElasticityIntegrator(n_tilde_c, lambda_c, mu_c, beta, kappa), ess_bdr_z);
+      new NitscheElasticityIntegrator(n_tilde_c, lambda_c, mu_c, beta, kappa),
+      ess_bdr_z);
    if (myid == 0)
    {
       cout << "matrix ... " << flush;
