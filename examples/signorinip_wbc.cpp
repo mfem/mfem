@@ -130,7 +130,7 @@ int main(int argc, char *argv[])
    // 1. Parse command-line options.
    const char *mesh_file = "../data/ref-cube.mesh";
    int order = 1;
-   real_t alpha = 1.0;
+   real_t alpha = 2.0;
    real_t beta = -1.0;
    real_t kappa = -1.0;
    int ref_levels = 0;
