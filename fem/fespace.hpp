@@ -47,7 +47,10 @@ public:
    template <Type Ord>
    static void DofsToVDofs(int ndofs, int vdim, Array<int> &dofs);
 
-   /// Reorder Vector \p v from its current ordering \p in_ord to \p out_ord
+   /** @brief   Reorder Vector \p v from its current ordering \p in_ord to \p out_ord
+    *  @warning This function should **not** be used with a GridFunction, as
+                it will not change the ordering of its associated FiniteElementSpace
+    */
    static void Reorder(Vector &v, int vdim, Type in_ord, Type out_ord);
 };
 
