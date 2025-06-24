@@ -629,7 +629,7 @@ public:
  * conditions, in a Nitsche elasticity formulation. Specifically, the linear
  * form is given by
  *
- * b(v) := −∫_Γ (λ div(v) I + μ (∇v + ∇vᵀ))n ⋅ w g dS + κ ∫_Γ h⁻¹ (v ⋅ w) g dS
+ * b(v) := α ∫_Γ (λ div(v) I + μ (∇v + ∇vᵀ))n ⋅ w g dS + κ ∫_Γ h⁻¹ (v ⋅ w) g dS
  *
  * where g is the given Dirichlet data, n is the unit normal, and w is a vector
  * field. The parameters λ and μ should match the parameters with the same names

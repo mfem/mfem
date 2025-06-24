@@ -17,11 +17,11 @@
 //
 //                          a(u,v) := ∫_Ω σ(u) : ε(v) dx
 //                                    - ∫_Γₜ (σ(u) n ⋅ ñ) (v ⋅ ñ) dS
-//                                    − ∫_Γₜ (σ(v) n ⋅ ñ) (u ⋅ ñ) dS
+//                                    + β ∫_Γₜ (σ(v) n ⋅ ñ) (u ⋅ ñ) dS
 //                                    + κ ∫_Γₜ h⁻¹ (u ⋅ ñ) (v ⋅ ñ) dS,
 //
 //                            b(v) := ∫_Ω f ⋅ v dx
-//                                    − ∫_Γₜ σ(v) n ⋅ ñ g dS
+//                                    + β ∫_Γₜ σ(v) n ⋅ ñ g dS
 //                                    + κ ∫_Γₜ h⁻¹ (v ⋅ ñ) g dS,
 //
 //               and g := φ₁ + (uᵏ⁻¹ · ñ - φ₁) exp(αₖ (σ(uᵏ⁻¹)n · ñ)). Here,
@@ -30,7 +30,7 @@
 //               displacement at iteration k, ϕ₁ is a prescribed gap function,
 //               αₖ is a positive sequence of step-size parameters, n is the
 //               normal vector to the boundary, and κ is a (positive) penalty
-//               parameter.
+//               parameter, and β = -1, 0, 1.
 
 #include "mfem.hpp"
 #include <iostream>
