@@ -17,8 +17,6 @@
 namespace mfem
 {
 
-using namespace kernels::internal;
-
 template <int MD1, int MQ1, int T_D1D = 0, int T_Q1D = 0>
 void TMOP_DatcSize_2D(const int NE,
                       const int ncomp,
@@ -47,16 +45,16 @@ void TMOP_DatcSize_2D(const int NE,
       MFEM_SHARED real_t smem[MQ1][MQ1];
       MFEM_SHARED real_t min_size[BLOCK_DIM];
 
-      vd_regs2d_t<1,1,MQ1> r0, r1; // scalar X (component sizeidx)
+      kernels::internal::vd_regs2d_t<1,1,MQ1> r0, r1; // scalar X (component sizeidx)
 
-      LoadDofs2d(e, D1D, X, r0);
+      kernels::internal::LoadDofs2d(e, D1D, X, r0);
 
       DeviceTensor<2, real_t> M((real_t *)(min_size), D1D, D1D);
       MFEM_FOREACH_THREAD(t, x, BLOCK_DIM) { min_size[t] = infinity; }
       MFEM_SYNC_THREAD;
-      mfem::tmop::foreach_y_thread(D1D, [&](int dy)
+      tmop::foreach_y_thread(D1D, [&](int dy)
       {
-         mfem::tmop::foreach_x_thread(D1D, [&](int dx)
+         tmop::foreach_x_thread(D1D, [&](int dx)
          {
             M(dy, dx) = r0(sizeidx, 0, dy, dx);
          });
@@ -77,12 +75,12 @@ void TMOP_DatcSize_2D(const int NE,
       real_t min = min_size[0];
       if (input_min_size > 0.0) { min = input_min_size; }
 
-      LoadMatrix(D1D, Q1D, b, sB);
-      Eval2d(D1D, Q1D, smem, sB, r0, r1);
+      kernels::internal::LoadMatrix(D1D, Q1D, b, sB);
+      kernels::internal::Eval2d(D1D, Q1D, smem, sB, r0, r1);
 
-      mfem::tmop::foreach_y_thread(Q1D, [&](int qy)
+      tmop::foreach_y_thread(Q1D, [&](int qy)
       {
-         mfem::tmop::foreach_x_thread(Q1D, [&](int qx)
+         tmop::foreach_x_thread(Q1D, [&](int qx)
          {
             const real_t T = r1(0, 0, qy, qx);
 
@@ -131,18 +129,18 @@ void TMOP_DatcSize_3D(const int NE,
       MFEM_SHARED real_t smem[MQ1][MQ1];
       MFEM_SHARED real_t min_size[BLOCK_DIM];
 
-      vd_regs3d_t<1,1,MQ1> r0, r1; // scalar X (component sizeidx)
+      kernels::internal::vd_regs3d_t<1,1,MQ1> r0, r1; // scalar X (component sizeidx)
 
-      LoadDofs3d(e, D1D, X, r0);
+      kernels::internal::LoadDofs3d(e, D1D, X, r0);
 
       DeviceTensor<3, real_t> M((real_t *)(min_size), D1D, D1D, D1D);
       MFEM_FOREACH_THREAD(t, x, BLOCK_DIM) { min_size[t] = infinity; }
       MFEM_SYNC_THREAD;
       for (int dz = 0; dz < D1D; ++dz)
       {
-         mfem::tmop::foreach_y_thread(D1D, [&](int dy)
+         tmop::foreach_y_thread(D1D, [&](int dy)
          {
-            mfem::tmop::foreach_x_thread(D1D, [&](int dx)
+            tmop::foreach_x_thread(D1D, [&](int dx)
             {
                M(dz, dy, dx) = r0(sizeidx, 0, dz, dy, dx);
             });
@@ -163,14 +161,14 @@ void TMOP_DatcSize_3D(const int NE,
       real_t min = min_size[0];
       if (input_min_size > 0.0) { min = input_min_size; }
 
-      LoadMatrix(D1D, Q1D, b, sB);
-      Eval3d(D1D, Q1D, smem, sB, r0, r1);
+      kernels::internal::LoadMatrix(D1D, Q1D, b, sB);
+      kernels::internal::Eval3d(D1D, Q1D, smem, sB, r0, r1);
 
       for (int qz = 0; qz < Q1D; ++qz)
       {
-         mfem::tmop::foreach_y_thread(Q1D, [&](int qy)
+         tmop::foreach_y_thread(Q1D, [&](int qy)
          {
-            mfem::tmop::foreach_x_thread(Q1D, [&](int qx)
+            tmop::foreach_x_thread(Q1D, [&](int qx)
             {
                const real_t T = r1(0, 0, qz, qy, qx);
 

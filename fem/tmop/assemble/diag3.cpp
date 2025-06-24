@@ -18,8 +18,6 @@
 namespace mfem
 {
 
-using namespace kernels::internal;
-
 template <int MD1, int MQ1, int T_D1D = 0, int T_Q1D = 0>
 void TMOP_AssembleDiagPA_3D(const int NE,
                             const ConstDeviceMatrix &B,
@@ -36,16 +34,16 @@ void TMOP_AssembleDiagPA_3D(const int NE,
    mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
    {
       MFEM_SHARED real_t smem[3][3][MQ1][MQ1];
-      vd_regs3d_t<3, 3, MQ1> rH, r0, r1;
+      kernels::internal::vd_regs3d_t<3, 3, MQ1> rH, r0, r1;
 
       for (int v = 0; v < 3; ++v)
       {
          // Takes into account Jtr by replacing H with Href at all quad points.
          for (int qz = 0; qz < Q1D; ++qz)
          {
-            mfem::tmop::foreach_y_thread(Q1D, [&](int qy)
+            tmop::foreach_y_thread(Q1D, [&](int qy)
             {
-               mfem::tmop::foreach_x_thread(Q1D, [&](int qx)
+               tmop::foreach_x_thread(Q1D, [&](int qx)
                {
                   const real_t *Jtr = &J(0, 0, qx, qy, qz, e);
                   real_t Jrt_data[9];
@@ -85,9 +83,9 @@ void TMOP_AssembleDiagPA_3D(const int NE,
          // Contract in z.
          for (int dz = 0; dz < D1D; ++dz)
          {
-            mfem::tmop::foreach_y_thread(Q1D, [&](int qy)
+            tmop::foreach_y_thread(Q1D, [&](int qy)
             {
-               mfem::tmop::foreach_x_thread(Q1D, [&](int qx)
+               tmop::foreach_x_thread(Q1D, [&](int qx)
                {
                   for (int m = 0; m < 3; m++)
                   {
@@ -122,9 +120,9 @@ void TMOP_AssembleDiagPA_3D(const int NE,
             {
                for (int n = 0; n < 3; n++)
                {
-                  mfem::tmop::foreach_y_thread(Q1D, [&](int qy)
+                  tmop::foreach_y_thread(Q1D, [&](int qy)
                   {
-                     mfem::tmop::foreach_x_thread(Q1D, [&](int qx)
+                     tmop::foreach_x_thread(Q1D, [&](int qx)
                      {
                         smem[m][n][qy][qx] = r0(m, n, dz, qy, qx);
                      });
@@ -133,9 +131,9 @@ void TMOP_AssembleDiagPA_3D(const int NE,
             }
             MFEM_SYNC_THREAD;
 
-            mfem::tmop::foreach_y_thread(D1D, [&](int dy)
+            tmop::foreach_y_thread(D1D, [&](int dy)
             {
-               mfem::tmop::foreach_x_thread(Q1D, [&](int qx)
+               tmop::foreach_x_thread(Q1D, [&](int qx)
                {
                   for (int m = 0; m < 3; m++)
                   {
@@ -171,9 +169,9 @@ void TMOP_AssembleDiagPA_3D(const int NE,
             {
                for (int n = 0; n < 3; n++)
                {
-                  mfem::tmop::foreach_y_thread(D1D, [&](int dy)
+                  tmop::foreach_y_thread(D1D, [&](int dy)
                   {
-                     mfem::tmop::foreach_x_thread(Q1D, [&](int qx)
+                     tmop::foreach_x_thread(Q1D, [&](int qx)
                      {
                         smem[m][n][dy][qx] = r1(m, n, dz, dy, qx);
                      });
@@ -182,9 +180,9 @@ void TMOP_AssembleDiagPA_3D(const int NE,
             }
             MFEM_SYNC_THREAD;
 
-            mfem::tmop::foreach_y_thread(D1D, [&](int dy)
+            tmop::foreach_y_thread(D1D, [&](int dy)
             {
-               mfem::tmop::foreach_x_thread(D1D, [&](int dx)
+               tmop::foreach_x_thread(D1D, [&](int dx)
                {
                   real_t d = 0.0;
                   for (int qx = 0; qx < Q1D; ++qx)

@@ -12,7 +12,6 @@
 #ifndef MFEM_INVARIANTS_HPP
 #define MFEM_INVARIANTS_HPP
 
-#include "../config/config.hpp"
 #include "../general/error.hpp"
 #include <cmath>
 

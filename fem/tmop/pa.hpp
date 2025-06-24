@@ -13,7 +13,6 @@
 #define MFEM_TMOP_PA_HPP
 
 #include "../kernel_dispatch.hpp"
-#include "../../config/config.hpp"
 #include "../../linalg/dinvariants.hpp"
 
 namespace mfem

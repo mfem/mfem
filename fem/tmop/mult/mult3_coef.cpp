@@ -18,8 +18,6 @@
 namespace mfem
 {
 
-using namespace kernels::internal;
-
 template <int MD1, int MQ1, int T_D1D = 0, int T_Q1D = 0>
 void TMOP_AddMultPA_C0_3D(const real_t lim_normal,
                           const DeviceTensor<4, const real_t> &LD,
@@ -44,27 +42,27 @@ void TMOP_AddMultPA_C0_3D(const real_t lim_normal,
    {
       MFEM_SHARED real_t smem[MQ1][MQ1];
       MFEM_SHARED real_t sB[MD1][MQ1];
-      LoadMatrix(D1D, Q1D, bld, sB);
+      kernels::internal::LoadMatrix(D1D, Q1D, bld, sB);
 
-      vd_regs3d_t<1,1,MQ1> rm0, rm1; // scalar LD
-      LoadDofs3d(e, D1D, LD, rm0);
-      Eval3d(D1D, Q1D, smem, sB, rm0, rm1);
+      kernels::internal::vd_regs3d_t<1,1,MQ1> rm0, rm1; // scalar LD
+      kernels::internal::LoadDofs3d(e, D1D, LD, rm0);
+      kernels::internal::Eval3d(D1D, Q1D, smem, sB, rm0, rm1);
 
-      LoadMatrix(D1D, Q1D, b, sB);
+      kernels::internal::LoadMatrix(D1D, Q1D, b, sB);
 
-      vd_regs3d_t<3,1,MQ1> r00, r01; // vector X0
-      LoadDofs3d(e, D1D, X0, r00);
-      Eval3d(D1D, Q1D, smem, sB, r00, r01);
+      kernels::internal::vd_regs3d_t<3,1,MQ1> r00, r01; // vector X0
+      kernels::internal::LoadDofs3d(e, D1D, X0, r00);
+      kernels::internal::Eval3d(D1D, Q1D, smem, sB, r00, r01);
 
-      vd_regs3d_t<3,1,MQ1> r10, r11; // vector X1
-      LoadDofs3d(e, D1D, X1, r10);
-      Eval3d(D1D, Q1D, smem, sB, r10, r11);
+      kernels::internal::vd_regs3d_t<3,1,MQ1> r10, r11; // vector X1
+      kernels::internal::LoadDofs3d(e, D1D, X1, r10);
+      kernels::internal::Eval3d(D1D, Q1D, smem, sB, r10, r11);
 
       for (int qz = 0; qz < Q1D; ++qz)
       {
-         mfem::tmop::foreach_y_thread(Q1D, [&](int qy)
+         tmop::foreach_y_thread(Q1D, [&](int qy)
          {
-            mfem::tmop::foreach_x_thread(Q1D, [&](int qx)
+            tmop::foreach_x_thread(Q1D, [&](int qx)
             {
                const real_t *Jtr = &J(0, 0, qx, qy, qz, e);
                const real_t detJtr = kernels::Det<3>(Jtr);
@@ -113,8 +111,8 @@ void TMOP_AddMultPA_C0_3D(const real_t lim_normal,
          });
       }
       MFEM_SYNC_THREAD;
-      EvalTranspose3d(D1D, Q1D, smem, sB, r00, r01);
-      WriteDofs3d(e, D1D, r01, Y);
+      kernels::internal::EvalTranspose3d(D1D, Q1D, smem, sB, r00, r01);
+      kernels::internal::WriteDofs3d(e, D1D, r01, Y);
    });
 }
 

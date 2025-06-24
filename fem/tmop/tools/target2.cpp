@@ -19,8 +19,6 @@
 namespace mfem
 {
 
-using namespace kernels::internal;
-
 template <int T_Q1D = 0>
 void TMOP_TcIdealShapeUnitSize_2D(const int NE,
                                   const ConstDeviceMatrix &W,
@@ -33,9 +31,9 @@ void TMOP_TcIdealShapeUnitSize_2D(const int NE,
    {
       constexpr int DIM = 2;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
-      mfem::tmop::foreach_y_thread(Q1D, [&](int qy)
+      tmop::foreach_y_thread(Q1D, [&](int qy)
       {
-         mfem::tmop::foreach_x_thread(Q1D, [&](int qx)
+         tmop::foreach_x_thread(Q1D, [&](int qx)
          {
             kernels::Set(DIM, DIM, 1.0, &W(0, 0), &J(0, 0, qx, qy, e));
          });
@@ -61,17 +59,17 @@ void TMOP_TcIdealShapeGivenSize_2D(const int NE,
    {
       MFEM_SHARED real_t smem[MQ1][MQ1];
       MFEM_SHARED real_t sB[MD1][MQ1], sG[MD1][MQ1];
-      vd_regs2d_t<2, 2, MQ1> r0, r1;
+      kernels::internal::vd_regs2d_t<2, 2, MQ1> r0, r1;
 
-      LoadMatrix(D1D, Q1D, b, sB);
-      LoadMatrix(D1D, Q1D, g, sG);
+      kernels::internal::LoadMatrix(D1D, Q1D, b, sB);
+      kernels::internal::LoadMatrix(D1D, Q1D, g, sG);
 
-      LoadDofs2d(e, D1D, X, r0);
-      Grad2d(D1D, Q1D, smem, sB, sG, r0, r1);
+      kernels::internal::LoadDofs2d(e, D1D, X, r0);
+      kernels::internal::Grad2d(D1D, Q1D, smem, sB, sG, r0, r1);
 
-      mfem::tmop::foreach_y_thread(Q1D, [&](int qy)
+      tmop::foreach_y_thread(Q1D, [&](int qy)
       {
-         mfem::tmop::foreach_x_thread(Q1D, [&](int qx)
+         tmop::foreach_x_thread(Q1D, [&](int qx)
          {
             const real_t *Wid = &W(0, 0);
             const real_t Jtr[4] =

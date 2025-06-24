@@ -17,8 +17,6 @@
 namespace mfem
 {
 
-using namespace kernels::internal;
-
 template <int MD1, int MQ1, int T_D1D = 0, int T_Q1D = 0>
 void TMOP_AssembleDiagPA_C0_3D(const int NE,
                                const ConstDeviceMatrix &B,
@@ -39,9 +37,9 @@ void TMOP_AssembleDiagPA_C0_3D(const int NE,
          // first tensor contraction, along z direction
          for (int dz = 0; dz < D1D; ++dz)
          {
-            mfem::tmop::foreach_y_thread(Q1D, [&](int qy)
+            tmop::foreach_y_thread(Q1D, [&](int qy)
             {
-               mfem::tmop::foreach_x_thread(Q1D, [&](int qx)
+               tmop::foreach_x_thread(Q1D, [&](int qx)
                {
                   real_t u = 0.0;
                   for (int qz = 0; qz < Q1D; ++qz)
@@ -58,18 +56,18 @@ void TMOP_AssembleDiagPA_C0_3D(const int NE,
          // second tensor contraction, along y direction
          for (int dz = 0; dz < D1D; ++dz)
          {
-            mfem::tmop::foreach_y_thread(Q1D, [&](int qy)
+            tmop::foreach_y_thread(Q1D, [&](int qy)
             {
-               mfem::tmop::foreach_x_thread(Q1D, [&](int qx)
+               tmop::foreach_x_thread(Q1D, [&](int qx)
                {
                   smem[qy][qx] = r0[dz][qy][qx];
                });
             });
             MFEM_SYNC_THREAD;
 
-            mfem::tmop::foreach_y_thread(D1D, [&](int dy)
+            tmop::foreach_y_thread(D1D, [&](int dy)
             {
-               mfem::tmop::foreach_x_thread(Q1D, [&](int qx)
+               tmop::foreach_x_thread(Q1D, [&](int qx)
                {
                   real_t u = 0.0;
                   for (int qy = 0; qy < Q1D; ++qy)
@@ -86,18 +84,18 @@ void TMOP_AssembleDiagPA_C0_3D(const int NE,
          // third tensor contraction, along x direction
          for (int dz = 0; dz < D1D; ++dz)
          {
-            mfem::tmop::foreach_y_thread(D1D, [&](int dy)
+            tmop::foreach_y_thread(D1D, [&](int dy)
             {
-               mfem::tmop::foreach_x_thread(Q1D, [&](int qx)
+               tmop::foreach_x_thread(Q1D, [&](int qx)
                {
                   smem[dy][qx] = r1[dz][dy][qx];
                });
             });
             MFEM_SYNC_THREAD;
 
-            mfem::tmop::foreach_y_thread(D1D, [&](int dy)
+            tmop::foreach_y_thread(D1D, [&](int dy)
             {
-               mfem::tmop::foreach_x_thread(D1D, [&](int dx)
+               tmop::foreach_x_thread(D1D, [&](int dx)
                {
                   real_t u = 0.0;
                   for (int qx = 0; qx < Q1D; ++qx)

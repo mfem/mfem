@@ -18,8 +18,6 @@
 namespace mfem
 {
 
-using namespace kernels::internal;
-
 template <int MD1, int MQ1, int T_D1D = 0, int T_Q1D = 0>
 void TMOP_AddMultGradPA_C0_2D(const int NE,
                               const real_t *b,
@@ -36,15 +34,15 @@ void TMOP_AddMultGradPA_C0_2D(const int NE,
    {
       MFEM_SHARED real_t sB[MD1][MQ1];
       MFEM_SHARED real_t smem[MQ1][MQ1];
-      LoadMatrix(D1D, Q1D, b, sB);
+      kernels::internal::LoadMatrix(D1D, Q1D, b, sB);
 
-      vd_regs2d_t<2,1,MQ1> r0, r1;
-      LoadDofs2d(e, D1D, X, r0);
-      Eval2d(D1D, Q1D, smem, sB, r0, r1);
+      kernels::internal::vd_regs2d_t<2,1,MQ1> r0, r1;
+      kernels::internal::LoadDofs2d(e, D1D, X, r0);
+      kernels::internal::Eval2d(D1D, Q1D, smem, sB, r0, r1);
 
-      mfem::tmop::foreach_y_thread(Q1D, [&](int qy)
+      tmop::foreach_y_thread(Q1D, [&](int qy)
       {
-         mfem::tmop::foreach_x_thread(Q1D, [&](int qx)
+         tmop::foreach_x_thread(Q1D, [&](int qx)
          {
             // Xh = X^T . Sh
             const real_t Xh[2] = { r1(0, 0, qy, qx), r1(1, 0, qy, qx) };
@@ -64,8 +62,8 @@ void TMOP_AddMultGradPA_C0_2D(const int NE,
          });
       });
       MFEM_SYNC_THREAD;
-      EvalTranspose2d(D1D, Q1D, smem, sB, r0, r1);
-      WriteDofs2d(e, D1D, r1, Y);
+      kernels::internal::EvalTranspose2d(D1D, Q1D, smem, sB, r0, r1);
+      kernels::internal::WriteDofs2d(e, D1D, r1, Y);
    });
 }
 
