@@ -95,10 +95,10 @@ private:
       }
    }
 public:
-   // static constexpr int SpaceDim() { return SpaceDim; };
+   static constexpr int SpaceDim() { return SpaceDim; };
    static constexpr int GetNumScalars() { return NumScalars; };
    static constexpr int GetNumVectors() { return sizeof...(VectorVDims); };
-   // static constexpr int VDim(int v) { return VDims[v]; };
+   static constexpr int VDim(int v) { return VDims[v]; };
 
    /// Create a new particle which owns its own data
    Particle()
@@ -210,10 +210,6 @@ class ParticleSet { static_assert(sizeof(T)==0, "ParticleSet<T,VOrdering> requir
 template<int SpaceDim, int NumScalars, int... VectorVDims, Ordering::Type VOrdering>
 class ParticleSet<Particle<SpaceDim,NumScalars,VectorVDims...>, VOrdering>
 {
-public:
-
-   static constexpr Ordering::Type GetOrdering() { return VOrdering; }
-
 protected:
    static constexpr std::array<int, sizeof...(VectorVDims)> VDims = { VectorVDims... }; // VDims of vectors
    static constexpr int TotalFields = 1 + NumScalars + sizeof...(VectorVDims); // Total number of fields / particle
@@ -237,50 +233,52 @@ protected:
    }
    static inline const std::array<int, TotalFields> ExclScanFieldVDims = MakeExclScanFieldVDims();
    
-   std::vector<real_t> data; // Stores ALL particle data
-   std::array<Vector, TotalFields> fields; // User-facing Vectors, referencing data
-   std::vector<int> ids; // Particle IDs
-
-
    const int id_stride;
    int id_counter;
 
-   void SyncVectors();
+   std::vector<real_t> data; // Stores ALL particle data
+   std::array<Vector, TotalFields> fields; // User-facing Vectors, referencing data
+   Array<unsigned int> ids; // Particle IDs
 
-#ifdef MFEM_USE_MPI
-   MPI_Comm comm;
-#endif // MFEM_USE_MPI
+
+
+   void SyncVectors(); /// Sync Vectors in \ref fields
+   void AddParticle(const Particle<SpaceDim, NumScalars, VectorVDims...> &p, int id); /// Add particle w/ given ID
+
+   /// Private ctor to set ID stride + starting counter
+   ParticleSet(const int id_stride_, const int id_0) : id_stride(id_stride_), id_counter(id_0) { };
 
 public:
 
-   ParticleSet() : id_stride(1) {};
-
-#ifdef MFEM_USE_MPI
-   explicit ParticleSet(MPI_Comm comm_)
-   : comm(comm_), id_stride([&](){int s; MPI_Comm_size(comm, &s); return s; }()) { }
-#endif // MFEM_USE_MPI
+   static constexpr Ordering::Type GetOrdering() { return VOrdering; }
+   
+   ParticleSet() : ParticleSet(1, 0) {};
 
    /// Reserve room for \p res particles. Can help to avoid re-allocation for adding + removing particles.
-   void Reserve(int res) { data.reserve(res*TotalComps); }
+   void Reserve(int res) { data.reserve(res*TotalComps); ids.Reserve(res); }
 
    /// Get the number of particles currently held by this ParticleSet.
-   int GetNP() const { return data.size()/TotalComps; }
+   int GetNP() const { return ids.Size(); }
 
    /// Add particle
-   void AddParticle(const Particle<SpaceDim, NumScalars, VectorVDims...> &p);
+   void AddParticle(const Particle<SpaceDim, NumScalars, VectorVDims...> &p)
+   {
+      AddParticle(p, id_counter);
+      id_counter += id_stride;
+   };
 
    /// Remove particle data specified by \p list of particle indices.
    void RemoveParticles(const Array<int> &list);
 
    /// Get particle \p i referencing actual, data ONLY FOR Ordering byVDIM.
-   Particle<SpaceDim, NumScalars, VectorVDims...> GetParticleRef(int i);
+   Particle<SpaceDim, NumScalars, VectorVDims...> GetParticleRef(int idx);
 
-   const Particle<SpaceDim, NumScalars, VectorVDims...> GetParticleRef(int i) const { return const_cast<ParticleSet*>(this)->GetParticleRef(i); };
+   const Particle<SpaceDim, NumScalars, VectorVDims...> GetParticleRef(int idx) const { return const_cast<ParticleSet*>(this)->GetParticleRef(i); };
+   
    /// Get copy of data in particle \p i .
    Particle<SpaceDim, NumScalars, VectorVDims...> GetParticleData(int i) const;
 
-   /// Set particle \p i 's data.
-   void SetParticle(int i, const Particle<SpaceDim, NumScalars, VectorVDims...> &p);
+   const Array<unsigned int>& GetIDs() const { return ids; };
 
    Vector& GetSetCoords() { return fields[0]; }
 
@@ -294,14 +292,10 @@ public:
 
    const Vector& GetSetVector(int v) const { return fields[1+NumScalars+v]; }
 
-#ifdef MFEM_USE_MPI
-   /// Redistribute particles onto ranks specified in \p rank_list .
-   void Redistribute(const Array<int> &rank_list);
-#endif // MFEM_USE_MPI
-
    void Print(std::ostream &out=mfem::out, int width=8) { Vector r(data.data(), data.size()); r.Print(out, width);}
-};
 
+   void Save(std::ostream &out);
+};
 
 
 // -----------------------------------------------------------------------------------------------------
@@ -318,7 +312,7 @@ void ParticleSet<Particle<SpaceDim,NumScalars,VectorVDims...>, VOrdering>::SyncV
 }
 
 template<int SpaceDim, int NumScalars, int... VectorVDims, Ordering::Type VOrdering>
-void ParticleSet<Particle<SpaceDim,NumScalars,VectorVDims...>, VOrdering>::AddParticle(const Particle<SpaceDim, NumScalars, VectorVDims...> &p)
+void ParticleSet<Particle<SpaceDim,NumScalars,VectorVDims...>, VOrdering>::AddParticle(const Particle<SpaceDim, NumScalars, VectorVDims...> &p, int id)
 {
    int old_np = GetNP();
 
@@ -369,6 +363,7 @@ void ParticleSet<Particle<SpaceDim,NumScalars,VectorVDims...>, VOrdering>::AddPa
       }
    }
 
+   ids.Append(id); // Add ID
    SyncVectors();
 }
 
@@ -422,11 +417,27 @@ void ParticleSet<Particle<SpaceDim,NumScalars,VectorVDims...>, VOrdering>::Remov
       }
    }
 
-   // Resize / remove tail
+   // Remove old IDs
+   int rm_idx = 0
+   for (int i = 0; i < num_old; i++)
+   {
+      if (i == sorted_list[rm_idx])
+      {
+         rm_idx++
+      }
+      else
+      {
+         ids[i-rm_idx] = ids[i];
+      }
+   }
+
+   // Resize / remove tails
    int num_new = old_np - list.Size();
    data.resize(num_new*TotalComps);
+   ids.SetSize(num_new);
 
    SyncVectors();
+
 }
 
 
@@ -480,39 +491,6 @@ Particle<SpaceDim, NumScalars, VectorVDims...> ParticleSet<Particle<SpaceDim,Num
       return Particle<SpaceDim, NumScalars, VectorVDims...>(GetParticleRef(i));
    }
    
-}
-
-template<int SpaceDim, int NumScalars, int... VectorVDims, Ordering::Type VOrdering>
-void ParticleSet<Particle<SpaceDim,NumScalars,VectorVDims...>, VOrdering>::SetParticle(int i, const Particle<SpaceDim, NumScalars, VectorVDims...> &p)
-{
-   // TODO
-   /*
-   if constexpr(VOrdering == Ordering::byNODES)
-   {
-      const real_t *dat;
-      for (int c = 0; c < TotalComps; c++)
-      {
-         if (c < SpaceDim) // If setting coord components
-         {
-            dat = &p.coords[c];
-         }
-         else if (c < SpaceDim + NumScalars) // Else if setting scalars
-         {
-            dat = &p.scalars[c - SpaceDim];
-         }
-         else // Else setting vector components
-         {
-            dat = &p.vectors_flat[c - SpaceDim - NumScalars];
-         }
-
-         data[i + c*GetNP()] = *dat;
-      }
-   }
-   else // byVDIM
-   {
-      // TODO
-   }
-   */
 }
 
 } // namespace mfem
