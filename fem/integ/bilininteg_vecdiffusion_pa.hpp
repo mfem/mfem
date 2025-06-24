@@ -159,7 +159,7 @@ void SmemPAVectorDiffusionApply3D(const int NE,
                } // qy
             } // qz
             MFEM_SYNC_THREAD;
-            kernels::internal::Grad3dTranspose(D1D, Q1D, smem, sB, sG, r0, r1, i);
+            kernels::internal::GradTranspose3d(D1D, Q1D, smem, sB, sG, r0, r1, i);
             const int ij =  matrix_coeff ? j : i;
             kernels::internal::WriteDofs3d(e, D1D, i, ij, r1, YE);
          } // j

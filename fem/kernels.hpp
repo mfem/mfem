@@ -112,6 +112,21 @@ inline MFEM_HOST_DEVICE void LoadDofs2d(const int e, const int d1d,
    for (int c = 0; c < VDIM; ++c) { LoadDofs2d(e, d1d, c, X, Y); }
 }
 
+/// Load 2D input scalar into given register tensor
+template <int MQ1 = 0>
+inline MFEM_HOST_DEVICE void LoadDofs2d(const int e, const int d1d,
+                                        const DeviceTensor<3, const real_t> &X,
+                                        vd_regs2d_t<1, 1, MQ1> &Y)
+{
+   MFEM_FOREACH_THREAD(dy, y, d1d)
+   {
+      MFEM_FOREACH_THREAD(dx, x, d1d)
+      {
+         Y[0][0][dy][dx] = X(dx, dy, e);
+      }
+   }
+}
+
 /// Write 2D scalar into given device tensor
 template <int VDIM, int DIM, int MQ1 = 0>
 inline MFEM_HOST_DEVICE void WriteDofs2d(const int e, const int d1d,
@@ -167,6 +182,26 @@ inline MFEM_HOST_DEVICE void LoadDofs3d(const int e, const int d1d,
                                         vd_regs3d_t<VDIM, DIM, MQ1> &Y)
 {
    for (int c = 0; c < VDIM; ++c) { LoadDofs3d(e, d1d, c, X, Y); }
+}
+
+template <int MQ1>
+inline MFEM_HOST_DEVICE void LoadDofs3d(const int e,
+                                        const int d1d,
+                                        const DeviceTensor<4, const real_t> &X,
+                                        vd_regs3d_t<1, 1, MQ1> &Y)
+{
+   for (int dz = 0; dz < d1d; ++dz)
+   {
+      // foreach_y_thread(d1d, [&](int dy)
+      MFEM_FOREACH_THREAD(dy, y, d1d)
+      {
+         // foreach_x_thread(d1d, [&](int dx)
+         MFEM_FOREACH_THREAD(dx, x, d1d)
+         {
+            Y[0][0][dz][dy][dx] = X(dx,dy,dz,e);
+         }//);
+      }//);
+   }
 }
 
 /// Write 2D scalar into given device tensor
@@ -521,7 +556,7 @@ inline MFEM_HOST_DEVICE void Grad3d(const int d1d, const int q1d,
 
 /// 3D scalar/vector transposed gradient
 template <int VDIM, int DIM, int MQ1>
-inline MFEM_HOST_DEVICE void Grad3dTranspose(const int d1d, const int q1d,
+inline MFEM_HOST_DEVICE void GradTranspose3d(const int d1d, const int q1d,
                                              real_t (&smem)[MQ1][MQ1],
                                              const real_t (*B)[MQ1],
                                              const real_t (*G)[MQ1],
