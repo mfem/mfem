@@ -1150,12 +1150,12 @@ void NitscheElasticityDirichletLFIntegrator::AssembleRHSElementVect(
       //   ip.weight/det(J1) alpha mu g nor(im) dshape_ps(idof,l) w(l) =
       //   alpha * WM * g_val * nor(im) * dshape_du(idof)
       // term j:
-      //   < kappa h^{-1} g, w . v_phi(i) > =
-      //   kappa/h g w(k) v_phi(i,k) =
-      //   kappa/h g w(k) delta(im,k) phi(idof) =
-      //   kappa/h g w(im) phi(idof) --> quadrature -->
+      //   < kappa h^{-1} (lambda + 2 mu) g, w . v_phi(i) > =
+      //   kappa/h (lambda + 2 mu) g w(k) v_phi(i,k) =
+      //   kappa/h (lambda + 2 mu) g w(k) delta(im,k) phi(idof) =
+      //   kappa/h (lambda + 2 mu) g w(im) phi(idof) --> quadrature -->
       //      [ 1/h = |nor|/det(J1) ]
-      //   ip.weight/det(J1) |nor|^2 kappa g w(im) phi(idof) =
+      //   ip.weight/det(J1) |nor|^2 (lambda + 2 mu) kappa g w(im) phi(idof) =
       //   jcoef * g_val * w_val(im) * shape(idof)
 
       WM *= alpha;
