@@ -1108,18 +1108,6 @@ decltype(T {})
    return AB;
 }
 
-template <typename T, int m> MFEM_HOST_DEVICE
-auto dot(const tensor<T, m>& A, const tensor<T, m>& B) ->
-decltype(T {})
-{
-   decltype(T{}) AB{};
-   for (int i = 0; i < m; i++)
-   {
-      AB += A[i] * B[i];
-   }
-   return AB;
-}
-
 template <typename S, typename T, int m, int n0, int n1, int... n>
 MFEM_HOST_DEVICE
 auto dot(const tensor<S, m>& A, const tensor<T, m, n0, n1, n...>& B) ->

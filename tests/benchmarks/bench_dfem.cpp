@@ -33,8 +33,8 @@ using mfem::future::tuple;
 using mfem::future::tensor;
 
 using future::DifferentiableOperator;
-using future::ParameterSpace;
-using future::ParametricFunction;
+using future::UniformParameterSpace;
+using future::ParameterFunction;
 using future::FieldDescriptor;
 using future::Gradient;
 using future::Weight;
@@ -257,8 +257,8 @@ struct BakeOff
    ParBilinearForm a;
    std::unique_ptr<DifferentiableOperator> dop;
    const int elem_size, total_size, d1d, q1d;
-   ParameterSpace qdata_space;
-   ParametricFunction qdata;
+   UniformParameterSpace qd_ps;
+   ParameterFunction qdata;
 
    double mdofs{};
 
@@ -273,7 +273,7 @@ struct BakeOff
       smesh(Mesh::MakeCartesian3D(nx, ny, nz, Element::HEXAHEDRON)),
       pmesh(MPI_COMM_WORLD, (smesh.EnsureNodes(), smesh)),
       fec(p, DIM, BasisType::GaussLobatto),
-      pfes(&pmesh, &fec, VDIM, Ordering::byNODES),
+      pfes(&pmesh, &fec, VDIM),//, Ordering::byNODES),
       geom_type(pmesh.GetTypicalElementGeometry()),
       irs(0, GLL ? Quadrature1D::GaussLobatto : Quadrature1D::GaussLegendre),
       ir(&irs.Get(geom_type, q)), one(1.0), uvec(DIM),
@@ -288,8 +288,8 @@ struct BakeOff
       total_size(elem_size * pmesh.GetNE()),
       d1d(p + 1),
       q1d(IntRules.Get(Geometry::SEGMENT, ir->GetOrder()).GetNPoints()),
-      qdata_space(DIM, DIM * DIM, elem_size, total_size, d1d, q1d),
-      qdata(qdata_space)
+      qd_ps(pmesh, *ir, DIM*DIM),
+      qdata(qd_ps)
    {
       // dbg("p:{} q:{}", p, q);
       // pmesh.SetCurvature(p);
@@ -340,6 +340,7 @@ struct Diffusion : public BakeOff<VDIM, GLL>
    using BakeOff<VDIM, GLL>::dop;
    using BakeOff<VDIM, GLL>::nodes;
    using BakeOff<VDIM, GLL>::qdata;
+   using BakeOff<VDIM, GLL>::qd_ps;
    using BakeOff<VDIM, GLL>::dofs;
 
    Diffusion(int version, int order, int side):
@@ -347,7 +348,7 @@ struct Diffusion : public BakeOff<VDIM, GLL>
       ess_bdr(pmesh.bdr_attributes.Max()),
       all_domain_attr(pmesh.bdr_attributes.Max()),
       b(&pfes),
-      u_fd{U, &pfes}, Ξ_fd{Ξ, &mfes}, q_fd{Q, &qdata.space},
+      u_fd{U, &pfes}, Ξ_fd{Ξ, &mfes}, q_fd{Q, &qd_ps},
       u_sol{u_fd},
       q_param {q_fd},
       Ξ_q_params {Ξ_fd, q_fd},
@@ -355,16 +356,6 @@ struct Diffusion : public BakeOff<VDIM, GLL>
    {
       dbg("pmesh.bdr_attributes.Max():{}",pmesh.bdr_attributes.Max());
       static_assert(VDIM == 1 && GLL == false);
-
-      /*{
-         const int deviceId = 0;
-         hipDeviceProp_t deviceProp;
-         hipGetDeviceProperties(&deviceProp, deviceId);
-         MFEM_GPU_CHECK(hipGetLastError());
-         dbg("Device #{} {}", deviceId, deviceProp.name);
-         dbg("Max smem per block: {} bytes", deviceProp.sharedMemPerBlock);
-         dbg("Max smem per block: {} KiB", deviceProp.sharedMemPerBlock / 1024.0);
-      }*/
 
       ess_bdr = 1;
       all_domain_attr = 1;
@@ -411,7 +402,6 @@ struct Diffusion : public BakeOff<VDIM, GLL>
                                   tuple{Gradient<U>{}, Gradient<Ξ>{}, Weight{}},
                                   tuple{Gradient<U>{}},
                                   *ir, ess_bdr);
-         // Operator *A_ptr;
          dop->FormLinearSystem(ess_tdof_list, x, b, A_ptr, X, B);
          A.Reset(A_ptr);
       }
@@ -426,7 +416,7 @@ struct Diffusion : public BakeOff<VDIM, GLL>
          tuple Gu_q = {Gu, q};
          tuple u_J_w = {u, GΞ, w};
 
-         auto setup =
+         auto pa_setup_qf =
             [] MFEM_HOST_DEVICE(const real_t &u,
                                 const tensor<real_t, DIM, DIM> &J,
                                 const real_t &w)
@@ -434,19 +424,21 @@ struct Diffusion : public BakeOff<VDIM, GLL>
             return tuple{inv(J) * transpose(inv(J)) * det(J) * w};
          };
          DifferentiableOperator dSetup(u_sol, Ξ_q_params, pmesh);
+         dSetup.AddDomainIntegrator(pa_setup_qf, u_J_w, tuple{q}, *ir, ess_bdr);
          dSetup.SetParameters({nodes, &qdata});
-         dSetup.AddDomainIntegrator(setup, u_J_w, tuple{q}, *ir, ess_bdr);
-         dSetup.Mult(x, qdata);
+         X.SetSize(pfes.GetTrueVSize());
+         pfes.GetRestrictionMatrix()->Mult(x, X);
+         dSetup.Mult(X, qdata);
 
-         auto apply =
+         auto pa_apply_qf =
             [] MFEM_HOST_DEVICE(const tensor<real_t, DIM> &Gu,
                                 const tensor<real_t, DIM, DIM> &q)
          {
             return tuple{q * Gu};
          };
          dop = std::make_unique<DifferentiableOperator>(u_sol, q_param, pmesh);
+         dop->AddDomainIntegrator(pa_apply_qf, Gu_q, tuple{Gu}, *ir, ess_bdr);
          dop->SetParameters({ &qdata });
-         dop->AddDomainIntegrator(apply, Gu_q, tuple{Gu}, *ir, ess_bdr);
 
          dop->FormLinearSystem(ess_tdof_list, x, b, A_ptr, X, B);
          A.Reset(A_ptr);
@@ -526,10 +518,12 @@ void AddKernelSpecializations()
 /// info //////////////////////////////////////////////////////////////////////
 void info()
 {
+   mfem::out << "\x1b[33m";
    mfem::out << "version 0: PA std" << std::endl;
    mfem::out << "version 1: PA new" << std::endl;
    mfem::out << "version 2: MF ∂fem" << std::endl;
    mfem::out << "version 3: PA ∂fem" << std::endl;
+   mfem::out << "\x1b[m" << std::endl;
 }
 
 /// main //////////////////////////////////////////////////////////////////////
