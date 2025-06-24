@@ -239,6 +239,11 @@ protected:
    
    std::vector<real_t> data; // Stores ALL particle data
    std::array<Vector, TotalFields> fields; // User-facing Vectors, referencing data
+   std::vector<int> ids; // Particle IDs
+
+
+   const int id_stride;
+   int id_counter;
 
    void SyncVectors();
 
@@ -248,10 +253,11 @@ protected:
 
 public:
 
-   ParticleSet() = default;
+   ParticleSet() : id_stride(1) {};
 
 #ifdef MFEM_USE_MPI
-   explicit ParticleSet(MPI_Comm comm_) : comm(comm_) {}
+   explicit ParticleSet(MPI_Comm comm_)
+   : comm(comm_), id_stride([&](){int s; MPI_Comm_size(comm, &s); return s; }()) { }
 #endif // MFEM_USE_MPI
 
    /// Reserve room for \p res particles. Can help to avoid re-allocation for adding + removing particles.
