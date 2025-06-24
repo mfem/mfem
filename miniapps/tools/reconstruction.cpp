@@ -6,7 +6,7 @@ using namespace mfem;
 // Note current only 2D reconstruction of L^2_1 (piecewise-linear) field from
 // L^2_0 (piecewise-constant) field is supported. The reconstruction is done
 // by enforcing
-//   1) element average: (u, psi_hat)_E = ({u_hat}, psi_hat)_E
+//   1) element average: (u, psi_hat)_E = (u_hat, psi_hat)_E
 //   2) grad: (div[ u e_i ], psi_hat)_E = <{u_hat} (e_i dot n), psi_hat>_E
 //   3) grad^2: (div[ (e_i \otimes e_j) grad[u] ], psi_hat)_E =
 //        <(grad[u_hat] dot e_j) e_i, psi_hat>_E ... which is 0
@@ -57,7 +57,7 @@ void reconstructField(const ParGridFunction& src, ParGridFunction& dst)
       Vector b(dst_element.GetDof());
       DenseMatrix Arow;
 
-      // enforce (u, psi_hat)_E = ({u_hat}, psi_hat)_E
+      // enforce (u, psi_hat)_E = (u_hat, psi_hat)_E
       mass.AssembleElementMatrix2(dst_element, src_element, transform, Arow);
       A.SetSubMatrix(0, 0, Arow);
       Vector bmean(b, 0, src_element.GetDof());
