@@ -257,12 +257,10 @@ int main(int argc, char *argv[])
    Array<int> ess_tdof_list_x, ess_tdof_list_y, ess_tdof_list_z;
    fespace->GetEssentialTrueDofs(ess_bdr_x, ess_tdof_list_x, 0);
    fespace->GetEssentialTrueDofs(ess_bdr_y, ess_tdof_list_y, 1);
-   fespace->GetEssentialTrueDofs(ess_bdr_z, ess_tdof_list_z, 2);
 
    Array<int> ess_tdof_list;
    ess_tdof_list.Append(ess_tdof_list_x);
    ess_tdof_list.Append(ess_tdof_list_y);
-   ess_tdof_list.Append(ess_tdof_list_z);
 
    // 7. Define coefficients for later.
    VectorFunctionCoefficient u_exact_coeff(dim, ManufacturedSolution);
