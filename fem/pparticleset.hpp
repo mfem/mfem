@@ -9,8 +9,8 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#ifndef MFEM_PPARTICLE_SET
-#define MFEM_PPARTICLE_SET
+#ifndef MFEM_PPARTICLESET
+#define MFEM_PPARTICLESET
 
 
 #if defined(MFEM_USE_MPI) && defined(MFEM_USE_GSLIB)
@@ -34,4 +34,4 @@ public:
 
 #endif //MFEM_USE_MPI && MFEM_USE_GSLIB
 
-#endif // MFEM_PPARTICLE_SET
+#endif // MFEM_PPARTICLESET

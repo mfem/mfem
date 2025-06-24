@@ -9,8 +9,8 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#ifndef MFEM_PARTICLE_SET
-#define MFEM_PARTICLE_SET
+#ifndef MFEM_PARTICLESET
+#define MFEM_PARTICLESET
 
 #include "../config/config.hpp"
 
@@ -496,4 +496,4 @@ Particle<SpaceDim, NumScalars, VectorVDims...> ParticleSet<Particle<SpaceDim,Num
 } // namespace mfem
 
 
-#endif // MFEM_PARTICLE_SET
+#endif // MFEM_PARTICLESET
