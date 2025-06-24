@@ -2336,7 +2336,18 @@ public:
    /// which divides the number of elements in each dimension.
    void NURBSCoarsening(int cf = 2, real_t tol = 1.0e-12);
 
-   virtual bool CheckForConflicts(const Array<Refinement> &refinements);
+   /** @brief Return true if the input array of refinements to be performed would
+       result in conflicting anisotropic directions on a face. Indices of
+       @a refinements entries are contained in @a conflicts, for marked elements
+       neighboring a face with a conflict.
+
+       Conflicts are defined as anisotropic refinements in different directions
+       on a face shared by two elements. Conflicts are checked for the mesh that
+       would result from the input refinements. If there are no conflicts, then
+       the refinements can be performed without forced refinements. This function
+       is supported only for 3D meshes with all hexahedral elements. */
+   virtual bool AnisotropicConflict(const Array<Refinement> &refinements,
+                                    std::set<int> &conflicts) const;
 
    /** Refine selected mesh elements. Refinement type can be specified for each
        element. The function can do conforming refinement of triangles and

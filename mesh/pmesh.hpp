@@ -814,7 +814,11 @@ public:
    /// Debugging method
    void PrintSharedEntities(const std::string &fname_prefix) const;
 
-   bool CheckForConflicts(const Array<Refinement> &refinements) override;
+   /** The return value is globally MPI-reduced (true if any MPI process has a
+       conflict), whereas @a conflicts contains local indices of conflicting
+       entries of @a refinements. */
+   bool AnisotropicConflict(const Array<Refinement> &refinements,
+                            std::set<int> &conflicts) const override;
 
    virtual ~ParMesh();
 };

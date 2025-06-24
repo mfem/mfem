@@ -3890,10 +3890,11 @@ void ParMesh::LocalRefinement(const Array<int> &marked_el, int type)
 #endif
 }
 
-bool ParMesh::CheckForConflicts(const Array<Refinement> &refinements)
+bool ParMesh::AnisotropicConflict(const Array<Refinement> &refinements,
+                                  std::set<int> &conflicts) const
 {
-   MFEM_VERIFY(pncmesh, "CheckForConflicts should be called only for NCMesh");
-   return pncmesh->CheckForConflicts(refinements);
+   MFEM_VERIFY(pncmesh, "AnisotropicConflict should be called only for NCMesh");
+   return pncmesh->AnisotropicConflict(refinements, conflicts);
 }
 
 void ParMesh::NonconformingRefinement(const Array<Refinement> &refinements,
