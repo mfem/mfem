@@ -641,7 +641,7 @@ protected:
    Coefficient &g;
    VectorCoefficient &w;
    Coefficient *lambda, *mu;
-   real_t kappa;
+   real_t alpha, kappa;
 
 #ifndef MFEM_THREAD_SAFE
    Vector shape;
@@ -656,10 +656,10 @@ protected:
 #endif
 
 public:
-   NitscheElasticityDirichletLFIntegrator(Coefficient &g_,
-                                          VectorCoefficient &w_,
-                                          Coefficient &lambda_, Coefficient &mu_, real_t kappa_)
-      : g(g_), w(w_), lambda(&lambda_), mu(&mu_), kappa(kappa_) {}
+   NitscheElasticityDirichletLFIntegrator(Coefficient &g_, VectorCoefficient &w_,
+                                          Coefficient &lambda_, Coefficient &mu_,
+                                          real_t alpha_, real_t kappa_)
+      : g(g_), w(w_), lambda(&lambda_), mu(&mu_), alpha(alpha_), kappa(kappa_) {}
 
    void AssembleRHSElementVect(const FiniteElement &el,
                                ElementTransformation &Tr,

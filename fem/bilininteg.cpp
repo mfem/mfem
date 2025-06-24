@@ -4280,21 +4280,22 @@ void NitscheElasticityIntegrator::AssembleBlock(
    const real_t jmatcoef, const Vector &col_nL, const Vector &col_nM,
    const Vector &row_shape, const Vector &col_shape,
    const Vector &col_dshape_dnM, const DenseMatrix &col_dshape,
-   const Vector &w_val, DenseMatrix &elmat, DenseMatrix &jmat)
+   const Vector &row_w, const Vector &col_w,
+   DenseMatrix &elmat, DenseMatrix &jmat)
 {
    for (int jm = 0, j = col_offset; jm < dim; ++jm)
    {
       for (int jdof = 0; jdof < col_ndofs; ++jdof, ++j)
       {
-         const real_t t2 = col_dshape_dnM(jdof);
+         const real_t t2 = col_dshape_dnM(jdof) * col_w(jm);
          for (int im = 0, i = row_offset; im < dim; ++im)
          {
-            const real_t t1 = col_dshape(jdof, jm) * col_nL(im);
-            const real_t t3 = col_dshape(jdof, im) * col_nM(jm);
+            const real_t t1 = col_dshape(jdof, jm) * col_nL(im) * col_w(jm);
+            const real_t t3 = col_dshape(jdof, im) * col_nM(jm) * col_w(im);
             const real_t tt = t1 + ((im == jm) ? t2 : 0.0) + t3;
             for (int idof = 0; idof < row_ndofs; ++idof, ++i)
             {
-               elmat(i, j) += row_shape(idof) * tt * w_val(jm) * w_val(im);
+               elmat(i, j) += row_shape(idof) * tt * row_w(im);
             }
          }
       }
@@ -4308,10 +4309,10 @@ void NitscheElasticityIntegrator::AssembleBlock(
       const int io = row_offset + d*row_ndofs;
       for (int jdof = 0, j = jo; jdof < col_ndofs; ++jdof, ++j)
       {
-         const real_t sj = jmatcoef * col_shape(jdof) * w_val(d);
-         for (int i = fmax(io,j), idof = i - io; idof < row_ndofs; ++idof, ++i)
+         const real_t sj = jmatcoef * col_shape(jdof) * col_w(d);
+         for (int i = max(io,j), idof = i - io; idof < row_ndofs; ++idof, ++i)
          {
-            jmat(i, j) += row_shape(idof) * sj * w_val(d);
+            jmat(i, j) += row_shape(idof) * sj * row_w(d);
          }
       }
    }
@@ -4331,8 +4332,8 @@ void NitscheElasticityIntegrator::AssembleFaceMatrix(
    Vector nL1, nL2;
    Vector nM1, nM2;
    Vector dshape1_dnM, dshape2_dnM;
-   Vector w_val;
    DenseMatrix jmat;
+   Vector w1, w2;
 #endif
 
    const int dim = el1.GetDim();
@@ -4344,12 +4345,16 @@ void NitscheElasticityIntegrator::AssembleFaceMatrix(
    //    < { sigma(u) n . w }, v . w > =
    //    < { (lambda div(u) I + mu (grad(u) + grad(u)^T)) n . w }, v . w >
    // But eventually, it's going to be replaced by:
-   //    elmat := -elmat - elmat^T + jmat
+   //    elmat := -elmat + alpha*elmat^T + jmat
    elmat.SetSize(nvdofs);
    elmat = 0.;
 
-   jmat.SetSize(nvdofs);
-   jmat = 0.;
+   const bool kappa_is_nonzero = (kappa != 0.0);
+   if (kappa_is_nonzero)
+   {
+      jmat.SetSize(nvdofs);
+      jmat = 0.;
+   }
 
    adjJ.SetSize(dim);
    shape1.SetSize(ndofs1);
@@ -4359,7 +4364,7 @@ void NitscheElasticityIntegrator::AssembleFaceMatrix(
    nL1.SetSize(dim);
    nM1.SetSize(dim);
    dshape1_dnM.SetSize(ndofs1);
-   w_val.SetSize(dim);
+   w1.SetSize(dim);
 
    if (ndofs2)
    {
@@ -4369,13 +4374,14 @@ void NitscheElasticityIntegrator::AssembleFaceMatrix(
       nL2.SetSize(dim);
       nM2.SetSize(dim);
       dshape2_dnM.SetSize(ndofs2);
+      w2.SetSize(dim);
    }
 
    const IntegrationRule *ir = IntRule;
    if (ir == NULL)
    {
       // a simple choice for the integration order; is this OK?
-      const int order = 2 * fmax(el1.GetOrder(), ndofs2 ? el2.GetOrder() : 0);
+      const int order = 2 * max(el1.GetOrder(), ndofs2 ? el2.GetOrder() : 0);
       ir = &IntRules.Get(Trans.GetGeometryType(), order);
    }
 
@@ -4406,8 +4412,9 @@ void NitscheElasticityIntegrator::AssembleFaceMatrix(
          CalcOrtho(Trans.Jacobian(), nor);
       }
 
-      // Evaluate the vector coefficient w at the integration point
-      w.Eval(w_val, Trans, ip);
+      // Evaluate vector function w at integration points
+      w.Eval(w1, *Trans.Elem1, eip1);
+      if (ndofs2) { w.Eval(w2, *Trans.Elem2, eip2); }
 
       real_t W;
       if (ndofs2)
@@ -4444,7 +4451,7 @@ void NitscheElasticityIntegrator::AssembleFaceMatrix(
       // (1,1) block
       AssembleBlock(
          dim, ndofs1, ndofs1, 0, 0, jmatcoef, nL1, nM1,
-         shape1, shape1, dshape1_dnM, dshape1_ps, w_val, elmat, jmat);
+         shape1, shape1, dshape1_dnM, dshape1_ps, w1, w1, elmat, jmat);
 
       if (ndofs2 == 0) { continue; }
 
@@ -4454,27 +4461,43 @@ void NitscheElasticityIntegrator::AssembleFaceMatrix(
       // (1,2) block
       AssembleBlock(
          dim, ndofs1, ndofs2, 0, dim*ndofs1, jmatcoef, nL2, nM2,
-         shape1, shape2, dshape2_dnM, dshape2_ps, w_val, elmat, jmat);
+         shape1, shape2, dshape2_dnM, dshape2_ps, w1, w2, elmat, jmat);
       // (2,1) block
       AssembleBlock(
          dim, ndofs2, ndofs1, dim*ndofs1, 0, jmatcoef, nL1, nM1,
-         shape2, shape1, dshape1_dnM, dshape1_ps, w_val, elmat, jmat);
+         shape2, shape1, dshape1_dnM, dshape1_ps, w2, w1, elmat, jmat);
       // (2,2) block
       AssembleBlock(
          dim, ndofs2, ndofs2, dim*ndofs1, dim*ndofs1, jmatcoef, nL2, nM2,
-         shape2, shape2, dshape2_dnM, dshape2_ps, w_val, elmat, jmat);
+         shape2, shape2, dshape2_dnM, dshape2_ps, w2, w2, elmat, jmat);
    }
 
-   // elmat := -elmat - elmat^t + jmat
-   for (int i = 0; i < nvdofs; ++i)
+   // elmat := -elmat + alpha*elmat^t + jmat
+   if (kappa_is_nonzero)
    {
-      for (int j = 0; j < i; ++j)
+      for (int i = 0; i < nvdofs; ++i)
       {
-         real_t aij = elmat(i,j), aji = elmat(j,i), mij = jmat(i,j);
-         elmat(i,j) = -aij - aji + mij;
-         elmat(j,i) = -aji - aij + mij;
+         for (int j = 0; j < i; ++j)
+         {
+            real_t aij = elmat(i,j), aji = elmat(j,i), mij = jmat(i,j);
+            elmat(i,j) = alpha*aji - aij + mij;
+            elmat(j,i) = alpha*aij - aji + mij;
+         }
+         elmat(i,i) = (alpha - 1.)*elmat(i,i) + jmat(i,i);
       }
-      elmat(i,i) = -2.0 * elmat(i,i) + jmat(i,i);
+   }
+   else
+   {
+      for (int i = 0; i < nvdofs; ++i)
+      {
+         for (int j = 0; j < i; ++j)
+         {
+            real_t aij = elmat(i,j), aji = elmat(j,i);
+            elmat(i,j) = alpha*aji - aij;
+            elmat(j,i) = alpha*aij - aji;
+         }
+         elmat(i,i) *= (alpha - 1.);
+      }
    }
 }
 

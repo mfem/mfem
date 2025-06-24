@@ -1121,7 +1121,7 @@ void NitscheElasticityDirichletLFIntegrator::AssembleRHSElementVect(
          dshape_ps.Mult(w_val, dshape_du);
       }
 
-      // -< g, (lambda div(v) I + mu (grad(v) + grad(v)^T)) n . w > +
+      // alpha < g, (lambda div(v) I + mu (grad(v) + grad(v)^T)) n . w > +
       //   + kappa < h^{-1} g, v . w >
 
       // i = idof + ndofs * im
@@ -1130,25 +1130,25 @@ void NitscheElasticityDirichletLFIntegrator::AssembleRHSElementVect(
       // (grad(v_phi(i)))(k,l) = delta(im,k) dphi(idof,l)
       //
       // term 1:
-      //   -< g, lambda div(v_phi(i)) n . w > =
-      //   -lambda g div(v_phi(i)) (n.w) =
-      //   -lambda g dphi(idof,im) (n.w) --> quadrature -->
-      //   -ip.weight/det(J1) lambda g (nor.w) dshape_ps(idof,im) =
-      //   -WL * g_val * (nor*w_val) * dshape_ps(idof,im)
+      //   alpha < g, lambda div(v_phi(i)) n . w > =
+      //   alpha lambda g div(v_phi(i)) (n.w) =
+      //   alpha lambda g dphi(idof,im) (n.w) --> quadrature -->
+      //   ip.weight/det(J1) alpha lambda g (nor.w) dshape_ps(idof,im) =
+      //   alpha * WL * g_val * (nor*w_val) * dshape_ps(idof,im)
       // term 2:
-      //   -< g, mu grad(v_phi(i)) n . w > =
-      //   -mu g w^T grad(v_phi(i)) n =
-      //   -mu g w(k) delta(im,k) dphi(idof,l) n(l) =
-      //   -mu g w(im) dphi(idof,l) n(l) --> quadrature -->
-      //   -ip.weight/det(J1) mu w(im) g dshape_ps(idof,l) nor(l) =
-      //   -WM * g_val * w_val(im) * dshape_dn(idof)
+      //   alpha < g, mu grad(v_phi(i)) n . w > =
+      //   alpha mu g w^T grad(v_phi(i)) n =
+      //   alpha mu g w(k) delta(im,k) dphi(idof,l) n(l) =
+      //   alpha mu g w(im) dphi(idof,l) n(l) --> quadrature -->
+      //   ip.weight/det(J1) alpha mu w(im) g dshape_ps(idof,l) nor(l) =
+      //   alpha * WM * g_val * w_val(im) * dshape_dn(idof)
       // term 3:
-      //   -< g, mu (grad(v_phi(i)))^T n . w > =
-      //   -mu g n^T grad(v_phi(i)) w =
-      //   -mu g n(k) delta(im,k) dphi(idof,l) w(l) =
-      //   -mu g n(im) dphi(idof,l) w(l) --> quadrature -->
-      //   -ip.weight/det(J1) mu g nor(im) dshape_ps(idof,l) w(l) =
-      //   -WM * g_val * nor(im) * dshape_du(idof)
+      //   alpha < g, mu (grad(v_phi(i)))^T n . w > =
+      //   alpha mu g n^T grad(v_phi(i)) w =
+      //   alpha mu g n(k) delta(im,k) dphi(idof,l) w(l) =
+      //   alpha mu g n(im) dphi(idof,l) w(l) --> quadrature -->
+      //   ip.weight/det(J1) alpha mu g nor(im) dshape_ps(idof,l) w(l) =
+      //   alpha * WM * g_val * nor(im) * dshape_du(idof)
       // term j:
       //   < kappa h^{-1} g, w . v_phi(i) > =
       //   kappa/h g w(k) v_phi(i,k) =
@@ -1158,11 +1158,12 @@ void NitscheElasticityDirichletLFIntegrator::AssembleRHSElementVect(
       //   ip.weight/det(J1) |nor|^2 kappa g w(im) phi(idof) =
       //   jcoef * g_val * w_val(im) * shape(idof)
 
-      const real_t t1 = -WL * g_val * (nor*w_val);
+      WM *= alpha;
+      const real_t t1 = alpha * WL * g_val * (nor*w_val);
       for (int im = 0, i = 0; im < dim; ++im)
       {
-         const real_t t2 = -WM * g_val * w_val(im);
-         const real_t t3 = -WM * g_val * nor(im);
+         const real_t t2 = WM * g_val * w_val(im);
+         const real_t t3 = WM * g_val * nor(im);
          const real_t tj = jcoef * g_val * w_val(im);
          for (int idof = 0; idof < ndofs; ++idof, ++i)
          {

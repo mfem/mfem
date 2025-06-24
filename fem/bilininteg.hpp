@@ -3657,8 +3657,8 @@ class NitscheElasticityIntegrator : public BilinearFormIntegrator
 {
 public:
    NitscheElasticityIntegrator(VectorCoefficient &w_, Coefficient &lambda_,
-                               Coefficient &mu_, real_t kappa_)
-      : w(w_), lambda(&lambda_), mu(&mu_), kappa(kappa_) { }
+                               Coefficient &mu_, real_t alpha_, real_t kappa_)
+      : w(w_), lambda(&lambda_), mu(&mu_), alpha(alpha_), kappa(kappa_) { }
 
    using BilinearFormIntegrator::AssembleFaceMatrix;
    void AssembleFaceMatrix(const FiniteElement &el1,
@@ -3669,7 +3669,7 @@ public:
 protected:
    VectorCoefficient &w;
    Coefficient *lambda, *mu;
-   real_t kappa;
+   real_t alpha, kappa;
 
 #ifndef MFEM_THREAD_SAFE
    // values of all scalar basis functions for one component of u (which is a
@@ -3688,7 +3688,7 @@ protected:
    Vector nL1, nL2;  // nL1 = (lambda1 * ip.weight / detJ1) nor
    Vector nM1, nM2;  // nM1 = (mu1     * ip.weight / detJ1) nor
    Vector dshape1_dnM, dshape2_dnM; // dshape1_dnM = dshape1_ps . nM1
-   Vector w_val;
+   Vector w1, w2;
    // 'jmat' corresponds to the term: kappa <h⁻¹ u ⋅ w, v ⋅ w>
    DenseMatrix jmat;
 #endif
@@ -3699,7 +3699,8 @@ protected:
       const real_t jmatcoef, const Vector &col_nL, const Vector &col_nM,
       const Vector &row_shape, const Vector &col_shape,
       const Vector &col_dshape_dnM, const DenseMatrix &col_dshape,
-      const Vector &w_val, DenseMatrix &elmat, DenseMatrix &jmat);
+      const Vector &row_w, const Vector &col_w,
+      DenseMatrix &elmat, DenseMatrix &jmat);
 };
 
 /** Integrator for the form:$ \langle v, [w \cdot n] \rangle $ over all faces (the interface) where

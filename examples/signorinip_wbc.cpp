@@ -132,6 +132,7 @@ int main(int argc, char *argv[])
    int order = 1;
    real_t alpha = 1.0;
    real_t kappa = 1.0;
+   real_t beta = -1.0;
    int ref_levels = 0;
    int max_iterations = 7;
    real_t itol = 1e-6;
@@ -150,8 +151,10 @@ int main(int argc, char *argv[])
                   "Lamé's first parameter.");
    args.AddOption(&mu_g, "-mu", "--mu",
                   "Lamé's second parameter.");
+   args.AddOption(&beta, "-b", "--beta",
+                  "The first penalty parameter.");
    args.AddOption(&kappa, "-k", "--kappa",
-                  "The penalty parameter, should be positive."
+                  "The second penalty parameter, should be positive."
                   " Negative values are replaced with (order+1)^2.");
    args.AddOption(&ref_levels, "-r", "--ref_levels",
                   "Number of uniform mesh refinements.");
@@ -303,7 +306,7 @@ int main(int argc, char *argv[])
    ParBilinearForm *a = new ParBilinearForm(fespace);
    a->AddDomainIntegrator(new ElasticityIntegrator(one,lambda_g,mu_g));
    a->AddBdrFaceIntegrator(
-      new NitscheElasticityIntegrator(n_tilde_c, lambda_c, mu_c, kappa), ess_bdr_z);
+      new NitscheElasticityIntegrator(n_tilde_c, lambda_c, mu_c, beta, kappa), ess_bdr_z);
    if (myid == 0)
    {
       cout << "matrix ... " << flush;
@@ -356,7 +359,7 @@ int main(int argc, char *argv[])
       b->AddDomainIntegrator(new VectorDomainLFIntegrator(f_coeff));
       b->AddBdrFaceIntegrator(
          new NitscheElasticityDirichletLFIntegrator(
-            trac_coeff, n_tilde_c, lambda_c, mu_c, kappa), ess_bdr_z);
+            trac_coeff, n_tilde_c, lambda_c, mu_c, beta, kappa), ess_bdr_z);
       b->Assemble();
 
       // Step 3: Form the linear system A X = B. This includes eliminating boundary
