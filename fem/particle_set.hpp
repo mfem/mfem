@@ -278,15 +278,15 @@ public:
 
    Vector& GetSetCoords() { return fields[0]; }
 
-   Vector& GetSetScalars(int s) { return fields[1+s]; }
+   Vector& GetSetScalar(int s) { return fields[1+s]; }
 
-   Vector& GetSetVectors(int v) { return fields[1+NumScalars+v]; }
+   Vector& GetSetVector(int v) { return fields[1+NumScalars+v]; }
 
    const Vector& GetSetCoords() const { return fields[0]; }
 
-   const Vector& GetSetScalars(int s) const { return fields[1+s]; }
+   const Vector& GetSetScalar(int s) const { return fields[1+s]; }
 
-   const Vector& GetSetVectors(int v) const { return fields[1+NumScalars+v]; }
+   const Vector& GetSetVector(int v) const { return fields[1+NumScalars+v]; }
 
 #ifdef MFEM_USE_MPI
    /// Redistribute particles onto ranks specified in \p rank_list .
