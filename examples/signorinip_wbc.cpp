@@ -139,7 +139,6 @@ int main(int argc, char *argv[])
    bool reorder_space = false;
    bool visualization = true;
    bool paraview_output = false;
-   bool logger = false;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh", "Mesh file to use.");
@@ -170,8 +169,6 @@ int main(int argc, char *argv[])
    args.AddOption(&paraview_output, "-pv", "--paraview", "-no-pv",
                   "--no-paraview",
                   "Enable or disable ParaView output.");
-   args.AddOption(&logger, "-l", "--logger", "-no-log", "--no-logger",
-                  "Enable or disable logging.");
    args.Parse();
    if (!args.Good())
    {
@@ -408,20 +405,17 @@ int main(int argc, char *argv[])
       }
 
       // Step 8: Check for convergence.
-      if (!logger)
+      if (iter_error < itol)
       {
-         if (iter_error < itol)
+         if (myid == 0)
          {
-            if (myid == 0)
-            {
-               mfem::out << "\nConverged after " << k << " iterations." << std::endl;
-            }
-            if (visualization)
-            {
-               sol_sock << "keys cFFF\n";
-            }
-            break;
+            mfem::out << "\nConverged after " << k << " iterations." << std::endl;
          }
+         if (visualization)
+         {
+            sol_sock << "keys cFFF\n";
+         }
+         break;
       }
 
       // Step 9: Update previous solution for next iteration.
