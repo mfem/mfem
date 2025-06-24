@@ -109,6 +109,9 @@ int main(int argc, char *argv[]){
 	// constants
 	ConstantCoefficient one_cf(1.0), neg_one_cf(-1.0);
 	ConstantCoefficient beta_cf(beta), alpha_cf(alpha); 
+	VectorConstantCoefficient one_vec_cf(Vector({1., 1.})); 
+   VectorConstantCoefficient alpha_vec_cf(Vector({alpha, alpha})); 
+
 
 	// discrete coefficients 
    VectorGridFunctionCoefficient psi_old_cf(&psi_old), psi_cf(&psi), p_cf(&p), vphi_cf(&vphi); 
@@ -122,19 +125,20 @@ int main(int argc, char *argv[]){
 	VectorSumCoefficient psi_newton_res(psi_old_cf, psi_cf, 1., -1.);
 
 
-
-
 	// bilinear forms and integrators 
 	BilinearForm A00(&rtfes), A11(&l2fes_vec), A22(&l2fes_vec); 
-	MixedBilinearForm A10(&rtfes, &l2fes_vec), A20(&l2fes_vec, &rtfes);
+	// MixedBilinearForm A10(&rtfes, &l2fes_vec), A20(&rtfes, &l2fes_vec);
+	MixedBilinearForm A01(&l2fes_vec, &rtfes), A02(&l2fes_vec, &rtfes);
 	
+
 	A00.AddDomainIntegrator(new DivDivIntegrator(alpha_cf)); 
 	A11.AddDomainIntegrator(new VectorMassIntegrator(neg_one_cf)); 
 	// NOTE: the only diagonal element that gets updated every newton iteration is A22 
 	A22.AddDomainIntegrator(new VectorMassIntegrator(negDZ)); 
 
-	A10.AddDomainIntegrator(new MixedVectorMassIntegrator(alpha_cf)); 
-	A20.AddDomainIntegrator(new MixedVectorMassIntegrator()); 
+	A01.AddDomainIntegrator(new MixedVectorProductIntegrator(alpha_vec_cf)); 
+	A02.AddDomainIntegrator(new MixedVectorProductIntegrator(one_vec_cf)); 
+
 
 	// NOTE: impose H(div) essential BC on A00 block
 	A00.SetDiagonalPolicy(mfem::Operator::DIAG_ONE); 
@@ -150,28 +154,28 @@ int main(int argc, char *argv[]){
 
 	// NOTE: impose H(div) essential BC ON A10, A01, A20, A02
 	// eliminate TestDofs on A10, A20, which transpose into TrialDofs for A01, A02 
-	A10.Assemble(); 
-	A10.EliminateTestDofs(ess_tdof_list); 
-	A10.Finalize(true); 
+	A01.Assemble(); 
+	A01.EliminateTestDofs(ess_tdof_list); 
+	A01.Finalize(true); 
 
-	A20.Assemble(); 
-	A20.EliminateTestDofs(ess_tdof_list); 
-	A20.Finalize(true); 
+	A02.Assemble(); 
+	A02.EliminateTestDofs(ess_tdof_list); 
+	A02.Finalize(true); 
 
 
 	// set up off-diagonal terms; unchanging during newton iterations 
-	auto A01 = *Transpose(A10.SpMat()); 
-	auto A02 = *Transpose(A20.SpMat()); 
+	auto A10 = *Transpose(A01.SpMat()); 
+	auto A20 = *Transpose(A02.SpMat()); 
 	// std::unique_ptr<SparseMatrix> A01(Transpose(A10.SpMat()));  
 	// std::unique_ptr<SparseMatrix> A02(Transpose(A20.SpMat()));  
 
 
-	A.SetBlock(1, 0, &A10.SpMat());
-	A.SetBlock(0, 1, &A01);
+	A.SetBlock(1, 0, &A01.SpMat());
+	A.SetBlock(0, 1, &A10);
 
 
-	A.SetBlock(2, 0, &A20.SpMat());
-	A.SetBlock(0, 2, &A02);
+	A.SetBlock(2, 0, &A02.SpMat());
+	A.SetBlock(0, 2, &A20);
 
 	// linear forms 
 	
