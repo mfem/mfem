@@ -47,13 +47,9 @@
 #define MFEM_THREAD_ID(k) hipThreadIdx_ ##k
 #define MFEM_THREAD_SIZE(k) hipBlockDim_ ##k
 #define MFEM_FOREACH_THREAD(i,k,N) \
-    for(int i=hipThreadIdx_ ##k; i<N; i+=hipBlockDim_ ##k)
-#if __cplusplus >= 201703L
+   for(int i=hipThreadIdx_ ##k; i<N; i+=hipBlockDim_ ##k)
 #define MFEM_FOREACH_THREAD_DIRECT(i,k,N) \
-    if(const int i=hipThreadIdx_ ##k; i<N)
-#else
-#define MFEM_FOREACH_THREAD_DIRECT(i,k,N) MFEM_FOREACH_THREAD(i,k,N)
-#endif
+   if(const int i=hipThreadIdx_ ##k; i<N)
 #endif
 
 namespace mfem
