@@ -21,7 +21,27 @@
 #include <fem/dfem/doperator.hpp>
 #include <linalg/tensor.hpp>
 
+#if 0
 #include "fem/dfem/kernels_regs.hpp"
+namespace ker = mfem::kernels::internal::dfem;
+/*-------------------------------------------------------------------------------------------------
+Benchmark           Time             CPU   Iterations       Dofs     MDof/s          p    version
+-------------------------------------------------------------------------------------------------
+BP3/0/6/25       16.4 ms         16.4 ms           43    15.625k  31.2573/s          6          0
+BP3/1/6/25       12.7 ms         12.7 ms           55    15.625k  40.0642/s          6          1
+BP3/2/6/25       39.4 ms         39.3 ms           18    15.625k  13.4168/s          6          2
+BP3/3/6/25       30.5 ms         30.5 ms           23    15.625k  17.1194/s          6          3*/
+#else
+#include "fem/kernels.hpp"
+namespace ker = kernels::internal;
+/*-------------------------------------------------------------------------------------------------
+Benchmark           Time             CPU   Iterations       Dofs     MDof/s          p    version
+-------------------------------------------------------------------------------------------------
+BP3/0/6/25       16.3 ms         16.3 ms           43    15.625k  31.3405/s          6          0
+BP3/1/6/25       49.0 ms         48.9 ms           14    15.625k  10.9493/s          6          1
+BP3/2/6/25       39.8 ms         39.7 ms           18    15.625k  13.2916/s          6          2
+BP3/3/6/25       30.3 ms         30.3 ms           23    15.625k  17.2366/s          6          3*/
+#endif
 
 #undef NVTX_COLOR
 #define NVTX_COLOR nvtx::kAquamarine
@@ -173,18 +193,18 @@ public:
 
       mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
       {
-         constexpr int MD1 = T_D1D > 0 ? SetMaxOf(T_D1D) : 32;
-         constexpr int MQ1 = T_Q1D > 0 ? SetMaxOf(T_Q1D) : 32;
+         constexpr int MD1 = T_D1D > 0 ? kernels::internal::SetMaxOf(T_D1D) : 32;
+         constexpr int MQ1 = T_Q1D > 0 ? kernels::internal::SetMaxOf(T_Q1D) : 32;
 
          MFEM_SHARED real_t smem[MQ1][MQ1];
          MFEM_SHARED real_t sB[MD1][MQ1], sG[MD1][MQ1];
-         regs5d_t<VDIM, DIM, MQ1> r0, r1;
+         ker::vd_regs3d_t<VDIM, DIM, MQ1> r0, r1;
 
-         LoadMatrix(D1D, Q1D, b, sB);
-         LoadMatrix(D1D, Q1D, g, sG);
+         ker::LoadMatrix(D1D, Q1D, b, sB);
+         ker::LoadMatrix(D1D, Q1D, g, sG);
 
-         LoadDofs3d(e, D1D, XE, r0);
-         Grad3d(D1D, Q1D, smem, sB, sG, r0, r1);
+         ker::LoadDofs3d(e, D1D, XE, r0);
+         ker::Grad3d(D1D, Q1D, smem, sB, sG, r0, r1);
 
          for (int qz = 0; qz < Q1D; qz++)
          {
@@ -204,8 +224,8 @@ public:
                }
             }
          }
-         GradTranspose3d(D1D, Q1D, smem, sB, sG, r0, r1);
-         WriteDofs3d(e, D1D, r1, YE);
+         ker::GradTranspose3d(D1D, Q1D, smem, sB, sG, r0, r1);
+         ker::WriteDofs3d(e, D1D, r1, YE);
       });
    }
 
