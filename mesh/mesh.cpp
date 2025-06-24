@@ -10881,6 +10881,13 @@ void Mesh::NURBSCoarsening(int cf, real_t tol)
    }
 }
 
+bool Mesh::CheckForConflicts(const Array<Refinement> &refinements)
+{
+  MFEM_VERIFY(ncmesh, "CheckForConflicts should be called only for NCMesh");
+  MFEM_ABORT("CheckForConflicts should be called only in ParMesh");
+  return false;
+}
+
 void Mesh::GeneralRefinement(const Array<Refinement> &refinements,
                              int nonconforming, int nc_limit)
 {

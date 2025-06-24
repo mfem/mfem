@@ -814,6 +814,8 @@ public:
    /// Debugging method
    void PrintSharedEntities(const std::string &fname_prefix) const;
 
+   bool CheckForConflicts(const Array<Refinement> &refinements) override;
+
    virtual ~ParMesh();
 };
 

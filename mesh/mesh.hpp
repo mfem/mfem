@@ -2310,6 +2310,8 @@ public:
    /// which divides the number of elements in each dimension.
    void NURBSCoarsening(int cf = 2, real_t tol = 1.0e-12);
 
+   virtual bool CheckForConflicts(const Array<Refinement> &refinements);
+
    /** Refine selected mesh elements. Refinement type can be specified for each
        element. The function can do conforming refinement of triangles and
        tetrahedra and nonconforming refinement (i.e., with hanging-nodes) of
