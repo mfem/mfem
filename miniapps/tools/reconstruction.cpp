@@ -206,10 +206,22 @@ int main(int argc, char* argv[])
                            << "window_title 'reconstruction'\n" << std::flush;
    }
    else
+   {
       MFEM_WARNING("Cannot connect to glvis server, disabling visualization.")
-      // TODO: quantitatively compare (e.g. L2 norm) original & reconstruction
+   }
 
-      Mpi::Finalize();
+   if (show_error)
+   {
+      real_t error = 0.0;
+      error = u_reconstruction.ComputeL2Error(u_coefficient);
+      if (Mpi::Root())
+      {
+         mfem::out << "\n|| u_h - u ||_{L^2} = " << error << "\n" << std::endl;
+      }
+   }
+
+   // TODO: quantitatively compare (e.g. L2 norm) original & reconstruction
+   Mpi::Finalize();
 
    return 0;
 }
