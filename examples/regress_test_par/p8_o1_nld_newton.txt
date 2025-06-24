@@ -40,8 +40,8 @@ dim(V) = 612
 dim(W) = 288
 dim(V+W) = 900
 ***********************************************************
-Assembly took 0.00544211s.
-Preconditioner took 3.2006e-05s.
+Assembly took 0.0034261s.
+Preconditioner took 5.846e-06s.
 Newton iteration  0 : ||r|| = 0.0657917
 Newton iteration  1 : ||r|| = 0.166832, ||r||/||r_0|| = 2.53576
 Newton iteration  2 : ||r|| = 0.0270477, ||r||/||r_0|| = 0.411112
@@ -52,6 +52,6 @@ Newton iteration  6 : ||r|| = 4.29099e-06, ||r||/||r_0|| = 6.52208e-05
 Newton iteration  7 : ||r|| = 2.78013e-07, ||r||/||r_0|| = 4.22566e-06
 Newton iteration  8 : ||r|| = 1.57209e-08, ||r||/||r_0|| = 2.3895e-07
 Newton+GMRES+HypreAMG converged in 8 iterations with a residual norm of 1.57209e-08.
-solver took 0.20543s.
+solver took 0.120395s.
 || q_h - q_ex || / || q_ex || = 0.516971
 || t_h - t_ex || / || t_ex || = 0.000155555

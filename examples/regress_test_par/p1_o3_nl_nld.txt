@@ -40,8 +40,8 @@ dim(V) = 1072
 dim(W) = 512
 dim(V+W) = 1584
 ***********************************************************
-Assembly took 0.0159763s.
-Preconditioner took 0.0265693s.
+Assembly took 0.0138862s.
+Preconditioner took 0.0220852s.
    Pass :  1   Iteration :   0  ||B r|| = 40.835
    Pass :  1   Iteration :   1  ||B r|| = 40.835
    Pass :  1   Iteration :   2  ||B r|| = 0.688371
@@ -64,6 +64,6 @@ Preconditioner took 0.0265693s.
    Pass :  1   Iteration :  19  ||B r|| = 6.84786e-05
    Pass :  1   Iteration :  20  ||B r|| = 2.82689e-05
 GMRES+HypreAMG converged in 20 iterations with a residual norm of 2.82689e-05.
-solver took 0.183205s.
+solver took 0.161727s.
 || q_h - q_ex || / || q_ex || = 1.01863e-06
 || t_h - t_ex || / || t_ex || = 2.38431e-07

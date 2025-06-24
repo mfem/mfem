@@ -1,13 +1,13 @@
 Options used:
    --mesh 
    --ncells-x 10
-   --ncells-y 0
+   --ncells-y 10
    --size-x 1
    --size-y 1
    --order 2
    --discontinuous
    --centered
-   --problem 2
+   --problem 1
    --time-final 1
    --ntimesteps 0
    --ode-solver 1
@@ -16,7 +16,7 @@ Options used:
    --stab_diff 0.5
    --no-bc-neumann
    --no-reduction
-   --no-hybridization
+   --hybridization
    --no-nonlinear
    --no-nonlinear-flux
    --no-nonlinear-pot
@@ -35,16 +35,18 @@ Options used:
 Device configuration: cpu
 Memory configuration: host-std
 Mesh::GeneratePartitioning(...): edgecut = 10
+Hybridization init took 0.00353564s.
 ***********************************************************
 dim(V) = 900
 dim(W) = 450
-dim(V+W) = 1350
+dim(M) = 345
+dim(V+W+M) = 1695
 ***********************************************************
-Assembly took 0.0227782s.
-Preconditioner took 8.251e-06s.
-Newton iteration  0 : ||r|| = 0.0568908
-Newton iteration  1 : ||r|| = 2.70011e-10, ||r||/||r_0|| = 4.74612e-09
-Newton+GMRES+HypreAMG converged in 1 iterations with a residual norm of 2.70011e-10.
-solver took 0.135392s.
-|| q_h - q_ex || / || q_ex || = 0.000100377
-|| t_h - t_ex || / || t_ex || = 1.71813e-05
+Assembly took 0.00645492s.
+Preconditioner took 6.9428e-05s.
+Newton iteration  0 : ||r|| = 1.46578
+Newton iteration  1 : ||r|| = 6.21621e-08, ||r||/||r_0|| = 4.24088e-08
+Newton+GMRES+HypreAMG/Newton+GMRES converged in 1 iterations with a residual norm of 6.21621e-08.
+solver took 0.122293s.
+|| q_h - q_ex || / || q_ex || = 0.000247131
+|| t_h - t_ex || / || t_ex || = 0.000241709
