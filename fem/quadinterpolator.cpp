@@ -527,9 +527,7 @@ void QuadratureInterpolator::Mult(const Vector &e_vec,
    const DofToQuad &maps = fe->GetDofToQuad(*ir, mode);
    const int dim = maps.FE->GetDim();
    const int nd = maps.ndof;
-   std::cout << "ndof = " << nd << std::endl;
    const int nq = maps.nqpt;
-   std::cout << "nqpt = " << nq << std::endl;
    const GeometricFactors *geom = nullptr;
    if (eval_flags & PHYSICAL_DERIVATIVES)
    {
@@ -543,16 +541,10 @@ void QuadratureInterpolator::Mult(const Vector &e_vec,
                   fespace->GetMesh()->Dimension()) == 1,
                "mixed meshes are not supported");
 
-   std::cout << "pass" << std::endl; // ok
    if (use_tensor_eval)
    {
       if (eval_flags & (VALUES | PHYSICAL_VALUES))
       {
-         std::cout << "this loop" << std::endl; // ok
-         std::cout << "1st arg " << dim << std::endl;
-         // std::cout << "2st arg " << q_layout << std::endl;
-         std::cout << "3st arg " << vdim << std::endl;
-         std::cout << "6st arg " << ne << std::endl;
          TensorEvalKernels::Run(dim, q_layout, vdim, nd, nq, ne, maps.B.Read(),
                                 e_vec.Read(), q_val.Write(), vdim, nd, nq);
       }

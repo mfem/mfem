@@ -54,6 +54,8 @@ using namespace mfem;
 // inflow boundary condition are chosen based on this parameter.
 int problem;
 
+bool HasNegativeValue(const GridFunction &u);
+
 // Velocity coefficient
 void velocity_function(const Vector &x, Vector &v);
 
@@ -145,9 +147,9 @@ int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
    problem = 0;
-   // const char *mesh_file = "../data/periodic-hexagon.mesh";
-   const char *mesh_file = "../data/inline-segment.mesh";
-   int ref_levels = 2;
+   const char *mesh_file = "../data/periodic-hexagon.mesh";
+   // const char *mesh_file = "../data/periodic-segment.mesh";
+   int ref_levels = 0;
    int order = 3;
    bool pa = false;
    bool ea = false;
@@ -239,7 +241,9 @@ int main(int argc, char *argv[])
 
    // 5. Define the discontinuous DG finite element space of the given
    //    polynomial order on the refined mesh.
-   DG_FECollection fec(order, dim, BasisType::GaussLobatto);
+   // DG_FECollection fec(order, dim, BasisType::GaussLobatto);
+   DG_FECollection fec(order, dim, BasisType::Positive);
+
    FiniteElementSpace fes(&mesh, &fec);
 
    cout << "Number of unknowns: " << fes.GetVSize() << endl;
@@ -357,7 +361,7 @@ int main(int argc, char *argv[])
       {
          sout.precision(precision);
          sout << "solution\n" << mesh << u;
-         // sout << "pause\n";
+         sout << "pause\n";
          sout << flush;
          cout << "GLVis visualization paused."
               << " Press space (in the GLVis window) to resume it.\n";
@@ -373,38 +377,316 @@ int main(int argc, char *argv[])
    adv.SetTime(t);
    ode_solver->Init(adv);
 
+   // check if same as when using physical values 
+   Vector nodes(u.Size());
+   Vector node_coords(dim);
+   Vector P(u.Size());
+   int offset = 0;
+   for (int el = 0; el < mesh.GetNE(); el++)
+   {
+      const FiniteElement *fe = fes.GetFE(el);
+      ElementTransformation *trans = mesh.GetElementTransformation(el);
+
+      int edof = fe->GetDof();
+      const IntegrationRule &ir = fe->GetNodes(); // Node locations in reference element
+
+      for (int i = 0; i < edof; i++)
+      {
+         const IntegrationPoint &ip = ir.IntPoint(i);
+
+         // Map reference node to physical coordinates (optional, for info)
+         trans->Transform(ip, node_coords);
+
+         // Evaluate GridFunction at this node
+         real_t value = u.GetValue(el, ip);
+         P[offset+i] = value;
+
+         // cout << "Element " << el << ", node " << i << " at "; node_coords.Print(); cout << ": value = " << value << endl;
+      }
+      offset += edof;
+   }
+   cout << "u physical values: " << endl;
+   P.Print();
+   cout << "\n";
+
    GridFunction avgs(&fes);
 
    Vector Pint;
+   int ndofs = fes.GetNDofs();
    cout << "ndofs = " << fes.GetNDofs() << endl;
    cout << "ne = " << fes.GetNE() << endl;
    const IntegrationRule ir = IntRules.Get(mesh.GetElementGeometry(0), order);
    cout << "nqpts = " << ir.GetNPoints() << endl; 
-   Pint.SetSize(fes.GetNE()*ir.GetNPoints());
+   // cout << "nwgts = " << ir.GetWeights().Size() << endl;
+   Pint.SetSize(ir.GetNPoints()*dim*fes.GetNE());    // Pint is by NQPT x VDIM x NE
+   // cout << "Pint size = " << Pint.Size() << endl;
    QuadratureInterpolator qi(fes,ir);
    cout << "u size = " << u.Size() << endl;
-   // u.Print();
-   qi.PhysValues(u,Pint);
-   cout << "pass" << endl;
-
+   cout << "u coefficient values:" << endl;
+   u.Print();
+   cout << "\n";
    
+   
+   qi.PhysValues(u,Pint); // should be on coefficient values
+   cout << "Pint is = " << endl;
+   Pint.Print();
 
+   MFEM_VERIFY(qi.GetOutputLayout()==QVectorLayout::byNODES, "quadrature points layout not byNODES")
+   cout << "pass \n" << endl;
+
+
+   int nelem = fes.GetNE();
+   int nqpts = ir.GetNPoints();
+   // Vector wgts = ir.GetWeights();
+   Vector Pbar(nelem);
+   offset = 0;
+   for (int j=0; j<nelem; j++) {
+      double sum = 0;
+      for (int k=0; k<nqpts; k++) {
+         sum += Pint[offset+k]*ir.IntPoint(k).weight;
+      }
+      Pbar[j] = sum/mesh.GetElementSize(j);
+      offset += nqpts;
+   }
+   // cout << "cell avg with QI is:" << endl;
+   // Pbar.Print();
+   // cout << "\n" << endl;
+
+
+
+   // try for cell avg with quadratureinterpolator function  on reference 
+
+   Vector cell_averages(mesh.GetNE());
+
+   // 1. Choose quadrature order (usually 2*fe order for accuracy)
+   int ordert = 2 * fes.GetOrder(0);
+
+   // 2. Build a quadrature rule for each element type
+   Array<const IntegrationRule*> irs(mesh.GetNE());
+   for (int el = 0; el < mesh.GetNE(); el++)
+   {
+      const FiniteElement *fe = fes.GetFE(el);
+      irs[el] = &IntRules.Get(fe->GetGeomType(), ordert);
+   }
+
+   // 3. Create a QuadratureSpace and QuadratureFunction for the mesh
+   QuadratureSpace qspace(mesh, *irs[0]);
+   QuadratureFunction qvals(&qspace);
+
+   // 4. Interpolate u at all quadrature points in all elements
+   QuadratureInterpolator qit(fes, qspace);
+   // qit.SetIntRule(irs); // Set per-element rules
+   qit.Values(u, qvals);
+   qvals.Print();
+
+   // 5. Compute cell averages
+   int qf_offset = 0;
+   for (int el = 0; el < mesh.GetNE(); el++)
+   {
+      const IntegrationRule &ir = *irs[el];
+      ElementTransformation *trans = mesh.GetElementTransformation(el);
+
+      double int_val = 0.0;
+
+      for (int i = 0; i < ir.GetNPoints(); i++)
+      {
+         const IntegrationPoint &ip = ir.IntPoint(i);
+         trans->SetIntPoint(&ip);
+
+         double weight = ip.weight * trans->Weight();
+         double u_val = qvals(qf_offset + i);
+
+         int_val += u_val * weight;
+      }
+      // cell_averages(el) = int_val / meas;
+      cell_averages(el) = int_val / mesh.GetElementSize(el);
+      // cout << "element size for " << el << " is " << mesh.GetElementSize(el) << endl;
+      qf_offset += ir.GetNPoints();
+   }
+   cout << "cell avg with QI on reference is: " << endl;
+   cell_averages.Print();
+   cout << "\n" << endl;
+
+   // // visualization of cell averages
+   // int offsethere = 0;
+   // for (int i=0; i < mesh.GetNE(); i++)
+   // {
+   //    const FiniteElement *fe = fes.GetFE(i);
+
+   //    int edof = fe->GetDof();
+   //    for (int j=0; j < edof; j++)
+   //    {
+   //       u[offsethere + j] = cell_averages[i];
+   //    }
+   //    offsethere += edof;
+   // }
+   // // cout << "u now is: " << endl;
+   // // u.Print();
+
+
+
+
+   // // try without using quadrature interpolator 
+   // Vector cell_avg(mesh.GetNE());
+
+   // for (int el = 0; el < mesh.GetNE(); el++)
+   // {
+   //    const FiniteElement *fe = fes.GetFE(el);
+   //    ElementTransformation *trans = mesh.GetElementTransformation(el);
+
+   //    int order = 2 * fe->GetOrder();
+   //    const IntegrationRule &ir = IntRules.Get(fe->GetGeomType(), order);
+
+   //    double int_val = 0.0;
+
+   //    for (int i = 0; i < ir.GetNPoints(); i++)
+   //    {
+   //       const IntegrationPoint &ip = ir.IntPoint(i);
+   //       trans->SetIntPoint(&ip);
+
+   //       double weight = ip.weight * trans->Weight();
+   //       double u_val = u.GetValue(el, ip);
+
+   //       int_val += u_val * weight;
+   //    }
+
+   //    cell_avg(el) = int_val / mesh.GetElementSize(el);
+   // }
+   // cout << "cell avg is:" << endl;
+   // cell_avg.Print();
+   // cout << "\n" << endl;
+
+
+
+
+   cout << "MFEM version: "
+      << MFEM_VERSION_MAJOR << "."
+      << MFEM_VERSION_MINOR << "." 
+      << MFEM_VERSION_PATCH << std::endl;
 
    bool done = false;
    for (int ti = 0; !done; )
    {
+      // done = true;
       real_t dt_real = min(dt, t_final - t);
       ode_solver->Step(u, t, dt_real);
-      // cout << "NE = " << fes.GetNE() << endl;
-      u.GetElementAverages(avgs);
-      // cout << "avgs vals = " <<  << endl;
-      // avgs.Print();
-      // cout << "fes size = " << 
-      
-      exit(0);
+      // if (HasNegativeValue(u)) {
+      //    // cout << "u has negative value at step " << ti << endl;
+      // }
       // limiter step here 
-      ti++;
+      // 1. Choose quadrature order (based on paper)
+      int quadorder = floor((order+3)/2.0);
+      // int quadorder = 2 * order;
+      // cout << "quadorder is " << quadorder << endl;
 
+      // 2. Build a quadrature rule for each element type
+      // Array<const IntegrationRule*> irs(mesh.GetNE());
+      // for (int el = 0; el < mesh.GetNE(); el++)
+      // {
+      //    const FiniteElement *fe = fes.GetFE(el);
+      //    // irs[el] = &IntRules.Get(fe->GetGeomType(), quadorder);
+      //    // irs[el].Int
+      //    IntegrationRules irGL(0, Quadrature1D::GaussLobatto);
+      //    irs[el] = &irGL.Get(fe->GetGeomType(), quadorder);
+      //    cout << "n qpoints is: " << irs[el]->GetNPoints() << endl;
+      // }
+      const FiniteElement *fe = fes.GetFE(0);
+      IntegrationRules irGL(0, Quadrature1D::GaussLobatto);
+      IntegrationRule ir = irGL.Get(fe->GetGeomType(), quadorder);
+      
+      
+      // 3. Create a QuadratureSpace and QuadratureFunction for the mesh
+      QuadratureSpace qspace(mesh, ir);
+      QuadratureFunction qvals(&qspace);
+      // cout << "size of qvals is: " << qvals.Size() << endl;
+      // Vector qvals(mesh.GetNE()*dim*ir.GetNPoints());
+      
+      
+      // 4. Interpolate u at all quadrature points in all elements
+      QuadratureInterpolator qi(fes, qspace);
+      // QuadratureInterpolator qi(fes, ir);
+      qi.PhysValues(u, qvals);
+      
+      // cout << "qi quad rule num points is: " << qi.IntRule->GetNPoints() << endl;
+      // cout << "qvals is: " << endl;
+      // qvals.Print();
+      // cout << "\n"; 
+
+      // 5. Compute cell averages
+      int qf_offset = 0;
+      for (int el = 0; el < mesh.GetNE(); el++)
+      {
+         ElementTransformation *trans = mesh.GetElementTransformation(el);
+
+         double int_val = 0.0;
+
+         for (int i = 0; i < ir.GetNPoints(); i++)
+         {
+            const IntegrationPoint &ip = ir.IntPoint(i);
+            trans->SetIntPoint(&ip);
+
+            double weight = ip.weight * trans->Weight();
+            double u_val = qvals(qf_offset + i);
+
+            int_val += u_val * weight;
+         }
+         cell_averages(el) = int_val / mesh.GetElementSize(el);
+         // cout << "element size for " << el << " is " << mesh.GetElementSize(el) << endl;
+         qf_offset += ir.GetNPoints();
+      }
+      // cout << "cell avg with QI on reference is: " << endl;
+      // cell_averages.Print();
+      // cout << "\n" << endl;
+
+      // grab min/max for each element and fill in theta
+      Vector mins(mesh.GetNE());
+      Vector maxs(mesh.GetNE()); 
+      Vector theta(mesh.GetNE());
+      offset = 0;
+      for (int el=0; el < mesh.GetNE(); el++)
+      {
+         int qpts = ir.GetNPoints();
+         for (int j=1; j < qpts; j++)
+         {
+            mins[el] = qvals[offset];
+            mins[el] = min(mins[el], qvals[offset+j]);
+
+            maxs[el] = qvals[offset];
+            maxs[el] = max(maxs[el], qvals[offset+j]);
+         }
+         offset += qpts;
+
+         // compute theta of limiter
+         theta[el] = min(1.0, min(abs((1-cell_averages[el])/(maxs[el]-cell_averages[el])), abs((0-cell_averages[el])/(mins[el]-cell_averages[el]))));
+      }
+      // cout << "element mins are: " << endl;
+      // mins.Print();
+      // cout << "element maxs are: " << endl;
+      // maxs.Print();
+      // cout << "element thetas are: " << endl;
+      // theta.Print();
+
+      offset = 0;
+      for (int el=0; el < mesh.GetNE(); el++)
+      {
+         const FiniteElement *fe = fes.GetFE(el);
+
+         int edof = fe->GetDof();
+         for (int j=0; j < edof; j++)
+         {
+            u[offset + j] = theta[el]*u[offset + j] + (1-theta[el])*cell_averages[el];
+         }
+         offset += edof;
+      }
+
+      
+
+
+
+      ti++;
+      // cout << "ti is " << ti << endl;
+
+      
       done = (t >= t_final - 1e-8*dt);
 
       if (done || ti % vis_steps == 0)
@@ -445,6 +727,19 @@ int main(int argc, char *argv[])
    delete dc;
 
    return 0;
+}
+
+
+bool HasNegativeValue(const GridFunction &u)
+{
+    for (int i = 0; i < u.Size(); i++)
+    {
+        if (u(i) < 0.0)
+        {
+            return true; // Found a negative value
+        }
+    }
+    return false; // No negative values
 }
 
 
@@ -577,6 +872,8 @@ real_t u0_function(const Vector &x)
          {
             case 1:
                return exp(-40.*pow(X(0)-0.5,2));
+               // return -4*pow((x[0]-0.5),2)+1;
+               // return 1.0;
             case 2:
             case 3:
             {
