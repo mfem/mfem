@@ -50,6 +50,7 @@ jobs:
       fail-fast: false
       matrix:
         sanitizer: [Address, Memory, UndefinedBehavior]
+        tests: [unit, examples, miniapps]
         mpi: [seq, par]
         exclude:
           - sanitizer: Memory  # Avoid running MemorySanitizer with MPI
@@ -67,7 +68,7 @@ jobs:
             ldflags: "-fsanitize=memory"
             llvm_sanitizer: "MemoryWithOrigins"
 
-    name: "${{matrix.sanitizer}}-${{matrix.mpi}}"
+    name: "${{matrix.sanitizer}}-${{matrix.mpi}}-${{matrix.tests}}"
 
     steps:
       ### GITHUB_WORKSPACE & GITHUB_ENV
@@ -260,14 +261,17 @@ jobs:
         working-directory: mfem/build
         run: ninja -v check
 
-      - name: MFEM Tests
+      - name: MFEM Tests Unit
+        if: matrix.tests == 'unit'
         working-directory: mfem/build
         run: ninja -v tests/unit/all && ${{env.CTEST}} tests/unit
 
       - name: MFEM Examples
+        if: matrix.tests == 'examples'
         working-directory: mfem/build
         run: ninja -v examples && ${{env.CTEST}} examples
 
       - name: MFEM Miniapps
+        if: matrix.tests == 'miniapps'
         working-directory: mfem/build
         run: ninja -v miniapps && ${{env.CTEST}} miniapps
