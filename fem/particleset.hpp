@@ -38,62 +38,10 @@ private:
    std::array<real_t*, NumScalars> scalars;
    std::array<Vector, sizeof...(VectorVDims)> vectors;
 
-   void Destroy()
-   {
-      coords.Destroy();
-      coords.SetSize(SpaceDim);
-      for (int v = 0; v < vectors.size(); v++)
-      {
-         vectors[v].Destroy();
-         vectors[v].SetSize(VDims[v]);
-      }
-      if (owning)
-      {
-         for (int s = 0; s < scalars.size(); s++)
-            delete scalars[s];
-      }
-      for (int s = 0; s < scalars.size(); s++)
-         scalars[s] = nullptr;
-      
-   }
+   void Destroy();
+   void Copy(const Particle &p);
+   void Steal(Particle &p);
 
-   void Copy(const Particle &p)
-   {
-      Destroy();
-      owning = p.owning;
-      if (owning)
-      {
-         coords = Vector(p.coords);
-         for (int s = 0; s < scalars.size(); s++)
-            scalars[s] = new real_t(p.GetScalar(s));
-         for (int v = 0; v < vectors.size(); v++)
-            vectors[v] = Vector(p.vectors[v]);
-      }
-      else
-      {
-         coords = Vector(p.coords.GetData(), SpaceDim);
-         for (int s = 0; s < scalars.size(); s++)
-            scalars[s] = p.scalars[s];
-         for (int v = 0; v < vectors.size(); v++)
-            vectors[v] = Vector(p.vectors[v].GetData(), VDims[v]);
-      }
-   }
-
-   void Steal(Particle &p)
-   {
-      Destroy();
-      owning = p.owning;
-      coords = std::move(p.coords);
-      for (int v = 0; v < vectors.size(); v++)
-      vectors[v] = std::move(p.vectors[v]);
-      for (int s = 0; s < scalars.size(); s++)
-      {
-         if (owning)
-            scalars[s] = std::exchange(p.scalars[s], nullptr);
-         else
-            scalars[s] = p.scalars[s];
-      }
-   }
 public:
    static constexpr int SpaceDim() { return SpaceDim; };
    static constexpr int GetNumScalars() { return NumScalars; };
@@ -101,39 +49,13 @@ public:
    static constexpr int VDim(int v) { return VDims[v]; };
 
    /// Create a new particle which owns its own data
-   Particle()
-   : owning(true)
-   {
-      coords.SetSize(SpaceDim);
-      coords = 0.0;
-
-      // Initialize scalar ptrs
-      for (int i = 0; i < scalars.size(); i++)
-         scalars[i] = new real_t(0.0);
-
-      // Initialize vectors
-      for (int i = 0; i < vectors.size(); i++)
-      {
-         vectors[i].SetSize(VDims[i]);
-         vectors[i] = 0.0;
-      }
-   }
+   Particle();
 
    /// Create a new particle whose data references external data
-   Particle(real_t *in_coords, real_t *in_scalars[], real_t *in_vectors[])
-   : owning(false)
-   {
-      coords = Vector(in_coords, SpaceDim);
-      for (int i = 0; i < scalars.size(); i++)
-         scalars[i] = in_scalars[i];
-      
-      for (int i = 0; i < vectors.size(); i++)
-         vectors[i] = Vector(in_vectors[i], VDims[i]);
-   }
+   Particle(real_t *in_coords, real_t *in_scalars[], real_t *in_vectors[]);
 
    /// Copy ctor
-   explicit Particle(const Particle &p)
-   : Particle() { Copy(p); }
+   explicit Particle(const Particle &p) : Particle() { Copy(p); }
 
    /// Move ctor
    explicit Particle(Particle &&p) : Particle() { Steal(p); }
@@ -156,48 +78,13 @@ public:
 
    const Vector& GetVector(int v) const { return vectors[v]; }
 
-   bool operator==(const Particle &rhs) const
-   {
-      bool equal = true;
-      for (int d = 0; d < SpaceDim; d++)
-      {
-         if (GetCoords()[d] != rhs.GetCoords()[d])
-            equal = false;
-      }
-      for (int s = 0; s < NumScalars; s++)
-      {
-         if (GetScalar(s) != rhs.GetScalar(s))
-            equal = false;
-      }
-      for (int v = 0; v < sizeof...(VectorVDims); v++)
-      {
-         for (int c = 0; c < VDims[v]; c++)
-         {
-            if (GetVector(v)[c] != rhs.GetVector(v)[c])
-               equal = false;
-         }
-      }
-      return equal;
-   }
+   bool operator==(const Particle &rhs) const;
 
    bool operator!=(const Particle &rhs) const { return !operator==(rhs); }
 
    ~Particle() { Destroy(); }
 
-   void Print(std::ostream &out=mfem::out)
-   {
-      out << "Coords: (";
-      for (int d = 0; d < SpaceDim; d++)
-         out << GetCoords()[d] << ( (d+1 < SpaceDim) ? "," : ")\n");
-      for (int s = 0; s < NumScalars; s++)
-         out << "Scalar " << s << ": " << GetScalar(s) << "\n";
-      for (int v = 0; v < sizeof...(VectorVDims); v++)
-      {
-         out << "Vector " << v << ": (";
-         for (int c = 0; c < VDims[v]; c++)
-            out << GetVector(v)[c] << ( (c+1 < VDims[v]) ? "," : ")\n");
-      }
-   }
+   void Print(std::ostream &out=mfem::out);
 };
 
 // -----------------------------------------------------------------------------------------------------
@@ -241,9 +128,11 @@ protected:
    Array<unsigned int> ids; // Particle IDs
 
 
+   /// Sync Vectors in \ref fields
+   void SyncVectors();
 
-   void SyncVectors(); /// Sync Vectors in \ref fields
-   void AddParticle(const Particle<SpaceDim, NumScalars, VectorVDims...> &p, int id); /// Add particle w/ given ID
+   /// Add particle w/ given ID
+   void AddParticle(const Particle<SpaceDim, NumScalars, VectorVDims...> &p, int id);
 
    /// Private ctor to set ID stride + starting counter
    ParticleSet(const int id_stride_, const int id_0) : id_stride(id_stride_), id_counter(id_0) { };
@@ -299,7 +188,145 @@ public:
 
 
 // -----------------------------------------------------------------------------------------------------
-// Fxn implementations:
+// Particle Fxn implementations:
+
+template<int SpaceDim, int NumScalars, int... VectorVDims>
+void Particle<SpaceDim,NumScalars,VectorVDims...>::Destroy()
+{
+   coords.Destroy();
+   coords.SetSize(SpaceDim);
+   for (int v = 0; v < vectors.size(); v++)
+   {
+      vectors[v].Destroy();
+      vectors[v].SetSize(VDims[v]);
+   }
+   if (owning)
+   {
+      for (int s = 0; s < scalars.size(); s++)
+         delete scalars[s];
+   }
+   for (int s = 0; s < scalars.size(); s++)
+      scalars[s] = nullptr;
+   
+}
+
+template<int SpaceDim, int NumScalars, int... VectorVDims>
+void Particle<SpaceDim,NumScalars,VectorVDims...>::Copy(const Particle<SpaceDim,NumScalars,VectorVDims...> &p)
+{
+   Destroy();
+   owning = p.owning;
+   if (owning)
+   {
+      coords = Vector(p.coords);
+      for (int s = 0; s < scalars.size(); s++)
+         scalars[s] = new real_t(p.GetScalar(s));
+      for (int v = 0; v < vectors.size(); v++)
+         vectors[v] = Vector(p.vectors[v]);
+   }
+   else
+   {
+      coords = Vector(p.coords.GetData(), SpaceDim);
+      for (int s = 0; s < scalars.size(); s++)
+         scalars[s] = p.scalars[s];
+      for (int v = 0; v < vectors.size(); v++)
+         vectors[v] = Vector(p.vectors[v].GetData(), VDims[v]);
+   }
+}
+
+template<int SpaceDim, int NumScalars, int... VectorVDims>
+void Particle<SpaceDim,NumScalars,VectorVDims...>::Steal(Particle<SpaceDim,NumScalars,VectorVDims...> &p)
+{
+   Destroy();
+   owning = p.owning;
+   coords = std::move(p.coords);
+   for (int v = 0; v < vectors.size(); v++)
+   vectors[v] = std::move(p.vectors[v]);
+   for (int s = 0; s < scalars.size(); s++)
+   {
+      if (owning)
+         scalars[s] = std::exchange(p.scalars[s], nullptr);
+      else
+         scalars[s] = p.scalars[s];
+   }
+}
+
+
+template<int SpaceDim, int NumScalars, int... VectorVDims>
+Particle<SpaceDim,NumScalars,VectorVDims...>::Particle<SpaceDim,NumScalars,VectorVDims...>()
+: owning(true)
+{
+   coords.SetSize(SpaceDim);
+   coords = 0.0;
+
+   // Initialize scalar ptrs
+   for (int i = 0; i < scalars.size(); i++)
+      scalars[i] = new real_t(0.0);
+
+   // Initialize vectors
+   for (int i = 0; i < vectors.size(); i++)
+   {
+      vectors[i].SetSize(VDims[i]);
+      vectors[i] = 0.0;
+   }
+}
+
+template<int SpaceDim, int NumScalars, int... VectorVDims>
+Particle<SpaceDim,NumScalars,VectorVDims...>::Particle<SpaceDim,NumScalars,VectorVDims...>(real_t *in_coords, real_t *in_scalars[], real_t *in_vectors[])
+: owning(false)
+{
+   coords = Vector(in_coords, SpaceDim);
+   for (int i = 0; i < scalars.size(); i++)
+      scalars[i] = in_scalars[i];
+   
+   for (int i = 0; i < vectors.size(); i++)
+      vectors[i] = Vector(in_vectors[i], VDims[i]);
+}
+
+
+template<int SpaceDim, int NumScalars, int... VectorVDims>
+bool Particle<SpaceDim,NumScalars,VectorVDims...>::operator==(const Particle<SpaceDim,NumScalars,VectorVDims...> &rhs) const
+{
+   bool equal = true;
+   for (int d = 0; d < SpaceDim; d++)
+   {
+      if (GetCoords()[d] != rhs.GetCoords()[d])
+         equal = false;
+   }
+   for (int s = 0; s < NumScalars; s++)
+   {
+      if (GetScalar(s) != rhs.GetScalar(s))
+         equal = false;
+   }
+   for (int v = 0; v < sizeof...(VectorVDims); v++)
+   {
+      for (int c = 0; c < VDims[v]; c++)
+      {
+         if (GetVector(v)[c] != rhs.GetVector(v)[c])
+            equal = false;
+      }
+   }
+   return equal;
+}
+
+
+template<int SpaceDim, int NumScalars, int... VectorVDims>
+void Particle<SpaceDim,NumScalars,VectorVDims...>::Print(std::ostream &out=mfem::out)
+{
+   out << "Coords: (";
+   for (int d = 0; d < SpaceDim; d++)
+      out << GetCoords()[d] << ( (d+1 < SpaceDim) ? "," : ")\n");
+   for (int s = 0; s < NumScalars; s++)
+      out << "Scalar " << s << ": " << GetScalar(s) << "\n";
+   for (int v = 0; v < sizeof...(VectorVDims); v++)
+   {
+      out << "Vector " << v << ": (";
+      for (int c = 0; c < VDims[v]; c++)
+         out << GetVector(v)[c] << ( (c+1 < VDims[v]) ? "," : ")\n");
+   }
+}
+
+// -----------------------------------------------------------------------------------------------------
+// ParticleSet Fxn implementations:
 
 template<int SpaceDim, int NumScalars, int... VectorVDims, Ordering::Type VOrdering>
 void ParticleSet<Particle<SpaceDim,NumScalars,VectorVDims...>, VOrdering>::SyncVectors()
@@ -492,6 +519,8 @@ Particle<SpaceDim, NumScalars, VectorVDims...> ParticleSet<Particle<SpaceDim,Num
    }
    
 }
+
+
 
 } // namespace mfem
 
