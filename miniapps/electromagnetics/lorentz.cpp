@@ -79,8 +79,21 @@ using namespace mfem::electromagnetics;
 
 typedef DataCollection::FieldMapType fields_t;
 
-// 3D particle, 1 vector field of momentum, 2 scalar fields of charge and mass
-using ChargedParticle = Particle<3,1,2>;
+// 3D particle, 2 scalars of mass and charge, 3 vectors of size 3 for momentum, electric field, and magnetic field
+using ChargedParticle = Particle<3,2,3,3,3>;
+enum Scalars
+{
+   MASS=0,
+   CHARGE=1
+};
+enum Vectors
+{
+   MOM=0,
+   EFIELD=1,
+   BFIELD=2
+};
+
+using ChargedParticleSet = ParticleSet<ChargedParticle, Ordering::byVDIM>;
 
 /// This class implements the Boris algorithm as described in the
 /// article `Why is Boris algorithm so good?` by H. Qin et al in
@@ -98,11 +111,18 @@ private:
    ParMesh         *B_pmesh_;
    ParGridFunction *B_field_;
 
-   mutable Vector E_;
-   mutable Vector B_;
    mutable Vector pxB_;
    mutable Vector pm_;
    mutable Vector pp_;
+   
+   static void GetValues(const ParGridFunction &gf, const Vector &x, FindPointsGSLIB &finder, Vector &v, Ordering::Type ordering)
+   {
+      finder.FindPoints(x, ordering);
+      finder.Interpolate(gf, v); // output ordering matches that of gf
+      
+      // Make sure ordering of v is correct
+      Ordering::Reorder(v, gf.VectorDim(), gf.ParFESpace()->GetOrdering(), ordering);
+   }
 
 public:
    BorisAlgorithm(ParGridFunction *E_gf,
@@ -110,17 +130,14 @@ public:
                   MPI_Comm comm)
       : E_finder_(comm), B_finder_(comm),
         E_field_(E_gf), B_field_(B_gf),
-        E_(3), B_(3), pxB_(3), pm_(3), pp_(3)
+        pxB_(3), pm_(3), pp_(3)
    {
-      E_ = 0.0;
       E_pmesh_ = (E_field_) ? E_field_->ParFESpace()->GetParMesh() : NULL;
       if (E_pmesh_)
       {
          E_pmesh_->EnsureNodes();
          E_finder_.Setup(*E_pmesh_);
       }
-
-      B_ = 0.0;
       B_pmesh_ = (B_field_) ? B_field_->ParFESpace()->GetParMesh() : NULL;
       if (B_pmesh_)
       {
@@ -130,78 +147,82 @@ public:
 
    }
 
-   bool Step(ParticleSet<ChargedParticle> &particles, real_t &t, real_t &dt)
+   void ParticleStep(ChargedParticle &part, real_t &dt)
    {
-      E_.SetSize(particles.GetNP()*3);
-      B_.SetSize(particles.GetNP()*3);
+      Vector &x = part.GetCoords();
+      Vector &p = part.GetVector(MOM);
+      Vector &e = part.GetVector(EFIELD);
+      Vector &b = part.GetVector(BFIELD);
+      real_t m = part.GetScalar(MASS);
+      real_t q = part.GetScalar(CHARGE);
+
+      // Compute half of the contribution from q E
+      add(p, 0.5 * dt * q, e, pm_);
+
+      // Compute the contribution from q p x B
+      const real_t B2 = b * b;
+
+      // ... along pm x B
+      const real_t a1 = 4.0 * dt * q * m;
+      pm_.cross3D(b, pxB_);
+      pp_.Set(a1, pxB_);
+
+      // ... along pm
+      const real_t a2 = 4.0 * m * m -
+                        dt * dt * q * q * B2;
+      pp_.Add(a2, pm_);
+
+      // ... along B
+      const real_t a3 = 2.0 * dt * dt * q * q * (b * p);
+      pp_.Add(a3, b);
+
+      // scale by common denominator
+      const real_t a4 = 4.0 * m * m +
+                        dt * dt * q * q * B2;
+      pp_ /= a4;
+
+      // Update the momentum
+      add(pp_, 0.5 * dt * q, e, p);
+
+      // Update the position
+      x.Add(dt / m, p);
+   }
+
+   void Step(ChargedParticleSet &particles, real_t &t, real_t &dt)
+   {
+      // Update all particle E-fields + B-fields:
+      const Vector &X = particles.GetSetCoords();
+      Ordering::Type o = particles.GetOrdering();
+      Vector &E = particles.GetSetVector(EFIELD);
+      Vector &B = particles.GetSetVector(BFIELD);
 
       if (E_field_)
       {
-         E_finder_.FindPoints(particles.GetParticleCoords(), particles.GetOrdering());
-         E_finder_.Interpolate(E_field_, E_); // Interpolate the E field onto the particles
-         // Ordering of E_ output is the same as E_field_...
-
-         // Fix the ordering if needed (So that it matches the particles)
-         // (Note that Ordering::byNODES is easily fastest)
-         if (E_field_->ParFESpace()->GetOrdering() != particles.)
+         GetValues(*E_field_, X, E_finder_, E, o);
       }
       else
       {
-         // Otherwise set to 0
-         E_ = 0.0;
+         E = 0.0;
       }
+
       if (B_field_)
       {
-         return false;
+         GetValues(*B_field_, X, B_finder_, B, o);
       }
-
-      // Compute updated position and momentum using the Boris algorithm (only on Rank 0)
-      if (Mpi::Root())
+      else
       {
-         // Compute half of the contribution from q E
-         add(p, 0.5 * dt * charge_, E_, pm_);
-
-         // Compute the contributiobn from q p x B
-         const real_t B2 = B_ * B_;
-
-         // ... along pm x B
-         const real_t a1 = 4.0 * dt * charge_ * mass_;
-         pm_.cross3D(B_, pxB_);
-         pp_.Set(a1, pxB_);
-
-         // ... along pm
-         const real_t a2 = 4.0 * mass_ * mass_ -
-                           dt * dt * charge_ * charge_ * B2;
-         pp_.Add(a2, pm_);
-
-         // ... along B
-         const real_t a3 = 2.0 * dt * dt * charge_ * charge_ * (B_ * p);
-         pp_.Add(a3, B_);
-
-         // scale by common denominator
-         const real_t a4 = 4.0 * mass_ * mass_ +
-                           dt * dt * charge_ * charge_ * B2;
-         pp_ /= a4;
-
-         // Update the momentum
-         add(pp_, 0.5 * dt * charge_, E_, p);
-
-         // Update the position
-         q.Add(dt / mass_, p);
+         B = 0.0;
       }
 
-      // Update the time
+      // Individually step each particle + update its position:
+      for (int i = 0; i < particles.GetNP(); i++)
+      {
+         ChargedParticle part = particles.GetParticleRef(i);
+         ParticleStep(part, dt);
+      }
+
+      // Update time
       t += dt;
-
-      // Broadcast the updated position
-      MPI_Bcast(q.GetData(), 3, MPITypeMap<real_t>::mpi_type,
-                0, MPI_COMM_WORLD);
-
-      // Broadcast the updated momentum
-      MPI_Bcast(p.GetData(), 3, MPITypeMap<real_t>::mpi_type,
-                0, MPI_COMM_WORLD);
-
-      return true;
    }
 };
 
@@ -211,11 +232,8 @@ int ReadGridFunction(const char * coll_name, const char * field_name,
                      int pad_digits_cycle, int pad_digits_rank, int cycle,
                      VisItDataCollection *&dc, ParGridFunction *& gf);
 
-// By default the initial position will be the center of the intersection
-// of the bounding boxes of the meshes containing the E and B fields.
-void SetInitialPosition(VisItDataCollection *E_dc,
-                        VisItDataCollection *B_dc,
-                        Vector &x_init);
+// Initialize particles from user input.
+void InitializeParticles(ChargedParticleSet &particles, const Vector &x_init, const Vector &p_init, const real_t q, const real_t m, int num_part, Mesh *mesh);
 
 // Prints the program's logo to the given output stream
 void display_banner(ostream & os);
@@ -239,8 +257,6 @@ int main(int argc, char *argv[])
    int B_pad_digits_cycle = 6;
    int B_pad_digits_rank = 6;
 
-   bool aos = true;
-   int dim_part = 3;
    int num_part = 1;
    real_t q = 1.0;
    real_t m = 1.0;
@@ -274,16 +290,12 @@ int main(int argc, char *argv[])
                   "Number of digits in B field cycle.");
    args.AddOption(&B_pad_digits_rank, "-bpdr", "--b-pad-digits-rank",
                   "Number of digits in B field MPI rank.");
-   args.AddOption(&aos, "-aos", "--array-of-structs", "-soa", "--struct-of-arrays", 
-                  "Store particles in an Array-of-Structs (AoS) or Struct-of-Arrays (SoA).");
-   args.AddOption(&dim_part, "-d", "--dim-part",
-                  "Particle domain dimension.");
    args.AddOption(&num_part, "-n", "--num-part",
                   "Number of particles.");
    args.AddOption(&x_init, "-x0", "--initial-positions",
-                  "Initial positions (if # positions < # particles, remaining positions set randomly within either E field mesh, B field mesh, or unit cube).");
+                  "Initial positions byVDIM (if # positions < # particles, remaining positions set randomly within either E field mesh, B field mesh, or unit cube).");
    args.AddOption(&p_init, "-p0", "--initial-momenta",
-                  "Initial momenta (if # momenta < # particles, last momentum is used for remaining particles)");
+                  "Initial momenta byVDIM (if # momenta < # particles, last momentum is used for remaining particles)");
    args.AddOption(&q, "-q", "--charge",
                   "Particles' charge.");
    args.AddOption(&m, "-m", "--mass",
@@ -343,181 +355,93 @@ int main(int argc, char *argv[])
 
 
    // Create the ParticleSet
-   std::unique_ptr<ParticleSet<ChargedParticle>> particles;
-   if (aos)
-      particles.reset(new AoSParticleSet<ChargedParticle>(MPI_COMM_WORLD));
-   else
-      particles.reset(new SoAParticleSet<ChargedParticle>(MPI_COMM_WORLD));
+   ChargedParticleSet particles;
 
+   // Initialize particles
+   Mesh *mesh = E_gf ? E_gf->ParFESpace()->GetMesh() : nullptr;
+   if (!mesh && B_gf) { mesh = B_gf->ParFESpace()->GetMesh(); }
+   InitializeParticles(particles, x_init, p_init, q, m, num_part, mesh);
 
-   int provided_x = x_init.Size()/3;
-   int provided_p = p_init.Size()/3;
-
-   // Add all particles to set
-   for (int i = 0; i < num_part; i++)
-   {
-      ChargedParticle p;
-
-      // If a position was provided:
-      if (i < provided_x)
-      {
-         for (int d = 0; d < 3; d++)
-         {
-            p.coords[d] = x_init[d + i*3];
-         }
-      }
-      else // else set it randomly within E field mesh, B field mesh, or unit cube (in that order)
-      {
-         Mesh *mesh = nullptr;
-         if (E_gf)
-         {
-            mesh = E_gf->ParFESpace()->GetParMesh();
-         }
-         else if (B_gf)
-         {
-            mesh = B_gf->ParFESpace()->GetParMesh();
-         }
-
-         Vector pos_min, pos_max;
-
-         if (mesh)
-         {
-            mesh->GetBoundingBox(pos_min, pos_max);
-         }
-         else
-         {
-            pos_min = Vector({0.0,0.0,0.0});
-            pos_max = Vector({1.0,1.0,1.0});
-         }
-         Vector r_pos(4); // 1st-number of each r_pos is too similar regardless of seed
-         r_pos.Randomize(i);
-
-         for (int d = 0; d < 3; d++)
-         {
-            p.coords[d] = pos_min[d] + r_pos[d+1]*(pos_max[d] - pos_min[d]);
-         }
-      }
-
-      // If a momentum was provided:
-      if (i < provided_p)
-      {
-         for (int d = 0; d < 3; d++)
-         {
-            p.vector_fields[0][d] = p_init[d + i*3];
-         }
-      }
-      else // else use last one that was provided, or 0 if none.
-      {
-         for (int d = 0; d < 3; d++)
-         {
-            p.vector_fields[0][d] = p_init.Size() > 0 ? p_init[provided_p*3-3+d] : 0;
-         }
-      }
-
-      // Set charge + mass
-      p.scalar_fields[0] = q;
-      p.scalar_fields[1] = m;
-
-      // Add particle
-      particles->AddParticle(p);
-   }
-
-   // Print particle locations + momentA
-   for (int i = 0; i < particles->GetNP(); i++)
-   {
-      ChargedParticle p;
-      particles->GetParticle(i, p);
-      mfem::out << "Particle " << i << ": x=(" << p.coords[0] << "," << p.coords[1] << "," << p.coords[2] << ") ; "
-                                    <<   "p=(" << p.vector_fields[0][0] << "," << p.vector_fields[0][1] << "," << p.vector_fields[0][2] << ")" << endl;
-   }
-
-
-
+   // Print particle information   
+   // for (int i = 0; i < particles.GetNP(); i++)
+   // {
+   //    particles.GetParticleData(i).Print();
+   // }
    
-   /*
    BorisAlgorithm boris(E_gf, B_gf, MPI_COMM_WORLD);
-   Vector pos(x_init);
-   Vector mom(p_init);
 
    ofstream ofs("Lorentz.dat");
    ofs.precision(14);
 
    int nsteps = 1 + (int)ceil((t_final - t_init) / dt);
-   DenseMatrix pos_data(3, nsteps);
-   DenseMatrix mom_data(3, nsteps + 1);
-   mom_data.SetCol(0, particles.GetVectorField(0));
+   DenseMatrix pos_data(3*particles.GetNP(), nsteps+1); // +1 for IC
+   DenseMatrix mom_data(3*particles.GetNP(), nsteps+1); // +1 for IC
+   pos_data.SetCol(0, particles.GetSetCoords());
+   mom_data.SetCol(0, particles.GetSetVector(MOM));
 
    if (Mpi::Root())
    {
-      mfem::out << "Maximum number of steps: " << nsteps << endl;
+      mfem::out << "Number of steps: " << nsteps << endl;
    }
 
-   int step = -1;
    real_t t = t_init;
-   do
+   for (int step = 1; step <= nsteps; step++)
    {
-      if (Mpi::Root())
-      {
-         ofs << t
-             << '\t' << pos[0] << '\t' << pos[1] << '\t' << pos[2]
-             << '\t' << mom[0] << '\t' << mom[1] << '\t' << mom[2]
-             << '\n';
-      }
-      step++;
-
-      pos_data.SetCol(step, pos);
-      mom_data.SetCol(step + 1, mom);
+      boris.Step(particles, t, dt);
+      pos_data.SetCol(step, particles.GetSetCoords());
+      mom_data.SetCol(step, particles.GetSetVector(MOM));
    }
-   while (boris.Step(pos, mom, t, dt) && step < nsteps - 1);
 
-   if (Mpi::Root() && (visit || visualization))
+   if (visit || visualization)
    {
-      Mesh trajectory(1, step, step-1, 0, 3);
+      socketstream traj_sock;
+      traj_sock.precision(8);
+      char vishost[] = "localhost";
+      traj_sock.open(vishost, visport);
 
-      for (int i=0; i<=step; i++)
+      L2_FECollection fec_l2(0,1);
+      Mesh trajectories(1, (nsteps+1)*num_part, (nsteps)*num_part, 0, 3);
+
+      for (int i = 0; i < num_part; i++)
       {
-         trajectory.AddVertex(pos_data(0,i), pos_data(1,i), pos_data(2,i));
-         if (i > 0) { trajectory.AddSegment(i-1,i); }
+         for (int j = 0; j < nsteps+1; j++) // +1 for IC
+         {
+            trajectories.AddVertex(pos_data(i*3,j), pos_data(i*3+1,j), pos_data(i*3+2,j));
+            if (j > 0) { trajectories.AddSegment((j-1)+i*(nsteps+1),j+i*(nsteps+1)); }
+         }
       }
 
-      trajectory.FinalizeMesh();
+      trajectories.FinalizeMesh();
+      
+      mfem::out << "Number of particle pts: " << num_part*(nsteps+1) << std::endl;
+      mfem::out << "NV: " << trajectories.GetNV() << std::endl;
+      mfem::out << "Conforming: " << trajectories.Conforming() << std::endl;
 
-      L2_FECollection    fec_l2(0, 1);
-      FiniteElementSpace fes_l2(&trajectory, &fec_l2);
-      GridFunction traj_time(&fes_l2);
-      for (int i=0; i<step; i++)
-      {
-         traj_time[i] = dt * i;
-      }
+      FiniteElementSpace fes_l2(&trajectories, &fec_l2);
+      GridFunction traj_times(&fes_l2);
 
-      if (visit)
+      for (int i = 0; i < num_part; i++)
       {
-         VisItDataCollection visit_dc("Lorentz", &trajectory);
-         visit_dc.RegisterField("Time", &traj_time);
-         visit_dc.SetCycle(step);
-         visit_dc.SetTime(step * dt);
-         visit_dc.Save();
+         for (int j = 0; j < nsteps; j++) // TODO: Why is this not <= nsteps??
+         {
+            traj_times[j+i*nsteps] = dt * j;
+         }
       }
+      
 
       if (visualization)
       {
-         socketstream traj_sock;
-         traj_sock.precision(8);
-
-         char vishost[] = "localhost";
-
-         int Wx = 0, Wy = 0; // window position
-         int Ww = 350, Wh = 350; // window size
-
-         VisualizeField(traj_sock, vishost, visport,
-                        traj_time, "Trajectory", Wx, Wy, Ww, Wh);
+         VisualizeField(traj_sock, vishost, visport, traj_times, "Trajectories");
+         //VisualizeMesh(traj_sock, vishost, visport, trajectories, "Mesh");
+      }
+      if (visit)
+      {
+         VisItDataCollection visit_dc(MPI_COMM_WORLD, "Lorentz", &trajectories);
+         visit_dc.RegisterField("Traj_Times", &traj_times);
+         visit_dc.Save();
       }
    }
-   if (Mpi::Root())
-   {
-      mfem::out << "Number of steps taken: " << step << endl;
-   }
-   */
+   
    // Clean up
    delete E_dc;
    delete B_dc;
@@ -571,35 +495,67 @@ int ReadGridFunction(const char * coll_name, const char * field_name,
    return 0;
 }
 
-void SetInitialPosition(VisItDataCollection *E_dc,
-                        VisItDataCollection *B_dc,
-                        Vector &x_init)
+void InitializeParticles(ChargedParticleSet &particles, const Vector &x_init, const Vector &p_init, const real_t q, const real_t m, int num_part, Mesh *mesh)
 {
-   x_init.SetSize(3); x_init = 0.0;
+   int provided_x = x_init.Size()/3;
+   int provided_p = p_init.Size()/3;
 
-   if (E_dc != NULL || B_dc != NULL)
+   // Add all particles to set
+   for (int i = 0; i < num_part; i++)
    {
-      Vector E_p_min(3); E_p_min = std::numeric_limits<real_t>::lowest();
-      Vector E_p_max(3); E_p_max = std::numeric_limits<real_t>::max();
-      if (E_dc != NULL)
+      ChargedParticle p;
+
+      // If a position was provided:
+      if (i < provided_x)
       {
-         ParMesh * E_pmesh = dynamic_cast<ParMesh*>(E_dc->GetMesh());
-         E_pmesh->GetBoundingBox(E_p_min, E_p_max);
+         for (int d = 0; d < 3; d++)
+         {
+            p.GetCoords()[d] = x_init[d + i*3];
+         }
+      }
+      else // else set it randomly within mesh or unit cube (if no mesh provided)
+      {
+         Vector pos_min, pos_max;
+
+         if (mesh)
+         {
+            mesh->GetBoundingBox(pos_min, pos_max);
+         }
+         else
+         {
+            pos_min = Vector({0.0,0.0,0.0});
+            pos_max = Vector({1.0,1.0,1.0});
+         }
+         Vector r_pos(4); // 1st-number of each r_pos is too similar regardless of seed
+         r_pos.Randomize(i);
+
+         for (int d = 0; d < 3; d++)
+         {
+            p.GetCoords()[d] = pos_min[d] + r_pos[d+1]*(pos_max[d] - pos_min[d]);
+         }
       }
 
-      Vector B_p_min(3); B_p_min = std::numeric_limits<real_t>::lowest();
-      Vector B_p_max(3); B_p_max = std::numeric_limits<real_t>::max();
-      if (B_dc != NULL)
+      // If a momentum was provided:
+      if (i < provided_p)
       {
-         ParMesh *B_pmesh = dynamic_cast<ParMesh*>(B_dc->GetMesh());
-         B_pmesh->GetBoundingBox(B_p_min, B_p_max);
+         for (int d = 0; d < 3; d++)
+         {
+            p.GetVector(MOM)[d] = p_init[d + i*3];
+         }
+      }
+      else // else use last one that was provided, or 0 if none.
+      {
+         for (int d = 0; d < 3; d++)
+         {
+            p.GetVector(MOM)[d] = p_init.Size() > 0 ? p_init[provided_p*3-3+d] : 0;
+         }
       }
 
-      for (int d = 0; d<3; d++)
-      {
-         const real_t p_min = std::max(E_p_min[d], B_p_min[d]);
-         const real_t p_max = std::min(E_p_max[d], B_p_max[d]);
-         x_init[d] = 0.5 * (p_min + p_max);
-      }
+      // Set mass + charge
+      p.GetScalar(MASS) = m;
+      p.GetScalar(CHARGE) = q;
+
+      // Add particle
+      particles.AddParticle(p);
    }
 }
