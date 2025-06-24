@@ -1520,7 +1520,7 @@ bool ParNCMesh::AnisotropicConflict(const Array<Refinement> &refinements,
 
    // Reduce the Iso flag over all MPI ranks.
    bool globalIso = false;
-   MPI_Allreduce(&Iso, &globalIso, 1, MPI_CXX_BOOL, MPI_LAND, MyComm);
+   MPI_Allreduce(&Iso, &globalIso, 1, MFEM_MPI_CXX_BOOL, MPI_LAND, MyComm);
 
    if (globalIso) { return false; }
 
@@ -1598,7 +1598,8 @@ bool ParNCMesh::AnisotropicConflict(const Array<Refinement> &refinements,
 
    const bool conflict = conflicts.size() > 0;
    bool globalConflict = false;
-   MPI_Allreduce(&conflict, &globalConflict, 1, MPI_CXX_BOOL, MPI_LOR, MyComm);
+   MPI_Allreduce(&conflict, &globalConflict, 1, MFEM_MPI_CXX_BOOL, MPI_LOR,
+                 MyComm);
    return globalConflict;
 }
 
