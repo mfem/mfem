@@ -50,8 +50,8 @@ jobs:
       fail-fast: false
       matrix:
         sanitizer: [asan, msan, ubsan]
-        test: [unit, examples, miniapps]
-        mpi: [seq, par]
+        test: [examples, miniapps, tests]
+        mpi: [par, seq]
         exclude:
           - sanitizer: msan  # Avoid running MemorySanitizer with MPI
             mpi: par
@@ -262,7 +262,7 @@ jobs:
         run: ninja -v check
 
       - name: MFEM Tests Unit
-        if: matrix.test == 'unit'
+        if: matrix.test == 'tests'
         working-directory: mfem/build
         run: ninja -v tests/unit/all && ${{env.CTEST}} tests/unit
 
