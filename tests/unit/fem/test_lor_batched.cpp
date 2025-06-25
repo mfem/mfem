@@ -192,6 +192,8 @@ void ParTestBatchedLOR()
                               "../../data/fichera-q3.mesh"
                            );
 
+   CAPTURE(order, mesh_fname);
+
    Mesh serial_mesh = Mesh::LoadFromFile(mesh_fname);
 
    ParMesh mesh(MPI_COMM_WORLD, serial_mesh);

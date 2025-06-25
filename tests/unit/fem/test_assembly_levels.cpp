@@ -454,7 +454,16 @@ void CompareMatricesNonZeros(SparseMatrix &A1, const SparseMatrix &A2,
                              HYPRE_BigInt *cmap1=nullptr,
                              std::unordered_map<HYPRE_BigInt,int> *cmap2inv=nullptr)
 {
-   REQUIRE(A1.Height() == A2.Height());
+   bool A1_Heigh_equals_A2_Height = A1.Height() == A2.Height();
+#ifdef MFEM_USE_MPI
+   if (Mpi::IsInitialized() && !Mpi::IsFinalized())
+   {
+      const bool in = A1_Heigh_equals_A2_Height;
+      MPI_Allreduce(&in, &A1_Heigh_equals_A2_Height, 1, MPI_C_BOOL, MPI_LAND,
+                    MPI_COMM_WORLD);
+   }
+#endif
+   REQUIRE(A1_Heigh_equals_A2_Height);
    int n = A1.Height();
 
    const int *I1 = A1.HostReadI();
@@ -488,6 +497,14 @@ void CompareMatricesNonZeros(SparseMatrix &A1, const SparseMatrix &A2,
       }
    }
 
+#ifdef MFEM_USE_MPI
+   if (Mpi::IsInitialized() && !Mpi::IsFinalized())
+   {
+      const real_t in = error;
+      MPI_Allreduce(&in, &error, 1, MPITypeMap<real_t>::mpi_type, MPI_MAX,
+                    MPI_COMM_WORLD);
+   }
+#endif
    REQUIRE(error == MFEM_Approx(0.0, 1e-10));
 }
 
@@ -646,6 +663,8 @@ TEST_CASE("Parallel H1 Full Assembly", "[AssemblyLevel], [Parallel], [GPU]")
                         "../../data/fichera.mesh"
                      );
 
+   // CAPTURE(order, mesh_fname);
+
    Mesh serial_mesh(mesh_fname);
    ParMesh mesh(MPI_COMM_WORLD, serial_mesh);
    serial_mesh.Clear();
@@ -675,17 +694,25 @@ TEST_CASE("Parallel H1 Full Assembly", "[AssemblyLevel], [Parallel], [GPU]")
 
    OperatorHandle A_fa, A_legacy;
 
-   // Test that ParallelAssemble gives the same result
-   A_fa.Reset(a_fa.ParallelAssemble());
-   A_legacy.Reset(a_legacy.ParallelAssemble());
+   DYNAMIC_SECTION("[order: " << order << ", dim: " << dim
+                   << "]: (1) ParallelAssemble")
+   {
+      // Test that ParallelAssemble gives the same result
+      A_fa.Reset(a_fa.ParallelAssemble());
+      A_legacy.Reset(a_legacy.ParallelAssemble());
 
-   TestSameHypreMatrices(A_fa, A_legacy);
+      TestSameHypreMatrices(A_fa, A_legacy);
+   }
 
-   // Test that FormSystemMatrix gives the same result
-   a_fa.FormSystemMatrix(ess_tdof_list, A_fa);
-   a_legacy.FormSystemMatrix(ess_tdof_list, A_legacy);
+   DYNAMIC_SECTION("[order: " << order << ", dim: " << dim
+                   << "]: (2) FormSystemMatrix")
+   {
+      // Test that FormSystemMatrix gives the same result
+      a_fa.FormSystemMatrix(ess_tdof_list, A_fa);
+      a_legacy.FormSystemMatrix(ess_tdof_list, A_legacy);
 
-   TestSameHypreMatrices(A_fa, A_legacy);
+      TestSameHypreMatrices(A_fa, A_legacy);
+   }
 
    // Test that FormLinearSystem gives the same result
    ParGridFunction x1(&fespace);
@@ -701,13 +728,23 @@ TEST_CASE("Parallel H1 Full Assembly", "[AssemblyLevel], [Parallel], [GPU]")
 
    a_fa.Assemble();
 
-   a_fa.FormLinearSystem(ess_tdof_list, x1, b1, A_fa, X1, B1);
-   a_legacy.FormLinearSystem(ess_tdof_list, x2, b2, A_legacy, X2, B2);
+   DYNAMIC_SECTION("[order: " << order << ", dim: " << dim
+                   << "]: (3) FormLinearSystem")
+   {
+      a_fa.FormLinearSystem(ess_tdof_list, x1, b1, A_fa, X1, B1);
+      a_legacy.FormLinearSystem(ess_tdof_list, x2, b2, A_legacy, X2, B2);
 
-   TestSameHypreMatrices(A_fa, A_legacy);
+      TestSameHypreMatrices(A_fa, A_legacy);
+   }
 
-   B1 -= B2;
-   REQUIRE(B1.Normlinf() == MFEM_Approx(0.0));
+   DYNAMIC_SECTION("[order: " << order << ", dim: " << dim
+                   << "]: (4) FormLinearSystem - RHS")
+   {
+      B1 -= B2;
+      const real_t B_err = GlobalLpNorm(infinity(), B1.Normlinf(),
+                                        MPI_COMM_WORLD);
+      REQUIRE(B_err == MFEM_Approx(0.0));
+   }
 }
 
 #endif
