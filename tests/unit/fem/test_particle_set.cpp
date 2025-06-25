@@ -13,13 +13,14 @@
 #include "unit_tests.hpp"
 
 
-#include "../../../fem/particle_set.hpp"
+#include "../../../fem/particleset.hpp"
+#include "../../../fem/pparticleset.hpp"
 
 using namespace std;
 using namespace mfem;
 
-using SampleParticle = Particle<2,1>;
-static constexpr int N = 100;
+using SampleParticle = Particle<2,2,3>;
+static constexpr int N = 10;
 static constexpr int N_rm = 32;
 
 void InitializeRandom(SampleParticle &p, int seed)
@@ -46,7 +47,6 @@ void TestParticleSet()
    for (int i = 0; i < N; i++)
    {
       InitializeRandom(particles[i], seed);
-      particles[i].Print();
       seed++;
    }
 
@@ -102,6 +102,7 @@ void TestParticleSet()
             }
             REQUIRE(rm_err_count == 0);
          }
+         pset.PrintCSV("ParticleData");
       }
    }
 }
@@ -112,4 +113,26 @@ TEST_CASE("Adding + Removing Particles",
 
    TestParticleSet<Ordering::byNODES>();
    TestParticleSet<Ordering::byVDIM>();
+}
+
+
+// To be removed -- just for testing right now
+TEST_CASE("Parallel Particles I/O", "[ParticleSet]" "[Parallel]")
+{
+   ParParticleSet<SampleParticle, Ordering::byVDIM> pset(MPI_COMM_WORLD);
+   
+   int rank; MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+
+   int seed = 17*rank;
+   for (int i = 0; i < N; i++)
+   {
+      SampleParticle p;
+      InitializeRandom(p, seed);
+      pset.AddParticle(p);
+      seed++;
+   }
+
+   pset.PrintCSV("Test.csv");
+
+
 }
