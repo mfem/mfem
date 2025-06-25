@@ -92,6 +92,7 @@ set(UNIT_TESTS_SRCS
   fem/test_fe.cpp
   fem/test_fe_compatibility.cpp
   fem/test_fe_fixed.cpp
+  fem/test_fe_pos.cpp
   fem/test_fe_symmetry.cpp
   fem/test_get_value.cpp
   fem/test_getderivative.cpp
@@ -160,6 +161,8 @@ add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} unit_tests)
 add_dependencies(unit_tests copy_data)
 # ParSubMesh tests need meshes in ../../miniapps/multidomain
 add_dependencies(unit_tests copy_miniapps_multidomain_data)
+# NURBS tests need meshes in ../../miniapps/nurbs
+add_dependencies(unit_tests copy_miniapps_nurbs_data)
 
 # Copy data to the build directory.
 add_custom_command(TARGET unit_tests POST_BUILD
