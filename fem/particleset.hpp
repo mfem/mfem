@@ -43,10 +43,10 @@ private:
    void Steal(Particle &p);
 
 public:
-   static constexpr int SpaceDim() { return SpaceDim; };
+   static constexpr int GetSpaceDim() { return SpaceDim; };
    static constexpr int GetNumScalars() { return NumScalars; };
    static constexpr int GetNumVectors() { return sizeof...(VectorVDims); };
-   static constexpr int VDim(int v) { return VDims[v]; };
+   static constexpr int GetVDim(int v) { return VDims[v]; };
 
    /// Create a new particle which owns its own data
    Particle();
@@ -160,9 +160,9 @@ public:
    void RemoveParticles(const Array<int> &list);
 
    /// Get particle \p i referencing actual, data ONLY FOR Ordering byVDIM.
-   Particle<SpaceDim, NumScalars, VectorVDims...> GetParticleRef(int idx);
+   Particle<SpaceDim, NumScalars, VectorVDims...> GetParticleRef(int i);
 
-   const Particle<SpaceDim, NumScalars, VectorVDims...> GetParticleRef(int idx) const { return const_cast<ParticleSet*>(this)->GetParticleRef(i); };
+   const Particle<SpaceDim, NumScalars, VectorVDims...> GetParticleRef(int i) const { return const_cast<ParticleSet*>(this)->GetParticleRef(i); };
    
    /// Get copy of data in particle \p i .
    Particle<SpaceDim, NumScalars, VectorVDims...> GetParticleData(int i) const;
@@ -181,9 +181,14 @@ public:
 
    const Vector& GetSetVector(int v) const { return fields[1+NumScalars+v]; }
 
-   void Print(std::ostream &out=mfem::out, int width=8) { Vector r(data.data(), data.size()); r.Print(out, width);}
-
    void Save(std::ostream &out);
+   
+   void Save(const char* fname, int precision=16)
+   {
+      std::ofstream ofs(fname);
+      ofs.precision(precision);
+      Save(ofs);
+   }
 };
 
 
@@ -252,7 +257,7 @@ void Particle<SpaceDim,NumScalars,VectorVDims...>::Steal(Particle<SpaceDim,NumSc
 
 
 template<int SpaceDim, int NumScalars, int... VectorVDims>
-Particle<SpaceDim,NumScalars,VectorVDims...>::Particle<SpaceDim,NumScalars,VectorVDims...>()
+Particle<SpaceDim,NumScalars,VectorVDims...>::Particle()
 : owning(true)
 {
    coords.SetSize(SpaceDim);
@@ -271,7 +276,7 @@ Particle<SpaceDim,NumScalars,VectorVDims...>::Particle<SpaceDim,NumScalars,Vecto
 }
 
 template<int SpaceDim, int NumScalars, int... VectorVDims>
-Particle<SpaceDim,NumScalars,VectorVDims...>::Particle<SpaceDim,NumScalars,VectorVDims...>(real_t *in_coords, real_t *in_scalars[], real_t *in_vectors[])
+Particle<SpaceDim,NumScalars,VectorVDims...>::Particle(real_t *in_coords, real_t *in_scalars[], real_t *in_vectors[])
 : owning(false)
 {
    coords = Vector(in_coords, SpaceDim);
@@ -310,7 +315,7 @@ bool Particle<SpaceDim,NumScalars,VectorVDims...>::operator==(const Particle<Spa
 
 
 template<int SpaceDim, int NumScalars, int... VectorVDims>
-void Particle<SpaceDim,NumScalars,VectorVDims...>::Print(std::ostream &out=mfem::out)
+void Particle<SpaceDim,NumScalars,VectorVDims...>::Print(std::ostream &out)
 {
    out << "Coords: (";
    for (int d = 0; d < SpaceDim; d++)
@@ -445,12 +450,12 @@ void ParticleSet<Particle<SpaceDim,NumScalars,VectorVDims...>, VOrdering>::Remov
    }
 
    // Remove old IDs
-   int rm_idx = 0
-   for (int i = 0; i < num_old; i++)
+   int rm_idx = 0;
+   for (int i = 0; i < old_np; i++)
    {
-      if (i == sorted_list[rm_idx])
+      if (rm_idx < sorted_list.Size() && i == sorted_list[rm_idx])
       {
-         rm_idx++
+         rm_idx++;
       }
       else
       {
@@ -518,6 +523,54 @@ Particle<SpaceDim, NumScalars, VectorVDims...> ParticleSet<Particle<SpaceDim,Num
       return Particle<SpaceDim, NumScalars, VectorVDims...>(GetParticleRef(i));
    }
    
+}
+
+template<int SpaceDim, int NumScalars, int... VectorVDims, Ordering::Type VOrdering>
+void ParticleSet<Particle<SpaceDim,NumScalars,VectorVDims...>, VOrdering>::Save(std::ostream &os)
+{
+   // Write column headers
+   std::array<std::string, 3> ax = {"x", "y", "z"};
+   for (int f = 0; f < TotalFields; f++)
+   {
+      for (int c = 0; c < FieldVDims[f]; c++)
+      {
+         if (f == 0)
+         {
+            os << ax[c];
+         }
+         else if (f - 1 < NumScalars)
+         {
+            os << "Scalar_" << f - 1;
+         }
+         else
+         {
+            os << "Vector_" << f - 1 - NumScalars << "_" << c;
+         }
+         os << ((f+1 < TotalFields && c+1 < FieldVDims[f]) ? " " : "");
+      }
+   }
+
+   os << "\n";
+
+   // Write the data
+   if constexpr (VOrdering == Ordering::byNODES)
+   {
+      // TODO
+   }
+   else
+   {
+      for (int i = 0 ; i < GetNP(); i++)
+      {
+         for (int f = 0; f < TotalFields; f++)
+         {
+            for (int c = 0; c < FieldVDims[f]; c++)
+            {
+               os << ZeroSubnormal(data[c + i*FieldVDims[f] + GetNP()*ExclScanFieldVDims[f]]) << ( (f+1 < TotalFields && c+1 < FieldVDims[f]) ? " " : "");
+            }
+         }
+         os << "\n";
+      }
+   }
 }
 
 
