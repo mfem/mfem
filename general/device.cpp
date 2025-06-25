@@ -145,6 +145,11 @@ Device::Device()
       Configure(device);
       device_env = true;
    }
+
+   if (GetEnv("MFEM_GPU_AWARE_MPI"))
+   {
+      SetGPUAwareMPI(true);
+   }
 }
 
 Device::~Device()
@@ -196,6 +201,29 @@ void Device::Configure(const std::string &device, const int device_id)
    {
       bmap[internal::backend_name[i]] = internal::backend_list[i];
    }
+   // auto-detect GPU configurations
+   // assumes only one of HIP or CUDA are available
+#ifdef MFEM_USE_HIP
+   bmap["gpu"] = Backend::HIP;
+#ifdef MFEM_USE_RAJA
+   bmap["raja-gpu"] = Backend::RAJA_HIP;
+#endif
+#ifdef MFEM_USE_CEED
+   bmap["ceed-gpu"] = Backend::CEED_HIP;
+#endif
+   // no OCCA+HIP?
+#elif defined(MFEM_USE_CUDA)
+   bmap["gpu"] = Backend::CUDA;
+#ifdef MFEM_USE_RAJA
+   bmap["raja-gpu"] = Backend::RAJA_CUDA;
+#endif
+#ifdef MFEM_USE_CEED
+   bmap["ceed-gpu"] = Backend::CEED_CUDA;
+#endif
+#ifdef MFEM_USE_OCCA
+   bmap["occa-gpu"] = Backend::OCCA_CUDA;
+#endif
+#endif
    std::string device_option;
    std::string::size_type beg = 0, end;
    while (1)
@@ -312,6 +340,10 @@ void Device::Print(std::ostream &os)
    if (Device::Allows(Backend::DEVICE_MASK))
    {
       os << ',' << MemoryTypeName[static_cast<int>(device_mem_type)];
+   }
+   if (Allows(Backend::DEVICE_MASK))
+   {
+      os << "\nUse GPU-aware MPI:    " << (GetGPUAwareMPI() ? "yes" : "no");
    }
    os << std::endl;
 }
