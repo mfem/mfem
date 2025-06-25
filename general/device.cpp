@@ -145,6 +145,11 @@ Device::Device()
       Configure(device);
       device_env = true;
    }
+
+   if (GetEnv("MFEM_GPU_AWARE_MPI"))
+   {
+      SetGPUAwareMPI(true);
+   }
 }
 
 Device::~Device()
@@ -335,6 +340,10 @@ void Device::Print(std::ostream &os)
    if (Device::Allows(Backend::DEVICE_MASK))
    {
       os << ',' << MemoryTypeName[static_cast<int>(device_mem_type)];
+   }
+   if (Allows(Backend::DEVICE_MASK))
+   {
+      os << "\nUse GPU-aware MPI:    " << (GetGPUAwareMPI() ? "yes" : "no");
    }
    os << std::endl;
 }

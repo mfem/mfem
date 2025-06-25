@@ -268,7 +268,7 @@ TEST_CASE("BatchInverseElementTransformation",
       real_t max_err = 0;
       for (int i = 0; i < npts; ++i)
       {
-         if (res_type[i] == InverseElementTransformation::Inside)
+         if (AsConst(res_type)[i] == InverseElementTransformation::Inside)
          {
             ++pts_found;
             for (int d = 0; d < dim; ++d)

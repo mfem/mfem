@@ -53,6 +53,9 @@ Miscellaneous
   'pcunit_tests' were replaced by names using 'gpu' instead of 'c' (short for
   CUDA) or 'cuda'. These tests automatically run the CUDA/HIP tests based on the
   MFEM build configuration.
+- Added the option to enable GPU-aware MPI in MFEM using the environment
+  variable 'MFEM_GPU_AWARE_MPI' set to any value. Setting this environment
+  variable is an alternative to calling 'Device::SetGPUAwareMPI(true)'.
 
 
 Version 4.8, released on Apr 9, 2025

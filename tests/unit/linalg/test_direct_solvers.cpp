@@ -193,6 +193,8 @@ TEST_CASE("Parallel Direct Solvers", "[Parallel], [GPU]")
    const int ne = 4;
    for (int dim = 1; dim < 4; ++dim)
    {
+      CAPTURE(dim);
+
       Mesh mesh;
       if (dim == 1)
       {
@@ -251,6 +253,7 @@ TEST_CASE("Parallel Direct Solvers", "[Parallel], [GPU]")
       XX[1] = &X1;
 
 #ifdef MFEM_USE_MUMPS
+      SECTION("MUMPSSolver")
       {
          MUMPSSolver mumps(MPI_COMM_WORLD);
          mumps.SetPrintLevel(0);
@@ -278,8 +281,9 @@ TEST_CASE("Parallel Direct Solvers", "[Parallel], [GPU]")
       }
 #endif
 #ifdef MFEM_USE_SUPERLU
-      // Transform to monolithic HypreParMatrix
+      SECTION("SuperLUSolver")
       {
+         // Transform to monolithic HypreParMatrix
          SuperLURowLocMatrix SA(*A.As<HypreParMatrix>());
          SuperLUSolver superlu(MPI_COMM_WORLD);
          superlu.SetPrintStatistics(false);
@@ -316,8 +320,9 @@ TEST_CASE("Parallel Direct Solvers", "[Parallel], [GPU]")
       }
 #endif
 #ifdef MFEM_USE_STRUMPACK
-      // Transform to monolithic HypreParMatrix
+      SECTION("STRUMPACKSolver")
       {
+         // Transform to monolithic HypreParMatrix
          STRUMPACKRowLocMatrix SA(*A.As<HypreParMatrix>());
          STRUMPACKSolver strumpack(MPI_COMM_WORLD);
          strumpack.SetPrintFactorStatistics(false);
