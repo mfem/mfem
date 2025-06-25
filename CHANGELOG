@@ -47,7 +47,6 @@ API changes
 
 Miscellaneous
 -------------
-
 - Added parallel Address Sanitizer (https://clang.llvm.org/docs/AddressSanitizer.html), serial and parallel Undefined Behavior Sanitizer (https://clang.llvm.org/docs/UndefinedBehaviorSanitizer.html) and serial Memory Sanitizer (https://clang.llvm.org/docs/MemorySanitizer.html) GitHub actions tests on Ubuntu.
 
 Version 4.8, released on Apr 9, 2025
