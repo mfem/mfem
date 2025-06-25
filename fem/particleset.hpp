@@ -181,8 +181,11 @@ public:
 
    const Vector& GetSetVector(int v) const { return fields[1+NumScalars+v]; }
 
-   /// Print in VisIt Point3D format (x,y,z,ID)
+   /// Print in VisIt Point3D format (x y z ID)
    void PrintPoint3D(std::ostream &out);
+
+   /// Print all data to CSV (can be read into ParaView easily)
+   void PrintCSV(std::ostream &out);
 };
 
 
@@ -523,27 +526,79 @@ template<int SpaceDim, int NumScalars, int... VectorVDims, Ordering::Type VOrder
 void ParticleSet<Particle<SpaceDim,NumScalars,VectorVDims...>, VOrdering>::PrintPoint3D(std::ostream &os)
 {
    // Write column headers
-   std::array<std::string, 4> ax = {"x", "y", "z", "id"}; // can't use array unless I add Array<std::string> to array.cpp
-   for (int i = 0; i < ax.size(); i++)
-   {
-      os << ax[i] << ( i+1 < ax.size() ? " " : "\n");
-   }
+   os << "x y z id\n";
 
    // Write the data
-   if constexpr (VOrdering == Ordering::byNODES)
+   for (int i = 0 ; i < GetNP(); i++)
    {
-      // TODO
-   }
-   else
-   {
-      for (int i = 0 ; i < GetNP(); i++)
+      for (int d = 0; d < 3; d++)
       {
-         for (int d = 0; d < 3; d++)
+         real_t coord;
+         if constexpr (VOrdering == Ordering::byNODES)
          {
-            real_t coord = (d < SpaceDim) ? data[d + i*SpaceDim] : 0.0;
-            os << ZeroSubnormal(coord) << " ";
+            coord = (d < SpaceDim) ? data[i + d*GetNP()] : 0.0;
          }
-         os << ids[i] << "\n";
+         else
+         {
+            coord = (d < SpaceDim) ? data[d + i*SpaceDim] : 0.0;
+         }
+         os << ZeroSubnormal(coord) << " ";
+      }
+      os << ids[i] << "\n";
+   }
+
+}
+
+template<int SpaceDim, int NumScalars, int... VectorVDims, Ordering::Type VOrdering>
+void ParticleSet<Particle<SpaceDim,NumScalars,VectorVDims...>, VOrdering>::PrintCSV(std::ostream &os)
+{
+   std::array<char, 3> ax = {'x', 'y', 'z'};
+   // Write column headers (i=-1), and data
+   for (int i = -1; i < GetNP(); i++)
+   {
+      if (i == -1)
+      {
+         os << "id,";
+      }
+      else
+      {
+         os << ids[i] << ",";
+      }
+      for (int f = 0; f < TotalFields; f++)
+      {
+         for (int c = 0; c < FieldVDims[f]; c++)
+         {
+
+            if (i == -1)
+            {
+               if (f == 0)
+               {
+                  os << ax[c];
+               }
+               else if (f-1 < NumScalars)
+               {
+                  os << "Scalar_" << f-1;
+               }
+               else
+               {
+                  os << "Vector_" << f-1-NumScalars << "_" << c;
+               }
+            }
+            else
+            {
+               real_t dat;
+               if constexpr (VOrdering == Ordering::byNODES)
+               {
+                  dat = data[i + (ExclScanFieldVDims[f]+c)*GetNP()];
+               }
+               else
+               {
+                  dat = data[c + FieldVDims[f]*i + ExclScanFieldVDims[f]*GetNP()];
+               }
+               os << dat;
+            }
+            os << ((f+1 == TotalFields && c+1 == FieldVDims[f]) ? "\n" : ",");
+         }
       }
    }
 }
