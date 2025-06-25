@@ -12,16 +12,15 @@
 if (MFEM_USE_TRIBOL AND MFEM_USE_MPI)
 
   list(APPEND CONTACT_SOURCES
-      ipsolver/ParIPsolver.cpp
       problems/parproblems.cpp
-      problems/parproblems_util.cpp)
+      problems/parproblems_util.cpp
+      ipsolver/ParIPsolver.cpp)
   list(APPEND CONTACT_HEADERS
-      ipsolver/ParIPsolver.hpp
       problems/parproblems.hpp
-      problems/parproblems_util.hpp)
-  
-  if (MFEM_USE_MUMPS)
-    message(STATUS "MFEM_USE_MUMPS in contact miniapp")
+      problems/parproblems_util.hpp
+      ipsolver/ParIPsolver.hpp)
+
+  if (MFEM_USE_MUMPS OR MFEM_USE_MKL_CPARDISO)
     list(APPEND CONTACT_SOURCES
         ipsolver/two-level-solver.cpp)
     list(APPEND CONTACT_HEADERS
@@ -35,8 +34,21 @@ if (MFEM_USE_TRIBOL AND MFEM_USE_MPI)
       EXTRA_SOURCES ${CONTACT_SOURCES}
       EXTRA_HEADERS ${CONTACT_HEADERS})
 
+  add_custom_command(OUTPUT data_is_copied
+    COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/meshes meshes
+    COMMAND ${CMAKE_COMMAND} -E touch data_is_copied
+    COMMENT "Copying the miniapps/contact/meshes directory ...")
+  add_custom_target(copy_contact_data DEPENDS data_is_copied)
+
   add_mfem_miniapp(contact
     MAIN contact.cpp
+    ${CONTACT_COMMON_FILES}
+    ${MFEM_MINIAPPS_COMMON_HEADERS}
+    LIBRARIES mfem-common mfem)
+  add_dependencies(contact copy_contact_data)
+
+  add_mfem_miniapp(contact-vis
+    MAIN contact-vis.cpp
     ${CONTACT_COMMON_FILES}
     ${MFEM_MINIAPPS_COMMON_HEADERS}
     LIBRARIES mfem-common mfem)
@@ -46,6 +58,7 @@ if (MFEM_USE_TRIBOL AND MFEM_USE_MPI)
 # such that Tribol, in fact, depends on MFEM, while MFEM does not depend on
 # Tribol. This addresses that issue.
   target_link_libraries(contact PUBLIC ${TPL_LIBRARIES} mfem)
+  target_link_libraries(contact-vis PUBLIC ${TPL_LIBRARIES} mfem)
 
   # Add parallel tests.
   if (MFEM_ENABLE_TESTING)
@@ -53,6 +66,13 @@ if (MFEM_USE_TRIBOL AND MFEM_USE_MPI)
       COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
       ${MPIEXEC_PREFLAGS} $<TARGET_FILE:contact>
       ${MPIEXEC_POSTFLAGS})
+
+    if (MFEM_USE_MUMPS OR MFEM_USE_MKL_CPARDISO)
+      add_test(NAME contact_AMGF_np=${MFEM_MPI_NP}
+        COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
+        ${MPIEXEC_PREFLAGS} $<TARGET_FILE:contact> -ls 6
+        ${MPIEXEC_POSTFLAGS})
+    endif()
   endif()
 
 endif()
