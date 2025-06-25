@@ -49,26 +49,26 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        sanitizer: [Address, Memory, UndefinedBehavior]
-        tests: [unit, examples, miniapps]
+        sanitizer: [asan, msan, ubsan]
+        test: [unit, examples, miniapps]
         mpi: [seq, par]
         exclude:
-          - sanitizer: Memory  # Avoid running MemorySanitizer with MPI
+          - sanitizer: msan  # Avoid running MemorySanitizer with MPI
             mpi: par
         include:
-          - sanitizer: Address
+          - sanitizer: asan
             cxxflags: "-fsanitize=address -fsanitize-address-use-after-scope"
             ldflags: "-fsanitize=address"
-          - sanitizer: UndefinedBehavior
-            cxxflags: "-fsanitize=undefined"
-            ldflags: "-fsanitize=undefined"
-            llvm_sanitizer: "Undefined"
-          - sanitizer: Memory
+          - sanitizer: msan
             cxxflags: "-fsanitize=memory -fsanitize-memory-track-origins -fsanitize-memory-use-after-dtor"
             ldflags: "-fsanitize=memory"
             llvm_sanitizer: "MemoryWithOrigins"
+          - sanitizer: ubsan
+            cxxflags: "-fsanitize=undefined"
+            ldflags: "-fsanitize=undefined"
+            llvm_sanitizer: "Undefined"
 
-    name: "${{matrix.sanitizer}}-${{matrix.mpi}}-${{matrix.tests}}"
+    name: "${{matrix.sanitizer}}-${{matrix.mpi}}-${{matrix.test}}"
 
     steps:
       ### GITHUB_WORKSPACE & GITHUB_ENV
@@ -114,7 +114,7 @@ jobs:
           echo "[MPI] Compile: $(mpicxx --showme:compile)"
           echo "[MPI] Link: $(mpicxx --showme:link)"
 
-      ### LSAN_OPTIONS & ASan suppression file
+      ### LSAN_OPTIONS & asan suppression file
       ### strdup is required for ex1p with Hypre 2.19.0
       - name: ASAN Setup
         run: |
@@ -130,7 +130,7 @@ jobs:
 
       ### LLVM libcxx (https://github.com/llvm/llvm-project/tree/main/libcxx)
       - name: LLVM Cache
-        if: matrix.sanitizer != 'Address'
+        if: matrix.sanitizer != 'asan'
         id: llvm-cache
         uses: actions/cache@v4
         with:
@@ -138,14 +138,14 @@ jobs:
           key: Linux-llvm-${{env.LLVM_VER}}-${{matrix.llvm_sanitizer}}
 
       - name: LLVM Clone
-        if: matrix.sanitizer != 'Address' && steps.llvm-cache.outputs.cache-hit != 'true'
+        if: matrix.sanitizer != 'asan' && steps.llvm-cache.outputs.cache-hit != 'true'
         run: >
           git clone --filter=blob:none --depth=1
           --branch llvmorg-${{env.LLVM_VER}}
           --no-checkout https://github.com/llvm/llvm-project.git llvm-project
 
       - name: LLVM Checkout
-        if: matrix.sanitizer != 'Address' && steps.llvm-cache.outputs.cache-hit != 'true'
+        if: matrix.sanitizer != 'asan' && steps.llvm-cache.outputs.cache-hit != 'true'
         working-directory: llvm-project
         run: |
           git sparse-checkout set --cone
@@ -153,11 +153,11 @@ jobs:
           git sparse-checkout set cmake llvm/cmake runtimes libcxx libcxxabi
 
       - name: LLVM Mkdir
-        if: matrix.sanitizer != 'Address' && steps.llvm-cache.outputs.cache-hit != 'true'
+        if: matrix.sanitizer != 'asan' && steps.llvm-cache.outputs.cache-hit != 'true'
         run: mkdir ${{env.LLVM_DIR}}
 
       - name: LLVM Configure
-        if: matrix.sanitizer != 'Address' && steps.llvm-cache.outputs.cache-hit != 'true'
+        if: matrix.sanitizer != 'asan' && steps.llvm-cache.outputs.cache-hit != 'true'
         working-directory: ${{env.LLVM_DIR}}
         run: >
           VERBOSE=1
@@ -175,18 +175,18 @@ jobs:
           -DLLVM_ENABLE_RUNTIMES='libcxx;libcxxabi'
 
       - name: LLVM CMake
-        if: matrix.sanitizer != 'Address' && steps.llvm-cache.outputs.cache-hit != 'true'
+        if: matrix.sanitizer != 'asan' && steps.llvm-cache.outputs.cache-hit != 'true'
         working-directory: ${{env.LLVM_DIR}}
         run: cmake --build . -- cxx cxxabi
 
       - name: GITHUB_ENV Setup (LLVM)
-        if: matrix.sanitizer != 'Address'
+        if: matrix.sanitizer != 'asan'
         run: |
           echo "LLVM_CXXFLAGS=-stdlib=libc++ -I${{env.LLVM_INC}} -Isystem${{env.LLVM_INC}}" >> $GITHUB_ENV
           echo "LLVM_LDFLAGS=-L${{env.LLVM_LIB}} -lc++abi -Wl,-rpath,${{env.LLVM_LIB}}" >> $GITHUB_ENV
 
       - name: GITHUB_ENV Echo (LLVM)
-        if: matrix.sanitizer != 'Address'
+        if: matrix.sanitizer != 'asan'
         run: |
           echo "[LLVM_CXXFLAGS] ${{env.LLVM_CXXFLAGS}}"
           echo "[LLVM_LDFLAGS] ${{env.LLVM_LDFLAGS}}"
@@ -262,16 +262,16 @@ jobs:
         run: ninja -v check
 
       - name: MFEM Tests Unit
-        if: matrix.tests == 'unit'
+        if: matrix.test == 'unit'
         working-directory: mfem/build
         run: ninja -v tests/unit/all && ${{env.CTEST}} tests/unit
 
       - name: MFEM Examples
-        if: matrix.tests == 'examples'
+        if: matrix.test == 'examples'
         working-directory: mfem/build
         run: ninja -v examples && ${{env.CTEST}} examples
 
       - name: MFEM Miniapps
-        if: matrix.tests == 'miniapps'
+        if: matrix.test == 'miniapps'
         working-directory: mfem/build
         run: ninja -v miniapps && ${{env.CTEST}} miniapps
