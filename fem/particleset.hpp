@@ -181,14 +181,8 @@ public:
 
    const Vector& GetSetVector(int v) const { return fields[1+NumScalars+v]; }
 
-   void Save(std::ostream &out);
-   
-   void Save(const char* fname, int precision=16)
-   {
-      std::ofstream ofs(fname);
-      ofs.precision(precision);
-      Save(ofs);
-   }
+   /// Print in VisIt Point3D format (x,y,z,ID)
+   void PrintPoint3D(std::ostream &out);
 };
 
 
@@ -526,31 +520,14 @@ Particle<SpaceDim, NumScalars, VectorVDims...> ParticleSet<Particle<SpaceDim,Num
 }
 
 template<int SpaceDim, int NumScalars, int... VectorVDims, Ordering::Type VOrdering>
-void ParticleSet<Particle<SpaceDim,NumScalars,VectorVDims...>, VOrdering>::Save(std::ostream &os)
+void ParticleSet<Particle<SpaceDim,NumScalars,VectorVDims...>, VOrdering>::PrintPoint3D(std::ostream &os)
 {
    // Write column headers
-   std::array<std::string, 3> ax = {"x", "y", "z"};
-   for (int f = 0; f < TotalFields; f++)
+   std::array<std::string, 4> ax = {"x", "y", "z", "id"}; // can't use array unless I add Array<std::string> to array.cpp
+   for (int i = 0; i < ax.size(); i++)
    {
-      for (int c = 0; c < FieldVDims[f]; c++)
-      {
-         if (f == 0)
-         {
-            os << ax[c];
-         }
-         else if (f - 1 < NumScalars)
-         {
-            os << "Scalar_" << f - 1;
-         }
-         else
-         {
-            os << "Vector_" << f - 1 - NumScalars << "_" << c;
-         }
-         os << ((f+1 < TotalFields && c+1 < FieldVDims[f]) ? " " : "");
-      }
+      os << ax[i] << ( i+1 < ax.size() ? " " : "\n");
    }
-
-   os << "\n";
 
    // Write the data
    if constexpr (VOrdering == Ordering::byNODES)
@@ -561,14 +538,12 @@ void ParticleSet<Particle<SpaceDim,NumScalars,VectorVDims...>, VOrdering>::Save(
    {
       for (int i = 0 ; i < GetNP(); i++)
       {
-         for (int f = 0; f < TotalFields; f++)
+         for (int d = 0; d < 3; d++)
          {
-            for (int c = 0; c < FieldVDims[f]; c++)
-            {
-               os << ZeroSubnormal(data[c + i*FieldVDims[f] + GetNP()*ExclScanFieldVDims[f]]) << ( (f+1 < TotalFields && c+1 < FieldVDims[f]) ? " " : "");
-            }
+            real_t coord = (d < SpaceDim) ? data[d + i*SpaceDim] : 0.0;
+            os << ZeroSubnormal(coord) << " ";
          }
-         os << "\n";
+         os << ids[i] << "\n";
       }
    }
 }
