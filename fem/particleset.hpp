@@ -134,6 +134,7 @@ protected:
    /// Add particle w/ given ID
    void AddParticle(const Particle<SpaceDim, NumScalars, VectorVDims...> &p, int id);
 
+   void PrintCSVHeader(std::ostream &os);
    void PrintCSV(std::ostream &os, bool incHeader);
 
    /// Private ctor to set ID stride + starting counter
@@ -186,8 +187,13 @@ public:
    /// Print in VisIt Point3D format (x y z ID)
    void PrintPoint3D(std::ostream &os);
 
-   /// Print all data to CSV (can be read into ParaView easily)
-   virtual void PrintCSV(std::ostream &os) { PrintCSV(os, true); }
+   /// Print all data to CSV
+   virtual void PrintCSV(const char* fname, int precision=16)
+   { 
+      std::ofstream ofs(fname);
+      ofs.precision(precision);
+      PrintCSV(ofs, true);
+   }
 };
 
 
@@ -552,33 +558,39 @@ void ParticleSet<Particle<SpaceDim,NumScalars,VectorVDims...>, VOrdering>::Print
 }
 
 template<int SpaceDim, int NumScalars, int... VectorVDims, Ordering::Type VOrdering>
-void ParticleSet<Particle<SpaceDim,NumScalars,VectorVDims...>, VOrdering>::PrintCSV(std::ostream &os, bool incHeader)
+void ParticleSet<Particle<SpaceDim,NumScalars,VectorVDims...>, VOrdering>::PrintCSVHeader(std::ostream &os)
 {
    std::array<char, 3> ax = {'x', 'y', 'z'};
+   
+   os << "id,";
+   for (int f = 0; f < TotalFields; f++)
+   {
+      for (int c = 0; c < FieldVDims[f]; c++)
+      {
+         if (f == 0)
+         {
+            os << ax[c];
+         }
+         else if (f-1 < NumScalars)
+         {
+            os << "Scalar_" << f-1;
+         }
+         else
+         {
+            os << "Vector_" << f-1-NumScalars << "_" << c;
+         }
+         os << ((f+1 == TotalFields && c+1 == FieldVDims[f]) ? "\n" : ",");
+      }
+   }
+}
 
+template<int SpaceDim, int NumScalars, int... VectorVDims, Ordering::Type VOrdering>
+void ParticleSet<Particle<SpaceDim,NumScalars,VectorVDims...>, VOrdering>::PrintCSV(std::ostream &os, bool incHeader)
+{
    // Write column headers and data
    if (incHeader)
    {
-      os << "id,";
-      for (int f = 0; f < TotalFields; f++)
-      {
-         for (int c = 0; c < FieldVDims[f]; c++)
-         {
-            if (f == 0)
-            {
-               os << ax[c];
-            }
-            else if (f-1 < NumScalars)
-            {
-               os << "Scalar_" << f-1;
-            }
-            else
-            {
-               os << "Vector_" << f-1-NumScalars << "_" << c;
-            }
-            os << ((f+1 == TotalFields && c+1 == FieldVDims[f]) ? "\n" : ",");
-         }
-      }
+      PrintCSVHeader(os);
    }
 
    // Write data
