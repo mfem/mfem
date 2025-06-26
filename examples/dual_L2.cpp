@@ -93,7 +93,11 @@ int main(int argc, char *argv[])
    FiniteElementSpace RTfes(&mesh, &RTfec);
 
    L2_FECollection L2fec(order, dim);
-   FiniteElementSpace L2fes(&mesh, &L2fec);
+   FiniteElementSpace L2fes(&mesh, &L2fec, 2);
+
+   // L2_FECollection L2fec_s(order, 1); 
+   // FiniteElementSpace L2fes_s(&mesh, &L2fec);
+
 
    cout << "Number of H(div) dofs: "
         << RTfes.GetTrueVSize() << endl;
@@ -156,10 +160,10 @@ int main(int argc, char *argv[])
    b0.MakeRef(&RTfes,rhs.GetBlock(0),0);
    b1.MakeRef(&L2fes,rhs.GetBlock(1),0);
 
-   b0.AddDomainIntegrator(new VectorDomainLFIntegrator(psi_newton_res));
+   b0.AddDomainIntegrator(new VectorFEDomainLFIntegrator(psi_newton_res));
    // VectorFEDomainLFDivIntegrator
 
-   b1.AddDomainIntegrator(new VectorFEDomainLFIntegrator(Z));
+   b1.AddDomainIntegrator(new VectorDomainLFIntegrator(Z));
    // b1.AddDomainIntegrator(new DomainLFIntegrator(neg_one));
 
    BilinearForm a00(&RTfes);
@@ -167,22 +171,27 @@ int main(int argc, char *argv[])
    // a00.AddDomainIntegrator(new VectorFEMassIntegrator(neg_DZ));
    // a00.AddDomainIntegrator(new VectorFEMassIntegrator(tichonov_cf));
 
-   // MixedBilinearForm a10(&RTfes,&L2fes);
-   // a10.AddDomainIntegrator(new VectorFEDivergenceIntegrator());
+   MixedBilinearForm a10(&RTfes, &L2fes);
+   // a10.AddDomainIntegrator(new MixedVectorDivergenceIntegrator(one_vec_cf)); 
    // a10.AddDomainIntegrator(new MixedVectorProductIntegrator(one_vec_cf)); 
-   // a10.AddDomainIntegrator(new VectorFEMassIntegrator()); 
+   // a10.AddDomainIntegrator(new MixedScalarMassIntegrator()); 
+   a10.AddDomainIntegrator(new VectorFEMassIntegrator()); 
+
+   // a10.AddDomainIntegrator(new MixedVectorMassIntegrator()); 
    
    // a10.AddDomainIntegrator(new MixedDotProductIntegrator(one_vec_cf)); 
-   // a10.Assemble();
-   // a10.Finalize();
-   // SparseMatrix &A10 = a10.SpMat();
-   // SparseMatrix *A01 = Transpose(A10);
+   a10.Assemble();
+   a10.Finalize();
+   SparseMatrix &A10 = a10.SpMat();
+   SparseMatrix *A01 = Transpose(A10);
 
-   MixedBilinearForm a01(&L2fes, &RTfes); 
+   cout << "done with a10, a01" << endl; 
+
+   // MixedBilinearForm a01(&L2fes, &RTfes); 
    // a01.AddDomainIntegrator(new MixedVectorMassIntegrator()); // NO: must both be H(div) 
    // a01.AddDomainIntegrator(new MixedVectorProductIntegrator(one_vec_cf)); 
 
-   a01.AddDomainIntegrator(new VectorFEMassIntegrator()) ; 
+   // a01.AddDomainIntegrator(new VectorFEMassIntegrator()) ; 
    // a01.AddDomainIntegrator(new MixedDotProductIntegrator(one_vec_cf)); 
    // a01.SetAssemblyLevel(mfem::AssemblyLevel::LEGACY);
 
@@ -190,10 +199,10 @@ int main(int argc, char *argv[])
    // a01.AddDomainIntegrator(new MixedVector)
    // a01.AddDomainIntegrator(new MixedVectorProductIntegrator(one_vec_cf)); 
    
-   a01.Assemble(); 
-   a01.Finalize(); 
-   SparseMatrix &A01 = a01.SpMat(); 
-   SparseMatrix *A10 = Transpose(A01);
+   // a01.Assemble(); 
+   // a01.Finalize(); 
+   // SparseMatrix &A01 = a01.SpMat(); 
+   // SparseMatrix *A10 = Transpose(A01);
 
 
    BilinearForm a11(&L2fes);
@@ -202,6 +211,7 @@ int main(int argc, char *argv[])
    a11.Assemble();
    a11.Finalize();
    SparseMatrix &A11 = a11.SpMat();
+   cout << "done with a11" << endl;
 
    int k;
    int total_iterations = 0;
@@ -221,18 +231,22 @@ int main(int argc, char *argv[])
          total_iterations++;
 
          b0.Assemble();
+         cout << "assemble b0" << endl; 
          b1.Assemble();
+         cout << "assemble b1" << endl; 
 
          a00.Assemble(false);
          a00.Finalize(false);
          SparseMatrix &A00 = a00.SpMat();
+         cout << "assemble a00" << endl;
+
 
          // Construct Schur-complement preconditioner
          Vector A00_diag(a00.Height());
          A00.GetDiag(A00_diag);
          A00_diag.Reciprocal();
-         // SparseMatrix *S = Mult_AtDA(*A01, A00_diag);
-         SparseMatrix *S = Mult_AtDA(*A10, A00_diag);
+         SparseMatrix *S = Mult_AtDA(*A01, A00_diag);
+         // SparseMatrix *S = Mult_AtDA(*A10, A00_diag);
 
 
          BlockDiagonalPreconditioner prec(offsets);
@@ -246,10 +260,10 @@ int main(int argc, char *argv[])
 
          BlockOperator A(offsets);
          A.SetBlock(0,0,&A00);
-         // A.SetBlock(1,0,&A10);
-         // A.SetBlock(0,1,A01);
-         A.SetBlock(0,1, &A01); 
-         A.SetBlock(1, 0, A10); 
+         A.SetBlock(1,0,&A10);
+         A.SetBlock(0,1,A01);
+         // A.SetBlock(0,1, &A01); 
+         // A.SetBlock(1, 0, A10); 
          A.SetBlock(1,1,&A11);
 
          GMRES(A,prec,rhs,x,0,2000,500,1e-12,0.0);
@@ -301,8 +315,8 @@ int main(int argc, char *argv[])
              << "\n Total dofs:       " << RTfes.GetTrueVSize() + L2fes.GetTrueVSize()
              << endl;
 
-   // delete A01;
-   delete A10; 
+   delete A01;
+   // delete A10; 
    return 0;
 }
 
