@@ -122,7 +122,8 @@ int main (int argc, char *argv[])
                   "Enable or disable GLVis visualization.");
    args.AddOption(&search_on_rank_0, "-sr0", "--search-on-r0", "-no-sr0",
                   "--no-search-on-r0",
-                  "Enable search only on rank 0 (disable to search points on all tasks).");
+                  "Enable search only on rank 0 (disable to search points on all tasks). "
+                  "All points added by other procs are ignored.");
    args.AddOption(&hrefinement, "-hr", "--h-refinement", "-no-hr",
                   "--no-h-refinement",
                   "Do random h refinements to mesh (does not work for pyramids).");
@@ -130,15 +131,15 @@ int main (int argc, char *argv[])
                   "Ordering of points to be found."
                   "0 (default): byNodes, 1: byVDIM");
    args.AddOption(&gf_ordering, "-gfo", "--gridfunc-ordering",
-                  "Ordering of fespace that will be used for grid function to be interpolated."
+                  "Ordering of fespace that will be used for grid function to be interpolated. "
                   "0 (default): byNodes, 1: byVDIM");
    args.AddOption(&devopt, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
    args.AddOption(&randomization, "-random", "--random",
-                  "0: generate points randomly in the bounding box of domain,"
+                  "0: generate points randomly in the bounding box of domain, "
                   "1: generate points randomly inside each element in mesh.");
    args.AddOption(&npt, "-npt", "--npt",
-                  "# points per proc or element");
+                  "# points / rank initialized on entire mesh (random = 0) or every element (random = 1).");
    args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
 
    args.Parse();
@@ -167,9 +168,6 @@ int main (int argc, char *argv[])
       randomization = 0;
    }
 
-   Vector xmin, xmax;
-   mesh->GetBoundingBox(xmin, xmax);
-
    if (myid == 0)
    {
       cout << "Mesh curvature of the original mesh: ";
@@ -184,7 +182,7 @@ int main (int argc, char *argv[])
    mesh->GetBoundingBox(pos_min, pos_max, mesh_poly_deg);
    if (myid == 0)
    {
-      cout << "--- Generating equidistant point for:\n"
+      cout << "--- Generating points for:\n"
            << "x in [" << pos_min(0) << ", " << pos_max(0) << "]\n"
            << "y in [" << pos_min(1) << ", " << pos_max(1) << "]" << std::endl;
       if (dim == 3)
@@ -283,9 +281,8 @@ int main (int argc, char *argv[])
       }
    }
 
-   // Generate equidistant points in physical coordinates over the whole mesh.
-   // Note that some points might be outside, if the mesh is not a box. Note
-   // also that all tasks search the same points (not mandatory).
+   // Generate random points in physical coordinates over the whole mesh.
+   // Note that some points might be outside if the mesh is not a box.
    int pts_cnt = npt;
    Vector vxyz;
    vxyz.UseDevice(!cpu_mode);
@@ -369,13 +366,6 @@ int main (int argc, char *argv[])
    // finder.SetGPUtoCPUFallback(true);
    finder.FindPoints(vxyz, point_ordering);
 
-   Array<unsigned int> code_out1    = finder.GetCode();
-   Array<unsigned int> el_out1    = finder.GetGSLIBElem();
-   Vector ref_rst1    = finder.GetGSLIBReferencePosition();
-   Vector ref_rst0   = finder.GetReferencePosition();
-   Vector dist1    = finder.GetDist();
-   Array<unsigned int> proc_out1    = finder.GetProc();
-
    finder.Interpolate(field_vals, interp_vals);
    if (interp_vals.UseDevice())
    {
@@ -441,7 +431,8 @@ int main (int argc, char *argv[])
       cout << setprecision(16)
            << "Total number of elements: " << nelemglob
            << "\nTotal number of procs: " << num_procs
-           << "\nSearched total points: " << pts_cnt*num_procs
+           << "\nSearched total points: " <<  (search_on_rank_0 ? pts_cnt :
+                                               pts_cnt*num_procs)
            << "\nFound locally on ranks:  " << found_loc
            << "\nFound on other tasks: " << found_away
            << "\nPoints not found:     " << not_found
