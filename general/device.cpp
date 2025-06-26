@@ -16,6 +16,7 @@
 #include "../fem/ceed/interface/util.hpp"
 #endif
 #ifdef MFEM_USE_MPI
+#include "communication.hpp"
 #include "../linalg/hypre.hpp"
 #endif
 
@@ -341,10 +342,13 @@ void Device::Print(std::ostream &os)
    {
       os << ',' << MemoryTypeName[static_cast<int>(device_mem_type)];
    }
-   if (Allows(Backend::DEVICE_MASK))
+#ifdef MFEM_USE_MPI
+   if (Allows(Backend::DEVICE_MASK) &&
+       Mpi::IsInitialized() && !Mpi::IsFinalized())
    {
       os << "\nUse GPU-aware MPI:    " << (GetGPUAwareMPI() ? "yes" : "no");
    }
+#endif
    os << std::endl;
 }
 
