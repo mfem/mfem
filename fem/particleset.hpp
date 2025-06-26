@@ -13,8 +13,6 @@
 #define MFEM_PARTICLESET
 
 #include "../config/config.hpp"
-#include "../mesh/mesh.hpp"
-#include "fespace.hpp"
 
 #if defined(MFEM_USE_MPI) && defined(MFEM_USE_GSLIB)
 namespace gslib
