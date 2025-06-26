@@ -329,6 +329,8 @@ void ZCoefficient::Eval(Vector &V, ElementTransformation &T,
    Vector psi_vals(2);
    psi->GetVectorValue(T, ip, psi_vals);
 
+   V.SetSize(2); 
+
    for (int i = 0; i < psi_vals.Size(); ++i) { V(i) = tanh(psi_vals(i) / 2.); }
 }
 
@@ -341,6 +343,6 @@ void DZCoefficient::Eval(DenseMatrix &K, ElementTransformation &T,
    Vector psi_vals(2);
    psi->GetVectorValue(T, ip, psi_vals);
 
-   K = 0.;  
+   K.SetSize(2); 
    for (int i = 0; i < 2; ++i) { K(i, i) = (1. - pow(tanh(psi_vals(i) / 2.), 2)) / 2.; }
 }
