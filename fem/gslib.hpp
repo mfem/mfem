@@ -360,6 +360,9 @@ public:
    /// a vector of size (nel x dim). The vertices of the OBBs are returned in
    /// \p obbV, a vector of size (nel x nverts x dim) .
    void GetOrientedBoundingBoxes(DenseTensor &obbA, Vector &obbC, Vector &obbV);
+
+   void *GetFindPointsData() { return fdataD; }
+   gslib::crystal *GetCrystalRouter() { return cr; }
 };
 
 /** \brief OversetFindPointsGSLIB enables use of findpts for arbitrary number of
