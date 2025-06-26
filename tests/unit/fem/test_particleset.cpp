@@ -18,8 +18,8 @@
 using namespace std;
 using namespace mfem;
 
-using SampleParticle = Particle<2,2,3>;
-static constexpr int N = 10;
+using SampleParticle = Particle<2,2,3,1,5>;
+static constexpr int N = 100;
 static constexpr int N_rm = 32;
 
 void InitializeRandom(SampleParticle &p, int seed)
@@ -101,7 +101,6 @@ void TestParticleSet()
             }
             REQUIRE(rm_err_count == 0);
          }
-         pset.PrintCSV("ParticleData");
       }
    }
 }
@@ -114,24 +113,48 @@ TEST_CASE("Adding + Removing Particles",
    TestParticleSet<Ordering::byVDIM>();
 }
 
-
-// To be removed -- just for testing right now
-TEST_CASE("Parallel Particles I/O", "[ParticleSet]" "[Parallel]")
+TEST_CASE("Particle Redistribution", "[ParticleSet]" "[Parallel]")
 {
-   ParticleSet<SampleParticle, Ordering::byVDIM> pset(MPI_COMM_WORLD);
-   
-   int rank; MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
-   int seed = 17*rank;
+   int size = Mpi::WorldSize();
+   int rank = Mpi::WorldRank();
+
+   Mesh m = Mesh::MakeCartesian2D(N, N, Element::Type::QUADRILATERAL);
+   ParMesh pmesh(MPI_COMM_WORLD, m);
+
+   // Generate particles randomly on entire mesh domain, for each rank
+   ParticleSet<SampleParticle, Ordering::byVDIM> pset(MPI_COMM_WORLD);
+   int seed = rank;
    for (int i = 0; i < N; i++)
    {
       SampleParticle p;
       InitializeRandom(p, seed);
       pset.AddParticle(p);
-      seed++;
+      seed += size;
    }
 
-   pset.PrintCSV("Test.csv");
+   // Find points
+   FindPointsGSLIB finder(MPI_COMM_WORLD);
+   pmesh.EnsureNodes();
+   finder.Setup(pmesh);
+   finder.FindPoints(pset.GetSetCoords(), pset.GetOrdering());
 
+   // Redistribute
+   pset.Redistribute(finder.GetProc());
+
+   // Find again
+   finder.FindPoints(pset.GetSetCoords(), pset.GetOrdering());
+
+   // Ensure that all points lie on their proc
+   const Array<unsigned int> &procs = finder.GetProc();
+   int err_count = 0;
+   for (int i = 0; i < procs.Size(); i++)
+   {
+      if (rank != procs[i])
+      {
+         err_count++;
+      }
+   }
+   REQUIRE(err_count == 0);
 
 }
