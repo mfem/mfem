@@ -14,7 +14,6 @@
 
 
 #include "../../../fem/particleset.hpp"
-#include "../../../fem/pparticleset.hpp"
 
 using namespace std;
 using namespace mfem;
@@ -119,7 +118,7 @@ TEST_CASE("Adding + Removing Particles",
 // To be removed -- just for testing right now
 TEST_CASE("Parallel Particles I/O", "[ParticleSet]" "[Parallel]")
 {
-   ParParticleSet<SampleParticle, Ordering::byVDIM> pset(MPI_COMM_WORLD);
+   ParticleSet<SampleParticle, Ordering::byVDIM> pset(MPI_COMM_WORLD);
    
    int rank; MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 

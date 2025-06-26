@@ -127,6 +127,10 @@ protected:
    std::array<Vector, TotalFields> fields; // User-facing Vectors, referencing data
    Array<unsigned int> ids; // Particle IDs
 
+#if defined(MFEM_USE_MPI) && defined(MFEM_USE_GSLIB)
+   MPI_Comm comm;
+#endif // MFEM_USE_MPI && MFEM_USE_GSLIB
+
 
    /// Sync Vectors in \ref fields
    void SyncVectors();
@@ -134,17 +138,31 @@ protected:
    /// Add particle w/ given ID
    void AddParticle(const Particle<SpaceDim, NumScalars, VectorVDims...> &p, int id);
 
-   void PrintCSVHeader(std::ostream &os);
-   void PrintCSV(std::ostream &os, bool incHeader);
-
-   /// Private ctor to set ID stride + starting counter
-   ParticleSet(const int id_stride_, const int id_0) : id_stride(id_stride_), id_counter(id_0) { };
+   void PrintCSVHeader(std::ostream &os, bool inc_rank);
+   void PrintCSV(std::ostream &os, bool inc_header, int *rank=nullptr);
 
 public:
 
    static constexpr Ordering::Type GetOrdering() { return VOrdering; }
    
-   ParticleSet() : ParticleSet(1, 0) {};
+   /// Serial constructor
+   ParticleSet() : id_stride(1), id_counter(0) {};
+
+
+#if defined(MFEM_USE_MPI) && defined(MFEM_USE_GSLIB)
+
+   /// Parallel constructor
+   explicit ParticleSet(MPI_Comm comm_)
+   : id_stride([&](){int s; MPI_Comm_size(comm_, &s); return s; }()),
+     id_counter([&]() { int r; MPI_Comm_rank(comm_, &r); return r; }()),
+     comm(comm_) { };
+
+   /// Redistribute particles onto ranks specified in \p rank_list .
+   void Redistribute(const Array<int> &rank_list);
+
+#endif // MFEM_USE_MPI && MFEM_USE_GSLIB
+
+
 
    /// Reserve room for \p res particles. Can help to avoid re-allocation for adding + removing particles.
    void Reserve(int res) { data.reserve(res*TotalComps); ids.Reserve(res); }
@@ -188,12 +206,8 @@ public:
    void PrintPoint3D(std::ostream &os);
 
    /// Print all data to CSV
-   virtual void PrintCSV(const char* fname, int precision=16)
-   { 
-      std::ofstream ofs(fname);
-      ofs.precision(precision);
-      PrintCSV(ofs, true);
-   }
+   void PrintCSV(const char* fname, int precision=16);
+
 };
 
 
@@ -533,6 +547,9 @@ Particle<SpaceDim, NumScalars, VectorVDims...> ParticleSet<Particle<SpaceDim,Num
 template<int SpaceDim, int NumScalars, int... VectorVDims, Ordering::Type VOrdering>
 void ParticleSet<Particle<SpaceDim,NumScalars,VectorVDims...>, VOrdering>::PrintPoint3D(std::ostream &os)
 {
+#if defined(MFEM_USE_MPI) && defined(MFEM_USE_GSLIB)
+   MFEM_ABORT("PrintPoint3D not yet implemented in parallel");
+#else
    // Write column headers
    os << "x y z id\n";
 
@@ -554,15 +571,18 @@ void ParticleSet<Particle<SpaceDim,NumScalars,VectorVDims...>, VOrdering>::Print
       }
       os << ids[i] << "\n";
    }
-
+#endif
 }
 
 template<int SpaceDim, int NumScalars, int... VectorVDims, Ordering::Type VOrdering>
-void ParticleSet<Particle<SpaceDim,NumScalars,VectorVDims...>, VOrdering>::PrintCSVHeader(std::ostream &os)
+void ParticleSet<Particle<SpaceDim,NumScalars,VectorVDims...>, VOrdering>::PrintCSVHeader(std::ostream &os, bool inc_rank)
 {
    std::array<char, 3> ax = {'x', 'y', 'z'};
    
    os << "id,";
+   if (inc_rank)
+      os << "rank,";
+
    for (int f = 0; f < TotalFields; f++)
    {
       for (int c = 0; c < FieldVDims[f]; c++)
@@ -585,18 +605,20 @@ void ParticleSet<Particle<SpaceDim,NumScalars,VectorVDims...>, VOrdering>::Print
 }
 
 template<int SpaceDim, int NumScalars, int... VectorVDims, Ordering::Type VOrdering>
-void ParticleSet<Particle<SpaceDim,NumScalars,VectorVDims...>, VOrdering>::PrintCSV(std::ostream &os, bool incHeader)
+void ParticleSet<Particle<SpaceDim,NumScalars,VectorVDims...>, VOrdering>::PrintCSV(std::ostream &os, bool inc_header, int *rank)
 {
    // Write column headers and data
-   if (incHeader)
+   if (inc_header)
    {
-      PrintCSVHeader(os);
+      PrintCSVHeader(os, rank);
    }
 
    // Write data
    for (int i = 0; i < GetNP(); i++)
    {
       os << ids[i] << ",";
+      if (rank)
+         os << *rank << ",";
       for (int f = 0; f < TotalFields; f++)
       {
          for (int c = 0; c < FieldVDims[f]; c++)
@@ -617,8 +639,62 @@ void ParticleSet<Particle<SpaceDim,NumScalars,VectorVDims...>, VOrdering>::Print
    }
 }
 
+template<int SpaceDim, int NumScalars, int... VectorVDims, Ordering::Type VOrdering>
+void ParticleSet<Particle<SpaceDim,NumScalars,VectorVDims...>, VOrdering>::PrintCSV(const char* fname, int precision)
+{
 
+#if defined(MFEM_USE_MPI) && defined(MFEM_USE_GSLIB)
+   // Parallel:
+   int rank; MPI_Comm_rank(comm, &rank);
 
+   MPI_File file;
+   MPI_File_open(comm, fname, MPI_MODE_CREATE | MPI_MODE_WRONLY, MPI_INFO_NULL, &file);
+
+   std::stringstream ss_header;
+   ParticleSet<Particle<SpaceDim, NumScalars, VectorVDims...>, VOrdering>::PrintCSVHeader(ss_header, true);
+   std::string header = ss_header.str();
+
+   // Print header
+   if (rank == 0)
+   {
+      MPI_File_write_at(file, 0, header.data(), header.size(), MPI_CHAR, MPI_STATUS_IGNORE);
+   }
+
+   // Get data for each rank
+   std::stringstream ss;
+   ss.precision(precision);
+   ParticleSet<Particle<SpaceDim, NumScalars, VectorVDims...>, VOrdering>::PrintCSV(ss, false, &rank);
+
+   // Compute the size in bytes
+   std::string s_dat = ss.str();
+   MPI_Offset dat_size = s_dat.size();
+   MPI_Offset offset;
+   
+   // Compute the offsets using an exclusive scan
+   MPI_Exscan(&dat_size, &offset, 1, MPI_OFFSET, MPI_SUM, comm);
+   if (rank == 0)
+   {
+      offset = 0;
+   }
+
+   // Add offset from the header
+   offset += header.size();
+
+   // Write data collectively
+   MPI_File_write_at_all(file, offset, s_dat.data(), dat_size, MPI_BYTE, MPI_STATUS_IGNORE);
+
+   // Close file
+   MPI_File_close(&file);
+
+#else
+   // Serial:
+   std::ofstream ofs(fname);
+   ofs.precision(precision);
+   PrintCSV(ofs, true);
+
+#endif // MFEM_USE_MPI && MFEM_USE_GSLIB
+
+}
 } // namespace mfem
 
 
