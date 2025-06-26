@@ -778,9 +778,18 @@ public:
        of the matrix A. */
    void AbsMult(real_t a, const Vector &x, real_t b, Vector &y) const;
 
+   /// @brief Computes y = |A| * x, using entry-wise absolute values of the matrix A.
+   void AbsMult(const Vector &x, Vector &y) const override
+   { AbsMult(1.0, x, 0.0, y); }
+
    /** @brief Computes y = a * |At| * x + b * y, using entry-wise absolute
        values of the transpose of the matrix A. */
    void AbsMultTranspose(real_t a, const Vector &x, real_t b, Vector &y) const;
+
+   /** @brief Computes y = |At| * x, using entry-wise absolute values of the
+       matrix A. */
+   void AbsMultTranspose(const Vector &x, Vector &y) const override
+   { AbsMultTranspose(1.0, x, 0.0, y); }
 
    /** @brief The "Boolean" analog of y = alpha * A * x + beta * y, where
        elements in the sparsity pattern of the matrix are treated as "true". */
