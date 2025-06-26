@@ -934,6 +934,7 @@ void Vector::Randomize(int seed)
    }
 
    srand((unsigned)seed);
+   rand_real(); // call to flush first element, always close to 0
 
    HostWrite();
    for (int i = 0; i < size; i++)
