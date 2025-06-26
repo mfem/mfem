@@ -49,7 +49,7 @@
 #include "lor/lor.hpp"
 #include "dgmassinv.hpp"
 #include "hyperbolic.hpp"
-//#include "particleset.hpp"
+#include "particleset.hpp"
 
 #include "dfem/doperator.hpp"
 
