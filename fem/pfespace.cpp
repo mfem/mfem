@@ -561,6 +561,8 @@ void ParFiniteElementSpace::ApplyLDofSigns(Table &el_dof) const
 void ParFiniteElementSpace::GetElementDofs(int i, Array<int> &dofs,
                                            DofTransformation &doftrans) const
 {
+   doftrans.SetDofTransformation(nullptr);
+
    if (elem_dof)
    {
       elem_dof->GetRow(i, dofs);
@@ -586,6 +588,8 @@ void ParFiniteElementSpace::GetElementDofs(int i, Array<int> &dofs,
 void ParFiniteElementSpace::GetBdrElementDofs(int i, Array<int> &dofs,
                                               DofTransformation &doftrans) const
 {
+   doftrans.SetDofTransformation(nullptr);
+
    if (bdr_elem_dof)
    {
       bdr_elem_dof->GetRow(i, dofs);
@@ -1687,6 +1691,8 @@ void ParFiniteElementSpace::ExchangeFaceNbrData()
 void ParFiniteElementSpace::GetFaceNbrElementVDofs(
    int i, Array<int> &vdofs, DofTransformation &doftrans) const
 {
+   doftrans.SetDofTransformation(nullptr);
+
    face_nbr_element_dof.GetRow(i, vdofs);
 
    if (DoFTransArray[GetFaceNbrFE(i)->GetGeomType()])
@@ -1703,7 +1709,6 @@ void ParFiniteElementSpace::GetFaceNbrElementVDofs(
 DofTransformation *ParFiniteElementSpace::GetFaceNbrElementVDofs(
    int i, Array<int> &vdofs) const
 {
-   DoFTrans.SetDofTransformation(NULL);
    GetFaceNbrElementVDofs(i, vdofs, DoFTrans);
    return DoFTrans.GetDofTransformation() ? &DoFTrans : NULL;
 }

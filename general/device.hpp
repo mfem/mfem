@@ -187,33 +187,33 @@ public:
    /** The string parameter @a device must be a comma-separated list of backend
        string names (see below). The @a device_id argument specifies the ID of
        the actual devices (e.g. GPU) to use.
-       * The available backends are described by the Backend class.
-       * The string name of a backend is the lowercase version of the
+       - The available backends are described by the Backend class.
+       - The string name of a backend is the lowercase version of the
          Backend::Id enumeration constant with '_' replaced by '-', e.g. the
          string name of 'RAJA_CPU' is 'raja-cpu'. The string name of the debug
          backend (Backend::Id 'DEBUG_DEVICE') is exceptionally set to 'debug'.
-       * The 'cpu' backend is always enabled with lowest priority.
-       * The current backend priority from highest to lowest is:
+       - The 'cpu' backend is always enabled with lowest priority.
+       - The current backend priority from highest to lowest is:
          'ceed-cuda', 'occa-cuda', 'raja-cuda', 'cuda',
          'ceed-hip', 'hip', 'debug',
          'occa-omp', 'raja-omp', 'omp',
          'ceed-cpu', 'occa-cpu', 'raja-cpu', 'cpu'.
-       * Multiple backends can be configured at the same time.
-       * Only one 'occa-*' backend can be configured at a time.
-       * The backend 'occa-cuda' enables the 'cuda' backend unless 'raja-cuda'
+       - Multiple backends can be configured at the same time.
+       - Only one 'occa-*' backend can be configured at a time.
+       - The backend 'occa-cuda' enables the 'cuda' backend unless 'raja-cuda'
          is already enabled.
-       * The backend 'occa-omp' enables the 'omp' backend (if MFEM was built
+       - The backend 'occa-omp' enables the 'omp' backend (if MFEM was built
          with MFEM_USE_OPENMP=YES) unless 'raja-omp' is already enabled.
-       * Only one 'ceed-*' backend can be configured at a time.
-       * The backend 'ceed-cpu' delegates to a libCEED CPU backend the setup and
+       - Only one 'ceed-*' backend can be configured at a time.
+       - The backend 'ceed-cpu' delegates to a libCEED CPU backend the setup and
          evaluation of the operator.
-       * The backend 'ceed-cuda' delegates to a libCEED CUDA backend the setup
+       - The backend 'ceed-cuda' delegates to a libCEED CUDA backend the setup
          and evaluation of operators and enables the 'cuda' backend to avoid
          transfers between host and device.
-       * The backend 'ceed-hip' delegates to a libCEED HIP backend the setup
+       - The backend 'ceed-hip' delegates to a libCEED HIP backend the setup
          and evaluation of operators and enables the 'hip' backend to avoid
          transfers between host and device.
-       * The 'debug' backend should not be combined with other device backends.
+       - The 'debug' backend should not be combined with other device backends.
 
        @note If the device is actually enabled, this method will also update the
        current host/device MemoryType and MemoryClass. */

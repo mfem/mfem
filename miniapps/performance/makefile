@@ -68,7 +68,13 @@ MFEM_PERF_CXXFLAGS = $$(MFEM_PERF_CXXFLAGS_$$(MFEM_PERF_SW))
 # Add MFEM_PERF_CXXFLAGS to MFEM_CXXFLAGS:
 ifeq (YES,$$(MFEM_USE_CUDA))
   ifneq (,$$(MFEM_PERF_CXXFLAGS))
-    MFEM_CXXFLAGS += -Xcompiler="$$(MFEM_PERF_CXXFLAGS)"
+    ifneq ($$(MFEM_HOST_CXX),$$(MFEM_CXX))
+      # using nvcc
+      MFEM_CXXFLAGS += -Xcompiler="$$(MFEM_PERF_CXXFLAGS)"
+    else
+      # using clang+cuda
+      MFEM_CXXFLAGS += $$(MFEM_PERF_CXXFLAGS)
+    endif
   endif
 else
   MFEM_CXXFLAGS += $$(MFEM_PERF_CXXFLAGS)
