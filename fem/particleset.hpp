@@ -19,7 +19,9 @@
 #if defined(MFEM_USE_MPI) && defined(MFEM_USE_GSLIB)
 namespace gslib
 {
+
 #include "gslib.h"
+
 } // gslib
 #endif
 
@@ -740,15 +742,6 @@ void ParticleSet<Particle<SpaceDim,NumScalars,VectorVDims...>, VOrdering>::Redis
       }
    }
 
-   // for (int r = 0; r < size; r++)
-   // {
-   //    if (r == rank)
-   //    {   
-   //       std::cout << "Rank " << r << " will send " << send_idxs.Size() << " particles.\n";
-   //    }
-   //    MPI_Barrier(comm);
-   // }
-
    // Initialize GSLIB array
    struct pdata_t
    {
@@ -814,13 +807,6 @@ void ParticleSet<Particle<SpaceDim,NumScalars,VectorVDims...>, VOrdering>::Redis
    unsigned int N_rec = gsl_arr.n;
    pdata_arr = (pdata_t*) gsl_arr.ptr;
 
-   // for (int r = 0; r < size; r++)
-   // {
-   //    if (r == rank)
-   //       std::cout << "Rank " << r << " has received " << N_rec << " particles.\n";
-   //    MPI_Barrier(comm);
-   // }
-
    for (int i = 0; i < N_rec; i++)
    {
       pdata_t pdata = pdata_arr[i];
@@ -854,5 +840,10 @@ void ParticleSet<Particle<SpaceDim,NumScalars,VectorVDims...>, VOrdering>::Redis
 
 } // namespace mfem
 
+
+#if defined(MFEM_USE_MPI) && defined(MFEM_USE_GSLIB)
+// undefine all macros in gslib.h to prevent pollution
+#include "gslib/undef_gslib_macros.h"
+#endif
 
 #endif // MFEM_PARTICLESET
