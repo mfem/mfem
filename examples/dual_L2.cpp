@@ -5,45 +5,53 @@
 using namespace std;
 using namespace mfem;
 
-// NOTE: 2D ONLY 
 class ZCoefficient : public VectorCoefficient
 {
 protected:
    GridFunction *psi;
+   real_t alpha;
 
 public:
-   ZCoefficient(GridFunction &psi_)
-      : VectorCoefficient(2), psi(&psi_) { }
+   ZCoefficient(int vdim, GridFunction &psi_, real_t alpha_ = 1.0)
+      : VectorCoefficient(vdim), psi(&psi_), alpha(alpha_) { }
 
    virtual void Eval(Vector &V, ElementTransformation &T,
                      const IntegrationPoint &ip);
+   void SetAlpha(real_t alpha_) { alpha = alpha_; }
 };
 
-// NOTE: 2D ONLY  
 class DZCoefficient : public MatrixCoefficient
 {
 protected:
    GridFunction *psi;
+   real_t alpha;
 
 public:
-   DZCoefficient(GridFunction &psi_)
-      : MatrixCoefficient(2),  psi(&psi_){ }
+   DZCoefficient(int height, GridFunction &psi_, real_t alpha_ = 1.0)
+      : MatrixCoefficient(height),  psi(&psi_), alpha(alpha_) { }
 
    virtual void Eval(DenseMatrix &K, ElementTransformation &T,
                      const IntegrationPoint &ip);
+   void SetAlpha(real_t alpha_) { alpha = alpha_; }
 };
 
-int main(int argc, char *argv[]){ 
-    int order = 1;
-   int max_it = 10;
+int main(int argc, char *argv[])
+{
+   // 1. Parse command-line options.
+   const char *mesh_file = "../data/star.mesh";
+   int order = 1;
+   int max_it = 5;
    int ref_levels = 3;
    real_t alpha = 1.0;
-   real_t beta = 1.0; 
-   real_t tol = 1e-5;
-   real_t growth_rate = 2.; 
+   real_t growth_rate = 1.0;
+   real_t newton_scaling = 0.9;
+   real_t tichonov = 1e-1;
+   real_t tol = 1e-4;
    bool visualization = true;
 
    OptionsParser args(argc, argv);
+   args.AddOption(&mesh_file, "-m", "--mesh",
+                  "Mesh file to use.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree).");
    args.AddOption(&ref_levels, "-r", "--refs",
@@ -54,11 +62,9 @@ int main(int argc, char *argv[]){
                   "Stopping criteria based on the difference between"
                   "successive solution updates");
    args.AddOption(&alpha, "-step", "--step",
-                  "Step size alpha");
+                  "Initial size alpha");
    args.AddOption(&growth_rate, "-gr", "--growth-rate",
-               "Geometric step size growth rate, alpha = r**k");
-   args.AddOption(&beta, "-reg", "--regularization",
-                  "Image regularization term beta");
+                  "Growth rate of the step size alpha");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -73,126 +79,51 @@ int main(int argc, char *argv[]){
    Mesh mesh = Mesh::MakeCartesian2D(2, 2, Element::Type::QUADRILATERAL, false);
    const int dim = mesh.Dimension();
    const int sdim = mesh.SpaceDimension();
+
    for (int l = 0; l < ref_levels; l++)
    {
       mesh.UniformRefinement();
    }
 
-   // NOTE: incorrectly set all orders to the same initially
-   RT_FECollection rtfec(order, dim); 
-   L2_FECollection l2fec(order, sdim);
-   FiniteElementSpace rtfes(&mesh, &rtfec); 
-   FiniteElementSpace l2fes_vec(&mesh, &l2fec, sdim);
+   int curvature_order = max(order,2);
+   mesh.SetCurvature(curvature_order);
 
-   // NOTE: markers for 0 normal trace BC for RT elements; 
-   // this is an essential BC for H(div) 
-   Array<int> ess_tdof_list;
-   if (mesh.bdr_attributes.Size())
-   {
-      Array<int> ess_bdr(mesh.bdr_attributes.Max());
-      ess_bdr = 1;
-      rtfes.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
-   }
+   // 4. Define the necessary finite element spaces on the mesh.
+   RT_FECollection RTfec(order, dim);
+   FiniteElementSpace RTfes(&mesh, &RTfec);
 
-   int dof_rt(rtfes.GetTrueVSize()), dof_l2(l2fes_vec.GetTrueVSize());
-   Array<int> offsets({0, dof_rt, dof_l2});
+   L2_FECollection L2fec(order, dim);
+   FiniteElementSpace L2fes(&mesh, &L2fec);
+
+   cout << "Number of H(div) dofs: "
+        << RTfes.GetTrueVSize() << endl;
+   cout << "Number of L² dofs: "
+        << L2fes.GetTrueVSize() << endl;
+
+   Array<int> offsets(3);
+   offsets[0] = 0;
+   offsets[1] = RTfes.GetVSize();
+   offsets[2] = L2fes.GetVSize();
    offsets.PartialSum();
-   BlockVector x(offsets), x_old(offsets), x_old_newt(offsets), rhs(offsets);
-   BlockMatrix A(offsets);
 
-   x = 0.; rhs = 0.; 
+   BlockVector x(offsets), rhs(offsets);
+   x = 0.0; rhs = 0.0;
 
-	GridFunction p(&rtfes, x.GetBlock(0)), vphi(&l2fes_vec, x.GetBlock(1)), psi(&l2fes_vec, x.GetBlock(2));
-	GridFunction p_old(&rtfes, x_old.GetBlock(0)), vphi_old(&l2fes_vec, x_old.GetBlock(1)), psi_old(&l2fes_vec, x_old.GetBlock(2)); 
-	GridFunction p_old_newt(&rtfes, x_old_newt.GetBlock(0)), vphi_old_newt(&l2fes_vec, x_old_newt.GetBlock(1)), psi_old_newt(&l2fes_vec, x_old_newt.GetBlock(2)); 
+   GridFunction u_gf, delta_psi_gf;
+   delta_psi_gf.MakeRef(&RTfes,x,offsets[0]);
+   u_gf.MakeRef(&L2fes,x,offsets[1]);
 
-	// constants
-	ConstantCoefficient one_cf(1.0), neg_one_cf(-1.0);
-	ConstantCoefficient beta_cf(beta), alpha_cf(alpha); 
-	VectorConstantCoefficient one_vec_cf(Vector({1., 1.})); 
-   VectorConstantCoefficient alpha_vec_cf(Vector({alpha, alpha})); 
+   GridFunction psi_old_gf(&RTfes);
+   GridFunction psi_gf(&RTfes);
+   GridFunction u_old_gf(&L2fes);
 
+   delta_psi_gf = 0.0;
+   psi_gf = 0.0;
+   u_gf = 0.0;
+   psi_old_gf = psi_gf;
+   u_old_gf = u_gf;
 
-	// discrete coefficients 
-   VectorGridFunctionCoefficient psi_old_cf(&psi_old), psi_cf(&psi), p_cf(&p), vphi_cf(&vphi); 
-
-
-	// entropy coefficients
-   ZCoefficient Z(psi);
-   DZCoefficient DZ(psi);
-   ScalarMatrixProductCoefficient negDZ(neg_one_cf, DZ); 
-
-	VectorSumCoefficient psi_newton_res(psi_old_cf, psi_cf, 1., -1.);
-
-
-	// bilinear forms and integrators 
-	BilinearForm A00(&rtfes), A11(&l2fes_vec), A22(&l2fes_vec); 
-	// MixedBilinearForm A10(&rtfes, &l2fes_vec), A20(&rtfes, &l2fes_vec);
-	MixedBilinearForm A01(&l2fes_vec, &rtfes), A02(&l2fes_vec, &rtfes);
-	
-
-	A00.AddDomainIntegrator(new DivDivIntegrator(alpha_cf)); 
-	A11.AddDomainIntegrator(new VectorMassIntegrator(neg_one_cf)); 
-	// NOTE: the only diagonal element that gets updated every newton iteration is A22 
-	A22.AddDomainIntegrator(new VectorMassIntegrator(negDZ)); 
-
-	A01.AddDomainIntegrator(new MixedVectorProductIntegrator(alpha_vec_cf)); 
-	A02.AddDomainIntegrator(new MixedVectorProductIntegrator(one_vec_cf)); 
-
-
-	// NOTE: impose H(div) essential BC on A00 block
-	A00.SetDiagonalPolicy(mfem::Operator::DIAG_ONE); 
-	A00.Assemble(); 
-	A00.EliminateEssentialBC(ess_tdof_list, x.GetBlock(0), rhs.GetBlock(0), mfem::Operator::DIAG_ONE); 
-	A00.Finalize(true); 
-
-	A11.Assemble(); 
-	A11.Finalize(true); 
-
-	A.SetBlock(0, 0, &A00.SpMat()); 
-	A.SetBlock(1, 1, &A11.SpMat()); 
-
-	// NOTE: impose H(div) essential BC ON A10, A01, A20, A02
-	// eliminate TestDofs on A10, A20, which transpose into TrialDofs for A01, A02 
-	A01.Assemble(); 
-	A01.EliminateTestDofs(ess_tdof_list); 
-	A01.Finalize(true); 
-
-	A02.Assemble(); 
-	A02.EliminateTestDofs(ess_tdof_list); 
-	A02.Finalize(true); 
-
-
-	// set up off-diagonal terms; unchanging during newton iterations 
-	auto A10 = *Transpose(A01.SpMat()); 
-	auto A20 = *Transpose(A02.SpMat()); 
-	// std::unique_ptr<SparseMatrix> A01(Transpose(A10.SpMat()));  
-	// std::unique_ptr<SparseMatrix> A02(Transpose(A20.SpMat()));  
-
-
-	A.SetBlock(1, 0, &A01.SpMat());
-	A.SetBlock(0, 1, &A10);
-
-
-	A.SetBlock(2, 0, &A02.SpMat());
-	A.SetBlock(0, 2, &A20);
-
-	// linear forms 
-	
-	// LinearForm prox_res_lf(&rtfes, rhs.GetBlock(0).GetData()), psi_newton_res_lf(&l2fes_vec, rhs.GetBlock(2).GetData());
-	
-	LinearForm rhs0(&rtfes,  rhs.GetBlock(0).GetData()); 
-	rhs0.AddDomainIntegrator(new VectorFEDomainLFIntegrator(psi_newton_res)); 
-		//TODO: add \alpha \beta f 
-	// rhs0.Assemble(); 					
-
-
-	LinearForm rhs2(&l2fes_vec, rhs.GetBlock(2).GetData()); 
-	rhs2.AddDomainIntegrator(new VectorDomainLFIntegrator(Z)); 
-
-	// LinearForm Z_lf(&l2fes_vec, rhs.GetBlock(2).GetData()); 
-	// Z_lf.AddDomainIntegrator(new VectorFEDomainLFIntegrator(Z)); 
-	
+   VectorGridFunctionCoefficient psi_old_cf(&psi_old_gf), psi_cf(&psi_gf); 
 
    char vishost[] = "localhost";
    int  visport   = 19916;
@@ -203,76 +134,176 @@ int main(int argc, char *argv[]){
       sol_sock.precision(8);
    }
 
-   int prox_it = 0;
-   double prox_residual = tol + 1;
+   ConstantCoefficient neg_one(-1.0);
+   ConstantCoefficient zero(0.0);
+   ConstantCoefficient tichonov_cf(tichonov);
+   ConstantCoefficient neg_tichonov_cf(-1.0*tichonov);
+	VectorConstantCoefficient one_vec_cf(Vector({1., 1.})); 
 
-   const double newt_tol = 1e-06;
-   double newt_residual = newt_tol + 1;
 
-   const int newt_max_it = 20; 
-   int newt_it = 0;
+   ZCoefficient Z(sdim, psi_gf, alpha);
+   DZCoefficient DZ(sdim, psi_gf, alpha);
+   ScalarMatrixProductCoefficient neg_DZ(-1.0, DZ);
 
-	// prox loop 
-   while (prox_residual > tol && prox_it < max_it) { 
-      prox_it++; 
-      x_old = x; 
+   VectorSumCoefficient psi_newton_res(psi_old_cf, psi_cf, 1., -1.);
 
-		while (newt_residual > newt_tol && newt_it < newt_max_it) { 
-            std::cout << "\tIteration " << newt_it++ << ": ";
-            x_old_newt = x;
-				// update and re-assemble DZ's psi^k 
-				A22.Assemble(false);
-				A22.Finalize(false);  
-				A.SetBlock(2, 2, &A22.SpMat()); 
 
-				// No? 
-				// Z_lf.Assemble(); 
-				// assemble psi^k - psi^{k-1}
-				// psi_newton_res_lf.Assemble(); 
-				rhs0.Assemble(); 
+   // DivergenceGridFunctionCoefficient div_psi_cf(&psi_gf);
+   // DivergenceGridFunctionCoefficient div_psi_old_cf(&psi_old_gf);
+   // SumCoefficient psi_old_minus_psi(div_psi_old_cf, div_psi_cf, 1.0, -1.0);
 
-				rhs0.SetSubVector(ess_tdof_list, 0.); // set essential BC on RHS
+   LinearForm b0, b1;
+   b0.MakeRef(&RTfes,rhs.GetBlock(0),0);
+   b1.MakeRef(&L2fes,rhs.GetBlock(1),0);
 
-				SparseMatrix *A_mono = A.CreateMonolithic();
-				UMFPackSolver umf(*A_mono);
-				umf.Mult(rhs, x);
+   b0.AddDomainIntegrator(new VectorDomainLFIntegrator(psi_newton_res));
+   // VectorFEDomainLFDivIntegrator
 
-				const double newt_residual_psi = psi_old_newt.ComputeL2Error(psi_cf);
-            const double newt_residual_p = p_old_newt.ComputeL2Error(p_cf); 
-            const double newt_residual_vphi = vphi_old_newt.ComputeL2Error(vphi_cf); 
+   b1.AddDomainIntegrator(new VectorFEDomainLFIntegrator(Z));
+   // b1.AddDomainIntegrator(new DomainLFIntegrator(neg_one));
 
- 				newt_residual = sqrt(  pow(newt_residual_p, 2)
-                                 + pow(newt_residual_psi, 2) 
-                                 + pow(newt_residual_vphi, 2)
-										);
+   BilinearForm a00(&RTfes);
+   a00.AddDomainIntegrator(new DivDivIntegrator()); 
+   // a00.AddDomainIntegrator(new VectorFEMassIntegrator(neg_DZ));
+   // a00.AddDomainIntegrator(new VectorFEMassIntegrator(tichonov_cf));
 
-            cout << "Newton iteration residual" << newt_residual << endl; 
-				
-				A22.Update(); 
-		}
-		
-		const double prox_residual_psi = psi_old.ComputeL2Error(psi_cf);
-      const double prox_residual_p = p_old.ComputeL2Error(p_cf); 
-      const double prox_residual_vphi = vphi_old.ComputeL2Error(vphi_cf); 
+   // MixedBilinearForm a10(&RTfes,&L2fes);
+   // a10.AddDomainIntegrator(new VectorFEDivergenceIntegrator());
+   // a10.AddDomainIntegrator(new MixedVectorProductIntegrator(one_vec_cf)); 
+   // a10.AddDomainIntegrator(new VectorFEMassIntegrator()); 
+   
+   // a10.AddDomainIntegrator(new MixedDotProductIntegrator(one_vec_cf)); 
+   // a10.Assemble();
+   // a10.Finalize();
+   // SparseMatrix &A10 = a10.SpMat();
+   // SparseMatrix *A01 = Transpose(A10);
 
-      prox_residual = sqrt(  pow(prox_residual_p, 2)
-                           + pow(prox_residual_psi, 2) 
-                           + pow(prox_residual_vphi, 2));
+   MixedBilinearForm a01(&L2fes, &RTfes); 
+   // a01.AddDomainIntegrator(new MixedVectorMassIntegrator()); // NO: must both be H(div) 
+   // a01.AddDomainIntegrator(new MixedVectorProductIntegrator(one_vec_cf)); 
 
-      cout << "Prox Iteration: " << prox_it << ": " << prox_residual <<
-                " (" << prox_residual_psi << ", " << prox_residual_p << ", " << prox_residual_vphi << ")" << endl;
-      
-      if (visualization)
+   a01.AddDomainIntegrator(new VectorFEMassIntegrator()) ; 
+   // a01.AddDomainIntegrator(new MixedDotProductIntegrator(one_vec_cf)); 
+   // a01.SetAssemblyLevel(mfem::AssemblyLevel::LEGACY);
+
+   // a01.AddDomainIntegrator(new VectorMassIntegrator()); 
+   // a01.AddDomainIntegrator(new MixedVector)
+   // a01.AddDomainIntegrator(new MixedVectorProductIntegrator(one_vec_cf)); 
+   
+   a01.Assemble(); 
+   a01.Finalize(); 
+   SparseMatrix &A01 = a01.SpMat(); 
+   SparseMatrix *A10 = Transpose(A01);
+
+
+   BilinearForm a11(&L2fes);
+   // a11.AddDomainIntegrator(new MassIntegrator(neg_tichonov_cf));
+   a11.AddDomainIntegrator(new VectorMassIntegrator(neg_DZ)); 
+   a11.Assemble();
+   a11.Finalize();
+   SparseMatrix &A11 = a11.SpMat();
+
+   int k;
+   int total_iterations = 0;
+   real_t increment_u = 0.1;
+   GridFunction u_tmp(&L2fes);
+   for (k = 0; k < max_it; k++)
+   {
+      u_tmp = u_old_gf;
+      Z.SetAlpha(alpha);
+      DZ.SetAlpha(alpha);
+
+      mfem::out << "\nOUTER ITERATION " << k+1 << endl;
+
+      int j;
+      for ( j = 0; j < 5; j++)
       {
-         sol_sock << "solution\n" << mesh << p << flush;
+         total_iterations++;
 
+         b0.Assemble();
+         b1.Assemble();
+
+         a00.Assemble(false);
+         a00.Finalize(false);
+         SparseMatrix &A00 = a00.SpMat();
+
+         // Construct Schur-complement preconditioner
+         Vector A00_diag(a00.Height());
+         A00.GetDiag(A00_diag);
+         A00_diag.Reciprocal();
+         // SparseMatrix *S = Mult_AtDA(*A01, A00_diag);
+         SparseMatrix *S = Mult_AtDA(*A10, A00_diag);
+
+
+         BlockDiagonalPreconditioner prec(offsets);
+         prec.SetDiagonalBlock(0,new DSmoother(A00));
+#ifndef MFEM_USE_SUITESPARSE
+         prec.SetDiagonalBlock(1,new GSSmoother(*S));
+#else
+         prec.SetDiagonalBlock(1,new UMFPackSolver(*S));
+#endif
+         prec.owns_blocks = 1;
+
+         BlockOperator A(offsets);
+         A.SetBlock(0,0,&A00);
+         // A.SetBlock(1,0,&A10);
+         // A.SetBlock(0,1,A01);
+         A.SetBlock(0,1, &A01); 
+         A.SetBlock(1, 0, A10); 
+         A.SetBlock(1,1,&A11);
+
+         GMRES(A,prec,rhs,x,0,2000,500,1e-12,0.0);
+         delete S;
+
+         u_tmp -= u_gf;
+         real_t Newton_update_size = u_tmp.ComputeL2Error(zero);
+         u_tmp = u_gf;
+
+         // Damped Newton update
+         psi_gf.Add(newton_scaling, delta_psi_gf);
+         a00.Update();
+
+         if (visualization)
+         {
+            sol_sock << "solution\n" << mesh << u_gf << "window_title 'Discrete solution'"
+                     << flush;
+         }
+
+         mfem::out << "Newton_update_size = " << Newton_update_size << endl;
+
+         if (Newton_update_size < increment_u)
+         {
+            break;
+         }
       }
 
-      alpha *= growth_rate; 
-      growth_rate = min(alpha, 1.e09); 
+      u_tmp = u_gf;
+      u_tmp -= u_old_gf;
+      increment_u = u_tmp.ComputeL2Error(zero);
 
-	}
+      mfem::out << "Number of Newton iterations = " << j+1 << endl;
+      mfem::out << "Increment (|| uₕ - uₕ_prvs||) = " << increment_u << endl;
 
+      u_old_gf = u_gf;
+      psi_old_gf = psi_gf;
+
+      if (increment_u < tol || k == max_it-1)
+      {
+         break;
+      }
+
+      alpha *= max(growth_rate, 1_r);
+
+   }
+
+   mfem::out << "\n Outer iterations: " << k+1
+             << "\n Total iterations: " << total_iterations
+             << "\n Total dofs:       " << RTfes.GetTrueVSize() + L2fes.GetTrueVSize()
+             << endl;
+
+   // delete A01;
+   delete A10; 
+   return 0;
 }
 
 // NOTE: 2D ONLY 
@@ -299,6 +330,3 @@ void DZCoefficient::Eval(DenseMatrix &K, ElementTransformation &T,
    K = 0.;  
    for (int i = 0; i < 2; ++i) { K(i, i) = (1. - pow(tanh(psi_vals(i) / 2.), 2)) / 2.; }
 }
-
-
-
