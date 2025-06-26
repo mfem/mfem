@@ -2570,6 +2570,8 @@ void HypreParMatrix::EliminateBC(const Array<int> &ess_dofs,
          int k = send_map_elmts[i];
          int_buf_data[i] = eliminate_row[k];
       });
+      // ensure int_buf_data has been computed before sending it
+      MFEM_DEVICE_SYNC;
 
 #if defined(HYPRE_USING_GPU)
       if (HypreUsingGPU())
@@ -2660,6 +2662,9 @@ void HypreParMatrix::EliminateBC(const Array<int> &ess_dofs,
          }
       });
    }
+   // ensure off-diagonal column elimination completes before freeing
+   // eliminate_col
+   MFEM_DEVICE_SYNC;
 
    mfem_hypre_TFree(eliminate_col);
 }
