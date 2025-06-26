@@ -40,11 +40,18 @@ public:
                     as: XYZ,XYZ,XYZ,... */
    };
 
+   /// Map ldof \p dof to vdof component \p vd for \p ndof total ldofs
    template <Type Ord>
    static inline int Map(int ndofs, int vdim, int dof, int vd);
 
    template <Type Ord>
    static void DofsToVDofs(int ndofs, int vdim, Array<int> &dofs);
+
+   /** @brief   Reorder Vector \p v from its current ordering \p in_ord to \p out_ord
+    *  @warning This function should **not** be used with a GridFunction, as
+                it will not change the ordering of its associated FiniteElementSpace
+    */
+   static void Reorder(Vector &v, int vdim, Type in_ord, Type out_ord);
 };
 
 /// @brief Type describing possible layouts for Q-vectors.
