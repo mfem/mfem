@@ -13,9 +13,15 @@
 #define MFEM_PARTICLESET
 
 #include "../config/config.hpp"
-
 #include "../mesh/mesh.hpp"
 #include "fespace.hpp"
+
+#if defined(MFEM_USE_MPI) && defined(MFEM_USE_GSLIB)
+namespace gslib
+{
+#include "gslib.h"
+} // gslib
+#endif
 
 #include <vector>
 #include <numeric>
@@ -112,13 +118,17 @@ protected:
    }
    static constexpr std::array<int, TotalFields> FieldVDims = MakeFieldVDims(); // VDims of all fields (coords, scalars, vectors...)
    
-   static const std::array<int, TotalFields> MakeExclScanFieldVDims() // std::exclusive_scan not constexpr until C++20
+   static constexpr std::array<int, TotalFields> MakeExclScanFieldVDims() // std::exclusive_scan not constexpr until C++20
    {
       std::array<int, TotalFields> temp{};
-      std::exclusive_scan(FieldVDims.begin(), FieldVDims.end(), temp.begin(), 0);
+      temp[0] = 0;
+      for (int i = 1; i < TotalFields; i++)
+      {
+         temp[i] = temp[i-1] + FieldVDims[i-1];    
+      }
       return temp;
    }
-   static inline const std::array<int, TotalFields> ExclScanFieldVDims = MakeExclScanFieldVDims();
+   static constexpr std::array<int, TotalFields> ExclScanFieldVDims = MakeExclScanFieldVDims();
    
    const int id_stride;
    int id_counter;
@@ -129,6 +139,8 @@ protected:
 
 #if defined(MFEM_USE_MPI) && defined(MFEM_USE_GSLIB)
    MPI_Comm comm;
+   gslib::comm gsl_comm;
+   gslib::crystal cr;
 #endif // MFEM_USE_MPI && MFEM_USE_GSLIB
 
 
@@ -155,10 +167,16 @@ public:
    explicit ParticleSet(MPI_Comm comm_)
    : id_stride([&](){int s; MPI_Comm_size(comm_, &s); return s; }()),
      id_counter([&]() { int r; MPI_Comm_rank(comm_, &r); return r; }()),
-     comm(comm_) { };
+     comm(comm_)
+      {
+         comm_init(&gsl_comm, comm);
+         crystal_init(&cr, &gsl_comm);
+      }
 
    /// Redistribute particles onto ranks specified in \p rank_list .
-   void Redistribute(const Array<int> &rank_list);
+   /// Should NOT be called after RemoveParticles (for now... we should think about this)
+   /// (^Maybe instead we have two args: one is an array of particle IDs and one of rank list? Idk)
+   void Redistribute(const Array<unsigned int> &rank_list);
 
 #endif // MFEM_USE_MPI && MFEM_USE_GSLIB
 
@@ -421,6 +439,9 @@ void ParticleSet<Particle<SpaceDim,NumScalars,VectorVDims...>, VOrdering>::AddPa
 template<int SpaceDim, int NumScalars, int... VectorVDims, Ordering::Type VOrdering>
 void ParticleSet<Particle<SpaceDim,NumScalars,VectorVDims...>, VOrdering>::RemoveParticles(const Array<int> &list)
 {
+   if (list.Size() == 0)
+      return;
+      
    int old_np = GetNP();
 
    // Sort the indices
@@ -695,6 +716,142 @@ void ParticleSet<Particle<SpaceDim,NumScalars,VectorVDims...>, VOrdering>::Print
 #endif // MFEM_USE_MPI && MFEM_USE_GSLIB
 
 }
+
+
+#if defined(MFEM_USE_MPI) && defined(MFEM_USE_GSLIB)
+template<int SpaceDim, int NumScalars, int... VectorVDims, Ordering::Type VOrdering>
+void ParticleSet<Particle<SpaceDim,NumScalars,VectorVDims...>, VOrdering>::Redistribute(const Array<unsigned int> &rank_list)
+{
+   MFEM_ASSERT(rank_list.Size() == GetNP(), "rank_list.Size() != GetNP()");
+
+   int rank, size;
+   MPI_Comm_rank(comm, &rank);
+   MPI_Comm_size(comm, &size);
+
+   // Get particles to be transferred
+   Array<int> send_idxs;
+   Array<int> send_ranks;
+   for (int i = 0; i < rank_list.Size(); i++)
+   {
+      if (rank != rank_list[i])
+      {
+         send_idxs.Append(i);
+         send_ranks.Append(rank_list[i]);
+      }
+   }
+
+   // for (int r = 0; r < size; r++)
+   // {
+   //    if (r == rank)
+   //    {   
+   //       std::cout << "Rank " << r << " will send " << send_idxs.Size() << " particles.\n";
+   //    }
+   //    MPI_Barrier(comm);
+   // }
+
+   // Initialize GSLIB array
+   struct pdata_t
+   {
+      double data[SpaceDim + NumScalars + (VectorVDims + ... + 0)];
+      unsigned int id;
+      unsigned int proc;
+   };
+   gslib::array gsl_arr;
+   array_init(pdata_t, &gsl_arr, send_idxs.Size());
+   pdata_t *pdata_arr;
+   pdata_arr = (pdata_t*) gsl_arr.ptr;
+   gsl_arr.n = send_idxs.Size();
+
+   // Set the data in pdata_arr
+   // (For now, both make copies of the data for all VOrdering. One less copy for byVDIM.)
+   for (int i = 0; i < send_idxs.Size(); i++)
+   {
+      Particle<SpaceDim, NumScalars, VectorVDims...> p;
+      pdata_t &pdata = pdata_arr[i];
+      
+      pdata.id = ids[send_idxs[i]];
+      pdata.proc = send_ranks[i];
+      if constexpr (VOrdering == Ordering::byNODES)
+      {
+         p = GetParticleData(send_idxs[i]);
+      }
+      else
+      {
+         p = GetParticleRef(send_idxs[i]);
+      }
+
+      
+      // Copy it into pdata
+      for (int f = 0; f < TotalFields; f++)
+      {
+         for (int c = 0; c < FieldVDims[f]; c++)
+         {
+            double* dat = &pdata.data[c + ExclScanFieldVDims[f]];
+            if (f == 0)
+            {
+               *dat = static_cast<double>(p.GetCoords()[c]);
+            }
+            else if (f-1 < NumScalars)
+            {
+               *dat = static_cast<double>(p.GetScalar(f-1));
+            }
+            else
+            {
+               *dat = static_cast<double>(p.GetVector(f-1-NumScalars)[c]);
+            }
+         }
+      }
+   }
+   
+
+   // Remove particles that will be transferred
+   RemoveParticles(send_idxs);
+
+   // Transfer particles
+   sarray_transfer(pdata_t, &gsl_arr, proc, 1, &cr);
+
+   // Add received particles to this rank
+   unsigned int N_rec = gsl_arr.n;
+   pdata_arr = (pdata_t*) gsl_arr.ptr;
+
+   // for (int r = 0; r < size; r++)
+   // {
+   //    if (r == rank)
+   //       std::cout << "Rank " << r << " has received " << N_rec << " particles.\n";
+   //    MPI_Barrier(comm);
+   // }
+
+   for (int i = 0; i < N_rec; i++)
+   {
+      pdata_t pdata = pdata_arr[i];
+      if constexpr(std::is_same_v<real_t, double>)
+      {
+         double *coords = &pdata.data[0];
+         double *scalars[NumScalars];
+         double *vectors[sizeof...(VectorVDims)];
+
+         for (int s = 0; s < NumScalars; s++)
+            scalars[s] = &pdata.data[SpaceDim + s];
+         
+         for (int v = 0; v < sizeof...(VectorVDims); v++)
+            vectors[v] = &pdata.data[SpaceDim + NumScalars + ExclScanFieldVDims[1+NumScalars+v]];
+         
+         Particle<SpaceDim, NumScalars, VectorVDims...> p(coords, scalars, vectors);
+
+         AddParticle(p, pdata.id);
+      }
+      else // need to copy from real_t to double if real_t is not double
+      {
+         // TODO
+      }
+   }
+   
+}
+
+
+#endif // MFEM_USE_MPI && MFEM_USE_GSLIB
+
+
 } // namespace mfem
 
 
