@@ -749,6 +749,7 @@ void DifferentiableOperator::AddDomainIntegrator(
          {
             auto dpitod = Reshape(dependent_inputs_trial_op_dim.ReadWrite(),
                                   num_dependent_inputs, 2);
+            int idx = 0;
             for_constexpr<num_inputs>([&](auto s)
             {
                if (!input_is_dependent[s])
@@ -756,8 +757,10 @@ void DifferentiableOperator::AddDomainIntegrator(
                   return;
                }
                // TODO: BUG! Make this a general function that works for all kinds of inputs.
-               dpitod(s, 0) = input_size_on_qp[s] / get<s>(inputs).vdim;
-               total_trial_op_dim += dpitod(s, 0);
+               dpitod(idx, 0) = s;
+               dpitod(idx, 1) = input_size_on_qp[s] / get<s>(inputs).vdim;
+               total_trial_op_dim += dpitod(idx, 1);
+               idx++;
             });
          }
 
@@ -855,7 +858,7 @@ void DifferentiableOperator::AddDomainIntegrator(
                      for (int s_i = 0; s_i < num_dependent_inputs; s_i++)
                      {
                         const int s = dpitod(s_i, 0);
-                        auto trial_op_dim = dpitod(s_i, 1);
+                        const int trial_op_dim = dpitod(s_i, 1);
                         auto d_qp = Reshape(&(shadow_shmem[s])[0], trial_vdim, trial_op_dim, num_qp);
                         for (int m = 0; m < trial_op_dim; m++)
                         {
@@ -994,12 +997,12 @@ void DifferentiableOperator::AddDomainIntegrator(
                            {
                               for (int m = 0; m < trial_op_dim; m++)
                               {
-                                 sum += qpdc(i, k, j, m + m_offset, q, e) * d_qp(j,m,q);
+                                 sum += qpdc(i, k, j, m + m_offset, q, e) * d_qp(j, m, q);
                               }
                            }
                            m_offset += trial_op_dim;
                         }
-                        fhat(i,k,q) = sum;
+                        fhat(i, k, q) = sum;
                      }
                   }
                }
