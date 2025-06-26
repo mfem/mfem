@@ -14,6 +14,8 @@
 
 #include "../general/forall.hpp"
 
+#include <climits>
+
 namespace mfem
 {
 /// \cond DO_NOT_DOCUMENT
