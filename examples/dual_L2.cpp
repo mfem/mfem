@@ -161,6 +161,8 @@ int main(int argc, char *argv[])
    b1.MakeRef(&L2fes,rhs.GetBlock(1),0);
 
    b0.AddDomainIntegrator(new VectorFEDomainLFIntegrator(psi_newton_res));
+   FunctionCoefficient f([](const Vector &x) {return -0.5 * ( (1 - 2*x[0]) * x[1] * (1 - x[1]) + x[0] * (1 - x[0]) * (1-2*x[1]));  });
+   b0.AddDomainIntegrator(new VectorFEDomainLFDivIntegrator(f));
    // VectorFEDomainLFDivIntegrator
 
    b1.AddDomainIntegrator(new VectorDomainLFIntegrator(Z));
