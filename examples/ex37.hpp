@@ -36,12 +36,6 @@ real_t der_sigmoid(real_t x)
    return tmp - std::pow(tmp,2);
 }
 
-/// @brief Signum function
-template <typename T> int sgn(T val)
-{
-   return (T(0) < val) - (val < T(0));
-}
-
 /// @brief Returns f(u(x)) where u is a scalar GridFunction and f:R → R
 class MappedGridFunctionCoefficient : public GridFunctionCoefficient
 {
@@ -469,14 +463,14 @@ std::pair<real_t, real_t> proj(GridFunction &psi, GridFunction &alpha_grad,
 #endif
       f_c -= target_volume;
 
-      if (sgn(f_c) == sgn(f_b))
+      if (f_c * f_b > 0)
       {
          b = c;
          f_b = f_c;
          if (side == -1) { f_a /= 2.0; }
          side = -1;
       }
-      else if (sgn(f_c) == sgn(f_a))
+      else if (f_c * f_a > 0)
       {
          a = c;
          f_a = f_c;
