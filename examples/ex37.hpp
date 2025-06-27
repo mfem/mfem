@@ -429,13 +429,37 @@ std::pair<real_t, real_t> proj(GridFunction &psi, GridFunction &alpha_grad,
 #endif
    int_sigmoid_psi->AddDomainIntegrator(new DomainLFIntegrator(sigmoid_psi));
 
+   y = a;
+   int_sigmoid_psi->Assemble(); // Compute f(a)
+   real_t f_a = int_sigmoid_psi->Sum();
+
+   y = b;
+   int_sigmoid_psi->Assemble(); // Compute f(b)
+   real_t f_b = int_sigmoid_psi->Sum();
+#ifdef MFEM_USE_MPI
+   if (pfes)
+   {
+      MPI_Allreduce(MPI_IN_PLACE, &f_a, 1, MFEM_MPI_REAL_T,
+                    MPI_SUM, MPI_COMM_WORLD);
+      MPI_Allreduce(MPI_IN_PLACE, &f_b, 1, MFEM_MPI_REAL_T,
+                    MPI_SUM, MPI_COMM_WORLD);
+   }
+#endif
+   f_a -= target_volume;
+   f_b -= target_volume;
+   real_t f_c;
+   int side = 0;
+
    bool done = false;
    for (int k=0; k < max_its; k++)
    {
-      c = (a + b) / 2.0;
+      c = (f_a * b - f_b * a) / (f_a - f_b);
+
+      if (abs(b - a) < tol * abs(b + a)) { done = true; y = 0; break; }
+
       y = c;
       int_sigmoid_psi->Assemble(); // Recompute f(c) with updated ψ
-      real_t f_c = int_sigmoid_psi->Sum();
+      f_c = int_sigmoid_psi->Sum();
 #ifdef MFEM_USE_MPI
       if (pfes)
       {
@@ -445,27 +469,23 @@ std::pair<real_t, real_t> proj(GridFunction &psi, GridFunction &alpha_grad,
 #endif
       f_c -= target_volume;
 
-      if ((f_c == 0) || (b - a) / 2.0 < tol) { done = true; y = 0; break; }
-
-      y = a;
-      int_sigmoid_psi->Assemble(); // Compute f(a)
-      real_t f_a = int_sigmoid_psi->Sum();
-#ifdef MFEM_USE_MPI
-      if (pfes)
+      if (sgn(f_c) == sgn(f_b))
       {
-         MPI_Allreduce(MPI_IN_PLACE, &f_a, 1, MFEM_MPI_REAL_T,
-                       MPI_SUM, MPI_COMM_WORLD);
+         b = c;
+         f_b = f_c;
+         if (side == -1) { f_a /= 2.0; }
+         side = -1;
       }
-#endif
-      f_a -= target_volume;
-
-      if (sgn(f_c) == sgn(f_a))
+      else if (sgn(f_c) == sgn(f_a))
       {
          a = c;
+         f_a = f_c;
+         if (side == 1) { f_b /= 2.0; }
+         side = 1;
       }
       else
       {
-         b = c;
+         done = true; y = 0; break;
       }
    }
    if (!done)
