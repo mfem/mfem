@@ -19,10 +19,9 @@ namespace gslib
 {
 extern "C"
 {
-   #include "gslib.h"
-
+#include "gslib.h"
 } //extern C
-} // namespace gslib
+} // gslib
 #endif
 
 #include <vector>
@@ -34,33 +33,37 @@ namespace mfem
 // -----------------------------------------------------------------------------------------------------
 // Define Particle class
 
-template<int SpaceDim, int NumScalars=0, int... VectorVDims>
 class Particle
 {
-private:
-   static constexpr std::array<int, sizeof...(VectorVDims)> VDims = { VectorVDims... };
-
+protected:
    bool owning;
 
    Vector coords;
-   std::array<real_t*, NumScalars> scalars;
-   std::array<Vector, sizeof...(VectorVDims)> vectors;
+   std::vector<real_t*> scalars;
+   std::vector<Vector> vectors;
 
    void Destroy();
    void Copy(const Particle &p);
    void Steal(Particle &p);
 
 public:
-   static constexpr int GetSpaceDim() { return SpaceDim; };
-   static constexpr int GetNumScalars() { return NumScalars; };
-   static constexpr int GetNumVectors() { return sizeof...(VectorVDims); };
-   static constexpr int GetVDim(int v) { return VDims[v]; };
+   static int GetSpaceDim() const { return coords.Size(); }
+   static int GetNumScalars() const { return scalars.size(); }
+   static int GetNumVectors() const { return vectors.size(); }
+   static int GetVDim(int v) const { return vectors[v].Size(); }
+   static const Array<int> GetVectorVDims() const
+   {
+      Array<int> vectorVDims(GetNumVectors());
+      for (int i = 0; i < GetNumVectors(); i++)
+         vectorVDims[i] = GetVDim(i);
+      return vectorVDims;
+   }
 
    /// Create a new particle which owns its own data
-   Particle();
+   Particle(int spaceDim, int numScalars, const Array<int> &vectorVDims);
 
    /// Create a new particle whose data references external data
-   Particle(real_t *in_coords, real_t *in_scalars[], real_t *in_vectors[]);
+   Particle(int spaceDim, int numScalars, const Array<int> &vectorVDims, real_t *in_coords, real_t *in_scalars[], real_t *in_vectors[]);
 
    /// Copy ctor
    explicit Particle(const Particle &p) : Particle() { Copy(p); }
