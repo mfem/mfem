@@ -63,8 +63,10 @@ if (MFEM_USE_GSLIB)
       MAIN pfindpts.cpp
       LIBRARIES mfem)
 
-    add_mfem_miniapp(particle-redistribute MAIN particle-redistribute.cpp LIBRARIES mfem-common)
+    add_mfem_miniapp(particle-redistribute MAIN particle-redistribute.cpp LIBRARIES mfem)
 
+    add_mfem_miniapp(teststruct MAIN teststruct.cpp LIBRARIES mfem-common)
+    
     if (MFEM_ENABLE_TESTING)
       foreach (test "schwarz_ex1p" "pfindpts")
         add_test(NAME ${test}_np${MFEM_MPI_NP}

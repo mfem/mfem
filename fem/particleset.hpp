@@ -17,67 +17,12 @@
 #if defined(MFEM_USE_MPI) && defined(MFEM_USE_GSLIB)
 namespace gslib
 {
+extern "C"
+{
    #include "gslib.h"
-   extern "C" {
-      struct hash_data_3
-      {
-         ulong hash_n;
-         struct dbl_range bnd[3];
-         double fac[3];
-         uint *offset;
-      };
 
-      struct hash_data_2
-      {
-         ulong hash_n;
-         struct dbl_range bnd[2];
-         double fac[2];
-         uint *offset;
-      };
-
-      struct local_hash_data_2 {
-         uint hash_n;
-         struct dbl_range bnd[2];
-         double fac[2];
-         uint *offset;
-         uint max;
-      };
-
-      struct local_hash_data_3 {
-         uint hash_n;
-         struct dbl_range bnd[3];
-         double fac[3];
-         uint *offset;
-         uint max;
-      };
-
-      struct findpts_dummy_ms_data
-      {
-         unsigned int *nsid;
-         double       *distfint;
-      };
-
-      struct findpts_data_3
-      {
-         struct crystal cr;
-         struct findpts_local_data_3 local;
-         struct hash_data_3 hash;
-         struct array savpt;
-         struct findpts_dummy_ms_data fdms;
-         uint   fevsetup;
-      };
-
-      struct findpts_data_2
-      {
-         struct crystal cr;
-         struct findpts_local_data_2 local;
-         struct hash_data_2 hash;
-         struct array savpt;
-         struct findpts_dummy_ms_data fdms;
-         uint   fevsetup;
-      };
-   } //extern C
-} // gslib
+} //extern C
+} // namespace gslib
 #endif
 
 #include <vector>
