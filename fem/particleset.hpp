@@ -19,9 +19,66 @@
 #if defined(MFEM_USE_MPI) && defined(MFEM_USE_GSLIB)
 namespace gslib
 {
+   #include "gslib.h"
+   extern "C" {
+      struct hash_data_3
+      {
+         ulong hash_n;
+         struct dbl_range bnd[3];
+         double fac[3];
+         uint *offset;
+      };
 
-#include "gslib.h"
+      struct hash_data_2
+      {
+         ulong hash_n;
+         struct dbl_range bnd[2];
+         double fac[2];
+         uint *offset;
+      };
 
+      struct local_hash_data_2 {
+         uint hash_n;
+         struct dbl_range bnd[2];
+         double fac[2];
+         uint *offset;
+         uint max;
+      };
+
+      struct local_hash_data_3 {
+         uint hash_n;
+         struct dbl_range bnd[3];
+         double fac[3];
+         uint *offset;
+         uint max;
+      };
+
+      struct findpts_dummy_ms_data
+      {
+         unsigned int *nsid;
+         double       *distfint;
+      };
+
+      struct findpts_data_3
+      {
+         struct crystal cr;
+         struct findpts_local_data_3 local;
+         struct hash_data_3 hash;
+         struct array savpt;
+         struct findpts_dummy_ms_data fdms;
+         uint   fevsetup;
+      };
+
+      struct findpts_data_2
+      {
+         struct crystal cr;
+         struct findpts_local_data_2 local;
+         struct hash_data_2 hash;
+         struct array savpt;
+         struct findpts_dummy_ms_data fdms;
+         uint   fevsetup;
+      };
+   } //extern C
 } // gslib
 #endif
 
@@ -72,7 +129,7 @@ public:
    Particle& operator=(const Particle &p) { Copy(p); return *this; }
 
    /// Move assign
-   Particle& operator=(Particle &&p) { Steal(p); return *this; }   
+   Particle& operator=(Particle &&p) { Steal(p); return *this; }
 
    Vector& GetCoords() { return coords; }
 
@@ -109,7 +166,7 @@ protected:
    static constexpr std::array<int, sizeof...(VectorVDims)> VDims = { VectorVDims... }; // VDims of vectors
    static constexpr int TotalFields = 1 + NumScalars + sizeof...(VectorVDims); // Total number of fields / particle
    static constexpr int TotalComps = SpaceDim + NumScalars + (VectorVDims + ... + 0); // Total comps / particle
-   
+
    static constexpr std::array<int, TotalFields> MakeFieldVDims()
    {
       std::array<int, TotalFields> temp{};
@@ -119,19 +176,19 @@ protected:
       return temp;
    }
    static constexpr std::array<int, TotalFields> FieldVDims = MakeFieldVDims(); // VDims of all fields (coords, scalars, vectors...)
-   
+
    static constexpr std::array<int, TotalFields> MakeExclScanFieldVDims() // std::exclusive_scan not constexpr until C++20
    {
       std::array<int, TotalFields> temp{};
       temp[0] = 0;
       for (int i = 1; i < TotalFields; i++)
       {
-         temp[i] = temp[i-1] + FieldVDims[i-1];    
+         temp[i] = temp[i-1] + FieldVDims[i-1];
       }
       return temp;
    }
    static constexpr std::array<int, TotalFields> ExclScanFieldVDims = MakeExclScanFieldVDims();
-   
+
    const int id_stride;
    int id_counter;
 
@@ -158,7 +215,7 @@ protected:
 public:
 
    static constexpr Ordering::Type GetOrdering() { return VOrdering; }
-   
+
    /// Serial constructor
    ParticleSet() : id_stride(1), id_counter(0) {};
 
@@ -204,7 +261,7 @@ public:
    Particle<SpaceDim, NumScalars, VectorVDims...> GetParticleRef(int i);
 
    const Particle<SpaceDim, NumScalars, VectorVDims...> GetParticleRef(int i) const { return const_cast<ParticleSet*>(this)->GetParticleRef(i); };
-   
+
    /// Get copy of data in particle \p i .
    Particle<SpaceDim, NumScalars, VectorVDims...> GetParticleData(int i) const;
 
@@ -251,7 +308,7 @@ void Particle<SpaceDim,NumScalars,VectorVDims...>::Destroy()
    }
    for (int s = 0; s < scalars.size(); s++)
       scalars[s] = nullptr;
-   
+
 }
 
 template<int SpaceDim, int NumScalars, int... VectorVDims>
@@ -321,7 +378,7 @@ Particle<SpaceDim,NumScalars,VectorVDims...>::Particle(real_t *in_coords, real_t
    coords = Vector(in_coords, SpaceDim);
    for (int i = 0; i < scalars.size(); i++)
       scalars[i] = in_scalars[i];
-   
+
    for (int i = 0; i < vectors.size(); i++)
       vectors[i] = Vector(in_vectors[i], VDims[i]);
 }
@@ -443,7 +500,7 @@ void ParticleSet<Particle<SpaceDim,NumScalars,VectorVDims...>, VOrdering>::Remov
 {
    if (list.Size() == 0)
       return;
-      
+
    int old_np = GetNP();
 
    // Sort the indices
@@ -529,7 +586,7 @@ Particle<SpaceDim, NumScalars, VectorVDims...> ParticleSet<Particle<SpaceDim,Num
    for (int v = 0; v < sizeof...(VectorVDims); v++) vectors[v] = &data[ExclScanFieldVDims[v+1+NumScalars]*GetNP() + i*VDims[v]];
 
    return Particle<SpaceDim, NumScalars, VectorVDims...>(coords, scalars, vectors);
-   
+
 }
 
 template<int SpaceDim, int NumScalars, int... VectorVDims, Ordering::Type VOrdering>
@@ -564,7 +621,7 @@ Particle<SpaceDim, NumScalars, VectorVDims...> ParticleSet<Particle<SpaceDim,Num
    {
       return Particle<SpaceDim, NumScalars, VectorVDims...>(GetParticleRef(i));
    }
-   
+
 }
 
 template<int SpaceDim, int NumScalars, int... VectorVDims, Ordering::Type VOrdering>
@@ -601,7 +658,7 @@ template<int SpaceDim, int NumScalars, int... VectorVDims, Ordering::Type VOrder
 void ParticleSet<Particle<SpaceDim,NumScalars,VectorVDims...>, VOrdering>::PrintCSVHeader(std::ostream &os, bool inc_rank)
 {
    std::array<char, 3> ax = {'x', 'y', 'z'};
-   
+
    os << "id,";
    if (inc_rank)
       os << "rank,";
@@ -692,7 +749,7 @@ void ParticleSet<Particle<SpaceDim,NumScalars,VectorVDims...>, VOrdering>::Print
    std::string s_dat = ss.str();
    MPI_Offset dat_size = s_dat.size();
    MPI_Offset offset;
-   
+
    // Compute the offsets using an exclusive scan
    MPI_Exscan(&dat_size, &offset, 1, MPI_OFFSET, MPI_SUM, comm);
    if (rank == 0)
@@ -761,7 +818,7 @@ void ParticleSet<Particle<SpaceDim,NumScalars,VectorVDims...>, VOrdering>::Redis
    {
       Particle<SpaceDim, NumScalars, VectorVDims...> p;
       pdata_t &pdata = pdata_arr[i];
-      
+
       pdata.id = ids[send_idxs[i]];
       pdata.proc = send_ranks[i];
       if constexpr (VOrdering == Ordering::byNODES)
@@ -773,7 +830,7 @@ void ParticleSet<Particle<SpaceDim,NumScalars,VectorVDims...>, VOrdering>::Redis
          p = GetParticleRef(send_idxs[i]);
       }
 
-      
+
       // Copy it into pdata
       for (int f = 0; f < TotalFields; f++)
       {
@@ -795,7 +852,7 @@ void ParticleSet<Particle<SpaceDim,NumScalars,VectorVDims...>, VOrdering>::Redis
          }
       }
    }
-   
+
 
    // Remove particles that will be transferred
    RemoveParticles(send_idxs);
@@ -818,10 +875,10 @@ void ParticleSet<Particle<SpaceDim,NumScalars,VectorVDims...>, VOrdering>::Redis
 
          for (int s = 0; s < NumScalars; s++)
             scalars[s] = &pdata.data[SpaceDim + s];
-         
+
          for (int v = 0; v < sizeof...(VectorVDims); v++)
             vectors[v] = &pdata.data[SpaceDim + NumScalars + ExclScanFieldVDims[1+NumScalars+v]];
-         
+
          Particle<SpaceDim, NumScalars, VectorVDims...> p(coords, scalars, vectors);
 
          AddParticle(p, pdata.id);
@@ -831,7 +888,7 @@ void ParticleSet<Particle<SpaceDim,NumScalars,VectorVDims...>, VOrdering>::Redis
          // TODO
       }
    }
-   
+
 }
 
 
