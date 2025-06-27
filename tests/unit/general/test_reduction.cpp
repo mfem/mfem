@@ -9,15 +9,14 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#include "mfem.hpp"
-
-// must be included after mfem.hpp
-#include "general/forall.hpp"
-
-#include "unit_tests.hpp"
-
 #include <algorithm>
 #include <limits>
+
+#include "mfem.hpp"
+#include "unit_tests.hpp"
+
+// must be included after mfem.hpp
+#include "general/reducers.hpp"
 
 using namespace mfem;
 
