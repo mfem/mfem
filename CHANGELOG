@@ -40,10 +40,20 @@ GPU computing
   conditions. A new function Vector::SetSubVectorHost has been added in cases
   where host execution is always needed (e.g. when the DOFs array is small).
 
+New and updated examples and miniapps
+-------------------------------------
+- Added miniapps to demonstrate an implementation of the absolute-value
+  L(1)-Jacobi preconditioners in partially assembled operators. This includes
+  Multigrid wrapper to demonstrate the effectiveness of these Jacobi-type
+  operators as smoothers.
+  These miniapps can be found in `miniapps/diag-smoothers`.
+
 API changes
 -----------
 - mfem::internal::tensor and mfem::internal::dual have been moved to
   mfem::future::tensor and mfem::future::dual.
+- API addition: in class `Operator`, added virtual functions: `AbsMult`, and
+  `AbsMultTranspose`; in class `Vector`, added `Abs` and `Pow`.
 
 Miscellaneous
 -------------
