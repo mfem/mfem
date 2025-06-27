@@ -5134,8 +5134,8 @@ void TMOP_Integrator::ParEnableNormalization(const ParGridFunction &x)
 {
    real_t loc[3];
    ComputeNormalizationEnergies(x, loc[0], loc[1], loc[2]);
-   real_t rdc[3];
-   MPI_Allreduce(loc, rdc, 3, MPITypeMap<real_t>::mpi_type, MPI_SUM,
+   real_t rdc[2];
+   MPI_Allreduce(loc, rdc, 2, MPITypeMap<real_t>::mpi_type, MPI_SUM,
                  x.ParFESpace()->GetComm());
    metric_normal = 1.0 / rdc[0];
    lim_normal    = 1.0 / rdc[1];
@@ -5149,6 +5149,9 @@ void TMOP_Integrator::ComputeNormalizationEnergies(const GridFunction &x,
                                                    real_t &lim_energy,
                                                    real_t &surf_fit_gf_energy)
 {
+   metric_energy = 0.0;
+   lim_energy = 0.0;
+   surf_fit_gf_energy = 0.0;
    if (PA.enabled)
    {
       MFEM_VERIFY(PA.E.Size() > 0, "Must be called after AssemblePA!");
@@ -5191,9 +5194,6 @@ void TMOP_Integrator::ComputeNormalizationEnergies(const GridFunction &x,
    Jpr.SetSize(dim);
    Jpt.SetSize(dim);
 
-   metric_energy = 0.0;
-   lim_energy = 0.0;
-   surf_fit_gf_energy = 0.0;
    for (int i = 0; i < fes->GetNE(); i++)
    {
       const FiniteElement *fe = fes->GetFE(i);
@@ -5226,7 +5226,7 @@ void TMOP_Integrator::ComputeNormalizationEnergies(const GridFunction &x,
       }
 
       // Normalization of the surface fitting term.
-      if (surf_fit_gf)
+      if (false) // TODO
       {
          Array<int> dofs;
          Vector sigma_e;
