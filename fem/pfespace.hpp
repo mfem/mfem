@@ -580,7 +580,13 @@ public:
 
    void Mult(const Vector &x, Vector &y) const override;
 
+   void AbsMult(const Vector &x, Vector &y) const override
+   { Mult(x,y); }
+
    void MultTranspose(const Vector &x, Vector &y) const override;
+
+   void AbsMultTranspose(const Vector &x, Vector &y) const override
+   { MultTranspose(x,y); }
 };
 
 /// Auxiliary device class used by ParFiniteElementSpace.
@@ -631,7 +637,13 @@ public:
 
    void Mult(const Vector &x, Vector &y) const override;
 
+   void AbsMult(const Vector &x, Vector &y) const override
+   { Mult(x,y); }
+
    void MultTranspose(const Vector &x, Vector &y) const override;
+
+   void AbsMultTranspose(const Vector &x, Vector &y) const override
+   { MultTranspose(x,y); }
 };
 
 }
