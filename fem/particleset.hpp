@@ -17,66 +17,10 @@
 #if defined(MFEM_USE_MPI) && defined(MFEM_USE_GSLIB)
 namespace gslib
 {
-   #include "gslib.h"
-   extern "C" {
-      struct hash_data_3
-      {
-         ulong hash_n;
-         struct dbl_range bnd[3];
-         double fac[3];
-         uint *offset;
-      };
-
-      struct hash_data_2
-      {
-         ulong hash_n;
-         struct dbl_range bnd[2];
-         double fac[2];
-         uint *offset;
-      };
-
-      struct local_hash_data_2 {
-         uint hash_n;
-         struct dbl_range bnd[2];
-         double fac[2];
-         uint *offset;
-         uint max;
-      };
-
-      struct local_hash_data_3 {
-         uint hash_n;
-         struct dbl_range bnd[3];
-         double fac[3];
-         uint *offset;
-         uint max;
-      };
-
-      struct findpts_dummy_ms_data
-      {
-         unsigned int *nsid;
-         double       *distfint;
-      };
-
-      struct findpts_data_3
-      {
-         struct crystal cr;
-         struct findpts_local_data_3 local;
-         struct hash_data_3 hash;
-         struct array savpt;
-         struct findpts_dummy_ms_data fdms;
-         uint   fevsetup;
-      };
-
-      struct findpts_data_2
-      {
-         struct crystal cr;
-         struct findpts_local_data_2 local;
-         struct hash_data_2 hash;
-         struct array savpt;
-         struct findpts_dummy_ms_data fdms;
-         uint   fevsetup;
-      };
-   } //extern C
+extern "C"
+{
+#include "gslib.h"
+} //extern C
 } // gslib
 #endif
 
@@ -89,33 +33,37 @@ namespace mfem
 // -----------------------------------------------------------------------------------------------------
 // Define Particle class
 
-template<int SpaceDim, int NumScalars=0, int... VectorVDims>
 class Particle
 {
-private:
-   static constexpr std::array<int, sizeof...(VectorVDims)> VDims = { VectorVDims... };
-
+protected:
    bool owning;
 
    Vector coords;
-   std::array<real_t*, NumScalars> scalars;
-   std::array<Vector, sizeof...(VectorVDims)> vectors;
+   std::vector<real_t*> scalars;
+   std::vector<Vector> vectors;
 
    void Destroy();
    void Copy(const Particle &p);
    void Steal(Particle &p);
 
 public:
-   static constexpr int GetSpaceDim() { return SpaceDim; };
-   static constexpr int GetNumScalars() { return NumScalars; };
-   static constexpr int GetNumVectors() { return sizeof...(VectorVDims); };
-   static constexpr int GetVDim(int v) { return VDims[v]; };
+   static int GetSpaceDim() const { return coords.Size(); }
+   static int GetNumScalars() const { return scalars.size(); }
+   static int GetNumVectors() const { return vectors.size(); }
+   static int GetVDim(int v) const { return vectors[v].Size(); }
+   static const Array<int> GetVectorVDims() const
+   {
+      Array<int> vectorVDims(GetNumVectors());
+      for (int i = 0; i < GetNumVectors(); i++)
+         vectorVDims[i] = GetVDim(i);
+      return vectorVDims;
+   }
 
    /// Create a new particle which owns its own data
-   Particle();
+   Particle(int spaceDim, int numScalars, const Array<int> &vectorVDims);
 
    /// Create a new particle whose data references external data
-   Particle(real_t *in_coords, real_t *in_scalars[], real_t *in_vectors[]);
+   Particle(int spaceDim, int numScalars, const Array<int> &vectorVDims, real_t *in_coords, real_t *in_scalars[], real_t *in_vectors[]);
 
    /// Copy ctor
    explicit Particle(const Particle &p) : Particle() { Copy(p); }
