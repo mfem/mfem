@@ -485,14 +485,16 @@ private:
    int own_integrators;
    mutable DenseMatrix elem_mat;
    Array<BilinearFormIntegrator*> integrators;
+   SumNLFIntegrator nlfi;
 
 public:
-   SumIntegrator(int own_integs = 1) { own_integrators = own_integs; }
+   SumIntegrator(int own_integs = 1) : nlfi(false)
+   { own_integrators = own_integs; }
 
    void SetIntRule(const IntegrationRule *ir) override;
 
    void AddIntegrator(BilinearFormIntegrator *integ)
-   { integrators.Append(integ); }
+   { integrators.Append(integ); nlfi.AddIntegrator(integ); }
 
    void AssembleElementMatrix(const FiniteElement &el,
                               ElementTransformation &Trans,
@@ -501,6 +503,12 @@ public:
                                const FiniteElement &test_fe,
                                ElementTransformation &Trans,
                                DenseMatrix &elmat) override;
+
+   void AssembleElementVector(const FiniteElement &el,
+                              ElementTransformation &Tr,
+                              const Vector &elfun,
+                              Vector &elvect) override
+   { nlfi.AssembleElementVector(el, Tr, elfun, elvect); }
 
    using BilinearFormIntegrator::AssembleFaceMatrix;
    void AssembleFaceMatrix(const FiniteElement &el1,
@@ -514,11 +522,32 @@ public:
                            FaceElementTransformations &Trans,
                            DenseMatrix &elmat) override;
 
+   void AssembleFaceVector(const FiniteElement &el1,
+                           const FiniteElement &el2,
+                           FaceElementTransformations &Tr,
+                           const Vector &elfun,
+                           Vector &elvect) override
+   { nlfi.AssembleFaceVector(el1, el2, Tr, elfun, elvect); }
+
    virtual void AssembleHDGFaceMatrix(const FiniteElement &trace_el,
                                       const FiniteElement &el1,
                                       const FiniteElement &el2,
                                       FaceElementTransformations &Trans,
                                       DenseMatrix &elmat);
+
+   void AssembleHDGFaceVector(int type,
+                              const FiniteElement &trace_face_fe,
+                              const FiniteElement &fe,
+                              FaceElementTransformations &Tr,
+                              const Vector &trfun,
+                              const Vector &elfun,
+                              Vector &elvect) override
+   { nlfi.AssembleHDGFaceVector(type, trace_face_fe, fe, Tr, trfun, elfun, elvect); }
+
+   real_t GetElementEnergy(const FiniteElement &el,
+                           ElementTransformation &Tr,
+                           const Vector &elfun) override
+   { return nlfi.GetElementEnergy(el, Tr, elfun); }
 
    using BilinearFormIntegrator::AssemblePA;
    void AssemblePA(const FiniteElementSpace& fes) override;
