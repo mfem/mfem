@@ -533,71 +533,71 @@ private:
 public:
    SumNLFIntegrator(int own_integs = 1) { own_integrators = own_integs; }
 
-   virtual void SetIntRule(const IntegrationRule *ir);
+   void SetIntRule(const IntegrationRule *ir) override;
 
    void AddIntegrator(NonlinearFormIntegrator *integ)
    { integrators.Append(integ); }
 
-   virtual void AssembleElementVector(const FiniteElement &el,
-                                      ElementTransformation &Tr,
-                                      const Vector &elfun,
-                                      Vector &elvect) override;
+   void AssembleElementVector(const FiniteElement &el,
+                              ElementTransformation &Tr,
+                              const Vector &elfun,
+                              Vector &elvect) override;
 
-   virtual void AssembleFaceVector(const FiniteElement &el1,
-                                   const FiniteElement &el2,
-                                   FaceElementTransformations &Tr,
-                                   const Vector &elfun,
-                                   Vector &elvect) override;
+   void AssembleFaceVector(const FiniteElement &el1,
+                           const FiniteElement &el2,
+                           FaceElementTransformations &Tr,
+                           const Vector &elfun,
+                           Vector &elvect) override;
 
-   virtual void AssembleHDGFaceVector(int type,
-                                      const FiniteElement &trace_face_fe,
-                                      const FiniteElement &fe,
-                                      FaceElementTransformations &Tr,
-                                      const Vector &trfun,
-                                      const Vector &elfun,
-                                      Vector &elvect) override;
+   void AssembleHDGFaceVector(int type,
+                              const FiniteElement &trace_face_fe,
+                              const FiniteElement &fe,
+                              FaceElementTransformations &Tr,
+                              const Vector &trfun,
+                              const Vector &elfun,
+                              Vector &elvect) override;
 
-   virtual void AssembleHDGFaceGrad(int type,
-                                    const FiniteElement &trace_face_fe,
-                                    const FiniteElement &fe,
-                                    FaceElementTransformations &Tr,
-                                    const Vector &trfun, const Vector &elfun,
-                                    DenseMatrix &elmat) override;
+   void AssembleHDGFaceGrad(int type,
+                            const FiniteElement &trace_face_fe,
+                            const FiniteElement &fe,
+                            FaceElementTransformations &Tr,
+                            const Vector &trfun, const Vector &elfun,
+                            DenseMatrix &elmat) override;
 
-   virtual void AssembleElementGrad(const FiniteElement &el,
-                                    ElementTransformation &Tr,
-                                    const Vector &elfun,
-                                    DenseMatrix &elmat) override;
+   void AssembleElementGrad(const FiniteElement &el,
+                            ElementTransformation &Tr,
+                            const Vector &elfun,
+                            DenseMatrix &elmat) override;
 
-   virtual void AssembleFaceGrad(const FiniteElement &el1,
-                                 const FiniteElement &el2,
-                                 FaceElementTransformations &Tr,
-                                 const Vector &elfun,
-                                 DenseMatrix &elmat) override;
+   void AssembleFaceGrad(const FiniteElement &el1,
+                         const FiniteElement &el2,
+                         FaceElementTransformations &Tr,
+                         const Vector &elfun,
+                         DenseMatrix &elmat) override;
 
-   virtual real_t GetElementEnergy(const FiniteElement &el,
-                                   ElementTransformation &Tr,
-                                   const Vector &elfun) override;
+   real_t GetElementEnergy(const FiniteElement &el,
+                           ElementTransformation &Tr,
+                           const Vector &elfun) override;
 
-   virtual void AssemblePA(const FiniteElementSpace &fes) override;
+   void AssemblePA(const FiniteElementSpace &fes) override;
 
-   virtual void AssemblePA(const FiniteElementSpace &trial_fes,
-                           const FiniteElementSpace &test_fes) override;
+   void AssemblePA(const FiniteElementSpace &trial_fes,
+                   const FiniteElementSpace &test_fes) override;
 
-   virtual void AssembleGradPA(const Vector &x,
-                               const FiniteElementSpace &fes) override;
+   void AssembleGradPA(const Vector &x,
+                       const FiniteElementSpace &fes) override;
 
-   virtual real_t GetLocalStateEnergyPA(const Vector &x) const override;
+   real_t GetLocalStateEnergyPA(const Vector &x) const override;
 
-   virtual void AddMultPA(const Vector &x, Vector &y) const override;
+   void AddMultPA(const Vector &x, Vector &y) const override;
 
-   virtual void AddMultGradPA(const Vector &x, Vector &y) const override;
+   void AddMultGradPA(const Vector &x, Vector &y) const override;
 
-   virtual void AssembleGradDiagonalPA(Vector &diag) const override;
+   void AssembleGradDiagonalPA(Vector &diag) const override;
 
-   virtual void AssembleMF(const FiniteElementSpace &fes) override;
+   void AssembleMF(const FiniteElementSpace &fes) override;
 
-   virtual void AddMultMF(const Vector &x, Vector &y) const override;
+   void AddMultMF(const Vector &x, Vector &y) const override;
 
    virtual ~SumNLFIntegrator();
 };
@@ -624,47 +624,47 @@ public:
    void AddIntegrator(BlockNonlinearFormIntegrator *integ)
    { integrators.Append(integ); }
 
-   virtual real_t GetElementEnergy(const Array<const FiniteElement *>&el,
-                                   ElementTransformation &Tr,
-                                   const Array<const Vector *>&elfun) override;
+   real_t GetElementEnergy(const Array<const FiniteElement *>&el,
+                           ElementTransformation &Tr,
+                           const Array<const Vector *>&elfun) override;
 
-   virtual void AssembleElementVector(const Array<const FiniteElement *> &el,
-                                      ElementTransformation &Tr,
-                                      const Array<const Vector *> &elfun,
-                                      const Array<Vector *> &elvec) override;
+   void AssembleElementVector(const Array<const FiniteElement *> &el,
+                              ElementTransformation &Tr,
+                              const Array<const Vector *> &elfun,
+                              const Array<Vector *> &elvec) override;
 
-   virtual void AssembleFaceVector(const Array<const FiniteElement *> &el1,
-                                   const Array<const FiniteElement *> &el2,
-                                   FaceElementTransformations &Tr,
-                                   const Array<const Vector *> &elfun,
-                                   const Array<Vector *> &elvect) override;
+   void AssembleFaceVector(const Array<const FiniteElement *> &el1,
+                           const Array<const FiniteElement *> &el2,
+                           FaceElementTransformations &Tr,
+                           const Array<const Vector *> &elfun,
+                           const Array<Vector *> &elvect) override;
 
-   virtual void AssembleElementGrad(const Array<const FiniteElement*> &el,
-                                    ElementTransformation &Tr,
-                                    const Array<const Vector *> &elfun,
-                                    const Array2D<DenseMatrix *> &elmats) override;
+   void AssembleElementGrad(const Array<const FiniteElement*> &el,
+                            ElementTransformation &Tr,
+                            const Array<const Vector *> &elfun,
+                            const Array2D<DenseMatrix *> &elmats) override;
 
-   virtual void AssembleFaceGrad(const Array<const FiniteElement *>&el1,
-                                 const Array<const FiniteElement *>&el2,
-                                 FaceElementTransformations &Tr,
-                                 const Array<const Vector *> &elfun,
-                                 const Array2D<DenseMatrix *> &elmats) override;
+   void AssembleFaceGrad(const Array<const FiniteElement *>&el1,
+                         const Array<const FiniteElement *>&el2,
+                         FaceElementTransformations &Tr,
+                         const Array<const Vector *> &elfun,
+                         const Array2D<DenseMatrix *> &elmats) override;
 
-   virtual void AssembleHDGFaceVector(int type,
-                                      const FiniteElement &trace_face_fe,
-                                      const Array<const FiniteElement *>&el,
-                                      FaceElementTransformations &Tr,
-                                      const Vector &trfun,
-                                      const Array<const Vector *> &elfun,
-                                      const Array<Vector *> &elvect) override;
+   void AssembleHDGFaceVector(int type,
+                              const FiniteElement &trace_face_fe,
+                              const Array<const FiniteElement *>&el,
+                              FaceElementTransformations &Tr,
+                              const Vector &trfun,
+                              const Array<const Vector *> &elfun,
+                              const Array<Vector *> &elvect) override;
 
-   virtual void AssembleHDGFaceGrad(int type,
-                                    const FiniteElement &trace_face_fe,
-                                    const Array<const FiniteElement *>&el,
-                                    FaceElementTransformations &Tr,
-                                    const Vector &trfun,
-                                    const Array<const Vector *> &elfun,
-                                    const Array2D<DenseMatrix *> &elmats) override;
+   void AssembleHDGFaceGrad(int type,
+                            const FiniteElement &trace_face_fe,
+                            const Array<const FiniteElement *>&el,
+                            FaceElementTransformations &Tr,
+                            const Vector &trfun,
+                            const Array<const Vector *> &elfun,
+                            const Array2D<DenseMatrix *> &elmats) override;
 
    virtual ~SumBlockNLFIntegrator();
 };
