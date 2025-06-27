@@ -35,7 +35,7 @@ NCNURBSExtension::NCNURBSExtension(std::istream &input, bool spacing)
 {
    // Read topology
    patchTopo = new Mesh;
-   patchTopo->LoadNonconformingPatchTopo(input, edge_to_knot);
+   patchTopo->LoadNonconformingPatchTopo(input, edge_to_ukv);
    nonconforming = true;
 
    Load(input, spacing);

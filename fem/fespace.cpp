@@ -331,7 +331,6 @@ void FiniteElementSpace::GetElementVDofs(int i, Array<int> &vdofs,
 DofTransformation *
 FiniteElementSpace::GetElementVDofs(int i, Array<int> &vdofs) const
 {
-   DoFTrans.SetDofTransformation(NULL);
    GetElementVDofs(i, vdofs, DoFTrans);
    return DoFTrans.GetDofTransformation() ? &DoFTrans : NULL;
 }
@@ -347,7 +346,6 @@ void FiniteElementSpace::GetBdrElementVDofs(int i, Array<int> &vdofs,
 DofTransformation *
 FiniteElementSpace::GetBdrElementVDofs(int i, Array<int> &vdofs) const
 {
-   DoFTrans.SetDofTransformation(NULL);
    GetBdrElementVDofs(i, vdofs, DoFTrans);
    return DoFTrans.GetDofTransformation() ? &DoFTrans : NULL;
 }
@@ -3409,6 +3407,8 @@ void FiniteElementSpace::GetElementDofs(int elem, Array<int> &dofs,
 {
    MFEM_VERIFY(!orders_changed, msg_orders_changed);
 
+   doftrans.SetDofTransformation(nullptr);
+
    if (elem_dof)
    {
       elem_dof->GetRow(elem, dofs);
@@ -3515,7 +3515,6 @@ void FiniteElementSpace::GetElementDofs(int elem, Array<int> &dofs,
 DofTransformation *FiniteElementSpace::GetElementDofs(int elem,
                                                       Array<int> &dofs) const
 {
-   DoFTrans.SetDofTransformation(NULL);
    GetElementDofs(elem, dofs, DoFTrans);
    return DoFTrans.GetDofTransformation() ? &DoFTrans : NULL;
 }
@@ -3524,6 +3523,8 @@ void FiniteElementSpace::GetBdrElementDofs(int bel, Array<int> &dofs,
                                            DofTransformation &doftrans) const
 {
    MFEM_VERIFY(!orders_changed, msg_orders_changed);
+
+   doftrans.SetDofTransformation(nullptr);
 
    if (bdr_elem_dof)
    {
@@ -3619,7 +3620,6 @@ void FiniteElementSpace::GetBdrElementDofs(int bel, Array<int> &dofs,
 DofTransformation *FiniteElementSpace::GetBdrElementDofs(int bel,
                                                          Array<int> &dofs) const
 {
-   DoFTrans.SetDofTransformation(NULL);
    GetBdrElementDofs(bel, dofs, DoFTrans);
    return DoFTrans.GetDofTransformation() ? &DoFTrans : NULL;
 }
@@ -4278,9 +4278,6 @@ void FiniteElementSpace::Update(bool want_transform)
 void FiniteElementSpace::PRefineAndUpdate(const Array<pRefinement> & refs,
                                           bool want_transfer)
 {
-   MFEM_VERIFY(PRefinementSupported(),
-               "p-refinement is not supported in this space");
-
    if (want_transfer)
    {
       fesPrev.reset(new FiniteElementSpace(mesh, fec, vdim, ordering));
