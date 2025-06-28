@@ -190,7 +190,7 @@ TEST_CASE("InverseElementTransformation",
 }
 
 TEST_CASE("BatchInverseElementTransformation",
-          "[InverseElementTransformation], [CUDA]")
+          "[InverseElementTransformation], [GPU]")
 {
    const real_t tol = 4e-13;
 
@@ -268,13 +268,14 @@ TEST_CASE("BatchInverseElementTransformation",
       real_t max_err = 0;
       for (int i = 0; i < npts; ++i)
       {
-         if (res_type[i] == InverseElementTransformation::Inside)
+         if (AsConst(res_type)[i] == InverseElementTransformation::Inside)
          {
             ++pts_found;
             for (int d = 0; d < dim; ++d)
             {
-               max_err = fmax(max_err, fabs(res_ref_space[i + d * npts] -
-                                            orig_ref_space[i + d * npts]));
+               max_err = fmax(max_err,
+                              fabs(AsConst(res_ref_space)[i + d * npts] -
+                                   orig_ref_space[i + d * npts]));
             }
          }
       }
@@ -369,13 +370,14 @@ TEST_CASE("BatchInverseElementTransformation",
       real_t max_err = 0;
       for (int i = 0; i < npts; ++i)
       {
-         if (res_type[i] == InverseElementTransformation::Inside)
+         if (AsConst(res_type)[i] == InverseElementTransformation::Inside)
          {
             ++pts_found;
             for (int d = 0; d < dim; ++d)
             {
-               max_err = fmax(max_err, fabs(res_ref_space[i + d * npts] -
-                                            orig_ref_space[i + d * npts]));
+               max_err = fmax(max_err,
+                              fabs(AsConst(res_ref_space)[i + d * npts] -
+                                   orig_ref_space[i + d * npts]));
             }
          }
       }
@@ -471,13 +473,14 @@ TEST_CASE("BatchInverseElementTransformation",
       real_t max_err = 0;
       for (int i = 0; i < npts; ++i)
       {
-         if (res_type[i] == InverseElementTransformation::Inside)
+         if (AsConst(res_type)[i] == InverseElementTransformation::Inside)
          {
             ++pts_found;
             for (int d = 0; d < dim; ++d)
             {
-               max_err = fmax(max_err, fabs(res_ref_space[i + d * npts] -
-                                            orig_ref_space[i + d * npts]));
+               max_err = fmax(max_err,
+                              fabs(AsConst(res_ref_space)[i + d * npts] -
+                                   orig_ref_space[i + d * npts]));
             }
          }
       }
@@ -575,13 +578,14 @@ TEST_CASE("BatchInverseElementTransformation",
       real_t max_err = 0;
       for (int i = 0; i < npts; ++i)
       {
-         if (res_type[i] == InverseElementTransformation::Inside)
+         if (AsConst(res_type)[i] == InverseElementTransformation::Inside)
          {
             ++pts_found;
             for (int d = 0; d < dim; ++d)
             {
-               max_err = fmax(max_err, fabs(res_ref_space[i + d * npts] -
-                                            orig_ref_space[i + d * npts]));
+               max_err = fmax(max_err,
+                              fabs(AsConst(res_ref_space)[i + d * npts] -
+                                   orig_ref_space[i + d * npts]));
             }
          }
       }
@@ -675,13 +679,14 @@ TEST_CASE("BatchInverseElementTransformation",
       real_t max_err = 0;
       for (int i = 0; i < npts; ++i)
       {
-         if (res_type[i] == InverseElementTransformation::Inside)
+         if (AsConst(res_type)[i] == InverseElementTransformation::Inside)
          {
             ++pts_found;
             for (int d = 0; d < dim; ++d)
             {
-               max_err = fmax(max_err, fabs(res_ref_space[i + d * npts] -
-                                            orig_ref_space[i + d * npts]));
+               max_err = fmax(max_err,
+                              fabs(AsConst(res_ref_space)[i + d * npts] -
+                                   orig_ref_space[i + d * npts]));
             }
          }
       }
@@ -758,12 +763,13 @@ TEST_CASE("BatchInverseElementTransformation",
       real_t max_err = 0;
       for (int i = 0; i < npts; ++i)
       {
-         if (res_type[i] == InverseElementTransformation::Inside)
+         if (AsConst(res_type)[i] == InverseElementTransformation::Inside)
          {
             ++pts_found;
             for (int d = 0; d < dim; ++d)
             {
-               max_err = fmax(max_err, fabs(res_ref_space[i + d * npts]));
+               max_err = fmax(max_err,
+                              fabs(AsConst(res_ref_space)[i + d * npts]));
             }
          }
       }
@@ -846,12 +852,13 @@ TEST_CASE("BatchInverseElementTransformation",
       real_t max_err = 0;
       for (int i = 0; i < npts; ++i)
       {
-         if (res_type[i] == InverseElementTransformation::Inside)
+         if (AsConst(res_type)[i] == InverseElementTransformation::Inside)
          {
             ++pts_found;
             for (int d = 0; d < dim; ++d)
             {
-               max_err = fmax(max_err, fabs(res_ref_space[i + d * npts]));
+               max_err = fmax(max_err,
+                              fabs(AsConst(res_ref_space)[i + d * npts]));
             }
          }
       }
@@ -925,12 +932,13 @@ TEST_CASE("BatchInverseElementTransformation",
       real_t max_err = 0;
       for (int i = 0; i < npts; ++i)
       {
-         if (res_type[i] == InverseElementTransformation::Inside)
+         if (AsConst(res_type)[i] == InverseElementTransformation::Inside)
          {
             ++pts_found;
             for (int d = 0; d < dim; ++d)
             {
-               max_err = fmax(max_err, fabs(res_ref_space[i + d * npts]));
+               max_err = fmax(max_err,
+                              fabs(AsConst(res_ref_space)[i + d * npts]));
             }
          }
       }
@@ -1010,12 +1018,13 @@ TEST_CASE("BatchInverseElementTransformation",
       real_t max_err = 0;
       for (int i = 0; i < npts; ++i)
       {
-         if (res_type[i] == InverseElementTransformation::Inside)
+         if (AsConst(res_type)[i] == InverseElementTransformation::Inside)
          {
             ++pts_found;
             for (int d = 0; d < dim; ++d)
             {
-               max_err = fmax(max_err, fabs(res_ref_space[i + d * npts]));
+               max_err = fmax(max_err,
+                              fabs(AsConst(res_ref_space)[i + d * npts]));
             }
          }
       }

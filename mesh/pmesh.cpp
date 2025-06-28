@@ -3132,11 +3132,12 @@ void ParMesh::GetFaceNbrElementTransformation(
          pNodes->ParFESpace()->GetFaceNbrElementVDofs(FaceNo, vdofs);
          int n = vdofs.Size()/spaceDim;
          pointmat.SetSize(spaceDim, n);
+         pNodes->FaceNbrData().HostRead();
          for (int k = 0; k < spaceDim; k++)
          {
             for (int j = 0; j < n; j++)
             {
-               pointmat(k,j) = (pNodes->FaceNbrData())(vdofs[n*k+j]);
+               pointmat(k,j) = AsConst(pNodes->FaceNbrData())(vdofs[n*k+j]);
             }
          }
 
