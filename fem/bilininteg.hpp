@@ -3446,11 +3446,18 @@ public:
    HDGConvectionCenteredIntegrator(VectorCoefficient &u_, real_t a = 1.)
       : DGTraceIntegrator(u_, a, 0.) { }
 
-   virtual void AssembleHDGFaceMatrix(const FiniteElement &trace_el,
-                                      const FiniteElement &el1,
-                                      const FiniteElement &el2,
-                                      FaceElementTransformations &Trans,
-                                      DenseMatrix &elmat);
+   void AssembleHDGFaceMatrix(const FiniteElement &trace_el,
+                              const FiniteElement &el1,
+                              const FiniteElement &el2,
+                              FaceElementTransformations &Trans,
+                              DenseMatrix &elmat) override;
+
+   void AssembleHDGFaceVector(int type,
+                              const FiniteElement &trace_face_fe,
+                              const FiniteElement &fe,
+                              FaceElementTransformations &Tr,
+                              const Vector &trfun, const Vector &elfun,
+                              Vector &elvect) override;
 };
 
 /** Integrator for the DG form:
@@ -3483,11 +3490,18 @@ public:
    HDGConvectionUpwindedIntegrator(VectorCoefficient &u_, real_t a, real_t b)
       : DGTraceIntegrator(u_, a, b) { }
 
-   virtual void AssembleHDGFaceMatrix(const FiniteElement &trace_el,
-                                      const FiniteElement &el1,
-                                      const FiniteElement &el2,
-                                      FaceElementTransformations &Trans,
-                                      DenseMatrix &elmat);
+   void AssembleHDGFaceMatrix(const FiniteElement &trace_el,
+                              const FiniteElement &el1,
+                              const FiniteElement &el2,
+                              FaceElementTransformations &Trans,
+                              DenseMatrix &elmat) override;
+
+   void AssembleHDGFaceVector(int type,
+                              const FiniteElement &trace_face_fe,
+                              const FiniteElement &fe,
+                              FaceElementTransformations &Tr,
+                              const Vector &trfun, const Vector &elfun,
+                              Vector &elvect) override;
 };
 
 /** Integrator for the DG form:
@@ -3685,16 +3699,23 @@ public:
       : v(&v_), Q(NULL), MQ(&q), alpha(a), beta(0.5*a) { }
 
    using BilinearFormIntegrator::AssembleFaceMatrix;
-   virtual void AssembleFaceMatrix(const FiniteElement &el1,
-                                   const FiniteElement &el2,
-                                   FaceElementTransformations &Trans,
-                                   DenseMatrix &elmat);
+   void AssembleFaceMatrix(const FiniteElement &el1,
+                           const FiniteElement &el2,
+                           FaceElementTransformations &Trans,
+                           DenseMatrix &elmat) override;
 
-   virtual void AssembleHDGFaceMatrix(const FiniteElement &trace_el,
-                                      const FiniteElement &el1,
-                                      const FiniteElement &el2,
-                                      FaceElementTransformations &Trans,
-                                      DenseMatrix &elmat);
+   void AssembleHDGFaceMatrix(const FiniteElement &trace_el,
+                              const FiniteElement &el1,
+                              const FiniteElement &el2,
+                              FaceElementTransformations &Trans,
+                              DenseMatrix &elmat) override;
+
+   void AssembleHDGFaceVector(int type,
+                              const FiniteElement &trace_face_fe,
+                              const FiniteElement &fe,
+                              FaceElementTransformations &Tr,
+                              const Vector &trfun, const Vector &elfun,
+                              Vector &elvect) override;
 };
 
 /** Integrator for the "BR2" diffusion stabilization term
