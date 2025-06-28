@@ -126,6 +126,7 @@ int main(int argc, char *argv[])
    int solver_type = (int)DarcyOperator::SolverType::Default;
    bool pa = false;
    const char *device_config = "cpu";
+   bool total_flux = false;
    bool mfem = false;
    bool visit = false;
    bool paraview = false;
@@ -197,6 +198,9 @@ int main(int argc, char *argv[])
                   "--no-partial-assembly", "Enable Partial Assembly.");
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
+   args.AddOption(&total_flux, "-tq", "--total-flux", "-no-tq",
+                  "--no-total-flux",
+                  "Enable or disable total flux reconstruction.");
    args.AddOption(&mfem, "-mfem", "--mfem", "-no-mfem",
                   "--no-mfem",
                   "Enable or disable MFEM output.");
@@ -656,9 +660,8 @@ int main(int argc, char *argv[])
       V_space->GetEssentialTrueDofs(bdr_is_neumann, ess_flux_tdofs_list);
    }
 
-   FiniteElementCollection *trace_coll = NULL;
-   ParFiniteElementSpace *trace_space = NULL;
-
+   FiniteElementCollection *trace_coll{}, *total_flux_coll{};
+   ParFiniteElementSpace *trace_space{}, *total_flux_space{};
 
    if (hybridization)
    {
@@ -667,6 +670,11 @@ int main(int argc, char *argv[])
 
       trace_coll = new DG_Interface_FECollection(order, dim);
       trace_space = new ParFiniteElementSpace(pmesh, trace_coll);
+      if (total_flux)
+      {
+         total_flux_coll = new RT_FECollection(order, dim);
+         total_flux_space = new ParFiniteElementSpace(pmesh, total_flux_coll);
+      }
       darcy->EnableHybridization(trace_space,
                                  new NormalTraceJumpIntegrator(),
                                  ess_flux_tdofs_list);
@@ -739,7 +747,7 @@ int main(int argc, char *argv[])
    BlockVector x(block_offsets, mt), rhs(block_offsets, mt);
 
    x = 0.;
-   ParGridFunction q_h, t_h;
+   ParGridFunction q_h, t_h, qt_h;
    q_h.MakeRef(V_space, x.GetBlock(0), 0);
    t_h.MakeRef(W_space, x.GetBlock(1), 0);
 
@@ -923,6 +931,30 @@ int main(int argc, char *argv[])
          }
       }
 
+      if (total_flux_space)
+      {
+         qt_h.SetSpace(total_flux_space);
+         auto fx = [&ccoeff,bconv](ElementTransformation &Tr, const Vector &q, real_t p,
+                                   Vector &qt)
+         {
+            qt = q;
+            if (bconv)
+            {
+               Vector cp(q.Size());
+               ccoeff.Eval(cp, Tr, Tr.GetIntPoint());
+               cp *= p;
+               qt += cp;
+            }
+         };
+         darcy->GetHybridization()->ReconstructTotalFlux(x, x.GetBlock(2), fx, qt_h);
+         real_t err_qt = qt_h.ComputeL2Error(qtcoeff, irs);
+         real_t norm_qt = ComputeGlobalLpNorm(2., qtcoeff, *pmesh, irs);
+         if (verbose)
+         {
+            cout << "|| qt_h - qt_ex || / || qt_ex || = " << err_qt / norm_qt << "\n";
+         }
+      }
+
       // Project the analytic solution
 
       static ParGridFunction q_a, qt_a, t_a, c_gf;
@@ -1032,6 +1064,21 @@ int main(int argc, char *argv[])
             q_sock << "window_title 'Heat flux'" << endl;
             q_sock << "keys Rljvvvvvmmc" << endl;
          }
+         if (total_flux_space)
+         {
+            // Make sure all ranks have sent their 'q' solution before initiating
+            // another set of GLVis connections (one from each rank):
+            MPI_Barrier(pmesh->GetComm());
+            static socketstream qt_sock(vishost, visport);
+            qt_sock << "parallel " << num_procs << " " << myid << "\n";
+            qt_sock.precision(8);
+            qt_sock << "solution\n" << *pmesh << qt_h << endl;
+            if (ti == 0)
+            {
+               qt_sock << "window_title 'Total flux'" << endl;
+               qt_sock << "keys Rljvvvvvmmc" << endl;
+            }
+         }
          // Make sure all ranks have sent their 'q' solution before initiating
          // another set of GLVis connections (one from each rank):
          MPI_Barrier(pmesh->GetComm());
@@ -1117,9 +1164,11 @@ int main(int argc, char *argv[])
    delete W_space;
    delete V_space;
    delete trace_space;
+   delete total_flux_space;
    delete W_coll;
    delete V_coll;
    delete trace_coll;
+   delete total_flux_coll;
    delete pmesh;
 
    return 0;

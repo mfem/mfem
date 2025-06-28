@@ -2743,6 +2743,291 @@ void DarcyHybridization::ComputeSolution(const BlockVector &b_t,
    }
 }
 
+void DarcyHybridization::ReconstructTotalFlux(
+   const BlockVector &sol, const Vector &x, total_flux_fun ut_fx,
+   GridFunction &ut) const
+{
+   const Vector &u = sol.GetBlock(0);
+   const Vector &p = sol.GetBlock(1);
+
+   const FiniteElementSpace &fes_ut = *ut.FESpace();
+
+   MFEM_ASSERT(fes.GetMesh() == fes_ut.GetMesh(),
+               "Different meshes are not supported!");
+
+   Mesh *mesh = fes_ut.GetMesh();
+#ifdef MFEM_USE_MPI
+   ParMesh *pmesh = (c_pfes)?(c_pfes->GetParMesh()):(NULL);
+   const int NE = mesh->GetNE();
+   ParGridFunction pu, pp;
+   if (pfes && pfes_p && pmesh)
+   {
+      pu.MakeRef(const_cast<ParFiniteElementSpace*>(pfes), const_cast<Vector&>(u), 0);
+      pu.ExchangeFaceNbrData();
+      pp.MakeRef(const_cast<ParFiniteElementSpace*>(pfes_p), const_cast<Vector&>(p),
+                 0);
+      pp.ExchangeFaceNbrData();
+   }
+   else if (pfes || pfes_p || pmesh)
+   {
+      MFEM_ABORT("All, flux, potential and constraint parallel spaces are needed");
+   }
+#endif
+
+   //element faces
+
+   const int nfaces = mesh->GetNumFaces();
+   Array<int> vdofs_ut, vdofs_xf, vdofs1, vdofs2, dofs1, dofs2;
+   DenseMatrix Ct, Ct1, Ct2, Mf;
+   Vector u1, u2, p1, p2, xf, bf, bf1, bf2, ut_f;
+   MassIntegrator fbfi;
+   DenseMatrixInverse Mfi;
+
+   for (int f = 0; f < nfaces; f++)
+   {
+      fes_ut.GetFaceVDofs(f, vdofs_ut);
+      MFEM_ASSERT(vdofs_ut.Size() == c_fes.GetFaceElement(f)->GetDof() *
+                  c_fes.GetVDim(), "Incompatible constraint and total flux spaces");
+      bf.SetSize(vdofs_ut.Size());
+      ut_f.SetSize(vdofs_ut.Size());
+
+      FaceElementTransformations *ftr = mesh->GetFaceElementTransformations(f);
+      const FiniteElement *fe_c = c_fes.GetFaceElement(f);
+
+#ifdef MFEM_USE_MPI
+      if (pmesh && pmesh->FaceIsTrueInterior(f) && ftr->Elem2No < 0)
+      {
+         // we do not store face neighbor constraint matrices so we must
+         // integrate here over the face
+         const FiniteElement *fe1 = fes.GetFE(ftr->Elem1No);
+         const int nbr_el = -1 - ftr->Elem2No;
+         const FiniteElement *fe2 = pfes->GetFaceNbrFE(nbr_el);
+         ftr = pmesh->GetSharedFaceTransformationsByLocalIndex(f);
+         c_bfi->AssembleFaceMatrix(*fe_c, *fe1, *fe2, *ftr, Ct);
+
+         //side 1
+         fes.GetElementVDofs(ftr->Elem1No, vdofs1);
+         u.GetSubVector(vdofs1, u1);
+         Ct1.CopyMN(Ct, vdofs1.Size(), vdofs_ut.Size(), 0, 0);
+         Ct1.MultTranspose(u1, bf);
+
+         //side 2
+         pfes->GetFaceNbrElementVDofs(nbr_el, vdofs2);
+         pu.FaceNbrData().GetSubVector(vdofs2, u2);
+         Ct2.CopyMN(Ct, vdofs2.Size(), vdofs_ut.Size(), vdofs1.Size(), 0);
+         // here we use the constraint integrator as well, but flip the sign
+         // corresponding to the opposite normal for the total flux
+         Ct2.AddMultTranspose(u2, bf, -1.);
+      }
+      else
+#endif
+      {
+         //flux constraint
+
+         //side 1
+         if (ftr->Elem2No >= 0)
+         {
+            GetCtFaceMatrix(f, 0, Ct1);
+         }
+         else
+         {
+            // we do not rely on the boundary constraint integrators, which
+            // might or might not be present, and apply the constraint
+            // integrator at the boundaries as well
+            const FiniteElement *fe1 = fes.GetFE(ftr->Elem1No);
+            c_bfi->AssembleFaceMatrix(*fe_c, *fe1, *fe1, *ftr, Ct1);
+         }
+
+         fes.GetElementVDofs(ftr->Elem1No, vdofs1);
+         u.GetSubVector(vdofs1, u1);
+         Ct1.MultTranspose(u1, bf);
+
+         //side 2
+         if (ftr->Elem2No >= 0)
+         {
+            fes.GetElementVDofs(ftr->Elem2No, vdofs2);
+            u.GetSubVector(vdofs2, u2);
+            GetCtFaceMatrix(f, 1, Ct2);
+            // here we use the constraint integrator as well, but flip the sign
+            // corresponding to the opposite normal for the total flux
+            Ct2.AddMultTranspose(u2, bf, -1.);
+         }
+      }
+
+      //potential constraint
+
+      if (c_bfi_p)
+      {
+         fes_p.GetElementDofs(ftr->Elem1No, dofs1);
+         p.GetSubVector(dofs1, p1);
+         c_fes.GetFaceVDofs(f, vdofs_xf);
+         x.GetSubVector(vdofs_xf, xf);
+
+         const FiniteElement *fe1_p = fes_p.GetFE(ftr->Elem1No);
+         const FiniteElement *face_fe = c_fes.GetFaceElement(f);
+
+         int type = NonlinearFormIntegrator::HDGFaceType::CONSTR
+                    | NonlinearFormIntegrator::HDGFaceType::FACE;
+
+         c_bfi_p->AssembleHDGFaceVector(type, *face_fe, *fe1_p, *ftr, xf, p1, bf1);
+         bf += bf1;
+
+         if (ftr->Elem2No >= 0)
+         {
+            const FiniteElement *fe2_p;
+#ifdef MFEM_USE_MPI
+            if (ftr->Elem2No >= NE)
+            {
+               const int nbr_el = ftr->Elem2No - NE;
+               pfes_p->GetFaceNbrElementVDofs(nbr_el, dofs2);
+               pp.FaceNbrData().GetSubVector(dofs2, p2);
+               fe2_p = pfes_p->GetFaceNbrFE(nbr_el);
+            }
+            else
+#endif
+            {
+               fes_p.GetElementDofs(ftr->Elem2No, dofs2);
+               p.GetSubVector(dofs2, p2);
+               fe2_p = fes_p.GetFE(ftr->Elem2No);
+            }
+
+            type |= 1;
+            c_bfi_p->AssembleHDGFaceVector(type, *face_fe, *fe2_p, *ftr, xf, p2, bf2);
+            bf -= bf2;
+         }
+      }
+
+      //face
+      fbfi.AssembleElementMatrix2(*fes_ut.GetFaceElement(f), *fe_c,
+                                  *ftr, Mf);
+
+      Mfi.Factor(Mf);
+      Mfi.Mult(bf, ut_f);
+      if (ftr->Elem2No >= 0)
+      {
+         // the face term should be double integrated to account for both sides
+         // so divide the values by two after inversion
+         ut_f *= .5;
+      }
+
+      ut.SetSubVector(vdofs_ut, ut_f);
+   }
+
+   if (fes_ut.FEColl()->GetOrder() <= 1) { return; }
+
+   //element interior
+
+   const int dim = mesh->Dimension();
+   VectorFEMassIntegrator Mut;
+   Array<int> vdofs, dofs, vdofs_ut_b, vdofs_ut_i;
+   DenseMatrix Mut_z, Mut_zi;
+   DenseMatrix vshape_u, vshape_ut;
+   Vector shape_u, shape_ut, shape_p, u_q(dim), ut_q(dim);
+   Vector u_z, p_z, b_z, b_zi, ut_zb, ut_zi;
+   DenseMatrixInverse Muti_zi;
+
+   for (int z = 0; z < fes.GetNE(); z++)
+   {
+      const FiniteElement *fe_ut = fes_ut.GetFE(z);
+      const FiniteElement *fe_u = fes.GetFE(z);
+      const FiniteElement *fe_p = fes_p.GetFE(z);
+
+      ElementTransformation *Tr = mesh->GetElementTransformation(z);
+
+      fes.GetElementVDofs(z, vdofs);
+      u.GetSubVector(vdofs, u_z);
+
+      fes_p.GetElementDofs(z, dofs);
+      p.GetSubVector(dofs, p_z);
+
+      fes_ut.GetElementVDofs(z, vdofs_ut);
+      const int nvdofs = vdofs_ut.Size();
+
+      //integrate rhs
+
+      if (fe_u->GetRangeType() == FiniteElement::VECTOR)
+      {
+         vshape_u.SetSize(vdofs.Size(), dim);
+      }
+      else
+      {
+         shape_u.SetSize(fe_u->GetDof());
+      }
+      shape_p.SetSize(dofs.Size());
+      vshape_ut.SetSize(nvdofs, dim);
+      shape_ut.SetSize(nvdofs);
+
+      b_z.SetSize(nvdofs);
+      b_z = 0.;
+
+      const int order = Tr->OrderW()
+                        + std::max(fe_u->GetOrder(), fe_p->GetOrder())
+                        + fe_ut->GetOrder();
+      const IntegrationRule *ir = &IntRules.Get(fe_ut->GetGeomType(), order);
+
+      for (int i = 0; i < ir->GetNPoints(); i++)
+      {
+         const IntegrationPoint &ip = ir->IntPoint(i);
+
+         Tr->SetIntPoint(&ip);
+
+         if (fe_u->GetRangeType() == FiniteElement::VECTOR)
+         {
+            fe_u->CalcVShape(*Tr, vshape_u);
+            vshape_u.MultTranspose(u_z, u_q);
+         }
+         else
+         {
+            fe_u->CalcPhysShape(*Tr, shape_u);
+            DenseMatrix u_zm(u_z.GetData(), shape_u.Size(), dim);
+            u_zm.MultTranspose(shape_u, u_q);
+         }
+
+         fe_p->CalcShape(ip, shape_p);
+         const real_t p_q = p_z * shape_p;
+
+         ut_fx(*Tr, u_q, p_q, ut_q);
+
+         fe_ut->CalcVShape(*Tr, vshape_ut);
+         vshape_ut.Mult(ut_q, shape_ut);
+
+         const real_t w = ip.weight * Tr->Weight();
+         b_z.Add(w, shape_ut);
+      }
+
+      //assemble mass matrix
+
+      Mut.AssembleElementMatrix(*fe_ut, *Tr, Mut_z);
+
+      //eliminate boundary rows
+
+      const int nidofs = fes_ut.GetNumElementInteriorDofs(z);
+      const int nbdofs = nvdofs - nidofs;
+      vdofs_ut_b.MakeRef(vdofs_ut.GetData(), nbdofs);
+      ut.GetSubVector(vdofs_ut_b, ut_zb);
+
+      for (int j = 0; j < nbdofs; j++)
+      {
+         for (int i = 0; i < nidofs; i++)
+         {
+            b_z(i+nbdofs) -= Mut_z(i+nbdofs,j) * ut_zb(j);
+         }
+      }
+
+      Mut_zi.CopyMN(Mut_z, nidofs, nidofs, nbdofs, nbdofs);
+
+      //solve for the interior dofs
+
+      Muti_zi.Factor(Mut_zi);
+      ut_zi.SetSize(Mut_zi.Width());
+      b_zi.MakeRef(b_z, nbdofs, nidofs);
+      Muti_zi.Mult(b_zi, ut_zi);
+
+      vdofs_ut_i.MakeRef(vdofs_ut.GetData()+nbdofs, nidofs);
+      ut.SetSubVector(vdofs_ut_i, ut_zi);
+   }
+}
+
 void DarcyHybridization::Reset()
 {
    Hybridization::Reset();

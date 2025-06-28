@@ -15,6 +15,10 @@
 #include "../../config/config.hpp"
 #include "../bilinearform.hpp"
 #include "../nonlinearform.hpp"
+#ifdef MFEM_USE_MPI
+#include "../pbilinearform.hpp"
+#include "../pnonlinearform.hpp"
+#endif //MFEM_USE_MPI
 
 #define MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
 #define MFEM_DARCY_HYBRIDIZATION_GRAD_MAT
@@ -521,6 +525,18 @@ public:
        It is assumed that the vector sol has the right essential b.c. */
    void ComputeSolution(const BlockVector &b, const Vector &sol_r,
                         BlockVector &sol) const;
+
+   using total_flux_fun =
+      std::function<void(ElementTransformation &, const Vector &, real_t, Vector &)>;
+
+   /// Reconstruct the total flux from the provided solution.
+   /** The total flux function is continuous and its finite element space is
+       assumed to have equal number of DOFs at faces as the trace variable.
+       For the interiors of elements, the quadrature function must be provided
+       to calculate the total flux from the provided flux and potential values.
+   */
+   void ReconstructTotalFlux(const BlockVector &sol, const Vector &sol_r,
+                             total_flux_fun ut_fx, GridFunction &ut) const;
 
    void Reset() override;
 };
