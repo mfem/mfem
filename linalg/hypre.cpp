@@ -2570,12 +2570,22 @@ void HypreParMatrix::EliminateBC(const Array<int> &ess_dofs,
          int k = send_map_elmts[i];
          int_buf_data[i] = eliminate_row[k];
       });
-      // ensure int_buf_data has been computed before sending it
-      MFEM_DEVICE_SYNC;
 
 #if defined(HYPRE_USING_GPU)
       if (HypreUsingGPU())
       {
+#if defined(HYPRE_WITH_GPU_AWARE_MPI) || defined(HYPRE_USING_GPU_AWARE_MPI)
+         // hypre_GetGpuAwareMPI() was introduced in v2.31.0, however, its value
+         // is not checked in hypre_ParCSRCommHandleCreate_v2() before v2.33.0,
+         // instead only HYPRE_WITH_GPU_AWARE_MPI is checked.
+#if MFEM_HYPRE_VERSION >= 23300
+         if (hypre_GetGpuAwareMPI())
+#endif
+         {
+            // ensure int_buf_data has been computed before sending it
+            MFEM_STREAM_SYNC;
+         }
+#endif
          // Try to use device-aware MPI for the communication if available
          comm_handle = hypre_ParCSRCommHandleCreate_v2(
                           11, comm_pkg, HYPRE_MEMORY_DEVICE, int_buf_data,
@@ -2662,9 +2672,6 @@ void HypreParMatrix::EliminateBC(const Array<int> &ess_dofs,
          }
       });
    }
-   // ensure off-diagonal column elimination completes before freeing
-   // eliminate_col
-   MFEM_DEVICE_SYNC;
 
    mfem_hypre_TFree(eliminate_col);
 }
