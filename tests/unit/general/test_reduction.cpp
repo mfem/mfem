@@ -38,7 +38,7 @@ TEST_CASE("Reduce Sum", "[Reduction],[GPU]")
       a.Size(), res, [=] MFEM_HOST_DEVICE(int i, int &r) { r += dptr[i]; },
       SumReducer<int> {}, use_dev, workspace);
       // correct for even-length summations
-      int expected = (a[0] + a[a.Size() - 1]) * a.Size() / 2;
+      int expected = (AsConst(a)[0] + AsConst(a)[a.Size() - 1]) * a.Size() / 2;
       CAPTURE(use_dev);
       REQUIRE(res == expected);
    }
@@ -342,7 +342,7 @@ TEST_CASE("Reduce ArgMax", "[Reduction],[GPU]")
       REQUIRE(res.first == a.Size() - 11);
       REQUIRE(res.second >= 0);
       REQUIRE(res.second < a.Size());
-      REQUIRE(a[res.second] == res.first);
+      REQUIRE(AsConst(a)[res.second] == res.first);
    }
 }
 
@@ -388,11 +388,11 @@ TEST_CASE("Reduce ArgMinMax", "[Reduction],[GPU]")
       REQUIRE(res.min_val == -10);
       REQUIRE(res.min_loc >= 0);
       REQUIRE(res.min_loc < a.Size());
-      REQUIRE(a[res.min_loc] == res.min_val);
+      REQUIRE(AsConst(a)[res.min_loc] == res.min_val);
 
       REQUIRE(res.max_val == a.Size() - 11);
       REQUIRE(res.max_loc >= 0);
       REQUIRE(res.max_loc < a.Size());
-      REQUIRE(a[res.max_loc] == res.max_val);
+      REQUIRE(AsConst(a)[res.max_loc] == res.max_val);
    }
 }
