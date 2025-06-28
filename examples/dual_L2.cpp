@@ -160,7 +160,9 @@ int main(int argc, char *argv[])
 
    b0.AddDomainIntegrator(new VectorFEDomainLFIntegrator(psi_newton_res));
 
-   FunctionCoefficient f([](const Vector &x) {return -0.5 * ( (1 - 2*x[0]) * x[1] * (1 - x[1]) + x[0] * (1 - x[0]) * (1-2*x[1]));  });
+   // FunctionCoefficient f([](const Vector &x) {return -0.5 * ( (1 - 2*x[0]) * x[1] * (1 - x[1]) + x[0] * (1 - x[0]) * (1-2*x[1]));  });
+   FunctionCoefficient f([](const Vector &x) {return 2. * (x[0] + x[1]);  });
+   
    ProductCoefficient neg_alpha_f_cf(neg_alpha_cf, f); 
 
    b0.AddDomainIntegrator(new VectorFEDomainLFDivIntegrator(neg_alpha_f_cf));
@@ -218,8 +220,8 @@ int main(int argc, char *argv[])
          A00_diag.Reciprocal();
          SparseMatrix *S = Mult_AtDA(*A01, A00_diag);
          // SparseMatrix *S = Mult_AtDA(*A10, A00_diag);
-
-
+// 
+// 
          BlockDiagonalPreconditioner prec(offsets);
          prec.SetDiagonalBlock(0,new DSmoother(A00));
 #ifndef MFEM_USE_SUITESPARSE
@@ -230,6 +232,7 @@ int main(int argc, char *argv[])
          prec.owns_blocks = 1;
 
          BlockOperator A(offsets);
+         // BlockMatrix A(offsets); 
          A.SetBlock(0,0,&A00);
          A.SetBlock(1,0,&A10);
          A.SetBlock(0,1,A01);
@@ -239,6 +242,10 @@ int main(int argc, char *argv[])
 
          GMRES(A,prec,rhs,x,0,2000,500,1e-12,0.0);
          delete S;
+
+         // SparseMatrix *A_mono = A.CreateMonolithic(); 
+         // UMFPackSolver umf(*A_mono); 
+         // umf.Mult(rhs, x); 
 
          u_tmp -= u_gf;
          real_t Newton_update_size = u_tmp.ComputeL2Error(zero);
@@ -294,9 +301,9 @@ int main(int argc, char *argv[])
    VectorFunctionCoefficient exact_coeff(2, [](const Vector &x, Vector &u) {
       double x_val = x(0);
       double y_val = x(1);
-      double val = x_val * y_val * (1 - x_val) * (1 - y_val);
-      u(0) = val;
-      u(1) = val;
+      // double val = x_val * y_val * (1 - x_val) * (1 - y_val);
+      u(0) = x_val * (1. - x_val);
+      u(1) = y_val * (1. - y_val);
    });
 
    double l2_error = u_gf.ComputeL2Error(exact_coeff); 
@@ -333,7 +340,3 @@ void DZCoefficient::Eval(DenseMatrix &K, ElementTransformation &T,
    K.SetSize(2); 
    for (int i = 0; i < 2; ++i) { K(i, i) = (1. - pow(tanh(psi_vals(i) / 2.), 2)) / 2.; }
 }
-
-// void Manufacturedp_vec(const Vector &x, Vector &y) { 
-   // 
-// }
