@@ -183,11 +183,16 @@ $(eval $(call psedov_tests,gpu_uvm,GPU_UVM,gpu:uvm))
 
 # For out-of-source builds, copy the meshes in ../../miniapps/multidomain from
 # the source location; these are used by 'punit_tests'.
+# Also, link the directory 'meshes' in ../../miniapps/nurbs from the source
+# location; this is needed by 'unit_tests'.
 ifneq ($(SRC),)
-.PHONY: copy-miniapps-multidomain-data
+.PHONY: copy-miniapps-multidomain-data copy-miniapps-nurbs-meshes
 copy-miniapps-multidomain-data:
 	$(MAKE) -C ../../miniapps/multidomain copy-data
 punit_tests: | copy-miniapps-multidomain-data
+copy-miniapps-nurbs-meshes:
+	$(MAKE) -C ../../miniapps/nurbs copy-data
+unit_tests: | copy-miniapps-nurbs-meshes
 endif
 
 # For out-of-source builds, copy the meshes in ../../miniapps/meshing from the
