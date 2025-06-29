@@ -17,6 +17,7 @@
 
 #ifdef MFEM_USE_MPI
 #include "../fespace.hpp"
+#include "../general/tic_toc.hpp"
 
 #include "util.hpp"
 #include "interpolate.hpp"
@@ -25,6 +26,11 @@
 
 namespace mfem::future
 {
+
+struct matrix_free_action_tag {};
+struct derivative_setup_tag {};
+struct derivative_action_tag {};
+
 
 /// @brief Type alias for a function that computes the action of an operator
 using action_t =
@@ -669,7 +675,7 @@ void DifferentiableOperator::AddDomainIntegrator(
       const auto d_domain_attr = domain_attributes.Read();
       const auto d_elem_attr = elem_attributes.Read();
 
-      forall([=] MFEM_HOST_DEVICE (int e, void *shmem)
+      forall<matrix_free_action_tag>([=] MFEM_HOST_DEVICE (int e, void *shmem)
       {
          if (has_attr && !d_domain_attr[d_elem_attr[e] - 1]) { return; }
 
@@ -831,7 +837,7 @@ void DifferentiableOperator::AddDomainIntegrator(
             const bool has_attr = domain_attributes.Size() > 0;
             const auto d_domain_attr = domain_attributes.Read();
 
-            forall([=] MFEM_HOST_DEVICE (int e, real_t *shmem)
+            forall<derivative_setup_tag>([=] MFEM_HOST_DEVICE (int e, real_t *shmem)
             {
                if (has_attr && !d_domain_attr[d_elem_attr[e] - 1]) { return; }
 
@@ -957,17 +963,37 @@ void DifferentiableOperator::AddDomainIntegrator(
             const auto d_domain_attr = domain_attributes.Read();
 
             derivative_action_e = 0.0;
-            forall([=] MFEM_HOST_DEVICE (int e, real_t *shmem)
+            forall<derivative_action_tag>([=] MFEM_HOST_DEVICE (int e, real_t *shmem)
             {
                if (has_attr && !d_domain_attr[d_elem_attr[e] - 1]) { return; }
 
-               auto [input_dtq_shmem, output_dtq_shmem, fields_shmem,
-                                      direction_shmem, input_shmem,
-                                      shadow_shmem_, residual_shmem,
-                                      scratch_shmem] =
-                        unpack_shmem(shmem, shmem_info, input_dtq_maps, output_dtq_maps,
-                                     wrapped_fields_e, wrapped_direction_e, num_qp, e);
-               auto &shadow_shmem = shadow_shmem_;
+               auto input_dtq_shmem =
+                  load_dtq_mem(
+                     shmem,
+                     shmem_info.offsets[SharedMemory::Index::INPUT_DTQ],
+                     shmem_info.input_dtq_sizes,
+                     input_dtq_maps);
+
+               auto scratch_shmem =
+                  load_scratch_mem(
+                     shmem,
+                     shmem_info.offsets[SharedMemory::Index::TEMP],
+                     shmem_info.temp_sizes);
+
+               auto direction_shmem =
+                  load_direction_mem(
+                     shmem,
+                     shmem_info.offsets[SharedMemory::Index::DIRECTION],
+                     shmem_info.direction_size,
+                     wrapped_direction_e,
+                     e);
+
+               auto shadow_shmem =
+                  load_input_mem(
+                     shmem,
+                     shmem_info.offsets[SharedMemory::Index::SHADOW],
+                     shmem_info.input_sizes,
+                     num_qp);
 
                map_direction_to_quadrature_data_conditional(
                   shadow_shmem, direction_shmem, input_dtq_shmem, inputs,
@@ -977,35 +1003,97 @@ void DifferentiableOperator::AddDomainIntegrator(
                // The next code block does
                // residual_shmem = dot(qpdc, shadow_shmem)
 
+               auto residual_shmem =
+                  load_residual_mem(
+                     shmem,
+                     shmem_info.offsets[SharedMemory::Index::OUTPUT],
+                     shmem_info.residual_size,
+                     num_qp);
+
                auto fhat = Reshape(&residual_shmem(0, 0), test_vdim,
                                    test_op_dim, num_qp);
 
-               for (int q = 0; q < num_qp; q++)
+               if (use_sum_factorization)
                {
-                  for (int i = 0; i < test_vdim; i++)
+                  if (dimension == 2)
                   {
-                     for (int k = 0; k < test_op_dim; k++)
+                     MFEM_FOREACH_THREAD(qx, x, q1d)
                      {
-                        real_t sum = 0.0;
-                        size_t m_offset = 0;
-                        for (int s_i = 0; s_i < num_dependent_inputs; s_i++)
+                        MFEM_FOREACH_THREAD(qy, y, q1d)
                         {
-                           const int s = dpitod(s_i, 0);
-                           auto trial_op_dim = dpitod(s_i, 1);
-                           auto d_qp = Reshape(&(shadow_shmem[s])[0], trial_vdim, trial_op_dim, num_qp);
-                           for (int j = 0; j < trial_vdim; j++)
+                           const int q = qx + q1d * qy;
+
+                           for (int i = 0; i < test_vdim; i++)
                            {
-                              for (int m = 0; m < trial_op_dim; m++)
+                              for (int k = 0; k < test_op_dim; k++)
                               {
-                                 sum += qpdc(i, k, j, m + m_offset, q, e) * d_qp(j, m, q);
+                                 real_t sum = 0.0;
+                                 size_t m_offset = 0;
+                                 for (int s_i = 0; s_i < num_dependent_inputs; s_i++)
+                                 {
+                                    const int s = dpitod(s_i, 0);
+                                    auto trial_op_dim = dpitod(s_i, 1);
+                                    auto d_qp = Reshape(&(shadow_shmem[s])[0], trial_vdim, trial_op_dim, num_qp);
+                                    for (int j = 0; j < trial_vdim; j++)
+                                    {
+                                       for (int m = 0; m < trial_op_dim; m++)
+                                       {
+                                          sum += qpdc(i, k, j, m + m_offset, q, e) * d_qp(j, m, q);
+                                       }
+                                    }
+                                    m_offset += trial_op_dim;
+                                 }
+                                 fhat(i, k, q) = sum;
                               }
                            }
-                           m_offset += trial_op_dim;
                         }
-                        fhat(i, k, q) = sum;
+                     }
+                  }
+                  else if (dimension == 3)
+                  {
+                     MFEM_FOREACH_THREAD(qx, x, q1d)
+                     {
+                        MFEM_FOREACH_THREAD(qy, y, q1d)
+                        {
+                           MFEM_FOREACH_THREAD(qz, z, q1d)
+                           {
+
+                              const int q = qx + q1d * (qy + q1d * qz);
+                              for (int i = 0; i < test_vdim; i++)
+                              {
+                                 for (int k = 0; k < test_op_dim; k++)
+                                 {
+                                    real_t sum = 0.0;
+                                    size_t m_offset = 0;
+                                    for (int s_i = 0; s_i < num_dependent_inputs; s_i++)
+                                    {
+                                       const int s = dpitod(s_i, 0);
+                                       auto trial_op_dim = dpitod(s_i, 1);
+                                       auto d_qp = Reshape(&(shadow_shmem[s])[0], trial_vdim, trial_op_dim, num_qp);
+                                       for (int j = 0; j < trial_vdim; j++)
+                                       {
+                                          for (int m = 0; m < trial_op_dim; m++)
+                                          {
+                                             sum += qpdc(i, k, j, m + m_offset, q, e) * d_qp(j, m, q);
+                                          }
+                                       }
+                                       m_offset += trial_op_dim;
+                                    }
+                                    fhat(i, k, q) = sum;
+                                 }
+                              }
+                           }
+                        }
                      }
                   }
                }
+
+               auto output_dtq_shmem =
+                  load_dtq_mem(
+                     shmem,
+                     shmem_info.offsets[SharedMemory::Index::OUTPUT_DTQ],
+                     shmem_info.output_dtq_sizes,
+                     output_dtq_maps);
 
                auto y = Reshape(&ye(0, 0, e), num_test_dof, test_vdim);
                map_quadrature_data_to_fields(
