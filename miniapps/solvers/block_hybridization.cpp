@@ -33,9 +33,36 @@ BlockHybridizationSolver::BlockHybridizationSolver(
    NormalTraceIntegrator integ;
    const FiniteElement *element(nullptr);
 
-   saved_hdiv_matrices = new DenseMatrix[num_elements];
-   saved_mixed_matrices = new DenseMatrix[num_elements];
-   saved_l2_matrices = new DenseMatrix[num_elements];
+   Table element_to_hdiv_dof = hdiv_space->GetElementToDofTable();
+   int *hdiv_offsets = element_to_hdiv_dof.GetI();
+
+   Table element_to_l2_dof = l2_space->GetElementToDofTable();
+   int *l2_offsets = element_to_l2_dof.GetI();
+
+   Array<int> hdiv_sizes(num_elements+1);
+   Array<int> l2_sizes(hdiv_sizes.Size());
+   Array<int> mixed_sizes(l2_sizes.Size());
+
+   hdiv_sizes[0] = 0;
+   l2_sizes[0] = 0;
+   mixed_sizes[0] = 0;
+
+   for (int i = 0; i < num_elements; ++i)
+   {
+      const int m = hdiv_offsets[i+1] - hdiv_offsets[i];
+      const int n = l2_offsets[i+1] - l2_offsets[i];
+      hdiv_sizes[i+1] = m * m;
+      hdiv_sizes[i+1] += hdiv_sizes[i];
+      l2_sizes[i+1] = n * n;
+      l2_sizes[i+1] += l2_sizes[i];
+      mixed_sizes[i+1] = m * n;
+      mixed_sizes[i+1] += mixed_sizes[i];
+   }
+
+   hdiv_data = new real_t[hdiv_sizes[num_elements]];
+   l2_data = new real_t[l2_sizes[num_elements]];
+   mixed_data = new real_t[mixed_sizes[num_elements]];
+
    interior_indices = new Array<int>[num_elements];
 
    Table element_to_facet_table;
@@ -134,34 +161,28 @@ BlockHybridizationSolver::BlockHybridizationSolver(
 
    for (int elem_idx = 0; elem_idx < num_elements; ++elem_idx)
    {
-      mVarf->ComputeElementMatrix(elem_idx, saved_hdiv_matrices[elem_idx]);
-      saved_hdiv_matrices[elem_idx].Threshold(eps * saved_hdiv_matrices[elem_idx].MaxMaxNorm());
-      saved_hdiv_matrices[elem_idx].Invert(); // overwrite saved_hdiv_matrices[elem_idx]
+      const int m = hdiv_offsets[elem_idx+1] - hdiv_offsets[elem_idx];
+      DenseMatrix hdiv_matrix(hdiv_data+hdiv_sizes[elem_idx], m, m);
+      mVarf->ComputeElementMatrix(elem_idx, hdiv_matrix);
+      hdiv_matrix.Invert(); // overwrite hdiv_matrix
 
-      bVarf->ComputeElementMatrix(elem_idx, saved_mixed_matrices[elem_idx]);
-      saved_mixed_matrices[elem_idx].Threshold(eps * saved_mixed_matrices[elem_idx].MaxMaxNorm());
+      const int n = l2_offsets[elem_idx+1] - l2_offsets[elem_idx];
+      DenseMatrix mixed_matrix(mixed_data+mixed_sizes[elem_idx], n, m);
+      bVarf->ComputeElementMatrix(elem_idx, mixed_matrix);
 
-      DenseMatrix product_matrix(saved_mixed_matrices[elem_idx].Height(),
-                                 saved_hdiv_matrices[elem_idx].Width());
-      mfem::Mult(saved_mixed_matrices[elem_idx],
-                 saved_hdiv_matrices[elem_idx], product_matrix); // BA^{-1}
+      DenseMatrix product_matrix(mixed_matrix.Height(), hdiv_matrix.Width());
+      mfem::Mult(mixed_matrix, hdiv_matrix, product_matrix); // BA^{-1}
 
-      saved_l2_matrices[elem_idx].SetSize(product_matrix.Height(),
-                                               saved_mixed_matrices[elem_idx].Height());
-      MultABt(product_matrix, saved_mixed_matrices[elem_idx],
-              saved_l2_matrices[elem_idx]); // BA^{-1}B^t = -S
-      saved_l2_matrices[elem_idx].Invert(); // (BA^{-1}B^t)^{-1} = -S^{-1}
-      saved_l2_matrices[elem_idx].Neg(); // -(BA^{-1}B^t)^{-1} = S^{-1}
+      DenseMatrix l2_matrix(l2_data+l2_sizes[elem_idx], n, n);
+      MultABt(product_matrix, mixed_matrix, l2_matrix); // BA^{-1}B^t = -S
+      l2_matrix.Invert(); // (BA^{-1}B^t)^{-1} = -S^{-1}
+      l2_matrix.Neg(); // -(BA^{-1}B^t)^{-1} = S^{-1}
 
-      mfem::Mult(saved_l2_matrices[elem_idx], product_matrix,
-                 saved_mixed_matrices[elem_idx]); // overwrite saved_mixed_matrices[elem_idx]
-                                                       // with S^{-1}BA^{-1}
-      DenseMatrix temp_matrix(product_matrix.Width(),
-                              saved_mixed_matrices[elem_idx].Width());
-      MultAtB(product_matrix, saved_mixed_matrices[elem_idx], temp_matrix); // A^{-T}B^TS^{-1}BA^{-1}
-      saved_hdiv_matrices[elem_idx] += temp_matrix;
-
-      saved_mixed_matrices[elem_idx].Neg(); // -S^{-1}BA^{-1}
+      mfem::Mult(l2_matrix, product_matrix, mixed_matrix); // overwrite mixed matrix with S^{-1}BA^{-1}
+      DenseMatrix temp_matrix(product_matrix.Width(), mixed_matrix.Width());
+      MultAtB(product_matrix, mixed_matrix, temp_matrix); // A^{-T}B^TS^{-1}BA^{-1}
+      hdiv_matrix += temp_matrix;
+      mixed_matrix.Neg(); // -S^{-1}BA^{-1}
 
       element = hdiv_space->GetFE(elem_idx);
       const FiniteElement *face(nullptr);
@@ -171,7 +192,8 @@ BlockHybridizationSolver::BlockHybridizationSolver(
       const int num_multiplier_dofs = interior_faceI[elem_idx+1] - interior_faceI[elem_idx];
       Array<int> multiplier_dofs;
       multiplier_dofs.MakeRef(interior_faceJ+interior_faceI[elem_idx], num_multiplier_dofs);
-      DenseMatrix bdr_matrix(saved_hdiv_matrices[elem_idx].Height(), num_multiplier_dofs);
+      DenseMatrix bdr_matrix(hdiv_matrix.Height(), num_multiplier_dofs);
+      DenseMatrix face_matrix;
       int data_offset = 0;
       const int num_faces = nI[elem_idx+1] - nI[elem_idx];
       const int height = bdr_matrix.Height();
@@ -182,14 +204,14 @@ BlockHybridizationSolver::BlockHybridizationSolver(
          const int face_idx = nJ[k];
          trans = mesh->GetFaceElementTransformations(face_idx);
          face = multiplier_space->GetFaceElement(face_idx);
-         DenseMatrix face_matrix(bdr_matrix.Data()+data_offset, height, width);
+         face_matrix.UseExternalData(bdr_matrix.Data()+data_offset, height, width);
          integ.AssembleTraceFaceMatrix(elem_idx, *face, *element, *trans,
                                        face_matrix);
          data_offset += height*width;
       }
 
       temp_matrix.SetSize(height, bdr_matrix.Width());
-      mfem::Mult(saved_hdiv_matrices[elem_idx], bdr_matrix, temp_matrix);
+      mfem::Mult(hdiv_matrix, bdr_matrix, temp_matrix);
       product_matrix.SetSize(bdr_matrix.Width());
       MultAtB(bdr_matrix, temp_matrix, product_matrix);
       reduced_matrix.AddSubMatrix(multiplier_dofs, multiplier_dofs, product_matrix);
@@ -273,9 +295,9 @@ BlockHybridizationSolver::BlockHybridizationSolver(
 BlockHybridizationSolver::~BlockHybridizationSolver()
 {
    delete pH;
-   delete []saved_hdiv_matrices;
-   delete []saved_mixed_matrices;
-   delete []saved_l2_matrices;
+   delete []hdiv_data;
+   delete []l2_data;
+   delete []mixed_data;
    delete []interior_indices;
    delete preconditioner;
    delete multiplier_space;
