@@ -48,13 +48,17 @@ New and updated examples and miniapps
   operators as smoothers.
   These miniapps can be found in `miniapps/diag-smoothers`.
 
-API changes:
+API changes
 -----------
 - mfem::internal::tensor and mfem::internal::dual have been moved to
   mfem::future::tensor and mfem::future::dual.
 - API addition: in class `Operator`, added virtual functions: `AbsMult`, and
   `AbsMultTranspose`; in class `Vector`, added `Abs` and `Pow`.
 
+Miscellaneous
+-------------
+- Added parallel Address Sanitizer, serial and parallel Undefined Behavior
+  Sanitizer and serial Memory Sanitizer GitHub actions tests on Ubuntu.
 
 Version 4.8, released on Apr 9, 2025
 ====================================
