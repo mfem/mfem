@@ -62,7 +62,6 @@ BlockHybridizationSolver::BlockHybridizationSolver(
    hdiv_data = new real_t[hdiv_sizes[num_elements]];
    l2_data = new real_t[l2_sizes[num_elements]];
    mixed_data = new real_t[mixed_sizes[num_elements]];
-
    interior_indices = new Array<int>[num_elements];
 
    Table element_to_facet_table;
@@ -82,8 +81,6 @@ BlockHybridizationSolver::BlockHybridizationSolver(
    {
       interior_face_marker[mesh->GetBdrElementFaceIndex(i)] = 0;
    }
-   interior_face_marker.Print(out, interior_face_marker.Size());
-
 
    int *I = element_to_facet_table.GetI();
    int *J = element_to_facet_table.GetJ();
@@ -113,12 +110,6 @@ BlockHybridizationSolver::BlockHybridizationSolver(
       }
       nI[elem_idx+1] = counter;
    }
-
-   Array<int> aI(nI, num_elements+1);
-   Array<int> aJ(nJ, nnz);
-
-   aI.Print(out, aI.Size());
-   aJ.Print(out, aJ.Size());
 
    const Table &face_to_dof_table(multiplier_space->GetFaceToDofTable());
    const int *faceI = face_to_dof_table.GetI();
@@ -150,14 +141,6 @@ BlockHybridizationSolver::BlockHybridizationSolver(
          }
       }
    }
-
-   /*
-   Array<int> arrI(interior_faceI, num_elements+1);
-   Array<int> arrJ(interior_faceJ, interior_faceI[num_elements]);
-
-   arrI.Print(out, arrI.Size());
-   arrJ.Print(out, arrJ.Size());
-   */
 
    for (int elem_idx = 0; elem_idx < num_elements; ++elem_idx)
    {
@@ -262,8 +245,6 @@ BlockHybridizationSolver::BlockHybridizationSolver(
    delete []nJ;
 
    reduced_matrix.Finalize(1, true);
-   // if (Mpi::Root())
-   //    reduced_matrix.Print();
 
    HypreParMatrix *P(multiplier_space->Dof_TrueDof_Matrix());
    HypreParMatrix *dH = new HypreParMatrix(multiplier_space->GetComm(),
