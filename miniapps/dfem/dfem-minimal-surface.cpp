@@ -179,12 +179,9 @@ private:
 
          dres_du->Mult(z, y);
 
-         auto d_y = y.HostReadWrite();
-         const auto d_x = x.HostRead();
-         for (int i = 0; i < minsurface->ess_tdofs.Size(); i++)
-         {
-            d_y[minsurface->ess_tdofs[i]] = d_x[minsurface->ess_tdofs[i]];
-         }
+         // Reuse z as a temporary vector to avoid unnecessary allocations.
+         x.GetSubVector(minsurface->ess_tdofs, z);
+         y.SetSubVector(minsurface->ess_tdofs, z);
       }
 
       // Pointer to the wrapped MinimalSurface operator
@@ -261,12 +258,9 @@ private:
 
          dres_du->Mult(z, y);
 
-         auto d_y = y.HostReadWrite();
-         const auto d_x = x.HostRead();
-         for (int i = 0; i < minsurface->ess_tdofs.Size(); i++)
-         {
-            d_y[minsurface->ess_tdofs[i]] = d_x[minsurface->ess_tdofs[i]];
-         }
+         // Reuse z as a temporary vector to avoid unnecessary allocations.
+         x.GetSubVector(minsurface->ess_tdofs, z);
+         y.SetSubVector(minsurface->ess_tdofs, z);
       }
 
       const MinimalSurface *minsurface = nullptr;
