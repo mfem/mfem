@@ -22,7 +22,6 @@ BlockHybridizationSolver::BlockHybridizationSolver(
    mesh->ExchangeFaceNbrData();
    const int dim = mesh->Dimension();
    const int num_elements(mesh->GetNE());
-   const real_t eps = 1e-12;
 
    DG_Interface_FECollection fec(hdiv_space->FEColl()->GetOrder()-1,
                                  mesh->Dimension());
@@ -64,6 +63,7 @@ BlockHybridizationSolver::BlockHybridizationSolver(
    mixed_data = new real_t[mixed_sizes[num_elements]];
    interior_indices = new Array<int>[num_elements];
 
+   // change the table name or use switch case?
    Table element_to_facet_table;
    if (2 == dim)
    {
