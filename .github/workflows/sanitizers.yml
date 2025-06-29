@@ -16,7 +16,7 @@ permissions:
 
 on:
   push:
-    branches: [main]  # ["master", "next"]
+    branches: ["master", "next"]
   pull_request:
   workflow_dispatch:
 
