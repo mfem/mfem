@@ -103,19 +103,19 @@ int main(int argc, char *argv[])
    BlockVector x(offsets), rhs(offsets);
    x = 0.0; rhs = 0.0;
 
-   GridFunction u_gf(&RTfes, x.GetBlock(0)), delta_psi_gf(&L2fes, x.GetBlock(1));
+   GridFunction p_gf(&RTfes, x.GetBlock(0)), delta_psi_gf(&L2fes, x.GetBlock(1));
 
    GridFunction psi_old_gf(&L2fes);
    GridFunction psi_gf(&L2fes);
-   GridFunction u_old_gf(&RTfes);
+   GridFunction p_old_gf(&RTfes);
 
    delta_psi_gf = 0.0;
    psi_gf = 0.0;
-   u_gf = 0.0;
+   p_gf = 0.0;
    psi_old_gf = psi_gf;
-   u_old_gf = u_gf;
+   p_old_gf = p_gf;
 
-   VectorGridFunctionCoefficient psi_old_cf(&psi_old_gf), psi_cf(&psi_gf), p_vc(&u_gf); 
+   VectorGridFunctionCoefficient psi_old_cf(&psi_old_gf), psi_cf(&psi_gf), p_vc(&p_gf); 
 
    char vishost[] = "localhost";
    int  visport   = 19916;
@@ -155,7 +155,9 @@ int main(int argc, char *argv[])
    
    // FunctionCoefficient f([](const Vector &x) { return -x[0] - x[1]  + 1; }); 
 
-   FunctionCoefficient f([](const Vector &x) { return  1.; });  // just because this is prettiest 
+   // FunctionCoefficient f([](const Vector &x) { return  1.; });  // just because this is prettiest 
+
+   FunctionCoefficient f([](const Vector &x) { return 1/M_PI * sin(M_PI * x[0]) * sin(M_PI*x[1]); }); 
 
 
    ProductCoefficient neg_alpha_f_cf(neg_alpha_cf, f); 
@@ -184,11 +186,11 @@ int main(int argc, char *argv[])
 
    int k;
    int total_iterations = 0;
-   real_t increment_u = 0.1;
-   GridFunction u_tmp(&L2fes);
+   real_t increment_p = 0.1;
+   GridFunction p_tmp(&L2fes);
    for (k = 0; k < max_it; k++)
    {
-      u_tmp = u_old_gf;
+      p_tmp = p_old_gf;
 
       mfem::out << "\nOUTER ITERATION " << k+1 << endl;
 
@@ -215,9 +217,9 @@ int main(int argc, char *argv[])
          UMFPackSolver umf(*A_mono); 
          umf.Mult(rhs, x); 
 
-         u_tmp -= u_gf;
-         real_t Newton_update_size = u_tmp.ComputeL2Error(zero);
-         u_tmp = u_gf;
+         p_tmp -= p_gf;
+         real_t Newton_update_size = p_tmp.ComputeL2Error(zero);
+         p_tmp = p_gf;
 
          // Damped Newton update
          psi_gf.Add(newton_scaling, delta_psi_gf);
@@ -238,23 +240,23 @@ int main(int argc, char *argv[])
 
          mfem::out << "Newton_update_size = " << Newton_update_size << endl;
 
-         if (Newton_update_size < increment_u)
+         if (Newton_update_size < increment_p)
          {
             break;
          }
       }
 
-      u_tmp = u_gf;
-      u_tmp -= u_old_gf;
-      increment_u = u_tmp.ComputeL2Error(zero);
+      p_tmp = p_gf;
+      p_tmp -= p_old_gf;
+      increment_p = p_tmp.ComputeL2Error(zero);
 
       mfem::out << "Number of Newton iterations = " << j+1 << endl;
-      mfem::out << "Increment (|| uₕ - uₕ_prvs||) = " << increment_u << endl;
+      mfem::out << "Increment (|| uₕ - uₕ_prvs||) = " << increment_p << endl;
 
-      u_old_gf = u_gf;
+      p_old_gf = p_gf;
       psi_old_gf = psi_gf;
 
-      if (increment_u < tol || k == max_it-1)
+      if (increment_p < tol || k == max_it-1)
       {
          break;
       }
@@ -270,13 +272,16 @@ int main(int argc, char *argv[])
              << endl;
 
    VectorFunctionCoefficient exact_coeff(2, [](const Vector &x, Vector &u) {
-      double x_val = x(0);
-      double y_val = x(1);
+      // double x_val = x(0);
+      // double y_val = x(1);
       // double val = x_val * y_val * (1 - x_val) * (1 - y_val);
       
 
-      u(0) = x_val * (1. - x_val);
-      u(1) = y_val * (1. - y_val);
+      // u(0) = x_val * (1. - x_val);
+      // u(1) = y_val * (1. - y_val);
+
+      u(0) = -cos(M_PI * x[0]) * sin(M_PI*x[1]); 
+      u(1) = -sin(M_PI*x[0]) * cos(M_PI*x[1]); 
 
       // u(0) = 1.; 
       // u(1) = 1.; 
@@ -288,7 +293,7 @@ int main(int argc, char *argv[])
       // u(1) = 4. * (x_val - pow(x_val, 2))*(1. - 2.*y_val); 
    });
 
-   double l2_error = u_gf.ComputeL2Error(exact_coeff); 
+   double l2_error = p_gf.ComputeL2Error(exact_coeff); 
    cout << "L2 error: " << l2_error << endl; 
 
    delete A01;
