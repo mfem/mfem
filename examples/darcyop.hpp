@@ -36,8 +36,8 @@ private:
    DarcyForm *darcy;
    LinearForm *g, *f, *h;
 #ifdef MFEM_USE_MPI
-   ParDarcyForm *pdarcy;
-   ParLinearForm *pg, *pf, *ph;
+   ParDarcyForm *pdarcy {};
+   ParLinearForm *pg{}, *pf{}, *ph{};
 #endif
    const Array<Coefficient*> &coeffs;
    SolverType solver_type;
@@ -113,6 +113,7 @@ public:
       Vector sol_prev;
 
       bool CheckSolution(const Vector &x, const Vector &y) const;
+      virtual void ReduceValues(real_t diff[], int num) const { }
 
    public:
       SolutionController(DarcyForm &darcy, const BlockVector &rhs,
@@ -129,6 +130,8 @@ public:
    {
    protected:
       ParDarcyForm &pdarcy;
+
+      void ReduceValues(real_t diff[], int num) const override;
 
    public:
       ParSolutionController(ParDarcyForm &pdarcy, const BlockVector &rhs,

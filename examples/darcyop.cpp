@@ -26,48 +26,66 @@ void mfem::DarcyOperator::SetupNonlinearSolver(real_t rtol, real_t atol,
       case SolverType::LBFGS:
          prec = NULL;
 #ifdef MFEM_USE_MPI
-         solver.reset(new LBFGSSolver(MPI_COMM_WORLD));
-#else
-         solver.reset(new LBFGSSolver());
+         if (pdarcy)
+         {
+            solver.reset(new LBFGSSolver(MPI_COMM_WORLD));
+         }
+         else
 #endif
+            solver.reset(new LBFGSSolver());
          solver_str = "LBFGS";
          break;
       case SolverType::LBB:
          prec = NULL;
 #ifdef MFEM_USE_MPI
-         solver.reset(new LBBSolver(MPI_COMM_WORLD));
-#else
-         solver.reset(new LBBSolver());
+         if (pdarcy)
+         {
+            solver.reset(new LBBSolver(MPI_COMM_WORLD));
+         }
+         else
 #endif
+            solver.reset(new LBBSolver());
          solver_str = "LBB";
          break;
       case SolverType::Newton:
 #ifdef MFEM_USE_MPI
-         lin_solver = new GMRESSolver(MPI_COMM_WORLD);
-#else
-         lin_solver = new GMRESSolver();
+         if (pdarcy)
+         {
+            lin_solver = new GMRESSolver(MPI_COMM_WORLD);
+         }
+         else
 #endif
+            lin_solver = new GMRESSolver();
          prec_str = "GMRES";
 #ifdef MFEM_USE_MPI
-         solver.reset(new NewtonSolver(MPI_COMM_WORLD));
-#else
-         solver.reset(new NewtonSolver());
+         if (pdarcy)
+         {
+            solver.reset(new NewtonSolver(MPI_COMM_WORLD));
+         }
+         else
 #endif
+            solver.reset(new NewtonSolver());
          solver_str = "Newton";
          break;
       case SolverType::KINSol:
 #ifdef MFEM_USE_SUNDIALS
 #ifdef MFEM_USE_MPI
-         lin_solver = new GMRESSolver(MPI_COMM_WORLD);
-#else
-         lin_solver = new GMRESSolver();
+         if (pdarcy)
+         {
+            lin_solver = new GMRESSolver(MPI_COMM_WORLD);
+         }
+         else
 #endif
+            lin_solver = new GMRESSolver();
          prec_str = "GMRES";
 #ifdef MFEM_USE_MPI
-         solver.reset(new KINSolver(MPI_COMM_WORLD, KIN_PICARD));
-#else
-         solver.reset(new KINSolver(KIN_PICARD));
+         if (pdarcy)
+         {
+            solver.reset(new KINSolver(MPI_COMM_WORLD, KIN_PICARD));
+         }
+         else
 #endif
+            solver.reset(new KINSolver(KIN_PICARD));
          static_cast<KINSolver*>(solver.get())->EnableAndersonAcc(10);
          solver_str = "KINSol";
 #else
@@ -81,14 +99,19 @@ void mfem::DarcyOperator::SetupNonlinearSolver(real_t rtol, real_t atol,
       if (darcy->GetHybridization())
       {
 #ifdef MFEM_USE_MPI
-         auto *amg = new HypreBoomerAMG();
-         amg->SetAdvectiveOptions();
-         lin_prec.reset(amg);
-         lin_prec_str = "HypreAMG";
-#else
-         lin_prec.reset(new GSSmoother());
-         lin_prec_str = "GS";
+         if (pdarcy)
+         {
+            auto *amg = new HypreBoomerAMG();
+            amg->SetAdvectiveOptions();
+            lin_prec.reset(amg);
+            lin_prec_str = "HypreAMG";
+         }
+         else
 #endif
+         {
+            lin_prec.reset(new GSSmoother());
+            lin_prec_str = "GS";
+         }
       }
       else
       {
@@ -126,31 +149,41 @@ void DarcyOperator::SetupLinearSolver(real_t rtol, real_t atol, int iters)
    if (darcy->GetHybridization())
    {
 #ifdef MFEM_USE_MPI
-      auto *amg = new HypreBoomerAMG();
-      amg->SetAdvectiveOptions();
-      prec.reset(amg);
-      prec_str = "HypreAMG";
-#else
-      prec.reset(new GSSmoother());
-      prec_str = "GS";
+      if (pdarcy)
+      {
+         auto *amg = new HypreBoomerAMG();
+         amg->SetAdvectiveOptions();
+         prec.reset(amg);
+         prec_str = "HypreAMG";
+      }
+      else
 #endif
+      {
+         prec.reset(new GSSmoother());
+         prec_str = "GS";
+      }
    }
    else if (darcy->GetReduction())
    {
 #ifdef MFEM_USE_MPI
-      auto *amg = new HypreBoomerAMG();
-      amg->SetAdvectiveOptions();
-      prec.reset(amg);
-      prec_str = "HypreAMG";
-#else
+      if (pdarcy)
+      {
+         auto *amg = new HypreBoomerAMG();
+         amg->SetAdvectiveOptions();
+         prec.reset(amg);
+         prec_str = "HypreAMG";
+      }
+      else
+#endif
+      {
 #ifndef MFEM_USE_SUITESPARSE
-      prec.reset(new GSSmoother());
-      prec_str = "GS";
+         prec.reset(new GSSmoother());
+         prec_str = "GS";
 #else
-      prec.reset(new UMFPackSolver());
-      prec_str = "UMFPack";
+         prec.reset(new UMFPackSolver());
+         prec_str = "UMFPack";
 #endif
-#endif
+      }
    }
    else
    {
@@ -168,10 +201,13 @@ void DarcyOperator::SetupLinearSolver(real_t rtol, real_t atol, int iters)
    }
 
 #ifdef MFEM_USE_MPI
-   solver.reset(new GMRESSolver(MPI_COMM_WORLD));
-#else
-   solver.reset(new GMRESSolver());
+   if (pdarcy)
+   {
+      solver.reset(new GMRESSolver(MPI_COMM_WORLD));
+   }
+   else
 #endif
+      solver.reset(new GMRESSolver());
    solver_str = "GMRES";
    solver->SetAbsTol(atol);
    solver->SetRelTol(rtol);
@@ -315,7 +351,7 @@ void DarcyOperator::ImplicitSolve(const real_t dt, const Vector &x_v,
                                   Vector &dx_v)
 {
 #ifdef MFEM_USE_MPI
-   const bool verbose = Mpi::Root();
+   const bool verbose = (pdarcy)?(Mpi::Root()):(true);
 #else
    const bool verbose = true;
 #endif
@@ -422,15 +458,20 @@ void DarcyOperator::ImplicitSolve(const real_t dt, const Vector &x_v,
    if (trace_space)
    {
 #ifdef MFEM_USE_MPI
-      if (ph)
+      if (pdarcy)
       {
-         RHS.SetSize(trace_space->GetTrueVSize());
-         ph->ParallelAssemble(RHS);
+         if (ph)
+         {
+            RHS.SetSize(trace_space->GetTrueVSize());
+            ph->ParallelAssemble(RHS);
+         }
       }
-#else
-      X.MakeRef(dx_v, offsets[2], trace_space->GetVSize());
-      RHS.MakeRef(*h, 0, trace_space->GetVSize());
+      else
 #endif
+      {
+         X.MakeRef(dx_v, offsets[2], trace_space->GetVSize());
+         RHS.MakeRef(*h, 0, trace_space->GetVSize());
+      }
    }
 
    darcy->FormLinearSystem(ess_flux_tdofs_list, x, rhs,
@@ -543,7 +584,7 @@ void DarcyOperator::ImplicitSolve(const real_t dt, const Vector &x_v,
    darcy->RecoverFEMSolution(X, rhs, x);
 
 #ifdef MFEM_USE_MPI
-   if (trace_space)
+   if (pdarcy && trace_space)
    {
       Vector x_r(dx_v, offsets[2], trace_space->GetVSize());
       trace_space->GetProlongationMatrix()->Mult(X, x_r);
@@ -936,9 +977,7 @@ bool DarcyOperator::SolutionController::CheckSolution(const Vector &x,
       sum += avg*avg;
    }
 
-#ifdef MFEM_USE_MPI
-   MPI_Allreduce(MPI_IN_PLACE, vals, 2, MFEM_MPI_REAL_T, MPI_SUM, MPI_COMM_WORLD);
-#endif //MFEM_USE_MPI
+   this->ReduceValues(vals, 2);
 
    return diff < sum * (rtol*rtol);
 }
@@ -967,6 +1006,12 @@ void DarcyOperator::SolutionController::MonitorSolution(int it, real_t norm,
 DarcyOperator::ParSolutionController::ParSolutionController(
    ParDarcyForm &pdarcy_, const BlockVector &rhs_, Type type_, real_t rtol_)
    : SolutionController(pdarcy_, rhs_, type_, rtol_), pdarcy(pdarcy_) { }
+
+void DarcyOperator::ParSolutionController::ReduceValues(real_t vals[],
+                                                        int num) const
+{
+   MPI_Allreduce(MPI_IN_PLACE, vals, 2, MFEM_MPI_REAL_T, MPI_SUM, MPI_COMM_WORLD);
+}
 
 void DarcyOperator::ParSolutionController::MonitorSolution(
    int it, real_t norm, const Vector &X, bool final)
