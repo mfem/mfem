@@ -170,7 +170,7 @@ ParticleSet<VOrdering>::ParticleSet(int spaceDim, int numScalars, const Array<in
   ExclScanFieldVDims(MakeExclScanFieldVDims()),
   id_stride(1),
   id_counter(0),
-  fields(vectorVDims.Size())
+  fields(TotalFields)
 {
 
 }
@@ -188,7 +188,7 @@ ParticleSet<VOrdering>::ParticleSet(MPI_Comm comm_, int spaceDim, int numScalars
   ExclScanFieldVDims(MakeExclScanFieldVDims()),
   id_stride([&](){int s; MPI_Comm_size(comm_, &s); return s; }()),
   id_counter([&]() { int r; MPI_Comm_rank(comm_, &r); return r; }()),
-  fields(vectorVDims.Size())
+  fields(TotalFields),
   comm(comm_)
 {
    comm_init(&gsl_comm, comm);
@@ -337,16 +337,13 @@ Particle ParticleSet<VOrdering>::GetParticleRef(int i)
 
    real_t *coords = &data[i*SpaceDim];
 
-   std::vector<real_t*> scalars;
+   std::vector<real_t*> scalars(NumScalars);
    for (int s = 0; s < NumScalars; s++) scalars[s] = &data[(s+SpaceDim)*GetNP() + i];
 
-   std::vector<real_t*> vectors;
+   std::vector<real_t*> vectors(VectorVDims.Size());
    for (int v = 0; v < VectorVDims.Size(); v++) vectors[v] = &data[ExclScanFieldVDims[v+1+NumScalars]*GetNP() + i*VectorVDims[v]];
-
-   // Construct particle before returning
-   Particle p(SpaceDim, NumScalars, VectorVDims, coords, scalars.data(), vectors.data());
-
-   return std::move(p);
+   
+   return Particle(SpaceDim, NumScalars, VectorVDims, coords, scalars.data(), vectors.data());
 }
 
 
