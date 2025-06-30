@@ -83,10 +83,10 @@ void dFemVectorDivergence(const char *filename, int p)
       static constexpr int P = 0, V = 1, Coords = 2;
       ParFiniteElementSpace *mfes = nodes->ParFESpace();
 
-      const auto solutions = std::vector{ FieldDescriptor{ P, &psfes } };
+      const auto solutions = std::vector{ FieldDescriptor{ V, &pvfes } };
       const auto parameters = std::vector
       {
-         FieldDescriptor{ V, &pvfes },
+         FieldDescriptor{ P, &psfes },
          FieldDescriptor{ Coords, mfes }
       };
 
@@ -107,9 +107,12 @@ void dFemVectorDivergence(const char *filename, int p)
                                  tuple{ Value<P>{} },
                                  *ir, all_domain_attr);
 
-      dop_mf.SetParameters({ &vx, nodes });
-      Vector unused(pvfes.GetTrueVSize());
-      dop_mf.Mult(unused, sZ);
+      REQUIRE(dop_mf.Height() == psfes.GetTrueVSize());
+      REQUIRE(dop_mf.Width() == pvfes.GetTrueVSize());
+
+      Vector unused(psfes.GetTrueVSize());
+      dop_mf.SetParameters({ &unused, nodes });
+      dop_mf.Mult(vx, sZ);
 
       mblf_fa.Mult(vx, sy);
       psfes.GetProlongationMatrix()->MultTranspose(sy, sY);
