@@ -3658,7 +3658,11 @@ public:
 class NitscheElasticityIntegrator : public BilinearFormIntegrator
 {
 public:
-   NitscheElasticityIntegrator(VectorCoefficient &w_, Coefficient &lambda_,
+   NitscheElasticityIntegrator(Coefficient &lambda_, Coefficient &mu_,
+                               real_t alpha_, real_t kappa_)
+      : w(NULL), lambda(&lambda_), mu(&mu_), alpha(alpha_), kappa(kappa_) {}
+
+   NitscheElasticityIntegrator(VectorCoefficient *w_, Coefficient &lambda_,
                                Coefficient &mu_, real_t alpha_, real_t kappa_)
       : w(w_), lambda(&lambda_), mu(&mu_), alpha(alpha_), kappa(kappa_) { }
 
@@ -3669,7 +3673,7 @@ public:
                            DenseMatrix &elmat) override;
 
 protected:
-   VectorCoefficient &w;
+   VectorCoefficient *w;
    Coefficient *lambda, *mu;
    real_t alpha, kappa;
 

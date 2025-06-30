@@ -1090,12 +1090,6 @@ void NitscheElasticityDirichletLFIntegrator::AssembleRHSElementVect(
       // Access the neighboring element's integration point
       const IntegrationPoint &eip = Tr.GetElement1IntPoint();
 
-      // Evaluate the vector field using the face transformation.
-      w.Eval(w_val, Tr, ip);
-
-      // Evaluate the Dirichlet b.c. using the face transformation.
-      g_val = g.Eval(Tr, ip);
-
       el.CalcShape(eip, shape);
       el.CalcDShape(eip, dshape);
 
@@ -1110,6 +1104,22 @@ void NitscheElasticityDirichletLFIntegrator::AssembleRHSElementVect(
       {
          CalcOrtho(Tr.Jacobian(), nor);
       }
+
+      // Set w to the unit normal vector if not provided
+      Vector n(dim);
+      VectorConstantCoefficient n_coef(n);
+      if (!w)
+      {
+         n = nor;
+         n /= n.Norml2();
+         w = &n_coef;
+      }
+
+      // Evaluate the vector field using the face transformation.
+      w->Eval(w_val, Tr, ip);
+
+      // Evaluate the Dirichlet b.c. using the face transformation.
+      g_val = g.Eval(Tr, ip);
 
       real_t WL, WM, jcoef;
       {
