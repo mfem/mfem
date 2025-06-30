@@ -2856,7 +2856,7 @@ void DarcyHybridization::ReconstructTotalFlux(
 
       //potential constraint
 
-      if (c_bfi_p)
+      if (c_bfi_p || c_nlfi_p)
       {
          fes_p.GetElementDofs(ftr->Elem1No, dofs1);
          p.GetSubVector(dofs1, p1);
@@ -2869,7 +2869,14 @@ void DarcyHybridization::ReconstructTotalFlux(
          int type = NonlinearFormIntegrator::HDGFaceType::CONSTR
                     | NonlinearFormIntegrator::HDGFaceType::FACE;
 
-         c_bfi_p->AssembleHDGFaceVector(type, *face_fe, *fe1_p, *ftr, xf, p1, bf1);
+         if (c_bfi_p)
+         {
+            c_bfi_p->AssembleHDGFaceVector(type, *face_fe, *fe1_p, *ftr, xf, p1, bf1);
+         }
+         else
+         {
+            c_nlfi_p->AssembleHDGFaceVector(type, *face_fe, *fe1_p, *ftr, xf, p1, bf1);
+         }
          bf += bf1;
 
          if (ftr->Elem2No >= 0)
@@ -2892,7 +2899,14 @@ void DarcyHybridization::ReconstructTotalFlux(
             }
 
             type |= 1;
-            c_bfi_p->AssembleHDGFaceVector(type, *face_fe, *fe2_p, *ftr, xf, p2, bf2);
+            if (c_bfi_p)
+            {
+               c_bfi_p->AssembleHDGFaceVector(type, *face_fe, *fe2_p, *ftr, xf, p2, bf2);
+            }
+            else
+            {
+               c_nlfi_p->AssembleHDGFaceVector(type, *face_fe, *fe2_p, *ftr, xf, p2, bf2);
+            }
             bf -= bf2;
          }
       }
