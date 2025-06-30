@@ -162,6 +162,7 @@ set(SRCS
   transfer.cpp
   hyperbolic.cpp
   integrator.cpp
+  particleset.cpp
   )
 
 set(HDRS
@@ -272,6 +273,7 @@ set(HDRS
   transfer.hpp
   hyperbolic.hpp
   integrator.hpp
+  particleset.hpp
   )
 
 if (MFEM_USE_SIDRE)
