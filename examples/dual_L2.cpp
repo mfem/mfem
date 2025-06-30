@@ -31,6 +31,32 @@ public:
                      const IntegrationPoint &ip);
 };
 
+
+bool CheckVectorComponents(const mfem::GridFunction &gf, double limit)
+{
+    const double* data = gf.GetData();
+    const int size = gf.Size();
+
+    for (int i = 0; i < size; ++i)
+    {
+        if (std::abs(data[i]) > limit)
+        {
+            const int vdim = gf.FESpace()->GetVDim();
+            int dof_index = i / vdim;
+            int component_index = i % vdim;
+
+            std::cout << "--> Condition VIOLATED at DOF #" << dof_index
+                      << ", component " << component_index
+                      << ". Value: " << data[i]
+                      << ", Limit: " << limit << std::endl;
+
+            return false;
+        }
+    }
+
+    return true;
+}
+
 int main(int argc, char *argv[])
 {
    // const char *mesh_file = "../data/star.mesh";
@@ -119,13 +145,18 @@ int main(int argc, char *argv[])
 
    char vishost[] = "localhost";
    int  visport   = 19916;
-   socketstream sol_sock;
+   socketstream sol_sock, true_sock;
    if (visualization)
    {
       sol_sock.open(vishost,visport);
       sol_sock.precision(8);
-      // sol_sock  << "keys jlA\n"; // turn off perspective & light 
+      
+      // sol_sock  << "keys jlA\n";
+       // turn off perspective & light 
       // sol_sock << "keys cmA\n"; // colorbar + mesh + anti-alias
+   
+      true_sock.open(vishost,visport);
+      true_sock.precision(8);
    }
 
    ConstantCoefficient neg_one(-1.0);
@@ -157,8 +188,11 @@ int main(int argc, char *argv[])
 
    // FunctionCoefficient f([](const Vector &x) { return  1.; });  // just because this is prettiest 
 
-   FunctionCoefficient f([](const Vector &x) { return 1/M_PI * sin(M_PI * x[0]) * sin(M_PI*x[1]); }); 
+   // FunctionCoefficient f([](const Vector &x) { return 1/M_PI * sin(M_PI * x[0]) * sin(M_PI*x[1]); }); 
+   // FunctionCoefficient f([](const Vector &x)) { return -1. * (pow(x[0], 2) + pow(x[1], 2));  };
+   FunctionCoefficient f([](const Vector &x) { return  0.25*(pow(x[0], 2) + pow(x[1], 2)); });
 
+   // FunctionCoefficient f([](const Vector &x) { return -1.*( 2*(x[0] + x[1]) - pow(x[0], 3) - pow(x[1], 3)); });
 
    ProductCoefficient neg_alpha_f_cf(neg_alpha_cf, f); 
 
@@ -169,17 +203,13 @@ int main(int argc, char *argv[])
    BilinearForm a00(&RTfes);
    a00.AddDomainIntegrator(new DivDivIntegrator(alpha_cf)); 
    a00.AddDomainIntegrator(new VectorFEMassIntegrator(alpha_cf)); 
+   
    a00.Assemble();
    a00.Finalize(); 
    SparseMatrix &A00 = a00.SpMat(); 
 
    MixedBilinearForm a10(&RTfes, &L2fes);
    a10.AddDomainIntegrator(new VectorFEMassIntegrator()); 
-
-   a10.Assemble();
-   a10.Finalize();
-   SparseMatrix &A10 = a10.SpMat();
-   SparseMatrix *A01 = Transpose(A10);
 
    BilinearForm a11(&L2fes);
    a11.AddDomainIntegrator(new VectorMassIntegrator(neg_DZ)); 
@@ -206,6 +236,10 @@ int main(int argc, char *argv[])
          a11.Finalize(false);
          SparseMatrix &A11 = a11.SpMat();
 
+         a10.Assemble(false);
+         a10.Finalize(false);
+         SparseMatrix &A10 = a10.SpMat();
+         SparseMatrix *A01 = Transpose(A10);
 
          BlockMatrix A(offsets); 
          A.SetBlock(0,0,&A00);
@@ -244,6 +278,8 @@ int main(int argc, char *argv[])
          {
             break;
          }
+
+         // delete A01;
       }
 
       p_tmp = p_gf;
@@ -263,7 +299,6 @@ int main(int argc, char *argv[])
 
       alpha *= max(growth_rate, 1_r);
       alpha_cf.constant = alpha; 
-
    }
 
    mfem::out << "\n Outer iterations: " << k+1
@@ -275,13 +310,23 @@ int main(int argc, char *argv[])
       // double x_val = x(0);
       // double y_val = x(1);
       // double val = x_val * y_val * (1 - x_val) * (1 - y_val);
+
+      // u(0) = pow(x(0), 2); 
+      // u(1) = pow(x(1), 2); 
+
       
+      u(0) = 0.5*x(0); 
+      u(1) = 0.5*x(1); 
+
+
+      // u(0) = 0.5 * pow(x(0), 2); 
+      // u(1) = 0.5 * pow(x(1), 2); 
 
       // u(0) = x_val * (1. - x_val);
       // u(1) = y_val * (1. - y_val);
 
-      u(0) = -cos(M_PI * x[0]) * sin(M_PI*x[1]); 
-      u(1) = -sin(M_PI*x[0]) * cos(M_PI*x[1]); 
+      // u(0) = -cos(M_PI * x[0]) * sin(M_PI*x[1]); 
+      // u(1) = -sin(M_PI*x[0]) * cos(M_PI*x[1]); 
 
       // u(0) = 1.; 
       // u(1) = 1.; 
@@ -293,10 +338,25 @@ int main(int argc, char *argv[])
       // u(1) = 4. * (x_val - pow(x_val, 2))*(1. - 2.*y_val); 
    });
 
+   GridFunction exact_vec(&L2fes); 
+   exact_vec.ProjectCoefficient(exact_coeff); 
+   if (visualization) { 
+      true_sock << "solution\n" << mesh <<  exact_vec << "window_title 'True solution '" << flush; 
+   }
+
+    if (CheckVectorComponents(p_gf, 1.0))
+    {
+        std::cout << "Result: SUCCESS. All components are within the limit." << std::endl;
+    }
+    else
+    {
+        std::cout << "Result: FAILURE. At least one component is outside the limit." << std::endl;
+    }
+
+
    double l2_error = p_gf.ComputeL2Error(exact_coeff); 
    cout << "L2 error: " << l2_error << endl; 
 
-   delete A01;
    return 0;
 }
 
