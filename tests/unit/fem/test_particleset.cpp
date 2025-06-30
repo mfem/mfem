@@ -19,17 +19,18 @@ static constexpr int SpaceDim = 3;
 static constexpr int NumScalars = 2;
 static const Array<int> VectorVDims({2,3,1,5});
 
-static constexpr int N = 3;
-static constexpr int N_rm = 1;
+static constexpr int N = 100;
+static constexpr int N_rm = 37;
+static constexpr int N_e = 10;
 
-void InitializeRandom(Particle &p, int seed, const Vector &pos_min, const Vector &pos_max)
+void InitializeRandom(Particle &p, int seed)
 {
    std::mt19937 gen(seed);
    std::uniform_real_distribution<> real_dist(0.0,1.0);
 
-   for (int i = 0; i < pos_min.Size(); i++)
+   for (int i = 0; i < p.GetSpaceDim(); i++)
    {
-      p.GetCoords()[i] = pos_min[i] + (pos_max[i] - pos_min[i])*real_dist(gen);
+      p.GetCoords()[i] = real_dist(gen);
    }
 
    for (int s = 0; s < p.GetNumScalars(); s++)
@@ -51,13 +52,10 @@ void TestParticleSet()
    int seed = 17;
    std::vector<Particle> particles;
 
-   Vector pos_min(SpaceDim), pos_max(SpaceDim);
-   pos_min = 0.0;
-   pos_max = 1.0;
    for (int i = 0; i < N; i++)
    {
       particles.emplace_back(SpaceDim, NumScalars, VectorVDims);
-      InitializeRandom(particles[i], seed, pos_min, pos_max);
+      InitializeRandom(particles[i], seed);
       seed++;
    }
 
@@ -125,22 +123,22 @@ TEST_CASE("Adding + Removing Particles",
    TestParticleSet<Ordering::byVDIM>();
 }
 
-/*
+
 TEST_CASE("Particle Redistribution", "[ParticleSet]" "[Parallel]")
 {
 
    int size = Mpi::WorldSize();
    int rank = Mpi::WorldRank();
 
-   Mesh m = Mesh::MakeCartesian2D(N, N, Element::Type::QUADRILATERAL);
+   Mesh m = Mesh::MakeCartesian3D(N_e, N_e, N_e, Element::Type::QUADRILATERAL);
    ParMesh pmesh(MPI_COMM_WORLD, m);
 
    // Generate particles randomly on entire mesh domain, for each rank
-   ParticleSet<SampleParticle, Ordering::byVDIM> pset(MPI_COMM_WORLD);
+   ParticleSet<Ordering::byVDIM> pset(MPI_COMM_WORLD, SpaceDim, NumScalars, VectorVDims);
    int seed = rank;
    for (int i = 0; i < N; i++)
    {
-      SampleParticle p;
+      Particle p(SpaceDim, NumScalars, VectorVDims);
       InitializeRandom(p, seed);
       pset.AddParticle(p);
       seed += size;
@@ -171,4 +169,3 @@ TEST_CASE("Particle Redistribution", "[ParticleSet]" "[Parallel]")
    REQUIRE(err_count == 0);
 
 }
-*/

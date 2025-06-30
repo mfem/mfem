@@ -145,8 +145,26 @@ protected:
 
 #if defined(MFEM_USE_MPI) && defined(MFEM_USE_GSLIB)
    MPI_Comm comm;
-   gslib::comm gsl_comm;
-   gslib::crystal cr;
+   std::unique_ptr<gslib::comm> gsl_comm;
+   std::unique_ptr<gslib::crystal> cr;
+   template<std::size_t N>
+   struct pdata_t
+   {
+      double data[N];
+      unsigned int id, proc;
+   };
+   static constexpr std::size_t N_MAX = 100;
+
+   template<std::size_t N>
+   void Transfer(const Array<int> &send_idxs, const Array<int> &send_ranks);
+
+   template<std::size_t... Ns>
+   void RuntimeDispatchTransfer(const Array<int> &send_idxs, const Array<int> &send_ranks, std::index_sequence<Ns...>)
+   {
+      bool success = ( (TotalComps == Ns ? (Transfer<Ns>(send_idxs, send_ranks),true) : false) || ...);
+      MFEM_ASSERT(success, "Particles with field size above 100 are currently not supported for redistributing. Please submit a PR to request a particular particle size above this.");
+   }
+
 #endif // MFEM_USE_MPI && MFEM_USE_GSLIB
 
 
@@ -176,7 +194,7 @@ public:
    /// Should NOT be called after RemoveParticles (for now... we should think about this)
    /// (^Maybe instead we have two args: one is an array of particle IDs and one of rank list? Idk)
    void Redistribute(const Array<unsigned int> &rank_list);
-
+   
 #endif // MFEM_USE_MPI && MFEM_USE_GSLIB
 
 
@@ -226,6 +244,8 @@ public:
 
    /// Print all data to CSV
    void PrintCSV(const char* fname, int precision=16);
+
+   ~ParticleSet();
 
 };
 
