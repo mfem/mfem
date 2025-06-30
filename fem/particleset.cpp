@@ -11,6 +11,15 @@
 
 #include "particleset.hpp"
 
+#if defined(MFEM_USE_MPI) && defined(MFEM_USE_GSLIB)
+namespace gslib
+{
+extern "C"
+{
+#include <gslib.h>
+} // extern C
+} // namespace gslib
+#endif // MFEM_USE_MPI && MFEM_USE_GSLIB
 
 namespace mfem
 {
@@ -189,10 +198,12 @@ ParticleSet<VOrdering>::ParticleSet(MPI_Comm comm_, int spaceDim, int numScalars
   id_stride([&](){int s; MPI_Comm_size(comm_, &s); return s; }()),
   id_counter([&]() { int r; MPI_Comm_rank(comm_, &r); return r; }()),
   fields(TotalFields),
-  comm(comm_)
+  comm(comm_),
+  gsl_comm(std::make_unique<gslib::comm>()),
+  cr(std::make_unique<gslib::crystal>())
 {
-   comm_init(&gsl_comm, comm);
-   crystal_init(&cr, &gsl_comm);
+   comm_init(gsl_comm.get(), comm);
+   crystal_init(cr.get(), gsl_comm.get());
 }
 
 #endif // MFEM_USE_MPI && MFEM_USE_GSLIB
@@ -489,7 +500,7 @@ void ParticleSet<VOrdering>::PrintCSV(const char* fname, int precision)
    MPI_File_open(comm, fname, MPI_MODE_CREATE | MPI_MODE_WRONLY, MPI_INFO_NULL, &file);
 
    std::stringstream ss_header;
-   ParticleSet<Particle<SpaceDim, NumScalars, VectorVDims...>, VOrdering>::PrintCSVHeader(ss_header, true);
+   ParticleSet::PrintCSVHeader(ss_header, true);
    std::string header = ss_header.str();
 
    // Print header
@@ -501,7 +512,7 @@ void ParticleSet<VOrdering>::PrintCSV(const char* fname, int precision)
    // Get data for each rank
    std::stringstream ss;
    ss.precision(precision);
-   ParticleSet<Particle<SpaceDim, NumScalars, VectorVDims...>, VOrdering>::PrintCSV(ss, false, &rank);
+   ParticleSet::PrintCSV(ss, false, &rank);
 
    // Compute the size in bytes
    std::string s_dat = ss.str();
@@ -535,46 +546,23 @@ void ParticleSet<VOrdering>::PrintCSV(const char* fname, int precision)
 }
 
 #if defined(MFEM_USE_MPI) && defined(MFEM_USE_GSLIB)
+
 template<Ordering::Type VOrdering>
-void ParticleSet<VOrdering>::Redistribute(const Array<unsigned int> &rank_list)
+template<std::size_t N>
+void ParticleSet<VOrdering>::Transfer(const Array<int> &send_idxs, const Array<int> &send_ranks)
 {
-   MFEM_ASSERT(rank_list.Size() == GetNP(), "rank_list.Size() != GetNP()");
-
-   int rank, size;
-   MPI_Comm_rank(comm, &rank);
-   MPI_Comm_size(comm, &size);
-
-   // Get particles to be transferred
-   Array<int> send_idxs;
-   Array<int> send_ranks;
-   for (int i = 0; i < rank_list.Size(); i++)
-   {
-      if (rank != rank_list[i])
-      {
-         send_idxs.Append(i);
-         send_ranks.Append(rank_list[i]);
-      }
-   }
-
-   // Initialize GSLIB array
-   struct pdata_t
-   {
-      double data[SpaceDim + NumScalars + (VectorVDims + ... + 0)];
-      unsigned int id;
-      unsigned int proc;
-   };
    gslib::array gsl_arr;
-   array_init(pdata_t, &gsl_arr, send_idxs.Size());
-   pdata_t *pdata_arr;
-   pdata_arr = (pdata_t*) gsl_arr.ptr;
+   array_init(pdata_t<N>, &gsl_arr, send_idxs.Size());
+   pdata_t<N> *pdata_arr;
+   pdata_arr = (pdata_t<N>*) gsl_arr.ptr;
    gsl_arr.n = send_idxs.Size();
 
    // Set the data in pdata_arr
    // (For now, both make copies of the data for all VOrdering. One less copy for byVDIM.)
    for (int i = 0; i < send_idxs.Size(); i++)
    {
-      Particle<SpaceDim, NumScalars, VectorVDims...> p;
-      pdata_t &pdata = pdata_arr[i];
+      Particle p(SpaceDim, NumScalars, VectorVDims);
+      pdata_t<N> &pdata = pdata_arr[i];
 
       pdata.id = ids[send_idxs[i]];
       pdata.proc = send_ranks[i];
@@ -615,28 +603,28 @@ void ParticleSet<VOrdering>::Redistribute(const Array<unsigned int> &rank_list)
    RemoveParticles(send_idxs);
 
    // Transfer particles
-   sarray_transfer(pdata_t, &gsl_arr, proc, 1, &cr);
+   sarray_transfer(pdata_t<N>, &gsl_arr, proc, 1, cr.get());
 
    // Add received particles to this rank
-   unsigned int N_rec = gsl_arr.n;
-   pdata_arr = (pdata_t*) gsl_arr.ptr;
+   unsigned int recvd = gsl_arr.n;
+   pdata_arr = (pdata_t<N>*) gsl_arr.ptr;
 
-   for (int i = 0; i < N_rec; i++)
+   for (int i = 0; i < recvd; i++)
    {
-      pdata_t pdata = pdata_arr[i];
+      pdata_t<N> pdata = pdata_arr[i];
       if constexpr(std::is_same_v<real_t, double>)
       {
          double *coords = &pdata.data[0];
-         double *scalars[NumScalars];
-         double *vectors[sizeof...(VectorVDims)];
+         std::vector<double*> scalars(NumScalars);
+         std::vector<double*> vectors(VectorVDims.Size());
 
          for (int s = 0; s < NumScalars; s++)
             scalars[s] = &pdata.data[SpaceDim + s];
 
-         for (int v = 0; v < sizeof...(VectorVDims); v++)
+         for (int v = 0; v < VectorVDims.Size(); v++)
             vectors[v] = &pdata.data[SpaceDim + NumScalars + ExclScanFieldVDims[1+NumScalars+v]];
 
-         Particle<SpaceDim, NumScalars, VectorVDims...> p(coords, scalars, vectors);
+         Particle p(SpaceDim, NumScalars, VectorVDims, coords, scalars.data(), vectors.data());
 
          AddParticle(p, pdata.id);
       }
@@ -645,9 +633,37 @@ void ParticleSet<VOrdering>::Redistribute(const Array<unsigned int> &rank_list)
          // TODO
       }
    }
+}
+
+template<Ordering::Type VOrdering>
+void ParticleSet<VOrdering>::Redistribute(const Array<unsigned int> &rank_list)
+{
+   MFEM_ASSERT(rank_list.Size() == GetNP(), "rank_list.Size() != GetNP()");
+
+   int rank, size;
+   MPI_Comm_rank(comm, &rank);
+   MPI_Comm_size(comm, &size);
+
+   // Get particles to be transferred
+   Array<int> send_idxs;
+   Array<int> send_ranks;
+   for (int i = 0; i < rank_list.Size(); i++)
+   {
+      if (rank != rank_list[i])
+      {
+         send_idxs.Append(i);
+         send_ranks.Append(rank_list[i]);
+      }
+   }
+
+   // Dispatch at runtime to use the correctly-sized static struct for gslib
+   RuntimeDispatchTransfer(send_idxs, send_ranks, std::make_index_sequence<N_MAX+1>{});
 
 }
 #endif // MFEM_USE_MPI && MFEM_USE_GSLIB
+
+template<Ordering::Type VOrdering>
+ParticleSet<VOrdering>::~ParticleSet() = default;
 
 template class ParticleSet<Ordering::byNODES>;
 template class ParticleSet<Ordering::byVDIM>;
