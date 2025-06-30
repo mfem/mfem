@@ -21,9 +21,7 @@ using namespace incompressible_navier;
 
 void vel(const Vector &x, real_t t, Vector &u)
 {
-   real_t xi = x(0);
-   real_t yi = x(1);
-
+   // real_t xi = x(0), yi = x(1);
    u = 0.0;
 }
 
@@ -35,7 +33,7 @@ void vel_inlet(const Vector &x, real_t t, Vector &u)
 
 MFEM_EXPORT int navier(int argc, char *argv[], double &u, double &p, double &Ψ)
 {
-   NVTX();
+   dbg();
    static mfem::MPI_Session mpi(argc, argv);
    const int myid = mpi.WorldRank();
    Hypre::Init();
@@ -194,7 +192,8 @@ MFEM_EXPORT int navier(int argc, char *argv[], double &u, double &p, double &Ψ)
 int main(int argc, char *argv[])
 try
 {
-   double u, double p, double Ψ; // unused
+   dbg();
+   double u, p, Ψ; // unused
    return navier(argc, argv, u, p, Ψ);
 }
 catch (std::exception &e)

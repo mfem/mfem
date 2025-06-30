@@ -31,7 +31,7 @@ using args_t = std::vector<char *>;
 ///////////////////////////////////////////////////////////////////////////////
 struct Results
 {
-   double u{}, p{}, Ψ{};
+   double u{}, p{}, Ψ {};
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -39,38 +39,47 @@ struct Test
 {
    static constexpr const char *binary = "incompNS_2Dtest ";
    static constexpr const char *common = "-no-vis -no-pv";
-   std::string options;
+   const std::string options;
    const Results results;
    Test(const char *args, const Results &res):
       options(std::string(args) + " " + common), results(res)
    {
+      dbg("options: {}", options.c_str());
+      dbg("results: U={:.15e}, P={:.15e}, Ψ={:.15e}",
+          results.u, results.p, results.Ψ);
    }
    std::string Command() const { return binary + options; }
-   std::string Binary() const { return binary; }
 };
 
 ///////////////////////////////////////////////////////////////////////////////
-#if 1 // dot product reduction,
-const Test runs[] = {
-   { "-nx 9 -ny 3 -sr 0",
-   // RelWithDebInfo
-   #ifdef NDEBUG
-    { 3.056430866716070e-06, 1.504027632950462e-01, 7.132601171183242e-08 } },
-   #else
-     { 3.051466010319426e-06, 1.501114549939487e-01, 7.130482412808930e-08 } },
-   #endif
-   // { "-nx 16 -ny 8 -sr 0",
-   // { 1.409287729554512e-05, 5.718053801962010e-01, 1.904938419441012e-07 } },
-   // { "-nx 9 -ny 3 -sr 1",
-   // { 1.23258426138828e-05, 5.18207619597952e-01, 1.956175418199867e-07 } },
-   // { "-nx 9 -ny 3 -sr 2",
-   // { 4.74381190869396e-05, 1.80653923294262e+00, 5.90778654333642e-07 }},
+#if 1 // dot product reduction (miniapps/navier/incompNS_2Dtest.cpp#L182)
+static const Test gold[] =
+{
+   {
+      "-nx 9 -ny 3 -sr 0",
+      { 3.056430866716070e-06, 1.504027632950462e-01, 7.132601171183242e-08 }
+   },
+   {
+      "-nx 16 -ny 8 -sr 0",
+      { 1.409287729554512e-05, 5.718053801962010e-01, 1.904938419441012e-07 }
+   },
+   // {
+   //    "-nx 9 -ny 3 -sr 1",
+   //    { 1.23258426138828e-05, 5.18207619597952e-01, 1.956175418199867e-07 }
+   // },
+   // {
+   //    "-nx 9 -ny 3 -sr 2",
+   //    { 4.74381190869396e-05, 1.80653923294262e+00, 5.90778654333642e-07 }
+   // },
 };
 #else // Norml2 reduction
 ///////////////////////////////////////////////////////////////////////////////
-const Test runs[] = {
-   { "-nx 9 -ny 3 -sr 0",
-    { 1.746844586767688e-03, 3.874421956807944e-01, 2.670296315544763e-04 } },
+const Test runs[] =
+{
+   {
+      "-nx 9 -ny 3 -sr 0",
+      { 1.746844586767688e-03, 3.874421956807944e-01, 2.670296315544763e-04 }
+   },
    // 1.748265101955712e-03, 3.878179512284757e-01, 2.670693013280680e-04 //
    // Release { "-nx 9 -ny 3 -sr 1",
    //  { 1.232584261388279e-05, 5.182076195979519e-01, 1.956175418199866e-07 }
@@ -82,12 +91,13 @@ const Test runs[] = {
 #endif
 
 ///////////////////////////////////////////////////////////////////////////////
-int NavierTest(const int k, const Test &test)
+int NavierTest(const int k, const Test &run)
 {
+   dbg();
    static args_ptr_t args_ptr;
    args_t args;
 
-   std::istringstream iss(test.Command());
+   std::istringstream iss(run.Command());
 
    auto add_arg = [&](std::string token) -> char_uptr
    {
@@ -106,17 +116,19 @@ int NavierTest(const int k, const Test &test)
    }
    args.push_back(nullptr);
 
-   auto launch = [&args, &test, &k]() -> int
+   auto launch = [&args, &run, &k]() -> int
    {
+      // dbg("Launching test #{}: \x1B[33m{}\x1B[m", k, gold.Command().c_str());
       Results res{};
       navier(args.size() - 1, args.data(), res.u, res.p, res.Ψ);
+      // dbg("Results: U={:.15e}, P={:.15e}, Ψ={:.15e}", res.u, res.p, res.Ψ);
 
-      const bool u = AlmostEq(res.u, test.results.u);
-      const bool p = AlmostEq(res.p, test.results.p);
-      const bool Ψ = AlmostEq(res.Ψ, test.results.Ψ);
-      auto ok = [](bool ok) -> int { return ok ? 32 : 31; };
+      const bool u = AlmostEq(res.u, run.results.u);
+      const bool p = AlmostEq(res.p, run.results.p);
+      const bool Ψ = AlmostEq(res.Ψ, run.results.Ψ);
 
-      auto to_string = [](args_t &args) -> std::string
+      constexpr auto ok = [](bool ok) -> int { return ok ? 32 : 31; };
+      constexpr auto to_string = [](args_t &args) -> std::string
       {
          std::string args_str;
          for (auto &arg : args)
@@ -127,11 +139,10 @@ int NavierTest(const int k, const Test &test)
          return args_str;
       };
 
-      // dbg("#{} \x1B[33m{}\x1B[m", k, test.Command().c_str());
       dbg("#{} \x1B[33m{}\x1B[m", k, to_string(args).c_str());
-      dbg("U: \x1B[32m{:.15e} \x1B[{}m{:.15e}", res.u, ok(u), test.results.u);
-      dbg("P: \x1B[32m{:.15e} \x1B[{}m{:.15e}", res.p, ok(p), test.results.p);
-      dbg("Ψ: \x1B[32m{:.15e} \x1B[{}m{:.15e}", res.Ψ, ok(Ψ), test.results.Ψ);
+      dbg("U: \x1B[33m{:.15e} \x1B[{}m{:.15e}", run.results.u, ok(u), res.u );
+      dbg("P: \x1B[33m{:.15e} \x1B[{}m{:.15e}", run.results.p, ok(p), res.p);
+      dbg("Ψ: \x1B[33m{:.15e} \x1B[{}m{:.15e}", run.results.Ψ, ok(Ψ), res.Ψ);
 
       if (u && p && Ψ) { return std::cout << "✅" << std::endl, EXIT_SUCCESS; }
       else { return std::cout << "❌" << std::endl, EXIT_FAILURE; }
@@ -155,7 +166,7 @@ int NavierTest(const int k, const Test &test)
 int main(int argc, char *argv[])
 try
 {
-   // dbgClearScreen(), dbg();
+   dbg();
 
    int opt;
    int test = -1;
@@ -171,17 +182,17 @@ try
    {
       switch (opt)
       {
-      case 't': test = std::atoi(optarg); break;
-      case 'h': show_usage(EXIT_SUCCESS);
-      default:  show_usage(EXIT_FAILURE);
+         case 't': test = std::atoi(optarg); break;
+         case 'h': show_usage(EXIT_SUCCESS);
+         default:  show_usage(EXIT_FAILURE);
       }
    }
 
-   constexpr int N_TESTS = sizeof(runs) / sizeof(Test);
-   if (test >= 0 && test < N_TESTS) { return NavierTest(test, runs[test]); }
+   constexpr int N_TESTS = sizeof(gold) / sizeof(Test);
+   if (test >= 0 && test < N_TESTS) { return NavierTest(test, gold[test]); }
 
    int k = 0;
-   for (auto &run : runs)
+   for (auto &run : gold)
    {
       if (NavierTest(k++, run) != EXIT_SUCCESS) { return EXIT_FAILURE; }
    }

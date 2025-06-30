@@ -52,6 +52,11 @@ if (MFEM_USE_MPI)
     ${NAVIER_COMMON_FILES}
     LIBRARIES mfem)
 
+  add_mfem_miniapp(incompressible_navier_dfem
+    MAIN incompressible_navier_dfem.cpp
+    EXTRA_HEADERS incompressible_navier_nvtx.hpp
+    LIBRARIES mfem)
+
   add_mfem_miniapp(incompNS_2Dtest
     MAIN incompNS_2Dtest.cpp
     EXTRA_SOURCES incompressible_navier_solver.cpp
@@ -93,4 +98,4 @@ if (MFEM_USE_MPI)
         ${MPIEXEC_POSTFLAGS})
     endforeach()
 endif()
-endif ()
+endif()
