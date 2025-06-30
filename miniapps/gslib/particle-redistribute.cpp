@@ -23,8 +23,8 @@
 // Sample runs:
 //   mpirun -np 4 particle-redistribute -n 1000
 //   mpirun -np 4 particle-redistribute -n 5000 -m ../../data/star.mesh
-//   mpirun -np 4 particle-redistribute -n 7500 -m ../../toroid-hex.mesh
-//   mpirun -np 4 particle-redistribute -n 7500 -m ../../fischera-q3.mesh
+//   mpirun -np 4 particle-redistribute -n 7500 -m ../../data/toroid-hex.mesh
+//   mpirun -np 4 particle-redistribute -n 7500 -m ../../data/fischera-q3.mesh
 
 #include "mfem.hpp"
 
@@ -33,23 +33,22 @@
 using namespace std;
 using namespace mfem;
 
-template<int SpaceDim, int NumScalars, int... VectorVDims>
-void InitializeRandom(Particle<SpaceDim,NumScalars,VectorVDims...> &p, int seed, Vector &pos_min, Vector &pos_max)
+void InitializeRandom(Particle &p, int seed, Vector &pos_min, Vector &pos_max)
 {
    std::mt19937 gen(seed);
    std::uniform_real_distribution<> real_dist(0.0,1.0);
 
-   for (int i = 0; i < pos_min.Size(); i++)
+   for (int i = 0; i < p.GetSpaceDim(); i++)
    {
       p.GetCoords()[i] = pos_min[i] + (pos_max[i] - pos_min[i])*real_dist(gen);
    }
 
-   for (int s = 0; s < NumScalars; s++)
+   for (int s = 0; s < p.GetNumScalars(); s++)
       p.GetScalar(s) = real_dist(gen);
    
-   for (int v = 0; v < sizeof...(VectorVDims); v++)
+   for (int v = 0; v < p.GetNumVectors(); v++)
    {
-      for (int c = 0; c < Particle<SpaceDim, NumScalars, VectorVDims...>::GetVDim(v); c++)
+      for (int c = 0; c < p.GetVDim(v); c++)
       {
          p.GetVector(v)[c] = real_dist(gen);
       }
@@ -132,9 +131,6 @@ void Add3DPoint(const Vector &center, real_t s, Mesh &m)
    m.AddHex(vi);
 }
 
-template<int SpaceDim>
-void RunMiniapp(Mesh &mesh, MPI_Comm comm, int npt, bool visualization, int visport, char* vishost);
-
 int main (int argc, char *argv[])
 {
    // Initialize MPI and HYPRE.
@@ -171,52 +167,25 @@ int main (int argc, char *argv[])
    MFEM_ASSERT(mesh.SpaceDimension() == mesh.Dimension(), "FindPointsGSLIB requires that the mesh space dimension + reference element dimension are the same");
    int space_dim = mesh.Dimension();
 
-   // Particle space dim must match mesh:
-   switch (space_dim)
-   {
-      case 1:
-         RunMiniapp<1>(mesh, MPI_COMM_WORLD, npt, visualization, visport, vishost);
-         break;
-      case 2:
-         RunMiniapp<2>(mesh, MPI_COMM_WORLD, npt, visualization, visport, vishost);
-         break;
-      case 3:
-        RunMiniapp<3>(mesh, MPI_COMM_WORLD, npt, visualization, visport, vishost);
-         break;
-      default:
-         MFEM_ABORT("Mesh dimension > 3 not supported");
-   }
-
-
-   return 0;
-}
-
-template<int SpaceDim>
-void RunMiniapp(Mesh &mesh, MPI_Comm comm, int npt, bool visualization, int visport, char* vishost)
-{
-   int rank, size;
-   MPI_Comm_rank(comm, &rank);
-   MPI_Comm_size(comm, &size);
-
-   ParticleSet<Particle<SpaceDim>, Ordering::byVDIM> pset(comm);
+   ParticleSet<Ordering::byVDIM> pset(MPI_COMM_WORLD, space_dim, 0, Array<int>());
 
    Vector pos_min, pos_max;
    mesh.GetBoundingBox(pos_min, pos_max);
 
-   ParMesh pmesh(comm, mesh);
+   ParMesh pmesh(MPI_COMM_WORLD, mesh);
 
    // Generate particles randomly on entire mesh domain, for each rank
    int seed = rank;
    for (int i = 0; i < npt; i++)
    {
-      Particle<SpaceDim> p;
+      Particle p(space_dim, 0, Array<int>());
       InitializeRandom(p, seed, pos_min, pos_max);
       pset.AddParticle(p);
       seed += size;
    }
 
    // Find points
-   FindPointsGSLIB finder(comm);
+   FindPointsGSLIB finder(MPI_COMM_WORLD);
    pmesh.EnsureNodes();
    finder.Setup(pmesh);
    finder.FindPoints(pset.GetSetCoords(), pset.GetOrdering());
@@ -240,7 +209,7 @@ void RunMiniapp(Mesh &mesh, MPI_Comm comm, int npt, bool visualization, int visp
       mfem::out << "Pre-Redistribute:\n";
    }
 
-   PrintOnOffRankCounts(finder.GetProc(), comm);
+   PrintOnOffRankCounts(finder.GetProc(), MPI_COMM_WORLD);
 
    // Redistribute
    pset.Redistribute(finder.GetProc());
@@ -254,7 +223,7 @@ void RunMiniapp(Mesh &mesh, MPI_Comm comm, int npt, bool visualization, int visp
    {
       mfem::out << "\nPost-Redistribute:\n";
    }
-   PrintOnOffRankCounts(finder.GetProc(), comm);
+   PrintOnOffRankCounts(finder.GetProc(), MPI_COMM_WORLD);
    
    if (visualization)
    {
@@ -269,7 +238,7 @@ void RunMiniapp(Mesh &mesh, MPI_Comm comm, int npt, bool visualization, int visp
       Mesh particles_mesh(3, pset.GetNP()*8, pset.GetNP(), 0, 3);
       for (int i = 0; i < pset.GetNP(); i++)
       {
-         auto p = pset.GetParticleRef(i);
+         Particle p = pset.GetParticleRef(i);
          const Vector &pcoords = p.GetCoords();
          Add3DPoint(pcoords, psize, particles_mesh);
       }
@@ -293,5 +262,5 @@ void RunMiniapp(Mesh &mesh, MPI_Comm comm, int npt, bool visualization, int visp
 
    }
 
-
+   return 0;
 }
