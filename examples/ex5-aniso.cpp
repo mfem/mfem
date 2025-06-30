@@ -67,6 +67,7 @@ enum Problem
    SteadyDiffusion = 1,
    MFEMLogo,
    DiffusionRing,
+   BoundaryLayer,
 };
 
 constexpr real_t epsilon = numeric_limits<real_t>::epsilon();
@@ -148,7 +149,8 @@ int main(int argc, char *argv[])
                   "Problem to solve:\n\t\t"
                   "1=sine diffusion\n\t\t"
                   "2=MFEM logo\n\t\t"
-                  "3=diffusion ring\n\t\t");
+                  "3=diffusion ring\n\t\t"
+                  "4=boundary layer\n\t\t");
    args.AddOption(&tf, "-tf", "--time-final",
                   "Final time.");
    args.AddOption(&nt, "-nt", "--ntimesteps",
@@ -222,6 +224,7 @@ int main(int argc, char *argv[])
    {
       case Problem::SteadyDiffusion:
       case Problem::DiffusionRing:
+      case Problem::BoundaryLayer:
          break;
       case Problem::MFEMLogo:
          bconv = true;
@@ -304,6 +307,10 @@ int main(int argc, char *argv[])
             bdr_is_neumann[1] = -1;//outflow
             bdr_is_neumann[2] = -1;//outflow
          }
+         break;
+      case Problem::BoundaryLayer:
+         bdr_is_dirichlet[0] = -1;
+         bdr_is_dirichlet[2] = -1;
          break;
    }
 
@@ -1048,6 +1055,7 @@ MatFunc GetKFun(Problem prob, real_t k, real_t ks, real_t ka)
    switch (prob)
    {
       case Problem::SteadyDiffusion:
+      case Problem::BoundaryLayer:
          return [=](const Vector &x, DenseMatrix &kappa)
          {
             const int ndim = x.Size();
@@ -1244,6 +1252,19 @@ TFunc GetTFun(Problem prob, real_t t_0, real_t a, const MatFunc &kFun, real_t c)
             const real_t dth = (theta - theta0 + dtheta0) / dtheta0;
             return min(1., dr) * min(1., dth) * t_0;
          };
+      case Problem::BoundaryLayer:
+         return [=](const Vector &x, real_t t) -> real_t
+         {
+            DenseMatrix kappa;
+            kFun(x, kappa);
+            const real_t k_para = M_PI*M_PI * kappa(0,0);
+            const real_t k_perp = kappa(1,1);
+            const real_t k_frac = sqrt(k_para/k_perp);
+            const real_t denom = 1. + exp(-k_frac);
+            const real_t e_down = exp(-k_frac * x(1));
+            const real_t e_up = exp(- k_frac * (1. - x(1)));
+            return - (e_down + e_up) / denom * sin(M_PI * x(0));
+         };
    }
    return TFunc();
 }
@@ -1292,6 +1313,26 @@ VecTFunc GetQFun(Problem prob, real_t t_0, real_t a, const MatFunc &kFun,
             v.SetSize(vdim);
             v = 0.;
          };
+      case Problem::BoundaryLayer:
+         return [=](const Vector &x, real_t, Vector &v)
+         {
+            const int vdim = x.Size();
+            v.SetSize(vdim);
+
+            DenseMatrix kappa;
+            kFun(x, kappa);
+            const real_t k_para = M_PI*M_PI * kappa(0,0);
+            const real_t k_perp = kappa(1,1);
+            const real_t k_frac = sqrt(k_para/k_perp);
+
+            const real_t denom = 1. + exp(-k_frac);
+            const real_t e_down = exp(-k_frac * x(1));
+            const real_t e_up = exp(- k_frac * (1. - x(1)));
+            const real_t T_x = - (e_down + e_up) / denom * M_PI * cos(M_PI * x(0));
+            const real_t T_y = k_frac * (e_down - e_up) / denom * sin(M_PI * x(0));
+            v(0) = -kappa(0,0) * T_x;
+            v(1) = -kappa(1,1) * T_y;
+         };
    }
    return VecTFunc();
 }
@@ -1302,6 +1343,7 @@ VecFunc GetCFun(Problem prob, real_t c)
    {
       case Problem::SteadyDiffusion:
       case Problem::DiffusionRing:
+      case Problem::BoundaryLayer:
          // null
          break;
       case Problem::MFEMLogo:
@@ -1353,6 +1395,11 @@ TFunc GetFFun(Problem prob, real_t t_0, real_t a, const MatFunc &kFun, real_t c)
             const real_t T = TFun(x, 0);
             return -((a > 0.)?(a):(1.)) * T;
          };
+      case Problem::BoundaryLayer:
+         return [=](const Vector &x, real_t) -> real_t
+         {
+            return 0.;
+         };
    }
    return TFunc();
 }
@@ -1364,6 +1411,7 @@ FluxFunction* GetFluxFun(Problem prob, VectorCoefficient &ccoef)
       case Problem::SteadyDiffusion:
       case Problem::MFEMLogo:
       case Problem::DiffusionRing:
+      case Problem::BoundaryLayer:
          //null
          break;
    }
@@ -1381,6 +1429,7 @@ MixedFluxFunction* GetHeatFluxFun(Problem prob, real_t k, real_t ks, real_t ka,
       case Problem::SteadyDiffusion:
       case Problem::MFEMLogo:
       case Problem::DiffusionRing:
+      case Problem::BoundaryLayer:
          static MatrixFunctionCoefficient kappa(dim, KFun);
          static InverseMatrixCoefficient ikappa(kappa);
          return new LinearDiffusionFlux(ikappa);
