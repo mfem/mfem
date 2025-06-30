@@ -12,29 +12,21 @@
 
 // Navier Wind Tunnel
 //
-// Solve for the steady Kovasznay flow at Re = 40 defined by
+// The problem domain is set up as follows:
 //
-// u = [1 - exp(L * x) * cos(2 * pi * y),
-//      L / (2 * pi) * exp(L * x) * sin(2 * pi * y)],
-//
-// p = 1/2 * (1 - exp(2 * L * x)),
-//
-// with L = Re/2 - sqrt(Re^2/4 + 4 * pi^2).
-//
-// The problem domain is set up like this:
-//
-//            +-------------+
-//            |             |
-//            |             |
-//            |             |
-//            |             |
-//  Inflow -> |             | -> Outflow
-//            |             |
-//            |             |
-//            |             |
-//            |             |
-//            |             |
-//            +-------------+
+//            Top (no-penetration)
+//               +-------+
+//              /|      /|
+//             / |     / |
+//    Left    /  |    /  |  Right
+// (no-pen)  +-------+   | (no-pen)
+//           |   |   |   |
+//           |   +---|---+
+//           |  /    |  /
+//           | /     | /
+//           |/      |/
+//           +-------+
+//          Ground (no-slip)
 //
 // Boundary conditions:
 // - Left/Right (attr 2,4): Kovasznay velocity Dirichlet BC
@@ -52,35 +44,24 @@ using namespace navier;
 struct s_NavierContext
 {
    int ser_ref_levels = 1;
-   int order = 6;
-   real_t kinvis = 1.0 / 40.0;
-   real_t t_final = 10 * 0.001;
-   real_t dt = 0.001;
-   real_t reference_pressure = 0.0;
-   real_t reynolds = 1.0 / kinvis;
-   real_t lam = 0.5 * reynolds
-                - sqrt(0.25 * reynolds * reynolds + 4.0 * M_PI * M_PI);
+   int order = 2; // TODO: Left as 2 for testing, but should be raised.
+   real_t kinvis = 1.0 / 100.0; // TODO: Re = 100
+   real_t t_final = 5.0; // TODO: Was 10 * 0.001, but want longer time
+   real_t dt = 0.01; // TODO: Increased time step by factor of 10
+   real_t inlet_velocity = 1.0;
    bool pa = true;
    bool ni = false;
    bool visualization = false;
    bool checkres = false;
 } ctx;
 
-void vel_kovasznay(const Vector &x, real_t t, Vector &u)
+void vel_inlet(const Vector &x, real_t t, Vector &u)
 {
-   real_t xi = x(0);
-   real_t yi = x(1);
-
-   u(0) = 1.0 - exp(ctx.lam * xi) * cos(2.0 * M_PI * yi);
-   u(1) = ctx.lam / (2.0 * M_PI) * exp(ctx.lam * xi) * sin(2.0 * M_PI * yi);
+    u(0) = ctx.inlet_velocity;
+    u(1) = 0.0;
+    u(2) = 0.0;
 }
 
-real_t pres_kovasznay(const Vector &x, real_t t)
-{
-   real_t xi = x(0);
-
-   return 0.5 * (1.0 - exp(2.0 * ctx.lam * xi)) + ctx.reference_pressure;
-}
 
 int main(int argc, char *argv[])
 {
@@ -99,6 +80,8 @@ int main(int argc, char *argv[])
                   "Order (degree) of the finite elements.");
    args.AddOption(&ctx.dt, "-dt", "--time-step", "Time step.");
    args.AddOption(&ctx.t_final, "-tf", "--final-time", "Final time.");
+   args.AddOption(&ctx.inlet_velocity, "-u0", "--inlet-velocity", 
+                  "Inlet velocity magnitude.");
    args.AddOption(&ctx.pa,
                   "-pa",
                   "--enable-pa",
@@ -117,15 +100,9 @@ int main(int argc, char *argv[])
                   "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
-   args.AddOption(
-      &ctx.checkres,
-      "-cr",
-      "--checkresult",
-      "-no-cr",
-      "--no-checkresult",
-      "Enable or disable checking of the result. Returns -1 on failure.");
    args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.Parse();
+
    if (!args.Good())
    {
       if (Mpi::Root())
@@ -134,58 +111,68 @@ int main(int argc, char *argv[])
       }
       return 1;
    }
+
    if (Mpi::Root())
    {
       args.PrintOptions(mfem::out);
    }
 
-   Mesh mesh = Mesh::MakeCartesian2D(2, 4, Element::QUADRILATERAL, false, 1.5,
-                                     2.0);
+   Mesh mesh = Mesh::MakeCartesian3D(6, 2, 4, Element::HEXAHEDRON, 3.0, 1.0, 2.0);
 
-   mesh.EnsureNodes();
-   GridFunction *nodes = mesh.GetNodes();
-   *nodes -= 0.5;
-
-   for (int i = 0; i < ctx.ser_ref_levels; ++i)
+   for (int i = 0; i < ctx.ser_ref_levels; i++)
    {
       mesh.UniformRefinement();
    }
 
    if (Mpi::Root())
    {
-      std::cout << "Number of elements: " << mesh.GetNE() << std::endl;
+      mfem::out << "Number of elements: " << mesh.GetNE() << std::endl;
+      mfem::out << "Mesh dimension: " << mesh.Dimension() << std::endl;
+      mfem::out << "Number of boundary attributes: " << mesh.bdr_attributes.Max() << std::endl;
    }
 
    auto *pmesh = new ParMesh(MPI_COMM_WORLD, mesh);
    mesh.Clear();
 
-   // Create the flow solver.
    NavierSolver flowsolver(pmesh, ctx.order, ctx.kinvis);
    flowsolver.EnablePA(ctx.pa);
    flowsolver.EnableNI(ctx.ni);
 
-   // Set the initial condition.
-   ParGridFunction *u_ic = flowsolver.GetCurrentVelocity();
-   VectorFunctionCoefficient u_excoeff(pmesh->Dimension(), vel_kovasznay);
-   u_ic->ProjectCoefficient(u_excoeff);
+   // Set up the boundary conditions
 
-   FunctionCoefficient p_excoeff(pres_kovasznay);
+   // 1. INLET (attr 5): Prescribed velocity  TODO: Move to log-law
+   Array<int> attr_inlet(pmesh->bdr_attributes.Max());
+   attr_inlet = 0;
+   attr_inlet[4] = 1;  // attr 5
+   flowsolver.AddVelDirichletBC(vel_inlet, attr_inlet);
 
-   // Add Dirichlet boundary conditions to velocity space restricted to
-   // selected attributes on the mesh.
-   Array<int> attr_inflow_outflow(pmesh->bdr_attributes.Max());
-   attr_inflow_outflow = 0;
-   attr_inflow_outflow[1] = 1;  // attr 2 = left boundary (inflow)
-   attr_inflow_outflow[3] = 1;  // attr 4 = right boundary (outflow)
-   flowsolver.AddVelDirichletBC(vel_kovasznay, attr_inflow_outflow);
+   // 2. GROUND (attr 3): No-slip
+   Array<int> attr_ground(pmesh->bdr_attributes.Max());
+   attr_ground = 0;
+   attr_ground[2] = 1;  // attr 3
+   VectorConstantCoefficient zero_vel(Vector({0.0, 0.0, 0.0}));
+   flowsolver.AddVelDirichletBC(&zero_vel, attr_ground);
 
-   // Add no-penetration boundary conditions on walls
-   Array<int> attr_walls(pmesh->bdr_attributes.Max());
-   attr_walls = 0;
-   attr_walls[0] = 1;  // attr 1 = bottom wall
-   attr_walls[2] = 1;  // attr 3 = top wall
+   // 3. LEFT WALL (attr 1): No-penetration
+   Array<int> attr_left(pmesh->bdr_attributes.Max());
+   attr_left = 0;
+   attr_left[0] = 1;  // attr 1
+   flowsolver.AddVelDirichletBC(new ConstantCoefficient(0.0), attr_left, 0);
 
-   flowsolver.AddVelDirichletBC(new ConstantCoefficient(0.0), attr_walls, 1);
+   // 4. RIGHT WALL (attr 2): No-penetration
+   Array<int> attr_right(pmesh->bdr_attributes.Max());
+   attr_right = 0;
+   attr_right[1] = 1;  // attr 2
+   flowsolver.AddVelDirichletBC(new ConstantCoefficient(0.0), attr_right, 0);
+
+   // 5. TOP WALL (attr 4): No-penetration
+   Array<int> attr_top(pmesh->bdr_attributes.Max());
+   attr_top = 0;
+   attr_top[3] = 1;  // attr 4
+   flowsolver.AddVelDirichletBC(new ConstantCoefficient(0.0), attr_top, 1);
+
+   // 6. OUTLET (attr 6): Do nothing
+   // Nothing to do here...
 
    real_t t = 0.0;
    real_t dt = ctx.dt;
@@ -194,123 +181,13 @@ int main(int argc, char *argv[])
 
    flowsolver.Setup(dt);
 
-   real_t err_u = 0.0;
-   real_t err_p = 0.0;
    ParGridFunction *u_gf = nullptr;
    ParGridFunction *p_gf = nullptr;
 
-   ParGridFunction p_ex_gf(flowsolver.GetCurrentPressure()->ParFESpace());
-   GridFunctionCoefficient p_ex_gf_coeff(&p_ex_gf);
-
-   // Print header for output
    if (Mpi::Root())
    {
-      printf("%5s %8s %8s %8s %11s %11s\n",
-             "Order",
-             "CFL",
-             "Time",
-             "dt",
-             "err_u",
-             "err_p");
+      printf("%5s %8s %8s %8s %11s\n",
+             "Step", "Time", "dt", "CFL", "||u||_max");
    }
 
-   for (int step = 0; !last_step; ++step)
-   {
-      if (t + dt >= t_final - dt / 2)
-      {
-         last_step = true;
-      }
-
-      flowsolver.Step(t, dt, step);
-
-      // Compare against exact solution of velocity and pressure.
-      u_gf = flowsolver.GetCurrentVelocity();
-      p_gf = flowsolver.GetCurrentPressure();
-
-      // TEST: u_y norm on \partial\Omega_wall
-      VectorGridFunctionCoefficient uy_coeff(u_gf);
-
-      LinearForm lform(u_gf->ParFESpace());
-      lform.AddBoundaryIntegrator(new BoundaryNormalLFIntegrator(uy_coeff),
-                                  attr_walls);
-      lform.Assemble();
-
-      double local_val = lform * (*u_gf);
-      double global_val = 0.0;
-      MPI_Allreduce(&local_val, &global_val, 1, MPI_DOUBLE, MPI_SUM,
-                    pmesh->GetComm());
-      double normL2 = sqrt(global_val);
-
-      if (Mpi::Root())
-      {
-         mfem::out << "Norm of u_y on walls: " << normL2 << std::endl;
-      }
-      // END TEST
-
-
-      u_excoeff.SetTime(t);
-      p_excoeff.SetTime(t);
-
-      // Remove mean value from exact pressure solution.
-      p_ex_gf.ProjectCoefficient(p_excoeff);
-      flowsolver.MeanZero(p_ex_gf);
-
-      err_u = u_gf->ComputeL2Error(u_excoeff);
-      err_p = p_gf->ComputeL2Error(p_ex_gf_coeff);
-
-      real_t cfl = flowsolver.ComputeCFL(*u_gf, dt);
-
-      if (Mpi::Root())
-      {
-         printf("%5.2d %8.2E %.2E %.2E %.5E %.5E\n",
-                ctx.order,
-                cfl,
-                t,
-                dt,
-                err_u,
-                err_p);
-         fflush(stdout);
-      }
-   }
-
-   if (ctx.visualization)
-   {
-      char vishost[] = "localhost";
-      socketstream sol_sock(vishost, visport);
-      sol_sock.precision(8);
-      sol_sock << "parallel " << Mpi::WorldSize() << " "
-               << Mpi::WorldRank() << "\n";
-      sol_sock << "solution\n" << *pmesh << *u_gf << std::flush;
-   }
-
-   flowsolver.PrintTimingData();
-
-   // Test if the result for the test run is as expected.
-   if (ctx.checkres)
-   {
-#if defined(MFEM_USE_DOUBLE)
-      real_t tol_u = 1e-6;
-      real_t tol_p = 1e-5;
-#elif defined(MFEM_USE_SINGLE)
-      real_t tol_u = 1e-5;
-      real_t tol_p = 2e-4;
-#else
-#error "Only single and double precision are supported!"
-      real_t tol_u = 0;
-      real_t tol_p = 0;
-#endif
-      if (err_u > tol_u || err_p > tol_p)
-      {
-         if (Mpi::Root())
-         {
-            mfem::out << "Result has a larger error than expected."
-                      << std::endl;
-         }
-         return -1;
-      }
-   }
-
-   delete pmesh;
-
-   return 0;
 }
