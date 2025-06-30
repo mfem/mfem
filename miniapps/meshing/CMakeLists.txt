@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -73,6 +73,10 @@ add_mfem_miniapp(reflector
   MAIN reflector.cpp
   LIBRARIES mfem)
 
+add_mfem_miniapp(ref321
+  MAIN ref321.cpp
+  LIBRARIES mfem)
+
 add_mfem_miniapp(toroid
   MAIN toroid.cpp
   LIBRARIES mfem)
@@ -89,6 +93,10 @@ add_mfem_miniapp(polar-nc
   MAIN polar-nc.cpp
   LIBRARIES mfem)
 
+add_mfem_miniapp(hpref
+  MAIN hpref.cpp
+  LIBRARIES mfem)
+
 # Add serial tests.
 if (MFEM_ENABLE_TESTING)
   set(SERIAL_TESTS
@@ -102,7 +110,9 @@ if (MFEM_ENABLE_TESTING)
     minimal-surface
     polar-nc
     reflector
+    ref321
     mesh-quality
+    hpref
   )
   foreach(test ${SERIAL_TESTS})
     add_test(NAME ${test} COMMAND ${test} -no-vis)
@@ -111,6 +121,11 @@ endif()
 
 # Parallel apps.
 if (MFEM_USE_MPI)
+  add_mfem_miniapp(mesh-bounding-boxes
+    MAIN mesh-bounding-boxes.cpp
+    ${MFEM_MINIAPPS_COMMON_HEADERS}
+    LIBRARIES mfem-common)
+
   add_mfem_miniapp(pmesh-optimizer
     MAIN pmesh-optimizer.cpp
     ${MFEM_MINIAPPS_COMMON_HEADERS}
@@ -133,13 +148,19 @@ if (MFEM_USE_MPI)
     MAIN pminimal-surface.cpp
     LIBRARIES mfem)
 
+  add_mfem_miniapp(phpref
+    MAIN phpref.cpp
+    LIBRARIES mfem)
+
   # Add parallel tests.
   if (MFEM_ENABLE_TESTING)
     set(PARALLEL_TESTS
+      mesh-bounding-boxes
       pmesh-optimizer
       pmesh-fitting
       fit-node-position
       pminimal-surface
+      phpref
     )
     # Meshing miniapps that return MFEM_SKIP_RETURN_VALUE in some cases:
     set(SKIP_TESTS)

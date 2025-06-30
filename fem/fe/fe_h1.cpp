@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -1039,5 +1039,830 @@ void H1_WedgeElement::CalcDShape(const IntegrationPoint &ip,
       dshape(i, 2) = t_shape[t_dof[i]] * s_dshape(s_dof[i],0);
    }
 }
+
+H1_FuentesPyramidElement::H1_FuentesPyramidElement(const int p, const int btype)
+   : NodalFiniteElement(3, Geometry::PYRAMID,
+                        p * (p * p + 3) + 1, // Fuentes et al
+                        p, FunctionSpace::Uk)
+{
+   zmax = 0.0;
+
+   const real_t *cp = poly1d.ClosedPoints(p, VerifyNodal(VerifyClosed(btype)));
+
+#ifndef MFEM_THREAD_SAFE
+   tmp_i.SetSize(p + 1);
+   tmp1_ij.SetSize(p + 1, p + 1);
+   tmp2_ij.SetSize(p + 1, dim);
+   tmp_ijk.SetSize(p + 1, p + 1, dim);
+   tmp_u.SetSize(dof);
+   tmp_du.SetSize(dof, dim);
+#else
+   Vector tmp_i(p + 1);
+   DenseMatrix tmp1_ij(p + 1, p + 1);
+#endif
+
+   // vertices
+   Nodes.IntPoint(0).Set3(cp[0], cp[0], cp[0]);
+   Nodes.IntPoint(1).Set3(cp[p], cp[0], cp[0]);
+   Nodes.IntPoint(2).Set3(cp[p], cp[p], cp[0]);
+   Nodes.IntPoint(3).Set3(cp[0], cp[p], cp[0]);
+   Nodes.IntPoint(4).Set3(cp[0], cp[0], cp[p]);
+
+   // edges
+   int o = 5;
+   for (int i = 1; i < p; i++)  // (0,1)
+   {
+      Nodes.IntPoint(o++).Set3(cp[i], cp[0], cp[0]);
+   }
+   for (int i = 1; i < p; i++)  // (1,2)
+   {
+      Nodes.IntPoint(o++).Set3(cp[p], cp[i], cp[0]);
+   }
+   for (int i = 1; i < p; i++)  // (3,2)
+   {
+      Nodes.IntPoint(o++).Set3(cp[i], cp[p], cp[0]);
+   }
+   for (int i = 1; i < p; i++)  // (0,3)
+   {
+      Nodes.IntPoint(o++).Set3(cp[0], cp[i], cp[0]);
+   }
+   for (int i = 1; i < p; i++)  // (0,4)
+   {
+      Nodes.IntPoint(o++).Set3(cp[0], cp[0], cp[i]);
+   }
+   for (int i = 1; i < p; i++)  // (1,4)
+   {
+      Nodes.IntPoint(o++).Set3(cp[p-i], cp[0], cp[i]);
+   }
+   for (int i = 1; i < p; i++)  // (2,4)
+   {
+      Nodes.IntPoint(o++).Set3(cp[p-i], cp[p-i], cp[i]);
+   }
+   for (int i = 1; i < p; i++)  // (3,4)
+   {
+      Nodes.IntPoint(o++).Set3(cp[0], cp[p-i], cp[i]);
+   }
+
+   // quadrilateral face
+   for (int j = 1; j < p; j++)
+   {
+      for (int i = 1; i < p; i++)
+      {
+         Nodes.IntPoint(o++).Set3(cp[i], cp[p-j], cp[0]);
+      }
+   }
+
+   // triangular faces
+   for (int j = 1; j < p; j++)
+      for (int i = 1; i + j < p; i++)  // (0,1,4)
+      {
+         real_t w = cp[i] + cp[j] + cp[p-i-j];
+         Nodes.IntPoint(o++).Set3(cp[i]/w, cp[0], cp[j]/w);
+      }
+   for (int j = 1; j < p; j++)
+      for (int i = 1; i + j < p; i++)  // (1,2,4)
+      {
+         real_t w = cp[i] + cp[j] + cp[p-i-j];
+         Nodes.IntPoint(o++).Set3((cp[i] + cp[p-i-j])/w, cp[i]/w, cp[j]/w);
+      }
+   for (int j = 1; j < p; j++)
+      for (int i = 1; i + j < p; i++)  // (2,3,4)
+      {
+         real_t w = cp[i] + cp[j] + cp[p-i-j];
+         Nodes.IntPoint(o++).Set3(cp[p-i-j]/w, (cp[i] + cp[p-i-j])/w, cp[j]/w);
+      }
+   for (int j = 1; j < p; j++)
+      for (int i = 1; i + j < p; i++)  // (3,0,4)
+      {
+         real_t w = cp[i] + cp[j] + cp[p-i-j];
+         Nodes.IntPoint(o++).Set3(cp[0], cp[p-i-j]/w, cp[j]/w);
+      }
+
+   // Points based on Fuentes' interior bubbles
+   for (int k = 1; k < p; k++)
+   {
+      for (int j = 1; j < p; j++)
+      {
+         for (int i = 1; i < p; i++)
+         {
+            Nodes.IntPoint(o++).Set3(cp[i] * (1.0 - cp[k]),
+                                     cp[j] * (1.0 - cp[k]),
+                                     cp[k]);
+         }
+      }
+   }
+
+   MFEM_ASSERT(o == dof,
+               "Number of nodes does not match the "
+               "number of degrees of freedom");
+   DenseMatrix T(dof);
+
+   for (int m = 0; m < dof; m++)
+   {
+      const IntegrationPoint &ip = Nodes.IntPoint(m);
+      Vector col(T.GetColumn(m), dof);
+      calcBasis(order, ip, tmp_i, tmp1_ij, col);
+   }
+
+   Ti.Factor(T);
+}
+
+void H1_FuentesPyramidElement::CalcShape(const IntegrationPoint &ip,
+                                         Vector &shape) const
+{
+   const int p = order;
+
+#ifdef MFEM_THREAD_SAFE
+   Vector tmp_i(p + 1);
+   Vector tmp_u(dof);
+   DenseMatrix tmp1_ij(p + 1, p + 1);
+#endif
+
+   calcBasis(p, ip, tmp_i, tmp1_ij, tmp_u);
+
+   Ti.Mult(tmp_u, shape);
+}
+
+void H1_FuentesPyramidElement::CalcDShape(const IntegrationPoint &ip,
+                                          DenseMatrix &dshape) const
+{
+   const int p = order;
+
+#ifdef MFEM_THREAD_SAFE
+   Vector tmp_i(p + 1);
+   DenseMatrix tmp1_ij(p + 1, p + 1);
+   DenseMatrix tmp2_ij(p + 1, dim);
+   DenseTensor tmp_ijk(p + 1, p + 1, dim);
+   DenseMatrix tmp_du(dof, dim);
+#endif
+
+   calcGradBasis(p, ip, tmp_i, tmp2_ij, tmp1_ij, tmp_ijk, tmp_du);
+   Ti.Mult(tmp_du, dshape);
+}
+
+void H1_FuentesPyramidElement::CalcRawShape(const IntegrationPoint &ip,
+                                            Vector &shape) const
+{
+   const int p = order;
+
+#ifdef MFEM_THREAD_SAFE
+   Vector tmp_i(p + 1);
+   DenseMatrix tmp1_ij(p + 1, p + 1);
+#endif
+
+   calcBasis(p, ip, tmp_i, tmp1_ij, shape);
+}
+
+void H1_FuentesPyramidElement::CalcRawDShape(const IntegrationPoint &ip,
+                                             DenseMatrix &dshape) const
+{
+   const int p = order;
+
+#ifdef MFEM_THREAD_SAFE
+   Vector tmp_i(p + 1);
+   DenseMatrix tmp1_ij(p + 1, p + 1);
+   DenseMatrix tmp2_ij(p + 1, dim);
+   DenseTensor tmp_ijk(p + 1, p + 1, dim);
+#endif
+
+   calcGradBasis(p, ip, tmp_i, tmp2_ij, tmp1_ij, tmp_ijk, dshape);
+}
+
+void H1_FuentesPyramidElement::calcBasis(const int p,
+                                         const IntegrationPoint &ip,
+                                         Vector &phi_i, DenseMatrix &phi_ij,
+                                         Vector &u) const
+{
+   real_t x = ip.x;
+   real_t y = ip.y;
+   real_t z = ip.z;
+   Vector xy({x,y});
+
+   zmax = std::max(z, zmax);
+
+   real_t mu;
+
+   int o = 0;
+
+   // Vertices
+   u[0] = lam1(x, y, z);
+   u[1] = lam2(x, y, z);
+   u[2] = lam3(x, y, z);
+   u[3] = lam4(x, y, z);
+   u[4] = lam5(x, y, z);
+
+   o += 5;
+
+   // Mixed edges (base edges)
+   if (CheckZ(z) && p >= 2)
+   {
+      // (a,b) = (1,2), c = 0
+      phi_E(p, nu01(z, xy, 1), phi_i);
+      mu = mu0(z, xy, 2);
+      for (int i = 2; i <= p; i++, o++)
+      {
+         u[o] = mu * phi_i[i];
+      }
+      // (a,b) = (1,2), c = 1
+      mu = mu1(z, xy, 2);
+      for (int i = 2; i <= p; i++, o++)
+      {
+         u[o] = mu * phi_i[i];
+      }
+      // (a,b) = (2,1), c = 0
+      phi_E(p, nu01(z, xy, 2), phi_i);
+      mu = mu0(z, xy, 1);
+      for (int i = 2; i <= p; i++, o++)
+      {
+         u[o] = mu * phi_i[i];
+      }
+      // (a,b) = (2,1), c = 1
+      mu = mu1(z, xy, 1);
+      for (int i = 2; i <= p; i++, o++)
+      {
+         u[o] = mu * phi_i[i];
+      }
+   }
+   else
+   {
+      for (int i = 0; i < 4 * (p - 1); i++, o++)
+      {
+         u[o] = 0.0;
+      }
+   }
+
+   // Triangle edges (upright edges)
+   if (p >= 2)
+   {
+      phi_E(p, lam15(x, y, z), phi_i);
+      for (int i = 2; i<= p; i++, o++)
+      {
+         u[o] = phi_i[i];
+      }
+      phi_E(p, lam25(x, y, z), phi_i);
+      for (int i = 2; i<= p; i++, o++)
+      {
+         u[o] = phi_i[i];
+      }
+      phi_E(p, lam35(x, y, z), phi_i);
+      for (int i = 2; i<= p; i++, o++)
+      {
+         u[o] = phi_i[i];
+      }
+      phi_E(p, lam45(x, y, z), phi_i);
+      for (int i = 2; i<= p; i++, o++)
+      {
+         u[o] = phi_i[i];
+      }
+   }
+
+   // Quadrilateral face
+   if (CheckZ(z) && p >= 2)
+   {
+      phi_Q(p, mu01(z, xy, 1), mu01(z, xy, 2), phi_ij);
+      mu = mu0(z);
+      for (int j = 2; j <= p; j++)
+      {
+         for (int i = 2; i <= p; i++, o++)
+         {
+            u[o] = mu * phi_ij(i,j);
+         }
+      }
+   }
+   else
+   {
+      for (int j = 2; j <= p; j++)
+      {
+         for (int i = 2; i <= p; i++, o++)
+         {
+            u[o] = 0.0;
+         }
+      }
+   }
+
+   // Triangular faces
+   if (CheckZ(z) && p >= 3)
+   {
+      // (a,b) = (1,2), c = 0
+      phi_T(p, nu012(z, xy, 1), phi_ij);
+      mu = mu0(z, xy, 2);
+      for (int i = 2; i < p; i++)
+         for (int j = 1; i + j <= p; j++, o++)
+         {
+            u[o] = mu * phi_ij(i,j);
+         }
+      // (a,b) = (1,2), c = 1
+      mu = mu1(z, xy, 2);
+      for (int i = 2; i < p; i++)
+         for (int j = 1; i + j <= p; j++, o++)
+         {
+            u[o] = mu * phi_ij(i,j);
+         }
+      // (a,b) = (2,1), c = 0
+      phi_T(p, nu012(z, xy, 2), phi_ij);
+      mu = mu0(z, xy, 1);
+      for (int i = 2; i < p; i++)
+         for (int j = 1; i + j <= p; j++, o++)
+         {
+            u[o] = mu * phi_ij(i,j);
+         }
+      // (a,b) = (2,1), c = 1
+      mu = mu1(z, xy, 1);
+      for (int i = 2; i < p; i++)
+         for (int j = 1; i + j <= p; j++, o++)
+         {
+            u[o] = mu * phi_ij(i,j);
+         }
+   }
+   else
+   {
+      for (int i = 0; i < 2 * (p - 1) * (p - 2); i++, o++)
+      {
+         u[o] = 0.0;
+      }
+   }
+
+   // Interior
+   if (CheckZ(z) && p >= 2)
+   {
+      phi_Q(p, mu01(z, xy, 1), mu01(z, xy, 2), phi_ij);
+      phi_E(p, mu01(z), phi_i);
+      for (int k = 2; k <= p; k++)
+      {
+         for (int j = 2; j <= p; j++)
+         {
+            for (int i = 2; i <= p; i++, o++)
+            {
+               u[o] = phi_ij(i,j) * phi_i(k);
+            }
+         }
+      }
+   }
+   else
+   {
+      for (int i = 0; i < (p - 1) * (p - 1) * (p - 1); i++, o++)
+      {
+         u[o]= 0.0;
+      }
+   }
+}
+
+void H1_FuentesPyramidElement::calcGradBasis(const int p,
+                                             const IntegrationPoint &ip,
+                                             Vector &phi_i,
+                                             DenseMatrix &dphi_i,
+                                             DenseMatrix &phi_ij,
+                                             DenseTensor &dphi_ij,
+                                             DenseMatrix &du) const
+{
+   real_t x = ip.x;
+   real_t y = ip.y;
+   real_t z = ip.z;
+   Vector xy({x,y});
+
+   zmax = std::max(z, zmax);
+
+   real_t mu;
+   Vector dmu(3);
+   Vector dlam(3);
+
+   int o = 0;
+
+   // Vertices
+   dlam = grad_lam1(x, y, z);
+   for (int d=0; d<3; d++) { du(0, d) = dlam(d); }
+   dlam = grad_lam2(x, y, z);
+   for (int d=0; d<3; d++) { du(1, d) = dlam(d); }
+   dlam = grad_lam3(x, y, z);
+   for (int d=0; d<3; d++) { du(2, d) = dlam(d); }
+   dlam = grad_lam4(x, y, z);
+   for (int d=0; d<3; d++) { du(3, d) = dlam(d); }
+   dlam = grad_lam5(x, y, z);
+   for (int d=0; d<3; d++) { du(4, d) = dlam(d); }
+
+   o += 5;
+
+   // Mixed edges (base edges)
+   if (CheckZ(z) && p >= 2)
+   {
+      // (a,b) = (1,2), c = 0
+      phi_E(p, nu01(z, xy, 1), grad_nu01(z, xy, 1), phi_i, dphi_i);
+      mu = mu0(z, xy, 2);
+      dmu = grad_mu0(z, xy, 2);;
+      for (int i = 2; i <= p; i++, o++)
+         for (int d=0; d<3; d++)
+         {
+            du(o, d) = dmu(d) * phi_i[i] + mu * dphi_i(i, d);
+         }
+
+      // (a,b) = (1,2), c = 1
+      mu = mu1(z, xy, 2);
+      dmu = grad_mu1(z, xy, 2);;
+      for (int i = 2; i <= p; i++, o++)
+         for (int d=0; d<3; d++)
+         {
+            du(o, d) = dmu(d) * phi_i[i] + mu * dphi_i(i, d);
+         }
+
+      // (a,b) = (2,1), c = 0
+      phi_E(p, nu01(z, xy, 2), grad_nu01(z, xy, 2), phi_i, dphi_i);
+      mu = mu0(z, xy, 1);
+      dmu = grad_mu0(z, xy, 1);;
+      for (int i = 2; i <= p; i++, o++)
+         for (int d=0; d<3; d++)
+         {
+            du(o, d) = dmu(d) * phi_i[i] + mu * dphi_i(i, d);
+         }
+
+      // (a,b) = (2,1), c = 1
+      mu = mu1(z, xy, 1);
+      dmu = grad_mu1(z, xy, 1);;
+      for (int i = 2; i <= p; i++, o++)
+         for (int d=0; d<3; d++)
+         {
+            du(o, d) = dmu(d) * phi_i[i] + mu * dphi_i(i, d);
+         }
+   }
+   else
+   {
+      for (int i = 0; i < 4 * (p - 1); i++, o++)
+         for (int d=0; d<3; d++)
+         {
+            du(o, d) = 0.0;
+         }
+   }
+
+   // Triangle edges (upright edges)
+   if (p >= 2)
+   {
+      phi_E(p, lam15(x, y, z), grad_lam15(x,y,z), phi_i, dphi_i);
+      for (int i = 2; i<= p; i++, o++)
+         for (int d=0; d<3; d++)
+         {
+            du(o, d) = dphi_i(i, d);
+         }
+
+      phi_E(p, lam25(x, y, z), grad_lam25(x, y, z), phi_i, dphi_i);
+      for (int i = 2; i<= p; i++, o++)
+         for (int d=0; d<3; d++)
+         {
+            du(o, d) = dphi_i(i, d);
+         }
+
+      phi_E(p, lam35(x, y, z), grad_lam35(x, y, z), phi_i, dphi_i);
+      for (int i = 2; i<= p; i++, o++)
+         for (int d=0; d<3; d++)
+         {
+            du(o, d) = dphi_i(i, d);
+         }
+
+      phi_E(p, lam45(x, y, z), grad_lam45(x, y, z), phi_i, dphi_i);
+      for (int i = 2; i<= p; i++, o++)
+         for (int d=0; d<3; d++)
+         {
+            du(o, d) = dphi_i(i, d);
+         }
+   }
+
+   // Quadrilateral face
+   if (CheckZ(z) && p >= 2)
+   {
+      phi_Q(p, mu01(z, xy, 1), grad_mu01(z, xy, 1),
+            mu01(z, xy, 2), grad_mu01(z, xy, 2), phi_ij, dphi_ij);
+      mu = mu0(z);
+      dmu = grad_mu0(z);
+      for (int j = 2; j <= p; j++)
+         for (int i = 2; i <= p; i++, o++)
+            for (int d=0; d<3; d++)
+            {
+               du(o, d) = dmu(d) * phi_ij(i, j) + mu * dphi_ij(i, j, d);
+            }
+   }
+   else
+   {
+      for (int j = 2; j <= p; j++)
+         for (int i = 2; i <= p; i++, o++)
+            for (int d=0; d<3; d++)
+            {
+               du(o, d) = 0.0;
+            }
+   }
+
+   // Triangular faces
+   if (CheckZ(z) && p >= 3)
+   {
+      // (a,b) = (1,2), c = 0
+      phi_T(p, nu012(z, xy, 1), grad_nu012(z, xy, 1), phi_ij, dphi_ij);
+      mu = mu0(z, xy, 2);
+      dmu = grad_mu0(z, xy, 2);
+      for (int i = 2; i < p; i++)
+         for (int j = 1; i + j <= p; j++, o++)
+            for (int d=0; d<3; d++)
+            {
+               du(o, d) = dmu(d) * phi_ij(i, j) + mu * dphi_ij(i, j, d);
+            }
+
+      // (a,b) = (1,2), c = 1
+      mu = mu1(z, xy, 2);
+      dmu = grad_mu1(z, xy, 2);
+      for (int i = 2; i < p; i++)
+         for (int j = 1; i + j <= p; j++, o++)
+            for (int d=0; d<3; d++)
+            {
+               du(o, d) = dmu(d) * phi_ij(i, j) + mu * dphi_ij(i, j, d);
+            }
+
+      // (a,b) = (2,1), c = 0
+      phi_T(p, nu012(z, xy, 2), grad_nu012(z, xy, 2), phi_ij, dphi_ij);
+      mu = mu0(z, xy, 1);
+      dmu = grad_mu0(z, xy, 1);
+      for (int i = 2; i < p; i++)
+         for (int j = 1; i + j <= p; j++, o++)
+            for (int d=0; d<3; d++)
+            {
+               du(o, d) = dmu(d) * phi_ij(i, j) + mu * dphi_ij(i, j, d);
+            }
+
+      // (a,b) = (2,1), c = 1
+      mu = mu1(z, xy, 1);
+      dmu = grad_mu1(z, xy, 1);
+      for (int i = 2; i < p; i++)
+         for (int j = 1; i + j <= p; j++, o++)
+            for (int d=0; d<3; d++)
+            {
+               du(o, d) = dmu(d) * phi_ij(i, j) + mu * dphi_ij(i, j, d);
+            }
+   }
+   else
+   {
+      for (int i = 0; i < 2 * (p - 1) * (p - 2); i++, o++)
+         for (int d=0; d<3; d++)
+         {
+            du(o, d) = 0.0;
+         }
+   }
+
+   // Interior
+   if (CheckZ(z) && p >= 2)
+   {
+      phi_Q(p, mu01(z, xy, 1), grad_mu01(z, xy, 1),
+            mu01(z, xy, 2), grad_mu01(z, xy, 2), phi_ij, dphi_ij);
+      phi_E(p, mu01(z), grad_mu01(z), phi_i, dphi_i);
+      for (int k = 2; k <= p; k++)
+         for (int j = 2; j <= p; j++)
+            for (int i = 2; i <= p; i++, o++)
+               for (int d=0; d<3; d++)
+                  du(o, d) = dphi_ij(i, j, d) * phi_i(k) +
+                             phi_ij(i, j) * dphi_i(k, d);
+   }
+   else
+   {
+      for (int i = 0; i < (p - 1) * (p - 1) * (p - 1); i++, o++)
+         for (int d=0; d<3; d++)
+         {
+            du(o, d) = 0.0;
+         }
+   }
+}
+
+H1_BergotPyramidElement::H1_BergotPyramidElement(const int p, const int btype)
+   : NodalFiniteElement(3, Geometry::PYRAMID,
+                        (p + 1) * (p + 2) * (2 * p + 3) / 6, // Bergot (JSC)
+                        p, FunctionSpace::Uk)
+{
+   const real_t *cp = poly1d.ClosedPoints(p, VerifyNodal(VerifyClosed(btype)));
+
+#ifndef MFEM_THREAD_SAFE
+   shape_x.SetSize(p + 1);
+   shape_y.SetSize(p + 1);
+   shape_z.SetSize(p + 1);
+   dshape_x.SetSize(p + 1);
+   dshape_y.SetSize(p + 1);
+   dshape_z.SetSize(p + 1);
+   dshape_z_dt.SetSize(p + 1);
+   ddshape_x.SetSize(p + 1);
+   ddshape_y.SetSize(p + 1);
+   ddshape_z.SetSize(p + 1);
+   u.SetSize(dof);
+   du.SetSize(dof, dim);
+   ddu.SetSize(dof, (dim * (dim + 1)) / 2);
+#else
+   Vector shape_x(p + 1), shape_y(p + 1), shape_z(p + 1);
+#endif
+
+   // vertices
+   Nodes.IntPoint(0).Set3(cp[0], cp[0], cp[0]);
+   Nodes.IntPoint(1).Set3(cp[p], cp[0], cp[0]);
+   Nodes.IntPoint(2).Set3(cp[p], cp[p], cp[0]);
+   Nodes.IntPoint(3).Set3(cp[0], cp[p], cp[0]);
+   Nodes.IntPoint(4).Set3(cp[0], cp[0], cp[p]);
+
+   // edges
+   int o = 5;
+   for (int i = 1; i < p; i++)  // (0,1)
+   {
+      Nodes.IntPoint(o++).Set3(cp[i], cp[0], cp[0]);
+   }
+   for (int i = 1; i < p; i++)  // (1,2)
+   {
+      Nodes.IntPoint(o++).Set3(cp[p], cp[i], cp[0]);
+   }
+   for (int i = 1; i < p; i++)  // (3,2)
+   {
+      Nodes.IntPoint(o++).Set3(cp[i], cp[p], cp[0]);
+   }
+   for (int i = 1; i < p; i++)  // (0,3)
+   {
+      Nodes.IntPoint(o++).Set3(cp[0], cp[i], cp[0]);
+   }
+   for (int i = 1; i < p; i++)  // (0,4)
+   {
+      Nodes.IntPoint(o++).Set3(cp[0], cp[0], cp[i]);
+   }
+   for (int i = 1; i < p; i++)  // (1,4)
+   {
+      Nodes.IntPoint(o++).Set3(cp[p-i], cp[0], cp[i]);
+   }
+   for (int i = 1; i < p; i++)  // (2,4)
+   {
+      Nodes.IntPoint(o++).Set3(cp[p-i], cp[p-i], cp[i]);
+   }
+   for (int i = 1; i < p; i++)  // (3,4)
+   {
+      Nodes.IntPoint(o++).Set3(cp[0], cp[p-i], cp[i]);
+   }
+
+   // quadrilateral face
+   for (int j = 1; j < p; j++)
+   {
+      for (int i = 1; i < p; i++)
+      {
+         Nodes.IntPoint(o++).Set3(cp[i], cp[j], cp[0]);
+      }
+   }
+
+   // triangular faces
+   for (int j = 1; j < p; j++)
+      for (int i = 1; i + j < p; i++)  // (0,1,4)
+      {
+         real_t w = cp[i] + cp[j] + cp[p-i-j];
+         Nodes.IntPoint(o++).Set3(cp[i]/w, cp[0], cp[j]/w);
+      }
+   for (int j = 1; j < p; j++)
+      for (int i = 1; i + j < p; i++)  // (1,2,4)
+      {
+         real_t w = cp[i] + cp[j] + cp[p-i-j];
+         Nodes.IntPoint(o++).Set3(1.0 - cp[j]/w, cp[i]/w, cp[j]/w);
+      }
+   for (int j = 1; j < p; j++)
+      for (int i = 1; i + j < p; i++)  // (3,4,2)
+      {
+         real_t w = cp[i] + cp[j] + cp[p-i-j];
+         Nodes.IntPoint(o++).Set3(cp[j]/w, 1.0 - cp[i]/w, cp[i]/w);
+      }
+   for (int j = 1; j < p; j++)
+      for (int i = 1; i + j < p; i++)  // (0,4,3)
+      {
+         real_t w = cp[i] + cp[j] + cp[p-i-j];
+         Nodes.IntPoint(o++).Set3(cp[0], cp[j]/w, cp[i]/w);
+      }
+
+   // interior
+   for (int k = 1; k < p - 1; k++)
+   {
+      for (int j = 1; j < p - k; j++)
+      {
+         real_t wjk = cp[j] + cp[k] + cp[p-j-k];
+         for (int i = 1; i < p - k; i++)
+         {
+            real_t wik = cp[i] + cp[k] + cp[p-i-k];
+            real_t w = wik * wjk * cp[p-k];
+            Nodes.IntPoint(o++).Set3(cp[i] * (cp[j] + cp[p-j-k]) / w,
+                                     cp[j] * (cp[i] + cp[p-i-k]) / w,
+                                     cp[k] * cp[p-k] / w);
+         }
+      }
+   }
+
+   MFEM_ASSERT(o == dof,
+               "Number of nodes does not match the "
+               "number of degrees of freedom");
+   DenseMatrix T(dof);
+
+   for (int m = 0; m < dof; m++)
+   {
+      const IntegrationPoint &ip = Nodes.IntPoint(m);
+
+      real_t x = (ip.z < 1.0) ? (ip.x / (1.0 - ip.z)) : 0.0;
+      real_t y = (ip.z < 1.0) ? (ip.y / (1.0 - ip.z)) : 0.0;
+      real_t z = ip.z;
+
+      poly1d.CalcLegendre(p, x, shape_x.GetData());
+      poly1d.CalcLegendre(p, y, shape_y.GetData());
+
+      o = 0;
+      for (int i = 0; i <= p; i++)
+      {
+         for (int j = 0; j <= p; j++)
+         {
+            int maxij = std::max(i, j);
+            FuentesPyramid::CalcScaledJacobi(p-maxij, 2.0 * (maxij + 1.0),
+                                             z, 1.0, shape_z);
+
+            for (int k = 0; k <= p - maxij; k++)
+            {
+               T(o++, m) = shape_x(i) * shape_y(j) * shape_z(k) *
+                           pow(1.0 - ip.z, maxij);
+            }
+         }
+      }
+   }
+
+   Ti.Factor(T);
+}
+
+void H1_BergotPyramidElement::CalcShape(const IntegrationPoint &ip,
+                                        Vector &shape) const
+{
+   const int p = order;
+
+#ifdef MFEM_THREAD_SAFE
+   Vector shape_x(order+1);
+   Vector shape_y(order+1);
+   Vector shape_z(order+1);
+   Vector u(dof);
+#endif
+
+   real_t x = (ip.z < 1.0) ? (ip.x / (1.0 - ip.z)) : 0.0;
+   real_t y = (ip.z < 1.0) ? (ip.y / (1.0 - ip.z)) : 0.0;
+   real_t z = ip.z;
+
+   poly1d.CalcLegendre(p, x, shape_x.GetData());
+   poly1d.CalcLegendre(p, y, shape_y.GetData());
+
+   int o = 0;
+   for (int i = 0; i <= p; i++)
+      for (int j = 0; j <= p; j++)
+      {
+         int maxij = std::max(i, j);
+         FuentesPyramid::CalcScaledJacobi(p-maxij, 2.0 * (maxij + 1.0), z, 1.0,
+                                          shape_z);
+         for (int k = 0; k <= p - maxij; k++)
+            u[o++] = shape_x(i) * shape_y(j) * shape_z(k) *
+                     pow(1.0 - ip.z, maxij);
+      }
+
+   Ti.Mult(u, shape);
+}
+
+void H1_BergotPyramidElement::CalcDShape(const IntegrationPoint &ip,
+                                         DenseMatrix &dshape) const
+{
+   const int p = order;
+
+#ifdef MFEM_THREAD_SAFE
+   DenseMatrix du(dof, dim);
+   Vector shape_x(order+1);
+   Vector shape_y(order+1);
+   Vector shape_z(order+1);
+   Vector dshape_x(order+1);
+   Vector dshape_y(order+1);
+   Vector dshape_z(order+1);
+   Vector dshape_z_dt(order+1);
+#endif
+   real_t x = (ip.z < 1.0) ? (ip.x / (1.0 - ip.z)) : 0.0;
+   real_t y = (ip.z < 1.0) ? (ip.y / (1.0 - ip.z)) : 0.0;
+   real_t z = ip.z;
+
+   poly1d.CalcLegendre(p, x, shape_x.GetData(), dshape_x.GetData());
+   poly1d.CalcLegendre(p, y, shape_y.GetData(), dshape_y.GetData());
+
+   int o = 0;
+   for (int i = 0; i <= p; i++)
+      for (int j = 0; j <= p; j++)
+      {
+         int maxij = std::max(i, j);
+         FuentesPyramid::CalcScaledJacobi(p-maxij, 2.0 * (maxij + 1.0), z, 1.0,
+                                          shape_z, dshape_z, dshape_z_dt);
+
+         for (int k = 0; k <= p - maxij; k++, o++)
+         {
+            du(o,0) = dshape_x(i) * shape_y(j) * shape_z(k) *
+                      pow(1.0 - ip.z, maxij - 1);
+            du(o,1) = shape_x(i) * dshape_y(j) * shape_z(k) *
+                      pow(1.0 - ip.z, maxij - 1);
+            du(o,2) = shape_x(i) * shape_y(j) * dshape_z(k) *
+                      pow(1.0 - ip.z, maxij) +
+                      (ip.x * dshape_x(i) * shape_y(j) +
+                       ip.y * shape_x(i) * dshape_y(j)) *
+                      shape_z(k) * pow(1.0 - ip.z, maxij - 2) -
+                      maxij * shape_x(i) * shape_y(j) * shape_z(k) *
+                      pow(1.0 - ip.z, maxij - 1);
+         }
+      }
+
+   Ti.Mult(du, dshape);
+}
+
 
 }

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -19,7 +19,7 @@ void CurlCurlIntegrator::AssemblePA(const FiniteElementSpace &fes)
 {
    // Assumes tensor-product elements
    Mesh *mesh = fes.GetMesh();
-   const FiniteElement *fel = fes.GetFE(0);
+   const FiniteElement *fel = fes.GetTypicalFE();
 
    const VectorTensorFiniteElement *el =
       dynamic_cast<const VectorTensorFiniteElement*>(fel);
@@ -27,7 +27,7 @@ void CurlCurlIntegrator::AssemblePA(const FiniteElementSpace &fes)
 
    const IntegrationRule *ir
       = IntRule ? IntRule : &MassIntegrator::GetRule(*el, *el,
-                                                     *mesh->GetElementTransformation(0));
+                                                     *mesh->GetTypicalElementTransformation());
 
    const int dims = el->GetDim();
    MFEM_VERIFY(dims == 2 || dims == 3, "");
@@ -195,6 +195,70 @@ void CurlCurlIntegrator::AddMultPA(const Vector &x, Vector &y) const
    {
       internal::PACurlCurlApply2D(dofs1D, quad1D, ne, mapsO->B, mapsO->Bt,
                                   mapsC->G, mapsC->Gt, pa_data, x, y);
+   }
+   else
+   {
+      MFEM_ABORT("Unsupported dimension!");
+   }
+}
+
+void CurlCurlIntegrator::AddAbsMultPA(const Vector &x, Vector &y) const
+{
+   Vector abs_pa_data(pa_data);
+   abs_pa_data.Abs();
+   auto absO = mapsO->Abs();
+   auto absC = mapsC->Abs();
+
+   if (dim == 3)
+   {
+      if (Device::Allows(Backend::DEVICE_MASK))
+      {
+         const int ID = (dofs1D << 4) | quad1D;
+         switch (ID)
+         {
+            case 0x23:
+               return internal::SmemPACurlCurlApply3D<2,3>(
+                         dofs1D, quad1D,
+                         symmetric, ne,
+                         absO.B, absC.B, absO.Bt, absC.Bt,
+                         absC.G, absC.Gt, abs_pa_data, x, y, true);
+            case 0x34:
+               return internal::SmemPACurlCurlApply3D<3,4>(
+                         dofs1D, quad1D,
+                         symmetric, ne,
+                         absO.B, absC.B, absO.Bt, absC.Bt,
+                         absC.G, absC.Gt, abs_pa_data, x, y, true);
+            case 0x45:
+               return internal::SmemPACurlCurlApply3D<4,5>(
+                         dofs1D, quad1D,
+                         symmetric, ne,
+                         absO.B, absC.B, absO.Bt, absC.Bt,
+                         absC.G, absC.Gt, abs_pa_data, x, y, true);
+            case 0x56:
+               return internal::SmemPACurlCurlApply3D<5,6>(
+                         dofs1D, quad1D,
+                         symmetric, ne,
+                         absO.B, absC.B, absO.Bt, absC.Bt,
+                         absC.G, absC.Gt, abs_pa_data, x, y, true);
+            default:
+               return internal::SmemPACurlCurlApply3D<0,0>(
+                         dofs1D, quad1D, symmetric, ne,
+                         absO.B, absC.B, absO.Bt, absC.Bt,
+                         absC.G, absC.Gt, abs_pa_data, x, y, true);
+         }
+      }
+      else
+      {
+         internal::PACurlCurlApply3D<0,0>(
+            dofs1D, quad1D, symmetric, ne,
+            absO.B, absC.B, absO.Bt, absC.Bt, absC.G, absC.Gt,
+            abs_pa_data, x, y, true);
+      }
+   }
+   else if (dim == 2)
+   {
+      internal::PACurlCurlApply2D(dofs1D, quad1D, ne, absO.B, absO.Bt,
+                                  absC.G, absC.Gt, abs_pa_data, x, y, true);
    }
    else
    {

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -240,7 +240,9 @@ public:
        Vector argument instead of Vector. */
    MFEM_DEPRECATED FunctionCoefficient(real_t (*f)(Vector &))
    {
-      Function = reinterpret_cast<real_t(*)(const Vector&)>(f);
+      // Cast first to (void*) to suppress a warning from newer version of
+      // Clang when using -Wextra.
+      Function = reinterpret_cast<real_t(*)(const Vector&)>((void*)f);
       TDFunction = NULL;
    }
 
@@ -250,7 +252,10 @@ public:
    MFEM_DEPRECATED FunctionCoefficient(real_t (*tdf)(Vector &, real_t))
    {
       Function = NULL;
-      TDFunction = reinterpret_cast<real_t(*)(const Vector&,real_t)>(tdf);
+      // Cast first to (void*) to suppress a warning from newer version of
+      // Clang when using -Wextra.
+      TDFunction =
+         reinterpret_cast<real_t(*)(const Vector&,real_t)>((void*)tdf);
    }
 
    /// Evaluate the coefficient at @a ip.

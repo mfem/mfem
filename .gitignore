@@ -8,6 +8,7 @@
 
 # Object and library files
 *.o
+*.o.tmp
 /libmfem.*
 /miniapps/common/libmfem-common.*
 
@@ -82,6 +83,7 @@ examples/sol_p.*
 examples/sol_r.*
 examples/sol_i.*
 examples/ex6p-checkpoint.*
+examples/order.*
 examples/ex9.mesh
 examples/ex9-mesh.*
 examples/ex9-init.*
@@ -202,6 +204,9 @@ examples/superlu/sol.*
 miniapps/adjoint/cvsRoberts_ASAi_dns
 miniapps/adjoint/adjoint_advection_diffusion
 
+miniapps/dfem/dfem-minimal-surface
+miniapps/dfem/dfem-minimal-surface-output
+
 miniapps/electromagnetics/volta
 miniapps/electromagnetics/tesla
 miniapps/electromagnetics/maxwell
@@ -229,6 +234,8 @@ miniapps/meshing/extruder
 miniapps/meshing/fit-node-position
 miniapps/meshing/trimmer
 miniapps/meshing/reflector
+miniapps/meshing/ref321
+miniapps/meshing/mesh-bounding-boxes
 miniapps/meshing/mesh-optimizer
 miniapps/meshing/pmesh-optimizer
 miniapps/meshing/pmesh-fitting
@@ -236,6 +243,8 @@ miniapps/meshing/minimal-surface
 miniapps/meshing/pminimal-surface
 miniapps/meshing/polar-nc
 miniapps/meshing/mesh-quality
+miniapps/meshing/hpref
+miniapps/meshing/phpref
 miniapps/meshing/mobius-strip.mesh
 miniapps/meshing/klein-bottle.mesh
 miniapps/meshing/toroid-*.mesh
@@ -248,9 +257,17 @@ miniapps/meshing/shaper.mesh
 miniapps/meshing/extruder.mesh
 miniapps/meshing/trimmer.mesh
 miniapps/meshing/reflected.mesh
+miniapps/meshing/ref321.mesh
+miniapps/meshing/sol.gf
 miniapps/meshing/optimized*
 miniapps/meshing/perturbed*
 miniapps/meshing/polar-nc.mesh
+miniapps/meshing/mesh.*
+miniapps/meshing/order.*
+miniapps/meshing/sol.*
+miniapps/meshing/refined.mesh
+miniapps/meshing/bounding-box*
+miniapps/meshing/jacobian-determinant*
 
 miniapps/mtop/parheat
 miniapps/mtop/ParHeat*
@@ -325,6 +342,7 @@ miniapps/shifted/lsf_integral
 miniapps/tools/display-basis
 miniapps/tools/load-dc
 miniapps/tools/convert-dc
+miniapps/tools/gridfunction-bounds
 miniapps/tools/lor-transfer
 miniapps/tools/plor-transfer
 miniapps/tools/get-values
@@ -342,6 +360,7 @@ miniapps/toys/rubik
 miniapps/toys/snake
 miniapps/toys/lissajous
 miniapps/toys/mondrian
+miniapps/toys/spiral
 miniapps/toys/snake-init.mesh
 miniapps/toys/snake-user.mesh
 miniapps/toys/snake-joined.mesh
@@ -390,6 +409,9 @@ miniapps/spde/ParaView
 
 miniapps/tribol/contact-patch-test
 
+miniapps/diag-smoothers/abs-l1-jacobi
+miniapps/diag-smoothers/mg-abs-l1-jacobi
+
 # Unit test binary and outputs
 tests/unit/output_meshes
 tests/unit/unit_tests
@@ -430,3 +452,9 @@ pkg.gitcommit
 
 # Jupyter Notebook Checkpoints
 .ipynb_checkpoints
+
+# emacs tag file
+TAGS
+
+# vs code
+.vscode

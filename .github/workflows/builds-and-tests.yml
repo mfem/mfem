@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -29,6 +29,10 @@ on:
   pull_request:
   workflow_dispatch:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   HYPRE_ARCHIVE: v2.19.0.tar.gz
   HYPRE_TOP_DIR: hypre-2.19.0
@@ -54,6 +58,7 @@ jobs:
         build-system: [make, cmake]
         hypre-target: [int32]
         precision: [fp64]
+        enzyme: [false]
         exclude:
           - os: ubuntu-latest
             build-system: cmake
@@ -76,15 +81,17 @@ jobs:
             codecov: YES
           - os: ubuntu-latest
             target: dbg
-            config-opts: 'CPPFLAGS+=-Og'
+            config-opts: "CPPFLAGS+=-Og"
           - os: macos-latest
             codecov: NO
           - os: windows-latest
             codecov: NO
+            # config-opts: '-G "Ninja Multi-Config"'
           - os: windows-latest
             target: opt
             mpi: par
-            config-opts: '-DBUILD_SHARED_LIBS=ON'
+            config-opts: "-DBUILD_SHARED_LIBS=ON"
+            # config-opts: '-DBUILD_SHARED_LIBS=ON -G "Ninja Multi-Config"'
           - os: ubuntu-latest
             target: opt
             codecov: NO
@@ -92,6 +99,7 @@ jobs:
             build-system: cmake
             hypre-target: int32
             precision: fp64
+            config-opts: "-DCMAKE_INSTALL_PREFIX=../cmake-install"
             # This option can be set to pass additional configuration options to
             # the MFEM configuration command.
             # config-opts: '-DCMAKE_VERBOSE_MAKEFILE=ON'
@@ -109,25 +117,35 @@ jobs:
             build-system: make
             hypre-target: int32
             precision: fp32
-    name: ${{ matrix.os }}-${{ matrix.build-system }}-${{ matrix.target }}-${{ matrix.mpi }}-${{ matrix.hypre-target }}-${{ matrix.precision }}
+          - os: macos-latest
+            target: opt
+            codecov: NO
+            mpi: par
+            build-system: make
+            hypre-target: int32
+            precision: fp32
+          - os: macos-latest
+            target: opt
+            codecov: NO
+            mpi: par
+            build-system: make
+            hypre-target: int32
+            precision: fp64
+            enzyme: true
+            config-opts: MFEM_USE_ENZYME=YES ENZYME_DIR=$(brew --prefix enzyme)
+
+    name: ${{ matrix.os }}-${{ matrix.build-system }}-${{ matrix.target }}-${{ matrix.mpi }}-${{ matrix.hypre-target }}-${{ matrix.precision }}${{ matrix.enzyme && '-enzyme' || '' }}
 
     runs-on: ${{ matrix.os }}
 
     steps:
-      # This external action allows to interrupt a workflow already running on
-      # the same branch to save resources.
-      - name: Cancel Previous Runs
-        uses: styfle/cancel-workflow-action@0.12.1
-        with:
-          access_token: ${{ github.token }}
-
       # Fix 'No space left on device' errors for Ubuntu builds.
       - name: Run Actions Cleaner
         if: matrix.os == 'ubuntu-latest'
         uses: easimon/maximize-build-space@v8
         with:
-          overprovision-lvm: 'true'
-          remove-android: 'true'
+          overprovision-lvm: "true"
+          remove-android: "true"
 
       # Checkout MFEM in "mfem" subdirectory. Final path:
       # /home/runner/work/mfem/mfem/mfem
@@ -138,6 +156,17 @@ jobs:
           path: ${{ env.MFEM_TOP_DIR }}
           # Fetch the complete history for codecov to access commits ID
           fetch-depth: 0
+
+      - name: Windows environment - PowerShell [debug]
+        if: matrix.os == 'windows-latest'
+        run: |
+          ls env: | fl
+
+      - name: Windows environment - Bash [debug]
+        if: matrix.os == 'windows-latest'
+        run: |
+          env
+        shell: bash
 
       - name: Xcode version setup (MacOS)
         if: matrix.os == 'macos-latest'
@@ -156,7 +185,8 @@ jobs:
       - name: get MPI (Linux)
         if: matrix.mpi == 'par' && matrix.os == 'ubuntu-latest'
         run: |
-          sudo apt-get install mpich libmpich-dev
+          sudo apt-get install openmpi-bin libopenmpi-dev
+          export OMPI_MCA_rmaps_base_oversubscribe=1
 
       - name: get lcov (Linux)
         if: matrix.codecov == 'YES' && matrix.os == 'ubuntu-latest'
@@ -193,7 +223,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{ env.HYPRE_TOP_DIR }}
-          key: ${{ runner.os }}-build-${{ env.HYPRE_TOP_DIR }}-${{ matrix.hypre-target }}-${{ matrix.precision }}-v2.5
+          key: ${{ runner.os }}-ompi-build-${{ env.HYPRE_TOP_DIR }}-${{ matrix.hypre-target }}-${{ matrix.precision }}-v2.5
 
       - name: get hypre
         if: matrix.mpi == 'par' && steps.hypre-cache.outputs.cache-hit != 'true' && matrix.os != 'windows-latest'
@@ -252,6 +282,18 @@ jobs:
         run: |
           vcpkg install metis-mfem --triplet=x64-windows-static --overlay-ports=${{ env.MFEM_TOP_DIR }}/config/vcpkg/ports
 
+      # It's usually fine to build the above TPLs with a different compiler.
+      #
+      - name: install Enzyme (macOS w/ Enzyme)
+        if: matrix.enzyme && matrix.os == 'macos-latest'
+        run: |
+          export HOMEBREW_NO_INSTALL_CLEANUP=1
+          brew update
+          brew install llvm@19 enzyme
+          echo "LLVM_PREFIX=$(brew --prefix llvm@19)" >> $GITHUB_ENV
+          echo "OMPI_CC=$(brew --prefix llvm@19)/bin/clang" >> $GITHUB_ENV
+          echo "OMPI_CXX=$(brew --prefix llvm@19)/bin/clang++" >> $GITHUB_ENV
+
       # MFEM build and test
       - name: build
         uses: mfem/github-actions/build-mfem@v2.5
@@ -304,6 +346,22 @@ jobs:
           cd ${{ env.MFEM_TOP_DIR }}/build && \
           ctest --output-on-failure -C ${CTEST_CONFIG} || \
           ctest --rerun-failed --output-on-failure -C ${CTEST_CONFIG}
+        shell: bash
+
+      - name: make install
+        if: matrix.build-system == 'make'
+        run: |
+          cd ${{ env.MFEM_TOP_DIR }} && make install
+
+      - name: cmake install
+        if: matrix.build-system == 'cmake'
+        run: |
+          CONFIG="Release"
+          [[ ${{ matrix.target }} == 'dbg' ]] && CONFIG="Debug"
+          TARGET="install"
+          [[ ${{ matrix.os }} == 'windows-latest' ]] && TARGET="INSTALL"
+          cd ${{ env.MFEM_TOP_DIR }} && \
+          cmake --build build --target ${TARGET} --config ${CONFIG}
         shell: bash
 
       # Code coverage (process and upload reports)

@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -24,7 +24,7 @@ EGREP_BIN = $(shell command -v egrep 2> /dev/null)
 CXX = g++
 MPICXX = mpicxx
 
-BASE_FLAGS  = -std=c++11
+BASE_FLAGS  = -std=c++17
 OPTIM_FLAGS = -O3 $(BASE_FLAGS)
 DEBUG_FLAGS = -g $(XCOMPILER)-Wall $(BASE_FLAGS)
 
@@ -43,12 +43,23 @@ SHARED = NO
 
 # CUDA configuration options
 #
-# If you set MFEM_USE_ENZYME=YES, CUDA_CXX has to be configured to use cuda with
-# clang as its host compiler.
+# If you set MFEM_USE_ENZYME=YES, must use CUDA_CXX=clang++
 CUDA_CXX = nvcc
 CUDA_ARCH = sm_60
-CUDA_FLAGS = -x=cu --expt-extended-lambda -arch=$(CUDA_ARCH)
-# Prefixes for passing flags to the host compiler and linker when using CUDA_CXX
+# Base CUDA install directory, only needed if building with clang+cuda:
+# The default setting is:
+# 1. If CUDA_HOME is defined and non-empty, use that.
+# 2. If nvcc is in the path, use the directory two levels up from that.
+# 3. Use /usr/local/cuda
+CUDA_DIR = $(or $(CUDA_HOME),$(patsubst %/,%,$(dir \
+ $(patsubst %/,%,$(dir $(shell command -v nvcc))))),/usr/local/cuda)
+# flags for clang+cuda
+CLANG_CUDA_FLAGS = -xcuda --cuda-path=$(CUDA_DIR) --cuda-gpu-arch=$(CUDA_ARCH)
+# flags for nvcc
+NVCC_FLAGS = -x=cu --expt-extended-lambda --expt-relaxed-constexpr \
+ -arch=$(CUDA_ARCH)
+# Prefixes for passing flags to the host compiler and linker when using
+# CUDA_CXX=nvcc
 CUDA_XCOMPILER = -Xcompiler=
 CUDA_XLINKER   = -Xlinker=
 
@@ -145,6 +156,7 @@ MFEM_USE_GINKGO        = NO
 MFEM_USE_AMGX          = NO
 MFEM_USE_MAGMA         = NO
 MFEM_USE_GNUTLS        = NO
+MFEM_USE_HDF5          = NO
 MFEM_USE_NETCDF        = NO
 MFEM_USE_PETSC         = NO
 MFEM_USE_SLEPC         = NO
@@ -226,7 +238,7 @@ HYPRE_OPT = -I$(HYPRE_DIR)/include
 HYPRE_LIB = -L$(HYPRE_DIR)/lib -lHYPRE
 ifeq (YES,$(MFEM_USE_CUDA))
    # This is only necessary when hypre is built with cuda:
-   HYPRE_LIB += -lcusparse -lcurand -lcublas
+   HYPRE_LIB += -lcusolver -lcusparse -lcurand -lcublas
 endif
 ifeq (YES,$(MFEM_USE_HIP))
    # This is only necessary when hypre is built with hip:
@@ -241,7 +253,7 @@ ifeq ($(MFEM_USE_SUPERLU)$(MFEM_USE_STRUMPACK)$(MFEM_USE_MUMPS),NONONO)
      METIS_OPT =
      METIS_LIB = -L$(METIS_DIR) -lmetis
    else
-     METIS_DIR = @MFEM_DIR@/../metis-5.0
+     METIS_DIR = @MFEM_DIR@/../metis-5.1.0
      METIS_OPT = -I$(METIS_DIR)/include
      METIS_LIB = -L$(METIS_DIR)/lib -lmetis
    endif
@@ -271,10 +283,6 @@ POSIX_CLOCKS_LIB = -lrt
 # For sundials_nvecmpiplusx and nvecparallel remember to build with MPI_ENABLE=ON
 # and modify cmake variables for hypre for sundials
 SUNDIALS_DIR = @MFEM_DIR@/../sundials-5.0.0/instdir
-# SUNDIALS >= 6.4.0 requires C++14:
-ifeq ($(MFEM_USE_SUNDIALS),YES)
-   BASE_FLAGS = -std=c++14
-endif
 SUNDIALS_OPT = -I$(SUNDIALS_DIR)/include
 SUNDIALS_LIB = $(XLINKER)-rpath,$(SUNDIALS_DIR)/lib64\
  $(XLINKER)-rpath,$(SUNDIALS_DIR)/lib\
@@ -353,9 +361,6 @@ MUMPS_LIB += -lmumps_common -lpord $(SCALAPACK_LIB) $(LAPACK_LIB) $(MPI_FORTRAN_
 
 # STRUMPACK library configuration
 STRUMPACK_DIR = @MFEM_DIR@/../STRUMPACK-build
-ifeq ($(MFEM_USE_STRUMPACK),YES)
-   BASE_FLAGS = -std=c++14
-endif
 STRUMPACK_OPT = -I$(STRUMPACK_DIR)/include $(SCOTCH_OPT)
 # If STRUMPACK was build with OpenMP support, the following may be need:
 # STRUMPACK_OPT += $(OPENMP_OPT)
@@ -366,9 +371,6 @@ STRUMPACK_LIB = -L$(STRUMPACK_DIR)/lib -lstrumpack $(MPI_FORTRAN_LIB)\
 GINKGO_DIR = @MFEM_DIR@/../ginkgo/install
 GINKGO_SEARCH_DIR = $(subst @MFEM_DIR@,$(MFEM_DIR),$(GINKGO_DIR))
 GINKGO_BUILD_TYPE=Release
-ifeq ($(MFEM_USE_GINKGO),YES)
-   BASE_FLAGS = -std=c++14
-endif
 GINKGO_OPT = -isystem $(GINKGO_DIR)/include
 GINKGO_LIB_DIR = $(sort $(dir $(wildcard\
  $(GINKGO_SEARCH_DIR)/lib*/libginkgo*.a\
@@ -411,9 +413,14 @@ MAGMA_LIB = -L$(MAGMA_DIR)/lib -l:libmagma.a -lcublas -lcusparse $(LAPACK_LIB)
 GNUTLS_OPT =
 GNUTLS_LIB = -lgnutls
 
+# HDF5 library configuration
+HDF5_DIR   = $(HOME)/local
+HDF5_OPT = -I$(HDF5_DIR)/include
+HDF5_LIB = $(XLINKER)-rpath,$(HDF5_DIR)/lib -L$(HDF5_DIR)/lib -lhdf5_hl -lhdf5 \
+           $(ZLIB_LIB)
+
 # NetCDF library configuration
 NETCDF_DIR = $(HOME)/local
-HDF5_DIR   = $(HOME)/local
 NETCDF_OPT = -I$(NETCDF_DIR)/include -I$(HDF5_DIR)/include $(ZLIB_OPT)
 NETCDF_LIB = $(XLINKER)-rpath,$(NETCDF_DIR)/lib -L$(NETCDF_DIR)/lib\
  $(XLINKER)-rpath,$(HDF5_DIR)/lib -L$(HDF5_DIR)/lib\
@@ -494,8 +501,8 @@ SIDRE_LIB = \
 # Note that PUMI_DIR is needed -- it is used to check for gmi_sim.h
 PUMI_DIR = @MFEM_DIR@/../pumi-2.1.0
 PUMI_OPT = -I$(PUMI_DIR)/include
-PUMI_LIB = -L$(PUMI_DIR)/lib -lpumi -lcrv -lma -lmds -lapf -lpcu -lgmi -lparma\
-   -llion -lmth -lapf_zoltan -lspr
+PUMI_LIB = -L$(PUMI_DIR)/lib64 -L$(PUMI_DIR)/lib -lpumi -lcrv -lma -lmds -lapf\
+   -lpcu -lgmi -lparma -llion -lmth -lapf_zoltan -lspr
 
 # HIOP
 HIOP_DIR = @MFEM_DIR@/../hiop/install
@@ -515,6 +522,9 @@ GSLIB_LIB = -L$(GSLIB_DIR)/lib -lgs
 # CUDA library configuration
 CUDA_OPT =
 CUDA_LIB = -lcusparse -lcublas
+CLANG_CUDA_LIB = -L$(CUDA_DIR)/lib64 -L$(CUDA_DIR)/lib \
+ $(XLINKER)-rpath,$(CUDA_DIR)/lib64,-rpath,$(CUDA_DIR)/lib \
+ -lcudart -ldl -lrt -pthread
 
 # HIP library configuration
 HIP_OPT =
@@ -562,9 +572,6 @@ CEED_OPT = -I$(CEED_DIR)/include
 CEED_LIB = $(XLINKER)-rpath,$(CEED_DIR)/lib -L$(CEED_DIR)/lib -lceed
 
 # RAJA library configuration
-ifeq ($(MFEM_USE_RAJA),YES)
-   BASE_FLAGS = -std=c++14
-endif
 RAJA_DIR = @MFEM_DIR@/../raja
 RAJA_OPT = -I$(RAJA_DIR)/include
 ifdef CUB_DIR
@@ -579,12 +586,13 @@ endif
 RAJA_LIB = $(XLINKER)-rpath,$(RAJA_DIR)/lib -L$(RAJA_DIR)/lib -lRAJA $(CAMP_LIB)
 
 # UMPIRE library configuration
-ifeq ($(MFEM_USE_UMPIRE),YES)
-   BASE_FLAGS = -std=c++14
-endif
 UMPIRE_DIR = @MFEM_DIR@/../umpire
 UMPIRE_OPT = -I$(UMPIRE_DIR)/include $(if $(CAMP_DIR), -I$(CAMP_DIR)/include)
-UMPIRE_LIB = -L$(UMPIRE_DIR)/lib -lumpire $(CAMP_LIB)
+UMPIRE_LIB = -L$(UMPIRE_DIR)/lib -L$(UMPIRE_DIR)/lib64 -lumpire $(CAMP_LIB)
+ifdef FMT_DIR
+   UMPIRE_OPT += -I$(FMT_DIR)/include
+   UMPIRE_LIB += -L$(FMT_DIR)/lib -L$(FMT_DIR)/lib64 -lfmt
+endif
 
 # MKL CPardiso library configuration
 MKL_CPARDISO_DIR ?=
@@ -609,9 +617,6 @@ PARELAG_OPT = -I$(PARELAG_DIR)/src -I$(PARELAG_DIR)/build/src
 PARELAG_LIB = -L$(PARELAG_DIR)/build/src -lParELAG
 
 # Tribol library configuration
-ifeq ($(MFEM_USE_TRIBOL),YES)
-   BASE_FLAGS = -std=c++14
-endif
 AXOM_DIR = @MFEM_DIR@/../axom
 TRIBOL_DIR = @MFEM_DIR@/../tribol
 TRIBOL_OPT = -I$(TRIBOL_DIR)/include -I$(AXOM_DIR)/include
@@ -619,20 +624,20 @@ TRIBOL_LIB = -L$(TRIBOL_DIR)/lib -ltribol -lredecomp -L$(AXOM_DIR)/lib -laxom_mi
    -laxom_slam -laxom_slic -laxom_core
 
 # Enzyme configuration
-
-# If you want to enable automatic differentiation at compile time, use the
-# options below, adapted to your configuration. To be more flexible, we
-# recommend using the Enzyme plugin during link time optimization. One option is
-# to add your options to the global compiler/linker flags like
-#
-# BASE_FLAGS += -flto
-# CXX_XLINKER += -fuse-ld=lld -Wl,--lto-legacy-pass-manager\
-#                -Wl,-mllvm=-load=$(ENZYME_DIR)/LLDEnzyme-$(ENZYME_VERSION).so -Wl,
-#
-ENZYME_DIR ?= @MFEM_DIR@/../enzyme
-ENZYME_VERSION ?= 14
-ENZYME_OPT = -fno-experimental-new-pass-manager -Xclang -load -Xclang $(ENZYME_DIR)/ClangEnzyme-$(ENZYME_VERSION).so
-ENZYME_LIB = ""
+ENZYME_DIR = @MFEM_DIR@/../enzyme
+ENZYME_PLUGIN = $(abspath $(wildcard $(subst \
+   @MFEM_DIR@,$(MFEM_DIR),$(ENZYME_DIR))/lib/ClangEnzyme-*.$(SO_EXT)))
+ifeq ($(MAKECMDGOALS)-$(MFEM_USE_ENZYME),config-YES)
+   ifeq ($(ENZYME_PLUGIN),)
+      $(error Unable to find the Enzyme pluging! Please set ENZYME_DIR)
+   endif
+   ifneq ($(words $(ENZYME_PLUGIN)),1)
+      $(error Multiple versions of the Enzyme pluging found! \
+              Please set ENZYME_PLUGIN directly)
+   endif
+endif
+ENZYME_OPT = -fplugin=$(ENZYME_PLUGIN)
+ENZYME_LIB =
 
 # If YES, enable some informational messages
 VERBOSE = NO

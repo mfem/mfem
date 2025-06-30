@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -45,6 +45,49 @@ KnotVector::KnotVector(int order, int NCP)
    knot = -1.;
 }
 
+KnotVector::KnotVector(int order, const Vector& intervals,
+                       const Array<int>& continuity )
+{
+   // NOTE: This may need to be generalized to support periodicity
+   // in the future.
+   MFEM_ASSERT(continuity.Size() == (intervals.Size() + 1),
+               "Incompatible sizes of continuity and intervals.");
+   Order = order;
+   const int num_knots = Order * continuity.Size() - continuity.Sum();
+   // Some continuities may still be invalid; this assert only avoids
+   // passing a negative num_knots to Vector::SetSize().
+   MFEM_ASSERT(num_knots >= 0, "Invalid continuity vector for order.");
+   NumOfControlPoints = num_knots - Order - 1;
+   knot.SetSize(num_knots);
+   real_t accum = 0.0;
+   int iknot = 0;
+   for (int i = 0; i < continuity.Size(); ++i)
+   {
+      const int multiplicity = Order - continuity[i];
+      MFEM_ASSERT(multiplicity >= 1 && multiplicity <= Order+1,
+                  "Invalid knot multiplicity for order.");
+      for (int j = 0; j < multiplicity; ++j)
+      {
+         knot[iknot] = accum;
+         ++iknot;
+      }
+      if (i < intervals.Size()) { accum += intervals[i]; }
+   }
+   // Assert that there are enough knots to provide a complete basis over all
+   // the elements in the knot vector.
+   MFEM_ASSERT(knot.Size() >= (2*(Order+1)),
+               "Insufficient number of knots to define NURBS.");
+   // Calculate the number of elements provided by the knot vector
+   NumOfElements = 0;
+   for (int i = 0; i < GetNKS(); ++i)
+   {
+      if (isElement(i))
+      {
+         ++NumOfElements;
+      }
+   }
+}
+
 KnotVector &KnotVector::operator=(const KnotVector &kv)
 {
    Order = kv.Order;
@@ -53,9 +96,6 @@ KnotVector &KnotVector::operator=(const KnotVector &kv)
    knot = kv.knot;
    coarse = kv.coarse;
    if (kv.spacing) { spacing = kv.spacing->Clone(); }
-
-   // alternatively, re-compute NumOfElements
-   // GetElements();
 
    return *this;
 }
@@ -640,12 +680,15 @@ void KnotVector::Difference(const KnotVector &kv, Vector &diff) const
 
 void NURBSPatch::init(int dim)
 {
+   MFEM_ASSERT(dim > 1, "NURBS patch dimension (including weight) must be "
+               "greater than 1.");
    Dim = dim;
    sd = nd = -1;
 
    if (kv.Size() == 1)
    {
       ni = kv[0]->GetNCP();
+      MFEM_ASSERT(ni > 0, "Invalid knot vector dimension.");
       nj = -1;
       nk = -1;
 
@@ -662,6 +705,7 @@ void NURBSPatch::init(int dim)
    {
       ni = kv[0]->GetNCP();
       nj = kv[1]->GetNCP();
+      MFEM_ASSERT(ni > 0 && nj > 0, "Invalid knot vector dimensions.");
       nk = -1;
 
       data = new real_t[ni*nj*Dim];
@@ -678,6 +722,8 @@ void NURBSPatch::init(int dim)
       ni = kv[0]->GetNCP();
       nj = kv[1]->GetNCP();
       nk = kv[2]->GetNCP();
+      MFEM_ASSERT(ni > 0 && nj > 0 && nk > 0,
+                  "Invalid knot vector dimensions.");
 
       data = new real_t[ni*nj*nk*Dim];
 
@@ -1938,7 +1984,7 @@ NURBSExtension::NURBSExtension(const NURBSExtension &orig)
      activeDof(orig.activeDof),
      patchTopo(new Mesh(*orig.patchTopo)),
      own_topo(true),
-     edge_to_knot(orig.edge_to_knot),
+     edge_to_ukv(orig.edge_to_ukv),
      knotVectors(orig.knotVectors.Size()), // knotVectors are copied in the body
      knotVectorsCompr(orig.knotVectorsCompr.Size()),
      weights(orig.weights),
@@ -1979,7 +2025,7 @@ NURBSExtension::NURBSExtension(std::istream &input, bool spacing)
 {
    // Read topology
    patchTopo = new Mesh;
-   patchTopo->LoadPatchTopo(input, edge_to_knot);
+   patchTopo->LoadPatchTopo(input, edge_to_ukv);
    own_topo = true;
 
    CheckPatches();
@@ -2181,7 +2227,7 @@ NURBSExtension::NURBSExtension(NURBSExtension *parent, int newOrder)
    patchTopo = parent->patchTopo;
    own_topo = false;
 
-   parent->edge_to_knot.Copy(edge_to_knot);
+   parent->edge_to_ukv.Copy(edge_to_ukv);
 
    NumOfKnotVectors = parent->GetNKV();
    knotVectors.SetSize(NumOfKnotVectors);
@@ -2239,7 +2285,7 @@ NURBSExtension::NURBSExtension(NURBSExtension *parent,
    patchTopo = parent->patchTopo;
    own_topo = false;
 
-   parent->edge_to_knot.Copy(edge_to_knot);
+   parent->edge_to_ukv.Copy(edge_to_ukv);
 
    NumOfKnotVectors = parent->GetNKV();
    MFEM_VERIFY(mOrders.Size() == NumOfKnotVectors, "invalid newOrders array");
@@ -2298,7 +2344,7 @@ NURBSExtension::NURBSExtension(Mesh *mesh_array[], int num_pieces)
    own_topo = true;
    parent->own_topo = false;
 
-   parent->edge_to_knot.Copy(edge_to_knot);
+   parent->edge_to_ukv.Copy(edge_to_ukv);
 
    parent->GetOrders().Copy(mOrders);
    mOrder = parent->GetOrder();
@@ -2330,13 +2376,68 @@ NURBSExtension::NURBSExtension(Mesh *mesh_array[], int num_pieces)
    MergeWeights(mesh_array, num_pieces);
 }
 
+NURBSExtension::NURBSExtension(const Mesh *patch_topology,
+                               const Array<const NURBSPatch*> patches_)
+{
+   // Basic topology checks
+   MFEM_VERIFY(patches_.Size() > 0, "Must have at least one patch");
+   MFEM_VERIFY(patches_.Size() == patch_topology->GetNE(),
+               "Number of patches must equal number of elements in patch_topology");
+
+   // Copy patch_topology mesh and NURBSPatch(es)
+   patchTopo = new Mesh( *patch_topology );
+   patches.SetSize(patches_.Size());
+   for (int p = 0; p < patches.Size(); p++)
+   {
+      patches[p] = new NURBSPatch(*patches_[p]);
+   }
+
+   Array<int> ukv_to_rpkv;
+   patchTopo->GetEdgeToUniqueKnotvector(edge_to_ukv, ukv_to_rpkv);
+   own_topo = true;
+
+   CheckPatches(); // This is checking the edge_to_ukv mapping
+
+   // Set number of unique (not comprehensive) knot vectors
+   NumOfKnotVectors = ukv_to_rpkv.Size();
+   knotVectors.SetSize(NumOfKnotVectors);
+   knotVectors = NULL;
+
+   // Assign the unique knot vectors from patches
+   for (int i = 0; i < NumOfKnotVectors; i++)
+   {
+      // pkv = p*dim + d for an arbitrarily chosen patch p,
+      // in its reference direction d
+      const int pkv = ukv_to_rpkv[i];
+      const int p = pkv / Dimension();
+      const int d = pkv % Dimension();
+      knotVectors[i] = new KnotVector(*patches[p]->GetKV(d));
+   }
+
+   CreateComprehensiveKV();
+   SetOrdersFromKnotVectors();
+
+   GenerateOffsets();
+   CountElements();
+   CountBdrElements();
+
+   NumOfActiveElems = NumOfElements;
+   activeElem.SetSize(NumOfElements);
+   activeElem = true;
+
+   GenerateActiveVertices();
+   InitDofMap();
+   GenerateElementDofTable();
+   GenerateActiveBdrElems();
+   GenerateBdrElementDofTable();
+
+   ConnectBoundaries();
+}
+
 NURBSExtension::~NURBSExtension()
 {
-   if (patches.Size() == 0)
-   {
-      delete bel_dof;
-      delete el_dof;
-   }
+   if (bel_dof) { delete bel_dof; }
+   if (el_dof) { delete el_dof; }
 
    for (int i = 0; i < knotVectors.Size(); i++)
    {
@@ -2371,7 +2472,7 @@ void NURBSExtension::Print(std::ostream &os, const std::string &comments) const
    }
 
    const int version = kvSpacing.Size() > 0 ? 11 : 10;  // v1.0 or v1.1
-   patchTopo->PrintTopo(os, edge_to_knot, version, comments);
+   patchTopo->PrintTopo(os, edge_to_ukv, version, comments);
    if (patches.Size() == 0)
    {
       os << "\nknotvectors\n" << NumOfKnotVectors << '\n';
@@ -2826,7 +2927,7 @@ void NURBSExtension::CheckPatches()
 
       for (int i = 0; i < edges.Size(); i++)
       {
-         edges[i] = edge_to_knot[edges[i]];
+         edges[i] = edge_to_ukv[edges[i]];
          if (oedge[i] < 0)
          {
             edges[i] = -1 - edges[i];
@@ -2844,7 +2945,7 @@ void NURBSExtension::CheckPatches()
             edges[8] != edges[11])))
       {
          mfem::err << "NURBSExtension::CheckPatch (patch = " << p
-                   << ")\n  Inconsistent edge-to-knot mapping!\n";
+                   << ")\n  Inconsistent edge-to-knotvector mapping!";
          mfem_error();
       }
    }
@@ -2861,7 +2962,7 @@ void NURBSExtension::CheckBdrPatches()
 
       for (int i = 0; i < edges.Size(); i++)
       {
-         edges[i] = edge_to_knot[edges[i]];
+         edges[i] = edge_to_ukv[edges[i]];
          if (oedge[i] < 0)
          {
             edges[i] = -1 - edges[i];
@@ -4768,6 +4869,16 @@ void NURBSExtension::GetElementIJK(int elem, Array<int> & ijk)
    el_to_IJK.GetRow(elem, ijk);
 }
 
+void NURBSExtension::GetPatches(Array<NURBSPatch*> &patches_copy)
+{
+   const int NP = patches.Size();
+   patches_copy.SetSize(NP);
+   for (int p = 0; p < NP; p++)
+   {
+      patches_copy[p] = new NURBSPatch(*GetPatch(p));
+   }
+}
+
 void NURBSExtension::SetPatchToElements()
 {
    const int np = GetNP();
@@ -4804,6 +4915,42 @@ const Array<int>& NURBSExtension::GetPatchBdrElements(int patch)
    return patch_to_bel[patch];
 }
 
+NURBSPatch::NURBSPatch(const KnotVector *kv0, const KnotVector *kv1, int dim_,
+                       const real_t* control_points)
+{
+   kv.SetSize(2);
+   kv[0] = new KnotVector(*kv0);
+   kv[1] = new KnotVector(*kv1);
+   init(dim_);
+   memcpy(data, control_points, sizeof (real_t) * ni * nj * dim_);
+}
+
+NURBSPatch::NURBSPatch(const KnotVector *kv0, const KnotVector *kv1,
+                       const KnotVector *kv2, int dim_,
+                       const real_t* control_points)
+{
+   kv.SetSize(3);
+   kv[0] = new KnotVector(*kv0);
+   kv[1] = new KnotVector(*kv1);
+   kv[2] = new KnotVector(*kv2);
+   init(dim_);
+   memcpy(data, control_points, sizeof (real_t) * ni * nj * nk * dim_);
+}
+
+NURBSPatch::NURBSPatch(Array<const KnotVector *> &kv_,  int dim_,
+                       const real_t* control_points)
+{
+   kv.SetSize(kv_.Size());
+   int n = dim_;
+   for (int i = 0; i < kv.Size(); i++)
+   {
+      kv[i] = new KnotVector(*kv_[i]);
+      n *= kv[i]->GetNCP();
+   }
+   init(dim_);
+   memcpy(data, control_points, sizeof(real_t)*n);
+}
+
 #ifdef MFEM_USE_MPI
 ParNURBSExtension::ParNURBSExtension(const ParNURBSExtension &orig)
    : NURBSExtension(orig),
@@ -4836,7 +4983,7 @@ ParNURBSExtension::ParNURBSExtension(MPI_Comm comm, NURBSExtension *parent,
    own_topo = true;
    parent->own_topo = false;
 
-   parent->edge_to_knot.Copy(edge_to_knot);
+   parent->edge_to_ukv.Copy(edge_to_ukv);
 
    parent->GetOrders().Copy(mOrders);
    mOrder = parent->GetOrder();
@@ -4899,7 +5046,7 @@ ParNURBSExtension::ParNURBSExtension(NURBSExtension *parent,
    own_topo = parent->own_topo;
    parent->own_topo = false;
 
-   Swap(edge_to_knot, parent->edge_to_knot);
+   Swap(edge_to_ukv, parent->edge_to_ukv);
 
    NumOfKnotVectors = parent->NumOfKnotVectors;
    Swap(knotVectors, parent->knotVectors);
