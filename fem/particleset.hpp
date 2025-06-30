@@ -19,9 +19,10 @@ namespace gslib
 {
 extern "C"
 {
-#include "gslib.h"
+   #include "gslib.h"
+
 } //extern C
-} // gslib
+} // namespace gslib
 #endif
 
 #include <vector>

@@ -21,33 +21,35 @@
 // Compile with: make particle-redistribute
 //
 // Sample runs:
-//   particle-redistribute
+//   mpirun -np 4 particle-redistribute -n 1000
+//   mpirun -np 4 particle-redistribute -n 5000 -m ../../data/star.mesh
+//   mpirun -np 4 particle-redistribute -n 7500 -m ../../toroid-hex.mesh
+//   mpirun -np 4 particle-redistribute -n 7500 -m ../../fischera-q3.mesh
+
 #include "mfem.hpp"
-#include "../common/fem_extras.hpp"
 
 #include <random>
 
 using namespace std;
 using namespace mfem;
 
-using SampleParticle = Particle<2>;
-
-void InitializeRandom(SampleParticle &p, int seed)
+template<int SpaceDim, int NumScalars, int... VectorVDims>
+void InitializeRandom(Particle<SpaceDim,NumScalars,VectorVDims...> &p, int seed, Vector &pos_min, Vector &pos_max)
 {
    std::mt19937 gen(seed);
-   std::uniform_real_distribution<> real_dist(0.0, 1.0);
+   std::uniform_real_distribution<> real_dist(0.0,1.0);
 
-   for (int i = 0; i < p.GetCoords().Size(); i++)
+   for (int i = 0; i < pos_min.Size(); i++)
    {
-      p.GetCoords()[i] = real_dist(gen);
+      p.GetCoords()[i] = pos_min[i] + (pos_max[i] - pos_min[i])*real_dist(gen);
    }
 
-   for (int s = 0; s < SampleParticle::GetNumScalars(); s++)
+   for (int s = 0; s < NumScalars; s++)
       p.GetScalar(s) = real_dist(gen);
    
-   for (int v = 0; v < SampleParticle::GetNumVectors(); v++)
+   for (int v = 0; v < sizeof...(VectorVDims); v++)
    {
-      for (int c = 0; c < SampleParticle::GetVDim(v); c++)
+      for (int c = 0; c < Particle<SpaceDim, NumScalars, VectorVDims...>::GetVDim(v); c++)
       {
          p.GetVector(v)[c] = real_dist(gen);
       }
@@ -84,14 +86,11 @@ void PrintOnOffRankCounts(const Array<unsigned int> &procs, MPI_Comm comm)
    }
 }
 
-
-void AddPoint(const Vector &center, Mesh &m)
+void Add3DPoint(const Vector &center, real_t s, Mesh &m)
 {
-   const real_t s = 5e-3;
-   Vector v_s(3); v_s = s;
 
    Vector v[8];
-   
+
    for (int i = 0; i < 8; i++)
    {
       v[i].SetSize(3);
@@ -101,6 +100,8 @@ void AddPoint(const Vector &center, Mesh &m)
    {
       v[0][i] = center[i];
    }
+ 
+   Vector v_s(3); v_s = s;
    v[0] -= v_s;
 
    v[1] = v[0];
@@ -131,6 +132,9 @@ void AddPoint(const Vector &center, Mesh &m)
    m.AddHex(vi);
 }
 
+template<int SpaceDim>
+void RunMiniapp(Mesh &mesh, MPI_Comm comm, int npt, bool visualization, int visport, char* vishost);
+
 int main (int argc, char *argv[])
 {
    // Initialize MPI and HYPRE.
@@ -139,6 +143,7 @@ int main (int argc, char *argv[])
    int rank = Mpi::WorldRank();
    Hypre::Init();
 
+   const char *mesh_file = "../../data/rt-2d-q3.mesh";
    int npt = 1;
    int N = 10;
    bool visualization = true;
@@ -146,8 +151,8 @@ int main (int argc, char *argv[])
    char vishost[] = "localhost";
 
    OptionsParser args(argc, argv);
-   args.AddOption(&npt, "-n", "--npt", "Number of particles to initialize on each rank.");
-   args.AddOption(&N, "-N", "--ne", "Number of elements in the x- and y-directions.");
+   args.AddOption(&mesh_file, "-m", "--mesh", "Mesh file to use");
+   args.AddOption(&npt, "-n", "--npt", "Number of particles to initialize on global mesh bounding box by each rank.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -160,35 +165,82 @@ int main (int argc, char *argv[])
       return 1;
    }
    if (rank == 0) { args.PrintOptions(cout); }
-
-
+   
    // Create mesh
-   Mesh m = Mesh::MakeCartesian2D(N, N, Element::Type::QUADRILATERAL);
-   ParMesh pmesh(MPI_COMM_WORLD, m);
+   Mesh mesh(mesh_file);
+   MFEM_ASSERT(mesh.SpaceDimension() == mesh.Dimension(), "FindPointsGSLIB requires that the mesh space dimension + reference element dimension are the same");
+   int space_dim = mesh.Dimension();
+
+   // Particle space dim must match mesh:
+   switch (space_dim)
+   {
+      case 1:
+         RunMiniapp<1>(mesh, MPI_COMM_WORLD, npt, visualization, visport, vishost);
+         break;
+      case 2:
+         RunMiniapp<2>(mesh, MPI_COMM_WORLD, npt, visualization, visport, vishost);
+         break;
+      case 3:
+        RunMiniapp<3>(mesh, MPI_COMM_WORLD, npt, visualization, visport, vishost);
+         break;
+      default:
+         MFEM_ABORT("Mesh dimension > 3 not supported");
+   }
+
+
+   return 0;
+}
+
+template<int SpaceDim>
+void RunMiniapp(Mesh &mesh, MPI_Comm comm, int npt, bool visualization, int visport, char* vishost)
+{
+   int rank, size;
+   MPI_Comm_rank(comm, &rank);
+   MPI_Comm_size(comm, &size);
+
+   ParticleSet<Particle<SpaceDim>, Ordering::byVDIM> pset(comm);
+
+   Vector pos_min, pos_max;
+   mesh.GetBoundingBox(pos_min, pos_max);
+
+   ParMesh pmesh(comm, mesh);
 
    // Generate particles randomly on entire mesh domain, for each rank
-   ParticleSet<SampleParticle, Ordering::byVDIM> pset(MPI_COMM_WORLD);
    int seed = rank;
    for (int i = 0; i < npt; i++)
    {
-      SampleParticle p;
-      InitializeRandom(p, seed);
+      Particle<SpaceDim> p;
+      InitializeRandom(p, seed, pos_min, pos_max);
       pset.AddParticle(p);
       seed += size;
    }
 
-
    // Find points
-   FindPointsGSLIB finder(MPI_COMM_WORLD);
+   FindPointsGSLIB finder(comm);
    pmesh.EnsureNodes();
    finder.Setup(pmesh);
    finder.FindPoints(pset.GetSetCoords(), pset.GetOrdering());
 
+   // Remove points not in domain
+   Array<int> rm_idxs;
+   const Array<unsigned int> &codes = finder.GetCode();
+   for (int i = 0; i < pset.GetNP(); i++)
+   {
+      if (codes[i] == 2)
+      {
+         rm_idxs.Append(i);
+      }
+   }
+   pset.RemoveParticles(rm_idxs);
+
+   // Re-find w/ new particles to re-get Proc array
+   finder.FindPoints(pset.GetSetCoords(), pset.GetOrdering());
    if (rank == 0)
    {
       mfem::out << "Pre-Redistribute:\n";
    }
-   PrintOnOffRankCounts(finder.GetProc(), MPI_COMM_WORLD);
+
+   PrintOnOffRankCounts(finder.GetProc(), comm);
 
    // Redistribute
    pset.Redistribute(finder.GetProc());
@@ -196,11 +248,13 @@ int main (int argc, char *argv[])
    // Find again
    finder.FindPoints(pset.GetSetCoords(), pset.GetOrdering());
 
+   // Remove particles not in domain
+   
    if (rank == 0)
    {
       mfem::out << "\nPost-Redistribute:\n";
    }
-   PrintOnOffRankCounts(finder.GetProc(), MPI_COMM_WORLD);
+   PrintOnOffRankCounts(finder.GetProc(), comm);
    
    if (visualization)
    {
@@ -208,13 +262,16 @@ int main (int argc, char *argv[])
       sout.open(vishost, visport);
 
       // Create small cubes for each point, to visualize particles more clearly
+
+      real_t psize = Distance(pos_min, pos_max)*2e-3;
+
       L2_FECollection l2fec(1,3);
       Mesh particles_mesh(3, pset.GetNP()*8, pset.GetNP(), 0, 3);
       for (int i = 0; i < pset.GetNP(); i++)
       {
-         SampleParticle p = pset.GetParticleRef(i);
+         auto p = pset.GetParticleRef(i);
          const Vector &pcoords = p.GetCoords();
-         AddPoint(pcoords, particles_mesh);
+         Add3DPoint(pcoords, psize, particles_mesh);
       }
       particles_mesh.FinalizeMesh();
 
@@ -235,5 +292,6 @@ int main (int argc, char *argv[])
       sout << "solution\n" << particles_mesh << rank_gf << flush;
 
    }
-   return 0;
+
+
 }
