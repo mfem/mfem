@@ -190,4 +190,44 @@ int main(int argc, char *argv[])
              "Step", "Time", "dt", "CFL", "||u||_max");
    }
 
+   for (int step = 0; !last_step; step++)
+   {
+      if (t + dt >= t_final - dt/2)
+      {
+         last_step = true;
+      }
+
+      flowsolver.Step(t, dt, step);
+
+      u_gf = flowsolver.GetCurrentVelocity();
+      p_gf = flowsolver.GetCurrentPressure();
+
+      real_t cfl = flowsolver.ComputeCFL(*u_gf, dt);
+      real_t max_vel = u_gf->Max();
+
+      if (Mpi::Root() && step % 10 == 0)
+      {
+         printf("%5d %8.3f %8.2E %8.2E %11.4E\n",
+                step, t, dt, cfl, max_vel);
+         fflush(stdout);
+      }
+
+      // TODO: Check no-penetration conditions
+   }
+
+   if (ctx.visualization)
+   {
+      char vishost[] = "localhost";
+      socketstream sol_sock(vishost, visport);
+      sol_sock.precision(8);
+
+      sol_sock << "parallel " << Mpi::WorldSize() << " " << Mpi::WorldRank() << "\n";
+      sol_sock << "solution\n " << *pmesh << *u_gf << std::flush;
+   }
+
+   flowsolver.PrintTimingData();
+
+   delete pmesh;
+
+   return 0;
 }
