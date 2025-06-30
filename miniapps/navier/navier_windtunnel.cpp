@@ -12,28 +12,30 @@
 
 // Navier Wind Tunnel
 //
-// The problem domain is set up as follows:
+// The problem domain is set up like this (flow in +x direction):
 //
-//            Top (no-penetration)
-//               +-------+
-//              /|      /|
-//             / |     / |
-//    Left    /  |    /  |  Right
-// (no-pen)  +-------+   | (no-pen)
-//           |   |   |   |
-//           |   +---|---+
-//           |  /    |  /
-//           | /     | /
-//           |/      |/
-//           +-------+
-//          Ground (no-slip)
+//    Back (y=max)        Front (y=0)
+//     +--------+        +--------+
+//    /|       /|       /|       /|
+//   / |      / |      / |      / |
+//  +--------+  |     +--------+  |
+//  |  |     |  |     |  |     |  |
+//  |  +-----|--+     |  +-----|--+
+//  | /      | /      | /      | /
+//  |/       |/       |/       |/
+//  +--------+        +--------+
+// Left     Right    Left     Right
+// (x=0)   (x=max)  (x=0)   (x=max)
 //
-// Boundary conditions:
-// - Left/Right (attr 2,4): Kovasznay velocity Dirichlet BC
-// - Top/Bottom walls (attr 1,3): No-penetration BC (zero normal velocity)
+//        Bottom (z=0)    Top (z=max)
 //
-// The problem, although steady state, is time integrated up to the
-// final time and the solution is compared with the known exact solution.
+// Boundary conditions (MFEM attribute assignment):
+// - Left (attr 5, x=0): Inlet - Prescribed velocity Dirichlet BC
+// - Bottom (attr 1, z=0): Ground - No-slip BC (all velocity components = 0) 
+// - Front (attr 2, y=0): Front wall - No-penetration BC (zero y-velocity component)
+// - Right (attr 3, x=max): Outlet - Do nothing (no BC)
+// - Back (attr 4, y=max): Back wall - No-penetration BC (zero y-velocity component)
+// - Top (attr 6, z=max): Top wall - No-penetration BC (zero z-velocity component)
 
 #include "navier_solver.hpp"
 #include <fstream>
@@ -55,13 +57,13 @@ struct s_NavierContext
    bool checkres = false;
 } ctx;
 
+// Inlet velocity profile (constant for now)
 void vel_inlet(const Vector &x, real_t t, Vector &u)
 {
-    u(0) = ctx.inlet_velocity;
-    u(1) = 0.0;
-    u(2) = 0.0;
+   u(0) = ctx.inlet_velocity;  // x-component (flow direction)
+   u(1) = 0.0;                 // y-component  
+   u(2) = 0.0;                 // z-component
 }
-
 
 int main(int argc, char *argv[])
 {
@@ -102,7 +104,6 @@ int main(int argc, char *argv[])
                   "Enable or disable GLVis visualization.");
    args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.Parse();
-
    if (!args.Good())
    {
       if (Mpi::Root())
@@ -111,68 +112,83 @@ int main(int argc, char *argv[])
       }
       return 1;
    }
-
    if (Mpi::Root())
    {
       args.PrintOptions(mfem::out);
    }
 
-   Mesh mesh = Mesh::MakeCartesian3D(6, 2, 4, Element::HEXAHEDRON, 3.0, 1.0, 2.0);
+   // Create 3D Cartesian mesh: nx x ny x nz elements
+   // Domain: [0, 3] x [0, 1] x [0, 1] (Length x Width x Height)
+   Mesh mesh = Mesh::MakeCartesian3D(6, 2, 2, Element::HEXAHEDRON, 
+                                     3.0, 1.0, 1.0);
 
-   for (int i = 0; i < ctx.ser_ref_levels; i++)
+   for (int i = 0; i < ctx.ser_ref_levels; ++i)
    {
       mesh.UniformRefinement();
    }
 
    if (Mpi::Root())
    {
-      mfem::out << "Number of elements: " << mesh.GetNE() << std::endl;
-      mfem::out << "Mesh dimension: " << mesh.Dimension() << std::endl;
-      mfem::out << "Number of boundary attributes: " << mesh.bdr_attributes.Max() << std::endl;
+      std::cout << "Number of elements: " << mesh.GetNE() << std::endl;
+      std::cout << "Mesh dimension: " << mesh.Dimension() << std::endl;
+      std::cout << "Number of boundary attributes: " << mesh.bdr_attributes.Max() << std::endl;
+      
+      // Print boundary attribute assignments for verification
+      std::cout << "\nBoundary attribute assignments:" << std::endl;
+      std::cout << "  Bottom (z=0): attr 1" << std::endl;
+      std::cout << "  Front (y=0):  attr 2" << std::endl; 
+      std::cout << "  Right (x=max): attr 3" << std::endl;
+      std::cout << "  Back (y=max):  attr 4" << std::endl;
+      std::cout << "  Left (x=0):   attr 5" << std::endl;
+      std::cout << "  Top (z=max):  attr 6" << std::endl;
    }
 
    auto *pmesh = new ParMesh(MPI_COMM_WORLD, mesh);
    mesh.Clear();
 
+   // Create the flow solver.
    NavierSolver flowsolver(pmesh, ctx.order, ctx.kinvis);
    flowsolver.EnablePA(ctx.pa);
    flowsolver.EnableNI(ctx.ni);
 
-   // Set up the boundary conditions
+   // Set the initial condition (quiescent flow)
+   ParGridFunction *u_ic = flowsolver.GetCurrentVelocity();
+   VectorConstantCoefficient u_init(Vector({0.0, 0.0, 0.0}));
+   u_ic->ProjectCoefficient(u_init);
 
-   // 1. INLET (attr 5): Prescribed velocity  TODO: Move to log-law
+   // BOUNDARY CONDITIONS
+   
+   // 1. INLET: Prescribed velocity 
    Array<int> attr_inlet(pmesh->bdr_attributes.Max());
    attr_inlet = 0;
    attr_inlet[4] = 1;  // attr 5
    flowsolver.AddVelDirichletBC(vel_inlet, attr_inlet);
 
-   // 2. GROUND (attr 3): No-slip
+   // 2. GROUND: No-slip
    Array<int> attr_ground(pmesh->bdr_attributes.Max());
    attr_ground = 0;
-   attr_ground[2] = 1;  // attr 3
-   VectorConstantCoefficient zero_vel(Vector({0.0, 0.0, 0.0}));
-   flowsolver.AddVelDirichletBC(&zero_vel, attr_ground);
+   attr_ground[0] = 1;  // attr 1
+   flowsolver.AddVelDirichletBC(new VectorConstantCoefficient(Vector({0.0, 0.0, 0.0})), attr_ground);
 
-   // 3. LEFT WALL (attr 1): No-penetration
-   Array<int> attr_left(pmesh->bdr_attributes.Max());
-   attr_left = 0;
-   attr_left[0] = 1;  // attr 1
-   flowsolver.AddVelDirichletBC(new ConstantCoefficient(0.0), attr_left, 0);
+   // 3. FRONT WALL: No-penetration
+   Array<int> attr_front(pmesh->bdr_attributes.Max());
+   attr_front = 0;
+   attr_front[1] = 1;  // attr 2
+   flowsolver.AddVelDirichletBC(new ConstantCoefficient(0.0), attr_front, 1);
 
-   // 4. RIGHT WALL (attr 2): No-penetration
-   Array<int> attr_right(pmesh->bdr_attributes.Max());
-   attr_right = 0;
-   attr_right[1] = 1;  // attr 2
-   flowsolver.AddVelDirichletBC(new ConstantCoefficient(0.0), attr_right, 0);
+   // 4. BACK WALL: No-penetration
+   Array<int> attr_back(pmesh->bdr_attributes.Max());
+   attr_back = 0;
+   attr_back[3] = 1;  // attr 4
+   flowsolver.AddVelDirichletBC(new ConstantCoefficient(0.0), attr_back, 1);
 
-   // 5. TOP WALL (attr 4): No-penetration
+   // 5. TOP WALL: No-penetration
    Array<int> attr_top(pmesh->bdr_attributes.Max());
    attr_top = 0;
-   attr_top[3] = 1;  // attr 4
-   flowsolver.AddVelDirichletBC(new ConstantCoefficient(0.0), attr_top, 1);
+   attr_top[5] = 1;  // attr 6
+   flowsolver.AddVelDirichletBC(new ConstantCoefficient(0.0), attr_top, 2);
 
-   // 6. OUTLET (attr 6): Do nothing
-   // Nothing to do here...
+   // 6. OUTLET: Do nothing
 
    real_t t = 0.0;
    real_t dt = ctx.dt;
@@ -190,9 +206,9 @@ int main(int argc, char *argv[])
              "Step", "Time", "dt", "CFL", "||u||_max");
    }
 
-   for (int step = 0; !last_step; step++)
+   for (int step = 0; !last_step; ++step)
    {
-      if (t + dt >= t_final - dt/2)
+      if (t + dt >= t_final - dt / 2)
       {
          last_step = true;
       }
@@ -212,7 +228,56 @@ int main(int argc, char *argv[])
          fflush(stdout);
       }
 
-      // TODO: Check no-penetration conditions
+      // Check no-penetration conditions every 50 steps
+      if (step % 50 == 0)
+      {
+         // Test y-penetration on front/back walls
+         Array<int> attr_fb_walls(pmesh->bdr_attributes.Max());
+         attr_fb_walls = 0;
+         attr_fb_walls[1] = attr_fb_walls[3] = 1;  // Front and back walls
+         
+         VectorGridFunctionCoefficient u_coeff(u_gf);
+         Vector test_normal_y({0.0, 1.0, 0.0});  // y-direction
+         VectorConstantCoefficient n_coeff_y(test_normal_y);
+         InnerProductCoefficient un_coeff_y(u_coeff, n_coeff_y);
+         
+         LinearForm lform_y(u_gf->ParFESpace());
+         lform_y.AddBoundaryIntegrator(
+            new BoundaryLFIntegrator(un_coeff_y), attr_fb_walls);
+         lform_y.Assemble();
+         
+         double local_val_y = lform_y * (*u_gf);
+         double global_val_y = 0.0;
+         MPI_Allreduce(&local_val_y, &global_val_y, 1, MPI_DOUBLE, MPI_SUM,
+                       pmesh->GetComm());
+
+         // Test z-penetration on top wall  
+         Array<int> attr_top_wall(pmesh->bdr_attributes.Max());
+         attr_top_wall = 0;
+         attr_top_wall[5] = 1;  // Top wall
+         
+         Vector test_normal_z({0.0, 0.0, 1.0});  // z-direction
+         VectorConstantCoefficient n_coeff_z(test_normal_z);
+         InnerProductCoefficient un_coeff_z(u_coeff, n_coeff_z);
+         
+         LinearForm lform_z(u_gf->ParFESpace());
+         lform_z.AddBoundaryIntegrator(
+            new BoundaryLFIntegrator(un_coeff_z), attr_top_wall);
+         lform_z.Assemble();
+         
+         double local_val_z = lform_z * (*u_gf);
+         double global_val_z = 0.0;
+         MPI_Allreduce(&local_val_z, &global_val_z, 1, MPI_DOUBLE, MPI_SUM,
+                       pmesh->GetComm());
+         
+         if (Mpi::Root())
+         {
+            mfem::out << "Step " << step << ": y-penetration on F/B walls: " 
+                      << abs(global_val_y) << std::endl;
+            mfem::out << "Step " << step << ": z-penetration on top wall: " 
+                      << abs(global_val_z) << std::endl;
+         }
+      }
    }
 
    if (ctx.visualization)
@@ -220,9 +285,9 @@ int main(int argc, char *argv[])
       char vishost[] = "localhost";
       socketstream sol_sock(vishost, visport);
       sol_sock.precision(8);
-
-      sol_sock << "parallel " << Mpi::WorldSize() << " " << Mpi::WorldRank() << "\n";
-      sol_sock << "solution\n " << *pmesh << *u_gf << std::flush;
+      sol_sock << "parallel " << Mpi::WorldSize() << " "
+               << Mpi::WorldRank() << "\n";
+      sol_sock << "solution\n" << *pmesh << *u_gf << std::flush;
    }
 
    flowsolver.PrintTimingData();
