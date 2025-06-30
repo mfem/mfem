@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -57,7 +57,7 @@ public:
    };
 
 private:
-   /// All available backends. Unavailble backends will be nullptr.
+   /// All available backends. Unavailable backends will be nullptr.
    std::array<std::unique_ptr<class BatchedLinAlgBase>,
           Backend::NUM_BACKENDS> backends;
    Backend active_backend;
@@ -103,7 +103,7 @@ public:
    /// @brief Returns true if the requested backend is available.
    ///
    /// The available backends depend on which third-party libraries MFEM is
-   /// compiled with, and whether the the CUDA/HIP device is enabled.
+   /// compiled with, and whether the CUDA/HIP device is enabled.
    static bool IsAvailable(Backend backend);
    /// Set the default backend for batched linear algebra operations.
    static void SetActiveBackend(Backend backend);

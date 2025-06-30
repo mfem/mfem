@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -13,6 +13,7 @@
 #define MFEM_FE_POS
 
 #include "fe_base.hpp"
+#include "fe_pyramid.hpp"
 
 namespace mfem
 {
@@ -256,6 +257,69 @@ public:
 };
 
 
+/// Arbitrary order H1 elements in 3D utilizing the Bernstein basis on a pyramid
+///
+/// The pyramid affine-related coordinates $\lambda_i$ for $i=1,\ldots,5$ can
+/// be used to define a positive H1 basis by noting that $\lambda_i \ge 0$
+/// inside the pyramid for all $i$ and that $\sum_{i=1}^5\lambda_i=1$. This
+/// leads to $1 = (\sum_{i=1}^5\lambda_i)^p$. The terms of this product,
+/// expanded as a polynomial in the $\lambda_i$, can be used as a Bernstein
+/// basis of order $p$ on a pyramid.
+class H1Pos_PyramidElement : public PositiveFiniteElement, FuentesPyramid
+{
+protected:
+   const int nterms;
+#ifndef MFEM_THREAD_SAFE
+   mutable Vector m_shape_1d;
+   mutable Vector m_shape;
+   mutable DenseMatrix m_dshape;
+#endif
+   std::map<int,int> dof_map;
+
+   struct Index
+   {
+      Index() = default;
+      int operator()(int i1, int i2, int i3, int i4, int i5)
+      {
+         const int p = i1 + i2 + i3 + i4 + i5;
+         const int min24 = std::min(i2,i4);
+         i1 += min24;
+         i2 -= min24;
+         i3 += min24;
+         i4 -= min24;
+         return i2 + i3 * (p - i4 - i5) - i4 * i5 * (p + 2)
+                - ((i3 - 3) * i3) / 2 + i4 * ((p + 1) * (p + 2)) / 2
+                + (i4 * i5 * (i4 + i5)) / 2 + ((i4 - 1) * i4 * (i4 +1)) / 6
+                - (p + 2) * ((i4 - 1) * i4) / 2
+                + (i5 * (5 + 2 * p - i5) * (i5 * i5 - i5 * (5 + 2 * p)
+                                            + 2 * (5 + 5 * p + p * p))) / 24;
+      }
+   };
+
+public:
+   /// Construct the H1Pos_PyramidElement of order @a p
+   H1Pos_PyramidElement(const int p);
+
+   // The size of shape is (p+1)(p+2)(p+3)(p+4)/24.
+   // The size of shape_1d should be at least p+1.
+   static void CalcShape(const int p, const real_t x, const real_t y,
+                         const real_t z, real_t *shape_1d, real_t *shape);
+
+   // The size of dshape is (p+1)(p+2)(p+3)(p+4)/24 by 3.
+   // The size of dshape_1d should be at least p+1.
+   static void CalcDShape(const int p, const real_t x, const real_t y,
+                          const real_t z, real_t *dshape_1d, real_t *dshape);
+
+   virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
+   virtual void CalcDShape(const IntegrationPoint &ip,
+                           DenseMatrix &dshape) const;
+
+   // Returns (p+1)(p+2)(p+3)(p+4)/24 which is the size of the temporary arrays
+   // needed above
+   int GetNumTerms() const { return nterms; }
+};
+
+
 /// Arbitrary order L2 elements in 1D utilizing the Bernstein basis on a segment
 class L2Pos_SegmentElement : public PositiveTensorFiniteElement
 {
@@ -367,6 +431,61 @@ public:
    void CalcShape(const IntegrationPoint &ip, Vector &shape) const override;
    void CalcDShape(const IntegrationPoint &ip,
                    DenseMatrix &dshape) const override;
+};
+
+/// Arbitrary order L2 elements in 3D utilizing the Bernstein basis on a pyramid
+class L2Pos_PyramidElement : public PositiveFiniteElement, FuentesPyramid
+{
+protected:
+   const int nterms;
+#ifndef MFEM_THREAD_SAFE
+   mutable Vector m_shape_1d;
+   mutable Vector m_shape;
+   mutable DenseMatrix m_dshape;
+#endif
+   std::map<int,int> dof_map;
+
+   struct Index
+   {
+      Index() = default;
+      int operator()(int i1, int i2, int i3, int i4, int i5)
+      {
+         const int p = i1 + i2 + i3 + i4 + i5;
+         const int min24 = std::min(i2,i4);
+         i1 += min24;
+         i2 -= min24;
+         i3 += min24;
+         i4 -= min24;
+         return i2 + i3 * (p - i4 - i5) - i4 * i5 * (p + 2)
+                - ((i3 - 3) * i3) / 2 + i4 * ((p + 1) * (p + 2)) / 2
+                + (i4 * i5 * (i4 + i5)) / 2 + ((i4 - 1) * i4 * (i4 +1)) / 6
+                - (p + 2) * ((i4 - 1) * i4) / 2
+                + (i5 * (5 + 2 * p - i5) * (i5 * i5 - i5 * (5 + 2 * p)
+                                            + 2 * (5 + 5 * p + p * p))) / 24;
+      }
+   };
+
+   // Returns (p+1)(p+2)(p+3)(p+4)/24 which is the size of the temporary arrays
+   // needed below
+   int GetNumTerms() const { return nterms; }
+
+   // The size of shape is (p+1)(p+2)(p+3)(p+4)/24.
+   // The size of shape_1d should be at least p+1.
+   static void CalcShape(const int p, const real_t x, const real_t y,
+                         const real_t z, real_t *shape_1d, real_t *shape);
+
+   // The size of dshape is (p+1)(p+2)(p+3)(p+4)/24 by 3.
+   // The size of dshape_1d should be at least p+1.
+   static void CalcDShape(const int p, const real_t x, const real_t y,
+                          const real_t z, real_t *dshape_1d, real_t *dshape);
+
+public:
+   /// Construct the L2Pos_PyramidElement of order @a p
+   L2Pos_PyramidElement(const int p);
+
+   virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
+   virtual void CalcDShape(const IntegrationPoint &ip,
+                           DenseMatrix &dshape) const;
 };
 
 } // namespace mfem

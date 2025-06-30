@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -64,6 +64,17 @@ public:
    /** @brief Create a KnotVector with undefined knots (initialized to -1) of
        order @a order and number of control points @a NCP. */
    KnotVector(int order, int NCP);
+
+   /** @brief Create a KnotVector by passing in a degree, a Vector of interval
+       lengths of length n, and a list of continuity of length n + 1.
+
+       The intervals refer to spans between unique knot values (not counting
+       zero-size intervals at repeated knots), and the continuity values should
+       be >= -1 (discontinuous) and <= order-1 (maximally-smooth for the given
+       polynomial degree). Periodicity is not supported.
+   */
+   KnotVector(int order, const Vector& intervals,
+              const Array<int>& continuity );
 
    /// Copy constructor.
    KnotVector(const KnotVector &kv) { (*this) = kv; }
@@ -262,6 +273,22 @@ public:
    NURBSPatch(const KnotVector *kv0, const KnotVector *kv1,
               const KnotVector *kv2, int dim);
 
+   /** Create a bivariate NURBS patch with given control points. See n-variate
+       overload for additional notes. */
+   NURBSPatch(const KnotVector *kv0, const KnotVector *kv1, int dim_,
+              const real_t* control_points);
+   /** Create a trivariate NURBS patch with given control points. See n-variate
+       overload for additional notes. */
+   NURBSPatch(const KnotVector *kv0, const KnotVector *kv1,
+              const KnotVector *kv2, int dim_, const real_t* control_points);
+   /** Create an n-variate NURBS patch with given control points of dimension
+       dim_, where n is the length of the array of knot vectors and dim_
+       includes the weight. The array of control point coordinates stores each
+       point's coordinates contiguously, and points are ordered in a standard
+       ijk grid ordering. */
+   NURBSPatch(Array<const KnotVector *> &kv_,  int dim_,
+              const real_t* control_points);
+
    /// Constructor for a patch of dimension equal to the size of @a kv.
    NURBSPatch(Array<const KnotVector *> &kv, int dim);
 
@@ -442,7 +469,7 @@ protected:
    /// Orders of all KnotVectors
    Array<int> mOrders;
 
-   /// Number of KnotVectors
+   /// Number of unique (not comprehensive) KnotVectors
    int NumOfKnotVectors;
 
    /// Global entity counts
@@ -463,8 +490,8 @@ protected:
    /// Whether this object owns patchTopo
    bool own_topo;
 
-   /// Map from edge indices to KnotVector indices
-   Array<int> edge_to_knot;
+   /// Map from patchTopo edge indices to unique KnotVector indices
+   Array<int> edge_to_ukv;
 
    /// Set of unique KnotVectors
    Array<KnotVector *> knotVectors;
@@ -528,15 +555,15 @@ protected:
       if the KnotVector index associated with edge @a edge is negative. */
    inline const KnotVector *KnotVec(int edge, int oedge, int *okv) const;
 
-   /// Throw an error if any patch has an inconsistent edge-to-knot mapping.
+   /// Throw an error if any patch has an inconsistent edge_to_ukv mapping.
    void CheckPatches();
 
    /// Throw an error if any boundary patch has invalid KnotVector orientation.
    void CheckBdrPatches();
 
    /** @brief Return the directions in @a kvdir of the KnotVectors in patch @a p
-       based on the the patch edge orientations. Each entry of @a kvdir is -1 if
-       the KnotVector direction is flipped, +1 otherwise. */
+       based on the patch edge orientations. Each entry of @a kvdir is -1 if the
+       KnotVector direction is flipped, +1 otherwise. */
    void CheckKVDirection(int p, Array <int> &kvdir);
 
    /**  @brief Create the comprehensive set of KnotVectors. In 1D, this set is
@@ -646,8 +673,11 @@ protected:
    /// Set @a patch_to_bel.
    void SetPatchToBdrElements();
 
+   /// Return NURBSPatch object; returned object should NOT be deleted.
+   const NURBSPatch* GetPatch(int patch) const { return patches[patch]; }
+
    /// To be used by ParNURBSExtension constructor(s)
-   NURBSExtension() { }
+   NURBSExtension() : el_dof(nullptr), bel_dof(nullptr) { }
 
 public:
    /// Copy constructor: deep copy
@@ -670,6 +700,8 @@ public:
    /// Construct a NURBSExtension by merging a partitioned NURBS mesh.
 
    NURBSExtension(Mesh *mesh_array[], int num_pieces);
+
+   NURBSExtension(const Mesh *patch_topology, const Array<const NURBSPatch*> p);
 
    /// Copy assignment not supported.
    NURBSExtension& operator=(const NURBSExtension&) = delete;
@@ -881,6 +913,14 @@ public:
    /** @brief Return the degrees of freedom in @a dofs on patch @a patch, in
        Cartesian order. */
    void GetPatchDofs(const int patch, Array<int> &dofs);
+
+   /// Returns a deep copy of the patch topology mesh
+   Mesh GetPatchTopology() const { return Mesh(*patchTopo); }
+
+   /** Returns a deep copy of all instantiated patches. To ensure that patches
+       are instantiated, use Mesh::GetNURBSPatches() instead. Caller gets
+       ownership of the returned object, and is responsible for deletion.*/
+   void GetPatches(Array<NURBSPatch*> &patches);
 
    /// Return the array of indices of all elements in patch @a patch.
    const Array<int>& GetPatchElements(int patch);
@@ -1109,7 +1149,7 @@ inline const real_t &NURBSPatch::operator()(int i, int j, int k, int l) const
 
 inline int NURBSExtension::KnotInd(int edge) const
 {
-   int kv = edge_to_knot[edge];
+   int kv = edge_to_ukv[edge];
    return (kv >= 0) ? kv : (-1-kv);
 }
 
@@ -1126,7 +1166,7 @@ inline const KnotVector *NURBSExtension::KnotVec(int edge) const
 inline const KnotVector *NURBSExtension::KnotVec(int edge, int oedge, int *okv)
 const
 {
-   int kv = edge_to_knot[edge];
+   int kv = edge_to_ukv[edge];
    if (kv >= 0)
    {
       *okv = oedge;

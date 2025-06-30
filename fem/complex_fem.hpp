@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -119,6 +119,10 @@ public:
                      convention = ComplexOperator::HERMITIAN);
 
    virtual ~ComplexLinearForm();
+
+   /// Assign constant values to the ComplexLinearForm data.
+   ComplexLinearForm &operator=(const std::complex<real_t> & value)
+   { *lfr = value.real(); *lfi = value.imag(); return *this; }
 
    ComplexOperator::Convention GetConvention() const { return conv; }
    void SetConvention(const ComplexOperator::Convention &
@@ -465,6 +469,10 @@ public:
                         convention = ComplexOperator::HERMITIAN);
 
    virtual ~ParComplexLinearForm();
+
+   /// Assign constant values to the ParComplexLinearForm data.
+   ParComplexLinearForm &operator=(const std::complex<real_t> & value)
+   { *plfr = value.real(); *plfi = value.imag(); return *this; }
 
    ComplexOperator::Convention GetConvention() const { return conv; }
    void SetConvention(const ComplexOperator::Convention &

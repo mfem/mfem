@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -17,8 +17,12 @@
 #include "intrules.hpp"
 #include "fe.hpp"
 
+#include "kernel_dispatch.hpp"
+
 namespace mfem
 {
+
+class GridFunction;
 
 class ElementTransformation
 {
@@ -198,40 +202,46 @@ public:
    /// Algorithms for selecting an initial guess.
    enum InitGuessType
    {
-      Center = 0, ///< Use the center of the reference element.
+      Center = 0,          ///< Use the center of the reference element.
       ClosestPhysNode = 1, /**<
-         Use the point returned by FindClosestPhysPoint() from a reference-space
-         grid of type and size controlled by SetInitGuessPointsType() and
-         SetInitGuessRelOrder(), respectively. */
-      ClosestRefNode = 2, /**<
-         Use the point returned by FindClosestRefPoint() from a reference-space
-         grid of type and size controlled by SetInitGuessPointsType() and
-         SetInitGuessRelOrder(), respectively. */
-      GivenPoint = 3 ///< Use a specific point, set with SetInitialGuess().
+       Use the point returned by FindClosestPhysPoint() from a reference-space
+       grid of type and size controlled by SetInitGuessPointsType() and
+       SetInitGuessRelOrder(), respectively. */
+      ClosestRefNode = 2,  /**<
+        Use the point returned by FindClosestRefPoint() from a reference-space
+        grid of type and size controlled by SetInitGuessPointsType() and
+        SetInitGuessRelOrder(), respectively. */
+      GivenPoint = 3,      ///< Use a specific point, set with SetInitialGuess().
+      EdgeScan =
+         4, /**< Performs full solves on multiple points along the r/s/t=0 edges
+              of the element. It is recommended that SetInitGuessRelOrder() is
+              chosen such that max(trans_order+order,0)+1 <= 4 with
+              SetInitGuessPointsType() as Quadrature1D::ClosedUniform. @see
+              GeometryRefiner::EdgeScan */
    };
 
    /// Solution strategy.
    enum SolverType
    {
-      Newton = 0, /**<
-         Use Newton's algorithm, without restricting the reference-space points
-         (iterates) to the reference element. */
+      Newton = 0,               /**<
+                     Use Newton's algorithm, without restricting the reference-space points
+                     (iterates) to the reference element. */
       NewtonSegmentProject = 1, /**<
-         Use Newton's algorithm, restricting the reference-space points to the
-         reference element by scaling back the Newton increments, i.e.
-         projecting new iterates, x_new, lying outside the element, to the
-         intersection of the line segment [x_old, x_new] with the boundary. */
-      NewtonElementProject = 2 /**<
-         Use Newton's algorithm, restricting the reference-space points to the
-         reference element by projecting new iterates, x_new, lying outside the
-         element, to the point on the boundary closest (in reference-space) to
-         x_new. */
+       Use Newton's algorithm, restricting the reference-space points to the
+       reference element by scaling back the Newton increments, i.e.
+       projecting new iterates, x_new, lying outside the element, to the
+       intersection of the line segment [x_old, x_new] with the boundary. */
+      NewtonElementProject = 2, /**<
+       Use Newton's algorithm, restricting the reference-space points to the
+       reference element by projecting new iterates, x_new, lying outside the
+       element, to the point on the boundary closest (in reference-space) to
+       x_new. */
    };
 
    /// Values returned by Transform().
    enum TransformResult
    {
-      Inside  = 0, ///< The point is inside the element
+      Inside = 0,  ///< The point is inside the element
       Outside = 1, ///< The point is _probably_ outside the element
       Unknown = 2  ///< The algorithm failed to determine where the point is
    };
@@ -241,9 +251,11 @@ protected:
    ElementTransformation *T;
 
    // Parameters of the inversion algorithms:
-   const IntegrationPoint *ip0;
+   IntegrationPoint ip0;
    int init_guess_type; // algorithm to use
    GeometryRefiner refiner; // geometry refiner for initial guess
+   int qpts_order;          // num_1D_qpts = rel_qpts_order + 1, or < 0 to use
+   // rel_qpts_order.
    int rel_qpts_order; // num_1D_qpts = max(trans_order+rel_qpts_order,0)+1
    int solver_type; // solution strategy to use
    int max_iter; // max. number of Newton iterations
@@ -284,19 +296,19 @@ public:
        tolerances. */
    InverseElementTransformation(ElementTransformation *Trans = NULL)
       : T(Trans),
-        ip0(NULL),
         init_guess_type(Center),
         refiner(Quadrature1D::OpenHalfUniform),
+        qpts_order(-1),
         rel_qpts_order(-1),
         solver_type(NewtonElementProject),
         max_iter(16),
 #ifdef MFEM_USE_DOUBLE
         ref_tol(1e-15),
-        phys_rtol(1e-15),
+        phys_rtol(4e-15),
         ip_tol(1e-8),
 #elif defined(MFEM_USE_SINGLE)
-        ref_tol(1e-7),
-        phys_rtol(1e-7),
+        ref_tol(4e-7),
+        phys_rtol(1e-6),
         ip_tol(1e-4),
 #endif
         print_level(-1)
@@ -314,16 +326,28 @@ public:
    /** @brief Set the initial guess for subsequent calls to Transform(),
        switching to the #GivenPoint #InitGuessType at the same time. */
    void SetInitialGuess(const IntegrationPoint &init_ip)
-   { ip0 = &init_ip; SetInitialGuessType(GivenPoint); }
+   { ip0 = init_ip; SetInitialGuessType(GivenPoint); }
 
-   /// Set the Quadrature1D type used for the `Closest*` initial guess types.
+   /// Set the Quadrature1D type used for the `Closest*` and `EdgeScan` initial
+   /// guess types.
    void SetInitGuessPointsType(int q_type) { refiner.SetType(q_type); }
 
    /// Set the relative order used for the `Closest*` initial guess types.
    /** The number of points in each spatial direction is given by the formula
        max(trans_order+order,0)+1, where trans_order is the order of the current
        ElementTransformation. */
-   void SetInitGuessRelOrder(int order) { rel_qpts_order = order; }
+   void SetInitGuessRelOrder(int order)
+   {
+      qpts_order = -1;
+      rel_qpts_order = order;
+   }
+
+   /** The number of points in each spatial direction is given by the formula
+       order+1. */
+   void SetInitGuessOrder(int order)
+   {
+      qpts_order = order;
+   }
 
    /** @brief Specify which algorithm to use for solving the transformation
        equation, i.e. when calling the Transform() method. */
@@ -371,6 +395,233 @@ public:
 
        @returns A value of type #TransformResult. */
    virtual int Transform(const Vector &pt, IntegrationPoint &ip);
+};
+
+/**
+ * @brief Performs batch inverse element transforms. Currently only supports
+ * non-mixed meshes with SEGMENT, SQUARE, or CUBE geometries. Mixed
+ * element order meshes are projected onto an equivalent uniform order mesh.
+ */
+class BatchInverseElementTransformation
+{
+   // nodes grid function, not owned
+   const GridFunction *gf_ = nullptr;
+   // initial guess algorithm to use
+   InverseElementTransformation::InitGuessType init_guess_type =
+      InverseElementTransformation::ClosestPhysNode;
+   int qpts_order = -1; // num_1D_qpts = rel_qpts_order + 1, or < 0 to use
+   // rel_qpts_order.
+   // num_1D_qpts = max(trans_order+rel_qpts_order,0)+1
+   int rel_qpts_order = 0;
+   // solution strategy to use
+   InverseElementTransformation::SolverType solver_type =
+      InverseElementTransformation::NewtonElementProject;
+   // basis type stored in points1d
+   int basis_type = BasisType::Invalid;
+   // initial guess points type. Quadrature1D::Invalid is used for match
+   // basis_type.
+   int guess_points_type = Quadrature1D::Invalid;
+   // max. number of Newton iterations
+   int max_iter = 16;
+   // internal element node locations cache
+   Vector node_pos;
+#ifdef MFEM_USE_DOUBLE
+   // reference space tolerance
+   real_t ref_tol = 1e-15;
+   // physical space tolerance (relative)
+   real_t phys_rtol = 4e-15;
+#else
+   // reference space tolerance
+   real_t ref_tol = 4e-7;
+   // physical space tolerance (relative)
+   real_t phys_rtol = 1e-6;
+#endif
+   // not owned, location of tensor product basis nodes in reference space
+   const Array<real_t> *points1d = nullptr;
+
+public:
+   /// Uninitialized BatchInverseElementTransformation. Users must call
+   /// UpdateNodes before Transform.
+   BatchInverseElementTransformation();
+   ///
+   /// Constructs a BatchInverseElementTransformation given @a nodes representing
+   /// the mesh nodes.
+   ///
+   BatchInverseElementTransformation(const GridFunction &nodes,
+                                     MemoryType d_mt = MemoryType::DEFAULT);
+   ///
+   /// Constructs a BatchInverseElementTransformation for a given @a mesh.
+   /// mesh.GetNodes() must not be null.
+   ///
+   BatchInverseElementTransformation(const Mesh &mesh,
+                                     MemoryType d_mt = MemoryType::DEFAULT);
+
+   ~BatchInverseElementTransformation();
+
+   /** @brief Choose how the initial guesses for subsequent calls to Transform()
+        will be selected. ClosestRefNode is currently not supported. */
+   void SetInitialGuessType(InverseElementTransformation::InitGuessType itype)
+   {
+      MFEM_ASSERT(itype != InverseElementTransformation::ClosestRefNode,
+                  "ClosestRefNode is currently not supported");
+      init_guess_type = itype;
+   }
+
+   /// Set the Quadrature1D type used for the `Closest*` and `EdgeScan` initial
+   /// guess types.
+   void SetInitGuessPointsType(int q_type) { guess_points_type = q_type; }
+
+   /// Set the relative order used for the `Closest*` initial guess types.
+   /** The number of points in each spatial direction is given by the formula
+        max(trans_order+order,0)+1, where trans_order is the order of the
+      current ElementTransformation. */
+   void SetInitGuessRelOrder(int order)
+   {
+      qpts_order = -1;
+      rel_qpts_order = order;
+   }
+
+   /** The number of points in each spatial direction is given by the formula
+       order+1. */
+   void SetInitGuessOrder(int order) { qpts_order = order; }
+
+   /// @b Gets the basis type nodes are projected onto, or BasisType::Invalid if
+   /// uninitialized.
+   int GetBasisType() const { return basis_type; }
+
+   /** @brief Specify which algorithm to use for solving the transformation
+       equation, i.e. when calling the Transform() method. NewtonSegmentProject
+       is currently not supported. */
+   void SetSolverType(InverseElementTransformation::SolverType stype)
+   {
+      MFEM_ASSERT(stype != InverseElementTransformation::NewtonSegmentProject,
+                  "NewtonSegmentProject is currently not supported");
+      solver_type = stype;
+   }
+
+   /// Set the maximum number of iterations when solving for a reference point.
+   void SetMaxIter(int max_it) { max_iter = max_it; }
+
+   /// Set the reference-space convergence tolerance.
+   void SetReferenceTol(real_t ref_sp_tol) { ref_tol = ref_sp_tol; }
+
+   /// Set the relative physical-space convergence tolerance.
+   void SetPhysicalRelTol(real_t phys_rel_tol) { phys_rtol = phys_rel_tol; }
+
+   /**
+    * @brief Updates internal datastructures if @a nodes change. Some version
+    * of UpdateNodes must be called at least once before calls to Transform if
+    * nodes have changed.
+    */
+   void UpdateNodes(const GridFunction &nodes,
+                    MemoryType d_mt = MemoryType::DEFAULT);
+   /**
+    * @brief Updates internal datastructures if @a mesh nodes change. Some version
+    * of UpdateNodes must be called at least once before calls to Transform if
+    * mesh nodes have changed. mesh.GetNodes() must not be null.
+    */
+   void UpdateNodes(const Mesh &mesh, MemoryType d_mt = MemoryType::DEFAULT);
+
+   /** @brief Performs a batch request of a set of points belonging to the given
+       elements.
+        @a pts list of physical point coordinates ordered by
+           Ordering::Type::byNODES.
+        @a elems which element index to search for each corresponding point in
+      @a pts
+        @a types output search classification (@see
+      InverseElementTransformation::TransformResult).
+        @a refs result reference point coordinates ordered by
+       Ordering::Type::byNODES. If using InitGuessType::GivenPoint, this should
+       contain the initial guess for each point.
+        @a use_device hint for if device acceleration should be used.
+       Device acceleration is currently only implemented for meshes containing
+       only a single tensor product basis element type.
+        @a iters optional array storing how many iterations was spent on each
+      tested point
+     */
+   void Transform(const Vector &pts, const Array<int> &elems, Array<int> &types,
+                  Vector &refs, bool use_device = true,
+                  Array<int> *iters = nullptr) const;
+
+   using ClosestPhysPointKernelType = void (*)(int, int, int, int,
+                                               const real_t *, const real_t *,
+                                               const int *, const real_t *,
+                                               const real_t *, real_t *);
+
+   // specialization params: Geom, SDim, use_device
+   MFEM_REGISTER_KERNELS(FindClosestPhysPoint, ClosestPhysPointKernelType,
+                         (int, int, bool));
+
+   using ClosestPhysDofKernelType = void (*)(int, int, int,
+                                             const real_t *, const real_t *,
+                                             const int *, const real_t *,
+                                             real_t *);
+
+   // specialization params: Geom, SDim, use_device
+   MFEM_REGISTER_KERNELS(FindClosestPhysDof, ClosestPhysDofKernelType,
+                         (int, int, bool));
+
+   using ClosestRefDofKernelType = void (*)(int, int, int, const real_t *,
+                                            const real_t *, const int *,
+                                            const real_t *, real_t *);
+
+   // specialization params: Geom, SDim, use_device
+   MFEM_REGISTER_KERNELS(FindClosestRefDof, ClosestRefDofKernelType,
+                         (int, int, bool));
+
+   using ClosestRefPointKernelType = void (*)(int, int, int, int, const real_t *,
+                                              const real_t *, const int *,
+                                              const real_t *, const real_t *,
+                                              real_t *);
+
+   // specialization params: Geom, SDim, use_device
+   MFEM_REGISTER_KERNELS(FindClosestRefPoint, ClosestRefPointKernelType,
+                         (int, int, bool));
+
+   using NewtonKernelType = void (*)(real_t, real_t, int, int, int, int,
+                                     const real_t *, const real_t *,
+                                     const int *, const real_t *, int *, int*,
+                                     real_t *);
+
+   // specialization params: Geom, SDim, SolverType, use_device
+   MFEM_REGISTER_KERNELS(NewtonSolve, NewtonKernelType,
+                         (int, int, InverseElementTransformation::SolverType,
+                          bool));
+
+   using NewtonEdgeScanKernelType = void (*)(real_t, real_t, int, int, int, int,
+                                             const real_t *, const real_t *,
+                                             const int *, const real_t *,
+                                             const real_t *, int, int *, int *,
+                                             real_t *);
+
+   // specialization params: Geom, SDim, SolverType, use_device
+   MFEM_REGISTER_KERNELS(NewtonEdgeScan, NewtonEdgeScanKernelType,
+                         (int, int, InverseElementTransformation::SolverType,
+                          bool));
+
+   struct Kernels { Kernels(); };
+
+   template <int Dim, int SDim>
+   static void AddFindClosestSpecialization()
+   {
+      FindClosestPhysPoint::Specialization<Dim, SDim, true>::Add();
+      FindClosestRefPoint::Specialization<Dim, SDim, true>::Add();
+      FindClosestPhysPoint::Specialization<Dim, SDim, false>::Add();
+      FindClosestRefPoint::Specialization<Dim, SDim, false>::Add();
+      FindClosestPhysDof::Specialization<Dim, SDim, true>::Add();
+      FindClosestRefDof::Specialization<Dim, SDim, true>::Add();
+      FindClosestPhysDof::Specialization<Dim, SDim, false>::Add();
+      FindClosestRefDof::Specialization<Dim, SDim, false>::Add();
+   }
+
+   template <int Dim, int SDim, InverseElementTransformation::SolverType SType>
+   static void AddNewtonSolveSpecialization()
+   {
+      NewtonSolve::Specialization<Dim, SDim, SType, true>::Add();
+      NewtonEdgeScan::Specialization<Dim, SDim, SType, true>::Add();
+      NewtonSolve::Specialization<Dim, SDim, SType, false>::Add();
+      NewtonEdgeScan::Specialization<Dim, SDim, SType, false>::Add();
+   }
 };
 
 /// A standard isoparametric element transformation
