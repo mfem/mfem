@@ -21,7 +21,7 @@ MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
 SEQ_MINIAPPS = nurbs_ex1 nurbs_patch_ex1 nurbs_ex3 nurbs_ex5 nurbs_ex24 \
-   nurbs_curveint nurbs_printfunc nurbs_solenoidal nurbs_naca_cmesh
+   nurbs_curveint nurbs_printfunc nurbs_solenoidal nurbs_naca_cmesh nurbs_surface
 PAR_MINIAPPS = nurbs_ex1p nurbs_ex11p
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
@@ -158,6 +158,13 @@ nurbs_naca_cmesh-test-seq: nurbs_naca_cmesh
 nurbs_printfunc-test-seq: nurbs_printfunc
 	@$(call mfem-test,$<,, NURBS miniapp)
 
+SURF_ARGS_1 := -o 3 -nx 10 -ny 10 -fnx 10 -fny 10 -ex 1 -orig
+SURF_ARGS_2 := -o 3 -nx 10 -ny 10 -fnx 40 -fny 40 -ex 1
+
+nurbs_surface-test-seq: nurbs_surface
+	@$(call mfem-test,$<,, NURBS miniapp,$(SURF_ARGS_1))
+	@$(call mfem-test,$<,, NURBS miniapp,$(SURF_ARGS_2))
+
 EX1P_ARGS_1 :=
 EX1P_ARGS_2 := -m ../../data/pipe-nurbs-2d.mesh -o 2 -no-ibp
 EX1P_ARGS_3 := -m ../../data/ball-nurbs.mesh -o 2 --weak-bc -r 0
@@ -192,6 +199,6 @@ clean-build:
 
 clean-exec:
 	@rm -f refined.mesh sin-fit.mesh ex5.mesh exsol.mesh mesh.* sol.* mode_*
-	@rm -f naca-cmesh.mesh sol_?.gf
+	@rm -f naca-cmesh.mesh sol_?.gf *-Surface.mesh
 	@rm -rf Example1* Example3* Example5* Solenoidal_* ParaView
 	@rm -rf CurveInt Naca_cmesh glvis_naca-cmesh.mesh solution.dat
