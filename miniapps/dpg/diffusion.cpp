@@ -337,10 +337,11 @@ int main(int argc, char *argv[])
    SumCoefficient negf(0., f, 1., -1.);
 
    FiniteElementCollection *coeff_fec = new L2_FECollection(0,dim);
-   FiniteElementSpace *coeff_fes = new FiniteElementSpace(&mesh,coeff_fec);
-   GridFunction c1_gf, c2_gf;
+   FiniteElementSpace *coeff_fes = new FiniteElementSpace(&mesh, coeff_fec);
+   FiniteElementSpace *vcoeff_fes = new FiniteElementSpace(&mesh, coeff_fec, dim);
+   GridFunction c1_gf(coeff_fes), c2_gf(vcoeff_fes);
    GridFunctionCoefficient c1_coeff(&c1_gf);
-   GridFunctionCoefficient c2_coeff(&c2_gf);
+   VectorGridFunctionCoefficient c2_coeff(&c2_gf);
 
    // Required coefficients for the exact solution case
    auto TFun = GetTFun(problem, pars);
@@ -390,8 +391,6 @@ int main(int argc, char *argv[])
                                 TrialSpace::hatsigma_space, TestSpace::v_space);
 
       // mesh dependent test norm
-      c1_gf.SetSpace(coeff_fes);
-      c2_gf.SetSpace(coeff_fes);
       setup_test_norm_coeffs(eps, c1_gf, c2_gf);
 
       // test integrators (space-induced norm for H(div) × H1)
@@ -747,6 +746,7 @@ int main(int argc, char *argv[])
          a_dpg->Update();
 
          coeff_fes->Update();
+         vcoeff_fes->Update();
          c1_gf.Update();
          c2_gf.Update();
          setup_test_norm_coeffs(eps, c1_gf, c2_gf);
@@ -758,6 +758,7 @@ int main(int argc, char *argv[])
    }
 
    delete coeff_fes;
+   delete vcoeff_fes;
    delete coeff_fec;
    delete a_dpg;
    delete a_darcy;
@@ -1284,8 +1285,9 @@ TFunc GetFFun(Problem prob, const ProblemParams &params)
 void setup_test_norm_coeffs(MatrixCoefficient &eps, GridFunction & c1_gf,
                             GridFunction & c2_gf)
 {
-   Array<int> vdofs;
+   Array<int> dofs, vdofs;
    FiniteElementSpace * fes = c1_gf.FESpace();
+   FiniteElementSpace * vfes = c2_gf.FESpace();
    Mesh * mesh = fes->GetMesh();
    DenseMatrix eps_i;
    Vector eps_id;
@@ -1300,9 +1302,17 @@ void setup_test_norm_coeffs(MatrixCoefficient &eps, GridFunction & c1_gf,
       eps.Eval(eps_i, *Tr, ip);
       eps_i.GetDiag(eps_id);
       real_t c1 = std::min(eps_id.Min()/volume, (real_t) 1.);
-      real_t c2 = std::min(1./eps_id.Max(), 1./volume);
-      fes->GetElementDofs(i,vdofs);
-      c1_gf.SetSubVector(vdofs,c1);
-      c2_gf.SetSubVector(vdofs,c2);
+      real_t c2_x = std::min(1./eps_id(0), 1./volume);
+      real_t c2_y = std::min(1./eps_id(1), 1./volume);
+      fes->GetElementDofs(i,dofs);
+      c1_gf.SetSubVector(dofs,c1);
+
+      vfes->GetElementDofs(i,dofs);
+      vdofs = dofs;
+      vfes->DofsToVDofs(0, vdofs);
+      c2_gf.SetSubVector(vdofs, c2_x);
+      vdofs = dofs;
+      vfes->DofsToVDofs(1, vdofs);
+      c2_gf.SetSubVector(vdofs, c2_y);
    }
 }
