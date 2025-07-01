@@ -72,6 +72,38 @@
 using namespace mfem;
 using namespace mfem::common;
 
+// Define the analytical solution and forcing terms / boundary conditions
+typedef std::function<real_t(const Vector &, real_t)> TFunc;
+typedef std::function<void(const Vector &, Vector &)> VecFunc;
+typedef std::function<void(const Vector &, real_t, Vector &)> VecTFunc;
+typedef std::function<void(const Vector &, DenseMatrix &)> MatFunc;
+
+enum Problem
+{
+   Original = -1,
+   SteadyDiffusion = 1,
+   DiffusionRing,
+   DiffusionRingGauss,
+   BoundaryLayer,
+   SteadyPeak,
+   SteadyVaryingAngle,
+   Sovinec,
+};
+
+struct ProblemParams
+{
+   real_t k;
+   real_t ks;
+   real_t ka;
+   real_t t_0;
+   //real_t a;
+};
+
+MatFunc GetKFun(Problem prob, const ProblemParams &params);
+TFunc GetTFun(Problem prob, const ProblemParams &params);
+VecTFunc GetQFun(Problem prob, const ProblemParams &params);
+TFunc GetFFun(Problem prob, const ProblemParams &params);
+
 enum prob_type
 {
    manufactured,
@@ -104,8 +136,14 @@ int main(int argc, char *argv[])
    int delta_order = 1;
    int ref = 0;
    bool visualization = true;
-   int iprob = 1;
+   int iprob = (int) prob_type::general;
    int idisc = (int) discret_type::DPG;
+   int iproblem = (int) Problem::Original;
+   ProblemParams pars;
+   pars.k = 1.;
+   pars.ks = 1.;
+   pars.ka = 0.;
+   //pars.a = 0.;
    real_t td = 0.5;
    int visport = 19916;
    bool static_cond = false;
@@ -125,6 +163,23 @@ int main(int argc, char *argv[])
                   " 0: manufactured, 1: general");
    args.AddOption(&idisc, "-disc", "--discretization", "Discretization"
                   " 0: DPG, 1: RTDG, 2: BRTDG, 3: LDG");
+   args.AddOption(&iproblem, "-p", "--problem",
+                  "Problem to solve:\n\t\t"
+                  "1=sine diffusion\n\t\t"
+                  "2=diffusion ring\n\t\t"
+                  "3=diffusion ring - Gauss source\n\t\t"
+                  "4=boundary layer\n\t\t"
+                  "5=steady peak\n\t\t"
+                  "6=steady varying angle\n\t\t"
+                  "7=Sovinec\n\t\t");
+   args.AddOption(&pars.k, "-k", "--kappa",
+                  "Heat conductivity");
+   args.AddOption(&pars.ks, "-ks", "--kappa_sym",
+                  "Symmetric anisotropy of the heat conductivity tensor");
+   args.AddOption(&pars.ka, "-ka", "--kappa_anti",
+                  "Antisymmetric anisotropy of the heat conductivity tensor");
+   //args.AddOption(&pars.a, "-a", "--heat_capacity",
+   //               "Heat capacity coefficient (0=indefinite problem)");
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
                   "--no-static-condensation", "Enable static condensation.");
    args.AddOption(&hybridization, "-hb", "--hybridization", "-no-hb",
@@ -150,6 +205,8 @@ int main(int argc, char *argv[])
    prob = (prob_type)iprob;
 
    discret_type disc = (discret_type) idisc;
+   Problem problem = (Problem)iproblem;
+   if (problem != Problem::Original) { prob = prob_type::manufactured; }
 
    Mesh mesh(mesh_file, 1, 1);
    int dim = mesh.Dimension();
@@ -238,13 +295,21 @@ int main(int argc, char *argv[])
    // Required coefficients for the weak formulation
    ConstantCoefficient one(1.0);
    ConstantCoefficient negone(-1.0);
-   FunctionCoefficient f(f_exact); // rhs for the manufactured solution problem
+
+   auto kFun = GetKFun(problem, pars);
+   MatrixFunctionCoefficient eps(dim, kFun);
+   InverseMatrixCoefficient eps1(eps);
+   ScalarMatrixProductCoefficient negeps1(-1., eps1);
+   auto fFun = GetFFun(problem, pars);
+   FunctionCoefficient f(fFun); // rhs for the manufactured solution problem
    SumCoefficient negf(0., f, 1., -1.);
 
    // Required coefficients for the exact solution case
-   FunctionCoefficient uex(exact_u);
-   VectorFunctionCoefficient sigmaex(dim,exact_sigma);
-   FunctionCoefficient hatuex(exact_hatu);
+   auto TFun = GetTFun(problem, pars);
+   FunctionCoefficient uex(TFun);
+   auto QFun = GetQFun(problem, pars);
+   VectorFunctionCoefficient sigmaex(dim, QFun);
+   FunctionCoefficient hatuex(TFun);
 
    // Essential boundaries
    Array<int> ess_bdr;
@@ -272,7 +337,7 @@ int main(int argc, char *argv[])
 
       // -(σ,τ)
       a_dpg->AddTrialIntegrator(new TransposeIntegrator(new VectorFEMassIntegrator(
-                                                           negone)), TrialSpace::sigma_space, TestSpace::tau_space);
+                                                           negeps1)), TrialSpace::sigma_space, TestSpace::tau_space);
 
       // (σ,∇ v)
       a_dpg->AddTrialIntegrator(new TransposeIntegrator(new GradientIntegrator(one)),
@@ -294,7 +359,7 @@ int main(int argc, char *argv[])
       a_dpg->AddTestIntegrator(new VectorFEMassIntegrator(one),
                                TestSpace::tau_space, TestSpace::tau_space);
       // (∇v,∇δv)
-      a_dpg->AddTestIntegrator(new DiffusionIntegrator(one),
+      a_dpg->AddTestIntegrator(new DiffusionIntegrator(eps),
                                TestSpace::v_space, TestSpace::v_space);
       // (v,δv)
       a_dpg->AddTestIntegrator(new MassIntegrator(one),
@@ -321,15 +386,15 @@ int main(int argc, char *argv[])
       {
          a_u = a_darcy->GetPotentialMassForm();
 
-         a_sigma->AddDomainIntegrator(new VectorMassIntegrator(one));
+         a_sigma->AddDomainIntegrator(new VectorMassIntegrator(eps1));
          a_div->AddDomainIntegrator(new VectorDivergenceIntegrator(negone));
          a_div->AddInteriorFaceIntegrator(new TransposeIntegrator(
                                              new DGNormalTraceIntegrator(+1.)));
-         a_u->AddInteriorFaceIntegrator(new HDGDiffusionIntegrator(one, td));
+         a_u->AddInteriorFaceIntegrator(new HDGDiffusionIntegrator(eps, td));
       }
       else
       {
-         a_sigma->AddDomainIntegrator(new VectorFEMassIntegrator(one));
+         a_sigma->AddDomainIntegrator(new VectorFEMassIntegrator(eps1));
          a_div->AddDomainIntegrator(new VectorFEDivergenceIntegrator(negone));
          if (disc == discret_type::BRTDG)
          {
@@ -697,3 +762,406 @@ real_t f_exact(const Vector & X)
 {
    return -exact_laplacian_u(X);
 }
+
+MatFunc GetKFun(Problem prob, const ProblemParams &params)
+{
+   const real_t &k = params.k;
+   const real_t &ks = params.ks;
+   const real_t &ka = params.ka;
+
+   switch (prob)
+   {
+      case Problem::Original:
+         return [=](const Vector &x, DenseMatrix &kappa)
+         {
+            const int ndim = x.Size();
+            kappa.Diag(k, ndim);
+         };
+      case Problem::SteadyDiffusion:
+      case Problem::BoundaryLayer:
+      case Problem::SteadyPeak:
+         return [=](const Vector &x, DenseMatrix &kappa)
+         {
+            const int ndim = x.Size();
+            kappa.Diag(k, ndim);
+            kappa(0,0) *= ks;
+            kappa(0,1) = +ka * k;
+            kappa(1,0) = -ka * k;
+            if (ndim > 2)
+            {
+               kappa(0,2) = +ka * k;
+               kappa(2,0) = -ka * k;
+            }
+         };
+      case Problem::DiffusionRing:
+      case Problem::DiffusionRingGauss:
+      case Problem::SteadyVaryingAngle:
+         return [=](const Vector &x, DenseMatrix &kappa)
+         {
+            const int ndim = x.Size();
+            Vector b(ndim);
+            b = 0.;
+
+            Vector dx(x);
+            dx -= .5;
+            const real_t r = hypot(dx(0), dx(1));
+            b(0) = (r>0.)?(-dx(1) / r):(1.);
+            b(1) = (r>0.)?(+dx(0) / r):(0.);
+
+            kappa.Diag(ks * k, ndim);
+            if (ks != 1.)
+            {
+               AddMult_a_VVt((1. - ks) * k, b, kappa);
+            }
+         };
+      case Problem::Sovinec:
+         return [=](const Vector &x, DenseMatrix &kappa)
+         {
+            const int ndim = x.Size();
+            Vector b(ndim);
+            b = 0.;
+
+            Vector dx(x);
+            dx -= .5;
+            //const real_t psi = cos(M_PI * dx(0)) * cos(M_PI * dx(1));
+            const real_t psi_x = M_PI * sin(M_PI * dx(0)) * cos(M_PI * dx(1));
+            const real_t psi_y = M_PI * cos(M_PI * dx(0)) * sin(M_PI * dx(1));
+            const real_t psi_norm = hypot(psi_x, psi_y);
+            b(0) = -psi_y / psi_norm;
+            b(1) = +psi_x / psi_norm;
+
+            kappa.Diag(ks * k, ndim);
+            if (ks != 1.)
+            {
+               AddMult_a_VVt((1. - ks) * k, b, kappa);
+            }
+         };
+   }
+   return MatFunc();
+}
+
+TFunc GetTFun(Problem prob, const ProblemParams &params)
+{
+   const real_t &k = params.k;
+   const real_t &ks = params.ks;
+   //const real_t &ka = params.ka;
+   const real_t &t_0 = params.t_0;
+   //const real_t &a = params.a;
+
+   auto kFun = GetKFun(prob, params);
+
+   switch (prob)
+   {
+      case Problem::Original:
+         return [=](const Vector &x, real_t t) -> real_t
+         {
+            return exact_u(x);
+         };
+      case Problem::SteadyDiffusion:
+         return [=](const Vector &x, real_t t) -> real_t
+         {
+            const int ndim = x.Size();
+            real_t t0 = t_0 * sin(M_PI*x(0)) * sin(M_PI*x(1));
+            if (ndim > 2)
+            {
+               t0 *= sin(M_PI*x(2));
+            }
+
+            return t0;
+
+            /*if (a <= 0.) { return t0; }
+
+            Vector ddT((ndim<=2)?(2):(4));
+            ddT(0) = -t_0 * M_PI*M_PI * sin(M_PI*x(0)) * sin(M_PI*x(1));//xx,yy
+            ddT(1) = +t_0 * M_PI*M_PI * cos(M_PI*x(0)) * cos(M_PI*x(1));//xy
+            if (ndim > 2)
+            {
+               ddT(0) *= sin(M_PI*x(2));//xx,yy,zz
+               ddT(1) *= sin(M_PI*x(2));//xy
+               //xz
+               ddT(2) = +t_0 * M_PI*M_PI * cos(M_PI*x(0)) * sin(M_PI*x(1)) * cos(M_PI*x(2));
+               //yz
+               ddT(3) = +t_0 * M_PI*M_PI * sin(M_PI*x(0)) * cos(M_PI*x(1)) * cos(M_PI*x(2));
+
+            }
+
+            DenseMatrix kappa;
+            kFun(x, kappa);
+
+            real_t div = -(kappa(0,0) + kappa(1,1)) * ddT(0) - (kappa(0,1) + kappa(1,0)) * ddT(1);
+            if (ndim > 2)
+            {
+               div += -kappa(2,2) * ddT(0) - (kappa(0,2) + kappa(2,0)) * ddT(2)
+               - (kappa(1,2) + kappa(2,1)) * ddT(3);
+            }
+            return t0 - div / a * t;*/
+         };
+      case Problem::DiffusionRing:
+         return [=](const Vector &x, real_t t) -> real_t
+         {
+            constexpr real_t r0 = 0.25;
+            constexpr real_t r1 = 0.35;
+            constexpr real_t dr01 = 0.025;
+            constexpr real_t theta0 = 11./12. * M_PI;
+            constexpr real_t dtheta0 = 1./48. * M_PI;
+
+            Vector dx(x);
+            dx -= .5;
+            const real_t r = hypot(dx(0), dx(1));
+            const real_t theta = fabs(atan2(dx(1), dx(0)));
+
+            if (r < r0 - dr01 || r > r1 + dr01 || theta < theta0 - dtheta0)
+            {
+               return 0.;
+            }
+
+            const real_t dr = std::min(r - r0 + dr01, r1 + dr01 - r) / dr01;
+            const real_t dth = (theta - theta0 + dtheta0) / dtheta0;
+            return std::min(1., dr) * std::min(1., dth) * t_0;
+         };
+      case Problem::DiffusionRingGauss:
+         return [=](const Vector &x, real_t t) -> real_t
+         {
+            constexpr real_t r0 = 0.025;
+            constexpr real_t x0 = 0.15;
+
+            const real_t dx_l = x(0) - x0;
+            const real_t dx_r = x(0) - (1. - x0);
+            const real_t dy = x(1) - 0.5;
+            const real_t r_l = hypot(dx_l, dy);
+            const real_t r_r = hypot(dx_r, dy);
+
+            return - exp(- r_l*r_l/(r0*r0)) + exp(- r_r*r_r/(r0*r0));
+         };
+      case Problem::BoundaryLayer:
+         // C. Vogl, I. Joseph and M. Holec, Mesh refinement for anisotropic
+         // diffusion in magnetized plasmas, Computers andMathematics with
+         // Applications, 145, pp. 159-174 (2023).
+         return [=](const Vector &x, real_t t) -> real_t
+         {
+            const real_t k_para = M_PI*M_PI * k * ks;
+            const real_t k_perp = k;
+            const real_t k_frac = sqrt(k_para/k_perp);
+            const real_t denom = 1. + exp(-k_frac);
+            const real_t e_down = exp(-k_frac * x(1));
+            const real_t e_up = exp(- k_frac * (1. - x(1)));
+            return - (e_down + e_up) / denom * sin(M_PI * x(0));
+         };
+      case Problem::SteadyPeak:
+         // B. van Es, B. Koern and Hugo de Blank, DISCRETIZATIONMETHODS
+         // FOR EXTREMELY ANISOTROPIC DIFFUSION. In 7th International
+         // Conference on Computational Fluid Dynamics (ICCFD 2012) (pp.
+         // ICCFD7-1401)
+         return [=](const Vector &x, real_t t) -> real_t
+         {
+            constexpr real_t s = 10.;
+            const real_t arg = sin(M_PI * x(0)) * sin(M_PI * x(1));
+            return x(0)*x(1) * pow(arg, s);
+         };
+      case Problem::SteadyVaryingAngle:
+         // B. van Es, B. Koern and Hugo de Blank, DISCRETIZATIONMETHODS
+         // FOR EXTREMELY ANISOTROPIC DIFFUSION. In 7th International
+         // Conference on Computational Fluid Dynamics (ICCFD 2012) (pp.
+         // ICCFD7-1401)
+         return [=](const Vector &x, real_t t) -> real_t
+         {
+            Vector dx(x);
+            dx -= 0.5;
+            const real_t r = hypot(dx(0), dx(1));
+            return 1. - r*r*r;
+         };
+      case Problem::Sovinec:
+         // C. R. Sovinec et al., Nonlinear magnetohydrodynamics simulation
+         // using high-order finite elements. Journal of Computational Physics,
+         // 195, pp. 355–386 (2004).
+         return [=](const Vector &x, real_t t) -> real_t
+         {
+            const real_t &kappa_perp = k * ks;
+            Vector dx(x);
+            dx -= 0.5;
+            const real_t psi = cos(M_PI * dx(0)) * cos(M_PI * dx(1));
+            return psi / kappa_perp;
+         };
+
+   }
+   return TFunc();
+}
+
+VecTFunc GetQFun(Problem prob, const ProblemParams &params)
+{
+   const real_t &k = params.k;
+   const real_t &ks = params.ks;
+   //const real_t &ka = params.ka;
+   const real_t &t_0 = params.t_0;
+
+   auto kFun = GetKFun(prob, params);
+
+   switch (prob)
+   {
+      case Problem::Original:
+         return [=](const Vector &x, real_t, Vector &v)
+         {
+            exact_sigma(x, v);
+         };
+      case Problem::SteadyDiffusion:
+         return [=](const Vector &x, real_t, Vector &v)
+         {
+            const int vdim = x.Size();
+            v.SetSize(vdim);
+
+            Vector gT(vdim);
+            gT = 0.;
+            gT(0) = t_0 * M_PI * cos(M_PI*x(0)) * sin(M_PI*x(1));
+            gT(1) = t_0 * M_PI * sin(M_PI*x(0)) * cos(M_PI*x(1));
+            if (vdim > 2)
+            {
+               gT(0) *= sin(M_PI*x(2));
+               gT(1) *= sin(M_PI*x(2));
+               gT(2) = t_0 * M_PI * sin(M_PI*x(0)) * sin(M_PI*x(1)) * cos(M_PI*x(2));
+            }
+
+            DenseMatrix kappa;
+            kFun(x, kappa);
+
+            if (vdim <= 2)
+            {
+               v(0) = -kappa(0,0) * gT(0) -kappa(0,1) * gT(1);
+               v(1) = -kappa(1,0) * gT(0) -kappa(1,1) * gT(1);
+            }
+            else
+            {
+               kappa.Mult(gT, v);
+               v.Neg();
+            }
+            v.Neg();
+         };
+      case Problem::DiffusionRing:
+      case Problem::DiffusionRingGauss:
+      case Problem::Sovinec:
+         return [=](const Vector &x, real_t, Vector &v)
+         {
+            const int vdim = x.Size();
+            v.SetSize(vdim);
+            v = 0.;
+         };
+      case Problem::BoundaryLayer:
+         return [=](const Vector &x, real_t, Vector &v)
+         {
+            const int vdim = x.Size();
+            v.SetSize(vdim);
+
+            DenseMatrix kappa;
+            kFun(x, kappa);
+            const real_t k_para = M_PI*M_PI * kappa(0,0);
+            const real_t k_perp = kappa(1,1);
+            const real_t k_frac = sqrt(k_para/k_perp);
+
+            const real_t denom = 1. + exp(-k_frac);
+            const real_t e_down = exp(-k_frac * x(1));
+            const real_t e_up = exp(- k_frac * (1. - x(1)));
+            const real_t T_x = - (e_down + e_up) / denom * M_PI * cos(M_PI * x(0));
+            const real_t T_y = k_frac * (e_down - e_up) / denom * sin(M_PI * x(0));
+            v(0) = +kappa(0,0) * T_x;
+            v(1) = +kappa(1,1) * T_y;
+         };
+      case Problem::SteadyPeak:
+         return [=](const Vector &x, real_t, Vector &v)
+         {
+            const int vdim = x.Size();
+            v.SetSize(vdim);
+
+            DenseMatrix kappa;
+            kFun(x, kappa);
+            constexpr real_t s = 10.;
+            const real_t arg = sin(M_PI * x(0)) * sin(M_PI * x(1));
+            const real_t arg_x = M_PI * cos(M_PI * x(0)) * sin(M_PI * x(1));
+            const real_t arg_y = M_PI * cos(M_PI * x(1)) * sin(M_PI * x(0));
+            const real_t T_x = x(1) * pow(arg, s-1) * (arg + x(0) * s * arg_x);
+            const real_t T_y = x(0) * pow(arg, s-1) * (arg + x(1) * s * arg_y);
+            v(0) = +kappa(0,0) * T_x;
+            v(1) = +kappa(1,1) * T_y;
+         };
+      case Problem::SteadyVaryingAngle:
+         return [=](const Vector &x, real_t, Vector &v)
+         {
+            const int vdim = x.Size();
+            v.SetSize(vdim);
+
+            const real_t kappa_r = k * ks;
+            Vector dx(x);
+            dx -= 0.5;
+            const real_t r = hypot(dx(0), dx(1));
+            const real_t T_r = - 3. * r;
+            v(0) = +kappa_r * T_r * dx(0);
+            v(1) = +kappa_r * T_r * dx(1);
+         };
+   }
+   return VecTFunc();
+}
+
+TFunc GetFFun(Problem prob, const ProblemParams &params)
+{
+   const real_t &k = params.k;
+   const real_t &ks = params.ks;
+   //const real_t &ka = params.ka;
+   //const real_t &a = params.a;
+
+   auto TFun = GetTFun(prob, params);
+   auto kFun = GetKFun(prob, params);
+
+   switch (prob)
+   {
+      case Problem::Original:
+         return [=](const Vector &x, real_t) -> real_t
+         {
+            return f_exact(x);
+         };
+      case Problem::SteadyDiffusion:
+      case Problem::DiffusionRing:
+      case Problem::DiffusionRingGauss:
+         return [=](const Vector &x, real_t) -> real_t
+         {
+            const real_t T = TFun(x, 0);
+            //return -((a > 0.)?(a):(1.)) * T;
+            return T;
+         };
+      case Problem::BoundaryLayer:
+         return [=](const Vector &x, real_t) -> real_t
+         {
+            return 0.;
+         };
+      case Problem::SteadyPeak:
+         return [=](const Vector &x, real_t) -> real_t
+         {
+            DenseMatrix kappa;
+            kFun(x, kappa);
+            constexpr real_t s = 10.;
+            const real_t arg = sin(M_PI * x(0)) * sin(M_PI * x(1));
+            const real_t arg_x = M_PI * cos(M_PI * x(0)) * sin(M_PI * x(1));
+            const real_t arg_y = M_PI * cos(M_PI * x(1)) * sin(M_PI * x(0));
+            const real_t T_xx = x(1) * pow(arg, s-2) * (2.*s * arg_x * arg + x(0) * s * ((s-1) * arg_x*arg_x - M_PI*M_PI * arg*arg));
+            const real_t T_yy = x(0) * pow(arg, s-2) * (2.*s * arg_y * arg + x(1) * s * ((s-1) * arg_y*arg_y - M_PI*M_PI * arg*arg));
+            return -(kappa(0,0) * T_xx + kappa(1,1) * T_yy);
+         };
+      case Problem::SteadyVaryingAngle:
+         return [=](const Vector &x, real_t) -> real_t
+         {
+            const real_t kappa_r = ks * k;
+            Vector dx(x);
+            dx -= 0.5;
+            const real_t r = hypot(dx(0), dx(1));
+            const real_t T_rr = - 9. * r;
+            return -kappa_r * T_rr;
+         };
+      case Problem::Sovinec:
+         return [=](const Vector &x, real_t) -> real_t
+         {
+            Vector dx(x);
+            dx -= 0.5;
+            const real_t psi = cos(M_PI * dx(0)) * cos(M_PI * dx(1));
+            return 2.*M_PI*M_PI * psi;
+         };
+   }
+   return TFunc();
+}
+
