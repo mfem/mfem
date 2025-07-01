@@ -384,6 +384,28 @@ void Vector::Reciprocal()
    mfem::forall_switch(use_dev, N, [=] MFEM_HOST_DEVICE (int i) { y[i] = 1.0/y[i]; });
 }
 
+void Vector::Abs()
+{
+   const bool use_dev = UseDevice();
+   const int N = size;
+   auto y = ReadWrite(use_dev);
+   mfem::forall_switch(use_dev, N, [=] MFEM_HOST_DEVICE (int i)
+   {
+      y[i] = std::abs(y[i]);
+   });
+}
+
+void Vector::Pow(const real_t p)
+{
+   const bool use_dev = UseDevice();
+   const int N = size;
+   auto y = ReadWrite(use_dev);
+   mfem::forall_switch(use_dev, N, [=] MFEM_HOST_DEVICE (int i)
+   {
+      y[i] = std::pow(y[i], p);
+   });
+}
+
 void add(const Vector &v1, const Vector &v2, Vector &v)
 {
    MFEM_ASSERT(v.size == v1.size && v.size == v2.size,

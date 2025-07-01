@@ -360,6 +360,12 @@ public:
    /// (*this)(i) = 1.0 / (*this)(i)
    void Reciprocal();
 
+   /// (*this)(i) = abs((*this)(i))
+   void Abs();
+
+   /// (*this)(i) = pow((*this)(i), p)
+   void Pow(const real_t p);
+
    /// Swap the contents of two Vectors
    inline void Swap(Vector &other);
 
