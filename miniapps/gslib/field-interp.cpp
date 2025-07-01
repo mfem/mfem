@@ -103,7 +103,7 @@ int main (int argc, char *argv[])
    }
    args.PrintOptions(cout);
 
-   // If a gridfunction is specified, set src_fieldtype to -1
+   // If a grid function is specified, set src_fieldtype to -1
    if (strcmp(src_sltn_file, "must_be_provided_by_the_user.gf") != 0)
    {
       src_fieldtype = -1;

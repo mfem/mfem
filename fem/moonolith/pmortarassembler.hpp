@@ -144,7 +144,7 @@ public:
 
    struct Impl;
 
-   private:
+private:
    std::unique_ptr<Impl> impl_;
 };
 

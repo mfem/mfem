@@ -43,6 +43,7 @@ option(MFEM_USE_AMGX "Enable AmgX usage" OFF)
 option(MFEM_USE_MAGMA "Enable MAGMA usage" OFF)
 option(MFEM_USE_GNUTLS "Enable GNUTLS usage" OFF)
 option(MFEM_USE_GSLIB "Enable GSLIB usage" OFF)
+option(MFEM_USE_HDF5 "Enable HDF5 usage" OFF)
 option(MFEM_USE_NETCDF "Enable NETCDF usage" OFF)
 option(MFEM_USE_PETSC "Enable PETSc support." OFF)
 option(MFEM_USE_SLEPC "Enable SLEPc support." OFF)
@@ -266,6 +267,8 @@ set(PARELAG_LIBRARIES "${PARELAG_DIR}/build/src/libParELAG.a" CACHE STRING
 set(TRIBOL_DIR "${MFEM_DIR}/../tribol" CACHE PATH "Path to Tribol")
 set(Tribol_REQUIRED_PACKAGES "Axom/core/mint/slam/slic" CACHE STRING
     "Additional packages required by Tribol")
+
+set(ENZYME_DIR "${MFEM_DIR}/../enzyme" CACHE PATH "Path to Enzyme")
 
 set(BLAS_INCLUDE_DIRS "" CACHE STRING "Path to BLAS headers.")
 set(BLAS_LIBRARIES "" CACHE STRING "The BLAS library.")
