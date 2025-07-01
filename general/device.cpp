@@ -9,6 +9,7 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
+#include "device.hpp"
 #include "forall.hpp"
 #include "occa.hpp"
 #ifdef MFEM_USE_CEED
@@ -19,7 +20,6 @@
 #endif
 
 #include <unordered_map>
-#include <string>
 #include <map>
 
 namespace mfem
@@ -147,7 +147,6 @@ Device::Device()
    }
 }
 
-
 Device::~Device()
 {
 #ifdef MFEM_USE_MPI
@@ -156,7 +155,6 @@ Device::~Device()
    if ( device_env && !destroy_mm) { return; }
    if (!device_env &&  destroy_mm && !mem_host_env)
    {
-      free(device_option);
 #ifdef MFEM_USE_CEED
       // Destroy FES -> CeedBasis, CeedElemRestriction hash table contents
       for (auto entry : internal::ceed_basis_map)
@@ -175,7 +173,6 @@ Device::~Device()
       mm.Destroy();
    }
    Get().ngpu = -1;
-   Get().mode = SEQUENTIAL;
    Get().backends = Backend::CPU;
    Get().host_mem_type = MemoryType::HOST;
    Get().host_mem_class = MemoryClass::HOST;
@@ -189,7 +186,7 @@ void Device::Configure(const std::string &device, const int device_id)
    // and avoid the 'singleton_device' to destroy the mm.
    if (device_env)
    {
-      std::memcpy(this, &Get(), sizeof(Device));
+      std::memcpy((void*)this, &Get(), sizeof(Device));
       Get().destroy_mm = false;
       return;
    }
@@ -199,28 +196,22 @@ void Device::Configure(const std::string &device, const int device_id)
    {
       bmap[internal::backend_name[i]] = internal::backend_list[i];
    }
-   std::string::size_type beg = 0, end, option;
+   std::string device_option;
+   std::string::size_type beg = 0, end;
    while (1)
    {
       end = device.find(',', beg);
       end = (end != std::string::npos) ? end : device.size();
       const std::string bname = device.substr(beg, end - beg);
-      option = bname.find(':');
-      if (option==std::string::npos) // No option
+      const auto option = bname.find(':');
+      const std::string backend = (option != std::string::npos) ?
+                                  bname.substr(0, option) : bname;
+      const auto it = bmap.find(backend);
+      MFEM_VERIFY(it != bmap.end(), "Invalid backend name: '" << backend << '\'');
+      Get().MarkBackend(it->second);
+      if (option != std::string::npos)
       {
-         const std::string backend = bname;
-         std::map<std::string, Backend::Id>::iterator it = bmap.find(backend);
-         MFEM_VERIFY(it != bmap.end(), "invalid backend name: '" << backend << '\'');
-         Get().MarkBackend(it->second);
-      }
-      else
-      {
-         const std::string backend = bname.substr(0, option);
-         const std::string boption = bname.substr(option+1);
-         Get().device_option = strdup(boption.c_str());
-         std::map<std::string, Backend::Id>::iterator it = bmap.find(backend);
-         MFEM_VERIFY(it != bmap.end(), "invalid backend name: '" << backend << '\'');
-         Get().MarkBackend(it->second);
+         device_option += bname.substr(option);
       }
       if (end == device.size()) { break; }
       beg = end + 1;
@@ -246,13 +237,13 @@ void Device::Configure(const std::string &device, const int device_id)
 #endif
 
    // Perform setup.
-   Get().Setup(device_id);
+   Get().Setup(device_option, device_id);
 
-   // Enable the device
-   Enable();
+   // Configure the host/device MemoryType/MemoryClass.
+   Get().UpdateMemoryTypeAndClass(device_option);
 
    // Copy all data members from the global 'singleton_device' into '*this'.
-   if (this != &Get()) { std::memcpy(this, &Get(), sizeof(Device)); }
+   if (this != &Get()) { std::memcpy((void*)this, &Get(), sizeof(Device)); }
 
    // Only '*this' will call the MemoryManager::Destroy() method.
    destroy_mm = true;
@@ -325,10 +316,9 @@ void Device::Print(std::ostream &os)
    os << std::endl;
 }
 
-void Device::UpdateMemoryTypeAndClass()
+void Device::UpdateMemoryTypeAndClass(const std::string &device_option)
 {
    const bool debug = Device::Allows(Backend::DEBUG_DEVICE);
-
    const bool device = Device::Allows(Backend::DEVICE_MASK);
 
 #ifdef MFEM_USE_UMPIRE
@@ -375,7 +365,7 @@ void Device::UpdateMemoryTypeAndClass()
    }
 
    // Enable the UVM shortcut when requested
-   if (device && device_option && !strcmp(device_option, "uvm"))
+   if (device && device_option.find(":uvm") != std::string::npos)
    {
       host_mem_type = MemoryType::MANAGED;
       device_mem_type = MemoryType::MANAGED;
@@ -395,26 +385,29 @@ void Device::UpdateMemoryTypeAndClass()
    mm.Configure(host_mem_type, device_mem_type);
 }
 
-void Device::Enable()
+// static method
+int Device::GetDeviceCount()
 {
-   const bool accelerated = Get().backends & ~(Backend::CPU);
-   if (accelerated) { Get().mode = Device::ACCELERATED;}
-   Get().UpdateMemoryTypeAndClass();
-}
-
-#ifdef MFEM_USE_CUDA
-static void DeviceSetup(const int dev, int &ngpu)
-{
-   ngpu = CuGetDeviceCount();
-   MFEM_VERIFY(ngpu > 0, "No CUDA device found!");
-   MFEM_GPU_CHECK(cudaSetDevice(dev));
-}
+   if (Get().ngpu >= 0) { return Get().ngpu; }
+#if defined(MFEM_USE_CUDA)
+   return CuGetDeviceCount();
+#elif defined(MFEM_USE_HIP)
+   int ngpu;
+   MFEM_GPU_CHECK(hipGetDeviceCount(&ngpu));
+   return ngpu;
+#else
+   MFEM_ABORT("Unable to query number of available devices without"
+              " MFEM_USE_CUDA or MFEM_USE_HIP!");
+   return -1;
 #endif
+}
 
 static void CudaDeviceSetup(const int dev, int &ngpu)
 {
 #ifdef MFEM_USE_CUDA
-   DeviceSetup(dev, ngpu);
+   ngpu = CuGetDeviceCount();
+   MFEM_VERIFY(ngpu > 0, "No CUDA device found!");
+   MFEM_GPU_CHECK(cudaSetDevice(dev));
 #else
    MFEM_CONTRACT_VAR(dev);
    MFEM_CONTRACT_VAR(ngpu);
@@ -436,7 +429,7 @@ static void HipDeviceSetup(const int dev, int &ngpu)
 static void RajaDeviceSetup(const int dev, int &ngpu)
 {
 #ifdef MFEM_USE_CUDA
-   if (ngpu <= 0) { DeviceSetup(dev, ngpu); }
+   CudaDeviceSetup(dev, ngpu);
 #elif defined(MFEM_USE_HIP)
    HipDeviceSetup(dev, ngpu);
 #else
@@ -520,7 +513,7 @@ static void CeedDeviceSetup(const char* ceed_spec)
 #endif
 }
 
-void Device::Setup(const int device_id)
+void Device::Setup(const std::string &device_option, const int device_id)
 {
    MFEM_VERIFY(ngpu == -1, "the mfem::Device is already configured!");
 
@@ -546,12 +539,6 @@ void Device::Setup(const int device_id)
 #ifndef MFEM_USE_CEED
    MFEM_VERIFY(!Allows(Backend::CEED_MASK),
                "the CEED backends require MFEM built with MFEM_USE_CEED=YES");
-#else
-   int ceed_cpu  = Allows(Backend::CEED_CPU);
-   int ceed_cuda = Allows(Backend::CEED_CUDA);
-   int ceed_hip  = Allows(Backend::CEED_HIP);
-   MFEM_VERIFY(ceed_cpu + ceed_cuda + ceed_hip <= 1,
-               "Only one CEED backend can be enabled at a time!");
 #endif
    if (Allows(Backend::CUDA)) { CudaDeviceSetup(dev, ngpu); }
    if (Allows(Backend::HIP)) { HipDeviceSetup(dev, ngpu); }
@@ -559,44 +546,40 @@ void Device::Setup(const int device_id)
    { RajaDeviceSetup(dev, ngpu); }
    // The check for MFEM_USE_OCCA is in the function OccaDeviceSetup().
    if (Allows(Backend::OCCA_MASK)) { OccaDeviceSetup(dev); }
-   if (Allows(Backend::CEED_CPU))
+   if (Allows(Backend::CEED_MASK))
    {
-      if (!device_option)
+      int ceed_cpu  = Allows(Backend::CEED_CPU);
+      int ceed_cuda = Allows(Backend::CEED_CUDA);
+      int ceed_hip  = Allows(Backend::CEED_HIP);
+      MFEM_VERIFY(ceed_cpu + ceed_cuda + ceed_hip == 1,
+                  "Only one CEED backend can be enabled at a time!");
+
+      // NOTE: libCEED's /gpu/cuda/gen and /gpu/hip/gen backends are non-
+      // deterministic!
+      const char *ceed_spec_search =
+         Allows(Backend::CEED_CPU) ? ":/cpu/self" :
+         (Allows(Backend::CEED_CUDA) ? ":/gpu/cuda" :
+          (Allows(Backend::CEED_HIP) ? ":/gpu/hip" : ""));
+      const char *ceed_spec_default =
+         Allows(Backend::CEED_CPU) ? "/cpu/self" :
+         (Allows(Backend::CEED_CUDA) ? "/gpu/cuda/gen" :
+          (Allows(Backend::CEED_HIP) ? "/gpu/hip/gen" : ""));
+      std::string::size_type beg = device_option.find(ceed_spec_search), end;
+      if (beg == std::string::npos)
       {
-         CeedDeviceSetup("/cpu/self");
+         CeedDeviceSetup(ceed_spec_default);
       }
       else
       {
-         CeedDeviceSetup(device_option);
-      }
-   }
-   if (Allows(Backend::CEED_CUDA))
-   {
-      if (!device_option)
-      {
-         // NOTE: libCEED's /gpu/cuda/gen backend is non-deterministic!
-         CeedDeviceSetup("/gpu/cuda/gen");
-      }
-      else
-      {
-         CeedDeviceSetup(device_option);
-      }
-   }
-   if (Allows(Backend::CEED_HIP))
-   {
-      if (!device_option)
-      {
-         CeedDeviceSetup("/gpu/hip");
-      }
-      else
-      {
-         CeedDeviceSetup(device_option);
+         end = device_option.find(':', beg + 1);
+         end = (end != std::string::npos) ? end : device_option.size();
+         CeedDeviceSetup(device_option.substr(beg + 1, end - beg - 1).c_str());
       }
    }
    if (Allows(Backend::DEBUG_DEVICE)) { ngpu = 1; }
 }
 
-MemoryType Device::QueryMemoryType(void* ptr)
+MemoryType Device::QueryMemoryType(void *ptr)
 {
    // from HYPRE's hypre_GetPointerLocation
    MemoryType res = MemoryType::HOST;
@@ -672,6 +655,8 @@ MemoryType Device::QueryMemoryType(void* ptr)
       // host memory
    }
 #endif
+#else
+   MFEM_CONTRACT_VAR(ptr);
 #endif
    return res;
 }
@@ -707,6 +692,7 @@ int Device::NumMultiprocessors(int dev)
    return res;
 #else
    // not compiled with GPU support
+   MFEM_CONTRACT_VAR(dev);
    return 0;
 #endif
 }
@@ -734,6 +720,7 @@ int Device::WarpSize(int dev)
    return res;
 #else
    // not compiled with GPU support
+   MFEM_CONTRACT_VAR(dev);
    return 0;
 #endif
 }
@@ -749,4 +736,4 @@ int Device::WarpSize()
    return WarpSize(dev);
 }
 
-} // mfem
+} // namespace mfem

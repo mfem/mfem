@@ -17,6 +17,9 @@ include_directories(BEFORE ${CMAKE_CURRENT_SOURCE_DIR})
 # The following list can be updated using (in bash):
 #    for d in general linalg mesh fem enzyme; do ls -1 $d/*.cpp; done
 set(UNIT_TESTS_SRCS
+  dfem/test_diffusion.cpp
+  dfem/test_divergence.cpp
+  dfem/test_mass.cpp
   general/test_array.cpp
   general/test_reduction.cpp
   general/test_arrays_by_name.cpp
@@ -89,6 +92,7 @@ set(UNIT_TESTS_SRCS
   fem/test_fe.cpp
   fem/test_fe_compatibility.cpp
   fem/test_fe_fixed.cpp
+  fem/test_fe_pos.cpp
   fem/test_fe_symmetry.cpp
   fem/test_get_value.cpp
   fem/test_getderivative.cpp
@@ -157,6 +161,8 @@ add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} unit_tests)
 add_dependencies(unit_tests copy_data)
 # ParSubMesh tests need meshes in ../../miniapps/multidomain
 add_dependencies(unit_tests copy_miniapps_multidomain_data)
+# NURBS tests need meshes in ../../miniapps/nurbs
+add_dependencies(unit_tests copy_miniapps_nurbs_data)
 
 # Copy data to the build directory.
 add_custom_command(TARGET unit_tests POST_BUILD
