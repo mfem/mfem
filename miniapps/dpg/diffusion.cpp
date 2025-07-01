@@ -129,6 +129,8 @@ void exact_sigma(const Vector & X, Vector & sigma);
 real_t exact_hatu(const Vector & X);
 void exact_hatsigma(const Vector & X, Vector & hatsigma);
 real_t f_exact(const Vector & X);
+void setup_test_norm_coeffs(MatrixCoefficient &eps, GridFunction & c1_gf,
+                            GridFunction & c2_gf);
 
 int main(int argc, char *argv[])
 {
@@ -334,6 +336,12 @@ int main(int argc, char *argv[])
    FunctionCoefficient f(fFun); // rhs for the manufactured solution problem
    SumCoefficient negf(0., f, 1., -1.);
 
+   FiniteElementCollection *coeff_fec = new L2_FECollection(0,dim);
+   FiniteElementSpace *coeff_fes = new FiniteElementSpace(&mesh,coeff_fec);
+   GridFunction c1_gf, c2_gf;
+   GridFunctionCoefficient c1_coeff(&c1_gf);
+   GridFunctionCoefficient c2_coeff(&c2_gf);
+
    // Required coefficients for the exact solution case
    auto TFun = GetTFun(problem, pars);
    FunctionCoefficient uex(TFun);
@@ -381,18 +389,23 @@ int main(int argc, char *argv[])
       a_dpg->AddTrialIntegrator(new TraceIntegrator,
                                 TrialSpace::hatsigma_space, TestSpace::v_space);
 
+      // mesh dependent test norm
+      c1_gf.SetSpace(coeff_fes);
+      c2_gf.SetSpace(coeff_fes);
+      setup_test_norm_coeffs(eps, c1_gf, c2_gf);
+
       // test integrators (space-induced norm for H(div) × H1)
       // (∇⋅τ,∇⋅δτ)
       a_dpg->AddTestIntegrator(new DivDivIntegrator(one),
                                TestSpace::tau_space, TestSpace::tau_space);
-      // (τ,δτ)
-      a_dpg->AddTestIntegrator(new VectorFEMassIntegrator(one),
+      // c2 (τ,δτ)
+      a_dpg->AddTestIntegrator(new VectorFEMassIntegrator(c2_coeff),
                                TestSpace::tau_space, TestSpace::tau_space);
-      // (∇v,∇δv)
+      // ε (∇v,∇δv)
       a_dpg->AddTestIntegrator(new DiffusionIntegrator(eps),
                                TestSpace::v_space, TestSpace::v_space);
-      // (v,δv)
-      a_dpg->AddTestIntegrator(new MassIntegrator(one),
+      // c1 (v,δv)
+      a_dpg->AddTestIntegrator(new MassIntegrator(c1_coeff),
                                TestSpace::v_space, TestSpace::v_space);
 
       // RHS
@@ -729,10 +742,23 @@ int main(int argc, char *argv[])
       {
          trial_fes[i]->Update(false);
       }
-      if (a_dpg) { a_dpg->Update(); }
-      else { a_darcy->Update(); }
+      if (a_dpg)
+      {
+         a_dpg->Update();
+
+         coeff_fes->Update();
+         c1_gf.Update();
+         c2_gf.Update();
+         setup_test_norm_coeffs(eps, c1_gf, c2_gf);
+      }
+      else
+      {
+         a_darcy->Update();
+      }
    }
 
+   delete coeff_fes;
+   delete coeff_fec;
    delete a_dpg;
    delete a_darcy;
    delete tau_fec;
@@ -1255,3 +1281,28 @@ TFunc GetFFun(Problem prob, const ProblemParams &params)
    return TFunc();
 }
 
+void setup_test_norm_coeffs(MatrixCoefficient &eps, GridFunction & c1_gf,
+                            GridFunction & c2_gf)
+{
+   Array<int> vdofs;
+   FiniteElementSpace * fes = c1_gf.FESpace();
+   Mesh * mesh = fes->GetMesh();
+   DenseMatrix eps_i;
+   Vector eps_id;
+   IntegrationPoint ip;
+   ip.Set2w(0.5, 0.5, 1.);
+
+   for (int i = 0; i < mesh->GetNE(); i++)
+   {
+      real_t volume = mesh->GetElementVolume(i);
+      ElementTransformation *Tr = mesh->GetElementTransformation(i);
+      Tr->SetIntPoint(&ip);
+      eps.Eval(eps_i, *Tr, ip);
+      eps_i.GetDiag(eps_id);
+      real_t c1 = std::min(eps_id.Min()/volume, (real_t) 1.);
+      real_t c2 = std::min(1./eps_id.Max(), 1./volume);
+      fes->GetElementDofs(i,vdofs);
+      c1_gf.SetSubVector(vdofs,c1);
+      c2_gf.SetSubVector(vdofs,c2);
+   }
+}
