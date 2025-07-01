@@ -88,13 +88,15 @@ enum Problem
    SteadyPeak,
    SteadyVaryingAngle,
    Sovinec,
+   Umansky,
 };
 
 struct ProblemParams
 {
-   real_t k;
-   real_t ks;
-   real_t ka;
+   int nx, ny;
+   real_t sx, sy;
+   int order;
+   real_t k, ks, ka;
    real_t t_0;
    //real_t a;
 };
@@ -132,7 +134,6 @@ int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
    const char *mesh_file = "../../data/inline-quad.mesh";
-   int order = 1;
    int delta_order = 1;
    int ref = 0;
    bool visualization = true;
@@ -140,6 +141,12 @@ int main(int argc, char *argv[])
    int idisc = (int) discret_type::DPG;
    int iproblem = (int) Problem::Original;
    ProblemParams pars;
+   pars.nx = 0;
+   pars.ny = 0;
+   pars.sx = 1.;
+   pars.sy = 1.;
+   pars.order = 1;
+   const int &order = pars.order;
    pars.k = 1.;
    pars.ks = 1.;
    pars.ka = 0.;
@@ -153,7 +160,15 @@ int main(int argc, char *argv[])
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
-   args.AddOption(&order, "-o", "--order",
+   args.AddOption(&pars.nx, "-nx", "--ncells-x",
+                  "Number of cells in x.");
+   args.AddOption(&pars.ny, "-ny", "--ncells-y",
+                  "Number of cells in y.");
+   args.AddOption(&pars.sx, "-sx", "--size-x",
+                  "Size along x axis.");
+   args.AddOption(&pars.sy, "-sy", "--size-y",
+                  "Size along y axis.");
+   args.AddOption(&pars.order, "-o", "--order",
                   "Finite element order (polynomial degree).");
    args.AddOption(&delta_order, "-do", "--delta_order",
                   "Order enrichment for DPG test space.");
@@ -208,7 +223,22 @@ int main(int argc, char *argv[])
    Problem problem = (Problem)iproblem;
    if (problem != Problem::Original) { prob = prob_type::manufactured; }
 
-   Mesh mesh(mesh_file, 1, 1);
+   if (pars.ny <= 0)
+   {
+      pars.ny = pars.nx;
+   }
+
+   Mesh mesh;
+   if (pars.nx <= 0)
+   {
+      mesh = std::move(Mesh(mesh_file, 1, 1));
+   }
+   else
+   {
+      mesh = std::move(Mesh::MakeCartesian2D(pars.nx, pars.ny,
+                                             Element::QUADRILATERAL, false,
+                                             pars.sx, pars.sy));
+   }
    int dim = mesh.Dimension();
    MFEM_VERIFY(dim > 1, "Dimension = 1 is not supported in this example");
 
@@ -768,6 +798,8 @@ MatFunc GetKFun(Problem prob, const ProblemParams &params)
    const real_t &k = params.k;
    const real_t &ks = params.ks;
    const real_t &ka = params.ka;
+   const real_t &sx = params.sx;
+   const real_t &sy = params.sy;
 
    switch (prob)
    {
@@ -836,6 +868,21 @@ MatFunc GetKFun(Problem prob, const ProblemParams &params)
                AddMult_a_VVt((1. - ks) * k, b, kappa);
             }
          };
+      case Problem::Umansky:
+         return [=](const Vector &x, DenseMatrix &kappa)
+         {
+            const int ndim = x.Size();
+            Vector b(ndim);
+            const real_t s = hypot(sx, sy);
+            b(0) = +sx / s;
+            b(1) = +sy / s;
+
+            kappa.Diag(ks * k, ndim);
+            if (ks != 1.)
+            {
+               AddMult_a_VVt((1. - ks) * k, b, kappa);
+            }
+         };
    }
    return MatFunc();
 }
@@ -847,6 +894,11 @@ TFunc GetTFun(Problem prob, const ProblemParams &params)
    //const real_t &ka = params.ka;
    const real_t &t_0 = params.t_0;
    //const real_t &a = params.a;
+   const real_t &sx = params.sx;
+   const real_t &sy = params.sy;
+   const real_t hx = sx / params.nx;
+   const real_t hy = sy / params.ny;
+   const real_t &order = params.order;
 
    auto kFun = GetKFun(prob, params);
 
@@ -982,7 +1034,41 @@ TFunc GetTFun(Problem prob, const ProblemParams &params)
             const real_t psi = cos(M_PI * dx(0)) * cos(M_PI * dx(1));
             return psi / kappa_perp;
          };
-
+      case Problem::Umansky:
+         // M. V. Umansky, M. S. Day and T. D. Rognlien, On Numerical Solution
+         // of Strongly Anisotropic Diffusion Equation on Misaligned Grids,
+         // Numerical Heat Transfer, Part B: Fundamentals, 47(6), pp. 533-554
+         // (2005).
+         // Adopted from plasma-dev:miniapps/plasma/transport2d.cpp
+         return [=](const Vector &x, real_t t) -> real_t
+         {
+            if (x(0) < hx && x(1) < hy)
+            {
+               return 0.5 * (1.0 -
+                             std::pow(1.0 - x(0) / hx, order) +
+                             std::pow(1.0 - x(1) / hy, order));
+            }
+            else if (x(0) > sx - hx && x(1) > sy - hy)
+            {
+               return 0.5 * (1.0 +
+                             std::pow(1.0 - (sx - x(0)) / hx, order) -
+                             std::pow(1.0 - (sy - x(1)) / hy, order));
+            }
+            // else if (x_[0] > Lx_ - hx_ || x_[1] < hy_)
+            else if (hx * (x(1) + hy) < hy * x(0))
+            {
+               return 1.0;
+            }
+            // else if (x_[0] < hx_ || x_[1] > Ly_ - hy_)
+            else if (hx * x(1) > hy * (x(0) + hx))
+            {
+               return 0.0;
+            }
+            else
+            {
+               return 0.5 * (1.0 + std::tanh(M_LN10 * (x(0) / hx - x(1) / hy)));
+            }
+         };
    }
    return TFunc();
 }
@@ -1038,6 +1124,7 @@ VecTFunc GetQFun(Problem prob, const ProblemParams &params)
       case Problem::DiffusionRing:
       case Problem::DiffusionRingGauss:
       case Problem::Sovinec:
+      case Problem::Umansky:
          return [=](const Vector &x, real_t, Vector &v)
          {
             const int vdim = x.Size();
@@ -1126,6 +1213,7 @@ TFunc GetFFun(Problem prob, const ProblemParams &params)
             return T;
          };
       case Problem::BoundaryLayer:
+      case Problem::Umansky:
          return [=](const Vector &x, real_t) -> real_t
          {
             return 0.;

@@ -72,15 +72,17 @@ enum Problem
    SteadyPeak,
    SteadyVaryingAngle,
    Sovinec,
+   Umansky,
 };
 
 constexpr real_t epsilon = numeric_limits<real_t>::epsilon();
 
 struct ProblemParams
 {
-   real_t k;
-   real_t ks;
-   real_t ka;
+   int nx, ny;
+   real_t sx, sy;
+   int order;
+   real_t k, ks, ka;
    real_t t_0;
    real_t a;
    real_t c;
@@ -101,11 +103,6 @@ int main(int argc, char *argv[])
 
    // 1. Parse command-line options.
    const char *mesh_file = "";
-   int nx = 0;
-   int ny = 0;
-   real_t sx = 1.;
-   real_t sy = 1.;
-   int order = 1;
    bool dg = false;
    bool brt = false;
    bool upwinded = false;
@@ -114,6 +111,12 @@ int main(int argc, char *argv[])
    int nt = 0;
    int ode = 1;
    ProblemParams pars;
+   pars.nx = 0;
+   pars.ny = 0;
+   pars.sx = 1.;
+   pars.sy = 1.;
+   pars.order = 1;
+   const int &order = pars.order;
    pars.k = 1.;
    pars.ks = 1.;
    pars.ka = 0.;
@@ -141,15 +144,15 @@ int main(int argc, char *argv[])
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
-   args.AddOption(&nx, "-nx", "--ncells-x",
+   args.AddOption(&pars.nx, "-nx", "--ncells-x",
                   "Number of cells in x.");
-   args.AddOption(&ny, "-ny", "--ncells-y",
+   args.AddOption(&pars.ny, "-ny", "--ncells-y",
                   "Number of cells in y.");
-   args.AddOption(&sx, "-sx", "--size-x",
+   args.AddOption(&pars.sx, "-sx", "--size-x",
                   "Size along x axis.");
-   args.AddOption(&sy, "-sy", "--size-y",
+   args.AddOption(&pars.sy, "-sy", "--size-y",
                   "Size along y axis.");
-   args.AddOption(&order, "-o", "--order",
+   args.AddOption(&pars.order, "-o", "--order",
                   "Finite element order (polynomial degree).");
    args.AddOption(&dg, "-dg", "--discontinuous", "-no-dg",
                   "--no-discontinuous", "Enable DG elements for fluxes.");
@@ -166,7 +169,8 @@ int main(int argc, char *argv[])
                   "5=boundary layer\n\t\t"
                   "6=steady peak\n\t\t"
                   "7=steady varying angle\n\t\t"
-                  "8=Sovinec\n\t\t");
+                  "8=Sovinec\n\t\t"
+                  "9=Umansky\n\t\t");
    args.AddOption(&tf, "-tf", "--time-final",
                   "Final time.");
    args.AddOption(&nt, "-nt", "--ntimesteps",
@@ -245,6 +249,7 @@ int main(int argc, char *argv[])
       case Problem::SteadyPeak:
       case Problem::SteadyVaryingAngle:
       case Problem::Sovinec:
+      case Problem::Umansky:
          break;
       case Problem::MFEMLogo:
          bconv = true;
@@ -292,9 +297,9 @@ int main(int argc, char *argv[])
    // 3. Read the mesh from the given mesh file. We can handle triangular,
    //    quadrilateral, tetrahedral, hexahedral, surface and volume meshes with
    //    the same code.
-   if (ny <= 0)
+   if (pars.ny <= 0)
    {
-      ny = nx;
+      pars.ny = pars.nx;
    }
 
    Mesh *mesh = NULL;
@@ -304,8 +309,9 @@ int main(int argc, char *argv[])
    }
    else
    {
-      mesh = new Mesh(Mesh::MakeCartesian2D(nx, ny, Element::QUADRILATERAL, false,
-                                            sx, sy));
+      mesh = new Mesh(Mesh::MakeCartesian2D(pars.nx, pars.ny,
+                                            Element::QUADRILATERAL, false,
+                                            pars.sx, pars.sy));
    }
 
    int dim = mesh->Dimension();
@@ -337,6 +343,11 @@ int main(int argc, char *argv[])
          break;
       case Problem::SteadyVaryingAngle:
          bdr_is_dirichlet = -1;
+         break;
+      case Problem::Umansky:
+         bdr_is_dirichlet[0] = -1;
+         bdr_is_dirichlet[1] = -1;
+         break;
    }
 
    // 4. Refine the mesh to increase the resolution. In this example we do
@@ -1080,6 +1091,8 @@ MatFunc GetKFun(Problem prob, const ProblemParams &params)
    const real_t &k = params.k;
    const real_t &ks = params.ks;
    const real_t &ka = params.ka;
+   const real_t &sx = params.sx;
+   const real_t &sy = params.sy;
 
    switch (prob)
    {
@@ -1188,6 +1201,21 @@ MatFunc GetKFun(Problem prob, const ProblemParams &params)
                AddMult_a_VVt((1. - ks) * k, b, kappa);
             }
          };
+      case Problem::Umansky:
+         return [=](const Vector &x, DenseMatrix &kappa)
+         {
+            const int ndim = x.Size();
+            Vector b(ndim);
+            const real_t s = hypot(sx, sy);
+            b(0) = +sx / s;
+            b(1) = +sy / s;
+
+            kappa.Diag(ks * k, ndim);
+            if (ks != 1.)
+            {
+               AddMult_a_VVt((1. - ks) * k, b, kappa);
+            }
+         };
    }
    return MatFunc();
 }
@@ -1199,6 +1227,11 @@ TFunc GetTFun(Problem prob, const ProblemParams &params)
    //const real_t &ka = params.ka;
    const real_t &t_0 = params.t_0;
    const real_t &a = params.a;
+   const real_t &sx = params.sx;
+   const real_t &sy = params.sy;
+   const real_t hx = sx / params.nx;
+   const real_t hy = sy / params.ny;
+   const real_t &order = params.order;
 
    auto kFun = GetKFun(prob, params);
 
@@ -1377,7 +1410,41 @@ TFunc GetTFun(Problem prob, const ProblemParams &params)
             const real_t psi = cos(M_PI * dx(0)) * cos(M_PI * dx(1));
             return psi / kappa_perp;
          };
-
+      case Problem::Umansky:
+         // M. V. Umansky, M. S. Day and T. D. Rognlien, On Numerical Solution
+         // of Strongly Anisotropic Diffusion Equation on Misaligned Grids,
+         // Numerical Heat Transfer, Part B: Fundamentals, 47(6), pp. 533-554
+         // (2005).
+         // Adopted from plasma-dev:miniapps/plasma/transport2d.cpp
+         return [=](const Vector &x, real_t t) -> real_t
+         {
+            if (x(0) < hx && x(1) < hy)
+            {
+               return 0.5 * (1.0 -
+                             std::pow(1.0 - x(0) / hx, order) +
+                             std::pow(1.0 - x(1) / hy, order));
+            }
+            else if (x(0) > sx - hx && x(1) > sy - hy)
+            {
+               return 0.5 * (1.0 +
+                             std::pow(1.0 - (sx - x(0)) / hx, order) -
+                             std::pow(1.0 - (sy - x(1)) / hy, order));
+            }
+            // else if (x_[0] > Lx_ - hx_ || x_[1] < hy_)
+            else if (hx * (x(1) + hy) < hy * x(0))
+            {
+               return 1.0;
+            }
+            // else if (x_[0] < hx_ || x_[1] > Ly_ - hy_)
+            else if (hx * x(1) > hy * (x(0) + hx))
+            {
+               return 0.0;
+            }
+            else
+            {
+               return 0.5 * (1.0 + std::tanh(M_LN10 * (x(0) / hx - x(1) / hy)));
+            }
+         };
    }
    return TFunc();
 }
@@ -1428,6 +1495,7 @@ VecTFunc GetQFun(Problem prob, const ProblemParams &params)
       case Problem::DiffusionRing:
       case Problem::DiffusionRingGauss:
       case Problem::Sovinec:
+      case Problem::Umansky:
          return [=](const Vector &x, real_t, Vector &v)
          {
             const int vdim = x.Size();
@@ -1502,6 +1570,7 @@ VecFunc GetCFun(Problem prob, const ProblemParams &params)
       case Problem::SteadyPeak:
       case Problem::SteadyVaryingAngle:
       case Problem::Sovinec:
+      case Problem::Umansky:
          // null
          break;
       case Problem::MFEMLogo:
@@ -1561,6 +1630,7 @@ TFunc GetFFun(Problem prob, const ProblemParams &params)
             return -((a > 0.)?(a):(1.)) * T;
          };
       case Problem::BoundaryLayer:
+      case Problem::Umansky:
          return [=](const Vector &x, real_t) -> real_t
          {
             return 0.;
@@ -1612,6 +1682,7 @@ FluxFunction* GetFluxFun(Problem prob, VectorCoefficient &ccoef)
       case Problem::SteadyPeak:
       case Problem::SteadyVaryingAngle:
       case Problem::Sovinec:
+      case Problem::Umansky:
          //null
          break;
    }
@@ -1634,6 +1705,7 @@ MixedFluxFunction* GetHeatFluxFun(Problem prob, const ProblemParams &params,
       case Problem::SteadyPeak:
       case Problem::SteadyVaryingAngle:
       case Problem::Sovinec:
+      case Problem::Umansky:
          static MatrixFunctionCoefficient kappa(dim, KFun);
          static InverseMatrixCoefficient ikappa(kappa);
          return new LinearDiffusionFlux(ikappa);
