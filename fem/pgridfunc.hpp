@@ -581,6 +581,14 @@ public:
                     GridFunction &flux,
                     bool wcoef = true, int subdomain = -1) override;
 
+   /// Computes the PLBound for the gridfunction with number of control
+   /// points based on @a ref_factor, and returns the bounds for each
+   /// vdim across all elements in @b lower and @b upper. We also return the
+   /// PLBound object used to compute the bounds. Note: if vdim < 1, we compute
+   /// the bounds for each vector dimension.
+   PLBound GetBounds(Vector &lower, Vector &upper,
+                     const int ref_factor=1, const int vdim=-1) override;
+
    /** Save the local portion of the ParGridFunction. This differs from the
        serial GridFunction::Save in that it takes into account the signs of
        the local dofs. */

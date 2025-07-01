@@ -253,6 +253,23 @@ void AttrToMarker(int max_attr, const Array<int> &attrs, Array<int> &marker)
    }
 }
 
+void AffineTransformation::Eval(Vector &V, ElementTransformation &T,
+                                const IntegrationPoint &ip)
+{
+   V = 0.0;
+   T.Transform(ip, x);
+
+   if (A.Height() == vdim)
+   {
+      A.Mult(x, V);
+   }
+
+   if (b.Size() == vdim)
+   {
+      V.Add(1.0, b);
+   }
+}
+
 void KershawTransformation::Eval(Vector &V, ElementTransformation &T,
                                  const IntegrationPoint &ip)
 {
