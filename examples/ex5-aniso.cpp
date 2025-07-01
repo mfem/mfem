@@ -97,6 +97,8 @@ FluxFunction* GetFluxFun(Problem prob, VectorCoefficient &ccoeff);
 MixedFluxFunction* GetHeatFluxFun(Problem prob, const ProblemParams &params,
                                   int dim);
 
+real_t UmanskyTestWidth(const GridFunction &u);
+
 int main(int argc, char *argv[])
 {
    StopWatch chrono;
@@ -887,6 +889,11 @@ int main(int argc, char *argv[])
       }
       else
       {
+         if (problem == Problem::Umansky)
+         {
+            const real_t w = UmanskyTestWidth(t_h);
+            cout << "Umansky width: " << w << "\n";
+         }
          cout << "|| q_h - q_ex || / || q_ex || = " << err_q / norm_q << "\n";
          cout << "|| t_h - t_ex || / || t_ex || = " << err_t / norm_t << "\n";
       }
@@ -1712,4 +1719,86 @@ MixedFluxFunction* GetHeatFluxFun(Problem prob, const ProblemParams &params,
    }
 
    return NULL;
+}
+
+real_t FindYVal(const GridFunction &u, real_t u_target, real_t x,
+                real_t y0, real_t y1)
+{
+   // Adopted from plasma-dev:miniapps/plasma/transport2d.cpp
+   Mesh *mesh = u.FESpace()->GetMesh();
+
+   Array<int> elem;
+   Array<IntegrationPoint> ips;
+   DenseMatrix point_mat(2, 1);
+   point_mat(0,0) = x;
+
+   real_t tol = 1e-5;
+
+   real_t a = y0;
+   real_t b = y1;
+
+   real_t ua = 1.0 - u_target;
+   //real_t ub = 0.0 - u_target;
+   real_t uc = 0.5 - u_target;
+
+   const int nmax = 20;
+   int n = 0;
+   while (n < nmax)
+   {
+      real_t c = 0.5 * (a + b);
+
+      point_mat(1,0) = c;
+      int nfound = mesh->FindPoints(point_mat, elem, ips);
+
+      if (nfound != 1)
+      {
+         MFEM_ABORT("Point (" << x << ", " << c << ") not found");
+      }
+
+      if (elem[0] >= 0)
+      {
+         uc = u.GetValue(elem[0], ips[0]) - u_target;
+      }
+      else
+      {
+         uc = -DBL_MAX;
+      }
+
+      if (std::abs(uc) < tol || 0.5 * (b - a) < tol)
+      {
+         return c;
+      }
+
+      if (ua * uc < 0.0)
+      {
+         b = c;
+         //ub = uc;
+      }
+      else
+      {
+         a = c;
+         ua = uc;
+      }
+
+      n++;
+   }
+   return -1.0;
+}
+
+real_t UmanskyTestWidth(const GridFunction &u)
+{
+   // Adopted from plasma-dev:miniapps/plasma/transport2d.cpp
+   Mesh *mesh = u.FESpace()->GetMesh();
+
+   Vector min, max;
+   mesh->GetBoundingBox(min,max);
+
+   double xMid = 0.5 * (max[0] + min[0]);
+   double y0 = min[1];
+   double y1 = max[1];
+
+   double y25 = FindYVal(u, 0.25, xMid, y0, y1);
+   double y75 = FindYVal(u, 0.75, xMid, y0, y1);
+
+   return y25 - y75;
 }
