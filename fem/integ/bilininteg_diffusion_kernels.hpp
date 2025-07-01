@@ -804,6 +804,225 @@ inline void SmemPADiffusionApply2D(const int NE,
    });
 }
 
+/* This function computes the action of the diffusion integrator for the Bernstein basis on triangles.
+   The key components are an O(p^{d+1}) routine for evaluating the Bernstein polynomial
+   \sum_{\alpha} c_{\alpha} B_{\alpha}^{p}(x) simultaneously at all quadrature points x
+   (stored in the array C2 and roughly corresponding to Algorithm 1 of [1])and an O(p^{d+1})
+   routine for evaluating the Bernstein moments \int_{K} f(x) * B_{\alpha}^{p}(x) dx for all
+   \alpha (stored in the array F2 and roughly corresponding to Algorithm 3 of [1]).
+
+   [1] Ainsworth, M., Andriamaro, G., & Davydov, O. (2011). Bernstein–Bézier finite elements
+       of arbitrary order and optimal assembly procedures. SIAM Journal on Scientific Computing,
+       33(6), 3087-3109.
+   */
+template<int T_D1D = 0, int T_Q1D = 0>
+inline void PADiffusionApplyTriangle(const int NE,
+                                     const bool symmetric,
+                                     const Array<int> &lex_map_,
+                                     const Array<real_t> &ga1_,
+                                     const Array<real_t> &ga2_,
+                                     const Vector &d_,
+                                     const Vector &x_,
+                                     Vector &y_,
+                                     const int d1d = 0,
+                                     const int q1d = 0)
+{
+   const int D1D = T_D1D ? T_D1D : d1d;
+   const int Q1D = T_Q1D ? T_Q1D : q1d;
+   const int BASIS_DIM = D1D * (D1D+1) / 2;
+   MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
+   MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
+   const auto lex_map = lex_map_.Read();
+   const auto Ga1 = ConstDeviceMatrix(ga1_.Read(), Q1D, D1D-1);
+   const auto Ga2 = ConstDeviceCube(ga2_.Read(), Q1D, D1D-1, D1D-1);
+   const auto D = Reshape(d_.Read(), Q1D, Q1D, symmetric ? 3 : 4, NE);
+   const auto X = Reshape(x_.Read(), BASIS_DIM, NE);
+   auto Y = Reshape(y_.ReadWrite(), BASIS_DIM, NE);
+
+   int p2 = (D1D-1) * (D1D-1);
+
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
+   {
+      const int D1D = T_D1D ? T_D1D : d1d;
+      const int Q1D = T_Q1D ? T_Q1D : q1d;
+      // the following variables are evaluated at compile time
+      constexpr int max_D1D = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
+      constexpr int max_Q1D = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
+
+      for (int idx = 0; idx < BASIS_DIM; idx++)
+      {
+         Y(idx, e) = 0.0;
+      }
+
+      // should be using stack memory here like quad version, but this seems faster...
+      real_t *cin = new real_t[2 * (D1D-1) * (D1D-1)] {0};
+      real_t *C1 = new real_t[2 * (D1D-1) * Q1D] {0};
+      real_t *C2 = new real_t[2 * Q1D * Q1D] {0};
+
+      // cin contains the vector coefficient
+      //    cin_{\beta} = \sum_{k=1}^{3} \nabla\lambda_{k} * X_{\beta + e_{k}},
+      // where \lambda_{k} are the standard barycentric coordinates and e_{k}
+      // is the unit vector with nonzero value in entry k. C2 will contain the
+      // value of the Bernstein polynomial
+      //    \sum_{\beta} cin_{\beta} * B_{\beta}^{p-1}(\Phi(t1,t2)),
+      // where \Phi is the Duffy transform and (t1,t2) is a Stroud quadrature node
+      // in the unit square.
+      for (int dy = 0; dy < D1D-1; ++dy)
+      {
+         for (int dx = 0; dx < D1D-dy-1; ++dx)
+         {
+            // k=0, component 0
+            int idx = lex_map[dx + D1D*(dy+1)];
+            const int dydx = 2*(dy + (D1D-1)*dx);
+            cin[dydx] += X(idx, e);
+
+            // // k=1, component 0
+            // idx = lex_map[(dx+1) + D1D*dy];
+            // cin[0 + 2*(dy + (D1D-1)*dx)] += X(idx, e) * 0.0;
+
+            // k=2, component 0
+            idx = lex_map[dx + D1D*dy];
+            cin[dydx] -= X(idx, e);
+
+            // // k=0, component 1
+            // idx = lex_map[dx + D1D*(dy+1)];
+            // cin[1 + 2*(dy + (D1D-1)*dx)] += X(idx, e) * 0.0;
+
+            // k=1, component 1
+            idx = lex_map[(dx+1) + D1D*dy];
+            cin[1 + dydx] += X(idx, e);
+
+            // k=2, component 1
+            idx = lex_map[dx + D1D*dy];
+            cin[1 + dydx] -= X(idx, e);
+         }
+      }
+
+      // C1 contains the Bernstein polynomial on a triangle evaluated at the quadrature
+      // point in the first spatial dimension
+      for (int iL = 0; iL < Q1D; iL++)
+      {
+         for (int a1 = 0; a1 < D1D-1; a1++)
+         {
+            const int a1iL2 = 2*(iL + Q1D*a1);
+            for (int aL = 0; aL < D1D-a1-1; aL++)
+            {
+               const int a1aL2 = 2*(a1 + (D1D-1)*aL);
+               const real_t Gai = Ga2(iL, a1, aL);
+               C1[a1iL2] += cin[a1aL2] * Gai;
+               C1[1 + a1iL2] += cin[1 + a1aL2] * Gai;
+            }
+         }
+      }
+
+      // C2 contains the Bernstein polynomial on a triangle with coefficients cin evaluated at
+      // all of the Stroud quadrature nodes. E.g. if (t1,t2) is a Stroud node, then
+      //    C2[i,j] = \sum_{\alpha} cin_{\alpha} * B_{\alpha}^{p-1}(\Phi(t1,t2)),
+      // where \Phi is the Duffy transform.
+      for (int iL = 0; iL < Q1D; iL++)
+      {
+         for (int aL = 0; aL < D1D-1; aL++)
+         {
+            const real_t Gai = Ga1(iL, aL);
+            for (int i2 = 0; i2 < Q1D; i2++)
+            {
+               const int i2iL2 = 2*(i2 + Q1D*iL);
+               const int i2aL2 = 2*(i2 + Q1D*aL);
+               C2[i2iL2] += C1[i2aL2] * Gai;
+               C2[1 + i2iL2] += C1[1 + i2aL2] * Gai;
+            }
+         }
+      }
+
+      // now evaluate the Bernstein moments
+      real_t *fin = new real_t[2 * Q1D * Q1D];
+      real_t *F1 = new real_t[2 * (D1D-1) * Q1D] {0};
+      real_t *F2 = new real_t[2 * (D1D-1) * (D1D-1)] {0};
+
+      // fin contains (B_{K})^{-1} * D(x) * (B_{K})^{-T} * C2(x). the result stored in F2
+      // will be all Bernstein moments
+      //    \int_{K} B_{\alpha}^{p-1}(x) * fin(x) dx.
+      for (int qy = 0; qy < Q1D; ++qy)
+      {
+         for (int qx = 0; qx < Q1D; ++qx)
+         {
+            const real_t O11 = D(qy, qx, 0, e);
+            const real_t O21 = D(qy, qx, 1, e);
+            const real_t O12 = symmetric ? O21 : D(qy, qx, 2, e);
+            const real_t O22 = symmetric ? D(qy, qx, 2, e) : D(qy, qx, 3, e);
+
+            const int qxqy2 = 2*(qx + Q1D*qy);
+            fin[qxqy2] = O11 * C2[qxqy2] + O12 * C2[1 + qxqy2];
+            fin[1 + qxqy2] = O21 * C2[qxqy2] + O22 * C2[1 + qxqy2];
+         }
+      }
+
+
+      // F1 computes the Bernstein moment over the first ragged tensor dimension.
+      for (int iL = 0; iL < Q1D; iL++)
+      {
+         for (int aL = 0; aL < D1D-1; aL++)
+         {
+            const real_t Gai = Ga1(iL, aL);
+            for (int i2 = 0; i2 < Q1D; i2++)
+            {
+               const int i2iL2 = 2*(i2 + Q1D*iL);
+               const int i2aL2 = 2*(i2 + Q1D*aL);
+               F1[i2aL2] += fin[i2iL2] * Gai;
+               F1[1 + i2aL2] += fin[1 + i2iL2] * Gai;
+            }
+         }
+      }
+
+      // F2 computes the Bernstein moment over the second/last ragged tensor dimension.
+      for (int iL = 0; iL < Q1D; iL++)
+      {
+         for (int a1 = 0; a1 < D1D-1; a1++)
+         {
+            const int a1iL2 = 2*(iL + Q1D*a1);
+            for (int aL = 0; aL < D1D-a1-1; aL++)
+            {
+               const int a1aL2 = 2*(aL + (D1D-1)*a1);
+               const real_t Gai = Ga2(iL, a1, aL);
+               F2[a1aL2] += F1[a1iL2] * Gai;
+               F2[1 + a1aL2] += F1[1 + a1iL2] * Gai;
+            }
+         }
+      }
+
+      // compute contributions to local RHS. we have
+      //       Y_{\alpha + e_{k}} = p^{2} * \nabla\lambda_{k} * F2_{\alpha}
+      // where \lambda_{k} is the kth barycentric coordinate and
+      // e_{k} is the unit vector with nonzero entry k, for k=1,2,3.
+      for (int a1 = 0; a1 < D1D-1; ++a1)
+      {
+         for (int a2 = 0; a2 < D1D-a1-1; ++a2)
+         {
+            // k=0
+            int idx = lex_map[a2 + D1D*(a1+1)];
+            const int a2a1 = 2*(a2 + (D1D-1)*a1);
+            Y(idx,e) += p2 * F2[a2a1];
+
+            // k=1
+            idx = lex_map[(a2+1) + D1D*a1];
+            Y(idx,e) += p2 * F2[1 + a2a1];
+
+            // k=2
+            idx = lex_map[a2 + D1D*a1];
+            Y(idx,e) -= p2 * (F2[a2a1] + F2[1 + a2a1]);
+         }
+      }
+
+      delete[] cin;
+      delete[] C1;
+      delete[] C2;
+      delete[] fin;
+      delete[] F1;
+      delete[] F2;
+   });
+
+}
+
 // PA Diffusion Apply 3D kernel
 template<int T_D1D = 0, int T_Q1D = 0>
 inline void PADiffusionApply3D(const int NE,
@@ -1227,6 +1446,7 @@ inline void SmemPADiffusionApply3D(const int NE,
 namespace
 {
 using ApplyKernelType = DiffusionIntegrator::ApplyKernelType;
+using ApplySimplexKernelType = DiffusionIntegrator::ApplySimplexKernelType;
 using DiagonalKernelType = DiffusionIntegrator::DiagonalKernelType;
 }
 
@@ -1243,6 +1463,21 @@ ApplyKernelType DiffusionIntegrator::ApplyPAKernels::Fallback(int DIM, int, int)
 {
    if (DIM == 2) { return internal::PADiffusionApply2D; }
    else if (DIM == 3) { return internal::PADiffusionApply3D; }
+   else { MFEM_ABORT(""); }
+}
+
+template<int DIM, int T_D1D, int T_Q1D>
+ApplySimplexKernelType DiffusionIntegrator::ApplySimplexPAKernels::Kernel()
+{
+   if (DIM == 2) { return internal::PADiffusionApplyTriangle<T_D1D,T_Q1D>; }
+   else { MFEM_ABORT(""); }
+}
+
+inline
+ApplySimplexKernelType DiffusionIntegrator::ApplySimplexPAKernels::Fallback(
+   int DIM, int, int)
+{
+   if (DIM == 2) { return internal::PADiffusionApplyTriangle; }
    else { MFEM_ABORT(""); }
 }
 
