@@ -270,6 +270,9 @@ public:
    /// applying this rule on each knot interval.
    IntegrationRule* ApplyToKnotIntervals(KnotVector const& kv) const;
 
+   /// Duffy Transformation of 2D and 3D tensor product rule
+   const IntegrationRule DuffyTrans(int dim) const;
+
    /// Destroys an IntegrationRule object
    ~IntegrationRule() { }
 };
@@ -379,6 +382,8 @@ public:
        These methods calculate the actual points and weights for the different
        types of quadrature rules. */
    ///@{
+   static void GaussJacobi(const int np, const real_t alpha, const real_t beta,
+                           IntegrationRule* ir);
    static void GaussLegendre(const int np, IntegrationRule* ir);
    static void GaussLobatto(const int np, IntegrationRule *ir);
    static void OpenUniform(const int np, IntegrationRule *ir);
@@ -407,7 +412,8 @@ public:
       OpenUniform     = 2,  ///< aka open Newton-Cotes
       ClosedUniform   = 3,  ///< aka closed Newton-Cotes
       OpenHalfUniform = 4,  ///< aka "open half" Newton-Cotes
-      ClosedGL        = 5   ///< aka closed Gauss Legendre
+      ClosedGL        = 5,  ///< aka closed Gauss Legendre
+      GaussJacobi     = 6
    };
    /** @brief If the Quadrature1D type is not closed return Invalid; otherwise
        return type. */
@@ -430,7 +436,11 @@ private:
 
    Array<IntegrationRule *> PointIntRules;
    Array<IntegrationRule *> SegmentIntRules;
+   Array<IntegrationRule *> SegmentStroud1IntRules;
+   Array<IntegrationRule *> SegmentStroud2IntRules;
+   Array<IntegrationRule *> SegmentStroud3IntRules;
    Array<IntegrationRule *> TriangleIntRules;
+   Array<IntegrationRule *> TriangleStroudIntRules;
    Array<IntegrationRule *> SquareIntRules;
    Array<IntegrationRule *> TetrahedronIntRules;
    Array<IntegrationRule *> PyramidIntRules;
@@ -461,10 +471,19 @@ private:
    /// The following methods allocate new IntegrationRule objects without
    /// checking if they already exist.  To avoid memory leaks use
    /// IntegrationRules::Get(int GeomType, int Order) instead.
-   IntegrationRule *GenerateIntegrationRule(int GeomType, int Order);
+   IntegrationRule *GenerateIntegrationRule(int GeomType, int Order,
+                                            int StroudFlag=0);
    IntegrationRule *PointIntegrationRule(int Order);
-   IntegrationRule *SegmentIntegrationRule(int Order);
+   IntegrationRule *SegmentIntegrationRule(int Order, real_t alpha=0,
+                                           real_t beta=0);
+   IntegrationRule *SegmentStroud1IntegrationRule(int Order, real_t alpha=0,
+                                                  real_t beta=0);
+   IntegrationRule *SegmentStroud2IntegrationRule(int Order, real_t alpha=1,
+                                                  real_t beta=0);
+   IntegrationRule *SegmentStroud3IntegrationRule(int Order, real_t alpha=2,
+                                                  real_t beta=0);
    IntegrationRule *TriangleIntegrationRule(int Order);
+   IntegrationRule *TriangleStroudIntegrationRule(int Order);
    IntegrationRule *SquareIntegrationRule(int Order);
    IntegrationRule *TetrahedronIntegrationRule(int Order);
    IntegrationRule *PyramidIntegrationRule(int Order);
@@ -478,9 +497,9 @@ public:
                              int type = Quadrature1D::GaussLegendre);
 
    /// Returns an integration rule for given GeomType and Order.
-   const IntegrationRule &Get(int GeomType, int Order);
+   const IntegrationRule &Get(int GeomType, int Order, int StroudFlag=0);
 
-   void Set(int GeomType, int Order, IntegrationRule &IntRule);
+   void Set(int GeomType, int Order, IntegrationRule &IntRule, int StroudFlag=0);
 
    void SetOwnRules(int o) { own_rules = o; }
 

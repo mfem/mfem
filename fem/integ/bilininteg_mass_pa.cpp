@@ -31,7 +31,9 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
    Mesh *mesh = fes.GetMesh();
    const FiniteElement &el = *fes.GetTypicalFE();
    ElementTransformation *T0 = mesh->GetTypicalElementTransformation();
-   const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, el, *T0);
+   int StroudFlag = fes.IsBernsteinSimplexSpace() ? 1 : 0;
+   const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, el, *T0,
+                                                            StroudFlag);
    if (DeviceCanUseCeed())
    {
       delete ceedOp;
@@ -52,30 +54,38 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
    ne = fes.GetMesh()->GetNE();
    nq = ir->GetNPoints();
    geom = mesh->GetGeometricFactors(*ir, GeometricFactors::DETERMINANTS, mt);
-   maps = &el.GetDofToQuad(*ir, DofToQuad::TENSOR);
+   maps = &el.GetDofToQuad(*ir,
+                           StroudFlag ? DofToQuad::RAGGED_TENSOR : DofToQuad::TENSOR);
    dofs1D = maps->ndof;
    quad1D = maps->nqpt;
    pa_data.SetSize(ne*nq, mt);
 
-   QuadratureSpace qs(*mesh, *ir);
+   // if using triangular mesh and Bernstein basis, the quadrature rule in the
+   // Stroud conical quadrature rule defined in the unit square (contained in ir object)
+   // mapped to the reference triangle using the Duffy transformation
+   const IntegrationRule ir_in = StroudFlag ? (ir->DuffyTrans(dim)) : *ir;
+   QuadratureSpace qs(*mesh, ir_in);
    CoefficientVector coeff(Q, qs, CoefficientStorage::COMPRESSED);
+
+   const int NE = ne;
+   const int Q1D = quad1D;
+   const int NQ = pow(Q1D, dim);
+   const bool const_c = coeff.Size() == 1;
+   const bool by_val = map_type == FiniteElement::VALUE;
+   const auto W = Reshape(ir->GetWeights().Read(), NQ);
+   const auto J = Reshape(geom->detJ.Read(), NQ, NE);
+   const auto C = const_c ? Reshape(coeff.Read(), 1, 1) :
+                  Reshape(coeff.Read(), NQ,NE);
+   auto v = Reshape(pa_data.Write(), NQ, NE);
+   mfem::forall_2D(NE, NQ, 1, [=] MFEM_HOST_DEVICE (int e)
    {
-      const int NE = ne;
-      const int NQ = nq;
-      const bool const_c = coeff.Size() == 1;
-      const bool by_val = map_type == FiniteElement::VALUE;
-      const auto W = Reshape(ir->GetWeights().Read(), NQ);
-      const auto J = Reshape(geom->detJ.Read(), NQ, NE);
-      const auto C =
-         const_c ? Reshape(coeff.Read(), 1, 1) : Reshape(coeff.Read(), NQ, NE);
-      auto v = Reshape(pa_data.Write(), NQ, NE);
-      mfem::forall(NQ, NE, [=] MFEM_HOST_DEVICE(int q, int e)
+      MFEM_FOREACH_THREAD(i, x, NQ)
       {
-         const real_t detJ = J(q, e);
-         const real_t coeff = const_c ? C(0, 0) : C(q, e);
-         v(q, e) = W(q) * coeff * (by_val ? detJ : 1.0 / detJ);
-      });
-   }
+         const real_t detJ = J(i,e);
+         const real_t coeff = const_c ? C(0,0) : C(i,e);
+         v(i,e) = W(i) * coeff * (by_val ? detJ : 1.0/detJ);
+      }
+   });
 }
 
 void MassIntegrator::AssemblePABoundary(const FiniteElementSpace &fes)
@@ -147,8 +157,6 @@ void MassIntegrator::AddMultPA(const Vector &x, Vector &y) const
    {
       const int D1D = dofs1D;
       const int Q1D = quad1D;
-      const Array<real_t> &B = maps->B;
-      const Array<real_t> &Bt = maps->Bt;
       const Vector &D = pa_data;
 #ifdef MFEM_USE_OCCA
       if (DeviceCanUseOcca())
@@ -164,7 +172,35 @@ void MassIntegrator::AddMultPA(const Vector &x, Vector &y) const
          MFEM_ABORT("OCCA PA Mass Apply unknown kernel!");
       }
 #endif // MFEM_USE_OCCA
-      ApplyPAKernels::Run(dim, D1D, Q1D, ne, B, Bt, D, x, y, D1D, Q1D);
+
+      if (fespace->IsBernsteinSimplexSpace())
+      {
+         const Array<real_t> &Ba1 = maps->Ba1;
+         const Array<real_t> &Ba2 = maps->Ba2;
+         const Array<int> &lex_map = maps->lex_map;
+         ApplySimplexPAKernels::Run(dim, D1D, Q1D, ne, lex_map, Ba1, Ba2, D, x, y, D1D,
+                                    Q1D);
+      }
+      else
+      {
+         const Array<real_t> &B = maps->B;
+         const Array<real_t> &Bt = maps->Bt;
+#ifdef MFEM_USE_OCCA
+         if (DeviceCanUseOcca())
+         {
+            if (dim == 2)
+            {
+               return internal::OccaPAMassApply2D(D1D,Q1D,ne,B,Bt,D,x,y);
+            }
+            if (dim == 3)
+            {
+               return internal::OccaPAMassApply3D(D1D,Q1D,ne,B,Bt,D,x,y);
+            }
+            MFEM_ABORT("OCCA PA Mass Apply unknown kernel!");
+         }
+#endif // MFEM_USE_OCCA
+         ApplyPAKernels::Run(dim, D1D, Q1D, ne, B, Bt, D, x, y, D1D, Q1D);
+      }
    }
 }
 

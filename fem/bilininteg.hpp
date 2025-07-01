@@ -2184,11 +2184,18 @@ public:
                                    const Vector&, const Vector&,
                                    Vector&, const int, const int);
 
+   using ApplySimplexKernelType = void(*)(const int, const bool, const Array<int>&,
+                                          const Array<real_t>&,
+                                          const Array<real_t>&, const Vector&, const Vector&,
+                                          Vector&, const int, const int);
+
    using DiagonalKernelType = void(*)(const int, const bool, const Array<real_t>&,
                                       const Array<real_t>&, const Vector&, Vector&,
                                       const int, const int);
 
    MFEM_REGISTER_KERNELS(ApplyPAKernels, ApplyKernelType, (int, int, int));
+   MFEM_REGISTER_KERNELS(ApplySimplexPAKernels, ApplySimplexKernelType, (int, int,
+                                                                         int));
    MFEM_REGISTER_KERNELS(DiagonalPAKernels, DiagonalKernelType, (int, int, int));
    struct Kernels { Kernels(); };
 
@@ -2341,7 +2348,8 @@ public:
    void AddMultPatchPA(const int patch, const Vector &x, Vector &y) const;
 
    static const IntegrationRule &GetRule(const FiniteElement &trial_fe,
-                                         const FiniteElement &test_fe);
+                                         const FiniteElement &test_fe,
+                                         const int StroudFlag = 0);
 
    bool SupportsCeed() const override { return DeviceCanUseCeed(); }
 
@@ -2388,11 +2396,18 @@ public:
                                    const Array<real_t>&, const Vector&,
                                    const Vector&, Vector&, const int, const int);
 
+   using ApplySimplexKernelType = void(*)(const int, const Array<int>&,
+                                          const Array<real_t>&,
+                                          const Array<real_t>&, const Vector&,
+                                          const Vector&, Vector&, const int, const int);
+
    using DiagonalKernelType =  void(*)(const int, const Array<real_t>&,
                                        const Vector&, Vector&, const int,
                                        const int);
 
    MFEM_REGISTER_KERNELS(ApplyPAKernels, ApplyKernelType, (int, int, int));
+   MFEM_REGISTER_KERNELS(ApplySimplexPAKernels, ApplySimplexKernelType, (int, int,
+                                                                         int));
    MFEM_REGISTER_KERNELS(DiagonalPAKernels, DiagonalKernelType, (int, int, int));
    struct Kernels { Kernels(); };
 
@@ -2441,7 +2456,8 @@ public:
 
    static const IntegrationRule &GetRule(const FiniteElement &trial_fe,
                                          const FiniteElement &test_fe,
-                                         const ElementTransformation &Trans);
+                                         const ElementTransformation &Trans,
+                                         const int StroudFlag = 0);
 
    bool SupportsCeed() const override { return DeviceCanUseCeed(); }
 
