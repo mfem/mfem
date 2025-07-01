@@ -65,10 +65,10 @@ int main(int argc, char *argv[])
    args.AddOption(&dim, "-dim", "--dim", "Mesh dimension (2 or 3)");
    args.AddOption(&deterministic, "-det", "--deterministic", "-not-det",
                   "--not-deterministic",
-                  "Whether to use deterministic random refinements");
+                  "Use deterministic random refinements");
    args.AddOption(&projectSolution, "-proj", "--project-solution", "-no-proj",
                   "--no-project",
-                  "Whether to project a coefficient to solution");
+                  "Project a coefficient to solution");
 
    args.Parse();
    if (!args.Good())
