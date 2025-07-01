@@ -195,9 +195,15 @@ public:
    /// (^Maybe instead we have two args: one is an array of particle IDs and one of rank list? Idk)
    void Redistribute(const Array<unsigned int> &rank_list);
    
+   MPI_Comm GetComm() const { return comm; };
+   
 #endif // MFEM_USE_MPI && MFEM_USE_GSLIB
 
-
+   int GetSpaceDim() const { return SpaceDim; }
+   int GetNumScalars() const { return NumScalars; }
+   int GetNumVectors() const { return VectorVDims.Size(); }
+   int GetVDim(int v) const { return VectorVDims[v]; }
+   const Array<int> GetVectorVDims() const { return VectorVDims; }
 
    /// Reserve room for \p res particles. Can help to avoid re-allocation for adding + removing particles.
    void Reserve(int res) { data.reserve(res*TotalComps); ids.Reserve(res); }

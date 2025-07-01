@@ -79,8 +79,6 @@ using namespace mfem::electromagnetics;
 
 typedef DataCollection::FieldMapType fields_t;
 
-// 3D particle, 2 scalars of mass and charge, 3 vectors of size 3 for momentum, electric field, and magnetic field
-using ChargedParticle = Particle<3,2,3,3,3>;
 enum Scalars
 {
    MASS=0,
@@ -93,8 +91,6 @@ enum Vectors
    BFIELD=2
 };
 
-using ChargedParticleSet = ParticleSet<ChargedParticle, Ordering::byVDIM>;
-
 /// This class implements the Boris algorithm as described in the
 /// article `Why is Boris algorithm so good?` by H. Qin et al in
 /// Physics of Plasmas, Volume 20 Issue 8, August 2013,
@@ -103,13 +99,13 @@ class BorisAlgorithm
 {
 private:
 
-   FindPointsGSLIB  E_finder_;
-   ParMesh         *E_pmesh_;
-   ParGridFunction *E_field_;
+   FindPointsGSLIB E_finder;
+   ParMesh *E_pmesh;
+   ParGridFunction *E_field;
 
-   FindPointsGSLIB  B_finder_;
-   ParMesh         *B_pmesh_;
-   ParGridFunction *B_field_;
+   FindPointsGSLIB  B_finder;
+   ParMesh *B_pmesh;
+   ParGridFunction *B_field;
 
    mutable Vector pxB_;
    mutable Vector pm_;
@@ -128,26 +124,62 @@ public:
    BorisAlgorithm(ParGridFunction *E_gf,
                   ParGridFunction *B_gf,
                   MPI_Comm comm)
-      : E_finder_(comm), B_finder_(comm),
-        E_field_(E_gf), B_field_(B_gf),
+      : E_finder(comm), B_finder(comm),
+        E_field(E_gf), B_field(B_gf),
         pxB_(3), pm_(3), pp_(3)
    {
-      E_pmesh_ = (E_field_) ? E_field_->ParFESpace()->GetParMesh() : NULL;
-      if (E_pmesh_)
+      E_pmesh = (E_field) ? E_field->ParFESpace()->GetParMesh() : nullptr;
+      if (E_pmesh)
       {
-         E_pmesh_->EnsureNodes();
-         E_finder_.Setup(*E_pmesh_);
+         E_pmesh->EnsureNodes();
+         E_finder.Setup(*E_pmesh);
       }
-      B_pmesh_ = (B_field_) ? B_field_->ParFESpace()->GetParMesh() : NULL;
-      if (B_pmesh_)
+      B_pmesh = (B_field) ? B_field->ParFESpace()->GetParMesh() : nullptr;
+      if (B_pmesh)
       {
-         B_pmesh_->EnsureNodes();
-         B_finder_.Setup(*B_pmesh_);
+         B_pmesh->EnsureNodes();
+         B_finder.Setup(*B_pmesh);
       }
 
    }
 
-   void ParticleStep(ChargedParticle &part, real_t &dt)
+   void Step(ParticleSet<Ordering::byVDIM> &particles, real_t &t, real_t &dt)
+   {
+      // Update all particle E-fields + B-fields:
+      const Vector &X = particles.GetSetCoords();
+      Vector &E = particles.GetSetVector(EFIELD);
+      Vector &B = particles.GetSetVector(BFIELD);
+
+      if (E_field)
+      {
+         GetValues(*E_field, X, E_finder, E, Ordering::byVDIM);
+      }
+      else
+      {
+         E = 0.0;
+      }
+
+      if (B_field)
+      {
+         GetValues(*B_field, X, B_finder, B, Ordering::byVDIM);
+      }
+      else
+      {
+         B = 0.0;
+      }
+
+      // Individually step each particle + update its position:
+      for (int i = 0; i < particles.GetNP(); i++)
+      {
+         Particle part = particles.GetParticleRef(i);
+         ParticleStep(part, dt);
+      }
+
+      // Update time
+      t += dt;
+   }
+
+   void ParticleStep(Particle &part, real_t &dt)
    {
       Vector &x = part.GetCoords();
       Vector &p = part.GetVector(MOM);
@@ -188,52 +220,17 @@ public:
       x.Add(dt / m, p);
    }
 
-   void Step(ChargedParticleSet &particles, real_t &t, real_t &dt)
-   {
-      // Update all particle E-fields + B-fields:
-      const Vector &X = particles.GetSetCoords();
-      Ordering::Type o = particles.GetOrdering();
-      Vector &E = particles.GetSetVector(EFIELD);
-      Vector &B = particles.GetSetVector(BFIELD);
-
-      if (E_field_)
-      {
-         GetValues(*E_field_, X, E_finder_, E, o);
-      }
-      else
-      {
-         E = 0.0;
-      }
-
-      if (B_field_)
-      {
-         GetValues(*B_field_, X, B_finder_, B, o);
-      }
-      else
-      {
-         B = 0.0;
-      }
-
-      // Individually step each particle + update its position:
-      for (int i = 0; i < particles.GetNP(); i++)
-      {
-         ChargedParticle part = particles.GetParticleRef(i);
-         ParticleStep(part, dt);
-      }
-
-      // Update time
-      t += dt;
-   }
 };
 
 // Open the named VisItDataCollection and read the named field.
 // Returns pointers to the two new objects.
 int ReadGridFunction(const char * coll_name, const char * field_name,
                      int pad_digits_cycle, int pad_digits_rank, int cycle,
-                     VisItDataCollection *&dc, ParGridFunction *& gf);
+                     std::unique_ptr<VisItDataCollection> &dc, std::unique_ptr<ParGridFunction> &gf);
 
 // Initialize particles from user input.
-void InitializeParticles(ChargedParticleSet &particles, const Vector &x_init, const Vector &p_init, const real_t q, const real_t m, int num_part, Mesh *mesh);
+template<Ordering::Type VOrdering>
+void InitializeParticles(ParticleSet<VOrdering> &particles, const Vector &x_init, const Vector &p_init, const real_t q, const real_t m, int num_part, Mesh *mesh);
 
 // Prints the program's logo to the given output stream
 void display_banner(ostream & os);
@@ -245,14 +242,14 @@ int main(int argc, char *argv[])
 
    if ( Mpi::Root() ) { display_banner(cout); }
 
-   const char *E_coll_name = "";
-   const char *E_field_name = "E";
+   string E_coll_name = "";
+   string E_field_name = "E";
    int E_cycle = 10;
    int E_pad_digits_cycle = 6;
    int E_pad_digits_rank = 6;
 
-   const char *B_coll_name = "";
-   const char *B_field_name = "B";
+   string B_coll_name = "";
+   string B_field_name = "B";
    int B_cycle = 10;
    int B_pad_digits_cycle = 6;
    int B_pad_digits_rank = 6;
@@ -291,7 +288,7 @@ int main(int argc, char *argv[])
    args.AddOption(&B_pad_digits_rank, "-bpdr", "--b-pad-digits-rank",
                   "Number of digits in B field MPI rank.");
    args.AddOption(&num_part, "-n", "--num-part",
-                  "Number of particles.");
+                  "Total number of particles.");
    args.AddOption(&x_init, "-x0", "--initial-positions",
                   "Initial positions byVDIM (if # positions < # particles, remaining positions set randomly within either E field mesh, B field mesh, or unit cube).");
    args.AddOption(&p_init, "-p0", "--initial-momenta",
@@ -327,10 +324,10 @@ int main(int argc, char *argv[])
       args.PrintOptions(cout);
    }
 
-   VisItDataCollection *E_dc = NULL;
-   ParGridFunction     *E_gf = NULL;
+   std::unique_ptr<VisItDataCollection> E_dc, B_dc;
+   std::unique_ptr<ParGridFunction> E_gf, B_gf;
 
-   if (strcmp(E_coll_name, ""))
+   if (E_coll_name != "")
    {
       if (ReadGridFunction(E_coll_name, E_field_name, E_pad_digits_cycle,
                            E_pad_digits_rank, E_cycle, E_dc, E_gf))
@@ -340,10 +337,7 @@ int main(int argc, char *argv[])
       }
    }
 
-   VisItDataCollection *B_dc = NULL;
-   ParGridFunction     *B_gf = NULL;
-
-   if (strcmp(B_coll_name, ""))
+   if (B_coll_name != "")
    {
       if (ReadGridFunction(B_coll_name, B_field_name, B_pad_digits_cycle,
                            B_pad_digits_rank, B_cycle, B_dc, B_gf))
@@ -353,20 +347,13 @@ int main(int argc, char *argv[])
       }
    }
 
-
-   // Create the ParticleSet
-   ChargedParticleSet particles;
-
    // Initialize particles
-   Mesh *mesh = E_gf ? E_gf->ParFESpace()->GetMesh() : nullptr;
-   if (!mesh && B_gf) { mesh = B_gf->ParFESpace()->GetMesh(); }
-   InitializeParticles(particles, x_init, p_init, q, m, num_part, mesh);
+   ParMesh *pmesh = E_gf ? static_cast<ParMesh*>(E_gf->ParFESpace()->GetMesh()) : nullptr;
+   if (!mesh && B_gf) { pmesh = static_cast<ParMesh*>(B_gf->ParFESpace()->GetMesh()); }
 
-   // Print particle information   
-   // for (int i = 0; i < particles.GetNP(); i++)
-   // {
-   //    particles.GetParticleData(i).Print();
-   // }
+   // Create particle set: 2 scalars of mass and charge, 3 vectors of size 3 for momentum, electric field, and magnetic field
+   ParticleSet<Ordering::byVDIM> particles(MPI_COMM_WORLD, 3, 2, Array<int>{3,3,3});
+   InitializeParticles(particles, x_init, p_init, q, m, num_part, pmesh);
    
    BorisAlgorithm boris(E_gf, B_gf, MPI_COMM_WORLD);
 
@@ -441,10 +428,7 @@ int main(int argc, char *argv[])
          visit_dc.Save();
       }
    }
-   
-   // Clean up
-   delete E_dc;
-   delete B_dc;
+
 }
 
 // Print the Lorentz ascii logo to the given ostream
@@ -464,11 +448,11 @@ void display_banner(ostream & os)
       << endl << flush;
 }
 
-int ReadGridFunction(const char * coll_name, const char * field_name,
+int ReadGridFunction(std::string_view coll_name, std::string_view field_name,
                      int pad_digits_cycle, int pad_digits_rank, int cycle,
-                     VisItDataCollection *&dc, ParGridFunction *& gf)
+                     std::unique_ptr<VisItDataCollection> &dc, std::unique_ptr<ParGridFunction> &gf)
 {
-   dc = new VisItDataCollection(MPI_COMM_WORLD, coll_name);
+   dc = std::make_unique<VisItDataCollection>(MPI_COMM_WORLD, coll_name);
    dc->SetPadDigitsCycle(pad_digits_cycle);
    dc->SetPadDigitsRank(pad_digits_rank);
    dc->Load(cycle);
@@ -495,15 +479,90 @@ int ReadGridFunction(const char * coll_name, const char * field_name,
    return 0;
 }
 
-void InitializeParticles(ChargedParticleSet &particles, const Vector &x_init, const Vector &p_init, const real_t q, const real_t m, int num_part, Mesh *mesh)
+template<Ordering::Type VOrdering>
+void InitializeParticles(ParticleSet<VOrdering> &particles, const Vector &x_init, const Vector &p_init, const real_t q, const real_t m, int num_part, ParMesh *mesh)
 {
-   int provided_x = x_init.Size()/3;
-   int provided_p = p_init.Size()/3;
+   int rank, size;
+   MPI_Comm_rank(particles.GetComm(), &rank);
+   MPI_Comm_size(particles.GetComm(), &size);
+
+   int dim = particles.GetSpaceDim();
+
+   Mesh mesh;
+   if (pmesh)
+   {
+      mesh = pmesh->GetSerialMesh(0);
+   }
+   // Initialize all x and p on rank 0, then split amongst ranks
+   std::vector<int> sendcts(size);
+   std::vector<int> displs(size);
+   if (rank == 0)
+   {
+      // Set x_all
+      Vector x_all(num_part*dim);
+      x_all.SetVector(x_init, 0);
+      int provided_x = x_init.Size()/dim;
+
+      Vector x_rem((num_part - provided_x)*dim);
+      x_rem.Randomize(17);
+      Vector pos_min, pos_max;
+      if (pmesh)
+      {
+         mesh.GetBoundingBox(pos_min, pos_max); // Get global bounding box
+      }
+      else
+      {
+         pos_min = Vector(dim);
+         pos_max = Vector(dim);
+         pos_min = 0.0;
+         pos_max = 1.0;
+      }
+      for (int i = 0; i < x_rem.Size(); i++)
+      {
+         x_rem[i] = pos_min[i % dim] + x_rem[i]*(pos_max[i % dim] - pos_min[i % dim]);
+      }
+      x_all.SetVector(x_rem, provided_x*dim);
+
+
+      // Set p_all
+      Vector p_all(num_part*dim);
+      Vector p_init_c = p_init;
+      if (p_init_c.Size() == 0)
+      {
+         p_init_c.SetSize(dim);
+         p_0 = 0.0;
+      }
+      p_all.SetVector(p_init_c, 0);
+      int provided_p = p_init_c.Size()/dim;
+
+      Vector p_rem((num_part - provided_p)*dim);
+      for (int i = 0; i < p_rem.Size(); i++)
+      {
+         p_rem[i] = p_init[p_init_c.Size() - dim + i % dim];
+      }
+      p_all.SetVector(p_rem, provided_p*dim);
+   }
+
+   // Prepare args to MPI_Scatterv
+   displs[0] = 0;
+   for (int r = 0; r < size; r++)
+   {
+      sendcts[r] = (num_part/size + (r < num_part % size ? 1 : 0))*dim;
+      if (r > 0)
+         displs[r] = sendcts[r] + displs[r-1];
+   }
+   Vector x_rank(sendcts[rank]);
+   Vector p_rank(sendcts[rank]);
+
+   // Scatter the large data buffer from Rank 0 to all other ranks
+   MPI_Scatterv(x_all.GetData(), sendcts.data(), displs.data(), MPITypeMap<real_t>, x_rank.GetData(), x_rank.Size(), MPITypeMap<real_t>, 0, MPI_COMM_WORLD);
+   MPI_Scatterv(p_all.GetData(), sendcts.data(), displs.data(), MPITypeMap<real_t>, p_rank.GetData(), p_rank.Size(), MPITypeMap<real_t>, 0, MPI_COMM_WORLD);
+
 
    // Add all particles to set
-   for (int i = 0; i < num_part; i++)
+   for (int i = 0; i < num_part_rank; i++)
    {
-      ChargedParticle p;
+      Particle p(particles.GetSpaceDim(), particles.GetNumScalars(), particles.GetVectorVDims());
 
       // If a position was provided:
       if (i < provided_x)
