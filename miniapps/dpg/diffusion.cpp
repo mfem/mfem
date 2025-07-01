@@ -723,6 +723,8 @@ int main(int argc, char *argv[])
       if (it == ref) { break; }
 
       mesh.UniformRefinement();
+      pars.nx *= 2;
+      pars.ny *= 2;
       for (int i =0; i<trial_fes.Size(); i++)
       {
          trial_fes[i]->Update(false);
@@ -896,8 +898,6 @@ TFunc GetTFun(Problem prob, const ProblemParams &params)
    //const real_t &a = params.a;
    const real_t &sx = params.sx;
    const real_t &sy = params.sy;
-   const real_t hx = sx / params.nx;
-   const real_t hy = sy / params.ny;
    const real_t &order = params.order;
 
    auto kFun = GetKFun(prob, params);
@@ -1040,8 +1040,10 @@ TFunc GetTFun(Problem prob, const ProblemParams &params)
          // Numerical Heat Transfer, Part B: Fundamentals, 47(6), pp. 533-554
          // (2005).
          // Adopted from plasma-dev:miniapps/plasma/transport2d.cpp
-         return [=](const Vector &x, real_t t) -> real_t
+         return [=,&params](const Vector &x, real_t t) -> real_t
          {
+            const real_t hx = sx / params.nx;
+            const real_t hy = sy / params.ny;
             if (x(0) < hx && x(1) < hy)
             {
                return 0.5 * (1.0 -
