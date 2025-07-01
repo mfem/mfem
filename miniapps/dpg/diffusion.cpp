@@ -69,6 +69,8 @@
 #include <fstream>
 #include <iostream>
 
+#define USE_DIRECT_SOLVER
+
 using namespace mfem;
 using namespace mfem::common;
 
@@ -598,13 +600,13 @@ int main(int argc, char *argv[])
       // Construct preconditioners
 
       std::unique_ptr<Solver> prec;
-      std::unique_ptr<SparseMatrix> MinvBt, S;
+      std::unique_ptr<SparseMatrix> A_mono, MinvBt, S;
       Vector Md;
 
       if (a_dpg)
       {
          BlockMatrix * A = Ah.As<BlockMatrix>();
-
+#if !defined(MFEM_USE_SUITESPARSE) or !defined(USE_DIRECT_SOLVER)
          auto *M = new BlockDiagonalPreconditioner(A->RowOffsets());
          M->owns_blocks = 1;
          for (int i=0; i<A->NumRowBlocks(); i++)
@@ -612,12 +614,20 @@ int main(int argc, char *argv[])
             M->SetDiagonalBlock(i,new GSSmoother(A->GetBlock(i,i)));
          }
          prec.reset(M);
+#else
+         A_mono.reset(A->CreateMonolithic());
+         prec.reset(new UMFPackSolver(*A_mono));
+#endif
       }
       else
       {
          if (hybridization)
          {
+#if !defined(MFEM_USE_SUITESPARSE) or !defined(USE_DIRECT_SOLVER)
             prec.reset(new GSSmoother(*Ah.As<SparseMatrix>()));
+#else
+            prec.reset(new UMFPackSolver(*Ah.As<SparseMatrix>()));
+#endif
          }
          else
          {
@@ -654,11 +664,13 @@ int main(int argc, char *argv[])
       // Construct solver
 
       std::unique_ptr<IterativeSolver> solver;
+#if !defined(MFEM_USE_SUITESPARSE) or !defined(USE_DIRECT_SOLVER)
       if (a_dpg)
       {
          solver.reset(new CGSolver());
       }
       else
+#endif
       {
          solver.reset(new GMRESSolver());
       }
@@ -666,8 +678,8 @@ int main(int argc, char *argv[])
       solver->SetRelTol(1e-10);
       solver->SetMaxIter(20000);
       solver->SetPrintLevel(prob== prob_type::general ? 3 : 0);
-      solver->SetPreconditioner(*prec);
       solver->SetOperator(*Ah);
+      solver->SetPreconditioner(*prec);
 
       chrono_mult.Clear();
       chrono_mult.Start();
