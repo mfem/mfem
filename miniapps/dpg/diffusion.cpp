@@ -129,8 +129,29 @@ void exact_sigma(const Vector & X, Vector & sigma);
 real_t exact_hatu(const Vector & X);
 void exact_hatsigma(const Vector & X, Vector & hatsigma);
 real_t f_exact(const Vector & X);
-void setup_test_norm_coeffs(MatrixCoefficient &eps, GridFunction & c1_gf,
-                            GridFunction & c2_gf);
+
+class C1Coeff : public Coefficient
+{
+   Mesh &mesh;
+   MatrixCoefficient &eps;
+public:
+   C1Coeff(Mesh &m, MatrixCoefficient &eps_)
+      : mesh(m), eps(eps_) { }
+
+   real_t Eval(ElementTransformation &T, const IntegrationPoint &ip) override;
+};
+
+class C2Coeff : public VectorCoefficient
+{
+   Mesh &mesh;
+   MatrixCoefficient &eps;
+public:
+   C2Coeff(Mesh &m, MatrixCoefficient &eps_)
+      : VectorCoefficient(m.Dimension()), mesh(m), eps(eps_) { }
+
+   void Eval(Vector &v, ElementTransformation &T,
+             const IntegrationPoint &ip) override;
+};
 
 int main(int argc, char *argv[])
 {
@@ -336,12 +357,8 @@ int main(int argc, char *argv[])
    FunctionCoefficient f(fFun); // rhs for the manufactured solution problem
    SumCoefficient negf(0., f, 1., -1.);
 
-   FiniteElementCollection *coeff_fec = new L2_FECollection(0,dim);
-   FiniteElementSpace *coeff_fes = new FiniteElementSpace(&mesh, coeff_fec);
-   FiniteElementSpace *vcoeff_fes = new FiniteElementSpace(&mesh, coeff_fec, dim);
-   GridFunction c1_gf(coeff_fes), c2_gf(vcoeff_fes);
-   GridFunctionCoefficient c1_coeff(&c1_gf);
-   VectorGridFunctionCoefficient c2_coeff(&c2_gf);
+   C1Coeff c1_coeff(mesh, eps);
+   C2Coeff c2_coeff(mesh, eps);
 
    // Required coefficients for the exact solution case
    auto TFun = GetTFun(problem, pars);
@@ -389,9 +406,6 @@ int main(int argc, char *argv[])
       // -<σ̂,v> (sign is included in σ̂)
       a_dpg->AddTrialIntegrator(new TraceIntegrator,
                                 TrialSpace::hatsigma_space, TestSpace::v_space);
-
-      // mesh dependent test norm
-      setup_test_norm_coeffs(eps, c1_gf, c2_gf);
 
       // test integrators (space-induced norm for H(div) × H1)
       // (∇⋅τ,∇⋅δτ)
@@ -744,12 +758,6 @@ int main(int argc, char *argv[])
       if (a_dpg)
       {
          a_dpg->Update();
-
-         coeff_fes->Update();
-         vcoeff_fes->Update();
-         c1_gf.Update();
-         c2_gf.Update();
-         setup_test_norm_coeffs(eps, c1_gf, c2_gf);
       }
       else
       {
@@ -757,9 +765,6 @@ int main(int argc, char *argv[])
       }
    }
 
-   delete coeff_fes;
-   delete vcoeff_fes;
-   delete coeff_fec;
    delete a_dpg;
    delete a_darcy;
    delete tau_fec;
@@ -1282,37 +1287,30 @@ TFunc GetFFun(Problem prob, const ProblemParams &params)
    return TFunc();
 }
 
-void setup_test_norm_coeffs(MatrixCoefficient &eps, GridFunction & c1_gf,
-                            GridFunction & c2_gf)
+real_t C1Coeff::Eval(ElementTransformation &Tr, const IntegrationPoint &ip)
 {
-   Array<int> dofs, vdofs;
-   FiniteElementSpace * fes = c1_gf.FESpace();
-   FiniteElementSpace * vfes = c2_gf.FESpace();
-   Mesh * mesh = fes->GetMesh();
    DenseMatrix eps_i;
    Vector eps_id;
-   IntegrationPoint ip;
-   ip.Set2w(0.5, 0.5, 1.);
 
-   for (int i = 0; i < mesh->GetNE(); i++)
-   {
-      real_t volume = mesh->GetElementVolume(i);
-      ElementTransformation *Tr = mesh->GetElementTransformation(i);
-      Tr->SetIntPoint(&ip);
-      eps.Eval(eps_i, *Tr, ip);
-      eps_i.GetDiag(eps_id);
-      real_t c1 = std::min(eps_id.Min()/volume, (real_t) 1.);
-      real_t c2_x = std::min(1./eps_id(0), 1./volume);
-      real_t c2_y = std::min(1./eps_id(1), 1./volume);
-      fes->GetElementDofs(i,dofs);
-      c1_gf.SetSubVector(dofs,c1);
+   real_t volume = mesh.GetElementVolume(Tr.ElementNo);
+   eps.Eval(eps_i, Tr, ip);
+   eps_i.GetDiag(eps_id);
+   real_t c1 = std::min(eps_id.Min()/volume, (real_t) 1.);
 
-      vfes->GetElementDofs(i,dofs);
-      vdofs = dofs;
-      vfes->DofsToVDofs(0, vdofs);
-      c2_gf.SetSubVector(vdofs, c2_x);
-      vdofs = dofs;
-      vfes->DofsToVDofs(1, vdofs);
-      c2_gf.SetSubVector(vdofs, c2_y);
-   }
+   return c1;
+}
+
+void C2Coeff::Eval(Vector &v, ElementTransformation &Tr,
+                   const IntegrationPoint &ip)
+{
+   v.SetSize(vdim);
+
+   DenseMatrix eps_i;
+   Vector eps_id;
+
+   real_t volume = mesh.GetElementVolume(Tr.ElementNo);
+   eps.Eval(eps_i, Tr, ip);
+   eps_i.GetDiag(eps_id);
+   v(0) = std::min(1./eps_id(0), 1./volume);
+   v(1) = std::min(1./eps_id(1), 1./volume);
 }
