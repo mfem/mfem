@@ -73,16 +73,23 @@ enum Problem
 
 constexpr real_t epsilon = numeric_limits<real_t>::epsilon();
 
-MatFunc GetKFun(Problem prob, real_t k, real_t ks, real_t ka);
-TFunc GetTFun(Problem prob, real_t t_0, real_t a, const MatFunc &kFun,
-              real_t c);
-VecTFunc GetQFun(Problem prob, real_t t_0, real_t a, const MatFunc &kFun,
-                 real_t c);
-VecFunc GetCFun(Problem prob, real_t c);
-TFunc GetFFun(Problem prob, real_t t_0, real_t a, const MatFunc &kFun,
-              real_t c);
+struct ProblemParams
+{
+   real_t k;
+   real_t ks;
+   real_t ka;
+   real_t t_0;
+   real_t a;
+   real_t c;
+};
+
+MatFunc GetKFun(Problem prob, const ProblemParams &params);
+TFunc GetTFun(Problem prob, const ProblemParams &params);
+VecTFunc GetQFun(Problem prob, const ProblemParams &params);
+VecFunc GetCFun(Problem prob, const ProblemParams &params);
+TFunc GetFFun(Problem prob, const ProblemParams &params);
 FluxFunction* GetFluxFun(Problem prob, VectorCoefficient &ccoeff);
-MixedFluxFunction* GetHeatFluxFun(Problem prob, real_t k, real_t ks, real_t ka,
+MixedFluxFunction* GetHeatFluxFun(Problem prob, const ProblemParams &params,
                                   int dim);
 
 int main(int argc, char *argv[])
@@ -103,11 +110,12 @@ int main(int argc, char *argv[])
    real_t tf = 1.;
    int nt = 0;
    int ode = 1;
-   real_t k = 1.;
-   real_t ks = 1.;
-   real_t ka = 0.;
-   real_t a = 0.;
-   real_t c = 1.;
+   ProblemParams pars;
+   pars.k = 1.;
+   pars.ks = 1.;
+   pars.ka = 0.;
+   pars.a = 0.;
+   pars.c = 1.;
    real_t td = 0.5;
    bool bc_neumann = false;
    bool reduction = false;
@@ -159,15 +167,15 @@ int main(int argc, char *argv[])
                   "Number of time steps.");
    args.AddOption(&ode, "-ode", "--ode-solver",
                   "ODE time solver (1=Bacward Euler, 2=RK23L, 3=RK23A, 4=RK34).");
-   args.AddOption(&k, "-k", "--kappa",
+   args.AddOption(&pars.k, "-k", "--kappa",
                   "Heat conductivity");
-   args.AddOption(&ks, "-ks", "--kappa_sym",
+   args.AddOption(&pars.ks, "-ks", "--kappa_sym",
                   "Symmetric anisotropy of the heat conductivity tensor");
-   args.AddOption(&ka, "-ka", "--kappa_anti",
+   args.AddOption(&pars.ka, "-ka", "--kappa_anti",
                   "Antisymmetric anisotropy of the heat conductivity tensor");
-   args.AddOption(&a, "-a", "--heat_capacity",
+   args.AddOption(&pars.a, "-a", "--heat_capacity",
                   "Heat capacity coefficient (0=indefinite problem)");
-   args.AddOption(&c, "-c", "--velocity",
+   args.AddOption(&pars.c, "-c", "--velocity",
                   "Convection velocity");
    args.AddOption(&td, "-td", "--stab_diff",
                   "Diffusion stabilization factor (1/2=default)");
@@ -363,28 +371,28 @@ int main(int argc, char *argv[])
    DarcyForm *darcy = new DarcyForm(V_space, W_space);
 
    // 6. Define the coefficients, analytical solution, and rhs of the PDE.
-   const real_t t_0 = 1.; //base temperature
+   pars.t_0 = 1.; //base temperature
 
-   ConstantCoefficient acoeff(a); //heat capacity
+   ConstantCoefficient acoeff(pars.a); //heat capacity
 
    constexpr unsigned int seed = 0;
    srand(seed);// init random number generator
 
-   auto kFun = GetKFun(problem, k, ks, ka);
+   auto kFun = GetKFun(problem, pars);
    MatrixFunctionCoefficient kcoeff(dim, kFun); //tensor conductivity
    InverseMatrixCoefficient ikcoeff(kcoeff); //inverse tensor conductivity
 
-   auto cFun = GetCFun(problem, c);
+   auto cFun = GetCFun(problem, pars);
    VectorFunctionCoefficient ccoeff(dim, cFun); //velocity
 
-   auto tFun = GetTFun(problem, t_0, a, kFun, c);
+   auto tFun = GetTFun(problem, pars);
    FunctionCoefficient tcoeff(tFun); //temperature
    SumCoefficient gcoeff(0., tcoeff, 1., -1.); //boundary heat flux rhs
 
-   auto fFun = GetFFun(problem, t_0, a, kFun, c);
+   auto fFun = GetFFun(problem, pars);
    FunctionCoefficient fcoeff(fFun); //temperature rhs
 
-   auto qFun = GetQFun(problem, t_0, a, kFun, c);
+   auto qFun = GetQFun(problem, pars);
    VectorFunctionCoefficient qcoeff(dim, qFun); //heat flux
    ConstantCoefficient one;
    VectorSumCoefficient qtcoeff_(ccoeff, qcoeff, tcoeff, one);//total flux
@@ -405,10 +413,10 @@ int main(int argc, char *argv[])
    BlockNonlinearForm *Mnl = (bnldiff)?(darcy->GetBlockNonlinearForm()):(NULL);
    MixedBilinearForm *B = darcy->GetFluxDivForm();
    BilinearForm *Mt = (!nonlinear && ((dg && td > 0.) || bconv || btime ||
-                                      a > 0.))?
+                                      pars.a > 0.))?
                       (darcy->GetPotentialMassForm()):(NULL);
    NonlinearForm *Mtnl = (nonlinear && ((dg && td > 0.) || bconv || bnlconv ||
-                                        a > 0. || btime))?
+                                        pars.a > 0. || btime))?
                          (darcy->GetPotentialMassNonlinearForm()):(NULL);
    FluxFunction *FluxFun = NULL;
    NumericalFlux *FluxSolver = NULL;
@@ -445,7 +453,7 @@ int main(int argc, char *argv[])
    else
    {
       //nonlinear diffusion
-      HeatFluxFun = GetHeatFluxFun(problem, k, ks, ka, dim);
+      HeatFluxFun = GetHeatFluxFun(problem, pars, dim);
       if (dg)
       {
          Mnl->AddDomainIntegrator(new MixedConductionNLFIntegrator(*HeatFluxFun));
@@ -603,7 +611,7 @@ int main(int argc, char *argv[])
 
    //inertial term
 
-   if (a > 0.)
+   if (pars.a > 0.)
    {
       if (Mt)
       {
@@ -1054,12 +1062,17 @@ int main(int argc, char *argv[])
    return 0;
 }
 
-MatFunc GetKFun(Problem prob, real_t k, real_t ks, real_t ka)
+MatFunc GetKFun(Problem prob, const ProblemParams &params)
 {
+   const real_t &k = params.k;
+   const real_t &ks = params.ks;
+   const real_t &ka = params.ka;
+
    switch (prob)
    {
       case Problem::SteadyDiffusion:
       case Problem::BoundaryLayer:
+      case Problem::SteadyPeak:
          return [=](const Vector &x, DenseMatrix &kappa)
          {
             const int ndim = x.Size();
@@ -1143,8 +1156,16 @@ MatFunc GetKFun(Problem prob, real_t k, real_t ks, real_t ka)
    return MatFunc();
 }
 
-TFunc GetTFun(Problem prob, real_t t_0, real_t a, const MatFunc &kFun, real_t c)
+TFunc GetTFun(Problem prob, const ProblemParams &params)
 {
+   const real_t &k = params.k;
+   const real_t &ks = params.ks;
+   //const real_t &ka = params.ka;
+   const real_t &t_0 = params.t_0;
+   const real_t &a = params.a;
+
+   auto kFun = GetKFun(prob, params);
+
    switch (prob)
    {
       case Problem::SteadyDiffusion:
@@ -1274,10 +1295,8 @@ TFunc GetTFun(Problem prob, real_t t_0, real_t a, const MatFunc &kFun, real_t c)
       case Problem::BoundaryLayer:
          return [=](const Vector &x, real_t t) -> real_t
          {
-            DenseMatrix kappa;
-            kFun(x, kappa);
-            const real_t k_para = M_PI*M_PI * kappa(0,0);
-            const real_t k_perp = kappa(1,1);
+            const real_t k_para = M_PI*M_PI * k * ks;
+            const real_t k_perp = k;
             const real_t k_frac = sqrt(k_para/k_perp);
             const real_t denom = 1. + exp(-k_frac);
             const real_t e_down = exp(-k_frac * x(1));
@@ -1288,9 +1307,15 @@ TFunc GetTFun(Problem prob, real_t t_0, real_t a, const MatFunc &kFun, real_t c)
    return TFunc();
 }
 
-VecTFunc GetQFun(Problem prob, real_t t_0, real_t a, const MatFunc &kFun,
-                 real_t c)
+VecTFunc GetQFun(Problem prob, const ProblemParams &params)
 {
+   const real_t &k = params.k;
+   const real_t &ks = params.ks;
+   //const real_t &ka = params.ka;
+   const real_t &t_0 = params.t_0;
+
+   auto kFun = GetKFun(prob, params);
+
    switch (prob)
    {
       case Problem::SteadyDiffusion:
@@ -1357,8 +1382,10 @@ VecTFunc GetQFun(Problem prob, real_t t_0, real_t a, const MatFunc &kFun,
    return VecTFunc();
 }
 
-VecFunc GetCFun(Problem prob, real_t c)
+VecFunc GetCFun(Problem prob, const ProblemParams &params)
 {
+   const real_t &c = params.c;
+
    switch (prob)
    {
       case Problem::SteadyDiffusion:
@@ -1402,9 +1429,15 @@ VecFunc GetCFun(Problem prob, real_t c)
    return VecFunc();
 }
 
-TFunc GetFFun(Problem prob, real_t t_0, real_t a, const MatFunc &kFun, real_t c)
+TFunc GetFFun(Problem prob, const ProblemParams &params)
 {
-   auto TFun = GetTFun(prob, t_0, a, kFun, c);
+   const real_t &k = params.k;
+   const real_t &ks = params.ks;
+   //const real_t &ka = params.ka;
+   const real_t &a = params.a;
+
+   auto TFun = GetTFun(prob, params);
+   auto kFun = GetKFun(prob, params);
 
    switch (prob)
    {
