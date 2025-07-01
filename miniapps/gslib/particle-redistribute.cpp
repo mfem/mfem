@@ -13,7 +13,7 @@
 //    Particle Redistribute: Transfer particles to ranks they are located on
 //    ----------------------------------------------------------------------
 //
-// This miniapp highlights the ParticleSet::Redistribute feature. Particles 
+// This miniapp highlights the ParticleSet::Redistribute feature. Particles
 // are initialized onto a square mesh by all ranks, and then re-distributed
 // so that particles are held by the ranks of which they are actually physically
 // located in on the ParMesh.
@@ -45,7 +45,7 @@ void InitializeRandom(Particle &p, int seed, Vector &pos_min, Vector &pos_max)
 
    for (int s = 0; s < p.GetNumScalars(); s++)
       p.GetScalar(s) = real_dist(gen);
-   
+
    for (int v = 0; v < p.GetNumVectors(); v++)
    {
       for (int c = 0; c < p.GetVDim(v); c++)
@@ -99,13 +99,13 @@ void Add3DPoint(const Vector &center, real_t s, Mesh &m)
    {
       v[0][i] = center[i];
    }
- 
+
    Vector v_s(3); v_s = s;
    v[0] -= v_s;
 
    v[1] = v[0];
    v[1][0] += 2*s;
-   
+
    v[2] = v[1];
    v[2][1] += 2*s;
 
@@ -117,7 +117,7 @@ void Add3DPoint(const Vector &center, real_t s, Mesh &m)
    {
       add(1.0, v[i-4], 2.0, v_s_z, v[i]);
    }
-   
+
    for (int i = 0; i < 8; i++)
    {
       m.AddVertex(v[i]);
@@ -161,7 +161,7 @@ int main (int argc, char *argv[])
       return 1;
    }
    if (rank == 0) { args.PrintOptions(cout); }
-   
+
    // Create mesh
    Mesh mesh(mesh_file);
    MFEM_ASSERT(mesh.SpaceDimension() == mesh.Dimension(), "FindPointsGSLIB requires that the mesh space dimension + reference element dimension are the same");
@@ -218,13 +218,13 @@ int main (int argc, char *argv[])
    finder.FindPoints(pset.GetSetCoords(), pset.GetOrdering());
 
    // Remove particles not in domain
-   
+
    if (rank == 0)
    {
       mfem::out << "\nPost-Redistribute:\n";
    }
    PrintOnOffRankCounts(finder.GetProc(), MPI_COMM_WORLD);
-   
+
    if (visualization)
    {
       socketstream sout;
@@ -256,10 +256,16 @@ int main (int argc, char *argv[])
             rank_gf[j+i*8] = procs[i];
          }
       }
-      
+
       sout << "parallel " << size << " " << rank << "\n";
       sout << "solution\n" << particles_mesh << rank_gf << flush;
-
+      if (rank == 0)
+      {
+         sout << "window_title 'Particles post-redistribute'\n"
+              << "window_geometry "
+              << 0 << " " << 0 << " " << 600 << " " << 600 << "\n"
+              << "keys Rl" << endl;
+      }
    }
 
    return 0;
