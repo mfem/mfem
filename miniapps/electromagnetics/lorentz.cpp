@@ -224,13 +224,13 @@ public:
 
 // Open the named VisItDataCollection and read the named field.
 // Returns pointers to the two new objects.
-int ReadGridFunction(const char * coll_name, const char * field_name,
+int ReadGridFunction(std::string coll_name, std::string field_name,
                      int pad_digits_cycle, int pad_digits_rank, int cycle,
-                     std::unique_ptr<VisItDataCollection> &dc, std::unique_ptr<ParGridFunction> &gf);
+                     std::unique_ptr<VisItDataCollection> &dc, ParGridFunction *gf);
 
 // Initialize particles from user input.
 template<Ordering::Type VOrdering>
-void InitializeParticles(ParticleSet<VOrdering> &particles, const Vector &x_init, const Vector &p_init, const real_t q, const real_t m, int num_part, Mesh *mesh);
+void InitializeParticles(ParticleSet<VOrdering> &particles, const ParMesh *pmesh, const Vector &x_init, const Vector &p_init, real_t q, real_t m, int num_part);
 
 // Prints the program's logo to the given output stream
 void display_banner(ostream & os);
@@ -260,6 +260,7 @@ int main(int argc, char *argv[])
    real_t dt = 1e-2;
    real_t t_init = 0.0;
    real_t t_final = 1.0;
+   int redist_freq = 10;
    Vector x_init;
    Vector p_init;
    int visport = 19916;
@@ -303,6 +304,7 @@ int main(int argc, char *argv[])
                   "Initial Time.");
    args.AddOption(&t_final, "-tf", "--final-time",
                   "Final Time.");
+   args.AddOption(&N_redistribute, "-rf", "--redist-freq", "Redistribution frequency.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -325,7 +327,7 @@ int main(int argc, char *argv[])
    }
 
    std::unique_ptr<VisItDataCollection> E_dc, B_dc;
-   std::unique_ptr<ParGridFunction> E_gf, B_gf;
+   ParGridFunction *E_gf, *B_gf;
 
    if (E_coll_name != "")
    {
@@ -349,11 +351,25 @@ int main(int argc, char *argv[])
 
    // Initialize particles
    ParMesh *pmesh = E_gf ? static_cast<ParMesh*>(E_gf->ParFESpace()->GetMesh()) : nullptr;
-   if (!mesh && B_gf) { pmesh = static_cast<ParMesh*>(B_gf->ParFESpace()->GetMesh()); }
+   if (!pmesh && B_gf) { pmesh = static_cast<ParMesh*>(B_gf->ParFESpace()->GetMesh()); }
 
    // Create particle set: 2 scalars of mass and charge, 3 vectors of size 3 for momentum, electric field, and magnetic field
    ParticleSet<Ordering::byVDIM> particles(MPI_COMM_WORLD, 3, 2, Array<int>{3,3,3});
-   InitializeParticles(particles, x_init, p_init, q, m, num_part, pmesh);
+   InitializeParticles(particles, pmesh, x_init, p_init, q, m, num_part);
+   
+   // Print all particles
+   // for (int r = 0; r < Mpi::WorldSize(); r++)
+   // {  
+   //    if (r == Mpi::WorldRank())
+   //    {
+   //       mfem::out << "\nRank " << r << "\n";
+   //       for (int i = 0; i < particles.GetNP(); i++)
+   //       {
+   //          particles.GetParticleData(i).Print();
+   //       }
+   //    }
+   //    MPI_Barrier(MPI_COMM_WORLD);
+   // }
    
    BorisAlgorithm boris(E_gf, B_gf, MPI_COMM_WORLD);
 
@@ -448,9 +464,9 @@ void display_banner(ostream & os)
       << endl << flush;
 }
 
-int ReadGridFunction(std::string_view coll_name, std::string_view field_name,
+int ReadGridFunction(std::string coll_name, std::string field_name,
                      int pad_digits_cycle, int pad_digits_rank, int cycle,
-                     std::unique_ptr<VisItDataCollection> &dc, std::unique_ptr<ParGridFunction> &gf)
+                     std::unique_ptr<VisItDataCollection> &dc, ParGridFunction *gf)
 {
    dc = std::make_unique<VisItDataCollection>(MPI_COMM_WORLD, coll_name);
    dc->SetPadDigitsCycle(pad_digits_cycle);
@@ -480,7 +496,7 @@ int ReadGridFunction(std::string_view coll_name, std::string_view field_name,
 }
 
 template<Ordering::Type VOrdering>
-void InitializeParticles(ParticleSet<VOrdering> &particles, const Vector &x_init, const Vector &p_init, const real_t q, const real_t m, int num_part, ParMesh *mesh)
+void InitializeParticles(ParticleSet<VOrdering> &particles, const ParMesh *pmesh, const Vector &x_init, const Vector &p_init, real_t q, real_t m, int num_part)
 {
    int rank, size;
    MPI_Comm_rank(particles.GetComm(), &rank);
@@ -496,10 +512,11 @@ void InitializeParticles(ParticleSet<VOrdering> &particles, const Vector &x_init
    // Initialize all x and p on rank 0, then split amongst ranks
    std::vector<int> sendcts(size);
    std::vector<int> displs(size);
+   Vector x_all(num_part*dim);
+   Vector p_all(num_part*dim);
    if (rank == 0)
    {
       // Set x_all
-      Vector x_all(num_part*dim);
       x_all.SetVector(x_init, 0);
       int provided_x = x_init.Size()/dim;
 
@@ -525,12 +542,11 @@ void InitializeParticles(ParticleSet<VOrdering> &particles, const Vector &x_init
 
 
       // Set p_all
-      Vector p_all(num_part*dim);
       Vector p_init_c = p_init;
       if (p_init_c.Size() == 0)
       {
          p_init_c.SetSize(dim);
-         p_0 = 0.0;
+         p_init_c = 0.0;
       }
       p_all.SetVector(p_init_c, 0);
       int provided_p = p_init_c.Size()/dim;
@@ -538,7 +554,7 @@ void InitializeParticles(ParticleSet<VOrdering> &particles, const Vector &x_init
       Vector p_rem((num_part - provided_p)*dim);
       for (int i = 0; i < p_rem.Size(); i++)
       {
-         p_rem[i] = p_init[p_init_c.Size() - dim + i % dim];
+         p_rem[i] = p_init_c[p_init_c.Size() - dim + i % dim];
       }
       p_all.SetVector(p_rem, provided_p*dim);
    }
@@ -549,67 +565,28 @@ void InitializeParticles(ParticleSet<VOrdering> &particles, const Vector &x_init
    {
       sendcts[r] = (num_part/size + (r < num_part % size ? 1 : 0))*dim;
       if (r > 0)
-         displs[r] = sendcts[r] + displs[r-1];
+         displs[r] = sendcts[r-1] + displs[r-1];
    }
+
    Vector x_rank(sendcts[rank]);
    Vector p_rank(sendcts[rank]);
 
    // Scatter the large data buffer from Rank 0 to all other ranks
-   MPI_Scatterv(x_all.GetData(), sendcts.data(), displs.data(), MPITypeMap<real_t>, x_rank.GetData(), x_rank.Size(), MPITypeMap<real_t>, 0, MPI_COMM_WORLD);
-   MPI_Scatterv(p_all.GetData(), sendcts.data(), displs.data(), MPITypeMap<real_t>, p_rank.GetData(), p_rank.Size(), MPITypeMap<real_t>, 0, MPI_COMM_WORLD);
+   MPI_Scatterv(x_all.GetData(), sendcts.data(), displs.data(), MPITypeMap<real_t>::mpi_type, x_rank.GetData(), x_rank.Size(), MPITypeMap<real_t>::mpi_type, 0, MPI_COMM_WORLD);
+   MPI_Scatterv(p_all.GetData(), sendcts.data(), displs.data(), MPITypeMap<real_t>::mpi_type, p_rank.GetData(), p_rank.Size(), MPITypeMap<real_t>::mpi_type, 0, MPI_COMM_WORLD);
 
 
    // Add all particles to set
-   for (int i = 0; i < num_part_rank; i++)
+   for (int i = 0; i < sendcts[rank]/dim; i++)
    {
-      Particle p(particles.GetSpaceDim(), particles.GetNumScalars(), particles.GetVectorVDims());
+      Particle p(dim, particles.GetNumScalars(), particles.GetVectorVDims());
 
-      // If a position was provided:
-      if (i < provided_x)
+      // Set coords + momentum
+      for (int d = 0; d < dim; d++)
       {
-         for (int d = 0; d < 3; d++)
-         {
-            p.GetCoords()[d] = x_init[d + i*3];
-         }
+         p.GetCoords()[d] = x_rank[d+i*dim];
+         p.GetVector(MOM)[d] = p_rank[d+i*dim];
       }
-      else // else set it randomly within mesh or unit cube (if no mesh provided)
-      {
-         Vector pos_min, pos_max;
-
-         if (mesh)
-         {
-            mesh->GetBoundingBox(pos_min, pos_max);
-         }
-         else
-         {
-            pos_min = Vector({0.0,0.0,0.0});
-            pos_max = Vector({1.0,1.0,1.0});
-         }
-         Vector r_pos(4); // 1st-number of each r_pos is too similar regardless of seed
-         r_pos.Randomize(i);
-
-         for (int d = 0; d < 3; d++)
-         {
-            p.GetCoords()[d] = pos_min[d] + r_pos[d+1]*(pos_max[d] - pos_min[d]);
-         }
-      }
-
-      // If a momentum was provided:
-      if (i < provided_p)
-      {
-         for (int d = 0; d < 3; d++)
-         {
-            p.GetVector(MOM)[d] = p_init[d + i*3];
-         }
-      }
-      else // else use last one that was provided, or 0 if none.
-      {
-         for (int d = 0; d < 3; d++)
-         {
-            p.GetVector(MOM)[d] = p_init.Size() > 0 ? p_init[provided_p*3-3+d] : 0;
-         }
-      }
-
       // Set mass + charge
       p.GetScalar(MASS) = m;
       p.GetScalar(CHARGE) = q;
