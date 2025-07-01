@@ -45,11 +45,11 @@ using namespace navier;
 
 struct s_NavierContext
 {
-   int ser_ref_levels = 1;
-   int order = 2; // TODO: Left as 2 for testing, but should be raised.
-   real_t kinvis = 1.0 / 100.0; // TODO: Re = 100
-   real_t t_final = 5.0; // TODO: Was 10 * 0.001, but want longer time
-   real_t dt = 0.01; // TODO: Increased time step by factor of 10
+   int ser_ref_levels = 2;
+   int order = 3;
+   real_t kinvis = 1.0 / 10.0;
+   real_t t_final = 2.0;
+   real_t dt = 0.01;
    real_t inlet_velocity = 1.0;
    bool pa = true;
    bool ni = false;
@@ -61,8 +61,16 @@ struct s_NavierContext
 void vel_inlet(const Vector &x, real_t t, Vector &u)
 {
    u(0) = ctx.inlet_velocity;  // x-component (flow direction)
-   u(1) = 0.0;                 // y-component  
-   u(2) = 0.0;                 // z-component
+   u(1) = 0;
+   u(2) = 0;
+
+   // // PARABOLIC INLET
+   // auto r1 = (x(1) - 0.5);
+   // auto r2 = (x(2) - 0.5);
+
+   // u(0) = r1 * r1 + r2 * r2;
+   // u(1) = 0.0;
+   // u(2) = 0.0;
 }
 
 int main(int argc, char *argv[])
@@ -120,7 +128,7 @@ int main(int argc, char *argv[])
    // Create 3D Cartesian mesh: nx x ny x nz elements
    // Domain: [0, 3] x [0, 1] x [0, 1] (Length x Width x Height)
    Mesh mesh = Mesh::MakeCartesian3D(6, 2, 2, Element::HEXAHEDRON, 
-                                     3.0, 1.0, 1.0);
+                                     3.0, 1.0, 0.5);
 
    for (int i = 0; i < ctx.ser_ref_levels; ++i)
    {
@@ -158,11 +166,7 @@ int main(int argc, char *argv[])
 
    // BOUNDARY CONDITIONS
    
-   // 1. INLET: Prescribed velocity 
-   Array<int> attr_inlet(pmesh->bdr_attributes.Max());
-   attr_inlet = 0;
-   attr_inlet[4] = 1;  // attr 5
-   flowsolver.AddVelDirichletBC(vel_inlet, attr_inlet);
+
 
    // 2. GROUND: No-slip
    Array<int> attr_ground(pmesh->bdr_attributes.Max());
@@ -174,19 +178,29 @@ int main(int argc, char *argv[])
    Array<int> attr_front(pmesh->bdr_attributes.Max());
    attr_front = 0;
    attr_front[1] = 1;  // attr 2
-   flowsolver.AddVelDirichletBC(new ConstantCoefficient(0.0), attr_front, 1);
+   // flowsolver.AddVelDirichletBC(new ConstantCoefficient(0.0), attr_front, 1);
+   flowsolver.AddVelDirichletBC(new VectorConstantCoefficient(Vector({0.0, 0.0, 0.0})), attr_front);
 
    // 4. BACK WALL: No-penetration
    Array<int> attr_back(pmesh->bdr_attributes.Max());
    attr_back = 0;
    attr_back[3] = 1;  // attr 4
-   flowsolver.AddVelDirichletBC(new ConstantCoefficient(0.0), attr_back, 1);
+   // flowsolver.AddVelDirichletBC(new ConstantCoefficient(0.0), attr_back, 1);
+   flowsolver.AddVelDirichletBC(new VectorConstantCoefficient(Vector({0.0, 0.0, 0.0})), attr_back);
 
    // 5. TOP WALL: No-penetration
    Array<int> attr_top(pmesh->bdr_attributes.Max());
    attr_top = 0;
    attr_top[5] = 1;  // attr 6
    flowsolver.AddVelDirichletBC(new ConstantCoefficient(0.0), attr_top, 2);
+   // flowsolver.AddVelDirichletBC(new VectorConstantCoefficient(Vector({0.0, 0.0, 0.0})), attr_top);
+
+   // 1. INLET: Prescribed velocity 
+   Array<int> attr_inlet(pmesh->bdr_attributes.Max());
+   attr_inlet = 0;
+   attr_inlet[4] = 1;  // attr 5
+   flowsolver.AddVelDirichletBC(vel_inlet, attr_inlet);
+
 
    // 6. OUTLET: Do nothing
 
