@@ -69,6 +69,9 @@ enum Problem
    DiffusionRing,
    DiffusionRingGauss,
    BoundaryLayer,
+   SteadyPeak,
+   SteadyVaryingAngle,
+   Sovinec,
 };
 
 constexpr real_t epsilon = numeric_limits<real_t>::epsilon();
@@ -160,7 +163,10 @@ int main(int argc, char *argv[])
                   "2=MFEM logo\n\t\t"
                   "3=diffusion ring\n\t\t"
                   "4=diffusion ring - Gauss source\n\t\t"
-                  "5=boundary layer\n\t\t");
+                  "5=boundary layer\n\t\t"
+                  "6=steady peak\n\t\t"
+                  "7=steady varying angle\n\t\t"
+                  "8=Sovinec\n\t\t");
    args.AddOption(&tf, "-tf", "--time-final",
                   "Final time.");
    args.AddOption(&nt, "-nt", "--ntimesteps",
@@ -236,6 +242,9 @@ int main(int argc, char *argv[])
       case Problem::DiffusionRing:
       case Problem::DiffusionRingGauss:
       case Problem::BoundaryLayer:
+      case Problem::SteadyPeak:
+      case Problem::SteadyVaryingAngle:
+      case Problem::Sovinec:
          break;
       case Problem::MFEMLogo:
          bconv = true;
@@ -313,6 +322,8 @@ int main(int argc, char *argv[])
       case Problem::MFEMLogo:
       case Problem::DiffusionRing:
       case Problem::DiffusionRingGauss:
+      case Problem::SteadyPeak:
+      case Problem::Sovinec:
          //free (zero Dirichlet)
          if (bc_neumann)
          {
@@ -324,6 +335,8 @@ int main(int argc, char *argv[])
          bdr_is_dirichlet[0] = -1;
          bdr_is_dirichlet[2] = -1;
          break;
+      case Problem::SteadyVaryingAngle:
+         bdr_is_dirichlet = -1;
    }
 
    // 4. Refine the mesh to increase the resolution. In this example we do
@@ -1134,6 +1147,7 @@ MatFunc GetKFun(Problem prob, const ProblemParams &params)
       }
       case Problem::DiffusionRing:
       case Problem::DiffusionRingGauss:
+      case Problem::SteadyVaryingAngle:
          return [=](const Vector &x, DenseMatrix &kappa)
          {
             const int ndim = x.Size();
@@ -1145,6 +1159,28 @@ MatFunc GetKFun(Problem prob, const ProblemParams &params)
             const real_t r = hypot(dx(0), dx(1));
             b(0) = (r>0.)?(-dx(1) / r):(1.);
             b(1) = (r>0.)?(+dx(0) / r):(0.);
+
+            kappa.Diag(ks * k, ndim);
+            if (ks != 1.)
+            {
+               AddMult_a_VVt((1. - ks) * k, b, kappa);
+            }
+         };
+      case Problem::Sovinec:
+         return [=](const Vector &x, DenseMatrix &kappa)
+         {
+            const int ndim = x.Size();
+            Vector b(ndim);
+            b = 0.;
+
+            Vector dx(x);
+            dx -= .5;
+            //const real_t psi = cos(M_PI * dx(0)) * cos(M_PI * dx(1));
+            const real_t psi_x = M_PI * sin(M_PI * dx(0)) * cos(M_PI * dx(1));
+            const real_t psi_y = M_PI * cos(M_PI * dx(0)) * sin(M_PI * dx(1));
+            const real_t psi_norm = hypot(psi_x, psi_y);
+            b(0) = -psi_y / psi_norm;
+            b(1) = +psi_x / psi_norm;
 
             kappa.Diag(ks * k, ndim);
             if (ks != 1.)
@@ -1293,6 +1329,9 @@ TFunc GetTFun(Problem prob, const ProblemParams &params)
             return - exp(- r_l*r_l/(r0*r0)) + exp(- r_r*r_r/(r0*r0));
          };
       case Problem::BoundaryLayer:
+         // C. Vogl, I. Joseph and M. Holec, Mesh refinement for anisotropic
+         // diffusion in magnetized plasmas, Computers andMathematics with
+         // Applications, 145, pp. 159-174 (2023).
          return [=](const Vector &x, real_t t) -> real_t
          {
             const real_t k_para = M_PI*M_PI * k * ks;
@@ -1303,6 +1342,42 @@ TFunc GetTFun(Problem prob, const ProblemParams &params)
             const real_t e_up = exp(- k_frac * (1. - x(1)));
             return - (e_down + e_up) / denom * sin(M_PI * x(0));
          };
+      case Problem::SteadyPeak:
+         // B. van Es, B. Koern and Hugo de Blank, DISCRETIZATIONMETHODS
+         // FOR EXTREMELY ANISOTROPIC DIFFUSION. In 7th International
+         // Conference on Computational Fluid Dynamics (ICCFD 2012) (pp.
+         // ICCFD7-1401)
+         return [=](const Vector &x, real_t t) -> real_t
+         {
+            constexpr real_t s = 10.;
+            const real_t arg = sin(M_PI * x(0)) * sin(M_PI * x(1));
+            return x(0)*x(1) * pow(arg, s);
+         };
+      case Problem::SteadyVaryingAngle:
+         // B. van Es, B. Koern and Hugo de Blank, DISCRETIZATIONMETHODS
+         // FOR EXTREMELY ANISOTROPIC DIFFUSION. In 7th International
+         // Conference on Computational Fluid Dynamics (ICCFD 2012) (pp.
+         // ICCFD7-1401)
+         return [=](const Vector &x, real_t t) -> real_t
+         {
+            Vector dx(x);
+            dx -= 0.5;
+            const real_t r = hypot(dx(0), dx(1));
+            return 1. - r*r*r;
+         };
+      case Problem::Sovinec:
+         // C. R. Sovinec et al., Nonlinear magnetohydrodynamics simulation
+         // using high-order finite elements. Journal of Computational Physics,
+         // 195, pp. 355–386 (2004).
+         return [=](const Vector &x, real_t t) -> real_t
+         {
+            const real_t &kappa_perp = k * ks;
+            Vector dx(x);
+            dx -= 0.5;
+            const real_t psi = cos(M_PI * dx(0)) * cos(M_PI * dx(1));
+            return psi / kappa_perp;
+         };
+
    }
    return TFunc();
 }
@@ -1352,6 +1427,7 @@ VecTFunc GetQFun(Problem prob, const ProblemParams &params)
       case Problem::MFEMLogo:
       case Problem::DiffusionRing:
       case Problem::DiffusionRingGauss:
+      case Problem::Sovinec:
          return [=](const Vector &x, real_t, Vector &v)
          {
             const int vdim = x.Size();
@@ -1378,6 +1454,37 @@ VecTFunc GetQFun(Problem prob, const ProblemParams &params)
             v(0) = -kappa(0,0) * T_x;
             v(1) = -kappa(1,1) * T_y;
          };
+      case Problem::SteadyPeak:
+         return [=](const Vector &x, real_t, Vector &v)
+         {
+            const int vdim = x.Size();
+            v.SetSize(vdim);
+
+            DenseMatrix kappa;
+            kFun(x, kappa);
+            constexpr real_t s = 10.;
+            const real_t arg = sin(M_PI * x(0)) * sin(M_PI * x(1));
+            const real_t arg_x = M_PI * cos(M_PI * x(0)) * sin(M_PI * x(1));
+            const real_t arg_y = M_PI * cos(M_PI * x(1)) * sin(M_PI * x(0));
+            const real_t T_x = x(1) * pow(arg, s-1) * (arg + x(0) * s * arg_x);
+            const real_t T_y = x(0) * pow(arg, s-1) * (arg + x(1) * s * arg_y);
+            v(0) = -kappa(0,0) * T_x;
+            v(1) = -kappa(1,1) * T_y;
+         };
+      case Problem::SteadyVaryingAngle:
+         return [=](const Vector &x, real_t, Vector &v)
+         {
+            const int vdim = x.Size();
+            v.SetSize(vdim);
+
+            const real_t kappa_r = k * ks;
+            Vector dx(x);
+            dx -= 0.5;
+            const real_t r = hypot(dx(0), dx(1));
+            const real_t T_r = - 3. * r;
+            v(0) = -kappa_r * T_r * dx(0);
+            v(1) = -kappa_r * T_r * dx(1);
+         };
    }
    return VecTFunc();
 }
@@ -1392,6 +1499,9 @@ VecFunc GetCFun(Problem prob, const ProblemParams &params)
       case Problem::DiffusionRing:
       case Problem::DiffusionRingGauss:
       case Problem::BoundaryLayer:
+      case Problem::SteadyPeak:
+      case Problem::SteadyVaryingAngle:
+      case Problem::Sovinec:
          // null
          break;
       case Problem::MFEMLogo:
@@ -1455,6 +1565,37 @@ TFunc GetFFun(Problem prob, const ProblemParams &params)
          {
             return 0.;
          };
+      case Problem::SteadyPeak:
+         return [=](const Vector &x, real_t) -> real_t
+         {
+            DenseMatrix kappa;
+            kFun(x, kappa);
+            constexpr real_t s = 10.;
+            const real_t arg = sin(M_PI * x(0)) * sin(M_PI * x(1));
+            const real_t arg_x = M_PI * cos(M_PI * x(0)) * sin(M_PI * x(1));
+            const real_t arg_y = M_PI * cos(M_PI * x(1)) * sin(M_PI * x(0));
+            const real_t T_xx = x(1) * pow(arg, s-2) * (2.*s * arg_x * arg + x(0) * s * ((s-1) * arg_x*arg_x - M_PI*M_PI * arg*arg));
+            const real_t T_yy = x(0) * pow(arg, s-2) * (2.*s * arg_y * arg + x(1) * s * ((s-1) * arg_y*arg_y - M_PI*M_PI * arg*arg));
+            return kappa(0,0) * T_xx + kappa(1,1) * T_yy;
+         };
+      case Problem::SteadyVaryingAngle:
+         return [=](const Vector &x, real_t) -> real_t
+         {
+            const real_t kappa_r = ks * k;
+            Vector dx(x);
+            dx -= 0.5;
+            const real_t r = hypot(dx(0), dx(1));
+            const real_t T_rr = - 9. * r;
+            return kappa_r * T_rr;
+         };
+      case Problem::Sovinec:
+         return [=](const Vector &x, real_t) -> real_t
+         {
+            Vector dx(x);
+            dx -= 0.5;
+            const real_t psi = cos(M_PI * dx(0)) * cos(M_PI * dx(1));
+            return -2.*M_PI*M_PI * psi;
+         };
    }
    return TFunc();
 }
@@ -1468,6 +1609,9 @@ FluxFunction* GetFluxFun(Problem prob, VectorCoefficient &ccoef)
       case Problem::DiffusionRing:
       case Problem::DiffusionRingGauss:
       case Problem::BoundaryLayer:
+      case Problem::SteadyPeak:
+      case Problem::SteadyVaryingAngle:
+      case Problem::Sovinec:
          //null
          break;
    }
@@ -1475,10 +1619,10 @@ FluxFunction* GetFluxFun(Problem prob, VectorCoefficient &ccoef)
    return NULL;
 }
 
-MixedFluxFunction* GetHeatFluxFun(Problem prob, real_t k, real_t ks, real_t ka,
+MixedFluxFunction* GetHeatFluxFun(Problem prob, const ProblemParams &params,
                                   int dim)
 {
-   auto KFun = GetKFun(prob, k, ks, ka);
+   auto KFun = GetKFun(prob, params);
 
    switch (prob)
    {
@@ -1487,6 +1631,9 @@ MixedFluxFunction* GetHeatFluxFun(Problem prob, real_t k, real_t ks, real_t ka,
       case Problem::DiffusionRing:
       case Problem::DiffusionRingGauss:
       case Problem::BoundaryLayer:
+      case Problem::SteadyPeak:
+      case Problem::SteadyVaryingAngle:
+      case Problem::Sovinec:
          static MatrixFunctionCoefficient kappa(dim, KFun);
          static InverseMatrixCoefficient ikappa(kappa);
          return new LinearDiffusionFlux(ikappa);
