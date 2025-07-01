@@ -349,6 +349,8 @@ int main(int argc, char *argv[])
    ConstantCoefficient one(1.0);
    ConstantCoefficient negone(-1.0);
 
+   pars.t_0 = 1.; //base temperature
+
    auto kFun = GetKFun(problem, pars);
    MatrixFunctionCoefficient eps(dim, kFun);
    InverseMatrixCoefficient eps1(eps);
