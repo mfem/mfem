@@ -110,6 +110,7 @@ int main(int argc, char *argv[])
    int visport = 19916;
    bool static_cond = false;
    bool hybridization = false;
+   bool analytic = false;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -133,6 +134,9 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&analytic, "-anal", "--analytic", "-no-anal",
+                  "--no-analytic",
+                  "Enable or disable analytic solution.");
    args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.Parse();
    if (!args.Good())
@@ -372,8 +376,8 @@ int main(int argc, char *argv[])
    GridFunction hatu_gf;
 
    // Visualization streams
-   socketstream u_out;
-   socketstream sigma_out;
+   socketstream u_out, uex_out;
+   socketstream sigma_out, sigmaex_out;
 
    if (prob == prob_type::manufactured)
    {
@@ -607,6 +611,18 @@ int main(int argc, char *argv[])
                         "Numerical u", 0,0, 500, 500, keys);
          VisualizeField(sigma_out,vishost, visport, sigma_gf,
                         "Numerical flux", 500,0,500, 500, keys);
+         if (analytic)
+         {
+            GridFunction uex_gf(u_fes);
+            uex_gf.ProjectCoefficient(uex);
+            VisualizeField(uex_out, vishost, visport, uex_gf,
+                           "Numerical u (analytic)", 1000,0, 500, 500, keys);
+
+            GridFunction sigmaex_gf(sigma_fes);
+            sigmaex_gf.ProjectCoefficient(sigmaex);
+            VisualizeField(sigmaex_out, vishost, visport, sigmaex_gf,
+                           "Numerical flux (analytic)", 1500,0,500, 500, keys);
+         }
       }
 
       if (it == ref) { break; }
