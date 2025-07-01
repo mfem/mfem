@@ -24,7 +24,7 @@
 //   mpirun -np 4 particle-redistribute -n 1000
 //   mpirun -np 4 particle-redistribute -n 5000 -m ../../data/star.mesh
 //   mpirun -np 4 particle-redistribute -n 7500 -m ../../data/toroid-hex.mesh
-//   mpirun -np 4 particle-redistribute -n 7500 -m ../../data/fischera-q3.mesh
+//   mpirun -np 4 particle-redistribute -n 7500 -m ../../data/fichera-q3.mesh
 
 #include "mfem.hpp"
 
