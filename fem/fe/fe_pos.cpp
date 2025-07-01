@@ -1891,31 +1891,38 @@ L2Pos_PyramidElement::L2Pos_PyramidElement(const int p)
 
    Index idx;
 
-   // interior
-   for (int o = 0, k = 0; k <= p; k++)
-      for (int j = 0; j + k <= p; j++)
-      {
-         int i1 = p - j - k;
-         int i2 = 0;
-         int i3 = -1;
-         int i4 = j + 1;
-         const int i5 = k;
+   if (p == 0)
+   {
+      dof_map[idx(0,0,0,0,0)] = 0;
+      Nodes.IntPoint(0).Set3(0.375, 0.375, 0.25);
+   }
+   else
+   {
+      for (int o = 0, k = 0; k <= p; k++)
+         for (int j = 0; j + k <= p; j++)
+         {
+            int i1 = p - j - k;
+            int i2 = 0;
+            int i3 = -1;
+            int i4 = j + 1;
+            const int i5 = k;
 
-         for (int i = 0; i <= j; i++)
-         {
-            i3++;
-            i4--;
-            dof_map[idx(i1,i2,i3,i4,i5)] = o;
-            Nodes.IntPoint(o++).Set3(real_t(i)/p, real_t(j)/p, 0);
+            for (int i = 0; i <= j; i++)
+            {
+               i3++;
+               i4--;
+               dof_map[idx(i1,i2,i3,i4,i5)] = o;
+               Nodes.IntPoint(o++).Set3(real_t(i)/p, real_t(j)/p, 0);
+            }
+            for (int i = j + 1; i + k <= p; i++)
+            {
+               i1--;
+               i2++;
+               dof_map[idx(i1,i2,i3,i4,i5)] = o;
+               Nodes.IntPoint(o++).Set3(real_t(i)/p, real_t(j)/p, 0);
+            }
          }
-         for (int i = j + 1; i + k <= p; i++)
-         {
-            i1--;
-            i2++;
-            dof_map[idx(i1,i2,i3,i4,i5)] = o;
-            Nodes.IntPoint(o++).Set3(real_t(i)/p, real_t(j)/p, 0);
-         }
-      }
+   }
 }
 
 // static method
@@ -2197,7 +2204,6 @@ void L2Pos_PyramidElement::CalcDShape(const IntegrationPoint &ip,
       {
          dshape(it.second, d) = m_dshape(it.first, d);
       }
-
 }
 
 }
