@@ -212,7 +212,7 @@ void ElasticityAddMultPA_(const int nDofs, const FiniteElementSpace &fespace,
             const int iIndex = isComponent ? 0 : i;
             div += gradx(iIndex,i);
          }
-         const real_t w = ipWeights[p] /det(invJ);
+         const real_t w = ipWeights[p]/det(invJ);
          for (int m = 0; m < d; m++)
          {
             for (int q = qLower; q < qUpper; q++)
@@ -226,8 +226,8 @@ void ElasticityAddMultPA_(const int nDofs, const FiniteElementSpace &fespace,
                {
                   for (int a = 0; a < d; a++)
                   {
-                     contraction += 2*((a == q)*invJ(m,j_block) + (j_block==q)*invJ(m,a))*(gradx(0,
-                                                                                                 a));
+                     contraction += 2*((a == q)*invJ(m,j_block)
+                                       + (j_block==q)*invJ(m,a))*(gradx(0, a));
                   }
                }
                else
@@ -236,7 +236,7 @@ void ElasticityAddMultPA_(const int nDofs, const FiniteElementSpace &fespace,
                   {
                      for (int b = 0; b < d; b++)
                      {
-                        contraction += ((a == q)*invJ(m,b) + (b==q)*invJ(m,a))
+                        contraction += ((a == q)*invJ(m,b) + (b == q)*invJ(m,a))
                                        *(gradx(a,b) + gradx(b, a));
                      }
                   }
@@ -244,7 +244,8 @@ void ElasticityAddMultPA_(const int nDofs, const FiniteElementSpace &fespace,
                // lambda*div(u)*div(v) + 2*mu*sym(grad(u))*sym(grad(v))
                // contraction = 4*sym(grad(u))sym(grad(v))
                const int qIndex = isComponent ? 0 : q;
-               Q(p,m,qIndex,e) = w*(lamDev(p, e)*invJ(m,q)*div + 0.5*muDev(p, e)*contraction);
+               Q(p,m,qIndex,e) = w*(lamDev(p, e)*invJ(m,q)*div
+                                    + 0.5*muDev(p, e)*contraction);
             }
          }
       }
