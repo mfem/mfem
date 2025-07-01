@@ -39,6 +39,8 @@ GPU computing
   set. This is most often used for setting constant essential boundary
   conditions. A new function Vector::SetSubVectorHost has been added in cases
   where host execution is always needed (e.g. when the DOFs array is small).
+- Introduced MFEM_FOREACH_THREAD_DIRECT, which directly maps loop tasks to GPU
+  threads, assigning one task per thread.
 
 New and updated examples and miniapps
 -------------------------------------
