@@ -21,27 +21,8 @@
 #include <fem/dfem/doperator.hpp>
 #include <linalg/tensor.hpp>
 
-#if 0
-#include "fem/dfem/kernels_regs.hpp"
-namespace ker = mfem::kernels::internal::dfem;
-/*-------------------------------------------------------------------------------------------------
-Benchmark           Time             CPU   Iterations       Dofs     MDof/s          p    version
--------------------------------------------------------------------------------------------------
-BP3/0/6/25       16.4 ms         16.4 ms           43    15.625k  31.2573/s          6          0
-BP3/1/6/25       12.7 ms         12.7 ms           55    15.625k  40.0642/s          6          1
-BP3/2/6/25       39.4 ms         39.3 ms           18    15.625k  13.4168/s          6          2
-BP3/3/6/25       30.5 ms         30.5 ms           23    15.625k  17.1194/s          6          3*/
-#else
 #include "fem/kernels.hpp"
 namespace ker = kernels::internal;
-/*-------------------------------------------------------------------------------------------------
-Benchmark           Time             CPU   Iterations       Dofs     MDof/s          p    version
--------------------------------------------------------------------------------------------------
-BP3/0/6/25       16.3 ms         16.3 ms           43    15.625k  31.3405/s          6          0
-BP3/1/6/25       49.0 ms         48.9 ms           14    15.625k  10.9493/s          6          1
-BP3/2/6/25       39.8 ms         39.7 ms           18    15.625k  13.2916/s          6          2
-BP3/3/6/25       30.3 ms         30.3 ms           23    15.625k  17.2366/s          6          3*/
-#endif
 
 #undef NVTX_COLOR
 #define NVTX_COLOR nvtx::kAquamarine
@@ -101,7 +82,7 @@ struct StiffnessIntegrator : public BilinearFormIntegrator
 public:
    StiffnessIntegrator()
    {
-      dbg();
+      // dbg();
       StiffnessKernels::Specialization<2, 3>::Add();
       StiffnessKernels::Specialization<3, 4>::Add();
       StiffnessKernels::Specialization<4, 5>::Add();
@@ -153,11 +134,11 @@ public:
 
       mfem::forall_3D(ne, Q1D, Q1D, Q1D,[=] MFEM_HOST_DEVICE(int e)
       {
-         MFEM_FOREACH_THREAD1(qz, z, Q1D)
+         MFEM_FOREACH_THREAD(qz, z, Q1D)
          {
-            MFEM_FOREACH_THREAD1(qy, y, Q1D)
+            MFEM_FOREACH_THREAD(qy, y, Q1D)
             {
-               MFEM_FOREACH_THREAD1(qx, x, Q1D)
+               MFEM_FOREACH_THREAD(qx, x, Q1D)
                {
                   const real_t w = W(qx, qy, qz);
                   const real_t *Jtr = &J(0, 0, qx, qy, qz, e);
@@ -208,9 +189,9 @@ public:
 
          for (int qz = 0; qz < Q1D; qz++)
          {
-            MFEM_FOREACH_THREAD1(qy, y, Q1D)
+            MFEM_FOREACH_THREAD(qy, y, Q1D)
             {
-               MFEM_FOREACH_THREAD1(qx, x, Q1D)
+               MFEM_FOREACH_THREAD(qx, x, Q1D)
                {
                   real_t v[3], u[3] = { r1[0][0][qz][qy][qx],
                                         r1[0][1][qz][qy][qx],
@@ -317,7 +298,7 @@ struct BakeOff
       x = 0.0;
 
       gD1D = d1d, gQ1D = q1d;
-      dbg("D1D: {}, Q1D: {}", gD1D, gQ1D);
+      // dbg("D1D: {}, Q1D: {}", gD1D, gQ1D);
       qdata.UseDevice(true);
       assert(q1d*q1d*q1d == ir->GetNPoints());
    }
@@ -374,7 +355,7 @@ struct Diffusion : public BakeOff<VDIM, GLL>
       Ξ_q_params {Ξ_fd, q_fd},
       cg(MPI_COMM_WORLD)
    {
-      dbg("pmesh.bdr_attributes.Max():{}",pmesh.bdr_attributes.Max());
+      // dbg("pmesh.bdr_attributes.Max():{}",pmesh.bdr_attributes.Max());
       static_assert(VDIM == 1 && GLL == false);
 
       ess_bdr = 1;
@@ -398,7 +379,7 @@ struct Diffusion : public BakeOff<VDIM, GLL>
             auto *di = dynamic_cast<DiffusionIntegrator*>(bfi);
             assert(di);
             const int d1d = di->dofs1D, q1d = di->quad1D;
-            dbg("\x1b[33md1d: {} q1d: {}", d1d, q1d);
+            // dbg("\x1b[33md1d: {} q1d: {}", d1d, q1d);
             MFEM_VERIFY(d1d == gD1D, "D1D mismatch: " << d1d << " != " << gD1D);
             MFEM_VERIFY(q1d == gQ1D, "Q1D mismatch: " << q1d << " != " << gQ1D);
          }
@@ -474,9 +455,9 @@ struct Diffusion : public BakeOff<VDIM, GLL>
          cg.SetRelTol(1e-8);
          cg.SetAbsTol(0.0);
          cg.Mult(B, X);
-         MFEM_VERIFY(cg.GetConverged(), "CG solver did not converge.");
+         MFEM_VERIFY(cg.GetConverged(), "❌❌❌ CG solver did not converge.");
          MFEM_DEVICE_SYNC;
-         dbg("✅");
+         // mfem::out << "✅" << std::endl;
       }
       cg.SetAbsTol(0.0);
       cg.SetRelTol(rtol);
