@@ -99,14 +99,12 @@ class BorisAlgorithm
 {
 private:
 
-   FindPointsGSLIB E_finder;
-   ParMesh *E_pmesh;
    ParGridFunction *E_field;
+   std::unique_ptr<FindPointsGSLIB> E_finder;
 
-   FindPointsGSLIB  B_finder;
-   ParMesh *B_pmesh;
    ParGridFunction *B_field;
-
+   std::unique_ptr<FindPointsGSLIB>  B_finder;
+   
    mutable Vector pxB_;
    mutable Vector pm_;
    mutable Vector pp_;
@@ -120,27 +118,57 @@ private:
       Ordering::Reorder(v, gf.VectorDim(), gf.ParFESpace()->GetOrdering(), ordering);
    }
 
+   static void GetCode2Indices(const FindPointsGSLIB &finder, Array<int> &lost_idxs)
+   {
+      const Array<unsigned int> &code = finder.GetCode();
+      lost_idxs.SetSize(0);
+      for (int i = 0; i < code.Size(); i++)
+      {
+         if (code[i] == 2)
+            lost_idxs.Append(i);
+      }
+   }
+   void GetLostIndices(Array<int> &idxs) const
+   {
+      idxs.SetSize(0);
+      if (B_finder)
+      {
+         Array<int> B_lost_idxs;
+         GetCode2Indices(*B_finder, B_lost_idxs);
+         idxs.Append(B_lost_idxs);
+      }
+      if (E_finder)
+      {
+         Array<int> E_lost_idxs;
+         GetCode2Indices(*E_finder, E_lost_idxs);
+         idxs.Append(E_lost_idxs);
+      }
+      idxs.Unique();
+   }
 public:
    BorisAlgorithm(ParGridFunction *E_gf,
                   ParGridFunction *B_gf,
                   MPI_Comm comm)
-      : E_finder(comm), B_finder(comm),
-        E_field(E_gf), B_field(B_gf),
+      : E_field(E_gf),
+        B_field(B_gf),
+        E_finder(nullptr),
+        B_finder(nullptr),
         pxB_(3), pm_(3), pp_(3)
    {
-      E_pmesh = (E_field) ? E_field->ParFESpace()->GetParMesh() : nullptr;
-      if (E_pmesh)
+      if (E_field)
       {
-         E_pmesh->EnsureNodes();
-         E_finder.Setup(*E_pmesh);
+         ParMesh &E_pmesh = *E_field->ParFESpace()->GetParMesh();
+         E_finder = std::make_unique<FindPointsGSLIB>(comm);
+         E_pmesh.EnsureNodes();
+         E_finder->Setup(E_pmesh);
       }
-      B_pmesh = (B_field) ? B_field->ParFESpace()->GetParMesh() : nullptr;
-      if (B_pmesh)
+      if (B_field)
       {
-         B_pmesh->EnsureNodes();
-         B_finder.Setup(*B_pmesh);
+         ParMesh &B_pmesh = *B_field->ParFESpace()->GetParMesh();
+         B_finder = std::make_unique<FindPointsGSLIB>(comm);
+         B_pmesh.EnsureNodes();
+         B_finder->Setup(B_pmesh);
       }
-
    }
 
    void Step(ParticleSet<Ordering::byVDIM> &particles, real_t &t, real_t &dt)
@@ -152,7 +180,7 @@ public:
 
       if (E_field)
       {
-         GetValues(*E_field, X, E_finder, E, Ordering::byVDIM);
+         GetValues(*E_field, X, *E_finder, E, Ordering::byVDIM);
       }
       else
       {
@@ -161,12 +189,17 @@ public:
 
       if (B_field)
       {
-         GetValues(*B_field, X, B_finder, B, Ordering::byVDIM);
+         GetValues(*B_field, X, *B_finder, B, Ordering::byVDIM);
       }
       else
       {
          B = 0.0;
       }
+      
+      // Remove lost particles
+      Array<int> lost_idxs;
+      GetLostIndices(lost_idxs);
+      particles.RemoveParticles(lost_idxs);
 
       // Individually step each particle + update its position:
       for (int i = 0; i < particles.GetNP(); i++)
@@ -219,7 +252,6 @@ public:
       // Update the position
       x.Add(dt / m, p);
    }
-
 };
 
 // Open the named VisItDataCollection and read the named field.
@@ -304,7 +336,7 @@ int main(int argc, char *argv[])
                   "Initial Time.");
    args.AddOption(&t_final, "-tf", "--final-time",
                   "Final Time.");
-   args.AddOption(&N_redistribute, "-rf", "--redist-freq", "Redistribution frequency.");
+   args.AddOption(&redist_freq, "-rf", "--redist-freq", "Redistribution frequency.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -377,10 +409,7 @@ int main(int argc, char *argv[])
    ofs.precision(14);
 
    int nsteps = 1 + (int)ceil((t_final - t_init) / dt);
-   DenseMatrix pos_data(3*particles.GetNP(), nsteps+1); // +1 for IC
-   DenseMatrix mom_data(3*particles.GetNP(), nsteps+1); // +1 for IC
-   pos_data.SetCol(0, particles.GetSetCoords());
-   mom_data.SetCol(0, particles.GetSetVector(MOM));
+
 
    if (Mpi::Root())
    {
@@ -391,8 +420,6 @@ int main(int argc, char *argv[])
    for (int step = 1; step <= nsteps; step++)
    {
       boris.Step(particles, t, dt);
-      pos_data.SetCol(step, particles.GetSetCoords());
-      mom_data.SetCol(step, particles.GetSetVector(MOM));
    }
 
    if (visit || visualization)
