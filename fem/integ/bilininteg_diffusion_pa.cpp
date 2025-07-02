@@ -50,10 +50,10 @@ void DiffusionIntegrator::AddMultPA(const Vector &x, Vector &y) const
       {
          const Array<real_t> &Ga1 = maps->Ga1;
          const Array<real_t> &Ga2 = maps->Ga2;
+         const Array<real_t> &Ga3 = maps->Ga3;
          const Array<int> &lex_map = maps->lex_map;
          ApplySimplexPAKernels::Run(dim, dofs1D, quad1D, ne, symmetric, lex_map, Ga1,
-                                    Ga2,
-                                    Dv, x, y, dofs1D, quad1D);
+                                    Ga2, Ga3, Dv, x, y, dofs1D, quad1D);
       }
       else
       {

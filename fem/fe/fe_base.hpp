@@ -169,8 +169,8 @@ public:
           same as TENSOR, but the sizes of B and G are the same as FULL.*/
       LEXICOGRAPHIC_FULL,
 
-      /** @brief Ragged tensor production representation using 1D matrices/tensors
-          with dimensions using 1D number of quadrature points and degrees of
+      /** @brief Ragged tensor product representation using 1D matrices/tensors
+          with dimensions using 1D number of quadrature points and ragged tensor degrees of
           freedom. Used only for partial assembly of the H1 positive basis. The
           size of B is d1d x qnpt x dim. Since different Gauss-Jacobi quadrature rules
           are employed in each dimension, we need to store dim arrays. */
@@ -211,6 +211,7 @@ public:
             Ba2(iqpt, a1, a2) = B^{p-a1}_{a2}(x_{iqpt}). */
    Array<real_t> Ba1;
    Array<real_t> Ba2;
+   Array<real_t> Ba3;
 
    /** @brief Special structures for gradients of positive basis with partial assembly.
       The gradient arrays exploit properties of the Bernstein basis which allow grad(B^p_alpha)
@@ -218,6 +219,7 @@ public:
       Thus, Ga1 and Ga2 simply contain the ragged tensor product components of B^{p-1}_alpha */
    Array<real_t> Ga1;
    Array<real_t> Ga2;
+   Array<real_t> Ga3;
 
    Array<int> lex_map;
 
