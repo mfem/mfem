@@ -1761,7 +1761,7 @@ real_t FindYVal(const GridFunction &u, real_t u_target, real_t x,
       }
       else
       {
-         uc = -DBL_MAX;
+         uc = -infinity();
       }
 
       if (std::abs(uc) < tol || 0.5 * (b - a) < tol)
