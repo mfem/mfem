@@ -27,33 +27,13 @@
 //   mpirun -np 4 particle-redistribute -n 7500 -m ../../data/fichera-q3.mesh
 
 #include "mfem.hpp"
+#include "../common/particles_extras.hpp"
 
 #include <random>
 
 using namespace std;
 using namespace mfem;
-
-void InitializeRandom(Particle &p, int seed, Vector &pos_min, Vector &pos_max)
-{
-   std::mt19937 gen(seed);
-   std::uniform_real_distribution<> real_dist(0.0,1.0);
-
-   for (int i = 0; i < p.GetSpaceDim(); i++)
-   {
-      p.GetCoords()[i] = pos_min[i] + (pos_max[i] - pos_min[i])*real_dist(gen);
-   }
-
-   for (int s = 0; s < p.GetNumScalars(); s++)
-      p.GetScalar(s) = real_dist(gen);
-
-   for (int v = 0; v < p.GetNumVectors(); v++)
-   {
-      for (int c = 0; c < p.GetVDim(v); c++)
-      {
-         p.GetVector(v)[c] = real_dist(gen);
-      }
-   }
-}
+using namespace mfem::common;
 
 void PrintOnOffRankCounts(const Array<unsigned int> &procs, MPI_Comm comm)
 {
@@ -178,7 +158,7 @@ int main (int argc, char *argv[])
    int seed = rank;
    for (int i = 0; i < npt; i++)
    {
-      Particle p(space_dim, 0, Array<int>());
+      Particle p(space_dim, 0, {});
       InitializeRandom(p, seed, pos_min, pos_max);
       pset.AddParticle(p);
       seed += size;
