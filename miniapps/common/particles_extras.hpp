@@ -21,6 +21,7 @@ namespace mfem
 namespace common
 {
 
+/// Initialize particle with random fields, randomly within bounding box of \p pos_min and \p pos_max
 void InitializeRandom(Particle &p, int seed, const Vector &pos_min, const Vector &pos_max);
 
 /// Add a point to a given Mesh, represented as a hex sixed \p scale
@@ -33,11 +34,13 @@ void VisualizeParticles(socketstream &sock, const char* vishost, int visport,
                                 const char* title, int x = 0, int y = 0, int w = 400, int h = 400,
                                 const char* keys=nullptr);
 
-class ParticleTrajVisualizer
+class ParticleTrajectories
 {
 private:
     socketstream sock;
-    Mesh trajectories;
+    std::vector<Array<unsigned int>> segment_ids; /// Track particle IDs that exist at the segment start.
+    std::vector<Mesh> segment_meshes; /// Each segment is stored as a Mesh snapshot
+    bool segment_completed = true;
 
 #ifdef MFEM_USE_MPI
     MPI_Comm comm;
@@ -45,18 +48,20 @@ private:
 
 public:
 
-    ParticleVisualizer(int visport)
-    : sock("localhost", visport) { }
+    ParticleTrajectories(const char* vishost, int visport, const char* title, int x=0, int y=0, int w=400, int h=400, const char* keys=nullptr);
 
 #ifdef MFEM_USE_MPI
-    ParticleVisualizer(MPI_Comm comm_, int visport)
-    : sock("localhost", visport), comm(comm_) {}
+    ParticleTrajectories(MPI_Comm comm_, const char* vishost, int visport, const char* title, int x=0, int y=0, int w=400, int h=400, const char* keys=nullptr)
+    : ParticleTrajectories(vishost, visport, title, x, y, w, h, keys) { comm = comm_; }
 #endif // MFEM_USE_MPI
 
-
-    /// Plot particle trajectories, accounting for previous calls to this function, removed particles, and redistributed particles in parallel
     template<Ordering::Type VOrdering>
-    void PlotParticleTrajectories(const ParticleSet<VOrdering> &pset);
+    void AddSegmentStart(const ParticleSet<VOrdering> &pset);
+
+    template<Ordering::Type VOrdering>
+    void SetSegmentEnd(const ParticleSet<VOrdering> &pset);
+
+    void Visualize();
 
 };
 

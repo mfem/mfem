@@ -98,7 +98,7 @@ void VisualizeParticles(socketstream &sock, const char* vishost, int visport,
    {
       Particle p = pset.GetParticleData(i);
       const Vector &pcoords = p.GetCoords();
-      ParticleVisualizer::Add3DPoint(pcoords, particles_mesh, psize);
+      Add3DPoint(pcoords, particles_mesh, psize);
    }
    particles_mesh.FinalizeMesh();
 
@@ -152,20 +152,106 @@ void VisualizeParticles(socketstream &sock, const char* vishost, int visport,
 #endif // MFEM_USE_MPI
 }
 
-template<Ordering::Type VOrdering>
-void ParticleVisualizer::PlotParticleTrajectories(const ParticleSet<VOrdering> &pset)
+
+ParticleTrajectories::ParticleTrajectories(const char* vishost, int visport, const char* title, int x, int y, int w, int h, const char* keys)
 {
+   sock.open(vishost, visport);
+   sock.precision(8);
+   // sock << "window_title '" << title << "'\n"
+   //       << "window_geometry "
+   //       << x << " " << y << " " << w << " " << h << "\n";
+   // if ( keys ) { sock << "keys " << keys << "\n"; }
+   // else { sock << "keys maaAc\n"; }
+   // sock << std::endl;
+}
+
+template<Ordering::Type VOrdering>
+void ParticleTrajectories::AddSegmentStart(const ParticleSet<VOrdering> &pset)
+{
+   MFEM_ASSERT(segment_completed, "SetSegmentEnd must be called after each AddSegmentStart.");
+
+   // Create a new mesh for all particle segments for this timestep
+   segment_meshes.emplace_back(1, pset.GetNP()*2, pset.GetNP(), 0, pset.GetSpaceDim());
+
+   // Add segment start particle IDs
+   segment_ids.emplace_back(pset.GetIDs());
+
+   // Add all particle starting vertices
+   for (int i = 0; i < pset.GetNP(); i++)
+   {
+      Particle p = pset.GetParticleData(i);
+      segment_meshes.back().AddVertex(p.GetCoords());
+   }
+
+   segment_completed = false;
+}
+
+template<Ordering::Type VOrdering>
+void ParticleTrajectories::SetSegmentEnd(const ParticleSet<VOrdering> &pset)
+{
+   MFEM_ASSERT(!segment_completed, "AddSegmentStart must be called prior to SetSegmentEnd.");
+
+   const Array<unsigned int> &end_ids = pset.GetIDs();
+
+   // Add all endpoint vertices + segments for all particles
+   int num_start = segment_ids.back().Size();
+   for (int i = 0; i < num_start; i++)
+   {
+      // If this particle's initial position was set in AddSegmentStart, set the vertex to its now current location
+      int pidx = end_ids.Find(segment_ids.back()[i]);
+      if (pidx != -1)
+      {
+         Particle p = pset.GetParticleData(pidx);
+         segment_meshes.back().AddVertex(p.GetCoords());
+      }
+      else // Otherwise set its end vertex == start vertex
+      {
+         segment_meshes.back().AddVertex(segment_meshes.back().GetVertex(i));
+      }
+      segment_meshes.back().AddSegment(i, i+num_start);
+   }
+   segment_meshes.back().FinalizeMesh();
+
+   segment_completed = true;
 
 }
 
-template void ParticleVisualizer::VisualizeParticles<Ordering::byNODES>(socketstream &sock, const char* vishost, int visport,
+
+void ParticleTrajectories::Visualize()
+{
+   // Create a mesh of all the trajectory segments
+   std::vector<Mesh*> all_meshes;
+   for (Mesh &m : segment_meshes)
+      all_meshes.push_back(&m);
+
+   Mesh trajectories(all_meshes.data(), all_meshes.size());
+   trajectories.FinalizeMesh();
+
+   // Update socketstream
+#ifdef MFEM_USE_MPI
+   int myid, num_procs;
+   MPI_Comm_rank(comm, &myid);
+   MPI_Comm_size(comm, &num_procs);
+
+   sock << "parallel " << num_procs << " " << myid << "\n";
+#endif // MFEM_USE_MPI
+   sock << "mesh\n";
+   trajectories.Print(sock);
+
+}
+
+template void VisualizeParticles<Ordering::byNODES>(socketstream &sock, const char* vishost, int visport,
                                     const ParticleSet<Ordering::byNODES> &pset, const Vector &scalar_field, real_t psize, 
                                     const char* title, int x, int y, int w, int h, const char* keys);
-template void ParticleVisualizer::VisualizeParticles<Ordering::byVDIM>(socketstream &sock, const char* vishost, int visport,
+template void VisualizeParticles<Ordering::byVDIM>(socketstream &sock, const char* vishost, int visport,
                                     const ParticleSet<Ordering::byVDIM> &pset, const Vector &scalar_field, real_t psize, 
                                     const char* title, int x, int y, int w, int h, const char* keys);
-template void ParticleVisualizer::PlotParticleTrajectories<Ordering::byNODES>(const ParticleSet<Ordering::byNODES> &pset);
-template void ParticleVisualizer::PlotParticleTrajectories<Ordering::byVDIM>(const ParticleSet<Ordering::byVDIM> &pset);
+
+template void ParticleTrajectories::AddSegmentStart<Ordering::byNODES>(const ParticleSet<Ordering::byNODES> &pset);
+template void ParticleTrajectories::AddSegmentStart<Ordering::byVDIM>(const ParticleSet<Ordering::byVDIM> &pset);
+
+template void ParticleTrajectories::SetSegmentEnd<Ordering::byNODES>(const ParticleSet<Ordering::byNODES> &pset);
+template void ParticleTrajectories::SetSegmentEnd<Ordering::byVDIM>(const ParticleSet<Ordering::byVDIM> &pset);
 
 } // namespace common
 

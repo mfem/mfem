@@ -68,6 +68,7 @@
 #include "mfem.hpp"
 #include "../common/fem_extras.hpp"
 #include "../common/pfem_extras.hpp"
+#include "../common/particles_extras.hpp"
 #include "electromagnetics.hpp"
 #include <fstream>
 #include <iostream>
@@ -359,7 +360,7 @@ int main(int argc, char *argv[])
    }
 
    std::unique_ptr<VisItDataCollection> E_dc, B_dc;
-   ParGridFunction *E_gf, *B_gf;
+   ParGridFunction *E_gf = nullptr, *B_gf = nullptr;
 
    if (E_coll_name != "")
    {
@@ -382,11 +383,11 @@ int main(int argc, char *argv[])
    }
 
    // Initialize particles
-   ParMesh *pmesh = E_gf ? static_cast<ParMesh*>(E_gf->ParFESpace()->GetMesh()) : nullptr;
-   if (!pmesh && B_gf) { pmesh = static_cast<ParMesh*>(B_gf->ParFESpace()->GetMesh()); }
+   ParMesh *pmesh = E_gf ? static_cast<ParMesh*>(E_gf->ParFESpace()->GetParMesh()) : nullptr;
+   if (!pmesh && B_gf) { pmesh = static_cast<ParMesh*>(B_gf->ParFESpace()->GetParMesh()); }
 
    // Create particle set: 2 scalars of mass and charge, 3 vectors of size 3 for momentum, electric field, and magnetic field
-   ParticleSet<Ordering::byVDIM> particles(MPI_COMM_WORLD, 3, 2, Array<int>{3,3,3});
+   ParticleSet<Ordering::byVDIM> particles(MPI_COMM_WORLD, 3, 2, {3,3,3});
    InitializeParticles(particles, pmesh, x_init, p_init, q, m, num_part);
    
    // Print all particles
@@ -417,58 +418,22 @@ int main(int argc, char *argv[])
    }
 
    real_t t = t_init;
+   std::unique_ptr<ParticleTrajectories> traj_vis;
+   if (visualization)
+      traj_vis = std::make_unique<ParticleTrajectories>(MPI_COMM_WORLD, "localhost", visport, "Particle Trajectories");
+
    for (int step = 1; step <= nsteps; step++)
    {
+      if (traj_vis)
+      {
+         traj_vis->AddSegmentStart(particles);
+      }
       boris.Step(particles, t, dt);
-   }
-
-   if (visit || visualization)
-   {
-      socketstream traj_sock;
-      traj_sock.precision(8);
-      char vishost[] = "localhost";
-      traj_sock.open(vishost, visport);
-
-      L2_FECollection fec_l2(0,1);
-      Mesh trajectories(1, (nsteps+1)*num_part, (nsteps)*num_part, 0, 3);
-
-      for (int i = 0; i < num_part; i++)
-      {
-         for (int j = 0; j < nsteps+1; j++) // +1 for IC
-         {
-            trajectories.AddVertex(pos_data(i*3,j), pos_data(i*3+1,j), pos_data(i*3+2,j));
-            if (j > 0) { trajectories.AddSegment((j-1)+i*(nsteps+1),j+i*(nsteps+1)); }
-         }
-      }
-
-      trajectories.FinalizeMesh();
       
-      mfem::out << "Number of particle pts: " << num_part*(nsteps+1) << std::endl;
-      mfem::out << "NV: " << trajectories.GetNV() << std::endl;
-      mfem::out << "Conforming: " << trajectories.Conforming() << std::endl;
-
-      FiniteElementSpace fes_l2(&trajectories, &fec_l2);
-      GridFunction traj_times(&fes_l2);
-
-      for (int i = 0; i < num_part; i++)
+      if(traj_vis)
       {
-         for (int j = 0; j < nsteps; j++) // TODO: Why is this not <= nsteps??
-         {
-            traj_times[j+i*nsteps] = dt * j;
-         }
-      }
-      
-
-      if (visualization)
-      {
-         VisualizeField(traj_sock, vishost, visport, traj_times, "Trajectories");
-         //VisualizeMesh(traj_sock, vishost, visport, trajectories, "Mesh");
-      }
-      if (visit)
-      {
-         VisItDataCollection visit_dc(MPI_COMM_WORLD, "Lorentz", &trajectories);
-         visit_dc.RegisterField("Traj_Times", &traj_times);
-         visit_dc.Save();
+         traj_vis->SetSegmentEnd(particles);
+         traj_vis->Visualize();
       }
    }
 
