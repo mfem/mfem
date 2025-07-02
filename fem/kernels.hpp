@@ -87,9 +87,9 @@ template <int MQ1>
 inline MFEM_HOST_DEVICE void LoadMatrix(const int d1d, const int q1d,
                                         const real_t *M, real_t (*N)[MQ1])
 {
-   MFEM_FOREACH_THREAD(dy, y, d1d)
+   MFEM_FOREACH_THREAD_DIRECT(dy, y, d1d)
    {
-      MFEM_FOREACH_THREAD(qx, x, q1d)
+      MFEM_FOREACH_THREAD_DIRECT(qx, x, q1d)
       {
          N[dy][qx] = M[dy * q1d + qx];
       }
@@ -105,9 +105,9 @@ inline MFEM_HOST_DEVICE void LoadDofs2d(const int e, const int d1d, const int c,
 {
    for (int d = 0; d < DIM; d++)
    {
-      MFEM_FOREACH_THREAD(dy, y, d1d)
+      MFEM_FOREACH_THREAD_DIRECT(dy, y, d1d)
       {
-         MFEM_FOREACH_THREAD(dx, x, d1d)
+         MFEM_FOREACH_THREAD_DIRECT(dx, x, d1d)
          {
             Y[c][d][dy][dx] = X(dx, dy, c, e);
          }
@@ -132,9 +132,9 @@ inline MFEM_HOST_DEVICE void LoadDofs2d(const int e, const int d1d,
 {
    for (int c = 0; c < VDIM; ++c)
    {
-      MFEM_FOREACH_THREAD(dy, y, d1d)
+      MFEM_FOREACH_THREAD_DIRECT(dy, y, d1d)
       {
-         MFEM_FOREACH_THREAD(dx, x, d1d)
+         MFEM_FOREACH_THREAD_DIRECT(dx, x, d1d)
          {
             Y[c][dy][dx] = X(dx, dy, c, e);
          }
@@ -148,9 +148,9 @@ inline MFEM_HOST_DEVICE void LoadDofs2d(const int e, const int d1d,
                                         const DeviceTensor<3, const real_t> &X,
                                         s_regs2d_t<MQ1> &Y)
 {
-   MFEM_FOREACH_THREAD(dy, y, d1d)
+   MFEM_FOREACH_THREAD_DIRECT(dy, y, d1d)
    {
-      MFEM_FOREACH_THREAD(dx, x, d1d)
+      MFEM_FOREACH_THREAD_DIRECT(dx, x, d1d)
       {
          Y[dy][dx] = X(dx, dy, e);
       }
@@ -164,9 +164,9 @@ inline MFEM_HOST_DEVICE void WriteDofs2d(const int e, const int d1d,
                                          vd_regs2d_t<VDIM, DIM, MQ1> &X,
                                          const DeviceTensor<4, real_t> &Y)
 {
-   MFEM_FOREACH_THREAD(dy, y, d1d)
+   MFEM_FOREACH_THREAD_DIRECT(dy, y, d1d)
    {
-      MFEM_FOREACH_THREAD(dx, x, d1d)
+      MFEM_FOREACH_THREAD_DIRECT(dx, x, d1d)
       {
          real_t y = 0.0;
          for (int d = 0; d < DIM; d++) { y += X(i, d, dy, dx); }
@@ -192,9 +192,9 @@ inline MFEM_HOST_DEVICE void WriteDofs2d(const int e, const int d1d,
 {
    for (int c = 0; c < VDIM; ++c)
    {
-      MFEM_FOREACH_THREAD(dy, y, d1d)
+      MFEM_FOREACH_THREAD_DIRECT(dy, y, d1d)
       {
-         MFEM_FOREACH_THREAD(dx, x, d1d)
+         MFEM_FOREACH_THREAD_DIRECT(dx, x, d1d)
          {
             Y(dx, dy, c, e) += X(c, dy, dx);
          }
@@ -212,9 +212,9 @@ inline MFEM_HOST_DEVICE void LoadDofs3d(const int e, const int d1d, const int c,
    {
       for (int dz = 0; dz < d1d; ++dz)
       {
-         MFEM_FOREACH_THREAD(dy, y, d1d)
+         MFEM_FOREACH_THREAD_DIRECT(dy, y, d1d)
          {
-            MFEM_FOREACH_THREAD(dx, x, d1d)
+            MFEM_FOREACH_THREAD_DIRECT(dx, x, d1d)
             {
                Y[c][d][dz][dy][dx] = X(dx, dy, dz, c, e);
             }
@@ -242,9 +242,9 @@ inline MFEM_HOST_DEVICE void LoadDofs3d(const int e, const int d1d,
    {
       for (int dz = 0; dz < d1d; ++dz)
       {
-         MFEM_FOREACH_THREAD(dy, y, d1d)
+         MFEM_FOREACH_THREAD_DIRECT(dy, y, d1d)
          {
-            MFEM_FOREACH_THREAD(dx, x, d1d)
+            MFEM_FOREACH_THREAD_DIRECT(dx, x, d1d)
             {
                Y[c][dz][dy][dx] = X(dx,dy,dz,c,e);
             }
@@ -261,9 +261,9 @@ inline MFEM_HOST_DEVICE void LoadDofs3d(const int e, const int d1d,
 {
    for (int dz = 0; dz < d1d; ++dz)
    {
-      MFEM_FOREACH_THREAD(dy, y, d1d)
+      MFEM_FOREACH_THREAD_DIRECT(dy, y, d1d)
       {
-         MFEM_FOREACH_THREAD(dx, x, d1d)
+         MFEM_FOREACH_THREAD_DIRECT(dx, x, d1d)
          {
             Y[dz][dy][dx] = X(dx,dy,dz,e);
          }
@@ -280,9 +280,9 @@ inline MFEM_HOST_DEVICE void WriteDofs3d(const int e, const int d1d,
 {
    for (int dz = 0; dz < d1d; ++dz)
    {
-      MFEM_FOREACH_THREAD(dy, y, d1d)
+      MFEM_FOREACH_THREAD_DIRECT(dy, y, d1d)
       {
-         MFEM_FOREACH_THREAD(dx, x, d1d)
+         MFEM_FOREACH_THREAD_DIRECT(dx, x, d1d)
          {
             real_t value = 0.0;
             for (int d = 0; d < DIM; d++) { value += X(i, d, dz, dy, dx); }
@@ -311,9 +311,9 @@ inline MFEM_HOST_DEVICE void WriteDofs3d(const int e, const int d1d,
    {
       for (int dz = 0; dz < d1d; ++dz)
       {
-         MFEM_FOREACH_THREAD(dy, y, d1d)
+         MFEM_FOREACH_THREAD_DIRECT(dy, y, d1d)
          {
-            MFEM_FOREACH_THREAD(dx, x, d1d)
+            MFEM_FOREACH_THREAD_DIRECT(dx, x, d1d)
             {
                Y(dx, dy, dz, c, e) += X(c, dz, dy, dx);
             }
@@ -330,17 +330,17 @@ inline MFEM_HOST_DEVICE void ContractX2d(const int d1d, const int q1d,
                                          const s_regs2d_t<MQ1> &X,
                                          s_regs2d_t<MQ1> &Y)
 {
-   MFEM_FOREACH_THREAD(y, y, d1d)
+   MFEM_FOREACH_THREAD_DIRECT(y, y, d1d)
    {
-      MFEM_FOREACH_THREAD(x, x, (Transpose ? q1d : d1d))
+      MFEM_FOREACH_THREAD_DIRECT(x, x, (Transpose ? q1d : d1d))
       {
          smem[y][x] = X[y][x];
       }
    }
    MFEM_SYNC_THREAD;
-   MFEM_FOREACH_THREAD(y, y, d1d)
+   MFEM_FOREACH_THREAD_DIRECT(y, y, d1d)
    {
-      MFEM_FOREACH_THREAD(x, x, (Transpose ? d1d : q1d))
+      MFEM_FOREACH_THREAD_DIRECT(x, x, (Transpose ? d1d : q1d))
       {
          real_t u = 0.0;
          for (int k = 0; k < (Transpose ? q1d : d1d); ++k)
@@ -361,14 +361,14 @@ inline MFEM_HOST_DEVICE void ContractY2d(const int d1d, const int q1d,
                                          const s_regs2d_t<MQ1> &X,
                                          s_regs2d_t<MQ1> &Y)
 {
-   MFEM_FOREACH_THREAD(y, y, (Transpose ? q1d : d1d))
+   MFEM_FOREACH_THREAD_DIRECT(y, y, (Transpose ? q1d : d1d))
    {
-      MFEM_FOREACH_THREAD(x, x, q1d) { smem[y][x] = X[y][x]; }
+      MFEM_FOREACH_THREAD_DIRECT(x, x, q1d) { smem[y][x] = X[y][x]; }
    }
    MFEM_SYNC_THREAD;
-   MFEM_FOREACH_THREAD(y, y, (Transpose ? d1d : q1d))
+   MFEM_FOREACH_THREAD_DIRECT(y, y, (Transpose ? d1d : q1d))
    {
-      MFEM_FOREACH_THREAD(x, x, q1d)
+      MFEM_FOREACH_THREAD_DIRECT(x, x, q1d)
       {
          real_t u = 0.0;
          for (int k = 0; k < (Transpose ? q1d : d1d); ++k)
@@ -387,9 +387,9 @@ inline MFEM_HOST_DEVICE void Copy2d(const int q1d,
                                     s_regs2d_t<MQ1> &X,
                                     s_regs2d_t<MQ1> &Y)
 {
-   MFEM_FOREACH_THREAD(y, y, q1d)
+   MFEM_FOREACH_THREAD_DIRECT(y, y, q1d)
    {
-      MFEM_FOREACH_THREAD(x, x, q1d) { Y[y][x] = X[y][x]; }
+      MFEM_FOREACH_THREAD_DIRECT(x, x, q1d) { Y[y][x] = X[y][x]; }
    }
 }
 
@@ -524,18 +524,18 @@ inline MFEM_HOST_DEVICE void ContractX3d(const int d1d, const int q1d,
 {
    for (int z = 0; z < d1d; ++z)
    {
-      MFEM_FOREACH_THREAD(y, y, d1d)
+      MFEM_FOREACH_THREAD_DIRECT(y, y, d1d)
       {
-         MFEM_FOREACH_THREAD(x, x, (Transpose ? q1d : d1d))
+         MFEM_FOREACH_THREAD_DIRECT(x, x, (Transpose ? q1d : d1d))
          {
             smem[y][x] = X[z][y][x];
          }
       }
       MFEM_SYNC_THREAD;
 
-      MFEM_FOREACH_THREAD(y, y, d1d)
+      MFEM_FOREACH_THREAD_DIRECT(y, y, d1d)
       {
-         MFEM_FOREACH_THREAD(x, x, (Transpose ? d1d : q1d))
+         MFEM_FOREACH_THREAD_DIRECT(x, x, (Transpose ? d1d : q1d))
          {
             real_t u = 0.0;
             for (int k = 0; k < (Transpose ? q1d : d1d); ++k)
@@ -559,15 +559,15 @@ inline MFEM_HOST_DEVICE void ContractY3d(const int d1d, const int q1d,
 {
    for (int z = 0; z < d1d; ++z)
    {
-      MFEM_FOREACH_THREAD(y, y, (Transpose ? q1d : d1d))
+      MFEM_FOREACH_THREAD_DIRECT(y, y, (Transpose ? q1d : d1d))
       {
-         MFEM_FOREACH_THREAD(x, x, q1d) { smem[y][x] = X[z][y][x]; }
+         MFEM_FOREACH_THREAD_DIRECT(x, x, q1d) { smem[y][x] = X[z][y][x]; }
       }
       MFEM_SYNC_THREAD;
 
-      MFEM_FOREACH_THREAD(y, y, (Transpose ? d1d : q1d))
+      MFEM_FOREACH_THREAD_DIRECT(y, y, (Transpose ? d1d : q1d))
       {
-         MFEM_FOREACH_THREAD(x, x, q1d)
+         MFEM_FOREACH_THREAD_DIRECT(x, x, q1d)
          {
             real_t u = 0.0;
             for (int k = 0; k < (Transpose ? q1d : d1d); ++k)
@@ -590,9 +590,9 @@ inline MFEM_HOST_DEVICE void ContractZ3d(const int d1d, const int q1d,
 {
    for (int z = 0; z < (Transpose ? d1d : q1d); ++z)
    {
-      MFEM_FOREACH_THREAD(y, y, q1d)
+      MFEM_FOREACH_THREAD_DIRECT(y, y, q1d)
       {
-         MFEM_FOREACH_THREAD(x, x, q1d)
+         MFEM_FOREACH_THREAD_DIRECT(x, x, q1d)
          {
             real_t u = 0.0;
             for (int k = 0; k < (Transpose ? q1d : d1d); ++k)
