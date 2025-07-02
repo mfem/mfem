@@ -11,7 +11,20 @@
 #pragma once
 
 #include "util.hpp"
-#include "kernels.hpp"
+#include "fem/kernels.hpp"
+
+///////////////////////////////////////////////////////////////////////////////
+template <class T>
+inline std::enable_if_t<!std::numeric_limits<T>::is_integer, bool>
+AlmostEq(T x, T y, T tolerance = 15.0 * std::numeric_limits<T>::epsilon())
+{
+   const T neg = std::abs(x - y);
+   constexpr T min = std::numeric_limits<T>::min();
+   constexpr T eps = std::numeric_limits<T>::epsilon();
+   const T min_abs = std::min(std::abs(x), std::abs(y));
+   if (std::abs(min_abs) == 0.0) { return neg < eps; }
+   return (neg / (1.0 + std::max(min, min_abs))) < tolerance;
+}
 #undef NVTX_COLOR
 #define NVTX_COLOR nvtx::kPeru
 #include "general/nvtx.hpp"
@@ -113,12 +126,12 @@ void map_field_to_quadrature_data_tensor_product_3d(
       auto s4 = Reshape(&scratch_mem[4](0), d1d, q1d, q1d);
 
       constexpr int MQ1 = T_Q1D > 0 ? T_Q1D : 8;
-      static constexpr int DIM = 3, MD1 = 4;
+      static constexpr int DIM = 3;
       MFEM_VERIFY(q1d <= MQ1, "q1d > MQ1");
       MFEM_SHARED real_t smem[MQ1][MQ1];
 
       pa::regs4d_t<DIM, MQ1> r0, r1;
-      real_t sB[MD1][MQ1], sG[MD1][MQ1];
+      real_t sB[MQ1][MQ1], sG[MQ1][MQ1];
 
       assert(B_dim == 1 && "1D B required!");
       pa::LoadMatrix(d1d, q1d, B, sB);

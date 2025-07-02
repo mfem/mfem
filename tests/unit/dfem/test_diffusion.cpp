@@ -31,7 +31,10 @@ using mfem::future::dual;
 
 using DOperator = future::DifferentiableOperator;
 
-enum class MQ1Settings : int { kRuntime = 0, kCompileTime, kDefault};
+enum class MQ1Settings : int { kRuntime,
+                               kCompileTime,
+                               kDefault
+                             };
 
 namespace dfem_pa_kernels
 {
@@ -230,17 +233,53 @@ void DFemDiffusion(const char *filename, int p, const int r,
                                        tuple{ Gradient<U>{} }, *ir,
                                        all_domain_attr);
          };
+         // select the right qf from the factory
          MFDiffusionQFs<real_t, DIM> {}.run(q1d, add_domain_integrator);
       }
-      else if (mq1_setting == MQ1Settings::kCompileTime) // hardcoded, MQ1 = 3
+      else if (mq1_setting == MQ1Settings::kCompileTime) // hardcoded, MQ1 = 2,3,4,5
       {
-         typename Diffusion<real_t, DIM, 3>::MFApply mf_apply_qf;
-         MFEM_VERIFY(q1d == 3, "q1d and 3 have to match");
-         dop_mf.AddDomainIntegrator(mf_apply_qf,
-                                    tuple{ Gradient<U>{}, Identity<Rho>{},
-                                           Gradient<Coords>{}, Weight{} },
-                                    tuple{ Gradient<U>{} }, *ir,
-                                    all_domain_attr);
+         dbg("q1d:{}", q1d);
+         if (q1d == 2)
+         {
+            typename Diffusion<real_t, DIM, 2>::MFApply mf_apply_qf;
+            MFEM_VERIFY(q1d == 2, "q1d and 2 have to match");
+            dop_mf.AddDomainIntegrator(mf_apply_qf,
+                                       tuple{ Gradient<U>{}, Identity<Rho>{},
+                                              Gradient<Coords>{}, Weight{} },
+                                       tuple{ Gradient<U>{} }, *ir,
+                                       all_domain_attr);
+         }
+         else if (q1d == 3)
+         {
+            typename Diffusion<real_t, DIM, 3>::MFApply mf_apply_qf;
+            MFEM_VERIFY(q1d == 3, "q1d and 3 have to match");
+            dop_mf.AddDomainIntegrator(mf_apply_qf,
+                                       tuple{ Gradient<U>{}, Identity<Rho>{},
+                                              Gradient<Coords>{}, Weight{} },
+                                       tuple{ Gradient<U>{} }, *ir,
+                                       all_domain_attr);
+         }
+         else if (q1d == 4)
+         {
+            typename Diffusion<real_t, DIM, 4>::MFApply mf_apply_qf;
+            MFEM_VERIFY(q1d == 4, "q1d and 4 have to match");
+            dop_mf.AddDomainIntegrator(mf_apply_qf,
+                                       tuple{ Gradient<U>{}, Identity<Rho>{},
+                                              Gradient<Coords>{}, Weight{} },
+                                       tuple{ Gradient<U>{} }, *ir,
+                                       all_domain_attr);
+         }
+         else if (q1d == 5)
+         {
+            typename Diffusion<real_t, DIM, 5>::MFApply mf_apply_qf;
+            MFEM_VERIFY(q1d == 5, "q1d and 5 have to match");
+            dop_mf.AddDomainIntegrator(mf_apply_qf,
+                                       tuple{ Gradient<U>{}, Identity<Rho>{},
+                                              Gradient<Coords>{}, Weight{} },
+                                       tuple{ Gradient<U>{} }, *ir,
+                                       all_domain_attr);
+         }
+         else { MFEM_ABORT("Not supported q1d:" << q1d); }
       }
       else // MQ1Settings::kDefault, MQ1 = 0
       {
