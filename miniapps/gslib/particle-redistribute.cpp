@@ -111,6 +111,17 @@ void Add3DPoint(const Vector &center, real_t s, Mesh &m)
    m.AddHex(vi);
 }
 
+template<typename T>
+Vector ArrayToVector(const Array<T> &fields)
+{
+   Vector v(fields.Size());
+   for (int i = 0; i < fields.Size(); i++)
+   {
+      v[i] = static_cast<real_t>(fields[i]);
+   }
+   return std::move(v);
+}
+
 int main (int argc, char *argv[])
 {
    // Initialize MPI and HYPRE.
@@ -191,6 +202,15 @@ int main (int argc, char *argv[])
 
    PrintOnOffRankCounts(finder.GetProc(), MPI_COMM_WORLD);
 
+   real_t psize = Distance(pos_min, pos_max)*2e-3;
+   if (visualization)
+   {
+      socketstream sock;
+      Vector rank_vector(pset.GetNP());
+      rank_vector = rank;
+      ParticleVisualizer::VisualizeParticles(sock, "localhost", visport, pset, rank_vector, psize, "Particle Owning Rank (Pre-Redistribute)", 0, 0, 400, 400, "bc");
+   }
+
    // Redistribute
    pset.Redistribute(finder.GetProc());
 
@@ -207,45 +227,10 @@ int main (int argc, char *argv[])
 
    if (visualization)
    {
-      socketstream sout;
-      sout.open(vishost, visport);
-
-      // Create small cubes for each point, to visualize particles more clearly
-
-      real_t psize = Distance(pos_min, pos_max)*2e-3;
-
-      L2_FECollection l2fec(1,3);
-      Mesh particles_mesh(3, pset.GetNP()*8, pset.GetNP(), 0, 3);
-      for (int i = 0; i < pset.GetNP(); i++)
-      {
-         Particle p = pset.GetParticleRef(i);
-         const Vector &pcoords = p.GetCoords();
-         Add3DPoint(pcoords, psize, particles_mesh);
-      }
-      particles_mesh.FinalizeMesh();
-
-      // Create GF where each node == its rank
-      FiniteElementSpace rank_fes(&particles_mesh, &l2fec, 1);
-      GridFunction rank_gf(&rank_fes);
-      // Populate given points' nodes w/ it's actual rank its on
-      const Array<unsigned int> &procs = finder.GetProc();
-      for (int i = 0; i < pset.GetNP(); i++)
-      {
-         for (int j = 0; j < 8; j++)
-         {
-            rank_gf[j+i*8] = procs[i];
-         }
-      }
-
-      sout << "parallel " << size << " " << rank << "\n";
-      sout << "solution\n" << particles_mesh << rank_gf << flush;
-      if (rank == 0)
-      {
-         sout << "window_title 'Particles post-redistribute'\n"
-              << "window_geometry "
-              << 0 << " " << 0 << " " << 600 << " " << 600 << "\n"
-              << "keys Rl" << endl;
-      }
+      socketstream sock;
+      Vector rank_vector(pset.GetNP());
+      rank_vector = rank;
+      ParticleVisualizer::VisualizeParticles(sock, "localhost", visport, pset, rank_vector, psize, "Particle Owning Rank (Post-Redistribute)", 410, 0, 400, 400, "bc");
    }
 
    return 0;

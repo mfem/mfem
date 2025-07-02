@@ -63,7 +63,7 @@ if (MFEM_USE_GSLIB)
       MAIN pfindpts.cpp
       LIBRARIES mfem)
 
-    add_mfem_miniapp(particle-redistribute MAIN particle-redistribute.cpp LIBRARIES mfem)
+    add_mfem_miniapp(particle-redistribute MAIN particle-redistribute.cpp LIBRARIES mfem-common)
 
     add_mfem_miniapp(teststruct MAIN teststruct.cpp LIBRARIES mfem-common)
     

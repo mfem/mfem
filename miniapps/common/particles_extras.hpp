@@ -13,6 +13,8 @@
 #define MFEM_PARTICLES_EXTRAS
 
 #include "mfem.hpp"
+#include "fem_extras.hpp"
+#include "pfem_extras.hpp"
 
 namespace mfem
 {
@@ -21,12 +23,44 @@ namespace common
 
 void InitializeRandom(Particle &p, int seed, const Vector &pos_min, const Vector &pos_max);
 
-}
+
+class ParticleVisualizer
+{
+private:
+    socketstream sock;
+    Mesh trajectories;
+
+#ifdef MFEM_USE_MPI
+    MPI_Comm comm;
+#endif // MFEM_USE_MPI
+
+public:
+
+    /// Add a point to a given Mesh, represented as a hex sixed \p scale
+    static void Add3DPoint(const Vector &center, Mesh &m, real_t scale=2e-3);
+
+    /// Plot a point cloud of particles, represented as hexes, colored by \p scalar_field
+    template<Ordering::Type VOrdering>
+    static void VisualizeParticles(socketstream &sock, const char* vishost, int visport,
+                                    const ParticleSet<VOrdering> &pset, const Vector &scalar_field, real_t psize, 
+                                    const char* title, int x = 0, int y = 0, int w = 400, int h = 400,
+                                    const char* keys=nullptr);
+
+    ParticleVisualizer(int visport)
+    : sock("localhost", visport) { }
+
+#ifdef MFEM_USE_MPI
+    ParticleVisualizer(MPI_Comm comm_, int visport)
+    : sock("localhost", visport), comm(comm_) {}
+#endif // MFEM_USE_MPI
 
 
+    /// Plot particle trajectories, accounting for previous calls to this function, removed particles, and redistributed particles in parallel
+    template<Ordering::Type VOrdering>
+    void PlotParticleTrajectories(const ParticleSet<VOrdering> &pset);
 
+};
 
-    
 } // namespace common
 } // namespace mfem
 

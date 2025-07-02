@@ -12,11 +12,13 @@
 list(APPEND SRCS
   mesh_extras.cpp
   fem_extras.cpp
+  particles_extras.cpp
   )
 list(APPEND HDRS
   mesh_extras.hpp
   fem_extras.hpp
   mfem-common.hpp
+  particles_extras.hpp
   )
 
 if (MFEM_USE_MPI)
