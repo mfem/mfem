@@ -27,20 +27,6 @@ namespace mfem
 namespace future
 {
 
-#if defined(__CUDACC__)
-#if __CUDAVER__ >= 75000
-#define MFEM_SUPPRESS_NVCC_HOSTDEVICE_WARNING #pragma nv_exec_check_disable
-#else
-#ifdef __clang__
-#define MFEM_SUPPRESS_NVCC_HOSTDEVICE_WARNING
-#else
-#define MFEM_SUPPRESS_NVCC_HOSTDEVICE_WARNING #pragma hd_warning_disable
-#endif
-#endif
-#else  //__CUDACC__
-#define MFEM_SUPPRESS_NVCC_HOSTDEVICE_WARNING
-#endif
-
 template <typename T, int... n>
 struct tensor;
 
@@ -309,7 +295,6 @@ using reduced_tensor = typename std::conditional<
  * @note the different cases of 0D, 1D, 2D, 3D, and 4D are implemented separately
  *       to work around a limitation in nvcc involving __host__ __device__ lambdas with `auto` parameters.
  */
-MFEM_SUPPRESS_NVCC_HOSTDEVICE_WARNING
 template <typename lambda_type>
 MFEM_HOST_DEVICE constexpr auto make_tensor(lambda_type f) ->
 tensor<decltype(f())>
@@ -328,7 +313,6 @@ tensor<decltype(f())>
  * @note the different cases of 0D, 1D, 2D, 3D, and 4D are implemented separately
  *       to work around a limitation in nvcc involving __host__ __device__ lambdas with `auto` parameters.
  */
-MFEM_SUPPRESS_NVCC_HOSTDEVICE_WARNING
 template <int n1, typename lambda_type>
 MFEM_HOST_DEVICE auto make_tensor(lambda_type f) ->
 tensor<decltype(f(n1)), n1>
@@ -354,7 +338,6 @@ tensor<decltype(f(n1)), n1>
  * @note the different cases of 0D, 1D, 2D, 3D, and 4D are implemented separately
  *       to work around a limitation in nvcc involving __host__ __device__ lambdas with `auto` parameters.
  */
-MFEM_SUPPRESS_NVCC_HOSTDEVICE_WARNING
 template <int n1, int n2, typename lambda_type>
 MFEM_HOST_DEVICE auto make_tensor(lambda_type f) ->
 tensor<decltype(f(n1, n2)), n1, n2>
@@ -384,7 +367,6 @@ tensor<decltype(f(n1, n2)), n1, n2>
  * @note the different cases of 0D, 1D, 2D, 3D, and 4D are implemented separately
  *       to work around a limitation in nvcc involving __host__ __device__ lambdas with `auto` parameters.
  */
-MFEM_SUPPRESS_NVCC_HOSTDEVICE_WARNING
 template <int n1, int n2, int n3, typename lambda_type>
 MFEM_HOST_DEVICE auto make_tensor(lambda_type f) ->
 tensor<decltype(f(n1, n2, n3)), n1, n2, n3>
@@ -418,7 +400,6 @@ tensor<decltype(f(n1, n2, n3)), n1, n2, n3>
  * @note the different cases of 0D, 1D, 2D, 3D, and 4D are implemented separately
  *       to work around a limitation in nvcc involving __host__ __device__ lambdas with `auto` parameters.
  */
-MFEM_SUPPRESS_NVCC_HOSTDEVICE_WARNING
 template <int n1, int n2, int n3, int n4, typename lambda_type>
 MFEM_HOST_DEVICE auto make_tensor(lambda_type f) ->
 tensor<decltype(f(n1, n2, n3, n4)), n1, n2, n3, n4>
@@ -1099,13 +1080,13 @@ decltype(T {})
    return AB;
 }
 
-template <typename S, typename T, int m, int... n> MFEM_HOST_DEVICE
-auto dot(const tensor<S, m>& A, const tensor<T, m, n...>& B) ->
-tensor<decltype(S {} * T{}), n...>
+template <typename S, typename T, int m, int n0, int n1, int... n>
+MFEM_HOST_DEVICE
+auto dot(const tensor<S, m>& A, const tensor<T, m, n0, n1, n...>& B) ->
+tensor<decltype(S {} * T{}), n0, n1, n...>
 {
-   constexpr int dimensions[] = {n...};
-   tensor<decltype(S{} * T{}), n...> AB{};
-   for (int i = 0; i < dimensions[0]; i++)
+   tensor<decltype(S{} * T{}), n0, n1, n...> AB{};
+   for (int i = 0; i < n0; i++)
    {
       for (int j = 0; j < m; j++)
       {

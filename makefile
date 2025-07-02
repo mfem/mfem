@@ -124,12 +124,12 @@ EXAMPLE_DIRS := examples $(addprefix examples/,$(EXAMPLE_SUBDIRS))
 EXAMPLE_TEST_DIRS := examples
 
 MINIAPP_SUBDIRS = common electromagnetics meshing navier performance tools \
- toys nurbs gslib adjoint solvers shifted mtop parelag tribol autodiff hooke \
- multidomain dpg hdiv-linear-solver spde
+ toys nurbs gslib adjoint solvers shifted mtop parelag tribol autodiff dfem \
+ hooke multidomain dpg hdiv-linear-solver spde diag-smoothers
 MINIAPP_DIRS := $(addprefix miniapps/,$(MINIAPP_SUBDIRS))
 MINIAPP_TEST_DIRS := $(filter-out %/common,$(MINIAPP_DIRS))
 MINIAPP_USE_COMMON := $(addprefix miniapps/,electromagnetics meshing tools \
- toys shifted dpg)
+ toys shifted dpg diag-smoothers)
 
 EM_DIRS = $(EXAMPLE_DIRS) $(MINIAPP_DIRS)
 
@@ -242,24 +242,24 @@ ifeq ($(MFEM_USE_CUDA)$(MFEM_USE_HIP),NONO)
 endif
 
 ifeq ($(MFEM_USE_CUDA),YES)
-   ifeq ($(shell $(CUDA_CXX) --version | grep "NVIDIA"), )
+   MFEM_CXX ?= $(CUDA_CXX)
+   ifeq ($(shell $(MFEM_CXX) --version 2>&1 | grep "NVIDIA"),)
       # assume clang
-      MFEM_CXX ?= $(HOST_CXX)
-      CUDA_LIB += $(CLANG_CUDA_LIB)
-	    CXXFLAGS += $(CLANG_CUDA_FLAGS)
+      MFEM_HOST_CXX ?= $(MFEM_CXX)
+      CXXFLAGS += $(CLANG_CUDA_FLAGS)
       XCOMPILER = $(CXX_XCOMPILER)
       XLINKER   = $(CXX_XLINKER)
+      CUDA_LIB := $(CLANG_CUDA_LIB) $(CUDA_LIB)
    else
-      MFEM_CXX ?= $(CUDA_CXX)
-      MFEM_HOST_CXX ?= $(HOST_CXX)
-      ifeq ($(MFEM_USE_ENZYME), YES)
-         $(error Cannot use nvcc with Enzyme, set CUDA_CXX=clang++)
+      ifeq ($(MFEM_USE_ENZYME),YES)
+         $(error Cannot use nvcc with Enzyme! Set CUDA_CXX to CUDA-enabled \
+                 clang++ or an MPI wrapper of that)
       endif
+      MFEM_HOST_CXX ?= $(HOST_CXX)
       CXXFLAGS += $(NVCC_FLAGS) -ccbin $(MFEM_HOST_CXX)
       XCOMPILER = $(CUDA_XCOMPILER)
       XLINKER   = $(CUDA_XLINKER)
    endif
-   ALL_LIBS += $(CUDA_LIB)
    # CUDA_OPT and CUDA_LIB are added below
    # Compatibility test against MFEM_USE_HIP
    ifeq ($(MFEM_USE_HIP),YES)
@@ -298,7 +298,7 @@ ifeq ($(MFEM_USE_LEGACY_OPENMP),YES)
 endif
 
 # List of MFEM dependencies, that require the *_LIB variable to be non-empty
-MFEM_REQ_LIB_DEPS = ENZYME SUPERLU MUMPS METIS FMS CONDUIT SIDRE LAPACK SUNDIALS\
+MFEM_REQ_LIB_DEPS = SUPERLU MUMPS METIS FMS CONDUIT SIDRE LAPACK SUNDIALS\
  SUITESPARSE STRUMPACK GINKGO GNUTLS HDF5 NETCDF SLEPC PETSC MPFR PUMI HIOP\
  GSLIB OCCA CEED RAJA UMPIRE MKL_CPARDISO MKL_PARDISO AMGX MAGMA CALIPER PARELAG\
  TRIBOL BENCHMARK MOONOLITH ALGOIM
@@ -320,7 +320,7 @@ ifeq ($(MAKECMDGOALS),config)
 endif
 
 # List of MFEM dependencies, processed below
-MFEM_DEPENDENCIES = $(MFEM_REQ_LIB_DEPS) LIBUNWIND OPENMP CUDA HIP
+MFEM_DEPENDENCIES = ENZYME $(MFEM_REQ_LIB_DEPS) LIBUNWIND OPENMP CUDA HIP
 
 # List of deprecated MFEM dependencies, processed below
 MFEM_LEGACY_DEPENDENCIES = OPENMP

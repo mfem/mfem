@@ -11,10 +11,6 @@
 
 #include "doperator.hpp"
 
-#undef NVTX_COLOR
-#define NVTX_COLOR nvtx::kMagenta
-#include "general/nvtx.hpp"
-
 #ifdef MFEM_USE_MPI
 
 using namespace mfem;
@@ -40,15 +36,9 @@ DifferentiableOperator::DifferentiableOperator(
    parameters(parameters)
 {
    fields.resize(solutions.size() + parameters.size());
-   dbg("fields (solutions + parameters):{}", fields.size());
-
    fields_e.resize(fields.size());
-
    solutions_l.resize(solutions.size());
-   dbg("solutions:{}", solutions_l.size());
-
    parameters_l.resize(parameters.size());
-   dbg("parameters:{}", parameters_l.size());
 
    for (size_t i = 0; i < solutions.size(); i++)
    {

@@ -9,52 +9,42 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#include "unit_tests.hpp"
+#include "../unit_tests.hpp"
 #include "mfem.hpp"
-// #include <utility>
-// #include <type_traits>
-#include "fem/dfem/doperator.hpp"
-#include "fem/dfem/util.hpp"
-
-#include <fem/integ/bilininteg_diffusion_kernels.hpp>
-
-#undef NVTX_COLOR
-#define NVTX_COLOR nvtx::kGold
-#include "general/nvtx.hpp"
+#include <utility>
 
 #ifdef MFEM_USE_MPI
 
 using namespace mfem;
 using namespace mfem::future;
 using mfem::future::tensor;
+
+#ifdef MFEM_USE_ENZYME
+using dscalar_t = real_t;
+#else
 using mfem::future::dual;
+using dscalar_t = dual<real_t, real_t>;
+#endif
 
-using DOperator = future::DifferentiableOperator;
-
-enum class MQ1Settings : int { kRuntime,
-                               kCompileTime,
-                               kDefault
-                             };
+using DOperator = DifferentiableOperator;
 
 namespace dfem_pa_kernels
 {
 
-///////////////////////////////////////////////////////////////////////////////
-template <typename T, int DIM, int T_MQ1 = 0> struct Diffusion
+template <int DIM> struct Diffusion
 {
-   using dvecd_t = tensor<T, DIM>;
+   using dvecd_t = tensor<dscalar_t, DIM>;
    using matd_t = tensor<real_t, DIM, DIM>;
 
    struct MFApply
    {
-      static constexpr int MQ1 = T_MQ1;
       MFEM_HOST_DEVICE inline auto operator()(const dvecd_t &dudxi,
                                               const real_t &rho,
                                               const matd_t &J,
                                               const real_t &w) const
       {
          const auto invJ = inv(J), TinJ = transpose(invJ);
-         return mfem::future::tuple{ (dudxi * invJ) * TinJ * det(J) * w * rho };
+         return tuple{ (dudxi * invJ) * TinJ * det(J) * w * rho };
       }
    };
 
@@ -65,7 +55,7 @@ template <typename T, int DIM, int T_MQ1 = 0> struct Diffusion
                                               const matd_t &J,
                                               const real_t &w) const
       {
-         return mfem::future::tuple{ inv(J) * transpose(inv(J)) * det(J) * w * rho };
+         return tuple{ inv(J) * transpose(inv(J)) * det(J) * w * rho };
       }
    };
 
@@ -74,66 +64,14 @@ template <typename T, int DIM, int T_MQ1 = 0> struct Diffusion
       MFEM_HOST_DEVICE inline auto operator()(const dvecd_t &dudxi,
                                               const matd_t &q) const
       {
-         return mfem::future::tuple{ q * dudxi };
+         return tuple{ q * dudxi };
       };
    };
 };
 
-///////////////////////////////////////////////////////////////////////////////
-template <typename T, int DIM, std::size_t... MQ1s>
-struct MFDiffusionFactory
-{
-   static auto All()
-   {
-      // could also use a map instead of a tuple
-      return mfem::future::make_tuple(typename Diffusion<T, DIM, MQ1s>::MFApply{}...);
-   }
-};
-
-template <typename T, int DIM>
-using MFDiffusionFactory_1_4 = MFDiffusionFactory<T, DIM, 1, 2, 3, 4>;
-
-template <typename T, int DIM>
-class MFDiffusionQFs
-{
-   using MFApplyTuple = decltype(MFDiffusionFactory_1_4<T, DIM>::All());
-   MFApplyTuple mf_qfs;
-
-public:
-   MFDiffusionQFs(): mf_qfs(MFDiffusionFactory_1_4<T, DIM>::All()) {}
-
-   template <typename F>
-   void run(int i, F&& f)
-   {
-      MFEM_VERIFY(i >= 1, "Index must be >= 1");
-      const auto I = static_cast<size_t>(i - 1);
-      runtime_get_impl(I, std::forward<F>(f),
-                       std::make_index_sequence<mfem::future::tuple_size<MFApplyTuple>::value>());
-   }
-
-private:
-   template <typename F, size_t... I>
-   void runtime_get_impl(size_t index, F&& f, std::index_sequence<I...>)
-   {
-      using fun_ptr = std::function<void(F&&)>;
-      fun_ptr table[] = { [&](F&& f) { f(mfem::future::get<I>(mf_qfs)); } ... };
-      if (index < mfem::future::tuple_size<MFApplyTuple>::value)
-      {
-         table[index](std::forward<F>(f));
-      }
-      else
-      {
-         throw std::out_of_range("Index out of bounds");
-      }
-   }
-};
-
-///////////////////////////////////////////////////////////////////////////////
 template <int DIM>
-void DFemDiffusion(const char *filename, int p, const int r,
-                   const MQ1Settings mq1_setting)
+void DFemDiffusion(const char *filename, int p, const int r)
 {
-   dbg("DIM:{}", DIM);
    CAPTURE(filename, DIM, p, r);
 
    Mesh smesh(filename);
@@ -160,7 +98,6 @@ void DFemDiffusion(const char *filename, int p, const int r,
    const auto *ir = &IntRules.Get(pmesh.GetTypicalElementGeometry(), q);
    const int q1d(IntRules.Get(Geometry::SEGMENT, ir->GetOrder()).GetNPoints());
    MFEM_VERIFY(d1d <= q1d, "q1d should be >= d1d");
-   MFEM_VERIFY(NE > 0, "Mesh with no elements is not yet supported!");
 
    ParGridFunction x(&pfes), y(&pfes), z(&pfes);
    Vector X(pfes.GetTrueVSize()), Y(pfes.GetTrueVSize()), Z(pfes.GetTrueVSize());
@@ -183,7 +120,7 @@ void DFemDiffusion(const char *filename, int p, const int r,
    blf_fa.Assemble();
    blf_fa.Finalize();
 
-   /*SECTION("Partial assembly")
+   SECTION("[Partial assembly] Diffusion")
    {
       ParBilinearForm blf_pa(&pfes);
       blf_pa.AddDomainIntegrator(new DiffusionIntegrator(rho_coeff, ir));
@@ -195,101 +132,27 @@ void DFemDiffusion(const char *filename, int p, const int r,
       y -= z;
       REQUIRE(y.Normlinf() == MFEM_Approx(0.0));
       MPI_Barrier(MPI_COMM_WORLD);
-   }*/
+   }
 
    QuadratureSpace qs(pmesh, *ir);
    CoefficientVector rho_coeff_cv(rho_coeff, qs);
    MFEM_VERIFY(rho_coeff_cv.GetVDim() == 1, "Coefficient should be scalar");
    MFEM_VERIFY(rho_coeff_cv.Size() == q1d * q1d * (DIM == 3 ? q1d : 1) * NE, "");
 
-   const int rho_local_size = 1;
-   const int rho_elem_size(rho_local_size * ir->GetNPoints());
-   const int rho_total_size(rho_elem_size * NE);
-   ParameterSpace rho_ps(DIM, rho_local_size, rho_elem_size, rho_total_size,
-                         DIM == 3 ? d1d : d1d * d1d, // 🔥 2D workaround
-                         DIM == 3 ? q1d : q1d * q1d);
+   UniformParameterSpace rho_ps(pmesh, *ir, 1);
 
    static constexpr int U = 0, Coords = 1, Rho = 3;
    const auto sol = std::vector{ FieldDescriptor{ U, &pfes } };
 
-   SECTION("DFEM Matrix free")
+   SECTION("[dFEM Matrix free] Diffusion")
    {
-      // fields = {solutions, parameters}
-      dbg("fields = {{solutions, parameters}} = {{{{U}}, {{Rho, Coords}}}}");
       DOperator dop_mf(sol, {{Rho, &rho_ps}, {Coords, mfes}}, pmesh);
-
-      dbg("AddDomainIntegrator: {{∇U, Rho, ∇Coords, Weight}} -> {{∇U}}");
-      if (mq1_setting == MQ1Settings::kRuntime)
-      {
-         MFEM_VERIFY(q1d == (int)floor(std::pow(ir->GetNPoints(), 1.0/DIM) + 0.5),
-                     "q1d and ir->GetNPoints() have to match");
-         auto add_domain_integrator = [&](auto &qf)
-         {
-            dbg("q1d:{} MQ1:{}", q1d, qf.MQ1);
-            MFEM_VERIFY(q1d == qf.MQ1, "q1d and qf.MQ1 have to match");
-            dop_mf.AddDomainIntegrator(qf,
-                                       tuple{ Gradient<U>{}, Identity<Rho>{},
-                                              Gradient<Coords>{}, Weight{} },
-                                       tuple{ Gradient<U>{} }, *ir,
-                                       all_domain_attr);
-         };
-         // select the right qf from the factory
-         MFDiffusionQFs<real_t, DIM> {}.run(q1d, add_domain_integrator);
-      }
-      else if (mq1_setting == MQ1Settings::kCompileTime) // hardcoded, MQ1 = 2,3,4,5
-      {
-         dbg("q1d:{}", q1d);
-         if (q1d == 2)
-         {
-            typename Diffusion<real_t, DIM, 2>::MFApply mf_apply_qf;
-            MFEM_VERIFY(q1d == 2, "q1d and 2 have to match");
-            dop_mf.AddDomainIntegrator(mf_apply_qf,
-                                       tuple{ Gradient<U>{}, Identity<Rho>{},
-                                              Gradient<Coords>{}, Weight{} },
-                                       tuple{ Gradient<U>{} }, *ir,
-                                       all_domain_attr);
-         }
-         else if (q1d == 3)
-         {
-            typename Diffusion<real_t, DIM, 3>::MFApply mf_apply_qf;
-            MFEM_VERIFY(q1d == 3, "q1d and 3 have to match");
-            dop_mf.AddDomainIntegrator(mf_apply_qf,
-                                       tuple{ Gradient<U>{}, Identity<Rho>{},
-                                              Gradient<Coords>{}, Weight{} },
-                                       tuple{ Gradient<U>{} }, *ir,
-                                       all_domain_attr);
-         }
-         else if (q1d == 4)
-         {
-            typename Diffusion<real_t, DIM, 4>::MFApply mf_apply_qf;
-            MFEM_VERIFY(q1d == 4, "q1d and 4 have to match");
-            dop_mf.AddDomainIntegrator(mf_apply_qf,
-                                       tuple{ Gradient<U>{}, Identity<Rho>{},
-                                              Gradient<Coords>{}, Weight{} },
-                                       tuple{ Gradient<U>{} }, *ir,
-                                       all_domain_attr);
-         }
-         else if (q1d == 5)
-         {
-            typename Diffusion<real_t, DIM, 5>::MFApply mf_apply_qf;
-            MFEM_VERIFY(q1d == 5, "q1d and 5 have to match");
-            dop_mf.AddDomainIntegrator(mf_apply_qf,
-                                       tuple{ Gradient<U>{}, Identity<Rho>{},
-                                              Gradient<Coords>{}, Weight{} },
-                                       tuple{ Gradient<U>{} }, *ir,
-                                       all_domain_attr);
-         }
-         else { MFEM_ABORT("Not supported q1d:" << q1d); }
-      }
-      else // MQ1Settings::kDefault, MQ1 = 0
-      {
-         typename Diffusion<real_t, DIM>::MFApply mf_apply_qf;
-         dop_mf.AddDomainIntegrator(mf_apply_qf,
-                                    tuple{ Gradient<U>{}, Identity<Rho>{},
-                                           Gradient<Coords>{}, Weight{} },
-                                    tuple{ Gradient<U>{} }, *ir,
-                                    all_domain_attr);
-      }
+      typename Diffusion<DIM>::MFApply mf_apply_qf;
+      dop_mf.AddDomainIntegrator(mf_apply_qf,
+                                 tuple{ Gradient<U>{}, Identity<Rho>{},
+                                        Gradient<Coords>{}, Weight{} },
+                                 tuple{ Gradient<U>{} }, *ir,
+                                 all_domain_attr);
       dop_mf.SetParameters({ &rho_coeff_cv, nodes });
 
       pfes.GetRestrictionMatrix()->Mult(x, X);
@@ -308,20 +171,15 @@ void DFemDiffusion(const char *filename, int p, const int r,
       MPI_Barrier(MPI_COMM_WORLD);
    }
 
-   /*SECTION("DFEM Partial assembly")
+   SECTION("[dFEM Partial assembly] Diffusion")
    {
       static constexpr int QData = 2;
-      const int qd_local_size = DIM * DIM;
-      const int qd_elem_size(qd_local_size * ir->GetNPoints());
-      const int qd_total_size(qd_elem_size * NE);
-      ParameterSpace qd_ps(DIM, qd_local_size, qd_elem_size, qd_total_size,
-                           DIM == 3 ? d1d : d1d * d1d, // 🔥 2D workaround
-                           DIM == 3 ? q1d : q1d * q1d);
-      ParametricFunction qdata(qd_ps);
+      UniformParameterSpace qd_ps(pmesh, *ir, DIM * DIM);
+      ParameterFunction qdata(qd_ps);
       qdata.UseDevice(true);
 
       DOperator dSetup(sol, {{Rho, &rho_ps}, {Coords, mfes}, {QData, &qd_ps}}, pmesh);
-      typename Diffusion<real_t, DIM>::PASetup pa_setup_qf;
+      typename Diffusion<DIM>::PASetup pa_setup_qf;
       dSetup.AddDomainIntegrator(
          pa_setup_qf,
          tuple{ Value<U>{}, Identity<Rho>{}, Gradient<Coords>{}, Weight{} },
@@ -331,7 +189,7 @@ void DFemDiffusion(const char *filename, int p, const int r,
       dSetup.Mult(X, qdata);
 
       DOperator dop_pa(sol, { { QData, &qd_ps } }, pmesh);
-      typename Diffusion<real_t, DIM>::PAApply pa_apply_qf;
+      typename Diffusion<DIM>::PAApply pa_apply_qf;
       dop_pa.AddDomainIntegrator(pa_apply_qf,
                                  tuple{ Gradient<U>{}, Identity<QData>{} },
                                  tuple{ Gradient<U>{} },
@@ -352,16 +210,12 @@ void DFemDiffusion(const char *filename, int p, const int r,
 
       REQUIRE(norm_global == MFEM_Approx(0.0));
       MPI_Barrier(MPI_COMM_WORLD);
-   }*/
+   }
 
-   /*SECTION("DFEM Linearization", "[Parallel][DFEM]")
+   SECTION("[dFEM Linearization] Diffusion")
    {
       DOperator dop_mf(sol, {{Rho, &rho_ps}, {Coords, mfes}}, pmesh);
-   #ifdef MFEM_USE_ENZYME
-      typename Diffusion<real_t, DIM>::MFApply mf_apply_qf;
-   #else
-      typename Diffusion<dual<real_t, real_t>, DIM>::MFApply mf_apply_qf;
-   #endif
+      typename Diffusion<DIM>::MFApply mf_apply_qf;
       auto derivatives = std::integer_sequence<size_t, U> {};
       dop_mf.AddDomainIntegrator(mf_apply_qf,
                                  tuple{ Gradient<U>{}, Identity<Rho>{},
@@ -385,7 +239,49 @@ void DFemDiffusion(const char *filename, int p, const int r,
 
       REQUIRE(norm_global == MFEM_Approx(0.0));
       MPI_Barrier(MPI_COMM_WORLD);
-   }*/
+   }
+
+   SECTION("[dFEM Matrix free] vector diffusion")
+   {
+      ParFiniteElementSpace vpfes(&pmesh, &fec, DIM);
+      ParGridFunction vx(&vpfes), vy(&vpfes);
+      Vector vX(vpfes.GetTrueVSize()), vY(vpfes.GetTrueVSize()),
+             vZ(vpfes.GetTrueVSize());
+
+      vX.Randomize(1), vx.SetFromTrueDofs(vX);
+
+      {
+         const auto vsol = std::vector{ FieldDescriptor{ U, &vpfes } };
+         DOperator dop_mf(vsol, {{Coords, mfes}}, pmesh);
+         const auto mf_vector_diffusion_qf =
+            [] MFEM_HOST_DEVICE (const tensor<dscalar_t, DIM, DIM> &dudxi,
+                                 const tensor<real_t, DIM, DIM> &J,
+                                 const real_t &w)
+         {
+            const auto invJ = inv(J), TinJ = transpose(invJ);
+            return tuple{ (dudxi * invJ) * TinJ * det(J) * w };
+         };
+         dop_mf.AddDomainIntegrator(mf_vector_diffusion_qf,
+                                    tuple{ Gradient<U>{}, Gradient<Coords>{}, Weight{} },
+                                    tuple{ Gradient<U>{} },
+                                    *ir, all_domain_attr);
+         dop_mf.SetParameters({ nodes });
+         vpfes.GetRestrictionMatrix()->Mult(vx, vX), dop_mf.Mult(vX, vZ);
+      }
+      {
+         ConstantCoefficient one(1.0);
+         ParBilinearForm vblf_fa(&vpfes);
+         vblf_fa.AddDomainIntegrator(new VectorDiffusionIntegrator(one, ir));
+         vblf_fa.Assemble(), vblf_fa.Finalize();
+         vblf_fa.Mult(vx, vy), vpfes.GetProlongationMatrix()->MultTranspose(vy, vY);
+      }
+      vY -= vZ;
+      real_t norm_global = 0.0, norm_local = vY.Normlinf();
+      MPI_Allreduce(&norm_local, &norm_global, 1, MPI_DOUBLE, MPI_MAX,
+                    pmesh.GetComm());
+      REQUIRE(norm_global == MFEM_Approx(0.0));
+      MPI_Barrier(MPI_COMM_WORLD);
+   }
 }
 
 TEST_CASE("DFEM Diffusion", "[Parallel][DFEM]")
@@ -393,14 +289,9 @@ TEST_CASE("DFEM Diffusion", "[Parallel][DFEM]")
    const bool all_tests = launch_all_non_regression_tests;
 
    const auto p = !all_tests ? 2 : GENERATE(1, 2, 3);
-   const auto r = !all_tests ? 1 : GENERATE(0, 1, 2, 3);
-   const auto mq1_setting = GENERATE(MQ1Settings::kRuntime,
-                                     MQ1Settings::kCompileTime,
-                                     MQ1Settings::kDefault);
+   const auto r = !all_tests ? 2 : GENERATE(0, 1, 2, 3);
 
-   DiffusionIntegrator::AddSpecialization<3,3,3>();
-
-   /*SECTION("2D p=" + std::to_string(p) + " r=" + std::to_string(r))
+   SECTION("2D p=" + std::to_string(p) + " r=" + std::to_string(r))
    {
       const auto filename =
          GENERATE("../../data/star.mesh",
@@ -409,25 +300,20 @@ TEST_CASE("DFEM Diffusion", "[Parallel][DFEM]")
                   "../../data/inline-quad.mesh",
                   "../../data/periodic-square.mesh");
       DFemDiffusion<2>(filename, p, r);
-   }*/
+   }
 
    SECTION("3D p=" + std::to_string(p) + " r=" + std::to_string(r))
    {
-#if 0
       const auto filename =
          GENERATE("../../data/fichera.mesh",
                   "../../data/fichera-q3.mesh",
                   "../../data/inline-hex.mesh",
                   "../../data/toroid-hex.mesh",
                   "../../data/periodic-cube.mesh");
-#else
-      const auto filename =
-         GENERATE("../../data/fichera.mesh");
-#endif
-      DFemDiffusion<3>(filename, p, r, mq1_setting);
+      DFemDiffusion<3>(filename, p, r);
    }
 }
 
 } // namespace dfem_pa_kernels
 
-#endif
+#endif // MFEM_USE_MPI

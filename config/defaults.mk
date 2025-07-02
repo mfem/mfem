@@ -46,11 +46,20 @@ SHARED = NO
 # If you set MFEM_USE_ENZYME=YES, must use CUDA_CXX=clang++
 CUDA_CXX = nvcc
 CUDA_ARCH = sm_60
+# Base CUDA install directory, only needed if building with clang+cuda:
+# The default setting is:
+# 1. If CUDA_HOME is defined and non-empty, use that.
+# 2. If nvcc is in the path, use the directory two levels up from that.
+# 3. Use /usr/local/cuda
+CUDA_DIR = $(or $(CUDA_HOME),$(patsubst %/,%,$(dir \
+ $(patsubst %/,%,$(dir $(shell command -v nvcc))))),/usr/local/cuda)
 # flags for clang+cuda
-CLANG_CUDA_FLAGS = -x cuda --cuda-gpu-arch=$(CUDA_ARCH)
+CLANG_CUDA_FLAGS = -xcuda --cuda-path=$(CUDA_DIR) --cuda-gpu-arch=$(CUDA_ARCH)
 # flags for nvcc
-NVCC_FLAGS = --expt-extended-lambda -arch=$(CUDA_ARCH) -x=cu
-# Prefixes for passing flags to the host compiler and linker when using CUDA_CXX=nvcc
+NVCC_FLAGS = -x=cu --expt-extended-lambda --expt-relaxed-constexpr \
+ -arch=$(CUDA_ARCH)
+# Prefixes for passing flags to the host compiler and linker when using
+# CUDA_CXX=nvcc
 CUDA_XCOMPILER = -Xcompiler=
 CUDA_XLINKER   = -Xlinker=
 
@@ -229,7 +238,7 @@ HYPRE_OPT = -I$(HYPRE_DIR)/include
 HYPRE_LIB = -L$(HYPRE_DIR)/lib -lHYPRE
 ifeq (YES,$(MFEM_USE_CUDA))
    # This is only necessary when hypre is built with cuda:
-   HYPRE_LIB += -lcusparse -lcurand -lcublas
+   HYPRE_LIB += -lcusolver -lcusparse -lcurand -lcublas
 endif
 ifeq (YES,$(MFEM_USE_HIP))
    # This is only necessary when hypre is built with hip:
@@ -244,7 +253,7 @@ ifeq ($(MFEM_USE_SUPERLU)$(MFEM_USE_STRUMPACK)$(MFEM_USE_MUMPS),NONONO)
      METIS_OPT =
      METIS_LIB = -L$(METIS_DIR) -lmetis
    else
-     METIS_DIR = @MFEM_DIR@/../metis-5.0
+     METIS_DIR = @MFEM_DIR@/../metis-5.1.0
      METIS_OPT = -I$(METIS_DIR)/include
      METIS_LIB = -L$(METIS_DIR)/lib -lmetis
    endif
@@ -515,7 +524,9 @@ CUDA_OPT =
 # base CUDA install directory, only needed if building with clang+cuda
 CUDA_DIR = /usr/local/cuda/
 CUDA_LIB = -lcusparse -lcublas
-CLANG_CUDA_LIB = -lcudart -lcudart_static -ldl -lrt -pthread -L$(CUDA_DIR)/lib64 -L$(CUDA_DIR)/lib
+CLANG_CUDA_LIB = -L$(CUDA_DIR)/lib64 -L$(CUDA_DIR)/lib \
+ $(XLINKER)-rpath,$(CUDA_DIR)/lib64,-rpath,$(CUDA_DIR)/lib \
+ -lcudart -ldl -lrt -pthread
 
 # HIP library configuration
 HIP_OPT =
@@ -616,9 +627,19 @@ TRIBOL_LIB = -L$(TRIBOL_DIR)/lib -ltribol -lredecomp -L$(AXOM_DIR)/lib -laxom_mi
 
 # Enzyme configuration
 ENZYME_DIR = @MFEM_DIR@/../enzyme
-ENZYME_LLVM_VERSION = 19
-ENZYME_OPT = -fplugin=$(ENZYME_DIR)/lib/ClangEnzyme-$(ENZYME_LLVM_VERSION).$(SO_EXT)
-ENZYME_LIB = ""
+ENZYME_PLUGIN = $(abspath $(wildcard $(subst \
+   @MFEM_DIR@,$(MFEM_DIR),$(ENZYME_DIR))/lib/ClangEnzyme-*.$(SO_EXT)))
+ifeq ($(MAKECMDGOALS)-$(MFEM_USE_ENZYME),config-YES)
+   ifeq ($(ENZYME_PLUGIN),)
+      $(error Unable to find the Enzyme pluging! Please set ENZYME_DIR)
+   endif
+   ifneq ($(words $(ENZYME_PLUGIN)),1)
+      $(error Multiple versions of the Enzyme pluging found! \
+              Please set ENZYME_PLUGIN directly)
+   endif
+endif
+ENZYME_OPT = -fplugin=$(ENZYME_PLUGIN)
+ENZYME_LIB =
 
 # If YES, enable some informational messages
 VERBOSE = NO

@@ -16,6 +16,24 @@
 #include "../../config/config.hpp"
 #include <utility>
 
+// Define a portable unreachable macro
+#if defined(__GNUC__) || defined(__clang__)
+#if defined(__CUDACC_VER_MAJOR__)
+#if __CUDACC_VER_MAJOR__ <= 11 && __CUDACC_VER_MINOR__ < 3
+// nvcc didn't add __builtin_unreachable() until cuda 11.3
+#define MFEM_UNREACHABLE()
+#else
+// nvcc >= 11.3
+#define MFEM_UNREACHABLE() __builtin_unreachable()
+#endif
+#else
+// host-only version
+#define MFEM_UNREACHABLE() __builtin_unreachable()
+#endif
+#elif defined(_MSC_VER)
+#define MFEM_UNREACHABLE() __assume(0)
+#endif
+
 namespace mfem::future
 {
 
@@ -264,6 +282,7 @@ MFEM_HOST_DEVICE constexpr auto& get(tuple<T...>& values)
    {
       return values.v8;
    }
+   MFEM_UNREACHABLE();
 }
 
 /**
@@ -274,7 +293,7 @@ MFEM_HOST_DEVICE constexpr auto& get(tuple<T...>& values)
 template <int i, typename... T>
 MFEM_HOST_DEVICE constexpr const auto& get(const tuple<T...>& values)
 {
-   static_assert(i < sizeof...(T), "");
+   static_assert(i < sizeof...(T));
    if constexpr (i == 0)
    {
       return values.v0;
@@ -311,6 +330,7 @@ MFEM_HOST_DEVICE constexpr const auto& get(const tuple<T...>& values)
    {
       return values.v8;
    }
+   MFEM_UNREACHABLE();
 }
 
 /**
@@ -326,7 +346,7 @@ MFEM_HOST_DEVICE constexpr const auto& get(const tuple<T...>& values)
 template <int i, typename... T>
 MFEM_HOST_DEVICE constexpr auto type(const tuple<T...>& values)
 {
-   static_assert(i < sizeof...(T), "");
+   static_assert(i < sizeof...(T));
    if constexpr (i == 0)
    {
       return values.v0;
@@ -850,5 +870,16 @@ struct is_tuple_of_tuples<tuple<T...>>
    static constexpr bool value = (is_tuple<T>::value &&
                                   ...);  ///< true/false result of type check
 };
+
+/** @brief Auxiliary template function that merges (concatenates) two
+    mfem::future::tuple types into a single std::tuple that is empty, i.e. it is
+    value initialized. */
+template <typename... T1s, typename... T2s>
+constexpr auto merge_mfem_tuples_as_empty_std_tuple(
+   const mfem::future::tuple<T1s...> &,
+   const mfem::future::tuple<T2s...> &)
+{
+   return std::tuple<T1s..., T2s...> {};
+}
 
 }  // namespace mfem::future

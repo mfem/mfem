@@ -128,15 +128,7 @@ public:
    }
 
    /// Returns the shape of the tensor.
-   MFEM_HOST_DEVICE inline std::array<int, Dim> GetShape() const
-   {
-      std::array<int, Dim> s;
-      for (int i = 0; i < Dim; i++)
-      {
-         s[i] = sizes[i];
-      }
-      return s;
-   }
+   MFEM_HOST_DEVICE inline auto &GetShape() const { return sizes; }
 };
 
 

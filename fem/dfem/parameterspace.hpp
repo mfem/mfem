@@ -11,116 +11,143 @@
 #pragma once
 
 #include "../fe/fe_base.hpp"
+#include "../../fem/fespace.hpp"
 
 namespace mfem::future
 {
 
+/// Base class for parametric spaces
 class ParameterSpace
 {
-
 public:
-   /// spatial_dim is the dimension of the spatial domain (e.g. 2 for 2D)
-   /// local_size is the size of the data on a single quadrature point
-   /// element_size is the size of the data on an element divided by vdim
-   /// total_size is the size of the data for all elements
-   ParameterSpace(int spatial_dim, int local_size, int element_size,
-                  int total_size) :
-      spatial_dim(spatial_dim),
-      local_size(local_size),
-      element_size(element_size),
-      total_size(total_size),
-      identity(total_size)
-   {
-      // dtq.ndof = (int)floor(pow(element_size, 1.0/spatial_dim) + 0.5);
-      dtq.ndof = element_size;
-      dtq.nqpt = dtq.ndof;
-   }
+   ParameterSpace(int vdim = 1) : vdim(vdim) {}
 
-   ParameterSpace(int local_size) :
-      local_size(local_size),
-      element_size(local_size),
-      total_size(local_size),
-      identity(local_size)
-   {
-      dtq.ndof = (int)floor(std::pow(element_size, 1.0/spatial_dim) + 0.5);
-      dtq.nqpt = dtq.ndof;
-   }
+   /// @brief Get vector dimension at each point
+   ///
+   /// This is the number of components at each point in the parametric space.
+   int GetVDim() const { return vdim; }
 
-   ParameterSpace(int spatial_dim, int local_size, int element_size,
-                  int total_size, int d1d, int q1d) :
-      spatial_dim(spatial_dim),
-      local_size(local_size),
-      element_size(element_size),
-      total_size(total_size),
-      identity(total_size)
-   {
-      dtq.ndof = d1d;
-      dtq.nqpt = q1d;
-   }
+   /// Get DofToQuad information
+   const DofToQuad& GetDofToQuad() const { return dtq; }
 
+   /// Get total size of the space (T-vector size)
+   ///
+   /// returns the true size vsize of the space
+   virtual int GetTrueVSize() const = 0;
+
+   /// Get local vector size (L-vector size)
+   ///
+   /// returns the local size of the space
+   virtual int GetVSize() const = 0;
+
+   /// Get spatial dimension
+   ///
+   /// returns always 1.
    int Dimension() const
    {
-      return spatial_dim;
+      return 1;
    }
 
-   int GetLocalSize() const
+   /// @brief Get T-vector to L-vector transformation
+   ///
+   /// returns identity by default that is lazy evaluated.
+   virtual const Operator* GetProlongationMatrix() const
    {
-      return local_size;
+      if (!prolongation)
+      {
+         prolongation.reset(new IdentityOperator(GetTrueVSize()));
+      }
+      return prolongation.get();
    }
 
-   int GetElementSize() const
+   /// @brief Get L-vector to E-vector transformation
+   /// @note This is a mock call to replicate interface of FiniteElementSpace.
+   /// It should not be used by a user.
+   ///
+   /// returns identity by default that is lazy evaluated.
+   virtual const Operator* GetElementRestriction(ElementDofOrdering o) const
    {
-      return element_size;
+      if (!elem_restr)
+      {
+         elem_restr.reset(new IdentityOperator(GetVSize()));
+      }
+      return elem_restr.get();
    }
 
-   int GetTotalSize() const
+protected:
+   int vdim;
+   DofToQuad dtq;
+   mutable std::unique_ptr<Operator> prolongation;
+   mutable std::unique_ptr<Operator> elem_restr;
+};
+
+/// @brief Uniform parameter space
+class UniformParameterSpace : public ParameterSpace
+{
+public:
+   /// @brief Constructor for a uniform parameter space
+   ///
+   /// @param mesh The mesh to determine dimension and number of elements.
+   /// @param ir The integration rule to determine the number of quadrature points.
+   /// @param vdim The vector dimension at each point.
+   /// @param used_in_tensor_product If true, the number of quadrature points is
+   /// calculated as the nth root of the number of points in the integration rule,
+   /// where n is the mesh dimension. If false, the number of quadrature points is
+   /// taken directly from the integration rule.
+   UniformParameterSpace(Mesh &mesh, const IntegrationRule &ir, int vdim,
+                         bool used_in_tensor_product = true) :
+      ParameterSpace(vdim)
    {
-      return total_size;
+      // Setup DofToQuad information
+      dtq.nqpt = (int)floor(std::pow(ir.GetNPoints(), 1.0 / mesh.Dimension()) + 0.5);
+      dtq.ndof = dtq.nqpt;
+
+      // Calculate sizes
+      const int num_qp = used_in_tensor_product ?
+                         std::pow(dtq.nqpt, mesh.Dimension()) :
+                         ir.GetNPoints();
+
+      tsize = vdim * num_qp * mesh.GetNE();
+      lsize = tsize;
    }
 
-   const DofToQuad &GetDofToQuad() const
+   int GetTrueVSize() const override
    {
-      return dtq;
+      return tsize;
    }
 
-   const Operator *GetProlongation() const
+   int GetVSize() const override
    {
-      return &identity;
-   }
-
-   const Operator *GetRestriction() const
-   {
-      return &identity;
+      return lsize;
    }
 
 private:
-   int spatial_dim;
+   /// T-vector size
+   int tsize;
 
-   // Hint for the local dimension. E.g. the size on the quadrature point or vdim.
-   int local_size;
-
-   // Size of the data on an element
-   int element_size;
-
-   int total_size;
-
-   IdentityOperator identity;
-
-   DofToQuad dtq;
+   /// L-vector size
+   int lsize;
 };
 
-class ParametricFunction : public Vector
+class ParameterFunction : public Vector
 {
 public:
-   ParametricFunction(ParameterSpace &space) :
-      Vector(space.GetTotalSize()),
+   ParameterFunction(ParameterSpace &space) :
+      Vector(space.GetTrueVSize()),
       space(space)
    {}
 
-   ParameterSpace &space;
+   /// @brief Get the ParameterSpace
+   const ParameterSpace& GetParameterSpace() const
+   {
+      return space;
+   }
 
    using Vector::operator=;
 
+private:
+   /// the parametric space
+   ParameterSpace &space;
 };
 
 } // namespace mfem::future
