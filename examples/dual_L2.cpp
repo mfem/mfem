@@ -60,7 +60,7 @@ bool CheckVectorComponents(const mfem::GridFunction &gf, double limit)
 int main(int argc, char *argv[])
 {
    // const char *mesh_file = "../data/star.mesh";
-   int order = 1;
+   int order = 3;
    int order_l2 = 1; 
    int max_it = 10;
    int ref_levels = 3;
@@ -160,7 +160,8 @@ int main(int argc, char *argv[])
    }
 
    ConstantCoefficient neg_one(-1.0);
-   ConstantCoefficient zero(0.0);
+   VectorConstantCoefficient zero_vec_cf(Vector({0., 0.}));
+   ConstantCoefficient zero_cf(0.0);
 	VectorConstantCoefficient one_vec_cf(Vector({1., 1.})); 
 
    ConstantCoefficient tichonov_cf(tichonov);
@@ -190,13 +191,21 @@ int main(int argc, char *argv[])
 
    // FunctionCoefficient f([](const Vector &x) { return 1/M_PI * sin(M_PI * x[0]) * sin(M_PI*x[1]); }); 
    // FunctionCoefficient f([](const Vector &x)) { return -1. * (pow(x[0], 2) + pow(x[1], 2));  };
-   FunctionCoefficient f([](const Vector &x) { return  0.25*(pow(x[0], 2) + pow(x[1], 2)); });
+   // FunctionCoefficient f([](const Vector &x) { return  0.5*x[0]; });
+   // FunctionCoefficient f([](const Vector &x) { return  0.25*(pow(x[0], 2) + pow(x[1], 2)); });
 
    // FunctionCoefficient f([](const Vector &x) { return -1.*( 2*(x[0] + x[1]) - pow(x[0], 3) - pow(x[1], 3)); });
 
-   ProductCoefficient neg_alpha_f_cf(neg_alpha_cf, f); 
+   // ProductCoefficient neg_alpha_f_cf(neg_alpha_cf, f); 
 
-   b0.AddDomainIntegrator(new VectorFEDomainLFDivIntegrator(neg_alpha_f_cf));
+   // b0.AddDomainIntegrator(new VectorFEDomainLFDivIntegrator(neg_alpha_f_cf));
+VectorFunctionCoefficient f_coeff(2, [](const Vector &x, Vector &u) {
+      u(0) = 0.5; 
+      u(1) = 0.0;
+   });
+
+   ScalarVectorProductCoefficient alpha_f_cf(alpha_cf, f_coeff); 
+   b0.AddDomainIntegrator(new VectorFEDomainLFIntegrator(alpha_f_cf));
 
    b1.AddDomainIntegrator(new VectorDomainLFIntegrator(Z));
 
@@ -209,7 +218,11 @@ int main(int argc, char *argv[])
    SparseMatrix &A00 = a00.SpMat(); 
 
    MixedBilinearForm a10(&RTfes, &L2fes);
-   a10.AddDomainIntegrator(new VectorFEMassIntegrator()); 
+   a10.AddDomainIntegrator(new VectorFEMassIntegrator());
+   a10.Assemble(false);
+   a10.Finalize(false);
+   SparseMatrix &A10 = a10.SpMat();
+   SparseMatrix *A01 = Transpose(A10);
 
    BilinearForm a11(&L2fes);
    a11.AddDomainIntegrator(new VectorMassIntegrator(neg_DZ)); 
@@ -217,7 +230,7 @@ int main(int argc, char *argv[])
    int k;
    int total_iterations = 0;
    real_t increment_p = 0.1;
-   GridFunction p_tmp(&L2fes);
+   GridFunction p_tmp(&RTfes);
    for (k = 0; k < max_it; k++)
    {
       p_tmp = p_old_gf;
@@ -236,28 +249,34 @@ int main(int argc, char *argv[])
          a11.Finalize(false);
          SparseMatrix &A11 = a11.SpMat();
 
-         a10.Assemble(false);
-         a10.Finalize(false);
-         SparseMatrix &A10 = a10.SpMat();
-         SparseMatrix *A01 = Transpose(A10);
-
          BlockMatrix A(offsets); 
          A.SetBlock(0,0,&A00);
          A.SetBlock(1,0,&A10);
          A.SetBlock(0,1,A01);
          A.SetBlock(1,1,&A11);
 
-         SparseMatrix *A_mono = A.CreateMonolithic(); 
-         UMFPackSolver umf(*A_mono); 
-         umf.Mult(rhs, x); 
+         // SparseMatrix *A_mono = A.CreateMonolithic(); 
+         // UMFPackSolver umf(*A_mono); 
+         // umf.Mult(rhs, x); 
+
+         BlockDiagonalPreconditioner prec(offsets);
+         prec.SetDiagonalBlock(0,new GSSmoother(A00));
+         prec.SetDiagonalBlock(1,new GSSmoother(A11));
+         prec.owns_blocks = 1;
+
+         GMRES(A,prec,rhs,x,0,10000,500,1e-12,0.0);
 
          p_tmp -= p_gf;
-         real_t Newton_update_size = p_tmp.ComputeL2Error(zero);
+         real_t Newton_update_size = p_tmp.ComputeL2Error(zero_vec_cf);
          p_tmp = p_gf;
+
+         mfem::out << "tag 2" << endl;
 
          // Damped Newton update
          psi_gf.Add(newton_scaling, delta_psi_gf);
          a11.Update();
+         b0.Update();
+         b1.Update();
 
          if (visualization)
          {
@@ -284,7 +303,7 @@ int main(int argc, char *argv[])
 
       p_tmp = p_gf;
       p_tmp -= p_old_gf;
-      increment_p = p_tmp.ComputeL2Error(zero);
+      increment_p = p_tmp.ComputeL2Error(zero_vec_cf);
 
       mfem::out << "Number of Newton iterations = " << j+1 << endl;
       mfem::out << "Increment (|| uₕ - uₕ_prvs||) = " << increment_p << endl;
@@ -300,6 +319,7 @@ int main(int argc, char *argv[])
       alpha *= max(growth_rate, 1_r);
       alpha_cf.constant = alpha; 
    }
+   delete A01;
 
    mfem::out << "\n Outer iterations: " << k+1
              << "\n Total iterations: " << total_iterations
@@ -315,8 +335,8 @@ int main(int argc, char *argv[])
       // u(1) = pow(x(1), 2); 
 
       
-      u(0) = 0.5*x(0); 
-      u(1) = 0.5*x(1); 
+      u(0) = 0.5; 
+      u(1) = 0.0; 
 
 
       // u(0) = 0.5 * pow(x(0), 2); 
@@ -383,6 +403,7 @@ void DZCoefficient::Eval(DenseMatrix &K, ElementTransformation &T,
    Vector psi_vals(2);
    psi->GetVectorValue(T, ip, psi_vals);
 
-   K.SetSize(2); 
+   K.SetSize(2);
+   K = 0.0;
    for (int i = 0; i < 2; ++i) { K(i, i) = (1. - pow(tanh(psi_vals(i) / 2.), 2)) / 2.; }
 }
