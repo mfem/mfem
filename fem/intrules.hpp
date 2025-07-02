@@ -443,6 +443,7 @@ private:
    Array<IntegrationRule *> TriangleStroudIntRules;
    Array<IntegrationRule *> SquareIntRules;
    Array<IntegrationRule *> TetrahedronIntRules;
+   Array<IntegrationRule *> TetrahedronStroudIntRules;
    Array<IntegrationRule *> PyramidIntRules;
    Array<IntegrationRule *> PrismIntRules;
    Array<IntegrationRule *> CubeIntRules;
@@ -486,6 +487,7 @@ private:
    IntegrationRule *TriangleStroudIntegrationRule(int Order);
    IntegrationRule *SquareIntegrationRule(int Order);
    IntegrationRule *TetrahedronIntegrationRule(int Order);
+   IntegrationRule *TetrahedronStroudIntegrationRule(int Order);
    IntegrationRule *PyramidIntegrationRule(int Order);
    IntegrationRule *PrismIntegrationRule(int Order);
    IntegrationRule *CubeIntegrationRule(int Order);

@@ -235,6 +235,21 @@ public:
    /// Construct the H1Pos_TetrahedronElement of order @a p
    H1Pos_TetrahedronElement(const int p);
 
+   const DofToQuad &GetDofToQuad(const IntegrationRule &ir,
+                                 DofToQuad::Mode mode) const override
+   {
+      return (mode == DofToQuad::RAGGED_TENSOR) ?
+             GetRaggedTensorDofToQuad(*this, ir, mode, dof2quad_array) :
+             FiniteElement::GetDofToQuad(ir, mode);
+   }
+
+   static const DofToQuad &GetRaggedTensorDofToQuad(
+      const FiniteElement &fe, const IntegrationRule &ir,
+      DofToQuad::Mode mode,
+      Array<DofToQuad*> &dof2quad_array);
+
+   const Array<int> &GetDofMap() const { return dof_map; }
+
    // The size of shape is (p+1)(p+2)(p+3)/6 (dof).
    static void CalcShape(const int p, const real_t x, const real_t y,
                          const real_t z, real_t *shape);

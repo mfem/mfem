@@ -1577,9 +1577,11 @@ inline bool UsesRaggedTensorBasis(const FiniteElementSpace& fes)
 {
    Mesh & mesh = *fes.GetMesh();
    const bool mixed = mesh.GetNumGeometries(mesh.Dimension()) > 1;
-   const bool simplex = (fes.GetFE(0)->GetGeomType() == Geometry::TRIANGLE);
+   const bool simplex = (fes.GetFE(0)->GetGeomType() == Geometry::TRIANGLE) ||
+                        (fes.GetFE(0)->GetGeomType() == Geometry::TETRAHEDRON);
    return !mixed && simplex &&
-          dynamic_cast<const mfem::H1Pos_TriangleElement *>(fes.GetFE(0))!=nullptr;
+          (dynamic_cast<const mfem::H1Pos_TriangleElement *>(fes.GetFE(0))!=nullptr ||
+           dynamic_cast<const mfem::H1Pos_TetrahedronElement *>(fes.GetFE(0))!=nullptr);
 }
 
 /// @brief Return LEXICOGRAPHIC if mesh contains only one topology and the

@@ -720,7 +720,6 @@ void PAMassApplyTriangle_Element(const int e,
       }
    }
 
-
    // evaluate Bernstein polynomial over the second/last ragged tensor dimension
    for (int iL = 0; iL < Q1D; iL++)
    {
@@ -741,7 +740,6 @@ void PAMassApplyTriangle_Element(const int e,
          C2[qx + Q1D*qy] *= D(qy, qx, e);
       }
    }
-
 
    // now evaluate all of the Bernstein moments of the form
    //    \int_{K} B_{\alpha}^{p}(x) * C2(x) dx
@@ -934,6 +932,183 @@ void PAMassApply3D_Element(const int e,
          }
       }
    }
+}
+
+/* This function computes the action of the mass integrator for the Bernstein basis on tetrahedrons.
+   The key components are an O(p^{d+1}) routine for evaluating the Bernstein polynomial
+   \sum_{\alpha} c_{\alpha} B_{\alpha}^{p}(x) simultaneously at all quadrature points x
+   (stored in the array C3 and roughly corresponding to Algorithm 1 of [1])and an O(p^{d+1})
+   routine for evaluating the Bernstein moments \int_{K} f(x) * B_{\alpha}^{p}(x) dx for all
+   \alpha (stored in the array F3 and roughly corresponding to Algorithm 3 of [1]).
+
+   [1] Ainsworth, M., Andriamaro, G., & Davydov, O. (2011). Bernstein–Bézier finite elements
+       of arbitrary order and optimal assembly procedures. SIAM Journal on Scientific Computing,
+       33(6), 3087-3109.
+   */
+template <bool ACCUMULATE = true>
+MFEM_HOST_DEVICE inline
+void PAMassApplyTetrahedron_Element(const int e,
+                                    const int NE,
+                                    const int BASIS_DIM,
+                                    const int *lex_map,
+                                    const real_t *ba1_,
+                                    const real_t *ba2_,
+                                    const real_t *ba3_,
+                                    const real_t *d_,
+                                    const real_t *x_,
+                                    real_t *y_,
+                                    const int *lex_map_,
+                                    const int d1d = 0,
+                                    const int q1d = 0)
+{
+   const int D1D = d1d;
+   const int Q1D = q1d;
+   const auto Ba1 = ConstDeviceMatrix(ba1_, Q1D, D1D);
+   const auto Ba2 = ConstDeviceCube(ba2_, Q1D, D1D, D1D);
+   const auto Ba3 = DeviceTensor<4,const real_t>(ba3_, Q1D, D1D, D1D, D1D);
+
+   const auto D = DeviceTensor<4,const real_t>(d_, Q1D, Q1D, Q1D, NE);
+   const auto X = ConstDeviceMatrix(x_, BASIS_DIM, NE);
+   auto Y = DeviceMatrix(y_, BASIS_DIM, NE);
+
+   if (!ACCUMULATE)
+   {
+      for (int idx = 0; idx < BASIS_DIM; idx++)
+      {
+         Y(idx, e) = 0.0;
+      }
+   }
+
+   // C3 will contain the Bernstein polynomial with coefficients X
+   // evaluated at all of the quadrature nodes in O(p^{d+1}). we have
+   //    C3[t1,t2] = \sum_{\alpha} X_{\alpha} * B_{\alpha}^{p}(\Phi(t1,t2)),
+   // where \Phi is the Duffy transformation and (t1,t2) is a Stroud node.
+
+   // TODO: should be using stack memory here like quad version, but this seems faster...
+   real_t *C3 = new real_t[Q1D * Q1D * Q1D] {0};
+   real_t *C2 = new real_t[D1D * Q1D * Q1D] {0};
+   real_t *C1 = new real_t[D1D * D1D * Q1D] {0};
+
+   // evaluate Bernstein polynomial over the first ragged tensor dimension
+   for (int a1 = 0; a1 < D1D; a1++)
+   {
+      for (int a2 = 0; a2 < D1D-a1; a2++)
+      {
+         for (int i3 = 0; i3 < Q1D; i3++)
+         {
+            const int a1a2i3 = i3 + Q1D*(a2 + D1D*a1);
+            for (int a3 = 0; a3 < D1D-a1-a2; a3++)
+            {
+               const int idx = lex_map_[a3 + D1D*(a2 + D1D*a1)];
+               C1[a1a2i3] += X(idx, e) * Ba3(i3, a1, a2, a3);
+            }
+         }
+      }
+   }
+
+   // evaluate Bernstein polynomial over the second ragged tensor dimension
+   for (int a1 = 0; a1 < D1D; a1++)
+   {
+      for (int a2 = 0; a2 < D1D-a1; a2++)
+      {
+         for (int i2 = 0; i2 < Q1D; i2++)
+         {
+            const real_t Bai = Ba2(i2, a1, a2);
+            for (int i3 = 0; i3 < Q1D; i3++)
+            {
+               C2[i3 + Q1D*(i2 + Q1D*a1)] += C1[i3 + Q1D*(a2 + D1D*a1)] * Bai;
+            }
+         }
+      }
+   }
+
+   // evaluate Bernstein polynomial over the third/last ragged tensor dimension
+   for (int a1 = 0; a1 < D1D; a1++)
+   {
+      for (int i1 = 0; i1 < Q1D; i1++)
+      {
+         const real_t Bai = Ba1(i1, a1);
+         for (int i2 = 0; i2 < Q1D; i2++)
+         {
+            for (int i3 = 0; i3 < Q1D; i3++)
+            {
+               C3[i3 + Q1D*(i2 + Q1D*i1)] += C2[i3 + Q1D*(i2 + Q1D*a1)] * Bai;
+            }
+         }
+      }
+   }
+
+   for (int qz = 0; qz < Q1D; qz++)
+   {
+      for (int qy = 0; qy < Q1D; qy++)
+      {
+         for (int qx = 0; qx < Q1D; qx++)
+         {
+            C3[qx + Q1D*(qy + Q1D*qz)] *= D(qz, qy, qx, e);
+         }
+      }
+   }
+
+   // now evaluate all of the Bernstein moments of the form
+   //    \int_{K} B_{\alpha}^{p}(x) * C3(x) dx
+   real_t *F3 = new real_t[D1D * D1D * D1D] {0};
+   real_t *F2 = new real_t[D1D * D1D * Q1D] {0};
+   real_t *F1 = new real_t[D1D * Q1D * Q1D] {0};
+
+   // integrate over the first ragged tensor dimension
+   for (int a1 = 0; a1 < D1D; a1++)
+   {
+      for (int i1 = 0; i1 < Q1D; i1++)
+      {
+         const real_t Bai = Ba1(i1, a1);
+         for (int i2 = 0; i2 < Q1D; i2++)
+         {
+            for (int i3 = 0; i3 < Q1D; i3++)
+            {
+               F1[i3 + Q1D*(i2 + Q1D*a1)] += C3[i3 + Q1D*(i2 + Q1D*i1)] * Bai;
+            }
+         }
+      }
+   }
+
+   // integrate over the second ragged tensor dimension
+   for (int a1 = 0; a1 < D1D; a1++)
+   {
+      for (int a2 = 0; a2 < D1D-a1; a2++)
+      {
+         for (int i2 = 0; i2 < Q1D; i2++)
+         {
+            const real_t Bai = Ba2(i2, a1, a2);
+            for (int i3 = 0; i3 < Q1D; i3++)
+            {
+               F2[i3 + Q1D*(a2 + D1D*a1)] += F1[i3 + Q1D*(i2 + Q1D*a1)] * Bai;
+            }
+         }
+      }
+   }
+
+   // integrate over the third/last ragged tensor dimension
+   for (int a1 = 0; a1 < D1D; a1++)
+   {
+      for (int a2 = 0; a2 < D1D-a1; a2++)
+      {
+         for (int i3 = 0; i3 < Q1D; i3++)
+         {
+            for (int a3 = 0; a3 < D1D-a1-a2; a3++)
+            {
+               const int idx = lex_map_[a3 + D1D*(a2 + D1D*a1)];
+               Y(idx,e) += F2[i3 + Q1D*(a2 + D1D*a1)] * Ba3(i3, a1, a2, a3);
+            }
+         }
+      }
+   }
+
+   delete[] C3;
+   delete[] C2;
+   delete[] C1;
+   delete[] F3;
+   delete[] F2;
+   delete[] F1;
 }
 
 template<int T_D1D, int T_Q1D, bool ACCUMULATE = true>
@@ -1196,6 +1371,7 @@ inline void PAMassApplyTriangle(const int NE,
                                 const Array<int> &lex_map_,
                                 const Array<real_t> &ba1_,
                                 const Array<real_t> &ba2_,
+                                const Array<real_t> &ba3_, // unused in 2D...
                                 const Vector &d_,
                                 const Vector &x_,
                                 Vector &y_,
@@ -1276,6 +1452,40 @@ inline void PAMassApply3D(const int NE,
       internal::PAMassApply3D_Element(e, NE, B, Bt, D, X, Y, d1d, q1d);
    });
 }
+
+// PA Mass Apply 3D kernel on tetrahedrons (Bernstein only)
+template<int T_D1D = 0, int T_Q1D = 0>
+inline void PAMassApplyTetrahedron(const int NE,
+                                   const Array<int> &lex_map_,
+                                   const Array<real_t> &ba1_,
+                                   const Array<real_t> &ba2_,
+                                   const Array<real_t> &ba3_,
+                                   const Vector &d_,
+                                   const Vector &x_,
+                                   Vector &y_,
+                                   const int d1d = 0,
+                                   const int q1d = 0)
+{
+   MFEM_VERIFY(T_D1D ? T_D1D : d1d <= DeviceDofQuadLimits::Get().MAX_D1D, "");
+   MFEM_VERIFY(T_Q1D ? T_Q1D : q1d <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
+
+   const int BASIS_DIM = d1d * (d1d + 1) * (d1d + 2) / 6;
+   const auto lex_map = lex_map_.Read();
+   const auto Ba1 = ba1_.Read();
+   const auto Ba2 = ba2_.Read();
+   const auto Ba3 = ba3_.Read();
+   const auto D = d_.Read();
+   const auto X = x_.Read();
+   auto Y = y_.ReadWrite();
+
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
+   {
+      internal::PAMassApplyTetrahedron_Element(e, NE, BASIS_DIM, lex_map, Ba1, Ba2,
+                                               Ba3, D, X,
+                                               Y, lex_map, d1d, q1d);
+   });
+}
+
 
 // Shared memory PA Mass Apply 2D kernel
 template<int T_D1D = 0, int T_Q1D = 0>
@@ -1574,6 +1784,7 @@ template<int DIM, int T_D1D, int T_Q1D>
 ApplySimplexKernelType MassIntegrator::ApplySimplexPAKernels::Kernel()
 {
    if (DIM == 2) { return internal::PAMassApplyTriangle; }
+   else if (DIM == 3) { return internal::PAMassApplyTetrahedron; }
    else { MFEM_ABORT(""); }
 }
 
@@ -1581,6 +1792,7 @@ inline ApplySimplexKernelType MassIntegrator::ApplySimplexPAKernels::Fallback(
    int DIM, int, int)
 {
    if (DIM == 2) { return internal::PAMassApplyTriangle; }
+   else if (DIM == 3) { return internal::PAMassApplyTetrahedron; }
    else { MFEM_ABORT(""); }
 }
 

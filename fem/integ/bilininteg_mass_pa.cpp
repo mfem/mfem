@@ -206,8 +206,10 @@ void MassIntegrator::AddMultPA(const Vector &x, Vector &y) const
       {
          const Array<real_t> &Ba1 = maps->Ba1;
          const Array<real_t> &Ba2 = maps->Ba2;
+         const Array<real_t> &Ba3 = maps->Ba3;
          const Array<int> &lex_map = maps->lex_map;
-         ApplySimplexPAKernels::Run(dim, D1D, Q1D, ne, lex_map, Ba1, Ba2, D, x, y, D1D,
+         ApplySimplexPAKernels::Run(dim, D1D, Q1D, ne, lex_map, Ba1, Ba2, Ba3, D, x, y,
+                                    D1D,
                                     Q1D);
       }
       else

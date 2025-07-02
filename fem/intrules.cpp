@@ -259,7 +259,7 @@ const IntegrationRule IntegrationRule::DuffyTrans(int dim) const
          ip_mapped.x =
             L1; // corresponds to x1 = (1,0,0) and x2 = (0,1,0) and x3 = (0,0,0)
          ip_mapped.y = L2; // and x4 = (0,0,1)
-         ip_mapped.z = L4;
+         ip_mapped.z = L3;
          ip_mapped.weight = IntPoint(i).weight;
       }
       return ir_mapped;
@@ -1174,6 +1174,9 @@ IntegrationRules::IntegrationRules(int ref, int type)
    TetrahedronIntRules.SetSize(32, h_mt);
    TetrahedronIntRules = NULL;
 
+   TetrahedronStroudIntRules.SetSize(32, h_mt);
+   TetrahedronStroudIntRules = NULL;
+
    PyramidIntRules.SetSize(32, h_mt);
    PyramidIntRules = NULL;
 
@@ -1213,7 +1216,15 @@ const IntegrationRule &IntegrationRules::Get(int GeomType, int Order,
          }
       }
       case Geometry::SQUARE:      ir_array = &SquareIntRules; break;
-      case Geometry::TETRAHEDRON: ir_array = &TetrahedronIntRules; break;
+      case Geometry::TETRAHEDRON:
+         if (StroudFlag)
+         {
+            ir_array = &TetrahedronStroudIntRules; break;
+         }
+         else
+         {
+            ir_array = &TetrahedronIntRules; break;
+         }
       case Geometry::CUBE:        ir_array = &CubeIntRules; break;
       case Geometry::PRISM:       ir_array = &PrismIntRules; break;
       case Geometry::PYRAMID:     ir_array = &PyramidIntRules; break;
@@ -1274,7 +1285,15 @@ void IntegrationRules::Set(int GeomType, int Order, IntegrationRule &IntRule,
          }
       }
       case Geometry::SQUARE:      ir_array = &SquareIntRules; break;
-      case Geometry::TETRAHEDRON: ir_array = &TetrahedronIntRules; break;
+      case Geometry::TETRAHEDRON:
+         if (StroudFlag)
+         {
+            ir_array = &TetrahedronStroudIntRules; break;
+         }
+         else
+         {
+            ir_array = &TetrahedronIntRules; break;
+         }
       case Geometry::CUBE:        ir_array = &CubeIntRules; break;
       case Geometry::PRISM:       ir_array = &PrismIntRules; break;
       case Geometry::PYRAMID:     ir_array = &PyramidIntRules; break;
@@ -1337,6 +1356,7 @@ IntegrationRules::~IntegrationRules()
    DeleteIntRuleArray(TriangleStroudIntRules);
    DeleteIntRuleArray(SquareIntRules);
    DeleteIntRuleArray(TetrahedronIntRules);
+   DeleteIntRuleArray(TetrahedronStroudIntRules);
    DeleteIntRuleArray(CubeIntRules);
    DeleteIntRuleArray(PrismIntRules);
    DeleteIntRuleArray(PyramidIntRules);
@@ -1367,7 +1387,16 @@ IntegrationRule *IntegrationRules::GenerateIntegrationRule(int GeomType,
       case Geometry::SQUARE:
          return SquareIntegrationRule(Order);
       case Geometry::TETRAHEDRON:
-         return TetrahedronIntegrationRule(Order);
+      {
+         if (StroudFlag)
+         {
+            return TetrahedronStroudIntegrationRule(Order);
+         }
+         else
+         {
+            return TetrahedronIntegrationRule(Order);
+         }
+      }
       case Geometry::CUBE:
          return CubeIntegrationRule(Order);
       case Geometry::PRISM:
@@ -2107,6 +2136,39 @@ IntegrationRule *IntegrationRules::TetrahedronIntegrationRule(int Order)
          TetrahedronIntRules[i-1] = TetrahedronIntRules[i] = ir;
          return ir;
    }
+}
+
+/* Integration rule in (0,1)^2 according to tensor product Gauss-Jacobi rule.
+  The nodes and weights are used in the original form defined on the reference
+  square to evaluate the component 1D basis functions. Mapping to the reference
+  triangle via IntegrationRule::DuffyTrans() occurs only in evaluation of coefficient
+  vectors, see e.g. MassIntegrator::AssemblePASimplex. */
+IntegrationRule *IntegrationRules::TetrahedronStroudIntegrationRule(int Order)
+{
+   int RealOrder = GetSegmentRealOrder(Order);
+   // Order is one of {RealOrder-1,RealOrder}
+   if (!HaveIntRule(SegmentStroud1IntRules, RealOrder))
+   {
+      SegmentStroud1IntegrationRule(RealOrder, 0.0, 0.0); // for 1st dimension
+   }
+
+   if (!HaveIntRule(SegmentStroud2IntRules, RealOrder))
+   {
+      SegmentStroud2IntegrationRule(RealOrder, 1.0, 0.0); // for 2nd dimension
+   }
+
+   if (!HaveIntRule(SegmentStroud3IntRules, RealOrder))
+   {
+      SegmentStroud3IntegrationRule(RealOrder, 2.0, 0.0); // for 3rd dimension
+   }
+
+   AllocIntRule(TetrahedronStroudIntRules, RealOrder); // RealOrder >= Order
+   TetrahedronStroudIntRules[RealOrder-1] =
+      TetrahedronStroudIntRules[RealOrder] =
+         new IntegrationRule(*SegmentStroud3IntRules[RealOrder],
+                             *SegmentStroud2IntRules[RealOrder],
+                             *SegmentStroud1IntRules[RealOrder]);
+   return TetrahedronStroudIntRules[Order];
 }
 
 // Integration rules for reference pyramid

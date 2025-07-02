@@ -50,17 +50,20 @@ ElementRestriction::ElementRestriction(const FiniteElementSpace &f,
          const FiniteElement *fe = fes.GetFE(e);
          auto el_t = dynamic_cast<const TensorBasisElement*>(fe);
          auto el_n = dynamic_cast<const NodalFiniteElement*>(fe);
-         auto el_p = dynamic_cast<const H1Pos_TriangleElement*>(fe);
+         auto el_p = dynamic_cast<const H1Pos_TriangleElement*>(fe) ||
+                     dynamic_cast<const H1Pos_TetrahedronElement*>(fe) ;
          if (el_t || el_n || el_p) { continue; }
          MFEM_ABORT("Finite element not suitable for lexicographic ordering");
       }
       const FiniteElement *fe = fes.GetTypicalFE();
       auto el_t = dynamic_cast<const TensorBasisElement*>(fe);
       auto el_n = dynamic_cast<const NodalFiniteElement*>(fe);
-      auto el_p = dynamic_cast<const H1Pos_TriangleElement*>(fe);
+      auto el_ptri = dynamic_cast<const H1Pos_TriangleElement*>(fe);
+      auto el_ptet = dynamic_cast<const H1Pos_TetrahedronElement*>(fe);
       const Array<int> &fe_dof_map =
          (el_n) ? el_n->GetLexicographicOrdering() : (el_t ? el_t->GetDofMap() :
-                                                      el_p->GetDofMap());
+                                                      (el_ptri ? el_ptri->GetDofMap() :
+                                                       el_ptet->GetDofMap()));
       MFEM_VERIFY(fe_dof_map.Size() > 0, "invalid dof map");
       dof_map = fe_dof_map.HostRead();
    }
