@@ -225,7 +225,6 @@ void ParticleTrajectories::Visualize()
       all_meshes.push_back(&m);
 
    Mesh trajectories(all_meshes.data(), all_meshes.size());
-   trajectories.FinalizeMesh();
 
    // Update socketstream
 #ifdef MFEM_USE_MPI

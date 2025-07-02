@@ -259,11 +259,11 @@ public:
 // Returns pointers to the two new objects.
 int ReadGridFunction(std::string coll_name, std::string field_name,
                      int pad_digits_cycle, int pad_digits_rank, int cycle,
-                     std::unique_ptr<VisItDataCollection> &dc, ParGridFunction *gf);
+                     std::unique_ptr<VisItDataCollection> &dc, ParGridFunction *&gf);
 
 // Initialize particles from user input.
 template<Ordering::Type VOrdering>
-void InitializeParticles(ParticleSet<VOrdering> &particles, const ParMesh *pmesh, const Vector &x_init, const Vector &p_init, real_t q, real_t m, int num_part);
+void InitializeParticles(ParticleSet<VOrdering> &particles, ParMesh *pmesh, const Vector &x_init, const Vector &p_init, real_t q, real_t m, int num_part);
 
 // Prints the program's logo to the given output stream
 void display_banner(ostream & os);
@@ -391,18 +391,18 @@ int main(int argc, char *argv[])
    InitializeParticles(particles, pmesh, x_init, p_init, q, m, num_part);
    
    // Print all particles
-   // for (int r = 0; r < Mpi::WorldSize(); r++)
-   // {  
-   //    if (r == Mpi::WorldRank())
-   //    {
-   //       mfem::out << "\nRank " << r << "\n";
-   //       for (int i = 0; i < particles.GetNP(); i++)
-   //       {
-   //          particles.GetParticleData(i).Print();
-   //       }
-   //    }
-   //    MPI_Barrier(MPI_COMM_WORLD);
-   // }
+   for (int r = 0; r < Mpi::WorldSize(); r++)
+   {  
+      if (r == Mpi::WorldRank())
+      {
+         mfem::out << "\nRank " << r << "\n";
+         for (int i = 0; i < particles.GetNP(); i++)
+         {
+            particles.GetParticleData(i).Print();
+         }
+      }
+      MPI_Barrier(MPI_COMM_WORLD);
+   }
    
    BorisAlgorithm boris(E_gf, B_gf, MPI_COMM_WORLD);
 
@@ -458,7 +458,7 @@ void display_banner(ostream & os)
 
 int ReadGridFunction(std::string coll_name, std::string field_name,
                      int pad_digits_cycle, int pad_digits_rank, int cycle,
-                     std::unique_ptr<VisItDataCollection> &dc, ParGridFunction *gf)
+                     std::unique_ptr<VisItDataCollection> &dc, ParGridFunction *&gf)
 {
    dc = std::make_unique<VisItDataCollection>(MPI_COMM_WORLD, coll_name);
    dc->SetPadDigitsCycle(pad_digits_cycle);
@@ -488,7 +488,7 @@ int ReadGridFunction(std::string coll_name, std::string field_name,
 }
 
 template<Ordering::Type VOrdering>
-void InitializeParticles(ParticleSet<VOrdering> &particles, const ParMesh *pmesh, const Vector &x_init, const Vector &p_init, real_t q, real_t m, int num_part)
+void InitializeParticles(ParticleSet<VOrdering> &particles, ParMesh *pmesh, const Vector &x_init, const Vector &p_init, real_t q, real_t m, int num_part)
 {
    int rank, size;
    MPI_Comm_rank(particles.GetComm(), &rank);
@@ -496,11 +496,6 @@ void InitializeParticles(ParticleSet<VOrdering> &particles, const ParMesh *pmesh
 
    int dim = particles.GetSpaceDim();
 
-   Mesh mesh;
-   if (pmesh)
-   {
-      mesh = pmesh->GetSerialMesh(0);
-   }
    // Initialize all x and p on rank 0, then split amongst ranks
    std::vector<int> sendcts(size);
    std::vector<int> displs(size);
@@ -517,7 +512,7 @@ void InitializeParticles(ParticleSet<VOrdering> &particles, const ParMesh *pmesh
       Vector pos_min, pos_max;
       if (pmesh)
       {
-         mesh.GetBoundingBox(pos_min, pos_max); // Get global bounding box
+         pmesh->GetBoundingBox(pos_min, pos_max); // Get global bounding box
       }
       else
       {
