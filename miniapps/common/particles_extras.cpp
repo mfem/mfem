@@ -40,7 +40,7 @@ void InitializeRandom(Particle &p, int seed, const Vector &pos_min, const Vector
 }
 
 
-void ParticleVisualizer::Add3DPoint(const Vector &center, Mesh &m, real_t s)
+void Add3DPoint(const Vector &center, Mesh &m, real_t s)
 {
    Vector v[8];
 
@@ -87,7 +87,7 @@ void ParticleVisualizer::Add3DPoint(const Vector &center, Mesh &m, real_t s)
 
 
 template<Ordering::Type VOrdering>
-void ParticleVisualizer::VisualizeParticles(socketstream &sock, const char* vishost, int visport,
+void VisualizeParticles(socketstream &sock, const char* vishost, int visport,
                                     const ParticleSet<VOrdering> &pset, const Vector &scalar_field, real_t psize, 
                                     const char* title, int x, int y, int w, int h, const char* keys)
 {                

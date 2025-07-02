@@ -23,8 +23,17 @@ namespace common
 
 void InitializeRandom(Particle &p, int seed, const Vector &pos_min, const Vector &pos_max);
 
+/// Add a point to a given Mesh, represented as a hex sixed \p scale
+void Add3DPoint(const Vector &center, Mesh &m, real_t scale=2e-3);
 
-class ParticleVisualizer
+/// Plot a point cloud of particles, represented as hexes, colored by \p scalar_field
+template<Ordering::Type VOrdering>
+void VisualizeParticles(socketstream &sock, const char* vishost, int visport,
+                                const ParticleSet<VOrdering> &pset, const Vector &scalar_field, real_t psize, 
+                                const char* title, int x = 0, int y = 0, int w = 400, int h = 400,
+                                const char* keys=nullptr);
+
+class ParticleTrajVisualizer
 {
 private:
     socketstream sock;
@@ -35,16 +44,6 @@ private:
 #endif // MFEM_USE_MPI
 
 public:
-
-    /// Add a point to a given Mesh, represented as a hex sixed \p scale
-    static void Add3DPoint(const Vector &center, Mesh &m, real_t scale=2e-3);
-
-    /// Plot a point cloud of particles, represented as hexes, colored by \p scalar_field
-    template<Ordering::Type VOrdering>
-    static void VisualizeParticles(socketstream &sock, const char* vishost, int visport,
-                                    const ParticleSet<VOrdering> &pset, const Vector &scalar_field, real_t psize, 
-                                    const char* title, int x = 0, int y = 0, int w = 400, int h = 400,
-                                    const char* keys=nullptr);
 
     ParticleVisualizer(int visport)
     : sock("localhost", visport) { }

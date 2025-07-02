@@ -158,7 +158,7 @@ int main (int argc, char *argv[])
    MFEM_ASSERT(mesh.SpaceDimension() == mesh.Dimension(), "FindPointsGSLIB requires that the mesh space dimension + reference element dimension are the same");
    int space_dim = mesh.Dimension();
 
-   ParticleSet<Ordering::byVDIM> pset(MPI_COMM_WORLD, space_dim, 0, Array<int>());
+   ParticleSet<Ordering::byVDIM> pset(MPI_COMM_WORLD, space_dim, 0, {});
 
    Vector pos_min, pos_max;
    mesh.GetBoundingBox(pos_min, pos_max);
@@ -208,7 +208,7 @@ int main (int argc, char *argv[])
       socketstream sock;
       Vector rank_vector(pset.GetNP());
       rank_vector = rank;
-      ParticleVisualizer::VisualizeParticles(sock, "localhost", visport, pset, rank_vector, psize, "Particle Owning Rank (Pre-Redistribute)", 0, 0, 400, 400, "bc");
+      VisualizeParticles(sock, "localhost", visport, pset, rank_vector, psize, "Particle Owning Rank (Pre-Redistribute)", 0, 0, 400, 400, "bc");
    }
 
    // Redistribute
@@ -230,7 +230,7 @@ int main (int argc, char *argv[])
       socketstream sock;
       Vector rank_vector(pset.GetNP());
       rank_vector = rank;
-      ParticleVisualizer::VisualizeParticles(sock, "localhost", visport, pset, rank_vector, psize, "Particle Owning Rank (Post-Redistribute)", 410, 0, 400, 400, "bc");
+      VisualizeParticles(sock, "localhost", visport, pset, rank_vector, psize, "Particle Owning Rank (Post-Redistribute)", 410, 0, 400, 400, "bc");
    }
 
    return 0;
