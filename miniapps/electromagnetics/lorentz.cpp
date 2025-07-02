@@ -65,6 +65,13 @@
 // some of the building blocks that might be used to construct the particle
 // mover portion of a PIC code.
 
+
+
+// Joe test case:
+
+// mpirun -np 4 ./tesla -m ../../data/inline-hex.mesh -ubbc '0 0 1'
+// mpirun -np 4 ./lorentz -br Tesla-AMR-Parallel -x0 '0.1 0.5 0.1' -p0 '0 0.4 0.1' -tf 9 -n 10 -vf 5
+
 #include "mfem.hpp"
 #include "../common/fem_extras.hpp"
 #include "../common/pfem_extras.hpp"
@@ -298,6 +305,7 @@ int main(int argc, char *argv[])
    Vector p_init;
    int visport = 19916;
    bool visualization = true;
+   int vis_freq = 1;
    bool visit = true;
 
    OptionsParser args(argc, argv);
@@ -341,6 +349,7 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&vis_freq, "-vf", "--vis-freq", "GLVis visualization update frequency.");
    args.AddOption(&visit, "-visit", "--visit", "-no-visit", "--no-visit",
                   "Enable or disable VisIt visualization.");
    args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
@@ -391,18 +400,18 @@ int main(int argc, char *argv[])
    InitializeParticles(particles, pmesh, x_init, p_init, q, m, num_part);
    
    // Print all particles
-   for (int r = 0; r < Mpi::WorldSize(); r++)
-   {  
-      if (r == Mpi::WorldRank())
-      {
-         mfem::out << "\nRank " << r << "\n";
-         for (int i = 0; i < particles.GetNP(); i++)
-         {
-            particles.GetParticleData(i).Print();
-         }
-      }
-      MPI_Barrier(MPI_COMM_WORLD);
-   }
+   // for (int r = 0; r < Mpi::WorldSize(); r++)
+   // {  
+   //    if (r == Mpi::WorldRank())
+   //    {
+   //       mfem::out << "\nRank " << r << "\n";
+   //       for (int i = 0; i < particles.GetNP(); i++)
+   //       {
+   //          particles.GetParticleData(i).Print();
+   //       }
+   //    }
+   //    MPI_Barrier(MPI_COMM_WORLD);
+   // }
    
    BorisAlgorithm boris(E_gf, B_gf, MPI_COMM_WORLD);
 
@@ -422,18 +431,21 @@ int main(int argc, char *argv[])
    if (visualization)
       traj_vis = std::make_unique<ParticleTrajectories>(MPI_COMM_WORLD, "localhost", visport, "Particle Trajectories");
 
+   bool requires_update = true;
    for (int step = 1; step <= nsteps; step++)
    {
-      if (traj_vis)
+      if (traj_vis && requires_update)
       {
          traj_vis->AddSegmentStart(particles);
+         requires_update = false;
       }
       boris.Step(particles, t, dt);
       
-      if(traj_vis)
+      if(traj_vis && (step-1) % vis_freq == 0)
       {
          traj_vis->SetSegmentEnd(particles);
          traj_vis->Visualize();
+         requires_update = true;
       }
    }
 
@@ -501,6 +513,18 @@ void InitializeParticles(ParticleSet<VOrdering> &particles, ParMesh *pmesh, cons
    std::vector<int> displs(size);
    Vector x_all(num_part*dim);
    Vector p_all(num_part*dim);
+   Vector pos_min, pos_max;
+   if (pmesh)
+   {
+      pmesh->GetBoundingBox(pos_min, pos_max);
+   }
+   else
+   {
+      pos_min = Vector(dim);
+      pos_max = Vector(dim);
+      pos_min = 0.0;
+      pos_max = 1.0;
+   }
    if (rank == 0)
    {
       // Set x_all
@@ -509,18 +533,7 @@ void InitializeParticles(ParticleSet<VOrdering> &particles, ParMesh *pmesh, cons
 
       Vector x_rem((num_part - provided_x)*dim);
       x_rem.Randomize(17);
-      Vector pos_min, pos_max;
-      if (pmesh)
-      {
-         pmesh->GetBoundingBox(pos_min, pos_max); // Get global bounding box
-      }
-      else
-      {
-         pos_min = Vector(dim);
-         pos_max = Vector(dim);
-         pos_min = 0.0;
-         pos_max = 1.0;
-      }
+
       for (int i = 0; i < x_rem.Size(); i++)
       {
          x_rem[i] = pos_min[i % dim] + x_rem[i]*(pos_max[i % dim] - pos_min[i % dim]);
