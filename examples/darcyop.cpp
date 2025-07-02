@@ -13,6 +13,10 @@
 #include "../general/tic_toc.hpp"
 #include <fstream>
 
+//#define USE_DIRECT_SOLVER_HYBRIDIZATION
+#define USE_DIRECT_SOLVER_REDUCTION
+#define USE_DIRECT_SOLVER_SCHUR
+
 namespace mfem
 {
 
@@ -159,8 +163,13 @@ void DarcyOperator::SetupLinearSolver(real_t rtol, real_t atol, int iters)
       else
 #endif
       {
+#if !defined(MFEM_USE_SUITESPARSE) or !defined(USE_DIRECT_SOLVER_HYBRIDIZATION)
          prec.reset(new GSSmoother());
          prec_str = "GS";
+#else
+         prec.reset(new UMFPackSolver());
+         prec_str = "UMFPack";
+#endif
       }
    }
    else if (darcy->GetReduction())
@@ -176,7 +185,7 @@ void DarcyOperator::SetupLinearSolver(real_t rtol, real_t atol, int iters)
       else
 #endif
       {
-#ifndef MFEM_USE_SUITESPARSE
+#if !defined(MFEM_USE_SUITESPARSE) or !defined(USE_DIRECT_SOLVER_REDUCTION)
          prec.reset(new GSSmoother());
          prec_str = "GS";
 #else
@@ -630,7 +639,7 @@ DarcyOperator::SchurPreconditioner::SchurPreconditioner(const DarcyForm *darcy_,
       Construct(x);
    }
 
-#ifndef MFEM_USE_SUITESPARSE
+#if !defined(MFEM_USE_SUITESPARSE) or !defined(USE_DIRECT_SOLVER_SCHUR)
    prec_str = "GS";
 #else
    prec_str = "UMFPack";
@@ -778,7 +787,7 @@ void DarcyOperator::SchurPreconditioner::Construct(const Vector &x_v) const
          }
       }
 
-#ifndef MFEM_USE_SUITESPARSE
+#if !defined(MFEM_USE_SUITESPARSE) or !defined(USE_DIRECT_SOLVER_SCHUR)
       invS = new GSSmoother(*S);
 #else
       invS = new UMFPackSolver(*S);
