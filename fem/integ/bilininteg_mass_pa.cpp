@@ -60,58 +60,25 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
    QuadratureSpace qs(*mesh, *ir);
    CoefficientVector coeff(Q, qs, CoefficientStorage::COMPRESSED);
 
-   if (dim==1) { MFEM_ABORT("Not supported yet... stay tuned!"); }
-   if (dim==2)
+   const int NE = ne;
+   const int Q1D = quad1D;
+   const int NQ = pow(Q1D, dim);
+   const bool const_c = coeff.Size() == 1;
+   const bool by_val = map_type == FiniteElement::VALUE;
+   const auto W = Reshape(ir->GetWeights().Read(), NQ);
+   const auto J = Reshape(geom->detJ.Read(), NQ, NE);
+   const auto C = const_c ? Reshape(coeff.Read(), 1, 1) :
+                  Reshape(coeff.Read(), NQ,NE);
+   auto v = Reshape(pa_data.Write(), NQ, NE);
+   mfem::forall_2D(NE, NQ, 1, [=] MFEM_HOST_DEVICE (int e)
    {
-      const int NE = ne;
-      const int Q1D = quad1D;
-      const bool const_c = coeff.Size() == 1;
-      const bool by_val = map_type == FiniteElement::VALUE;
-      const auto W = Reshape(ir->GetWeights().Read(), Q1D,Q1D);
-      const auto J = Reshape(geom->detJ.Read(), Q1D,Q1D,NE);
-      const auto C = const_c ? Reshape(coeff.Read(), 1,1,1) :
-                     Reshape(coeff.Read(), Q1D,Q1D,NE);
-      auto v = Reshape(pa_data.Write(), Q1D,Q1D, NE);
-      mfem::forall_2D(NE,Q1D,Q1D, [=] MFEM_HOST_DEVICE (int e)
+      MFEM_FOREACH_THREAD(i, x, NQ)
       {
-         MFEM_FOREACH_THREAD(qx,x,Q1D)
-         {
-            MFEM_FOREACH_THREAD(qy,y,Q1D)
-            {
-               const real_t detJ = J(qx,qy,e);
-               const real_t coeff = const_c ? C(0,0,0) : C(qx,qy,e);
-               v(qx,qy,e) =  W(qx,qy) * coeff * (by_val ? detJ : 1.0/detJ);
-            }
-         }
-      });
-   }
-   if (dim==3)
-   {
-      const int NE = ne;
-      const int Q1D = quad1D;
-      const bool const_c = coeff.Size() == 1;
-      const bool by_val = map_type == FiniteElement::VALUE;
-      const auto W = Reshape(ir->GetWeights().Read(), Q1D,Q1D,Q1D);
-      const auto J = Reshape(geom->detJ.Read(), Q1D,Q1D,Q1D,NE);
-      const auto C = const_c ? Reshape(coeff.Read(), 1,1,1,1) :
-                     Reshape(coeff.Read(), Q1D,Q1D,Q1D,NE);
-      auto v = Reshape(pa_data.Write(), Q1D,Q1D,Q1D,NE);
-      mfem::forall_3D(NE, Q1D, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int e)
-      {
-         MFEM_FOREACH_THREAD(qx,x,Q1D)
-         {
-            MFEM_FOREACH_THREAD(qy,y,Q1D)
-            {
-               MFEM_FOREACH_THREAD(qz,z,Q1D)
-               {
-                  const real_t detJ = J(qx,qy,qz,e);
-                  const real_t coeff = const_c ? C(0,0,0,0) : C(qx,qy,qz,e);
-                  v(qx,qy,qz,e) = W(qx,qy,qz) * coeff * (by_val ? detJ : 1.0/detJ);
-               }
-            }
-         }
-      });
-   }
+         const real_t detJ = J(i,e);
+         const real_t coeff = const_c ? C(0,0) : C(i,e);
+         v(i,e) =  W(i) * coeff * (by_val ? detJ : 1.0/detJ);
+      }
+   });
 }
 
 void MassIntegrator::AssemblePABoundary(const FiniteElementSpace &fes)
@@ -232,10 +199,37 @@ void MassIntegrator::AddMultPA(const Vector &x, Vector &y) const
    }
 }
 
+void MassIntegrator::AddAbsMultPA(const Vector &x, Vector &y) const
+{
+   if (DeviceCanUseCeed())
+   {
+      MFEM_ABORT("AddAbsMultPA not implemented with CEED!");
+      ceedOp->AddMult(x, y);
+   }
+   else
+   {
+      Vector abs_pa_data(pa_data);
+      abs_pa_data.Abs();
+      Array<real_t> absB(maps->B);
+      Array<real_t> absBt(maps->Bt);
+      absB.Abs();
+      absBt.Abs();
+
+      ApplyPAKernels::Run(dim, dofs1D, quad1D, ne, absB, absBt, abs_pa_data,
+                          x, y, dofs1D, quad1D);
+   }
+}
+
 void MassIntegrator::AddMultTransposePA(const Vector &x, Vector &y) const
 {
    // Mass integrator is symmetric
    AddMultPA(x, y);
+}
+
+void MassIntegrator::AddAbsMultTransposePA(const Vector &x, Vector &y) const
+{
+   // Mass integrator is symmetric
+   AddAbsMultPA(x, y);
 }
 
 } // namespace mfem
