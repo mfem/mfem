@@ -598,14 +598,20 @@ set(MFEM_TPLS OPENMP HYPRE LAPACK BLAS SuperLUDist STRUMPACK METIS SuiteSparse
     BENCHMARK PARELAG TRIBOL MPI_CXX HIP HIPBLAS HIPSPARSE MOONOLITH BLITZ
     ALGOIM ENZYME)
 
-# Add all *_FOUND libraries in the variable TPL_LIBRARIES.
+# Add all created targets and *_FOUND libraries in the variables TPL_TARGETS and
+# TPL_LIBRARIES, respectively.
+set(TPL_TARGETS)
 set(TPL_LIBRARIES "")
 set(TPL_INCLUDE_DIRS "")
 foreach(TPL IN LISTS MFEM_TPLS)
-  if (${TPL}_FOUND)
+  if (${TPL}_FOUND OR TARGET ${TPL})
     message(STATUS "MFEM: using package ${TPL}")
-    list(APPEND TPL_LIBRARIES ${${TPL}_LIBRARIES})
-    list(APPEND TPL_INCLUDE_DIRS ${${TPL}_INCLUDE_DIRS})
+    if (TARGET ${TPL})
+      list(APPEND TPL_TARGETS ${TPL})
+    else()
+      list(APPEND TPL_LIBRARIES ${${TPL}_LIBRARIES})
+      list(APPEND TPL_INCLUDE_DIRS ${${TPL}_INCLUDE_DIRS})
+    endif()
   endif()
 endforeach(TPL)
 list(REVERSE TPL_LIBRARIES)
@@ -680,7 +686,10 @@ set(MFEM_INSTALL_DIR ${CMAKE_INSTALL_PREFIX})
 # Declaring the library
 mfem_add_library(mfem ${SOURCES} ${HEADERS} ${MASTER_HEADERS})
 # message(STATUS "TPL_LIBRARIES = ${TPL_LIBRARIES}")
-target_link_libraries(mfem PUBLIC ${TPL_LIBRARIES})
+target_link_libraries(mfem PUBLIC ${TPL_LIBRARIES} ${TPL_TARGETS})
+if (TPL_TARGETS)
+  add_dependencies(mfem ${TPL_TARGETS})
+endif()
 if (MINGW)
   target_link_libraries(mfem PRIVATE ws2_32)
 endif()
