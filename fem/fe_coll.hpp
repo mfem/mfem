@@ -406,7 +406,6 @@ private:
    int ob_type; // open BasisType
    char fec_name[32];
    FiniteElement *RT_Elements[Geometry::NumGeom];
-   int RT_dof[Geometry::NumGeom];
    int *SegDofOrd[2], *TriDofOrd[6], *QuadDofOrd[8];
 
 public:
@@ -418,7 +417,7 @@ public:
    FiniteElementForGeometry(Geometry::Type GeomType) const override;
 
    int DofForGeometry(Geometry::Type GeomType) const override
-   { return RT_dof[GeomType]; }
+   { return (RT_Elements[GeomType])?(RT_Elements[GeomType]->GetDof()):(0); }
 
    const int *DofOrderForOrientation(Geometry::Type GeomType,
                                      int Or) const override;

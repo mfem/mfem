@@ -2750,36 +2750,26 @@ BrokenRT_FECollection::BrokenRT_FECollection(
    for (int g = 0; g < Geometry::NumGeom; g++)
    {
       RT_Elements[g] = nullptr;
-      RT_dof[g] = 0;
    }
 
-   const int pp1 = p + 1;
-   const int pp2 = p + 2;
    if (dim == 2)
    {
       // TODO: cb_type, ob_type for triangles
       RT_Elements[Geometry::TRIANGLE] = new RT_TriangleElement(p);
-      RT_dof[Geometry::TRIANGLE] = pp1*pp2;
 
       RT_Elements[Geometry::SQUARE] = new RT_QuadrilateralElement(p, cb_type,
                                                                   ob_type);
-      // two vector components * n_unk_face *
-      RT_dof[Geometry::SQUARE] = 2*pp1*pp2;
    }
    else if (dim == 3)
    {
       // TODO: cb_type, ob_type for tets
       RT_Elements[Geometry::TETRAHEDRON] = new RT_TetrahedronElement(p);
-      RT_dof[Geometry::TETRAHEDRON] = pp1*pp2*(pp1 + 2)/2;
 
       RT_Elements[Geometry::CUBE] = new RT_HexahedronElement(p, cb_type, ob_type);
-      RT_dof[Geometry::CUBE] = 3*pp1*pp2*pp2;
 
       RT_Elements[Geometry::PRISM] = new RT_WedgeElement(p);
-      RT_dof[Geometry::PRISM] = pp1*pp2*(3*pp1 + 4)/2;
 
-      RT_Elements[Geometry::PYRAMID] = new RT0PyrFiniteElement(false);
-      RT_dof[Geometry::PYRAMID] = 0;
+      RT_Elements[Geometry::PYRAMID] = new RT_FuentesPyramidElement(p);
    }
    else
    {
