@@ -66,6 +66,9 @@ public:
    /// Create a new particle which owns its own data
    Particle(int spaceDim, int numScalars, const Array<int> &vectorVDims);
 
+   Particle(int spaceDim, int numScalars, std::initializer_list<int> vectorVDims)
+   : Particle(spaceDim, numScalars, Array<int>(vectorVDims)) {};
+
    /// Create a new particle whose data references external data
    Particle(int spaceDim, int numScalars, const Array<int> &vectorVDims, real_t *in_coords, real_t *in_scalars[], real_t *in_vectors[]);
 
@@ -184,11 +187,17 @@ public:
    /// Serial constructor
    ParticleSet(int spaceDim, int numScalars, const Array<int> &vectorVDims);
 
+   ParticleSet(int spaceDim, int numScalars, std::initializer_list<int> vectorVDims)
+   : ParticleSet(spaceDim, numScalars, Array<int>(vectorVDims)) {};
+
 
 #if defined(MFEM_USE_MPI) && defined(MFEM_USE_GSLIB)
 
    /// Parallel constructor
    ParticleSet(MPI_Comm comm_, int spaceDim, int numScalars, const Array<int> &vectorVDims);
+
+   ParticleSet(MPI_Comm comm_, int spaceDim, int numScalars, std::initializer_list<int> vectorVDims)
+   : ParticleSet(comm_, spaceDim, numScalars, Array<int>(vectorVDims)) {};
 
    /// Redistribute particles onto ranks specified in \p rank_list .
    /// Should NOT be called after RemoveParticles (for now... we should think about this)
