@@ -68,6 +68,7 @@ enum Problem
    MFEMLogo,
    DiffusionRing,
    DiffusionRingGauss,
+   DiffusionRingSine,
    BoundaryLayer,
    SteadyPeak,
    SteadyVaryingAngle,
@@ -173,11 +174,12 @@ int main(int argc, char *argv[])
                   "2=MFEM logo\n\t\t"
                   "3=diffusion ring\n\t\t"
                   "4=diffusion ring - Gauss source\n\t\t"
-                  "5=boundary layer\n\t\t"
-                  "6=steady peak\n\t\t"
-                  "7=steady varying angle\n\t\t"
-                  "8=Sovinec\n\t\t"
-                  "9=Umansky\n\t\t");
+                  "5=diffusion ring - sine source\n\t\t"
+                  "6=boundary layer\n\t\t"
+                  "7=steady peak\n\t\t"
+                  "8=steady varying angle\n\t\t"
+                  "9=Sovinec\n\t\t"
+                  "10=Umansky\n\t\t");
    args.AddOption(&tf, "-tf", "--time-final",
                   "Final time.");
    args.AddOption(&nt, "-nt", "--ntimesteps",
@@ -252,6 +254,7 @@ int main(int argc, char *argv[])
       case Problem::SteadyDiffusion:
       case Problem::DiffusionRing:
       case Problem::DiffusionRingGauss:
+      case Problem::DiffusionRingSine:
       case Problem::BoundaryLayer:
       case Problem::SteadyPeak:
       case Problem::SteadyVaryingAngle:
@@ -342,6 +345,7 @@ int main(int argc, char *argv[])
       case Problem::MFEMLogo:
       case Problem::DiffusionRing:
       case Problem::DiffusionRingGauss:
+      case Problem::DiffusionRingSine:
       case Problem::SteadyPeak:
       case Problem::Sovinec:
          //free (zero Dirichlet)
@@ -1183,6 +1187,7 @@ MatFunc GetKFun(Problem prob, const ProblemParams &params)
       }
       case Problem::DiffusionRing:
       case Problem::DiffusionRingGauss:
+      case Problem::DiffusionRingSine:
       case Problem::SteadyVaryingAngle:
          return [=](const Vector &x, DenseMatrix &kappa)
          {
@@ -1392,6 +1397,21 @@ TFunc GetTFun(Problem prob, const ProblemParams &params)
 
             return - exp(- r_l*r_l/(r0*r0)) + exp(- r_r*r_r/(r0*r0));
          };
+      case Problem::DiffusionRingSine:
+         return [=](const Vector &x, real_t t) -> real_t
+         {
+            constexpr real_t r0 = 0.05;
+            constexpr real_t w0 = 16.;
+            Vector dx(x);
+            dx(0) -= x0 + 0.5*sx;
+            dx(1) -= y0 + 0.5*sy;
+
+            const real_t r = hypot(dx(0), dx(1));
+            const real_t th = atan2(dx(1), dx(0));
+
+            const real_t C = w0 / r;
+            return 1. / (1. + t * k * C*C / a) * cos(w0*th) * sin(M_PI * r/r0);
+         };
       case Problem::BoundaryLayer:
          // C. Vogl, I. Joseph and M. Holec, Mesh refinement for anisotropic
          // diffusion in magnetized plasmas, Computers and Mathematics with
@@ -1533,6 +1553,7 @@ VecTFunc GetQFun(Problem prob, const ProblemParams &params)
       case Problem::MFEMLogo:
       case Problem::DiffusionRing:
       case Problem::DiffusionRingGauss:
+      case Problem::DiffusionRingSine:
       case Problem::Sovinec:
       case Problem::Umansky:
          return [=](const Vector &x, real_t, Vector &v)
@@ -1607,6 +1628,7 @@ VecFunc GetCFun(Problem prob, const ProblemParams &params)
       case Problem::SteadyDiffusion:
       case Problem::DiffusionRing:
       case Problem::DiffusionRingGauss:
+      case Problem::DiffusionRingSine:
       case Problem::BoundaryLayer:
       case Problem::SteadyPeak:
       case Problem::SteadyVaryingAngle:
@@ -1669,6 +1691,7 @@ TFunc GetFFun(Problem prob, const ProblemParams &params)
       case Problem::MFEMLogo:
       case Problem::DiffusionRing:
       case Problem::DiffusionRingGauss:
+      case Problem::DiffusionRingSine:
          return [=](const Vector &x, real_t) -> real_t
          {
             const real_t T = TFun(x, 0);
@@ -1727,6 +1750,7 @@ FluxFunction* GetFluxFun(Problem prob, VectorCoefficient &ccoef)
       case Problem::MFEMLogo:
       case Problem::DiffusionRing:
       case Problem::DiffusionRingGauss:
+      case Problem::DiffusionRingSine:
       case Problem::BoundaryLayer:
       case Problem::SteadyPeak:
       case Problem::SteadyVaryingAngle:
@@ -1750,6 +1774,7 @@ MixedFluxFunction* GetHeatFluxFun(Problem prob, const ProblemParams &params,
       case Problem::MFEMLogo:
       case Problem::DiffusionRing:
       case Problem::DiffusionRingGauss:
+      case Problem::DiffusionRingSine:
       case Problem::BoundaryLayer:
       case Problem::SteadyPeak:
       case Problem::SteadyVaryingAngle:
