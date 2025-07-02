@@ -62,6 +62,9 @@ void velocity_function(const Vector &x, Vector &v);
 // Initial condition
 real_t u0_function(const Vector &x);
 
+// Initial bounds
+Vector bounds(const int dim);
+
 // Inflow boundary condition
 real_t inflow_function(const Vector &x);
 
@@ -254,14 +257,16 @@ int main(int argc, char *argv[])
    VectorFunctionCoefficient velocity(dim, velocity_function);
    FunctionCoefficient inflow(inflow_function);
    FunctionCoefficient u0(u0_function);
+   Vector bds = bounds(dim);
+   bds.Print();
 
-   // int quadorder = floor((order+3)/2.0);
-   int quadorder = order+1;
+   int quadorder = 2*order;
    const FiniteElement *fe = fes.GetFE(0);
    IntegrationRules irGL(0, Quadrature1D::GaussLobatto);
    IntegrationRule ir = irGL.Get(fe->GetGeomType(), quadorder);
 
    cout << "quadorder is " << quadorder << endl;
+   cout << "num of quad is " << ir.GetNPoints() << endl;
 
    BilinearForm m(&fes);
    BilinearForm k(&fes);
@@ -579,6 +584,7 @@ int main(int argc, char *argv[])
       << MFEM_VERSION_PATCH << std::endl;
 
    bool done = false;
+   double Pmin = bds(1), Pmax = bds(0);
    for (int ti = 0; !done; )
    {
       // done = true;
@@ -631,7 +637,7 @@ int main(int argc, char *argv[])
          double cell_avg = int_val / int_w;
          // cout << cell_avg << endl;
 
-         double m_i = 0.0, M_i = 1.0;
+         double m_i = bds(0), M_i = bds(1);
          // // Find min/max among this and neighbor cell averages
          // double m_i = cell_avg, M_i = cell_avg;
          // Array<int> neighbors;
@@ -683,7 +689,8 @@ int main(int argc, char *argv[])
 
          // Apply limiter
          for (int k = 0; k < u_local.Size(); k++)
-            u_local[k] = theta * (u_local[k] - cell_avg) + cell_avg;
+            u_local(k) = theta * (u_local(k) - cell_avg) + cell_avg;
+            // if (hold < bds(0) && abs(u_local(k)) < (bds(0)+1e-14) ) u_local(k) = bds(0);
          u.SetSubVector(dofs, u_local);
       }
 
@@ -829,7 +836,9 @@ int main(int argc, char *argv[])
          offset += edof;
       }
       // cout << "u coef values: " << u.Min() << " and " << u.Max() << endl;
-      cout << "u phys values: " << P.Min() << " and " << P.Max() << endl;
+      // cout << "u phys values: " << P.Min() << " and " << P.Max() << endl;
+      Pmin = min(Pmin, P.Min());
+      Pmax = max(Pmax, P.Max());
       
       if (HasNegative(P)) {
          cout << "P has negative value at step " << ti << endl;
@@ -865,6 +874,7 @@ int main(int argc, char *argv[])
          }
       }
    }
+   cout << "Minimum and maximum value of P over all time is " << Pmin << " and " << Pmax << endl;
 
    // 9. Save the final solution. This output can be viewed later using GLVis:
    //    "glvis -m ex9.mesh -g ex9-final.gf".
@@ -1023,9 +1033,9 @@ real_t u0_function(const Vector &x)
          switch (dim)
          {
             case 1:
-               return exp(-40.*pow(X(0)-0.5,2));
-               // return 0.5*cos(M_PI*X[0])+0.5;
-               // return -(X[0]-1)*(X[0]+1)+1;
+               // return exp(-40.*pow(X(0)-0.5,2))+0.5;
+               return 0.5*cos(M_PI*X[0])+1.0;
+               // return -(X[0]-1)*(X[0]+1)+1.5;
                // return 1.0;
             case 2:
             case 3:
@@ -1056,6 +1066,30 @@ real_t u0_function(const Vector &x)
       }
    }
    return 0.0;
+}
+
+// Initial bounds 
+Vector bounds(const int dim)
+{
+   switch (problem)
+   {
+      case 0:
+      case 1:
+      {
+         switch (dim)
+         {
+            case 1:
+            {
+               Vector bds(2);
+               bds(0) = 0.5; bds(1) = 1.5;
+               return bds;
+            }
+               
+         }
+      }
+   }
+   Vector bds;
+   return bds;
 }
 
 // Inflow boundary condition (zero for the problems considered in this example)
