@@ -153,7 +153,8 @@ void VisualizeParticles(socketstream &sock, const char* vishost, int visport,
 }
 
 
-ParticleTrajectories::ParticleTrajectories(const char* vishost, int visport, const char* title, int x, int y, int w, int h, const char* keys)
+ParticleTrajectories::ParticleTrajectories(int tail_size_, const char* vishost, int visport, const char* title, int x, int y, int w, int h, const char* keys)
+: tail_size(tail_size_)
 {
    sock.open(vishost, visport);
    sock.precision(8);
@@ -171,16 +172,22 @@ void ParticleTrajectories::AddSegmentStart(const ParticleSet<VOrdering> &pset)
    MFEM_ASSERT(segment_completed, "SetSegmentEnd must be called after each AddSegmentStart.");
 
    // Create a new mesh for all particle segments for this timestep
-   segment_meshes.emplace_back(1, pset.GetNP()*2, pset.GetNP(), 0, pset.GetSpaceDim());
+   segment_meshes.emplace(segment_meshes.begin(), 1, pset.GetNP()*2, pset.GetNP(), 0, pset.GetSpaceDim());
 
    // Add segment start particle IDs
-   segment_ids.emplace_back(pset.GetIDs());
+   segment_ids.emplace(segment_ids.begin(), pset.GetIDs());
+
+   if (tail_size > 0 && segment_meshes.size() > tail_size)
+   {
+      segment_meshes.pop_back();
+      segment_ids.pop_back();
+   }
 
    // Add all particle starting vertices
    for (int i = 0; i < pset.GetNP(); i++)
    {
       Particle p = pset.GetParticleData(i);
-      segment_meshes.back().AddVertex(p.GetCoords());
+      segment_meshes.front().AddVertex(p.GetCoords());
    }
 
    segment_completed = false;
@@ -194,23 +201,23 @@ void ParticleTrajectories::SetSegmentEnd(const ParticleSet<VOrdering> &pset)
    const Array<unsigned int> &end_ids = pset.GetIDs();
 
    // Add all endpoint vertices + segments for all particles
-   int num_start = segment_ids.back().Size();
+   int num_start = segment_ids.front().Size();
    for (int i = 0; i < num_start; i++)
    {
       // If this particle's initial position was set in AddSegmentStart, set the vertex to its now current location
-      int pidx = end_ids.Find(segment_ids.back()[i]);
+      int pidx = end_ids.Find(segment_ids.front()[i]);
       if (pidx != -1)
       {
          Particle p = pset.GetParticleData(pidx);
-         segment_meshes.back().AddVertex(p.GetCoords());
+         segment_meshes.front().AddVertex(p.GetCoords());
       }
       else // Otherwise set its end vertex == start vertex
       {
-         segment_meshes.back().AddVertex(segment_meshes.back().GetVertex(i));
+         segment_meshes.front().AddVertex(segment_meshes.front().GetVertex(i));
       }
-      segment_meshes.back().AddSegment(i, i+num_start);
+      segment_meshes.front().AddSegment(i, i+num_start);
    }
-   segment_meshes.back().FinalizeMesh();
+   segment_meshes.front().FinalizeMesh();
 
    segment_completed = true;
 

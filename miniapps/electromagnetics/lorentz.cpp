@@ -112,7 +112,7 @@ private:
 
    ParGridFunction *B_field;
    std::unique_ptr<FindPointsGSLIB>  B_finder;
-   
+
    mutable Vector pxB_;
    mutable Vector pm_;
    mutable Vector pp_;
@@ -306,6 +306,7 @@ int main(int argc, char *argv[])
    int visport = 19916;
    bool visualization = true;
    int vis_freq = 1;
+   int vis_tail_size = 5;
    bool visit = true;
 
    OptionsParser args(argc, argv);
@@ -350,6 +351,7 @@ int main(int argc, char *argv[])
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
    args.AddOption(&vis_freq, "-vf", "--vis-freq", "GLVis visualization update frequency.");
+   args.AddOption(&vis_tail_size, "-vt", "--vis-tail-size", "GLVis visualization trajectory tail size. 0 for infinite size.");
    args.AddOption(&visit, "-visit", "--visit", "-no-visit", "--no-visit",
                   "Enable or disable VisIt visualization.");
    args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
@@ -429,8 +431,9 @@ int main(int argc, char *argv[])
    real_t t = t_init;
    std::unique_ptr<ParticleTrajectories> traj_vis;
    if (visualization)
-      traj_vis = std::make_unique<ParticleTrajectories>(MPI_COMM_WORLD, "localhost", visport, "Particle Trajectories");
-
+   {
+      traj_vis = std::make_unique<ParticleTrajectories>(MPI_COMM_WORLD, vis_tail_size, "localhost", visport, "Particle Trajectories");
+   }
    bool requires_update = true;
    for (int step = 1; step <= nsteps; step++)
    {
@@ -440,7 +443,7 @@ int main(int argc, char *argv[])
          requires_update = false;
       }
       boris.Step(particles, t, dt);
-      
+
       if(traj_vis && (step-1) % vis_freq == 0)
       {
          traj_vis->SetSegmentEnd(particles);

@@ -40,6 +40,8 @@ private:
     socketstream sock;
     std::vector<Array<unsigned int>> segment_ids; /// Track particle IDs that exist at the segment start.
     std::vector<Mesh> segment_meshes; /// Each segment is stored as a Mesh snapshot
+    
+    int tail_size;
     bool segment_completed = true;
 
 #ifdef MFEM_USE_MPI
@@ -48,11 +50,11 @@ private:
 
 public:
 
-    ParticleTrajectories(const char* vishost, int visport, const char* title, int x=0, int y=0, int w=400, int h=400, const char* keys=nullptr);
+    ParticleTrajectories(int tail_size_, const char* vishost, int visport, const char* title, int x=0, int y=0, int w=400, int h=400, const char* keys=nullptr);
 
 #ifdef MFEM_USE_MPI
-    ParticleTrajectories(MPI_Comm comm_, const char* vishost, int visport, const char* title, int x=0, int y=0, int w=400, int h=400, const char* keys=nullptr)
-    : ParticleTrajectories(vishost, visport, title, x, y, w, h, keys) { comm = comm_; }
+    ParticleTrajectories(MPI_Comm comm_, int tail_size_, const char* vishost, int visport, const char* title, int x=0, int y=0, int w=400, int h=400, const char* keys=nullptr)
+    : ParticleTrajectories(tail_size_, vishost, visport, title, x, y, w, h, keys) { comm = comm_; }
 #endif // MFEM_USE_MPI
 
     template<Ordering::Type VOrdering>
