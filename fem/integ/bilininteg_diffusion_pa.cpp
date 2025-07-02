@@ -174,9 +174,9 @@ void DiffusionIntegrator::AddAbsMultPA(const Vector &x, Vector &y) const
    abs_pa_data.Abs();
    auto abs_maps = maps->Abs();
 
-   ApplyPAKernels::Run(dim, dofs1D, quad1D, ne, symmetric,
-                       abs_maps.B, abs_maps.G, abs_maps.Bt, abs_maps.Gt,
-                       abs_pa_data, x, y, dofs1D, quad1D);
+   DiffusionApplyPAKernel::Run(dim, dofs1D, quad1D, ne, symmetric,
+                               abs_maps.B, abs_maps.G, abs_maps.Bt, abs_maps.Gt,
+                               abs_pa_data, x, y, dofs1D, quad1D);
 }
 
 void DiffusionIntegrator::AddAbsMultTransposePA(const Vector &x,
