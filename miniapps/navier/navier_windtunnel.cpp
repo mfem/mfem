@@ -31,7 +31,7 @@
 //
 // Boundary conditions (MFEM attribute assignment):
 // - Left (attr 5, x=0): Inlet - Prescribed velocity Dirichlet BC
-// - Bottom (attr 1, z=0): Ground - No-slip BC (all velocity components = 0) 
+// - Bottom (attr 1, z=0): Ground - No-slip BC (all velocity components = 0)
 // - Front (attr 2, y=0): Front wall - No-penetration BC (zero y-velocity component)
 // - Right (attr 3, x=max): Outlet - Do nothing (no BC)
 // - Back (attr 4, y=max): Back wall - No-penetration BC (zero y-velocity component)
@@ -45,32 +45,78 @@ using namespace navier;
 
 struct s_NavierContext
 {
-   int ser_ref_levels = 2;
-   int order = 3;
+   int ser_ref_levels = 1;
+   int order = 2;
    real_t kinvis = 1.0 / 10.0;
    real_t t_final = 2.0;
    real_t dt = 0.01;
-   real_t inlet_velocity = 1.0;
+
    bool pa = true;
    bool ni = false;
    bool visualization = false;
    bool checkres = false;
+
+   // Inlet profile selection
+   int inlet_profile_type = 0;
+
+   // Common parameters
+   real_t inlet_velocity = 1.0;
+   real_t ref_height = 0.4;
+
+   // Power law parameters
+   real_t power_alpha = 0.15;    // Power law exponent
+
+   // Logarithmic parameters
+   real_t u_star = 0.1;          // Friction velocity
+   real_t z0 = 0.001;            // Roughness length
+   real_t kappa = 0.4;           // von Karman constant
+   real_t f = 0.0001;            // Coriolis parameter
+
+   // Exponential parameters
+   real_t exp_decay = 2.0; // Decay rate
 } ctx;
 
-// Inlet velocity profile (constant for now)
-void vel_inlet(const Vector &x, real_t t, Vector &u)
+namespace InletProfile
 {
-   u(0) = ctx.inlet_velocity;  // x-component (flow direction)
-   u(1) = 0;
-   u(2) = 0;
+// Uniform logarithmic wind profile
+void logarithmic(const Vector &x, real_t t, Vector &u)
+{
+   u(0) = (ctx.u_star / ctx.kappa) * (log(x(2)/ctx.z0) + 34.5 * ctx.f * x(2));
+   u(1) = 0.0;
+   u(2) = 0.0;
+}
 
-   // // PARABOLIC INLET
-   // auto r1 = (x(1) - 0.5);
-   // auto r2 = (x(2) - 0.5);
+/// Constant inlet velocity profile
+void constant(const Vector &x, real_t t, Vector &u)
+{
+   u(0) = ctx.inlet_velocity;
+   u(1) = 0.0;
+   u(2) = 0.0;
+}
 
-   // u(0) = r1 * r1 + r2 * r2;
-   // u(1) = 0.0;
-   // u(2) = 0.0;
+// Power law profile
+void power_law(const Vector &x, real_t t, Vector &u)
+{
+   real_t z = x(2);
+   real_t u_z = ctx.inlet_velocity * pow(z / ctx.ref_height, ctx.power_alpha);
+
+   u(0) = u_z > 0.0 ? u_z : 0.0;
+   u(1) = 0.0;
+   u(2) = 0.0;
+}
+
+}
+
+// Profile selection function
+void (*get_inlet_profile())(const Vector &, real_t, Vector &)
+{
+   switch (ctx.inlet_profile_type)
+   {
+      case 0: return InletProfile::constant;
+      case 1: return InletProfile::power_law;
+      case 2: return InletProfile::logarithmic;
+      default: return InletProfile::constant;
+   }
 }
 
 int main(int argc, char *argv[])
@@ -90,7 +136,7 @@ int main(int argc, char *argv[])
                   "Order (degree) of the finite elements.");
    args.AddOption(&ctx.dt, "-dt", "--time-step", "Time step.");
    args.AddOption(&ctx.t_final, "-tf", "--final-time", "Final time.");
-   args.AddOption(&ctx.inlet_velocity, "-u0", "--inlet-velocity", 
+   args.AddOption(&ctx.inlet_velocity, "-u0", "--inlet-velocity",
                   "Inlet velocity magnitude.");
    args.AddOption(&ctx.pa,
                   "-pa",
@@ -111,6 +157,16 @@ int main(int argc, char *argv[])
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
    args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
+   args.AddOption(&ctx.inlet_profile_type, "-profile", "--inlet-profile",
+                  "Inlet profile: 0=constant, 1=power, 2=logarithmic");
+   args.AddOption(&ctx.ref_height, "-href", "--reference-height",
+                  "Reference height for wind profile");
+   args.AddOption(&ctx.power_alpha, "-alpha", "--power-alpha",
+                  "Power law exponent (0.1-0.4)");
+   args.AddOption(&ctx.z0, "-z0", "--roughness-length",
+                  "Surface roughness length");
+   args.AddOption(&ctx.u_star, "-ustar", "--friction-velocity",
+                  "Friction velocity for log profile");
    args.Parse();
    if (!args.Good())
    {
@@ -125,9 +181,8 @@ int main(int argc, char *argv[])
       args.PrintOptions(mfem::out);
    }
 
-   // Create 3D Cartesian mesh: nx x ny x nz elements
    // Domain: [0, 3] x [0, 1] x [0, 1] (Length x Width x Height)
-   Mesh mesh = Mesh::MakeCartesian3D(6, 2, 2, Element::HEXAHEDRON, 
+   Mesh mesh = Mesh::MakeCartesian3D(6, 2, 2, Element::HEXAHEDRON,
                                      3.0, 1.0, 0.5);
 
    for (int i = 0; i < ctx.ser_ref_levels; ++i)
@@ -139,12 +194,13 @@ int main(int argc, char *argv[])
    {
       std::cout << "Number of elements: " << mesh.GetNE() << std::endl;
       std::cout << "Mesh dimension: " << mesh.Dimension() << std::endl;
-      std::cout << "Number of boundary attributes: " << mesh.bdr_attributes.Max() << std::endl;
-      
+      std::cout << "Number of boundary attributes: " << mesh.bdr_attributes.Max() <<
+                std::endl;
+
       // Print boundary attribute assignments for verification
       std::cout << "\nBoundary attribute assignments:" << std::endl;
       std::cout << "  Bottom (z=0): attr 1" << std::endl;
-      std::cout << "  Front (y=0):  attr 2" << std::endl; 
+      std::cout << "  Front (y=0):  attr 2" << std::endl;
       std::cout << "  Right (x=max): attr 3" << std::endl;
       std::cout << "  Back (y=max):  attr 4" << std::endl;
       std::cout << "  Left (x=0):   attr 5" << std::endl;
@@ -165,41 +221,39 @@ int main(int argc, char *argv[])
    u_ic->ProjectCoefficient(u_init);
 
    // BOUNDARY CONDITIONS
-   
+
 
 
    // 2. GROUND: No-slip
    Array<int> attr_ground(pmesh->bdr_attributes.Max());
    attr_ground = 0;
    attr_ground[0] = 1;  // attr 1
-   flowsolver.AddVelDirichletBC(new VectorConstantCoefficient(Vector({0.0, 0.0, 0.0})), attr_ground);
+   flowsolver.AddVelDirichletBC(new VectorConstantCoefficient(Vector({0.0, 0.0, 0.0})),
+                                attr_ground);
 
    // 3. FRONT WALL: No-penetration
    Array<int> attr_front(pmesh->bdr_attributes.Max());
    attr_front = 0;
    attr_front[1] = 1;  // attr 2
-   // flowsolver.AddVelDirichletBC(new ConstantCoefficient(0.0), attr_front, 1);
-   flowsolver.AddVelDirichletBC(new VectorConstantCoefficient(Vector({0.0, 0.0, 0.0})), attr_front);
+   flowsolver.AddVelDirichletBC(new ConstantCoefficient(0.0), attr_front, 1);
 
    // 4. BACK WALL: No-penetration
    Array<int> attr_back(pmesh->bdr_attributes.Max());
    attr_back = 0;
    attr_back[3] = 1;  // attr 4
-   // flowsolver.AddVelDirichletBC(new ConstantCoefficient(0.0), attr_back, 1);
-   flowsolver.AddVelDirichletBC(new VectorConstantCoefficient(Vector({0.0, 0.0, 0.0})), attr_back);
+   flowsolver.AddVelDirichletBC(new ConstantCoefficient(0.0), attr_back, 1);
 
    // 5. TOP WALL: No-penetration
    Array<int> attr_top(pmesh->bdr_attributes.Max());
    attr_top = 0;
    attr_top[5] = 1;  // attr 6
    flowsolver.AddVelDirichletBC(new ConstantCoefficient(0.0), attr_top, 2);
-   // flowsolver.AddVelDirichletBC(new VectorConstantCoefficient(Vector({0.0, 0.0, 0.0})), attr_top);
 
-   // 1. INLET: Prescribed velocity 
+   // 1. INLET: Prescribed velocity
    Array<int> attr_inlet(pmesh->bdr_attributes.Max());
    attr_inlet = 0;
    attr_inlet[4] = 1;  // attr 5
-   flowsolver.AddVelDirichletBC(vel_inlet, attr_inlet);
+   flowsolver.AddVelDirichletBC(get_inlet_profile(), attr_inlet);
 
 
    // 6. OUTLET: Do nothing
@@ -249,46 +303,46 @@ int main(int argc, char *argv[])
          Array<int> attr_fb_walls(pmesh->bdr_attributes.Max());
          attr_fb_walls = 0;
          attr_fb_walls[1] = attr_fb_walls[3] = 1;  // Front and back walls
-         
+
          VectorGridFunctionCoefficient u_coeff(u_gf);
          Vector test_normal_y({0.0, 1.0, 0.0});  // y-direction
          VectorConstantCoefficient n_coeff_y(test_normal_y);
          InnerProductCoefficient un_coeff_y(u_coeff, n_coeff_y);
-         
+
          LinearForm lform_y(u_gf->ParFESpace());
          lform_y.AddBoundaryIntegrator(
             new BoundaryLFIntegrator(un_coeff_y), attr_fb_walls);
          lform_y.Assemble();
-         
+
          double local_val_y = lform_y * (*u_gf);
          double global_val_y = 0.0;
          MPI_Allreduce(&local_val_y, &global_val_y, 1, MPI_DOUBLE, MPI_SUM,
                        pmesh->GetComm());
 
-         // Test z-penetration on top wall  
+         // Test z-penetration on top wall
          Array<int> attr_top_wall(pmesh->bdr_attributes.Max());
          attr_top_wall = 0;
          attr_top_wall[5] = 1;  // Top wall
-         
+
          Vector test_normal_z({0.0, 0.0, 1.0});  // z-direction
          VectorConstantCoefficient n_coeff_z(test_normal_z);
          InnerProductCoefficient un_coeff_z(u_coeff, n_coeff_z);
-         
+
          LinearForm lform_z(u_gf->ParFESpace());
          lform_z.AddBoundaryIntegrator(
             new BoundaryLFIntegrator(un_coeff_z), attr_top_wall);
          lform_z.Assemble();
-         
+
          double local_val_z = lform_z * (*u_gf);
          double global_val_z = 0.0;
          MPI_Allreduce(&local_val_z, &global_val_z, 1, MPI_DOUBLE, MPI_SUM,
                        pmesh->GetComm());
-         
+
          if (Mpi::Root())
          {
-            mfem::out << "Step " << step << ": y-penetration on F/B walls: " 
+            mfem::out << "Step " << step << ": y-penetration on F/B walls: "
                       << abs(global_val_y) << std::endl;
-            mfem::out << "Step " << step << ": z-penetration on top wall: " 
+            mfem::out << "Step " << step << ": z-penetration on top wall: "
                       << abs(global_val_z) << std::endl;
          }
       }
