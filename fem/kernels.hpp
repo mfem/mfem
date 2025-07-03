@@ -66,6 +66,9 @@ using vd_regs2d_t = mfem::future::tensor<real_t, VDIM, DIM, N, N>;
 template <int N>
 using s_regs3d_t = mfem::future::tensor<real_t, N, N, N>;
 
+template <int DIM, int N>
+using d_regs3d_t = mfem::future::tensor<real_t, DIM, N, N, N>;
+
 template <int VDIM, int N>
 using v_regs3d_t = mfem::future::tensor<real_t, VDIM, N, N, N>;
 
@@ -266,6 +269,27 @@ inline MFEM_HOST_DEVICE void LoadDofs3d(const int e, const int d1d,
          MFEM_FOREACH_THREAD_DIRECT(dx, x, d1d)
          {
             Y[dz][dy][dx] = X(dx,dy,dz,e);
+         }
+      }
+   }
+}
+
+///////////////////////////////////////////////////////////////////////////////
+template <int DIM, int MQ1> inline MFEM_HOST_DEVICE
+void LoadDofs3d(const int d1d, const int vd,
+                const DeviceTensor<4, real_t> &X,
+                vd_regs3d_t<1, DIM, MQ1> &Y)
+{
+   for (int dz = 0; dz < d1d; ++dz)
+   {
+      MFEM_FOREACH_THREAD_DIRECT(dy, y, d1d)
+      {
+         MFEM_FOREACH_THREAD_DIRECT(dx, x, d1d)
+         {
+            for (int d = 0; d < DIM; d++)
+            {
+               Y[0][d][dz][dy][dx] = X(dx, dy, dz, vd);
+            }
          }
       }
    }

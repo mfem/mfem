@@ -11,6 +11,7 @@
 
 #include "../unit_tests.hpp"
 #include "mfem.hpp"
+#include <fem/dfem/doperator.hpp>
 
 #ifdef MFEM_USE_MPI
 

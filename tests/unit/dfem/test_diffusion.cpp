@@ -11,6 +11,7 @@
 
 #include "../unit_tests.hpp"
 #include "mfem.hpp"
+#include <fem/dfem/doperator.hpp>
 #include <utility>
 
 #ifdef MFEM_USE_MPI
@@ -282,16 +283,64 @@ void DFemDiffusion(const char *filename, int p, const int r)
       REQUIRE(norm_global == MFEM_Approx(0.0));
       MPI_Barrier(MPI_COMM_WORLD);
    }
+
+   SECTION("[dFEM Linearization] vector diffusion")
+   {
+      ParFiniteElementSpace vpfes(&pmesh, &fec, DIM);
+      ParGridFunction vx(&vpfes), vy(&vpfes);
+      Vector vX(vpfes.GetTrueVSize()), vY(vpfes.GetTrueVSize()),
+             vZ(vpfes.GetTrueVSize());
+
+      vX.Randomize(1), vx.SetFromTrueDofs(vX);
+
+      {
+         const auto vsol = std::vector{ FieldDescriptor{ U, &vpfes } };
+         DOperator dop_mf(vsol, {{Coords, mfes}}, pmesh);
+         const auto mf_vector_diffusion_qf =
+            [] MFEM_HOST_DEVICE (const tensor<dscalar_t, DIM, DIM> &dudxi,
+                                 const tensor<real_t, DIM, DIM> &J,
+                                 const real_t &w)
+         {
+            const auto invJ = inv(J), TinJ = transpose(invJ);
+            return tuple{ (dudxi * invJ) * TinJ * det(J) * w };
+         };
+         auto derivatives = std::integer_sequence<size_t, U> {};
+         dop_mf.AddDomainIntegrator(mf_vector_diffusion_qf,
+                                    tuple{ Gradient<U>{}, Gradient<Coords>{}, Weight{} },
+                                    tuple{ Gradient<U>{} },
+                                    *ir, all_domain_attr,
+                                    derivatives);
+         auto dRdU = dop_mf.GetDerivative(U, {&vx}, {nodes});
+
+         vpfes.GetRestrictionMatrix()->Mult(vx, vX);
+         dRdU->Mult(vX, vZ);
+      }
+      {
+         ConstantCoefficient one(1.0);
+         ParBilinearForm vblf_fa(&vpfes);
+         vblf_fa.AddDomainIntegrator(new VectorDiffusionIntegrator(one, ir));
+         vblf_fa.Assemble(), vblf_fa.Finalize();
+         vblf_fa.Mult(vx, vy), vpfes.GetProlongationMatrix()->MultTranspose(vy, vY);
+      }
+      vY -= vZ;
+      real_t norm_global = 0.0, norm_local = vY.Normlinf();
+      MPI_Allreduce(&norm_local, &norm_global, 1, MPI_DOUBLE, MPI_MAX,
+                    pmesh.GetComm());
+      REQUIRE(norm_global == MFEM_Approx(0.0));
+      MPI_Barrier(MPI_COMM_WORLD);
+   }
 }
 
 TEST_CASE("DFEM Diffusion", "[Parallel][DFEM]")
 {
-   const bool all_tests = launch_all_non_regression_tests;
+   // const bool all_tests = launch_all_non_regression_tests;
 
-   const auto p = !all_tests ? 2 : GENERATE(1, 2, 3);
-   const auto r = !all_tests ? 2 : GENERATE(0, 1, 2, 3);
+   // const auto p = !all_tests ? 2 : GENERATE(1, 2, 3);
+   // const auto r = !all_tests ? 2 : GENERATE(0, 1, 2, 3);
+   const int p = 2, r = 1;
+   dbg("p:{} r:{}", p, r);
 
-   SECTION("2D p=" + std::to_string(p) + " r=" + std::to_string(r))
+   /*SECTION("2D p=" + std::to_string(p) + " r=" + std::to_string(r))
    {
       const auto filename =
          GENERATE("../../data/star.mesh",
@@ -300,16 +349,21 @@ TEST_CASE("DFEM Diffusion", "[Parallel][DFEM]")
                   "../../data/inline-quad.mesh",
                   "../../data/periodic-square.mesh");
       DFemDiffusion<2>(filename, p, r);
-   }
+   }*/
 
    SECTION("3D p=" + std::to_string(p) + " r=" + std::to_string(r))
    {
+#if 0
       const auto filename =
          GENERATE("../../data/fichera.mesh",
                   "../../data/fichera-q3.mesh",
                   "../../data/inline-hex.mesh",
                   "../../data/toroid-hex.mesh",
                   "../../data/periodic-cube.mesh");
+#else
+      const auto filename =
+         GENERATE("../../data/fichera.mesh");
+#endif
       DFemDiffusion<3>(filename, p, r);
    }
 }

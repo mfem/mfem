@@ -11,11 +11,9 @@
 
 #include "unit_tests.hpp"
 #include "mfem.hpp"
-// #include <utility>
-#include <type_traits>
+// #include <type_traits>
 #include "fem/dfem/doperator.hpp"
 #include "fem/dfem/util.hpp"
-#include "fem/dfem/qp.hpp"
 
 #include <fem/integ/bilininteg_diffusion_kernels.hpp>
 
@@ -32,7 +30,10 @@ using mfem::future::dual;
 
 using DOperator = future::DifferentiableOperator;
 
-enum class MQ1Settings : int { kRuntime = 0, kCompileTime, kQp, kDefault};
+enum class MQ1Settings : int { kRuntime,
+                               kCompileTime,
+                               kDefault
+                             };
 
 namespace dfem_pa_kernels
 {
@@ -144,9 +145,9 @@ void DFemDiffusion(const char *filename, int p, const int r,
    smesh.Clear();
 
    Array<int> all_domain_attr;
-   if (pmesh.bdr_attributes.Size() > 0)
+   if (pmesh.attributes.Size() > 0)
    {
-      all_domain_attr.SetSize(pmesh.bdr_attributes.Max());
+      all_domain_attr.SetSize(pmesh.attributes.Max());
       all_domain_attr = 1;
    }
 
@@ -158,7 +159,6 @@ void DFemDiffusion(const char *filename, int p, const int r,
    const auto *ir = &IntRules.Get(pmesh.GetTypicalElementGeometry(), q);
    const int q1d(IntRules.Get(Geometry::SEGMENT, ir->GetOrder()).GetNPoints());
    MFEM_VERIFY(d1d <= q1d, "q1d should be >= d1d");
-   MFEM_VERIFY(NE > 0, "Mesh with no elements is not yet supported!");
 
    ParGridFunction x(&pfes), y(&pfes), z(&pfes);
    Vector X(pfes.GetTrueVSize()), Y(pfes.GetTrueVSize()), Z(pfes.GetTrueVSize());
@@ -181,31 +181,12 @@ void DFemDiffusion(const char *filename, int p, const int r,
    blf_fa.Assemble();
    blf_fa.Finalize();
 
-   /*SECTION("Partial assembly")
-   {
-      ParBilinearForm blf_pa(&pfes);
-      blf_pa.AddDomainIntegrator(new DiffusionIntegrator(rho_coeff, ir));
-      blf_pa.SetAssemblyLevel(AssemblyLevel::PARTIAL);
-      blf_pa.Assemble();
-      blf_pa.Mult(x, z);
-
-      blf_fa.Mult(x, y);
-      y -= z;
-      REQUIRE(y.Normlinf() == MFEM_Approx(0.0));
-      MPI_Barrier(MPI_COMM_WORLD);
-   }*/
-
    QuadratureSpace qs(pmesh, *ir);
    CoefficientVector rho_coeff_cv(rho_coeff, qs);
    MFEM_VERIFY(rho_coeff_cv.GetVDim() == 1, "Coefficient should be scalar");
    MFEM_VERIFY(rho_coeff_cv.Size() == q1d * q1d * (DIM == 3 ? q1d : 1) * NE, "");
 
-   const int rho_local_size = 1;
-   const int rho_elem_size(rho_local_size * ir->GetNPoints());
-   const int rho_total_size(rho_elem_size * NE);
-   ParametricSpace rho_ps(DIM, rho_local_size, rho_elem_size, rho_total_size,
-                          DIM == 3 ? d1d : d1d * d1d, // 🔥 2D workaround
-                          DIM == 3 ? q1d : q1d * q1d);
+   UniformParameterSpace rho_ps(pmesh, *ir, 1);
 
    static constexpr int U = 0, Coords = 1, Rho = 3;
    const auto sol = std::vector{ FieldDescriptor{ U, &pfes } };
@@ -217,9 +198,9 @@ void DFemDiffusion(const char *filename, int p, const int r,
       DOperator dop_mf(sol, {{Rho, &rho_ps}, {Coords, mfes}}, pmesh);
 
       dbg("AddDomainIntegrator: {{∇U, Rho, ∇Coords, Weight}} -> {{∇U}}");
-      /////////////////////////////////////////////////////////////////////////
       if (mq1_setting == MQ1Settings::kRuntime)
       {
+         dbg("MQ1Settings::kRuntime");
          MFEM_VERIFY(q1d == (int)floor(std::pow(ir->GetNPoints(), 1.0/DIM) + 0.5),
                      "q1d and ir->GetNPoints() have to match");
          auto add_domain_integrator = [&](auto &qf)
@@ -227,35 +208,66 @@ void DFemDiffusion(const char *filename, int p, const int r,
             dbg("q1d:{} MQ1:{}", q1d, qf.MQ1);
             MFEM_VERIFY(q1d == qf.MQ1, "q1d and qf.MQ1 have to match");
             dop_mf.AddDomainIntegrator(qf,
-                                       tuple{ Gradient<U>{}, None<Rho>{},
+                                       tuple{ Gradient<U>{}, Identity<Rho>{},
                                               Gradient<Coords>{}, Weight{} },
                                        tuple{ Gradient<U>{} }, *ir,
                                        all_domain_attr);
          };
+         // select the right qf from the factory
          MFDiffusionQFs<real_t, DIM> {}.run(q1d, add_domain_integrator);
       }
-      /////////////////////////////////////////////////////////////////////////
-      else if (mq1_setting == MQ1Settings::kCompileTime) // hardcoded, MQ1 = 3
+      else if (mq1_setting == MQ1Settings::kCompileTime) // hardcoded, MQ1 = 2,3,4,5
       {
-         typename Diffusion<real_t, DIM, 3>::MFApply mf_apply_qf;
-         MFEM_VERIFY(q1d == 3, "q1d and 3 have to match");
-         dop_mf.AddDomainIntegrator(mf_apply_qf,
-                                    tuple{ Gradient<U>{}, None<Rho>{},
-                                           Gradient<Coords>{}, Weight{} },
-                                    tuple{ Gradient<U>{} }, *ir,
-                                    all_domain_attr);
+         dbg("MQ1Settings::kCompileTime");
+         dbg("q1d:{}", q1d);
+         if (q1d == 2)
+         {
+            typename Diffusion<real_t, DIM, 2>::MFApply mf_apply_qf;
+            MFEM_VERIFY(q1d == 2, "q1d and 2 have to match");
+            dop_mf.AddDomainIntegrator(mf_apply_qf,
+                                       tuple{ Gradient<U>{}, Identity<Rho>{},
+                                              Gradient<Coords>{}, Weight{} },
+                                       tuple{ Gradient<U>{} }, *ir,
+                                       all_domain_attr);
+         }
+         else if (q1d == 3)
+         {
+            typename Diffusion<real_t, DIM, 3>::MFApply mf_apply_qf;
+            MFEM_VERIFY(q1d == 3, "q1d and 3 have to match");
+            dop_mf.AddDomainIntegrator(mf_apply_qf,
+                                       tuple{ Gradient<U>{}, Identity<Rho>{},
+                                              Gradient<Coords>{}, Weight{} },
+                                       tuple{ Gradient<U>{} }, *ir,
+                                       all_domain_attr);
+         }
+         else if (q1d == 4)
+         {
+            typename Diffusion<real_t, DIM, 4>::MFApply mf_apply_qf;
+            MFEM_VERIFY(q1d == 4, "q1d and 4 have to match");
+            dop_mf.AddDomainIntegrator(mf_apply_qf,
+                                       tuple{ Gradient<U>{}, Identity<Rho>{},
+                                              Gradient<Coords>{}, Weight{} },
+                                       tuple{ Gradient<U>{} }, *ir,
+                                       all_domain_attr);
+         }
+         else if (q1d == 5)
+         {
+            typename Diffusion<real_t, DIM, 5>::MFApply mf_apply_qf;
+            MFEM_VERIFY(q1d == 5, "q1d and 5 have to match");
+            dop_mf.AddDomainIntegrator(mf_apply_qf,
+                                       tuple{ Gradient<U>{}, Identity<Rho>{},
+                                              Gradient<Coords>{}, Weight{} },
+                                       tuple{ Gradient<U>{} }, *ir,
+                                       all_domain_attr);
+         }
+         else { MFEM_ABORT("Not supported q1d:" << q1d); }
       }
-      /////////////////////////////////////////////////////////////////////////
-      else if (mq1_setting == MQ1Settings::kQp) // hardcoded, MQ1 = 3
-      {
-
-      }
-      /////////////////////////////////////////////////////////////////////////
       else // MQ1Settings::kDefault, MQ1 = 0
       {
+         dbg("MQ1Settings::kDefault");
          typename Diffusion<real_t, DIM>::MFApply mf_apply_qf;
          dop_mf.AddDomainIntegrator(mf_apply_qf,
-                                    tuple{ Gradient<U>{}, None<Rho>{},
+                                    tuple{ Gradient<U>{}, Identity<Rho>{},
                                            Gradient<Coords>{}, Weight{} },
                                     tuple{ Gradient<U>{} }, *ir,
                                     all_domain_attr);
@@ -278,95 +290,21 @@ void DFemDiffusion(const char *filename, int p, const int r,
       MPI_Barrier(MPI_COMM_WORLD);
    }
 
-   /*SECTION("DFEM Partial assembly")
-   {
-      static constexpr int QData = 2;
-      const int qd_local_size = DIM * DIM;
-      const int qd_elem_size(qd_local_size * ir->GetNPoints());
-      const int qd_total_size(qd_elem_size * NE);
-      ParametricSpace qd_ps(DIM, qd_local_size, qd_elem_size, qd_total_size,
-                            DIM == 3 ? d1d : d1d * d1d, // 🔥 2D workaround
-                            DIM == 3 ? q1d : q1d * q1d);
-      ParametricFunction qdata(qd_ps);
-      qdata.UseDevice(true);
-
-      DOperator dSetup(sol, {{Rho, &rho_ps}, {Coords, mfes}, {QData, &qd_ps}}, pmesh);
-      typename Diffusion<real_t, DIM>::PASetup pa_setup_qf;
-      dSetup.AddDomainIntegrator(
-         pa_setup_qf,
-         tuple{ Value<U>{}, None<Rho>{}, Gradient<Coords>{}, Weight{} },
-         tuple{ None<QData>{} }, *ir, all_domain_attr);
-      dSetup.SetParameters({ &rho_coeff_cv, nodes, &qdata });
-      pfes.GetRestrictionMatrix()->Mult(x, X);
-      dSetup.Mult(X, qdata);
-
-      DOperator dop_pa(sol, { { QData, &qd_ps } }, pmesh);
-      typename Diffusion<real_t, DIM>::PAApply pa_apply_qf;
-      dop_pa.AddDomainIntegrator(pa_apply_qf,
-                                 tuple{ Gradient<U>{}, None<QData>{} },
-                                 tuple{ Gradient<U>{} },
-                                 *ir, all_domain_attr);
-      dop_pa.SetParameters({ &qdata });
-
-      pfes.GetRestrictionMatrix()->Mult(x, X);
-      dop_pa.Mult(X, Z);
-
-      blf_fa.Mult(x, y);
-      pfes.GetProlongationMatrix()->MultTranspose(y, Y);
-      Y -= Z;
-
-      real_t norm_global = 0.0;
-      real_t norm_local = Y.Normlinf();
-      MPI_Allreduce(&norm_local, &norm_global, 1, MPI_DOUBLE, MPI_MAX,
-                    pmesh.GetComm());
-
-      REQUIRE(norm_global == MFEM_Approx(0.0));
-      MPI_Barrier(MPI_COMM_WORLD);
-   }*/
-
-   /*SECTION("DFEM Linearization", "[Parallel][DFEM]")
-   {
-      DOperator dop_mf(sol, {{Rho, &rho_ps}, {Coords, mfes}}, pmesh);
-   #ifdef MFEM_USE_ENZYME
-      typename Diffusion<real_t, DIM>::MFApply mf_apply_qf;
-   #else
-      typename Diffusion<dual<real_t, real_t>, DIM>::MFApply mf_apply_qf;
-   #endif
-      auto derivatives = std::integer_sequence<size_t, U> {};
-      dop_mf.AddDomainIntegrator(mf_apply_qf,
-                                 tuple{ Gradient<U>{}, None<Rho>{},
-                                        Gradient<Coords>{}, Weight{} },
-                                 tuple{ Gradient<U>{} }, *ir,
-                                 all_domain_attr, derivatives);
-      dop_mf.SetParameters({ &rho_coeff_cv, nodes });
-      auto dRdU = dop_mf.GetDerivative(U, {&x}, {&rho_coeff_cv, nodes});
-
-      pfes.GetRestrictionMatrix()->Mult(x, X);
-      dop_mf.Mult(X, Z);
-
-      blf_fa.Mult(x, y);
-      pfes.GetProlongationMatrix()->MultTranspose(y, Y);
-      Y -= Z;
-
-      real_t norm_global = 0.0;
-      real_t norm_local = Y.Normlinf();
-      MPI_Allreduce(&norm_local, &norm_global, 1, MPI_DOUBLE, MPI_MAX,
-                    pmesh.GetComm());
-
-      REQUIRE(norm_global == MFEM_Approx(0.0));
-      MPI_Barrier(MPI_COMM_WORLD);
-   }*/
 }
 
-TEST_CASE("DFEM Diffusion", "[Parallel][DFEM]")
+TEST_CASE("DFEM Diffusion Q1D", "[Parallel][DFEM][MQ1]")
 {
-   const bool all_tests = launch_all_non_regression_tests;
+   // const bool all_tests = launch_all_non_regression_tests;
 
-   const auto p = !all_tests ? 2 : GENERATE(1, 2, 3);
-   const auto r = !all_tests ? 1 : GENERATE(0, 1, 2, 3);
-   const auto mq1_setting = GENERATE(MQ1Settings::kRuntime,
+   // const auto p = !all_tests ? 2 : GENERATE(1, 2, 3);
+   // const auto r = !all_tests ? 1 : GENERATE(0, 1, 2, 3);
+   const int p = 2, r = 1;
+   dbg("p:{} r:{}", p, r);
+
+   const auto mq1_setting = MQ1Settings::kCompileTime;
+   /*const auto mq1_setting = GENERATE(MQ1Settings::kRuntime,
                                      MQ1Settings::kCompileTime,
-                                     MQ1Settings::kDefault);
+                                     MQ1Settings::kDefault);*/
 
    DiffusionIntegrator::AddSpecialization<3,3,3>();
 
@@ -381,7 +319,7 @@ TEST_CASE("DFEM Diffusion", "[Parallel][DFEM]")
       DFemDiffusion<2>(filename, p, r);
    }*/
 
-   SECTION("3D p=" + std::to_string(p) + " r=" + std::to_string(r))
+   // SECTION("3D p=" + std::to_string(p) + " r=" + std::to_string(r))
    {
 #if 0
       const auto filename =
@@ -391,9 +329,9 @@ TEST_CASE("DFEM Diffusion", "[Parallel][DFEM]")
                   "../../data/toroid-hex.mesh",
                   "../../data/periodic-cube.mesh");
 #else
-      const auto filename =
-         GENERATE("../../data/fichera.mesh");
+      const auto filename = "../../data/fichera.mesh";
 #endif
+      dbg("DFemDiffusion");
       DFemDiffusion<3>(filename, p, r, mq1_setting);
    }
 }

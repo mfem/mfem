@@ -130,7 +130,7 @@ void map_field_to_quadrature_data_tensor_product_3d(
       MFEM_VERIFY(q1d <= MQ1, "q1d > MQ1");
       MFEM_SHARED real_t smem[MQ1][MQ1];
 
-      kernels::internal::v_regs2d_t<DIM, MQ1> r0, r1;
+      kernels::internal::vd_regs3d_t<1, DIM, MQ1> r0, r1;
       real_t sB[MQ1][MQ1], sG[MQ1][MQ1];
 
       assert(B_dim == 1 && "1D B required!");
@@ -145,19 +145,19 @@ void map_field_to_quadrature_data_tensor_product_3d(
          }
       }
 
-      for (int vd = 0; vd < vdim; vd++)
+      for (int c = 0; c < vdim; c++)
       {
-         dbg("vdim:{}/{}", vd+1, vdim);
+         dbg("vdim:{}/{}", c+1, vdim);
 
-         kernels::internal::LoadDofs3d(d1d, vd, field, r0);
+         kernels::internal::LoadDofs3d(d1d, c, field, r0);
          for (int dz = 0; dz < d1d; dz++)
          {
             for (int dy = 0; dy < d1d; dy++)
             {
                for (int dx = 0; dx < d1d; dx++)
                {
-                  const real_t f = field(dx, dy, dz, vd);
-                  assert(AlmostEq(f, r0[0][dz][dy][dx]));
+                  const real_t f = field(dx, dy, dz, c);
+                  assert(AlmostEq(f, r0[0][0][dz][dy][dx]));
                }
             }
          }
@@ -172,7 +172,7 @@ void map_field_to_quadrature_data_tensor_product_3d(
                   real_t uv[2] = {0.0, 0.0};
                   for (int dx = 0; dx < d1d; dx++)
                   {
-                     const real_t f = field(dx, dy, dz, vd);
+                     const real_t f = field(dx, dy, dz, c);
                      uv[0] += f * B(qx, 0, dx);
                      uv[1] += f * G(qx, 0, dx);
                   }
@@ -218,9 +218,9 @@ void map_field_to_quadrature_data_tensor_product_3d(
                      uvw[1] += s3(dz, qy, qx) * B(qz, 0, dz);
                      uvw[2] += s4(dz, qy, qx) * G(qz, 0, dz);
                   }
-                  fqp(vd, 0, qx, qy, qz) = uvw[0];
-                  fqp(vd, 1, qx, qy, qz) = uvw[1];
-                  fqp(vd, 2, qx, qy, qz) = uvw[2];
+                  fqp(c, 0, qx, qy, qz) = uvw[0];
+                  fqp(c, 1, qx, qy, qz) = uvw[1];
+                  fqp(c, 2, qx, qy, qz) = uvw[2];
                }
             }
          }
@@ -231,21 +231,21 @@ void map_field_to_quadrature_data_tensor_product_3d(
             {
                for (int qx = 0; qx < q1d; qx++)
                {
-                  if (!AlmostEq(fqp(vd, 0, qx, qy, qz), r1[0][qz][qy][qx]))
+                  if (!AlmostEq(fqp(c, 0, qx, qy, qz), r1[0][0][qz][qy][qx]))
                   {
-                     dbg("\x1b[31m[{}:0] {} {}", vd, fqp(vd, 0, qx, qy, qz), r1[0][qz][qy][qx]);
+                     dbg("\x1b[31m[{}:0] {} {}", c, fqp(c, 0, qx, qy, qz), r1[0][0][qz][qy][qx]);
                      dbg("❌❌❌"), std::exit(EXIT_FAILURE);
                   }
 
-                  if (!AlmostEq(fqp(vd, 1, qx, qy, qz), r1[1][qz][qy][qx]))
+                  if (!AlmostEq(fqp(c, 1, qx, qy, qz), r1[0][1][qz][qy][qx]))
                   {
-                     dbg("\x1b[31m[{}:1] {} {}", vd, fqp(vd, 1, qx, qy, qz), r1[1][qz][qy][qx]);
+                     dbg("\x1b[31m[{}:1] {} {}", c, fqp(c, 1, qx, qy, qz), r1[0][1][qz][qy][qx]);
                      dbg("❌❌❌"), std::exit(EXIT_FAILURE);
                   }
 
-                  if (!AlmostEq(fqp(vd, 2, qx, qy, qz), r1[2][qz][qy][qx]))
+                  if (!AlmostEq(fqp(c, 2, qx, qy, qz), r1[0][2][qz][qy][qx]))
                   {
-                     dbg("\x1b[31m[{}:2] {} {}", vd, fqp(vd, 2, qx, qy, qz), r1[2][qz][qy][qx]);
+                     dbg("\x1b[31m[{}:2] {} {}", c, fqp(c, 2, qx, qy, qz), r1[0][2][qz][qy][qx]);
                      dbg("❌❌❌"), std::exit(EXIT_FAILURE);
                   }
                }
@@ -618,7 +618,7 @@ void map_fields_to_quadrature_data_conditional(
    });
 }
 
-template <size_t num_inputs, typename field_operator_ts>
+template <int T_Q1D, size_t num_inputs, typename field_operator_ts>
 MFEM_HOST_DEVICE
 void map_direction_to_quadrature_data_conditional(
    std::array<DeviceTensor<2>, num_inputs> &directions_qp,
@@ -631,7 +631,6 @@ void map_direction_to_quadrature_data_conditional(
    const int &dimension,
    const bool &use_sum_factorization = false)
 {
-   assert(false && "❌ condition not implemented");
    for_constexpr<num_inputs>([&](auto i)
    {
       if (conditions[i])
@@ -646,7 +645,7 @@ void map_direction_to_quadrature_data_conditional(
             }
             else if (dimension == 3)
             {
-               map_field_to_quadrature_data_tensor_product_3d(
+               map_field_to_quadrature_data_tensor_product_3d<T_Q1D>(
                   directions_qp[i], dtqmaps[i], direction_e, get<i>(fops),
                   integration_weights, scratch_mem);
             }

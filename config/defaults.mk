@@ -521,8 +521,6 @@ GSLIB_LIB = -L$(GSLIB_DIR)/lib -lgs
 
 # CUDA library configuration
 CUDA_OPT =
-# base CUDA install directory, only needed if building with clang+cuda
-CUDA_DIR = /usr/local/cuda/
 CUDA_LIB = -lcusparse -lcublas
 CLANG_CUDA_LIB = -L$(CUDA_DIR)/lib64 -L$(CUDA_DIR)/lib \
  $(XLINKER)-rpath,$(CUDA_DIR)/lib64,-rpath,$(CUDA_DIR)/lib \

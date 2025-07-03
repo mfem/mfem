@@ -192,6 +192,37 @@ void print_tuple(const std::tuple<Args...>& t)
    out << ")";
 }
 
+/// @brief Pretty print an mfem::DenseMatrix to out
+///
+/// Formatted s.t. the output is
+/// [[v00, v01, ..., v0n],
+///  [v10, v11, ..., v1n],
+///             ..., vmn]]
+/// which is compatible with numpy syntax.
+///
+/// @param m mfem::DenseMatrix to print
+inline
+void pretty_print(const mfem::DenseMatrix& m)
+{
+   out << "[";
+   for (int i = 0; i < m.NumRows(); i++)
+   {
+      for (int j = 0; j < m.NumCols(); j++)
+      {
+         out << m(i, j);
+         if (j < m.NumCols() - 1)
+         {
+            out << ", ";
+         }
+      }
+      if (i < m.NumRows() - 1)
+      {
+         out << ", ";
+      }
+   }
+   out << "]\n";
+}
+
 /// @brief Pretty print an mfem::Vector to out
 ///
 /// Formatted s.t. the output is [v0, v1, ..., vn] which
@@ -537,20 +568,24 @@ struct ThreadBlocks
    int z = 1;
 };
 
-#if (defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))
-template <typename func_t>
-__global__ void forall_kernel_shmem(func_t f, int n)
+#if defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP)
+template <typename tag_t>
+struct ForallKernel
 {
-   int i = blockIdx.x;
-   extern __shared__ real_t shmem[];
-   if (i < n)
+   template <typename func_t>
+   __global__ static void run(func_t f, int n)
    {
-      f(i, shmem);
+      int i = blockIdx.x;
+      extern __shared__ real_t shmem[];
+      if (i < n)
+      {
+         f(i, shmem);
+      }
    }
-}
+};
 #endif
 
-template <typename func_t>
+template </*typename kernel_tag,*/ typename func_t>
 void forall(func_t f,
             const int &N,
             const ThreadBlocks &blocks,
@@ -561,10 +596,9 @@ void forall(func_t f,
        Device::Allows(Backend::HIP_MASK))
    {
 #if (defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))
-      // int gridsize = (N + Z - 1) / Z;
       int num_bytes = num_shmem * sizeof(decltype(shmem));
       dim3 block_size(blocks.x, blocks.y, blocks.z);
-      forall_kernel_shmem<<<N, block_size, num_bytes>>>(f, N);
+      ForallKernel<kernel_tag>::run<<<N, block_size, num_bytes>>>(f, N);
 #if defined(MFEM_USE_CUDA)
       MFEM_GPU_CHECK(cudaGetLastError());
 #elif defined(MFEM_USE_HIP)
