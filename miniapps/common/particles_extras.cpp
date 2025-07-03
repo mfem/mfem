@@ -153,17 +153,16 @@ void VisualizeParticles(socketstream &sock, const char* vishost, int visport,
 }
 
 
-ParticleTrajectories::ParticleTrajectories(int tail_size_, const char* vishost, int visport, const char* title, int x, int y, int w, int h, const char* keys)
-: tail_size(tail_size_)
+ParticleTrajectories::ParticleTrajectories(int tail_size_, const char *vishost, int visport, const char *title_, int x_, int y_, int w_, int h_, const char *keys_)
+: tail_size(tail_size_),
+  title(title_),
+  x(x_), y(y_), w(w_), h(h_),
+  keys(keys_)
 {
    sock.open(vishost, visport);
    sock.precision(8);
-   // sock << "window_title '" << title << "'\n"
-   //       << "window_geometry "
-   //       << x << " " << y << " " << w << " " << h << "\n";
-   // if ( keys ) { sock << "keys " << keys << "\n"; }
-   // else { sock << "keys maaAc\n"; }
-   // sock << std::endl;
+   newly_opened = true;
+
 }
 
 template<Ordering::Type VOrdering>
@@ -243,6 +242,18 @@ void ParticleTrajectories::Visualize()
 #endif // MFEM_USE_MPI
    sock << "mesh\n";
    trajectories.Print(sock);
+
+
+   if (newly_opened)
+   {
+      sock << "window_title '" << title << "'\n"
+            << "window_geometry "
+            << x << " " << y << " " << w << " " << h << "\n";
+      if ( keys ) { sock << "keys " << keys << "\n"; }
+      else { sock << "keys maaAc\n"; }
+      sock << std::endl;
+      newly_opened = false;
+   }
 
 }
 

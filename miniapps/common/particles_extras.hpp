@@ -42,19 +42,23 @@ private:
     std::vector<Mesh> segment_meshes; /// Each segment is stored as a Mesh snapshot
     
     int tail_size;
-    bool segment_completed = true;
+    const char *title, *keys;
+    int x, y, w, h;
+    
 
+    bool segment_completed = true;
+    bool newly_opened;
 #ifdef MFEM_USE_MPI
     MPI_Comm comm;
 #endif // MFEM_USE_MPI
 
 public:
 
-    ParticleTrajectories(int tail_size_, const char* vishost, int visport, const char* title, int x=0, int y=0, int w=400, int h=400, const char* keys=nullptr);
+    ParticleTrajectories(int tail_size_, const char *vishost, int visport, const char *title_, int x_=0, int y_=0, int w_=400, int h_=400, const char *keys_=nullptr);
 
 #ifdef MFEM_USE_MPI
-    ParticleTrajectories(MPI_Comm comm_, int tail_size_, const char* vishost, int visport, const char* title, int x=0, int y=0, int w=400, int h=400, const char* keys=nullptr)
-    : ParticleTrajectories(tail_size_, vishost, visport, title, x, y, w, h, keys) { comm = comm_; }
+    ParticleTrajectories(MPI_Comm comm_, int tail_size_, const char* vishost, int visport, const char *title_, int x_=0, int y_=0, int w_=400, int h_=400, const char *keys_=nullptr)
+    : ParticleTrajectories(tail_size_, vishost, visport, title_, x_, y_, w_, h_, keys_) { comm = comm_; }
 #endif // MFEM_USE_MPI
 
     template<Ordering::Type VOrdering>
