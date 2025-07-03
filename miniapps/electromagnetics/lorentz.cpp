@@ -432,7 +432,7 @@ int main(int argc, char *argv[])
    std::unique_ptr<ParticleTrajectories> traj_vis;
    if (visualization)
    {
-      traj_vis = std::make_unique<ParticleTrajectories>(MPI_COMM_WORLD, vis_tail_size, "localhost", visport, "Particle Trajectories");
+      traj_vis = std::make_unique<ParticleTrajectories>(MPI_COMM_WORLD, vis_tail_size, "localhost", visport, "Particle Trajectories", 0, 0, 400, 400, "b");
    }
    bool requires_update = true;
    for (int step = 1; step <= nsteps; step++)
