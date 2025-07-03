@@ -293,6 +293,16 @@ int main(int argc, char *argv[])
       u_gf = flowsolver.GetCurrentVelocity();
       p_gf = flowsolver.GetCurrentPressure();
 
+      ParaViewDataCollection pvdc("navier_windtunnel_output", pmesh);
+      pvdc.SetDataFormat(VTKFormat::BINARY32);
+      pvdc.SetHighOrderOutput(true);
+      pvdc.SetLevelsOfDetail(ctx.order);
+      pvdc.SetCycle(step);
+      pvdc.SetTime(t);
+      pvdc.RegisterField("velocity", u_gf);
+      pvdc.RegisterField("pressure", p_gf);
+      pvdc.Save();
+
       real_t cfl = flowsolver.ComputeCFL(*u_gf, dt);
       real_t max_vel = u_gf->Max();
 
@@ -362,7 +372,7 @@ int main(int argc, char *argv[])
       sol_sock.precision(8);
       sol_sock << "parallel " << Mpi::WorldSize() << " "
                << Mpi::WorldRank() << "\n";
-      sol_sock << "solution\n" << *pmesh << *u_gf << std::flush;
+      sol_sock << "solution\n" << *pmesh << *u_gf << std::endl;
    }
 
    flowsolver.PrintTimingData();
