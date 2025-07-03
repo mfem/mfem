@@ -139,20 +139,21 @@ private:
    void GetLostIndices(Array<int> &idxs) const
    {
       idxs.SetSize(0);
-      if (B_finder)
-      {
-         Array<int> B_lost_idxs;
-         GetCode2Indices(*B_finder, B_lost_idxs);
-         idxs.Append(B_lost_idxs);
-      }
       if (E_finder)
       {
          Array<int> E_lost_idxs;
          GetCode2Indices(*E_finder, E_lost_idxs);
          idxs.Append(E_lost_idxs);
       }
+      if (B_finder)
+      {
+         Array<int> B_lost_idxs;
+         GetCode2Indices(*B_finder, B_lost_idxs);
+         idxs.Append(B_lost_idxs);
+      }
       idxs.Unique();
    }
+
 public:
    BorisAlgorithm(ParGridFunction *E_gf,
                   ParGridFunction *B_gf,
@@ -179,7 +180,7 @@ public:
       }
    }
 
-   void Step(ParticleSet<Ordering::byVDIM> &particles, real_t &t, real_t &dt)
+   void Step(ParticleSet<Ordering::byVDIM> &particles, real_t &t, real_t &dt, bool redist)
    {
       // Update all particle E-fields + B-fields:
       const Vector &X = particles.GetSetCoords();
@@ -189,6 +190,7 @@ public:
       if (E_field)
       {
          GetValues(*E_field, X, *E_finder, E, Ordering::byVDIM);
+         redist = false;
       }
       else
       {
@@ -208,6 +210,43 @@ public:
       Array<int> lost_idxs;
       GetLostIndices(lost_idxs);
       particles.RemoveParticles(lost_idxs);
+
+      if (redist)
+      {
+         // GetProc but remove elements associated with lost particles, as they were removed
+         Array<unsigned int> pre_procs;
+         if (B_finder) pre_procs = B_finder->GetProc();
+         else if (E_finder) pre_procs = E_finder->GetProc();
+         
+         Array<unsigned int> post_procs;
+         for (int i = 0; i < pre_procs.Size(); i++)
+         {
+            if (lost_idxs.Find(i) == -1)
+            {
+               post_procs.Append(pre_procs[i]);
+            }
+         }
+
+         // int rank, size;
+         // MPI_Comm_rank(particles.GetComm(), &rank);
+         // MPI_Comm_size(particles.GetComm(), &size);
+         // for (int r = 0; r < size; r++)
+         // {
+         //    if (r == rank)
+         //    {
+         //       cout << "\n---------------------------------------------------\nRANK " << r << endl;
+         //       cout << "Removed Particle Idxs: "; lost_idxs.Print(cout, 100);
+         //       cout << "Removed Particle Size: " << lost_idxs.Size() << endl;
+         //       cout << "Proc Array before slice: "; pre_procs.Print(cout, 100);
+         //       cout << "Proc Array size before slice: " << pre_procs.Size() << endl;
+         //       cout << "Proc Array after slice: "; post_procs.Print(cout, 100);
+         //       cout << "Proc Array size after slice: " << post_procs.Size() << endl;
+         //    }
+         //    MPI_Barrier(particles.GetComm());
+
+         // }
+         particles.Redistribute(post_procs);
+      }
 
       // Individually step each particle + update its position:
       for (int i = 0; i < particles.GetNP(); i++)
@@ -429,27 +468,99 @@ int main(int argc, char *argv[])
    }
 
    real_t t = t_init;
+
+   // Visualization stuff:
    std::unique_ptr<ParticleTrajectories> traj_vis;
+   char vishost[] = "localhost";
+   socketstream pre_redist_sock, post_redist_sock;
    if (visualization)
    {
-      traj_vis = std::make_unique<ParticleTrajectories>(MPI_COMM_WORLD, vis_tail_size, "localhost", visport, "Particle Trajectories", 0, 0, 400, 400, "b");
+      traj_vis = std::make_unique<ParticleTrajectories>(MPI_COMM_WORLD, vis_tail_size, vishost, visport, "Particle Trajectories", 0, 0, 400, 400, "b");
    }
+
    bool requires_update = true;
    for (int step = 1; step <= nsteps; step++)
    {
-      if (traj_vis && requires_update)
-      {
-         traj_vis->AddSegmentStart(particles);
-         requires_update = false;
-      }
-      boris.Step(particles, t, dt);
+      bool redist = (step % redist_freq == 0);
 
-      if(traj_vis && (step-1) % vis_freq == 0)
-      {
-         traj_vis->SetSegmentEnd(particles);
-         traj_vis->Visualize();
-         requires_update = true;
+      if (visualization)
+      {  
+         // Add start of trajectory segment (immediately after last segment is finished)
+         if (requires_update)
+         {
+            traj_vis->AddSegmentStart(particles);
+            requires_update = false;
+         }
+         // If redistributing this step, plot current particle owning ranks
+         if (redist)
+         {
+            if (visualization)
+            {
+               Vector rank_vector(particles.GetNP());
+               rank_vector = Mpi::WorldRank();
+               VisualizeParticles(pre_redist_sock, vishost, visport, particles, rank_vector, 1e-2, "Particle Owning Rank (Pre-Redistribute)", 410, 0, 400, 400, "bca");
+               char c;
+               if (Mpi::Root())
+               {
+                  cout << "Enter (c) to redistribute + step | (q) to exit : " << flush;
+                  cin >> c;
+                  if (c == 'q')
+                  {
+                     pre_redist_sock << "keys q" << flush;
+                     pre_redist_sock.close();
+                     traj_vis->GetSocketStream() << "keys q" << flush;
+                     traj_vis->GetSocketStream().close();
+                     return 0;
+                  }
+               }
+            }
+         }
       }
+
+
+      boris.Step(particles, t, dt, redist);
+
+      if (Mpi::Root())
+      {
+         mfem::out << "Step: " << step << " | Time: " << t << endl;
+      }
+
+
+      if(visualization)
+      {
+         // Plot end of segment + visualize trajectories
+         if ((step-1) % vis_freq == 0)
+         {
+            traj_vis->SetSegmentEnd(particles);
+            traj_vis->Visualize();
+            requires_update = true;
+         }
+
+         // If redistributing, plot post-redistribute particle owning ranks
+         if (redist)
+         {
+            Vector rank_vector(particles.GetNP());
+            rank_vector = Mpi::WorldRank();
+            socketstream post_redist_sock;
+            VisualizeParticles(post_redist_sock, vishost, visport, particles, rank_vector, 1e-2, "Particle Owning Rank (Post-Redistribute)", 820, 0, 400, 400, "bca");
+            char c;
+            if (Mpi::Root())
+            {
+               cout << "Enter (c) to continue  | (q) to exit : " << flush;
+               cin >> c;
+            }
+            pre_redist_sock << "keys q" << flush;
+            post_redist_sock << "keys q" << flush;
+            pre_redist_sock.close();
+            post_redist_sock.close();
+            if (c == 'q')
+            {
+               return 0;
+            }
+
+         }
+      }
+
    }
 
 }

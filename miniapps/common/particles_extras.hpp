@@ -69,6 +69,7 @@ public:
 
     void Visualize();
 
+    socketstream& GetSocketStream() { return sock; };
 };
 
 } // namespace common

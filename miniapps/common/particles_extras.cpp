@@ -120,31 +120,34 @@ void VisualizeParticles(socketstream &sock, const char* vishost, int visport,
    MPI_Comm_size(pset.GetComm(), &num_procs);
 
    bool newly_opened = false;
+   bool connection_failed;
 
-   if (!sock.is_open() || !sock)
+   do
    {
-      sock.open(vishost, visport);
-      sock.precision(8);
-      newly_opened = true;
-   }
+      if (!sock.is_open() || !sock)
+      {
+         sock.open(vishost, visport);
+         sock.precision(8);
+         newly_opened = true;
+      }
 
-   sock << "parallel " << num_procs << " " << myid << "\n";
-   sock << "solution\n" << particles_mesh << gf << std::flush;
+      sock << "parallel " << num_procs << " " << myid << "\n";
+      sock << "solution " << particles_mesh << gf << std::flush;
 
-   if (myid == 0)
-   {
       if (newly_opened)
       {
          sock << "window_title '" << title << "'\n"
-              << "window_geometry "
-              << x << " " << y << " " << w << " " << h << "\n";
+            << "window_geometry "
+            << x << " " << y << " " << w << " " << h << "\n";
          if ( keys ) { sock << "keys " << keys << "\n"; }
          else { sock << "keys maaAc\n"; }
          sock << std::endl;
+         newly_opened = false;
       }
+     connection_failed = !sock && !newly_opened;
    }
+   while (connection_failed);
 
-   
 #else
 
    VisualizeField(sock, vishost, visport, gf, title, x, y, w, h, keys, false);
