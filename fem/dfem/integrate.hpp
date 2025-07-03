@@ -102,7 +102,7 @@ void map_quadrature_data_to_fields_tensor_impl_2d(
    const DeviceTensor<3, real_t> &f,
    const output_t &output,
    const DofToQuadMap &dtq,
-   std::array<DeviceTensor<1>, 6> &scratch_mem)
+   const std::array<DeviceTensor<1>, 6> &scratch_mem)
 {
    [[maybe_unused]] auto B = dtq.B;
    [[maybe_unused]] auto G = dtq.G;
@@ -239,7 +239,7 @@ void map_quadrature_data_to_fields_tensor_impl_3d(
    const DeviceTensor<3, real_t> &f,
    const output_t &output,
    const DofToQuadMap &dtq,
-   std::array<DeviceTensor<1>, 6> &scratch_mem)
+   const std::array<DeviceTensor<1>, 6> &scratch_mem)
 {
    [[maybe_unused]] auto B = dtq.B;
    [[maybe_unused]] auto G = dtq.G;
@@ -258,11 +258,11 @@ void map_quadrature_data_to_fields_tensor_impl_3d(
 
       for (int vd = 0; vd < vdim; vd++)
       {
-         MFEM_FOREACH_THREAD(qy, y, q1d)
+         MFEM_FOREACH_THREAD_DIRECT(qy, y, q1d)
          {
-            MFEM_FOREACH_THREAD(dx, x, d1d)
+            MFEM_FOREACH_THREAD_DIRECT(dx, x, d1d)
             {
-               MFEM_FOREACH_THREAD(qz, z, q1d)
+               MFEM_FOREACH_THREAD_DIRECT(qz, z, q1d)
                {
                   real_t acc = 0.0;
                   for (int qx = 0; qx < q1d; qx++)
@@ -275,11 +275,11 @@ void map_quadrature_data_to_fields_tensor_impl_3d(
          }
          MFEM_SYNC_THREAD;
 
-         MFEM_FOREACH_THREAD(dy, y, d1d)
+         MFEM_FOREACH_THREAD_DIRECT(dy, y, d1d)
          {
-            MFEM_FOREACH_THREAD(dx, x, d1d)
+            MFEM_FOREACH_THREAD_DIRECT(dx, x, d1d)
             {
-               MFEM_FOREACH_THREAD(qz, z, q1d)
+               MFEM_FOREACH_THREAD_DIRECT(qz, z, q1d)
                {
                   real_t acc = 0.0;
                   for (int qy = 0; qy < q1d; qy++)
@@ -293,11 +293,11 @@ void map_quadrature_data_to_fields_tensor_impl_3d(
          MFEM_SYNC_THREAD;
 
 
-         MFEM_FOREACH_THREAD(dy, y, d1d)
+         MFEM_FOREACH_THREAD_DIRECT(dy, y, d1d)
          {
-            MFEM_FOREACH_THREAD(dx, x, d1d)
+            MFEM_FOREACH_THREAD_DIRECT(dx, x, d1d)
             {
-               MFEM_FOREACH_THREAD(dz, z, d1d)
+               MFEM_FOREACH_THREAD_DIRECT(dz, z, d1d)
                {
                   real_t acc = 0.0;
                   for (int qz = 0; qz < q1d; qz++)
@@ -328,62 +328,69 @@ void map_quadrature_data_to_fields_tensor_impl_3d(
 
       for (int vd = 0; vd < vdim; vd++)
       {
-         MFEM_FOREACH_THREAD(qz, z, q1d)
+         MFEM_FOREACH_THREAD_DIRECT(qz, z, q1d)
          {
-            MFEM_FOREACH_THREAD(qy, y, q1d)
+            MFEM_FOREACH_THREAD_DIRECT(qy, y, q1d)
             {
-               MFEM_FOREACH_THREAD(dx, x, d1d)
+               MFEM_FOREACH_THREAD_DIRECT(dx, x, d1d)
                {
-                  real_t uvw[3] = {0.0, 0.0, 0.0};
+                  real_t u = 0.0, v = 0.0, w = 0.0;
                   for (int qx = 0; qx < q1d; qx++)
                   {
-                     uvw[0] += fqp(vd, 0, qx, qy, qz) * G(qx, 0, dx);
-                     uvw[1] += fqp(vd, 1, qx, qy, qz) * B(qx, 0, dx);
-                     uvw[2] += fqp(vd, 2, qx, qy, qz) * B(qx, 0, dx);
+                     const real_t b = B(qx, 0, dx);
+                     const real_t g = G(qx, 0, dx);
+
+                     u += fqp(vd, 0, qx, qy, qz) * g;
+                     v += fqp(vd, 1, qx, qy, qz) * b;
+                     w += fqp(vd, 2, qx, qy, qz) * b;
                   }
-                  s0(qz, qy, dx) = uvw[0];
-                  s1(qz, qy, dx) = uvw[1];
-                  s2(qz, qy, dx) = uvw[2];
+                  s0(qz, qy, dx) = u;
+                  s1(qz, qy, dx) = v;
+                  s2(qz, qy, dx) = w;
                }
             }
          }
          MFEM_SYNC_THREAD;
 
-         MFEM_FOREACH_THREAD(qz, z, q1d)
+         MFEM_FOREACH_THREAD_DIRECT(qz, z, q1d)
          {
-            MFEM_FOREACH_THREAD(dy, y, d1d)
+            MFEM_FOREACH_THREAD_DIRECT(dy, y, d1d)
             {
-               MFEM_FOREACH_THREAD(dx, x, d1d)
+               MFEM_FOREACH_THREAD_DIRECT(dx, x, d1d)
                {
-                  real_t uvw[3] = {0.0, 0.0, 0.0};
+                  real_t u = 0.0, v = 0.0, w = 0.0;
                   for (int qy = 0; qy < q1d; qy++)
                   {
-                     uvw[0] += s0(qz, qy, dx) * B(qy, 0, dy);
-                     uvw[1] += s1(qz, qy, dx) * G(qy, 0, dy);
-                     uvw[2] += s2(qz, qy, dx) * B(qy, 0, dy);
+                     const real_t b = B(qy, 0, dy);
+                     const real_t g = G(qy, 0, dy);
+                     u += s0(qz, qy, dx) * b;
+                     v += s1(qz, qy, dx) * g;
+                     w += s2(qz, qy, dx) * b;
                   }
-                  s3(qz, dy, dx) = uvw[0];
-                  s4(qz, dy, dx) = uvw[1];
-                  s5(qz, dy, dx) = uvw[2];
+                  s3(qz, dy, dx) = u;
+                  s4(qz, dy, dx) = v;
+                  s5(qz, dy, dx) = w;
                }
             }
          }
          MFEM_SYNC_THREAD;
 
-         MFEM_FOREACH_THREAD(dz, z, d1d)
+         MFEM_FOREACH_THREAD_DIRECT(dz, z, d1d)
          {
-            MFEM_FOREACH_THREAD(dy, y, d1d)
+            MFEM_FOREACH_THREAD_DIRECT(dy, y, d1d)
             {
-               MFEM_FOREACH_THREAD(dx, x, d1d)
+               MFEM_FOREACH_THREAD_DIRECT(dx, x, d1d)
                {
-                  real_t uvw[3] = {0.0, 0.0, 0.0};
+                  real_t u = 0.0, v = 0.0, w = 0.0;
                   for (int qz = 0; qz < q1d; qz++)
                   {
-                     uvw[0] += s3(qz, dy, dx) * B(qz, 0, dz);
-                     uvw[1] += s4(qz, dy, dx) * B(qz, 0, dz);
-                     uvw[2] += s5(qz, dy, dx) * G(qz, 0, dz);
+                     const real_t b = B(qz, 0, dz);
+                     const real_t g = G(qz, 0, dz);
+                     u += s3(qz, dy, dx) * b;
+                     v += s4(qz, dy, dx) * b;
+                     w += s5(qz, dy, dx) * g;
                   }
-                  yd(dx, dy, dz, vd) += uvw[0] + uvw[1] + uvw[2];
+                  yd(dx, dy, dz, vd) += u + v + w;
                }
             }
          }
@@ -398,11 +405,11 @@ void map_quadrature_data_to_fields_tensor_impl_3d(
 
       for (int sq = 0; sq < output.size_on_qp; sq++)
       {
-         MFEM_FOREACH_THREAD(qx, x, q1d)
+         MFEM_FOREACH_THREAD_DIRECT(qx, x, q1d)
          {
-            MFEM_FOREACH_THREAD(qy, y, q1d)
+            MFEM_FOREACH_THREAD_DIRECT(qy, y, q1d)
             {
-               MFEM_FOREACH_THREAD(qz, z, q1d)
+               MFEM_FOREACH_THREAD_DIRECT(qz, z, q1d)
                {
                   yqp(sq, qx, qy, qz) = fqp(sq, qx, qy, qz);
                }
@@ -425,7 +432,7 @@ void map_quadrature_data_to_fields(
    const DeviceTensor<3, real_t> &f,
    const output_t &output,
    const DofToQuadMap &dtq,
-   std::array<DeviceTensor<1>, 6> &scratch_mem,
+   const std::array<DeviceTensor<1>, 6> &scratch_mem,
    const int &dimension,
    const bool &use_sum_factorization)
 {
