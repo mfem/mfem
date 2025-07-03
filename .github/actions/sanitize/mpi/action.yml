@@ -1,0 +1,33 @@
+# Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+# at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+# LICENSE and NOTICE for details. LLNL-CODE-806117.
+#
+# This file is part of the MFEM library. For more information and source code
+# availability visit https://mfem.org.
+#
+# MFEM is free software; you can redistribute it and/or modify it under the
+# terms of the BSD-3 license. We welcome feedback and contributions, see file
+# CONTRIBUTING.md for details.
+---
+name: 'Install MPI'
+description: 'Installs MPI and set up its environment variables'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Install
+      run: sudo apt-get install openmpi-bin libopenmpi-dev
+      shell: bash
+
+    - name: Env
+      run: |
+        echo PRTE_MCA_rmaps_default_mapping_policy=:oversubscribe >> $GITHUB_ENV
+        echo MPI_INC=$(mpicxx --showme:compile) >> $GITHUB_ENV
+        echo MPI_LIB=$(mpicxx --showme:link) >> $GITHUB_ENV
+      shell: bash
+
+    - name: Env (bis)
+      run: |
+        echo CXXFLAGS=${{env.CXXFLAGS}} ${{env.MPI_INC}} >> $GITHUB_ENV
+        echo LDFLAGS=${{env.LDFLAGS}} ${{env.MPI_LIB}} >> $GITHUB_ENV
+      shell: bash

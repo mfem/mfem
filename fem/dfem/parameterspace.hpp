@@ -101,10 +101,11 @@ public:
       // Setup DofToQuad information
       dtq.nqpt = (int)floor(std::pow(ir.GetNPoints(), 1.0 / mesh.Dimension()) + 0.5);
       dtq.ndof = dtq.nqpt;
+      dtq.mode = used_in_tensor_product ? DofToQuad::TENSOR : DofToQuad::FULL;
 
       // Calculate sizes
       const int num_qp = used_in_tensor_product ?
-                         std::pow(dtq.nqpt, mesh.Dimension()) :
+                         static_cast<int>(std::pow(dtq.nqpt, mesh.Dimension())) :
                          ir.GetNPoints();
 
       tsize = vdim * num_qp * mesh.GetNE();

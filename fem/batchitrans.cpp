@@ -515,6 +515,7 @@ struct InvTNewtonSolver<Geometry::SEGMENT, SDim, SType, max_team_x>
             phys_tol += pptr[idx + d * npts] * pptr[idx + d * npts];
          }
          phys_tol = fmax(phys_rtol * phys_rtol, phys_tol * phys_rtol * phys_rtol);
+         hit_bdr[0] = prev_hit_bdr[0] = false;
       }
       // for each iteration
       while (true)

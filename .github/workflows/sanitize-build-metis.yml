@@ -1,0 +1,36 @@
+# Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+# at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+# LICENSE and NOTICE for details. LLNL-CODE-806117.
+#
+# This file is part of the MFEM library. For more information and source code
+# availability visit https://mfem.org.
+#
+# MFEM is free software; you can redistribute it and/or modify it under the
+# terms of the BSD-3 license. We welcome feedback and contributions, see file
+# CONTRIBUTING.md for details.
+---
+name: build-metis
+on:
+  workflow_call:
+jobs:
+  build-metis:
+    runs-on: ubuntu-latest
+    name: 4.0.3
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/sanitize/config
+      - name: Cache
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: ${{env.METIS_DIR}}
+          key: ${{runner.os}}-build-${{env.METIS_DIR}}-v2.5
+      - name: Setup
+        if: steps.cache.outputs.cache-hit != 'true'
+        uses: ./.github/actions/sanitize/mpi
+      - name: Build
+        if: steps.cache.outputs.cache-hit != 'true'
+        uses: mfem/github-actions/build-metis@v2.5
+        with:
+          archive: ${{env.METIS_TGZ}}
+          dir: ${{env.METIS_DIR}}
