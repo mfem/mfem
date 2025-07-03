@@ -78,15 +78,8 @@ struct s_NavierContext
 
 namespace InletProfile
 {
-// Uniform logarithmic wind profile
-void logarithmic(const Vector &x, real_t t, Vector &u)
-{
-   u(0) = (ctx.u_star / ctx.kappa) * (log(x(2)/ctx.z0) + 34.5 * ctx.f * x(2));
-   u(1) = 0.0;
-   u(2) = 0.0;
-}
-
-/// Constant inlet velocity profile
+/// Constant velocity profile
+/// Set -profile 0
 void constant(const Vector &x, real_t t, Vector &u)
 {
    u(0) = ctx.inlet_velocity;
@@ -94,7 +87,8 @@ void constant(const Vector &x, real_t t, Vector &u)
    u(2) = 0.0;
 }
 
-// Power law profile
+/// Power law profile
+/// Set -profile 1
 void power_law(const Vector &x, real_t t, Vector &u)
 {
    real_t z = x(2);
@@ -105,6 +99,22 @@ void power_law(const Vector &x, real_t t, Vector &u)
    u(2) = 0.0;
 }
 
+/// Uniform logarithmic wind profile
+/// Set -profile 2
+void logarithmic(const Vector &x, real_t t, Vector &u)
+{
+   real_t z = x(2);
+
+   // NOTE: To avoid log(0) = NaN, we enforce x(2) = z > ctx.z0
+   real_t safe_z = std::max(z, ctx.z0 * 1.01);
+
+   real_t u_z = (ctx.u_star / ctx.kappa) * (log(safe_z/ctx.z0) + 34.5 * ctx.f *
+                                            safe_z);
+
+   u(0) = u_z > 0.0 ? u_z : 0.0;
+   u(1) = 0.0;
+   u(2) = 0.0;
+}
 }
 
 // Profile selection function
@@ -222,39 +232,36 @@ int main(int argc, char *argv[])
 
    // BOUNDARY CONDITIONS
 
-
-
-   // 2. GROUND: No-slip
+   // 1. GROUND: No-slip
    Array<int> attr_ground(pmesh->bdr_attributes.Max());
    attr_ground = 0;
    attr_ground[0] = 1;  // attr 1
    flowsolver.AddVelDirichletBC(new VectorConstantCoefficient(Vector({0.0, 0.0, 0.0})),
                                 attr_ground);
 
-   // 3. FRONT WALL: No-penetration
+   // 2. "FRONT" WALL: No-penetration
    Array<int> attr_front(pmesh->bdr_attributes.Max());
    attr_front = 0;
    attr_front[1] = 1;  // attr 2
    flowsolver.AddVelDirichletBC(new ConstantCoefficient(0.0), attr_front, 1);
 
-   // 4. BACK WALL: No-penetration
+   // 3. "BACK" WALL: No-penetration
    Array<int> attr_back(pmesh->bdr_attributes.Max());
    attr_back = 0;
    attr_back[3] = 1;  // attr 4
    flowsolver.AddVelDirichletBC(new ConstantCoefficient(0.0), attr_back, 1);
 
-   // 5. TOP WALL: No-penetration
+   // 4. "TOP" WALL: No-penetration
    Array<int> attr_top(pmesh->bdr_attributes.Max());
    attr_top = 0;
    attr_top[5] = 1;  // attr 6
    flowsolver.AddVelDirichletBC(new ConstantCoefficient(0.0), attr_top, 2);
 
-   // 1. INLET: Prescribed velocity
+   // 5. INLET: Prescribed velocity
    Array<int> attr_inlet(pmesh->bdr_attributes.Max());
    attr_inlet = 0;
    attr_inlet[4] = 1;  // attr 5
    flowsolver.AddVelDirichletBC(get_inlet_profile(), attr_inlet);
-
 
    // 6. OUTLET: Do nothing
 
