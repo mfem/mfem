@@ -171,13 +171,17 @@ public:
         }
         else
         {
-            for (int i = 0; i < n; i++)
-            {
-                linked_fields[i]->Transfer();
-            }
+            Transfer();
         }
     }
 
+    virtual void Transfer() {
+        int n = linked_fields.size();
+        for (int i = 0; i < n; i++)
+        {
+            linked_fields[i]->Transfer();
+        }
+    }
 };
 
 

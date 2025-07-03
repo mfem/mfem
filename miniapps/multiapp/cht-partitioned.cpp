@@ -3,8 +3,14 @@
 
 #include <fstream>
 #include <iostream>
+#include <math.h>
 
 using namespace mfem;
+
+double Tinit(const Vector& x)
+{
+    return std::pow(2000*sin(x[0]) + 1000* sin(x[1]) + 3000* sin(x[2]),2);
+}
 
 // Prescribed velocity profile for the convection-diffusion equation inside the
 // cylinder. The profile is constructed s.t. it approximates a no-slip (v=0)
@@ -51,15 +57,21 @@ public:
     */
    ConvectionDiffusion(ParFiniteElementSpace &fes,
                         Array<int> ess_tdofs,
+                        Array<int> nat_tdofs,
                         real_t alpha = 1.0,
-                        real_t kappa = 1.0e-1)
+                        real_t kappa = 1.0e-1,
+                        bool use_heat_flux = false)
                         : Application(fes.GetTrueVSize()),
                         temperature_gf(ParGridFunction(&fes)),
+                        heat_flux_gf(ParGridFunction(&fes)),
+                        gradT_gf(GradientGridFunctionCoefficient(&temperature_gf)),
+                        heat_flux_gfc(GridFunctionCoefficient(&heat_flux_gf)),
                         Mform(&fes),
                         Kform(&fes),
                         bform(&fes),
                         ess_tdofs_(ess_tdofs),
-                        z(height),
+                        nat_tdofs_(nat_tdofs),
+                        z(height), t1(height), t2(height),
                         M_solver(fes.GetComm()),
                         linear_solver(fes.GetComm())
    {
@@ -71,6 +83,9 @@ public:
       Mform.AddDomainIntegrator(new MassIntegrator);
       Mform.Assemble(0);
       Mform.Finalize();
+
+      temperature_gf = 0.0;
+      heat_flux_gf = 0.0;
 
       if (fes.IsDGSpace())
       {
@@ -86,6 +101,9 @@ public:
          Kform.Assemble(0);
          Kform.Finalize();
 
+         if(use_heat_flux){
+            bform.AddBoundaryIntegrator(new BoundaryLFIntegrator(heat_flux_gfc));
+         }
          bform.Assemble();
          b = bform.ParallelAssemble();
 
@@ -93,8 +111,8 @@ public:
          
          temperature_gf.GetTrueDofs(u_bc);
          Mform.FormSystemMatrix(ess_tdofs_, Mmat);
-         Kform.FormSystemMatrix(empty, Kmat);
-         // Kform.FormLinearSystem(empty, temperature_gf, bform, Kmat, z, u_bc);
+         // Kform.FormSystemMatrix(empty, Kmat);
+         Kform.FormLinearSystem(ess_tdofs_, temperature_gf, bform, Kmat, z, u_bc);
       }
 
       M_solver.iterative_mode = false;
@@ -117,12 +135,17 @@ public:
 
    }
 
+   void Reassemble(){
+      Kform.FormLinearSystem(ess_tdofs_, temperature_gf, bform, Kmat, z, u_bc);
+   }
+
    void Mult(const Vector &u, Vector &du_dt) const override
    {      
-      u_bc = u;
-      temperature_gf.GetTrueDofs(u_bc);
+      // u_bc = u;
+      // temperature_gf.GetTrueDofs(u_bc);
 
-      Kmat.Mult(u_bc, z);
+      Kmat.Mult(u, z);
+      z.Add(-1.0, u_bc);
       M_solver.Mult(z, du_dt);
       du_dt.SetSubVector(ess_tdofs_, 0.0);
    }
@@ -145,6 +168,15 @@ public:
       linear_solver.Mult(z, du_dt);
       du_dt.SetSubVector(ess_tdofs_, 0.0);
    }
+
+
+   void Transfer(Vector &x) override {
+
+      temperature_gf.SetFromTrueDofs(x);
+      heat_flux_gf.ProjectBdrCoefficientNormal(gradT_gf,nat_tdofs_);
+
+      Application::Transfer();
+   }   
 
    ~ConvectionDiffusion() override
    {
@@ -186,7 +218,11 @@ public:
    /// Essential true dof array. Relevant for eliminating boundary conditions
    /// when using an H1 space.
    Array<int> ess_tdofs_;
+   Array<int> nat_tdofs_;
    ParGridFunction temperature_gf;
+   ParGridFunction heat_flux_gf;
+   GradientGridFunctionCoefficient gradT_gf;
+   GridFunctionCoefficient heat_flux_gfc;
 
    real_t current_dt = -1.0;
 
@@ -214,8 +250,8 @@ int main(int argc, char *argv[])
    int num_procs = Mpi::WorldSize();
    int myid = Mpi::WorldRank();
 
-   int order = 2;
-   real_t t_final = .005;
+   int order = 4;
+   real_t t_final = .01;
    real_t dt = 1.0e-5;
    bool visualization = true;
    int visport = 19916;
@@ -239,7 +275,7 @@ int main(int argc, char *argv[])
    ParMesh parent_mesh = ParMesh(MPI_COMM_WORLD, *serial_mesh);
    delete serial_mesh;
 
-   parent_mesh.UniformRefinement();
+   parent_mesh.UniformRefinement(3);
 
    H1_FECollection fec(order, parent_mesh.Dimension());
 
@@ -274,13 +310,30 @@ int main(int argc, char *argv[])
    ess_tdofs.Unique();
 
    
-   ConvectionDiffusion cd_cylinder(fes_cylinder, ess_tdofs);
+   // ConvectionDiffusion cd_cylinder(fes_cylinder, inflow_tdofs, interface_tdofs);
+   ConvectionDiffusion cd_cylinder(fes_cylinder, ess_tdofs, inner_cylinder_wall_attributes,1.0, 1.0e-1, false);
 
    ParGridFunction &temperature_cylinder_gf = cd_cylinder.temperature_gf;   
+   ParGridFunction &qflux_cylinder_gf       = cd_cylinder.heat_flux_gf;      
+
    temperature_cylinder_gf = 0.0;
+   qflux_cylinder_gf       = 0.0;
+
+
+   // FunctionCoefficient Tinit_coeff(Tinit); 
+   ConstantCoefficient Tinit_coeff(300.0); // Initial temperature inside the cylinder
+   ConstantCoefficient Tintflow(300.0); // Initial temperature inside the cylinder
+   temperature_cylinder_gf.ProjectCoefficient(Tinit_coeff);
+   temperature_cylinder_gf.ProjectBdrCoefficient(Tintflow, inflow_attributes);
+
+
+   GradientGridFunctionCoefficient gradT_cylinder_gf(&temperature_cylinder_gf);
+   qflux_cylinder_gf.ProjectBdrCoefficientNormal(gradT_cylinder_gf,inner_cylinder_wall_attributes);
 
    Vector temperature_cylinder;
    temperature_cylinder_gf.GetTrueDofs(temperature_cylinder);
+
+
 
 
    // Set up the diffusion equation inside the solid block
@@ -303,19 +356,38 @@ int main(int argc, char *argv[])
    outer_cylinder_wall_attributes[8] = 1;
 
    fes_block.GetEssentialTrueDofs(block_wall_attributes, ess_tdofs);
+   fes_block.GetEssentialTrueDofs(outer_cylinder_wall_attributes, interface_tdofs);
+   
 
-   ConvectionDiffusion diff_block(fes_block, ess_tdofs, 0.0, 1.0);
+   ConvectionDiffusion diff_block(fes_block, ess_tdofs,outer_cylinder_wall_attributes, 0.0, 1.0, true);
 
    ParGridFunction &temperature_block_gf = diff_block.temperature_gf;
-   temperature_block_gf = 0.0;
+   ParGridFunction &qflux_block_gf       = diff_block.heat_flux_gf;
 
-   ConstantCoefficient one(1.0);
-   temperature_block_gf.ProjectBdrCoefficient(one, block_wall_attributes);
+   temperature_block_gf = 0.0;
+   qflux_block_gf       = 0.0;
+
+   ConstantCoefficient Touter_block(323.0); // Outer temperature of the block
+   temperature_block_gf.ProjectCoefficient(Tinit_coeff);
+   temperature_block_gf.ProjectBdrCoefficient(Touter_block, block_wall_attributes);
 
    Vector temperature_block;
    temperature_block_gf.GetTrueDofs(temperature_block);
 
+
+   // GradientGridFunctionCoefficient gradT_block_gf(&temperature_block_gf);   
+   // qflux_block_gf.ProjectBdrCoefficientNormal(gradT_block_gf,outer_cylinder_wall_attributes);
+   // GridFunctionCoefficient qflux_block_coeff(&qflux_block_gf);
    
+
+   // ParTransferMap qflux_transfermap = ParTransferMap(qflux_cylinder_gf, qflux_block_gf);
+   // qflux_transfermap.Transfer(qflux_cylinder_gf,qflux_block_gf);
+
+   // diff_block.bform.AddBoundaryIntegrator(new BoundaryNormalLFIntegrator(qflux_block_coeff), outer_cylinder_wall_attributes);
+   // diff_block.bform.AddBoundaryIntegrator(new BoundaryLFIntegrator(qflux_block_coeff));
+   // GridFunctionCoefficient temperature_block_gfc(&temperature_block_gf);
+   // diff_block.bform.AddBoundaryIntegrator(new BoundaryLFIntegrator(temperature_block_gfc));
+
 
    Array<int> offsets({0,temperature_block.Size(), temperature_cylinder.Size()});
    offsets.PartialSum();   
@@ -328,16 +400,21 @@ int main(int argc, char *argv[])
  
 
    LinkedFields lf_solid_to_fluid(temperature_block_gf, temperature_cylinder_gf);
-   LinkedFields lf_fluid_to_solid(temperature_cylinder_gf, temperature_block_gf);
+   LinkedFields lf_fluid_to_solid(qflux_cylinder_gf, qflux_block_gf);
+   // LinkedFields lf_fluid_to_solid(temperature_cylinder_gf, temperature_block_gf);
+   
 
 
 
-   // int ode_solver_type = 3; // RK3SSPSolver
+   int ode_solver_type = 3; // RK3SSPSolver
    // int ode_solver_type = 23;  // SDIRK33Solver
    // int ode_solver_type = 21;  // BackwardEulerSolver
-   int ode_solver_type = 34;  // SDIRK34Solver
+   // int ode_solver_type = 34;  // SDIRK34Solver
    std::unique_ptr<ODESolver> cylinder_ode_solver = ODESolver::Select(ode_solver_type);
    std::unique_ptr<ODESolver> block_ode_solver    = ODESolver::Select(ode_solver_type);
+
+   diff_block.Reassemble();
+   cd_cylinder.Reassemble();
 
    cylinder_ode_solver->Init(cd_cylinder);
    block_ode_solver->Init(diff_block);
@@ -347,8 +424,10 @@ int main(int argc, char *argv[])
    Application* app2 = physics.AddApplication(cylinder_ode_solver.get());
 
    app1->AddLinkedFields(&lf_solid_to_fluid);
-   // app2->AddLinkedFields(&lf_fluid_to_solid);
+   app2->AddLinkedFields(&lf_fluid_to_solid);
 
+   diff_block.AddLinkedFields(&lf_solid_to_fluid);
+   cd_cylinder.AddLinkedFields(&lf_fluid_to_solid);
 
    physics.SetOffsets(offsets);
    physics.Finalize();
@@ -365,11 +444,14 @@ int main(int argc, char *argv[])
    solid_pv.SetDataFormat(VTKFormat::BINARY);
    solid_pv.SetHighOrderOutput(true);
    solid_pv.RegisterField("temperature",&temperature_block_gf);
+   solid_pv.RegisterField("flux",&qflux_block_gf);
 
    fluid_pv.SetLevelsOfDetail(order);
    fluid_pv.SetDataFormat(VTKFormat::BINARY);
    fluid_pv.SetHighOrderOutput(true);
    fluid_pv.RegisterField("temperature",&temperature_cylinder_gf);
+   fluid_pv.RegisterField("flux",&qflux_cylinder_gf);
+   
 
    auto save_callback = [&](int cycle, double t)
    {
@@ -393,13 +475,20 @@ int main(int argc, char *argv[])
          last_step = true;
       }
 
-      // block_ode_solver->Step(temperature.GetBlock(0), t, dt);
-      // coupled_ode_solver.Step(temperature,t,dt);
-      physics.Step(temperature, t, dt);
-      t += dt;
+      diff_block.Reassemble();
+      block_ode_solver->Step(temperature.GetBlock(0), t, dt);
+      diff_block.Transfer(temperature.GetBlock(0));
+      t -= dt;
 
-      // temperature_block_gf.SetFromTrueDofs(temperature.GetBlock(0));      
-      // temperature_cylinder_gf.SetFromTrueDofs(temperature.GetBlock(1));
+      cd_cylinder.Reassemble();
+      cylinder_ode_solver->Step(temperature.GetBlock(1), t, dt);
+      cd_cylinder.Transfer(temperature.GetBlock(1));
+      // coupled_ode_solver->Step(temperature,t,dt);
+      // physics.Step(temperature, t, dt);
+      // t += dt;
+
+      temperature_block_gf.SetFromTrueDofs(temperature.GetBlock(0));      
+      temperature_cylinder_gf.SetFromTrueDofs(temperature.GetBlock(1));
 
       if (last_step || (ti % vis_steps) == 0)
       {
