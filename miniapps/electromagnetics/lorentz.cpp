@@ -70,7 +70,7 @@
 // Joe test case:
 
 // mpirun -np 4 ./tesla -m ../../data/inline-hex.mesh -ubbc '0 0 1'
-// ./lorentz -br Tesla-AMR-Parallel -x0 '0.1 0.5 0.1' -p0 '0 0.4 0.01 -0.15 -0.15 0.0' -tf 90 -n 100 -vf 5 -vt 10
+// mpirun -np 4 ./lorentz -br Tesla-AMR-Parallel -x0 '0.1 0.5 0.1' -p0 '0 0.4 0.01 -0.2 -0.2 0.0' -tf 90 -n 1000 -vf 5 -vt 5 --redist-freq 1000
 
 #include "mfem.hpp"
 #include "../common/fem_extras.hpp"
