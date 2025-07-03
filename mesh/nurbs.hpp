@@ -202,7 +202,7 @@ public:
 
    /** Flag to indicate whether the KnotVector has been coarsened, which means
        it is ready for non-nested refinement. */
-   bool coarse;
+   bool coarse = false;
 };
 
 
