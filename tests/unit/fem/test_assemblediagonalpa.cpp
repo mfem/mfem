@@ -359,7 +359,7 @@ TEST_CASE("Vector Diffusion Diagonal PA",
 }
 
 TEST_CASE("Hcurl/Hdiv diagonal PA",
-          "[CUDA][PartialAssembly][AssembleDiagonal]")
+          "[GPU][PartialAssembly][AssembleDiagonal]")
 {
    for (int dimension = 2; dimension < 4; ++dimension)
    {
