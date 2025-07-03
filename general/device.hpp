@@ -297,9 +297,9 @@ public:
    /// Get the status of GPU-aware MPI flag.
    static bool GetGPUAwareMPI() { return Get().mpi_gpu_aware; }
 
-   /** @brief Query the device driver for what memory type a given @a ptr is
-       allocated with. */
-   static MemoryType QueryMemoryType(void *ptr);
+   /** Query the device driver for what memory type a given @a ptr is allocated
+    * with. */
+   static MemoryType QueryMemoryType(const void* ptr);
 
    /** @brief The number of hardware compute units/streaming multiprocessors
        available on a given compute device @a device_id. */

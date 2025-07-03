@@ -41,6 +41,11 @@ GPU computing
   where host execution is always needed (e.g. when the DOFs array is small).
 - Introduced MFEM_FOREACH_THREAD_DIRECT, which directly maps loop tasks to GPU
   threads, assigning one task per thread.
+- Implemented a GPU-accelerated matrix-free AMR derefinement `GridFunction`
+  update operator. This supports mixed geometry meshes and variable order
+  spaces, and is the default derefinement operator constructed by
+  `FiniteElementSpace::Update` and `ParFiniteElementSpace::Update`.
+  The operator requires `FiniteElementSpace::Nonconforming() == true`.
 
 New and updated examples and miniapps
 -------------------------------------
