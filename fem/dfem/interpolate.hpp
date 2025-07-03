@@ -18,7 +18,7 @@ namespace mfem::future
 template <typename field_operator_t>
 MFEM_HOST_DEVICE inline
 void map_field_to_quadrature_data_tensor_product_3d(
-   DeviceTensor<2> &field_qp,
+   const DeviceTensor<2> &field_qp,
    const DofToQuadMap &dtq,
    const DeviceTensor<1> &field_e,
    const field_operator_t &input,
@@ -39,11 +39,11 @@ void map_field_to_quadrature_data_tensor_product_3d(
 
       for (int vd = 0; vd < vdim; vd++)
       {
-         MFEM_FOREACH_THREAD(dz, z, d1d)
+         MFEM_FOREACH_THREAD_DIRECT(dz, z, d1d)
          {
-            MFEM_FOREACH_THREAD(dy, y, d1d)
+            MFEM_FOREACH_THREAD_DIRECT(dy, y, d1d)
             {
-               MFEM_FOREACH_THREAD(qx, x, q1d)
+               MFEM_FOREACH_THREAD_DIRECT(qx, x, q1d)
                {
                   real_t acc = 0.0;
                   for (int dx = 0; dx < d1d; dx++)
@@ -56,11 +56,11 @@ void map_field_to_quadrature_data_tensor_product_3d(
          }
          MFEM_SYNC_THREAD;
 
-         MFEM_FOREACH_THREAD(dz, z, d1d)
+         MFEM_FOREACH_THREAD_DIRECT(dz, z, d1d)
          {
-            MFEM_FOREACH_THREAD(qx, x, q1d)
+            MFEM_FOREACH_THREAD_DIRECT(qx, x, q1d)
             {
-               MFEM_FOREACH_THREAD(qy, y, q1d)
+               MFEM_FOREACH_THREAD_DIRECT(qy, y, q1d)
                {
                   real_t acc = 0.0;
                   for (int dy = 0; dy < d1d; dy++)
@@ -73,11 +73,11 @@ void map_field_to_quadrature_data_tensor_product_3d(
          }
          MFEM_SYNC_THREAD;
 
-         MFEM_FOREACH_THREAD(qz, z, q1d)
+         MFEM_FOREACH_THREAD_DIRECT(qz, z, q1d)
          {
-            MFEM_FOREACH_THREAD(qy, y, q1d)
+            MFEM_FOREACH_THREAD_DIRECT(qy, y, q1d)
             {
-               MFEM_FOREACH_THREAD(qx, x, q1d)
+               MFEM_FOREACH_THREAD_DIRECT(qx, x, q1d)
                {
                   real_t acc = 0.0;
                   for (int dz = 0; dz < d1d; dz++)
@@ -108,11 +108,11 @@ void map_field_to_quadrature_data_tensor_product_3d(
 
       for (int vd = 0; vd < vdim; vd++)
       {
-         MFEM_FOREACH_THREAD(dz, z, d1d)
+         MFEM_FOREACH_THREAD_DIRECT(dz, z, d1d)
          {
-            MFEM_FOREACH_THREAD(dy, y, d1d)
+            MFEM_FOREACH_THREAD_DIRECT(dy, y, d1d)
             {
-               MFEM_FOREACH_THREAD(qx, x, q1d)
+               MFEM_FOREACH_THREAD_DIRECT(qx, x, q1d)
                {
                   real_t uv[2] = {0.0, 0.0};
                   for (int dx = 0; dx < d1d; dx++)
@@ -128,11 +128,11 @@ void map_field_to_quadrature_data_tensor_product_3d(
          }
          MFEM_SYNC_THREAD;
 
-         MFEM_FOREACH_THREAD(dz, z, d1d)
+         MFEM_FOREACH_THREAD_DIRECT(dz, z, d1d)
          {
-            MFEM_FOREACH_THREAD(qy, y, q1d)
+            MFEM_FOREACH_THREAD_DIRECT(qy, y, q1d)
             {
-               MFEM_FOREACH_THREAD(qx, x, q1d)
+               MFEM_FOREACH_THREAD_DIRECT(qx, x, q1d)
                {
                   real_t uvw[3] = {0.0, 0.0, 0.0};
                   for (int dy = 0; dy < d1d; dy++)
@@ -150,11 +150,11 @@ void map_field_to_quadrature_data_tensor_product_3d(
          }
          MFEM_SYNC_THREAD;
 
-         MFEM_FOREACH_THREAD(qz, z, q1d)
+         MFEM_FOREACH_THREAD_DIRECT(qz, z, q1d)
          {
-            MFEM_FOREACH_THREAD(qy, y, q1d)
+            MFEM_FOREACH_THREAD_DIRECT(qy, y, q1d)
             {
-               MFEM_FOREACH_THREAD(qx, x, q1d)
+               MFEM_FOREACH_THREAD_DIRECT(qx, x, q1d)
                {
                   real_t uvw[3] = {0.0, 0.0, 0.0};
                   for (int dz = 0; dz < d1d; dz++)

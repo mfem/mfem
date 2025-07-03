@@ -47,6 +47,8 @@
 //               visualization.
 
 #include "mfem.hpp"
+#include "fem/dfem/doperator.hpp"
+#include <roctracer/roctx.h>
 
 using namespace mfem;
 
@@ -74,7 +76,7 @@ enum DerivativeType
 //
 // This class implements the minimal surface equation, which is a nonlinear
 // operator that provides the residual.
-template <typename dscalar_t, int dim = 2>
+template <typename dscalar_t, int dim = 3>
 class MinimalSurface : public Operator
 {
 private:
@@ -170,18 +172,28 @@ private:
          // DifferentiableOperator::AddDomainIntegrator call.
          dres_du = minsurface->res->GetDerivative(
                       SOLUTION_U, {&minsurface->u}, {mesh_nodes});
+
+         constr_op.reset(new ConstrainedOperator(dres_du.get(), minsurface->ess_tdofs));
       }
 
       void Mult(const Vector &x, Vector &y) const override
       {
-         z = x;
-         z.SetSubVector(minsurface->ess_tdofs, 0.0);
+         // MFEM_STREAM_SYNC;
+         // roctxRangePush("Operator::Mult");
+         // roctxRangePush("Essential BC PreMult");
+         // z = x;
+         // z.SetSubVector(minsurface->ess_tdofs, 0.0);
+         // roctxRangePop();
 
-         dres_du->Mult(z, y);
+         constr_op->Mult(x, y);
 
          // Reuse z as a temporary vector to avoid unnecessary allocations.
-         x.GetSubVector(minsurface->ess_tdofs, z);
-         y.SetSubVector(minsurface->ess_tdofs, z);
+         // roctxRangePush("Essential BC PostMult");
+         // x.GetSubVector(minsurface->ess_tdofs, z);
+         // y.SetSubVector(minsurface->ess_tdofs, z);
+         // roctxRangePop();
+         // MFEM_STREAM_SYNC;
+         // roctxRangePop();
       }
 
       // Pointer to the wrapped MinimalSurface operator
@@ -189,6 +201,8 @@ private:
 
       // Pointer to the DifferentiableOperator that computes the Jacobian
       std::shared_ptr<DerivativeOperator> dres_du;
+
+      std::unique_ptr<ConstrainedOperator> constr_op;
 
       // Temporary vector
       mutable Vector z;
@@ -360,6 +374,7 @@ public:
       Array<int> ess_bdr(H1.GetParMesh()->bdr_attributes.Max());
       ess_bdr = 1;
       H1.GetEssentialTrueDofs(ess_bdr, ess_tdofs);
+      ess_tdofs.UseDevice();
    }
 
    void Mult(const Vector &x, Vector &y) const override
@@ -414,7 +429,7 @@ real_t boundary_func(const Vector &coords)
    const real_t y = coords(1);
    if (coords.Size() == 3)
    {
-      MFEM_ABORT("internal error");
+      // MFEM_ABORT("internal error");
    }
    const real_t a = 1.0e-2;
    return log(cos(a * x) / cos(a * y)) / a;
@@ -454,7 +469,7 @@ int main(int argc, char *argv[])
    if (Mpi::Root()) { device.Print(); }
 
    // 4. Create a 2D mesh on the square domain [-π/2,π/2]^2
-   Mesh mesh = Mesh::MakeCartesian2D(4, 4, Element::QUADRILATERAL);
+   Mesh mesh = Mesh::MakeCartesian3D(2, 2, 2, Element::HEXAHEDRON);
    mesh.SetCurvature(order);
 
    auto transform_mesh = [](const Vector &cold, Vector &cnew)
@@ -484,7 +499,12 @@ int main(int argc, char *argv[])
 
    // 8. Set up the integration rule
    const auto *ir = &IntRules.Get(pmesh.GetTypicalElementGeometry(),
-                                  2 * order + 1);
+                                  2 * order + 2);
+
+   out << "Using integration rule of order: "
+       << ir->GetOrder() << "\n#qp: " << ir->GetNPoints()
+       << "\n#qp1d: " << floor(std::pow(ir->GetNPoints(), 1.0 / dim) + 0.5)
+       << std::endl;
 
    ParGridFunction u(&H1);
    Vector X(H1.GetTrueVSize());
@@ -520,6 +540,57 @@ int main(int argc, char *argv[])
    krylov.SetRelTol(1e-4);
    krylov.SetMaxIter(500);
    krylov.SetPrintLevel(2);
+
+   auto &A = minsurface->GetGradient(X);
+   krylov.SetOperator(A);
+   Vector B(H1.GetTrueVSize());
+   B.UseDevice(true);
+   X.UseDevice(true);
+   B = 1.0;
+
+   out << "#dofs: " << H1.GetTrueVSize() << std::endl;
+
+   const int num_iterations = 1000;
+   const int num_runs = 10;
+   int min = std::numeric_limits<int>::max();
+   int max = 0;
+   int avg = 0;
+   for (int runs = 0; runs < num_runs; runs++)
+   {
+      MFEM_DEVICE_SYNC;
+      MPI_Barrier(MPI_COMM_WORLD);
+      tic();
+      for (int i = 0; i < num_iterations; i++)
+      {
+         MFEM_STREAM_SYNC;
+         roctxRangePush("Operator::Mult");
+         A.Mult(B, X);
+         MFEM_STREAM_SYNC;
+         roctxRangePop();
+      }
+      MFEM_DEVICE_SYNC;
+      MPI_Barrier(MPI_COMM_WORLD);
+      real_t elapsed_time = tic_toc.RealTime();
+      const real_t mdofs = H1.GetTrueVSize() * 1e-6;
+      int cur_perf = static_cast<int>(mdofs * num_iterations / elapsed_time);
+      min = std::min(min, cur_perf);
+      max = std::max(max, cur_perf);
+      avg += cur_perf;
+      if (Mpi::Root())
+      {
+         out << "performance: " << cur_perf << " MDOFs/s" << std::endl;
+      }
+   }
+
+   avg /= num_runs;
+   if (Mpi::Root())
+   {
+      out << "min: " << min << "\n"
+          << "avg: " << avg << "\n"
+          << "max: " << max << "\n";
+   }
+
+   exit(0);
 
    // 13. Set up the nonlinear solver (Newton) for the minimal surface equation
    NewtonSolver newton(MPI_COMM_WORLD);
