@@ -28,10 +28,10 @@
 // Compile with: make mesh-bounding-boxes
 //
 // Sample runs:
-// mpirun -np 4 mesh-bounding-boxes -m ../../data/klein-bottle.mesh
-// mpirun -np 4 mesh-bounding-boxes -m ../gslib/triple-pt-1.mesh
-// mpirun -np 4 mesh-bounding-boxes -m ../../data/star-surf.mesh
-// mpirun -np 4 mesh-bounding-boxes -m ../../data/fichera-q2.mesh
+//  mpirun -np 4 mesh-bounding-boxes -m ../../data/klein-bottle.mesh
+//  mpirun -np 4 mesh-bounding-boxes -m ../gslib/triple-pt-1.mesh
+//  mpirun -np 4 mesh-bounding-boxes -m ../../data/star-surf.mesh
+//  mpirun -np 4 mesh-bounding-boxes -m ../../data/fichera-q2.mesh
 
 #include "mfem.hpp"
 #include <iostream>
@@ -50,7 +50,6 @@ int main (int argc, char *argv[])
 {
    // 0. Initialize MPI and HYPRE.
    Mpi::Init(argc, argv);
-   int myid = Mpi::WorldRank();
    Hypre::Init();
 
    // Set the method's default parameters.
@@ -75,13 +74,7 @@ int main (int argc, char *argv[])
    args.AddOption(&jacobian, "-jac", "--jacobian", "-no-jac",
                   "--no-jacobian",
                   "Compute bounds on determinant of mesh Jacobian");
-   args.Parse();
-   if (!args.Good())
-   {
-      if (myid == 0) { args.PrintUsage(cout); }
-      return 1;
-   }
-   if (myid == 0) { args.PrintOptions(cout); }
+   args.ParseCheck();
 
    // Initialize and refine the starting mesh.
    Mesh mesh(mesh_file, 1, 1, false);
@@ -124,14 +117,14 @@ int main (int argc, char *argv[])
    Mesh meshbb = MakeBoundingBoxMesh(pmesh_ser, nodal_bb_ser);
 
    // Output in GLVis and VisIt
-   if (visualization && myid == 0)
+   if (visualization && Mpi::Root())
    {
       char title1[] = "Input mesh";
       VisualizeBB(pmesh_ser, title1, 0, 0);
       char title2[] = "Bounding box mesh";
       VisualizeBB(meshbb, title2, 400, 0);
    }
-   if (visit && myid == 0)
+   if (visit && Mpi::Root())
    {
       VisItDataCollection visit_dc("bounding-box-input", &pmesh_ser);
       visit_dc.SetFormat(DataCollection::SERIAL_FORMAT);
@@ -140,6 +133,17 @@ int main (int argc, char *argv[])
       VisItDataCollection visit_dc_bb("bounding-box", &meshbb);
       visit_dc_bb.SetFormat(DataCollection::SERIAL_FORMAT);
       visit_dc_bb.Save();
+   }
+
+   // Print min and max bound of nodal gridfunction
+   int ref_factor = 4;
+   nodes->GetBounds(lower, upper, ref_factor);
+   if (Mpi::Root())
+   {
+      out << "Nodal position minimum bounds:" << endl;
+      lower.Print();
+      out << "Nodal position maximum bounds:" << endl;
+      upper.Print();
    }
 
    if (!jacobian) { return 0; }
@@ -160,7 +164,6 @@ int main (int argc, char *argv[])
    ParGridFunction bounds_detgf_upper(&fes_det_pc);
 
    // Compute bounds
-   int ref_factor = 4;
    detgf.GetElementBounds(bounds_detgf_lower, bounds_detgf_upper, ref_factor);
 
    // GLVis Visualization
@@ -184,6 +187,14 @@ int main (int argc, char *argv[])
       visit_dc.Save();
    }
 
+   // Print min and max bound of determinant gridfunction
+   detgf.GetBounds(lower, upper, ref_factor);
+   if (Mpi::Root())
+   {
+      out << "Jacobian determinant minimum bound: " << lower(0) << endl;
+      out << "Jacobian determinant maximum bound: " << upper(0) << endl;
+   }
+
    return 0;
 }
 
@@ -191,7 +202,7 @@ Mesh MakeBoundingBoxMesh(Mesh &mesh, GridFunction &nodal_bb_gf)
 {
    int nelem = mesh.GetNE();
    int sdim = mesh.SpaceDimension();
-   int nverts = std::pow(2,sdim)*nelem;
+   int nverts = pow(2,sdim)*nelem;
    Mesh meshbb(sdim, nverts, nelem, 0, sdim);
    int eidx = 0;
    int vidx = 0;
@@ -199,10 +210,6 @@ Mesh MakeBoundingBoxMesh(Mesh &mesh, GridFunction &nodal_bb_gf)
    {
       Vector xyzminmax_el;
       nodal_bb_gf.GetElementDofValues(e, xyzminmax_el);
-      if (e == 15)
-      {
-         // xyzminmax_el.Print();
-      }
       if (sdim == 2)
       {
          Vector xyz(2);

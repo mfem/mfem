@@ -27,10 +27,11 @@
 // Compile with: make gridfunction-bounds
 //
 // Sample runs:
-// mpirun -np 4 gridfunction-bounds
-// mpirun -np 4 gridfunction-bounds -nb 100 -ref 5 -bt 2 -l2
+//  mpirun -np 4 gridfunction-bounds
+//  mpirun -np 4 gridfunction-bounds -nb 100 -ref 5 -bt 2 -l2
 
 #include "mfem.hpp"
+#include <memory>
 #include <iostream>
 #include <fstream>
 
@@ -44,8 +45,6 @@ int main (int argc, char *argv[])
 {
    // 0. Initialize MPI and HYPRE.
    Mpi::Init(argc, argv);
-   int myid = Mpi::WorldRank();
-   int nranks = Mpi::WorldSize();
    Hypre::Init();
 
    // Set the method's default parameters.
@@ -75,51 +74,48 @@ int main (int argc, char *argv[])
                   "Enable or disable VisIt output.");
    args.AddOption(&b_type, "-bt", "--basis-type",
                   "Project input function to a different bases. "
-                  "0 = GL nodes. "
-                  "1 = GLL nodes. "
+                  "-1 = don't project (default)."
+                  "0 = Gauss-Legendre nodes. "
+                  "1 = Gauss-Lobatto nodes. "
                   "2 = uniformly spaced nodes. ");
    args.AddOption(&continuous, "-h1", "--h1", "-l2", "--l2",
                   "Use continuous or discontinuous space.");
    args.AddOption(&nbrute, "-nb", "--nbrute",
                   "Brute force search for minimum in an array of nxnxn points "
                   "in each element.");
-   args.Parse();
-   if (!args.Good())
-   {
-      if (myid == 0) { args.PrintUsage(cout); }
-      return 1;
-   }
-   if (myid == 0) { args.PrintOptions(cout); }
+   args.ParseCheck();
 
-   // Initialize and refine the starting mesh.
    Mesh mesh(mesh_file, 1, 1, false);
    const int dim = mesh.Dimension();
-   if (continuous)
+   if (continuous && b_type != -1)
    {
-      MFEM_VERIFY(b_type, "Continuous space do not support GL nodes. "
+      MFEM_VERIFY(b_type > 0, "Continuous space do not support GL nodes. "
                   "Please use basis type: 1 for Lagrange interpolants on GLL "
                   " nodes 2 for positive bases on uniformly spaced nodes.");
    }
 
-   int *partition = mesh.GeneratePartitioning(nranks);
+   std::unique_ptr<int[]> partition(
+      mesh.GeneratePartitioning(Mpi::WorldSize())
+   );
 
    ifstream mat_stream_1(sltn_file);
-   GridFunction *func = new GridFunction(&mesh, mat_stream_1);
+   std::unique_ptr<GridFunction> func(new GridFunction(&mesh, mat_stream_1));
 
-   ParMesh pmesh(MPI_COMM_WORLD, mesh, partition);
-   ParGridFunction pfunc(&pmesh, func, partition);
+   ParMesh pmesh(MPI_COMM_WORLD, mesh, partition.get());
+   ParGridFunction pfunc(&pmesh, func.get(), partition.get());
    int func_order = func->FESpace()->GetMaxElementOrder();
    int vdim     = pfunc.FESpace()->GetVDim();
    int nel      = pmesh.GetNE();
 
+   func.reset();
    mesh.Clear();
-   delete func;
+   partition.reset();
 
    // Project input function based on user input
-   FiniteElementCollection *fec = NULL;
    ParGridFunction *pfunc_proj = NULL;
    if (b_type >= 0)
    {
+      FiniteElementCollection *fec = NULL;
       if (continuous)
       {
          fec = new H1_FECollection(func_order, dim, b_type);
@@ -134,19 +130,19 @@ int main (int argc, char *argv[])
       pfunc_proj = new ParGridFunction(fes);
       pfunc_proj->MakeOwner(fec);
       pfunc_proj->ProjectGridFunction(pfunc);
-      if (myid == 0)
+      if (Mpi::Root())
       {
-         std::cout << "fec name orig: " << pfunc.FESpace()->FEColl()->Name() <<
-                   std::endl;
-         std::cout << "fec name: " << fec->Name() << std::endl;
+         cout << "fec name orig: " << pfunc.FESpace()->FEColl()->Name() <<
+              endl;
+         cout << "fec name: " << fec->Name() << endl;
       }
    }
    else
    {
       pfunc_proj = &pfunc;
-      if (myid == 0)
+      if (Mpi::Root())
       {
-         std::cout << "fec name: " << pfunc.FESpace()->FEColl()->Name() << std::endl;
+         cout << "fec name: " << pfunc.FESpace()->FEColl()->Name() << endl;
       }
    }
 
@@ -236,7 +232,7 @@ int main (int argc, char *argv[])
                     MPITypeMap<real_t>::mpi_type, MPI_MIN, pmesh.GetComm());
       MPI_Allreduce(MPI_IN_PLACE, global_max.GetData(), vdim,
                     MPITypeMap<real_t>::mpi_type, MPI_MAX, pmesh.GetComm());
-      if (myid == 0)
+      if (Mpi::Root())
       {
          for (int d = 0; d < vdim; d++)
          {
@@ -255,7 +251,7 @@ int main (int argc, char *argv[])
       }
    }
 
-   if (nbrute == 0 && myid == 0)
+   if (nbrute == 0 && Mpi::Root())
    {
       for (int d = 0; d < vdim; d++)
       {
