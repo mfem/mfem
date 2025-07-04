@@ -106,7 +106,7 @@ void logarithmic(const Vector &x, real_t t, Vector &u)
    real_t z = x(2);
 
    // NOTE: To avoid log(0) = NaN, we enforce x(2) = z > ctx.z0
-   real_t safe_z = std::max(z, ctx.z0 * 1.01);
+   real_t safe_z = std::max(z, ctx.z0 * real_t(1.01));
 
    real_t u_z = (ctx.u_star / ctx.kappa) * (log(safe_z/ctx.z0) + 34.5 * ctx.f *
                                             safe_z);
