@@ -70,7 +70,6 @@ Miscellaneous
   variable is an alternative to calling 'Device::SetGPUAwareMPI(true)'.
 
 
-
 Version 4.8, released on Apr 9, 2025
 ====================================
 

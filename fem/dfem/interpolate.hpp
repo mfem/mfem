@@ -42,8 +42,8 @@ void map_field_to_quadrature_data_tensor_product_3d(
    const DeviceTensor<1, const real_t> &integration_weights,
    const std::array<DeviceTensor<1>, 6> &scratch_mem)
 {
-   auto B = dtq.B;
-   auto G = dtq.G;
+   [[maybe_unused]] auto B = dtq.B;
+   [[maybe_unused]] auto G = dtq.G;
 
    if constexpr (is_value_fop<std::decay_t<field_operator_t>>::value)
    {
@@ -299,9 +299,8 @@ void map_field_to_quadrature_data_tensor_product_2d(
    const DeviceTensor<1, const real_t> &integration_weights,
    const std::array<DeviceTensor<1>, 6> &scratch_mem)
 {
-   dbg(), assert(false && "❌ 2D not implemented");
-   auto B = dtq.B;
-   auto G = dtq.G;
+   [[maybe_unused]] auto B = dtq.B;
+   [[maybe_unused]] auto G = dtq.G;
 
    if constexpr (is_value_fop<std::decay_t<field_operator_t>>::value)
    {
@@ -431,9 +430,8 @@ void map_field_to_quadrature_data(
    const field_operator_t &input,
    const DeviceTensor<1, const real_t> &integration_weights)
 {
-   dbg();
-   auto B = dtq.B;
-   auto G = dtq.G;
+   [[maybe_unused]] auto B = dtq.B;
+   [[maybe_unused]] auto G = dtq.G;
    if constexpr (is_value_fop<field_operator_t>::value)
    {
       auto [num_qp, dim, num_dof] = B.GetShape();
