@@ -21,10 +21,11 @@ printHelp () {
 	echo "                      -h: Print this help"
 }
 
-if [[ $# -eq 0 ]] ; then
-    printHelp
-    exit 0
-fi
+#GL: is this conditionnal required ?
+#if [[ $# -eq 0 ]] ; then
+#    printHelp
+#    exit 0
+#fi
 
 POSITIONAL_ARGS=()
 
@@ -64,9 +65,10 @@ while [[ $# -gt 0 ]]; do
 done
 
 set -- "${POSITIONAL_ARGS[@]}"
-
-if [[ -z ${MFEM_DIR} || -z ${GMSH_DIR} ]]; then
+if [[ -z "${MFEM_DIR}" || -z "${GMSH_DIR}" ]]; then
     echo "Missing mfem's and/or gmsh's home path!" && exit 1
+    echo "MFEM_DIR=$MFEM_DIR"
+    echo "GMSH_DIR=$GMSH_DIR"
 fi
 
 if [[ -z ${MFEM_DATA_GMSH_DIR} ]]; then
