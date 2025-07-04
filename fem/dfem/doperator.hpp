@@ -23,6 +23,7 @@
 #include "interpolate.hpp"
 #include "integrate.hpp"
 #include "qfunction_apply.hpp"
+#include "callbacks_new.hpp"
 
 #if defined(__has_include) && __has_include("general/nvtx.hpp") && !defined(_WIN32)
 #undef NVTX_COLOR
@@ -250,12 +251,24 @@ public:
    /// solutions_t. The result is a T-dof vector.
    void Mult(const Vector &solutions_t, Vector &result_t) const override
    {
-      NVTX_MARK_FUNCTION;
+      // NVTX_MARK_FUNCTION;
+      const static bool MFEM_NEW_KERNELS = std::getenv("MFEM_NEW_KERNELS");
+
       MFEM_ASSERT(!action_callbacks.empty(), "no integrators have been set");
       prolongation(solutions, solutions_t, solutions_l);
-      for (auto &action : action_callbacks)
+      if (MFEM_NEW_KERNELS)
       {
-         action(solutions_l, parameters_l, residual_l);
+         for (auto &action_new : action_callbacks_new)
+         {
+            action_new(solutions_l, parameters_l, residual_l);
+         }
+      }
+      else
+      {
+         for (auto &action : action_callbacks)
+         {
+            action(solutions_l, parameters_l, residual_l);
+         }
       }
       prolongation_transpose(residual_l, result_t);
    }
@@ -356,7 +369,7 @@ public:
 private:
    const ParMesh &mesh;
 
-   std::vector<action_t> action_callbacks;
+   std::vector<action_t> action_callbacks, action_callbacks_new;
    std::map<size_t,
        std::vector<derivative_action_t>> derivative_action_callbacks;
    std::map<size_t,
@@ -403,6 +416,8 @@ void DifferentiableOperator::AddDomainIntegrator(
    derivative_ids_t derivative_ids)
 {
    NVTX_MARK_FUNCTION;
+   const static bool MFEM_NEW_KERNELS = std::getenv("MFEM_NEW_KERNELS");
+   dbg("\x1b[33mMFEM_NEW_KERNELS: {}", MFEM_NEW_KERNELS);
    using entity_t = Entity::Element;
 
    static constexpr size_t num_inputs =
@@ -587,7 +602,7 @@ void DifferentiableOperator::AddDomainIntegrator(
       {
          thread_blocks.x = q1d;
          thread_blocks.y = q1d;
-         thread_blocks.z = q1d;
+         thread_blocks.z = MFEM_NEW_KERNELS ? 1 :q1d;
       }
    }
    else if (dimension == 2)
@@ -598,6 +613,90 @@ void DifferentiableOperator::AddDomainIntegrator(
          thread_blocks.y = q1d;
          thread_blocks.z = 1;
       }
+   }
+
+   if (MFEM_NEW_KERNELS)
+   {
+      action_callbacks_new.push_back(
+         [
+            // 🟢🟢🟢🟢 capture by copy:
+            qfunc,                        // qfunc_t
+            inputs,                       // input_t
+            fields = this->fields,        // std::vector<FieldDescriptor>
+            input_to_field,               // std::array<int, s>
+            input_dtq_maps,               // std::array<DofToQuadMap, num_fields>
+            output_dtq_maps,              // std::array<DofToQuadMap, num_fields>
+            use_sum_factorization,        // bool
+            num_entities,                 // int
+            num_qp,                       // int
+            test_vdim,                    // int (= output_fop.vdim)
+            test_op_dim,                  // int (derived from output_fop)
+            num_test_dof,                 // int
+            dimension,                    // int
+            q1d,                          // int
+            input_size_on_qp,             // std::array<int, num_inputs>
+            residual_size_on_qp,          // int
+            dependency_map,               // std::map<int, std::vector<int>>
+            inputs_vdim,                  // std::vector<int>
+            output_to_field,              // std::array<int, s>
+            // num_elements,                 // int
+            // element_dof_ordering,         // ElementDofOrdering
+            // outputs,                      // output_t
+            // test_space_field_idx
+            // = this->test_space_field_idx, // size_t
+            output_fop,            // class derived from FieldOperator
+            ir_weights,            // DeviceTensor
+            domain_attributes,     // Array<int>
+            thread_blocks,         // ThreadBlocks
+            shmem_cache,           // Vector (local)
+            action_shmem_info,     // SharedMemoryInfo
+            elem_attributes,       // Array<int>
+            // 🟣🟣🟣🟣 capture by ref:
+            &restriction_callback = this->restriction_callback,
+            &fields_e = this->fields_e,
+            &residual_e = this->residual_e,
+            &output_restriction_transpose = this->output_restriction_transpose
+         ](std::vector<Vector> &solutions_l,
+           const std::vector<Vector> &parameters_l,
+           Vector &residual_l)
+         mutable // mutable: needed to modify 'shmem_cache'
+      {
+         // NVTX_MARK_FUNCTION;
+         action_callback_new<num_fields>(qfunc,
+                                         inputs,
+                                         fields,
+                                         input_to_field, output_to_field,
+                                         input_dtq_maps, output_dtq_maps,
+                                         use_sum_factorization,
+                                         num_entities,
+                                         num_qp,
+                                         test_vdim,
+                                         test_op_dim,
+                                         num_test_dof,
+                                         dimension,
+                                         q1d,
+                                         thread_blocks,
+                                         shmem_cache,
+                                         action_shmem_info,
+                                         elem_attributes,
+                                         input_size_on_qp,
+                                         residual_size_on_qp,
+                                         dependency_map,
+                                         inputs_vdim,
+                                         output_fop,
+                                         domain_attributes,
+                                         ir_weights,
+                                         // &
+                                         restriction_callback,
+                                         fields_e,
+                                         residual_e,
+                                         output_restriction_transpose,
+                                         // args
+                                         solutions_l,
+                                         parameters_l,
+                                         residual_l);
+         // dbg("\x1b[33m❌❌❌"), std::exit(EXIT_SUCCESS);
+      });
    }
 
    action_callbacks.push_back(
@@ -638,7 +737,7 @@ void DifferentiableOperator::AddDomainIntegrator(
       (std::vector<Vector> &sol, const std::vector<Vector> &par, Vector &res)
       mutable // mutable: needed to modify 'shmem_cache'
    {
-      NVTX_MARK_FUNCTION;
+      // NVTX_MARK_FUNCTION;
       restriction_cb(sol, par, fields_e);
 
       residual_e = 0.0;

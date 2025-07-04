@@ -113,6 +113,8 @@ void map_field_to_quadrature_data_tensor_product_3d(
       is_gradient_fop<std::decay_t<field_operator_t>>::value)
    {
       // dbg("Gradient");
+      const static bool MFEM_NEW_KERNELS = std::getenv("MFEM_NEW_KERNELS");
+
       const auto [q1d, B_dim, d1d] = B.GetShape();
       const int vdim = input.vdim;
       const int dim = input.dim;
@@ -125,30 +127,31 @@ void map_field_to_quadrature_data_tensor_product_3d(
       auto s3 = Reshape(&scratch_mem[3](0), d1d, q1d, q1d);
       auto s4 = Reshape(&scratch_mem[4](0), d1d, q1d, q1d);
 
-      constexpr int MQ1 = T_Q1D > 0 ? T_Q1D : 8;
-      static constexpr int DIM = 3;
-      MFEM_VERIFY(q1d <= MQ1, "q1d > MQ1");
-      MFEM_SHARED real_t smem[MQ1][MQ1];
+      // constexpr int MQ1 = T_Q1D > 0 ? T_Q1D : 8;
+      // static constexpr int DIM = 3;
+      // MFEM_VERIFY(q1d <= MQ1, "q1d > MQ1");
+      // MFEM_SHARED real_t smem[MQ1][MQ1];
 
-      kernels::internal::d_regs3d_t<DIM, MQ1> r0, r1;
-      real_t sB[MQ1][MQ1], sG[MQ1][MQ1];
+      // kernels::internal::d_regs3d_t<DIM, MQ1> r0, r1;
+      // real_t sB[MQ1][MQ1], sG[MQ1][MQ1];
 
-      assert(B_dim == 1 && "1D B required!");
-      kernels::internal::LoadMatrix(d1d, q1d, B, sB);
-      kernels::internal::LoadMatrix(d1d, q1d, G, sG);
-      for (int qx = 0; qx < q1d; qx++)
+      /*if (MFEM_NEW_KERNELS)
       {
-         for (int dx = 0; dx < d1d; dx++)
+         assert(B_dim == 1 && "1D B required!");
+         kernels::internal::LoadMatrix(d1d, q1d, B, sB);
+         kernels::internal::LoadMatrix(d1d, q1d, G, sG);
+         for (int qx = 0; qx < q1d; qx++)
          {
-            assert(AlmostEq(B(qx, 0, dx), sB[dx][qx]));
-            assert(AlmostEq(G(qx, 0, dx), sG[dx][qx]));
+            for (int dx = 0; dx < d1d; dx++)
+            {
+               assert(AlmostEq(B(qx, 0, dx), sB[dx][qx]));
+               assert(AlmostEq(G(qx, 0, dx), sG[dx][qx]));
+            }
          }
-      }
+      }*/
 
       for (int c = 0; c < vdim; c++)
       {
-         // dbg("vdim:{}/{}", c+1, vdim);
-
          MFEM_FOREACH_THREAD(dz, z, d1d)
          {
             MFEM_FOREACH_THREAD(dy, y, d1d)
@@ -213,47 +216,50 @@ void map_field_to_quadrature_data_tensor_product_3d(
          MFEM_SYNC_THREAD;
       }
 
-      for (int c = 0; c < vdim; c++)
+      /*if (MFEM_NEW_KERNELS)
       {
-         kernels::internal::LoadDofs3d(d1d, c, field, r0);
-         for (int d = 0; d < DIM; d++)
+         for (int c = 0; c < vdim; c++)
          {
-            for (int dz = 0; dz < d1d; dz++)
+            kernels::internal::LoadDofs3d(d1d, c, field, r0);
+            for (int d = 0; d < DIM; d++)
             {
-               for (int dy = 0; dy < d1d; dy++)
+               for (int dz = 0; dz < d1d; dz++)
                {
-                  for (int dx = 0; dx < d1d; dx++)
+                  for (int dy = 0; dy < d1d; dy++)
                   {
-                     const real_t f = field(dx, dy, dz, c);
-                     assert(AlmostEq(f, r0[d][dz][dy][dx]));
+                     for (int dx = 0; dx < d1d; dx++)
+                     {
+                        const real_t f = field(dx, dy, dz, c);
+                        assert(AlmostEq(f, r0[d][dz][dy][dx]));
+                     }
                   }
                }
             }
-         }
 
-         kernels::internal::Grad3d(d1d, q1d, smem, sB, sG, r0, r1, c);
-         for (int qz = 0; qz < q1d; qz++)
-         {
-            for (int qy = 0; qy < q1d; qy++)
+            kernels::internal::Grad3d(d1d, q1d, smem, sB, sG, r0, r1, c);
+            for (int qz = 0; qz < q1d; qz++)
             {
-               for (int qx = 0; qx < q1d; qx++)
+               for (int qy = 0; qy < q1d; qy++)
                {
-                  if (!AlmostEq(fqp(c, 1, qx, qy, qz), r1[1][qz][qy][qx]))
+                  for (int qx = 0; qx < q1d; qx++)
                   {
-                     dbg("\x1b[31m[{}:1] {} {}", c, fqp(c, 1, qx, qy, qz), r1[1][qz][qy][qx]);
-                     dbg("❌❌❌"), std::exit(EXIT_FAILURE);
+                     if (!AlmostEq(fqp(c, 1, qx, qy, qz), r1[1][qz][qy][qx]))
+                     {
+                        dbg("\x1b[31m[{}:1] {} {}", c, fqp(c, 1, qx, qy, qz), r1[1][qz][qy][qx]);
+                        dbg("❌❌❌"), std::exit(EXIT_FAILURE);
+                     }
                   }
                }
             }
          }
-      }
-      // dbg("✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅");//, std::exit(EXIT_SUCCESS);
+         // dbg("✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅");//, std::exit(EXIT_SUCCESS);
+      }*/
    }
    // TODO: Create separate function for clarity
    else if constexpr (
       std::is_same_v<std::decay_t<field_operator_t>, Weight>)
    {
-      dbg("None");
+      // dbg("None");
       const int num_qp = integration_weights.GetShape()[0];
       // TODO: eeek
       const int q1d = (int)floor(std::pow(num_qp, 1.0/input.dim) + 0.5);
