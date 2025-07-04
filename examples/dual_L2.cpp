@@ -181,24 +181,6 @@ int main(int argc, char *argv[])
 
    b0.AddDomainIntegrator(new VectorFEDomainLFIntegrator(psi_newton_res));
 
-   // FunctionCoefficient f([](const Vector &x) {return -0.5 * ( (1 - 2*x[0]) * x[1] * (1 - x[1]) + x[0] * (1 - x[0]) * (1-2*x[1]));  });
-   // FunctionCoefficient f([](const Vector &x) {return -2. * (x[0] + x[1]);  });
-   // FunctionCoefficient f([](const Vector &x) {return -2. * x[0] - pow(x[0], 2) / 2. + pow(x[0], 3) / 3. - 2 * x[1] - pow(x[1] , 2) / 2. + pow(x[1] , 3) / 3;  });
-   
-   // FunctionCoefficient f([](const Vector &x) { return -x[0] - x[1]  + 1; }); 
-
-   // FunctionCoefficient f([](const Vector &x) { return  1.; });  // just because this is prettiest 
-
-   // FunctionCoefficient f([](const Vector &x) { return 1/M_PI * sin(M_PI * x[0]) * sin(M_PI*x[1]); }); 
-   // FunctionCoefficient f([](const Vector &x)) { return -1. * (pow(x[0], 2) + pow(x[1], 2));  };
-   // FunctionCoefficient f([](const Vector &x) { return  0.5*x[0]; });
-   // FunctionCoefficient f([](const Vector &x) { return  0.25*(pow(x[0], 2) + pow(x[1], 2)); });
-
-   // FunctionCoefficient f([](const Vector &x) { return -1.*( 2*(x[0] + x[1]) - pow(x[0], 3) - pow(x[1], 3)); });
-
-   // ProductCoefficient neg_alpha_f_cf(neg_alpha_cf, f); 
-
-   // b0.AddDomainIntegrator(new VectorFEDomainLFDivIntegrator(neg_alpha_f_cf));
 VectorFunctionCoefficient f_coeff(2, [](const Vector &x, Vector &u) {
       u(0) = 0.5; 
       u(1) = 0.0;
@@ -231,6 +213,7 @@ VectorFunctionCoefficient f_coeff(2, [](const Vector &x, Vector &u) {
    int total_iterations = 0;
    real_t increment_p = 0.1;
    GridFunction p_tmp(&RTfes);
+
    for (k = 0; k < max_it; k++)
    {
       p_tmp = p_old_gf;
@@ -255,22 +238,22 @@ VectorFunctionCoefficient f_coeff(2, [](const Vector &x, Vector &u) {
          A.SetBlock(0,1,A01);
          A.SetBlock(1,1,&A11);
 
-         // SparseMatrix *A_mono = A.CreateMonolithic(); 
-         // UMFPackSolver umf(*A_mono); 
-         // umf.Mult(rhs, x); 
-
+#ifndef MFEM_USE_SUITESPARSE 
          BlockDiagonalPreconditioner prec(offsets);
          prec.SetDiagonalBlock(0,new GSSmoother(A00));
          prec.SetDiagonalBlock(1,new GSSmoother(A11));
          prec.owns_blocks = 1;
 
          GMRES(A,prec,rhs,x,0,10000,500,1e-12,0.0);
-
+#else
+         SparseMatrix *A_mono = A.CreateMonolithic(); 
+         UMFPackSolver umf(*A_mono); 
+         umf.Mult(rhs, x); 
+#endif
+         
          p_tmp -= p_gf;
          real_t Newton_update_size = p_tmp.ComputeL2Error(zero_vec_cf);
          p_tmp = p_gf;
-
-         mfem::out << "tag 2" << endl;
 
          // Damped Newton update
          psi_gf.Add(newton_scaling, delta_psi_gf);
@@ -282,13 +265,8 @@ VectorFunctionCoefficient f_coeff(2, [](const Vector &x, Vector &u) {
          {
             GridFunction p_vec(&L2fes); 
             p_vec.ProjectCoefficient(p_vc); 
-            // u_gf.GetNodalValues(u_x, 1);
-            // sol_sock << "solution\n" << mesh << u_gf << "window_title 'Discrete solution '" << flush;
 
-            sol_sock << "solution\n" << mesh << p_vec << "window_title 'Discrete solution '" << flush;
-            
-            // sol_sock << "solution\n" << mesh << psi_gf << "window_title 'Discrete solution'"
-                     // << flush;
+            sol_sock << "solution\n" << mesh << p_vec << "window_title 'Discrete solution '" << flush;            
          }
 
          mfem::out << "Newton_update_size = " << Newton_update_size << endl;
@@ -298,7 +276,6 @@ VectorFunctionCoefficient f_coeff(2, [](const Vector &x, Vector &u) {
             break;
          }
 
-         // delete A01;
       }
 
       p_tmp = p_gf;
@@ -326,36 +303,9 @@ VectorFunctionCoefficient f_coeff(2, [](const Vector &x, Vector &u) {
              << "\n Total dofs:       " << RTfes.GetTrueVSize() + L2fes.GetTrueVSize()
              << endl;
 
-   VectorFunctionCoefficient exact_coeff(2, [](const Vector &x, Vector &u) {
-      // double x_val = x(0);
-      // double y_val = x(1);
-      // double val = x_val * y_val * (1 - x_val) * (1 - y_val);
-
-      // u(0) = pow(x(0), 2); 
-      // u(1) = pow(x(1), 2); 
-
-      
+   VectorFunctionCoefficient exact_coeff(2, [](const Vector &x, Vector &u) {      
       u(0) = 0.5; 
       u(1) = 0.0; 
-
-
-      // u(0) = 0.5 * pow(x(0), 2); 
-      // u(1) = 0.5 * pow(x(1), 2); 
-
-      // u(0) = x_val * (1. - x_val);
-      // u(1) = y_val * (1. - y_val);
-
-      // u(0) = -cos(M_PI * x[0]) * sin(M_PI*x[1]); 
-      // u(1) = -sin(M_PI*x[0]) * cos(M_PI*x[1]); 
-
-      // u(0) = 1.; 
-      // u(1) = 1.; 
-
-      // u(0) = 2. * x_val - 1. ; 
-      // u(1) = 2. * y_val - 1.; 
-      
-      // u(0) = 4. * (1 - 2 * x_val) * (y_val - pow(y_val, 2)); 
-      // u(1) = 4. * (x_val - pow(x_val, 2))*(1. - 2.*y_val); 
    });
 
    GridFunction exact_vec(&L2fes); 
