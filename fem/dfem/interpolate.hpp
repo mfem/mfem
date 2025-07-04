@@ -116,7 +116,7 @@ void map_field_to_quadrature_data_tensor_product_3d(
       const auto [q1d, B_dim, d1d] = B.GetShape();
       const int vdim = input.vdim;
       const int dim = input.dim;
-      const auto field = Reshape(&field_e[0], d1d, d1d, d1d, vdim);
+      const auto field = Reshape(&std::as_const(field_e[0]), d1d, d1d, d1d, vdim, 1);
       auto fqp = Reshape(&field_qp[0], vdim, dim, q1d, q1d, q1d);
 
       auto s0 = Reshape(&scratch_mem[0](0), d1d, d1d, q1d);
@@ -149,15 +149,15 @@ void map_field_to_quadrature_data_tensor_product_3d(
       {
          dbg("vdim:{}/{}", c+1, vdim);
 
-         kernels::internal::LoadDofs3d(d1d, c, field, r0);
+         kernels::internal::LoadDofs3d(0, d1d, c, field, r0);
          for (int dz = 0; dz < d1d; dz++)
          {
             for (int dy = 0; dy < d1d; dy++)
             {
                for (int dx = 0; dx < d1d; dx++)
                {
-                  const real_t f = field(dx, dy, dz, c);
-                  assert(AlmostEq(f, r0[0][0][dz][dy][dx]));
+                  const real_t f = field(dx, dy, dz, c, 0);
+                  assert(AlmostEq(f, r0[c][0][dz][dy][dx]));
                }
             }
          }
@@ -172,7 +172,7 @@ void map_field_to_quadrature_data_tensor_product_3d(
                   real_t uv[2] = {0.0, 0.0};
                   for (int dx = 0; dx < d1d; dx++)
                   {
-                     const real_t f = field(dx, dy, dz, c);
+                     const real_t f = field(dx, dy, dz, c, 0);
                      uv[0] += f * B(qx, 0, dx);
                      uv[1] += f * G(qx, 0, dx);
                   }
