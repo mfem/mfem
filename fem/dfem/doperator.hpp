@@ -23,6 +23,14 @@
 #include "integrate.hpp"
 #include "qfunction_apply.hpp"
 
+#if defined(__has_include) && __has_include("general/nvtx.hpp") && !defined(_WIN32)
+#undef NVTX_COLOR
+#define NVTX_COLOR ::nvtx::kTurquoise
+#include "general/nvtx.hpp"
+#else
+#define dbg(...)
+#endif
+
 namespace mfem::future
 {
 
@@ -94,6 +102,7 @@ public:
       assemble_derivative_hypreparmatrix_callbacks(
          assemble_derivative_hypreparmatrix_callbacks)
    {
+      NVTX_MARK_FUNCTION;
       std::vector<Vector> s_l(solutions_l.size());
       for (size_t i = 0; i < s_l.size(); i++)
       {
@@ -118,6 +127,7 @@ public:
    /// direction_t on T-dofs.
    void Mult(const Vector &direction_t, Vector &result_t) const override
    {
+      NVTX_MARK_FUNCTION;
       daction_l.SetSize(daction_l_size);
       daction_l = 0.0;
 
@@ -239,6 +249,7 @@ public:
    /// solutions_t. The result is a T-dof vector.
    void Mult(const Vector &solutions_t, Vector &result_t) const override
    {
+      NVTX_MARK_FUNCTION;
       MFEM_ASSERT(!action_callbacks.empty(), "no integrators have been set");
       prolongation(solutions, solutions_t, solutions_l);
       for (auto &action : action_callbacks)
@@ -390,6 +401,7 @@ void DifferentiableOperator::AddDomainIntegrator(
    const Array<int> &domain_attributes,
    derivative_ids_t derivative_ids)
 {
+   NVTX_MARK_FUNCTION;
    using entity_t = Entity::Element;
 
    static constexpr size_t num_inputs =
@@ -621,6 +633,7 @@ void DifferentiableOperator::AddDomainIntegrator(
       (std::vector<Vector> &sol, const std::vector<Vector> &par, Vector &res)
       mutable // mutable: needed to modify 'shmem_cache'
    {
+      NVTX_MARK_FUNCTION;
       restriction_cb(sol, par, fields_e);
 
       residual_e = 0.0;

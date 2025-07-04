@@ -24,9 +24,13 @@
 #include "fem/kernels.hpp"
 namespace ker = kernels::internal;
 
+#if defined(__has_include) && __has_include("general/nvtx.hpp") && !defined(_WIN32)
 #undef NVTX_COLOR
-#define NVTX_COLOR nvtx::kAquamarine
+#define NVTX_COLOR ::nvtx::kNvidia
 #include "general/nvtx.hpp"
+#else
+#define dbg(...)
+#endif
 
 using namespace mfem;
 
@@ -57,7 +61,7 @@ static void OrderSideVersionArgs(bmi::Benchmark *b)
    const auto versions = { 0, 1, 2, 3 };
    for (auto k : versions)
    {
-      for (int p = 6; p >= 1; p -= 1)
+      for (int p = 8; p >= 1; p -= 1)
       {
          for (int c = NDOFS_INC; est(c) <= MAX_NDOFS; c += NDOFS_INC)
          {
@@ -82,17 +86,20 @@ struct StiffnessIntegrator : public BilinearFormIntegrator
 public:
    StiffnessIntegrator()
    {
-      // dbg();
+      dbg();
+      NVTX();
       StiffnessKernels::Specialization<2, 3>::Add();
       StiffnessKernels::Specialization<3, 4>::Add();
       StiffnessKernels::Specialization<4, 5>::Add();
       StiffnessKernels::Specialization<5, 6>::Add();
       StiffnessKernels::Specialization<6, 7>::Add();
       StiffnessKernels::Specialization<7, 8>::Add();
+      StiffnessKernels::Specialization<9, 10>::Add();
    }
 
    void AssemblePA(const FiniteElementSpace &fespace) override
    {
+      NVTX();
       fes = &fespace;
       auto *mesh = fes->GetMesh();
       const int DIM = mesh->Dimension();
@@ -134,11 +141,11 @@ public:
 
       mfem::forall_3D(ne, Q1D, Q1D, Q1D,[=] MFEM_HOST_DEVICE(int e)
       {
-         MFEM_FOREACH_THREAD(qz, z, Q1D)
+         MFEM_FOREACH_THREAD_DIRECT(qz, z, Q1D)
          {
-            MFEM_FOREACH_THREAD(qy, y, Q1D)
+            MFEM_FOREACH_THREAD_DIRECT(qy, y, Q1D)
             {
-               MFEM_FOREACH_THREAD(qx, x, Q1D)
+               MFEM_FOREACH_THREAD_DIRECT(qx, x, Q1D)
                {
                   const real_t w = W(qx, qy, qz);
                   const real_t *Jtr = &J(0, 0, qx, qy, qz, e);
@@ -164,6 +171,7 @@ public:
                              const real_t *dx, const real_t *xe, real_t *ye,
                              const int d1d, const int q1d)
    {
+      NVTX();
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
 
@@ -189,9 +197,9 @@ public:
 
          for (int qz = 0; qz < Q1D; qz++)
          {
-            MFEM_FOREACH_THREAD(qy, y, Q1D)
+            MFEM_FOREACH_THREAD_DIRECT(qy, y, Q1D)
             {
-               MFEM_FOREACH_THREAD(qx, x, Q1D)
+               MFEM_FOREACH_THREAD_DIRECT(qx, x, Q1D)
                {
                   real_t v[3], u[3] = { r1[0][0][qz][qy][qx],
                                         r1[0][1][qz][qy][qx],
@@ -292,6 +300,7 @@ struct BakeOff
       qd_ps(pmesh, *ir, DIM*DIM),
       qdata(qd_ps)
    {
+      NVTX_MARK_FUNCTION;
       // dbg("p:{} q:{}", p, q);
       // pmesh.SetCurvature(p);
       smesh.Clear();
@@ -514,6 +523,9 @@ void AddKernelSpecializations()
    Grad::Specialization<3, QVectorLayout::byVDIM,  false, 3, 2, 8>::Add();
    Grad::Specialization<3, QVectorLayout::byNODES, false, 3, 2, 7>::Add();
    Grad::Specialization<3, QVectorLayout::byNODES, false, 3, 2, 8>::Add();
+
+   // using Diffusion = DiffusionIntegrator::ApplyPAKernels;
+   // Diffusion::Specialization<3, 9, 10>::Add();
 }
 
 /// info //////////////////////////////////////////////////////////////////////
@@ -530,6 +542,7 @@ void info()
 /// main //////////////////////////////////////////////////////////////////////
 int main(int argc, char *argv[])
 {
+   dbg();
    static mfem::MPI_Session mpi(argc, argv);
 
    bm::ConsoleReporter CR;
