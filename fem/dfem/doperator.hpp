@@ -628,6 +628,7 @@ void DifferentiableOperator::AddDomainIntegrator(
             output_dtq_maps,              // std::array<DofToQuadMap, num_fields>
             use_sum_factorization,        // bool
             num_entities,                 // int
+            element_dof_ordering,         // ElementDofOrdering
             num_qp,                       // int
             test_vdim,                    // int (= output_fop.vdim)
             test_op_dim,                  // int (derived from output_fop)
@@ -652,7 +653,9 @@ void DifferentiableOperator::AddDomainIntegrator(
             action_shmem_info,     // SharedMemoryInfo
             elem_attributes,       // Array<int>
             // 🟣🟣🟣🟣 capture by ref:
-            &restriction_callback = this->restriction_callback,
+            &solutions = this->solutions,
+            &parameters = this->parameters,
+            // &restriction_callback = this->restriction_callback,
             &fields_e = this->fields_e,
             &residual_e = this->residual_e,
             &output_restriction_transpose = this->output_restriction_transpose
@@ -669,6 +672,7 @@ void DifferentiableOperator::AddDomainIntegrator(
                                          input_dtq_maps, output_dtq_maps,
                                          use_sum_factorization,
                                          num_entities,
+                                         element_dof_ordering,
                                          num_qp,
                                          test_vdim,
                                          test_op_dim,
@@ -687,7 +691,9 @@ void DifferentiableOperator::AddDomainIntegrator(
                                          domain_attributes,
                                          ir_weights,
                                          // &
-                                         restriction_callback,
+                                         solutions,
+                                         parameters,
+                                         // restriction_callback,
                                          fields_e,
                                          residual_e,
                                          output_restriction_transpose,
