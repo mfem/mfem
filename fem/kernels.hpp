@@ -755,6 +755,19 @@ inline MFEM_HOST_DEVICE void GradTranspose3d(const int d1d, const int q1d,
 }
 
 /// 3D vector transposed gradient, with component
+template <int DIM, int MQ1>
+inline MFEM_HOST_DEVICE void GradTranspose3d(const int d1d, const int q1d,
+                                             real_t (&smem)[MQ1][MQ1],
+                                             const real_t (*B)[MQ1],
+                                             const real_t (*G)[MQ1],
+                                             d_regs3d_t<DIM, MQ1> &X,
+                                             d_regs3d_t<DIM, MQ1> &Y,
+                                             const int c)
+{
+   Grad3d<DIM, MQ1, true>(d1d, q1d, smem, B, G, X, Y, c);
+}
+
+/// 3D vector transposed gradient, with component
 template <int VDIM, int DIM, int MQ1>
 inline MFEM_HOST_DEVICE void GradTranspose3d(const int d1d, const int q1d,
                                              real_t (&smem)[MQ1][MQ1],

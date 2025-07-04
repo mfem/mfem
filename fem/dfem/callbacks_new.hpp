@@ -30,6 +30,28 @@
 namespace mfem::future
 {
 
+///////////////////////////////////////////////////////////////////////////////
+/// Write 3D DIM vector into given device tensor
+template <int DIM, int MQ1>
+inline MFEM_HOST_DEVICE void WriteDofs3d(const int d1d, const int c,
+                                         kernels::internal::d_regs3d_t<DIM, MQ1> &X,
+                                         DeviceTensor<4, real_t> &Y)
+{
+   for (int dz = 0; dz < d1d; ++dz)
+   {
+      MFEM_FOREACH_THREAD_DIRECT(dy, y, d1d)
+      {
+         MFEM_FOREACH_THREAD_DIRECT(dx, x, d1d)
+         {
+            for (int d = 0; d < DIM; ++d)
+            {
+               Y(dx, dy, dz, c) += X(d, dz, dy, dx);
+            }
+         }
+      }
+   }
+}
+
 template<size_t num_fields,
          size_t num_inputs,
          size_t num_outputs,
@@ -225,25 +247,171 @@ void action_callback_new(qfunc_t qfunc,
       });
 
       // Q function apply: process_qf_args, apply & process_qf_result
-      call_qfunction<qf_param_ts>(qfunc,
-                                  input_shmem,
-                                  residual_shmem,
-                                  residual_size_on_qp,
-                                  num_qp,
-                                  q1d,
-                                  dimension,
-                                  use_sum_factorization);
+      assert(dimension == 3);
+      assert(use_sum_factorization);
+      // call_qfunction<qf_param_ts>(qfunc,
+      //                             input_shmem,              // field_qp
+      //                             residual_shmem,
+      //                             residual_size_on_qp,      // rs_qp
+      //                             num_qp,
+      //                             q1d,
+      //                             dimension,
+      //                             use_sum_factorization);
+
+      MFEM_FOREACH_THREAD_DIRECT(qx, x, q1d)
+      {
+         MFEM_FOREACH_THREAD_DIRECT(qy, y, q1d)
+         {
+            MFEM_FOREACH_THREAD_DIRECT(qz, z, q1d)
+            {
+               const int q = qx + q1d * (qy + q1d * qz);
+               auto qf_args = decay_tuple<qf_param_ts> {};
+               auto fhat = Reshape(&residual_shmem(0, q), residual_size_on_qp);
+               apply_kernel(fhat,         // f_qp
+                            qfunc,        // qfunc
+                            qf_args,      // args
+                            input_shmem,  // field_qp => u
+                            q);           // qp
+            }
+         }
+      }
 
       // Integrate
       auto fhat = Reshape(&residual_shmem(0, 0), test_vdim, test_op_dim, num_qp);
       auto y = Reshape(&ye(0, 0, e), num_test_dof, test_vdim);
-      map_quadrature_data_to_fields(y,
-                                    fhat,
-                                    output_fop,
-                                    output_dtq_shmem[0],
-                                    scratch_shmem,
-                                    dimension,
-                                    use_sum_factorization);
+      // map_quadrature_data_to_fields(y,                      // y
+      //                               fhat,                   // f
+      //                               output_fop,             // output
+      //                               output_dtq_shmem[0],    // dtq
+      //                               scratch_shmem,
+      //                               dimension,
+      //                               use_sum_factorization);
+
+      using output_t = std::decay_t<decltype(output_fop)>;
+      if constexpr (is_value_fop<std::decay_t<output_t>>::value ||   // Value
+                    is_sum_fop<std::decay_t<output_t>>::value ||     // Sum
+                    is_identity_fop<std::decay_t<output_t>>::value)  // Identity
+      {
+         map_quadrature_data_to_fields_tensor_impl_3d(y, fhat, output_fop,
+                                                      output_dtq_shmem[0], scratch_shmem);
+         return;
+      }
+      else if constexpr (is_gradient_fop<std::decay_t<output_t>>::value) // Gradient
+      {
+         const auto dtq = output_dtq_shmem[0];
+         auto output = output_fop;
+         [[maybe_unused]] auto B = dtq.B;
+         [[maybe_unused]] auto G = dtq.G;
+         const auto [q1d_, unused, d1d] = G.GetShape();
+         assert(q1d_ == q1d);
+         const int vdim = output.vdim;
+         const int test_dim = output.size_on_qp / vdim;
+         auto fqp = Reshape(&fhat(0, 0, 0), vdim, test_dim, q1d, q1d, q1d);
+         auto yd = Reshape(&y(0, 0), d1d, d1d, d1d, vdim);
+
+         auto s0 = Reshape(&scratch_shmem[0](0), q1d, q1d, d1d);
+         auto s1 = Reshape(&scratch_shmem[1](0), q1d, q1d, d1d);
+         auto s2 = Reshape(&scratch_shmem[2](0), q1d, q1d, d1d);
+         auto s3 = Reshape(&scratch_shmem[3](0), q1d, d1d, d1d);
+         auto s4 = Reshape(&scratch_shmem[4](0), q1d, d1d, d1d);
+         auto s5 = Reshape(&scratch_shmem[5](0), q1d, d1d, d1d);
+
+         constexpr int MQ1 = T_Q1D > 0 ? T_Q1D : 8;
+         MFEM_SHARED real_t smem[MQ1][MQ1];
+         kernels::internal::d_regs3d_t<DIM, MQ1> r0, r1; // s0, s1
+         real_t sB[MQ1][MQ1], sG[MQ1][MQ1];
+
+         kernels::internal::LoadMatrix(d1d, q1d, B, sB);
+         kernels::internal::LoadMatrix(d1d, q1d, G, sG);
+
+         for (int c = 0; c < vdim; c++)
+         {
+            // should be removed to use directly r0
+            for (int qz = 0; qz < q1d; qz++)
+            {
+               MFEM_FOREACH_THREAD_DIRECT(qy, y, q1d)
+               {
+                  MFEM_FOREACH_THREAD_DIRECT(qx, x, q1d)
+                  {
+                     r0[0][qz][qy][qx] = fqp(c, 0, qx, qy, qz);
+                     r0[1][qz][qy][qx] = fqp(c, 1, qx, qy, qz);
+                     r0[2][qz][qy][qx] = fqp(c, 2, qx, qy, qz);
+                  }
+               }
+            }
+            kernels::internal::GradTranspose3d(d1d, q1d, smem, sB, sG, r0, r1, c);
+            WriteDofs3d(d1d, c, r1, yd);
+         }
+
+         /*for (int vd = 0; vd < vdim; vd++)
+         {
+            MFEM_FOREACH_THREAD(qz, z, q1d)
+            {
+               MFEM_FOREACH_THREAD(qy, y, q1d)
+               {
+                  MFEM_FOREACH_THREAD(dx, x, d1d)
+                  {
+                     real_t uvw[3] = {0.0, 0.0, 0.0};
+                     for (int qx = 0; qx < q1d; qx++)
+                     {
+                        uvw[0] += fqp(vd, 0, qx, qy, qz) * G(qx, 0, dx);
+                        uvw[1] += fqp(vd, 1, qx, qy, qz) * B(qx, 0, dx);
+                        uvw[2] += fqp(vd, 2, qx, qy, qz) * B(qx, 0, dx);
+                     }
+                     s0(qz, qy, dx) = uvw[0];
+                     s1(qz, qy, dx) = uvw[1];
+                     s2(qz, qy, dx) = uvw[2];
+                  }
+               }
+            }
+            MFEM_SYNC_THREAD;
+
+            MFEM_FOREACH_THREAD(qz, z, q1d)
+            {
+               MFEM_FOREACH_THREAD(dy, y, d1d)
+               {
+                  MFEM_FOREACH_THREAD(dx, x, d1d)
+                  {
+                     real_t uvw[3] = {0.0, 0.0, 0.0};
+                     for (int qy = 0; qy < q1d; qy++)
+                     {
+                        uvw[0] += s0(qz, qy, dx) * B(qy, 0, dy);
+                        uvw[1] += s1(qz, qy, dx) * G(qy, 0, dy);
+                        uvw[2] += s2(qz, qy, dx) * B(qy, 0, dy);
+                     }
+                     s3(qz, dy, dx) = uvw[0];
+                     s4(qz, dy, dx) = uvw[1];
+                     s5(qz, dy, dx) = uvw[2];
+                  }
+               }
+            }
+            MFEM_SYNC_THREAD;
+
+            MFEM_FOREACH_THREAD(dz, z, d1d)
+            {
+               MFEM_FOREACH_THREAD(dy, y, d1d)
+               {
+                  MFEM_FOREACH_THREAD(dx, x, d1d)
+                  {
+                     real_t uvw[3] = {0.0, 0.0, 0.0};
+                     for (int qz = 0; qz < q1d; qz++)
+                     {
+                        uvw[0] += s3(qz, dy, dx) * B(qz, 0, dz);
+                        uvw[1] += s4(qz, dy, dx) * B(qz, 0, dz);
+                        uvw[2] += s5(qz, dy, dx) * G(qz, 0, dz);
+                     }
+                     yd(dx, dy, dz, vd) += uvw[0] + uvw[1] + uvw[2];
+                  }
+               }
+            }
+            MFEM_SYNC_THREAD;
+         }*/
+      }
+      else
+      {
+         MFEM_ABORT("quadrature data mapping to field is not implemented for"
+                    " this field descriptor");
+      }
    },
    num_entities,
    thread_blocks,
