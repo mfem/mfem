@@ -112,7 +112,7 @@ void map_field_to_quadrature_data_tensor_product_3d(
    else if constexpr (
       is_gradient_fop<std::decay_t<field_operator_t>>::value)
    {
-      dbg("Gradient");
+      // dbg("Gradient");
       const auto [q1d, B_dim, d1d] = B.GetShape();
       const int vdim = input.vdim;
       const int dim = input.dim;
@@ -147,7 +147,7 @@ void map_field_to_quadrature_data_tensor_product_3d(
 
       for (int c = 0; c < vdim; c++)
       {
-         dbg("vdim:{}/{}", c+1, vdim);
+         // dbg("vdim:{}/{}", c+1, vdim);
 
          MFEM_FOREACH_THREAD(dz, z, d1d)
          {
@@ -213,7 +213,6 @@ void map_field_to_quadrature_data_tensor_product_3d(
          MFEM_SYNC_THREAD;
       }
 
-      // kernels::internal::LoadDofs3d(0, d1d, field, r0);
       for (int c = 0; c < vdim; c++)
       {
          kernels::internal::LoadDofs3d(d1d, c, field, r0);
@@ -511,7 +510,7 @@ void map_fields_to_quadrature_data(
    const int &dimension,
    const bool &use_sum_factorization = false)
 {
-   dbg();
+   // dbg();
    assert(use_sum_factorization && "❌ use_sum_factorization required");
 
    // When the input_to_field map returns -1, this means the requested input

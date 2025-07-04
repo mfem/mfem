@@ -412,7 +412,7 @@ void DifferentiableOperator::AddDomainIntegrator(
       tuple_size<decltype(outputs)>::value;
 
    // #warning MQ1 = 3
-   constexpr int MQ1 = 3; // qfunc_t::MQ1;
+   constexpr int MQ1 = 6; // qfunc_t::MQ1;
    using qf_signature =
       typename create_function_signature<decltype(&qfunc_t::operator())>::type;
    using qf_param_ts = typename qf_signature::parameter_ts;
