@@ -116,7 +116,7 @@ void map_field_to_quadrature_data_tensor_product_3d(
       const auto [q1d, B_dim, d1d] = B.GetShape();
       const int vdim = input.vdim;
       const int dim = input.dim;
-      const auto field = Reshape(&std::as_const(field_e[0]), d1d, d1d, d1d, vdim, 1);
+      const auto field = Reshape(&std::as_const(field_e[0]), d1d, d1d, d1d, vdim);
       auto fqp = Reshape(&field_qp[0], vdim, dim, q1d, q1d, q1d);
 
       auto s0 = Reshape(&scratch_mem[0](0), d1d, d1d, q1d);
@@ -130,7 +130,7 @@ void map_field_to_quadrature_data_tensor_product_3d(
       MFEM_VERIFY(q1d <= MQ1, "q1d > MQ1");
       MFEM_SHARED real_t smem[MQ1][MQ1];
 
-      kernels::internal::vd_regs3d_t<1, DIM, MQ1> r0, r1;
+      kernels::internal::d_regs3d_t<DIM, MQ1> r0, r1;
       real_t sB[MQ1][MQ1], sG[MQ1][MQ1];
 
       assert(B_dim == 1 && "1D B required!");
@@ -149,20 +149,6 @@ void map_field_to_quadrature_data_tensor_product_3d(
       {
          dbg("vdim:{}/{}", c+1, vdim);
 
-         kernels::internal::LoadDofs3d(0, d1d, c, field, r0);
-         for (int dz = 0; dz < d1d; dz++)
-         {
-            for (int dy = 0; dy < d1d; dy++)
-            {
-               for (int dx = 0; dx < d1d; dx++)
-               {
-                  const real_t f = field(dx, dy, dz, c, 0);
-                  assert(AlmostEq(f, r0[c][0][dz][dy][dx]));
-               }
-            }
-         }
-         kernels::internal::Grad3d(d1d, q1d, smem, sB, sG, r0, r1);
-
          MFEM_FOREACH_THREAD(dz, z, d1d)
          {
             MFEM_FOREACH_THREAD(dy, y, d1d)
@@ -172,7 +158,7 @@ void map_field_to_quadrature_data_tensor_product_3d(
                   real_t uv[2] = {0.0, 0.0};
                   for (int dx = 0; dx < d1d; dx++)
                   {
-                     const real_t f = field(dx, dy, dz, c, 0);
+                     const real_t f = field(dx, dy, dz, c);
                      uv[0] += f * B(qx, 0, dx);
                      uv[1] += f * G(qx, 0, dx);
                   }
@@ -225,34 +211,44 @@ void map_field_to_quadrature_data_tensor_product_3d(
             }
          }
          MFEM_SYNC_THREAD;
+      }
+
+      // kernels::internal::LoadDofs3d(0, d1d, field, r0);
+      for (int c = 0; c < vdim; c++)
+      {
+         kernels::internal::LoadDofs3d(d1d, c, field, r0);
+         for (int d = 0; d < DIM; d++)
+         {
+            for (int dz = 0; dz < d1d; dz++)
+            {
+               for (int dy = 0; dy < d1d; dy++)
+               {
+                  for (int dx = 0; dx < d1d; dx++)
+                  {
+                     const real_t f = field(dx, dy, dz, c);
+                     assert(AlmostEq(f, r0[d][dz][dy][dx]));
+                  }
+               }
+            }
+         }
+
+         kernels::internal::Grad3d(d1d, q1d, smem, sB, sG, r0, r1, c);
          for (int qz = 0; qz < q1d; qz++)
          {
             for (int qy = 0; qy < q1d; qy++)
             {
                for (int qx = 0; qx < q1d; qx++)
                {
-                  if (!AlmostEq(fqp(c, 0, qx, qy, qz), r1[0][0][qz][qy][qx]))
+                  if (!AlmostEq(fqp(c, 1, qx, qy, qz), r1[1][qz][qy][qx]))
                   {
-                     dbg("\x1b[31m[{}:0] {} {}", c, fqp(c, 0, qx, qy, qz), r1[0][0][qz][qy][qx]);
-                     dbg("❌❌❌"), std::exit(EXIT_FAILURE);
-                  }
-
-                  if (!AlmostEq(fqp(c, 1, qx, qy, qz), r1[0][1][qz][qy][qx]))
-                  {
-                     dbg("\x1b[31m[{}:1] {} {}", c, fqp(c, 1, qx, qy, qz), r1[0][1][qz][qy][qx]);
-                     dbg("❌❌❌"), std::exit(EXIT_FAILURE);
-                  }
-
-                  if (!AlmostEq(fqp(c, 2, qx, qy, qz), r1[0][2][qz][qy][qx]))
-                  {
-                     dbg("\x1b[31m[{}:2] {} {}", c, fqp(c, 2, qx, qy, qz), r1[0][2][qz][qy][qx]);
+                     dbg("\x1b[31m[{}:1] {} {}", c, fqp(c, 1, qx, qy, qz), r1[1][qz][qy][qx]);
                      dbg("❌❌❌"), std::exit(EXIT_FAILURE);
                   }
                }
             }
          }
       }
-      // dbg("✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅"), std::exit(EXIT_SUCCESS);
+      // dbg("✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅");//, std::exit(EXIT_SUCCESS);
    }
    // TODO: Create separate function for clarity
    else if constexpr (

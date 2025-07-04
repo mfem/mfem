@@ -66,6 +66,9 @@ using vd_regs2d_t = mfem::future::tensor<real_t, VDIM, DIM, N, N>;
 template <int N>
 using s_regs3d_t = mfem::future::tensor<real_t, N, N, N>;
 
+template <int DIM, int N>
+using d_regs3d_t = mfem::future::tensor<real_t, DIM, N, N, N>;
+
 template <int VDIM, int N>
 using v_regs3d_t = mfem::future::tensor<real_t, VDIM, N, N, N>;
 
@@ -197,6 +200,27 @@ inline MFEM_HOST_DEVICE void WriteDofs2d(const int e, const int d1d,
          MFEM_FOREACH_THREAD_DIRECT(dx, x, d1d)
          {
             Y(dx, dy, c, e) += X(c, dy, dx);
+         }
+      }
+   }
+}
+
+///////////////////////////////////////////////////////////////////////////////
+template <int DIM, int MQ1>
+inline MFEM_HOST_DEVICE void LoadDofs3d(const int d1d, const int c,
+                                        const DeviceTensor<4, const real_t> &X,
+                                        d_regs3d_t<DIM, MQ1> &Y)
+{
+   for (int d = 0; d < DIM; d++)
+   {
+      for (int dz = 0; dz < d1d; ++dz)
+      {
+         MFEM_FOREACH_THREAD_DIRECT(dy, y, d1d)
+         {
+            MFEM_FOREACH_THREAD_DIRECT(dx, x, d1d)
+            {
+               Y[d][dz][dy][dx] = X(dx, dy, dz, c);
+            }
          }
       }
    }
@@ -681,6 +705,25 @@ inline MFEM_HOST_DEVICE void Grad3d(const int d1d, const int q1d,
       const real_t (*By)[MQ1] = (d == 1) ? G : B;
       const real_t (*Bz)[MQ1] = (d == 2) ? G : B;
       Contract3d<Transpose>(d1d, q1d, smem, Bx, By, Bz, X[c][d], Y[c][d]);
+   }
+}
+
+/// 3D vector gradient, with component
+template <int DIM, int MQ1, bool Transpose = false>
+inline MFEM_HOST_DEVICE void Grad3d(const int d1d, const int q1d,
+                                    real_t (&smem)[MQ1][MQ1],
+                                    const real_t (*B)[MQ1],
+                                    const real_t (*G)[MQ1],
+                                    d_regs3d_t<DIM, MQ1> &X,
+                                    d_regs3d_t<DIM, MQ1> &Y,
+                                    const int c)
+{
+   for (int d = 0; d < DIM; d++)
+   {
+      const real_t (*Bx)[MQ1] = (d == 0) ? G : B;
+      const real_t (*By)[MQ1] = (d == 1) ? G : B;
+      const real_t (*Bz)[MQ1] = (d == 2) ? G : B;
+      Contract3d<Transpose>(d1d, q1d, smem, Bx, By, Bz, X[d], Y[d]);
    }
 }
 
