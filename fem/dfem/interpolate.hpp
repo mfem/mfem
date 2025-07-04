@@ -243,9 +243,9 @@ void map_field_to_quadrature_data_tensor_product_3d(
                {
                   for (int qx = 0; qx < q1d; qx++)
                   {
-                     if (!AlmostEq(fqp(c, 1, qx, qy, qz), r1[1][qz][qy][qx]))
+                     if (!AlmostEq(fqp(c, d, qx, qy, qz), r1[d][qz][qy][qx]))
                      {
-                        dbg("\x1b[31m[{}:1] {} {}", c, fqp(c, 1, qx, qy, qz), r1[1][qz][qy][qx]);
+                        dbg("\x1b[31m[{}:d] {} {}", c, fqp(c, d, qx, qy, qz), r1[d][qz][qy][qx]);
                         dbg("❌❌❌"), std::exit(EXIT_FAILURE);
                      }
                   }

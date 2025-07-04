@@ -12,7 +12,8 @@
 
 #include <cstddef>
 
-#include "interpolate.hpp"
+// #include "interpolate.hpp"
+#include "fem/kernels.hpp"
 #include "qfunction_apply.hpp"
 #include "integrate.hpp"
 
@@ -35,7 +36,7 @@ template<size_t num_fields,
          typename qfunc_t,
          typename input_t,
          typename output_fop_t,
-         int MQ1 = 8>
+         int T_Q1D = 8>
 void action_callback_new(qfunc_t qfunc,
                          input_t inputs,
                          const std::vector<FieldDescriptor> fields,
@@ -135,15 +136,93 @@ void action_callback_new(qfunc_t qfunc,
                        wrapped_fields_e, num_qp, e);
 
       // Interpolate
-      map_fields_to_quadrature_data<MQ1>(input_shmem,
-                                         fields_shmem,
-                                         input_dtq_shmem,
-                                         input_to_field,
-                                         inputs,
-                                         ir_weights,
-                                         scratch_shmem,
-                                         dimension,
-                                         use_sum_factorization);
+      assert(dimension == 3);
+      constexpr int DIM = 3;
+      assert(use_sum_factorization);
+      // map_fields_to_quadrature_data<MQ1>(input_shmem,       // fields_qp
+      //                                    fields_shmem,      // fields_e
+      //                                    input_dtq_shmem,   // dtqmaps
+      //                                    input_to_field,    // input_to_field
+      //                                    inputs,            // fops
+      //                                    ir_weights,
+      //                                    scratch_shmem,
+      //                                    dimension,
+      //                                    use_sum_factorization);
+      const auto dummy_field_weight = DeviceTensor<1>(nullptr, 0);
+      for_constexpr<num_inputs>([&](auto i)
+      {
+         using field_operator_t = decltype(get<i>(inputs));
+
+         const DeviceTensor<1> &field_e =
+            (input_to_field[i] == -1) ? dummy_field_weight :
+            fields_shmem[input_to_field[i]];
+
+         if constexpr (is_value_fop<std::decay_t<field_operator_t>>::value ||    // Value
+                       std::is_same_v<std::decay_t<field_operator_t>, Weight> || // Weights
+                       is_identity_fop<std::decay_t<field_operator_t>>::value)   // Identity
+         {
+            map_field_to_quadrature_data_tensor_product_3d<T_Q1D>(input_shmem[i],
+                                                                  input_dtq_shmem[i],
+                                                                  field_e,
+                                                                  get<i>(inputs),
+                                                                  ir_weights,
+                                                                  scratch_shmem);
+            return;
+         }
+         else
+         {
+            static_assert(is_gradient_fop<std::decay_t<field_operator_t>>::value);
+
+            // map_field_to_quadrature_data_tensor_product_3d<MQ1>(input_shmem[i],        // field_qp
+            //                                                     input_dtq_shmem[i],    // dtq
+            //                                                     field_e,               // field_e
+            //                                                     get<i>(inputs),        // input
+            //                                                     ir_weights,
+            //                                                     scratch_shmem);
+            const auto field_qp = input_shmem[i];
+            const auto dtq = input_dtq_shmem[i];
+            const auto field_i = input_to_field[i];
+            const auto input = get<i>(inputs);
+            const int vdim = input.vdim;
+
+            const auto B = dtq.B;
+            const auto G = dtq.G;
+
+            // const int dim = input.dim;
+            const auto [B_q1d, B_dim, d1d] = B.GetShape();
+            assert(B_q1d == q1d);
+
+            const auto field = Reshape(&std::as_const(field_e[0]), d1d, d1d, d1d, vdim);
+            auto fqp = Reshape(&field_qp[0], vdim, DIM, q1d, q1d, q1d);
+
+            constexpr int MQ1 = T_Q1D > 0 ? T_Q1D : 8;
+            MFEM_SHARED real_t smem[MQ1][MQ1];
+            kernels::internal::d_regs3d_t<DIM, MQ1> r0, r1; // s0, s1
+            real_t sB[MQ1][MQ1], sG[MQ1][MQ1];
+
+            kernels::internal::LoadMatrix(d1d, q1d, B, sB);
+            kernels::internal::LoadMatrix(d1d, q1d, G, sG);
+
+            for (int c = 0; c < vdim; c++)
+            {
+               kernels::internal::LoadDofs3d(d1d, c, field, r0);
+               kernels::internal::Grad3d(d1d, q1d, smem, sB, sG, r0, r1, c);
+               // should be removed to use directly r1
+               for (int qz = 0; qz < q1d; qz++)
+               {
+                  MFEM_FOREACH_THREAD_DIRECT(qy, y, q1d)
+                  {
+                     MFEM_FOREACH_THREAD_DIRECT(qx, x, q1d)
+                     {
+                        fqp(c, 0, qx, qy, qz) = r1[0][qz][qy][qx];
+                        fqp(c, 1, qx, qy, qz) = r1[1][qz][qy][qx];
+                        fqp(c, 2, qx, qy, qz) = r1[2][qz][qy][qx];
+                     }
+                  }
+               }
+            }
+         }
+      });
 
       // Q function apply: process_qf_args, apply & process_qf_result
       call_qfunction<qf_param_ts>(qfunc,
