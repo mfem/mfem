@@ -667,7 +667,7 @@ void SLISolver::Mult(const Vector &b, Vector &x) const
    }
 
    r0 = std::max(nom*rel_tol, abs_tol);
-   if (nom <= r0)
+   if (Monitor(0, nom, r, x) || nom <= r0)
    {
       converged = true;
       final_iter = 0;
@@ -708,15 +708,10 @@ void SLISolver::Mult(const Vector &b, Vector &x) const
       nomold = nom;
 
       bool done = false;
-      if (nom < r0)
+      if (Monitor(i, nom, r, x) || nom < r0)
       {
          converged = true;
          final_iter = i;
-         done = true;
-      }
-
-      if (++i > max_iter)
-      {
          done = true;
       }
 
@@ -725,6 +720,11 @@ void SLISolver::Mult(const Vector &b, Vector &x) const
          mfem::out << "   Iteration : " << setw(3) << right << (i-1)
                    << "  ||Br|| = " << setw(11) << left << nom
                    << "\tConv. rate: " << cf << '\n';
+      }
+
+      if (++i > max_iter)
+      {
+         done = true;
       }
 
       if (done) { break; }
@@ -743,6 +743,7 @@ void SLISolver::Mult(const Vector &b, Vector &x) const
    }
 
    final_norm = nom;
+   Monitor(final_iter, final_norm, r, x, true);
 }
 
 void SLI(const Operator &A, const Vector &b, Vector &x,
