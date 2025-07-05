@@ -251,7 +251,7 @@ public:
    /// solutions_t. The result is a T-dof vector.
    void Mult(const Vector &solutions_t, Vector &result_t) const override
    {
-      db1();
+      // db1();
       MFEM_ASSERT(!action_callbacks.empty(), "no integrators have been set");
       prolongation(solutions, solutions_t, solutions_l);
       for (auto &action : action_callbacks)
@@ -416,7 +416,7 @@ void DifferentiableOperator::AddDomainIntegrator(
       tuple_size<decltype(outputs)>::value;
 
    // #warning MQ1 = 3
-   constexpr int MQ1 = 8; // qfunc_t::MQ1;
+   constexpr int MQ1 = 6; // qfunc_t::MQ1;
    using qf_signature =
       typename create_function_signature<decltype(&qfunc_t::operator())>::type;
    using qf_param_ts = typename qf_signature::parameter_ts;
@@ -591,7 +591,7 @@ void DifferentiableOperator::AddDomainIntegrator(
       {
          thread_blocks.x = q1d;
          thread_blocks.y = q1d;
-         thread_blocks.z = use_new_kernels ? 1 :q1d;
+         thread_blocks.z = use_new_kernels ? 1 : q1d;
       }
    }
    else if (dimension == 2)

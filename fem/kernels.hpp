@@ -45,6 +45,9 @@ using vd_regs2d_t = mfem::future::tensor<real_t, VDIM, DIM, 0, 0>;
 template <int N>
 using s_regs3d_t = mfem::future::tensor<real_t, N, 0, 0>;
 
+template <int DIM, int N>
+using d_regs3d_t = mfem::future::tensor<real_t, DIM, N, 0, 0>;
+
 template <int VDIM, int N>
 using v_regs3d_t = mfem::future::tensor<real_t, VDIM, N, 0, 0>;
 

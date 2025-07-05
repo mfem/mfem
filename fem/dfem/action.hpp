@@ -80,7 +80,7 @@ void apply_kernel(reg_t &r0, reg_t &r1,
                   const qfunc_t &qfunc,
                   args_ts &args)
 {
-   db1("apply_kernel");
+   // db1("apply_kernel");
 
    if constexpr (num_args == 2)
    {
@@ -150,7 +150,7 @@ inline void action_callback_new(restriction_cb_t &restriction_cb,
                                 const std::vector<Vector> &parameters_l,
                                 Vector &residual_l)
 {
-   db1();
+   // db1();
 
    assert(dimension == 3);
 
@@ -182,7 +182,6 @@ inline void action_callback_new(restriction_cb_t &restriction_cb,
    {
       // this could be optimized out
       if (has_attr && !d_domain_attr[d_elem_attr[e] - 1]) { return; }
-
 
       constexpr int DIM = 3;
       MFEM_SHARED real_t smem[MQ1][MQ1], sB[MQ1][MQ1], sG[MQ1][MQ1];
@@ -226,11 +225,11 @@ inline void action_callback_new(restriction_cb_t &restriction_cb,
 
       // db1("Now calling qfunction");
       auto qf_args = decay_tuple<qf_param_ts> {};
-      MFEM_FOREACH_THREAD_DIRECT(qx, x, MQ1)
+      for (int qz = 0; qz < MQ1; ++qz)
       {
          MFEM_FOREACH_THREAD_DIRECT(qy, y, MQ1)
          {
-            MFEM_FOREACH_THREAD_DIRECT(qz, z, MQ1)
+            MFEM_FOREACH_THREAD_DIRECT(qx, x, MQ1)
             {
                qf::apply_kernel<MQ1, num_inputs>(r0, r1, r2, qx, qy, qz,
                                                  qfunc, qf_args);
@@ -259,7 +258,9 @@ inline void action_callback_new(restriction_cb_t &restriction_cb,
       }
    },
    num_entities,
-   thread_blocks);
+   thread_blocks,
+   0,
+   nullptr);
 
    // db1("RestrictionT");
    output_restriction_transpose(residual_e, residual_l);

@@ -569,7 +569,7 @@ struct ThreadBlocks
 };
 
 #if defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP)
-template <typename tag_t>
+/*template <typename tag_t>
 struct ForallKernel
 {
    template <typename func_t>
@@ -582,7 +582,18 @@ struct ForallKernel
          f(i, shmem);
       }
    }
-};
+};*/
+
+template <typename func_t>
+__global__ void forall_kernel_shmem(func_t f, int n)
+{
+   int i = blockIdx.x;
+   extern __shared__ real_t shmem[];
+   if (i < n)
+   {
+      f(i, shmem);
+   }
+}
 #endif
 
 template </*typename kernel_tag,*/ typename func_t>
@@ -598,7 +609,15 @@ void forall(func_t f,
 #if (defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))
       int num_bytes = num_shmem * sizeof(decltype(shmem));
       dim3 block_size(blocks.x, blocks.y, blocks.z);
-      ForallKernel<kernel_tag>::run<<<N, block_size, num_bytes>>>(f, N);
+      // ForallKernel<kernel_tag>::run<<<N, block_size, num_bytes>>>(f, N);
+      if (num_bytes > 0)
+      {
+         forall_kernel_shmem<<<N, block_size, num_bytes>>>(f, N);
+      }
+      else
+      {
+         forall_kernel_shmem<<<N, block_size>>>(f, N);
+      }
 #if defined(MFEM_USE_CUDA)
       MFEM_GPU_CHECK(cudaGetLastError());
 #elif defined(MFEM_USE_HIP)

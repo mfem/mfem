@@ -540,7 +540,7 @@ void info()
    mfem::out << "\x1b[33m";
    mfem::out << "version 0: PA std" << std::endl;
    mfem::out << "version 1: PA new" << std::endl;
-   // mfem::out << "version 2: MF ∂fem" << std::endl;
+   mfem::out << "version 2: MF ∂fem" << std::endl;
    mfem::out << "version 3: PA ∂fem" << std::endl;
    mfem::out << "\x1b[m" << std::endl;
 }
