@@ -12,11 +12,7 @@
 
 #include <cstddef>
 
-// #include "interpolate.hpp"
 #include "fem/kernels.hpp"
-// #include "qfunction_apply.hpp"
-// #include "qfunction_transform.hpp"
-// #include "integrate.hpp"
 
 #include "util.hpp"
 
@@ -49,6 +45,17 @@ load_field_address(const std::array<int, num_fields> &sizes,
    return f;
 }
 
+template <std::size_t N>
+MFEM_HOST_DEVICE inline
+std::array<real_t*, N>
+load_field_e_ptr(const std::array<DeviceTensor<2>, N> &fields_e,
+                 const int e)
+{
+   std::array<real_t*, N> f;
+   for_constexpr<N>([&](auto i) { f[i] = &fields_e[i](0, e); });
+   return f;
+}
+
 namespace qf
 {
 
@@ -63,75 +70,46 @@ void process_qf_result_from_reg(reg38_t &r0,
    r0[2][qz][qy][qx] = v[2];
 }
 
-template <size_t num_args,
-          typename reg_t, // typename vd_reg_t,
-          typename qfunc_t, typename args_ts>
+template <int MQ1,
+          size_t num_args,
+          typename reg_t,
+          typename qfunc_t,
+          typename args_ts>
 MFEM_HOST_DEVICE inline
-void apply_kernel(reg_t &r0, reg_t &r1, DeviceTensor<5> &r2,
+void apply_kernel(reg_t &r0, reg_t &r1,
+                  real_t *r2,
                   const int qx, const int qy, const int qz,
                   const qfunc_t &qfunc,
                   args_ts &args)
 {
    db1("apply_kernel");
 
-   // const tensor<real_t, DIM>       ∇u
-   // const tensor<real_t, DIM, DIM>  D (PA_DATA)
-
-   // process_qf_args(u, args, qp);
-   //    for_constexpr...
-   //       process_qf_arg(u[i], get<i>(args), qp);
-   static_assert(num_args == 3 ||   // setup
-                 num_args == 2,     // apply
-                 "apply_kernel expects exactly 2 arguments (∇u, D (PA_DATA))");
    if constexpr (num_args == 2)
    {
+      // ∇u
+      tensor<real_t, 3> &arg_0 = get<0>(args);
+      arg_0[0] = r1[0][qz][qy][qx];
+      arg_0[1] = r1[1][qz][qy][qx];
+      arg_0[2] = r1[2][qz][qy][qx];
+
+      // D (PA data)
+      tensor<real_t, 3, 3> &arg_1 = get<1>(args);
+
+      auto *D = (real_t (*)[MQ1][MQ1][3][3]) r2;
+      for (int j = 0; j < 3; j++)
       {
-         // ∇u
-         constexpr int i = 0;
-         // process_qf_arg(u[i], get<i>(args), qp);
-         tensor<real_t, 3> &arg_0 = get<i>(args); // type from ∇u
-         // const DeviceTensor<2> u_0 = u.at(i);
-         // const auto u_qp = Reshape(&u_0(0, qp), u_0.GetShape()[0]);
-         // process_qf_arg(u_qp, arg_0);
-         arg_0[0] = r1[0][qz][qy][qx];
-         arg_0[1] = r1[1][qz][qy][qx];
-         arg_0[2] = r1[2][qz][qy][qx];
-      }
-      {
-         // D (PA_DATA)
-         constexpr int i = 1;
-         // process_qf_arg(u[i], get<i>(args), qp);
-         tensor<real_t, 3, 3> &arg_1 = get<i>(args); // type from D
-         /*const DeviceTensor<2> u_1 = u.at(i);
-         const auto u_qp = Reshape(&u_1(0, qp), u_1.GetShape()[0]);*/
-         for (int j = 0; j < 3; j++)
+         for (int k = 0; k < 3; k++)
          {
-            for (int k = 0; k < 3; k++)
-            {
-               arg_1[j][k] = r2(j, k, qz, qy, qx);
-            }
+            arg_1[k][j] = D[qx][qy][qz][k][j];
          }
       }
    }
-   else { assert(false && "Should not be here!"); }
 
-   auto r = get<0>(apply(qfunc, args));
+   const auto r = get<0>(apply(qfunc, args));
 
    if constexpr (decltype(r)::ndim == 1)
    {
-      db1("\x1b[32m[apply w/ reg]");
-      process_qf_result_from_reg(r0, qx, qy, qz, r); // apply
-   }
-   else if constexpr (decltype(r)::ndim > 1)
-   {
-      db1("\x1b[31m[setup (w/ f_qp)]");
-      assert(false && "Not used anymore");
-      // process_qf_result(f_qp, r); // setup
-   }
-   else
-   {
-      static_assert(dfem::always_false<decltype(r)>,
-                    "process_qf_result not implemented for result type");
+      process_qf_result_from_reg(r0, qx, qy, qz, r);
    }
 }
 
@@ -217,15 +195,12 @@ inline void action_callback_new(restriction_cb_t &restriction_cb,
       if (has_attr && !d_domain_attr[d_elem_attr[e] - 1]) { return; }
 
 
-      constexpr int VDIM = 3, DIM = 3;
+      constexpr int DIM = 3;
       MFEM_SHARED real_t smem[MQ1][MQ1], sB[MQ1][MQ1], sG[MQ1][MQ1];
       kernels::internal::d_regs3d_t<DIM, MQ1> r0, r1;
-      DeviceTensor<5> r2;
+      real_t *r2;
 
-      auto fields_address =
-         load_field_address(shmem_info.field_sizes,
-                            wrapped_fields_e,
-                            e);
+      const auto fields_e_ptr = load_field_e_ptr(wrapped_fields_e, e);
 
       // Interpolate
       const auto dummy_field_weight = DeviceTensor<1>(nullptr, 0);
@@ -236,18 +211,15 @@ inline void action_callback_new(restriction_cb_t &restriction_cb,
 
          using field_operator_t = std::decay_t<decltype(get<i>(inputs))>;
 
-         const DeviceTensor<1> &field_e =
-            (input_to_field[i] == -1) ? dummy_field_weight :
-            fields_address[input_to_field[i]];
-
          if constexpr (is_gradient_fop<field_operator_t>::value)
          {
-            db1("\x1b[32m[Gradient] r0, r1");
+            // db1("\x1b[32m[Gradient] r0, r1");
             const auto dtq = input_dtq_maps[i];
             const auto B = dtq.B, G = dtq.G;
             const auto [B_q1d, B_dim, d1d] = B.GetShape();
             assert(B_q1d == q1d);
-            const auto field = Reshape(&std::as_const(field_e[0]), d1d, d1d, d1d, vdim);
+            const real_t *field_e_r = fields_e_ptr[input_to_field[i]];
+            const auto field = Reshape(field_e_r, d1d, d1d, d1d, vdim);
 
             kernels::internal::LoadMatrix(d1d, q1d, B, sB);
             kernels::internal::LoadMatrix(d1d, q1d, G, sG);
@@ -261,8 +233,8 @@ inline void action_callback_new(restriction_cb_t &restriction_cb,
 
          if constexpr (is_identity_fop<field_operator_t>::value)
          {
-            db1("Identity");
-            r2 = Reshape(&field_e[0], VDIM, DIM, q1d, q1d, q1d);
+            // db1("Identity");
+            r2 = fields_e_ptr[input_to_field[i]];
          }
       }); // for_constexpr<num_inputs>
 
@@ -274,8 +246,8 @@ inline void action_callback_new(restriction_cb_t &restriction_cb,
          {
             MFEM_FOREACH_THREAD_DIRECT(qz, z, q1d)
             {
-               qf::apply_kernel<num_inputs>(r0, r1, r2, qx, qy, qz,
-                                            qfunc, qf_args);
+               qf::apply_kernel<MQ1, num_inputs>(r0, r1, r2, qx, qy, qz,
+                                                 qfunc, qf_args);
             }
          }
       }
