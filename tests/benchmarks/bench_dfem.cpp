@@ -13,12 +13,13 @@
 
 #ifdef MFEM_USE_BENCHMARK
 
+#include <cstdlib>
 #include <memory>
 
 #include <fem/qinterp/det.cpp>
 #include <fem/qinterp/grad.hpp> // IWYU pragma: keep
 
-#include <fem/dfem/doperator.hpp>
+#include "fem/dfem/doperator.hpp"
 #include <linalg/tensor.hpp>
 
 #include "fem/kernels.hpp"
@@ -393,7 +394,7 @@ struct Diffusion : public BakeOff<VDIM, GLL>
             MFEM_VERIFY(q1d == gQ1D, "Q1D mismatch: " << q1d << " != " << gQ1D);
          }
       }
-      else if (version == 2) // 2: MF ∂fem
+      /*else if (version == 2) // 2: MF ∂fem
       {
          dbg("MF ∂fem");
          auto solutions = std::vector{FieldDescriptor{U, &pfes}};
@@ -414,18 +415,19 @@ struct Diffusion : public BakeOff<VDIM, GLL>
                                   *ir, ess_bdr);
          dop->FormLinearSystem(ess_tdof_list, x, b, A_ptr, X, B);
          A.Reset(A_ptr);
-      }
+      }*/
       else if (version == 3) // PA ∂fem
       {
-         dbg("PA ∂fem");
-         auto w = Weight{};
-         auto q = Identity<Q> {};
-         auto u = Identity<U> {};
+         dbg("[PA ∂fem]");
+         auto W = Weight{};
+         auto Iq = Identity<Q> {};
+         auto Iu = Identity<U> {};
          auto Gu = Gradient<U> {};
          auto GΞ = Gradient<Ξ> {};
-         tuple Gu_q = {Gu, q};
-         tuple u_J_w = {u, GΞ, w};
+         tuple Gu_Iq = {Gu, Iq};
+         tuple Iu_GΞ_W = {Iu, GΞ, W};
 
+         dbg("[PA ∂fem] SETUP 🟣🟣🟣🟣");
          auto pa_setup_qf =
             [] MFEM_HOST_DEVICE(const real_t &u,
                                 const tensor<real_t, DIM, DIM> &J,
@@ -434,12 +436,13 @@ struct Diffusion : public BakeOff<VDIM, GLL>
             return tuple{inv(J) * transpose(inv(J)) * det(J) * w};
          };
          DifferentiableOperator dSetup(u_sol, Ξ_q_params, pmesh);
-         dSetup.AddDomainIntegrator(pa_setup_qf, u_J_w, tuple{q}, *ir, ess_bdr);
+         dSetup.AddDomainIntegrator(pa_setup_qf, Iu_GΞ_W, tuple{Iq}, *ir, ess_bdr);
          dSetup.SetParameters({nodes, &qdata});
          X.SetSize(pfes.GetTrueVSize());
          pfes.GetRestrictionMatrix()->Mult(x, X);
          dSetup.Mult(X, qdata);
 
+         dbg("[PA ∂fem] APPLY 🟢🟢🟢🟢");
          auto pa_apply_qf =
             [] MFEM_HOST_DEVICE(const tensor<real_t, DIM> &Gu,
                                 const tensor<real_t, DIM, DIM> &q)
@@ -447,7 +450,8 @@ struct Diffusion : public BakeOff<VDIM, GLL>
             return tuple{q * Gu};
          };
          dop = std::make_unique<DifferentiableOperator>(u_sol, q_param, pmesh);
-         dop->AddDomainIntegrator(pa_apply_qf, Gu_q, tuple{Gu}, *ir, ess_bdr);
+         dop->UseNewKernels();
+         dop->AddDomainIntegrator(pa_apply_qf, Gu_Iq, tuple{Gu}, *ir, ess_bdr);
          dop->SetParameters({ &qdata });
 
          dop->FormLinearSystem(ess_tdof_list, x, b, A_ptr, X, B);
@@ -459,7 +463,7 @@ struct Diffusion : public BakeOff<VDIM, GLL>
       cg.iterative_mode = false;
       if (dofs < 128 * 1024) // check
       {
-         cg.SetPrintLevel(-1);
+         cg.SetPrintLevel(3/*-1*/);
          cg.SetMaxIter(2000);
          cg.SetRelTol(1e-8);
          cg.SetAbsTol(0.0);
@@ -534,7 +538,7 @@ void info()
    mfem::out << "\x1b[33m";
    mfem::out << "version 0: PA std" << std::endl;
    mfem::out << "version 1: PA new" << std::endl;
-   mfem::out << "version 2: MF ∂fem" << std::endl;
+   // mfem::out << "version 2: MF ∂fem" << std::endl;
    mfem::out << "version 3: PA ∂fem" << std::endl;
    mfem::out << "\x1b[m" << std::endl;
 }

@@ -113,8 +113,6 @@ void map_field_to_quadrature_data_tensor_product_3d(
       is_gradient_fop<std::decay_t<field_operator_t>>::value)
    {
       // dbg("Gradient");
-      const static bool MFEM_NEW_KERNELS = std::getenv("MFEM_NEW_KERNELS");
-
       const auto [q1d, B_dim, d1d] = B.GetShape();
       const int vdim = input.vdim;
       const int dim = input.dim;
@@ -135,7 +133,7 @@ void map_field_to_quadrature_data_tensor_product_3d(
       // kernels::internal::d_regs3d_t<DIM, MQ1> r0, r1;
       // real_t sB[MQ1][MQ1], sG[MQ1][MQ1];
 
-      /*if (MFEM_NEW_KERNELS)
+      /*
       {
          assert(B_dim == 1 && "1D B required!");
          kernels::internal::LoadMatrix(d1d, q1d, B, sB);
@@ -216,7 +214,7 @@ void map_field_to_quadrature_data_tensor_product_3d(
          MFEM_SYNC_THREAD;
       }
 
-      /*if (MFEM_NEW_KERNELS)
+      /*
       {
          for (int c = 0; c < vdim; c++)
          {

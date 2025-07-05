@@ -252,23 +252,11 @@ public:
    void Mult(const Vector &solutions_t, Vector &result_t) const override
    {
       // NVTX_MARK_FUNCTION;
-      const static bool MFEM_NEW_KERNELS = std::getenv("MFEM_NEW_KERNELS");
-
       MFEM_ASSERT(!action_callbacks.empty(), "no integrators have been set");
       prolongation(solutions, solutions_t, solutions_l);
-      if (MFEM_NEW_KERNELS)
+      for (auto &action : action_callbacks)
       {
-         for (auto &action_new : action_callbacks_new)
-         {
-            action_new(solutions_l, parameters_l, residual_l);
-         }
-      }
-      else
-      {
-         for (auto &action : action_callbacks)
-         {
-            action(solutions_l, parameters_l, residual_l);
-         }
+         action(solutions_l, parameters_l, residual_l);
       }
       prolongation_transpose(residual_l, result_t);
    }
@@ -366,10 +354,12 @@ public:
                 assemble_derivative_hypreparmatrix_callbacks[derivative_id]);
    }
 
+   void UseNewKernels() { use_new_kernels = true; }
+
 private:
    const ParMesh &mesh;
 
-   std::vector<action_t> action_callbacks, action_callbacks_new;
+   std::vector<action_t> action_callbacks;
    std::map<size_t,
        std::vector<derivative_action_t>> derivative_action_callbacks;
    std::map<size_t,
@@ -398,6 +388,7 @@ private:
    std::map<size_t, size_t> assembled_vector_sizes;
 
    bool use_tensor_product_structure = true;
+   bool use_new_kernels = false;
 
    size_t test_space_field_idx = SIZE_MAX;
 };
@@ -416,8 +407,6 @@ void DifferentiableOperator::AddDomainIntegrator(
    derivative_ids_t derivative_ids)
 {
    NVTX_MARK_FUNCTION;
-   const static bool MFEM_NEW_KERNELS = std::getenv("MFEM_NEW_KERNELS");
-   dbg("\x1b[33mMFEM_NEW_KERNELS: {}", MFEM_NEW_KERNELS);
    using entity_t = Entity::Element;
 
    static constexpr size_t num_inputs =
@@ -602,7 +591,7 @@ void DifferentiableOperator::AddDomainIntegrator(
       {
          thread_blocks.x = q1d;
          thread_blocks.y = q1d;
-         thread_blocks.z = MFEM_NEW_KERNELS ? 1 :q1d;
+         thread_blocks.z = use_new_kernels ? 1 :q1d;
       }
    }
    else if (dimension == 2)
@@ -615,9 +604,9 @@ void DifferentiableOperator::AddDomainIntegrator(
       }
    }
 
-   if (MFEM_NEW_KERNELS)
+   if (use_new_kernels)
    {
-      action_callbacks_new.push_back(
+      action_callbacks.push_back(
          [
             // 🟢🟢🟢🟢 capture by copy:
             qfunc,                        // qfunc_t
@@ -627,6 +616,8 @@ void DifferentiableOperator::AddDomainIntegrator(
             input_dtq_maps,               // std::array<DofToQuadMap, num_fields>
             output_dtq_maps,              // std::array<DofToQuadMap, num_fields>
             use_sum_factorization,        // bool
+            use_new_kernels
+            = this->use_new_kernels,      // bool
             num_entities,                 // int
             element_dof_ordering,         // ElementDofOrdering
             num_qp,                       // int
@@ -671,6 +662,7 @@ void DifferentiableOperator::AddDomainIntegrator(
                                          input_to_field, output_to_field,
                                          input_dtq_maps, output_dtq_maps,
                                          use_sum_factorization,
+                                         use_new_kernels,
                                          num_entities,
                                          element_dof_ordering,
                                          num_qp,

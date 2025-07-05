@@ -346,6 +346,27 @@ inline MFEM_HOST_DEVICE void WriteDofs3d(const int e, const int d1d,
    }
 }
 
+/// Write 3D DIM vector into given device tensor for specific component
+template <int DIM, int MQ1>
+inline MFEM_HOST_DEVICE void WriteDofs3d(const int d1d, const int c,
+                                         kernels::internal::d_regs3d_t<DIM, MQ1> &X,
+                                         DeviceTensor<4, real_t> &Y)
+{
+   for (int dz = 0; dz < d1d; ++dz)
+   {
+      MFEM_FOREACH_THREAD_DIRECT(dy, y, d1d)
+      {
+         MFEM_FOREACH_THREAD_DIRECT(dx, x, d1d)
+         {
+            for (int d = 0; d < DIM; ++d)
+            {
+               Y(dx, dy, dz, c) += X(d, dz, dy, dx);
+            }
+         }
+      }
+   }
+}
+
 /// 2D scalar contraction, X direction
 template <bool Transpose, int MQ1>
 inline MFEM_HOST_DEVICE void ContractX2d(const int d1d, const int q1d,

@@ -30,27 +30,58 @@
 namespace mfem::future
 {
 
-///////////////////////////////////////////////////////////////////////////////
-/// Write 3D DIM vector into given device tensor
-template <int DIM, int MQ1>
-inline MFEM_HOST_DEVICE void WriteDofs3d(const int d1d, const int c,
-                                         kernels::internal::d_regs3d_t<DIM, MQ1> &X,
-                                         DeviceTensor<4, real_t> &Y)
+using reg38_t = kernels::internal::d_regs3d_t<3, 8>;
+
+namespace qf
 {
-   for (int dz = 0; dz < d1d; ++dz)
-   {
-      MFEM_FOREACH_THREAD_DIRECT(dy, y, d1d)
-      {
-         MFEM_FOREACH_THREAD_DIRECT(dx, x, d1d)
-         {
-            for (int d = 0; d < DIM; ++d)
-            {
-               Y(dx, dy, dz, c) += X(d, dz, dy, dx);
-            }
-         }
-      }
-   }
+
+template <typename T, int n>
+MFEM_HOST_DEVICE inline
+void process_qf_result(reg38_t &r0, const int qx, const int qy, const int qz,
+                       const tensor<T, n> &v)
+{
+   r0[0][qz][qy][qx] = v[0];
+   r0[1][qz][qy][qx] = v[1];
+   r0[2][qz][qy][qx] = v[2];
 }
+
+template <typename reg_t, typename qfunc_t, typename args_ts, size_t num_args>
+MFEM_HOST_DEVICE inline
+bool apply_kernel(reg_t &r0, reg_t &r1,
+                  const int qx, const int qy, const int qz,
+                  DeviceTensor<1, real_t> &f_qp,
+                  const qfunc_t &qfunc,
+                  args_ts &args,
+                  const std::array<DeviceTensor<2>, num_args> &u,
+                  const int qp)
+{
+   process_qf_args(u, args, qp);
+
+   auto r = get<0>(apply(qfunc, args));
+
+   if constexpr (decltype(r)::ndim == 1)
+   {
+      [[maybe_unused]] static bool dump_vdim = (dbg("\x1b[32m[apply w/ reg]"), false);
+      process_qf_result(r0, qx, qy, qz, r); // apply
+      // process_qf_result(f_qp, r);
+      return true;
+   }
+   else if constexpr (decltype(r)::ndim > 1)
+   {
+      [[maybe_unused]] static bool dump_vdim = (dbg("\x1b[31m[setup (w/ f_qp)]"),
+                                                false);
+      process_qf_result(f_qp, r); // setup
+      return false;
+   }
+   else
+   {
+      static_assert(dfem::always_false<decltype(r)>,
+                    "process_qf_result not implemented for result type");
+   }
+   return false;
+}
+
+} // namespace qf
 
 template<size_t num_fields,
          size_t num_inputs,
@@ -67,6 +98,7 @@ void action_callback_new(qfunc_t qfunc,
                          const std::array<DofToQuadMap, num_inputs> input_dtq_maps,
                          const std::array<DofToQuadMap, num_outputs> output_dtq_maps,
                          const bool use_sum_factorization,
+                         const bool use_new_kernels,
                          const int num_entities,
                          const ElementDofOrdering element_dof_ordering,
                          const int num_qp,
@@ -104,6 +136,7 @@ void action_callback_new(qfunc_t qfunc,
    using qf_signature =
       typename create_function_signature<decltype(&qfunc_t::operator())>::type;
    using qf_param_ts = typename qf_signature::parameter_ts;
+   // using r3d_t = kernels::internal::d_regs3d_t<3, T_Q1D>;
 
    // callbacks
    const auto restriction_callback =
@@ -137,15 +170,27 @@ void action_callback_new(qfunc_t qfunc,
                                        action_shmem_info.field_sizes,
                                        num_entities);
 
-   // const bool has_attr = domain_attributes.Size() > 0;
-   // const auto d_domain_attr = domain_attributes.Read();
-   // const auto d_elem_attr = elem_attributes.Read();
+   const bool has_attr = domain_attributes.Size() > 0;
+   const auto d_domain_attr = domain_attributes.Read();
+   const auto d_elem_attr = elem_attributes.Read();
+
 
    if (ini) { NVTX("forall"); }
    forall([=] MFEM_HOST_DEVICE (int e, void *shmem)
    {
       // this could be optimized out
-      // if (has_attr && !d_domain_attr[d_elem_attr[e] - 1]) { return; }
+      if (has_attr && !d_domain_attr[d_elem_attr[e] - 1]) { return; }
+
+      assert(dimension == 3);
+      assert(use_sum_factorization);
+
+      constexpr int DIM = 3, MQ1 = T_Q1D > 0 ? T_Q1D : 8;
+      MFEM_SHARED real_t smem[MQ1][MQ1], sB[MQ1][MQ1], sG[MQ1][MQ1];
+
+      bool use_reg = true;
+
+      kernels::internal::d_regs3d_t<DIM, MQ1> r0, r1;
+      // kernels::internal::vd_regs3d_t<VDIM, DIM, MQ1> v0, v1;
 
       auto [
          input_dtq_shmem,  // std::array<DofToQuadMap, num_inputs> (dtqmaps)
@@ -158,9 +203,6 @@ void action_callback_new(qfunc_t qfunc,
                        wrapped_fields_e, num_qp, e);
 
       // Interpolate
-      assert(dimension == 3);
-      constexpr int DIM = 3;
-      assert(use_sum_factorization);
       // map_fields_to_quadrature_data<MQ1>(input_shmem,       // fields_qp
       //                                    fields_shmem,      // fields_e
       //                                    input_dtq_shmem,   // dtqmaps
@@ -173,16 +215,23 @@ void action_callback_new(qfunc_t qfunc,
       const auto dummy_field_weight = DeviceTensor<1>(nullptr, 0);
       for_constexpr<num_inputs>([&](auto i)
       {
+         const auto input = get<i>(inputs);
+         const int vdim = input.vdim;
+         [[maybe_unused]] static bool dump_vdim = (dbg("\x1b[33mvdim:{}", vdim), false);
+
          using field_operator_t = decltype(get<i>(inputs));
 
          const DeviceTensor<1> &field_e =
             (input_to_field[i] == -1) ? dummy_field_weight :
             fields_shmem[input_to_field[i]];
 
-         if constexpr (is_value_fop<std::decay_t<field_operator_t>>::value ||    // Value
-                       std::is_same_v<std::decay_t<field_operator_t>, Weight> || // Weights
-                       is_identity_fop<std::decay_t<field_operator_t>>::value)   // Identity
+         if /*constexpr*/ (vdim > 1 || // we only handle scalar grad fields
+                           is_value_fop<std::decay_t<field_operator_t>>::value ||    // Value
+                           std::is_same_v<std::decay_t<field_operator_t>, Weight> || // Weights
+                           is_identity_fop<std::decay_t<field_operator_t>>::value)   // Identity
          {
+            use_reg = false;
+            [[maybe_unused]] static bool fallback = (dbg("\x1b[31m[fallback]"), false);
             map_field_to_quadrature_data_tensor_product_3d<T_Q1D>(input_shmem[i],
                                                                   input_dtq_shmem[i],
                                                                   field_e,
@@ -193,8 +242,8 @@ void action_callback_new(qfunc_t qfunc,
          }
          else
          {
-            static_assert(is_gradient_fop<std::decay_t<field_operator_t>>::value);
-
+            [[maybe_unused]] static bool grad = (dbg("\x1b[32m[grad/reg]"), false);
+            assert(is_gradient_fop<std::decay_t<field_operator_t>>::value);
             // map_field_to_quadrature_data_tensor_product_3d<MQ1>(input_shmem[i],        // field_qp
             //                                                     input_dtq_shmem[i],    // dtq
             //                                                     field_e,               // field_e
@@ -204,23 +253,15 @@ void action_callback_new(qfunc_t qfunc,
             const auto field_qp = input_shmem[i];
             const auto dtq = input_dtq_shmem[i];
             const auto field_i = input_to_field[i];
-            const auto input = get<i>(inputs);
-            const int vdim = input.vdim;
 
             const auto B = dtq.B;
             const auto G = dtq.G;
 
-            // const int dim = input.dim;
             const auto [B_q1d, B_dim, d1d] = B.GetShape();
             assert(B_q1d == q1d);
 
             const auto field = Reshape(&std::as_const(field_e[0]), d1d, d1d, d1d, vdim);
             auto fqp = Reshape(&field_qp[0], vdim, DIM, q1d, q1d, q1d);
-
-            constexpr int MQ1 = T_Q1D > 0 ? T_Q1D : 8;
-            MFEM_SHARED real_t smem[MQ1][MQ1];
-            kernels::internal::d_regs3d_t<DIM, MQ1> r0, r1; // s0, s1
-            real_t sB[MQ1][MQ1], sG[MQ1][MQ1];
 
             kernels::internal::LoadMatrix(d1d, q1d, B, sB);
             kernels::internal::LoadMatrix(d1d, q1d, G, sG);
@@ -244,11 +285,9 @@ void action_callback_new(qfunc_t qfunc,
                }
             }
          }
-      });
+      }); // for_constexpr<num_inputs>
 
       // Q function apply: process_qf_args, apply & process_qf_result
-      assert(dimension == 3);
-      assert(use_sum_factorization);
       // call_qfunction<qf_param_ts>(qfunc,
       //                             input_shmem,              // field_qp
       //                             residual_shmem,
@@ -267,14 +306,17 @@ void action_callback_new(qfunc_t qfunc,
                const int q = qx + q1d * (qy + q1d * qz);
                auto qf_args = decay_tuple<qf_param_ts> {};
                auto fhat = Reshape(&residual_shmem(0, q), residual_size_on_qp);
-               apply_kernel(fhat,         // f_qp
-                            qfunc,        // qfunc
-                            qf_args,      // args
-                            input_shmem,  // field_qp => u
-                            q);           // qp
+               use_reg |= qf::apply_kernel(r0, r1, qx, qy, qz,
+                                           fhat,         // f_qp
+                                           qfunc,        // qfunc
+                                           qf_args,      // args
+                                           input_shmem,  // field_qp => u
+                                           q);           // qp
             }
          }
       }
+      [[maybe_unused]] static bool used_reg =
+         (dbg("\x1b[{}m[used_reg]", use_reg ? 32:31), false);
 
       // Integrate
       auto fhat = Reshape(&residual_shmem(0, 0), test_vdim, test_op_dim, num_qp);
@@ -298,36 +340,29 @@ void action_callback_new(qfunc_t qfunc,
       }
       else if constexpr (is_gradient_fop<std::decay_t<output_t>>::value) // Gradient
       {
+         assert(use_new_kernels);
          const auto dtq = output_dtq_shmem[0];
          auto output = output_fop;
+
          [[maybe_unused]] auto B = dtq.B;
          [[maybe_unused]] auto G = dtq.G;
          const auto [q1d_, unused, d1d] = G.GetShape();
          assert(q1d_ == q1d);
+
          const int vdim = output.vdim;
-         const int test_dim = output.size_on_qp / vdim;
-         auto fqp = Reshape(&fhat(0, 0, 0), vdim, test_dim, q1d, q1d, q1d);
+         // const int test_dim = output.size_on_qp / vdim;
+
+         // auto fqp = Reshape(&fhat(0, 0, 0), vdim, test_dim, q1d, q1d, q1d);
          auto yd = Reshape(&y(0, 0), d1d, d1d, d1d, vdim);
 
-         auto s0 = Reshape(&scratch_shmem[0](0), q1d, q1d, d1d);
-         auto s1 = Reshape(&scratch_shmem[1](0), q1d, q1d, d1d);
-         auto s2 = Reshape(&scratch_shmem[2](0), q1d, q1d, d1d);
-         auto s3 = Reshape(&scratch_shmem[3](0), q1d, d1d, d1d);
-         auto s4 = Reshape(&scratch_shmem[4](0), q1d, d1d, d1d);
-         auto s5 = Reshape(&scratch_shmem[5](0), q1d, d1d, d1d);
-
-         constexpr int MQ1 = T_Q1D > 0 ? T_Q1D : 8;
-         MFEM_SHARED real_t smem[MQ1][MQ1];
-         kernels::internal::d_regs3d_t<DIM, MQ1> r0, r1; // s0, s1
-         real_t sB[MQ1][MQ1], sG[MQ1][MQ1];
-
-         kernels::internal::LoadMatrix(d1d, q1d, B, sB);
-         kernels::internal::LoadMatrix(d1d, q1d, G, sG);
+         // can be avoided IF one input to one output
+         // kernels::internal::LoadMatrix(d1d, q1d, B, sB);
+         // kernels::internal::LoadMatrix(d1d, q1d, G, sG);
 
          for (int c = 0; c < vdim; c++)
          {
             // should be removed to use directly r0
-            for (int qz = 0; qz < q1d; qz++)
+            /*for (int qz = 0; qz < q1d; qz++)
             {
                MFEM_FOREACH_THREAD_DIRECT(qy, y, q1d)
                {
@@ -338,74 +373,10 @@ void action_callback_new(qfunc_t qfunc,
                      r0[2][qz][qy][qx] = fqp(c, 2, qx, qy, qz);
                   }
                }
-            }
+            }*/
             kernels::internal::GradTranspose3d(d1d, q1d, smem, sB, sG, r0, r1, c);
-            WriteDofs3d(d1d, c, r1, yd);
+            kernels::internal::WriteDofs3d(d1d, c, r1, yd);
          }
-
-         /*for (int vd = 0; vd < vdim; vd++)
-         {
-            MFEM_FOREACH_THREAD(qz, z, q1d)
-            {
-               MFEM_FOREACH_THREAD(qy, y, q1d)
-               {
-                  MFEM_FOREACH_THREAD(dx, x, d1d)
-                  {
-                     real_t uvw[3] = {0.0, 0.0, 0.0};
-                     for (int qx = 0; qx < q1d; qx++)
-                     {
-                        uvw[0] += fqp(vd, 0, qx, qy, qz) * G(qx, 0, dx);
-                        uvw[1] += fqp(vd, 1, qx, qy, qz) * B(qx, 0, dx);
-                        uvw[2] += fqp(vd, 2, qx, qy, qz) * B(qx, 0, dx);
-                     }
-                     s0(qz, qy, dx) = uvw[0];
-                     s1(qz, qy, dx) = uvw[1];
-                     s2(qz, qy, dx) = uvw[2];
-                  }
-               }
-            }
-            MFEM_SYNC_THREAD;
-
-            MFEM_FOREACH_THREAD(qz, z, q1d)
-            {
-               MFEM_FOREACH_THREAD(dy, y, d1d)
-               {
-                  MFEM_FOREACH_THREAD(dx, x, d1d)
-                  {
-                     real_t uvw[3] = {0.0, 0.0, 0.0};
-                     for (int qy = 0; qy < q1d; qy++)
-                     {
-                        uvw[0] += s0(qz, qy, dx) * B(qy, 0, dy);
-                        uvw[1] += s1(qz, qy, dx) * G(qy, 0, dy);
-                        uvw[2] += s2(qz, qy, dx) * B(qy, 0, dy);
-                     }
-                     s3(qz, dy, dx) = uvw[0];
-                     s4(qz, dy, dx) = uvw[1];
-                     s5(qz, dy, dx) = uvw[2];
-                  }
-               }
-            }
-            MFEM_SYNC_THREAD;
-
-            MFEM_FOREACH_THREAD(dz, z, d1d)
-            {
-               MFEM_FOREACH_THREAD(dy, y, d1d)
-               {
-                  MFEM_FOREACH_THREAD(dx, x, d1d)
-                  {
-                     real_t uvw[3] = {0.0, 0.0, 0.0};
-                     for (int qz = 0; qz < q1d; qz++)
-                     {
-                        uvw[0] += s3(qz, dy, dx) * B(qz, 0, dz);
-                        uvw[1] += s4(qz, dy, dx) * B(qz, 0, dz);
-                        uvw[2] += s5(qz, dy, dx) * G(qz, 0, dz);
-                     }
-                     yd(dx, dy, dz, vd) += uvw[0] + uvw[1] + uvw[2];
-                  }
-               }
-            }
-            MFEM_SYNC_THREAD;
-         }*/
       }
       else
       {
