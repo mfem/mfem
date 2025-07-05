@@ -14,7 +14,7 @@
 
 // #include "interpolate.hpp"
 #include "fem/kernels.hpp"
-#include "qfunction_apply.hpp"
+// #include "qfunction_apply.hpp"
 #include "integrate.hpp"
 
 #include "util.hpp"
@@ -187,8 +187,6 @@ void action_callback_new(qfunc_t qfunc,
       constexpr int DIM = 3, MQ1 = T_Q1D > 0 ? T_Q1D : 8;
       MFEM_SHARED real_t smem[MQ1][MQ1], sB[MQ1][MQ1], sG[MQ1][MQ1];
 
-      bool use_reg = true;
-
       kernels::internal::d_regs3d_t<DIM, MQ1> r0, r1;
       // kernels::internal::vd_regs3d_t<VDIM, DIM, MQ1> v0, v1;
 
@@ -230,7 +228,6 @@ void action_callback_new(qfunc_t qfunc,
                            std::is_same_v<std::decay_t<field_operator_t>, Weight> || // Weights
                            is_identity_fop<std::decay_t<field_operator_t>>::value)   // Identity
          {
-            use_reg = false;
             [[maybe_unused]] static bool fallback = (dbg("\x1b[31m[fallback]"), false);
             map_field_to_quadrature_data_tensor_product_3d<T_Q1D>(input_shmem[i],
                                                                   input_dtq_shmem[i],
@@ -306,17 +303,15 @@ void action_callback_new(qfunc_t qfunc,
                const int q = qx + q1d * (qy + q1d * qz);
                auto qf_args = decay_tuple<qf_param_ts> {};
                auto fhat = Reshape(&residual_shmem(0, q), residual_size_on_qp);
-               use_reg |= qf::apply_kernel(r0, r1, qx, qy, qz,
-                                           fhat,         // f_qp
-                                           qfunc,        // qfunc
-                                           qf_args,      // args
-                                           input_shmem,  // field_qp => u
-                                           q);           // qp
+               qf::apply_kernel(r0, r1, qx, qy, qz,
+                                fhat,         // f_qp
+                                qfunc,        // qfunc
+                                qf_args,      // args
+                                input_shmem,  // field_qp => u
+                                q);           // qp
             }
          }
       }
-      [[maybe_unused]] static bool used_reg =
-         (dbg("\x1b[{}m[used_reg]", use_reg ? 32:31), false);
 
       // Integrate
       auto fhat = Reshape(&residual_shmem(0, 0), test_vdim, test_op_dim, num_qp);
@@ -342,38 +337,22 @@ void action_callback_new(qfunc_t qfunc,
       {
          assert(use_new_kernels);
          const auto dtq = output_dtq_shmem[0];
-         auto output = output_fop;
 
-         [[maybe_unused]] auto B = dtq.B;
-         [[maybe_unused]] auto G = dtq.G;
+         const auto B = dtq.B, G = dtq.G;
          const auto [q1d_, unused, d1d] = G.GetShape();
          assert(q1d_ == q1d);
 
+         const auto output = output_fop;
          const int vdim = output.vdim;
-         // const int test_dim = output.size_on_qp / vdim;
 
-         // auto fqp = Reshape(&fhat(0, 0, 0), vdim, test_dim, q1d, q1d, q1d);
          auto yd = Reshape(&y(0, 0), d1d, d1d, d1d, vdim);
 
          // can be avoided IF one input to one output
-         // kernels::internal::LoadMatrix(d1d, q1d, B, sB);
-         // kernels::internal::LoadMatrix(d1d, q1d, G, sG);
+         kernels::internal::LoadMatrix(d1d, q1d, B, sB);
+         kernels::internal::LoadMatrix(d1d, q1d, G, sG);
 
          for (int c = 0; c < vdim; c++)
          {
-            // should be removed to use directly r0
-            /*for (int qz = 0; qz < q1d; qz++)
-            {
-               MFEM_FOREACH_THREAD_DIRECT(qy, y, q1d)
-               {
-                  MFEM_FOREACH_THREAD_DIRECT(qx, x, q1d)
-                  {
-                     r0[0][qz][qy][qx] = fqp(c, 0, qx, qy, qz);
-                     r0[1][qz][qy][qx] = fqp(c, 1, qx, qy, qz);
-                     r0[2][qz][qy][qx] = fqp(c, 2, qx, qy, qz);
-                  }
-               }
-            }*/
             kernels::internal::GradTranspose3d(d1d, q1d, smem, sB, sG, r0, r1, c);
             kernels::internal::WriteDofs3d(d1d, c, r1, yd);
          }

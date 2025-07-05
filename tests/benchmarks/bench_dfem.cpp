@@ -394,7 +394,7 @@ struct Diffusion : public BakeOff<VDIM, GLL>
             MFEM_VERIFY(q1d == gQ1D, "Q1D mismatch: " << q1d << " != " << gQ1D);
          }
       }
-      /*else if (version == 2) // 2: MF ∂fem
+      else if (version == 2) // 2: MF ∂fem
       {
          dbg("MF ∂fem");
          auto solutions = std::vector{FieldDescriptor{U, &pfes}};
@@ -415,7 +415,7 @@ struct Diffusion : public BakeOff<VDIM, GLL>
                                   *ir, ess_bdr);
          dop->FormLinearSystem(ess_tdof_list, x, b, A_ptr, X, B);
          A.Reset(A_ptr);
-      }*/
+      }
       else if (version == 3) // PA ∂fem
       {
          dbg("[PA ∂fem]");
@@ -450,7 +450,7 @@ struct Diffusion : public BakeOff<VDIM, GLL>
             return tuple{q * Gu};
          };
          dop = std::make_unique<DifferentiableOperator>(u_sol, q_param, pmesh);
-         dop->UseNewKernels();
+         if (getenv("MFEM_NEW_KERNELS")) { dop->UseNewKernels(); }
          dop->AddDomainIntegrator(pa_apply_qf, Gu_Iq, tuple{Gu}, *ir, ess_bdr);
          dop->SetParameters({ &qdata });
 
@@ -477,6 +477,7 @@ struct Diffusion : public BakeOff<VDIM, GLL>
       cg.SetMaxIter(max_it);
       cg.SetPrintLevel(print_lvl);
       benchmark();
+      mdofs = 0.0;
    }
 
    void benchmark() override
