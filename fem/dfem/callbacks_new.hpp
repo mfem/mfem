@@ -56,39 +56,50 @@ void apply_kernel(reg_t &r0, reg_t &r1,
                   const std::array<DeviceTensor<2>, num_args> &u,
                   const int qp)
 {
+   db1("apply_kernel");
 
    // const tensor<real_t, DIM>       ∇u
    // const tensor<real_t, DIM, DIM>  D (PA_DATA)
 
-   process_qf_args(u, args, qp);
+   // process_qf_args(u, args, qp);
+
    // for_constexpr...
    // process_qf_arg(u[i], get<i>(args), qp);
-   /*{
-      // ∇u
-      constexpr int i = 0;
-      auto u_0 = u[i];
-      auto arg_0 = get<i>(args);
-      [[maybe_unused]] static bool ini =
-         (dbg("u_0.GetShape()[0]:{} u_0.GetShape()[1]:{}",
-              u_0.GetShape()[0], u_0.GetShape()[1]), false);
-      const auto u_qp = Reshape(&u_0(0, qp), u_0.GetShape()[0]);
-      process_qf_arg(u_qp, arg_0); // 🔥🔥🔥
-      // r1[0][qz][qy][qx] = u_qp[0];
-      // r1[1][qz][qy][qx] = u_qp[1];
-      // r1[2][qz][qy][qx] = u_qp[2];
-      // assert(false);
-   }*/
-   /*{
-      // D (PA_DATA)
-      constexpr int i = 1;
-      auto u_1 = u[i];
-      [[maybe_unused]] static bool ini =
-         (dbg("u_1.GetShape()[0]:{} u_1.GetShape()[1]:{}",
-              u_1.GetShape()[0], u_1.GetShape()[1]), false);
-      auto arg_1 = get<i>(args);
-      const auto u_qp = Reshape(&u_1(0, qp), u_1.GetShape()[0]);
-      process_qf_arg(u_qp, arg_1); // 🔥🔥🔥
-   }*/
+   static_assert(num_args == 3 ||   // setup
+                 num_args == 2,     // apply
+                 "apply_kernel expects exactly 2 arguments (∇u, D (PA_DATA))");
+   if constexpr (num_args == 2)
+   {
+      {
+         // ∇u
+         constexpr int i = 0;
+         // process_qf_arg(u[i], get<i>(args), qp);
+         const DeviceTensor<2> u_0 = u.at(i);
+         tensor<real_t, 3> &arg_0 = get<i>(args); // type from ∇u
+         // const auto u_qp = Reshape(&u_0(0, qp), u_0.GetShape()[0]);
+         // process_qf_arg(u_qp, arg_0);
+         arg_0[0] = r1[0][qz][qy][qx];
+         arg_0[1] = r1[1][qz][qy][qx];
+         arg_0[2] = r1[2][qz][qy][qx];
+         // r1[0][qz][qy][qx] = u_qp[0];
+         // r1[1][qz][qy][qx] = u_qp[1];
+         // r1[2][qz][qy][qx] = u_qp[2];
+         // assert(false);
+      }
+      {
+         // D (PA_DATA)
+         constexpr int i = 1;
+         process_qf_arg(u[i], get<i>(args), qp);
+         /*auto u_1 = u.at(i);
+         [[maybe_unused]] static bool ini =
+            (dbg("u_1.GetShape()[0]:{} u_1.GetShape()[1]:{}",
+                 u_1.GetShape()[0], u_1.GetShape()[1]), false);
+         auto arg_1 = get<i>(args);
+         const auto u_qp = Reshape(&u_1(0, qp), u_1.GetShape()[0]);
+         process_qf_arg(u_qp, arg_1); // 🔥🔥🔥*/
+      }
+   }
+   else { assert(false && "Should not be here!"); }
 
    auto r = get<0>(apply(qfunc, args));
 
@@ -196,6 +207,7 @@ void action_callback_new(qfunc_t qfunc,
    auto ye = Reshape(residual_e.ReadWrite(), test_vdim, num_test_dof,
                      num_entities);
 
+   // std::array<DeviceTensor<2>, num_fields>: (field_sizes, num_entities)
    auto wrapped_fields_e = wrap_fields(fields_e,
                                        action_shmem_info.field_sizes,
                                        num_entities);
@@ -313,16 +325,16 @@ void action_callback_new(qfunc_t qfunc,
 
       // dbg("Now calling qfunction");
       // Q function apply: process_qf_args, apply & process_qf_result
-      call_qfunction<qf_param_ts>(qfunc,
-                                  input_shmem,              // field_qp
-                                  residual_shmem,
-                                  residual_size_on_qp,      // rs_qp
-                                  num_qp,
-                                  q1d,
-                                  dimension,
-                                  use_sum_factorization);
+      // call_qfunction<qf_param_ts>(qfunc,
+      //                             input_shmem,              // field_qp
+      //                             residual_shmem,
+      //                             residual_size_on_qp,      // rs_qp
+      //                             num_qp,
+      //                             q1d,
+      //                             dimension,
+      //                             use_sum_factorization);
 
-      /*MFEM_FOREACH_THREAD_DIRECT(qx, x, q1d)
+      MFEM_FOREACH_THREAD_DIRECT(qx, x, q1d)
       {
          MFEM_FOREACH_THREAD_DIRECT(qy, y, q1d)
          {
@@ -332,14 +344,14 @@ void action_callback_new(qfunc_t qfunc,
                auto qf_args = decay_tuple<qf_param_ts> {};
                auto fhat = Reshape(&residual_shmem(0, q), residual_size_on_qp);
                qf::apply_kernel(r0, r1, qx, qy, qz,
-                                fhat,       // f_qp
+                                fhat,         // f_qp
                                 qfunc,        // qfunc
                                 qf_args,      // args
                                 input_shmem,  // field_qp => u
                                 q);
             }
          }
-      }*/
+      }
 
       // Integrate
       auto fhat = Reshape(&residual_shmem(0, 0), test_vdim, test_op_dim, num_qp);
