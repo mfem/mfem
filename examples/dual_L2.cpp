@@ -60,7 +60,7 @@ bool CheckVectorComponents(const mfem::GridFunction &gf, double limit)
 int main(int argc, char *argv[])
 {
    // const char *mesh_file = "../data/star.mesh";
-   int order = 3;
+   int order = 2;
    int order_l2 = 1; 
    int max_it = 10;
    int ref_levels = 3;
@@ -68,7 +68,7 @@ int main(int argc, char *argv[])
    real_t growth_rate = 1.0;
    real_t newton_scaling = 0.9;
    real_t tichonov = 1e-1;
-   real_t tol = 1e-4;
+   real_t tol = 1e-6;
 
    bool visualization = true;
 
@@ -181,9 +181,20 @@ int main(int argc, char *argv[])
 
    b0.AddDomainIntegrator(new VectorFEDomainLFIntegrator(psi_newton_res));
 
-VectorFunctionCoefficient f_coeff(2, [](const Vector &x, Vector &u) {
-      u(0) = 0.5; 
-      u(1) = 0.0;
+   VectorFunctionCoefficient f_coeff(2, [](const Vector &x, Vector &u) {
+      // NOTE: constant example 
+      // u(0) = 0.5; 
+      // u(1) = 0.0;
+
+      // NOTE: linear example 
+      // u(0) = x(0); 
+      // u(1) = -1.0 * x(1);
+
+      // NOTE: trig example
+      u(0) = cosh(M_PI*x(0)) * sin(M_PI*x(1));  
+      u(1) = sinh(M_PI*x(0)) * cos(M_PI*x(1)); 
+      
+      u /= cosh(M_PI);
    });
 
    ScalarVectorProductCoefficient alpha_f_cf(alpha_cf, f_coeff); 
@@ -304,8 +315,19 @@ VectorFunctionCoefficient f_coeff(2, [](const Vector &x, Vector &u) {
              << endl;
 
    VectorFunctionCoefficient exact_coeff(2, [](const Vector &x, Vector &u) {      
-      u(0) = 0.5; 
-      u(1) = 0.0; 
+      // NOTE: constant example 
+      // u(0) = 0.5; 
+      // u(1) = 0.0; 
+      
+      // NOTE: linear example 
+      // u(0) = x(0); 
+      // u(1) = -1.0 * x(1);
+
+      // NOTE: trig example
+      u(0) = cosh(M_PI*x(0)) * sin(M_PI*x(1));  
+      u(1) = sinh(M_PI*x(0)) * cos(M_PI*x(1)); 
+      
+      u /= cosh(M_PI);
    });
 
    GridFunction exact_vec(&L2fes); 
