@@ -27,8 +27,6 @@
 namespace mfem::future
 {
 
-using reg38_t = kernels::internal::d_regs3d_t<3, 8>;
-
 template <std::size_t num_fields>
 MFEM_HOST_DEVICE inline
 std::array<DeviceTensor<1>, num_fields>
@@ -59,9 +57,9 @@ load_field_e_ptr(const std::array<DeviceTensor<2>, N> &fields_e,
 namespace qf
 {
 
-template <typename T, int n>
+template <typename reg_t, typename T, int n>
 MFEM_HOST_DEVICE inline
-void process_qf_result_from_reg(reg38_t &r0,
+void process_qf_result_from_reg(reg_t &r0,
                                 const int qx, const int qy, const int qz,
                                 const tensor<T, n> &v)
 {
@@ -109,7 +107,10 @@ void apply_kernel(reg_t &r0, reg_t &r1,
 
    if constexpr (decltype(r)::ndim == 1)
    {
-      process_qf_result_from_reg(r0, qx, qy, qz, r);
+      // process_qf_result_from_reg(r0, qx, qy, qz, r);
+      r0[0][qz][qy][qx] = r[0];
+      r0[1][qz][qy][qx] = r[1];
+      r0[2][qz][qy][qx] = r[2];
    }
 }
 
@@ -206,24 +207,21 @@ inline void action_callback_new(restriction_cb_t &restriction_cb,
       const auto dummy_field_weight = DeviceTensor<1>(nullptr, 0);
       for_constexpr<num_inputs>([&](auto i)
       {
-         const auto input = get<i>(inputs);
-         const int vdim = input.vdim;
-
          using field_operator_t = std::decay_t<decltype(get<i>(inputs))>;
 
-         if constexpr (is_gradient_fop<field_operator_t>::value)
+         if constexpr (is_gradient_fop<field_operator_t>::value) // Grad
          {
             // db1("\x1b[32m[Gradient] r0, r1");
+            const auto input = get<i>(inputs);
+            const int vdim = input.vdim;
             const auto dtq = input_dtq_maps[i];
             const auto B = dtq.B, G = dtq.G;
             const auto [B_q1d, B_dim, d1d] = B.GetShape();
             assert(B_q1d == q1d);
             const real_t *field_e_r = fields_e_ptr[input_to_field[i]];
             const auto field = Reshape(field_e_r, d1d, d1d, d1d, vdim);
-
             kernels::internal::LoadMatrix(d1d, q1d, B, sB);
             kernels::internal::LoadMatrix(d1d, q1d, G, sG);
-
             for (int c = 0; c < vdim; c++)
             {
                kernels::internal::LoadDofs3d(d1d, c, field, r0);
@@ -231,7 +229,7 @@ inline void action_callback_new(restriction_cb_t &restriction_cb,
             }
          }
 
-         if constexpr (is_identity_fop<field_operator_t>::value)
+         if constexpr (is_identity_fop<field_operator_t>::value) // Identity
          {
             // db1("Identity");
             r2 = fields_e_ptr[input_to_field[i]];
@@ -253,25 +251,19 @@ inline void action_callback_new(restriction_cb_t &restriction_cb,
       }
 
       // db1("Integrate");
-      auto y = Reshape(&ye(0, 0, e), num_test_dof, test_vdim);
       using output_t = std::decay_t<decltype(output_fop)>;
+      auto y = Reshape(&ye(0, 0, e), num_test_dof, test_vdim);
       if constexpr (is_gradient_fop<std::decay_t<output_t>>::value) // Gradient
       {
          const auto dtq = output_dtq_maps[0];
-
          const auto B = dtq.B, G = dtq.G;
-         const auto [q1d_, unused, d1d] = G.GetShape();
-         assert(q1d_ == q1d);
-
+         const auto [_, unused, d1d] = G.GetShape();
          const auto output = output_fop;
          const int vdim = output.vdim;
-
          auto yd = Reshape(&y(0, 0), d1d, d1d, d1d, vdim);
-
          // can be avoided IF one input to one output
          // kernels::internal::LoadMatrix(d1d, q1d, B, sB);
          // kernels::internal::LoadMatrix(d1d, q1d, G, sG);
-
          for (int c = 0; c < vdim; c++)
          {
             kernels::internal::GradTranspose3d(d1d, q1d, smem, sB, sG, r0, r1, c);
