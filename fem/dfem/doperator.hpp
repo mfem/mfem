@@ -609,47 +609,49 @@ void DifferentiableOperator::AddDomainIntegrator(
       action_callbacks.push_back(
          [
             // 🟢🟢🟢🟢 capture by copy:
-            qfunc,                        // qfunc_t
-            inputs,                       // input_t
-            fields = this->fields,        // std::vector<FieldDescriptor>
-            input_to_field,               // std::array<int, s>
-            input_dtq_maps,               // std::array<DofToQuadMap, num_fields>
-            output_dtq_maps,              // std::array<DofToQuadMap, num_fields>
-            use_sum_factorization,        // bool
-            use_new_kernels
-            = this->use_new_kernels,      // bool
+            dimension,                    // int
             num_entities,                 // int
-            element_dof_ordering,         // ElementDofOrdering
+            num_test_dof,                 // int
             num_qp,                       // int
+            q1d,                          // int
+            residual_size_on_qp,          // int
             test_vdim,                    // int (= output_fop.vdim)
             test_op_dim,                  // int (derived from output_fop)
-            num_test_dof,                 // int
-            dimension,                    // int
-            q1d,                          // int
-            input_size_on_qp,             // std::array<int, num_inputs>
-            residual_size_on_qp,          // int
-            dependency_map,               // std::map<int, std::vector<int>>
-            inputs_vdim,                  // std::vector<int>
-            output_to_field,              // std::array<int, s>
-            output_fop,                   // class derived from FieldOperator
-            ir_weights,                   // DeviceTensor
+            inputs,                       // input_t
             domain_attributes,            // Array<int>
+            ir_weights,                   // DeviceTensor
+            use_sum_factorization,        // bool
+            input_dtq_maps,               // std::array<DofToQuadMap, num_fields>
+            output_dtq_maps,              // std::array<DofToQuadMap, num_fields>
+            input_to_field,               // std::array<int, s>
+            output_fop,                   // class derived from FieldOperator
+            qfunc,                        // qfunc_t
             thread_blocks,                // ThreadBlocks
             shmem_cache,                  // Vector (local)
             action_shmem_info,            // SharedMemoryInfo
             elem_attributes,              // Array<int>
+
+            fields = this->fields,        // std::vector<FieldDescriptor>
+            use_new_kernels
+            = this->use_new_kernels,      // bool
+            element_dof_ordering,         // ElementDofOrdering
+            input_size_on_qp,             // std::array<int, num_inputs>
+            dependency_map,               // std::map<int, std::vector<int>>
+            inputs_vdim,                  // std::vector<int>
+            output_to_field,              // std::array<int, s>
             // 🟣🟣🟣🟣 capture by ref:
-            &solutions = this->solutions,
-            &parameters = this->parameters,
+            // &restriction_cb = this->restriction_callback,
             &fields_e = this->fields_e,
             &residual_e = this->residual_e,
-            &output_restriction_transpose = this->output_restriction_transpose
+            &output_restriction_transpose = this->output_restriction_transpose,
+
+            &solutions = this->solutions,
+            &parameters = this->parameters
          ](std::vector<Vector> &solutions_l,
            const std::vector<Vector> &parameters_l,
            Vector &residual_l)
-         mutable // mutable: needed to modify 'shmem_cache'
+         mutable
       {
-         // NVTX_MARK_FUNCTION;
          action_callback_new<MQ1, num_fields>(qfunc,
                                               inputs,
                                               fields,

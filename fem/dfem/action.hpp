@@ -33,13 +33,30 @@ namespace mfem::future
 
 using reg38_t = kernels::internal::d_regs3d_t<3, 8>;
 
+template <std::size_t num_fields>
+MFEM_HOST_DEVICE inline
+std::array<DeviceTensor<1>, num_fields>
+load_field_address(const std::array<int, num_fields> &sizes,
+                   const std::array<DeviceTensor<2>, num_fields> &fields_e,
+                   const int &entity_idx)
+{
+   std::array<DeviceTensor<1>, num_fields> f;
+   for_constexpr<num_fields>([&](auto field_idx)
+   {
+      f[field_idx] =
+         DeviceTensor<1>(&fields_e[field_idx](0, entity_idx), sizes[field_idx]);
+   });
+   return f;
+}
+
 namespace qf
 {
 
 template <typename T, int n>
 MFEM_HOST_DEVICE inline
-void process_qf_result(reg38_t &r0, const int qx, const int qy, const int qz,
-                       const tensor<T, n> &v)
+void process_qf_result_from_reg(reg38_t &r0,
+                                const int qx, const int qy, const int qz,
+                                const tensor<T, n> &v)
 {
    r0[0][qz][qy][qx] = v[0];
    r0[1][qz][qy][qx] = v[1];
@@ -52,11 +69,8 @@ template <size_t num_args,
 MFEM_HOST_DEVICE inline
 void apply_kernel(reg_t &r0, reg_t &r1, vd_reg_t &r2,
                   const int qx, const int qy, const int qz,
-                  // DeviceTensor<1, real_t> &f_qp,
                   const qfunc_t &qfunc,
                   args_ts &args)
-// const std::array<DeviceTensor<2>, num_args> &u, // input_shmem
-// const int qp)
 {
    db1("apply_kernel");
 
@@ -94,7 +108,6 @@ void apply_kernel(reg_t &r0, reg_t &r1, vd_reg_t &r2,
          {
             for (int k = 0; k < 3; k++)
             {
-               // arg_1[j][k] = u_qp(j + 3 * k);
                arg_1[j][k] = r2[j][k][qz][qy][qx];
             }
          }
@@ -107,8 +120,7 @@ void apply_kernel(reg_t &r0, reg_t &r1, vd_reg_t &r2,
    if constexpr (decltype(r)::ndim == 1)
    {
       db1("\x1b[32m[apply w/ reg]");
-      process_qf_result(r0, qx, qy, qz, r); // apply
-      // process_qf_result(f_qp, r);
+      process_qf_result_from_reg(r0, qx, qy, qz, r); // apply
    }
    else if constexpr (decltype(r)::ndim > 1)
    {
@@ -149,7 +161,7 @@ inline void action_callback_new(qfunc_t &qfunc,
                                 const int num_test_dof,
                                 const int dimension,
                                 const int q1d,
-                                ThreadBlocks &thread_blocks,
+                                const ThreadBlocks &thread_blocks,
                                 Vector &shmem_cache,
                                 SharedMemoryInfo<num_fields, num_inputs, num_outputs> &shmem_info,
                                 Array<int> &elem_attributes,
@@ -214,7 +226,7 @@ inline void action_callback_new(qfunc_t &qfunc,
    const auto d_elem_attr = elem_attributes.Read();
 
    db1("forall");
-   forall([=] MFEM_HOST_DEVICE (int e, void *shmem)
+   forall([=] MFEM_HOST_DEVICE (int e, void *)
    {
       // this could be optimized out
       if (has_attr && !d_domain_attr[d_elem_attr[e] - 1]) { return; }
@@ -222,36 +234,15 @@ inline void action_callback_new(qfunc_t &qfunc,
       assert(dimension == 3);
       assert(use_sum_factorization);
 
-      constexpr int VDIM = 3, DIM = 3;//, MQ1 = T_Q1D > 0 ? T_Q1D : 8;
+      constexpr int VDIM = 3, DIM = 3;
       MFEM_SHARED real_t smem[MQ1][MQ1], sB[MQ1][MQ1], sG[MQ1][MQ1];
       kernels::internal::d_regs3d_t<DIM, MQ1> r0, r1;
       kernels::internal::vd_regs3d_t<VDIM, DIM, MQ1> r2;
 
-      // auto [
-      //    input_dtq_shmem,  // std::array<DofToQuadMap, num_inputs> (dtqmaps)
-      //    output_dtq_shmem, // std::array<DofToQuadMap, num_outputs>
-      //    fields_shmem,     // std::array<DeviceTensor<1>, num_fields> (fields_e)
-      //    input_shmem,      // std::array<DeviceTensor<2>, num_inputs> (fields_qp)
-      //    residual_shmem,   // DeviceTensor<2>
-      //    scratch_shmem     // std::array<DeviceTensor<1>, 6>
-      // ] = unpack_shmem(shmem, action_shmem_info, input_dtq_maps, output_dtq_maps,
-      //                  wrapped_fields_e, num_qp, e);
-
-      auto input_dtq_shmem = load_dtq_mem(shmem,
-                                          shmem_info.offsets[SharedMemory::Index::INPUT_DTQ],
-                                          shmem_info.input_dtq_sizes,
-                                          input_dtq_maps);
-
-      auto output_dtq_shmem = load_dtq_mem(shmem,
-                                           shmem_info.offsets[SharedMemory::Index::OUTPUT_DTQ],
-                                           shmem_info.output_dtq_sizes,
-                                           output_dtq_maps);
-
-      auto fields_shmem = load_field_mem(shmem,
-                                         shmem_info.offsets[SharedMemory::Index::FIELD],
-                                         shmem_info.field_sizes,
-                                         wrapped_fields_e,
-                                         e);
+      auto fields_address =
+         load_field_address(shmem_info.field_sizes,
+                            wrapped_fields_e,
+                            e);
 
       // Interpolate
       const auto dummy_field_weight = DeviceTensor<1>(nullptr, 0);
@@ -265,7 +256,7 @@ inline void action_callback_new(qfunc_t &qfunc,
 
          const DeviceTensor<1> &field_e =
             (input_to_field[i] == -1) ? dummy_field_weight :
-            fields_shmem[input_to_field[i]];
+            fields_address[input_to_field[i]];
 
          if constexpr (is_value_fop<field_operator_t>::value)
          {
@@ -275,7 +266,7 @@ inline void action_callback_new(qfunc_t &qfunc,
          else if constexpr (is_gradient_fop<field_operator_t>::value)
          {
             db1("\x1b[32m[Gradient] r0, r1");
-            const auto dtq = input_dtq_shmem[i];
+            const auto dtq = input_dtq_maps[i];
             const auto B = dtq.B, G = dtq.G;
             const auto [B_q1d, B_dim, d1d] = B.GetShape();
             assert(B_q1d == q1d);
@@ -298,9 +289,7 @@ inline void action_callback_new(qfunc_t &qfunc,
          else if constexpr (is_identity_fop<field_operator_t>::value)
          {
             db1("Identity");
-            // auto field = Reshape(&field_e[0], input.size_on_qp, q1d, q1d, q1d);
             auto field = Reshape(&field_e[0], VDIM, DIM, q1d, q1d, q1d);
-            // input_shmem[i] = field;
 
             for (int c = 0; c<VDIM; ++c)
             {
@@ -328,24 +317,20 @@ inline void action_callback_new(qfunc_t &qfunc,
       }); // for_constexpr<num_inputs>
 
       db1("Now calling qfunction");
+      auto qf_args = decay_tuple<qf_param_ts> {};
       MFEM_FOREACH_THREAD_DIRECT(qx, x, q1d)
       {
          MFEM_FOREACH_THREAD_DIRECT(qy, y, q1d)
          {
             MFEM_FOREACH_THREAD_DIRECT(qz, z, q1d)
             {
-               // const int q = qx + q1d * (qy + q1d * qz);
-               auto qf_args = decay_tuple<qf_param_ts> {};
                qf::apply_kernel<num_inputs>(r0, r1, r2, qx, qy, qz,
-                                            qfunc,        // qfunc
-                                            qf_args);     // args
-               //   input_shmem,  // field_qp => u
-               //q);
+                                            qfunc, qf_args);
             }
          }
       }
 
-      // Integrate
+      db1("Integrate");
       auto y = Reshape(&ye(0, 0, e), num_test_dof, test_vdim);
       using output_t = std::decay_t<decltype(output_fop)>;
       if constexpr (is_value_fop<std::decay_t<output_t>>::value ||   // Value
@@ -357,7 +342,7 @@ inline void action_callback_new(qfunc_t &qfunc,
       else if constexpr (is_gradient_fop<std::decay_t<output_t>>::value) // Gradient
       {
          assert(use_new_kernels);
-         const auto dtq = output_dtq_shmem[0];
+         const auto dtq = output_dtq_maps[0];
 
          const auto B = dtq.B, G = dtq.G;
          const auto [q1d_, unused, d1d] = G.GetShape();
