@@ -12,11 +12,11 @@
 
 #include <cstddef>
 
-#include "interpolate.hpp"
+// #include "interpolate.hpp"
 #include "fem/kernels.hpp"
 // #include "qfunction_apply.hpp"
-#include "qfunction_transform.hpp"
-#include "integrate.hpp"
+// #include "qfunction_transform.hpp"
+// #include "integrate.hpp"
 
 #include "util.hpp"
 
@@ -46,16 +46,17 @@ void process_qf_result(reg38_t &r0, const int qx, const int qy, const int qz,
    r0[2][qz][qy][qx] = v[2];
 }
 
-template <typename reg_t, typename vd_reg_t, typename qfunc_t, typename args_ts, size_t num_args>
+template <size_t num_args,
+          typename reg_t, typename vd_reg_t,
+          typename qfunc_t, typename args_ts>
 MFEM_HOST_DEVICE inline
-void apply_kernel(reg_t &r0, reg_t &r1,
-                  vd_reg_t &r2,
+void apply_kernel(reg_t &r0, reg_t &r1, vd_reg_t &r2,
                   const int qx, const int qy, const int qz,
                   // DeviceTensor<1, real_t> &f_qp,
                   const qfunc_t &qfunc,
-                  args_ts &args,
-                  const std::array<DeviceTensor<2>, num_args> &u, // input_shmem
-                  const int qp)
+                  args_ts &args)
+// const std::array<DeviceTensor<2>, num_args> &u, // input_shmem
+// const int qp)
 {
    db1("apply_kernel");
 
@@ -131,44 +132,44 @@ template<int MQ1,
          typename qfunc_t,
          typename input_t,
          typename output_fop_t>
-void action_callback_new(qfunc_t qfunc,
-                         input_t inputs,
-                         const std::vector<FieldDescriptor> fields,
-                         const std::array<int, num_inputs> input_to_field,
-                         const std::array<int, num_outputs> output_to_field,
-                         const std::array<DofToQuadMap, num_inputs> input_dtq_maps,
-                         const std::array<DofToQuadMap, num_outputs> output_dtq_maps,
-                         const bool use_sum_factorization,
-                         const bool use_new_kernels,
-                         const int num_entities,
-                         const ElementDofOrdering element_dof_ordering,
-                         const int num_qp,
-                         const int test_vdim,
-                         const int test_op_dim,
-                         const int num_test_dof,
-                         const int dimension,
-                         const int q1d,
-                         ThreadBlocks thread_blocks,
-                         Vector shmem_cache,
-                         SharedMemoryInfo<num_fields, num_inputs, num_outputs> action_shmem_info,
-                         Array<int> elem_attributes,
-                         const std::vector<int> input_size_on_qp,
-                         const int residual_size_on_qp,
-                         const std::unordered_map<int, std::array<bool, num_inputs>> dependency_map,
-                         const std::vector<int> inputs_vdim,
-                         const output_fop_t output_fop,
-                         const Array<int> domain_attributes,
-                         const DeviceTensor<1, const double> ir_weights,
-                         // &
-                         std::vector<FieldDescriptor> &solutions,
-                         std::vector<FieldDescriptor> &parameters,
-                         std::vector<Vector> &fields_e,
-                         Vector &residual_e,
-                         std::function<void(Vector &, Vector &)> &output_restriction_transpose,
-                         // args
-                         std::vector<Vector> &solutions_l,
-                         const std::vector<Vector> &parameters_l,
-                         Vector &residual_l)
+inline void action_callback_new(qfunc_t &qfunc,
+                                input_t &inputs,
+                                const std::vector<FieldDescriptor> &fields,
+                                const std::array<int, num_inputs> &input_to_field,
+                                const std::array<int, num_outputs> &output_to_field,
+                                const std::array<DofToQuadMap, num_inputs> &input_dtq_maps,
+                                const std::array<DofToQuadMap, num_outputs> &output_dtq_maps,
+                                const bool use_sum_factorization,
+                                const bool use_new_kernels,
+                                const int num_entities,
+                                const ElementDofOrdering element_dof_ordering,
+                                const int num_qp,
+                                const int test_vdim,
+                                const int test_op_dim,
+                                const int num_test_dof,
+                                const int dimension,
+                                const int q1d,
+                                ThreadBlocks &thread_blocks,
+                                Vector &shmem_cache,
+                                SharedMemoryInfo<num_fields, num_inputs, num_outputs> &shmem_info,
+                                Array<int> &elem_attributes,
+                                const std::vector<int> &input_size_on_qp,
+                                const int residual_size_on_qp,
+                                const std::unordered_map<int, std::array<bool, num_inputs>> &dependency_map,
+                                const std::vector<int> &inputs_vdim,
+                                const output_fop_t &output_fop,
+                                const Array<int> &domain_attributes,
+                                const DeviceTensor<1, const double> &ir_weights,
+                                // &
+                                std::vector<FieldDescriptor> &solutions,
+                                std::vector<FieldDescriptor> &parameters,
+                                std::vector<Vector> &fields_e,
+                                Vector &residual_e,
+                                std::function<void(Vector &, Vector &)> &output_restriction_transpose,
+                                // args
+                                std::vector<Vector> &solutions_l,
+                                const std::vector<Vector> &parameters_l,
+                                Vector &residual_l)
 {
    db1();
 
@@ -180,7 +181,7 @@ void action_callback_new(qfunc_t qfunc,
 
    // callbacks
    const auto restriction_callback =
-      [=] (std::vector<Vector> &solutions_l,
+      [&] (std::vector<Vector> &solutions_l,
            const std::vector<Vector> &parameters_l,
            std::vector<Vector> &fields_e)
    {
@@ -205,7 +206,7 @@ void action_callback_new(qfunc_t qfunc,
 
    // std::array<DeviceTensor<2>, num_fields>: (field_sizes, num_entities)
    auto wrapped_fields_e = wrap_fields(fields_e,
-                                       action_shmem_info.field_sizes,
+                                       shmem_info.field_sizes,
                                        num_entities);
 
    const bool has_attr = domain_attributes.Size() > 0;
@@ -226,15 +227,31 @@ void action_callback_new(qfunc_t qfunc,
       kernels::internal::d_regs3d_t<DIM, MQ1> r0, r1;
       kernels::internal::vd_regs3d_t<VDIM, DIM, MQ1> r2;
 
-      auto [
-         input_dtq_shmem,  // std::array<DofToQuadMap, num_inputs> (dtqmaps)
-         output_dtq_shmem, // std::array<DofToQuadMap, num_outputs>
-         fields_shmem,     // std::array<DeviceTensor<1>, num_fields> (fields_e)
-         input_shmem,      // std::array<DeviceTensor<2>, num_inputs> (fields_qp)
-         residual_shmem,   // DeviceTensor<2>
-         scratch_shmem     // std::array<DeviceTensor<1>, 6>
-      ] = unpack_shmem(shmem, action_shmem_info, input_dtq_maps, output_dtq_maps,
-                       wrapped_fields_e, num_qp, e);
+      // auto [
+      //    input_dtq_shmem,  // std::array<DofToQuadMap, num_inputs> (dtqmaps)
+      //    output_dtq_shmem, // std::array<DofToQuadMap, num_outputs>
+      //    fields_shmem,     // std::array<DeviceTensor<1>, num_fields> (fields_e)
+      //    input_shmem,      // std::array<DeviceTensor<2>, num_inputs> (fields_qp)
+      //    residual_shmem,   // DeviceTensor<2>
+      //    scratch_shmem     // std::array<DeviceTensor<1>, 6>
+      // ] = unpack_shmem(shmem, action_shmem_info, input_dtq_maps, output_dtq_maps,
+      //                  wrapped_fields_e, num_qp, e);
+
+      auto input_dtq_shmem = load_dtq_mem(shmem,
+                                          shmem_info.offsets[SharedMemory::Index::INPUT_DTQ],
+                                          shmem_info.input_dtq_sizes,
+                                          input_dtq_maps);
+
+      auto output_dtq_shmem = load_dtq_mem(shmem,
+                                           shmem_info.offsets[SharedMemory::Index::OUTPUT_DTQ],
+                                           shmem_info.output_dtq_sizes,
+                                           output_dtq_maps);
+
+      auto fields_shmem = load_field_mem(shmem,
+                                         shmem_info.offsets[SharedMemory::Index::FIELD],
+                                         shmem_info.field_sizes,
+                                         wrapped_fields_e,
+                                         e);
 
       // Interpolate
       const auto dummy_field_weight = DeviceTensor<1>(nullptr, 0);
@@ -317,13 +334,13 @@ void action_callback_new(qfunc_t qfunc,
          {
             MFEM_FOREACH_THREAD_DIRECT(qz, z, q1d)
             {
-               const int q = qx + q1d * (qy + q1d * qz);
+               // const int q = qx + q1d * (qy + q1d * qz);
                auto qf_args = decay_tuple<qf_param_ts> {};
-               qf::apply_kernel(r0, r1, r2, qx, qy, qz,
-                                qfunc,        // qfunc
-                                qf_args,      // args
-                                input_shmem,  // field_qp => u
-                                q);
+               qf::apply_kernel<num_inputs>(r0, r1, r2, qx, qy, qz,
+                                            qfunc,        // qfunc
+                                            qf_args);     // args
+               //   input_shmem,  // field_qp => u
+               //q);
             }
          }
       }
@@ -365,7 +382,7 @@ void action_callback_new(qfunc_t qfunc,
    },
    num_entities,
    thread_blocks,
-   action_shmem_info.total_size,
+   shmem_info.total_size,
    shmem_cache.ReadWrite());
 
    db1("RestrictionT");
