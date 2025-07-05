@@ -640,6 +640,7 @@ void DifferentiableOperator::AddDomainIntegrator(
            Vector &residual_l)
          mutable
       {
+#if 1
          action_callback_new<MQ1, num_fields>(restriction_cb,
                                               qfunc,
                                               inputs,
@@ -662,6 +663,121 @@ void DifferentiableOperator::AddDomainIntegrator(
                                               solutions_l,
                                               parameters_l,
                                               residual_l);
+#else
+         db1();
+         assert(dimension == 3);
+
+         // types
+         // using qf_signature =
+         // typename create_function_signature<decltype(&qfunc_t::operator())>::type;
+         // using qf_param_ts = typename qf_signature::parameter_ts;
+
+         // db1("Restriction");
+         restriction_cb(solutions_l, parameters_l, fields_e);
+
+         // db1("residule_e = 0.0");
+         residual_e = 0.0;
+
+         auto ye = Reshape(residual_e.ReadWrite(), test_vdim, num_test_dof,
+                           num_entities);
+
+         // std::array<DeviceTensor<2>, num_fields>: (field_sizes, num_entities)
+         auto wrapped_fields_e = wrap_fields(fields_e,
+                                             action_shmem_info.field_sizes,
+                                             num_entities);
+
+         const bool has_attr = domain_attributes.Size() > 0;
+         const auto d_domain_attr = domain_attributes.Read();
+         const auto d_elem_attr = elem_attributes.Read();
+
+         // db1("forall");
+         forall([=] MFEM_HOST_DEVICE (int e, void *)
+         {
+            // this could be optimized out
+            if (has_attr && !d_domain_attr[d_elem_attr[e] - 1]) { return; }
+
+            constexpr int DIM = 3;
+            MFEM_SHARED real_t smem[MQ1][MQ1], sB[MQ1][MQ1], sG[MQ1][MQ1];
+            kernels::internal::d_regs3d_t<DIM, MQ1> r0, r1;
+            real_t *r2;
+
+            const auto fields_e_ptr = load_field_e_ptr(wrapped_fields_e, e);
+
+            // Interpolate
+            const auto dummy_field_weight = DeviceTensor<1>(nullptr, 0);
+            for_constexpr<num_inputs>([&](auto i)
+            {
+               using field_operator_t = std::decay_t<decltype(get<i>(inputs))>;
+
+               if constexpr (is_gradient_fop<field_operator_t>::value) // Grad
+               {
+                  // db1("\x1b[32m[Gradient] r0, r1");
+                  const auto input = get<i>(inputs);
+                  const int vdim = input.vdim;
+                  const auto dtq = input_dtq_maps[i];
+                  const auto B = dtq.B, G = dtq.G;
+                  const auto [B_q1d, B_dim, d1d] = B.GetShape();
+                  assert(B_q1d == q1d);
+                  const real_t *field_e_r = fields_e_ptr[input_to_field[i]];
+                  const auto field = Reshape(field_e_r, d1d, d1d, d1d, vdim);
+                  kernels::internal::LoadMatrix(d1d, q1d, B, sB);
+                  kernels::internal::LoadMatrix(d1d, q1d, G, sG);
+                  for (int c = 0; c < vdim; c++)
+                  {
+                     kernels::internal::LoadDofs3d(d1d, c, field, r0);
+                     kernels::internal::Grad3d(d1d, q1d, smem, sB, sG, r0, r1, c);
+                  }
+               }
+
+               if constexpr (is_identity_fop<field_operator_t>::value) // Identity
+               {
+                  // db1("Identity");
+                  r2 = fields_e_ptr[input_to_field[i]];
+               }
+            }); // for_constexpr<num_inputs>
+
+            // db1("Now calling qfunction");
+            auto qf_args = decay_tuple<qf_param_ts> {};
+            MFEM_FOREACH_THREAD_DIRECT(qx, x, q1d)
+            {
+               MFEM_FOREACH_THREAD_DIRECT(qy, y, q1d)
+               {
+                  MFEM_FOREACH_THREAD_DIRECT(qz, z, q1d)
+                  {
+                     qf::apply_kernel<MQ1, num_inputs>(r0, r1, r2, qx, qy, qz,
+                                                       qfunc, qf_args);
+                  }
+               }
+            }
+
+            // db1("Integrate");
+            using output_fop_t = std::decay_t<decltype(output_fop)>;
+            auto y = Reshape(&ye(0, 0, e), num_test_dof, test_vdim);
+            if constexpr (is_gradient_fop<output_fop_t>::value) // Gradient
+            {
+               const auto dtq = output_dtq_maps[0];
+               const auto B = dtq.B, G = dtq.G;
+               const auto [_, unused, d1d] = G.GetShape();
+               const auto output = output_fop;
+               const int vdim = output.vdim;
+               auto yd = Reshape(&y(0, 0), d1d, d1d, d1d, vdim);
+               // can be avoided IF one input to one output
+               // kernels::internal::LoadMatrix(d1d, q1d, B, sB);
+               // kernels::internal::LoadMatrix(d1d, q1d, G, sG);
+               for (int c = 0; c < vdim; c++)
+               {
+                  kernels::internal::GradTranspose3d(d1d, q1d, smem, sB, sG, r0, r1, c);
+                  kernels::internal::WriteDofs3d(d1d, c, r1, yd);
+               }
+            }
+         },
+         num_entities,
+         thread_blocks);
+
+         // db1("RestrictionT");
+         output_restriction_transpose(residual_e, residual_l);
+
+#endif
       });
    }
    else

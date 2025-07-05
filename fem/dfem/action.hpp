@@ -116,6 +116,7 @@ void apply_kernel(reg_t &r0, reg_t &r1,
 
 } // namespace qf
 
+#if 1
 template<int MQ1,
          size_t num_fields,
          size_t num_inputs,
@@ -127,31 +128,19 @@ template<int MQ1,
 inline void action_callback_new(restriction_cb_t &restriction_cb,
                                 qfunc_t &qfunc,
                                 input_t &inputs,
-                                //   const std::vector<FieldDescriptor> &fields,
                                 const std::array<int, num_inputs> &input_to_field,
-                                //   const std::array<int, num_outputs> &output_to_field,
                                 const std::array<DofToQuadMap, num_inputs> &input_dtq_maps,
                                 const std::array<DofToQuadMap, num_outputs> &output_dtq_maps,
-                                //   const bool use_sum_factorization,
                                 const int num_entities,
-                                //   const ElementDofOrdering element_dof_ordering,
-                                //   const int num_qp,
                                 const int test_vdim,
-                                //   const int test_op_dim,
                                 const int num_test_dof,
                                 const int dimension,
                                 const int q1d,
                                 const ThreadBlocks &thread_blocks,
-                                //   Vector &shmem_cache,
                                 SharedMemoryInfo<num_fields, num_inputs, num_outputs> &shmem_info,
                                 Array<int> &elem_attributes,
-                                //   const std::vector<int> &input_size_on_qp,
-                                //   const int residual_size_on_qp,
-                                //   const std::unordered_map<int, std::array<bool, num_inputs>> &dependency_map,
-                                //   const std::vector<int> &inputs_vdim,
                                 const output_fop_t &output_fop,
                                 const Array<int> &domain_attributes,
-                                //   const DeviceTensor<1, const double> &ir_weights,
                                 // &
                                 std::vector<Vector> &fields_e,
                                 Vector &residual_e,
@@ -237,11 +226,11 @@ inline void action_callback_new(restriction_cb_t &restriction_cb,
 
       // db1("Now calling qfunction");
       auto qf_args = decay_tuple<qf_param_ts> {};
-      MFEM_FOREACH_THREAD_DIRECT(qx, x, q1d)
+      MFEM_FOREACH_THREAD_DIRECT(qx, x, MQ1)
       {
-         MFEM_FOREACH_THREAD_DIRECT(qy, y, q1d)
+         MFEM_FOREACH_THREAD_DIRECT(qy, y, MQ1)
          {
-            MFEM_FOREACH_THREAD_DIRECT(qz, z, q1d)
+            MFEM_FOREACH_THREAD_DIRECT(qz, z, MQ1)
             {
                qf::apply_kernel<MQ1, num_inputs>(r0, r1, r2, qx, qy, qz,
                                                  qfunc, qf_args);
@@ -250,9 +239,8 @@ inline void action_callback_new(restriction_cb_t &restriction_cb,
       }
 
       // db1("Integrate");
-      using output_t = std::decay_t<decltype(output_fop)>;
       auto y = Reshape(&ye(0, 0, e), num_test_dof, test_vdim);
-      if constexpr (is_gradient_fop<std::decay_t<output_t>>::value) // Gradient
+      if constexpr (is_gradient_fop<std::decay_t<output_fop_t>>::value) // Gradient
       {
          const auto dtq = output_dtq_maps[0];
          const auto B = dtq.B, G = dtq.G;
@@ -276,5 +264,6 @@ inline void action_callback_new(restriction_cb_t &restriction_cb,
    // db1("RestrictionT");
    output_restriction_transpose(residual_e, residual_l);
 }
+#endif
 
 } // namespace mfem::future
