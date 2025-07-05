@@ -64,10 +64,10 @@ void process_qf_result_from_reg(reg38_t &r0,
 }
 
 template <size_t num_args,
-          typename reg_t, typename vd_reg_t,
+          typename reg_t, // typename vd_reg_t,
           typename qfunc_t, typename args_ts>
 MFEM_HOST_DEVICE inline
-void apply_kernel(reg_t &r0, reg_t &r1, vd_reg_t &r2,
+void apply_kernel(reg_t &r0, reg_t &r1, DeviceTensor<5> &r2,
                   const int qx, const int qy, const int qz,
                   const qfunc_t &qfunc,
                   args_ts &args)
@@ -108,7 +108,7 @@ void apply_kernel(reg_t &r0, reg_t &r1, vd_reg_t &r2,
          {
             for (int k = 0; k < 3; k++)
             {
-               arg_1[j][k] = r2[j][k][qz][qy][qx];
+               arg_1[j][k] = r2(j, k, qz, qy, qx);
             }
          }
       }
@@ -141,10 +141,12 @@ template<int MQ1,
          size_t num_fields,
          size_t num_inputs,
          size_t num_outputs,
+         typename restriction_cb_t,
          typename qfunc_t,
          typename input_t,
          typename output_fop_t>
-inline void action_callback_new(qfunc_t &qfunc,
+inline void action_callback_new(restriction_cb_t &restriction_cb,
+                                qfunc_t &qfunc,
                                 input_t &inputs,
                                 const std::vector<FieldDescriptor> &fields,
                                 const std::array<int, num_inputs> &input_to_field,
@@ -152,7 +154,6 @@ inline void action_callback_new(qfunc_t &qfunc,
                                 const std::array<DofToQuadMap, num_inputs> &input_dtq_maps,
                                 const std::array<DofToQuadMap, num_outputs> &output_dtq_maps,
                                 const bool use_sum_factorization,
-                                const bool use_new_kernels,
                                 const int num_entities,
                                 const ElementDofOrdering element_dof_ordering,
                                 const int num_qp,
@@ -173,8 +174,6 @@ inline void action_callback_new(qfunc_t &qfunc,
                                 const Array<int> &domain_attributes,
                                 const DeviceTensor<1, const double> &ir_weights,
                                 // &
-                                std::vector<FieldDescriptor> &solutions,
-                                std::vector<FieldDescriptor> &parameters,
                                 std::vector<Vector> &fields_e,
                                 Vector &residual_e,
                                 std::function<void(Vector &, Vector &)> &output_restriction_transpose,
@@ -185,34 +184,20 @@ inline void action_callback_new(qfunc_t &qfunc,
 {
    db1();
 
+   assert(dimension == 3);
+   assert(use_sum_factorization);
+
    // types
-   using entity_t = Entity::Element;
    using qf_signature =
       typename create_function_signature<decltype(&qfunc_t::operator())>::type;
    using qf_param_ts = typename qf_signature::parameter_ts;
 
-   // callbacks
-   const auto restriction_callback =
-      [&] (std::vector<Vector> &solutions_l,
-           const std::vector<Vector> &parameters_l,
-           std::vector<Vector> &fields_e)
-   {
-      // copied: solutions, parameters, solutions, element_dof_ordering
-      restriction<entity_t>(solutions, solutions_l, fields_e, element_dof_ordering);
-      restriction<entity_t>(parameters, parameters_l, fields_e, element_dof_ordering,
-                            solutions.size());
-   };
+   // db1("Restriction");
+   restriction_cb(solutions_l, parameters_l, fields_e);
 
-   // Mult body
-
-   db1("Restriction");
-   restriction_callback(solutions_l, parameters_l, fields_e);
-
-   db1("residule_e = 0.0");
+   // db1("residule_e = 0.0");
    residual_e = 0.0;
 
-   db1("[YE] test_vdim:{} num_test_dof:{} num_entities:{}",
-       test_vdim, num_test_dof, num_entities);
    auto ye = Reshape(residual_e.ReadWrite(), test_vdim, num_test_dof,
                      num_entities);
 
@@ -225,19 +210,17 @@ inline void action_callback_new(qfunc_t &qfunc,
    const auto d_domain_attr = domain_attributes.Read();
    const auto d_elem_attr = elem_attributes.Read();
 
-   db1("forall");
+   // db1("forall");
    forall([=] MFEM_HOST_DEVICE (int e, void *)
    {
       // this could be optimized out
       if (has_attr && !d_domain_attr[d_elem_attr[e] - 1]) { return; }
 
-      assert(dimension == 3);
-      assert(use_sum_factorization);
 
       constexpr int VDIM = 3, DIM = 3;
       MFEM_SHARED real_t smem[MQ1][MQ1], sB[MQ1][MQ1], sG[MQ1][MQ1];
       kernels::internal::d_regs3d_t<DIM, MQ1> r0, r1;
-      kernels::internal::vd_regs3d_t<VDIM, DIM, MQ1> r2;
+      DeviceTensor<5> r2;
 
       auto fields_address =
          load_field_address(shmem_info.field_sizes,
@@ -250,7 +233,6 @@ inline void action_callback_new(qfunc_t &qfunc,
       {
          const auto input = get<i>(inputs);
          const int vdim = input.vdim;
-         db1("\x1b[33mvdim:{}", vdim);
 
          using field_operator_t = std::decay_t<decltype(get<i>(inputs))>;
 
@@ -258,12 +240,7 @@ inline void action_callback_new(qfunc_t &qfunc,
             (input_to_field[i] == -1) ? dummy_field_weight :
             fields_address[input_to_field[i]];
 
-         if constexpr (is_value_fop<field_operator_t>::value)
-         {
-            db1("\x1b[31m[fallback] Value");
-            assert(false);
-         }
-         else if constexpr (is_gradient_fop<field_operator_t>::value)
+         if constexpr (is_gradient_fop<field_operator_t>::value)
          {
             db1("\x1b[32m[Gradient] r0, r1");
             const auto dtq = input_dtq_maps[i];
@@ -281,42 +258,15 @@ inline void action_callback_new(qfunc_t &qfunc,
                kernels::internal::Grad3d(d1d, q1d, smem, sB, sG, r0, r1, c);
             }
          }
-         else if constexpr (std::is_same_v<field_operator_t, Weight>)
-         {
-            db1("Weight");
-            assert(false);
-         }
-         else if constexpr (is_identity_fop<field_operator_t>::value)
+
+         if constexpr (is_identity_fop<field_operator_t>::value)
          {
             db1("Identity");
-            auto field = Reshape(&field_e[0], VDIM, DIM, q1d, q1d, q1d);
-
-            for (int c = 0; c<VDIM; ++c)
-            {
-               for (int d = 0; d<DIM; ++d)
-               {
-                  MFEM_FOREACH_THREAD_DIRECT(qz, z, q1d)
-                  {
-                     MFEM_FOREACH_THREAD_DIRECT(qy, y, q1d)
-                     {
-                        MFEM_FOREACH_THREAD_DIRECT(qx, x, q1d)
-                        {
-                           r2[c][d][qx][qy][qz] = field(c,d,qx,qy,qz);
-                        }
-                     }
-                  }
-               }
-            }
-         }
-         else
-         {
-            static_assert(dfem::always_false<field_operator_t>,
-                          "map_field_to_quadrature_data_tensor_product_3d not implemented "
-                          "for this field operator type");
+            r2 = Reshape(&field_e[0], VDIM, DIM, q1d, q1d, q1d);
          }
       }); // for_constexpr<num_inputs>
 
-      db1("Now calling qfunction");
+      // db1("Now calling qfunction");
       auto qf_args = decay_tuple<qf_param_ts> {};
       MFEM_FOREACH_THREAD_DIRECT(qx, x, q1d)
       {
@@ -330,18 +280,11 @@ inline void action_callback_new(qfunc_t &qfunc,
          }
       }
 
-      db1("Integrate");
+      // db1("Integrate");
       auto y = Reshape(&ye(0, 0, e), num_test_dof, test_vdim);
       using output_t = std::decay_t<decltype(output_fop)>;
-      if constexpr (is_value_fop<std::decay_t<output_t>>::value ||   // Value
-                    is_sum_fop<std::decay_t<output_t>>::value ||     // Sum
-                    is_identity_fop<std::decay_t<output_t>>::value)  // Identity
+      if constexpr (is_gradient_fop<std::decay_t<output_t>>::value) // Gradient
       {
-         assert(false);
-      }
-      else if constexpr (is_gradient_fop<std::decay_t<output_t>>::value) // Gradient
-      {
-         assert(use_new_kernels);
          const auto dtq = output_dtq_maps[0];
 
          const auto B = dtq.B, G = dtq.G;
@@ -354,8 +297,8 @@ inline void action_callback_new(qfunc_t &qfunc,
          auto yd = Reshape(&y(0, 0), d1d, d1d, d1d, vdim);
 
          // can be avoided IF one input to one output
-         kernels::internal::LoadMatrix(d1d, q1d, B, sB);
-         kernels::internal::LoadMatrix(d1d, q1d, G, sG);
+         // kernels::internal::LoadMatrix(d1d, q1d, B, sB);
+         // kernels::internal::LoadMatrix(d1d, q1d, G, sG);
 
          for (int c = 0; c < vdim; c++)
          {
@@ -363,14 +306,11 @@ inline void action_callback_new(qfunc_t &qfunc,
             kernels::internal::WriteDofs3d(d1d, c, r1, yd);
          }
       }
-      else { assert(false); }
    },
    num_entities,
-   thread_blocks,
-   shmem_info.total_size,
-   shmem_cache.ReadWrite());
+   thread_blocks);
 
-   db1("RestrictionT");
+   // db1("RestrictionT");
    output_restriction_transpose(residual_e, residual_l);
 }
 

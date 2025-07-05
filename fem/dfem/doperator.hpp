@@ -632,33 +632,28 @@ void DifferentiableOperator::AddDomainIntegrator(
             elem_attributes,              // Array<int>
 
             fields = this->fields,        // std::vector<FieldDescriptor>
-            use_new_kernels
-            = this->use_new_kernels,      // bool
             element_dof_ordering,         // ElementDofOrdering
             input_size_on_qp,             // std::array<int, num_inputs>
             dependency_map,               // std::map<int, std::vector<int>>
             inputs_vdim,                  // std::vector<int>
             output_to_field,              // std::array<int, s>
             // 🟣🟣🟣🟣 capture by ref:
-            // &restriction_cb = this->restriction_callback,
+            &restriction_cb = this->restriction_callback,
             &fields_e = this->fields_e,
             &residual_e = this->residual_e,
-            &output_restriction_transpose = this->output_restriction_transpose,
-
-            &solutions = this->solutions,
-            &parameters = this->parameters
+            &output_restriction_transpose = this->output_restriction_transpose
          ](std::vector<Vector> &solutions_l,
            const std::vector<Vector> &parameters_l,
            Vector &residual_l)
          mutable
       {
-         action_callback_new<MQ1, num_fields>(qfunc,
+         action_callback_new<MQ1, num_fields>(restriction_cb,
+                                              qfunc,
                                               inputs,
                                               fields,
                                               input_to_field, output_to_field,
                                               input_dtq_maps, output_dtq_maps,
                                               use_sum_factorization,
-                                              use_new_kernels,
                                               num_entities,
                                               element_dof_ordering,
                                               num_qp,
@@ -678,9 +673,7 @@ void DifferentiableOperator::AddDomainIntegrator(
                                               output_fop,
                                               domain_attributes,
                                               ir_weights,
-                                              // &
-                                              solutions,
-                                              parameters,
+                                              // & refs
                                               fields_e,
                                               residual_e,
                                               output_restriction_transpose,
