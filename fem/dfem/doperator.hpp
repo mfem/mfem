@@ -631,22 +631,16 @@ void DifferentiableOperator::AddDomainIntegrator(
             dependency_map,               // std::map<int, std::vector<int>>
             inputs_vdim,                  // std::vector<int>
             output_to_field,              // std::array<int, s>
-            // num_elements,                 // int
-            // element_dof_ordering,         // ElementDofOrdering
-            // outputs,                      // output_t
-            // test_space_field_idx
-            // = this->test_space_field_idx, // size_t
-            output_fop,            // class derived from FieldOperator
-            ir_weights,            // DeviceTensor
-            domain_attributes,     // Array<int>
-            thread_blocks,         // ThreadBlocks
-            shmem_cache,           // Vector (local)
-            action_shmem_info,     // SharedMemoryInfo
-            elem_attributes,       // Array<int>
+            output_fop,                   // class derived from FieldOperator
+            ir_weights,                   // DeviceTensor
+            domain_attributes,            // Array<int>
+            thread_blocks,                // ThreadBlocks
+            shmem_cache,                  // Vector (local)
+            action_shmem_info,            // SharedMemoryInfo
+            elem_attributes,              // Array<int>
             // 🟣🟣🟣🟣 capture by ref:
             &solutions = this->solutions,
             &parameters = this->parameters,
-            // &restriction_callback = this->restriction_callback,
             &fields_e = this->fields_e,
             &residual_e = this->residual_e,
             &output_restriction_transpose = this->output_restriction_transpose
@@ -656,125 +650,125 @@ void DifferentiableOperator::AddDomainIntegrator(
          mutable // mutable: needed to modify 'shmem_cache'
       {
          // NVTX_MARK_FUNCTION;
-         action_callback_new<num_fields>(qfunc,
-                                         inputs,
-                                         fields,
-                                         input_to_field, output_to_field,
-                                         input_dtq_maps, output_dtq_maps,
-                                         use_sum_factorization,
-                                         use_new_kernels,
-                                         num_entities,
-                                         element_dof_ordering,
-                                         num_qp,
-                                         test_vdim,
-                                         test_op_dim,
-                                         num_test_dof,
-                                         dimension,
-                                         q1d,
-                                         thread_blocks,
-                                         shmem_cache,
-                                         action_shmem_info,
-                                         elem_attributes,
-                                         input_size_on_qp,
-                                         residual_size_on_qp,
-                                         dependency_map,
-                                         inputs_vdim,
-                                         output_fop,
-                                         domain_attributes,
-                                         ir_weights,
-                                         // &
-                                         solutions,
-                                         parameters,
-                                         // restriction_callback,
-                                         fields_e,
-                                         residual_e,
-                                         output_restriction_transpose,
-                                         // args
-                                         solutions_l,
-                                         parameters_l,
-                                         residual_l);
-         // dbg("\x1b[33m❌❌❌"), std::exit(EXIT_SUCCESS);
+         action_callback_new<MQ1, num_fields>(qfunc,
+                                              inputs,
+                                              fields,
+                                              input_to_field, output_to_field,
+                                              input_dtq_maps, output_dtq_maps,
+                                              use_sum_factorization,
+                                              use_new_kernels,
+                                              num_entities,
+                                              element_dof_ordering,
+                                              num_qp,
+                                              test_vdim,
+                                              test_op_dim,
+                                              num_test_dof,
+                                              dimension,
+                                              q1d,
+                                              thread_blocks,
+                                              shmem_cache,
+                                              action_shmem_info,
+                                              elem_attributes,
+                                              input_size_on_qp,
+                                              residual_size_on_qp,
+                                              dependency_map,
+                                              inputs_vdim,
+                                              output_fop,
+                                              domain_attributes,
+                                              ir_weights,
+                                              // &
+                                              solutions,
+                                              parameters,
+                                              fields_e,
+                                              residual_e,
+                                              output_restriction_transpose,
+                                              // args
+                                              solutions_l,
+                                              parameters_l,
+                                              residual_l);
       });
    }
-
-   action_callbacks.push_back(
-      // Explicitly capture everything we need, so we can make explicit choice
-      // how to capture every variable, by copy or by ref.
-      [
-         // capture by copy:
-         dimension,             // int
-         num_entities,          // int
-         num_test_dof,          // int
-         num_qp,                // int
-         q1d,                   // int
-         residual_size_on_qp,   // int
-         test_vdim,             // int (= output_fop.vdim)
-         test_op_dim,           // int (derived from output_fop)
-         inputs,                // mfem::future::tuple
-         domain_attributes,     // Array<int>
-         ir_weights,            // DeviceTensor
-         use_sum_factorization, // bool
-         input_dtq_maps,        // std::array<DofToQuadMap, num_fields>
-         output_dtq_maps,       // std::array<DofToQuadMap, num_fields>
-         input_to_field,        // std::array<int, s>
-         output_fop,            // class derived from FieldOperator
-         qfunc,                 // qfunc_t
-         thread_blocks,         // ThreadBlocks
-         shmem_cache,           // Vector (local)
-         action_shmem_info,     // SharedMemoryInfo
-         // TODO: make this Array<int> a member of the DifferentiableOperator
-         //       and capture it by ref.
-         elem_attributes,       // Array<int>
-
-         // capture by ref:
-         &restriction_cb = this->restriction_callback,
-         &fields_e = this->fields_e,
-         &residual_e = this->residual_e,
-         &output_restriction_transpose = this->output_restriction_transpose
-      ]
-      (std::vector<Vector> &sol, const std::vector<Vector> &par, Vector &res)
-      mutable // mutable: needed to modify 'shmem_cache'
+   else
    {
-      // NVTX_MARK_FUNCTION;
-      restriction_cb(sol, par, fields_e);
+      action_callbacks.push_back(
+         // Explicitly capture everything we need, so we can make explicit choice
+         // how to capture every variable, by copy or by ref.
+         [
+            // capture by copy:
+            dimension,             // int
+            num_entities,          // int
+            num_test_dof,          // int
+            num_qp,                // int
+            q1d,                   // int
+            residual_size_on_qp,   // int
+            test_vdim,             // int (= output_fop.vdim)
+            test_op_dim,           // int (derived from output_fop)
+            inputs,                // mfem::future::tuple
+            domain_attributes,     // Array<int>
+            ir_weights,            // DeviceTensor
+            use_sum_factorization, // bool
+            input_dtq_maps,        // std::array<DofToQuadMap, num_fields>
+            output_dtq_maps,       // std::array<DofToQuadMap, num_fields>
+            input_to_field,        // std::array<int, s>
+            output_fop,            // class derived from FieldOperator
+            qfunc,                 // qfunc_t
+            thread_blocks,         // ThreadBlocks
+            shmem_cache,           // Vector (local)
+            action_shmem_info,     // SharedMemoryInfo
+            // TODO: make this Array<int> a member of the DifferentiableOperator
+            //       and capture it by ref.
+            elem_attributes,       // Array<int>
 
-      residual_e = 0.0;
-      auto ye = Reshape(residual_e.ReadWrite(), test_vdim, num_test_dof, num_entities);
-
-      auto wrapped_fields_e = wrap_fields(fields_e,
-                                          action_shmem_info.field_sizes,
-                                          num_entities);
-
-      const bool has_attr = domain_attributes.Size() > 0;
-      const auto d_domain_attr = domain_attributes.Read();
-      const auto d_elem_attr = elem_attributes.Read();
-
-      forall([=] MFEM_HOST_DEVICE (int e, void *shmem)
+            // capture by ref:
+            &restriction_cb = this->restriction_callback,
+            &fields_e = this->fields_e,
+            &residual_e = this->residual_e,
+            &output_restriction_transpose = this->output_restriction_transpose
+         ]
+         (std::vector<Vector> &sol, const std::vector<Vector> &par, Vector &res)
+         mutable // mutable: needed to modify 'shmem_cache'
       {
-         if (has_attr && !d_domain_attr[d_elem_attr[e] - 1]) { return; }
+         // NVTX_MARK_FUNCTION;
+         restriction_cb(sol, par, fields_e);
 
-         auto [input_dtq_shmem, output_dtq_shmem, fields_shmem, input_shmem,
-                                residual_shmem, scratch_shmem] =
-                  unpack_shmem(shmem, action_shmem_info, input_dtq_maps, output_dtq_maps,
-                               wrapped_fields_e, num_qp, e);
+         residual_e = 0.0;
+         auto ye = Reshape(residual_e.ReadWrite(), test_vdim, num_test_dof, num_entities);
+
+         auto wrapped_fields_e = wrap_fields(fields_e,
+                                             action_shmem_info.field_sizes,
+                                             num_entities);
+
+         const bool has_attr = domain_attributes.Size() > 0;
+         const auto d_domain_attr = domain_attributes.Read();
+         const auto d_elem_attr = elem_attributes.Read();
+
+         forall([=] MFEM_HOST_DEVICE (int e, void *shmem)
+         {
+            if (has_attr && !d_domain_attr[d_elem_attr[e] - 1]) { return; }
+
+            auto [input_dtq_shmem, output_dtq_shmem, fields_shmem, input_shmem,
+                                   residual_shmem, scratch_shmem] =
+                     unpack_shmem(shmem, action_shmem_info, input_dtq_maps, output_dtq_maps,
+                                  wrapped_fields_e, num_qp, e);
 
 
-         map_fields_to_quadrature_data<MQ1>(
-            input_shmem, fields_shmem, input_dtq_shmem, input_to_field, inputs, ir_weights,
-            scratch_shmem, dimension, use_sum_factorization);
+            map_fields_to_quadrature_data<MQ1>(
+               input_shmem, fields_shmem, input_dtq_shmem, input_to_field, inputs, ir_weights,
+               scratch_shmem, dimension, use_sum_factorization);
 
-         call_qfunction<qf_param_ts>(
-            qfunc, input_shmem, residual_shmem,
-            residual_size_on_qp, num_qp, q1d, dimension, use_sum_factorization);
+            call_qfunction<qf_param_ts>(
+               qfunc, input_shmem, residual_shmem,
+               residual_size_on_qp, num_qp, q1d, dimension, use_sum_factorization);
 
-         auto fhat = Reshape(&residual_shmem(0, 0), test_vdim, test_op_dim, num_qp);
-         auto y = Reshape(&ye(0, 0, e), num_test_dof, test_vdim);
-         map_quadrature_data_to_fields(
-            y, fhat, output_fop, output_dtq_shmem[0],
-            scratch_shmem, dimension, use_sum_factorization);
-      }, num_entities, thread_blocks, action_shmem_info.total_size, shmem_cache.ReadWrite());
-      output_restriction_transpose(residual_e, res);
-   });
+            auto fhat = Reshape(&residual_shmem(0, 0), test_vdim, test_op_dim, num_qp);
+            auto y = Reshape(&ye(0, 0, e), num_test_dof, test_vdim);
+            map_quadrature_data_to_fields(
+               y, fhat, output_fop, output_dtq_shmem[0],
+               scratch_shmem, dimension, use_sum_factorization);
+         }, num_entities, thread_blocks, action_shmem_info.total_size, shmem_cache.ReadWrite());
+         output_restriction_transpose(residual_e, res);
+      });
+   }
 
    // Without this compile-time check, some valid instantiations of this method
    // will fail.

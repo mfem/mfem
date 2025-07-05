@@ -473,9 +473,9 @@ struct Diffusion : public BakeOff<VDIM, GLL>
          // mfem::out << "✅" << std::endl;
       }
       cg.SetAbsTol(0.0);
-      cg.SetRelTol(rtol);
-      cg.SetMaxIter(max_it);
-      cg.SetPrintLevel(print_lvl);
+      cg.SetRelTol(1e-8/*rtol*/);
+      cg.SetMaxIter(2000/*max_it*/);
+      cg.SetPrintLevel(3/*print_lvl*/);
       benchmark();
       mdofs = 0.0;
    }
