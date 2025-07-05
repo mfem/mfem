@@ -50,10 +50,10 @@ template <typename reg_t, typename qfunc_t, typename args_ts, size_t num_args>
 MFEM_HOST_DEVICE inline
 void apply_kernel(reg_t &r0, reg_t &r1,
                   const int qx, const int qy, const int qz,
-                  DeviceTensor<1, real_t> &f_qp,
+                  // DeviceTensor<1, real_t> &f_qp,
                   const qfunc_t &qfunc,
                   args_ts &args,
-                  const std::array<DeviceTensor<2>, num_args> &u,
+                  const std::array<DeviceTensor<2>, num_args> &u, // input_shmem
                   const int qp)
 {
    db1("apply_kernel");
@@ -62,9 +62,8 @@ void apply_kernel(reg_t &r0, reg_t &r1,
    // const tensor<real_t, DIM, DIM>  D (PA_DATA)
 
    // process_qf_args(u, args, qp);
-
-   // for_constexpr...
-   // process_qf_arg(u[i], get<i>(args), qp);
+   //    for_constexpr...
+   //       process_qf_arg(u[i], get<i>(args), qp);
    static_assert(num_args == 3 ||   // setup
                  num_args == 2,     // apply
                  "apply_kernel expects exactly 2 arguments (∇u, D (PA_DATA))");
@@ -74,29 +73,28 @@ void apply_kernel(reg_t &r0, reg_t &r1,
          // ∇u
          constexpr int i = 0;
          // process_qf_arg(u[i], get<i>(args), qp);
-         const DeviceTensor<2> u_0 = u.at(i);
          tensor<real_t, 3> &arg_0 = get<i>(args); // type from ∇u
+         // const DeviceTensor<2> u_0 = u.at(i);
          // const auto u_qp = Reshape(&u_0(0, qp), u_0.GetShape()[0]);
          // process_qf_arg(u_qp, arg_0);
          arg_0[0] = r1[0][qz][qy][qx];
          arg_0[1] = r1[1][qz][qy][qx];
          arg_0[2] = r1[2][qz][qy][qx];
-         // r1[0][qz][qy][qx] = u_qp[0];
-         // r1[1][qz][qy][qx] = u_qp[1];
-         // r1[2][qz][qy][qx] = u_qp[2];
-         // assert(false);
       }
       {
          // D (PA_DATA)
          constexpr int i = 1;
-         process_qf_arg(u[i], get<i>(args), qp);
-         /*auto u_1 = u.at(i);
-         [[maybe_unused]] static bool ini =
-            (dbg("u_1.GetShape()[0]:{} u_1.GetShape()[1]:{}",
-                 u_1.GetShape()[0], u_1.GetShape()[1]), false);
-         auto arg_1 = get<i>(args);
+         // process_qf_arg(u[i], get<i>(args), qp);
+         tensor<real_t, 3, 3> &arg_1 = get<i>(args); // type from D
+         const DeviceTensor<2> u_1 = u.at(i);
          const auto u_qp = Reshape(&u_1(0, qp), u_1.GetShape()[0]);
-         process_qf_arg(u_qp, arg_1); // 🔥🔥🔥*/
+         for (int j = 0; j < 3; j++)
+         {
+            for (int k = 0; k < 3; k++)
+            {
+               arg_1[j][k] = u_qp(j + 3 * k);
+            }
+         }
       }
    }
    else { assert(false && "Should not be here!"); }
@@ -106,8 +104,8 @@ void apply_kernel(reg_t &r0, reg_t &r1,
    if constexpr (decltype(r)::ndim == 1)
    {
       [[maybe_unused]] static bool dump_vdim = (dbg("\x1b[32m[apply w/ reg]"), false);
-      // process_qf_result(r0, qx, qy, qz, r); // apply
-      process_qf_result(f_qp, r);
+      process_qf_result(r0, qx, qy, qz, r); // apply
+      // process_qf_result(f_qp, r);
    }
    else if constexpr (decltype(r)::ndim > 1)
    {
@@ -307,7 +305,7 @@ void action_callback_new(qfunc_t qfunc,
                kernels::internal::LoadDofs3d(d1d, c, field, r0);
                kernels::internal::Grad3d(d1d, q1d, smem, sB, sG, r0, r1, c);
                // should be removed to use directly r1
-               for (int qz = 0; qz < q1d; qz++)
+               /*for (int qz = 0; qz < q1d; qz++)
                {
                   MFEM_FOREACH_THREAD_DIRECT(qy, y, q1d)
                   {
@@ -318,7 +316,7 @@ void action_callback_new(qfunc_t qfunc,
                         fqp(c, 2, qx, qy, qz) = r1[2][qz][qy][qx];
                      }
                   }
-               }
+               }*/
             }
          }
       }); // for_constexpr<num_inputs>
@@ -342,9 +340,9 @@ void action_callback_new(qfunc_t qfunc,
             {
                const int q = qx + q1d * (qy + q1d * qz);
                auto qf_args = decay_tuple<qf_param_ts> {};
-               auto fhat = Reshape(&residual_shmem(0, q), residual_size_on_qp);
+               // auto fhat = Reshape(&residual_shmem(0, q), residual_size_on_qp);
                qf::apply_kernel(r0, r1, qx, qy, qz,
-                                fhat,         // f_qp
+                                //   fhat,         // f_qp
                                 qfunc,        // qfunc
                                 qf_args,      // args
                                 input_shmem,  // field_qp => u
@@ -357,15 +355,15 @@ void action_callback_new(qfunc_t qfunc,
       auto fhat = Reshape(&residual_shmem(0, 0), test_vdim, test_op_dim, num_qp);
       auto y = Reshape(&ye(0, 0, e), num_test_dof, test_vdim);
 
-      map_quadrature_data_to_fields(y,                      // y
-                                    fhat,                   // f
-                                    output_fop,             // output
-                                    output_dtq_shmem[0],    // dtq
-                                    scratch_shmem,
-                                    dimension,
-                                    use_sum_factorization);
+      // map_quadrature_data_to_fields(y,                      // y
+      //                               fhat,                   // f
+      //                               output_fop,             // output
+      //                               output_dtq_shmem[0],    // dtq
+      //                               scratch_shmem,
+      //                               dimension,
+      //                               use_sum_factorization);
 
-      /*using output_t = std::decay_t<decltype(output_fop)>;
+      using output_t = std::decay_t<decltype(output_fop)>;
       if constexpr (is_value_fop<std::decay_t<output_t>>::value ||   // Value
                     is_sum_fop<std::decay_t<output_t>>::value ||     // Sum
                     is_identity_fop<std::decay_t<output_t>>::value)  // Identity
@@ -402,7 +400,7 @@ void action_callback_new(qfunc_t qfunc,
       {
          MFEM_ABORT("quadrature data mapping to field is not implemented for"
                     " this field descriptor");
-      }*/
+      }
    },
    num_entities,
    thread_blocks,
