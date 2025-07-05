@@ -169,7 +169,7 @@ void action_callback_new(qfunc_t qfunc,
                          const std::vector<Vector> &parameters_l,
                          Vector &residual_l)
 {
-   static bool ini = (dbg(), true);
+   db1();
 
    // types
    using entity_t = Entity::Element;
@@ -190,18 +190,15 @@ void action_callback_new(qfunc_t qfunc,
    };
 
    // Mult body
-   {
-      if (ini) { NVTX("Restriction"); }
-      restriction_callback(solutions_l, parameters_l, fields_e);
-   }
 
-   {
-      if (ini) { NVTX("residule_e = 0.0"); }
-      residual_e = 0.0;
-   }
+   db1("Restriction");
+   restriction_callback(solutions_l, parameters_l, fields_e);
 
-   if (ini) dbg("[YE] test_vdim:{} num_test_dof:{} num_entities:{}",
-                   test_vdim, num_test_dof, num_entities);
+   db1("residule_e = 0.0");
+   residual_e = 0.0;
+
+   db1("[YE] test_vdim:{} num_test_dof:{} num_entities:{}",
+       test_vdim, num_test_dof, num_entities);
    auto ye = Reshape(residual_e.ReadWrite(), test_vdim, num_test_dof,
                      num_entities);
 
@@ -214,7 +211,7 @@ void action_callback_new(qfunc_t qfunc,
    const auto d_domain_attr = domain_attributes.Read();
    const auto d_elem_attr = elem_attributes.Read();
 
-   if (ini) { NVTX("forall"); }
+   db1("forall");
    forall([=] MFEM_HOST_DEVICE (int e, void *shmem)
    {
       // this could be optimized out
@@ -342,7 +339,7 @@ void action_callback_new(qfunc_t qfunc,
                auto qf_args = decay_tuple<qf_param_ts> {};
                // auto fhat = Reshape(&residual_shmem(0, q), residual_size_on_qp);
                qf::apply_kernel(r0, r1, qx, qy, qz,
-                                //   fhat,         // f_qp
+                                // fhat,      // f_qp, now use r0
                                 qfunc,        // qfunc
                                 qf_args,      // args
                                 input_shmem,  // field_qp => u
@@ -352,7 +349,7 @@ void action_callback_new(qfunc_t qfunc,
       }
 
       // Integrate
-      auto fhat = Reshape(&residual_shmem(0, 0), test_vdim, test_op_dim, num_qp);
+      // auto fhat = Reshape(&residual_shmem(0, 0), test_vdim, test_op_dim, num_qp);
       auto y = Reshape(&ye(0, 0, e), num_test_dof, test_vdim);
 
       // map_quadrature_data_to_fields(y,                      // y
@@ -368,8 +365,9 @@ void action_callback_new(qfunc_t qfunc,
                     is_sum_fop<std::decay_t<output_t>>::value ||     // Sum
                     is_identity_fop<std::decay_t<output_t>>::value)  // Identity
       {
-         map_quadrature_data_to_fields_tensor_impl_3d(y, fhat, output_fop,
-                                                      output_dtq_shmem[0], scratch_shmem);
+         assert(false);
+         // map_quadrature_data_to_fields_tensor_impl_3d(y, fhat, output_fop,
+         //                                              output_dtq_shmem[0], scratch_shmem);
          return;
       }
       else if constexpr (is_gradient_fop<std::decay_t<output_t>>::value) // Gradient
@@ -387,8 +385,8 @@ void action_callback_new(qfunc_t qfunc,
          auto yd = Reshape(&y(0, 0), d1d, d1d, d1d, vdim);
 
          // can be avoided IF one input to one output
-         kernels::internal::LoadMatrix(d1d, q1d, B, sB);
-         kernels::internal::LoadMatrix(d1d, q1d, G, sG);
+         // kernels::internal::LoadMatrix(d1d, q1d, B, sB);
+         // kernels::internal::LoadMatrix(d1d, q1d, G, sG);
 
          for (int c = 0; c < vdim; c++)
          {
@@ -398,8 +396,7 @@ void action_callback_new(qfunc_t qfunc,
       }
       else
       {
-         MFEM_ABORT("quadrature data mapping to field is not implemented for"
-                    " this field descriptor");
+         assert(false);
       }
    },
    num_entities,
@@ -407,11 +404,8 @@ void action_callback_new(qfunc_t qfunc,
    action_shmem_info.total_size,
    shmem_cache.ReadWrite());
 
-   if (ini) { NVTX("RestrictionT"); }
+   db1("RestrictionT");
    output_restriction_transpose(residual_e, residual_l);
-
-   // epilog
-   ini = false;
 }
 
 } // namespace mfem::future

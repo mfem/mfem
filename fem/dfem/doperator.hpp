@@ -19,11 +19,11 @@
 #ifdef MFEM_USE_MPI
 #include "../fespace.hpp"
 
-#include "util.hpp"
+#include "action.hpp"
 #include "interpolate.hpp"
 #include "integrate.hpp"
 #include "qfunction_apply.hpp"
-#include "callbacks_new.hpp"
+#include "util.hpp"
 
 #if defined(__has_include) && __has_include("general/nvtx.hpp") && !defined(_WIN32)
 #undef NVTX_COLOR
@@ -251,7 +251,7 @@ public:
    /// solutions_t. The result is a T-dof vector.
    void Mult(const Vector &solutions_t, Vector &result_t) const override
    {
-      // NVTX_MARK_FUNCTION;
+      db1();
       MFEM_ASSERT(!action_callbacks.empty(), "no integrators have been set");
       prolongation(solutions, solutions_t, solutions_l);
       for (auto &action : action_callbacks)

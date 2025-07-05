@@ -74,6 +74,7 @@ static void OrderSideVersionArgs(bmi::Benchmark *b)
 
 /// Globals ///////////////////////////////////////////////////////////////////
 Device *device_ptr = nullptr;
+static bool use_new_kernels = false;
 static int gD1D = 0, gQ1D = 0;
 
 /// StiffnessIntegrator ///////////////////////////////////////////////////////
@@ -450,7 +451,7 @@ struct Diffusion : public BakeOff<VDIM, GLL>
             return tuple{q * Gu};
          };
          dop = std::make_unique<DifferentiableOperator>(u_sol, q_param, pmesh);
-         if (getenv("MFEM_NEW_KERNELS")) { dop->UseNewKernels(); }
+         if (use_new_kernels) { dop->UseNewKernels(); }
          dop->AddDomainIntegrator(pa_apply_qf, Gu_Iq, tuple{Gu}, *ir, ess_bdr);
          dop->SetParameters({ &qdata });
 
@@ -468,14 +469,14 @@ struct Diffusion : public BakeOff<VDIM, GLL>
          cg.SetRelTol(1e-8);
          cg.SetAbsTol(0.0);
          cg.Mult(B, X);
-         MFEM_VERIFY(cg.GetConverged(), "❌❌❌ CG solver did not converge.");
+         MFEM_VERIFY(cg.GetConverged(), "❌ CG solver did not converge.");
          MFEM_DEVICE_SYNC;
-         // mfem::out << "✅" << std::endl;
+         mfem::out << "✅" << std::endl;
       }
       cg.SetAbsTol(0.0);
-      cg.SetRelTol(1e-8/*rtol*/);
-      cg.SetMaxIter(2000/*max_it*/);
-      cg.SetPrintLevel(3/*print_lvl*/);
+      cg.SetRelTol(rtol);
+      cg.SetMaxIter(max_it);
+      cg.SetPrintLevel(print_lvl);
       benchmark();
       mdofs = 0.0;
    }
@@ -557,7 +558,7 @@ int main(int argc, char *argv[])
    info();
 
    // Device setup, cpu by default
-   std::string device_config = "cpu";
+   std::string device_context = "cpu", kernels_context = "std";
    const auto global_context = bmi::GetGlobalContext();
    if (global_context != nullptr)
    {
@@ -565,11 +566,21 @@ int main(int argc, char *argv[])
       if (device != global_context->end())
       {
          mfem::out << device->first << " : " << device->second << std::endl;
-         device_config = device->second;
+         device_context = device->second;
+      }
+
+      const auto kernels = global_context->find("kernels");
+      if (kernels != global_context->end())
+      {
+         mfem::out << kernels->first << " : " << kernels->second << std::endl;
+         kernels_context = kernels->second;
+         MFEM_VERIFY(kernels_context == "std" || kernels_context == "new",
+                     "Invalid kernels config: " << kernels_context);
+         use_new_kernels = (kernels_context == "new");
       }
    }
-   dbg("device_config: {}", device_config);
-   Device device(device_config.c_str());
+   dbg("device_config: {}", device_context);
+   Device device(device_context.c_str());
    device_ptr = &device;
    device.Print();
 
