@@ -612,15 +612,10 @@ void DifferentiableOperator::AddDomainIntegrator(
             dimension,                    // int
             num_entities,                 // int
             num_test_dof,                 // int
-            num_qp,                       // int
             q1d,                          // int
-            residual_size_on_qp,          // int
             test_vdim,                    // int (= output_fop.vdim)
-            test_op_dim,                  // int (derived from output_fop)
             inputs,                       // input_t
             domain_attributes,            // Array<int>
-            ir_weights,                   // DeviceTensor
-            use_sum_factorization,        // bool
             input_dtq_maps,               // std::array<DofToQuadMap, num_fields>
             output_dtq_maps,              // std::array<DofToQuadMap, num_fields>
             input_to_field,               // std::array<int, s>
@@ -632,11 +627,9 @@ void DifferentiableOperator::AddDomainIntegrator(
             elem_attributes,              // Array<int>
 
             fields = this->fields,        // std::vector<FieldDescriptor>
-            element_dof_ordering,         // ElementDofOrdering
             input_size_on_qp,             // std::array<int, num_inputs>
             dependency_map,               // std::map<int, std::vector<int>>
             inputs_vdim,                  // std::vector<int>
-            output_to_field,              // std::array<int, s>
             // 🟣🟣🟣🟣 capture by ref:
             &restriction_cb = this->restriction_callback,
             &fields_e = this->fields_e,
@@ -650,34 +643,22 @@ void DifferentiableOperator::AddDomainIntegrator(
          action_callback_new<MQ1, num_fields>(restriction_cb,
                                               qfunc,
                                               inputs,
-                                              fields,
-                                              input_to_field, output_to_field,
-                                              input_dtq_maps, output_dtq_maps,
-                                              use_sum_factorization,
+                                              input_to_field,
+                                              input_dtq_maps,
+                                              output_dtq_maps,
                                               num_entities,
-                                              element_dof_ordering,
-                                              num_qp,
                                               test_vdim,
-                                              test_op_dim,
                                               num_test_dof,
                                               dimension,
                                               q1d,
                                               thread_blocks,
-                                              shmem_cache,
                                               action_shmem_info,
                                               elem_attributes,
-                                              input_size_on_qp,
-                                              residual_size_on_qp,
-                                              dependency_map,
-                                              inputs_vdim,
                                               output_fop,
                                               domain_attributes,
-                                              ir_weights,
-                                              // & refs
                                               fields_e,
                                               residual_e,
                                               output_restriction_transpose,
-                                              // args
                                               solutions_l,
                                               parameters_l,
                                               residual_l);
