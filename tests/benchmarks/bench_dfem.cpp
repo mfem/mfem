@@ -74,8 +74,9 @@ static void OrderSideVersionArgs(bmi::Benchmark *b)
 
 /// Globals ///////////////////////////////////////////////////////////////////
 Device *device_ptr = nullptr;
-static bool use_new_kernels = false;
 static int gD1D = 0, gQ1D = 0;
+static bool use_new_kernels = false;
+static bool use_kernels_specialization = true;
 
 /// StiffnessIntegrator ///////////////////////////////////////////////////////
 struct StiffnessIntegrator : public BilinearFormIntegrator
@@ -90,6 +91,8 @@ public:
    {
       dbg();
       NVTX();
+      if (!use_kernels_specialization) { return; }
+      dbg("Adding StiffnessKernels specializations");
       StiffnessKernels::Specialization<2, 3>::Add();
       StiffnessKernels::Specialization<3, 4>::Add();
       StiffnessKernels::Specialization<4, 5>::Add();
@@ -510,8 +513,8 @@ struct Diffusion : public BakeOff<VDIM, GLL>
 
 BakeOff_Problem(3, Diffusion);
 
-/// Specializations ///////////////////////////////////////////////////////////
-void AddKernelSpecializations()
+/// Basic Kernels Specializations /////////////////////////////////////////////
+static void AddBasicKernelSpecializations()
 {
    using Det = QuadratureInterpolator::DetKernels;
    Det::Specialization<3, 3, 2, 2>::Add();
@@ -535,7 +538,7 @@ void AddKernelSpecializations()
 }
 
 /// info //////////////////////////////////////////////////////////////////////
-void info()
+static void DumpVersionInfo()
 {
    mfem::out << "\x1b[33m";
    mfem::out << "version 0: PA std" << std::endl;
@@ -549,34 +552,48 @@ void info()
 int main(int argc, char *argv[])
 {
    dbg();
+   DumpVersionInfo();
+   AddBasicKernelSpecializations();
    static mfem::MPI_Session mpi(argc, argv);
 
    bm::ConsoleReporter CR;
    bm::Initialize(&argc, argv);
 
-   AddKernelSpecializations();
-   info();
-
    // Device setup, cpu by default
-   std::string device_context = "cpu", kernels_context = "std";
+   std::string device_context = "cpu",
+               kernels_context = "std",
+               kernels_specialization = "yes";
    const auto global_context = bmi::GetGlobalContext();
    if (global_context != nullptr)
    {
       const auto device = global_context->find("device");
       if (device != global_context->end())
       {
-         mfem::out << device->first << " : " << device->second << std::endl;
+         mfem::out << device->first << " : "
+                   << device->second << std::endl;
          device_context = device->second;
       }
 
       const auto kernels = global_context->find("kernels");
       if (kernels != global_context->end())
       {
-         mfem::out << kernels->first << " : " << kernels->second << std::endl;
+         mfem::out << kernels->first << " : "
+                   << kernels->second << std::endl;
          kernels_context = kernels->second;
          MFEM_VERIFY(kernels_context == "std" || kernels_context == "new",
                      "Invalid kernels config: " << kernels_context);
          use_new_kernels = (kernels_context == "new");
+      }
+
+      const auto specialization = global_context->find("specialization");
+      if (specialization != global_context->end())
+      {
+         mfem::out << specialization->first << " : "
+                   << specialization->second << std::endl;
+         kernels_specialization = specialization->second;
+         MFEM_VERIFY(kernels_specialization == "yes" || kernels_specialization == "no",
+                     "Invalid kernels specialization config: " << kernels_specialization);
+         use_kernels_specialization = (kernels_specialization == "yes");
       }
    }
    dbg("device_config: {}", device_context);
