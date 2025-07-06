@@ -228,7 +228,8 @@ public:
 
    void AddMultPA(const Vector &x, Vector &y) const override
    {
-      StiffnessKernels::Run(d1d, q1d, ne, B, G, DX, x.Read(), y.ReadWrite(),
+      StiffnessKernels::Run(d1d, q1d,
+                            ne, B, G, DX, x.Read(), y.ReadWrite(),
                             d1d, q1d);
    }
 };
@@ -314,7 +315,7 @@ struct BakeOff
       gD1D = d1d, gQ1D = q1d;
       // dbg("D1D: {}, Q1D: {}", gD1D, gQ1D);
       qdata.UseDevice(true);
-      assert(q1d*q1d*q1d == ir->GetNPoints());
+      MFEM_VERIFY(q1d*q1d*q1d == ir->GetNPoints(), "");
    }
 
    virtual void benchmark() = 0;
@@ -467,7 +468,7 @@ struct Diffusion : public BakeOff<VDIM, GLL>
       cg.iterative_mode = false;
       if (dofs < 128 * 1024) // check
       {
-         cg.SetPrintLevel(3/*-1*/);
+         cg.SetPrintLevel(-1);
          cg.SetMaxIter(2000);
          cg.SetRelTol(1e-8);
          cg.SetAbsTol(0.0);

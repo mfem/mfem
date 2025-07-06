@@ -415,7 +415,7 @@ void DifferentiableOperator::AddDomainIntegrator(
    static constexpr size_t num_outputs =
       tuple_size<decltype(outputs)>::value;
 
-   constexpr int MQ1 = 8; // qfunc_t::MQ1;
+   // constexpr int MQ1 = 8; // qfunc_t::MQ1;
    using qf_signature =
       typename create_function_signature<decltype(&qfunc_t::operator())>::type;
    using qf_param_ts = typename qf_signature::parameter_ts;
@@ -554,8 +554,8 @@ void DifferentiableOperator::AddDomainIntegrator(
                           doftoquad_mode));
    }
    const int q1d = (int)floor(std::pow(num_qp, 1.0/dimension) + 0.5);
-   dbg("q1d:{} \x1b[33mMQ1:{}", q1d, MQ1);
-   MFEM_VERIFY(MQ1 == 0 || q1d == MQ1, "q1d and MQ1 have to match");
+   // dbg("q1d:{} \x1b[33mMQ1:{}", q1d, MQ1);
+   // MFEM_VERIFY(MQ1 == 0 || q1d == MQ1, "q1d and MQ1 have to match");
 
    const int residual_size_on_qp =
       GetSizeOnQP<entity_t>(output_fop,
@@ -563,6 +563,9 @@ void DifferentiableOperator::AddDomainIntegrator(
 
    auto input_dtq_maps = create_dtq_maps<entity_t>(inputs, dtq, input_to_field);
    auto output_dtq_maps = create_dtq_maps<entity_t>(outputs, dtq, output_to_field);
+
+   const auto d1d = input_dtq_maps[0].B.GetShape()[2];
+   dbg("\x1b[33md1d:{} q1d:{} ", d1d, q1d);
 
    const int test_vdim = output_fop.vdim;
    const int test_op_dim = output_fop.size_on_qp / output_fop.vdim;
@@ -611,6 +614,7 @@ void DifferentiableOperator::AddDomainIntegrator(
             dimension,                    // int
             num_entities,                 // int
             num_test_dof,                 // int
+            d1d,                          // int
             q1d,                          // int
             test_vdim,                    // int (= output_fop.vdim)
             inputs,                       // input_t
@@ -640,6 +644,30 @@ void DifferentiableOperator::AddDomainIntegrator(
          mutable
       {
 #if 1
+         NewActionCallback action(restriction_cb,
+                                  qfunc,
+                                  inputs,
+                                  input_to_field,
+                                  input_dtq_maps,
+                                  output_dtq_maps,
+                                  num_entities,
+                                  test_vdim,
+                                  num_test_dof,
+                                  dimension,
+                                  q1d,
+                                  thread_blocks,
+                                  action_shmem_info,
+                                  elem_attributes,
+                                  output_fop,
+                                  domain_attributes,
+                                  fields_e,
+                                  residual_e,
+                                  output_restriction_transpose,
+                                  solutions_l,
+                                  parameters_l,
+                                  residual_l);
+         action.Apply(d1d, q1d);
+#elif 0
          action_callback_new<MQ1, num_fields>(restriction_cb,
                                               qfunc,
                                               inputs,
@@ -661,7 +689,9 @@ void DifferentiableOperator::AddDomainIntegrator(
                                               output_restriction_transpose,
                                               solutions_l,
                                               parameters_l,
-                                              residual_l);
+                                              residual_l,
+                                              // templates fallbacks
+                                              q1d);
 #else
          db1();
          assert(dimension == 3);
@@ -843,7 +873,7 @@ void DifferentiableOperator::AddDomainIntegrator(
                                   wrapped_fields_e, num_qp, e);
 
 
-            map_fields_to_quadrature_data<MQ1>(
+            map_fields_to_quadrature_data(
                input_shmem, fields_shmem, input_dtq_shmem, input_to_field, inputs, ir_weights,
                scratch_shmem, dimension, use_sum_factorization);
 
@@ -962,7 +992,7 @@ void DifferentiableOperator::AddDomainIntegrator(
                                      wrapped_fields_e, wrapped_direction_e, num_qp, e);
                auto &shadow_shmem = shadow_shmem_;
 
-               map_fields_to_quadrature_data<MQ1>(
+               map_fields_to_quadrature_data(
                   input_shmem, fields_shmem, input_dtq_shmem, input_to_field,
                   inputs, ir_weights, scratch_shmem, dimension,
                   use_sum_factorization);
@@ -970,7 +1000,7 @@ void DifferentiableOperator::AddDomainIntegrator(
                // TODO: Probably redundant
                set_zero(shadow_shmem);
 
-               map_direction_to_quadrature_data_conditional<MQ1>(
+               map_direction_to_quadrature_data_conditional(
                   shadow_shmem, direction_shmem, input_dtq_shmem, inputs,
                   ir_weights, scratch_shmem, input_is_dependent, dimension,
                   use_sum_factorization);

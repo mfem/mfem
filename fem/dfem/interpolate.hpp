@@ -32,7 +32,7 @@ AlmostEq(T x, T y, T tolerance = 15.0 * std::numeric_limits<T>::epsilon())
 namespace mfem::future
 {
 
-template <int T_Q1D, typename field_operator_t>
+template <typename field_operator_t>
 MFEM_HOST_DEVICE inline
 void map_field_to_quadrature_data_tensor_product_3d(
    DeviceTensor<2> &field_qp,
@@ -501,7 +501,7 @@ void map_field_to_quadrature_data(
    }
 }
 
-template <int MQ1, typename field_operator_ts, size_t num_inputs, size_t num_fields>
+template <typename field_operator_ts, size_t num_inputs, size_t num_fields>
 MFEM_HOST_DEVICE inline
 void map_fields_to_quadrature_data(
    std::array<DeviceTensor<2>, num_inputs> &fields_qp,
@@ -537,7 +537,7 @@ void map_fields_to_quadrature_data(
          }
          else if (dimension == 3)
          {
-            map_field_to_quadrature_data_tensor_product_3d<MQ1>(
+            map_field_to_quadrature_data_tensor_product_3d(
                fields_qp[i], dtqmaps[i], field_e, get<i>(fops),
                integration_weights, scratch_mem);
          }
