@@ -20,9 +20,10 @@
 
 #ifdef MFEM_USE_CUDA
 #define MFEM_USE_CUDA_OR_HIP
-#define MFEM_DEVICE __device__
 #define MFEM_HOST __host__
 #define MFEM_LAMBDA __host__
+#define MFEM_DEVICE __device__
+#define MFEM_CONSTANT __constant__
 // #define MFEM_HOST_DEVICE __host__ __device__ // defined in config/config.hpp
 #define MFEM_DEVICE_SYNC MFEM_GPU_CHECK(cudaDeviceSynchronize())
 #define MFEM_STREAM_SYNC MFEM_GPU_CHECK(cudaStreamSynchronize(0))

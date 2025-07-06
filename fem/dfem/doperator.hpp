@@ -356,6 +356,8 @@ public:
 
    void UseNewKernels() { use_new_kernels = true; }
 
+   void UseKernelsSpecialization() { use_kernels_specialization = true; }
+
 private:
    const ParMesh &mesh;
 
@@ -389,6 +391,7 @@ private:
 
    bool use_tensor_product_structure = true;
    bool use_new_kernels = false;
+   bool use_kernels_specialization = false;
 
    size_t test_space_field_idx = SIZE_MAX;
 };
@@ -608,8 +611,8 @@ void DifferentiableOperator::AddDomainIntegrator(
 
    if (use_new_kernels)
    {
-      dbg("ThreadBlocks: x:{} y:{} z:{}",
-          thread_blocks.x, thread_blocks.y, thread_blocks.z);
+      // dbg("ThreadBlocks: x:{} y:{} z:{}",
+      //     thread_blocks.x, thread_blocks.y, thread_blocks.z);
       action_callbacks.push_back(
          [
             // 🟢🟢🟢🟢 capture by copy:
@@ -636,6 +639,7 @@ void DifferentiableOperator::AddDomainIntegrator(
             dependency_map,               // std::map<int, std::vector<int>>
             inputs_vdim,                  // std::vector<int>
             // 🟣🟣🟣🟣 capture by ref:
+            &use_kernels_specialization = this->use_kernels_specialization,   // bool
             &restriction_cb = this->restriction_callback,
             &fields_e = this->fields_e,
             &residual_e = this->residual_e,
@@ -645,7 +649,8 @@ void DifferentiableOperator::AddDomainIntegrator(
            Vector &residual_l)
          mutable
       {
-         NewActionCallback action(restriction_cb,
+         NewActionCallback action(use_kernels_specialization,
+                                  restriction_cb,
                                   qfunc,
                                   inputs,
                                   input_to_field,

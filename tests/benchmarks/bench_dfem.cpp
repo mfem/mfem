@@ -244,7 +244,7 @@ StiffnessIntegrator::StiffnessKernels::Kernel()
 StiffnessIntegrator::StiffnessKernelType
 StiffnessIntegrator::StiffnessKernels::Fallback(int d1d, int q1d)
 {
-   dbg("\x1b[33mFallback d1d:{} q1d:{}", d1d, q1d);
+   // dbg("\x1b[33mFallback d1d:{} q1d:{}", d1d, q1d);
    return StiffnessMult<>;
 }
 
@@ -456,6 +456,8 @@ struct Diffusion : public BakeOff<VDIM, GLL>
          };
          dop = std::make_unique<DifferentiableOperator>(u_sol, q_param, pmesh);
          if (use_new_kernels) { dop->UseNewKernels(); }
+         if (use_kernels_specialization) { dop->UseKernelsSpecialization(); }
+         else { dbg("[PA ∂fem] NOT using kernels specialization"); }
          dop->AddDomainIntegrator(pa_apply_qf, Gu_Iq, tuple{Gu}, *ir, ess_bdr);
          dop->SetParameters({ &qdata });
 

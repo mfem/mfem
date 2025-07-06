@@ -81,7 +81,7 @@ void apply_kernel(reg_t &r0, reg_t &r1,
                   const qfunc_t &qfunc,
                   args_ts &args)
 {
-   // db1("apply_kernel");
+   db1("apply_kernel");
 
    if constexpr (num_args == 2)
    {
@@ -107,6 +107,7 @@ void apply_kernel(reg_t &r0, reg_t &r1,
       }
       else
       {
+         // dbg("Q1D:{}", Q1D);
          const auto D = Reshape(r2, 3, 3, Q1D, Q1D, Q1D);
          for (int j = 0; j < 3; j++)
          {
@@ -130,6 +131,10 @@ void apply_kernel(reg_t &r0, reg_t &r1,
 }
 
 } // namespace qf
+
+#define MFEM_D2Q_MAX_SIZE 4
+static MFEM_CONSTANT real_t Bi[MFEM_D2Q_MAX_SIZE][8*8], Bo[8*8];
+static MFEM_CONSTANT real_t Gi[MFEM_D2Q_MAX_SIZE][8*8], Go[8*8];
 
 template<size_t num_fields,
          size_t num_inputs,
@@ -166,7 +171,8 @@ class NewActionCallback
    Vector &residual_l;
 
 public:
-   NewActionCallback(restriction_cb_t &restriction_cb,
+   NewActionCallback(const bool use_kernels_specialization,
+                     restriction_cb_t &restriction_cb,
                      qfunc_t &qfunc,
                      input_t &inputs,
                      const std::array<int, num_inputs> &input_to_field,
@@ -213,7 +219,7 @@ public:
       parameters_l(parameters_l),
       residual_l(residual_l)
    {
-      dbg();
+      if (!use_kernels_specialization) { return; }
       NewActionCallbackKernels::template Specialization<3,4>::Add();
       NewActionCallbackKernels::template Specialization<4,5>::Add();
       NewActionCallbackKernels::template Specialization<5,6>::Add();
@@ -251,20 +257,50 @@ public:
                                    // fallback arguments
                                    const int d1d, const int q1d)
    {
+      assert(dimension == 3);
+      static_assert(MFEM_D2Q_MAX_SIZE >= num_inputs, "MFEM_D2Q_MAX_SIZE error");
+
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
 
-      assert(dimension == 3);
+      constexpr int DIM = 3;
+      constexpr int MQ1 = T_Q1D > 0 ? kernels::internal::SetMaxOf(T_Q1D) : 8;
+
+      [[maybe_unused]] static bool ini = (for_constexpr<num_inputs>([&](auto i)
+      {
+         const auto dtq = input_dtq_maps[i];
+         {
+            const auto [q, _, p] = dtq.B.GetShape();
+            const auto B = (const real_t*)input_dtq_maps[i].B;
+            if (B) { HipMemcpyToSymbol(Bi[i], B, (p*q)*sizeof(real_t)); }
+         }
+         {
+            const auto [q, _, p] = dtq.G.GetShape();
+            const auto G = (const real_t*)input_dtq_maps[i].G;
+            if (G) { HipMemcpyToSymbol(Gi[i], G, (p*q)*sizeof(real_t)); }
+         }
+         if constexpr (i == 0) // output B
+         {
+            const auto dtq_o = output_dtq_maps[0];
+            const auto [q, _, p] = dtq_o.B.GetShape();
+            const auto B = (const real_t*)dtq_o.B;
+            if (B) { HipMemcpyToSymbol(Bo, B, (p*q)*sizeof(real_t)); }
+         }
+         if constexpr (i == 0) // output G
+         {
+            const auto dtq_o = output_dtq_maps[0];
+            const auto [q, _, p] = dtq_o.G.GetShape();
+            const auto G = (const real_t*)dtq_o.G;
+            if (G) { HipMemcpyToSymbol(Go, G, (p*q)*sizeof(real_t)); }
+         }
+      }), true);
 
       // types
       using qf_signature =
          typename create_function_signature<decltype(&qfunc_t::operator())>::type;
       using qf_param_ts = typename qf_signature::parameter_ts;
 
-      // db1("Restriction");
       restriction_cb(solutions_l, parameters_l, fields_e);
-
-      // db1("residule_e = 0.0");
       residual_e = 0.0;
 
       auto ye = Reshape(residual_e.ReadWrite(), test_vdim, num_test_dof,
@@ -285,12 +321,7 @@ public:
          // this could be optimized out
          if (has_attr && !d_domain_attr[d_elem_attr[e] - 1]) { return; }
 
-         constexpr int VDIM = 1, DIM = 3;
-         constexpr int MD1 = T_D1D > 0 ? kernels::internal::SetMaxOf(T_D1D) : 32;
-         constexpr int MQ1 = T_Q1D > 0 ? kernels::internal::SetMaxOf(T_Q1D) : 32;
-
          MFEM_SHARED real_t smem[MQ1][MQ1];
-         MFEM_SHARED real_t sB[MD1][MQ1], sG[MD1][MQ1];
          kernels::internal::d_regs3d_t<DIM, MQ1> r0, r1;
          real_t *r2;
 
@@ -300,27 +331,20 @@ public:
          const auto dummy_field_weight = DeviceTensor<1>(nullptr, 0);
          for_constexpr<num_inputs>([&](auto i)
          {
-            using field_operator_t = std::decay_t<decltype(get<i>(inputs))>;
+            const auto input = get<i>(inputs);
+            using field_operator_t = std::decay_t<decltype(input)>;
 
             if constexpr (is_gradient_fop<field_operator_t>::value) // Grad
             {
-               // db1("\x1b[32m[Gradient] r0, r1");
-               // const auto input = get<i>(inputs);
-               constexpr int vdim = VDIM; // input.vdim;
-               // dbg("vdim:{}", vdim );
-               // assert(input.vdim == 1);
-               const auto dtq = input_dtq_maps[i];
-               const auto B = dtq.B, G = dtq.G;
-               // const auto [B_q1d, B_dim, d1d] = B.GetShape(); // 🔥 using 'global' D1D vs. local d1d
-               // assert(B_q1d == q1d);
+               const int vdim = input.vdim;
                const real_t *field_e_r = fields_e_ptr[input_to_field[i]];
                const auto field = Reshape(field_e_r, D1D, D1D, D1D, vdim);
-               kernels::internal::LoadMatrix(D1D, Q1D, B, sB);
-               kernels::internal::LoadMatrix(D1D, Q1D, G, sG);
+               const auto B = reinterpret_cast<const real_t (*)[MQ1]>(Bi[i]);
+               const auto G = reinterpret_cast<const real_t (*)[MQ1]>(Gi[i]);
                for (int c = 0; c < vdim; c++)
                {
                   kernels::internal::LoadDofs3d(D1D, c, field, r0);
-                  kernels::internal::Grad3d(D1D, Q1D, smem, sB, sG, r0, r1, c);
+                  kernels::internal::Grad3d(D1D, Q1D, smem, B, G, r0, r1, c);
                }
             }
 
@@ -349,19 +373,13 @@ public:
          auto y = Reshape(&ye(0, 0, e), num_test_dof, test_vdim);
          if constexpr (is_gradient_fop<std::decay_t<output_fop_t>>::value) // Gradient
          {
-            // const auto dtq = output_dtq_maps[0];
-            // const auto B = dtq.B, G = dtq.G;
-            // const auto [_, unused, d1d] = G.GetShape(); // 🔥 using 'global' D1D vs. local d1d
-            // const auto output = output_fop;
-            constexpr int vdim = VDIM;
-            // assert(output.vdim == 1);
+            const int vdim = output_fop.vdim;
             auto yd = Reshape(&y(0, 0), D1D, D1D, D1D, vdim);
-            // can be avoided IF one input to one output
-            // kernels::internal::LoadMatrix(d1d, q1d, B, sB);
-            // kernels::internal::LoadMatrix(d1d, q1d, G, sG);
+            const auto B = reinterpret_cast<const real_t (*)[MQ1]>(Bo);
+            const auto G = reinterpret_cast<const real_t (*)[MQ1]>(Go);
             for (int c = 0; c < vdim; c++)
             {
-               kernels::internal::GradTranspose3d(D1D, Q1D, smem, sB, sG, r0, r1, c);
+               kernels::internal::GradTranspose3d(D1D, Q1D, smem, B, G, r0, r1, c);
                kernels::internal::WriteDofs3d(D1D, c, r1, yd);
             }
          }
