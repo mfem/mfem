@@ -43,6 +43,9 @@ public:
    /// Copy constructor
    DenseMatrix(const DenseMatrix &);
 
+   /// Move constructor
+   DenseMatrix(DenseMatrix &&);
+
    /// Creates square matrix of size s.
    explicit DenseMatrix(int s);
 
@@ -249,8 +252,11 @@ public:
    /// Copy the matrix entries from the given array
    DenseMatrix &operator=(const real_t *d);
 
-   /// Sets the matrix size and elements equal to those of m
+   /// Copy assignment operator: sets the matrix size and elements equal to those of @a m
    DenseMatrix &operator=(const DenseMatrix &m);
+
+   /// Move assignment operator: "steals" data from @a m
+   DenseMatrix &operator=(const DenseMatrix &&m);
 
    DenseMatrix &operator+=(const real_t *m);
    DenseMatrix &operator+=(const DenseMatrix &m);
@@ -1160,6 +1166,12 @@ public:
       }
    }
 
+   /// Move constructor: "steals" data from @a other
+   DenseTensor(DenseTensor &&other)
+   {
+      *this = std::move(other);
+   }
+
    int SizeI() const { return Mk.Height(); }
    int SizeJ() const { return Mk.Width(); }
    int SizeK() const { return nk; }
@@ -1213,6 +1225,9 @@ public:
 
    /// Copy assignment operator (performs a deep copy)
    DenseTensor &operator=(const DenseTensor &other);
+
+   /// Move assignment operator ("steals" data from @a other)
+   DenseTensor &operator=(DenseTensor &&other);
 
    DenseMatrix &operator()(int k)
    {

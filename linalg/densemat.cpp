@@ -52,6 +52,11 @@ DenseMatrix::DenseMatrix(const DenseMatrix &m) : Matrix(m.height, m.width)
    }
 }
 
+DenseMatrix::DenseMatrix(DenseMatrix &&m)
+{
+   *this = std::move(m);
+}
+
 DenseMatrix::DenseMatrix(int s) : Matrix(s)
 {
    MFEM_ASSERT(s >= 0, "invalid DenseMatrix size: " << s);
@@ -653,6 +658,12 @@ DenseMatrix &DenseMatrix::operator=(const DenseMatrix &m)
       data[i] = m.data[i];
    }
 
+   return *this;
+}
+
+DenseMatrix &DenseMatrix::operator=(DenseMatrix &&m)
+{
+   Swap(*this, m);
    return *this;
 }
 
@@ -4392,6 +4403,12 @@ DenseTensor &DenseTensor::operator=(const DenseTensor &other)
 {
    DenseTensor new_tensor(other);
    Swap(new_tensor);
+   return *this;
+}
+
+DenseTensor &DenseTensor::operator=(DenseTensor &&other)
+{
+   Swap(other);
    return *this;
 }
 
