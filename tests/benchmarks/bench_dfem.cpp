@@ -43,9 +43,24 @@ using future::DifferentiableOperator;
 using future::UniformParameterSpace;
 using future::ParameterFunction;
 using future::FieldDescriptor;
+using future::make_tensor;
 using future::Gradient;
 using future::Weight;
 using future::Identity;
+
+
+#if ((defined(MFEM_USE_CUDA) && defined(__CUDA_ARCH__)) ||       \
+     (defined(MFEM_USE_HIP) && defined(__HIP_DEVICE_COMPILE__)))
+
+template<int N>
+using MQZ = std::integral_constant<int, 0>;
+
+#else
+
+template<int N>
+using MQZ = std::integral_constant<int, N>;
+
+#endif
 
 /// Max number of DOFs ////////////////////////////////////////////////////////
 #if !(defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))
@@ -245,9 +260,12 @@ public:
          constexpr int MD1 = T_D1D > 0 ? kernels::internal::SetMaxOf(T_D1D) : 32;
          constexpr int MQ1 = T_Q1D > 0 ? kernels::internal::SetMaxOf(T_Q1D) : 32;
 
+
          MFEM_SHARED real_t smem[MQ1][MQ1];
          MFEM_SHARED real_t sB[MD1][MQ1], sG[MD1][MQ1];
-         ker::vd::regs3d_vd_t<VDIM, DIM, MQ1> v0, v1;
+
+         constexpr int MZ1 = MQZ<MQ1>::value;
+         mfem::future::tensor<real_t, MQ1, MZ1, MZ1, VDIM, DIM> v0, v1;
 
          ker::LoadMatrix(D1D, Q1D, b, sB);
          ker::LoadMatrix(D1D, Q1D, g, sG);
@@ -262,13 +280,9 @@ public:
                MFEM_FOREACH_THREAD_DIRECT(qx, x, Q1D)
                {
                   const auto &vd_u = v1[qz][qy][qx][0];
-                  const real_t *dx = &DX(0, 0, qx, qy, qz, e);
-                  const tensor<real_t, 3, 3> d_pa{{{dx[0], dx[1], dx[2]},
-                        {dx[3], dx[4], dx[5]},
-                        {dx[6], dx[7], dx[8]}
-                     }};
                   auto &vd_v = v0[qz][qy][qx][0];
-                  vd_v = d_pa * vd_u;
+                  const auto d = make_tensor<3, 3>([&](int i, int j) { return DX(i, j, qx, qy, qz, e); });
+                  vd_v = d * vd_u;
                }
             }
          }
@@ -287,7 +301,39 @@ public:
                             d1d, q1d);
    }
 };
-
+/*
+--------------------------------------------------------------------------------------------------
+Benchmark            Time             CPU   Iterations       Dofs     MDof/s          p    version
+--------------------------------------------------------------------------------------------------
+BP3/0/6/25        2.33 ms         2.29 ms          306    15.625k  218.454/s          6          0
+BP3/0/6/50        2.95 ms         2.92 ms          232   132.055k 1.44567k/s          6          0
+BP3/0/6/75        4.64 ms         4.61 ms          149   420.991k 2.92423k/s          6          0
+BP3/0/6/100       8.84 ms         8.80 ms           78   1.02907M 3.74023k/s          6          0
+BP3/0/6/125       15.5 ms         15.5 ms           45   1.95161M 4.02333k/s          6          0
+BP3/0/6/150       26.5 ms         26.5 ms           26   3.44295M 4.16497k/s          6          0
+BP3/0/6/175       40.9 ms         40.6 ms           17   5.35938M 4.22609k/s          6          0
+BP3/0/6/200       61.3 ms         60.7 ms           12    8.1182M 4.27719k/s          6          0
+--------------------------------------------------------------------------------------------------
+StiffnessMultVD:
+BP3/1/6/25        2.86 ms         2.80 ms          304    15.625k  178.514/s          6          1
+BP3/1/6/50        3.39 ms         3.33 ms          210   132.055k 1.26724k/s          6          1
+BP3/1/6/75        5.06 ms         4.99 ms          136   420.991k 2.69718k/s          6          1
+BP3/1/6/100       8.71 ms         8.63 ms           80   1.02907M 3.81789k/s          6          1
+BP3/1/6/125       15.5 ms         15.1 ms           46   1.95161M 4.13199k/s          6          1
+BP3/1/6/150       24.4 ms         24.2 ms           29   3.44295M 4.54897k/s          6          1
+BP3/1/6/175       37.4 ms         36.7 ms           19   5.35938M 4.67061k/s          6          1
+BP3/1/6/200       56.1 ms         55.2 ms           13    8.1182M 4.70794k/s          6          1
+--------------------------------------------------------------------------------------------------
+StiffnessMult:
+BP3/1/6/25        2.94 ms         2.86 ms          245    15.625k  174.602/s          6          1
+BP3/1/6/50        3.44 ms         3.37 ms          206   132.055k 1.25531k/s          6          1
+BP3/1/6/75        5.26 ms         5.15 ms          137   420.991k 2.61688k/s          6          1
+BP3/1/6/100       9.15 ms         9.04 ms           77   1.02907M 3.64348k/s          6          1
+BP3/1/6/125       15.7 ms         15.6 ms           45   1.95161M 4.01224k/s          6          1
+BP3/1/6/150       25.1 ms         25.0 ms           28   3.44295M 4.40159k/s          6          1
+BP3/1/6/175       37.7 ms         37.7 ms           18   5.35938M 4.54855k/s          6          1
+BP3/1/6/200       56.2 ms         56.2 ms           12    8.1182M 4.62524k/s          6          1
+*/
 template <int D1D, int Q1D>
 StiffnessIntegrator::StiffnessKernelType
 StiffnessIntegrator::StiffnessKernels::Kernel()

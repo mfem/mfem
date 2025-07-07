@@ -81,8 +81,6 @@ void apply_kernel(reg_t &r0, reg_t &r1,
                   const qfunc_t &qfunc,
                   args_ts &args)
 {
-   db1("apply_kernel");
-
    if constexpr (num_args == 2)
    {
       // ∇u

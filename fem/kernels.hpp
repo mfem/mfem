@@ -56,6 +56,7 @@ using vd_regs3d_t = mfem::future::tensor<real_t, VDIM, DIM, N, 0, 0>;
 
 // on GPU, SetMaxOf is a no-op, for minimal register usage
 constexpr int SetMaxOf(int n) { return n; }
+
 #else
 template <int N>
 using s_regs2d_t = mfem::future::tensor<real_t, N, N>;
@@ -86,6 +87,7 @@ constexpr int NextMultipleOf(int n)
    return (n + (N - 1)) & ~(N - 1);
 }
 constexpr int SetMaxOf(int n) { return NextMultipleOf<4>(n); }
+
 #endif // CUDA/HIP && DEVICE_COMPILE
 
 /// Load 2D matrix into shared memory
