@@ -359,7 +359,7 @@ TEST_CASE("LUFactors RightSolve", "[DenseMatrix]")
 }
 
 TEST_CASE("Batched Linear Algebra",
-          "[DenseMatrix][CUDA]")
+          "[DenseMatrix][GPU]")
 {
    auto backend = GENERATE(BatchedLinAlg::NATIVE,
                            BatchedLinAlg::GPU_BLAS,
