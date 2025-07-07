@@ -42,11 +42,13 @@ add_mfem_miniapp(nurbs_ex1
 
 add_mfem_miniapp(nurbs_lor
   MAIN nurbs_lor.cpp
+  EXTRA_HEADERS nurbs_lor.hpp
   LIBRARIES mfem)
   add_dependencies(nurbs_lor copy_miniapps_nurbs_data)
 
 add_mfem_miniapp(nurbs_lor_solve
   MAIN nurbs_lor_solve.cpp
+  EXTRA_HEADERS nurbs_lor.hpp
   LIBRARIES mfem)
   add_dependencies(nurbs_lor_solve copy_miniapps_nurbs_data)
 
