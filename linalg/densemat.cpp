@@ -52,7 +52,7 @@ DenseMatrix::DenseMatrix(const DenseMatrix &m) : Matrix(m.height, m.width)
    }
 }
 
-DenseMatrix::DenseMatrix(DenseMatrix &&m)
+DenseMatrix::DenseMatrix(DenseMatrix &&m) : Matrix(m.height, m.width)
 {
    *this = std::move(m);
 }
@@ -663,7 +663,7 @@ DenseMatrix &DenseMatrix::operator=(const DenseMatrix &m)
 
 DenseMatrix &DenseMatrix::operator=(DenseMatrix &&m)
 {
-   Swap(*this, m);
+   Swap(m);
    return *this;
 }
 
