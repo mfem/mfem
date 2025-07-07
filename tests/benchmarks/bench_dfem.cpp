@@ -21,6 +21,7 @@
 
 #include "fem/dfem/doperator.hpp"
 #include <linalg/tensor.hpp>
+#include "tests/benchmarks/kernels.hpp"
 
 #include "fem/kernels.hpp"
 namespace ker = kernels::internal;
@@ -171,12 +172,13 @@ public:
       });
    }
 
+   ///////////////////////////////////////////////////////////////////
+   /// BP3/1/6/25 | 12.5ms | 12.5ms | 10 | 15.625k | 40.1397/s | 6 | 1
    template <int T_D1D = 0, int T_Q1D = 0>
    static void StiffnessMult(const int NE, const real_t *b, const real_t *g,
                              const real_t *dx, const real_t *xe, real_t *ye,
                              const int d1d, const int q1d)
    {
-      // NVTX();
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
 
@@ -223,6 +225,58 @@ public:
       });
    }
 
+   ///////////////////////////////////////////////////////////////////
+   // BP3/1/6/25 | 49.5 ms | 49.5 ms | 10 | 15.625k | 10.0983/s | 6 | 1
+   template <int T_D1D = 0, int T_Q1D = 0>
+   static void StiffnessMultVD(const int NE, const real_t *b, const real_t *g,
+                               const real_t *dx, const real_t *xe, real_t *ye,
+                               const int d1d, const int q1d)
+   {
+      const int D1D = T_D1D ? T_D1D : d1d;
+      const int Q1D = T_Q1D ? T_Q1D : q1d;
+
+      constexpr int DIM = 3, VDIM = 1;
+      const auto XE = Reshape(xe, D1D, D1D, D1D, VDIM, NE);
+      const auto DX = Reshape(dx, 3, 3, Q1D, Q1D, Q1D, NE);
+      auto YE = Reshape(ye, D1D, D1D, D1D, VDIM, NE);
+
+      mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
+      {
+         constexpr int MD1 = T_D1D > 0 ? kernels::internal::SetMaxOf(T_D1D) : 32;
+         constexpr int MQ1 = T_Q1D > 0 ? kernels::internal::SetMaxOf(T_Q1D) : 32;
+
+         MFEM_SHARED real_t smem[MQ1][MQ1];
+         MFEM_SHARED real_t sB[MD1][MQ1], sG[MD1][MQ1];
+         ker::vd::regs3d_vd_t<VDIM, DIM, MQ1> v0, v1;
+
+         ker::LoadMatrix(D1D, Q1D, b, sB);
+         ker::LoadMatrix(D1D, Q1D, g, sG);
+
+         ker::vd::LoadDofs3d(e, D1D, XE, v0);
+         ker::vd::Grad3d(D1D, Q1D, smem, sB, sG, v0, v1);
+
+         for (int qz = 0; qz < Q1D; qz++)
+         {
+            MFEM_FOREACH_THREAD_DIRECT(qy, y, Q1D)
+            {
+               MFEM_FOREACH_THREAD_DIRECT(qx, x, Q1D)
+               {
+                  const auto &vd_u = v1[qz][qy][qx][0];
+                  const real_t *dx = &DX(0, 0, qx, qy, qz, e);
+                  const tensor<real_t, 3, 3> d_pa{{{dx[0], dx[1], dx[2]},
+                        {dx[3], dx[4], dx[5]},
+                        {dx[6], dx[7], dx[8]}
+                     }};
+                  auto &vd_v = v0[qz][qy][qx][0];
+                  vd_v = d_pa * vd_u;
+               }
+            }
+         }
+         ker::vd::GradTranspose3d(D1D, Q1D, smem, sB, sG, v0, v1);
+         ker::vd::WriteDofs3d(e, D1D, v1, YE);
+      });
+   }
+
    using StiffnessKernelType = decltype(&StiffnessMult<>);
    MFEM_REGISTER_KERNELS(StiffnessKernels, StiffnessKernelType, (int, int));
 
@@ -238,7 +292,8 @@ template <int D1D, int Q1D>
 StiffnessIntegrator::StiffnessKernelType
 StiffnessIntegrator::StiffnessKernels::Kernel()
 {
-   return StiffnessMult<D1D, Q1D>;
+   // return StiffnessMult<D1D, Q1D>;
+   return StiffnessMultVD<D1D, Q1D>;
 }
 
 StiffnessIntegrator::StiffnessKernelType
