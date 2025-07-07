@@ -133,16 +133,39 @@ TEST_CASE("Particle Redistribution", "[ParticleSet]" "[Parallel]")
    Mesh m = Mesh::MakeCartesian3D(N_e, N_e, N_e, Element::Type::QUADRILATERAL);
    ParMesh pmesh(MPI_COMM_WORLD, m);
 
-   // Generate particles randomly on entire mesh domain, for each rank
+   // Generate a master list of all particles ; ID is the index
+   std::vector<Particle> all_particles;
+   int seed = 17;
+   for (int i = 0; i < N*size; i++)
+   {
+      all_particles.emplace_back(SpaceDim, NumScalars, VectorVDims);
+      InitializeRandom(all_particles.back(), seed);
+   }
+
+   // Add the particles properly (based on index being ID) to the particle sets
    ParticleSet<Ordering::byVDIM> pset(MPI_COMM_WORLD, SpaceDim, NumScalars, VectorVDims);
-   int seed = rank;
    for (int i = 0; i < N; i++)
    {
-      Particle p(SpaceDim, NumScalars, VectorVDims);
-      InitializeRandom(p, seed);
-      pset.AddParticle(p);
-      seed += size;
+      pset.AddParticle(all_particles[i*size+rank]);
    }
+
+
+   // // Print Particles:
+   // for (int r = 0; r < size; r++)
+   // {
+   //    if (r == rank)
+   //    {
+   //       cout << "-------------------------------------------\n RANK " << r << endl;
+   //       for (int i = 0; i < pset.GetNP(); i++)
+   //       {
+   //          cout << "\nParticle ID " << pset.GetIDs()[i] << endl;
+   //          Particle p = pset.GetParticleData(i);
+   //          p.Print();
+   //       }
+   //    }
+   //    MPI_Barrier(MPI_COMM_WORLD);
+   // }
+
 
    // Find points
    FindPointsGSLIB finder(MPI_COMM_WORLD);
@@ -153,19 +176,81 @@ TEST_CASE("Particle Redistribution", "[ParticleSet]" "[Parallel]")
    // Redistribute
    pset.Redistribute(finder.GetProc());
 
+
+   // for (int r = 0; r < size; r++)
+   // {
+   //    if (r == rank)
+   //    {
+   //       cout << "-------------------------------------------\n RANK " << r << endl;
+   //       for (int i = 0; i < pset.GetNP(); i++)
+   //       {
+   //          cout << "\nParticle ID " << pset.GetIDs()[i] << endl;
+   //          Particle p = pset.GetParticleData(i);
+   //          p.Print();
+   //       }
+   //    }
+   //    MPI_Barrier(MPI_COMM_WORLD);
+   // }
+
    // Find again
    finder.FindPoints(pset.GetSetCoords(), pset.GetOrdering());
 
-   // Ensure that all points lie on their proc
+   // Ensure that all points lie on their correct proc
    const Array<unsigned int> &procs = finder.GetProc();
-   int err_count = 0;
+   int wrong_proc_count = 0;
    for (int i = 0; i < procs.Size(); i++)
    {
       if (rank != procs[i])
       {
-         err_count++;
+         wrong_proc_count++;
       }
    }
-   REQUIRE(err_count == 0);
+   REQUIRE(wrong_proc_count == 0);
 
+   // Check that coordinates, scalars, + vectors are all still correct
+   int wrong_coords_count = 0;
+   int wrong_scalars_count = 0;
+   int wrong_vectors_count = 0;
+   for (int i = 0; i < pset.GetNP(); i++)
+   {
+      Particle &actual_p = all_particles[pset.GetIDs()[i]];
+      Particle pset_p = pset.GetParticleData(i);
+
+      
+      for (int d = 0; d < SpaceDim; d++)
+      {
+         if (actual_p.GetCoords()[d] != pset_p.GetCoords()[d])
+         {
+            wrong_coords_count++;
+            break;
+         }
+      }
+
+      for (int s = 0; s < NumScalars; s++)
+      {
+         if (actual_p.GetScalar(s) != actual_p.GetScalar(s))
+         {
+            wrong_scalars_count++;
+            break;
+         }
+      }
+
+      for (int v = 0; v < VectorVDims.Size(); v++)
+      {
+         for (int c = 0; c < VectorVDims[v]; c++)
+         {
+            if (actual_p.GetVector(v)[c] != pset_p.GetVector(v)[c])
+            {
+               wrong_vectors_count++;
+               v = VectorVDims.Size();
+               break;
+            }
+         }
+      }
+   }
+
+   REQUIRE(wrong_coords_count == 0);
+   REQUIRE(wrong_scalars_count == 0);
+   REQUIRE(wrong_vectors_count == 0);
+   
 }
