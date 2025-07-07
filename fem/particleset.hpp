@@ -200,10 +200,8 @@ public:
    : ParticleSet(comm_, spaceDim, numScalars, Array<int>(vectorVDims)) {};
 
    /// Redistribute particles onto ranks specified in \p rank_list .
-   /// Should NOT be called after RemoveParticles (for now... we should think about this)
-   /// (^Maybe instead we have two args: one is an array of particle IDs and one of rank list? Idk)
    void Redistribute(const Array<unsigned int> &rank_list);
-   
+
    MPI_Comm GetComm() const { return comm; };
    
 #endif // MFEM_USE_MPI && MFEM_USE_GSLIB

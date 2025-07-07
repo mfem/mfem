@@ -568,7 +568,7 @@ void ParticleSet<VOrdering>::Transfer(const Array<int> &send_idxs, const Array<i
       pdata.proc = send_ranks[i];
       if constexpr (VOrdering == Ordering::byNODES)
       {
-         p = GetParticleData(send_idxs[i]);
+         p = GetParticleData(send_idxs[i]); // TODO: just extract data directly to avoid added copy for byNODES
       }
       else
       {
@@ -622,9 +622,11 @@ void ParticleSet<VOrdering>::Transfer(const Array<int> &send_idxs, const Array<i
             scalars[s] = &pdata.data[SpaceDim + s];
 
          for (int v = 0; v < VectorVDims.Size(); v++)
-            vectors[v] = &pdata.data[SpaceDim + NumScalars + ExclScanFieldVDims[1+NumScalars+v]];
+            vectors[v] = &pdata.data[ExclScanFieldVDims[1+NumScalars+v]];
 
+         
          Particle p(SpaceDim, NumScalars, VectorVDims, coords, scalars.data(), vectors.data());
+
 
          AddParticle(p, pdata.id);
       }
