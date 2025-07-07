@@ -35,106 +35,93 @@ namespace mfem
 {
 
 // -----------------------------------------------------------------------------------------------------
+// Define ParticleMeta to hold particle metadata
+// TODO: Make this a struct?
+
+class ParticleMeta
+{
+private:
+   const int spaceDim;
+   const int numProps; // immutable scalars intrinsic to particles
+   Array<int> stateVDims; // state variable (momentum, etc...) vdims
+
+public:
+   
+   ParticleMeta(int spaceDim_, int numProps_, std::initializer_list<int> stateVDims_)
+   : spaceDim(spaceDim_), numProps(numProps_), stateVDims(stateVDims_) {}
+
+   int SpaceDim() const { return spaceDim; }
+   int NumProps() const { return numProps; }
+   int NumStateVars() const { return stateVDims.Size(); }
+   int StateVDim(int v) const { return stateVDims[v]; } // TODO: better name for this + below.. too similar
+   const Array<int>& StateVDims() const { return stateVDims; }
+};
+
+// -----------------------------------------------------------------------------------------------------
 // Define Particle class
 
 class Particle
 {
 protected:
-   bool owning;
+   const ParticleMeta &meta;
 
    Vector coords;
-   std::vector<real_t*> scalars;
-   std::vector<Vector> vectors;
-
-   void Destroy();
-   void Copy(const Particle &p);
-   void Steal(Particle &p);
+   std::vector<real_t> props;
+   std::vector<Vector> state;
 
 public:
-   int GetSpaceDim() const { return coords.Size(); }
-   int GetNumScalars() const { return scalars.size(); }
-   int GetNumVectors() const { return vectors.size(); }
-   int GetVDim(int v) const { return vectors[v].Size(); }
-   const Array<int> GetVectorVDims() const
-   {
-      Array<int> vectorVDims(GetNumVectors());
-      for (int i = 0; i < GetNumVectors(); i++)
-         vectorVDims[i] = GetVDim(i);
-      return vectorVDims;
-   }
+   const ParticleMeta& GetMeta() const { return meta; }
 
-   /// Create a new particle which owns its own data
-   Particle(int spaceDim, int numScalars, const Array<int> &vectorVDims);
-
-   Particle(int spaceDim, int numScalars, std::initializer_list<int> vectorVDims)
-   : Particle(spaceDim, numScalars, Array<int>(vectorVDims)) {};
-
-   /// Create a new particle whose data references external data
-   Particle(int spaceDim, int numScalars, const Array<int> &vectorVDims, real_t *in_coords, real_t *in_scalars[], real_t *in_vectors[]);
-
-   /// Copy ctor
-   Particle(const Particle &p) : Particle(p.GetSpaceDim(), p.GetNumScalars(), p.GetVectorVDims()) { Copy(p); }
-
-   /// Move ctor
-   Particle(Particle &&p) : Particle(p.GetSpaceDim(), p.GetNumScalars(), p.GetVectorVDims()) { Steal(p); }
-
-   /// Copy assign
-   Particle& operator=(const Particle &p) { Copy(p); return *this; }
-
-   /// Move assign
-   Particle& operator=(Particle &&p) { Steal(p); return *this; }
+   Particle(const ParticleMeta &pmeta);
 
    Vector& GetCoords() { return coords; }
 
-   real_t& GetScalar(int s) { return *scalars[s]; }
+   real_t& GetProperty(int s) { return props[s]; }
 
-   Vector& GetVector(int v) { return vectors[v]; }
+   Vector& GetStateVar(int v) { return state[v]; }
 
    const Vector& GetCoords() const { return coords; }
+   
+   const real_t& GetProperty(int s) const { return props[s]; }
 
-   const real_t& GetScalar(int s) const { return *scalars[s]; }
-
-   const Vector& GetVector(int v) const { return vectors[v]; }
+   const Vector& GetStateVar(int v) const { return state[v]; }
 
    bool operator==(const Particle &rhs) const;
 
    bool operator!=(const Particle &rhs) const { return !operator==(rhs); }
 
-   ~Particle() { Destroy(); }
-
-   void Print(std::ostream &out=mfem::out);
+   void Print(std::ostream &out=mfem::out) const;
 };
 
 // -----------------------------------------------------------------------------------------------------
 // Define ParticleSet
 
-template<Ordering::Type VOrdering=Ordering::byVDIM>
 class ParticleSet
 {
 protected:
-   const int SpaceDim;
-   const int NumScalars;
-   const Array<int> VectorVDims; // VDims of vectors
-   const int TotalFields; // Total number of fields / particle
-   const int TotalComps; // Total comps / particle
-   const Array<int> FieldVDims;
-   const Array<int> ExclScanFieldVDims;
+   const Ordering::Type ordering;
+   const ParticleMeta &meta;
+
+   const int totalFields; // Total number of fields / particle
+   const int totalComps; // Total comps / particle
+   const Array<int> fieldVDims;
+   const Array<int> exclScanFieldVDims;
 
    const Array<int> MakeFieldVDims()
    {
-      Array<int> temp(TotalFields);
-      temp[0] = SpaceDim;
-      for (int s = 0; s < NumScalars; s++) temp[1+s] = 1;
-      for (int v = 0; v < VectorVDims.Size(); v++) temp[1+NumScalars+v] = VectorVDims[v];
+      Array<int> temp(totalFields);
+      temp[0] = meta.SpaceDim();
+      for (int s = 0; s < meta.NumProps(); s++) temp[1+s] = 1;
+      for (int v = 0; v < meta.NumStateVars(); v++) temp[1+meta.NumProps()+v] = meta.StateVDim(v);
       return temp;
    }
    const Array<int> MakeExclScanFieldVDims()
    {
-      Array<int> temp(TotalFields);
+      Array<int> temp(totalFields);
       temp[0] = 0;
-      for (int i = 1; i < TotalFields; i++)
+      for (int i = 1; i < totalFields; i++)
       {
-         temp[i] = temp[i-1] + FieldVDims[i-1];
+         temp[i] = temp[i-1] + fieldVDims[i-1];
       }
       return temp;
    }
@@ -142,9 +129,12 @@ protected:
    const std::size_t id_stride;
    std::size_t id_counter;
 
-   std::vector<real_t> data; // Stores ALL particle data
-   std::vector<Vector> fields; // User-facing Vectors, referencing data
-   Array<unsigned int> ids; // Particle IDs
+   std::vector<real_t> data; /// Stores ALL actual particle data
+   std::vector<Vector> fields; /// User-facing Vectors, always referencing actual data
+   Array<unsigned int> ids; /// Particle IDs
+
+   // TODO: consider below... (see member fxns too)
+   //std::vector<Particle> particles; /// Optional internal AoS configuration of particles
 
 #if defined(MFEM_USE_MPI) && defined(MFEM_USE_GSLIB)
    MPI_Comm comm;
@@ -164,7 +154,7 @@ protected:
    template<std::size_t... Ns>
    void RuntimeDispatchTransfer(const Array<int> &send_idxs, const Array<int> &send_ranks, std::index_sequence<Ns...>)
    {
-      bool success = ( (TotalComps == Ns ? (Transfer<Ns>(send_idxs, send_ranks),true) : false) || ...);
+      bool success = ( (totalComps == Ns ? (Transfer<Ns>(send_idxs, send_ranks),true) : false) || ...);
       MFEM_ASSERT(success, "Particles with field size above 100 are currently not supported for redistributing. Please submit a PR to request a particular particle size above this.");
    }
 
@@ -182,22 +172,15 @@ protected:
 
 public:
 
-   static constexpr Ordering::Type GetOrdering() { return VOrdering; }
+   Ordering::Type GetOrdering() const { return ordering; }
 
    /// Serial constructor
-   ParticleSet(int spaceDim, int numScalars, const Array<int> &vectorVDims);
-
-   ParticleSet(int spaceDim, int numScalars, std::initializer_list<int> vectorVDims)
-   : ParticleSet(spaceDim, numScalars, Array<int>(vectorVDims)) {};
-
+   ParticleSet(const ParticleMeta &meta_, Ordering::Type ordering_);
 
 #if defined(MFEM_USE_MPI) && defined(MFEM_USE_GSLIB)
 
    /// Parallel constructor
-   ParticleSet(MPI_Comm comm_, int spaceDim, int numScalars, const Array<int> &vectorVDims);
-
-   ParticleSet(MPI_Comm comm_, int spaceDim, int numScalars, std::initializer_list<int> vectorVDims)
-   : ParticleSet(comm_, spaceDim, numScalars, Array<int>(vectorVDims)) {};
+   ParticleSet(MPI_Comm comm_, const ParticleMeta &meta_, Ordering::Type ordering_);
 
    /// Redistribute particles onto ranks specified in \p rank_list .
    void Redistribute(const Array<unsigned int> &rank_list);
@@ -206,14 +189,8 @@ public:
    
 #endif // MFEM_USE_MPI && MFEM_USE_GSLIB
 
-   int GetSpaceDim() const { return SpaceDim; }
-   int GetNumScalars() const { return NumScalars; }
-   int GetNumVectors() const { return VectorVDims.Size(); }
-   int GetVDim(int v) const { return VectorVDims[v]; }
-   const Array<int> GetVectorVDims() const { return VectorVDims; }
-
    /// Reserve room for \p res particles. Can help to avoid re-allocation for adding + removing particles.
-   void Reserve(int res) { data.reserve(res*TotalComps); ids.Reserve(res); }
+   void Reserve(int res) { data.reserve(res*totalComps); ids.Reserve(res); }
 
    /// Get the number of particles currently held by this ParticleSet.
    int GetNP() const { return ids.Size(); }
@@ -228,29 +205,38 @@ public:
    /// Remove particle data specified by \p list of particle indices.
    void RemoveParticles(const Array<int> &list);
 
-   /// Get particle \p i referencing actual, data ONLY FOR Ordering byVDIM.
-   template<Ordering::Type O = VOrdering, std::enable_if_t<O == Ordering::byVDIM, int> = 0>
-   Particle GetParticleRef(int i);
-
-   template<Ordering::Type O = VOrdering, std::enable_if_t<O == Ordering::byVDIM, int> = 0>
-   const Particle GetParticleRef(int i) const { return const_cast<ParticleSet*>(this)->GetParticleRef(i); };
-
-   /// Get copy of data in particle \p i .
-   Particle GetParticleData(int i) const;
-
    const Array<unsigned int>& GetIDs() const { return ids; };
 
-   Vector& GetSetCoords() { return fields[0]; }
+   Vector& GetAllCoords() { return fields[0]; }
 
-   Vector& GetSetScalar(int s) { return fields[1+s]; }
+   Vector& GetAllProperty(int s) { return fields[1+s]; }
 
-   Vector& GetSetVector(int v) { return fields[1+NumScalars+v]; }
+   Vector& GetAllStateVar(int v) { return fields[1+meta.NumProps()+v]; }
 
-   const Vector& GetSetCoords() const { return fields[0]; }
+   const Vector& GetAllCoords() const { return fields[0]; }
 
-   const Vector& GetSetScalar(int s) const { return fields[1+s]; }
+   const Vector& GetAllProperty(int s) const { return fields[1+s]; }
 
-   const Vector& GetSetVector(int v) const { return fields[1+NumScalars+v]; }
+   const Vector& GetAllStateVar(int v) const { return fields[1+meta.NumProps()+v]; }
+
+   /// Copy data associated with particle at index \p i into \p p
+   void GetParticle(int i, Particle &p) const;
+
+   /// Set data for particle at index \p i with data from provided particle \p p
+   void SetParticle(int i, const Particle &p);
+
+
+/* TODO: consider below. Maybe helpful??? Maybe not???
+
+   /// Set (optional) internal particle vector from actual set \ref data
+   void SetParticleArray();
+
+   /// Get reference to particle from (optional) internal particle vector
+   Particle& GetParticleFromArray(int i) { return particles[i]; }
+
+   /// Set particle set data from (optional) internal particle vector
+   void SetFromParticleArray();
+*/
 
    /// Print in VisIt Point3D format (x y z ID)
    void PrintPoint3D(std::ostream &os);

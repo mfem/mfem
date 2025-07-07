@@ -24,180 +24,99 @@ extern "C"
 namespace mfem
 {
 
-void Particle::Destroy()
-{
-   coords.Destroy();
-   if (owning)
-   {
-      for (int s = 0; s < scalars.size(); s++)
-         delete scalars[s];
-   }
-   scalars.resize(0);
-   for (int v = 0; v < vectors.size(); v++)
-   {
-      vectors[v].Destroy();
-   }
-   vectors.resize(0);
-}
 
-void Particle::Copy(const Particle &p)
+Particle::Particle(const ParticleMeta &pmeta)
+: meta(pmeta),
+  coords(pmeta.SpaceDim()),
+  props(pmeta.NumProps()),
+  state(pmeta.NumStateVars())
 {
-   Destroy();
-   owning = p.owning;
-   scalars.resize(p.GetNumScalars());
-   vectors.resize(p.GetNumVectors());
 
-   if (owning)
+   for (int i = 0; i < state.size(); i++)
    {
-      coords = Vector(p.coords);
-      for (int s = 0; s < scalars.size(); s++)
-         scalars[s] = new real_t(*p.scalars[s]);
-      for (int v = 0; v < vectors.size(); v++)
-         vectors[v] = Vector(p.vectors[v]);
-   }
-   else // data refers to external data
-   {
-      coords = Vector(p.coords.GetData(), p.GetSpaceDim());
-      for (int s = 0; s < scalars.size(); s++)
-         scalars[s] = p.scalars[s];
-      for (int v = 0; v < vectors.size(); v++)
-         vectors[v] = Vector(p.vectors[v].GetData(), p.GetVDim(v));
+      state[i].SetSize(pmeta.StateVDim(i));
+      state[i] = 0.0;
    }
 }
-
-void Particle::Steal(Particle &p)
-{
-   Destroy();
-   owning = p.owning;
-   coords = std::move(p.coords);
-   scalars.resize(p.GetNumScalars());
-   vectors.resize(p.GetNumVectors());
-
-   for (int s = 0; s < scalars.size(); s++)
-   {
-      if (owning)
-         scalars[s] = std::exchange(p.scalars[s], nullptr);
-      else
-         scalars[s] = p.scalars[s];
-   }
-      for (int v = 0; v < vectors.size(); v++)
-      vectors[v] = std::move(p.vectors[v]);
-}
-
-Particle::Particle(int spaceDim, int numScalars, const Array<int> &vectorVDims)
-: owning(true)
-{
-   coords.SetSize(spaceDim);
-   coords = 0.0;
-
-   // Initialize scalar ptrs
-   scalars.resize(numScalars);
-   for (int i = 0; i < scalars.size(); i++)
-      scalars[i] = new real_t(0.0);
-
-   // Initialize vectors
-   vectors.resize(vectorVDims.Size());
-   for (int i = 0; i < vectors.size(); i++)
-   {
-      vectors[i].SetSize(vectorVDims[i]);
-      vectors[i] = 0.0;
-   }
-}
-
-Particle::Particle(int spaceDim, int numScalars, const Array<int> &vectorVDims, real_t *in_coords, real_t *in_scalars[], real_t *in_vectors[])
-: owning(false)
-{
-   coords = Vector(in_coords, spaceDim);
-
-   scalars.resize(numScalars);
-   for (int i = 0; i < scalars.size(); i++)
-      scalars[i] = in_scalars[i];
-
-   vectors.resize(vectorVDims.Size());
-   for (int i = 0; i < vectors.size(); i++)
-      vectors[i] = Vector(in_vectors[i], vectorVDims[i]);
-}
-
 
 bool Particle::operator==(const Particle &rhs) const
 {
-   bool equal = true;
-   for (int d = 0; d < GetSpaceDim(); d++)
+   if (&meta != &rhs.meta)
    {
-      if (GetCoords()[d] != rhs.GetCoords()[d])
-         equal = false;
+      return false;
    }
-   for (int s = 0; s < GetNumScalars(); s++)
+   for (int d = 0; d < meta.SpaceDim(); d++)
    {
-      if (GetScalar(s) != rhs.GetScalar(s))
-         equal = false;
+      if (coords[d] != rhs.coords[d])
+         return false;
    }
-   for (int v = 0; v < GetNumVectors(); v++)
+   for (int s = 0; s < meta.NumProps(); s++)
    {
-      for (int c = 0; c < GetVDim(v); c++)
+      if (props.at(s) != rhs.props.at(s))
+         return false;
+   }
+   for (int v = 0; v < meta.NumStateVars(); v++)
+   {
+      for (int c = 0; c < meta.StateVDim(v); c++)
       {
-         if (GetVector(v)[c] != rhs.GetVector(v)[c])
-            equal = false;
+         if (state.at(v)[c] != rhs.state.at(v)[c])
+            return false;
       }
    }
-   return equal;
+   return true;
 }
 
-void Particle::Print(std::ostream &out)
+void Particle::Print(std::ostream &out) const
 {
    out << "Coords: (";
-   for (int d = 0; d < GetSpaceDim(); d++)
-      out << GetCoords()[d] << ( (d+1 < GetSpaceDim()) ? "," : ")\n");
-   for (int s = 0; s < GetNumScalars(); s++)
-      out << "Scalar " << s << ": " << GetScalar(s) << "\n";
-   for (int v = 0; v < GetNumVectors(); v++)
+   for (int d = 0; d < coords.Size(); d++)
+      out << coords[d] << ( (d+1 < coords.Size()) ? "," : ")\n");
+   for (int s = 0; s < props.size(); s++)
+      out << "Property " << s << ": " << props.at(s) << "\n";
+   for (int v = 0; v < state.size(); v++)
    {
-      out << "Vector " << v << ": (";
-      for (int c = 0; c < GetVDim(v); c++)
-         out << GetVector(v)[c] << ( (c+1 < GetVDim(v)) ? "," : ")\n");
+      out << "State Variable " << v << ": (";
+      for (int c = 0; c < state.at(v).Size(); c++)
+         out << state.at(v)[c] << ( (c+1 < state.at(v).Size()) ? "," : ")\n");
    }
 }
 
-template<Ordering::Type VOrdering>
-void ParticleSet<VOrdering>::SyncVectors()
+void ParticleSet::SyncVectors()
 {
    // Reset Vector references to data
-   for (int f = 0; f < TotalFields; f++)
+   for (int f = 0; f < totalFields; f++)
    {
-      fields[f] = Vector(data.data() + GetNP()*ExclScanFieldVDims[f], GetNP()*FieldVDims[f]);
+      fields[f] = Vector(data.data() + GetNP()*exclScanFieldVDims[f], GetNP()*fieldVDims[f]);
    }
 }
 
-template<Ordering::Type VOrdering>
-ParticleSet<VOrdering>::ParticleSet(int spaceDim, int numScalars, const Array<int> &vectorVDims)
-: SpaceDim(spaceDim),
-  NumScalars(numScalars),
-  VectorVDims(vectorVDims),
-  TotalFields(1+numScalars+vectorVDims.Size()),
-  TotalComps(SpaceDim+NumScalars+vectorVDims.Sum()),
-  FieldVDims(MakeFieldVDims()),
-  ExclScanFieldVDims(MakeExclScanFieldVDims()),
+ParticleSet::ParticleSet(const ParticleMeta &meta_, Ordering::Type ordering_)
+: ordering(ordering_),
+  meta(meta_),
+  totalFields(1+meta.NumProps()+meta.NumStateVars()),
+  totalComps(meta.SpaceDim()+meta.NumProps()+meta.StateVDims().Sum()),
+  fieldVDims(MakeFieldVDims()),
+  exclScanFieldVDims(MakeExclScanFieldVDims()),
   id_stride(1),
   id_counter(0),
-  fields(TotalFields)
+  fields(totalFields)
 {
 
 }
 
 
 #if defined(MFEM_USE_MPI) && defined(MFEM_USE_GSLIB)
-template<Ordering::Type VOrdering>
-ParticleSet<VOrdering>::ParticleSet(MPI_Comm comm_, int spaceDim, int numScalars, const Array<int> &vectorVDims)
-: SpaceDim(spaceDim),
-  NumScalars(numScalars),
-  VectorVDims(vectorVDims),
-  TotalFields(1+numScalars+vectorVDims.Size()),
-  TotalComps(SpaceDim+NumScalars+vectorVDims.Sum()),
-  FieldVDims(MakeFieldVDims()),
-  ExclScanFieldVDims(MakeExclScanFieldVDims()),
+
+ParticleSet::ParticleSet(MPI_Comm comm_, const ParticleMeta &meta_, Ordering::Type ordering_)
+: ordering(ordering_),
+  meta(meta_),
+  totalFields(1+meta.NumProps()+meta.NumStateVars()),
+  totalComps(meta.SpaceDim()+meta.NumProps()+meta.StateVDims().Sum()),
+  fieldVDims(MakeFieldVDims()),
+  exclScanFieldVDims(MakeExclScanFieldVDims()),
   id_stride([&](){int s; MPI_Comm_size(comm_, &s); return s; }()),
   id_counter([&]() { int r; MPI_Comm_rank(comm_, &r); return r; }()),
-  fields(TotalFields),
+  fields(totalFields),
   comm(comm_),
   gsl_comm(std::make_unique<gslib::comm>()),
   cr(std::make_unique<gslib::crystal>())
@@ -208,31 +127,33 @@ ParticleSet<VOrdering>::ParticleSet(MPI_Comm comm_, int spaceDim, int numScalars
 
 #endif // MFEM_USE_MPI && MFEM_USE_GSLIB
 
-template<Ordering::Type VOrdering>
-void ParticleSet<VOrdering>::AddParticle(const Particle &p, int id)
+
+void ParticleSet::AddParticle(const Particle &p, int id)
 {
+   MFEM_ASSERT(&p.GetMeta() == &meta, "Input particle metadata does not match the ParticleSet's!");
+
    int old_np = GetNP();
 
-   if constexpr (VOrdering == Ordering::byNODES)
+   if (ordering == Ordering::byNODES)
    {
       real_t dat;
       int offset = old_np;
 
-      for (int f = 0; f < TotalFields; f++)
+      for (int f = 0; f < totalFields; f++)
       {
-         for (int c = 0; c < FieldVDims[f]; c++)
+         for (int c = 0; c < fieldVDims[f]; c++)
          {
             if (f == 0) // If processing coord comps
             {
                dat = p.GetCoords()[c];
             }
-            else if (f - 1 < NumScalars) // Else if processing scalars
+            else if (f - 1 < meta.NumProps()) // Else if processing scalars
             {
-               dat = p.GetScalar(f - 1);
+               dat = p.GetProperty(f - 1);
             }
             else // Else processing vector comps
             {
-               dat = p.GetVector(f - 1 - NumScalars)[c];
+               dat = p.GetStateVar(f - 1 - meta.NumProps())[c];
             }
             data.insert(data.begin() + offset, dat);
             offset += old_np + 1; // 1 to account for added data each loop iteration
@@ -242,21 +163,21 @@ void ParticleSet<VOrdering>::AddParticle(const Particle &p, int id)
    else // byVDIM
    {
       const real_t* dat;
-      for (int f = 0; f < TotalFields; f++)
+      for (int f = 0; f < totalFields; f++)
       {
          if (f == 0)
          {
             dat = p.GetCoords().GetData();
          }
-         else if (f - 1 < NumScalars)
+         else if (f - 1 < meta.NumProps())
          {
-            dat = &p.GetScalar(f-1);
+            dat = &p.GetProperty(f-1);
          }
          else
          {
-            dat = p.GetVector(f-1-NumScalars).GetData();
+            dat = p.GetStateVar(f-1-meta.NumProps()).GetData();
          }
-         data.insert(data.begin() + old_np*(ExclScanFieldVDims[f] + FieldVDims[f]) + ExclScanFieldVDims[f], dat, dat + FieldVDims[f]);
+         data.insert(data.begin() + old_np*(exclScanFieldVDims[f] + fieldVDims[f]) + exclScanFieldVDims[f], dat, dat + fieldVDims[f]);
       }
    }
 
@@ -264,8 +185,7 @@ void ParticleSet<VOrdering>::AddParticle(const Particle &p, int id)
    SyncVectors();
 }
 
-template<Ordering::Type VOrdering>
-void ParticleSet<VOrdering>::RemoveParticles(const Array<int> &list)
+void ParticleSet::RemoveParticles(const Array<int> &list)
 {
    if (list.Size() == 0)
       return;
@@ -276,7 +196,7 @@ void ParticleSet<VOrdering>::RemoveParticles(const Array<int> &list)
    Array<int> sorted_list(list);
    sorted_list.Sort();
 
-   if constexpr (VOrdering == Ordering::byNODES)
+   if (ordering == Ordering::byNODES)
    {
       int rm_count = 0;
       for (int i = sorted_list[0]; i < data.size(); i++)
@@ -296,19 +216,19 @@ void ParticleSet<VOrdering>::RemoveParticles(const Array<int> &list)
       int rm_count = 0;
 
       int f = 0;
-      for (int i = sorted_list[0]*FieldVDims[0]; i < data.size();  i++)
+      for (int i = sorted_list[0]*fieldVDims[0]; i < data.size();  i++)
       {
-         if (f + 1 < FieldVDims.Size() && i == ExclScanFieldVDims[f+1]*GetNP())
+         if (f + 1 < fieldVDims.Size() && i == exclScanFieldVDims[f+1]*GetNP())
          {
             f++;
          }
 
-         int d_idx = (i - ExclScanFieldVDims[f]*GetNP())/FieldVDims[f];
-         int s_idx = ((rm_count - ExclScanFieldVDims[f]*sorted_list.Size())/FieldVDims[f]);
+         int d_idx = (i - exclScanFieldVDims[f]*GetNP())/fieldVDims[f];
+         int s_idx = ((rm_count - exclScanFieldVDims[f]*sorted_list.Size())/fieldVDims[f]);
          if (s_idx < sorted_list.Size() && d_idx == sorted_list[s_idx])
          {
-            rm_count += FieldVDims[f];
-            i += FieldVDims[f] - 1;
+            rm_count += fieldVDims[f];
+            i += fieldVDims[f] - 1;
          }
          else
          {
@@ -333,68 +253,68 @@ void ParticleSet<VOrdering>::RemoveParticles(const Array<int> &list)
 
    // Resize / remove tails
    int num_new = old_np - list.Size();
-   data.resize(num_new*TotalComps);
+   data.resize(num_new*totalComps);
    ids.SetSize(num_new);
 
    SyncVectors();
 
 }
 
-template<Ordering::Type VOrdering>
-template<Ordering::Type O, std::enable_if_t<O == Ordering::byVDIM, int>>
-Particle ParticleSet<VOrdering>::GetParticleRef(int i)
+
+void ParticleSet::GetParticle(int i, Particle &p) const
 {
-   static_assert(VOrdering == Ordering::byVDIM, "GetParticleRef is only available when ordering is byVDIM.");
+   MFEM_ASSERT(&p.GetMeta() == &meta, "Input particle metadata does not match the ParticleSet's!");
 
-   real_t *coords = &data[i*SpaceDim];
-
-   std::vector<real_t*> scalars(NumScalars);
-   for (int s = 0; s < NumScalars; s++) scalars[s] = &data[(s+SpaceDim)*GetNP() + i];
-
-   std::vector<real_t*> vectors(VectorVDims.Size());
-   for (int v = 0; v < VectorVDims.Size(); v++) vectors[v] = &data[ExclScanFieldVDims[v+1+NumScalars]*GetNP() + i*VectorVDims[v]];
-   
-   return Particle(SpaceDim, NumScalars, VectorVDims, coords, scalars.data(), vectors.data());
-}
-
-
-template<Ordering::Type VOrdering>
-Particle ParticleSet<VOrdering>::GetParticleData(int i) const
-{
-   if constexpr(VOrdering == Ordering::byNODES)
+   if (ordering == Ordering::byNODES)
    {
       real_t *dat;
-      Particle p(SpaceDim, NumScalars, VectorVDims);
-      for (int f = 0; f < TotalFields; f++)
+      for (int f = 0; f < totalFields; f++)
       {
-         for (int c = 0; c < FieldVDims[f]; c++)
+         for (int c = 0; c < fieldVDims[f]; c++)
          {
             if (f == 0)
             {
                dat = &p.GetCoords()[c];
             }
-            else if (f-1 < NumScalars)
+            else if (f-1 < meta.NumProps())
             {
-               dat = &p.GetScalar(f-1);
+               dat = &p.GetProperty(f-1);
             }
             else
             {
-               dat = &p.GetVector(f-1-NumScalars)[c];
+               dat = &p.GetStateVar(f-1-meta.NumProps())[c];
             }
-            *dat = data[i+(c+ExclScanFieldVDims[f])*GetNP()];
+            *dat = data[i+(c+exclScanFieldVDims[f])*GetNP()];
          }
       }
-      return Particle(p);
    }
    else // byVDIM
    {
-      return Particle(GetParticleRef(i));
+      real_t *dat;
+      for (int f = 0; f < totalFields; f++)
+      {
+         for (int c = 0; c < fieldVDims[f]; c++)
+         {
+            if (f == 0)
+            {
+               dat = &p.GetCoords()[c];
+            }
+            else if (f-1 < meta.NumProps())
+            {
+               dat = &p.GetProperty(f-1);
+            }
+            else
+            {
+               dat = &p.GetStateVar(f-1-meta.NumProps())[c];
+            }
+            *dat = data[i*fieldVDims[f]+exclScanFieldVDims[f]*GetNP()];
+         }
+      }
    }
 
 }
 
-template<Ordering::Type VOrdering>
-void ParticleSet<VOrdering>::PrintPoint3D(std::ostream &os)
+void ParticleSet::PrintPoint3D(std::ostream &os)
 {
 #if defined(MFEM_USE_MPI) && defined(MFEM_USE_GSLIB)
    MFEM_ABORT("PrintPoint3D not yet implemented in parallel");
@@ -408,13 +328,13 @@ void ParticleSet<VOrdering>::PrintPoint3D(std::ostream &os)
       for (int d = 0; d < 3; d++)
       {
          real_t coord;
-         if constexpr (VOrdering == Ordering::byNODES)
+         if (ordering == Ordering::byNODES)
          {
-            coord = (d < SpaceDim) ? data[i + d*GetNP()] : 0.0;
+            coord = (d < meta.SpaceDim()) ? data[i + d*GetNP()] : 0.0;
          }
          else
          {
-            coord = (d < SpaceDim) ? data[d + i*SpaceDim] : 0.0;
+            coord = (d < meta.SpaceDim()) ? data[d + i*meta.SpaceDim()] : 0.0;
          }
          os << ZeroSubnormal(coord) << " ";
       }
@@ -423,8 +343,7 @@ void ParticleSet<VOrdering>::PrintPoint3D(std::ostream &os)
 #endif
 }
 
-template<Ordering::Type VOrdering>
-void ParticleSet<VOrdering>::PrintCSVHeader(std::ostream &os, bool inc_rank)
+void ParticleSet::PrintCSVHeader(std::ostream &os, bool inc_rank)
 {
    std::array<char, 3> ax = {'x', 'y', 'z'};
 
@@ -432,29 +351,28 @@ void ParticleSet<VOrdering>::PrintCSVHeader(std::ostream &os, bool inc_rank)
    if (inc_rank)
       os << "rank,";
 
-   for (int f = 0; f < TotalFields; f++)
+   for (int f = 0; f < totalFields; f++)
    {
-      for (int c = 0; c < FieldVDims[f]; c++)
+      for (int c = 0; c < fieldVDims[f]; c++)
       {
          if (f == 0)
          {
             os << ax[c];
          }
-         else if (f-1 < NumScalars)
+         else if (f-1 < meta.NumProps())
          {
-            os << "Scalar_" << f-1;
+            os << "Property_" << f-1;
          }
          else
          {
-            os << "Vector_" << f-1-NumScalars << "_" << c;
+            os << "StateVariable_" << f-1-meta.NumProps() << "_" << c;
          }
-         os << ((f+1 == TotalFields && c+1 == FieldVDims[f]) ? "\n" : ",");
+         os << ((f+1 == totalFields && c+1 == fieldVDims[f]) ? "\n" : ",");
       }
    }
 }
 
-template<Ordering::Type VOrdering>
-void ParticleSet<VOrdering>::PrintCSV(std::ostream &os, bool inc_header, int *rank)
+void ParticleSet::PrintCSV(std::ostream &os, bool inc_header, int *rank)
 {
    // Write column headers and data
    if (inc_header)
@@ -468,28 +386,27 @@ void ParticleSet<VOrdering>::PrintCSV(std::ostream &os, bool inc_header, int *ra
       os << ids[i] << ",";
       if (rank)
          os << *rank << ",";
-      for (int f = 0; f < TotalFields; f++)
+      for (int f = 0; f < totalFields; f++)
       {
-         for (int c = 0; c < FieldVDims[f]; c++)
+         for (int c = 0; c < fieldVDims[f]; c++)
          {
             real_t dat;
-            if constexpr (VOrdering == Ordering::byNODES)
+            if (ordering == Ordering::byNODES)
             {
-               dat = data[i + (ExclScanFieldVDims[f]+c)*GetNP()];
+               dat = data[i + (exclScanFieldVDims[f]+c)*GetNP()];
             }
             else
             {
-               dat = data[c + FieldVDims[f]*i + ExclScanFieldVDims[f]*GetNP()];
+               dat = data[c + fieldVDims[f]*i + exclScanFieldVDims[f]*GetNP()];
             }
             os << dat;
-            os << ((f+1 == TotalFields && c+1 == FieldVDims[f]) ? "\n" : ",");
+            os << ((f+1 == totalFields && c+1 == fieldVDims[f]) ? "\n" : ",");
          }
       }
    }
 }
 
-template<Ordering::Type VOrdering>
-void ParticleSet<VOrdering>::PrintCSV(const char* fname, int precision)
+void ParticleSet::PrintCSV(const char* fname, int precision)
 {
 
 #if defined(MFEM_USE_MPI) && defined(MFEM_USE_GSLIB)
@@ -547,9 +464,8 @@ void ParticleSet<VOrdering>::PrintCSV(const char* fname, int precision)
 
 #if defined(MFEM_USE_MPI) && defined(MFEM_USE_GSLIB)
 
-template<Ordering::Type VOrdering>
 template<std::size_t N>
-void ParticleSet<VOrdering>::Transfer(const Array<int> &send_idxs, const Array<int> &send_ranks)
+void ParticleSet::Transfer(const Array<int> &send_idxs, const Array<int> &send_ranks)
 {
    gslib::array gsl_arr;
    array_init(pdata_t<N>, &gsl_arr, send_idxs.Size());
@@ -558,41 +474,35 @@ void ParticleSet<VOrdering>::Transfer(const Array<int> &send_idxs, const Array<i
    gsl_arr.n = send_idxs.Size();
 
    // Set the data in pdata_arr
-   // (For now, both make copies of the data for all VOrdering. One less copy for byVDIM.)
    for (int i = 0; i < send_idxs.Size(); i++)
    {
-      Particle p(SpaceDim, NumScalars, VectorVDims);
       pdata_t<N> &pdata = pdata_arr[i];
 
       pdata.id = ids[send_idxs[i]];
       pdata.proc = send_ranks[i];
-      if constexpr (VOrdering == Ordering::byNODES)
-      {
-         p = GetParticleData(send_idxs[i]); // TODO: just extract data directly to avoid added copy for byNODES
-      }
-      else
-      {
-         p = GetParticleRef(send_idxs[i]);
-      }
 
+      // Get copy of particle data
+      // (TODO: skip this step... Copy directly from data to pdata!!)
+      Particle p(meta);
+      GetParticle(send_idxs[i], p);
 
-      // Copy it into pdata
-      for (int f = 0; f < TotalFields; f++)
+      // Copy particle data into pdata
+      for (int f = 0; f < totalFields; f++)
       {
-         for (int c = 0; c < FieldVDims[f]; c++)
+         for (int c = 0; c < fieldVDims[f]; c++)
          {
-            double* dat = &pdata.data[c + ExclScanFieldVDims[f]];
+            double* dat = &pdata.data[c + exclScanFieldVDims[f]];
             if (f == 0)
             {
                *dat = static_cast<double>(p.GetCoords()[c]);
             }
-            else if (f-1 < NumScalars)
+            else if (f-1 < meta.NumProps())
             {
-               *dat = static_cast<double>(p.GetScalar(f-1));
+               *dat = static_cast<double>(p.GetProperty(f-1));
             }
             else
             {
-               *dat = static_cast<double>(p.GetVector(f-1-NumScalars)[c]);
+               *dat = static_cast<double>(p.GetStateVar(f-1-meta.NumProps())[c]);
             }
          }
       }
@@ -614,31 +524,28 @@ void ParticleSet<VOrdering>::Transfer(const Array<int> &send_idxs, const Array<i
       pdata_t<N> pdata = pdata_arr[i];
       if constexpr(std::is_same_v<real_t, double>)
       {
-         double *coords = &pdata.data[0];
-         std::vector<double*> scalars(NumScalars);
-         std::vector<double*> vectors(VectorVDims.Size());
+         // Create a particle, copy data from buffer to it, then add particle
+         // (TODO: Copy directly from received pdata to data!!)
+         Particle p(meta);
 
-         for (int s = 0; s < NumScalars; s++)
-            scalars[s] = &pdata.data[SpaceDim + s];
+         p.GetCoords() = Vector(&pdata.data[0], meta.SpaceDim());
 
-         for (int v = 0; v < VectorVDims.Size(); v++)
-            vectors[v] = &pdata.data[ExclScanFieldVDims[1+NumScalars+v]];
+         for (int s = 0; s < meta.NumProps(); s++)
+            p.GetProperty(s) = pdata.data[meta.SpaceDim() + s];
 
-         
-         Particle p(SpaceDim, NumScalars, VectorVDims, coords, scalars.data(), vectors.data());
-
+         for (int v = 0; v < meta.NumStateVars(); v++)
+            p.GetStateVar(v) = Vector(&pdata.data[exclScanFieldVDims[1+meta.NumProps()+v]], meta.StateVDim(v));
 
          AddParticle(p, pdata.id);
       }
-      else // need to copy from real_t to double if real_t is not double
+      else // need to copy from double to real_t if real_t is not double
       {
          // TODO
       }
    }
 }
 
-template<Ordering::Type VOrdering>
-void ParticleSet<VOrdering>::Redistribute(const Array<unsigned int> &rank_list)
+void ParticleSet::Redistribute(const Array<unsigned int> &rank_list)
 {
    MFEM_ASSERT(rank_list.Size() == GetNP(), "rank_list.Size() != GetNP()");
 
@@ -663,11 +570,5 @@ void ParticleSet<VOrdering>::Redistribute(const Array<unsigned int> &rank_list)
 
 }
 #endif // MFEM_USE_MPI && MFEM_USE_GSLIB
-
-template<Ordering::Type VOrdering>
-ParticleSet<VOrdering>::~ParticleSet() = default;
-
-template class ParticleSet<Ordering::byNODES>;
-template class ParticleSet<Ordering::byVDIM>;
 
 } // namespace mfem
