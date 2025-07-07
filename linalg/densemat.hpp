@@ -256,7 +256,7 @@ public:
    DenseMatrix &operator=(const DenseMatrix &m);
 
    /// Move assignment operator: "steals" data from @a m
-   DenseMatrix &operator=(const DenseMatrix &&m);
+   DenseMatrix &operator=(DenseMatrix &&m);
 
    DenseMatrix &operator+=(const real_t *m);
    DenseMatrix &operator+=(const DenseMatrix &m);
