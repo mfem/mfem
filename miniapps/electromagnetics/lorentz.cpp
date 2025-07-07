@@ -246,6 +246,7 @@ public:
 
          // }
          particles.Redistribute(post_procs);
+         MPI_Barrier(particles.GetComm());
       }
 
       // Individually step each particle + update its position:
@@ -504,14 +505,15 @@ int main(int argc, char *argv[])
                {
                   cout << "Enter (c) to redistribute + step | (q) to exit : " << flush;
                   cin >> c;
-                  if (c == 'q')
-                  {
-                     pre_redist_sock << "keys q" << flush;
-                     pre_redist_sock.close();
-                     traj_vis->GetSocketStream() << "keys q" << flush;
-                     traj_vis->GetSocketStream().close();
-                     return 0;
-                  }
+               }
+               MPI_Bcast(&c, 1, MPI_CHAR, 0, MPI_COMM_WORLD);
+               if (c == 'q')
+               {
+                  pre_redist_sock << "keys q" << flush;
+                  pre_redist_sock.close();
+                  traj_vis->GetSocketStream() << "keys q" << flush;
+                  traj_vis->GetSocketStream().close();
+                  return 0;
                }
             }
          }
@@ -553,6 +555,8 @@ int main(int argc, char *argv[])
             post_redist_sock << "keys q" << flush;
             pre_redist_sock.close();
             post_redist_sock.close();
+
+            MPI_Bcast(&c, 1, MPI_CHAR, 0, MPI_COMM_WORLD);
             if (c == 'q')
             {
                return 0;
