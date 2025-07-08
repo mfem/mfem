@@ -125,6 +125,7 @@ int main(int argc, char* argv[])
    int par_ref_levels = 0;
    int order_original = 3;
    int order_reconstruction = 1;
+   bool show_error = false;
 
    // Parse options
    OptionsParser args(argc, argv);
@@ -136,6 +137,8 @@ int main(int argc, char* argv[])
                   "Order original broken space.");
    args.AddOption(&order_reconstruction, "-R", "--order-reconstruction",
                   "Order of reconstruction broken space.");
+   args.AddOption(&show_error, "-se", "--show-error", "-no-se",
+                  "--no-show-error", "Show approximation error.");
 
    if (Mpi::Root())
    {
@@ -179,6 +182,7 @@ int main(int argc, char* argv[])
 
    ParGridFunction u_original(&fes_original);
    ParGridFunction u_averages(&fes_averages);
+   ParGridFunction u_rec_avg(&fes_averages);
    ParGridFunction u_reconstruction(&fes_reconstruction);
 
    u_original.ProjectCoefficient(u_coefficient);
@@ -256,14 +260,13 @@ int main(int argc, char* argv[])
       ngh_e.DeleteAll();
       local_dofs.DeleteAll();
    }
-
-   mfem::out << "Loop ended: reconstructed u" << std::endl;
-   u_reconstruction.Print();
+   u_reconstruction.GetElementAverages(u_rec_avg);
 
    char vishost[] = "localhost";
    int visport = 19916;
    socketstream glvis_original(vishost, visport);
    socketstream glvis_averages(vishost, visport);
+   socketstream glvis_rec_avg(vishost, visport);
    socketstream glvis_reconstruction(vishost, visport);
    if (glvis_original && glvis_averages && glvis_reconstruction)
    {
@@ -284,6 +287,33 @@ int main(int argc, char* argv[])
                            << " " << mesh.GetMyRank() << "\n"
                            << "solution\n" << mesh << u_reconstruction
                            << "window_title 'reconstruction'\n" << std::flush;
+      MPI_Barrier(mesh.GetComm());
+      //glvis_reconstruction.precision(8);
+      glvis_rec_avg << "parallel " << mesh.GetNRanks()
+                    << " " << mesh.GetMyRank() << "\n"
+                    << "solution\n" << mesh << u_rec_avg
+                    << "window_title 'rec average'\n" << std::flush;
+   }
+
+   // Error studies
+   Vector diff(u_averages.Size());
+   real_t error = u_reconstruction.ComputeL2Error(u_coefficient);
+   subtract(u_rec_avg, u_averages, diff);
+   real_t error_avg = diff.Norml2();
+
+   // TODO: Workaround local meshsize
+   // Vector el_error(mesh.GetNE());
+   // ConstantCoefficient ones(1.0);
+   // ParGridFunction zero(&fe_space_reconstruction);
+   // zero = 0.0;
+   // zero.ComputeElementLpErrors(2.0, ones, el_error);
+   // real_t hmax = el_error.Max();
+
+   if (show_error && Mpi::Root())
+   {
+      mfem::out << "\n|| Rec(u_h) - u ||_{L^2} = " << error << "\n" << std::endl;
+      mfem::out << "\n|| Avg(Rec(u_h)) - u_h ||_{ell^2} = " << error_avg << "\n" <<
+                std::endl;
    }
 
    mfem::out << "Survived!" << std::endl;
