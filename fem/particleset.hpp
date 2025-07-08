@@ -42,13 +42,16 @@ class ParticleMeta
 {
 private:
    const int spaceDim;
-   const int numProps; // immutable scalars intrinsic to particles
+   const int numProps; // scalars intrinsic to particles
    const Array<int> stateVDims; // state variable (momentum, etc...) vdims
 
 public:
    
    ParticleMeta(int spaceDim_, int numProps_, const Array<int> &stateVDims_)
    : spaceDim(spaceDim_), numProps(numProps_), stateVDims(stateVDims_) {}
+
+   ParticleMeta(int spaceDim_, int numProps_, std::initializer_list<int> stateVDims_)
+   : ParticleMeta(spaceDim_, numProps_, Array<int>(stateVDims_)) {}
 
    int SpaceDim() const { return spaceDim; }
    int NumProps() const { return numProps; }

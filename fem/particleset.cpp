@@ -314,6 +314,58 @@ void ParticleSet::GetParticle(int i, Particle &p) const
 
 }
 
+void ParticleSet::SetParticle(int i, const Particle &p)
+{
+   MFEM_ASSERT(&p.GetMeta() == &meta, "Input particle metadata does not match the ParticleSet's!");
+
+   if (ordering == Ordering::byNODES)
+   {
+      const real_t *dat;
+      for (int f = 0; f < totalFields; f++)
+      {
+         for (int c = 0; c < fieldVDims[f]; c++)
+         {
+            if (f == 0)
+            {
+               dat = &p.GetCoords()[c];
+            }
+            else if (f-1 < meta.NumProps())
+            {
+               dat = &p.GetProperty(f-1);
+            }
+            else
+            {
+               dat = &p.GetStateVar(f-1-meta.NumProps())[c];
+            }
+            data[i+(c+exclScanFieldVDims[f])*GetNP()] = *dat;
+         }
+      }
+   }
+   else // byVDIM
+   {
+      const real_t *dat;
+      for (int f = 0; f < totalFields; f++)
+      {
+         for (int c = 0; c < fieldVDims[f]; c++)
+         {
+            if (f == 0)
+            {
+               dat = &p.GetCoords()[c];
+            }
+            else if (f-1 < meta.NumProps())
+            {
+               dat = &p.GetProperty(f-1);
+            }
+            else
+            {
+               dat = &p.GetStateVar(f-1-meta.NumProps())[c];
+            }
+            data[c+i*fieldVDims[f]+exclScanFieldVDims[f]*GetNP()] = *dat;
+         }
+      }
+   }
+}
+
 void ParticleSet::PrintPoint3D(std::ostream &os)
 {
 #if defined(MFEM_USE_MPI) && defined(MFEM_USE_GSLIB)
