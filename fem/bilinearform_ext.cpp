@@ -375,6 +375,8 @@ void PABilinearFormExtension::SetupRestrictionOperators(const L2FaceValues m)
 
 void PABilinearFormExtension::Assemble()
 {
+   MFEM_PERF_FUNCTION;
+
    SetupRestrictionOperators(L2FaceValues::DoubleValued);
 
    Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
@@ -531,6 +533,8 @@ void PABilinearFormExtension::FormLinearSystem(const Array<int> &ess_tdof_list,
 void PABilinearFormExtension::MultInternal(const Vector &x, Vector &y,
                                            const bool useAbs) const
 {
+   MFEM_PERF_FUNCTION;
+
    Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
 
    const int iSz = integrators.Size();

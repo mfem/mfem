@@ -4091,6 +4091,8 @@ void HypreSolver::Setup(const HypreParVector &b, HypreParVector &x) const
 {
    if (setup_called) { return; }
 
+   MFEM_PERF_FUNCTION;
+
    MFEM_VERIFY(A != NULL, "HypreParMatrix A is missing");
 
    HYPRE_Int err_flag = SetupFcn()(*this, *A, b, x);
@@ -4116,6 +4118,8 @@ void HypreSolver::Setup(const Vector &b, Vector &x) const
 
 void HypreSolver::Mult(const HypreParVector &b, HypreParVector &x) const
 {
+   MFEM_PERF_FUNCTION;
+
    HYPRE_Int err_flag;
    if (A == NULL)
    {
