@@ -1,4 +1,7 @@
 #include "mfem.hpp"
+#include <fstream>
+#include <string>
+#include <iomanip>
 
 using namespace mfem;
 
@@ -110,6 +113,7 @@ int main(int argc, char* argv[])
    int ser_ref_levels = 0;
    int par_ref_levels = 0;
    bool show_error = false;
+   bool save_to_file = true;
    // TODO: Extrapolate logic
    // int order_original = 3;
    // int order_reconstruction = 1;
@@ -128,6 +132,9 @@ int main(int argc, char* argv[])
    //                "Order of reconstructed function")
    args.AddOption(&show_error, "-se", "--show-error", "-no-se",
                   "--no-show-error",
+                  "Show or not show approximation error.");
+   args.AddOption(&save_to_file, "-s", "--save", "-no-s",
+                  "--no-save",
                   "Show or not show approximation error.");
 
    if (Mpi::Root())
@@ -210,14 +217,35 @@ int main(int argc, char* argv[])
       MFEM_WARNING("Cannot connect to glvis server, disabling visualization.")
    }
 
-   if (show_error)
+   real_t error = u_reconstruction.ComputeL2Error(u_coefficient);
+
+   Vector el_error(mesh.GetNE());
+   ConstantCoefficient ones(1.0);
+   ParGridFunction zero(&fe_space_reconstruction);
+   zero = 0.0;
+   zero.ComputeElementLpErrors(2.0, ones, el_error);
+   real_t hmax = el_error.Max();
+
+   if (show_error && Mpi::Root())
    {
-      real_t error = 0.0;
-      error = u_reconstruction.ComputeL2Error(u_coefficient);
-      if (Mpi::Root())
+      mfem::out << "\n|| u_h - u ||_{L^2} = " << error << "\n" << std::endl;
+   }
+
+   if (save_to_file)
+   {
+      std::ofstream file;
+      file.open("convergence.csv", std::ios::out | std::ios::app);
+      if (!file.is_open())
       {
-         mfem::out << "\n|| u_h - u ||_{L^2} = " << error << "\n" << std::endl;
+         mfem_error("Failed to open");
       }
+      file << std::scientific << std::setprecision(16);
+      file << error
+           << "," << fe_space_averages.GetNConformingDofs()
+           << "," << fe_space_reconstruction.GetNConformingDofs()
+           << "," << hmax
+           << "," << mesh.GetNE() << std::endl;
+      file.close();
    }
 
    // TODO: quantitatively compare (e.g. L2 norm) original & reconstruction
