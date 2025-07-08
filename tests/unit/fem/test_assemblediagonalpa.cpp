@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -359,7 +359,7 @@ TEST_CASE("Vector Diffusion Diagonal PA",
 }
 
 TEST_CASE("Hcurl/Hdiv diagonal PA",
-          "[CUDA][PartialAssembly][AssembleDiagonal]")
+          "[GPU][PartialAssembly][AssembleDiagonal]")
 {
    for (int dimension = 2; dimension < 4; ++dimension)
    {
@@ -451,9 +451,9 @@ TEST_CASE("Hcurl/Hdiv diagonal PA",
                      }
                      else
                      {
-                        const FiniteElement *fel = fespace.GetFE(0);
+                        const FiniteElement *fel = fespace.GetTypicalFE();
                         const IntegrationRule *intRule = &MassIntegrator::GetRule(*fel, *fel,
-                                                                                  *mesh.GetElementTransformation(0));
+                                                                                  *mesh.GetTypicalElementTransformation());
 
                         if (spaceType == Hcurl)
                         {

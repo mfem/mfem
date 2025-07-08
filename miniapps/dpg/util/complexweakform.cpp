@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -320,7 +320,7 @@ void ComplexDPGWeakForm::Assemble(int skip_zeros)
    ElementTransformation *eltrans;
    Array<int> faces, ori;
 
-   DofTransformation * doftrans_i, *doftrans_j;
+   DofTransformation doftrans_i, doftrans_j;
    if (mat_r == NULL)
    {
       AllocMat();
@@ -540,7 +540,7 @@ void ComplexDPGWeakForm::Assemble(int skip_zeros)
          for (int i = 0; i<trial_fes.Size(); i++)
          {
             Array<int> vdofs_i;
-            doftrans_i = nullptr;
+            doftrans_i.SetDofTransformation(nullptr);
             if (IsTraceFes[i])
             {
                Array<int> face_vdofs;
@@ -553,12 +553,12 @@ void ComplexDPGWeakForm::Assemble(int skip_zeros)
             }
             else
             {
-               doftrans_i = trial_fes[i]->GetElementVDofs(iel, vdofs_i);
+               trial_fes[i]->GetElementVDofs(iel, vdofs_i, doftrans_i);
             }
             for (int j = 0; j < trial_fes.Size(); j++)
             {
                Array<int> vdofs_j;
-               doftrans_j = nullptr;
+               doftrans_j.SetDofTransformation(nullptr);
 
                if (IsTraceFes[j])
                {
@@ -572,7 +572,7 @@ void ComplexDPGWeakForm::Assemble(int skip_zeros)
                }
                else
                {
-                  doftrans_j = trial_fes[j]->GetElementVDofs(iel, vdofs_j);
+                  trial_fes[j]->GetElementVDofs(iel, vdofs_j, doftrans_j);
                }
 
                DenseMatrix Ae_r, Ae_i;
@@ -580,11 +580,8 @@ void ComplexDPGWeakForm::Assemble(int skip_zeros)
                                       trial_offs[j],trial_offs[j+1], Ae_r);
                A->imag().GetSubMatrix(trial_offs[i],trial_offs[i+1],
                                       trial_offs[j],trial_offs[j+1], Ae_i);
-               if (doftrans_i || doftrans_j)
-               {
-                  TransformDual(doftrans_i, doftrans_j, Ae_r);
-                  TransformDual(doftrans_i, doftrans_j, Ae_i);
-               }
+               TransformDual(doftrans_i, doftrans_j, Ae_r);
+               TransformDual(doftrans_i, doftrans_j, Ae_i);
                if (!mat_r)
                {
                   mfem::out << "null matrix " << std::endl;
@@ -597,11 +594,9 @@ void ComplexDPGWeakForm::Assemble(int skip_zeros)
             Vector vec1_r(b_r,trial_offs[i],trial_offs[i+1]-trial_offs[i]);
             Vector vec1_i(b_i,trial_offs[i],trial_offs[i+1]-trial_offs[i]);
 
-            if (doftrans_i)
-            {
-               doftrans_i->TransformDual(vec1_r);
-               doftrans_i->TransformDual(vec1_i);
-            }
+            doftrans_i.TransformDual(vec1_r);
+            doftrans_i.TransformDual(vec1_i);
+
             y_r->GetBlock(i).AddElementVector(vdofs_i,vec1_r);
             y_i->GetBlock(i).AddElementVector(vdofs_i,vec1_i);
          }
@@ -980,11 +975,11 @@ Vector & ComplexDPGWeakForm::ComputeResidual(const Vector & x)
 
       int nn = trial_offs.Last();
       u.SetSize(2*nn);
-      DofTransformation * doftrans = nullptr;
+      DofTransformation doftrans;
       for (int i = 0; i<trial_fes.Size(); i++)
       {
          vdofs.SetSize(0);
-         doftrans = nullptr;
+         doftrans.SetDofTransformation(nullptr);
          if (IsTraceFes[i])
          {
             Array<int> face_vdofs;
@@ -997,7 +992,7 @@ Vector & ComplexDPGWeakForm::ComputeResidual(const Vector & x)
          }
          else
          {
-            doftrans = trial_fes[i]->GetElementVDofs(iel, vdofs);
+            trial_fes[i]->GetElementVDofs(iel, vdofs, doftrans);
          }
          Vector vec1_r;
          Vector vec1_i;
@@ -1005,11 +1000,8 @@ Vector & ComplexDPGWeakForm::ComputeResidual(const Vector & x)
          vec1_i.MakeRef(u, trial_offs[i]+nn, trial_offs[i+1]-trial_offs[i]);
          x_r.GetBlock(i).GetSubVector(vdofs,vec1_r);
          x_i.GetBlock(i).GetSubVector(vdofs,vec1_i);
-         if (doftrans)
-         {
-            doftrans->InvTransformPrimal(vec1_r);
-            doftrans->InvTransformPrimal(vec1_i);
-         }
+         doftrans.InvTransformPrimal(vec1_r);
+         doftrans.InvTransformPrimal(vec1_i);
       } // end of loop through trial spaces
 
       // residual

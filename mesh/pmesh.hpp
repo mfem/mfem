@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -423,6 +423,36 @@ public:
    /// AMR meshes are supported.
    void GetGlobalElementIndices(Array<HYPRE_BigInt> &gi) const;
 
+   /// @brief Populate a marker array identifying exterior faces
+   ///
+   /// @param[in,out] face_marker Resized if necessary to the number of
+   ///                            local faces. The array entries will be
+   ///                            zero for interior faces and 1 for exterior
+   ///                            faces.
+   void GetExteriorFaceMarker(Array<int> & face_marker) const override;
+
+   /// @brief Unmark boundary attributes of internal boundaries
+   ///
+   /// @param[in,out] bdr_marker Array of length bdr_attributes.Max().
+   ///                           Entries associated with internal boundaries
+   ///                           will be set to zero. Other entries will remain
+   ///                           unchanged.
+   /// @param[in]     excl       Only unmark entries which exclusively contain
+   ///                           internal faces [default: true].
+   void UnmarkInternalBoundaries(Array<int> &bdr_marker,
+                                 bool excl = true) const override;
+
+   /// @brief Mark boundary attributes of external boundaries
+   ///
+   /// @param[in,out] bdr_marker Array of length bdr_attributes.Max().
+   ///                           Entries associated with external boundaries
+   ///                           will be set to one. Other entries will remain
+   ///                           unchanged.
+   /// @param[in]     excl       Only mark entries which exclusively contain
+   ///                           external faces [default: true].
+   void MarkExternalBoundaries(Array<int> &bdr_marker,
+                               bool excl = true) const override;
+
    GroupTopology gtopo;
 
    // Face-neighbor elements and vertices
@@ -600,9 +630,9 @@ public:
                                       int mask = 31) const override;
 
    /// @brief Get the FaceElementTransformations for the given shared face (edge
-   /// 2D) using the shared face index @a sf. @a fill2 specify if the
-   /// information for elem2 of the face should be computed or not. In the
-   /// returned object, 1 and 2 refer to the local and the neighbor elements,
+   /// 2D) using the shared face index @a sf. @a fill2 specifies whether
+   /// information for elem2 of the face should be computed. In the returned
+   /// object, 1 and 2 refer to the local and the neighbor elements,
    /// respectively.
    ///
    /// @note The returned object is owned by the class and is shared, i.e.,
@@ -620,9 +650,10 @@ public:
                                      bool fill2 = true) const;
 
    /// @brief Get the FaceElementTransformations for the given shared face (edge
-   /// 2D) using the face index @a FaceNo. @a fill2 specify if the information
-   /// for elem2 of the face should be computed or not. In the returned object,
-   /// 1 and 2 refer to the local and the neighbor elements, respectively.
+   /// 2D) using the face index @a FaceNo. @a fill2 specifies whether
+   /// information for elem2 of the face should be computed. In the returned
+   /// object, 1 and 2 refer to the local and the neighbor elements,
+   /// respectively.
    ///
    /// @note The returned object is owned by the class and is shared, i.e.,
    /// calling this function resets pointers obtained from previous calls. Also,

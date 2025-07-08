@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -12,13 +12,14 @@
 # The variable CMAKE_CXX_STANDARD and related were introduced in CMake v3.1
 # Version 3.8 fixes the handling of CMAKE_CXX_STANDARD for try_compile.
 # Version 3.8 or newer is required for direct CUDA support.
-cmake_minimum_required(VERSION 3.8)
+# Version 3.12 or newer is required for setting maximum policy version.
+cmake_minimum_required(VERSION 3.12.0...4.0.0)
 message(STATUS "CMake version: ${CMAKE_VERSION}")
 set(USER_CONFIG "${CMAKE_CURRENT_SOURCE_DIR}/config/user.cmake" CACHE PATH
   "Path to optional user configuration file.")
 
-# Require C++11 and disable compiler-specific extensions
-set(CMAKE_CXX_STANDARD 11 CACHE STRING "C++ standard to use.")
+# Require C++17 and disable compiler-specific extensions
+set(CMAKE_CXX_STANDARD 17 CACHE STRING "C++ standard to use.")
 set(CMAKE_CXX_STANDARD_REQUIRED ON CACHE BOOL
   "Force the use of the chosen C++ standard.")
 set(CMAKE_CXX_EXTENSIONS OFF CACHE BOOL "Enable C++ standard extensions.")
@@ -58,7 +59,7 @@ project(mfem NONE)
 # Current version of MFEM, see also `makefile`.
 #   mfem_VERSION = (string)
 #   MFEM_VERSION = (int)   [automatically derived from mfem_VERSION]
-set(${PROJECT_NAME}_VERSION 4.7.1)
+set(${PROJECT_NAME}_VERSION 4.8.1)
 
 # Prohibit in-source build
 if (${PROJECT_SOURCE_DIR} STREQUAL ${PROJECT_BINARY_DIR})
@@ -87,19 +88,29 @@ if (MFEM_USE_STRUMPACK OR MFEM_USE_MUMPS)
   # Just needed to find the MPI_Fortran libraries to link with
   set(XSDK_ENABLE_Fortran ON)
 endif()
-# SUNDIALS, STRUMPACK, Ginkgo, Tribol, RAJA and Umpire require C++14:
-if ((MFEM_USE_SUNDIALS OR
-     MFEM_USE_STRUMPACK OR
-     MFEM_USE_GINKGO OR
-     MFEM_USE_TRIBOL OR
-     MFEM_USE_RAJA OR
-     MFEM_USE_UMPIRE) AND
+# Ginkgo requires C++17:
+if ((MFEM_USE_GINKGO) AND ("${CMAKE_CXX_STANDARD}" LESS "17"))
+  set(CMAKE_CXX_STANDARD 17 CACHE STRING "C++ standard to use." FORCE)
+# Google Benchmark, SUNDIALS, STRUMPACK, Tribol, RAJA and Umpire require C++14:
+elseif ((MFEM_USE_BENCHMARK OR
+         MFEM_USE_SUNDIALS OR
+         MFEM_USE_STRUMPACK OR
+         MFEM_USE_TRIBOL OR
+         MFEM_USE_RAJA OR
+         MFEM_USE_UMPIRE) AND
     ("${CMAKE_CXX_STANDARD}" LESS "14"))
   set(CMAKE_CXX_STANDARD 14 CACHE STRING "C++ standard to use." FORCE)
 endif()
 
 # Include xSDK default CMake file.
 include("${CMAKE_CURRENT_SOURCE_DIR}/config/XSDKDefaults.cmake")
+
+# Path to MFEM's CMake modules and utilities.
+set(MFEM_CMAKE_PATH ${PROJECT_SOURCE_DIR}/config)
+set(CMAKE_MODULE_PATH ${MFEM_CMAKE_PATH}/cmake/modules)
+
+# Load MFEM CMake utilities.
+include(MfemCmakeUtilities)
 
 # Enable languages.
 enable_language(CXX)
@@ -113,17 +124,15 @@ if (MFEM_USE_CUDA)
    if (MFEM_USE_HIP)
       message(FATAL_ERROR " *** MFEM_USE_HIP cannot be combined with MFEM_USE_CUDA.")
    endif()
+   # CUDAToolkit was added in CMake 3.17, so we require at least CMake 3.17 when
+   # CUDA is enabled:
+   if (CMAKE_VERSION VERSION_LESS 3.17.0)
+      message(FATAL_ERROR "CUDA support requires CMake >= 3.17")
+   endif()
    # Use ${CMAKE_CXX_COMPILER} as the cuda host compiler.
    if (NOT CMAKE_CUDA_HOST_COMPILER)
       set(CMAKE_CUDA_HOST_COMPILER ${CMAKE_CXX_COMPILER})
    endif()
-   enable_language(CUDA)
-   set(CMAKE_CUDA_STANDARD ${CMAKE_CXX_STANDARD} CACHE STRING
-      "CUDA standard to use.")
-   set(CMAKE_CUDA_STANDARD_REQUIRED ON CACHE BOOL
-      "Force the use of the chosen CUDA standard.")
-   set(CMAKE_CUDA_EXTENSIONS OFF CACHE BOOL "Enable CUDA standard extensions.")
-   set(CUDA_FLAGS "--expt-extended-lambda")
    if (CMAKE_VERSION VERSION_LESS 3.18.0)
       set(CUDA_FLAGS "-arch=${CUDA_ARCH} ${CUDA_FLAGS}")
    elseif (NOT CMAKE_CUDA_ARCHITECTURES)
@@ -137,18 +146,33 @@ if (MFEM_USE_CUDA)
       set(CUDA_ARCH "CMAKE_CUDA_ARCHITECTURES: ${CMAKE_CUDA_ARCHITECTURES}")
    endif()
    message(STATUS "Using CUDA architecture: ${CUDA_ARCH}")
-   if (CMAKE_VERSION VERSION_LESS 3.12.0)
-      # CMake versions 3.8 and 3.9 require this to work; 3.10 and 3.11 are not
-      # tested and may not actually need this (but should be ok to keep).
-      set(CUDA_FLAGS "-ccbin=${CMAKE_CXX_COMPILER} ${CUDA_FLAGS}")
-      set(CMAKE_CUDA_HOST_LINK_LAUNCHER ${CMAKE_CXX_COMPILER})
+   enable_language(CUDA)
+   if (CMAKE_VERSION VERSION_LESS 3.18.0)
+     # backup try to detect if this is clang or nvcc
+     if(CMAKE_CUDA_COMPILER MATCHES "nvcc$")
+       # nvcc
+       set(MFEM_CUDA_COMPILER_IS_NVCC ON)
+       set(CUDA_FLAGS "${CUDA_FLAGS} --expt-extended-lambda --expt-relaxed-constexpr")
+     endif()
+   else()
+     if (CMAKE_CUDA_COMPILER_ID STREQUAL "NVIDIA")
+       # nvcc
+       set(MFEM_CUDA_COMPILER_IS_NVCC ON)
+       set(CUDA_FLAGS "${CUDA_FLAGS} --expt-extended-lambda --expt-relaxed-constexpr")
+     endif()
    endif()
+   set(CMAKE_CUDA_STANDARD ${CMAKE_CXX_STANDARD} CACHE STRING
+      "CUDA standard to use.")
+   set(CMAKE_CUDA_STANDARD_REQUIRED ON CACHE BOOL
+      "Force the use of the chosen CUDA standard.")
+   set(CMAKE_CUDA_EXTENSIONS OFF CACHE BOOL "Enable CUDA standard extensions.")
    set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} ${CUDA_FLAGS}")
    find_package(CUDAToolkit REQUIRED)
    set(CUSPARSE_FOUND TRUE)
    set(CUBLAS_FOUND TRUE)
-   get_target_property(CUSPARSE_LIBRARIES CUDA::cusparse LOCATION)
-   get_target_property(CUBLAS_LIBRARIES CUDA::cublas LOCATION)
+   # Initialize CUSPARSE_LIBRARIES and CUBLAS_LIBRARIES:
+   mfem_culib_set_libraries(CUSPARSE cusparse)
+   mfem_culib_set_libraries(CUBLAS cublas)
 endif()
 
 if (XSDK_ENABLE_C)
@@ -160,13 +184,6 @@ endif()
 
 # Suppress warnings about MACOSX_RPATH
 set(CMAKE_MACOSX_RPATH OFF CACHE BOOL "")
-
-# CMake needs to know where to find things
-set(MFEM_CMAKE_PATH ${PROJECT_SOURCE_DIR}/config)
-set(CMAKE_MODULE_PATH ${MFEM_CMAKE_PATH}/cmake/modules)
-
-# Load MFEM CMake utilities.
-include(MfemCmakeUtilities)
 
 string(TOUPPER "${PROJECT_NAME}" PROJECT_NAME_UC)
 mfem_version_to_int(${${PROJECT_NAME}_VERSION} ${PROJECT_NAME_UC}_VERSION)
@@ -252,7 +269,11 @@ if (MFEM_USE_OPENMP OR MFEM_USE_LEGACY_OPENMP)
   if (OPENMP_FOUND)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
     if (MFEM_USE_CUDA)
-      set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -Xcompiler=${OpenMP_CXX_FLAGS}")
+      if(MFEM_CUDA_COMPILER_IS_NVCC)
+        set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -Xcompiler=${OpenMP_CXX_FLAGS}")
+      else()
+        set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} ${OpenMP_CXX_FLAGS}")
+      endif()
     endif()
   endif()
 endif()
@@ -382,6 +403,11 @@ endif()
 # GSLIB
 if (MFEM_USE_GSLIB)
   find_package(GSLIB REQUIRED)
+endif()
+
+# HDF5
+if (MFEM_USE_HDF5)
+  find_package(HDF5 REQUIRED)
 endif()
 
 # NetCDF
@@ -523,9 +549,10 @@ if (MFEM_USE_TRIBOL)
   endif()
 endif()
 
-# Enzyme
 if (MFEM_USE_ENZYME)
-   find_package(ENZYME REQUIRED)
+    find_package(Enzyme REQUIRED HINTS ${ENZYME_DIR})
+    message(STATUS "Enzyme found in ${ENZYME_DIR}.")
+    set(ENZYME_INCLUDE_DIRS ${ENZYME_DIR}/include)
 endif()
 
 # MFEM_TIMER_TYPE
@@ -565,7 +592,7 @@ find_package(Threads REQUIRED)
 #    integers, the METIS header (with 32-bit indices, as used by mfem) needs to
 #    be before SuiteSparse.
 set(MFEM_TPLS OPENMP HYPRE LAPACK BLAS SuperLUDist STRUMPACK METIS SuiteSparse
-    SUNDIALS PETSC SLEPC MUMPS AXOM FMS CONDUIT Ginkgo GNUTLS GSLIB
+    SUNDIALS PETSC SLEPC MUMPS AXOM FMS CONDUIT Ginkgo GNUTLS GSLIB HDF5
     NETCDF MPFR PUMI HIOP POSIXCLOCKS MFEMBacktrace ZLIB OCCA CEED RAJA UMPIRE
     ADIOS2 MKL_CPARDISO MKL_PARDISO AMGX MAGMA CUSPARSE CUBLAS CALIPER CODIPACK
     BENCHMARK PARELAG TRIBOL MPI_CXX HIP HIPBLAS HIPSPARSE MOONOLITH BLITZ
@@ -618,15 +645,37 @@ set(MASTER_HEADERS
   ${PROJECT_SOURCE_DIR}/mfem.hpp
   ${PROJECT_SOURCE_DIR}/mfem-performance.hpp)
 
-set(_lib_path "${CMAKE_INSTALL_PREFIX}/lib")
-set(CMAKE_INSTALL_RPATH_USE_LINK_PATH ON CACHE BOOL "")
-set(CMAKE_INSTALL_RPATH "${_lib_path}" CACHE PATH "")
-set(CMAKE_INSTALL_NAME_DIR "${_lib_path}" CACHE PATH "")
+# Installation options (we use GNUInstallDirs but prefer lib by default)
+set(MFEM_USE_GNUINSTALLDIRS OFF CACHE BOOL
+  "Use CMAKE_INSTALL_LIBDIR as defined by the GNUInstallDirs CMake module.")
+if (NOT MFEM_USE_GNUINSTALLDIRS)
+  mfem_cache_path(CMAKE_INSTALL_LIBDIR "lib" "Object code libraries (lib)")
+endif()
+include(GNUInstallDirs)
+mfem_cache_path(INSTALL_INCLUDE_DIR "${CMAKE_INSTALL_INCLUDEDIR}"
+  "Relative or absolute path for installing header files.")
+mfem_cache_path(INSTALL_BIN_DIR "${CMAKE_INSTALL_BINDIR}"
+  "Relative or absolute path for installing the binaries.")
+mfem_cache_path(INSTALL_LIB_DIR "${CMAKE_INSTALL_LIBDIR}"
+  "Relative or absolute path for installing the library.")
+mfem_cache_path(INSTALL_SHARE_DIR "${CMAKE_INSTALL_DATAROOTDIR}"
+  "Relative or absolute path for installing shared data.")
+# other options: "share/mfem/cmake", "lib/mfem/cmake"
+mfem_cache_path(INSTALL_CMAKE_DIR "${INSTALL_LIB_DIR}/cmake/mfem"
+  "Relative or absolute path for installing cmake config files.")
 
-set(MFEM_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR} CACHE PATH
-    "The MFEM source directory" FORCE)
-set(MFEM_INSTALL_DIR ${CMAKE_INSTALL_PREFIX} CACHE PATH
-    "The MFEM install directory" FORCE)
+mfem_path_to_fullpath("${INSTALL_LIB_DIR}" "${CMAKE_INSTALL_PREFIX}" _lib_path)
+set(CMAKE_INSTALL_RPATH_USE_LINK_PATH ON CACHE BOOL "")
+if(NOT DEFINED CMAKE_INSTALL_RPATH)
+  set(CMAKE_INSTALL_RPATH "${_lib_path}")
+endif()
+if(NOT DEFINED CMAKE_INSTALL_NAME_DIR)
+  set(CMAKE_INSTALL_NAME_DIR "${_lib_path}")
+endif()
+
+# Variables used when generating _config.hpp, and config.mk
+set(MFEM_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
+set(MFEM_INSTALL_DIR ${CMAKE_INSTALL_PREFIX})
 
 # Declaring the library
 mfem_add_library(mfem ${SOURCES} ${HEADERS} ${MASTER_HEADERS})
@@ -654,6 +703,9 @@ if (MFEM_USE_MPI)
   if (MPI_CXX_LINK_FLAGS)
     target_link_libraries(mfem PUBLIC ${MPI_CXX_LINK_FLAGS})
   endif()
+endif()
+if (MFEM_USE_ENZYME)
+  target_link_libraries(mfem PUBLIC ClangEnzymeFlags)
 endif()
 
 set_target_properties(mfem PROPERTIES VERSION "${mfem_VERSION}")
@@ -722,11 +774,17 @@ if (MFEM_ENABLE_TESTING)
   add_mfem_target(${MFEM_ALL_TESTS_TARGET_NAME} OFF)
   add_subdirectory(tests EXCLUDE_FROM_ALL)
 
-  # Create a target for all benchmarks and, optionally, enable it.
-  set(MFEM_ALL_BENCHMARKS_TARGET_NAME benchmarks)
-  add_mfem_target(${MFEM_ALL_BENCHMARKS_TARGET_NAME}
-                  ${MFEM_ENABLE_GOOGLE_BENCHMARKS})
-  add_subdirectory(tests/benchmarks EXCLUDE_FROM_ALL)
+  if (MFEM_USE_BENCHMARK)
+    # Create a target for all benchmarks and, optionally, enable it.
+    set(MFEM_ALL_BENCHMARKS_TARGET_NAME benchmarks)
+    add_mfem_target(${MFEM_ALL_BENCHMARKS_TARGET_NAME}
+                    ${MFEM_ENABLE_BENCHMARKS})
+    if (MFEM_ENABLE_BENCHMARKS)
+      add_subdirectory(tests/benchmarks) #install benchmarks if enabled
+    else()
+      add_subdirectory(tests/benchmarks EXCLUDE_FROM_ALL)
+    endif()
+  endif()
 endif()
 
 # Define a target that all examples and miniapps will depend on.
@@ -745,7 +803,11 @@ endif()
 # Create a target for all miniapps and, optionally, enable it.
 set(MFEM_ALL_MINIAPPS_TARGET_NAME miniapps)
 add_mfem_target(${MFEM_ALL_MINIAPPS_TARGET_NAME} ${MFEM_ENABLE_MINIAPPS})
-add_subdirectory(miniapps EXCLUDE_FROM_ALL)
+if (MFEM_ENABLE_MINIAPPS)
+  add_subdirectory(miniapps) #install miniapps if enabled
+else()
+  add_subdirectory(miniapps EXCLUDE_FROM_ALL)
+endif()
 
 # Target to build all executables, i.e. everything.
 add_custom_target(exec)
@@ -795,15 +857,6 @@ add_subdirectory(doc)
 #-------------------------------------------------------------------------------
 
 message(STATUS "CMAKE_INSTALL_PREFIX = ${CMAKE_INSTALL_PREFIX}")
-set(INSTALL_INCLUDE_DIR include
-  CACHE PATH "Relative path for installing header files.")
-set(INSTALL_BIN_DIR bin
-  CACHE PATH "Relative path for installing the binaries.")
-set(INSTALL_LIB_DIR lib
-  CACHE PATH "Relative path for installing the library.")
-# other options: "share/mfem/cmake", "lib/mfem/cmake"
-set(INSTALL_CMAKE_DIR lib/cmake/mfem
-  CACHE PATH "Relative path for installing cmake config files.")
 
 target_include_directories(mfem BEFORE
   PUBLIC
@@ -828,7 +881,7 @@ foreach(Header mfem.hpp mfem-performance.hpp)
 endforeach()
 install(FILES ${MASTER_HEADERS} DESTINATION ${INSTALL_INCLUDE_DIR}/mfem)
 
-# Install the headers; currently, the miniapps headers are excluded
+# Install the headers (except common miniapp which is installed from its subdir)
 install(DIRECTORY ${MFEM_SOURCE_DIRS}
   DESTINATION ${INSTALL_INCLUDE_DIR}/mfem
   FILES_MATCHING PATTERN "*.hpp")

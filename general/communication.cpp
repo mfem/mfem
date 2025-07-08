@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -351,6 +351,8 @@ void GroupTopology::Swap(GroupTopology &other)
 const MPI_Datatype MPITypeMap<int>::mpi_type = MPI_INT;
 const MPI_Datatype MPITypeMap<float>::mpi_type = MPI_FLOAT;
 const MPI_Datatype MPITypeMap<double>::mpi_type = MPI_DOUBLE;
+const MPI_Datatype MPITypeMap<int64_t>::mpi_type = MPI_INT64_T;
+const MPI_Datatype MPITypeMap<uint64_t>::mpi_type = MPI_UINT64_T;
 
 
 GroupCommunicator::GroupCommunicator(const GroupTopology &gt, Mode m)

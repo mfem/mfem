@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -28,16 +28,23 @@ namespace mfem
 {
 
 bool Hypre::configure_runtime_policy_from_mfem = true;
+Hypre::State Hypre::state = Hypre::State::UNINITIALIZED;
 
-Hypre::Hypre()
+void Hypre::Init()
 {
+   if (state != State::INITIALIZED)
+   {
 #if MFEM_HYPRE_VERSION >= 21900
-   // Initializing hypre
-   HYPRE_Init();
+      HYPRE_Init();
 #endif
-
-   // Global hypre options that we set by default
-   SetDefaultOptions();
+      SetDefaultOptions();
+      // Apply the setting of 'configure_runtime_policy_from_mfem' according to
+      // the current configuration of the mfem::Device (HYPRE >= 2.31.0):
+      InitDevice();
+      // Create the singleton Hypre object AFTER initializing HYPRE:
+      Instance();
+   }
+   state = State::INITIALIZED;
 }
 
 void Hypre::InitDevice()
@@ -48,6 +55,8 @@ void Hypre::InitDevice()
 #if defined(HYPRE_USING_GPU) && (MFEM_HYPRE_VERSION >= 23100)
    if (configure_runtime_policy_from_mfem)
    {
+      MFEM_VERIFY(HYPRE_Initialized(), "HYPRE must be initialized before"
+                  " calling Hypre::InitDevice()");
       if (Device::Allows(Backend::DEVICE_MASK & ~Backend::DEBUG_DEVICE))
       {
          HYPRE_SetMemoryLocation(HYPRE_MEMORY_DEVICE);
@@ -65,14 +74,13 @@ void Hypre::InitDevice()
 
 void Hypre::Finalize()
 {
-   Hypre &hypre = Instance();
-   if (!hypre.finalized)
+   if (state != State::UNINITIALIZED)
    {
 #if MFEM_HYPRE_VERSION >= 21900
       HYPRE_Finalize();
 #endif
-      hypre.finalized = true;
    }
+   state = State::UNINITIALIZED;
 }
 
 void Hypre::SetDefaultOptions()
@@ -847,7 +855,7 @@ static bool RowAndColStartsAreEqual(MPI_Comm comm, HYPRE_BigInt *rows,
          break;
       }
    }
-   MPI_Allreduce(MPI_IN_PLACE, &are_equal, 1,  MPI_C_BOOL, MPI_LAND, comm);
+   MPI_Allreduce(MPI_IN_PLACE, &are_equal, 1,  MFEM_MPI_CXX_BOOL, MPI_LAND, comm);
    return are_equal;
 }
 
@@ -2566,6 +2574,18 @@ void HypreParMatrix::EliminateBC(const Array<int> &ess_dofs,
 #if defined(HYPRE_USING_GPU)
       if (HypreUsingGPU())
       {
+#if defined(HYPRE_WITH_GPU_AWARE_MPI) || defined(HYPRE_USING_GPU_AWARE_MPI)
+         // hypre_GetGpuAwareMPI() was introduced in v2.31.0, however, its value
+         // is not checked in hypre_ParCSRCommHandleCreate_v2() before v2.33.0,
+         // instead only HYPRE_WITH_GPU_AWARE_MPI is checked.
+#if MFEM_HYPRE_VERSION >= 23300
+         if (hypre_GetGpuAwareMPI())
+#endif
+         {
+            // ensure int_buf_data has been computed before sending it
+            MFEM_STREAM_SYNC;
+         }
+#endif
          // Try to use device-aware MPI for the communication if available
          comm_handle = hypre_ParCSRCommHandleCreate_v2(
                           11, comm_pkg, HYPRE_MEMORY_DEVICE, int_buf_data,
@@ -5355,8 +5375,8 @@ void HypreBoomerAMG::SetAdvectiveOptions(int distanceR,
    int ns_down = 0, ns_up = 0, ns_coarse; // init to suppress gcc warnings
    if (distanceR > 0)
    {
-      ns_down = prerelax.length();
-      ns_up = postrelax.length();
+      ns_down = static_cast<int>(prerelax.length());
+      ns_up = static_cast<int>(postrelax.length());
       ns_coarse = 1;
 
       // Array to store relaxation scheme and pass to Hypre
