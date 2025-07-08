@@ -566,8 +566,8 @@ void QuadratureInterpolator::Mult(const Vector &e_vec,
    }
    else // use_tensor_eval == false
    {
-      EvalKernels::Run(dim, vdim, maps.ndof, maps.nqpt, ne,vdim,q_layout,
-                       geom, maps,e_vec, q_val,q_der,q_det,eval_flags);
+      EvalKernels::Run(dim, vdim, maps.ndof, maps.nqpt, ne,vdim, q_layout,
+                       geom, maps, e_vec, q_val, q_der, q_det, eval_flags);
    }
 }
 

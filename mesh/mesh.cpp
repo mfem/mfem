@@ -2994,6 +2994,7 @@ void Mesh::DoNodeReorder(DSTable *old_v_to_v, Table *old_elem_vert)
    const int num_edge_dofs = old_dofs.Size();
 
    // Save the original nodes
+   Nodes->HostReadWrite(); // for "(*Nodes)() = "
    const Vector onodes = *Nodes;
 
    // vertex dofs do not need to be moved
