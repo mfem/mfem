@@ -187,7 +187,7 @@ public:
 
       if (E_field)
       {
-         GetValues(*E_field, X, *E_finder, E, Ordering::byVDIM);
+         GetValues(*E_field, X, *E_finder, E, particles.GetOrdering());
          redist = false;
       }
       else
@@ -197,7 +197,7 @@ public:
 
       if (B_field)
       {
-         GetValues(*B_field, X, *B_finder, B, Ordering::byVDIM);
+         GetValues(*B_field, X, *B_finder, B, particles.GetOrdering());
       }
       else
       {
@@ -315,6 +315,7 @@ int main(int argc, char *argv[])
    int B_pad_digits_cycle = 6;
    int B_pad_digits_rank = 6;
 
+   int ordering = 1;
    int num_part = 1;
    real_t q = 1.0;
    real_t m = 1.0;
@@ -324,8 +325,9 @@ int main(int argc, char *argv[])
    int redist_freq = 10;
    Vector x_init;
    Vector p_init;
-   int visport = 19916;
+
    bool visualization = true;
+   int visport = 19916;
    int vis_freq = 1;
    int vis_tail_size = 5;
    bool visit = true;
@@ -351,6 +353,7 @@ int main(int argc, char *argv[])
                   "Number of digits in B field cycle.");
    args.AddOption(&B_pad_digits_rank, "-bpdr", "--b-pad-digits-rank",
                   "Number of digits in B field MPI rank.");
+   args.AddOption(&ordering, "-o", "--ordering", "Ordering of vector data in particles. 0 = byNODES, 1 = byVDIM.");
    args.AddOption(&num_part, "-n", "--num-part",
                   "Total number of particles.");
    args.AddOption(&x_init, "-x0", "--initial-positions",
@@ -420,7 +423,7 @@ int main(int argc, char *argv[])
 
    // Create particle set: 2 scalars of mass and charge, 3 vectors of size 3 for momentum, electric field, and magnetic field
    ParticleMeta pmeta(3, 2, {3,3,3});
-   ParticleSet particles(MPI_COMM_WORLD, pmeta, Ordering::byVDIM);
+   ParticleSet particles(MPI_COMM_WORLD, pmeta, ordering ? Ordering::byVDIM : Ordering::byNODES);
    InitializeParticles(particles, pmesh, x_init, p_init, q, m, num_part);
    
    // Print all particles
