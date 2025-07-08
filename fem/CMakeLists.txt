@@ -247,6 +247,7 @@ set(HDRS
   nonlinearform_ext.hpp
   nonlininteg.hpp
   qfunction.hpp
+  qinterp/det.hpp
   qinterp/eval.hpp
   qinterp/eval_hdiv.hpp
   qinterp/grad.hpp
