@@ -150,6 +150,10 @@ public:
     virtual void Mult(const Vector &x, Vector &y) const override {
         MFEM_ABORT("Not implemented for this Application.");
     }
+
+    virtual void UpdateOperator() {
+        mfem_error("Application::UpdateOperator() is not overridden!");
+    }
     
     virtual void PerformOperation(const int op, const Vector &x, Vector &y) {
         mfem_error("Application::PerformOperation() is not overridden!");
@@ -219,6 +223,11 @@ protected:
 
 public:
     
+
+    constexpr bool HasMult(){return CheckForMemberFunction<App,CheckMult,void>::value;}
+    constexpr bool HasSolve(){return CheckForMemberFunction<App,CheckSolve,void>::value;}
+    constexpr bool HasStep(){return CheckForMemberFunction<App,CheckStep,void>::value;}
+
     AbstractApplication(App *app_) : app(app_) {}
 
     // void Initialize() override
@@ -413,6 +422,12 @@ public:
         }
     }
 
+    virtual void Transfer(Vector &x) {
+        BlockVector xb(x.GetData(), offsets);
+        for (int i=0; i < napps; i++) {
+            apps[i]->Transfer(xb.GetBlock(i));
+        }
+    }
 
     /**
      * @brief Advance the time step for each application. If the coupling type is ONE_WAY,
@@ -458,8 +473,27 @@ public:
         BlockVector xb(x.GetData(), offsets);
         BlockVector kb(k.GetData(), offsets);
 
-        for (int i=0; i < napps; i++) {
-            apps[i]->ImplicitSolve(dt,xb.GetBlock(i), kb.GetBlock(i));
+        Vector k0(k.Size());
+        real_t err = 10.0;
+        real_t tol = 1e-5;
+        k0 = 0.0;
+        k = 0.0;
+        for (int iter=0; iter < 3; iter++)
+        {
+            for (int i=0; i < napps; i++) {
+                xb.GetBlock(i).Add(dt, kb.GetBlock(i)); ///< Compute the stage (x = x0 + dt * k)
+                apps[i]->Transfer(xb.GetBlock(i));  ///< Transfer the data to all applications
+                xb.GetBlock(i).Add(-dt, kb.GetBlock(i)); ///< Reset dudt
+                apps[i]->ImplicitSolve(dt,xb.GetBlock(i), kb.GetBlock(i));
+            }
+
+            err = k0.DistanceTo(k);
+            if( err < tol && iter > 2 )
+            {
+                return;
+            }
+            
+            k0 = k;
         }
     }
 
