@@ -74,8 +74,9 @@
 
 #include "mfem.hpp"
 #include "../common/fem_extras.hpp"
-#include "../common/pfem_extras.hpp"
 #include "../common/particles_extras.hpp"
+#include "../../general/text.hpp"
+
 #include "electromagnetics.hpp"
 #include <fstream>
 #include <iostream>
@@ -330,7 +331,9 @@ int main(int argc, char *argv[])
    int visport = 19916;
    int vis_freq = 1;
    int vis_tail_size = 5;
-   bool visit = true;
+   
+   int print_csv_freq = 0;
+
 
    OptionsParser args(argc, argv);
    args.AddOption(&E_coll_name, "-er", "--e-root-file",
@@ -376,9 +379,9 @@ int main(int argc, char *argv[])
                   "Enable or disable GLVis visualization.");
    args.AddOption(&vis_freq, "-vf", "--vis-freq", "GLVis visualization update frequency.");
    args.AddOption(&vis_tail_size, "-vt", "--vis-tail-size", "GLVis visualization trajectory tail size. 0 for infinite size.");
-   args.AddOption(&visit, "-visit", "--visit", "-no-visit", "--no-visit",
-                  "Enable or disable VisIt visualization.");
    args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
+   args.AddOption(&print_csv_freq, "-csv", "--csv-freq", "Frequency of particle CSV outputting. 0 to disable.");
+
    args.Parse();
    if (!args.Good())
    {
@@ -426,24 +429,8 @@ int main(int argc, char *argv[])
    ParticleSet particles(MPI_COMM_WORLD, pmeta, ordering ? Ordering::byVDIM : Ordering::byNODES);
    InitializeParticles(particles, pmesh, x_init, p_init, q, m, num_part);
    
-   // Print all particles
-   // for (int r = 0; r < Mpi::WorldSize(); r++)
-   // {  
-   //    if (r == Mpi::WorldRank())
-   //    {
-   //       mfem::out << "\nRank " << r << "\n";
-   //       for (int i = 0; i < particles.GetNP(); i++)
-   //       {
-   //          particles.GetParticleData(i).Print();
-   //       }
-   //    }
-   //    MPI_Barrier(MPI_COMM_WORLD);
-   // }
    
    BorisAlgorithm boris(E_gf, B_gf, MPI_COMM_WORLD);
-
-   ofstream ofs("Lorentz.dat");
-   ofs.precision(14);
 
    int nsteps = 1 + (int)ceil((t_final - t_init) / dt);
 
@@ -550,6 +537,11 @@ int main(int argc, char *argv[])
          }
       }
 
+      if (print_csv_freq > 0 && step % print_csv_freq == 0)
+      {
+         std::string file_name = "Lorentz_Particles_" + mfem::to_padded_string(step, 9) + ".csv";
+         particles.PrintCSV(file_name.c_str());
+      }
    }
 
 }
