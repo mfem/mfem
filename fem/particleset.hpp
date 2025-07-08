@@ -174,6 +174,7 @@ public:
 
    Ordering::Type GetOrdering() const { return ordering; }
 
+   const ParticleMeta& GetMeta() const { return meta; }
    /// Serial constructor
    ParticleSet(const ParticleMeta &meta_, Ordering::Type ordering_);
 

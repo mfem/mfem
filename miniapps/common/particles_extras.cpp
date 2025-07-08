@@ -22,19 +22,23 @@ void InitializeRandom(Particle &p, int seed, const Vector &pos_min, const Vector
    std::mt19937 gen(seed);
    std::uniform_real_distribution<> real_dist(0.0,1.0);
 
-   for (int i = 0; i < p.GetSpaceDim(); i++)
+   const ParticleMeta &meta = p.GetMeta();
+
+   Vector &coords = p.GetCoords();
+   for (int i = 0; i < meta.SpaceDim(); i++)
    {
-      p.GetCoords()[i] = pos_min[i] + (pos_max[i] - pos_min[i])*real_dist(gen);
+      coords[i] = pos_min[i] + (pos_max[i] - pos_min[i])*real_dist(gen);
    }
 
-   for (int s = 0; s < p.GetNumScalars(); s++)
-      p.GetScalar(s) = real_dist(gen);
+   for (int s = 0; s < meta.NumProps(); s++)
+      p.GetProperty(s) = real_dist(gen);
 
-   for (int v = 0; v < p.GetNumVectors(); v++)
+   for (int v = 0; v < meta.NumStateVars(); v++)
    {
-      for (int c = 0; c < p.GetVDim(v); c++)
+      Vector &state = p.GetStateVar(v);
+      for (int c = 0; c < meta.StateVDim(v); c++)
       {
-         p.GetVector(v)[c] = real_dist(gen);
+         state[c] = real_dist(gen);
       }
    }
 }
@@ -88,15 +92,18 @@ void Add3DPoint(const Vector &center, Mesh &m, real_t s)
 
 template<Ordering::Type VOrdering>
 void VisualizeParticles(socketstream &sock, const char* vishost, int visport,
-                                    const ParticleSet<VOrdering> &pset, const Vector &scalar_field, real_t psize, 
+                                    const ParticleSet &pset, const Vector &scalar_field, real_t psize, 
                                     const char* title, int x, int y, int w, int h, const char* keys)
 {                
    L2_FECollection l2fec(1,3);
    Mesh particles_mesh(3, pset.GetNP()*8, pset.GetNP(), 0, 3);
 
+   const ParticleMeta &meta = pset.GetMeta();
+
    for (int i = 0; i < pset.GetNP(); i++)
    {
-      Particle p = pset.GetParticleData(i);
+      Particle p(meta);
+      pset.GetParticle(i, p);
       const Vector &pcoords = p.GetCoords();
       Add3DPoint(pcoords, particles_mesh, psize);
    }
@@ -168,13 +175,14 @@ ParticleTrajectories::ParticleTrajectories(int tail_size_, const char *vishost, 
 
 }
 
-template<Ordering::Type VOrdering>
-void ParticleTrajectories::AddSegmentStart(const ParticleSet<VOrdering> &pset)
+void ParticleTrajectories::AddSegmentStart(const ParticleSet &pset)
 {
    MFEM_ASSERT(segment_completed, "SetSegmentEnd must be called after each AddSegmentStart.");
 
+   const ParticleMeta &meta = pset.GetMeta();
+
    // Create a new mesh for all particle segments for this timestep
-   segment_meshes.emplace(segment_meshes.begin(), 1, pset.GetNP()*2, pset.GetNP(), 0, pset.GetSpaceDim());
+   segment_meshes.emplace(segment_meshes.begin(), 1, pset.GetNP()*2, pset.GetNP(), 0, meta.SpaceDim());
 
    // Add segment start particle IDs
    segment_ids.emplace(segment_ids.begin(), pset.GetIDs());
@@ -188,17 +196,19 @@ void ParticleTrajectories::AddSegmentStart(const ParticleSet<VOrdering> &pset)
    // Add all particle starting vertices
    for (int i = 0; i < pset.GetNP(); i++)
    {
-      Particle p = pset.GetParticleData(i);
+      Particle p(meta);
+      pset.GetParticle(i, p);
       segment_meshes.front().AddVertex(p.GetCoords());
    }
 
    segment_completed = false;
 }
 
-template<Ordering::Type VOrdering>
-void ParticleTrajectories::SetSegmentEnd(const ParticleSet<VOrdering> &pset)
+void ParticleTrajectories::SetSegmentEnd(const ParticleSet &pset)
 {
    MFEM_ASSERT(!segment_completed, "AddSegmentStart must be called prior to SetSegmentEnd.");
+
+   const ParticleMeta &meta = pset.GetMeta();
 
    const Array<unsigned int> &end_ids = pset.GetIDs();
 
@@ -210,7 +220,8 @@ void ParticleTrajectories::SetSegmentEnd(const ParticleSet<VOrdering> &pset)
       int pidx = end_ids.Find(segment_ids.front()[i]);
       if (pidx != -1)
       {
-         Particle p = pset.GetParticleData(pidx);
+         Particle p(meta);
+         pset.GetParticle(pidx, p);
          segment_meshes.front().AddVertex(p.GetCoords());
       }
       else // Otherwise set its end vertex == start vertex
@@ -259,19 +270,6 @@ void ParticleTrajectories::Visualize()
    }
 
 }
-
-template void VisualizeParticles<Ordering::byNODES>(socketstream &sock, const char* vishost, int visport,
-                                    const ParticleSet<Ordering::byNODES> &pset, const Vector &scalar_field, real_t psize, 
-                                    const char* title, int x, int y, int w, int h, const char* keys);
-template void VisualizeParticles<Ordering::byVDIM>(socketstream &sock, const char* vishost, int visport,
-                                    const ParticleSet<Ordering::byVDIM> &pset, const Vector &scalar_field, real_t psize, 
-                                    const char* title, int x, int y, int w, int h, const char* keys);
-
-template void ParticleTrajectories::AddSegmentStart<Ordering::byNODES>(const ParticleSet<Ordering::byNODES> &pset);
-template void ParticleTrajectories::AddSegmentStart<Ordering::byVDIM>(const ParticleSet<Ordering::byVDIM> &pset);
-
-template void ParticleTrajectories::SetSegmentEnd<Ordering::byNODES>(const ParticleSet<Ordering::byNODES> &pset);
-template void ParticleTrajectories::SetSegmentEnd<Ordering::byVDIM>(const ParticleSet<Ordering::byVDIM> &pset);
 
 } // namespace common
 

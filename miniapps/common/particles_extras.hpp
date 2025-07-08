@@ -28,9 +28,8 @@ void InitializeRandom(Particle &p, int seed, const Vector &pos_min, const Vector
 void Add3DPoint(const Vector &center, Mesh &m, real_t scale=2e-3);
 
 /// Plot a point cloud of particles, represented as hexes, colored by \p scalar_field
-template<Ordering::Type VOrdering>
 void VisualizeParticles(socketstream &sock, const char* vishost, int visport,
-                                const ParticleSet<VOrdering> &pset, const Vector &scalar_field, real_t psize, 
+                                const ParticleSet &pset, const Vector &scalar_field, real_t psize, 
                                 const char* title, int x = 0, int y = 0, int w = 400, int h = 400,
                                 const char* keys=nullptr);
 
@@ -61,11 +60,9 @@ public:
     : ParticleTrajectories(tail_size_, vishost, visport, title_, x_, y_, w_, h_, keys_) { comm = comm_; }
 #endif // MFEM_USE_MPI
 
-    template<Ordering::Type VOrdering>
-    void AddSegmentStart(const ParticleSet<VOrdering> &pset);
+    void AddSegmentStart(const ParticleSet &pset);
 
-    template<Ordering::Type VOrdering>
-    void SetSegmentEnd(const ParticleSet<VOrdering> &pset);
+    void SetSegmentEnd(const ParticleSet &pset);
 
     void Visualize();
 
