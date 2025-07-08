@@ -41,23 +41,23 @@ Particle::Particle(const ParticleMeta &pmeta)
 
 bool Particle::operator==(const Particle &rhs) const
 {
-   if (&meta != &rhs.meta)
+   if (&meta.get() != &rhs.meta.get())
    {
       return false;
    }
-   for (int d = 0; d < meta.SpaceDim(); d++)
+   for (int d = 0; d < meta.get().SpaceDim(); d++)
    {
       if (coords[d] != rhs.coords[d])
          return false;
    }
-   for (int s = 0; s < meta.NumProps(); s++)
+   for (int s = 0; s < meta.get().NumProps(); s++)
    {
       if (props.at(s) != rhs.props.at(s))
          return false;
    }
-   for (int v = 0; v < meta.NumStateVars(); v++)
+   for (int v = 0; v < meta.get().NumStateVars(); v++)
    {
-      for (int c = 0; c < meta.StateVDim(v); c++)
+      for (int c = 0; c < meta.get().StateVDim(v); c++)
       {
          if (state.at(v)[c] != rhs.state.at(v)[c])
             return false;

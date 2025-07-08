@@ -43,11 +43,11 @@ class ParticleMeta
 private:
    const int spaceDim;
    const int numProps; // immutable scalars intrinsic to particles
-   Array<int> stateVDims; // state variable (momentum, etc...) vdims
+   const Array<int> stateVDims; // state variable (momentum, etc...) vdims
 
 public:
    
-   ParticleMeta(int spaceDim_, int numProps_, std::initializer_list<int> stateVDims_)
+   ParticleMeta(int spaceDim_, int numProps_, const Array<int> &stateVDims_)
    : spaceDim(spaceDim_), numProps(numProps_), stateVDims(stateVDims_) {}
 
    int SpaceDim() const { return spaceDim; }
@@ -63,7 +63,7 @@ public:
 class Particle
 {
 protected:
-   const ParticleMeta &meta;
+   std::reference_wrapper<const ParticleMeta> meta;
 
    Vector coords;
    std::vector<real_t> props;
@@ -243,8 +243,6 @@ public:
 
    /// Print all data to CSV
    void PrintCSV(const char* fname, int precision=16);
-
-   ~ParticleSet();
 
 };
 
