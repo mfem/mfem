@@ -244,6 +244,8 @@ public:
    /// Print all data to CSV
    void PrintCSV(const char* fname, int precision=16);
 
+   ~ParticleSet();
+
 };
 
 } // namespace mfem
