@@ -65,52 +65,6 @@ void PrintOnOffRankCounts(const Array<unsigned int> &procs, MPI_Comm comm)
    }
 }
 
-void Add3DPoint(const Vector &center, real_t s, Mesh &m)
-{
-
-   Vector v[8];
-
-   for (int i = 0; i < 8; i++)
-   {
-      v[i].SetSize(3);
-   }
-
-   for (int i = 0; i < center.Size(); i++)
-   {
-      v[0][i] = center[i];
-   }
-
-   Vector v_s(3); v_s = s;
-   v[0] -= v_s;
-
-   v[1] = v[0];
-   v[1][0] += 2*s;
-
-   v[2] = v[1];
-   v[2][1] += 2*s;
-
-   v[3] = v[2];
-   v[3][0] -= 2*s;
-
-   Vector v_s_z({0.0,0.0,s});
-   for (int i = 4; i < 8; i++)
-   {
-      add(1.0, v[i-4], 2.0, v_s_z, v[i]);
-   }
-
-   for (int i = 0; i < 8; i++)
-   {
-      m.AddVertex(v[i]);
-   }
-
-   int vi[8];
-   for (int i = 0; i < 8; i++)
-   {
-      vi[i] = i + (m.GetNE())*8;
-   }
-   m.AddHex(vi);
-}
-
 template<typename T>
 Vector ArrayToVector(const Array<T> &fields)
 {
@@ -158,7 +112,9 @@ int main (int argc, char *argv[])
    MFEM_ASSERT(mesh.SpaceDimension() == mesh.Dimension(), "FindPointsGSLIB requires that the mesh space dimension + reference element dimension are the same");
    int space_dim = mesh.Dimension();
 
-   ParticleSet<Ordering::byVDIM> pset(MPI_COMM_WORLD, space_dim, 0, {});
+   ParticleMeta meta(space_dim, 0, {});
+
+   ParticleSet pset(MPI_COMM_WORLD, meta, Ordering::byNODES);
 
    Vector pos_min, pos_max;
    mesh.GetBoundingBox(pos_min, pos_max);
@@ -169,7 +125,7 @@ int main (int argc, char *argv[])
    int seed = rank;
    for (int i = 0; i < npt; i++)
    {
-      Particle p(space_dim, 0, {});
+      Particle p(meta);
       InitializeRandom(p, seed, pos_min, pos_max);
       pset.AddParticle(p);
       seed += size;
@@ -179,7 +135,7 @@ int main (int argc, char *argv[])
    FindPointsGSLIB finder(MPI_COMM_WORLD);
    pmesh.EnsureNodes();
    finder.Setup(pmesh);
-   finder.FindPoints(pset.GetSetCoords(), pset.GetOrdering());
+   finder.FindPoints(pset.GetAllCoords(), pset.GetOrdering());
 
    // Remove points not in domain
    Array<int> rm_idxs;
@@ -194,7 +150,7 @@ int main (int argc, char *argv[])
    pset.RemoveParticles(rm_idxs);
 
    // Re-find w/ new particles to re-get Proc array
-   finder.FindPoints(pset.GetSetCoords(), pset.GetOrdering());
+   finder.FindPoints(pset.GetAllCoords(), pset.GetOrdering());
    if (rank == 0)
    {
       mfem::out << "Pre-Redistribute:\n";
@@ -215,7 +171,7 @@ int main (int argc, char *argv[])
    pset.Redistribute(finder.GetProc());
 
    // Find again
-   finder.FindPoints(pset.GetSetCoords(), pset.GetOrdering());
+   finder.FindPoints(pset.GetAllCoords(), pset.GetOrdering());
 
    // Remove particles not in domain
 

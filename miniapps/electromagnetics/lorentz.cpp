@@ -85,14 +85,12 @@ using namespace mfem;
 using namespace mfem::common;
 using namespace mfem::electromagnetics;
 
-typedef DataCollection::FieldMapType fields_t;
-
-enum Scalars
+enum Properties
 {
    MASS=0,
    CHARGE=1
 };
-enum Vectors
+enum State
 {
    MOM=0,
    EFIELD=1,
@@ -180,12 +178,12 @@ public:
       }
    }
 
-   void Step(ParticleSet<Ordering::byVDIM> &particles, real_t &t, real_t &dt, bool redist)
+   void Step(ParticleSet &particles, real_t &t, real_t &dt, bool redist)
    {
       // Update all particle E-fields + B-fields:
-      const Vector &X = particles.GetSetCoords();
-      Vector &E = particles.GetSetVector(EFIELD);
-      Vector &B = particles.GetSetVector(BFIELD);
+      const Vector &X = particles.GetAllCoords();
+      Vector &E = particles.GetAllStateVar(EFIELD);
+      Vector &B = particles.GetAllStateVar(BFIELD);
 
       if (E_field)
       {
@@ -227,24 +225,6 @@ public:
             }
          }
 
-         // int rank, size;
-         // MPI_Comm_rank(particles.GetComm(), &rank);
-         // MPI_Comm_size(particles.GetComm(), &size);
-         // for (int r = 0; r < size; r++)
-         // {
-         //    if (r == rank)
-         //    {
-         //       cout << "\n---------------------------------------------------\nRANK " << r << endl;
-         //       cout << "Removed Particle Idxs: "; lost_idxs.Print(cout, 100);
-         //       cout << "Removed Particle Size: " << lost_idxs.Size() << endl;
-         //       cout << "Proc Array before slice: "; pre_procs.Print(cout, 100);
-         //       cout << "Proc Array size before slice: " << pre_procs.Size() << endl;
-         //       cout << "Proc Array after slice: "; post_procs.Print(cout, 100);
-         //       cout << "Proc Array size after slice: " << post_procs.Size() << endl;
-         //    }
-         //    MPI_Barrier(particles.GetComm());
-
-         // }
          particles.Redistribute(post_procs);
          MPI_Barrier(particles.GetComm());
       }
@@ -252,8 +232,10 @@ public:
       // Individually step each particle + update its position:
       for (int i = 0; i < particles.GetNP(); i++)
       {
-         Particle part = particles.GetParticleRef(i);
-         ParticleStep(part, dt);
+         Particle p(particles.GetMeta());
+         particles.GetParticle(i, p);
+         ParticleStep(p, dt);
+         particles.SetParticle(i, p);
       }
 
       // Update time
@@ -263,11 +245,11 @@ public:
    void ParticleStep(Particle &part, real_t &dt)
    {
       Vector &x = part.GetCoords();
-      Vector &p = part.GetVector(MOM);
-      Vector &e = part.GetVector(EFIELD);
-      Vector &b = part.GetVector(BFIELD);
-      real_t m = part.GetScalar(MASS);
-      real_t q = part.GetScalar(CHARGE);
+      Vector &p = part.GetStateVar(MOM);
+      Vector &e = part.GetStateVar(EFIELD);
+      Vector &b = part.GetStateVar(BFIELD);
+      real_t m = part.GetProperty(MASS);
+      real_t q = part.GetProperty(CHARGE);
 
       // Compute half of the contribution from q E
       add(p, 0.5 * dt * q, e, pm_);
@@ -309,8 +291,7 @@ int ReadGridFunction(std::string coll_name, std::string field_name,
                      std::unique_ptr<VisItDataCollection> &dc, ParGridFunction *&gf);
 
 // Initialize particles from user input.
-template<Ordering::Type VOrdering>
-void InitializeParticles(ParticleSet<VOrdering> &particles, ParMesh *pmesh, const Vector &x_init, const Vector &p_init, real_t q, real_t m, int num_part);
+void InitializeParticles(ParticleSet &particles, ParMesh *pmesh, const Vector &x_init, const Vector &p_init, real_t q, real_t m, int num_part);
 
 // Prints the program's logo to the given output stream
 void display_banner(ostream & os);
@@ -438,7 +419,8 @@ int main(int argc, char *argv[])
    if (!pmesh && B_gf) { pmesh = static_cast<ParMesh*>(B_gf->ParFESpace()->GetParMesh()); }
 
    // Create particle set: 2 scalars of mass and charge, 3 vectors of size 3 for momentum, electric field, and magnetic field
-   ParticleSet<Ordering::byVDIM> particles(MPI_COMM_WORLD, 3, 2, {3,3,3});
+   ParticleMeta pmeta(3, 2, {3,3,3});
+   ParticleSet particles(MPI_COMM_WORLD, pmeta, Ordering::byVDIM);
    InitializeParticles(particles, pmesh, x_init, p_init, q, m, num_part);
    
    // Print all particles
@@ -617,14 +599,13 @@ int ReadGridFunction(std::string coll_name, std::string field_name,
    return 0;
 }
 
-template<Ordering::Type VOrdering>
-void InitializeParticles(ParticleSet<VOrdering> &particles, ParMesh *pmesh, const Vector &x_init, const Vector &p_init, real_t q, real_t m, int num_part)
+void InitializeParticles(ParticleSet &particles, ParMesh *pmesh, const Vector &x_init, const Vector &p_init, real_t q, real_t m, int num_part)
 {
    int rank, size;
    MPI_Comm_rank(particles.GetComm(), &rank);
    MPI_Comm_size(particles.GetComm(), &size);
 
-   int dim = particles.GetSpaceDim();
+   int dim = particles.GetMeta().SpaceDim();
 
    // Initialize all x and p on rank 0, then split amongst ranks
    std::vector<int> sendcts(size);
@@ -697,17 +678,17 @@ void InitializeParticles(ParticleSet<VOrdering> &particles, ParMesh *pmesh, cons
    // Add all particles to set
    for (int i = 0; i < sendcts[rank]/dim; i++)
    {
-      Particle p(dim, particles.GetNumScalars(), particles.GetVectorVDims());
+      Particle p(particles.GetMeta());
 
       // Set coords + momentum
       for (int d = 0; d < dim; d++)
       {
          p.GetCoords()[d] = x_rank[d+i*dim];
-         p.GetVector(MOM)[d] = p_rank[d+i*dim];
+         p.GetStateVar(MOM)[d] = p_rank[d+i*dim];
       }
       // Set mass + charge
-      p.GetScalar(MASS) = m;
-      p.GetScalar(CHARGE) = q;
+      p.GetProperty(MASS) = m;
+      p.GetProperty(CHARGE) = q;
 
       // Add particle
       particles.AddParticle(p);

@@ -90,7 +90,6 @@ void Add3DPoint(const Vector &center, Mesh &m, real_t s)
 }
 
 
-template<Ordering::Type VOrdering>
 void VisualizeParticles(socketstream &sock, const char* vishost, int visport,
                                     const ParticleSet &pset, const Vector &scalar_field, real_t psize, 
                                     const char* title, int x, int y, int w, int h, const char* keys)
