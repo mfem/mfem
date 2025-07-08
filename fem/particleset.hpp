@@ -158,7 +158,7 @@ protected:
    void RuntimeDispatchTransfer(const Array<int> &send_idxs, const Array<int> &send_ranks, std::index_sequence<Ns...>)
    {
       bool success = ( (totalComps == Ns ? (Transfer<Ns>(send_idxs, send_ranks),true) : false) || ...);
-      MFEM_ASSERT(success, "Particles with field size above 100 are currently not supported for redistributing. Please submit a PR to request a particular particle size above this.");
+      MFEM_ASSERT(success, "Particles with total components above 100 are currently not supported for redistributing. Please submit a PR to request a particular particle size above this.");
    }
 
 #endif // MFEM_USE_MPI && MFEM_USE_GSLIB
@@ -170,9 +170,9 @@ protected:
    /// Add particle w/ given ID
    void AddParticle(const Particle &p, int id);
 
-   void PrintCSVHeader(std::ostream &os, bool inc_rank);
-   void PrintCSV(std::ostream &os, bool inc_header, int *rank=nullptr);
-
+   void PrintHeader(std::ostream &os, bool inc_rank, const char *delimiter);
+   void PrintData(std::ostream &os, bool inc_header, const char *delimiter, int *rank=nullptr);
+   void Print(const char* fname, int precision, const char *delimiter);
 public:
 
    Ordering::Type GetOrdering() const { return ordering; }
@@ -242,11 +242,13 @@ public:
    void SetFromParticleArray();
 */
 
-   /// Print in VisIt Point3D format (x y z ID)
-   void PrintPoint3D(std::ostream &os);
+   /// Print in VisIt Point3D format
+   void PrintPoint3D(const char* fname, int precision=16)
+   { Print(fname, precision, " "); }
 
-   /// Print all data to CSV
-   void PrintCSV(const char* fname, int precision=16);
+   /// Print to CSV
+   void PrintCSV(const char* fname, int precision=16)
+   { Print(fname, precision, ","); }
 
    ~ParticleSet();
 

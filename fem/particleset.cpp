@@ -366,42 +366,42 @@ void ParticleSet::SetParticle(int i, const Particle &p)
    }
 }
 
-void ParticleSet::PrintPoint3D(std::ostream &os)
-{
-#if defined(MFEM_USE_MPI) && defined(MFEM_USE_GSLIB)
-   MFEM_ABORT("PrintPoint3D not yet implemented in parallel");
-#else
-   // Write column headers
-   os << "x y z id\n";
+// void ParticleSet::PrintPoint3D(std::ostream &os)
+// {
+// #if defined(MFEM_USE_MPI) && defined(MFEM_USE_GSLIB)
+//    MFEM_ABORT("PrintPoint3D not yet implemented in parallel");
+// #else
+//    // Write column headers
+//    os << "x y z id\n";
 
-   // Write the data
-   for (int i = 0 ; i < GetNP(); i++)
-   {
-      for (int d = 0; d < 3; d++)
-      {
-         real_t coord;
-         if (ordering == Ordering::byNODES)
-         {
-            coord = (d < meta.SpaceDim()) ? data[i + d*GetNP()] : 0.0;
-         }
-         else
-         {
-            coord = (d < meta.SpaceDim()) ? data[d + i*meta.SpaceDim()] : 0.0;
-         }
-         os << ZeroSubnormal(coord) << " ";
-      }
-      os << ids[i] << "\n";
-   }
-#endif
-}
+//    // Write the data
+//    for (int i = 0 ; i < GetNP(); i++)
+//    {
+//       for (int d = 0; d < 3; d++)
+//       {
+//          real_t coord;
+//          if (ordering == Ordering::byNODES)
+//          {
+//             coord = (d < meta.SpaceDim()) ? data[i + d*GetNP()] : 0.0;
+//          }
+//          else
+//          {
+//             coord = (d < meta.SpaceDim()) ? data[d + i*meta.SpaceDim()] : 0.0;
+//          }
+//          os << ZeroSubnormal(coord) << " ";
+//       }
+//       os << ids[i] << "\n";
+//    }
+// #endif
+// }
 
-void ParticleSet::PrintCSVHeader(std::ostream &os, bool inc_rank)
+void ParticleSet::PrintHeader(std::ostream &os, bool inc_rank, const char *delimiter)
 {
    std::array<char, 3> ax = {'x', 'y', 'z'};
 
-   os << "id,";
+   os << "id" << delimiter;
    if (inc_rank)
-      os << "rank,";
+      os << "rank" << delimiter;
 
    for (int f = 0; f < totalFields; f++)
    {
@@ -419,25 +419,25 @@ void ParticleSet::PrintCSVHeader(std::ostream &os, bool inc_rank)
          {
             os << "StateVariable_" << f-1-meta.NumProps() << "_" << c;
          }
-         os << ((f+1 == totalFields && c+1 == fieldVDims[f]) ? "\n" : ",");
+         os << ((f+1 == totalFields && c+1 == fieldVDims[f]) ? "\n" : delimiter);
       }
    }
 }
 
-void ParticleSet::PrintCSV(std::ostream &os, bool inc_header, int *rank)
+void ParticleSet::PrintData(std::ostream &os, bool inc_header, const char *delimiter, int *rank)
 {
    // Write column headers and data
    if (inc_header)
    {
-      PrintCSVHeader(os, rank);
+      PrintHeader(os, rank, delimiter);
    }
 
    // Write data
    for (int i = 0; i < GetNP(); i++)
    {
-      os << ids[i] << ",";
+      os << ids[i] << delimiter;
       if (rank)
-         os << *rank << ",";
+         os << *rank << delimiter;
       for (int f = 0; f < totalFields; f++)
       {
          for (int c = 0; c < fieldVDims[f]; c++)
@@ -452,13 +452,13 @@ void ParticleSet::PrintCSV(std::ostream &os, bool inc_header, int *rank)
                dat = data[c + fieldVDims[f]*i + exclScanFieldVDims[f]*GetNP()];
             }
             os << dat;
-            os << ((f+1 == totalFields && c+1 == fieldVDims[f]) ? "\n" : ",");
+            os << ((f+1 == totalFields && c+1 == fieldVDims[f]) ? "\n" : delimiter);
          }
       }
    }
 }
 
-void ParticleSet::PrintCSV(const char* fname, int precision)
+void ParticleSet::Print(const char* fname, int precision, const char *delimiter)
 {
 
 #if defined(MFEM_USE_MPI) && defined(MFEM_USE_GSLIB)
@@ -469,7 +469,7 @@ void ParticleSet::PrintCSV(const char* fname, int precision)
    MPI_File_open(comm, fname, MPI_MODE_CREATE | MPI_MODE_WRONLY, MPI_INFO_NULL, &file);
 
    std::stringstream ss_header;
-   ParticleSet::PrintCSVHeader(ss_header, true);
+   ParticleSet::PrintHeader(ss_header, true, delimiter);
    std::string header = ss_header.str();
 
    // Print header
@@ -481,7 +481,7 @@ void ParticleSet::PrintCSV(const char* fname, int precision)
    // Get data for each rank
    std::stringstream ss;
    ss.precision(precision);
-   ParticleSet::PrintCSV(ss, false, &rank);
+   ParticleSet::PrintData(ss, false, delimiter, &rank);
 
    // Compute the size in bytes
    std::string s_dat = ss.str();
@@ -508,7 +508,7 @@ void ParticleSet::PrintCSV(const char* fname, int precision)
    // Serial:
    std::ofstream ofs(fname);
    ofs.precision(precision);
-   PrintCSV(ofs, true);
+   PrintData(ofs, true, delimiter);
 
 #endif // MFEM_USE_MPI && MFEM_USE_GSLIB
 
