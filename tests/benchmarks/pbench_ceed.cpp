@@ -176,8 +176,6 @@ struct BakeOff
    Vector uvec;
    VectorConstantCoefficient unit_vec;
    const HYPRE_BigInt dofs;
-   ParGridFunction x, y;
-   ParBilinearForm a;
    double mdofs{};
    StopWatch timer;
 
@@ -194,12 +192,8 @@ struct BakeOff
       one(1.0),
       uvec(DIM),
       unit_vec((uvec = 1.0, uvec /= uvec.Norml2(), uvec)),
-      dofs(fes.GlobalTrueVSize()),
-      x(&fes),
-      y(&fes),
-      a(&fes)
+      dofs(fes.GlobalTrueVSize())
    {
-      x = 0.0;
       if (verbose && Mpi::Root())
       {
          std::cout << "q: " << q << ", dofs: " << dofs << std::endl;
@@ -225,6 +219,8 @@ struct Problem : public BakeOff<VDIM, GLL>
 
    Array<int> ess_tdof_list;
    Array<int> ess_bdr;
+   ParGridFunction x;
+   ParBilinearForm a;
    LinearForm b;
    OperatorPtr A;
    Vector B, X;
@@ -232,24 +228,24 @@ struct Problem : public BakeOff<VDIM, GLL>
    int bench_call_counter = 0;
 
    using base = BakeOff<VDIM, GLL>;
-   using base::a;
    using base::ir;
    using base::one;
    using base::mesh;
    using base::fes;
-   using base::x;
-   using base::y;
    using base::mdofs;
    using base::timer;
 
    Problem(int order):
       BakeOff<VDIM, GLL>(order),
       ess_bdr(mesh.bdr_attributes.Max()),
+      x(&fes),
+      a(&fes),
       b(&fes),
       cg(fes.GetComm())
    {
       if (verbose && Mpi::Root()) { std::cout << _MFEM_FUNC_NAME << std::endl; }
       ess_bdr = 1;
+      x = 0.0;
       fes.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
       LinearFormIntegrator *integ;
       if (VDIM == 1)
@@ -313,7 +309,7 @@ struct Problem : public BakeOff<VDIM, GLL>
       DeviceSync();
       MPI_Barrier(cg.GetComm());
       double t_elapsed = timer.RealTime() - t_start;
-      // Ensure every ranks gets the same time, otherwise google-benchmark may
+      // Ensure every rank gets the same time, otherwise google-benchmark may
       // behave differently on different ranks.
       MPI_Bcast(&t_elapsed, 1, MPI_DOUBLE, 0, cg.GetComm());
 
@@ -368,38 +364,49 @@ BakeOff_Problem(6, VectorDiffusion, 3, true)
 template <typename BFI, int VDIM, bool GLL>
 struct Kernel : public BakeOff<VDIM, GLL>
 {
+   BFI bfi;
+   Vector x, y; // input and output E-vectors
+
    using base = BakeOff<VDIM, GLL>;
-   using base::a;
    using base::ir;
    using base::one;
    using base::fes;
-   using base::x;
-   using base::y;
    using base::mdofs;
    using base::timer;
 
-   Kernel(int order) : base(order)
+   Kernel(int order)
+      : base(order),
+        bfi(one, ir)
    {
+      bfi.AssemblePA(fes);
+      const Table &el2dof = fes.GetElementToDofTable();
+      const int e_size = el2dof.Size_of_connections()*fes.GetVDim();
+      x.SetSize(e_size); x.UseDevice(true);
+      y.SetSize(e_size); y.UseDevice(true);
       x.Randomize(1);
-      a.SetAssemblyLevel(AssemblyLevel::PARTIAL);
-      a.AddDomainIntegrator(new BFI(one, ir));
-      a.Assemble();
+      x.Read();
       // warmup
-      for (int i = 0; i < 2; i++) { a.Mult(x, y); }
+      for (int i = 0; i < 2; i++)
+      {
+         y = 0.0;
+         bfi.AddMultPA(x, y);
+      }
    }
 
    void benchmark(benchmark::State &state) override
    {
+      y = 0.0;
+
       DeviceSync();
       MPI_Barrier(fes.GetComm());
       double t_start = timer.RealTime();
 
-      a.Mult(x, y);
+      bfi.AddMultPA(x, y);
 
       DeviceSync();
       MPI_Barrier(fes.GetComm());
       double t_elapsed = timer.RealTime() - t_start;
-      // Ensure every ranks gets the same time, otherwise google-benchmark may
+      // Ensure every rank gets the same time, otherwise google-benchmark may
       // behave differently on different ranks.
       MPI_Bcast(&t_elapsed, 1, MPI_DOUBLE, 0, fes.GetComm());
 

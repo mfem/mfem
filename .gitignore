@@ -429,6 +429,7 @@ tests/benchmarks/bench_ceed
 tests/benchmarks/bench_tmop
 tests/benchmarks/bench_vector
 tests/benchmarks/bench_virtuals
+tests/benchmarks/pbench_ceed
 
 # Test script output
 tests/scripts/*.err
