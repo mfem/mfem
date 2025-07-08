@@ -334,6 +334,7 @@ int main(int argc, char *argv[])
    
    int print_csv_freq = 0;
 
+   int print_point3d_freq = 0;
 
    OptionsParser args(argc, argv);
    args.AddOption(&E_coll_name, "-er", "--e-root-file",
@@ -381,6 +382,8 @@ int main(int argc, char *argv[])
    args.AddOption(&vis_tail_size, "-vt", "--vis-tail-size", "GLVis visualization trajectory tail size. 0 for infinite size.");
    args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.AddOption(&print_csv_freq, "-csv", "--csv-freq", "Frequency of particle CSV outputting. 0 to disable.");
+   args.AddOption(&print_point3d_freq, "-p3d", "--point3d-freq", "Frequency of particle Point3D outputting for VisIt. 0 to disable");
+
 
    args.Parse();
    if (!args.Good())
@@ -541,6 +544,11 @@ int main(int argc, char *argv[])
       {
          std::string file_name = "Lorentz_Particles_" + mfem::to_padded_string(step, 9) + ".csv";
          particles.PrintCSV(file_name.c_str());
+      }
+      if (print_point3d_freq > 0 && step % print_point3d_freq == 0)
+      {
+         std::string file_name = "Lorentz_Particles_" + mfem::to_padded_string(step, 9) + ".txt";
+         particles.PrintPoint3D(file_name.c_str());
       }
    }
 

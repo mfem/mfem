@@ -161,6 +161,8 @@ protected:
       MFEM_ASSERT(success, "Particles with total components above 100 are currently not supported for redistributing. Please submit a PR to request a particular particle size above this.");
    }
 
+
+   
 #endif // MFEM_USE_MPI && MFEM_USE_GSLIB
 
 
@@ -172,7 +174,10 @@ protected:
 
    void PrintHeader(std::ostream &os, bool inc_rank, const char *delimiter);
    void PrintData(std::ostream &os, bool inc_header, const char *delimiter, int *rank=nullptr);
-   void Print(const char* fname, int precision, const char *delimiter);
+
+
+   void WriteToFile(const char* fname, const std::stringstream &ss_header, const std::stringstream &ss_data);
+
 public:
 
    Ordering::Type GetOrdering() const { return ordering; }
@@ -243,12 +248,10 @@ public:
 */
 
    /// Print in VisIt Point3D format
-   void PrintPoint3D(const char* fname, int precision=16)
-   { Print(fname, precision, " "); }
+   void PrintPoint3D(const char* fname, int precision=16);
 
    /// Print to CSV
-   void PrintCSV(const char* fname, int precision=16)
-   { Print(fname, precision, ","); }
+   void PrintCSV(const char* fname, int precision=16);
 
    ~ParticleSet();
 

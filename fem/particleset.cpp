@@ -395,13 +395,19 @@ void ParticleSet::SetParticle(int i, const Particle &p)
 // #endif
 // }
 
-void ParticleSet::PrintHeader(std::ostream &os, bool inc_rank, const char *delimiter)
+
+void ParticleSet::PrintCSV(const char *fname, int precision)
 {
+   std::stringstream ss_header;
+
+   // Configure header:
    std::array<char, 3> ax = {'x', 'y', 'z'};
 
-   os << "id" << delimiter;
-   if (inc_rank)
-      os << "rank" << delimiter;
+   ss_header << "id" << ",";
+
+#if defined(MFEM_USE_MPI) && defined(MFEM_USE_GSLIB)
+   ss_header << "rank" << ",";
+#endif // MFEM_USE_MPI && MFEM_USE_GSLIB
 
    for (int f = 0; f < totalFields; f++)
    {
@@ -409,35 +415,35 @@ void ParticleSet::PrintHeader(std::ostream &os, bool inc_rank, const char *delim
       {
          if (f == 0)
          {
-            os << ax[c];
+            ss_header << ax[c];
          }
          else if (f-1 < meta.NumProps())
          {
-            os << "Property_" << f-1;
+            ss_header << "Property_" << f-1;
          }
          else
          {
-            os << "StateVariable_" << f-1-meta.NumProps() << "_" << c;
+            ss_header << "StateVariable_" << f-1-meta.NumProps() << "_" << c;
          }
-         os << ((f+1 == totalFields && c+1 == fieldVDims[f]) ? "\n" : delimiter);
+         ss_header << ((f+1 == totalFields && c+1 == fieldVDims[f]) ? "\n" : ",");
       }
    }
-}
 
-void ParticleSet::PrintData(std::ostream &os, bool inc_header, const char *delimiter, int *rank)
-{
-   // Write column headers and data
-   if (inc_header)
-   {
-      PrintHeader(os, rank, delimiter);
-   }
 
-   // Write data
+   // Configure data
+   std::stringstream ss_data;
+   ss_data.precision(precision);
+#if defined(MFEM_USE_MPI) && defined(MFEM_USE_GSLIB)
+   int rank; MPI_Comm_rank(comm, &rank);
+#endif // MFEM_USE_MPI && MFEM_USE_GSLIB
    for (int i = 0; i < GetNP(); i++)
    {
-      os << ids[i] << delimiter;
-      if (rank)
-         os << *rank << delimiter;
+      ss_data << ids[i] << ",";
+
+#if defined(MFEM_USE_MPI) && defined(MFEM_USE_GSLIB)
+      ss_data << rank << ",";
+#endif // MFEM_USE_MPI && MFEM_USE_GSLIB
+
       for (int f = 0; f < totalFields; f++)
       {
          for (int c = 0; c < fieldVDims[f]; c++)
@@ -451,14 +457,54 @@ void ParticleSet::PrintData(std::ostream &os, bool inc_header, const char *delim
             {
                dat = data[c + fieldVDims[f]*i + exclScanFieldVDims[f]*GetNP()];
             }
-            os << dat;
-            os << ((f+1 == totalFields && c+1 == fieldVDims[f]) ? "\n" : delimiter);
+            ss_data << dat;
+            ss_data << ((f+1 == totalFields && c+1 == fieldVDims[f]) ? "\n" : ",");
          }
       }
    }
+
+   // Write
+   WriteToFile(fname, ss_header, ss_data);
 }
 
-void ParticleSet::Print(const char* fname, int precision, const char *delimiter)
+void ParticleSet::PrintPoint3D(const char *fname, int precision)
+{
+
+   // Configure header:
+   std::stringstream ss_header;
+   std::array<char, 3> ax = {'x', 'y', 'z'};
+   for (int c = 0; c < fieldVDims[0]; c++)
+   {
+         ss_header << ax[c] << " ";
+   }
+   ss_header << "id\n";
+
+
+   // Configure data
+   std::stringstream ss_data;
+   ss_data.precision(precision);
+   for (int i = 0; i < GetNP(); i++)
+   {
+      for (int c = 0; c < fieldVDims[0]; c++)
+      {
+         real_t dat;
+         if (ordering == Ordering::byNODES)
+         {
+            ss_data << data[i+c*GetNP()] << " ";
+         }
+         else
+         {
+            ss_data << data[c+i*fieldVDims[0]] << " ";
+         }
+      }
+      ss_data << ids[i] << "\n";
+   }
+
+   // Write
+   WriteToFile(fname, ss_header, ss_data);
+}
+
+void ParticleSet::WriteToFile(const char* fname, const std::stringstream &ss_header, const std::stringstream &ss_data)
 {
 
 #if defined(MFEM_USE_MPI) && defined(MFEM_USE_GSLIB)
@@ -468,38 +514,29 @@ void ParticleSet::Print(const char* fname, int precision, const char *delimiter)
    MPI_File file;
    MPI_File_open(comm, fname, MPI_MODE_CREATE | MPI_MODE_WRONLY, MPI_INFO_NULL, &file);
 
-   std::stringstream ss_header;
-   ParticleSet::PrintHeader(ss_header, true, delimiter);
-   std::string header = ss_header.str();
 
    // Print header
    if (rank == 0)
    {
-      MPI_File_write_at(file, 0, header.data(), header.size(), MPI_CHAR, MPI_STATUS_IGNORE);
+      MPI_File_write_at(file, 0, ss_header.str().data(), ss_header.str().size(), MPI_CHAR, MPI_STATUS_IGNORE);
    }
 
-   // Get data for each rank
-   std::stringstream ss;
-   ss.precision(precision);
-   ParticleSet::PrintData(ss, false, delimiter, &rank);
-
-   // Compute the size in bytes
-   std::string s_dat = ss.str();
-   MPI_Offset dat_size = s_dat.size();
+   // Compute the data size in bytes
+   MPI_Offset data_size = ss_data.str().size();
    MPI_Offset offset;
 
    // Compute the offsets using an exclusive scan
-   MPI_Exscan(&dat_size, &offset, 1, MPI_OFFSET, MPI_SUM, comm);
+   MPI_Exscan(&data_size, &offset, 1, MPI_OFFSET, MPI_SUM, comm);
    if (rank == 0)
    {
       offset = 0;
    }
 
    // Add offset from the header
-   offset += header.size();
+   offset += ss_header.str().size();
 
    // Write data collectively
-   MPI_File_write_at_all(file, offset, s_dat.data(), dat_size, MPI_BYTE, MPI_STATUS_IGNORE);
+   MPI_File_write_at_all(file, offset, ss_data.str().data(), data_size, MPI_BYTE, MPI_STATUS_IGNORE);
 
    // Close file
    MPI_File_close(&file);
@@ -507,8 +544,8 @@ void ParticleSet::Print(const char* fname, int precision, const char *delimiter)
 #else
    // Serial:
    std::ofstream ofs(fname);
-   ofs.precision(precision);
-   PrintData(ofs, true, delimiter);
+   ofs << ss_header.str() << ss_data.str();
+   ofs.close();
 
 #endif // MFEM_USE_MPI && MFEM_USE_GSLIB
 
