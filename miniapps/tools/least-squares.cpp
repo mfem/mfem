@@ -96,6 +96,26 @@ void AsymmetricMassIntegrator::AsymmetricElementMatrix(const FiniteElement
    }
 }
 
+// Small least square solver
+// TODO: it could be implemented as a mfem::Solver, as a method...
+real_t _shift = 0.0;
+int _print_level = -1;
+int _max_iter = 100;
+void LSSolver(const DenseMatrix& A, const Vector& b, Vector& x)
+{
+   x.SetSize(A.Width());
+
+   Vector Atb(A.Width());
+   A.MultTranspose(b, Atb);
+
+   TransposeOperator At(&A);
+   ProductOperator AtA(&At, &A, false, false);
+   IdentityOperator I(AtA.Height());
+   SumOperator AtA_reg(&AtA, 1.0, &I, _shift, false, false);
+
+   CG(AtA_reg, Atb, x, _print_level, _max_iter);
+}
+
 int main(int argc, char* argv[])
 {
    Mpi::Init(argc, argv);
@@ -180,10 +200,9 @@ int main(int argc, char* argv[])
        */
 
       // Define small matrix
-      // int fe_avg_e_ndof = fes_averages.GetFE(e_idx)->GetDof();
       int fe_rec_e_ndof = fes_reconstruction.GetFE(e_idx)->GetDof();
 
-      DenseMatrix least_sqrs_e(num_ngh_e, fe_rec_e_ndof);
+      DenseMatrix local_mass_mat(num_ngh_e, fe_rec_e_ndof);
 
       for (int i = 0; i < num_ngh_e; i++)
       {
@@ -202,9 +221,10 @@ int main(int argc, char* argv[])
                                       trial_tr, test_tr, ngh_elem_mat);
 
          // TODO: Extend GetRow API, allow composition
+         // This works as fes_avg is lowest order!
          Vector ngh_vec;
          ngh_elem_mat.GetRow(0, ngh_vec);
-         least_sqrs_e.SetCol(i, ngh_vec);
+         local_mass_mat.SetRow(i, ngh_vec);
 
          /* DEBUG
           * mfem::out << " Sizes: " << ngh_elem_mat.Height() << " x " <<
@@ -217,43 +237,54 @@ int main(int argc, char* argv[])
        * mfem::out << e_idx << "th Element local LS mat" << std::endl;
        * least_sqrs_e.Print();
        */
-      Vector local_rhs;
-      u_averages.GetSubVector(ngh_e, local_rhs);
+      Vector local_u_avg;
+      u_averages.GetSubVector(ngh_e, local_u_avg);
 
-      // TODO: Solve normal equations
+      Vector local_u_rec;
+      LSSolver(local_mass_mat, local_u_avg, local_u_rec);
 
-      // TODO: Embbed solution
+      /* DEBUG
+       * mfem::out << "I solved locally!" << std::endl;
+       * local_u_rec.Print();
+       */
+
+      Array<int> local_dofs;
+      fes_reconstruction.GetElementDofs(e_idx, local_dofs);
+      u_reconstruction.SetSubVector(local_dofs,local_u_rec);
+
       // ENDING LOOP
       ngh_e.DeleteAll();
+      local_dofs.DeleteAll();
    }
 
-   /**
-    *  char vishost[] = "localhost";
-    *  int visport = 19916;
-    *  socketstream glvis_original(vishost, visport);
-    *  socketstream glvis_averages(vishost, visport);
-    *  socketstream glvis_reconstruction(vishost, visport);
-    *  if (glvis_original && glvis_averages && glvis_reconstruction)
-    *  {
-    *     //glvis_original.precision(8);
-    *     glvis_original << "parallel " << mesh.GetNRanks()
-    *                    << " " << mesh.GetMyRank() << "\n"
-    *                    << "solution\n" << mesh << u_original
-    *                    << "window_title 'original'\n" << std::flush;
-    *     MPI_Barrier(mesh.GetComm());
-    *     //glvis_averages.precision(8);
-    *     glvis_averages << "parallel " << mesh.GetNRanks()
-    *                    << " " << mesh.GetMyRank() << "\n"
-    *                    << "solution\n" << mesh << u_averages
-    *                    << "window_title 'averages'\n" << std::flush;
-    *     MPI_Barrier(mesh.GetComm());
-    *     //glvis_reconstruction.precision(8);
-    *     glvis_reconstruction << "parallel " << mesh.GetNRanks()
-    *                          << " " << mesh.GetMyRank() << "\n"
-    *                          << "solution\n" << mesh << u_reconstruction
-    *                          << "window_title 'reconstruction'\n" << std::flush;
-    *  }
-    */
+   mfem::out << "Loop ended: reconstructed u" << std::endl;
+   u_reconstruction.Print();
+
+   char vishost[] = "localhost";
+   int visport = 19916;
+   socketstream glvis_original(vishost, visport);
+   socketstream glvis_averages(vishost, visport);
+   socketstream glvis_reconstruction(vishost, visport);
+   if (glvis_original && glvis_averages && glvis_reconstruction)
+   {
+      //glvis_original.precision(8);
+      glvis_original << "parallel " << mesh.GetNRanks()
+                     << " " << mesh.GetMyRank() << "\n"
+                     << "solution\n" << mesh << u_original
+                     << "window_title 'original'\n" << std::flush;
+      MPI_Barrier(mesh.GetComm());
+      //glvis_averages.precision(8);
+      glvis_averages << "parallel " << mesh.GetNRanks()
+                     << " " << mesh.GetMyRank() << "\n"
+                     << "solution\n" << mesh << u_averages
+                     << "window_title 'averages'\n" << std::flush;
+      MPI_Barrier(mesh.GetComm());
+      //glvis_reconstruction.precision(8);
+      glvis_reconstruction << "parallel " << mesh.GetNRanks()
+                           << " " << mesh.GetMyRank() << "\n"
+                           << "solution\n" << mesh << u_reconstruction
+                           << "window_title 'reconstruction'\n" << std::flush;
+   }
 
    mfem::out << "Survived!" << std::endl;
 
