@@ -264,6 +264,7 @@ private:
    int lo_Ndof; // Number of dofs in LO mesh
 
    Array2D<DenseMatrix*> R; // transfer matrices from LO->HO, per patch/dimension
+   Array2D<Vector*> knots; // LO knotvectors, i.e. the collocation points
    std::vector<Array<int>> ho_p2g; // Patch to global mapping for HO mesh
    std::vector<Array<int>> lo_p2g; // Patch to global mapping for LO mesh
 
@@ -292,6 +293,7 @@ public:
       // Collect R, and kron
       R.SetSize(NP, dim);
       orders.SetSize(NP, dim);
+      knots.SetSize(NP, dim);
       kron.SetSize(NP);
       for (int p = 0; p < NP; p++)
       {
@@ -299,11 +301,15 @@ public:
          Array<const KnotVector*> lo_kvs(dim);
          ho_mesh->NURBSext->GetPatchKnotVectors(p, ho_kvs);
          lo_mesh->NURBSext->GetPatchKnotVectors(p, lo_kvs);
-         Vector u;
          for (int d = 0; d < dim; d++)
          {
             orders(p, d) = ho_kvs[d]->GetOrder();
+            // Collect knots for low-order mesh (collocation points)
+            knots(p, d) = new Vector;
+            Vector &u = *knots(p, d);
             lo_kvs[d]->GetUniqueKnots(u);
+
+            // Collect the transfer matrices
             SparseMatrix X(ho_kvs[d]->GetInterpolationMatrix(u));
             X.Finalize();
             R(p, d) = new DenseMatrix(*X.ToDenseMatrix());
@@ -371,6 +377,57 @@ public:
       }
    }
 
+   // Evaluates an analytic function at the low-order knots
+   void EvaluateFunction(
+      std::function<real_t(const Vector &)> &f,
+      Vector &lo_x) const
+   {
+      lo_x = 0.0;
+      const int dim = ho_mesh->Dimension();
+      Vector x(dim);
+      Array<int> nk(dim);
+
+      for (int p = 0; p < NP; p++)
+      {
+         // patch dimensions
+         for (int d = 0; d < dim; d++)
+         {
+            nk[d] = knots(p, d)->Size();
+         }
+
+         for (int idx = 0; idx < lo_p2g[p].Size(); idx++)
+         {
+            int i = idx % nk[0];
+            int j = (idx / nk[0]) % nk[1];
+            int k = (idx / (nk[0] * nk[1]));
+            int ijk[3] = {i, j, k};
+
+            // patch/cartesian index
+            for (int d = 0; d < dim; d++)
+            {
+               // collocation point
+               x(d) = (*knots(p, d))(ijk[d]);
+            }
+            const int dofidx = lo_p2g[p][idx];
+            lo_x(dofidx) = f(x);
+         }
+      }
+   }
+
+   // Interpolates an analytic function onto the high-order space
+   // using the low-order knots as collocation points.
+   void InterpolateFunction(
+      std::function<real_t(const Vector &)> &f,
+      Vector &ho_x)
+   {
+      // rhs is function evaluations
+      Vector rhs(lo_Ndof);
+      EvaluateFunction(f, rhs);
+
+      // R = X^-1
+      Mult(rhs, ho_x);
+   }
+
 };
 
 class R_A_Rt : public Operator
@@ -434,7 +491,7 @@ public:
 };
 
 // utility
-void Save(const char *filename, const GridFunction &x)
+void Save(const char *filename, GridFunction &x)
 {
    std::ofstream ofs(filename);
    ofs.precision(16);

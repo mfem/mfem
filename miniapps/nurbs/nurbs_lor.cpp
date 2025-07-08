@@ -9,6 +9,25 @@
 using namespace std;
 using namespace mfem;
 
+// Analytic function:
+// Peak at (0.5, 0.5, 0.5)
+real_t f_exact(const Vector & x)
+{
+   const real_t R = 0.4;
+   const real_t nx = 3;
+   const real_t ny = 3;
+   real_t r = 0.0;
+   for (int i = 0; i < x.Size(); ++i)
+   {
+      r += pow(x(i)-0.5, 2);
+   }
+   r = sqrt(r);
+   return exp(-r / R)
+        * pow(sin(nx*x(0) * M_PI), 2)
+        * pow(sin(ny*x(1) * M_PI), 2);
+   // return exp(-r / R)
+   //      * pow(sin((3*x(0)*x(1) - 0.25) * M_PI), 2);
+}
 
 int main(int argc, char *argv[])
 {
@@ -64,31 +83,28 @@ int main(int argc, char *argv[])
    // Create a NURBSInterpolator object
    NURBSInterpolator interpolator(&mesh, &lo_mesh);
 
-   GridFunction ho_x(&fespace);
-   ho_x = 0.0;
-   for (int i = 0; i < fespace.GetTrueVSize(); i++)
-   {
-      // ho_x(i) = 100.0 - (i-10.0)*(i-10.0); // example function
-      ho_x(i) = 1.0 + i;
-   }
-
    // Create a GridFunction on the LO mesh
    FiniteElementCollection* lo_fec = lo_mesh.GetNodes()->OwnFEC();
    FiniteElementSpace lo_fespace = FiniteElementSpace(&lo_mesh, lo_fec, vdim,
                                                       Ordering::byVDIM);
    GridFunction lo_x(&lo_fespace);
-   X->Mult(ho_x, lo_x);
+
+   // Evaluate function at low-order knots
+   std::function<real_t(const Vector&)> f = f_exact;
+   interpolator.EvaluateFunction(f, lo_x);
    cout << "Finished creating low-order grid function." << endl;
+   Save("lo_x.gf", lo_x);
+
+   // Interpolate function onto HO space by solving X * ho_x = lo_x
+   GridFunction ho_x(&fespace);
+   interpolator.InterpolateFunction(f, ho_x);
+   Save("ho_x.gf", ho_x);
 
    // Now compare with the results of NURBSInterpolator
-   GridFunction x_recon(&fespace);
+   // GridFunction x_recon(&fespace);
+   // interpolator.Mult(lo_x, x_recon);
+   // Save("x_recon.gf", x_recon);
 
-   interpolator.Mult(lo_x, x_recon);
-
-   // ----- Write to file -----
-   Save("ho_x.gf", ho_x);
-   Save("lo_x.gf", lo_x);
-   Save("x_recon.gf", x_recon);
 
    return 0;
 }
