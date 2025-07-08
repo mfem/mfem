@@ -25,7 +25,7 @@ MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
 SEQ_MINIAPPS = display-basis load-dc convert-dc get-values lor-transfer \
-	tmop-check-metric tmop-metric-magnitude reconstruction
+	tmop-check-metric tmop-metric-magnitude reconstruction least-squares
 
 PAR_MINIAPPS = nodal-transfer plor-transfer gridfunction-bounds
 
