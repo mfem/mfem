@@ -307,7 +307,7 @@ void ParticleSet::GetParticle(int i, Particle &p) const
             {
                dat = &p.GetStateVar(f-1-meta.NumProps())[c];
             }
-            *dat = data[i*fieldVDims[f]+exclScanFieldVDims[f]*GetNP()];
+            *dat = data[c+i*fieldVDims[f]+exclScanFieldVDims[f]*GetNP()];
          }
       }
    }
