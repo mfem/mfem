@@ -360,6 +360,8 @@ void BatchedLORAssembly::FillJAndData(SparseMatrix &A) const
 
 void BatchedLORAssembly::SparseIJToCSR(OperatorHandle &A) const
 {
+   MFEM_PERF_FUNCTION;
+
    const int nvdof = fes_ho.GetVSize();
 
    // If A contains an existing SparseMatrix, reuse it (and try to reuse its
@@ -417,6 +419,8 @@ static void Assemble_(LOR_KERNEL &kernel, int dim, int sdim, int order)
 template <typename LOR_KERNEL>
 void BatchedLORAssembly::AssemblyKernel(BilinearForm &a)
 {
+   MFEM_PERF_FUNCTION;
+
    LOR_KERNEL kernel(a, fes_ho, X_vert, sparse_ij, sparse_mapping);
 
    const int dim = fes_ho.GetMesh()->Dimension();

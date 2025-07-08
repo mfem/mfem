@@ -39,6 +39,8 @@ void DiffusionIntegrator::AssembleDiagonalPA(Vector &diag)
 // PA Diffusion Apply kernel
 void DiffusionIntegrator::AddMultPA(const Vector &x, Vector &y) const
 {
+   MFEM_PERF_FUNCTION;
+
    if (DeviceCanUseCeed())
    {
       ceedOp->AddMult(x, y);
@@ -88,6 +90,8 @@ void DiffusionIntegrator::AddMultTransposePA(const Vector &x, Vector &y) const
 
 void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
 {
+   MFEM_PERF_FUNCTION;
+
    const MemoryType mt = (pa_mt == MemoryType::DEFAULT) ?
                          Device::GetDeviceMemoryType() : pa_mt;
    // Assuming the same element type
