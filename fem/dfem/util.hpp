@@ -2159,7 +2159,7 @@ template <
    std::size_t... Is>
 std::array<DofToQuadMap, N> create_dtq_maps_impl(
    field_operator_ts &fops,
-   std::vector<const DofToQuad*> dtqs,
+   std::vector<const DofToQuad*> &dtqs,
    const std::array<int, N> &field_map,
    std::index_sequence<Is...>)
 {
@@ -2244,7 +2244,7 @@ template <
    std::size_t num_fields>
 std::array<DofToQuadMap, num_fields> create_dtq_maps(
    field_operator_ts &fops,
-   std::vector<const DofToQuad*> dtqmaps,
+   std::vector<const DofToQuad*> &dtqmaps,
    const std::array<int, num_fields> &to_field_map)
 {
    return create_dtq_maps_impl<entity_t>(
