@@ -151,6 +151,22 @@ Device::Device()
    {
       SetGPUAwareMPI(true);
    }
+
+   if (const char *mfem_perf_sync = GetEnv("MFEM_PERF_SYNC"))
+   {
+      MFEM_PERF_SYNC(std::atoi(mfem_perf_sync));
+      MFEM_CONTRACT_VAR(mfem_perf_sync);
+   }
+   if (const char *mfem_perf_sync_stream = GetEnv("MFEM_PERF_SYNC_STREAM"))
+   {
+      MFEM_PERF_SYNC_STREAM(std::atoi(mfem_perf_sync_stream));
+      MFEM_CONTRACT_VAR(mfem_perf_sync_stream);
+   }
+   if (const char *mfem_perf_sync_mpi = GetEnv("MFEM_PERF_SYNC_MPI"))
+   {
+      MFEM_PERF_SYNC_MPI(std::atoi(mfem_perf_sync_mpi));
+      MFEM_CONTRACT_VAR(mfem_perf_sync_mpi);
+   }
 }
 
 Device::~Device()
