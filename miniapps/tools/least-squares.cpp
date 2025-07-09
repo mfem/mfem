@@ -191,6 +191,12 @@ int main(int argc, char* argv[])
    // Declare mass integrator
    AsymmetricMassIntegrator mass;
 
+   // Compute local volumes
+   ParGridFunction zeros(&fes_averages);
+   ConstantCoefficient ones(1.0);
+   Vector volumes(mesh.GetNE());
+   zeros.ComputeElementL1Errors(ones, volumes);
+
    Array<int> ngh_e;
    for (int e_idx = 0; e_idx < mesh.GetNE(); e_idx++ )
    {
@@ -205,7 +211,6 @@ int main(int argc, char* argv[])
 
       // Define small matrix
       int fe_rec_e_ndof = fes_reconstruction.GetFE(e_idx)->GetDof();
-
       DenseMatrix local_mass_mat(num_ngh_e, fe_rec_e_ndof);
 
       for (int i = 0; i < num_ngh_e; i++)
@@ -225,7 +230,7 @@ int main(int argc, char* argv[])
                                       trial_tr, test_tr, ngh_elem_mat);
 
          // TODO: Extend GetRow API, allow composition
-         // This works as fes_avg is lowest order!
+         // TODO: This works as fes_avg is lowest order!
          Vector ngh_vec;
          ngh_elem_mat.GetRow(0, ngh_vec);
          local_mass_mat.SetRow(i, ngh_vec);
@@ -236,6 +241,11 @@ int main(int argc, char* argv[])
           * ngh_elem_mat.Print();
           */
       }
+
+      // Get local volumes and scale
+      Vector local_volumes(num_ngh_e);
+      volumes.GetSubVector(ngh_e, local_volumes);
+      local_mass_mat.InvLeftScaling(local_volumes);
 
       /* DEBUG
        * mfem::out << e_idx << "th Element local LS mat" << std::endl;
