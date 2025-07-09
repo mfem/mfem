@@ -155,8 +155,8 @@ protected:
    struct pdata_fdpts_t
    {
       double data[N];
-      double rst[3], mfem_rst[3]; // mfem reference coords
-      unsigned int elem, mfem_elem, code; // mfem elem id and code
+      double rst[3], mfem_rst[3]; // gslib ref coords , mfem reference coords
+      unsigned int elem, mfem_elem, code; // gslib elem id, mfem elem id, and code
       unsigned int id, proc;
    };
 
