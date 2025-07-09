@@ -554,87 +554,186 @@ void ParticleSet::WriteToFile(const char* fname, const std::stringstream &ss_hea
 #if defined(MFEM_USE_MPI) && defined(MFEM_USE_GSLIB)
 
 template<std::size_t N>
-void ParticleSet::Transfer(const Array<int> &send_idxs, const Array<int> &send_ranks)
+void ParticleSet::Transfer(const Array<int> &send_idxs, const Array<int> &send_ranks, FindPointsGSLIB *finder)
 {
+   std::variant<pdata_t<N>*, pdata_fdpts_t<N>*> pdata_arr_var;
+
    gslib::array gsl_arr;
-   array_init(pdata_t<N>, &gsl_arr, send_idxs.Size());
-   pdata_t<N> *pdata_arr;
-   pdata_arr = (pdata_t<N>*) gsl_arr.ptr;
+
+   if (finder)
+   {
+      array_init(pdata_fdpts_t<N>, &gsl_arr, send_idxs.Size());
+      pdata_arr_var = (pdata_fdpts_t<N>*) gsl_arr.ptr;
+   }
+   else
+   {
+      array_init(pdata_t<N>, &gsl_arr, send_idxs.Size());
+      pdata_arr_var = (pdata_t<N>*) gsl_arr.ptr;
+   }
+
    gsl_arr.n = send_idxs.Size();
 
+   int rank; MPI_Comm_rank(comm, &rank);
+   int size; MPI_Comm_size(comm, &size);
+      
    // Set the data in pdata_arr
-   for (int i = 0; i < send_idxs.Size(); i++)
+   std::visit(
+   // Either a pdata_t<N>* or pdata_fdpts_t<N>*
+   [&](auto &&pdata_arr)
    {
-      pdata_t<N> &pdata = pdata_arr[i];
+      using T = std::remove_pointer_t<std::decay_t<decltype(pdata_arr)>>; // Get pointee type (pdata_t<N> or pdata_fdpts_t<N>)
+      constexpr bool send_fdpts_data = std::is_same_v<T, pdata_fdpts_t<N>>; // true if using pdata_fdpts_t<N>, false otherwise
 
-      pdata.id = ids[send_idxs[i]];
-      pdata.proc = send_ranks[i];
-
-      // Get copy of particle data
-      // (TODO: skip this step... Copy directly from data to pdata!!)
-      Particle p(meta);
-      GetParticle(send_idxs[i], p);
-
-      // Copy particle data into pdata
-      for (int f = 0; f < totalFields; f++)
+      for (int i = 0; i < send_idxs.Size(); i++)
       {
-         for (int c = 0; c < fieldVDims[f]; c++)
+         T &pdata = pdata_arr[i];
+
+         pdata.id = ids[send_idxs[i]];
+         pdata.proc = send_ranks[i];
+
+         // Get copy of particle data
+         // (TODO: skip this step... Copy directly from data to pdata!!)
+         Particle p(meta);
+         GetParticle(send_idxs[i], p);
+
+         // Copy particle data into pdata
+         for (int f = 0; f < totalFields; f++)
          {
-            double* dat = &pdata.data[c + exclScanFieldVDims[f]];
-            if (f == 0)
+            for (int c = 0; c < fieldVDims[f]; c++)
             {
-               *dat = static_cast<double>(p.GetCoords()[c]);
-            }
-            else if (f-1 < meta.NumProps())
-            {
-               *dat = static_cast<double>(p.GetProperty(f-1));
-            }
-            else
-            {
-               *dat = static_cast<double>(p.GetStateVar(f-1-meta.NumProps())[c]);
+               double* dat = &pdata.data[c + exclScanFieldVDims[f]];
+               if (f == 0)
+               {
+                  *dat = static_cast<double>(p.GetCoords()[c]);
+               }
+               else if (f-1 < meta.NumProps())
+               {
+                  *dat = static_cast<double>(p.GetProperty(f-1));
+               }
+               else
+               {
+                  *dat = static_cast<double>(p.GetStateVar(f-1-meta.NumProps())[c]);
+               }
             }
          }
+
+         // If updating the FindPointsGSLIB object as well, get data from it + set into struct
+         if constexpr (send_fdpts_data)
+         {
+            for (int d = 0; d < meta.SpaceDim(); d++)
+            {
+               pdata.rst[d] = finder->gsl_mfem_ref(send_idxs[i]*meta.SpaceDim()+d); // Stored byVDIM
+            }
+            pdata.elem = finder->gsl_mfem_elem[send_idxs[i]];
+            pdata.code = finder->gsl_code[send_idxs[i]];
+
+            
+         }
+
       }
-   }
+      // Remove particles that will be transferred
+      RemoveParticles(send_idxs);
+      // GetNP() is now updated !!
 
-
-   // Remove particles that will be transferred
-   RemoveParticles(send_idxs);
-
-   // Transfer particles
-   sarray_transfer(pdata_t<N>, &gsl_arr, proc, 1, cr.get());
-
-   // Add received particles to this rank
-   unsigned int recvd = gsl_arr.n;
-   pdata_arr = (pdata_t<N>*) gsl_arr.ptr;
-
-   for (int i = 0; i < recvd; i++)
-   {
-      pdata_t<N> pdata = pdata_arr[i];
-      if constexpr(std::is_same_v<real_t, double>)
+      // Remove the elements to be sent from FindPointsGSLIB data structures
+      // Maintain same ordering as coords post-RemoveParticles
+      if constexpr (send_fdpts_data)
       {
-         // Create a particle, copy data from buffer to it, then add particle
-         // (TODO: Copy directly from received pdata to data!!)
-         Particle p(meta);
+         // TODO: Can probably optimize this better. Right now just copying all non-removed data to temp arr, then setting
+         Array<unsigned int> rm_gsl_mfem_elem(GetNP());
+         Array<unsigned int> rm_gsl_code(GetNP());
+         Array<unsigned int> rm_gsl_proc(GetNP());
 
-         p.GetCoords() = Vector(&pdata.data[0], meta.SpaceDim());
+         Vector rm_gsl_mfem_ref(GetNP()*finder->dim);
 
-         for (int s = 0; s < meta.NumProps(); s++)
-            p.GetProperty(s) = pdata.data[meta.SpaceDim() + s];
+         int idx = 0;
+         for (int i = 0; i < finder->points_cnt; i++) // points_cnt will be representative of the pre-redistribute point cnt on this rank
+         {
+            if (send_idxs.Find(i) == -1) // If particle at last i was NOT removed...
+            {
+               rm_gsl_mfem_elem[idx] = finder->gsl_mfem_elem[i];
+               rm_gsl_code[idx] = finder->gsl_code[i];
+               rm_gsl_proc[idx] = finder->gsl_proc[i];
 
-         for (int v = 0; v < meta.NumStateVars(); v++)
-            p.GetStateVar(v) = Vector(&pdata.data[exclScanFieldVDims[1+meta.NumProps()+v]], meta.StateVDim(v));
+               for (int d = 0; d < finder->dim; d++)
+               {
+                  rm_gsl_mfem_ref[idx*finder->dim+d] = finder->gsl_mfem_ref[i*finder->dim+d];
+               }
+               idx++;
+            }
+         }
 
-         AddParticle(p, pdata.id);
+         finder->gsl_mfem_elem = rm_gsl_mfem_elem;
+         finder->gsl_code = rm_gsl_code;
+         finder->gsl_proc = rm_gsl_proc;
+         finder->gsl_mfem_ref = rm_gsl_mfem_ref;
       }
-      else // need to copy from double to real_t if real_t is not double
+
+      // Transfer particles
+      sarray_transfer(T, &gsl_arr, proc, 1, cr.get());
+
+      // Add received particles to this rank
+      unsigned int recvd = gsl_arr.n;
+      pdata_arr = (T*) gsl_arr.ptr;
+
+      Vector add_gsl_mfem_ref;
+      
+      if constexpr (send_fdpts_data)
       {
-         // TODO
+         add_gsl_mfem_ref.SetSize((recvd+GetNP())*finder->dim);
+         add_gsl_mfem_ref.SetVector(finder->gsl_mfem_ref, 0);
       }
-   }
+
+      for (int i = 0; i < recvd; i++)
+      {
+         T pdata = pdata_arr[i];
+         if constexpr(std::is_same_v<real_t, double>)
+         {
+            // Create a particle, copy data from buffer to it, then add particle
+            // TODO: Optimize by copying directly from received pdata to data!!
+            Particle p(meta);
+
+            p.GetCoords() = Vector(&pdata.data[0], meta.SpaceDim());
+
+            for (int s = 0; s < meta.NumProps(); s++)
+               p.GetProperty(s) = pdata.data[meta.SpaceDim() + s];
+
+            for (int v = 0; v < meta.NumStateVars(); v++)
+               p.GetStateVar(v) = Vector(&pdata.data[exclScanFieldVDims[1+meta.NumProps()+v]], meta.StateVDim(v));
+
+            AddParticle(p, pdata.id);
+         }
+         else // need to copy from double to real_t if real_t is not double
+         {
+            // TODO
+         }
+
+
+         if constexpr (send_fdpts_data)
+         {
+            // Add new particle data 
+            // IMPORTANT: Must make sure that order is correct / matches new Coords. We add received particle data to end so we add to end.
+            finder->gsl_mfem_elem.Append(pdata.elem);
+            finder->gsl_code.Append(pdata.code);
+            finder->gsl_proc.Append(rank); // pdata.proc will provide the proc that sent the data, so we explicitly set rank here
+
+            add_gsl_mfem_ref.SetVector(Vector(pdata.rst, finder->dim), finder->gsl_mfem_ref.Size()+i*finder->dim);
+
+         }
+      }
+
+      if constexpr (send_fdpts_data)
+      {
+         finder->gsl_mfem_ref = add_gsl_mfem_ref;
+
+         // Lastly, update points_cnt
+         finder->points_cnt = GetNP();
+      }
+
+   }, pdata_arr_var);
 }
 
-void ParticleSet::Redistribute(const Array<unsigned int> &rank_list)
+void ParticleSet::Redistribute(const Array<unsigned int> &rank_list, FindPointsGSLIB *finder)
 {
    MFEM_ASSERT(rank_list.Size() == GetNP(), "rank_list.Size() != GetNP()");
 
@@ -643,6 +742,7 @@ void ParticleSet::Redistribute(const Array<unsigned int> &rank_list)
    MPI_Comm_size(comm, &size);
 
    // Get particles to be transferred
+   // (Avoid unnecessary copies of particle data into buffers)
    Array<int> send_idxs;
    Array<int> send_ranks;
    for (int i = 0; i < rank_list.Size(); i++)
@@ -655,7 +755,7 @@ void ParticleSet::Redistribute(const Array<unsigned int> &rank_list)
    }
 
    // Dispatch at runtime to use the correctly-sized static struct for gslib
-   RuntimeDispatchTransfer(send_idxs, send_ranks, std::make_index_sequence<N_MAX+1>{});
+   RuntimeDispatchTransfer(send_idxs, send_ranks, std::make_index_sequence<N_MAX+1>{}, finder);
 
 }
 #endif // MFEM_USE_MPI && MFEM_USE_GSLIB

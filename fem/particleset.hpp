@@ -15,6 +15,7 @@
 #include "../config/config.hpp"
 #include "../linalg/linalg.hpp"
 #include "fespace.hpp"
+#include "gslib.hpp"
 
 #if defined(MFEM_USE_MPI) && defined(MFEM_USE_GSLIB)
 // Forward declare gslib structs to avoid including macro-filled header:
@@ -149,18 +150,29 @@ protected:
       double data[N];
       unsigned int id, proc;
    };
+
+   template<std::size_t N>
+   struct pdata_fdpts_t
+   {
+      double data[N];
+      double rst[3]; // mfem reference coords
+      unsigned int elem, code; // mfem elem id and code
+      unsigned int id, proc;
+   };
+
    static constexpr std::size_t N_MAX = 100;
 
    template<std::size_t N>
-   void Transfer(const Array<int> &send_idxs, const Array<int> &send_ranks);
+   void Transfer(const Array<int> &send_idxs, const Array<int> &send_ranks, FindPointsGSLIB *finder);
 
    template<std::size_t... Ns>
-   void RuntimeDispatchTransfer(const Array<int> &send_idxs, const Array<int> &send_ranks, std::index_sequence<Ns...>)
+   void RuntimeDispatchTransfer(const Array<int> &send_idxs, const Array<int> &send_ranks, std::index_sequence<Ns...>, FindPointsGSLIB *finder)
    {
-      bool success = ( (totalComps == Ns ? (Transfer<Ns>(send_idxs, send_ranks),true) : false) || ...);
+      bool success = ( (totalComps == Ns ? (Transfer<Ns>(send_idxs, send_ranks, finder),true) : false) || ...);
       MFEM_ASSERT(success, "Particles with total components above 100 are currently not supported for redistributing. Please submit a PR to request a particular particle size above this.");
    }
 
+   void Redistribute(const Array<unsigned int> &rank_list, FindPointsGSLIB *finder);
 
    
 #endif // MFEM_USE_MPI && MFEM_USE_GSLIB
@@ -192,7 +204,20 @@ public:
    ParticleSet(MPI_Comm comm_, const ParticleMeta &meta_, Ordering::Type ordering_);
 
    /// Redistribute particles onto ranks specified in \p rank_list .
-   void Redistribute(const Array<unsigned int> &rank_list);
+   void Redistribute(const Array<unsigned int> &rank_list)
+   { Redistribute(rank_list, nullptr); }
+
+   
+   /// Redistribute points AND FindPointsGSLIB internal data in single comms.
+   void Redistribute(FindPointsGSLIB &finder, bool findpts=false)
+   { 
+      if (findpts)
+      {
+         finder.FindPoints(GetAllCoords(), GetOrdering());
+      }
+      
+      Redistribute(finder.GetProc(), &finder);
+   }
 
    MPI_Comm GetComm() const { return comm; };
    

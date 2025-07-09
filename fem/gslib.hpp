@@ -29,6 +29,8 @@ struct gs_data;
 namespace mfem
 {
 
+class ParticleSet;
+
 /** \brief FindPointsGSLIB can robustly evaluate a GridFunction on an arbitrary
  *  collection of points.
  *
@@ -65,6 +67,7 @@ namespace mfem
  */
 class FindPointsGSLIB
 {
+   friend class ParticleSet;
 public:
    enum AvgType {NONE, ARITHMETIC, HARMONIC}; // Average type for L2 functions
 

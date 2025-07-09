@@ -132,13 +132,30 @@ TEST_CASE("Adding + Removing Particles",
 
 #if defined(MFEM_USE_MPI) && defined(MFEM_USE_GSLIB)
 
+template<typename T>
+int CheckArrayEquality(const Array<T> &arr1, const Array<T> &arr2)
+{
+   MFEM_VERIFY(arr1.Size() == arr2.Size(), "arr1 and arr2 are not the same size!");
+
+   int wrong_ct = 0;
+   for (int i = 0; i < arr1.Size(); i++)
+   {
+      if (arr1[i] != arr2[i])
+      {
+         wrong_ct++;
+      }
+   }
+   return wrong_ct;
+}
+
 void TestRedistribute(Ordering::Type ordering)
 {
    int size = Mpi::WorldSize();
    int rank = Mpi::WorldRank();
 
-   Mesh m = Mesh::MakeCartesian3D(N_e, N_e, N_e, Element::Type::QUADRILATERAL);
+   Mesh m = Mesh::MakeCartesian3D(N_e, N_e, N_e, Element::Type::HEXAHEDRON);
    ParMesh pmesh(MPI_COMM_WORLD, m);
+   pmesh.EnsureNodes();
 
    // Generate a master list of all particles ; ID is the index
    ParticleMeta pmeta(SpaceDim, NumProps, StateVDims);
@@ -148,87 +165,128 @@ void TestRedistribute(Ordering::Type ordering)
    {
       all_particles.emplace_back(pmeta);
       InitializeRandom(all_particles.back(), seed);
+      seed++;
    }
 
    SECTION(std::string("Ordering: ") + (ordering == Ordering::byNODES ? "byNODES" : "byVDIM"))
    {
-      // Add the particles properly (based on index being ID) to the particle sets
-      ParticleSet pset(MPI_COMM_WORLD, pmeta, ordering);
-      for (int i = 0; i < N; i++)
+      SECTION("With rank_list")
       {
-         pset.AddParticle(all_particles[i*size+rank]);
-      }
-
-      // Find points
-      FindPointsGSLIB finder(MPI_COMM_WORLD);
-      pmesh.EnsureNodes();
-      finder.Setup(pmesh);
-      finder.FindPoints(pset.GetAllCoords(), pset.GetOrdering());
-
-      // Redistribute
-      pset.Redistribute(finder.GetProc());
-
-      // Find again
-      finder.FindPoints(pset.GetAllCoords(), pset.GetOrdering());
-
-      // Ensure that all points lie on their correct proc
-      const Array<unsigned int> &procs = finder.GetProc();
-      int wrong_proc_count = 0;
-      for (int i = 0; i < procs.Size(); i++)
-      {
-         if (rank != procs[i])
+         // Add the particles uniquely to each rank particleset
+         ParticleSet pset(MPI_COMM_WORLD, pmeta, ordering);
+         for (int i = 0; i < N; i++)
          {
-            wrong_proc_count++;
+            pset.AddParticle(all_particles[i*size+rank]);
          }
-      }
-      REQUIRE(wrong_proc_count == 0);
 
-      // Check that coordinates, scalars, + vectors are all still correct
-      int wrong_coords_count = 0;
-      int wrong_props_count = 0;
-      int wrong_state_count = 0;
-      for (int i = 0; i < pset.GetNP(); i++)
-      {
-         Particle &actual_p = all_particles[pset.GetIDs()[i]];
-         Particle pset_p(pmeta);
-         pset.GetParticle(i, pset_p);
+         // Find points
+         FindPointsGSLIB finder(MPI_COMM_WORLD);
+         finder.Setup(pmesh);
+         finder.FindPoints(pset.GetAllCoords(), pset.GetOrdering());
 
-         
-         for (int d = 0; d < pmeta.SpaceDim(); d++)
+         // Redistribute
+         pset.Redistribute(finder.GetProc());
+
+         // Find again
+         finder.FindPoints(pset.GetAllCoords(), pset.GetOrdering());
+
+         const Array<unsigned int> &procs = finder.GetProc();
+      
+         int wrong_proc_count = 0;
+         for (int i = 0; i < procs.Size(); i++)
          {
-            if (actual_p.GetCoords()[d] != pset_p.GetCoords()[d])
+            if (rank != procs[i])
             {
-               wrong_coords_count++;
-               break;
+               wrong_proc_count++;
             }
          }
+         REQUIRE(wrong_proc_count == 0);
 
-         for (int s = 0; s < pmeta.NumProps(); s++)
+         // Check that coordinates, scalars, + vectors are all still correct
+         int wrong_coords_count = 0;
+         int wrong_props_count = 0;
+         int wrong_state_count = 0;
+         for (int i = 0; i < pset.GetNP(); i++)
          {
-            if (actual_p.GetProperty(s) != actual_p.GetProperty(s))
-            {
-               wrong_props_count++;
-               break;
-            }
-         }
+            Particle &actual_p = all_particles[pset.GetIDs()[i]];
+            Particle pset_p(pmeta);
+            pset.GetParticle(i, pset_p);
 
-         for (int v = 0; v < pmeta.NumStateVars(); v++)
-         {
-            for (int c = 0; c < pmeta.StateVDim(v); c++)
+            
+            for (int d = 0; d < pmeta.SpaceDim(); d++)
             {
-               if (actual_p.GetStateVar(v)[c] != pset_p.GetStateVar(v)[c])
+               if (actual_p.GetCoords()[d] != pset_p.GetCoords()[d])
                {
-                  wrong_state_count++;
-                  v = pmeta.NumStateVars();
+                  wrong_coords_count++;
                   break;
                }
             }
-         }
-      }
 
-      REQUIRE(wrong_coords_count == 0);
-      REQUIRE(wrong_props_count == 0);
-      REQUIRE(wrong_state_count == 0);
+            for (int s = 0; s < pmeta.NumProps(); s++)
+            {
+               if (actual_p.GetProperty(s) != actual_p.GetProperty(s))
+               {
+                  wrong_props_count++;
+                  break;
+               }
+            }
+
+            for (int v = 0; v < pmeta.NumStateVars(); v++)
+            {
+               for (int c = 0; c < pmeta.StateVDim(v); c++)
+               {
+                  if (actual_p.GetStateVar(v)[c] != pset_p.GetStateVar(v)[c])
+                  {
+                     wrong_state_count++;
+                     v = pmeta.NumStateVars();
+                     break;
+                  }
+               }
+            }
+         }
+
+         REQUIRE(wrong_coords_count == 0);
+         REQUIRE(wrong_props_count == 0);
+         REQUIRE(wrong_state_count == 0);
+      }
+      SECTION("With FindPointsGSLIB")
+      {
+         // Add the particles uniquely to each rank particleset
+         ParticleSet pset1(MPI_COMM_WORLD, pmeta, ordering);
+         ParticleSet pset2(MPI_COMM_WORLD, pmeta, ordering);
+         for (int i = 0; i < N; i++)
+         {
+            pset1.AddParticle(all_particles[i*size+rank]);
+            pset2.AddParticle(all_particles[i*size+rank]);
+         }
+
+
+         FindPointsGSLIB finder1(MPI_COMM_WORLD);
+         FindPointsGSLIB finder2(MPI_COMM_WORLD);
+         finder1.Setup(pmesh);
+         finder2.Setup(pmesh);
+         
+         finder1.FindPoints(pset1.GetAllCoords(), pset1.GetOrdering());
+         finder2.FindPoints(pset2.GetAllCoords(), pset2.GetOrdering());
+
+         pset1.Redistribute(finder1); // Redistribute points and FindPointsGSLIB data
+
+         pset2.Redistribute(finder2.GetProc()); // Redistribute points
+         finder2.FindPoints(pset2.GetAllCoords(), pset2.GetOrdering()); // Re-find FindPointsGSLIB data
+
+
+         // // All Code, Elem, Proc, and ReferencePositions in finder1 and finder2 should now be equivalent
+         MPI_Barrier(MPI_COMM_WORLD);
+         int wrong_codes_count = CheckArrayEquality(finder1.GetCode(), finder2.GetCode());
+         int wrong_elems_count = CheckArrayEquality(finder1.GetElem(), finder2.GetElem());
+         int wrong_procs_count = CheckArrayEquality(finder1.GetProc(), finder2.GetProc());
+         bool correct_ref_coords = finder1.GetReferencePosition().DistanceTo(finder2.GetReferencePosition()) == MFEM_Approx(0.0);
+         
+         REQUIRE(wrong_codes_count == 0);
+         REQUIRE(wrong_elems_count == 0);
+         REQUIRE(wrong_procs_count == 0);
+         REQUIRE(correct_ref_coords);
+      }
    }
 }
 
