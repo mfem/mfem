@@ -50,7 +50,7 @@ New and updated examples and miniapps
   operators as smoothers.
   These miniapps can be found in `miniapps/diag-smoothers`.
 
-API changes:
+API changes
 -----------
 - mfem::internal::tensor and mfem::internal::dual have been moved to
   mfem::future::tensor and mfem::future::dual.
@@ -68,6 +68,8 @@ Miscellaneous
 - Added the option to enable GPU-aware MPI in MFEM using the environment
   variable 'MFEM_GPU_AWARE_MPI' set to any value. Setting this environment
   variable is an alternative to calling 'Device::SetGPUAwareMPI(true)'.
+- Added parallel Address Sanitizer, serial and parallel Undefined Behavior
+  Sanitizer and serial Memory Sanitizer GitHub actions tests on Ubuntu.
 - MFEM_PERF_* annotations: added options to enable GPU-stream- and
   MPI-synchronizations at the start and at the end of annotation regions. These
   synchronizations can be enabled or disabled (default) in code via the new
