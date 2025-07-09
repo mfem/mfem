@@ -57,6 +57,8 @@ private:
    std::unique_ptr<IterativeSolverMonitor> monitor;
    int monitor_step{-1};
 
+   mutable BlockVector x, rhs;
+
    class SchurPreconditioner : public Solver
    {
       const DarcyForm *darcy;
@@ -106,6 +108,7 @@ public:
 
    protected:
       DarcyForm &darcy;
+      BlockVector &x;
       const BlockVector &rhs;
       Type type;
       real_t rtol;
@@ -116,7 +119,7 @@ public:
       virtual void ReduceValues(real_t diff[], int num) const { }
 
    public:
-      SolutionController(DarcyForm &darcy, const BlockVector &rhs,
+      SolutionController(DarcyForm &darcy, BlockVector &x, const BlockVector &rhs,
                          Type type, real_t rtol);
 
       void MonitorSolution(int it, real_t norm, const Vector &x,
@@ -134,8 +137,8 @@ public:
       void ReduceValues(real_t diff[], int num) const override;
 
    public:
-      ParSolutionController(ParDarcyForm &pdarcy, const BlockVector &rhs,
-                            Type type, real_t rtol);
+      ParSolutionController(ParDarcyForm &pdarcy, BlockVector &x,
+                            const BlockVector &rhs, Type type, real_t rtol);
 
       void MonitorSolution(int it, real_t norm, const Vector &x,
                            bool final) override;

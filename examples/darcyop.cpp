@@ -219,11 +219,35 @@ void DarcyOperator::SetupLinearSolver(real_t rtol, real_t atol, int iters)
       solver.reset(new GMRESSolver());
    solver_str = "GMRES";
    solver->SetAbsTol(atol);
-   solver->SetRelTol(rtol);
+   solver->SetRelTol((sol_type == SolutionController::Type::Native)?(rtol):(0.));
    solver->SetMaxIter(iters);
    if (prec) { solver->SetPreconditioner(*prec); }
    solver->SetPrintLevel((btime_u || btime_p)?0:1);
    solver->iterative_mode = true;
+
+   if (!monitor)
+   {
+      if (sol_type != SolutionController::Type::Native)
+      {
+#ifdef MFEM_USE_MPI
+         if (pdarcy)
+         {
+            monitor.reset(new ParSolutionController(*pdarcy, x, rhs, sol_type, rtol));
+         }
+         else
+#endif
+            monitor.reset(new SolutionController(*darcy, x, rhs, sol_type, rtol));
+      }
+      else if (monitor_step >= 0)
+      {
+         monitor.reset(new IterativeGLVis(this, monitor_step));
+      }
+
+      if (monitor)
+      {
+         solver->SetMonitor(*monitor);
+      }
+   }
 }
 
 DarcyOperator::DarcyOperator(const Array<int> &ess_flux_tdofs_list_,
@@ -367,8 +391,8 @@ void DarcyOperator::ImplicitSolve(const real_t dt, const Vector &x_v,
 
    //form the linear system
 
-   BlockVector rhs(g->GetData(), darcy->GetOffsets());
-   BlockVector x(dx_v.GetData(), darcy->GetOffsets());
+   rhs.Update(*g, darcy->GetOffsets());
+   x.Update(dx_v, darcy->GetOffsets());
    dx_v = x_v;
 
    //set time
@@ -525,26 +549,7 @@ void DarcyOperator::ImplicitSolve(const real_t dt, const Vector &x_v,
          }
          else
          {
-            SetupLinearSolver(
-               (sol_type == SolutionController::Type::Native)?(rtol):(0.),
-               atol, maxIter);
-
-            if (!monitor)
-            {
-               if (sol_type != SolutionController::Type::Native)
-               {
-                  monitor.reset(new SolutionController(*darcy, rhs, sol_type, rtol));
-               }
-               else if (monitor_step >= 0)
-               {
-                  monitor.reset(new IterativeGLVis(this, monitor_step));
-               }
-
-               if (monitor)
-               {
-                  solver->SetMonitor(*monitor);
-               }
-            }
+            SetupLinearSolver(rtol, atol, maxIter);
          }
 
          solver->SetOperator(*op);
@@ -956,8 +961,9 @@ void DarcyOperator::SchurPreconditioner::ConstructPar(const Vector &x_v) const
 #endif
 
 DarcyOperator::SolutionController::SolutionController(
-   DarcyForm &darcy_, const BlockVector &rhs_, Type type_, real_t rtol_)
-   : darcy(darcy_), rhs(rhs_), type(type_), rtol(rtol_)
+   DarcyForm &darcy_, BlockVector &x_, const BlockVector &rhs_, Type type_,
+   real_t rtol_)
+   : darcy(darcy_), x(x_), rhs(rhs_), type(type_), rtol(rtol_)
 {
    switch (type)
    {
@@ -996,8 +1002,6 @@ void DarcyOperator::SolutionController::MonitorSolution(int it, real_t norm,
 {
    if (type == Type::Native || converged) { return; }
 
-   BlockVector x(darcy.GetOffsets()); x = 0.;
-
    darcy.RecoverFEMSolution(X, rhs, x);
 
    Vector &sol = x.GetBlock((type == Type::Flux)?(0):(1));
@@ -1013,8 +1017,9 @@ void DarcyOperator::SolutionController::MonitorSolution(int it, real_t norm,
 
 #ifdef MFEM_USE_MPI
 DarcyOperator::ParSolutionController::ParSolutionController(
-   ParDarcyForm &pdarcy_, const BlockVector &rhs_, Type type_, real_t rtol_)
-   : SolutionController(pdarcy_, rhs_, type_, rtol_), pdarcy(pdarcy_) { }
+   ParDarcyForm &pdarcy_, BlockVector &x_, const BlockVector &rhs_, Type type_,
+   real_t rtol_)
+   : SolutionController(pdarcy_, x_, rhs_, type_, rtol_), pdarcy(pdarcy_) { }
 
 void DarcyOperator::ParSolutionController::ReduceValues(real_t vals[],
                                                         int num) const
@@ -1026,8 +1031,6 @@ void DarcyOperator::ParSolutionController::MonitorSolution(
    int it, real_t norm, const Vector &X, bool final)
 {
    if (type == Type::Native || converged) { return; }
-
-   BlockVector x(darcy.GetOffsets()); x = 0.;
 
    darcy.RecoverFEMSolution(X, rhs, x);
 
@@ -1064,8 +1067,8 @@ void DarcyOperator::IterativeGLVis::MonitorSolution(int it, real_t norm,
 {
    if (step != 0 && it % step != 0 && !final) { return; }
 
-   BlockVector x(p->darcy->GetOffsets()); x = 0.;
-   BlockVector rhs(p->g->GetData(), p->darcy->GetOffsets());
+   BlockVector &x = p->x;
+   const BlockVector &rhs = p->rhs;
    p->darcy->RecoverFEMSolution(X, rhs, x);
 
    GridFunction q_h(p->darcy->FluxFESpace(), x.GetBlock(0));
