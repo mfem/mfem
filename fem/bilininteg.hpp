@@ -3636,7 +3636,7 @@ public:
 /* Integrator for the Nitsche elasticity form,
  *
  * a(u,v) := - <σ(u) n⃗ ⋅ w, v ⋅ w>
- *           - <σ(v) n⃗ ⋅ w, u ⋅ w>
+ *           + α <σ(v) n⃗ ⋅ w, u ⋅ w>
  *           + κ <h⁻¹ (λ + 2μ) u ⋅ w, v ⋅ w>
  *         = - ∫_Γ (σ(u) n ⋅ w) (v ⋅ w) dS
  *           + α ∫_Γ (σ(v) n ⋅ w) (u ⋅ w) dS
@@ -3660,7 +3660,7 @@ class NitscheElasticityIntegrator : public BilinearFormIntegrator
 public:
    NitscheElasticityIntegrator(Coefficient &lambda_, Coefficient &mu_,
                                real_t alpha_, real_t kappa_)
-      : w(NULL), lambda(&lambda_), mu(&mu_), alpha(alpha_), kappa(kappa_) {}
+      : w(NULL), lambda(&lambda_), mu(&mu_), alpha(alpha_), kappa(kappa_) { }
 
    NitscheElasticityIntegrator(VectorCoefficient *w_, Coefficient &lambda_,
                                Coefficient &mu_, real_t alpha_, real_t kappa_)
