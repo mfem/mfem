@@ -150,11 +150,14 @@ private:
 
    class IterativeGLVis : public IterativeSolverMonitor
    {
-      DarcyOperator *p;
+      DarcyForm &darcy;
+      BlockVector &x;
+      const BlockVector &rhs;
       int step;
       socketstream q_sock, t_sock;
    public:
-      IterativeGLVis(DarcyOperator *p, int step = 0);
+      IterativeGLVis(DarcyForm &darcy, BlockVector &x, const BlockVector &rhs,
+                     int step = 0);
 
       void MonitorSolution(int it, real_t norm, const Vector &x,
                            bool final) override;

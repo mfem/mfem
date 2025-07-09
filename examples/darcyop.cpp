@@ -240,7 +240,7 @@ void DarcyOperator::SetupLinearSolver(real_t rtol, real_t atol, int iters)
       }
       else if (monitor_step >= 0)
       {
-         monitor.reset(new IterativeGLVis(this, monitor_step));
+         monitor.reset(new IterativeGLVis(*darcy, x, rhs, monitor_step));
       }
 
       if (monitor)
@@ -1051,8 +1051,9 @@ void DarcyOperator::ParSolutionController::MonitorSolution(
 }
 #endif //MFEM_USE_MPI
 
-DarcyOperator::IterativeGLVis::IterativeGLVis(DarcyOperator *p_, int step_)
-   : p(p_), step(step_)
+DarcyOperator::IterativeGLVis::IterativeGLVis(
+   DarcyForm &darcy_, BlockVector &x_, const BlockVector &rhs_, int step_)
+   : darcy(darcy_), x(x_), rhs(rhs_), step(step_)
 {
    const char vishost[] = "localhost";
    const int  visport   = 19916;
@@ -1067,12 +1068,10 @@ void DarcyOperator::IterativeGLVis::MonitorSolution(int it, real_t norm,
 {
    if (step != 0 && it % step != 0 && !final) { return; }
 
-   BlockVector &x = p->x;
-   const BlockVector &rhs = p->rhs;
-   p->darcy->RecoverFEMSolution(X, rhs, x);
+   darcy.RecoverFEMSolution(X, rhs, x);
 
-   GridFunction q_h(p->darcy->FluxFESpace(), x.GetBlock(0));
-   GridFunction t_h(p->darcy->PotentialFESpace(), x.GetBlock(1));
+   GridFunction q_h(darcy.FluxFESpace(), x.GetBlock(0));
+   GridFunction t_h(darcy.PotentialFESpace(), x.GetBlock(1));
 
    //heat flux
 
