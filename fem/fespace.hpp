@@ -921,6 +921,10 @@ public:
    { return mesh->GetBdrElementType(i); }
 
    /// Returns ElementTransformation for the @a i-th element.
+   /// @note The returned object is owned by the associated @a Mesh
+   /// and is shared, i.e., calling this function resets pointers
+   /// obtained from previous calls.
+   /// Also, this pointer should @b not be deleted by the caller.
    ElementTransformation *GetElementTransformation(int i) const
    { return mesh->GetElementTransformation(i); }
 
