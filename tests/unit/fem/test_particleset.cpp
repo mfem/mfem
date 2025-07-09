@@ -286,8 +286,10 @@ void TestRedistribute(Ordering::Type ordering)
 
          REQUIRE(wrong_codes_count == 0);
          REQUIRE(wrong_elems_count == 0);
+         REQUIRE(wrong_mfem_elems_count == 0);
          REQUIRE(wrong_procs_count == 0);
          REQUIRE(correct_ref_coords);
+         REQUIRE(correct_mfem_ref_coords);
       }
    }
 }
