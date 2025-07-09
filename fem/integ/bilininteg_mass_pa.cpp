@@ -64,7 +64,7 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
 
    const int NE = ne;
    const int Q1D = quad1D;
-   const int NQ = pow(Q1D, dim);
+   const int NQ = static_cast<int>(std::pow(Q1D, dim));
    const bool const_c = coeff.Size() == 1;
    const bool by_val = map_type == FiniteElement::VALUE;
    const auto W = Reshape(ir->GetWeights().Read(), NQ);
