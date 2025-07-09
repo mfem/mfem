@@ -521,10 +521,6 @@ void DarcyOperator::ImplicitSolve(const real_t dt, const Vector &x_v,
       chrono.Clear();
       chrono.Start();
 
-      constexpr int maxIter(1000);
-      constexpr real_t rtol(1.e-6);
-      constexpr real_t atol(1.e-10);
-
       // We do not want to initialize any new forms here, only obtain
       // the existing ones, so we const cast the DarcyForm
       const DarcyForm *cdarcy = const_cast<const DarcyForm*>(darcy);
@@ -542,21 +538,21 @@ void DarcyOperator::ImplicitSolve(const real_t dt, const Vector &x_v,
          {
             darcy->GetHybridization()->SetLocalNLSolver(
                DarcyHybridization::LSsolveType::Newton,
-               maxIter, rtol * 1e-3, atol, -1);
+               max_iters, rtol * 1e-3, atol, -1);
             lsolver_str = "Newton+GMRES";
 
-            SetupNonlinearSolver(rtol, atol, maxIter);
+            SetupNonlinearSolver(rtol, atol, max_iters);
          }
          else
          {
-            SetupLinearSolver(rtol, atol, maxIter);
+            SetupLinearSolver(rtol, atol, max_iters);
          }
 
          solver->SetOperator(*op);
       }
       else if (darcy->GetReduction()) //reduction
       {
-         SetupLinearSolver(rtol, atol, maxIter);
+         SetupLinearSolver(rtol, atol, max_iters);
 
          solver->SetOperator(*op);
       }
@@ -569,7 +565,7 @@ void DarcyOperator::ImplicitSolve(const real_t dt, const Vector &x_v,
                MFEM_ABORT("Gradient is not implemented with essential DOFs!");
             }
 
-            SetupNonlinearSolver(rtol, atol, maxIter);
+            SetupNonlinearSolver(rtol, atol, max_iters);
          }
          else
          {
@@ -578,7 +574,7 @@ void DarcyOperator::ImplicitSolve(const real_t dt, const Vector &x_v,
                std::cerr << "A linear solver is used for a non-linear problem!" << std::endl;
             }
 
-            SetupLinearSolver(rtol, atol, maxIter);
+            SetupLinearSolver(rtol, atol, max_iters);
          }
          solver->SetOperator(*op);
       }

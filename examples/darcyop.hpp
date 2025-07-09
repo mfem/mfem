@@ -42,6 +42,8 @@ private:
    const Array<Coefficient*> &coeffs;
    SolverType solver_type;
    bool btime_u, btime_p;
+   real_t rtol{1e-6}, atol{1e-10};
+   int max_iters{1000};
 
    FiniteElementSpace *trace_space{};
 
@@ -182,6 +184,9 @@ public:
 #endif
 
    ~DarcyOperator();
+
+   void SetTolerance(real_t rtol_, real_t atol_ = 0.) { rtol = rtol_; atol = atol_; }
+   void SetMaxIters(int iters_) { max_iters = iters_; }
 
    void EnableSolutionConstroller(SolutionController::Type type) { sol_type = type; }
    void EnableIterationsVisualization(int vis_step = 0) { monitor_step = vis_step; }
