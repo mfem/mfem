@@ -311,6 +311,12 @@ int main(int argc, char *argv[])
    lf.ParallelAssemble(f.GetBlock(0));
    lf.ParallelAssemble(f.GetBlock(1)); f.GetBlock(1)=0.0;
 
+   //mass proportional force
+   x.GetBlock(0)=1.0;
+   mmat->Mult(x.GetBlock(0),f.GetBlock(0));
+   x=0.0;
+
+
    std::cout<<"RHS is ready!"<<std::endl;
 
    //cwf.EliminateRHS(x.GetBlock(0), f.GetBlock(0));
@@ -340,9 +346,24 @@ int main(int argc, char *argv[])
 
    std::cout<<"Allocate EVECP"<<std::endl;
 
-   EVECPrec* prec=new EVECPrec(pmesh.GetComm());
-   prec->SetOperators(kmat.get(),mmat.get(),cmat.get(), ae.GetModes(), num_evec, 1.0, freq*freq, 1.0);
+   EVECPrec* prec1=new EVECPrec(pmesh.GetComm());
+   prec1->SetOperators(kmat.get(),mmat.get(),cmat.get(), ae.GetModes(), num_evec, 1.0, freq*freq, 1.0);
 
+
+   MSP1Prec* prec2=new MSP1Prec(pmesh.GetComm());
+   prec2->SetOperators(kmat.get(),mmat.get(),cmat.get(),1.0,freq*freq,1.0);
+   prec2->SetAbsTol(1e-12);
+   prec2->SetRelTol(1e-6);
+   prec2->SetMaxIter(1);
+
+   ForwardOp* prec3=new ForwardOp(pmesh.GetComm());
+   prec3->SetOperators(kmat.get(),mmat.get(),cmat.get(),1.0,freq*freq,1.0);
+
+   ProductSolver* prec4=new ProductSolver(&bop,prec1,prec2,false,false,false);
+
+
+
+   Solver* prec=prec4;
 
    prec->Mult(f,x);
    {
@@ -386,7 +407,10 @@ int main(int argc, char *argv[])
    ls->Mult(f,x);
    delete ls;
 
-   delete prec;
+   delete prec1;
+   delete prec2;
+   delete prec3;
+   delete prec4;
 
    //check the solution
    {

@@ -1028,7 +1028,67 @@ private:
 
 };
 
+class ForwardOp:public IterativeSolver
+{
+public:
+    ForwardOp(MPI_Comm comm_):
+        IterativeSolver(comm_)
+    {
 
+    }
+
+    void SetOperators(Operator* W1_, Operator* W2_, Operator* T_,
+                      real_t a_=1.0, real_t b_=1.0, real_t c_=1.0){
+        a=a_;
+        b=b_;
+        c=c_;
+
+        W1=W1_;
+        W2=W2_;
+        T=T_;
+
+        this->width=2*(W1_->Width());
+        this->height=2*(W1_->Width());
+
+
+        block_true_offsets.SetSize(3);
+        block_true_offsets[0] = 0;
+        block_true_offsets[1] = W1_->Width();
+        block_true_offsets[2] = W1_->Width();
+        block_true_offsets.PartialSum();
+
+    }
+
+    virtual void Mult(const Vector &x, Vector &y) const
+    {
+        BlockVector xl;
+        BlockVector yl;
+        xl.Update(const_cast<Vector&>(x), block_true_offsets);
+        yl.Update(y, block_true_offsets);
+
+        y=0.0;
+
+        W1->AddMult(xl.GetBlock(0),yl.GetBlock(0),a);
+        W2->AddMult(xl.GetBlock(0),yl.GetBlock(0),-b);
+        T->AddMult(xl.GetBlock(1),yl.GetBlock(0),-c);
+
+        T->AddMult(xl.GetBlock(0),yl.GetBlock(1),c);
+        W1->AddMult(xl.GetBlock(1),yl.GetBlock(1),a);
+        W2->AddMult(xl.GetBlock(1),yl.GetBlock(1),-b);
+    }
+
+
+private:
+    real_t a;
+    real_t b;
+    real_t c;
+
+    Operator* W1;
+    Operator* W2;
+    Operator* T;
+
+    mfem::Array<int> block_true_offsets;
+};
 
 class EVECPrec:public IterativeSolver
 {
@@ -1058,6 +1118,7 @@ public:
         a=a_;
         b=b_;
         c=c_;
+
         modes=&modes_;
         num_modes=num_modes_;
         if(0==num_modes){
@@ -1118,6 +1179,7 @@ public:
         if(myrank==0){rop.Print(std::cout,2*num_modes);}
 
         inv.Factor(rop);
+
     }
 
     virtual void Mult(const Vector &x, Vector &y) const
@@ -1169,6 +1231,7 @@ private:
     mutable BlockVector yb;
 
     const std::vector<Vector>* modes;
+
 };
 
 #endif // MTOP_SOLVERS_HPP
