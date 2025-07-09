@@ -125,6 +125,11 @@ public:
         mfem_error("Application::Assemble() is not overridden!");
     }
 
+    virtual void Finalize() {
+        mfem_error("Application::Finalize() is not overridden!");
+    }
+
+
     /**
      * @brief Set the name of the application.
      */
@@ -299,24 +304,27 @@ class CoupledApplication : public Application
 
 public:
 
-    enum class CouplingType
+    enum class Scheme
     {
-        ONE_WAY,    ///< Solve each app sequentially and transfer data to the next
-        PARTITIONED, ///< Solve each app to full convergence
-        MONOLITHIC   ///< Solve all apps together
+        DECOUPLED,           ///< No coupling, solve each app independently
+        MONOLITHIC,          ///< Solve all apps together
+        ADDITIVE_SCHWARZ,    ///< Jacobi-type: solve each app and transfer data to the next after all apps
+        ALTERNATING_SCHWARZ  ///< Gauss-Seidel-type: solve each app and transfer data to the next immediately
     };
 
 protected:
 
     int napps = 0; ///< The number of applications
-    CouplingType coupling_type = CouplingType::ONE_WAY; ///< Current coupling type
+    Scheme scheme = Scheme::ADDITIVE_SCHWARZ; ///< Current coupling type
     
 private:
 
     std::vector<Application*> apps;
-    mfem::Array<int> offsets;
     Solver *solver;
 
+    mfem::Array<int> offsets;
+    Vector xtmp, ktmp;
+    
 public:
 
     /**
@@ -326,6 +334,7 @@ public:
     template<typename... Args>
     CoupledApplication(const int napp, Args... args) : Application(args...) {
         apps.reserve(napp);
+        offsets.Reserve(napp+1);
     }
 
     /**
@@ -333,6 +342,7 @@ public:
      */
     CoupledApplication(const int napp) : Application() {
         apps.reserve(napp);
+        offsets.Reserve(napp+1);
     }
 
     /**
@@ -349,52 +359,89 @@ public:
      */
     template <class AppType>
     Application* AddApplication(AppType *app) {
+
+        // Add operator to list of operators
         if constexpr(std::is_base_of<Application, AppType>::value) {
             apps.push_back(app);
         } else {
             apps.push_back(new AbstractApplication<AppType>(app));
         }
         napps++;
-        return apps.back();
+
+        // Update size of the coupled operator
+        Application* app_ = apps.back();
+
+        offsets.Append( app_->Width());
+        this->width  += app_->Width();
+        this->height += app_->Height();
+
+        return app_;
     }
 
-    Application* GetApplication(const int i) {
-        return apps[i];
-    }
+    Application* GetApplication(const int i) { return apps[i]; }
 
-    virtual void SetCouplingType(CouplingType type) { coupling_type = type; }
-    CouplingType GetCouplingType() const { return coupling_type; }
+    virtual void SetCouplingScheme(Scheme scheme_) { scheme = scheme_; }
+    Scheme GetCouplingScheme() const { return scheme; }
 
-    void SetOffsets(Array<int> off_sets){
+    void SetOffsets(Array<int> off_sets)
+    {
         this->offsets = off_sets;
     }
 
-    void Initialize() {
-        for (auto &app : apps) {
+    void Initialize()
+    {
+        for (auto &app : apps)
+        {
             app->Initialize();
         }
     }
 
-    void Assemble() {
-        for (auto &app : apps) {
+    void Assemble()
+    {
+        for (auto &app : apps)
+        {
             app->Assemble();
         }
     }
 
-    void Finalize() {
-        for (auto &app : apps) {
-            // app->Finalize();
-            this->width  += app->Width();
-            this->height += app->Height();
+    void Finalize(bool do_apps = false)
+    {
+        if (do_apps)
+        {
+            for (auto &app : apps)
+            {
+                app->Finalize();
+            }
         }
+
+        ktmp.SetSize(this->Width());        
+        int max_size = offsets.Max();
+
+        if (scheme == Scheme::MONOLITHIC)
+        {   // Set vector size for the full coupled operator
+            xtmp.SetSize(this->Width());
+        }
+        else if (scheme == Scheme::ADDITIVE_SCHWARZ)
+        {   // Set vector size for the the largest operator
+            xtmp.SetSize(max_size);
+        }
+        else if (scheme == Scheme::ALTERNATING_SCHWARZ)
+        {   // Set vector size for the the largest operator
+            xtmp.SetSize(max_size);            
+        }
+
+        offsets.Prepend(0);
+        offsets.PartialSum(); // Compute block sizes for the coupled operator
     }   
 
     /**
     * @brief Given a vector @a x, solve the problem defined by the application 
     * or miniapp and return the solution in @a y.
     */
-    virtual void Solve(const Vector &x, Vector &y) const{
-        for (auto &app : apps) {
+    virtual void Solve(const Vector &x, Vector &y) const
+    {
+        for (auto &app : apps)
+        {
             app->Solve(x, y);
         }
     }
@@ -403,12 +450,13 @@ public:
      * @brief Apply the operator defined by the application to the vector @a x 
      * and return the result in @a y.
      */
-    virtual void Mult(const Vector &x, Vector &y) const {
-
+    virtual void Mult(const Vector &x, Vector &y) const
+    {
         BlockVector xb(x.GetData(), offsets);
         BlockVector yb(y.GetData(), offsets);
 
-        for (int i=0; i < napps; i++) {
+        for (int i=0; i < napps; i++)
+        {
             apps[i]->Mult(xb.GetBlock(i), yb.GetBlock(i));
         }
     }
@@ -416,15 +464,18 @@ public:
     /**
      * @brief Perform the specified operation for each application to the vector @a x
      */
-    void PerformOperation(const int op, const Vector &x, Vector &y) {
+    void PerformOperation(const int op, const Vector &x, Vector &y)
+    {
         for (auto &app : apps) {
             app->PerformOperation(op, x, y);
         }
     }
 
-    virtual void Transfer(Vector &x) {
+    virtual void Transfer(Vector &x)
+    {
         BlockVector xb(x.GetData(), offsets);
-        for (int i=0; i < napps; i++) {
+        for (int i=0; i < napps; i++)
+        {
             apps[i]->Transfer(xb.GetBlock(i));
         }
     }
@@ -434,20 +485,54 @@ public:
      * the data from the current application is transferred to all others. This coupling
      * is forward and requires the applications to be ordered in the desired sequence.
      */
-    void Step(Vector &x, real_t &t, real_t &dt) override {
-
+    void Step(Vector &x, real_t &t, real_t &dt) override
+    {
         BlockVector xb(x.GetData(), offsets);
 
-        for (int i=0; i < napps; i++) {
-            real_t t0 = t; ///< Store the current time
-            real_t dt0 = dt; ///< Store the current time step
+        if (scheme == Scheme::ADDITIVE_SCHWARZ)
+        {
+            // Step forward all operators
+            // TODO: Add time-interpolation to enable different time step for each operator; 
+            //       currently, all operators are stepped forward with the same time step
+            for (int i=0; i < napps; i++)
+            {
+                real_t t0 = t;   ///< Store the current time
+                real_t dt0 = dt; ///< Store the current time step
 
-            Vector &xi = xb.GetBlock(i);
-            apps[i]->Step(xi,t0,dt0); ///< Advance the time step for application
-            if (coupling_type == CouplingType::ONE_WAY) {
-                apps[i]->Transfer(xi);  ///< Transfer the data to all applications
+                Vector &xi = xb.GetBlock(i);
+                apps[i]->Step(xi,t0,dt0); ///< Advance the time step for application
+            }
+
+            // Transfer the data after all applications have been stepped forward
+            for (int i=0; i < napps; i++)
+            {
+                Vector &xi = xb.GetBlock(i);
+                apps[i]->Transfer(xi);
             }
         }
+        else if (scheme == Scheme::ALTERNATING_SCHWARZ)
+        {
+            for (int i=0; i < napps; i++)
+            {
+                real_t t0 = t;   ///< Store the current time
+                real_t dt0 = dt; ///< Store the current time step
+
+                Vector &xi = xb.GetBlock(i);
+                apps[i]->Step(xi,t0,dt0); ///< Advance the time step for application
+                apps[i]->Transfer(xi);    ///< Transfer the data to all applications
+            }
+        }
+        else if (scheme == Scheme::DECOUPLED)
+        {
+            for (int i=0; i < napps; i++)
+            {
+                real_t t0 = t;   ///< Store the current time
+                real_t dt0 = dt; ///< Store the current time step
+                Vector &xi = xb.GetBlock(i);
+                apps[i]->Step(xi,t0,dt0); ///< Advance the time step for application
+            }
+        }
+
     }
 
     /**
@@ -456,12 +541,25 @@ public:
      */
     void ImplicitSolve(const real_t dt, const Vector &x, Vector &k ){
 
-        if (coupling_type == CouplingType::PARTITIONED) ///< Solve each physics independently
+        if (scheme == Scheme::MONOLITHIC) ///< Solve all physics simultaneously
+        {
+            
+        }
+        else if (scheme != Scheme::DECOUPLED) ///< Solve each physics independently
         {
             PartitionedImplicitSolve(dt,x,k);
         }
-        else{
+        else
+        {
+            BlockVector xb(x.GetData(), offsets);
+            BlockVector kb(k.GetData(), offsets);
 
+            for (int i=0; i < napps; i++)
+            {
+                Vector &xi = xb.GetBlock(i);
+                Vector &ki = kb.GetBlock(i);
+                apps[i]->ImplicitSolve(dt,xi,ki); ///< Solve the implicit system for the application
+            }
         }
     }
 
@@ -473,30 +571,60 @@ public:
         BlockVector xb(x.GetData(), offsets);
         BlockVector kb(k.GetData(), offsets);
 
-        Vector k0(k.Size());
-        real_t err = 10.0;
+        k    = 0.0; ///< Reset the vector for the implicit system
+        ktmp = 0.0; ///< Reset the temporary vector for the implicit system
+        real_t err = 1.0;
         real_t tol = 1e-5;
-        k0 = 0.0;
-        k = 0.0;
+
+
         for (int iter=0; iter < 3; iter++)
         {
-            for (int i=0; i < napps; i++) {
-                xb.GetBlock(i).Add(dt, kb.GetBlock(i)); ///< Compute the stage (x = x0 + dt * k)
-                apps[i]->Transfer(xb.GetBlock(i));  ///< Transfer the data to all applications
-                xb.GetBlock(i).Add(-dt, kb.GetBlock(i)); ///< Reset dudt
-                apps[i]->ImplicitSolve(dt,xb.GetBlock(i), kb.GetBlock(i));
+        
+
+        if (scheme == Scheme::ADDITIVE_SCHWARZ)
+        {
+            for (int i=0; i < napps; i++)
+            {
+                Vector &xi = xb.GetBlock(i);
+                Vector &ki = kb.GetBlock(i);
+                apps[i]->ImplicitSolve(dt,xi,ki); ///< Solve the implicit system for the application
             }
 
-            err = k0.DistanceTo(k);
+            for (int i=0; i < napps; i++)
+            {
+                Vector &xi = xb.GetBlock(i);
+                Vector &ki = kb.GetBlock(i);
+                int isize  = xi.Size();
+
+                xtmp.SetSize(isize);
+                add(1.0,xi,dt,ki,xtmp); ///< Compute the solution (xtmp = 1.0*xi + dt*ki)
+                apps[i]->Transfer(xtmp);  ///< Transfer the data to all applications
+            }
+        }
+        else if (scheme == Scheme::ALTERNATING_SCHWARZ)
+        {
+            for (int i=0; i < napps; i++)
+            {
+                Vector &xi = xb.GetBlock(i);
+                Vector &ki = kb.GetBlock(i);
+                int isize  = xi.Size();
+
+                xtmp.SetSize(isize);
+                add(1.0,xi,dt,ki,xtmp); ///< Compute the solution (xtmp = 1.0*xi + dt*ki)
+                
+                apps[i]->Transfer(xtmp);  ///< Transfer the data to all applications
+                apps[i]->ImplicitSolve(dt,xi,ki); ///< Solve the implicit system for the application
+            }
+        }
+            err = ktmp.DistanceTo(k);
             if( err < tol && iter > 2 )
             {
                 return;
             }
             
-            k0 = k;
+            ktmp = k;
         }
     }
-
 };
 
 }
