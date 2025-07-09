@@ -238,6 +238,183 @@ private:
    const Operator *wrapped_oper;
 };
 
+#if defined(MFEM_USE_MPI) && GINKGO_BUILD_MPI
+// Parallel (distributed) wrappers
+class ParallelOperatorWrapper
+   : public gko::EnableLinOp<ParallelOperatorWrapper>,
+     public gko::experimental::distributed::DistributedBase,
+     public gko::EnableCreateMethod<ParallelOperatorWrapper>
+{
+public:
+   ParallelOperatorWrapper(std::shared_ptr<const gko::Executor> exec,
+                           gko::experimental::mpi::communicator comm,
+                           gko::size_type size = 0,
+                           const Operator *oper = NULL)
+      : gko::EnableLinOp<ParallelOperatorWrapper>(exec, gko::dim<2> {size, size}),
+   gko::experimental::distributed::DistributedBase(comm),
+   gko::EnableCreateMethod<ParallelOperatorWrapper>()
+   {
+      this->wrapped_oper = oper;
+   }
+
+protected:
+   void apply_impl(const gko::LinOp *b, gko::LinOp *x) const override;
+   void apply_impl(const gko::LinOp *alpha, const gko::LinOp *b,
+                   const gko::LinOp *beta, gko::LinOp *x) const override;
+
+private:
+   const Operator *wrapped_oper;
+};
+
+class ParallelVectorWrapper : public
+   gko::experimental::distributed::Vector<real_t>
+{
+public:
+   ParallelVectorWrapper(std::shared_ptr<const gko::Executor> exec,
+                         gko::experimental::mpi::communicator comm,
+                         Ginkgo::VectorWrapper *wrapped_local_mfem_vec,
+                         HYPRE_BigInt global_rows, HYPRE_BigInt global_cols)
+      : gko::experimental::distributed::Vector<real_t>(
+           exec,
+           comm,
+           gko::dim<2>(global_rows, global_cols),
+           gko::make_dense_view(gko::as<gko::matrix::Dense<real_t>>
+                                (wrapped_local_mfem_vec))
+        )
+   {
+      this->local_wrapped_vec = std::unique_ptr<Ginkgo::VectorWrapper>
+                                (wrapped_local_mfem_vec);
+   }
+
+   static std::unique_ptr<ParallelVectorWrapper> create(
+      std::shared_ptr<const gko::Executor> exec,
+      gko::experimental::mpi::communicator comm,
+      Ginkgo::VectorWrapper *wrapped_local_mfem_vec,
+      HYPRE_BigInt global_rows, HYPRE_BigInt global_cols)
+   {
+      return std::unique_ptr<ParallelVectorWrapper>(
+                new ParallelVectorWrapper(exec, comm, wrapped_local_mfem_vec, global_rows,
+                                          global_cols));
+   }
+
+   // Return pointer to local VectorWrapper object
+   Ginkgo::VectorWrapper *get_local_wrapped_vec() { return (this->local_wrapped_vec.get()); }
+
+   // Return pointer to local VectorWrapper object, const version
+   const Ginkgo::VectorWrapper *get_local_wrapped_vec_const() const { return (this->local_wrapped_vec.get()); }
+
+   // Override base Dense class implementation for creating new vectors
+   // with same executor and size as self
+   std::unique_ptr<gko::experimental::distributed::Vector<real_t>>
+                                                                create_with_same_config() const override
+   {
+      mfem::Vector *mfem_vec = new mfem::Vector(
+         this->get_local_vector()->get_size()[0],
+         (this->local_wrapped_vec.get()->get_mfem_vec_const_ref()).GetMemory().GetMemoryType());
+
+      mfem_vec->UseDevice((
+                             this->local_wrapped_vec.get()->get_mfem_vec_const_ref()).UseDevice());
+      Ginkgo::VectorWrapper *gko_local_vec = new Ginkgo::VectorWrapper(
+         this->get_executor(),
+         this->get_local_vector()->get_size()[0],
+         mfem_vec,
+         true);
+
+      auto new_dist_vec =  ParallelVectorWrapper::create(this->get_executor(),
+                                                         this->get_communicator(),
+                                                         gko_local_vec,
+                                                         this->get_size()[0],
+                                                         this->get_size()[1]);
+      return new_dist_vec;
+   }
+
+   // Override base class implementation for creating new vectors
+   // with same executor and type as self, but with a different size.
+   // This function will create "one large VectorWrapper" locally, with
+   // local size size[0] * size[1], since MFEM Vectors only have one dimension.
+   std::unique_ptr<gko::experimental::distributed::Vector<real_t>>
+                                                                create_with_type_of_impl(
+                                                                   std::shared_ptr<const gko::Executor> exec,
+                                                                   const gko::dim<2> &global_size,
+                                                                   const gko::dim<2> &local_size,
+                                                                   gko::size_type stride) const override
+   {
+      // Only stride of 1 is allowed for (Parallel)VectorWrapper type
+      if (stride > 1)
+      {
+         throw gko::Error(
+            __FILE__, __LINE__,
+            "ParallelVectorWrapper cannot be created with stride > 1");
+      }
+      // Compute total size of new MFEM Vector
+      gko::size_type total_local_size = local_size[0]*local_size[1];
+      mfem::Vector *local_mfem_vec = new mfem::Vector(
+         total_local_size,
+         (this->local_wrapped_vec.get()->get_mfem_vec_const_ref()).GetMemory().GetMemoryType());
+      local_mfem_vec->UseDevice(
+         this->local_wrapped_vec.get()->get_mfem_vec_const_ref().UseDevice());
+
+      Ginkgo::VectorWrapper *gko_local_vec = new Ginkgo::VectorWrapper(
+         this->get_executor(),
+         total_local_size,
+         local_mfem_vec,
+         true);
+
+      auto new_dist_vec =  ParallelVectorWrapper::create(this->get_executor(),
+                                                         this->get_communicator(),
+                                                         gko_local_vec,
+                                                         global_size[0],
+                                                         global_size[1]);
+      return new_dist_vec;
+   }
+
+   // Override base Vector class implementation for creating new sub-vectors from
+   // a larger vector.
+   std::unique_ptr<gko::experimental::distributed::Vector<real_t>>
+                                                                create_submatrix_impl(
+                                                                   gko::local_span rows, gko::local_span columns,
+                                                                   gko::dim<2> global_size) override
+   {
+      gko::size_type num_rows = rows.end - rows.begin;
+      gko::size_type num_cols = columns.end - columns.begin;
+      // Data in the Dense matrix will be stored in row-major format.
+      // Check that we only have one column.
+      if (num_cols > 1)
+      {
+         throw gko::BadDimension(
+            __FILE__, __LINE__, __func__, "new_submatrix", num_rows,
+            num_cols,
+            "ParallelVectorWrapper submatrix must have one column");
+      }
+      int data_size = static_cast<int>(num_rows * num_cols);
+      int start = static_cast<int>(rows.begin);
+      // Create a new MFEM Vector pointing to this starting point in the data
+      mfem::Vector *local_mfem_vec = new mfem::Vector();
+      local_mfem_vec->MakeRef(this->local_wrapped_vec.get()->get_mfem_vec_ref(),
+                              start, data_size);
+      local_mfem_vec->UseDevice(
+         this->local_wrapped_vec.get()->get_mfem_vec_const_ref().UseDevice());
+
+      Ginkgo::VectorWrapper *gko_local_vec = new Ginkgo::VectorWrapper(
+         this->get_executor(),
+         data_size,
+         local_mfem_vec,
+         true);
+
+      auto new_dist_vec =  ParallelVectorWrapper::create(this->get_executor(),
+                                                         this->get_communicator(),
+                                                         gko_local_vec,
+                                                         global_size[0],
+                                                         global_size[1]);
+      return new_dist_vec;
+
+   }
+
+private:
+   std::unique_ptr<Ginkgo::VectorWrapper> local_wrapped_vec;
+};
+#endif // check for MPI
+
 // Utility function which gets the scalar value of a Ginkgo gko::matrix::Dense
 // matrix representing the norm of a vector.
 template <typename ValueType=real_t>
@@ -249,10 +426,24 @@ real_t get_norm(const gko::matrix::Dense<ValueType> *norm)
    return cpu_norm->at(0, 0);
 }
 
+#if defined(MFEM_USE_MPI) && GINKGO_BUILD_MPI
+// Utility function which gets the scalar value of a Ginkgo
+// matrix representing the norm of a distributed vector.
+template <typename ValueType=real_t>
+real_t get_norm(const gko::experimental::distributed::Vector<ValueType> *norm)
+{
+   // Put the value on CPU thanks to the master executor
+   auto cpu_norm = clone(norm->get_executor()->get_master(),
+                         norm->get_local_vector());
+   // Return the scalar value contained at position (0, 0)
+   return cpu_norm->at(0, 0);
+}
+#endif
+
 // Utility function which computes the norm of a Ginkgo gko::matrix::Dense
 // vector.
-template <typename ValueType=real_t>
-real_t compute_norm(const gko::matrix::Dense<ValueType> *b)
+template <typename VecType, typename ValueType=real_t>
+real_t compute_norm(const VecType *b)
 {
    // Get the executor of the vector
    auto exec = b->get_executor();
@@ -261,23 +452,203 @@ real_t compute_norm(const gko::matrix::Dense<ValueType> *b)
    // Use the dense `compute_norm2` function to compute the norm.
    b->compute_norm2(b_norm);
    // Use the other utility function to return the norm contained in `b_norm``
-   return std::pow(get_norm(b_norm.get()),2);
+   return std::pow(get_norm<ValueType>(b_norm.get()),2);
 }
 
 /**
- * Custom logger class which intercepts the residual norm scalar and solution
- * vector in order to print a table of real vs recurrent (internal to the
- * solvers) residual norms.
+ * Custom gko::log::Logger base class for logging the final residual norm and
+ * iteration count. This is necessary because some solvers (e.g., IR) will not
+ * have the final residual available if they stop due to reaching maximum
+ * iterations prior to convergance, and the standard Convergence logger will not
+ * respect the use of derived types (VectorWrapper/ParallelVectorWrapper) when
+ * computing the final residual.
  *
- * This has been taken from the custom-logger example of Ginkgo. See the
- * custom-logger example to understand how to write and modify your own loggers
- * with Ginkgo.
+ * This base class should not be used directly; solvers should use
+ * EnableConvergenceLogger, which has vector type as a template parameter,
+ * instead.
  *
  * @ingroup Ginkgo
  */
-template <typename ValueType=real_t>
-struct ResidualLogger : gko::log::Logger
+class ConvergenceLogger : public gko::log::Logger
 {
+
+public:
+   int get_num_iterations() { return num_iterations; }
+
+   real_t get_final_residual_norm() { return final_residual_norm; }
+
+   bool has_converged() { return convergence_status; }
+
+   // Ginkgo 1.5 and older: version for solver that doesn't log implicit res norm
+   void on_iteration_complete(const gko::LinOp *op,
+                              const gko::size_type &iteration,
+                              const gko::LinOp *residual,
+                              const gko::LinOp *solution,
+                              const gko::LinOp *residual_norm) const override
+   {
+      MFEM_ABORT("Error: Ginkgo logging function for v1.5 or older was called");
+   }
+   // Ginkgo 1.5 and older: version with implicit residual norm
+   void on_iteration_complete(const gko::LinOp *op,
+                              const gko::size_type &iteration,
+                              const gko::LinOp *residual,
+                              const gko::LinOp *solution,
+                              const gko::LinOp *residual_norm,
+                              const gko::LinOp *implicit_sq_residual_norm) const override
+   {
+      MFEM_ABORT("Error: Ginkgo logging function for v1.5 or older was called");
+   }
+   // Ginkgo 1.6 and newer
+   void on_iteration_complete(const gko::LinOp *op,
+                              const gko::LinOp *rhs,
+                              const gko::LinOp *solution,
+                              const gko::size_type &iteration,
+                              const gko::LinOp *residual,
+                              const gko::LinOp *residual_norm,
+                              const gko::LinOp *implicit_sq_residual_norm,
+                              const gko::array<gko::stopping_status>* status,
+                              bool stopped) const override
+   {
+      if (stopped)
+      {
+         this->convergence_iteration_complete_core(iteration, residual, solution,
+                                                   residual_norm,
+                                                   implicit_sq_residual_norm, status);
+      }
+   }
+
+   // Construct the logger and store the system matrix and b vectors
+   ConvergenceLogger()
+      :
+      gko::log::Logger(gko::log::Logger::iteration_complete_mask) {}
+
+protected:
+   virtual void convergence_iteration_complete_core(const gko::size_type
+                                                    &iteration,
+                                                    const gko::LinOp *residual,
+                                                    const gko::LinOp *solution,
+                                                    const gko::LinOp *residual_norm,
+                                                    const gko::LinOp *implicit_sq_residual_norm,
+                                                    const gko::array<gko::stopping_status>* status) const = 0;
+
+   // Final number of iterations
+   mutable gko::size_type num_iterations;
+   // Final residual norm
+   mutable real_t final_residual_norm;
+   // Whether or not convergence was achieved
+   mutable bool convergence_status;
+
+};
+
+/**
+ * This class adds ConvergenceLogger functionality that depends on the type of
+ * vector used to initialize the log. This is the version should be used by Ginkgo
+ * solvers.
+ */
+template <typename VecType>
+class EnableConvergenceLogger : public ConvergenceLogger
+{
+public:
+   // Construct the logger and store the system matrix and b vectors
+   EnableConvergenceLogger(std::shared_ptr<const gko::Executor> exec,
+                           const gko::LinOp *matrix, const VecType *b,
+                           bool compute_real_residual=false)
+      :
+      ConvergenceLogger(),
+      matrix {matrix},
+      b{b},
+      compute_real_residual{compute_real_residual} {}
+
+private:
+   // Customize the logging hook which is called when an iteration is
+   // completed (here, only after the solver has stopped).
+   void convergence_iteration_complete_core(const gko::size_type &iteration,
+                                            const gko::LinOp *residual,
+                                            const gko::LinOp *solution,
+                                            const gko::LinOp *residual_norm,
+                                            const gko::LinOp *implicit_sq_residual_norm,
+                                            const gko::array<gko::stopping_status>* status) const override
+   {
+      gko::array<gko::stopping_status> tmp(status->get_executor()->get_master(),
+                                           *status);
+      convergence_status = true;
+      for (int i = 0; i < status->get_size(); i++)
+      {
+         if (!tmp.get_data()[i].has_converged())
+         {
+            convergence_status = false;
+            break;
+         }
+      }
+      num_iterations = iteration;
+      // If the solver shares the current solution vector and we want to
+      // compute the residual from that
+      bool has_residual_or_norm = (residual || residual_norm ||
+                                   implicit_sq_residual_norm);
+      if ((solution && compute_real_residual) || (solution && !has_residual_or_norm))
+      {
+         res = std::move(VecType::create_with_config_of(b).release());
+         // Store the matrix's executor
+         auto exec = matrix->get_executor();
+         // Compute the real residual vector by calling apply on the system
+         // First, compute res = A * x
+         matrix->apply(solution, res);
+         // Now do res = res - b, depending on which vector/oper type
+         auto neg_one = gko::initialize<gko::matrix::Dense<real_t>>({-1.0}, exec);
+         res->add_scaled(neg_one, b);
+         // Compute the norm of the residual vector and store it in residual_norm_
+         final_residual_norm = compute_norm<VecType, real_t>(res);
+      }
+      else
+      {
+         // If the solver shares an implicit or recurrent residual norm, log its value
+         if (implicit_sq_residual_norm)
+         {
+            auto dense_norm = gko::as<gko::matrix::Dense<real_t>>
+                              (implicit_sq_residual_norm);
+            // Add the norm to the `residual_norms` vector
+            final_residual_norm = get_norm<real_t>(dense_norm);
+         }
+         // Otherwise, use the recurrent residual vector
+         else if (residual_norm)
+         {
+            auto dense_norm = gko::as<gko::matrix::Dense<real_t>>(residual_norm);
+            final_residual_norm = get_norm<real_t>(dense_norm);
+         }
+         else if (residual)
+         {
+            // Compute the residual vector's norm and store in final_residual_norm
+            auto dense_residual = gko::as<VecType>(residual);
+            final_residual_norm = compute_norm<VecType, real_t>(dense_residual);
+         }
+      }
+   }
+
+   // Pointer to the system matrix
+   const gko::LinOp *matrix;
+   // Pointer to the right hand sides
+   const VecType *b;
+   // Pointer to the residual workspace vector
+   mutable VecType *res;
+   // Whether or not to compute the residual at every iteration,
+   //  rather than using the recurrent norm
+   const bool compute_real_residual;
+};
+
+/**
+ * Custom logger base class which intercepts the residual norm scalar and
+ * solution vector in order to print a table of real vs recurrent (internal
+ * to the solvers) residual norms.
+ *
+ * This base class should not be used directly; solvers should use
+ * EnableConvergenceLogger, which has vector type as a template parameter,
+ * instead.
+ *
+ * @ingroup Ginkgo
+ */
+class ResidualLogger : public gko::log::Logger
+{
+public:
    // Output the logger's data in a table format
    void write() const
    {
@@ -311,8 +682,6 @@ struct ResidualLogger : gko::log::Logger
                 std::setw(26) << '|' << std::setfill(' ') << std::endl;
    }
 
-   using gko_dense = gko::matrix::Dense<ValueType>;
-
    // Ginkgo 1.5 and older: version for solver that doesn't log implicit res norm
    void on_iteration_complete(const gko::LinOp *op,
                               const gko::size_type &iteration,
@@ -320,8 +689,8 @@ struct ResidualLogger : gko::log::Logger
                               const gko::LinOp *solution,
                               const gko::LinOp *residual_norm) const override
    {
-      iteration_complete_core(iteration, residual, solution, residual_norm,
-                              nullptr);
+      this->iteration_complete_core(iteration, residual, solution, residual_norm,
+                                    nullptr);
    }
    // Ginkgo 1.5 and older: version with implicit residual norm
    void on_iteration_complete(const gko::LinOp *op,
@@ -331,8 +700,8 @@ struct ResidualLogger : gko::log::Logger
                               const gko::LinOp *residual_norm,
                               const gko::LinOp *implicit_sq_residual_norm) const override
    {
-      iteration_complete_core(iteration, residual, solution, residual_norm,
-                              implicit_sq_residual_norm);
+      this->iteration_complete_core(iteration, residual, solution, residual_norm,
+                                    implicit_sq_residual_norm);
    }
    // Ginkgo 1.6 and newer
    void on_iteration_complete(const gko::LinOp *op,
@@ -345,31 +714,57 @@ struct ResidualLogger : gko::log::Logger
                               const gko::array<gko::stopping_status>* status,
                               bool stopped) const override
    {
-      iteration_complete_core(iteration, residual, solution, residual_norm,
-                              implicit_sq_residual_norm);
+      this->iteration_complete_core(iteration, residual, solution, residual_norm,
+                                    implicit_sq_residual_norm);
    }
 
    // Construct the logger and store the system matrix and b vectors
-   ResidualLogger(std::shared_ptr<const gko::Executor> exec,
-                  const gko::LinOp *matrix, const gko_dense *b,
-                  bool compute_real_residual=false)
+   ResidualLogger(bool compute_real_residual)
       :
       gko::log::Logger(gko::log::Logger::iteration_complete_mask),
+      compute_real_residual{compute_real_residual} {}
+
+protected:
+   virtual void iteration_complete_core(const gko::size_type &iteration,
+                                        const gko::LinOp *residual,
+                                        const gko::LinOp *solution,
+                                        const gko::LinOp *residual_norm,
+                                        const gko::LinOp *implicit_sq_residual_norm) const = 0;
+
+   // Vector which stores all the residual norms
+   mutable std::vector<real_t> residual_norms{};
+   // Vector which stores all the iteration numbers
+   mutable std::vector<std::size_t> iterations{};
+   // Whether or not to compute the residual at every iteration,
+   //  rather than using the recurrent norm
+   const bool compute_real_residual;
+};
+
+/**
+ * This class adds ResidualLogger functionality that depends on the type of
+ * vector used to initialize the log. This is the version should be used by Ginkgo
+ * solvers.
+ */
+template <typename VecType>
+class EnableResidualLogger : public ResidualLogger
+{
+public:
+   // Construct the logger and store the system matrix and b vectors
+   EnableResidualLogger(std::shared_ptr<const gko::Executor> exec,
+                        const gko::LinOp *matrix, const VecType *b,
+                        bool compute_real_residual=false)
+      :
+      ResidualLogger(compute_real_residual),
       matrix {matrix},
-      b{b},
-      compute_real_residual{compute_real_residual}
+      b{b}
    {
       if (compute_real_residual == true)
       {
-         if (dynamic_cast<const VectorWrapper*>(b))
-         {
-            const VectorWrapper *b_cast = gko::as<const VectorWrapper>(b);
-            res = std::move(gko_dense::create_with_config_of(b_cast).release());
-         }
-         else
-         {
-            res = std::move(gko::clone(b).release());
-         }
+         res = std::move(VecType::create_with_config_of(b).release());
+      }
+      else
+      {
+         res = NULL;
       }
    }
 
@@ -380,59 +775,53 @@ private:
                                 const gko::LinOp *residual,
                                 const gko::LinOp *solution,
                                 const gko::LinOp *residual_norm,
-                                const gko::LinOp *implicit_sq_residual_norm) const
+                                const gko::LinOp *implicit_sq_residual_norm) const override
    {
       // If the solver shares the current solution vector and we want to
       // compute the residual from that
-      if (solution && compute_real_residual)
+      bool has_residual_or_norm = (residual || residual_norm ||
+                                   implicit_sq_residual_norm);
+      if ((solution && compute_real_residual) || (solution && !has_residual_or_norm))
       {
+         if (res ==
+             NULL) // Need to allocate res vector if compute_real_residual is false
+         {
+            res = std::move(VecType::create_with_config_of(b).release());
+         }
          // Store the matrix's executor
          auto exec = matrix->get_executor();
          // Compute the real residual vector by calling apply on the system
          // First, compute res = A * x
          matrix->apply(solution, res);
          // Now do res = res - b, depending on which vector/oper type
-         // Check if b is a Ginkgo vector or wrapped MFEM Vector
-         if (dynamic_cast<const VectorWrapper*>(b))
-         {
-            const VectorWrapper *b_cast = gko::as<const VectorWrapper>(b);
-            // Copy the MFEM Vector stored in b
-            VectorWrapper *res_cast = gko::as<VectorWrapper>(res);
-            res_cast->get_mfem_vec_ref() -= b_cast->get_mfem_vec_const_ref();
-         }
-         else
-         {
-            // Create a scalar containing the value -1.0
-            auto neg_one = gko::initialize<gko_dense>({-1.0}, exec);
-            res->add_scaled(neg_one, b);
-         }
-
+         auto neg_one = gko::initialize<gko::matrix::Dense<real_t>>({-1.0}, exec);
+         res->add_scaled(neg_one, b);
          // Compute the norm of the residual vector and add it to the
          // `residual_norms` vector
-         residual_norms.push_back(compute_norm(res));
+         residual_norms.push_back(compute_norm<VecType, real_t>(res));
       }
       else
       {
          // If the solver shares an implicit or recurrent residual norm, log its value
          if (implicit_sq_residual_norm)
          {
-            auto dense_norm = gko::as<gko_dense>(implicit_sq_residual_norm);
+            auto dense_norm = gko::as<gko::matrix::Dense<real_t>>
+                              (implicit_sq_residual_norm);
             // Add the norm to the `residual_norms` vector
-            residual_norms.push_back(get_norm(dense_norm));
-            // Otherwise, use the recurrent residual vector
+            residual_norms.push_back(get_norm<real_t>(dense_norm));
          }
+         // Otherwise, use the recurrent residual norm
          else if (residual_norm)
          {
-            auto dense_norm = gko::as<gko_dense>(residual_norm);
+            auto dense_norm = gko::as<gko::matrix::Dense<real_t>>(residual_norm);
             // Add the norm to the `residual_norms` vector
-            residual_norms.push_back(get_norm(dense_norm));
-            // Otherwise, use the recurrent residual vector
+            residual_norms.push_back(get_norm<real_t>(dense_norm));
          }
+         // Compute the residual vector's norm
          else
          {
-            auto dense_residual = gko::as<gko_dense>(residual);
-            // Compute the residual vector's norm
-            auto norm = compute_norm(dense_residual);
+            auto dense_residual = gko::as<VecType>(residual);
+            auto norm = compute_norm<VecType, real_t>(dense_residual);
             // Add the computed norm to the `residual_norms` vector
             residual_norms.push_back(norm);
          }
@@ -444,16 +833,9 @@ private:
    // Pointer to the system matrix
    const gko::LinOp *matrix;
    // Pointer to the right hand sides
-   const gko_dense *b;
+   const VecType *b;
    // Pointer to the residual workspace vector
-   gko_dense *res;
-   // Vector which stores all the residual norms
-   mutable std::vector<ValueType> residual_norms{};
-   // Vector which stores all the iteration numbers
-   mutable std::vector<std::size_t> iterations{};
-   // Whether or not to compute the residual at every iteration,
-   //  rather than using the recurrent norm
-   const bool compute_real_residual;
+   mutable VecType *res;
 };
 
 /**
@@ -562,13 +944,24 @@ public:
    GinkgoPreconditioner(GinkgoExecutor &exec);
 
    /**
+    * Constructor.
+    * This is the parallel version. @p comm is either the MPI Communicator
+    * used by the distributed matrix which will be used to generate the
+    * preconditioner, or the communicator used by MFEM for its own preconditioner
+    * which will be wrapped by Ginkgo (see the MFEMPreconditioner class).
+    */
+#if defined(MFEM_USE_MPI) && GINKGO_BUILD_MPI
+   GinkgoPreconditioner(GinkgoExecutor &exec, MPI_Comm comm);
+#endif
+
+   /**
     * Destructor.
     */
    virtual ~GinkgoPreconditioner() = default;
 
    /**
     * Generate the preconditioner for the given matrix @p op,
-    * which must be of MFEM SparseMatrix type.
+    * which must be of MFEM SparseMatrix or HypreParMatrix type.
     * Calling this function is only required when creating a
     * preconditioner for use with another MFEM solver; to use with
     * a Ginkgo solver, get the LinOpFactory  pointer through @p GetFactory()
@@ -627,6 +1020,13 @@ protected:
     * and more details can be found in Ginkgo's documentation.
     */
    std::shared_ptr<gko::Executor> executor;
+
+#if defined(MFEM_USE_MPI) && GINKGO_BUILD_MPI
+   /**
+    * Pointer to Ginkgo's communicator.
+    */
+   std::shared_ptr<gko::experimental::mpi::communicator> gko_comm;
+#endif
 
    /**
     * Whether or not we have generated a specific preconditioner for
@@ -707,6 +1107,16 @@ protected:
    GinkgoIterativeSolver(GinkgoExecutor &exec,
                          bool use_implicit_res_norm);
 
+#if defined(MFEM_USE_MPI) && GINKGO_BUILD_MPI
+   /**
+    * Version for distributed solvers: takes MPI Communicator as an additional
+    * argument.
+    */
+   GinkgoIterativeSolver(GinkgoExecutor &exec,
+                         MPI_Comm comm,
+                         bool use_implicit_res_norm);
+#endif
+
    bool use_implicit_res_norm;
    int print_level;
    int max_iter;
@@ -730,41 +1140,39 @@ protected:
     * The residual criterion object that controls the reduction of the residual
     * relative to the initial residual.
     */
-   std::shared_ptr<gko::stop::ResidualNorm<>::Factory>
+   std::shared_ptr<gko::stop::ResidualNorm<real_t>::Factory>
    rel_criterion;
 
    /**
     * The residual criterion object that controls the reduction of the residual
     * based on an absolute tolerance.
     */
-   std::shared_ptr<gko::stop::ResidualNorm<>::Factory>
+   std::shared_ptr<gko::stop::ResidualNorm<real_t>::Factory>
    abs_criterion;
 
    /**
     * The implicit residual criterion object that controls the reduction of the residual
     * relative to the initial residual, based on an implicit residual norm value.
     */
-   std::shared_ptr<gko::stop::ImplicitResidualNorm<>::Factory>
+   std::shared_ptr<gko::stop::ImplicitResidualNorm<real_t>::Factory>
    imp_rel_criterion;
 
    /**
     * The implicit residual criterion object that controls the reduction of the residual
     * based on an absolute tolerance, based on an implicit residual norm value.
     */
-   std::shared_ptr<gko::stop::ImplicitResidualNorm<>::Factory>
+   std::shared_ptr<gko::stop::ImplicitResidualNorm<real_t>::Factory>
    imp_abs_criterion;
 
    /**
-    * The Ginkgo convergence logger used to check for convergence and other
-    * solver data if needed.
+    * The convergence logger used to check for convergence.
     */
-   mutable std::shared_ptr<gko::log::Convergence<>> convergence_logger;
+   mutable std::shared_ptr<ConvergenceLogger> convergence_logger;
 
    /**
-    * The residual logger object used to check for convergence and other solver
-    * data if needed.
+    * The residual logger object used to log residual history.
     */
-   mutable std::shared_ptr<ResidualLogger<>> residual_logger;
+   mutable std::shared_ptr<ResidualLogger> residual_logger;
 
    /**
     * The Ginkgo combined factory object is used to create a combined stopping
@@ -778,6 +1186,20 @@ protected:
     * and more details can be found in Ginkgo's documentation.
     */
    std::shared_ptr<gko::Executor> executor;
+
+#if defined(MFEM_USE_MPI) && GINKGO_BUILD_MPI
+   /**
+    * Pointer to Ginkgo's communicator.
+    */
+   std::shared_ptr<gko::experimental::mpi::communicator> gko_comm;
+
+   /**
+    * Whether or not we need to ensure the diagonal matrix is sorted
+    * (only true if using Schwarz preconditioner with L1 smoothing).
+    * This requirement will be removed in a future release of Ginkgo.
+    */
+   bool needs_sorted_diagonal_mat;
+#endif
 
    /**
     * Whether or not we need to use VectorWrapper types with this solver.
@@ -804,6 +1226,11 @@ private:
    void
    initialize_ginkgo_log(gko::matrix::Dense<real_t>* b) const;
 
+#if defined(MFEM_USE_MPI) && GINKGO_BUILD_MPI
+   void
+   initialize_ginkgo_log(ParallelVectorWrapper* b) const;
+#endif
+
    /**
     * Pointer to either a Ginkgo CSR matrix or an OperatorWrapper wrapping
     * an MFEM Operator (for matrix-free evaluation).
@@ -824,6 +1251,12 @@ class EnableGinkgoSolver : public GinkgoIterativeSolver
 public:
    EnableGinkgoSolver(GinkgoExecutor &exec, bool use_implicit_res_norm) :
       GinkgoIterativeSolver(exec, use_implicit_res_norm) {}
+
+#if defined(MFEM_USE_MPI) && GINKGO_BUILD_MPI
+   EnableGinkgoSolver(GinkgoExecutor &exec, MPI_Comm comm,
+                      bool use_implicit_res_norm) :
+      GinkgoIterativeSolver(exec, comm, use_implicit_res_norm) {}
+#endif
 
    void SetRelTol(real_t rtol)
    {
@@ -866,6 +1299,31 @@ public:
          gko::as<SolverType>(solver)->set_stop_criterion_factory(combined_factory);
       }
    }
+
+#if defined(MFEM_USE_MPI) && GINKGO_BUILD_MPI
+protected:
+   // This will be true if we are using a Schwarz preconditioner with L1 smooothing.
+   // (The need for this should be removed in a future Ginkgo release.)
+   bool check_needs_sorted_diagonal_mat()
+   {
+      bool needs_sorted_diag = false;
+      auto current_params = gko::as<typename SolverType::Factory>
+                            (solver_gen)->get_parameters();
+      using schwarz =
+         gko::experimental::distributed::preconditioner::Schwarz<real_t, int, HYPRE_BigInt>;
+      auto schwarz_factory = gko::as<typename schwarz::Factory>
+                             (current_params.preconditioner);
+      if (schwarz_factory != NULL)
+      {
+         auto schwarz_factory_params = schwarz_factory->get_parameters();
+         if (schwarz_factory_params.l1_smoother == true)
+         {
+            needs_sorted_diag = true;
+         }
+      }
+      return needs_sorted_diag;
+   }
+#endif
 };
 
 
@@ -884,6 +1342,16 @@ public:
     */
    CGSolver(GinkgoExecutor &exec);
 
+#if defined(MFEM_USE_MPI) && GINKGO_BUILD_MPI
+   /**
+    * Constructor.
+    *
+    * @param[in] exec The execution paradigm for the solver.
+    * @param[in] comm MPI communicator to use for communication.
+    */
+   CGSolver(GinkgoExecutor &exec, MPI_Comm comm);
+#endif
+
    /**
     * Constructor.
     *
@@ -892,6 +1360,19 @@ public:
     */
    CGSolver(GinkgoExecutor &exec,
             const GinkgoPreconditioner &preconditioner);
+
+#if defined(MFEM_USE_MPI) && GINKGO_BUILD_MPI
+   /**
+    * Constructor.
+    *
+    * @param[in] exec The execution paradigm for the solver.
+    * @param[in] comm MPI communicator to use for communication.
+    * @param[in] preconditioner The preconditioner for the solver.
+    */
+   CGSolver(GinkgoExecutor &exec,
+            MPI_Comm comm,
+            const GinkgoPreconditioner &preconditioner);
+#endif
 };
 
 
@@ -910,6 +1391,16 @@ public:
     */
    BICGSTABSolver(GinkgoExecutor &exec);
 
+#if defined(MFEM_USE_MPI) && GINKGO_BUILD_MPI
+   /**
+    * Constructor.
+    *
+    * @param[in] exec The execution paradigm for the solver.
+    * @param[in] comm MPI communicator to use for communication.
+    */
+   BICGSTABSolver(GinkgoExecutor &exec, MPI_Comm comm);
+#endif
+
    /**
     * Constructor.
     *
@@ -919,6 +1410,17 @@ public:
    BICGSTABSolver(GinkgoExecutor &exec,
                   const GinkgoPreconditioner &preconditioner);
 
+#if defined(MFEM_USE_MPI) && GINKGO_BUILD_MPI
+   /**
+    * Constructor.
+    *
+    * @param[in] exec The execution paradigm for the solver.
+    * @param[in] comm MPI communicator to use for communication.
+    * @param[in] preconditioner The preconditioner for the solver.
+    */
+   BICGSTABSolver(GinkgoExecutor &exec, MPI_Comm comm,
+                  const GinkgoPreconditioner &preconditioner);
+#endif
 };
 
 /**
@@ -939,6 +1441,16 @@ public:
     */
    CGSSolver(GinkgoExecutor &exec);
 
+#if defined(MFEM_USE_MPI) && GINKGO_BUILD_MPI
+   /**
+    * Constructor.
+    *
+    * @param[in] exec The execution paradigm for the solver.
+    * @param[in] comm MPI communicator to use for communication.
+    */
+   CGSSolver(GinkgoExecutor &exec, MPI_Comm comm);
+#endif
+
    /**
     * Constructor.
     *
@@ -947,6 +1459,18 @@ public:
     */
    CGSSolver(GinkgoExecutor &exec,
              const GinkgoPreconditioner &preconditioner);
+
+#if defined(MFEM_USE_MPI) && GINKGO_BUILD_MPI
+   /**
+    * Constructor.
+    *
+    * @param[in] exec The execution paradigm for the solver.
+    * @param[in] comm MPI communicator to use for communication.
+    * @param[in] preconditioner The preconditioner for the solver.
+    */
+   CGSSolver(GinkgoExecutor &exec, MPI_Comm comm,
+             const GinkgoPreconditioner &preconditioner);
+#endif
 };
 
 /**
@@ -975,6 +1499,16 @@ public:
     */
    FCGSolver(GinkgoExecutor &exec);
 
+#if defined(MFEM_USE_MPI) && GINKGO_BUILD_MPI
+   /**
+    * Constructor.
+    *
+    * @param[in] exec The execution paradigm for the solver.
+    * @param[in] comm MPI communicator to use for communication.
+    */
+   FCGSolver(GinkgoExecutor &exec, MPI_Comm comm);
+#endif
+
    /**
     * Constructor.
     *
@@ -983,6 +1517,18 @@ public:
     */
    FCGSolver(GinkgoExecutor &exec,
              const GinkgoPreconditioner &preconditioner);
+
+#if defined(MFEM_USE_MPI) && GINKGO_BUILD_MPI
+   /**
+    * Constructor.
+    *
+    * @param[in] exec The execution paradigm for the solver.
+    * @param[in] comm MPI communicator to use for communication.
+    * @param[in] preconditioner The preconditioner for the solver.
+    */
+   FCGSolver(GinkgoExecutor &exec, MPI_Comm comm,
+             const GinkgoPreconditioner &preconditioner);
+#endif
 };
 
 /**
@@ -1002,6 +1548,18 @@ public:
     */
    GMRESSolver(GinkgoExecutor &exec, int dim = 0);
 
+#if defined(MFEM_USE_MPI) && GINKGO_BUILD_MPI
+   /**
+    * Constructor.
+    *
+    * @param[in] exec The execution paradigm for the solver.
+    * @param[in] comm MPI communicator to use for communication.
+    * @param[in] dim  The Krylov dimension of the solver. Value of 0 will
+    *                  let Ginkgo use its own internal default value.
+    */
+   GMRESSolver(GinkgoExecutor &exec, MPI_Comm comm, int dim = 0);
+#endif
+
    /**
     * Constructor.
     *
@@ -1013,6 +1571,22 @@ public:
    GMRESSolver(GinkgoExecutor &exec,
                const GinkgoPreconditioner &preconditioner,
                int dim = 0);
+
+#if defined(MFEM_USE_MPI) && GINKGO_BUILD_MPI
+   /**
+    * Constructor.
+    *
+    * @param[in] exec The execution paradigm for the solver.
+    * @param[in] comm MPI communicator to use for communication.
+    * @param[in] preconditioner The preconditioner for the solver.
+    * @param[in] dim  The Krylov dimension of the solver. Value of 0 will
+    *                  let Ginkgo use its own internal default value.
+    */
+   GMRESSolver(GinkgoExecutor &exec,
+               MPI_Comm comm,
+               const GinkgoPreconditioner &preconditioner,
+               int dim = 0);
+#endif
 
    /**
     * Change the Krylov dimension of the solver.
@@ -1103,6 +1677,16 @@ public:
     */
    IRSolver(GinkgoExecutor &exec);
 
+#if defined(MFEM_USE_MPI) && GINKGO_BUILD_MPI
+   /**
+    * Constructor.
+    *
+    * @param[in] exec The execution paradigm for the solver.
+    * @param[in] comm MPI communicator to use for communication.
+    */
+   IRSolver(GinkgoExecutor &exec, MPI_Comm comm);
+#endif
+
    /**
     * Constructor.
     *
@@ -1112,6 +1696,18 @@ public:
    IRSolver(GinkgoExecutor &exec,
             const GinkgoIterativeSolver &inner_solver);
 
+#if defined(MFEM_USE_MPI) && GINKGO_BUILD_MPI
+   /**
+    * Constructor.
+    *
+    * @param[in] exec The execution paradigm for the solver.
+    * @param[in] comm MPI communicator to use for communication.
+    * @param[in] inner_solver  The inner solver for the main solver.
+    */
+   IRSolver(GinkgoExecutor &exec,
+            MPI_Comm comm,
+            const GinkgoIterativeSolver &inner_solver);
+#endif
 };
 
 /**
@@ -1294,6 +1890,57 @@ public:
    );
 };
 
+#if defined(MFEM_USE_MPI) && GINKGO_BUILD_MPI
+/**
+ * An implementation of the preconditioner interface using the Ginkgo
+ * Schwarz preconditioner, a simple domain decomposition method for
+ * distributed problems. The local solver should be another
+ * GinkgoPreconditioner or GinkgoIterativeSolver type. Furthermore, the
+ * local solver should be "Ginkgo native", i.e., not an MFEM Solver
+ * wrapped with the MFEMPreconditioner.
+ *
+ * @ingroup Ginkgo
+ */
+class SchwarzPreconditioner : public GinkgoPreconditioner
+{
+public:
+   /**
+    * Constructor.
+    *
+    * @param[in] exec The execution paradigm for the preconditioner.
+    * @param[in] comm The MPI Communicator associated with the problem.
+    * @param[in] local_solver The local solver. Must be derived from
+    *                         GinkgoIterativeSolver or GinkgoPreconditioner.
+    * @param[in] l1_smoother Whether to use L1 smoothing, where the sum of
+    *                        each row is added to the diagonal. Only possible
+    *                        if using an assembled matrix operator and if
+    *                        local_solver does not already have a generated
+    *                        solver/preconditioner for the matrix.
+    * See the Ginkgo documentation for more information on this preconditioner.
+    *
+    */
+   SchwarzPreconditioner(
+      GinkgoExecutor &exec,
+      MPI_Comm comm,
+      Solver &local_solver,
+      const bool l1_smoother = false
+   );
+
+   /**
+    * Generate the preconditioner for the given matrix @p op,
+    * which must be of MFEM HypreParMatrix type.
+    * Calling this function is only required when creating a
+    * preconditioner for use with another MFEM solver; to use with
+    * a Ginkgo solver, get the LinOpFactory  pointer through @p GetFactory()
+    * and pass to the Ginkgo solver constructor.
+    * The SchwarzPreconditioner currently needs its own override because
+    * it potentially requires sorting of the diagonal matrix in the case of L1
+    * smoothing.
+    */
+   void SetOperator(const Operator &op) override;
+};
+#endif
+
 /**
  * A wrapper that allows Ginkgo to use MFEM preconditioners.
  *
@@ -1312,6 +1959,22 @@ public:
       GinkgoExecutor &exec,
       const Solver &mfem_precond
    );
+
+#if defined(MFEM_USE_MPI) && GINKGO_BUILD_MPI
+   /**
+    * Constructor.
+    *
+    * @param[in] exec The execution paradigm for the preconditioner.
+    * @param[in] mfem_precond The MFEM Preconditioner to wrap.
+    * @param[in] comm The MPI Communicator that MFEM will use with this
+    *                 preconditioner.
+    */
+   MFEMPreconditioner(
+      GinkgoExecutor &exec,
+      const Solver &mfem_precond,
+      MPI_Comm comm
+   );
+#endif
 
    /**
     * SetOperator is not allowed for this type of preconditioner;

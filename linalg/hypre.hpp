@@ -654,6 +654,8 @@ public:
    void GetDiag(SparseMatrix &diag) const;
    /// Get the local off-diagonal block. NOTE: 'offd' will not own any data.
    void GetOffd(SparseMatrix &offd, HYPRE_BigInt* &cmap) const;
+   /// Get the global column mapping for the local off-diagonal block.
+   void GetOffdColMap(HYPRE_BigInt* &cmap, HYPRE_Int &num_cols) const;
    /** @brief Get a single SparseMatrix containing all rows from this processor,
        merged from the diagonal and off-diagonal blocks stored by the
        HypreParMatrix. */
@@ -947,6 +949,14 @@ public:
    const Memory<HYPRE_Int> &GetDiagMemoryI() const { return mem_diag.I; }
    const Memory<HYPRE_Int> &GetDiagMemoryJ() const { return mem_diag.J; }
    const Memory<real_t> &GetDiagMemoryData() const { return mem_diag.data; }
+
+   Memory<HYPRE_Int> &GetOffdMemoryI() { return mem_offd.I; }
+   Memory<HYPRE_Int> &GetOffdMemoryJ() { return mem_offd.J; }
+   Memory<real_t> &GetOffdMemoryData() { return mem_offd.data; }
+
+   const Memory<HYPRE_Int> &GetOffdMemoryI() const { return mem_offd.I; }
+   const Memory<HYPRE_Int> &GetOffdMemoryJ() const { return mem_offd.J; }
+   const Memory<real_t> &GetOffdMemoryData() const { return mem_offd.data; }
 
    /// @brief Prints the locally owned rows in parallel. The resulting files can
    /// be read with Read_IJMatrix().

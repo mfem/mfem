@@ -1679,6 +1679,13 @@ void HypreParMatrix::GetOffd(SparseMatrix &offd, HYPRE_BigInt* &cmap) const
    cmap = A->col_map_offd;
 }
 
+void HypreParMatrix::GetOffdColMap(HYPRE_BigInt* &cmap,
+                                   HYPRE_Int &num_cols) const
+{
+   cmap = A->col_map_offd;
+   num_cols = hypre_CSRMatrixNumCols(A->offd);
+}
+
 void HypreParMatrix::MergeDiagAndOffd(SparseMatrix &merged)
 {
    HostRead();

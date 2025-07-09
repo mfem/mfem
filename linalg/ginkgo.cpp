@@ -56,12 +56,14 @@ GinkgoExecutor::GinkgoExecutor(ExecType exec_type)
 #ifdef MFEM_USE_CUDA
             int current_device = 0;
             MFEM_GPU_CHECK(cudaGetDevice(&current_device));
+#ifndef MFEM_USE_MPI
             if (gko_with_omp_support)
             {
                executor = gko::CudaExecutor::create(current_device,
                                                     gko::OmpExecutor::create());
             }
             else
+#endif // with MPI, always use Reference for host Executor
             {
                executor = gko::CudaExecutor::create(current_device,
                                                     gko::ReferenceExecutor::create());
@@ -82,12 +84,14 @@ GinkgoExecutor::GinkgoExecutor(ExecType exec_type)
 #ifdef MFEM_USE_HIP
             int current_device = 0;
             MFEM_GPU_CHECK(hipGetDevice(&current_device));
+#ifndef MFEM_USE_MPI
             if (gko_with_omp_support)
             {
                executor = gko::HipExecutor::create(current_device,
                                                    gko::OmpExecutor::create());
             }
             else
+#endif // with MPI, always use Reference for host Executor
             {
                executor = gko::HipExecutor::create(current_device,
                                                    gko::ReferenceExecutor::create());
@@ -194,12 +198,14 @@ GinkgoExecutor::GinkgoExecutor(Device &mfem_device)
 #ifdef MFEM_USE_CUDA
          int current_device = 0;
          MFEM_GPU_CHECK(cudaGetDevice(&current_device));
+#ifndef MFEM_USE_MPI
          if (gko_with_omp_support)
          {
             executor = gko::CudaExecutor::create(current_device,
                                                  gko::OmpExecutor::create());
          }
          else
+#endif // with MPI, always use Reference for host Executor
          {
             executor = gko::CudaExecutor::create(current_device,
                                                  gko::ReferenceExecutor::create());
@@ -219,12 +225,14 @@ GinkgoExecutor::GinkgoExecutor(Device &mfem_device)
 #ifdef MFEM_USE_HIP
          int current_device = 0;
          MFEM_GPU_CHECK(hipGetDevice(&current_device));
+#ifndef MFEM_USE_MPI
          if (gko_with_omp_support)
          {
             executor = gko::HipExecutor::create(current_device,
                                                 gko::OmpExecutor::create());
          }
          else
+#endif // with MPI, always use Reference for host Executor
          {
             executor = gko::HipExecutor::create(current_device,
                                                 gko::ReferenceExecutor::create());
@@ -342,6 +350,9 @@ GinkgoExecutor::GinkgoExecutor(Device &mfem_device, ExecType host_exec_type)
 GinkgoIterativeSolver::GinkgoIterativeSolver(GinkgoExecutor &exec,
                                              bool use_implicit_res_norm)
    : Solver(),
+#if defined(MFEM_USE_MPI) && GINKGO_BUILD_MPI
+     gko_comm(NULL),
+#endif
      use_implicit_res_norm(use_implicit_res_norm)
 {
    executor = exec.GetExecutor();
@@ -357,10 +368,36 @@ GinkgoIterativeSolver::GinkgoIterativeSolver(GinkgoExecutor &exec,
    sub_op_needs_wrapped_vecs = false;
 }
 
+#if defined(MFEM_USE_MPI) && GINKGO_BUILD_MPI
+GinkgoIterativeSolver::GinkgoIterativeSolver(GinkgoExecutor &exec,
+                                             MPI_Comm comm,
+                                             bool use_implicit_res_norm)
+   : Solver(),
+     use_implicit_res_norm(use_implicit_res_norm),
+     needs_sorted_diagonal_mat(false)
+{
+   executor = exec.GetExecutor();
+   gko_comm = std::shared_ptr<gko::experimental::mpi::communicator>(
+                 new gko::experimental::mpi::communicator(comm));
+   print_level = -1;
+
+   // Build default stopping criterion factory
+   max_iter = 10;
+   rel_tol = 0.0;
+   abs_tol = 0.0;
+   this->update_stop_factory();
+
+   // Distributed solvers always need wrapped vectors
+   needs_wrapped_vecs = true;
+   sub_op_needs_wrapped_vecs = false;
+}
+#endif
+
 void GinkgoIterativeSolver::update_stop_factory()
 {
-   using ResidualCriterionFactory = gko::stop::ResidualNorm<>;
-   using ImplicitResidualCriterionFactory = gko::stop::ImplicitResidualNorm<>;
+   using ResidualCriterionFactory = gko::stop::ResidualNorm<real_t>;
+   using ImplicitResidualCriterionFactory =
+      gko::stop::ImplicitResidualNorm<real_t>;
 
    if (use_implicit_res_norm)
    {
@@ -408,12 +445,34 @@ const
 {
    // Add the logger object. See the different masks available in Ginkgo's
    // documentation
-   convergence_logger = gko::log::Convergence<>::create(
-                           gko::log::Logger::criterion_check_completed_mask);
-   residual_logger = std::make_shared<ResidualLogger<>>(executor,
-                                                        system_oper.get(),b);
+   convergence_logger =
+      std::make_shared<EnableConvergenceLogger<gko::matrix::Dense<real_t>>>
+      (executor,
+       system_oper.get(),b);
+   residual_logger =
+      std::make_shared<EnableResidualLogger<gko::matrix::Dense<real_t>>>
+      (executor,
+       system_oper.get(),b);
 
 }
+
+#if defined(MFEM_USE_MPI) && GINKGO_BUILD_MPI
+void
+GinkgoIterativeSolver::initialize_ginkgo_log(ParallelVectorWrapper* b)
+const
+{
+   // Add the logger object. See the different masks available in Ginkgo's
+   // documentation
+   convergence_logger =
+      std::make_shared<EnableConvergenceLogger<gko::experimental::distributed::Vector<real_t>>>
+      (executor,
+       system_oper.get(),b);
+   residual_logger =
+      std::make_shared<EnableResidualLogger<gko::experimental::distributed::Vector<real_t>>>
+      (executor,
+       system_oper.get(),b);
+}
+#endif
 
 void OperatorWrapper::apply_impl(const gko::LinOp *b, gko::LinOp *x) const
 {
@@ -499,6 +558,97 @@ void OperatorWrapper::apply_impl(const gko::LinOp *alpha,
    mfem_tmp.Destroy();
 }
 
+#if defined(MFEM_USE_MPI) && GINKGO_BUILD_MPI
+void ParallelOperatorWrapper::apply_impl(const gko::LinOp *b,
+                                         gko::LinOp *x) const
+{
+   // Cast local vector to VectorWrapper
+   const mfem::Ginkgo::VectorWrapper *mfem_b =
+      gko::as<const mfem::Ginkgo::VectorWrapper>(
+         (gko::as<const ParallelVectorWrapper>(b))->get_local_wrapped_vec_const());
+   mfem::Ginkgo::VectorWrapper *mfem_x = gko::as< mfem::Ginkgo::VectorWrapper>(
+                                            (gko::as<ParallelVectorWrapper>(x))->get_local_wrapped_vec());
+   this->wrapped_oper->Mult(mfem_b->get_mfem_vec_const_ref(),
+                            mfem_x->get_mfem_vec_ref());
+}
+
+void ParallelOperatorWrapper::apply_impl(const gko::LinOp *alpha,
+                                         const gko::LinOp *b,
+                                         const gko::LinOp *beta,
+                                         gko::LinOp *x) const
+{
+   // x = alpha * op (b) + beta * x
+   // Cast local vector to mfem::Ginkgo::VectorWrapper; only accept this type for this impl
+   const mfem::Ginkgo::VectorWrapper *mfem_b =
+      gko::as<const mfem::Ginkgo::VectorWrapper>(
+         (gko::as<const ParallelVectorWrapper>(b))->get_local_wrapped_vec_const());
+   mfem::Ginkgo::VectorWrapper *mfem_x = gko::as< mfem::Ginkgo::VectorWrapper>(
+                                            (gko::as<ParallelVectorWrapper>(x))->get_local_wrapped_vec());
+
+   // Check that alpha and beta are Dense<double> of size (1,1):
+   if (alpha->get_size()[0] > 1 || alpha->get_size()[1] > 1)
+   {
+      throw gko::BadDimension(
+         __FILE__, __LINE__, __func__, "alpha", alpha->get_size()[0],
+         alpha->get_size()[1],
+         "Expected an object of size [1 x 1] for scaling "
+         " in this operator's apply_impl");
+   }
+   if (beta->get_size()[0] > 1 || beta->get_size()[1] > 1)
+   {
+      throw gko::BadDimension(
+         __FILE__, __LINE__, __func__, "beta", beta->get_size()[0],
+         beta->get_size()[1],
+         "Expected an object of size [1 x 1] for scaling "
+         " in this operator's apply_impl");
+   }
+   double alpha_f;
+   double beta_f;
+   if (alpha->get_executor() == alpha->get_executor()->get_master())
+   {
+      // Access value directly
+      alpha_f = gko::as<gko::matrix::Dense<double>>(alpha)->at(0, 0);
+   }
+   else
+   {
+      // Copy from device to host
+      this->get_executor()->get_master().get()->copy_from(
+         this->get_executor().get(),
+         1, gko::as<gko::matrix::Dense<double>>(alpha)->get_const_values(),
+         &alpha_f);
+   }
+   if (beta->get_executor() == beta->get_executor()->get_master())
+   {
+      // Access value directly
+      beta_f = gko::as<gko::matrix::Dense<double>>(beta)->at(0, 0);
+   }
+   else
+   {
+      // Copy from device to host
+      this->get_executor()->get_master().get()->copy_from(
+         this->get_executor().get(),
+         1, gko::as<gko::matrix::Dense<double>>(beta)->get_const_values(),
+         &beta_f);
+   }
+   // Scale x by beta
+   mfem_x->get_mfem_vec_ref() *= beta_f;
+   // Multiply operator with b and store in tmp
+   mfem::Vector mfem_tmp =
+      mfem::Vector(mfem_x->get_mfem_vec_ref().Size(),
+                   mfem_x->get_mfem_vec_ref().GetMemory().GetMemoryType());
+   // Set UseDevice flag to match mfem_x (not automatically done through
+   //  MemoryType)
+   mfem_tmp.UseDevice(mfem_x->get_mfem_vec_ref().UseDevice());
+
+   // Apply the operator
+   this->wrapped_oper->Mult(mfem_b->get_mfem_vec_const_ref(), mfem_tmp);
+   // Scale tmp by alpha and add
+   mfem_x->get_mfem_vec_ref().Add(alpha_f, mfem_tmp);
+
+   mfem_tmp.Destroy();
+}
+#endif
+
 void
 GinkgoIterativeSolver::Mult(const Vector &x, Vector &y) const
 {
@@ -521,8 +671,8 @@ GinkgoIterativeSolver::Mult(const Vector &x, Vector &y) const
    {
       on_device = true;
    }
-   std::unique_ptr<vec> gko_x;
-   std::unique_ptr<vec> gko_y;
+   std::unique_ptr<gko::LinOp> gko_x;
+   std::unique_ptr<gko::LinOp> gko_y;
 
    // If we do not have an OperatorWrapper for the system operator or
    // preconditioner, or have an inner solver using VectorWrappers (as
@@ -537,96 +687,166 @@ GinkgoIterativeSolver::Mult(const Vector &x, Vector &y) const
                           gko_array<real_t>::view(executor,
                                                   y.Size(),
                                                   y.ReadWrite(on_device)), 1);
+      initialize_ginkgo_log(gko::as<vec>(gko_x.get()));
    }
-   else // We have at least one wrapped MFEM operator; need wrapped vectors
+   else // We have at least one wrapped MFEM operator or a distributed matrix; need wrapped vectors
    {
-      gko_x = std::unique_ptr<vec>(
-                 new VectorWrapper(executor, x.Size(),
-                                   const_cast<Vector *>(&x), false));
-      gko_y = std::unique_ptr<vec>(
-                 new VectorWrapper(executor, y.Size(), &y,
-                                   false));
+#if defined(MFEM_USE_MPI) && GINKGO_BUILD_MPI
+      if (gko_comm)
+      {
+         using par_vec = gko::experimental::distributed::Vector<real_t>;
+         auto local_gko_x = new VectorWrapper(executor, x.Size(),
+                                              const_cast<Vector *>(&x), false);
+         auto local_gko_y = new VectorWrapper(executor, y.Size(), &y,
+                                              false);
+         gko_x = std::unique_ptr<ParallelVectorWrapper>(
+                    new ParallelVectorWrapper(executor, *(gko_comm.get()),
+                                              local_gko_x,
+                                              system_oper->get_size()[0], 1));
+         gko_y = std::unique_ptr<ParallelVectorWrapper>(
+                    new ParallelVectorWrapper(executor, *(gko_comm.get()),
+                                              local_gko_y,
+                                              system_oper->get_size()[0], 1));
+         // Create the logger object to log some data from the solvers to confirm
+         // convergence.
+         initialize_ginkgo_log(gko::as<ParallelVectorWrapper>(gko_x.get()));
+      }
+      else
+#endif
+      {
+         gko_x = std::unique_ptr<vec>(
+                    new VectorWrapper(executor, x.Size(),
+                                      const_cast<Vector *>(&x), false));
+         gko_y = std::unique_ptr<vec>(
+                    new VectorWrapper(executor, y.Size(), &y,
+                                      false));
+         initialize_ginkgo_log(gko::as<vec>(gko_x.get()));
+      }
    }
 
-   // Create the logger object to log some data from the solvers to confirm
-   // convergence.
-   initialize_ginkgo_log(gko_x.get());
-
+   solver->clear_loggers(); // Clear any loggers from previous Mult() calls
    MFEM_VERIFY(convergence_logger, "convergence logger not initialized" );
+   solver->add_logger(convergence_logger);
+
    if (print_level==1)
    {
       MFEM_VERIFY(residual_logger, "residual logger not initialized" );
-      solver->clear_loggers(); // Clear any loggers from previous Mult() calls
       solver->add_logger(residual_logger);
    }
-
-   // Add the convergence logger object to the combined factory to retrieve the
-   // solver and other data
-   combined_factory->clear_loggers();
-   combined_factory->add_logger(convergence_logger);
 
    // Finally, apply the solver to x and get the solution in y.
    solver->apply(gko_x, gko_y);
 
-   // Get the number of iterations taken to converge to the solution.
-   final_iter = convergence_logger->get_num_iterations();
-
-   // Some residual norm and convergence print outs.
+   // Get the final stats for the solver.
    real_t final_res_norm = 0.0;
-
-   // The convergence_logger object contains the residual vector after the
-   // solver has returned. use this vector to compute the residual norm of the
-   // solution. Get the residual norm from the logger. As the convergence logger
-   // returns a `linop`, it is necessary to convert it to a Dense matrix.
-   // Additionally, if the logger is logging on the gpu, it is necessary to copy
-   // the data to the host and hence the `residual_norm_d_master`
-   auto residual_norm = convergence_logger->get_residual_norm();
-   auto imp_residual_norm = convergence_logger->get_implicit_sq_resnorm();
-
-   if (use_implicit_res_norm)
-   {
-      auto imp_residual_norm_d =
-         gko::as<gko::matrix::Dense<real_t>>(imp_residual_norm);
-      auto imp_residual_norm_d_master =
-         gko::matrix::Dense<real_t>::create(executor->get_master(),
-                                            gko::dim<2> {1, 1});
-      imp_residual_norm_d_master->copy_from(imp_residual_norm_d);
-
-      final_res_norm = imp_residual_norm_d_master->at(0,0);
-   }
-   else
-   {
-      auto residual_norm_d =
-         gko::as<gko::matrix::Dense<real_t>>(residual_norm);
-      auto residual_norm_d_master =
-         gko::matrix::Dense<real_t>::create(executor->get_master(),
-                                            gko::dim<2> {1, 1});
-      residual_norm_d_master->copy_from(residual_norm_d);
-
-      final_res_norm = residual_norm_d_master->at(0,0);
-   }
-
    converged = 0;
+   final_iter = convergence_logger->get_num_iterations();
+   final_res_norm = convergence_logger->get_final_residual_norm();
    if (convergence_logger->has_converged())
    {
       converged = 1;
    }
 
-   if (print_level == 1)
+#if defined(MFEM_USE_MPI) && GINKGO_BUILD_MPI
+   if ((gko_comm && (gko_comm->rank() == 0)) || !gko_comm)
    {
-      residual_logger->write();
+#endif
+      if (print_level == 1)
+      {
+         residual_logger->write();
+      }
+      if (converged == 0)
+      {
+         mfem::err << "No convergence!" << '\n';
+      }
+      if (print_level >=2 && converged==1 )
+      {
+         mfem::out << "Converged in " << final_iter <<
+                   " iterations with final residual norm "
+                   << final_res_norm << '\n';
+      }
+#if defined(MFEM_USE_MPI) && GINKGO_BUILD_MPI
    }
-   if (converged == 0)
-   {
-      mfem::err << "No convergence!" << '\n';
-   }
-   if (print_level >=2 && converged==1 )
-   {
-      mfem::out << "Converged in " << final_iter <<
-                " iterations with final residual norm "
-                << final_res_norm << '\n';
-   }
+#endif
 }
+
+#if defined(MFEM_USE_MPI) && GINKGO_BUILD_MPI
+std::unique_ptr<gko::experimental::distributed::Matrix<real_t, HYPRE_Int, HYPRE_BigInt>>
+      GinkgoWrapHypreParMatrix(HypreParMatrix *par_mat,
+                               std::shared_ptr<gko::Executor> executor,
+                               std::shared_ptr<gko::experimental::mpi::communicator> gko_comm, bool sort_diag)
+{
+   // Needs to be a square matrix
+   MFEM_VERIFY(par_mat->Height() == par_mat->Width(),
+               "System matrix is not square");
+
+   MemoryClass mc = MemoryClass::HOST;
+   if (executor != executor->get_master())
+   {
+      mc = MemoryClass::DEVICE;
+   }
+
+   using local_mtx = gko::matrix::Csr<real_t, HYPRE_Int>;
+   using global_mtx =
+      gko::experimental::distributed::Matrix<real_t, HYPRE_Int, HYPRE_BigInt>;
+   using gko_partition =
+      gko::experimental::distributed::Partition<HYPRE_Int, HYPRE_BigInt>;
+   using idx_map =
+      gko::experimental::distributed::index_map<HYPRE_Int, HYPRE_BigInt>;
+   // Create Ginkgo column partition from Hypre col_starts information
+   // Collect the col_starts on every rank, via host memory
+   auto mpi_exec = executor->get_master();
+   gko::array<HYPRE_BigInt> col_ranges(mpi_exec, gko_comm->size() + 1);
+   col_ranges.fill(gko::zero<HYPRE_BigInt>());
+   // Gather the "ends" of the ranges such that col_ranges[i] contains the starting index for the
+   // ith part of the partition
+   gko_comm->all_gather(mpi_exec, par_mat->GetColStarts() + 1, 1,
+                        col_ranges.get_data() + 1, 1);
+   // Move to device, if necessary
+   col_ranges.set_executor(executor);
+   auto col_part = gko::share(gko_partition::build_from_contiguous(executor,
+                                                                   col_ranges, {}));
+
+   // Create Ginkgo off-process index mapping from Hypre's col_map_offd
+   HYPRE_Int num_offd_cols;
+   HYPRE_BigInt *cmap;
+   par_mat->GetOffdColMap(cmap, num_offd_cols);
+   gko_array<HYPRE_BigInt> recv_indices = gko_array<HYPRE_BigInt>::view(mpi_exec,
+                                                                        num_offd_cols, cmap);
+   // Move to device, if necessary
+   recv_indices.set_executor(executor);
+   idx_map imap(executor, col_part, gko_comm->rank(), recv_indices);
+
+   // Create local diag and off-diag matrices that share memory with the HypreParMat
+   HYPRE_Int local_diag_nnz = par_mat->GetDiagMemoryData().Capacity();
+   std::shared_ptr<local_mtx> diag_mat = local_mtx::create(
+                                            executor, gko::dim<2>(par_mat->GetNumRows(), par_mat->GetNumCols()),
+                                            gko_array<real_t>::view(executor, local_diag_nnz,
+                                                                    par_mat->GetDiagMemoryData().ReadWrite(mc, local_diag_nnz)),
+                                            gko_array<HYPRE_Int>::view(executor, local_diag_nnz,
+                                                                       par_mat->GetDiagMemoryJ().ReadWrite(mc, local_diag_nnz)),
+                                            gko_array<HYPRE_Int>::view(executor, par_mat->GetNumRows() + 1,
+                                                                       par_mat->GetDiagMemoryI().ReadWrite(mc, par_mat->GetNumRows() + 1))
+                                         );
+   if (sort_diag == true)
+   {
+      diag_mat->sort_by_column_index();
+   }
+   HYPRE_Int local_offd_nnz = par_mat->GetOffdMemoryData().Capacity();
+   std::shared_ptr<local_mtx> off_diag_mat = local_mtx::create(
+                                                executor, gko::dim<2>(par_mat->GetNumRows(), num_offd_cols),
+                                                gko_array<real_t>::view(executor, local_offd_nnz,
+                                                                        par_mat->GetOffdMemoryData().ReadWrite(mc, local_offd_nnz)),
+                                                gko_array<HYPRE_Int>::view(executor, local_offd_nnz,
+                                                                           par_mat->GetOffdMemoryJ().ReadWrite(mc, local_offd_nnz)),
+                                                gko_array<HYPRE_Int>::view(executor, par_mat->GetNumRows() + 1,
+                                                                           par_mat->GetOffdMemoryI().ReadWrite(mc, par_mat->GetNumRows() + 1))
+                                             );
+   // Finally, create Ginkgo distributed matrix point to Hypre data
+   return global_mtx::create(executor, *(gko_comm.get()), imap, diag_mat,
+                             off_diag_mat);
+}
+#endif
 
 void GinkgoIterativeSolver::SetOperator(const Operator &op)
 {
@@ -647,40 +867,71 @@ void GinkgoIterativeSolver::SetOperator(const Operator &op)
       solver.reset();
    }
 
-   // Check for SparseMatrix:
-   SparseMatrix *op_mat = const_cast<SparseMatrix*>(
-                             dynamic_cast<const SparseMatrix*>(&op));
-   if (op_mat != NULL)
+   // Needs to be square
+   MFEM_VERIFY(op.Height() == op.Width(),
+               "System operator is not square");
+
+#if defined(MFEM_USE_MPI) && GINKGO_BUILD_MPI
+   // Check for HypreParMatrix:
+   HypreParMatrix *par_op_mat = const_cast<HypreParMatrix*>(
+                                   dynamic_cast<const HypreParMatrix*>(&op));
+   if (par_op_mat != NULL)
    {
-      // Needs to be a square matrix
-      MFEM_VERIFY(op_mat->Height() == op_mat->Width(),
-                  "System matrix is not square");
-
-      bool on_device = false;
-      if (executor != executor->get_master())
-      {
-         on_device = true;
-      }
-
-      using mtx = gko::matrix::Csr<real_t, int>;
-      const int nnz =  op_mat->GetMemoryData().Capacity();
-      system_oper = mtx::create(
-                       executor, gko::dim<2>(op_mat->Height(), op_mat->Width()),
-                       gko_array<real_t>::view(executor,
-                                               nnz,
-                                               op_mat->ReadWriteData(on_device)),
-                       gko_array<int>::view(executor,
-                                            nnz,
-                                            op_mat->ReadWriteJ(on_device)),
-                       gko_array<int>::view(executor, op_mat->Height() + 1,
-                                            op_mat->ReadWriteI(on_device)));
-
+      system_oper = GinkgoWrapHypreParMatrix(par_op_mat, executor, gko_comm,
+                                             needs_sorted_diagonal_mat);
+      // We always need wrapped vectors for the parallel case, even with a matrix,
+      // because the MFEM Vector passed to Mult() will be local-only, and Ginkgo needs
+      // a distributed vector.
+      needs_wrapped_vecs = true;
    }
    else
+#endif
    {
-      needs_wrapped_vecs = true;
-      system_oper = std::shared_ptr<OperatorWrapper>(
-                       new OperatorWrapper(executor, op.Height(), &op));
+      // Check for SparseMatrix:
+      SparseMatrix *op_mat = const_cast<SparseMatrix*>(
+                                dynamic_cast<const SparseMatrix*>(&op));
+      if (op_mat != NULL)
+      {
+
+         bool on_device = false;
+         if (executor != executor->get_master())
+         {
+            on_device = true;
+         }
+
+         using mtx = gko::matrix::Csr<real_t, int>;
+         const int nnz =  op_mat->GetMemoryData().Capacity();
+         system_oper = mtx::create(
+                          executor, gko::dim<2>(op_mat->Height(), op_mat->Width()),
+                          gko_array<real_t>::view(executor,
+                                                  nnz,
+                                                  op_mat->ReadWriteData(on_device)),
+                          gko_array<int>::view(executor,
+                                               nnz,
+                                               op_mat->ReadWriteJ(on_device)),
+                          gko_array<int>::view(executor, op_mat->Height() + 1,
+                                               op_mat->ReadWriteI(on_device)));
+
+      }
+      else  // We don't have a HypreParMatrix or a SparseMatrix; need an operator wrapper
+      {
+         needs_wrapped_vecs = true;
+#if defined(MFEM_USE_MPI) && GINKGO_BUILD_MPI
+         if (gko_comm)
+         {
+            HYPRE_BigInt global_size = op.Height();
+            auto mpi_exec = executor->get_master();
+            gko_comm->all_reduce(mpi_exec, &global_size, 1, MPI_SUM);
+            system_oper = std::shared_ptr<ParallelOperatorWrapper>(
+                             new ParallelOperatorWrapper(executor, *(gko_comm.get()), global_size, &op));
+         }
+         else
+#endif
+         {
+            system_oper = std::shared_ptr<OperatorWrapper>(
+                             new OperatorWrapper(executor, op.Height(), &op));
+         }
+      }
    }
 
    // Set MFEM Solver size values
@@ -699,6 +950,16 @@ CGSolver::CGSolver(GinkgoExecutor &exec)
    this->solver_gen =
       cg::build().with_criteria(this->combined_factory).on(this->executor);
 }
+
+#if defined(MFEM_USE_MPI) && GINKGO_BUILD_MPI
+CGSolver::CGSolver(GinkgoExecutor &exec, MPI_Comm comm)
+   : EnableGinkgoSolver(exec, comm, true)
+{
+   using cg = gko::solver::Cg<real_t>;
+   this->solver_gen =
+      cg::build().with_criteria(this->combined_factory).on(this->executor);
+}
+#endif
 
 CGSolver::CGSolver(GinkgoExecutor &exec,
                    const GinkgoPreconditioner &preconditioner)
@@ -729,6 +990,33 @@ CGSolver::CGSolver(GinkgoExecutor &exec,
    }
 }
 
+#if defined(MFEM_USE_MPI) && GINKGO_BUILD_MPI
+CGSolver::CGSolver(GinkgoExecutor &exec,
+                   MPI_Comm comm,
+                   const GinkgoPreconditioner &preconditioner)
+   : EnableGinkgoSolver(exec, comm, true)
+{
+   using cg         = gko::solver::Cg<real_t>;
+   this->needs_wrapped_vecs = true;
+   // Check for a previously-generated preconditioner (for a specific matrix)
+   if (preconditioner.HasGeneratedPreconditioner())
+   {
+      this->solver_gen = cg::build()
+                         .with_criteria(this->combined_factory)
+                         .with_generated_preconditioner(
+                            preconditioner.GetGeneratedPreconditioner())
+                         .on(this->executor);
+   }
+   else // Pass a preconditioner factory (will use same matrix as the solver)
+   {
+      this->solver_gen = cg::build()
+                         .with_criteria(this->combined_factory)
+                         .with_preconditioner(preconditioner.GetFactory())
+                         .on(this->executor);
+      this->needs_sorted_diagonal_mat = this->check_needs_sorted_diagonal_mat();
+   }
+}
+#endif
 
 /* ---------------------- BICGSTABSolver ------------------------ */
 BICGSTABSolver::BICGSTABSolver(GinkgoExecutor &exec)
@@ -739,6 +1027,17 @@ BICGSTABSolver::BICGSTABSolver(GinkgoExecutor &exec)
                       .with_criteria(this->combined_factory)
                       .on(this->executor);
 }
+
+#if defined(MFEM_USE_MPI) && GINKGO_BUILD_MPI
+BICGSTABSolver::BICGSTABSolver(GinkgoExecutor &exec, MPI_Comm comm)
+   : EnableGinkgoSolver(exec, comm, true)
+{
+   using bicgstab   = gko::solver::Bicgstab<real_t>;
+   this->solver_gen = bicgstab::build()
+                      .with_criteria(this->combined_factory)
+                      .on(this->executor);
+}
+#endif
 
 BICGSTABSolver::BICGSTABSolver(GinkgoExecutor &exec,
                                const GinkgoPreconditioner &preconditioner)
@@ -768,6 +1067,31 @@ BICGSTABSolver::BICGSTABSolver(GinkgoExecutor &exec,
    }
 }
 
+#if defined(MFEM_USE_MPI) && GINKGO_BUILD_MPI
+BICGSTABSolver::BICGSTABSolver(GinkgoExecutor &exec,
+                               MPI_Comm comm,
+                               const GinkgoPreconditioner &preconditioner)
+   : EnableGinkgoSolver(exec, comm, true)
+{
+   using bicgstab   = gko::solver::Bicgstab<real_t>;
+   if (preconditioner.HasGeneratedPreconditioner())
+   {
+      this->solver_gen = bicgstab::build()
+                         .with_criteria(this->combined_factory)
+                         .with_generated_preconditioner(
+                            preconditioner.GetGeneratedPreconditioner())
+                         .on(this->executor);
+   }
+   else
+   {
+      this->solver_gen = bicgstab::build()
+                         .with_criteria(this->combined_factory)
+                         .with_preconditioner(preconditioner.GetFactory())
+                         .on(this->executor);
+      this->needs_sorted_diagonal_mat = this->check_needs_sorted_diagonal_mat();
+   }
+}
+#endif
 
 /* ---------------------- CGSSolver ------------------------ */
 CGSSolver::CGSSolver(GinkgoExecutor &exec)
@@ -777,6 +1101,16 @@ CGSSolver::CGSSolver(GinkgoExecutor &exec)
    this->solver_gen =
       cgs::build().with_criteria(this->combined_factory).on(this->executor);
 }
+
+#if defined(MFEM_USE_MPI) && GINKGO_BUILD_MPI
+CGSSolver::CGSSolver(GinkgoExecutor &exec, MPI_Comm comm)
+   : EnableGinkgoSolver(exec, comm, true)
+{
+   using cgs = gko::solver::Cgs<real_t>;
+   this->solver_gen =
+      cgs::build().with_criteria(this->combined_factory).on(this->executor);
+}
+#endif
 
 CGSSolver::CGSSolver(GinkgoExecutor &exec,
                      const GinkgoPreconditioner &preconditioner)
@@ -806,6 +1140,30 @@ CGSSolver::CGSSolver(GinkgoExecutor &exec,
    }
 }
 
+#if defined(MFEM_USE_MPI) && GINKGO_BUILD_MPI
+CGSSolver::CGSSolver(GinkgoExecutor &exec, MPI_Comm comm,
+                     const GinkgoPreconditioner &preconditioner)
+   : EnableGinkgoSolver(exec, comm, true)
+{
+   using cgs        = gko::solver::Cgs<real_t>;
+   if (preconditioner.HasGeneratedPreconditioner())
+   {
+      this->solver_gen = cgs::build()
+                         .with_criteria(this->combined_factory)
+                         .with_generated_preconditioner(
+                            preconditioner.GetGeneratedPreconditioner())
+                         .on(this->executor);
+   }
+   else
+   {
+      this->solver_gen = cgs::build()
+                         .with_criteria(this->combined_factory)
+                         .with_preconditioner(preconditioner.GetFactory())
+                         .on(this->executor);
+      this->needs_sorted_diagonal_mat = this->check_needs_sorted_diagonal_mat();
+   }
+}
+#endif
 
 /* ---------------------- FCGSolver ------------------------ */
 FCGSolver::FCGSolver(GinkgoExecutor &exec)
@@ -815,6 +1173,16 @@ FCGSolver::FCGSolver(GinkgoExecutor &exec)
    this->solver_gen =
       fcg::build().with_criteria(this->combined_factory).on(this->executor);
 }
+
+#if defined(MFEM_USE_MPI) && GINKGO_BUILD_MPI
+FCGSolver::FCGSolver(GinkgoExecutor &exec, MPI_Comm comm)
+   : EnableGinkgoSolver(exec, comm, true)
+{
+   using fcg = gko::solver::Fcg<real_t>;
+   this->solver_gen =
+      fcg::build().with_criteria(this->combined_factory).on(this->executor);
+}
+#endif
 
 FCGSolver::FCGSolver(GinkgoExecutor &exec,
                      const GinkgoPreconditioner &preconditioner)
@@ -844,6 +1212,30 @@ FCGSolver::FCGSolver(GinkgoExecutor &exec,
    }
 }
 
+#if defined(MFEM_USE_MPI) && GINKGO_BUILD_MPI
+FCGSolver::FCGSolver(GinkgoExecutor &exec, MPI_Comm comm,
+                     const GinkgoPreconditioner &preconditioner)
+   : EnableGinkgoSolver(exec, comm, true)
+{
+   using fcg        = gko::solver::Fcg<real_t>;
+   if (preconditioner.HasGeneratedPreconditioner())
+   {
+      this->solver_gen = fcg::build()
+                         .with_criteria(this->combined_factory)
+                         .with_generated_preconditioner(
+                            preconditioner.GetGeneratedPreconditioner())
+                         .on(this->executor);
+   }
+   else
+   {
+      this->solver_gen = fcg::build()
+                         .with_criteria(this->combined_factory)
+                         .with_preconditioner(preconditioner.GetFactory())
+                         .on(this->executor);
+      this->needs_sorted_diagonal_mat = this->check_needs_sorted_diagonal_mat();
+   }
+}
+#endif
 
 /* ---------------------- GMRESSolver ------------------------ */
 GMRESSolver::GMRESSolver(GinkgoExecutor &exec, int dim)
@@ -865,6 +1257,29 @@ GMRESSolver::GMRESSolver(GinkgoExecutor &exec, int dim)
                          .on(this->executor);
    }
 }
+
+#if defined(MFEM_USE_MPI) && GINKGO_BUILD_MPI
+GMRESSolver::GMRESSolver(GinkgoExecutor &exec, MPI_Comm comm, int dim)
+   : EnableGinkgoSolver(exec, comm, false),
+     m{dim}
+{
+   using gmres      = gko::solver::Gmres<real_t>;
+   this->needs_wrapped_vecs = true;
+   if (this->m == 0) // Don't set a dimension, but let Ginkgo use its default
+   {
+      this->solver_gen = gmres::build()
+                         .with_criteria(this->combined_factory)
+                         .on(this->executor);
+   }
+   else
+   {
+      this->solver_gen = gmres::build()
+                         .with_krylov_dim(static_cast<unsigned long>(m))
+                         .with_criteria(this->combined_factory)
+                         .on(this->executor);
+   }
+}
+#endif
 
 GMRESSolver::GMRESSolver(GinkgoExecutor &exec,
                          const GinkgoPreconditioner &preconditioner, int dim)
@@ -924,6 +1339,57 @@ GMRESSolver::GMRESSolver(GinkgoExecutor &exec,
       }
    }
 }
+
+#if defined(MFEM_USE_MPI) && GINKGO_BUILD_MPI
+GMRESSolver::GMRESSolver(GinkgoExecutor &exec, MPI_Comm comm,
+                         const GinkgoPreconditioner &preconditioner, int dim)
+   : EnableGinkgoSolver(exec, comm, false),
+     m{dim}
+{
+   using gmres      = gko::solver::Gmres<real_t>;
+   this->needs_wrapped_vecs = true;
+   // Check for a previously-generated preconditioner (for a specific matrix)
+   if (this->m == 0) // Don't set a dimension, but let Ginkgo use its default
+   {
+      if (preconditioner.HasGeneratedPreconditioner())
+      {
+         this->solver_gen = gmres::build()
+                            .with_criteria(this->combined_factory)
+                            .with_generated_preconditioner(
+                               preconditioner.GetGeneratedPreconditioner())
+                            .on(this->executor);
+      }
+      else
+      {
+         this->solver_gen = gmres::build()
+                            .with_criteria(this->combined_factory)
+                            .with_preconditioner(preconditioner.GetFactory())
+                            .on(this->executor);
+      }
+   }
+   else
+   {
+      if (preconditioner.HasGeneratedPreconditioner())
+      {
+         this->solver_gen = gmres::build()
+                            .with_krylov_dim(static_cast<unsigned long>(m))
+                            .with_criteria(this->combined_factory)
+                            .with_generated_preconditioner(
+                               preconditioner.GetGeneratedPreconditioner())
+                            .on(this->executor);
+      }
+      else
+      {
+         this->solver_gen = gmres::build()
+                            .with_krylov_dim(static_cast<unsigned long>(m))
+                            .with_criteria(this->combined_factory)
+                            .with_preconditioner(preconditioner.GetFactory())
+                            .on(this->executor);
+         this->needs_sorted_diagonal_mat = this->check_needs_sorted_diagonal_mat();
+      }
+   }
+}
+#endif
 
 void GMRESSolver::SetKDim(int dim)
 {
@@ -1050,6 +1516,16 @@ IRSolver::IRSolver(GinkgoExecutor &exec)
       ir::build().with_criteria(this->combined_factory).on(this->executor);
 }
 
+#if defined(MFEM_USE_MPI) && GINKGO_BUILD_MPI
+IRSolver::IRSolver(GinkgoExecutor &exec, MPI_Comm comm)
+   : EnableGinkgoSolver(exec, comm, false)
+{
+   using ir = gko::solver::Ir<real_t>;
+   this->solver_gen =
+      ir::build().with_criteria(this->combined_factory).on(this->executor);
+}
+#endif
+
 IRSolver::IRSolver(GinkgoExecutor &exec,
                    const GinkgoIterativeSolver &inner_solver)
    : EnableGinkgoSolver(exec, false)
@@ -1066,15 +1542,44 @@ IRSolver::IRSolver(GinkgoExecutor &exec,
    }
 }
 
+#if defined(MFEM_USE_MPI) && GINKGO_BUILD_MPI
+IRSolver::IRSolver(GinkgoExecutor &exec, MPI_Comm comm,
+                   const GinkgoIterativeSolver &inner_solver)
+   : EnableGinkgoSolver(exec, comm, false)
+{
+   using ir         = gko::solver::Ir<real_t>;
+   this->solver_gen = ir::build()
+                      .with_criteria(this->combined_factory)
+                      .with_solver(inner_solver.GetFactory())
+                      .on(this->executor);
+}
+#endif
+
 /* --------------------------------------------------------------- */
 /* ---------------------- Preconditioners ------------------------ */
 GinkgoPreconditioner::GinkgoPreconditioner(
    GinkgoExecutor &exec)
-   : Solver()
+   : Solver(),
+#if defined(MFEM_USE_MPI) && GINKGO_BUILD_MPI
+     gko_comm(NULL),
+#endif
+     has_generated_precond(false)
 {
-   has_generated_precond = false;
    executor = exec.GetExecutor();
 }
+
+#if defined(MFEM_USE_MPI) && GINKGO_BUILD_MPI
+GinkgoPreconditioner::GinkgoPreconditioner(
+   GinkgoExecutor &exec,
+   MPI_Comm comm)
+   : Solver(),
+     has_generated_precond(false)
+{
+   executor = exec.GetExecutor();
+   gko_comm = std::shared_ptr<gko::experimental::mpi::communicator>(
+                 new gko::experimental::mpi::communicator(comm));
+}
+#endif
 
 void
 GinkgoPreconditioner::Mult(const Vector &x, Vector &y) const
@@ -1089,21 +1594,45 @@ GinkgoPreconditioner::Mult(const Vector &x, Vector &y) const
       y = 0.0;
    }
 
-   // Create x and y vectors in Ginkgo's format. Wrap MFEM's data directly,
-   // on CPU or GPU.
-   bool on_device = false;
-   if (executor != executor->get_master())
+   std::unique_ptr<gko::LinOp> gko_x;
+   std::unique_ptr<gko::LinOp> gko_y;
+
+#if defined(MFEM_USE_MPI) && GINKGO_BUILD_MPI
+   if (gko_comm)
    {
-      on_device = true;
+      using par_vec = gko::experimental::distributed::Vector<real_t>;
+      auto local_gko_x = new VectorWrapper(executor, x.Size(),
+                                           const_cast<Vector *>(&x), false);
+      auto local_gko_y = new VectorWrapper(executor, y.Size(), &y,
+                                           false);
+      gko_x = std::unique_ptr<ParallelVectorWrapper>(
+                 new ParallelVectorWrapper(executor, *(gko_comm.get()),
+                                           local_gko_x,
+                                           generated_precond->get_size()[0], 1));
+      gko_y = std::unique_ptr<ParallelVectorWrapper>(
+                 new ParallelVectorWrapper(executor, *(gko_comm.get()),
+                                           local_gko_y,
+                                           generated_precond->get_size()[0], 1));
    }
-   auto gko_x = vec::create(executor, gko::dim<2>(x.Size(), 1),
-                            gko_array<real_t>::view(executor,
-                                                    x.Size(), const_cast<real_t *>(
-                                                       x.Read(on_device))), 1);
-   auto gko_y = vec::create(executor, gko::dim<2>(y.Size(), 1),
-                            gko_array<real_t>::view(executor,
-                                                    y.Size(),
-                                                    y.ReadWrite(on_device)), 1);
+   else
+#endif
+   {
+      // Create x and y vectors in Ginkgo's format. Wrap MFEM's data directly,
+      // on CPU or GPU.
+      bool on_device = false;
+      if (executor != executor->get_master())
+      {
+         on_device = true;
+      }
+      gko_x = vec::create(executor, gko::dim<2>(x.Size(), 1),
+                          gko_array<real_t>::view(executor,
+                                                  x.Size(), const_cast<real_t *>(
+                                                     x.Read(on_device))), 1);
+      gko_y = vec::create(executor, gko::dim<2>(y.Size(), 1),
+                          gko_array<real_t>::view(executor,
+                                                  y.Size(),
+                                                  y.ReadWrite(on_device)), 1);
+   }
    generated_precond.get()->apply(gko_x, gko_y);
 }
 
@@ -1116,37 +1645,60 @@ void GinkgoPreconditioner::SetOperator(const Operator &op)
       has_generated_precond = false;
    }
 
-   // Only accept SparseMatrix for this type.
-   SparseMatrix *op_mat = const_cast<SparseMatrix*>(
-                             dynamic_cast<const SparseMatrix*>(&op));
-   MFEM_VERIFY(op_mat != NULL,
-               "GinkgoPreconditioner::SetOperator : not a SparseMatrix!");
-
-   bool on_device = false;
-   if (executor != executor->get_master())
+   // Needs to be square
+   MFEM_VERIFY(op.Height() == op.Width(),
+               "System operator is not square");
+#if defined(MFEM_USE_MPI) && GINKGO_BUILD_MPI
+   // Check for HypreParMatrix:
+   HypreParMatrix *par_op_mat = const_cast<HypreParMatrix*>(
+                                   dynamic_cast<const HypreParMatrix*>(&op));
+   if (par_op_mat != NULL)
    {
-      on_device = true;
+      // Finally, create Ginkgo distributed matrix point to Hypre data
+      auto gko_matrix = GinkgoWrapHypreParMatrix(par_op_mat, executor, gko_comm,
+                                                 false);
+      generated_precond = precond_gen->generate(gko::give(gko_matrix));
+      has_generated_precond = true;
+
+      // Set MFEM Solver size values
+      height = op.Height();
+      width = op.Width();
    }
+   else
+#endif
+   {
+      // Only accept SparseMatrix for this type.
+      SparseMatrix *op_mat = const_cast<SparseMatrix*>(
+                                dynamic_cast<const SparseMatrix*>(&op));
+      MFEM_VERIFY(op_mat != NULL,
+                  "GinkgoPreconditioner::SetOperator : not a SparseMatrix or HypreParMatrix!");
 
-   using mtx = gko::matrix::Csr<real_t, int>;
-   const int nnz =  op_mat->GetMemoryData().Capacity();
-   auto gko_matrix = mtx::create(
-                        executor, gko::dim<2>(op_mat->Height(), op_mat->Width()),
-                        gko_array<real_t>::view(executor,
+      bool on_device = false;
+      if (executor != executor->get_master())
+      {
+         on_device = true;
+      }
+
+      using mtx = gko::matrix::Csr<real_t, int>;
+      const int nnz =  op_mat->GetMemoryData().Capacity();
+      auto gko_matrix = mtx::create(
+                           executor, gko::dim<2>(op_mat->Height(), op_mat->Width()),
+                           gko_array<real_t>::view(executor,
+                                                   nnz,
+                                                   op_mat->ReadWriteData(on_device)),
+                           gko_array<int>::view(executor,
                                                 nnz,
-                                                op_mat->ReadWriteData(on_device)),
-                        gko_array<int>::view(executor,
-                                             nnz,
-                                             op_mat->ReadWriteJ(on_device)),
-                        gko_array<int>::view(executor, op_mat->Height() + 1,
-                                             op_mat->ReadWriteI(on_device)));
+                                                op_mat->ReadWriteJ(on_device)),
+                           gko_array<int>::view(executor, op_mat->Height() + 1,
+                                                op_mat->ReadWriteI(on_device)));
 
-   generated_precond = precond_gen->generate(gko::give(gko_matrix));
-   has_generated_precond = true;
+      generated_precond = precond_gen->generate(gko::give(gko_matrix));
+      has_generated_precond = true;
 
-   // Set MFEM Solver size values
-   height = op.Height();
-   width = op.Width();
+      // Set MFEM Solver size values
+      height = op.Height();
+      width = op.Width();
+   }
 }
 
 
@@ -1353,6 +1905,107 @@ IcIsaiPreconditioner::IcIsaiPreconditioner(
    }
 }
 
+/* ---------------------- SchwarzPreconditioner  ------------------------ */
+#if defined(MFEM_USE_MPI) && GINKGO_BUILD_MPI
+SchwarzPreconditioner::SchwarzPreconditioner(
+   GinkgoExecutor &exec,
+   MPI_Comm comm,
+   Solver &local_solver,
+   const bool l1_smoother
+)
+   : GinkgoPreconditioner(exec, comm)
+{
+   using schwarz =
+      gko::experimental::distributed::preconditioner::Schwarz<real_t, int, HYPRE_BigInt>;
+   GinkgoIterativeSolver *local_gko_solver = dynamic_cast<GinkgoIterativeSolver*>
+                                             (&local_solver);
+   if (local_gko_solver != NULL)
+   {
+      precond_gen = schwarz::build()
+                    .with_local_solver(local_gko_solver->GetFactory())
+                    .with_l1_smoother(l1_smoother)
+                    .on(executor);
+   }
+   else
+   {
+      MFEMPreconditioner *local_mfem_precond = dynamic_cast<MFEMPreconditioner*>
+                                               (&local_solver);
+      MFEM_VERIFY(local_mfem_precond == NULL,
+                  "Ginkgo::SchwarzPreconditioner cannot use an MFEMPreconditioner "
+                  "for the local solver.");
+
+      GinkgoPreconditioner *local_gko_precond = dynamic_cast<GinkgoPreconditioner*>
+                                                (&local_solver);
+      if (local_gko_precond != NULL)
+      {
+         if (local_gko_precond->HasGeneratedPreconditioner())
+         {
+            MFEM_VERIFY(l1_smoother == false,
+                        "L1 smoother not available for pre-generated local solvers");
+            precond_gen = schwarz::build()
+                          .with_generated_local_solver(local_gko_precond->GetGeneratedPreconditioner())
+                          .on(executor);
+         }
+         else
+         {
+            precond_gen = schwarz::build()
+                          .with_local_solver(local_gko_precond->GetFactory())
+                          .with_l1_smoother(l1_smoother)
+                          .on(executor);
+         }
+      }
+      else
+      {
+         MFEM_ABORT("Ginkgo::SchwarzPreconditioner must take a GinkgoIterativeSolver or GinkgoPreconditioner object "
+                    "for the local solver.");
+      }
+   }
+}
+
+// Custom version of SetOperator that will sort the diagonal matrix if using
+// L1 smoothing. This should be fixed in a future version of Ginkgo.
+void SchwarzPreconditioner::SetOperator(const Operator &op)
+{
+   if (has_generated_precond)
+   {
+      generated_precond.reset();
+      has_generated_precond = false;
+   }
+
+   // Needs to be square
+   MFEM_VERIFY(op.Height() == op.Width(),
+               "System operator is not square");
+
+   // Check for HypreParMatrix:
+   HypreParMatrix *par_op_mat = const_cast<HypreParMatrix*>(
+                                   dynamic_cast<const HypreParMatrix*>(&op));
+   MFEM_VERIFY(par_op_mat != NULL,
+               "GinkgoPreconditioner::SetOperator : not a HypreParMatrix!");
+
+   // Needs to be a square matrix
+   MFEM_VERIFY(par_op_mat->Height() == par_op_mat->Width(),
+               "System matrix is not square");
+
+   using schwarz =
+      gko::experimental::distributed::preconditioner::Schwarz<real_t, int, HYPRE_BigInt>;
+   auto factory_params = gko::as<typename schwarz::Factory>
+                         (precond_gen)->get_parameters();
+   bool sort_diag = false;
+   if (factory_params.l1_smoother == true)
+   {
+      sort_diag = true;
+   }
+   auto gko_matrix = GinkgoWrapHypreParMatrix(par_op_mat, executor, gko_comm,
+                                              sort_diag);
+   generated_precond = precond_gen->generate(gko::give(gko_matrix));
+   has_generated_precond = true;
+
+   // Set MFEM Solver size values
+   height = op.Height();
+   width = op.Width();
+}
+#endif
+
 /* ---------------------- MFEMPreconditioner  ------------------------ */
 MFEMPreconditioner::MFEMPreconditioner(
    GinkgoExecutor &exec,
@@ -1365,6 +2018,25 @@ MFEMPreconditioner::MFEMPreconditioner(
                                               mfem_precond.Height(), &mfem_precond));
    has_generated_precond = true;
 }
+
+#if defined(MFEM_USE_MPI) && GINKGO_BUILD_MPI
+MFEMPreconditioner::MFEMPreconditioner(
+   GinkgoExecutor &exec,
+   const Solver &mfem_precond,
+   MPI_Comm comm
+)
+   : GinkgoPreconditioner(exec, comm)
+{
+   // Get global size (the MFEM preconditioner's Height() will be local)
+   auto mpi_exec = executor->get_master();
+   HYPRE_BigInt global_size = mfem_precond.Height();
+   gko_comm->all_reduce(mpi_exec, &global_size, 1, MPI_SUM);
+   generated_precond = std::shared_ptr<ParallelOperatorWrapper>(
+                          new ParallelOperatorWrapper(executor, *(this->gko_comm.get()),
+                                                      global_size, &mfem_precond));
+   has_generated_precond = true;
+}
+#endif
 
 } // namespace Ginkgo
 
