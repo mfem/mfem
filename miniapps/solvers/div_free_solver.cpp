@@ -84,7 +84,6 @@ DFSSpaces::DFSSpaces(int order, int num_refine, ParMesh *mesh,
    data_.Q_l2.resize(num_refine);
    hdiv_fes_->GetEssentialTrueDofs(ess_attr, data_.coarsest_ess_hdivdofs);
    data_.C.resize(num_refine+1);
-   data_.Ae.resize(num_refine+1);
 
    hcurl_fes_ = std::make_unique<ParFiniteElementSpace>(mesh, hcurl_fec_.get());
    coarse_hcurl_fes_ = std::make_unique<ParFiniteElementSpace>(*hcurl_fes_);
