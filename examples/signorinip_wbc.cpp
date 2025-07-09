@@ -301,7 +301,7 @@ int main(int argc, char *argv[])
    ParBilinearForm *a = new ParBilinearForm(fespace);
    a->AddDomainIntegrator(new ElasticityIntegrator(one,lambda_g,mu_g));
    a->AddBdrFaceIntegrator(
-      new NitscheElasticityIntegrator(n_tilde_c, lambda_c, mu_c, beta, kappa),
+      new NitscheElasticityIntegrator(&n_tilde_c, lambda_c, mu_c, beta, kappa),
       ess_bdr_z);
    if (myid == 0)
    {
@@ -355,7 +355,7 @@ int main(int argc, char *argv[])
       b->AddDomainIntegrator(new VectorDomainLFIntegrator(f_coeff));
       b->AddBdrFaceIntegrator(
          new NitscheElasticityDirichletLFIntegrator(
-            trac_coeff, n_tilde_c, lambda_c, mu_c, beta, kappa), ess_bdr_z);
+            trac_coeff, &n_tilde_c, lambda_c, mu_c, beta, kappa), ess_bdr_z);
       b->Assemble();
 
       // Step 3: Form the linear system A X = B. This includes eliminating boundary
