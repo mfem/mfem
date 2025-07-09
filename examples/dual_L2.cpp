@@ -70,6 +70,8 @@ int main(int argc, char *argv[])
    real_t tichonov = 1e-1;
    real_t tol = 1e-6;
 
+   int ex = 1; 
+
    bool visualization = true;
 
    OptionsParser args(argc, argv);
@@ -78,6 +80,7 @@ int main(int argc, char *argv[])
    args.AddOption(&order, "-o", "--order",
                   "Finite element order for RT space");
    args.AddOption(&order_l2, "-o2", "--order", "FEM order for L2 vec space"); 
+   args.AddOption(&ex, "-ex", "--example", "example number"); 
    args.AddOption(&ref_levels, "-r", "--refs",
                   "Number of h-refinements.");
    args.AddOption(&max_it, "-mi", "--max-it",
@@ -181,7 +184,7 @@ int main(int argc, char *argv[])
 
    b0.AddDomainIntegrator(new VectorFEDomainLFIntegrator(psi_newton_res));
 
-   VectorFunctionCoefficient f_coeff(2, [](const Vector &x, Vector &u) {
+   VectorFunctionCoefficient f_coeff(2, [ex](const Vector &x, Vector &u) {
       // NOTE: constant example 
       // u(0) = 0.5; 
       // u(1) = 0.0;
@@ -190,11 +193,20 @@ int main(int argc, char *argv[])
       // u(0) = x(0); 
       // u(1) = -1.0 * x(1);
 
-      // NOTE: trig example
-      u(0) = cosh(M_PI*x(0)) * sin(M_PI*x(1));  
-      u(1) = sinh(M_PI*x(0)) * cos(M_PI*x(1)); 
-      
-      u /= cosh(M_PI);
+      if (ex == 1) {
+         // NOTE: trig example
+         u(0) = cosh(M_PI*x(0)) * sin(M_PI*x(1));  
+         u(1) = sinh(M_PI*x(0)) * cos(M_PI*x(1)); 
+
+         u /= cosh(M_PI);
+      }
+      else if (ex == 2) { 
+         // NOTE: trig example 2
+         u(0) = cos(M_PI * x(0)) * sin (M_PI * x(1)); 
+         u(1) = cos(M_PI * x(1)) * sin (M_PI * x(0));
+
+         u *= (1. + 2. * pow(M_PI, 2)); 
+      }
    });
 
    ScalarVectorProductCoefficient alpha_f_cf(alpha_cf, f_coeff); 
@@ -314,7 +326,7 @@ int main(int argc, char *argv[])
              << "\n Total dofs:       " << RTfes.GetTrueVSize() + L2fes.GetTrueVSize()
              << endl;
 
-   VectorFunctionCoefficient exact_coeff(2, [](const Vector &x, Vector &u) {      
+   VectorFunctionCoefficient exact_coeff(2, [ex](const Vector &x, Vector &u) {      
       // NOTE: constant example 
       // u(0) = 0.5; 
       // u(1) = 0.0; 
@@ -323,11 +335,18 @@ int main(int argc, char *argv[])
       // u(0) = x(0); 
       // u(1) = -1.0 * x(1);
 
-      // NOTE: trig example
-      u(0) = cosh(M_PI*x(0)) * sin(M_PI*x(1));  
-      u(1) = sinh(M_PI*x(0)) * cos(M_PI*x(1)); 
-      
-      u /= cosh(M_PI);
+      if (ex == 1) { 
+      // NOTE: trig example 
+         u(0) = cosh(M_PI*x(0)) * sin(M_PI*x(1));  
+         u(1) = sinh(M_PI*x(0)) * cos(M_PI*x(1)); 
+         
+         u /= cosh(M_PI);
+      }
+      else if (ex == 2) { 
+         // NOTE trig example 2 
+         u(0) = cos(M_PI * x(0)) * sin (M_PI * x(1)); 
+         u(1) = cos(M_PI * x(1)) * sin (M_PI * x(0));
+      }
    });
 
    GridFunction exact_vec(&L2fes); 
@@ -345,9 +364,29 @@ int main(int argc, char *argv[])
         std::cout << "Result: FAILURE. At least one component is outside the limit." << std::endl;
     }
 
+   real_t l2_error = p_gf.ComputeL2Error(exact_coeff); 
 
-   double l2_error = p_gf.ComputeL2Error(exact_coeff); 
    cout << "L2 error: " << l2_error << endl; 
+
+   mfem::Coefficient *div_u_exact = nullptr;
+
+   // NOTE: for constant, linear, trig examples, div p = 0  
+    if (ex == 1)
+   {
+      // For ex=1, the divergence is zero.
+      div_u_exact = new mfem::ConstantCoefficient(0.0);
+   }
+   else if (ex == 2) { 
+   // NOTE: for trig example2, div p != 0 
+      div_u_exact = new mfem::FunctionCoefficient([](const mfem::Vector &x)
+      {
+         return -2. * M_PI * sin(M_PI * x(0)) * sin(M_PI * x(1));
+      });
+   }
+
+   real_t hdiv_error = p_gf.ComputeDivError(div_u_exact);  
+
+   cout << "div error: " << hdiv_error << endl; 
 
    return 0;
 }
