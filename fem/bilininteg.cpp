@@ -4290,8 +4290,8 @@ void NitscheElasticityIntegrator::AssembleBlock(
          const real_t t2 = col_dshape_dnM(jdof) * col_w(jm);
          for (int im = 0, i = row_offset; im < dim; ++im)
          {
-            const real_t t1 = col_dshape(jdof, jm) * col_nL(im) * col_w(jm);
-            const real_t t3 = col_dshape(jdof, im) * col_nM(jm) * col_w(im);
+            const real_t t1 = col_dshape(jdof, jm) * col_nL(im) * col_w(im);
+            const real_t t3 = col_dshape(jdof, im) * col_nM(jm) * col_w(jm);
             const real_t tt = t1 + ((im == jm) ? t2 : 0.0) + t3;
             for (int idof = 0; idof < row_ndofs; ++idof, ++i)
             {
