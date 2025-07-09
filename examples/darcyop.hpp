@@ -155,6 +155,8 @@ private:
 
       void MonitorSolution(int it, real_t norm, const Vector &x,
                            bool final) override;
+
+      bool RequiresUpdatedSolution() const override { return true; }
    };
 
    void SetupNonlinearSolver(real_t rtol, real_t atol, int iters);
