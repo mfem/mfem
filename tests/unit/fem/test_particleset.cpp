@@ -278,10 +278,12 @@ void TestRedistribute(Ordering::Type ordering)
          // // All Code, Elem, Proc, and ReferencePositions in finder1 and finder2 should now be equivalent
          MPI_Barrier(MPI_COMM_WORLD);
          int wrong_codes_count = CheckArrayEquality(finder1.GetCode(), finder2.GetCode());
-         int wrong_elems_count = CheckArrayEquality(finder1.GetElem(), finder2.GetElem());
+         int wrong_elems_count = CheckArrayEquality(finder1.GetGSLIBElem(), finder2.GetGSLIBElem());
+         int wrong_mfem_elems_count = CheckArrayEquality(finder1.GetElem(), finder2.GetElem());
          int wrong_procs_count = CheckArrayEquality(finder1.GetProc(), finder2.GetProc());
-         bool correct_ref_coords = finder1.GetReferencePosition().DistanceTo(finder2.GetReferencePosition()) == MFEM_Approx(0.0);
-         
+         bool correct_ref_coords = finder1.GetGSLIBReferencePosition().DistanceTo(finder2.GetGSLIBReferencePosition()) == MFEM_Approx(0.0);
+         bool correct_mfem_ref_coords = finder1.GetReferencePosition().DistanceTo(finder2.GetReferencePosition()) == MFEM_Approx(0.0);
+
          REQUIRE(wrong_codes_count == 0);
          REQUIRE(wrong_elems_count == 0);
          REQUIRE(wrong_procs_count == 0);
