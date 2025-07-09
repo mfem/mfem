@@ -1,0 +1,73 @@
+# Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+# at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+# LICENSE and NOTICE for details. LLNL-CODE-806117.
+#
+# This file is part of the MFEM library. For more information and source code
+# availability visit https://mfem.org.
+#
+# MFEM is free software; you can redistribute it and/or modify it under the
+# terms of the BSD-3 license. We welcome feedback and contributions, see file
+# CONTRIBUTING.md for details.
+---
+name: Sanitizers
+
+permissions:
+  actions: write
+
+on:
+  push:
+    branches: ["master", "next"]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{github.workflow}}-${{github.ref}}
+  cancel-in-progress: true
+
+jobs:
+
+  # Build steps for dependencies
+  build-hypre:
+    uses: ./.github/workflows/sanitize-build-hypre.yml
+
+  build-metis:
+    uses: ./.github/workflows/sanitize-build-metis.yml
+
+  build-lsan:
+    uses: ./.github/workflows/sanitize-build-lsan.yml
+
+  build-libcxx:
+    uses: ./.github/workflows/sanitize-build-libcxx.yml
+
+  # Serial sanitizers: asan, msan, ubsan
+  seq-asan:
+    needs: [build-libcxx]
+    uses: ./.github/workflows/sanitize-tests.yml
+    with:
+      sanitizer: asan
+
+  seq-msan:
+    needs: [build-libcxx]
+    uses: ./.github/workflows/sanitize-tests.yml
+    with:
+      sanitizer: msan
+
+  seq-ubsan:
+    needs: [build-libcxx]
+    uses: ./.github/workflows/sanitize-tests.yml
+    with:
+      sanitizer: ubsan
+
+  # Parallel sanitizers: asan, ubsan
+  par-asan:
+    needs: [build-libcxx, build-hypre, build-metis]
+    uses: ./.github/workflows/sanitize-tests.yml
+    with:
+      par: true
+      sanitizer: asan
+  par-ubsan:
+    needs: [build-libcxx, build-hypre, build-metis]
+    uses: ./.github/workflows/sanitize-tests.yml
+    with:
+      par: true
+      sanitizer: ubsan
