@@ -96,7 +96,7 @@ enum Problem
 struct ProblemParams
 {
    int nx, ny;
-   real_t sx, sy;
+   real_t x0, y0, sx, sy;
    int order;
    real_t k, ks, ka;
    real_t t_0;
@@ -168,6 +168,8 @@ int main(int argc, char *argv[])
    ProblemParams pars;
    pars.nx = 0;
    pars.ny = 0;
+   pars.x0 = 0.;
+   pars.y0 = 0.;
    pars.sx = 1.;
    pars.sy = 1.;
    pars.order = 1;
@@ -260,6 +262,13 @@ int main(int argc, char *argv[])
    if (pars.nx <= 0)
    {
       mesh = std::move(Mesh(mesh_file, 1, 1));
+
+      Vector x_min(2), x_max(2);
+      mesh.GetBoundingBox(x_min, x_max);
+      pars.x0 = x_min(0);
+      pars.y0 = x_min(1);
+      pars.sx = x_max(0) - x_min(0);
+      pars.sy = x_max(1) - x_min(1);
    }
    else
    {
@@ -267,7 +276,7 @@ int main(int argc, char *argv[])
                                              Element::QUADRILATERAL, false,
                                              pars.sx, pars.sy));
    }
-   int dim = mesh.Dimension();
+   const int dim = mesh.Dimension();
    MFEM_VERIFY(dim > 1, "Dimension = 1 is not supported in this example");
 
    // Define spaces
@@ -858,6 +867,8 @@ MatFunc GetKFun(Problem prob, const ProblemParams &params)
    const real_t &k = params.k;
    const real_t &ks = params.ks;
    const real_t &ka = params.ka;
+   const real_t &x0 = params.x0;
+   const real_t &y0 = params.y0;
    const real_t &sx = params.sx;
    const real_t &sy = params.sy;
 
@@ -895,7 +906,9 @@ MatFunc GetKFun(Problem prob, const ProblemParams &params)
             b = 0.;
 
             Vector dx(x);
-            dx -= .5;
+            dx(0) -= x0 + 0.5*sx;
+            dx(1) -= y0 + 0.5*sy;
+
             const real_t r = hypot(dx(0), dx(1));
             b(0) = (r>0.)?(-dx(1) / r):(1.);
             b(1) = (r>0.)?(+dx(0) / r):(0.);
@@ -914,7 +927,9 @@ MatFunc GetKFun(Problem prob, const ProblemParams &params)
             b = 0.;
 
             Vector dx(x);
-            dx -= .5;
+            dx(0) -= x0 + 0.5*sx;
+            dx(1) -= y0 + 0.5*sy;
+
             //const real_t psi = cos(M_PI * dx(0)) * cos(M_PI * dx(1));
             const real_t psi_x = M_PI * sin(M_PI * dx(0)) * cos(M_PI * dx(1));
             const real_t psi_y = M_PI * cos(M_PI * dx(0)) * sin(M_PI * dx(1));
@@ -954,6 +969,8 @@ TFunc GetTFun(Problem prob, const ProblemParams &params)
    //const real_t &ka = params.ka;
    const real_t &t_0 = params.t_0;
    //const real_t &a = params.a;
+   const real_t &x0 = params.x0;
+   const real_t &y0 = params.y0;
    const real_t &sx = params.sx;
    const real_t &sy = params.sy;
    const real_t &order = params.order;
@@ -1016,7 +1033,9 @@ TFunc GetTFun(Problem prob, const ProblemParams &params)
             constexpr real_t dtheta0 = 1./48. * M_PI;
 
             Vector dx(x);
-            dx -= .5;
+            dx(0) -= x0 + 0.5*sx;
+            dx(1) -= y0 + 0.5*sy;
+
             const real_t r = hypot(dx(0), dx(1));
             const real_t theta = fabs(atan2(dx(1), dx(0)));
 
@@ -1076,7 +1095,9 @@ TFunc GetTFun(Problem prob, const ProblemParams &params)
          return [=](const Vector &x, real_t t) -> real_t
          {
             Vector dx(x);
-            dx -= 0.5;
+            dx(0) -= x0 + 0.5*sx;
+            dx(1) -= y0 + 0.5*sy;
+
             const real_t r = hypot(dx(0), dx(1));
             return 1. - r*r*r;
          };
@@ -1088,7 +1109,9 @@ TFunc GetTFun(Problem prob, const ProblemParams &params)
          {
             const real_t &kappa_perp = k * ks;
             Vector dx(x);
-            dx -= 0.5;
+            dx(0) -= x0 + 0.5*sx;
+            dx(1) -= y0 + 0.5*sy;
+
             const real_t psi = cos(M_PI * dx(0)) * cos(M_PI * dx(1));
             return psi / kappa_perp;
          };
@@ -1139,6 +1162,10 @@ VecTFunc GetQFun(Problem prob, const ProblemParams &params)
    const real_t &ks = params.ks;
    //const real_t &ka = params.ka;
    const real_t &t_0 = params.t_0;
+   const real_t &x0 = params.x0;
+   const real_t &y0 = params.y0;
+   const real_t &sx = params.sx;
+   const real_t &sy = params.sy;
 
    auto kFun = GetKFun(prob, params);
 
@@ -1236,7 +1263,9 @@ VecTFunc GetQFun(Problem prob, const ProblemParams &params)
 
             const real_t kappa_r = k * ks;
             Vector dx(x);
-            dx -= 0.5;
+            dx(0) -= x0 + 0.5*sx;
+            dx(1) -= y0 + 0.5*sy;
+
             const real_t r = hypot(dx(0), dx(1));
             const real_t T_r = - 3. * r;
             v(0) = +kappa_r * T_r * dx(0);
@@ -1252,6 +1281,10 @@ TFunc GetFFun(Problem prob, const ProblemParams &params)
    const real_t &ks = params.ks;
    //const real_t &ka = params.ka;
    //const real_t &a = params.a;
+   const real_t &x0 = params.x0;
+   const real_t &y0 = params.y0;
+   const real_t &sx = params.sx;
+   const real_t &sy = params.sy;
 
    auto TFun = GetTFun(prob, params);
    auto kFun = GetKFun(prob, params);
@@ -1296,7 +1329,9 @@ TFunc GetFFun(Problem prob, const ProblemParams &params)
          {
             const real_t kappa_r = ks * k;
             Vector dx(x);
-            dx -= 0.5;
+            dx(0) -= x0 + 0.5*sx;
+            dx(1) -= y0 + 0.5*sy;
+
             const real_t r = hypot(dx(0), dx(1));
             const real_t T_rr = - 9. * r;
             return -kappa_r * T_rr;
@@ -1305,7 +1340,9 @@ TFunc GetFFun(Problem prob, const ProblemParams &params)
          return [=](const Vector &x, real_t) -> real_t
          {
             Vector dx(x);
-            dx -= 0.5;
+            dx(0) -= x0 + 0.5*sx;
+            dx(1) -= y0 + 0.5*sy;
+
             const real_t psi = cos(M_PI * dx(0)) * cos(M_PI * dx(1));
             return 2.*M_PI*M_PI * psi;
          };
