@@ -265,6 +265,8 @@ private:
 
    Array2D<DenseMatrix*> R; // transfer matrices from LO->HO, per patch/dimension
    Array2D<Vector*> knots; // LO knotvectors, i.e. the collocation points
+   std::vector<Array<const KnotVector*>> ho_kvs; // HO knotvectors per patch
+   std::vector<Array<const KnotVector*>> lo_kvs; // LO knotvectors per patch
    std::vector<Array<int>> ho_p2g; // Patch to global mapping for HO mesh
    std::vector<Array<int>> lo_p2g; // Patch to global mapping for LO mesh
 
@@ -297,20 +299,22 @@ public:
       kron.SetSize(NP);
       for (int p = 0; p < NP; p++)
       {
-         Array<const KnotVector*> ho_kvs(dim);
-         Array<const KnotVector*> lo_kvs(dim);
-         ho_mesh->NURBSext->GetPatchKnotVectors(p, ho_kvs);
-         lo_mesh->NURBSext->GetPatchKnotVectors(p, lo_kvs);
+         Array<const KnotVector*> ho_kvs_(dim);
+         Array<const KnotVector*> lo_kvs_(dim);
+         ho_mesh->NURBSext->GetPatchKnotVectors(p, ho_kvs_);
+         lo_mesh->NURBSext->GetPatchKnotVectors(p, lo_kvs_);
+         ho_kvs.push_back(ho_kvs_);
+         lo_kvs.push_back(lo_kvs_);
          for (int d = 0; d < dim; d++)
          {
-            orders(p, d) = ho_kvs[d]->GetOrder();
+            orders(p, d) = ho_kvs[p][d]->GetOrder();
             // Collect knots for low-order mesh (collocation points)
             knots(p, d) = new Vector;
             Vector &u = *knots(p, d);
-            lo_kvs[d]->GetUniqueKnots(u);
+            lo_kvs[p][d]->GetUniqueKnots(u);
 
             // Collect the transfer matrices
-            SparseMatrix X(ho_kvs[d]->GetInterpolationMatrix(u));
+            SparseMatrix X(ho_kvs[p][d]->GetInterpolationMatrix(u));
             X.Finalize();
             R(p, d) = new DenseMatrix(*X.ToDenseMatrix());
             R(p, d)->Invert();
@@ -385,7 +389,13 @@ public:
       lo_x = 0.0;
       const int dim = ho_mesh->Dimension();
       Vector x(dim);
+      Vector xe(dim);
       Array<int> nk(dim);
+      Array<int> nel(dim);
+      IntegrationPoint ip;
+      Array<int> el(3);
+      el = 0;
+      int eidx_offset = 0;
 
       for (int p = 0; p < NP; p++)
       {
@@ -393,6 +403,7 @@ public:
          for (int d = 0; d < dim; d++)
          {
             nk[d] = knots(p, d)->Size();
+            nel[d] = lo_kvs[p][d]->GetNE();
          }
 
          for (int idx = 0; idx < lo_p2g[p].Size(); idx++)
@@ -405,12 +416,27 @@ public:
             // patch/cartesian index
             for (int d = 0; d < dim; d++)
             {
-               // collocation point
-               x(d) = (*knots(p, d))(ijk[d]);
+               // collocation point in patch coordinates
+               real_t u = (*knots(p, d))(ijk[d]);
+               // convert to element coordinates
+               int kspan = lo_kvs[p][d]->GetSpan(u);
+               xe[d] = lo_kvs[p][d]->GetRefPoint(u, kspan);
+               el[d] = lo_kvs[p][d]->GetUniqueSpan(u);
             }
+
+            int eidx = el[0]
+                     + el[1] * nel[0]
+                     + el[2] * (nel[0] * nel[1])
+                     + eidx_offset;
+            ip.Set(xe.GetData(), dim);
+            // convert to physical coordinates
+            lo_mesh->GetNodes()->GetVectorValue(eidx, ip, x);
+
             const int dofidx = lo_p2g[p][idx];
             lo_x(dofidx) = f(x);
          }
+
+         eidx_offset += nel.Prod();
       }
    }
 
@@ -509,6 +535,12 @@ void Save(const char *filename, SparseMatrix *A)
 {
    if (!A->Finalized()) { A->Finalize(); }
    Save(filename, A->ToDenseMatrix());
+}
+void Save(const char *filename, Mesh& mesh)
+{
+   std::ofstream ofs(filename);
+   ofs.precision(8);
+   mesh.Print(ofs);
 }
 
 enum class SplineIntegrationRule { FULL_GAUSSIAN, REDUCED_GAUSSIAN, };

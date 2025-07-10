@@ -10,21 +10,17 @@ using namespace std;
 using namespace mfem;
 
 // Analytic function:
-// Peak at (0.5, 0.5, 0.5)
-real_t f_exact(const Vector & x)
+real_t f_exact(real_t x0, real_t R, real_t n, const Vector & x)
 {
-   const real_t R = 0.4;
-   const real_t nx = 3;
-   const real_t ny = 3;
    real_t r = 0.0;
    for (int i = 0; i < x.Size(); ++i)
    {
-      r += pow(x(i)-0.5, 2);
+      r += pow(x(i)-x0, 2);
    }
    r = sqrt(r);
    return exp(-r / R)
-        * pow(sin(nx*x(0) * M_PI), 2)
-        * pow(sin(ny*x(1) * M_PI), 2);
+        * pow(sin(n*x(0) * M_PI), 2)
+        * pow(sin(n*x(1) * M_PI), 2);
    // return exp(-r / R)
    //      * pow(sin((3*x(0)*x(1) - 0.25) * M_PI), 2);
 }
@@ -34,10 +30,24 @@ int main(int argc, char *argv[])
    const int vdim = 1;
 
    const char *mesh_file = "ho_mesh.mesh";
+   int ref_levels = 0;
+   int nurbs_degree_increase = 0;  // Elevate the NURBS mesh degree by this
    bool printX = false;
+   // for exact function
+   real_t x0 = 0.5;
+   real_t R = 0.3;
+   real_t n = 3.0;
+
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
+   args.AddOption(&ref_levels, "-ref", "--refine",
+                  "Number of uniform mesh refinements.");
+   args.AddOption(&nurbs_degree_increase, "-incdeg", "--nurbs-degree-increase",
+                  "Elevate NURBS mesh degree by this amount.");
+   args.AddOption(&x0, "-x0", "--x0", "Center for the exact function. Default is 0.5.");
+   args.AddOption(&R, "-R", "--radius", "Radius for the exact function. Default is 0.5.");
+   args.AddOption(&n, "-n", "--periods", "Periods for the exact function. Default is 3.0.");
    args.AddOption(&printX, "-X", "--printX", "-noX", "--no-printX",
                   "Print the interpolation matrix.");
    args.Parse();
@@ -47,6 +57,18 @@ int main(int argc, char *argv[])
    Mesh mesh(mesh_file, 1, 1);
    // Mesh mesh("ho_mesh.mesh");
    // Mesh lo_mesh("lo_mesh.mesh");
+
+   // Increase the NURBS degree.
+   if (nurbs_degree_increase>0)
+   {
+      mesh.DegreeElevate(nurbs_degree_increase);
+   }
+   // Refine the mesh to increase the resolution.
+   for (int l = 0; l < ref_levels; l++)
+   {
+      mesh.NURBSUniformRefinement();
+   }
+
 
    // Create a GridFunction on the HO mesh
    FiniteElementCollection* fec = mesh.GetNodes()->OwnFEC();
@@ -61,6 +83,10 @@ int main(int argc, char *argv[])
    Mesh lo_mesh = mesh.GetLowOrderNURBSMesh(NURBSInterpolationRule::Botella, vdim, X);
    // if (printX) { Save("X.txt", X); }
    cout << "Finished creating low-order mesh." << endl;
+
+   // Save meshes
+   Save("ho_mesh.mesh", mesh);
+   Save("lo_mesh.mesh", lo_mesh);
 
    // Get dimension interpolation matrices: X1, X2, X3
    const int tdim = mesh.NURBSext->Dimension();
@@ -89,8 +115,8 @@ int main(int argc, char *argv[])
                                                       Ordering::byVDIM);
    GridFunction lo_x(&lo_fespace);
 
-   // Evaluate function at low-order knots
-   std::function<real_t(const Vector&)> f = f_exact;
+   // // Evaluate function at low-order knots
+   std::function<real_t(const Vector&)> f = std::bind(f_exact, x0, R, n, std::placeholders::_1);
    interpolator.EvaluateFunction(f, lo_x);
    cout << "Finished creating low-order grid function." << endl;
    Save("lo_x.gf", lo_x);
@@ -99,12 +125,6 @@ int main(int argc, char *argv[])
    GridFunction ho_x(&fespace);
    interpolator.InterpolateFunction(f, ho_x);
    Save("ho_x.gf", ho_x);
-
-   // Now compare with the results of NURBSInterpolator
-   // GridFunction x_recon(&fespace);
-   // interpolator.Mult(lo_x, x_recon);
-   // Save("x_recon.gf", x_recon);
-
 
    return 0;
 }

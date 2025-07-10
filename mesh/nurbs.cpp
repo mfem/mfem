@@ -446,7 +446,7 @@ SparseMatrix KnotVector::GetInterpolationMatrix(const Vector &u) const
 
    std::vector<KnotVector::ShapeValues> shapes = CalcShapes(u);
    Array<int> cols(Order+1);
-   for (int i = 0; i < NumOfControlPoints; i++)
+   for (int i = 0; i < u.Size(); i++)
    {
       for (int j = 0; j < Order+1; j++)
       {
