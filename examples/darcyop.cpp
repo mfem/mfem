@@ -391,7 +391,7 @@ void DarcyOperator::ImplicitSolve(const real_t dt, const Vector &x_v,
 
    //form the linear system
 
-   rhs.Update(*g, darcy->GetOffsets());
+   rhs.Update(g->GetData(), darcy->GetOffsets());
    x.Update(dx_v, darcy->GetOffsets());
    dx_v = x_v;
 
