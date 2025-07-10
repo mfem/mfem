@@ -1214,20 +1214,23 @@ inline void SmemPADiffusionApply3D(const int NE,
 
 namespace
 {
-using ApplyKernelType = DiffusionIntegrator::ApplyKernelType;
-using DiagonalKernelType = DiffusionIntegrator::DiagonalKernelType;
+using DiffusionApplyKernelType =
+   DiffusionIntegrator::DiffusionApplyKernelType;
+
+using DiffusionDiagonalKernelType =
+   DiffusionIntegrator::DiffusionDiagonalKernelType;
 }
 
 template<int DIM, int T_D1D, int T_Q1D>
-ApplyKernelType DiffusionIntegrator::ApplyPAKernels::Kernel()
+DiffusionApplyKernelType DiffusionIntegrator::DiffusionApplyPAKernel::Kernel()
 {
    if (DIM == 2) { return internal::SmemPADiffusionApply2D<T_D1D,T_Q1D>; }
    else if (DIM == 3) { return internal::SmemPADiffusionApply3D<T_D1D, T_Q1D>; }
    else { MFEM_ABORT(""); }
 }
 
-inline
-ApplyKernelType DiffusionIntegrator::ApplyPAKernels::Fallback(int DIM, int, int)
+inline DiffusionApplyKernelType
+DiffusionIntegrator::DiffusionApplyPAKernel::Fallback(int DIM, int, int)
 {
    if (DIM == 2) { return internal::PADiffusionApply2D; }
    else if (DIM == 3) { return internal::PADiffusionApply3D; }
@@ -1235,15 +1238,16 @@ ApplyKernelType DiffusionIntegrator::ApplyPAKernels::Fallback(int DIM, int, int)
 }
 
 template<int DIM, int D1D, int Q1D>
-DiagonalKernelType DiffusionIntegrator::DiagonalPAKernels::Kernel()
+DiffusionDiagonalKernelType
+DiffusionIntegrator::DiffusionDiagonalPAKernel::Kernel()
 {
    if (DIM == 2) { return internal::SmemPADiffusionDiagonal2D<D1D,Q1D>; }
    else if (DIM == 3) { return internal::SmemPADiffusionDiagonal3D<D1D, Q1D>; }
    else { MFEM_ABORT(""); }
 }
 
-inline DiagonalKernelType
-DiffusionIntegrator::DiagonalPAKernels::Fallback(int DIM, int, int)
+inline DiffusionDiagonalKernelType
+DiffusionIntegrator::DiffusionDiagonalPAKernel::Fallback(int DIM, int, int)
 {
    if (DIM == 2) { return internal::PADiffusionDiagonal2D; }
    else if (DIM == 3) { return internal::PADiffusionDiagonal3D; }

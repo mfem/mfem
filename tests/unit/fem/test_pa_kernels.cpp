@@ -844,9 +844,9 @@ TEST_CASE("Dispatch Map Specializations")
 
    DiffusionIntegrator{};
    REQUIRE_FALSE(
-      DiffusionIntegrator::ApplyPAKernels::GetDispatchTable().empty());
+      DiffusionIntegrator::DiffusionApplyPAKernel::GetDispatchTable().empty());
    REQUIRE_FALSE(
-      DiffusionIntegrator::DiagonalPAKernels::GetDispatchTable().empty());
+      DiffusionIntegrator::DiffusionDiagonalPAKernel::GetDispatchTable().empty());
 
    Mesh mesh = Mesh::MakeCartesian2D(2, 2, Element::QUADRILATERAL);
    H1_FECollection fec(1, mesh.Dimension());

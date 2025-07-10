@@ -60,6 +60,19 @@ struct tensor<T, n0>
    T values[n0];
 };
 
+template < typename T >
+struct tensor<T, 0>
+{
+   using type = T;
+   static constexpr int ndim      = 1;
+   static constexpr int first_dim = 0;
+   MFEM_HOST_DEVICE T& operator[](int /**/) { return values; }
+   MFEM_HOST_DEVICE const T& operator[](int /**/) const { return values; }
+   MFEM_HOST_DEVICE T& operator()(int /**/) { return values; }
+   MFEM_HOST_DEVICE const T& operator()(int /**/) const { return values; }
+   T values;
+};
+
 template < typename T, int n0, int n1 >
 struct tensor<T, n0, n1>
 {
@@ -73,6 +86,21 @@ struct tensor<T, n0, n1>
    MFEM_HOST_DEVICE T& operator()(int i, int j) { return values[i][j]; }
    MFEM_HOST_DEVICE const T& operator()(int i, int j) const { return values[i][j]; }
    tensor < T, n1 > values[n0];
+};
+
+template < typename T, int n1 >
+struct tensor<T, 0, n1>
+{
+   using type = T;
+   static constexpr int ndim      = 2;
+   static constexpr int first_dim = 0;
+   MFEM_HOST_DEVICE tensor< T, n1 >& operator[](int /**/) { return values; }
+   MFEM_HOST_DEVICE const tensor< T, n1 >& operator[](int /**/) const { return values; }
+   MFEM_HOST_DEVICE tensor< T, n1 >& operator()(int /**/) { return values; }
+   MFEM_HOST_DEVICE const tensor< T, n1 >& operator()(int /**/) const { return values; }
+   MFEM_HOST_DEVICE T& operator()(int /**/, int j) { return values[j]; }
+   MFEM_HOST_DEVICE const T& operator()(int /**/, int j) const { return values[j]; }
+   tensor < T, n1 > values;
 };
 
 template < typename T, int n0, int n1, int n2 >
@@ -92,6 +120,23 @@ struct tensor<T, n0, n1, n2>
    tensor < T, n1, n2 > values[n0];
 };
 
+template < typename T, int n1, int n2 >
+struct tensor<T, 0, n1, n2>
+{
+   using type = T;
+   static constexpr int ndim      = 3;
+   static constexpr int first_dim = 0;
+   MFEM_HOST_DEVICE tensor< T, n1, n2 >& operator[](int /*i*/) { return values; }
+   MFEM_HOST_DEVICE const tensor< T, n1, n2 >& operator[](int /*i*/) const { return values; }
+   MFEM_HOST_DEVICE tensor< T, n1, n2 >& operator()(int /*i*/) { return values; }
+   MFEM_HOST_DEVICE const tensor< T, n1, n2 >& operator()(int /*i*/) const { return values; }
+   MFEM_HOST_DEVICE tensor< T, n2 >& operator()(int /*i*/, int j) { return values[j]; }
+   MFEM_HOST_DEVICE const tensor< T, n2 >& operator()(int i, int j) const { return values[i][j]; }
+   MFEM_HOST_DEVICE T& operator()(int /*i*/, int j, int k) { return values[j][k]; }
+   MFEM_HOST_DEVICE const T& operator()(int /*i*/, int j, int k) const { return values[j][k]; }
+   tensor < T, n1, n2 > values;
+};
+
 template < typename T, int n0, int n1, int n2, int n3 >
 struct tensor<T, n0, n1, n2, n3>
 {
@@ -109,6 +154,26 @@ struct tensor<T, n0, n1, n2, n3>
    MFEM_HOST_DEVICE T& operator()(int i, int j, int k, int l) { return values[i][j][k][l]; }
    MFEM_HOST_DEVICE const T&  operator()(int i, int j, int k, int l) const { return values[i][j][k][l]; }
    tensor < T, n1, n2, n3 > values[n0];
+};
+
+template < typename T, int n1, int n2, int n3 >
+struct tensor<T, 0, n1, n2, n3>
+{
+   using type = T;
+   static constexpr int ndim      = 4;
+   static constexpr int first_dim = 0;
+   MFEM_HOST_DEVICE tensor< T, n1, n2, n3 >& operator[](int /*i*/) { return values; }
+   MFEM_HOST_DEVICE const tensor< T, n1, n2, n3 >& operator[](int /*i*/) const { return values; }
+   MFEM_HOST_DEVICE tensor< T, n1, n2, n3 >& operator()(int /*i*/) { return values; }
+   MFEM_HOST_DEVICE const tensor< T, n1, n2, n3 >& operator()(int /*i*/) const { return values; }
+   MFEM_HOST_DEVICE tensor< T, n2, n3 >& operator()(int /*i*/, int j) { return values[j]; }
+   MFEM_HOST_DEVICE const tensor< T, n2, n3 >& operator()(int /*i*/, int j) const { return values[j]; }
+   MFEM_HOST_DEVICE tensor< T, n3 >& operator()(int /*i*/, int j, int k) { return values[j][k]; }
+   MFEM_HOST_DEVICE const tensor< T, n3 >& operator()(int /*i*/, int j,
+                                                      int k) const { return values[j][k]; }
+   MFEM_HOST_DEVICE T& operator()(int /*i*/, int j, int k, int l) { return values[j][k][l]; }
+   MFEM_HOST_DEVICE const T&  operator()(int /*i*/, int j, int k, int l) const { return values[j][k][l]; }
+   tensor < T, n1, n2, n3 > values;
 };
 
 template < typename T, int n0, int n1, int n2, int n3, int n4 >

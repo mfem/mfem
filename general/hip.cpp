@@ -175,6 +175,15 @@ void* HipMemcpyDtoHAsync(void *dst, const void *src, size_t bytes)
    return dst;
 }
 
+const void* HipMemcpyToSymbol(const void *d_sym, const void *h_src,
+                              size_t bytes)
+{
+#ifdef MFEM_USE_HIP
+   MFEM_GPU_CHECK(hipMemcpyToSymbol(d_sym, h_src, bytes));
+#endif
+   return memcpy(const_cast<void*>(d_sym), h_src, bytes);
+}
+
 void HipCheckLastError()
 {
 #ifdef MFEM_USE_HIP

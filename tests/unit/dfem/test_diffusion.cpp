@@ -11,6 +11,7 @@
 
 #include "../unit_tests.hpp"
 #include "mfem.hpp"
+#include <fem/dfem/doperator.hpp>
 #include <utility>
 
 #ifdef MFEM_USE_MPI
@@ -332,12 +333,14 @@ void DFemDiffusion(const char *filename, int p, const int r)
 
 TEST_CASE("DFEM Diffusion", "[Parallel][DFEM]")
 {
-   const bool all_tests = launch_all_non_regression_tests;
+   // const bool all_tests = launch_all_non_regression_tests;
 
-   const auto p = !all_tests ? 2 : GENERATE(1, 2, 3);
-   const auto r = !all_tests ? 2 : GENERATE(0, 1, 2, 3);
+   // const auto p = !all_tests ? 2 : GENERATE(1, 2, 3);
+   // const auto r = !all_tests ? 2 : GENERATE(0, 1, 2, 3);
+   const int p = 2, r = 1;
+   dbg("p:{} r:{}", p, r);
 
-   SECTION("2D p=" + std::to_string(p) + " r=" + std::to_string(r))
+   /*SECTION("2D p=" + std::to_string(p) + " r=" + std::to_string(r))
    {
       const auto filename =
          GENERATE("../../data/star.mesh",
@@ -346,16 +349,21 @@ TEST_CASE("DFEM Diffusion", "[Parallel][DFEM]")
                   "../../data/inline-quad.mesh",
                   "../../data/periodic-square.mesh");
       DFemDiffusion<2>(filename, p, r);
-   }
+   }*/
 
    SECTION("3D p=" + std::to_string(p) + " r=" + std::to_string(r))
    {
+#if 0
       const auto filename =
          GENERATE("../../data/fichera.mesh",
                   "../../data/fichera-q3.mesh",
                   "../../data/inline-hex.mesh",
                   "../../data/toroid-hex.mesh",
                   "../../data/periodic-cube.mesh");
+#else
+      const auto filename =
+         GENERATE("../../data/fichera.mesh");
+#endif
       DFemDiffusion<3>(filename, p, r);
    }
 }

@@ -11,6 +11,23 @@
 #pragma once
 
 #include "util.hpp"
+#include "fem/kernels.hpp"
+
+///////////////////////////////////////////////////////////////////////////////
+template <class T>
+inline std::enable_if_t<!std::numeric_limits<T>::is_integer, bool>
+AlmostEq(T x, T y, T tolerance = 15.0 * std::numeric_limits<T>::epsilon())
+{
+   const T neg = std::abs(x - y);
+   constexpr T min = std::numeric_limits<T>::min();
+   constexpr T eps = std::numeric_limits<T>::epsilon();
+   const T min_abs = std::min(std::abs(x), std::abs(y));
+   if (std::abs(min_abs) == 0.0) { return neg < eps; }
+   return (neg / (1.0 + std::max(min, min_abs))) < tolerance;
+}
+#undef NVTX_COLOR
+#define NVTX_COLOR nvtx::kPeru
+#include "general/nvtx.hpp"
 
 namespace mfem::future
 {
@@ -30,6 +47,7 @@ void map_field_to_quadrature_data_tensor_product_3d(
 
    if constexpr (is_value_fop<std::decay_t<field_operator_t>>::value)
    {
+      dbg("Value");
       auto [q1d, unused, d1d] = B.GetShape();
       const int vdim = input.vdim;
       const auto field = Reshape(&field_e[0], d1d, d1d, d1d, vdim);
@@ -94,10 +112,11 @@ void map_field_to_quadrature_data_tensor_product_3d(
    else if constexpr (
       is_gradient_fop<std::decay_t<field_operator_t>>::value)
    {
-      const auto [q1d, unused, d1d] = B.GetShape();
+      // dbg("Gradient");
+      const auto [q1d, B_dim, d1d] = B.GetShape();
       const int vdim = input.vdim;
       const int dim = input.dim;
-      const auto field = Reshape(&field_e[0], d1d, d1d, d1d, vdim);
+      const auto field = Reshape(&std::as_const(field_e[0]), d1d, d1d, d1d, vdim);
       auto fqp = Reshape(&field_qp[0], vdim, dim, q1d, q1d, q1d);
 
       auto s0 = Reshape(&scratch_mem[0](0), d1d, d1d, q1d);
@@ -106,7 +125,30 @@ void map_field_to_quadrature_data_tensor_product_3d(
       auto s3 = Reshape(&scratch_mem[3](0), d1d, q1d, q1d);
       auto s4 = Reshape(&scratch_mem[4](0), d1d, q1d, q1d);
 
-      for (int vd = 0; vd < vdim; vd++)
+      // constexpr int MQ1 = T_Q1D > 0 ? T_Q1D : 8;
+      // static constexpr int DIM = 3;
+      // MFEM_VERIFY(q1d <= MQ1, "q1d > MQ1");
+      // MFEM_SHARED real_t smem[MQ1][MQ1];
+
+      // kernels::internal::d_regs3d_t<DIM, MQ1> r0, r1;
+      // real_t sB[MQ1][MQ1], sG[MQ1][MQ1];
+
+      /*
+      {
+         assert(B_dim == 1 && "1D B required!");
+         kernels::internal::LoadMatrix(d1d, q1d, B, sB);
+         kernels::internal::LoadMatrix(d1d, q1d, G, sG);
+         for (int qx = 0; qx < q1d; qx++)
+         {
+            for (int dx = 0; dx < d1d; dx++)
+            {
+               assert(AlmostEq(B(qx, 0, dx), sB[dx][qx]));
+               assert(AlmostEq(G(qx, 0, dx), sG[dx][qx]));
+            }
+         }
+      }*/
+
+      for (int c = 0; c < vdim; c++)
       {
          MFEM_FOREACH_THREAD_DIRECT(dz, z, d1d)
          {
@@ -117,7 +159,7 @@ void map_field_to_quadrature_data_tensor_product_3d(
                   real_t uv[2] = {0.0, 0.0};
                   for (int dx = 0; dx < d1d; dx++)
                   {
-                     const real_t f = field(dx, dy, dz, vd);
+                     const real_t f = field(dx, dy, dz, c);
                      uv[0] += f * B(qx, 0, dx);
                      uv[1] += f * G(qx, 0, dx);
                   }
@@ -163,19 +205,59 @@ void map_field_to_quadrature_data_tensor_product_3d(
                      uvw[1] += s3(dz, qy, qx) * B(qz, 0, dz);
                      uvw[2] += s4(dz, qy, qx) * G(qz, 0, dz);
                   }
-                  fqp(vd, 0, qx, qy, qz) = uvw[0];
-                  fqp(vd, 1, qx, qy, qz) = uvw[1];
-                  fqp(vd, 2, qx, qy, qz) = uvw[2];
+                  fqp(c, 0, qx, qy, qz) = uvw[0];
+                  fqp(c, 1, qx, qy, qz) = uvw[1];
+                  fqp(c, 2, qx, qy, qz) = uvw[2];
                }
             }
          }
          MFEM_SYNC_THREAD;
       }
+
+      /*
+      {
+         for (int c = 0; c < vdim; c++)
+         {
+            kernels::internal::LoadDofs3d(d1d, c, field, r0);
+            for (int d = 0; d < DIM; d++)
+            {
+               for (int dz = 0; dz < d1d; dz++)
+               {
+                  for (int dy = 0; dy < d1d; dy++)
+                  {
+                     for (int dx = 0; dx < d1d; dx++)
+                     {
+                        const real_t f = field(dx, dy, dz, c);
+                        assert(AlmostEq(f, r0[d][dz][dy][dx]));
+                     }
+                  }
+               }
+            }
+
+            kernels::internal::Grad3d(d1d, q1d, smem, sB, sG, r0, r1, c);
+            for (int qz = 0; qz < q1d; qz++)
+            {
+               for (int qy = 0; qy < q1d; qy++)
+               {
+                  for (int qx = 0; qx < q1d; qx++)
+                  {
+                     if (!AlmostEq(fqp(c, d, qx, qy, qz), r1[d][qz][qy][qx]))
+                     {
+                        dbg("\x1b[31m[{}:d] {} {}", c, fqp(c, d, qx, qy, qz), r1[d][qz][qy][qx]);
+                        dbg("❌❌❌"), std::exit(EXIT_FAILURE);
+                     }
+                  }
+               }
+            }
+         }
+         // dbg("✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅");//, std::exit(EXIT_SUCCESS);
+      }*/
    }
    // TODO: Create separate function for clarity
    else if constexpr (
       std::is_same_v<std::decay_t<field_operator_t>, Weight>)
    {
+      // dbg("None");
       const int num_qp = integration_weights.GetShape()[0];
       // TODO: eeek
       const int q1d = (int)floor(std::pow(num_qp, 1.0/input.dim) + 0.5);
@@ -432,6 +514,9 @@ void map_fields_to_quadrature_data(
    const int &dimension,
    const bool &use_sum_factorization = false)
 {
+   // dbg();
+   assert(use_sum_factorization && "❌ use_sum_factorization required");
+
    // When the input_to_field map returns -1, this means the requested input
    // is the integration weight. Weights don't have a user defined field
    // attached to them and we create a dummy field which is not accessed
@@ -485,6 +570,7 @@ void map_field_to_quadrature_data_conditional(
    const int &dimension,
    const bool &use_sum_factorization = false)
 {
+   assert(false && "❌ condition not implemented");
    if (condition)
    {
       if (use_sum_factorization)
@@ -520,6 +606,7 @@ void map_fields_to_quadrature_data_conditional(
    const std::array<bool, num_inputs> &conditions,
    const bool &use_sum_factorization = false)
 {
+   assert(false && "❌ condition not implemented");
    for_constexpr<num_inputs>([&](auto i)
    {
       map_field_to_quadrature_data_conditional(
@@ -528,7 +615,7 @@ void map_fields_to_quadrature_data_conditional(
    });
 }
 
-template <size_t num_inputs, typename field_operator_ts>
+template <int T_Q1D, size_t num_inputs, typename field_operator_ts>
 MFEM_HOST_DEVICE
 void map_direction_to_quadrature_data_conditional(
    std::array<DeviceTensor<2>, num_inputs> &directions_qp,
@@ -555,7 +642,7 @@ void map_direction_to_quadrature_data_conditional(
             }
             else if (dimension == 3)
             {
-               map_field_to_quadrature_data_tensor_product_3d(
+               map_field_to_quadrature_data_tensor_product_3d<T_Q1D>(
                   directions_qp[i], dtqmaps[i], direction_e, get<i>(fops),
                   integration_weights, scratch_mem);
             }

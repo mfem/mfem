@@ -235,6 +235,8 @@ void process_qf_arg(
    }
 }
 
+// const tensor<real_t, DIM>       ∇u
+// const tensor<real_t, DIM, DIM>  D (PA_DATA)
 template <typename arg_type>
 MFEM_HOST_DEVICE inline
 void process_qf_arg(const DeviceTensor<2> &u, arg_type &arg, int qp)

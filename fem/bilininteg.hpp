@@ -2176,18 +2176,22 @@ class DiffusionIntegrator: public BilinearFormIntegrator
 {
 public:
 
-   using ApplyKernelType = void(*)(const int, const bool, const Array<real_t>&,
-                                   const Array<real_t>&, const Array<real_t>&,
-                                   const Array<real_t>&,
-                                   const Vector&, const Vector&,
-                                   Vector&, const int, const int);
+   using DiffusionApplyKernelType = void(*)(const int, const bool,
+                                            const Array<real_t>&,
+                                            const Array<real_t>&, const Array<real_t>&,
+                                            const Array<real_t>&,
+                                            const Vector&, const Vector&,
+                                            Vector&, const int, const int);
 
-   using DiagonalKernelType = void(*)(const int, const bool, const Array<real_t>&,
-                                      const Array<real_t>&, const Vector&, Vector&,
-                                      const int, const int);
+   using DiffusionDiagonalKernelType = void(*)(const int, const bool,
+                                               const Array<real_t>&,
+                                               const Array<real_t>&, const Vector&, Vector&,
+                                               const int, const int);
 
-   MFEM_REGISTER_KERNELS(ApplyPAKernels, ApplyKernelType, (int, int, int));
-   MFEM_REGISTER_KERNELS(DiagonalPAKernels, DiagonalKernelType, (int, int, int));
+   MFEM_REGISTER_KERNELS(DiffusionApplyPAKernel, DiffusionApplyKernelType,
+                         (int, int, int));
+   MFEM_REGISTER_KERNELS(DiffusionDiagonalPAKernel, DiffusionDiagonalKernelType,
+                         (int, int, int));
    struct Kernels { Kernels(); };
 
 protected:
@@ -2207,6 +2211,7 @@ private:
    const FiniteElementSpace *fespace;
    const DofToQuad *maps;         ///< Not owned
    const GeometricFactors *geom;  ///< Not owned
+public:
    int dim, ne, dofs1D, quad1D;
    Vector pa_data;
    bool symmetric = true; ///< False if using a nonsymmetric matrix coefficient
@@ -2348,8 +2353,8 @@ public:
    template <int DIM, int D1D, int Q1D>
    static void AddSpecialization()
    {
-      ApplyPAKernels::Specialization<DIM,D1D,Q1D>::Add();
-      DiagonalPAKernels::Specialization<DIM,D1D,Q1D>::Add();
+      DiffusionApplyPAKernel::Specialization<DIM,D1D,Q1D>::Add();
+      DiffusionDiagonalPAKernel::Specialization<DIM,D1D,Q1D>::Add();
    }
 protected:
    const IntegrationRule* GetDefaultIntegrationRule(
