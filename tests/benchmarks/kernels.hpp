@@ -13,6 +13,7 @@
 #include "../../config/config.hpp"
 #include "../../linalg/dtensor.hpp"
 #include "../../linalg/tensor.hpp"
+// #include "../../fem/kernels.hpp"
 
 namespace mfem::kernels::internal::vd
 {
@@ -30,34 +31,28 @@ using regs3d_vd_t = mfem::future::tensor<real_t, N, N, N, VDIM, DIM>;
 
 #endif // CUDA/HIP && DEVICE_COMPILE
 
-/// Load 3D input VDIM*DIM vector into given register tensor, specific component
-template <int VDIM, int DIM, int MQ1>
-inline MFEM_HOST_DEVICE void LoadDofs3d(const int e, const int d1d, const int c,
-                                        const DeviceTensor<5, const real_t> &X,
-                                        regs3d_vd_t<VDIM, DIM, MQ1> &Y)
-{
-   for (int d = 0; d < DIM; d++)
-   {
-      for (int dz = 0; dz < d1d; ++dz)
-      {
-         MFEM_FOREACH_THREAD_DIRECT(dy, y, d1d)
-         {
-            MFEM_FOREACH_THREAD_DIRECT(dx, x, d1d)
-            {
-               Y[dz][dy][dx][c][d] = X(dx, dy, dz, c, e);
-            }
-         }
-      }
-   }
-}
-
 /// Load 3D input VDIM*DIM vector into given register tensor
 template <int VDIM, int DIM, int MQ1>
 inline MFEM_HOST_DEVICE void LoadDofs3d(const int e, const int d1d,
                                         const DeviceTensor<5, const real_t> &X,
                                         regs3d_vd_t<VDIM, DIM, MQ1> &Y)
 {
-   for (int c = 0; c < VDIM; ++c) { LoadDofs3d(e, d1d, c, X, Y); }
+   for (int dz = 0; dz < d1d; ++dz)
+   {
+      MFEM_FOREACH_THREAD_DIRECT(dy, y, d1d)
+      {
+         MFEM_FOREACH_THREAD_DIRECT(dx, x, d1d)
+         {
+            for (int c = 0; c < VDIM; ++c)
+            {
+               for (int d = 0; d < DIM; d++)
+               {
+                  Y[dz][dy][dx][c][d] = X(dx, dy, dz, c, e);
+               }
+            }
+         }
+      }
+   }
 }
 
 /// Write 3D scalar into given device tensor, with read (i) write (j) indices
@@ -74,7 +69,7 @@ inline MFEM_HOST_DEVICE void WriteDofs3d(const int e, const int d1d,
          MFEM_FOREACH_THREAD_DIRECT(dx, x, d1d)
          {
             real_t value = 0.0;
-            for (int d = 0; d < DIM; d++) { value += X(dz, dy, dx, i, d); }
+            for (int d = 0; d < DIM; d++) { value += X[dz][dy][dx][i][d]; }
             Y(dx, dy, dz, j, e) += value;
          }
       }
@@ -89,48 +84,6 @@ inline MFEM_HOST_DEVICE void WriteDofs3d(const int e, const int d1d,
 {
    for (int c = 0; c < VDIM; ++c) { WriteDofs3d(e, d1d, c, c, X, Y); }
 }
-
-/// Write 3D VDIM vector into given device tensor
-/*template <int VDIM, int MQ1>
-inline MFEM_HOST_DEVICE void WriteDofs3d(const int e, const int d1d,
-                                         regs3d_v_t<VDIM, MQ1> &X,
-                                         const DeviceTensor<5, real_t> &Y)
-{
-   for (int c = 0; c < VDIM; ++c)
-   {
-      for (int dz = 0; dz < d1d; ++dz)
-      {
-         MFEM_FOREACH_THREAD_DIRECT(dy, y, d1d)
-         {
-            MFEM_FOREACH_THREAD_DIRECT(dx, x, d1d)
-            {
-               Y(dx, dy, dz, c, e) += X(dz, dy, dx, c);
-            }
-         }
-      }
-   }
-}*/
-
-/// Write 3D DIM vector into given device tensor for specific component
-/*template <int DIM, int MQ1>
-inline MFEM_HOST_DEVICE void WriteDofs3d(const int d1d, const int c,
-                                         regs3d_d_t<DIM, MQ1> &X,
-                                         DeviceTensor<4, real_t> &Y)
-{
-   for (int dz = 0; dz < d1d; ++dz)
-   {
-      MFEM_FOREACH_THREAD_DIRECT(dy, y, d1d)
-      {
-         MFEM_FOREACH_THREAD_DIRECT(dx, x, d1d)
-         {
-            for (int d = 0; d < DIM; ++d)
-            {
-               Y(dx, dy, dz, c) += X(dz, dy, dx, d);
-            }
-         }
-      }
-   }
-}*/
 
 /// 3D vector contraction, X direction
 template <bool Transpose, int VDIM, int DIM, int MQ1>
@@ -293,19 +246,6 @@ inline MFEM_HOST_DEVICE void GradTranspose3d(const int d1d, const int q1d,
                                              regs3d_vd_t<VDIM, DIM, MQ1> &Y)
 {
    Grad3d<VDIM, DIM, MQ1, true>(d1d, q1d, smem, B, G, X, Y);
-}
-
-/// 3D vector transposed gradient, with component
-template <int VDIM, int DIM, int MQ1>
-inline MFEM_HOST_DEVICE void GradTranspose3d(const int d1d, const int q1d,
-                                             real_t (&smem)[MQ1][MQ1],
-                                             const real_t (*B)[MQ1],
-                                             const real_t (*G)[MQ1],
-                                             regs3d_vd_t<VDIM, DIM, MQ1> &X,
-                                             regs3d_vd_t<VDIM, DIM, MQ1> &Y,
-                                             const int c)
-{
-   Grad3d<VDIM, DIM, MQ1, true>(d1d, q1d, smem, B, G, X, Y, c);
 }
 
 } // namespace mfem::kernels::internal
