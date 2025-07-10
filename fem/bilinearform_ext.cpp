@@ -255,6 +255,8 @@ PABilinearFormExtension::PABilinearFormExtension(BilinearForm *form)
 
 void PABilinearFormExtension::SetupRestrictionOperators(const L2FaceValues m)
 {
+   MFEM_PERF_FUNCTION;
+
    if ( Device::Allows(Backend::CEED_MASK) ) { return; }
    ElementDofOrdering ordering = GetEVectorOrdering(*a->FESpace());
    elem_restrict = trial_fes->GetElementRestriction(ordering);

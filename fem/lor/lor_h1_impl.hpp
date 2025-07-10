@@ -184,6 +184,8 @@ void BatchedLOR_H1::Assemble2D()
 template <int ORDER>
 void BatchedLOR_H1::Assemble3D()
 {
+   MFEM_PERF_FUNCTION;
+
    const int nel_ho = fes_ho.GetNE();
    static constexpr int nv = 8;
    static constexpr int dim = 3;
