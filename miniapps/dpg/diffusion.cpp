@@ -179,6 +179,7 @@ int main(int argc, char *argv[])
    real_t td = 0.5;
    int visport = 19916;
    bool static_cond = false;
+   bool reduction = false;
    bool hybridization = false;
    bool analytic = false;
 
@@ -222,6 +223,8 @@ int main(int argc, char *argv[])
    //               "Heat capacity coefficient (0=indefinite problem)");
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
                   "--no-static-condensation", "Enable static condensation.");
+   args.AddOption(&reduction, "-rd", "--reduction", "-no-rd",
+                  "--no-reduction", "Enable reduction.");
    args.AddOption(&hybridization, "-hb", "--hybridization", "-no-hb",
                   "--no-hybridization", "Enable hybridization.");
    args.AddOption(&td, "-td", "--stab_diff",
@@ -557,6 +560,15 @@ int main(int argc, char *argv[])
                                          new NormalTraceJumpIntegrator(-1.),
                                          ess_tdof_list);
          }
+         else if (reduction)
+         {
+            if (disc != discret_type::BRTDG && disc != discret_type::LDG)
+            {
+               std::cerr << "Reduction not possible with continuous elements!" << std::endl;
+               return 1;
+            }
+            a_darcy->EnableFluxReduction();
+         }
 
          a_darcy->Assemble();
       }
@@ -621,7 +633,7 @@ int main(int argc, char *argv[])
       }
       else
       {
-         if (hybridization)
+         if (hybridization || reduction)
          {
 #if !defined(MFEM_USE_SUITESPARSE) or !defined(USE_DIRECT_SOLVER)
             prec.reset(new GSSmoother(*Ah.As<SparseMatrix>()));
