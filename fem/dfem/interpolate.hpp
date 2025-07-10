@@ -577,12 +577,12 @@ void map_field_to_quadrature_data_conditional(
       {
          if (dimension == 2)
          {
-            map_field_to_quadrature_data_tensor_product_3d(
+            map_field_to_quadrature_data_tensor_product_2d(
                field_qp, dtqmap, field_e, fop, integration_weights, scratch_mem);
          }
          else if (dimension == 3)
          {
-            map_field_to_quadrature_data_tensor_product_2d(
+            map_field_to_quadrature_data_tensor_product_3d(
                field_qp, dtqmap, field_e, fop, integration_weights, scratch_mem);
          }
       }
@@ -615,7 +615,7 @@ void map_fields_to_quadrature_data_conditional(
    });
 }
 
-template <int T_Q1D, size_t num_inputs, typename field_operator_ts>
+template <size_t num_inputs, typename field_operator_ts>
 MFEM_HOST_DEVICE
 void map_direction_to_quadrature_data_conditional(
    std::array<DeviceTensor<2>, num_inputs> &directions_qp,
@@ -642,7 +642,7 @@ void map_direction_to_quadrature_data_conditional(
             }
             else if (dimension == 3)
             {
-               map_field_to_quadrature_data_tensor_product_3d<T_Q1D>(
+               map_field_to_quadrature_data_tensor_product_3d(
                   directions_qp[i], dtqmaps[i], direction_e, get<i>(fops),
                   integration_weights, scratch_mem);
             }

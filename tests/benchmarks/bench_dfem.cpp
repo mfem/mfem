@@ -48,6 +48,12 @@ using future::Gradient;
 using future::Weight;
 using future::Identity;
 
+#ifdef MFEM_USE_ENZYME
+using dscalar_t = real_t;
+#else
+using mfem::future::dual;
+using dscalar_t = dual<real_t, real_t>;
+#endif
 
 #if ((defined(MFEM_USE_CUDA) && defined(__CUDA_ARCH__)) ||       \
      (defined(MFEM_USE_HIP) && defined(__HIP_DEVICE_COMPILE__)))
@@ -545,7 +551,7 @@ struct Diffusion : public BakeOff<VDIM, GLL>
       else if (version == 3) // PA ∂fem
       {
          dbg("[PA ∂fem]");
-         MFEM_ABORT("PA ∂fem is not implemented yet.");
+         MFEM_ABORT("PA ∂fem is not implemented yet. ❌");
          /*auto W = Weight{};
          auto Iq = Identity<Q> {};
          auto Iu = Identity<U> {};
@@ -588,12 +594,13 @@ struct Diffusion : public BakeOff<VDIM, GLL>
       }
       else if (version == 4) // Linearisation ∂fem
       {
+         dbg("[Linearised ∂fem]");
          auto solutions = std::vector{FieldDescriptor{U, &pfes}};
          auto parameters = std::vector{FieldDescriptor{Ξ, &mfes}};
          auto derivatives = std::integer_sequence<size_t, U> {};
          dop = std::make_unique<DifferentiableOperator>(solutions, parameters, pmesh);
          const auto diffusion_mf_kernel =
-            [] MFEM_HOST_DEVICE (const tensor<real_t, DIM>& ∇u,
+            [] MFEM_HOST_DEVICE (const tensor<dscalar_t, DIM>& ∇u,
                                  const tensor<real_t, DIM, DIM>& J,
                                  const real_t& w)
          {
@@ -605,10 +612,9 @@ struct Diffusion : public BakeOff<VDIM, GLL>
                                   tuple{Gradient<U>{}},
                                   *ir, ess_bdr, derivatives);
          dop->SetParameters({nodes});
-         // auto dRdU = dop->GetDerivative(U, {&x}, {nodes});
+         auto dRdU = dop->GetDerivative(U, {&x}, {nodes});
 
          // constr_op.reset(new ConstrainedOperator(dRdU.get(), ess_bdr));
-
          // dop->FormLinearSystem(ess_tdof_list, x, b, A_ptr, X, B);
          // A.Reset(A_ptr);
          // A.Reset(new ConstrainedOperator(dRdU.get(), ess_bdr));
