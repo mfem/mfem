@@ -25,7 +25,7 @@
 namespace mfem
 {
 
-
+using namespace std;
 
 /**
  * @brief A class to handle variables and transfers on shared boundaries
@@ -96,6 +96,129 @@ public:
     }
 };
 
+/// Fixed point iteration solver: x <- f(x)
+class FPISolver : public IterativeSolver
+{
+protected:
+   mutable Vector r, z;
+ 
+   void UpdateVectors()
+   {
+        r.SetSize(width);
+        z.SetSize(width);
+    }
+ 
+public:
+   FPISolver() { }
+ 
+#ifdef MFEM_USE_MPI
+   FPISolver(MPI_Comm comm_) : IterativeSolver(comm_) { }
+#endif
+ 
+   virtual void SetOperator(const Operator &op)
+   { IterativeSolver::SetOperator(op); UpdateVectors(); }
+ 
+   /// Iterative solution of the (non)linear system using Fixed Point Iteration
+   virtual void Mult(const Vector &b, Vector &x) const 
+   {
+        int i;
+        
+        // FPI with fixed number of iterations and given
+        // initial guess
+        if (rel_tol == 0.0 && iterative_mode)
+        {
+            for (i = 0; i < max_iter; i++)
+            {
+                oper->Mult(x, z);  // z = F(x)
+                x = z;
+            }
+            converged = true;
+            final_iter = i;
+            return;
+        }
+
+        real_t r0, nom, nom0, nomold = 1, cf;
+
+        if (iterative_mode)
+        {
+            oper->Mult(x, z);  // z = F(x)
+            subtract(x, z, r); // r = z - x
+        }
+        else
+        {            
+            x = 0.0;
+            oper->Mult(x, r);  // r = F(x)
+        }
+        
+        nom0 = nom = sqrt(Dot(r, r));
+        initial_norm = nom0;
+
+        if (print_options.iterations | print_options.first_and_last)
+        {
+            mfem::out << "   Iteration : " << setw(3) << right << 0 << "  ||Br|| = "
+                        << nom << (print_options.first_and_last ? " ..." : "") << '\n';
+        }
+ 
+        r0 = std::max(nom*rel_tol, abs_tol);
+        if (nom <= r0)
+        {
+            converged = true;
+            final_iter = 0;
+            final_norm = nom;
+            return;
+        }        
+
+        // start iteration
+        converged = false;
+        final_iter = max_iter;
+        for (i = 1; true; )
+        {    
+            oper->Mult(x, z);  // z = F(x)
+            subtract(x, z, r); // r = z - x
+            nom = sqrt(Dot(r, r));
+            x = z;
+            
+            cf = nom/nomold;
+            nomold = nom;
+        
+            bool done = false;
+            if (nom < r0)
+            {
+                converged = true;
+                final_iter = i;
+                done = true;
+            }
+        
+            if (++i > max_iter)
+            {
+                done = true;
+            }
+        
+            if (print_options.iterations || (done && print_options.first_and_last))
+            {
+                mfem::out << "   Iteration : " << setw(3) << right << (i-1)
+                        << "  ||r|| = " << setw(11) << left << nom
+                        << "\tConv. rate: " << cf << '\n';
+            }
+        
+            if (done) { break; }
+        }
+ 
+        if (print_options.summary || (print_options.warnings && !converged))
+        {
+            const auto rf = pow (nom/nom0, 1.0/final_iter);
+            mfem::out << "FPI: Number of iterations: " << final_iter << '\n'
+                        << "Conv. rate: " << cf << '\n'
+                        << "Average reduction factor: "<< rf << '\n';
+        }
+        if (print_options.warnings && !converged)
+        {
+            mfem::out << "FPI: No convergence!" << '\n';
+        }
+        
+        final_norm = nom;
+   }
+};
 
 
 
@@ -105,8 +228,6 @@ public:
  */
 class Application : public TimeDependentOperator
 {
-private:
-    std::string name;
 
 protected:
 
@@ -115,7 +236,7 @@ protected:
 
 public:
 
-    Application(int n=0, std::string name_="Unknown") : TimeDependentOperator(n), name(name_) {}
+    Application(int n=0) : TimeDependentOperator(n) {}
 
     virtual void Initialize() {
         mfem_error("Application::Initialize() is not overridden!");
@@ -128,17 +249,6 @@ public:
     virtual void Finalize() {
         mfem_error("Application::Finalize() is not overridden!");
     }
-
-
-    /**
-     * @brief Set the name of the application.
-     */
-    std::string SetName(std::string n) { name = n;}
-
-    /**
-     * @brief Get the name of the application.
-     */
-    std::string GetName() const { return name;}
 
     /**
      * @brief Given a vector @a x, solve the problem defined by the application 
@@ -245,11 +355,6 @@ public:
     //     app->Assemble();
     // }
 
-    // std::string GetName() const
-    // {
-    //     return app->GetName();
-    // }
-
     void Solve(const Vector &x, Vector &y) const override
     {
         if constexpr (CheckForMemberFunction<App,CheckSolve,void>::value)
@@ -302,6 +407,40 @@ public:
 class CoupledApplication : public Application
 {
 
+private:
+
+    class SchwarzOperator : public TimeDependentOperator
+    {
+        protected:
+            CoupledApplication *app;
+            real_t dt= 0.0; ///< Time step size, used for time-dependent applications
+            const Vector *xp = nullptr; ///< Pointer to the input vector, used in Mult() methods
+        public:
+            SchwarzOperator(CoupledApplication *app_) : TimeDependentOperator(app_->Height(),app_->Width()), app(app_){}
+            void SetTime(real_t dt_) override { dt = dt_; }
+            void SetState(const Vector *x){xp = x;}
+
+    };
+    class AdditiveSchwarzOperator : public SchwarzOperator
+    {
+        public:
+            AdditiveSchwarzOperator(CoupledApplication *app_) : SchwarzOperator(app_){}
+            void Mult(const Vector &x, Vector &y) const override { 
+                y = x;
+                app->AdditiveSchwarzImplicitSolve(dt,*xp,y);
+            }
+    };
+
+    class AlternatingSchwarzOperator : public SchwarzOperator
+    {
+        public:
+            AlternatingSchwarzOperator(CoupledApplication *app_) : SchwarzOperator(app_){}        
+            void Mult(const Vector &x, Vector &y) const override { 
+                y = x;
+                app->AlternatingSchwarzImplicitSolve(dt,*xp,y);
+            }
+    };    
+
 public:
 
     enum class Scheme
@@ -317,13 +456,12 @@ protected:
     int napps = 0; ///< The number of applications
     Scheme scheme = Scheme::ADDITIVE_SCHWARZ; ///< Current coupling type
     
-private:
-
     std::vector<Application*> apps;
+    SchwarzOperator *implicit_op = nullptr; ///< Coupled operator for the applications
     Solver *solver;
 
     mfem::Array<int> offsets;
-    Vector xtmp, ktmp;
+    Vector xt,kt;
     
 public:
 
@@ -388,6 +526,10 @@ public:
         this->offsets = off_sets;
     }
 
+    void SetSolver(Solver *solver_){
+        solver = solver_;
+    }
+
     void Initialize()
     {
         for (auto &app : apps)
@@ -414,25 +556,29 @@ public:
             }
         }
 
-        ktmp.SetSize(this->Width());        
+        
         int max_size = offsets.Max();
 
         if (scheme == Scheme::MONOLITHIC)
         {   // Set vector size for the full coupled operator
-            xtmp.SetSize(this->Width());
+            xt.SetSize(this->Width());
         }
         else if (scheme == Scheme::ADDITIVE_SCHWARZ)
         {   // Set vector size for the the largest operator
-            xtmp.SetSize(max_size);
+            xt.SetSize(max_size);
+            implicit_op = new AdditiveSchwarzOperator(this);
         }
         else if (scheme == Scheme::ALTERNATING_SCHWARZ)
         {   // Set vector size for the the largest operator
-            xtmp.SetSize(max_size);            
+            xt.SetSize(max_size);
+            implicit_op = new AlternatingSchwarzOperator(this);
         }
+
+        if(implicit_op && solver) solver->SetOperator(*implicit_op);
 
         offsets.Prepend(0);
         offsets.PartialSum(); // Compute block sizes for the coupled operator
-    }   
+    }
 
     /**
     * @brief Given a vector @a x, solve the problem defined by the application 
@@ -547,7 +693,9 @@ public:
         }
         else if (scheme != Scheme::DECOUPLED) ///< Solve each physics independently
         {
-            PartitionedImplicitSolve(dt,x,k);
+            implicit_op->SetTime(dt); ///< Set the time step for the implicit operator
+            implicit_op->SetState(&x); ///< Set the input vector for the implicit operator
+            solver->Mult(kt,k); ///< Solve the implicit system using the solver (kt is unused for FPISolver)
         }
         else
         {
@@ -566,65 +714,52 @@ public:
     /**
      * @brief Solves the implicit system app-by-app for the PARTITIONED coupling 
      */
-    void PartitionedImplicitSolve(const real_t dt, const Vector &x, Vector &k ){
-
+    void AdditiveSchwarzImplicitSolve(const real_t dt, const Vector &x, Vector &k )
+    {
         BlockVector xb(x.GetData(), offsets);
         BlockVector kb(k.GetData(), offsets);
 
-        k    = 0.0; ///< Reset the vector for the implicit system
-        ktmp = 0.0; ///< Reset the temporary vector for the implicit system
-        real_t err = 1.0;
-        real_t tol = 1e-5;
-
-
-        for (int iter=0; iter < 3; iter++)
+        for (int i=0; i < napps; i++)
         {
-        
-
-        if (scheme == Scheme::ADDITIVE_SCHWARZ)
-        {
-            for (int i=0; i < napps; i++)
-            {
-                Vector &xi = xb.GetBlock(i);
-                Vector &ki = kb.GetBlock(i);
-                apps[i]->ImplicitSolve(dt,xi,ki); ///< Solve the implicit system for the application
-            }
-
-            for (int i=0; i < napps; i++)
-            {
-                Vector &xi = xb.GetBlock(i);
-                Vector &ki = kb.GetBlock(i);
-                int isize  = xi.Size();
-
-                xtmp.SetSize(isize);
-                add(1.0,xi,dt,ki,xtmp); ///< Compute the solution (xtmp = 1.0*xi + dt*ki)
-                apps[i]->Transfer(xtmp);  ///< Transfer the data to all applications
-            }
+            Vector &xi = xb.GetBlock(i);
+            Vector &ki = kb.GetBlock(i);
+            apps[i]->ImplicitSolve(dt,xi,ki); ///< Solve the implicit system for the application
         }
-        else if (scheme == Scheme::ALTERNATING_SCHWARZ)
-        {
-            for (int i=0; i < napps; i++)
-            {
-                Vector &xi = xb.GetBlock(i);
-                Vector &ki = kb.GetBlock(i);
-                int isize  = xi.Size();
 
-                xtmp.SetSize(isize);
-                add(1.0,xi,dt,ki,xtmp); ///< Compute the solution (xtmp = 1.0*xi + dt*ki)
-                
-                apps[i]->Transfer(xtmp);  ///< Transfer the data to all applications
-                apps[i]->ImplicitSolve(dt,xi,ki); ///< Solve the implicit system for the application
-            }
-        }
-            err = ktmp.DistanceTo(k);
-            if( err < tol && iter > 2 )
-            {
-                return;
-            }
-            
-            ktmp = k;
+        for (int i=0; i < napps; i++)
+        {
+            Vector &xi = xb.GetBlock(i);
+            Vector &ki = kb.GetBlock(i);
+            int isize  = xi.Size();
+
+            xt.SetSize(isize);
+            add(1.0,xi,dt,ki,xt); ///< Compute the solution (xt = 1.0*xi + dt*ki)
+            apps[i]->Transfer(xt);  ///< Transfer the data to all applications
         }
     }
+
+    /**
+     * @brief Solves the implicit system app-by-app for the PARTITIONED coupling 
+     */
+    void AlternatingSchwarzImplicitSolve(const real_t dt, const Vector &x, Vector &k )
+    {
+        BlockVector xb(x.GetData(), offsets);
+        BlockVector kb(k.GetData(), offsets);
+       
+        for (int i=0; i < napps; i++)
+        {
+            Vector &xi = xb.GetBlock(i);
+            Vector &ki = kb.GetBlock(i);
+            int isize  = xi.Size();
+
+            xt.SetSize(isize);
+            add(1.0,xi,dt,ki,xt); ///< Compute the solution (xt = 1.0*xi + dt*ki)
+            
+            apps[i]->Transfer(xt);  ///< Transfer the data to all applications
+            apps[i]->ImplicitSolve(dt,xi,ki); ///< Solve the implicit system for the application
+        }
+    }
+
 };
 
 }
