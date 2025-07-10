@@ -2,12 +2,21 @@
 
 using namespace mfem;
 
-// Draft bilinear integrator if needed
+/** Class for an asymmetric (out-of-element) mass integrator $a_K(u,v) := (E(u),v)_K$,
+ *  where $E$ is an extension of $u$ (with original domain $\hat{K}$) to $K$.
+ *
+ *  @note Currently we don't need to derive from MassIntegrator, as GetRule is public.
+ *  This could be it's own standalone function.
+ *  @dev Kernel implementation: requires kernel_dispatch.hpp. MFEM_THREAD_SAFE...
+ */
 class AsymmetricMassIntegrator : public MassIntegrator
 {
-   // TODO: Kernel implementation, requires kernel_dispatch.hpp
-   // TODO: MFEM_THREAD_SAFE
-   // Vector tr_shape, te_shape;
+private:
+   Vector ngh_shape, self_shape;
+   Vector physical_ngh_ip;
+   DenseMatrix physical_ngh_pts;
+   IntegrationPoint ngh_ip;
+   int ngh_ndof, self_ndof;
 
 protected:
    const mfem::FiniteElementSpace *tr_fes, *te_fes;
@@ -16,26 +25,28 @@ public:
 
    AsymmetricMassIntegrator() {};
 
-   void AsymmetricElementMatrix(const FiniteElement &trial_fe,
-                                const FiniteElement &test_fe, ElementTransformation &trial_tr,
-                                ElementTransformation &test_tr, DenseMatrix &el_mat);
+   void AsymmetricElementMatrix(const FiniteElement &ngh_fe,
+                                const FiniteElement &self_fe,
+                                ElementTransformation &ngh_tr,
+                                ElementTransformation &self_tr,
+                                DenseMatrix &el_mat);
 };
 
+/// Assembles element mass matrix, extending @a ngh_fe to @a self_fe.
 void AsymmetricMassIntegrator::AsymmetricElementMatrix(const FiniteElement
-                                                       &trial_fe,
-                                                       const FiniteElement &test_fe,
-                                                       ElementTransformation &trial_tr,
-                                                       ElementTransformation &test_tr,
+                                                       &ngh_fe,
+                                                       const FiniteElement &self_fe,
+                                                       ElementTransformation &ngh_tr,
+                                                       ElementTransformation &self_tr,
                                                        DenseMatrix &elmat)
 {
-   int tr_ndof = trial_fe.GetDof();
-   int te_ndof = test_fe.GetDof();
+   ngh_ndof = ngh_fe.GetDof();
+   self_ndof = self_fe.GetDof();
 
-   elmat.SetSize(te_ndof, tr_ndof);
+   self_shape.SetSize(self_ndof);
+   ngh_shape.SetSize(ngh_ndof);
+   elmat.SetSize(self_ndof, ngh_ndof);
    elmat = 0.0;
-
-   Vector tr_shape(tr_ndof);
-   Vector te_shape(te_ndof);
 
    /* Notes:
     * Let T_K : ref_K -> K from reference to physical
@@ -50,49 +61,33 @@ void AsymmetricMassIntegrator::AsymmetricElementMatrix(const FiniteElement
     * = int_ref_K phi_i(inv_T_K( T_N(K)(y) )) v( T_N(K)(y) ) |Jac T_N(K)| dy.
     */
 
-   // GetRule is public!
-   const IntegrationRule *ir = GetIntegrationRule(trial_fe, test_fe, trial_tr);
+   const IntegrationRule ir = MassIntegrator::GetRule(ngh_fe, self_fe, self_tr);
+   ngh_tr.Transform(ir, physical_ngh_pts);
 
-   DenseMatrix physical_pts, physical_pts_trial;
-   Vector physical_ip;
-   test_tr.Transform(*ir, physical_pts);
-   // Vector physical_ip_trial;
-   // trial_tr.Transform(*ir, physical_pts_trial);
-
-   for (int i = 0; i < ir->GetNPoints(); i++)
+   for (int i = 0; i < ir.GetNPoints(); i++)
    {
-      const IntegrationPoint &ip = ir->IntPoint(i);
-      IntegrationPoint tip;
+      const IntegrationPoint &ip = ir.IntPoint(i);
+      physical_ngh_pts.GetColumn(i, physical_ngh_ip);
 
-      physical_pts.GetColumn(i, physical_ip);
-      // physical_pts_trial.GetColumn(i, physical_ip_trial);
-
-      /* DEBUG
-       * mfem::out << i << "th Physical pt from test_tr" << std::endl;
-       * physical_ip.Print();
-       * mfem::out << i << "th Physical pt from trial_tr" << std::endl;
-       * physical_ip_trial.Print();
-       */
-
-      // Pullback without projections
-      InverseElementTransformation inv_trial_tr(&trial_tr);
-      inv_trial_tr.SetPhysicalRelTol(1e-16);
-      inv_trial_tr.SetMaxIter(50);
-      inv_trial_tr.SetSolverType(InverseElementTransformation::SolverType::Newton);
-      inv_trial_tr.SetInitialGuessType(
+      // Pullback physical neighboring integration points to
+      // "extended reference element" under self_tr
+      InverseElementTransformation inv_tr(&self_tr);
+      inv_tr.SetPhysicalRelTol(1e-16);
+      inv_tr.SetMaxIter(50);
+      inv_tr.SetSolverType(InverseElementTransformation::SolverType::Newton);
+      inv_tr.SetInitialGuessType(
          InverseElementTransformation::InitGuessType::ClosestPhysNode);
-      // inv_trial_tr.SetPrintLevel(4); // desperate measures
-      inv_trial_tr.Transform(physical_ip, tip);
+      inv_tr.Transform(physical_ngh_ip, ngh_ip);
 
-      trial_tr.SetIntPoint(&tip);
-      test_tr.SetIntPoint(&ip);
+      ngh_tr.SetIntPoint(&ngh_ip);
+      self_tr.SetIntPoint(&ip);
 
-      // Onto the test element
-      trial_fe.CalcPhysShape(trial_tr, tr_shape);
-      test_fe.CalcPhysShape(test_tr, te_shape);
+      // Compute shape functions on self_fe
+      ngh_fe.CalcPhysShape(ngh_tr, ngh_shape);
+      self_fe.CalcPhysShape(self_tr, self_shape);
 
-      te_shape *= test_tr.Weight() * ip.weight;
-      AddMultVWt(te_shape, tr_shape, elmat);
+      self_shape *= self_tr.Weight() * ip.weight;
+      AddMultVWt(self_shape, ngh_shape, elmat);
    }
 }
 
@@ -204,11 +199,6 @@ int main(int argc, char* argv[])
       ngh_e.Append(e_idx);
       int num_ngh_e = ngh_e.Size();
 
-      /* DEBUG
-       * mfem::out << "DEBUG:\n\tOn " << e_idx << " elem\n" << std::endl;
-       * ngh_e.Print();
-       */
-
       // Define small matrix
       int fe_rec_e_ndof = fes_reconstruction.GetFE(e_idx)->GetDof();
       DenseMatrix local_mass_mat(num_ngh_e, fe_rec_e_ndof);
@@ -216,30 +206,21 @@ int main(int argc, char* argv[])
       for (int i = 0; i < num_ngh_e; i++)
       {
          int ngh_e_idx = ngh_e[i];
-         /* DEBUG
-          * mfem::out << "DEBUG:\n\t\tOn " << i << "th neigh elem ("<< ngh_e_idx << ")\n" << std::endl;
-          */
 
-         IsoparametricTransformation trial_tr, test_tr; // TODO: pointers
-         fes_reconstruction.GetElementTransformation(ngh_e_idx, &trial_tr);
-         fes_averages.GetElementTransformation(e_idx, &test_tr);
+         IsoparametricTransformation ngh_tr, self_tr; // TODO: pointers
+         fes_reconstruction.GetElementTransformation(ngh_e_idx, &ngh_tr);
+         fes_averages.GetElementTransformation(e_idx, &self_tr);
 
          DenseMatrix ngh_elem_mat;
          mass.AsymmetricElementMatrix(*fes_reconstruction.GetFE(ngh_e_idx),
                                       *fes_averages.GetFE(e_idx),
-                                      trial_tr, test_tr, ngh_elem_mat);
+                                      ngh_tr, self_tr, ngh_elem_mat);
 
          // TODO: Extend GetRow API, allow composition
          // TODO: This works as fes_avg is lowest order!
          Vector ngh_vec;
          ngh_elem_mat.GetRow(0, ngh_vec);
          local_mass_mat.SetRow(i, ngh_vec);
-
-         /* DEBUG
-          * mfem::out << " Sizes: " << ngh_elem_mat.Height() << " x " <<
-          *           ngh_elem_mat.Width() << std::endl;
-          * ngh_elem_mat.Print();
-          */
       }
 
       // Get local volumes and scale
@@ -247,20 +228,11 @@ int main(int argc, char* argv[])
       volumes.GetSubVector(ngh_e, local_volumes);
       local_mass_mat.InvLeftScaling(local_volumes);
 
-      /* DEBUG
-       * mfem::out << e_idx << "th Element local LS mat" << std::endl;
-       * least_sqrs_e.Print();
-       */
       Vector local_u_avg;
       u_averages.GetSubVector(ngh_e, local_u_avg);
 
       Vector local_u_rec;
       LSSolver(local_mass_mat, local_u_avg, local_u_rec);
-
-      /* DEBUG
-       * mfem::out << "I solved locally!" << std::endl;
-       * local_u_rec.Print();
-       */
 
       Array<int> local_dofs;
       fes_reconstruction.GetElementDofs(e_idx, local_dofs);
