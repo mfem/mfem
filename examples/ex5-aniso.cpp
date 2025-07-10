@@ -1561,7 +1561,6 @@ VecTFunc GetQFun(Problem prob, const ProblemParams &params)
       case Problem::DiffusionRing:
       case Problem::DiffusionRingGauss:
       case Problem::DiffusionRingSine:
-      case Problem::Sovinec:
       case Problem::Umansky:
          return [=](const Vector &x, real_t, Vector &v)
          {
@@ -1621,6 +1620,19 @@ VecTFunc GetQFun(Problem prob, const ProblemParams &params)
             const real_t T_r = - 3. * r;
             v(0) = -kappa_r * T_r * dx(0);
             v(1) = -kappa_r * T_r * dx(1);
+         };
+      case Problem::Sovinec:
+         return [=](const Vector &x, real_t, Vector &v)
+         {
+            const int vdim = x.Size();
+            v.SetSize(vdim);
+
+            Vector dx(x);
+            dx(0) -= x0 + 0.5*sx;
+            dx(1) -= y0 + 0.5*sy;
+
+            v(0) = M_PI * sin(M_PI * dx(0)) * cos(M_PI * dx(1));
+            v(1) = M_PI * cos(M_PI * dx(0)) * sin(M_PI * dx(1));
          };
    }
    return VecTFunc();
