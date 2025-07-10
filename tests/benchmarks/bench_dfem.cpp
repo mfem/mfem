@@ -545,7 +545,8 @@ struct Diffusion : public BakeOff<VDIM, GLL>
       else if (version == 3) // PA ∂fem
       {
          dbg("[PA ∂fem]");
-         auto W = Weight{};
+         MFEM_ABORT("PA ∂fem is not implemented yet.");
+         /*auto W = Weight{};
          auto Iq = Identity<Q> {};
          auto Iu = Identity<U> {};
          auto Gu = Gradient<U> {};
@@ -583,7 +584,34 @@ struct Diffusion : public BakeOff<VDIM, GLL>
          dop->SetParameters({ &qdata });
 
          dop->FormLinearSystem(ess_tdof_list, x, b, A_ptr, X, B);
-         A.Reset(A_ptr);
+         A.Reset(A_ptr);*/
+      }
+      else if (version == 4) // Linearisation ∂fem
+      {
+         auto solutions = std::vector{FieldDescriptor{U, &pfes}};
+         auto parameters = std::vector{FieldDescriptor{Ξ, &mfes}};
+         auto derivatives = std::integer_sequence<size_t, U> {};
+         dop = std::make_unique<DifferentiableOperator>(solutions, parameters, pmesh);
+         const auto diffusion_mf_kernel =
+            [] MFEM_HOST_DEVICE (const tensor<real_t, DIM>& ∇u,
+                                 const tensor<real_t, DIM, DIM>& J,
+                                 const real_t& w)
+         {
+            const auto invJ = inv(J), TinJ = transpose(invJ);
+            return tuple{((∇u * invJ)) * TinJ * det(J) * w};
+         };
+         dop->AddDomainIntegrator(diffusion_mf_kernel,
+                                  tuple{Gradient<U>{}, Gradient<Ξ>{}, Weight{}},
+                                  tuple{Gradient<U>{}},
+                                  *ir, ess_bdr, derivatives);
+         dop->SetParameters({nodes});
+         // auto dRdU = dop->GetDerivative(U, {&x}, {nodes});
+
+         // constr_op.reset(new ConstrainedOperator(dRdU.get(), ess_bdr));
+
+         // dop->FormLinearSystem(ess_tdof_list, x, b, A_ptr, X, B);
+         // A.Reset(A_ptr);
+         // A.Reset(new ConstrainedOperator(dRdU.get(), ess_bdr));
       }
       else { MFEM_ABORT("Invalid version"); }
 

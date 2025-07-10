@@ -858,7 +858,7 @@ void DifferentiableOperator::AddDomainIntegrator(
          // Trial operator dimension for each dependent input.
          // Memory layout is:
          // [input_idx, trial_op_dim]
-         Vector dependent_inputs_trial_op_dim(num_dependent_inputs * 2);
+         Array<int> dependent_inputs_trial_op_dim(num_dependent_inputs * 2);
 
          int total_trial_op_dim = 0;
          {
@@ -893,7 +893,7 @@ void DifferentiableOperator::AddDomainIntegrator(
                // capture by copy:
                dimension,             // int
                num_entities,          // int
-               num_test_dof,          // int
+               // num_test_dof,          // int
                num_qp,                // int
                // q1d,                   // int
                test_vdim,             // int (= output_fop.vdim)
@@ -916,7 +916,7 @@ void DifferentiableOperator::AddDomainIntegrator(
                //       and capture it by ref.
                elem_attributes,       // Array<int>
                input_size_on_qp,
-               input_is_dependent,    // std::array<bool, num_inputs>
+               // input_is_dependent,    // std::array<bool, num_inputs>
                direction,             // FieldDescriptor
                direction_e,           // Vector
                derivative_action_e,   // Vector
@@ -946,7 +946,7 @@ void DifferentiableOperator::AddDomainIntegrator(
             const bool has_attr = domain_attributes.Size() > 0;
             const auto d_domain_attr = domain_attributes.Read();
 
-            forall<derivative_setup_tag>([=] MFEM_HOST_DEVICE (int e, real_t *shmem)
+            forall/*<derivative_setup_tag>*/([=] MFEM_HOST_DEVICE (int e, real_t *shmem)
             {
                if (has_attr && !d_domain_attr[d_elem_attr[e] - 1]) { return; }
 
@@ -1021,24 +1021,24 @@ void DifferentiableOperator::AddDomainIntegrator(
          derivative_action_callbacks[derivative_id].push_back(
             [
                // capture by copy:
-               dimension,             // int
+               // dimension,             // int
                num_entities,          // int
                num_test_dof,          // int
                num_qp,                // int
-               q1d,                   // int
+               // q1d,                   // int
                test_vdim,             // int (= output_fop.vdim)
                test_op_dim,           // int (derived from output_fop)
                trial_vdim,
                total_trial_op_dim,
                inputs,                // mfem::future::tuple
                domain_attributes,     // Array<int>
-               ir_weights,            // DeviceTensor
-               use_sum_factorization, // bool
+               // ir_weights,            // DeviceTensor
+               // use_sum_factorization, // bool
                input_dtq_maps,        // std::array<DofToQuadMap, num_fields>
                output_dtq_maps,       // std::array<DofToQuadMap, num_fields>
-               input_to_field,        // std::array<int, s>
-               output_fop,            // class derived from FieldOperator
-               qfunc,                 // qfunc_t
+               // input_to_field,        // std::array<int, s>
+               // output_fop,            // class derived from FieldOperator
+               // qfunc,                 // qfunc_t
                thread_blocks,         // ThreadBlocks
                shmem_cache,           // Vector (local)
                shmem_info,            // SharedMemoryInfo
@@ -1046,12 +1046,12 @@ void DifferentiableOperator::AddDomainIntegrator(
                //       and capture it by ref.
                elem_attributes,       // Array<int>
                input_size_on_qp,
-               input_is_dependent,    // std::array<bool, num_inputs>
+               // input_is_dependent,    // std::array<bool, num_inputs>
                direction,             // FieldDescriptor
                direction_e,           // Vector
                derivative_action_e,   // Vector
                element_dof_ordering,  // ElementDofOrdering
-               da_size_on_qp,         // int
+               // da_size_on_qp,         // int
                num_dependent_inputs,
                dependent_inputs_trial_op_dim,
 
@@ -1090,7 +1090,7 @@ void DifferentiableOperator::AddDomainIntegrator(
             const auto dir_dtq_map = get<0>(input_dtq_maps);
             const auto dir_fop = get<0>(inputs);
             Vector weights_mock_mem(0);
-            const auto weights_mock = Reshape(weights_mock_mem.Read(), num_qp);
+            // const auto weights_mock = Reshape(weights_mock_mem.Read(), num_qp);
             const auto output_dtq_map = output_dtq_maps[0];
 
             // std::array<DeviceTensor<1>, 6> scratch;
@@ -1110,15 +1110,15 @@ void DifferentiableOperator::AddDomainIntegrator(
 
 
             derivative_action_e = 0.0;
-            forall<derivative_action_tag>([=] MFEM_HOST_DEVICE (int e, real_t *shmem)
+            forall/*<derivative_action_tag>*/([=] MFEM_HOST_DEVICE (int e, real_t *shmem)
             {
                if (has_attr && !d_domain_attr[d_elem_attr[e] - 1]) { return; }
 
                constexpr int q1d = 5;
                constexpr int d1d = 4;
 
-               __shared__ real_t shared_B[q1d][d1d];
-               __shared__ real_t shared_G[q1d][d1d];
+               MFEM_SHARED real_t shared_B[q1d][d1d];
+               MFEM_SHARED real_t shared_G[q1d][d1d];
 
                // Load once at the beginning
                if (MFEM_THREAD_ID(x) < q1d && MFEM_THREAD_ID(y) < d1d)
@@ -1135,25 +1135,25 @@ void DifferentiableOperator::AddDomainIntegrator(
 
                // const auto [unused1, unused2, d1d] = B.GetShape();
                const int vdim = dir_fop.vdim;
-               const int dim = dir_fop.dim;
+               // const int dim = dir_fop.dim;
                auto y = Reshape(&ye(0, 0, e), num_test_dof, test_vdim);
-               const int test_dim = output_fop.size_on_qp / vdim;
+               // const int test_dim = output_fop.size_on_qp / vdim;
                // auto fqp = Reshape(&fhat(0, 0, 0), vdim, test_dim, q1d, q1d, q1d);
                auto yd = Reshape(&y(0, 0), d1d, d1d, d1d, vdim);
                // const auto field = Reshape(&dir_e(0, e), d1d, d1d, d1d, vdim);
                // auto fqp = Reshape(&dir_qp[0], vdim, dim, q1d, q1d, q1d);
 
                // Declare shared arrays statically since dimensions are known
-               __shared__ real_t s0[q1d][q1d][d1d];
-               __shared__ real_t s1[q1d][q1d][d1d];
-               __shared__ real_t s2[q1d][q1d][d1d];
-               __shared__ real_t s3[q1d][d1d][d1d];
-               __shared__ real_t s4[q1d][d1d][d1d];
-               __shared__ real_t s5[q1d][d1d][d1d];
+               MFEM_SHARED real_t s0[q1d][q1d][d1d];
+               MFEM_SHARED real_t s1[q1d][q1d][d1d];
+               MFEM_SHARED real_t s2[q1d][q1d][d1d];
+               MFEM_SHARED real_t s3[q1d][d1d][d1d];
+               MFEM_SHARED real_t s4[q1d][d1d][d1d];
+               MFEM_SHARED real_t s5[q1d][d1d][d1d];
 
-               __shared__ real_t shared_field[d1d][d1d][d1d];
+               MFEM_SHARED real_t shared_field[d1d][d1d][d1d];
 
-               __shared__ real_t shared_fhat[1][3][q1d][q1d][q1d];
+               MFEM_SHARED real_t shared_fhat[1][3][q1d][q1d][q1d];
 
                // Load field into shared memory first
                MFEM_FOREACH_THREAD_DIRECT(dz, z, d1d)

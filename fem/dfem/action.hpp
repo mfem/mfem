@@ -218,13 +218,13 @@ public:
       residual_l(residual_l)
    {
       if (!use_kernels_specialization) { return; }
-      NewActionCallbackKernels::template Specialization<3,4>::Add();
-      NewActionCallbackKernels::template Specialization<4,5>::Add();
-      NewActionCallbackKernels::template Specialization<5,6>::Add();
-      NewActionCallbackKernels::template Specialization<6,7>::Add();
-      NewActionCallbackKernels::template Specialization<7,8>::Add();
-      NewActionCallbackKernels::template Specialization<8,9>::Add();
-      NewActionCallbackKernels::template Specialization<9,10>::Add();
+      // NewActionCallbackKernels::template Specialization<3,4>::Add();
+      // NewActionCallbackKernels::template Specialization<4,5>::Add();
+      // NewActionCallbackKernels::template Specialization<5,6>::Add();
+      // NewActionCallbackKernels::template Specialization<6,7>::Add();
+      // NewActionCallbackKernels::template Specialization<7,8>::Add();
+      // NewActionCallbackKernels::template Specialization<8,9>::Add();
+      // NewActionCallbackKernels::template Specialization<9,10>::Add();
    }
 
    template<int T_D1D = 0, int T_Q1D = 0>
