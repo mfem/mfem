@@ -99,13 +99,29 @@ public:
 /// Fixed point iteration solver: x <- f(x)
 class FPISolver : public IterativeSolver
 {
+public:
+    enum class Relaxation
+    {
+        FIXED,  ///< Fixed relaxation factor
+        AITKEN, ///< Aitken relaxation method
+        STEEPEST_DESCENT ///< Steepest descent relaxation method
+    };
+
 protected:
-   mutable Vector r, z;
+   mutable Vector r, z, rold;
+   mutable real_t r_fac = 1.0;
+   Relaxation type = Relaxation::FIXED;
+   real_t (FPISolver::*compute_relaxation)(const Vector &rn, const real_t rn_norm, Vector &ro, real_t ro_norm) const = nullptr;
  
    void UpdateVectors()
    {
         r.SetSize(width);
         z.SetSize(width);
+        if (type != Relaxation::FIXED)
+        {
+            rold.SetSize(width);
+            rold = 0.0;
+        }
     }
  
 public:
@@ -116,21 +132,79 @@ public:
 #endif
  
    virtual void SetOperator(const Operator &op)
-   { IterativeSolver::SetOperator(op); UpdateVectors(); }
+   { IterativeSolver::SetOperator(op); UpdateVectors(); compute_relaxation = &FPISolver::FixedRelaxation; }
+
+   
+   void SetRelaxationFactor(real_t r, Relaxation relax_type = Relaxation::FIXED)
+   {
+        r_fac = r;
+        type = relax_type;
+        UpdateVectors();
+
+        if (relax_type == Relaxation::AITKEN)
+        {
+            compute_relaxation = &FPISolver::AitkenRelaxation;
+        }
+        else if (relax_type == Relaxation::STEEPEST_DESCENT)
+        {
+            if (prec == nullptr)
+            {
+                mfem_error("Steepest descent relaxation requires a preconditioner (action of Jacobian) to be set first.");
+            }
+            compute_relaxation = &FPISolver::SteepestDescentRelaxation;
+        }
+        else // Relaxation::FIXED
+        {
+            compute_relaxation = &FPISolver::FixedRelaxation;
+        }
+   }
+   
+   real_t FixedRelaxation(const real_t fac, const Vector &rn, const real_t rn_norm, Vector &ro, real_t ro_norm) const { return fac; }
+
+   real_t AitkenRelaxation(const real_t fac, const Vector &rn, const real_t rn_norm, Vector &ro, real_t ro_norm) const
+   {
+        real_t num   = Dot(ro, rn) - (ro_norm * ro_norm);
+        real_t denom = ro.DistanceSquaredTo(rn);
+        ro = rn; // Update here since old is not needed in general
+        return -fac * num / denom;
+   }
+
+   real_t SteepestDescentRelaxation(const real_t fac, const Vector &rn, const real_t rn_norm, Vector &ro, real_t ro_norm) const
+   {
+        real_t num = rn_norm * rn_norm;
+        prec->Mult(rn, ro); // rold = F'(x) * rnew; the preconditioner is used to apply the Jacobian
+        real_t denom = Dot(ro, rn);
+        ro = rn; // Update here since old is not needed in general
+        return num/denom;
+   }
+
  
    /// Iterative solution of the (non)linear system using Fixed Point Iteration
    virtual void Mult(const Vector &b, Vector &x) const 
    {
         int i;
+        real_t fac = r_fac;
         
         // FPI with fixed number of iterations and given
         // initial guess
         if (rel_tol == 0.0 && iterative_mode)
         {
-            for (i = 0; i < max_iter; i++)
+            if (fac == 1.0)
             {
-                oper->Mult(x, z);  // z = F(x)
-                x = z;
+                for (i = 0; i < max_iter; i++)
+                {
+                    oper->Mult(x, z);  // z = F(x)
+                    x = z;
+                }
+            }
+            else
+            {
+                for (i = 0; i < max_iter; i++)
+                {
+                    oper->Mult(x, z);  // z = F(x)
+                    subtract(z, x, r); // r = z - x
+                    x.Add(fac, r); // x = x + fac * r
+                }
             }
             converged = true;
             final_iter = i;
@@ -142,7 +216,7 @@ public:
         if (iterative_mode)
         {
             oper->Mult(x, z);  // z = F(x)
-            subtract(x, z, r); // r = z - x
+            subtract(z, x, r); // r = z - x
         }
         else
         {            
@@ -174,9 +248,11 @@ public:
         for (i = 1; true; )
         {    
             oper->Mult(x, z);  // z = F(x)
-            subtract(x, z, r); // r = z - x
+            subtract(z, x, r); // r = z - x
             nom = sqrt(Dot(r, r));
-            x = z;
+
+            fac = (this->*compute_relaxation)(fac,r,nom,rold,nomold);
+            x.Add(fac, r); // x = x + fac * r
             
             cf = nom/nomold;
             nomold = nom;
@@ -419,7 +495,6 @@ private:
             SchwarzOperator(CoupledApplication *app_) : TimeDependentOperator(app_->Height(),app_->Width()), app(app_){}
             void SetTime(real_t dt_) override { dt = dt_; }
             void SetState(const Vector *x){xp = x;}
-
     };
     class AdditiveSchwarzOperator : public SchwarzOperator
     {
@@ -459,9 +534,10 @@ protected:
     std::vector<Application*> apps;
     SchwarzOperator *implicit_op = nullptr; ///< Coupled operator for the applications
     Solver *solver;
+    real_t dt_ = 0.0; ///< Timestep used to compute u = u_0 + dt*dudt for transfer to apps in multistage methods
 
     mfem::Array<int> offsets;
-    Vector xt,kt;
+    mutable Vector xt,kt;
     
 public:
 
@@ -571,7 +647,7 @@ public:
         else if (scheme == Scheme::ALTERNATING_SCHWARZ)
         {   // Set vector size for the the largest operator
             xt.SetSize(max_size);
-            implicit_op = new AlternatingSchwarzOperator(this);
+            implicit_op = new AlternatingSchwarzOperator(this);         
         }
 
         if(implicit_op && solver) solver->SetOperator(*implicit_op);
@@ -592,6 +668,23 @@ public:
         }
     }
 
+
+    void SetTime(const real_t t) override
+    {
+        if (isExplicit()){
+            // Compute dt based on the current time and the previous time
+            // Used to compute u = u_0 + dt*dudt for transfer to apps in multistage methods
+            // Note: this is only needed for explicit operators; ImplicitSolve passes dt directly
+            this->dt_ = t - this->GetTime();
+        }
+
+        TimeDependentOperator::SetTime(t);
+        for (auto &app : apps)
+        {
+            app->SetTime(t);
+        }
+    }
+
     /**
      * @brief Apply the operator defined by the application to the vector @a x 
      * and return the result in @a y.
@@ -601,9 +694,49 @@ public:
         BlockVector xb(x.GetData(), offsets);
         BlockVector yb(y.GetData(), offsets);
 
-        for (int i=0; i < napps; i++)
+        if (scheme == Scheme::ADDITIVE_SCHWARZ)
+        {   
+            for (int i=0; i < napps; i++)
+            {
+                Vector &xi = xb.GetBlock(i);
+                Vector &yi = yb.GetBlock(i);
+                apps[i]->Mult(xi,yi);
+            }
+
+            // Transfer data. If app is steady-state and Mult solves F(x) = 0, then
+            // dt_ = 0 and x is transferred to all applications. If app is explicit, time-dependent,
+            // then Mult computes dxdt = F(x), updates xt = xi + dt*dxdt, and transfers xt to all applications.
+            for (int i=0; i < napps; i++)
+            {
+                Vector &xi = xb.GetBlock(i);
+                Vector &yi = yb.GetBlock(i);
+                int isize  = xi.Size();
+
+                xt.SetSize(isize);
+                add(1.0,xi,dt_,yi,xt); ///< Compute the solution (xt = xi + dt*ki)
+                apps[i]->Transfer(xt);  ///< Transfer the data to all applications
+            }            
+        }
+        else if (scheme == Scheme::ALTERNATING_SCHWARZ)
         {
-            apps[i]->Mult(xb.GetBlock(i), yb.GetBlock(i));
+            for (int i=0; i < napps; i++)
+            {
+                Vector &xi = xb.GetBlock(i);
+                Vector &yi = yb.GetBlock(i);
+                apps[i]->Mult(xi,yi);
+
+                int isize  = xi.Size();
+                xt.SetSize(isize);
+                add(1.0,xi,dt_,yi,xt); ///< Compute the solution (xt = xi + dt*ki)                
+                apps[i]->Transfer(xt);  ///< Transfer the data to all applications
+            }
+        }
+        else 
+        {
+            for (int i=0; i < napps; i++)
+            {
+                apps[i]->Mult(xb.GetBlock(i), yb.GetBlock(i));
+            }
         }
     }
 
@@ -691,7 +824,7 @@ public:
         {
             
         }
-        else if (scheme != Scheme::DECOUPLED) ///< Solve each physics independently
+        else if (scheme == Scheme::ADDITIVE_SCHWARZ || scheme == Scheme::ALTERNATING_SCHWARZ) ///< Solve each physics independently
         {
             implicit_op->SetTime(dt); ///< Set the time step for the implicit operator
             implicit_op->SetState(&x); ///< Set the input vector for the implicit operator
@@ -723,23 +856,24 @@ public:
         {
             Vector &xi = xb.GetBlock(i);
             Vector &ki = kb.GetBlock(i);
-            apps[i]->ImplicitSolve(dt,xi,ki); ///< Solve the implicit system for the application
+            int isize  = xi.Size();
+
+            xt.SetSize(isize);
+            add(1.0,xi,dt,ki,xt); ///< Compute the solution (xt = xi + dt*ki)
+            apps[i]->Transfer(xt);  ///< Transfer the data to all applications
         }
 
         for (int i=0; i < napps; i++)
         {
             Vector &xi = xb.GetBlock(i);
             Vector &ki = kb.GetBlock(i);
-            int isize  = xi.Size();
-
-            xt.SetSize(isize);
-            add(1.0,xi,dt,ki,xt); ///< Compute the solution (xt = 1.0*xi + dt*ki)
-            apps[i]->Transfer(xt);  ///< Transfer the data to all applications
+            apps[i]->ImplicitSolve(dt,xi,ki); ///< Solve the implicit system for the application
         }
     }
 
     /**
-     * @brief Solves the implicit system app-by-app for the PARTITIONED coupling 
+     * @brief Solves the implicit system app-by-app for the PARTITIONED coupling
+     * @note k on input is the initial gues for dudt, and is used to transfer solution
      */
     void AlternatingSchwarzImplicitSolve(const real_t dt, const Vector &x, Vector &k )
     {
@@ -753,7 +887,7 @@ public:
             int isize  = xi.Size();
 
             xt.SetSize(isize);
-            add(1.0,xi,dt,ki,xt); ///< Compute the solution (xt = 1.0*xi + dt*ki)
+            add(1.0,xi,dt,ki,xt); ///< Compute the solution (xt = xi + dt*ki)
             
             apps[i]->Transfer(xt);  ///< Transfer the data to all applications
             apps[i]->ImplicitSolve(dt,xi,ki); ///< Solve the implicit system for the application
