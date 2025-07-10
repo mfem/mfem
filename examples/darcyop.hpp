@@ -188,7 +188,7 @@ public:
    void SetTolerance(real_t rtol_, real_t atol_ = 0.) { rtol = rtol_; atol = atol_; }
    void SetMaxIters(int iters_) { max_iters = iters_; }
 
-   void EnableSolutionConstroller(SolutionController::Type type) { sol_type = type; }
+   void EnableSolutionController(SolutionController::Type type) { sol_type = type; }
    void EnableIterationsVisualization(int vis_step = 0) { monitor_step = vis_step; }
 
    static Array<int> ConstructOffsets(const DarcyForm &darcy);

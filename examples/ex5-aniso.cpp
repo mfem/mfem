@@ -848,7 +848,7 @@ int main(int argc, char *argv[])
    DarcyOperator op(ess_flux_tdofs_list, darcy, gform, fform, hform, coeffs,
                     (DarcyOperator::SolverType) solver_type, false, btime);
 
-   op.EnableSolutionConstroller(
+   op.EnableSolutionController(
       (DarcyOperator::SolutionController::Type) isol_ctrl);
 
    if (vis_iters >= 0)
