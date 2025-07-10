@@ -26,8 +26,30 @@ int main (int argc, char *argv[])
    int rank = Mpi::WorldRank();
    Hypre::Init();
    
-   // Initialize simple 2D domain
-   Mesh mesh = 
+   // Initialize domain with just vertices
+   int NP = 10;
+   int SD = 3;
+   Mesh m(1, NP, 0, 0, SD);
+   Vector coords(10*SD);
+   coords.Randomize(17);
 
+   for (int p = 0; p < NP; p++)
+   {
+      Vector p_coord(coords, p*SD, SD);
+      m.AddVertex(p_coord);
+   }
+   m.Finalize();
 
+   m.Print();
+
+   m.EnsureNodes();
+   L2_FECollection l2fec(1, 1);
+   FiniteElementSpace fespace(&m, &l2fec);
+   
+   
+   m.SetNodalFESpace(&fespace);
+   cout << "Printing:\n";
+   m.GetNodes()->Print(mfem::out, SD);
+
+   return 0;
 }

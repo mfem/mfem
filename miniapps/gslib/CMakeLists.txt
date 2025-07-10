@@ -65,6 +65,8 @@ if (MFEM_USE_GSLIB)
 
     add_mfem_miniapp(particle-redistribute MAIN particle-redistribute.cpp LIBRARIES mfem-common)
 
+    add_mfem_miniapp(sample-fluid-particles MAIN sample-fluid-particles.cpp LIBRARIES mfem-common)
+
     add_mfem_miniapp(teststruct MAIN teststruct.cpp LIBRARIES mfem-common)
     
     if (MFEM_ENABLE_TESTING)
