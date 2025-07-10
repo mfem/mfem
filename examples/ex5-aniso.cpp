@@ -1517,6 +1517,7 @@ VecTFunc GetQFun(Problem prob, const ProblemParams &params)
    const real_t &ks = params.ks;
    //const real_t &ka = params.ka;
    const real_t &t_0 = params.t_0;
+   const real_t &a = params.a;
    const real_t &x0 = params.x0;
    const real_t &y0 = params.y0;
    const real_t &sx = params.sx;
@@ -1560,13 +1561,30 @@ VecTFunc GetQFun(Problem prob, const ProblemParams &params)
       case Problem::MFEMLogo:
       case Problem::DiffusionRing:
       case Problem::DiffusionRingGauss:
-      case Problem::DiffusionRingSine:
       case Problem::Umansky:
          return [=](const Vector &x, real_t, Vector &v)
          {
             const int vdim = x.Size();
             v.SetSize(vdim);
             v = 0.;
+         };
+      case Problem::DiffusionRingSine:
+         return [=](const Vector &x, real_t t, Vector &v)
+         {
+            constexpr real_t r0 = 0.05;
+            constexpr real_t w0 = 16.;
+            Vector dx(x);
+            dx(0) -= x0 + 0.5*sx;
+            dx(1) -= y0 + 0.5*sy;
+
+            const real_t r = hypot(dx(0), dx(1));
+            const real_t th = atan2(dx(1), dx(0));
+
+            const real_t C = w0 / r;
+            const real_t T_r = -C / (1. + t * k * C*C / a) * sin(w0*th)
+                               * sin(M_PI * r/r0);
+            v(0) = + k * T_r * sin(th);
+            v(1) = - k * T_r * cos(th);
          };
       case Problem::BoundaryLayer:
          return [=](const Vector &x, real_t, Vector &v)
