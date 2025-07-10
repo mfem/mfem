@@ -121,6 +121,7 @@ int main(int argc, char* argv[])
    int order_original = 3;
    int order_reconstruction = 1;
    bool show_error = false;
+   bool save_to_file = true;
 
    // Parse options
    OptionsParser args(argc, argv);
@@ -134,6 +135,8 @@ int main(int argc, char* argv[])
                   "Order of reconstruction broken space.");
    args.AddOption(&show_error, "-se", "--show-error", "-no-se",
                   "--no-show-error", "Show approximation error.");
+   args.AddOption(&save_to_file, "-s", "--save", "-no-s",
+                  "--no-save", "Show or not show approximation error.");
 
    if (Mpi::Root())
    {
@@ -283,14 +286,6 @@ int main(int argc, char* argv[])
    subtract(u_rec_avg, u_averages, diff);
    real_t error_avg = diff.Norml2();
 
-   // TODO: Workaround local meshsize
-   // Vector el_error(mesh.GetNE());
-   // ConstantCoefficient ones(1.0);
-   // ParGridFunction zero(&fe_space_reconstruction);
-   // zero = 0.0;
-   // zero.ComputeElementLpErrors(2.0, ones, el_error);
-   // real_t hmax = el_error.Max();
-
    if (show_error && Mpi::Root())
    {
       mfem::out << "\n|| Rec(u_h) - u ||_{L^2} = " << error << "\n" << std::endl;
@@ -298,7 +293,29 @@ int main(int argc, char* argv[])
                 std::endl;
    }
 
-   mfem::out << "Survived!" << std::endl;
+   if (save_to_file && Mpi::Root())
+   {
+      Vector el_error(mesh.GetNE());
+      ConstantCoefficient ones(1.0);
+      ParGridFunction zero(&fes_reconstruction);
+      zero = 0.0;
+      zero.ComputeElementLpErrors(2.0, ones, el_error);
+      real_t hmax = el_error.Max();
+
+      std::ofstream file;
+      file.open("convergence.csv", std::ios::out | std::ios::app);
+      if (!file.is_open())
+      {
+         mfem_error("Failed to open");
+      }
+      file << std::scientific << std::setprecision(16);
+      file << error
+           << "," << fes_averages.GetNConformingDofs()
+           << "," << fes_reconstruction.GetNConformingDofs()
+           << "," << hmax
+           << "," << mesh.GetNE() << std::endl;
+      file.close();
+   }
 
    Mpi::Finalize();
    return 0;
