@@ -25,12 +25,9 @@ struct s_NavierContext
    int num_steps = 1000;
    int num_particles = 1000;
    int p_ordering = Ordering::byNODES;
-   real_t d = 1e-3; // dimensional
-   real_t rho_s = 1; // dimensional 
-   real_t rho_f = 1; // dimensional 
-   real_t U_m = 1.0; // dimensional
-   real_t L = 1.0; // dimensional 
-   real_t mu = 1.0; // dimensional
+   real_t kappa = 1.0;
+   real_t zeta = 1.0;
+   real_t gamma = 1.0;
    bool visualization = false;
    int visport = 19916;
    
@@ -69,27 +66,23 @@ void prescibedFluidVelocity(const Vector &x, Vector &u)
 class ParticleIntegrator
 {
 private:
-   const real_t Fr; // Froude number
-   const real_t CR; // C^R
-
-   // TODO Discuss: - Defined St depends on v_r (directly and in C_D). not a constant??
-   //               - C_L depends on local vorticity. not a constant??
-
+   const Coefficient *kappa, *zeta, *gamma; // non-owning
 
    FindPointsGSLIB finder;
 
 public:
-   ParticleIntegrator(MPI_Comm comm, Mesh &m, real_t Fr_, real_t CR_)
-   : finder(comm),
-     Fr(Fr_),
-     CR(CR_)
+   ParticleIntegrator(MPI_Comm comm, Mesh &m, const Coefficient *kappa_=nullptr, const Coefficient *zeta_=nullptr, const Coefficient *gamma_=nullptr)
+   : kappa(kappa_),
+     zeta(zeta_),
+     gamma(gamma_)
+     finder(comm);
    {
       finder.Setup(m);
    }
 
    void Step(ParticleSet &particles, ParGridFunction &u_gf)
    {
-      Vector 
+      
    }
 }
 
@@ -108,9 +101,10 @@ int main (int argc, char *argv[])
    args.AddOption(&ctx.num_steps, "-ns", "--num-steps", "Number of time steps to take.");
    args.AddOption(&ctx.num_particles, "-np", "--num-particles", "Number of particles to initialize on the domain.");
    args.AddOption(&ctx.p_ordering, "-ord", "--particle-ordering", "Ordering of Particle vector data. 0 for byNODES, 1 for byVDIM.");
-   args.AddOption(&ctx.d, "-pd", "--particle-diameter", "Particle diameter, dimensional.");
-   args.AddOption(&ctx.rho_s, "-rs", "--particle-density", "Particle density, dimensional.");
-   args.AddOption(&ctx.rho_f, "-rf", "--fluid-density", "Fluid density, dimensional.");
+   args.AddOption(&ctx.kappa, "-k", "--kappa", "Kappa constant.");
+   args.AddOption(&ctx.rho_s, "-z", "--zeta", "Zeta constant.");
+   args.AddOption(&ctx.rho_f, "-g", "--gamma", "Gamma constant.");
+   
    args.AddOption(&ctx.U_m, "-um", "--mean-vel", "Fluid velocity scale.");
    args.AddOption(&ctx.mu, "-mu", "--dynamic-visc", "Dynamic viscosity, dimensional.");
    args.AddOption(&ctx.L, "-L", "--length-scale", "Length scale, dimensional.");
