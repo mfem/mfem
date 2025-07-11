@@ -98,7 +98,6 @@ complex<real_t> ComplexVector::operator*(const ComplexVector &v) const
 
    // The standard way of computing the dot product is non-deterministic
    complex<real_t> prod = 0.0;
-   #pragma omp parallel for reduction(+ : prod)
    for (int i = 0; i < size; i++)
    {
       prod += m_data[i] * v_data[i];
@@ -118,7 +117,6 @@ complex<real_t> ComplexVector::operator*(const Vector &v) const
 
    // The standard way of computing the dot product is non-deterministic
    complex<real_t> prod = 0.0;
-   #pragma omp parallel for reduction(+ : prod)
    for (int i = 0; i < size; i++)
    {
       prod += m_data[i] * v_data[i];
