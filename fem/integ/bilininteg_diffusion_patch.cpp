@@ -720,6 +720,7 @@ void DiffusionIntegrator::SetupPatchBasisData(Mesh *mesh, unsigned int patch)
 
    Array<int> Q1D(dim);
    Array<int> orders(dim);
+   Array<int> E1D(dim);
    Array<int> D1D(dim);
    std::vector<Array2D<real_t>> B(dim);
    std::vector<Array2D<real_t>> G(dim);
@@ -740,6 +741,7 @@ void DiffusionIntegrator::SetupPatchBasisData(Mesh *mesh, unsigned int patch)
       Q1D[d] = ir1d[d]->GetNPoints();
 
       orders[d] = pkv[d]->GetOrder();
+      E1D[d] = pkv[d]->GetNE();
       D1D[d] = pkv[d]->GetNCP();
 
       Vector shapeKV(orders[d]+1);
@@ -828,6 +830,7 @@ void DiffusionIntegrator::SetupPatchBasisData(Mesh *mesh, unsigned int patch)
    pir1d.push_back(ir1d);
 
    porders.push_back(orders);
+   pE1D.push_back(E1D);
 }
 // void DiffusionIntegrator::SetupPatchBasisData(Mesh *mesh, unsigned int patch)
 // {

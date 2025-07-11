@@ -2240,7 +2240,7 @@ private:
    // spatial dimension. Array reducedIDs is treated similarly.
    std::vector<std::vector<Vector>> reducedWeights;
    std::vector<IntArrayVar2D> reducedIDs;
-   std::vector<Array<int>> pQ1D, pD1D, porders;
+   std::vector<Array<int>> pQ1D, pD1D, porders, pE1D;
    std::vector<std::vector<Array2D<real_t>>> pB, pG;
    std::vector<IntArrayVar2D> pminD, pmaxD, pminQ, pmaxQ, pminDD, pmaxDD;
 

@@ -372,6 +372,7 @@ void DiffusionIntegrator::AddMultPatchPA(const int patch, const Vector &x,
    MFEM_VERIFY(3 == dim, "Only 3D so far");
    const Array<int>& Q1D = pQ1D[patch];
    const Array<int>& D1D = pD1D[patch];
+   const Array<int>& orders = porders[patch];
 
    const std::vector<Array2D<real_t>>& B = pB[patch];
    const std::vector<Array2D<real_t>>& G = pG[patch];
@@ -401,6 +402,14 @@ void DiffusionIntegrator::AddMultPatchPA(const int patch, const Vector &x,
    auto sumXY = Reshape(sumXYv.HostReadWrite(), 3, accsize0, accsize1);
    auto sumX = Reshape(sumXv.HostReadWrite(), 3, accsize0);
 
+   // strides
+   // sqx: qpts per element * max element span
+   // This assumes the same number of qpts per element (which is the normal
+   // quadrature rule)
+   // const int SQX = (Q1D[0] / pE1D[patch][0]) * (orders[0]+1);
+   // const int SQY = (Q1D[1] / pE1D[patch][1]) * (orders[0]+1);
+   // const int SQZ = (Q1D[2] / pE1D[patch][2]) * (orders[0]+1);
+
    // Interpolate grad_u
    for (int dz = 0; dz < D1D[2]; ++dz)
    {
@@ -410,15 +419,21 @@ void DiffusionIntegrator::AddMultPatchPA(const int patch, const Vector &x,
          sumXv = 0.0;
          for (int dx = 0; dx < D1D[0]; ++dx)
          {
-            const real_t s = X(dx,dy,dz);
+            const real_t u = X(dx,dy,dz);
             for (int qx = minD[0][dx]; qx <= maxD[0][dx]; ++qx)
+            // for (int sx = 0; sx < SQX; ++sx)
             {
-               sumX(0,qx) += s * B[0](qx,dx);
-               sumX(1,qx) += s * G[0](qx,dx);
+               // int qx = sx + minD[0][dx];
+               // if (qx >= Q1D[0]) { break; }
+               sumX(0,qx) += u * B[0](qx,dx);
+               sumX(1,qx) += u * G[0](qx,dx);
             }
          } // dx
          for (int qy = minD[1][dy]; qy <= maxD[1][dy]; ++qy)
+         // for (int sy = 0; sy < SQY; ++sy)
          {
+            // const int qy = sy + minD[1][dy];
+            // if (qy >= Q1D[1]) { break; }
             const real_t wy  = B[1](qy,dy);
             const real_t wDy = G[1](qy,dy);
             // This full range of qx values is generally necessary.
@@ -434,7 +449,10 @@ void DiffusionIntegrator::AddMultPatchPA(const int patch, const Vector &x,
       } // dy
 
       for (int qz = minD[2][dz]; qz <= maxD[2][dz]; ++qz)
+      // for (int sz = 0; sz < SQZ; ++sz)
       {
+         // const int qz = sz + minD[2][dz];
+         // if (qz >= Q1D[2]) { break; }
          const real_t wz  = B[2](qz,dz);
          const real_t wDz = G[2](qz,dz);
          for (int qy = 0; qy < Q1D[1]; ++qy)
@@ -490,8 +508,10 @@ void DiffusionIntegrator::AddMultPatchPA(const int patch, const Vector &x,
             const real_t gX = grad(0,qx,qy,qz);
             const real_t gY = grad(1,qx,qy,qz);
             const real_t gZ = grad(2,qx,qy,qz);
-            for (int dx = minQ[0][qx]; dx <= maxQ[0][qx]; ++dx)
+            // for (int dx = minQ[0][qx]; dx <= maxQ[0][qx]; ++dx)
+            for (int sx = 0; sx <= orders[0]; ++sx)
             {
+               const int dx = sx + minQ[0][qx];
                const real_t wx  = B[0](qx,dx);
                const real_t wDx = G[0](qx,dx);
                sumX(0,dx) += gX * wDx;
@@ -500,8 +520,10 @@ void DiffusionIntegrator::AddMultPatchPA(const int patch, const Vector &x,
             }
          }
 
-         for (int dy = minQ[1][qy]; dy <= maxQ[1][qy]; ++dy)
+         // for (int dy = minQ[1][qy]; dy <= maxQ[1][qy]; ++dy)
+         for (int sy = 0; sy <= orders[1]; ++sy)
          {
+            const int dy = sy + minQ[1][qy];
             const real_t wy  = B[1](qy,dy);
             const real_t wDy = G[1](qy,dy);
             for (int dx = 0; dx < D1D[0]; ++dx)
@@ -513,8 +535,10 @@ void DiffusionIntegrator::AddMultPatchPA(const int patch, const Vector &x,
          }
       }
 
-      for (int dz = minQ[2][qz]; dz <= maxQ[2][qz]; ++dz)
+      // for (int dz = minQ[2][qz]; dz <= maxQ[2][qz]; ++dz)
+      for (int sz = 0; sz <= orders[2]; ++sz)
       {
+         const int dz = sz + minQ[2][qz];
          const real_t wz  = B[2](qz,dz);
          const real_t wDz = G[2](qz,dz);
          for (int dy = 0; dy < D1D[1]; ++dy)

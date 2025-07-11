@@ -146,6 +146,11 @@ int main(int argc, char *argv[])
    a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
    cout << "done. " << "(size = " << fespace.GetTrueVSize() << ")" << endl;
 
+   sw.Stop();
+   const real_t timeAssemble_A = sw.RealTime();
+   sw.Clear();
+   sw.Start();
+
    // 11. Get the preconditioner
    // We define solver here because SetOperator needs to be used before
    // SetPreconditioner *if* we are using hypre
@@ -254,9 +259,10 @@ int main(int argc, char *argv[])
    }
 
    sw.Stop();
-   const real_t timeAssemble = sw.RealTime();
+   const real_t timeAssemble_PC = sw.RealTime();
    sw.Clear();
    sw.Start();
+   const real_t timeAssemble = timeAssemble_A + timeAssemble_PC;
 
    // 12. Solve the linear system A X = B.
    cout << "Solving linear system ... " << endl;
@@ -280,7 +286,8 @@ int main(int argc, char *argv[])
    const long Niter = solver.GetNumIterations();
    const long dof_per_sec_solve = (long)Ndof * Niter / timeSolve;
    const long dof_per_sec_total = (long)Ndof * Niter / timeTotal;
-   cout << "Time to assemble: " << timeAssemble << " seconds" << endl;
+   cout << "Time to assemble A: " << timeAssemble_A << " seconds" << endl;
+   cout << "Time to assemble PC: " << timeAssemble_PC << " seconds" << endl;
    cout << "Time to solve: " << timeSolve << " seconds" << endl;
    cout << "Total time: " << timeTotal << " seconds" << endl;
    cout << "Dof/sec (solve): " << dof_per_sec_solve << endl;
@@ -294,7 +301,8 @@ int main(int argc, char *argv[])
                   << "mesh, refs, deg_inc, ndof, "    // mesh
                   << "niter, absnorm, relnorm, "      // solver
                   << "linf, l2, "                     // solution
-                  << "t_assemble, t_solve, t_total, " // timing
+                  << "t_assemble, t_A, t_PC, "        // timing
+                  << "t_solve, t_total, "
                   << "dof/s_solve, dof/s_total"       // benchmarking
                   << endl;
    }
@@ -314,6 +322,8 @@ int main(int argc, char *argv[])
                << x.Normlinf() << ", "                // solution
                << x.Norml2() << ", "
                << timeAssemble << ", "                // timing
+               << timeAssemble_A << ", "
+               << timeAssemble_PC << ", "
                << timeSolve << ", "
                << timeTotal << ", "
                << dof_per_sec_solve << ", "           // benchmarking
