@@ -176,8 +176,7 @@ struct DerefineMatrixOpFunctorBase<Ordering::byVDIM, Base, false>
 template <Ordering::Type Order, bool Atomic, bool Diag = true>
 struct DerefineMatrixOpMultFunctor
    : public DerefineMatrixOpFunctorBase<
-     Ordering::byNODES, DerefineMatrixOpMultFunctor<Order, Atomic, Diag>,
-     Diag>
+     Order, DerefineMatrixOpMultFunctor<Order, Atomic, Diag>, Diag>
 {
    const real_t *xptr;
    real_t *yptr;
