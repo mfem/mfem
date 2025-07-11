@@ -28,6 +28,7 @@ int main(int argc, char *argv[])
    const char *mesh_file = "../../data/cube-nurbs.mesh";
    bool pa = false;
    bool patchAssembly = false;
+   bool reducedIntegration = false;
    int ref_levels = 0;
    int nurbs_degree_increase = 0;  // Elevate the NURBS mesh degree by this
    int interp_rule_ = 1;
@@ -41,6 +42,8 @@ int main(int argc, char *argv[])
                   "--no-partial-assembly", "Enable Partial Assembly.");
    args.AddOption(&patchAssembly, "-patcha", "--patch-assembly", "-no-patcha",
                   "--no-patch-assembly", "Enable patch-wise assembly.");
+   args.AddOption(&reducedIntegration, "-rint", "--reduced-integration", "-fint",
+                  "--full-integration", "Enable reduced integration rules.");
    args.AddOption(&ref_levels, "-ref", "--refine",
                   "Number of uniform mesh refinements.");
    args.AddOption(&nurbs_degree_increase, "-incdeg", "--nurbs-degree-increase",
@@ -111,7 +114,14 @@ int main(int argc, char *argv[])
 
    if (patchAssembly)
    {
-      di->SetIntegrationMode(NonlinearFormIntegrator::Mode::PATCHWISE);
+      if (reducedIntegration)
+      {
+         di->SetIntegrationMode(NonlinearFormIntegrator::Mode::PATCHWISE_REDUCED);
+      }
+      else
+      {
+         di->SetIntegrationMode(NonlinearFormIntegrator::Mode::PATCHWISE);
+      }
       SetPatchIntegrationRules(mesh, SplineIntegrationRule::FULL_GAUSSIAN, di);
    }
 
@@ -220,6 +230,22 @@ int main(int argc, char *argv[])
          solver.SetPreconditioner(*P);
       }
    }
+   else if (preconditioner == 3)
+   {
+      cout << "Setting up preconditioner (HO AMG) ... " << endl;
+
+      HYPRE_BigInt row_starts[2] = {0, Ndof};
+      SparseMatrix *Amat = new SparseMatrix(a.SpMat());
+      HypreParMatrix *A_hypre = new HypreParMatrix(
+         MPI_COMM_WORLD,
+         HYPRE_BigInt(Ndof),
+         row_starts,
+         Amat
+      );
+      HypreBoomerAMG *P = new HypreBoomerAMG(*A_hypre);
+
+      solver.SetPreconditioner(*P);
+   }
    else
    {
       MFEM_ABORT("Invalid preconditioner setting.")
@@ -262,7 +288,7 @@ int main(int argc, char *argv[])
    // If file does not exist, write the header
    if (results_ofs.tellp() == 0)
    {
-      results_ofs << "patcha, pa, pc, proj, "         // settings
+      results_ofs << "patcha, pa, rint, pc, proj, "   // settings
                   << "mesh, refs, deg_inc, ndof, "    // mesh
                   << "niter, absnorm, relnorm, "      // solver
                   << "linf, l2, "                     // solution
@@ -273,6 +299,7 @@ int main(int argc, char *argv[])
 
    results_ofs << patchAssembly << ", "               // settings
                << pa << ", "
+               << reducedIntegration << ", "
                << preconditioner << ", "
                << interp_rule_ << ", "
                << mesh_file << ", "                   // mesh
