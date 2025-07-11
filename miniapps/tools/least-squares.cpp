@@ -97,7 +97,9 @@ void AsymmetricMassIntegrator::AsymmetricElementMatrix(const FiniteElement
 // TODO: it could be implemented as a mfem::Solver, as a method...
 int _print_level = -1;
 int _max_iter = 100;
-void LSSolver(const DenseMatrix& A, const Vector& b, Vector& x, real_t shift = 0.0)
+/// @brief Dense small least squares solver
+void LSSolver(const DenseMatrix& A, const Vector& b, Vector& x,
+              real_t shift = 0.0)
 {
    x.SetSize(A.Width());
 
@@ -112,6 +114,51 @@ void LSSolver(const DenseMatrix& A, const Vector& b, Vector& x, real_t shift = 0
    CG(AtA_reg, Atb, x, _print_level, _max_iter);
 }
 
+/// @brief Dense small least squares solver, with constrains @a C with value @a c
+void LSSolver(const DenseMatrix& A, const DenseMatrix& C,
+              const Vector& b, const Vector& c,
+              Vector& x, Vector& y,
+              real_t shift = 0.0)
+{
+   Array<int> offsets(3);
+   offsets[0] = 0;
+   offsets[1] = A.Width();
+   offsets[2] = A.Width() + C.Width();
+
+   // Block matrix
+   BlockOperator block_mat(offsets);
+
+   TransposeOperator At(&A);
+   ProductOperator AtA(&At, &A, false, false);
+   IdentityOperator I(AtA.Height());
+   SumOperator AtA_reg(&AtA, 1.0, &I, shift, false, false);
+
+   TransposeOperator Ct(&C);
+
+   block_mat.SetDiagonalBlock(0, &AtA_reg);
+   block_mat.SetBlock(0, 1, const_cast<DenseMatrix*>(&C));
+   block_mat.SetBlock(1, 0, &Ct);
+
+   // Block vectors
+   BlockVector rhs(offsets), z(offsets);
+   rhs = 0.0;
+   z = 0.0;
+
+   Vector Atb(A.Width());
+   A.MultTranspose(b, Atb);
+
+   rhs.SetVector(Atb, offsets[0]);
+   rhs.SetVector(c, offsets[1]);
+
+   CG(block_mat, rhs, z, _print_level, _max_iter);
+
+   x.SetSize(A.Width());
+   y.SetSize(C.Width());
+
+   z.GetBlockView(0,x);
+   z.GetBlockView(0,x);
+}
+
 int main(int argc, char* argv[])
 {
    Mpi::Init(argc, argv);
@@ -121,8 +168,10 @@ int main(int argc, char* argv[])
    int par_ref_levels = 0;
    int order_original = 3;
    int order_reconstruction = 1;
-   bool show_error = false;
-   bool save_to_file = true;
+   bool preserve_volumes = true;
+
+   bool show_error = true;
+   bool save_to_file = false;
 
    // Parse options
    OptionsParser args(argc, argv);
@@ -134,6 +183,9 @@ int main(int argc, char* argv[])
                   "Order original broken space.");
    args.AddOption(&order_reconstruction, "-R", "--order-reconstruction",
                   "Order of reconstruction broken space.");
+   args.AddOption(&preserve_volumes, "-V", "--preserve-volumes", "-no-V",
+                  "--no-preserve-volumes", "Preserve averages (volumes) by"
+                  " solving a constrained least squares problem");
    args.AddOption(&show_error, "-se", "--show-error", "-no-se",
                   "--no-show-error", "Show approximation error.");
    args.AddOption(&save_to_file, "-s", "--save", "-no-s",
@@ -221,8 +273,7 @@ int main(int argc, char* argv[])
                                       *fes_averages.GetFE(e_idx),
                                       *ngh_tr, *self_tr, ngh_elem_mat);
 
-         // TODO: Extend GetRow API, allow composition
-         // TODO: This works as fes_avg is lowest order!
+         if (ngh_elem_mat.Height()!=1) { mfem_error("High order case not implemented yet!"); }
          Vector ngh_vec;
          ngh_elem_mat.GetRow(0, ngh_vec);
          local_mass_mat.SetRow(i, ngh_vec);
@@ -236,7 +287,25 @@ int main(int argc, char* argv[])
       // Solve
       Vector local_u_avg, local_u_rec;
       u_averages.GetSubVector(ngh_e, local_u_avg);
-      LSSolver(local_mass_mat, local_u_avg, local_u_rec);
+      if (preserve_volumes)
+      {
+         LSSolver(local_mass_mat, local_u_avg, local_u_rec);
+      }
+      else
+      {
+         Vector _mult, self_avg(1);
+         self_avg = u_averages(e_idx);
+
+         DenseMatrix avg_mat(local_mass_mat.Height(),1);
+         Vector avg_self(local_mass_mat.Height());
+         local_mass_mat.GetRow(local_mass_mat.Height()-1, avg_self);
+         avg_mat.SetRow(0, avg_self);
+
+         LSSolver(local_mass_mat, avg_mat,
+                  local_u_avg, self_avg,
+                  local_u_rec, _mult);
+
+      }
 
       // Integrate into global solution
       Array<int> local_dofs;
