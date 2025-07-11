@@ -249,7 +249,7 @@ ComplexVector &ComplexVector::operator/=(complex<real_t> c)
 {
    const bool use_dev = UseDevice();
    const int N = size;
-   const complex<real_t> m = 1.0/c;
+   const complex<real_t> m = conj(c) / norm(c);
    auto y = ReadWrite(use_dev);
    mfem::forall_switch(use_dev, N, [=] MFEM_HOST_DEVICE (int i)
    { y[i] *= m; });
