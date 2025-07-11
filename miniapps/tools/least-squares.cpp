@@ -234,6 +234,7 @@ int main(int argc, char* argv[])
    ParGridFunction u_original(&fes_original);
    ParGridFunction u_averages(&fes_averages);
    ParGridFunction u_rec_avg(&fes_averages);
+   ParGridFunction diff(&fes_averages);
    ParGridFunction u_reconstruction(&fes_reconstruction);
 
    u_original.ProjectCoefficient(u_coefficient);
@@ -243,10 +244,12 @@ int main(int argc, char* argv[])
    AsymmetricMassIntegrator mass;
 
    // Compute local volumes
-   ParGridFunction zeros(&fes_averages);
-   ConstantCoefficient ones(1.0);
+   ConstantCoefficient zeros(0.0);
+   ParGridFunction ones(&fes_averages);
+
+   ones = 1.0;
    Vector volumes(mesh.GetNE());
-   zeros.ComputeElementL1Errors(ones, volumes);
+   ones.ComputeElementL1Errors(zeros, volumes);
 
    Array<int> ngh_e;
    auto ngh_tr = new IsoparametricTransformation;
@@ -350,10 +353,9 @@ int main(int argc, char* argv[])
    }
 
    // Error studies
-   Vector diff(u_averages.Size());
    real_t error = u_reconstruction.ComputeL2Error(u_coefficient);
    subtract(u_rec_avg, u_averages, diff);
-   real_t error_avg = diff.Norml2();
+   real_t error_avg = diff.ComputeL2Error(zeros);
 
    if (show_error && Mpi::Root())
    {
@@ -365,10 +367,7 @@ int main(int argc, char* argv[])
    if (save_to_file && Mpi::Root())
    {
       Vector el_error(mesh.GetNE());
-      ConstantCoefficient ones(1.0);
-      ParGridFunction zero(&fes_reconstruction);
-      zero = 0.0;
-      zero.ComputeElementLpErrors(2.0, ones, el_error);
+      ones.ComputeElementLpErrors(2.0, zeros, el_error);
       real_t hmax = el_error.Max();
 
       std::ofstream file;
