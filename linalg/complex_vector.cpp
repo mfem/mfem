@@ -402,22 +402,24 @@ ComplexVector &ComplexVector::Set(const Vector &Vr, const Vector &Vi)
 const Vector &ComplexVector::real() const
 {
    re_part.SetSize(size);
-   for (unsigned int i=0; i<size; i++)
-   {
-      re_part[i] = data[i].real();
-   }
-
+   const bool use_dev = UseDevice();
+   const int N = size;
+   const auto z = Read(use_dev);
+   auto x = re_part.Write(use_dev);
+   mfem::forall_switch(use_dev, N, [=] MFEM_HOST_DEVICE (int i)
+   { x[i] = z[i].real(); });
    return re_part;
 }
 
 const Vector &ComplexVector::imag() const
 {
    im_part.SetSize(size);
-   for (unsigned int i=0; i<size; i++)
-   {
-      im_part[i] = data[i].imag();
-   }
-
+   const bool use_dev = UseDevice();
+   const int N = size;
+   const auto z = Read(use_dev);
+   auto y = im_part.Write(use_dev);
+   mfem::forall_switch(use_dev, N, [=] MFEM_HOST_DEVICE (int i)
+   { y[i] = z[i].imag(); });
    return im_part;
 }
 
