@@ -422,24 +422,24 @@ int main(int argc, char *argv[])
 
    if (exact_sol)
    {
-      real_t err   = -1.0;
+      real_t err_u = -1.0;
 
       switch (prob)
       {
          case 0:
-            err  = u.ComputeL2Error(u0);
+            err_u = u.ComputeL2Error(u0);
             break;
          case 1:
-            err  = u.ComputeL2Error(u1);
+            err_u = u.ComputeL2Error(u1);
             break;
          case 2:
-            err  = u.ComputeL2Error(u2);
+            err_u = u.ComputeL2Error(u2);
             break;
          default: break; // This should be unreachable
       }
 
       cout << endl;
-      cout << "|| u_h - u ||_{L^2} = " << err << endl;
+      cout << "|| u_h - u ||_{L^2} = " << err_u << endl;
       cout << endl;
    }
 
