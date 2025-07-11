@@ -97,22 +97,24 @@ for i in ${MFEM_GEO_FILES[@]}; do
     MFEM_MESH_NAMES+=(${i%.geo})
     gmsh -v 2 ${MFEM_DATA}/${i} -3 -format msh41 -o ${MFEM_MESH_NAMES[-1]}_41.msh &
     gmsh -v 2 ${MFEM_DATA}/${i} -3 -format msh22 -o ${MFEM_MESH_NAMES[-1]}_22.msh &
-    wait
+wait
 done
 
 
 GMSH_TUTO_DIR=${GMSH_DIR}/tutorials
 GMSH_TUT_MESH_LIST="1 3 4 5 6 7 8 10 11 13 14 15 16 17 18 19 20"
+#Fix a pb with GMSH format version 2.2 -> doubling the number of triangles
+sed -i "s%^\(Physical Surface(80)\)%//BUG//\1%g" ${GMSH_TUTO_DIR}/t14.geo
 
 for i in $GMSH_TUT_MESH_LIST; do
     echo -e "\tt${i}.geo"
-    gmsh -v 2 ${GMSH_TUTO_DIR}/t${i}.geo -3 -format msh41 -o t${i}_41.msh &
-    gmsh -v 2 ${GMSH_TUTO_DIR}/t${i}.geo -3 -format msh22 -o t${i}_22.msh &
-    wait
+    gmsh -v 2 ${GMSH_TUTO_DIR}/t${i}.geo -3 -format msh41 -o ${GMSH_TUTO_DIR}/t${i}_41.msh &
+    gmsh -v 2 ${GMSH_TUTO_DIR}/t${i}.geo -3 -format msh22 -o ${GMSH_TUTO_DIR}/t${i}_22.msh &
 done
+wait
 
 echo -e "\033[1m\nBuilding examples...\033[0m"
-EXAMPLES_LIST="exPrintMesh ex0 ex1 ex4 ex39"
+EXAMPLES_LIST="exPrintMesh ex0 ex1 ex4"
 (cd $MFEM_BUILD_DIR; make --quiet -j 12 ${EXAMPLES_LIST})
 
 

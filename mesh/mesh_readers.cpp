@@ -2064,7 +2064,7 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
 
          bool has_nonpositive_phys_domain = false;
          bool has_positive_phys_domain = false;
-
+	 
          if (binary && iversion == 22)
          {
             int n_elem_part = 0; // partial sum of elements that are read
@@ -2781,7 +2781,7 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
              } // el (all elements)
              }
          } // if ASCII format 4.1
-         if (has_positive_phys_domain && has_nonpositive_phys_domain)
+	 if (has_positive_phys_domain && has_nonpositive_phys_domain)
          {
             MFEM_ABORT("Non-positive element attribute in Gmsh mesh!\n"
                        "By default Gmsh sets element tags (attributes)"
@@ -2878,7 +2878,6 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
             MFEM_ABORT("Gmsh file : no elements found");
             return;
          }
-
          if (mesh_order > 1)
          {
             curved = 1;
@@ -3183,6 +3182,8 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
                v[j] = v2v[v[j]];
             }
          }
+	 
+	 this->RemoveInternalBoundaries();
       }
    } // we reach the end of the file
 
@@ -3212,6 +3213,7 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
 
    this->RemoveUnusedVertices();
    this->FinalizeTopology();
+
 
    // If a high order coordinate field was created project it onto the mesh
    if (mesh_order > 1)
