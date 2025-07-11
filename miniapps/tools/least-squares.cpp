@@ -120,14 +120,6 @@ void LSSolver(const DenseMatrix& A, const DenseMatrix& C,
               Vector& x, Vector& y,
               real_t shift = 0.0)
 {
-   Array<int> offsets(3);
-   offsets[0] = 0;
-   offsets[1] = A.Width();
-   offsets[2] = A.Width() + C.Width();
-
-   // Block matrix
-   BlockOperator block_mat(offsets);
-
    TransposeOperator At(&A);
    ProductOperator AtA(&At, &A, false, false);
    IdentityOperator I(AtA.Height());
@@ -135,9 +127,16 @@ void LSSolver(const DenseMatrix& A, const DenseMatrix& C,
 
    TransposeOperator Ct(&C);
 
-   block_mat.SetDiagonalBlock(0, &AtA_reg);
-   block_mat.SetBlock(0, 1, const_cast<DenseMatrix*>(&C));
-   block_mat.SetBlock(1, 0, &Ct);
+   // Block matrix
+   Array<int> offsets(3);
+   offsets[0] = 0;
+   offsets[1] = AtA_reg.Width();
+   offsets[2] = AtA_reg.Width() + Ct.Width();
+
+   BlockOperator block_mat(offsets);
+   block_mat.SetBlock(0, 0, &AtA_reg);
+   block_mat.SetBlock(0, 1, &Ct);
+   block_mat.SetBlock(1, 0, const_cast<DenseMatrix*>(&C));
 
    // Block vectors
    BlockVector rhs(offsets), z(offsets);
@@ -156,7 +155,7 @@ void LSSolver(const DenseMatrix& A, const DenseMatrix& C,
    y.SetSize(C.Width());
 
    z.GetBlockView(0,x);
-   z.GetBlockView(0,x);
+   z.GetBlockView(1,y);
 }
 
 int main(int argc, char* argv[])
@@ -289,22 +288,21 @@ int main(int argc, char* argv[])
       u_averages.GetSubVector(ngh_e, local_u_avg);
       if (preserve_volumes)
       {
-         LSSolver(local_mass_mat, local_u_avg, local_u_rec);
-      }
-      else
-      {
-         Vector _mult, self_avg(1);
-         self_avg = u_averages(e_idx);
+         Vector _mult, exact_average_e(1);
+         exact_average_e = u_averages(e_idx);
 
-         DenseMatrix avg_mat(local_mass_mat.Height(),1);
+         DenseMatrix avg_mat(1, local_mass_mat.Width());
          Vector avg_self(local_mass_mat.Height());
          local_mass_mat.GetRow(local_mass_mat.Height()-1, avg_self);
          avg_mat.SetRow(0, avg_self);
 
          LSSolver(local_mass_mat, avg_mat,
-                  local_u_avg, self_avg,
+                  local_u_avg, exact_average_e,
                   local_u_rec, _mult);
-
+      }
+      else
+      {
+         LSSolver(local_mass_mat, local_u_avg, local_u_rec);
       }
 
       // Integrate into global solution
