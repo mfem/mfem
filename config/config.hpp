@@ -23,6 +23,9 @@
 #include "_config.hpp"
 #endif
 
+#include <cstdint>
+#include <climits>
+
 namespace mfem
 {
 
@@ -126,6 +129,20 @@ constexpr real_t operator""_r(unsigned long long v)
 #define MFEM_MPI_REAL_T MPI_FLOAT
 #elif defined MFEM_USE_DOUBLE
 #define MFEM_MPI_REAL_T MPI_DOUBLE
+#endif
+
+#if SIZE_MAX == UCHAR_MAX
+   #define MFEM_MPI_SIZE_T MPI_UNSIGNED_CHAR
+#elif SIZE_MAX == USHRT_MAX
+   #define MFEM_MPI_SIZE_T MPI_UNSIGNED_SHORT
+#elif SIZE_MAX == UINT_MAX
+   #define MFEM_MPI_SIZE_T MPI_UNSIGNED
+#elif SIZE_MAX == ULONG_MAX
+   #define MFEM_MPI_SIZE_T MPI_UNSIGNED_LONG
+#elif SIZE_MAX == ULLONG_MAX
+   #define MFEM_MPI_SIZE_T MPI_UNSIGNED_LONG_LONG
+#else
+   #error "Unable to determine size_t MPI type"
 #endif
 #endif
 
