@@ -152,20 +152,42 @@ private:
 
    class IterativeGLVis : public IterativeSolverMonitor
    {
+   protected:
       DarcyForm &darcy;
       BlockVector &x;
       const BlockVector &rhs;
       int step;
+      bool save_files;
+
       socketstream q_sock, t_sock;
+
+      virtual void StreamPreamble(socketstream &ss) { }
+      virtual std::string FormFilename(const char *base, int it,
+                                       const char *suff = "gf");
    public:
       IterativeGLVis(DarcyForm &darcy, BlockVector &x, const BlockVector &rhs,
-                     int step = 0);
+                     int step = 0, bool save_files = false);
 
       void MonitorSolution(int it, real_t norm, const Vector &x,
                            bool final) override;
 
       bool RequiresUpdatedSolution() const override { return true; }
    };
+
+#ifdef MFEM_USE_MPI
+   class ParIterativeGLVis : public IterativeGLVis
+   {
+      ParDarcyForm &pdarcy;
+
+      void StreamPreamble(socketstream &ss) override;
+      std::string FormFilename(const char *base, int it,
+                               const char *suff = "gf") override;
+   public:
+      ParIterativeGLVis(ParDarcyForm &pdarcy_, BlockVector &x, const BlockVector &rhs,
+                        int step = 0, bool save_files = false)
+         : IterativeGLVis(pdarcy_, x, rhs, step), pdarcy(pdarcy_) { }
+   };
+#endif //MFEM_USE_MPI
 
    void SetupNonlinearSolver(real_t rtol, real_t atol, int iters);
    void SetupLinearSolver(real_t rtol, real_t atol, int iters);

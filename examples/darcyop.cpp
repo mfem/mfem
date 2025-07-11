@@ -240,7 +240,14 @@ void DarcyOperator::SetupLinearSolver(real_t rtol, real_t atol, int iters)
       }
       else if (monitor_step >= 0)
       {
-         monitor.reset(new IterativeGLVis(*darcy, x, rhs, monitor_step));
+#ifdef MFEM_USE_MPI
+         if (pdarcy)
+         {
+            monitor.reset(new ParIterativeGLVis(*pdarcy, x, rhs, monitor_step));
+         }
+         else
+#endif
+            monitor.reset(new IterativeGLVis(*darcy, x, rhs, monitor_step));
       }
 
       if (monitor)
@@ -1048,8 +1055,9 @@ void DarcyOperator::ParSolutionController::MonitorSolution(
 #endif //MFEM_USE_MPI
 
 DarcyOperator::IterativeGLVis::IterativeGLVis(
-   DarcyForm &darcy_, BlockVector &x_, const BlockVector &rhs_, int step_)
-   : darcy(darcy_), x(x_), rhs(rhs_), step(step_)
+   DarcyForm &darcy_, BlockVector &x_, const BlockVector &rhs_, int step_,
+   bool save_files_)
+   : darcy(darcy_), x(x_), rhs(rhs_), step(step_), save_files(save_files_)
 {
    const char vishost[] = "localhost";
    const int  visport   = 19916;
@@ -1057,6 +1065,14 @@ DarcyOperator::IterativeGLVis::IterativeGLVis(
    q_sock.precision(8);
    t_sock.open(vishost, visport);
    t_sock.precision(8);
+}
+
+std::string DarcyOperator::IterativeGLVis::FormFilename(const char *base,
+                                                        int it, const char *suff)
+{
+   std::stringstream ss;
+   ss << base << "_" << std::setfill('0') << std::setw(5) << it << "." << suff;
+   return ss.str();
 }
 
 void DarcyOperator::IterativeGLVis::MonitorSolution(int it, real_t norm,
@@ -1071,13 +1087,14 @@ void DarcyOperator::IterativeGLVis::MonitorSolution(int it, real_t norm,
 
    //heat flux
 
-   std::stringstream ss;
-   ss.str("");
-   ss << "mesh_" << it << ".mesh";
-   std::ofstream ofs(ss.str());
-   q_h.FESpace()->GetMesh()->Print(ofs);
-   ofs.close();
+   if (save_files)
+   {
+      std::ofstream ofs(this->FormFilename("mesh", it, "mesh"));
+      q_h.FESpace()->GetMesh()->Print(ofs);
+      ofs.close();
+   }
 
+   this->StreamPreamble(q_sock);
    q_sock << "solution\n" << *q_h.FESpace()->GetMesh() << q_h << std::endl;
    if (it == 0)
    {
@@ -1085,12 +1102,14 @@ void DarcyOperator::IterativeGLVis::MonitorSolution(int it, real_t norm,
       q_sock << "keys Rljvvvvvmmc" << std::endl;
    }
 
-   ss.str("");
-   ss << "qh_" << std::setfill('0') << std::setw(5) << it << ".gf";
-   q_h.Save(ss.str().c_str());
+   if (save_files)
+   {
+      q_h.Save(this->FormFilename("qh", it).c_str());
+   }
 
    //temperature
 
+   this->StreamPreamble(t_sock);
    t_sock << "solution\n" << *t_h.FESpace()->GetMesh() << t_h << std::endl;
    if (it == 0)
    {
@@ -1098,9 +1117,28 @@ void DarcyOperator::IterativeGLVis::MonitorSolution(int it, real_t norm,
       t_sock << "keys Rljmmc" << std::endl;
    }
 
-   ss.str("");
-   ss << "th_" << std::setfill('0') << std::setw(5) << it << ".gf";
-   t_h.Save(ss.str().c_str());
+   if (save_files)
+   {
+      t_h.Save(this->FormFilename("th", it).c_str());
+   }
 }
 
+#ifdef MFEM_USE_MPI
+void DarcyOperator::ParIterativeGLVis::StreamPreamble(socketstream &ss)
+{
+   const int num_procs = pdarcy.ParFluxFESpace()->GetNRanks();
+   const int myid = pdarcy.ParFluxFESpace()->GetMyRank();
+   ss << "parallel " << num_procs << " " << myid << "\n";
+}
+
+std::string DarcyOperator::ParIterativeGLVis::FormFilename(const char *base,
+                                                           int it, const char *suff)
+{
+   std::stringstream ss;
+   const int myid = pdarcy.ParFluxFESpace()->GetMyRank();
+   ss << base << "_" << std::setfill('0') << std::setw(6) << myid
+      << "_" << std::setw(5) << it << "." << suff;
+   return ss.str();
+}
+#endif // MFEM_USE_MPI
 }
