@@ -1025,6 +1025,7 @@ protected:
                          Array<int> *neighbors, /* append */
                          Array<char> *neighbor_set = NULL);
 
+public:
    /** Return all vertex-, edge- and face-neighbors of a single element. You can
        limit the number of elements being checked using 'search_set'. The
        complexity of the function is linear in the size of the search set.*/
@@ -1032,6 +1033,7 @@ protected:
                       Array<int> &neighbors, /* append */
                       const Array<int> *search_set = NULL);
 
+protected:
    /** Expand a set of elements by all vertex-, edge- and face-neighbors. The
        output array 'expanded' will contain all items from 'elems' (provided
        they are in 'search_set') plus their neighbors. The neighbor search can
