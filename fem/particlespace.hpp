@@ -35,17 +35,18 @@ protected:
    FindPointsGSLIB finder;
    Vector coords;
 
+
+   Array<int> last_removed_idxs;
+
 #ifdef MFEM_USE_MPI
    MPI_Comm comm;
 #endif // MFEM_USE_MPI
 
 
-   void AddParticles()
-
-
+void AddParticles(const Vector &new_coords, const Array<int> &new_ids);
 private:
    void Initialize(int seed);
-
+   
 public:
 
    /// Serial constructor
@@ -74,8 +75,8 @@ public:
    int GetID(int i) const { return ids[i]; }
 
    /// Append new particles to the particle set with the given coordinates
-   /// All ParticleFunctions associated with this ParticleSpace must have UpdateAdd called!
-   void AddParticles(const Vector &new_coords);
+   /// All ParticleFunctions associated with this ParticleSpace must be updated!
+   void AddParticles(const Vector &new_coords, bool findpts=false);
 
    /// Remove all particles not within mesh anymore (if mesh is provided)
    /// Returns reference of array of indices to be removed from ParticleFunctions

@@ -83,20 +83,68 @@ void ParticleSpace::Initialize(int seed)
    std::mt19937 gen(seed);
    std::uniform_real_distribution<> real_dist(0.0,1.0);
 
-   for (int i = 0; i < GetNP(); i++)
+   if (ordering == Ordering::byNODES)
    {
-      real_t *dat;
-      for (int d = 0; d < dim; d++)
+      for (int i = 0; i < GetNP(); i++)
       {
-         dat = ordering == Ordering::byVDIM ? &coords[d+i*dim] : &coords[i+d*GetNP()];
-         *dat = pos_min[d] + (pos_max[d] - pos_min[d])*real_dist(gen);
+         for (int d = 0; d < dim; d++)
+         {
+            coords[i+d*GetNP()] = pos_min[d] + (pos_max[d] - pos_min[d])*real_dist(gen);
+         }
+      }
+
+   }
+   else
+   {
+      for (int i = 0; i < GetNP(); i++)
+      {
+         for (int d = 0; d < dim; d++)
+         {
+            coords[d+i*dim] = pos_min[d] + (pos_max[d] - pos_min[d])*real_dist(gen);
+         }
       }
    }
 
    if (mesh)
    {
       finder.FindPoints(coords);
+   }
+}
 
+void ParticleSpace::AddParticles(const Vector &new_coords, const Array<int> &new_ids)
+{
+   MFEM_ASSERT(new_coords.Size() % dim == new_ids.Size(), "new_coords is not sized properly");
+
+   // Copy existing coords
+   Vector old_coords = coords;
+
+   for (int i = 0; i < new_ids.Size(); i++)
+   {
+      ids.Append(new_ids[i]);
+   }
+   // GetNP now up-to-date
+   coords.SetSize(ids.Size());
+
+   // Re-initialize
+   if (ordering == Ordering::byNODES)
+   {
+      for (int i = 0; i < GetNP(); i++)
+      {
+         for (int d = 0; d < dim; d++)
+         {
+
+         }
+      }
+   }
+   else
+   {
+      for (int i = 0; i < GetNP(); i++)
+      {
+         for (int d = 0; d < dim; d++)
+         {
+            
+         }
+      }
    }
 }
 
