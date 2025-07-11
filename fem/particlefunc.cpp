@@ -11,8 +11,12 @@
 // CONTRIBUTING.md for details.
 #include "particlefunc.hpp"
 
+#ifdef MFEM_USE_GSLIB
+
 namespace mfem
 {
 
 
 } // namespace mfem
+
+#endif // MFEM_USE_GSLIB
