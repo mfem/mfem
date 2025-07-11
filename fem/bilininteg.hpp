@@ -2201,6 +2201,12 @@ private:
    const GeometricFactors *geom;  ///< Not owned
    int dim, ne, dofs1D, quad1D;
    Vector pa_data;
+
+   // without this, pa_data gets overwritten for patches
+   // std::vector<Vector> ppa_data;
+   // Vector [numPatches] of structs containing basis info for each patch
+   // std::vector<PatchBasisInfo> pbinfo;
+
    bool symmetric = true; ///< False if using a nonsymmetric matrix coefficient
 
    // Data for NURBS patch PA
@@ -2234,7 +2240,7 @@ private:
    // spatial dimension. Array reducedIDs is treated similarly.
    std::vector<std::vector<Vector>> reducedWeights;
    std::vector<IntArrayVar2D> reducedIDs;
-   std::vector<Array<int>> pQ1D, pD1D;
+   std::vector<Array<int>> pQ1D, pD1D, porders;
    std::vector<std::vector<Array2D<real_t>>> pB, pG;
    std::vector<IntArrayVar2D> pminD, pmaxD, pminQ, pmaxQ, pminDD, pmaxDD;
 

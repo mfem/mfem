@@ -59,7 +59,9 @@ int main(int argc, char *argv[])
 
    // Print & verify options
    args.PrintOptions(cout);
-   MFEM_VERIFY(!(patchAssembly && !pa), "Patch assembly must be used with -pa");
+   // MFEM_VERIFY(!(patchAssembly && !pa), "Patch assembly must be used with -pa");
+   MFEM_VERIFY(!(pa && !patchAssembly), "PA must be used with -patcha");
+
    NURBSInterpolationRule interp_rule = static_cast<NURBSInterpolationRule>
                                         (interp_rule_);
 
