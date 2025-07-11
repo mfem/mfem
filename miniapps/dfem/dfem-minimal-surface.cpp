@@ -510,6 +510,8 @@ int main(int argc, char *argv[])
    ParGridFunction u(&H1);
    Vector X(H1.GetTrueVSize());
 
+   out << "H1.GetTrueVSize():" << H1.GetTrueVSize() << std::endl;
+
    // 9. Create the nonlinear operator for the minimal surface equation
    std::unique_ptr<Operator> minsurface;
 #ifdef MFEM_USE_ENZYME

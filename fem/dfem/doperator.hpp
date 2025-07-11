@@ -688,6 +688,7 @@ void DifferentiableOperator::AddDomainIntegrator(
 
    if (use_new_kernels)
    {
+      // 🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢 NEW kernels action 🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢
       auto qf_args = decay_tuple<qf_param_ts> {};
       using FirstElementType = std::decay_t<decltype(get<0>(qf_args))>;
       // using TensorType = typename FirstElementType::type;
@@ -709,7 +710,7 @@ void DifferentiableOperator::AddDomainIntegrator(
          // MFEM_ABORT("Dual tensor case not implemented");
          action_callbacks.push_back(
             [
-               // 🟢🟢🟢🟢 capture by copy:
+               // capture by copy:
                dimension,                    // int
                num_entities,                 // int
                num_test_dof,                 // int
@@ -732,7 +733,7 @@ void DifferentiableOperator::AddDomainIntegrator(
                input_size_on_qp,             // std::array<int, num_inputs>
                dependency_map,               // std::map<int, std::vector<int>>
                inputs_vdim,                  // std::vector<int>
-               // 🟣🟣🟣🟣 capture by ref:
+               // capture by ref:
                &use_kernels_specialization = this->use_kernels_specialization,   // bool
                &restriction_cb = this->restriction_callback,
                &fields_e = this->fields_e,
@@ -772,6 +773,7 @@ void DifferentiableOperator::AddDomainIntegrator(
    }
    else
    {
+      // 🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵 STD action 🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵
       action_callbacks.push_back(
          // Explicitly capture everything we need, so we can make explicit choice
          // how to capture every variable, by copy or by ref.
@@ -852,6 +854,7 @@ void DifferentiableOperator::AddDomainIntegrator(
       });
    }
 
+   // ⚪️⚪️⚪️⚪️⚪️⚪️⚪️⚪️⚪️⚪️⚪️⚪️⚪️⚪️⚪️⚪️ Derivative actions ⚪️⚪️⚪️⚪️⚪️⚪️⚪️⚪️⚪️⚪️⚪️⚪️⚪️⚪️⚪️⚪️
    // Without this compile-time check, some valid instantiations of this method
    // will fail.
    if constexpr (derivative_ids_t::size() != 0)
@@ -889,6 +892,7 @@ void DifferentiableOperator::AddDomainIntegrator(
 
          if (!use_automatic_pa)
          {
+            // 🟣🟣🟣🟣🟣🟣🟣🟣🟣🟣🟣🟣 STD derivatives 🟣🟣🟣🟣🟣🟣🟣🟣🟣🟣🟣🟣
             dbg("NO automatic PA for derivative ID: {}",
                 derivative_id);
 
@@ -987,8 +991,7 @@ void DifferentiableOperator::AddDomainIntegrator(
             });
             return;
          }
-
-         // AUTOMATIC PA
+         // 🟡🟡🟡🟡🟡🟡🟡🟡🟡🟡🟡🟡 AUTOMATIC PA 🟡🟡🟡🟡🟡🟡🟡🟡🟡🟡🟡🟡
          dbg("Using automatic PA for derivative ID: {}", derivative_id);
          int num_dependent_inputs = 0;
          for_constexpr<num_inputs>([&](auto s)
@@ -1153,7 +1156,6 @@ void DifferentiableOperator::AddDomainIntegrator(
             }, num_entities, thread_blocks, shmem_info.total_size,
             shmem_cache.ReadWrite());
          });
-
 
          dbg("Queuing derivative ACTION callback #{}", derivative_id);
          derivative_action_callbacks[derivative_id].push_back(

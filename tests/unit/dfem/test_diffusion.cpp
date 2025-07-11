@@ -264,26 +264,25 @@ void DFemDiffusion(const char *filename, int p, const int r)
 
    SECTION("[dFEM Linearization] Diffusion with automatic PA")
    {
-      DOperator dop_auto_pa(sol, {/*{Rho, &rho_ps},*/ {Coords, mfes}}, pmesh);
+      DOperator dop_auto_pa(sol, {{Rho, &rho_ps}, {Coords, mfes}}, pmesh);
       dbg("Setting up automatic PA for diffusion");
-      dop_auto_pa.UseAutomaticPA(); // ❌ Trying to access out of boundary
+      dop_auto_pa.UseAutomaticPA();
 
-      typename Diffusion<DIM>::MFApplyNoRho mf_apply_no_rho_qf;
+      typename Diffusion<DIM>::MFApply mf_apply_qf;
       auto derivatives = std::integer_sequence<size_t, U> {};
       dbg("Adding domain integrator for automatic PA");
-      dop_auto_pa.AddDomainIntegrator(mf_apply_no_rho_qf,
-                                      tuple{ Gradient<U>{}, // Identity<Rho>{},
+      dop_auto_pa.AddDomainIntegrator(mf_apply_qf,
+                                      tuple{ Gradient<U>{}, Identity<Rho>{},
                                              Gradient<Coords>{},
                                              Weight{} },
                                       tuple{ Gradient<U>{} },
                                       *ir, all_domain_attr, derivatives);
-      dop_auto_pa.SetParameters({ /*&rho_coeff_cv,*/ nodes });
+      dop_auto_pa.SetParameters({ &rho_coeff_cv, nodes });
       dbg("Getting derivative for automatic PA");
-      auto dRdU = dop_auto_pa.GetDerivative(U, {&x}, {/*&rho_coeff_cv,*/ nodes});
+      auto dRdU = dop_auto_pa.GetDerivative(U, {&x}, {&rho_coeff_cv, nodes});
 
       pfes.GetRestrictionMatrix()->Mult(x, X);
       dbg("Mult with automatic PA operator");
-      // dop_auto_pa.Mult(X, Z);
       dRdU->Mult(X, Z);
 
       blf_fa.Mult(x, y);
