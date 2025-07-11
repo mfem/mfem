@@ -15,7 +15,28 @@
 
 namespace mfem
 {
+real_t ParticleFunction::GetParticleData(int i, int comp)
+{
+   if (pspace.GetOrdering() == Ordering::byNODES)
+   {
+      return data[i+comp*pspace.GetNP()];
+   }
+   else
+   {
+      return data[comp+i*pspace.Dimension()];
+   }
+}
 
+void ParticleFunction::GetParticleData(int i, Vector &v)
+{
+   v.SetSize(vdim);
+
+   for (int c = 0; c < vdim; c++)
+   {
+      v[c] = GetParticleData(i,c);
+   }
+
+}
 
 } // namespace mfem
 

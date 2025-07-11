@@ -39,6 +39,10 @@ protected:
    MPI_Comm comm;
 #endif // MFEM_USE_MPI
 
+
+   void AddParticles()
+
+
 private:
    void Initialize(int seed);
 
@@ -49,18 +53,41 @@ public:
    ParticleSpace(int dim_, int num_particles, Ordering::Type ordering_=Ordering::byVDIM, Mesh *mesh_=nullptr, int seed=0);
 
 #ifdef MFEM_USE_MPI
+   /// Parallel constructor
    ParticleSpace(MPI_Comm comm_, int dim_, int num_particles, Ordering::Type ordering_=Ordering::byVDIM, Mesh *mesh_=nullptr, int seed=0);
 #endif // MFEM_USE_MPI
 
-   int GetNP() const { return ids.Size(); }
-
    int Dimension() const { return dim; }
+
+   Ordering::Type GetOrdering() const { return ordering; }
+
+   int GetNP() const { return ids.Size(); }
 
    void SetMesh(Mesh *mesh_) { mesh = mesh_; finder.Setup(*mesh); finder.FindPoints(coords, ordering); }
 
    Mesh* GetMesh() { return mesh; }
 
    Vector& GetCoords() { return coords; }
+
+   const Array<int>& GetIDs() const { return ids; }
+
+   int GetID(int i) const { return ids[i]; }
+
+   /// Append new particles to the particle set with the given coordinates
+   /// All ParticleFunctions associated with this ParticleSpace must have UpdateAdd called!
+   void AddParticles(const Vector &new_coords);
+
+   /// Remove all particles not within mesh anymore (if mesh is provided)
+   /// Returns reference of array of indices to be removed from ParticleFunctions
+   const Array<int>& RemoveLostParticles();
+
+
+#ifdef MFEM_USE_MPI
+   // Nothing happens if mesh == nullptr
+   void Redistribute(ParticleFunction *pfuncs[]);
+#endif // MFEM_USE_MPI
+
+
 
 };
 
