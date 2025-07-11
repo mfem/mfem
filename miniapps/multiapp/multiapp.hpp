@@ -111,7 +111,7 @@ protected:
    mutable Vector r, z, rold;
    mutable real_t r_fac = 1.0;
    Relaxation type = Relaxation::FIXED;
-   real_t (FPISolver::*compute_relaxation)(const Vector &rn, const real_t rn_norm, Vector &ro, real_t ro_norm) const = nullptr;
+   real_t (FPISolver::*compute_relaxation)(const real_t fac, const Vector &rn, const real_t rn_norm, Vector &ro, real_t ro_norm) const = nullptr;
  
    void UpdateVectors()
    {
