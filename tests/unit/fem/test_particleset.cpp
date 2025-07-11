@@ -167,7 +167,8 @@ void TestRedistribute(Ordering::Type ordering)
       InitializeRandom(all_particles.back(), seed);
       seed++;
    }
-
+   
+   // NOTE: This test could fail if a point falls on an element boundary
    SECTION(std::string("Ordering: ") + (ordering == Ordering::byNODES ? "byNODES" : "byVDIM"))
    {
       SECTION("With rank_list")
