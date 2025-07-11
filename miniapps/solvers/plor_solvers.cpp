@@ -1,69 +1,3 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
-// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
-// LICENSE and NOTICE for details. LLNL-CODE-806117.
-//
-// This file is part of the MFEM library. For more information and source code
-// availability visit https://mfem.org.
-//
-// MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the BSD-3 license. We welcome feedback and contributions, see file
-// CONTRIBUTING.md for details.
-//
-//                 ------------------------------------------
-//                 Parallel Low-Order Refined Solvers Miniapp
-//                 ------------------------------------------
-//
-// This miniapp illustrates the use of low-order refined preconditioners for
-// finite element problems defined using H1, H(curl), H(div), or L2 finite
-// element spaces. The following problems are solved, depending on the chosen
-// finite element space:
-//
-// H1 and L2: definite Helmholtz problem, u - Delta u = f
-//            (in L2 discretized using the symmetric interior penalty DG method)
-//
-// H(curl):   definite Maxwell problem, u + curl curl u = f
-//
-// H(div):    grad-div problem, u - grad(div u) = f
-//
-// In each case, the high-order finite element problem is preconditioned using a
-// low-order finite element discretization defined on a Gauss-Lobatto refined
-// mesh. The low-order problem is solved using hypre's AMG preconditioners:
-// BoomerAMG is used for H1 and L2 problems, AMS is used for H(curl) and 2D
-// H(div) problems, and ADS is used for 3D H(div) problems.
-//
-// For vector finite element spaces, the special "Integrated" basis type is used
-// to obtain spectral equivalence between the high-order and low-order refined
-// discretizations. This basis is defined in reference [1] and spectral
-// equivalence is shown in [2]:
-//
-// [1]. M. Gerritsma. Edge functions for spectral element methods. Spectral and
-//      High Order Methods for Partial Differential Equations. (2010)
-// [2]. C. Dohrmann. Spectral equivalence properties of higher-order tensor
-//      product finite elements and applications to preconditioning. (2021)
-//
-// The action of the high-order operator is computed using MFEM's partial
-// assembly/matrix-free algorithms (except in the case of L2, which remains
-// future work).
-//
-// Compile with: make plor_solvers
-//
-// Sample runs:
-//
-//    mpirun -np 4 plor_solvers -m ../../data/fichera.mesh -fe h
-//    mpirun -np 4 plor_solvers -m ../../data/fichera.mesh -fe n
-//    mpirun -np 4 plor_solvers -m ../../data/fichera.mesh -fe r
-//    mpirun -np 4 plor_solvers -m ../../data/fichera.mesh -fe l
-//    mpirun -np 4 plor_solvers -m ../../data/amr-hex.mesh -fe h -rs 0 -o 2
-//    mpirun -np 4 plor_solvers -m ../../data/star-surf.mesh -fe h
-//    mpirun -np 4 plor_solvers -m ../../data/star-surf.mesh -fe n
-//    mpirun -np 4 plor_solvers -m ../../data/star-surf.mesh -fe r
-//
-// Device sample runs:
-//  * mpirun -np 4 plor_solvers -m ../../data/fichera.mesh -fe h -d cuda
-//  * mpirun -np 4 plor_solvers -m ../../data/fichera.mesh -fe n -d cuda
-//  * mpirun -np 4 plor_solvers -m ../../data/fichera.mesh -fe r -d cuda
-//  * mpirun -np 4 plor_solvers -m ../../data/fichera.mesh -fe l -d cuda
-
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
@@ -74,54 +8,35 @@
 using namespace std;
 using namespace mfem;
 
-int main(int argc, char *argv[])
+struct Opts
 {
-   Mpi::Init();
-   Hypre::Init();
-
    const char *mesh_file = "../../data/star.mesh";
-   int ser_ref_levels = 1, par_ref_levels = 1;
+   int ser_ref_levels = 1;
+   int par_ref_levels = 1;
    int order = 3;
    const char *fe = "h";
-   const char *device_config = "cpu";
-   bool visualization = true;
+};
 
-   OptionsParser args(argc, argv);
-   args.AddOption(&mesh_file, "-m", "--mesh", "Mesh file to use.");
-   args.AddOption(&ser_ref_levels, "-rs", "--refine-serial",
-                  "Number of times to refine the mesh uniformly in serial.");
-   args.AddOption(&par_ref_levels, "-rp", "--refine-parallel",
-                  "Number of times to refine the mesh uniformly in parallel.");
-   args.AddOption(&order, "-o", "--order", "Polynomial degree.");
-   args.AddOption(&fe, "-fe", "--fe-type",
-                  "FE type. h for H1, n for Hcurl, r for Hdiv, l for L2");
-   args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
-                  "--no-visualization",
-                  "Enable or disable GLVis visualization.");
-   args.AddOption(&device_config, "-d", "--device",
-                  "Device configuration string, see Device::Configure().");
-   args.ParseCheck();
-
-   Device device(device_config);
-   if (Mpi::Root()) { device.Print(); }
-
+int Run(const Opts &opts)
+{
    bool H1 = false, ND = false, RT = false, L2 = false;
-   if (string(fe) == "h") { H1 = true; }
-   else if (string(fe) == "n") { ND = true; }
-   else if (string(fe) == "r") { RT = true; }
-   else if (string(fe) == "l") { L2 = true; }
+   if (string(opts.fe) == "h") { H1 = true; }
+   else if (string(opts.fe) == "n") { ND = true; }
+   else if (string(opts.fe) == "r") { RT = true; }
+   else if (string(opts.fe) == "l") { L2 = true; }
    else { MFEM_ABORT("Bad FE type. Must be 'h', 'n', 'r', or 'l'."); }
 
-   real_t kappa = (order+1)*(order+1); // Penalty used for DG discretizations
+   const int order = opts.order;
+   const real_t kappa = (order+1)*(order+1); // Penalty used for DG discretizations
 
-   Mesh serial_mesh(mesh_file, 1, 1);
+   Mesh serial_mesh(opts.mesh_file, 1, 1);
    const int dim = serial_mesh.Dimension();
    const int sdim = serial_mesh.SpaceDimension();
    MFEM_VERIFY(dim == 2 || dim == 3, "Mesh dimension must be 2 or 3.");
    MFEM_VERIFY(!L2 || dim == sdim, "DG surface meshes not supported.");
-   for (int l = 0; l < ser_ref_levels; l++) { serial_mesh.UniformRefinement(); }
+   for (int l = 0; l < opts.ser_ref_levels; l++) { serial_mesh.UniformRefinement(); }
    ParMesh mesh(MPI_COMM_WORLD, serial_mesh);
-   for (int l = 0; l < par_ref_levels; l++) { mesh.UniformRefinement(); }
+   for (int l = 0; l < opts.par_ref_levels; l++) { mesh.UniformRefinement(); }
    serial_mesh.Clear();
 
    if (mesh.ncmesh && (RT || ND))
@@ -139,6 +54,18 @@ int main(int argc, char *argv[])
    else { fec.reset(new L2_FECollection(order, dim, b1)); }
 
    ParFiniteElementSpace fes(&mesh, fec.get());
+
+   // fes.GetElementRestriction(ElementDofOrdering::LEXICOGRAPHIC);
+
+   {
+      MFEM_PERF_SCOPE("Ensure Nodes");
+      mesh.EnsureNodes();
+   }
+   // {
+   //    auto &ir = DiffusionIntegrator::GetRule(*fes.GetFE(0), *fes.GetFE(0));
+   //    mesh.GetGeometricFactors(ir, GeometricFactors::JACOBIANS);
+   // }
+
    HYPRE_Int ndofs = fes.GlobalTrueVSize();
    if (Mpi::Root()) { cout << "Number of DOFs: " << ndofs << endl; }
 
@@ -149,7 +76,7 @@ int main(int argc, char *argv[])
    ParBilinearForm a(&fes);
    if (H1 || L2)
    {
-      a.AddDomainIntegrator(new MassIntegrator);
+      // a.AddDomainIntegrator(new MassIntegrator);
       a.AddDomainIntegrator(new DiffusionIntegrator);
    }
    else
@@ -167,7 +94,9 @@ int main(int argc, char *argv[])
    // Partial assembly not currently supported for DG or for surface meshes with
    // vector finite elements (ND or RT).
    if (!L2 && (H1 || sdim == dim)) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
+
    a.Assemble();
+   // a.Assemble();
 
    ParLinearForm b(&fes);
    if (H1 || L2) { b.AddDomainIntegrator(new DomainLFIntegrator(f_coeff)); }
@@ -188,9 +117,13 @@ int main(int argc, char *argv[])
    a.FormLinearSystem(ess_dofs, x, b, A, X, B);
 
    unique_ptr<Solver> solv_lor;
+
    if (H1 || L2)
    {
-      solv_lor.reset(new LORSolver<HypreBoomerAMG>(a, ess_dofs));
+      auto solv = new LORSolver<HypreBoomerAMG>(a, ess_dofs);
+      solv->GetSolver().SetPrintLevel(0);
+      solv->GetSolver().Setup(B, X);
+      solv_lor.reset(solv);
    }
    else if (RT && dim == 3)
    {
@@ -212,30 +145,53 @@ int main(int argc, char *argv[])
 
    a.RecoverFEMSolution(X, b, x);
 
-   if (sdim == dim)
-   {
-      real_t er =
-         (H1 || L2) ? x.ComputeL2Error(u_coeff) : x.ComputeL2Error(u_vec_coeff);
-      if (Mpi::Root()) { cout << "L2 error: " << er << endl; }
-   }
-
-   if (visualization)
-   {
-      // Save the solution and mesh to disk. The output can be viewed using
-      // GLVis as follows: "glvis -np <np> -m mesh -g sol"
-      x.Save("sol");
-      mesh.Save("mesh");
-
-      // Also save the solution for visualization using ParaView
-      ParaViewDataCollection dc("PLOR", &mesh);
-      dc.SetPrefixPath("ParaView");
-      dc.SetHighOrderOutput(true);
-      dc.SetLevelsOfDetail(order);
-      dc.RegisterField("u", &x);
-      dc.SetCycle(0);
-      dc.SetTime(0.0);
-      dc.Save();
-   }
-
    return 0;
+}
+
+int main(int argc, char *argv[])
+{
+   Mpi::Init();
+   Hypre::Init();
+
+   Opts opts;
+   const char *device_config = "cpu";
+
+   OptionsParser args(argc, argv);
+   args.AddOption(&opts.mesh_file, "-m", "--mesh", "Mesh file to use.");
+   args.AddOption(&opts.ser_ref_levels, "-rs", "--refine-serial",
+                  "Number of times to refine the mesh uniformly in serial.");
+   args.AddOption(&opts.par_ref_levels, "-rp", "--refine-parallel",
+                  "Number of times to refine the mesh uniformly in parallel.");
+   args.AddOption(&opts.order, "-o", "--order", "Polynomial degree.");
+   args.AddOption(&opts.fe, "-fe", "--fe-type",
+                  "FE type. h for H1, n for Hcurl, r for Hdiv, l for L2");
+   args.AddOption(&device_config, "-d", "--device",
+                  "Device configuration string, see Device::Configure().");
+   args.ParseCheck();
+
+   Device device(device_config);
+   if (Mpi::Root()) { device.Print(); }
+
+   MFEM_PERF_SYNC(true);
+
+   {
+      MFEM_PERF_SCOPE("Temporary allocations");
+      Vector tmp1(1024 * 1024 * 1024);
+      tmp1.ReadWrite();
+      Vector tmp2(1024 * 1024 * 1024);
+      tmp2.ReadWrite();
+   }
+   {
+      MFEM_PERF_SCOPE("Hypre allocations");
+      double *tmp1 = mfem_hypre_CTAlloc(double, 1024 * 1024 * 1024);
+      double *tmp2 = mfem_hypre_CTAlloc(double, 1024 * 1024 * 1024);
+      mfem_hypre_TFree(tmp2);
+      mfem_hypre_TFree(tmp1);
+   }
+
+   MFEM_PERF_DISABLE;
+   Run(opts);
+
+   MFEM_PERF_ENABLE;
+   Run(opts);
 }

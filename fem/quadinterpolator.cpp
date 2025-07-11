@@ -503,6 +503,8 @@ void QuadratureInterpolator::Mult(const Vector &e_vec,
                                   Vector &q_der,
                                   Vector &q_det) const
 {
+   MFEM_PERF_FUNCTION;
+
    using namespace internal::quadrature_interpolator;
 
    const int ne = fespace->GetNE();

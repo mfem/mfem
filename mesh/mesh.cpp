@@ -883,6 +883,8 @@ const GeometricFactors* Mesh::GetGeometricFactors(const IntegrationRule& ir,
                                                   const int flags,
                                                   MemoryType d_mt)
 {
+   MFEM_PERF_FUNCTION;
+
    for (int i = 0; i < geom_factors.Size(); i++)
    {
       GeometricFactors *gf = geom_factors[i];
@@ -14649,6 +14651,7 @@ GeometricFactors::GeometricFactors(const GridFunction &nodes,
 void GeometricFactors::Compute(const GridFunction &nodes,
                                MemoryType d_mt)
 {
+   MFEM_PERF_FUNCTION;
 
    const FiniteElementSpace *fespace = nodes.FESpace();
    const FiniteElement *fe = fespace->GetTypicalFE();
