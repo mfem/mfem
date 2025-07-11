@@ -97,6 +97,7 @@ void AsymmetricMassIntegrator::AsymmetricElementMatrix(const FiniteElement
 // TODO: it could be implemented as a mfem::Solver, as a method...
 int _print_level = -1;
 int _max_iter = 100;
+
 /// @brief Dense small least squares solver
 void LSSolver(const DenseMatrix& A, const Vector& b, Vector& x,
               real_t shift = 0.0)
@@ -111,7 +112,7 @@ void LSSolver(const DenseMatrix& A, const Vector& b, Vector& x,
    IdentityOperator I(AtA.Height());
    SumOperator AtA_reg(&AtA, 1.0, &I, shift, false, false);
 
-   CG(AtA_reg, Atb, x, _print_level, _max_iter);
+   MINRES(AtA_reg, Atb, x, _print_level, _max_iter);
 }
 
 /// @brief Dense small least squares solver, with constrains @a C with value @a c
@@ -149,7 +150,7 @@ void LSSolver(const DenseMatrix& A, const DenseMatrix& C,
    rhs.SetVector(Atb, offsets[0]);
    rhs.SetVector(c, offsets[1]);
 
-   CG(block_mat, rhs, z, _print_level, _max_iter);
+   MINRES(block_mat, rhs, z, _print_level, _max_iter);
 
    x.SetSize(A.Width());
    y.SetSize(C.Width());
