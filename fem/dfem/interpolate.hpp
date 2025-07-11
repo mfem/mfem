@@ -35,7 +35,7 @@ namespace mfem::future
 template <typename field_operator_t>
 MFEM_HOST_DEVICE inline
 void map_field_to_quadrature_data_tensor_product_3d(
-   const DeviceTensor<2> &field_qp,
+   DeviceTensor<2> &field_qp,
    const DofToQuadMap &dtq,
    const DeviceTensor<1> &field_e,
    const field_operator_t &input,

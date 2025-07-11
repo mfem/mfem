@@ -25,6 +25,21 @@
 #define dbg(...)
 #endif
 
+template<typename T, typename = void>
+struct GetTensorDim
+{
+   static constexpr int ndim = 0;
+};
+
+template<typename T>
+struct GetTensorDim<T, std::void_t<decltype(T::ndim)>>
+{
+   static constexpr int ndim = T::ndim;
+};
+
+template<typename T>
+using TensorDim = GetTensorDim<std::remove_cv_t<T>>;
+
 namespace mfem::future
 {
 
@@ -119,12 +134,18 @@ void apply_kernel(reg_t &r0, reg_t &r1,
 
    const auto r = get<0>(apply(qfunc, args));
 
-   if constexpr (decltype(r)::ndim == 1)
+
+   // if constexpr (decltype(r)::ndim == 1)
+   if constexpr (TensorDim<decltype(r)>::ndim == 1)
    {
       // process_qf_result_from_reg(r0, qx, qy, qz, r);
       r0[0][qz][qy][qx] = r[0];
       r0[1][qz][qy][qx] = r[1];
       r0[2][qz][qy][qx] = r[2];
+   }
+   if constexpr (TensorDim<decltype(r)>::ndim == 0)
+   {
+      MFEM_ABORT("qfunc returned a scalar, expected a vector");
    }
 }
 

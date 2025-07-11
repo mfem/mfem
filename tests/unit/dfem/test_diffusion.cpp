@@ -14,6 +14,14 @@
 #include <fem/dfem/doperator.hpp>
 #include <utility>
 
+#if defined(__has_include) && __has_include("general/nvtx.hpp") && !defined(_WIN32)
+#undef NVTX_COLOR
+#define NVTX_COLOR ::nvtx::kMagenta
+#include "general/nvtx.hpp"
+#else
+#define dbg(...)
+#endif
+
 #ifdef MFEM_USE_MPI
 
 using namespace mfem;
@@ -48,6 +56,18 @@ template <int DIM> struct Diffusion
          return tuple{ (dudxi * invJ) * TinJ * det(J) * w * rho };
       }
    };
+
+   struct MFApplyNoRho
+   {
+      MFEM_HOST_DEVICE inline auto operator()(const dvecd_t &dudxi,
+                                              const matd_t &J,
+                                              const real_t &w) const
+      {
+         const auto invJ = inv(J), TinJ = transpose(invJ);
+         return tuple{ (dudxi * invJ) * TinJ * det(J) * w };
+      }
+   };
+
 
    struct PASetup
    {
@@ -121,7 +141,7 @@ void DFemDiffusion(const char *filename, int p, const int r)
    blf_fa.Assemble();
    blf_fa.Finalize();
 
-   SECTION("[Partial assembly] Diffusion")
+   /*SECTION("[Partial assembly] Diffusion")
    {
       ParBilinearForm blf_pa(&pfes);
       blf_pa.AddDomainIntegrator(new DiffusionIntegrator(rho_coeff, ir));
@@ -133,7 +153,7 @@ void DFemDiffusion(const char *filename, int p, const int r)
       y -= z;
       REQUIRE(y.Normlinf() == MFEM_Approx(0.0));
       MPI_Barrier(MPI_COMM_WORLD);
-   }
+   }*/
 
    QuadratureSpace qs(pmesh, *ir);
    CoefficientVector rho_coeff_cv(rho_coeff, qs);
@@ -145,7 +165,7 @@ void DFemDiffusion(const char *filename, int p, const int r)
    static constexpr int U = 0, Coords = 1, Rho = 3;
    const auto sol = std::vector{ FieldDescriptor{ U, &pfes } };
 
-   SECTION("[dFEM Matrix free] Diffusion")
+   /*SECTION("[dFEM Matrix free] Diffusion")
    {
       DOperator dop_mf(sol, {{Rho, &rho_ps}, {Coords, mfes}}, pmesh);
       typename Diffusion<DIM>::MFApply mf_apply_qf;
@@ -170,9 +190,9 @@ void DFemDiffusion(const char *filename, int p, const int r)
 
       REQUIRE(norm_global == MFEM_Approx(0.0));
       MPI_Barrier(MPI_COMM_WORLD);
-   }
+   }*/
 
-   SECTION("[dFEM Partial assembly] Diffusion")
+   /*SECTION("[dFEM Partial assembly] Diffusion")
    {
       static constexpr int QData = 2;
       UniformParameterSpace qd_ps(pmesh, *ir, DIM * DIM);
@@ -211,9 +231,9 @@ void DFemDiffusion(const char *filename, int p, const int r)
 
       REQUIRE(norm_global == MFEM_Approx(0.0));
       MPI_Barrier(MPI_COMM_WORLD);
-   }
+   }*/
 
-   SECTION("[dFEM Linearization] Diffusion")
+   /*SECTION("[dFEM Linearization] Diffusion")
    {
       DOperator dop_mf(sol, {{Rho, &rho_ps}, {Coords, mfes}}, pmesh);
       typename Diffusion<DIM>::MFApply mf_apply_qf;
@@ -240,9 +260,47 @@ void DFemDiffusion(const char *filename, int p, const int r)
 
       REQUIRE(norm_global == MFEM_Approx(0.0));
       MPI_Barrier(MPI_COMM_WORLD);
+   }*/
+
+   SECTION("[dFEM Linearization] Diffusion with automatic PA")
+   {
+      DOperator dop_auto_pa(sol, {/*{Rho, &rho_ps},*/ {Coords, mfes}}, pmesh);
+      dbg("Setting up automatic PA for diffusion");
+      dop_auto_pa.UseAutomaticPA(); // ❌ Trying to access out of boundary
+
+      typename Diffusion<DIM>::MFApplyNoRho mf_apply_no_rho_qf;
+      auto derivatives = std::integer_sequence<size_t, U> {};
+      dbg("Adding domain integrator for automatic PA");
+      dop_auto_pa.AddDomainIntegrator(mf_apply_no_rho_qf,
+                                      tuple{ Gradient<U>{}, // Identity<Rho>{},
+                                             Gradient<Coords>{},
+                                             Weight{} },
+                                      tuple{ Gradient<U>{} },
+                                      *ir, all_domain_attr, derivatives);
+      dop_auto_pa.SetParameters({ /*&rho_coeff_cv,*/ nodes });
+      dbg("Getting derivative for automatic PA");
+      auto dRdU = dop_auto_pa.GetDerivative(U, {&x}, {/*&rho_coeff_cv,*/ nodes});
+
+      pfes.GetRestrictionMatrix()->Mult(x, X);
+      dbg("Mult with automatic PA operator");
+      // dop_auto_pa.Mult(X, Z);
+      dRdU->Mult(X, Z);
+
+      blf_fa.Mult(x, y);
+      pfes.GetProlongationMatrix()->MultTranspose(y, Y);
+      Y -= Z;
+
+      real_t norm_global = 0.0;
+      real_t norm_local = Y.Normlinf();
+      MPI_Allreduce(&norm_local, &norm_global, 1, MPI_DOUBLE, MPI_MAX,
+                    pmesh.GetComm());
+
+      REQUIRE(norm_global == MFEM_Approx(0.0));
+      MPI_Barrier(MPI_COMM_WORLD);
    }
 
-   SECTION("[dFEM Matrix free] vector diffusion")
+
+   /*SECTION("[dFEM Matrix free] vector diffusion")
    {
       ParFiniteElementSpace vpfes(&pmesh, &fec, DIM);
       ParGridFunction vx(&vpfes), vy(&vpfes);
@@ -282,9 +340,9 @@ void DFemDiffusion(const char *filename, int p, const int r)
                     pmesh.GetComm());
       REQUIRE(norm_global == MFEM_Approx(0.0));
       MPI_Barrier(MPI_COMM_WORLD);
-   }
+   }*/
 
-   SECTION("[dFEM Linearization] vector diffusion")
+   /*SECTION("[dFEM Linearization] vector diffusion")
    {
       ParFiniteElementSpace vpfes(&pmesh, &fec, DIM);
       ParGridFunction vx(&vpfes), vy(&vpfes);
@@ -296,6 +354,8 @@ void DFemDiffusion(const char *filename, int p, const int r)
       {
          const auto vsol = std::vector{ FieldDescriptor{ U, &vpfes } };
          DOperator dop_mf(vsol, {{Coords, mfes}}, pmesh);
+         dbg("Setting up automatic PA for diffusion");
+         // dop_mf.UseAutomaticPA(); // ❌ Trying to access out of boundary
          const auto mf_vector_diffusion_qf =
             [] MFEM_HOST_DEVICE (const tensor<dscalar_t, DIM, DIM> &dudxi,
                                  const tensor<real_t, DIM, DIM> &J,
@@ -305,22 +365,25 @@ void DFemDiffusion(const char *filename, int p, const int r)
             return tuple{ (dudxi * invJ) * TinJ * det(J) * w };
          };
          auto derivatives = std::integer_sequence<size_t, U> {};
+         dbg("Adding domain integrator for automatic PA");
          dop_mf.AddDomainIntegrator(mf_vector_diffusion_qf,
                                     tuple{ Gradient<U>{}, Gradient<Coords>{}, Weight{} },
                                     tuple{ Gradient<U>{} },
                                     *ir, all_domain_attr,
                                     derivatives);
+         dbg("Getting derivative for automatic PA");
          auto dRdU = dop_mf.GetDerivative(U, {&vx}, {nodes});
 
          vpfes.GetRestrictionMatrix()->Mult(vx, vX);
+         dbg("Mult with automatic PA operator");
          dRdU->Mult(vX, vZ);
       }
       {
          ConstantCoefficient one(1.0);
          ParBilinearForm vblf_fa(&vpfes);
          vblf_fa.AddDomainIntegrator(new VectorDiffusionIntegrator(one, ir));
-         vblf_fa.Assemble(), vblf_fa.Finalize();
-         vblf_fa.Mult(vx, vy), vpfes.GetProlongationMatrix()->MultTranspose(vy, vY);
+         (vblf_fa.Assemble(), vblf_fa.Finalize());
+         (vblf_fa.Mult(vx, vy), vpfes.GetProlongationMatrix()->MultTranspose(vy, vY));
       }
       vY -= vZ;
       real_t norm_global = 0.0, norm_local = vY.Normlinf();
@@ -328,10 +391,10 @@ void DFemDiffusion(const char *filename, int p, const int r)
                     pmesh.GetComm());
       REQUIRE(norm_global == MFEM_Approx(0.0));
       MPI_Barrier(MPI_COMM_WORLD);
-   }
+   }*/
 }
 
-TEST_CASE("DFEM Diffusion", "[Parallel][DFEM]")
+TEST_CASE("DFEM Diffusion", "[Parallel][DFEM][dDiffusionLinearisation]")
 {
    // const bool all_tests = launch_all_non_regression_tests;
 

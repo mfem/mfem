@@ -48,7 +48,7 @@
 
 #include "mfem.hpp"
 #include "fem/dfem/doperator.hpp"
-#include <roctracer/roctx.h>
+// #include <roctracer/roctx.h>
 
 using namespace mfem;
 
@@ -314,6 +314,7 @@ public:
       // Create the DifferentiableOperator on the desired mesh.
       res = std::make_shared<DifferentiableOperator>(
                solutions, parameters, *H1.GetParMesh());
+      res->UseAutomaticPA();
 
       // DifferentiableOperator::AddIntegrator consists mainly of multiple
       // components. The input and output operators and the pointwise
@@ -552,9 +553,9 @@ int main(int argc, char *argv[])
 
    const int num_iterations = 1000;
    const int num_runs = 10;
-   int min = std::numeric_limits<int>::max();
-   int max = 0;
-   int avg = 0;
+   real_t min = std::numeric_limits<real_t>::max();
+   real_t max = 0;
+   real_t avg = 0;
    for (int runs = 0; runs < num_runs; runs++)
    {
       MFEM_DEVICE_SYNC;
@@ -563,16 +564,16 @@ int main(int argc, char *argv[])
       for (int i = 0; i < num_iterations; i++)
       {
          MFEM_STREAM_SYNC;
-         roctxRangePush("Operator::Mult");
+         // roctxRangePush("Operator::Mult");
          A.Mult(B, X);
          MFEM_STREAM_SYNC;
-         roctxRangePop();
+         // roctxRangePop();
       }
       MFEM_DEVICE_SYNC;
       MPI_Barrier(MPI_COMM_WORLD);
       real_t elapsed_time = tic_toc.RealTime();
       const real_t mdofs = H1.GetTrueVSize() * 1e-6;
-      int cur_perf = static_cast<int>(mdofs * num_iterations / elapsed_time);
+      auto cur_perf = mdofs * num_iterations / elapsed_time;
       min = std::min(min, cur_perf);
       max = std::max(max, cur_perf);
       avg += cur_perf;
