@@ -196,6 +196,17 @@ ComplexGridFunction::ProjectCoefficient(Coefficient &real_coeff,
 }
 
 void
+ComplexGridFunction::ProjectCoefficient(Coefficient &real_coeff)
+{
+   gfr->SyncMemory(*this);
+   gfi->SyncMemory(*this);
+   gfr->ProjectCoefficient(real_coeff);
+   *gfi = 0.0;
+   gfr->SyncAliasMemory(*this);
+   gfi->SyncAliasMemory(*this);
+}
+
+void
 ComplexGridFunction::ProjectCoefficient(ComplexCoefficient &coeff)
 {
    this->ProjectCoefficient(coeff.real(), coeff.imag());
@@ -209,6 +220,17 @@ ComplexGridFunction::ProjectCoefficient(VectorCoefficient &real_vcoeff,
    gfi->SyncMemory(*this);
    gfr->ProjectCoefficient(real_vcoeff);
    gfi->ProjectCoefficient(imag_vcoeff);
+   gfr->SyncAliasMemory(*this);
+   gfi->SyncAliasMemory(*this);
+}
+
+void
+ComplexGridFunction::ProjectCoefficient(VectorCoefficient &real_vcoeff)
+{
+   gfr->SyncMemory(*this);
+   gfi->SyncMemory(*this);
+   gfr->ProjectCoefficient(real_vcoeff);
+   *gfi = 0.0;
    gfr->SyncAliasMemory(*this);
    gfi->SyncAliasMemory(*this);
 }
@@ -228,6 +250,19 @@ ComplexGridFunction::ProjectBdrCoefficient(Coefficient &real_coeff,
    gfi->SyncMemory(*this);
    gfr->ProjectBdrCoefficient(real_coeff, attr);
    gfi->ProjectBdrCoefficient(imag_coeff, attr);
+   gfr->SyncAliasMemory(*this);
+   gfi->SyncAliasMemory(*this);
+}
+
+void
+ComplexGridFunction::ProjectBdrCoefficient(Coefficient &real_coeff,
+                                           Array<int> &attr)
+{
+   ConstantCoefficient zero_coeff(0.0);
+   gfr->SyncMemory(*this);
+   gfi->SyncMemory(*this);
+   gfr->ProjectBdrCoefficient(real_coeff, attr);
+   gfi->ProjectBdrCoefficient(zero_coeff, attr);
    gfr->SyncAliasMemory(*this);
    gfi->SyncAliasMemory(*this);
 }
@@ -253,6 +288,20 @@ ComplexGridFunction::ProjectBdrCoefficientNormal(VectorCoefficient &real_vcoeff,
 }
 
 void
+ComplexGridFunction::ProjectBdrCoefficientNormal(VectorCoefficient &real_vcoeff,
+                                                 Array<int> &attr)
+{
+   Vector zero_vec(real_vcoeff.GetVDim()); zero_vec = 0.;
+   VectorConstantCoefficient zero_vcoeff(zero_vec);
+   gfr->SyncMemory(*this);
+   gfi->SyncMemory(*this);
+   gfr->ProjectBdrCoefficientNormal(real_vcoeff, attr);
+   gfi->ProjectBdrCoefficientNormal(zero_vcoeff, attr);
+   gfr->SyncAliasMemory(*this);
+   gfi->SyncAliasMemory(*this);
+}
+
+void
 ComplexGridFunction::ProjectBdrCoefficientNormal(
    ComplexVectorCoefficient &vcoeff,
    Array<int> &attr)
@@ -271,6 +320,21 @@ ComplexGridFunction::ProjectBdrCoefficientTangent(VectorCoefficient
    gfi->SyncMemory(*this);
    gfr->ProjectBdrCoefficientTangent(real_vcoeff, attr);
    gfi->ProjectBdrCoefficientTangent(imag_vcoeff, attr);
+   gfr->SyncAliasMemory(*this);
+   gfi->SyncAliasMemory(*this);
+}
+
+void
+ComplexGridFunction::ProjectBdrCoefficientTangent(VectorCoefficient
+                                                  &real_vcoeff,
+                                                  Array<int> &attr)
+{
+   Vector zero_vec(real_vcoeff.GetVDim()); zero_vec = 0.;
+   VectorConstantCoefficient zero_vcoeff(zero_vec);
+   gfr->SyncMemory(*this);
+   gfi->SyncMemory(*this);
+   gfr->ProjectBdrCoefficientTangent(real_vcoeff, attr);
+   gfi->ProjectBdrCoefficientTangent(zero_vcoeff, attr);
    gfr->SyncAliasMemory(*this);
    gfi->SyncAliasMemory(*this);
 }
@@ -325,7 +389,8 @@ ComplexGridFunction::ComputeL2Error(VectorCoefficient &re_exsol,
                                     const IntegrationRule *irs[],
                                     const Array<int> *elems) const
 {
-   ConstantCoefficient zero_coef(0.0);
+   Vector zero_vec(re_exsol.GetVDim()); zero_vec = 0.0;
+   VectorConstantCoefficient zero_coef(zero_vec);
 
    real_t err_r = gfr->ComputeL2Error(re_exsol, irs, elems);
    real_t err_i = gfi->ComputeL2Error(zero_coef, irs, elems);
@@ -916,6 +981,17 @@ ParComplexGridFunction::ProjectCoefficient(Coefficient &real_coeff,
 }
 
 void
+ParComplexGridFunction::ProjectCoefficient(Coefficient &real_coeff)
+{
+   pgfr->SyncMemory(*this);
+   pgfi->SyncMemory(*this);
+   pgfr->ProjectCoefficient(real_coeff);
+   *pgfi = 0.0;
+   pgfr->SyncAliasMemory(*this);
+   pgfi->SyncAliasMemory(*this);
+}
+
+void
 ParComplexGridFunction::ProjectCoefficient(VectorCoefficient &real_vcoeff,
                                            VectorCoefficient &imag_vcoeff)
 {
@@ -923,6 +999,17 @@ ParComplexGridFunction::ProjectCoefficient(VectorCoefficient &real_vcoeff,
    pgfi->SyncMemory(*this);
    pgfr->ProjectCoefficient(real_vcoeff);
    pgfi->ProjectCoefficient(imag_vcoeff);
+   pgfr->SyncAliasMemory(*this);
+   pgfi->SyncAliasMemory(*this);
+}
+
+void
+ParComplexGridFunction::ProjectCoefficient(VectorCoefficient &real_vcoeff)
+{
+   pgfr->SyncMemory(*this);
+   pgfi->SyncMemory(*this);
+   pgfr->ProjectCoefficient(real_vcoeff);
+   *pgfi = 0.0;
    pgfr->SyncAliasMemory(*this);
    pgfi->SyncAliasMemory(*this);
 }
@@ -936,6 +1023,19 @@ ParComplexGridFunction::ProjectBdrCoefficient(Coefficient &real_coeff,
    pgfi->SyncMemory(*this);
    pgfr->ProjectBdrCoefficient(real_coeff, attr);
    pgfi->ProjectBdrCoefficient(imag_coeff, attr);
+   pgfr->SyncAliasMemory(*this);
+   pgfi->SyncAliasMemory(*this);
+}
+
+void
+ParComplexGridFunction::ProjectBdrCoefficient(Coefficient &real_coeff,
+                                              Array<int> &attr)
+{
+   ConstantCoefficient zero_coeff(0.0);
+   pgfr->SyncMemory(*this);
+   pgfi->SyncMemory(*this);
+   pgfr->ProjectBdrCoefficient(real_coeff, attr);
+   pgfi->ProjectBdrCoefficient(zero_coeff, attr);
    pgfr->SyncAliasMemory(*this);
    pgfi->SyncAliasMemory(*this);
 }
@@ -956,6 +1056,21 @@ ParComplexGridFunction::ProjectBdrCoefficientNormal(VectorCoefficient
 }
 
 void
+ParComplexGridFunction::ProjectBdrCoefficientNormal(VectorCoefficient
+                                                    &real_vcoeff,
+                                                    Array<int> &attr)
+{
+   Vector zero_vec(real_vcoeff.GetVDim()); zero_vec = 0.;
+   VectorConstantCoefficient zero_vcoeff(zero_vec);
+   pgfr->SyncMemory(*this);
+   pgfi->SyncMemory(*this);
+   pgfr->ProjectBdrCoefficientNormal(real_vcoeff, attr);
+   pgfi->ProjectBdrCoefficientNormal(zero_vcoeff, attr);
+   pgfr->SyncAliasMemory(*this);
+   pgfi->SyncAliasMemory(*this);
+}
+
+void
 ParComplexGridFunction::ProjectBdrCoefficientTangent(VectorCoefficient
                                                      &real_vcoeff,
                                                      VectorCoefficient
@@ -966,6 +1081,21 @@ ParComplexGridFunction::ProjectBdrCoefficientTangent(VectorCoefficient
    pgfi->SyncMemory(*this);
    pgfr->ProjectBdrCoefficientTangent(real_vcoeff, attr);
    pgfi->ProjectBdrCoefficientTangent(imag_vcoeff, attr);
+   pgfr->SyncAliasMemory(*this);
+   pgfi->SyncAliasMemory(*this);
+}
+
+void
+ParComplexGridFunction::ProjectBdrCoefficientTangent(VectorCoefficient
+                                                     &real_vcoeff,
+                                                     Array<int> &attr)
+{
+   Vector zero_vec(real_vcoeff.GetVDim()); zero_vec = 0.;
+   VectorConstantCoefficient zero_vcoeff(zero_vec);
+   pgfr->SyncMemory(*this);
+   pgfi->SyncMemory(*this);
+   pgfr->ProjectBdrCoefficientTangent(real_vcoeff, attr);
+   pgfi->ProjectBdrCoefficientTangent(zero_vcoeff, attr);
    pgfr->SyncAliasMemory(*this);
    pgfi->SyncAliasMemory(*this);
 }
@@ -1007,6 +1137,31 @@ ParComplexGridFunction::ParallelProject(Vector &tv) const
 
    tvr.SyncAliasMemory(tv);
    tvi.SyncAliasMemory(tv);
+}
+
+real_t
+ParComplexGridFunction::ComputeL2Error(Coefficient &exsolr,
+                                       const IntegrationRule *irs[],
+                                       Array<int> *elems) const
+{
+   ConstantCoefficient zeroCoef(0.0);
+
+   real_t err_r = pgfr->ComputeL2Error(exsolr, irs, elems);
+   real_t err_i = pgfi->ComputeL2Error(zeroCoef, irs, elems);
+   return sqrt(err_r * err_r + err_i * err_i);
+}
+
+real_t
+ParComplexGridFunction::ComputeL2Error(VectorCoefficient &exsolr,
+                                       const IntegrationRule *irs[],
+                                       Array<int> *elems) const
+{
+   Vector zeroVec(exsolr.GetVDim()); zeroVec = 0.0;
+   VectorConstantCoefficient zeroCoef(zeroVec);
+
+   real_t err_r = pgfr->ComputeL2Error(exsolr, irs, elems);
+   real_t err_i = pgfi->ComputeL2Error(zeroCoef, irs, elems);
+   return sqrt(err_r * err_r + err_i * err_i);
 }
 
 
