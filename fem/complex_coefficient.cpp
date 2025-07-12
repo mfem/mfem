@@ -78,9 +78,17 @@ ComplexCoefficient::ComplexCoefficient(Coefficient &c_r,
    c_i.SetTime(time);
 }
 
-std::complex<real_t> ComplexCoefficient::Eval(ElementTransformation &T,
-                                              const IntegrationPoint &ip)
+complex<real_t>
+ComplexCoefficient::Eval(ElementTransformation &T,
+                         const IntegrationPoint &ip)
 {
+   // Avoid circular dependency
+  MFEM_VERIFY(std::addressof(real_coef_) != std::addressof(re_part_coef_) &&
+	      std::addressof(imag_coef_) != std::addressof(im_part_coef_),
+               "Classes dervied from ComplexCoefficient must either "
+               "implement an Eval method or supply Coefficients "
+               "for both the real and imaginary parts of the field.");
+
    return complex<real_t>(real_coef_.Eval(T, ip), imag_coef_.Eval(T, ip));
 }
 
@@ -99,6 +107,13 @@ ComplexVectorCoefficient::ComplexVectorCoefficient(VectorCoefficient &v_r,
 void ComplexVectorCoefficient::Eval(ComplexVector &V, ElementTransformation &T,
                                     const IntegrationPoint &ip)
 {
+   // Avoid circular dependency
+   MFEM_VERIFY(std::addressof(real_vcoef_) != std::addressof(re_part_vcoef_) &&
+	       std::addressof(imag_vcoef_) != std::addressof(im_part_vcoef_),
+               "Classes dervied from ComplexVectorCoefficient must either "
+               "implement an Eval method or supply VectorCoefficients "
+               "for both the real and imaginary parts of the field.");
+
    V_r_.SetSize(vdim);
    V_i_.SetSize(vdim);
 
