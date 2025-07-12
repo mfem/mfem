@@ -5414,14 +5414,24 @@ void DeviceConformingProlongationOperator::Mult(const Vector &x,
    }
 
    BcastBeginCopy(x); // copy to 'shr_buf'
-   if (mpi_gpu_aware && shr_ltdof.Size() != 0)
+   if (shr_ltdof.Size() != 0)
    {
-      /* record a stream event to wait for later */
+      if (mpi_gpu_aware)
+      {
+         /* record a stream event to wait for later */
 #if defined(MFEM_USE_HIP)
-      MFEM_GPU_CHECK(hipEventRecord(gpu_event, 0));
+         MFEM_GPU_CHECK(hipEventRecord(gpu_event, 0));
 #elif defined(MFEM_USE_CUDA)
-      MFEM_GPU_CHECK(cudaEventRecord(gpu_event, 0));
+         MFEM_GPU_CHECK(cudaEventRecord(gpu_event, 0));
 #endif
+      }
+      else
+      {
+         // Wait for BcastBeginCopy() to finish and copy the result to host.
+         // We want to do the copy here, before BcastLocalCopy(), so we can
+         // start MPI sends while BcastLocalCopy() is running asyncronously.
+         shr_buf.HostRead();
+      }
    }
    BcastLocalCopy(x, y);
    // Queue all receive communications
@@ -5447,8 +5457,8 @@ void DeviceConformingProlongationOperator::Mult(const Vector &x,
    {
       // The BcastBeginCopy kernel is executed asynchronously, we should wait
       // for it to complete:
-      // - when mpi_gpu_aware == false, this is done implicily when we call
-      //   shr_buf.HostRead()
+      // - when mpi_gpu_aware == false, this was done implicily when we called
+      //   shr_buf.HostRead() above
       // - when mpi_gpu_aware == true, we need to wait for BcastBeginCopy to
       //   complete by waiting for gpu_event.
       if (mpi_gpu_aware)
@@ -5556,14 +5566,24 @@ void DeviceConformingProlongationOperator::ApplyTranspose(
    }
 
    ReduceBeginCopy(x); // copy to 'ext_buf'
-   if (mpi_gpu_aware && ext_ldof.Size() != 0)
+   if (ext_ldof.Size() != 0)
    {
-      /* record a stream event to wait for later */
+      if (mpi_gpu_aware)
+      {
+         /* record a stream event to wait for later */
 #if defined(MFEM_USE_HIP)
-      MFEM_GPU_CHECK(hipEventRecord(gpu_event, 0));
+         MFEM_GPU_CHECK(hipEventRecord(gpu_event, 0));
 #elif defined(MFEM_USE_CUDA)
-      MFEM_GPU_CHECK(cudaEventRecord(gpu_event, 0));
+         MFEM_GPU_CHECK(cudaEventRecord(gpu_event, 0));
 #endif
+      }
+      else
+      {
+         // Wait for ReduceBeginCopy() to finish and copy the result to host.
+         // We want to do the copy here, before ReduceLocalCopy(), so we can
+         // start MPI sends while ReduceLocalCopy() is running asyncronously.
+         ext_buf.HostRead();
+      }
    }
    ReduceLocalCopy(x, y, a, b);
    // Queue all receive communications
