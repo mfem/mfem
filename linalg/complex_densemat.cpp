@@ -9,12 +9,15 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
+#include "../general/forall.hpp"
 #include "complex_densemat.hpp"
 #include "lapack.hpp"
 #include <complex>
 
 namespace mfem
 {
+
+using namespace std;
 
 DenseMatrix & ComplexDenseMatrix::real()
 {
@@ -1015,6 +1018,289 @@ void ComplexCholeskyFactors::GetInverseMatrix(int m, real_t * X_r,
 #endif
    ComplexFactors::ComplexToReal(m*m,X,X_r,X_i);
    delete [] X;
+}
+
+StdComplexDenseMatrix::StdComplexDenseMatrix()
+   : height(0), width(0)
+{}
+
+StdComplexDenseMatrix::StdComplexDenseMatrix(const StdComplexDenseMatrix &m)
+   : height(m.Height()), width(m.Width())
+{
+   const int hw = height * width;
+   if (hw > 0)
+   {
+      MFEM_ASSERT(m.data, "invalid source matrix");
+      data.New(hw);
+      std::memcpy(data, m.data, sizeof(complex<real_t>)*hw);
+   }
+}
+
+StdComplexDenseMatrix::StdComplexDenseMatrix(int s)
+   : height(s), width(s)
+{
+   MFEM_ASSERT(s >= 0, "invalid DenseMatrix size: " << s);
+   if (s > 0)
+   {
+      data.New(s*s);
+      *this = 0.0; // init with zeroes
+   }
+}
+
+StdComplexDenseMatrix::StdComplexDenseMatrix(int m, int n)
+   : height(m), width(n)
+{
+   MFEM_ASSERT(m >= 0 && n >= 0,
+               "invalid DenseMatrix size: " << m << " x " << n);
+   const int capacity = m*n;
+   if (capacity > 0)
+   {
+      data.New(capacity);
+      *this = 0.0; // init with zeroes
+   }
+}
+
+void StdComplexDenseMatrix::SetSize(int h, int w)
+{
+   MFEM_ASSERT(h >= 0 && w >= 0,
+               "invalid StdComplexDenseMatrix size: " << h << " x " << w);
+   if (Height() == h && Width() == w)
+   {
+      return;
+   }
+   height = h;
+   width = w;
+   const int hw = h*w;
+   if (hw > data.Capacity())
+   {
+      data.Delete();
+      data.New(hw);
+      *this = 0.0; // init with zeroes
+   }
+}
+
+/// Returns reference to a_{ij}.
+complex<real_t> &StdComplexDenseMatrix::Elem(int i, int j)
+{
+   return (*this)(i,j);
+}
+
+/// Returns constant reference to a_{ij}.
+const complex<real_t> &StdComplexDenseMatrix::Elem(int i, int j) const
+{
+   return (*this)(i,j);
+}
+
+
+StdComplexDenseMatrix &StdComplexDenseMatrix::operator=(real_t c)
+{
+   const int s = Height()*Width();
+   for (int i = 0; i < s; i++)
+   {
+      data[i] = c;
+   }
+   return *this;
+}
+
+StdComplexDenseMatrix &StdComplexDenseMatrix::operator=(complex<real_t> c)
+{
+   const int s = Height()*Width();
+   for (int i = 0; i < s; i++)
+   {
+      data[i] = c;
+   }
+   return *this;
+}
+
+/// Copy the matrix entries from the given array
+StdComplexDenseMatrix &StdComplexDenseMatrix::operator=(const real_t *d)
+{
+   const int s = Height()*Width();
+   for (int i = 0; i < s; i++)
+   {
+      data[i] = d[i];
+   }
+   return *this;
+}
+
+StdComplexDenseMatrix &StdComplexDenseMatrix::operator=
+(const complex<real_t> *d)
+{
+   const int s = Height()*Width();
+   for (int i = 0; i < s; i++)
+   {
+      data[i] = d[i];
+   }
+   return *this;
+}
+
+/// Sets the matrix size and elements equal to those of m
+StdComplexDenseMatrix &StdComplexDenseMatrix::operator=(const DenseMatrix &m)
+{
+   SetSize(m.height, m.width);
+
+   const int hw = height * width;
+   for (int i = 0; i < hw; i++)
+   {
+      data[i] = m.data[i];
+   }
+
+   return *this;
+}
+
+StdComplexDenseMatrix &StdComplexDenseMatrix::operator=
+(const StdComplexDenseMatrix &m)
+{
+   SetSize(m.height, m.width);
+
+   const int hw = height * width;
+   for (int i = 0; i < hw; i++)
+   {
+      data[i] = m.data[i];
+   }
+
+   return *this;
+}
+
+StdComplexDenseMatrix &StdComplexDenseMatrix::operator+=(const real_t *m)
+{
+   const int s = Height()*Width();
+   for (int i = 0; i < s; i++)
+   {
+      data[i] += m[i];
+   }
+   return *this;
+}
+
+StdComplexDenseMatrix &StdComplexDenseMatrix::operator+=
+(const complex<real_t> *m)
+{
+   const int s = Height()*Width();
+   for (int i = 0; i < s; i++)
+   {
+      data[i] += m[i];
+   }
+   return *this;
+}
+
+StdComplexDenseMatrix &StdComplexDenseMatrix::operator+=(const DenseMatrix &m)
+{
+   const int hw = height * width;
+   for (int i = 0; i < hw; i++)
+   {
+      data[i] += m.data[i];
+   }
+
+   return *this;
+}
+
+StdComplexDenseMatrix &StdComplexDenseMatrix::operator+=
+(const StdComplexDenseMatrix &m)
+{
+   const int hw = height * width;
+   for (int i = 0; i < hw; i++)
+   {
+      data[i] += m.data[i];
+   }
+
+   return *this;
+}
+
+StdComplexDenseMatrix &StdComplexDenseMatrix::operator-=(const DenseMatrix &m)
+{
+   const int hw = height * width;
+   for (int i = 0; i < hw; i++)
+   {
+      data[i] -= m.data[i];
+   }
+
+   return *this;
+}
+
+StdComplexDenseMatrix &StdComplexDenseMatrix::operator-=
+(const StdComplexDenseMatrix &m)
+{
+   const int hw = height * width;
+   for (int i = 0; i < hw; i++)
+   {
+      data[i] -= m.data[i];
+   }
+
+   return *this;
+}
+
+StdComplexDenseMatrix &StdComplexDenseMatrix::operator*=(real_t c)
+{
+   const int hw = height * width;
+   for (int i = 0; i < hw; i++)
+   {
+      data[i] *= c;
+   }
+
+   return *this;
+}
+
+StdComplexDenseMatrix &StdComplexDenseMatrix::operator*=(complex<real_t> c)
+{
+   const int hw = height * width;
+   for (int i = 0; i < hw; i++)
+   {
+      data[i] *= c;
+   }
+
+   return *this;
+}
+
+StdComplexDenseMatrix &StdComplexDenseMatrix::Set(const DenseMatrix &Mr,
+                                                  const DenseMatrix &Mi)
+{
+   MFEM_ASSERT(height == Mr.Height() && height == Mi.Height() &&
+               width == Mr.Width() && width == Mi.Width(),
+               "incompatible Matrices!");
+
+   const int hw = height * width;
+   for (int i = 0; i < hw; i++)
+   {
+      data[i] = complex<real_t>(Mr.data[i], Mi.data[i]);
+   }
+
+   return *this;
+}
+
+void StdComplexDenseMatrix::Swap(StdComplexDenseMatrix &other)
+{
+   mfem::Swap(width, other.width);
+   mfem::Swap(height, other.height);
+   mfem::Swap(data, other.data);
+}
+
+StdComplexDenseMatrix::~StdComplexDenseMatrix()
+{
+   data.Delete();
+}
+
+const DenseMatrix &StdComplexDenseMatrix::real() const
+{
+   re_part.SetSize(height, width);
+   const int hw = height * width;
+   for (int i = 0; i < hw; i++)
+   {
+      re_part.data[i] = data[i].real();
+   }
+
+   return re_part;
+}
+
+const DenseMatrix &StdComplexDenseMatrix::imag() const
+{
+   im_part.SetSize(height, width);
+   const int hw = height * width;
+   for (int i = 0; i < hw; i++)
+   {
+      im_part.data[i] = data[i].imag();
+   }
+
+   return im_part;
 }
 
 } // mfem namespace
