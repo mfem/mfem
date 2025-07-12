@@ -29,8 +29,13 @@ Discretization improvements
 
 Meshing improvements
 --------------------
+
 - Added support for higher order meshes in Mesh::MakeSimplicial and
   ParMesh::MakeSimplicial.
+
+- Added a new miniapp for interpolating a surface grid of points in 3D using a
+  smooth NURBS surface, that can then be sampled at arbitrary resolution while
+  staying close to the original geometry. See miniapps/nurbs/nurbs_surface.
 
 GPU computing
 -------------
