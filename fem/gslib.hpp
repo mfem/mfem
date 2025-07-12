@@ -30,7 +30,9 @@ namespace mfem
 {
 
 /** \brief FindPointsGSLIB can robustly evaluate a GridFunction on an arbitrary
- *  collection of points.
+ *  collection of points. See Mittal et al., "General Field Evaluation in
+ *  High-Order Meshes on GPUs". (2025). Computers & Fluids. for technical
+ *  details.
  *
  *  There are three key functions in FindPointsGSLIB:
  *
@@ -94,7 +96,7 @@ protected:
    // Tolerance to ignore points found beyond the mesh boundary.
    // i.e. if ||x*-x(r)||_2^2 > bdr_tol, we mark point as not found.
    double     bdr_tol;
-   // Use CPU functions for mesh/gridfunction on device for gslib1.0.7
+   // Use CPU functions for Mesh/GridFunction on device for gslib1.0.7
    bool       gpu_to_cpu_fallback = false;
 
    // Device specific data used for FindPoints
@@ -175,7 +177,7 @@ protected:
                            int point_pos_ordering = Ordering::byNODES);
 
    /** Interpolation of field values at prescribed reference space positions.
-       @param[in] field_in_evec E-vector of gridfunction to be interpolated.
+       @param[in] field_in_evec E-vector of grid function to be interpolated.
                                 Assumed ordering is NDOFSxVDIMxNEL
        @param[in] nel           Number of elements in the mesh.
        @param[in] ncomp         Number of components in the field.

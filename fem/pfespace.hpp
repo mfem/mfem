@@ -577,7 +577,13 @@ public:
 
    void Mult(const Vector &x, Vector &y) const override;
 
+   void AbsMult(const Vector &x, Vector &y) const override
+   { Mult(x,y); }
+
    void MultTranspose(const Vector &x, Vector &y) const override;
+
+   void AbsMultTranspose(const Vector &x, Vector &y) const override
+   { MultTranspose(x,y); }
 };
 
 
@@ -638,12 +644,18 @@ public:
 
    void Mult(const Vector &x, Vector &y) const override;
 
+   void AbsMult(const Vector &x, Vector &y) const override
+   { Mult(x,y); }
+
    void MultTranspose(const Vector &x, Vector &y) const override
    { ApplyTranspose(x, y, 0, 1); }
 
    void AddMultTranspose(const Vector &x, Vector &y,
                          real_t a = 1) const override
    { ApplyTranspose(x, y, 1, a); }
+
+   void AbsMultTranspose(const Vector &x, Vector &y) const override
+   { MultTranspose(x,y); }
 };
 
 }

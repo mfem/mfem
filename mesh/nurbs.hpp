@@ -22,7 +22,6 @@
 #include "../general/communication.hpp"
 #endif
 #include <iostream>
-#include <set>
 
 namespace mfem
 {
@@ -55,7 +54,7 @@ protected:
 
 public:
    /// Create an empty KnotVector.
-   KnotVector() { }
+   KnotVector() = default;
 
    /** @brief Create a KnotVector by reading data from stream @a input. Two
        integers are read, for order and number of control points. */
@@ -74,7 +73,7 @@ public:
        polynomial degree). Periodicity is not supported.
    */
    KnotVector(int order, const Vector& intervals,
-              const Array<int>& continuity );
+              const Array<int>& continuity);
 
    /// Copy constructor.
    KnotVector(const KnotVector &kv) { (*this) = kv; }
@@ -144,8 +143,13 @@ public:
    /** @brief Global curve interpolation through the points @a x (overwritten).
        @a x is an array with the length of the spatial dimension containing
        vectors with spatial coordinates. The control points of the interpolated
-       curve are returned in @a x in the same form. */
-   void FindInterpolant(Array<Vector*> &x);
+       curve are returned in @a x in the same form.
+
+       The inverse of the collocation matrix, used in the interpolation, is
+       stored for repeated calls and used if @a reuse_inverse is true. Reuse is
+       valid only if this KnotVector has not changed since the initial call with
+       @a reuse_inverse false. */
+   void FindInterpolant(Array<Vector*> &x, bool reuse_inverse = false);
 
    /** Set @a diff, comprised of knots in @a kv not contained in this KnotVector.
        @a kv must be of the same order as this KnotVector. The current
@@ -203,6 +207,14 @@ public:
    /** Flag to indicate whether the KnotVector has been coarsened, which means
        it is ready for non-nested refinement. */
    bool coarse;
+
+#ifdef MFEM_USE_LAPACK
+   // Data for reusing banded matrix factorization in FindInterpolant().
+   DenseMatrix fact_AB; /// Banded matrix factorization
+   Array<int> fact_ipiv; /// Row pivot indices
+#else
+   DenseMatrix A_coll_inv; /// Collocation matrix inverse
+#endif
 };
 
 
@@ -286,7 +298,7 @@ public:
        includes the weight. The array of control point coordinates stores each
        point's coordinates contiguously, and points are ordered in a standard
        ijk grid ordering. */
-   NURBSPatch(Array<const KnotVector *> &kv_,  int dim_,
+   NURBSPatch(Array<const KnotVector *> &kv_, int dim_,
               const real_t* control_points);
 
    /// Constructor for a patch of dimension equal to the size of @a kv.
@@ -469,7 +481,7 @@ protected:
    /// Orders of all KnotVectors
    Array<int> mOrders;
 
-   /// Number of KnotVectors
+   /// Number of unique (not comprehensive) KnotVectors
    int NumOfKnotVectors;
 
    /// Global entity counts
@@ -490,8 +502,8 @@ protected:
    /// Whether this object owns patchTopo
    bool own_topo;
 
-   /// Map from edge indices to KnotVector indices
-   Array<int> edge_to_knot;
+   /// Map from patchTopo edge indices to unique KnotVector indices
+   Array<int> edge_to_ukv;
 
    /// Set of unique KnotVectors
    Array<KnotVector *> knotVectors;
@@ -555,15 +567,15 @@ protected:
       if the KnotVector index associated with edge @a edge is negative. */
    inline const KnotVector *KnotVec(int edge, int oedge, int *okv) const;
 
-   /// Throw an error if any patch has an inconsistent edge-to-knot mapping.
+   /// Throw an error if any patch has an inconsistent edge_to_ukv mapping.
    void CheckPatches();
 
    /// Throw an error if any boundary patch has invalid KnotVector orientation.
    void CheckBdrPatches();
 
    /** @brief Return the directions in @a kvdir of the KnotVectors in patch @a p
-       based on the the patch edge orientations. Each entry of @a kvdir is -1 if
-       the KnotVector direction is flipped, +1 otherwise. */
+       based on the patch edge orientations. Each entry of @a kvdir is -1 if the
+       KnotVector direction is flipped, +1 otherwise. */
    void CheckKVDirection(int p, Array <int> &kvdir);
 
    /**  @brief Create the comprehensive set of KnotVectors. In 1D, this set is
@@ -673,6 +685,9 @@ protected:
    /// Set @a patch_to_bel.
    void SetPatchToBdrElements();
 
+   /// Return NURBSPatch object; returned object should NOT be deleted.
+   const NURBSPatch* GetPatch(int patch) const { return patches[patch]; }
+
    /// To be used by ParNURBSExtension constructor(s)
    NURBSExtension() : el_dof(nullptr), bel_dof(nullptr) { }
 
@@ -698,7 +713,8 @@ public:
 
    NURBSExtension(Mesh *mesh_array[], int num_pieces);
 
-   NURBSExtension(const Mesh *patch_topology, const Array<const NURBSPatch*> p);
+   NURBSExtension(const Mesh *patch_topology,
+                  const Array<const NURBSPatch*> &patches_);
 
    /// Copy assignment not supported.
    NURBSExtension& operator=(const NURBSExtension&) = delete;
@@ -910,6 +926,14 @@ public:
    /** @brief Return the degrees of freedom in @a dofs on patch @a patch, in
        Cartesian order. */
    void GetPatchDofs(const int patch, Array<int> &dofs);
+
+   /// Returns a deep copy of the patch topology mesh
+   Mesh GetPatchTopology() const { return Mesh(*patchTopo); }
+
+   /** Returns a deep copy of all instantiated patches. To ensure that patches
+       are instantiated, use Mesh::GetNURBSPatches() instead. Caller gets
+       ownership of the returned object, and is responsible for deletion.*/
+   void GetPatches(Array<NURBSPatch*> &patches);
 
    /// Return the array of indices of all elements in patch @a patch.
    const Array<int>& GetPatchElements(int patch);
@@ -1138,7 +1162,7 @@ inline const real_t &NURBSPatch::operator()(int i, int j, int k, int l) const
 
 inline int NURBSExtension::KnotInd(int edge) const
 {
-   int kv = edge_to_knot[edge];
+   int kv = edge_to_ukv[edge];
    return (kv >= 0) ? kv : (-1-kv);
 }
 
@@ -1155,7 +1179,7 @@ inline const KnotVector *NURBSExtension::KnotVec(int edge) const
 inline const KnotVector *NURBSExtension::KnotVec(int edge, int oedge, int *okv)
 const
 {
-   int kv = edge_to_knot[edge];
+   int kv = edge_to_ukv[edge];
    if (kv >= 0)
    {
       *okv = oedge;

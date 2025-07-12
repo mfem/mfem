@@ -61,7 +61,7 @@ public:
    template <int MID, int MBD>
    void FactorElementMatrices(Vector &AhatInvCt_mat);
 
-   /// Form the Schur complement matix $H$.
+   /// Form the Schur complement matrix $H$.
    void ConstructH();
 
    /// Compute the action of C^t x.

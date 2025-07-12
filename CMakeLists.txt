@@ -18,8 +18,8 @@ message(STATUS "CMake version: ${CMAKE_VERSION}")
 set(USER_CONFIG "${CMAKE_CURRENT_SOURCE_DIR}/config/user.cmake" CACHE PATH
   "Path to optional user configuration file.")
 
-# Require C++11 and disable compiler-specific extensions
-set(CMAKE_CXX_STANDARD 11 CACHE STRING "C++ standard to use.")
+# Require C++17 and disable compiler-specific extensions
+set(CMAKE_CXX_STANDARD 17 CACHE STRING "C++ standard to use.")
 set(CMAKE_CXX_STANDARD_REQUIRED ON CACHE BOOL
   "Force the use of the chosen C++ standard.")
 set(CMAKE_CXX_EXTENSIONS OFF CACHE BOOL "Enable C++ standard extensions.")
@@ -59,7 +59,7 @@ project(mfem NONE)
 # Current version of MFEM, see also `makefile`.
 #   mfem_VERSION = (string)
 #   MFEM_VERSION = (int)   [automatically derived from mfem_VERSION]
-set(${PROJECT_NAME}_VERSION 4.7.1)
+set(${PROJECT_NAME}_VERSION 4.8.1)
 
 # Prohibit in-source build
 if (${PROJECT_SOURCE_DIR} STREQUAL ${PROJECT_BINARY_DIR})
@@ -133,7 +133,6 @@ if (MFEM_USE_CUDA)
    if (NOT CMAKE_CUDA_HOST_COMPILER)
       set(CMAKE_CUDA_HOST_COMPILER ${CMAKE_CXX_COMPILER})
    endif()
-   set(CUDA_FLAGS "--expt-extended-lambda")
    if (CMAKE_VERSION VERSION_LESS 3.18.0)
       set(CUDA_FLAGS "-arch=${CUDA_ARCH} ${CUDA_FLAGS}")
    elseif (NOT CMAKE_CUDA_ARCHITECTURES)
@@ -148,6 +147,20 @@ if (MFEM_USE_CUDA)
    endif()
    message(STATUS "Using CUDA architecture: ${CUDA_ARCH}")
    enable_language(CUDA)
+   if (CMAKE_VERSION VERSION_LESS 3.18.0)
+     # backup try to detect if this is clang or nvcc
+     if(CMAKE_CUDA_COMPILER MATCHES "nvcc$")
+       # nvcc
+       set(MFEM_CUDA_COMPILER_IS_NVCC ON)
+       set(CUDA_FLAGS "${CUDA_FLAGS} --expt-extended-lambda --expt-relaxed-constexpr")
+     endif()
+   else()
+     if (CMAKE_CUDA_COMPILER_ID STREQUAL "NVIDIA")
+       # nvcc
+       set(MFEM_CUDA_COMPILER_IS_NVCC ON)
+       set(CUDA_FLAGS "${CUDA_FLAGS} --expt-extended-lambda --expt-relaxed-constexpr")
+     endif()
+   endif()
    set(CMAKE_CUDA_STANDARD ${CMAKE_CXX_STANDARD} CACHE STRING
       "CUDA standard to use.")
    set(CMAKE_CUDA_STANDARD_REQUIRED ON CACHE BOOL
@@ -256,7 +269,11 @@ if (MFEM_USE_OPENMP OR MFEM_USE_LEGACY_OPENMP)
   if (OPENMP_FOUND)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
     if (MFEM_USE_CUDA)
-      set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -Xcompiler=${OpenMP_CXX_FLAGS}")
+      if(MFEM_CUDA_COMPILER_IS_NVCC)
+        set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -Xcompiler=${OpenMP_CXX_FLAGS}")
+      else()
+        set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} ${OpenMP_CXX_FLAGS}")
+      endif()
     endif()
   endif()
 endif()
@@ -386,6 +403,11 @@ endif()
 # GSLIB
 if (MFEM_USE_GSLIB)
   find_package(GSLIB REQUIRED)
+endif()
+
+# HDF5
+if (MFEM_USE_HDF5)
+  find_package(HDF5 REQUIRED)
 endif()
 
 # NetCDF
@@ -527,9 +549,10 @@ if (MFEM_USE_TRIBOL)
   endif()
 endif()
 
-# Enzyme
 if (MFEM_USE_ENZYME)
-   find_package(ENZYME REQUIRED)
+    find_package(Enzyme REQUIRED HINTS ${ENZYME_DIR})
+    message(STATUS "Enzyme found in ${ENZYME_DIR}.")
+    set(ENZYME_INCLUDE_DIRS ${ENZYME_DIR}/include)
 endif()
 
 # MFEM_TIMER_TYPE
@@ -569,7 +592,7 @@ find_package(Threads REQUIRED)
 #    integers, the METIS header (with 32-bit indices, as used by mfem) needs to
 #    be before SuiteSparse.
 set(MFEM_TPLS OPENMP HYPRE LAPACK BLAS SuperLUDist STRUMPACK METIS SuiteSparse
-    SUNDIALS PETSC SLEPC MUMPS AXOM FMS CONDUIT Ginkgo GNUTLS GSLIB
+    SUNDIALS PETSC SLEPC MUMPS AXOM FMS CONDUIT Ginkgo GNUTLS GSLIB HDF5
     NETCDF MPFR PUMI HIOP POSIXCLOCKS MFEMBacktrace ZLIB OCCA CEED RAJA UMPIRE
     ADIOS2 MKL_CPARDISO MKL_PARDISO AMGX MAGMA CUSPARSE CUBLAS CALIPER CODIPACK
     BENCHMARK PARELAG TRIBOL MPI_CXX HIP HIPBLAS HIPSPARSE MOONOLITH BLITZ
@@ -680,6 +703,9 @@ if (MFEM_USE_MPI)
   if (MPI_CXX_LINK_FLAGS)
     target_link_libraries(mfem PUBLIC ${MPI_CXX_LINK_FLAGS})
   endif()
+endif()
+if (MFEM_USE_ENZYME)
+  target_link_libraries(mfem PUBLIC ClangEnzymeFlags)
 endif()
 
 set_target_properties(mfem PROPERTIES VERSION "${mfem_VERSION}")

@@ -64,6 +64,7 @@ set(SRCS
   datacollection.cpp
   dgmassinv.cpp
   doftrans.cpp
+  dfem/doperator.cpp
   eltrans.cpp
   batchitrans.cpp
   estimators.cpp
@@ -161,6 +162,7 @@ set(SRCS
   transfer.cpp
   hyperbolic.cpp
   integrator.cpp
+  bounds.cpp
   )
 
 set(HDRS
@@ -180,6 +182,14 @@ set(HDRS
   dgmassinv.hpp
   dgmassinv_kernels.hpp
   doftrans.hpp
+  dfem/doperator.hpp
+  dfem/fieldoperator.hpp
+  dfem/integrate.hpp
+  dfem/parameterspace.hpp
+  dfem/qfunction_apply.hpp
+  dfem/qfunction_transform.hpp
+  dfem/tuple.hpp
+  dfem/util.hpp
   eltrans.hpp
   estimators.hpp
   fe.hpp
@@ -237,6 +247,7 @@ set(HDRS
   nonlinearform_ext.hpp
   nonlininteg.hpp
   qfunction.hpp
+  qinterp/det.hpp
   qinterp/eval.hpp
   qinterp/eval_hdiv.hpp
   qinterp/grad.hpp
@@ -263,6 +274,7 @@ set(HDRS
   transfer.hpp
   hyperbolic.hpp
   integrator.hpp
+  bounds.hpp
   )
 
 if (MFEM_USE_SIDRE)

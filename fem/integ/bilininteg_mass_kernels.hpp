@@ -22,6 +22,8 @@
 namespace mfem
 {
 
+/// \cond DO_NOT_DOCUMENT
+
 namespace internal
 {
 
@@ -48,6 +50,7 @@ static void PAMassAssembleDiagonal1D(const int NE,
    });
 }
 
+template <bool ACCUMULATE = true>
 MFEM_HOST_DEVICE inline
 void PAMassApply1D_Element(const int e,
                            const int NE,
@@ -66,6 +69,14 @@ void PAMassApply1D_Element(const int e,
    auto D = ConstDeviceMatrix(d_, Q1D, NE);
    auto X = ConstDeviceMatrix(x_, D1D, NE);
    auto Y = DeviceMatrix(y_, D1D, NE);
+
+   if (!ACCUMULATE)
+   {
+      for (int dx = 0; dx < D1D; ++dx)
+      {
+         Y(dx, e) = 0.0;
+      }
+   }
 
    real_t XQ[DofQuadLimits::MAX_Q1D];
    for (int qx = 0; qx < Q1D; ++qx)
@@ -1413,7 +1424,7 @@ inline DiagonalKernelType MassIntegrator::DiagonalPAKernels::Fallback(
    else if (DIM == 3) { return internal::PAMassAssembleDiagonal3D; }
    else { MFEM_ABORT(""); }
 }
-
+/// \endcond DO_NOT_DOCUMENT
 } // namespace mfem
 
 #endif

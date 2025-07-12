@@ -29,7 +29,7 @@
 //               mpirun -np 4 ex6p -pa -d ceed-cuda:/gpu/cuda/shared
 //
 // Description:  This is a version of Example 1 with a simple adaptive mesh
-//               refinement loop. The problem being solved is again the Laplace
+//               refinement loop. The problem being solved is again the Poisson
 //               equation -Delta u = 1 with homogeneous Dirichlet boundary
 //               conditions. The problem is solved on a sequence of meshes which
 //               are locally refined in a conforming (triangles, tetrahedrons)
@@ -208,7 +208,7 @@ int main(int argc, char *argv[])
    ParFiniteElementSpace fespace(pmesh, &fec);
 
    // 11. As in Example 1p, we set up bilinear and linear forms corresponding to
-   //     the Laplace problem -\Delta u = 1. We don't assemble the discrete
+   //     the Poisson problem -\Delta u = 1. We don't assemble the discrete
    //     problem yet, this will be done in the main loop.
    ParBilinearForm a(&fespace);
    if (pa)
