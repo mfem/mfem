@@ -63,6 +63,36 @@ ImagPartVectorCoefficient::Eval(Vector &V, ElementTransformation &T,
    V = val_.imag();
 }
 
+RealPartMatrixCoefficient::RealPartMatrixCoefficient(ComplexMatrixCoefficient &
+                                                     complex_mcoef)
+   : MatrixCoefficient(complex_mcoef.GetHeight(), complex_mcoef.GetWidth()),
+     complex_mcoef_(complex_mcoef),
+     val_(height, width)
+{}
+
+void
+RealPartMatrixCoefficient::Eval(DenseMatrix &M, ElementTransformation &T,
+                                const IntegrationPoint &ip)
+{
+   complex_mcoef_.Eval(val_, T, ip);
+   M = val_.real();
+}
+
+ImagPartMatrixCoefficient::ImagPartMatrixCoefficient(ComplexMatrixCoefficient &
+                                                     complex_mcoef)
+   : MatrixCoefficient(complex_mcoef.GetHeight(), complex_mcoef.GetWidth()),
+     complex_mcoef_(complex_mcoef),
+     val_(height, width)
+{}
+
+void
+ImagPartMatrixCoefficient::Eval(DenseMatrix &M, ElementTransformation &T,
+                                const IntegrationPoint &ip)
+{
+   complex_mcoef_.Eval(val_, T, ip);
+   M = val_.imag();
+}
+
 ComplexCoefficient::ComplexCoefficient()
    : time(0.),
      re_part_coef_(*this), im_part_coef_(*this),
@@ -83,8 +113,8 @@ ComplexCoefficient::Eval(ElementTransformation &T,
                          const IntegrationPoint &ip)
 {
    // Avoid circular dependency
-  MFEM_VERIFY(std::addressof(real_coef_) != std::addressof(re_part_coef_) &&
-	      std::addressof(imag_coef_) != std::addressof(im_part_coef_),
+   MFEM_VERIFY(std::addressof(real_coef_) != std::addressof(re_part_coef_) &&
+               std::addressof(imag_coef_) != std::addressof(im_part_coef_),
                "Classes dervied from ComplexCoefficient must either "
                "implement an Eval method or supply Coefficients "
                "for both the real and imaginary parts of the field.");
@@ -109,7 +139,7 @@ void ComplexVectorCoefficient::Eval(ComplexVector &V, ElementTransformation &T,
 {
    // Avoid circular dependency
    MFEM_VERIFY(std::addressof(real_vcoef_) != std::addressof(re_part_vcoef_) &&
-	       std::addressof(imag_vcoef_) != std::addressof(im_part_vcoef_),
+               std::addressof(imag_vcoef_) != std::addressof(im_part_vcoef_),
                "Classes dervied from ComplexVectorCoefficient must either "
                "implement an Eval method or supply VectorCoefficients "
                "for both the real and imaginary parts of the field.");

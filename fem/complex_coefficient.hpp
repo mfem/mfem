@@ -23,6 +23,7 @@ namespace mfem
 
 class ComplexCoefficient;
 class ComplexVectorCoefficient;
+class ComplexMatrixCoefficient;
 
 /// Standard Coefficient which returns the real part of a ComplexCoefficient
 class RealPartCoefficient : public Coefficient
@@ -82,6 +83,34 @@ public:
 };
 
 typedef ImagPartVectorCoefficient ImaginaryPartVectorCoefficient;
+
+class RealPartMatrixCoefficient : public MatrixCoefficient
+{
+private:
+   ComplexMatrixCoefficient &complex_mcoef_;
+   mutable StdComplexDenseMatrix val_;
+
+public:
+   RealPartMatrixCoefficient(ComplexMatrixCoefficient & complex_mcoef);
+
+   void Eval(DenseMatrix &M, ElementTransformation &T,
+             const IntegrationPoint &ip);
+};
+
+class ImagPartMatrixCoefficient : public MatrixCoefficient
+{
+private:
+   ComplexMatrixCoefficient &complex_mcoef_;
+   mutable StdComplexDenseMatrix val_;
+
+public:
+   ImagPartMatrixCoefficient(ComplexMatrixCoefficient & complex_mcoef);
+
+   void Eval(DenseMatrix &V, ElementTransformation &T,
+             const IntegrationPoint &ip);
+};
+
+typedef ImagPartMatrixCoefficient ImaginaryPartMatrixCoefficient;
 
 /** @brief Base class ComplexCoefficients that optionally depend on space and
     time. These are used by the SesquilinearForm, ComplexLinearForm, and
@@ -241,6 +270,89 @@ public:
    virtual VectorCoefficient & imag() { return imag_vcoef_; }
 
    virtual ~ComplexVectorCoefficient() { }
+};
+
+/** @brief Base class ComplexMatrixCoefficients that optionally depend
+    on space and time. These are used by the SesquilinearForm,
+    ComplexLinearForm, and ComplexGridFunction classes to represent
+    the physical matrix-valued coefficients in the PDEs that are being
+    discretized. This class can also be used in a more general way to
+    represent functions that don't necessarily belong to a FE space.
+    See, e.g., ex22 for these uses. */
+class ComplexMatrixCoefficient
+{
+protected:
+   int height, width;
+   real_t time;
+
+private:
+   RealPartMatrixCoefficient re_part_mcoef_;
+   ImagPartMatrixCoefficient im_part_mcoef_;
+
+protected:
+   MatrixCoefficient &real_mcoef_;
+   MatrixCoefficient &imag_mcoef_;
+
+   mutable DenseMatrix M_r_;
+   mutable DenseMatrix M_i_;
+
+public:
+   /// Construct a dim x dim matrix coefficient.
+   explicit ComplexMatrixCoefficient(int dim)
+      : height(dim), width(dim), time(0.),
+        re_part_mcoef_(*this), im_part_mcoef_(*this),
+        real_mcoef_(re_part_mcoef_), imag_mcoef_(im_part_mcoef_)
+   { }
+
+   /// Construct a h x w matrix coefficient.
+   ComplexMatrixCoefficient(int h, int w) :
+      height(h), width(w), time(0.),
+      re_part_mcoef_(*this), im_part_mcoef_(*this),
+      real_mcoef_(re_part_mcoef_), imag_mcoef_(im_part_mcoef_)
+   { }
+
+   /// Set the time for time dependent coefficients
+   virtual void SetTime(real_t t) { time = t; }
+
+   /// Get the time for time dependent coefficients
+   real_t GetTime() { return time; }
+
+   /// Get the height of the matrix.
+   int GetHeight() const { return height; }
+
+   /// Get the width of the matrix.
+   int GetWidth() const { return width; }
+
+   /// For backward compatibility get the width of the matrix.
+   int GetVDim() const { return width; }
+
+   /** @brief Evaluate the matrix coefficient in the element described by @a T
+       at the point @a ip, storing the result in @a K. */
+   /** @note When this method is called, the caller must make sure that the
+       IntegrationPoint associated with @a T is the same as @a ip. This can be
+       achieved by calling T.SetIntPoint(&ip). */
+   virtual void Eval(StdComplexDenseMatrix &K, ElementTransformation &T,
+                     const IntegrationPoint &ip) = 0;
+
+   /** @brief Access a standard Coefficient object reproducing the real part of
+       the complex-valued field */
+   /** @note By default this method returns an internal object which
+       computes the complex value using the above Eval method and
+       returns its real part. Custom implementations may choose to
+       override this method with a more efficient real-valued
+       coefficient. */
+   virtual MatrixCoefficient & real() { return real_mcoef_; }
+
+   /** @brief Access a standard Coefficient object reproducing the imaginary
+       part of the complex-valued field */
+   /** @note By default this method returns an internal object which
+       computes the complex value using the above Eval method and
+       returns its imaginary part. Custom implementations may choose to
+       override this method with a more efficient real-valued
+       coefficient. */
+   virtual MatrixCoefficient & imag() { return imag_mcoef_; }
+
+   virtual ~ComplexMatrixCoefficient() { }
 };
 
 /// A complex-valued coefficient that is constant across space and time
