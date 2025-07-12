@@ -21,6 +21,68 @@
 namespace mfem
 {
 
+class ComplexCoefficient;
+class ComplexVectorCoefficient;
+
+/// Standard Coefficient which returns the real part of a ComplexCoefficient
+class RealPartCoefficient : public Coefficient
+{
+private:
+   ComplexCoefficient &complex_coef_;
+
+public:
+   RealPartCoefficient(ComplexCoefficient & complex_coef)
+      : complex_coef_(complex_coef) {}
+
+   real_t Eval(ElementTransformation &T,
+               const IntegrationPoint &ip);
+};
+
+/// Standard Coefficient which returns the imaginary part of a
+/// ComplexCoefficient
+class ImagPartCoefficient : public Coefficient
+{
+private:
+   ComplexCoefficient &complex_coef_;
+
+public:
+   ImagPartCoefficient(ComplexCoefficient & complex_coef)
+      : complex_coef_(complex_coef) {}
+
+   real_t Eval(ElementTransformation &T,
+               const IntegrationPoint &ip);
+};
+
+typedef ImagPartCoefficient ImaginaryPartCoefficient;
+
+class RealPartVectorCoefficient : public VectorCoefficient
+{
+private:
+   ComplexVectorCoefficient &complex_vcoef_;
+   mutable ComplexVector val_;
+
+public:
+   RealPartVectorCoefficient(ComplexVectorCoefficient & complex_vcoef);
+
+   void Eval(Vector &V, ElementTransformation &T,
+             const IntegrationPoint &ip);
+};
+
+class ImagPartVectorCoefficient : public VectorCoefficient
+{
+private:
+   ComplexVectorCoefficient &complex_vcoef_;
+   mutable ComplexVector val_;
+
+public:
+   ImagPartVectorCoefficient(ComplexVectorCoefficient & complex_vcoef);
+
+   void Eval(Vector &V, ElementTransformation &T,
+             const IntegrationPoint &ip);
+};
+
+typedef ImagPartVectorCoefficient ImaginaryPartVectorCoefficient;
+
 /** @brief Base class ComplexCoefficients that optionally depend on space and
     time. These are used by the SesquilinearForm, ComplexLinearForm, and
     ComplexGridFunction classes to represent the physical coefficients in
@@ -34,42 +96,6 @@ protected:
    real_t time;
 
 private:
-   class RealPartCoefficient : public Coefficient
-   {
-   private:
-      ComplexCoefficient &complex_coef_;
-
-   public:
-      RealPartCoefficient(ComplexCoefficient & complex_coef)
-         : complex_coef_(complex_coef) {}
-
-      real_t Eval(ElementTransformation &T,
-                  const IntegrationPoint &ip)
-      {
-         std::complex<real_t> val = complex_coef_.Eval(T, ip);
-         return val.real();
-      }
-
-   };
-
-   class ImagPartCoefficient : public Coefficient
-   {
-   private:
-      ComplexCoefficient &complex_coef_;
-
-   public:
-      ImagPartCoefficient(ComplexCoefficient & complex_coef)
-         : complex_coef_(complex_coef) {}
-
-      real_t Eval(ElementTransformation &T,
-                  const IntegrationPoint &ip)
-      {
-         std::complex<real_t> val = complex_coef_.Eval(T, ip);
-         return val.imag();
-      }
-
-   };
-
    RealPartCoefficient re_part_coef_;
    ImagPartCoefficient im_part_coef_;
 
@@ -79,12 +105,7 @@ protected:
 
 public:
 
-   ComplexCoefficient()
-      : time(0.),
-        re_part_coef_(*this), im_part_coef_(*this),
-        real_coef_(re_part_coef_), imag_coef_(im_part_coef_)
-   { }
-
+   ComplexCoefficient();
    ComplexCoefficient(Coefficient &c_r, Coefficient &c_i);
 
    /// Set the time for time dependent coefficients
@@ -151,50 +172,8 @@ protected:
    real_t time;
 
 private:
-   class RealPartVecCoefficient : public VectorCoefficient
-   {
-   private:
-      ComplexVectorCoefficient &complex_vcoef_;
-      ComplexVector val_;
-
-   public:
-      RealPartVecCoefficient(ComplexVectorCoefficient & complex_vcoef)
-         : VectorCoefficient(complex_vcoef.GetVDim()),
-           complex_vcoef_(complex_vcoef),
-           val_(vdim) {}
-
-      void Eval(Vector &V, ElementTransformation &T,
-                const IntegrationPoint &ip)
-      {
-         complex_vcoef_.Eval(val_, T, ip);
-         V = val_.real();
-      }
-
-   };
-
-   class ImagPartVecCoefficient : public VectorCoefficient
-   {
-   private:
-      ComplexVectorCoefficient &complex_vcoef_;
-      ComplexVector val_;
-
-   public:
-      ImagPartVecCoefficient(ComplexVectorCoefficient & complex_vcoef)
-         : VectorCoefficient(complex_vcoef.GetVDim()),
-           complex_vcoef_(complex_vcoef),
-           val_(vdim) {}
-
-      void Eval(Vector &V, ElementTransformation &T,
-                const IntegrationPoint &ip)
-      {
-         complex_vcoef_.Eval(val_, T, ip);
-         V = val_.imag();
-      }
-
-   };
-
-   RealPartVecCoefficient re_part_vcoef_;
-   ImagPartVecCoefficient im_part_vcoef_;
+   RealPartVectorCoefficient re_part_vcoef_;
+   ImagPartVectorCoefficient im_part_vcoef_;
 
 protected:
    VectorCoefficient &real_vcoef_;

@@ -17,6 +17,58 @@ using namespace std;
 namespace mfem
 {
 
+real_t
+RealPartCoefficient::Eval(ElementTransformation &T,
+                          const IntegrationPoint &ip)
+{
+   complex<real_t> val = complex_coef_.Eval(T, ip);
+   return val.real();
+}
+
+real_t
+ImagPartCoefficient::Eval(ElementTransformation &T,
+                          const IntegrationPoint &ip)
+{
+   complex<real_t> val = complex_coef_.Eval(T, ip);
+   return val.imag();
+}
+
+RealPartVectorCoefficient::RealPartVectorCoefficient(ComplexVectorCoefficient &
+                                                     complex_vcoef)
+   : VectorCoefficient(complex_vcoef.GetVDim()),
+     complex_vcoef_(complex_vcoef),
+     val_(vdim)
+{}
+
+void
+RealPartVectorCoefficient::Eval(Vector &V, ElementTransformation &T,
+                                const IntegrationPoint &ip)
+{
+   complex_vcoef_.Eval(val_, T, ip);
+   V = val_.real();
+}
+
+ImagPartVectorCoefficient::ImagPartVectorCoefficient(ComplexVectorCoefficient &
+                                                     complex_vcoef)
+   : VectorCoefficient(complex_vcoef.GetVDim()),
+     complex_vcoef_(complex_vcoef),
+     val_(vdim)
+{}
+
+void
+ImagPartVectorCoefficient::Eval(Vector &V, ElementTransformation &T,
+                                const IntegrationPoint &ip)
+{
+   complex_vcoef_.Eval(val_, T, ip);
+   V = val_.imag();
+}
+
+ComplexCoefficient::ComplexCoefficient()
+   : time(0.),
+     re_part_coef_(*this), im_part_coef_(*this),
+     real_coef_(re_part_coef_), imag_coef_(im_part_coef_)
+{ }
+
 ComplexCoefficient::ComplexCoefficient(Coefficient &c_r,
                                        Coefficient &c_i)
    : time(c_r.GetTime()),
@@ -57,7 +109,7 @@ void ComplexVectorCoefficient::Eval(ComplexVector &V, ElementTransformation &T,
 }
 
 ComplexConstantCoefficient::ComplexConstantCoefficient(
-   const std::complex<real_t> z)
+   const complex<real_t> z)
    : val(z), real_coef(z.real()), imag_coef(z.imag())
 {
    real_coef_ = real_coef;
@@ -68,7 +120,7 @@ ComplexConstantCoefficient::ComplexConstantCoefficient(
    real_t z_r, real_t z_i)
    : real_coef(z_r), imag_coef(z_i)
 {
-   val = std::complex<real_t>(z_r, z_i);
+   val = complex<real_t>(z_r, z_i);
 
    real_coef_ = real_coef;
    imag_coef_ = imag_coef;
