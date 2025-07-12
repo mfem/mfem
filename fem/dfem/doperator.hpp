@@ -36,6 +36,7 @@ using TensorType = typename GetTensorType<T>::type;
 #include "../fespace.hpp"
 
 #include "action.hpp"
+#include "autopa.hpp"
 #include "interpolate.hpp"
 #include "integrate.hpp"
 #include "qfunction_apply.hpp"
@@ -131,7 +132,7 @@ public:
       assemble_derivative_hypreparmatrix_callbacks(
          assemble_derivative_hypreparmatrix_callbacks)
    {
-      NVTX_MARK_FUNCTION;
+      dbg();
       std::vector<Vector> s_l(solutions_l.size());
       for (size_t i = 0; i < s_l.size(); i++)
       {
@@ -686,14 +687,13 @@ void DifferentiableOperator::AddDomainIntegrator(
       }
    }
 
-   if (use_new_kernels)
+   if (use_new_kernels && !use_automatic_pa)
    {
-      // 🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢 NEW kernels action 🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢
+      dbg("🟢🟢🟢🟢 Queuing NEW action");
       auto qf_args = decay_tuple<qf_param_ts> {};
       using FirstElementType = std::decay_t<decltype(get<0>(qf_args))>;
       // using TensorType = typename FirstElementType::type;
       using T = TensorType<FirstElementType>;
-
 
       // TypeDump<TensorType> param_type_dump;
       // print_tuple(qf_param_ts{});
@@ -728,7 +728,6 @@ void DifferentiableOperator::AddDomainIntegrator(
                shmem_cache,                  // Vector (local)
                action_shmem_info,            // SharedMemoryInfo
                elem_attributes,              // Array<int>
-
                fields = this->fields,        // std::vector<FieldDescriptor>
                input_size_on_qp,             // std::array<int, num_inputs>
                dependency_map,               // std::map<int, std::vector<int>>
@@ -744,6 +743,7 @@ void DifferentiableOperator::AddDomainIntegrator(
               Vector &residual_l)
             mutable
          {
+            dbg("NEW Action");
             NewActionCallback action(use_kernels_specialization,
                                      restriction_cb,
                                      qfunc,
@@ -773,7 +773,7 @@ void DifferentiableOperator::AddDomainIntegrator(
    }
    else
    {
-      // 🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵 STD action 🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵
+      dbg("🔵🔵🔵🔵 Queuing STD action");
       action_callbacks.push_back(
          // Explicitly capture everything we need, so we can make explicit choice
          // how to capture every variable, by copy or by ref.
@@ -813,6 +813,7 @@ void DifferentiableOperator::AddDomainIntegrator(
          mutable // mutable: needed to modify 'shmem_cache'
       {
          // NVTX_MARK_FUNCTION;
+         dbg("STD Action");
          restriction_cb(sol, par, fields_e);
 
          residual_e = 0.0;
@@ -854,7 +855,6 @@ void DifferentiableOperator::AddDomainIntegrator(
       });
    }
 
-   // ⚪️⚪️⚪️⚪️⚪️⚪️⚪️⚪️⚪️⚪️⚪️⚪️⚪️⚪️⚪️⚪️ Derivative actions ⚪️⚪️⚪️⚪️⚪️⚪️⚪️⚪️⚪️⚪️⚪️⚪️⚪️⚪️⚪️⚪️
    // Without this compile-time check, some valid instantiations of this method
    // will fail.
    if constexpr (derivative_ids_t::size() != 0)
@@ -892,13 +892,13 @@ void DifferentiableOperator::AddDomainIntegrator(
 
          if (!use_automatic_pa)
          {
-            // 🟣🟣🟣🟣🟣🟣🟣🟣🟣🟣🟣🟣 STD derivatives 🟣🟣🟣🟣🟣🟣🟣🟣🟣🟣🟣🟣
-            dbg("NO automatic PA for derivative ID: {}",
+            dbg("🟣🟣🟣🟣🟣🟣🟣🟣🟣🟣🟣🟣 Queuing STD derivative actions #{}",
                 derivative_id);
 
             derivative_action_callbacks[derivative_id].push_back(
                [
                   // capture by copy:
+                  derivative_id,
                   dimension,             // int
                   num_entities,          // int
                   num_test_dof,          // int
@@ -935,6 +935,7 @@ void DifferentiableOperator::AddDomainIntegrator(
                   std::vector<Vector> &f_e, const Vector &dir_l,
                   Vector &der_action_l) mutable
             {
+               dbg("🟣🟣🟣🟣 STD Derivative ACTION #{}", derivative_id);
                restriction<entity_t>(direction, dir_l, direction_e,
                                      element_dof_ordering);
                auto ye = Reshape(derivative_action_e.ReadWrite(), num_test_dof,
@@ -990,9 +991,9 @@ void DifferentiableOperator::AddDomainIntegrator(
                or_transpose(derivative_action_e, der_action_l);
             });
             return;
-         }
-         // 🟡🟡🟡🟡🟡🟡🟡🟡🟡🟡🟡🟡 AUTOMATIC PA 🟡🟡🟡🟡🟡🟡🟡🟡🟡🟡🟡🟡
-         dbg("Using automatic PA for derivative ID: {}", derivative_id);
+         } // !use_automatic_pa
+
+         dbg("🟡🟡🟡🟡 Setup AUTO derivative #{}", derivative_id);
          int num_dependent_inputs = 0;
          for_constexpr<num_inputs>([&](auto s)
          {
@@ -1002,11 +1003,10 @@ void DifferentiableOperator::AddDomainIntegrator(
             }
             num_dependent_inputs++;
          });
-         dbg("num_dependent_inputs: {}", num_dependent_inputs);
+         // dbg("num_dependent_inputs: {}", num_dependent_inputs);
 
          // Trial operator dimension for each dependent input.
-         // Memory layout is:
-         // [input_idx, trial_op_dim]
+         // Memory layout is: [input_idx, trial_op_dim]
          Array<size_t> dependent_inputs_trial_op_dim(num_dependent_inputs * 2);
 
          int total_trial_op_dim = 0;
@@ -1034,16 +1034,14 @@ void DifferentiableOperator::AddDomainIntegrator(
                                                       trial_vdim *
                                                       total_trial_op_dim * num_qp * num_entities);
 
-         dbg("Queuing derivative SETUP callback #{}", derivative_id);
+         dbg("🟡🟡🟡🟡 Queuing AUTO SETUP #{}", derivative_id);
          derivative_setup_callbacks[derivative_id].push_back(
             [
                // capture by copy:
                derivative_id,
                dimension,             // int
                num_entities,          // int
-               // num_test_dof,          // int
                num_qp,                // int
-               // q1d,                   // int
                test_vdim,             // int (= output_fop.vdim)
                test_op_dim,           // int (derived from output_fop)
                trial_vdim,
@@ -1055,7 +1053,6 @@ void DifferentiableOperator::AddDomainIntegrator(
                input_dtq_maps,        // std::array<DofToQuadMap, num_fields>
                output_dtq_maps,       // std::array<DofToQuadMap, num_fields>
                input_to_field,        // std::array<int, s>
-               // output_fop,            // class derived from FieldOperator
                qfunc,                 // qfunc_t
                thread_blocks,         // ThreadBlocks
                shmem_cache,           // Vector (local)
@@ -1064,7 +1061,6 @@ void DifferentiableOperator::AddDomainIntegrator(
                //       and capture it by ref.
                elem_attributes,       // Array<int>
                input_size_on_qp,
-               // input_is_dependent,    // std::array<bool, num_inputs>
                direction,             // FieldDescriptor
                direction_e,           // Vector
                derivative_action_e,   // Vector
@@ -1076,7 +1072,7 @@ void DifferentiableOperator::AddDomainIntegrator(
                &qpdc_mem = derivative_qp_caches[derivative_id]
             ](std::vector<Vector> &f_e, const Vector &dir_l) mutable
          {
-            dbg("Derivative SETUP callback #{}", derivative_id);
+            dbg("🟡🟡🟡🟡 AUTO SETUP #{}", derivative_id);
             restriction<entity_t>(direction, dir_l, direction_e,
                                   element_dof_ordering);
             auto wrapped_fields_e = wrap_fields(f_e, shmem_info.field_sizes,
@@ -1157,7 +1153,93 @@ void DifferentiableOperator::AddDomainIntegrator(
             shmem_cache.ReadWrite());
          });
 
-         dbg("Queuing derivative ACTION callback #{}", derivative_id);
+         if (use_new_kernels)
+         {
+            dbg("🟢🟢🟢🟢 Queuing AUTO NEW #{} ", derivative_id);
+            derivative_action_callbacks[derivative_id].push_back(
+               [
+                  // capture by copy:
+                  derivative_id,          // size_t
+                  dimension,              // int
+                  num_entities,           // int
+                  num_test_dof,           // int
+                  num_qp,                 // int
+                  d1d,                    // int
+                  q1d,                    // int
+                  test_vdim,              // int (= output_fop.vdim)
+                  test_op_dim,            // int (derived from output_fop)
+                  trial_vdim,
+                  total_trial_op_dim,
+                  inputs,                 // mfem::future::tuple
+                  domain_attributes,      // Array<int>
+                  ir_weights,             // DeviceTensor
+                  use_sum_factorization,  // bool
+                  input_dtq_maps,         // std::array<DofToQuadMap, num_fields>
+                  output_dtq_maps,        // std::array<DofToQuadMap, num_fields>
+                  output_fop,             // class derived from FieldOperator
+                  thread_blocks,          // ThreadBlocks
+                  shmem_info,             // SharedMemoryInfo
+                  // TODO: make these members of the DifferentiableOperator
+                  // and capture it by ref.
+                  elem_attributes,       // Array<int>
+                  input_size_on_qp,
+                  input_is_dependent,    // std::array<bool, num_inputs>
+                  direction,             // FieldDescriptor
+                  direction_e,           // Vector
+                  derivative_action_e,   // Vector
+                  element_dof_ordering,  // ElementDofOrdering
+                  num_dependent_inputs,
+                  shmem_cache,            // Vector (local)
+                  dependent_inputs_trial_op_dim,
+                  use_kernels_specialization = this->use_kernels_specialization,
+                  // capture by ref:
+                  &qpdc_mem = derivative_qp_caches[derivative_id],
+                  &or_transpose = this->output_restriction_transpose
+               ](std::vector<Vector> &f_e, const Vector &dir_l,
+                 Vector &der_action_l) mutable
+            {
+               db1("🟢🟢🟢🟢 AUTO NEW Action #{}", derivative_id);
+               NewAutoActionCallback action(use_kernels_specialization,
+                                            inputs,
+                                            input_dtq_maps,
+                                            output_dtq_maps,
+                                            dimension,
+                                            num_entities,
+                                            test_vdim,
+                                            num_test_dof,
+                                            direction,
+                                            test_op_dim,
+                                            trial_vdim,
+                                            total_trial_op_dim,
+                                            num_qp,
+                                            dependent_inputs_trial_op_dim,
+                                            num_dependent_inputs,
+                                            element_dof_ordering,
+                                            q1d,
+                                            thread_blocks,
+                                            shmem_cache,
+                                            shmem_info,
+                                            elem_attributes,
+                                            output_fop,
+                                            domain_attributes,
+                                            ir_weights,
+                                            use_sum_factorization,
+                                            input_is_dependent,
+                                            direction_e,
+                                            derivative_action_e,
+                                            // refs
+                                            qpdc_mem,
+                                            or_transpose,
+                                            // args
+                                            f_e,
+                                            dir_l,
+                                            der_action_l);
+               action.Apply(d1d, q1d);
+            });
+            return;
+         }
+
+         dbg("🔵🔵🔵🔵 Queuing AUTO STD #{} ", derivative_id);
          derivative_action_callbacks[derivative_id].push_back(
             [
                derivative_id,
@@ -1177,9 +1259,7 @@ void DifferentiableOperator::AddDomainIntegrator(
                use_sum_factorization, // bool
                input_dtq_maps,        // std::array<DofToQuadMap, num_fields>
                output_dtq_maps,       // std::array<DofToQuadMap, num_fields>
-               // input_to_field,        // std::array<int, s>
                output_fop,            // class derived from FieldOperator
-               // qfunc,                 // qfunc_t
                thread_blocks,         // ThreadBlocks
                shmem_cache,           // Vector (local)
                shmem_info,            // SharedMemoryInfo
@@ -1192,17 +1272,15 @@ void DifferentiableOperator::AddDomainIntegrator(
                direction_e,           // Vector
                derivative_action_e,   // Vector
                element_dof_ordering,  // ElementDofOrdering
-               // da_size_on_qp,         // int
                num_dependent_inputs,
                dependent_inputs_trial_op_dim,
                // capture by ref:
                &qpdc_mem = derivative_qp_caches[derivative_id],
                &or_transpose
-            ](
-               std::vector<Vector> &f_e, const Vector &dir_l,
-               Vector &der_action_l) mutable
+            ](std::vector<Vector> &f_e, const Vector &dir_l,
+              Vector &der_action_l) mutable
          {
-            db1("Derivative ACTION callback #{}", derivative_id);
+            db1("🔵🔵🔵🔵 AUTO STD Action #{}", derivative_id);
             restriction<entity_t>(direction, dir_l, direction_e,
                                   element_dof_ordering);
             auto ye = Reshape(derivative_action_e.ReadWrite(), num_test_dof,
@@ -1365,8 +1443,8 @@ void DifferentiableOperator::AddDomainIntegrator(
             or_transpose(derivative_action_e, der_action_l);
          });
       }, derivative_ids);
-   }
-}
+   } // derivative_ids
+} // AddDomainIntegrator
 
 } // namespace mfem::future
 #endif

@@ -207,7 +207,7 @@ public:
                      Array<int> &elem_attributes,
                      const output_fop_t &output_fop,
                      const Array<int> &domain_attributes,
-                     // &
+                     // refs
                      std::vector<Vector> &fields_e,
                      Vector &residual_e,
                      std::function<void(Vector &, Vector &)> &output_restriction_transpose,

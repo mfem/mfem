@@ -262,11 +262,49 @@ void DFemDiffusion(const char *filename, int p, const int r)
       MPI_Barrier(MPI_COMM_WORLD);
    }*/
 
-   SECTION("[dFEM Linearization] Diffusion with automatic PA")
+   /*SECTION("[dFEM Linearization] Diffusion with automatic PA")
    {
       DOperator dop_auto_pa(sol, {{Rho, &rho_ps}, {Coords, mfes}}, pmesh);
       dbg("Setting up automatic PA for diffusion");
       dop_auto_pa.UseAutomaticPA();
+
+      typename Diffusion<DIM>::MFApply mf_apply_qf;
+      auto derivatives = std::integer_sequence<size_t, U> {};
+      dbg("Adding domain integrator for automatic PA");
+      dop_auto_pa.AddDomainIntegrator(mf_apply_qf,
+                                      tuple{ Gradient<U>{}, Identity<Rho>{},
+                                             Gradient<Coords>{},
+                                             Weight{} },
+                                      tuple{ Gradient<U>{} },
+                                      *ir, all_domain_attr, derivatives);
+      dop_auto_pa.SetParameters({ &rho_coeff_cv, nodes });
+      dbg("Getting derivative for automatic PA");
+      auto dRdU = dop_auto_pa.GetDerivative(U, {&x}, {&rho_coeff_cv, nodes});
+
+      pfes.GetRestrictionMatrix()->Mult(x, X);
+      dbg("Mult with automatic PA operator");
+      dRdU->Mult(X, Z);
+
+      blf_fa.Mult(x, y);
+      pfes.GetProlongationMatrix()->MultTranspose(y, Y);
+      Y -= Z;
+
+      real_t norm_global = 0.0;
+      real_t norm_local = Y.Normlinf();
+      MPI_Allreduce(&norm_local, &norm_global, 1, MPI_DOUBLE, MPI_MAX,
+                    pmesh.GetComm());
+
+      REQUIRE(norm_global == MFEM_Approx(0.0));
+      MPI_Barrier(MPI_COMM_WORLD);
+   }*/
+
+   SECTION("[dFEM Linearization] Diffusion with automatic PA and new kernels")
+   {
+      DOperator dop_auto_pa(sol, {{Rho, &rho_ps}, {Coords, mfes}}, pmesh);
+      dbg("Setting up AUTO PA for diffusion");
+      dop_auto_pa.UseNewKernels();
+      dop_auto_pa.UseAutomaticPA();
+      dop_auto_pa.UseKernelsSpecialization();
 
       typename Diffusion<DIM>::MFApply mf_apply_qf;
       auto derivatives = std::integer_sequence<size_t, U> {};
