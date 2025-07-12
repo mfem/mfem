@@ -699,6 +699,9 @@ public:
    void SetConvention(const ComplexOperator::Convention &
                       convention) { conv = convention; }
 
+   /// @name Adding Domain Integrators
+   /// @{
+
    /// Adds new Domain Integrator.
    void AddDomainIntegrator(LinearFormIntegrator *lfi_real,
                             LinearFormIntegrator *lfi_imag);
@@ -707,6 +710,60 @@ public:
    void AddDomainIntegrator(LinearFormIntegrator *lfi_real,
                             LinearFormIntegrator *lfi_imag,
                             Array<int> &elem_attr_marker);
+
+   /// Adds new domain integrator with a complex-valued coefficient
+   template <typename T,
+             typename std::enable_if<std::is_base_of<LinearFormIntegrator,
+                                                     T>::value &&
+                                     !std::is_same<LinearFormIntegrator,
+                                                   T>::value>::type* = nullptr>
+   void AddDomainIntegrator(ComplexCoefficient &coef)
+   {
+      this->AddDomainIntegrator(new T(coef.real()), new T(coef.imag()));
+   }
+
+   /// Adds new Domain Integrator with a complex-valued coefficient,
+   /// restricted to the given attributes.
+   template <typename T,
+             typename std::enable_if<std::is_base_of<LinearFormIntegrator,
+                                                     T>::value &&
+                                     !std::is_same<LinearFormIntegrator,
+                                                   T>::value>::type* = nullptr>
+   void AddDomainIntegrator(ComplexCoefficient &coef,
+                            Array<int> &elem_marker)
+   {
+      this->AddDomainIntegrator(new T(coef.real()), new T(coef.imag()),
+                                elem_marker);
+   }
+
+   /// Adds new domain integrator with a real-valued coefficient
+   template <typename T,
+             typename std::enable_if<std::is_base_of<LinearFormIntegrator,
+                                                     T>::value &&
+                                     !std::is_same<LinearFormIntegrator,
+                                                   T>::value>::type* = nullptr>
+   void AddDomainIntegrator(Coefficient &coef)
+   {
+      this->AddDomainIntegrator(new T(coef), (T*)nullptr);
+   }
+
+   /// Adds new Domain Integrator with a real-valued coefficient,
+   /// restricted to the given attributes.
+   template <typename T,
+             typename std::enable_if<std::is_base_of<LinearFormIntegrator,
+                                                     T>::value &&
+                                     !std::is_same<LinearFormIntegrator,
+                                                   T>::value>::type* = nullptr>
+   void AddDomainIntegrator(Coefficient &coef,
+                            Array<int> &elem_marker)
+   {
+      this->AddDomainIntegrator(new T(coef), (T*)nullptr, elem_marker);
+   }
+
+   /// @}
+
+   /// @name Adding Boundary Integrators
+   /// @{
 
    /// Adds new Boundary Integrator.
    void AddBoundaryIntegrator(LinearFormIntegrator *lfi_real,
@@ -723,6 +780,60 @@ public:
                               LinearFormIntegrator *lfi_imag,
                               Array<int> &bdr_attr_marker);
 
+   /// Adds new boundary integrator with a complex-valued coefficient
+   template <typename T,
+             typename std::enable_if<std::is_base_of<LinearFormIntegrator,
+                                                     T>::value &&
+                                     !std::is_same<LinearFormIntegrator,
+                                                   T>::value>::type* = nullptr>
+   void AddBoundaryIntegrator(ComplexCoefficient &coef)
+   {
+      this->AddBoundaryIntegrator(new T(coef.real()), new T(coef.imag()));
+   }
+
+   /// Adds new Boundary Integrator with a complex-valued coefficient,
+   /// restricted to specific boundary attributes.
+   template <typename T,
+             typename std::enable_if<std::is_base_of<LinearFormIntegrator,
+                                                     T>::value &&
+                                     !std::is_same<LinearFormIntegrator,
+                                                   T>::value>::type* = nullptr>
+   void AddBoundaryIntegrator(ComplexCoefficient &coef,
+                              Array<int> &bdr_marker)
+   {
+      this->AddBoundaryIntegrator(new T(coef.real()), new T(coef.imag()),
+                                  bdr_marker);
+   }
+
+   /// Adds new boundary integrator with a real-valued coefficient
+   template <typename T,
+             typename std::enable_if<std::is_base_of<LinearFormIntegrator,
+                                                     T>::value &&
+                                     !std::is_same<LinearFormIntegrator,
+                                                   T>::value>::type* = nullptr>
+   void AddBoundaryIntegrator(Coefficient &coef)
+   {
+      this->AddBoundaryIntegrator(new T(coef), (T*)nullptr);
+   }
+
+   /// Adds new Boundary Integrator with a real-valued coefficient,
+   /// restricted to specific boundary attributes.
+   template <typename T,
+             typename std::enable_if<std::is_base_of<LinearFormIntegrator,
+                                                     T>::value &&
+                                     !std::is_same<LinearFormIntegrator,
+                                                   T>::value>::type* = nullptr>
+   void AddBoundaryIntegrator(Coefficient &coef,
+                              Array<int> &bdr_marker)
+   {
+      this->AddBoundaryIntegrator(new T(coef), (T*)nullptr, bdr_marker);
+   }
+
+   /// @}
+
+   /// @name Adding Boundary Face Integrators
+   /// @{
+
    /// Adds new Boundary Face Integrator. Assumes ownership of @a lfi.
    void AddBdrFaceIntegrator(LinearFormIntegrator *lfi_real,
                              LinearFormIntegrator *lfi_imag);
@@ -737,6 +848,67 @@ public:
    void AddBdrFaceIntegrator(LinearFormIntegrator *lfi_real,
                              LinearFormIntegrator *lfi_imag,
                              Array<int> &bdr_attr_marker);
+
+   /// Adds new Boundary Face integrator with a complex-valued coefficient
+   template <typename T,
+             typename std::enable_if<std::is_base_of<LinearFormIntegrator,
+                                                     T>::value &&
+                                     !std::is_same<LinearFormIntegrator,
+                                                   T>::value>::type* = nullptr>
+   void AddBdrFaceIntegrator(ComplexCoefficient &coef)
+   {
+      this->AddBdrFaceIntegrator(new T(coef.real()), new T(coef.imag()));
+   }
+
+   /// Adds new Boundary Face integrator with a complex-valued coefficient,
+   /// restricted to specific boundary attributes.
+   ///
+   /// Assumes ownership of @a bfi.
+   ///
+   /// The array @a bdr_marker is stored internally as a pointer to the given
+   /// Array<int> object.
+   template <typename T,
+             typename std::enable_if<std::is_base_of<LinearFormIntegrator,
+                                                     T>::value &&
+                                     !std::is_same<LinearFormIntegrator,
+                                                   T>::value>::type* = nullptr>
+   void AddBdrFaceIntegrator(ComplexCoefficient &coef,
+                             Array<int> &bdr_marker)
+   {
+      this->AddBdrFaceIntegrator(new T(coef.real()), new T(coef.imag()),
+                                 bdr_marker);
+   }
+
+   /// Adds new Boundary Face integrator with a real-valued coefficient
+   template <typename T,
+             typename std::enable_if<std::is_base_of<LinearFormIntegrator,
+                                                     T>::value &&
+                                     !std::is_same<LinearFormIntegrator,
+                                                   T>::value>::type* = nullptr>
+   void AddBdrFaceIntegrator(Coefficient &coef)
+   {
+      this->AddBdrFaceIntegrator(new T(coef), (T*)nullptr);
+   }
+
+   /// Adds new Boundary Face integrator with a real-valued coefficient,
+   /// restricted to specific boundary attributes.
+   ///
+   /// Assumes ownership of @a bfi.
+   ///
+   /// The array @a bdr_marker is stored internally as a pointer to the given
+   /// Array<int> object.
+   template <typename T,
+             typename std::enable_if<std::is_base_of<LinearFormIntegrator,
+                                                     T>::value &&
+                                     !std::is_same<LinearFormIntegrator,
+                                                   T>::value>::type* = nullptr>
+   void AddBdrFaceIntegrator(Coefficient &coef,
+                             Array<int> &bdr_marker)
+   {
+      this->AddBdrFaceIntegrator(new T(coef), (T*)nullptr, bdr_marker);
+   }
+
+   /// @}
 
    FiniteElementSpace *FESpace() const { return lfr->FESpace(); }
 
@@ -1292,6 +1464,9 @@ public:
    void SetConvention(const ComplexOperator::Convention &
                       convention) { conv = convention; }
 
+   /// @name Adding Domain Integrators
+   /// @{
+
    /// Adds new Domain Integrator.
    void AddDomainIntegrator(LinearFormIntegrator *lfi_real,
                             LinearFormIntegrator *lfi_imag);
@@ -1300,6 +1475,60 @@ public:
    void AddDomainIntegrator(LinearFormIntegrator *lfi_real,
                             LinearFormIntegrator *lfi_imag,
                             Array<int> &elem_attr_marker);
+
+   /// Adds new domain integrator with a complex-valued coefficient
+   template <typename T,
+             typename std::enable_if<std::is_base_of<LinearFormIntegrator,
+                                                     T>::value &&
+                                     !std::is_same<LinearFormIntegrator,
+                                                   T>::value>::type* = nullptr>
+   void AddDomainIntegrator(ComplexCoefficient &coef)
+   {
+      this->AddDomainIntegrator(new T(coef.real()), new T(coef.imag()));
+   }
+
+   /// Adds new Domain Integrator with a complex-valued coefficient,
+   /// restricted to the given attributes.
+   template <typename T,
+             typename std::enable_if<std::is_base_of<LinearFormIntegrator,
+                                                     T>::value &&
+                                     !std::is_same<LinearFormIntegrator,
+                                                   T>::value>::type* = nullptr>
+   void AddDomainIntegrator(ComplexCoefficient &coef,
+                            Array<int> &elem_marker)
+   {
+      this->AddDomainIntegrator(new T(coef.real()), new T(coef.imag()),
+                                elem_marker);
+   }
+
+   /// Adds new domain integrator with a real-valued coefficient
+   template <typename T,
+             typename std::enable_if<std::is_base_of<LinearFormIntegrator,
+                                                     T>::value &&
+                                     !std::is_same<LinearFormIntegrator,
+                                                   T>::value>::type* = nullptr>
+   void AddDomainIntegrator(Coefficient &coef)
+   {
+      this->AddDomainIntegrator(new T(coef), (T*)nullptr);
+   }
+
+   /// Adds new Domain Integrator with a real-valued coefficient,
+   /// restricted to the given attributes.
+   template <typename T,
+             typename std::enable_if<std::is_base_of<LinearFormIntegrator,
+                                                     T>::value &&
+                                     !std::is_same<LinearFormIntegrator,
+                                                   T>::value>::type* = nullptr>
+   void AddDomainIntegrator(Coefficient &coef,
+                            Array<int> &elem_marker)
+   {
+      this->AddDomainIntegrator(new T(coef), (T*)nullptr, elem_marker);
+   }
+
+   /// @}
+
+   /// @name Adding Boundary Integrators
+   /// @{
 
    /// Adds new Boundary Integrator.
    void AddBoundaryIntegrator(LinearFormIntegrator *lfi_real,
@@ -1316,6 +1545,60 @@ public:
                               LinearFormIntegrator *lfi_imag,
                               Array<int> &bdr_attr_marker);
 
+   /// Adds new boundary integrator with a complex-valued coefficient
+   template <typename T,
+             typename std::enable_if<std::is_base_of<LinearFormIntegrator,
+                                                     T>::value &&
+                                     !std::is_same<LinearFormIntegrator,
+                                                   T>::value>::type* = nullptr>
+   void AddBoundaryIntegrator(ComplexCoefficient &coef)
+   {
+      this->AddBoundaryIntegrator(new T(coef.real()), new T(coef.imag()));
+   }
+
+   /// Adds new Boundary Integrator with a complex-valued coefficient,
+   /// restricted to specific boundary attributes.
+   template <typename T,
+             typename std::enable_if<std::is_base_of<LinearFormIntegrator,
+                                                     T>::value &&
+                                     !std::is_same<LinearFormIntegrator,
+                                                   T>::value>::type* = nullptr>
+   void AddBoundaryIntegrator(ComplexCoefficient &coef,
+                              Array<int> &bdr_marker)
+   {
+      this->AddBoundaryIntegrator(new T(coef.real()), new T(coef.imag()),
+                                  bdr_marker);
+   }
+
+   /// Adds new boundary integrator with a real-valued coefficient
+   template <typename T,
+             typename std::enable_if<std::is_base_of<LinearFormIntegrator,
+                                                     T>::value &&
+                                     !std::is_same<LinearFormIntegrator,
+                                                   T>::value>::type* = nullptr>
+   void AddBoundaryIntegrator(Coefficient &coef)
+   {
+      this->AddBoundaryIntegrator(new T(coef), (T*)nullptr);
+   }
+
+   /// Adds new Boundary Integrator with a real-valued coefficient,
+   /// restricted to specific boundary attributes.
+   template <typename T,
+             typename std::enable_if<std::is_base_of<LinearFormIntegrator,
+                                                     T>::value &&
+                                     !std::is_same<LinearFormIntegrator,
+                                                   T>::value>::type* = nullptr>
+   void AddBoundaryIntegrator(Coefficient &coef,
+                              Array<int> &bdr_marker)
+   {
+      this->AddBoundaryIntegrator(new T(coef), (T*)nullptr, bdr_marker);
+   }
+
+   /// @}
+
+   /// @name Adding Boundary Face Integrators
+   /// @{
+
    /// Adds new Boundary Face Integrator. Assumes ownership of @a lfi.
    void AddBdrFaceIntegrator(LinearFormIntegrator *lfi_real,
                              LinearFormIntegrator *lfi_imag);
@@ -1330,6 +1613,67 @@ public:
    void AddBdrFaceIntegrator(LinearFormIntegrator *lfi_real,
                              LinearFormIntegrator *lfi_imag,
                              Array<int> &bdr_attr_marker);
+
+   /// Adds new Boundary Face integrator with a complex-valued coefficient
+   template <typename T,
+             typename std::enable_if<std::is_base_of<LinearFormIntegrator,
+                                                     T>::value &&
+                                     !std::is_same<LinearFormIntegrator,
+                                                   T>::value>::type* = nullptr>
+   void AddBdrFaceIntegrator(ComplexCoefficient &coef)
+   {
+      this->AddBdrFaceIntegrator(new T(coef.real()), new T(coef.imag()));
+   }
+
+   /// Adds new Boundary Face integrator with a complex-valued coefficient,
+   /// restricted to specific boundary attributes.
+   ///
+   /// Assumes ownership of @a bfi.
+   ///
+   /// The array @a bdr_marker is stored internally as a pointer to the given
+   /// Array<int> object.
+   template <typename T,
+             typename std::enable_if<std::is_base_of<LinearFormIntegrator,
+                                                     T>::value &&
+                                     !std::is_same<LinearFormIntegrator,
+                                                   T>::value>::type* = nullptr>
+   void AddBdrFaceIntegrator(ComplexCoefficient &coef,
+                             Array<int> &bdr_marker)
+   {
+      this->AddBdrFaceIntegrator(new T(coef.real()), new T(coef.imag()),
+                                 bdr_marker);
+   }
+
+   /// Adds new Boundary Face integrator with a real-valued coefficient
+   template <typename T,
+             typename std::enable_if<std::is_base_of<LinearFormIntegrator,
+                                                     T>::value &&
+                                     !std::is_same<LinearFormIntegrator,
+                                                   T>::value>::type* = nullptr>
+   void AddBdrFaceIntegrator(Coefficient &coef)
+   {
+      this->AddBdrFaceIntegrator(new T(coef), (T*)nullptr);
+   }
+
+   /// Adds new Boundary Face integrator with a real-valued coefficient,
+   /// restricted to specific boundary attributes.
+   ///
+   /// Assumes ownership of @a bfi.
+   ///
+   /// The array @a bdr_marker is stored internally as a pointer to the given
+   /// Array<int> object.
+   template <typename T,
+             typename std::enable_if<std::is_base_of<LinearFormIntegrator,
+                                                     T>::value &&
+                                     !std::is_same<LinearFormIntegrator,
+                                                   T>::value>::type* = nullptr>
+   void AddBdrFaceIntegrator(Coefficient &coef,
+                             Array<int> &bdr_marker)
+   {
+      this->AddBdrFaceIntegrator(new T(coef), (T*)nullptr, bdr_marker);
+   }
+
+   /// @}
 
    ParFiniteElementSpace *ParFESpace() const { return plfr->ParFESpace(); }
 
