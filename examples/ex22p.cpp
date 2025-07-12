@@ -62,6 +62,10 @@ static real_t epsilon_ = 1.0;
 static real_t sigma_ = 20.0;
 static real_t omega_ = 10.0;
 
+complex<real_t> u0_exact(const Vector &x);
+void u1_exact(const Vector &, ComplexVector &);
+void u2_exact(const Vector &, ComplexVector &);
+
 real_t u0_real_exact(const Vector &);
 real_t u0_imag_exact(const Vector &);
 
@@ -244,13 +248,22 @@ int main(int argc, char *argv[])
    ParComplexGridFunction * u_exact = NULL;
    if (exact_sol) { u_exact = new ParComplexGridFunction(fespace); }
 
+   ComplexFunctionCoefficient u0(u0_exact);
+   ComplexVectorFunctionCoefficient u1(dim, u1_exact);
+   ComplexVectorFunctionCoefficient u2(dim, u2_exact);
+
+   ComplexConstantCoefficient oneCoef(1.0);
+
+   Vector  oneVec(dim);  oneVec = 0.0; oneVec[(prob==2)?(dim-1):0] = 1.0;
+   ComplexVectorConstantCoefficient oneVecCoef(oneVec);
+
    FunctionCoefficient u0_r(u0_real_exact);
    FunctionCoefficient u0_i(u0_imag_exact);
    VectorFunctionCoefficient u1_r(dim, u1_real_exact);
    VectorFunctionCoefficient u1_i(dim, u1_imag_exact);
    VectorFunctionCoefficient u2_r(dim, u2_real_exact);
    VectorFunctionCoefficient u2_i(dim, u2_imag_exact);
-
+   /*
    ConstantCoefficient zeroCoef(0.0);
    ConstantCoefficient oneCoef(1.0);
 
@@ -258,40 +271,40 @@ int main(int argc, char *argv[])
    Vector  oneVec(dim);  oneVec = 0.0; oneVec[(prob==2)?(dim-1):0] = 1.0;
    VectorConstantCoefficient zeroVecCoef(zeroVec);
    VectorConstantCoefficient oneVecCoef(oneVec);
-
+   */
    switch (prob)
    {
       case 0:
          if (exact_sol)
          {
-            u.ProjectBdrCoefficient(u0_r, u0_i, ess_bdr);
-            u_exact->ProjectCoefficient(u0_r, u0_i);
+            u.ProjectBdrCoefficient(u0, ess_bdr);
+            u_exact->ProjectCoefficient(u0);
          }
          else
          {
-            u.ProjectBdrCoefficient(oneCoef, zeroCoef, ess_bdr);
+            u.ProjectBdrCoefficient(oneCoef, ess_bdr);
          }
          break;
       case 1:
          if (exact_sol)
          {
-            u.ProjectBdrCoefficientTangent(u1_r, u1_i, ess_bdr);
-            u_exact->ProjectCoefficient(u1_r, u1_i);
+            u.ProjectBdrCoefficientTangent(u1, ess_bdr);
+            u_exact->ProjectCoefficient(u1);
          }
          else
          {
-            u.ProjectBdrCoefficientTangent(oneVecCoef, zeroVecCoef, ess_bdr);
+            u.ProjectBdrCoefficientTangent(oneVecCoef, ess_bdr);
          }
          break;
       case 2:
          if (exact_sol)
          {
-            u.ProjectBdrCoefficientNormal(u2_r, u2_i, ess_bdr);
-            u_exact->ProjectCoefficient(u2_r, u2_i);
+            u.ProjectBdrCoefficientNormal(u2, ess_bdr);
+            u_exact->ProjectCoefficient(u2);
          }
          else
          {
-            u.ProjectBdrCoefficientNormal(oneVecCoef, zeroVecCoef, ess_bdr);
+            u.ProjectBdrCoefficientNormal(oneVecCoef, ess_bdr);
          }
          break;
       default: break; // This should be unreachable
@@ -331,27 +344,24 @@ int main(int argc, char *argv[])
    ConstantCoefficient lossCoef(omega_ * sigma_);
    ConstantCoefficient negMassCoef(omega_ * omega_ * epsilon_);
 
+   ComplexConstantCoefficient complexMassCoef(-omega_ * omega_ * epsilon_,
+                                              omega_ * sigma_);
+
    ParSesquilinearForm *a = new ParSesquilinearForm(fespace, conv);
    if (pa) { a->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
    switch (prob)
    {
       case 0:
-         a->AddDomainIntegrator(new DiffusionIntegrator(stiffnessCoef),
-                                NULL);
-         a->AddDomainIntegrator(new MassIntegrator(massCoef),
-                                new MassIntegrator(lossCoef));
+         a->AddDomainIntegrator<DiffusionIntegrator>(stiffnessCoef);
+         a->AddDomainIntegrator<MassIntegrator>(complexMassCoef);
          break;
       case 1:
-         a->AddDomainIntegrator(new CurlCurlIntegrator(stiffnessCoef),
-                                NULL);
-         a->AddDomainIntegrator(new VectorFEMassIntegrator(massCoef),
-                                new VectorFEMassIntegrator(lossCoef));
+         a->AddDomainIntegrator<CurlCurlIntegrator>(stiffnessCoef);
+         a->AddDomainIntegrator<VectorFEMassIntegrator>(complexMassCoef);
          break;
       case 2:
-         a->AddDomainIntegrator(new DivDivIntegrator(stiffnessCoef),
-                                NULL);
-         a->AddDomainIntegrator(new VectorFEMassIntegrator(massCoef),
-                                new VectorFEMassIntegrator(lossCoef));
+         a->AddDomainIntegrator<DivDivIntegrator>(stiffnessCoef);
+         a->AddDomainIntegrator<VectorFEMassIntegrator>(complexMassCoef);
          break;
       default: break; // This should be unreachable
    }
@@ -475,22 +485,18 @@ int main(int argc, char *argv[])
 
    if (exact_sol)
    {
-      real_t err_r = -1.0;
-      real_t err_i = -1.0;
+      real_t err_u = -1.0;
 
       switch (prob)
       {
          case 0:
-            err_r = u.real().ComputeL2Error(u0_r);
-            err_i = u.imag().ComputeL2Error(u0_i);
+            err_u = u.ComputeL2Error(u0);
             break;
          case 1:
-            err_r = u.real().ComputeL2Error(u1_r);
-            err_i = u.imag().ComputeL2Error(u1_i);
+            err_u = u.ComputeL2Error(u1);
             break;
          case 2:
-            err_r = u.real().ComputeL2Error(u2_r);
-            err_i = u.imag().ComputeL2Error(u2_i);
+            err_u = u.ComputeL2Error(u2);
             break;
          default: break; // This should be unreachable
       }
@@ -498,8 +504,7 @@ int main(int argc, char *argv[])
       if ( myid == 0 )
       {
          cout << endl;
-         cout << "|| Re (u_h - u) ||_{L^2} = " << err_r << endl;
-         cout << "|| Im (u_h - u) ||_{L^2} = " << err_i << endl;
+         cout << "|| u_h - u ||_{L^2} = " << err_u << endl;
          cout << endl;
       }
    }
@@ -627,6 +632,12 @@ real_t u0_imag_exact(const Vector &x)
    return u0_exact(x).imag();
 }
 
+void u1_exact(const Vector &x, ComplexVector &v)
+{
+   int dim = x.Size();
+   v.SetSize(dim); v = 0.0; v[0] = u0_exact(x);
+}
+
 void u1_real_exact(const Vector &x, Vector &v)
 {
    int dim = x.Size();
@@ -637,6 +648,12 @@ void u1_imag_exact(const Vector &x, Vector &v)
 {
    int dim = x.Size();
    v.SetSize(dim); v = 0.0; v[0] = u0_imag_exact(x);
+}
+
+void u2_exact(const Vector &x, ComplexVector &v)
+{
+   int dim = x.Size();
+   v.SetSize(dim); v = 0.0; v[dim-1] = u0_exact(x);
 }
 
 void u2_real_exact(const Vector &x, Vector &v)
