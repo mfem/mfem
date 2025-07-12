@@ -102,18 +102,21 @@ public:
                 std::is_convertible<CT,T>::value,bool>::type = true>
    explicit inline Array(std::initializer_list<CT> values);
 
-   /// Move constructor ("steals" data from 'src')
-   inline Array(Array<T> &&src) : Array() { Swap(src, *this); }
+   /// Move constructor ("steals" data from @a src)
+   inline Array(Array<T> &&src) : Array() { *this = std::move(src); }
 
    /// Destructor
    inline ~Array() { data.Delete(); }
 
-   /// Assignment operator: deep copy from 'src'.
+   /// Copy assignment operator: deep copy from @a src.
    Array<T> &operator=(const Array<T> &src) { src.Copy(*this); return *this; }
 
-   /// Assignment operator (deep copy) from @a src, an Array of convertible type.
+   /// Copy assignment operator (deep copy) from @a src, an Array of convertible type.
    template <typename CT>
    inline Array &operator=(const Array<CT> &src);
+
+   /// Move assignment operator: "steal" from @a src.
+   Array<T> &operator=(Array<T> &&src) { Swap(src, *this); return *this; }
 
    /// Return the data as 'T *'
    inline operator T *() { return data; }
