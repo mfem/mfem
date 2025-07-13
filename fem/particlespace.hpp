@@ -15,18 +15,12 @@
 #include "../config/config.hpp"
 #include "fespace.hpp"
 #include "gslib.hpp"
+#include "particledata.hpp"
 
 #ifdef MFEM_USE_GSLIB
 
-// Forward declaration
-template<typename T>
-class ParticleMemory;
-using ParticleDataVar = std::variant<ParticleData<int>*, ParticleData<real_t>*>;
-// Add register-able types above^
-
 namespace mfem
 {
-
 
 // Can add/register N meshes (including 0!).
 // This will setup FindPointsGSLIB with an arbitrary number of meshes
@@ -36,6 +30,10 @@ namespace mfem
 
 class ParticleSpace
 {
+
+private:
+   void Initialize(int seed);
+
 protected:
    const int dim;
    const Ordering::Type ordering;
@@ -43,13 +41,24 @@ protected:
 
    int id_counter;
    Array<int> ids;
-   Vector coords;
+   std::unique_ptr<ParticleFunction> coords;
 
    int redistribute_mesh_idx;
    std::vector<Mesh*> meshes;
    std::vector<FindPointsGSLIB> finder;
 
-   std::vector<ParticleDataVar> registered_pdata;
+   using ParticleDataVar = std::variant<ParticleData<int>, ParticleData<real_t>>;
+
+   // TODO PROBLEM: We need destroyed ParticleDatas to be set to nullptr here... 
+   //               Can do that in destructor of ParticleData, but then what if ParticleSpace is destroyed beforehand?
+   //               Then it can't call pspace.Deregister(...) ... This is a problem. It requires that ParticleSpace is deleted last.
+   //               This kind of linkage isn't ideal... 
+   // Maybe instead we just have all of the ParticleFunctions be stored here? Like
+   //       ParticleData<T>& CreateParticleData(int vdim);
+   // Then everything remains internal, so we don't need to deal with this substantial coupling + registering issue
+   // It also becomes a lot more clear how ParticleSpace manages all the ParticleData's<T>
+   // Then ParticleData REALLY then just becomes a super lightweight wrapper.... It should be specialized for Particle's though for usage
+   std::vector<ParticleDataVar> pdata;
 
 #ifdef MFEM_USE_MPI
    MPI_Comm comm;
@@ -58,9 +67,6 @@ protected:
 
    void AddParticles(const Vector &new_coords, const Array<int> &new_ids);
 
-
-private:
-   void Initialize(int seed);
 
 public:
 
@@ -91,19 +97,17 @@ public:
 
    int GetID(int i) const { return ids[i]; }
 
+   template<typename T>
+   ParticleData<T>& CreateParticleData(int vdim=1);
+
+   ParticleFunction& CreateParticleFunction(int vdim=1);
+
    /// Append new particles to the particle set with the given coordinates
-   // Optionally get array of indices of the new particles
-   void AddParticles(const Vector &new_coords, Array<int> *add_indices=nullptr);
+   //  Optionally get array of indices of the new particles, for updating any ParticleData
+   void AddParticles(const Vector &new_coords, Array<int> *new_indices=nullptr);
 
    /// Remove all particles not within mesh anymore (if mesh is provided)
-   // Optionally get array of indices of the removed particles
-   void RemoveLostParticles(Array<int> *rm_indices=nullptr);
-
-   // Register ParticleData<T> to be resized on Add/Remove and redistributed on Redistribute automatically
-   template<typename T>
-   int RegisterParticleData(ParticleData<T> &pdata);
-
-   void DeregisterParticleData(int idx);
+   void RemoveLostParticles();
 
 
 #ifdef MFEM_USE_MPI

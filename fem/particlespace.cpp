@@ -20,14 +20,13 @@ namespace mfem
 
 ParticleSpace::ParticleSpace(int dim_, int num_particles,
                              Ordering::Type ordering_, Mesh *mesh_, int seed)
-   : dim(dim_),
-     ordering(ordering_),
-     id_stride(1),
-     id_counter(0),
-     ids(num_particles),
-     mesh(mesh_),
-     finder(),
-     coords(num_particles*dim_)
+: dim(dim_),
+   ordering(ordering_),
+   id_stride(1),
+   id_counter(0),
+   ids(num_particles),
+   mesh(mesh_),
+   finder()
 {
    Initialize(seed);
 }
@@ -42,7 +41,6 @@ id_counter([&]() { int r; MPI_Comm_rank(comm_, &r); return r; }()),
 ids(num_particles),
 mesh(mesh_),
 finder(comm_),
-coords(num_particles*dim_),
 comm(comm_)
 {
    Initialize(seed);
@@ -66,6 +64,9 @@ void ParticleSpace::Initialize(int seed)
       ids[i] = id_counter;
       id_counter += id_stride;
    }
+
+   // Initialize coords ParticleFunction (after IDs are set, so GetNP() is valid)
+   coords = std::make_unique<ParticleFunction>(*this, dim);
 
    // Initialize particle coordinates randomly within Mesh bounding-box or unit volume
    Vector pos_min, pos_max;
