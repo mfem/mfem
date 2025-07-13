@@ -2044,8 +2044,7 @@ protected:
    } PA;
 
    void ComputeNormalizationEnergies(const GridFunction &x,
-                                     real_t &metric_energy, real_t &lim_energy,
-                                     real_t &surf_fit_gf_energy);
+                                     real_t &metric_energy, real_t &lim_energy);
 
    void AssembleElementVectorExact(const FiniteElement &el,
                                    ElementTransformation &T,
