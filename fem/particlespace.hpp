@@ -18,8 +18,21 @@
 
 #ifdef MFEM_USE_GSLIB
 
+// Forward declaration
+template<typename T>
+class ParticleMemory;
+using ParticleDataVar = std::variant<ParticleData<int>*, ParticleData<real_t>*>;
+// Add register-able types above^
+
 namespace mfem
 {
+
+
+// Can add/register N meshes (including 0!).
+// This will setup FindPointsGSLIB with an arbitrary number of meshes
+// (Benefit is that if one wants to Interpolate a GF, we can check if we have a Setup FindPointsGSSLIB first)
+// There must be a MAIN mesh of which redistribution occurs on
+// Any change to particle coordinates == All FindPointsGSLIB::FindPoints called on updated coordinates
 
 class ParticleSpace
 {
@@ -30,32 +43,36 @@ protected:
 
    int id_counter;
    Array<int> ids;
-
-   Mesh *mesh; // not-owned
-   FindPointsGSLIB finder;
    Vector coords;
 
+   int redistribute_mesh_idx;
+   std::vector<Mesh*> meshes;
+   std::vector<FindPointsGSLIB> finder;
 
-   Array<int> last_removed_idxs;
+   std::vector<ParticleDataVar> registered_pdata;
 
 #ifdef MFEM_USE_MPI
    MPI_Comm comm;
 #endif // MFEM_USE_MPI
 
 
-void AddParticles(const Vector &new_coords, const Array<int> &new_ids);
+   void AddParticles(const Vector &new_coords, const Array<int> &new_ids);
+
+
 private:
    void Initialize(int seed);
-   
+
 public:
 
    /// Serial constructor
-   // Optionally include mesh to define particles on
-   ParticleSpace(int dim_, int num_particles, Ordering::Type ordering_=Ordering::byVDIM, Mesh *mesh_=nullptr, int seed=0);
+   // Optionally include mesh to define num_particles on randomly
+   ParticleSpace(int dim_, int num_particles,
+                 Ordering::Type ordering_=Ordering::byVDIM, Mesh *mesh_=nullptr, int seed=0);
 
 #ifdef MFEM_USE_MPI
    /// Parallel constructor
-   ParticleSpace(MPI_Comm comm_, int dim_, int num_particles, Ordering::Type ordering_=Ordering::byVDIM, Mesh *mesh_=nullptr, int seed=0);
+   ParticleSpace(MPI_Comm comm_, int dim_, int num_particles,
+                 Ordering::Type ordering_=Ordering::byVDIM, Mesh *mesh_=nullptr, int seed=0);
 #endif // MFEM_USE_MPI
 
    int Dimension() const { return dim; }
@@ -64,9 +81,9 @@ public:
 
    int GetNP() const { return ids.Size(); }
 
-   void SetMesh(Mesh *mesh_) { mesh = mesh_; finder.Setup(*mesh); finder.FindPoints(coords, ordering); }
+   void RegisterMesh(Mesh *mesh_, bool set_as_redist=false);
 
-   Mesh* GetMesh() { return mesh; }
+   Mesh* GetMesh(int idx=0) { return meshes[i]; }
 
    Vector& GetCoords() { return coords; }
 
@@ -75,17 +92,23 @@ public:
    int GetID(int i) const { return ids[i]; }
 
    /// Append new particles to the particle set with the given coordinates
-   /// All ParticleFunctions associated with this ParticleSpace must be updated!
-   void AddParticles(const Vector &new_coords, bool findpts=false);
+   // Optionally get array of indices of the new particles
+   void AddParticles(const Vector &new_coords, Array<int> *add_indices=nullptr);
 
    /// Remove all particles not within mesh anymore (if mesh is provided)
-   /// Returns reference of array of indices to be removed from ParticleFunctions
-   const Array<int>& RemoveLostParticles();
+   // Optionally get array of indices of the removed particles
+   void RemoveLostParticles(Array<int> *rm_indices=nullptr);
+
+   // Register ParticleData<T> to be resized on Add/Remove and redistributed on Redistribute automatically
+   template<typename T>
+   int RegisterParticleData(ParticleData<T> &pdata);
+
+   void DeregisterParticleData(int idx);
 
 
 #ifdef MFEM_USE_MPI
-   // Nothing happens if mesh == nullptr
-   void Redistribute(ParticleFunction *pfuncs[]);
+   // Redistribution occurs relative to the mesh at index redistribute_mesh_idx
+   void Redistribute();
 #endif // MFEM_USE_MPI
 
 

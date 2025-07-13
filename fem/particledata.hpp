@@ -10,8 +10,8 @@
 // CONTRIBUTING.md for details.
 
 
-#ifndef MFEM_PARTICLEFUNC
-#define MFEM_PARTICLEFUNC
+#ifndef MFEM_PARTICLEDATA
+#define MFEM_PARTICLEDATA
 
 #include "particlespace.hpp"
 #include "../linalg/linalg.hpp"
@@ -21,33 +21,42 @@
 namespace mfem
 {
 
-class ParticleFunction : public Vector
+template<typename T>
+class ParticleData
 {
 protected:
    const ParticleSpace &pspace;
    const int vdim;
+   int reg_idx;
+
+   Memory<T> data;
 
 public:
-   ParticleFunction(const ParticleSpace &pspace_, int vdim_=1)
-   : Vector(pspace_.GetNP()*vdim), pspace(pspace_), vdim(vdim_) {}
+   ParticleData(ParticleSpace &pspace_, int vdim_=1, bool register_data=true);
 
-   real_t GetParticleData(int i, int comp=0);
+   T& GetParticleData(int i, int comp=0);
 
-   // TODO: We can have this set v to refer to the actual data then for byVDIM!! (Avoid a copy!)
-   void GetParticleData(int i, Vector &v);
+   // For byVDIM, pdata is an alias to the actual daata
+   // For byNODES, pdata is a copy of the actual data
+   void GetParticleData(int i, Memory<T> &pdata);
 
-   void SetParticleData(int i, real_t dat, int comp=0);
+   void SetParticleData(int i, const T &ParticleData, int comp=0);
 
-   void SetParticleData(int i, const Vector &v);
+   void SetParticleData(int i, const Memory<T> &pdata);
 
-   void UpdateAdd(const Vector *new_data=nullptr);
+   // Ordering must match that of the ParticleSpace
+   void SetData(const Array<int> &indices, const Memory<T> &pdatas);
 
-   void UpdateRemove();
+   void RemoveData(const Array<int> &indices);
+
+   ~ParticleData();
 
 };
+
+
 
 } // namespace mfem
 
 #endif // MFEM_USE_GSLIB
 
-#endif // MFEM_PARTICLEFUNC
+#endif // MFEM_PARTICLEDATA
