@@ -78,18 +78,66 @@ constexpr int MAX_NDOFS = 10 * 1024 * 1024;
 constexpr int NDOFS_INC = 25;
 #endif
 
+/// Kernels Versions //////////////////////////////////////////////////////////
+enum class kernels_t: int
+{
+   PA_STD,
+   PA_NEW,
+   PA_NEW_VD,
+   MF_DFEM,
+   PA_DFEM,
+   PA_DFEM_NEW,
+   AUTO_PA_DFEM,
+   AUTO_PA_DFEM_NEW,
+   SIZE,
+} ;
+
+constexpr int PA_STD = static_cast<int>(kernels_t::PA_STD);
+constexpr int PA_NEW = static_cast<int>(kernels_t::PA_NEW);
+constexpr int PA_NEW_VD = static_cast<int>(kernels_t::PA_NEW_VD);
+constexpr int MF_DFEM = static_cast<int>(kernels_t::MF_DFEM);
+constexpr int PA_DFEM = static_cast<int>(kernels_t::PA_DFEM);
+constexpr int PA_DFEM_NEW = static_cast<int>(kernels_t::PA_DFEM_NEW);
+constexpr int AUTO_PA_DFEM = static_cast<int>(kernels_t::AUTO_PA_DFEM);
+constexpr int AUTO_PA_DFEM_NEW = static_cast<int>(kernels_t::AUTO_PA_DFEM_NEW);
+
+constexpr auto all_kernels =
+{
+   kernels_t::PA_STD,
+   kernels_t::PA_NEW,
+   kernels_t::PA_NEW_VD,
+   kernels_t::MF_DFEM,
+   kernels_t::PA_DFEM,
+   kernels_t::PA_DFEM_NEW,
+   kernels_t::AUTO_PA_DFEM,
+   kernels_t::AUTO_PA_DFEM_NEW,
+};
+
+static void DumpVersionInfo()
+{
+   mfem::out << "\x1b[33m";
+   mfem::out << "version " << PA_STD << ": PA std\n";
+   mfem::out << "version " << PA_NEW << ": PA new\n";
+   mfem::out << "version " << PA_NEW_VD << ": PA new (layout by vdim)\n";
+   mfem::out << "version " << MF_DFEM << ": MF ∂fem\n";
+   mfem::out << "version " << PA_DFEM << ": PA ∂fem\n";
+   mfem::out << "version " << PA_DFEM_NEW << ": PA ∂fem new\n";
+   mfem::out << "version " << AUTO_PA_DFEM << ": Auto PA ∂fem\n";
+   mfem::out << "version " << AUTO_PA_DFEM_NEW << ": Auto PA ∂fem new\n";
+   mfem::out << "\x1b[m\n" << std::flush;
+}
+
 /// Benchmarks Arguments //////////////////////////////////////////////////////
 static void OrderSideVersionArgs(bmi::Benchmark *b)
 {
    const auto est = [](int c) { return (c + 1) * (c + 1) * (c + 1); };
-   const auto versions = { 0, 1, 2, 3 };
-   for (auto k : versions)
+   for (auto k : all_kernels)
    {
       for (int p = 8; p >= 1; p -= 1)
       {
          for (int c = NDOFS_INC; est(c) <= MAX_NDOFS; c += NDOFS_INC)
          {
-            b->Args({ k, p, c });
+            b->Args({ static_cast<int>(k), p, c });
          }
       }
    }
@@ -97,11 +145,12 @@ static void OrderSideVersionArgs(bmi::Benchmark *b)
 
 /// Globals ///////////////////////////////////////////////////////////////////
 Device *device_ptr = nullptr;
-static int gD1D = 0, gQ1D = 0;
+static int gD1D = 0, gQ1D = 0, gCGNI = 0;
 static bool use_new_kernels = false;
 static bool use_kernels_specialization = true;
 
 /// StiffnessIntegrator ///////////////////////////////////////////////////////
+template <bool layout_by_vdim>
 struct StiffnessIntegrator : public BilinearFormIntegrator
 {
    const FiniteElementSpace *fes;
@@ -113,21 +162,18 @@ public:
    StiffnessIntegrator()
    {
       dbg();
-      NVTX();
       if (!use_kernels_specialization) { return; }
-      dbg("Adding StiffnessKernels specializations");
-      StiffnessKernels::Specialization<2, 3>::Add();
-      StiffnessKernels::Specialization<3, 4>::Add();
-      StiffnessKernels::Specialization<4, 5>::Add();
-      StiffnessKernels::Specialization<5, 6>::Add();
-      StiffnessKernels::Specialization<6, 7>::Add();
-      StiffnessKernels::Specialization<7, 8>::Add();
-      StiffnessKernels::Specialization<9, 10>::Add();
+      StiffnessKernels::template Specialization<2, 3>::Add();
+      StiffnessKernels::template Specialization<3, 4>::Add();
+      StiffnessKernels::template Specialization<4, 5>::Add();
+      StiffnessKernels::template Specialization<5, 6>::Add();
+      StiffnessKernels::template Specialization<6, 7>::Add();
+      StiffnessKernels::template Specialization<7, 8>::Add();
+      StiffnessKernels::template Specialization<9, 10>::Add();
    }
 
    void AssemblePA(const FiniteElementSpace &fespace) override
    {
-      NVTX();
       fes = &fespace;
       auto *mesh = fes->GetMesh();
       const int DIM = mesh->Dimension();
@@ -203,6 +249,7 @@ public:
    {
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
+      db1("D1D:{} Q1D:{} (no VDIM)", D1D, Q1D);
 
       constexpr int DIM = 3, VDIM = 1;
       const auto XE = Reshape(xe, D1D, D1D, D1D, VDIM, NE);
@@ -211,8 +258,8 @@ public:
 
       mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
       {
-         constexpr int MD1 = T_D1D > 0 ? T_D1D : 32;
-         constexpr int MQ1 = T_Q1D > 0 ? T_Q1D : 32;
+         constexpr int MD1 = T_D1D > 0 ? kernels::internal::SetMaxOf(T_D1D) : 32;
+         constexpr int MQ1 = T_Q1D > 0 ? kernels::internal::SetMaxOf(T_Q1D) : 32;
 
          MFEM_SHARED real_t smem[MQ1][MQ1];
          MFEM_SHARED real_t sB[MD1][MQ1], sG[MD1][MQ1];
@@ -256,7 +303,7 @@ public:
    {
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
-      db1("StiffnessMultVD: D1D:{} Q1D:{}", D1D, Q1D);
+      db1("D1D:{} Q1D:{} (by VDIM)", D1D, Q1D);
 
       constexpr int DIM = 3, VDIM = 1;
       const auto XE = Reshape(xe, D1D, D1D, D1D, VDIM, NE);
@@ -265,10 +312,8 @@ public:
 
       mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
       {
-         // constexpr int MD1 = T_D1D > 0 ? kernels::internal::SetMaxOf(T_D1D) : 32;
-         // constexpr int MQ1 = T_Q1D > 0 ? kernels::internal::SetMaxOf(T_Q1D) : 32;
-         constexpr int MD1 = T_D1D > 0 ? T_D1D : 32;
-         constexpr int MQ1 = T_Q1D > 0 ? T_Q1D : 32;
+         constexpr int MD1 = T_D1D > 0 ? kernels::internal::SetMaxOf(T_D1D) : 32;
+         constexpr int MQ1 = T_Q1D > 0 ? kernels::internal::SetMaxOf(T_Q1D) : 32;
 
          MFEM_SHARED real_t smem[MQ1][MQ1];
          MFEM_SHARED real_t sB[MD1][MQ1], sG[MD1][MQ1];
@@ -310,69 +355,24 @@ public:
                             d1d, q1d);
    }
 };
-/*
---------------------------------------------------------------------------------------------------
-Benchmark            Time             CPU   Iterations       Dofs     MDof/s          p    version
---------------------------------------------------------------------------------------------------
-BP3/0/6/25        2.33 ms         2.29 ms          306    15.625k  218.454/s          6          0
-BP3/0/6/50        2.95 ms         2.92 ms          232   132.055k 1.44567k/s          6          0
-BP3/0/6/75        4.64 ms         4.61 ms          149   420.991k 2.92423k/s          6          0
-BP3/0/6/100       8.84 ms         8.80 ms           78   1.02907M 3.74023k/s          6          0
-BP3/0/6/125       15.5 ms         15.5 ms           45   1.95161M 4.02333k/s          6          0
-BP3/0/6/150       26.5 ms         26.5 ms           26   3.44295M 4.16497k/s          6          0
-BP3/0/6/175       40.9 ms         40.6 ms           17   5.35938M 4.22609k/s          6          0
-BP3/0/6/200       61.3 ms         60.7 ms           12    8.1182M 4.27719k/s          6          0
---------------------------------------------------------------------------------------------------
-StiffnessMultVD:
-BP3/1/6/25        2.86 ms         2.80 ms          304    15.625k  178.514/s          6          1
-BP3/1/6/50        3.39 ms         3.33 ms          210   132.055k 1.26724k/s          6          1
-BP3/1/6/75        5.06 ms         4.99 ms          136   420.991k 2.69718k/s          6          1
-BP3/1/6/100       8.71 ms         8.63 ms           80   1.02907M 3.81789k/s          6          1
-BP3/1/6/125       15.5 ms         15.1 ms           46   1.95161M 4.13199k/s          6          1
-BP3/1/6/150       24.4 ms         24.2 ms           29   3.44295M 4.54897k/s          6          1
-BP3/1/6/175       37.4 ms         36.7 ms           19   5.35938M 4.67061k/s          6          1
-BP3/1/6/200       56.1 ms         55.2 ms           13    8.1182M 4.70794k/s          6          1
---------------------------------------------------------------------------------------------------
-StiffnessMult:
-BP3/1/6/25        2.94 ms         2.86 ms          245    15.625k  174.602/s          6          1
-BP3/1/6/50        3.44 ms         3.37 ms          206   132.055k 1.25531k/s          6          1
-BP3/1/6/75        5.26 ms         5.15 ms          137   420.991k 2.61688k/s          6          1
-BP3/1/6/100       9.15 ms         9.04 ms           77   1.02907M 3.64348k/s          6          1
-BP3/1/6/125       15.7 ms         15.6 ms           45   1.95161M 4.01224k/s          6          1
-BP3/1/6/150       25.1 ms         25.0 ms           28   3.44295M 4.40159k/s          6          1
-BP3/1/6/175       37.7 ms         37.7 ms           18   5.35938M 4.54855k/s          6          1
-BP3/1/6/200       56.2 ms         56.2 ms           12    8.1182M 4.62524k/s          6          1
 
-
-[Darwin]
--------------------------------------------------------------------------------------------------
-Benchmark           Time             CPU   Iterations       Dofs     MDof/s          p    version
--------------------------------------------------------------------------------------------------
-StiffnessMult:
-BP3/0/6/25       17.2 ms         17.2 ms           41    15.625k  29.0621/s          6          0
-BP3/1/6/25       13.3 ms         13.1 ms           52    15.625k   38.234/s          6          1
-BP3/2/6/25       39.9 ms         39.8 ms           18    15.625k  12.5509/s          6          2
-BP3/3/6/25       24.4 ms         24.1 ms           29    15.625k  20.7329/s          6          3
--------------------------------------------------------------------------------------------------
-StiffnessMultVD:
-BP3/0/6/25       17.4 ms         17.4 ms           38    15.625k  28.8158/s          6          0
-BP3/1/6/25       51.9 ms         51.9 ms           13    15.625k  9.63093/s          6          1
-BP3/2/6/25       39.9 ms         39.9 ms           17    15.625k  12.5196/s          6          2
-BP3/3/6/25       23.4 ms         23.4 ms           30    15.625k  21.3528/s          6          3
-*/
+template<bool layout_by_vdim>
 template <int D1D, int Q1D>
-StiffnessIntegrator::StiffnessKernelType
-StiffnessIntegrator::StiffnessKernels::Kernel()
+typename StiffnessIntegrator<layout_by_vdim>::StiffnessKernelType
+StiffnessIntegrator<layout_by_vdim>::StiffnessKernels::Kernel()
 {
-   return StiffnessMult<D1D, Q1D>;
-   // return StiffnessMultVD<D1D, Q1D>;
+   if constexpr (!layout_by_vdim) { return StiffnessMult<D1D, Q1D>; }
+   if constexpr (layout_by_vdim) { return StiffnessMultVD<D1D, Q1D>; }
 }
 
-StiffnessIntegrator::StiffnessKernelType
-StiffnessIntegrator::StiffnessKernels::Fallback(int d1d, int q1d)
+template<bool layout_by_vdim>
+typename StiffnessIntegrator<layout_by_vdim>::StiffnessKernelType
+StiffnessIntegrator<layout_by_vdim>::StiffnessKernels::Fallback(int d1d,
+                                                                int q1d)
 {
-   // dbg("\x1b[33mFallback d1d:{} q1d:{}", d1d, q1d);
-   return StiffnessMult<>;
+   dbg("\x1b[33mFallback d1d:{} q1d:{}", d1d, q1d);
+   if constexpr (!layout_by_vdim) { return StiffnessMult<>; }
+   if constexpr (layout_by_vdim) { return StiffnessMultVD<>; }
 }
 
 /// BakeOff ///////////////////////////////////////////////////////////////////
@@ -398,6 +398,7 @@ struct BakeOff
    ParGridFunction x, y;
    ParBilinearForm a;
    std::unique_ptr<DifferentiableOperator> dop;
+   std::shared_ptr<future::DerivativeOperator> dRdU;
    const int elem_size, total_size, d1d, q1d;
    UniformParameterSpace qd_ps;
    ParameterFunction qdata;
@@ -415,7 +416,7 @@ struct BakeOff
       smesh(Mesh::MakeCartesian3D(nx, ny, nz, Element::HEXAHEDRON)),
       pmesh(MPI_COMM_WORLD, (smesh.EnsureNodes(), smesh)),
       fec(p, DIM, BasisType::GaussLobatto),
-      pfes(&pmesh, &fec, VDIM),//, Ordering::byNODES),
+      pfes(&pmesh, &fec, VDIM),
       geom_type(pmesh.GetTypicalElementGeometry()),
       irs(0, GLL ? Quadrature1D::GaussLobatto : Quadrature1D::GaussLegendre),
       ir(&irs.Get(geom_type, q)), one(1.0), uvec(DIM),
@@ -433,14 +434,11 @@ struct BakeOff
       qd_ps(pmesh, *ir, DIM*DIM),
       qdata(qd_ps)
    {
-      NVTX_MARK_FUNCTION;
-      // dbg("p:{} q:{}", p, q);
-      // pmesh.SetCurvature(p);
       smesh.Clear();
       x = 0.0;
 
       gD1D = d1d, gQ1D = q1d;
-      // dbg("D1D: {}, Q1D: {}", gD1D, gQ1D);
+      db1("D1D: {}, Q1D: {}", gD1D, gQ1D);
       qdata.UseDevice(true);
       MFEM_VERIFY(q1d*q1d*q1d == ir->GetNPoints(), "");
    }
@@ -481,6 +479,7 @@ struct Diffusion : public BakeOff<VDIM, GLL>
    using BakeOff<VDIM, GLL>::y;
    using BakeOff<VDIM, GLL>::mdofs;
    using BakeOff<VDIM, GLL>::dop;
+   using BakeOff<VDIM, GLL>::dRdU;
    using BakeOff<VDIM, GLL>::nodes;
    using BakeOff<VDIM, GLL>::qdata;
    using BakeOff<VDIM, GLL>::qd_ps;
@@ -497,7 +496,6 @@ struct Diffusion : public BakeOff<VDIM, GLL>
       Ξ_q_params {Ξ_fd, q_fd},
       cg(MPI_COMM_WORLD)
    {
-      // dbg("pmesh.bdr_attributes.Max():{}",pmesh.bdr_attributes.Max());
       static_assert(VDIM == 1 && GLL == false);
 
       ess_bdr = 1;
@@ -508,38 +506,38 @@ struct Diffusion : public BakeOff<VDIM, GLL>
       b.UseFastAssembly(true);
       b.Assemble();
 
-      if (version < 2) // standard, new PA regs
+      // PA_STD: standard, PA_NEW: new PA, PA_NEW_VD: new PA layout by vdim
+      if (version == PA_STD || version == PA_NEW || version == PA_NEW_VD)
       {
          a.SetAssemblyLevel(AssemblyLevel::PARTIAL);
-         if (version == 0) { a.AddDomainIntegrator(new DiffusionIntegrator(ir)); }
-         if (version == 1) { a.AddDomainIntegrator(new StiffnessIntegrator()); }
+         if (version == PA_STD) { a.AddDomainIntegrator(new DiffusionIntegrator(ir)); }
+         if (version == PA_NEW) { a.AddDomainIntegrator(new StiffnessIntegrator<false>()); }
+         if (version == PA_NEW_VD) { a.AddDomainIntegrator(new StiffnessIntegrator<true>()); }
          a.Assemble();
          a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
-         if (version == 0)
+         if (version == PA_STD)
          {
             BilinearFormIntegrator *bfi = a.GetDBFI()->operator[](0);
             auto *di = dynamic_cast<DiffusionIntegrator*>(bfi);
-            assert(di);
             const int d1d = di->dofs1D, q1d = di->quad1D;
-            // dbg("\x1b[33md1d: {} q1d: {}", d1d, q1d);
             MFEM_VERIFY(d1d == gD1D, "D1D mismatch: " << d1d << " != " << gD1D);
             MFEM_VERIFY(q1d == gQ1D, "Q1D mismatch: " << q1d << " != " << gQ1D);
          }
       }
-      else if (version == 2) // 2: MF ∂fem
+      else if (version == MF_DFEM) // MF_DFEM: MF ∂fem
       {
          dbg("MF ∂fem");
          auto solutions = std::vector{FieldDescriptor{U, &pfes}};
          auto parameters = std::vector{FieldDescriptor{Ξ, &mfes}};
          dop = std::make_unique<DifferentiableOperator>(solutions, parameters, pmesh);
          dop->SetParameters({nodes});
-         auto diffusion_mf_kernel =
-            [] MFEM_HOST_DEVICE (const tensor<real_t, DIM>& Gu,
+         const auto diffusion_mf_kernel =
+            [] MFEM_HOST_DEVICE (const tensor<real_t, DIM>& ∇u,
                                  const tensor<real_t, DIM, DIM>& J,
                                  const real_t& w)
          {
-            auto invJ = inv(J);
-            return tuple{((Gu * invJ)) * transpose(invJ) * det(J) * w};
+            const auto invJ = inv(J);
+            return tuple{((∇u * invJ)) * transpose(invJ) * det(J) * w};
          };
          dop->AddDomainIntegrator(diffusion_mf_kernel,
                                   tuple{Gradient<U>{}, Gradient<Ξ>{}, Weight{}},
@@ -548,57 +546,59 @@ struct Diffusion : public BakeOff<VDIM, GLL>
          dop->FormLinearSystem(ess_tdof_list, x, b, A_ptr, X, B);
          A.Reset(A_ptr);
       }
-      else if (version == 3) // PA ∂fem
+      else if (version == PA_DFEM || version == PA_DFEM_NEW) // PA ∂fem
       {
-         dbg("[PA ∂fem]");
-         MFEM_ABORT("PA ∂fem is not implemented yet. ❌");
-         /*auto W = Weight{};
-         auto Iq = Identity<Q> {};
-         auto Iu = Identity<U> {};
-         auto Gu = Gradient<U> {};
-         auto GΞ = Gradient<Ξ> {};
-         tuple Gu_Iq = {Gu, Iq};
-         tuple Iu_GΞ_W = {Iu, GΞ, W};
-
-         dbg("[PA ∂fem] SETUP 🟣🟣🟣🟣");
-         auto pa_setup_qf =
+         dbg("[PA ∂fem] setup");
+         const auto pa_setup_qf =
             [] MFEM_HOST_DEVICE(const real_t &u,
                                 const tensor<real_t, DIM, DIM> &J,
                                 const real_t &w)
          {
-            return tuple{inv(J) * transpose(inv(J)) * det(J) * w};
+            const auto invJ = inv(J);
+            return tuple{invJ * transpose(invJ) * det(J) * w};
          };
          DifferentiableOperator dSetup(u_sol, Ξ_q_params, pmesh);
-         dSetup.AddDomainIntegrator(pa_setup_qf, Iu_GΞ_W, tuple{Iq}, *ir, ess_bdr);
+         dSetup.AddDomainIntegrator(pa_setup_qf,
+                                    tuple{Identity<Q> {}, Gradient<Ξ> {}, Weight{}},
+                                    tuple{Identity<Q> {}},
+                                    *ir, ess_bdr);
          dSetup.SetParameters({nodes, &qdata});
          X.SetSize(pfes.GetTrueVSize());
          pfes.GetRestrictionMatrix()->Mult(x, X);
          dSetup.Mult(X, qdata);
 
-         dbg("[PA ∂fem] APPLY 🟢🟢🟢🟢");
-         auto pa_apply_qf =
-            [] MFEM_HOST_DEVICE(const tensor<real_t, DIM> &Gu,
-                                const tensor<real_t, DIM, DIM> &q)
+         dbg("[PA ∂fem] apply");
+         const auto pa_apply_qf =
+            [] MFEM_HOST_DEVICE(const tensor<real_t, DIM> &∇u,
+                                const tensor<real_t, DIM, DIM> &Q)
          {
-            return tuple{q * Gu};
+            return tuple{∇u * Q};
          };
          dop = std::make_unique<DifferentiableOperator>(u_sol, q_param, pmesh);
-         if (use_new_kernels) { dop->UseNewKernels(); }
+         if (version == PA_DFEM_NEW) { dop->UseNewKernels(); }
          if (use_kernels_specialization) { dop->UseKernelsSpecialization(); }
          else { dbg("[PA ∂fem] NOT using kernels specialization"); }
-         dop->AddDomainIntegrator(pa_apply_qf, Gu_Iq, tuple{Gu}, *ir, ess_bdr);
+         dop->AddDomainIntegrator(pa_apply_qf,
+                                  tuple{Gradient<U> {}, Identity<Q> {}},
+                                  tuple{Gradient<U> {}},
+                                  *ir, ess_bdr);
          dop->SetParameters({ &qdata });
 
          dop->FormLinearSystem(ess_tdof_list, x, b, A_ptr, X, B);
-         A.Reset(A_ptr);*/
+         A.Reset(A_ptr);
       }
-      else if (version == 4) // Linearisation ∂fem
+      else if (version == AUTO_PA_DFEM || version == AUTO_PA_DFEM_NEW) // Auto PA
       {
-         dbg("[Linearised ∂fem]");
-         auto solutions = std::vector{FieldDescriptor{U, &pfes}};
-         auto parameters = std::vector{FieldDescriptor{Ξ, &mfes}};
-         auto derivatives = std::integer_sequence<size_t, U> {};
+         dbg("[Auto PA ∂fem]");
+         const auto solutions = std::vector{FieldDescriptor{U, &pfes}};
+         const auto parameters = std::vector{FieldDescriptor{Ξ, &mfes}};
+         const auto derivatives = std::integer_sequence<size_t, U> {};
+
          dop = std::make_unique<DifferentiableOperator>(solutions, parameters, pmesh);
+         if (version == AUTO_PA_DFEM_NEW) { dop->UseNewKernels(); }
+         dop->UseAutomaticPA();
+         dop->UseKernelsSpecialization();
+
          const auto diffusion_mf_kernel =
             [] MFEM_HOST_DEVICE (const tensor<dscalar_t, DIM>& ∇u,
                                  const tensor<real_t, DIM, DIM>& J,
@@ -612,12 +612,9 @@ struct Diffusion : public BakeOff<VDIM, GLL>
                                   tuple{Gradient<U>{}},
                                   *ir, ess_bdr, derivatives);
          dop->SetParameters({nodes});
-         auto dRdU = dop->GetDerivative(U, {&x}, {nodes});
-
-         // constr_op.reset(new ConstrainedOperator(dRdU.get(), ess_bdr));
-         // dop->FormLinearSystem(ess_tdof_list, x, b, A_ptr, X, B);
-         // A.Reset(A_ptr);
-         // A.Reset(new ConstrainedOperator(dRdU.get(), ess_bdr));
+         dRdU = dop->GetDerivative(U, {&x}, {nodes});
+         dRdU->FormLinearSystem(ess_tdof_list, x, b, A_ptr, X, B);
+         A.Reset(A_ptr);
       }
       else { MFEM_ABORT("Invalid version"); }
 
@@ -625,12 +622,17 @@ struct Diffusion : public BakeOff<VDIM, GLL>
       cg.iterative_mode = false;
       if (dofs < 128 * 1024) // check
       {
-         cg.SetPrintLevel(3/*-1*/);
+         cg.SetPrintLevel(-1);
          cg.SetMaxIter(2000);
          cg.SetRelTol(1e-8);
          cg.SetAbsTol(0.0);
          cg.Mult(B, X);
-         // MFEM_VERIFY(cg.GetConverged(), "❌ CG solver did not converge.");
+         MFEM_VERIFY(cg.GetConverged(), "❌ CG solver did not converge.");
+         const int lCGNI = cg.GetNumIterations();
+         static const bool iniCGNumIterations = (gCGNI = lCGNI, true);
+         if (iniCGNumIterations)
+            MFEM_VERIFY(lCGNI == gCGNI,
+                        "❌ CG iterations" << lCGNI << " != " << gCGNI);
          MFEM_DEVICE_SYNC;
          // mfem::out << "✅" << std::endl;
       }
@@ -693,17 +695,6 @@ static void AddBasicKernelSpecializations()
 
    // using Diffusion = DiffusionIntegrator::ApplyPAKernels;
    // Diffusion::Specialization<3, 9, 10>::Add();
-}
-
-/// info //////////////////////////////////////////////////////////////////////
-static void DumpVersionInfo()
-{
-   mfem::out << "\x1b[33m";
-   mfem::out << "version 0: PA std" << std::endl;
-   mfem::out << "version 1: PA new" << std::endl;
-   mfem::out << "version 2: MF ∂fem" << std::endl;
-   mfem::out << "version 3: PA ∂fem" << std::endl;
-   mfem::out << "\x1b[m" << std::endl;
 }
 
 /// main //////////////////////////////////////////////////////////////////////

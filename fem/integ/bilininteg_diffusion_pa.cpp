@@ -16,6 +16,14 @@
 #include "../ceed/integrators/diffusion/diffusion.hpp"
 #include "bilininteg_diffusion_kernels.hpp"
 
+#if defined(__has_include) && __has_include("general/nvtx.hpp") && !defined(_WIN32)
+#undef NVTX_COLOR
+#define NVTX_COLOR ::nvtx::kNvidia
+#include "general/nvtx.hpp"
+#else
+#define dbg(...)
+#endif
+
 namespace mfem
 {
 
@@ -67,7 +75,7 @@ void DiffusionIntegrator::AddMultPA(const Vector &x, Vector &y) const
          MFEM_ABORT("OCCA PADiffusionApply unknown kernel!");
       }
 #endif // MFEM_USE_OCCA
-
+      db1("[DiffusionApplyPAKernel] D1D:{} Q1D:{}", dofs1D, quad1D);
       DiffusionApplyPAKernel::Run(dim, dofs1D, quad1D, ne, symmetric, B, G, Bt,
                                   Gt, Dv, x, y, dofs1D, quad1D);
    }

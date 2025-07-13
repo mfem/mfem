@@ -692,7 +692,6 @@ void DifferentiableOperator::AddDomainIntegrator(
       dbg("🟢🟢🟢🟢 Queuing NEW action");
       auto qf_args = decay_tuple<qf_param_ts> {};
       using FirstElementType = std::decay_t<decltype(get<0>(qf_args))>;
-      // using TensorType = typename FirstElementType::type;
       using T = TensorType<FirstElementType>;
 
       // TypeDump<TensorType> param_type_dump;
@@ -700,14 +699,11 @@ void DifferentiableOperator::AddDomainIntegrator(
 
       if constexpr (std::is_same_v<T, dual<real_t,real_t>>)
       {
-         // Handle dual tensor case
          MFEM_ABORT("Dual tensor case not implemented");
       }
 
-      // if constexpr (std::is_same_v<TensorType, real_t>)
-      if constexpr (!std::is_same_v<T, dual<real_t,real_t>>)
+      if constexpr (std::is_same_v<T, real_t>)
       {
-         // MFEM_ABORT("Dual tensor case not implemented");
          action_callbacks.push_back(
             [
                // capture by copy:
@@ -733,7 +729,7 @@ void DifferentiableOperator::AddDomainIntegrator(
                dependency_map,               // std::map<int, std::vector<int>>
                inputs_vdim,                  // std::vector<int>
                // capture by ref:
-               &use_kernels_specialization = this->use_kernels_specialization,   // bool
+               &use_kernels_specialization = this->use_kernels_specialization,
                &restriction_cb = this->restriction_callback,
                &fields_e = this->fields_e,
                &residual_e = this->residual_e,
@@ -743,7 +739,7 @@ void DifferentiableOperator::AddDomainIntegrator(
               Vector &residual_l)
             mutable
          {
-            dbg("NEW Action");
+            db1("NEW Action");
             NewActionCallback action(use_kernels_specialization,
                                      restriction_cb,
                                      qfunc,
@@ -771,9 +767,9 @@ void DifferentiableOperator::AddDomainIntegrator(
          });
       }
    }
-   else
+   else if (!use_automatic_pa)
    {
-      dbg("🔵🔵🔵🔵 Queuing STD action");
+      // dbg("🔵🔵🔵🔵 Queuing STD action");
       action_callbacks.push_back(
          // Explicitly capture everything we need, so we can make explicit choice
          // how to capture every variable, by copy or by ref.
@@ -812,8 +808,7 @@ void DifferentiableOperator::AddDomainIntegrator(
          (std::vector<Vector> &sol, const std::vector<Vector> &par, Vector &res)
          mutable // mutable: needed to modify 'shmem_cache'
       {
-         // NVTX_MARK_FUNCTION;
-         dbg("STD Action");
+         db1("STD Action");
          restriction_cb(sol, par, fields_e);
 
          residual_e = 0.0;
@@ -854,6 +849,7 @@ void DifferentiableOperator::AddDomainIntegrator(
          output_restriction_transpose(residual_e, res);
       });
    }
+   else { dbg("Auto PA, skipping action"); }
 
    // Without this compile-time check, some valid instantiations of this method
    // will fail.
@@ -942,9 +938,9 @@ void DifferentiableOperator::AddDomainIntegrator(
                                  test_vdim, num_entities);
                auto wrapped_fields_e = wrap_fields(f_e, shmem_info.field_sizes,
                                                    num_entities);
-               auto wrapped_direction_e = Reshape(direction_e.ReadWrite(),
-                                                  shmem_info.direction_size,
-                                                  num_entities);
+               const auto wrapped_direction_e = Reshape(direction_e.Read(),
+                                                        shmem_info.direction_size,
+                                                        num_entities);
 
                const auto d_elem_attr = elem_attributes.Read();
                const bool has_attr = domain_attributes.Size() > 0;
@@ -993,7 +989,7 @@ void DifferentiableOperator::AddDomainIntegrator(
             return;
          } // !use_automatic_pa
 
-         dbg("🟡🟡🟡🟡 Setup AUTO derivative #{}", derivative_id);
+         // dbg("🟡🟡🟡🟡 Setup AUTO derivative #{}", derivative_id);
          int num_dependent_inputs = 0;
          for_constexpr<num_inputs>([&](auto s)
          {
@@ -1077,9 +1073,9 @@ void DifferentiableOperator::AddDomainIntegrator(
                                   element_dof_ordering);
             auto wrapped_fields_e = wrap_fields(f_e, shmem_info.field_sizes,
                                                 num_entities);
-            auto wrapped_direction_e = Reshape(direction_e.ReadWrite(),
-                                               shmem_info.direction_size,
-                                               num_entities);
+            const auto wrapped_direction_e = Reshape(direction_e.Read(),
+                                                     shmem_info.direction_size,
+                                                     num_entities);
 
             auto qpdc = Reshape(qpdc_mem.ReadWrite(), test_vdim, test_op_dim,
                                 trial_vdim, total_trial_op_dim, num_qp, num_entities);
@@ -1287,9 +1283,9 @@ void DifferentiableOperator::AddDomainIntegrator(
                               test_vdim, num_entities);
             auto wrapped_fields_e = wrap_fields(f_e, shmem_info.field_sizes,
                                                 num_entities);
-            auto wrapped_direction_e = Reshape(direction_e.ReadWrite(),
-                                               shmem_info.direction_size,
-                                               num_entities);
+            const auto wrapped_direction_e = Reshape(direction_e.Read(),
+                                                     shmem_info.direction_size,
+                                                     num_entities);
 
             auto qpdc = Reshape(qpdc_mem.ReadWrite(), test_vdim, test_op_dim,
                                 trial_vdim, total_trial_op_dim, num_qp, num_entities);

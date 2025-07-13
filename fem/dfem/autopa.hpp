@@ -140,31 +140,31 @@ public:
       der_action_l(der_action_l)
    {
       if (!use_kernels_specialization) { return; }
-      NewAutoActionCallbackKernels::template Specialization<3,3>::Add();
+      // NewAutoActionCallbackKernels::template Specialization<3,3>::Add();
       // NewAutoActionCallbackKernels::template Specialization<4,5>::Add();
-      // NewAutoActionCallbackKernels::template Specialization<5,6>::Add();
+      NewAutoActionCallbackKernels::template Specialization<5,6>::Add();
       // NewAutoActionCallbackKernels::template Specialization<6,7>::Add();
-      // NewAutoActionCallbackKernels::template Specialization<7,8>::Add();
+      NewAutoActionCallbackKernels::template Specialization<7,8>::Add();
       // NewAutoActionCallbackKernels::template Specialization<8,9>::Add();
       // NewAutoActionCallbackKernels::template Specialization<9,10>::Add();
    }
 
    template<int T_D1D = 0, int T_Q1D = 0> static
-   void auto_pa_action_callback(input_t &inputs,
+   void auto_pa_action_callback(const input_t &inputs,
                                 const std::array<DofToQuadMap, num_inputs> &input_dtq_maps,
                                 const std::array<DofToQuadMap, num_outputs> &output_dtq_maps,
-                                const int num_entities,
+                                const int ne,
                                 const int test_vdim,
                                 const int num_test_dof,
                                 const int dimension,
-                                const FieldDescriptor &direction,
+                                const FieldDescriptor &u,
                                 const int test_op_dim,
                                 const int trial_vdim,
                                 const int total_trial_op_dim,
                                 const int num_qp,
                                 Array<size_t> &dependent_inputs_trial_op_dim,
                                 const int num_dependent_inputs,
-                                const ElementDofOrdering element_dof_ordering,
+                                const ElementDofOrdering &ordering,
                                 const ThreadBlocks &thread_blocks,
                                 Vector &shmem_cache,
                                 SharedMemoryInfo<num_fields, num_inputs, num_outputs> &shmem_info,
@@ -174,46 +174,45 @@ public:
                                 const DeviceTensor<1, const real_t> &ir_weights,
                                 const bool use_sum_factorization,
                                 const std::array<bool, num_inputs> &input_is_dependent,
-                                Vector &direction_e,
+                                Vector &field_e,
                                 Vector &derivative_action_e,
                                 // refs
                                 Vector &qpdc_mem,
                                 std::function<void(Vector &, Vector &)> &or_transpose,
                                 // args
                                 std::vector<Vector> &f_e,
-                                const Vector &dir_l,
+                                const Vector &u_l,
                                 Vector &der_action_l,
                                 // fallback arguments
                                 const int d1d, const int q1d)
    {
-      dbg();
+      db1();
       assert(dimension == 3);
+
+      const int Q1D = T_Q1D ? T_Q1D : q1d;
 
       // types
       using entity_t = Entity::Element;
 
-      restriction<entity_t>(direction, dir_l, direction_e,
-                            element_dof_ordering);
-      auto ye = Reshape(derivative_action_e.ReadWrite(), num_test_dof,
-                        test_vdim, num_entities);
-      auto wrapped_fields_e = wrap_fields(f_e, shmem_info.field_sizes,
-                                          num_entities);
-      auto wrapped_direction_e = Reshape(direction_e.ReadWrite(),
-                                         shmem_info.direction_size,
-                                         num_entities);
+      restriction<entity_t>(u, u_l, field_e, ordering);
 
-      auto qpdc = Reshape(qpdc_mem.ReadWrite(), test_vdim, test_op_dim,
-                          trial_vdim, total_trial_op_dim, num_qp, num_entities);
+      const auto wrapped_fields_e = wrap_fields(f_e, shmem_info.field_sizes, ne);
+      const auto wrapped_direction_e = Reshape(field_e.Read(),
+                                               shmem_info.direction_size, ne);
 
-      auto dpitod = Reshape(dependent_inputs_trial_op_dim.ReadWrite(),
-                            num_dependent_inputs, 2);
+      const auto qpdc = Reshape(qpdc_mem.Read(), test_vdim, test_op_dim,
+                                trial_vdim, total_trial_op_dim, num_qp, ne);
+      const auto dpitod = Reshape(dependent_inputs_trial_op_dim.Read(),
+                                  num_dependent_inputs, 2);
 
       const auto d_elem_attr = elem_attributes.Read();
       const bool has_attr = domain_attributes.Size() > 0;
       const auto d_domain_attr = domain_attributes.Read();
 
       derivative_action_e = 0.0;
-      forall/*<derivative_action_tag>*/([=] MFEM_HOST_DEVICE (int e, real_t *shmem)
+      auto ye = Reshape(derivative_action_e.ReadWrite(), num_test_dof, test_vdim, ne);
+
+      forall([=] MFEM_HOST_DEVICE (int e, real_t *shmem)
       {
          if (has_attr && !d_domain_attr[d_elem_attr[e] - 1]) { return; }
 
@@ -267,11 +266,11 @@ public:
          {
             if (dimension == 2)
             {
-               MFEM_FOREACH_THREAD(qx, x, q1d)
+               MFEM_FOREACH_THREAD(qx, x, Q1D)
                {
-                  MFEM_FOREACH_THREAD(qy, y, q1d)
+                  MFEM_FOREACH_THREAD(qy, y, Q1D)
                   {
-                     const int q = qx + q1d * qy;
+                     const int q = qx + Q1D * qy;
 
                      for (int i = 0; i < test_vdim; i++)
                      {
@@ -301,14 +300,14 @@ public:
             }
             else if (dimension == 3)
             {
-               MFEM_FOREACH_THREAD(qx, x, q1d)
+               MFEM_FOREACH_THREAD(qx, x, Q1D)
                {
-                  MFEM_FOREACH_THREAD(qy, y, q1d)
+                  MFEM_FOREACH_THREAD(qy, y, Q1D)
                   {
-                     MFEM_FOREACH_THREAD(qz, z, q1d)
+                     MFEM_FOREACH_THREAD(qz, z, Q1D)
                      {
 
-                        const int q = qx + q1d * (qy + q1d * qz);
+                        const int q = qx + Q1D * (qy + Q1D * qz);
                         for (int i = 0; i < test_vdim; i++)
                         {
                            for (int k = 0; k < test_op_dim; k++)
@@ -349,7 +348,7 @@ public:
          map_quadrature_data_to_fields(
             y, fhat, output_fop, output_dtq_shmem[0],
             scratch_shmem, dimension, use_sum_factorization);
-      }, num_entities, thread_blocks, shmem_info.total_size,
+      }, ne, thread_blocks, shmem_info.total_size,
       shmem_cache.ReadWrite());
       or_transpose(derivative_action_e, der_action_l);
    }

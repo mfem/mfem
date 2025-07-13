@@ -1816,7 +1816,7 @@ DeviceTensor<1> load_direction_mem(
    void *mem,
    int offset,
    const int &size,
-   const DeviceTensor<2> &direction,
+   const DeviceTensor<2, const real_t> &direction,
    const int &entity_idx)
 {
    int block_size = MFEM_THREAD_SIZE(x) *
@@ -1952,7 +1952,7 @@ auto unpack_shmem(
    const std::array<DofToQuadMap, num_inputs> &input_dtq_maps,
    const std::array<DofToQuadMap, num_outputs> &output_dtq_maps,
    const std::array<DeviceTensor<2>, num_fields> &wrapped_fields_e,
-   const DeviceTensor<2> &wrapped_direction_e,
+   const DeviceTensor<2, const real_t> &wrapped_direction_e,
    const int &num_qp,
    const int &e)
 {
