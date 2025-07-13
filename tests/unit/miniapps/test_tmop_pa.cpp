@@ -18,7 +18,7 @@
 #include <cmath>
 #else
 // Avoiding MSVC error C2491: 'definition of dllimport function not allowed'
-#include "fem/qinterp/det.cpp"
+#include "fem/qinterp/det.hpp"
 #include "fem/qinterp/grad.hpp"                  // IWYU pragma: keep
 #include "fem/qinterp/eval.hpp"                  // IWYU pragma: keep
 #include "fem/integ/bilininteg_mass_kernels.hpp" // IWYU pragma: keep

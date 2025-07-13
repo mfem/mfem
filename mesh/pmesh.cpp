@@ -1400,7 +1400,7 @@ ParMesh ParMesh::MakeSimplicial(ParMesh &orig_mesh)
    {
       vglobal[iv] = fes.GetGlobalTDofNumber(iv);
    }
-   mesh.MakeSimplicial_(orig_mesh, vglobal);
+   auto parent_elements = mesh.MakeSimplicial_(orig_mesh, vglobal);
 
    // count the number of entries in each row of group_s{vert,edge,face}
    mesh.group_svert.MakeI(mesh.GetNGroups()-1); // exclude the local group 0
@@ -1516,6 +1516,11 @@ ParMesh ParMesh::MakeSimplicial(ParMesh &orig_mesh)
    mesh.group_stria.ShiftUpI();
 
    mesh.FinalizeParTopo();
+
+   if (orig_mesh.GetNodes() != nullptr)
+   {
+      mesh.MakeHigherOrderSimplicial_(orig_mesh, parent_elements);
+   }
 
    return mesh;
 }
@@ -3133,11 +3138,12 @@ void ParMesh::GetFaceNbrElementTransformation(
          pNodes->ParFESpace()->GetFaceNbrElementVDofs(FaceNo, vdofs);
          int n = vdofs.Size()/spaceDim;
          pointmat.SetSize(spaceDim, n);
+         pNodes->FaceNbrData().HostRead();
          for (int k = 0; k < spaceDim; k++)
          {
             for (int j = 0; j < n; j++)
             {
-               pointmat(k,j) = (pNodes->FaceNbrData())(vdofs[n*k+j]);
+               pointmat(k,j) = AsConst(pNodes->FaceNbrData())(vdofs[n*k+j]);
             }
          }
 

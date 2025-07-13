@@ -124,24 +124,21 @@ const real_t &DenseMatrix::Elem(int i, int j) const
 
 void DenseMatrix::Mult(const real_t *x, real_t *y) const
 {
-   HostRead();
-   kernels::Mult(height, width, Data(), x, y);
+   kernels::Mult(height, width, HostRead(), x, y);
 }
 
 void DenseMatrix::Mult(const real_t *x, Vector &y) const
 {
    MFEM_ASSERT(height == y.Size(), "incompatible dimensions");
 
-   y.HostReadWrite();
-   Mult(x, y.GetData());
+   Mult(x, y.HostWrite());
 }
 
 void DenseMatrix::Mult(const Vector &x, real_t *y) const
 {
    MFEM_ASSERT(width == x.Size(), "incompatible dimensions");
 
-   x.HostRead();
-   Mult(x.GetData(), y);
+   Mult(x.HostRead(), y);
 }
 
 void DenseMatrix::Mult(const Vector &x, Vector &y) const
@@ -149,9 +146,15 @@ void DenseMatrix::Mult(const Vector &x, Vector &y) const
    MFEM_ASSERT(height == y.Size() && width == x.Size(),
                "incompatible dimensions");
 
-   x.HostRead();
-   y.HostReadWrite();
-   Mult(x.GetData(), y.GetData());
+   Mult(x.HostRead(), y.HostWrite());
+}
+
+void DenseMatrix::AbsMult(const Vector &x, Vector &y) const
+{
+   MFEM_ASSERT(height == y.Size() && width == x.Size(),
+               "incompatible dimensions");
+
+   kernels::AbsMult(height, width, HostRead(), x.HostRead(), y.HostWrite());
 }
 
 real_t DenseMatrix::operator *(const DenseMatrix &m) const
@@ -171,34 +174,21 @@ real_t DenseMatrix::operator *(const DenseMatrix &m) const
 
 void DenseMatrix::MultTranspose(const real_t *x, real_t *y) const
 {
-   HostRead();
-   real_t *d_col = Data();
-   for (int col = 0; col < width; col++)
-   {
-      real_t y_col = 0.0;
-      for (int row = 0; row < height; row++)
-      {
-         y_col += x[row]*d_col[row];
-      }
-      y[col] = y_col;
-      d_col += height;
-   }
+   kernels::MultTranspose(height, width, HostRead(), x, y);
 }
 
 void DenseMatrix::MultTranspose(const real_t *x, Vector &y) const
 {
    MFEM_ASSERT(width == y.Size(), "incompatible dimensions");
 
-   y.HostReadWrite();
-   MultTranspose(x, y.GetData());
+   MultTranspose(x, y.HostWrite());
 }
 
 void DenseMatrix::MultTranspose(const Vector &x, real_t *y) const
 {
    MFEM_ASSERT(height == x.Size(), "incompatible dimensions");
 
-   x.HostRead();
-   MultTranspose(x.GetData(), y);
+   MultTranspose(x.HostRead(), y);
 }
 
 void DenseMatrix::MultTranspose(const Vector &x, Vector &y) const
@@ -206,9 +196,16 @@ void DenseMatrix::MultTranspose(const Vector &x, Vector &y) const
    MFEM_ASSERT(height == x.Size() && width == y.Size(),
                "incompatible dimensions");
 
-   x.HostRead();
-   y.HostReadWrite();
-   MultTranspose(x.GetData(), y.GetData());
+   MultTranspose(x.HostRead(), y.HostWrite());
+}
+
+void DenseMatrix::AbsMultTranspose(const Vector &x, Vector &y) const
+{
+   MFEM_ASSERT(height == x.Size() && width == y.Size(),
+               "incompatible dimensions");
+
+   kernels::AbsMultTranspose(height, width, HostRead(),
+                             x.HostRead(), y.HostWrite());
 }
 
 void DenseMatrix::AddMult(const Vector &x, Vector &y, const real_t a) const
@@ -4407,5 +4404,33 @@ void BatchLUSolve(const DenseTensor &Mlu, const Array<int> &P, Vector &X)
 {
    BatchedLinAlg::LUSolve(Mlu, P, X);
 }
+
+#ifdef MFEM_USE_LAPACK
+void BandedSolve(int KL, int KU, DenseMatrix &AB, DenseMatrix &B,
+                 Array<int> &ipiv)
+{
+   int LDAB = (2*KL) + KU + 1;
+   int N = AB.NumCols();
+   int NRHS = B.NumCols();
+   int info;
+   ipiv.SetSize(N);
+   MFEM_LAPACK_PREFIX(gbsv_)(&N, &KL, &KU, &NRHS, AB.GetData(), &LDAB,
+                             ipiv.GetData(), B.GetData(), &N, &info);
+   MFEM_ASSERT(info == 0, "BandedSolve failed in LAPACK");
+}
+
+void BandedFactorizedSolve(int KL, int KU, DenseMatrix &AB, DenseMatrix &B,
+                           bool transpose, Array<int> &ipiv)
+{
+   int LDAB = (2*KL) + KU + 1;
+   int N = AB.NumCols();
+   int NRHS = B.NumCols();
+   char trans = transpose ? 'T' : 'N';
+   int info;
+   MFEM_LAPACK_PREFIX(gbtrs_)(&trans, &N, &KL, &KU, &NRHS, AB.GetData(), &LDAB,
+                              ipiv.GetData(), B.GetData(), &N, &info);
+   MFEM_ASSERT(info == 0, "BandedFactorizedSolve failed in LAPACK");
+}
+#endif
 
 } // namespace mfem
