@@ -561,6 +561,8 @@ void ParFiniteElementSpace::ApplyLDofSigns(Table &el_dof) const
 void ParFiniteElementSpace::GetElementDofs(int i, Array<int> &dofs,
                                            DofTransformation &doftrans) const
 {
+   doftrans.SetDofTransformation(nullptr);
+
    if (elem_dof)
    {
       elem_dof->GetRow(i, dofs);
@@ -586,6 +588,8 @@ void ParFiniteElementSpace::GetElementDofs(int i, Array<int> &dofs,
 void ParFiniteElementSpace::GetBdrElementDofs(int i, Array<int> &dofs,
                                               DofTransformation &doftrans) const
 {
+   doftrans.SetDofTransformation(nullptr);
+
    if (bdr_elem_dof)
    {
       bdr_elem_dof->GetRow(i, dofs);
@@ -1687,6 +1691,8 @@ void ParFiniteElementSpace::ExchangeFaceNbrData()
 void ParFiniteElementSpace::GetFaceNbrElementVDofs(
    int i, Array<int> &vdofs, DofTransformation &doftrans) const
 {
+   doftrans.SetDofTransformation(nullptr);
+
    face_nbr_element_dof.GetRow(i, vdofs);
 
    if (DoFTransArray[GetFaceNbrFE(i)->GetGeomType()])
@@ -1703,7 +1709,6 @@ void ParFiniteElementSpace::GetFaceNbrElementVDofs(
 DofTransformation *ParFiniteElementSpace::GetFaceNbrElementVDofs(
    int i, Array<int> &vdofs) const
 {
-   DoFTrans.SetDofTransformation(NULL);
    GetFaceNbrElementVDofs(i, vdofs, DoFTrans);
    return DoFTrans.GetDofTransformation() ? &DoFTrans : NULL;
 }
@@ -5254,7 +5259,7 @@ DeviceConformingProlongationOperator::DeviceConformingProlongationOperator(
       gc.GetNeighborLTDofTable(nbr_ltdof);
       const int nb_connections = nbr_ltdof.Size_of_connections();
       shr_ltdof.SetSize(nb_connections);
-      shr_ltdof.CopyFrom(nbr_ltdof.GetJ());
+      if (nb_connections > 0) { shr_ltdof.CopyFrom(nbr_ltdof.GetJ()); }
       shr_buf.SetSize(nb_connections);
       shr_buf.UseDevice(true);
       shr_buf_offsets = nbr_ltdof.GetIMemory();
@@ -5283,7 +5288,7 @@ DeviceConformingProlongationOperator::DeviceConformingProlongationOperator(
       gc.GetNeighborLDofTable(nbr_ldof);
       const int nb_connections = nbr_ldof.Size_of_connections();
       ext_ldof.SetSize(nb_connections);
-      ext_ldof.CopyFrom(nbr_ldof.GetJ());
+      if (nb_connections > 0) { ext_ldof.CopyFrom(nbr_ldof.GetJ()); }
       ext_ldof.GetMemory().UseDevice(true);
       ext_buf.SetSize(nb_connections);
       ext_buf.UseDevice(true);
