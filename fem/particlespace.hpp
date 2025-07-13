@@ -48,16 +48,6 @@ protected:
    std::vector<FindPointsGSLIB> finder;
 
    using ParticleDataVar = std::variant<ParticleData<int>, ParticleData<real_t>>;
-
-   // TODO PROBLEM: We need destroyed ParticleDatas to be set to nullptr here... 
-   //               Can do that in destructor of ParticleData, but then what if ParticleSpace is destroyed beforehand?
-   //               Then it can't call pspace.Deregister(...) ... This is a problem. It requires that ParticleSpace is deleted last.
-   //               This kind of linkage isn't ideal... 
-   // Maybe instead we just have all of the ParticleFunctions be stored here? Like
-   //       ParticleData<T>& CreateParticleData(int vdim);
-   // Then everything remains internal, so we don't need to deal with this substantial coupling + registering issue
-   // It also becomes a lot more clear how ParticleSpace manages all the ParticleData's<T>
-   // Then ParticleData REALLY then just becomes a super lightweight wrapper.... It should be specialized for Particle's though for usage
    std::vector<ParticleDataVar> pdata;
 
 #ifdef MFEM_USE_MPI
@@ -91,7 +81,7 @@ public:
 
    Mesh* GetMesh(int idx=0) { return meshes[i]; }
 
-   Vector& GetCoords() { return coords; }
+   ParticleFunction& GetCoords() { return *coords; }
 
    const Array<int>& GetIDs() const { return ids; }
 

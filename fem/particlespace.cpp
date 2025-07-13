@@ -34,14 +34,14 @@ ParticleSpace::ParticleSpace(int dim_, int num_particles,
 #ifdef MFEM_USE_MPI
 ParticleSpace::ParticleSpace(MPI_Comm comm_, int dim_, int num_particles,
                              Ordering::Type ordering_, Mesh *mesh_, int seed)
-   : dim(dim_),
-     ordering(ordering_),
-     id_stride([&]() {int s; MPI_Comm_size(comm_, &s); return s; }()),
-id_counter([&]() { int r; MPI_Comm_rank(comm_, &r); return r; }()),
-ids(num_particles),
-mesh(mesh_),
-finder(comm_),
-comm(comm_)
+:  dim(dim_),
+   ordering(ordering_),
+   id_stride([&]() {int s; MPI_Comm_size(comm_, &s); return s; }()),
+   id_counter([&]() { int r; MPI_Comm_rank(comm_, &r); return r; }()),
+   ids(num_particles),
+   mesh(mesh_),
+   finder(comm_),
+   comm(comm_)
 {
    Initialize(seed);
 }

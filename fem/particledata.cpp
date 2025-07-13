@@ -17,30 +17,31 @@ namespace mfem
 {
 
 template<typename T>
-void ParticleData<T>::AddNewParticleData(int num_new)
+void ParticleData<T>::AddParticles(int num_new)
 {
    // TODO: Definitely some mistakes with memorytype + usedevice stuff...
    Memory<T> old = data;
    data.Delete();
    data.New(num_new*vdim+old.Capacity(), old.GetMemoryType());
    data.UseDevice(old.UseDevice());
+   np = data.Capacity()/vdim;
+
+   int np_old = old.Capacity()/vdim;
 
    // Fill in old data entries. Leave new data as default-initialization
    if (pspace.GetOrdering() == Ordering::byNODES)
    {
-      int total_old = old.Capacity()/vdim;
-      int total_new = data.Capacity()/vdim;
-      for (int i = 0; i < old.Capacity(); i++)
+      for (int i = 0; i < np_old; i++)
       {
          for (int c = 0; c < vdim; c++)
          {
-            data[i+c*total_new] = old[i+c*total_old];
+            data[i+c*np] = old[i+c*np_old];
          }
       }
    }
    else
    {
-      for (int i = 0; i < old.Capacity(); i++)
+      for (int i = 0; i < total_old; i++)
       {
          for (int c = 0; c < vdim; c++)
          {
@@ -49,38 +50,53 @@ void ParticleData<T>::AddNewParticleData(int num_new)
       }
    }
    old.Delete();
+
 }
 
 template<typename T>
-void ParticleData<T>::RemoveData(const Array<int> &indices)
+void ParticleData<T>::RemoveParticles(const Array<int> &indices)
 {
    // TODO: Definitely some mistakes with memorytype + usedevice stuff...
    Memory<T> old = data;
    data.Delete();
    data.New(old.Capacity(), old.GetMemoryType());
    data.UseDevice(old.UseDevice());
+   np = data.Capacity()/vdim;
 
+   int np_old = old.Capacity()/vdim;
 
+   // TODO: Finish this below...
    // Copy non-removed data over
+   if (ordering == Ordering::byNODES)
+   {
+      int idx = 0;
+      for (int i = 0; i < np_old; i++)
+      {
+         if (i != indices[i])
+         {
+            for (int c = 0; c < vdim; c++)
+            {
+               if ()
+               {
+                  data[idx+c*np] = old[i+c*np_old];
+               }
+            }
+            idx++;
+         }
+      }
+   }
+   else
+   {
 
-   // TODO!
-}
-
-template<typename T>
-ParticleData<T>::ParticleData(ParticleSpace &pspace_, int vdim_, bool register_to_pspace)
-: pspace(pspace_),
-  vdim(vdim_),
-  data(vdim*pspace.GetNP())
-{
-   pspace.RegisterParticleData(*this);
+   }
 }
 
 template<typename T>
 T& ParticleData<T>::GetParticleData(int i, int comp)
 {
-   if (pspace.GetOrdering() == Ordering::byNODES)
+   if (ordering == Ordering::byNODES)
    {
-      return data[i + comp*pspace.GetNP()];
+      return data[i + comp*np];
    }
    else
    {
@@ -91,7 +107,7 @@ T& ParticleData<T>::GetParticleData(int i, int comp)
 template<typename T>
 void ParticleData<T>::GetParticleData(int i, Memory<T> &pdata)
 {
-   if (pspace.GetOrdering() == Ordering::byNODES)
+   if (ordering == Ordering::byNODES)
    {
       if (pdata.Capacity() != vdim)
       {
@@ -104,7 +120,7 @@ void ParticleData<T>::GetParticleData(int i, Memory<T> &pdata)
       }
       for (int c = 0; c < vdim; c++)
       {
-         pdata[i] = data[i + c*pspace.GetNP()];
+         pdata[i] = data[i + c*np];
       }
    }
    else
@@ -119,7 +135,7 @@ void ParticleData<T>::SetParticleData(int i, const T &pdata, int comp)
 {
    if (pspace.GetOrdering() == Ordering::byNODES)
    {
-      data[i + comp*pspace.GetNP()] = pdata;
+      data[i + comp*np] = pdata;
    }
    else
    {
@@ -138,7 +154,7 @@ void ParticleData<T>::SetParticleData(int i, const Memory<T> &pdata)
    {
       for (int c = 0; c < vdim; c++)
       {
-         data[i + c*pspace.GetNP()] = pdata[c];
+         data[i + c*np] = pdata[c];
       }
    }
    else
@@ -157,22 +173,21 @@ void ParticleData<T>::SetParticleData(const Array<int> &indices,
    // MFEM_ASSERT(pdatas.Capacity()/vdim == indices.Size(),
    //             "Indices size incompatible with input pdatas");
 
+   int np_update = pdatas.Capacity()/vdim;
    
    if (pspace.GetOrdering() == Ordering::byNODES)
    {
-      int num_update = pdatas.Capacity()/vdim;
-
-      for (int i = 0; i < indices.Size(); i++)
+      for (int i = 0; i < np_update; i++)
       {
          for (int c = 0; c < vdim; c++)
          {
-            data[indices[i]+c*pspace.GetNP()] = pdata[i+c*num_update];
+            data[indices[i]+c*np] = pdata[i+c*np_update];
          }
       }
    }
    else
    {
-      for (int i = 0; i < indices.Size(); i++)
+      for (int i = 0; i < np_update; i++)
       {
          for (int c = 0; c < vdim; c++)
          {
@@ -180,12 +195,6 @@ void ParticleData<T>::SetParticleData(const Array<int> &indices,
          }
       }
    }
-}
-
-template<typename T>
-ParticleData<T>::~ParticleData()
-{
-   pspace.
 }
 
 // Only real_t and int supported currently

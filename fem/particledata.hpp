@@ -20,9 +20,8 @@
 namespace mfem
 {
 
-// Forward declaration
+// Forward declaration to make ParticleSpace friend
 class ParticleSpace;
-
 
 // Arbitrary data types may be associated with particles
 // Only int and real_t supported right now... Can support more.
@@ -33,8 +32,10 @@ class ParticleData
    
 protected:
    const int vdim;
-   ParticleSpace *pspace;
+   const Ordering::Type ordering;
    
+   int np; // num particles = data.Capacity()/vdim
+
    // All particle data is now stored entirely in Memory<T>
    // (Much more GPU-ready)
    // TODO: IF we can create a "DynamicMemory", that would be perfect.
@@ -44,12 +45,15 @@ protected:
    // TODO: Can make these faster if a "Reserve" is provided....
    //          See Vector....
    // Now it's just these sole two fxns below that we need to optimize....
-   void AddNewParticleData(int num_new);
-   void RemoveData(const Array<int> &indices);
+   void AddParticles(int num_new);
+   void RemoveParticles(const Array<int> &indices);
+
+
+   // No public ctor -- only constructable through a ParticleSpace
+   ParticleData(int num_particles, Ordering::Type ordering_, int vdim_=1)
+   : vdim(vdim_), ordering(ordering_), np(num_particles), data(np*vdim) {}
 
 public:
-   ParticleData(ParticleSpace &pspace_, int vdim_=1, bool register_to_pspace=true);
-
    T& GetParticleData(int i, int comp=0);
 
    // For byVDIM, pdata is an alias to the actual daata
@@ -60,7 +64,7 @@ public:
 
    void SetParticleData(int i, const Memory<T> &pdata);
 
-   // Set many particle data, given particle indices
+   // Set multiple particles' data, given particle indices
    // Ordering must match that of the ParticleSpace
    void SetParticleData(const Array<int> &indices, const Memory<T> &pdatas);
 
@@ -68,18 +72,16 @@ public:
 
    const T& operator[](int idx) { return data[idx]; }
 
-   ~ParticleData();
-
 };
 
-// User-friendly ParticleData<real_t>, with Interpolate feature
+// More user-friendly ParticleData<real_t>, with Interpolate feature
 class ParticleFunction : public ParticleData<real_t>
 {
 private:
 protected:
 public:
 
-}
+};
 
 
 
