@@ -18,46 +18,8 @@
 namespace mfem
 {
 
-ParticleSpace::ParticleSpace(int dim_, int num_particles,
-                             Ordering::Type ordering_, Mesh *mesh_, int seed)
-: dim(dim_),
-   ordering(ordering_),
-   id_stride(1),
-   id_counter(0),
-   ids(num_particles),
-   mesh(mesh_),
-   finder()
+void ParticleSpace::Initialize(Mesh *mesh, int seed)
 {
-   Initialize(seed);
-}
-
-#ifdef MFEM_USE_MPI
-ParticleSpace::ParticleSpace(MPI_Comm comm_, int dim_, int num_particles,
-                             Ordering::Type ordering_, Mesh *mesh_, int seed)
-:  dim(dim_),
-   ordering(ordering_),
-   id_stride([&]() {int s; MPI_Comm_size(comm_, &s); return s; }()),
-   id_counter([&]() { int r; MPI_Comm_rank(comm_, &r); return r; }()),
-   ids(num_particles),
-   mesh(mesh_),
-   finder(comm_),
-   comm(comm_)
-{
-   Initialize(seed);
-}
-#endif // MFEM_USE_MPI
-
-
-void ParticleSpace::Initialize(int seed)
-{
-   // Setup FindPointsGSLIB if mesh was provided
-   if (mesh)
-   {
-      MFEM_VERIFY(dim == mesh->SpaceDimension(),
-                  "Mesh spatial dimension must match provided particle dimension.");
-      finder.Setup(*mesh);
-   }
-
    // Initialize particle IDs
    for (int i = 0; i < ids.Size(); i++)
    {
@@ -66,7 +28,7 @@ void ParticleSpace::Initialize(int seed)
    }
 
    // Initialize coords ParticleFunction (after IDs are set, so GetNP() is valid)
-   coords = std::make_unique<ParticleFunction>(*this, dim);
+   coords.reset(new ParticleFunction(*this, dim));
 
    // Initialize particle coordinates randomly within Mesh bounding-box or unit volume
    Vector pos_min, pos_max;
@@ -87,13 +49,14 @@ void ParticleSpace::Initialize(int seed)
    std::mt19937 gen(seed);
    std::uniform_real_distribution<> real_dist(0.0,1.0);
 
+   ParticleFunction &pf_coords = *coords;
    if (ordering == Ordering::byNODES)
    {
       for (int i = 0; i < GetNP(); i++)
       {
          for (int d = 0; d < dim; d++)
          {
-            coords[i+d*GetNP()] = pos_min[d] + (pos_max[d] - pos_min[d])*real_dist(gen);
+            pf_coords[i+d*GetNP()] = pos_min[d] + (pos_max[d] - pos_min[d])*real_dist(gen);
          }
       }
 
@@ -104,55 +67,144 @@ void ParticleSpace::Initialize(int seed)
       {
          for (int d = 0; d < dim; d++)
          {
-            coords[d+i*dim] = pos_min[d] + (pos_max[d] - pos_min[d])*real_dist(gen);
+            pf_coords[d+i*dim] = pos_min[d] + (pos_max[d] - pos_min[d])*real_dist(gen);
          }
       }
    }
 
+   // Register mesh if it exists
+   // FindPoints will be called using coords
    if (mesh)
    {
-      finder.FindPoints(coords);
+      RegisterMesh(*mesh, true);
    }
 }
 
 void ParticleSpace::AddParticles(const Vector &new_coords,
-                                 const Array<int> &new_ids)
+                                 const Array<int> &new_ids,
+                                 Array<int> &new_idxs)
 {
    MFEM_ASSERT(new_coords.Size() % dim == new_ids.Size(),
                "new_coords is not sized properly");
 
-   // Copy existing coords
-   Vector old_coords = coords;
+   new_idxs.SetSize(new_ids.Size());
 
-   for (int i = 0; i < new_ids.Size(); i++)
+   int old_np = ids.Size();
+   int num_new = new_ids.Size();
+
+   for (int i = 0; i < num_new; i++)
    {
       ids.Append(new_ids[i]);
+      new_idxs[i] = i + old_np;
    }
+
    // GetNP now up-to-date
-   coords.SetSize(ids.Size());
+   
+   // Update coordinates
+   coords->AddParticles(num_new);
+   UpdateCoords(new_idxs, new_coords); // FindPoints called...
 
-   // Re-initialize
-   if (ordering == Ordering::byNODES)
+   // Update all registered ParticleData's
+   for (int d = 0; d < all_pdata.size(); d++)
    {
-      for (int i = 0; i < GetNP(); i++)
+      std::visit(
+      [&](auto &pdata)
       {
-         for (int d = 0; d < dim; d++)
-         {
+         pdata->AddParticles(num_new);
 
-         }
-      }
+      }, all_pdata[d]);
    }
-   else
-   {
-      for (int i = 0; i < GetNP(); i++)
-      {
-         for (int d = 0; d < dim; d++)
-         {
 
-         }
-      }
+}
+
+ParticleSpace::ParticleSpace(int dim_, int num_particles,
+                             Ordering::Type ordering_, Mesh *mesh_, int seed)
+: dim(dim_),
+   ordering(ordering_),
+   id_stride(1),
+   id_counter(0),
+   ids(num_particles)
+{
+   Initialize(mesh_, seed);
+}
+
+#ifdef MFEM_USE_MPI
+ParticleSpace::ParticleSpace(MPI_Comm comm_, int dim_, int num_particles,
+                             Ordering::Type ordering_, Mesh *mesh_, int seed)
+:  dim(dim_),
+   ordering(ordering_),
+   id_stride([&]() {int s; MPI_Comm_size(comm_, &s); return s; }()),
+   id_counter([&]() { int r; MPI_Comm_rank(comm_, &r); return r; }()),
+   ids(num_particles),
+   comm(comm_)
+{
+   Initialize(mesh_, seed);
+}
+#endif // MFEM_USE_MPI
+
+
+void ParticleSpace::RegisterMesh(Mesh &mesh_, bool set_as_redist)
+{
+   MFEM_VERIFY(dim == mesh_.SpaceDimension(),
+                  "Mesh spatial dimension must match provided particle dimension.");
+   meshes.push_back(&mesh_);
+
+#ifdef MFEM_USE_MPI
+   finders.emplace_back(comm);
+#else
+   finders.push_back();
+#endif // MFEM_USE_MPI
+
+   finders.back().Setup(*meshes.back());
+   finders.back().FindPoints(coords->AsVector(), GetOrdering());
+
+   if (set_as_redist)
+   {
+      redistribute_mesh_idx = meshes.size()-1;
+   }
+
+}
+
+void ParticleSpace::UpdateCoords(const Array<int> &indices, const Vector &updated_coords)
+{
+   coords->SetParticleData(indices, updated_coords);
+   for (FindPointsGSLIB &finder : finders)
+   {
+      finder.FindPoints(coords->AsVector(), GetOrdering());
    }
 }
+
+template<typename T>
+ParticleData<T>& ParticleSpace::CreateParticleData(int vdim, std::string name)
+{
+   std::unique_ptr<ParticleData<T>> pdata(new ParticleData<T>(GetNP(), GetOrdering(), vdim));
+
+   all_pdata.emplace_back(std::move(pdata));
+
+   if (name == "")
+   {
+      name = "Data_" + std::to_string(all_pdata.size()-1);
+   }
+   all_pdata_names.push_back(name);
+
+   return *std::get<std::unique_ptr<ParticleData<T>>>(all_pdata.back());
+}
+
+ParticleFunction& ParticleSpace::CreateParticleFunction(int vdim, std::string name)
+{
+   std::unique_ptr<ParticleFunction> pdata(new ParticleFunction(*this, vdim));
+
+   all_pdata.emplace_back(std::move(pdata));
+
+   if (name == "")
+   {
+      name = "Data_" + std::to_string(all_pdata.size()-1);
+   }
+   all_pdata_names.push_back(name);
+
+   return static_cast<ParticleFunction&>(*std::get<std::unique_ptr<ParticleData<real_t>>>(all_pdata.back()));
+}
+
 
 
 } // namespace mfem

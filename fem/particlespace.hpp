@@ -17,7 +17,10 @@
 #include "gslib.hpp"
 #include "particledata.hpp"
 
+#include <variant>
+
 #ifdef MFEM_USE_GSLIB
+
 
 namespace mfem
 {
@@ -32,7 +35,7 @@ class ParticleSpace
 {
 
 private:
-   void Initialize(int seed);
+   void Initialize(Mesh *mesh, int seed);
 
 protected:
    const int dim;
@@ -45,17 +48,18 @@ protected:
 
    int redistribute_mesh_idx;
    std::vector<Mesh*> meshes;
-   std::vector<FindPointsGSLIB> finder;
+   std::vector<FindPointsGSLIB> finders;
 
-   using ParticleDataVar = std::variant<ParticleData<int>, ParticleData<real_t>>;
-   std::vector<ParticleDataVar> pdata;
+   using ParticleDataVar = std::variant<std::unique_ptr<ParticleData<int>>, std::unique_ptr<ParticleData<real_t>>>;
+   std::vector<std::string> all_pdata_names;
+   std::vector<ParticleDataVar> all_pdata;
 
 #ifdef MFEM_USE_MPI
    MPI_Comm comm;
 #endif // MFEM_USE_MPI
 
 
-   void AddParticles(const Vector &new_coords, const Array<int> &new_ids);
+   void AddParticles(const Vector &new_coords, const Array<int> &new_ids, Array<int> &new_indices);
 
 
 public:
@@ -77,11 +81,17 @@ public:
 
    int GetNP() const { return ids.Size(); }
 
-   void RegisterMesh(Mesh *mesh_, bool set_as_redist=false);
+   void RegisterMesh(Mesh &mesh_, bool set_as_redist=false);
 
-   Mesh* GetMesh(int idx=0) { return meshes[i]; }
+   Mesh* GetMesh(int idx=0) { return meshes[idx]; }
 
-   ParticleFunction& GetCoords() { return *coords; }
+   // TODO: If we want to expose coords for changes directly, must have a way to "Commit" changes (re-call FindPoints...)
+   const ParticleFunction& GetCoords() const { return *coords; }
+
+   void UpdateCoords(const Array<int> &indices, const Vector &updated_coords);
+
+   void UpdateCoords(int i, const Vector &updated_coords)
+   { UpdateCoords(Array<int>({i}), updated_coords); }
 
    const Array<int>& GetIDs() const { return ids; }
 
@@ -89,9 +99,9 @@ public:
 
    // Optionally include string name for PrintCSV
    template<typename T>
-   ParticleData<T>& CreateParticleData(int vdim=1, std::string="");
+   ParticleData<T>& CreateParticleData(int vdim=1, std::string name="");
 
-   ParticleFunction& CreateParticleFunction(int vdim=1);
+   ParticleFunction& CreateParticleFunction(int vdim=1, std::string name="");
 
    /// Append new particles to the particle set with the given coordinates
    //  Optionally get array of indices of the new particles, for updating any ParticleData
@@ -100,6 +110,7 @@ public:
    /// Remove all particles not within mesh anymore (if mesh is provided)
    void RemoveLostParticles();
 
+   void PrintCSV(std::string fname, int precision=16);
 
 #ifdef MFEM_USE_MPI
    // Redistribution occurs relative to the mesh at index redistribute_mesh_idx

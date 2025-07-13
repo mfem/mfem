@@ -21,7 +21,7 @@
 namespace mfem
 {
 
-// Forward declaration to make ParticleSpace friend
+// Forward declaration
 class ParticleSpace;
 
 // Arbitrary data types may be associated with particles
@@ -36,10 +36,12 @@ protected:
    const Ordering::Type ordering;
    
    int np; // num particles = data.Capacity()/vdim --- here so we don't need to recompute each time
+            // Future: Can use to track active v. inactive particles....?
 
    // All particle data is now stored entirely in Memory<T>
    // (Much more GPU-ready)
    // TODO: IF we can create a "DynamicMemory", that would be perfect.
+   // TODO Maybe we also just make this an Array<T> ??? 
    Memory<T> data;
 
    // Only allow ParticleSpace to resize data / update data
@@ -50,7 +52,7 @@ protected:
    void RemoveParticles(const Array<int> &indices);
 
 
-   // No public ctor -- only constructable through a ParticleSpace
+   // No public ctor -- only constructable through a ParticleSpace or derived
    ParticleData(int num_particles, Ordering::Type ordering_, int vdim_=1)
    : vdim(vdim_), ordering(ordering_), np(num_particles), data(np*vdim) {}
 
@@ -72,16 +74,45 @@ public:
    T& operator[](int idx) { return data[idx]; }
 
    const T& operator[](int idx) const { return data[idx]; }
-
 };
 
-// More user-friendly ParticleData<real_t>, with Interpolate feature
+// More user-friendly ParticleData<real_t>
 class ParticleFunction : public ParticleData<real_t>
 {
+   friend class ParticleSpace;
+   
 private:
-protected:
-public:
+   const ParticleSpace *pspace;
 
+protected:
+
+   ParticleFunction(const ParticleSpace &pspace, int vdim_=1);
+
+public:
+   
+   // Interpolate a GridFunction onto the particles' locations
+   // Automatically checks if Mesh was registered with FindPointsGSLIB in ParticleSpace
+   // (and uses it if so! Saves a Setup and a FindPoints step...)
+   void Interpolate(GridFunction &gf);
+
+   // Project a coefficient
+   // There MUST be a mesh registered to the ParticleSpace for this to work...
+   void ProjectCoefficient(Coefficient &coeff, int mesh_idx=0);
+
+   void ProjectCoefficient(VectorCoefficient &vcoeff, int mesh_idx=0);
+
+   void GetParticleData(int i, Vector &pdata)
+   { ParticleData<real_t>::GetParticleData(i, pdata.GetMemory()); }
+
+   void SetParticleData(int i, const Vector &pdata)
+   { ParticleData<real_t>::SetParticleData(i, pdata.GetMemory()); }
+
+   // Set multiple particles' data, given particle indices
+   // Ordering must match that of the ParticleSpace
+   void SetParticleData(const Array<int> &indices, const Vector &pdatas)
+   { ParticleData<real_t>::SetParticleData(indices, pdatas.GetMemory()); }
+
+   const Vector AsVector() { return Vector(data, np*vdim); }
 };
 
 

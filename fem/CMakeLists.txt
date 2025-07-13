@@ -163,7 +163,7 @@ set(SRCS
   hyperbolic.cpp
   integrator.cpp
   particledata.cpp
-  #particlespace.cpp
+  particlespace.cpp
   )
 
 set(HDRS
@@ -275,7 +275,7 @@ set(HDRS
   hyperbolic.hpp
   integrator.hpp
   particledata.hpp
-  #particlespace.hpp
+  particlespace.hpp
   )
 
 if (MFEM_USE_SIDRE)

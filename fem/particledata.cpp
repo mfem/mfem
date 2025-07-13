@@ -10,6 +10,7 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 #include "particledata.hpp"
+#include "particlespace.hpp"
 
 #ifdef MFEM_USE_GSLIB
 
@@ -209,6 +210,22 @@ void ParticleData<T>::SetParticleData(const Array<int> &indices,
 // Only real_t and int supported currently
 template class ParticleData<real_t>;
 template class ParticleData<int>;
+
+
+ParticleFunction::ParticleFunction(const ParticleSpace &pspace, int vdim_)
+: ParticleData<real_t>(pspace.GetNP(), pspace.GetOrdering(), vdim_),
+  pspace(&pspace)
+{
+
+}
+
+void ParticleFunction::Interpolate(GridFunction &gf)
+{
+   Mesh *m = gf.FESpace()->GetMesh();
+
+   // Check if this mesh exists on the particlespace
+
+}
 
 } // namespace mfem
 
