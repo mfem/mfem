@@ -49,9 +49,8 @@
 #include "lor/lor.hpp"
 #include "dgmassinv.hpp"
 #include "hyperbolic.hpp"
-#include "particleset.hpp"
-#include "particlespace.hpp"
-#include "particlefunc.hpp"
+//#include "particlespace.hpp"
+#include "particledata.hpp"
 
 #include "dfem/doperator.hpp"
 

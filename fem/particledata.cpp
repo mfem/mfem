@@ -29,7 +29,7 @@ void ParticleData<T>::AddParticles(int num_new)
    int np_old = old.Capacity()/vdim;
 
    // Fill in old data entries. Leave new data as default-initialization
-   if (pspace.GetOrdering() == Ordering::byNODES)
+   if (ordering == Ordering::byNODES)
    {
       for (int i = 0; i < np_old; i++)
       {
@@ -41,7 +41,7 @@ void ParticleData<T>::AddParticles(int num_new)
    }
    else
    {
-      for (int i = 0; i < total_old; i++)
+      for (int i = 0; i < np_old; i++)
       {
          for (int c = 0; c < vdim; c++)
          {
@@ -65,7 +65,6 @@ void ParticleData<T>::RemoveParticles(const Array<int> &indices)
 
    int np_old = old.Capacity()/vdim;
 
-   // TODO: Finish this below...
    // Copy non-removed data over
    if (ordering == Ordering::byNODES)
    {
@@ -76,10 +75,7 @@ void ParticleData<T>::RemoveParticles(const Array<int> &indices)
          {
             for (int c = 0; c < vdim; c++)
             {
-               if ()
-               {
-                  data[idx+c*np] = old[i+c*np_old];
-               }
+               data[idx+c*np] = old[i+c*np_old];
             }
             idx++;
          }
@@ -87,8 +83,21 @@ void ParticleData<T>::RemoveParticles(const Array<int> &indices)
    }
    else
    {
-
+      int idx = 0;
+      for (int i = 0; i < np_old; i++)
+      {
+         if (i != indices[i])
+         {
+            for (int c = 0; c < vdim; c++)
+            {
+               data[c+idx*vdim] = old[c+i*vdim];
+            }
+            idx++;
+         }
+      }
    }
+
+   old.Delete();
 }
 
 template<typename T>
@@ -133,7 +142,7 @@ void ParticleData<T>::GetParticleData(int i, Memory<T> &pdata)
 template<typename T>
 void ParticleData<T>::SetParticleData(int i, const T &pdata, int comp)
 {
-   if (pspace.GetOrdering() == Ordering::byNODES)
+   if (ordering == Ordering::byNODES)
    {
       data[i + comp*np] = pdata;
    }
@@ -150,7 +159,7 @@ void ParticleData<T>::SetParticleData(int i, const Memory<T> &pdata)
    //             "Input Memory<T> has capacity " + std::to_string(pdata.Capacity()),
    //             ", not vdim " + std::to_string(vdim));
 
-   if (pspace.GetOrdering() == Ordering::byNODES)
+   if (ordering == Ordering::byNODES)
    {
       for (int c = 0; c < vdim; c++)
       {
@@ -161,7 +170,7 @@ void ParticleData<T>::SetParticleData(int i, const Memory<T> &pdata)
    {
       for (int c = 0; c < vdim; c++)
       {
-         data[comp + i*vdim] = pdata[c];
+         data[c + i*vdim] = pdata[c];
       }
    }
 }
@@ -175,13 +184,13 @@ void ParticleData<T>::SetParticleData(const Array<int> &indices,
 
    int np_update = pdatas.Capacity()/vdim;
    
-   if (pspace.GetOrdering() == Ordering::byNODES)
+   if (ordering == Ordering::byNODES)
    {
       for (int i = 0; i < np_update; i++)
       {
          for (int c = 0; c < vdim; c++)
          {
-            data[indices[i]+c*np] = pdata[i+c*np_update];
+            data[indices[i]+c*np] = pdatas[i+c*np_update];
          }
       }
    }
@@ -191,7 +200,7 @@ void ParticleData<T>::SetParticleData(const Array<int> &indices,
       {
          for (int c = 0; c < vdim; c++)
          {
-            data[c+indices[i]*vdim] = pdata[c+i*vdim];
+            data[c+indices[i]*vdim] = pdatas[c+i*vdim];
          }
       }
    }

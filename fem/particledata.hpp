@@ -14,6 +14,7 @@
 #define MFEM_PARTICLEDATA
 
 #include "../linalg/linalg.hpp"
+#include "fespace.hpp"
 
 #ifdef MFEM_USE_GSLIB
 
@@ -34,7 +35,7 @@ protected:
    const int vdim;
    const Ordering::Type ordering;
    
-   int np; // num particles = data.Capacity()/vdim
+   int np; // num particles = data.Capacity()/vdim --- here so we don't need to recompute each time
 
    // All particle data is now stored entirely in Memory<T>
    // (Much more GPU-ready)
@@ -70,7 +71,7 @@ public:
 
    T& operator[](int idx) { return data[idx]; }
 
-   const T& operator[](int idx) { return data[idx]; }
+   const T& operator[](int idx) const { return data[idx]; }
 
 };
 

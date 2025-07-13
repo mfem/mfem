@@ -87,8 +87,9 @@ public:
 
    int GetID(int i) const { return ids[i]; }
 
+   // Optionally include string name for PrintCSV
    template<typename T>
-   ParticleData<T>& CreateParticleData(int vdim=1);
+   ParticleData<T>& CreateParticleData(int vdim=1, std::string="");
 
    ParticleFunction& CreateParticleFunction(int vdim=1);
 
