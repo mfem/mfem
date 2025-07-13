@@ -61,6 +61,15 @@ constexpr real_t operator""_r(unsigned long long v)
 
 } // namespace mfem
 
+// Defines 'MFEM_THROW' depending if we are compiled with -fno-exceptions
+#if defined(__EXCEPTIONS) || defined(__cpp_exceptions) || defined(_CPPUNWIND)
+#define MFEM_HAS_EXCEPTIONS
+#define MFEM_THROW(exception_type, msg) throw exception_type(msg)
+#else
+#undef MFEM_HAS_EXCEPTIONS
+#define MFEM_THROW(...)
+#endif
+
 // Return value for main function in examples that should be skipped by testing
 // in some case. This return value prevents failures in testing.
 #define MFEM_SKIP_RETURN_VALUE 242

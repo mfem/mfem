@@ -75,7 +75,7 @@ inline char* check_strerror_r(char* r, char*, int)
 
 /// Overload of error-reporting function, to enable use with VS.
 /// Ref: http://stackoverflow.com/a/901316/717706
-static std::string strerror()
+[[maybe_unused]] static std::string strerror()
 {
    std::string buff(80, '\0');
 #ifdef _WIN32
@@ -148,18 +148,21 @@ struct static_method_holder
    {
       if ((mode & std::ios_base::trunc) && ! (mode & std::ios_base::out))
       {
-         throw Exception(std::string("strict_fstream: open('") + filename +
-                         "'): mode error: trunc and not out");
+         MFEM_THROW(Exception,
+                    std::string("strict_fstream: open('")
+                    + filename + "'): mode error: trunc and not out");
       }
       else if ((mode & std::ios_base::app) && ! (mode & std::ios_base::out))
       {
-         throw Exception(std::string("strict_fstream: open('") + filename +
-                         "'): mode error: app and not out");
+         MFEM_THROW(Exception,
+                    std::string("strict_fstream: open('") + filename +
+                    "'): mode error: app and not out");
       }
       else if ((mode & std::ios_base::trunc) && (mode & std::ios_base::app))
       {
-         throw Exception(std::string("strict_fstream: open('") + filename +
-                         "'): mode error: trunc and app");
+         MFEM_THROW(Exception,
+                    std::string("strict_fstream: open('") + filename +
+                    "'): mode error: trunc and app");
       }
    }
    static void check_open(std::ios * s_p, const std::string& filename,
@@ -167,26 +170,32 @@ struct static_method_holder
    {
       if (s_p->fail())
       {
-         throw Exception(std::string("strict_fstream: open('")
-                         + filename + "'," + mode_to_string(mode) + "): open failed: "
-                         + strerror());
+         MFEM_THROW(Exception,
+                    std::string("strict_fstream: open('") + filename +
+                    "'," + mode_to_string(mode) + "): open failed: " +
+                    strerror());
       }
    }
    static void check_peek(std::istream * is_p, const std::string& filename,
                           std::ios_base::openmode mode)
    {
       bool peek_failed = true;
+#ifdef MFEM_HAS_EXCEPTIONS
       try
+#endif
       {
          is_p->peek();
          peek_failed = is_p->fail();
       }
+#ifdef MFEM_HAS_EXCEPTIONS
       catch (std::ios_base::failure&) {}
+#endif
       if (peek_failed)
       {
-         throw Exception(std::string("strict_fstream: open('")
-                         + filename + "'," + mode_to_string(mode) + "): peek failed: "
-                         + strerror());
+         MFEM_THROW(Exception,
+                    std::string("strict_fstream: open('") + filename +
+                    "'," + mode_to_string(mode) + "): peek failed: " +
+                    strerror());
       }
       is_p->clear();
    }

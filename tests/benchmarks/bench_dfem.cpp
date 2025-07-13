@@ -249,7 +249,7 @@ public:
    {
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
-      db1("D1D:{} Q1D:{} (no VDIM)", D1D, Q1D);
+      // db1("D1D:{} Q1D:{} (no VDIM)", D1D, Q1D);
 
       constexpr int DIM = 3, VDIM = 1;
       const auto XE = Reshape(xe, D1D, D1D, D1D, VDIM, NE);
@@ -258,8 +258,10 @@ public:
 
       mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
       {
-         constexpr int MD1 = T_D1D > 0 ? kernels::internal::SetMaxOf(T_D1D) : 32;
-         constexpr int MQ1 = T_Q1D > 0 ? kernels::internal::SetMaxOf(T_Q1D) : 32;
+         // constexpr int MD1 = T_D1D > 0 ? kernels::internal::SetMaxOf(T_D1D) : 32;
+         // constexpr int MQ1 = T_Q1D > 0 ? kernels::internal::SetMaxOf(T_Q1D) : 32;
+         constexpr int MD1 = T_D1D > 0 ? T_D1D : 32;
+         constexpr int MQ1 = T_Q1D > 0 ? T_Q1D : 32;
 
          MFEM_SHARED real_t smem[MQ1][MQ1];
          MFEM_SHARED real_t sB[MD1][MQ1], sG[MD1][MQ1];

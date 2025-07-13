@@ -9,6 +9,7 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
+#include "../config/config.hpp"
 #include "gecko.hpp"
 
 // This file collects the sources of the Gecko library as a single module.
@@ -392,7 +393,7 @@ Subgraph::Subgraph(Graph* g, uint n) : g(g), n(n), f(g->functional)
 {
    if (n > GECKO_WINDOW_MAX)
    {
-      throw std::out_of_range("optimization window too large");
+      MFEM_THROW(std::out_of_range, "optimization window too large");
    }
    cache = new Subnode[n << n];
 }
@@ -758,7 +759,7 @@ Graph::arc_source(Arc::Index a) const
       }
    }
    // should never get here
-   throw std::runtime_error("internal data structure corrupted");
+   MFEM_THROW(::std::runtime_error, "internal data structure corrupted");
 }
 
 // Return reverse arc (j, i) of arc a = (i, j).

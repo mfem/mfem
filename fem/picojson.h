@@ -28,6 +28,8 @@
 #ifndef picojson_h
 #define picojson_h
 
+#include "../config/config.hpp"
+
 #include <algorithm>
 #include <cstdio>
 #include <cstdlib>
@@ -73,7 +75,7 @@ extern "C" {
 #endif
 
 #ifndef PICOJSON_ASSERT
-# define PICOJSON_ASSERT(e) do { if (! (e)) throw std::runtime_error(#e); } while (0)
+# define PICOJSON_ASSERT(e) do { if (! (e)) MFEM_THROW(std::runtime_error, #e); } while (0)
 #endif
 
 #ifdef _MSC_VER
@@ -202,7 +204,7 @@ namespace picojson {
         isnan(n) || isinf(n)
 #endif
         ) {
-      throw std::overflow_error("");
+      MFEM_THROW(std::runtime_error, "overflow_error");
     }
     u_.number_ = n;
   }
@@ -300,11 +302,11 @@ namespace picojson {
 #else
 #define GET(ctype, var)						\
   template <> inline const ctype& value::get<ctype>() const {	\
-    do { if (! (is<ctype>())) throw std::runtime_error("type mismatch! call is<type>() before get<type>()"); } while (0); \
+    do { if (! (is<ctype>())) MFEM_THROW(std::runtime_error, "type mismatch! call is<type>() before get<type>()"); } while (0); \
     return var;							\
   }								\
   template <> inline ctype& value::get<ctype>() {		\
-    do { if (! (is<ctype>())) throw std::runtime_error("type mismatch! call is<type>() before get<type>()"); } while (0); \
+    do { if (! (is<ctype>())) MFEM_THROW(std::runtime_error, "type mismatch! call is<type>() before get<type>()"); } while (0); \
     return var;							\
   }
 #endif
