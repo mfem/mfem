@@ -48,11 +48,8 @@ public:
 
 #ifdef MFEM_USE_MPI
    Functional(MPI_Comm comm, int n=0)
-      : Operator(1, n)
-      , grad_operator(*this)
-      , hessian_action_operator(*this)
-      , parallel(true), comm(comm)
-   { }
+      : Functional(n)
+   { SetComm(comm); }
 
    void SetComm(MPI_Comm comm) { parallel = true; this->comm = comm; }
    MPI_Comm GetComm() const { return comm; }
@@ -163,29 +160,11 @@ public:
    { SetComm(comm); }
 #endif
 
-   void SetOperator(const Operator &A)
-   {
-      MFEM_VERIFY(A.Width() == A.Height(),
-                  "QuadraticFunctional: A must be a square operator.");
-      this->A = &A;
-      width = A.Width();
-      aux.SetSize(width);
-   }
-
-   void SetVector(const Vector &b, const real_t beta=1.0)
-   {
-      MFEM_VERIFY(A != nullptr && A->Width() == b.Size(),
-                  "QuadraticFunctional: A and b must have compatible sizes.");
-      this->b = &b;
-      this->beta = beta;
-   }
-   void SetConstant(real_t c)
-   {
-      this->c = c;
-   }
+   void SetOperator(const Operator &A);
+   void SetVector(const Vector &b, const real_t beta=1.0);
+   void SetConstant(real_t c);
 
    void Mult(const Vector &x, Vector &y) const override;
-
    void EvalGradient(const Vector &x, Vector &y) const override;
 protected:
    const Operator *A;

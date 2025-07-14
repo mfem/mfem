@@ -17,6 +17,24 @@ QuadraticFunctional::QuadraticFunctional(const Operator *A,
                "QuadraticFunctional: A and b must have compatible sizes");
 }
 
+void QuadraticFunctional::SetOperator(const Operator &A)
+{
+   MFEM_VERIFY(A.Width() == A.Height(),
+               "QuadraticFunctional: A must be a square operator.");
+   this->A = &A;
+   width = A.Width();
+   aux.SetSize(width);
+}
+
+void QuadraticFunctional::SetVector(const Vector &b, const real_t beta)
+{
+   MFEM_VERIFY(A != nullptr && A->Width() == b.Size(),
+               "QuadraticFunctional: A and b must have compatible sizes.");
+   this->b = &b;
+   this->beta = beta;
+}
+void QuadraticFunctional::SetConstant(real_t c) { this->c = c; }
+
 void QuadraticFunctional::Mult(const Vector &x, Vector &y) const
 {
    MFEM_ASSERT(A != nullptr, "QuadraticFunctional: A must not be nullptr");
