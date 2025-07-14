@@ -44,17 +44,19 @@ protected:
 
    int id_counter;
 
-   // TODO: Trying to think about how to store this... 
-   ParticleData<int> ids;
+   ParticleArray<int> ids;
    std::unique_ptr<ParticleFunction> coords;
 
    int redistribute_mesh_idx;
    std::vector<Mesh*> meshes;
    std::vector<FindPointsGSLIB> finders;
 
-   using ParticleDataVar = std::variant<std::unique_ptr<ParticleData<int>>, std::unique_ptr<ParticleData<real_t>>>;
-   std::vector<std::string> all_pdata_names;
-   std::vector<ParticleDataVar> all_pdata;
+   // User-created data:
+   // For now we only allow ParticleFunction
+   // Can very easily add ParticleArray<int>
+   
+   std::vector<std::string> all_func_names;
+   std::vector<ParticleFunction> all_funcs;
 
 #ifdef MFEM_USE_MPI
    MPI_Comm comm;
@@ -95,13 +97,13 @@ public:
    void UpdateCoords(int i, const Vector &updated_coords)
    { UpdateCoords(Array<int>({i}), updated_coords); }
 
-   const Array<int>& GetIDs() const { return ids; }
+   const Array<int>& GetIDs() const { return ids.GetArray(); }
 
    int GetID(int i) const { return ids[i]; }
 
    // Optionally include string name for PrintCSV
-   template<typename T>
-   ParticleData<T>& CreateParticleData(int vdim=1, std::string name="");
+   //template<typename T>
+   //ParticleData<T>& CreateParticleData(int vdim=1, std::string name="");
 
    ParticleFunction& CreateParticleFunction(int vdim=1, std::string name="");
 

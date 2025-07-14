@@ -53,8 +53,8 @@ protected:
    virtual void SyncWrapper() = 0;
 
    // No public ctor -- only constructable through a ParticleSpace or derived
-   ParticleData(int num_particles, int reserve, int vdim_=1, Ordering::Type ordering_=Ordering::byNODES)
-   : vdim(vdim_), ordering(ordering_), np(0), data(reserve*vdim) { AddParticles(num_particles); SyncWrapper(); }
+   ParticleData(int reserve, int vdim_=1, Ordering::Type ordering_=Ordering::byNODES)
+   : vdim(vdim_), ordering(ordering_), np(0), data(reserve*vdim) {}
 
    T& GetParticleData(int i, int comp=0);
 
@@ -87,10 +87,10 @@ class ParticleArray : public ParticleData<T>
 protected:
    Array<T> a_data;
 
-   void SyncWrapper() override { a_data.MakeRef(*data, np, data.GetMemoryType(), false); }
+   void SyncWrapper() override { a_data.MakeRef(this->data, this->np, this->data.GetMemoryType(), false); }
 
    ParticleArray(int num_particles)
-   : ParticleData<T>(num_particles, num_particles) {};
+   : ParticleData<T>(num_particles) { ParticleData<T>::AddParticles(num_particles); };
    // TODO: For now, capacity == num_particles...
 
 public:
@@ -119,20 +119,20 @@ protected:
 
    ParticleFunction(const ParticleSpace &pspace, int vdim_=1);
 
-   void SyncWrapper() { v_data.NewMemoryAndSize(data, np, false); }
+   void SyncWrapper() { v_data.NewMemoryAndSize(this->data, this->np, false); }
 
 public:
 
-   T& GetParticleData(int i, int comp=0)
+   real_t& GetParticleData(int i, int comp=0)
    { return ParticleData<real_t>::GetParticleData(i, comp); }
 
-   const T& GetParticleData(int i, int comp=0) const
+   const real_t& GetParticleData(int i, int comp=0) const
    { return ParticleData<real_t>::GetParticleData(i, comp); }
 
    void GetParticleData(int i, Vector &pdata) const
    { ParticleData<real_t>::GetParticleData(i, pdata.GetMemory()); }
 
-   void SetParticleData(int i, const T &pdata, int comp=0)
+   void SetParticleData(int i, const real_t &pdata, int comp=0)
    { return ParticleData<real_t>::SetParticleData(i, pdata, comp); }
 
    void SetParticleData(int i, const Vector &pdata)
@@ -143,9 +143,9 @@ public:
    void SetParticleData(const Array<int> &indices, const Vector &pdatas)
    { ParticleData<real_t>::SetParticleData(indices, pdatas.GetMemory()); }
 
-   T& operator[](int idx) { return v_data[idx]; }
+   real_t& operator[](int idx) { return v_data[idx]; }
 
-   const T& operator[](int idx) const { return v_data[idx]; }
+   const real_t& operator[](int idx) const { return v_data[idx]; }
 
    const Vector& GetVector() const { return v_data; }
 

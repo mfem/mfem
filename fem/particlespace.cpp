@@ -50,26 +50,15 @@ void ParticleSpace::Initialize(Mesh *mesh, int seed)
    std::uniform_real_distribution<> real_dist(0.0,1.0);
 
    ParticleFunction &pf_coords = *coords;
-   if (ordering == Ordering::byNODES)
-   {
-      for (int i = 0; i < GetNP(); i++)
-      {
-         for (int d = 0; d < dim; d++)
-         {
-            pf_coords[i+d*GetNP()] = pos_min[d] + (pos_max[d] - pos_min[d])*real_dist(gen);
-         }
-      }
 
-   }
-   else
+   Vector particle_coords(dim);
+   for (int i = 0; i < GetNP(); i++)
    {
-      for (int i = 0; i < GetNP(); i++)
+      for (int d = 0; d < dim; d++)
       {
-         for (int d = 0; d < dim; d++)
-         {
-            pf_coords[d+i*dim] = pos_min[d] + (pos_max[d] - pos_min[d])*real_dist(gen);
-         }
+         particle_coords[d] = pos_min[d] + (pos_max[d] - pos_min[d])*real_dist(gen);
       }
+      pf_coords.SetParticleData(i, particle_coords);
    }
 
    // Register mesh if it exists
@@ -92,10 +81,12 @@ void ParticleSpace::AddParticles(const Vector &new_coords,
    int old_np = ids.Size();
    int num_new = new_ids.Size();
 
+   ids.AddParticles(num_new);
+
    for (int i = 0; i < num_new; i++)
    {
-      ids.Append(new_ids[i]);
       new_idxs[i] = i + old_np;
+      ids[new_idxs[i]] = new_ids[i];
    }
 
    // GetNP now up-to-date
@@ -104,17 +95,11 @@ void ParticleSpace::AddParticles(const Vector &new_coords,
    coords->AddParticles(num_new);
    UpdateCoords(new_idxs, new_coords); // FindPoints called...
 
-   // Update all registered ParticleData's
-   for (int d = 0; d < all_pdata.size(); d++)
+   // Update all registered ParticleFunctions
+   for (ParticleFunction &pf : all_funcs)
    {
-      std::visit(
-      [&](auto &pdata)
-      {
-         pdata->AddParticles(num_new);
-
-      }, all_pdata[d]);
+      pf.AddParticles(num_new);
    }
-
 }
 
 ParticleSpace::ParticleSpace(int dim_, int num_particles,
@@ -156,7 +141,7 @@ void ParticleSpace::RegisterMesh(Mesh &mesh_, bool set_as_redist)
 #endif // MFEM_USE_MPI
 
    finders.back().Setup(*meshes.back());
-   finders.back().FindPoints(coords->AsVector(), GetOrdering());
+   finders.back().FindPoints(coords->GetVector(), GetOrdering());
 
    if (set_as_redist)
    {
@@ -170,39 +155,35 @@ void ParticleSpace::UpdateCoords(const Array<int> &indices, const Vector &update
    coords->SetParticleData(indices, updated_coords);
    for (FindPointsGSLIB &finder : finders)
    {
-      finder.FindPoints(coords->AsVector(), GetOrdering());
+      finder.FindPoints(coords->GetVector(), GetOrdering());
    }
 }
 
-template<typename T>
-ParticleData<T>& ParticleSpace::CreateParticleData(int vdim, std::string name)
-{
-   std::unique_ptr<ParticleData<T>> pdata(new ParticleData<T>(GetNP(), GetOrdering(), vdim));
+// template<typename T>
+// ParticleData<T>& ParticleSpace::CreateParticleData(int vdim, std::string name)
+// {
+//    all_arrs.emplace_back(GetNP(), GetNP(), GetOrdering(), vdim);
 
-   all_pdata.emplace_back(std::move(pdata));
+//    if (name == "")
+//    {
+//       name = "Array_" + std::to_string(all_arrs.size()-1);
+//    }
+//    all_arr_names.push_back(name);
 
-   if (name == "")
-   {
-      name = "Data_" + std::to_string(all_pdata.size()-1);
-   }
-   all_pdata_names.push_back(name);
-
-   return *std::get<std::unique_ptr<ParticleData<T>>>(all_pdata.back());
-}
+//    return all_arrs.back();
+// }
 
 ParticleFunction& ParticleSpace::CreateParticleFunction(int vdim, std::string name)
 {
-   std::unique_ptr<ParticleFunction> pdata(new ParticleFunction(*this, vdim));
-
-   all_pdata.emplace_back(std::move(pdata));
+   all_funcs.emplace_back(ParticleFunction(*this,vdim));
 
    if (name == "")
    {
-      name = "Data_" + std::to_string(all_pdata.size()-1);
+      name = "Data_" + std::to_string(all_funcs.size()-1);
    }
-   all_pdata_names.push_back(name);
+   all_func_names.push_back(name);
 
-   return static_cast<ParticleFunction&>(*std::get<std::unique_ptr<ParticleData<real_t>>>(all_pdata.back()));
+   return all_funcs.back();
 }
 
 

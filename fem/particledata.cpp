@@ -30,7 +30,7 @@ void ParticleData<T>::AddParticles(int num_new)
       Memory<T> old = data;
       data.Delete();
       data.New(np*vdim, old.GetMemoryType());
-      data.UseDevice(old.UseDevice);
+      data.UseDevice(old.UseDevice());
       data.CopyFrom(old, np_old*vdim);
       old.Delete();
    }
@@ -72,7 +72,7 @@ void ParticleData<T>::RemoveParticles(const Array<int> &indices)
    np -= indices.Size();
 
    // Sort the indices
-   Array<int> sorted_list(list);
+   Array<int> sorted_list(indices);
    sorted_list.Sort();
 
    // Shift non-removed data, maintain capacity AT END OF DATA
@@ -213,12 +213,15 @@ void ParticleData<T>::SetParticleData(const Array<int> &indices,
    }
 }
 
+template class ParticleData<int>;
+template class ParticleData<real_t>;
 
 ParticleFunction::ParticleFunction(const ParticleSpace &pspace, int vdim_)
-: ParticleData<real_t>(pspace.GetNP(), pspace.GetNP(), pspace.GetOrdering(), vdim_),
-  pspace(pspace)        // ^TODO: For now, capacity == num_particles...
+: ParticleData<real_t>(pspace.GetNP(), vdim_, pspace.GetOrdering()),
+  pspace(pspace)
 {
-
+   // TODO: For now, capacity == num_particles...
+   AddParticles(pspace.GetNP());
 }
 
 // void ParticleFunction::Interpolate(GridFunction &gf)
