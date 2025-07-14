@@ -611,7 +611,7 @@ struct ForallKernel
 template <typename func_t>
 __global__ void forall_kernel_shmem(func_t f, int n)
 {
-   int i = blockIdx.x;
+   int i = MFEM_BLOCK_ID(x);
    extern __shared__ real_t shmem[];
    if (i < n)
    {

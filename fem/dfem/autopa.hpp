@@ -145,7 +145,7 @@ public:
       // NewAutoActionCallbackKernels::template Specialization<4,5>::Add();
       NewAutoActionCallbackKernels::template Specialization<5,6>::Add();
       // NewAutoActionCallbackKernels::template Specialization<6,7>::Add();
-      NewAutoActionCallbackKernels::template Specialization<7,8>::Add();
+      // NewAutoActionCallbackKernels::template Specialization<7,8>::Add();
       // NewAutoActionCallbackKernels::template Specialization<8,9>::Add();
       // NewAutoActionCallbackKernels::template Specialization<9,10>::Add();
    }
@@ -264,75 +264,37 @@ public:
          auto fhat = Reshape(&residual_shmem(0, 0), test_vdim,
                              test_op_dim, num_qp);
 
-         if (use_sum_factorization)
+         assert(use_sum_factorization);
+
+         MFEM_FOREACH_THREAD_DIRECT(qx, x, Q1D)
          {
-            if (dimension == 2)
+            MFEM_FOREACH_THREAD_DIRECT(qy, y, Q1D)
             {
-               MFEM_FOREACH_THREAD(qx, x, Q1D)
+               MFEM_FOREACH_THREAD_DIRECT(qz, z, Q1D)
                {
-                  MFEM_FOREACH_THREAD(qy, y, Q1D)
-                  {
-                     const int q = qx + Q1D * qy;
 
-                     for (int i = 0; i < test_vdim; i++)
-                     {
-                        for (int k = 0; k < test_op_dim; k++)
-                        {
-                           real_t sum = 0.0;
-                           size_t m_offset = 0;
-                           for (int s_i = 0; s_i < num_dependent_inputs; s_i++)
-                           {
-                              const int s = dpitod(s_i, 0);
-                              auto trial_op_dim = dpitod(s_i, 1);
-                              auto d_qp = Reshape(&(shadow_shmem[s])[0], trial_vdim, trial_op_dim, num_qp);
-                              for (int j = 0; j < trial_vdim; j++)
-                              {
-                                 for (size_t m = 0; m < trial_op_dim; m++)
-                                 {
-                                    sum += qpdc(i, k, j, m + m_offset, q, e) * d_qp(j, m, q);
-                                 }
-                              }
-                              m_offset += trial_op_dim;
-                           }
-                           fhat(i, k, q) = sum;
-                        }
-                     }
-                  }
-               }
-            }
-            else if (dimension == 3)
-            {
-               MFEM_FOREACH_THREAD(qx, x, Q1D)
-               {
-                  MFEM_FOREACH_THREAD(qy, y, Q1D)
+                  const int q = qx + Q1D * (qy + Q1D * qz);
+                  for (int i = 0; i < test_vdim; i++)
                   {
-                     MFEM_FOREACH_THREAD(qz, z, Q1D)
+                     for (int k = 0; k < test_op_dim; k++)
                      {
-
-                        const int q = qx + Q1D * (qy + Q1D * qz);
-                        for (int i = 0; i < test_vdim; i++)
+                        real_t sum = 0.0;
+                        size_t m_offset = 0;
+                        for (int s_i = 0; s_i < num_dependent_inputs; s_i++)
                         {
-                           for (int k = 0; k < test_op_dim; k++)
+                           const int s = dpitod(s_i, 0);
+                           auto trial_op_dim = dpitod(s_i, 1);
+                           auto d_qp = Reshape(&(shadow_shmem[s])[0], trial_vdim, trial_op_dim, num_qp);
+                           for (int j = 0; j < trial_vdim; j++)
                            {
-                              real_t sum = 0.0;
-                              size_t m_offset = 0;
-                              for (int s_i = 0; s_i < num_dependent_inputs; s_i++)
+                              for (size_t m = 0; m < trial_op_dim; m++)
                               {
-                                 const int s = dpitod(s_i, 0);
-                                 auto trial_op_dim = dpitod(s_i, 1);
-                                 auto d_qp = Reshape(&(shadow_shmem[s])[0], trial_vdim, trial_op_dim, num_qp);
-                                 for (int j = 0; j < trial_vdim; j++)
-                                 {
-                                    for (size_t m = 0; m < trial_op_dim; m++)
-                                    {
-                                       sum += qpdc(i, k, j, m + m_offset, q, e) * d_qp(j, m, q);
-                                    }
-                                 }
-                                 m_offset += trial_op_dim;
+                                 sum += qpdc(i, k, j, m + m_offset, q, e) * d_qp(j, m, q);
                               }
-                              fhat(i, k, q) = sum;
                            }
+                           m_offset += trial_op_dim;
                         }
+                        fhat(i, k, q) = sum;
                      }
                   }
                }
@@ -410,7 +372,7 @@ template<size_t num_inputs,
          size_t num_fields,
          typename output_fop_t>
 template<int D1D, int Q1D>
-inline MFEM_ALWAYS_INLINE MFEM_HOST_DEVICE
+inline MFEM_ALWAYS_INLINE
 typename NewAutoActionCallback<num_inputs, num_outputs, input_t, num_fields, output_fop_t>::NewAutoActionCallbackType
 NewAutoActionCallback<num_inputs, num_outputs, input_t, num_fields, output_fop_t>::NewAutoActionCallbackKernels::Kernel()
 {
@@ -422,7 +384,7 @@ template<size_t num_inputs,
          typename input_t,
          size_t num_fields,
          typename output_fop_t>
-inline MFEM_ALWAYS_INLINE MFEM_HOST_DEVICE
+inline MFEM_ALWAYS_INLINE
 typename NewAutoActionCallback<num_inputs, num_outputs, input_t, num_fields, output_fop_t>::NewAutoActionCallbackType
 NewAutoActionCallback<num_inputs, num_outputs, input_t, num_fields, output_fop_t>::NewAutoActionCallbackKernels::Fallback
 (int d1d, int q1d)

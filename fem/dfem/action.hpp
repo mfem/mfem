@@ -321,9 +321,9 @@ public:
          // this could be optimized out
          if (has_attr && !d_domain_attr[d_elem_attr[e] - 1]) { return; }
 
-         MFEM_SHARED alignas(64) real_t smem[MQ1][MQ1];
-         MFEM_SHARED alignas(64) real_t sB[MD1][MQ1];
-         MFEM_SHARED alignas(64) real_t sG[MD1][MQ1];
+         alignas(64) MFEM_SHARED real_t smem[MQ1][MQ1];
+         alignas(64) MFEM_SHARED real_t sB[MD1][MQ1];
+         alignas(64) MFEM_SHARED real_t sG[MD1][MQ1];
          alignas(64) kernels::internal::d_regs3d_t<DIM, MQ1> r0, r1;
          alignas(64) real_t *r2;
 
@@ -447,7 +447,7 @@ template<size_t num_fields,
          typename input_t,
          typename output_fop_t>
 template<int D1D, int Q1D>
-inline MFEM_ALWAYS_INLINE MFEM_HOST_DEVICE
+inline MFEM_ALWAYS_INLINE
 typename NewActionCallback<num_fields, num_inputs, num_outputs, qfunc_t, input_t, output_fop_t>::NewActionCallbackType
 NewActionCallback<num_fields, num_inputs, num_outputs, qfunc_t, input_t, output_fop_t>::NewActionCallbackKernels::Kernel()
 {
@@ -460,7 +460,7 @@ template<size_t num_fields,
          typename qfunc_t,
          typename input_t,
          typename output_fop_t>
-inline MFEM_ALWAYS_INLINE MFEM_HOST_DEVICE
+inline MFEM_ALWAYS_INLINE
 typename NewActionCallback<num_fields, num_inputs, num_outputs, qfunc_t, input_t, output_fop_t>::NewActionCallbackType
 NewActionCallback<num_fields, num_inputs, num_outputs, qfunc_t, input_t, output_fop_t>::NewActionCallbackKernels::Fallback
 (int d1d, int q1d)

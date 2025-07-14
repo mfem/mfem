@@ -179,13 +179,13 @@ public:
    {
       dbg();
       if (!use_kernels_specialization) { return; }
-      StiffnessKernels::template Specialization<2, 3>::Add();
-      StiffnessKernels::template Specialization<3, 4>::Add();
-      StiffnessKernels::template Specialization<4, 5>::Add();
+      // StiffnessKernels::template Specialization<2, 3>::Add();
+      // StiffnessKernels::template Specialization<3, 4>::Add();
+      // StiffnessKernels::template Specialization<4, 5>::Add();
       StiffnessKernels::template Specialization<5, 6>::Add();
-      StiffnessKernels::template Specialization<6, 7>::Add();
-      StiffnessKernels::template Specialization<7, 8>::Add();
-      StiffnessKernels::template Specialization<9, 10>::Add();
+      // StiffnessKernels::template Specialization<6, 7>::Add();
+      // StiffnessKernels::template Specialization<7, 8>::Add();
+      // StiffnessKernels::template Specialization<9, 10>::Add();
    }
 
    void AssemblePA(const FiniteElementSpace &fespace) override
@@ -283,9 +283,9 @@ public:
          constexpr int D1D = T_D1D;// ? T_D1D : d1d; // 🔥
          constexpr int Q1D = T_Q1D;// ? T_Q1D : q1d; // 🔥
 
-         MFEM_SHARED alignas(64) real_t smem[MQ1][MQ1];
-         MFEM_SHARED alignas(64) real_t sB[MD1][MQ1];
-         MFEM_SHARED alignas(64) real_t sG[MD1][MQ1];
+         alignas(64) MFEM_SHARED real_t smem[MQ1][MQ1];
+         alignas(64) MFEM_SHARED real_t sB[MD1][MQ1];
+         alignas(64) MFEM_SHARED real_t sG[MD1][MQ1];
          ker::vd_regs3d_t<VDIM, DIM, MQ1> r0, r1;
 
          ker::LoadMatrix(D1D, Q1D, b, sB);
@@ -346,9 +346,9 @@ public:
          // const int D1D = T_D1D ? T_D1D : d1d;
          // const int Q1D = T_Q1D ? T_Q1D : q1d;
 
-         MFEM_SHARED alignas(64) real_t smem[MQ1][MQ1];
-         MFEM_SHARED alignas(64) real_t sB[MD1][MQ1];
-         MFEM_SHARED alignas(64) real_t sG[MD1][MQ1];
+         alignas(64) MFEM_SHARED real_t smem[MQ1][MQ1];
+         alignas(64) MFEM_SHARED real_t sB[MD1][MQ1];
+         alignas(64) MFEM_SHARED real_t sG[MD1][MQ1];
 
          constexpr int MZ1 = MQZ<MQ1>::value;
          alignas(64) mfem::future::tensor<real_t, MQ1, MZ1, MZ1, VDIM, DIM> v0, v1;
@@ -564,7 +564,8 @@ struct Diffusion : public BakeOff<VDIM, GLL>
             MFEM_VERIFY(q1d == gQ1D, "Q1D mismatch: " << q1d << " != " << gQ1D);
          }
       }
-      else if (version == MF_DFEM) // MF_DFEM: MF ∂fem
+      // ∂fem: MF
+      else if (version == MF_DFEM)
       {
          dbg("MF ∂fem");
          auto solutions = std::vector{FieldDescriptor{U, &pfes}};
@@ -586,7 +587,8 @@ struct Diffusion : public BakeOff<VDIM, GLL>
          dop->FormLinearSystem(ess_tdof_list, x, b, A_ptr, X, B);
          A.Reset(A_ptr);
       }
-      else if (version == PA_DFEM || version == PA_DFEM_NEW) // PA ∂fem
+      // ∂fem: PA, PA NEW
+      else if (version == PA_DFEM || version == PA_DFEM_NEW)
       {
          dbg("[PA ∂fem] setup");
          const auto pa_setup_qf =
@@ -627,7 +629,8 @@ struct Diffusion : public BakeOff<VDIM, GLL>
          dop->FormLinearSystem(ess_tdof_list, x, b, A_ptr, X, B);
          A.Reset(A_ptr);
       }
-      else if (version == AUTO_PA_DFEM || version == AUTO_PA_DFEM_NEW) // Auto PA
+      // ∂fem: Auto PA, AUTO PA NEW
+      else if (version == AUTO_PA_DFEM || version == AUTO_PA_DFEM_NEW)
       {
          dbg("[Auto PA ∂fem]");
          const auto solutions = std::vector{FieldDescriptor{U, &pfes}};
@@ -662,7 +665,7 @@ struct Diffusion : public BakeOff<VDIM, GLL>
       cg.iterative_mode = false;
       if (dofs < 128 * 1024) // check
       {
-         cg.SetPrintLevel(-1);
+         cg.SetPrintLevel(3/*-1*/);
          cg.SetMaxIter(2000);
          cg.SetRelTol(1e-8);
          cg.SetAbsTol(0.0);
@@ -674,7 +677,7 @@ struct Diffusion : public BakeOff<VDIM, GLL>
             MFEM_VERIFY(lCGNI == gCGNI,
                         "❌ CG iterations" << lCGNI << " != " << gCGNI);
          MFEM_DEVICE_SYNC;
-         // mfem::out << "✅" << std::endl;
+         db1("✅");
       }
       cg.SetAbsTol(0.0);
       cg.SetRelTol(rtol);
