@@ -260,6 +260,7 @@ public:
 
    /// Copy constructor
    StdComplexDenseMatrix(const StdComplexDenseMatrix &);
+   StdComplexDenseMatrix(const DenseMatrix &);
 
    /// Creates square matrix of size s.
    explicit StdComplexDenseMatrix(int s);

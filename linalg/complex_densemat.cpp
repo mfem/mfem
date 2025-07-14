@@ -1036,6 +1036,22 @@ StdComplexDenseMatrix::StdComplexDenseMatrix(const StdComplexDenseMatrix &m)
    }
 }
 
+StdComplexDenseMatrix::StdComplexDenseMatrix(const DenseMatrix &m)
+   : height(m.Height()), width(m.Width())
+{
+   const int hw = height * width;
+   if (hw > 0)
+   {
+      MFEM_ASSERT(m.data, "invalid source matrix");
+      data.New(hw);
+
+      for (int i = 0; i < hw; i++)
+      {
+         data[i] = m.data[i];
+      }
+   }
+}
+
 StdComplexDenseMatrix::StdComplexDenseMatrix(int s)
    : height(s), width(s)
 {
