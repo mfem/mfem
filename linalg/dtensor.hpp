@@ -13,6 +13,7 @@
 #define MFEM_DTENSOR
 
 #include "../general/backends.hpp"
+#include "../config/tconfig.hpp" // MFEM_ALWAYS_INLINE
 #include <array>
 
 namespace mfem
@@ -23,8 +24,8 @@ template <int N, int Dim, typename T, typename... Args>
 class TensorInd
 {
 public:
-   MFEM_HOST_DEVICE
-   static inline int result(const int* sizes, T first, Args... args)
+   static inline MFEM_ALWAYS_INLINE MFEM_HOST_DEVICE
+   int result(const int* sizes, T first, Args... args)
    {
 #if !(defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))
       MFEM_ASSERT(first<sizes[N-1],"Trying to access out of boundary.");
@@ -39,8 +40,8 @@ template <int Dim, typename T, typename... Args>
 class TensorInd<Dim, Dim, T, Args...>
 {
 public:
-   MFEM_HOST_DEVICE
-   static inline int result(const int* sizes, T first, Args... args)
+   static inline MFEM_ALWAYS_INLINE MFEM_HOST_DEVICE
+   int result(const int* sizes, T first, Args... args)
    {
 #if !(defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))
       MFEM_ASSERT(first<static_cast<T>(sizes[Dim-1]),
@@ -56,8 +57,8 @@ template <int N, int Dim, typename T, typename... Args>
 class Init
 {
 public:
-   MFEM_HOST_DEVICE
-   static inline int result(int* sizes, T first, Args... args)
+   static inline MFEM_ALWAYS_INLINE MFEM_HOST_DEVICE
+   int result(int* sizes, T first, Args... args)
    {
       sizes[N - 1] = first;
       return first * Init < N + 1, Dim, Args... >::result(sizes, args...);
@@ -69,8 +70,8 @@ template <int Dim, typename T, typename... Args>
 class Init<Dim, Dim, T, Args...>
 {
 public:
-   MFEM_HOST_DEVICE
-   static inline int result(int* sizes, T first, Args... args)
+   static inline MFEM_ALWAYS_INLINE MFEM_HOST_DEVICE
+   int result(int* sizes, T first, Args... args)
    {
       sizes[Dim - 1] = first;
       return first;
@@ -90,11 +91,12 @@ protected:
 public:
    /// Default constructor
    // DeviceTensor() = delete;
-   MFEM_HOST_DEVICE
-   DeviceTensor() {}
+   inline MFEM_ALWAYS_INLINE MFEM_HOST_DEVICE
+   DeviceTensor() = default;
 
    /// Constructor to initialize a tensor from the Scalar array data_
-   template <typename... Args> MFEM_HOST_DEVICE
+   template <typename... Args>
+   inline MFEM_ALWAYS_INLINE MFEM_HOST_DEVICE
    DeviceTensor(Scalar* data_, Args... args)
    {
       static_assert(sizeof...(args) == Dim, "Wrong number of arguments");
@@ -105,16 +107,19 @@ public:
    }
 
    /// Copy constructor (default)
+   inline MFEM_ALWAYS_INLINE MFEM_HOST_DEVICE
    DeviceTensor(const DeviceTensor&) = default;
 
    /// Copy assignment (default)
+   inline MFEM_ALWAYS_INLINE MFEM_HOST_DEVICE
    DeviceTensor& operator=(const DeviceTensor&) = default;
 
    /// Conversion to `Scalar *`.
-   MFEM_HOST_DEVICE inline operator Scalar *() const { return data; }
+   inline MFEM_ALWAYS_INLINE MFEM_HOST_DEVICE operator Scalar *() const { return data; }
 
    /// Const accessor for the data
-   template <typename... Args> MFEM_HOST_DEVICE inline
+   template <typename... Args>
+   inline MFEM_ALWAYS_INLINE MFEM_HOST_DEVICE
    Scalar& operator()(Args... args) const
    {
       static_assert(sizeof...(args) == Dim, "Wrong number of arguments");
@@ -122,36 +127,37 @@ public:
    }
 
    /// Subscript operator where the tensor is viewed as a 1D array.
-   MFEM_HOST_DEVICE inline Scalar& operator[](int i) const
+   inline MFEM_ALWAYS_INLINE MFEM_HOST_DEVICE Scalar& operator[](int i) const
    {
       return data[i];
    }
 
    /// Returns the shape of the tensor.
-   MFEM_HOST_DEVICE inline auto &GetShape() const { return sizes; }
+   inline MFEM_ALWAYS_INLINE MFEM_HOST_DEVICE auto &GetShape() const { return sizes; }
 };
 
 
 /** @brief Wrap a pointer as a DeviceTensor with automatically deduced template
     parameters */
-template <typename T, typename... Dims> MFEM_HOST_DEVICE
-inline DeviceTensor<sizeof...(Dims),T> Reshape(T *ptr, Dims... dims)
+template <typename T, typename... Dims>
+inline MFEM_ALWAYS_INLINE MFEM_HOST_DEVICE
+DeviceTensor<sizeof...(Dims),T> Reshape(T *ptr, Dims... dims)
 {
    return DeviceTensor<sizeof...(Dims),T>(ptr, dims...);
 }
 
 
-typedef DeviceTensor<1,int> DeviceArray;
-typedef DeviceTensor<1,const int> ConstDeviceArray;
+using DeviceArray = DeviceTensor<1,int>;
+using ConstDeviceArray = DeviceTensor<1,const int>;
 
-typedef DeviceTensor<1,real_t> DeviceVector;
-typedef DeviceTensor<1,const real_t> ConstDeviceVector;
+using DeviceVector = DeviceTensor<1,real_t>;
+using ConstDeviceVector = DeviceTensor<1,const real_t>;
 
-typedef DeviceTensor<2,real_t> DeviceMatrix;
-typedef DeviceTensor<2,const real_t> ConstDeviceMatrix;
+using DeviceMatrix = DeviceTensor<2,real_t>;
+using ConstDeviceMatrix = DeviceTensor<2,const real_t>;
 
-typedef DeviceTensor<3,real_t> DeviceCube;
-typedef DeviceTensor<3,const real_t> ConstDeviceCube;
+using DeviceCube = DeviceTensor<3,real_t>;
+using ConstDeviceCube = DeviceTensor<3,const real_t>;
 
 } // mfem namespace
 

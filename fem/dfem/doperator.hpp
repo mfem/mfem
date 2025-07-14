@@ -739,7 +739,7 @@ void DifferentiableOperator::AddDomainIntegrator(
               Vector &residual_l)
             mutable
          {
-            db1("NEW Action");
+            // db1("NEW Action");
             NewActionCallback action(use_kernels_specialization,
                                      restriction_cb,
                                      qfunc,

@@ -13,6 +13,7 @@
 #define MFEM_KERNEL_DISPATCH_HPP
 
 #include "../config/config.hpp"
+#include "../config/tconfig.hpp" // MFEM_ALWAYS_INLINE
 #include "kernel_reporter.hpp"
 #include <unordered_map>
 #include <tuple>
@@ -95,11 +96,13 @@ struct KernelDispatchKeyHash
 {
 private:
    template<int N>
+   inline MFEM_ALWAYS_INLINE
    size_t operator()(std::tuple<KernelParameters...> value) const { return 0; }
 
    // The hashing formula here is taken directly from the Boost library, with
    // the magic number 0x9e3779b9 chosen to minimize hashing collisions.
    template<std::size_t N, typename THead, typename... TTail>
+   inline MFEM_ALWAYS_INLINE
    size_t operator()(std::tuple<KernelParameters...> value) const
    {
       constexpr int Index = N - sizeof...(TTail) - 1;
@@ -109,6 +112,7 @@ private:
    }
 public:
    /// Returns the hash of the given @a value.
+   inline MFEM_ALWAYS_INLINE
    size_t operator()(std::tuple<KernelParameters...> value) const
    {
       return operator()<sizeof...(KernelParameters),KernelParameters...>(value);
@@ -137,7 +141,8 @@ class KernelDispatchTable<Kernels,
    /// Only valid when the function @a f is not a member function.
    template <typename F, typename... Args,
              typename std::enable_if<std::is_pointer<F>::value,bool>::type=true>
-   static void Invoke(F f, Args&&... args)
+   static inline MFEM_ALWAYS_INLINE
+   void Invoke(F f, Args&&... args)
    {
       f(std::forward<Args>(args)...);
    }
@@ -149,7 +154,8 @@ class KernelDispatchTable<Kernels,
    template <typename F, typename T, typename... Args,
              typename std::enable_if<
                 std::is_member_function_pointer<F>::value,bool>::type=true>
-   static void Invoke(F f, T&& t, Args&&... args)
+   static inline MFEM_ALWAYS_INLINE
+   void Invoke(F f, T&& t, Args&&... args)
    {
       (t.*f)(std::forward<Args>(args)...);
    }
@@ -164,7 +170,8 @@ public:
    /// If the kernel is a member function, then the first argument after @a
    /// params should be the object on which it is called.
    template<typename... Args>
-   static void Run(Params... params, Args&&... args)
+   static inline MFEM_ALWAYS_INLINE
+   void Run(Params... params, Args&&... args)
    {
       const auto &table = Kernels::Get().table;
       const std::tuple<Params...> key = std::make_tuple(params...);

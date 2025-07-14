@@ -11,6 +11,7 @@
 #pragma once
 
 #include <cstddef>
+#include <utility>
 
 #include "fem/kernels.hpp"
 #include "fem/kernel_dispatch.hpp"
@@ -44,7 +45,7 @@ namespace mfem::future
 {
 
 template <std::size_t num_fields>
-MFEM_HOST_DEVICE inline
+inline MFEM_ALWAYS_INLINE MFEM_HOST_DEVICE
 std::array<DeviceTensor<1>, num_fields>
 load_field_address(const std::array<int, num_fields> &sizes,
                    const std::array<DeviceTensor<2>, num_fields> &fields_e,
@@ -60,7 +61,7 @@ load_field_address(const std::array<int, num_fields> &sizes,
 }
 
 template <std::size_t N>
-MFEM_HOST_DEVICE inline
+inline MFEM_ALWAYS_INLINE MFEM_HOST_DEVICE
 std::array<real_t*, N>
 load_field_e_ptr(const std::array<DeviceTensor<2>, N> &fields_e,
                  const int e)
@@ -74,7 +75,7 @@ namespace qf
 {
 
 template <typename reg_t, typename T, int n>
-MFEM_HOST_DEVICE inline
+inline MFEM_ALWAYS_INLINE MFEM_HOST_DEVICE
 void process_qf_result_from_reg(reg_t &r0,
                                 const int qx, const int qy, const int qz,
                                 const tensor<T, n> &v)
@@ -89,7 +90,7 @@ template <int T_Q1D,
           typename reg_t,
           typename qfunc_t,
           typename args_ts>
-MFEM_HOST_DEVICE inline
+inline MFEM_ALWAYS_INLINE MFEM_HOST_DEVICE
 void apply_kernel(reg_t &r0, reg_t &r1,
                   real_t *r2, const int Q1D,
                   const int qx, const int qy, const int qz,
@@ -105,7 +106,7 @@ void apply_kernel(reg_t &r0, reg_t &r1,
       arg_0[2] = r1[2][qz][qy][qx];
 
       // D (PA data)
-      tensor<real_t, 3, 3> &arg_1 = get<1>(args);
+      alignas(64) tensor<real_t, 3, 3> &arg_1 = get<1>(args);
 
       if constexpr (T_Q1D > 0)
       {
@@ -160,8 +161,8 @@ template<size_t num_fields,
          typename output_fop_t>
 class NewActionCallback
 {
-   restriction_cb_t &restriction_cb;
-   qfunc_t &qfunc;
+   const restriction_cb_t restriction_cb;
+   const qfunc_t qfunc;
    input_t &inputs;
    const std::array<int, num_inputs> &input_to_field;
    const std::array<DofToQuadMap, num_inputs> &input_dtq_maps;
@@ -176,19 +177,20 @@ class NewActionCallback
    Array<int> &elem_attributes;
    const output_fop_t &output_fop;
    const Array<int> &domain_attributes;
-   // &
+   // refs
    std::vector<Vector> &fields_e;
    Vector &residual_e;
-   std::function<void(Vector &, Vector &)> &output_restriction_transpose;
+   std::function<void(Vector &, Vector &)> output_restriction_transpose;
    // args
    std::vector<Vector> &solutions_l;
    const std::vector<Vector> &parameters_l;
    Vector &residual_l;
 
 public:
+   inline MFEM_ALWAYS_INLINE
    NewActionCallback(const bool use_kernels_specialization,
-                     restriction_cb_t &restriction_cb,
-                     qfunc_t &qfunc,
+                     const restriction_cb_t restriction_cb,
+                     const qfunc_t qfunc,
                      input_t &inputs,
                      const std::array<int, num_inputs> &input_to_field,
                      const std::array<DofToQuadMap, num_inputs> &input_dtq_maps,
@@ -206,7 +208,7 @@ public:
                      // refs
                      std::vector<Vector> &fields_e,
                      Vector &residual_e,
-                     std::function<void(Vector &, Vector &)> &output_restriction_transpose,
+                     std::function<void(Vector &, Vector &)> output_restriction_transpose,
                      // args
                      std::vector<Vector> &solutions_l,
                      const std::vector<Vector> &parameters_l,
@@ -229,7 +231,7 @@ public:
       domain_attributes(domain_attributes),
       fields_e(fields_e),
       residual_e(residual_e),
-      output_restriction_transpose(output_restriction_transpose),
+      output_restriction_transpose(std::move(output_restriction_transpose)),
       solutions_l(solutions_l),
       parameters_l(parameters_l),
       residual_l(residual_l)
@@ -245,42 +247,45 @@ public:
    }
 
    template<int T_D1D = 0, int T_Q1D = 0>
-   static void action_callback_new(restriction_cb_t &restriction_cb,
-                                   qfunc_t &qfunc,
-                                   input_t &inputs,
-                                   const std::array<int, num_inputs> &input_to_field,
-                                   const std::array<DofToQuadMap, num_inputs> &input_dtq_maps,
-                                   const std::array<DofToQuadMap, num_outputs> &output_dtq_maps,
-                                   const int num_entities,
-                                   const int test_vdim,
-                                   const int num_test_dof,
-                                   const int dimension,
-                                   //   const int q1d,
-                                   const ThreadBlocks &thread_blocks,
-                                   SharedMemoryInfo<num_fields, num_inputs, num_outputs> &shmem_info,
-                                   Array<int> &elem_attributes,
-                                   const output_fop_t &output_fop,
-                                   const Array<int> &domain_attributes,
-                                   // &
-                                   std::vector<Vector> &fields_e,
-                                   Vector &residual_e,
-                                   std::function<void(Vector &, Vector &)> &output_restriction_transpose,
-                                   // args
-                                   std::vector<Vector> &solutions_l,
-                                   const std::vector<Vector> &parameters_l,
-                                   Vector &residual_l,
-                                   // fallback arguments
-                                   const int d1d, const int q1d)
+   static inline MFEM_ALWAYS_INLINE
+   void action_callback_new(const restriction_cb_t restriction_cb,
+                            const qfunc_t qfunc,
+                            input_t &inputs,
+                            const std::array<int, num_inputs> &input_to_field,
+                            const std::array<DofToQuadMap, num_inputs> &input_dtq_maps,
+                            const std::array<DofToQuadMap, num_outputs> &output_dtq_maps,
+                            const int num_entities,
+                            const int test_vdim,
+                            const int num_test_dof,
+                            const int dimension,
+                            //   const int q1d,
+                            const ThreadBlocks &thread_blocks,
+                            SharedMemoryInfo<num_fields, num_inputs, num_outputs> &shmem_info,
+                            Array<int> &elem_attributes,
+                            const output_fop_t &output_fop,
+                            const Array<int> &domain_attributes,
+                            // &
+                            std::vector<Vector> &fields_e,
+                            Vector &residual_e,
+                            std::function<void(Vector &, Vector &)> &output_restriction_transpose,
+                            // args
+                            std::vector<Vector> &solutions_l,
+                            const std::vector<Vector> &parameters_l,
+                            Vector &residual_l,
+                            // fallback arguments
+                            const int d1d, const int q1d)
    {
       db1();
       assert(dimension == 3);
 
-      const int D1D = T_D1D ? T_D1D : d1d;
-      const int Q1D = T_Q1D ? T_Q1D : q1d;
+      // constexpr int D1D = T_D1D;// ? T_D1D : d1d; // 🔥
+      // constexpr int Q1D = T_Q1D;// ? T_Q1D : q1d; // 🔥
 
       constexpr int DIM = 3;
       constexpr int MQ1 = T_Q1D > 0 ? kernels::internal::SetMaxOf(T_Q1D) : 32;
       constexpr int MD1 = T_D1D > 0 ? kernels::internal::SetMaxOf(T_D1D) : 32;
+      // constexpr int MQ1 = T_Q1D ? T_Q1D : 32;
+      // constexpr int MD1 = T_D1D ? T_D1D : 32;
 
       // types
       using qf_signature =
@@ -305,13 +310,17 @@ public:
       // db1("forall");
       forall([=] MFEM_HOST_DEVICE (int e, void *)
       {
+         constexpr int D1D = T_D1D;// ? T_D1D : d1d; // 🔥
+         constexpr int Q1D = T_Q1D;// ? T_Q1D : q1d; // 🔥
+
          // this could be optimized out
          if (has_attr && !d_domain_attr[d_elem_attr[e] - 1]) { return; }
 
-         MFEM_SHARED real_t smem[MQ1][MQ1];
-         MFEM_SHARED real_t sB[MD1][MQ1], sG[MD1][MQ1];
-         kernels::internal::d_regs3d_t<DIM, MQ1> r0, r1;
-         real_t *r2;
+         MFEM_SHARED alignas(64) real_t smem[MQ1][MQ1];
+         MFEM_SHARED alignas(64) real_t sB[MD1][MQ1];
+         MFEM_SHARED alignas(64) real_t sG[MD1][MQ1];
+         alignas(64) kernels::internal::d_regs3d_t<DIM, MQ1> r0, r1;
+         alignas(64) real_t *r2;
 
          const auto fields_e_ptr = load_field_e_ptr(wrapped_fields_e, e);
 
@@ -319,21 +328,24 @@ public:
          const auto dummy_field_weight = DeviceTensor<1>(nullptr, 0);
          for_constexpr<num_inputs>([&](auto i)
          {
+            constexpr int D1D = T_D1D; // 🔥
+            constexpr int Q1D = T_Q1D; // 🔥
             const auto input = get<i>(inputs);
             using field_operator_t = std::decay_t<decltype(input)>;
 
             if constexpr (is_gradient_fop<field_operator_t>::value) // Grad
             {
-               const int vdim = input.vdim;
+               // const int vdim = input.vdim;
+               constexpr int VDIM = 1; // 🔥
                const real_t *field_e_r = fields_e_ptr[input_to_field[i]];
-               const auto field = Reshape(field_e_r, D1D, D1D, D1D, vdim);
+               const auto field = Reshape(field_e_r, D1D, D1D, D1D, VDIM);
                const auto dtq = input_dtq_maps[i];
                const auto B = dtq.B, G = dtq.G;
                kernels::internal::LoadMatrix(D1D, Q1D, B, sB);
                kernels::internal::LoadMatrix(D1D, Q1D, G, sG);
                // const auto B = reinterpret_cast<const real_t (*)[MQ1]>(Bi[i]);
                // const auto G = reinterpret_cast<const real_t (*)[MQ1]>(Gi[i]);
-               for (int c = 0; c < vdim; c++)
+               for (int c = 0; c < VDIM; c++)
                {
                   kernels::internal::LoadDofs3d(D1D, c, field, r0);
                   kernels::internal::Grad3d(D1D, Q1D, smem, sB, sG, r0, r1, c);
@@ -351,8 +363,10 @@ public:
          auto qf_args = decay_tuple<qf_param_ts> {};
          for (int qz = 0; qz < Q1D; ++qz)
          {
+            MFEM_UNROLL(MQ1)
             MFEM_FOREACH_THREAD_DIRECT(qy, y, Q1D)
             {
+               MFEM_UNROLL(MQ1)
                MFEM_FOREACH_THREAD_DIRECT(qx, x, Q1D)
                {
                   qf::apply_kernel<T_Q1D, num_inputs>(r0, r1, r2, Q1D, qx, qy, qz,
@@ -365,11 +379,12 @@ public:
          auto y = Reshape(&ye(0, 0, e), num_test_dof, test_vdim);
          if constexpr (is_gradient_fop<std::decay_t<output_fop_t>>::value) // Gradient
          {
-            const int vdim = output_fop.vdim;
-            auto yd = Reshape(&y(0, 0), D1D, D1D, D1D, vdim);
+            // const int vdim = output_fop.vdim;
+            constexpr int VDIM = 1; // 🔥
+            auto yd = Reshape(&y(0, 0), D1D, D1D, D1D, VDIM);
             // const auto B = reinterpret_cast<const real_t (*)[MQ1]>(Bo);
             // const auto G = reinterpret_cast<const real_t (*)[MQ1]>(Go);
-            for (int c = 0; c < vdim; c++)
+            for (int c = 0; c < VDIM; c++)
             {
                kernels::internal::GradTranspose3d(D1D, Q1D, smem, sB, sG, r0, r1, c);
                kernels::internal::WriteDofs3d(D1D, c, r1, yd);
@@ -388,6 +403,7 @@ public:
    using KernelSignature = decltype(&NewActionCallback::action_callback_new<>);
    MFEM_REGISTER_KERNELS(NewActionCallbackKernels, KernelSignature, (int, int));
 
+   inline MFEM_ALWAYS_INLINE MFEM_HOST_DEVICE
    void Apply(const int d1d, const int q1d)
    {
       NewActionCallbackKernels::Run(d1d, q1d,
@@ -426,6 +442,7 @@ template<size_t num_fields,
          typename input_t,
          typename output_fop_t>
 template<int D1D, int Q1D>
+inline MFEM_ALWAYS_INLINE MFEM_HOST_DEVICE
 typename NewActionCallback<num_fields, num_inputs, num_outputs, restriction_cb_t, qfunc_t, input_t, output_fop_t>::KernelSignature
 NewActionCallback<num_fields, num_inputs, num_outputs, restriction_cb_t, qfunc_t, input_t, output_fop_t>::NewActionCallbackKernels::Kernel()
 {
@@ -439,6 +456,7 @@ template<size_t num_fields,
          typename qfunc_t,
          typename input_t,
          typename output_fop_t>
+inline MFEM_ALWAYS_INLINE MFEM_HOST_DEVICE
 typename NewActionCallback<num_fields, num_inputs, num_outputs, restriction_cb_t, qfunc_t, input_t, output_fop_t>::KernelSignature
 NewActionCallback<num_fields, num_inputs, num_outputs, restriction_cb_t, qfunc_t, input_t, output_fop_t>::NewActionCallbackKernels::Fallback
 (int d1d, int q1d)

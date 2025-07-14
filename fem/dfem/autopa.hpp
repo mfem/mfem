@@ -12,7 +12,7 @@
 
 #include <cstddef>
 
-// #include "fem/kernels.hpp"
+#include "fem/kernels.hpp"
 #include "fem/kernel_dispatch.hpp"
 
 #include "util.hpp"
@@ -71,6 +71,7 @@ class NewAutoActionCallback
    Vector &der_action_l;
 
 public:
+   inline MFEM_ALWAYS_INLINE
    NewAutoActionCallback(const bool &use_kernels_specialization,
                          input_t &inputs,
                          const std::array<DofToQuadMap, num_inputs> &input_dtq_maps,
@@ -149,7 +150,8 @@ public:
       // NewAutoActionCallbackKernels::template Specialization<9,10>::Add();
    }
 
-   template<int T_D1D = 0, int T_Q1D = 0> static
+   template<int T_D1D = 0, int T_Q1D = 0>
+   static inline MFEM_ALWAYS_INLINE
    void auto_pa_action_callback(const input_t &inputs,
                                 const std::array<DofToQuadMap, num_inputs> &input_dtq_maps,
                                 const std::array<DofToQuadMap, num_outputs> &output_dtq_maps,
@@ -358,6 +360,8 @@ public:
    MFEM_REGISTER_KERNELS(NewAutoActionCallbackKernels,
                          KernelSignature, (int, int));
 
+
+   inline MFEM_ALWAYS_INLINE MFEM_HOST_DEVICE
    void Apply(const int d1d, const int q1d)
    {
       NewAutoActionCallbackKernels::Run(d1d, q1d,
@@ -406,6 +410,7 @@ template<size_t num_inputs,
          size_t num_fields,
          typename output_fop_t>
 template<int D1D, int Q1D>
+inline MFEM_ALWAYS_INLINE MFEM_HOST_DEVICE
 typename NewAutoActionCallback<num_inputs, num_outputs, input_t, num_fields, output_fop_t>::KernelSignature
 NewAutoActionCallback<num_inputs, num_outputs, input_t, num_fields, output_fop_t>::NewAutoActionCallbackKernels::Kernel()
 {
@@ -417,6 +422,7 @@ template<size_t num_inputs,
          typename input_t,
          size_t num_fields,
          typename output_fop_t>
+inline MFEM_ALWAYS_INLINE MFEM_HOST_DEVICE
 typename NewAutoActionCallback<num_inputs, num_outputs, input_t, num_fields, output_fop_t>::KernelSignature
 NewAutoActionCallback<num_inputs, num_outputs, input_t, num_fields, output_fop_t>::NewAutoActionCallbackKernels::Fallback
 (int d1d, int q1d)

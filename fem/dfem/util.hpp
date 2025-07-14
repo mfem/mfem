@@ -38,6 +38,7 @@ namespace mfem::future
 {
 
 template<typename... Ts>
+inline MFEM_ALWAYS_INLINE
 constexpr auto to_array(const std::tuple<Ts...>& tuple)
 {
    constexpr auto get_array = [](const Ts&... x) { return std::array<typename std::common_type<Ts...>::type, sizeof...(Ts)> { x... }; };
@@ -48,6 +49,7 @@ namespace detail
 {
 
 template <typename lambda, std::size_t... i>
+inline MFEM_ALWAYS_INLINE
 constexpr void for_constexpr(lambda&& f,
                              std::integral_constant<std::size_t, i>... Is)
 {
@@ -56,6 +58,7 @@ constexpr void for_constexpr(lambda&& f,
 
 
 template <std::size_t... n, typename lambda, typename... arg_types>
+inline MFEM_ALWAYS_INLINE
 constexpr void for_constexpr(lambda&& f,
                              std::integer_sequence<std::size_t, n...>,
                              arg_types... args)
@@ -67,6 +70,7 @@ constexpr void for_constexpr(lambda&& f,
 }  // namespace detail
 
 template <typename lambda, std::size_t... i>
+inline MFEM_ALWAYS_INLINE
 constexpr void for_constexpr(lambda&& f,
                              std::integer_sequence<std::size_t, i ... >)
 {
@@ -74,15 +78,18 @@ constexpr void for_constexpr(lambda&& f,
 }
 
 template <typename lambda>
+inline MFEM_ALWAYS_INLINE
 constexpr void for_constexpr(lambda&& f, std::integer_sequence<std::size_t>) {}
 
 template <int... n, typename lambda>
+inline MFEM_ALWAYS_INLINE
 constexpr void for_constexpr(lambda&& f)
 {
    detail::for_constexpr(f, std::make_integer_sequence<std::size_t, n> {}...);
 }
 
 template <typename lambda, typename arg_t>
+inline MFEM_ALWAYS_INLINE
 constexpr void for_constexpr_with_arg(lambda&& f, arg_t&& arg,
                                       std::integer_sequence<std::size_t>)
 {
@@ -90,6 +97,7 @@ constexpr void for_constexpr_with_arg(lambda&& f, arg_t&& arg,
 }
 
 template <typename lambda, typename arg_t, std::size_t i, std::size_t... Is>
+inline MFEM_ALWAYS_INLINE
 constexpr void for_constexpr_with_arg(lambda&& f, arg_t&& arg,
                                       std::integer_sequence<std::size_t, i, Is...>)
 {
@@ -99,6 +107,7 @@ constexpr void for_constexpr_with_arg(lambda&& f, arg_t&& arg,
 }
 
 template <typename lambda, typename arg_t>
+inline MFEM_ALWAYS_INLINE
 constexpr void for_constexpr_with_arg(lambda&& f, arg_t&& arg)
 {
    using indices =
@@ -108,6 +117,7 @@ constexpr void for_constexpr_with_arg(lambda&& f, arg_t&& arg)
 }
 
 template <typename... input_ts, std::size_t... Is>
+inline MFEM_ALWAYS_INLINE
 auto make_dependency_map_impl(
    tuple<input_ts...> inputs,
    std::index_sequence<Is...>)
@@ -136,6 +146,7 @@ auto make_dependency_map_impl(
 // @returns an unordered_map where the keys are the field IDs and the values
 // are arrays of booleans indicating which inputs depend on each field ID.
 template <typename... input_ts>
+inline MFEM_ALWAYS_INLINE
 auto make_dependency_map(tuple<input_ts...> inputs)
 {
    return make_dependency_map_impl(inputs, std::index_sequence_for<input_ts...> {});
@@ -150,6 +161,7 @@ auto make_dependency_map(tuple<input_ts...> inputs)
 // ```
 // prints "int".
 template <typename T>
+inline MFEM_ALWAYS_INLINE
 constexpr auto get_type_name() -> std::string_view
 {
 #if defined(__clang__)
@@ -253,6 +265,7 @@ void pretty_print(const mfem::Vector& v)
 ///
 /// @param v vector of vectors to print
 template <typename T>
+inline
 void pretty_print(const mfem::Array<T>& v)
 {
    out << "[";
@@ -275,6 +288,7 @@ void pretty_print(const mfem::Array<T>& v)
 /// @tparam T type of array elements
 /// @tparam N size of array
 template<typename K, typename T, std::size_t N>
+inline
 void pretty_print(const std::unordered_map<K,std::array<T,N>>& map)
 {
    out << "{";
@@ -384,6 +398,7 @@ void pretty_print_mpi(const mfem::Vector& v)
 
 
 template <typename ... Ts>
+inline MFEM_ALWAYS_INLINE
 constexpr auto decay_types(tuple<Ts...> const &)
 -> tuple<std::remove_cv_t<std::remove_reference_t<Ts>>...>;
 
@@ -416,12 +431,14 @@ struct create_function_signature<output_t (*)(input_ts...)>
 };
 
 template <typename T>
+inline MFEM_ALWAYS_INLINE
 constexpr int GetFieldId()
 {
    return T::GetFieldId();
 }
 
 template <typename Tuple, std::size_t... Is>
+inline MFEM_ALWAYS_INLINE
 constexpr auto extract_field_ids_impl(Tuple&& t, std::index_sequence<Is...>)
 {
    return std::array<int, sizeof...(Is)>
@@ -435,6 +452,7 @@ constexpr auto extract_field_ids_impl(Tuple&& t, std::index_sequence<Is...>)
 /// @param t the tuple to extract field IDs from.
 /// @returns an array of field IDs.
 template <typename... Ts>
+inline MFEM_ALWAYS_INLINE
 constexpr auto extract_field_ids(const std::tuple<Ts...>& t)
 {
    return extract_field_ids_impl(t, std::index_sequence_for<Ts...> {});
@@ -446,6 +464,7 @@ constexpr auto extract_field_ids(const std::tuple<Ts...>& t)
 /// @param size the size of the array.
 /// @param value the value to search for.
 /// @returns true if the value is found, false otherwise.
+inline MFEM_ALWAYS_INLINE
 constexpr bool contains(const int* arr, std::size_t size, int value)
 {
    for (std::size_t i = 0; i < size; ++i)
@@ -463,6 +482,7 @@ constexpr bool contains(const int* arr, std::size_t size, int value)
 /// @param t the tuple to count unique field IDs from.
 /// @returns the number of unique field IDs.
 template <typename... Ts>
+inline MFEM_ALWAYS_INLINE
 constexpr std::size_t count_unique_field_ids(const std::tuple<Ts...>& t)
 {
    auto ids = extract_field_ids(t);
@@ -489,6 +509,7 @@ constexpr std::size_t count_unique_field_ids(const std::tuple<Ts...>& t)
 /// @param marker the marker std::array indicating which entries to get.
 /// @returns a std::vector containing the marked entries.
 template <typename T, std::size_t N>
+inline MFEM_ALWAYS_INLINE
 auto get_marked_entries(
    const std::array<T, N> &a,
    const std::array<bool, N> &marker)
@@ -509,6 +530,7 @@ auto get_marked_entries(
 /// @param t the tuple to filter fields from.
 /// @returns a tuple containing only the fields with field IDs not equal to -1.
 template <typename... Ts>
+inline MFEM_ALWAYS_INLINE
 constexpr auto filter_fields(const std::tuple<Ts...>& t)
 {
    return std::tuple_cat(
@@ -532,11 +554,13 @@ struct FieldDescriptor
    data_variant_t data;
 
    /// Default constructor
+   inline MFEM_ALWAYS_INLINE
    FieldDescriptor() :
       id(SIZE_MAX), data(data_variant_t{}) {}
 
    /// Constructor
    template <typename T>
+   inline MFEM_ALWAYS_INLINE
    FieldDescriptor(std::size_t field_id, const T* v) :
       id(field_id), data(v) {}
 };
@@ -597,6 +621,7 @@ __global__ void forall_kernel_shmem(func_t f, int n)
 #endif
 
 template </*typename kernel_tag,*/ typename func_t>
+inline MFEM_ALWAYS_INLINE
 void forall(func_t f,
             const int &N,
             const ThreadBlocks &blocks,
@@ -731,7 +756,7 @@ private:
 /// @param fields the vector of field descriptors.
 /// @returns the index of the field descriptor with the given ID,
 /// or SIZE_MAX if not found.
-inline
+inline MFEM_ALWAYS_INLINE
 std::size_t FindIdx(const std::size_t& id,
                     const std::vector<FieldDescriptor>& fields)
 {
@@ -749,7 +774,7 @@ std::size_t FindIdx(const std::size_t& id,
 ///
 /// @param f the field descriptor.
 /// @returns the vdof size of the field descriptor.
-inline
+inline MFEM_ALWAYS_INLINE
 int GetVSize(const FieldDescriptor &f)
 {
    return std::visit([](auto arg)
@@ -784,7 +809,7 @@ int GetVSize(const FieldDescriptor &f)
 /// @param f the field descriptor.
 /// @param el the element index.
 /// @param vdofs the array to store the element vdofs.
-inline
+inline MFEM_ALWAYS_INLINE
 void GetElementVDofs(const FieldDescriptor &f, int el, Array<int> &vdofs)
 {
    return std::visit([&](auto arg)
@@ -818,7 +843,7 @@ void GetElementVDofs(const FieldDescriptor &f, int el, Array<int> &vdofs)
 ///
 /// @param f the field descriptor.
 /// @returns the true dof size of the field descriptor.
-inline
+inline MFEM_ALWAYS_INLINE
 int GetTrueVSize(const FieldDescriptor &f)
 {
    return std::visit([](auto arg)
@@ -853,7 +878,7 @@ int GetTrueVSize(const FieldDescriptor &f)
 ///
 /// @param f the field descriptor.
 /// @returns the vdim of the field descriptor.
-inline
+inline MFEM_ALWAYS_INLINE
 int GetVDim(const FieldDescriptor &f)
 {
    return std::visit([](auto && arg)
@@ -885,6 +910,7 @@ int GetVDim(const FieldDescriptor &f)
 /// @tparam entity_t the entity type (see Entity).
 /// @returns the spatial dimension of the field descriptor.
 template <typename entity_t>
+inline MFEM_ALWAYS_INLINE
 int GetDimension(const FieldDescriptor &f)
 {
    return std::visit([](auto && arg)
@@ -919,7 +945,7 @@ int GetDimension(const FieldDescriptor &f)
 ///
 /// @param f the field descriptor.
 /// @returns the prolongation operator for the field descriptor.
-inline
+inline MFEM_ALWAYS_INLINE
 const Operator *get_prolongation(const FieldDescriptor &f)
 {
    return std::visit([](auto&& arg) -> const Operator*
@@ -948,7 +974,7 @@ const Operator *get_prolongation(const FieldDescriptor &f)
 /// @param o the element dof ordering.
 /// @returns the element restriction operator for the field descriptor in
 /// specified ordering.
-inline
+inline MFEM_ALWAYS_INLINE
 const Operator *get_element_restriction(const FieldDescriptor &f,
                                         ElementDofOrdering o)
 {
@@ -979,7 +1005,7 @@ const Operator *get_element_restriction(const FieldDescriptor &f,
 /// @returns the restriction operator for the field descriptor in
 /// specified ordering.
 template <typename entity_t>
-inline
+inline MFEM_ALWAYS_INLINE
 const Operator *get_restriction(const FieldDescriptor &f,
                                 const ElementDofOrdering &o)
 {
@@ -999,7 +1025,8 @@ const Operator *get_restriction(const FieldDescriptor &f,
 /// @returns a tuple containting a std::function with the transpose
 /// restriction callback and it's height.
 template <typename entity_t, typename fop_t>
-inline std::tuple<std::function<void(const Vector&, Vector&)>, int>
+inline MFEM_ALWAYS_INLINE
+std::tuple<std::function<void(const Vector&, Vector&)>, int>
 get_restriction_transpose(
    const FieldDescriptor &f,
    const ElementDofOrdering &o,
@@ -1007,7 +1034,7 @@ get_restriction_transpose(
 {
    if constexpr (is_sum_fop<fop_t>::value)
    {
-      auto RT = [=](const Vector &v_e, Vector &v_l)
+      const auto RT = [=](const Vector &v_e, Vector &v_l)
       {
          v_l = v_e;
       };
@@ -1016,7 +1043,8 @@ get_restriction_transpose(
    else
    {
       const Operator *R = get_restriction<entity_t>(f, o);
-      std::function<void(const Vector&, Vector&)> RT = [=](const Vector &x, Vector &y)
+      const std::function<void(const Vector&, Vector&)> RT =
+         [=](const Vector &x, Vector &y)
       {
          R->MultTranspose(x, y);
       };
@@ -1034,7 +1062,7 @@ get_restriction_transpose(
 /// @param field the field descriptor.
 /// @param x the input vector in tdofs.
 /// @param field_l the output vector in vdofs.
-inline
+inline MFEM_ALWAYS_INLINE
 void prolongation(const FieldDescriptor field, const Vector &x, Vector &field_l)
 {
    const auto P = get_prolongation(field);
@@ -1054,6 +1082,7 @@ void prolongation(const FieldDescriptor field, const Vector &x, Vector &field_l)
 /// @tparam N the number of fields.
 /// @tparam M the number of output fields.
 template <std::size_t N, std::size_t M>
+inline MFEM_ALWAYS_INLINE
 void prolongation(const std::array<FieldDescriptor, N> fields,
                   const Vector &x,
                   std::array<Vector, M> &fields_l)
@@ -1081,7 +1110,7 @@ void prolongation(const std::array<FieldDescriptor, N> fields,
 /// @param fields the array of field descriptors.
 /// @param x the input vector in tdofs.
 /// @param fields_l the array of output vectors in vdofs.
-inline
+inline MFEM_ALWAYS_INLINE
 void prolongation(const std::vector<FieldDescriptor> fields,
                   const Vector &x,
                   std::vector<Vector> &fields_l)
@@ -1108,7 +1137,7 @@ void prolongation(const std::vector<FieldDescriptor> fields,
 /// @param mpi_comm the MPI communicator.
 /// @tparam fop_t the field operator type.
 template <typename fop_t>
-inline
+inline MFEM_ALWAYS_INLINE
 std::function<void(const Vector&, Vector&)> get_prolongation_transpose(
    const FieldDescriptor &f,
    const fop_t &fop,
@@ -1148,6 +1177,7 @@ std::function<void(const Vector&, Vector&)> get_prolongation_transpose(
 /// @param ordering the element dof ordering.
 /// @tparam entity_t the entity type (see Entity).
 template <typename entity_t>
+inline MFEM_ALWAYS_INLINE
 void restriction(const FieldDescriptor u,
                  const Vector &u_l,
                  Vector &field_e,
@@ -1170,6 +1200,7 @@ void restriction(const FieldDescriptor u,
 /// @param offset the array index offset to start writing in fields_e.
 /// @tparam entity_t the entity type (see Entity).
 template <typename entity_t>
+inline MFEM_ALWAYS_INLINE
 void restriction(const std::vector<FieldDescriptor> u,
                  const std::vector<Vector> &u_l,
                  std::vector<Vector> &fields_e,
@@ -1189,6 +1220,7 @@ void restriction(const std::vector<FieldDescriptor> u,
 
 // TODO: keep this temporarily
 template <std::size_t N, std::size_t M>
+inline MFEM_ALWAYS_INLINE
 void element_restriction(const std::array<FieldDescriptor, N> u,
                          const std::array<Vector, N> &u_l,
                          std::array<Vector, M> &fields_e,
@@ -1212,6 +1244,7 @@ void element_restriction(const std::array<FieldDescriptor, N> u,
 /// @tparam entity_t the entity type (see Entity).
 /// @returns the number of entities of the given type.
 template <typename entity_t>
+inline MFEM_ALWAYS_INLINE
 int GetNumEntities(const mfem::Mesh &mesh)
 {
    if constexpr (std::is_same_v<entity_t, Entity::Element>)
@@ -1239,7 +1272,7 @@ int GetNumEntities(const mfem::Mesh &mesh)
 /// @param mode the mode of the DofToQuad object.
 /// @tparam entity_t the entity type (see Entity).
 template <typename entity_t>
-inline
+inline MFEM_ALWAYS_INLINE
 const DofToQuad *GetDofToQuad(const FieldDescriptor &f,
                               const IntegrationRule &ir,
                               DofToQuad::Mode mode)
@@ -1714,7 +1747,7 @@ void print_shared_memory_info(shmem_info_t &shmem_info)
 }
 
 template <std::size_t N>
-MFEM_HOST_DEVICE inline
+MFEM_HOST_DEVICE inline MFEM_ALWAYS_INLINE
 std::array<DofToQuadMap, N> load_dtq_mem(
    void *mem,
    int offset,
@@ -1777,7 +1810,7 @@ std::array<DofToQuadMap, N> load_dtq_mem(
 }
 
 template <std::size_t num_fields>
-MFEM_HOST_DEVICE inline
+MFEM_HOST_DEVICE inline MFEM_ALWAYS_INLINE
 std::array<DeviceTensor<1>, num_fields>
 load_field_mem(
    void *mem,
@@ -1811,7 +1844,7 @@ load_field_mem(
    return f;
 }
 
-MFEM_HOST_DEVICE inline
+MFEM_HOST_DEVICE inline MFEM_ALWAYS_INLINE
 DeviceTensor<1> load_direction_mem(
    void *mem,
    int offset,
@@ -1836,7 +1869,7 @@ DeviceTensor<1> load_direction_mem(
 }
 
 template <std::size_t N>
-MFEM_HOST_DEVICE inline
+MFEM_HOST_DEVICE inline MFEM_ALWAYS_INLINE
 std::array<DeviceTensor<2>, N> load_input_mem(
    void *mem,
    int offset,
@@ -1854,7 +1887,7 @@ std::array<DeviceTensor<2>, N> load_input_mem(
    return f;
 }
 
-MFEM_HOST_DEVICE inline
+MFEM_HOST_DEVICE inline MFEM_ALWAYS_INLINE
 DeviceTensor<2> load_residual_mem(
    void *mem,
    int offset,
@@ -1866,7 +1899,7 @@ DeviceTensor<2> load_residual_mem(
 }
 
 template <std::size_t N>
-MFEM_HOST_DEVICE inline
+MFEM_HOST_DEVICE inline MFEM_ALWAYS_INLINE
 std::array<DeviceTensor<1>, 6> load_scratch_mem(
    void *mem,
    int offset,
@@ -1882,7 +1915,7 @@ std::array<DeviceTensor<1>, 6> load_scratch_mem(
 }
 
 template <typename shared_mem_info_t, std::size_t num_inputs, std::size_t num_outputs, std::size_t num_fields>
-MFEM_HOST_DEVICE inline
+MFEM_HOST_DEVICE inline MFEM_ALWAYS_INLINE
 auto unpack_shmem(
    void *shmem,
    const shared_mem_info_t &shmem_info,
@@ -1945,7 +1978,7 @@ auto unpack_shmem(
 }
 
 template <typename shared_mem_info_t, std::size_t num_inputs, std::size_t num_outputs, std::size_t num_fields>
-MFEM_HOST_DEVICE inline
+MFEM_HOST_DEVICE inline MFEM_ALWAYS_INLINE
 auto unpack_shmem(
    void *shmem,
    const shared_mem_info_t &shmem_info,
@@ -2025,7 +2058,7 @@ auto unpack_shmem(
 }
 
 template <std::size_t... i>
-MFEM_HOST_DEVICE inline
+MFEM_HOST_DEVICE inline MFEM_ALWAYS_INLINE
 std::array<DeviceTensor<2>, sizeof...(i)> get_local_input_qp(
    const std::array<DeviceTensor<3>, sizeof...(i)> &input_qp_global, int e,
    std::index_sequence<i...>)
@@ -2040,7 +2073,7 @@ std::array<DeviceTensor<2>, sizeof...(i)> get_local_input_qp(
 }
 
 template <std::size_t N>
-MFEM_HOST_DEVICE inline
+MFEM_HOST_DEVICE inline MFEM_ALWAYS_INLINE
 void set_zero(std::array<DeviceTensor<2>, N> &v)
 {
    for (std::size_t i = 0; i < N; i++)
@@ -2055,7 +2088,7 @@ void set_zero(std::array<DeviceTensor<2>, N> &v)
 }
 
 template <std::size_t n>
-MFEM_HOST_DEVICE inline
+MFEM_HOST_DEVICE inline MFEM_ALWAYS_INLINE
 void set_zero(DeviceTensor<n> &u)
 {
    int s = 1;
@@ -2076,7 +2109,7 @@ void set_zero(DeviceTensor<n> &u)
 /// @param v destination DeviceTensor
 /// @tparam n DeviceTensor rank
 template <int n>
-MFEM_HOST_DEVICE inline
+MFEM_HOST_DEVICE inline MFEM_ALWAYS_INLINE
 void copy(DeviceTensor<n> &u, DeviceTensor<n> &v)
 {
    int s = 1;
@@ -2099,7 +2132,7 @@ void copy(DeviceTensor<n> &u, DeviceTensor<n> &v)
 /// @tparam n DeviceTensor rank
 /// @tparam m number of DeviceTensors
 template <int n, std::size_t m>
-MFEM_HOST_DEVICE inline
+MFEM_HOST_DEVICE inline MFEM_ALWAYS_INLINE
 void copy(std::array<DeviceTensor<n>, m> &u,
           std::array<DeviceTensor<n>, m> &v)
 {
@@ -2117,6 +2150,7 @@ void copy(std::array<DeviceTensor<n>, m> &u,
 /// @tparam num_fields number of fields
 /// @return array of field data wrapped in DeviceTensors
 template <std::size_t num_fields>
+inline MFEM_ALWAYS_INLINE
 std::array<DeviceTensor<2>, num_fields> wrap_fields(
    std::vector<Vector> &fields,
    std::array<int, num_fields> &field_sizes,
@@ -2153,6 +2187,7 @@ std::array<DeviceTensor<2>, num_fields> wrap_fields(
 /// size required on quadrature points using GetSizeOnQP() and adds it to the
 /// total. Non-dependent inputs contribute zero to the total size.
 template <typename input_t, std::size_t num_fields, std::size_t... i>
+inline MFEM_ALWAYS_INLINE
 int accumulate_sizes_on_qp(
    const input_t &inputs,
    std::array<bool, sizeof...(i)> &kinput_is_dependent,
@@ -2179,6 +2214,7 @@ template <
    typename field_operator_ts,
    std::size_t N = tuple_size<field_operator_ts>::value,
    std::size_t... Is>
+inline MFEM_ALWAYS_INLINE
 std::array<DofToQuadMap, N> create_dtq_maps_impl(
    field_operator_ts &fops,
    std::vector<const DofToQuad*> &dtqs,
@@ -2264,6 +2300,7 @@ template <
    typename entity_t,
    typename field_operator_ts,
    std::size_t num_fields>
+inline MFEM_ALWAYS_INLINE
 std::array<DofToQuadMap, num_fields> create_dtq_maps(
    field_operator_ts &fops,
    std::vector<const DofToQuad*> &dtqmaps,

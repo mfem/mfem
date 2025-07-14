@@ -11,8 +11,10 @@
 #pragma once
 
 #include "../../config/config.hpp"
+#include "../../config/tconfig.hpp" // MFEM_ALWAYS_INLINE
 #include "../../linalg/dtensor.hpp"
 #include "../../linalg/tensor.hpp"
+#include "../../general/forall.hpp" // MFEM_UNROLL
 // #include "../../fem/kernels.hpp"
 
 namespace mfem::kernels::internal::vd
@@ -33,9 +35,10 @@ using regs3d_vd_t = mfem::future::tensor<real_t, N, N, N, VDIM, DIM>;
 
 /// Load 3D input VDIM*DIM vector into given register tensor
 template <int VDIM, int DIM, int MQ1>
-inline MFEM_HOST_DEVICE void LoadDofs3d(const int e, const int d1d,
-                                        const DeviceTensor<5, const real_t> &X,
-                                        regs3d_vd_t<VDIM, DIM, MQ1> &Y)
+inline MFEM_ALWAYS_INLINE MFEM_HOST_DEVICE
+void LoadDofs3d(const int e, const int d1d,
+                const DeviceTensor<5, const real_t> &X,
+                regs3d_vd_t<VDIM, DIM, MQ1> &Y)
 {
    for (int dz = 0; dz < d1d; ++dz)
    {
@@ -57,10 +60,11 @@ inline MFEM_HOST_DEVICE void LoadDofs3d(const int e, const int d1d,
 
 /// Write 3D scalar into given device tensor, with read (i) write (j) indices
 template <int VDIM, int DIM, int MQ1>
-inline MFEM_HOST_DEVICE void WriteDofs3d(const int e, const int d1d,
-                                         const int i, const int j,
-                                         regs3d_vd_t<VDIM, DIM, MQ1> &X,
-                                         const DeviceTensor<5, real_t> &Y)
+inline MFEM_ALWAYS_INLINE MFEM_HOST_DEVICE
+void WriteDofs3d(const int e, const int d1d,
+                 const int i, const int j,
+                 regs3d_vd_t<VDIM, DIM, MQ1> &X,
+                 const DeviceTensor<5, real_t> &Y)
 {
    for (int dz = 0; dz < d1d; ++dz)
    {
@@ -78,26 +82,29 @@ inline MFEM_HOST_DEVICE void WriteDofs3d(const int e, const int d1d,
 
 /// Write 3D VDIM*DIM vector into given device tensor
 template <int VDIM, int DIM, int MQ1>
-inline MFEM_HOST_DEVICE void WriteDofs3d(const int e, const int d1d,
-                                         regs3d_vd_t<VDIM, DIM, MQ1> &X,
-                                         const DeviceTensor<5, real_t> &Y)
+inline MFEM_ALWAYS_INLINE MFEM_HOST_DEVICE
+void WriteDofs3d(const int e, const int d1d,
+                 regs3d_vd_t<VDIM, DIM, MQ1> &X,
+                 const DeviceTensor<5, real_t> &Y)
 {
    for (int c = 0; c < VDIM; ++c) { WriteDofs3d(e, d1d, c, c, X, Y); }
 }
 
 /// 3D vector contraction, X direction
 template <bool Transpose, int VDIM, int DIM, int MQ1>
-inline MFEM_HOST_DEVICE void ContractX3d(const int d1d, const int q1d,
-                                         real_t (&smem)[MQ1][MQ1],
-                                         const real_t (*B)[MQ1],
-                                         const regs3d_vd_t<VDIM,DIM,MQ1> &X,
-                                         regs3d_vd_t<VDIM,DIM,MQ1> &Y,
-                                         const int c, const int d)
+inline MFEM_ALWAYS_INLINE MFEM_HOST_DEVICE
+void ContractX3d(const int d1d, const int q1d,
+                 real_t (&smem)[MQ1][MQ1],
+                 const real_t (*B)[MQ1],
+                 const regs3d_vd_t<VDIM,DIM,MQ1> &X,
+                 regs3d_vd_t<VDIM,DIM,MQ1> &Y,
+                 const int c, const int d)
 {
    for (int z = 0; z < d1d; ++z)
    {
       MFEM_FOREACH_THREAD_DIRECT(y, y, d1d)
       {
+         MFEM_UNROLL(MQ1)
          MFEM_FOREACH_THREAD_DIRECT(x, x, (Transpose ? q1d : d1d))
          {
             smem[y][x] = X[z][y][x][c][d];
@@ -107,6 +114,7 @@ inline MFEM_HOST_DEVICE void ContractX3d(const int d1d, const int q1d,
 
       MFEM_FOREACH_THREAD_DIRECT(y, y, d1d)
       {
+         MFEM_UNROLL(MQ1)
          MFEM_FOREACH_THREAD_DIRECT(x, x, (Transpose ? d1d : q1d))
          {
             real_t u = 0.0;
@@ -123,23 +131,27 @@ inline MFEM_HOST_DEVICE void ContractX3d(const int d1d, const int q1d,
 
 /// 3D vector contraction, Y direction
 template <bool Transpose, int VDIM, int DIM, int MQ1>
-inline MFEM_HOST_DEVICE void ContractY3d(const int d1d, const int q1d,
-                                         real_t (&smem)[MQ1][MQ1],
-                                         const real_t (*B)[MQ1],
-                                         const regs3d_vd_t<VDIM,DIM,MQ1> &X,
-                                         regs3d_vd_t<VDIM,DIM,MQ1> &Y,
-                                         const int c, const int d)
+inline MFEM_ALWAYS_INLINE MFEM_HOST_DEVICE
+void ContractY3d(const int d1d, const int q1d,
+                 real_t (&smem)[MQ1][MQ1],
+                 const real_t (*B)[MQ1],
+                 const regs3d_vd_t<VDIM,DIM,MQ1> &X,
+                 regs3d_vd_t<VDIM,DIM,MQ1> &Y,
+                 const int c, const int d)
 {
    for (int z = 0; z < d1d; ++z)
    {
+      MFEM_UNROLL(MQ1)
       MFEM_FOREACH_THREAD_DIRECT(y, y, (Transpose ? q1d : d1d))
       {
          MFEM_FOREACH_THREAD_DIRECT(x, x, q1d) { smem[y][x] = X[z][y][x][c][d]; }
       }
       MFEM_SYNC_THREAD;
 
+      MFEM_UNROLL(MQ1)
       MFEM_FOREACH_THREAD_DIRECT(y, y, (Transpose ? d1d : q1d))
       {
+         MFEM_UNROLL(MQ1)
          MFEM_FOREACH_THREAD_DIRECT(x, x, q1d)
          {
             real_t u = 0.0;
@@ -156,16 +168,19 @@ inline MFEM_HOST_DEVICE void ContractY3d(const int d1d, const int q1d,
 
 /// 3D vector contraction, Z direction
 template <bool Transpose, int VDIM, int DIM, int MQ1>
-inline MFEM_HOST_DEVICE void ContractZ3d(const int d1d, const int q1d,
-                                         const real_t (*B)[MQ1],
-                                         const regs3d_vd_t<VDIM,DIM,MQ1> &X,
-                                         regs3d_vd_t<VDIM,DIM,MQ1> &Y,
-                                         const int c, const int d)
+inline MFEM_ALWAYS_INLINE MFEM_HOST_DEVICE
+void ContractZ3d(const int d1d, const int q1d,
+                 const real_t (*B)[MQ1],
+                 const regs3d_vd_t<VDIM,DIM,MQ1> &X,
+                 regs3d_vd_t<VDIM,DIM,MQ1> &Y,
+                 const int c, const int d)
 {
    for (int z = 0; z < (Transpose ? d1d : q1d); ++z)
    {
+      MFEM_UNROLL(MQ1)
       MFEM_FOREACH_THREAD_DIRECT(y, y, q1d)
       {
+         MFEM_UNROLL(MQ1)
          MFEM_FOREACH_THREAD_DIRECT(x, x, q1d)
          {
             real_t u = 0.0;
@@ -181,14 +196,15 @@ inline MFEM_HOST_DEVICE void ContractZ3d(const int d1d, const int q1d,
 
 /// 3D scalar contraction: X, Y & Z directions
 template <bool Transpose, int VDIM, int DIM, int MQ1>
-inline MFEM_HOST_DEVICE void Contract3d(const int d1d, const int q1d,
-                                        real_t (&smem)[MQ1][MQ1],
-                                        const real_t (*Bx)[MQ1],
-                                        const real_t (*By)[MQ1],
-                                        const real_t (*Bz)[MQ1],
-                                        regs3d_vd_t<VDIM,DIM,MQ1> &X,
-                                        regs3d_vd_t<VDIM,DIM,MQ1> &Y,
-                                        const int c, const int d)
+inline MFEM_ALWAYS_INLINE MFEM_HOST_DEVICE
+void Contract3d(const int d1d, const int q1d,
+                real_t (&smem)[MQ1][MQ1],
+                const real_t (*Bx)[MQ1],
+                const real_t (*By)[MQ1],
+                const real_t (*Bz)[MQ1],
+                regs3d_vd_t<VDIM,DIM,MQ1> &X,
+                regs3d_vd_t<VDIM,DIM,MQ1> &Y,
+                const int c, const int d)
 {
    if (!Transpose)
    {
@@ -205,13 +221,14 @@ inline MFEM_HOST_DEVICE void Contract3d(const int d1d, const int q1d,
 }
 /// 3D vector gradient, with component
 template <int VDIM, int DIM, int MQ1, bool Transpose = false>
-inline MFEM_HOST_DEVICE void Grad3d(const int d1d, const int q1d,
-                                    real_t (&smem)[MQ1][MQ1],
-                                    const real_t (*B)[MQ1],
-                                    const real_t (*G)[MQ1],
-                                    regs3d_vd_t<VDIM, DIM, MQ1> &X,
-                                    regs3d_vd_t<VDIM, DIM, MQ1> &Y,
-                                    const int c)
+inline MFEM_ALWAYS_INLINE MFEM_HOST_DEVICE
+void Grad3d(const int d1d, const int q1d,
+            real_t (&smem)[MQ1][MQ1],
+            const real_t (*B)[MQ1],
+            const real_t (*G)[MQ1],
+            regs3d_vd_t<VDIM, DIM, MQ1> &X,
+            regs3d_vd_t<VDIM, DIM, MQ1> &Y,
+            const int c)
 {
    for (int d = 0; d < DIM; d++)
    {
@@ -223,12 +240,13 @@ inline MFEM_HOST_DEVICE void Grad3d(const int d1d, const int q1d,
 }
 /// 3D vector gradient
 template <int VDIM, int DIM, int MQ1, bool Transpose = false>
-inline MFEM_HOST_DEVICE void Grad3d(const int d1d, const int q1d,
-                                    real_t (&smem)[MQ1][MQ1],
-                                    const real_t (*B)[MQ1],
-                                    const real_t (*G)[MQ1],
-                                    regs3d_vd_t<VDIM, DIM, MQ1> &X,
-                                    regs3d_vd_t<VDIM, DIM, MQ1> &Y)
+inline MFEM_ALWAYS_INLINE MFEM_HOST_DEVICE
+void Grad3d(const int d1d, const int q1d,
+            real_t (&smem)[MQ1][MQ1],
+            const real_t (*B)[MQ1],
+            const real_t (*G)[MQ1],
+            regs3d_vd_t<VDIM, DIM, MQ1> &X,
+            regs3d_vd_t<VDIM, DIM, MQ1> &Y)
 {
    for (int c = 0; c < VDIM; c++)
    {
@@ -238,12 +256,13 @@ inline MFEM_HOST_DEVICE void Grad3d(const int d1d, const int q1d,
 
 /// 3D vector transposed gradient
 template <int VDIM, int DIM, int MQ1>
-inline MFEM_HOST_DEVICE void GradTranspose3d(const int d1d, const int q1d,
-                                             real_t (&smem)[MQ1][MQ1],
-                                             const real_t (*B)[MQ1],
-                                             const real_t (*G)[MQ1],
-                                             regs3d_vd_t<VDIM, DIM, MQ1> &X,
-                                             regs3d_vd_t<VDIM, DIM, MQ1> &Y)
+inline MFEM_ALWAYS_INLINE MFEM_HOST_DEVICE
+void GradTranspose3d(const int d1d, const int q1d,
+                     real_t (&smem)[MQ1][MQ1],
+                     const real_t (*B)[MQ1],
+                     const real_t (*G)[MQ1],
+                     regs3d_vd_t<VDIM, DIM, MQ1> &X,
+                     regs3d_vd_t<VDIM, DIM, MQ1> &Y)
 {
    Grad3d<VDIM, DIM, MQ1, true>(d1d, q1d, smem, B, G, X, Y);
 }

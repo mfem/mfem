@@ -40,6 +40,7 @@ using mfem::future::tuple;
 using mfem::future::tensor;
 
 using future::DifferentiableOperator;
+using future::DerivativeOperator;
 using future::UniformParameterSpace;
 using future::ParameterFunction;
 using future::FieldDescriptor;
@@ -68,6 +69,20 @@ using MQZ = std::integral_constant<int, N>;
 
 constexpr int SetMaxOf2(int n) { return mfem::kernels::internal::NextMultipleOf<2>(n); }
 #endif
+
+/// Hall of Fame //////////////////////////////////////////////////////////////
+/*-----------------------------------------------------------------------------------------------
+Benchmark           Time             CPU   Iterations       Dofs     MDof/s          p    version
+-------------------------------------------------------------------------------------------------
+BP3/0/6/25       17.9 ms         17.9 ms           10    15.625k  30.1555/s (!lto)   6          0
+BP3/1/6/25       12.4 ms         12.4 ms           10    15.625k  40.3044/s (lto)    6          1
+BP3/2/6/25       18.1 ms         18.1 ms           10    15.625k  27.6771/s          6          2
+BP3/3/6/25       39.7 ms         39.7 ms           10    15.625k  12.5988/s          6          3
+BP3/4/6/25       30.4 ms         30.3 ms           10    15.625k  16.4853/s          6          4
+BP3/5/6/25       14.3 ms         14.3 ms           10    15.625k  34.9011/s (lto)    6          5
+BP3/6/6/25       47.2 ms         47.1 ms           10    15.625k   10.606/s          6          6
+BP3/7/6/25       46.8 ms         46.8 ms           10    15.625k  10.6893/s          6          7
+*/
 
 /// Max number of DOFs ////////////////////////////////////////////////////////
 #if !(defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))
@@ -247,8 +262,10 @@ public:
                              const real_t *dx, const real_t *xe, real_t *ye,
                              const int d1d, const int q1d)
    {
-      const int D1D = T_D1D ? T_D1D : d1d;
-      const int Q1D = T_Q1D ? T_Q1D : q1d;
+      // const int D1D = T_D1D ? T_D1D : d1d;
+      // const int Q1D = T_Q1D ? T_Q1D : q1d;
+      constexpr int D1D = T_D1D;// ? T_D1D : d1d; // 🔥
+      constexpr int Q1D = T_Q1D;// ? T_Q1D : q1d; // 🔥
       // db1("D1D:{} Q1D:{} (no VDIM)", D1D, Q1D);
 
       constexpr int DIM = 3, VDIM = 1;
@@ -258,13 +275,16 @@ public:
 
       mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
       {
-         // constexpr int MD1 = T_D1D > 0 ? kernels::internal::SetMaxOf(T_D1D) : 32;
-         // constexpr int MQ1 = T_Q1D > 0 ? kernels::internal::SetMaxOf(T_Q1D) : 32;
-         constexpr int MD1 = T_D1D > 0 ? T_D1D : 32;
-         constexpr int MQ1 = T_Q1D > 0 ? T_Q1D : 32;
+         constexpr int MD1 = T_D1D > 0 ? kernels::internal::SetMaxOf(T_D1D) : 32;
+         constexpr int MQ1 = T_Q1D > 0 ? kernels::internal::SetMaxOf(T_Q1D) : 32;
+         // constexpr int MD1 = T_D1D > 0 ? T_D1D : 32;
+         // constexpr int MQ1 = T_Q1D > 0 ? T_Q1D : 32;
+         constexpr int D1D = T_D1D;// ? T_D1D : d1d; // 🔥
+         constexpr int Q1D = T_Q1D;// ? T_Q1D : q1d; // 🔥
 
-         MFEM_SHARED real_t smem[MQ1][MQ1];
-         MFEM_SHARED real_t sB[MD1][MQ1], sG[MD1][MQ1];
+         MFEM_SHARED alignas(64) real_t smem[MQ1][MQ1];
+         MFEM_SHARED alignas(64) real_t sB[MD1][MQ1];
+         MFEM_SHARED alignas(64) real_t sG[MD1][MQ1];
          ker::vd_regs3d_t<VDIM, DIM, MQ1> r0, r1;
 
          ker::LoadMatrix(D1D, Q1D, b, sB);
@@ -303,8 +323,10 @@ public:
                                const real_t *dx, const real_t *xe, real_t *ye,
                                const int d1d, const int q1d)
    {
-      const int D1D = T_D1D ? T_D1D : d1d;
-      const int Q1D = T_Q1D ? T_Q1D : q1d;
+      // const int D1D = T_D1D ? T_D1D : d1d;
+      // const int Q1D = T_Q1D ? T_Q1D : q1d;
+      constexpr int D1D = T_D1D;// ? T_D1D : d1d; // 🔥
+      constexpr int Q1D = T_Q1D;// ? T_Q1D : q1d; // 🔥
       db1("D1D:{} Q1D:{} (by VDIM)", D1D, Q1D);
 
       constexpr int DIM = 3, VDIM = 1;
@@ -316,12 +338,19 @@ public:
       {
          constexpr int MD1 = T_D1D > 0 ? kernels::internal::SetMaxOf(T_D1D) : 32;
          constexpr int MQ1 = T_Q1D > 0 ? kernels::internal::SetMaxOf(T_Q1D) : 32;
+         // constexpr int MD1 = T_D1D ? T_D1D : 32;
+         // constexpr int MQ1 = T_Q1D ? T_Q1D : 32;
+         constexpr int D1D = T_D1D;// ? T_D1D : d1d; // 🔥
+         constexpr int Q1D = T_Q1D;// ? T_Q1D : q1d; // 🔥
+         // const int D1D = T_D1D ? T_D1D : d1d;
+         // const int Q1D = T_Q1D ? T_Q1D : q1d;
 
-         MFEM_SHARED real_t smem[MQ1][MQ1];
-         MFEM_SHARED real_t sB[MD1][MQ1], sG[MD1][MQ1];
+         MFEM_SHARED alignas(64) real_t smem[MQ1][MQ1];
+         MFEM_SHARED alignas(64) real_t sB[MD1][MQ1];
+         MFEM_SHARED alignas(64) real_t sG[MD1][MQ1];
 
          constexpr int MZ1 = MQZ<MQ1>::value;
-         mfem::future::tensor<real_t, MQ1, MZ1, MZ1, VDIM, DIM> v0, v1;
+         alignas(64) mfem::future::tensor<real_t, MQ1, MZ1, MZ1, VDIM, DIM> v0, v1;
 
          ker::LoadMatrix(D1D, Q1D, b, sB);
          ker::LoadMatrix(D1D, Q1D, g, sG);
@@ -329,15 +358,21 @@ public:
          ker::vd::LoadDofs3d(e, D1D, XE, v0);
          ker::vd::Grad3d(D1D, Q1D, smem, sB, sG, v0, v1);
 
+         MFEM_UNROLL(MQ1)
          for (int qz = 0; qz < Q1D; qz++)
          {
+            MFEM_UNROLL(MQ1)
             MFEM_FOREACH_THREAD_DIRECT(qy, y, Q1D)
             {
+               MFEM_UNROLL(MQ1)
                MFEM_FOREACH_THREAD_DIRECT(qx, x, Q1D)
                {
                   auto &vd_v = v0[qz][qy][qx][0];
                   const auto &vd_u = v1[qz][qy][qx][0];
-                  const auto d = make_tensor<3, 3>([&](int i, int j) { return DX(i, j, qx, qy, qz, e); });
+                  const auto d = make_tensor<3, 3>([&](int i, int j)
+                  {
+                     return DX(i, j, qx, qy, qz, e);
+                  });
                   vd_v = d * vd_u;
                }
             }
@@ -360,6 +395,7 @@ public:
 
 template<bool layout_by_vdim>
 template <int D1D, int Q1D>
+inline MFEM_ALWAYS_INLINE
 typename StiffnessIntegrator<layout_by_vdim>::StiffnessKernelType
 StiffnessIntegrator<layout_by_vdim>::StiffnessKernels::Kernel()
 {
@@ -368,6 +404,7 @@ StiffnessIntegrator<layout_by_vdim>::StiffnessKernels::Kernel()
 }
 
 template<bool layout_by_vdim>
+inline MFEM_ALWAYS_INLINE
 typename StiffnessIntegrator<layout_by_vdim>::StiffnessKernelType
 StiffnessIntegrator<layout_by_vdim>::StiffnessKernels::Fallback(int d1d,
                                                                 int q1d)
@@ -561,7 +598,7 @@ struct Diffusion : public BakeOff<VDIM, GLL>
          };
          DifferentiableOperator dSetup(u_sol, Ξ_q_params, pmesh);
          dSetup.AddDomainIntegrator(pa_setup_qf,
-                                    tuple{Identity<Q> {}, Gradient<Ξ> {}, Weight{}},
+                                    tuple{Identity<U> {}, Gradient<Ξ> {}, Weight{}},
                                     tuple{Identity<Q> {}},
                                     *ir, ess_bdr);
          dSetup.SetParameters({nodes, &qdata});

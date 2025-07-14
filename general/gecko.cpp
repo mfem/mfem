@@ -760,6 +760,7 @@ Graph::arc_source(Arc::Index a) const
    }
    // should never get here
    MFEM_THROW(::std::runtime_error, "internal data structure corrupted");
+   return Node::null;
 }
 
 // Return reverse arc (j, i) of arc a = (i, j).

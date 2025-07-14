@@ -249,12 +249,7 @@ class Aligned32HostMemorySpace : public HostMemorySpace
 public:
    Aligned32HostMemorySpace(): HostMemorySpace() { }
    void Alloc(void **ptr, size_t bytes) override
-   {
-      if (mfem_memalign(ptr, 32, bytes) != 0)
-      {
-         MFEM_THROW(::std::bad_alloc,"");
-      }
-   }
+   { if (mfem_memalign(ptr, 32, bytes) != 0) { MFEM_THROW(std::bad_alloc,); } }
    void Dealloc(void *ptr) override { mfem_aligned_free(ptr); }
 };
 
@@ -267,7 +262,7 @@ public:
    {
       if (mfem_memalign(ptr, 64, bytes) != 0)
       {
-         MFEM_THROW(::std::bad_alloc,"");
+         MFEM_THROW(::std::bad_alloc,);
       }
    }
    void Dealloc(void *ptr) override { mfem_aligned_free(ptr); }
@@ -375,10 +370,7 @@ inline void MmuAlloc(void **ptr, const size_t bytes)
    const int prot = PROT_READ | PROT_WRITE;
    const int flags = MAP_ANONYMOUS | MAP_PRIVATE;
    *ptr = ::mmap(NULL, length, prot, flags, -1, 0);
-   if (*ptr == MAP_FAILED)
-   {
-      MFEM_THROW(::std::bad_alloc,"");
-   }
+   if (*ptr == MAP_FAILED) { MFEM_THROW(::std::bad_alloc,); }
 }
 
 /// MMU deallocation, through ::munmap
