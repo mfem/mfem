@@ -184,7 +184,7 @@ public:
       // StiffnessKernels::template Specialization<4, 5>::Add();
       StiffnessKernels::template Specialization<5, 6>::Add();
       // StiffnessKernels::template Specialization<6, 7>::Add();
-      // StiffnessKernels::template Specialization<7, 8>::Add();
+      StiffnessKernels::template Specialization<7, 8>::Add();
       // StiffnessKernels::template Specialization<9, 10>::Add();
    }
 
@@ -263,10 +263,8 @@ public:
                              const real_t *dx, const real_t *xe, real_t *ye,
                              const int d1d, const int q1d)
    {
-      // const int D1D = T_D1D ? T_D1D : d1d;
-      // const int Q1D = T_Q1D ? T_Q1D : q1d;
-      constexpr int D1D = T_D1D;// ? T_D1D : d1d; // 🔥
-      constexpr int Q1D = T_Q1D;// ? T_Q1D : q1d; // 🔥
+      const int D1D = T_D1D ? T_D1D : d1d;
+      const int Q1D = T_Q1D ? T_Q1D : q1d;
       // db1("D1D:{} Q1D:{} (no VDIM)", D1D, Q1D);
 
       constexpr int DIM = 3, VDIM = 1;
@@ -276,12 +274,10 @@ public:
 
       mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
       {
-         constexpr int MD1 = T_D1D > 0 ? kernels::internal::SetMaxOf(T_D1D) : 32;
-         constexpr int MQ1 = T_Q1D > 0 ? kernels::internal::SetMaxOf(T_Q1D) : 32;
-         // constexpr int MD1 = T_D1D > 0 ? T_D1D : 32;
-         // constexpr int MQ1 = T_Q1D > 0 ? T_Q1D : 32;
-         constexpr int D1D = T_D1D;// ? T_D1D : d1d; // 🔥
-         constexpr int Q1D = T_Q1D;// ? T_Q1D : q1d; // 🔥
+         // constexpr int MD1 = T_D1D > 0 ? kernels::internal::SetMaxOf(T_D1D) : 32;
+         // constexpr int MQ1 = T_Q1D > 0 ? kernels::internal::SetMaxOf(T_Q1D) : 32;
+         constexpr int MD1 = T_D1D > 0 ? T_D1D : 32;
+         constexpr int MQ1 = T_Q1D > 0 ? T_Q1D : 32;
 
          alignas(64) MFEM_SHARED real_t smem[MQ1][MQ1];
          alignas(64) MFEM_SHARED real_t sB[MD1][MQ1];
@@ -324,11 +320,9 @@ public:
                                const real_t *dx, const real_t *xe, real_t *ye,
                                const int d1d, const int q1d)
    {
-      // const int D1D = T_D1D ? T_D1D : d1d;
-      // const int Q1D = T_Q1D ? T_Q1D : q1d;
-      constexpr int D1D = T_D1D;// ? T_D1D : d1d; // 🔥
-      constexpr int Q1D = T_Q1D;// ? T_Q1D : q1d; // 🔥
-      db1("D1D:{} Q1D:{} (by VDIM)", D1D, Q1D);
+      const int D1D = T_D1D ? T_D1D : d1d;
+      const int Q1D = T_Q1D ? T_Q1D : q1d;
+      // db1("D1D:{} Q1D:{} (by VDIM)", D1D, Q1D);
 
       constexpr int DIM = 3, VDIM = 1;
       const auto XE = Reshape(xe, D1D, D1D, D1D, VDIM, NE);
@@ -337,14 +331,10 @@ public:
 
       mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
       {
-         constexpr int MD1 = T_D1D > 0 ? kernels::internal::SetMaxOf(T_D1D) : 32;
-         constexpr int MQ1 = T_Q1D > 0 ? kernels::internal::SetMaxOf(T_Q1D) : 32;
-         // constexpr int MD1 = T_D1D ? T_D1D : 32;
-         // constexpr int MQ1 = T_Q1D ? T_Q1D : 32;
-         constexpr int D1D = T_D1D;// ? T_D1D : d1d; // 🔥
-         constexpr int Q1D = T_Q1D;// ? T_Q1D : q1d; // 🔥
-         // const int D1D = T_D1D ? T_D1D : d1d;
-         // const int Q1D = T_Q1D ? T_Q1D : q1d;
+         // constexpr int MD1 = T_D1D > 0 ? kernels::internal::SetMaxOf(T_D1D) : 32;
+         // constexpr int MQ1 = T_Q1D > 0 ? kernels::internal::SetMaxOf(T_Q1D) : 32;
+         constexpr int MD1 = T_D1D ? T_D1D : 32;
+         constexpr int MQ1 = T_Q1D ? T_Q1D : 32;
 
          alignas(64) MFEM_SHARED real_t smem[MQ1][MQ1];
          alignas(64) MFEM_SHARED real_t sB[MD1][MQ1];
