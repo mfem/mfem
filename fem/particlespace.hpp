@@ -45,26 +45,24 @@ protected:
    int id_counter;
 
    ParticleArray<int> ids;
-   std::unique_ptr<ParticleFunction> coords;
+   ParticleFunction coords;
 
-   int redistribute_mesh_idx;
    std::vector<Mesh*> meshes;
    std::vector<FindPointsGSLIB> finders;
 
    // User-created data:
    // For now we only allow ParticleFunction
    // Can very easily add ParticleArray<int>
-   
    std::vector<std::string> all_func_names;
    std::vector<ParticleFunction> all_funcs;
-
-#ifdef MFEM_USE_MPI
-   MPI_Comm comm;
-#endif // MFEM_USE_MPI
 
 
    void AddParticles(const Vector &new_coords, const Array<int> &new_ids, Array<int> &new_indices);
 
+
+#ifdef MFEM_USE_MPI
+   MPI_Comm comm;
+#endif // MFEM_USE_MPI
 
 public:
 
@@ -85,21 +83,22 @@ public:
 
    int GetNP() const { return ids.Size(); }
 
-   void RegisterMesh(Mesh &mesh_, bool set_as_redist=false);
+   int GetID(int i) const { return ids[i]; }
 
-   Mesh* GetMesh(int idx=0) { return meshes[idx]; }
+   // Returns index of registered mesh
+   int RegisterMesh(Mesh &mesh_);
 
    // TODO: If we want to expose coords for changes directly, must have a way to "Commit" changes (re-call FindPoints...)
-   const ParticleFunction& GetCoords() const { return *coords; }
+   const ParticleFunction& GetCoords() const { return coords; }
 
+   // Update many particle coordinates
    void UpdateCoords(const Array<int> &indices, const Vector &updated_coords);
 
-   void UpdateCoords(int i, const Vector &updated_coords)
-   { UpdateCoords(Array<int>({i}), updated_coords); }
+   // Update individual particle coords
+   void UpdateCoords(int i, const Vector &p_coords)
+   { UpdateCoords(Array<int>({i}), p_coords); }
 
-   const Array<int>& GetIDs() const { return ids.GetArray(); }
-
-   int GetID(int i) const { return ids[i]; }
+   const ParticleData<int>& GetIDs() const { return ids; }
 
    // Optionally include string name for PrintCSV
    //template<typename T>
@@ -111,14 +110,18 @@ public:
    //  Optionally get array of indices of the new particles, for updating any ParticleData
    void AddParticles(const Vector &new_coords, Array<int> *new_indices=nullptr);
 
-   /// Remove all particles not within mesh anymore (if mesh is provided)
-   void RemoveLostParticles();
+   /// Remove particles at given indices
+   void RemoveParticles(const Array<int> &indices);
 
+   /// Remove all particles not within mesh anymore (at provided mesh_idx!)
+   void RemoveLostParticles(int mesh_idx=0);
+
+// Below are still TODO:
    void PrintCSV(std::string fname, int precision=16);
 
 #ifdef MFEM_USE_MPI
    // Redistribution occurs relative to the mesh at index redistribute_mesh_idx
-   void Redistribute();
+   void Redistribute(int mesh_idx=0);
 #endif // MFEM_USE_MPI
 
 
