@@ -25,14 +25,6 @@ namespace mfem
 class ParticleSpace;
 
 
-// TODO: We want the data to be more-easily exposed as more natural types.... (Array<int> and Vector)
-//       I honestly do like ParticleFunction... Should I also have just a ParticleArray?
-//       (For both of them, we can easily set memory....)
-// TODO: Should we have operator[] in the base or in the derived on the more natural types? Maybe both?
-//       (Thinking about Capacity() v. Size())
-
-// Arbitrary data types may be associated with particles
-// Only int and real_t supported right now... Can support more.
 template<typename T>
 class ParticleData
 {
@@ -42,30 +34,24 @@ protected:
    const int vdim;
    const Ordering::Type ordering;
    
-   int np; // num particles = data.Capacity()/vdim --- here so we don't need to recompute each time
-            // Future: Can use to track active v. inactive particles....?
+   int np; // (number of particles * vdim) < data.Capacity() in general
 
    // All particle data is now stored entirely in Memory<T>
-   // (Much more GPU-ready)
-   // TODO: IF we can create a "DynamicMemory", that would be perfect.
-   // TODO Maybe we also just make this an Array<T> ??? 
    Memory<T> data;
 
-   // Only allow ParticleSpace to resize data / update data
-   // TODO: Can make these faster if a "Reserve" is provided....
-   //          See Vector....
-   // Now it's just these sole two fxns below that we need to optimize....
+   // Resize properly to hold num_new added particles
    void AddParticles(int num_new);
+
+   // Resize properly to remove particles at indices
    void RemoveParticles(const Array<int> &indices);
 
-   // Maybe we have a "SyncWrapper" function that's abstract + called at end of AddParticles + RemoveParticles
-   // to sync a wrapper? (Vector for ParticleFunction, Array for ParticleArray???
-   void SyncWrapper() = 0;
+   // "SyncWrapper" function that's abstract + called at end of AddParticles + RemoveParticles
+   // --- To sync a more user-friendly wrapper (Vector for ParticleFunction, Array<int> for ParticleArray<int>)
+   virtual void SyncWrapper() = 0;
 
    // No public ctor -- only constructable through a ParticleSpace or derived
-   // Ordering irrelevant for vdim = 1
-   ParticleData(int num_particles, int vdim_=1, Ordering::Type ordering_=Ordering::byNODES)
-   : vdim(vdim_), ordering(ordering_), np(num_particles), data(0) { AddParticles(np); SyncWrapper(); }
+   ParticleData(int num_particles, int reserve, int vdim_=1, Ordering::Type ordering_=Ordering::byNODES)
+   : vdim(vdim_), ordering(ordering_), np(0), data(reserve*vdim) { AddParticles(num_particles); SyncWrapper(); }
 
    T& GetParticleData(int i, int comp=0);
 
@@ -81,38 +67,83 @@ protected:
    // Ordering must match that of the ParticleSpace
    void SetParticleData(const Array<int> &indices, const Memory<T> &pdatas);
 
-   T& operator[](int idx) { return data[idx]; }
+public:
 
-   const T& operator[](int idx) const { return data[idx]; }
+   int Size() const { return np*vdim; }
+
+   int Capacity() const { return data.Capacity(); }
+
+};
+
+
+template<typename T>
+class ParticleArray : public ParticleData<T>
+{
+   friend class ParticleSpace;
+protected:
+   Array<T> a_data;
+
+   void SyncWrapper() override { a_data.MakeRef(*data, np, data.GetMemoryType(), false); }
+
+   ParticleArray(int num_particles)
+   : ParticleData<T>(num_particles) {};
 
 public:
-   // No public methods
+
+   void SetParticleData(const Array<int> &indices, const Array<T> &pdatas)
+   { ParticleData<T>::SetParticleData(indices, pdatas.GetMemory()); }
+
+   // Don't need specialized getters/setters when vdim == 1
+   T& operator[](int idx) { return a_data[idx]; }
+
+   const T& operator[](int idx) const { return a_data[idx]; }
+
+   const Array<int>& GetArray() const { return a_data; }
+
 };
 
-
-
-class ParticleArray : public ParticleData<int>
-{
-
-};
 
 class ParticleFunction : public ParticleData<real_t>
 {
    friend class ParticleSpace;
    
-private:
+protected:
    const ParticleSpace &pspace;
 
    Vector v_data;
-
-protected:
 
    ParticleFunction(const ParticleSpace &pspace, int vdim_=1);
 
    void SyncWrapper() { v_data.NewMemoryAndSize(data, np, false); }
 
 public:
-   
+
+   T& GetParticleData(int i, int comp=0)
+   { return ParticleData<real_t>::GetParticleData(i, comp); }
+
+   const T& GetParticleData(int i, int comp=0) const
+   { return ParticleData<real_t>::GetParticleData(i, comp); }
+
+   void GetParticleData(int i, Vector &pdata) const
+   { ParticleData<real_t>::GetParticleData(i, pdata.GetMemory()); }
+
+   void SetParticleData(int i, const T &pdata, int comp=0)
+   { return ParticleData<real_t>::SetParticleData(i, pdata, comp); }
+
+   void SetParticleData(int i, const Vector &pdata)
+   { ParticleData<real_t>::SetParticleData(i, pdata.GetMemory()); }
+
+   // Set multiple particles' data, given particle indices
+   // Ordering must match that of the ParticleSpace
+   void SetParticleData(const Array<int> &indices, const Vector &pdatas)
+   { ParticleData<real_t>::SetParticleData(indices, pdatas.GetMemory()); }
+
+   T& operator[](int idx) { return v_data[idx]; }
+
+   const T& operator[](int idx) const { return v_data[idx]; }
+
+   const Vector& GetVector() const { return v_data; }
+
    // Interpolate a GridFunction onto the particles' locations
    // Automatically checks if Mesh was registered with FindPointsGSLIB in ParticleSpace
    // (and uses it if so! Saves a Setup and a FindPoints step...)
@@ -123,20 +154,6 @@ public:
    void ProjectCoefficient(Coefficient &coeff, int mesh_idx=0);
 
    void ProjectCoefficient(VectorCoefficient &vcoeff, int mesh_idx=0);
-
-   void GetParticleData(int i, Vector &pdata) const
-   { ParticleData<real_t>::GetParticleData(i, pdata.GetMemory()); }
-
-   void SetParticleData(int i, const Vector &pdata)
-   { ParticleData<real_t>::SetParticleData(i, pdata.GetMemory()); }
-
-   // Set multiple particles' data, given particle indices
-   // Ordering must match that of the ParticleSpace
-   void SetParticleData(const Array<int> &indices, const Vector &pdatas)
-   { ParticleData<real_t>::SetParticleData(indices, pdatas.GetMemory()); }
-
-   const Vector& GetVector() const { return v_data; }
-
 
 };
 

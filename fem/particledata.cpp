@@ -20,57 +20,46 @@ namespace mfem
 template<typename T>
 void ParticleData<T>::AddParticles(int num_new)
 {
-   // TODO: Definitely some mistakes with memorytype + usedevice stuff...
-   Memory<T> old = data;
-   data.Delete();
-   data.New(num_new*vdim+old.Capacity(), old.GetMemoryType());
-   data.UseDevice(old.UseDevice());
-   np = data.Capacity()/vdim;
+   // Update np (size-indicator)
+   int np_old = np;
+   np = np_old + num_new;
 
-   int np_old = old.Capacity()/vdim;
+   // If now over-capacity, create new data sized to fit new
+   if (np*vdim > data.Capacity())
+   {
+      Memory<T> old = data;
+      data.Delete();
+      data.New(np*vdim, old.GetMemoryType());
+      data.UseDevice(old.UseDevice);
+      data.CopyFrom(old, np_old*vdim);
+      old.Delete();
+   }
 
-   // Fill in old data entries. Leave new data as default-initialization
+   // Update data
+   // Default-initialize any remaining new entires
    if (ordering == Ordering::byNODES)
    {
-      for (int i = 0; i < np; i++)
+      // Shift down byNODES data...
+      for (int c = vdim-1; c > 0; c--)
       {
-         if (i < np_old)
+         for (int i = np_old-1; i >= 0; i--)
          {
-            for (int c = 0; c < vdim; c++)
-            {
-               data[i+c*np] = old[i+c*np_old];
-            }
+            data[i+c*np] = data[i+c*np_old];
          }
-         else
+         for (int i = np_old; i < np; i++)
          {
-            for (int c = 0; c < vdim; c++)
-            {
-               data[i+c*np] = T();
-            }
-         }
+            data[i+c*np] = T();
+         } 
       }
    }
    else
    {
-      for (int i = 0; i < np_old; i++)
+      for (int i = np_old*vdim; i < np*vdim; i++)
       {
-         if (i < np_old)
-         {
-            for (int c = 0; c < vdim; c++)
-            {
-               data[c+i*vdim] = old[c+i*vdim];
-            }
-         }
-         else
-         {
-            for (int c = 0; c < vdim; c++)
-            {
-               data[c+i*vdim] = T();
-            }
-         }
+         data[i] = T();
       }
    }
-   old.Delete();
+
    SyncWrapper();
 
 }
@@ -154,16 +143,6 @@ const T& ParticleData<T>::GetParticleData(int i, int comp) const
 template<typename T>
 void ParticleData<T>::GetParticleData(int i, Memory<T> &pdata) const
 {
-   if (pdata.Capacity() != vdim)
-   {
-      // TODO: Definitely some mistakes with memorytype + usedevice stuff...
-      const MemoryType mt = pdata.GetMemoryType();
-      const bool use_dev = pdata.UseDevice();
-      pdata.Delete();
-      pdata.New(vdim, mt);
-      pdata.UseDevice(use_dev);
-   }
-
    if (ordering == Ordering::byNODES)
    {
       for (int c = 0; c < vdim; c++)
@@ -196,10 +175,6 @@ void ParticleData<T>::SetParticleData(int i, const T &pdata, int comp)
 template<typename T>
 void ParticleData<T>::SetParticleData(int i, const Memory<T> &pdata)
 {
-   // MFEM_ASSERT(pdata.Capacity() == vdim,
-   //             "Input Memory<T> has capacity " + std::to_string(pdata.Capacity()),
-   //             ", not vdim " + std::to_string(vdim));
-
    if (ordering == Ordering::byNODES)
    {
       for (int c = 0; c < vdim; c++)
@@ -220,9 +195,6 @@ template<typename T>
 void ParticleData<T>::SetParticleData(const Array<int> &indices,
                               const Memory<T> &pdatas)
 {
-   // MFEM_ASSERT(pdatas.Capacity()/vdim == indices.Size(),
-   //             "Indices size incompatible with input pdatas");
-
    int np_update = pdatas.Capacity()/vdim;
    
    if (ordering == Ordering::byNODES)
@@ -246,10 +218,6 @@ void ParticleData<T>::SetParticleData(const Array<int> &indices,
       }
    }
 }
-
-// Only real_t and int supported currently
-template class ParticleData<real_t>;
-template class ParticleData<int>;
 
 
 ParticleFunction::ParticleFunction(const ParticleSpace &pspace, int vdim_)
