@@ -15,7 +15,17 @@
 using namespace std;
 using namespace mfem;
 
-static constexpr int dim = 3;
+static constexpr int Dim = 3;
+static constexpr int DataVDim = 7;
+
+struct Particle
+{
+   Vector coords;
+   Vector data;
+   int id;
+   Particle() : coords(Dim), data(DataVDim), id() {}; 
+};
+
 static constexpr int N = 100;
 static constexpr int N_rm = 37;
 static constexpr int N_e = 10;
@@ -32,16 +42,61 @@ void InitializeRandom(int seed, Vector &v)
    }
 }
 
+void CheckEquality(const ParticleSpace &pspace, const ParticleFunction &pf, const std::vector<Particle> &particles)
+{
+   REQUIRE(particles.size() == pspace.GetNP());
+
+   // Verify particles added properly
+   int err_coords_count = 0;
+   int err_data_count = 0;
+   int err_ids_count = 0;
+   Vector pv(Dim);
+   Vector pd(DataVDim);
+   for (int i = 0; i < particles.size(); i++)
+   {
+      pspace.GetCoords().GetParticleData(i, pv);
+      for (int d = 0; d < Dim; d++)
+      {
+         if (particles[i].coords[d] != pv[d])
+         {
+            err_coords_count++;
+         }
+      }
+      pf.GetParticleData(i, pd);
+      for (int vd = 0; vd < DataVDim; vd++)
+      {
+         if (particles[i].data[vd] != pd[vd])
+         {
+            err_data_count++;
+         }
+      }
+
+      if (particles[i].id != pspace.GetID(i))
+      {
+         err_ids_count++;
+      }
+
+   }
+   REQUIRE(err_coords_count == 0);
+   REQUIRE(err_data_count == 0);
+   REQUIRE(err_ids_count == 0);
+
+}
+
 void TestAddRemove(Ordering::Type ordering)
 {
    // Initialize set of particles to add
    int seed = 17;
-   std::vector<Vector> particles;
+   std::vector<Particle> particles;
    for (int i = 0; i < N; i++)
    {
-      particles.emplace_back(dim);
-      InitializeRandom(seed, particles.back());
+      particles.emplace_back();
+      InitializeRandom(seed, particles.back().coords);
       seed++;
+      InitializeRandom(seed, particles.back().data);
+      seed++;
+
+      particles.back().id = i;
    }
 
    // Generate random set of unique indices to remove particles from
@@ -57,7 +112,7 @@ void TestAddRemove(Ordering::Type ordering)
    indices_rm.Sort();
 
    // Create new set of particles after removal
-   std::vector<Vector> particles_rm = particles;
+   std::vector<Particle> particles_rm = particles;
    for (int i = 0; i < N_rm; i++)
    {
       particles_rm.erase(particles_rm.begin() + indices_rm[i] - i);
@@ -66,54 +121,27 @@ void TestAddRemove(Ordering::Type ordering)
    SECTION(std::string("Ordering: ") + (ordering == Ordering::byNODES ? "byNODES" : "byVDIM"))
    {
       // Initialize an empty ParticleSpace w/o mesh
-      ParticleSpace pspace(dim, 0, ordering);
+      ParticleSpace pspace(Dim, 0, ordering);
+      ParticleFunction &pf = pspace.CreateParticleFunction(DataVDim);
 
       SECTION("Add")
       {
          // Add each particle individually
+         Array<int> new_indices;
          for (int i = 0; i < N; i++)
          {
-            pspace.AddParticles(particles[i]);
+            pspace.AddParticles(particles[i].coords, &new_indices);
+            pf.SetParticleData(new_indices, particles[i].data);
          }
-         REQUIRE(particles.size() == pspace.GetNP());
 
-         // Verify particles added properly
-         int add_err_count = 0;
-         Vector pv(dim);
-         for (int i = 0; i < N; i++)
-         {
-            pspace.GetCoords().GetParticleData(i, pv);
-            for (int d = 0; d < dim; d++)
-            {
-               if (particles[i][d] != pv[d])
-               {
-                  add_err_count++;
-               }
-            }
-         }
-         REQUIRE(add_err_count == 0);
+         CheckEquality(pspace, pf, particles);
 
+         
          SECTION("Remove")
          {
             // Remove particles
             pspace.RemoveParticles(indices_rm);
-            REQUIRE(particles_rm.size() == pspace.GetNP());
-
-
-            // Ensure that particles were properly removed
-            int rm_err_count = 0;
-            for (int i = 0; i < particles_rm.size(); i++)
-            {
-               pspace.GetCoords().GetParticleData(i, pv);
-               for (int d = 0; d < dim; d++)
-               {
-                  if (particles_rm[i][d] != pv[d])
-                  {
-                     rm_err_count++;
-                  }
-               }
-            }
-            REQUIRE(rm_err_count == 0);
+            CheckEquality(pspace, pf, particles_rm);
          }
       }
    }
