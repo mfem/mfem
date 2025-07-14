@@ -37,6 +37,8 @@ void InitDetKernels()
    k::Specialization<3,3,3,3>::Add();
    k::Specialization<3,3,3,5>::Add();
    k::Specialization<3,3,3,6>::Add();
+   k::Specialization<3,3,4,6>::Add();
+   k::Specialization<3,3,3,4>::Add();
 }
 
 } // namespace quadrature_interpolator
