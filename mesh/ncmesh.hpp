@@ -1033,7 +1033,6 @@ public:
                       Array<int> &neighbors, /* append */
                       const Array<int> *search_set = NULL);
 
-protected:
    /** Expand a set of elements by all vertex-, edge- and face-neighbors. The
        output array 'expanded' will contain all items from 'elems' (provided
        they are in 'search_set') plus their neighbors. The neighbor search can
@@ -1043,7 +1042,7 @@ protected:
                        Array<int> &expanded,
                        const Array<int> *search_set = NULL);
 
-
+protected:
    void CollectEdgeVertices(int v0, int v1, Array<int> &indices);
    void CollectTriFaceVertices(int v0, int v1, int v2, Array<int> &indices);
    void CollectQuadFaceVertices(int v0, int v1, int v2, int v3,
