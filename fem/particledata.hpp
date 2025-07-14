@@ -45,6 +45,9 @@ protected:
    // Resize properly to remove particles at indices
    void RemoveParticles(const Array<int> &indices);
 
+   // Re-allocates so np*vdim = Capacity()
+   void ShrinkToFit();
+
    // "SyncWrapper" function that's abstract + called at end of AddParticles + RemoveParticles
    // --- To sync a more user-friendly wrapper (Vector for ParticleFunction, Array<int> for ParticleArray<int>)
    virtual void SyncWrapper() = 0;

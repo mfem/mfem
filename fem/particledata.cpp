@@ -22,7 +22,7 @@ void ParticleData<T>::AddParticles(int num_new)
 {
    // Update np (size-indicator)
    int np_old = np;
-   np = np_old + num_new;
+   np += num_new;
 
    // If now over-capacity, create new data sized to fit new
    if (np*vdim > data.Capacity())
@@ -67,50 +67,63 @@ void ParticleData<T>::AddParticles(int num_new)
 template<typename T>
 void ParticleData<T>::RemoveParticles(const Array<int> &indices)
 {
-   // TODO: Definitely some mistakes with memorytype + usedevice stuff...
-   Memory<T> old = data;
-   data.Delete();
-   data.New(old.Capacity() - indices.Size()*vdim, old.GetMemoryType());
-   data.UseDevice(old.UseDevice());
-   np = data.Capacity()/vdim;
+   // Update np (size-indicator)
+   int np_old = np;
+   np -= indices.Size();
 
-   int np_old = old.Capacity()/vdim;
+   // Sort the indices
+   Array<int> sorted_list(list);
+   sorted_list.Sort();
 
-   Array<int> mask(np_old);
-   FiniteElementSpace::ListToMarker(indices, np_old, mask, 1)
-   // Copy non-removed data over
+   // Shift non-removed data, maintain capacity AT END OF DATA
    if (ordering == Ordering::byNODES)
    {
-      int idx = 0;
-      for (int i = 0; i < np_old; i++)
+      int rm_count = 0;
+      for (int i = sorted_list[0]; i < np_old*vdim; i++)
       {
-         if (mask[i])
+         if (i % np_old == sorted_list[rm_count % sorted_list.Size()])
          {
-            for (int c = 0; c < vdim; c++)
-            {
-               data[idx+c*np] = old[i+c*np_old];
-            }
-            idx++;
+            rm_count++;
+         }
+         else
+         {
+            data[i-rm_count] = data[i]; // Shift elements rm_count
          }
       }
    }
    else
    {
-      int idx = 0;
-      for (int i = 0; i < np_old; i++)
+      int rm_count = 0;
+      for (int i = sorted_list[0]*vdim; i < np_old*vdim;  i++)
       {
-         if (mask[i])
+         int p_idx = i/vdim; // particle index
+         int rm_idx = rm_count/vdim;
+         if (rm_idx < sorted_list.Size() && p_idx == sorted_list[rm_idx])
          {
-            for (int c = 0; c < vdim; c++)
-            {
-               data[c+idx*vdim] = old[c+i*vdim];
-            }
-            idx++;
+            rm_count += vdim;
+            i += vdim - 1;
+         }
+         else
+         {
+            data[i-rm_count] = data[i];
          }
       }
    }
 
-   old.Delete();
+   SyncWrapper();
+}
+
+template<typename T>
+void ParticleData<T>::ShrinkToFit()
+{
+   // Copied from Array<T>::ShrinkToFit
+   if (Capacity() == np*vdim) { return; }
+   Memory<T> p(np*vdim, data.GetMemoryType());
+   p.CopyFrom(data, np*vdim);
+   p.UseDevice(data.UseDevice());
+   data.Delete();
+   data = p;
+
    SyncWrapper();
 }
 
