@@ -34,7 +34,7 @@ protected:
    const int vdim;
    const Ordering::Type ordering;
    
-   int np; // (number of particles * vdim) < data.Capacity() in general
+   int np; // (number of particles * vdim) < data.Capacity() in general (Proxy for Size)
 
    // All particle data is now stored entirely in Memory<T>
    Memory<T> data;
@@ -73,6 +73,8 @@ protected:
 
 public:
 
+   int GetVDim() const { return vdim; }
+
    int Size() const { return np*vdim; }
 
    int Capacity() const { return data.Capacity(); }
@@ -96,10 +98,7 @@ protected:
 public:
 
    void SetParticleData(const Array<int> &indices, const Array<T> &pdatas)
-   {
-      MFEM_ASSERT(indices.Size() == pdatas.Size(), "Cannot set pdata size " + std::to_string(pdatas.Size()) + " to indices sized " + std::to_string(indices.Size())); 
-      ParticleData<T>::SetParticleData(indices, pdatas.GetMemory());
-   }
+   { ParticleData<T>::SetParticleData(indices, pdatas.GetMemory()); }
 
    // Don't need specialized getters/setters when vdim == 1
    T& operator[](int idx) { return a_data[idx]; }
@@ -139,18 +138,12 @@ public:
    { return ParticleData<real_t>::SetParticleData(i, pdata, comp); }
 
    void SetParticleData(int i, const Vector &pdata)
-   { 
-      MFEM_ASSERT(pdata.Size() == this->vdim, "Input pdata size " + std::to_string(pdata.Size()) + " is not equal to vdim " + std::to_string(this->vdim));
-      ParticleData<real_t>::SetParticleData(i, pdata.GetMemory());
-   }
+   { ParticleData<real_t>::SetParticleData(i, pdata.GetMemory()); }
 
    // Set multiple particles' data, given particle indices
    // Ordering must match that of the ParticleSpace
    void SetParticleData(const Array<int> &indices, const Vector &pdatas)
-   {  
-      MFEM_ASSERT(indices.Size() == pdatas.Size()/this->vdim, "Cannot set pdata size " + std::to_string(pdatas.Size()) + " with vdim " + std::to_string(this->vdim) + " to indices sized " + std::to_string(indices.Size()));  
-      ParticleData<real_t>::SetParticleData(indices, pdatas.GetMemory());
-   }
+   { ParticleData<real_t>::SetParticleData(indices, pdatas.GetMemory()); }
 
    real_t& operator[](int idx) { return v_data[idx]; }
 
@@ -158,7 +151,7 @@ public:
 
    const Vector& GetVector() const { return v_data; }
 
-
+   // -------------------------------------------------------------------------------------------------------------------------------
    // Below functions are all TODO still...
 
    // Interpolate a GridFunction onto the particles' locations

@@ -155,8 +155,8 @@ TEST_CASE("Adding + Removing Particles",
    TestAddRemove(Ordering::byVDIM);
 }
 
-/*
-#if defined(MFEM_USE_MPI) && defined(MFEM_USE_GSLIB)
+
+#if defined(MFEM_USE_MPI)
 
 template<typename T>
 int CheckArrayEquality(const Array<T> &arr1, const Array<T> &arr2)
@@ -326,6 +326,4 @@ TEST_CASE("Particle Redistribution", "[ParticleSet]" "[Parallel]")
    TestRedistribute(Ordering::byVDIM);
    
 }
-#endif // MFEM_USE_MPI && MFEM_USE_GSLIB
-
-*/
+#endif // MFEM_USE_MPI

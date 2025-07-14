@@ -21,6 +21,16 @@
 
 #ifdef MFEM_USE_GSLIB
 
+// Forward declare gslib structs to avoid including macro-filled header:
+namespace gslib
+{
+extern "C"
+{
+struct comm;
+struct crystal;
+} //extern C
+} // gslib
+#endif
 
 namespace mfem
 {
@@ -28,9 +38,8 @@ namespace mfem
 // Can add/register N meshes (including 0!).
 // This will setup FindPointsGSLIB with an arbitrary number of meshes
 // (Benefit is that if one wants to Interpolate a GF, we can check if we have a Setup FindPointsGSSLIB first)
-// There must be a MAIN mesh of which redistribution occurs on
 // Any change to particle coordinates == All FindPointsGSLIB::FindPoints called on updated coordinates
-
+// TODO: Discuss if we want to exposure non-const coordinates + have a "ProcessUpdateCoords()" or something...
 class ParticleSpace
 {
 
@@ -56,12 +65,55 @@ protected:
    std::vector<std::string> all_func_names;
    std::vector<ParticleFunction> all_funcs;
 
-
    void AddParticles(const Vector &new_coords, const Array<int> &new_ids, Array<int> &new_indices);
-
 
 #ifdef MFEM_USE_MPI
    MPI_Comm comm;
+   std::unique_ptr<gslib::comm> gsl_comm;
+   std::unique_ptr<gslib::crystal> cr;
+
+   // If no FindPointsGSLIB data:
+   template<std::size_t N>
+   struct pdata_t
+   {
+      double data[N]; // coords + ParticleFunction data
+      unsigned int id, proc;
+   };
+
+   template<std::size_t NData, std::size_t NFinder>
+   struct pdata_fdpts_t
+   {
+      double data[N]; // coords + ParticleFunction data
+      double rst[3*NFinder], mfem_rst[3*NFinder]; // gslib ref coords , mfem reference coords
+      unsigned int proc[NFinder], elem[NFinder], mfem_elem[NFinder], code[NFinder]; // gslib proc, elem id, mfem elem id, and code
+      unsigned int id;
+   };
+
+   static constexpr std::size_t NDATA_MAX = 100;
+   static constexpr std::size_t NFINDERS_MAX = 3;
+   
+   template<std::size_t NData, std::size_t NFinder>
+   void Transfer(const Array<int> &send_idxs, const Array<int> &send_ranks);
+
+   template<std::size_t NData, std::size_t... NFinders>
+   void DispatchFinderTransfer(const Array<int> &send_idxs, const Array<int> &send_ranks, std::index_sequence<NFinders...>)
+   {
+      bool success = ( (finders.size() == NFinders ? (Transfer<Ns,NFinders>(send_idxs, send_ranks),true) : false) || ...);
+      MFEM_ASSERT(success, "ParticleSpaces with total registered meshes above " + std::to_string(NFINDERS_MAX) + " are currently not supported for redistributing. Please submit a PR to request a particular case with more.");
+   }
+   
+   template<std::size_t... NDatas>
+   void DispatchDataTransfer(const Array<int> &send_idxs, const Array<int> &send_ranks, std::index_sequence<NDatas...>, std::index_sequence<NFinders...>)
+   {
+      int total_comps = dim;
+      for (ParticleFunction &pf : all_funcs)
+      {
+         total_comps += pf.GetVDim();
+      }
+      bool success = ( (totalComps == Ns ? (DispatchFinderTransfer<Ns>(send_idxs, send_ranks, std::make_index_sequence<N_MAX+1>{}),true) : false) || ...);
+      MFEM_ASSERT(success, "ParticleSpaces with total data components above " + std::to_string(NDATA_MAX) + " are currently not supported for redistributing. Please submit a PR to request a particular case with more.");
+   }
+
 #endif // MFEM_USE_MPI
 
 public:
@@ -116,15 +168,17 @@ public:
    /// Remove all particles not within mesh anymore (at provided mesh_idx!)
    void RemoveLostParticles(int mesh_idx=0);
 
-// Below are still TODO:
    void PrintCSV(std::string fname, int precision=16);
 
 #ifdef MFEM_USE_MPI
+   
+   void Redistribute(const Array<unsigned int> &rank_list);
+
    // Redistribution occurs relative to the mesh at index redistribute_mesh_idx
-   void Redistribute(int mesh_idx=0);
+   void Redistribute(int mesh_idx=0)
+   { Redistribute(finders[mesh_idx].GetProc())}
+
 #endif // MFEM_USE_MPI
-
-
 
 };
 
