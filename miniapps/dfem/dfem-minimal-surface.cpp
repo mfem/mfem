@@ -75,7 +75,7 @@ enum DerivativeType
 //
 // This class implements the minimal surface equation, which is a nonlinear
 // operator that provides the residual.
-template <typename dscalar_t, int dim = 2>
+template <typename dscalar_t, int dim = 3>
 class MinimalSurface : public Operator
 {
 private:

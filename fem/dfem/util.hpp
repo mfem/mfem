@@ -604,7 +604,7 @@ void forall(func_t f,
 #elif defined(MFEM_USE_HIP)
       MFEM_GPU_CHECK(hipGetLastError());
 #endif
-      MFEM_DEVICE_SYNC;
+      // MFEM_DEVICE_SYNC;
 #endif
    }
    else if (Device::Allows(Backend::CPU_MASK))
