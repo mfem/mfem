@@ -43,7 +43,9 @@ protected:
    const int id_stride;
 
    int id_counter;
-   Array<int> ids;
+
+   // TODO: Trying to think about how to store this... 
+   ParticleData<int> ids;
    std::unique_ptr<ParticleFunction> coords;
 
    int redistribute_mesh_idx;

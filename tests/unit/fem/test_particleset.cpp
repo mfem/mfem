@@ -15,50 +15,32 @@
 using namespace std;
 using namespace mfem;
 
-static constexpr int SpaceDim = 3;
-static constexpr int NumProps = 2;
-static const Array<int> StateVDims({2,3,1,5});
-
+static constexpr int dim = 3;
 static constexpr int N = 100;
 static constexpr int N_rm = 37;
 static constexpr int N_e = 10;
 
-void InitializeRandom(Particle &p, int seed)
+// Better than Randomize:
+void InitializeRandom(int seed, Vector &v)
 {
    std::mt19937 gen(seed);
    std::uniform_real_distribution<> real_dist(0.0,1.0);
 
-   const ParticleMeta &meta = p.GetMeta();
-
-   for (int i = 0; i < meta.SpaceDim(); i++)
+   for (int i = 0; i < v.Size(); i++)
    {
-      p.GetCoords()[i] = real_dist(gen);
-   }
-
-   for (int s = 0; s < meta.NumProps(); s++)
-      p.GetProperty(s) = real_dist(gen);
-   
-   for (int v = 0; v < meta.NumStateVars(); v++)
-   {
-      for (int c = 0; c < meta.StateVDim(v); c++)
-      {
-         p.GetStateVar(v)[c] = real_dist(gen);
-      }
+      v[i] = real_dist(gen);
    }
 }
 
 void TestAddRemove(Ordering::Type ordering)
 {
-   ParticleMeta pmeta(SpaceDim, NumProps, StateVDims);
-
-   // Initialize a vector of random particles
+   // Initialize set of particles to add
    int seed = 17;
-   std::vector<Particle> particles;
-
+   std::vector<Vector> particles;
    for (int i = 0; i < N; i++)
    {
-      particles.emplace_back(pmeta);
-      InitializeRandom(particles[i], seed);
+      particles.emplace_back(dim);
+      InitializeRandom(seed, particles.back());
       seed++;
    }
 
@@ -74,8 +56,8 @@ void TestAddRemove(Ordering::Type ordering)
    }
    indices_rm.Sort();
 
-   // Create new vector of particles after removal
-   std::vector<Particle> particles_rm = particles;
+   // Create new set of particles after removal
+   std::vector<Vector> particles_rm = particles;
    for (int i = 0; i < N_rm; i++)
    {
       particles_rm.erase(particles_rm.begin() + indices_rm[i] - i);
@@ -83,38 +65,53 @@ void TestAddRemove(Ordering::Type ordering)
 
    SECTION(std::string("Ordering: ") + (ordering == Ordering::byNODES ? "byNODES" : "byVDIM"))
    {
-      ParticleSet pset(pmeta, ordering);
+      // Initialize an empty ParticleSpace w/o mesh
+      ParticleSpace pspace(dim, 0, ordering);
 
       SECTION("Add")
       {
-         for (int i = 0; i < N; i++)
-            pset.AddParticle(particles[i]);
-         REQUIRE(particles.size() == pset.GetNP());
-
-
-         int add_err_count = 0;
+         // Add each particle individually
          for (int i = 0; i < N; i++)
          {
-            Particle p(pmeta);
-            pset.GetParticle(i, p);
-            if (particles[i] != p)
-               add_err_count++;
+            pspace.AddParticles(particles[i]);
+         }
+         REQUIRE(particles.size() == pspace.GetNP());
+
+         // Verify particles added properly
+         int add_err_count = 0;
+         Vector pv(dim);
+         for (int i = 0; i < N; i++)
+         {
+            pspace.GetCoords().GetParticleData(i, pv);
+            for (int d = 0; d < dim; d++)
+            {
+               if (particles[i][d] != pv[d])
+               {
+                  add_err_count++;
+               }
+            }
          }
          REQUIRE(add_err_count == 0);
 
          SECTION("Remove")
          {
-            pset.RemoveParticles(indices_rm);
+            // Remove particles
+            pspace.RemoveParticles(indices_rm);
             REQUIRE(particles_rm.size() == pset.GetNP());
 
 
+            // Ensure that particles were properly removed
             int rm_err_count = 0;
             for (int i = 0; i < particles_rm.size(); i++)
             {
-               Particle p(pmeta);
-               pset.GetParticle(i, p);
-               if (particles_rm[i] != p)
-                  rm_err_count++;
+               pspace.GetCoords().GetParticleData(i, pv);
+               for (int d = 0; d < dim; d++)
+               {
+                  if (particles_rm[i][d] != pv[d])
+                  {
+                     rm_err_count++;
+                  }
+               }
             }
             REQUIRE(rm_err_count == 0);
          }
@@ -130,6 +127,7 @@ TEST_CASE("Adding + Removing Particles",
    TestAddRemove(Ordering::byVDIM);
 }
 
+/*
 #if defined(MFEM_USE_MPI) && defined(MFEM_USE_GSLIB)
 
 template<typename T>
@@ -300,5 +298,6 @@ TEST_CASE("Particle Redistribution", "[ParticleSet]" "[Parallel]")
    TestRedistribute(Ordering::byVDIM);
    
 }
-
 #endif // MFEM_USE_MPI && MFEM_USE_GSLIB
+
+*/

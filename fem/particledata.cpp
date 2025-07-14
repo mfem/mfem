@@ -32,11 +32,21 @@ void ParticleData<T>::AddParticles(int num_new)
    // Fill in old data entries. Leave new data as default-initialization
    if (ordering == Ordering::byNODES)
    {
-      for (int i = 0; i < np_old; i++)
+      for (int i = 0; i < np; i++)
       {
-         for (int c = 0; c < vdim; c++)
+         if (i < np_old)
          {
-            data[i+c*np] = old[i+c*np_old];
+            for (int c = 0; c < vdim; c++)
+            {
+               data[i+c*np] = old[i+c*np_old];
+            }
+         }
+         else
+         {
+            for (int c = 0; c < vdim; c++)
+            {
+               data[i+c*np] = T();
+            }
          }
       }
    }
@@ -44,13 +54,24 @@ void ParticleData<T>::AddParticles(int num_new)
    {
       for (int i = 0; i < np_old; i++)
       {
-         for (int c = 0; c < vdim; c++)
+         if (i < np_old)
          {
-            data[c+i*vdim] = old[c+i*vdim];
+            for (int c = 0; c < vdim; c++)
+            {
+               data[c+i*vdim] = old[c+i*vdim];
+            }
+         }
+         else
+         {
+            for (int c = 0; c < vdim; c++)
+            {
+               data[c+i*vdim] = T();
+            }
          }
       }
    }
    old.Delete();
+   SyncWrapper();
 
 }
 
@@ -60,19 +81,21 @@ void ParticleData<T>::RemoveParticles(const Array<int> &indices)
    // TODO: Definitely some mistakes with memorytype + usedevice stuff...
    Memory<T> old = data;
    data.Delete();
-   data.New(old.Capacity(), old.GetMemoryType());
+   data.New(old.Capacity() - indices.Size()*vdim, old.GetMemoryType());
    data.UseDevice(old.UseDevice());
    np = data.Capacity()/vdim;
 
    int np_old = old.Capacity()/vdim;
 
+   Array<int> mask(np_old);
+   FiniteElementSpace::ListToMarker(indices, np_old, mask, 1)
    // Copy non-removed data over
    if (ordering == Ordering::byNODES)
    {
       int idx = 0;
       for (int i = 0; i < np_old; i++)
       {
-         if (i != indices[i])
+         if (mask[i])
          {
             for (int c = 0; c < vdim; c++)
             {
@@ -87,7 +110,7 @@ void ParticleData<T>::RemoveParticles(const Array<int> &indices)
       int idx = 0;
       for (int i = 0; i < np_old; i++)
       {
-         if (i != indices[i])
+         if (mask[i])
          {
             for (int c = 0; c < vdim; c++)
             {
@@ -99,6 +122,7 @@ void ParticleData<T>::RemoveParticles(const Array<int> &indices)
    }
 
    old.Delete();
+   SyncWrapper();
 }
 
 template<typename T>
@@ -115,28 +139,44 @@ T& ParticleData<T>::GetParticleData(int i, int comp)
 }
 
 template<typename T>
-void ParticleData<T>::GetParticleData(int i, Memory<T> &pdata)
+const T& ParticleData<T>::GetParticleData(int i, int comp) const
 {
    if (ordering == Ordering::byNODES)
    {
-      if (pdata.Capacity() != vdim)
-      {
-         // TODO: Definitely some mistakes with memorytype + usedevice stuff...
-         const MemoryType mt = pdata.GetMemoryType();
-         const bool use_dev = pdata.UseDevice();
-         pdata.Delete();
-         pdata.New(vdim, mt);
-         pdata.UseDevice(use_dev);
-      }
+      return data[i + comp*np];
+   }
+   else
+   {
+      return data[comp + i*vdim];
+   }
+}
+
+template<typename T>
+void ParticleData<T>::GetParticleData(int i, Memory<T> &pdata) const
+{
+   if (pdata.Capacity() != vdim)
+   {
+      // TODO: Definitely some mistakes with memorytype + usedevice stuff...
+      const MemoryType mt = pdata.GetMemoryType();
+      const bool use_dev = pdata.UseDevice();
+      pdata.Delete();
+      pdata.New(vdim, mt);
+      pdata.UseDevice(use_dev);
+   }
+
+   if (ordering == Ordering::byNODES)
+   {
       for (int c = 0; c < vdim; c++)
       {
-         pdata[i] = data[i + c*np];
+         pdata[c] = data[i + c*np];
       }
    }
    else
    {
-      pdata.Delete();
-      pdata.MakeAlias(data, i*vdim, vdim);
+      for (int c = 0; c < vdim; c++)
+      {
+         pdata[c] = data[c + i*vdim];
+      }
    }
 }
 
@@ -214,7 +254,7 @@ template class ParticleData<int>;
 
 ParticleFunction::ParticleFunction(const ParticleSpace &pspace, int vdim_)
 : ParticleData<real_t>(pspace.GetNP(), pspace.GetOrdering(), vdim_),
-  pspace(&pspace)
+  pspace(pspace)
 {
 
 }
