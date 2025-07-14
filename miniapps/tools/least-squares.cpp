@@ -276,7 +276,7 @@ int main(int argc, char* argv[])
                                       *fes_averages.GetFE(e_idx),
                                       *ngh_tr, *self_tr, ngh_elem_mat);
 
-         if (ngh_elem_mat.Height()!=1) { mfem_error("High order case not implemented yet!"); }
+         if (ngh_elem_mat.Height()!=1) { mfem_error("High order case for source space not implemented yet!"); }
          Vector ngh_vec;
          ngh_elem_mat.GetRow(0, ngh_vec);
          local_mass_mat.SetRow(i, ngh_vec);
@@ -295,12 +295,12 @@ int main(int argc, char* argv[])
          Vector _mult, exact_average_e(1);
          exact_average_e = u_averages(e_idx);
 
-         DenseMatrix avg_mat(1, local_mass_mat.Width());
-         Vector avg_self(local_mass_mat.Height());
-         local_mass_mat.GetRow(local_mass_mat.Height()-1, avg_self);
-         avg_mat.SetRow(0, avg_self);
+         DenseMatrix self_avg_mat;
+         mass.AsymmetricElementMatrix(*fes_reconstruction.GetFE(e_idx),
+                                      *fes_averages.GetFE(e_idx),
+                                      *self_tr, *self_tr, self_avg_mat);
 
-         LSSolver(local_mass_mat, avg_mat,
+         LSSolver(local_mass_mat, self_avg_mat,
                   local_u_avg, exact_average_e,
                   local_u_rec, _mult);
       }
