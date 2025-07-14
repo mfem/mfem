@@ -3,14 +3,15 @@ ssep="----------------------------------------"
 # Enable GPU-aware MPI:
 # gpu_aware_mpi_env_cmd="env MPICH_GPU_SUPPORT_ENABLED=1"
 # gpu_aware_mpi="-g"
-# number of nodes, number of MPI ranks:
-nnodes=1
+# number of MPI ranks, number of ranks per node, number of nodes:
 np=1
-# dev="-d hip ${gpu_aware_mpi}"
+nrnode=4
+((nnodes = (np+nrnode-1)/nrnode))
+# dev="-d gpu ${gpu_aware_mpi}"
 eps="0.3"
 # mpirun_np="mpirun -np"
 mpirun_np="env MFEM_REPORT_KERNELS=1 mpirun -np"
-# mpirun_np="${gpu_aware_mpi_env_cmd} flux run --exclusive -N ${nnodes} -n"
+# mpirun_np="${gpu_aware_mpi_env_cmd} flux run -x -N ${nnodes} -n"
 # dry run:
 # mpirun_np="echo ${mpirun_np}"
 #    p-MG/LOR + FA-hypre, or diagonal (Jacobi smoother)
@@ -37,7 +38,7 @@ while ((np_ > 8)); do
 done
 ((mf = 2**mm))
 ((mff = 3*mf))
-echo " *** mf = ${mf}, mff = ${mff}"
+echo " *** np = ${np}, mf = ${mf}, mff = ${mff}"
 for mg in "${mg_set[@]}"; do
    echo "${bsep}"
    p=(${mg})
@@ -98,26 +99,26 @@ for mg in "${mg_set[@]}"; do
       echo "np = ${np}, p = ${p}, ndofs = ${ndofs}"
       if [[ "$prec_type" == "p-mg" ]]; then
          # p-MG
-         printf "$mpirun_np ${np} ./solver-bp ${dev}"
+         printf "$mpirun_np ${np} ./solver-bp ${dev} -nrn ${nrnode}"
          printf " -ey ${eps} -mg \"${mg}\" -cs 1 ${p_mg_opts}"
          printf " -nx ${nx} -rp ${rp}\n"
          echo "${ssep}"
-         $mpirun_np "${np}" ./solver-bp ${dev} \
+         $mpirun_np "${np}" ./solver-bp ${dev} -nrn ${nrnode} \
             -ey ${eps} -mg "${mg}" -cs 1 ${p_mg_opts} -nx "${nx}" -rp "${rp}"
       elif [[ "$prec_type" == "lor" ]]; then
          # LOR
-         printf "$mpirun_np ${np} ./solver-bp ${dev}"
+         printf "$mpirun_np ${np} ./solver-bp ${dev} -nrn ${nrnode}"
          printf " -ey ${eps} -mg \"${p}\" -cs 2 ${lor_opts}"
          printf " -nx ${nx} -rp ${rp}\n"
          echo "${ssep}"
-         $mpirun_np "${np}" ./solver-bp ${dev} \
+         $mpirun_np "${np}" ./solver-bp ${dev} -nrn ${nrnode} \
             -ey ${eps} -mg "${p}" -cs 2 ${lor_opts} -nx "${nx}" -rp "${rp}"
       elif [[ "$prec_type" == "diag" ]]; then
          # Diag
-         printf "$mpirun_np ${np} ./solver-bp ${dev}"
+         printf "$mpirun_np ${np} ./solver-bp ${dev} -nrn ${nrnode}"
          printf " -ey ${eps} -mg \"${p}\" -cs 0 -nx ${nx} -rp ${rp}\n"
          echo "${ssep}"
-         $mpirun_np "${np}" ./solver-bp ${dev} \
+         $mpirun_np "${np}" ./solver-bp ${dev} -nrn ${nrnode} \
             -ey ${eps} -mg "${p}" -cs 0 -nx "${nx}" -rp "${rp}"
       fi
    done

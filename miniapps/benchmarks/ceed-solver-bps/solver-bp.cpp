@@ -145,6 +145,7 @@ int main(int argc, char *argv[])
    Hypre::Init();
 
    const char *device_config = "cpu";
+   int nrnode = 4; // number of ranks per node, used for CSV output only
    bool gpu_aware_mpi = false;
    int nx = 6, ny = -1, nz = -1;
    int rhs_n = -1;
@@ -160,6 +161,9 @@ int main(int argc, char *argv[])
    OptionsParser args(argc, argv);
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
+   args.AddOption(&nrnode, "-nrn", "--num-ranks-per-node",
+                  "Number of ranks per compute node. Used to compute the number"
+                  " of nodes written in CSV output.");
    args.AddOption(&gpu_aware_mpi, "-g", "--gpu-aware-mpi", "-no-g",
                   "--no-gpu-aware-mpi", "Enable GPU-aware MPI.");
    args.AddOption(&mg_spec, "-mg", "--multigrid-spec",
@@ -670,7 +674,7 @@ int main(int argc, char *argv[])
       string host_id = regex_replace(hostname ? hostname : "(unknown)",
                                      regex("[0-9]*$"), "");
       cout << ',' << host_id; // 3
-      cout << ',' << (fes.GetNRanks() + 7)/8; // 4 (assuming 8 ranks/node !!)
+      cout << ',' << (fes.GetNRanks() + (nrnode-1))/nrnode; // 4
       cout << ',' << fes.GetNRanks(); // 5
       cout << ',' << nx << ',' << ny << ',' << nz; // 6,7,8
       cout << ',' << order; // 9
