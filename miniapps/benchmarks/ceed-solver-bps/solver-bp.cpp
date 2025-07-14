@@ -696,7 +696,7 @@ int main(int argc, char *argv[])
 
 void report_hypre_gpu_status(bool gpu_aware_mpi_requested)
 {
-#ifdef HYPRE_WITH_GPU_AWARE_MPI
+#if defined(HYPRE_WITH_GPU_AWARE_MPI) || defined(HYPRE_USING_GPU_AWARE_MPI)
    bool hypre_gpu_aware_mpi = true;
 #else
    bool hypre_gpu_aware_mpi = false;
@@ -710,11 +710,7 @@ void report_hypre_gpu_status(bool gpu_aware_mpi_requested)
                   "GPU-aware MPI requested but HYPRE's GPU-aware MPI support"
                   " is not enabled");
       cout << "\nHYPRE GPU support: "
-#ifdef HYPRE_USING_GPU
-           << "enabled";
-#else
-           << "disabled";
-#endif
+           << (HypreUsingGPU() ? "enabled" : "disabled");
       cout << "\nHYPRE GPU-aware MPI support: "
            << (hypre_gpu_aware_mpi ? "enabled" : "disabled") << endl;
    }
