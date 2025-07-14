@@ -1003,7 +1003,7 @@ void DifferentiableOperator::AddDomainIntegrator(
 
          // Trial operator dimension for each dependent input.
          // Memory layout is: [input_idx, trial_op_dim]
-         Array<size_t> dependent_inputs_trial_op_dim(num_dependent_inputs * 2);
+         Array<int> dependent_inputs_trial_op_dim(num_dependent_inputs * 2);
 
          int total_trial_op_dim = 0;
          {
@@ -1110,7 +1110,7 @@ void DifferentiableOperator::AddDomainIntegrator(
                {
                   for (int j = 0; j < trial_vdim; j++)
                   {
-                     size_t m_offset = 0;
+                     int m_offset = 0;
                      for (int s_i = 0; s_i < num_dependent_inputs; s_i++)
                      {
                         const int s = dpitod(s_i, 0);
@@ -1362,7 +1362,7 @@ void DifferentiableOperator::AddDomainIntegrator(
                               for (int k = 0; k < test_op_dim; k++)
                               {
                                  real_t sum = 0.0;
-                                 size_t m_offset = 0;
+                                 int m_offset = 0;
                                  for (int s_i = 0; s_i < num_dependent_inputs; s_i++)
                                  {
                                     const int s = dpitod(s_i, 0);
@@ -1370,7 +1370,7 @@ void DifferentiableOperator::AddDomainIntegrator(
                                     auto d_qp = Reshape(&(shadow_shmem[s])[0], trial_vdim, trial_op_dim, num_qp);
                                     for (int j = 0; j < trial_vdim; j++)
                                     {
-                                       for (size_t m = 0; m < trial_op_dim; m++)
+                                       for (int m = 0; m < trial_op_dim; m++)
                                        {
                                           sum += qpdc(i, k, j, m + m_offset, q, e) * d_qp(j, m, q);
                                        }
@@ -1398,7 +1398,7 @@ void DifferentiableOperator::AddDomainIntegrator(
                                  for (int k = 0; k < test_op_dim; k++)
                                  {
                                     real_t sum = 0.0;
-                                    size_t m_offset = 0;
+                                    int m_offset = 0;
                                     for (int s_i = 0; s_i < num_dependent_inputs; s_i++)
                                     {
                                        const int s = dpitod(s_i, 0);
@@ -1406,7 +1406,7 @@ void DifferentiableOperator::AddDomainIntegrator(
                                        auto d_qp = Reshape(&(shadow_shmem[s])[0], trial_vdim, trial_op_dim, num_qp);
                                        for (int j = 0; j < trial_vdim; j++)
                                        {
-                                          for (size_t m = 0; m < trial_op_dim; m++)
+                                          for (int m = 0; m < trial_op_dim; m++)
                                           {
                                              sum += qpdc(i, k, j, m + m_offset, q, e) * d_qp(j, m, q);
                                           }
