@@ -139,6 +139,7 @@ int main(int argc, char *argv[])
    DiffusionIntegrator::AddSpecialization<3,4,4>();
    DiffusionIntegrator::AddSpecialization<3,5,5>();
    DiffusionIntegrator::AddSpecialization<3,6,6>();
+   DiffusionIntegrator::AddSpecialization<3,7,7>();
 
    Mpi::Init(argc, argv);
    Hypre::Init();
