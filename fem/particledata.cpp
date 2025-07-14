@@ -186,29 +186,10 @@ void ParticleData<T>::SetParticleData(int i, const T &pdata, int comp)
 }
 
 template<typename T>
-void ParticleData<T>::SetParticleData(int i, const Memory<T> &pdata)
-{
-   if (ordering == Ordering::byNODES)
-   {
-      for (int c = 0; c < vdim; c++)
-      {
-         data[i + c*np] = pdata[c];
-      }
-   }
-   else
-   {
-      for (int c = 0; c < vdim; c++)
-      {
-         data[c + i*vdim] = pdata[c];
-      }
-   }
-}
-
-template<typename T>
 void ParticleData<T>::SetParticleData(const Array<int> &indices,
                               const Memory<T> &pdatas)
 {
-   int np_update = pdatas.Capacity()/vdim;
+   int np_update = indices.Size();
    
    if (ordering == Ordering::byNODES)
    {
@@ -234,19 +215,19 @@ void ParticleData<T>::SetParticleData(const Array<int> &indices,
 
 
 ParticleFunction::ParticleFunction(const ParticleSpace &pspace, int vdim_)
-: ParticleData<real_t>(pspace.GetNP(), pspace.GetOrdering(), vdim_),
-  pspace(pspace)
+: ParticleData<real_t>(pspace.GetNP(), pspace.GetNP(), pspace.GetOrdering(), vdim_),
+  pspace(pspace)        // ^TODO: For now, capacity == num_particles...
 {
 
 }
 
-void ParticleFunction::Interpolate(GridFunction &gf)
-{
-   Mesh *m = gf.FESpace()->GetMesh();
+// void ParticleFunction::Interpolate(GridFunction &gf)
+// {
+//    Mesh *m = gf.FESpace()->GetMesh();
 
-   // Check if this mesh exists on the particlespace
+//    // Check if this mesh exists on the particlespace
 
-}
+// }
 
 } // namespace mfem
 

@@ -64,11 +64,12 @@ protected:
 
    void SetParticleData(int i, const T &pdata, int comp=0);
 
-   void SetParticleData(int i, const Memory<T> &pdata);
-
    // Set multiple particles' data, given particle indices
    // Ordering must match that of the ParticleSpace
    void SetParticleData(const Array<int> &indices, const Memory<T> &pdatas);
+
+   void SetParticleData(int i, const Memory<T> &pdata)
+   { SetParticleData(Array<int>({i}), pdata); }
 
 public:
 
@@ -89,7 +90,8 @@ protected:
    void SyncWrapper() override { a_data.MakeRef(*data, np, data.GetMemoryType(), false); }
 
    ParticleArray(int num_particles)
-   : ParticleData<T>(num_particles) {};
+   : ParticleData<T>(num_particles, num_particles) {};
+   // TODO: For now, capacity == num_particles...
 
 public:
 
@@ -146,6 +148,9 @@ public:
    const T& operator[](int idx) const { return v_data[idx]; }
 
    const Vector& GetVector() const { return v_data; }
+
+
+   // Below functions are all TODO still...
 
    // Interpolate a GridFunction onto the particles' locations
    // Automatically checks if Mesh was registered with FindPointsGSLIB in ParticleSpace
