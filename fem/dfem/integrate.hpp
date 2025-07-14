@@ -102,7 +102,7 @@ void map_quadrature_data_to_fields_tensor_impl_2d(
    const DeviceTensor<3, real_t> &f,
    const output_t &output,
    const DofToQuadMap &dtq,
-   std::array<DeviceTensor<1>, 6> &scratch_mem)
+   const std::array<DeviceTensor<1>, 6> &scratch_mem)
 {
    [[maybe_unused]] auto B = dtq.B;
    [[maybe_unused]] auto G = dtq.G;
@@ -239,7 +239,7 @@ void map_quadrature_data_to_fields_tensor_impl_3d(
    const DeviceTensor<3, real_t> &f,
    const output_t &output,
    const DofToQuadMap &dtq,
-   std::array<DeviceTensor<1>, 6> &scratch_mem)
+   const std::array<DeviceTensor<1>, 6> &scratch_mem)
 {
    [[maybe_unused]] auto B = dtq.B;
    [[maybe_unused]] auto G = dtq.G;
@@ -425,7 +425,7 @@ void map_quadrature_data_to_fields(
    const DeviceTensor<3, real_t> &f,
    const output_t &output,
    const DofToQuadMap &dtq,
-   std::array<DeviceTensor<1>, 6> &scratch_mem,
+   const std::array<DeviceTensor<1>, 6> &scratch_mem,
    const int &dimension,
    const bool &use_sum_factorization)
 {
