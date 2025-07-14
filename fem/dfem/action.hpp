@@ -330,7 +330,7 @@ public:
          const auto fields_e_ptr = load_field_e_ptr(wrapped_fields_e, e);
 
          // Interpolate
-         const auto dummy_field_weight = DeviceTensor<1>(nullptr, 0);
+         // const auto dummy_field_weight = DeviceTensor<1>(nullptr, 0);
          for_constexpr<num_inputs>([&](auto i)
          {
             constexpr int D1D = T_D1D; // 🔥
@@ -404,8 +404,10 @@ public:
       output_restriction_transpose(residual_e, residual_l);  // 🔥 to inline
    }
 
-   using KernelSignature = decltype(&NewActionCallback::action_callback_new<>);
-   MFEM_REGISTER_KERNELS(NewActionCallbackKernels, KernelSignature, (int, int));
+   using NewActionCallbackType = decltype(
+                                    &NewActionCallback::action_callback_new<>);
+   MFEM_REGISTER_KERNELS(NewActionCallbackKernels, NewActionCallbackType, (int,
+                                                                           int));
 
    inline MFEM_ALWAYS_INLINE MFEM_HOST_DEVICE
    void Apply(const int d1d, const int q1d)
@@ -446,7 +448,7 @@ template<size_t num_fields,
          typename output_fop_t>
 template<int D1D, int Q1D>
 inline MFEM_ALWAYS_INLINE MFEM_HOST_DEVICE
-typename NewActionCallback<num_fields, num_inputs, num_outputs, qfunc_t, input_t, output_fop_t>::KernelSignature
+typename NewActionCallback<num_fields, num_inputs, num_outputs, qfunc_t, input_t, output_fop_t>::NewActionCallbackType
 NewActionCallback<num_fields, num_inputs, num_outputs, qfunc_t, input_t, output_fop_t>::NewActionCallbackKernels::Kernel()
 {
    return action_callback_new<D1D, Q1D>;
@@ -459,7 +461,7 @@ template<size_t num_fields,
          typename input_t,
          typename output_fop_t>
 inline MFEM_ALWAYS_INLINE MFEM_HOST_DEVICE
-typename NewActionCallback<num_fields, num_inputs, num_outputs, qfunc_t, input_t, output_fop_t>::KernelSignature
+typename NewActionCallback<num_fields, num_inputs, num_outputs, qfunc_t, input_t, output_fop_t>::NewActionCallbackType
 NewActionCallback<num_fields, num_inputs, num_outputs, qfunc_t, input_t, output_fop_t>::NewActionCallbackKernels::Fallback
 (int d1d, int q1d)
 {

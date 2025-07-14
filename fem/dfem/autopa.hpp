@@ -12,7 +12,7 @@
 
 #include <cstddef>
 
-#include "fem/kernels.hpp"
+// #include "fem/kernels.hpp"
 #include "fem/kernel_dispatch.hpp"
 
 #include "util.hpp"
@@ -198,7 +198,7 @@ public:
 
       restriction<entity_t>(u, u_l, field_e, ordering);
 
-      const auto wrapped_fields_e = wrap_fields(f_e, shmem_info.field_sizes, ne);
+      // const auto wrapped_fields_e = wrap_fields(f_e, shmem_info.field_sizes, ne);
       const auto wrapped_direction_e = Reshape(field_e.Read(),
                                                shmem_info.direction_size, ne);
 
@@ -287,7 +287,7 @@ public:
                               auto d_qp = Reshape(&(shadow_shmem[s])[0], trial_vdim, trial_op_dim, num_qp);
                               for (int j = 0; j < trial_vdim; j++)
                               {
-                                 for (int m = 0; m < trial_op_dim; m++)
+                                 for (size_t m = 0; m < trial_op_dim; m++)
                                  {
                                     sum += qpdc(i, k, j, m + m_offset, q, e) * d_qp(j, m, q);
                                  }
@@ -323,7 +323,7 @@ public:
                                  auto d_qp = Reshape(&(shadow_shmem[s])[0], trial_vdim, trial_op_dim, num_qp);
                                  for (int j = 0; j < trial_vdim; j++)
                                  {
-                                    for (int m = 0; m < trial_op_dim; m++)
+                                    for (size_t m = 0; m < trial_op_dim; m++)
                                     {
                                        sum += qpdc(i, k, j, m + m_offset, q, e) * d_qp(j, m, q);
                                     }
@@ -355,10 +355,10 @@ public:
       or_transpose(derivative_action_e, der_action_l);
    }
 
-   using KernelSignature =
+   using NewAutoActionCallbackType =
       decltype(&NewAutoActionCallback::auto_pa_action_callback<>);
    MFEM_REGISTER_KERNELS(NewAutoActionCallbackKernels,
-                         KernelSignature, (int, int));
+                         NewAutoActionCallbackType, (int, int));
 
 
    inline MFEM_ALWAYS_INLINE MFEM_HOST_DEVICE
@@ -411,7 +411,7 @@ template<size_t num_inputs,
          typename output_fop_t>
 template<int D1D, int Q1D>
 inline MFEM_ALWAYS_INLINE MFEM_HOST_DEVICE
-typename NewAutoActionCallback<num_inputs, num_outputs, input_t, num_fields, output_fop_t>::KernelSignature
+typename NewAutoActionCallback<num_inputs, num_outputs, input_t, num_fields, output_fop_t>::NewAutoActionCallbackType
 NewAutoActionCallback<num_inputs, num_outputs, input_t, num_fields, output_fop_t>::NewAutoActionCallbackKernels::Kernel()
 {
    return auto_pa_action_callback<D1D, Q1D>;
@@ -423,7 +423,7 @@ template<size_t num_inputs,
          size_t num_fields,
          typename output_fop_t>
 inline MFEM_ALWAYS_INLINE MFEM_HOST_DEVICE
-typename NewAutoActionCallback<num_inputs, num_outputs, input_t, num_fields, output_fop_t>::KernelSignature
+typename NewAutoActionCallback<num_inputs, num_outputs, input_t, num_fields, output_fop_t>::NewAutoActionCallbackType
 NewAutoActionCallback<num_inputs, num_outputs, input_t, num_fields, output_fop_t>::NewAutoActionCallbackKernels::Fallback
 (int d1d, int q1d)
 {

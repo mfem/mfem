@@ -1281,8 +1281,7 @@ void DifferentiableOperator::AddDomainIntegrator(
                                   element_dof_ordering);
             auto ye = Reshape(derivative_action_e.ReadWrite(), num_test_dof,
                               test_vdim, num_entities);
-            auto wrapped_fields_e = wrap_fields(f_e, shmem_info.field_sizes,
-                                                num_entities);
+            // auto wrapped_fields_e = wrap_fields(f_e, shmem_info.field_sizes, num_entities);
             const auto wrapped_direction_e = Reshape(direction_e.Read(),
                                                      shmem_info.direction_size,
                                                      num_entities);
@@ -1371,7 +1370,7 @@ void DifferentiableOperator::AddDomainIntegrator(
                                     auto d_qp = Reshape(&(shadow_shmem[s])[0], trial_vdim, trial_op_dim, num_qp);
                                     for (int j = 0; j < trial_vdim; j++)
                                     {
-                                       for (int m = 0; m < trial_op_dim; m++)
+                                       for (size_t m = 0; m < trial_op_dim; m++)
                                        {
                                           sum += qpdc(i, k, j, m + m_offset, q, e) * d_qp(j, m, q);
                                        }
@@ -1407,7 +1406,7 @@ void DifferentiableOperator::AddDomainIntegrator(
                                        auto d_qp = Reshape(&(shadow_shmem[s])[0], trial_vdim, trial_op_dim, num_qp);
                                        for (int j = 0; j < trial_vdim; j++)
                                        {
-                                          for (int m = 0; m < trial_op_dim; m++)
+                                          for (size_t m = 0; m < trial_op_dim; m++)
                                           {
                                              sum += qpdc(i, k, j, m + m_offset, q, e) * d_qp(j, m, q);
                                           }

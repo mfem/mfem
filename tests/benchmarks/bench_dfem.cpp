@@ -71,6 +71,7 @@ constexpr int SetMaxOf2(int n) { return mfem::kernels::internal::NextMultipleOf<
 #endif
 
 /// Hall of Fame //////////////////////////////////////////////////////////////
+/// Clang 20
 /*-----------------------------------------------------------------------------------------------
 Benchmark           Time             CPU   Iterations       Dofs     MDof/s          p    version
 -------------------------------------------------------------------------------------------------
@@ -571,12 +572,12 @@ struct Diffusion : public BakeOff<VDIM, GLL>
          dop = std::make_unique<DifferentiableOperator>(solutions, parameters, pmesh);
          dop->SetParameters({nodes});
          const auto diffusion_mf_kernel =
-            [] MFEM_HOST_DEVICE (const tensor<real_t, DIM>& ∇u,
+            [] MFEM_HOST_DEVICE (const tensor<real_t, DIM>& Grad_u,
                                  const tensor<real_t, DIM, DIM>& J,
                                  const real_t& w)
          {
             const auto invJ = inv(J);
-            return tuple{((∇u * invJ)) * transpose(invJ) * det(J) * w};
+            return tuple{((Grad_u * invJ)) * transpose(invJ) * det(J) * w};
          };
          dop->AddDomainIntegrator(diffusion_mf_kernel,
                                   tuple{Gradient<U>{}, Gradient<Ξ>{}, Weight{}},
@@ -608,10 +609,10 @@ struct Diffusion : public BakeOff<VDIM, GLL>
 
          dbg("[PA ∂fem] apply");
          const auto pa_apply_qf =
-            [] MFEM_HOST_DEVICE(const tensor<real_t, DIM> &∇u,
+            [] MFEM_HOST_DEVICE(const tensor<real_t, DIM> &Grad_u,
                                 const tensor<real_t, DIM, DIM> &Q)
          {
-            return tuple{∇u * Q};
+            return tuple{Grad_u * Q};
          };
          dop = std::make_unique<DifferentiableOperator>(u_sol, q_param, pmesh);
          if (version == PA_DFEM_NEW) { dop->UseNewKernels(); }
@@ -639,12 +640,12 @@ struct Diffusion : public BakeOff<VDIM, GLL>
          dop->UseKernelsSpecialization();
 
          const auto diffusion_mf_kernel =
-            [] MFEM_HOST_DEVICE (const tensor<dscalar_t, DIM>& ∇u,
+            [] MFEM_HOST_DEVICE (const tensor<dscalar_t, DIM>& Grad_u,
                                  const tensor<real_t, DIM, DIM>& J,
                                  const real_t& w)
          {
             const auto invJ = inv(J), TinJ = transpose(invJ);
-            return tuple{((∇u * invJ)) * TinJ * det(J) * w};
+            return tuple{((Grad_u * invJ)) * TinJ * det(J) * w};
          };
          dop->AddDomainIntegrator(diffusion_mf_kernel,
                                   tuple{Gradient<U>{}, Gradient<Ξ>{}, Weight{}},
