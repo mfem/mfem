@@ -728,41 +728,41 @@ void DifferentiableOperator::AddDomainIntegrator(
                input_size_on_qp,             // std::array<int, num_inputs>
                dependency_map,               // std::map<int, std::vector<int>>
                inputs_vdim,                  // std::vector<int>
+               use_kernels_specialization = this->use_kernels_specialization,
+               restriction_cb = this->restriction_callback,
+               output_restriction_transpose = this->output_restriction_transpose,
                // capture by ref:
-               &use_kernels_specialization = this->use_kernels_specialization,
-               &restriction_cb = this->restriction_callback,
                &fields_e = this->fields_e,
-               &residual_e = this->residual_e,
-               &output_restriction_transpose = this->output_restriction_transpose
+               &residual_e = this->residual_e
             ](std::vector<Vector> &solutions_l,
               const std::vector<Vector> &parameters_l,
               Vector &residual_l)
             mutable
          {
             // db1("NEW Action");
-            NewActionCallback action(use_kernels_specialization,
-                                     restriction_cb,
-                                     qfunc,
-                                     inputs,
-                                     input_to_field,
-                                     input_dtq_maps,
-                                     output_dtq_maps,
-                                     num_entities,
-                                     test_vdim,
-                                     num_test_dof,
-                                     dimension,
-                                     q1d,
-                                     thread_blocks,
-                                     action_shmem_info,
-                                     elem_attributes,
-                                     output_fop,
-                                     domain_attributes,
-                                     fields_e,
-                                     residual_e,
-                                     output_restriction_transpose,
-                                     solutions_l,
-                                     parameters_l,
-                                     residual_l);
+            static NewActionCallback action(use_kernels_specialization,
+                                            restriction_cb,
+                                            qfunc,
+                                            inputs,
+                                            input_to_field,
+                                            input_dtq_maps,
+                                            output_dtq_maps,
+                                            num_entities,
+                                            test_vdim,
+                                            num_test_dof,
+                                            dimension,
+                                            q1d,
+                                            thread_blocks,
+                                            action_shmem_info,
+                                            elem_attributes,
+                                            output_fop,
+                                            domain_attributes,
+                                            fields_e,
+                                            residual_e,
+                                            output_restriction_transpose,
+                                            solutions_l,
+                                            parameters_l,
+                                            residual_l);
             action.Apply(d1d, q1d);
          });
       }

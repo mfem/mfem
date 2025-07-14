@@ -26,6 +26,11 @@
 #define dbg(...)
 #endif
 
+using restriction_callback_t =
+   std::function<void(std::vector<mfem::Vector> &,
+                      const std::vector<mfem::Vector> &,
+                      std::vector<mfem::Vector> &)>;
+
 template<typename T, typename = void>
 struct GetTensorDim
 {
@@ -155,25 +160,25 @@ void apply_kernel(reg_t &r0, reg_t &r1,
 template<size_t num_fields,
          size_t num_inputs,
          size_t num_outputs,
-         typename restriction_cb_t,
+         // typename restriction_cb_t,
          typename qfunc_t,
          typename input_t,
          typename output_fop_t>
 class NewActionCallback
 {
-   const restriction_cb_t restriction_cb;
+   const restriction_callback_t restriction_cb;
    const qfunc_t qfunc;
    input_t &inputs;
-   const std::array<int, num_inputs> &input_to_field;
-   const std::array<DofToQuadMap, num_inputs> &input_dtq_maps;
-   const std::array<DofToQuadMap, num_outputs> &output_dtq_maps;
+   const std::array<int, num_inputs> input_to_field;
+   const std::array<DofToQuadMap, num_inputs> input_dtq_maps;
+   const std::array<DofToQuadMap, num_outputs> output_dtq_maps;
    const int num_entities;
    const int test_vdim;
    const int num_test_dof;
    const int dimension;
    const int q1d_;
-   const ThreadBlocks &thread_blocks;
-   SharedMemoryInfo<num_fields, num_inputs, num_outputs> &shmem_info;
+   const ThreadBlocks thread_blocks;
+   SharedMemoryInfo<num_fields, num_inputs, num_outputs> shmem_info;
    Array<int> &elem_attributes;
    const output_fop_t &output_fop;
    const Array<int> &domain_attributes;
@@ -189,19 +194,19 @@ class NewActionCallback
 public:
    inline MFEM_ALWAYS_INLINE
    NewActionCallback(const bool use_kernels_specialization,
-                     const restriction_cb_t restriction_cb,
+                     const restriction_callback_t restriction_cb,
                      const qfunc_t qfunc,
                      input_t &inputs,
-                     const std::array<int, num_inputs> &input_to_field,
-                     const std::array<DofToQuadMap, num_inputs> &input_dtq_maps,
-                     const std::array<DofToQuadMap, num_outputs> &output_dtq_maps,
+                     const std::array<int, num_inputs> input_to_field,
+                     const std::array<DofToQuadMap, num_inputs> input_dtq_maps,
+                     const std::array<DofToQuadMap, num_outputs> output_dtq_maps,
                      const int num_entities,
                      const int test_vdim,
                      const int num_test_dof,
                      const int dimension,
                      const int q1d,
-                     const ThreadBlocks &thread_blocks,
-                     SharedMemoryInfo<num_fields, num_inputs, num_outputs> &shmem_info,
+                     const ThreadBlocks thread_blocks,
+                     SharedMemoryInfo<num_fields, num_inputs, num_outputs> shmem_info,
                      Array<int> &elem_attributes,
                      const output_fop_t &output_fop,
                      const Array<int> &domain_attributes,
@@ -248,26 +253,26 @@ public:
 
    template<int T_D1D = 0, int T_Q1D = 0>
    static inline MFEM_ALWAYS_INLINE
-   void action_callback_new(const restriction_cb_t restriction_cb,
-                            const qfunc_t qfunc,
+   void action_callback_new(const restriction_callback_t &restriction_cb,
+                            const qfunc_t &qfunc,
                             input_t &inputs,
                             const std::array<int, num_inputs> &input_to_field,
                             const std::array<DofToQuadMap, num_inputs> &input_dtq_maps,
                             const std::array<DofToQuadMap, num_outputs> &output_dtq_maps,
-                            const int num_entities,
-                            const int test_vdim,
-                            const int num_test_dof,
-                            const int dimension,
+                            const int &num_entities,
+                            const int &test_vdim,
+                            const int &num_test_dof,
+                            const int &dimension,
                             //   const int q1d,
                             const ThreadBlocks &thread_blocks,
                             SharedMemoryInfo<num_fields, num_inputs, num_outputs> &shmem_info,
                             Array<int> &elem_attributes,
                             const output_fop_t &output_fop,
                             const Array<int> &domain_attributes,
-                            // &
+                            // refs
                             std::vector<Vector> &fields_e,
                             Vector &residual_e,
-                            std::function<void(Vector &, Vector &)> &output_restriction_transpose,
+                            std::function<void(Vector &, Vector &)> output_restriction_transpose,
                             // args
                             std::vector<Vector> &solutions_l,
                             const std::vector<Vector> &parameters_l,
@@ -282,17 +287,17 @@ public:
       // constexpr int Q1D = T_Q1D;// ? T_Q1D : q1d; // 🔥
 
       constexpr int DIM = 3;
-      constexpr int MQ1 = T_Q1D > 0 ? kernels::internal::SetMaxOf(T_Q1D) : 32;
-      constexpr int MD1 = T_D1D > 0 ? kernels::internal::SetMaxOf(T_D1D) : 32;
-      // constexpr int MQ1 = T_Q1D ? T_Q1D : 32;
-      // constexpr int MD1 = T_D1D ? T_D1D : 32;
+      // constexpr int MQ1 = T_Q1D > 0 ? kernels::internal::SetMaxOf(T_Q1D) : 32;
+      // constexpr int MD1 = T_D1D > 0 ? kernels::internal::SetMaxOf(T_D1D) : 32;
+      constexpr int MQ1 = T_Q1D ? T_Q1D : 32;
+      constexpr int MD1 = T_D1D ? T_D1D : 32;
 
       // types
       using qf_signature =
          typename create_function_signature<decltype(&qfunc_t::operator())>::type;
       using qf_param_ts = typename qf_signature::parameter_ts;
 
-      restriction_cb(solutions_l, parameters_l, fields_e);
+      restriction_cb(solutions_l, parameters_l, fields_e); // 🔥 to inline
       residual_e = 0.0;
 
       auto ye = Reshape(residual_e.ReadWrite(), test_vdim, num_test_dof,
@@ -396,8 +401,7 @@ public:
       0,
       nullptr);
 
-      // db1("RestrictionT");
-      output_restriction_transpose(residual_e, residual_l);
+      output_restriction_transpose(residual_e, residual_l);  // 🔥 to inline
    }
 
    using KernelSignature = decltype(&NewActionCallback::action_callback_new<>);
@@ -437,14 +441,13 @@ public:
 template<size_t num_fields,
          size_t num_inputs,
          size_t num_outputs,
-         typename restriction_cb_t,
          typename qfunc_t,
          typename input_t,
          typename output_fop_t>
 template<int D1D, int Q1D>
 inline MFEM_ALWAYS_INLINE MFEM_HOST_DEVICE
-typename NewActionCallback<num_fields, num_inputs, num_outputs, restriction_cb_t, qfunc_t, input_t, output_fop_t>::KernelSignature
-NewActionCallback<num_fields, num_inputs, num_outputs, restriction_cb_t, qfunc_t, input_t, output_fop_t>::NewActionCallbackKernels::Kernel()
+typename NewActionCallback<num_fields, num_inputs, num_outputs, qfunc_t, input_t, output_fop_t>::KernelSignature
+NewActionCallback<num_fields, num_inputs, num_outputs, qfunc_t, input_t, output_fop_t>::NewActionCallbackKernels::Kernel()
 {
    return action_callback_new<D1D, Q1D>;
 }
@@ -452,13 +455,12 @@ NewActionCallback<num_fields, num_inputs, num_outputs, restriction_cb_t, qfunc_t
 template<size_t num_fields,
          size_t num_inputs,
          size_t num_outputs,
-         typename restriction_cb_t,
          typename qfunc_t,
          typename input_t,
          typename output_fop_t>
 inline MFEM_ALWAYS_INLINE MFEM_HOST_DEVICE
-typename NewActionCallback<num_fields, num_inputs, num_outputs, restriction_cb_t, qfunc_t, input_t, output_fop_t>::KernelSignature
-NewActionCallback<num_fields, num_inputs, num_outputs, restriction_cb_t, qfunc_t, input_t, output_fop_t>::NewActionCallbackKernels::Fallback
+typename NewActionCallback<num_fields, num_inputs, num_outputs, qfunc_t, input_t, output_fop_t>::KernelSignature
+NewActionCallback<num_fields, num_inputs, num_outputs, qfunc_t, input_t, output_fop_t>::NewActionCallbackKernels::Fallback
 (int d1d, int q1d)
 {
    return action_callback_new<>;
