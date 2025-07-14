@@ -251,16 +251,22 @@ int main(int argc, char* argv[])
    Vector volumes(mesh.GetNE());
    ones.ComputeElementL1Errors(zeros, volumes);
 
-   Array<int> ngh_e;
+   Array<int> ngh_e, temp_ngh, local_dofs;
    auto ngh_tr = new IsoparametricTransformation;
    auto self_tr = new IsoparametricTransformation;
    for (int e_idx = 0; e_idx < mesh.GetNE(); e_idx++ )
    {
       nc_mesh.FindNeighbors(e_idx, ngh_e);
-      ngh_e.Append(e_idx);
-      const int num_ngh_e = ngh_e.Size();
+      for (int i = 0; i < order_reconstruction - 1; i++)
+      {
+          nc_mesh.NeighborExpand(ngh_e, temp_ngh);
+          ngh_e = temp_ngh;
+      }
+      ngh_e.Unique();
+      if (preserve_volumes && (ngh_e.Find(e_idx)>=0)) { ngh_e.DeleteFirst(e_idx); }
 
       // Define small matrix
+      const int num_ngh_e = ngh_e.Size();
       const int fe_rec_e_ndof = fes_reconstruction.GetFE(e_idx)->GetDof();
       DenseMatrix local_mass_mat(num_ngh_e, fe_rec_e_ndof);
 
@@ -292,13 +298,15 @@ int main(int argc, char* argv[])
       u_averages.GetSubVector(ngh_e, local_u_avg);
       if (preserve_volumes)
       {
-         Vector _mult, exact_average_e(1);
+         Vector _mult, exact_average_e(1), self_volume(1);
          exact_average_e = u_averages(e_idx);
+         self_volume = volumes(e_idx);
 
          DenseMatrix self_avg_mat;
          mass.AsymmetricElementMatrix(*fes_reconstruction.GetFE(e_idx),
                                       *fes_averages.GetFE(e_idx),
                                       *self_tr, *self_tr, self_avg_mat);
+         self_avg_mat.InvLeftScaling(self_volume);
 
          LSSolver(local_mass_mat, self_avg_mat,
                   local_u_avg, exact_average_e,
@@ -310,11 +318,11 @@ int main(int argc, char* argv[])
       }
 
       // Integrate into global solution
-      Array<int> local_dofs;
       fes_reconstruction.GetElementDofs(e_idx, local_dofs);
       u_reconstruction.SetSubVector(local_dofs,local_u_rec);
 
       ngh_e.DeleteAll();
+      temp_ngh.DeleteAll();
       local_dofs.DeleteAll();
    }
    u_reconstruction.GetElementAverages(u_rec_avg);
