@@ -398,6 +398,31 @@ public:
    const ComplexVector& GetVec() const { return vec; }
 };
 
+/// Complex-valued vector coefficient that is constant in space and time.
+class ComplexMatrixConstantCoefficient : public ComplexMatrixCoefficient
+{
+private:
+   StdComplexDenseMatrix mat;
+
+public:
+   /// Construct the coefficient with constant vector @a v.
+   ComplexMatrixConstantCoefficient(const StdComplexDenseMatrix &m)
+      : ComplexMatrixCoefficient(m.Height(), m.Width()), mat(m) { }
+
+   /// Construct the coefficient with constant vector @a v.
+   ComplexMatrixConstantCoefficient(const DenseMatrix &m)
+      : ComplexMatrixCoefficient(m.Height(), m.Width()), mat(m) { }
+
+   using ComplexMatrixCoefficient::Eval;
+
+   ///  Evaluate the matrix coefficient at @a ip.
+   void Eval(StdComplexDenseMatrix &M, ElementTransformation &T,
+             const IntegrationPoint &ip) override { M = mat; }
+
+   /// Return a reference to the constant matrix in this class.
+   const StdComplexDenseMatrix& GetMat() const { return mat; }
+};
+
 /// A general complex-valued function coefficient
 class ComplexFunctionCoefficient : public ComplexCoefficient
 {
