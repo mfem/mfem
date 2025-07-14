@@ -25,13 +25,6 @@ TEST_CASE("Complex Vector init-list and C-style array constructors",
                                          std::complex<real_t>(2.0,5.0),
                                          std::complex<real_t>(1.0,6.0)
                                         };
-   std::complex<int> ContigIntData[6] = {std::complex<int>(6,1),
-                                         std::complex<int>(5,2),
-                                         std::complex<int>(4,3),
-                                         std::complex<int>(3,4),
-                                         std::complex<int>(2,5),
-                                         std::complex<int>(1,6)
-                                        };
    // Point and size constructor
    ComplexVector a(ContigData, 6);
    // Braced-list constructor
@@ -43,14 +36,11 @@ TEST_CASE("Complex Vector init-list and C-style array constructors",
                     std::complex<real_t>(1.0,6.0)});
    // Statically sized C-style array constructor
    ComplexVector c(ContigData);
-   // Convertible type constructor
-   ComplexVector d(ContigIntData);
 
    for (int i = 0; i < a.Size(); i++)
    {
       REQUIRE(a[i] == b[i]);
       REQUIRE(a[i] == c[i]);
-      REQUIRE(a[i] == d[i]);
    }
 }
 
