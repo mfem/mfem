@@ -261,6 +261,72 @@ private:
 /// See, SharedFunctional::ShallowCopyProcessedX() and MultiSharedFunctional::AddFunctional()
 class MultiSharedFunctional : public Operator
 {
+
+public:
+   MultiSharedFunctional(int n=0)
+      : Operator(0, n)
+      , funcs(0)
+      , grad_helper_op(*this)
+      , grad_vecs(0)
+   {}
+
+   void AddFunctional(SharedFunctional &f)
+   {
+      // share point with the first functional
+      if (!funcs.empty())
+      {
+         funcs[0]->SharePoint(f);
+      }
+      else
+      {
+         cache_enabled = f.IsCacheEnabled();
+      }
+      MFEM_VERIFY(f.IsCacheEnabled() == cache_enabled,
+                  "MultiSharedFunctional::AddFunctional: All functionals must have the same cache enabled state.");
+
+      funcs.push_back(&f);
+      height++;
+      if (cache_enabled)
+      {
+         grad_vecs.push_back(&f.GetCachedGradient());
+      }
+   }
+
+   void Update(const Vector &x) const
+   {
+      funcs[0]->Update(x);
+      // other functionals will use the same processed point
+   }
+   bool IsCacheEnabled() const { return cache_enabled; }
+
+   void Mult(const Vector &x, Vector &y) const override
+   {
+      y.SetSize(height);
+      Vector yview;
+      for (int i=0; i<funcs.size(); i++)
+      {
+         yview.MakeRef(y, i, 1);
+         funcs[i]->MultCurrent(yview);
+      }
+   }
+
+   Operator &GetGradient(const Vector &x) const override
+   {
+      funcs[0]->Update(x);
+      return grad_helper_op;
+   }
+   std::vector<Vector*> &GetGradientVectors() const
+   {
+      MFEM_VERIFY(cache_enabled,
+                  "MultiSharedFunctional::GetGradientVectors() called without cache enabled.");
+      return grad_vecs;
+   }
+protected:
+   std::vector<SharedFunctional*> funcs; // List of functionals
+   mutable std::vector<Vector*> grad_vecs;
+   bool share_point;
+   bool cache_enabled;
+private:
    class GradientOperator : public Operator
    {
    private:
@@ -306,71 +372,7 @@ class MultiSharedFunctional : public Operator
       }
    };
    friend class GradientOperator;
-protected:
-   std::vector<SharedFunctional*> funcs; // List of functionals
    mutable GradientOperator grad_helper_op;
-   mutable std::vector<Vector*> grad_vecs;
-   bool share_point;
-   bool cache_enabled;
-
-public:
-   MultiSharedFunctional(int n=0)
-      : Operator(0, n)
-      , funcs(0)
-      , grad_helper_op(*this)
-      , grad_vecs(0)
-   {}
-
-   void AddFunctional(SharedFunctional &f)
-   {
-      // share point with the first functional
-      if (!funcs.empty())
-      {
-         funcs[0]->SharePoint(f);
-      }
-      else
-      {
-         cache_enabled = f.IsCacheEnabled();
-      }
-      MFEM_VERIFY(f.IsCacheEnabled() == cache_enabled,
-                  "MultiSharedFunctional::AddFunctional: All functionals must have the same cache enabled state.");
-
-      funcs.push_back(&f);
-      height++;
-      if (cache_enabled)
-      {
-         grad_vecs.push_back(&f.GetCachedGradient());
-      }
-   }
-
-   void Update(const Vector &x) const
-   {
-      funcs[0]->Update(x);
-      // other functionals will use the same processed point
-   }
-
-   void Mult(const Vector &x, Vector &y) const override
-   {
-      y.SetSize(height);
-      Vector yview;
-      for (int i=0; i<funcs.size(); i++)
-      {
-         yview.MakeRef(y, i, 1);
-         funcs[i]->MultCurrent(yview);
-      }
-   }
-
-   Operator &GetGradient(const Vector &x) const override
-   {
-      funcs[0]->Update(x);
-      return grad_helper_op;
-   }
-   std::vector<Vector*> &GetGradientVectors() const
-   {
-      MFEM_VERIFY(cache_enabled,
-                  "MultiSharedFunctional::GetGradientVectors() called without cache enabled.");
-      return grad_vecs;
-   }
 };
 
 /// @brief Quadratic functional of the form
