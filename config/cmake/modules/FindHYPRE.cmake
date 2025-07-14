@@ -99,7 +99,7 @@ if (HYPRE_FOUND AND HYPRE_USING_HIP)
   find_package(rocsparse REQUIRED)
   find_package(rocrand REQUIRED)
   find_package(rocsolver REQUIRED)
-  list(APPEND HYPRE_LIBRARIES ${rocsparse_LIBRARIES} ${rocrand_LIBRARIES} roc::rocsolver)
+  list(APPEND HYPRE_LIBRARIES ${rocsparse_LIBRARIES} ${rocrand_LIBRARIES} roc::rocsolver roc::rocblas)
   set(HYPRE_LIBRARIES ${HYPRE_LIBRARIES} CACHE STRING
       "HYPRE libraries + dependencies." FORCE)
   message(STATUS "Updated HYPRE_LIBRARIES: ${HYPRE_LIBRARIES}")
