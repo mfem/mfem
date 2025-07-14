@@ -17,6 +17,7 @@
 #include "vector.hpp"
 #include "operator.hpp"
 #include "matrix.hpp"
+#include "functional.hpp"
 #include "sparsemat.hpp"
 #include "complex_operator.hpp"
 #include "complex_densemat.hpp"
