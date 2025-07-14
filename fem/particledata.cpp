@@ -27,12 +27,11 @@ void ParticleData<T>::AddParticles(int num_new)
    // If now over-capacity, create new data sized to fit new
    if (np*vdim > data.Capacity())
    {
-      Memory<T> old = data;
+      Memory<T> p(np*vdim, data.GetMemoryType());
+      p.CopyFrom(data, data.Capacity());
+      p.UseDevice(data.UseDevice());
       data.Delete();
-      data.New(np*vdim, old.GetMemoryType());
-      data.UseDevice(old.UseDevice());
-      data.CopyFrom(old, np_old*vdim);
-      old.Delete();
+      data = p;
    }
 
    // Update data

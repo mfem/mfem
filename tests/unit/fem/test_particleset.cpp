@@ -97,7 +97,7 @@ void TestAddRemove(Ordering::Type ordering)
          {
             // Remove particles
             pspace.RemoveParticles(indices_rm);
-            REQUIRE(particles_rm.size() == pset.GetNP());
+            REQUIRE(particles_rm.size() == pspace.GetNP());
 
 
             // Ensure that particles were properly removed

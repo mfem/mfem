@@ -68,7 +68,7 @@ void ParticleSpace::AddParticles(const Vector &new_coords,
                                  const Array<int> &new_ids,
                                  Array<int> &new_idxs)
 {
-   MFEM_ASSERT(new_coords.Size() % dim == new_ids.Size(),
+   MFEM_ASSERT(new_coords.Size() / dim == new_ids.Size(),
                "new_coords is not sized properly");
 
    new_idxs.SetSize(new_ids.Size());
