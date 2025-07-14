@@ -266,8 +266,8 @@ public:
    MultiSharedFunctional(int n=0)
       : Operator(0, n)
       , funcs(0)
-      , grad_helper_op(*this)
       , grad_vecs(0)
+      , grad_helper_op(*this)
    {}
 
    void AddFunctional(SharedFunctional &f)
