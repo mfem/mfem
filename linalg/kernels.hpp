@@ -188,6 +188,40 @@ void Mult(const int height, const int width, const TA *data, const TX *x, TY *y)
    }
 }
 
+/** @brief Absolute-value matrix vector multiplication: y = |A| x, where the
+    matrix A is of size @a height x @a width with given @a data, while @a x and
+    @a y specify the data of the input and output vectors. */
+template<typename TA, typename TX, typename TY>
+MFEM_HOST_DEVICE inline
+void AbsMult(const int height, const int width, const TA *data,
+             const TX *x, TY *y)
+{
+   if (width == 0)
+   {
+      for (int row = 0; row < height; row++)
+      {
+         y[row] = 0.0;
+      }
+      return;
+   }
+   const TA *d_col = data;
+   TX x_col = x[0];
+   for (int row = 0; row < height; row++)
+   {
+      y[row] = x_col*std::fabs(d_col[row]);
+   }
+   d_col += height;
+   for (int col = 1; col < width; col++)
+   {
+      x_col = x[col];
+      for (int row = 0; row < height; row++)
+      {
+         y[row] += x_col*std::fabs(d_col[row]);
+      }
+      d_col += height;
+   }
+}
+
 /** @brief Matrix transpose vector multiplication: y = At x, where the matrix A
     is of size @a height x @a width with given @a data, while @a x and @a y
     specify the data of the input and output vectors. */
@@ -211,6 +245,35 @@ void MultTranspose(const int height, const int width, const TA *data,
       for (int j = 0; j < height; ++j)
       {
          val += x[j] * data[i * height + j];
+      }
+      *y_off = val;
+      y_off++;
+   }
+}
+
+/** @brief Absolute-value matrix transpose vector multiplication: y = |At| x,
+    where the matrix A is of size @a height x @a width with given @a data, while
+    @a x and @a y specify the data of the input and output vectors. */
+template<typename TA, typename TX, typename TY>
+MFEM_HOST_DEVICE inline
+void AbsMultTranspose(const int height, const int width, const TA *data,
+                      const TX *x, TY *y)
+{
+   if (height == 0)
+   {
+      for (int row = 0; row < width; row++)
+      {
+         y[row] = 0.0;
+      }
+      return;
+   }
+   TY *y_off = y;
+   for (int i = 0; i < width; ++i)
+   {
+      TY val = 0.0;
+      for (int j = 0; j < height; ++j)
+      {
+         val += x[j] * std::fabs(data[i * height + j]);
       }
       *y_off = val;
       y_off++;
