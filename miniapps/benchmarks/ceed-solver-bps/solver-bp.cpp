@@ -386,7 +386,7 @@ int main(int argc, char *argv[])
    if (Device::Allows(Backend::DEVICE_MASK)) { MFEM_STREAM_SYNC; }
    // make sure all ranks are done with all setup tasks:
    MPI_Barrier(MPI_COMM_WORLD);
-   const real_t t_setup = tic_toc.RealTime();
+   const double t_setup = tic_toc.RealTime();
 
    ParGridFunction x(&fes);
    x = 0.0;
