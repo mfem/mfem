@@ -20,6 +20,7 @@ DiffusionIntegrator::Kernels::Kernels()
 {
    // 2D
    // Q = P+1
+   DiffusionIntegrator::AddSpecialization<2,1,1>();
    DiffusionIntegrator::AddSpecialization<2,2,2>();
    DiffusionIntegrator::AddSpecialization<2,3,3>();
    DiffusionIntegrator::AddSpecialization<2,4,4>();
@@ -29,6 +30,7 @@ DiffusionIntegrator::Kernels::Kernels()
    DiffusionIntegrator::AddSpecialization<2,8,8>();
    DiffusionIntegrator::AddSpecialization<2,9,9>();
    // Q = P+2
+   DiffusionIntegrator::AddSpecialization<2,1,2>();
    DiffusionIntegrator::AddSpecialization<2,2,3>();
    DiffusionIntegrator::AddSpecialization<2,3,4>();
    DiffusionIntegrator::AddSpecialization<2,4,5>();
