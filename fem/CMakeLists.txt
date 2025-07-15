@@ -162,6 +162,7 @@ set(SRCS
   transfer.cpp
   hyperbolic.cpp
   integrator.cpp
+  bounds.cpp
   )
 
 set(HDRS
@@ -246,6 +247,7 @@ set(HDRS
   nonlinearform_ext.hpp
   nonlininteg.hpp
   qfunction.hpp
+  qinterp/det.hpp
   qinterp/eval.hpp
   qinterp/eval_hdiv.hpp
   qinterp/grad.hpp
@@ -272,6 +274,7 @@ set(HDRS
   transfer.hpp
   hyperbolic.hpp
   integrator.hpp
+  bounds.hpp
   )
 
 if (MFEM_USE_SIDRE)
