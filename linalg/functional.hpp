@@ -30,7 +30,8 @@ namespace mfem
 ///    The helper classes, GradientOperator and HessianActionOperator,
 ///    will call these methods to evaluate the gradient and Hessian action.
 ///    If Hessian is a seperate operator, then you can override
-///    Functional::GetHessian() to return the Hessian operator.
+///    The GradientOperator::GetGradient(x) will call Functional::GetHessian(x)
+///
 class Functional : public Operator
 {
 public:
@@ -292,9 +293,29 @@ public:
       }
    }
 
-   void Update(const Vector &x) const
+   // Update the evaluation point x for all functionals.
+   // Update Mult() and EvalGradient() cache if requested.
+   // @warning: If cache is not enabled, then setting evalMult and evalGrad will abort.
+   // See, SharedFunctional::EnableCache
+   void Update(const Vector &x, bool evalMult=false, bool evalGrad=false) const
    {
       funcs[0]->Update(x);
+      if (evalMult)
+      {
+         MFEM_VERIFY(cache_enabled,
+                     "MultiSharedFunctional::Update() called with evalMult=true, but cache is not enabled.");
+         Vector dummy(1);
+         Mult(x, dummy);
+      }
+      if (evalGrad)
+      {
+         MFEM_VERIFY(cache_enabled,
+                     "MultiSharedFunctional::Update() called with evalGrad=true, but cache is not enabled.");
+         for (int i=0; i<funcs.size(); i++)
+         {
+            funcs[i]->GetGradient().Mult(x, *grad_vecs[i]);
+         }
+      }
       // other functionals will use the same processed point
    }
    bool IsCacheEnabled() const { return cache_enabled; }
