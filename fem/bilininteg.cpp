@@ -4414,6 +4414,11 @@ void NitscheElasticityIntegrator::AssembleFaceMatrix(
       ir = &IntRules.Get(Trans.GetGeometryType(), order);
    }
 
+   Vector n(dim);
+   Trans.SetIntPoint(&Geometries.GetCenter(Trans.GetGeometryType()));
+   CalcOrtho(Trans.Jacobian(), n);
+   n /= n.Norml2();
+
    for (int pind = 0; pind < ir->GetNPoints(); ++pind)
    {
       const IntegrationPoint &ip = ir->IntPoint(pind);
@@ -4442,12 +4447,9 @@ void NitscheElasticityIntegrator::AssembleFaceMatrix(
       }
 
       // Set w to the unit normal vector if not provided
-      Vector n(dim);
       VectorConstantCoefficient n_coef(n);
       if (!w)
       {
-         n = nor;
-         n /= n.Norml2();
          w = &n_coef;
       }
 

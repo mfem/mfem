@@ -1080,6 +1080,11 @@ void NitscheElasticityDirichletLFIntegrator::AssembleRHSElementVect(
       ir = &IntRules.Get(Tr.GetGeometryType(), order);
    }
 
+   Vector n(dim);
+   Tr.SetIntPoint(&Geometries.GetCenter(Tr.GetGeometryType()));
+   CalcOrtho(Tr.Jacobian(), n);
+   n /= n.Norml2();
+
    for (int pi = 0; pi < ir->GetNPoints(); ++pi)
    {
       const IntegrationPoint &ip = ir->IntPoint(pi);
@@ -1106,12 +1111,9 @@ void NitscheElasticityDirichletLFIntegrator::AssembleRHSElementVect(
       }
 
       // Set w to the unit normal vector if not provided
-      Vector n(dim);
       VectorConstantCoefficient n_coef(n);
       if (!w)
       {
-         n = nor;
-         n /= n.Norml2();
          w = &n_coef;
       }
 
