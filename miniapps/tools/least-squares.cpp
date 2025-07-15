@@ -95,8 +95,10 @@ void AsymmetricMassIntegrator::AsymmetricElementMatrix(const FiniteElement
 
 // Small least square solver
 // TODO: it could be implemented as a mfem::Solver, as a method...
-int _print_level = -1;
+int _print_level = 1;
 int _max_iter = 100;
+real_t _rtol = 1.0e-24;
+real_t _atol = 1.0e-30;
 
 /// @brief Dense small least squares solver
 void LSSolver(const DenseMatrix& A, const Vector& b, Vector& x,
@@ -112,7 +114,7 @@ void LSSolver(const DenseMatrix& A, const Vector& b, Vector& x,
    IdentityOperator I(AtA.Height());
    SumOperator AtA_reg(&AtA, 1.0, &I, shift, false, false);
 
-   MINRES(AtA_reg, Atb, x, _print_level, _max_iter);
+   MINRES(AtA_reg, Atb, x, _print_level, _max_iter, _rtol, _atol);
 }
 
 /// @brief Dense small least squares solver, with constrains @a C with value @a c
@@ -150,7 +152,7 @@ void LSSolver(const DenseMatrix& A, const DenseMatrix& C,
    rhs.SetVector(Atb, offsets[0]);
    rhs.SetVector(c, offsets[1]);
 
-   MINRES(block_mat, rhs, z, _print_level, _max_iter);
+   MINRES(block_mat, rhs, z, _print_level, _max_iter, _rtol, _atol);
 
    x.SetSize(A.Width());
    y.SetSize(C.Width());
@@ -170,6 +172,8 @@ int main(int argc, char* argv[])
    int order_reconstruction = 1;
    bool preserve_volumes = true;
 
+   real_t reg_shift = 0.0;
+
    bool show_error = true;
    bool save_to_file = false;
 
@@ -186,6 +190,10 @@ int main(int argc, char* argv[])
    args.AddOption(&preserve_volumes, "-V", "--preserve-volumes", "-no-V",
                   "--no-preserve-volumes", "Preserve averages (volumes) by"
                   " solving a constrained least squares problem");
+
+   args.AddOption(&reg_shift, "-reg", "--regulatization",
+                  "Add regularization term to the least squares problem");
+
    args.AddOption(&show_error, "-se", "--show-error", "-no-se",
                   "--no-show-error", "Show approximation error.");
    args.AddOption(&save_to_file, "-s", "--save", "-no-s",
@@ -195,6 +203,7 @@ int main(int argc, char* argv[])
    {
       args.ParseCheck();
       MFEM_VERIFY((ser_ref_levels >= 0) && (par_ref_levels >= 0), "")
+      MFEM_VERIFY((reg_shift>=0.0), "")
       mfem::out << "Number of serial refinements:     " << ser_ref_levels << "\n";
       mfem::out << "Number of parallel refinements:   " << par_ref_levels << "\n";
       mfem::out << "Original order:                   " << order_original << "\n";
@@ -257,10 +266,11 @@ int main(int argc, char* argv[])
    for (int e_idx = 0; e_idx < mesh.GetNE(); e_idx++ )
    {
       nc_mesh.FindNeighbors(e_idx, ngh_e);
+      ngh_e.Append(e_idx);
       for (int i = 0; i < order_reconstruction - 1; i++)
       {
-          nc_mesh.NeighborExpand(ngh_e, temp_ngh);
-          ngh_e = temp_ngh;
+         nc_mesh.NeighborExpand(ngh_e, temp_ngh);
+         ngh_e = temp_ngh;
       }
       ngh_e.Unique();
       if (preserve_volumes && (ngh_e.Find(e_idx)>=0)) { ngh_e.DeleteFirst(e_idx); }
@@ -272,7 +282,7 @@ int main(int argc, char* argv[])
 
       for (int i = 0; i < num_ngh_e; i++)
       {
-         int ngh_e_idx = ngh_e[i];
+         const int ngh_e_idx = ngh_e[i];
 
          fes_reconstruction.GetElementTransformation(ngh_e_idx, ngh_tr);
          fes_averages.GetElementTransformation(e_idx, self_tr);
@@ -310,16 +320,17 @@ int main(int argc, char* argv[])
 
          LSSolver(local_mass_mat, self_avg_mat,
                   local_u_avg, exact_average_e,
-                  local_u_rec, _mult);
+                  local_u_rec, _mult, reg_shift);
       }
       else
       {
-         LSSolver(local_mass_mat, local_u_avg, local_u_rec);
+         LSSolver(local_mass_mat, local_u_avg, local_u_rec,
+                  reg_shift);
       }
 
       // Integrate into global solution
       fes_reconstruction.GetElementDofs(e_idx, local_dofs);
-      u_reconstruction.SetSubVector(local_dofs,local_u_rec);
+      u_reconstruction.SetSubVector(local_dofs, local_u_rec);
 
       ngh_e.DeleteAll();
       temp_ngh.DeleteAll();
