@@ -27,6 +27,14 @@ namespace mfem
 
 using namespace std;
 
+/* TODO LIST
+    1) ADD DESTRUCTORS FOR ALL CLASSES
+    2) Handle steady-state and time-dependent applications (DAEs)
+*/
+
+
+
+
 /**
  * @brief A class to handle variables and transfers on shared boundaries
  * TODO: Add transfer maps using FindPoints and for time-interpolation
@@ -96,32 +104,114 @@ public:
     }
 };
 
+
+
+class FPIRelaxation
+{
+#ifdef MFEM_USE_MPI    
+private:
+   MPI_Comm comm = MPI_COMM_NULL;
+#endif 
+
+public:
+    FPIRelaxation() = default;
+
+#ifdef MFEM_USE_MPI    
+    FPIRelaxation(MPI_Comm comm_){comm = comm_;}
+    void SetComm(MPI_Comm comm_) {comm = comm_;}
+#endif
+
+    /// @brief Compute the relaxation factor for Fixed Point Iteration.
+    /// @param fac Current relaxation factor
+    /// @param rn Current residual vector
+    /// @param rn_norm Norm of the current residual vector
+    /// @param ro Old residual vector
+    /// @param ro_norm Norm of the old residual vector
+    virtual real_t Eval(real_t fac, const Vector &rnew, real_t rnew_norm, Vector &rold, real_t rold_norm)
+    {
+        return fac; // Default implementation returns the fixed factor
+    };
+
+    real_t Dot(const Vector &x, const Vector &y) const
+    {
+    #ifndef MFEM_USE_MPI
+        return (x * y);
+    #else
+        return InnerProduct(comm, x, y);
+    #endif
+    }    
+};
+
+class AitkenRelaxation : public FPIRelaxation
+{
+public:
+
+    AitkenRelaxation() = default;
+
+#ifdef MFEM_USE_MPI
+    AitkenRelaxation(MPI_Comm comm_) : FPIRelaxation(comm_){}
+#endif
+
+    /// @brief Compute the Aitken relaxation factor for Fixed Point Iteration.
+    virtual real_t Eval(real_t fac, const Vector &rnew, real_t rnew_norm, Vector &rold, real_t rold_norm) override
+    {   
+        real_t num   = Dot(rold, rnew) - (rold_norm * rold_norm);
+        real_t denom = rold.DistanceSquaredTo(rnew);
+        return -fac * num / denom;
+    }
+};
+
+class SteepestDescentRelaxation : public FPIRelaxation
+{
+protected:
+
+    const Operator *J = nullptr; ///< Preconditioner to apply the Jacobian
+
+    /// @brief Set the preconditioner for the steepest descent relaxation.
+    void SetJacobian(const Operator &jacobian) { J = &jacobian; }
+
+    /// @brief Get the preconditioner for the steepest descent relaxation.
+    const Operator *GetJacobian() const { return J; }
+
+public:
+
+    SteepestDescentRelaxation() = default;
+
+#ifdef MFEM_USE_MPI
+    SteepestDescentRelaxation(MPI_Comm comm_) : FPIRelaxation(comm_){}
+#endif
+
+    /// @brief Compute the steepest descent relaxation factor for Fixed Point Iteration.
+    virtual real_t Eval(real_t fac, const Vector &rnew, real_t rnew_norm, Vector &rold, real_t rold_norm) override
+    {
+        if (!J){
+            MFEM_ABORT("SteepestDescentRelaxation: Jacobian operator not set.");
+        }
+
+        real_t num = rnew_norm * rnew_norm;
+        J->Mult(rnew, rold); // rold = F'(x) * rnew;
+        real_t denom = Dot(rold, rnew);
+        return num/denom;
+    }
+};
+
+
 /// Fixed point iteration solver: x <- f(x)
 class FPISolver : public IterativeSolver
 {
-public:
-    enum class Relaxation
-    {
-        FIXED,  ///< Fixed relaxation factor
-        AITKEN, ///< Aitken relaxation method
-        STEEPEST_DESCENT ///< Steepest descent relaxation method
-    };
 
 protected:
    mutable Vector r, z, rold;
    mutable real_t r_fac = 1.0;
-   Relaxation type = Relaxation::FIXED;
-   real_t (FPISolver::*compute_relaxation)(const real_t fac, const Vector &rn, const real_t rn_norm, Vector &ro, real_t ro_norm) const = nullptr;
+
+   FPIRelaxation *relax_method_ = nullptr; ///< Relaxation strategy for FPI
+   bool relaxation_owned;
  
    void UpdateVectors()
    {
         r.SetSize(width);
         z.SetSize(width);
-        if (type != Relaxation::FIXED)
-        {
-            rold.SetSize(width);
-            rold = 0.0;
-        }
+        rold.SetSize(width);
     }
  
 public:
@@ -132,53 +222,33 @@ public:
 #endif
  
    virtual void SetOperator(const Operator &op)
-   { IterativeSolver::SetOperator(op); UpdateVectors(); compute_relaxation = &FPISolver::FixedRelaxation; }
+   { 
+    IterativeSolver::SetOperator(op); 
+    UpdateVectors(); 
+    relax_method_ = new FPIRelaxation(); // Default relaxation strategy
+    relaxation_owned = true;
+   }
 
    
-   void SetRelaxationFactor(real_t r, Relaxation relax_type = Relaxation::FIXED)
+   void SetRelaxation(real_t r, FPIRelaxation *relax_method = nullptr)
    {
         r_fac = r;
-        type = relax_type;
-        UpdateVectors();
 
-        if (relax_type == Relaxation::AITKEN)
+        if (relaxation_owned && relax_method)
         {
-            compute_relaxation = &FPISolver::AitkenRelaxation;
+            delete relax_method_; // Delete the previous relaxation strategy
+            relax_method_ = relax_method; // Set the new relaxation strategy
+            relaxation_owned = false;
         }
-        else if (relax_type == Relaxation::STEEPEST_DESCENT)
+        else if (relax_method)
         {
-            if (prec == nullptr)
-            {
-                mfem_error("Steepest descent relaxation requires a preconditioner (action of Jacobian) to be set first.");
-            }
-            compute_relaxation = &FPISolver::SteepestDescentRelaxation;
+            relax_method_ = relax_method;
         }
-        else // Relaxation::FIXED
-        {
-            compute_relaxation = &FPISolver::FixedRelaxation;
-        }
+#ifdef MFEM_USE_MPI    
+        relax_method_->SetComm(this->GetComm());
+#endif
    }
-   
-   real_t FixedRelaxation(const real_t fac, const Vector &rn, const real_t rn_norm, Vector &ro, real_t ro_norm) const { return fac; }
-
-   real_t AitkenRelaxation(const real_t fac, const Vector &rn, const real_t rn_norm, Vector &ro, real_t ro_norm) const
-   {
-        real_t num   = Dot(ro, rn) - (ro_norm * ro_norm);
-        real_t denom = ro.DistanceSquaredTo(rn);
-        ro = rn; // Update here since old is not needed in general
-        return -fac * num / denom;
-   }
-
-   real_t SteepestDescentRelaxation(const real_t fac, const Vector &rn, const real_t rn_norm, Vector &ro, real_t ro_norm) const
-   {
-        real_t num = rn_norm * rn_norm;
-        prec->Mult(rn, ro); // rold = F'(x) * rnew; the preconditioner is used to apply the Jacobian
-        real_t denom = Dot(ro, rn);
-        ro = rn; // Update here since old is not needed in general
-        return num/denom;
-   }
-
- 
+    
    /// Iterative solution of the (non)linear system using Fixed Point Iteration
    virtual void Mult(const Vector &b, Vector &x) const 
    {
@@ -251,11 +321,12 @@ public:
             subtract(z, x, r); // r = z - x
             nom = sqrt(Dot(r, r));
 
-            fac = (this->*compute_relaxation)(fac,r,nom,rold,nomold);
+            fac = relax_method_->Eval(fac,r,nom,rold,nomold);
             x.Add(fac, r); // x = x + fac * r
             
             cf = nom/nomold;
             nomold = nom;
+            rold = r; // Update rold to the current residual
         
             bool done = false;
             if (nom < r0)
@@ -307,8 +378,9 @@ class Application : public TimeDependentOperator
 
 protected:
 
-    int oper_index = -1;
+    int oper_index = numeric_limits<int>::max();
     std::vector<LinkedFields*> linked_fields;
+    // Track steady-state here. 
 
 public:
 
@@ -382,7 +454,7 @@ public:
 
 
 template <typename App>
-class AbstractApplication : public Application
+class AbstractOperator : public Application
 {
 private:
 
@@ -419,7 +491,7 @@ public:
     constexpr bool HasSolve(){return CheckForMemberFunction<App,CheckSolve,void>::value;}
     constexpr bool HasStep(){return CheckForMemberFunction<App,CheckStep,void>::value;}
 
-    AbstractApplication(App *app_) : app(app_) {}
+    AbstractOperator(App *app_) : app(app_) {}
 
     // void Initialize() override
     // {
@@ -439,7 +511,7 @@ public:
         }
         else
         {
-            MFEM_ABORT("The AbstractApplication does not have the function, Solve.");
+            MFEM_ABORT("The AbstractOperator does not have the function, Solve.");
         }
     }
 
@@ -451,7 +523,7 @@ public:
         }
         else
         {
-            MFEM_ABORT("The AbstractApplication does not have the function, Mult.");            
+            MFEM_ABORT("The AbstractOperator does not have the function, Mult.");            
         }
     }
 
@@ -468,7 +540,7 @@ public:
         }
         else
         {
-            MFEM_ABORT("The AbstractApplication does not have the function, Step.");
+            MFEM_ABORT("The AbstractOperator does not have the function, Step.");
         }        
     }
 };
@@ -485,42 +557,41 @@ class CoupledApplication : public Application
 
 private:
 
-    class SchwarzOperator : public TimeDependentOperator
+    class ImplicitOperator : public TimeDependentOperator
     {
         protected:
             CoupledApplication *app;
-            real_t dt= 0.0; ///< Time step size, used for time-dependent applications
             const Vector *xp = nullptr; ///< Pointer to the input vector, used in Mult() methods
+            real_t dt= 0.0; ///< Time step size, used for time-dependent applications
         public:
-            SchwarzOperator(CoupledApplication *app_) : TimeDependentOperator(app_->Height(),app_->Width()), app(app_){}
+            ImplicitOperator(CoupledApplication *app_) : TimeDependentOperator(app_->Height(),app_->Width()), app(app_){}
             void SetTime(real_t dt_) override { dt = dt_; }
             void SetState(const Vector *x){xp = x;}
     };
-    class AdditiveSchwarzOperator : public SchwarzOperator
+    class AdditiveSchwarzOperator : public ImplicitOperator
     {
         public:
-            AdditiveSchwarzOperator(CoupledApplication *app_) : SchwarzOperator(app_){}
+            AdditiveSchwarzOperator(CoupledApplication *app_) : ImplicitOperator(app_){}
             void Mult(const Vector &x, Vector &y) const override { 
                 y = x;
                 app->AdditiveSchwarzImplicitSolve(dt,*xp,y);
             }
     };
-
-    class AlternatingSchwarzOperator : public SchwarzOperator
+    class AlternatingSchwarzOperator : public ImplicitOperator
     {
         public:
-            AlternatingSchwarzOperator(CoupledApplication *app_) : SchwarzOperator(app_){}        
+            AlternatingSchwarzOperator(CoupledApplication *app_) : ImplicitOperator(app_){}        
             void Mult(const Vector &x, Vector &y) const override { 
                 y = x;
                 app->AlternatingSchwarzImplicitSolve(dt,*xp,y);
             }
-    };    
+    };
 
 public:
 
     enum class Scheme
     {
-        DECOUPLED,           ///< No coupling, solve each app independently
+        NONE,           ///< No coupling, solve each app independently (change to NONE)
         MONOLITHIC,          ///< Solve all apps together
         ADDITIVE_SCHWARZ,    ///< Jacobi-type: solve each app and transfer data to the next after all apps
         ALTERNATING_SCHWARZ  ///< Gauss-Seidel-type: solve each app and transfer data to the next immediately
@@ -532,13 +603,16 @@ protected:
     Scheme scheme = Scheme::ADDITIVE_SCHWARZ; ///< Current coupling type
     
     std::vector<Application*> apps;
-    SchwarzOperator *implicit_op = nullptr; ///< Coupled operator for the applications
+    ImplicitOperator *implicit_op = nullptr; ///< Coupled operator for the applications
     Solver *solver;
     real_t dt_ = 0.0; ///< Timestep used to compute u = u_0 + dt*dudt for transfer to apps in multistage methods
 
     mfem::Array<int> offsets;
     mutable Vector xt,kt;
-    
+
+    // Monolithic operator 
+    // Mesh moving operator
+
 public:
 
     /**
@@ -549,6 +623,7 @@ public:
     CoupledApplication(const int napp, Args... args) : Application(args...) {
         apps.reserve(napp);
         offsets.Reserve(napp+1);
+        offsets.Prepend(0);
     }
 
     /**
@@ -557,6 +632,7 @@ public:
     CoupledApplication(const int napp) : Application() {
         apps.reserve(napp);
         offsets.Reserve(napp+1);
+        offsets.Prepend(0);
     }
 
     /**
@@ -575,10 +651,13 @@ public:
     Application* AddApplication(AppType *app) {
 
         // Add operator to list of operators
-        if constexpr(std::is_base_of<Application, AppType>::value) {
+        if constexpr(std::is_base_of<Application, AppType>::value)
+        {
             apps.push_back(app);
-        } else {
-            apps.push_back(new AbstractApplication<AppType>(app));
+        } 
+        else
+        {
+            apps.push_back(new AbstractOperator<AppType>(app));
         }
         napps++;
 
@@ -606,19 +685,25 @@ public:
         solver = solver_;
     }
 
-    void Initialize()
+    void Initialize(bool do_apps = false)
     {
-        for (auto &app : apps)
+        if (do_apps)
         {
-            app->Initialize();
+            for (auto &app : apps)
+            {
+                app->Initialize();
+            }
         }
     }
 
-    void Assemble()
+    void Assemble(bool do_apps = false)
     {
-        for (auto &app : apps)
+        if (do_apps)
         {
-            app->Assemble();
+            for (auto &app : apps)
+            {
+                app->Assemble();
+            }
         }
     }
 
@@ -652,7 +737,6 @@ public:
 
         if(implicit_op && solver) solver->SetOperator(*implicit_op);
 
-        offsets.Prepend(0);
         offsets.PartialSum(); // Compute block sizes for the coupled operator
     }
 
@@ -801,7 +885,7 @@ public:
                 apps[i]->Transfer(xi);    ///< Transfer the data to all applications
             }
         }
-        else if (scheme == Scheme::DECOUPLED)
+        else if (scheme == Scheme::NONE)
         {
             for (int i=0; i < napps; i++)
             {
