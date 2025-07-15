@@ -657,7 +657,8 @@ private: // Static methods used by the Memory<T> class
    /// Return the host pointer.
    MFEM_ENZYME_INACTIVE static void *Register_(void *ptr, void *h_ptr,
                                                size_t bytes, MemoryType mt,
-                                               bool own, bool alias, unsigned &flags);
+                                               bool own, bool alias,
+                                               unsigned &flags);
 
    /// Register a pair of external host and device pointers
    static void Register2_(void *h_ptr, void *d_ptr, size_t bytes,
@@ -741,7 +742,7 @@ private:
 
    /// Insert a host address @a h_ptr and size *a bytes in the memory map to be
    /// managed.
-   void Insert(void *h_ptr, size_t bytes, MemoryType h_mt,  MemoryType d_mt);
+   void Insert(void *h_ptr, size_t bytes, MemoryType h_mt, MemoryType d_mt);
 
    /// Insert a device and the host addresses in the memory map
    void InsertDevice(void *d_ptr, void *h_ptr, size_t bytes,
@@ -980,7 +981,7 @@ inline void Memory<T>::Wrap(T *ptr, int size, bool own)
 #ifdef MFEM_DEBUG
    if (own && MemoryManager::Exists())
    {
-      MemoryType h_ptr_mt = MemoryManager::GetHostMemoryType_(h_ptr);
+      MemoryType h_ptr_mt = MemoryManager::GetHostMemoryType_((void*)h_ptr);
       MFEM_VERIFY(h_mt == h_ptr_mt,
                   "h_mt = " << (int)h_mt << ", h_ptr_mt = " << (int)h_ptr_mt);
    }
@@ -988,7 +989,8 @@ inline void Memory<T>::Wrap(T *ptr, int size, bool own)
    if (own && h_mt != MemoryType::HOST)
    {
       const size_t bytes = size*sizeof(T);
-      MemoryManager::Register_(ptr, ptr, bytes, h_mt, own, false, flags);
+      MemoryManager::Register_((void*)ptr, (void*)ptr, bytes, h_mt, own, false,
+                               flags);
    }
 }
 
