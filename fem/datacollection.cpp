@@ -764,9 +764,9 @@ ParaViewDataCollectionBase::ParaViewDataCollectionBase(
 {
    cycle = 0;
 #ifdef MFEM_USE_ZLIB
-   compression = true; // if we have zlib, enable compression
-#else
-   compression = false; // otherwise, disable compression
+   // If we have zlib, enable compression. Otherwise, compression is disabled in
+   // the DataCollection base class constructor.
+   compression = true;
 #endif
 }
 
@@ -784,13 +784,8 @@ void ParaViewDataCollectionBase::SetCompressionLevel(int compression_level_)
 {
    MFEM_ASSERT(compression_level_ >= -1 && compression_level_ <= 9,
                "Compression level must be between -1 and 9 (inclusive).");
+   if (compression_level_ != 0) { SetCompression(true);}
    compression_level = compression_level_;
-   compression = compression_level_ != 0;
-}
-
-void ParaViewDataCollectionBase::SetCompression(bool compression_)
-{
-   compression = compression_;
 }
 
 int ParaViewDataCollectionBase::GetCompressionLevel() const
@@ -1174,7 +1169,14 @@ const char *ParaViewDataCollection::GetDataTypeString() const
 ParaViewHDFDataCollection::ParaViewHDFDataCollection(
    const std::string &collection_name, Mesh *mesh)
    : ParaViewDataCollectionBase(collection_name, mesh)
-{ }
+{
+   compression = true;
+}
+
+void ParaViewHDFDataCollection::SetCompression(bool compression_)
+{
+   compression = compression_;
+}
 
 void ParaViewHDFDataCollection::EnsureVTKHDF()
 {
