@@ -157,7 +157,6 @@ public:
    /// direction_t on T-dofs.
    void Mult(const Vector &direction_t, Vector &result_t) const override
    {
-      db1();
       daction_l.SetSize(daction_l_size);
       daction_l = 0.0;
 
@@ -598,10 +597,8 @@ void DifferentiableOperator::AddDomainIntegrator(
        const std::vector<Vector> &par,
        std::vector<Vector> &f)
    {
-      restriction<entity_t>(solutions, sol, f,
-                            element_dof_ordering);
-      restriction<entity_t>(parameters, par, f,
-                            element_dof_ordering,
+      restriction<entity_t>(solutions, sol, f, element_dof_ordering);
+      restriction<entity_t>(parameters, par, f, element_dof_ordering,
                             solutions.size());
    };
 
@@ -769,7 +766,7 @@ void DifferentiableOperator::AddDomainIntegrator(
    }
    else if (!use_automatic_pa)
    {
-      // dbg("🔵🔵🔵🔵 Queuing STD action");
+      dbg("🔵🔵🔵🔵 Queuing STD action");
       action_callbacks.push_back(
          // Explicitly capture everything we need, so we can make explicit choice
          // how to capture every variable, by copy or by ref.
@@ -1145,13 +1142,16 @@ void DifferentiableOperator::AddDomainIntegrator(
                      }
                   }
                }
-            }, num_entities, thread_blocks, shmem_info.total_size,
+            },
+            num_entities,
+            thread_blocks,
+            shmem_info.total_size,
             shmem_cache.ReadWrite());
          });
 
          if (use_new_kernels)
          {
-            dbg("🟢🟢🟢🟢 Queuing AUTO NEW #{} ", derivative_id);
+            dbg("🟢🟢🟢🟢 Queuing AUTO NEW ACTION #{} ", derivative_id);
             derivative_action_callbacks[derivative_id].push_back(
                [
                   // capture by copy:
@@ -1235,7 +1235,7 @@ void DifferentiableOperator::AddDomainIntegrator(
             return;
          }
 
-         dbg("🔵🔵🔵🔵 Queuing AUTO STD #{} ", derivative_id);
+         dbg("🔵🔵🔵🔵 Queuing AUTO STD ACTION #{} ", derivative_id);
          derivative_action_callbacks[derivative_id].push_back(
             [
                derivative_id,
@@ -1276,7 +1276,7 @@ void DifferentiableOperator::AddDomainIntegrator(
             ](std::vector<Vector> &f_e, const Vector &dir_l,
               Vector &der_action_l) mutable
          {
-            db1("🔵🔵🔵🔵 AUTO STD Action #{}", derivative_id);
+            db1("🔵🔵🔵🔵 AUTO STD ACTION #{}", derivative_id);
             restriction<entity_t>(direction, dir_l, direction_e,
                                   element_dof_ordering);
             auto ye = Reshape(derivative_action_e.ReadWrite(), num_test_dof,

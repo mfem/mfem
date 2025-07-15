@@ -180,7 +180,7 @@ public:
       dbg();
       if (!use_kernels_specialization) { return; }
       // StiffnessKernels::template Specialization<2, 3>::Add();
-      // StiffnessKernels::template Specialization<3, 4>::Add();
+      StiffnessKernels::template Specialization<3, 4>::Add();
       // StiffnessKernels::template Specialization<4, 5>::Add();
       StiffnessKernels::template Specialization<5, 6>::Add();
       // StiffnessKernels::template Specialization<6, 7>::Add();
@@ -667,7 +667,7 @@ struct Diffusion : public BakeOff<VDIM, GLL>
             MFEM_VERIFY(lCGNI == gCGNI,
                         "❌ CG iterations" << lCGNI << " != " << gCGNI);
          MFEM_DEVICE_SYNC;
-         db1("✅");
+         // db1("✅");
       }
       cg.SetAbsTol(0.0);
       cg.SetRelTol(rtol);

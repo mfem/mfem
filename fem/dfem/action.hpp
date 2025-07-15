@@ -160,7 +160,6 @@ void apply_kernel(reg_t &r0, reg_t &r1,
 template<size_t num_fields,
          size_t num_inputs,
          size_t num_outputs,
-         // typename restriction_cb_t,
          typename qfunc_t,
          typename input_t,
          typename output_fop_t>
@@ -242,7 +241,7 @@ public:
       residual_l(residual_l)
    {
       if (!use_kernels_specialization) { return; }
-      // NewActionCallbackKernels::template Specialization<3,4>::Add();
+      NewActionCallbackKernels::template Specialization<3,4>::Add();
       // NewActionCallbackKernels::template Specialization<4,5>::Add();
       NewActionCallbackKernels::template Specialization<5,6>::Add();
       // NewActionCallbackKernels::template Specialization<6,7>::Add();
@@ -259,7 +258,7 @@ public:
                             const std::array<int, num_inputs> &input_to_field,
                             const std::array<DofToQuadMap, num_inputs> &input_dtq_maps,
                             const std::array<DofToQuadMap, num_outputs> &output_dtq_maps,
-                            const int &num_entities,
+                            const int &ne,
                             const int &test_vdim,
                             const int &num_test_dof,
                             const int &dimension,
@@ -287,26 +286,38 @@ public:
       // constexpr int Q1D = T_Q1D;// ? T_Q1D : q1d; // 🔥
 
       constexpr int DIM = 3;
-      // constexpr int MQ1 = T_Q1D > 0 ? kernels::internal::SetMaxOf(T_Q1D) : 32;
-      // constexpr int MD1 = T_D1D > 0 ? kernels::internal::SetMaxOf(T_D1D) : 32;
-      constexpr int MQ1 = T_Q1D ? T_Q1D : 32;
-      constexpr int MD1 = T_D1D ? T_D1D : 32;
+      constexpr int MQ1 = T_Q1D > 0 ? kernels::internal::SetMaxOf(T_Q1D) : 32;
+      constexpr int MD1 = T_D1D > 0 ? kernels::internal::SetMaxOf(T_D1D) : 32;
+      // constexpr int MQ1 = T_Q1D ? T_Q1D : 32;
+      // constexpr int MD1 = T_D1D ? T_D1D : 32;
 
       // types
       using qf_signature =
          typename create_function_signature<decltype(&qfunc_t::operator())>::type;
       using qf_param_ts = typename qf_signature::parameter_ts;
 
-      restriction_cb(solutions_l, parameters_l, fields_e); // 🔥 to inline
-      residual_e = 0.0;
+      // #warning 0xDEADBEEF
+      // auto solutions_l_pi = solutions_l;
+      // solutions_l_pi[0].Randomize(0xDEADBEEF);
 
-      auto ye = Reshape(residual_e.ReadWrite(), test_vdim, num_test_dof,
-                        num_entities);
+      restriction_cb(solutions_l, parameters_l, fields_e); // 🔥 to inline
+      /*for (size_t i = 0; i < 1; i++)
+      {
+         dbl("fields_e: size:{} dot:{}\n", fields_e[i].Size(), fields_e[i]*fields_e[i]);
+         for (int j = 0; j < fields_e[i].Size(); j++)
+         {
+            dba("{} ", fields_e[i][j]);
+         }
+         dbc();
+      }*/
+
+      residual_e = 0.0;
+      auto ye = Reshape(residual_e.ReadWrite(), num_test_dof, test_vdim, ne);
 
       // std::array<DeviceTensor<2>, num_fields>: (field_sizes, num_entities)
       auto wrapped_fields_e = wrap_fields(fields_e,
                                           shmem_info.field_sizes,
-                                          num_entities);
+                                          ne);
 
       const bool has_attr = domain_attributes.Size() > 0;
       const auto d_domain_attr = domain_attributes.Read();
@@ -315,8 +326,8 @@ public:
       // db1("forall");
       forall([=] MFEM_HOST_DEVICE (int e, void *)
       {
-         constexpr int D1D = T_D1D;// ? T_D1D : d1d; // 🔥
-         constexpr int Q1D = T_Q1D;// ? T_Q1D : q1d; // 🔥
+         const int D1D = T_D1D ? T_D1D : d1d;
+         const int Q1D = T_Q1D ? T_Q1D : q1d;
 
          // this could be optimized out
          if (has_attr && !d_domain_attr[d_elem_attr[e] - 1]) { return; }
@@ -333,8 +344,6 @@ public:
          // const auto dummy_field_weight = DeviceTensor<1>(nullptr, 0);
          for_constexpr<num_inputs>([&](auto i)
          {
-            constexpr int D1D = T_D1D; // 🔥
-            constexpr int Q1D = T_Q1D; // 🔥
             const auto input = get<i>(inputs);
             using field_operator_t = std::decay_t<decltype(input)>;
 
@@ -346,6 +355,8 @@ public:
                const auto field = Reshape(field_e_r, D1D, D1D, D1D, VDIM);
                const auto dtq = input_dtq_maps[i];
                const auto B = dtq.B, G = dtq.G;
+               // db1("B:{} {} {} {} {} {}", B[0], B[1], B[2], B[3], B[4], B[5]);
+               // db1("G:{} {} {} {} {} {}", G[0], G[1], G[2], G[3], G[4], G[5]);
                kernels::internal::LoadMatrix(D1D, Q1D, B, sB);
                kernels::internal::LoadMatrix(D1D, Q1D, G, sG);
                // const auto B = reinterpret_cast<const real_t (*)[MQ1]>(Bi[i]);
@@ -368,21 +379,25 @@ public:
          auto qf_args = decay_tuple<qf_param_ts> {};
          for (int qz = 0; qz < Q1D; ++qz)
          {
-            MFEM_UNROLL(MQ1)
+            // MFEM_UNROLL(MQ1)
             MFEM_FOREACH_THREAD_DIRECT(qy, y, Q1D)
             {
-               MFEM_UNROLL(MQ1)
+               // MFEM_UNROLL(MQ1)
                MFEM_FOREACH_THREAD_DIRECT(qx, x, Q1D)
                {
+                  // dbg("r1: ({},{},{}) {} {} {}", qx, qy, qz,
+                  //     r1[0][qz][qy][qx], r1[1][qz][qy][qx], r1[2][qz][qy][qx]);
                   qf::apply_kernel<T_Q1D, num_inputs>(r0, r1, r2, Q1D, qx, qy, qz,
                                                       qfunc, qf_args);
+                  // dbg("r0: ({},{},{}) {} {} {}", qx, qy, qz,
+                  //     r0[0][qz][qy][qx], r0[1][qz][qy][qx], r0[2][qz][qy][qx]);
                }
             }
          }
 
          // db1("Integrate");
          auto y = Reshape(&ye(0, 0, e), num_test_dof, test_vdim);
-         if constexpr (is_gradient_fop<std::decay_t<output_fop_t>>::value) // Gradient
+         if constexpr (is_gradient_fop<std::decay_t<output_fop_t>>::value) // GradientT
          {
             // const int vdim = output_fop.vdim;
             constexpr int VDIM = 1; // 🔥
@@ -396,11 +411,13 @@ public:
             }
          }
       },
-      num_entities,
+      ne,
       thread_blocks,
       0,
       nullptr);
 
+      // dbg("residual_e: size:{} dot:{}",
+      //     residual_e.Size(), residual_e * residual_e);
       output_restriction_transpose(residual_e, residual_l);  // 🔥 to inline
    }
 

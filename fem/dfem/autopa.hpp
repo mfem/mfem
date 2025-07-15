@@ -12,7 +12,7 @@
 
 #include <cstddef>
 
-// #include "fem/kernels.hpp"
+#include "fem/kernels.hpp"
 #include "fem/kernel_dispatch.hpp"
 
 #include "util.hpp"
@@ -141,11 +141,11 @@ public:
       der_action_l(der_action_l)
    {
       if (!use_kernels_specialization) { return; }
-      // NewAutoActionCallbackKernels::template Specialization<3,3>::Add();
+      NewAutoActionCallbackKernels::template Specialization<3,4>::Add();
       // NewAutoActionCallbackKernels::template Specialization<4,5>::Add();
       NewAutoActionCallbackKernels::template Specialization<5,6>::Add();
       // NewAutoActionCallbackKernels::template Specialization<6,7>::Add();
-      // NewAutoActionCallbackKernels::template Specialization<7,8>::Add();
+      NewAutoActionCallbackKernels::template Specialization<7,8>::Add();
       // NewAutoActionCallbackKernels::template Specialization<8,9>::Add();
       // NewAutoActionCallbackKernels::template Specialization<9,10>::Add();
    }
@@ -159,7 +159,7 @@ public:
                                 const int test_vdim,
                                 const int num_test_dof,
                                 const int dimension,
-                                const FieldDescriptor &u,
+                                const FieldDescriptor &direction,
                                 const int test_op_dim,
                                 const int trial_vdim,
                                 const int total_trial_op_dim,
@@ -176,31 +176,38 @@ public:
                                 const DeviceTensor<1, const real_t> &ir_weights,
                                 const bool use_sum_factorization,
                                 const std::array<bool, num_inputs> &input_is_dependent,
-                                Vector &field_e,
+                                Vector &direction_e,
                                 Vector &derivative_action_e,
                                 // refs
                                 Vector &qpdc_mem,
                                 std::function<void(Vector &, Vector &)> &or_transpose,
                                 // args
-                                std::vector<Vector> &f_e,
-                                const Vector &u_l,
+                                std::vector<Vector> &/*f_e*/, // unused
+                                const Vector &direction_l,
                                 Vector &der_action_l,
                                 // fallback arguments
                                 const int d1d, const int q1d)
    {
-      db1();
+      // db1("d1d:{} q1d:{}", d1d, q1d);
+      // db1("T_D1D:{} T_Q1D:{}", T_D1D, T_Q1D);
+      // db1("num_qp: {}, ne: {}", num_qp, ne);
+      // db1("test_op_dim: {}, test_vdim: {}", test_op_dim, test_vdim);
+      // db1("total_trial_op_dim: {}, trial_vdim: {}", total_trial_op_dim, trial_vdim);
+      // db1("num_inputs:{} num_fields:{} num_outputs:{}", num_inputs, num_fields, num_outputs);
       assert(dimension == 3);
 
-      const int Q1D = T_Q1D ? T_Q1D : q1d;
+      constexpr int DIM = 3;
+      // constexpr int MQ1 = T_Q1D > 0 ? kernels::internal::SetMaxOf(T_Q1D) : 32;
+      // constexpr int MD1 = T_D1D > 0 ? kernels::internal::SetMaxOf(T_D1D) : 32;
+      constexpr int MQ1 = T_Q1D > 0 ? T_Q1D : 32;
+      constexpr int MD1 = T_D1D > 0 ? T_D1D : 32;
 
-      // types
-      using entity_t = Entity::Element;
+      // #warning 0xDEADBEEF
+      //       auto direction_l_pi = direction_l;
+      //       direction_l_pi.Randomize(0xDEADBEEF);
 
-      restriction<entity_t>(u, u_l, field_e, ordering);
-
-      // const auto wrapped_fields_e = wrap_fields(f_e, shmem_info.field_sizes, ne);
-      const auto wrapped_direction_e = Reshape(field_e.Read(),
-                                               shmem_info.direction_size, ne);
+      assert(ordering == ElementDofOrdering::LEXICOGRAPHIC);
+      restriction<Entity::Element>(direction, direction_l, direction_e, ordering);
 
       const auto qpdc = Reshape(qpdc_mem.Read(), test_vdim, test_op_dim,
                                 trial_vdim, total_trial_op_dim, num_qp, ne);
@@ -211,109 +218,139 @@ public:
       const bool has_attr = domain_attributes.Size() > 0;
       const auto d_domain_attr = domain_attributes.Read();
 
+      // dbl("direction_e: size:{} dot:{}\n", direction_e.Size(),
+      //     direction_e*direction_e);
+      /*for (int i = 0; i < direction_e.Size(); i++)
+      {
+         dba("{} ", direction_e[i]);
+      }
+      dbc();*/
+      const auto dir_e = Reshape(direction_e.Read(), d1d,d1d,d1d, 1, ne);
+      // shmem_info.direction_size,
+      assert(d1d*d1d*d1d == shmem_info.direction_size);
+
       derivative_action_e = 0.0;
+      assert(test_vdim == 1);
+      assert(num_test_dof == d1d*d1d*d1d);
       auto ye = Reshape(derivative_action_e.ReadWrite(), num_test_dof, test_vdim, ne);
 
       forall([=] MFEM_HOST_DEVICE (int e, real_t *shmem)
       {
+         const int D1D = T_D1D ? T_D1D : d1d;
+         const int Q1D = T_Q1D ? T_Q1D : q1d;
+
          if (has_attr && !d_domain_attr[d_elem_attr[e] - 1]) { return; }
 
-         auto input_dtq_shmem =
-            load_dtq_mem(
-               shmem,
-               shmem_info.offsets[SharedMemory::Index::INPUT_DTQ],
-               shmem_info.input_dtq_sizes,
-               input_dtq_maps);
+         /*alignas(64)*/ MFEM_SHARED real_t smem[MQ1][MQ1];
+         /*alignas(64)*/ MFEM_SHARED real_t sB[MD1][MQ1];
+         /*alignas(64)*/ MFEM_SHARED real_t sG[MD1][MQ1];
+         /*alignas(64)*/ kernels::internal::d_regs3d_t<DIM, MQ1> r0, r1;
 
-         auto scratch_shmem =
-            load_scratch_mem(
-               shmem,
-               shmem_info.offsets[SharedMemory::Index::TEMP],
-               shmem_info.temp_sizes);
-
-         auto direction_shmem =
-            load_direction_mem(
-               shmem,
-               shmem_info.offsets[SharedMemory::Index::DIRECTION],
-               shmem_info.direction_size,
-               wrapped_direction_e,
-               e);
-
-         auto shadow_shmem =
-            load_input_mem(
-               shmem,
-               shmem_info.offsets[SharedMemory::Index::SHADOW],
-               shmem_info.input_sizes,
-               num_qp);
-
-         map_direction_to_quadrature_data_conditional(
-            shadow_shmem, direction_shmem, input_dtq_shmem, inputs,
-            ir_weights, scratch_shmem, input_is_dependent, dimension,
-            use_sum_factorization);
-
-         // The next code block does
-         // residual_shmem = dot(qpdc, shadow_shmem)
-
-         auto residual_shmem =
-            load_residual_mem(
-               shmem,
-               shmem_info.offsets[SharedMemory::Index::OUTPUT],
-               shmem_info.residual_size,
-               num_qp);
-
-         auto fhat = Reshape(&residual_shmem(0, 0), test_vdim,
-                             test_op_dim, num_qp);
-
-         assert(use_sum_factorization);
-
-         MFEM_FOREACH_THREAD_DIRECT(qx, x, Q1D)
+         const auto dir_fop = get<0>(inputs);
+         const int vdim = dir_fop.vdim;
+         assert(vdim == 1); // 🔥
+         // for (int vd = 0; vd < vdim; vd++)
+         const int vd = 0;
          {
-            MFEM_FOREACH_THREAD_DIRECT(qy, y, Q1D)
+            // Interpolate
+            // const auto dummy_field_weight = DeviceTensor<1>(nullptr, 0);
+            // for_constexpr<num_inputs>([&](auto i)
             {
-               MFEM_FOREACH_THREAD_DIRECT(qz, z, Q1D)
-               {
+               const auto input = get<0>(inputs);
+               using field_operator_t = std::decay_t<decltype(input)>;
 
-                  const int q = qx + Q1D * (qy + Q1D * qz);
-                  for (int i = 0; i < test_vdim; i++)
+               if constexpr (is_gradient_fop<field_operator_t>::value) // Grad
+               {
+                  // db1("Grad");
+                  // const int vdim = input.vdim;
+                  constexpr int VDIM = 1; // 🔥
+                  // const auto dtq = input_dtq_maps[0];
+                  const auto dtq = get<0>(input_dtq_maps);
+                  const auto B = dtq.B, G = dtq.G;
+                  // db1("B:{} {} {} {} {} {}", B[0], B[1], B[2], B[3], B[4], B[5]);
+                  // db1("G:{} {} {} {} {} {}", G[0], G[1], G[2], G[3], G[4], G[5]);
+                  kernels::internal::LoadMatrix(D1D, Q1D, B, sB);
+                  kernels::internal::LoadMatrix(D1D, Q1D, G, sG);
+                  // const auto B = reinterpret_cast<const real_t (*)[MQ1]>(Bi[i]);
+                  // const auto G = reinterpret_cast<const real_t (*)[MQ1]>(Gi[i]);
+                  for (int c = 0; c < VDIM; c++)
                   {
+                     kernels::internal::LoadDofs3d(e, D1D, c, dir_e, r0);
+                     kernels::internal::Grad3d(D1D, Q1D, smem, sB, sG, r0, r1, c);
+                  }
+               }
+               else if constexpr (is_identity_fop<field_operator_t>::value) // Identity
+               {
+                  // db1("Id");
+                  assert(false); // not here
+               }
+               else { assert(false); }
+            };//); // for_constexpr<num_inputs>
+
+            // db1("Qfunction");
+            for (int qz = 0; qz < Q1D; ++qz)
+            {
+               MFEM_FOREACH_THREAD_DIRECT(qy, y, Q1D)
+               {
+                  MFEM_FOREACH_THREAD_DIRECT(qx, x, Q1D)
+                  {
+                     const int q = qx + q1d * (qy + q1d * qz);
+
+                     const real_t u = r1[0][qz][qy][qx];
+                     const real_t v = r1[1][qz][qy][qx];
+                     const real_t w = r1[2][qz][qy][qx];
+
+                     // dbg("r1: ({},{},{}) {} {} {}", qx, qy, qz,
+                     //     r1[0][qz][qy][qx], r1[1][qz][qy][qx], r1[2][qz][qy][qx]);
+
                      for (int k = 0; k < test_op_dim; k++)
                      {
-                        real_t sum = 0.0;
-                        int m_offset = 0;
-                        for (int s_i = 0; s_i < num_dependent_inputs; s_i++)
+                        const auto trial_op_dim = dpitod(0, 1);
+                        size_t m_offset = 0;
+                        for (int j = 0; j < trial_vdim; j++)
                         {
-                           const int s = dpitod(s_i, 0);
-                           auto trial_op_dim = dpitod(s_i, 1);
-                           auto d_qp = Reshape(&(shadow_shmem[s])[0], trial_vdim, trial_op_dim, num_qp);
-                           for (int j = 0; j < trial_vdim; j++)
-                           {
-                              for (int m = 0; m < trial_op_dim; m++)
-                              {
-                                 sum += qpdc(i, k, j, m + m_offset, q, e) * d_qp(j, m, q);
-                              }
-                           }
-                           m_offset += trial_op_dim;
+                           const real_t val = qpdc(vd, k, j, 0 + m_offset, q, e) * u
+                                              + qpdc(vd, k, j, 1 + m_offset, q, e) * v
+                                              + qpdc(vd, k, j, 2 + m_offset, q, e) * w;
+                           r0[k][qz][qy][qx] = val;
                         }
-                        fhat(i, k, q) = sum;
+                        m_offset += trial_op_dim;
                      }
+                     // dbg("r0: ({},{},{}) {} {} {}", qx, qy, qz,
+                     //     r0[0][qz][qy][qx], r0[1][qz][qy][qx], r0[2][qz][qy][qx]);
                   }
                }
             }
+
+            // db1("Integrate");
+            auto y = Reshape(&ye(0, 0, e), num_test_dof, test_vdim);
+            if constexpr (is_gradient_fop<std::decay_t<output_fop_t>>::value) // GradientT
+            {
+               // db1("GradTranspose3d");
+               // const int vdim = output_fop.vdim;
+               constexpr int VDIM = 1; // 🔥
+               auto yd = Reshape(&y(0, 0), D1D, D1D, D1D, VDIM);
+               // const auto B = reinterpret_cast<const real_t (*)[MQ1]>(Bo);
+               // const auto G = reinterpret_cast<const real_t (*)[MQ1]>(Go);
+               for (int c = 0; c < VDIM; c++)
+               {
+                  kernels::internal::GradTranspose3d(D1D, Q1D, smem, sB, sG, r0, r1, c);
+                  kernels::internal::WriteDofs3d(D1D, c, r1, yd);
+               }
+            }
+            else
+            {
+               assert(false);
+            }
          }
+      },
+      ne,
+      thread_blocks,
+      0,
+      nullptr);
 
-         auto output_dtq_shmem =
-            load_dtq_mem(
-               shmem,
-               shmem_info.offsets[SharedMemory::Index::OUTPUT_DTQ],
-               shmem_info.output_dtq_sizes,
-               output_dtq_maps);
-
-         auto y = Reshape(&ye(0, 0, e), num_test_dof, test_vdim);
-         map_quadrature_data_to_fields(
-            y, fhat, output_fop, output_dtq_shmem[0],
-            scratch_shmem, dimension, use_sum_factorization);
-      }, ne, thread_blocks, shmem_info.total_size,
-      shmem_cache.ReadWrite());
+      // dbg("derivative_action_e: size:{} dot:{}",
+      //     derivative_action_e.Size(), derivative_action_e * derivative_action_e);
       or_transpose(derivative_action_e, der_action_l);
    }
 

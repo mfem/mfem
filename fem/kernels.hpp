@@ -243,6 +243,28 @@ void LoadDofs3d(const int d1d, const int c,
    }
 }
 
+///////////////////////////////////////////////////////////////////////////////
+template <int DIM, int MQ1>
+inline MFEM_ALWAYS_INLINE MFEM_HOST_DEVICE
+void LoadDofs3d(const int e, const int d1d, const int c,
+                const DeviceTensor<5, const real_t> &X,
+                d_regs3d_t<DIM, MQ1> &Y)
+{
+   for (int d = 0; d < DIM; d++)
+   {
+      for (int dz = 0; dz < d1d; ++dz)
+      {
+         MFEM_FOREACH_THREAD_DIRECT(dy, y, d1d)
+         {
+            MFEM_FOREACH_THREAD_DIRECT(dx, x, d1d)
+            {
+               Y[d][dz][dy][dx] = X(dx, dy, dz, c, e);
+            }
+         }
+      }
+   }
+}
+
 /// Load 3D input VDIM*DIM vector into given register tensor, specific component
 template <int VDIM, int DIM, int MQ1>
 inline MFEM_ALWAYS_INLINE MFEM_HOST_DEVICE

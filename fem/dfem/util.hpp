@@ -34,6 +34,14 @@
 #include "parameterspace.hpp"
 #include "tuple.hpp"
 
+#if defined(__has_include) && __has_include("general/nvtx.hpp") && !defined(_WIN32)
+#undef NVTX_COLOR
+#define NVTX_COLOR ::nvtx::kSeashell
+#include "general/nvtx.hpp"
+#else
+#define dbg(...)
+#endif
+
 namespace mfem::future
 {
 
