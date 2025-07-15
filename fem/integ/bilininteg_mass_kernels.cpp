@@ -58,13 +58,13 @@ MassIntegrator::Kernels::Kernels()
    MassIntegrator::AddSpecialization<3,3,4>();
    MassIntegrator::AddSpecialization<3,3,6>();
    MassIntegrator::AddSpecialization<3,4,5>();
-   MassIntegrator::AddSpecialization<3,4,6>();
    MassIntegrator::AddSpecialization<3,5,6>();
    MassIntegrator::AddSpecialization<3,6,7>();
    MassIntegrator::AddSpecialization<3,7,8>();
    MassIntegrator::AddSpecialization<3,8,9>();
    // others
    MassIntegrator::AddSpecialization<3,2,4>();
+   MassIntegrator::AddSpecialization<3,4,6>();
    MassIntegrator::AddSpecialization<3,5,8>();
 }
 
