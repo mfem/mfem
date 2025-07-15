@@ -655,7 +655,7 @@ struct Diffusion : public BakeOff<VDIM, GLL>
       cg.iterative_mode = false;
       if (dofs < 128 * 1024) // check
       {
-         cg.SetPrintLevel(3/*-1*/);
+         cg.SetPrintLevel(-1);
          cg.SetMaxIter(2000);
          cg.SetRelTol(1e-8);
          cg.SetAbsTol(0.0);
@@ -667,7 +667,6 @@ struct Diffusion : public BakeOff<VDIM, GLL>
             MFEM_VERIFY(lCGNI == gCGNI,
                         "❌ CG iterations" << lCGNI << " != " << gCGNI);
          MFEM_DEVICE_SYNC;
-         // db1("✅");
       }
       cg.SetAbsTol(0.0);
       cg.SetRelTol(rtol);
@@ -725,9 +724,6 @@ static void AddBasicKernelSpecializations()
    Grad::Specialization<3, QVectorLayout::byVDIM,  false, 3, 2, 8>::Add();
    Grad::Specialization<3, QVectorLayout::byNODES, false, 3, 2, 7>::Add();
    Grad::Specialization<3, QVectorLayout::byNODES, false, 3, 2, 8>::Add();
-
-   // using Diffusion = DiffusionIntegrator::ApplyPAKernels;
-   // Diffusion::Specialization<3, 9, 10>::Add();
 }
 
 /// main //////////////////////////////////////////////////////////////////////
