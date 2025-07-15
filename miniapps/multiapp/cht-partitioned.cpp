@@ -1,6 +1,7 @@
 #include "mfem.hpp"
 #include "multiapp.hpp"
 
+#include <string>
 #include <fstream>
 #include <iostream>
 #include <math.h>
@@ -58,10 +59,11 @@ public:
    ConvectionDiffusion(ParFiniteElementSpace &fes,
                         Array<int> ess_tdofs,
                         Array<int> nat_tdofs,
-                        real_t alpha = 1.0,
-                        real_t kappa = 1.0e-1,
+                        real_t alpha_ = 1.0,
+                        real_t kappa_ = 1.0e-1,
                         bool use_heat_flux = false)
                         : Application(fes.GetTrueVSize()),
+                        kappa(kappa_), alpha(alpha_),
                         temperature_gf(ParGridFunction(&fes)),
                         heat_flux_gf(ParGridFunction(&fes)),
                         gradT_gf(GradientGridFunctionCoefficient(&temperature_gf)),
@@ -84,8 +86,8 @@ public:
       Mform.Assemble(0);
       Mform.Finalize();
 
-      temperature_gf = 0.0;
-      heat_flux_gf = 0.0;
+      // temperature_gf = 0.0;
+      // heat_flux_gf = 0.0;
 
       if (fes.IsDGSpace())
       {
@@ -104,6 +106,7 @@ public:
          if(use_heat_flux){
             bform.AddBoundaryIntegrator(new BoundaryLFIntegrator(heat_flux_gfc));
          }
+
          bform.Assemble();
          b = bform.ParallelAssemble();
 
@@ -135,15 +138,16 @@ public:
 
    }
 
+   void UpdateOperator() override {
+      Reassemble();
+   }
+
    void Reassemble(){
       Kform.FormLinearSystem(ess_tdofs_, temperature_gf, bform, Kmat, z, u_bc);
    }
 
    void Mult(const Vector &u, Vector &du_dt) const override
    {      
-      // u_bc = u;
-      // temperature_gf.GetTrueDofs(u_bc);
-
       Kmat.Mult(u, z);
       z.Add(-1.0, u_bc);
       M_solver.Mult(z, du_dt);
@@ -153,6 +157,7 @@ public:
    void ImplicitSolve(const real_t dt, const Vector &u, Vector &du_dt)
    {
    
+      Reassemble();
       if(current_dt != dt){
          if (T) delete T;
 
@@ -161,10 +166,8 @@ public:
          linear_solver.SetOperator(*T);
       }
       
-      u_bc = u;
-      temperature_gf.GetTrueDofs(u_bc);
-
-      Kmat.Mult(u_bc, z);
+      Kmat.Mult(u, z);
+      z.Add(-1.0, u_bc);
       linear_solver.Mult(z, du_dt);
       du_dt.SetSubVector(ess_tdofs_, 0.0);
    }
@@ -174,6 +177,7 @@ public:
 
       temperature_gf.SetFromTrueDofs(x);
       heat_flux_gf.ProjectBdrCoefficientNormal(gradT_gf,nat_tdofs_);
+      heat_flux_gf *= kappa;
 
       Application::Transfer();
    }   
@@ -228,7 +232,7 @@ public:
 
    /// Mass matrix solver
    CGSolver M_solver;
-   CGSolver linear_solver;
+   GMRESSolver linear_solver;
    HypreParMatrix *T = nullptr; // T = M + dt K
 
 
@@ -236,6 +240,8 @@ public:
    HypreSmoother M_prec;
    HypreSmoother T_prec;  // Preconditioner for the implicit solver
 
+   real_t kappa; ///< Diffusion coefficient
+   real_t alpha; ///< Convection coefficient
 
    /// Auxiliary vectors
    mutable Vector t1, t2;
@@ -250,12 +256,14 @@ int main(int argc, char *argv[])
    int num_procs = Mpi::WorldSize();
    int myid = Mpi::WorldRank();
 
-   int order = 4;
-   real_t t_final = .01;
+   int order = 2;
+   real_t t_final = .005;
    real_t dt = 1.0e-5;
    bool visualization = true;
    int visport = 19916;
    int vis_steps = 10;
+   int ode_solver_type = 34;  // (34) SDIRK34Solver, (21) BackwardEulerSolver, (23) SDIRK33Solver, (3) RK3SSPSolver
+
 
    OptionsParser args(argc, argv);
    args.AddOption(&order, "-o", "--order",
@@ -269,13 +277,15 @@ int main(int argc, char *argv[])
                   "Enable or disable GLVis visualization.");
    args.AddOption(&vis_steps, "-vs", "--visualization-steps",
                   "Visualize every n-th timestep.");
+   args.AddOption(&ode_solver_type, "-ode", "--ode-solver-type",
+                  "ODESolver id.");                  
    args.ParseCheck();
 
    Mesh *serial_mesh = new Mesh("multidomain-hex.mesh");
    ParMesh parent_mesh = ParMesh(MPI_COMM_WORLD, *serial_mesh);
    delete serial_mesh;
 
-   parent_mesh.UniformRefinement(3);
+   parent_mesh.UniformRefinement();
 
    H1_FECollection fec(order, parent_mesh.Dimension());
 
@@ -321,10 +331,11 @@ int main(int argc, char *argv[])
 
 
    // FunctionCoefficient Tinit_coeff(Tinit); 
-   ConstantCoefficient Tinit_coeff(300.0); // Initial temperature inside the cylinder
-   ConstantCoefficient Tintflow(300.0); // Initial temperature inside the cylinder
+   ConstantCoefficient Tinit_coeff(0.0); // Initial temperature inside the cylinder
+   ConstantCoefficient Tintflow(1.0); // Initial temperature inside the cylinder
    temperature_cylinder_gf.ProjectCoefficient(Tinit_coeff);
    temperature_cylinder_gf.ProjectBdrCoefficient(Tintflow, inflow_attributes);
+   temperature_cylinder_gf.ProjectBdrCoefficient(Tinit_coeff, inner_cylinder_wall_attributes);
 
 
    GradientGridFunctionCoefficient gradT_cylinder_gf(&temperature_cylinder_gf);
@@ -367,7 +378,7 @@ int main(int argc, char *argv[])
    temperature_block_gf = 0.0;
    qflux_block_gf       = 0.0;
 
-   ConstantCoefficient Touter_block(323.0); // Outer temperature of the block
+   ConstantCoefficient Touter_block(10.0); // Outer temperature of the block
    temperature_block_gf.ProjectCoefficient(Tinit_coeff);
    temperature_block_gf.ProjectBdrCoefficient(Touter_block, block_wall_attributes);
 
@@ -379,7 +390,6 @@ int main(int argc, char *argv[])
    // qflux_block_gf.ProjectBdrCoefficientNormal(gradT_block_gf,outer_cylinder_wall_attributes);
    // GridFunctionCoefficient qflux_block_coeff(&qflux_block_gf);
    
-
    // ParTransferMap qflux_transfermap = ParTransferMap(qflux_cylinder_gf, qflux_block_gf);
    // qflux_transfermap.Transfer(qflux_cylinder_gf,qflux_block_gf);
 
@@ -405,11 +415,6 @@ int main(int argc, char *argv[])
    
 
 
-
-   int ode_solver_type = 3; // RK3SSPSolver
-   // int ode_solver_type = 23;  // SDIRK33Solver
-   // int ode_solver_type = 21;  // BackwardEulerSolver
-   // int ode_solver_type = 34;  // SDIRK34Solver
    std::unique_ptr<ODESolver> cylinder_ode_solver = ODESolver::Select(ode_solver_type);
    std::unique_ptr<ODESolver> block_ode_solver    = ODESolver::Select(ode_solver_type);
 
@@ -419,26 +424,45 @@ int main(int argc, char *argv[])
    cylinder_ode_solver->Init(cd_cylinder);
    block_ode_solver->Init(diff_block);
 
+   physics.SetCouplingScheme(CoupledApplication::Scheme::ALTERNATING_SCHWARZ);
+   // physics.SetCouplingType(CoupledApplication::CouplingType::PARTITIONED);
 
-   Application* app1 = physics.AddApplication(block_ode_solver.get());
-   Application* app2 = physics.AddApplication(cylinder_ode_solver.get());
+
+   std::string coupling_type_str = "partioned";
+   // std::string coupling_type_str = "one-way";
+
+   // Application* app1 = physics.AddApplication(block_ode_solver.get());
+   // Application* app2 = physics.AddApplication(cylinder_ode_solver.get());
+
+   Application* app1 = physics.AddApplication(&diff_block);
+   Application* app2 = physics.AddApplication(&cd_cylinder);
 
    app1->AddLinkedFields(&lf_solid_to_fluid);
    app2->AddLinkedFields(&lf_fluid_to_solid);
 
-   diff_block.AddLinkedFields(&lf_solid_to_fluid);
-   cd_cylinder.AddLinkedFields(&lf_fluid_to_solid);
+   // diff_block.AddLinkedFields(&lf_solid_to_fluid);
+   // cd_cylinder.AddLinkedFields(&lf_fluid_to_solid);
 
-   physics.SetOffsets(offsets);
-   physics.Finalize();
+   // physics.SetOffsets(offsets);
+   FPISolver fp_solver(MPI_COMM_WORLD);
+   AitkenRelaxation fp_relax;
+   fp_solver.iterative_mode = false;
+   fp_solver.SetRelTol(1e-8);
+   fp_solver.SetAbsTol(0.0);
+   fp_solver.SetMaxIter(100);
+   fp_solver.SetPrintLevel(0);
+   fp_solver.SetRelaxation(1.0, &fp_relax);
+
+   physics.SetSolver(&fp_solver);   
+   physics.Finalize();   
  
 
    std::unique_ptr<ODESolver> coupled_ode_solver = ODESolver::Select(ode_solver_type);   
    coupled_ode_solver->Init(physics);
 
 
-   ParaViewDataCollection solid_pv("solid-"+std::to_string(ode_solver_type), &block_submesh);
-   ParaViewDataCollection fluid_pv("fluid-"+std::to_string(ode_solver_type), &cylinder_submesh);
+   ParaViewDataCollection solid_pv(coupling_type_str+"-solid-"+std::to_string(ode_solver_type), &block_submesh);
+   ParaViewDataCollection fluid_pv(coupling_type_str+"-fluid-"+std::to_string(ode_solver_type), &cylinder_submesh);
 
    solid_pv.SetLevelsOfDetail(order);
    solid_pv.SetDataFormat(VTKFormat::BINARY);
@@ -465,6 +489,8 @@ int main(int argc, char *argv[])
       fluid_pv.Save();
    };
 
+   StopWatch timer;
+   timer.Start();
 
    real_t t = 0.0;
    bool last_step = false;
@@ -475,20 +501,30 @@ int main(int argc, char *argv[])
          last_step = true;
       }
 
-      diff_block.Reassemble();
-      block_ode_solver->Step(temperature.GetBlock(0), t, dt);
-      diff_block.Transfer(temperature.GetBlock(0));
-      t -= dt;
 
-      cd_cylinder.Reassemble();
-      cylinder_ode_solver->Step(temperature.GetBlock(1), t, dt);
-      cd_cylinder.Transfer(temperature.GetBlock(1));
+      // if(physics.GetCouplingType() == CoupledApplication::CouplingType::ONE_WAY)
+      // {         
+      //    diff_block.Reassemble();
+      //    block_ode_solver->Step(temperature.GetBlock(0), t, dt);
+      //    diff_block.Transfer(temperature.GetBlock(0));
+      //    t -= dt;
+
+      //    cd_cylinder.Reassemble();
+      //    cylinder_ode_solver->Step(temperature.GetBlock(1), t, dt);
+      //    cd_cylinder.Transfer(temperature.GetBlock(1));
+      // }
+      // else if(physics.GetCouplingType() == CoupledApplication::CouplingType::PARTITIONED)
+      // {
+         coupled_ode_solver->Step(temperature,t,dt);   
+      // }
+
+      temperature_block_gf.SetFromTrueDofs(temperature.GetBlock(0));      
+      temperature_cylinder_gf.SetFromTrueDofs(temperature.GetBlock(1));
+
       // coupled_ode_solver->Step(temperature,t,dt);
       // physics.Step(temperature, t, dt);
       // t += dt;
 
-      temperature_block_gf.SetFromTrueDofs(temperature.GetBlock(0));      
-      temperature_cylinder_gf.SetFromTrueDofs(temperature.GetBlock(1));
 
       if (last_step || (ti % vis_steps) == 0)
       {
@@ -499,6 +535,11 @@ int main(int argc, char *argv[])
 
          save_callback(ti, t);
       }
+   }
+
+   timer.Stop();
+   if (myid == 0){
+      out << "Total time: " << timer.RealTime() << " seconds." << std::endl;
    }
 
    return 0;
