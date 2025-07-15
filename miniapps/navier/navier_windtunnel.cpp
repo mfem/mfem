@@ -39,6 +39,107 @@
 
 #include "navier_solver.hpp"
 #include <fstream>
+#include <vector>
+#include <stdexcept>
+
+
+const std::string TURB_FIELD_FILE = "inputs/IEC_simple.vti";
+
+struct TurbField {
+   int Nx, Ny, Nz, Nc;
+   std::vector<double> data;
+   std::vector<double> spacing;  // x, y, z spacing
+   std::vector<double> origin;   // x, y, z origin
+};
+
+TurbField load_turb_field(const std::string &filename) {
+   TurbField turb_field;
+   std::ifstream infile(filename, std::ios::binary);
+   if (!infile) {
+       throw std::runtime_error("Failed to open VTI file: " + filename);
+   }
+
+   // Read entire file into memory for parsing
+   infile.seekg(0, std::ios::end);
+   size_t file_size = infile.tellg();
+   infile.seekg(0, std::ios::beg);
+   std::vector<char> buffer(file_size);
+   infile.read(buffer.data(), file_size);
+
+   std::string content(buffer.begin(), buffer.end());
+
+   // Parse WholeExtent
+   size_t pos = content.find("WholeExtent=\"");
+   if (pos == std::string::npos) throw std::runtime_error("Invalid VTI: No WholeExtent");
+   std::istringstream ext(content.substr(pos + 13, 50));
+   int ex_min, ex_max, ey_min, ey_max, ez_min, ez_max;
+   ext >> ex_min >> ex_max >> ey_min >> ey_max >> ez_min >> ez_max;
+   turb_field.Nx = ex_max - ex_min;  // Number of cells
+   turb_field.Ny = ey_max - ey_min;
+   turb_field.Nz = ez_max - ez_min;
+   turb_field.Nc = 3;
+
+   // Parse Origin
+   pos = content.find("Origin=\"");
+   if (pos != std::string::npos) {
+       std::istringstream org(content.substr(pos + 8, 50));
+       turb_field.origin.resize(3);
+       org >> turb_field.origin[0] >> turb_field.origin[1] >> turb_field.origin[2];
+   }
+
+   // Parse Spacing
+   pos = content.find("Spacing=\"");
+   if (pos != std::string::npos) {
+       std::istringstream spc(content.substr(pos + 9, 50));
+       turb_field.spacing.resize(3);
+       spc >> turb_field.spacing[0] >> turb_field.spacing[1] >> turb_field.spacing[2];
+   }
+
+   // Find start of AppendedData
+   pos = content.find("<AppendedData encoding=\"raw\">");
+   if (pos == std::string::npos) throw std::runtime_error("Invalid VTI: No AppendedData tag");
+   size_t appended_start = pos + std::string("<AppendedData encoding=\"raw\">").length();
+
+   // Find the '_' marker after the tag
+   pos = content.find("_", appended_start);
+   if (pos == std::string::npos) throw std::runtime_error("Invalid VTI: No raw data marker '_'");
+   size_t data_start = pos + 1;  // Binary data starts after '_'
+
+   // Hardcoded offsets from your XML (adjust if needed or parse dynamically)
+   size_t grid_offset = 0;
+   size_t wind_offset = 300568;
+
+   // Ensure data_start is relative to buffer[0]
+   data_start = data_start;  // Already absolute in content
+
+   // Skip grid array: uint64 prefix + data
+   uint64_t grid_prefix;
+   std::memcpy(&grid_prefix, buffer.data() + data_start + grid_offset, sizeof(uint64_t));
+   size_t grid_size_bytes = static_cast<size_t>(grid_prefix);
+   data_start += grid_offset + sizeof(uint64_t) + grid_size_bytes;
+
+   // Now at wind array: read prefix
+   uint64_t wind_prefix;
+   std::memcpy(&wind_prefix, buffer.data() + data_start, sizeof(uint64_t));
+   data_start += sizeof(uint64_t);
+
+   // Validate size
+   size_t expected_bytes = turb_field.Nx * turb_field.Ny * turb_field.Nz * turb_field.Nc * sizeof(double);
+   if (wind_prefix != expected_bytes) {
+       throw std::runtime_error("Wind data size mismatch: expected " + std::to_string(expected_bytes) + ", got " + std::to_string(wind_prefix));
+   }
+
+   // Read wind data
+   size_t wind_size = turb_field.Nx * turb_field.Ny * turb_field.Nz * turb_field.Nc;
+   turb_field.data.resize(wind_size);
+   std::memcpy(turb_field.data.data(), buffer.data() + data_start, expected_bytes);
+
+   return turb_field;
+}
+
+
+
+
 
 using namespace mfem;
 using namespace navier;
@@ -190,6 +291,49 @@ int main(int argc, char *argv[])
    {
       args.PrintOptions(mfem::out);
    }
+
+
+
+   // Load turbulence field in
+
+   TurbField turb_field = load_turb_field(TURB_FIELD_FILE);
+   if (Mpi::Root())
+   {
+      std::cout << "Turbulence field loaded successfully" << std::endl;
+      std::cout << "Nx: " << turb_field.Nx << ", Ny: " << turb_field.Ny << ", Nz: " << turb_field.Nz << std::endl;
+   }
+
+
+   // Verify loaded data (print first few values for comparison with NumPy)
+   if (Mpi::Root()) {
+      std::cout << "Verifying turbulence data (first 9 values, assuming (x,y,z,c) order):" << std::endl;
+      for (size_t i = 0; i < 9 && i < turb_field.data.size(); ++i) {
+         std::cout << turb_field.data[i] << " ";
+      }
+      std::cout << std::endl;
+
+      // Optional: Print min/max per component for summary
+      double min_u = std::numeric_limits<double>::max(), max_u = std::numeric_limits<double>::lowest();
+      double min_v = std::numeric_limits<double>::max(), max_v = std::numeric_limits<double>::lowest();
+      double min_w = std::numeric_limits<double>::max(), max_w = std::numeric_limits<double>::lowest();
+      size_t size = turb_field.data.size();
+      for (size_t i = 0; i < size; i += 3) {
+         min_u = std::min(min_u, turb_field.data[i]);
+         max_u = std::max(max_u, turb_field.data[i]);
+         min_v = std::min(min_v, turb_field.data[i+1]);
+         max_v = std::max(max_v, turb_field.data[i+1]);
+         min_w = std::min(min_w, turb_field.data[i+2]);
+         max_w = std::max(max_w, turb_field.data[i+2]);
+      }
+      std::cout << "Component U: min=" << min_u << ", max=" << max_u << std::endl;
+      std::cout << "Component V: min=" << min_v << ", max=" << max_v << std::endl;
+      std::cout << "Component W: min=" << min_w << ", max=" << max_w << std::endl;
+   }
+
+
+   exit(0);
+
+
 
    // Domain: [0, 3] x [0, 1] x [0, 1] (Length x Width x Height)
    Mesh mesh = Mesh::MakeCartesian3D(6, 2, 2, Element::HEXAHEDRON,
