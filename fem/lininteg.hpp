@@ -639,7 +639,7 @@ public:
 class NitscheElasticityDirichletLFIntegrator : public LinearFormIntegrator
 {
 protected:
-   Coefficient &g;
+   Coefficient *g;
    VectorCoefficient *w;
    Coefficient *lambda, *mu;
    real_t alpha, kappa;
@@ -660,12 +660,12 @@ public:
    NitscheElasticityDirichletLFIntegrator(Coefficient &g_,
                                           Coefficient &lambda_, Coefficient &mu_,
                                           real_t alpha_, real_t kappa_)
-      : g(g_), w(NULL), lambda(&lambda_), mu(&mu_), alpha(alpha_), kappa(kappa_) {}
+      : g(&g_), w(NULL), lambda(&lambda_), mu(&mu_), alpha(alpha_), kappa(kappa_) {}
 
-   NitscheElasticityDirichletLFIntegrator(Coefficient &g_, VectorCoefficient *w_,
+   NitscheElasticityDirichletLFIntegrator(Coefficient &g_, VectorCoefficient &w_,
                                           Coefficient &lambda_, Coefficient &mu_,
                                           real_t alpha_, real_t kappa_)
-      : g(g_), w(w_), lambda(&lambda_), mu(&mu_), alpha(alpha_), kappa(kappa_) {}
+      : g(&g_), w(&w_), lambda(&lambda_), mu(&mu_), alpha(alpha_), kappa(kappa_) {}
 
    void AssembleRHSElementVect(const FiniteElement &el,
                                ElementTransformation &Tr,

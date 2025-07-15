@@ -1119,7 +1119,7 @@ void NitscheElasticityDirichletLFIntegrator::AssembleRHSElementVect(
       w->Eval(w_val, Tr, ip);
 
       // Evaluate the Dirichlet b.c. using the face transformation.
-      g_val = g.Eval(Tr, ip);
+      g_val = g->Eval(Tr, ip);
 
       real_t WL, WM, jcoef;
       {
