@@ -68,7 +68,7 @@ protected:
    void AddParticles(const Vector &new_coords, const Array<int> &new_ids, Array<int> &new_indices);
 
 #ifdef MFEM_USE_MPI
-   MPI_Comm comm;
+   MPI_Comm comm = MPI_COMM_WORLD;
    std::unique_ptr<gslib::comm> gsl_comm;
    std::unique_ptr<gslib::crystal> cr;
 
