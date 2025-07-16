@@ -5,6 +5,113 @@
 
 using namespace mfem;
 
+// Special integrator for the second derivative
+class MixedBidirectionalHessianIntegrator : public MixedScalarIntegrator
+{
+private:
+   VectorCoefficient *dir1_vq, *dir2_vq;
+   Vector dir1_vq_ev, dir2_vq_ev;
+   DenseMatrix trial_dshape, test_dshape;
+
+   void CalcTrialShape(const FiniteElement& trial_fe,
+                       ElementTransformation& Trans,
+                       Vector& trial_shape) override;
+
+   void CalcTestShape(const FiniteElement& test_fe,
+                      ElementTransformation& Trans,
+                      Vector& test_shape) override;
+
+   inline virtual bool VerifyFiniteElementTypes(const FiniteElement& trial_fe,
+                                                const FiniteElement& test_fe) const override
+   {
+      return (trial_fe.GetDerivType() == mfem::FiniteElement::GRAD &&
+              test_fe.GetDerivType() == mfem::FiniteElement::GRAD);
+   };
+public:
+   MixedBidirectionalHessianIntegrator(VectorCoefficient& _dir1_vq,
+                                       VectorCoefficient& _dir2_vq)
+      : dir1_vq(&_dir1_vq), dir2_vq(&_dir2_vq) {};
+
+   /* void AssembleElementMatrix2(const FiniteElement& trial_fe,
+    *                             const FiniteElement& test_fe,
+    *                             ElementTransformation& Trans,
+    *                             DenseMatrix& elmat) override;
+    */
+};
+
+void MixedBidirectionalHessianIntegrator::CalcTrialShape(
+   const FiniteElement& trial_fe,
+   ElementTransformation& Trans,
+   Vector& trial_shape)
+{
+   int dim = Trans.GetDimension();
+   dir1_vq->Eval(dir1_vq_ev, Trans, Trans.GetIntPoint());
+   dir2_vq->Eval(dir2_vq_ev, Trans, Trans.GetIntPoint());
+   trial_dshape.SetSize(trial_fe.GetDof(), dim*(dim+1)/2);
+   trial_fe.CalcPhysHessian(Trans, trial_dshape);
+   mfem_error("Panic! After hessian");
+   trial_dshape.Mult(dir1_vq_ev, trial_shape);
+};
+
+void MixedBidirectionalHessianIntegrator::CalcTestShape(
+   const FiniteElement& test_fe,
+   ElementTransformation& Trans,
+   Vector& test_shape)
+{
+   // test_dshape.SetSize(test_fe.GetDof(), Trans.GetSpaceDim());
+   // test_fe.CalcPhysDShape(Trans, test_dshape);
+   // test_dshape.Mult(di, test_shape);
+}
+
+void L2_QuadrilateralElement::CalcHessian(ElementTransformation& Trans,
+                                          DenseMatrix& Hessian)
+{
+   return;
+}
+
+/* void MixedWeakBidirectionalDerivativeIntegrator::AssembleElementMatrix2(
+ *    const FiniteElement& trial_fe,
+ *    const FiniteElement& test_fe,
+ *    ElementTransformation& Trans,
+ *    DenseMatrix& elmat)
+ * {
+ *    if (!trial_vq || !test_vq) { mfem_error("Must set vector fields!"); }
+ *    MFEM_ASSERT(this->VerifyFiniteElementTypes(trial_fe, test_fe), "TODO");
+ *    int trial_ndofs = trial_fe.GetDof();
+ *    int test_ndofs = test_fe.GetDof();
+ *    real_t weight;
+ *
+ *    elmat.SetSize(test_ndofs, trial_ndofs);
+ *    test_shape.SetSize(test_ndofs);
+ *    trial_shape.SetSize(trial_ndofs);
+ *
+ *    const IntegrationRule *ir = GetIntegrationRule(trial_fe, test_fe, Trans);
+ *    if (ir == NULL)
+ *    {
+ *        int ir_order = this->GetIntegrationOrder(trial_fe, test_fe, Trans);
+ *        ir = &IntRules.Get(trial_fe.GeGeomType(), ir_order);
+ *    }
+ *
+ *    elmat = 0.0;
+ *
+ *    for (int i=0; i < ir->GetNPoints(); i++)
+ *    {
+ *       const auto& ip = ir->IntPoint(i);
+ *       Trans.SetIntPoint(&ip);
+ *
+ *
+ *       trial_vq->Eval(trial_vq_ev, Trans, ip);
+ *       test_vq->Eval(test_vq_ev, Trans, ip);
+ *
+ *       // trial_fe.CalcPhysDShape?
+ *       // test_fe.CalcPhysDShape?
+ *       // weight = Trans.Weight() * ip.weight();
+ *       // Here I need to get v_1 dot grad(phi_1) and v_2 dot grad(phi_2)
+ *       AddMult_a_VWt(weight, test_shape, trial_shape, elmat);
+ *    }
+ * }
+ */
+
 // reconstruct a field u (represented by dst) from u_hat (represented by src)
 // Note current only 2D reconstruction of L^2_1 (piecewise-linear) field from
 // L^2_0 (piecewise-constant) field is supported. The reconstruction is done
@@ -53,10 +160,13 @@ void reconstructField(const ParGridFunction& src, ParGridFunction& dst)
 
    MixedDirectionalDerivativeIntegrator partial_x(xhat);
    MixedDirectionalDerivativeIntegrator partial_y(yhat);
+   MixedBidirectionalHessianIntegrator partial_xy(xhat,yhat);
    for (int element_ind=0; element_ind < mesh.GetNE(); element_ind++)
    {
       const FiniteElement& src_element = *(src_fe_space.GetFE(element_ind));
       const FiniteElement& dst_element = *(dst_fe_space.GetFE(element_ind));
+      mfem::out << typeid(src_element).name() << std::endl;
+      mfem::out << typeid(dst_element).name() << std::endl;
       ElementTransformation& transform = *(src_fe_space.GetElementTransformation(
                                               element_ind));
       DenseMatrix A(dst_element.GetDof());
@@ -88,6 +198,9 @@ void reconstructField(const ParGridFunction& src, ParGridFunction& dst)
       // enforce (div[ (xhat \otimes yhat) grad[u] ], psi_hat)_E = 0, i.e.,
       // < du/dy (xhat dot n), psi_hat>_E = 0
       // TODO: replace with actual face integration
+      partial_xy.AssembleElementMatrix2(dst_element, src_element, transform, Arow);
+      Arow.Print(mfem::out,4);
+      mfem_error("Panic!");
       A(3,0) = 1.0;
       A(3,1) = -1.0;
       A(3,2) = -1.0;
@@ -104,6 +217,7 @@ void reconstructField(const ParGridFunction& src, ParGridFunction& dst)
    }
    dst.ExchangeFaceNbrData();
 }
+
 
 int main(int argc, char* argv[])
 {
