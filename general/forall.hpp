@@ -158,8 +158,8 @@ private:
 #define MFEM_PRAGMA(X) _Pragma(#X)
 
 // MFEM_UNROLL pragma macro that can be used inside MFEM_FORALL macros.
-#if defined(MFEM_USE_CUDA) && defined(__CUDA_ARCH__)
-#ifdef __NVCC__
+#if defined(MFEM_USE_CUDA) && defined(__CUDACC__) // Clang cuda or nvcc
+#ifdef __NVCC__ // nvcc specifically
 #define MFEM_UNROLL(N) MFEM_PRAGMA(unroll(N))
 #else // Assuming Clang CUDA
 #define MFEM_UNROLL(N) MFEM_PRAGMA(unroll N)
@@ -169,12 +169,12 @@ private:
 #endif
 
 // MFEM_GPU_FORALL: "parallel for" executed with CUDA or HIP based on the MFEM
-// build-time configuration (MFEM_USE_CUDA or MFEM_USE_HIP). If neither CUDA nor
-// HIP is enabled, this macro is a no-op.
-#if defined(MFEM_USE_CUDA)
+// build-time configuration (MFEM_USE_CUDA or MFEM_USE_HIP), and compiling with CUDA.
+// If neither CUDA nor HIP is enabled, this macro is a no-op.
+#if defined(MFEM_USE_CUDA) && defined(__CUDACC__)
 #define MFEM_GPU_FORALL(i, N,...) CuWrap1D(N, [=] MFEM_DEVICE      \
                                        (int i) {__VA_ARGS__})
-#elif defined(MFEM_USE_HIP)
+#elif defined(MFEM_USE_HIP) && defined(__HIP__)
 #define MFEM_GPU_FORALL(i, N,...) HipWrap1D(N, [=] MFEM_DEVICE     \
                                         (int i) {__VA_ARGS__})
 #else
@@ -481,7 +481,7 @@ void RajaSeqWrap(const int N, HBODY &&h_body)
 
 
 /// CUDA backend
-#ifdef MFEM_USE_CUDA
+#if defined(MFEM_USE_CUDA) && defined(__CUDACC__)
 
 template <typename BODY> __global__ static
 void CuKernel1D(const int N, BODY body)
@@ -573,11 +573,11 @@ struct CuWrap<3>
    }
 };
 
-#endif // MFEM_USE_CUDA
+#endif // defined(MFEM_USE_CUDA) && defined(__CUDACC__)
 
 
 /// HIP backend
-#ifdef MFEM_USE_HIP
+#if defined(MFEM_USE_HIP) && defined(__HIP__)
 
 template <typename BODY> __global__ static
 void HipKernel1D(const int N, BODY body)
@@ -668,7 +668,7 @@ struct HipWrap<3>
    }
 };
 
-#endif // MFEM_USE_HIP
+#endif // defined(MFEM_USE_HIP) && defined(__HIP__)
 
 
 /// The forall kernel body wrapper
@@ -701,7 +701,7 @@ inline void ForallWrap(const bool use_dev, const int N,
    }
 #endif
 
-#ifdef MFEM_USE_CUDA
+#if defined(MFEM_USE_CUDA) && defined(__CUDACC__)
    // If Backend::CUDA is allowed, use it
    if (Device::Allows(Backend::CUDA))
    {
@@ -709,7 +709,7 @@ inline void ForallWrap(const bool use_dev, const int N,
    }
 #endif
 
-#ifdef MFEM_USE_HIP
+#if defined(MFEM_USE_HIP) && defined(__HIP__)
    // If Backend::HIP is allowed, use it
    if (Device::Allows(Backend::HIP))
    {
