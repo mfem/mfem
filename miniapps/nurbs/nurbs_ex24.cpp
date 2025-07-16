@@ -221,83 +221,84 @@ int main(int argc, char *argv[])
       Project(gftrial, gradp_coef, global_proj);
    }
 
-   // 7. Set up the bilinear forms for L2 projection.
-   ConstantCoefficient one(1.0);
-   BilinearForm a(&test_fes);
-   MixedBilinearForm a_mixed(&trial_fes, &test_fes);
-   if (pa)
-   {
-      a.SetAssemblyLevel(AssemblyLevel::PARTIAL);
-      a_mixed.SetAssemblyLevel(AssemblyLevel::PARTIAL);
-   }
+   /*  // 7. Set up the bilinear forms for L2 projection.
+     ConstantCoefficient one(1.0);
+     BilinearForm a(&test_fes);
+     MixedBilinearForm a_mixed(&trial_fes, &test_fes);
+     if (pa)
+     {
+        a.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+        a_mixed.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+     }
 
-   if (prob == 0)
-   {
-      a.AddDomainIntegrator(new VectorFEMassIntegrator(one));
-      a_mixed.AddDomainIntegrator(new MixedVectorGradientIntegrator(one));
-   }
-   else if (prob == 1)
-   {
-      a.AddDomainIntegrator(new VectorFEMassIntegrator(one));
-      a_mixed.AddDomainIntegrator(new MixedVectorCurlIntegrator(one));
-   }
-   else
-   {
-      a.AddDomainIntegrator(new MassIntegrator(one));
-      a_mixed.AddDomainIntegrator(new VectorFEDivergenceIntegrator(one));
-   }
+     if (prob == 0)
+     {
+        a.AddDomainIntegrator(new VectorFEMassIntegrator(one));
+        a_mixed.AddDomainIntegrator(new MixedVectorGradientIntegrator(one));
+     }
+     else if (prob == 1)
+     {
+        a.AddDomainIntegrator(new VectorFEMassIntegrator(one));
+        a_mixed.AddDomainIntegrator(new MixedVectorCurlIntegrator(one));
+     }
+     else
+     {
+        a.AddDomainIntegrator(new MassIntegrator(one));
+        a_mixed.AddDomainIntegrator(new VectorFEDivergenceIntegrator(one));
+     }
 
-   // 8. Assemble the bilinear form and the corresponding linear system,
-   //    applying any necessary transformations such as: eliminating boundary
-   //    conditions, applying conforming constraints for non-conforming AMR,
-   //    static condensation, etc.
-   if (static_cond) { a.EnableStaticCondensation(); }
+     // 8. Assemble the bilinear form and the corresponding linear system,
+     //    applying any necessary transformations such as: eliminating boundary
+     //    conditions, applying conforming constraints for non-conforming AMR,
+     //    static condensation, etc.
+     //if (static_cond) { a.EnableStaticCondensation(); }
 
-   a.Assemble();
-   if (!pa) { a.Finalize(); }
+   //   a.Assemble();
+   //  if (!pa) { a.Finalize(); }
 
-   a_mixed.Assemble();
-   if (!pa) { a_mixed.Finalize(); }
+   //  a_mixed.Assemble();
+   //  if (!pa) { a_mixed.Finalize(); }
 
-   if (pa)
-   {
-      a_mixed.Mult(gftrial, x);
-   }
-   else
-   {
-      SparseMatrix& mixed = a_mixed.SpMat();
-      mixed.Mult(gftrial, x);
-   }
+     if (pa)
+     {
+        a_mixed.Mult(gftrial, x);
+     }
+     else
+     {
+        SparseMatrix& mixed = a_mixed.SpMat();
+        mixed.Mult(gftrial, x);
+     }
 
-   // 9. Define and apply a PCG solver for Ax = b with Jacobi preconditioner.
-   {
-      GridFunction rhs(&test_fes);
-      rhs = x;
-      x = 0.0;
+     // 9. Define and apply a PCG solver for Ax = b with Jacobi preconditioner.
+     {
+        GridFunction rhs(&test_fes);
+        rhs = x;
+        x = 0.0;
 
-      CGSolver cg;
-      cg.SetRelTol(1e-12);
-      cg.SetMaxIter(1000);
-      cg.SetPrintLevel(1);
-      if (pa)
-      {
-         Array<int> ess_tdof_list; // empty
-         OperatorJacobiSmoother Jacobi(a, ess_tdof_list);
+        CGSolver cg;
+        cg.SetRelTol(1e-12);
+        cg.SetMaxIter(100000);
+        cg.SetPrintLevel(1);
+        if (pa)
+        {
+           Array<int> ess_tdof_list; // empty
+           OperatorJacobiSmoother Jacobi(a, ess_tdof_list);
 
-         cg.SetOperator(a);
-         cg.SetPreconditioner(Jacobi);
-         cg.Mult(rhs, x);
-      }
-      else
-      {
-         SparseMatrix& Amat = a.SpMat();
-         DSmoother Jacobi(Amat);
+           cg.SetOperator(a);
+           cg.SetPreconditioner(Jacobi);
+         //  cg.Mult(rhs, x);
+        }
+        else
+        {
+           SparseMatrix& Amat = a.SpMat();
+           DSmoother Jacobi(Amat);
 
-         cg.SetOperator(Amat);
-         cg.SetPreconditioner(Jacobi);
-         cg.Mult(rhs, x);
-      }
-   }
+           cg.SetOperator(Amat);
+           cg.SetPreconditioner(Jacobi);
+      //     cg.Mult(rhs, x);
+   x=0.0;
+        }
+     }*/
 
    // 10. Compute the projection of the exact field.
    GridFunction exact_proj(&test_fes);
@@ -362,6 +363,8 @@ int main(int argc, char *argv[])
    ofstream sol_ofs("sol.gf");
    sol_ofs.precision(8);
    x.Save(sol_ofs);
+   // exact_proj.Save(sol_ofs);
+   // gftrial.Save(sol_ofs);
 
    // 13. Send the solution by socket to a GLVis server.
    if (visualization)
@@ -369,8 +372,11 @@ int main(int argc, char *argv[])
       char vishost[] = "localhost";
       socketstream sol_sock(vishost, visport);
       sol_sock.precision(8);
-      sol_sock << "solution\n" << *mesh << x << flush;
+      sol_sock << "solution\n" << *mesh << gftrial << flush;
    }
+
+
+
 
    // 14. Free the used memory.
    delete trial_fec;
@@ -459,7 +465,7 @@ void Project(GridFunction &gf, CoefficientType &coef, bool global_proj)
 {
    if (global_proj)
    {
-      gf.ProjectCoefficientGlobalL2(coef);
+      gf.ProjectCoefficientLocalL2(coef);
    }
    else
    {

@@ -289,9 +289,13 @@ public:
                                    real_t rtol = 1e-12,
                                    int iter = 1000) override;
 
+   void ProjectCoefficientLocalL2(Coefficient &coeff) override;
+
    void ProjectCoefficientGlobalL2(VectorCoefficient &vcoeff,
                                    real_t rtol = 1e-12,
                                    int iter = 1000) override;
+
+   void ProjectCoefficientLocalL2(VectorCoefficient &vcoeff) override;
 
    /// @brief Returns ||u_ex - u_h||_L1 in parallel for H1 or L2 elements
    ///

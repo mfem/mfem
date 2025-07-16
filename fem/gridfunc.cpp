@@ -2404,6 +2404,138 @@ void GridFunction::ProjectCoefficientGlobalL2(Coefficient &coeff, real_t rtol,
    cg.Mult(b,*this);
 }
 
+void GridFunction::ProjectCoefficientLocalL2(Coefficient &coeff)
+{
+   Vector Va;
+   ProjectCoefficientLocalL2_(coeff, Va);
+   (*this) /= Va;
+}
+
+void GridFunction::ProjectCoefficientLocalL2_(Coefficient &coeff, Vector &Va)
+{
+   DofTransformation doftrans;
+   Array<int> vdofs;
+   Vector shape,shape2, elvect, elwght;
+   DenseMatrix elmat;
+   Va.SetSize(Size());
+
+   Va = 0.0;
+   *this = 0.0;
+
+   if (fes->GetNURBSext() == NULL)
+   {
+      for (int i = 0; i < fes->GetNE(); i++)
+      {
+         fes->GetElementVDofs (i, vdofs, doftrans);
+         ElementTransformation &tr = *fes -> GetElementTransformation (i);
+         const FiniteElement &el = *fes->GetFE(i);
+         int dof = el.GetDof();
+         shape.SetSize(dof);
+         elvect.SetSize(dof);
+         elwght.SetSize(dof);
+         elmat.SetSize(dof,dof);
+         elvect = 0.0;
+         elwght = 0.0;
+         elmat = 0.0;
+
+         const IntegrationRule &ir = IntRules.Get(el.GetGeomType(),
+                                                  2 * el.GetOrder() + 1);
+
+         // Element vector & weight
+         for (int i = 0; i < ir.GetNPoints(); i++)
+         {
+            const IntegrationPoint &ip = ir.IntPoint(i);
+
+            tr.SetIntPoint (&ip);
+            real_t wght = ip.weight;//*tr.Weight();
+            real_t val = coeff.Eval(tr, ip);
+
+            el.CalcPhysShape(tr, shape);
+
+            elvect.Add(wght * val, shape);
+            elwght.Add(wght*tr.Weight(), shape);
+            AddMult_a_VVt(wght, shape, elmat);
+         }
+
+         // Solve
+         if (!LinearSolve(elmat, elvect.GetData(),1e-12))
+         {
+            MFEM_WARNING("Error in inverting element local matrix");
+         }
+
+         // Scale
+         elvect *= elwght;
+
+         // Add reduced dofs to global vector
+         AddElementVector(vdofs, elvect);
+         Va.AddElementVector(vdofs, elwght);
+      }
+   }
+   else
+   {
+      for (int i = 0; i < fes->GetNE(); i++)
+      {
+         fes->GetElementVDofs (i, vdofs, doftrans);
+         ElementTransformation &tr = *fes -> GetElementTransformation (i);
+         const FiniteElement &el = *fes->GetFE(i);
+         int dof = el.GetDof();
+         int dim = el.GetDim();
+         int p = el.GetOrder();
+         L2_FECollection fe_coll(p,  dim);
+         //H1_FECollection fe_coll(p,  dim, BasisType::Positive);
+         const FiniteElement &el2 = *fe_coll.FiniteElementForGeometry(el.GetGeomType());
+         MFEM_ASSERT(el2.GetDof() == dof, "Element dofs do not match.");
+
+         shape.SetSize(dof);
+         shape2.SetSize(dof);
+         elvect.SetSize(dof);
+         elwght.SetSize(dof);
+         elmat.SetSize(dof,dof);
+         elvect = 0.0;
+         elwght = 0.0;
+         elmat = 0.0;
+
+         const IntegrationRule &ir = IntRules.Get(el.GetGeomType(),
+                                                  2 * el.GetOrder() + 1);
+
+         // Element vector & weight
+         for (int i = 0; i < ir.GetNPoints(); i++)
+         {
+            const IntegrationPoint &ip = ir.IntPoint(i);
+
+            tr.SetIntPoint (&ip);
+            real_t wght = ip.weight;//*tr.Weight();
+            real_t val = coeff.Eval(tr, ip);
+            el.CalcPhysShape(tr, shape);
+            el2.CalcPhysShape(tr, shape2);
+
+            elvect.Add(wght * val, shape2);
+            elwght.Add(wght*tr.Weight(), shape);
+            AddMult_a_VVt(wght, shape2, elmat);
+         }
+         // Solve
+         if (!LinearSolve(elmat, elvect.GetData(),1e-12))
+         {
+            MFEM_WARNING("Error in inverting element local matrix 2");
+         }
+         // Map to NURBS
+         DenseMatrix I;
+         el2.Project(el,tr,I);
+         if (!LinearSolve(I, elvect.GetData(),1e-32))
+         {
+            MFEM_WARNING("Error in inverting element local matrix 3");
+         }
+
+         // Scale
+         elvect *= elwght;
+
+         // Add reduced dofs to global vector
+         AddElementVector(vdofs, elvect);
+         Va.AddElementVector(vdofs, elwght);
+      }
+   }
+}
+
 void GridFunction::ProjectCoefficient(
    Coefficient &coeff, Array<int> &dofs, int vd)
 {
@@ -2512,6 +2644,28 @@ void GridFunction::ProjectCoefficientGlobalL2(VectorCoefficient &vcoeff,
    // Solve and get solution
    *this = 0.0;
    cg.Mult(b,*this);
+}
+
+
+void GridFunction::ProjectCoefficientLocalL2(VectorCoefficient &vcoeff)
+{
+
+   // TBD!!!!
+   // Define and assemble linear form
+   LinearForm b(fes);
+   BilinearForm a(fes);
+
+   if (fes->GetTypicalFE()->GetRangeType() == mfem::FiniteElement::VECTOR)
+   {
+      b.AddDomainIntegrator(new VectorFEDomainLFIntegrator(vcoeff));
+      a.AddDomainIntegrator(new VectorFEMassIntegrator());
+   }
+   else
+   {
+      b.AddDomainIntegrator(new VectorDomainLFIntegrator(vcoeff));
+      a.AddDomainIntegrator(new VectorMassIntegrator());
+   }
+
 }
 
 void GridFunction::ProjectCoefficient(

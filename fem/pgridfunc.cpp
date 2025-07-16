@@ -618,6 +618,21 @@ void ParGridFunction::ProjectCoefficientGlobalL2(Coefficient &coeff,
    delete prec;
 }
 
+void ParGridFunction::ProjectCoefficientLocalL2(Coefficient &coeff)
+{
+   Vector Va;
+   ProjectCoefficientLocalL2_(coeff, Va);
+
+   GroupCommunicator &gcomm = pfes->GroupComm();
+   gcomm.Reduce<real_t>(data, GroupCommunicator::Sum);
+   gcomm.Bcast<real_t>(data);
+
+   gcomm.Reduce<real_t>(Va.GetData(), GroupCommunicator::Sum);
+   gcomm.Bcast<real_t>(Va.GetData());
+
+   (*this) /= Va;
+}
+
 void ParGridFunction::ProjectCoefficientGlobalL2(VectorCoefficient &vcoeff,
                                                  real_t rtol, int iter)
 {
@@ -656,6 +671,22 @@ void ParGridFunction::ProjectCoefficientGlobalL2(VectorCoefficient &vcoeff,
    a.RecoverFEMSolution(X, b, x);
    x.Print();
    delete prec;
+}
+
+
+void ParGridFunction::ProjectCoefficientLocalL2(VectorCoefficient &vcoeff)
+{
+   /*   Vector Va;
+      ProjectCoefficientLocalL2_(coeff, Va);
+
+      GroupCommunicator &gcomm = pfes->GroupComm();
+      gcomm.Reduce<real_t>(data, GroupCommunicator::Sum);
+      gcomm.Bcast<real_t>(data);
+
+      gcomm.Reduce<real_t>(Va.GetData(), GroupCommunicator::Sum);
+      gcomm.Bcast<real_t>(Va.GetData());
+
+      (*this) /= Va;*/
 }
 
 

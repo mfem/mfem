@@ -66,6 +66,9 @@ protected:
        degree of freedom. */
    void ProjectDiscCoefficient(VectorCoefficient &coeff, Array<int> &dof_attr);
 
+   /** Helper function for ProjectCoefficientLocalL2 */
+   void ProjectCoefficientLocalL2_(Coefficient &coeff, Vector &Va);
+
    /// Loading helper.
    void LegacyNCReorder();
 
@@ -407,6 +410,14 @@ public:
                                            real_t rtol = 1e-12,
                                            int iter = 1000);
 
+   /** @brief Project @a coeff Coefficient to @a this GridFunction. The
+       projection is an element local L2 projection, with an appropriate
+       weighting for Dofs that are shared between elements. Inspired on
+       Bezier-Projection [CMAME (284) 2015 pg 55-105]
+       This routine can be used a fallback for elements without a projection
+       member function.*/
+   virtual void ProjectCoefficientLocalL2(Coefficient &coeff);
+
    /** @brief Project @a coeff Coefficient to @a this GridFunction, using one
        element for each degree of freedom in @a dofs and nodal interpolation on
        that element. */
@@ -429,6 +440,12 @@ public:
    virtual void ProjectCoefficientGlobalL2(VectorCoefficient &vcoeff,
                                            real_t rtol = 1e-12,
                                            int iter = 1000);
+
+
+   /** @brief Project @a coeff Coefficient to @a this GridFunction. The
+       projection is a global L2 projection. This routine can be used a
+       fallback for elements without a projection member function.*/
+   virtual void ProjectCoefficientLocalL2(VectorCoefficient &vcoeff);
 
    /** @brief Project @a vcoeff VectorCoefficient to @a this GridFunction, using
        one element for each degree of freedom in @a dofs and nodal interpolation
