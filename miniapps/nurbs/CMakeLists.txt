@@ -17,10 +17,6 @@ add_mfem_miniapp(nurbs_patch_ex2
   MAIN nurbs_patch_ex2.cpp
   LIBRARIES mfem)
 
-add_mfem_miniapp(mesh_gen
-  MAIN mesh_gen.cpp
-  LIBRARIES mfem)
-
 add_mfem_miniapp(nurbs_ex3
   MAIN nurbs_ex3.cpp
   LIBRARIES mfem)
