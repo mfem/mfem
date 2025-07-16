@@ -31,6 +31,9 @@ using regs3d_vd_t = mfem::future::tensor<real_t, N, 0, 0, VDIM, DIM>;
 template <int VDIM, int DIM, int N>
 using regs3d_vd_t = mfem::future::tensor<real_t, N, N, N, VDIM, DIM>;
 
+template <int N>
+using regs3d_t = mfem::future::tensor<real_t, N, N, N>;
+
 #endif // CUDA/HIP && DEVICE_COMPILE
 
 /// Load 3D input VDIM*DIM vector into given register tensor

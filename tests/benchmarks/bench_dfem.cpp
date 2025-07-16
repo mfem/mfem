@@ -21,7 +21,8 @@
 
 #include "fem/dfem/doperator.hpp"
 #include <linalg/tensor.hpp>
-#include "tests/benchmarks/kernels.hpp"
+#include "tests/benchmarks/kernels_vd.hpp"
+#include "tests/benchmarks/kernels_fma.hpp"
 
 #include "fem/kernels.hpp"
 namespace ker = kernels::internal;
@@ -99,34 +100,37 @@ enum class kernels_t: int
 {
    PA_STD,
    PA_NEW,
-   PA_NEW_VD,
+   PA_NEW_VDD,
    MF_DFEM,
    PA_DFEM,
    PA_DFEM_NEW,
    AUTO_PA_DFEM,
    AUTO_PA_DFEM_NEW,
+   PA_FMA_VDD,
    SIZE,
 } ;
 
 constexpr int PA_STD = static_cast<int>(kernels_t::PA_STD);
 constexpr int PA_NEW = static_cast<int>(kernels_t::PA_NEW);
-constexpr int PA_NEW_VD = static_cast<int>(kernels_t::PA_NEW_VD);
+constexpr int PA_NEW_VDD = static_cast<int>(kernels_t::PA_NEW_VDD);
 constexpr int MF_DFEM = static_cast<int>(kernels_t::MF_DFEM);
 constexpr int PA_DFEM = static_cast<int>(kernels_t::PA_DFEM);
 constexpr int PA_DFEM_NEW = static_cast<int>(kernels_t::PA_DFEM_NEW);
 constexpr int AUTO_PA_DFEM = static_cast<int>(kernels_t::AUTO_PA_DFEM);
 constexpr int AUTO_PA_DFEM_NEW = static_cast<int>(kernels_t::AUTO_PA_DFEM_NEW);
+constexpr int PA_FMA_VDD = static_cast<int>(kernels_t::PA_FMA_VDD);
 
 constexpr auto all_kernels =
 {
    kernels_t::PA_STD,
    kernels_t::PA_NEW,
-   kernels_t::PA_NEW_VD,
+   kernels_t::PA_NEW_VDD,
    kernels_t::MF_DFEM,
    kernels_t::PA_DFEM,
    kernels_t::PA_DFEM_NEW,
    kernels_t::AUTO_PA_DFEM,
    kernels_t::AUTO_PA_DFEM_NEW,
+   kernels_t::PA_FMA_VDD
 };
 
 static void DumpVersionInfo()
@@ -134,12 +138,13 @@ static void DumpVersionInfo()
    mfem::out << "\x1b[33m";
    mfem::out << "version " << PA_STD << ": PA std\n";
    mfem::out << "version " << PA_NEW << ": PA new\n";
-   mfem::out << "version " << PA_NEW_VD << ": PA new (layout by vdim)\n";
+   mfem::out << "version " << PA_NEW_VDD << ": PA new (layout by vdim)\n";
    mfem::out << "version " << MF_DFEM << ": MF ∂fem\n";
    mfem::out << "version " << PA_DFEM << ": PA ∂fem\n";
    mfem::out << "version " << PA_DFEM_NEW << ": PA ∂fem new\n";
    mfem::out << "version " << AUTO_PA_DFEM << ": Auto PA ∂fem\n";
    mfem::out << "version " << AUTO_PA_DFEM_NEW << ": Auto PA ∂fem new\n";
+   mfem::out << "version " << PA_FMA_VDD << ": PA FMA (layout by vdim)\n";
    mfem::out << "\x1b[m\n" << std::flush;
 }
 
@@ -166,7 +171,7 @@ static bool use_new_kernels = false;
 static bool use_kernels_specialization = true;
 
 /// StiffnessIntegrator ///////////////////////////////////////////////////////
-template <bool layout_by_vdim>
+template <bool layout_by_vdim, bool use_fma>
 struct StiffnessIntegrator : public BilinearFormIntegrator
 {
    const FiniteElementSpace *fes;
@@ -316,9 +321,9 @@ public:
    ///////////////////////////////////////////////////////////////////
    // BP3/1/6/25 | 49.5 ms | 49.5 ms | 10 | 15.625k | 10.0983/s | 6 | 1
    template <int T_D1D = 0, int T_Q1D = 0>
-   static void StiffnessMultVD(const int NE, const real_t *b, const real_t *g,
-                               const real_t *dx, const real_t *xe, real_t *ye,
-                               const int d1d, const int q1d)
+   static void StiffnessMultVDD(const int NE, const real_t *b, const real_t *g,
+                                const real_t *dx, const real_t *xe, real_t *ye,
+                                const int d1d, const int q1d)
    {
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -373,6 +378,70 @@ public:
       });
    }
 
+   ///////////////////////////////////////////////////////////////////
+   template <int T_D1D = 0, int T_Q1D = 0>
+   static void StiffnessMultFMA(const int NE, const real_t *b,
+                                const real_t *g,
+                                const real_t *dx, const real_t *xe, real_t *ye,
+                                const int d1d, const int q1d)
+   {
+      const int D1D = T_D1D ? T_D1D : d1d;
+      const int Q1D = T_Q1D ? T_Q1D : q1d;
+      // db1("D1D:{} Q1D:{} (by VDIM)", D1D, Q1D);
+
+      constexpr int DIM = 3, VDIM = 1, NBZ = 1;
+      const auto XE = Reshape(xe, D1D, D1D, D1D, VDIM, NE);
+      const auto DX = Reshape(dx, 3, 3, Q1D, Q1D, Q1D, NE);
+      auto YE = Reshape(ye, D1D, D1D, D1D, VDIM, NE);
+
+      mfem::forall_3D(NE, Q1D, Q1D, 1, [=] MFEM_HOST_DEVICE(int e)
+      {
+         const int tz = MFEM_THREAD_ID(z);
+         constexpr int MD1 = T_D1D ? T_D1D : 32;
+         constexpr int MQ1 = T_Q1D ? T_Q1D : 32;
+
+         alignas(64) MFEM_SHARED real_t smem[NBZ][VDIM][DIM][MQ1][MQ1][MQ1];
+         alignas(64) MFEM_SHARED real_t sB[MD1][MQ1];
+         alignas(64) MFEM_SHARED real_t sG[MD1][MQ1];
+
+         constexpr int MZ1 = MQZ<MQ1>::value;
+         alignas(64) mfem::future::tensor<real_t, MQ1, MZ1, MZ1, VDIM, DIM> r_q;
+
+         ker::LoadMatrix(D1D, Q1D, b, sB);
+         ker::LoadMatrix(D1D, Q1D, g, sG);
+
+         ker::fma::Grad3d(D1D, Q1D, smem, sB, sG, r_q, XE, e);
+
+         MFEM_UNROLL(MQ1)
+         for (int qz = 0; qz < Q1D; qz++)
+         {
+            MFEM_UNROLL(MQ1)
+            MFEM_FOREACH_THREAD_DIRECT(qy, y, Q1D)
+            {
+               MFEM_UNROLL(MQ1)
+               MFEM_FOREACH_THREAD_DIRECT(qx, x, Q1D)
+               {
+                  const auto d = make_tensor<3, 3>([&](int i, int j)
+                  {
+                     return DX(i, j, qx, qy, qz, e);
+                  });
+                  const auto vd_u = make_tensor<VDIM, DIM>([&](int i, int j)
+                  {
+                     return smem[tz][i][j][qx][qy][qz];
+                  });
+                  auto &vd_v = r_q[qz][qy][qx];
+                  // const auto &vd_u = r_q[qz][qy][qx][0];
+                  // vd_v = d * vd_u;
+
+                  // auto &vd_v = r_q[qz][qy][qx][0];
+                  // vd_v = d * v;
+               }
+            }
+         }
+         ker::fma::GradTranspose3d(D1D, Q1D, smem, sB, sG, r_q, YE, e);
+      });
+   }
+
    using StiffnessKernelType = decltype(&StiffnessMult<>);
    MFEM_REGISTER_KERNELS(StiffnessKernels, StiffnessKernelType, (int, int));
 
@@ -384,25 +453,29 @@ public:
    }
 };
 
-template<bool layout_by_vdim>
+template<bool layout_by_vdim, bool use_fma>
 template <int D1D, int Q1D>
 inline MFEM_ALWAYS_INLINE
-typename StiffnessIntegrator<layout_by_vdim>::StiffnessKernelType
-StiffnessIntegrator<layout_by_vdim>::StiffnessKernels::Kernel()
+typename StiffnessIntegrator<layout_by_vdim, use_fma>::StiffnessKernelType
+StiffnessIntegrator<layout_by_vdim, use_fma>::StiffnessKernels::Kernel()
 {
-   if constexpr (!layout_by_vdim) { return StiffnessMult<D1D, Q1D>; }
-   if constexpr (layout_by_vdim) { return StiffnessMultVD<D1D, Q1D>; }
+   if constexpr (!layout_by_vdim && !use_fma) { return StiffnessMult<D1D, Q1D>; }
+   if constexpr (layout_by_vdim && !use_fma) { return StiffnessMultVDD<D1D, Q1D>; }
+   if constexpr (layout_by_vdim &&  use_fma) { return StiffnessMultFMA<D1D, Q1D>; }
+   return nullptr; // Should never happen
 }
 
-template<bool layout_by_vdim>
+template<bool layout_by_vdim, bool use_fma>
 inline MFEM_ALWAYS_INLINE
-typename StiffnessIntegrator<layout_by_vdim>::StiffnessKernelType
-StiffnessIntegrator<layout_by_vdim>::StiffnessKernels::Fallback(int d1d,
-                                                                int q1d)
+typename StiffnessIntegrator<layout_by_vdim, use_fma>::StiffnessKernelType
+StiffnessIntegrator<layout_by_vdim, use_fma>::StiffnessKernels::Fallback(
+   int d1d,
+   int q1d)
 {
    dbg("\x1b[33mFallback d1d:{} q1d:{}", d1d, q1d);
-   if constexpr (!layout_by_vdim) { return StiffnessMult<>; }
-   if constexpr (layout_by_vdim) { return StiffnessMultVD<>; }
+   if constexpr (!layout_by_vdim && !use_fma) { return StiffnessMult<>; }
+   if constexpr (layout_by_vdim && !use_fma) { return StiffnessMultVDD<>; }
+   if constexpr (use_fma) { return StiffnessMultFMA<>; }
 }
 
 /// BakeOff ///////////////////////////////////////////////////////////////////
@@ -537,12 +610,14 @@ struct Diffusion : public BakeOff<VDIM, GLL>
       b.Assemble();
 
       // PA_STD: standard, PA_NEW: new PA, PA_NEW_VD: new PA layout by vdim
-      if (version == PA_STD || version == PA_NEW || version == PA_NEW_VD)
+      if (version == PA_STD    || version == PA_NEW ||
+          version == PA_NEW_VDD || version == PA_FMA_VDD)
       {
          a.SetAssemblyLevel(AssemblyLevel::PARTIAL);
          if (version == PA_STD) { a.AddDomainIntegrator(new DiffusionIntegrator(ir)); }
-         if (version == PA_NEW) { a.AddDomainIntegrator(new StiffnessIntegrator<false>()); }
-         if (version == PA_NEW_VD) { a.AddDomainIntegrator(new StiffnessIntegrator<true>()); }
+         if (version == PA_NEW) { a.AddDomainIntegrator(new StiffnessIntegrator<false, false>()); }
+         if (version == PA_NEW_VDD) { a.AddDomainIntegrator(new StiffnessIntegrator<true, false>()); }
+         if (version == PA_FMA_VDD) { a.AddDomainIntegrator(new StiffnessIntegrator<false, true>()); }
          a.Assemble();
          a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
          if (version == PA_STD)
