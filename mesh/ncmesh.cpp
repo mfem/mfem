@@ -5110,17 +5110,17 @@ void NCMesh::RefineVertexToKnot(const std::vector<Array<int>> &kvf,
                                 std::map<std::pair<int, int>,
                                 std::array<int, 2>> &parentToKV)
 {
-   // Note that entries 1 and 2 of vertex_to_knot are (k1, k2), which are knot
+   // Note that entries 1 and 2 of vertex_to_knotspan are (k1, k2), which are knot
    // span (element) indices in the two dimensions of a patch face.
 
-   for (int i=0; i<vertex_to_knot.Size(); ++i)
+   for (int i=0; i<vertex_to_knotspan.Size(); ++i)
    {
       if (Dim == 3)
       {
          int tv;
          std::array<int, 2> ks;
          std::array<int, 4> pv;
-         vertex_to_knot.GetVertex3D(i, tv, ks, pv);
+         vertex_to_knotspan.GetVertex3D(i, tv, ks, pv);
 
          bool edgeReverse[2];
          for (int j=0; j<2; ++j)
@@ -5142,20 +5142,20 @@ void NCMesh::RefineVertexToKnot(const std::vector<Array<int>> &kvf,
          RemapKnotIndex(edgeReverse[1], kvf[kv[1]],
                         kvext[kv[1]]->spacing.get(), ks[1]);
 
-         vertex_to_knot.SetKnotSpans3D(i, ks);
+         vertex_to_knotspan.SetKnotSpans3D(i, ks);
       }
       else // 2D
       {
          int tv, ks;
          std::array<int, 2> pv;
-         vertex_to_knot.GetVertex2D(i, tv, ks, pv);
+         vertex_to_knotspan.GetVertex2D(i, tv, ks, pv);
          const bool rev = pv[1] < pv[0];
          const std::pair<int, int> parentPair(rev ? pv[1] : pv[0], rev ? pv[0] : pv[1]);
          const std::array<int, 2> kv = parentToKV.at(parentPair);
          const int kvId = kv[0];
          RemapKnotIndex(rev, kvf[kvId],
                         kvext[kvId]->spacing.get(), ks);
-         vertex_to_knot.SetKnotSpan2D(i, ks);
+         vertex_to_knotspan.SetKnotSpan2D(i, ks);
       }
    }
 }
@@ -6183,7 +6183,7 @@ void NCMesh::LoadVertexToKnot2D(std::istream &input)
    int nv;
    input >> nv;
    MFEM_VERIFY(0 <= nv, "Invalid vertex-to-knot data");
-   vertex_to_knot.SetSize(2, nv);
+   vertex_to_knotspan.SetSize(2, nv);
    for (int i=0; i<nv; ++i)
    {
       int id, ks;
@@ -6194,7 +6194,7 @@ void NCMesh::LoadVertexToKnot2D(std::istream &input)
                             && nodes.IdExists(pv[1]);
 
       MFEM_VERIFY(idsExist && 0 < ks, "Invalid index");
-      vertex_to_knot.SetVertex2D(i, id, ks, pv);
+      vertex_to_knotspan.SetVertex2D(i, id, ks, pv);
    }
 }
 
@@ -6203,7 +6203,7 @@ void NCMesh::LoadVertexToKnot3D(std::istream &input)
    int nv;
    input >> nv;
    MFEM_VERIFY(0 <= nv, "Invalid vertex-to-knot data");
-   vertex_to_knot.SetSize(3, nv);
+   vertex_to_knotspan.SetSize(3, nv);
    for (int i=0; i<nv; ++i)
    {
       int id;
@@ -6222,7 +6222,7 @@ void NCMesh::LoadVertexToKnot3D(std::istream &input)
                                 (0 < ks[0] || 0 < ks[1]);
       MFEM_ASSERT(idsExist && validKnotIds, "Invalid index");
 #endif
-      vertex_to_knot.SetVertex3D(i, id, ks, pv);
+      vertex_to_knotspan.SetVertex3D(i, id, ks, pv);
    }
 }
 
@@ -6436,10 +6436,10 @@ void NCMesh::Print(std::ostream &os, const std::string &comments,
       }
    }
 
-   if (nurbs && vertex_to_knot.Size() > 0)
+   if (nurbs && vertex_to_knotspan.Size() > 0)
    {
-      os << "\nvertex_to_knot\n";
-      vertex_to_knot.Print(os);
+      os << "\nvertex_to_knotspan\n";
+      vertex_to_knotspan.Print(os);
    }
 
    if (coordinates.Size())
@@ -6635,7 +6635,7 @@ NCMesh::NCMesh(std::istream &input, int version, int &curved, int &is_nc)
    }
 
    // load map from hanging patch vertices to patch edge knots
-   if (ident == "vertex_to_knot")
+   if (ident == "vertex_to_knotspan")
    {
       LoadVertexToKnot(input);
 

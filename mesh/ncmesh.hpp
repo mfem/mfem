@@ -124,6 +124,10 @@ public:
    /// Set the spatial dimension and number of vertices.
    void SetSize(int dimension, int numVertices);
 
+   // The following set and get functions are for a single entry in the array of
+   // data, for a hanging vertex in the patch topology, with the given 'index'.
+   // The vertex index is 'v', parent vertices are 'pv', and knot-span is 'ks'.
+
    /// Set the data for a vertex in 2D.
    void SetVertex2D(int index, int v, int ks,
                     const std::array<int, 2> &pv);
@@ -396,10 +400,10 @@ public:
 
    const VertexToKnotSpan& GetVertexToKnotSpan() const
    {
-      return vertex_to_knot;
+      return vertex_to_knotspan;
    }
 
-   /// Remap knot-span indices @a vertex_to_knot after refinement.
+   /// Remap knot-span indices @a vertex_to_knotspan after refinement.
    void RefineVertexToKnot(const std::vector<Array<int>> &kvf,
                            const Array<KnotVector*> &kvext,
                            std::map<std::pair<int, int>,
@@ -1403,7 +1407,7 @@ protected:
    static GeomInfo GI[Geometry::NumGeom];
 
    /// This is used for a NURBS mesh with this NCMesh as its patch topology.
-   VertexToKnotSpan vertex_to_knot;
+   VertexToKnotSpan vertex_to_knotspan;
 
 #ifdef MFEM_DEBUG
 public:

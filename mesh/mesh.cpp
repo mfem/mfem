@@ -6511,7 +6511,7 @@ void Mesh::GetEdgeToUniqueKnotvector(Array<int> &edge_to_ukv,
 }
 
 void Mesh::LoadNonconformingPatchTopo(std::istream &input,
-                                      Array<int> &edge_to_knot)
+                                      Array<int> &edge_to_ukv)
 {
    SetEmpty();
 
@@ -6533,12 +6533,12 @@ void Mesh::LoadNonconformingPatchTopo(std::istream &input,
 
    MFEM_VERIFY(NumOfEdges == inputNumOfEdges, "");
 
-   edge_to_knot.SetSize(NumOfEdges);
+   edge_to_ukv.SetSize(NumOfEdges);
    for (int j = 0; j < NumOfEdges; j++)
    {
-      int v[2];
-      int knot_ID;
-      input >> knot_ID >> v[0] >> v[1];
+      int v[2]; // Vertex indices
+      int ukv; // Unique KnotVector index
+      input >> ukv >> v[0] >> v[1];
 
       for (int i=0; i<2; ++i)
       {
@@ -6547,9 +6547,9 @@ void Mesh::LoadNonconformingPatchTopo(std::istream &input,
 
       if (v[0] > v[1])
       {
-         knot_ID = -1 - knot_ID;
+         ukv = -1 - ukv;
       }
-      edge_to_knot[j] = knot_ID;
+      edge_to_ukv[j] = ukv;
    }
 
    FinalizeTopology();
@@ -15285,7 +15285,7 @@ bool Mesh::Conforming() const
 {
    if (NURBSext)
    {
-      return !NURBSext->Nonconforming();
+      return true;
    }
    else
    {
