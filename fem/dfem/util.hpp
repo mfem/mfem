@@ -987,7 +987,7 @@ get_restriction_transpose(
    {
       auto RT = [=](const Vector &v_e, Vector &v_l)
       {
-         v_l = v_e;
+         v_l += v_e;
       };
       return std::make_tuple(RT, 1);
    }
@@ -996,7 +996,7 @@ get_restriction_transpose(
       const Operator *R = get_restriction<entity_t>(f, o);
       std::function<void(const Vector&, Vector&)> RT = [=](const Vector &x, Vector &y)
       {
-         R->MultTranspose(x, y);
+         R->AddMultTranspose(x, y);
       };
       return std::make_tuple(RT, R->Height());
    }
@@ -2159,7 +2159,7 @@ template <
    std::size_t... Is>
 std::array<DofToQuadMap, N> create_dtq_maps_impl(
    field_operator_ts &fops,
-   std::vector<const DofToQuad*> dtqs,
+   std::vector<const DofToQuad*> &dtqs,
    const std::array<int, N> &field_map,
    std::index_sequence<Is...>)
 {
@@ -2244,7 +2244,7 @@ template <
    std::size_t num_fields>
 std::array<DofToQuadMap, num_fields> create_dtq_maps(
    field_operator_ts &fops,
-   std::vector<const DofToQuad*> dtqmaps,
+   std::vector<const DofToQuad*> &dtqmaps,
    const std::array<int, num_fields> &to_field_map)
 {
    return create_dtq_maps_impl<entity_t>(
