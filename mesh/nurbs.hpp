@@ -293,6 +293,14 @@ public:
    /** Flag to indicate whether the KnotVector has been coarsened, which means
        it is ready for non-nested refinement. */
    bool coarse;
+
+#ifdef MFEM_USE_LAPACK
+   // Data for reusing banded matrix factorization in FindInterpolant().
+   DenseMatrix fact_AB; /// Banded matrix factorization
+   Array<int> fact_ipiv; /// Row pivot indices
+#else
+   DenseMatrix A_coll_inv; /// Collocation matrix inverse
+#endif
 };
 
 
@@ -376,7 +384,7 @@ public:
        includes the weight. The array of control point coordinates stores each
        point's coordinates contiguously, and points are ordered in a standard
        ijk grid ordering. */
-   NURBSPatch(Array<const KnotVector *> &kv_,  int dim_,
+   NURBSPatch(Array<const KnotVector *> &kv_, int dim_,
               const real_t* control_points);
 
    /// Constructor for a patch of dimension equal to the size of @a kv.
@@ -791,7 +799,8 @@ public:
 
    NURBSExtension(Mesh *mesh_array[], int num_pieces);
 
-   NURBSExtension(const Mesh *patch_topology, const Array<const NURBSPatch*> p);
+   NURBSExtension(const Mesh *patch_topology,
+                  const Array<const NURBSPatch*> &patches_);
 
    /// Copy assignment not supported.
    NURBSExtension& operator=(const NURBSExtension&) = delete;
