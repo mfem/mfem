@@ -2421,7 +2421,6 @@ public:
    bool Conforming() const { return ncmesh == NULL; }
    /// Return a bool indicating whether this mesh is nonconforming.
    bool Nonconforming() const { return ncmesh != NULL; }
-   bool IsNURBS() const { return NURBSext != NULL; }
 
    /** Designate this mesh for output as "NC mesh v1.1", meaning it is
        nonconforming with nonuniform refinement spacings. */
@@ -2538,7 +2537,7 @@ public:
 
 #ifdef MFEM_USE_NETCDF
    /// @brief Export a mesh to an Exodus II file.
-   void PrintExodusII(const std::string fpath);
+   void PrintExodusII(const std::string &fpath);
 #endif
 
    /** @brief Prints the mesh with boundary elements given by the boundary of

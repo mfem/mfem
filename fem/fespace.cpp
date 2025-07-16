@@ -98,31 +98,7 @@ FiniteElementSpace::FiniteElementSpace(const FiniteElementSpace &orig,
 FiniteElementSpace::FiniteElementSpace(Mesh *mesh,
                                        const FiniteElementCollection *fec,
                                        int vdim, int ordering)
-{
-   const NURBSFECollection *nurbs_fec =
-      dynamic_cast<const NURBSFECollection *>(fec);
-   if (!nurbs_fec)
-   {
-      Constructor(mesh, NULL, fec, vdim, ordering);
-   }
-   else if (mesh->NURBSext)
-   {
-      if (fec->GetOrder() == mesh->NURBSext->GetOrder())
-      {
-         Constructor(mesh, NULL, fec, vdim, ordering);
-      }
-      else
-      {
-         Constructor(mesh,
-                     new NURBSExtension(mesh->NURBSext, fec->GetOrder()),
-                     fec, vdim, ordering);
-      }
-   }
-   else
-   {
-      MFEM_ABORT("NURBSFECollection requires a NURBS-based mesh.");
-   }
-}
+{ Constructor(mesh, NULL, fec, vdim, ordering); }
 
 FiniteElementSpace::FiniteElementSpace(Mesh *mesh, NURBSExtension *ext,
                                        const FiniteElementCollection *fec,
