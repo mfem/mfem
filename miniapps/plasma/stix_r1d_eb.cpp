@@ -207,10 +207,10 @@ public:
 
 private:
    char type_;
-   bool realPart_;
-   int nuprof_;
-   real_t res_lim_;
-   real_t omega_;
+  // bool realPart_;
+  // int nuprof_;
+  // real_t res_lim_;
+  // real_t omega_;
    real_t Bmag_;
    real_t Jy_;
    real_t xJ_;
@@ -228,10 +228,10 @@ private:
    Vector beta_i_;
 
    // const Vector & B_;
-   const Vector & numbers_;
-   const Vector & charges_;
-   const Vector & masses_;
-   const Vector & temps_;
+  // const Vector & numbers_;
+  // const Vector & charges_;
+  // const Vector & masses_;
+  // const Vector & temps_;
 
    complex<real_t> S_;
    complex<real_t> D_;
@@ -966,8 +966,8 @@ int main(int argc, char *argv[])
    }
    if (Mpi::Root()) { cout << "Initialization done." << endl; }
 
-   ColdPlasmaPlaneWaveE EReCoef(wave_type, stixParams, ,,,,,,, StixCoef::REAL_PART);
-   ColdPlasmaPlaneWaveE EImCoef(wave_type, stixParams, ,,,,,,, StixCoef::IMAG_PART);
+   // ColdPlasmaPlaneWaveE EReCoef(wave_type, stixParams, ,,,,,,, StixCoef::REAL_PART);
+   // ColdPlasmaPlaneWaveE EImCoef(wave_type, stixParams, ,,,,,,, StixCoef::IMAG_PART);
    
    // The main AMR loop. In each iteration we solve the problem on the current
    // mesh, visualize the solution, estimate the error on all elements, refine
@@ -1001,11 +1001,13 @@ int main(int argc, char *argv[])
                      cout << "Global L2 Error in H field " << glb_error_H << endl;
                   }
             */
+	/*
                  real_t glb_error_E = CPD.GetEFieldError(EReCoef, EImCoef);
                  if (Mpi::Root())
                  {
                     cout << "Global L2 Error in E field " << glb_error_E << endl;
                  }
+	*/
       }
 
       // Write fields to disk for VisIt
@@ -1799,13 +1801,11 @@ ColdPlasmaPlaneWaveE::ColdPlasmaPlaneWaveE(char type,
                                            const Vector & charge,
                                            const Vector & mass,
                                            const Vector & temp,
-                                           int nuprof,
-                                           real_t res_lim,
                                            ReImPart re_im_part)
 :  StixCoefBase(stixParams, re_im_part),
   VectorCoefficient(3),
      type_(type),
-     nuprof_(nuprof),
+   // nuprof_(stixParams.nuProfile),
      Bmag_(B.Norml2()),
      Jy_(0.0),
      xJ_(0.5),
@@ -1820,13 +1820,28 @@ ColdPlasmaPlaneWaveE::ColdPlasmaPlaneWaveE(char type,
      k_r_(3),
      k_i_(3),
      beta_r_(3),
-     beta_i_(3),
-     numbers_(number),
-     charges_(charge),
-     masses_(mass),
-     temps_(temp)
+     beta_i_(3)
+   // numbers_(number),
+   // charges_(charge),
+   //  masses_(mass),
+   //temps_(temp)
 {
-   b_ *= 1.0 / Bmag_;
+}
+
+void ColdPlasmaPlaneWaveE::Eval(Vector &V, ElementTransformation &T,
+                                const IntegrationPoint &ip)
+{
+   V.SetSize(3);
+
+   real_t x_data[3];
+   Vector x(x_data, 3);
+   T.Transform(ip, x);
+
+   complex<real_t> i = complex<real_t>(0.0,1.0);
+
+  Bmag_ = this->getBMagnitude(T, ip);
+
+  b_ *= 1.0 / Bmag_;
 
    {
       real_t bx = b_(0);
@@ -1848,11 +1863,14 @@ ColdPlasmaPlaneWaveE::ColdPlasmaPlaneWaveE(char type,
    beta_r_ = 0.0;
    beta_i_ = 0.0;
 
-   S_ = S_cold_plasma(omega_, Bmag_, 0.0, 0.0, numbers_, charges_, masses_,
-                      temps_, nuprof_, res_lim_);
-   D_ = D_cold_plasma(omega_, Bmag_, 0.0, 0.0, numbers_, charges_, masses_,
-                      temps_, nuprof_, res_lim_);
-   P_ = P_cold_plasma(omega_, 0.0, numbers_, charges_, masses_, temps_,
+   this->fillDensityVals(T, ip);
+   this->fillTemperatureVals(T, ip);
+
+   S_ = S_cold_plasma(omega_, Bmag_, 0.0, 0.0, density_vals_, charges_, masses_,
+                      temperature_vals_, nuprof_, res_lim_);
+   D_ = D_cold_plasma(omega_, Bmag_, 0.0, 0.0, density_vals_, charges_, masses_,
+                      temperature_vals_, nuprof_, res_lim_);
+   P_ = P_cold_plasma(omega_, 0.0, density_vals_, charges_, masses_, temperature_vals_,
                       nuprof_);
 
    switch (type_)
@@ -1916,18 +1934,6 @@ ColdPlasmaPlaneWaveE::ColdPlasmaPlaneWaveE(char type,
          //           "Current slab require a magnetic field in the z-direction.");
          break;
    }
-}
-
-void ColdPlasmaPlaneWaveE::Eval(Vector &V, ElementTransformation &T,
-                                const IntegrationPoint &ip)
-{
-   V.SetSize(3);
-
-   real_t x_data[3];
-   Vector x(x_data, 3);
-   T.Transform(ip, x);
-
-   complex<real_t> i = complex<real_t>(0.0,1.0);
 
    switch (type_)
    {
