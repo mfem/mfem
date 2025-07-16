@@ -29,8 +29,13 @@ Discretization improvements
 
 Meshing improvements
 --------------------
+
 - Added support for higher order meshes in Mesh::MakeSimplicial and
   ParMesh::MakeSimplicial.
+
+- Added a new miniapp for interpolating a surface grid of points in 3D using a
+  smooth NURBS surface, that can then be sampled at arbitrary resolution while
+  staying close to the original geometry. See miniapps/nurbs/nurbs_surface.
 
 GPU computing
 -------------
@@ -41,6 +46,11 @@ GPU computing
   where host execution is always needed (e.g. when the DOFs array is small).
 - Introduced MFEM_FOREACH_THREAD_DIRECT, which directly maps loop tasks to GPU
   threads, assigning one task per thread.
+- Implemented a GPU-accelerated matrix-free AMR derefinement `GridFunction`
+  update operator. This supports mixed geometry meshes and variable order
+  spaces, and is the default derefinement operator constructed by
+  `FiniteElementSpace::Update` and `ParFiniteElementSpace::Update`.
+  The operator requires `FiniteElementSpace::Nonconforming() == true`.
 
 New and updated examples and miniapps
 -------------------------------------
@@ -50,7 +60,7 @@ New and updated examples and miniapps
   operators as smoothers.
   These miniapps can be found in `miniapps/diag-smoothers`.
 
-API changes:
+API changes
 -----------
 - mfem::internal::tensor and mfem::internal::dual have been moved to
   mfem::future::tensor and mfem::future::dual.
@@ -68,7 +78,8 @@ Miscellaneous
 - Added the option to enable GPU-aware MPI in MFEM using the environment
   variable 'MFEM_GPU_AWARE_MPI' set to any value. Setting this environment
   variable is an alternative to calling 'Device::SetGPUAwareMPI(true)'.
-
+- Added parallel Address Sanitizer, serial and parallel Undefined Behavior
+  Sanitizer and serial Memory Sanitizer GitHub actions tests on Ubuntu.
 
 Version 4.8, released on Apr 9, 2025
 ====================================
