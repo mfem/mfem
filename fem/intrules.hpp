@@ -271,12 +271,14 @@ public:
    static IntegrationRule* ApplyToKnotIntervals(const IntegrationRule &ir,
                                                 const KnotVector &kv);
 
-   static IntegrationRule* GetIsogeometricReducedGaussianRule(
+   static IntegrationRule* GetReducedGaussianRule(
       const KnotVector &kv);
 
    /// Destroys an IntegrationRule object
    ~IntegrationRule() { }
 };
+
+enum class SplineIntegrationRule { FULL_GAUSSIAN, REDUCED_GAUSSIAN, };
 
 /// Class for defining different integration rules on each NURBS patch.
 class NURBSMeshRules
@@ -286,6 +288,10 @@ public:
    NURBSMeshRules(const int numPatches, const int dim_) :
       patchRules1D(numPatches, dim_),
       npatches(numPatches), dim(dim_) { }
+
+   /// @brief Construct a rule for each patch, using a fixed 1D rule for each
+   /// individual knotvector.
+   NURBSMeshRules(const Mesh &mesh, const SplineIntegrationRule splineRule);
 
    /// Returns a rule for the element.
    IntegrationRule &GetElementRule(const int elem, const int patch,
