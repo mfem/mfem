@@ -146,7 +146,7 @@ int main(int argc, char *argv[])
 
       // 5. A NURBS mesh cannot be refined locally so we refine it uniformly
       //    and project it to a standard curvilinear mesh of order 2.
-      if (mesh.IsNURBS())
+      if (mesh.NURBSext)
       {
          mesh.UniformRefinement();
          mesh.SetCurvature(2);

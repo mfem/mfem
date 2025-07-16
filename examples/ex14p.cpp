@@ -156,7 +156,7 @@ int main(int argc, char *argv[])
          mesh.UniformRefinement();
       }
    }
-   if (mesh.IsNURBS())
+   if (mesh.NURBSext)
    {
       mesh.SetCurvature(max(order, 1));
    }

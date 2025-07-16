@@ -151,7 +151,7 @@ int main(int argc, char *argv[])
 
    // 4. Project a NURBS mesh to a piecewise-quadratic curved mesh. Make sure
    //    that the mesh is non-conforming if it has quads or hexes and refine it.
-   if (mesh->IsNURBS())
+   if (mesh->NURBSext)
    {
       mesh->UniformRefinement();
       if (ref_levels > 0) { ref_levels--; }
