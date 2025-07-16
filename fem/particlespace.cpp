@@ -64,38 +64,6 @@ void ParticleSpace::Initialize(Mesh *mesh, int seed)
    }
 }
 
-void ParticleSpace::AddParticles(const Vector &new_coords,
-                                 const Array<int> &new_ids,
-                                 Array<int> &new_idxs)
-{
-   MFEM_ASSERT(new_coords.Size() / dim == new_ids.Size(),
-               "new_coords is not sized properly");
-
-   new_idxs.SetSize(new_ids.Size());
-
-   int old_np = ids.Size();
-   int num_new = new_ids.Size();
-
-   // Update IDs
-   ids.AddParticles(num_new);
-   for (int i = 0; i < num_new; i++)
-   {
-      new_idxs[i] = i + old_np;
-      ids[new_idxs[i]] = new_ids[i];
-   }
-   
-   // Update coordinates
-   coords.AddParticles(num_new);
-   UpdateCoords(new_idxs, new_coords); // FindPoints called...
-
-   // Update all registered ParticleFunctions
-   for (ParticleFunction &pf : all_funcs)
-   {
-      pf.AddParticles(num_new);
-   }
-}
-
-
 
 ParticleSpace::ParticleSpace(int dim_, int num_particles,
                              Ordering::Type ordering_, Mesh *mesh_, int seed)
@@ -180,28 +148,49 @@ ParticleFunction& ParticleSpace::CreateParticleFunction(int vdim, std::string na
    return all_funcs.back();
 }
 
+void ParticleSpace::AddParticles(int num_new, Array<int> &new_indices)
+{
+   int old_np = GetNP();
+
+   ids.AddParticles(recvd);
+   coords.AddParticles(recvd);
+   for (ParticleFunction &pf : all_funcs)
+   {
+      pf.AddParticles(recvd)
+   }
+
+   new_indices.SetSize(num_new);
+   for (int i = 0; i < num_new; i++)
+   {
+      new_indices[i] = old_np + i;
+   }
+}
+
 void ParticleSpace::AddParticles(const Vector &new_coords, Array<int> *new_indices)
 {
-   // Initialize IDs for new particles
-   Array<int> new_ids(new_coords.Size()/dim);
+   MFEM_ASSERT(new_coords.Size() % dim == 0,
+               "new_coords is not sized properly");
 
-   for (int i = 0; i < new_ids.Size(); i++)
+   int num_new_np = new_coords.Size()/dim;
+
+   Array<int> new_idxs;
+
+   AddParticles(num_new_np, new_idxs);
+
+   // Set IDs for new particles
+   for (int i = 0; i < num_new_np; i++)
    {
-      new_ids[i] = id_counter;
+      ids[new_idxs[i]] = id_counter;
       id_counter += id_stride;   
    }
-   Array<int> *idxs;
-   Array<int> temp;
+
+   // Update coordinates
+   UpdateCoords(new_idxs, new_coords); // FindPoints called...
+
    if (new_indices)
    {
-      idxs = new_indices;
+      *new_indices = new_idxs;
    }
-   else
-   {
-      idxs = &temp;
-   }
-
-   AddParticles(new_coords, new_ids, *idxs);
 }
 
 void ParticleSpace::RemoveParticles(const Array<int> &indices)
@@ -266,6 +255,7 @@ void ParticleSpace::Transfer(const Array<int> &send_idxs, const Array<int> &send
 
    gslib::array gsl_arr;
 
+   // TODO: If send_ranks refers to finder.GetProc, then we need a copy of it (because we manipulate it here directly)
    if (finder.size() > 0)
    {
       array_init(pdata_fdpts_t<NData, NFinder>, &gsl_arr, send_idxs.Size());
@@ -295,47 +285,44 @@ void ParticleSpace::Transfer(const Array<int> &send_idxs, const Array<int> &send
          T &pdata = pdata_arr[i];
 
          pdata.id = ids[send_idxs[i]];
-         pdata.proc = send_ranks[i];
 
-         // Get copy of particle data
-         // (TODO: skip this step... Copy directly from data to pdata!!)
-         Particle p(meta);
-         GetParticle(send_idxs[i], p);
-
-         // Copy particle data into pdata
-         for (int f = 0; f < totalFields; f++)
+         // Copy particle data directly into pdata
+         for (int d = 0; d < dim; d++)
          {
-            for (int c = 0; c < fieldVDims[f]; c++)
+            pdata.data[d] = coords.GetParticleData(send_idxs[i], d);
+         }
+         int counter = dim;
+         for (ParticleFunction &pf : all_funcs)
+         {
+            for (int d = 0; d < pf.GetVDim(); d++)
             {
-               double* dat = &pdata.data[c + exclScanFieldVDims[f]];
-               if (f == 0)
-               {
-                  *dat = static_cast<double>(p.GetCoords()[c]);
-               }
-               else if (f-1 < meta.NumProps())
-               {
-                  *dat = static_cast<double>(p.GetProperty(f-1));
-               }
-               else
-               {
-                  *dat = static_cast<double>(p.GetStateVar(f-1-meta.NumProps())[c]);
-               }
+               pdata.data[counter] = pf.GetParticleData(send_idxs[i], d);
+               counter++;
             }
          }
 
          // If updating the FindPointsGSLIB object as well, get data from it + set into struct
          if constexpr (send_fdpts_data)
          {
-            for (int d = 0; d < meta.SpaceDim(); d++)
+            for (int f = 0; f < finders.size(); f++)
             {
-               pdata.rst[d] = finder->gsl_ref(send_idxs[i]*meta.SpaceDim()+d); // Stored byVDIM
-               pdata.mfem_rst[d] = finder->gsl_mfem_ref(send_idxs[i]*meta.SpaceDim()+d); // Stored byVDIM
+               FindPointsGSLIB &finder = finders[i];
+               for (int d = 0; d < dim; d++)
+               {
+                  // store byVDIM
+                  pdata.rst[d+f*dim] = finder.gsl_ref(send_idxs[i]*dim+d); // Stored byVDIM
+                  pdata.mfem_rst[d+f*dim] = finder.gsl_mfem_ref(send_idxs[i]*dim+d); // Stored byVDIM
+               }
+               pdata.elem[f] = finder.gsl_elem[send_idxs[i]];
+               pdata.mfem_elem[f] = finder.gsl_mfem_elem[send_idxs[i]];
+               pdata.code[f] = finder.gsl_code[send_idxs[i]];
+               pdata.proc[f] = finder.gsl_proc[send_idxs[i]];
             }
-            pdata.elem = finder->gsl_elem[send_idxs[i]];
-            pdata.mfem_elem = finder->gsl_mfem_elem[send_idxs[i]];
-            pdata.code = finder->gsl_code[send_idxs[i]];
-
-            
+         }
+         else
+         {
+            // else store the proc directly in the struct to fill padding
+            pdata.proc = send_ranks[i];
          }
 
       }
@@ -347,101 +334,109 @@ void ParticleSpace::Transfer(const Array<int> &send_idxs, const Array<int> &send
       // Maintain same ordering as coords post-RemoveParticles
       if constexpr (send_fdpts_data)
       {
-         // TODO: Can probably optimize this better. Right now just copying all non-removed data to temp arr, then setting
-         Array<unsigned int> rm_gsl_elem(GetNP());
-         Array<unsigned int> rm_gsl_mfem_elem(GetNP());
-         Array<unsigned int> rm_gsl_code(GetNP());
-         Array<unsigned int> rm_gsl_proc(GetNP());
-
-         Vector rm_gsl_ref(GetNP()*finder->dim);
-         Vector rm_gsl_mfem_ref(GetNP()*finder->dim);
-
-         int idx = 0;
-         for (int i = 0; i < finder->points_cnt; i++) // points_cnt will be representative of the pre-redistribute point cnt on this rank
+         for (FindPointsGSLIB &finder : finders)
          {
-            if (send_idxs.Find(i) == -1) // If particle at last i was NOT removed...
+            // TODO: Optimize this. Right now just copying all non-removed data to temp arr, then setting
+            // Maybe we can use ParticleData<T> ? (It has optimized + simple Remove algorithm, given indices...)
+            Array<unsigned int> rm_gsl_elem(GetNP());
+            Array<unsigned int> rm_gsl_mfem_elem(GetNP());
+            Array<unsigned int> rm_gsl_code(GetNP());
+            Array<unsigned int> rm_gsl_proc(GetNP());
+
+            Vector rm_gsl_ref(GetNP()*finder.dim);
+            Vector rm_gsl_mfem_ref(GetNP()*finder.dim);
+
+            int idx = 0;
+            for (int i = 0; i < finder.points_cnt; i++) // points_cnt will be representative of the pre-redistribute point cnt on this rank
             {
-               rm_gsl_elem[idx] = finder->gsl_elem[i];
-               rm_gsl_mfem_elem[idx] = finder->gsl_mfem_elem[i];
-               rm_gsl_code[idx] = finder->gsl_code[i];
-               rm_gsl_proc[idx] = finder->gsl_proc[i];
-
-               for (int d = 0; d < finder->dim; d++)
+               if (send_idxs.Find(i) == -1) // If particle at last i was NOT removed...
                {
-                  rm_gsl_ref[idx*finder->dim+d] = finder->gsl_ref[i*finder->dim+d];
-                  rm_gsl_mfem_ref[idx*finder->dim+d] = finder->gsl_mfem_ref[i*finder->dim+d];
+                  rm_gsl_elem[idx] = finder.gsl_elem[i];
+                  rm_gsl_mfem_elem[idx] = finder.gsl_mfem_elem[i];
+                  rm_gsl_code[idx] = finder.gsl_code[i];
+                  rm_gsl_proc[idx] = finder.gsl_proc[i];
+
+                  for (int d = 0; d < finder.dim; d++)
+                  {
+                     rm_gsl_ref[idx*finder.dim+d] = finder->gsl_ref[i*finder.dim+d];
+                     rm_gsl_mfem_ref[idx*finder.dim+d] = finder->gsl_mfem_ref[i*finder.dim+d];
+                  }
+                  idx++;
                }
-               idx++;
             }
+            finder.gsl_elem = rm_gsl_elem;
+            finder.gsl_mfem_elem = rm_gsl_mfem_elem;
+            finder.gsl_code = rm_gsl_code;
+            finder.gsl_proc = rm_gsl_proc;
+            finder.gsl_ref = rm_gsl_ref;
+            finder.gsl_mfem_ref = rm_gsl_mfem_ref;
          }
-
-
-         finder->gsl_elem = rm_gsl_elem;
-         finder->gsl_mfem_elem = rm_gsl_mfem_elem;
-         finder->gsl_code = rm_gsl_code;
-         finder->gsl_proc = rm_gsl_proc;
-         finder->gsl_ref = rm_gsl_ref;
-         finder->gsl_mfem_ref = rm_gsl_mfem_ref;
       }
 
       // Transfer particles
-      sarray_transfer(T, &gsl_arr, proc, 0, cr.get());
+      if constexpr (send_fdpts_data)
+      {
+         sarray_transfer_ext(T, &gsl_arr, *send_ranks, cr.get());
+      }
+      else
+      {
+         sarray_transfer(T, &gsl_arr, proc, 0, cr.get());
+      }
 
       // Add received particles to this rank
+      // Received particles are added to end
       unsigned int recvd = gsl_arr.n;
       pdata_arr = (T*) gsl_arr.ptr;
 
-      Vector add_gsl_ref;
-      Vector add_gsl_mfem_ref;
-      
-      if constexpr (send_fdpts_data)
-      {
-         add_gsl_ref.SetSize((recvd+GetNP())*finder->dim);
-         add_gsl_ref.SetVector(finder->gsl_ref, 0);
+      // Increase size of IDs, coords, + all pfs
+      int int_np = GetNP(); // pre-recvd NP (after remove)
+      Array<int> new_indices;
+      AddParticles(recvd, new_indices);
 
-         add_gsl_mfem_ref.SetSize((recvd+GetNP())*finder->dim);
-         add_gsl_mfem_ref.SetVector(finder->gsl_mfem_ref, 0);
-      }
-
+      // Copy the newly-recvd data directly to all
       for (int i = 0; i < recvd; i++)
       {
+         int idx = new_indices[i]; // Index of newly-received particle
          T pdata = pdata_arr[i];
-         if constexpr(std::is_same_v<real_t, double>)
+         ids[idx] = pdata.id;
+         for (int d = 0; d < dim; d++)
          {
-            // Create a particle, copy data from buffer to it, then add particle
-            // TODO: Optimize by copying directly from received pdata to data!!
-            Particle p(meta);
-
-            p.GetCoords() = Vector(&pdata.data[0], meta.SpaceDim());
-
-            for (int s = 0; s < meta.NumProps(); s++)
-               p.GetProperty(s) = pdata.data[meta.SpaceDim() + s];
-
-            for (int v = 0; v < meta.NumStateVars(); v++)
-               p.GetStateVar(v) = Vector(&pdata.data[exclScanFieldVDims[1+meta.NumProps()+v]], meta.StateVDim(v));
-
-            AddParticle(p, pdata.id);
+            coords.SetParticleData(idx, pdata.data[d], d);
          }
-         else // need to copy from double to real_t if real_t is not double
+         int counter = dim;
+         for (ParticleFunction &pf : all_funcs)
          {
-            // TODO
+            for (int vd = 0; vd < pf.GetVDim(); vd++)
+            {
+               pf.SetParticleData(idx, pdata.data[counter], d);
+               counter++;
+            }
          }
-
-
-         if constexpr (send_fdpts_data)
+      }
+      // TODO: Am here.
+      if constexpr (send_fdpts_data)
+      {
+         for (FindPointsGSLIB &finder : finders)
          {
+            Vector add_gsl_ref((recvd+GetNP())*finder.dim);
+            add_gsl_ref.SetVector(finder.gsl_ref, 0);
+
+            Vector add_gsl_mfem_ref((recvd+GetNP())*finder.dim);
+            dd_gsl_mfem_ref.SetVector(finder.gsl_mfem_ref, 0);
+
             // Add new particle data 
             // IMPORTANT: Must make sure that order is correct / matches new Coords. We add received particle data to end so we add to end.
-            finder->gsl_elem.Append(pdata.elem);
-            finder->gsl_mfem_elem.Append(pdata.mfem_elem);
-            finder->gsl_code.Append(pdata.code);
-            finder->gsl_proc.Append(pdata.proc);
+            finder.gsl_elem.Append(pdata.elem);
+            finder.gsl_mfem_elem.Append(pdata.mfem_elem);
+            finder.gsl_code.Append(pdata.code);
+            finder.gsl_proc.Append(pdata.proc);
             
-            add_gsl_ref.SetVector(Vector(pdata.rst, finder->dim), finder->gsl_ref.Size()+i*finder->dim);
-            add_gsl_mfem_ref.SetVector(Vector(pdata.mfem_rst, finder->dim), finder->gsl_mfem_ref.Size()+i*finder->dim);
+            add_gsl_ref.SetVector(Vector(pdata.rst, finder.dim), finder.gsl_ref.Size()+i*finder.dim);
+            add_gsl_mfem_ref.SetVector(Vector(pdata.mfem_rst, finder.dim), finder.gsl_mfem_ref.Size()+i*finder.dim);
 
          }
       }
+      
 
       if constexpr (send_fdpts_data)
       {

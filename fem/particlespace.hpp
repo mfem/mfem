@@ -65,8 +65,6 @@ protected:
    std::vector<std::string> all_func_names;
    std::vector<ParticleFunction> all_funcs;
 
-   void AddParticles(const Vector &new_coords, const Array<int> &new_ids, Array<int> &new_indices);
-
 #ifdef MFEM_USE_MPI
    MPI_Comm comm = MPI_COMM_WORLD;
    std::unique_ptr<gslib::comm> gsl_comm;
@@ -115,6 +113,9 @@ protected:
    }
 
 #endif // MFEM_USE_MPI
+
+   // Resize IDs, coords, + all PFs
+   void AddParticles(int num_new, Array<int> &new_indices);
 
 public:
 
