@@ -13,6 +13,8 @@
 #include "../../general/forall.hpp"
 #include "../fem.hpp"
 
+/// \cond DO_NOT_DOCUMENT
+
 namespace mfem
 {
 
@@ -403,5 +405,7 @@ DomainLFIntegrator::Kernels::Kernels()
    DomainLFIntegrator::AddSpecialization<3, 4, 5>();
    DomainLFIntegrator::AddSpecialization<3, 5, 6>();
 }
+
+/// \endcond DO_NOT_DOCUMENT
 
 } // namespace mfem
