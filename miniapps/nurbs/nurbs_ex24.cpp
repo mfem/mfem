@@ -44,7 +44,7 @@ real_t div_gradp_exact(const Vector &x);
 void v_exact(const Vector &x, Vector &v);
 void curlv_exact(const Vector &x, Vector &cv);
 template <typename CoefficientType>
-void Project(GridFunction &gf, CoefficientType &coef, bool global_proj);
+void Project(GridFunction &gf, CoefficientType &coef, int proj_type);
 
 int dim;
 real_t freq = 1.0, kappa;
@@ -59,7 +59,7 @@ int main(int argc, char *argv[])
    int prob = 0;
    bool static_cond = false;
    bool pa = false;
-   bool global_proj = true;
+   int proj_type = 2;
    const char *device_config = "cpu";
    int visport = 19916;
    bool visualization = 1;
@@ -79,9 +79,11 @@ int main(int argc, char *argv[])
                   "--no-static-condensation", "Enable static condensation.");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
                   "--no-partial-assembly", "Enable Partial Assembly.");
-   args.AddOption(&global_proj, "-gp", "--global-projection", "-no-gp",
-                  "--no-global-projection",
-                  "Use global projection. If false, uses a local projection.");
+   args.AddOption(&proj_type, "-proj", "--projection",
+                  "Projection type:\n."
+                  " 0 = Nodal injection at the Botella points.\n"
+                  " 1 = Local L2 projection(DC Thomas etal).\n"
+                  " 2 = Global L2 projection.\n");
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
@@ -152,7 +154,7 @@ int main(int argc, char *argv[])
          trial_fec = new NURBS_HDivFECollection(order, dim);
          test_fec  = new NURBSFECollection(order);
       }
-      cout << "Create NURBS fec and ext" << endl;
+      cout << "Create NURBS fecs and ext" << endl;
    }
    else
    {
@@ -171,6 +173,7 @@ int main(int argc, char *argv[])
          trial_fec = new RT_FECollection(order-1, dim);
          test_fec = new L2_FECollection(order-1, dim);
       }
+      cout << "Create standard fecs" << endl;
    }
 
    FiniteElementSpace trial_fes(mesh, NURBSext, trial_fec);
@@ -210,18 +213,18 @@ int main(int argc, char *argv[])
 
    if (prob == 0)
    {
-      Project(gftrial, p_coef, global_proj);
+      Project(gftrial, p_coef, proj_type);
    }
    else if (prob == 1)
    {
-      Project(gftrial, v_coef, global_proj);
+      Project(gftrial, v_coef, proj_type);
    }
    else
    {
-      Project(gftrial, gradp_coef, global_proj);
+      Project(gftrial, gradp_coef, proj_type);
    }
 
-   /*  // 7. Set up the bilinear forms for L2 projection.
+     // 7. Set up the bilinear forms for L2 projection.
      ConstantCoefficient one(1.0);
      BilinearForm a(&test_fes);
      MixedBilinearForm a_mixed(&trial_fes, &test_fes);
@@ -251,13 +254,13 @@ int main(int argc, char *argv[])
      //    applying any necessary transformations such as: eliminating boundary
      //    conditions, applying conforming constraints for non-conforming AMR,
      //    static condensation, etc.
-     //if (static_cond) { a.EnableStaticCondensation(); }
+     if (static_cond) { a.EnableStaticCondensation(); }
 
-   //   a.Assemble();
-   //  if (!pa) { a.Finalize(); }
+      a.Assemble();
+     if (!pa) { a.Finalize(); }
 
-   //  a_mixed.Assemble();
-   //  if (!pa) { a_mixed.Finalize(); }
+     a_mixed.Assemble();
+     if (!pa) { a_mixed.Finalize(); }
 
      if (pa)
      {
@@ -277,7 +280,7 @@ int main(int argc, char *argv[])
 
         CGSolver cg;
         cg.SetRelTol(1e-12);
-        cg.SetMaxIter(100000);
+        cg.SetMaxIter(1000);
         cg.SetPrintLevel(1);
         if (pa)
         {
@@ -286,7 +289,7 @@ int main(int argc, char *argv[])
 
            cg.SetOperator(a);
            cg.SetPreconditioner(Jacobi);
-         //  cg.Mult(rhs, x);
+           cg.Mult(rhs, x);
         }
         else
         {
@@ -295,24 +298,24 @@ int main(int argc, char *argv[])
 
            cg.SetOperator(Amat);
            cg.SetPreconditioner(Jacobi);
-      //     cg.Mult(rhs, x);
-   x=0.0;
+           cg.Mult(rhs, x);
+
         }
-     }*/
+     }
 
    // 10. Compute the projection of the exact field.
    GridFunction exact_proj(&test_fes);
    if (prob == 0)
    {
-      Project(exact_proj, gradp_coef, global_proj);
+      Project(exact_proj, gradp_coef, proj_type);
    }
    else if (prob == 1)
    {
-      Project(exact_proj, curlv_coef, global_proj);
+      Project(exact_proj, curlv_coef, proj_type);
    }
    else
    {
-      Project(exact_proj, divgradp_coef, global_proj);
+      Project(exact_proj, divgradp_coef, proj_type);
    }
 
    // 11. Compute and print the L_2 norm of the error.
@@ -363,8 +366,6 @@ int main(int argc, char *argv[])
    ofstream sol_ofs("sol.gf");
    sol_ofs.precision(8);
    x.Save(sol_ofs);
-   // exact_proj.Save(sol_ofs);
-   // gftrial.Save(sol_ofs);
 
    // 13. Send the solution by socket to a GLVis server.
    if (visualization)
@@ -372,11 +373,8 @@ int main(int argc, char *argv[])
       char vishost[] = "localhost";
       socketstream sol_sock(vishost, visport);
       sol_sock.precision(8);
-      sol_sock << "solution\n" << *mesh << gftrial << flush;
+      sol_sock << "solution\n" << *mesh << x << flush;
    }
-
-
-
 
    // 14. Free the used memory.
    delete trial_fec;
@@ -461,16 +459,25 @@ void curlv_exact(const Vector &x, Vector &cv)
 }
 
 template <typename CoefficientType>
-void Project(GridFunction &gf, CoefficientType &coef, bool global_proj)
+void Project(GridFunction &gf, CoefficientType &coef, int proj_type)
 {
-   if (global_proj)
-   {
-      gf.ProjectCoefficientLocalL2(coef);
-   }
-   else
+   if (proj_type == 0)
    {
       gf.ProjectCoefficient(coef);
    }
+   else if(proj_type == 1)
+   {
+      gf.ProjectCoefficientLocalL2(coef);
+   }
+   else if(proj_type == 2)
+   {
+      gf.ProjectCoefficientGlobalL2(coef);
+   }
+   else
+   {
+      mfem_error("Incorrect Project Type. Should be 0, 1 or 2");
+   }
+
    gf.SetTrueVector();
    gf.SetFromTrueVector();
 }
