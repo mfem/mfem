@@ -36,8 +36,13 @@ endif
 
 COMMON_LIB = -L$(MFEM_BUILD_DIR)/miniapps/common -lmfem-common
 
+# If MFEM_SHARED is set, add the ../common rpath
+COMMON_LIB += $(if $(MFEM_SHARED:YES=),,\
+   $(if $(MFEM_USE_CUDA:YES=),$(CXX_XLINKER),$(CUDA_XLINKER))-rpath,$(abspath\
+   $(MFEM_BUILD_DIR)/miniapps/common))
+
 COMMON_O=cold_plasma_dielectric_eb_solver.o cold_plasma_dielectric_coefs.o \
-	stix_bcs.o
+	stix_bcs.o vis_object.o
 
 # Remove built-in rules
 %: %.cpp
@@ -46,7 +51,7 @@ COMMON_O=cold_plasma_dielectric_eb_solver.o cold_plasma_dielectric_coefs.o \
 all: $(MINIAPPS)
 
 # Rules for building the miniapps
-%: $(SRC)%.cpp $(COMMON_O) $(MFEM_LIB_FILE) $(CONFIG_MK)
+%: $(SRC)%.cpp $(COMMON_O) $(MFEM_LIB_FILE) $(CONFIG_MK) | lib-common
 	$(MFEM_CXX) $(MFEM_LINK_FLAGS) $< -o $@ $(COMMON_O) $(COMMON_LIB) \
         $(MFEM_LIBS)
 
@@ -54,6 +59,10 @@ all: $(MINIAPPS)
 $(COMMON_O) $(addsuffix _solver.o,$(MINIAPPS)): \
 %.o: $(SRC)%.cpp $(SRC)%.hpp $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_FLAGS) -c $(<) -o $(@)
+
+# Rule for building lib-common
+lib-common:
+	$(MAKE) -C $(MFEM_BUILD_DIR)/miniapps/common
 
 MFEM_TESTS = MINIAPPS
 include $(MFEM_TEST_MK)

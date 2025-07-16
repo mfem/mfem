@@ -498,4 +498,110 @@ void LpErrorEstimator::ComputeEstimates()
    current_sequence = sol->FESpace()->GetMesh()->GetSequence();
 }
 
+void ComplexLpErrorEstimator::ComputeEstimates()
+{
+   MFEM_VERIFY(real_coef != NULL || real_vcoef != NULL,
+               "ComplexLpErrorEstimator has no coefficient "
+               "for the real part!  "
+               "Call SetRealCoef first.");
+   MFEM_VERIFY(imag_coef != NULL || imag_vcoef != NULL,
+               "ComplexLpErrorEstimator has no coefficient "
+               "for the imaginary part!  "
+               "Call SetImagCoef first.");
+
+   int ne = 0;
+   int gne = 0;
+   if (sol) { ne = sol->FESpace()->GetMesh()->GetNE(); }
+#ifdef MFEM_USE_MPI
+   if (par_sol) { ne = par_sol->FESpace()->GetMesh()->GetNE(); }
+   MPI_Allreduce(&ne, &gne, 1, MPI_INTEGER, MPI_SUM,
+                 par_sol->ParFESpace()->GetComm());
+#else
+   gne = ne;
+#endif
+
+   real_t err_scaling = 1.0;
+   if (rel_error)
+   {
+      real_t nrm = 0.0;
+      real_t rnrm = 0.0;
+      real_t inrm = 0.0;
+
+      if (real_coef && imag_coef)
+      {
+         ConstantCoefficient zeroCoef(0.0);
+
+         if (sol)
+         {
+            rnrm = sol->real().ComputeLpError(local_norm_p, zeroCoef);
+            inrm = sol->imag().ComputeLpError(local_norm_p, zeroCoef);
+         }
+#ifdef MFEM_USE_MPI
+         if (par_sol)
+         {
+            rnrm = par_sol->real().ComputeLpError(local_norm_p, zeroCoef);
+            inrm = par_sol->imag().ComputeLpError(local_norm_p, zeroCoef);
+         }
+#endif
+      }
+
+      if (real_vcoef && imag_vcoef)
+      {
+         Vector zeroVec(real_vcoef->GetVDim()); zeroVec = 0.0;
+         VectorConstantCoefficient zeroVCoef(zeroVec);
+
+         if (sol)
+         {
+            rnrm = sol->real().ComputeLpError(local_norm_p, zeroVCoef);
+            inrm = sol->imag().ComputeLpError(local_norm_p, zeroVCoef);
+         }
+#ifdef MFEM_USE_MPI
+         if (par_sol)
+         {
+            rnrm = par_sol->real().ComputeLpError(local_norm_p, zeroVCoef);
+            inrm = par_sol->imag().ComputeLpError(local_norm_p, zeroVCoef);
+         }
+#endif
+      }
+
+      nrm = pow(pow(rnrm, local_norm_p) + pow(inrm, local_norm_p),
+                1./local_norm_p);
+
+      err_scaling = nrm / gne;
+   }
+
+   error_estimates.SetSize(ne);
+
+   const Vector & real_errors = real_estimator.GetLocalErrors();
+   const Vector & imag_errors = imag_estimator.GetLocalErrors();
+
+   if (local_norm_p < infinity())
+   {
+      for (int i=0; i<ne; i++)
+      {
+         const real_t re = pow(real_errors[i], local_norm_p);
+         const real_t ie = pow(imag_errors[i], local_norm_p);
+
+         error_estimates[i] = pow(re + ie, 1./local_norm_p);
+      }
+   }
+   else
+   {
+      for (int i=0; i<ne; i++)
+      {
+         error_estimates[i] = std::max(real_errors[i], imag_errors[i]);
+      }
+   }
+   if (rel_error)
+   {
+      error_estimates /= err_scaling;
+   }
+   current_sequence = -1;
+   if (sol) { current_sequence = sol->FESpace()->GetMesh()->GetSequence(); }
+#ifdef MFEM_USE_MPI
+   if (par_sol)
+   { current_sequence = par_sol->FESpace()->GetMesh()->GetSequence(); }
+#endif
+}
+
 } // namespace mfem

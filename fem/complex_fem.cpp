@@ -85,6 +85,13 @@ ComplexGridFunction::Update()
 }
 
 void
+ComplexGridFunction::SetSpace(FiniteElementSpace *f)
+{
+   gfr->SetSpace(f);
+   gfi->SetSpace(f);
+}
+
+void
 ComplexGridFunction::ProjectCoefficient(Coefficient &real_coeff,
                                         Coefficient &imag_coeff)
 {
@@ -717,6 +724,20 @@ ParComplexGridFunction::Update()
       pgfr->Update();
       pgfi->Update();
    }
+}
+
+void
+ParComplexGridFunction::SetSpace(FiniteElementSpace *f)
+{
+   pgfr->SetSpace(f);
+   pgfi->SetSpace(f);
+}
+
+void
+ParComplexGridFunction::SetSpace(ParFiniteElementSpace *f)
+{
+   pgfr->SetSpace(f);
+   pgfi->SetSpace(f);
 }
 
 void
