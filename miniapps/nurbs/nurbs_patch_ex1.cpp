@@ -45,6 +45,7 @@ int main(int argc, char *argv[])
    int nurbs_degree_increase = 0;  // Elevate the NURBS mesh degree by this
    int ref_levels = 0;
    int visport = 19916;
+   int spline_integration_type = 0;
    int ir_order = -1;
 
    OptionsParser args(argc, argv);
@@ -67,6 +68,9 @@ int main(int argc, char *argv[])
                   "--full-integration", "Enable reduced integration rules.");
    args.AddOption(&ref_levels, "-ref", "--refine",
                   "Number of uniform mesh refinements.");
+   args.AddOption(&spline_integration_type, "-int", "--integration-type",
+                  "Integration rule type: 0 - full Gaussian, "
+                  "1 - reduced Gaussian, 2 - fixed order.");
    args.AddOption(&ir_order, "-iro", "--integration-order",
                   "Order of integration rule.");
    args.AddOption(&nurbs_degree_increase, "-incdeg", "--nurbs-degree-increase",
@@ -84,6 +88,8 @@ int main(int argc, char *argv[])
    args.PrintOptions(cout);
 
    MFEM_VERIFY(!(pa && !patchAssembly), "Patch assembly must be used with -pa");
+   MFEM_VERIFY(!(ir_order!=-1 && spline_integration_type != 2),
+               "Use -int 2 to set a fixed order integration");
 
    // 2. Enable hardware devices such as GPUs, and programming models such as
    //    CUDA, OCCA, RAJA and OpenMP based on command line options.
@@ -152,54 +158,29 @@ int main(int argc, char *argv[])
    //    domain integrator.
    DiffusionIntegrator *di = new DiffusionIntegrator(one);
 
-   if (patchAssembly && reducedIntegration && !pa)
+   if (patchAssembly)
    {
+      if (reducedIntegration && !pa)
+      {
 #ifdef MFEM_USE_SINGLE
       cout << "Reduced integration is not supported in single precision.\n";
       return MFEM_SKIP_RETURN_VALUE;
 #endif
-
-      di->SetIntegrationMode(NonlinearFormIntegrator::Mode::PATCHWISE_REDUCED);
-   }
-   else if (patchAssembly)
-   {
-      di->SetIntegrationMode(NonlinearFormIntegrator::Mode::PATCHWISE);
-   }
-
-   NURBSMeshRules *patchRule = nullptr;
-   if (order < 0)
-   {
-      if (ir_order == -1) { ir_order = 2*fec->GetOrder(); }
-      cout << "Using ir_order " << ir_order << endl;
-
-      patchRule = new NURBSMeshRules(mesh.NURBSext->GetNP(), dim);
-      // Loop over patches and set a different rule for each patch.
-      for (int p=0; p<mesh.NURBSext->GetNP(); ++p)
+         di->SetIntegrationMode(NonlinearFormIntegrator::Mode::PATCHWISE_REDUCED);
+      }
+      else
       {
-         Array<const KnotVector*> kv(dim);
-         mesh.NURBSext->GetPatchKnotVectors(p, kv);
+         di->SetIntegrationMode(NonlinearFormIntegrator::Mode::PATCHWISE);
+      }
 
-         std::vector<const IntegrationRule*> ir1D(dim);
-         const IntegrationRule ir = IntRules.Get(Geometry::SEGMENT, ir_order);
-
-         // Construct 1D integration rules by applying the rule ir to each knot span.
-         for (int i=0; i<dim; ++i)
-         {
-            ir1D[i] = ir.ApplyToKnotIntervals(*kv[i]);
-         }
-
-         patchRule->SetPatchRules1D(p, ir1D);
-      }  // loop (p) over patches
-
-      patchRule->Finalize(mesh);
-      di->SetNURBSPatchIntRule(patchRule);
+      SplineIntegrationRule splineRule(spline_integration_type, ir_order);
+      NURBSMeshRules* meshRules = new NURBSMeshRules(mesh, splineRule);
+      di->SetNURBSPatchIntRule(meshRules);
    }
 
    // 10. Assemble and solve the linear system
    cout << "Assembling system patch-wise and solving" << endl;
    AssembleAndSolve(b, di, ess_tdof_list, pa, algebraic_ceed, x);
-
-   delete patchRule;
 
    // 11. Save the refined mesh and the solution. This output can be viewed
    //     later using GLVis: "glvis -m refined.mesh -g sol.gf".

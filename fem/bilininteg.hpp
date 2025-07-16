@@ -2191,6 +2191,7 @@ private:
    bool symmetric = true; ///< False if using a nonsymmetric matrix coefficient
 
    // Data for NURBS patch PA
+   std::vector<Vector> ppa_data;
 
    // Type for a variable-row-length 2D array, used for data related to 1D
    // quadrature rules in each dimension.
@@ -2310,6 +2311,9 @@ public:
    void AddMultTransposePA(const Vector&, Vector&) const override;
 
    void AddMultNURBSPA(const Vector&, Vector&) const override;
+
+   void AddMultPatchPA3D(const int patch,
+                         const Vector &x, Vector &y) const;
 
    void AddMultPatchPA(const int patch, const Vector &x, Vector &y) const;
 
@@ -3159,7 +3163,7 @@ private:
 
    // Data for NURBS patch PA
    // Set in PatchElasticitySetup3D: [numPatches x [ NQ[patch] x 12 ]]
-   std::vector<Vector> pa_data;
+   std::vector<Vector> ppa_data;
    // Vector [numPatches] of structs containing basis info for each patch
    std::vector<PatchBasisInfo> pbinfo;
 

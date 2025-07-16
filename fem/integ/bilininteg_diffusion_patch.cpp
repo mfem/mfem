@@ -436,7 +436,7 @@ void DiffusionIntegrator::SetupPatchPA(const int patch, Mesh *mesh,
    }
 
    PatchDiffusionSetup3D(Q1D[0], Q1D[1], Q1D[2], coeffDim, symmetric, weights, jac,
-                         coeff, pa_data);
+                         coeff, ppa_data[patch]);
 
    numPatches = mesh->NURBSext->GetNP();
 
@@ -528,7 +528,7 @@ void DiffusionIntegrator::AssemblePatchMatrix_fullQuadrature(
    MFEM_VERIFY(3 == dim, "Only 3D so far");
 
    // Setup quadrature point data.
-   const auto qd = Reshape(pa_data.Read(), Q1D[0]*Q1D[1]*Q1D[2],
+   const auto qd = Reshape(ppa_data[patch].Read(), Q1D[0]*Q1D[1]*Q1D[2],
                            (symmetric ? 6 : 9));
 
    // NOTE: the following is adapted from PADiffusionApply3D.
@@ -932,7 +932,7 @@ void DiffusionIntegrator::AssemblePatchMatrix_reducedQuadrature(
    auto rw = Reshape(reducedWeights.data(), numTypes, dim, numPatches);
    auto rid = Reshape(reducedIDs.data(), numTypes, dim, numPatches);
 
-   const auto qd = Reshape(pa_data.Read(), Q1D[0]*Q1D[1]*Q1D[2],
+   const auto qd = Reshape(ppa_data[patch].Read(), Q1D[0]*Q1D[1]*Q1D[2],
                            (symmetric ? 6 : 9));
 
    // NOTE: the following is adapted from PADiffusionApply3D.

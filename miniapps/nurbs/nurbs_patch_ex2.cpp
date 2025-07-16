@@ -64,7 +64,8 @@ int main(int argc, char *argv[])
    args.AddOption(&nurbs_degree_increase, "-incdeg", "--nurbs-degree-increase",
                   "Elevate NURBS mesh degree by this amount.");
    args.AddOption(&spline_integration_type, "-int", "--integration-type",
-                  "Integration rule type: 0 - full Gaussian, 1 - reduced Gaussian");
+                  "Integration rule type: 0 - full Gaussian, "
+                  "1 - reduced Gaussian, 2 - fixed order.");
    args.AddOption(&preconditioner, "-pc", "--preconditioner",
                   "Preconditioner: 0 - none, 1 - diagonal, 2 - LOR AMG");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
@@ -74,7 +75,7 @@ int main(int argc, char *argv[])
 
    // Print & verify options
    args.PrintOptions(cout);
-   MFEM_VERIFY(!(patchAssembly && !pa), "Patch assembly must be used with -pa");
+   MFEM_VERIFY(!(pa && !patchAssembly), "Patch assembly must be used with -pa");
    if (preconditioner == 2)
    {
       MFEM_VERIFY(nurbs_degree_increase > 0,
@@ -286,9 +287,6 @@ int main(int argc, char *argv[])
 
    solver.Mult(B, X);
 
-   // Apply operator once
-   // A->AddMult(X, X);
-
    cout << "Done solving system." << endl;
 
    sw.Stop();
@@ -355,14 +353,6 @@ int main(int argc, char *argv[])
       sol_ofs.precision(16);
       x.Save(sol_ofs);
    }
-
-   // Compare with another saved solution
-   // {
-   //    ifstream sol_ifs("sol_ri.gf");
-   //    GridFunction x2(&mesh, sol_ifs);
-   //    GridFunctionCoefficient x2_gfc(&x2);
-   //    cout << "L2 error w.r.t sol_ri.gf = " << x.ComputeL2Error(x2_gfc) << endl;
-   // }
 
    // 15. Send the data by socket to a GLVis server.
    if (visualization)

@@ -149,6 +149,7 @@ void DiffusionIntegrator::AssembleNURBSPA(const FiniteElementSpace &fes)
    MFEM_VERIFY(3 == dim, "Only 3D so far");
 
    numPatches = mesh->NURBSext->GetNP();
+   ppa_data.resize(numPatches);
    for (int p=0; p<numPatches; ++p)
    {
       AssemblePatchPA(p, fes);
@@ -164,13 +165,10 @@ void DiffusionIntegrator::AssemblePatchPA(const int patch,
    SetupPatchPA(patch, mesh);  // For full quadrature, unitWeights = false
 }
 
-// This version uses full 1D quadrature rules, taking into account the
-// minimum interaction between basis functions and integration points.
-void DiffusionIntegrator::AddMultPatchPA(const int patch, const Vector &x,
-                                         Vector &y) const
+void DiffusionIntegrator::AddMultPatchPA3D(const int patch,
+                                           const Vector &x,
+                                           Vector &y) const
 {
-   MFEM_VERIFY(3 == dim, "Only 3D so far");
-
    const Array<int>& Q1D = pQ1D[patch];
    const Array<int>& D1D = pD1D[patch];
 
@@ -185,7 +183,7 @@ void DiffusionIntegrator::AddMultPatchPA(const int patch, const Vector &x,
    auto X = Reshape(x.HostRead(), D1D[0], D1D[1], D1D[2]);
    auto Y = Reshape(y.HostReadWrite(), D1D[0], D1D[1], D1D[2]);
 
-   const auto qd = Reshape(pa_data.HostRead(), Q1D[0]*Q1D[1]*Q1D[2],
+   const auto qd = Reshape(ppa_data[patch].HostRead(), Q1D[0]*Q1D[1]*Q1D[2],
                            (symmetric ? 6 : 9));
 
    // NOTE: the following is adapted from AssemblePatchMatrix_fullQuadrature
@@ -364,6 +362,22 @@ void DiffusionIntegrator::AddMultPatchPA(const int patch, const Vector &x,
          }
       } // dz
    } // qz
+}
+
+
+// This version uses full 1D quadrature rules, taking into account the
+// minimum interaction between basis functions and integration points.
+void DiffusionIntegrator::AddMultPatchPA(const int patch, const Vector &x,
+                                         Vector &y) const
+{
+   if (dim == 3)
+   {
+      AddMultPatchPA3D(patch, x, y);
+   }
+   else
+   {
+      MFEM_ABORT("Only 3D is supported.");
+   }
 }
 
 void DiffusionIntegrator::AddMultNURBSPA(const Vector &x, Vector &y) const
