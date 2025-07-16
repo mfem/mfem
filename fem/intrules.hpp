@@ -268,17 +268,49 @@ public:
 
    /// @brief Return an integration rule for KnotVector @a kv, defined by
    /// applying this rule on each knot interval.
-   static IntegrationRule* ApplyToKnotIntervals(const IntegrationRule &ir,
-                                                const KnotVector &kv);
-
-   static IntegrationRule* GetReducedGaussianRule(
-      const KnotVector &kv);
+   IntegrationRule* ApplyToKnotIntervals(const KnotVector &kv) const;
 
    /// Destroys an IntegrationRule object
    ~IntegrationRule() { }
 };
 
-enum class SplineIntegrationRule { FULL_GAUSSIAN, REDUCED_GAUSSIAN, };
+// enum class SplineIntegrationRule { FULL_GAUSSIAN, REDUCED_GAUSSIAN, };
+/// @brief Dispatcher for different integration methods over a spline
+class SplineIntegrationRule
+{
+public:
+   enum Type
+   {
+      FULL = 0,         /// Use a full Gaussian rule (2*order)
+      REDUCED = 1,      /// Use a reduced Gaussian rule (Zou 2022)
+      FIXED_ORDER = 2,  /// Use a fixed order Gaussian rule
+   };
+
+   SplineIntegrationRule(Type T = Type::FULL, int fixed_order = 0)
+      : T(T), fixed_order(fixed_order)
+   {
+      MFEM_VERIFY(!((T == Type::FIXED_ORDER) && (fixed_order <= 0)),
+                  "Fixed order must be positive");
+   }
+
+   SplineIntegrationRule(int type, int fixed_order = 0)
+      : SplineIntegrationRule(static_cast<Type>(type), fixed_order) {}
+
+   /// Applies this spline integration rule to the given knot vector
+   /// and returns the resulting integration rule.
+   IntegrationRule* Get(const KnotVector &kv) const;
+
+   /// Obtains a reduced Gaussian rule. For more details see:
+   /// "Efficient and robust quadratures for isogeometric analysis:
+   //   Reduced Gauss and Gauss-Greville Rules" - Zou 2022
+   /// Generally, this rule should only be used as an approximation
+   static IntegrationRule* GetReducedGaussianRule(const KnotVector &kv);
+
+private:
+   Type T = Type::FULL;
+   int fixed_order = 0; /// Used only if T == FIXED_ORDER
+};
+
 
 /// Class for defining different integration rules on each NURBS patch.
 class NURBSMeshRules

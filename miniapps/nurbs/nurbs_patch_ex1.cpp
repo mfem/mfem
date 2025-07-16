@@ -185,7 +185,7 @@ int main(int argc, char *argv[])
          // Construct 1D integration rules by applying the rule ir to each knot span.
          for (int i=0; i<dim; ++i)
          {
-            ir1D[i] = IntegrationRule::ApplyToKnotIntervals(ir, *kv[i]);
+            ir1D[i] = ir.ApplyToKnotIntervals(*kv[i]);
          }
 
          patchRule->SetPatchRules1D(p, ir1D);

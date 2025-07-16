@@ -178,14 +178,13 @@ void IntegrationRule::GrundmannMollerSimplexRule(int s, int n)
 }
 
 IntegrationRule*
-IntegrationRule::ApplyToKnotIntervals(const IntegrationRule &ir,
-                                      const KnotVector &kv)
+IntegrationRule::ApplyToKnotIntervals(const KnotVector &kv) const
 {
-   const int np = ir.GetNPoints();
+   const int np = this->GetNPoints();
    const int ne = kv.GetNE();
 
    IntegrationRule *kvir = new IntegrationRule(ne * np);
-   kvir->SetOrder(ir.GetOrder());
+   kvir->SetOrder(this->GetOrder());
 
    real_t x0 = kv[0];
    real_t x1 = x0;
@@ -215,10 +214,10 @@ IntegrationRule::ApplyToKnotIntervals(const IntegrationRule &ir,
 
       const real_t s = x1 - x0;
 
-      for (int j=0; j<ir.GetNPoints(); ++j)
+      for (int j=0; j<this->GetNPoints(); ++j)
       {
-         const real_t x = x0 + (s * ir[j].x);
-         (*kvir)[(e * np) + j].Set1w(x, ir[j].weight);
+         const real_t x = x0 + (s * (*this)[j].x);
+         (*kvir)[(e * np) + j].Set1w(x, (*this)[j].weight);
       }
    }
 
@@ -226,7 +225,7 @@ IntegrationRule::ApplyToKnotIntervals(const IntegrationRule &ir,
 }
 
 IntegrationRule*
-IntegrationRule::GetReducedGaussianRule(const KnotVector &kv)
+SplineIntegrationRule::GetReducedGaussianRule(const KnotVector &kv)
 {
    const int ne = kv.GetNE();
    // Get the unique knot vectors and their multiplicities
@@ -265,6 +264,33 @@ IntegrationRule::GetReducedGaussianRule(const KnotVector &kv)
    kvir->SetSize(idx);
 
    return kvir;
+}
+
+IntegrationRule* SplineIntegrationRule::Get(const KnotVector &kv) const
+{
+   if (T == Type::FULL)
+   {
+
+      const int order = kv.GetOrder();
+      const IntegrationRule& ir = IntRules.Get(Geometry::SEGMENT, 2*order);
+      return ir.ApplyToKnotIntervals(kv);
+   }
+   else if (T == Type::REDUCED)
+   {
+      return GetReducedGaussianRule(kv);
+   }
+   else if (T == Type::FIXED_ORDER)
+   {
+      MFEM_VERIFY(fixed_order > 0, "Fixed order must be positive");
+      const IntegrationRule& ir = IntRules.Get(Geometry::SEGMENT, fixed_order);
+      return ir.ApplyToKnotIntervals(kv);
+   }
+   else
+   {
+      MFEM_ABORT("Unknown SplineIntegrationRule type");
+      return nullptr;
+   }
+
 }
 
 #ifdef MFEM_USE_MPFR
@@ -1905,8 +1931,9 @@ IntegrationRule *IntegrationRules::CubeIntegrationRule(int Order)
    return CubeIntRules[Order];
 }
 
-NURBSMeshRules::NURBSMeshRules(const Mesh &mesh, const SplineIntegrationRule splineRule)
-: npatches(mesh.NURBSext->GetNP()), dim(mesh.Dimension())
+NURBSMeshRules::NURBSMeshRules(const Mesh &mesh,
+                               const SplineIntegrationRule splineRule)
+   : npatches(mesh.NURBSext->GetNP()), dim(mesh.Dimension())
 {
    patchRules1D.SetSize(npatches, dim);
    // Loop over patches and set a different rule for each patch.
@@ -1915,23 +1942,10 @@ NURBSMeshRules::NURBSMeshRules(const Mesh &mesh, const SplineIntegrationRule spl
       Array<const KnotVector*> kv(dim);
       mesh.NURBSext->GetPatchKnotVectors(p, kv);
 
-      // Construct 1D integration rules by applying the rule ir to each knot span.
+      // Construct 1D integration rules by applying splineRule to each knotvector.
       for (int i=0; i<dim; ++i)
       {
-         if ( splineRule == SplineIntegrationRule::FULL_GAUSSIAN )
-         {
-            const int order = kv[i]->GetOrder();
-            const IntegrationRule ir = IntRules.Get(Geometry::SEGMENT, 2*order);
-            patchRules1D(p,i) = IntegrationRule::ApplyToKnotIntervals(ir,*kv[i]);
-         }
-         else if ( splineRule == SplineIntegrationRule::REDUCED_GAUSSIAN )
-         {
-            patchRules1D(p,i) = IntegrationRule::GetReducedGaussianRule(*kv[i]);
-         }
-         else
-         {
-            MFEM_ABORT("Unknown SplineIntegrationRule")
-         }
+         patchRules1D(p,i) = splineRule.Get(*kv[i]);
       }
    }
 

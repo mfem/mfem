@@ -43,12 +43,11 @@ int main(int argc, char *argv[])
 
    // 1. Parse command-line options.
    const char *mesh_file = "../../data/beam-hex-nurbs.mesh";
-   // const char *mesh_file = "../../../miniapps/nurbs/meshes/beam-hex-nurbs-onepatch.mesh";
    bool pa = false;
    bool patchAssembly = false;
    int ref_levels = 0;
    int nurbs_degree_increase = 0;  // Elevate the NURBS mesh degree by this
-   bool reduced_integration = 1;
+   int spline_integration_type = 0;
    int preconditioner = 0;
    int visport = 19916;
    bool visualization = 1;
@@ -64,8 +63,8 @@ int main(int argc, char *argv[])
                   "Number of uniform mesh refinements.");
    args.AddOption(&nurbs_degree_increase, "-incdeg", "--nurbs-degree-increase",
                   "Elevate NURBS mesh degree by this amount.");
-   args.AddOption(&reduced_integration, "-ri", "--reduced-integration",
-                  "-fi", "--full-integration", "Use reduced integration.");
+   args.AddOption(&spline_integration_type, "-int", "--integration-type",
+                  "Integration rule type: 0 - full Gaussian, 1 - reduced Gaussian");
    args.AddOption(&preconditioner, "-pc", "--preconditioner",
                   "Preconditioner: 0 - none, 1 - diagonal, 2 - LOR AMG");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
@@ -81,12 +80,6 @@ int main(int argc, char *argv[])
       MFEM_VERIFY(nurbs_degree_increase > 0,
                   "LOR preconditioner requires degree increase");
    }
-
-   // Integration rule for the 1d bases defined on each knotvector
-   // Reduced Gaussian rule as in Zou 2022 - equation 14
-   auto splineRule = reduced_integration
-                     ? SplineIntegrationRule::REDUCED_GAUSSIAN
-                     : SplineIntegrationRule::FULL_GAUSSIAN;
 
    // 2. Read the mesh from the given mesh file.
    Mesh mesh(mesh_file, 1, 1);
@@ -177,6 +170,8 @@ int main(int argc, char *argv[])
    if (patchAssembly)
    {
       ei->SetIntegrationMode(NonlinearFormIntegrator::Mode::PATCHWISE);
+      // Integration rule for the 1d bases defined on each knotvector
+      SplineIntegrationRule splineRule(spline_integration_type);
       // Set the patch integration rules
       NURBSMeshRules* meshRules = new NURBSMeshRules(mesh, splineRule);
       ei->SetNURBSPatchIntRule(meshRules);
@@ -317,7 +312,7 @@ int main(int argc, char *argv[])
    // If file does not exist, write the header
    if (results_ofs.tellp() == 0)
    {
-      results_ofs << "patcha, pa, pc, ri, "           // settings
+      results_ofs << "patcha, pa, pc, sint, "           // settings
                   << "mesh, refs, deg_inc, ndof, "    // mesh
                   << "niter, absnorm, relnorm, "      // solver
                   << "linf, l2, "                     // solution
@@ -329,7 +324,7 @@ int main(int argc, char *argv[])
    results_ofs << patchAssembly << ", "               // settings
                << pa << ", "
                << preconditioner << ", "
-               << reduced_integration << ", "
+               << spline_integration_type << ", "
                << mesh_file << ", "                   // mesh
                << ref_levels << ", "
                << nurbs_degree_increase << ", "
