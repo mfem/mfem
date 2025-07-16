@@ -4566,7 +4566,7 @@ real_t LSZZErrorEstimator(BilinearFormIntegrator &blfi,  // input
          u.GetSubVector(udofs, ul);
          utrans.InvTransformPrimal(ul);
          Transf = ufes->GetElementTransformation(ielem);
-         FiniteElement *dummy = nullptr;
+         const auto *dummy = ufes->GetFE(ielem);
          blfi.ComputeElementFlux(*ufes->GetFE(ielem), *Transf, ul,
                                  *dummy, fl, with_coeff, ir);
 

@@ -22,7 +22,6 @@
 #include "../general/communication.hpp"
 #endif
 #include <iostream>
-#include <set>
 
 namespace mfem
 {
@@ -61,7 +60,7 @@ protected:
 
 public:
    /// Create an empty KnotVector.
-   KnotVector() { }
+   KnotVector() = default;
 
    /** @brief Create a KnotVector by reading data from stream @a input. Two
        integers are read, for order and number of control points. */
@@ -87,7 +86,7 @@ public:
        polynomial degree). Periodicity is not supported.
    */
    KnotVector(int order, const Vector& intervals,
-              const Array<int>& continuity );
+              const Array<int>& continuity);
 
    /// Copy constructor.
    KnotVector(const KnotVector &kv) { (*this) = kv; }
