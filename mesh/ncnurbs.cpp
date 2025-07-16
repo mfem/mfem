@@ -1397,8 +1397,8 @@ void NCNURBSExtension::ProcessVertexToKnot2D(const VertexToKnotSpan &v2k,
       const bool rev = pv[1] < pv[0];
       if (rev) { reversedParents.insert(parentEdge); }
 
-      // Note that the logic here assumes that the "vertex_to_knot" data in the
-      // mesh file has vertices in order of ascending knotIndex.
+      // Note that the logic here assumes that the "vertex_to_knotspan" data in
+      // the mesh file has vertices in order of ascending knotIndex.
 
       const bool newParentEdge = (prevParent != parentEdge);
       const int v0 = newParentEdge ? pv[0] : prevV;
@@ -1475,7 +1475,7 @@ void NCNURBSExtension::ProcessVertexToKnot2D(const VertexToKnotSpan &v2k,
       prevV = tv;
       prevKI = ks;
       prevParent = parentEdge;
-   } // loop over vertices in vertex_to_knot
+   } // loop over vertices in vertex_to_knotspan
 }
 
 void NCNURBSExtension::ProcessVertexToKnot3D(
@@ -1495,7 +1495,7 @@ void NCNURBSExtension::ProcessVertexToKnot3D(
 
    const int nv2k = v2k.Size();
 
-   // Note that the logic here assumes that the "vertex_to_knot" data in the
+   // Note that the logic here assumes that the "vertex_to_knotspan" data in the
    // mesh file has vertices in order of ascending (k1,k2), with k2 being the
    // fast variable, and with corners skipped.
 
@@ -3502,8 +3502,8 @@ void NCNURBSExtension::GenerateOffsets()
    if (patchTopo->ncmesh)
    {
       // Note that master or slave entities exist only for a mesh with
-      // vertex_parents, not for the vertex_to_knot case. Currently, a mesh is
-      // not allowed to have both cases, see the MFEM_VERIFY below.
+      // vertex_parents, not for the vertex_to_knotspan case. Currently, a mesh
+      // is not allowed to have both cases, see the MFEM_VERIFY below.
 
       const NCMesh::NCList& nce = patchTopo->ncmesh->GetNCList(1);
       const NCMesh::NCList& ncf = patchTopo->ncmesh->GetNCList(2);
@@ -3564,7 +3564,7 @@ void NCNURBSExtension::GenerateOffsets()
          {
             ProcessVertexToKnot2D(v2k, reversedParents, edgePairs);
          }
-      } // if using vertex_to_knot
+      } // if using vertex_to_knotspan
 
       const int numMasters = is3D ? ncf.masters.Size() : nce.masters.Size();
 

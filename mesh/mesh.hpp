@@ -478,7 +478,7 @@ protected:
 
    /// Read NURBS patch/macro-element mesh (MFEM NURBS NC-patch mesh format)
    void LoadNonconformingPatchTopo(std::istream &input,
-                                   Array<int> &edge_to_knot);
+                                   Array<int> &edge_to_ukv);
 
    /// Update this NURBS Mesh and its NURBS data structures after a change, such
    /// as refinement, derefinement, or degree change.
