@@ -283,6 +283,10 @@ public:
     */
    void SetFilterAlpha(real_t a) { filter_alpha = a; }
 
+
+   // Custom function by Joe -- Get time-integration coefficients for current timestep
+   void GetTimeIntegrationCoefficients(Array<real_t> &beta, Array<real_t> &alpha) const;
+
 protected:
    /// Print information about the Navier version.
    void PrintInfo();

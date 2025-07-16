@@ -1060,6 +1060,12 @@ void NavierSolver::AddAccelTerm(VecFuncT *f, Array<int> &attr)
    AddAccelTerm(new VectorFunctionCoefficient(pmesh->Dimension(), f), attr);
 }
 
+void NavierSolver::GetTimeIntegrationCoefficients(Array<real_t> &beta, Array<real_t> &alpha) const
+{
+   beta = Array<real_t>({bd0, bd1, bd2, bd3});
+   alpha = Array<real_t>({ab1, ab2, ab3});
+}
+
 void NavierSolver::SetTimeIntegrationCoefficients(int step)
 {
    // Maximum BDF order to use at current time step
