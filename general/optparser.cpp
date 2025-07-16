@@ -148,6 +148,20 @@ void parseVector(char * str, Vector & var)
    }
 }
 
+void parseArray(char * str, Array<char> & var)
+{
+   var.SetSize(0);
+   std::stringstream input(str);
+   char val;
+   while ( input >> val)
+   {
+      if (!std::isspace(val))
+      {
+         var.Append(val);
+      }
+   }
+}
+
 void OptionsParser::Parse()
 {
    option_check.SetSize(options.Size());
@@ -223,6 +237,9 @@ void OptionsParser::Parse()
                   break;
                case VECTOR:
                   parseVector(argv[i++], *(Vector*)(options[j].var_ptr) );
+                  break;
+               case CHAR_ARRAY:
+                  parseArray(argv[i++], *(Array<char>*)(options[j].var_ptr) );
                   break;
             }
 
@@ -323,6 +340,22 @@ void OptionsParser::WriteValue(const Option &opt, std::ostream &os)
          break;
       }
 
+      case CHAR_ARRAY:
+      {
+         Array<char> &list = *(Array<char>*)(opt.var_ptr);
+         os << '\'';
+         if (list.Size() > 0)
+         {
+            os << list[0];
+         }
+         for (int i = 1; i < list.Size(); i++)
+         {
+            os << ' ' << list[i];
+         }
+         os << '\'';
+         break;
+      }
+
       default: // provide a default to suppress warning
          break;
    }
@@ -410,7 +443,7 @@ void OptionsParser::PrintHelp(ostream &os) const
    static const char *line_sep = "";
    static const char *types[] = { " <int>", " <double>", " <string>",
                                   " <string>", "", "", " '<int>...'",
-                                  " '<double>...'"
+                                  " '<double>...'", " '<char>...'"
                                 };
 
    os << indent << "-h" << seprtr << "--help" << descr_sep
