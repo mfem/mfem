@@ -22,9 +22,9 @@ namespace mfem
 /* AD related definitions below ========================================*/
 
 /// MFEM native AD-type for first derivatives
-using AD1Type = internal::dual<real_t, real_t>;
+using AD1Type = future::dual<real_t, real_t>;
 /// MFEM native AD-type for second derivatives
-using AD2Type = internal::dual<AD1Type, AD1Type>;
+using AD2Type = future::dual<AD1Type, AD1Type>;
 
 /*
 Functions for 2x2 DenseMatrix cast as std::vector<type>, assuming column-major storage
@@ -5122,33 +5122,32 @@ real_t TMOP_Integrator::GetSurfaceFittingWeight()
 
 void TMOP_Integrator::EnableNormalization(const GridFunction &x)
 {
-   ComputeNormalizationEnergies(x, metric_normal, lim_normal, surf_fit_normal);
+   ComputeNormalizationEnergies(x, metric_normal, lim_normal);
    metric_normal = 1.0 / metric_normal;
    lim_normal = 1.0 / lim_normal;
-   //if (surf_fit_gf) { surf_fit_normal = 1.0 / surf_fit_normal; }
    if (surf_fit_gf || surf_fit_pos) { surf_fit_normal = lim_normal; }
 }
 
 #ifdef MFEM_USE_MPI
 void TMOP_Integrator::ParEnableNormalization(const ParGridFunction &x)
 {
-   real_t loc[3];
-   ComputeNormalizationEnergies(x, loc[0], loc[1], loc[2]);
-   real_t rdc[3];
-   MPI_Allreduce(loc, rdc, 3, MPITypeMap<real_t>::mpi_type, MPI_SUM,
+   real_t loc[2];
+   ComputeNormalizationEnergies(x, loc[0], loc[1]);
+   real_t rdc[2];
+   MPI_Allreduce(loc, rdc, 2, MPITypeMap<real_t>::mpi_type, MPI_SUM,
                  x.ParFESpace()->GetComm());
    metric_normal = 1.0 / rdc[0];
    lim_normal    = 1.0 / rdc[1];
-   // if (surf_fit_gf) { surf_fit_normal = 1.0 / rdc[2]; }
    if (surf_fit_gf || surf_fit_pos) { surf_fit_normal = lim_normal; }
 }
 #endif
 
 void TMOP_Integrator::ComputeNormalizationEnergies(const GridFunction &x,
                                                    real_t &metric_energy,
-                                                   real_t &lim_energy,
-                                                   real_t &surf_fit_gf_energy)
+                                                   real_t &lim_energy)
 {
+   metric_energy = 0.0;
+   lim_energy = 0.0;
    if (PA.enabled)
    {
       MFEM_VERIFY(PA.E.Size() > 0, "Must be called after AssemblePA!");
@@ -5191,9 +5190,6 @@ void TMOP_Integrator::ComputeNormalizationEnergies(const GridFunction &x,
    Jpr.SetSize(dim);
    Jpt.SetSize(dim);
 
-   metric_energy = 0.0;
-   lim_energy = 0.0;
-   surf_fit_gf_energy = 0.0;
    for (int i = 0; i < fes->GetNE(); i++)
    {
       const FiniteElement *fe = fes->GetFE(i);
@@ -5225,21 +5221,7 @@ void TMOP_Integrator::ComputeNormalizationEnergies(const GridFunction &x,
          lim_energy += weight;
       }
 
-      // Normalization of the surface fitting term.
-      if (surf_fit_gf)
-      {
-         Array<int> dofs;
-         Vector sigma_e;
-         surf_fit_gf->FESpace()->GetElementDofs(i, dofs);
-         surf_fit_gf->GetSubVector(dofs, sigma_e);
-         for (int s = 0; s < dofs.Size(); s++)
-         {
-            if ((*surf_fit_marker)[dofs[s]] == true)
-            {
-               surf_fit_gf_energy += sigma_e(s) * sigma_e(s);
-            }
-         }
-      }
+      // TODO: Normalization of the surface fitting term.
    }
 
    // Cases when integration is not over the target element, or when the
