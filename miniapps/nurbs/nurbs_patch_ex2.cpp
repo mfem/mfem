@@ -35,11 +35,6 @@
 using namespace std;
 using namespace mfem;
 
-enum class SplineIntegrationRule { FULL_GAUSSIAN, REDUCED_GAUSSIAN, };
-void SetPatchIntegrationRules(const Mesh &mesh,
-                              const SplineIntegrationRule &splineRule,
-                              BilinearFormIntegrator * bfi);
-
 int main(int argc, char *argv[])
 {
    // 0. Initialize MPI and HYPRE.
@@ -183,7 +178,8 @@ int main(int argc, char *argv[])
    {
       ei->SetIntegrationMode(NonlinearFormIntegrator::Mode::PATCHWISE);
       // Set the patch integration rules
-      SetPatchIntegrationRules(mesh, splineRule, ei);
+      NURBSMeshRules* meshRules = new NURBSMeshRules(mesh, splineRule);
+      ei->SetNURBSPatchIntRule(meshRules);
    }
 
    // 10. Assembly
@@ -388,44 +384,4 @@ int main(int argc, char *argv[])
    }
 
    return 0;
-}
-
-// For each patch, sets
-void SetPatchIntegrationRules(const Mesh &mesh,
-                              const SplineIntegrationRule &splineRule,
-                              BilinearFormIntegrator * bfi)
-{
-   const int dim = mesh.Dimension();
-   NURBSMeshRules * patchRules  = new NURBSMeshRules(mesh.NURBSext->GetNP(), dim);
-   // Loop over patches and set a different rule for each patch.
-   for (int p=0; p < mesh.NURBSext->GetNP(); ++p)
-   {
-      Array<const KnotVector*> kv(dim);
-      mesh.NURBSext->GetPatchKnotVectors(p, kv);
-
-      std::vector<const IntegrationRule*> ir1D(dim);
-      // Construct 1D integration rules by applying the rule ir to each knot span.
-      for (int i=0; i<dim; ++i)
-      {
-         if ( splineRule == SplineIntegrationRule::FULL_GAUSSIAN )
-         {
-            const int order = kv[i]->GetOrder();
-            const IntegrationRule ir = IntRules.Get(Geometry::SEGMENT, 2*order);
-            ir1D[i] = IntegrationRule::ApplyToKnotIntervals(ir,*kv[i]);
-         }
-         else if ( splineRule == SplineIntegrationRule::REDUCED_GAUSSIAN )
-         {
-            ir1D[i] = IntegrationRule::GetIsogeometricReducedGaussianRule(*kv[i]);
-         }
-         else
-         {
-            MFEM_ABORT("Unknown PatchIntegrationRule1D")
-         }
-      }
-
-      patchRules->SetPatchRules1D(p, ir1D);
-   }  // loop (p) over patches
-
-   patchRules->Finalize(mesh);
-   bfi->SetNURBSPatchIntRule(patchRules);
 }
