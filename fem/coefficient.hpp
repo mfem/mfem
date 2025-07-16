@@ -381,6 +381,25 @@ public:
                const IntegrationPoint &ip) override;
 };
 
+/// Scalar coefficient which returns one component of a VectorCoefficient
+class ComponentCoefficient : public Coefficient
+{
+protected:
+   int comp;
+   VectorCoefficient & vcoef;
+
+   mutable Vector vec;
+
+public:
+   ComponentCoefficient(int comp_, VectorCoefficient &vcoef_);
+
+   /// Evaluate the coefficient at @a ip.
+   real_t Eval(ElementTransformation &T,
+               const IntegrationPoint &ip) override;
+
+};
+
+
 class GridFunction;
 
 /// Coefficient defined by a GridFunction. This coefficient is mesh dependent.
