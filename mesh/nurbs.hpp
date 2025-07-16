@@ -217,7 +217,7 @@ public:
        Use GetInterpolant instead. For the knot location one can use either
        GetBotella, GetDemko or GetGreville. FindInterpolant uses the Botella
        points, however, the Demko points might be more appropriate. */
-   MFEM_DEPRECATED void FindInterpolant(Array<Vector*> &x);
+   MFEM_DEPRECATED void FindInterpolant(Array<Vector*> &x, bool reuse_inverse);
 
    /** @brief Get the control points @a for an interpolating spline that has the
       values @a x at the knot location @a u.
