@@ -13,6 +13,8 @@
 #include "navier_solver.hpp"
 #include "../common/particles_extras.hpp"
 
+#include <cmath>
+
 using namespace std;
 using namespace mfem;
 using namespace mfem::common;
@@ -25,9 +27,7 @@ struct s_NavierContext
    int num_steps = 1000;
    int num_particles = 1000;
    int p_ordering = Ordering::byNODES;
-   real_t kappa = 1.0;
    real_t zeta = 1.0;
-   real_t gamma = 1.0;
    bool visualization = false;
    int visport = 19916;
    
@@ -56,33 +56,77 @@ enum State : int
    SIZE  
 };
 
-void prescibedFluidVelocity(const Vector &x, Vector &u)
+void couetteFlow(const Vector &x, Vector &u)
 {
-   // For now, just assume uniform flowfield, nondimensionalized wrt U_m
-   u = 1.0
+   u = 0.0;
+   u[0] = (1.0+x[1])/2.0;
 }
 
-// TODO: Author name?
+void analyticalNoDragCouette(const real_t zeta, const Vector &x0, const Vector &v0, double t, Vector &x, Vector &v)
+{
+   x.SetSize(2); v.SetSize(2);
+
+   const real_t C1 = v0[1];
+   const real_t C2 = (sqrt(zeta)/2.0) * (x0[1] + 1 - 2*v0[0])/(sqrt(zeta-1));
+   const real_t C3 = x0[1] + 2.0*C2/(sqrt(zeta*(zeta-1)));
+   const real_t C4 = 0.5*(C3+1);
+   const real_t C5 = x0[0] + (2.0/(zeta-1))*v0[1];
+
+   const real_t lam = zeta*(zeta-1)/4.0;
+
+   x[0] = (zeta/(2.0*lam)) * (-C1*cos(sqrt(lam)*t) - C2*sin(sqrt(lam)*t)) + C4*t + C5;
+   x[1] = (1.0/sqrt(zeta)) * (C1*sin(sqrt(lam)*t) - C2*cos(sqrt(lam)*t)) + C3;
+   v[0] = (zeta/(2.0*sqrt(lam))) * ( C1*sin(sqrt(lam)*t) - C2*cos(sqrt(lam)*t)) + C4;
+   v[1] = C1*cos(sqrt(lam)*t) + C2*sin(sqrt(lam)*t);
+}
+
 class ParticleIntegrator
 {
 private:
-   const Coefficient *kappa, *zeta, *gamma; // non-owning
-
+   const real_t zeta;
    FindPointsGSLIB finder;
 
 public:
-   ParticleIntegrator(MPI_Comm comm, Mesh &m, const Coefficient *kappa_=nullptr, const Coefficient *zeta_=nullptr, const Coefficient *gamma_=nullptr)
-   : kappa(kappa_),
-     zeta(zeta_),
-     gamma(gamma_)
-     finder(comm);
+   ParticleIntegrator(MPI_Comm comm, Mesh &m, const real_t zeta_)
+   : zeta(zeta_)
+     finder(comm)
    {
       finder.Setup(m);
    }
 
-   void Step(ParticleSet &particles, ParGridFunction &u_gf)
+
+   void ParticleStep(const real_t &dt, const Array<real_t> &beta, const Array<real_t> &alpha, Particle &p)
    {
+
+      real_t w_n = p.GetStateVar(W_N)[0];
+
+      // Assemble the 2D matrix B
+      DenseMatrix B({{beta[0], zeta*dt*w_n},
+                     {-zeta*dt*w_n, beta[0]}});
       
+      // Assemble the RHS
+      Vector r(2);
+      r = 0.0;
+      for (int j = 1; j <= k; j++)
+      {
+         // add particle velocity component
+         add(r, beta[j], p.GetStateVar(1+3*k), r);
+
+         // Assemble 
+      }
+
+   
+   }
+
+   void Step(const real_t &dt, const Array<real_t> &beta, const Array<real_t> &alpha, ParticleSet &particles, ParGridFunction &u_gf)
+   {
+      for (int i = 0; i < particles.GetNP(); i++)
+      {
+         Particle p;
+         particles.GetParticle(i);
+         ParticleStep(dt, beta, alpha, p);
+         particles.SetParticle(i);
+      }
    }
 }
 
@@ -104,10 +148,6 @@ int main (int argc, char *argv[])
    args.AddOption(&ctx.kappa, "-k", "--kappa", "Kappa constant.");
    args.AddOption(&ctx.rho_s, "-z", "--zeta", "Zeta constant.");
    args.AddOption(&ctx.rho_f, "-g", "--gamma", "Gamma constant.");
-   
-   args.AddOption(&ctx.U_m, "-um", "--mean-vel", "Fluid velocity scale.");
-   args.AddOption(&ctx.mu, "-mu", "--dynamic-visc", "Dynamic viscosity, dimensional.");
-   args.AddOption(&ctx.L, "-L", "--length-scale", "Length scale, dimensional.");
 
    args.AddOption(&ctx.visualization, "-vis", "--visualization", "-no-vis", "--no-visualization", "Enable or disable GLVis visualization.");
    args.AddOption(&ctx.visport, "-p", "--send-port", "Socket for GLVis.");
@@ -123,13 +163,21 @@ int main (int argc, char *argv[])
    }
 
 
-   // Initialize a simple 2D domain [0,1] x [0,1]
-   Mesh mesh = Mesh::MakeCartesian2D(50, 50, Element::Type::HEXAHEDRON);
-   ParMesh pmesh(MPI_COMM_WORLD, mesh);
+   // Initialize a simple straight-edged 2D domain [0,12] x [-1,1]
+   Mesh mesh = Mesh::MakeCartesian2D(50, 50, Element::Type::HEXAHEDRON, true, 12.0, 2.0);
+   Vector transl(mesh.GetNV()*2);
+   // Mesh vertex ordering is byNODES
+   for (int i = 0; i < transl.Size()/2; i++)
+   {
+      transl[mesh.GetNV() + i] = -1.0;
+   }
+   mesh.MoveNodes(transl);
 
+
+   ParMesh pmesh(MPI_COMM_WORLD, mesh);
    
    // Initialize the Navier solver
-   const real_t Re = ctx.rho_f*ctx.U_m*ctx.L / ctx.mu;
+   const real_t Re = 1.0; // TODO. Unimportant right now.
    if (rank == 0)
    {
       cout << "Reynolds number: " << Re << endl;
@@ -137,25 +185,32 @@ int main (int argc, char *argv[])
    NavierSolver flowsolver(pmesh, ctx.order, 1.0/Re);
 
 
-   // Prescribe a velocity condition for now
+   // Prescribe the velocity condition for now
    ParGridFunction &u_gf = *flowsolver.GetCurrentVelocity();
-   VectorFunctionCoefficient u_excoeff(pmesh.Dimension(), prescibedFluidVelocity);
+   VectorFunctionCoefficient u_excoeff(2, couetteFlow);
    u_gf.ProjectCoefficient(u_excoeff);
 
 
-   // Initialize particles
+   // Initialize two particle sets - one numerical, one analytical
    ParticleMeta pmeta(2, 2, {2,2,1,2,2,1,2,2,1});
    ParticleSet particles(pmeta, ctx.p_ordering);
 
+   // Only need to store velocity
+   ParticleMeta pmeta_exact(2, 0, {2});
+   ParticleSet particles_exact(pmeta, ctx.p_ordering)
+
+   // Initialize both particle sets the same
    Vector pos_min, pos_max;
    mesh.GetBoundingBox(pos_min, pos_max);
 
    int seed = rank;
    for (int p = 0 p < ctx.num_particles; p++)
    {
-      Particle p(pmeta);
-      InitializeRandom(p, seed, pos_min, pos_max); // Initialize with random position, properties, + state
+      Particle p(pmeta), p_exact(pmeta_exact);
+      InitializeRandom(p, seed, pos_min, pos_max);
+      InitializeRandom(p_exact, seed, pos_min, pos_max);
       particles.AddParticle(p);
+      particles_exact.AddParticle(p_exact);
       seed += size;
    }
 
@@ -167,7 +222,11 @@ int main (int argc, char *argv[])
    for (int s = 0; s < State::SIZE; s++)
    {
       particles.GetAllStateVar(s) = 0.0;
+      particles_exact.GetAllStateVar(s) = 0.0;
    }
+   // Particles are now initialized across entire domain w/ zero IC
+
+
 
    
 
