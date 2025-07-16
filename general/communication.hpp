@@ -23,13 +23,9 @@
 #include <mpi.h>
 #include <cstdint>
 
-// can't directly use MPI_CXX_BOOL because Microsoft's MPI implementation
-// doesn't include MPI_CXX_BOOL. Fallback to MPI_C_BOOL if unavailable.
-#ifdef MPI_CXX_BOOL
-#define MFEM_MPI_CXX_BOOL MPI_CXX_BOOL
-#else
-#define MFEM_MPI_CXX_BOOL MPI_C_BOOL
-#endif
+// Some MPI implementations do not have MPI_CXX_BOOL or do not handle it
+// correctly, so we use MPI_UNSIGNED_CHAR as the MPI type for 'bool':
+#define MFEM_MPI_CXX_BOOL MPI_UNSIGNED_CHAR
 
 namespace mfem
 {
