@@ -1,5 +1,12 @@
 #ifndef MFEM_FUNCTIONAL_HPP
 #define MFEM_FUNCTIONAL_HPP
+
+#include "../config/config.hpp"
+
+#ifdef MFEM_USE_MPI
+#include "general/communication.hpp"
+#endif
+
 #include "operator.hpp"
 #include "blockvector.hpp"
 #include "solvers.hpp"
@@ -248,152 +255,482 @@ private:
 
 };
 
-/// @brief A base class for evaluating multiple functionals [f_1, ..., f_k] at once.
-/// Typical usage of this class is to evaluate and get access to the Hessian of multiple constraints. See, OptimizationProblem.
-/// Let F = [f_1, ..., f_k] be a multi-functional F:u |-> [f_1(u), f_2(u), ..., f_k(u)] where u in R^n.
-/// Then its gradient is an Operator G(k, n) such that F.GetGradient(u).Mult(d, z) returns [df_1(u)/du1(d), ..., df_k(u)/duk(d)]
-/// Hessian action is not supported by this class.
-/// That is,
-///   F.GetGradient(u).Mult(d, z) = [<df_1(u)/du1, d>, ..., <df_k(u)/duk, d>]
-///   F.GetGradient(u).MultTranspose(lambda, z) = sum_i lambda_i * df_i(u)/du
+/// @brief Stacked functioanl operator, [f1, ..., fk] where fi:R^n->R are functionals
+/// Typical usage of this class is to provide a single operator for multiple constraints.
+/// For example, if we have a minimization problem with k constraints,
+/// min f0(u) s.t. fi(u)=0, i=1,...,k.
+/// The Lagrangian functional is
+/// L(u, lambda) = F0(u) + sum_i lambda_i * fi(u)
+/// The first-order optimality conditions are
+/// grad f0(u) + sum_i lambda_i * grad fi(u) = 0
+/// fi(u) = 0
+/// where lambda_i are the Lagrange multipliers.
 ///
-/// All functionals share the same evaluation point x with the first functional.
-/// Therefore, `ShallowCopyProcessedX()` must be implemented for all shared functionals added to this class for first functional's type.
-/// See, SharedFunctional::ShallowCopyProcessedX() and MultiSharedFunctional::AddFunctional()
-class MultiSharedFunctional : public Operator
+/// StackedFunctional::GetGradient(u) returns an column-stacked gradient
+/// That is, [grad f0(u), ..., grad fk(u)] in R^{n x k}
+///
+/// StackedFunctional::GetGradient(u).Mult(lambda, y) will contract the gradients with the Lagrange multipliers
+/// y = sum lambda_i * grad fi(u)
+/// StackedFunctional::GetGradient(u).MultTranspose(d, y) will return the directional derivative for each k
+/// y[i] = <grad fi(u), d>
+/// If you want to extract the gradient as a list of vectors, use
+/// StackedFunctional::GetGradientColumns(const Vector &x, DenseMatrix &grad)
+///
+/// StackedFunctional::GetHessian(u, lambda).Mult(d, y) will return the contracted Hessian action
+/// y = sum_i lambda_i * H_{fi}(u, d)
+///
+/// @warning Functionals should be all serial or all parallel.
+///
+class StackedFunctional : public Operator
 {
-
 public:
-   MultiSharedFunctional(int n=0)
+   StackedFunctional(int n=0)
       : Operator(0, n)
       , funcs(0)
-      , grad_vecs(0)
       , grad_helper_op(*this)
+      , hessian_helper_op(*this)
    {}
+   StackedFunctional(Functional &f)
+      : Operator(0, f.Width())
+      , grad_helper_op(*this)
+      , hessian_helper_op(*this)
+   { AddFunctional(f); }
 
-   void AddFunctional(SharedFunctional &f)
+   StackedFunctional(const std::vector<Functional*> &funcs)
+      : Operator(funcs.size(), funcs[0]->Width())
+      , grad_helper_op(*this)
+      , hessian_helper_op(*this)
+   { for (auto &f : funcs) { AddFunctional(*f); } }
+
+   void AddFunctional(Functional &f)
    {
-      // share point with the first functional
-      if (!funcs.empty())
-      {
-         funcs[0]->SharePoint(f);
-      }
-      else
-      {
-         cache_enabled = f.IsCacheEnabled();
-      }
-      MFEM_VERIFY(f.IsCacheEnabled() == cache_enabled,
-                  "MultiSharedFunctional::AddFunctional: All functionals must have the same cache enabled state.");
-
+#ifdef MFEM_USE_MPI
+      if (funcs.empty()) { if (parallel) { SetComm(f.GetComm()); } }
+#endif
+      MFEM_VERIFY(f.Width() == Width(),
+                  "StackedFunctional::AddFunctional: Functional width does not match with the operator.");
+      MFEM_VERIFY(parallel == f.IsParallel(),
+                  "StackedFunctional::AddFunctional: Parallelism mismatch.");
       funcs.push_back(&f);
       height++;
-      if (cache_enabled)
-      {
-         grad_vecs.push_back(&f.GetCachedGradient());
-      }
    }
-
-   // Update the evaluation point x for all functionals.
-   // Update Mult() and EvalGradient() cache if requested.
-   // @warning: If cache is not enabled, then setting evalMult and evalGrad will abort.
-   // See, SharedFunctional::EnableCache
-   void Update(const Vector &x, bool evalMult=false, bool evalGrad=false) const
-   {
-      funcs[0]->Update(x);
-      if (evalMult)
-      {
-         MFEM_VERIFY(cache_enabled,
-                     "MultiSharedFunctional::Update() called with evalMult=true, but cache is not enabled.");
-         Vector dummy(1);
-         Mult(x, dummy);
-      }
-      if (evalGrad)
-      {
-         MFEM_VERIFY(cache_enabled,
-                     "MultiSharedFunctional::Update() called with evalGrad=true, but cache is not enabled.");
-         for (int i=0; i<funcs.size(); i++)
-         {
-            funcs[i]->GetGradient().Mult(x, *grad_vecs[i]);
-         }
-      }
-      // other functionals will use the same processed point
-   }
-   bool IsCacheEnabled() const { return cache_enabled; }
 
    void Mult(const Vector &x, Vector &y) const override
    {
-      y.SetSize(height);
+      y.SetSize(funcs.size());
       Vector yview;
       for (int i=0; i<funcs.size(); i++)
       {
          yview.MakeRef(y, i, 1);
-         funcs[i]->MultCurrent(yview);
+         funcs[i]->Mult(x, yview);
       }
    }
 
    Operator &GetGradient(const Vector &x) const override
    {
-      funcs[0]->Update(x);
       return grad_helper_op;
    }
-   std::vector<Vector*> &GetGradientVectors() const
+
+   void GetGradientMatrix(const Vector &x, DenseMatrix &grads) const
    {
-      MFEM_VERIFY(cache_enabled,
-                  "MultiSharedFunctional::GetGradientVectors() called without cache enabled.");
-      return grad_vecs;
+      grads.SetSize(Width(), funcs.size());
+      Vector grad;
+      for (int i=0; i<funcs.size(); i++)
+      {
+         grads.GetColumnReference(i, grad);
+         funcs[i]->GetGradient().Mult(x, grad);
+      }
    }
+
+   Operator &GetHessian(const Vector &x, const Vector &lambda) const
+   {
+      hessian_helper_op.SetX(x, lambda);
+      return hessian_helper_op;
+   }
+
+   bool parallel;
+   bool IsParallel() const { return parallel; }
+#ifdef MFEM_USE_MPI
+   void SetComm(MPI_Comm comm) { parallel = true; this->comm = comm; }
+   MPI_Comm GetComm() const { return comm; }
+#endif
+
 protected:
-   std::vector<SharedFunctional*> funcs; // List of functionals
-   mutable std::vector<Vector*> grad_vecs;
-   bool share_point;
-   bool cache_enabled;
-private:
+   MPI_Comm comm;
+   std::vector<Functional*> funcs;
+
    class GradientOperator : public Operator
    {
-   private:
-      const MultiSharedFunctional &op;
-      mutable Vector tmp_grad;
    public:
-      GradientOperator(const MultiSharedFunctional &op)
-         : Operator(op.Height(), op.Width())
+      GradientOperator(const StackedFunctional &op)
+         : Operator(op.Width(), op.Height())
          , op(op)
-         , tmp_grad(op.cache_enabled ? 0 : op.Width())
-      { }
+         , tmp_grad(op.Width())
+      {}
+      void SetX(const Vector &x) const { x_curr = &x; }
+      Operator &GetGradient(const Vector &lambda) const override
+      {
+         op.hessian_helper_op.SetX(*x_curr, lambda);
+         return op.hessian_helper_op;
+      }
+
+      void Mult(const Vector &lambda, Vector &y) const override
+      {
+         y.SetSize(op.Width());
+         y = 0.0;
+         for (int i=0; i<op.Height(); i++)
+         {
+            op.funcs[i]->GetGradient().Mult(*x_curr, tmp_grad);
+            y.Add(lambda[i], tmp_grad);
+         }
+      }
+      void MultTranspose(const Vector &x, Vector &y) const override
+      {
+         y.SetSize(op.Height());
+         for (int i=0; i<op.Height(); i++)
+         {
+            op.funcs[i]->GetGradient().Mult(x, tmp_grad);
+            y[i] = InnerProduct(tmp_grad, *x_curr);
+         }
+#ifdef MFEM_USE_MPI
+         if (op.IsParallel())
+         {
+            MPI_Allreduce(MPI_IN_PLACE, y.GetData(), op.Height(),
+                          MPITypeMap<real_t>::mpi_type, MPI_SUM,
+                          op.GetComm());
+         }
+#endif
+      }
+
+   private:
+      const StackedFunctional &op;
+      mutable const Vector *x_curr;
+      mutable Vector tmp_grad;
+
+   };
+   class HessianActionOperator : public Operator
+   {
+   public:
+      HessianActionOperator(const StackedFunctional &op)
+         : Operator(op.Width()), op(op)
+      {}
+      void SetX(const Vector &x, const Vector &lambda) const { x_curr = &x; lambda_curr = &lambda; }
 
       void Mult(const Vector &d, Vector &y) const override
       {
          y.SetSize(op.Width());
-         Vector yview;
-         for (int i=0; i<op.funcs.size(); i++)
-         {
-            op.funcs[i]->GetGradient().Mult(d, yview);
-         }
-      }
-
-      void MultTranspose(const Vector &lambda, Vector &y) const override
-      {
-         y.SetSize(op.Width());
          y = 0.0;
-         for (int i=0; i<op.funcs.size(); i++)
+         for (int i=0; i<op.Height(); i++)
          {
-            if (op.cache_enabled)
-            {
-               // tmp_grad points to the cached gradient to avoid copy
-               tmp_grad.MakeRef(*op.grad_vecs[i], 0);
-            }
-            // this will reuse the cached gradient if available
-            op.funcs[i]->EvalGradientCurrent(tmp_grad);
-            y.Add(lambda[i], tmp_grad);
+            op.funcs[i]->GetGradient().GetGradient(*x_curr).Mult(d, tmp_hessian);
+            y.Add((*lambda_curr)[i], tmp_hessian);
          }
       }
-
-      Operator &GetGradient(const Vector &lambda) const override
-      {
-         MFEM_ABORT("MultiSharedFunctional::GradientOperator::GetGradient(): GetGradient() is not supported.");
-      }
+   private:
+      const StackedFunctional &op;
+      mutable Vector tmp_hessian;
+      mutable const Vector *x_curr;
+      mutable const Vector *lambda_curr;
    };
    friend class GradientOperator;
+   friend class HessianActionOperator;
    mutable GradientOperator grad_helper_op;
+   mutable HessianActionOperator hessian_helper_op;
+private:
+};
+
+/// @brief A StackedFunctional that shares the evaluation point with the first functional.
+/// All functionals should be of type SharedFunctional and support ShallowCopyProcessedX() with the first functional.
+/// See, SharedFunctional::SharePoint() and SharedFunctional::ShallowCopyProcessedX()
+/// @warning The caching should be enabled for all/none of the functionals before adding them to the StackedSharedFunctional.
+class StackedSharedFunctional : public StackedFunctional
+{
+public:
+   StackedSharedFunctional(int n=0)
+      : StackedFunctional(n)
+      , cache_enabled(false)
+   {}
+   StackedSharedFunctional(SharedFunctional &f)
+      : StackedFunctional(f.Width())
+      , cache_enabled(false)
+   {
+      AddFunctional(f);
+   }
+   StackedSharedFunctional(const std::vector<SharedFunctional*> &funcs)
+      : StackedFunctional(funcs[0]->Width())
+      , cache_enabled(false)
+   { for (auto &f : funcs) { AddFunctional(*f); } }
+
+   void AddFunctional(SharedFunctional &f)
+   {
+      if (!funcs.empty())
+      {
+         static_cast<SharedFunctional*>(funcs[0])->SharePoint(f);
+         MFEM_VERIFY(f.IsCacheEnabled() == cache_enabled,
+                     "StackedSharedFunctional: All functionals must have the same cache enabled state.");
+      }
+      else
+      {
+         cache_enabled = f.IsCacheEnabled();
+      }
+      StackedFunctional::AddFunctional(f);
+   }
+   bool IsCacheEnabled() const { return cache_enabled; }
+   void Update(const Vector &x) const
+   {
+      MFEM_VERIFY(cache_enabled,
+                  "StackedSharedFunctional::Update() called without cache enabled.");
+      static_cast<SharedFunctional*>(funcs[0])->Update(x);
+   }
+
+   void Mult(const Vector &x, Vector &y) const override
+   {
+      if (!cache_enabled) { static_cast<SharedFunctional*>(funcs[0])->Update(x); }
+      StackedFunctional::Mult(x, y);
+   }
+
+   Operator &GetGradient(const Vector &x) const override
+   {
+      if (!cache_enabled) { static_cast<SharedFunctional*>(funcs[0])->Update(x); }
+      return StackedFunctional::GetGradient(x);
+   }
+
+   void GetGradientMatrix(const Vector &x, DenseMatrix &grads) const
+   {
+      if (!cache_enabled) { static_cast<SharedFunctional*>(funcs[0])->Update(x); }
+      StackedFunctional::GetGradientMatrix(x, grads);
+   }
+
+   Operator &GetHessian(const Vector &x, const Vector &lambda) const
+   {
+      if (!cache_enabled) { static_cast<SharedFunctional*>(funcs[0])->Update(x); }
+      return StackedFunctional::GetHessian(x, lambda);
+   }
+private:
+   bool cache_enabled;
+
+};
+
+/// @brief A Lagrangian functional for
+/// min F(u)
+/// subject to C(u) = 0
+/// That is, L(u, lambda) = F(u) + <lambda, C(u)>
+///
+/// We assume that F:R^n -> R is a functional,
+///                C:R^n -> R^k is an equality constraint operator,
+/// C should return a residual. That is, if you have
+/// C(u) = c, then C.Mult(u, y) should return y[i] = C_i(u) - c_i.
+///
+/// C.GetGradient(u):R^k -> R^n that takes lambda and returns the contracted gradient at x
+/// C.GetGradient(u).Mult(lambda, y) returns y = sum lambda_i * grad C_i(u)
+///
+/// C's gradient should support both Mult and MultTranspose methods
+/// That is, C.GetGradient(u).Mult(lambda, y) returns y = sum lambda_i + grad C_i(u)
+///          C.GetGradient(u).MultTranspose(d, y) returns y[i] = <grad C_i(u), d>
+///
+class LagrangianFunctional : public Functional
+{
+public:
+   LagrangianFunctional(Functional &objective,
+                        Operator &eq_constraints)
+      : Functional(objective.Width() + eq_constraints.Height())
+      , objective(objective)
+      , eq_constraints(eq_constraints)
+   {
+      // Check Size
+      MFEM_VERIFY(eq_constraints.Width() == objective.Width(),
+                  "LagrangianFunctional: Equality constraints width does not match with the objective.");
+
+#ifdef MFEM_USE_MPI
+      if (objective.IsParallel()) { SetComm(objective.GetComm()); }
+      /// No machanism to detect parallelism for Operator.
+      /// Just check if eq_constraints and ineq_constraints are StackedFunctional
+      if (auto *stacked_op = dynamic_cast<StackedFunctional*>(&eq_constraints))
+      {
+         MFEM_VERIFY(stacked_op->IsParallel() == objective.IsParallel(),
+                     "LagrangianFunctional: Parallelism mismatch for equality constraints.");
+      }
+#endif
+      offsets.SetSize(3);
+      offsets[0] = 0;
+      offsets[1] = objective.Width();
+      offsets[2] = eq_constraints.Height();
+      offsets.PartialSum();
+   }
+
+   void Mult(const Vector &x, Vector &y) const override
+   {
+      const BlockVector input_block(const_cast<Vector&>(x), offsets);
+      const Vector &u = input_block.GetBlock(0);
+      const Vector &lambda = input_block.GetBlock(1);
+
+      y.SetSize(1);
+      y[0] = 0.0;
+      objective.Mult(u, y);
+      Vector eq_residual(eq_constraints.Height());
+      eq_constraints.Mult(u, eq_residual);
+      y[0] += InnerProduct(lambda, eq_residual);
+   }
+
+   void EvalGradient(const Vector &x, Vector &y) const override
+   {
+      const BlockVector input_block(const_cast<Vector&>(x), offsets);
+      const Vector &u = input_block.GetBlock(0);
+      const Vector &lambda = input_block.GetBlock(1);
+
+      y.SetSize(Width());
+      BlockVector output_block(y, offsets);
+      Vector &opt_residual = output_block.GetBlock(0);
+      Vector &eq_residual = output_block.GetBlock(1);
+      y = 0.0;
+      objective.GetGradient().Mult(u, opt_residual);
+      eq_constraints.Mult(u, eq_residual);
+      eq_constraints.GetGradient(u).AddMult(lambda, opt_residual);
+   }
+
+   /// @brief Evaluate the Hessian action at a point x=[u, lambda]
+   /// and direction d=[v, mu]
+   /// [H_F(u,d) + \sum_i lambda_i H_{C_i}(u, d) + <grad C_i(u), mu>
+   void HessianMult(const Vector &x, const Vector &d, Vector &y) const override
+   {
+      const BlockVector input_block(const_cast<Vector&>(x), offsets);
+      const Vector &u = input_block.GetBlock(0);
+      const Vector &lambda = input_block.GetBlock(1);
+
+      const BlockVector direction_block(const_cast<Vector&>(x), offsets);
+      const Vector &v = direction_block.GetBlock(0);
+      const Vector &mu = direction_block.GetBlock(1);
+
+      y.SetSize(Width());
+      BlockVector output_block(y, offsets);
+      Vector &opt_H = output_block.GetBlock(0); // Optimality Hessian
+      Vector &eq_H = output_block.GetBlock(1); // Equality Hessian
+
+      // H_F(u,d) + \sum_i lambda_i H_{C_i}(u, d) + mu_i grad C_i(u)
+      objective.GetGradient().GetGradient(u).Mult(v, opt_H);
+      eq_constraints.GetGradient(u).GetGradient(lambda).AddMult(v, opt_H);
+      eq_constraints.GetGradient(u).Mult(mu, eq_H);
+      // <grad C_i(u), d>
+      eq_constraints.GetGradient(u).MultTranspose(d, eq_H);
+   }
+
+protected:
+   Functional &objective;
+   Operator &eq_constraints;
+   Array<int> offsets; // offsets for [x, lambda, mu]
+};
+
+/// @brief An augmented Lagrangian functional of the form
+/// F(u) + 0.5 mu * C(u)^T C(u) + <lambda, C(u)>
+/// where F is the objective functional,
+/// C is the equality constraint operator,
+/// lambda is the Lagrange multiplier vector (initialized to zero),
+/// mu is the penalty parameter (defaults to 1.0)
+///
+/// AugLagrangianFunctional::Update() will update the penalty and Lagrange multiplier vectors
+/// By default, lambda <- lambda + mu * C(u)
+///             mu <- mu (no update)
+class AugLagrangianFunctional : public Functional
+{
+public:
+   AugLagrangianFunctional(Functional &objective,
+                           Operator &eq_constraints)
+      : Functional(objective.Width() + eq_constraints.Height())
+      , objective(objective)
+      , eq_constraints(eq_constraints)
+      , lambda(eq_constraints.Height())
+      , mu(1.0)
+      , eq_residual(eq_constraints.Height())
+      , eq_dir(eq_constraints.Height())
+   {
+      lambda = 0.0;
+      // Check Size
+      MFEM_VERIFY(eq_constraints.Width() == objective.Width(),
+                  "AugLagrangianFunctional: Equality constraints width does not match with the objective.");
+
+#ifdef MFEM_USE_MPI
+      if (objective.IsParallel()) { SetComm(objective.GetComm()); }
+      /// No machanism to detect parallelism for Operator.
+      /// Just check if eq_constraints and ineq_constraints are StackedFunctional
+      if (auto *stacked_op = dynamic_cast<StackedFunctional*>(&eq_constraints))
+      {
+         MFEM_VERIFY(stacked_op->IsParallel() == objective.IsParallel(),
+                     "AugLagrangianFunctional: Parallelism mismatch for equality constraints.");
+      }
+#endif
+   }
+
+   void SetLambda(const Vector &lambda)
+   {
+      MFEM_VERIFY(lambda.Size() == eq_constraints.Height(),
+                  "AugLagrangianFunctional: Lambda size does not match with the equality constraints.");
+      this->lambda = lambda;
+   }
+
+   void SetPenalty(real_t mu)
+   {
+      MFEM_VERIFY(mu >= 0.0,
+                  "AugLagrangianFunctional: Penalty parameter mu must be non-negative.");
+      this->mu = mu;
+   }
+
+   virtual void Update(const Vector &x)
+   {
+      // Update the Lagrange multipliers
+      eq_constraints.AddMult(x, lambda, mu);
+      // Update the penalty parameter
+      // Do nothing
+   }
+
+
+   void Mult(const Vector &x, Vector &y) const override
+   {
+      y.SetSize(1);
+      objective.Mult(x, y);
+      Vector eq_residual(eq_constraints.Height());
+      eq_constraints.Mult(x, eq_residual);
+      y[0] += InnerProduct(lambda, eq_residual);
+      y[0] += 0.5 * mu * InnerProduct(eq_residual, eq_residual);
+   }
+
+   void EvalGradient(const Vector &x, Vector &y) const override
+   {
+      y.SetSize(Width());
+      // grad F(u) + \sum_i (lambda_i + mu * C_i(u)) grad C_i(u)
+      Vector curr_lambda = lambda;
+      objective.GetGradient().Mult(x, y);
+      eq_constraints.Mult(x, eq_residual);
+      curr_lambda.Add(mu, eq_residual);
+      eq_constraints.GetGradient(x).AddMult(curr_lambda, y);
+   }
+
+   /// @brief Evaluate the Hessian action at a point x=[u, lambda]
+   /// and direction d=[v, mu]
+   /// [H_F(u,d) + \sum_i lambda_i H_{C_i}(u, d) + <grad C_i(u), mu>
+   void HessianMult(const Vector &x, const Vector &d, Vector &y) const override
+   {
+      // H_F(u,d) + \sum_i lambda_i H_{C_i}(u, d) + mu_i grad C_i(u) <grad C_i(u), d>
+      objective.GetGradient().GetGradient(x).Mult(d, y);
+
+      Vector curr_lambda = lambda;
+      eq_constraints.Mult(x, eq_residual);
+      curr_lambda.Add(mu, eq_residual);
+
+      eq_constraints.GetGradient(x).GetGradient(curr_lambda).AddMult(d, y);
+      // eq_dir = <grad C_i(u), d>
+      eq_constraints.GetGradient(x).MultTranspose(d, eq_dir);
+      // mu_i <grad C_i(u), eq_dir>
+      eq_constraints.GetGradient(x).AddMult(eq_dir, y, mu);
+   }
+
+protected:
+   Functional &objective;
+   Operator &eq_constraints;
+   Vector lambda;
+   real_t mu;
+   mutable Vector eq_residual; // residual of the equality constraints, R^k
+   mutable Vector
+   eq_dir; // directional derivative of the equality constraints, R^k
 };
 
 /// @brief Quadratic functional of the form
