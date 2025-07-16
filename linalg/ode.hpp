@@ -222,9 +222,9 @@ public:
 
 
 /// The classical forward Euler method
-class ForwardEulerSolver : public ODESolver
+class ForwardEulerSolver : virtual public ODESolver
 {
-private:
+protected: // changed from private: for derived class purposes
    Vector dxdt;
 
 public:
@@ -239,9 +239,9 @@ public:
     a = 1/2 - the midpoint method
     a =  1  - Heun's method
     a = 2/3 - default, has minimal truncation error. */
-class RK2Solver : public ODESolver
+class RK2Solver : virtual public ODESolver
 {
-private:
+protected: // changed from private: for derived class purposes
    real_t a;
    Vector dxdt, x1;
 
@@ -255,9 +255,9 @@ public:
 
 
 /// Third-order, strong stability preserving (SSP) Runge-Kutta method
-class RK3SSPSolver : public ODESolver
+class RK3SSPSolver : virtual public ODESolver
 {
-private:
+protected: // changed from private: for derived class purposes
    Vector y, k;
 
 public:
