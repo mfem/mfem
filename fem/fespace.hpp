@@ -679,8 +679,17 @@ public:
    /// Returns the mesh
    inline Mesh *GetMesh() const { return mesh; }
 
+   /// Checks if the fespace is a NURBS fespace
+   bool IsNURBS() const { return NURBSext != NULL; }
+
+   /// Returns the NURBSextension
    const NURBSExtension *GetNURBSext() const { return NURBSext; }
+
+   /// Returns the NURBSextension
    NURBSExtension *GetNURBSext() { return NURBSext; }
+
+   /** Returns the owned NURBSextension, and disowns NURBSextension.
+       Throws an error if NURBSextenion is not owned.*/
    NURBSExtension *StealNURBSext();
 
    bool Conforming() const { return mesh->Conforming() && cP == NULL; }
