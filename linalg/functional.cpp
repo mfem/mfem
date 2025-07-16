@@ -66,39 +66,30 @@ void QuadraticFunctional::EvalGradient(const Vector &x,
 }
 
 
-void SharedFunctional::SharePoint(SharedFunctional &viewer)
+void SharedFunctional::SharePointTo(SharedFunctional &viewer)
 {
-   if (processedX_owner) // If this functional is a viewer,
+   if (owner) // If this functional is a viewer,
    {
-      if (processedX_owner == viewer.processedX_owner)
+      if (owner == viewer.owner)
       {
          // and the other functional is also a viewer of the same processed point,
          return; // do nothing
       }
-      MFEM_VERIFY(viewer.processedX_owner == nullptr,
+      MFEM_VERIFY(viewer.owner == nullptr,
                   "SharedFunctional::SharePoint(): The other viewer already has a processed point owner. Cannot share the point.");
-      processedX_owner->SharePoint(viewer); // Share the owner
+      owner->SharePointTo(viewer); // Share the owner
    }
    else // if this functional is the owner of the processed point
    {
-      viewer.processedX_owner = this;
-      processedX_viewers.push_back(&viewer);
-      viewer.multCached = viewer.gradCached = viewer.hessianCached =
-            false; // invalidate cached values
+      viewer.owner = this;
+      viewers.push_back(&viewer);
       viewer.ShallowCopyProcessedX(*this);
    }
 }
 
-void SharedFunctional::EnableCache(bool enable)
-{
-   cache_enabled = enable;
-   multCached = gradCached = false;
-   current_grad_value.SetSize(Width());
-}
-
 void SharedFunctional::Update(const Vector &x) const
 {
-   if (processedX_owner != nullptr)
+   if (owner != nullptr)
    {
       MFEM_WARNING("SharedFunctional::Update() called on a functional that does not own the processed point."
                    << " This is not recommended, as it may lead to incorrect caching behavior."
@@ -106,51 +97,13 @@ void SharedFunctional::Update(const Vector &x) const
                   );
    }
    ProcessX(x);
-   multCached = gradCached = hessianCached = false; // invalidate cached values
-   for (auto &viewer : processedX_viewers)
-   {
-      // invalidate the cached values in the viewers
-      viewer->multCached = viewer->gradCached = viewer->hessianCached = false;
-   }
-}
-
-void SharedFunctional::Mult(const Vector &dummy, Vector &y) const
-{
-   if (multCached) { y = current_mult_value; return; }
-   y.SetSize(1);
-   if (cache_enabled)
-   {
-      MultCurrent(y);
-      current_mult_value = y[0];
-      multCached = true;
-   }
-   else
-   {
-      MultCurrent(y);
-   }
-}
-
-void SharedFunctional::EvalGradient(const Vector &dummy, Vector &y) const
-{
-   if (gradCached) { y = current_grad_value; return; }
-
-   if (cache_enabled)
-   {
-      current_grad_value.SetSize(Width());
-      EvalGradientCurrent(current_grad_value);
-      y = current_grad_value;
-      gradCached = true;
-      return;
-   }
-   else
-   {
-      y.SetSize(Width());
-      EvalGradientCurrent(y);
-   }
+   sequence++;
 }
 
 void SharedFunctional::ShallowCopyProcessedX(SharedFunctional &owner)
 {
+   // Print an error massage if this function is not implemented
+   // for a specific type of owner in the derived class
    int status;
    char *othername = abi::__cxa_demangle(typeid(owner).name(), nullptr, nullptr,
                                          &status);

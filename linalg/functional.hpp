@@ -4,7 +4,7 @@
 #include "../config/config.hpp"
 
 #ifdef MFEM_USE_MPI
-#include "general/communication.hpp"
+#include "../general/communication.hpp"
 #endif
 
 #include "operator.hpp"
@@ -142,30 +142,34 @@ private:
 
 /// @brief A base class for functionals that shares evaluation points
 /// either across multiple functionals or across multiple member functions.
-/// This requires to update the evaluation point x manually by calling SharedFunctional::Update(x)
-/// Usually, x is a T-vector, and processed_x is an L-vector.
-/// It also supports caching of the evaluation results of Mult() and EvalGradient().
-/// Currently, the Hessian will not be cached, as it requires to store a matrix (which may not be sparse).
-/// Therefore, we always call the HessianMultProcessed() to evaluate the Hessian action at the processed point.
-/// As `hessianCached` will be set to false when the evaluation point is updated,
-/// the derived class can use it to check evaluation point update and assemble the Hessian if needed.
+///
+/// When a functional shares evaluation points, then the evaluation point
+/// for the "viewer' functional will ignore the input x.
+/// The owner is responsible for processing the evaluation point,
+/// and the viewer have shallow copy of the processed evaluation point.
+/// @warning Evaluating the viewer functional prior to the owner functional will results in
+/// unsynchronized evaluation point, which is not recommended.
+///
+/// A derived class must implement ProcessX() and ShallowCopyprocessedX().
+/// See, SharedFunctional::SharePoint() and SharedFunctional::ProcessX().
+///
+/// When the manual update is enabled, the input x will be ignored,
+/// Users must call SharedFunctional::Update() at the owner functional to update x.
 ///
 /// The derived class must implement
-/// 1) ProcessX(const Vector &x) which sets the processed_x,
-/// 2) ShallowCopyProcessedX(OtherSharedFunctional &owner) which copies the processed_x from another functional
-/// 3) Mult(Vector &y) which evaluates the functional at processed_x,
-/// 4) (optional) EvalGradient(Vector &y) which evaluates the gradient at processed_x,
-/// 5) (optional) HessianMultProcessed(const Vector &d, Vector &y) which evaluates the Hessian action at processed_x.
+/// 1) ProcessX(const Vector &x) which sets internally processed evaluation point
+/// 2) ShallowCopyProcessedX(OtherSharedFunctional &owner) which copies processed evaluation point
+/// 3) MultCurrent(Vector &y)
+/// 4) (optional) EvalGradientCurrent(Vector &y)
+/// 5) (optional) HessianMultCurrent(const Vector &d, Vector &y)
 class SharedFunctional : public Functional
 {
 public:
    SharedFunctional(int n=0)
       : Functional(n)
-      , cache_enabled(false)
-      , multCached(false)
-      , gradCached(false)
-      , hessianCached(false)
-      , processedX_owner(nullptr)
+      , owner(nullptr)
+      , viewers(0)
+      , manual_update(false)
    { }
 #ifdef MFEM_USE_MPI
    SharedFunctional(MPI_Comm comm, int n=0)
@@ -173,36 +177,46 @@ public:
    { SetComm(comm); }
 #endif
 
+   void EnableManualUpdate(bool enable=true) { manual_update = enable; }
+   bool IsManualUpdateEnabled() const { return manual_update; }
+
 
    /// @brief Share the processed point with another functional. Input is a viewer.
    /// The viewer should implement ShallowCopyProcessedX() to copy the processed point data.
-   void SharePoint(SharedFunctional &viewer);
-
-   /// @brief Enable of disable caching of the functional.
-   /// Cahche will be invalidated when Update() is called, and Mult(y), EvalGradient(y) will cache (or use) result.
-   void EnableCache(bool enable=true);
-   bool IsCacheEnabled() const { return cache_enabled; }
-   bool IsMultCached() const { return multCached; }
-   bool IsGradCached() const { return gradCached; }
+   void SharePointTo(SharedFunctional &viewer);
 
    /// @brief Update the processed point with a new evaluation point x.
    /// When caching is enabled, this will invalidate the cached values of Mult() and EvalGradient()
+   /// This will increase owner's sequence number, not the viewer's.
    void Update(const Vector &x) const;
+   /// @brief Get evaluation point update sequence number of the current functional.
+   int GetSequence() const { return sequence; }
+   /// @brief Get the owner sequence number of the current functional.
+   int GetOwnerSequence() const { return owner ? owner->GetSequence() : sequence; }
 
    /// @brief Helper method to evaluate the functional at the processed point. X is not used.
-   void Mult(const Vector &dummy, Vector &y) const override final;
-
+   void Mult(const Vector &x, Vector &y) const override final
+   {
+      if (owner == nullptr && !manual_update) { ProcessX(x); }
+      MultCurrent(y);
+   }
    /// Helper method to evaluate the gradient of functional at the processed point. Use cached value if available.
-   void EvalGradient(const Vector &dummy, Vector &y) const override final;
-
+   void EvalGradient(const Vector &x, Vector &y) const override final
+   {
+      if (owner == nullptr && !manual_update) { ProcessX(x); }
+      EvalGradientCurrent(y);
+   }
    /// Helper method to evaluate the gradient of functional at the processed point.
    /// Caching is not used here to avoid assembling possibly full or expensive Hessian assembly.
    /// If the Hessian can be stored, then assemble it in HessianMult(const Vector &, Vector &).
    /// After assembling the Hessian, set hessianCached to true and reuse the assembled Hessian until hessianCached is false.
    /// hessianCached will be set to false when Update() is called.
-   void HessianMult(const Vector &dummy, const Vector &d,
+   void HessianMult(const Vector &x, const Vector &d,
                     Vector &y) const override final
-   { HessianMultCurrent(d, y); }
+   {
+      if (owner == nullptr && !manual_update) { ProcessX(x); }
+      HessianMultCurrent(d, y);
+   }
 
    /// Evaluate the functional at the processed point. Use processed evaluation point.
    virtual void MultCurrent(Vector &y) const = 0;
@@ -217,29 +231,7 @@ public:
       MFEM_ABORT("SharedFunctional::HessianMult() is not implemented.");
    }
 
-   // return the reference to the cached value of Mult()
-   real_t &GetCachedMult() const
-   {
-      MFEM_VERIFY(cache_enabled,
-                  "SharedFunctional::GetCachedGradient() called without cache enabled.");
-      return current_mult_value;
-   }
-   // return the reference to the cached value of EvalGradient()
-   Vector &GetCachedGradient() const
-   {
-      MFEM_VERIFY(cache_enabled,
-                  "SharedFunctional::GetCachedGradient() called without cache enabled.");
-      return current_grad_value;
-   }
-
 protected:
-   mutable bool cache_enabled;
-   mutable bool multCached;
-   mutable real_t current_mult_value;
-   mutable bool gradCached;
-   mutable Vector current_grad_value;
-   mutable bool hessianCached;
-
    /// Derived classes must implement the following methods:
 
    /// Process evaluation point x. This will be called by Update(x).
@@ -247,38 +239,48 @@ protected:
 
    /// By default, this method will abort. Derived classes should implement for specific types using dynamic_cast.
    virtual void ShallowCopyProcessedX(SharedFunctional &owner);
+   // This can be used to track the evaluation point update sequence.
+   // One use case is to track Mult() calls to avoid re-evaluating the same point.
+   // In that case, create a multSequence variable in the derived class,
+   // and reset it to multSequence=sequence when Mult() actually evaluates.
+   // Otherwise, return the cached value.
+   mutable int sequence;
 
 private:
-   SharedFunctional *processedX_owner; // null if owner==this
-   std::vector<SharedFunctional*> processedX_viewers;
-
-
+   SharedFunctional *owner; // null if owner==this
+   std::vector<SharedFunctional*> viewers;
+   bool manual_update;
 };
 
 /// @brief Stacked functioanl operator, [f1, ..., fk] where fi:R^n->R are functionals
-/// Typical usage of this class is to provide a single operator for multiple constraints.
-/// For example, if we have a minimization problem with k constraints,
-/// min f0(u) s.t. fi(u)=0, i=1,...,k.
-/// The Lagrangian functional is
-/// L(u, lambda) = F0(u) + sum_i lambda_i * fi(u)
-/// The first-order optimality conditions are
-/// grad f0(u) + sum_i lambda_i * grad fi(u) = 0
-/// fi(u) = 0
-/// where lambda_i are the Lagrange multipliers.
-///
-/// StackedFunctional::GetGradient(u) returns an column-stacked gradient
-/// That is, [grad f0(u), ..., grad fk(u)] in R^{n x k}
-///
-/// StackedFunctional::GetGradient(u).Mult(lambda, y) will contract the gradients with the Lagrange multipliers
-/// y = sum lambda_i * grad fi(u)
-/// StackedFunctional::GetGradient(u).MultTranspose(d, y) will return the directional derivative for each k
-/// y[i] = <grad fi(u), d>
-/// If you want to extract the gradient as a list of vectors, use
-/// StackedFunctional::GetGradientColumns(const Vector &x, DenseMatrix &grad)
-///
-/// StackedFunctional::GetHessian(u, lambda).Mult(d, y) will return the contracted Hessian action
-/// y = sum_i lambda_i * H_{fi}(u, d)
-///
+/*
+   Typical usage of this class is to provide a single operator for multiple constraints.
+   For example, consider a minimization problem with k constraints,
+   min f0(u) s.t. fi(u)=0, i=1,...,k.
+   The Lagrangian functional is
+   L(u, lambda) = F0(u) + sum_i lambda_i * fi(u)
+   The first-order optimality conditions are
+   grad f0(u) + sum_i lambda_i * grad fi(u) = 0
+   fi(u) = 0
+   where lambda_i are the Lagrange multipliers.
+   The StackedFunctional class can be used to represent the list of constraints fi(u).
+
+   StackedFunctional::Mult(u, y) will evaluate each functional y[i]=fi(u)
+
+   StackedFunctional::GetGradient(u) represents an operator, column-stacked gradient
+   That is, [grad f0(u), ..., grad fk(u)] in R^{n x k}
+   If you want to extract the gradient as a matrix, use
+   StackedFunctional::GetGradientMatrix(const Vector &x, DenseMatrix &grad)
+   As functionals are not assumed to return a sparse vector, the gradient is dense.
+
+   StackedFunctional::GetGradient(u).Mult(lambda, y) contract the gradients with the Lagrange multipliers
+   y = sum lambda_i * grad fi(u)
+   StackedFunctional::GetGradient(u).MultTranspose(d, y) return the directional derivative for each k
+   y[i] = <grad fi(u), d>
+
+   StackedFunctional::GetHessian(u, lambda).Mult(d, y) will return the contracted Hessian action
+   y = sum_i lambda_i * H_{fi}(u, d)
+*/
 /// @warning Functionals should be all serial or all parallel.
 ///
 class StackedFunctional : public Operator
@@ -305,7 +307,7 @@ public:
    void AddFunctional(Functional &f)
    {
 #ifdef MFEM_USE_MPI
-      if (funcs.empty()) { if (parallel) { SetComm(f.GetComm()); } }
+      if (funcs.empty()) { if (f.IsParallel()) { SetComm(f.GetComm()); } }
 #endif
       MFEM_VERIFY(f.Width() == Width(),
                   "StackedFunctional::AddFunctional: Functional width does not match with the operator.");
@@ -328,6 +330,7 @@ public:
 
    Operator &GetGradient(const Vector &x) const override
    {
+      grad_helper_op.SetX(x);
       return grad_helper_op;
    }
 
@@ -442,73 +445,101 @@ private:
 /// @brief A StackedFunctional that shares the evaluation point with the first functional.
 /// All functionals should be of type SharedFunctional and support ShallowCopyProcessedX() with the first functional.
 /// See, SharedFunctional::SharePoint() and SharedFunctional::ShallowCopyProcessedX()
-/// @warning The caching should be enabled for all/none of the functionals before adding them to the StackedSharedFunctional.
+/// @warning The manual update should be enabled for all/none of the functionals before adding them to the StackedSharedFunctional.
 class StackedSharedFunctional : public StackedFunctional
 {
 public:
    StackedSharedFunctional(int n=0)
       : StackedFunctional(n)
-      , cache_enabled(false)
    {}
    StackedSharedFunctional(SharedFunctional &f)
       : StackedFunctional(f.Width())
-      , cache_enabled(false)
-   {
-      AddFunctional(f);
-   }
+   { AddFunctional(f); }
    StackedSharedFunctional(const std::vector<SharedFunctional*> &funcs)
       : StackedFunctional(funcs[0]->Width())
-      , cache_enabled(false)
    { for (auto &f : funcs) { AddFunctional(*f); } }
+   void EnableManualUpdate(bool enable=true)
+   {
+      manual_update = enable;
+      for (auto &f : funcs) { static_cast<SharedFunctional*>(f)->EnableManualUpdate(enable); }
+   }
+   bool IsManualUpdateEnabled() const { return manual_update; }
+   void Update(const Vector &x)
+   {
+      SharedFunctional *owner = static_cast<SharedFunctional*>(funcs[0]);
+      owner->Update(x);
+      sequence = owner->GetSequence();
+   }
 
    void AddFunctional(SharedFunctional &f)
    {
-      if (!funcs.empty())
+      if (funcs.empty())
       {
-         static_cast<SharedFunctional*>(funcs[0])->SharePoint(f);
-         MFEM_VERIFY(f.IsCacheEnabled() == cache_enabled,
-                     "StackedSharedFunctional: All functionals must have the same cache enabled state.");
+         manual_update = f.IsManualUpdateEnabled();
       }
       else
       {
-         cache_enabled = f.IsCacheEnabled();
+         MFEM_VERIFY(f.IsManualUpdateEnabled() == manual_update,
+                     "StackedSharedFunctional: Cannot add a functional with different manual update setting.");
+         static_cast<SharedFunctional*>(funcs[0])->SharePointTo(f);
       }
       StackedFunctional::AddFunctional(f);
-   }
-   bool IsCacheEnabled() const { return cache_enabled; }
-   void Update(const Vector &x) const
-   {
-      MFEM_VERIFY(cache_enabled,
-                  "StackedSharedFunctional::Update() called without cache enabled.");
-      static_cast<SharedFunctional*>(funcs[0])->Update(x);
    }
 
    void Mult(const Vector &x, Vector &y) const override
    {
-      if (!cache_enabled) { static_cast<SharedFunctional*>(funcs[0])->Update(x); }
+      static_cast<SharedFunctional*>(funcs[0])->Update(x);
       StackedFunctional::Mult(x, y);
    }
 
    Operator &GetGradient(const Vector &x) const override
    {
-      if (!cache_enabled) { static_cast<SharedFunctional*>(funcs[0])->Update(x); }
+      static_cast<SharedFunctional*>(funcs[0])->Update(x);
       return StackedFunctional::GetGradient(x);
    }
 
    void GetGradientMatrix(const Vector &x, DenseMatrix &grads) const
    {
-      if (!cache_enabled) { static_cast<SharedFunctional*>(funcs[0])->Update(x); }
+      static_cast<SharedFunctional*>(funcs[0])->Update(x);
       StackedFunctional::GetGradientMatrix(x, grads);
    }
 
    Operator &GetHessian(const Vector &x, const Vector &lambda) const
    {
-      if (!cache_enabled) { static_cast<SharedFunctional*>(funcs[0])->Update(x); }
+      static_cast<SharedFunctional*>(funcs[0])->Update(x);
       return StackedFunctional::GetHessian(x, lambda);
    }
 private:
-   bool cache_enabled;
+   bool manual_update = false;
+   int sequence = 0;
+};
 
+class ConstrainedOptimizationProblem : public Functional
+{
+public:
+   ConstrainedOptimizationProblem(Functional &objective,
+                                  Operator *eq_constraints=nullptr,
+                                  Operator *ineq_constraints=nullptr)
+      : Functional(objective.Width())
+      , objective(objective)
+      , eq_constraints(eq_constraints)
+      , ineq_constraints(ineq_constraints)
+   {
+      // Check Size
+      MFEM_VERIFY((eq_constraints == nullptr ||
+                   eq_constraints->Width() == objective.Width()),
+                  "ConstrainedFunctional: Equality constraints width does not match with the objective.");
+      MFEM_VERIFY((ineq_constraints == nullptr ||
+                   ineq_constraints->Width() == objective.Width()),
+                  "ConstrainedFunctional: Inequality constraints width does not match with the objective.");
+#ifdef MFEM_USE_MPI
+      if (objective.IsParallel()) { SetComm(objective.GetComm()); }
+#endif
+   }
+protected:
+   Functional &objective;
+   Operator *eq_constraints;
+   Operator *ineq_constraints;
 };
 
 /// @brief A Lagrangian functional for
@@ -518,39 +549,27 @@ private:
 ///
 /// We assume that F:R^n -> R is a functional,
 ///                C:R^n -> R^k is an equality constraint operator,
-/// C should return a residual. That is, if you have
+/// C should return a residual. That is,
 /// C(u) = c, then C.Mult(u, y) should return y[i] = C_i(u) - c_i.
 ///
 /// C.GetGradient(u):R^k -> R^n that takes lambda and returns the contracted gradient at x
 /// C.GetGradient(u).Mult(lambda, y) returns y = sum lambda_i * grad C_i(u)
 ///
-/// C's gradient should support both Mult and MultTranspose methods
-/// That is, C.GetGradient(u).Mult(lambda, y) returns y = sum lambda_i + grad C_i(u)
-///          C.GetGradient(u).MultTranspose(d, y) returns y[i] = <grad C_i(u), d>
+/// C's gradient should support MultTranspose method
+/// That is, C.GetGradient(u).MultTranspose(d, y) returns y[i] = <grad C_i(u), d>
 ///
-class LagrangianFunctional : public Functional
+class LagrangianFunctional : public ConstrainedOptimizationProblem
 {
+private:
+   mutable Vector eq_residual;
 public:
    LagrangianFunctional(Functional &objective,
                         Operator &eq_constraints)
-      : Functional(objective.Width() + eq_constraints.Height())
-      , objective(objective)
-      , eq_constraints(eq_constraints)
+      : ConstrainedOptimizationProblem(objective, &eq_constraints)
+      , eq_residual(eq_constraints.Height())
    {
-      // Check Size
-      MFEM_VERIFY(eq_constraints.Width() == objective.Width(),
-                  "LagrangianFunctional: Equality constraints width does not match with the objective.");
+      width = objective.Width() + eq_constraints.Height();
 
-#ifdef MFEM_USE_MPI
-      if (objective.IsParallel()) { SetComm(objective.GetComm()); }
-      /// No machanism to detect parallelism for Operator.
-      /// Just check if eq_constraints and ineq_constraints are StackedFunctional
-      if (auto *stacked_op = dynamic_cast<StackedFunctional*>(&eq_constraints))
-      {
-         MFEM_VERIFY(stacked_op->IsParallel() == objective.IsParallel(),
-                     "LagrangianFunctional: Parallelism mismatch for equality constraints.");
-      }
-#endif
       offsets.SetSize(3);
       offsets[0] = 0;
       offsets[1] = objective.Width();
@@ -567,8 +586,7 @@ public:
       y.SetSize(1);
       y[0] = 0.0;
       objective.Mult(u, y);
-      Vector eq_residual(eq_constraints.Height());
-      eq_constraints.Mult(u, eq_residual);
+      eq_constraints->Mult(u, eq_residual);
       y[0] += InnerProduct(lambda, eq_residual);
    }
 
@@ -583,9 +601,11 @@ public:
       Vector &opt_residual = output_block.GetBlock(0);
       Vector &eq_residual = output_block.GetBlock(1);
       y = 0.0;
+      // grad F(u) + \sum_i lambda_i grad C_i(u)
       objective.GetGradient().Mult(u, opt_residual);
-      eq_constraints.Mult(u, eq_residual);
-      eq_constraints.GetGradient(u).AddMult(lambda, opt_residual);
+      eq_constraints->GetGradient(u).AddMult(lambda, opt_residual);
+      // grad C_i(u)^T
+      eq_constraints->GetGradient(u).MultTranspose(u, eq_residual);
    }
 
    /// @brief Evaluate the Hessian action at a point x=[u, lambda]
@@ -608,15 +628,13 @@ public:
 
       // H_F(u,d) + \sum_i lambda_i H_{C_i}(u, d) + mu_i grad C_i(u)
       objective.GetGradient().GetGradient(u).Mult(v, opt_H);
-      eq_constraints.GetGradient(u).GetGradient(lambda).AddMult(v, opt_H);
-      eq_constraints.GetGradient(u).Mult(mu, eq_H);
+      eq_constraints->GetGradient(u).GetGradient(lambda).AddMult(v, opt_H);
+      eq_constraints->GetGradient(u).Mult(mu, eq_H);
       // <grad C_i(u), d>
-      eq_constraints.GetGradient(u).MultTranspose(d, eq_H);
+      eq_constraints->GetGradient(u).MultTranspose(d, eq_H);
    }
 
 protected:
-   Functional &objective;
-   Operator &eq_constraints;
    Array<int> offsets; // offsets for [x, lambda, mu]
 };
 
@@ -627,42 +645,28 @@ protected:
 /// lambda is the Lagrange multiplier vector (initialized to zero),
 /// mu is the penalty parameter (defaults to 1.0)
 ///
+/// Currently, only equality constraints are supported.
+///
 /// AugLagrangianFunctional::Update() will update the penalty and Lagrange multiplier vectors
 /// By default, lambda <- lambda + mu * C(u)
 ///             mu <- mu (no update)
-class AugLagrangianFunctional : public Functional
+class AugLagrangianFunctional : public ConstrainedOptimizationProblem
 {
 public:
    AugLagrangianFunctional(Functional &objective,
                            Operator &eq_constraints)
-      : Functional(objective.Width() + eq_constraints.Height())
-      , objective(objective)
-      , eq_constraints(eq_constraints)
+      : ConstrainedOptimizationProblem(objective, &eq_constraints)
       , lambda(eq_constraints.Height())
       , mu(1.0)
       , eq_residual(eq_constraints.Height())
       , eq_dir(eq_constraints.Height())
    {
       lambda = 0.0;
-      // Check Size
-      MFEM_VERIFY(eq_constraints.Width() == objective.Width(),
-                  "AugLagrangianFunctional: Equality constraints width does not match with the objective.");
-
-#ifdef MFEM_USE_MPI
-      if (objective.IsParallel()) { SetComm(objective.GetComm()); }
-      /// No machanism to detect parallelism for Operator.
-      /// Just check if eq_constraints and ineq_constraints are StackedFunctional
-      if (auto *stacked_op = dynamic_cast<StackedFunctional*>(&eq_constraints))
-      {
-         MFEM_VERIFY(stacked_op->IsParallel() == objective.IsParallel(),
-                     "AugLagrangianFunctional: Parallelism mismatch for equality constraints.");
-      }
-#endif
    }
 
    void SetLambda(const Vector &lambda)
    {
-      MFEM_VERIFY(lambda.Size() == eq_constraints.Height(),
+      MFEM_VERIFY(lambda.Size() == eq_constraints->Height(),
                   "AugLagrangianFunctional: Lambda size does not match with the equality constraints.");
       this->lambda = lambda;
    }
@@ -677,7 +681,7 @@ public:
    virtual void Update(const Vector &x)
    {
       // Update the Lagrange multipliers
-      eq_constraints.AddMult(x, lambda, mu);
+      eq_constraints->AddMult(x, lambda, mu);
       // Update the penalty parameter
       // Do nothing
    }
@@ -687,8 +691,8 @@ public:
    {
       y.SetSize(1);
       objective.Mult(x, y);
-      Vector eq_residual(eq_constraints.Height());
-      eq_constraints.Mult(x, eq_residual);
+      Vector eq_residual(eq_constraints->Height());
+      eq_constraints->Mult(x, eq_residual);
       y[0] += InnerProduct(lambda, eq_residual);
       y[0] += 0.5 * mu * InnerProduct(eq_residual, eq_residual);
    }
@@ -699,9 +703,9 @@ public:
       // grad F(u) + \sum_i (lambda_i + mu * C_i(u)) grad C_i(u)
       Vector curr_lambda = lambda;
       objective.GetGradient().Mult(x, y);
-      eq_constraints.Mult(x, eq_residual);
+      eq_constraints->Mult(x, eq_residual);
       curr_lambda.Add(mu, eq_residual);
-      eq_constraints.GetGradient(x).AddMult(curr_lambda, y);
+      eq_constraints->GetGradient(x).AddMult(curr_lambda, y);
    }
 
    /// @brief Evaluate the Hessian action at a point x=[u, lambda]
@@ -713,24 +717,22 @@ public:
       objective.GetGradient().GetGradient(x).Mult(d, y);
 
       Vector curr_lambda = lambda;
-      eq_constraints.Mult(x, eq_residual);
+      eq_constraints->Mult(x, eq_residual);
       curr_lambda.Add(mu, eq_residual);
 
-      eq_constraints.GetGradient(x).GetGradient(curr_lambda).AddMult(d, y);
+      eq_constraints->GetGradient(x).GetGradient(curr_lambda).AddMult(d, y);
       // eq_dir = <grad C_i(u), d>
-      eq_constraints.GetGradient(x).MultTranspose(d, eq_dir);
+      eq_constraints->GetGradient(x).MultTranspose(d, eq_dir);
       // mu_i <grad C_i(u), eq_dir>
-      eq_constraints.GetGradient(x).AddMult(eq_dir, y, mu);
+      eq_constraints->GetGradient(x).AddMult(eq_dir, y, mu);
    }
 
 protected:
-   Functional &objective;
-   Operator &eq_constraints;
    Vector lambda;
    real_t mu;
    mutable Vector eq_residual; // residual of the equality constraints, R^k
-   mutable Vector
-   eq_dir; // directional derivative of the equality constraints, R^k
+   // directional derivative of the equality constraints, R^k
+   mutable Vector eq_dir;
 };
 
 /// @brief Quadratic functional of the form
@@ -782,6 +784,81 @@ protected:
       return const_cast<Operator&>(*A);
    }
 };
+
+class Optimizer : public IterativeSolver
+{
+public:
+   Optimizer() : IterativeSolver(), subproblem(nullptr) { }
+#ifdef MFEM_USE_MPI
+   Optimizer(MPI_Comm comm) : IterativeSolver(comm), subproblem(nullptr) { }
+#endif
+   // @brief Set the subproblem functional operator
+   // @param op the functional operator
+   // @note The functional will be stored in subproblem, and oper will be set to the gradient of the functional.
+   void SetOperator(const Functional &f)
+   {
+      subproblem = &f;
+      IterativeSolver::SetOperator(f.GetGradient());
+   }
+   virtual void SetLinearSolver(Solver &prec) { IterativeSolver::SetPreconditioner(prec); }
+
+   /// @brief This will abort. Should be called only with a Functional operator.
+   void SetOperator(const Operator &op) override
+   {
+      MFEM_ABORT("OptSolver::SetOperator() should not be called directly. Use SetFunctional() instead.");
+   }
+protected:
+   const Functional * subproblem;
+};
+
+class NewtonOptimizer : public Optimizer
+{
+private:
+   real_t step_size = 1.0; // default step size
+public:
+   NewtonOptimizer() : Optimizer() { }
+#ifdef MFEM_USE_MPI
+   NewtonOptimizer(MPI_Comm comm) : Optimizer(comm) { }
+#endif
+   void SetStepSize(real_t step_size) { this->step_size = step_size; }
+
+   void Mult(const Vector &x, Vector &y) const override
+   {
+      dx.SetSize(x.Size());
+      y.SetSize(x.Size());
+      y = x;
+      MFEM_ASSERT(subproblem != nullptr,
+                  "NewtonOptimizer::Mult() called without a functional operator.");
+      MFEM_ASSERT(prec != nullptr,
+                  "NewtonOptimizer::Mult() called without a linear solver.");
+      for (int i=0; i<max_iter; i++)
+      {
+         Step(y, dx, step_size);
+         if (Dot(dx, dx) < abs_tol*abs_tol)
+         {
+            break;
+         }
+      }
+   }
+private:
+   // inplace Newton step
+   // x <- x - step_size * dx, where H_f(x) dx = grad_f(x)
+   void Step(Vector &x, Vector &dx, real_t step_size=1.0) const
+   {
+      oper->Mult(x, grad);
+      Operator &hess = oper->GetGradient(x);
+      prec->SetOperator(hess);
+      prec->Mult(grad, dx);
+      x.Add(-step_size, dx);
+   }
+   mutable Vector grad;
+   mutable Vector dx;
+};
+
+class GradientDescentOptimizer : public Optimizer
+{
+};
+
 
 } // namespace mfem
 #endif // MFEM_FUNCTIONAL_HPP
