@@ -3,6 +3,7 @@
 // Compile with: make nurbs_ex10p
 //
 // Sample runs:
+//    mpirun -np 4 nurbs_ex10p -m ../../data/beam-quad-nurbs.mesh -s 23 -rs 2 -dt 3
 //    mpirun -np 4 nurbs_ex10p -m ../../data/beam-quad.mesh -s 23 -rs 2 -dt 3
 //    mpirun -np 4 nurbs_ex10p -m ../../data/beam-tri.mesh -s 23 -rs 2 -dt 3
 //    mpirun -np 4 nurbs_ex10p -m ../../data/beam-hex.mesh -s 22 -rs 1 -dt 3
@@ -273,21 +274,17 @@ int main(int argc, char *argv[])
    FiniteElementCollection *fec = nullptr;
    NURBSExtension *NURBSext = nullptr;
    if (mesh->NURBSext)
-   {cout<<266<<endl;
+   {
       NURBSext = new NURBSExtension(pmesh->NURBSext, order);
       fec = new NURBSFECollection(order);
-      cout << "Using NURBS FEs: " << fec->Name() << endl;
+      if (myid == 0) { cout << "Using NURBS FEs: " << fec->Name() << endl; }
    }
    else
-   {cout<<272<<endl;
+   {
       fec = new H1_FECollection(order, dim);
-      cout << "Using H1 FEs: " << fec->Name() << endl;
+      if (myid == 0) { cout << "Using H1 FEs: " << fec->Name() << endl; }
    }
-cout<<276<<endl;
    ParFiniteElementSpace fespace(pmesh, NURBSext, fec, dim);
-cout<<278<<endl;
-
-
 
    HYPRE_BigInt glob_size = fespace.GlobalTrueVSize();
    if (myid == 0)
@@ -315,11 +312,9 @@ cout<<278<<endl;
    // 8. Set the initial conditions for v_gf, x_gf and vx, and define the
    //    boundary conditions on a beam-like mesh (see description above).
    VectorFunctionCoefficient velo(dim, InitialVelocity);
-  // v_gf.ProjectCoefficient(velo);
    Project(v_gf, velo, proj_type);
    v_gf.SetTrueVector();
    VectorFunctionCoefficient deform(dim, InitialDeformation);
-   //x_gf.ProjectCoefficient(deform);
    Project(x_gf, deform, proj_type);
    x_gf.SetTrueVector();
 
