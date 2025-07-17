@@ -163,8 +163,8 @@ int main(int argc, char *argv[])
       if (reducedIntegration && !pa)
       {
 #ifdef MFEM_USE_SINGLE
-      cout << "Reduced integration is not supported in single precision.\n";
-      return MFEM_SKIP_RETURN_VALUE;
+         cout << "Reduced integration is not supported in single precision.\n";
+         return MFEM_SKIP_RETURN_VALUE;
 #endif
          di->SetIntegrationMode(NonlinearFormIntegrator::Mode::PATCHWISE_REDUCED);
       }

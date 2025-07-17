@@ -188,7 +188,8 @@ void PatchInterpolateGradient(const PatchBasisInfo &pb,
                               DeviceTensor<5, real_t> &grad_uhat)
 {
    // Unpack
-   const int vdim = pb.vdim;
+   const int dim = pb.dim;
+   const int vdim = 3;
    const Array<int>& Q1D = pb.Q1D;
    const Array<int>& D1D = pb.D1D;
    const std::vector<Array2D<real_t>>& B = pb.B;
@@ -206,8 +207,8 @@ void PatchInterpolateGradient(const PatchBasisInfo &pb,
 
    // Shape as tensors
    const auto U = Reshape(Uv.HostRead(), D1D[0], D1D[1], D1D[2], vdim);
-   auto sumXY = Reshape(sumXYv.HostReadWrite(), vdim, vdim, acc[0], acc[1]);
-   auto sumX = Reshape(sumXv.HostReadWrite(), vdim, vdim, acc[0]);
+   auto sumXY = Reshape(sumXYv.HostReadWrite(), vdim, dim, acc[0], acc[1]);
+   auto sumX = Reshape(sumXv.HostReadWrite(), vdim, dim, acc[0]);
    for (int dz = 0; dz < D1D[2]; ++dz)
    {
       sumXYv = 0.0;
@@ -303,9 +304,8 @@ void PatchApplyKernel3D(const PatchBasisInfo &pb,
                         DeviceTensor<5, real_t> &grad,
                         DeviceTensor<5, real_t> &S)
 {
-   static constexpr int dim = 3;
    // Unpack patch basis info
-   const int vdim = pb.vdim;
+   static constexpr int dim = 3;
    const Array<int>& Q1D = pb.Q1D;
    const int NQ = pb.NQ;
    // Quadrature data. 11 values per quadrature point.
@@ -381,7 +381,8 @@ void PatchApplyTestFunction(const PatchBasisInfo &pb,
                             Vector &y)
 {
    // Unpack patch basis info
-   const int vdim = pb.vdim;
+   static constexpr int vdim = 3;
+   const int dim = pb.dim;
    const Array<int>& Q1D = pb.Q1D;
    const Array<int>& D1D = pb.D1D;
    const std::vector<Array2D<real_t>>& B = pb.B;
@@ -391,8 +392,8 @@ void PatchApplyTestFunction(const PatchBasisInfo &pb,
    const std::vector<int> acc = pb.accsize;
 
    // Shape as tensors
-   auto sumXY = Reshape(sumXYv.HostReadWrite(), vdim, vdim, acc[0], acc[1]);
-   auto sumX = Reshape(sumXv.HostReadWrite(), vdim, vdim, acc[0]);
+   auto sumXY = Reshape(sumXYv.HostReadWrite(), vdim, dim, acc[0], acc[1]);
+   auto sumX = Reshape(sumXv.HostReadWrite(), vdim, dim, acc[0]);
 
    auto Y = Reshape(y.HostReadWrite(), D1D[0], D1D[1], D1D[2], vdim);
 

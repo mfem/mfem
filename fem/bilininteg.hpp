@@ -2191,7 +2191,10 @@ private:
    bool symmetric = true; ///< False if using a nonsymmetric matrix coefficient
 
    // Data for NURBS patch PA
+   // Set in PatchDiffusionSetup3D: [numPatches x [ NQ[patch] x coeffDim ]]
    std::vector<Vector> ppa_data;
+   // Vector [numPatches] of structs containing basis info for each patch
+   std::vector<PatchBasisInfo> pbinfo;
 
    // Type for a variable-row-length 2D array, used for data related to 1D
    // quadrature rules in each dimension.
@@ -2222,11 +2225,6 @@ private:
    // spatial dimension. Array reducedIDs is treated similarly.
    std::vector<std::vector<Vector>> reducedWeights;
    std::vector<IntArrayVar2D> reducedIDs;
-   std::vector<Array<int>> pQ1D, pD1D;
-   std::vector<std::vector<Array2D<real_t>>> pB, pG;
-   std::vector<IntArrayVar2D> pminD, pmaxD, pminQ, pmaxQ, pminDD, pmaxDD;
-
-   std::vector<Array<const IntegrationRule*>> pir1d;
 
    void SetupPatchPA(const int patch, Mesh *mesh, bool unitWeights=false);
 
@@ -2312,7 +2310,7 @@ public:
 
    void AddMultNURBSPA(const Vector&, Vector&) const override;
 
-   void AddMultPatchPA3D(const int patch,
+   void AddMultPatchPA3D(const Vector &pa_data, const PatchBasisInfo &pb,
                          const Vector &x, Vector &y) const;
 
    void AddMultPatchPA(const int patch, const Vector &x, Vector &y) const;

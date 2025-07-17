@@ -117,10 +117,10 @@ protected:
 struct PatchBasisInfo
 {
    unsigned int patch;
-   int vdim;
-   // 1D shape functions [vdim x Q1D x D1D]
+   int dim;
+   // 1D shape functions [dim x Q1D x D1D]
    std::vector<Array2D<real_t>> B;
-   // Derivatives of 1D shape functions [vdim x Q1D x D1D]
+   // Derivatives of 1D shape functions [dim x Q1D x D1D]
    std::vector<Array2D<real_t>> G;
    Array<const IntegrationRule*> ir1d;
    // 1D quadrature points / dofs
@@ -132,6 +132,7 @@ struct PatchBasisInfo
    // Quadrature index |-> min/max dof index that supports
    std::vector<std::vector<int>> minQ;
    std::vector<std::vector<int>> maxQ;
+   // Dof index |-> min/max dof index that has overlapping support
    std::vector<std::vector<int>> minDD;
    std::vector<std::vector<int>> maxDD;
    // Size of accumulator (max qpts/dofs in each dimension)
@@ -139,7 +140,7 @@ struct PatchBasisInfo
    // Total quadrature points / dofs
    int NQ, ND;
 
-   PatchBasisInfo(int vdim, Mesh *mesh, unsigned int patch,
+   PatchBasisInfo(Mesh *mesh, unsigned int patch,
                   NURBSMeshRules *patchRules);
 
 };

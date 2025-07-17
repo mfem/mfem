@@ -165,25 +165,26 @@ void DiffusionIntegrator::AssemblePatchPA(const int patch,
    SetupPatchPA(patch, mesh);  // For full quadrature, unitWeights = false
 }
 
-void DiffusionIntegrator::AddMultPatchPA3D(const int patch,
+void DiffusionIntegrator::AddMultPatchPA3D(const Vector &pa_data,
+                                           const PatchBasisInfo &pb,
                                            const Vector &x,
                                            Vector &y) const
 {
-   const Array<int>& Q1D = pQ1D[patch];
-   const Array<int>& D1D = pD1D[patch];
-
-   const std::vector<Array2D<real_t>>& B = pB[patch];
-   const std::vector<Array2D<real_t>>& G = pG[patch];
-
-   const IntArrayVar2D& minD = pminD[patch];
-   const IntArrayVar2D& maxD = pmaxD[patch];
-   const IntArrayVar2D& minQ = pminQ[patch];
-   const IntArrayVar2D& maxQ = pmaxQ[patch];
+   // Unpack patch basis info
+   const Array<int>& Q1D = pb.Q1D;
+   const Array<int>& D1D = pb.D1D;
+   const int NQ = pb.NQ;
+   const std::vector<Array2D<real_t>>& B = pb.B;
+   const std::vector<Array2D<real_t>>& G = pb.G;
+   const IntArrayVar2D& minD = pb.minD;
+   const IntArrayVar2D& maxD = pb.maxD;
+   const IntArrayVar2D& minQ = pb.minQ;
+   const IntArrayVar2D& maxQ = pb.maxQ;
 
    auto X = Reshape(x.HostRead(), D1D[0], D1D[1], D1D[2]);
    auto Y = Reshape(y.HostReadWrite(), D1D[0], D1D[1], D1D[2]);
 
-   const auto qd = Reshape(ppa_data[patch].HostRead(), Q1D[0]*Q1D[1]*Q1D[2],
+   const auto qd = Reshape(pa_data.HostRead(), Q1D[0]*Q1D[1]*Q1D[2],
                            (symmetric ? 6 : 9));
 
    // NOTE: the following is adapted from AssemblePatchMatrix_fullQuadrature
@@ -372,7 +373,7 @@ void DiffusionIntegrator::AddMultPatchPA(const int patch, const Vector &x,
 {
    if (dim == 3)
    {
-      AddMultPatchPA3D(patch, x, y);
+      AddMultPatchPA3D(ppa_data[patch], pbinfo[patch], x, y);
    }
    else
    {

@@ -27,7 +27,7 @@ void PatchDiffusionSetup3D(const int Q1Dx,
                            const int Q1Dz,
                            const int coeffDim,
                            const bool symmetric,
-                           const Array<real_t> &w,
+                           const Vector &w,
                            const Vector &j,
                            const Vector &c,
                            Vector &d)
@@ -145,20 +145,24 @@ void PatchDiffusionSetup3D(const int Q1Dx,
 
 // Compute a reduced integration rule, using NNLSSolver, for DiffusionIntegrator
 // on a NURBS patch with partial assembly.
-void PatchDiffusionGetReducedRule(const int nq, const int nd,
-                                  Array2D<real_t> const& B,
-                                  Array2D<real_t> const& G,
-                                  std::vector<int> minQ,
-                                  std::vector<int> maxQ,
-                                  std::vector<int> minD,
-                                  std::vector<int> maxD,
-                                  std::vector<int> minDD,
-                                  std::vector<int> maxDD,
-                                  const IntegrationRule *ir,
+void PatchDiffusionGetReducedRule(const PatchBasisInfo &pb, const int d,
                                   const bool zeroOrder,
                                   std::vector<Vector> & reducedWeights,
                                   std::vector<std::vector<int>> & reducedIDs)
 {
+   // Unpack patch basis info
+   const int nq = pb.Q1D[d];
+   const int nd = pb.D1D[d];
+   const Array2D<real_t>& B = pb.B[d];
+   const Array2D<real_t>& G = pb.G[d];
+   const std::vector<int>& minD = pb.minD[d];
+   const std::vector<int>& maxD = pb.maxD[d];
+   const std::vector<int>& minQ = pb.minQ[d];
+   const std::vector<int>& maxQ = pb.maxQ[d];
+   const std::vector<int>& minDD = pb.minDD[d];
+   const std::vector<int>& maxDD = pb.maxDD[d];
+   const IntegrationRule *ir = pb.ir1d[d];
+
    MFEM_VERIFY(B.NumRows() == nq, "");
    MFEM_VERIFY(B.NumCols() == nd, "");
    MFEM_VERIFY(G.NumRows() == nq, "");
@@ -243,37 +247,28 @@ void PatchDiffusionGetReducedRule(const int nq, const int nd,
 void DiffusionIntegrator::SetupPatchPA(const int patch, Mesh *mesh,
                                        bool unitWeights)
 {
-   const Array<int>& Q1D = pQ1D[patch];
-   const Array<int>& D1D = pD1D[patch];
-   const std::vector<Array2D<real_t>>& B = pB[patch];
-   const std::vector<Array2D<real_t>>& G = pG[patch];
+   // Quadrature points in each dimension for this patch
+   const Array<int>& Q1D = pbinfo[patch].Q1D;
+   // Total quadrature points
+   const int nq = pbinfo[patch].NQ;
 
-   const IntArrayVar2D& minD = pminD[patch];
-   const IntArrayVar2D& maxD = pmaxD[patch];
-   const IntArrayVar2D& minQ = pminQ[patch];
-   const IntArrayVar2D& maxQ = pmaxQ[patch];
+   Vector weightsv(nq);
+   auto weights = Reshape(weightsv.HostReadWrite(), Q1D[0], Q1D[1], Q1D[2]);
+   IntegrationPoint ip;
 
-   const IntArrayVar2D& minDD = pminDD[patch];
-   const IntArrayVar2D& maxDD = pmaxDD[patch];
+   // Vector jacv(nq * dim * dim);  // Computed as in GeometricFactors::Compute
+   // auto jac = Reshape(jacv.HostReadWrite(), Q1D[0], Q1D[1], Q1D[2], dim, dim);
+   // Vector coeffsv(nq * 2);        // lambda, mu at quad points
+   // auto coeffs = Reshape(coeffsv.HostReadWrite(), Q1D[0], Q1D[1], Q1D[2], 2);
 
-   const Array<const IntegrationRule*>& ir1d = pir1d[patch];
-
-   MFEM_VERIFY(Q1D.Size() == 3, "");
+   MFEM_VERIFY(Q1D.Size() == 3, "Only 3D for now");
 
    const int dims = dim;  // TODO: generalize
    const int symmDims = (dims * (dims + 1)) / 2; // 1x1: 1, 2x2: 3, 3x3: 6
 
-   int nq = Q1D[0];
-   for (int i=1; i<dim; ++i)
-   {
-      nq *= Q1D[i];
-   }
-
    int coeffDim = 1;
    Vector coeff;
-   Array<real_t> weights(nq);
    const int MQfullDim = MQ ? MQ->GetHeight() * MQ->GetWidth() : 0;
-   IntegrationPoint ip;
 
    Vector jac(dim * dim * nq);  // Computed as in GeometricFactors::Compute
 
@@ -288,7 +283,7 @@ void DiffusionIntegrator::SetupPatchPA(const int patch, Mesh *mesh,
             const int e = patchRules->GetPointElement(patch, qx, qy, qz);
             ElementTransformation *tr = mesh->GetElementTransformation(e);
 
-            weights[p] = ip.weight;
+            weightsv[p] = ip.weight;
 
             tr->SetIntPoint(&ip);
 
@@ -432,13 +427,12 @@ void DiffusionIntegrator::SetupPatchPA(const int patch, Mesh *mesh,
 
    if (unitWeights)
    {
-      weights = 1.0;
+      weightsv = 1.0;
    }
 
-   PatchDiffusionSetup3D(Q1D[0], Q1D[1], Q1D[2], coeffDim, symmetric, weights, jac,
+   PatchDiffusionSetup3D(Q1D[0], Q1D[1], Q1D[2], coeffDim, symmetric, weightsv,
+                         jac,
                          coeff, ppa_data[patch]);
-
-   numPatches = mesh->NURBSext->GetNP();
 
    if (integrationMode != PATCHWISE_REDUCED)
    {
@@ -457,15 +451,9 @@ void DiffusionIntegrator::SetupPatchPA(const int patch, Mesh *mesh,
    {
       // The reduced rules could be cached to avoid repeated computation, but
       // the cost of this setup seems low.
-      PatchDiffusionGetReducedRule(Q1D[d], D1D[d], B[d], G[d],
-                                   minQ[d], maxQ[d],
-                                   minD[d], maxD[d],
-                                   minDD[d], maxDD[d], ir1d[d], true,
+      PatchDiffusionGetReducedRule(pbinfo[patch], d, true,
                                    rw(0,d,patch), rid(0,d,patch));
-      PatchDiffusionGetReducedRule(Q1D[d], D1D[d], B[d], G[d],
-                                   minQ[d], maxQ[d],
-                                   minD[d], maxD[d],
-                                   minDD[d], maxDD[d], ir1d[d], false,
+      PatchDiffusionGetReducedRule(pbinfo[patch], d, false,
                                    rw(1,d,patch), rid(1,d,patch));
    }
 }
@@ -506,24 +494,18 @@ void DiffusionIntegrator::AssemblePatchMatrix_fullQuadrature(
 
    SetupPatchPA(patch, mesh);
 
-   const Array<int>& Q1D = pQ1D[patch];
-   const Array<int>& D1D = pD1D[patch];
-   const std::vector<Array2D<real_t>>& B = pB[patch];
-   const std::vector<Array2D<real_t>>& G = pG[patch];
+   const Array<int>& Q1D = pbinfo[patch].Q1D;
+   const Array<int>& D1D = pbinfo[patch].D1D;
+   const std::vector<Array2D<real_t>>& B = pbinfo[patch].B;
+   const std::vector<Array2D<real_t>>& G = pbinfo[patch].G;
+   const IntArrayVar2D& minD = pbinfo[patch].minD;
+   const IntArrayVar2D& maxD = pbinfo[patch].maxD;
+   const IntArrayVar2D& minQ = pbinfo[patch].minQ;
+   const IntArrayVar2D& maxQ = pbinfo[patch].maxQ;
+   const IntArrayVar2D& minDD = pbinfo[patch].minDD;
+   const IntArrayVar2D& maxDD = pbinfo[patch].maxDD;
 
-   const IntArrayVar2D& minD = pminD[patch];
-   const IntArrayVar2D& maxD = pmaxD[patch];
-   const IntArrayVar2D& minQ = pminQ[patch];
-   const IntArrayVar2D& maxQ = pmaxQ[patch];
-
-   const IntArrayVar2D& minDD = pminDD[patch];
-   const IntArrayVar2D& maxDD = pmaxDD[patch];
-
-   int ndof = D1D[0];
-   for (int d=1; d<dim; ++d)
-   {
-      ndof *= D1D[d];
-   }
+   int ndof = pbinfo[patch].ND;
 
    MFEM_VERIFY(3 == dim, "Only 3D so far");
 
@@ -747,126 +729,9 @@ void DiffusionIntegrator::AssemblePatchMatrix_fullQuadrature(
 
 void DiffusionIntegrator::SetupPatchBasisData(Mesh *mesh, unsigned int patch)
 {
-   MFEM_VERIFY(pB.size() == patch && pG.size() == patch, "");
-   MFEM_VERIFY(pQ1D.size() == patch && pD1D.size() == patch, "");
-   MFEM_VERIFY(pminQ.size() == patch && pmaxQ.size() == patch, "");
-   MFEM_VERIFY(pminD.size() == patch && pmaxD.size() == patch, "");
-   MFEM_VERIFY(pminDD.size() == patch && pmaxDD.size() == patch, "");
-   MFEM_VERIFY(pir1d.size() == patch, "");
-
-   // Set basis functions and gradients for this patch
-   Array<const KnotVector*> pkv;
-   mesh->NURBSext->GetPatchKnotVectors(patch, pkv);
-   MFEM_VERIFY(pkv.Size() == dim, "");
-
-   Array<int> Q1D(dim);
-   Array<int> orders(dim);
-   Array<int> D1D(dim);
-   std::vector<Array2D<real_t>> B(dim);
-   std::vector<Array2D<real_t>> G(dim);
-   Array<const IntegrationRule*> ir1d(dim);
-
-   IntArrayVar2D minD(dim);
-   IntArrayVar2D maxD(dim);
-   IntArrayVar2D minQ(dim);
-   IntArrayVar2D maxQ(dim);
-
-   IntArrayVar2D minDD(dim);
-   IntArrayVar2D maxDD(dim);
-
-   for (int d=0; d<dim; ++d)
-   {
-      ir1d[d] = patchRules->GetPatchRule1D(patch, d);
-
-      Q1D[d] = ir1d[d]->GetNPoints();
-
-      orders[d] = pkv[d]->GetOrder();
-      D1D[d] = pkv[d]->GetNCP();
-
-      Vector shapeKV(orders[d]+1);
-      Vector dshapeKV(orders[d]+1);
-
-      B[d].SetSize(Q1D[d], D1D[d]);
-      G[d].SetSize(Q1D[d], D1D[d]);
-
-      minD[d].assign(D1D[d], Q1D[d]);
-      maxD[d].assign(D1D[d], 0);
-
-      minQ[d].assign(Q1D[d], D1D[d]);
-      maxQ[d].assign(Q1D[d], 0);
-
-      B[d] = 0.0;
-      G[d] = 0.0;
-
-      const Array<int>& knotSpan1D = patchRules->GetPatchRule1D_KnotSpan(patch, d);
-      MFEM_VERIFY(knotSpan1D.Size() == Q1D[d], "");
-
-      for (int i = 0; i < Q1D[d]; i++)
-      {
-         const IntegrationPoint &ip = ir1d[d]->IntPoint(i);
-         const int ijk = knotSpan1D[i];
-         const real_t kv0 = (*pkv[d])[orders[d] + ijk];
-         real_t kv1 = (*pkv[d])[0];
-         for (int j = orders[d] + ijk + 1; j < pkv[d]->Size(); ++j)
-         {
-            if ((*pkv[d])[j] > kv0)
-            {
-               kv1 = (*pkv[d])[j];
-               break;
-            }
-         }
-
-         MFEM_VERIFY(kv1 > kv0, "");
-
-         pkv[d]->CalcShape(shapeKV, ijk, (ip.x - kv0) / (kv1 - kv0));
-         pkv[d]->CalcDShape(dshapeKV, ijk, (ip.x - kv0) / (kv1 - kv0));
-
-         // Put shapeKV into array B storing shapes for all points.
-         // TODO: This should be based on NURBS3DFiniteElement::CalcShape and CalcDShape.
-         // For now, it works under the assumption that all NURBS weights are 1.
-         for (int j=0; j<orders[d]+1; ++j)
-         {
-            B[d](i,ijk + j) = shapeKV[j];
-            G[d](i,ijk + j) = dshapeKV[j];
-
-            minD[d][ijk + j] = std::min(minD[d][ijk + j], i);
-            maxD[d][ijk + j] = std::max(maxD[d][ijk + j], i);
-         }
-
-         minQ[d][i] = std::min(minQ[d][i], ijk);
-         maxQ[d][i] = std::max(maxQ[d][i], ijk + orders[d]);
-      }
-
-      // Determine which DOFs each DOF interacts with, in 1D.
-      minDD[d].resize(D1D[d]);
-      maxDD[d].resize(D1D[d]);
-      for (int i=0; i<D1D[d]; ++i)
-      {
-         const int qmin = minD[d][i];
-         minDD[d][i] = minQ[d][qmin];
-
-         const int qmax = maxD[d][i];
-         maxDD[d][i] = maxQ[d][qmax];
-      }
-   }
-
    // Push patch data to global data structures
-   pB.push_back(B);
-   pG.push_back(G);
-
-   pQ1D.push_back(Q1D);
-   pD1D.push_back(D1D);
-
-   pminQ.push_back(minQ);
-   pmaxQ.push_back(maxQ);
-
-   pminD.push_back(minD);
-   pmaxD.push_back(maxD);
-
-   pminDD.push_back(minDD);
-   pmaxDD.push_back(maxDD);
-
-   pir1d.push_back(ir1d);
+   PatchBasisInfo pb(mesh, patch, patchRules);
+   pbinfo.push_back(pb);
 }
 
 // This version uses reduced 1D quadrature rules.
@@ -910,24 +775,18 @@ void DiffusionIntegrator::AssemblePatchMatrix_reducedQuadrature(
    // data set up in NURBSPatchRule::SetPointToElement.
    SetupPatchPA(patch, mesh, true);
 
-   const Array<int>& Q1D = pQ1D[patch];
-   const Array<int>& D1D = pD1D[patch];
-   const std::vector<Array2D<real_t>>& B = pB[patch];
-   const std::vector<Array2D<real_t>>& G = pG[patch];
+   const Array<int>& Q1D = pbinfo[patch].Q1D;
+   const Array<int>& D1D = pbinfo[patch].D1D;
+   const std::vector<Array2D<real_t>>& B = pbinfo[patch].B;
+   const std::vector<Array2D<real_t>>& G = pbinfo[patch].G;
+   const IntArrayVar2D& minD = pbinfo[patch].minD;
+   const IntArrayVar2D& maxD = pbinfo[patch].maxD;
+   const IntArrayVar2D& minQ = pbinfo[patch].minQ;
+   const IntArrayVar2D& maxQ = pbinfo[patch].maxQ;
+   const IntArrayVar2D& minDD = pbinfo[patch].minDD;
+   const IntArrayVar2D& maxDD = pbinfo[patch].maxDD;
 
-   const IntArrayVar2D& minD = pminD[patch];
-   const IntArrayVar2D& maxD = pmaxD[patch];
-   const IntArrayVar2D& minQ = pminQ[patch];
-   const IntArrayVar2D& maxQ = pmaxQ[patch];
-
-   const IntArrayVar2D& minDD = pminDD[patch];
-   const IntArrayVar2D& maxDD = pmaxDD[patch];
-
-   int ndof = D1D[0];
-   for (int d=1; d<dim; ++d)
-   {
-      ndof *= D1D[d];
-   }
+   int ndof = pbinfo[patch].ND;
 
    auto rw = Reshape(reducedWeights.data(), numTypes, dim, numPatches);
    auto rid = Reshape(reducedIDs.data(), numTypes, dim, numPatches);

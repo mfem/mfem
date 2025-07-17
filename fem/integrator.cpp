@@ -49,18 +49,19 @@ const IntegrationRule* Integrator::GetIntegrationRule(
    return GetIntegrationRule(el, el, trans);
 }
 
-PatchBasisInfo::PatchBasisInfo(int vdim, Mesh *mesh, unsigned int patch,
+PatchBasisInfo::PatchBasisInfo(Mesh *mesh, unsigned int patch,
                                NURBSMeshRules *patchRules)
-   : patch(patch), vdim(vdim), B(vdim), G(vdim), ir1d(vdim), Q1D(vdim), D1D(vdim),
-     minD(vdim), maxD(vdim), minQ(vdim), maxQ(vdim), minDD(vdim), maxDD(vdim),
-     accsize(vdim)
+   : patch(patch), dim(mesh->NURBSext->Dimension()), B(dim), G(dim), ir1d(dim),
+     Q1D(dim), D1D(dim),
+     minD(dim), maxD(dim), minQ(dim), maxQ(dim), minDD(dim), maxDD(dim),
+     accsize(dim)
 {
    Array<const KnotVector*> pkv;
    mesh->NURBSext->GetPatchKnotVectors(patch, pkv);
-   MFEM_VERIFY(pkv.Size() == vdim, "");
-   Array<int> orders(vdim);
+   MFEM_VERIFY(pkv.Size() == dim, "");
+   Array<int> orders(dim);
 
-   for (int d=0; d<vdim; ++d)
+   for (int d=0; d<dim; ++d)
    {
       ir1d[d] = patchRules->GetPatchRule1D(patch, d);
 
@@ -137,19 +138,14 @@ PatchBasisInfo::PatchBasisInfo(int vdim, Mesh *mesh, unsigned int patch,
    }
 
    // Size of accumulator (max qpts/dofs in each dimension)
-   for (int i=0; i<vdim; ++i)
+   for (int i=0; i<dim; ++i)
    {
       accsize[i] = std::max(Q1D[i], D1D[i]);
    }
 
    // Total quadrature points
-   NQ = Q1D[0];
-   ND = D1D[0];
-   for (int i=1; i<vdim; ++i)
-   {
-      NQ *= Q1D[i];
-      ND *= D1D[i];
-   }
+   NQ = Q1D.Prod();
+   ND = D1D.Prod();
 }
 
 }

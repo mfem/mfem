@@ -90,7 +90,7 @@ void PatchElasticitySetup3D(const int Q1Dx,
 void ElasticityIntegrator::SetupPatchBasisData(Mesh *mesh, unsigned int patch)
 {
    // Push patch data to global data structures
-   PatchBasisInfo pb(vdim, mesh, patch, patchRules);
+   PatchBasisInfo pb(mesh, patch, patchRules);
    pbinfo.push_back(pb);
 }
 
@@ -112,6 +112,7 @@ void ElasticityIntegrator::SetupPatchPA(const int patch, Mesh *mesh,
    Vector coeffsv(nq * 2);        // lambda, mu at quad points
    auto coeffs = Reshape(coeffsv.HostReadWrite(), Q1D[0], Q1D[1], Q1D[2], 2);
 
+   MFEM_VERIFY(Q1D.Size() == 3, "Only 3D for now");
 
    for (int qz=0; qz<Q1D[2]; ++qz)
    {
@@ -119,7 +120,6 @@ void ElasticityIntegrator::SetupPatchPA(const int patch, Mesh *mesh,
       {
          for (int qx=0; qx<Q1D[0]; ++qx)
          {
-            // const int p = qx + (qy * Q1D[0]) + (qz * Q1D[0] * Q1D[1]);
             const int e = patchRules->GetPointElement(patch, qx, qy, qz);
             ElementTransformation *tr = mesh->GetElementTransformation(e);
             patchRules->GetIntegrationPointFrom1D(patch, qx, qy, qz, ip);
