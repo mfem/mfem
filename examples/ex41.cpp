@@ -334,7 +334,6 @@ void Limit(GridFunction &u, GridFunction &uavg, GridFunction &lbound,
 #endif
 
 
-
    // Loop through elements and limit if necessary
    for (int i = 0; i < u.FESpace()->GetNE(); i++)
    {

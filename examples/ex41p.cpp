@@ -395,7 +395,6 @@ void Limit(ParGridFunction &u, ParGridFunction &uavg, ParGridFunction &lbound,
 #endif
 
 
-
    // Loop through elements and limit if necessary
    for (int i = 0; i < u.FESpace()->GetNE(); i++)
    {
