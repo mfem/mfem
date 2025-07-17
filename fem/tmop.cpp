@@ -317,6 +317,74 @@ type skew2D_ad(const std::vector<type> &T, const std::vector<type> &W)
    return 0.5*(1.0 - cos_A*cos_W - sin_A*sin_W);
 };
 
+// 2 - cos( theta_A - theta_W) - cos( theta_A - theta_W + phi_A - phi_W )
+// [2 - cos(theta_A-theta_W) - cos(phi_A - phi_W)]/sin_Asin_W
+template <typename type>
+type nuOQ_ad(const std::vector<type> &T, const std::vector<type> &W)
+{
+   std::vector<type> A;
+   mult_2D(T,W,A);
+   // We assume that both A and W are nonsingular.
+   auto l1_A = sqrt(A[0]*A[0] + A[1]*A[1]);
+   auto l2_A = sqrt(A[2]*A[2] + A[3]*A[3]);
+   auto prod_A = l1_A*l2_A;
+   auto det_A = A[0]*A[3] - A[1]*A[2];
+   auto sin_A = det_A/prod_A;
+   auto cos_A = (A[0]*A[2] + A[1]*A[3])/prod_A;
+   auto ups_A = l1_A*l2_A*sin_A;
+   auto lenA = sqrt(A[0]*A[0] + A[1]*A[1]);
+   auto cos_theta_A = A[0]/lenA;
+   auto sin_theta_A = A[1]/lenA;
+
+   auto l1_W = sqrt(W[0]*W[0] + W[1]*W[1]);
+   auto l2_W = sqrt(W[2]*W[2] + W[3]*W[3]);
+   auto prod_W = l1_W*l2_W;
+   auto det_W = W[0]*W[3] - W[1]*W[2];
+   auto sin_W = det_W/prod_W;
+   auto cos_W = (W[0]*W[2] + W[1]*W[3])/prod_W;
+   auto ups_W = l1_W*l2_W*sin_W;
+   auto lenW = sqrt(W[0]*W[0] + W[1]*W[1]);
+   auto cos_theta_W = W[0]/lenW;
+   auto sin_theta_W = W[1]/lenW;
+
+   return (2.0 - cos_theta_A*cos_theta_W - sin_theta_A*sin_theta_W -
+          cos_A*cos_W - sin_A*sin_W)/(sin_A*sin_W);
+};
+
+// 2 - cos( theta_A - theta_W) - cos( theta_A - theta_W + phi_A - phi_W )
+// 2 - cos(theta_A)*cos(theta_W) - sin_theta_A*sin_theta_W - [ cos(theta_A)*cos(theta_W)*cos_A*cos_W + cos(theta_A)*cos(theta_W)*sin_A*sin_W + sin_theta_A*sin_theta_W*cos_A*cos_W + sin_theta_A*sin_theta_W*sin_A*sin_W - sin_theta_A*cos(theta_W)*sin_A*cos_W + sin_theta_A*cos(theta_W)*cos_A*sin_W + cos(theta_A)*sin_theta_W*sin_A*cos_W - cos(theta_A)*sin_theta_W*cos_A*sin_W ]
+template <typename type>
+type nuOQ2_ad(const std::vector<type> &T, const std::vector<type> &W)
+{
+   std::vector<type> A;
+   mult_2D(T,W,A);
+   // We assume that both A and W are nonsingular.
+   auto l1_A = sqrt(A[0]*A[0] + A[1]*A[1]);
+   auto l2_A = sqrt(A[2]*A[2] + A[3]*A[3]);
+   auto prod_A = l1_A*l2_A;
+   auto det_A = A[0]*A[3] - A[1]*A[2];
+   auto sin_A = det_A/prod_A;
+   auto cos_A = (A[0]*A[2] + A[1]*A[3])/prod_A;
+   auto ups_A = l1_A*l2_A*sin_A;
+   auto lenA = sqrt(A[0]*A[0] + A[1]*A[1]);
+   auto cos_theta_A = A[0]/lenA;
+   auto sin_theta_A = A[1]/lenA;
+
+   auto l1_W = sqrt(W[0]*W[0] + W[1]*W[1]);
+   auto l2_W = sqrt(W[2]*W[2] + W[3]*W[3]);
+   auto prod_W = l1_W*l2_W;
+   auto det_W = W[0]*W[3] - W[1]*W[2];
+   auto sin_W = det_W/prod_W;
+   auto cos_W = (W[0]*W[2] + W[1]*W[3])/prod_W;
+   auto ups_W = l1_W*l2_W*sin_W;
+   auto lenW = sqrt(W[0]*W[0] + W[1]*W[1]);
+   auto cos_theta_W = W[0]/lenW;
+   auto sin_theta_W = W[1]/lenW;
+
+   return (2 - cos_theta_A*cos_theta_W - sin_theta_A*sin_theta_W -
+            (cos_theta_A*cos_theta_W*cos_A*cos_W + cos_theta_A*cos_theta_W*sin_A*sin_W + sin_theta_A*sin_theta_W*cos_A*cos_W + sin_theta_A*sin_theta_W*sin_A*sin_W - sin_theta_A*cos_theta_W*sin_A*cos_W + sin_theta_A*cos_theta_W*cos_A*sin_W + cos_theta_A*sin_theta_W*sin_A*cos_W - cos_theta_A*sin_theta_W*cos_A*sin_W))/(sin_A*sin_W);
+};
+
 // Given mu(X,Y), compute dmu/dX or dmu/dY. Y is an optional parameter when
 // computing dmu/dX.
 void ADGrad(std::function<AD1Type(std::vector<AD1Type>&,
@@ -2157,6 +2225,80 @@ void TMOP_AMetric_107::AssembleH(const DenseMatrix &Jpt,
    const int dim = Jpt.Height();
    DenseTensor H(dim, dim, dim*dim); H = 0.0;
    ADHessian(nu107_ad<AD2Type>, H, Jpt, Jtr);
+   this->DefaultAssembleH(H,DS,weight,A);
+}
+
+real_t TMOP_AMetric_OQ::EvalWMatrixForm(const DenseMatrix &Jpt) const
+{
+   MFEM_VERIFY(Jtr != NULL,
+               "Requires a target Jacobian, use SetTargetJacobian().");
+   int matsize = Jpt.TotalSize();
+   std::vector<AD1Type> T(matsize), W(matsize);
+   for (int i=0; i<matsize; i++)
+   {
+      T[i] = AD1Type{Jpt.GetData()[i], 0.0};
+      W[i] = AD1Type{Jtr->GetData()[i], 0.0};
+   }
+   return nuOQ_ad(T, W).value;
+}
+
+void TMOP_AMetric_OQ::EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
+{
+   ADGrad(nuOQ_ad<AD1Type>, P, Jpt, Jtr);
+   return;
+}
+
+void TMOP_AMetric_OQ::EvalPW(const DenseMatrix &Jpt, DenseMatrix &PW) const
+{
+   ADGrad(nuOQ_ad<AD1Type>, PW, Jpt, Jtr, false);
+   return;
+}
+
+void TMOP_AMetric_OQ::AssembleH(const DenseMatrix &Jpt,
+                                 const DenseMatrix &DS,
+                                 const real_t weight,
+                                 DenseMatrix &A) const
+{
+   const int dim = Jpt.Height();
+   DenseTensor H(dim, dim, dim*dim); H = 0.0;
+   ADHessian(nuOQ_ad<AD2Type>, H, Jpt, Jtr);
+   this->DefaultAssembleH(H,DS,weight,A);
+}
+
+real_t TMOP_AMetric_OQ2::EvalWMatrixForm(const DenseMatrix &Jpt) const
+{
+   MFEM_VERIFY(Jtr != NULL,
+               "Requires a target Jacobian, use SetTargetJacobian().");
+   int matsize = Jpt.TotalSize();
+   std::vector<AD1Type> T(matsize), W(matsize);
+   for (int i=0; i<matsize; i++)
+   {
+      T[i] = AD1Type{Jpt.GetData()[i], 0.0};
+      W[i] = AD1Type{Jtr->GetData()[i], 0.0};
+   }
+   return nuOQ2_ad(T, W).value;
+}
+
+void TMOP_AMetric_OQ2::EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
+{
+   ADGrad(nuOQ2_ad<AD1Type>, P, Jpt, Jtr);
+   return;
+}
+
+void TMOP_AMetric_OQ2::EvalPW(const DenseMatrix &Jpt, DenseMatrix &PW) const
+{
+   ADGrad(nuOQ2_ad<AD1Type>, PW, Jpt, Jtr, false);
+   return;
+}
+
+void TMOP_AMetric_OQ2::AssembleH(const DenseMatrix &Jpt,
+                                 const DenseMatrix &DS,
+                                 const real_t weight,
+                                 DenseMatrix &A) const
+{
+   const int dim = Jpt.Height();
+   DenseTensor H(dim, dim, dim*dim); H = 0.0;
+   ADHessian(nuOQ2_ad<AD2Type>, H, Jpt, Jtr);
    this->DefaultAssembleH(H,DS,weight,A);
 }
 

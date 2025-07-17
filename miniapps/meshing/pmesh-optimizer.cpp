@@ -29,91 +29,104 @@
 // negative Jacobian determinants. Each Newton step requires the inversion of a
 // Jacobian matrix, which is done through an inner linear solver.
 //
-// Compile with: make pmesh-optimizer
+// Compile with: make ./pmesh-optimizer
 //
 // Sample runs:
 //   Adapted analytic shape:
-//     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 2 -tid 4 -ni 200 -bnd -qt 1 -qo 8
+//     mpirun -np 4 ./pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 2 -tid 4 -ni 200 -bnd -qt 1 -qo 8
 //   Adapted analytic size+orientation:
-//     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 14 -tid 4 -ni 200 -bnd -qt 1 -qo 8
+//     mpirun -np 4 ./pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 14 -tid 4 -ni 200 -bnd -qt 1 -qo 8
 //   Adapted analytic shape+orientation (AD):
-//     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 3 -rs 2 -mid 85 -tid 4 -ni 100 -bnd -qt 1 -qo 8 -rtol 1e-6
+//     mpirun -np 4 ./pmesh-optimizer -m square01.mesh -o 3 -rs 2 -mid 85 -tid 4 -ni 100 -bnd -qt 1 -qo 8 -rtol 1e-6
 //
 //   Adapted analytic shape and/or size with hr-adaptivity:
-//     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -tid 9  -ni 50 -li 20 -hmid 55 -mid 7 -hr
-//     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -tid 10 -ni 50 -li 20 -hmid 55 -mid 7 -hr
-//     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -tid 11 -ni 50 -li 20 -hmid 58 -mid 7 -hr
+//     mpirun -np 4 ./pmesh-optimizer -m square01.mesh -o 2 -tid 9  -ni 50 -li 20 -hmid 55 -mid 7 -hr
+//     mpirun -np 4 ./pmesh-optimizer -m square01.mesh -o 2 -tid 10 -ni 50 -li 20 -hmid 55 -mid 7 -hr
+//     mpirun -np 4 ./pmesh-optimizer -m square01.mesh -o 2 -tid 11 -ni 50 -li 20 -hmid 58 -mid 7 -hr
 //
 //   Adapted discrete size:
-//     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 94 -tid 5 -ni 50 -qo 4 -nor
+//     mpirun -np 4 ./pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 94 -tid 5 -ni 50 -qo 4 -nor
 //     (requires GSLIB):
-//   * mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 80 -tid 5 -ni 50 -qo 4 -nor -mno 1 -ae 1
+//   * mpirun -np 4 ./pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 80 -tid 5 -ni 50 -qo 4 -nor -mno 1 -ae 1
 //   Adapted discrete size NC mesh;
-//     mpirun -np 4 pmesh-optimizer -m amr-quad-q2.mesh -o 2 -rs 2 -mid 94 -tid 5 -ni 50 -qo 4 -nor
+//     mpirun -np 4 ./pmesh-optimizer -m amr-quad-q2.mesh -o 2 -rs 2 -mid 94 -tid 5 -ni 50 -qo 4 -nor
 //   Adapted discrete size NC mesh (GPU+GSLIB);
-//   * mpirun -np 4 pmesh-optimizer -m ../../data/amr-hex.mesh -o 2 -rs 1 -mid 321 -tid 5 -fix-bnd -ni 50 -qo 6 -nor -vl 2 -ae 1 -d debug
+//   * mpirun -np 4 ./pmesh-optimizer -m ../../data/amr-hex.mesh -o 2 -rs 1 -mid 321 -tid 5 -fix-bnd -ni 50 -qo 6 -nor -vl 2 -ae 1 -d debug
 //   Adapted discrete size 3D with PA:
-//     mpirun -np 4 pmesh-optimizer -m cube.mesh -o 2 -rs 2 -mid 321 -tid 5 -ls 3 -nor -pa -rtol 1e-8
+//     mpirun -np 4 ./pmesh-optimizer -m cube.mesh -o 2 -rs 2 -mid 321 -tid 5 -ls 3 -nor -pa -rtol 1e-8
 //   Adapted discrete size 3D with PA on device (requires CUDA):
-//   * mpirun -n 4 pmesh-optimizer -m cube.mesh -o 3 -rs 3 -mid 321 -tid 5 -ls 3 -nor -lc 0.1 -pa -d cuda
+//   * mpirun -n 4 ./pmesh-optimizer -m cube.mesh -o 3 -rs 3 -mid 321 -tid 5 -ls 3 -nor -lc 0.1 -pa -d cuda
 //   Adapted discrete size; explicit combo of metrics; mixed tri/quad mesh:
-//     mpirun -np 4 pmesh-optimizer -m ../../data/square-mixed.mesh -o 2 -rs 2 -mid 2 -tid 5 -ni 200 -bnd -qo 6 -cmb 2 -nor
+//     mpirun -np 4 ./pmesh-optimizer -m ../../data/square-mixed.mesh -o 2 -rs 2 -mid 2 -tid 5 -ni 200 -bnd -qo 6 -cmb 2 -nor
 //   Adapted discrete size+aspect_ratio:
-//     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 7 -tid 6 -ni 100
+//     mpirun -np 4 ./pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 7 -tid 6 -ni 100
 //   Adapted discrete size+orientation (AD):
-//     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 36 -tid 8 -qo 4 -nor -rtol 1e-6
+//     mpirun -np 4 ./pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 36 -tid 8 -qo 4 -nor -rtol 1e-6
 //   Adapted discrete aspect ratio (3D):
-//     mpirun -np 4 pmesh-optimizer -m cube.mesh -o 2 -rs 2 -mid 302 -tid 7 -ni 20 -bnd -qt 1 -qo 8
+//     mpirun -np 4 ./pmesh-optimizer -m cube.mesh -o 2 -rs 2 -mid 302 -tid 7 -ni 20 -bnd -qt 1 -qo 8
 //
 //   Periodic 2D + adapted discrete size:
-//     mpirun -np 4 pmesh-optimizer -m ../../data/periodic-square.mesh -o 2 -rs 4 -mid 94 -tid 5 -qo 4 -nor
-//     mpirun -np 4 pmesh-optimizer -m periodic-tri.mesh -o 2 -rs 3 -mid 94 -tid 5 -qo 4 -nor
+//     mpirun -np 4 ./pmesh-optimizer -m ../../data/periodic-square.mesh -o 2 -rs 4 -mid 94 -tid 5 -qo 4 -nor
+//     mpirun -np 4 ./pmesh-optimizer -m periodic-tri.mesh -o 2 -rs 3 -mid 94 -tid 5 -qo 4 -nor
 //   Periodic 3D + adapted discrete size + PA:
-//     mpirun -np 4 pmesh-optimizer -m periodic-cube.mesh -o 2 -rs 2 -mid 338 -tid 5 -nor -rtol 1e-6 -qo 4 -pa
+//     mpirun -np 4 ./pmesh-optimizer -m periodic-cube.mesh -o 2 -rs 2 -mid 338 -tid 5 -nor -rtol 1e-6 -qo 4 -pa
 //   Periodic 2D NC mesh + adapted discrete size + PA:
 //     (the mesh is in the mfem/data GitHub repository)
-//   * mpirun -np 4 pmesh-optimizer -m ../../../data/periodic/per-amr-square.mesh -o 2 -mid 94 -tid 5 -ni 50 -qo 4 -nor -pa
+//   * mpirun -np 4 ./pmesh-optimizer -m ../../../data/periodic/per-amr-square.mesh -o 2 -mid 94 -tid 5 -ni 50 -qo 4 -nor -pa
 //
 //   Adaptive limiting:
-//     mpirun -np 4 pmesh-optimizer -m stretched2D.mesh -o 2 -mid 2 -tid 1 -ni 50 -qo 5 -nor -vl 1 -alc 0.5
+//     mpirun -np 4 ./pmesh-optimizer -m stretched2D.mesh -o 2 -mid 2 -tid 1 -ni 50 -qo 5 -nor -vl 1 -alc 0.5
 //   Adaptive limiting through the L-BFGS solver:
-//     mpirun -np 4 pmesh-optimizer -m stretched2D.mesh -o 2 -mid 2 -tid 1 -ni 400 -qo 5 -nor -vl 1 -alc 0.5 -st 1 -rtol 1e-8
+//     mpirun -np 4 ./pmesh-optimizer -m stretched2D.mesh -o 2 -mid 2 -tid 1 -ni 400 -qo 5 -nor -vl 1 -alc 0.5 -st 1 -rtol 1e-8
 //
 //   Blade shape:
-//     mpirun -np 4 pmesh-optimizer -m blade.mesh -o 4 -mid 2 -tid 1 -ni 30 -ls 3 -art 1 -bnd -qt 1 -qo 8
+//     mpirun -np 4 ./pmesh-optimizer -m blade.mesh -o 4 -mid 2 -tid 1 -ni 30 -ls 3 -art 1 -bnd -qt 1 -qo 8
 //   Blade shape (AD):
-//     mpirun -np 4 pmesh-optimizer -m blade.mesh -o 4 -mid 11 -tid 1 -ni 30 -ls 3 -art 1 -bnd -qt 1 -qo 8
+//     mpirun -np 4 ./pmesh-optimizer -m blade.mesh -o 4 -mid 11 -tid 1 -ni 30 -ls 3 -art 1 -bnd -qt 1 -qo 8
 //     (requires CUDA):
-//   * mpirun -np 4 pmesh-optimizer -m blade.mesh -o 4 -mid 2 -tid 1 -ni 30 -ls 3 -art 1 -bnd -qt 1 -qo 8 -d cuda
+//   * mpirun -np 4 ./pmesh-optimizer -m blade.mesh -o 4 -mid 2 -tid 1 -ni 30 -ls 3 -art 1 -bnd -qt 1 -qo 8 -d cuda
 //   Blade limited shape:
-//     mpirun -np 4 pmesh-optimizer -m blade.mesh -o 4 -mid 2 -tid 1 -bnd -qt 1 -qo 8 -lc 5000
+//     mpirun -np 4 ./pmesh-optimizer -m blade.mesh -o 4 -mid 2 -tid 1 -bnd -qt 1 -qo 8 -lc 5000
 //   ICF shape and equal size:
-//     mpirun -np 4 pmesh-optimizer -o 3 -mid 80 -bec -tid 2 -ni 25 -ls 3 -art 2 -qo 5
+//     mpirun -np 4 ./pmesh-optimizer -o 3 -mid 80 -bec -tid 2 -ni 25 -ls 3 -art 2 -qo 5
 //   ICF shape and initial size:
-//     mpirun -np 4 pmesh-optimizer -o 3 -mid 9 -tid 3 -ni 30 -ls 3 -bnd -qt 1 -qo 8
+//     mpirun -np 4 ./pmesh-optimizer -o 3 -mid 9 -tid 3 -ni 30 -ls 3 -bnd -qt 1 -qo 8
 //   ICF shape:
-//     mpirun -np 4 pmesh-optimizer -o 3 -mid 1 -tid 1 -ni 100 -bnd -qt 1 -qo 8
+//     mpirun -np 4 ./pmesh-optimizer -o 3 -mid 1 -tid 1 -ni 100 -bnd -qt 1 -qo 8
 //   ICF limited shape:
-//     mpirun -np 4 pmesh-optimizer -o 3 -mid 1 -tid 1 -ni 100 -bnd -qt 1 -qo 8 -lc 10
+//     mpirun -np 4 ./pmesh-optimizer -o 3 -mid 1 -tid 1 -ni 100 -bnd -qt 1 -qo 8 -lc 10
 //   ICF combo shape + size (rings, slow convergence):
-//     mpirun -np 4 pmesh-optimizer -o 3 -mid 1 -tid 1 -ni 1000 -bnd -qt 1 -qo 8 -cmb 1
+//     mpirun -np 4 ./pmesh-optimizer -o 3 -mid 1 -tid 1 -ni 1000 -bnd -qt 1 -qo 8 -cmb 1
 //   Mixed tet / cube / hex mesh with limiting:
-//     mpirun -np 4 pmesh-optimizer -m ../../data/fichera-mixed-p2.mesh -o 4 -rs 1 -mid 301 -tid 1 -fix-bnd -qo 6 -nor -lc 0.25
+//     mpirun -np 4 ./pmesh-optimizer -m ../../data/fichera-mixed-p2.mesh -o 4 -rs 1 -mid 301 -tid 1 -fix-bnd -qo 6 -nor -lc 0.25
 //   3D pinched sphere shape (the mesh is in the mfem/data GitHub repository):
-//   * mpirun -np 4 pmesh-optimizer -m ../../../mfem_data/ball-pert.mesh -o 4 -mid 303 -tid 1 -ni 20 -li 500 -fix-bnd
+//   * mpirun -np 4 ./pmesh-optimizer -m ../../../mfem_data/ball-pert.mesh -o 4 -mid 303 -tid 1 -ni 20 -li 500 -fix-bnd
 //   2D non-conforming shape and equal size:
-//     mpirun -np 4 pmesh-optimizer -m ./amr-quad-q2.mesh -o 2 -rs 1 -mid 9 -tid 2 -ni 200 -bnd -qt 1 -qo 8
+//     mpirun -np 4 ./pmesh-optimizer -m ./amr-quad-q2.mesh -o 2 -rs 1 -mid 9 -tid 2 -ni 200 -bnd -qt 1 -qo 8
 //
 //   2D untangling:
-//     mpirun -np 4 pmesh-optimizer -m jagged.mesh -o 2 -mid 22 -tid 1 -ni 50 -li 50 -qo 4 -fd -vl 1
+//     mpirun -np 4 ./pmesh-optimizer -m jagged.mesh -o 2 -mid 22 -tid 1 -ni 50 -li 50 -qo 4 -fd -vl 1
 //   2D untangling with shifted barrier metric:
-//     mpirun -np 4 pmesh-optimizer -m jagged.mesh -o 2 -mid 4 -tid 1 -ni 50 -qo 4 -fd -vl 1 -btype 1
+//     mpirun -np 4 ./pmesh-optimizer -m jagged.mesh -o 2 -mid 4 -tid 1 -ni 50 -qo 4 -fd -vl 1 -btype 1
 //   3D untangling (the mesh is in the mfem/data GitHub repository):
-//   * mpirun -np 4 pmesh-optimizer -m ../../../mfem_data/cube-holes-inv.mesh -o 3 -mid 313 -tid 1 -rtol 1e-5 -li 50 -qo 4 -fd -vl 1
+//   * mpirun -np 4 ./pmesh-optimizer -m ../../../mfem_data/cube-holes-inv.mesh -o 3 -mid 313 -tid 1 -rtol 1e-5 -li 50 -qo 4 -fd -vl 1
 //   Shape optimization for a Kershaw transformed mesh using partial assembly:
 //   Mesh for Kershaw transformation must be a Cartesian mesh with nx % 6 = ny % 2 = nz % 2 = 0.
 //   Kershaw transformation can be imposed using the transformation ('t') feature in the mesh-explorer miniapp.
-//   * mpirun - np 6 pmesh-optimizer -m kershaw-24x24x24.mesh -mid 303 -tid 1 -bnd -ni 100 -art 1 -ls 3 -qo 8 -li 40 -o 2 -qo 8 -ker -pa
+//   * mpirun - np 6 ./pmesh-optimizer -m kershaw-24x24x24.mesh -mid 303 -tid 1 -bnd -ni 100 -art 1 -ls 3 -qo 8 -li 40 -o 2 -qo 8 -ker -pa
+
+//    AD-based runs
+//    mpirun -np 4 ./pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 85 -tid 4 -ni 100 -bnd -qt 1 -qo 8
+
+// COMPARISON WITH MMA
+/////// BLADE
+// Blade with Newton
+// mpirun -np 4 ./pmesh-optimizer -m blade.mesh -o 4 -mid 2 -tid 1 -ni 1000 -ls 3 -bnd -qt 1 -qo 8 -vl 2 -st 0
+// Blade with LBFGS
+// mpirun -np 4 ./pmesh-optimizer -m blade.mesh -o 4 -mid 2 -tid 1 -ni 1000 -ls 3 -bnd -qt 1 -qo 8 -vl 2 -st 1
+// Blade with MMA
+// mpirun -np 4 ./pmesh-optimizer -m blade.mesh -o 4 -mid 2 -tid 1 -ni 1000 -ls 3 -bnd -qt 1 -qo 8 -vl 2 -mma -ch 1e-3
+// grep -i "Energy decrease:" comp_newton.out | awk '{print $2}'
 
 #include "mfem.hpp"
 #include "../common/mfem-common.hpp"
@@ -169,9 +182,11 @@ int main (int argc, char *argv[])
    bool pa               = false;
    int n_hr_iter         = 5;
    int n_h_iter          = 1;
-   int mesh_node_order   = 0;
-   int barrier_type      = 0;
-   int worst_case_type   = 0;
+   int mesh_node_order = 0;
+   int barrier_type       = 0;
+   int worst_case_type    = 0;
+   bool mma               = false;
+   double max_ch=0.0001; //max design change
 
    // Parse command-line options.
    OptionsParser args(argc, argv);
@@ -330,6 +345,11 @@ int main (int argc, char *argv[])
                   "0 - None,"
                   "1 - Beta,"
                   "2 - PMean.");
+   args.AddOption(&mma, "-mma", "--mma", "-no-mma",
+                  "--no-mma",
+                  "Enable or disable mma solver.");
+   args.AddOption(&max_ch, "-ch", "--max-ch",
+                  "max node movement");
 
    args.Parse();
    if (!args.Good())
@@ -384,6 +404,10 @@ int main (int argc, char *argv[])
    // shapes of the mesh elements.
    ParGridFunction x(pfespace);
    pmesh->SetNodalGridFunction(&x);
+  ParGridFunction gridfuncLSBoundIndicator(pfespace);
+  gridfuncLSBoundIndicator = 0.0;
+  ParGridFunction gridfuncOptVar(pfespace);
+  gridfuncOptVar = 0.0;
 
    // We create an H1 space for the mesh displacement. The displacement is
    // always in a continuous space, even if the mesh is periodic.
@@ -1101,12 +1125,18 @@ int main (int argc, char *argv[])
          if (attr == 1) // Fix x components.
          {
             for (int j = 0; j < nd; j++)
-            { ess_vdofs[n++] = vdofs[j]; }
+            {
+               ess_vdofs[n++] = vdofs[j];
+               if (mma) { gridfuncLSBoundIndicator[ vdofs[j] ] = 1.0; }
+            }
          }
          else if (attr == 2) // Fix y components.
          {
             for (int j = 0; j < nd; j++)
-            { ess_vdofs[n++] = vdofs[j+nd]; }
+            {
+               ess_vdofs[n++] = vdofs[j+nd];
+               if (mma) { gridfuncLSBoundIndicator[ vdofs[j+nd] ] = 1.0; }
+            }
          }
          else if (attr == 3) // Fix z components.
          {
@@ -1121,6 +1151,9 @@ int main (int argc, char *argv[])
       }
       a.SetEssentialVDofs(ess_vdofs);
    }
+  gridfuncLSBoundIndicator.SetTrueVector();
+  gridfuncOptVar.SetTrueVector();
+  Vector & trueOptvar = gridfuncOptVar.GetTrueVector();
 
    // As we use the inexact Newton method to solve the resulting nonlinear
    // system, here we setup the linear solver for the system's Jacobian.
@@ -1183,44 +1216,87 @@ int main (int argc, char *argv[])
    //
    const IntegrationRule &ir =
       irules->Get(pmesh->GetTypicalElementGeometry(), quad_order);
-   TMOPNewtonSolver solver(pfespace->GetComm(), ir, solver_type);
-   // Provide all integration rules in case of a mixed mesh.
-   solver.SetIntegrationRules(*irules, quad_order);
-   // Specify linear solver when we use a Newton-based solver.
-   if (solver_type == 0) { solver.SetPreconditioner(*S); }
-   // For untangling, the solver will update the min det(T) values.
-   solver.SetMinDetPtr(&min_detJ);
-   solver.SetMaxIter(solver_iter);
-   solver.SetRelTol(solver_rtol);
-   solver.SetAbsTol(0.0);
-   if (solver_art_type > 0)
+   if (mma)
    {
-      solver.SetAdaptiveLinRtol(solver_art_type, 0.5, 0.9);
+      TMOP_MMA *tmma = new TMOP_MMA(MPI_COMM_WORLD, trueOptvar.Size(), 0,
+                                    trueOptvar, ir);
+      x.SetTrueVector();
+      double init_energy = a.GetParGridFunctionEnergy(x);
+      IterativeSolver::PrintLevel newton_print;
+      if (verbosity_level > 0)
+      { newton_print.Errors().Warnings().Iterations(); }
+      tmma->SetPrintLevel(newton_print);
+      // newton_print.Errors().Warnings().Iterations();
+      // set the TMOP Integrator
+      tmma->SetOperator(a);
+      // Set change limits on dx
+      tmma->SetUpperBound(max_ch);
+      tmma->SetLowerBound(max_ch);
+      // Set true vector so that it can be zeroed out
+      {
+         Vector & trueBounds = gridfuncLSBoundIndicator.GetTrueVector();
+         tmma->SetTrueDofs(trueBounds);
+      }
+      // Set QoI and Solver and weight
+      // tmma->SetQuantityOfInterest(&QoIEvaluator);
+      // tmma->SetDiffusionSolver(&solver);
+      // tmma->SetQoIWeight(weight_1);
+
+      // Set max # iterations
+      tmma->SetMaxIter(solver_iter);
+
+      tmma->Mult(x.GetTrueVector());
+      x.SetFromTrueVector();
+
+      // Visualize the mesh displacement.
+      if (visualization)
+      {
+         x0 -= x;
+         socketstream vis;
+         common::VisualizeField(vis, "localhost", 19916, x0,
+                                 "Displacements", 600, 000, 500, 500, "jRmclAppppppppppppp");
+      }
    }
-   // Level of output.
-   IterativeSolver::PrintLevel newton_print;
-   if (verbosity_level > 0) { newton_print.Errors().Warnings().Iterations(); }
-   else                     { newton_print.Errors().Warnings(); }
-   solver.SetPrintLevel(newton_print);
-   // hr-adaptivity solver.
-   // If hr-adaptivity is disabled, r-adaptivity is done once using the
-   // TMOPNewtonSolver.
-   // Otherwise, "hr_iter" iterations of r-adaptivity are done followed by
-   // "h_per_r_iter" iterations of h-adaptivity after each r-adaptivity.
-   // The solver terminates if an h-adaptivity iteration does not modify
-   // any element in the mesh.
-   TMOPHRSolver hr_solver(*pmesh, a, solver,
-                          x, move_bnd, hradaptivity,
-                          mesh_poly_deg, h_metric_id,
-                          n_hr_iter, n_h_iter);
-   hr_solver.AddGridFunctionForUpdate(&x0);
-   hr_solver.AddFESpaceForUpdate(&pfes_h1);
-   if (adapt_lim_const > 0.)
+   else
    {
-      hr_solver.AddGridFunctionForUpdate(&adapt_lim_gf0);
-      hr_solver.AddFESpaceForUpdate(&ind_fes);
+      TMOPNewtonSolver solver(pfespace->GetComm(), ir, solver_type);
+      // Provide all integration rules in case of a mixed mesh.
+      solver.SetIntegrationRules(*irules, quad_order);
+      // Specify linear solver when we use a Newton-based solver.
+      if (solver_type == 0) { solver.SetPreconditioner(*S); }
+      // For untangling, the solver will update the min det(T) values.
+      solver.SetMinDetPtr(&min_detJ);
+      solver.SetMaxIter(solver_iter);
+      solver.SetRelTol(solver_rtol);
+      solver.SetAbsTol(0.0);
+      if (solver_art_type > 0)
+      {
+         solver.SetAdaptiveLinRtol(solver_art_type, 0.5, 0.9);
+      }
+      // Level of output.
+      IterativeSolver::PrintLevel newton_print;
+      if (verbosity_level > 0)
+      { newton_print.Errors().Warnings().Iterations(); }
+      solver.SetPrintLevel(newton_print);
+      // hr-adaptivity solver.
+      // If hr-adaptivity is disabled, r-adaptivity is done once using the
+      // TMOPNewtonSolver.
+      // Otherwise, "hr_iter" iterations of r-adaptivity are done followed by
+      // "h_per_r_iter" iterations of h-adaptivity after each r-adaptivity.
+      // The solver terminates if an h-adaptivity iteration does not modify
+      // any element in the mesh.
+      TMOPHRSolver hr_solver(*pmesh, a, solver,
+                           x, move_bnd, hradaptivity,
+                           mesh_poly_deg, h_metric_id,
+                           n_hr_iter, n_h_iter);
+      hr_solver.AddGridFunctionForUpdate(&x0);
+      if (adapt_lim_const > 0.)
+      {
+         hr_solver.AddGridFunctionForUpdate(&adapt_lim_gf0);
+         hr_solver.AddFESpaceForUpdate(&ind_fes);
+      }
+      hr_solver.Mult();
    }
-   hr_solver.Mult();
 
    // Save the optimized mesh to a file. This output can be viewed later
    // using GLVis: "glvis -m optimized -np num_mpi_tasks".

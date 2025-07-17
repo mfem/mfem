@@ -15,6 +15,8 @@
 #include "../config/config.hpp"
 
 #include <memory>
+#include "vector.hpp"
+#include "densemat.hpp"
 
 #ifdef MFEM_USE_MPI
 #include <mpi.h>

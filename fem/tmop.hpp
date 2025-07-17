@@ -1151,7 +1151,7 @@ public:
 
    void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const override;
 
-   void EvalPW(const DenseMatrix &Jpt, DenseMatrix &PW) const override;
+   virtual void EvalPW(const DenseMatrix &Jpt, DenseMatrix &PW) const override;
 
    void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                   const real_t weight, DenseMatrix &A) const override;
@@ -1171,10 +1171,10 @@ public:
 
    void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const override;
 
-   void EvalPW(const DenseMatrix &Jpt, DenseMatrix &PW) const override;
+   virtual void EvalPW(const DenseMatrix &Jpt, DenseMatrix &PW) const override;
 
-   void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
-                  const real_t weight, DenseMatrix &A) const override;
+   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                          const real_t weight, DenseMatrix &A) const override;
 };
 
 /// 2D barrier Shape+Size+Orientation (VOS) metric (polyconvex).
@@ -1191,7 +1191,7 @@ public:
 
    void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const override;
 
-   void EvalPW(const DenseMatrix &Jpt, DenseMatrix &PW) const override;
+   virtual void EvalPW(const DenseMatrix &Jpt, DenseMatrix &PW) const override;
 
    void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                   const real_t weight, DenseMatrix &A) const override;
@@ -1300,6 +1300,48 @@ public:
    real_t GetGamma() const { return wt_arr[1]; }
 
    virtual ~TMOP_AMetric_049() { delete sh_metric; delete sk_metric; }
+};
+
+/// 2D barrier Skew+Orientation (OQ) metric (polyconvex).
+class TMOP_AMetric_OQ : public TMOP_QualityMetric
+{
+protected:
+   mutable InvariantsEvaluator2D<real_t> ie;
+
+public:
+// 2 - cos( theta_A - theta_W) - cos( theta_A - theta_W + phi_A - phi_W )
+// [2 - cos(theta_A-theta_W) - cos(phi_A - phi_W)]/sin(phi_A)sin(phi_W)
+   real_t EvalWMatrixForm(const DenseMatrix &Jpt) const override;
+   real_t EvalW(const DenseMatrix &Jpt) const override
+   { return EvalWMatrixForm(Jpt); }
+
+   void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const override;
+
+   void EvalPW(const DenseMatrix &Jpt, DenseMatrix &PW) const override;
+
+   void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                  const real_t weight, DenseMatrix &A) const override;
+};
+
+/// 2D barrier Skew+Orientation (OQ) metric (polyconvex).
+class TMOP_AMetric_OQ2 : public TMOP_QualityMetric
+{
+protected:
+   mutable InvariantsEvaluator2D<real_t> ie;
+
+public:
+// 2 - cos( theta_A - theta_W) - cos( theta_A - theta_W + phi_A - phi_W )
+// [2 - cos(theta_A-theta_W) - cos(phi_A - phi_W)]/sin(phi_A)sin(phi_W)
+   real_t EvalWMatrixForm(const DenseMatrix &Jpt) const override;
+   real_t EvalW(const DenseMatrix &Jpt) const override
+   { return EvalWMatrixForm(Jpt); }
+
+   void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const override;
+
+   void EvalPW(const DenseMatrix &Jpt, DenseMatrix &PW) const override;
+
+   void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                  const real_t weight, DenseMatrix &A) const override;
 };
 
 /// Base class for limiting functions to be used in class TMOP_Integrator.
@@ -1899,6 +1941,7 @@ class TMOP_Integrator : public NonlinearFormIntegrator
 protected:
    friend class TMOPNewtonSolver;
    friend class TMOPComboIntegrator;
+   friend class TMOP_MMA;
 
    // Initial positions of the mesh nodes. Not owned. The pointer is set at the
    // start of the solve by TMOPNewtonSolver::Mult(), and unset at the end.
@@ -2449,6 +2492,7 @@ class TMOPComboIntegrator : public NonlinearFormIntegrator
 {
 protected:
    friend class TMOPNewtonSolver;
+   friend class TMOP_MMA;
 
    // Integrators in the combination. Owned.
    Array<TMOP_Integrator *> tmopi;

@@ -26,9 +26,9 @@ MFEM_LIB_FILE = mfem_is_not_built
 
 SEQ_MINIAPPS = mobius-strip klein-bottle toroid trimmer twist mesh-explorer\
 	shaper extruder mesh-optimizer minimal-surface polar-nc reflector\
-	ref321 mesh-quality hpref
+	mesh-quality
 PAR_MINIAPPS = pmesh-optimizer pminimal-surface pmesh-fitting fit-node-position\
-	phpref mesh-bounding-boxes
+               pmesh-optimizer_NLP
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
 else
@@ -58,6 +58,19 @@ all: $(MINIAPPS)
 # Rule for building lib-common
 lib-common:
 	$(MAKE) -C $(MFEM_BUILD_DIR)/miniapps/common
+
+# Rule for building pmesh-optimizer_NLP
+pmesh-optimizer_NLP: pmesh-optimizer_NLP.o mesh-optimizer_using_NLP.o \
+        $(MFEM_LIB_FILE) $(CONFIG_MK)
+	$(MFEM_CXX) $(MFEM_FLAGS) -o pmesh-optimizer_NLP pmesh-optimizer_NLP.o\
+        mesh-optimizer_using_NLP.o $(COMMON_LIB) $(MFEM_LIBS)
+
+mesh-optimizer_using_NLP.o: mesh-optimizer_using_NLP.cpp \
+    mesh-optimizer_using_NLP.hpp
+	$(MFEM_CXX) $(MFEM_FLAGS) -c mesh-optimizer_using_NLP.cpp
+
+pmesh-optimizer_NLP.o: pmesh-optimizer_NLP.cpp mesh-optimizer_using_NLP.cpp
+	$(MFEM_CXX) $(MFEM_FLAGS) -c pmesh-optimizer_NLP.cpp
 
 # Rules to copy the *.mesh files - needed for running the sample runs when
 # building out-of-source:

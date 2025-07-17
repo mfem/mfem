@@ -563,29 +563,13 @@ public:
    virtual real_t ComputeElementGradError(int ielem, VectorCoefficient *exgrad,
                                           const IntegrationRule *irs[] = NULL) const;
 
-   /// @brief Returns ||u_ex - u_h||_L2 for H1 or L2 elements
-   ///
-   /// @param[in] exsol  Coefficient object reproducing the anticipated values
-   ///                   of the scalar field, u_ex.
-   /// @param[in] irs    Optional pointer to an array of custom integration
-   ///                   rules e.g. higher order than the default rules. If
-   ///                   present the array will be indexed by Geometry::Type.
-   /// @param[in] elems  Optional pointer to a marker array, with a length
-   ///                   equal to the number of local elements, indicating
-   ///                   which elements to integrate over. Only those elements
-   ///                   corresponding to non-zero entries in @a elems will
-   ///                   contribute to the computed L2 error.
-   ///
-   /// @note If an array of integration rules is provided through @a irs, be
-   ///       sure to include valid rules for each element type that may occur
-   ///       in the list of elements.
-   ///
-   /// @note Quadratures with negative weights (as in some simplex integration
-   ///       rules in MFEM) can produce negative integrals even with
-   ///       non-negative integrands. To avoid returning negative errors this
-   ///       function uses the absolute values of the element-wise integrals.
-   ///       This may lead to results which are not entirely consistent with
-   ///       such integration rules.
+   virtual real_t ComputeIntegral(const IntegrationRule *irs[] = NULL,
+                                  const Array<int> *elems = NULL) const;
+
+   /// Returns ||u_ex - u_h||_L2 for H1 or L2 elements
+   /* The @a elems input variable expects a list of markers:
+      an elem marker equal to 1 will compute the L2 error on that element
+      an elem marker equal to 0 will not compute the L2 error on that element */
    virtual real_t ComputeL2Error(Coefficient &exsol,
                                  const IntegrationRule *irs[] = NULL,
                                  const Array<int> *elems = NULL) const

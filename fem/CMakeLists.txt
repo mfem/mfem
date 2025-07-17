@@ -156,6 +156,7 @@ set(SRCS
   tmop/tmop_pa_w3_c0.cpp
   tmop_tools.cpp
   tmop_amr.cpp
+  tmop_ad_err.cpp
   gslib.cpp
   gslib/findpts_local_2.cpp
   gslib/findpts_local_3.cpp
@@ -272,6 +273,7 @@ set(HDRS
   tmop/tmop_pa.hpp
   tmop_tools.hpp
   tmop_amr.hpp
+  tmop_ad_err.hpp
   gslib.hpp
   transfer.hpp
   hyperbolic.hpp

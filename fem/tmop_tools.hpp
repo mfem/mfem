@@ -14,8 +14,13 @@
 
 #include "bilinearform.hpp"
 #include "pbilinearform.hpp"
+#include "linearform.hpp"
+#include "plinearform.hpp"
 #include "tmop.hpp"
 #include "gslib.hpp"
+#include "../linalg/mma.hpp"
+#include "tmop_ad_err.hpp"
+#include "datacollection.hpp"
 
 namespace mfem
 {
@@ -272,7 +277,10 @@ public:
    /// Given the new displacements @a d (tdof Vector), update
    /// (i) discrete functions at new nodal positions, and
    /// (ii) surface fitting weight.
-   void ProcessNewState(const Vector &dx) const override;
+   void ProcessNewState(const Vector &x) const override;
+   Vector GetProlongedVector(const Vector &x) const;
+   Vector GetRestrictionTransposeVector(const Vector &x) const;
+   Vector GetProlongedTransposeVector(const Vector &x) const;
 
    /** @name Methods for adaptive surface fitting.
        \brief These methods control the behavior of the weight and the
@@ -395,6 +403,84 @@ void vis_tmop_metric_p(int order, TMOP_QualityMetric &qm,
 void GetPeriodicPositions(const Vector &x_0, const Vector &dx,
                           const FiniteElementSpace &fesL2,
                           const FiniteElementSpace &fesH1, Vector &x);
+
+class TMOP_MMA : public MMA, public TMOPNewtonSolver
+{
+protected:
+   // const Operator *oper;
+   // int height; ///< Dimension of the output / number of rows in the matrix.
+   // int width;  ///< Dimension of the input / number of columns in the matrix.
+   // mutable Vector r, c;
+   // /// Limit for the number of iterations the solver is allowed to do
+   // int max_iter;
+   mutable double dlower = 1e-8,
+                  dupper = 1e-8;
+   Vector true_dofs;
+   QuantityOfInterest *qoi = nullptr;
+   Diffusion_Solver *ds = nullptr;
+   VectorHelmholtz *filter = nullptr;
+   double weight = 1.0;
+   real_t ls_norm_fac = 1.2;
+   real_t ls_energy_fac = 1.1;
+   VisItDataCollection *dc = nullptr;
+   ParMesh *pmesh = nullptr;
+   int ofq = 1;
+   real_t min_l2_err = 100.0;
+   real_t min_grad_err = 100.0;
+   int min_err_iter = -1;
+
+public:
+   TMOP_MMA(int nVar, int nCon, Vector xval, const IntegrationRule &irule) :
+      MMA(nVar, nCon, xval), TMOPNewtonSolver(irule) {}
+
+#ifdef MFEM_USE_MPI
+   TMOP_MMA(MPI_Comm comm_, int nVar, int nCon, Vector xval,
+            const IntegrationRule &irule) :
+      MMA(comm_, nVar, nCon, xval), TMOPNewtonSolver(comm_, irule) {}
+#endif
+
+   using TMOPNewtonSolver::SetPrintLevel;
+   using TMOPNewtonSolver::SetOperator;
+   // void SetOperator(const Operator &op);
+
+   using TMOPNewtonSolver::Mult;
+   void Mult(Vector &x);
+   void MultFilter(Vector &x);
+
+
+   real_t ComputeScalingFactor2(const Vector &x, const Vector &b) const;
+   real_t ComputeScalingFactor2Filter(const Vector &x_orig,
+                                      const Vector &dx,
+                                      const Vector &x_old,
+                                            Vector &fdx) const;
+
+   // void SetMaxIter(int max_it) { max_iter = max_it; }
+
+   void SetLowerBound(const double dlower_) { dlower = dlower_; }
+   void SetUpperBound(const double dupper_) { dupper = dupper_; }
+
+   void SetTrueDofs(Vector &tvec) { true_dofs = tvec; }
+   void SetQuantityOfInterest(QuantityOfInterest *qoi_) { qoi = qoi_; }
+   void SetDiffusionSolver(Diffusion_Solver *ds_) { ds = ds_; }
+   void SetVectorHelmholtzFilter(VectorHelmholtz *filter_) { filter = filter_; }
+   void SetQoIWeight(double w) { weight = w; }
+   void SetLineSearchEnergyFactor(double ls_energy_fac_) { ls_energy_fac = ls_energy_fac_;}
+   void SetLineSearchNormFactor(double ls_norm_fac_) { ls_norm_fac = ls_norm_fac_; }
+   real_t GetEnergy(const Vector &x, bool include_qoi = true);
+   void SetDataCollectionObjectandMesh(VisItDataCollection *vdc, ParMesh *pm, int output_freq=1)
+   {
+      dc = vdc;
+      pmesh = pm;
+      ofq = output_freq;
+   }
+   void GetMinErrInfo(double &min_l2, double &min_grad, int &min_iter)
+   {
+      min_l2 = min_l2_err;
+      min_grad = min_grad_err;
+      min_iter = min_err_iter;
+   }
+};
+
 }
 
 #endif

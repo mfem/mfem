@@ -38,6 +38,7 @@
 #include "tmop.hpp"
 #include "tmop_tools.hpp"
 #include "tmop_amr.hpp"
+#include "tmop_ad_err.hpp"
 #include "gslib.hpp"
 #include "restriction.hpp"
 #include "quadinterpolator.hpp"
