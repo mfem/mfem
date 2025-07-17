@@ -123,7 +123,7 @@ int main(int argc, char *argv[])
    {
       if (ref_levels < 0)
       {
-         ref_levels = (int)floor(log(50000./mesh->GetNE())/log(2.)/dim);
+         ref_levels = (int)floor(log(1000./mesh->GetNE())/log(2.)/dim);
       }
       for (int l = 0; l < ref_levels; l++)
       {
@@ -184,18 +184,18 @@ int main(int argc, char *argv[])
 
    if (prob == 0)
    {
-      cout << "Number of Nedelec finite element unknowns: " << test_size << endl;
+      cout << "Number of HCurl finite element unknowns: " << test_size << endl;
       cout << "Number of H1 finite element unknowns: " << trial_size << endl;
    }
    else if (prob == 1)
    {
-      cout << "Number of Nedelec finite element unknowns: " << trial_size << endl;
-      cout << "Number of Raviart-Thomas finite element unknowns: " << test_size
+      cout << "Number of HCurl finite element unknowns: " << trial_size << endl;
+      cout << "Number of HDiv finite element unknowns: " << test_size
            << endl;
    }
    else
    {
-      cout << "Number of Raviart-Thomas finite element unknowns: "
+      cout << "Number of HDiv finite element unknowns: "
            << trial_size << endl;
       cout << "Number of L2 finite element unknowns: " << test_size << endl;
    }
