@@ -200,6 +200,16 @@ real_t KnotVector::GetGreville(int i) const
    return sum/real_t(Order);
 }
 
+void KnotVector::GetGreville(Vector &xi) const
+{
+   int ncp = GetNCP();
+   xi.SetSize(ncp);
+   for (int i = 0; i < ncp; i++)
+   {
+      xi[i] = GetGreville(i);
+   }
+}
+
 real_t KnotVector::GetBotella(int i) const
 {
    constexpr int itermax = 10;
@@ -241,6 +251,16 @@ real_t KnotVector::GetBotella(int i) const
    return u;
 }
 
+void KnotVector::GetBotella(Vector &xi) const
+{
+   int ncp = GetNCP();
+   xi.SetSize(ncp);
+   for (int i = 0; i < ncp; i++)
+   {
+      xi[i] = GetBotella(i);
+   }
+}
+
 real_t KnotVector::GetDemko(int i) const
 {
    if (demko.Size() != GetNCP())
@@ -248,6 +268,15 @@ real_t KnotVector::GetDemko(int i) const
       ComputeDemko();
    }
    return demko[i];
+}
+
+void KnotVector::GetDemko(Vector &xi) const
+{
+   if (demko.Size() != GetNCP())
+   {
+      ComputeDemko();
+   }
+   xi = demko;
 }
 
 void KnotVector::ComputeDemko() const
@@ -961,29 +990,113 @@ void KnotVector::FindInterpolant(Array<Vector*> &x, bool reuse_inverse)
 // Routine from "The NURBS book" - 2nd ed - Piegl and Tiller
 // Algorithm A9.1 p. 369
 void KnotVector::GetInterpolant(const Vector &x, const Vector &u,
-                                Vector &a) const
+                                Vector &a, bool reuse_inverse) const
+
 {
-   // Assemble collocation matrix
-   Vector shape(Order+1);
-   DenseMatrix A(NumOfControlPoints);
-   A = 0.0;
+   Array<Vector*> tmp(1);
+   tmp[0] = new Vector(x.Size());
+   *tmp[0] = x;
 
-   for (int i = 0; i < NumOfControlPoints; i++)
+   GetInterpolant(tmp,u,reuse_inverse);
+   a = *tmp[0];
+}
+
+// Routine from "The NURBS book" - 2nd ed - Piegl and Tiller
+// Algorithm A9.1 p. 369
+void KnotVector::GetInterpolant(Array<Vector*> &x, const Vector &u,
+                                bool reuse_inverse) const
+
+{
+   int ncp = GetNCP();
+
+   // Initialize matrix
+#ifdef MFEM_USE_LAPACK
+   // If using LAPACK, we use banded matrix storage (order + 1 nonzeros per row).
+   // Find banded structure of matrix.
+   int KL = 0; // Number of subdiagonals
+   int KU = 0; // Number of superdiagonals
+   for (int i = 0; i < ncp; i++)
    {
-      const int ks = GetSpan(u[i]);
-      const real_t xi = GetRefPoint(u[i], ks);
-      CalcShape ( shape, ks-Order, xi);
-
-      for (int p = 0; p < Order+1; p++)
+      for (int p = 0; p < order+1; p++)
       {
-         A(i, ks - Order + p ) =  shape[p];
+         const int col = i_args[i] + p;
+         if (col < i)
+         {
+            KL = std::max(KL, i - col);
+         }
+         else if (i < col)
+         {
+            KU = std::max(KU, col - i);
+         }
+      }
+   }
+
+   const int LDAB = (2*KL) + KU + 1;
+   const int N = ncp;
+
+   if (!reuse_inverse) { fact_AB.SetSize(LDAB, N); }
+#else
+   // Without LAPACK, we store and invert a DenseMatrix (inefficient).
+   if (!reuse_inverse)
+   {
+      A_coll_inv.SetSize(ncp, ncp);
+      A_coll_inv = 0.0;
+   }
+#endif
+
+   // Assemble collocation matrix
+   if (!reuse_inverse)
+   {
+      Vector shape(Order+1);
+      for (int i = 0; i < NumOfControlPoints; i++)
+      {
+         const int ks = GetSpan(u[i]);
+         const real_t xi = GetRefPoint(u[i], ks);
+         CalcShape ( shape, ks-Order, xi);
+
+         for (int p = 0; p < Order+1; p++)
+         {
+            int j = ks - Order + p;
+#ifdef MFEM_USE_LAPACK
+            fact_AB(KL+KU+i-j,j) = shape[p];
+#else
+            A_coll_inv(i,j) = shape[p];
+#endif
+         }
       }
    }
 
    // Solve problem
-   // Note: A is banded, which is not exploited -> future optimization possible
-   A.Invert();
-   A.Mult(x,a);
+#ifdef MFEM_USE_LAPACK
+   const int NRHS = x.Size();
+   DenseMatrix B(N, NRHS);
+   for (int j=0; j<NRHS; ++j)
+   {
+      for (int i=0; i<N; ++i) { B(i, j) = (*x[j])[i]; }
+   }
+
+   if (reuse_inverse)
+   {
+      BandedFactorizedSolve(KL, KU, fact_AB, B, false, fact_ipiv);
+   }
+   else
+   {
+      BandedSolve(KL, KU, fact_AB, B, fact_ipiv);
+   }
+
+   for (int j=0; j<NRHS; ++j)
+   {
+      for (int i=0; i<N; ++i) { (*x[j])[i] = B(i, j); }
+   }
+#else
+   if (!reuse_inverse) { A_coll_inv.Invert(); }
+   Vector tmp;
+   for (int i = 0; i < x.Size(); i++)
+   {
+      tmp = *x[i];
+      A_coll_inv.Mult(tmp, *x[i]);
+   }
+#endif
 }
 
 

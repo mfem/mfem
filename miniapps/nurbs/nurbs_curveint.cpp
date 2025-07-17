@@ -145,10 +145,7 @@ int main(int argc, char *argv[])
    // We locate the control points at the location of the maxima of the
    // shapefunctions defined by the knot vectors -- the Botella points.
    Vector u(ncp),x(ncp),interp(ncp);
-   for (int i = 0; i < ncp; i++)
-   {
-      u[i] = kv->GetBotella(i);
-   }
+   kv->GetDemko(u);
 
    for (int i = 0; i < ncp; i++)
    {

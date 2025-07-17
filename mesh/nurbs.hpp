@@ -58,6 +58,15 @@ protected:
    /// Compute all the Demko points
    void ComputeDemko() const;
 
+#ifdef MFEM_USE_LAPACK
+   // Data for reusing banded matrix factorization in FindInterpolant().
+   mutable DenseMatrix fact_AB; /// Banded matrix factorization
+   mutable Array<int> fact_ipiv; /// Row pivot indices
+#else
+   mutable DenseMatrix A_coll_inv; /// Collocation matrix inverse
+#endif
+
+
 public:
    /// Create an empty KnotVector.
    KnotVector() = default;
@@ -153,6 +162,8 @@ public:
        Academic Press, San Diego, CA, 1997*/
    real_t GetGreville(int i) const;
 
+   void GetGreville(Vector &xi) const;
+
    /** Gives the knot location where the @a i shape function is maximum.
        Reverts to the Greville point if knot is repeated @a Order +1 times.
        For background see:
@@ -164,6 +175,8 @@ public:
        Points are found using Newton iteration, with the Greville point as the
        starting value. */
    real_t GetBotella(int i) const;
+
+   void GetBotella(Vector &xi) const;
 
    /** Gives the knot location of the @a i extremum of the Chebyshev spline.
        For background see:
@@ -178,6 +191,8 @@ public:
         - Repeat untill converged
         - Use the Greville point as starting point */
    real_t GetDemko(int i) const;
+
+   void GetDemko(Vector &xi) const;
 
    // The following functions evaluate shape functions, which are B-spline basis
    // functions.
@@ -221,9 +236,15 @@ public:
 
    /** @brief Get the control points @a for an interpolating spline that has the
       values @a x at the knot location @a u.
+      @x is both the input and output.
       For the knot location one can use  for instance GetBotella, GetDemko or
       GetGreville. The Demko points might be most appropriate.*/
-   void GetInterpolant(const Vector &x, const Vector &u, Vector &a) const;
+   void GetInterpolant(Array<Vector*> &x, const Vector &u,
+                       bool reuse_inverse = false) const;
+
+   /// Different interface to same routine
+   void GetInterpolant(const Vector &x, const Vector &u,
+                       Vector &a, bool reuse_inverse = false) const;
 
    /** Set @a diff, comprised of knots in @a kv not contained in this KnotVector.
        @a kv must be of the same order as this KnotVector. The current
@@ -293,14 +314,6 @@ public:
    /** Flag to indicate whether the KnotVector has been coarsened, which means
        it is ready for non-nested refinement. */
    bool coarse;
-
-#ifdef MFEM_USE_LAPACK
-   // Data for reusing banded matrix factorization in FindInterpolant().
-   DenseMatrix fact_AB; /// Banded matrix factorization
-   Array<int> fact_ipiv; /// Row pivot indices
-#else
-   DenseMatrix A_coll_inv; /// Collocation matrix inverse
-#endif
 };
 
 
