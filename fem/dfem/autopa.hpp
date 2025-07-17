@@ -62,6 +62,7 @@ class NewAutoActionCallback
    const std::array<bool, num_inputs> &input_is_dependent;
    Vector &direction_e;
    Vector &derivative_action_e;
+   const real_t *pa_data; // pointer to the PA data
    // refs
    Vector &qpdc_mem; // derivative_qp_caches
    std::function<void(Vector &, Vector &)> &output_restriction_transpose;
@@ -100,6 +101,7 @@ public:
                          const std::array<bool, num_inputs> &input_is_dependent,
                          Vector &direction_e,
                          Vector &derivative_action_e,
+                         const real_t *pa_data,
                          // refs
                          Vector &qpdc_mem,
                          std::function<void(Vector &, Vector &)> &output_restriction_transpose,
@@ -134,6 +136,7 @@ public:
       input_is_dependent(input_is_dependent),
       direction_e(direction_e),
       derivative_action_e(derivative_action_e),
+      pa_data(pa_data),
       qpdc_mem(qpdc_mem),
       output_restriction_transpose(output_restriction_transpose),
       f_e(f_e),
@@ -172,6 +175,7 @@ public:
                                 const bool use_sum_factorization,
                                 Vector &direction_e,
                                 Vector &derivative_action_e,
+                                const real_t *pa_data,
                                 // refs
                                 Vector &qpdc_mem,
                                 std::function<void(Vector &, Vector &)> &or_transpose,
@@ -182,13 +186,13 @@ public:
                                 // fallback arguments
                                 const int d1d, const int q1d)
    {
-      // db1("d1d:{} q1d:{}", d1d, q1d);
-      // db1("T_D1D:{} T_Q1D:{}", T_D1D, T_Q1D);
-      // db1("num_qp: {}, ne: {}", num_qp, ne);
-      // db1("test_op_dim: {}, test_vdim: {}", test_op_dim, test_vdim);
-      // db1("total_trial_op_dim: {}, trial_vdim: {}", total_trial_op_dim, trial_vdim);
-      // db1("num_inputs:{} num_fields:{} num_outputs:{}", num_inputs, num_fields,
-      //     num_outputs);
+      db1("d1d:{} q1d:{}", d1d, q1d);
+      db1("T_D1D:{} T_Q1D:{}", T_D1D, T_Q1D);
+      db1("num_qp: {}, ne: {}", num_qp, ne);
+      db1("test_op_dim: {}, test_vdim: {}", test_op_dim, test_vdim);
+      db1("total_trial_op_dim: {}, trial_vdim: {}", total_trial_op_dim, trial_vdim);
+      db1("num_inputs:{} num_fields:{} num_outputs:{}", num_inputs, num_fields,
+          num_outputs);
       assert(dimension == 3);
 
       constexpr int DIM = 3;
@@ -203,13 +207,18 @@ public:
       //     direction_e*direction_e);
       const auto dir_e = Reshape(direction_e.Read(), d1d,d1d,d1d, 1, ne);
 
-      const auto qpdc = Reshape(qpdc_mem.Read(), test_vdim, test_op_dim,
-                                trial_vdim, total_trial_op_dim, num_qp, ne);
+      assert(pa_data);
+      // const auto qpdc = Reshape(pa_data ? nullptr :qpdc_mem.Read(),
+      //                           test_vdim, test_op_dim,
+      //                           trial_vdim, total_trial_op_dim,
+      //                           num_qp, ne);
+      const auto DX = Reshape(pa_data, 3, 3, q1d, q1d, q1d, ne);
+
       // db1("qpdc: size:{} dot:{}", qpdc_mem.Size(), qpdc_mem*qpdc_mem);
 
-      const auto d_elem_attr = elem_attributes.Read();
-      const bool has_attr = domain_attributes.Size() > 0;
-      const auto d_domain_attr = domain_attributes.Read();
+      // const auto d_elem_attr = elem_attributes.Read();
+      // const bool has_attr = domain_attributes.Size() > 0;
+      // const auto d_domain_attr = domain_attributes.Read();
 
       derivative_action_e = 0.0;
       assert(test_vdim == 1);
@@ -229,7 +238,7 @@ public:
          kernels::internal::d_regs3d_t<DIM, MQ1> r0, r1;
 
          const auto dir_fop = get<0>(inputs);
-         const int vdim = dir_fop.vdim;
+         // const int vdim = dir_fop.vdim;
          const int vd = 0;
 
          // Interpolate
@@ -266,7 +275,7 @@ public:
             {
                MFEM_FOREACH_THREAD_DIRECT(qx, x, Q1D)
                {
-                  const int q = qx + q1d * (qy + q1d * qz);
+                  // const int q = qx + q1d * (qy + q1d * qz);
 
                   const real_t u = r1[0][qz][qy][qx];
                   const real_t v = r1[1][qz][qy][qx];
@@ -276,15 +285,18 @@ public:
                   {
                      // const auto trial_op_dim = dpitod(0, 1);
 
-                     size_t m_offset = 0;
+                     // size_t m_offset = 0;
                      for (int j = 0; j < trial_vdim; j++)
                      {
-                        const real_t val = qpdc(vd, k, j, 0 + m_offset, q, e) * u
-                                           + qpdc(vd, k, j, 1 + m_offset, q, e) * v
-                                           + qpdc(vd, k, j, 2 + m_offset, q, e) * w;
+                        // const real_t val = qpdc(vd, k, j, 0 + m_offset, q, e) * u
+                        //                    + qpdc(vd, k, j, 1 + m_offset, q, e) * v
+                        //                    + qpdc(vd, k, j, 2 + m_offset, q, e) * w;
+                        const real_t val = DX(k, 0, qx, qy, qz, e) * u +
+                                           DX(k, 1, qx, qy, qz, e) * v +
+                                           DX(k, 2, qx, qy, qz, e) * w;
                         r0[k][qz][qy][qx] = val;
                      }
-                     m_offset += 3;//trial_op_dim;
+                     // m_offset += 3;//trial_op_dim;
                   }
                }
             }
@@ -353,6 +365,7 @@ public:
                                         use_sum_factorization,
                                         direction_e,
                                         derivative_action_e,
+                                        pa_data,
                                         // refs
                                         qpdc_mem,
                                         output_restriction_transpose,

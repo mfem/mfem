@@ -398,7 +398,12 @@ public:
       }
       else
       {
-         derivative_setup_callbacks[derivative_id][0](fields_e, dir_l);
+         // if we don't use external PA data, launch the setup callbacks
+         if (dx == nullptr)
+         {
+            derivative_setup_callbacks[derivative_id][0](fields_e, dir_l);
+         }
+         else { dbg("\x1b[33musing external PA data");}
       }
 
       return std::make_shared<DerivativeOperator>(
@@ -429,10 +434,10 @@ public:
       use_automatic_pa = true;
    }
 
-   void UsePaData(const real_t *dx)
+   void UsePaData(const real_t *pa_data)
    {
       dbg("Using PA data");
-      this->dx = dx;
+      this->dx = pa_data;
    }
 
    void UseKernelsSpecialization()
@@ -1223,6 +1228,7 @@ void DifferentiableOperator::AddDomainIntegrator(
                   shmem_cache,            // Vector (local)
                   dependent_inputs_trial_op_dim,
                   use_kernels_specialization = this->use_kernels_specialization,
+                  pa_data = this->dx,   // const real_t*
                   // capture by ref:
                   &qpdc_mem = derivative_qp_caches[derivative_id],
                   &or_transpose = this->output_restriction_transpose
@@ -1258,6 +1264,7 @@ void DifferentiableOperator::AddDomainIntegrator(
                                             input_is_dependent,
                                             direction_e,
                                             derivative_action_e,
+                                            pa_data,
                                             // refs
                                             qpdc_mem,
                                             or_transpose,
