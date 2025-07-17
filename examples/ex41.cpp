@@ -9,28 +9,31 @@
 //
 // Description:   This example code demonstrates bounds-preserving limiters for
 //                Discontinuous Galerkin (DG) approximations of hyperbolic
-//                conservation laws. The code solves the solves the time-dependent
-//                advection equation du(x,t)/dt + v.grad(u) = 0, where v is a given
-//                fluid velocity, and u_0(x) = u(x,0) is a given initial condition.
-//                The solution of this equation exhibits a minimum principle of the
-//                form min[u_0(x)] <= u(x,t) <= max[u_0(x)].
+//                conservation laws. The code solves the time-dependent
+//                advection equation du(x,t)/dt + v.grad(u) = 0, where v is a
+//                given fluid velocity, and u_0(x) = u(x,0) is a given initial
+//                condition. The solution of this equation exhibits a minimum
+//                principle of the form min[u_0(x)] <= u(x,t) <= max[u_0(x)].
 //
-//                A global minimum principle is enforced on the solution using the
-//                bounds-preserving limiters of Zhang & Shu [1] or Dzanic et al. [2].
-//                The Zhang & Shu limiter enforces the minimum principle discretely
-//                (i.e, on the discrete solution/quadrature nodes) while the Dzanic
-//                et al. limiter enforces the minimum principle continuously (i.e,
-//                across the entire solution polynomial within the element).
+//                A global minimum principle is enforced on the solution using
+//                the bounds-preserving limiters of Zhang & Shu [1] or Dzanic
+//                et al. [2]. The Zhang & Shu limiter enforces the minimum
+//                principle discretely (i.e, on the discrete solution/
+//                quadrature nodes) while the Dzanic et al. limiter enforces
+//                the minimum principle continuously (i.e, across the entire 
+//                solution polynomial within the element).
 //
 //                We recommend viewing examples 9 and 18 before viewing this
 //                example.
 //
 //                [1] Xiangxiong Zhang and Chi-Wang Shu. On maximum-principle-
-//                    satisfying high order schemes for scalar conservation laws.
-//                    Journal of Computational Physics. 229(9):3091–3120, May 2010.
-//                [2] Tarik Dzanic, Tzanio Kolev, and Ketan Mittal. A method for
-//                    bounding high-order finite element functions: Applications to
-//                    mesh validity and bounds-preserving limiters.
+//                    satisfying high order schemes for scalar conservation
+//                    laws. Journal of Computational Physics. 229(9):3091–3120,
+//                    May 2010.
+//                [2] Tarik Dzanic, Tzanio Kolev, and Ketan Mittal. A method
+//                    for bounding high-order finite element functions:
+//                    Applications to mesh validity and bounds-preserving
+//                    limiters.
 
 #include "mfem.hpp"
 #include "ex18.hpp"
@@ -78,9 +81,9 @@ int main(int argc, char *argv[])
    OptionsParser args(argc, argv);
    args.AddOption(&problem, "-p", "--problem",
                   "Problem setup: 1 - 1D smooth advection,\n\t"
-                  "               2 - 2D smooth advection (structured mesh),\n\t"
+                  "               2 - 2D smooth advection,\n\t"
                   "               3 - 1D discontinuous advection,\n\t"
-                  "               4 - 2D solid body rotation (structured mesh),\n\t");
+                  "               4 - 2D solid body rotation\n\t");
    args.AddOption(&ref_levels, "-r", "--refine",
                   "Number of times to refine the mesh uniformly.");
    args.AddOption(&order, "-o", "--order",
@@ -190,16 +193,16 @@ int main(int argc, char *argv[])
    VectorFunctionCoefficient velocity(dim, velocity_function);
    AdvectionFlux flux(velocity);
    RusanovFlux numericalFlux(flux);
-   DGHyperbolicConservationLaws advection(fes,
-                                          std::unique_ptr<HyperbolicFormIntegrator>(
-                                             new HyperbolicFormIntegrator(numericalFlux, 0)),
-                                          false);
+   DGHyperbolicConservationLaws adv(fes,
+                                    std::unique_ptr<HyperbolicFormIntegrator>(
+                                    new HyperbolicFormIntegrator(numericalFlux,
+                                                                 0)), false);
 
    // 9. Limit initial solution (if necessary).
    Limit(u, uavg, lbound, ubound, dim, limiter_type, 0.0, 1.0);
 
-   // 10. Set up SSP time integrator (note that RK3 integrator does not apply limiting at
-   //     inner stages, which may cause bounds-violations).
+   // 10. Set up SSP time integrator (note that RK3 integrator does not apply
+   //     limiting at inner stages, which may cause bounds-violations).
    real_t t = 0.0;
    ODESolver * ode_solver = NULL;
    switch (ode_solver_type)
@@ -210,8 +213,8 @@ int main(int argc, char *argv[])
       default:
          MFEM_ABORT("Unknown ODE solver type: " << ode_solver_type);
    }
-   advection.SetTime(t);
-   ode_solver->Init(advection);
+   adv.SetTime(t);
+   ode_solver->Init(adv);
 
    // 11. Perform time-stepping and limiting after each time step.
    bool done = false;
@@ -265,15 +268,15 @@ int main(int argc, char *argv[])
    }
 
 
-   // 14. Compute the L1 solution error and discrete solution extrema (at solution nodes)
-   //     after one flow interval.
+   // 14. Compute the L1 solution error and discrete solution extrema (at
+   //     solution nodes) after one flow interval.
    cout << "Solution L1 error: " << u.ComputeLpError(1, u0) << endl;
    cout << "Solution (discrete) minimum: " << u.Min() << endl;
    cout << "Solution (discrete) maximum: " << u.Max() << endl;
 
 
-   // 15. Brute-force search for the min/max value of u(x) in each element at an array
-   //     of integration points
+   // 15. Brute-force search for the min/max value of u(x) in each element at
+   //     an array of integration points
    real_t umin = numeric_limits<real_t>::max();
    real_t umax = numeric_limits<real_t>::min();
    for (int e = 0; e < mesh.GetNE(); e++)
@@ -360,7 +363,8 @@ void Limit(GridFunction &u, GridFunction &uavg, GridFunction &lbound,
       }
 
 
-      // Perform convex limiting towards element-wise mean using maximum limiting factor
+      // Perform convex limiting towards element-wise mean using maximum
+      // limiting factor
       real_t alpha = 1.0;
       if ((umin < a-tol) || (umax > b + tol))
       {
@@ -436,15 +440,16 @@ real_t u0_function(const Vector &x)
       {
          constexpr real_t r2 = 0.3*0.3;
          // Notched cylinder
-         if ((pow(X(0), 2.0) + pow(X(1) - 0.5, 2.0) <= r2) && !(abs(X(0)) < 0.05 &&
-                                                                abs(X(1) - 0.45) < 0.25))
+         if ((pow(X(0), 2.0) + pow(X(1) - 0.5, 2.0) <= r2) && 
+             !(abs(X(0)) < 0.05 && abs(X(1) - 0.45) < 0.25))
          {
             return 1.0;
          }
          // Cosinusoidal hump
          else if (pow(X(0) + 0.5, 2.0) + pow(X(1), 2.0) <= r2)
          {
-            return 0.25*(1 + cos(M_PI*sqrt(pow(X(0) + 0.5, 2.0) + pow(X(1), 2.0))/0.3));
+            return 0.25*(1 + cos(M_PI*sqrt(pow(X(0) + 0.5, 2.0)
+                           + pow(X(1), 2.0))/0.3));
          }
          // Sharp cone
          else if (pow(X(0), 2.0) + pow(X(1) + 0.5, 2.0) <= r2)
