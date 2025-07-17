@@ -1180,7 +1180,6 @@ void FindPointsGSLIB::DistributePointInfoToOwningMPIRanks(
 
    // Pack data to send via crystal router
    struct gslib::array *outpt = new gslib::array;
-
    struct out_pt { double rst[3]; uint index, elem, proc, code; };
    struct out_pt *pt;
    array_init(struct out_pt, outpt, points_cnt);

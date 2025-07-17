@@ -65,10 +65,28 @@
 // make pmesh-optimizer_NLP -j4 && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 2e-3 -ni 300 -w1 16e4 -w2 1e-2 -rs 3 -o 3 -lsn 10.01 -lse 10.01 -alpha 20 -bndrfree -qt 3 -ft 2 -vis -weakbc -filter -frad -0.2 -jid 83
 // make pmesh-optimizer_NLP -j4 && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 2e-3 -ni 200 -w1 32e5 -w2 1e-2 -rs 4 -o 3 -lsn 10.01 -lse 10.01 -alpha 20 -bndrfree -qt 3 -ft 2 -vis -weakbc -filter -frad -0.4 -jid 84
 
+// Energy
+// 1st order
+// make pmesh-optimizer_NLP -j4 && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 5e-3 -ni 300 -w2 1 -lsn 2.01 -lse 1.01 -alpha 20 -bndrfree -qt 4 -ft 2 -vis -weakbc -filter -frad -0.1 -o 1 -w1 -1e0 -rs 1 -jid 201
+// make pmesh-optimizer_NLP -j4 && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 5e-3 -ni 300 -w2 1 -lsn 2.01 -lse 1.01 -alpha 20 -bndrfree -qt 4 -ft 2 -vis -weakbc -filter -frad -0.1 -o 1 -w1 -1e1 -rs 2 -jid 202
+// make pmesh-optimizer_NLP -j4 && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 5e-3 -ni 300 -w2 1 -lsn 2.01 -lse 1.01 -alpha 20 -bndrfree -qt 4 -ft 2 -vis -weakbc -filter -frad -0.1 -o 1 -w1 -1e3 -rs 3 -jid 203
+// make pmesh-optimizer_NLP -j4 && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 5e-3 -ni 300 -w2 1 -lsn 2.01 -lse 1.01 -alpha 20 -bndrfree -qt 4 -ft 2 -vis -weakbc -filter -frad -0.1 -o 1 -w1 -1e4 -rs 4 -jid 204
+// 2nd order
+// make pmesh-optimizer_NLP -j4 && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 5e-3 -ni 300 -w2 1 -lsn 2.01 -lse 2.01 -alpha 20 -bndrfree -qt 4 -ft 2 -vis -weakbc -filter -frad -0.05 -o 2 -w1 -1e1 -rs 1 -jid 211
+// make pmesh-optimizer_NLP -j4 && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 5e-3 -ni 300 -w2 1 -lsn 2.01 -lse 2.01 -alpha 20 -bndrfree -qt 4 -ft 2 -vis -weakbc -filter -frad -0.05 -o 2 -w1 -1e2 -rs 2 -jid 212
+// make pmesh-optimizer_NLP -j4 && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 5e-3 -ni 300 -w2 1 -lsn 2.01 -lse 2.01 -alpha 20 -bndrfree -qt 4 -ft 2 -vis -weakbc -filter -frad -0.08 -o 2 -w1 -1e3 -rs 3 -jid 213
+// make pmesh-optimizer_NLP -j4 && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 5e-3 -ni 300 -w2 1 -lsn 2.01 -lse 2.01 -alpha 20 -bndrfree -qt 4 -ft 2 -vis -weakbc -filter -frad -0.1 -o 2 -w1 -1e4 -rs 4 -jid 214
+// 3rd order
+// make pmesh-optimizer_NLP -j4 && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 5e-3 -ni 300 -w2 1 -lsn 2.01 -lse 2.01 -alpha 20 -bndrfree -qt 4 -ft 2 -vis -weakbc -filter -frad -0.025 -o 3 -w1 -1e2 -rs 1 -jid 221
+// make pmesh-optimizer_NLP -j4 && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 5e-3 -ni 300 -w2 1 -lsn 2.01 -lse 2.01 -alpha 20 -bndrfree -qt 4 -ft 2 -vis -weakbc -filter -frad -0.1 -o 3 -w1 -1e4 -rs 2 -jid 222
+// make pmesh-optimizer_NLP -j4 && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 5e-3 -ni 300 -w2 1 -lsn 2.01 -lse 2.01 -alpha 20 -bndrfree -qt 4 -ft 2 -vis -weakbc -filter -frad -0.05 -o 3 -w1 -1e3 -rs 3 -jid 223
+// make pmesh-optimizer_NLP -j4 && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 5e-3 -ni 300 -w2 1 -lsn 2.01 -lse 2.01 -alpha 20 -bndrfree -qt 4 -ft 2 -vis -weakbc -filter -frad -0.05 -o 3 -w1 -1e4 -rs 4 -jid 224
+
 // solution for vis only
 // make pmesh-optimizer_NLP -j4 && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 2e-3 -ni 0 -w2 1 -o 1 -lsn 2.01 -lse 1.01 -alpha 20 -bndrfree -qt 3 -ft 2 -vis -weakbc -filter -frad -0.01 -w1 2e3 -rs 5 -jid 79
 
 // same but with simplices
+// make pmesh-optimizer_NLP -j4 && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 2e-3 -ni 300 -w1 -1e1 -w2 1 -rs 1 -o 2 -lsn 2.01 -lse 1.01 -alpha 20 -bndrfree -qt 4 -ft 2 -vis -weakbc -filter -frad 0.01 -m square01-tri.mesh -jid 110
 // make pmesh-optimizer_NLP -j4 && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 2e-3 -ni 300 -w1 1e5 -w2 1 -rs 1 -o 2 -lsn 2.01 -lse 1.01 -alpha 20 -bndrfree -qt 3 -ft 2 -vis -weakbc -filter -frad 0.005 -m square01-tri.mesh -jid 111
 // 3D with avg error - o1
 // make pmesh-optimizer_NLP -j4 && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 1e-3 -ni 300 -w1 1e4 -w2 1e-2 -o 1 -lsn 10.1 -lse 10.1 -alpha 20 -bndrfree -qt 3 -ft 2 -vis -weakbc -filter -frad 0.01 -rs 0 -m cube-tet.mesh -mid 303 -jid 112
@@ -80,8 +98,22 @@
 // make pmesh-optimizer_NLP -j4 && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 2e-3 -ni 300  -w1 1e4 -w2 1e-2  -rs 1 -o 2 -lsn 10.1 -lse 10.1 -alpha 20 -bndrfree -qt 5 -ft 2 -vis -weakbc -filter -frad 0.05 -jid 116 -m amr-quad-q2-opt.mesh
 // make pmesh-optimizer_NLP -j4 && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 5e-3 -ni 250  -w1 1e4 -w2 1e-2  -rs 2 -o 2 -lsn 10.1 -lse 10.1 -alpha 20 -bndr -qt 5 -ft 2 -vis -weakbc -filter -frad 0.2 -jid 117 -m ../../data/star.mesh
 
+//5quad with avg
 // make pmesh-optimizer_NLP -j4 && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 2e-3 -ni 400 -w1 1e4 -w2 1e-1 -rs 2 -o 2 -lsn 10.1 -lse 2.1 -alpha 20 -bndrfree -qt 5 -ft 2 -vis -weakbc -filter -frad 0.08 -jid 118 -m 5quad.mesh
 // make pmesh-optimizer_NLP -j4 && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 5e-3 -ni 400 -w1 1e3 -w2 1e-1 -rs 2 -o 1 -lsn 10.1 -lse 2.1 -alpha 20 -bndrfree -qt 5 -ft 2 -vis -weakbc -filter -frad 0.2 -jid 117 -m 5quad.mesh -so 2
+// 5quad with energy
+// make pmesh-optimizer_NLP -j4 && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 2e-3 -ni 500 -w1 -1e2 -w2 1 -rs 3 -o 2 -lsn 10.1 -lse 2.1 -alpha 20 -bndrfree -qt 4 -ft 2 -vis -weakbc -filter -frad 0.01 -jid 118 -m 5quad.mesh
+// make pmesh-optimizer_NLP -j4 && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 2e-3 -ni 500 -w1 -5e1 -w2 1 -rs 3 -o 1 -lsn 10.1 -lse 2.1 -alpha 20 -bndrfree -qt 4 -ft 2 -vis -weakbc -filter -frad 0.07 -jid 117 -m 5quad.mesh
+
+// impact of weight and filter on 5quad.mesh with energy error
+// make pmesh-optimizer_NLP -j4 && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 2e-3 -ni 500 -w2 1 -rs 3 -o 2 -lsn 10.1 -lse 2.1 -alpha 20 -bndrfree -qt 4 -ft 2 -vis -weakbc -filter -m 5quad.mesh -w1 -1e-14 -frad 0.0005 -jid 119
+// make pmesh-optimizer_NLP -j4 && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 2e-3 -ni 500 -w2 1 -rs 3 -o 2 -lsn 10.1 -lse 2.1 -alpha 20 -bndrfree -qt 4 -ft 2 -vis -weakbc -filter -m 5quad.mesh -w1 -5 -frad 0.05 -jid 120
+// make pmesh-optimizer_NLP -j4 && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 2e-3 -ni 500 -w2 1 -rs 3 -o 2 -lsn 10.1 -lse 2.1 -alpha 20 -bndrfree -qt 4 -ft 2 -vis -weakbc -filter -m 5quad.mesh -w1 -50 -frad 0.05 -jid 121
+// make pmesh-optimizer_NLP -j4 && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 2e-3 -ni 500 -w2 1 -rs 3 -o 2 -lsn 10.1 -lse 2.1 -alpha 20 -bndrfree -qt 4 -ft 2 -vis -weakbc -filter -m 5quad.mesh -w1 -50 -frad 5e-3 -jid 122
+// make pmesh-optimizer_NLP -j4 && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 2e-3 -ni 500 -w2 1 -rs 3 -o 2 -lsn 10.1 -lse 2.1 -alpha 20 -bndrfree -qt 4 -ft 2 -vis -weakbc -filter -m 5quad.mesh -w1 -50 -frad 5e-4 -jid 123
+// make pmesh-optimizer_NLP -j4 && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 2e-3 -ni 500 -w2 1 -rs 3 -o 2 -lsn 10.1 -lse 2.1 -alpha 20 -bndrfree -qt 4 -ft 2 -vis -weakbc -filter -m 5quad.mesh -w1 -500 -frad 5e-4 -jid 124
+// linear mesh and quadratic solution (counterpart of 120)
+// make pmesh-optimizer_NLP -j4 && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 2e-3 -ni 500 -w2 1 -rs 3 -lsn 10.1 -lse 2.1 -alpha 20 -bndrfree -qt 4 -ft 2 -vis -weakbc -filter -m 5quad.mesh -w1 -5 -frad 0.05 -jid 125 -o 1 -so 2
 
 
 // l2 with wave around center - linear
@@ -99,7 +131,7 @@
 // make pmesh-optimizer_NLP -j4 && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 2e-3 -ni 1000 -w1 4e6 -w2 1 -rs 2 -o 2 -lsn 2.0 -lse 1.01 -alpha 20 -bndrfree -qt 3 -ft 3 -vis -weakbc -filter -frad 0.005 -mid 107 -tid 5 -jid 144
 
 
-// make pmesh-optimizer_NLP -j4 && mpirun -np 10g  pmesh-optimizer_NLP -met 1 -ch 5e-3 -ni 300 -w1 -1e1 -w2 1e0 -rs 2 -o 1 -lsn 10.1 -lse 10.1 -alpha 20 -bndrfree -qt 4 -ft 2 -weakbc -filter -frad 0.1
+// make pmesh-optimizer_NLP -j4 && mpirun -np 10  pmesh-optimizer_NLP -met 1 -ch 5e-3 -ni 300 -w1 -1e1 -w2 1e0 -rs 2 -o 1 -lsn 10.1 -lse 10.1 -alpha 20 -bndrfree -qt 4 -ft 2 -weakbc -filter -frad 0.1
 
 #include "mfem.hpp"
 #include "../common/mfem-common.hpp"
@@ -914,6 +946,11 @@ int main (int argc, char *argv[])
   ParFiniteElementSpace tspace_grad(PMesh, fec, dim);
   ParGridFunction tGF_grad(&tspace_grad);
 
+  L2_FECollection fecl2(0, dim);
+  ParFiniteElementSpace pfespace_l2(PMesh, &fecl2, 1);
+  ParGridFunction tGF_l2_err(&pfespace_l2);
+  ParGridFunction tGF_grad_err(&pfespace_l2);
+
   double init_mesh_size = PMesh->GetElementSize(0, 0);
 
   // 5. Make the mesh curved based on the above finite element space. This
@@ -1147,7 +1184,7 @@ int main (int argc, char *argv[])
   const int nbattr = PMesh->bdr_attributes.Max();
   std::vector<std::pair<int, double>> essentialBC(nbattr);
   std::vector<std::pair<int, int>> essentialBCfilter(nbattr);
-  if( physics ==1 )
+  if( physics == 1 )
   {
     essentialBC.resize(1);
     essentialBC[0] = {4, 0};
@@ -1281,7 +1318,7 @@ if (myid == 0) {
     solver_strong = diffsolver_strong;
 
     QoIEvaluator.setTrueSolCoeff( trueSolution );
-    if(qoiType == QoIType::ENERGY){QoIEvaluator.setTrueSolCoeff( QCoef );}
+    // if(qoiType == QoIType::ENERGY){QoIEvaluator.setTrueSolCoeff( QCoef );}
     QoIEvaluator.setTrueSolGradCoeff(trueSolutionGrad);
     QoIEvaluator.setTrueSolHessCoeff(trueSolutionHess);
     QoIEvaluator.setTrueSolHessCoeff(trueSolutionHessV);
@@ -1348,6 +1385,11 @@ if (myid == 0) {
     solver->SetDesignVarFromUpdatedLocations(x);
     solver->FSolve();
     discreteSol = solver->GetSolution();
+    if (solver_strong)
+    {
+      solver_strong->SetDesignVarFromUpdatedLocations(x);
+      solver_strong->FSolve();
+    }
     if (physics == 1)
     {
       GetMaxDisplacement(&discreteSol, maxdisp_init);
@@ -1394,7 +1436,6 @@ if (myid == 0) {
     visdc->Save();
     // MFEM_ABORT(" ");
 
-
     QuantityOfInterest QoIEvaluator_ref(PMesh_ref, qoiType, mesh_poly_deg, physics_deg,neumannBdr, physicsdim);
     QoIEvaluator_ref.setTractionCoeff(&tractionLoad);
     QoIEvaluator_ref.SetDesignVarFromUpdatedLocations( *x_ref );
@@ -1413,8 +1454,18 @@ if (myid == 0) {
   }
 
   x.SetTrueVector();
-  double init_strain_energy = 0.0;
+  discreteSol.ComputeElementL2Errors(*trueSolution, tGF_l2_err);
+  if (physics == 0)
+  {
+    discreteSol.ComputeElementGradErrors(trueSolutionGrad, tGF_grad);
+  }
+  if (solver_strong)
+  {
+    solver_strong->GetSolution().ComputeElementL2Errors(*trueSolution, tGF_l2_err);
+    solver_strong->GetSolution().ComputeElementGradErrors(trueSolutionGrad, tGF_grad_err);
+  }
 
+  double init_strain_energy = 0.0;
   if (physics == 1)
   {
     tStraincoeff.SetU(&(solver->GetSolution()));
@@ -1424,10 +1475,19 @@ if (myid == 0) {
   }
   VisItDataCollection *visdc = new VisItDataCollection("tmop-pde"+std::to_string(jobid), PMesh);
   visdc->RegisterField("solution", &(solver->GetSolution()));
+  VisItDataCollection *visdcminl2 = new VisItDataCollection("tmop-pde-bestl2-"+std::to_string(jobid), PMesh);
+  visdcminl2->RegisterField("solution", &(solver->GetSolution()));  VisItDataCollection *visdcmingrad = new VisItDataCollection("tmop-pde-bestgrad-"+std::to_string(jobid), PMesh);
+  visdcmingrad->RegisterField("solution", &(solver->GetSolution()));
   if (physics == 1)
   {
     visdc->RegisterField("strain-energy-density", &tGF);
     visdc->RegisterField("strain-energy-density-grad", &tGF_grad);
+  }
+  else
+  {
+    visdc->RegisterField("l2-error", &tGF_l2_err);
+    visdcminl2->RegisterField("l2-error", &tGF_l2_err);
+    visdcmingrad->RegisterField("l2-error", &tGF_grad_err);
   }
   visdc->SetCycle(0);
   visdc->SetTime(0.0);
@@ -1441,9 +1501,8 @@ if (myid == 0) {
     auto init_l2_error = discreteSol.ComputeL2Error(*trueSolution);
     auto init_grad_error = discreteSol.ComputeGradError(trueSolutionGrad);
     auto init_h1_error = discreteSol.ComputeH1Error(trueSolution, trueSolutionGrad);
+    if (solver_strong)
     {
-      solver_strong->SetDesignVarFromUpdatedLocations(x);
-      solver_strong->FSolve();
       ParGridFunction &discreteSol_strong = solver_strong->GetSolution();
       init_l2_error = discreteSol_strong.ComputeL2Error(*trueSolution);
       init_grad_error = discreteSol_strong.ComputeGradError(trueSolutionGrad);
@@ -1474,6 +1533,10 @@ if (myid == 0) {
     {
       tmma->SetQuantityOfInterest(&QoIEvaluator);
       tmma->SetDiffusionSolver(reinterpret_cast<Diffusion_Solver*>(solver));       // TODO change to base class
+      if (solver_strong)
+      {
+        tmma->SetDiffusionSolverStrong(reinterpret_cast<Diffusion_Solver*>(solver_strong));
+      }
       tmma->SetQoIWeight(weight_1);
       tmma->SetVectorHelmholtzFilter(filterSolver);
     }
@@ -1496,6 +1559,7 @@ if (myid == 0) {
     if (save_after_every_iteration)
     {
       tmma->SetDataCollectionObjectandMesh(visdc, PMesh, save_freq);
+      tmma->SetVIsitDataCollectionForMinErrors(visdcminl2, visdcmingrad, &tGF_l2_err, &tGF_grad_err);
     }
     tmma->SetMaxIter(max_it);
     if (filter)
@@ -1507,6 +1571,17 @@ if (myid == 0) {
       tmma->Mult(x.GetTrueVector());
     }
     x.SetFromTrueVector();
+
+    if (solver_strong)
+    {
+      solver_strong->SetDesignVarFromUpdatedLocations(x);
+      solver_strong->FSolve();
+      solver_strong->GetSolution().ComputeElementL2Errors(*trueSolution, tGF_l2_err);
+      solver_strong->GetSolution().ComputeElementGradErrors(trueSolutionGrad, tGF_grad_err);
+    }
+
+    int solver_done_iter = tmma->GetNumIterations();
+
     if (!save_after_every_iteration)
     {
       if (physics == 1)
@@ -1519,7 +1594,13 @@ if (myid == 0) {
       visdc->SetTime(1.0);
       visdc->Save();
     }
-
+    else if (solver_done_iter != max_it)
+    {
+      int cycle_count = tmma->GetVisCount();
+      visdc->SetCycle(cycle_count++);
+      visdc->SetTime(cycle_count*1.0);
+      visdc->Save();
+    }
 
     // Visualize the mesh displacement.
     if (visualization)
@@ -1561,7 +1642,15 @@ if (myid == 0) {
     auto final_l2_error = discreteSol.ComputeL2Error(*trueSolution);
     auto final_grad_error = discreteSol.ComputeGradError(trueSolutionGrad);
     auto final_h1_error = discreteSol.ComputeH1Error(trueSolution, trueSolutionGrad);
-
+    if (solver_strong)
+    {
+      solver_strong->SetDesignVarFromUpdatedLocations(x);
+      solver_strong->FSolve();
+      // ParGridFunction &discreteSol_strong = solver_strong->GetSolution();
+      // final_l2_error = discreteSol_strong.ComputeL2Error(*trueSolution);
+      // final_grad_error = discreteSol_strong.ComputeGradError(trueSolutionGrad);
+      // final_h1_error = discreteSol_strong.ComputeH1Error(trueSolution, trueSolutionGrad);
+    }
     const real_t final_energy = tmma->GetEnergy(x.GetTrueVector(), true);
     const real_t final_metric_energy = tmma->GetEnergy(x.GetTrueVector(), false);
     const real_t final_qoi_energy = final_energy - final_metric_energy;
@@ -1598,11 +1687,20 @@ if (myid == 0) {
     tmma->GetMinErrInfo(min_l2_solver, min_grad_solver, min_err_iter);
     if (myid == 0)
     {
-      std::cout << "k10info: " << qoitype << " "  << ftype << " " <<
-                              mesh_poly_deg << " " <<
-                              init_mesh_size << " " << ne_glob << " " <<
-                              init_l2_error << " " << init_grad_error << " " << final_l2_error << " " << final_grad_error << " " << min_l2_solver << " " << min_grad_solver <<
-                              std::endl;
+      std::ostringstream printit;
+      printit << qoitype << " "  << ftype << " " <<
+                  mesh_poly_deg << " " <<
+                  init_mesh_size << " " << ne_glob << " " <<
+                  init_l2_error << " " << init_grad_error << " " << final_l2_error << " " << final_grad_error << " " << min_l2_solver << " " << min_grad_solver <<
+                  std::endl;
+      std::cout << "k10info: " << printit.str();
+      std::ofstream outfile("poisson_error_info.txt", std::ios::app);
+      if (outfile.is_open()) {
+        outfile << jobid << " " << solver_done_iter << " " << printit.str();
+        outfile.close();
+      } else {
+          std::cerr << "Failed to open file.\n";
+      }
     }
 
     if (visualization && adapt_coeff)

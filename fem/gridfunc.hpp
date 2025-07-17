@@ -643,6 +643,11 @@ public:
                                        ) const
    { ComputeElementLpErrors(infinity(), exsol, error, NULL, irs); }
 
+   /// Returns ||grad u_ex - grad u_h||_L2 in element ielem for H1 or L2 elements
+   virtual void ComputeElementGradErrors(VectorCoefficient *exgrad,
+                                           Vector &error,
+                                           const IntegrationRule *irs[] = NULL) const;
+
    /** When given a vector weight, compute the pointwise (scalar) error as the
        dot product of the vector error with the vector weight. Otherwise, the
        scalar error is the l_2 norm of the vector error. */
