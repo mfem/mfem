@@ -76,3 +76,64 @@ TEST_CASE("Array entry strict sorting", "[Array]")
       REQUIRE(b[i] > b[i-1]);
    }
 }
+
+
+TEST_CASE("Array stl-interactions", "[Array]")
+{
+   Array<int> x{0,1,2,3,4}, y;
+   std::copy(x.begin(), x.end(), std::back_inserter(y));
+   CHECK(y.Size() == 5);
+   for (int i : {0,1,2,3,4})
+   {
+      CHECK(y[i] == i);
+   }
+   y.DeleteAll();
+
+   std::copy_if(x.begin(), x.end(), std::back_inserter(y), [](int x) { return x <= 2; });
+   CHECK(y.Size() == 3);
+   for (int i : {0,1,2})
+   {
+      CHECK(y[i] == i);
+   }
+
+   std::transform(y.begin(), y.end(), y.begin(), [](int x) { return x*x; });
+   CHECK(y.Size() == 3);
+   for (int i : {0,1,2})
+   {
+      CHECK(y[i] == i*i);
+   }
+   y.DeleteAll();
+   for (auto i : x)
+   {
+      y.Append(i);
+   }
+   for (int i : {0,1,2,3,4})
+   {
+      CHECK(x[i] == y[i]);
+   }
+   y.DeleteAll();
+   for (const auto &i : x)
+   {
+      y.Append(i);
+   }
+   for (int i : {0,1,2,3,4})
+   {
+      CHECK(x[i] == y[i]);
+   }
+}
+
+TEST_CASE("Array delete at indices", "[Array]")
+{
+   Array<int>       test({0,1,2,3,4,5,6,7,8});
+   Array<int> rm_indices({0,    3,4,  6,  8});
+   Array<int>     result({  1,2,    5,  7  });
+
+   test.DeleteAt(rm_indices);
+
+   REQUIRE(test.Size() == result.Size());
+
+   for (int i = 0; i < test.Size(); i++)
+   {
+      CHECK(test[i] == result[i]);
+   }
+}
