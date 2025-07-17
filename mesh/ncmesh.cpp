@@ -5102,13 +5102,13 @@ void NCMesh::GetPointMatrix(Geometry::Type geom, const char* ref_path,
    }
 }
 
-void RemapKnotIndex(bool rev, const Array<int> &rf, const SpacingFunction *s,
-                    int &k);
+void RemapKnotIndex(bool rev, const Array<int> &rf, int &k);
+std::pair<int, int> QuadrupleToPair(const std::array<int, 4> &q);
 
-void NCMesh::RefineVertexToKnot(const std::vector<Array<int>> &kvf,
-                                const Array<KnotVector*> &kvext,
-                                std::map<std::pair<int, int>,
-                                std::array<int, 2>> &parentToKV)
+void NCMesh::RefineVertexToKnotSpan(const std::vector<Array<int>> &kvf,
+                                    const Array<KnotVector*> &kvext,
+                                    std::map<std::pair<int, int>,
+                                    std::array<int, 2>> &parentToKV)
 {
    // Note that entries 1 and 2 of vertex_to_knotspan are (k1, k2), which are knot
    // span (element) indices in the two dimensions of a patch face.
@@ -5129,19 +5129,11 @@ void NCMesh::RefineVertexToKnot(const std::vector<Array<int>> &kvf,
             edgeReverse[j] = !ascending;
          }
 
-         // The face with vertices (pv0, pv1, pv2, pv3) is defined as a parent face.
-         const auto pvmin = std::min_element(pv.begin(), pv.end());
-         const int idmin = std::distance(pv.begin(), pvmin);
-         const int c0 = pv[idmin];  // First corner
-         const int c1 = pv[(idmin + 2) % 4];  // Opposite corner
-         const std::pair<int, int> parentPair(c0, c1);
+         // The parent face is defined with vertices (pv0, pv1, pv2, pv3).
+         const std::pair<int, int> parentPair = QuadrupleToPair(pv);
          const std::array<int, 2> kv = parentToKV.at(parentPair);
-
-         RemapKnotIndex(edgeReverse[0], kvf[kv[0]],
-                        kvext[kv[0]]->spacing.get(), ks[0]);
-         RemapKnotIndex(edgeReverse[1], kvf[kv[1]],
-                        kvext[kv[1]]->spacing.get(), ks[1]);
-
+         RemapKnotIndex(edgeReverse[0], kvf[kv[0]], ks[0]);
+         RemapKnotIndex(edgeReverse[1], kvf[kv[1]], ks[1]);
          vertex_to_knotspan.SetKnotSpans3D(i, ks);
       }
       else // 2D
@@ -5153,8 +5145,7 @@ void NCMesh::RefineVertexToKnot(const std::vector<Array<int>> &kvf,
          const std::pair<int, int> parentPair(rev ? pv[1] : pv[0], rev ? pv[0] : pv[1]);
          const std::array<int, 2> kv = parentToKV.at(parentPair);
          const int kvId = kv[0];
-         RemapKnotIndex(rev, kvf[kvId],
-                        kvext[kvId]->spacing.get(), ks);
+         RemapKnotIndex(rev, kvf[kvId], ks);
          vertex_to_knotspan.SetKnotSpan2D(i, ks);
       }
    }
@@ -6172,13 +6163,13 @@ void NCMesh::LoadVertexParents(std::istream &input)
    }
 }
 
-void NCMesh::LoadVertexToKnot(std::istream &input)
+void NCMesh::LoadVertexToKnotSpan(std::istream &input)
 {
-   if (Dim == 2) { LoadVertexToKnot2D(input); }
-   else { LoadVertexToKnot3D(input); }
+   if (Dim == 2) { LoadVertexToKnotSpan2D(input); }
+   else { LoadVertexToKnotSpan3D(input); }
 }
 
-void NCMesh::LoadVertexToKnot2D(std::istream &input)
+void NCMesh::LoadVertexToKnotSpan2D(std::istream &input)
 {
    int nv;
    input >> nv;
@@ -6198,7 +6189,7 @@ void NCMesh::LoadVertexToKnot2D(std::istream &input)
    }
 }
 
-void NCMesh::LoadVertexToKnot3D(std::istream &input)
+void NCMesh::LoadVertexToKnotSpan3D(std::istream &input)
 {
    int nv;
    input >> nv;
@@ -6637,7 +6628,7 @@ NCMesh::NCMesh(std::istream &input, int version, int &curved, int &is_nc)
    // load map from hanging patch vertices to patch edge knots
    if (ident == "vertex_to_knotspan")
    {
-      LoadVertexToKnot(input);
+      LoadVertexToKnotSpan(input);
 
       skip_comment_lines(input, '#');
       input >> ident;

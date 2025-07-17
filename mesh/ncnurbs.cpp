@@ -524,8 +524,7 @@ void NCNURBSExtension::FindAdditionalFacesSA(
 }
 
 void NCNURBSExtension::ProcessFacePairs(int start, int midStart,
-                                        const std::vector<int> &parentN1,
-                                        const std::vector<int> &parentN2,
+                                        const std::vector<std::array<int, 2>> &parentSize,
                                         std::vector<int> &parentVerts,
                                         const std::vector<FacePairInfo> &facePairs)
 {
@@ -552,8 +551,8 @@ void NCNURBSExtension::ProcessFacePairs(int start, int midStart,
       // Ignore data about master faces already processed.
       if (mid < midStart) { continue; }
 
-      MFEM_ASSERT(0 <= i && i < parentN1[mid] && 0 <= j && j < parentN2[mid],
-                  "");
+      MFEM_ASSERT(0 <= i && i < parentSize[mid][0] && 0 <= j &&
+                  j < parentSize[mid][1], "");
       if (mid != midPrev) // Next parent face
       {
          std::array<int, 4> pv;
@@ -581,8 +580,8 @@ void NCNURBSExtension::ProcessFacePairs(int start, int midStart,
       const int si = slaveFaces.size() - 1;
       masterFaceInfo[mid].slaves.push_back(si);
       masterFaceInfo[mid].slaveCorners.push_back(v0);
-      masterFaceInfo[mid].ne[0] = parentN1[mid];
-      masterFaceInfo[mid].ne[1] = parentN2[mid];
+      masterFaceInfo[mid].ne[0] = parentSize[mid][0];
+      masterFaceInfo[mid].ne[1] = parentSize[mid][1];
    } // Loop (q) over facePairs
 
    if (midPrev >= 0)
@@ -1481,8 +1480,7 @@ void NCNURBSExtension::ProcessVertexToKnot2D(const VertexToKnotSpan &v2k,
 void NCNURBSExtension::ProcessVertexToKnot3D(
    const VertexToKnotSpan &v2k,
    const std::map<std::pair<int, int>, int> &v2f,
-   std::vector<int> &parentN1,
-   std::vector<int> &parentN2,
+   std::vector<std::array<int, 2>> &parentSize,
    std::vector<EdgePairInfo> &edgePairs,
    std::vector<FacePairInfo> &facePairs,
    std::vector<int> &parentFaces,
@@ -1570,8 +1568,7 @@ void NCNURBSExtension::ProcessVertexToKnot3D(
             ev.Sort();
             return KnotVecNE(v2e.at(std::pair<int, int>(ev[0], ev[1])));
          };
-         parentN1.push_back(getEdgeNE(0));
-         parentN2.push_back(getEdgeNE(1));
+         parentSize.emplace_back(std::array<int, 2> {getEdgeNE(0), getEdgeNE(1)});
 
          n1 = ks[0]; // Finding max of ks[0]
          n2 = ks[1]; // Finding max of ks[1]
@@ -1639,8 +1636,8 @@ void NCNURBSExtension::ProcessVertexToKnot3D(
          }
       }
 
-      n1 = parentN1[parent];
-      n2 = parentN2[parent];
+      n1 = parentSize[parent][0];
+      n2 = parentSize[parent][1];
       Array2D<int> gridVertex(n1 + 1, n2 + 1);
       gridVertex = -1;
 
@@ -1696,6 +1693,7 @@ void NCNURBSExtension::ProcessVertexToKnot3D(
 
       int n1orig = kvf_coarse.size() > 0 ? kvf_coarse[kvi[0]].Size() : n1 / rf;
       int n2orig = kvf_coarse.size() > 0 ? kvf_coarse[kvi[1]].Size() : n2 / rf;
+
       if (kvf.size() > 0 && kvf_coarse.size() == 0)
       {
          n1orig = kvf[kvi[0]].Size();
@@ -2301,8 +2299,7 @@ void NCNURBSExtension::GetSlaveFaceToPatchTable(Array2D<int> &sface2patch)
    MFEM_VERIFY(consistent, "");
 }
 
-void RemapKnotIndex(bool rev, const Array<int> &rf, const SpacingFunction *s,
-                    int &k)
+void RemapKnotIndex(bool rev, const Array<int> &rf, int &k)
 {
    const int ne = rf.Size();
    const int k0 = k;
@@ -2323,8 +2320,7 @@ void NCNURBSExtension::UpdateAuxiliaryKnotSpans(const Array<int> &rf)
       const int kv = KnotInd(parent);
       for (int i=0; i<2; ++i)
       {
-         RemapKnotIndex(false, kvf[kv], knotVectors[kv]->spacing.get(),
-                        auxEdge.ksi[i]);
+         RemapKnotIndex(false, kvf[kv], auxEdge.ksi[i]);
       }
    }
 
@@ -2339,15 +2335,11 @@ void NCNURBSExtension::UpdateAuxiliaryKnotSpans(const Array<int> &rf)
       const std::pair<int, int> parentPair = QuadrupleToPair(quad);
       const std::array<int, 2> kv = parentToKV.at(parentPair);
 
-      RemapKnotIndex(false, kvf[kv[0]], knotVectors[kv[0]]->spacing.get(),
-                     auxFace.ksi0[0]);
-      RemapKnotIndex(false, kvf[kv[0]], knotVectors[kv[0]]->spacing.get(),
-                     auxFace.ksi1[0]);
+      RemapKnotIndex(false, kvf[kv[0]], auxFace.ksi0[0]);
+      RemapKnotIndex(false, kvf[kv[0]], auxFace.ksi1[0]);
 
-      RemapKnotIndex(false, kvf[kv[1]], knotVectors[kv[1]]->spacing.get(),
-                     auxFace.ksi0[1]);
-      RemapKnotIndex(false, kvf[kv[1]], knotVectors[kv[1]]->spacing.get(),
-                     auxFace.ksi1[1]);
+      RemapKnotIndex(false, kvf[kv[1]], auxFace.ksi0[1]);
+      RemapKnotIndex(false, kvf[kv[1]], auxFace.ksi1[1]);
    }
 }
 
@@ -2355,8 +2347,7 @@ const int NURBSExtension::unsetFactor;
 
 void NCNURBSExtension::LoadFactorsForKV(const std::string &filename)
 {
-   kvf_coarse = kvf;
-
+   if (kvf_coarse.size() == 0) { kvf_coarse = kvf; }
    if (kvf.size() == 0) { kvf.resize(NumOfKnotVectors); }
 
    for (int kv=0; kv<NumOfKnotVectors; ++kv)
@@ -3425,7 +3416,7 @@ void NCNURBSExtension::Refine(bool coarsened, const Array<int> *rf)
 
    if (nonconforming)
    {
-      patchTopo->ncmesh->RefineVertexToKnot(kvf, knotVectors, parentToKV);
+      patchTopo->ncmesh->RefineVertexToKnotSpan(kvf, knotVectors, parentToKV);
       UpdateAuxiliaryKnotSpans(ref_factors);
       UpdateCoarseKVF();
    }
@@ -3522,7 +3513,8 @@ void NCNURBSExtension::GenerateOffsets()
 
       std::vector<EdgePairInfo> edgePairs;
       std::vector<FacePairInfo> facePairs;
-      std::vector<int> parentN1, parentN2, parentFaces, parentVerts;
+      std::vector<int> parentFaces, parentVerts;
+      std::vector<std::array<int, 2>> parentSize;
 
       const bool is3D = dim == 3;
 
@@ -3558,7 +3550,7 @@ void NCNURBSExtension::GenerateOffsets()
          const VertexToKnotSpan &v2k = patchTopo->ncmesh->GetVertexToKnotSpan();
 
          if (is3D)
-            ProcessVertexToKnot3D(v2k, v2f, parentN1, parentN2, edgePairs,
+            ProcessVertexToKnot3D(v2k, v2f, parentSize, edgePairs,
                                   facePairs, parentFaces, parentVerts);
          else
          {
@@ -3638,7 +3630,7 @@ void NCNURBSExtension::GenerateOffsets()
             }
          }
 
-         ProcessFacePairs(0, 0, parentN1, parentN2, parentVerts, facePairs);
+         ProcessFacePairs(0, 0, parentSize, parentVerts, facePairs);
       }
 
       for (int i=0; i<nce.slaves.Size(); ++i)
@@ -3741,8 +3733,11 @@ void NCNURBSExtension::GenerateOffsets()
                   patchTopo->GetFaceVertices(pf, verts);
                   MFEM_ASSERT(edges.Size() == 4 && verts.Size() == 4, "");
 
-                  parentN1.push_back(KnotVec(edges[0])->GetNE());
-                  parentN2.push_back(KnotVec(edges[1])->GetNE());
+                  parentSize.emplace_back(std::array<int, 2>
+                  {
+                     KnotVec(edges[0])->GetNE(),
+                     KnotVec(edges[1])->GetNE()
+                  });
 
                   masterFaceInfo.push_back(
                      MasterFaceInfo(KnotVec(edges[0])->GetNE(),
@@ -3755,7 +3750,7 @@ void NCNURBSExtension::GenerateOffsets()
 
          MFEM_VERIFY(cnt == masterFaceIndex.Size(), "");
 
-         ProcessFacePairs(nfp0, npf0, parentN1, parentN2, parentVerts, facePairs);
+         ProcessFacePairs(nfp0, npf0, parentSize, parentVerts, facePairs);
       }
    }
 
