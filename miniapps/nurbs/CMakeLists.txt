@@ -50,6 +50,11 @@ add_mfem_miniapp(nurbs_ex5
   LIBRARIES mfem)
   add_dependencies(nurbs_ex5 copy_miniapps_nurbs_data)
 
+add_mfem_miniapp(nurbs_ex10
+  MAIN nurbs_ex10.cpp
+  LIBRARIES mfem)
+  add_dependencies(nurbs_ex10 copy_miniapps_nurbs_data)
+
 add_mfem_miniapp(nurbs_ex24
   MAIN nurbs_ex24.cpp
   LIBRARIES mfem)
@@ -69,6 +74,10 @@ add_mfem_miniapp(nurbs_printfunc
   MAIN nurbs_printfunc.cpp
   LIBRARIES mfem)
   add_dependencies(nurbs_printfunc copy_miniapps_nurbs_data)
+
+add_mfem_miniapp(nurbs_mesh_info
+  MAIN nurbs_mesh_info.cpp
+  LIBRARIES mfem)
 
 add_mfem_miniapp(nurbs_patch_ex1
   MAIN nurbs_patch_ex1.cpp
@@ -267,10 +276,20 @@ if (MFEM_USE_MPI)
     LIBRARIES mfem)
     add_dependencies(nurbs_ex1p copy_miniapps_nurbs_data)
 
+  add_mfem_miniapp(nurbs_ex10p
+    MAIN nurbs_ex10p.cpp
+    LIBRARIES mfem)
+    add_dependencies(nurbs_ex10p copy_miniapps_nurbs_data)
+
   add_mfem_miniapp(nurbs_ex11p
     MAIN nurbs_ex11p.cpp
     LIBRARIES mfem)
     add_dependencies(nurbs_ex11p copy_miniapps_nurbs_data)
+
+  add_mfem_miniapp(nurbs_ex24p
+    MAIN nurbs_ex24p.cpp
+    LIBRARIES mfem)
+    add_dependencies(nurbs_ex24p copy_miniapps_nurbs_data)
 
   if (MFEM_ENABLE_TESTING)
     add_test(NAME nurbs_ex1p_np=4
