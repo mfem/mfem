@@ -21,7 +21,7 @@
 //                et al. [2]. The Zhang & Shu limiter enforces the minimum
 //                principle discretely (i.e, on the discrete solution/
 //                quadrature nodes) while the Dzanic et al. limiter enforces
-//                the minimum principle continuously (i.e, across the entire 
+//                the minimum principle continuously (i.e, across the entire
 //                solution polynomial within the element).
 //
 //                We recommend viewing examples 9 and 18 before viewing this
@@ -192,8 +192,8 @@ int main(int argc, char *argv[])
    RusanovFlux numericalFlux(flux);
    DGHyperbolicConservationLaws adv(fes,
                                     std::unique_ptr<HyperbolicFormIntegrator>(
-                                    new HyperbolicFormIntegrator(numericalFlux,
-                                                                 0)), false);
+                                       new HyperbolicFormIntegrator(
+                                          numericalFlux, 0)), false);
 
    // 8. Limit initial solution (if necessary).
    Limit(u, uavg, lbound, ubound, dim, limiter_type, 0.0, 1.0);
@@ -441,7 +441,7 @@ real_t u0_function(const Vector &x)
       {
          constexpr real_t r2 = 0.3*0.3;
          // Notched cylinder
-         if ((pow(X(0), 2.0) + pow(X(1) - 0.5, 2.0) <= r2) && 
+         if ((pow(X(0), 2.0) + pow(X(1) - 0.5, 2.0) <= r2) &&
              !(abs(X(0)) < 0.05 && abs(X(1) - 0.45) < 0.25))
          {
             return 1.0;
@@ -450,7 +450,7 @@ real_t u0_function(const Vector &x)
          else if (pow(X(0) + 0.5, 2.0) + pow(X(1), 2.0) <= r2)
          {
             return 0.25*(1 + cos(M_PI*sqrt(pow(X(0) + 0.5, 2.0)
-                           + pow(X(1), 2.0))/0.3));
+                                           + pow(X(1), 2.0))/0.3));
          }
          // Sharp cone
          else if (pow(X(0), 2.0) + pow(X(1) + 0.5, 2.0) <= r2)
