@@ -163,12 +163,6 @@ void PatchDiffusionGetReducedRule(const PatchBasisInfo &pb, const int d,
    const std::vector<int>& maxDD = pb.maxDD[d];
    const IntegrationRule *ir = pb.ir1d[d];
 
-   MFEM_VERIFY(B.NumRows() == nq, "");
-   MFEM_VERIFY(B.NumCols() == nd, "");
-   MFEM_VERIFY(G.NumRows() == nq, "");
-   MFEM_VERIFY(G.NumCols() == nd, "");
-   MFEM_VERIFY(ir->GetNPoints() == nq, "");
-
    for (int dof=0; dof<nd; ++dof)
    {
       // Integrate diffusion for B(:,dof) against all other B(:,i)

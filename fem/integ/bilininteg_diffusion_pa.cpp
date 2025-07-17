@@ -170,75 +170,54 @@ void DiffusionIntegrator::AddMultPatchPA3D(const Vector &pa_data,
                                            const Vector &x,
                                            Vector &y) const
 {
+   MFEM_VERIFY(3 == dim, "");
+
    // Unpack patch basis info
    const Array<int>& Q1D = pb.Q1D;
    const Array<int>& D1D = pb.D1D;
-   const int NQ = pb.NQ;
    const std::vector<Array2D<real_t>>& B = pb.B;
    const std::vector<Array2D<real_t>>& G = pb.G;
+
    const IntArrayVar2D& minD = pb.minD;
    const IntArrayVar2D& maxD = pb.maxD;
    const IntArrayVar2D& minQ = pb.minQ;
    const IntArrayVar2D& maxQ = pb.maxQ;
 
-   auto X = Reshape(x.HostRead(), D1D[0], D1D[1], D1D[2]);
+   const int NQ = pb.NQ;
+   const std::vector<int> acc = pb.accsize;
+
+   const auto X = Reshape(x.HostRead(), D1D[0], D1D[1], D1D[2]);
    auto Y = Reshape(y.HostReadWrite(), D1D[0], D1D[1], D1D[2]);
 
-   const auto qd = Reshape(pa_data.HostRead(), Q1D[0]*Q1D[1]*Q1D[2],
-                           (symmetric ? 6 : 9));
+   Vector gradv(3*NQ);
+   gradv = 0.0;
+   auto grad = Reshape(gradv.HostReadWrite(), 3, Q1D[0], Q1D[1], Q1D[2]);
 
-   // NOTE: the following is adapted from AssemblePatchMatrix_fullQuadrature
-   std::vector<Array3D<real_t>> grad(dim);
-   // TODO: Can an optimal order of dimensions be determined, for each patch?
-   Array3D<real_t> gradXY(3, std::max(Q1D[0], D1D[0]), std::max(Q1D[1], D1D[1]));
-   Array2D<real_t> gradX(3, std::max(Q1D[0], D1D[0]));
+   const auto qd = Reshape(pa_data.HostRead(), NQ, (symmetric ? 6 : 9));
 
-   // Initialize
-   for (int d=0; d<dim; ++d)
-   {
-      grad[d].SetSize(Q1D[0], Q1D[1], Q1D[2]);
+   // Accumulators; these are shared between grad_u interpolation and grad_v_T
+   // application, so their size is the max of qpts/dofs
+   Vector sumXYv(3*acc[0]*acc[1]);
+   Vector sumXv(3*acc[0]);
+   auto sumXY = Reshape(sumXYv.HostReadWrite(), 3, acc[0], acc[1]);
+   auto sumX = Reshape(sumXv.HostReadWrite(), 3, acc[0]);
 
-      for (int qz = 0; qz < Q1D[2]; ++qz)
-      {
-         for (int qy = 0; qy < Q1D[1]; ++qy)
-         {
-            for (int qx = 0; qx < Q1D[0]; ++qx)
-            {
-               grad[d](qx,qy,qz) = 0.0;
-            }
-         }
-      }
-   }
-
-   // Interpolate grad_uhat at reference quadrature points
+   // Interpolate grad_u
    for (int dz = 0; dz < D1D[2]; ++dz)
    {
-      for (int qy = 0; qy < Q1D[1]; ++qy)
-      {
-         for (int qx = 0; qx < Q1D[0]; ++qx)
-         {
-            for (int d=0; d<dim; ++d)
-            {
-               gradXY(d,qx,qy) = 0.0;
-            }
-         }
-      }
+      sumXYv = 0.0;
       for (int dy = 0; dy < D1D[1]; ++dy)
       {
-         for (int qx = 0; qx < Q1D[0]; ++qx)
-         {
-            gradX(0,qx) = 0.0;
-            gradX(1,qx) = 0.0;
-         }
+         sumXv = 0.0;
          for (int dx = 0; dx < D1D[0]; ++dx)
          {
-            const real_t s = X(dx,dy,dz);
+            const real_t u = X(dx,dy,dz);
             for (int qx = minD[0][dx]; qx <= maxD[0][dx]; ++qx)
             {
-               gradX(0,qx) += s * B[0](qx,dx);
-               gradX(1,qx) += s * G[0](qx,dx);
+               sumX(0,qx) += u * B[0](qx,dx);
+               sumX(1,qx) += u * G[0](qx,dx);
             }
-         }
+         } // dx
          for (int qy = minD[1][dy]; qy <= maxD[1][dy]; ++qy)
          {
             const real_t wy  = B[1](qy,dy);
@@ -246,14 +225,15 @@ void DiffusionIntegrator::AddMultPatchPA3D(const Vector &pa_data,
             // This full range of qx values is generally necessary.
             for (int qx = 0; qx < Q1D[0]; ++qx)
             {
-               const real_t wx  = gradX(0,qx);
-               const real_t wDx = gradX(1,qx);
-               gradXY(0,qx,qy) += wDx * wy;
-               gradXY(1,qx,qy) += wx  * wDy;
-               gradXY(2,qx,qy) += wx  * wy;
+               const real_t wx  = sumX(0,qx);
+               const real_t wDx = sumX(1,qx);
+               sumXY(0,qx,qy) += wDx * wy;
+               sumXY(1,qx,qy) += wx  * wDy;
+               sumXY(2,qx,qy) += wx  * wy;
             }
-         }
-      }
+         } // qy
+      } // dy
+
       for (int qz = minD[2][dz]; qz <= maxD[2][dz]; ++qz)
       {
          const real_t wz  = B[2](qz,dz);
@@ -262,15 +242,15 @@ void DiffusionIntegrator::AddMultPatchPA3D(const Vector &pa_data,
          {
             for (int qx = 0; qx < Q1D[0]; ++qx)
             {
-               grad[0](qx,qy,qz) += gradXY(0,qx,qy) * wz;
-               grad[1](qx,qy,qz) += gradXY(1,qx,qy) * wz;
-               grad[2](qx,qy,qz) += gradXY(2,qx,qy) * wDz;
+               grad(0,qx,qy,qz) += sumXY(0,qx,qy) * wz;
+               grad(1,qx,qy,qz) += sumXY(1,qx,qy) * wz;
+               grad(2,qx,qy,qz) += sumXY(2,qx,qy) * wDz;
             }
          }
       }
-   }
+   } // dz
 
-   // Apply D( grad_uhat )
+   // Apply kernel
    for (int qz = 0; qz < Q1D[2]; ++qz)
    {
       for (int qy = 0; qy < Q1D[1]; ++qy)
@@ -288,65 +268,52 @@ void DiffusionIntegrator::AddMultPatchPA3D(const Vector &pa_data,
             const real_t O21 = symmetric ? O12 : qd(q,7);
             const real_t O22 = symmetric ? qd(q,5) : qd(q,8);
 
-            const real_t grad0 = grad[0](qx,qy,qz);
-            const real_t grad1 = grad[1](qx,qy,qz);
-            const real_t grad2 = grad[2](qx,qy,qz);
+            const real_t grad0 = grad(0,qx,qy,qz);
+            const real_t grad1 = grad(1,qx,qy,qz);
+            const real_t grad2 = grad(2,qx,qy,qz);
 
-            grad[0](qx,qy,qz) = (O00*grad0)+(O01*grad1)+(O02*grad2);
-            grad[1](qx,qy,qz) = (O10*grad0)+(O11*grad1)+(O12*grad2);
-            grad[2](qx,qy,qz) = (O20*grad0)+(O21*grad1)+(O22*grad2);
+            grad(0,qx,qy,qz) = (O00*grad0)+(O01*grad1)+(O02*grad2);
+            grad(1,qx,qy,qz) = (O10*grad0)+(O11*grad1)+(O12*grad2);
+            grad(2,qx,qy,qz) = (O20*grad0)+(O21*grad1)+(O22*grad2);
          } // qx
       } // qy
    } // qz
 
-   // Apply test function to move from quads -> dofs
+   // Apply gradv^T
    for (int qz = 0; qz < Q1D[2]; ++qz)
    {
-      for (int dy = 0; dy < D1D[1]; ++dy)
-      {
-         for (int dx = 0; dx < D1D[0]; ++dx)
-         {
-            for (int d=0; d<3; ++d)
-            {
-               gradXY(d,dx,dy) = 0.0;
-            }
-         }
-      }
+      sumXYv = 0.0;
       for (int qy = 0; qy < Q1D[1]; ++qy)
       {
-         for (int dx = 0; dx < D1D[0]; ++dx)
-         {
-            for (int d=0; d<3; ++d)
-            {
-               gradX(d,dx) = 0.0;
-            }
-         }
+         sumXv = 0.0;
          for (int qx = 0; qx < Q1D[0]; ++qx)
          {
-            const real_t gX = grad[0](qx,qy,qz);
-            const real_t gY = grad[1](qx,qy,qz);
-            const real_t gZ = grad[2](qx,qy,qz);
+            const real_t gX = grad(0,qx,qy,qz);
+            const real_t gY = grad(1,qx,qy,qz);
+            const real_t gZ = grad(2,qx,qy,qz);
             for (int dx = minQ[0][qx]; dx <= maxQ[0][qx]; ++dx)
             {
                const real_t wx  = B[0](qx,dx);
                const real_t wDx = G[0](qx,dx);
-               gradX(0,dx) += gX * wDx;
-               gradX(1,dx) += gY * wx;
-               gradX(2,dx) += gZ * wx;
+               sumX(0,dx) += gX * wDx;
+               sumX(1,dx) += gY * wx;
+               sumX(2,dx) += gZ * wx;
             }
          }
+
          for (int dy = minQ[1][qy]; dy <= maxQ[1][qy]; ++dy)
          {
             const real_t wy  = B[1](qy,dy);
             const real_t wDy = G[1](qy,dy);
             for (int dx = 0; dx < D1D[0]; ++dx)
             {
-               gradXY(0,dx,dy) += gradX(0,dx) * wy;
-               gradXY(1,dx,dy) += gradX(1,dx) * wDy;
-               gradXY(2,dx,dy) += gradX(2,dx) * wy;
+               sumXY(0,dx,dy) += sumX(0,dx) * wy;
+               sumXY(1,dx,dy) += sumX(1,dx) * wDy;
+               sumXY(2,dx,dy) += sumX(2,dx) * wy;
             }
          }
       }
+
       for (int dz = minQ[2][qz]; dz <= maxQ[2][qz]; ++dz)
       {
          const real_t wz  = B[2](qz,dz);
@@ -356,9 +323,9 @@ void DiffusionIntegrator::AddMultPatchPA3D(const Vector &pa_data,
             for (int dx = 0; dx < D1D[0]; ++dx)
             {
                Y(dx,dy,dz) +=
-                  ((gradXY(0,dx,dy) * wz) +
-                   (gradXY(1,dx,dy) * wz) +
-                   (gradXY(2,dx,dy) * wDz));
+                  ((sumXY(0,dx,dy) * wz) +
+                   (sumXY(1,dx,dy) * wz) +
+                   (sumXY(2,dx,dy) * wDz));
             }
          }
       } // dz

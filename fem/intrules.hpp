@@ -274,7 +274,6 @@ public:
    ~IntegrationRule() { }
 };
 
-// enum class SplineIntegrationRule { FULL_GAUSSIAN, REDUCED_GAUSSIAN, };
 /// @brief Dispatcher for different integration methods over a spline
 class SplineIntegrationRule
 {
