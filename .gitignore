@@ -284,6 +284,7 @@ miniapps/navier/navier_cht
 miniapps/navier/navier_windtunnel
 miniapps/navier/tgv_out*.txt
 miniapps/navier/*_output
+miniapps/navier/inputs/
 
 miniapps/nurbs/nurbs_ex1
 miniapps/nurbs/nurbs_ex1p

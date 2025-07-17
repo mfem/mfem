@@ -42,21 +42,32 @@
 #include <vector>
 #include <stdexcept>
 
+using namespace mfem;
+using namespace navier;
 
 const std::string TURB_FIELD_FILE = "inputs/IEC_simple.vti";
 
-struct TurbField {
+/// @brief Turbulence field data structure, which is meant for directly loading in
+/// the data from a VTI file, assumed to be formatted as DRDMannTurb does.
+/// @note We should always have Nc = 3
+struct TurbField
+{
    int Nx, Ny, Nz, Nc;
    std::vector<double> data;
    std::vector<double> spacing;  // x, y, z spacing
    std::vector<double> origin;   // x, y, z origin
 };
 
-TurbField load_turb_field(const std::string &filename) {
+/// @brief Loads turbulence field from a VTI file.
+/// @param filename Name of the VTI file to load.
+/// @return Turbulence field data structure.
+TurbField load_turb_field(const std::string &filename)
+{
    TurbField turb_field;
    std::ifstream infile(filename, std::ios::binary);
-   if (!infile) {
-       throw std::runtime_error("Failed to open VTI file: " + filename);
+   if (!infile)
+   {
+      throw std::runtime_error("Failed to open VTI file: " + filename);
    }
 
    // Read entire file into memory for parsing
@@ -70,7 +81,10 @@ TurbField load_turb_field(const std::string &filename) {
 
    // Parse WholeExtent
    size_t pos = content.find("WholeExtent=\"");
-   if (pos == std::string::npos) throw std::runtime_error("Invalid VTI: No WholeExtent");
+   if (pos == std::string::npos)
+   {
+      throw std::runtime_error("Invalid VTI: No WholeExtent");
+   }
    std::istringstream ext(content.substr(pos + 13, 50));
    int ex_min, ex_max, ey_min, ey_max, ez_min, ez_max;
    ext >> ex_min >> ex_max >> ey_min >> ey_max >> ez_min >> ez_max;
@@ -81,28 +95,37 @@ TurbField load_turb_field(const std::string &filename) {
 
    // Parse Origin
    pos = content.find("Origin=\"");
-   if (pos != std::string::npos) {
-       std::istringstream org(content.substr(pos + 8, 50));
-       turb_field.origin.resize(3);
-       org >> turb_field.origin[0] >> turb_field.origin[1] >> turb_field.origin[2];
+   if (pos != std::string::npos)
+   {
+      std::istringstream org(content.substr(pos + 8, 50));
+      turb_field.origin.resize(3);
+      org >> turb_field.origin[0] >> turb_field.origin[1] >> turb_field.origin[2];
    }
 
    // Parse Spacing
    pos = content.find("Spacing=\"");
-   if (pos != std::string::npos) {
-       std::istringstream spc(content.substr(pos + 9, 50));
-       turb_field.spacing.resize(3);
-       spc >> turb_field.spacing[0] >> turb_field.spacing[1] >> turb_field.spacing[2];
+   if (pos != std::string::npos)
+   {
+      std::istringstream spc(content.substr(pos + 9, 50));
+      turb_field.spacing.resize(3);
+      spc >> turb_field.spacing[0] >> turb_field.spacing[1] >> turb_field.spacing[2];
    }
 
    // Find start of AppendedData
    pos = content.find("<AppendedData encoding=\"raw\">");
-   if (pos == std::string::npos) throw std::runtime_error("Invalid VTI: No AppendedData tag");
-   size_t appended_start = pos + std::string("<AppendedData encoding=\"raw\">").length();
+   if (pos == std::string::npos)
+   {
+      throw std::runtime_error("Invalid VTI: No AppendedData tag");
+   }
+   size_t appended_start = pos +
+                           std::string("<AppendedData encoding=\"raw\">").length();
 
    // Find the '_' marker after the tag
    pos = content.find("_", appended_start);
-   if (pos == std::string::npos) throw std::runtime_error("Invalid VTI: No raw data marker '_'");
+   if (pos == std::string::npos)
+   {
+      throw std::runtime_error("Invalid VTI: No raw data marker '_'");
+   }
    size_t data_start = pos + 1;  // Binary data starts after '_'
 
    // Hardcoded offsets from your XML (adjust if needed or parse dynamically)
@@ -114,7 +137,8 @@ TurbField load_turb_field(const std::string &filename) {
 
    // Skip grid array: uint64 prefix + data
    uint64_t grid_prefix;
-   std::memcpy(&grid_prefix, buffer.data() + data_start + grid_offset, sizeof(uint64_t));
+   std::memcpy(&grid_prefix, buffer.data() + data_start + grid_offset,
+               sizeof(uint64_t));
    size_t grid_size_bytes = static_cast<size_t>(grid_prefix);
    data_start += grid_offset + sizeof(uint64_t) + grid_size_bytes;
 
@@ -124,45 +148,47 @@ TurbField load_turb_field(const std::string &filename) {
    data_start += sizeof(uint64_t);
 
    // Validate size
-   size_t expected_bytes = turb_field.Nx * turb_field.Ny * turb_field.Nz * turb_field.Nc * sizeof(double);
-   if (wind_prefix != expected_bytes) {
-       throw std::runtime_error("Wind data size mismatch: expected " + std::to_string(expected_bytes) + ", got " + std::to_string(wind_prefix));
+   size_t expected_bytes = turb_field.Nx * turb_field.Ny * turb_field.Nz *
+                           turb_field.Nc * sizeof(double);
+   if (wind_prefix != expected_bytes)
+   {
+      throw std::runtime_error("Wind data size mismatch: expected " + std::to_string(
+                                  expected_bytes) + ", got " + std::to_string(wind_prefix));
    }
 
    // Read wind data
-   size_t wind_size = turb_field.Nx * turb_field.Ny * turb_field.Nz * turb_field.Nc;
+   size_t wind_size = turb_field.Nx * turb_field.Ny * turb_field.Nz *
+                      turb_field.Nc;
    turb_field.data.resize(wind_size);
    std::memcpy(turb_field.data.data(), buffer.data() + data_start, expected_bytes);
 
    return turb_field;
 }
 
-
-
-
-
-using namespace mfem;
-using namespace navier;
-
 struct s_NavierContext
 {
-   int ser_ref_levels = 1;
-   int order = 2;
-   real_t kinvis = 1.0 / 10.0;
-   real_t t_final = 2.0;
-   real_t dt = 0.01;
+   int ser_ref_levels =
+      1; // Number of times to refine the mesh uniformly in serial.
+   int order = 2; // Order (degree) of the finite elements.
+   real_t kinvis = 1.0 / 10.0; // Kinematic viscosity \approx 1 / Reynolds number
+   real_t t_final = 2.0; // Final time
+   real_t dt = 0.01; // Time step
 
-   bool pa = true;
-   bool ni = false;
-   bool visualization = false;
-   bool checkres = false;
+   // MFEM options
+   bool pa = true; // Partial assembly
+   bool ni = false; // Numerical integration
+   bool visualization = false; // GLVis visualization
+   bool checkres = false; // Check residual
 
    // Inlet profile selection
+   //   0: Constant
+   //   1: Power law
+   //   2: Logarithmic
    int inlet_profile_type = 0;
 
    // Common parameters
-   real_t inlet_velocity = 1.0;
-   real_t ref_height = 0.4;
+   real_t inlet_velocity = 1.0; // Inlet velocity magnitude
+   real_t ref_height = 0.4; // Reference height for wind profile
 
    // Power law parameters
    real_t power_alpha = 0.15;    // Power law exponent
@@ -180,7 +206,6 @@ struct s_NavierContext
 namespace InletProfile
 {
 /// Constant velocity profile
-/// Set -profile 0
 void constant(const Vector &x, real_t t, Vector &u)
 {
    u(0) = ctx.inlet_velocity;
@@ -189,7 +214,6 @@ void constant(const Vector &x, real_t t, Vector &u)
 }
 
 /// Power law profile
-/// Set -profile 1
 void power_law(const Vector &x, real_t t, Vector &u)
 {
    real_t z = x(2);
@@ -201,7 +225,6 @@ void power_law(const Vector &x, real_t t, Vector &u)
 }
 
 /// Uniform logarithmic wind profile
-/// Set -profile 2
 void logarithmic(const Vector &x, real_t t, Vector &u)
 {
    real_t z = x(2);
@@ -218,7 +241,8 @@ void logarithmic(const Vector &x, real_t t, Vector &u)
 }
 }
 
-// Profile selection function
+/// @brief Profile selection function
+/// @return Pointer to the selected profile function
 void (*get_inlet_profile())(const Vector &, real_t, Vector &)
 {
    switch (ctx.inlet_profile_type)
@@ -230,6 +254,10 @@ void (*get_inlet_profile())(const Vector &, real_t, Vector &)
    }
 }
 
+/// @brief Main function
+/// @param argc Number of command line arguments
+/// @param argv Command line arguments
+/// @return 0 if successful, 1 otherwise
 int main(int argc, char *argv[])
 {
    Mpi::Init(argc, argv);
@@ -292,32 +320,38 @@ int main(int argc, char *argv[])
       args.PrintOptions(mfem::out);
    }
 
-
-
    // Load turbulence field in
-
    TurbField turb_field = load_turb_field(TURB_FIELD_FILE);
    if (Mpi::Root())
    {
-      std::cout << "Turbulence field loaded successfully" << std::endl;
-      std::cout << "Nx: " << turb_field.Nx << ", Ny: " << turb_field.Ny << ", Nz: " << turb_field.Nz << std::endl;
+      mfem::out << "Turbulence field loaded successfully" << std::endl;
+      mfem::out << "Nx: " << turb_field.Nx << ", Ny: " << turb_field.Ny << ", Nz: " <<
+                turb_field.Nz << std::endl;
    }
 
 
    // Verify loaded data (print first few values for comparison with NumPy)
-   if (Mpi::Root()) {
-      std::cout << "Verifying turbulence data (first 9 values, assuming (x,y,z,c) order):" << std::endl;
-      for (size_t i = 0; i < 9 && i < turb_field.data.size(); ++i) {
-         std::cout << turb_field.data[i] << " ";
+   if (Mpi::Root())
+   {
+      mfem::out <<
+                "Verifying turbulence data (first 9 values, assuming (x,y,z,c) order):" <<
+                std::endl;
+      for (size_t i = 0; i < 9 && i < turb_field.data.size(); ++i)
+      {
+         mfem::out << turb_field.data[i] << " ";
       }
-      std::cout << std::endl;
+      mfem::out << std::endl;
 
       // Optional: Print min/max per component for summary
-      double min_u = std::numeric_limits<double>::max(), max_u = std::numeric_limits<double>::lowest();
-      double min_v = std::numeric_limits<double>::max(), max_v = std::numeric_limits<double>::lowest();
-      double min_w = std::numeric_limits<double>::max(), max_w = std::numeric_limits<double>::lowest();
+      double min_u = std::numeric_limits<double>::max(),
+             max_u = std::numeric_limits<double>::lowest();
+      double min_v = std::numeric_limits<double>::max(),
+             max_v = std::numeric_limits<double>::lowest();
+      double min_w = std::numeric_limits<double>::max(),
+             max_w = std::numeric_limits<double>::lowest();
       size_t size = turb_field.data.size();
-      for (size_t i = 0; i < size; i += 3) {
+      for (size_t i = 0; i < size; i += 3)
+      {
          min_u = std::min(min_u, turb_field.data[i]);
          max_u = std::max(max_u, turb_field.data[i]);
          min_v = std::min(min_v, turb_field.data[i+1]);
@@ -325,15 +359,10 @@ int main(int argc, char *argv[])
          min_w = std::min(min_w, turb_field.data[i+2]);
          max_w = std::max(max_w, turb_field.data[i+2]);
       }
-      std::cout << "Component U: min=" << min_u << ", max=" << max_u << std::endl;
-      std::cout << "Component V: min=" << min_v << ", max=" << max_v << std::endl;
-      std::cout << "Component W: min=" << min_w << ", max=" << max_w << std::endl;
+      mfem::out << "Component U: min=" << min_u << ", max=" << max_u << std::endl;
+      mfem::out << "Component V: min=" << min_v << ", max=" << max_v << std::endl;
+      mfem::out << "Component W: min=" << min_w << ", max=" << max_w << std::endl;
    }
-
-
-   exit(0);
-
-
 
    // Domain: [0, 3] x [0, 1] x [0, 1] (Length x Width x Height)
    Mesh mesh = Mesh::MakeCartesian3D(6, 2, 2, Element::HEXAHEDRON,
@@ -346,19 +375,19 @@ int main(int argc, char *argv[])
 
    if (Mpi::Root())
    {
-      std::cout << "Number of elements: " << mesh.GetNE() << std::endl;
-      std::cout << "Mesh dimension: " << mesh.Dimension() << std::endl;
-      std::cout << "Number of boundary attributes: " << mesh.bdr_attributes.Max() <<
+      mfem::out << "Number of elements: " << mesh.GetNE() << std::endl;
+      mfem::out << "Mesh dimension: " << mesh.Dimension() << std::endl;
+      mfem::out << "Number of boundary attributes: " << mesh.bdr_attributes.Max() <<
                 std::endl;
 
       // Print boundary attribute assignments for verification
-      std::cout << "\nBoundary attribute assignments:" << std::endl;
-      std::cout << "  Bottom (z=0): attr 1" << std::endl;
-      std::cout << "  Front (y=0):  attr 2" << std::endl;
-      std::cout << "  Right (x=max): attr 3" << std::endl;
-      std::cout << "  Back (y=max):  attr 4" << std::endl;
-      std::cout << "  Left (x=0):   attr 5" << std::endl;
-      std::cout << "  Top (z=max):  attr 6" << std::endl;
+      mfem::out << "\nBoundary attribute assignments:" << std::endl;
+      mfem::out << "  Bottom (z=0): attr 1" << std::endl;
+      mfem::out << "  Front (y=0):  attr 2" << std::endl;
+      mfem::out << "  Right (x=max): attr 3" << std::endl;
+      mfem::out << "  Back (y=max):  attr 4" << std::endl;
+      mfem::out << "  Left (x=0):   attr 5" << std::endl;
+      mfem::out << "  Top (z=max):  attr 6" << std::endl;
    }
 
    auto *pmesh = new ParMesh(MPI_COMM_WORLD, mesh);
@@ -509,6 +538,7 @@ int main(int argc, char *argv[])
       }
    }
 
+   // GLVis visualization of final time step
    if (ctx.visualization)
    {
       char vishost[] = "localhost";
