@@ -191,6 +191,9 @@ public:
    /// Return a pointer to the current pressure ParGridFunction.
    ParGridFunction *GetCurrentPressure() { return &pn_gf; }
 
+   /// Return a pointer to the current vorticity ParGridFunction
+   ParGridFunction *GetCurrentVorticity() { return &curlu_gf; }
+
    /// Add a Dirichlet boundary condition to the velocity field.
    void AddVelDirichletBC(VectorCoefficient *coeff, Array<int> &attr);
 
