@@ -94,8 +94,8 @@ void AsymmetricMassIntegrator::AsymmetricElementMatrix(const FiniteElement
 }
 
 /// @brief Dense small least squares solver
-void LSSolver(Solver& solver, const DenseMatrix& A, const Vector& b, Vector& x,
-              real_t shift = 0.0)
+void LSSolver(Solver& solver, const DenseMatrix& A, const Vector& b,
+              Vector& x, real_t shift = 0.0)
 {
    x.SetSize(A.Width());
    x = 0.0;
@@ -277,8 +277,10 @@ int main(int argc, char* argv[])
    ones.ComputeElementL1Errors(zeros, volumes);
 
    // Solver choice
-   Solver *small_solver = nullptr;
    // TODO(Gabriel): Support more solvers?
+   Solver *small_solver = nullptr;
+   // TODO(Gabriel): Support more PCs?
+   Solver* pc = nullptr;
    {
       small_solver = new MINRESSolver();
    }
@@ -291,6 +293,7 @@ int main(int argc, char* argv[])
       // TODO(Gabriel): Not implemented yet
       IterativeSolver::PrintLevel print_level;
       print_level.All();
+      pc = new OperatorJacobiSmoother();
 
       it_solver->SetRelTol(solver_rtol);
       it_solver->SetAbsTol(solver_atol);
@@ -343,10 +346,33 @@ int main(int argc, char* argv[])
       Vector local_volumes(num_ngh_e);
       volumes.GetSubVector(ngh_e, local_volumes);
       local_mass_mat.InvLeftScaling(local_volumes);
+      // End define small matrix
+
+      // Define L1-Jacobi preconditioner
+      // Define A^TA row sums
+      if (it_solver)
+      {
+         Vector l1_pc_diag(num_ngh_e), col_j(num_ngh_e), col_k(num_ngh_e);
+         real_t sums;
+         for (int i = 0; i < num_ngh_e; i++)
+         {
+            sums = 0.0;
+            for (int j = 0; j < fe_rec_e_ndof; j++)
+            {
+               local_mass_mat.GetColumn(j, col_j);
+               for (int k = 0; k < fe_rec_e_ndof; k++) { local_mass_mat.GetColumn(k, col_k); }
+               sums += std::abs(col_j * col_k);
+            }
+            l1_pc_diag(i) = sums;
+         }
+         static_cast<OperatorJacobiSmoother*>(pc)->Setup(l1_pc_diag);
+         it_solver->SetPreconditioner(*pc);
+      }
 
       // Solve
       Vector local_u_avg, local_u_rec;
       u_averages.GetSubVector(ngh_e, local_u_avg);
+
       if (preserve_volumes)
       {
          Vector _mult, exact_average_e(1), self_volume(1);
@@ -448,6 +474,7 @@ int main(int argc, char* argv[])
       file.close();
    }
 
+   if (pc) { delete pc; }
    if (small_solver) { delete small_solver; }
    delete ngh_tr;
    delete self_tr;
