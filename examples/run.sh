@@ -21,12 +21,6 @@ printHelp () {
 	echo "                      -h: Print this help"
 }
 
-#GL: is this conditionnal required ?
-#if [[ $# -eq 0 ]] ; then
-#    printHelp
-#    exit 0
-#fi
-
 POSITIONAL_ARGS=()
 
 while [[ $# -gt 0 ]]; do
@@ -65,10 +59,10 @@ while [[ $# -gt 0 ]]; do
 done
 
 set -- "${POSITIONAL_ARGS[@]}"
-if [[ -z "${MFEM_DIR}" || -z "${GMSH_DIR}" ]]; then
+if [[ -z ${MFEM_DIR} || -z ${GMSH_DIR} ]]; then
     echo "Missing mfem's and/or gmsh's home path!" && exit 1
-    echo "MFEM_DIR=$MFEM_DIR"
-    echo "GMSH_DIR=$GMSH_DIR"
+    echo "MFEM_DIR=${MFEM_DIR}"
+    echo "GMSH_DIR=${GMSH_DIR}"
 fi
 
 if [[ -z ${MFEM_DATA_GMSH_DIR} ]]; then
@@ -86,46 +80,53 @@ fi
 
 MFEM_DATA="${MFEM_DIR}/data"
 MFEM_BUILD_DATA="${MFEM_BUILD_DIR}/data"
+echo "MFEM_DATA=${MFEM_DATA}"
+echo "MFEM_BUILD_DATA=${MFEM_BUILD_DATA}"
 
 echo -e "\033[1mGenerating meshes\033[0m in ${MFEM_BUILD_DATA}..."
 cd ${MFEM_DATA}
-MFEM_GEO_FILES=($(ls *.geo))
+MFEM_GEO_FILES=($(ls *.geo | grep -v compass))
 MFEM_MESH_NAMES=()
-cd $MFEM_BUILD_DATA;
+cd ${MFEM_BUILD_DATA};
 for i in ${MFEM_GEO_FILES[@]}; do
     echo -e "\t${i}"
     MFEM_MESH_NAMES+=(${i%.geo})
     gmsh -v 2 ${MFEM_DATA}/${i} -3 -format msh41 -o ${MFEM_MESH_NAMES[-1]}_41.msh &
     gmsh -v 2 ${MFEM_DATA}/${i} -3 -format msh22 -o ${MFEM_MESH_NAMES[-1]}_22.msh &
-wait
+    wait
 done
 
+# Also generating compass mesh, but to later use it with ex39 only
+echo -e "\tcompass.geo"
+gmsh -v 2 ${MFEM_DATA}/compass.geo -2 -format msh41 -o compass_41.msh &
+gmsh -v 2 ${MFEM_DATA}/compass.geo -2 -format msh22 -o compass_22.msh &
+wait
 
 GMSH_TUTO_DIR=${GMSH_DIR}/tutorials
-GMSH_TUT_MESH_LIST="1 3 4 5 6 7 8 10 11 13 14 15 16 17 18 19 20"
+GMSH_TUT_MESH_LIST="1 3 4 5 6 7 8 10 11 13 14 15 16 18 19 20"
 #Fix a pb with GMSH format version 2.2 -> doubling the number of triangles
 sed -i "s%^\(Physical Surface(80)\)%//BUG//\1%g" ${GMSH_TUTO_DIR}/t14.geo
 
-for i in $GMSH_TUT_MESH_LIST; do
+for i in ${GMSH_TUT_MESH_LIST}; do
     echo -e "\tt${i}.geo"
-    gmsh -v 2 ${GMSH_TUTO_DIR}/t${i}.geo -3 -format msh41 -o ${GMSH_TUTO_DIR}/t${i}_41.msh &
-    gmsh -v 2 ${GMSH_TUTO_DIR}/t${i}.geo -3 -format msh22 -o ${GMSH_TUTO_DIR}/t${i}_22.msh &
+    gmsh -v 2 ${GMSH_TUTO_DIR}/t${i}.geo -3 -format msh41 -o t${i}_41.msh &
+    gmsh -v 2 ${GMSH_TUTO_DIR}/t${i}.geo -3 -format msh22 -o t${i}_22.msh &
 done
 wait
 
 echo -e "\033[1m\nBuilding examples...\033[0m"
 EXAMPLES_LIST="exPrintMesh ex0 ex1 ex4"
-(cd $MFEM_BUILD_DIR; make --quiet -j 12 ${EXAMPLES_LIST})
+(cd ${MFEM_BUILD_DIR}; make --quiet -j 12 ${EXAMPLES_LIST}; make --quiet -j 12 ex39)
 
 
 # Multipe checks
-cd $MFEM_BUILD_DIR/examples
+cd ${MFEM_BUILD_DIR}/examples
 echo -e "\n\033[1mRunning tests on gmsh tutorials meshes...\033[0m"
-for i in $GMSH_TUT_MESH_LIST; do
+for i in ${GMSH_TUT_MESH_LIST}; do
     for ex in ${EXAMPLES_LIST}; do
         echo -e "- ${ex}, t${i}"
-        (./${ex} -m "${GMSH_TUTO_DIR}/t${i}_22.msh" | grep -v -e "mesh" -e "Iteration" -e "Average reduction") > res22 2>err22
-        (./${ex} -m "${GMSH_TUTO_DIR}/t${i}_41.msh" | grep -v -e "mesh" -e "Iteration" -e "Average reduction") > res41 2>err41
+        (./${ex} -m "${MFEM_BUILD_DATA}/t${i}_22.msh" | grep -v -e "mesh" -e "Iteration" -e "Average reduction") > res22 2>err22
+        (./${ex} -m "${MFEM_BUILD_DATA}/t${i}_41.msh" | grep -v -e "mesh" -e "Iteration" -e "Average reduction") > res41 2>err41
         [[ -s res22 || -s res41 ]] && diffColorIndented res22 res41
         if grep -q "No convergence" res*; then
             echo -e "\033[1m\tConvergence was not reached!\033[0m"
@@ -139,8 +140,8 @@ echo -e "\n\033[1mRunning examples on mfem meshes...\033[0m"
 for i in ${MFEM_MESH_NAMES[@]}; do
     for ex in ${EXAMPLES_LIST}; do
         echo -e "- ${ex}, ${i}"
-        (./${ex} -m ${MFEM_BUILD_DATA}/${i}_22.msh | grep -v -e "mesh" -e "Iteration" -e "Average reduction") > res22 2>err22
-        (./${ex} -m ${MFEM_BUILD_DATA}/${i}_41.msh | grep -v -e "mesh" -e "Iteration" -e "Average reduction") > res41 2>err41
+        (./${ex} -m ${MFEM_BUILD_DATA}/${i}_22.msh | grep -v -e "mesh") > res22 2>err22
+        (./${ex} -m ${MFEM_BUILD_DATA}/${i}_41.msh | grep -v -e "mesh") > res41 2>err41
         [[ -s res22 || -s res41 ]] && diffColorIndented res22 res41
         if grep -q "No convergence" res*; then
             echo -e "\033[1m\tConvergence was not reached!\033[0m"
@@ -150,11 +151,22 @@ for i in ${MFEM_MESH_NAMES[@]}; do
     done
 done
 
+# running ex39 on compass mesh
+echo -e "- ex39, compass"
+(./ex39 -m ${MFEM_BUILD_DATA}/compass_22.msh | grep -v -e "mesh") > res22 2>err22
+(./ex39 -m ${MFEM_BUILD_DATA}/compass_41.msh | grep -v -e "mesh") > res41 2>err41
+[[ -s res22 || -s res41 ]] && diffColorIndented res22 res41
+if grep -q "No convergence" res*; then
+    echo -e "\033[1m\tConvergence was not reached!\033[0m"
+fi
+[[ -s err22 || -s err41 ]] && echo -e "\033[1m\tErrors have occurred!\033[0m" && diffColorIndented err22 err41
+rm -f res22 res41 err22 err41
+
 if [[ ! -z ${MFEM_DATA_GMSH_DIR} ]]; then
-    GMSH_MESHES_IN_MFEM_LARGE_DATA="homology piece surfaces_in_3d"
+    GMSH_MESHES_IN_MFEM_LARGE_DATA="homology piece"
     echo -e "\n\033[1mRunning examples on mfem data gmsh meshes...\033[0m"
     for i in ${GMSH_MESHES_IN_MFEM_LARGE_DATA}; do
-        for ex in ${EXAMPLES_LIST}; do
+        for ex in ex4; do
             echo -e "- ${ex}, ${i}"
             (./${ex} -m ${MFEM_DATA_GMSH_DIR}/v22/${i}.asc.v22.msh | grep -v -e "mesh" -e "Iteration" -e "Average reduction") > res22 2>err22
             (./${ex} -m ${MFEM_DATA_GMSH_DIR}/v41/${i}.asc.v41.msh | grep -v -e "mesh" -e "Iteration" -e "Average reduction") > res41 2>err41

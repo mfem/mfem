@@ -3172,8 +3172,8 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
                v[j] = v2v[v[j]];
             }
          }
-	 
-	 this->RemoveInternalBoundaries();
+      this->RemoveUnusedVertices();
+      this->RemoveInternalBoundaries();
       }
    } // we reach the end of the file
 
@@ -3201,7 +3201,6 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
       }
    }
 
-   this->RemoveUnusedVertices();
    this->FinalizeTopology();
 
 

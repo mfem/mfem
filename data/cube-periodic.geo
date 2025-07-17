@@ -7,7 +7,7 @@ floor=0;
 
 ep = 1.;
 mp = 0.5*ep;
-cl=mp/1.1;
+cl=mp/1.6;
 
 Point(1) = { 0,   0,  0, cl} ; 
 Point(2) = { 0,   0, ep, cl} ;
