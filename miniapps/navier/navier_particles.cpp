@@ -23,14 +23,13 @@ using namespace navier;
 
 struct Context
 {
-   int order = 5;
+   int order = 3;
    real_t dt = 0.25e-4;
    int num_steps = 1000;
    int num_particles = 1000;
    int p_ordering = Ordering::byNODES;
    real_t zeta = 4.0;
-   bool visualization = false;
-   int visport = 19916;
+   int paraview_freq = 0;
    int print_csv_freq = 0;
    
 } ctx;
@@ -213,8 +212,7 @@ int main (int argc, char *argv[])
    args.AddOption(&ctx.num_particles, "-np", "--num-particles", "Number of particles to initialize on the domain.");
    args.AddOption(&ctx.p_ordering, "-ord", "--particle-ordering", "Ordering of Particle vector data. 0 for byNODES, 1 for byVDIM.");
    args.AddOption(&ctx.zeta, "-z", "--zeta", "Zeta constant.");
-   args.AddOption(&ctx.visualization, "-vis", "--visualization", "-no-vis", "--no-visualization", "Enable or disable GLVis visualization.");
-   args.AddOption(&ctx.visport, "-p", "--send-port", "Socket for GLVis.");
+   args.AddOption(&ctx.paraview_freq, "-pv", "--paraview-freq", "Frequency of ParaView flow output. 0 to disable.");
    args.AddOption(&ctx.print_csv_freq, "-csv", "--csv-freq", "Frequency of particle CSV outputting. 0 to disable.");
    args.Parse();
    if (!args.Good())
@@ -288,13 +286,26 @@ int main (int argc, char *argv[])
    // Initialize particle integrator
    ParticleIntegrator pint(MPI_COMM_WORLD, 2, ctx.zeta, pmesh);
 
+   // Initialize ParaView DC (if freq != 0)
+   std::unique_ptr<ParaViewDataCollection> pvdc;
+   if (ctx.paraview_freq > 0)
+   {
+      pvdc = std::make_unique<ParaViewDataCollection>("Couette", &pmesh);
+      pvdc->SetPrefixPath("ParaView");
+      pvdc->SetLevelsOfDetail(ctx.order);
+      pvdc->SetDataFormat(VTKFormat::BINARY);
+      pvdc->SetHighOrderOutput(true);
+      pvdc->RegisterField("Velocity",flowsolver.GetCurrentVelocity());
+      pvdc->RegisterField("Vorticity",flowsolver.GetCurrentVorticity());
+   }
+
    Array<real_t> beta, alpha; // EXTk/BDF coefficients
    real_t time = 0.0;
    flowsolver.Setup(ctx.dt);
-   for (int step = 0; step < ctx.num_steps; step++)
+   for (int step = 1; step <= ctx.num_steps; step++)
    {
       // Step Navier
-      flowsolver.Step(time, ctx.dt, step);
+      flowsolver.Step(time, ctx.dt, step-1);
 
       // ---------------------------------------------------
       // Temporary: enforce flowfield:
@@ -319,8 +330,12 @@ int main (int argc, char *argv[])
 
          // Set + output the exact
          //std::string file_name_exact = "Lorentz_Particles_Exact_" + mfem::to_padded_string(step, 9) + ".csv";
-         
-
+      }
+      if (ctx.paraview_freq > 0 && step % ctx.paraview_freq == 0)
+      {
+         pvdc->SetCycle(step);
+         pvdc->SetTime(time);
+         pvdc->Save();
       }
    }
 
