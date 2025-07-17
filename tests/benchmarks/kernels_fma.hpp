@@ -111,15 +111,15 @@ void ContractZ3d(const int D1D, const int Q1D,
    MFEM_SYNC_THREAD;
 
    // Flush
-   // MFEM_FOREACH_THREAD(j,y,Q1D)
-   // {
-   //    MFEM_FOREACH_THREAD(i,x,Q1D)
-   //    {
-   //       MFEM_UNROLL(Q1D)
-   //       for (int k = 0; k < Q1D; ++k) { r_q[k] = 0.0; }
-   //    }
-   // }
-   // MFEM_SYNC_THREAD;
+   MFEM_FOREACH_THREAD(j,y,Q1D)
+   {
+      MFEM_FOREACH_THREAD(i,x,Q1D)
+      {
+         MFEM_UNROLL(Q1D)
+         for (int k = 0; k < Q1D; ++k) { r_q[k][j][i][vd][d] = 0.0; }
+      }
+   }
+   MFEM_SYNC_THREAD;
 }
 
 /// 3D vector gradient, with component
@@ -212,7 +212,8 @@ ContractXT3d(const int D1D, const int Q1D,
              real_t (&smem)[NBZ][VDIM][DIM][MQ1][MQ1][MQ1],
              const real_t (*B)[MQ1],
              regs3d_vd_t<VDIM,DIM,MQ1> &r_q,
-             const int vd, const int d)
+             const DeviceTensor<5, real_t> &YE,
+             const int vd, const int d, const int e)
 {
    const int tz = MFEM_THREAD_ID(z);
    MFEM_FOREACH_THREAD(c,y,D1D)
@@ -227,7 +228,8 @@ ContractXT3d(const int D1D, const int Q1D,
             double u = 0.0;
             MFEM_UNROLL(Q1D)
             for (int i=0; i<Q1D; ++i) { u += B[a][i] * r_q[c][b][i][vd][d]; }
-            smem[tz][vd][d][c][b][a] = u;
+            // smem[tz][vd][d][c][b][a] = u;
+            YE(c,b,a,vd,e) = u;
          }
       }
    }
@@ -254,7 +256,7 @@ void GradTranspose3d(const int d1d, const int q1d,
          const real_t (*Bz)[MQ1] = (d == 2) ? G : B;
          ContractZT3d(d1d, q1d, smem, Bz, r_q, vd, d);
          ContractYT3d(d1d, q1d, smem, By, r_q, vd, d);
-         ContractXT3d(d1d, q1d, smem, Bx, r_q, vd, d);
+         ContractXT3d(d1d, q1d, smem, Bx, r_q, YE, vd, d, e);
       }
    }
 }

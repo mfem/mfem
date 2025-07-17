@@ -89,7 +89,11 @@ BP3/7/6/25       46.8 ms         46.8 ms           10    15.625k  10.6893/s     
 /// Max number of DOFs ////////////////////////////////////////////////////////
 #if !(defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))
 constexpr int MAX_NDOFS = 128 * 1024;
+#ifdef MFEM_DEBUG
+constexpr int NDOFS_INC = 4;
+#else
 constexpr int NDOFS_INC = 25;
+#endif
 #else
 constexpr int MAX_NDOFS = 10 * 1024 * 1024;
 constexpr int NDOFS_INC = 25;
@@ -270,7 +274,7 @@ public:
    {
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
-      // db1("D1D:{} Q1D:{} (no VDIM)", D1D, Q1D);
+      db1("D1D:{} Q1D:{} (NEW, no VDIM)", D1D, Q1D);
 
       constexpr int DIM = 3, VDIM = 1;
       const auto XE = Reshape(xe, D1D, D1D, D1D, VDIM, NE);
@@ -327,7 +331,7 @@ public:
    {
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
-      // db1("D1D:{} Q1D:{} (by VDIM)", D1D, Q1D);
+      db1("D1D:{} Q1D:{} (NEW & VDIM)", D1D, Q1D);
 
       constexpr int DIM = 3, VDIM = 1;
       const auto XE = Reshape(xe, D1D, D1D, D1D, VDIM, NE);
@@ -365,7 +369,7 @@ public:
                {
                   auto &vd_v = v0[qz][qy][qx][0];
                   const auto &vd_u = v1[qz][qy][qx][0];
-                  const auto d = make_tensor<3, 3>([&](int i, int j)
+                  const auto d = make_tensor<DIM, DIM>([&](int i, int j)
                   {
                      return DX(i, j, qx, qy, qz, e);
                   });
@@ -387,14 +391,14 @@ public:
    {
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
-      // db1("D1D:{} Q1D:{} (by VDIM)", D1D, Q1D);
+      db1("D1D:{} Q1D:{} (FMA & VDIM)", D1D, Q1D);
 
       constexpr int DIM = 3, VDIM = 1, NBZ = 1;
       const auto XE = Reshape(xe, D1D, D1D, D1D, VDIM, NE);
       const auto DX = Reshape(dx, 3, 3, Q1D, Q1D, Q1D, NE);
       auto YE = Reshape(ye, D1D, D1D, D1D, VDIM, NE);
 
-      mfem::forall_3D(NE, Q1D, Q1D, 1, [=] MFEM_HOST_DEVICE(int e)
+      mfem::forall_3D(NE, Q1D, Q1D, NBZ, [=] MFEM_HOST_DEVICE(int e)
       {
          const int tz = MFEM_THREAD_ID(z);
          constexpr int MD1 = T_D1D ? T_D1D : 32;
@@ -421,20 +425,30 @@ public:
                MFEM_UNROLL(MQ1)
                MFEM_FOREACH_THREAD_DIRECT(qx, x, Q1D)
                {
-                  const auto d = make_tensor<3, 3>([&](int i, int j)
+                  /*const auto d = make_tensor<3, 3>([&](int i, int j)
                   {
                      return DX(i, j, qx, qy, qz, e);
                   });
-                  const auto vd_u = make_tensor<VDIM, DIM>([&](int i, int j)
+                  const auto vd_u = make_tensor<VDIM, DIM>([&](int vd, int d)
                   {
-                     return smem[tz][i][j][qx][qy][qz];
+                     return smem[tz][vd][d][qx][qy][qz];
                   });
                   auto &vd_v = r_q[qz][qy][qx];
                   // const auto &vd_u = r_q[qz][qy][qx][0];
                   // vd_v = d * vd_u;
 
                   // auto &vd_v = r_q[qz][qy][qx][0];
-                  // vd_v = d * v;
+                  // vd_v = d * v;*/
+
+                  real_t v[3], u[3] = { smem[tz][0][0][qz][qy][qx],
+                                        smem[tz][0][1][qz][qy][qx],
+                                        smem[tz][0][2][qz][qy][qx]
+                                      };
+                  const real_t *dx = &DX(0, 0, qx, qy, qz, e);
+                  kernels::Mult(3, 3, dx, u, v);
+                  r_q[qz][qy][qx][0][0] = v[0];
+                  r_q[qz][qy][qx][0][1] = v[1];
+                  r_q[qz][qy][qx][0][2] = v[2];
                }
             }
          }
@@ -462,6 +476,7 @@ StiffnessIntegrator<layout_by_vdim, use_fma>::StiffnessKernels::Kernel()
    if constexpr (!layout_by_vdim && !use_fma) { return StiffnessMult<D1D, Q1D>; }
    if constexpr (layout_by_vdim && !use_fma) { return StiffnessMultVDD<D1D, Q1D>; }
    if constexpr (layout_by_vdim &&  use_fma) { return StiffnessMultFMA<D1D, Q1D>; }
+   MFEM_ABORT("Invalid specialization for StiffnessIntegrator");
    return nullptr; // Should never happen
 }
 
@@ -609,7 +624,7 @@ struct Diffusion : public BakeOff<VDIM, GLL>
       b.UseFastAssembly(true);
       b.Assemble();
 
-      // PA_STD: standard, PA_NEW: new PA, PA_NEW_VD: new PA layout by vdim
+      // PA_STD, PA_NEW, PA_NEW_VD & PA_FMA_VDD
       if (version == PA_STD    || version == PA_NEW ||
           version == PA_NEW_VDD || version == PA_FMA_VDD)
       {
@@ -617,7 +632,7 @@ struct Diffusion : public BakeOff<VDIM, GLL>
          if (version == PA_STD) { a.AddDomainIntegrator(new DiffusionIntegrator(ir)); }
          if (version == PA_NEW) { a.AddDomainIntegrator(new StiffnessIntegrator<false, false>()); }
          if (version == PA_NEW_VDD) { a.AddDomainIntegrator(new StiffnessIntegrator<true, false>()); }
-         if (version == PA_FMA_VDD) { a.AddDomainIntegrator(new StiffnessIntegrator<false, true>()); }
+         if (version == PA_FMA_VDD) { a.AddDomainIntegrator(new StiffnessIntegrator<true, true>()); }
          a.Assemble();
          a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
          if (version == PA_STD)
@@ -730,17 +745,22 @@ struct Diffusion : public BakeOff<VDIM, GLL>
       cg.iterative_mode = false;
       if (dofs < 128 * 1024) // check
       {
-         cg.SetPrintLevel(-1);
-         cg.SetMaxIter(2000);
+#ifdef MFEM_DEBUG
+         cg.SetPrintLevel(3);
+#else
+         cg.SetPrintLevel(3/*-1*/);
+#endif
+         cg.SetMaxIter(100);//2000);
          cg.SetRelTol(1e-8);
          cg.SetAbsTol(0.0);
          cg.Mult(B, X);
-         MFEM_VERIFY(cg.GetConverged(), "❌ CG solver did not converge.");
+         MFEM_VERIFY(cg.GetConverged(), "❌ CG did not converge.");
          const int lCGNI = cg.GetNumIterations();
          static const bool iniCGNumIterations = (gCGNI = lCGNI, true);
          if (iniCGNumIterations)
-            MFEM_VERIFY(lCGNI == gCGNI,
-                        "❌ CG iterations" << lCGNI << " != " << gCGNI);
+         {
+            MFEM_VERIFY(lCGNI == gCGNI, "❌ CG iters " << lCGNI << " != " << gCGNI);
+         }
          MFEM_DEVICE_SYNC;
       }
       cg.SetAbsTol(0.0);
