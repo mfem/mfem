@@ -429,6 +429,12 @@ public:
       use_automatic_pa = true;
    }
 
+   void UsePaData(const real_t *dx)
+   {
+      dbg("Using PA data");
+      this->dx = dx;
+   }
+
    void UseKernelsSpecialization()
    {
       dbg("Using kernels specialization");
@@ -471,6 +477,7 @@ private:
 
    bool use_tensor_product_structure = true;
    bool use_new_kernels = false;
+   const real_t *dx = nullptr;
    bool use_automatic_pa = false;
    bool use_kernels_specialization = false;
 
@@ -1000,32 +1007,42 @@ void DifferentiableOperator::AddDomainIntegrator(
 
          // Trial operator dimension for each dependent input.
          // Memory layout is: [input_idx, trial_op_dim]
-         Array<int> dependent_inputs_trial_op_dim(num_dependent_inputs * 2);
+         Vector dependent_inputs_trial_op_dim(num_dependent_inputs * 2);
 
          int total_trial_op_dim = 0;
          {
-            auto dpitod = Reshape(dependent_inputs_trial_op_dim.ReadWrite(),
+            auto dpitod = Reshape(dependent_inputs_trial_op_dim.HostReadWrite(),
                                   num_dependent_inputs, 2);
             int idx = 0;
             for_constexpr<num_inputs>([&](auto s)
             {
                if (!input_is_dependent[s]) { return; }
                // TODO: BUG! Make this a general function that works for all kinds of inputs.
-               dpitod(idx, 0) = s;
-               dpitod(idx, 1) = input_size_on_qp[s] / get<s>(inputs).vdim;
-               total_trial_op_dim += dpitod(idx, 1);
+               dpitod(idx, 0) = (int) s;
+               dpitod(idx, 1) = (int) input_size_on_qp[s] / get<s>(inputs).vdim;
+               total_trial_op_dim += (int) dpitod(idx, 1);
                idx++;
             });
          }
+         dbg("dpitod: size:{} dot:{}", dependent_inputs_trial_op_dim.Size(),
+             dependent_inputs_trial_op_dim*dependent_inputs_trial_op_dim);
 
          const int trial_vdim = GetVDim(fields[d_field_idx]);
 
          // Quadrature point local derivative cache for each element, with data
          // layout:
          // [test_vdim, test_op_dim, trial_vdim, trial_op_dim, qp, num_entities].
-         derivative_qp_caches[derivative_id] = Vector(test_vdim * test_op_dim *
-                                                      trial_vdim *
-                                                      total_trial_op_dim * num_qp * num_entities);
+         derivative_qp_caches[derivative_id] =
+            Vector(test_vdim * test_op_dim *
+                   trial_vdim *
+                   total_trial_op_dim * num_qp * num_entities);
+         derivative_qp_caches[derivative_id].UseDevice(true);
+         derivative_qp_caches[derivative_id] = 0.0;
+
+         ThreadBlocks setup_thread_blocks = thread_blocks;
+         setup_thread_blocks.x = q1d;
+         setup_thread_blocks.y = q1d;
+         setup_thread_blocks.z = q1d;
 
          dbg("🟡🟡🟡🟡 Queuing AUTO SETUP #{}", derivative_id);
          derivative_setup_callbacks[derivative_id].push_back(
@@ -1035,6 +1052,7 @@ void DifferentiableOperator::AddDomainIntegrator(
                dimension,             // int
                num_entities,          // int
                num_qp,                // int
+               q1d,                   // int
                test_vdim,             // int (= output_fop.vdim)
                test_op_dim,           // int (derived from output_fop)
                trial_vdim,
@@ -1047,7 +1065,7 @@ void DifferentiableOperator::AddDomainIntegrator(
                output_dtq_maps,       // std::array<DofToQuadMap, num_fields>
                input_to_field,        // std::array<int, s>
                qfunc,                 // qfunc_t
-               thread_blocks,         // ThreadBlocks
+               setup_thread_blocks,   // ThreadBlocks
                shmem_cache,           // Vector (local)
                shmem_info,            // SharedMemoryInfo
                // TODO: make this Array<int> a member of the DifferentiableOperator
@@ -1066,19 +1084,23 @@ void DifferentiableOperator::AddDomainIntegrator(
             ](std::vector<Vector> &f_e, const Vector &dir_l) mutable
          {
             dbg("🟡🟡🟡🟡 AUTO SETUP #{}", derivative_id);
+            dbg("dir_l: size:{} dot:{}", dir_l.Size(), dir_l*dir_l);
             restriction<entity_t>(direction, dir_l, direction_e,
                                   element_dof_ordering);
+            dbg("f_e[0]: size:{} dot:{}", f_e[0].Size(), f_e[0]*f_e[0]);
             auto wrapped_fields_e = wrap_fields(f_e, shmem_info.field_sizes,
                                                 num_entities);
+            dbg("direction_e: size:{} dot:{}", direction_e.Size(), direction_e*direction_e);
             const auto wrapped_direction_e = Reshape(direction_e.Read(),
                                                      shmem_info.direction_size,
                                                      num_entities);
 
+            dbg("qpdc: size:{} dot:{}", qpdc_mem.Size(), qpdc_mem*qpdc_mem);
             auto qpdc = Reshape(qpdc_mem.ReadWrite(), test_vdim, test_op_dim,
                                 trial_vdim, total_trial_op_dim, num_qp, num_entities);
 
-            auto dpitod = Reshape(dependent_inputs_trial_op_dim.ReadWrite(),
-                                  num_dependent_inputs, 2);
+            const auto dpitod = Reshape(dependent_inputs_trial_op_dim.Read(),
+                                        num_dependent_inputs, 2);
 
             const auto d_elem_attr = elem_attributes.Read();
             const bool has_attr = domain_attributes.Size() > 0;
@@ -1103,50 +1125,63 @@ void DifferentiableOperator::AddDomainIntegrator(
 
                set_zero(shadow_shmem);
 
-               for (int q = 0; q < num_qp; q++)
+               // for (int q = 0; q < num_qp; q++)
+               MFEM_FOREACH_THREAD(qz,z,q1d)
                {
-                  for (int j = 0; j < trial_vdim; j++)
+                  MFEM_FOREACH_THREAD(qy,y,q1d)
                   {
-                     int m_offset = 0;
-                     for (int s_i = 0; s_i < num_dependent_inputs; s_i++)
+                     MFEM_FOREACH_THREAD(qx,x,q1d)
                      {
-                        const int s = dpitod(s_i, 0);
-                        const int trial_op_dim = dpitod(s_i, 1);
-                        auto d_qp = Reshape(&(shadow_shmem[s])[0], trial_vdim, trial_op_dim, num_qp);
-                        for (int m = 0; m < trial_op_dim; m++)
+                        const int q = qx + qy * q1d + qz * q1d * q1d;
                         {
-                           d_qp(j, m, q) = 1.0;
-
-                           auto r = Reshape(&residual_shmem(0, q), da_size_on_qp);
-                           auto qf_args = decay_tuple<qf_param_ts> {};
-#ifdef MFEM_USE_ENZYME
-                           auto qf_shadow_args = decay_tuple<qf_param_ts> {};
-                           apply_kernel_fwddiff_enzyme(r, qfunc, qf_args, qf_shadow_args, input_shmem,
-                                                       shadow_shmem, q);
-#else
-                           apply_kernel_native_dual(r, qfunc, qf_args, input_shmem, shadow_shmem, q);
-#endif
-                           d_qp(j, m, q) = 0.0;
-
-                           auto f = Reshape(&r(0), test_vdim, test_op_dim);
-                           for (int i = 0; i < test_vdim; i++)
+                           for (int j = 0; j < trial_vdim; j++)
                            {
-                              for (int k = 0; k < test_op_dim; k++)
+                              int m_offset = 0;
+                              for (int s_i = 0; s_i < num_dependent_inputs; s_i++)
                               {
-                                 qpdc(i, k, j, m + m_offset, q, e) = f(i, k);
+                                 const int s = (int) dpitod(s_i, 0);
+                                 const int trial_op_dim = (int) dpitod(s_i, 1);
+                                 auto d_qp = Reshape(&(shadow_shmem[s])[0], trial_vdim, trial_op_dim, num_qp);
+                                 for (int m = 0; m < trial_op_dim; m++)
+                                 {
+                                    d_qp(j, m, q) = 1.0;
+
+                                    auto r = Reshape(&residual_shmem(0, q), da_size_on_qp);
+                                    auto qf_args = decay_tuple<qf_param_ts> {};
+#ifdef MFEM_USE_ENZYME
+                                    auto qf_shadow_args = decay_tuple<qf_param_ts> {};
+                                    apply_kernel_fwddiff_enzyme(r, qfunc, qf_args, qf_shadow_args, input_shmem,
+                                                                shadow_shmem, q);
+#else
+                                    apply_kernel_native_dual(r, qfunc, qf_args, input_shmem, shadow_shmem, q);
+#endif
+                                    d_qp(j, m, q) = 0.0;
+
+                                    auto f = Reshape(&r(0), test_vdim, test_op_dim);
+                                    for (int i = 0; i < test_vdim; i++)
+                                    {
+                                       for (int k = 0; k < test_op_dim; k++)
+                                       {
+                                          qpdc(i, k, j, m + m_offset, q, e) = f(i, k);
+                                       }
+                                    }
+                                 }
+                                 m_offset += trial_op_dim;
                               }
                            }
                         }
-
-                        m_offset += trial_op_dim;
                      }
                   }
                }
             },
             num_entities,
-            thread_blocks,
+            setup_thread_blocks,
             shmem_info.total_size,
             shmem_cache.ReadWrite());
+
+            qpdc_mem.HostRead();
+            dbl("🟡🟡🟡🟡 qpdc: size:{} dot:{}\n", qpdc_mem.Size(),
+                qpdc_mem*qpdc_mem);
          });
 
          if (use_new_kernels)
@@ -1365,8 +1400,8 @@ void DifferentiableOperator::AddDomainIntegrator(
                                  int m_offset = 0;
                                  for (int s_i = 0; s_i < num_dependent_inputs; s_i++)
                                  {
-                                    const int s = dpitod(s_i, 0);
-                                    auto trial_op_dim = dpitod(s_i, 1);
+                                    const int s = (int) dpitod(s_i, 0);
+                                    auto trial_op_dim = (int) dpitod(s_i, 1);
                                     auto d_qp = Reshape(&(shadow_shmem[s])[0], trial_vdim, trial_op_dim, num_qp);
                                     for (int j = 0; j < trial_vdim; j++)
                                     {
@@ -1401,8 +1436,8 @@ void DifferentiableOperator::AddDomainIntegrator(
                                     int m_offset = 0;
                                     for (int s_i = 0; s_i < num_dependent_inputs; s_i++)
                                     {
-                                       const int s = dpitod(s_i, 0);
-                                       auto trial_op_dim = dpitod(s_i, 1);
+                                       const int s = (int) dpitod(s_i, 0);
+                                       const int trial_op_dim = (int) dpitod(s_i, 1);
                                        auto d_qp = Reshape(&(shadow_shmem[s])[0], trial_vdim, trial_op_dim, num_qp);
                                        for (int j = 0; j < trial_vdim; j++)
                                        {

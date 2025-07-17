@@ -16,7 +16,7 @@
 #include <cstdlib>
 #include <memory>
 
-#include <fem/qinterp/det.cpp>
+#include <fem/qinterp/det.hpp>
 #include <fem/qinterp/grad.hpp> // IWYU pragma: keep
 
 #include "fem/dfem/doperator.hpp"
@@ -134,7 +134,7 @@ constexpr auto all_kernels =
    kernels_t::PA_DFEM_NEW,
    kernels_t::AUTO_PA_DFEM,
    kernels_t::AUTO_PA_DFEM_NEW,
-   kernels_t::PA_FMA_VDD
+   // kernels_t::PA_FMA_VDD
 };
 
 static void DumpVersionInfo()
@@ -488,9 +488,11 @@ StiffnessIntegrator<layout_by_vdim, use_fma>::StiffnessKernels::Fallback(
    int q1d)
 {
    dbg("\x1b[33mFallback d1d:{} q1d:{}", d1d, q1d);
-   if constexpr (!layout_by_vdim && !use_fma) { return StiffnessMult<>; }
-   if constexpr (layout_by_vdim && !use_fma) { return StiffnessMultVDD<>; }
-   if constexpr (use_fma) { return StiffnessMultFMA<>; }
+   // if constexpr (!layout_by_vdim && !use_fma) { return StiffnessMult<>; }
+   // if constexpr (layout_by_vdim && !use_fma) { return StiffnessMultVDD<>; }
+   // if constexpr (use_fma) { return StiffnessMultFMA<>; }
+   MFEM_ABORT("Invalid specialization for StiffnessIntegrator");
+   return nullptr; // Should never happen
 }
 
 /// BakeOff ///////////////////////////////////////////////////////////////////
@@ -721,6 +723,12 @@ struct Diffusion : public BakeOff<VDIM, GLL>
          if (version == AUTO_PA_DFEM_NEW) { dop->UseNewKernels(); }
          dop->UseAutomaticPA();
          dop->UseKernelsSpecialization();
+
+         {
+            auto stiffness_integrator = new StiffnessIntegrator<false, false>();
+            stiffness_integrator->AssemblePA(pfes);
+            dop->UsePaData(stiffness_integrator->dx.Read());
+         }
 
          const auto diffusion_mf_kernel =
             [] MFEM_HOST_DEVICE (const tensor<dscalar_t, DIM>& Grad_u,

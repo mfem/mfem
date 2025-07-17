@@ -636,6 +636,9 @@ void forall(func_t f,
             int num_shmem = 0,
             real_t *shmem = nullptr)
 {
+   // dbg("num_shmem: {}", num_shmem);
+   // dbg("blocks: {}x{}x{}", blocks.x, blocks.y, blocks.z);
+
    if (Device::Allows(Backend::CUDA_MASK) ||
        Device::Allows(Backend::HIP_MASK))
    {
