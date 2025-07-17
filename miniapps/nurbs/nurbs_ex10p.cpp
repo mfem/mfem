@@ -1,16 +1,16 @@
-//                       MFEM Example 10 - Parallel Version
+//                       MFEM Example 10 - Parallel NURBS Version
 //
-// Compile with: make ex10p
+// Compile with: make nurbs_ex10p
 //
 // Sample runs:
-//    mpirun -np 4 ex10p -m ../data/beam-quad.mesh -s 23 -rs 2 -dt 3
-//    mpirun -np 4 ex10p -m ../data/beam-tri.mesh -s 23 -rs 2 -dt 3
-//    mpirun -np 4 ex10p -m ../data/beam-hex.mesh -s 22 -rs 1 -dt 3
-//    mpirun -np 4 ex10p -m ../data/beam-tet.mesh -s 22 -rs 1 -dt 3
-//    mpirun -np 4 ex10p -m ../data/beam-wedge.mesh -s 22 -rs 1 -dt 3
-//    mpirun -np 4 ex10p -m ../data/beam-quad.mesh -s 4 -rs 2 -dt 0.03 -vs 20
-//    mpirun -np 4 ex10p -m ../data/beam-hex.mesh -s 4 -rs 1 -dt 0.05 -vs 20
-//    mpirun -np 4 ex10p -m ../data/beam-quad-amr.mesh -s 23 -rs 2 -dt 3
+//    mpirun -np 4 nurbs_ex10p -m ../../data/beam-quad.mesh -s 23 -rs 2 -dt 3
+//    mpirun -np 4 nurbs_ex10p -m ../../data/beam-tri.mesh -s 23 -rs 2 -dt 3
+//    mpirun -np 4 nurbs_ex10p -m ../../data/beam-hex.mesh -s 22 -rs 1 -dt 3
+//    mpirun -np 4 nurbs_ex10p -m ../../data/beam-tet.mesh -s 22 -rs 1 -dt 3
+//    mpirun -np 4 nurbs_ex10p -m ../../data/beam-wedge.mesh -s 22 -rs 1 -dt 3
+//    mpirun -np 4 nurbs_ex10p -m ../../data/beam-quad.mesh -s 4 -rs 2 -dt 0.03 -vs 20
+//    mpirun -np 4 nurbs_ex10p -m ../../data/beam-hex.mesh -s 4 -rs 1 -dt 0.05 -vs 20
+//    mpirun -np 4 nurbs_ex10p -m ../../data/beam-quad-amr.mesh -s 23 -rs 2 -dt 3
 //
 // Description:  This examples solves a time dependent nonlinear elasticity
 //               problem of the form dv/dt = H(x) + S v, dx/dt = v, where H is a
@@ -44,6 +44,9 @@ using namespace std;
 using namespace mfem;
 
 class ReducedSystemOperator;
+
+template <typename CoefficientType>
+void Project(ParGridFunction &gf, CoefficientType &coef, int proj_type);
 
 /** After spatial discretization, the hyperelastic model can be written as a
  *  system of ODEs:
@@ -97,7 +100,8 @@ public:
    real_t ElasticEnergy(const ParGridFunction &x) const;
    real_t KineticEnergy(const ParGridFunction &v) const;
    void GetElasticEnergyDensity(const ParGridFunction &x,
-                                ParGridFunction &w) const;
+                                ParGridFunction &w,
+                                int proj_type) const;
 
    ~HyperelasticOperator() override;
 };
@@ -168,7 +172,7 @@ int main(int argc, char *argv[])
    Hypre::Init();
 
    // 2. Parse command-line options.
-   const char *mesh_file = "../data/beam-quad.mesh";
+   const char *mesh_file = "../../data/beam-quad-nurbs.mesh";
    int ser_ref_levels = 2;
    int par_ref_levels = 0;
    int order = 2;
@@ -178,6 +182,7 @@ int main(int argc, char *argv[])
    real_t visc = 1e-2;
    real_t mu = 0.25;
    real_t K = 5.0;
+   int proj_type = 2;
    bool adaptive_lin_rtol = true;
    bool visualization = true;
    int vis_steps = 1;
@@ -203,6 +208,11 @@ int main(int argc, char *argv[])
                   "Shear modulus in the Neo-Hookean hyperelastic model.");
    args.AddOption(&K, "-K", "--bulk-modulus",
                   "Bulk modulus in the Neo-Hookean hyperelastic model.");
+   args.AddOption(&proj_type, "-proj", "--projection",
+                  "Projection type:\n."
+                  " 0 = Nodal injection at the Botella points.\n"
+                  " 1 = Local L2 projection(DC Thomas etal).\n"
+                  " 2 = Global L2 projection.\n");
    args.AddOption(&adaptive_lin_rtol, "-alrtol", "--adaptive-lin-rtol",
                   "-no-alrtol", "--no-adaptive-lin-rtol",
                   "Enable or disable adaptive linear solver rtol.");
@@ -260,8 +270,24 @@ int main(int argc, char *argv[])
    //    discontinuous higher-order space. Since x and v are integrated in time
    //    as a system, we group them together in block vector vx, on the unique
    //    parallel degrees of freedom, with offsets given by array true_offset.
-   H1_FECollection fe_coll(order, dim);
-   ParFiniteElementSpace fespace(pmesh, &fe_coll, dim);
+   FiniteElementCollection *fec = nullptr;
+   NURBSExtension *NURBSext = nullptr;
+   if (mesh->NURBSext)
+   {cout<<266<<endl;
+      NURBSext = new NURBSExtension(pmesh->NURBSext, order);
+      fec = new NURBSFECollection(order);
+      cout << "Using NURBS FEs: " << fec->Name() << endl;
+   }
+   else
+   {cout<<272<<endl;
+      fec = new H1_FECollection(order, dim);
+      cout << "Using H1 FEs: " << fec->Name() << endl;
+   }
+cout<<276<<endl;
+   ParFiniteElementSpace fespace(pmesh, NURBSext, fec, dim);
+cout<<278<<endl;
+
+
 
    HYPRE_BigInt glob_size = fespace.GlobalTrueVSize();
    if (myid == 0)
@@ -289,10 +315,12 @@ int main(int argc, char *argv[])
    // 8. Set the initial conditions for v_gf, x_gf and vx, and define the
    //    boundary conditions on a beam-like mesh (see description above).
    VectorFunctionCoefficient velo(dim, InitialVelocity);
-   v_gf.ProjectCoefficient(velo);
+  // v_gf.ProjectCoefficient(velo);
+   Project(v_gf, velo, proj_type);
    v_gf.SetTrueVector();
    VectorFunctionCoefficient deform(dim, InitialDeformation);
-   x_gf.ProjectCoefficient(deform);
+   //x_gf.ProjectCoefficient(deform);
+   Project(x_gf, deform, proj_type);
    x_gf.SetTrueVector();
 
    v_gf.SetFromTrueVector(); x_gf.SetFromTrueVector();
@@ -319,7 +347,7 @@ int main(int argc, char *argv[])
       vis_w.open(vishost, visport);
       if (vis_w)
       {
-         oper.GetElasticEnergyDensity(x_gf, w_gf);
+         oper.GetElasticEnergyDensity(x_gf, w_gf, proj_type);
          vis_w.precision(8);
          visualize(vis_w, pmesh, &x_gf, &w_gf, "Elastic energy density", true);
       }
@@ -372,7 +400,7 @@ int main(int argc, char *argv[])
             visualize(vis_v, pmesh, &x_gf, &v_gf);
             if (vis_w)
             {
-               oper.GetElasticEnergyDensity(x_gf, w_gf);
+               oper.GetElasticEnergyDensity(x_gf, w_gf, proj_type);
                visualize(vis_w, pmesh, &x_gf, &w_gf);
             }
          }
@@ -400,11 +428,12 @@ int main(int argc, char *argv[])
       v_gf.Save(velo_ofs);
       ofstream ee_ofs(ee_name.str().c_str());
       ee_ofs.precision(8);
-      oper.GetElasticEnergyDensity(x_gf, w_gf);
+      oper.GetElasticEnergyDensity(x_gf, w_gf, proj_type);
       w_gf.Save(ee_ofs);
    }
 
    // 12. Free the used memory.
+   delete fec;
    delete pmesh;
 
    return 0;
@@ -622,10 +651,10 @@ real_t HyperelasticOperator::KineticEnergy(const ParGridFunction &v) const
 }
 
 void HyperelasticOperator::GetElasticEnergyDensity(
-   const ParGridFunction &x, ParGridFunction &w) const
+   const ParGridFunction &x, ParGridFunction &w, int proj_type) const
 {
    ElasticEnergyCoefficient w_coeff(*model, x);
-   w.ProjectCoefficient(w_coeff);
+   Project(w, w_coeff, proj_type);
 }
 
 HyperelasticOperator::~HyperelasticOperator()
@@ -663,4 +692,28 @@ void InitialVelocity(const Vector &x, Vector &v)
    v = 0.0;
    v(dim-1) = s*x(0)*x(0)*(8.0-x(0));
    v(0) = -s*x(0)*x(0);
+}
+
+template <typename CoefficientType>
+void Project(ParGridFunction &gf, CoefficientType &coef, int proj_type)
+{
+   if (proj_type == 0)
+   {
+      gf.ProjectCoefficient(coef);
+   }
+   else if (proj_type == 1)
+   {
+      gf.ProjectCoefficientLocalL2(coef);
+   }
+   else if (proj_type == 2)
+   {
+      gf.ProjectCoefficientGlobalL2(coef);
+   }
+   else
+   {
+      mfem_error("Incorrect Project Type. Should be 0, 1 or 2");
+   }
+
+   gf.SetTrueVector();
+   gf.SetFromTrueVector();
 }
