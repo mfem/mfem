@@ -36,33 +36,23 @@
 // - Right (attr 3, x=max): Outlet - Do nothing (no BC)
 // - Back (attr 4, y=max): Back wall - No-penetration BC (zero y-velocity component)
 // - Top (attr 6, z=max): Top wall - No-penetration BC (zero z-velocity component)
-//
-// The layout of the file is as follows:
-// - Definition of default values for context struct
-// - InletProfile namespace.
-//   Currently, this includes a constant, power law, and logarithmic profile.
-// - get_inlet_profile() function, which returns a point to the selected profile function
-//   after reading inlet_profile_type from the context struct
-// TODO:
+
 
 #include "navier_solver.hpp"
 #include <fstream>
 #include <vector>
 #include <stdexcept>
+#include <sstream>
+#include <limits>
 
 using namespace mfem;
 using namespace navier;
 
-
 /// @brief Context struct for Navier solver
 struct s_NavierContext
 {
-   int ser_ref_levels =
-      1; // Number of times to refine the mesh uniformly in serial.
+   int ser_ref_levels = 1; // Number of times to uniformly refine the mesh
    int order = 2; // Order (degree) of the finite elements.
-
-   // Verbosity
-   bool verbose = false;
 
    real_t kinvis = 1.0 / 10.0; // Kinematic viscosity \approx 1 / Reynolds number
    real_t t_final = 2.0; // Final time
@@ -99,6 +89,17 @@ struct s_NavierContext
    // Exponential parameters
    real_t exp_decay = 2.0; // Decay rate
 } ctx;
+
+/// @brief Turbulence field data structure, which is meant for directly loading in
+/// the data from a VTI file, assumed to be formatted as DRDMannTurb does.
+/// @note We should always have Nc = 3
+struct TurbField
+{
+   int Nx, Ny, Nz, Nc;
+   std::vector<double> data;
+   std::vector<double> spacing;  // x, y, z spacing
+   std::vector<double> origin;   // x, y, z origin
+};
 
 namespace InletProfile
 {
@@ -138,6 +139,12 @@ void logarithmic(const Vector &x, real_t t, Vector &u)
 }
 } // END InletProfile namespace
 
+// Global variables
+real_t mean_inlet_velocity = 0.0; // Mean of the inlet profile
+TurbField turb_field;
+
+// Profile selection and computation functions
+
 /// @brief Profile selection function
 /// @return Pointer to the selected profile function
 void (*get_inlet_profile())(const Vector &, real_t, Vector &)
@@ -151,11 +158,92 @@ void (*get_inlet_profile())(const Vector &, real_t, Vector &)
    }
 }
 
-/// @brief Adds an interpolation of the provided turbulent fluctuation field to the mean velocity profile
-void turb_add(const Vector &x, real_t, Vector &u)
+/// @brief Computes the mean of the inlet profile over a given height.
+/// @param height Height over which to compute the mean.
+/// @return Mean of the inlet profile.
+real_t compute_mean_of_inlet_profile(real_t height)
 {
-   // TODO: Implement this.
-   // u(0) = 0.0;
+    const int n_points = 1000;
+    real_t sum_u = 0.0;
+    real_t dz = height / (n_points - 1);
+
+    for (int i = 0; i < n_points; ++i)
+    {
+        real_t z = i * dz;
+
+        Vector x(3);
+        x(0) = 0.0;
+        x(1) = 0.0;
+        x(2) = z;
+        Vector u(3);
+        real_t t = 0.0;
+
+        get_inlet_profile()(x, t, u);
+        sum_u += u(0);
+    }
+
+    return sum_u / n_points;
+}
+
+// Turbulence handling functions
+
+/// @brief Adds an interpolation of the provided turbulent fluctuation field to the mean velocity profile
+void turb_add(const Vector &x, real_t t, Vector &u)
+{
+    real_t effective_x = mean_inlet_velocity * t;
+    real_t pos[3] = {effective_x, x(1), x(2)};
+
+    // Compute normalized coordinates in [0,1]
+    real_t nx[3];
+    for (int d = 0; d < 3; ++d)
+    {
+        nx[d] = (pos[d] - turb_field.origin[d]) / (turb_field.spacing[d] * turb_field.Nx);
+        nx[d] = fmod(nx[d], 1.0); // Periodic wrapping
+        if (nx[d] < 0.0) 
+        {
+            nx[d] += 1.0;
+        }
+    }
+
+    real_t fx = nx[0] * (turb_field.Nx - 1);
+    real_t fy = nx[1] * (turb_field.Ny - 1);
+    real_t fz = nx[2] * (turb_field.Nz - 1);
+
+    int ix = floor(fx);
+    int iy = floor(fy);
+    int iz = floor(fz);
+
+    real_t dx = fx - ix;
+    real_t dy = fy - iy;
+    real_t dz = fz - iz;
+
+    // Clamp indices to valid range
+    ix = std::max(0, std::min(ix, turb_field.Nx - 2));
+    iy = std::max(0, std::min(iy, turb_field.Ny - 2));
+    iz = std::max(0, std::min(iz, turb_field.Nz - 2));
+
+    Vector fluct(3); fluct = 0.0;
+    for (int c = 0; c < 3; ++c)
+    {
+        auto get_val = [&](int dx_off, int dy_off, int dz_off) -> real_t
+        {
+            int gx = ix + dx_off, gy = iy + dy_off, gz = iz + dz_off;
+            size_t idx = (gx + turb_field.Nx * (gy + turb_field.Ny * gz)) * 3 + c;
+            return turb_field.data[idx];
+        };
+
+        real_t v000 = get_val(0, 0, 0), v001 = get_val(0, 0, 1);
+        real_t v010 = get_val(0, 1, 0), v011 = get_val(0, 1, 1);
+        real_t v100 = get_val(1, 0, 0), v101 = get_val(1, 0, 1);
+        real_t v110 = get_val(1, 1, 0), v111 = get_val(1, 1, 1);
+
+        real_t vxy0 = (1-dz) * ((1-dy) * ((1 - dx) * v000 + dx * v100) + dy * ((1 - dx) * v010 + dx*v110)) +
+            dz * ((1-dy) * ((1-dx) * v001 + dx * v101) + dy * ((1-dx) * v011 + dx * v111));
+
+        fluct(c) = vxy0;
+    }
+
+    u += fluct;
 }
 
 void turbulent_inlet(const Vector &x, real_t t, Vector &u)
@@ -163,17 +251,6 @@ void turbulent_inlet(const Vector &x, real_t t, Vector &u)
    get_inlet_profile()(x, t, u);
    turb_add(x, t, u);
 }
-
-/// @brief Turbulence field data structure, which is meant for directly loading in
-/// the data from a VTI file, assumed to be formatted as DRDMannTurb does.
-/// @note We should always have Nc = 3
-struct TurbField
-{
-   int Nx, Ny, Nz, Nc;
-   std::vector<double> data;
-   std::vector<double> spacing;  // x, y, z spacing
-   std::vector<double> origin;   // x, y, z origin
-};
 
 /// @brief Loads turbulence field from a VTI file.
 /// @param filename Name of the VTI file to load.
@@ -356,7 +433,7 @@ int main(int argc, char *argv[])
    }
 
    // Load turbulence field in
-   TurbField turb_field = load_turb_field(ctx.turb_field_file);
+   turb_field = load_turb_field(ctx.turb_field_file);
    if (Mpi::Root())
    {
       mfem::out << "Turbulence field loaded successfully" << std::endl;
@@ -365,43 +442,49 @@ int main(int argc, char *argv[])
    }
 
 
-   // Verify loaded data (print first few values for comparison with NumPy)
-   if (Mpi::Root())
-   {
-      mfem::out <<
-                "Verifying turbulence data (first 9 values, assuming (x,y,z,c) order):" <<
-                std::endl;
-      for (size_t i = 0; i < 9 && i < turb_field.data.size(); ++i)
-      {
-         mfem::out << turb_field.data[i] << " ";
-      }
-      mfem::out << std::endl;
+//    // Verify loaded data (print first few values for comparison with NumPy)
+//    if (Mpi::Root())
+//    {
+//       mfem::out <<
+//                 "Verifying turbulence data (first 9 values, assuming (x,y,z,c) order):" <<
+//                 std::endl;
+//       for (size_t i = 0; i < 9 && i < turb_field.data.size(); ++i)
+//       {
+//          mfem::out << turb_field.data[i] << " ";
+//       }
+//       mfem::out << std::endl;
 
-      // Optional: Print min/max per component for summary
-      double min_u = std::numeric_limits<double>::max(),
-             max_u = std::numeric_limits<double>::lowest();
-      double min_v = std::numeric_limits<double>::max(),
-             max_v = std::numeric_limits<double>::lowest();
-      double min_w = std::numeric_limits<double>::max(),
-             max_w = std::numeric_limits<double>::lowest();
-      size_t size = turb_field.data.size();
-      for (size_t i = 0; i < size; i += 3)
-      {
-         min_u = std::min(min_u, turb_field.data[i]);
-         max_u = std::max(max_u, turb_field.data[i]);
-         min_v = std::min(min_v, turb_field.data[i+1]);
-         max_v = std::max(max_v, turb_field.data[i+1]);
-         min_w = std::min(min_w, turb_field.data[i+2]);
-         max_w = std::max(max_w, turb_field.data[i+2]);
-      }
-      mfem::out << "Component U: min=" << min_u << ", max=" << max_u << std::endl;
-      mfem::out << "Component V: min=" << min_v << ", max=" << max_v << std::endl;
-      mfem::out << "Component W: min=" << min_w << ", max=" << max_w << std::endl;
-   }
+//       // Optional: Print min/max per component for summary
+//       double min_u = std::numeric_limits<double>::max(),
+//              max_u = std::numeric_limits<double>::lowest();
+//       double min_v = std::numeric_limits<double>::max(),
+//              max_v = std::numeric_limits<double>::lowest();
+//       double min_w = std::numeric_limits<double>::max(),
+//              max_w = std::numeric_limits<double>::lowest();
+//       size_t size = turb_field.data.size();
+//       for (size_t i = 0; i < size; i += 3)
+//       {
+//          min_u = std::min(min_u, turb_field.data[i]);
+//          max_u = std::max(max_u, turb_field.data[i]);
+//          min_v = std::min(min_v, turb_field.data[i+1]);
+//          max_v = std::max(max_v, turb_field.data[i+1]);
+//          min_w = std::min(min_w, turb_field.data[i+2]);
+//          max_w = std::max(max_w, turb_field.data[i+2]);
+//       }
+//       mfem::out << "Component U: min=" << min_u << ", max=" << max_u << std::endl;
+//       mfem::out << "Component V: min=" << min_v << ", max=" << max_v << std::endl;
+//       mfem::out << "Component W: min=" << min_w << ", max=" << max_w << std::endl;
+//    }
+
+   real_t length = 300.0;
+   real_t width = 100.0;
+   real_t height = 100.0;
+
+   real_t mean_inlet_velocity = compute_mean_of_inlet_profile(height);
 
    // Domain: [0, 3] x [0, 1] x [0, 1] (Length x Width x Height)
    Mesh mesh = Mesh::MakeCartesian3D(6, 2, 2, Element::HEXAHEDRON,
-                                     3.0, 1.0, 0.5);
+                                     length, width, height);
 
    for (int i = 0; i < ctx.ser_ref_levels; ++i)
    {
@@ -483,7 +566,7 @@ int main(int argc, char *argv[])
    ParGridFunction *u_gf = nullptr;
    ParGridFunction *p_gf = nullptr;
 
-   if (Mpi::Root() && ctx.verbose)
+   if (Mpi::Root())
    {
       printf("%5s %8s %8s %8s %11s\n",
              "Step", "Time", "dt", "CFL", "||u||_max");
@@ -514,7 +597,7 @@ int main(int argc, char *argv[])
       real_t cfl = flowsolver.ComputeCFL(*u_gf, dt);
       real_t max_vel = u_gf->Max();
 
-      if (Mpi::Root() && step % 10 == 0 && ctx.verbose)
+      if (Mpi::Root() && step % 10 == 0)
       {
          printf("%5d %8.3f %8.2E %8.2E %11.4E\n",
                 step, t, dt, cfl, max_vel);
