@@ -93,15 +93,8 @@ void AsymmetricMassIntegrator::AsymmetricElementMatrix(const FiniteElement
    }
 }
 
-// Small least square solver
-// TODO: it could be implemented as a mfem::Solver, as a method...
-int _print_level = 3;
-int _max_iter = 100000;
-real_t _rtol = 1.0e-30;
-real_t _atol = 0.0;
-
 /// @brief Dense small least squares solver
-void LSSolver(const DenseMatrix& A, const Vector& b, Vector& x,
+void LSSolver(Solver& solver, const DenseMatrix& A, const Vector& b, Vector& x,
               real_t shift = 0.0)
 {
    x.SetSize(A.Width());
@@ -115,13 +108,13 @@ void LSSolver(const DenseMatrix& A, const Vector& b, Vector& x,
    IdentityOperator I(AtA.Height());
    SumOperator AtA_reg(&AtA, 1.0, &I, shift, false, false);
 
-   MINRES(AtA_reg, Atb, x, _print_level, _max_iter, _rtol, _atol);
+   solver.SetOperator(AtA_reg);
+   solver.Mult(Atb, x);
 }
 
 /// @brief Dense small least squares solver, with constrains @a C with value @a c
-void LSSolver(const DenseMatrix& A, const DenseMatrix& C,
-              const Vector& b, const Vector& c,
-              Vector& x, Vector& y,
+void LSSolver(Solver& solver, const DenseMatrix& A, const DenseMatrix& C,
+              const Vector& b, const Vector& c, Vector& x, Vector& y,
               real_t shift = 0.0)
 {
    TransposeOperator At(&A);
@@ -153,7 +146,8 @@ void LSSolver(const DenseMatrix& A, const DenseMatrix& C,
    rhs.SetVector(Atb, offsets[0]);
    rhs.SetVector(c, offsets[1]);
 
-   MINRES(block_mat, rhs, z, _print_level, _max_iter, _rtol, _atol);
+   solver.SetOperator(block_mat);
+   solver.Mult(rhs, z);
 
    x.SetSize(A.Width());
    y.SetSize(C.Width());
@@ -178,13 +172,18 @@ int main(int argc, char* argv[])
    // Default command-line options
    int ser_ref_levels = 0;
    int par_ref_levels = 0;
+
    int order_original = 3;
    int order_reconstruction = 1;
-   bool preserve_volumes = true;
 
-   real_t reg_shift = 0.0;
+   real_t solver_reg = 0.0;
+   real_t solver_rtol = 1.0e-30;
+   real_t solver_atol = 0.0;
+   int solver_maxiter = 1000;
+   // TODO(Gabriel): Not implemented yet
+   // int solver_plevel = 3;
 
-   bool show_error = true;
+   bool preserve_volumes = false; // TODO(Gabriel): Why this is not working?
    bool save_to_file = false;
 
    // Parse options
@@ -193,19 +192,28 @@ int main(int argc, char* argv[])
                   "Number of serial refinement steps.");
    args.AddOption(&par_ref_levels, "-rp", "--refine",
                   "Number of parallel refinement steps.");
+
    args.AddOption(&order_original, "-O", "--order-original",
                   "Order original broken space.");
    args.AddOption(&order_reconstruction, "-R", "--order-reconstruction",
                   "Order of reconstruction broken space.");
+
    args.AddOption(&preserve_volumes, "-V", "--preserve-volumes", "-no-V",
                   "--no-preserve-volumes", "Preserve averages (volumes) by"
                   " solving a constrained least squares problem");
 
-   args.AddOption(&reg_shift, "-reg", "--regulatization",
+   args.AddOption(&solver_reg, "-Sreg", "--solver-reg",
                   "Add regularization term to the least squares problem");
+   args.AddOption(&solver_rtol, "-Srtol", "--solver-rtol",
+                  "Relative tolerance for the iterative solver");
+   args.AddOption(&solver_atol, "-Satol", "--solver-atol",
+                  "Absolute tolerance for the iterative solver");
+   args.AddOption(&solver_maxiter, "-Smi", "--solver-maxiter",
+                  "Maximum number of iterations for the solver");
+   // TODO(Gabriel): Not implemented yet
+   // args.AddOption(&solver_plevel, "-Sp", "--solver-print",
+   //                "Print level for the iterative solver");
 
-   args.AddOption(&show_error, "-se", "--show-error", "-no-se",
-                  "--no-show-error", "Show approximation error.");
    args.AddOption(&save_to_file, "-s", "--save", "-no-s",
                   "--no-save", "Show or not show approximation error.");
 
@@ -213,19 +221,17 @@ int main(int argc, char* argv[])
    {
       args.ParseCheck();
       MFEM_VERIFY((ser_ref_levels >= 0) && (par_ref_levels >= 0), "")
-      MFEM_VERIFY((reg_shift>=0.0), "")
-      mfem::out << "Number of serial refinements:     " << ser_ref_levels << "\n";
-      mfem::out << "Number of parallel refinements:   " << par_ref_levels << "\n";
-      mfem::out << "Original order:                   " << order_original << "\n";
-      mfem::out << "Original reconstruction:          " << order_reconstruction <<
-                "\n";
+      MFEM_VERIFY((solver_reg>=0.0), "")
+      mfem::out << "Number of serial refs.:  " << ser_ref_levels << "\n";
+      mfem::out << "Number of parallel refs: " << par_ref_levels << "\n";
+      mfem::out << "Original order:          " << order_original << "\n";
+      mfem::out << "Original reconstruction: " << order_reconstruction << "\n";
    }
 
    // Mesh
    const int num_x = 2;
    const int num_y = 2;
-   Mesh serial_mesh = Mesh::MakeCartesian2D(num_x, num_y,
-                                            Element::QUADRILATERAL);
+   Mesh serial_mesh = Mesh::MakeCartesian2D(num_x, num_y, Element::QUADRILATERAL);
    for (int i = 0; i < ser_ref_levels; ++i) { serial_mesh.UniformRefinement(); }
    ParMesh mesh(MPI_COMM_WORLD, serial_mesh);
    for (int i = 0; i < par_ref_levels; ++i) { mesh.UniformRefinement(); }
@@ -270,13 +276,38 @@ int main(int argc, char* argv[])
    Vector volumes(mesh.GetNE());
    ones.ComputeElementL1Errors(zeros, volumes);
 
+   // Solver choice
+   Solver *small_solver = nullptr;
+   // TODO(Gabriel): Support more solvers?
+   {
+      small_solver = new MINRESSolver();
+   }
+
+   // Solver setting
+   small_solver->iterative_mode = false;
+   auto it_solver = dynamic_cast<IterativeSolver*>(small_solver);
+   if (it_solver)
+   {
+      // TODO(Gabriel): Not implemented yet
+      IterativeSolver::PrintLevel print_level;
+      print_level.All();
+
+      it_solver->SetRelTol(solver_rtol);
+      it_solver->SetAbsTol(solver_atol);
+      it_solver->SetMaxIter(solver_maxiter);
+      it_solver->SetPrintLevel(print_level);
+   }
+
+   // Neighboring elements and DoFs
    Array<int> ngh_e, temp_ngh, local_dofs;
    auto ngh_tr = new IsoparametricTransformation;
    auto self_tr = new IsoparametricTransformation;
+
    for (int e_idx = 0; e_idx < mesh.GetNE(); e_idx++ )
    {
       nc_mesh.FindNeighbors(e_idx, ngh_e);
       ngh_e.Append(e_idx);
+      // TODO(Gabriel): While loop?
       for (int i = 0; i < order_reconstruction - 1; i++)
       {
          nc_mesh.NeighborExpand(ngh_e, temp_ngh);
@@ -328,15 +359,17 @@ int main(int argc, char* argv[])
                                       *self_tr, *self_tr, self_avg_mat);
          self_avg_mat.InvLeftScaling(self_volume);
 
-         LSSolver(local_mass_mat, self_avg_mat,
+         LSSolver(*small_solver, local_mass_mat, self_avg_mat,
                   local_u_avg, exact_average_e,
-                  local_u_rec, _mult, reg_shift);
+                  local_u_rec, _mult, solver_reg);
       }
       else
       {
-         LSSolver(local_mass_mat, local_u_avg, local_u_rec,
-                  reg_shift);
+         LSSolver(*small_solver, local_mass_mat, local_u_avg, local_u_rec, solver_reg);
       }
+
+      // Check solver
+      if (it_solver && !it_solver->GetConverged()) { mfem_error("\n\tIterative solver failed to converge!"); }
       CheckLSSolver(local_mass_mat, local_u_avg, local_u_rec);
 
       // Integrate into global solution
@@ -387,7 +420,7 @@ int main(int argc, char* argv[])
    subtract(u_rec_avg, u_averages, diff);
    real_t error_avg = diff.ComputeL2Error(zeros);
 
-   if (show_error && Mpi::Root())
+   if (Mpi::Root())
    {
       mfem::out << "\n|| Rec(u_h) - u ||_{L^2} = " << error << "\n" << std::endl;
       mfem::out << "\n|| Avg(Rec(u_h)) - u_h ||_{ell^2} = " << error_avg << "\n" <<
@@ -415,6 +448,7 @@ int main(int argc, char* argv[])
       file.close();
    }
 
+   if (small_solver) { delete small_solver; }
    delete ngh_tr;
    delete self_tr;
 
