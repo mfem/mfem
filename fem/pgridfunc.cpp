@@ -621,16 +621,15 @@ void ParGridFunction::ProjectCoefficientGlobalL2(Coefficient &coeff,
 void ParGridFunction::ProjectCoefficientLocalL2(Coefficient &coeff)
 {
    Vector Va;
-   ProjectCoefficientLocalL2_(coeff, Va);
+   ProjectCoefficientLocalL2_(coeff, *this, Va);
 
    GroupCommunicator &gcomm = pfes->GroupComm();
-   gcomm.Reduce<real_t>(data, GroupCommunicator::Sum);
-   gcomm.Bcast<real_t>(data);
+   gcomm.Reduce<real_t>(GetData(), GroupCommunicator::Sum);
+   gcomm.Bcast<real_t>(GetData());
 
    gcomm.Reduce<real_t>(Va.GetData(), GroupCommunicator::Sum);
    gcomm.Bcast<real_t>(Va.GetData());
-
-   (*this) /= Va;
+   (*this)/=Va;
 }
 
 void ParGridFunction::ProjectCoefficientGlobalL2(VectorCoefficient &vcoeff,
@@ -676,17 +675,35 @@ void ParGridFunction::ProjectCoefficientGlobalL2(VectorCoefficient &vcoeff,
 
 void ParGridFunction::ProjectCoefficientLocalL2(VectorCoefficient &vcoeff)
 {
-   /*   Vector Va;
-      ProjectCoefficientLocalL2_(coeff, Va);
+   if (fes->GetTypicalFE()->GetRangeType() == mfem::FiniteElement::VECTOR)
+   {
+      mfem_error("ParGridFunction::ProjectCoefficientLocalL2\n"
+                 "not implemented for range type mfem::FiniteElement::VECTOR");
+   }
+   else
+   {
+      Array<int> vdofs(fes->GetNDofs());
+      Vector x, Va, gVa(Size());
+      VectorComponentCoefficient coeff(vcoeff,0);
+      *this = 0.0;
+      gVa = 0.0;
+      for (int v = 0; v < VectorDim(); v++)
+      {
+         coeff.SetIndex(v);
+         ProjectCoefficientLocalL2_(coeff, x, Va);
+         fes->GetVDofs(v, vdofs);
+         SetSubVector(vdofs, x);
+         gVa.SetSubVector(vdofs, Va);
+      }
 
       GroupCommunicator &gcomm = pfes->GroupComm();
-      gcomm.Reduce<real_t>(data, GroupCommunicator::Sum);
-      gcomm.Bcast<real_t>(data);
+      gcomm.Reduce<real_t>(GetData(), GroupCommunicator::Sum);
+      gcomm.Bcast<real_t>(GetData());
 
-      gcomm.Reduce<real_t>(Va.GetData(), GroupCommunicator::Sum);
-      gcomm.Bcast<real_t>(Va.GetData());
-
-      (*this) /= Va;*/
+      gcomm.Reduce<real_t>(gVa.GetData(), GroupCommunicator::Sum);
+      gcomm.Bcast<real_t>(gVa.GetData());
+      *this /= gVa;
+   }
 }
 
 

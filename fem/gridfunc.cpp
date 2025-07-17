@@ -2407,26 +2407,27 @@ void GridFunction::ProjectCoefficientGlobalL2(Coefficient &coeff, real_t rtol,
 void GridFunction::ProjectCoefficientLocalL2(Coefficient &coeff)
 {
    Vector Va;
-   ProjectCoefficientLocalL2_(coeff, Va);
+   ProjectCoefficientLocalL2_(coeff, *this, Va);
    (*this) /= Va;
 }
 
-void GridFunction::ProjectCoefficientLocalL2_(Coefficient &coeff, Vector &Va)
+void GridFunction::ProjectCoefficientLocalL2_(Coefficient &coeff,
+                                              Vector &x, Vector &Va)
 {
    DofTransformation doftrans;
    Array<int> vdofs;
    Vector shape,shape2, elvect, elwght;
    DenseMatrix elmat;
-   Va.SetSize(Size());
-
+   Va.SetSize(fes->GetNDofs() );
+   x.SetSize(fes->GetNDofs() );
    Va = 0.0;
-   *this = 0.0;
+   x = 0.0;
 
    if (fes->GetNURBSext() == NULL)
    {
       for (int e = 0; e < fes->GetNE(); e++)
       {
-         fes->GetElementVDofs (e, vdofs, doftrans);
+         fes->GetElementDofs (e, vdofs, doftrans);
          ElementTransformation &tr = *fes -> GetElementTransformation (e);
          const FiniteElement &el = *fes->GetFE(e);
          int dof = el.GetDof();
@@ -2447,13 +2448,13 @@ void GridFunction::ProjectCoefficientLocalL2_(Coefficient &coeff, Vector &Va)
             const IntegrationPoint &ip = ir.IntPoint(i);
 
             tr.SetIntPoint (&ip);
-            real_t wght = ip.weight;//*tr.Weight();
+            real_t wght = ip.weight*tr.Weight();
             real_t val = coeff.Eval(tr, ip);
 
             el.CalcPhysShape(tr, shape);
 
             elvect.Add(wght * val, shape);
-            elwght.Add(wght*tr.Weight(), shape);
+            elwght.Add(wght, shape);
             AddMult_a_VVt(wght, shape, elmat);
          }
 
@@ -2467,7 +2468,7 @@ void GridFunction::ProjectCoefficientLocalL2_(Coefficient &coeff, Vector &Va)
          elvect *= elwght;
 
          // Add reduced dofs to global vector
-         AddElementVector(vdofs, elvect);
+         x.AddElementVector(vdofs, elvect);
          Va.AddElementVector(vdofs, elwght);
       }
    }
@@ -2475,7 +2476,7 @@ void GridFunction::ProjectCoefficientLocalL2_(Coefficient &coeff, Vector &Va)
    {
       for (int e = 0; e < fes->GetNE(); e++)
       {
-         fes->GetElementVDofs (e, vdofs, doftrans);
+         fes->GetElementDofs (e, vdofs, doftrans);
          ElementTransformation &tr = *fes -> GetElementTransformation (e);
          const FiniteElement &el = *fes->GetFE(e);
          int dof = el.GetDof();
@@ -2504,13 +2505,13 @@ void GridFunction::ProjectCoefficientLocalL2_(Coefficient &coeff, Vector &Va)
             const IntegrationPoint &ip = ir.IntPoint(i);
 
             tr.SetIntPoint (&ip);
-            real_t wght = ip.weight;//*tr.Weight();
+            real_t wght = ip.weight*tr.Weight();
             real_t val = coeff.Eval(tr, ip);
             el.CalcPhysShape(tr, shape);
             el2.CalcPhysShape(tr, shape2);
 
             elvect.Add(wght * val, shape2);
-            elwght.Add(wght*tr.Weight(), shape);
+            elwght.Add(wght, shape);
             AddMult_a_VVt(wght, shape2, elmat);
          }
          // Solve
@@ -2530,7 +2531,7 @@ void GridFunction::ProjectCoefficientLocalL2_(Coefficient &coeff, Vector &Va)
          elvect *= elwght;
 
          // Add reduced dofs to global vector
-         AddElementVector(vdofs, elvect);
+         x.AddElementVector(vdofs, elvect);
          Va.AddElementVector(vdofs, elwght);
       }
    }
@@ -2649,23 +2650,26 @@ void GridFunction::ProjectCoefficientGlobalL2(VectorCoefficient &vcoeff,
 
 void GridFunction::ProjectCoefficientLocalL2(VectorCoefficient &vcoeff)
 {
-
-   // TBD!!!!
-   // Define and assemble linear form
-   LinearForm b(fes);
-   BilinearForm a(fes);
-
    if (fes->GetTypicalFE()->GetRangeType() == mfem::FiniteElement::VECTOR)
    {
-      b.AddDomainIntegrator(new VectorFEDomainLFIntegrator(vcoeff));
-      a.AddDomainIntegrator(new VectorFEMassIntegrator());
+      mfem_error("GridFunction::ProjectCoefficientLocalL2\n"
+                 "not implemented for range type mfem::FiniteElement::VECTOR");
    }
    else
    {
-      b.AddDomainIntegrator(new VectorDomainLFIntegrator(vcoeff));
-      a.AddDomainIntegrator(new VectorMassIntegrator());
-   }
+      Array<int> vdofs(fes->GetNDofs());
+      Vector x, Va;
+      VectorComponentCoefficient coeff(vcoeff,0);
 
+      for (int v = 0; v < VectorDim(); v++)
+      {
+         coeff.SetIndex(v);
+         ProjectCoefficientLocalL2_(coeff, x, Va);
+         x /= Va;
+         fes->GetVDofs(v, vdofs);
+         SetSubVector(vdofs, x);
+      }
+   }
 }
 
 void GridFunction::ProjectCoefficient(

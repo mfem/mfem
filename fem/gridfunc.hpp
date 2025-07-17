@@ -67,7 +67,7 @@ protected:
    void ProjectDiscCoefficient(VectorCoefficient &coeff, Array<int> &dof_attr);
 
    /** Helper function for ProjectCoefficientLocalL2 */
-   void ProjectCoefficientLocalL2_(Coefficient &coeff, Vector &Va);
+   void ProjectCoefficientLocalL2_(Coefficient &coeff, Vector &sol, Vector &Va);
 
    /// Loading helper.
    void LegacyNCReorder();
@@ -440,7 +440,6 @@ public:
    virtual void ProjectCoefficientGlobalL2(VectorCoefficient &vcoeff,
                                            real_t rtol = 1e-12,
                                            int iter = 1000);
-
 
    /** @brief Project @a coeff Coefficient to @a this GridFunction. The
        projection is a global L2 projection. This routine can be used a
