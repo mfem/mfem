@@ -1,16 +1,17 @@
-//                                MFEM Example 10
+//                                MFEM Example 10 -- modified for NURBS FE
 //
-// Compile with: make ex10
+// Compile with: make nurbs_ex10
 //
 // Sample runs:
-//    ex10 -m ../data/beam-quad.mesh -s 23 -r 2 -o 2 -dt 3
-//    ex10 -m ../data/beam-tri.mesh -s 23 -r 2 -o 2 -dt 3
-//    ex10 -m ../data/beam-hex.mesh -s 22 -r 1 -o 2 -dt 3
-//    ex10 -m ../data/beam-tet.mesh -s 22 -r 1 -o 2 -dt 3
-//    ex10 -m ../data/beam-wedge.mesh -s 22 -r 1 -o 2 -dt 3
-//    ex10 -m ../data/beam-quad.mesh -s 4 -r 2 -o 2 -dt 0.03 -vs 20
-//    ex10 -m ../data/beam-hex.mesh -s 4 -r 1 -o 2 -dt 0.05 -vs 20
-//    ex10 -m ../data/beam-quad-amr.mesh -s 23 -r 2 -o 2 -dt 3
+//    nurbs_ex10 -m ../../data/beam-quad-nurbs.mesh -s 23 -r 2 -o 2 -dt 3
+//    nurbs_ex10 -m ../../data/beam-quad.mesh -s 23 -r 2 -o 2 -dt 3
+//    nurbs_ex10 -m ../../data/beam-tri.mesh -s 23 -r 2 -o 2 -dt 3
+//    nurbs_ex10 -m ../../data/beam-hex.mesh -s 22 -r 1 -o 2 -dt 3
+//    nurbs_ex10 -m ../../data/beam-tet.mesh -s 22 -r 1 -o 2 -dt 3
+//    nurbs_ex10 -m ../../data/beam-wedge.mesh -s 22 -r 1 -o 2 -dt 3
+//    nurbs_ex10 -m ../../data/beam-quad.mesh -s 4 -r 2 -o 2 -dt 0.03 -vs 20
+//    nurbs_ex10 -m ../../data/beam-hex.mesh -s 4 -r 1 -o 2 -dt 0.05 -vs 20
+//    nurbs_ex10 -m ../../data/beam-quad-amr.mesh -s 23 -r 2 -o 2 -dt 3
 //
 // Description:  This examples solves a time dependent nonlinear elasticity
 //               problem of the form dv/dt = H(x) + S v, dx/dt = v, where H is a
@@ -42,6 +43,9 @@
 
 using namespace std;
 using namespace mfem;
+
+template <typename CoefficientType>
+void Project(GridFunction &gf, CoefficientType &coef, int proj_type);
 
 class ReducedSystemOperator;
 
@@ -94,7 +98,9 @@ public:
 
    real_t ElasticEnergy(const Vector &x) const;
    real_t KineticEnergy(const Vector &v) const;
-   void GetElasticEnergyDensity(const GridFunction &x, GridFunction &w) const;
+   void GetElasticEnergyDensity(const GridFunction &x,
+                                GridFunction &w,
+                                int proj_type) const;
 
    ~HyperelasticOperator() override;
 };
@@ -157,15 +163,16 @@ void visualize(ostream &os, Mesh *mesh, GridFunction *deformed_nodes,
 int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
-   const char *mesh_file = "../data/beam-quad.mesh";
+   const char *mesh_file = "../../data/beam-quad-nurbs.mesh ";
    int ref_levels = 2;
    int order = 2;
    int ode_solver_type = 23;
    real_t t_final = 300.0;
-   real_t dt = 3.0;
+   real_t dt = 1.0;
    real_t visc = 1e-2;
    real_t mu = 0.25;
    real_t K = 5.0;
+   int proj_type = 2;
    bool visualization = true;
    int vis_steps = 1;
 
@@ -188,6 +195,11 @@ int main(int argc, char *argv[])
                   "Shear modulus in the Neo-Hookean hyperelastic model.");
    args.AddOption(&K, "-K", "--bulk-modulus",
                   "Bulk modulus in the Neo-Hookean hyperelastic model.");
+   args.AddOption(&proj_type, "-proj", "--projection",
+                  "Projection type:\n."
+                  " 0 = Nodal injection at the Botella points.\n"
+                  " 1 = Local L2 projection(DC Thomas etal).\n"
+                  " 2 = Global L2 projection.\n");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -225,8 +237,21 @@ int main(int argc, char *argv[])
    //    higher-order space. Since x and v are integrated in time as a system,
    //    we group them together in block vector vx, with offsets given by the
    //    fe_offset array.
-   H1_FECollection fe_coll(order, dim);
-   FiniteElementSpace fespace(mesh, &fe_coll, dim);
+   FiniteElementCollection *fec = nullptr;
+   NURBSExtension *NURBSext = nullptr;
+   if (mesh->NURBSext)
+   {
+      NURBSext = new NURBSExtension(mesh->NURBSext, order);
+      fec = new NURBSFECollection(order);
+      cout << "Using NURBS FEs: " << fec->Name() << endl;
+   }
+   else
+   {
+      fec = new H1_FECollection(order, dim);
+      cout << "Using H1 FEs: " << fec->Name() << endl;
+   }
+
+   FiniteElementSpace fespace(mesh, NURBSext, fec, dim);
 
    int fe_size = fespace.GetTrueVSize();
    cout << "Number of velocity/deformation unknowns: " << fe_size << endl;
@@ -250,10 +275,12 @@ int main(int argc, char *argv[])
    // 6. Set the initial conditions for v and x, and the boundary conditions on
    //    a beam-like mesh (see description above).
    VectorFunctionCoefficient velo(dim, InitialVelocity);
-   v.ProjectCoefficient(velo);
+   Project(v, velo, proj_type);
+
    v.SetTrueVector();
    VectorFunctionCoefficient deform(dim, InitialDeformation);
-   x.ProjectCoefficient(deform);
+   Project(x, deform, proj_type);
+
    x.SetTrueVector();
 
    Array<int> ess_bdr(fespace.GetMesh()->bdr_attributes.Max());
@@ -276,7 +303,7 @@ int main(int argc, char *argv[])
       vis_w.open(vishost, visport);
       if (vis_w)
       {
-         oper.GetElasticEnergyDensity(x, w);
+         oper.GetElasticEnergyDensity(x, w, proj_type);
          vis_w.precision(8);
          visualize(vis_w, mesh, &x, &w, "Elastic energy density", true);
       }
@@ -319,7 +346,7 @@ int main(int argc, char *argv[])
             visualize(vis_v, mesh, &x, &v);
             if (vis_w)
             {
-               oper.GetElasticEnergyDensity(x, w);
+               oper.GetElasticEnergyDensity(x, w, proj_type);
                visualize(vis_w, mesh, &x, &w);
             }
          }
@@ -341,11 +368,12 @@ int main(int argc, char *argv[])
       v.Save(velo_ofs);
       ofstream ee_ofs("elastic_energy.sol");
       ee_ofs.precision(8);
-      oper.GetElasticEnergyDensity(x, w);
+      oper.GetElasticEnergyDensity(x, w, proj_type);
       w.Save(ee_ofs);
    }
 
    // 10. Free the used memory.
+   delete fec;
    delete mesh;
 
    return 0;
@@ -550,10 +578,10 @@ real_t HyperelasticOperator::KineticEnergy(const Vector &v) const
 }
 
 void HyperelasticOperator::GetElasticEnergyDensity(
-   const GridFunction &x, GridFunction &w) const
+   const GridFunction &x, GridFunction &w, int proj_type) const
 {
    ElasticEnergyCoefficient w_coeff(*model, x);
-   w.ProjectCoefficient(w_coeff);
+   Project(w, w_coeff, proj_type);
 }
 
 HyperelasticOperator::~HyperelasticOperator()
@@ -590,4 +618,28 @@ void InitialVelocity(const Vector &x, Vector &v)
    v = 0.0;
    v(dim-1) = s*x(0)*x(0)*(8.0-x(0));
    v(0) = -s*x(0)*x(0);
+}
+
+template <typename CoefficientType>
+void Project(GridFunction &gf, CoefficientType &coef, int proj_type)
+{
+   if (proj_type == 0)
+   {
+      gf.ProjectCoefficient(coef);
+   }
+   else if (proj_type == 1)
+   {
+      gf.ProjectCoefficientLocalL2(coef);
+   }
+   else if (proj_type == 2)
+   {
+      gf.ProjectCoefficientGlobalL2(coef);
+   }
+   else
+   {
+      mfem_error("Incorrect Project Type. Should be 0, 1 or 2");
+   }
+
+   gf.SetTrueVector();
+   gf.SetFromTrueVector();
 }
