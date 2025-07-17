@@ -300,12 +300,16 @@ public:
    real_t ComputeL1Error(Coefficient *exsol[],
                          const IntegrationRule *irs[] = NULL) const override
    {
+#ifdef MFEM_HAVE_GCC_PRAGMA_DIAGNOSTIC
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+#endif
       real_t glb_err = GlobalLpNorm(1.0,
                                     GridFunction::ComputeL1Error(exsol, irs),
                                     pfes->GetComm());
+#ifdef MFEM_HAVE_GCC_PRAGMA_DIAGNOSTIC
 #pragma GCC diagnostic pop
+#endif
       return glb_err;
    }
 
