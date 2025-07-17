@@ -124,6 +124,18 @@ T Array<T>::Sum() const
 }
 
 template <class T>
+T Array<T>::Prod() const
+{
+   T prod = static_cast<T>(1);
+   for (int i = 0; i < size; i++)
+   {
+      prod*=operator[](i);
+   }
+
+   return prod;
+}
+
+template <class T>
 int Array<T>::IsSorted() const
 {
    T val_prev = operator[](0), val;
