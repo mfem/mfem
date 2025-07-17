@@ -8057,7 +8057,7 @@ void Mesh::GenerateFaces()
    {
       FreeElement(f);
    }
-   
+
    // (re)generate the interior faces and the info for them
    faces.SetSize(nfaces);
    faces_info.SetSize(nfaces);
@@ -13425,7 +13425,7 @@ void Mesh::RemoveInternalBoundaries()
 
    int num_bdr_elem = 0;
    int new_bel_to_edge_nnz = 0;
-                                 
+
    for (int i = 0; i < GetNBE(); i++)
    {
       if (FaceIsInterior(GetBdrElementFaceIndex(i)))
