@@ -993,12 +993,10 @@ void KnotVector::GetInterpolant(const Vector &x, const Vector &u,
                                 Vector &a, bool reuse_inverse) const
 
 {
+   a = x;
    Array<Vector*> tmp(1);
-   tmp[0] = new Vector(x.Size());
-   *tmp[0] = x;
-
+   tmp[0] = &a;
    GetInterpolant(tmp,u,reuse_inverse);
-   a = *tmp[0];
 }
 
 // Routine from "The NURBS book" - 2nd ed - Piegl and Tiller
