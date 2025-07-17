@@ -989,6 +989,8 @@ class PhysicsSolverBase
 
     ParLinearForm * GetImplicitDqDx(){ return dQdx_; };
 
+    // ParGridFunction& GetProjectedSolution(){return projsolgf;}
+
   protected:
     ParMesh* pmesh;
 
@@ -1004,7 +1006,7 @@ class PhysicsSolverBase
     Vector sol;
     Vector adj;
     Vector rhs;
-    ParGridFunction solgf;
+    ParGridFunction solgf, projsolgf;
     ParGridFunction adjgf;
     ParGridFunction bcGridFunc_;
 
@@ -1035,6 +1037,7 @@ public:
 
         solgf.SetSpace(physics_fes_);
         adjgf.SetSpace(physics_fes_);
+        // projsolgf.SetSpace(physics_fes_);
 
         dQdu_ = new ParLinearForm(physics_fes_);
 

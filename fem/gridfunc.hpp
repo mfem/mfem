@@ -1238,43 +1238,14 @@ public:
                                        ) const
    { ComputeElementLpErrors(infinity(), exsol, error, NULL, irs); }
 
-   /// @brief Returns ||u_ex - u_h||_Lp for vector fields
-   ///
-   /// When given a vector weight, compute the pointwise (scalar) error as the
-   /// dot product of the vector error with the vector weight. Otherwise, the
-   /// scalar error is the l_2 norm of the vector error.
-   ///
-   /// Computes:
-   ///    $$(\sum_{elems} \int_{elem} w \, |scalar\_error|^p)^{1/p}$$
-   ///
-   /// Where
-   ///    $$scalar\_error = |v\_weight \cdot (u_{ex} - u_h)|$$
-   /// or
-   ///    $$scalar\_error = \sqrt{(u_{ex} - u_h) \cdot (u_{ex} - u_h)}$$
-   ///
-   /// @param[in] p         Real value indicating the exponent of the $L^p$
-   ///                      norm. To avoid domain errors p should have a
-   ///                      positive value, either finite or infinite.
-   /// @param[in] exsol     VectorCoefficient object reproducing the anticipated
-   ///                      values of the vector field, u_ex.
-   /// @param[in] weight    Optional pointer to a Coefficient object reproducing
-   ///                      a weighting function, w.
-   /// @param[in] v_weight  Optional pointer to a VectorCoefficient object
-   ///                      reproducing a weighting vector as shown above.
-   /// @param[in] irs       Optional pointer to an array of custom integration
-   ///                      rules e.g. higher order than the default rules. If
-   ///                      present the array will be indexed by Geometry::Type.
-   ///
-   /// @note If an array of integration rules is provided through @a irs, be
-   ///       sure to include valid rules for each element type that may occur
-   ///       in the list of elements.
-   ///
-   /// @note Quadratures with negative weights (as in some simplex integration
-   ///       rules in MFEM) can produce negative integrals even with
-   ///       non-negative integrands. To avoid returning negative errors this
-   ///       function uses the absolute values of the element-wise integrals.
-   ///       This may lead to results which are not entirely consistent with
-   ///       such integration rules.
+   /// Returns ||grad u_ex - grad u_h||_L2 in element ielem for H1 or L2 elements
+   virtual void ComputeElementGradErrors(VectorCoefficient *exgrad,
+                                           Vector &error,
+                                           const IntegrationRule *irs[] = NULL) const;
+
+   /** When given a vector weight, compute the pointwise (scalar) error as the
+       dot product of the vector error with the vector weight. Otherwise, the
+       scalar error is the l_2 norm of the vector error. */
    virtual real_t ComputeLpError(const real_t p, VectorCoefficient &exsol,
                                  Coefficient *weight = NULL,
                                  VectorCoefficient *v_weight = NULL,

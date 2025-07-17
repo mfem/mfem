@@ -418,16 +418,22 @@ protected:
    Vector true_dofs;
    QuantityOfInterest *qoi = nullptr;
    Diffusion_Solver *ds = nullptr;
+   Diffusion_Solver *dss = nullptr; //strong diffusion solver
    VectorHelmholtz *filter = nullptr;
    double weight = 1.0;
    real_t ls_norm_fac = 1.2;
    real_t ls_energy_fac = 1.1;
    VisItDataCollection *dc = nullptr;
+   VisItDataCollection *dcminl2 = nullptr;
+   VisItDataCollection *dcmingrad = nullptr;
    ParMesh *pmesh = nullptr;
+   ParGridFunction *l2error_gf = nullptr;
+   ParGridFunction *graderror_gf = nullptr;
    int ofq = 1;
    real_t min_l2_err = 100.0;
    real_t min_grad_err = 100.0;
    int min_err_iter = -1;
+   int cycle_count = 1;
 
 public:
    TMOP_MMA(int nVar, int nCon, Vector xval, const IntegrationRule &irule) :
@@ -462,6 +468,7 @@ public:
    void SetTrueDofs(Vector &tvec) { true_dofs = tvec; }
    void SetQuantityOfInterest(QuantityOfInterest *qoi_) { qoi = qoi_; }
    void SetDiffusionSolver(Diffusion_Solver *ds_) { ds = ds_; }
+   void SetDiffusionSolverStrong(Diffusion_Solver *dss_) { dss = dss_; }
    void SetVectorHelmholtzFilter(VectorHelmholtz *filter_) { filter = filter_; }
    void SetQoIWeight(double w) { weight = w; }
    void SetLineSearchEnergyFactor(double ls_energy_fac_) { ls_energy_fac = ls_energy_fac_;}
@@ -473,12 +480,22 @@ public:
       pmesh = pm;
       ofq = output_freq;
    }
+   void SetVIsitDataCollectionForMinErrors(VisItDataCollection *vdcminl2,
+                                           VisItDataCollection *vdcmingrad,
+                                           ParGridFunction *l2error_gf_,ParGridFunction *graderror_gf_)
+   {
+      dcminl2 = vdcminl2;
+      dcmingrad = vdcmingrad;
+      l2error_gf = l2error_gf_;
+      graderror_gf = graderror_gf_;
+   }
    void GetMinErrInfo(double &min_l2, double &min_grad, int &min_iter)
    {
       min_l2 = min_l2_err;
       min_grad = min_grad_err;
       min_iter = min_err_iter;
    }
+   int GetVisCount() { return cycle_count; }
 };
 
 }

@@ -1337,7 +1337,6 @@ void TMOP_MMA::MultFilter(Vector &x)
    Vector fdx(xorig.Size());
    fdx = 0.0;
    ldx = GetProlongedVector(dx);
-   int cycle_count = 1;
    filter->setLoadGridFunction(ldx);
    filter->FSolve();
    fldx = filter->GetSolutionVec();
@@ -1347,6 +1346,8 @@ void TMOP_MMA::MultFilter(Vector &x)
    min_err_iter = 0;
    min_l2_err = l2_err;
    min_grad_err = grad_err;
+   bool minerrchangel2 = false;
+   bool minerrchangegrad = false;
 
    for (it = 0; it < max_iter; it++)
    {
@@ -1359,6 +1360,15 @@ void TMOP_MMA::MultFilter(Vector &x)
          ParGridFunction & discretSol = ds->GetSolution();
          l2_err = discretSol.ComputeL2Error(*(qoi->GetTrueSolCoeff()));
          grad_err = discretSol.ComputeGradError((qoi->GetTrueSolGradCoeff()));
+         discretSol.ComputeElementL2Errors(*(qoi->GetTrueSolCoeff()), *l2error_gf);
+         discretSol.ComputeElementGradErrors(qoi->GetTrueSolGradCoeff(), *graderror_gf);
+
+         // dss->SetDesign(fldx);
+         // dss->FSolve();
+         // l2_err = dss->GetSolution().ComputeL2Error(*(qoi->GetTrueSolCoeff()));
+         // grad_err = dss->GetSolution().ComputeGradError((qoi->GetTrueSolGradCoeff()));
+         // dss->GetSolution().ComputeElementL2Errors(*(qoi->GetTrueSolCoeff()), *l2error_gf);
+         // dss->GetSolution().ComputeElementGradErrors(qoi->GetTrueSolGradCoeff(), *graderror_gf);
          qoi->SetDesign(fldx);
          qoi->SetDiscreteSol( discretSol );
          qoi->EvalQoIGrad();
@@ -1384,8 +1394,13 @@ void TMOP_MMA::MultFilter(Vector &x)
          if (l2_err < min_l2_err)
          {
             min_l2_err = l2_err;
-            min_grad_err = grad_err;
             min_err_iter = it;
+            minerrchangel2 = true;
+         }
+         if (grad_err < min_grad_err)
+         {
+            min_grad_err = grad_err;
+            minerrchangegrad = true;
          }
       }
       // r.Print();
@@ -1449,13 +1464,27 @@ void TMOP_MMA::MultFilter(Vector &x)
       }
 
       ProcessNewState(fdx);
-      if (dc && pmesh && it % ofq == 0)
+      if (dc && pmesh && ((it+1) % ofq == 0))
       {
          pmesh->GetNodes()->SetFromTrueDofs(x);
          pmesh->GetNodes()->SetFromTrueVector();
          dc->SetCycle(cycle_count++);
          dc->SetTime(cycle_count*1.0);
          dc->Save();
+      }
+      if (dcminl2 && pmesh && minerrchangel2)
+      {
+         pmesh->GetNodes()->SetFromTrueDofs(x);
+         pmesh->GetNodes()->SetFromTrueVector();
+         dcminl2->Save();
+         minerrchangel2 = false;
+      }
+      if (dcmingrad && pmesh && minerrchangegrad)
+      {
+         pmesh->GetNodes()->SetFromTrueDofs(x);
+         pmesh->GetNodes()->SetFromTrueVector();
+         dcmingrad->Save();
+         minerrchangegrad = false;
       }
 
       norm = Norm(r);

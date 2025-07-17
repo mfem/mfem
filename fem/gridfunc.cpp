@@ -2890,6 +2890,17 @@ real_t GridFunction::ComputeElementGradError(int ielem,
    return sqrt(fabs(error));
 }
 
+void GridFunction::ComputeElementGradErrors(VectorCoefficient *exgrad,
+                                              Vector &error,
+                                             const IntegrationRule *irs[]) const
+{
+   error = 0.0;
+   for (int i = 0; i < fes->GetNE(); i++)
+   {
+      error(i) = ComputeElementGradError(i, exgrad, irs);
+   }
+}
+
 real_t GridFunction::ComputeGradError(VectorCoefficient *exgrad,
                                       const IntegrationRule *irs[]) const
 {

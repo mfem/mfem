@@ -1909,6 +1909,7 @@ void Diffusion_Solver::FSolve()
   {
     T.ProjectBdrCoefficient(*trueSolCoeff, ess_bdr_attr);
   }
+  // projsolgf.ProjectCoefficient(*trueSolCoeff);
 
   HypreParMatrix A;
   Vector X, B;
