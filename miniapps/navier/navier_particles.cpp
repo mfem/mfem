@@ -34,7 +34,7 @@ struct Context
    
 } ctx;
 
-// Particle State Variables: fluid velocity u, particle velocity v, vorticity w, at three timesteps
+// Particle State Variables:
 enum State : int
 {
    U_NP3,
@@ -166,7 +166,6 @@ public:
             }
          }
       }
-
 
       // Interpolate new vorticity onto particles' old location
       Vector &p_wn = particles.GetAllStateVar(W_N);
@@ -316,12 +315,24 @@ int main (int argc, char *argv[])
       flowsolver.ComputeCurl2D(u_gf, w_gf);
       // ---------------------------------------------------
 
+      // TODO Difficulty:
+      // If this is the first iteration, initialize entire state
+      if (step == 1)
+      {
+         
+      }
+
       // Get the time-integration coefficients
       flowsolver.GetTimeIntegrationCoefficients(beta, alpha);
 
       // Step particles
       pint.Step(ctx.dt, beta, alpha, u_gf, w_gf, particles);
       
+      // TODO Difficulty:
+      // If any particles have left the domain, apply periodic BC
+      // (Must update all X_N...)
+
+
       if (ctx.print_csv_freq > 0 && step % ctx.print_csv_freq == 0)
       {
          // Output the particles
