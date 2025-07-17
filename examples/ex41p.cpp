@@ -2,11 +2,11 @@
 //
 // Compile with: make ex41p
 //
-// Sample runs: mpirun -np 4 ex41p -p 1 -rs 1 -l 2
-//              mpirun -np 4 ex41p -p 2 -rs 1 -l 2
-//              mpirun -np 4 ex41p -p 3 -rs 2 -l 1
-//              mpirun -np 4 ex41p -p 3 -rs 2 -l 2
-//              mpirun -np 4 ex41p -p 4 -rs 2 -l 2
+// Sample runs: mpirun -np 4 ex41p -p 1 -r 1 -l 2
+//              mpirun -np 4 ex41p -p 2 -r 1 -l 2
+//              mpirun -np 4 ex41p -p 3 -r 2 -l 1
+//              mpirun -np 4 ex41p -p 3 -r 2 -l 2
+//              mpirun -np 4 ex41p -p 4 -r 2 -l 2
 //
 // Description:   This example code demonstrates bounds-preserving limiters for
 //                Discontinuous Galerkin (DG) approximations of hyperbolic
@@ -91,7 +91,7 @@ int main(int argc, char *argv[])
                   "               2 - 2D smooth advection,\n\t"
                   "               3 - 1D discontinuous advection,\n\t"
                   "               4 - 2D solid body rotation\n\t");
-   args.AddOption(&ser_ref_levels, "-rs", "--refine-serial",
+   args.AddOption(&ser_ref_levels, "-r", "--refine",
                   "Number of times to refine the mesh uniformly in serial.");
    args.AddOption(&par_ref_levels, "-rp", "--refine-parallel",
                   "Number of times to refine the mesh uniformly in parallel.");
@@ -290,6 +290,7 @@ int main(int argc, char *argv[])
          cout << "Time step: " << ti << ", time: " << t << endl;
          if (visualization)
          {
+            sout << "parallel " << num_procs << " " << myid << "\n";
             sout << "solution\n" << pmesh << u << flush;
          }
       }
