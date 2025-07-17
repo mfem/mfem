@@ -3,6 +3,7 @@
 // Compile with: make ex41p
 //
 // Sample runs: mpirun -np 4 ex41p -p 1 -rs 1 -l 2
+//              mpirun -np 4 ex41p -p 2 -rs 1 -l 2
 //              mpirun -np 4 ex41p -p 3 -rs 2 -l 1
 //              mpirun -np 4 ex41p -p 3 -rs 2 -l 2
 //              mpirun -np 4 ex41p -p 4 -rs 2 -l 2
@@ -191,14 +192,10 @@ int main(int argc, char *argv[])
       cout << "Number of unknowns: " << glob_size << endl;
    }
 
-   // 7. Set up and assemble the bilinear and linear forms corresponding to the
-   //    DG discretization. The DGTraceIntegrator involves integrals over mesh
-   //    interior faces.
-   FunctionCoefficient u0(u0_function);
-
-   // 8. Define the initial conditions, save the corresponding grid function to
+   // 7. Define the initial conditions, save the corresponding grid function to
    //    a file and (optionally) save data in the VisIt format and initialize
    //    GLVis visualization.
+   FunctionCoefficient u0(u0_function);
    ParGridFunction u(&fes);
    u.ProjectCoefficient(u0);
    {
@@ -214,13 +211,13 @@ int main(int argc, char *argv[])
    }
 
 
-   // 9. Setup P0 DG space and grid function for element-wise mean and bounds.
+   // 8. Setup P0 DG space and grid function for element-wise mean and bounds.
    L2_FECollection uavg_fec(0, dim);
    ParFiniteElementSpace uavg_fes(&pmesh, &uavg_fec);
    ParGridFunction uavg(&uavg_fes);
    ParGridFunction lbound(&uavg_fes), ubound(&uavg_fes);
 
-   // 10. Setup DG hyperbolic conservation law solver.
+   // 9. Setup DG hyperbolic conservation law solver.
    VectorFunctionCoefficient velocity(dim, velocity_function);
    AdvectionFlux flux(velocity);
    RusanovFlux numericalFlux(flux);
@@ -229,10 +226,10 @@ int main(int argc, char *argv[])
                                     new HyperbolicFormIntegrator(numericalFlux,
                                                                  0)), false);
 
-   // 11. Limit initial solution (if necessary).
+   // 10. Limit initial solution (if necessary).
    Limit(u, uavg, lbound, ubound, dim, limiter_type, 0.0, 1.0);
 
-   // 12. Set up SSP time integrator (note that RK3 integrator does not apply
+   // 11. Set up SSP time integrator (note that RK3 integrator does not apply
    //     limiting at inner stages, which may cause bounds-violations).
    real_t t = 0.0;
    ODESolver * ode_solver = NULL;
@@ -247,7 +244,7 @@ int main(int argc, char *argv[])
    adv.SetTime(t);
    ode_solver->Init(adv);
 
-   // 13. Perform time-stepping and limiting after each time step.
+   // 12. Perform time-stepping and limiting after each time step.
    bool done = false;
    for (int ti = 0; !done;)
    {
@@ -265,7 +262,7 @@ int main(int argc, char *argv[])
    }
 
 
-   // 14. Visualize solution using GLVis.
+   // 13. Visualize solution using GLVis.
    socketstream sout;
    if (visualization)
    {
@@ -301,7 +298,7 @@ int main(int argc, char *argv[])
    }
 
 
-   // 15. Save the final solution. This output can be viewed later using GLVis:
+   // 14. Save the final solution. This output can be viewed later using GLVis:
    //     "glvis -m ex41.mesh -g ex41-final.gf".
    {
       ostringstream sol_name;
@@ -312,7 +309,7 @@ int main(int argc, char *argv[])
    }
 
 
-   // 16. Compute the L1 solution error and discrete solution extrema (at
+   // 15. Compute the L1 solution error and discrete solution extrema (at
    //     solution nodes) after one flow interval.
    real_t error = u.ComputeLpError(1, u0);
    real_t umin = u.Min();
@@ -330,7 +327,7 @@ int main(int argc, char *argv[])
    }
 
 
-   // 17. Brute-force search for the min/max value of u(x) in each element at
+   // 16. Brute-force search for the min/max value of u(x) in each element at
    //     an array of integration points
    umin = numeric_limits<real_t>::max();
    umax = numeric_limits<real_t>::min();
