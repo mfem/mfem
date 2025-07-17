@@ -262,8 +262,7 @@ private:
 
    /// Helper function for @a GenerateOffsets().
    void ProcessFacePairs(int start, int midStart,
-                         const std::vector<int> &parentN1,
-                         const std::vector<int> &parentN2,
+                         const std::vector<std::array<int, 2>> &parentSize,
                          std::vector<int> &parentVerts,
                          const std::vector<FacePairInfo> &facePairs);
 
@@ -275,8 +274,7 @@ private:
    /// Helper function for @a GenerateOffsets().
    void ProcessVertexToKnot3D(const VertexToKnotSpan &v2k,
                               const std::map<std::pair<int, int>, int> &v2f,
-                              std::vector<int> &parentN1,
-                              std::vector<int> &parentN2,
+                              std::vector<std::array<int, 2>> &parentSize,
                               std::vector<EdgePairInfo> &edgePairs,
                               std::vector<FacePairInfo> &facePairs,
                               std::vector<int> &parentFaces,

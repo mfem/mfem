@@ -404,10 +404,10 @@ public:
    }
 
    /// Remap knot-span indices @a vertex_to_knotspan after refinement.
-   void RefineVertexToKnot(const std::vector<Array<int>> &kvf,
-                           const Array<KnotVector*> &kvext,
-                           std::map<std::pair<int, int>,
-                           std::array<int, 2>> &parentToKV);
+   void RefineVertexToKnotSpan(const std::vector<Array<int>> &kvf,
+                               const Array<KnotVector*> &kvext,
+                               std::map<std::pair<int, int>,
+                               std::array<int, 2>> &parentToKV);
 
    // coarse/fine transforms
 
@@ -1360,9 +1360,9 @@ protected:
 
    /// Load VertexToKnotSpan data for the NC patch topology mesh of a 2D or 3D
    /// MFEM NURBS NC-patch mesh.
-   void LoadVertexToKnot(std::istream &input);
-   void LoadVertexToKnot2D(std::istream &input);
-   void LoadVertexToKnot3D(std::istream &input);
+   void LoadVertexToKnotSpan(std::istream &input);
+   void LoadVertexToKnotSpan2D(std::istream &input);
+   void LoadVertexToKnotSpan3D(std::istream &input);
 
    /** Print the "boundary" section of the mesh file. If out == NULL, only
        return the number of boundary elements. */
