@@ -198,40 +198,7 @@ int main(int argc, char *argv[])
    // 8. Limit initial solution (if necessary).
    Limit(u, uavg, lbound, ubound, dim, limiter_type, 0.0, 1.0);
 
-   // 9. Set up SSP time integrator (note that RK3 integrator does not apply
-   //    limiting at inner stages, which may cause bounds-violations).
-   real_t t = 0.0;
-   ODESolver * ode_solver = NULL;
-   switch (ode_solver_type)
-   {
-      case 0: ode_solver = new ForwardEulerSolver; break;
-      case 1: ode_solver = new RK3SSPSolver; break;
-
-      default:
-         MFEM_ABORT("Unknown ODE solver type: " << ode_solver_type);
-   }
-   adv.SetTime(t);
-   ode_solver->Init(adv);
-
-   // 10. Perform time-stepping and limiting after each time step.
-   bool done = false;
-   for (int ti = 0; !done;)
-   {
-      real_t dt_real = min(dt, t_final - t);
-
-      ode_solver->Step(u, t, dt_real);
-      Limit(u, uavg, lbound, ubound, dim, limiter_type, 0.0, 1.0);
-      ti++;
-
-      done = (t >= t_final - 1e-8 * dt);
-      if (done || ti % vis_steps == 0)
-      {
-         cout << "Time step: " << ti << ", time: " << t << endl;
-      }
-   }
-
-
-   // 11. Visualize solution using GLVis.
+   // 9. Visualize solution using GLVis.
    socketstream sout;
    if (visualization)
    {
@@ -255,6 +222,44 @@ int main(int argc, char *argv[])
               << " Press space (in the GLVis window) to resume it.\n";
       }
    }
+
+   // 10. Set up SSP time integrator (note that RK3 integrator does not apply
+   //     limiting at inner stages, which may cause bounds-violations).
+   real_t t = 0.0;
+   ODESolver * ode_solver = NULL;
+   switch (ode_solver_type)
+   {
+      case 0: ode_solver = new ForwardEulerSolver; break;
+      case 1: ode_solver = new RK3SSPSolver; break;
+
+      default:
+         MFEM_ABORT("Unknown ODE solver type: " << ode_solver_type);
+   }
+   adv.SetTime(t);
+   ode_solver->Init(adv);
+
+
+   // 11. Perform time-stepping and limiting after each time step.
+   bool done = false;
+   for (int ti = 0; !done;)
+   {
+      real_t dt_real = min(dt, t_final - t);
+
+      ode_solver->Step(u, t, dt_real);
+      Limit(u, uavg, lbound, ubound, dim, limiter_type, 0.0, 1.0);
+      ti++;
+
+      done = (t >= t_final - 1e-8 * dt);
+      if (done || ti % vis_steps == 0)
+      {
+         cout << "Time step: " << ti << ", time: " << t << endl;
+         if (visualization)
+         {
+            sout << "solution\n" << mesh << u << flush;
+         }
+      }
+   }
+
 
    // 12. Save the final solution. This output can be viewed later using GLVis:
    //     "glvis -m ex41.mesh -g ex41-final.gf".

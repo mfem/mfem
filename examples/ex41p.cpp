@@ -229,40 +229,8 @@ int main(int argc, char *argv[])
    // 10. Limit initial solution (if necessary).
    Limit(u, uavg, lbound, ubound, dim, limiter_type, 0.0, 1.0);
 
-   // 11. Set up SSP time integrator (note that RK3 integrator does not apply
-   //     limiting at inner stages, which may cause bounds-violations).
-   real_t t = 0.0;
-   ODESolver * ode_solver = NULL;
-   switch (ode_solver_type)
-   {
-      case 0: ode_solver = new ForwardEulerSolver; break;
-      case 1: ode_solver = new RK3SSPSolver; break;
 
-      default:
-         MFEM_ABORT("Unknown ODE solver type: " << ode_solver_type);
-   }
-   adv.SetTime(t);
-   ode_solver->Init(adv);
-
-   // 12. Perform time-stepping and limiting after each time step.
-   bool done = false;
-   for (int ti = 0; !done;)
-   {
-      real_t dt_real = min(dt, t_final - t);
-
-      ode_solver->Step(u, t, dt_real);
-      Limit(u, uavg, lbound, ubound, dim, limiter_type, 0.0, 1.0);
-      ti++;
-
-      done = (t >= t_final - 1e-8 * dt);
-      if ((done || ti % vis_steps == 0) && (Mpi::Root()))
-      {
-         cout << "Time step: " << ti << ", time: " << t << endl;
-      }
-   }
-
-
-   // 13. Visualize solution using GLVis.
+   // 11. Visualize solution using GLVis.
    socketstream sout;
    if (visualization)
    {
@@ -286,13 +254,49 @@ int main(int argc, char *argv[])
       {
          sout << "parallel " << num_procs << " " << myid << "\n";
          sout.precision(precision);
-         sout << "solution\n" << mesh << u;
+         sout << "solution\n" << pmesh << u;
          sout << "pause\n";
          sout << flush;
          if (Mpi::Root())
          {
             cout << "GLVis visualization paused."
                  << " Press space (in the GLVis window) to resume it.\n";
+         }
+      }
+   }
+
+   // 12. Set up SSP time integrator (note that RK3 integrator does not apply
+   //     limiting at inner stages, which may cause bounds-violations).
+   real_t t = 0.0;
+   ODESolver * ode_solver = NULL;
+   switch (ode_solver_type)
+   {
+      case 0: ode_solver = new ForwardEulerSolver; break;
+      case 1: ode_solver = new RK3SSPSolver; break;
+
+      default:
+         MFEM_ABORT("Unknown ODE solver type: " << ode_solver_type);
+   }
+   adv.SetTime(t);
+   ode_solver->Init(adv);
+
+   // 13. Perform time-stepping and limiting after each time step.
+   bool done = false;
+   for (int ti = 0; !done;)
+   {
+      real_t dt_real = min(dt, t_final - t);
+
+      ode_solver->Step(u, t, dt_real);
+      Limit(u, uavg, lbound, ubound, dim, limiter_type, 0.0, 1.0);
+      ti++;
+
+      done = (t >= t_final - 1e-8 * dt);
+      if ((done || ti % vis_steps == 0) && (Mpi::Root()))
+      {
+         cout << "Time step: " << ti << ", time: " << t << endl;
+         if (visualization)
+         {
+            sout << "solution\n" << pmesh << u << flush;
          }
       }
    }
