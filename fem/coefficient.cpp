@@ -1131,6 +1131,73 @@ real_t TraceCoefficient::Eval(ElementTransformation &T,
    return ma.Trace();
 }
 
+VectorComponentCoefficient::VectorComponentCoefficient(VectorCoefficient &A,
+                                                       int I)
+   : a(&A), va(A.GetVDim())
+{
+   SetIndex(I);
+}
+
+void VectorComponentCoefficient::SetIndex(int I)
+{
+   MFEM_ASSERT(I < a->GetVDim() && I >= 0,
+               "VectorComponentCoefficient:  "
+               "Index not in range.");
+
+   i = I;
+}
+
+void VectorComponentCoefficient::SetTime(real_t t)
+{
+   if (a) { a->SetTime(t); }
+   this->Coefficient::SetTime(t);
+}
+
+real_t VectorComponentCoefficient::Eval(ElementTransformation &T,
+                                        const IntegrationPoint &ip)
+{
+   a->Eval(va, T, ip);
+   return va[i];
+}
+
+MatrixComponentCoefficient::MatrixComponentCoefficient(MatrixCoefficient &A,
+                                                       int I, int J)
+   : a(&A), ma(A.GetHeight(), A.GetWidth())
+{
+   SetRowIndex(I);
+   SetColumnIndex(J);
+}
+
+void MatrixComponentCoefficient::SetRowIndex(int I)
+{
+   MFEM_ASSERT(I < a->GetHeight() && I >= 0,
+               "MatrixComponentCoefficient:  "
+               "Row index not in range.");
+
+   i = I;
+}
+
+void MatrixComponentCoefficient::SetColumnIndex(int J)
+{
+   MFEM_ASSERT(J < a->GetWidth() && J >= 0,
+               "MatrixComponentCoefficient:  "
+               "Column index not in range.");
+   j = J;
+}
+
+void MatrixComponentCoefficient::SetTime(real_t t)
+{
+   if (a) { a->SetTime(t); }
+   this->Coefficient::SetTime(t);
+}
+
+real_t MatrixComponentCoefficient::Eval(ElementTransformation &T,
+                                        const IntegrationPoint &ip)
+{
+   a->Eval(ma, T, ip);
+   return ma(i,j);
+}
+
 VectorSumCoefficient::VectorSumCoefficient(int dim)
    : VectorCoefficient(dim),
      ACoef(NULL), BCoef(NULL),
