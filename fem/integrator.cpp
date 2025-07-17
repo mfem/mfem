@@ -54,12 +54,11 @@ PatchBasisInfo::PatchBasisInfo(Mesh *mesh, unsigned int patch,
    : patch(patch), dim(mesh->NURBSext->Dimension()), B(dim), G(dim), ir1d(dim),
      Q1D(dim), D1D(dim),
      minD(dim), maxD(dim), minQ(dim), maxQ(dim), minDD(dim), maxDD(dim),
-     accsize(dim)
+     accsize(dim), orders(dim), E1D(dim), MAXQ(dim), Q0(dim)
 {
    Array<const KnotVector*> pkv;
    mesh->NURBSext->GetPatchKnotVectors(patch, pkv);
    MFEM_VERIFY(pkv.Size() == dim, "");
-   Array<int> orders(dim);
 
    for (int d=0; d<dim; ++d)
    {
@@ -69,6 +68,12 @@ PatchBasisInfo::PatchBasisInfo(Mesh *mesh, unsigned int patch,
 
       orders[d] = pkv[d]->GetOrder();
       D1D[d] = pkv[d]->GetNCP();
+      E1D[d] = pkv[d]->GetNE();
+
+      // MAXQ=qpts per element * max element span
+      // This assumes the same number of qpts per element (which is the normal
+      // quadrature rule)
+      MAXQ[d] = (Q1D[0] / E1D[0]) * (orders[0]+1);
 
       Vector shapeKV(orders[d]+1);
       Vector dshapeKV(orders[d]+1);
@@ -142,6 +147,44 @@ PatchBasisInfo::PatchBasisInfo(Mesh *mesh, unsigned int patch,
    {
       accsize[i] = std::max(Q1D[i], D1D[i]);
    }
+
+   // Reshape (optimization attempt)
+
+   Btx.SetSize(Q1D[0]*(orders[0]+1));
+   Bty.SetSize(Q1D[1]*(orders[1]+1));
+   Btz.SetSize(Q1D[2]*(orders[2]+1));
+   Gtx.SetSize(Q1D[0]*(orders[0]+1));
+   Gty.SetSize(Q1D[1]*(orders[1]+1));
+   Gtz.SetSize(Q1D[2]*(orders[2]+1));
+   for (int i=0; i<Q1D[0]; ++i)
+   {
+      for (int j=0; j<(orders[0]+1); ++j)
+      {
+         int dof = minQ[0][i] + j;
+         Btx[i*(orders[0]+1) + j] = B[0](i,dof);
+         Gtx[i*(orders[0]+1) + j] = G[0](i,dof);
+      }
+   }
+   for (int i=0; i<Q1D[1]; ++i)
+   {
+      for (int j=0; j<(orders[1]+1); ++j)
+      {
+         int dof = minQ[1][i] + j;
+         Bty[i*(orders[1]+1) + j] = B[1](i,dof);
+         Gty[i*(orders[1]+1) + j] = G[1](i,dof);
+      }
+   }
+   for (int i=0; i<Q1D[2]; ++i)
+   {
+      for (int j=0; j<(orders[2]+1); ++j)
+      {
+         int dof = minQ[2][i] + j;
+         Btz[i*(orders[2]+1) + j] = B[2](i,dof);
+         Gtz[i*(orders[2]+1) + j] = G[2](i,dof);
+      }
+   }
+
+
 
    // Total quadrature points
    NQ = Q1D.Prod();

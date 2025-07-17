@@ -137,6 +137,29 @@ struct PatchBasisInfo
    std::vector<std::vector<int>> maxDD;
    // Size of accumulator (max qpts/dofs in each dimension)
    std::vector<int> accsize;
+
+
+   // Optimization attempt
+   Array<int> orders;
+   Array<int> E1D; // Number of elements in each dimension
+   Array<int> MAXQ;
+   std::vector<Array<int>> Q0; // First non-zero qpt per [dimension, dof]
+
+   Array<real_t> Btx;
+   Array<real_t> Bty;
+   Array<real_t> Btz;
+   Array<real_t> Gtx;
+   Array<real_t> Gty;
+   Array<real_t> Gtz;
+
+   Array<real_t> Bx;
+   Array<real_t> By;
+   Array<real_t> Bz;
+   Array<real_t> Gx;
+   Array<real_t> Gy;
+   Array<real_t> Gz;
+
+
    // Total quadrature points / dofs
    int NQ, ND;
 
