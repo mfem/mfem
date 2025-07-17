@@ -36,6 +36,14 @@
 // - Right (attr 3, x=max): Outlet - Do nothing (no BC)
 // - Back (attr 4, y=max): Back wall - No-penetration BC (zero y-velocity component)
 // - Top (attr 6, z=max): Top wall - No-penetration BC (zero z-velocity component)
+//
+// The layout of the file is as follows:
+// - Definition of default values for context struct
+// - InletProfile namespace.
+//   Currently, this includes a constant, power law, and logarithmic profile.
+// - get_inlet_profile() function, which returns a point to the selected profile function
+//   after reading inlet_profile_type from the context struct
+// TODO:
 
 #include "navier_solver.hpp"
 #include <fstream>
@@ -45,7 +53,116 @@
 using namespace mfem;
 using namespace navier;
 
-const std::string TURB_FIELD_FILE = "inputs/IEC_simple.vti";
+
+/// @brief Context struct for Navier solver
+struct s_NavierContext
+{
+   int ser_ref_levels =
+      1; // Number of times to refine the mesh uniformly in serial.
+   int order = 2; // Order (degree) of the finite elements.
+
+   // Verbosity
+   bool verbose = false;
+
+   real_t kinvis = 1.0 / 10.0; // Kinematic viscosity \approx 1 / Reynolds number
+   real_t t_final = 2.0; // Final time
+   real_t dt = 0.01; // Time step
+
+   // MFEM options
+   bool pa = true; // Partial assembly
+   bool ni = false; // Numerical integration
+   bool visualization = false; // GLVis visualization
+   bool checkres = false; // Check residual
+
+   // Inlet profile selection
+   //   0: Constant
+   //   1: Power law
+   //   2: Logarithmic
+   int inlet_profile_type = 0;
+   bool add_fluct =
+      false; // Use provided fluctuation field on top of prescribed mean profile
+   std::string turb_field_file = "inputs/IEC_simple.vti"; // Turbulence field file
+
+   // Common parameters
+   real_t inlet_velocity = 1.0; // Inlet velocity magnitude
+   real_t ref_height = 0.4; // Reference height for wind profile
+
+   // Power law parameters
+   real_t power_alpha = 0.15;    // Power law exponent
+
+   // Logarithmic parameters
+   real_t u_star = 0.1;          // Friction velocity
+   real_t z0 = 0.001;            // Roughness length
+   real_t kappa = 0.4;           // von Karman constant
+   real_t f = 0.0001;            // Coriolis parameter
+
+   // Exponential parameters
+   real_t exp_decay = 2.0; // Decay rate
+} ctx;
+
+namespace InletProfile
+{
+/// Constant velocity profile
+void constant(const Vector &x, real_t t, Vector &u)
+{
+   u(0) = ctx.inlet_velocity;
+   u(1) = 0.0;
+   u(2) = 0.0;
+}
+
+/// Power law profile
+void power_law(const Vector &x, real_t t, Vector &u)
+{
+   real_t z = x(2);
+   real_t u_z = ctx.inlet_velocity * pow(z / ctx.ref_height, ctx.power_alpha);
+
+   u(0) = u_z > 0.0 ? u_z : 0.0;
+   u(1) = 0.0;
+   u(2) = 0.0;
+}
+
+/// Uniform logarithmic wind profile
+void logarithmic(const Vector &x, real_t t, Vector &u)
+{
+   real_t z = x(2);
+
+   // NOTE: To avoid log(0) = NaN, we enforce x(2) = z > ctx.z0
+   real_t safe_z = std::max(z, ctx.z0 * real_t(1.01));
+
+   real_t u_z = (ctx.u_star / ctx.kappa) * (log(safe_z/ctx.z0) + 34.5 * ctx.f *
+                                            safe_z);
+
+   u(0) = u_z > 0.0 ? u_z : 0.0;
+   u(1) = 0.0;
+   u(2) = 0.0;
+}
+} // END InletProfile namespace
+
+/// @brief Profile selection function
+/// @return Pointer to the selected profile function
+void (*get_inlet_profile())(const Vector &, real_t, Vector &)
+{
+   switch (ctx.inlet_profile_type)
+   {
+      case 0: return InletProfile::constant;
+      case 1: return InletProfile::power_law;
+      case 2: return InletProfile::logarithmic;
+      default: return InletProfile::constant;
+   }
+}
+
+/// @brief Adds an interpolation of the provided turbulent fluctuation field to the mean velocity profile
+void turb_add(const Vector &x, real_t, Vector &u)
+{
+   // TODO: Implement this.
+   // u(0) = 0.0;
+}
+
+void turbulent_inlet(const Vector &x, real_t t, Vector &u)
+{
+   get_inlet_profile()(x, t, u);
+   turb_add(x, t, u);
+}
 
 /// @brief Turbulence field data structure, which is meant for directly loading in
 /// the data from a VTI file, assumed to be formatted as DRDMannTurb does.
@@ -165,94 +282,6 @@ TurbField load_turb_field(const std::string &filename)
    return turb_field;
 }
 
-struct s_NavierContext
-{
-   int ser_ref_levels =
-      1; // Number of times to refine the mesh uniformly in serial.
-   int order = 2; // Order (degree) of the finite elements.
-   real_t kinvis = 1.0 / 10.0; // Kinematic viscosity \approx 1 / Reynolds number
-   real_t t_final = 2.0; // Final time
-   real_t dt = 0.01; // Time step
-
-   // MFEM options
-   bool pa = true; // Partial assembly
-   bool ni = false; // Numerical integration
-   bool visualization = false; // GLVis visualization
-   bool checkres = false; // Check residual
-
-   // Inlet profile selection
-   //   0: Constant
-   //   1: Power law
-   //   2: Logarithmic
-   int inlet_profile_type = 0;
-
-   // Common parameters
-   real_t inlet_velocity = 1.0; // Inlet velocity magnitude
-   real_t ref_height = 0.4; // Reference height for wind profile
-
-   // Power law parameters
-   real_t power_alpha = 0.15;    // Power law exponent
-
-   // Logarithmic parameters
-   real_t u_star = 0.1;          // Friction velocity
-   real_t z0 = 0.001;            // Roughness length
-   real_t kappa = 0.4;           // von Karman constant
-   real_t f = 0.0001;            // Coriolis parameter
-
-   // Exponential parameters
-   real_t exp_decay = 2.0; // Decay rate
-} ctx;
-
-namespace InletProfile
-{
-/// Constant velocity profile
-void constant(const Vector &x, real_t t, Vector &u)
-{
-   u(0) = ctx.inlet_velocity;
-   u(1) = 0.0;
-   u(2) = 0.0;
-}
-
-/// Power law profile
-void power_law(const Vector &x, real_t t, Vector &u)
-{
-   real_t z = x(2);
-   real_t u_z = ctx.inlet_velocity * pow(z / ctx.ref_height, ctx.power_alpha);
-
-   u(0) = u_z > 0.0 ? u_z : 0.0;
-   u(1) = 0.0;
-   u(2) = 0.0;
-}
-
-/// Uniform logarithmic wind profile
-void logarithmic(const Vector &x, real_t t, Vector &u)
-{
-   real_t z = x(2);
-
-   // NOTE: To avoid log(0) = NaN, we enforce x(2) = z > ctx.z0
-   real_t safe_z = std::max(z, ctx.z0 * real_t(1.01));
-
-   real_t u_z = (ctx.u_star / ctx.kappa) * (log(safe_z/ctx.z0) + 34.5 * ctx.f *
-                                            safe_z);
-
-   u(0) = u_z > 0.0 ? u_z : 0.0;
-   u(1) = 0.0;
-   u(2) = 0.0;
-}
-}
-
-/// @brief Profile selection function
-/// @return Pointer to the selected profile function
-void (*get_inlet_profile())(const Vector &, real_t, Vector &)
-{
-   switch (ctx.inlet_profile_type)
-   {
-      case 0: return InletProfile::constant;
-      case 1: return InletProfile::power_law;
-      case 2: return InletProfile::logarithmic;
-      default: return InletProfile::constant;
-   }
-}
 
 /// @brief Main function
 /// @param argc Number of command line arguments
@@ -306,6 +335,12 @@ int main(int argc, char *argv[])
                   "Surface roughness length");
    args.AddOption(&ctx.u_star, "-ustar", "--friction-velocity",
                   "Friction velocity for log profile");
+   args.AddOption(&ctx.add_fluct, "-fluct", "--add-fluct", "-no-fluct",
+                  "--no-add-fluct",
+                  "Add turbulent fluctuation to mean velocity profile");
+   args.AddOption(&ctx.turb_field_file, "-turb", "--turb-field",
+                  "Turbulence field file path (relative to PWD)");
+
    args.Parse();
    if (!args.Good())
    {
@@ -321,7 +356,7 @@ int main(int argc, char *argv[])
    }
 
    // Load turbulence field in
-   TurbField turb_field = load_turb_field(TURB_FIELD_FILE);
+   TurbField turb_field = load_turb_field(ctx.turb_field_file);
    if (Mpi::Root())
    {
       mfem::out << "Turbulence field loaded successfully" << std::endl;
@@ -448,7 +483,7 @@ int main(int argc, char *argv[])
    ParGridFunction *u_gf = nullptr;
    ParGridFunction *p_gf = nullptr;
 
-   if (Mpi::Root())
+   if (Mpi::Root() && ctx.verbose)
    {
       printf("%5s %8s %8s %8s %11s\n",
              "Step", "Time", "dt", "CFL", "||u||_max");
@@ -479,62 +514,11 @@ int main(int argc, char *argv[])
       real_t cfl = flowsolver.ComputeCFL(*u_gf, dt);
       real_t max_vel = u_gf->Max();
 
-      if (Mpi::Root() && step % 10 == 0)
+      if (Mpi::Root() && step % 10 == 0 && ctx.verbose)
       {
          printf("%5d %8.3f %8.2E %8.2E %11.4E\n",
                 step, t, dt, cfl, max_vel);
          fflush(stdout);
-      }
-
-      // Check no-penetration conditions every 50 steps
-      if (step % 50 == 0)
-      {
-         // Test y-penetration on front/back walls
-         Array<int> attr_fb_walls(pmesh->bdr_attributes.Max());
-         attr_fb_walls = 0;
-         attr_fb_walls[1] = attr_fb_walls[3] = 1;  // Front and back walls
-
-         VectorGridFunctionCoefficient u_coeff(u_gf);
-         Vector test_normal_y({0.0, 1.0, 0.0});  // y-direction
-         VectorConstantCoefficient n_coeff_y(test_normal_y);
-         InnerProductCoefficient un_coeff_y(u_coeff, n_coeff_y);
-
-         LinearForm lform_y(u_gf->ParFESpace());
-         lform_y.AddBoundaryIntegrator(
-            new BoundaryLFIntegrator(un_coeff_y), attr_fb_walls);
-         lform_y.Assemble();
-
-         double local_val_y = lform_y * (*u_gf);
-         double global_val_y = 0.0;
-         MPI_Allreduce(&local_val_y, &global_val_y, 1, MPI_DOUBLE, MPI_SUM,
-                       pmesh->GetComm());
-
-         // Test z-penetration on top wall
-         Array<int> attr_top_wall(pmesh->bdr_attributes.Max());
-         attr_top_wall = 0;
-         attr_top_wall[5] = 1;  // Top wall
-
-         Vector test_normal_z({0.0, 0.0, 1.0});  // z-direction
-         VectorConstantCoefficient n_coeff_z(test_normal_z);
-         InnerProductCoefficient un_coeff_z(u_coeff, n_coeff_z);
-
-         LinearForm lform_z(u_gf->ParFESpace());
-         lform_z.AddBoundaryIntegrator(
-            new BoundaryLFIntegrator(un_coeff_z), attr_top_wall);
-         lform_z.Assemble();
-
-         double local_val_z = lform_z * (*u_gf);
-         double global_val_z = 0.0;
-         MPI_Allreduce(&local_val_z, &global_val_z, 1, MPI_DOUBLE, MPI_SUM,
-                       pmesh->GetComm());
-
-         if (Mpi::Root())
-         {
-            mfem::out << "Step " << step << ": y-penetration on F/B walls: "
-                      << abs(global_val_y) << std::endl;
-            mfem::out << "Step " << step << ": z-penetration on top wall: "
-                      << abs(global_val_z) << std::endl;
-         }
       }
    }
 
