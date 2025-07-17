@@ -1855,6 +1855,85 @@ public:
                const IntegrationPoint &ip) override;
 };
 
+/// Scalar coefficient defined as component of a vector coefficient
+class VectorComponentCoefficient : public Coefficient
+{
+private:
+   VectorCoefficient *a;// = nullptr;
+
+   mutable Vector va;
+   int i;
+
+public:
+   /// Construct with a vector coefficient.
+   VectorComponentCoefficient(VectorCoefficient &A)
+      : a(&A), va(A.GetVDim()), i(0) {};
+
+   VectorComponentCoefficient(VectorCoefficient &A, int I);
+
+   /// Set the time for internally stored coefficients
+   void SetTime(real_t t) override;
+
+   /// Reset the vector coefficient
+   void SetACoef(VectorCoefficient &A) { a = &A; }
+
+   /// Return the vector coefficient
+   VectorCoefficient * GetACoef() const { return a; }
+
+   /// Reset the index
+   void SetIndex(int I);
+
+   /// Return the index
+   int GetIndex() const { return i; }
+
+   /// Evaluate the trace coefficient at @a ip.
+   real_t Eval(ElementTransformation &T,
+               const IntegrationPoint &ip) override;
+};
+
+/// Scalar coefficient defined as component of a matrix coefficient
+class MatrixComponentCoefficient : public Coefficient
+{
+private:
+   MatrixCoefficient *a = nullptr;
+
+   mutable DenseMatrix ma;
+   int i,j;
+
+public:
+   MatrixComponentCoefficient(MatrixCoefficient &A)
+      : a(&A), ma(A.GetHeight(), A.GetWidth()), i(0), j(0) {};
+
+   /// Construct with the matrix coefficient.
+   MatrixComponentCoefficient(MatrixCoefficient &A, int I, int J);
+
+   /// Set the time for internally stored coefficients
+   void SetTime(real_t t) override;
+
+   /// Reset the matrix coefficient
+   void SetACoef(MatrixCoefficient &A) { a = &A; }
+
+   /// Return the matrix coefficient
+   MatrixCoefficient * GetACoef() const { return a; }
+
+   /// Reset the index
+   void SetRowIndex(int I);
+
+   /// Return the index
+   int GetRowIndex() const { return i; }
+
+   /// Reset the index
+   void SetColumnIndex(int J);
+
+   /// Return the index
+   int GetColumnIndex() const { return j; }
+
+
+   /// Evaluate the trace coefficient at @a ip.
+   real_t Eval(ElementTransformation &T,
+               const IntegrationPoint &ip) override;
+};
+
 /// Vector coefficient defined as the linear combination of two vectors
 class VectorSumCoefficient : public VectorCoefficient
 {
