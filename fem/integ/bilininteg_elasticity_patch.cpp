@@ -23,7 +23,7 @@ namespace mfem
 void PatchElasticitySetup3D(const int Q1Dx,
                             const int Q1Dy,
                             const int Q1Dz,
-                            const Array<real_t> &w,
+                            const Vector &w,
                             const Vector &j,
                             const Vector &c,
                             Vector &d)
@@ -103,8 +103,7 @@ void ElasticityIntegrator::SetupPatchPA(const int patch, Mesh *mesh,
    // Total quadrature points
    const int nq = pbinfo[patch].NQ;
 
-   Array<real_t> weightsv(nq);
-   // Vector weightsv(nq);
+   Vector weightsv(nq);
    auto weights = Reshape(weightsv.HostReadWrite(), Q1D[0], Q1D[1], Q1D[2]);
    IntegrationPoint ip;
 
@@ -120,12 +119,12 @@ void ElasticityIntegrator::SetupPatchPA(const int patch, Mesh *mesh,
       {
          for (int qx=0; qx<Q1D[0]; ++qx)
          {
-            const int p = qx + (qy * Q1D[0]) + (qz * Q1D[0] * Q1D[1]);
+            // const int p = qx + (qy * Q1D[0]) + (qz * Q1D[0] * Q1D[1]);
             const int e = patchRules->GetPointElement(patch, qx, qy, qz);
             ElementTransformation *tr = mesh->GetElementTransformation(e);
             patchRules->GetIntegrationPointFrom1D(patch, qx, qy, qz, ip);
 
-            weights[p] = ip.weight;
+            weights(qx,qy,qz) = ip.weight;
 
             coeffs(qx,qy,qz,0) = lambda->Eval(*tr, ip);
             coeffs(qx,qy,qz,1) = mu->Eval(*tr, ip);
