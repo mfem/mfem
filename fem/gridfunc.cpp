@@ -2424,11 +2424,11 @@ void GridFunction::ProjectCoefficientLocalL2_(Coefficient &coeff, Vector &Va)
 
    if (fes->GetNURBSext() == NULL)
    {
-      for (int i = 0; i < fes->GetNE(); i++)
+      for (int e = 0; e < fes->GetNE(); e++)
       {
-         fes->GetElementVDofs (i, vdofs, doftrans);
-         ElementTransformation &tr = *fes -> GetElementTransformation (i);
-         const FiniteElement &el = *fes->GetFE(i);
+         fes->GetElementVDofs (e, vdofs, doftrans);
+         ElementTransformation &tr = *fes -> GetElementTransformation (e);
+         const FiniteElement &el = *fes->GetFE(e);
          int dof = el.GetDof();
          shape.SetSize(dof);
          elvect.SetSize(dof);
@@ -2473,11 +2473,11 @@ void GridFunction::ProjectCoefficientLocalL2_(Coefficient &coeff, Vector &Va)
    }
    else
    {
-      for (int i = 0; i < fes->GetNE(); i++)
+      for (int e = 0; e < fes->GetNE(); e++)
       {
-         fes->GetElementVDofs (i, vdofs, doftrans);
-         ElementTransformation &tr = *fes -> GetElementTransformation (i);
-         const FiniteElement &el = *fes->GetFE(i);
+         fes->GetElementVDofs (e, vdofs, doftrans);
+         ElementTransformation &tr = *fes -> GetElementTransformation (e);
+         const FiniteElement &el = *fes->GetFE(e);
          int dof = el.GetDof();
          int dim = el.GetDim();
          int p = el.GetOrder();
