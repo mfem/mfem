@@ -99,7 +99,9 @@ int main(int argc, char *argv[])
     IsoLinElasticSolver* elsolver=new IsoLinElasticSolver(&pmesh,order);
 
     //set BC
-    elsolver->AddDispBC(2,4,0.0);
+    //elsolver->AddDispBC(2,4,0.0);
+    //elsolver->AddDispBC(2,0,0.0);
+    //elsolver->AddDispBC(2,1,0.0);
     elsolver->AddDispBC(3,4,0.0);
     elsolver->AddDispBC(4,4,0.0);
     elsolver->AddDispBC(5,4,0.0);
@@ -107,14 +109,19 @@ int main(int argc, char *argv[])
     elsolver->AddDispBC(7,0,-0.3);
     elsolver->AddDispBC(7,1,0.0);
 
+    elsolver->DelDispBC();
+    elsolver->AddDispBC(2,4,0.0);
+    elsolver->AddDispBC(5,4,0.0);
+
+
     //set material properties
     ConstantCoefficient E(1.0);
     ConstantCoefficient nu(0.2);
     elsolver->SetMaterial(E,nu);
 
+
     //set surface load
     elsolver->AddSurfLoad(1,0.0,1.0);
-
 
     //solve the discrete system
     elsolver->Assemble();
