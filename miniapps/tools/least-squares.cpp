@@ -95,16 +95,17 @@ void AsymmetricMassIntegrator::AsymmetricElementMatrix(const FiniteElement
 
 // Small least square solver
 // TODO: it could be implemented as a mfem::Solver, as a method...
-int _print_level = 1;
-int _max_iter = 100;
-real_t _rtol = 1.0e-24;
-real_t _atol = 1.0e-30;
+int _print_level = 3;
+int _max_iter = 100000;
+real_t _rtol = 1.0e-30;
+real_t _atol = 0.0;
 
 /// @brief Dense small least squares solver
 void LSSolver(const DenseMatrix& A, const Vector& b, Vector& x,
               real_t shift = 0.0)
 {
    x.SetSize(A.Width());
+   x = 0.0;
 
    Vector Atb(A.Width());
    A.MultTranspose(b, Atb);
@@ -159,6 +160,15 @@ void LSSolver(const DenseMatrix& A, const DenseMatrix& C,
 
    z.GetBlockView(0,x);
    z.GetBlockView(1,y);
+}
+
+void CheckLSSolver(const DenseMatrix& A, const Vector& b, const Vector& x)
+{
+   Vector res(b), sol(A.Width());
+   A.AddMult(x,res,-1.0);
+   A.MultTranspose(res, sol);
+   mfem::out << "\nNorm of the residual of LS problem: " << sol.Norml2() <<
+             std::endl;
 }
 
 int main(int argc, char* argv[])
@@ -327,6 +337,7 @@ int main(int argc, char* argv[])
          LSSolver(local_mass_mat, local_u_avg, local_u_rec,
                   reg_shift);
       }
+      CheckLSSolver(local_mass_mat, local_u_avg, local_u_rec);
 
       // Integrate into global solution
       fes_reconstruction.GetElementDofs(e_idx, local_dofs);
@@ -339,7 +350,7 @@ int main(int argc, char* argv[])
    u_reconstruction.GetElementAverages(u_rec_avg);
 
    char vishost[] = "localhost";
-   int visport = 19916;
+   int visport = 20000;
    socketstream glvis_original(vishost, visport);
    socketstream glvis_averages(vishost, visport);
    socketstream glvis_rec_avg(vishost, visport);
