@@ -7,6 +7,33 @@
 using namespace std;
 using namespace mfem;
 
+
+class DensCoeff:public Coefficient
+{
+public:
+    DensCoeff(real_t ll=1):len(ll)
+    {}
+
+    virtual
+        ~DensCoeff(){};
+
+    virtual
+        real_t Eval(ElementTransformation &T,
+                        const IntegrationPoint &ip) override
+    {
+        T.SetIntPoint(&ip);
+        real_t x[3];
+        Vector transip(x, 3); transip=0.0;
+        T.Transform(ip, transip);
+
+        real_t l=transip.Norml2();
+        return (sin(len*l)>real_t(0.0));
+    }
+private:
+    real_t len;
+};
+
+
 int main(int argc, char *argv[])
 {
     // 1. Initialize MPI and HYPRE.
@@ -14,7 +41,6 @@ int main(int argc, char *argv[])
     int num_procs = Mpi::WorldSize();
     int myid = Mpi::WorldRank();
     Hypre::Init();
-
     // 2. Parse command-line options.
     const char *mesh_file = "canti_2D_6.msh";
     int order = 2;
@@ -96,50 +122,60 @@ int main(int argc, char *argv[])
     }
 
 
-    IsoLinElasticSolver* elsolver=new IsoLinElasticSolver(&pmesh,order);
-
-    //set BC
-    elsolver->AddDispBC(2,4,0.0);
-    elsolver->AddDispBC(3,4,0.0);
-    elsolver->AddDispBC(4,4,0.0);
-    elsolver->AddDispBC(5,4,0.0);
-    elsolver->AddDispBC(6,4,0.0);
-    elsolver->AddDispBC(7,0,-0.3);
-    elsolver->AddDispBC(7,1,0.0);
-
-    //set material properties
-    ConstantCoefficient E(1.0);
-    ConstantCoefficient nu(0.2);
-    elsolver->SetMaterial(E,nu);
-
-    //set surface load
-    elsolver->AddSurfLoad(1,0.0,1.0);
+    //allocate the fiter
+    double r=0.1;
+    FilterOperator* filt=new FilterOperator(r,&pmesh);
+    //set the boundary conditions
+    filt->AddBC(1,1.0);
+    filt->AddBC(2,1.0);
+    filt->AddBC(3,1.0);
+    filt->AddBC(4,1.0);
+    filt->AddBC(5,1.0);
+    filt->AddBC(6,1.0);
+    filt->AddBC(7,1.0);
+    filt->AddBC(8,0.0);
+    //allocate the slover after setting the BC and before applying the filter
+    filt->Assemble();
 
 
-    //solve the discrete system
-    elsolver->Assemble();
-    elsolver->FSolve();
+    ParGridFunction odens(filt->GetDesignFES());
+    DensCoeff dc(M_PI);
+    odens.ProjectCoefficient(dc);
+    odens.SetTrueVector();
+    const Vector& tdv=odens.GetTrueVector();
 
-    //extract the solution
-    ParGridFunction& sol=elsolver->GetDisplacements();
+    ParGridFunction fdens(filt->GetFilterFES());
+    Vector fdv(filt->GetFilterFES()->TrueVSize()); fdv=0.0;
+
+
+    ParGridFunction cdens;
+    filt->FFilter(&dc,cdens);
+
+    filt->Mult(tdv,fdv);
+    fdens.SetFromTrueDofs(fdv);
+
+
 
     {
-        ParaViewDataCollection paraview_dc("isoel", &pmesh);
+        ParaViewDataCollection paraview_dc("filt", &pmesh);
         paraview_dc.SetPrefixPath("ParaView");
         paraview_dc.SetLevelsOfDetail(order);
         paraview_dc.SetDataFormat(VTKFormat::BINARY);
         paraview_dc.SetHighOrderOutput(true);
         paraview_dc.SetCycle(0);
         paraview_dc.SetTime(0.0);
-        paraview_dc.RegisterField("disp",&sol);
+        paraview_dc.RegisterField("odens",&odens);
+        paraview_dc.RegisterField("fdens",&fdens);
+        paraview_dc.RegisterField("cdens",&cdens);
         paraview_dc.Save();
     }
 
 
-    delete elsolver;
+
+
+
+    delete filt;
 
     Mpi::Finalize();
     return 0;
 }
-
-
