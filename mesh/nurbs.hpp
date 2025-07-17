@@ -235,8 +235,8 @@ public:
    MFEM_DEPRECATED void FindInterpolant(Array<Vector*> &x, bool reuse_inverse);
 
    /** @brief Get the control points @a for an interpolating spline that has the
-      values @a x at the knot location @a u.
-      @x is both the input and output.
+      values @a x at the knot location @a u. The control points of the
+      interpolated curve are returned in @a x in the same form.
       For the knot location one can use  for instance GetBotella, GetDemko or
       GetGreville. The Demko points might be most appropriate.*/
    void GetInterpolant(Array<Vector*> &x, const Vector &u,
