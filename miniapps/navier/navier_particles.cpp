@@ -47,8 +47,9 @@ enum State : int
    V_NP1,
    V_N, 
 
+   W_NP3,
    W_NP2, 
-   W_NP1, 
+   W_NP1,
    W_N,
 
    X_NP3,
@@ -95,27 +96,28 @@ private:
       real_t w_n_ext = 0.0;
 
       // Extrapolate particle vorticity using EXTk (w_n is new vorticity at old particle loc)
-      // w_n_ext = alpha1*w_n + alpha2*w_np1 + alpha3*w_np2
+      // w_n_ext = alpha1*w_np1 + alpha2*w_np2 + alpha3*w_np3
       for (int j = 0; j < 3; j++)
       {
-         w_n_ext += alpha[j]*(p.GetStateVar(W_N-j)[0]);
+         w_n_ext += alpha[j]*(p.GetStateVar(W_N-(j+1))[0]);
       }
 
       // Assemble the 2D matrix B
       DenseMatrix B({{beta[0], zeta*dt*w_n_ext},
                      {-zeta*dt*w_n_ext, beta[0]}});
       
+
       // Assemble the RHS
       Vector r(2);
       r = 0.0;
       for (int j = 1; j <= 3; j++)
       {
          // Add particle velocity component
-         add(r, beta[j], p.GetStateVar(V_N-j), r);
-
+         add(r, -beta[j], p.GetStateVar(V_N-j), r);
+         
          // Add C
-         add(r, dt*alpha[j-1]*w_n_ext, Vector({-p.GetStateVar(U_N-j)[1], 
-                                                p.GetStateVar(U_N-j)[0]}), r);
+         add(r, dt*alpha[j-1]*w_n_ext, Vector({ p.GetStateVar(U_N-j)[1], 
+                                               -p.GetStateVar(U_N-j)[0]}), r);
       }
 
       // Solve for particle velocity
@@ -126,9 +128,9 @@ private:
       p.GetCoords() = 0.0;
       for (int j = 1; j <= 3; j++)
       {
-         add(p.GetCoords(), beta[j], p.GetStateVar((X_NP1+1)-j), p.GetCoords());
+         add(p.GetCoords(), -beta[j], p.GetStateVar((X_NP1+1)-j), p.GetCoords());
+         add(p.GetCoords(), dt, p.GetStateVar(V_N), p.GetCoords());
       }
-      add(p.GetCoords(), dt, p.GetStateVar(V_N), p.GetCoords());
       p.GetCoords() *= 1.0/beta[0];
 
    }
@@ -151,14 +153,10 @@ public:
          {
             particles.GetAllStateVar(U_N-j)[i] = particles.GetAllStateVar(U_N-j+1)[i];
             particles.GetAllStateVar(V_N-j)[i] = particles.GetAllStateVar(V_N-j+1)[i];
-
-            if (j < 3)
-            {
-               particles.GetAllStateVar(W_N-j)[i] = particles.GetAllStateVar(W_N-j+1)[i];
-            }
+            particles.GetAllStateVar(W_N-j)[i] = particles.GetAllStateVar(W_N-j+1)[i];
             if (j > 1)
             {
-               particles.GetAllStateVar((X_NP1+1)-j)[i] = particles.GetAllStateVar((X_NP1+1)-j)[i];
+               particles.GetAllStateVar((X_NP1+1)-j)[i] = particles.GetAllStateVar((X_NP1+1)-(j-1))[i];
             }
             else
             {
@@ -167,12 +165,6 @@ public:
          }
       }
 
-      // Interpolate new vorticity onto particles' old location
-      Vector &p_wn = particles.GetAllStateVar(W_N);
-      finder.FindPoints(particles.GetAllCoords());
-      finder.Interpolate(w_gf, p_wn);
-      Ordering::Reorder(p_wn, dim, w_gf.ParFESpace()->GetOrdering(), particles.GetOrdering());
-      
       if (dim == 2)
       {
          for (int i = 0; i < particles.GetNP(); i++)
@@ -186,6 +178,7 @@ public:
 
       // Re-interpolate fluid velocity + vorticity onto particles' new location
       finder.FindPoints(particles.GetAllCoords());
+      Vector &p_wn = particles.GetAllStateVar(W_N);
       finder.Interpolate(w_gf, p_wn);
       Ordering::Reorder(p_wn, dim, w_gf.ParFESpace()->GetOrdering(), particles.GetOrdering());
 
@@ -256,31 +249,49 @@ int main (int argc, char *argv[])
    ParticleMeta pmeta(2, 2, vdims);
    ParticleSet particles(MPI_COMM_WORLD, pmeta, ctx.p_ordering == 0 ? Ordering::byNODES : Ordering::byVDIM);
 
-   // Only need to store velocity for exact
-   //ParticleMeta pmeta_exact(2, 0, {2});
-   //ParticleSet particles_exact(MPI_COMM_WORLD, pmeta, ctx.p_ordering == 0 ? Ordering::byNODES : Ordering::byVDIM);
+   // Only need to store x0, v0, vn for exact
+   ParticleMeta pmeta_exact(2, 0, {2,2,2});
+   ParticleSet particles_exact(MPI_COMM_WORLD, pmeta_exact, ctx.p_ordering == 0 ? Ordering::byNODES : Ordering::byVDIM);
 
    // Initialize both particle sets the same
-   Vector pos_min, pos_max;
-   mesh.GetBoundingBox(pos_min, pos_max);
+   Vector pos_min(2), pos_max(2);
+   //mesh.GetBoundingBox(pos_min, pos_max);
+   pos_min[0] = 0.0;
+   pos_max[0] = 1.0;
+   pos_min[1] = -0.8;
+   pos_max[1] = 0.2;
    int seed = rank;
+
    for (int p = 0; p < ctx.num_particles; p++)
    {
-      Particle part(pmeta);//, p_exact(pmeta_exact);
+      Particle part(pmeta), p_exact(pmeta_exact);
+
       InitializeRandom(part, seed, pos_min, pos_max);
-      //InitializeRandom(p_exact, seed, pos_min, pos_max);
+      part.GetStateVar(V_N) = 0.0; // v0 = 0
       particles.AddParticle(part);
-      //particles_exact.AddParticle(p_exact);
+
+      InitializeRandom(p_exact, seed, pos_min, pos_max);
+      p_exact.GetStateVar(0) = p_exact.GetCoords(); // set x0, v0
+      particles_exact.AddParticle(p_exact);
+
       seed += size;
    }
 
-   // Ensure that entire state is zeroed out as IC
-   for (int s = 0; s < State::SIZE; s++)
-   {
-      particles.GetAllStateVar(s) = 0.0;
-   }
-   // Particles are now initialized across entire domain w/ zero IC
 
+   real_t time = 0.0;
+   // Initialize fluid IC
+   ParGridFunction &u_gf = *flowsolver.GetCurrentVelocity();
+   ParGridFunction &w_gf = *flowsolver.GetCurrentVorticity();
+   u_excoeff.SetTime(time);
+   u_gf.ProjectCoefficient(u_excoeff);
+   flowsolver.ComputeCurl2D(u_gf, w_gf);
+
+   // Initialize particle fluid-dependent IC
+   FindPointsGSLIB finder(MPI_COMM_WORLD);
+   finder.Setup(pmesh);
+   finder.FindPoints(particles.GetAllCoords());
+   finder.Interpolate(u_gf, particles.GetAllStateVar(U_N));
+   finder.Interpolate(w_gf, particles.GetAllStateVar(W_N));
 
    // Initialize particle integrator
    ParticleIntegrator pint(MPI_COMM_WORLD, 2, ctx.zeta, pmesh);
@@ -296,10 +307,21 @@ int main (int argc, char *argv[])
       pvdc->SetHighOrderOutput(true);
       pvdc->RegisterField("Velocity",flowsolver.GetCurrentVelocity());
       pvdc->RegisterField("Vorticity",flowsolver.GetCurrentVorticity());
+      pvdc->SetTime(time);
+      pvdc->SetCycle(0);
+      pvdc->Save();
    }
-
+   
+   std::string csv_prefix = "Navier_Particles_";
+   if (ctx.print_csv_freq > 0)
+   {
+      std::string file_name = csv_prefix + mfem::to_padded_string(0, 9) + ".csv";
+      particles.PrintCSV(file_name.c_str());
+      std::string file_name_exact = csv_prefix + "Exact_" + mfem::to_padded_string(0, 9) + ".csv";
+      particles_exact.PrintCSV(file_name_exact.c_str());
+   }
+   
    Array<real_t> beta, alpha; // EXTk/BDF coefficients
-   real_t time = 0.0;
    flowsolver.Setup(ctx.dt);
    for (int step = 1; step <= ctx.num_steps; step++)
    {
@@ -309,38 +331,33 @@ int main (int argc, char *argv[])
       // ---------------------------------------------------
       // Temporary: enforce flowfield:
       u_excoeff.SetTime(time);
-      ParGridFunction &u_gf = *flowsolver.GetCurrentVelocity();
       u_gf.ProjectCoefficient(u_excoeff);
-      ParGridFunction &w_gf = *flowsolver.GetCurrentVorticity();
       flowsolver.ComputeCurl2D(u_gf, w_gf);
       // ---------------------------------------------------
 
-      // TODO Difficulty:
-      // If this is the first iteration, initialize entire state
-      if (step == 1)
-      {
-         
-      }
-
       // Get the time-integration coefficients
       flowsolver.GetTimeIntegrationCoefficients(beta, alpha);
-
+      
       // Step particles
       pint.Step(ctx.dt, beta, alpha, u_gf, w_gf, particles);
-      
-      // TODO Difficulty:
-      // If any particles have left the domain, apply periodic BC
-      // (Must update all X_N...)
-
 
       if (ctx.print_csv_freq > 0 && step % ctx.print_csv_freq == 0)
       {
          // Output the particles
-         std::string file_name = "Lorentz_Particles_" + mfem::to_padded_string(step, 9) + ".csv";
+         std::string file_name = csv_prefix + mfem::to_padded_string(step, 9) + ".csv";
          particles.PrintCSV(file_name.c_str());
 
          // Set + output the exact
-         //std::string file_name_exact = "Lorentz_Particles_Exact_" + mfem::to_padded_string(step, 9) + ".csv";
+         for (int i = 0; i < particles_exact.GetNP(); i++)
+         {
+            Particle p_exact(pmeta_exact);
+            particles_exact.GetParticle(i, p_exact);
+            analyticalNoDragCouette(ctx.zeta, p_exact.GetStateVar(0), p_exact.GetStateVar(1), time, p_exact.GetCoords(), p_exact.GetStateVar(2));
+            particles_exact.SetParticle(i, p_exact);
+         }
+
+         std::string file_name_exact = csv_prefix + "Exact_" + mfem::to_padded_string(step, 9) + ".csv";
+         particles_exact.PrintCSV(file_name_exact.c_str());
       }
       if (ctx.paraview_freq > 0 && step % ctx.paraview_freq == 0)
       {
@@ -349,7 +366,7 @@ int main (int argc, char *argv[])
          pvdc->Save();
       }
    }
-
+   
    
 
 
