@@ -124,8 +124,8 @@ private:
          add(r, -beta[j], p.GetStateVar(V_N-j), r);
          
          // Add C
-         add(r, dt*alpha[j-1]*w_n_ext, Vector({ p.GetStateVar(U_N-j)[1], 
-                                               -p.GetStateVar(U_N-j)[0]}), r);
+         add(r, dt*alpha[j-1]*w_n_ext, Vector({ zeta*p.GetStateVar(U_N-j)[1], 
+                                               -zeta*p.GetStateVar(U_N-j)[0]}), r);
       }
 
       // Solve for particle velocity
