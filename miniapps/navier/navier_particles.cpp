@@ -28,7 +28,9 @@ struct Context
    int num_steps = 1000;
    int num_particles = 1000;
    int p_ordering = Ordering::byNODES;
+   real_t kappa = 1.0;
    real_t zeta = 4.0;
+   real_t gamma = 1.0;
    int paraview_freq = 0;
    int print_csv_freq = 0;
    
@@ -76,10 +78,16 @@ void analyticalNoDragCouette(const real_t zeta, const Vector &x0, const Vector &
    const real_t C4 = 0.5*(C3+1);
    const real_t C5 = x0[0] + (2.0/(zeta-1))*v0[1];
 
+   cout << "C1: " << C1 << endl;
+   cout << "C2: " << C2 << endl;
+   cout << "C3: " << C3 << endl;
+   cout << "C4: " << C4 << endl;
+   cout << "C5: " << C5 << endl;
+
    const real_t lam = zeta*(zeta-1)/4.0;
 
    x[0] = (zeta/(2.0*lam)) * (-C1*cos(sqrt(lam)*t) - C2*sin(sqrt(lam)*t)) + C4*t + C5;
-   x[1] = (1.0/sqrt(zeta)) * (C1*sin(sqrt(lam)*t) - C2*cos(sqrt(lam)*t)) + C3;
+   x[1] = (1.0/sqrt(lam)) * (C1*sin(sqrt(lam)*t) - C2*cos(sqrt(lam)*t)) + C3;
    v[0] = (zeta/(2.0*sqrt(lam))) * ( C1*sin(sqrt(lam)*t) - C2*cos(sqrt(lam)*t)) + C4;
    v[1] = C1*cos(sqrt(lam)*t) + C2*sin(sqrt(lam)*t);
 }
@@ -203,7 +211,9 @@ int main (int argc, char *argv[])
    args.AddOption(&ctx.num_steps, "-ns", "--num-steps", "Number of time steps to take.");
    args.AddOption(&ctx.num_particles, "-np", "--num-particles", "Number of particles to initialize on the domain.");
    args.AddOption(&ctx.p_ordering, "-ord", "--particle-ordering", "Ordering of Particle vector data. 0 for byNODES, 1 for byVDIM.");
+   args.AddOption(&ctx.kappa, "-k", "--kappa", "Kappa constant.");
    args.AddOption(&ctx.zeta, "-z", "--zeta", "Zeta constant.");
+   args.AddOption(&ctx.gamma, "-g", "--gamma", "Gamma constant.");
    args.AddOption(&ctx.paraview_freq, "-pv", "--paraview-freq", "Frequency of ParaView flow output. 0 to disable.");
    args.AddOption(&ctx.print_csv_freq, "-csv", "--csv-freq", "Frequency of particle CSV outputting. 0 to disable.");
    args.Parse();
@@ -219,7 +229,7 @@ int main (int argc, char *argv[])
 
 
    // Initialize a simple straight-edged 2D domain [0,12] x [-1,1]
-   Mesh mesh = Mesh::MakeCartesian2D(50, 50, Element::Type::QUADRILATERAL, true, 12.0, 2.0);
+   Mesh mesh = Mesh::MakeCartesian2D(10, 10, Element::Type::QUADRILATERAL, true, 12.0, 2.0);
    Vector transl(mesh.GetNV()*2);
    // Mesh vertex ordering is byNODES
    for (int i = 0; i < transl.Size()/2; i++)
@@ -262,17 +272,27 @@ int main (int argc, char *argv[])
    pos_max[1] = 0.2;
    int seed = rank;
 
-   for (int p = 0; p < ctx.num_particles; p++)
+   for (int p = 0; p < 1; p++)//ctx.num_particles; p++)
    {
       Particle part(pmeta), p_exact(pmeta_exact);
 
       InitializeRandom(part, seed, pos_min, pos_max);
+
+      part.GetCoords()[0] = 3.0;
+      part.GetCoords()[1] = 0.0;
+
       part.GetStateVar(V_N) = 0.0; // v0 = 0
       particles.AddParticle(part);
 
       InitializeRandom(p_exact, seed, pos_min, pos_max);
-      p_exact.GetStateVar(0) = p_exact.GetCoords(); // set x0, v0
+      p_exact.GetCoords()[0] = 3.0;
+      p_exact.GetCoords()[1] = 0.0;
+      
+      p_exact.GetStateVar(0) = p_exact.GetCoords(); // Set x0
+      p_exact.GetStateVar(1) = 0.0; // v0
+      p_exact.GetStateVar(2) = 0.0; // vn
       particles_exact.AddParticle(p_exact);
+      p_exact.Print();
 
       seed += size;
    }
@@ -285,6 +305,9 @@ int main (int argc, char *argv[])
    u_excoeff.SetTime(time);
    u_gf.ProjectCoefficient(u_excoeff);
    flowsolver.ComputeCurl2D(u_gf, w_gf);
+
+   // Set fluid BCs
+   // TODO
 
    // Initialize particle fluid-dependent IC
    FindPointsGSLIB finder(MPI_COMM_WORLD);
@@ -327,7 +350,7 @@ int main (int argc, char *argv[])
    {
       // Step Navier
       flowsolver.Step(time, ctx.dt, step-1);
-
+      cout << "Time: " << time << endl;
       // ---------------------------------------------------
       // Temporary: enforce flowfield:
       u_excoeff.SetTime(time);
@@ -353,9 +376,13 @@ int main (int argc, char *argv[])
             Particle p_exact(pmeta_exact);
             particles_exact.GetParticle(i, p_exact);
             analyticalNoDragCouette(ctx.zeta, p_exact.GetStateVar(0), p_exact.GetStateVar(1), time, p_exact.GetCoords(), p_exact.GetStateVar(2));
+            p_exact.Print();
+
+            //cout << "x = " << -(2.0)/(3.0*sqrt(3))*sin(sqrt(3)*time) + (2.0/3.0)*time << endl;
+            //cout << "y = " << -(1.0)/(3.0)*cos(sqrt(3)*time) + (1.0/3.0) << endl;
+
             particles_exact.SetParticle(i, p_exact);
          }
-
          std::string file_name_exact = csv_prefix + "Exact_" + mfem::to_padded_string(step, 9) + ".csv";
          particles_exact.PrintCSV(file_name_exact.c_str());
       }
