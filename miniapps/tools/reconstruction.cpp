@@ -11,7 +11,7 @@ class MixedBidirectionalHessianIntegrator : public MixedScalarIntegrator
 private:
    VectorCoefficient *dir1_vq, *dir2_vq;
    Vector dir1_vq_ev, dir2_vq_ev;
-   DenseMatrix trial_dshape, test_dshape;
+   DenseMatrix d2shape, shape;
 
    void CalcTrialShape(const FiniteElement& trial_fe,
                        ElementTransformation& Trans,
@@ -49,8 +49,7 @@ void MixedBidirectionalHessianIntegrator::CalcTrialShape(
    dir2_vq->Eval(dir2_vq_ev, Trans, Trans.GetIntPoint());
    trial_dshape.SetSize(trial_fe.GetDof(), dim*(dim+1)/2);
    trial_fe.CalcPhysHessian(Trans, trial_dshape);
-   mfem_error("Panic! After hessian");
-   trial_dshape.Mult(dir1_vq_ev, trial_shape);
+   // trial_dshape.Mult(dir1_vq_ev, trial_shape);
 };
 
 void MixedBidirectionalHessianIntegrator::CalcTestShape(
@@ -58,15 +57,7 @@ void MixedBidirectionalHessianIntegrator::CalcTestShape(
    ElementTransformation& Trans,
    Vector& test_shape)
 {
-   // test_dshape.SetSize(test_fe.GetDof(), Trans.GetSpaceDim());
-   // test_fe.CalcPhysDShape(Trans, test_dshape);
-   // test_dshape.Mult(di, test_shape);
-}
-
-void L2_QuadrilateralElement::CalcHessian(ElementTransformation& Trans,
-                                          DenseMatrix& Hessian)
-{
-   return;
+   test_fe.CalcPhysShape(Trans, test_dshape);
 }
 
 /* void MixedWeakBidirectionalDerivativeIntegrator::AssembleElementMatrix2(
