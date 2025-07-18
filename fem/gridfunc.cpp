@@ -2660,7 +2660,7 @@ void GridFunction::ProjectCoefficientLocalL2_(VectorCoefficient &vcoeff,
    x = 0.0;
 
    if (fes->GetNURBSext() == NULL)
-   {cout<<"ProjectCoefficientLocalL2_(VectorCoefficient &vcoeff"<<endl;
+   {
       for (int e = 0; e < fes->GetNE(); e++)
       {
          fes->GetElementVDofs (e, vdofs, doftrans);
@@ -2721,24 +2721,33 @@ void GridFunction::ProjectCoefficientLocalL2_(VectorCoefficient &vcoeff,
    }
    else
    {
-    /*  for (int e = 0; e < fes->GetNE(); e++)
+      DenseMatrix partelmat;
+      Vector shape2;
+
+      if (fes->GetTypicalFE()->GetOrder() >= 6 )
+      {
+         MFEM_WARNING("This project is not stable for"
+                      "NURBS VectorFE with order >= 5");
+      }
+      for (int e = 0; e < fes->GetNE(); e++)
       {
          fes->GetElementVDofs (e, vdofs, doftrans);
          ElementTransformation &tr = *fes -> GetElementTransformation (e);
          const FiniteElement &el = *fes->GetFE(e);
          int dof = el.GetDof();
-         int dim = el.GetDim();
+         int dim = el.GetRangeDim();
          int p = el.GetOrder();
          L2_FECollection fe_coll(p,  dim);
-         //H1_FECollection fe_coll(p,  dim, BasisType::Positive);
          const FiniteElement &el2 = *fe_coll.FiniteElementForGeometry(el.GetGeomType());
-         MFEM_ASSERT(el2.GetDof() == dof, "Element dofs do not match.");
-
-         shape.SetSize(dof);
-         shape2.SetSize(dof);
-         elvect.SetSize(dof);
+         int dof2 = el2.GetDof();
+         MFEM_ASSERT(dof2*dim >= dof, "Element dofs do not match.");
+         shape2.SetSize(dof2);
+         shape.SetSize(dof,dim);
+         shapel2.SetSize(dof);
+         elvect.SetSize(dof2*dim);
          elwght.SetSize(dof);
-         elmat.SetSize(dof,dof);
+         elmat.SetSize(dof2*dim,dof2*dim);
+         partelmat.SetSize(dof2,dof2);
          elvect = 0.0;
          elwght = 0.0;
          elmat = 0.0;
@@ -2753,34 +2762,69 @@ void GridFunction::ProjectCoefficientLocalL2_(VectorCoefficient &vcoeff,
 
             tr.SetIntPoint (&ip);
             real_t wght = ip.weight*tr.Weight();
-            real_t val = coeff.Eval(tr, ip);
-            el.CalcPhysShape(tr, shape);
-            el2.CalcPhysShape(tr, shape2);
+            vcoeff.Eval(val, tr, ip);
+            val *= wght;
 
-            elvect.Add(wght * val, shape2);
-            elwght.Add(wght, shape);
-            AddMult_a_VVt(wght, shape2, elmat);
+            el2.CalcPhysShape(tr, shape2);
+            el.CalcPhysVShape(tr, shape);
+
+            for (int k = 0; k < dim; k++)
+            {
+               for (int s = 0; s < dof2; s++)
+               {
+                  elvect(dof2*k+s) += val(k) * shape2(s);
+               }
+            }
+
+            MultVVt(shape2, partelmat);
+            partelmat *= wght;
+            for (int k = 0; k < dim; k++)
+            {
+               elmat.AddMatrix(partelmat, dof2*k, dof2*k);
+            }
+
+            shape.GetRowl2(shapel2);
+            elwght.Add(wght, shapel2);
          }
+
          // Solve
-         if (!LinearSolve(elmat, elvect.GetData(),1e-12))
+         if (!LinearSolve(elmat, elvect.GetData()))
          {
-            MFEM_WARNING("Error in inverting element local matrix 2");
+            MFEM_WARNING("Error in inverting element local matrix");
          }
+
          // Map to NURBS
          DenseMatrix I;
          el2.Project(el,tr,I);
-         if (!LinearSolve(I, elvect.GetData(),1e-32))
+
+         // LSQ solve
+         // For higher order NURBS solving this non-square matrix causes issues.
+         // For Order <=4 the routine seems to work fine.
+         Vector vec(dof);
+         DenseMatrix mat(dof, dof);
+         I.Transpose();
+         I.Mult(elvect, vec);
+         MultAAt(I, mat);
+         if (!LinearSolve(mat, vec.GetData(), 1e-24))
          {
-            MFEM_WARNING("Error in inverting element local matrix 3");
+            mat.TestInversion();
+            MFEM_WARNING("Error in inverting element local matrix");
          }
+         elvect = vec;
 
          // Scale
          elvect *= elwght;
 
-         // Add reduced dofs to global vector
+         // Add to global vector
          x.AddElementVector(vdofs, elvect);
+
+         // Add to weight vector -- no need for an orientation
+         for (int i = 0; i < vdofs.Size(); i++)
+         {
+            vdofs[i] = FiniteElementSpace::DecodeDof(vdofs[i]);
+         }
          Va.AddElementVector(vdofs, elwght);
-      }*/
+      }
    }
 }
 
