@@ -550,7 +550,7 @@ int main(int argc, char* argv[])
    if (Mpi::Root())
    {
       mfem::out << "\n|| Rec(u_h) - u ||_{L^2} = " << error << "\n" << std::endl;
-      mfem::out << "\n|| Avg(Rec(u_h)) - u_h ||_{ell^2} = " << error_avg << "\n" <<
+      mfem::out << "\n|| Avg(Rec(u_h)) - u_h ||_{L^2} = " << error_avg << "\n" <<
                 std::endl;
    }
 

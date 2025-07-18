@@ -71,49 +71,6 @@ void MixedBidirectionalHessianIntegrator::CalcTestShape(
    test_fe.CalcPhysShape(Trans, test_dshape);
 }
 
-/* void MixedWeakBidirectionalDerivativeIntegrator::AssembleElementMatrix2(
- *    const FiniteElement& trial_fe,
- *    const FiniteElement& test_fe,
- *    ElementTransformation& Trans,
- *    DenseMatrix& elmat)
- * {
- *    if (!trial_vq || !test_vq) { mfem_error("Must set vector fields!"); }
- *    MFEM_ASSERT(this->VerifyFiniteElementTypes(trial_fe, test_fe), "TODO");
- *    int trial_ndofs = trial_fe.GetDof();
- *    int test_ndofs = test_fe.GetDof();
- *    real_t weight;
- *
- *    elmat.SetSize(test_ndofs, trial_ndofs);
- *    test_shape.SetSize(test_ndofs);
- *    trial_shape.SetSize(trial_ndofs);
- *
- *    const IntegrationRule *ir = GetIntegrationRule(trial_fe, test_fe, Trans);
- *    if (ir == NULL)
- *    {
- *        int ir_order = this->GetIntegrationOrder(trial_fe, test_fe, Trans);
- *        ir = &IntRules.Get(trial_fe.GeGeomType(), ir_order);
- *    }
- *
- *    elmat = 0.0;
- *
- *    for (int i=0; i < ir->GetNPoints(); i++)
- *    {
- *       const auto& ip = ir->IntPoint(i);
- *       Trans.SetIntPoint(&ip);
- *
- *
- *       trial_vq->Eval(trial_vq_ev, Trans, ip);
- *       test_vq->Eval(test_vq_ev, Trans, ip);
- *
- *       // trial_fe.CalcPhysDShape?
- *       // test_fe.CalcPhysDShape?
- *       // weight = Trans.Weight() * ip.weight();
- *       // Here I need to get v_1 dot grad(phi_1) and v_2 dot grad(phi_2)
- *       AddMult_a_VWt(weight, test_shape, trial_shape, elmat);
- *    }
- * }
- */
-
 // reconstruct a field u (represented by dst) from u_hat (represented by src)
 // Note current only 2D reconstruction of L^2_1 (piecewise-linear) field from
 // L^2_0 (piecewise-constant) field is supported. The reconstruction is done
@@ -220,7 +177,6 @@ void reconstructField(const ParGridFunction& src, ParGridFunction& dst)
    dst.ExchangeFaceNbrData();
 }
 
-
 int main(int argc, char* argv[])
 {
    Mpi::Init(argc, argv);
@@ -228,7 +184,6 @@ int main(int argc, char* argv[])
    // Default command-line options
    int ser_ref_levels = 0;
    int par_ref_levels = 0;
-   bool show_error = false;
    bool save_to_file = true;
    // TODO: Extrapolate logic
    // int order_original = 3;
@@ -246,9 +201,6 @@ int main(int argc, char* argv[])
    //                "Original order of interpolation")
    // args.AddOption(&order_reconstruction, "-or", "--order-reconstruction",
    //                "Order of reconstructed function")
-   args.AddOption(&show_error, "-se", "--show-error", "-no-se",
-                  "--no-show-error",
-                  "Show or not show approximation error.");
    args.AddOption(&save_to_file, "-s", "--save", "-no-s",
                   "--no-save",
                   "Show or not show approximation error.");
@@ -342,7 +294,7 @@ int main(int argc, char* argv[])
    zero.ComputeElementLpErrors(2.0, ones, el_error);
    real_t hmax = el_error.Max();
 
-   if (show_error && Mpi::Root())
+   if (Mpi::Root())
    {
       mfem::out << "\n|| u_h - u ||_{L^2} = " << error << "\n" << std::endl;
    }
