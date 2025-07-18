@@ -10,6 +10,7 @@
 // CONTRIBUTING.md for details.
 //
 
+
 #include "navier_solver.hpp"
 #include "../common/particles_extras.hpp"
 #include "../../general/text.hpp"
@@ -21,7 +22,7 @@ using namespace mfem;
 using namespace mfem::common;
 using namespace navier;
 
-struct Context
+struct s_Context
 {
    int order = 3;
    real_t dt = 0.25e-4;
@@ -31,6 +32,8 @@ struct Context
    real_t kappa = 1.0;
    real_t zeta = 4.0;
    real_t gamma = 1.0;
+   Vector f = Vector({0.0,-1.0});
+   int test = -1;
    int paraview_freq = 0;
    int print_csv_freq = 0;
    
@@ -68,7 +71,9 @@ void couetteFlow(const Vector &x, Vector &u)
    u[0] = (1.0+x[1])/2.0;
 }
 
-void analyticalNoDragCouette(const real_t zeta, const Vector &x0, const Vector &v0, double t, Vector &x, Vector &v)
+// Test 0
+// Only lift -- no drag nor body force
+void analyticalTest0(const real_t zeta, const Vector &x0, const Vector &v0, double t, Vector &x, Vector &v)
 {
    x.SetSize(2); v.SetSize(2);
 
@@ -77,12 +82,6 @@ void analyticalNoDragCouette(const real_t zeta, const Vector &x0, const Vector &
    const real_t C3 = x0[1] + 2.0*C2/(sqrt(zeta*(zeta-1)));
    const real_t C4 = 0.5*(C3+1);
    const real_t C5 = x0[0] + (2.0/(zeta-1))*v0[1];
-
-   cout << "C1: " << C1 << endl;
-   cout << "C2: " << C2 << endl;
-   cout << "C3: " << C3 << endl;
-   cout << "C4: " << C4 << endl;
-   cout << "C5: " << C5 << endl;
 
    const real_t lam = zeta*(zeta-1)/4.0;
 
@@ -214,12 +213,16 @@ int main (int argc, char *argv[])
    args.AddOption(&ctx.kappa, "-k", "--kappa", "Kappa constant.");
    args.AddOption(&ctx.zeta, "-z", "--zeta", "Zeta constant.");
    args.AddOption(&ctx.gamma, "-g", "--gamma", "Gamma constant.");
+   args.AddOption(&ctx.test, "-t", "--test", "Override settings + run test. -1 to disable. 0 for only-lift, no drag nor body force test. 1 for no-lift terminal velocity test.");
    args.AddOption(&ctx.paraview_freq, "-pv", "--paraview-freq", "Frequency of ParaView flow output. 0 to disable.");
    args.AddOption(&ctx.print_csv_freq, "-csv", "--csv-freq", "Frequency of particle CSV outputting. 0 to disable.");
    args.Parse();
    if (!args.Good())
    {
-      args.PrintUsage(cout);
+      if (rank == 0)
+      {
+         args.PrintUsage(cout);
+      }
       return 1;
    }
    if (rank == 0)
@@ -228,13 +231,23 @@ int main (int argc, char *argv[])
    }
 
 
-   // Initialize a simple straight-edged 2D domain [0,12] x [-1,1]
-   Mesh mesh = Mesh::MakeCartesian2D(10, 10, Element::Type::QUADRILATERAL, true, 12.0, 2.0);
+   if (ctx.test == 0)
+   {  
+      ctx.dt = 0.01;
+      ctx.num_steps = 1000;
+      ctx.num_particles = 100;
+      ctx.kappa = 0.0;
+      ctx.gamma = 0.0;
+   }
+
+
+   // Initialize a simple straight-edged 2D domain [0,20] x [-5,5]
+   Mesh mesh = Mesh::MakeCartesian2D(10, 10, Element::Type::QUADRILATERAL, true, 20.0, 10.0);
    Vector transl(mesh.GetNV()*2);
    // Mesh vertex ordering is byNODES
    for (int i = 0; i < transl.Size()/2; i++)
    {
-      transl[mesh.GetNV() + i] = -1.0; // translate down -1
+      transl[mesh.GetNV() + i] = -5.0; // translate down -1
    }
    mesh.MoveNodes(transl);
 
@@ -259,46 +272,49 @@ int main (int argc, char *argv[])
    ParticleMeta pmeta(2, 2, vdims);
    ParticleSet particles(MPI_COMM_WORLD, pmeta, ctx.p_ordering == 0 ? Ordering::byNODES : Ordering::byVDIM);
 
-   // Only need to store x0, v0, vn for exact
-   ParticleMeta pmeta_exact(2, 0, {2,2,2});
-   ParticleSet particles_exact(MPI_COMM_WORLD, pmeta_exact, ctx.p_ordering == 0 ? Ordering::byNODES : Ordering::byVDIM);
+   std::unique_ptr<ParticleMeta> pmeta_exact;
+   std::unique_ptr<ParticleSet> particles_exact;
+   if (ctx.test != -1)
+   {
+      // Only need to store x0, v0, vn for exact
+      pmeta_exact = std::make_unique<ParticleMeta>(2, 0, Array<int>({2,2,2}));
+      particles_exact = std::make_unique<ParticleSet>(MPI_COMM_WORLD, *pmeta_exact, ctx.p_ordering == 0 ? Ordering::byNODES : Ordering::byVDIM);
+   }
 
-   // Initialize both particle sets the same
+   // Initialize both particle sets the same way
    Vector pos_min(2), pos_max(2);
    //mesh.GetBoundingBox(pos_min, pos_max);
-   pos_min[0] = 0.0;
-   pos_max[0] = 1.0;
+   pos_min[0] = 3.0;
+   pos_max[0] = 4.0;
    pos_min[1] = -0.8;
    pos_max[1] = 0.2;
    int seed = rank;
 
-   for (int p = 0; p < 1; p++)//ctx.num_particles; p++)
+   for (int p = 0; p < ctx.num_particles; p++)
    {
-      Particle part(pmeta), p_exact(pmeta_exact);
+      Particle part(pmeta);
 
       InitializeRandom(part, seed, pos_min, pos_max);
-
-      part.GetCoords()[0] = 3.0;
-      part.GetCoords()[1] = 0.0;
-
-      part.GetStateVar(V_N) = 0.0; // v0 = 0
+      //part.GetStateVar(V_N) = 0.0; // v0 = 0
       particles.AddParticle(part);
 
-      InitializeRandom(p_exact, seed, pos_min, pos_max);
-      p_exact.GetCoords()[0] = 3.0;
-      p_exact.GetCoords()[1] = 0.0;
-      
-      p_exact.GetStateVar(0) = p_exact.GetCoords(); // Set x0
-      p_exact.GetStateVar(1) = 0.0; // v0
-      p_exact.GetStateVar(2) = 0.0; // vn
-      particles_exact.AddParticle(p_exact);
-      p_exact.Print();
+      if (ctx.test != -1)
+      {
+         Particle p_exact(*pmeta_exact);
+         p_exact.GetCoords() = part.GetCoords();
+         p_exact.GetStateVar(2) = part.GetStateVar(V_N);
+         //p_exact.GetStateVar(2) = 0.0; // vn
+         p_exact.GetStateVar(0) = p_exact.GetCoords(); // Set x0
+         p_exact.GetStateVar(1) = p_exact.GetStateVar(2); // v0
+         particles_exact->AddParticle(p_exact);
+      }
 
       seed += size;
    }
 
 
    real_t time = 0.0;
+
    // Initialize fluid IC
    ParGridFunction &u_gf = *flowsolver.GetCurrentVelocity();
    ParGridFunction &w_gf = *flowsolver.GetCurrentVorticity();
@@ -340,8 +356,11 @@ int main (int argc, char *argv[])
    {
       std::string file_name = csv_prefix + mfem::to_padded_string(0, 9) + ".csv";
       particles.PrintCSV(file_name.c_str());
-      std::string file_name_exact = csv_prefix + "Exact_" + mfem::to_padded_string(0, 9) + ".csv";
-      particles_exact.PrintCSV(file_name_exact.c_str());
+      if (ctx.test != -1)
+      {
+         std::string file_name_exact = csv_prefix + "Exact_" + mfem::to_padded_string(0, 9) + ".csv";
+         particles_exact->PrintCSV(file_name_exact.c_str());
+      }
    }
    
    Array<real_t> beta, alpha; // EXTk/BDF coefficients
@@ -350,7 +369,10 @@ int main (int argc, char *argv[])
    {
       // Step Navier
       flowsolver.Step(time, ctx.dt, step-1);
-      cout << "Time: " << time << endl;
+      if (Mpi::Root())
+      {
+         cout << "Time: " << time << endl;
+      }
       // ---------------------------------------------------
       // Temporary: enforce flowfield:
       u_excoeff.SetTime(time);
@@ -371,20 +393,18 @@ int main (int argc, char *argv[])
          particles.PrintCSV(file_name.c_str());
 
          // Set + output the exact
-         for (int i = 0; i < particles_exact.GetNP(); i++)
+         if (ctx.test != -1)
          {
-            Particle p_exact(pmeta_exact);
-            particles_exact.GetParticle(i, p_exact);
-            analyticalNoDragCouette(ctx.zeta, p_exact.GetStateVar(0), p_exact.GetStateVar(1), time, p_exact.GetCoords(), p_exact.GetStateVar(2));
-            p_exact.Print();
-
-            //cout << "x = " << -(2.0)/(3.0*sqrt(3))*sin(sqrt(3)*time) + (2.0/3.0)*time << endl;
-            //cout << "y = " << -(1.0)/(3.0)*cos(sqrt(3)*time) + (1.0/3.0) << endl;
-
-            particles_exact.SetParticle(i, p_exact);
+            for (int i = 0; i < particles_exact->GetNP(); i++)
+            {
+               Particle p_exact(*pmeta_exact);
+               particles_exact->GetParticle(i, p_exact);
+               analyticalTest0(ctx.zeta, p_exact.GetStateVar(0), p_exact.GetStateVar(1), time, p_exact.GetCoords(), p_exact.GetStateVar(2));
+               particles_exact->SetParticle(i, p_exact);
+            }
+            std::string file_name_exact = csv_prefix + "Exact_" + mfem::to_padded_string(step, 9) + ".csv";
+            particles_exact->PrintCSV(file_name_exact.c_str());
          }
-         std::string file_name_exact = csv_prefix + "Exact_" + mfem::to_padded_string(step, 9) + ".csv";
-         particles_exact.PrintCSV(file_name_exact.c_str());
       }
       if (ctx.paraview_freq > 0 && step % ctx.paraview_freq == 0)
       {
