@@ -623,6 +623,16 @@ void forall(func_t f,
 class FDJacobian : public Operator
 {
 public:
+   FDJacobian(const Operator &op, real_t fixed_eps = 0.0) :
+      Operator(op.Height(), op.Width()),
+      op(op),
+      x(op.Width()),
+      fixed_eps(fixed_eps)
+   {
+      f.SetSize(Height());
+      xpev.SetSize(Width());
+   }
+
    FDJacobian(const Operator &op, const Vector &x, real_t fixed_eps = 0.0) :
       Operator(op.Height(), op.Width()),
       op(op),
@@ -637,6 +647,17 @@ public:
 
       op.Mult(x, f);
 
+      const real_t xnorm_local = x.Norml2();
+      MPI_Allreduce(&xnorm_local, &xnorm, 1, MPITypeMap<real_t>::mpi_type, MPI_SUM,
+                    MPI_COMM_WORLD);
+   }
+
+   void Update(const Vector &x_new){
+      x = x_new;
+      f.UseDevice(x.UseDevice());
+      xpev.UseDevice(x.UseDevice());
+
+      op.Mult(x, f);
       const real_t xnorm_local = x.Norml2();
       MPI_Allreduce(&xnorm_local, &xnorm, 1, MPITypeMap<real_t>::mpi_type, MPI_SUM,
                     MPI_COMM_WORLD);
