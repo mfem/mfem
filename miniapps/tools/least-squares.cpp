@@ -184,6 +184,23 @@ void GetNormalL1Diag(const DenseMatrix& A, Vector& l1_diag)
    }
 }
 
+/// @brief Saturates a neighborhood with hopes to well-pose the least squares problem.
+/// @dev Make friends with @a MCMesh
+void SaturateNeighborhood(NCMesh& mesh, const int element_idx,
+                          const int target_ndofs, const int contributed_ndofs,
+                          Array<int>& neighbors)
+{
+   Array<int> temp;
+   mesh.FindNeighbors(element_idx, neighbors);
+   neighbors.Append(element_idx);
+   while (neighbors.Size() * contributed_ndofs < target_ndofs)
+   {
+      mesh.NeighborExpand(neighbors, temp);
+      neighbors = temp;
+   }
+   neighbors.Unique();
+}
+
 int main(int argc, char* argv[])
 {
    Mpi::Init(argc, argv);
@@ -335,22 +352,17 @@ int main(int argc, char* argv[])
    auto ngh_tr = new IsoparametricTransformation;
    auto self_tr = new IsoparametricTransformation;
 
+   // TODO(Gabriel): Loop too big!
    for (int e_idx = 0; e_idx < mesh.GetNE(); e_idx++ )
    {
-      nc_mesh.FindNeighbors(e_idx, ngh_e);
-      ngh_e.Append(e_idx);
-      // TODO(Gabriel): While loop?
-      for (int i = 0; i < order_reconstruction - 1; i++)
-      {
-         nc_mesh.NeighborExpand(ngh_e, temp_ngh);
-         ngh_e = temp_ngh;
-      }
-      ngh_e.Unique();
+      const int fe_rec_e_ndof = fes_reconstruction.GetFE(e_idx)->GetDof();
+      const int fe_avg_e_ndof = fes_averages.GetFE(e_idx)->GetDof();
+
+      SaturateNeighborhood(nc_mesh, e_idx, fe_rec_e_ndof, fe_avg_e_ndof, ngh_e);
       if (preserve_volumes && (ngh_e.Find(e_idx)>=0)) { ngh_e.DeleteFirst(e_idx); }
 
       // Define small matrix
       const int num_ngh_e = ngh_e.Size();
-      const int fe_rec_e_ndof = fes_reconstruction.GetFE(e_idx)->GetDof();
       DenseMatrix local_mass_mat(num_ngh_e, fe_rec_e_ndof);
 
       for (int i = 0; i < num_ngh_e; i++)
