@@ -64,7 +64,7 @@ enum State : int
    SIZE  
 };
 
-void couetteFlow(const Vector &x, Vector &u)
+void couetteFlow(const Vector &x, real_t t, Vector &u)
 {
    u.SetSize(2);
    u = 0.0;
@@ -239,6 +239,10 @@ int main (int argc, char *argv[])
       ctx.kappa = 0.0;
       ctx.gamma = 0.0;
    }
+   else if (ctx.test == 1)
+   {
+
+   }
 
 
    // Initialize a simple straight-edged 2D domain [0,20] x [-5,5]
@@ -262,9 +266,6 @@ int main (int argc, char *argv[])
       cout << "Reynolds number: " << Re << endl;
    }
    NavierSolver flowsolver(&pmesh, ctx.order, 1.0/Re);
-
-   // Prescribe the velocity condition for now
-   VectorFunctionCoefficient u_excoeff(2, couetteFlow);
 
    // Initialize two particle sets - one numerical, one analytical
    Array<int> vdims(State::SIZE);
@@ -316,6 +317,7 @@ int main (int argc, char *argv[])
    real_t time = 0.0;
 
    // Initialize fluid IC
+   VectorFunctionCoefficient u_excoeff(2, couetteFlow);
    ParGridFunction &u_gf = *flowsolver.GetCurrentVelocity();
    ParGridFunction &w_gf = *flowsolver.GetCurrentVorticity();
    u_excoeff.SetTime(time);
@@ -323,7 +325,9 @@ int main (int argc, char *argv[])
    flowsolver.ComputeCurl2D(u_gf, w_gf);
 
    // Set fluid BCs
-   // TODO
+   Array<int> bdr_attr(pmesh.bdr_attributes.Max());
+   bdr_attr[0] = 1; bdr_attr[2] = 1;
+   flowsolver.AddVelDirichletBC(couetteFlow, bdr_attr);
 
    // Initialize particle fluid-dependent IC
    FindPointsGSLIB finder(MPI_COMM_WORLD);
@@ -373,12 +377,6 @@ int main (int argc, char *argv[])
       {
          cout << "Time: " << time << endl;
       }
-      // ---------------------------------------------------
-      // Temporary: enforce flowfield:
-      u_excoeff.SetTime(time);
-      u_gf.ProjectCoefficient(u_excoeff);
-      flowsolver.ComputeCurl2D(u_gf, w_gf);
-      // ---------------------------------------------------
 
       // Get the time-integration coefficients
       flowsolver.GetTimeIntegrationCoefficients(beta, alpha);
