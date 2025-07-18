@@ -22,12 +22,13 @@
 #include "../mesh/mesh_headers.hpp"
 #include "../general/binaryio.hpp"
 
+#include "pderefmat_op.hpp"
+
 #include <limits>
 #include <list>
 
 namespace mfem
 {
-
 ParFiniteElementSpace::ParFiniteElementSpace(
    const ParFiniteElementSpace &orig, ParMesh *pmesh,
    const FiniteElementCollection *fec)
@@ -4487,13 +4488,6 @@ ParFiniteElementSpace::RebalanceMatrix(int old_ndofs,
    return M;
 }
 
-
-struct DerefDofMessage
-{
-   std::vector<HYPRE_BigInt> dofs;
-   MPI_Request request;
-};
-
 HypreParMatrix*
 ParFiniteElementSpace::ParallelDerefinementMatrix(int old_ndofs,
                                                   const Table* old_elem_dof,
@@ -4536,7 +4530,13 @@ ParFiniteElementSpace::ParallelDerefinementMatrix(int old_ndofs,
       old_pncmesh->GetDerefinementTransforms();
    const Array<int> &old_ranks = old_pncmesh->GetDerefineOldRanks();
 
-   std::map<int, DerefDofMessage> messages;
+   // key: other rank
+   // value: send or recieve buffer
+   std::map<int, std::vector<HYPRE_BigInt>> to_send;
+   std::map<int, std::vector<HYPRE_BigInt>> to_recv;
+   // key: index into dtrans.embeddings
+   // value: [start, stop]
+   std::unordered_map<int, std::array<size_t, 2>> recv_messages;
 
    HYPRE_BigInt old_offset = HYPRE_AssumedPartitionCheck()
                              ? old_dof_offsets[0] : old_dof_offsets[MyRank];
@@ -4556,30 +4556,46 @@ ParFiniteElementSpace::ParallelDerefinementMatrix(int old_ndofs,
          old_elem_dof->GetRow(k, dofs);
          DofsToVDofs(dofs, old_ndofs);
 
-         DerefDofMessage &msg = messages[k];
-         msg.dofs.resize(dofs.Size());
+         std::vector<HYPRE_BigInt>& send_buf = to_send[coarse_rank];
+         auto pos = send_buf.size();
+         send_buf.resize(pos + dofs.Size());
          for (int i = 0; i < dofs.Size(); i++)
          {
-            msg.dofs[i] = old_offset + dofs[i];
+            send_buf[pos + i] = old_offset + dofs[i];
          }
-
-         MPI_Isend(&msg.dofs[0], static_cast<int>(msg.dofs.size()), HYPRE_MPI_BIG_INT,
-                   coarse_rank, 291, MyComm, &msg.request);
       }
       else if (coarse_rank == MyRank && fine_rank != MyRank)
       {
          MFEM_ASSERT(emb.parent >= 0, "");
          Geometry::Type geom = mesh->GetElementBaseGeometry(emb.parent);
 
-         DerefDofMessage &msg = messages[k];
-         msg.dofs.resize(ldof[geom]*vdim);
-
-         MPI_Irecv(&msg.dofs[0], ldof[geom]*vdim, HYPRE_MPI_BIG_INT,
-                   fine_rank, 291, MyComm, &msg.request);
+         std::vector<HYPRE_BigInt>& recv_buf = to_recv[fine_rank];
+         auto& msg = recv_messages[k];
+         msg[0] = recv_buf.size();
+         recv_buf.resize(recv_buf.size() + ldof[geom] * vdim);
+         msg[1] = recv_buf.size();
       }
-      // TODO: coalesce Isends/Irecvs to the same rank. Typically, on uniform
-      // derefinement, there should be just one send to MyRank-1 and one recv
-      // from MyRank+1
+   }
+
+   // assume embedding orders are consistent (i.e. what we expect to receive
+   // first from a given rank is sent first, etc.)
+   std::vector<MPI_Request> requests;
+   requests.reserve(to_send.size() + to_recv.size());
+   // enqueue recvs
+   for (auto &v : to_recv)
+   {
+      requests.emplace_back();
+      MPI_Irecv(v.second.data(), v.second.size(), HYPRE_MPI_BIG_INT, v.first,
+                MessageTag::DEREFINEMENT_MATRIX_CONSTRUCTION_DATA, MyComm,
+                &requests.back());
+   }
+   // enqueue sends
+   for (auto &v : to_send)
+   {
+      requests.emplace_back();
+      MPI_Isend(v.second.data(), v.second.size(), HYPRE_MPI_BIG_INT, v.first,
+                MessageTag::DEREFINEMENT_MATRIX_CONSTRUCTION_DATA, MyComm,
+                &requests.back());
    }
 
    DenseTensor localR[Geometry::NumGeom];
@@ -4637,10 +4653,7 @@ ParFiniteElementSpace::ParallelDerefinementMatrix(int old_ndofs,
    diag->Finalize();
 
    // wait for all sends/receives to complete
-   for (auto it = messages.begin(); it != messages.end(); ++it)
-   {
-      MPI_Wait(&it->second.request, MPI_STATUS_IGNORE);
-   }
+   MPI_Waitall(requests.size(), requests.data(), MPI_STATUSES_IGNORE);
 
    // create the off-diagonal part of the derefinement matrix
    SparseMatrix *offd = new SparseMatrix(ndofs*vdim, 1);
@@ -4661,13 +4674,14 @@ ParFiniteElementSpace::ParallelDerefinementMatrix(int old_ndofs,
 
          elem_dof->GetRow(emb.parent, dofs);
 
-         DerefDofMessage &msg = messages[k];
-         MFEM_ASSERT(msg.dofs.size(), "");
+         auto& odofs = to_recv.at(fine_rank);
+         auto &msg = recv_messages[k];
+         MFEM_ASSERT(msg[1] > msg[0], "");
 
          for (int vd = 0; vd < vdim; vd++)
          {
             MFEM_ASSERT(ldof[geom], "");
-            HYPRE_BigInt* remote_dofs = &msg.dofs[vd*ldof[geom]];
+            HYPRE_BigInt *remote_dofs = odofs.data() + msg[0] + vd * ldof[geom];
 
             for (int i = 0; i < lR.Height(); i++)
             {
@@ -4694,7 +4708,6 @@ ParFiniteElementSpace::ParallelDerefinementMatrix(int old_ndofs,
       }
    }
 
-   messages.clear();
    offd->Finalize(0);
    offd->SetWidth(static_cast<int>(col_map.size()));
 
@@ -4946,8 +4959,13 @@ void ParFiniteElementSpace::Update(bool want_transform)
 
          case Mesh::DEREFINE:
          {
+#if 0
             Th.Reset(ParallelDerefinementMatrix(old_ndofs, old_elem_dof,
                                                 old_elem_fos));
+#else
+            Th.Reset(new ParDerefineMatrixOp(*this, old_ndofs, old_elem_dof,
+                                             old_elem_fos));
+#endif
             if (Nonconforming())
             {
                Th.SetOperatorOwner(false);
@@ -5259,7 +5277,7 @@ DeviceConformingProlongationOperator::DeviceConformingProlongationOperator(
       gc.GetNeighborLTDofTable(nbr_ltdof);
       const int nb_connections = nbr_ltdof.Size_of_connections();
       shr_ltdof.SetSize(nb_connections);
-      shr_ltdof.CopyFrom(nbr_ltdof.GetJ());
+      if (nb_connections > 0) { shr_ltdof.CopyFrom(nbr_ltdof.GetJ()); }
       shr_buf.SetSize(nb_connections);
       shr_buf.UseDevice(true);
       shr_buf_offsets = nbr_ltdof.GetIMemory();
@@ -5288,7 +5306,7 @@ DeviceConformingProlongationOperator::DeviceConformingProlongationOperator(
       gc.GetNeighborLDofTable(nbr_ldof);
       const int nb_connections = nbr_ldof.Size_of_connections();
       ext_ldof.SetSize(nb_connections);
-      ext_ldof.CopyFrom(nbr_ldof.GetJ());
+      if (nb_connections > 0) { ext_ldof.CopyFrom(nbr_ldof.GetJ()); }
       ext_ldof.GetMemory().UseDevice(true);
       ext_buf.SetSize(nb_connections);
       ext_buf.UseDevice(true);
