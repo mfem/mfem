@@ -16,6 +16,9 @@
 
 using namespace mfem;
 
+namespace reconstruction
+{
+
 // Special integrator for the second derivative
 class MixedBidirectionalHessianIntegrator : public MixedScalarIntegrator
 {
@@ -177,6 +180,10 @@ void reconstructField(const ParGridFunction& src, ParGridFunction& dst)
    dst.ExchangeFaceNbrData();
 }
 
+}  // end namespace reconstruction
+
+using namespace reconstruction;
+
 int main(int argc, char* argv[])
 {
    Mpi::Init(argc, argv);
@@ -184,11 +191,12 @@ int main(int argc, char* argv[])
    // Default command-line options
    int ser_ref_levels = 0;
    int par_ref_levels = 0;
-   bool save_to_file = true;
-   // TODO: Extrapolate logic
-   // int order_original = 3;
-   // int order_reconstruction = 1;
 
+   int order_original = 3;
+   int order_averages = 0;
+   int order_reconstruction = 1;
+
+   bool save_to_file = true;
 
    // Parse options
    OptionsParser args(argc, argv);
@@ -196,21 +204,28 @@ int main(int argc, char* argv[])
                   "Number of serial refinement steps.");
    args.AddOption(&par_ref_levels, "-rp", "--refine",
                   "Number of parallel refinement steps.");
-   // TODO: Extrapolate logic
-   // args.AddOption(&order_original, "-oo", "--order-original",
-   //                "Original order of interpolation")
-   // args.AddOption(&order_reconstruction, "-or", "--order-reconstruction",
-   //                "Order of reconstructed function")
+
+   args.AddOption(&order_original, "-O", "--order-original",
+                  "Order original broken space.");
+   // TODO(Gabriel): Not implemented yet
+   // args.AddOption(&order_averages, "-A", "--order-averages",
+   //                "Order averaged broken space.");
+   args.AddOption(&order_reconstruction, "-R", "--order-reconstruction",
+                  "Order of reconstruction broken space.");
+
    args.AddOption(&save_to_file, "-s", "--save", "-no-s",
-                  "--no-save",
-                  "Show or not show approximation error.");
+                  "--no-save", "Show or not show approximation error.");
+
+   args.ParseCheck();
+   MFEM_VERIFY((ser_ref_levels >= 0) && (par_ref_levels >= 0), "")
 
    if (Mpi::Root())
    {
-      args.ParseCheck();
-      MFEM_VERIFY((ser_ref_levels >= 0) && (par_ref_levels >= 0), "")
-      mfem::out << "Number of serial refinements:     " << ser_ref_levels << "\n";
-      mfem::out << "Number of parallel refinements:   " << par_ref_levels << "\n";
+      mfem::out << "Number of serial refs.:  " << ser_ref_levels << "\n";
+      mfem::out << "Number of parallel refs: " << par_ref_levels << "\n";
+      mfem::out << "Original order:          " << order_original << "\n";
+      mfem::out << "Original averages:       " << order_averages << "\n";
+      mfem::out << "Original reconstruction: " << order_reconstruction << "\n";
    }
 
    // define u(x,y) to be represented
@@ -224,8 +239,8 @@ int main(int argc, char* argv[])
    FunctionCoefficient u_coefficient(u_function);
 
    // create simple 2D mesh
-   const int num_x = 10;
-   const int num_y = 10;
+   const int num_x = 2;
+   const int num_y = 2;
    Mesh serial_mesh = Mesh::MakeCartesian2D(num_x, num_y,
                                             Element::QUADRILATERAL);
    for (int i = 0; i < ser_ref_levels; ++i) { serial_mesh.UniformRefinement(); }
@@ -233,32 +248,37 @@ int main(int argc, char* argv[])
    for (int i = 0; i < par_ref_levels; ++i) { mesh.UniformRefinement(); }
 
    // compute finite element representation of u(x,y)
-   const int order_original = 3; // arbitrarily chosen order
    L2_FECollection fe_collection_original(order_original, mesh.Dimension());
+   L2_FECollection fe_collection_averages(order_averages, mesh.Dimension());
+   L2_FECollection fe_collection_reconstruction(order_reconstruction,
+                                                mesh.Dimension());
+
    ParFiniteElementSpace fe_space_original(&mesh, &fe_collection_original);
+   ParFiniteElementSpace fe_space_averages(&mesh, &fe_collection_averages);
+   ParFiniteElementSpace fe_space_reconstruction(&mesh,
+                                                 &fe_collection_reconstruction);
+
    ParGridFunction u_original(&fe_space_original);
-   u_original.ProjectCoefficient(u_coefficient);
+   ParGridFunction u_averages(&fe_space_averages);
+   ParGridFunction u_rec_avg(&fe_space_averages);
+   ParGridFunction diff(&fe_space_averages);
+   ParGridFunction u_reconstruction(&fe_space_reconstruction);
 
    // compute element averages
-   L2_FECollection fe_collection_averages(0, mesh.Dimension());
-   ParFiniteElementSpace fe_space_averages(&mesh, &fe_collection_averages);
-   ParGridFunction u_averages(&fe_space_averages);
+   u_original.ProjectCoefficient(u_coefficient);
    u_original.GetElementAverages(u_averages);
 
    // compute reconstruction
-   const int order_reconstruction = 1; // only order currently supported
-   L2_FECollection fe_collection_reconstruction(order_reconstruction,
-                                                mesh.Dimension());
-   ParFiniteElementSpace fe_space_reconstruction(&mesh,
-                                                 &fe_collection_reconstruction);
-   ParGridFunction u_reconstruction(&fe_space_reconstruction);
    reconstructField(u_averages, u_reconstruction);
+
+   u_reconstruction.GetElementAverages(u_rec_avg);
 
    // evaluate reconstruction
    char vishost[] = "localhost";
    int visport = 19916;
    socketstream glvis_original(vishost, visport);
    socketstream glvis_averages(vishost, visport);
+   socketstream glvis_rec_avg(vishost, visport);
    socketstream glvis_reconstruction(vishost, visport);
    if (glvis_original && glvis_averages && glvis_reconstruction)
    {
@@ -279,6 +299,11 @@ int main(int argc, char* argv[])
                            << " " << mesh.GetMyRank() << "\n"
                            << "solution\n" << mesh << u_reconstruction
                            << "window_title 'reconstruction'\n" << std::flush;
+      //glvis_reconstruction.precision(8);
+      glvis_rec_avg << "parallel " << mesh.GetNRanks()
+                    << " " << mesh.GetMyRank() << "\n"
+                    << "solution\n" << mesh << u_rec_avg
+                    << "window_title 'rec average'\n" << std::flush;
    }
    else
    {
@@ -286,6 +311,9 @@ int main(int argc, char* argv[])
    }
 
    real_t error = u_reconstruction.ComputeL2Error(u_coefficient);
+   subtract(u_rec_avg, u_averages, diff);
+   ConstantCoefficient zeros(0.0);
+   real_t error_avg = diff.ComputeL2Error(zeros);
 
    Vector el_error(mesh.GetNE());
    ConstantCoefficient ones(1.0);
@@ -297,9 +325,11 @@ int main(int argc, char* argv[])
    if (Mpi::Root())
    {
       mfem::out << "\n|| u_h - u ||_{L^2} = " << error << "\n" << std::endl;
+      mfem::out << "\n|| Avg(Rec(u_h)) - u_h ||_{L^2} = " << error_avg << "\n" <<
+                std::endl;
    }
 
-   if (save_to_file)
+   if (save_to_file && Mpi::Root())
    {
       std::ofstream file;
       file.open("convergence.csv", std::ios::out | std::ios::app);
@@ -316,7 +346,6 @@ int main(int argc, char* argv[])
       file.close();
    }
 
-   // TODO: quantitatively compare (e.g. L2 norm) original & reconstruction
    Mpi::Finalize();
 
    return 0;

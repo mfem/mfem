@@ -510,7 +510,7 @@ int main(int argc, char* argv[])
    u_reconstruction.GetElementAverages(u_rec_avg);
 
    char vishost[] = "localhost";
-   int visport = 20000;
+   int visport = 19916;
    socketstream glvis_original(vishost, visport);
    socketstream glvis_averages(vishost, visport);
    socketstream glvis_rec_avg(vishost, visport);
@@ -540,6 +540,10 @@ int main(int argc, char* argv[])
                     << " " << mesh.GetMyRank() << "\n"
                     << "solution\n" << mesh << u_rec_avg
                     << "window_title 'rec average'\n" << std::flush;
+   }
+   else
+   {
+      MFEM_WARNING("Cannot connect to glvis server, disabling visualization.")
    }
 
    // Error studies
