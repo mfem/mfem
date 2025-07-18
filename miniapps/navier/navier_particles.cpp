@@ -25,14 +25,14 @@ using namespace navier;
 struct s_Context
 {
    int order = 3;
-   real_t dt = 0.25e-4;
+   real_t dt = 0.01;
    int num_steps = 1000;
    int num_particles = 1000;
    int p_ordering = Ordering::byNODES;
    real_t kappa = 1.0;
-   real_t zeta = 4.0;
    real_t gamma = 1.0;
-   Vector f = Vector({0.0,-1.0});
+   real_t zeta = 4.0;
+   Vector gamma_dir = Vector({0.0,-1.0});
    int test = -1;
    int paraview_freq = 0;
    int print_csv_freq = 0;
@@ -95,7 +95,8 @@ class ParticleIntegrator
 {
 private:
    const int dim;
-   const real_t zeta;
+   const real_t kappa, gamma, zeta;
+   const Vector gamma_dir; 
    FindPointsGSLIB finder;
 
    void ParticleStep2D(const real_t &dt, const Array<real_t> &beta, const Array<real_t> &alpha, Particle &p)
@@ -110,8 +111,8 @@ private:
       }
 
       // Assemble the 2D matrix B
-      DenseMatrix B({{beta[0], zeta*dt*w_n_ext},
-                     {-zeta*dt*w_n_ext, beta[0]}});
+      DenseMatrix B({{beta[0]+dt*kappa, zeta*dt*w_n_ext},
+                     {-zeta*dt*w_n_ext, beta[0]+dt*kappa}});
       
 
       // Assemble the RHS
@@ -122,9 +123,12 @@ private:
          // Add particle velocity component
          add(r, -beta[j], p.GetStateVar(V_N-j), r);
          
-         // Add C
-         add(r, dt*alpha[j-1]*w_n_ext, Vector({ zeta*p.GetStateVar(U_N-j)[1], 
-                                               -zeta*p.GetStateVar(U_N-j)[0]}), r);
+         Vector C(p.GetStateVar(U_N-j));
+         C *= kappa;
+         add(C, -gamma, gamma_dir, C);
+         add(C, zeta, Vector({p.GetStateVar(U_N-j)[1], 
+                              -p.GetStateVar(U_N-j)[0]}), C);
+         add(r, dt*alpha[j-1]*w_n_ext, C, r);
       }
 
       // Solve for particle velocity
@@ -143,9 +147,12 @@ private:
    }
 
 public:
-   ParticleIntegrator(MPI_Comm comm, const int dim_, const real_t zeta_, Mesh &m)
+   ParticleIntegrator(MPI_Comm comm, const int dim_, const real_t kappa_, const real_t gamma_, const real_t zeta_, const Vector &gamma_dir_, Mesh &m)
    : dim(dim_),
+     kappa(kappa_),
+     gamma(gamma_),
      zeta(zeta_),
+     gamma_dir(gamma_dir_),
      finder(comm)
    {
       finder.Setup(m);
@@ -211,8 +218,9 @@ int main (int argc, char *argv[])
    args.AddOption(&ctx.num_particles, "-np", "--num-particles", "Number of particles to initialize on the domain.");
    args.AddOption(&ctx.p_ordering, "-ord", "--particle-ordering", "Ordering of Particle vector data. 0 for byNODES, 1 for byVDIM.");
    args.AddOption(&ctx.kappa, "-k", "--kappa", "Kappa constant.");
-   args.AddOption(&ctx.zeta, "-z", "--zeta", "Zeta constant.");
    args.AddOption(&ctx.gamma, "-g", "--gamma", "Gamma constant.");
+   args.AddOption(&ctx.zeta, "-z", "--zeta", "Zeta constant.");
+   args.AddOption(&ctx.gamma_dir, "-gd", "--gamma-dir", "Vector direction to impose body force scaled by Gamma.");
    args.AddOption(&ctx.test, "-t", "--test", "Override settings + run test. -1 to disable. 0 for only-lift, no drag nor body force test. 1 for no-lift terminal velocity test.");
    args.AddOption(&ctx.paraview_freq, "-pv", "--paraview-freq", "Frequency of ParaView flow output. 0 to disable.");
    args.AddOption(&ctx.print_csv_freq, "-csv", "--csv-freq", "Frequency of particle CSV outputting. 0 to disable.");
@@ -230,12 +238,12 @@ int main (int argc, char *argv[])
       args.PrintOptions(cout);
    }
 
-
    if (ctx.test == 0)
    {  
       ctx.dt = 0.01;
       ctx.num_steps = 1000;
       ctx.num_particles = 100;
+      ctx.zeta = 4.0; // Must be > 1.0
       ctx.kappa = 0.0;
       ctx.gamma = 0.0;
    }
@@ -284,7 +292,6 @@ int main (int argc, char *argv[])
 
    // Initialize both particle sets the same way
    Vector pos_min(2), pos_max(2);
-   //mesh.GetBoundingBox(pos_min, pos_max);
    pos_min[0] = 3.0;
    pos_max[0] = 4.0;
    pos_min[1] = -0.8;
@@ -337,7 +344,7 @@ int main (int argc, char *argv[])
    finder.Interpolate(w_gf, particles.GetAllStateVar(W_N));
 
    // Initialize particle integrator
-   ParticleIntegrator pint(MPI_COMM_WORLD, 2, ctx.zeta, pmesh);
+   ParticleIntegrator pint(MPI_COMM_WORLD, 2, ctx.kappa, ctx.gamma, ctx.zeta, ctx.gamma_dir, pmesh);
 
    // Initialize ParaView DC (if freq != 0)
    std::unique_ptr<ParaViewDataCollection> pvdc;
