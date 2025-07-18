@@ -128,8 +128,6 @@ void reconstructField(const ParGridFunction& src, ParGridFunction& dst)
    {
       const FiniteElement& src_element = *(src_fe_space.GetFE(element_ind));
       const FiniteElement& dst_element = *(dst_fe_space.GetFE(element_ind));
-      mfem::out << typeid(src_element).name() << std::endl;
-      mfem::out << typeid(dst_element).name() << std::endl;
       ElementTransformation& transform = *(src_fe_space.GetElementTransformation(
                                               element_ind));
       DenseMatrix A(dst_element.GetDof());
@@ -160,14 +158,12 @@ void reconstructField(const ParGridFunction& src, ParGridFunction& dst)
 
       // enforce (div[ (xhat \otimes yhat) grad[u] ], psi_hat)_E = 0, i.e.,
       // < du/dy (xhat dot n), psi_hat>_E = 0
-      // TODO: replace with actual face integration
-      partial_xy.AssembleElementMatrix2(dst_element, src_element, transform, Arow);
-      Arow.Print(mfem::out,4);
-      mfem_error("Panic!");
-      A(3,0) = 1.0;
-      A(3,1) = -1.0;
-      A(3,2) = -1.0;
-      A(3,3) = 1.0;
+      Vector temp;
+      partial_xy.AssembleElementMatrix2(dst_element, dst_element, transform, Arow);
+      Arow.GetDiag(temp);
+      Arow.SetSize(src_element.GetDof(), dst_element.GetDof());
+      Arow.SetRow(0, temp);
+      A.SetSubMatrix(A.Height()-1, 0, Arow);
       b[3] = 0.0;
 
       // solve for u dof values
