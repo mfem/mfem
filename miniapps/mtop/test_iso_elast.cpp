@@ -9,50 +9,49 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#include <iostream>
-#include <memory>
-
 #include "mtop_solvers.hpp"
 
 using namespace std;
 using namespace mfem;
 
+#if defined(__has_include) && __has_include("general/nvtx.hpp") && !defined(_WIN32)
+#undef NVTX_COLOR
+#define NVTX_COLOR ::nvtx::kGold
+#include "general/nvtx.hpp"
+#else
+#define dbg(...)
+#endif
+
 int main(int argc, char *argv[])
 {
+   dbg();
    // 1. Initialize MPI and HYPRE.
    Mpi::Init();
    Hypre::Init();
 
    // 2. Parse command-line options.
    const char *mesh_file = "canti_2D_6.msh";
+   const char *device_config = "cpu";
    int order = 2;
    bool pa = false;
-   const char *device_config = "cpu";
-   bool visualization = true;
    bool paraview = true;
+   bool visualization = true;
 
    OptionsParser args(argc, argv);
-   args.AddOption(&mesh_file, "-m", "--mesh",
-                  "Mesh file to use.");
+   args.AddOption(&mesh_file, "-m", "--mesh", "Mesh file to use.");
+   args.AddOption(&device_config, "-d", "--device",
+                  "Device configuration string, see Device::Configure().");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree) or -1 for"
                   " isoparametric space.");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
                   "--no-partial-assembly", "Enable Partial Assembly.");
-   args.AddOption(&device_config, "-d", "--device",
-                  "Device configuration string, see Device::Configure().");
+   args.AddOption(&paraview, "-pv", "--paraview", "-no-pv", "--no-paraview",
+                  "Enable or not Paraview visualization");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
-   args.AddOption(&paraview, "-pv", "--paraview", "-no-pv",
-                  "--no-paraview", "Enable or not Paraview visualization");
-   args.Parse();
-   if (!args.Good())
-   {
-      if (Mpi::Root()) { args.PrintUsage(cout); }
-      return EXIT_FAILURE;
-   }
-   if (Mpi::Root()) { args.PrintOptions(cout); }
+   args.ParseCheck();
 
    // 3. Enable hardware devices such as GPUs, and programming models such as
    //    CUDA, OCCA, RAJA and OpenMP based on command line options.
@@ -71,11 +70,12 @@ int main(int argc, char *argv[])
    //    more than 10,000 elements.
    {
       const int ref_levels =
-         (int)floor(log(1000./mesh.GetNE())/log(2.)/dim);
-      for (int l = 0; l < ref_levels; l++)
-      {
-         mesh.UniformRefinement();
-      }
+#ifdef MFEM_DEBUG
+         (int)floor(log(10. / mesh.GetNE()) / log(2.) / dim);
+#else
+         (int)floor(log(1000. / mesh.GetNE()) / log(2.) / dim);
+#endif
+      for (int l = 0; l < ref_levels; l++) { mesh.UniformRefinement(); }
    }
 
    // 6. Define a parallel mesh by a partitioning of the serial mesh. Refine
@@ -83,45 +83,48 @@ int main(int argc, char *argv[])
    //    parallel mesh is defined, the serial mesh can be deleted.
    ParMesh pmesh(MPI_COMM_WORLD, mesh);
    mesh.Clear();
+#ifndef MFEM_DEBUG
    {
       const int par_ref_levels = 1;
-      for (int l = 0; l < par_ref_levels; l++)
-      {
-         pmesh.UniformRefinement();
-      }
+      for (int l = 0; l < par_ref_levels; l++) { pmesh.UniformRefinement(); }
    }
+#endif
 
-   auto elsolver = std::make_unique<IsoLinElasticSolver>(&pmesh, order);
+   dbg("Creating IsoLinElasticSolver");
+   IsoLinElasticSolver elsolver(&pmesh, order, pa);
 
-   //set BC
-   //elsolver->AddDispBC(2,4,0.0);
-   //elsolver->AddDispBC(2,0,0.0);
-   //elsolver->AddDispBC(2,1,0.0);
-   elsolver->AddDispBC(3,4,0.0);
-   elsolver->AddDispBC(4,4,0.0);
-   elsolver->AddDispBC(5,4,0.0);
-   elsolver->AddDispBC(6,4,0.0);
-   elsolver->AddDispBC(7,0,-0.3);
-   elsolver->AddDispBC(7,1,0.0);
+   // set BC
+   // elsolver.AddDispBC(2,4,0.0);
+   // elsolver.AddDispBC(2,0,0.0);
+   // elsolver.AddDispBC(2,1,0.0);
+   elsolver.AddDispBC(3, 4, 0.0);
+   elsolver.AddDispBC(4, 4, 0.0);
+   elsolver.AddDispBC(5, 4, 0.0);
+   elsolver.AddDispBC(6, 4, 0.0);
+   elsolver.AddDispBC(7, 0, -0.3);
+   elsolver.AddDispBC(7, 1, 0.0);
 
-   elsolver->DelDispBC();
-   elsolver->AddDispBC(2,4,0.0);
-   elsolver->AddDispBC(5,4,0.0);
+   elsolver.DelDispBC();
+   elsolver.AddDispBC(2, 4, 0.0);
+   elsolver.AddDispBC(5, 4, 0.0);
 
-   //set material properties
-   ConstantCoefficient E(1.0);
-   ConstantCoefficient nu(0.2);
-   elsolver->SetMaterial(E,nu);
+   // set material properties
+   ConstantCoefficient E(1.0), nu(0.2);
+   elsolver.SetMaterial(E, nu);
 
-   //set surface load
-   elsolver->AddSurfLoad(1,0.0,1.0);
+   // set surface load
+   elsolver.AddSurfLoad(1, 0.0, 1.0);
 
-   //solve the discrete system
-   elsolver->Assemble();
-   elsolver->FSolve();
+   // solve the discrete system
+   dbg("Assembling the system");
+   elsolver.Assemble();
 
-   //extract the solution
-   ParGridFunction& sol=elsolver->GetDisplacements();
+   dbg("Solving the system");
+   elsolver.FSolve();
+
+   // extract the solution
+   ParGridFunction &sol = elsolver.GetDisplacements();
+   dbg("sol size:{}", sol.Size());
 
    if (paraview)
    {
@@ -132,23 +135,16 @@ int main(int argc, char *argv[])
       paraview_dc.SetHighOrderOutput(true);
       paraview_dc.SetCycle(0);
       paraview_dc.SetTime(0.0);
-      paraview_dc.RegisterField("disp",&sol);
+      paraview_dc.RegisterField("disp", &sol);
       paraview_dc.Save();
    }
 
-   if (visualization)
+   if (socketstream glvis; visualization &&
+       (glvis.open("localhost", 19916), glvis.is_open()))
    {
-      socketstream glvis;
-      glvis.open("localhost", 19916);
-      if (glvis.is_open())
-      {
-         glvis.precision(8);
-         glvis << "parallel " << Mpi::WorldSize() << " " << Mpi::WorldRank() << "\n";
-         glvis << "solution\n" << pmesh << sol << std::flush;
-      }
+      glvis << "parallel " << Mpi::WorldSize() << " " << Mpi::WorldRank() << "\n";
+      glvis << "solution\n" << pmesh << sol << std::flush;
    }
 
    return EXIT_SUCCESS;
 }
-
-

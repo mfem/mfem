@@ -13,47 +13,54 @@
 
 #include "mtop_solvers.hpp"
 
+#if defined(__has_include) && __has_include("general/nvtx.hpp") && !defined(_WIN32)
+#undef NVTX_COLOR
+#define NVTX_COLOR ::nvtx::kNvidia
+#include "general/nvtx.hpp"
+#else
+#define dbg(...)
+#endif
+
 using namespace mfem;
 
-IsoLinElasticSolver::IsoLinElasticSolver(ParMesh *mesh_, int vorder)
+IsoLinElasticSolver::IsoLinElasticSolver(ParMesh *mesh, int vorder, bool pa):
+   pmesh(mesh),
+   pa(pa),
+   vorder(vorder),
+   dim(mesh->Dimension()),
+   spaceDim(mesh->SpaceDimension()),
+   vfec(new H1_FECollection(vorder, dim)),
+   vfes(new ParFiniteElementSpace(pmesh, vfec, dim,
+                                  // Elasticity PA only implemented for byNODES ordering
+                                  pa ? Ordering::byNODES :Ordering::byVDIM)),
+   sol(vfes->GetTrueVSize()),
+   adj(vfes->GetTrueVSize()),
+   rhs(vfes->GetTrueVSize()),
+   fdisp(vfes),
+   adisp(vfes),
+   prec(nullptr),
+   ls(nullptr),
+   lvforce(nullptr),
+   volforce(nullptr),
+   E(nullptr),
+   nu(nullptr),
+   lambda(nullptr),
+   mu(nullptr),
+   bf(nullptr),
+   lf(nullptr)
 {
-   pmesh = mesh_;
-   const int dim = pmesh->Dimension();
-   vfec = new H1_FECollection(vorder, dim);
-   vfes =
-      new ParFiniteElementSpace(pmesh, vfec, dim, Ordering::byVDIM);
-
-   fdisp.SetSpace(vfes);
-   fdisp = 0.0;
-   adisp.SetSpace(vfes);
-   adisp = 0.0;
-
-   sol.SetSize(vfes->GetTrueVSize());
+   dbg("sol size:{}", sol.Size());
    sol = 0.0;
-   rhs.SetSize(vfes->GetTrueVSize());
    rhs = 0.0;
-   adj.SetSize(vfes->GetTrueVSize());
    adj = 0.0;
+
+   fdisp = 0.0;
+   adisp = 0.0;
 
    SetLinearSolver();
 
-   prec = nullptr;
-   ls = nullptr;
-
    Operator::width = vfes->GetTrueVSize();
    Operator::height = vfes->GetTrueVSize();
-
-   lvforce = nullptr;
-   volforce = nullptr;
-
-   E = nullptr;
-   nu = nullptr;
-
-   lambda = nullptr;
-   mu = nullptr;
-
-   bf = nullptr;
-   lf = nullptr;
 
    lcsurf_load = std::make_unique<SurfaceLoad>(dim, load_coeff);
    glsurf_load = std::make_unique<SurfaceLoad>(dim, surf_loads);
@@ -61,6 +68,7 @@ IsoLinElasticSolver::IsoLinElasticSolver(ParMesh *mesh_, int vorder)
 
 IsoLinElasticSolver::~IsoLinElasticSolver()
 {
+   dbg();
    delete prec;
    delete ls;
 
@@ -81,15 +89,17 @@ IsoLinElasticSolver::~IsoLinElasticSolver()
    delete mu;
 }
 
-void IsoLinElasticSolver::SetLinearSolver(real_t rtol, real_t atol,
-                                          int miter)
+void IsoLinElasticSolver::SetLinearSolver(const real_t rtol,
+                                          const real_t atol,
+                                          const int miter)
 {
    linear_rtol = rtol;
    linear_atol = atol;
    linear_iter = miter;
 }
 
-void IsoLinElasticSolver::AddDispBC(int id, int dir, real_t val)
+void IsoLinElasticSolver::AddDispBC(const int id, const int dir,
+                                    const real_t val)
 {
    if (dir == 0)
    {
@@ -144,10 +154,9 @@ void IsoLinElasticSolver::AddDispBC(int id, int dir, Coefficient &val)
    if (pmesh->Dimension() == 2) { bccz.clear(); }
 }
 
-void IsoLinElasticSolver::SetVolForce(real_t fx, double fy, double fz)
+void IsoLinElasticSolver::SetVolForce(real_t fx, real_t fy, real_t fz)
 {
    delete lvforce;
-   int dim = pmesh->Dimension();
    Vector ff(dim);
    ff(0) = fx;
    ff(1) = fy;
@@ -161,100 +170,96 @@ void IsoLinElasticSolver::SetVolForce(VectorCoefficient &fv)
    volforce = &fv;
 }
 
-void IsoLinElasticSolver::SetEssTDofs(Vector &bsol,
-                                      Array<int> &ess_dofs)
+void IsoLinElasticSolver::SetEssTDofs(Vector &bsol, Array<int> &ess_dofs)
 {
    // Set the BC
-
    ess_tdofv.DeleteAll();
 
-   Array<int> ess_tdofx;
-   Array<int> ess_tdofy;
-   Array<int> ess_tdofz;
+   Array<int> ess_tdofx, ess_tdofy, ess_tdofz;
 
-   int dim = pmesh->Dimension();
-
+   dbg("X direction");
+   for (auto it = bccx.begin(); it != bccx.end(); it++)
    {
-      for (auto it = bccx.begin(); it != bccx.end(); it++)
+      Array<int> ess_bdr(pmesh->bdr_attributes.Max());
+      ess_bdr = 0;
+      ess_bdr[it->first - 1] = 1;
+      Array<int> ess_tdof_list;
+      vfes->GetEssentialTrueDofs(ess_bdr, ess_tdof_list, 0);
+      ess_tdofx.Append(ess_tdof_list);
+
+      VectorArrayCoefficient pcoeff(dim);
+      pcoeff.Set(0, it->second, false);
+      fdisp.ProjectBdrCoefficient(pcoeff, ess_bdr);
+   }
+   // copy tdofsx from velocity grid function
+   {
+      Vector &vc = fdisp.GetTrueVector();
+      for (int ii = 0; ii < ess_tdofx.Size(); ii++)
+      {
+         bsol[ess_tdofx[ii]] = vc[ess_tdofx[ii]];
+      }
+   }
+   ess_dofs.Append(ess_tdofx);
+   ess_tdofx.DeleteAll();
+
+   dbg("Y direction");
+   for (auto it = bccy.begin(); it != bccy.end(); it++)
+   {
+      Array<int> ess_bdr(pmesh->bdr_attributes.Max());
+      ess_bdr = 0;
+      ess_bdr[it->first - 1] = 1;
+      Array<int> ess_tdof_list;
+      vfes->GetEssentialTrueDofs(ess_bdr, ess_tdof_list, 1);
+      ess_tdofy.Append(ess_tdof_list);
+
+      VectorArrayCoefficient pcoeff(dim);
+      pcoeff.Set(1, it->second, false);
+      fdisp.ProjectBdrCoefficient(pcoeff, ess_bdr);
+   }
+   // copy tdofsy from velocity grid function
+   {
+      Vector &vc = fdisp.GetTrueVector();
+      for (int ii = 0; ii < ess_tdofy.Size(); ii++)
+      {
+         bsol[ess_tdofy[ii]] = vc[ess_tdofy[ii]];
+      }
+   }
+   ess_dofs.Append(ess_tdofy);
+   ess_tdofy.DeleteAll();
+
+   if (dim == 3)
+   {
+      dbg("Z direction");
+      for (auto it = bccz.begin(); it != bccz.end(); it++)
       {
          Array<int> ess_bdr(pmesh->bdr_attributes.Max());
          ess_bdr = 0;
          ess_bdr[it->first - 1] = 1;
          Array<int> ess_tdof_list;
-         vfes->GetEssentialTrueDofs(ess_bdr, ess_tdof_list, 0);
-         ess_tdofx.Append(ess_tdof_list);
+         vfes->GetEssentialTrueDofs(ess_bdr, ess_tdof_list, 2);
+         ess_tdofz.Append(ess_tdof_list);
 
          VectorArrayCoefficient pcoeff(dim);
-         pcoeff.Set(0, it->second, false);
+         pcoeff.Set(2, it->second, false);
          fdisp.ProjectBdrCoefficient(pcoeff, ess_bdr);
       }
-      // copy tdofsx from velocity grid function
+
+      // copy tdofsz from velocity grid function
       {
          Vector &vc = fdisp.GetTrueVector();
-         for (int ii = 0; ii < ess_tdofx.Size(); ii++)
+         for (int ii = 0; ii < ess_tdofz.Size(); ii++)
          {
-            bsol[ess_tdofx[ii]] = vc[ess_tdofx[ii]];
+            bsol[ess_tdofz[ii]] = vc[ess_tdofz[ii]];
          }
       }
-      ess_dofs.Append(ess_tdofx);
-      ess_tdofx.DeleteAll();
-
-      for (auto it = bccy.begin(); it != bccy.end(); it++)
-      {
-         Array<int> ess_bdr(pmesh->bdr_attributes.Max());
-         ess_bdr = 0;
-         ess_bdr[it->first - 1] = 1;
-         Array<int> ess_tdof_list;
-         vfes->GetEssentialTrueDofs(ess_bdr, ess_tdof_list, 1);
-         ess_tdofy.Append(ess_tdof_list);
-
-         VectorArrayCoefficient pcoeff(dim);
-         pcoeff.Set(1, it->second, false);
-         fdisp.ProjectBdrCoefficient(pcoeff, ess_bdr);
-      }
-      // copy tdofsy from velocity grid function
-      {
-         Vector &vc = fdisp.GetTrueVector();
-         for (int ii = 0; ii < ess_tdofy.Size(); ii++)
-         {
-            bsol[ess_tdofy[ii]] = vc[ess_tdofy[ii]];
-         }
-      }
-      ess_dofs.Append(ess_tdofy);
-      ess_tdofy.DeleteAll();
-
-      if (dim == 3)
-      {
-         for (auto it = bccz.begin(); it != bccz.end(); it++)
-         {
-            Array<int> ess_bdr(pmesh->bdr_attributes.Max());
-            ess_bdr = 0;
-            ess_bdr[it->first - 1] = 1;
-            Array<int> ess_tdof_list;
-            vfes->GetEssentialTrueDofs(ess_bdr, ess_tdof_list, 2);
-            ess_tdofz.Append(ess_tdof_list);
-
-            VectorArrayCoefficient pcoeff(dim);
-            pcoeff.Set(2, it->second, false);
-            fdisp.ProjectBdrCoefficient(pcoeff, ess_bdr);
-         }
-
-         // copy tdofsz from velocity grid function
-         {
-            Vector &vc = fdisp.GetTrueVector();
-            for (int ii = 0; ii < ess_tdofz.Size(); ii++)
-            {
-               bsol[ess_tdofz[ii]] = vc[ess_tdofz[ii]];
-            }
-         }
-         ess_dofs.Append(ess_tdofz);
-         ess_tdofz.DeleteAll();
-      }
+      ess_dofs.Append(ess_tdofz);
+      ess_tdofz.DeleteAll();
    }
 }
 
 void IsoLinElasticSolver::Mult(const Vector &x, Vector &y) const
 {
+   dbg();
    // the rhs x is assumed to have the contribution of the BC set in advance
    // the BC values are not modified here
    ls->Mult(x, y);
@@ -269,6 +274,7 @@ void IsoLinElasticSolver::Mult(const Vector &x, Vector &y) const
 void IsoLinElasticSolver::MultTranspose(const Vector &x,
                                         Vector &y) const
 {
+   dbg();
    // the adjoint rhs is assumed to be corrected for the BC
    // K is symmetric
    ls->Mult(x, y);
@@ -276,53 +282,81 @@ void IsoLinElasticSolver::MultTranspose(const Vector &x,
    int N = ess_tdofv.Size();
    ess_tdofv.Read();
 
-   real_t *yp = y.ReadWrite();
-   const int *ep = ess_tdofv.Read();
+   auto yp = y.Write();
+   const auto ep = ess_tdofv.Read();
 
-   forall(N,
-   [=] MFEM_HOST_DEVICE(int i) { yp[ep[i]] = real_t(0.0); });
+   forall(N, [=] MFEM_HOST_DEVICE(int i) { yp[ep[i]] = 0.0; });
 }
 
 void IsoLinElasticSolver::Assemble()
 {
+   dbg();
    if (bf == nullptr) { return; }
 
    // set BC
    sol = real_t(0.0);
    SetEssTDofs(sol, ess_tdofv);
 
-   double nr = ParNormlp(sol, 2, pmesh->GetComm());
-   if (pmesh->GetMyRank() == 0) { std::cout << "sol=" << nr << std::endl; }
+   real_t nr = ParNormlp(sol, 2, pmesh->GetComm());
+   if (pmesh->GetMyRank() == 0) { mfem::out << "sol=" << nr << std::endl; }
 
-   bf->Assemble(0);
-   bf->Finalize();
-   // bf->FormSystemMatrix(ess_tdofv,K);
-   K.reset(bf->ParallelAssemble());
-   Ke.reset(K->EliminateRowsCols(ess_tdofv));
+   if (pa)
+   {
+      dbg("Assemble/OperatorHandle/EliminateRowsCols");
+      bf->Assemble();
+      Operator *Kop;
+      bf->FormSystemOperator(ess_tdofv, Kop);
+      Kh = std::make_unique<OperatorHandle>(Kop);
+      Kc = dynamic_cast<mfem::ConstrainedOperator*>(Kop);
+      dbg("Kc size: {}x{}", Kc->Width(), Kc->Height());
+   }
+   else
+   {
+      dbg("Assemble/Finalize/ParallelAssemble/EliminateRowsCols");
+      bf->Assemble(0);
+      bf->Finalize();
+      // bf->FormSystemMatrix(ess_tdofv,K);
+      K.reset(bf->ParallelAssemble());
+      Ke.reset(K->EliminateRowsCols(ess_tdofv));
+   }
 
    if (ls == nullptr)
    {
+      dbg("new CGSolver/HypreBoomerAMG");
       ls = new CGSolver(pmesh->GetComm());
       ls->SetAbsTol(linear_atol);
       ls->SetRelTol(linear_rtol);
       ls->SetMaxIter(linear_iter);
-      prec = new HypreBoomerAMG();
-      // set the rigid body modes
-      prec->SetElasticityOptions(vfes);
-      prec->SetPrintLevel(1);
-      ls->SetPreconditioner(*prec);
-      ls->SetOperator(*K);
+      if (!pa)
+      {
+         prec = new HypreBoomerAMG();
+         // set the rigid body modes
+         prec->SetElasticityOptions(vfes);
+         prec->SetPrintLevel(1);
+         ls->SetPreconditioner(*prec);
+      }
+      else
+      {
+         // 3969 vs. 3631
+         auto prec_pa = new OperatorJacobiSmoother(*bf, ess_tdofv);
+         ls->SetPreconditioner(*prec_pa);
+      }
+      ls->SetOperator(pa ? *Kh->Ptr() : *K);
       ls->SetPrintLevel(1);
    }
-   else { ls->SetOperator(*K); }
+   else
+   {
+      ls->SetOperator(pa ? *Kh->Ptr() : *K);
+   }
 
-   std::cout << pmesh->GetMyRank() << " LSW=" << ls->Width()
-             << " LSH=" << ls->Height() << " KFW=" << K->Width()
-             << " KFH=" << K->Height() << std::endl;
+   mfem::out << pmesh->GetMyRank() << " LSW=" << ls->Width()
+             << " LSH=" << ls->Height() << " KFW=" << (pa?Kc->Width():K->Width())
+             << " KFH=" << (pa?Kc->Height():K->Height()) << std::endl;
 }
 
 void IsoLinElasticSolver::FSolve()
 {
+   dbg();
    if (lf == nullptr)
    {
       lf = new ParLinearForm(vfes);
@@ -336,6 +370,7 @@ void IsoLinElasticSolver::FSolve()
 
    (*lf) = real_t(0.0);
 
+   if (pa) { lf->UseFastAssembly(true); }
    lf->Assemble();
    lf->ParallelAssemble(rhs);
 
@@ -345,11 +380,18 @@ void IsoLinElasticSolver::FSolve()
        rhs[ess_tdofv[i]]=-sol[ess_tdofv[i]];
    }*/
 
-   K->EliminateBC(*Ke, ess_tdofv, sol, rhs);
+   if (!pa)
+   {
+      K->EliminateBC(*Ke, ess_tdofv, sol, rhs);
+   }
+   else
+   {
+      Kc->EliminateRHS(sol, rhs);
+   }
 
    {
-      double nr = ParNormlp(rhs, 2, pmesh->GetComm());
-      if (pmesh->GetMyRank() == 0) { std::cout << "rhs=" << nr << std::endl; }
+      real_t nr = ParNormlp(rhs, 2, pmesh->GetComm());
+      if (Mpi::Root()) { mfem::out << "rhs=" << nr << std::endl; }
    }
 
    ls->Mult(rhs, sol);

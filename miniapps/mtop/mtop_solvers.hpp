@@ -14,15 +14,25 @@
 
 #include "mfem.hpp"
 
+#if defined(__has_include) && __has_include("general/nvtx.hpp") && !defined(_WIN32)
+#undef NVTX_COLOR
+#define NVTX_COLOR ::nvtx::kChartreuse
+#include "general/nvtx.hpp"
+#else
+#define dbg(...)
+#endif
+
 using real_t = mfem::real_t;
 
+///////////////////////////////////////////////////////////////////////////////
 class IsoElasticyLambdaCoeff : public mfem::Coefficient
 {
+   mfem::Coefficient *E, *nu;
+
 public:
-   IsoElasticyLambdaCoeff(mfem::Coefficient *E_, mfem::Coefficient *nu_):
-      E(E_), nu(nu_)
-   {
-   }
+   IsoElasticyLambdaCoeff(mfem::Coefficient *E,
+                          mfem::Coefficient *nu):
+      E(E), nu(nu) { }
 
    real_t Eval(mfem::ElementTransformation &T,
                const mfem::IntegrationPoint &ip) override
@@ -37,14 +47,13 @@ public:
 
       return rez;
    }
-
-private:
-   mfem::Coefficient *E;
-   mfem::Coefficient *nu;
 };
 
+///////////////////////////////////////////////////////////////////////////////
 class IsoElasticySchearCoeff : public mfem::Coefficient
 {
+   mfem::Coefficient *E, *nu;
+
 public:
    IsoElasticySchearCoeff(mfem::Coefficient *E_, mfem::Coefficient *nu_):
       E(E_), nu(nu_)
@@ -54,7 +63,7 @@ public:
    real_t Eval(mfem::ElementTransformation &T,
                const mfem::IntegrationPoint &ip) override
    {
-      real_t rez = real_t(0.0);
+      real_t rez = 0.0;
 
       real_t EE = E->Eval(T, ip);
       real_t nn = nu->Eval(T, ip);
@@ -64,22 +73,20 @@ public:
 
       return rez;
    }
-
-private:
-   mfem::Coefficient *E;
-   mfem::Coefficient *nu;
 };
 
+///////////////////////////////////////////////////////////////////////////////
 class IsoLinElasticSolver : public mfem::Operator
 {
 public:
-   IsoLinElasticSolver(mfem::ParMesh *mesh_, int vorder = 1);
+   IsoLinElasticSolver(mfem::ParMesh *mesh, int vorder = 1, bool pa = false);
 
    ~IsoLinElasticSolver();
 
    /// Set the Linear Solver
-   void SetLinearSolver(real_t rtol = 1e-8, real_t atol = 1e-12,
-                        int miter = 1000);
+   void SetLinearSolver(const real_t rtol = 1e-8,
+                        const real_t atol = 1e-12,
+                        const int miter = 4000);
 
    /// Solves the forward problem.
    void FSolve();
@@ -93,11 +100,11 @@ public:
    /// Solves the forward problem with the provided rhs.
    void FSolve(mfem::Vector &rhs);
 
-   /// Adds displacement BC in direction 0(x),1(y),2(z), or 4(all).
-   void AddDispBC(int id, int dir, real_t val);
+   /// Adds displacement BC in direction 0(x), 1(y), 2(z), or 4(all).
+   void AddDispBC(const int id, const int dir, real_t val);
 
-   /// Adds displacement BC in direction 0(x),1(y),2(z), or 4(all).
-   void AddDispBC(int id, int dir, mfem::Coefficient &val);
+   /// Adds displacement BC in direction 0(x), 1(y), 2(z), or 4(all).
+   void AddDispBC(const int id, const int dir, mfem::Coefficient &val);
 
    /// Clear all displacement BC
    void DelDispBC();
@@ -109,12 +116,11 @@ public:
    void AddSurfLoad(int id, real_t fx, real_t fy, real_t fz = 0.0)
    {
       mfem::Vector vec;
-      vec.SetSize(pmesh->SpaceDimension());
+      vec.SetSize(spaceDim);
       vec[0] = fx;
       vec[1] = fy;
-      if (pmesh->SpaceDimension() == 3) { vec[2] = fz; }
-      mfem::VectorConstantCoefficient *vc =
-         new mfem::VectorConstantCoefficient(vec);
+      if (spaceDim == 3) { vec[2] = fz; }
+      auto *vc = new mfem::VectorConstantCoefficient(vec);
       if (load_coeff.find(id) != load_coeff.end()) { delete load_coeff[id]; }
       load_coeff[id] = vc;
    }
@@ -164,17 +170,18 @@ public:
    /// Should be called before calling Mult of MultTranspose
    virtual void Assemble();
 
-   /// Forward solve with given RHS. x is the RHS vector. The BC are set to
-   /// zero.
+   /// Forward solve with given RHS. x is the RHS vector.
+   /// The BC are set to zero.
    void Mult(const mfem::Vector &x, mfem::Vector &y) const override;
 
-   /// Adjoint solve with given RHS. x is the RHS vector. The BC are set to
-   /// zero.
+   /// Adjoint solve with given RHS. x is the RHS vector.
+   /// The BC are set to zero.
    void MultTranspose(const mfem::Vector &x, mfem::Vector &y) const override;
 
    /// Set material
    void SetMaterial(mfem::Coefficient &E_, mfem::Coefficient &nu_)
    {
+      dbg();
       E = &E_;
       nu = &nu_;
 
@@ -185,12 +192,23 @@ public:
       lambda = new IsoElasticyLambdaCoeff(E, nu);
       mu = new IsoElasticySchearCoeff(E, nu);
 
+      dbg("new ParBilinearForm");
       bf = new mfem::ParBilinearForm(vfes);
       bf->AddDomainIntegrator(new mfem::ElasticityIntegrator(*lambda, *mu));
+      if (pa) { bf->SetAssemblyLevel(mfem::AssemblyLevel::PARTIAL); }
+      // bf->UseExternalIntegrators();
    }
 
 private:
    mfem::ParMesh *pmesh;
+   const bool pa; // partial assembly
+   const int vorder, dim, spaceDim;
+
+   // finite element collection for linear elasticity
+   mfem::FiniteElementCollection *vfec;
+
+   // finite element space for linear elasticity
+   mfem::ParFiniteElementSpace *vfes;
 
    // solution true vector
    mutable mfem::Vector sol;
@@ -212,37 +230,28 @@ private:
    mfem::HypreBoomerAMG *prec; // preconditioner
    mfem::CGSolver *ls;         // linear solver
 
-   // finite element space for linear elasticity
-   mfem::ParFiniteElementSpace *vfes;
-   // finite element collection for linear elasticity
-   mfem::FiniteElementCollection *vfec;
-
    /// Volumetric force created by the solver.
    mfem::VectorConstantCoefficient *lvforce;
-   /// Volumetric force coefficient can point to the
-   /// one created by the solver or to external vector
-   /// coefficient.
+   /// Volumetric force coefficient can point to the one
+   /// created by the solver or to external vector coefficient.
    mfem::VectorCoefficient *volforce;
 
    // surface loads
-   std::map<int, mfem::VectorCoefficient *>
-   load_coeff; // internaly generated load
-   std::map<int, mfem::VectorCoefficient *>
-   surf_loads; // external vector coeeficients
+   using VectorCoefficientPtrMap = std::map<int, mfem::VectorCoefficient *>;
+   VectorCoefficientPtrMap load_coeff; // internaly generated load
+   VectorCoefficientPtrMap surf_loads; // external vector coeeficients
 
    class SurfaceLoad;
    std::unique_ptr<SurfaceLoad> lcsurf_load; // localy generated surface loads
    std::unique_ptr<SurfaceLoad> glsurf_load; // global surface loads
 
    // boundary conditions for x,y, and z directions
-   std::map<int, mfem::ConstantCoefficient> bcx;
-   std::map<int, mfem::ConstantCoefficient> bcy;
-   std::map<int, mfem::ConstantCoefficient> bcz;
+   using ConstantCoefficientMap = std::map<int, mfem::ConstantCoefficient>;
+   ConstantCoefficientMap bcx, bcy, bcz;
 
    // holds BC in coefficient form
-   std::map<int, mfem::Coefficient *> bccx;
-   std::map<int, mfem::Coefficient *> bccy;
-   std::map<int, mfem::Coefficient *> bccz;
+   using CoefficientPtrMap = std::map<int, mfem::Coefficient*>;
+   CoefficientPtrMap bccx, bccy, bccz;
 
    // holds the displacement contrained DOFs
    mfem::Array<int> ess_tdofv;
@@ -260,31 +269,30 @@ private:
    mfem::Coefficient *rho; // density
 
    mfem::ParBilinearForm *bf;
-   std::unique_ptr<mfem::HypreParMatrix> K;
-   std::unique_ptr<mfem::HypreParMatrix> Ke;
+   mfem::ConstrainedOperator *Kc;
+   std::unique_ptr<mfem::OperatorHandle> Kh;
+   std::unique_ptr<mfem::HypreParMatrix> K, Ke;
 
    mfem::ParLinearForm *lf;
 
-   class SurfaceLoad : public mfem::VectorCoefficient
+   class SurfaceLoad: public mfem::VectorCoefficient
    {
+      VectorCoefficientPtrMap *map;
    public:
-      SurfaceLoad(int dim, std::map<int, mfem::VectorCoefficient *> &cmap):
+      SurfaceLoad(int dim, VectorCoefficientPtrMap &cmap):
          mfem::VectorCoefficient(dim)
       {
          map = &cmap;
       }
 
-      virtual void Eval(mfem::Vector &V, mfem::ElementTransformation &T,
-                        const mfem::IntegrationPoint &ip)
+      void Eval(mfem::Vector &V, mfem::ElementTransformation &T,
+                const mfem::IntegrationPoint &ip) override
       {
          V.SetSize(GetVDim());
          V = 0.0;
          auto it = map->find(T.Attribute);
          if (it != map->end()) { it->second->Eval(V, T, ip); }
       }
-
-   private:
-      std::map<int, VectorCoefficient *> *map;
    };
 };
 
