@@ -2647,13 +2647,150 @@ void GridFunction::ProjectCoefficientGlobalL2(VectorCoefficient &vcoeff,
    cg.Mult(b,*this);
 }
 
+void GridFunction::ProjectCoefficientLocalL2_(VectorCoefficient &vcoeff,
+                                              Vector &x, Vector &Va)
+{
+   DofTransformation doftrans;
+   Array<int> vdofs;
+   Vector shapel2, elvect, elwght, val;
+   DenseMatrix  shape, elmat;
+   Va.SetSize(Size());
+   x.SetSize(Size());
+   Va = 0.0;
+   x = 0.0;
+
+   if (fes->GetNURBSext() == NULL)
+   {cout<<"ProjectCoefficientLocalL2_(VectorCoefficient &vcoeff"<<endl;
+      for (int e = 0; e < fes->GetNE(); e++)
+      {
+         fes->GetElementVDofs (e, vdofs, doftrans);
+         ElementTransformation &tr = *fes -> GetElementTransformation (e);
+         const FiniteElement &el = *fes->GetFE(e);
+         int dof = el.GetDof();
+         int dim = el.GetRangeDim();
+         shape.SetSize(dof,dim);
+         shapel2.SetSize(dof);
+         elvect.SetSize(dof);
+         elwght.SetSize(dof);
+         elmat.SetSize(dof,dof);
+         elvect = 0.0;
+         elwght = 0.0;
+         elmat = 0.0;
+
+         const IntegrationRule &ir = IntRules.Get(el.GetGeomType(),
+                                                  2 * el.GetOrder() + 1);
+
+         // Element vector & weight
+         for (int i = 0; i < ir.GetNPoints(); i++)
+         {
+            const IntegrationPoint &ip = ir.IntPoint(i);
+
+            tr.SetIntPoint (&ip);
+            real_t wght = ip.weight*tr.Weight();
+            vcoeff.Eval(val, tr, ip);
+            val *= wght;
+
+            el.CalcPhysVShape(tr, shape);
+
+            shape.AddMult (val, elvect);
+            AddMult_a_AAt(wght, shape, elmat);
+
+            shape.GetRowl2(shapel2);
+            elwght.Add(wght, shapel2);
+         }
+
+         // Solve
+         if (!LinearSolve(elmat, elvect.GetData(),1e-12))
+         {
+            MFEM_WARNING("Error in inverting element local matrix");
+         }
+
+         // Scale
+         elvect *= elwght;
+
+         // Add to global vector
+         x.AddElementVector(vdofs, elvect);
+
+         // Add to weight vector -- no need for an orientation
+         for (int i = 0; i < vdofs.Size(); i++)
+         {
+            vdofs[i] = FiniteElementSpace::DecodeDof(vdofs[i]);
+         }
+         Va.AddElementVector(vdofs, elwght);
+      }
+   }
+   else
+   {
+    /*  for (int e = 0; e < fes->GetNE(); e++)
+      {
+         fes->GetElementVDofs (e, vdofs, doftrans);
+         ElementTransformation &tr = *fes -> GetElementTransformation (e);
+         const FiniteElement &el = *fes->GetFE(e);
+         int dof = el.GetDof();
+         int dim = el.GetDim();
+         int p = el.GetOrder();
+         L2_FECollection fe_coll(p,  dim);
+         //H1_FECollection fe_coll(p,  dim, BasisType::Positive);
+         const FiniteElement &el2 = *fe_coll.FiniteElementForGeometry(el.GetGeomType());
+         MFEM_ASSERT(el2.GetDof() == dof, "Element dofs do not match.");
+
+         shape.SetSize(dof);
+         shape2.SetSize(dof);
+         elvect.SetSize(dof);
+         elwght.SetSize(dof);
+         elmat.SetSize(dof,dof);
+         elvect = 0.0;
+         elwght = 0.0;
+         elmat = 0.0;
+
+         const IntegrationRule &ir = IntRules.Get(el.GetGeomType(),
+                                                  2 * el.GetOrder() + 1);
+
+         // Element vector & weight
+         for (int i = 0; i < ir.GetNPoints(); i++)
+         {
+            const IntegrationPoint &ip = ir.IntPoint(i);
+
+            tr.SetIntPoint (&ip);
+            real_t wght = ip.weight*tr.Weight();
+            real_t val = coeff.Eval(tr, ip);
+            el.CalcPhysShape(tr, shape);
+            el2.CalcPhysShape(tr, shape2);
+
+            elvect.Add(wght * val, shape2);
+            elwght.Add(wght, shape);
+            AddMult_a_VVt(wght, shape2, elmat);
+         }
+         // Solve
+         if (!LinearSolve(elmat, elvect.GetData(),1e-12))
+         {
+            MFEM_WARNING("Error in inverting element local matrix 2");
+         }
+         // Map to NURBS
+         DenseMatrix I;
+         el2.Project(el,tr,I);
+         if (!LinearSolve(I, elvect.GetData(),1e-32))
+         {
+            MFEM_WARNING("Error in inverting element local matrix 3");
+         }
+
+         // Scale
+         elvect *= elwght;
+
+         // Add reduced dofs to global vector
+         x.AddElementVector(vdofs, elvect);
+         Va.AddElementVector(vdofs, elwght);
+      }*/
+   }
+}
 
 void GridFunction::ProjectCoefficientLocalL2(VectorCoefficient &vcoeff)
 {
    if (fes->GetTypicalFE()->GetRangeType() == mfem::FiniteElement::VECTOR)
    {
-      mfem_error("GridFunction::ProjectCoefficientLocalL2\n"
-                 "not implemented for range type mfem::FiniteElement::VECTOR");
+      Vector Va;
+      ProjectCoefficientLocalL2_(vcoeff, *this, Va);
+      (*this) /= Va;
    }
    else
    {

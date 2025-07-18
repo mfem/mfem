@@ -68,6 +68,7 @@ protected:
 
    /** Helper function for ProjectCoefficientLocalL2 */
    void ProjectCoefficientLocalL2_(Coefficient &coeff, Vector &sol, Vector &Va);
+   void ProjectCoefficientLocalL2_(VectorCoefficient &vcoeff, Vector &sol, Vector &Va);
 
    /// Loading helper.
    void LegacyNCReorder();

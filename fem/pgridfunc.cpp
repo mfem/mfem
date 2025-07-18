@@ -672,13 +672,20 @@ void ParGridFunction::ProjectCoefficientGlobalL2(VectorCoefficient &vcoeff,
    delete prec;
 }
 
-
 void ParGridFunction::ProjectCoefficientLocalL2(VectorCoefficient &vcoeff)
 {
    if (fes->GetTypicalFE()->GetRangeType() == mfem::FiniteElement::VECTOR)
    {
-      mfem_error("ParGridFunction::ProjectCoefficientLocalL2\n"
-                 "not implemented for range type mfem::FiniteElement::VECTOR");
+      Vector Va;
+      ProjectCoefficientLocalL2_(vcoeff, *this, Va);
+
+      GroupCommunicator &gcomm = pfes->GroupComm();
+      gcomm.Reduce<real_t>(GetData(), GroupCommunicator::Sum);
+      gcomm.Bcast<real_t>(GetData());
+
+      gcomm.Reduce<real_t>(Va.GetData(), GroupCommunicator::Sum);
+      gcomm.Bcast<real_t>(Va.GetData());
+      (*this)/=Va;
    }
    else
    {
