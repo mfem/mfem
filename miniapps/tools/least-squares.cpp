@@ -9,8 +9,10 @@ namespace reconstruction
 enum SolverType
 {
    direct,
+   cg,
+   bicgstab,
    minres,
-   num_solvers,  // last
+   num_solvers  // last
 };
 
 /** Class for an asymmetric (out-of-element) mass integrator $a_K(u,v) := (E(u),v)_K$,
@@ -281,7 +283,9 @@ int main(int argc, char* argv[])
    args.AddOption((int*)&solver_type, "-S", "--solver",
                   "Solvers to be considered:"
                   "\n\t0: Direct Solver"
-                  "\n\t1: MINRES");
+                  "\n\t1: CG - Conjugate Gradient"
+                  "\n\t2: BiCGSTAB -Biconjugate gradient stabilized"
+                  "\n\t3: MINRES - Minimal residual");
    args.AddOption(&solver_reg, "-Sreg", "--solver-reg",
                   "Add regularization term to the least squares problem");
    args.AddOption(&solver_rtol, "-Srtol", "--solver-rtol",
@@ -363,6 +367,7 @@ int main(int argc, char* argv[])
 
    // Solver choice
    // TODO(Gabriel): Support more solvers?
+   // TODO(Gabriel): MPI_Comm  constructor for MPI...
    // TODO(Gabriel): Support more PCs?
    /* Notes:
     * OperatorJacobiSmoother will call AssembleDiagonal on
@@ -373,6 +378,12 @@ int main(int argc, char* argv[])
    Solver *small_solver = nullptr;
    switch (solver_type)
    {
+      case bicgstab:
+         small_solver = new BiCGSTABSolver();
+         break;
+      case cg:
+         small_solver = new CGSolver();
+         break;
       case minres:
          small_solver = new MINRESSolver();
          break;
@@ -395,6 +406,9 @@ int main(int argc, char* argv[])
       it_solver->SetMaxIter(solver_maxiter);
       it_solver->SetPrintLevel(print_level);
    }
+
+   // L1-Jacobi Preconditioner
+   Vector l1_diag;
 
    // Neighboring elements and DoFs
    Array<int> ngh_e, temp_ngh, local_dofs;
@@ -439,7 +453,6 @@ int main(int argc, char* argv[])
       // End define small matrix
 
       // Define L1-Jacobi PC (diagonal vector) for A^T A
-      Vector l1_diag;
       GetNormalL1Diag(local_mass_mat, l1_diag);
 
       // Solve
