@@ -285,9 +285,12 @@ int main(int argc, char *argv[])
       ti++;
 
       done = (t >= t_final - 1e-8 * dt);
-      if ((done || ti % vis_steps == 0) && (Mpi::Root()))
+      if (done || ti % vis_steps == 0)
       {
-         cout << "Time step: " << ti << ", time: " << t << endl;
+         if (Mpi::Root())
+         {
+            cout << "Time step: " << ti << ", time: " << t << endl;
+         }
          if (visualization)
          {
             sout << "parallel " << num_procs << " " << myid << "\n";
