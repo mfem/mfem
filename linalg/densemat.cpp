@@ -1400,6 +1400,35 @@ void DenseMatrix::Getl1Diag(Vector &l) const
       }
 }
 
+void DenseMatrix::GetRowl1(Vector &l) const
+{
+   l.SetSize(height);
+   l = 0.0;
+
+   for (int j = 0; j < width; ++j)
+      for (int i = 0; i < height; ++i)
+      {
+         l(i) += fabs((*this)(i,j));
+      }
+}
+
+void DenseMatrix::GetRowl2(Vector &l) const
+{
+   l.SetSize(height);
+   l = 0.0;
+
+   for (int j = 0; j < width; ++j)
+      for (int i = 0; i < height; ++i)
+      {
+         l[i] += operator()(i,j)*operator()(i,j);
+      }
+
+   for (int i = 0; i < height; ++i)
+   {
+      l[i] = sqrt(l[i]);
+   }
+}
+
 void DenseMatrix::GetRowSums(Vector &l) const
 {
    l.SetSize(height);
