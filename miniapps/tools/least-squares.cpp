@@ -2,6 +2,17 @@
 
 using namespace mfem;
 
+namespace reconstruction
+{
+
+/// Enumerator for solver types
+enum SolverType
+{
+   direct,
+   minres,
+   num_solvers,  // last
+};
+
 /** Class for an asymmetric (out-of-element) mass integrator $a_K(u,v) := (E(u),v)_K$,
  *  where $E$ is an extension of $u$ (with original domain $\hat{K}$) to $K$.
  *
@@ -94,6 +105,7 @@ void AsymmetricMassIntegrator::AsymmetricElementMatrix(const FiniteElement
 }
 
 /// @brief Dense small least squares solver
+/// @dev This grew a lot, might good to derive from Solver...
 void LSSolver(Solver& solver, const DenseMatrix& A, const Vector& b,
               Vector& x, real_t shift = 0.0)
 {
@@ -103,13 +115,32 @@ void LSSolver(Solver& solver, const DenseMatrix& A, const Vector& b,
    Vector Atb(A.Width());
    A.MultTranspose(b, Atb);
 
-   TransposeOperator At(&A);
-   ProductOperator AtA(&At, &A, false, false);
-   IdentityOperator I(AtA.Height());
-   SumOperator AtA_reg(&AtA, 1.0, &I, shift, false, false);
-
-   solver.SetOperator(AtA_reg);
-   solver.Mult(Atb, x);
+   if (dynamic_cast<IterativeSolver*>(&solver))
+   {
+      // Don't compute the products
+      TransposeOperator At(&A);
+      ProductOperator AtA(&At, &A, false, false);
+      IdentityOperator I(AtA.Height());
+      SumOperator AtA_reg(&AtA, 1.0, &I, shift, false, false);
+      solver.SetOperator(AtA_reg);
+      solver.Mult(Atb, x); // TODO(Gabriel): Lazy fix, Operators are scoped...
+   }
+   else if (dynamic_cast<DenseMatrixInverse*>(&solver))
+   {
+      DenseMatrix AtA_reg(A.Width());
+      Vector col_i(A.Height()), col_j(A.Height());
+      for (int i = 0; i < A.Width(); i++)
+      {
+         A.GetColumn(i, col_i);
+         for (int j = 0; j < A.Width(); j++)
+         {
+            A.GetColumn(j, col_j);
+            AtA_reg(i,j) = col_i * col_j + (i==j)*shift;
+         }
+      }
+      solver.SetOperator(AtA_reg);
+      solver.Mult(Atb, x); // TODO(Gabriel): Lazy fix, redundant...
+   }
 }
 
 /// @brief Dense small least squares solver, with constrains @a C with value @a c
@@ -201,6 +232,10 @@ void SaturateNeighborhood(NCMesh& mesh, const int element_idx,
    neighbors.Unique();
 }
 
+} // end namespace reconstruction
+
+using namespace reconstruction;
+
 int main(int argc, char* argv[])
 {
    Mpi::Init(argc, argv);
@@ -213,6 +248,7 @@ int main(int argc, char* argv[])
    int order_averages = 0;
    int order_reconstruction = 1;
 
+   SolverType solver_type = direct;
    real_t solver_reg = 0.0;
    real_t solver_rtol = 1.0e-30;
    real_t solver_atol = 0.0;
@@ -242,6 +278,10 @@ int main(int argc, char* argv[])
                   "--no-preserve-volumes", "Preserve averages (volumes) by"
                   " solving a constrained least squares problem");
 
+   args.AddOption((int*)&solver_type, "-S", "--solver",
+                  "Solvers to be considered:"
+                  "\n\t0: Direct Solver"
+                  "\n\t1: MINRES");
    args.AddOption(&solver_reg, "-Sreg", "--solver-reg",
                   "Add regularization term to the least squares problem");
    args.AddOption(&solver_rtol, "-Srtol", "--solver-rtol",
@@ -257,12 +297,15 @@ int main(int argc, char* argv[])
    args.AddOption(&save_to_file, "-s", "--save", "-no-s",
                   "--no-save", "Show or not show approximation error.");
 
+   args.ParseCheck();
+   MFEM_VERIFY((ser_ref_levels >= 0) && (par_ref_levels >= 0), "")
+   MFEM_VERIFY((solver_reg>=0.0), "")
+   MFEM_VERIFY(order_original > order_averages, "")
+   MFEM_VERIFY((0 <= solver_type) && (solver_type < num_solvers),
+               "invalid solver type: " << solver_type);
+
    if (Mpi::Root())
    {
-      args.ParseCheck();
-      MFEM_VERIFY((ser_ref_levels >= 0) && (par_ref_levels >= 0), "")
-      MFEM_VERIFY((solver_reg>=0.0), "")
-      MFEM_VERIFY(order_original > order_averages, "")
       mfem::out << "Number of serial refs.:  " << ser_ref_levels << "\n";
       mfem::out << "Number of parallel refs: " << par_ref_levels << "\n";
       mfem::out << "Original order:          " << order_original << "\n";
@@ -328,8 +371,14 @@ int main(int argc, char* argv[])
     * implemented.
     */
    Solver *small_solver = nullptr;
+   switch (solver_type)
    {
-      small_solver = new MINRESSolver();
+      case minres:
+         small_solver = new MINRESSolver();
+         break;
+      case direct:
+      default:
+         small_solver = new DenseMatrixInverse();
    }
 
    // Solver setting
@@ -359,7 +408,7 @@ int main(int argc, char* argv[])
       const int fe_avg_e_ndof = fes_averages.GetFE(e_idx)->GetDof();
 
       SaturateNeighborhood(nc_mesh, e_idx, fe_rec_e_ndof, fe_avg_e_ndof, ngh_e);
-      if (preserve_volumes && (ngh_e.Find(e_idx)>=0)) { ngh_e.DeleteFirst(e_idx); }
+      if (preserve_volumes) { ngh_e.DeleteFirst(e_idx); }
 
       // Define small matrix
       const int num_ngh_e = ngh_e.Size();
