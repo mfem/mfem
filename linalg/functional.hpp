@@ -41,6 +41,7 @@ namespace mfem
 ///
 class Functional : public Operator
 {
+   Operator * riesz_map = nullptr; ///< Riesz map operator, if available
 public:
    /// @brief Create a Functional with optional gradient and hessian
    /// @param n number of variables
@@ -62,9 +63,12 @@ public:
 
    void SetComm(MPI_Comm comm) { parallel = true; this->comm = comm; }
    MPI_Comm GetComm() const { return comm; }
-#endif
    bool IsParallel() const { return parallel; }
+#else
+   constexpr bool IsParallel() const { return false; }
+#endif
 
+   void SetRieszMap(Operator &riesz_map) { this->riesz_map = &riesz_map; }
    /// @brief return the GradientOperator that evaluates the gradient
    ///        input x is not used. Use GetGradient().Mult(x,y) to evaluate the gradient
    ///        we recommend using GetGradient() instead of GetGradient(x)
@@ -112,11 +116,23 @@ private:
    ///        using Functional::EvalGradient() method.
    class GradientOperator : public Operator
    {
-   private: const Functional &f;
+   private: const Functional &f; mutable Vector der;
    public:
       GradientOperator(const Functional &f) : Operator(f.Width()), f(f) {}
       /// @brief Evaluate the gradient of Functional at a point x
-      void Mult(const Vector &x, Vector &y) const override final { f.EvalGradient(x, y); }
+      void Mult(const Vector &x, Vector &y) const override final
+      {
+         if (f.riesz_map)
+         {
+            der.SetSize(f.Width());
+            f.EvalGradient(x, der);
+            f.riesz_map->Mult(der, y);
+         }
+         else
+         {
+            f.EvalGradient(x, y);
+         }
+      }
       /// @brief Evaluate the Hessian of Functional at a point x
       Operator &GetGradient(const Vector &x) const override final { return f.GetHessian(x); }
    };
@@ -344,6 +360,12 @@ public:
          funcs[i]->GetGradient().Mult(x, grad);
       }
    }
+   Functional &GetFunctional(int i) const
+   {
+      MFEM_VERIFY(i >= 0 && i < funcs.size(),
+                  "StackedFunctional::GetFunctional: Index out of bounds.");
+      return *funcs[i];
+   }
 
    Operator &GetHessian(const Vector &x, const Vector &lambda) const
    {
@@ -488,25 +510,25 @@ public:
 
    void Mult(const Vector &x, Vector &y) const override
    {
-      static_cast<SharedFunctional*>(funcs[0])->Update(x);
+      if (!manual_update) { static_cast<SharedFunctional*>(funcs[0])->Update(x); }
       StackedFunctional::Mult(x, y);
    }
 
    Operator &GetGradient(const Vector &x) const override
    {
-      static_cast<SharedFunctional*>(funcs[0])->Update(x);
+      if (!manual_update) { static_cast<SharedFunctional*>(funcs[0])->Update(x); }
       return StackedFunctional::GetGradient(x);
    }
 
    void GetGradientMatrix(const Vector &x, DenseMatrix &grads) const
    {
-      static_cast<SharedFunctional*>(funcs[0])->Update(x);
+      if (!manual_update) { static_cast<SharedFunctional*>(funcs[0])->Update(x); }
       StackedFunctional::GetGradientMatrix(x, grads);
    }
 
    Operator &GetHessian(const Vector &x, const Vector &lambda) const
    {
-      static_cast<SharedFunctional*>(funcs[0])->Update(x);
+      if (!manual_update) { static_cast<SharedFunctional*>(funcs[0])->Update(x); }
       return StackedFunctional::GetHessian(x, lambda);
    }
 private:
@@ -536,6 +558,13 @@ public:
       if (objective.IsParallel()) { SetComm(objective.GetComm()); }
 #endif
    }
+
+   Functional &GetObjective() { return objective; }
+   const Functional &GetObjective() const { return objective; }
+   Operator *GetEqualityConstraints() { return eq_constraints; }
+   const Operator *GetEqualityConstraints() const { return eq_constraints; }
+   Operator *GetInequalityConstraints() { return ineq_constraints; }
+   const Operator *GetInequalityConstraints() const { return ineq_constraints; }
 protected:
    Functional &objective;
    Operator *eq_constraints;
@@ -639,7 +668,7 @@ protected:
 };
 
 /// @brief An augmented Lagrangian functional of the form
-/// F(u) + 0.5 mu * C(u)^T C(u) + <lambda, C(u)>
+/// F(u) + 0.5 mu * ||C(u)||^2 + <lambda, C(u)>
 /// where F is the objective functional,
 /// C is the equality constraint operator,
 /// lambda is the Lagrange multiplier vector (initialized to zero),
@@ -685,6 +714,8 @@ public:
       // Update the penalty parameter
       // Do nothing
    }
+   const Vector &GetLambda() const { return lambda; }
+   real_t GetPenalty() const { return mu; }
 
 
    void Mult(const Vector &x, Vector &y) const override
@@ -693,15 +724,15 @@ public:
       objective.Mult(x, y);
       Vector eq_residual(eq_constraints->Height());
       eq_constraints->Mult(x, eq_residual);
-      y[0] += InnerProduct(lambda, eq_residual);
-      y[0] += 0.5 * mu * InnerProduct(eq_residual, eq_residual);
+      y[0] += lambda*eq_residual;
+      y[0] += 0.5 * mu * (eq_residual*eq_residual);
    }
 
    void EvalGradient(const Vector &x, Vector &y) const override
    {
       y.SetSize(Width());
-      // grad F(u) + \sum_i (lambda_i + mu * C_i(u)) grad C_i(u)
-      Vector curr_lambda = lambda;
+      // grad F(x) + \sum_i (lambda_i + mu * C_i(x)) grad C_i(x)
+      Vector curr_lambda = lambda; // store lambda + mu * C(x)
       objective.GetGradient().Mult(x, y);
       eq_constraints->Mult(x, eq_residual);
       curr_lambda.Add(mu, eq_residual);
