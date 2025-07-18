@@ -165,6 +165,25 @@ void CheckLSSolver(const DenseMatrix& A, const Vector& b, const Vector& x)
              std::endl;
 }
 
+/// @brief Get the L1-Jacobi row-subs for the @b normal matrix associated with @a A
+void GetNormalL1Diag(const DenseMatrix& A, Vector& l1_diag)
+{
+   l1_diag.SetSize(A.Height());
+   Vector col_j(A.Height()), col_k(A.Height());
+   real_t sums;
+   for (int i = 0; i < A.Height(); i++)
+   {
+      sums = 0.0;
+      for (int j = 0; j < A.Width(); j++)
+      {
+         A.GetColumn(j, col_j);
+         for (int k = 0; k < A.Width(); k++) { A.GetColumn(k, col_k); }
+         sums += std::abs(col_j * col_k);
+      }
+      l1_diag(i) = sums;
+   }
+}
+
 int main(int argc, char* argv[])
 {
    Mpi::Init(argc, argv);
@@ -174,6 +193,7 @@ int main(int argc, char* argv[])
    int par_ref_levels = 0;
 
    int order_original = 3;
+   int order_averages = 0;
    int order_reconstruction = 1;
 
    real_t solver_reg = 0.0;
@@ -195,6 +215,9 @@ int main(int argc, char* argv[])
 
    args.AddOption(&order_original, "-O", "--order-original",
                   "Order original broken space.");
+   // TODO(Gabriel): Not implemented yet
+   // args.AddOption(&order_averages, "-A", "--order-averages",
+   //                "Order averaged broken space.");
    args.AddOption(&order_reconstruction, "-R", "--order-reconstruction",
                   "Order of reconstruction broken space.");
 
@@ -222,9 +245,11 @@ int main(int argc, char* argv[])
       args.ParseCheck();
       MFEM_VERIFY((ser_ref_levels >= 0) && (par_ref_levels >= 0), "")
       MFEM_VERIFY((solver_reg>=0.0), "")
+      MFEM_VERIFY(order_original > order_averages, "")
       mfem::out << "Number of serial refs.:  " << ser_ref_levels << "\n";
       mfem::out << "Number of parallel refs: " << par_ref_levels << "\n";
       mfem::out << "Original order:          " << order_original << "\n";
+      mfem::out << "Original averages:       " << order_averages << "\n";
       mfem::out << "Original reconstruction: " << order_reconstruction << "\n";
    }
 
@@ -249,7 +274,7 @@ int main(int argc, char* argv[])
 
    // Broken spaces
    L2_FECollection fec_original(order_original, mesh.Dimension());
-   L2_FECollection fec_averages(0, mesh.Dimension());
+   L2_FECollection fec_averages(order_averages, mesh.Dimension());
    L2_FECollection fec_reconstruction(order_reconstruction, mesh.Dimension());
 
    ParFiniteElementSpace fes_original(&mesh, &fec_original);
@@ -278,9 +303,14 @@ int main(int argc, char* argv[])
 
    // Solver choice
    // TODO(Gabriel): Support more solvers?
-   Solver *small_solver = nullptr;
    // TODO(Gabriel): Support more PCs?
-   Solver* pc = nullptr;
+   /* Notes:
+    * OperatorJacobiSmoother will call AssembleDiagonal on
+    * Operator, even if the Setup function will be called
+    * later on. DenseMatrix does not have this method
+    * implemented.
+    */
+   Solver *small_solver = nullptr;
    {
       small_solver = new MINRESSolver();
    }
@@ -293,7 +323,6 @@ int main(int argc, char* argv[])
       // TODO(Gabriel): Not implemented yet
       IterativeSolver::PrintLevel print_level;
       print_level.All();
-      pc = new OperatorJacobiSmoother();
 
       it_solver->SetRelTol(solver_rtol);
       it_solver->SetAbsTol(solver_atol);
@@ -348,30 +377,17 @@ int main(int argc, char* argv[])
       local_mass_mat.InvLeftScaling(local_volumes);
       // End define small matrix
 
-      // Define L1-Jacobi preconditioner
-      // Define A^TA row sums
-      if (it_solver)
-      {
-         Vector l1_pc_diag(num_ngh_e), col_j(num_ngh_e), col_k(num_ngh_e);
-         real_t sums;
-         for (int i = 0; i < num_ngh_e; i++)
-         {
-            sums = 0.0;
-            for (int j = 0; j < fe_rec_e_ndof; j++)
-            {
-               local_mass_mat.GetColumn(j, col_j);
-               for (int k = 0; k < fe_rec_e_ndof; k++) { local_mass_mat.GetColumn(k, col_k); }
-               sums += std::abs(col_j * col_k);
-            }
-            l1_pc_diag(i) = sums;
-         }
-         static_cast<OperatorJacobiSmoother*>(pc)->Setup(l1_pc_diag);
-         it_solver->SetPreconditioner(*pc);
-      }
+      // Define L1-Jacobi PC (diagonal vector) for A^T A
+      Vector l1_diag;
+      GetNormalL1Diag(local_mass_mat, l1_diag);
 
       // Solve
       Vector local_u_avg, local_u_rec;
       u_averages.GetSubVector(ngh_e, local_u_avg);
+
+      // Apply preconditioner
+      local_mass_mat.InvLeftScaling(l1_diag);
+      local_u_avg /= l1_diag;
 
       if (preserve_volumes)
       {
@@ -474,7 +490,6 @@ int main(int argc, char* argv[])
       file.close();
    }
 
-   if (pc) { delete pc; }
    if (small_solver) { delete small_solver; }
    delete ngh_tr;
    delete self_tr;
