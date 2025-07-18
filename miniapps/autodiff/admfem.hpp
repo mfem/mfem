@@ -453,6 +453,8 @@ typedef TAutoDiffDenseMatrix<ADFloatType> ADMatrixType;
 template<int vector_size=1, int state_size=1, int param_size=0>
 class VectorFuncAutoDiff
 {
+   typedef std::function<void(mfem::Vector&, ad::ADVectorType&, ad::ADVectorType&)>
+   ADFuncType;
 public:
    /// F_ is user implemented function to be differentiated by
    /// VectorFuncAutoDiff. The signature of the function is: F_(mfem::Vector&
@@ -461,16 +463,18 @@ public:
    /// should have size state_size, and the result vector should have size
    /// vector_size. All size parameters are teplate parameters in
    /// VectorFuncAutoDiff.
-   VectorFuncAutoDiff(
-      std::function<void(mfem::Vector&, ad::ADVectorType&, ad::ADVectorType&)> F_)
-   {
-      F=F_;
-   }
+   VectorFuncAutoDiff(): F(nullptr) {}
+   VectorFuncAutoDiff(ADFuncType F_)
+      : F(F_) {}
+   void SetFunction(
+      ADFuncType F_)
+   { F=F_; }
 
    /// Evaluates the Jacobian of the vector function F_ for a set of parameters
    /// (vparam) and state vector uu. The Jacobian (jac) has dimensions
    /// [vector_size x state_size].
-   void Jacobian(mfem::Vector &vparam, mfem::Vector &uu, mfem::DenseMatrix &jac)
+   void Jacobian(mfem::Vector &vparam, mfem::Vector &uu,
+                 mfem::DenseMatrix &jac) const
    {
       jac.SetSize(vector_size, state_size);
       jac = 0.0;
@@ -492,7 +496,7 @@ public:
    }
 
 private:
-   std::function<void(mfem::Vector&, ad::ADVectorType&, ad::ADVectorType&)> F;
+   ADFuncType F;
 
 };
 

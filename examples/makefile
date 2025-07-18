@@ -40,7 +40,7 @@ ifeq ($(MFEM_USE_MPI),NO)
 else
    EXAMPLES = $(PAR_EXAMPLES) $(SEQ_EXAMPLES)
 endif
-SUBDIRS =
+SUBDIRS = functional lvpp
 ifeq ($(MFEM_USE_AMGX),YES)
    SUBDIRS += amgx
 endif

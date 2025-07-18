@@ -105,7 +105,7 @@ int main(int argc, char *argv[])
 
       mfem::Vector
 
-      std::cout<<obj->Eval(tgf.GetTrueVector())<<" "<<std::endl;
+      std::cout << obj->Eval(tgf.GetTrueVector())<<" "<<std::endl;
       obj->Test();
       delete obj;
    }
