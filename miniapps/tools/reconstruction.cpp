@@ -58,9 +58,10 @@ void MixedBidirectionalHessianIntegrator::CalcTrialShape(
    int dim = Trans.GetDimension();
    dir1_vq->Eval(dir1_vq_ev, Trans, Trans.GetIntPoint());
    dir2_vq->Eval(dir2_vq_ev, Trans, Trans.GetIntPoint());
-   trial_dshape.SetSize(trial_fe.GetDof(), dim*(dim+1)/2);
-   trial_fe.CalcPhysHessian(Trans, trial_dshape);
-   // trial_dshape.Mult(dir1_vq_ev, trial_shape);
+   d2shape.SetSize(trial_fe.GetDof(), dim*(dim+1)/2);
+   // TODO(Gabriel): Requires CalcHessian on L2_Quad e.g.
+   // trial_fe.CalcPhysHessian(Trans, d2shape);
+   // Something like DenseMatrix::InnerProduct
 };
 
 void MixedBidirectionalHessianIntegrator::CalcTestShape(
@@ -68,7 +69,7 @@ void MixedBidirectionalHessianIntegrator::CalcTestShape(
    ElementTransformation& Trans,
    Vector& test_shape)
 {
-   test_fe.CalcPhysShape(Trans, test_dshape);
+   test_fe.CalcPhysShape(Trans, test_shape);
 }
 
 // reconstruct a field u (represented by dst) from u_hat (represented by src)
@@ -119,7 +120,10 @@ void reconstructField(const ParGridFunction& src, ParGridFunction& dst)
 
    MixedDirectionalDerivativeIntegrator partial_x(xhat);
    MixedDirectionalDerivativeIntegrator partial_y(yhat);
-   MixedBidirectionalHessianIntegrator partial_xy(xhat,yhat);
+   MatrixConstantCoefficient xhatyhat(DenseMatrix({{0.0, 1.0},{0.0, 0.0}}));
+   DiffusionIntegrator partial_xy(xhatyhat);
+   // TODO(Gabriel): Requires CalcHessian for L2_Quad...
+   // MixedBidirectionalHessianIntegrator partial_xy(xhat,yhat);
    for (int element_ind=0; element_ind < mesh.GetNE(); element_ind++)
    {
       const FiniteElement& src_element = *(src_fe_space.GetFE(element_ind));
