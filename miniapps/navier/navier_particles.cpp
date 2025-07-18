@@ -137,8 +137,8 @@ private:
       for (int j = 1; j <= 3; j++)
       {
          add(p.GetCoords(), -beta[j], p.GetStateVar((X_NP1+1)-j), p.GetCoords());
-         add(p.GetCoords(), dt, p.GetStateVar(V_N), p.GetCoords());
       }
+      add(p.GetCoords(), dt, p.GetStateVar(V_N), p.GetCoords());
       p.GetCoords() *= 1.0/beta[0];
 
    }

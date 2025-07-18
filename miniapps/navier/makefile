@@ -23,10 +23,18 @@ MFEM_LIB_FILE = mfem_is_not_built
 NAVIER_COMMON_SRC = navier_solver.cpp
 NAVIER_COMMON_OBJ = $(NAVIER_COMMON_SRC:.cpp=.o)
 
+COMMON_LIB = -L$(MFEM_BUILD_DIR)/miniapps/common -lmfem-common
+
+# If MFEM_SHARED is set, add the ../common rpath
+COMMON_LIB += $(if $(MFEM_SHARED:YES=),,\
+   $(if $(MFEM_USE_CUDA:YES=),$(CXX_XLINKER),$(CUDA_XLINKER))-rpath,$(abspath\
+   $(MFEM_BUILD_DIR)/miniapps/common))
+
 PAR_MINIAPPS = navier_mms navier_kovasznay navier_kovasznay_vs navier_tgv\
  navier_shear navier_3dfoc navier_turbchan navier_bifurcation navier_particles
 ifeq ($(MFEM_USE_GSLIB),YES)
    PAR_MINIAPPS += navier_cht
+   PAR_MINIAPPS += navier_particles
 endif
 
 ifeq ($(MFEM_USE_MPI),NO)
