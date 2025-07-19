@@ -910,7 +910,7 @@ inline bool HypreUsingGPU()
 #elif MFEM_HYPRE_VERSION < 23100
    return true;
 #else // HYPRE_USING_GPU is defined and MFEM_HYPRE_VERSION >= 23100
-   return GetHypreMemoryLocation() != HYPRE_MEMORY_HOST;
+   return HYPRE_Initialized() && GetHypreMemoryLocation() != HYPRE_MEMORY_HOST;
 #endif
 }
 
