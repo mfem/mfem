@@ -181,9 +181,9 @@ const Vector &QuadratureSpace::GetGeometricFactorWeights() const
 
 FaceQuadratureSpace::FaceQuadratureSpace(Mesh &mesh_, int order_,
                                          FaceType face_type_)
-   : QuadratureSpaceBase(mesh_, order_),
-     face_type(face_type_),
-     num_faces(mesh.GetNFbyType(face_type))
+   : QuadratureSpaceBase(mesh_, order_), face_type(face_type_),
+     face_indices(mesh.GetFaceIndices(face_type_)),
+     face_indices_inv(mesh.GetInvFaceIndices(face_type_))
 {
    Construct();
 }
@@ -192,7 +192,8 @@ FaceQuadratureSpace::FaceQuadratureSpace(Mesh &mesh_, const IntegrationRule &ir,
                                          FaceType face_type_)
    : QuadratureSpaceBase(mesh_, mesh_.GetTypicalFaceGeometry(), ir),
      face_type(face_type_),
-     num_faces(mesh.GetNFbyType(face_type))
+     face_indices(mesh.GetFaceIndices(face_type_)),
+     face_indices_inv(mesh.GetInvFaceIndices(face_type_))
 {
    MFEM_VERIFY(mesh.GetNumGeometries(mesh.Dimension() - 1) <= 1,
                "Constructor not valid for mixed meshes");
@@ -201,11 +202,11 @@ FaceQuadratureSpace::FaceQuadratureSpace(Mesh &mesh_, const IntegrationRule &ir,
 
 void FaceQuadratureSpace::ConstructOffsets()
 {
-   face_indices.SetSize(num_faces);
-   offsets.SetSize(num_faces + 1);
-   ne = num_faces;
+   offsets.SetSize(face_indices.Size() + 1);
+   ne = face_indices.Size();
    int offset = 0;
    int f_idx = 0;
+   // TODO: how to get rid of O(n) loop on the CPU?
    for (int i = 0; i < mesh.GetNumFacesWithGhost(); i++)
    {
       const Mesh::FaceInformation face = mesh.GetFaceInformation(i);
@@ -213,8 +214,6 @@ void FaceQuadratureSpace::ConstructOffsets()
       {
          continue;
       }
-      face_indices[f_idx] = i;
-      face_indices_inv[i] = f_idx;
       offsets[f_idx] = offset;
       Geometry::Type geom = mesh.GetFaceGeometry(i);
       MFEM_ASSERT(int_rule[geom] != NULL, "Missing integration rule");
@@ -222,7 +221,7 @@ void FaceQuadratureSpace::ConstructOffsets()
 
       f_idx++;
    }
-   offsets[num_faces] = size = offset;
+   offsets[face_indices.Size()] = size = offset;
 }
 
 void FaceQuadratureSpace::Construct()
