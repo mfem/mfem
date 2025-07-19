@@ -23,7 +23,7 @@ using namespace mfem;
 TEST_CASE("Inclusive Scan", "[Scan],[GPU]")
 {
    Array<char> workspace;
-   Array<int> a(100);
+   Array<int> a(10);
 
    for (int use_dev = 0; use_dev < 2; ++use_dev)
    {
@@ -63,7 +63,7 @@ TEST_CASE("Inclusive Scan", "[Scan],[GPU]")
 TEST_CASE("Exclusive Scan", "[Scan],[GPU]")
 {
    Array<char> workspace;
-   Array<int> a(100);
+   Array<int> a(10);
 
    for (int use_dev = 0; use_dev < 2; ++use_dev)
    {
