@@ -12,6 +12,7 @@
 // Implementation of Coefficient class
 
 #include "fem.hpp"
+#include "../general/forall.hpp"
 
 #include <cmath>
 #include <limits>
