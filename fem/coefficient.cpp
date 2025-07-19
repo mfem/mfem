@@ -519,6 +519,26 @@ void GradientGridFunctionCoefficient::Eval(
    }
 }
 
+void GradientGridFunctionCoefficient::Project(QuadratureFunction &qf)
+{
+   const FiniteElementSpace &fes = *GridFunc->FESpace();
+   const Mesh &mesh = *fes.GetMesh();
+   const int sdim = mesh.SpaceDimension();
+   const int gf_vdim = fes.GetVDim(); // assumed to be 1 in this class
+   qf.SetVDim(sdim*gf_vdim);
+   if (mesh.GetNE() == 0) { return; }
+   // All mesh element must be the same type:
+   MFEM_VERIFY(mesh.GetNumGeometries(mesh.Dimension()) == 1,
+               "All mesh elements must be the same type!");
+   const IntegrationRule &ir = qf.GetIntRule(0);
+   // All elements must use the same quadrature rule:
+   MFEM_VERIFY(qf.Size() == sdim*gf_vdim*ir.GetNPoints()*mesh.GetNE(),
+               "All mesh elements must use the same quadrature rule!");
+   // QuadratureFunction uses the layout qf_vdim x nq x ne, i.e.
+   // gf_vdim x sdim x nq x nq, so we need to request QVectorLayout::byVDIM:
+   GridFunc->GetGradients(ir, qf, QVectorLayout::byVDIM);
+}
+
 CurlGridFunctionCoefficient::CurlGridFunctionCoefficient(
    const GridFunction *gf)
    : VectorCoefficient(0)
@@ -1063,6 +1083,41 @@ real_t InnerProductCoefficient::Eval(ElementTransformation &T,
    a->Eval(va, T, ip);
    b->Eval(vb, T, ip);
    return va * vb;
+}
+
+void InnerProductCoefficient::Project(QuadratureFunction &qf)
+{
+   MFEM_VERIFY(a->GetVDim() == b->GetVDim(),
+               "Incompatible vector coefficients: a->GetVDim(): "
+               << a->GetVDim() << ", b->GetVDim(): " << b->GetVDim());
+
+   const int vdim = a->GetVDim();
+   MFEM_VERIFY(vdim >= 1, "invalid vdim: " << vdim);
+
+   // When running on device, aake sure the output data is allocated before any
+   // local temporary data:
+   auto dot_d = qf.Write();
+
+   QuadratureFunction qf_a(qf.GetSpace(), vdim);
+   QuadratureFunction qf_b(qf.GetSpace(), vdim);
+
+   a->Project(qf_a);
+   b->Project(qf_b);
+
+   auto a_d = qf_a.Read();
+   auto b_d = qf_a.Read();
+
+   mfem::forall(qf.GetSpace()->GetSize(), [=] MFEM_HOST_DEVICE (int i)
+   {
+      const real_t *ai = a_d + i*vdim;
+      const real_t *bi = b_d + i*vdim;
+      real_t dot = ai[0]*bi[0];
+      for (int d = 1; d < vdim; d++)
+      {
+         dot += ai[d]*bi[d];
+      }
+      dot_d[i] = dot;
+   });
 }
 
 VectorRotProductCoefficient::VectorRotProductCoefficient(VectorCoefficient &A,
