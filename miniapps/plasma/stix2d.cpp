@@ -1777,6 +1777,61 @@ int main(int argc, char *argv[])
                                            L2FESpace, H1FESpace,
                                            omega, charges, masses, nuprof,
                                            res_lim, false);
+   SusceptibilityTensorbySpecies suscept_real_electrons(BField, k_gf, nue_gf, nui_gf, density,
+                                           temperature, iontemp_gf,
+                                           L2FESpace, H1FESpace,
+                                           omega, charges, masses, nuprof,
+                                           res_lim, true, 0);
+   SusceptibilityTensorbySpecies suscept_imag_electrons(BField, k_gf, nue_gf, nui_gf, density,
+                                           temperature, iontemp_gf,
+                                           L2FESpace, H1FESpace,
+                                           omega, charges, masses, nuprof,
+                                           res_lim, false, 0);
+   SusceptibilityTensorbySpecies suscept_real_ion1(BField, k_gf, nue_gf, nui_gf, density,
+                                           temperature, iontemp_gf,
+                                           L2FESpace, H1FESpace,
+                                           omega, charges, masses, nuprof,
+                                           res_lim, true, 1);
+   SusceptibilityTensorbySpecies suscept_imag_ion1(BField, k_gf, nue_gf, nui_gf, density,
+                                           temperature, iontemp_gf,
+                                           L2FESpace, H1FESpace,
+                                           omega, charges, masses, nuprof,
+                                           res_lim, false, 1);
+
+   SusceptibilityTensorbySpecies *suscept_real_ion2 = NULL;
+   SusceptibilityTensorbySpecies *suscept_imag_ion2 = NULL;
+
+   if (numbers.Size() > 2)
+   {
+      SusceptibilityTensorbySpecies suscept_real_ion2(BField, k_gf, nue_gf, nui_gf, density,
+                                           temperature, iontemp_gf,
+                                           L2FESpace, H1FESpace,
+                                           omega, charges, masses, nuprof,
+                                           res_lim, true, 2);
+      SusceptibilityTensorbySpecies suscept_imag_ion2(BField, k_gf, nue_gf, nui_gf, density,
+                                           temperature, iontemp_gf,
+                                           L2FESpace, H1FESpace,
+                                           omega, charges, masses, nuprof,
+                                           res_lim, false, 2);     
+   }
+
+   SusceptibilityTensorbySpecies *suscept_real_ion3 = NULL;
+   SusceptibilityTensorbySpecies *suscept_imag_ion3 = NULL;
+
+   if (numbers.Size() > 3)
+   {
+      SusceptibilityTensorbySpecies suscept_real_ion3(BField, k_gf, nue_gf, nui_gf, density,
+                                           temperature, iontemp_gf,
+                                           L2FESpace, H1FESpace,
+                                           omega, charges, masses, nuprof,
+                                           res_lim, true, 3);
+      SusceptibilityTensorbySpecies suscept_imag_ion3(BField, k_gf, nue_gf, nui_gf, density,
+                                           temperature, iontemp_gf,
+                                           L2FESpace, H1FESpace,
+                                           omega, charges, masses, nuprof,
+                                           res_lim, false, 3);
+   }
+
    SheathImpedance z_r(BField, density, temperature,
                        L2FESpace, H1FESpace,
                        omega, charges, masses, true);
@@ -2066,6 +2121,12 @@ int main(int argc, char *argv[])
                  conv, BUnitCoef,
                  epsilon_real, epsilon_imag, epsilon_abs,
                  suscept_real, suscept_imag,
+                 suscept_real_electrons, suscept_imag_electrons,
+                 suscept_real_ion1, suscept_imag_ion1,
+                 (numbers.Size() > 2) ? suscept_real_ion2 : NULL,
+                 (numbers.Size() > 2) ? suscept_imag_ion2 : NULL,
+                 (numbers.Size() > 3) ? suscept_real_ion3 : NULL,
+                 (numbers.Size() > 3) ? suscept_imag_ion3 : NULL,
                  muInvCoef, etaInvCoef,
                  (phase_shift) ? &kReCoef : NULL,
                  (phase_shift) ? &kImCoef : NULL,
@@ -2924,6 +2985,7 @@ void curve_current_source_v2_r(const Vector &x, Vector &j)
    double r = (j_cyl_) ? sqrt(x[0] * x[0] + x[1] * x[1]) : x[0];
    double z = (j_cyl_) ? x[2] : x[1];
 
+   /*
    // SPARC antennas:
    
    double dlant = 0.328835;
@@ -2935,8 +2997,8 @@ void curve_current_source_v2_r(const Vector &x, Vector &j)
    double b = 0.415;
    double c = 0.15;
    double d = 0.0195;
+   */
    
-   /*
    // WEST antennas:
    double dlant = 2*0.276946; 
 
@@ -2947,7 +3009,6 @@ void curve_current_source_v2_r(const Vector &x, Vector &j)
    double b = 0.615;
    double c = 0.12;
    double d = 0.021;
-   */
 
    double xmin = a-b*pow(z,2.0)-c*pow(z,4.0)+d;
    double xmax = a-b*pow(z,2.0)-c*pow(z,4.0)+d + 0.02;
@@ -3154,12 +3215,12 @@ void curve_current_source_v2_i(const Vector &x, Vector &j)
    else
    {
       // SPARC antennas:
-      //double zmin2 = -0.3709;
-      //double zmax2 = -0.0523;
+      double zmin2 = -0.3709;
+      double zmax2 = -0.0523;
 
       // WEST antennas:
-      double zmin2 = -0.3;
-      double zmax2 = -0.03;
+      //double zmin2 = -0.3;
+      //double zmax2 = -0.03;
 
       if (r >= xmin && r <= xmax &&
           z >= zmin1 && z <= zmax1)

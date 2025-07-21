@@ -244,6 +244,14 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
                      MatrixCoefficient & epsAbsCoef,
                      MatrixCoefficient & susceptReCoef,
                      MatrixCoefficient & susceptImCoef,
+                     MatrixCoefficient & susceptReCoef_e,
+                     MatrixCoefficient & susceptImCoef_e,
+                     MatrixCoefficient & susceptReCoef_i1,
+                     MatrixCoefficient & susceptImCoef_i1,
+                     MatrixCoefficient * susceptReCoef_i2,
+                     MatrixCoefficient * susceptImCoef_i2,
+                     MatrixCoefficient * susceptReCoef_i3,
+                     MatrixCoefficient * susceptImCoef_i3,
                      Coefficient & muInvCoef,
                      Coefficient * etaInvCoef,
                      VectorCoefficient * kReCoef,
@@ -288,6 +296,14 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
      n20ZIm_(NULL),
      m4r_(NULL),
      m4i_(NULL),
+     m4er_(NULL),
+     m4ei_(NULL),
+     m4i1r_(NULL),
+     m4i1i_(NULL),
+     m4i2r_(NULL),
+     m4i2i_(NULL),
+     m4i3r_(NULL),
+     m4i3i_(NULL),
      /*
      m4cr_(NULL),
      m4ci_(NULL),
@@ -296,6 +312,14 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
      */
      M4r_(NULL),
      M4i_(NULL),
+     M4er_(NULL),
+     M4ei_(NULL),
+     M4i1r_(NULL),
+     M4i1i_(NULL),
+     M4i2r_(NULL),
+     M4i2i_(NULL),
+     M4i3r_(NULL),
+     M4i3i_(NULL),
      /*
      M4cr_(NULL),
      M4ci_(NULL),
@@ -310,12 +334,28 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
      RHSi3_(NULL),
      RHSr4_(NULL),
      RHSi4_(NULL),
+     RHSre_(NULL),
+     RHSie_(NULL),
+     RHSri1_(NULL),
+     RHSii1_(NULL),
+     RHSri2_(NULL),
+     RHSii2_(NULL),
+     RHSri3_(NULL),
+     RHSii3_(NULL),
      TMPr2_(NULL),
      TMPi2_(NULL),
      TMPr3_(NULL),
      TMPi3_(NULL),
      TMPr4_(NULL),
      TMPi4_(NULL),
+     TMPre_(NULL),
+     TMPie_(NULL),
+     TMPri1_(NULL),
+     TMPii1_(NULL),
+     TMPri2_(NULL),
+     TMPii2_(NULL),
+     TMPri3_(NULL),
+     TMPii3_(NULL),
      Er_(NULL),
      Ei_(NULL),
      e_(NULL),
@@ -339,7 +379,11 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
      e_min_(NULL),
      e_v_(NULL),
      d_v_(NULL),
-     power_absorp_(NULL),
+     power_absorp_t_(NULL),
+     power_absorp_e_(NULL),
+     power_absorp_i1_(NULL),
+     power_absorp_i2_(NULL),
+     power_absorp_i3_(NULL),
      phi_v_(NULL),
      j_v_(NULL),
      b_hat_(NULL),
@@ -357,6 +401,14 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
      epsAbsCoef_(&epsAbsCoef),
      susceptReCoef_(&susceptReCoef),
      susceptImCoef_(&susceptImCoef),
+     susceptReCoef_e_(&susceptReCoef_e),
+     susceptImCoef_e_(&susceptImCoef_e),
+     susceptReCoef_i1_(&susceptReCoef_i1),
+     susceptImCoef_i1_(&susceptImCoef_i1),
+     susceptReCoef_i2_(susceptReCoef_i2),
+     susceptImCoef_i2_(susceptImCoef_i2),
+     susceptReCoef_i3_(susceptReCoef_i3),
+     susceptImCoef_i3_(susceptImCoef_i3),
      muInvCoef_(&muInvCoef),
      etaInvCoef_(etaInvCoef),
      kReCoef_(kReCoef),
@@ -444,8 +496,25 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
       //EpsPara_ = new ParComplexGridFunction(L2FESpace_);
    }
 
-   power_absorp_ = new ParGridFunction(H1FESpace_);
-   *power_absorp_ = 0.0;
+   power_absorp_t_ = new ParGridFunction(H1FESpace_);
+   *power_absorp_t_ = 0.0;
+
+   power_absorp_e_ = new ParGridFunction(H1FESpace_);
+   *power_absorp_e_ = 0.0;
+
+   power_absorp_i1_ = new ParGridFunction(H1FESpace_);
+   *power_absorp_i1_ = 0.0;
+
+   if (susceptReCoef_i2_)
+   {
+      power_absorp_i2_ = new ParGridFunction(H1FESpace_);
+      *power_absorp_i2_ = 0.0;
+   }
+   if (susceptReCoef_i3_)
+   {
+      power_absorp_i3_ = new ParGridFunction(H1FESpace_);
+      *power_absorp_i3_ = 0.0;
+   }
 
    if (kReCoef_ || kImCoef_)
    {
@@ -753,6 +822,34 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
    m4i_ = new ParBilinearForm(HCurlFESpace_);
    m4i_->AddDomainIntegrator(new VectorFEMassIntegrator(*susceptImCoef_));
 
+   // Electron power dissipation
+   m4er_ = new ParBilinearForm(HCurlFESpace_);
+   m4er_->AddDomainIntegrator(new VectorFEMassIntegrator(*susceptReCoef_e_));
+   m4ei_ = new ParBilinearForm(HCurlFESpace_);
+   m4ei_->AddDomainIntegrator(new VectorFEMassIntegrator(*susceptImCoef_e_));
+
+   // Ion 1 power dissipation
+   m4i1r_ = new ParBilinearForm(HCurlFESpace_);
+   m4i1r_->AddDomainIntegrator(new VectorFEMassIntegrator(*susceptReCoef_i1_));
+   m4i1i_ = new ParBilinearForm(HCurlFESpace_);
+   m4i1i_->AddDomainIntegrator(new VectorFEMassIntegrator(*susceptImCoef_i1_));
+
+   if (susceptReCoef_i2_)
+   {
+      m4i2r_ = new ParBilinearForm(HCurlFESpace_);
+      m4i2r_->AddDomainIntegrator(new VectorFEMassIntegrator(*susceptReCoef_i2_));
+      m4i2i_ = new ParBilinearForm(HCurlFESpace_);
+      m4i2i_->AddDomainIntegrator(new VectorFEMassIntegrator(*susceptImCoef_i2_));
+   }
+
+   if (susceptReCoef_i3_)
+   {
+      m4i3r_ = new ParBilinearForm(HCurlFESpace_);
+      m4i3r_->AddDomainIntegrator(new VectorFEMassIntegrator(*susceptReCoef_i3_));
+      m4i3i_ = new ParBilinearForm(HCurlFESpace_);
+      m4i3i_->AddDomainIntegrator(new VectorFEMassIntegrator(*susceptImCoef_i3_));
+   }
+
    // For Core power dissipation
    /*
    core_attr_marker_.SetSize(pmesh.attributes.Max());
@@ -782,12 +879,30 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
    RHSi3_ = new HypreParVector(HCurlFESpace_);
    RHSr4_ = new HypreParVector(HCurlFESpace_);
    RHSi4_ = new HypreParVector(HCurlFESpace_);
+   RHSre_ = new HypreParVector(HCurlFESpace_);
+   RHSie_ = new HypreParVector(HCurlFESpace_);
+   RHSri1_ = new HypreParVector(HCurlFESpace_);
+   RHSii1_ = new HypreParVector(HCurlFESpace_);
+   RHSri2_ = new HypreParVector(HCurlFESpace_);
+   RHSii2_ = new HypreParVector(HCurlFESpace_);
+   RHSri3_ = new HypreParVector(HCurlFESpace_);
+   RHSii3_ = new HypreParVector(HCurlFESpace_);
+
    TMPr2_ = new HypreParVector(HCurlFESpace_);
    TMPi2_ = new HypreParVector(HCurlFESpace_);
    TMPr3_ = new HypreParVector(HCurlFESpace_);
    TMPi3_ = new HypreParVector(HCurlFESpace_);
    TMPr4_ = new HypreParVector(HCurlFESpace_);
    TMPi4_ = new HypreParVector(HCurlFESpace_);
+   TMPre_ = new HypreParVector(HCurlFESpace_);
+   TMPie_ = new HypreParVector(HCurlFESpace_);
+   TMPri1_ = new HypreParVector(HCurlFESpace_);
+   TMPii1_ = new HypreParVector(HCurlFESpace_);
+   TMPri2_ = new HypreParVector(HCurlFESpace_);
+   TMPii2_ = new HypreParVector(HCurlFESpace_);
+   TMPri3_ = new HypreParVector(HCurlFESpace_);
+   TMPii3_ = new HypreParVector(HCurlFESpace_);
+
 
    Er_ = new HypreParVector(HCurlFESpace_);
    Ei_ = new HypreParVector(HCurlFESpace_);
@@ -996,7 +1111,11 @@ CPDSolver::~CPDSolver()
    delete e_;
    delete d_;
    delete b_;
-   delete power_absorp_;
+   delete power_absorp_t_;
+   delete power_absorp_e_;
+   delete power_absorp_i1_;
+   delete power_absorp_i2_;
+   delete power_absorp_i3_;
    delete temp_;
    delete e_plus_;
    delete e_min_;
@@ -1036,6 +1155,15 @@ CPDSolver::~CPDSolver()
    
    delete m4r_;
    delete m4i_;
+   delete m4er_;
+   delete m4ei_;
+   delete m4i1r_;
+   delete m4i1i_;
+   delete m4i2r_;
+   delete m4i2i_;
+   delete m4i3r_;
+   delete m4i3i_;
+
    /*
    delete m4cr_;
    delete m4ci_;
@@ -1051,12 +1179,30 @@ CPDSolver::~CPDSolver()
    delete RHSi3_;
    delete RHSr4_;
    delete RHSi4_;
+   delete RHSre_;
+   delete RHSie_;
+   delete RHSri1_;
+   delete RHSii1_;
+   delete RHSri2_;
+   delete RHSii2_;
+   delete RHSri3_;
+   delete RHSii3_;
+
    delete TMPr2_;
    delete TMPi2_;
    delete TMPr3_;
    delete TMPi3_;
    delete TMPr4_;
    delete TMPi4_;
+   delete TMPre_;
+   delete TMPie_;
+   delete TMPri1_;
+   delete TMPii1_;
+   delete TMPri2_;
+   delete TMPii2_;
+   delete TMPri3_;
+   delete TMPii3_;
+
    delete Er_;
    delete Ei_;
 
@@ -1173,12 +1319,38 @@ CPDSolver::Assemble()
    m4i_->Assemble();
    m4i_->Finalize();
 
+   m4er_->Assemble();
+   m4er_->Finalize();
+   m4ei_->Assemble();
+   m4ei_->Finalize();
+
+   m4i1r_->Assemble();
+   m4i1r_->Finalize();
+   m4i1i_->Assemble();
+   m4i1i_->Finalize();
+
+   if (susceptReCoef_i2_)
+   {
+      m4i2r_->Assemble();
+      m4i2r_->Finalize();
+      m4i2i_->Assemble();
+      m4i2i_->Finalize();      
+   }
+
+   if (susceptReCoef_i3_)
+   {
+      m4i3r_->Assemble();
+      m4i3r_->Finalize();
+      m4i3i_->Assemble();
+      m4i3i_->Finalize();  
+   }
+ 
    /*
    m4cr_->Assemble();
    m4cr_->Finalize();
    m4ci_->Assemble();
    m4ci_->Finalize();
-
+   
    m4solr_->Assemble();
    m4solr_->Finalize();
    m4soli_->Assemble();
@@ -1334,7 +1506,11 @@ CPDSolver::Update()
    if (d_v_) { d_v_->Update(); }
    if (j_v_) { j_v_->Update(); }
    if (b_hat_) { b_hat_->Update(); }
-   if (power_absorp_) { power_absorp_->Update(); }
+   if (power_absorp_t_) { power_absorp_t_->Update(); }
+   if (power_absorp_e_) { power_absorp_e_->Update(); }
+   if (power_absorp_i1_) { power_absorp_i1_->Update(); }
+   if (power_absorp_i2_) { power_absorp_i2_->Update(); }
+   if (power_absorp_i3_) { power_absorp_i3_->Update(); }
    if (phi_) {phi_->Update(); }
    if (phi_v_) {phi_v_->Update(); }
    if (rectPot_) { rectPot_ ->Update();}
@@ -1361,9 +1537,27 @@ CPDSolver::Update()
    m12EpsIm_->Update();
    m4r_->Update();
    m4i_->Update();
+   m4er_->Update();
+   m4ei_->Update();
+   m4i1r_->Update();
+   m4i1i_->Update();
+
+   if (susceptReCoef_i2_)
+   {
+      m4i2r_->Update();
+      m4i2i_->Update();  
+   }
+   
+   if (susceptReCoef_i3_)
+   {
+      m4i3r_->Update();
+      m4i3i_->Update();  
+   }
+
    /*
    m4cr_->Update();
    m4ci_->Update();
+   
    m4solr_->Update();
    m4soli_->Update();
    */
@@ -2057,9 +2251,29 @@ CPDSolver::Solve()
 
    M4r_ = m4r_->ParallelAssemble();
    M4i_ = m4i_->ParallelAssemble();
+
+   M4er_ = m4er_->ParallelAssemble();
+   M4ei_ = m4ei_->ParallelAssemble();
+
+   M4i1r_ = m4i1r_->ParallelAssemble();
+   M4i1i_ = m4i1i_->ParallelAssemble();
+
+   if (susceptReCoef_i2_)
+   {
+      M4i2r_ = m4i2r_->ParallelAssemble();
+      M4i2i_ = m4i2i_->ParallelAssemble();
+   }
+
+   if (susceptReCoef_i3_)
+   {
+      M4i3r_ = m4i3r_->ParallelAssemble();
+      M4i3i_ = m4i3i_->ParallelAssemble();
+   }
+   
    /*
    M4cr_ = m4cr_->ParallelAssemble();
    M4ci_ = m4ci_->ParallelAssemble();
+   
    M4solr_ = m4solr_->ParallelAssemble();
    M4soli_ = m4soli_->ParallelAssemble();
    */
@@ -2071,12 +2285,24 @@ CPDSolver::Solve()
    }
 
    double global_diss = GetGlobalDissipation();
+   double global_electron_diss = GetElectronDissipation();
+   double global_ion1_diss = GetIon1Dissipation();
+   double global_ion2_diss = 0.0;
+   double global_ion3_diss = 0.0;
+   if (susceptReCoef_i2_){global_ion2_diss = GetIon2Dissipation();}
+   if (susceptReCoef_i3_){global_ion3_diss = GetIon3Dissipation();}
+
    //double core_diss = GetCoreDissipation();
    //double sol_diss = GetSOLDissipation();
 
    if (myid_ == 0)
    {
-      cout << "Global Dissipation: " << global_diss << " W" << endl; 
+      cout << "Global Total Dissipation: " << global_diss << " W" << endl;
+      cout << "Percent lost on Electrons: " << (global_electron_diss/global_diss)*100.0 << endl; 
+      cout << "Percent lost on Ion 1: " << (global_ion1_diss/global_diss)*100.0 << endl; 
+      cout << "Percent lost on Ion 2: " << (global_ion2_diss/global_diss)*100.0 << endl; 
+      cout << "Percent lost on Ion 3: " << (global_ion3_diss/global_diss)*100.0 << endl; 
+
       //cout << "Core Dissipation: " << core_diss << " W" << endl; 
       //cout << "SOL Dissipation: " << sol_diss << " W" << endl; 
       cout << " Solve done." << endl;
@@ -2142,6 +2368,88 @@ CPDSolver::GetGlobalDissipation() const
    return 0.5*global_diss;
 }
 
+
+double
+CPDSolver::GetElectronDissipation() const
+{
+   double core_diss = 0.0;
+
+   // Real suscept*E :
+   M4er_->Mult(*Er_,*RHSre_);
+   M4ei_->Mult(*Ei_,*TMPre_);
+   *RHSre_ -= *TMPre_;
+
+   // Image suscept*E :
+   M4er_->Mult(*Ei_,*RHSie_);
+   M4ei_->Mult(*Er_,*TMPie_);
+   *RHSie_ += *TMPie_;
+
+   core_diss = InnerProduct(*Er_,*RHSre_) + InnerProduct(*Ei_,*RHSie_);
+
+   return 0.5*core_diss;
+}
+
+double
+CPDSolver::GetIon1Dissipation() const
+{
+   double core_diss = 0.0;
+
+   // Real suscept*E :
+   M4i1r_->Mult(*Er_,*RHSri1_);
+   M4i1i_->Mult(*Ei_,*TMPri1_);
+   *RHSri1_ -= *TMPri1_;
+
+   // Image suscept*E :
+   M4i1r_->Mult(*Ei_,*RHSii1_);
+   M4i1i_->Mult(*Er_,*TMPii1_);
+   *RHSii1_ += *TMPii1_;
+
+   core_diss = InnerProduct(*Er_,*RHSri1_) + InnerProduct(*Ei_,*RHSii1_);
+
+   return 0.5*core_diss;
+}
+
+double
+CPDSolver::GetIon2Dissipation() const
+{
+   double core_diss = 0.0;
+
+   // Real suscept*E :
+   M4i2r_->Mult(*Er_,*RHSri2_);
+   M4i2i_->Mult(*Ei_,*TMPri2_);
+   *RHSri2_ -= *TMPri2_;
+
+   // Image suscept*E :
+   M4i2r_->Mult(*Ei_,*RHSii2_);
+   M4i2i_->Mult(*Er_,*TMPii2_);
+   *RHSii2_ += *TMPii2_;
+
+   core_diss = InnerProduct(*Er_,*RHSri2_) + InnerProduct(*Ei_,*RHSii2_);
+
+   return 0.5*core_diss;
+}
+
+double
+CPDSolver::GetIon3Dissipation() const
+{
+   double core_diss = 0.0;
+
+   // Real suscept*E :
+   M4i3r_->Mult(*Er_,*RHSri3_);
+   M4i3i_->Mult(*Ei_,*TMPri3_);
+   *RHSri3_ -= *TMPri3_;
+
+   // Image suscept*E :
+   M4i3r_->Mult(*Ei_,*RHSii3_);
+   M4i3i_->Mult(*Er_,*TMPii3_);
+   *RHSii3_ += *TMPii3_;
+
+   core_diss = InnerProduct(*Er_,*RHSri3_) + InnerProduct(*Ei_,*RHSii3_);
+
+   return 0.5*core_diss;
+}
+
+
 /*
 double
 CPDSolver::GetCoreDissipation() const
@@ -2206,7 +2514,17 @@ CPDSolver::RegisterVisItFields(VisItDataCollection & visit_dc)
       visit_dc.RegisterField("Im_z", &z_->imag());
    }
 
-   visit_dc.RegisterField("Power_Absorp", power_absorp_);
+   visit_dc.RegisterField("Power_Absorp_Tot", power_absorp_t_);
+   visit_dc.RegisterField("Power_Absorp_E", power_absorp_e_);
+   visit_dc.RegisterField("Power_Absorp_I1", power_absorp_i1_);
+   if (susceptReCoef_i2_)
+   {
+      visit_dc.RegisterField("Power_Absorp_I2", power_absorp_i2_);
+   }
+   if (susceptReCoef_i3_)
+   {
+      visit_dc.RegisterField("Power_Absorp_I3", power_absorp_i3_);
+   }
 
    if ( rectPot_ )
    {
@@ -2387,19 +2705,81 @@ CPDSolver::WriteVisItFields(int it)
       VectorGridFunctionCoefficient e_r(&e_->real());
       VectorGridFunctionCoefficient e_i(&e_->imag());
       
-      MatrixVectorProductCoefficient SrEr(*susceptReCoef_, e_r);
-      MatrixVectorProductCoefficient SiEi(*susceptImCoef_, e_i);
-      MatrixVectorProductCoefficient SiEr(*susceptImCoef_, e_r);
-      MatrixVectorProductCoefficient SrEi(*susceptReCoef_, e_i);
+      MatrixVectorProductCoefficient SrEr_t(*susceptReCoef_, e_r);
+      MatrixVectorProductCoefficient SiEi_t(*susceptImCoef_, e_i);
+      MatrixVectorProductCoefficient SiEr_t(*susceptImCoef_, e_r);
+      MatrixVectorProductCoefficient SrEi_t(*susceptReCoef_, e_i);
 
-      VectorSumCoefficient ReSE(SrEr,SiEi,1.0,-1.0);
-      VectorSumCoefficient ImSE(SrEi,SiEr);
+      VectorSumCoefficient ReSE_t(SrEr_t,SiEi_t,1.0,-1.0);
+      VectorSumCoefficient ImSE_t(SrEi_t,SiEr_t);
 
-      InnerProductCoefficient ESE1(e_r,ReSE);
-      InnerProductCoefficient ESE2(e_i,ImSE);
+      InnerProductCoefficient ESE1_t(e_r,ReSE_t);
+      InnerProductCoefficient ESE2_t(e_i,ImSE_t);
 
-      SumCoefficient PowerAbsorp(ESE1,ESE2,0.5,0.5);
-      power_absorp_->ProjectCoefficient(PowerAbsorp);
+      SumCoefficient PowerAbsorp_t(ESE1_t,ESE2_t,0.5,0.5);
+      power_absorp_t_->ProjectCoefficient(PowerAbsorp_t);
+
+      MatrixVectorProductCoefficient SrEr_e(*susceptReCoef_e_, e_r);
+      MatrixVectorProductCoefficient SiEi_e(*susceptImCoef_e_, e_i);
+      MatrixVectorProductCoefficient SiEr_e(*susceptImCoef_e_, e_r);
+      MatrixVectorProductCoefficient SrEi_e(*susceptReCoef_e_, e_i);
+
+      VectorSumCoefficient ReSE_e(SrEr_e,SiEi_e,1.0,-1.0);
+      VectorSumCoefficient ImSE_e(SrEi_e,SiEr_e);
+
+      InnerProductCoefficient ESE1_e(e_r,ReSE_e);
+      InnerProductCoefficient ESE2_e(e_i,ImSE_e);
+
+      SumCoefficient PowerAbsorp_e(ESE1_e,ESE2_e,0.5,0.5);
+      power_absorp_e_->ProjectCoefficient(PowerAbsorp_e);
+
+      MatrixVectorProductCoefficient SrEr_i1(*susceptReCoef_i1_, e_r);
+      MatrixVectorProductCoefficient SiEi_i1(*susceptImCoef_i1_, e_i);
+      MatrixVectorProductCoefficient SiEr_i1(*susceptImCoef_i1_, e_r);
+      MatrixVectorProductCoefficient SrEi_i1(*susceptReCoef_i1_, e_i);
+
+      VectorSumCoefficient ReSE_i1(SrEr_i1,SiEi_i1,1.0,-1.0);
+      VectorSumCoefficient ImSE_i1(SrEi_i1,SiEr_i1);
+
+      InnerProductCoefficient ESE1_i1(e_r,ReSE_i1);
+      InnerProductCoefficient ESE2_i1(e_i,ImSE_i1);
+
+      SumCoefficient PowerAbsorp_i1(ESE1_i1,ESE2_i1,0.5,0.5);
+      power_absorp_i1_->ProjectCoefficient(PowerAbsorp_i1);
+
+      if (susceptReCoef_i2_)
+      {
+         MatrixVectorProductCoefficient SrEr_i2(*susceptReCoef_i2_, e_r);
+         MatrixVectorProductCoefficient SiEi_i2(*susceptImCoef_i2_, e_i);
+         MatrixVectorProductCoefficient SiEr_i2(*susceptImCoef_i2_, e_r);
+         MatrixVectorProductCoefficient SrEi_i2(*susceptReCoef_i2_, e_i);
+
+         VectorSumCoefficient ReSE_i2(SrEr_i2,SiEi_i2,1.0,-1.0);
+         VectorSumCoefficient ImSE_i2(SrEi_i2,SiEr_i2);
+
+         InnerProductCoefficient ESE1_i2(e_r,ReSE_i2);
+         InnerProductCoefficient ESE2_i2(e_i,ImSE_i2);
+
+         SumCoefficient PowerAbsorp_i2(ESE1_i2,ESE2_i2,0.5,0.5);
+         power_absorp_i2_->ProjectCoefficient(PowerAbsorp_i2);
+      }
+
+      if (susceptReCoef_i3_)
+      {
+         MatrixVectorProductCoefficient SrEr_i3(*susceptReCoef_i3_, e_r);
+         MatrixVectorProductCoefficient SiEi_i3(*susceptImCoef_i3_, e_i);
+         MatrixVectorProductCoefficient SiEr_i3(*susceptImCoef_i3_, e_r);
+         MatrixVectorProductCoefficient SrEi_i3(*susceptReCoef_i3_, e_i);
+
+         VectorSumCoefficient ReSE_i3(SrEr_i3,SiEi_i3,1.0,-1.0);
+         VectorSumCoefficient ImSE_i3(SrEi_i3,SiEr_i3);
+
+         InnerProductCoefficient ESE1_i3(e_r,ReSE_i3);
+         InnerProductCoefficient ESE2_i3(e_i,ImSE_i3);
+
+         SumCoefficient PowerAbsorp_i3(ESE1_i3,ESE2_i3,0.5,0.5);
+         power_absorp_i3_->ProjectCoefficient(PowerAbsorp_i3);
+      }
 
       //ComplexCoefficientByAttr & sbc = (*sbcs_)[0];
       //SheathBase * sb = dynamic_cast<SheathBase*>(sbc.real);

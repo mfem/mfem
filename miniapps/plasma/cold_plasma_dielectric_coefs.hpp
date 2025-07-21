@@ -143,6 +143,20 @@ std::complex<double> P_cold_plasma(double omega,
                                    double iontemp,
                                    int nuprof);
 
+std::complex<double> P_cold_plasma_by_species(double omega,
+                                        double kparallel,
+                                        double Bmag,
+                                        double nue,
+                                        double number,
+                                        double charge,
+                                        double mass,
+                                        double ne,
+                                        double te,
+                                        double me,
+                                        double qe,
+                                        int nuprof,
+                                        int i);
+
 std::complex<double> S_cold_plasma(double omega,
                                    double kparallel, double Bmag,
                                    double nue, double nui,
@@ -155,6 +169,24 @@ std::complex<double> S_cold_plasma(double omega,
                                    double Rval,
                                    double Lval);
 
+std::complex<double> S_cold_plasma_by_species(double omega,
+                                        double kparallel,
+                                        double Bmag,
+                                        double nue,
+                                        double nui,
+                                        double number,
+                                        double charge,
+                                        double mass,
+                                        double ne,
+                                        double te,
+                                        double me,
+                                        double qe,
+                                        double iontemp,
+                                        int nuprof,
+                                        double Rval,
+                                        double Lval,
+                                        int i);
+
 std::complex<double> D_cold_plasma(double omega,
                                    double kparallel, double Bmag,
                                    double nue, double nui,
@@ -166,6 +198,24 @@ std::complex<double> D_cold_plasma(double omega,
                                    int nuprof,
                                    double Rval,
                                    double Lval);
+
+std::complex<double> D_cold_plasma_by_species(double omega,
+                                        double kparallel,
+                                        double Bmag,
+                                        double nue,
+                                        double nui,
+                                        double number,
+                                        double charge,
+                                        double mass,
+                                        double ne,
+                                        double te,
+                                        double me,
+                                        double qe,
+                                        double iontemp,
+                                        int nuprof,
+                                        double Rval,
+                                        double Lval,
+                                        int i);
 
 // """""""""""""""""""""""""""""""""""""""""""""""""""""""
 // Jim's old sheath parameterization from Kohno et al 2017:
@@ -714,6 +764,37 @@ public:
                      const IntegrationPoint &ip);
 
    virtual ~SusceptibilityTensor() {}
+};
+
+class SusceptibilityTensorbySpecies: public MatrixCoefficient, public StixTensorBase
+{
+public:
+   SusceptibilityTensorbySpecies(const ParGridFunction & B,
+                    const ParGridFunction & k,
+                    const ParGridFunction & nue,
+                    const ParGridFunction & nui,
+                    const BlockVector & density,
+                    const BlockVector & temp,
+                    const ParGridFunction & iontemp,
+                    const ParFiniteElementSpace & L2FESpace,
+                    const ParFiniteElementSpace & H1FESpace,
+                    double omega,
+                    const Vector & charges,
+                    const Vector & masses,
+                    int nuprof,
+                    double res_lim,
+                    bool realPart,
+                    int species_);
+
+   SusceptibilityTensorbySpecies(StixCoefBase &s)
+      : MatrixCoefficient(3), StixTensorBase(s) {}
+
+   virtual void Eval(DenseMatrix &K, ElementTransformation &T,
+                     const IntegrationPoint &ip);
+
+   virtual ~SusceptibilityTensorbySpecies() {}
+   private:
+      int species_;
 };
 
 class SPDDielectricTensor: public MatrixCoefficient, public StixCoefBase

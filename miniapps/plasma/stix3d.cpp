@@ -1811,6 +1811,60 @@ if (dpp_def.Size() == 0)
                                            L2FESpace, H1FESpace,
                                            omega, charges, masses, nuprof,
                                            res_lim, false);
+   SusceptibilityTensorbySpecies suscept_real_electrons(BField, k_gf, nue_gf, nui_gf, density,
+                                           temperature, iontemp_gf,
+                                           L2FESpace, H1FESpace,
+                                           omega, charges, masses, nuprof,
+                                           res_lim, true, 0);
+   SusceptibilityTensorbySpecies suscept_imag_electrons(BField, k_gf, nue_gf, nui_gf, density,
+                                           temperature, iontemp_gf,
+                                           L2FESpace, H1FESpace,
+                                           omega, charges, masses, nuprof,
+                                           res_lim, false, 0);
+   SusceptibilityTensorbySpecies suscept_real_ion1(BField, k_gf, nue_gf, nui_gf, density,
+                                           temperature, iontemp_gf,
+                                           L2FESpace, H1FESpace,
+                                           omega, charges, masses, nuprof,
+                                           res_lim, true, 1);
+   SusceptibilityTensorbySpecies suscept_imag_ion1(BField, k_gf, nue_gf, nui_gf, density,
+                                           temperature, iontemp_gf,
+                                           L2FESpace, H1FESpace,
+                                           omega, charges, masses, nuprof,
+                                           res_lim, false, 1);
+
+   SusceptibilityTensorbySpecies *suscept_real_ion2 = NULL;
+   SusceptibilityTensorbySpecies *suscept_imag_ion2 = NULL;
+
+   if (numbers.Size() > 2)
+   {
+      SusceptibilityTensorbySpecies suscept_real_ion2(BField, k_gf, nue_gf, nui_gf, density,
+                                           temperature, iontemp_gf,
+                                           L2FESpace, H1FESpace,
+                                           omega, charges, masses, nuprof,
+                                           res_lim, true, 2);
+      SusceptibilityTensorbySpecies suscept_imag_ion2(BField, k_gf, nue_gf, nui_gf, density,
+                                           temperature, iontemp_gf,
+                                           L2FESpace, H1FESpace,
+                                           omega, charges, masses, nuprof,
+                                           res_lim, false, 2);     
+   }
+
+   SusceptibilityTensorbySpecies *suscept_real_ion3 = NULL;
+   SusceptibilityTensorbySpecies *suscept_imag_ion3 = NULL;
+
+   if (numbers.Size() > 3)
+   {
+      SusceptibilityTensorbySpecies suscept_real_ion3(BField, k_gf, nue_gf, nui_gf, density,
+                                           temperature, iontemp_gf,
+                                           L2FESpace, H1FESpace,
+                                           omega, charges, masses, nuprof,
+                                           res_lim, true, 3);
+      SusceptibilityTensorbySpecies suscept_imag_ion3(BField, k_gf, nue_gf, nui_gf, density,
+                                           temperature, iontemp_gf,
+                                           L2FESpace, H1FESpace,
+                                           omega, charges, masses, nuprof,
+                                           res_lim, false, 3);
+   }
    SheathImpedance z_r(BField, density, temperature,
                        L2FESpace, H1FESpace,
                        omega, charges, masses, true);
@@ -2120,6 +2174,12 @@ if (dpp_def.Size() == 0)
                  conv, BUnitCoef,
                  epsilon_real, epsilon_imag, epsilon_abs,
                  suscept_real, suscept_imag,
+                 suscept_real_electrons, suscept_imag_electrons,
+                 suscept_real_ion1, suscept_imag_ion1,
+                 (numbers.Size() > 2) ? suscept_real_ion2 : NULL,
+                 (numbers.Size() > 2) ? suscept_imag_ion2 : NULL,
+                 (numbers.Size() > 3) ? suscept_real_ion3 : NULL,
+                 (numbers.Size() > 3) ? suscept_imag_ion3 : NULL,
                  muInvCoef, etaInvCoef,
                  (phase_shift) ? &kReCoef : NULL,
                  (phase_shift) ? &kImCoef : NULL,
@@ -4019,8 +4079,6 @@ void curve_current_source_v4_r(const Vector &x, Vector &j)
    double b = 0.415;
    double c = 0.15;
 
-   if (curve_params_(0) == 1)
-   {
       if (r >= xmin && r <= xmax &&
           z >= zmin1 && z <= zmax1 &&
           phi >= 8.0 && phi <= 12.0)
@@ -4055,47 +4113,13 @@ void curve_current_source_v4_r(const Vector &x, Vector &j)
          }
          
       }
-   }
-   else
-   {
+      /*
       double zmin2 = -0.3709;
       double zmax2 = -0.0523;
 
       if (r >= xmin && r <= xmax &&
-          z >= zmin1 && z <= zmax1 &&
-          phi >= 8.0 && phi <= 12.0)
-      {
-         double mag = sqrt(4*pow(b,2.0)*pow(z,2.0)+16*pow(c,2.0)*pow(z,6.0)-16*b*c*pow(z,4.0) + 1);
-         if (!j_cyl_)
-         {
-            j(0) = curve_params_(1)*(-2*b*z - 4*c*pow(z,3.0))/mag;
-            j(1) = curve_params_(1)/mag;
-            j(2) = curve_params_(2);
-         }
-         else
-         {
-            double cosphi = x[0] / r;
-            double sinphi = x[1] / r;
-
-            double j_r   = curve_params_(1)*(-2*b*z - 4*c*pow(z,3.0))/mag;
-            double j_phi = curve_params_(2);
-            double j_z   = curve_params_(1)/mag;
-
-            j(0) = j_r * cosphi - j_phi * sinphi;
-            j(1) = j_r * sinphi + j_phi * cosphi;
-            j(2) = j_z;
-         }
-
-         if (vol_profile_ == 1)
-         {
-            double dlant = 0.328835;
-            double arc_len = z + (4*pow(b,2.0)*pow(z,3.0))/3.0 
-               - (16.0/5)*b*c*pow(z,5.0) + (16*pow(c,2.0)*pow(z,7.0))/7.0 - 0.0466232;
-            j *= pow(cos((M_PI/dlant)*((arc_len+dlant) - dlant/2)),2.0);
-         }
-      }
-      else if (r >= xmin && r <= xmax &&
-               z >= zmin2 && z <= zmax2)
+         z >= zmin2 && z <= zmax2 &&
+         phi >= 8.0 && phi <= 12.0)
       {
          double mag = sqrt(4*pow(b,2.0)*pow(z,2.0)+16*pow(c,2.0)*pow(z,6.0)-16*b*c*pow(z,4.0) + 1);
          if (!j_cyl_)
@@ -4125,7 +4149,75 @@ void curve_current_source_v4_r(const Vector &x, Vector &j)
             j *= pow(cos((M_PI/dlant)*((arc_len+dlant) - dlant/2)),2.0);
          }
       }
-   }
+      */
+      if (r >= xmin && r <= xmax &&
+          z >= zmin1 && z <= zmax1 &&
+          phi >= 16.0 && phi <= 20.0)
+      {
+         double mag = sqrt(4*pow(b,2.0)*pow(z,2.0)+16*pow(c,2.0)*pow(z,6.0)-16*b*c*pow(z,4.0) + 1);
+         if (!j_cyl_)
+         {
+            j(0) = curve_params_(1)*(-2*b*z - 4*c*pow(z,3.0))/mag;
+            j(2) = curve_params_(1)/mag;
+            j(1) = curve_params_(2);
+         }
+         else
+         {
+            double cosphi = x[0] / r;
+            double sinphi = x[1] / r;
+
+            double j_r   = -1.0*curve_params_(1)*(-2*b*z - 4*c*pow(z,3.0))/mag;
+            double j_phi = -1.0*curve_params_(2);
+            double j_z   = -1.0*curve_params_(1)/mag;
+
+            j(0) = j_r * cosphi - j_phi * sinphi;
+            j(1) = j_r * sinphi + j_phi * cosphi;
+            j(2) = j_z;
+         }
+         
+         if (vol_profile_ == 1)
+         {
+            double dlant = 0.328835;
+            double arc_len = z + (4*pow(b,2.0)*pow(z,3.0))/3.0 
+               - (16.0/5)*b*c*pow(z,5.0) + (16*pow(c,2.0)*pow(z,7.0))/7.0 - 0.0466232;
+            j *= pow(cos((M_PI/dlant)*((arc_len+dlant) - dlant/2)),2.0);
+         }
+         
+      }
+      /*
+      if (r >= xmin && r <= xmax &&
+         z >= zmin2 && z <= zmax2 &&
+         phi >= 16.0 && phi <= 20.0)
+      {
+         double mag = sqrt(4*pow(b,2.0)*pow(z,2.0)+16*pow(c,2.0)*pow(z,6.0)-16*b*c*pow(z,4.0) + 1);
+         if (!j_cyl_)
+         {
+            j(0) = curve_params_(3)*(-2*b*z - 4*c*pow(z,3.0))/mag;
+            j(1) = curve_params_(3)/mag;
+            j(2) = curve_params_(4);
+         }
+         else
+         {
+            double cosphi = x[0] / r;
+            double sinphi = x[1] / r;
+
+            double j_r   = curve_params_(3)*(-2*b*z - 4*c*pow(z,3.0))/mag;
+            double j_phi = curve_params_(4);
+            double j_z   = curve_params_(3)/mag;
+
+            j(0) = j_r * cosphi - j_phi * sinphi;
+            j(1) = j_r * sinphi + j_phi * cosphi;
+            j(2) = j_z;
+         }
+         if (vol_profile_ == 1)
+         {
+            double dlant = 0.328835;
+            double arc_len = -1.0*(z + (4*pow(b,2.0)*pow(z,3.0))/3.0 
+               - (16.0/5)*b*c*pow(z,5.0) + (16*pow(c,2.0)*pow(z,7.0))/7.0) - 0.0523328;
+            j *= pow(cos((M_PI/dlant)*((arc_len+dlant) - dlant/2)),2.0);
+         }
+      }
+      */
 }
 
 void curve_current_source_v4_i(const Vector &x, Vector &j)

@@ -233,6 +233,14 @@ public:
              MatrixCoefficient & epsAbsCoef,
              MatrixCoefficient & susceptReCoef,
              MatrixCoefficient & susceptImCoef,
+             MatrixCoefficient & susceptReCoef_e,
+             MatrixCoefficient & susceptImCoef_e,
+             MatrixCoefficient & susceptReCoef_i1,
+             MatrixCoefficient & susceptImCoef_i1,
+             MatrixCoefficient * susceptReCoef_i2,
+             MatrixCoefficient * susceptImCoef_i2,
+             MatrixCoefficient * susceptReCoef_i3,
+             MatrixCoefficient * susceptImCoef_i3,
              Coefficient & muInvCoef,
              Coefficient * etaInvCoef,
              VectorCoefficient * kReCoef,
@@ -263,6 +271,14 @@ public:
    void GetErrorEstimates(Vector & errors);
 
    double GetGlobalDissipation() const;
+
+   double GetElectronDissipation() const;
+
+   double GetIon1Dissipation() const;
+
+   double GetIon2Dissipation() const;
+
+   double GetIon3Dissipation() const;
 
    //double GetCoreDissipation() const;
 
@@ -444,9 +460,19 @@ private:
    ParMixedBilinearForm * n20ZIm_;
    ParBilinearForm * m4r_;
    ParBilinearForm * m4i_;
+   ParBilinearForm * m4er_;
+   ParBilinearForm * m4ei_;
+   ParBilinearForm * m4i1r_;
+   ParBilinearForm * m4i1i_;
+   ParBilinearForm * m4i2r_;
+   ParBilinearForm * m4i2i_;
+   ParBilinearForm * m4i3r_;
+   ParBilinearForm * m4i3i_;
+   
    /*
    ParBilinearForm * m4cr_;
    ParBilinearForm * m4ci_;
+   
    ParBilinearForm * m4solr_;
    ParBilinearForm * m4soli_;
    */
@@ -464,7 +490,11 @@ private:
    ParComplexGridFunction * prev_phi_; // Complex sheath potential temporary (H1)
    ParComplexGridFunction * next_phi_; // Complex sheath potential temporary (H1)
    ParComplexGridFunction * z_; // Complex sheath potential (H1)
-   ParGridFunction        * power_absorp_; // Real valued power absorption (H1)
+   ParGridFunction        * power_absorp_t_; // Real valued total power absorption (H1)
+   ParGridFunction        * power_absorp_e_; // Real valued electron power absorption (H1)
+   ParGridFunction        * power_absorp_i1_; // Real valued ion 1 absorption (H1)
+   ParGridFunction        * power_absorp_i2_; // Real valued ion 2 power absorption (H1)
+   ParGridFunction        * power_absorp_i3_; // Real valued ion 3 power absorption (H1)
 
    ParGridFunction * rectPot_; // Real valued rectified potential (H1)
    ParComplexGridFunction * j_;   // Complex current density (HCurl)
@@ -490,6 +520,15 @@ private:
 
    HypreParMatrix * M4r_;
    HypreParMatrix * M4i_;
+   HypreParMatrix * M4er_;
+   HypreParMatrix * M4ei_;
+   HypreParMatrix * M4i1r_;
+   HypreParMatrix * M4i1i_;
+   HypreParMatrix * M4i2r_;
+   HypreParMatrix * M4i2i_;
+   HypreParMatrix * M4i3r_;
+   HypreParMatrix * M4i3i_;
+   
    /*
    HypreParMatrix * M4cr_;
    HypreParMatrix * M4ci_;
@@ -504,12 +543,32 @@ private:
    mutable HypreParVector * RHSi3_;
    mutable HypreParVector * RHSr4_;
    mutable HypreParVector * RHSi4_;
+
+   mutable HypreParVector * RHSre_;
+   mutable HypreParVector * RHSie_;
+   mutable HypreParVector * RHSri1_;
+   mutable HypreParVector * RHSii1_;
+   mutable HypreParVector * RHSri2_;
+   mutable HypreParVector * RHSii2_;
+   mutable HypreParVector * RHSri3_;
+   mutable HypreParVector * RHSii3_;
+
    mutable HypreParVector * TMPr2_;
    mutable HypreParVector * TMPi2_;
    mutable HypreParVector * TMPr3_;
    mutable HypreParVector * TMPi3_;
    mutable HypreParVector * TMPr4_;
    mutable HypreParVector * TMPi4_;
+
+   mutable HypreParVector * TMPre_;
+   mutable HypreParVector * TMPie_;
+   mutable HypreParVector * TMPri1_;
+   mutable HypreParVector * TMPii1_;
+   mutable HypreParVector * TMPri2_;
+   mutable HypreParVector * TMPii2_;
+   mutable HypreParVector * TMPri3_;
+   mutable HypreParVector * TMPii3_;
+
    HypreParVector * Er_; 
    HypreParVector * Ei_;  
 
@@ -519,6 +578,14 @@ private:
    MatrixCoefficient * epsAbsCoef_;   // Dielectric Material Coefficient
    MatrixCoefficient * susceptReCoef_;    // Real Susceptibility Coefficient
    MatrixCoefficient * susceptImCoef_;    // Imag Susceptibility Coefficient
+   MatrixCoefficient * susceptReCoef_e_;    // Electron Real Susceptibility Coefficient
+   MatrixCoefficient * susceptImCoef_e_;    // Electron Imag Susceptibility Coefficient
+   MatrixCoefficient * susceptReCoef_i1_;    // Ion 1 Real Susceptibility Coefficient
+   MatrixCoefficient * susceptImCoef_i1_;    // Ion 1 Imag Susceptibility Coefficient
+   MatrixCoefficient * susceptReCoef_i2_;    // Ion 2 Real Susceptibility Coefficient
+   MatrixCoefficient * susceptImCoef_i2_;    // Ion 2 Imag Susceptibility Coefficient
+   MatrixCoefficient * susceptReCoef_i3_;    // Ion 3 Real Susceptibility Coefficient
+   MatrixCoefficient * susceptImCoef_i3_;    // Ion 3 Imag Susceptibility Coefficient
    Coefficient       * muInvCoef_;    // Dia/Paramagnetic Material Coefficient
    Coefficient       * etaInvCoef_;   // Admittance Coefficient
    VectorCoefficient * kReCoef_;        // Wave Vector

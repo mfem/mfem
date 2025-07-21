@@ -236,7 +236,7 @@ complex<double> L_cold_plasma(double omega,
    return val;
 }
 
-/*
+
 complex<double> S_cold_plasma(double omega,
                               double kparallel,
                               double Bmag,
@@ -288,8 +288,8 @@ complex<double> S_cold_plasma(double omega,
    }
    return val;
 }
-*/
 
+/*
 complex<double> S_cold_plasma(double omega,
                               double kparallel,
                               double Bmag,
@@ -366,8 +366,78 @@ complex<double> S_cold_plasma(double omega,
    }
    return val;
 }
+*/
+complex<double> S_cold_plasma_by_species(double omega,
+                                        double kparallel,
+                                        double Bmag,
+                                        double nue,
+                                        double nui,
+                                        double number,
+                                        double charge,
+                                        double mass,
+                                        double ne,
+                                        double te,
+                                        double me,
+                                        double qe,
+                                        double iontemp,
+                                        int nuprof,
+                                        double Rval,
+                                        double Lval,
+                                        int i)
+{
+   if (kparallel < 1.0){kparallel = 18.0;}
+   complex<double> suscept_particle(0.0,0.0);
+   double Te = te * q_;
+   if (Te < 0.0) {Te = -1.0*te * q_;}
+   double Ti = iontemp * q_;
+   double coul_log = CoulombLog(ne, Te);
+   double nuei = (nuprof == 0) ?
+                 nu_ei(qe, coul_log, me, Te, ne)  :
+                 nue;
+   double LH_nu = 0.0;
+   complex<double> collision_correction(0.0, nuei/omega);
+   double nparallel = (3e8*kparallel)/(omega);
+   complex<double> comp_val(0.0,1.0);
+   double width_coll = 0.1;
+   double FWcutoff1 = (-1.0*fabs(1.0 - pow(nparallel,2.0)/Rval) ) / width_coll;
+   double FWcutoff2 = (-1.0*fabs(1.0 - pow(nparallel,2.0)/Lval) ) / width_coll;
+   double LHres = -1.0*(0.5*fabs(Rval+Lval))/0.2;
+   double FWres = (-1.0*fabs(1.0 - pow(nparallel,2.0)/(0.5*Rval+0.5*Lval) ) ) / width_coll;
 
-/*
+   double n = number;
+   if (n < 0) {n = -1.0*number;}
+   complex<double> m_eff = mass;
+   if (i == 0) { m_eff = mass * (1.0 + collision_correction); }
+   complex<double> w_c = omega_c(Bmag, charge, m_eff);
+   complex<double> w_p = omega_p(n, charge, m_eff);
+   double T = Te;
+   if (i == 3) {T = Te + Ti;}
+   complex<double> vth = vthermal(T, m_eff);
+
+   if (i == 0)
+   {
+      double scale = 0.0;
+      suscept_particle = (-1.0 * w_p * w_p) / ((omega + w_c)*(omega - w_c))
+      +scale*10.0*comp_val*exp(FWcutoff1)+scale*10.0*comp_val*exp(FWcutoff2)
+      +scale*10.0*comp_val*exp(LHres)+scale*40.0*comp_val*exp(FWres);
+   }
+   else
+   {
+      double kperp = 72.12776;
+      double cold_S = 0.5*Rval+0.5*Lval;
+      if (fabs(cold_S) < 10.0)
+      {
+         LH_nu = (nui*exp(-pow(cold_S,2.0)))/omega;
+      }
+      complex<double> first_harm = first_harm_kinetic_S(w_c, w_p, vth, omega, kparallel, LH_nu);
+      complex<double> second_harm = second_harm_kinetic_S(w_c, w_p, vth, omega, kparallel, LH_nu, kperp);
+
+      // Total particle susceptibility contribution:
+      suscept_particle = first_harm + second_harm;
+   }
+
+   return suscept_particle;
+}
 
 complex<double> D_cold_plasma(double omega,
                               double kparallel,
@@ -420,8 +490,8 @@ complex<double> D_cold_plasma(double omega,
    }
    return val;
 }
-*/
 
+/*
 complex<double> D_cold_plasma(double omega,
                               double kparallel,
                               double Bmag,
@@ -490,8 +560,71 @@ complex<double> D_cold_plasma(double omega,
    }
    return val;
 }
+*/
+complex<double> D_cold_plasma_by_species(double omega,
+                                        double kparallel,
+                                        double Bmag,
+                                        double nue,
+                                        double nui,
+                                        double number,
+                                        double charge,
+                                        double mass,
+                                        double ne,
+                                        double te,
+                                        double me,
+                                        double qe,
+                                        double iontemp,
+                                        int nuprof,
+                                        double Rval,
+                                        double Lval,
+                                        int i)
+{
+   if (kparallel < 1.0){kparallel = 18.0;}
+   complex<double> suscept_particle(0.0,0.0);
+   double Te = te * q_;
+   if (Te < 0.0) {Te = -1.0*te * q_;}
+   double Ti = iontemp * q_;
+   double coul_log = CoulombLog(ne, Te);
+   double nuei = (nuprof == 0) ?
+                 nu_ei(qe, coul_log, me, Te, ne)  :
+                 nue;
+   double LH_nu = 0.0;
+   complex<double> collision_correction(0.0, nuei/omega);
+   double nparallel = (3e8*kparallel)/(omega);
+   complex<double> comp_val(0.0,1.0);
+   double width_coll = 0.1;
+   double FWcutoff1 = (-1.0*fabs(1.0 - pow(nparallel,2.0)/Rval) ) / width_coll;
+   double FWcutoff2 = (-1.0*fabs(1.0 - pow(nparallel,2.0)/Lval) ) / width_coll;
 
-/*
+   double n = number;
+   if (n < 0) {n = -1.0*number;}
+   complex<double> m_eff = mass;
+   if (i == 0) { m_eff = mass * (1.0 + collision_correction); }
+   complex<double> w_c = omega_c(Bmag, charge, m_eff);
+   complex<double> w_p = omega_p(n, charge, m_eff);
+   double T = Te;
+   if (i == 3) {T = Te + Ti;}
+   complex<double> vth = vthermal(T, m_eff);
+
+   if (i == 0)
+   {
+      double scale = 0.0;
+      suscept_particle = ((w_p*w_p) / ((omega+w_c) * (omega-w_c)))*(w_c/omega)
+      -scale*10.0*comp_val*exp(FWcutoff1)-scale*10.0*comp_val*exp(FWcutoff2);   
+   }
+   else
+   {
+      double kperp = 72.12776;
+      complex<double> first_harm = first_harm_kinetic_D(w_c, w_p, vth, omega, kparallel);
+      complex<double> second_harm = second_harm_kinetic_D(w_c, w_p, vth, omega, kparallel, kperp);
+
+      // Total particle susceptibility contribution:
+      suscept_particle = first_harm + second_harm;
+   }
+
+   return suscept_particle;
+}
+
 complex<double> P_cold_plasma(double omega,
                               double kparallel,
                               double nue,
@@ -526,8 +659,8 @@ complex<double> P_cold_plasma(double omega,
    }
    return val;
 }
-*/
 
+/*
 complex<double> P_cold_plasma(double omega,
                               double kparallel,
                               double nue,
@@ -572,6 +705,48 @@ complex<double> P_cold_plasma(double omega,
       val += suscept_particle;
    }
    return val;
+}
+*/
+complex<double> P_cold_plasma_by_species(double omega,
+                                        double kparallel,
+                                        double Bmag,
+                                        double nue,
+                                        double number,
+                                        double charge,
+                                        double mass,
+                                        double ne,
+                                        double te,
+                                        double me,
+                                        double qe,
+                                        int nuprof,
+                                        int i)
+{
+   if (kparallel < 1.0){kparallel = 18.0;} 
+   complex<double> suscept_particle(0.0,0.0);
+   double Te = te * q_;
+   if (Te < 0.0) {Te = -1.0*te * q_;}
+   double coul_log = CoulombLog(ne, Te);
+   double nuei = (nuprof == 0) ?
+                 nu_ei(qe, coul_log, me, Te, ne) :
+                 nue;
+   complex<double> collision_correction(0.0, nuei/omega);
+
+   double n = number;
+   if (n < 0) {n = -1.0*number;}
+
+   complex<double> m_eff = mass;
+   if (i == 0) { m_eff = mass*(1.0 + collision_correction); }
+   complex<double> w_p = omega_p(n, charge, m_eff);
+
+   if (i == 0)
+   {
+      complex<double> vth = vthermal(Te, m_eff);
+      complex<double> Z = Zfunction(omega/(kparallel*vth));
+      suscept_particle = (pow(w_p,2.0)/pow(kparallel*vth, 2.0))*(2.0*(1.0+(omega/(kparallel*vth))*Z));
+   }
+   else { suscept_particle = -1.0*(w_p * w_p) / (omega * omega); }
+
+   return suscept_particle;
 }
 
 // """""""""""""""""""""""""""""""""""""""""""""""""""""""
@@ -1759,6 +1934,77 @@ void SusceptibilityTensor::Eval(DenseMatrix &suscept, ElementTransformation &T,
    suscept *= omega_*epsilon0_;
 }
 
+SusceptibilityTensorbySpecies::SusceptibilityTensorbySpecies(const ParGridFunction & B,
+                                   const ParGridFunction & k,
+                                   const ParGridFunction & nue,
+                                   const ParGridFunction & nui,
+                                   const BlockVector & density,
+                                   const BlockVector & temp,
+                                   const ParGridFunction & iontemp,
+                                   const ParFiniteElementSpace & L2FESpace,
+                                   const ParFiniteElementSpace & H1FESpace,
+                                   double omega,
+                                   const Vector & charges,
+                                   const Vector & masses,
+                                   int nuprof,
+                                   double res_lim,
+                                   bool realPart,
+                                   int species)
+   : MatrixCoefficient(3),
+     species_(species),
+     StixTensorBase(B, k, nue, nui, density, temp, iontemp, L2FESpace, H1FESpace,
+                    omega,
+                    charges, masses, nuprof, res_lim, realPart)
+
+{}
+
+void SusceptibilityTensorbySpecies::Eval(DenseMatrix &suscept, ElementTransformation &T,
+                            const IntegrationPoint &ip)
+{
+   // Initialize suspetibility tensor to appropriate size
+   suscept.SetSize(3); suscept = 0.0;
+
+   
+   // Collect density, temperature, and magnetic field values
+   double Bmag = this->getBMagnitude(T, ip);
+   BVec_ /= Bmag;
+
+   double kparallel = this->getKvecMagnitude(T, ip);
+   nue_vals_ = nue_.GetValue(T, ip);
+   nui_vals_ = nui_.GetValue(T, ip);
+   Ti_vals_ = iontemp_.GetValue(T, ip);
+
+   this->fillDensityVals(T, ip);
+   this->fillTemperatureVals(T, ip);
+
+   // Evaluate the Stix Coefficients
+
+   complex<double> R = R_cold_plasma(omega_, Bmag, nue_vals_, nui_vals_,
+                                     density_vals_, charges_, masses_,
+                                     temp_vals_, Ti_vals_, nuprof_);
+   complex<double> L = L_cold_plasma(omega_, Bmag, nue_vals_, nui_vals_,
+                                     density_vals_, charges_, masses_,
+                                     temp_vals_, Ti_vals_, nuprof_);
+
+   complex<double> S = S_cold_plasma_by_species(omega_, kparallel, Bmag, nue_vals_, nui_vals_,
+                                          density_vals_[species_], charges_[species_], masses_[species_],
+                                          density_vals_[0], temp_vals_[0], masses_[0], charges_[0],
+                                          Ti_vals_, nuprof_, R.real(),L.real(), species_);
+   complex<double> D = D_cold_plasma_by_species(omega_, kparallel, Bmag, nue_vals_, nui_vals_,
+                                          density_vals_[species_], charges_[species_], masses_[species_],
+                                          density_vals_[0], temp_vals_[0], masses_[0], charges_[0],
+                                          Ti_vals_, nuprof_, R.real(),L.real(), species_);
+   complex<double> P = P_cold_plasma_by_species(omega_, kparallel, Bmag, nue_vals_, density_vals_[species_], 
+                                          charges_[species_], masses_[species_], density_vals_[0], temp_vals_[0], 
+                                          masses_[0], charges_[0],nuprof_, species_);
+
+   this->addParallelComp(realPart_ ?  P.imag() : 1.0 - P.real(), suscept);
+   this->addPerpDiagComp(realPart_ ?  S.imag() : 1.0 - S.real(), suscept);
+   this->addPerpSkewComp(realPart_ ?  D.real() : D.imag(), suscept);
+
+   suscept *= omega_*epsilon0_;
+}
+
 SPDDielectricTensor::SPDDielectricTensor(
    const ParGridFunction & B,
    const ParGridFunction & k,
@@ -2086,7 +2332,18 @@ double PlasmaProfile::EvalByType(Type type,
          double decay = params[1];
          double shift = params[2];
 
-         double d = cyl_ ? rz_[0] : xyz_[0];
+         // For stix2d:
+         double r = cyl_ ? rz_[0] : xyz_[0];
+         double z = cyl_ ? rz_[1] : xyz_[1];
+
+         // For stix3d:
+         if (dim_)
+         {
+            r = sqrt(xyz_[0] * xyz_[0] + xyz_[1] * xyz_[1]);
+            z = xyz_[2];         
+         }
+
+         double d = (cyl_ || dim_) ? r : xyz_[0];
 
          return (nu0*exp(-(d-shift)/decay));
       }
@@ -2380,12 +2637,14 @@ double PlasmaProfile::EvalByType(Type type,
          double pmax2 = params[5];
          double lam2 = params[6];
          double n2 = params[7];
+         
          /*
          double pmin1 = 1e11;
          double pmax1 = (4.339e20 - 2e20);
          double lam1 = 0.46;
          double n1 = 0.89;
          */
+         
          double ne1 = (pmax1 - pmin1)* pow(cosh(pow((sqrt(val) / lam1), n1)),
                                            -1.0) + pmin1;
          /*
@@ -2394,11 +2653,12 @@ double PlasmaProfile::EvalByType(Type type,
          double lam2 = 0.97;
          double n2 = 70.0;
          */
+         
          double ne2 = (pmax2 - pmin2)* pow(cosh(pow((sqrt(val) / lam2), n2)),
                                            -1.0) + pmin2;
-         //double pval = ne1 + ne2;
+         double pval = ne1 + ne2;
 
-         
+         /*
          double pmax = 4.2e20;
          double pmin = 8.4e19;
          double nuee = 1.0;
@@ -2408,7 +2668,7 @@ double PlasmaProfile::EvalByType(Type type,
          {
             pval = (pmax - pmin)*pow(1 - pow(sqrt(val), nuei), nuee) + pmin;
          }
-         
+         */
          
          return pval;
       }
@@ -2500,6 +2760,7 @@ double PlasmaProfile::EvalByType(Type type,
             }
          }
           // LFS:
+          
             double rho = sqrt(pow(r,2.0)+pow(z,2.0));
             if ( rho > 1.925)
             {
@@ -2519,8 +2780,8 @@ double PlasmaProfile::EvalByType(Type type,
                if (pval < 1e12){pval = 1e12;}
             }
          */
-
          // Original PRD: (case_type will be taken as 0)
+
          double psi_Olim = 1.0178;
 
          // H8:
@@ -2707,28 +2968,16 @@ void BFieldProfile::Eval(Vector &V, ElementTransformation &T,
             if (unit_)
             {
                double bmag = sqrt( pow(p_[0], 2) + pow(p_[1], 2) + pow(p_[2], 2));
-               /*
+
                V[0] = p_[0] / bmag;
                V[1] = p_[1] / bmag;
                V[2] = p_[2] / bmag;
-               */
-
-               V[0] = ((-1.0*p_[1]*xyz_[1]))/bmag;
-               V[1] = 0.0;
-               V[2] = ((p_[1]*xyz_[0]))/bmag;
             }
             else
             {
-               //cout << "V0 2 = " << xyz_[1] << endl; 
-               //cout << "V2 2 = " << xyz_[0] << endl; 
-               /*
                V[0] = p_[0];
                V[1] = p_[1];
                V[2] = p_[2];
-               */
-               V[0] = ((-1.0*p_[1]*xyz_[1]));
-               V[1] = 0.0;
-               V[2] = ((p_[1]*xyz_[0]));
             }
          }
          else

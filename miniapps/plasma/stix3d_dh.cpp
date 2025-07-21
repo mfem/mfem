@@ -4394,15 +4394,307 @@ void curve_current_source_v3_i(const Vector &x, Vector &j)
       }
    }
 
+void curve_current_source_v4_r(const Vector &x, Vector &j)
+{
+   MFEM_ASSERT(x.Size() == 3, "current source requires 3D space.");
+
+   j.SetSize(x.Size());
+   j = 0.0;
+
+   double r = sqrt(x[0] * x[0] + x[1] * x[1]);
+   double z = x[2];
+   double phi = atan2(x[1],x[0])*180.0/M_PI;
+
+   double zmin1 = 0.0466;
+   double zmax1 = 0.3655;
+
+   double xmin = 2.44-0.415*pow(z,2.0)-0.150*pow(z,4.0)+0.0195;
+   double xmax = 2.44-0.415*pow(z,2.0)-0.150*pow(z,4.0)+0.0195 + 0.02;
+
+   double b = 0.415;
+   double c = 0.15;
+
+      if (r >= xmin && r <= xmax &&
+          z >= zmin1 && z <= zmax1 &&
+          phi >= 8.0 && phi <= 12.0)
+      {
+         double mag = sqrt(4*pow(b,2.0)*pow(z,2.0)+16*pow(c,2.0)*pow(z,6.0)-16*b*c*pow(z,4.0) + 1);
+         if (!j_cyl_)
+         {
+            j(0) = curve_params_(1)*(-2*b*z - 4*c*pow(z,3.0))/mag;
+            j(2) = curve_params_(1)/mag;
+            j(1) = curve_params_(2);
+         }
+         else
+         {
+            double cosphi = x[0] / r;
+            double sinphi = x[1] / r;
+
+            double j_r   = curve_params_(1)*(-2*b*z - 4*c*pow(z,3.0))/mag;
+            double j_phi = curve_params_(2);
+            double j_z   = curve_params_(1)/mag;
+
+            j(0) = j_r * cosphi - j_phi * sinphi;
+            j(1) = j_r * sinphi + j_phi * cosphi;
+            j(2) = j_z;
+         }
+         
+         if (vol_profile_ == 1)
+         {
+            double dlant = 0.328835;
+            double arc_len = z + (4*pow(b,2.0)*pow(z,3.0))/3.0 
+               - (16.0/5)*b*c*pow(z,5.0) + (16*pow(c,2.0)*pow(z,7.0))/7.0 - 0.0466232;
+            j *= pow(cos((M_PI/dlant)*((arc_len+dlant) - dlant/2)),2.0);
+         }
+         
+      }
+      /*
+      double zmin2 = -0.3709;
+      double zmax2 = -0.0523;
+
+      if (r >= xmin && r <= xmax &&
+         z >= zmin2 && z <= zmax2 &&
+         phi >= 8.0 && phi <= 12.0)
+      {
+         double mag = sqrt(4*pow(b,2.0)*pow(z,2.0)+16*pow(c,2.0)*pow(z,6.0)-16*b*c*pow(z,4.0) + 1);
+         if (!j_cyl_)
+         {
+            j(0) = curve_params_(3)*(-2*b*z - 4*c*pow(z,3.0))/mag;
+            j(1) = curve_params_(3)/mag;
+            j(2) = curve_params_(4);
+         }
+         else
+         {
+            double cosphi = x[0] / r;
+            double sinphi = x[1] / r;
+
+            double j_r   = curve_params_(3)*(-2*b*z - 4*c*pow(z,3.0))/mag;
+            double j_phi = curve_params_(4);
+            double j_z   = curve_params_(3)/mag;
+
+            j(0) = j_r * cosphi - j_phi * sinphi;
+            j(1) = j_r * sinphi + j_phi * cosphi;
+            j(2) = j_z;
+         }
+         if (vol_profile_ == 1)
+         {
+            double dlant = 0.328835;
+            double arc_len = -1.0*(z + (4*pow(b,2.0)*pow(z,3.0))/3.0 
+               - (16.0/5)*b*c*pow(z,5.0) + (16*pow(c,2.0)*pow(z,7.0))/7.0) - 0.0523328;
+            j *= pow(cos((M_PI/dlant)*((arc_len+dlant) - dlant/2)),2.0);
+         }
+      }
+      */
+      if (r >= xmin && r <= xmax &&
+          z >= zmin1 && z <= zmax1 &&
+          phi >= 16.0 && phi <= 20.0)
+      {
+         double mag = sqrt(4*pow(b,2.0)*pow(z,2.0)+16*pow(c,2.0)*pow(z,6.0)-16*b*c*pow(z,4.0) + 1);
+         if (!j_cyl_)
+         {
+            j(0) = curve_params_(1)*(-2*b*z - 4*c*pow(z,3.0))/mag;
+            j(2) = curve_params_(1)/mag;
+            j(1) = curve_params_(2);
+         }
+         else
+         {
+            double cosphi = x[0] / r;
+            double sinphi = x[1] / r;
+
+            double j_r   = -1.0*curve_params_(1)*(-2*b*z - 4*c*pow(z,3.0))/mag;
+            double j_phi = -1.0*curve_params_(2);
+            double j_z   = -1.0*curve_params_(1)/mag;
+
+            j(0) = j_r * cosphi - j_phi * sinphi;
+            j(1) = j_r * sinphi + j_phi * cosphi;
+            j(2) = j_z;
+         }
+         
+         if (vol_profile_ == 1)
+         {
+            double dlant = 0.328835;
+            double arc_len = z + (4*pow(b,2.0)*pow(z,3.0))/3.0 
+               - (16.0/5)*b*c*pow(z,5.0) + (16*pow(c,2.0)*pow(z,7.0))/7.0 - 0.0466232;
+            j *= pow(cos((M_PI/dlant)*((arc_len+dlant) - dlant/2)),2.0);
+         }
+         
+      }
+      /*
+      if (r >= xmin && r <= xmax &&
+         z >= zmin2 && z <= zmax2 &&
+         phi >= 16.0 && phi <= 20.0)
+      {
+         double mag = sqrt(4*pow(b,2.0)*pow(z,2.0)+16*pow(c,2.0)*pow(z,6.0)-16*b*c*pow(z,4.0) + 1);
+         if (!j_cyl_)
+         {
+            j(0) = curve_params_(3)*(-2*b*z - 4*c*pow(z,3.0))/mag;
+            j(1) = curve_params_(3)/mag;
+            j(2) = curve_params_(4);
+         }
+         else
+         {
+            double cosphi = x[0] / r;
+            double sinphi = x[1] / r;
+
+            double j_r   = curve_params_(3)*(-2*b*z - 4*c*pow(z,3.0))/mag;
+            double j_phi = curve_params_(4);
+            double j_z   = curve_params_(3)/mag;
+
+            j(0) = j_r * cosphi - j_phi * sinphi;
+            j(1) = j_r * sinphi + j_phi * cosphi;
+            j(2) = j_z;
+         }
+         if (vol_profile_ == 1)
+         {
+            double dlant = 0.328835;
+            double arc_len = -1.0*(z + (4*pow(b,2.0)*pow(z,3.0))/3.0 
+               - (16.0/5)*b*c*pow(z,5.0) + (16*pow(c,2.0)*pow(z,7.0))/7.0) - 0.0523328;
+            j *= pow(cos((M_PI/dlant)*((arc_len+dlant) - dlant/2)),2.0);
+         }
+      }
+      */
+}
+
+void curve_current_source_v4_i(const Vector &x, Vector &j)
+{
+   MFEM_ASSERT(x.Size() == 3, "current source requires 3D space.");
+
+   j.SetSize(x.Size());
+   j = 0.0;
+
+   double r = sqrt(x[0] * x[0] + x[1] * x[1]);
+   double z = x[2];
+
+   double zmin1 = 0.0466;
+   double zmax1 = 0.3655;
+
+   double xmin = 2.44-0.415*pow(z,2.0)-0.150*pow(z,4.0)+0.0195;
+   double xmax = 2.44-0.415*pow(z,2.0)-0.150*pow(z,4.0)+0.0195 + 0.02;
+
+   double b = 0.415;
+   double c = 0.15;
+
+   if (curve_params_.Size() < 6)
+   {
+      return;
+   }
+
+   else if (curve_params_(0) == 1 && curve_params_.Size() < 8)
+   {
+      if (r >= xmin && r <= xmax &&
+          z >= zmin1 && z <= zmax1)
+      {
+         double mag = sqrt(4*pow(b,2.0)*pow(z,2.0)+16*pow(c,2.0)*pow(z,6.0)-16*b*c*pow(z,4.0) + 1);
+         if (!j_cyl_)
+         {
+            j(0) = curve_params_(5)*(-2*b*z - 4*c*pow(z,3.0))/mag;
+            j(1) = curve_params_(6)/mag;
+            j(2) = curve_params_(5);
+         }
+         else
+         {
+            double cosphi = x[0] / r;
+            double sinphi = x[1] / r;
+
+            double j_r   = curve_params_(5)*(-2*b*z - 4*c*pow(z,3.0))/mag;
+            double j_phi = curve_params_(5);
+            double j_z   = curve_params_(6)/mag;
+
+            j(0) = j_r * cosphi - j_phi * sinphi;
+            j(1) = j_r * sinphi + j_phi * cosphi;
+            j(2) = j_z;
+         }
+         
+         if (vol_profile_ == 1)
+         {
+            double dlant = 0.328835;
+            double arc_len = z + (4*pow(b,2.0)*pow(z,3.0))/3.0 
+               - (16.0/5)*b*c*pow(z,5.0) + (16*pow(c,2.0)*pow(z,7.0))/7.0 - 0.0466232;
+            j *= pow(cos((M_PI/dlant)*((arc_len+dlant) - dlant/2)),2.0);
+         }
+         
+      }
+   }
+   else
+   {
+      double zmin2 = -0.3709;
+      double zmax2 = -0.0523;
+
+      if (r >= xmin && r <= xmax &&
+          z >= zmin1 && z <= zmax1)
+      {
+         double mag = sqrt(4*pow(b,2.0)*pow(z,2.0)+16*pow(c,2.0)*pow(z,6.0)-16*b*c*pow(z,4.0) + 1);
+         if (!j_cyl_)
+         {
+            j(0) = curve_params_(5)*(-2*b*z - 4*c*pow(z,3.0))/mag;
+            j(1) = curve_params_(6)/mag;
+            j(2) = curve_params_(5);
+         }
+         else
+         {
+            double cosphi = x[0] / r;
+            double sinphi = x[1] / r;
+
+            double j_r   = curve_params_(5)*(-2*b*z - 4*c*pow(z,3.0))/mag;
+            double j_phi = curve_params_(5);
+            double j_z   = curve_params_(6)/mag;
+
+            j(0) = j_r * cosphi - j_phi * sinphi;
+            j(1) = j_r * sinphi + j_phi * cosphi;
+            j(2) = j_z;
+         }
+
+         if (vol_profile_ == 1)
+         {
+            double dlant = 0.328835;
+            double arc_len = z + (4*pow(b,2.0)*pow(z,3.0))/3.0 
+               - (16.0/5)*b*c*pow(z,5.0) + (16*pow(c,2.0)*pow(z,7.0))/7.0 - 0.0466232;
+            j *= pow(cos((M_PI/dlant)*((arc_len+dlant) - dlant/2)),2.0);
+         }
+      }
+      else if (r >= xmin && r <= xmax &&
+               z >= zmin2 && z <= zmax2)
+      {
+         double mag = sqrt(4*pow(b,2.0)*pow(z,2.0)+16*pow(c,2.0)*pow(z,6.0)-16*b*c*pow(z,4.0) + 1);
+         if (!j_cyl_)
+         {
+            j(0) = curve_params_(7)*(-2*b*z - 4*c*pow(z,3.0))/mag;
+            j(1) = curve_params_(7)/mag;
+            j(2) = curve_params_(8);
+         }
+         else
+         {
+            double cosphi = x[0] / r;
+            double sinphi = x[1] / r;
+
+            double j_r   = curve_params_(7)*(-2*b*z - 4*c*pow(z,3.0))/mag;
+            double j_phi = curve_params_(8);
+            double j_z   = curve_params_(7)/mag;
+
+            j(0) = j_r * cosphi - j_phi * sinphi;
+            j(1) = j_r * sinphi + j_phi * cosphi;
+            j(2) = j_z;
+         }
+         if (vol_profile_ == 1)
+         {
+            double dlant = 0.328835;
+            double arc_len = -1.0*(z + (4*pow(b,2.0)*pow(z,3.0))/3.0 
+               - (16.0/5)*b*c*pow(z,5.0) + (16*pow(c,2.0)*pow(z,7.0))/7.0) - 0.0523328;
+            j *= pow(cos((M_PI/dlant)*((arc_len+dlant) - dlant/2)),2.0);
+         }
+      }
+   }
+}
+
 
 void curve_current_source_r(const Vector &x, Vector &j)
 {
-   curve_current_source_v3_r(x, j);
+   curve_current_source_v4_r(x, j);
 }
 
 void curve_current_source_i(const Vector &x, Vector &j)
 {
-   curve_current_source_v3_i(x, j);
+   curve_current_source_v4_i(x, j);
 }
 
 void e_bc_r(const Vector &x, Vector &E)
