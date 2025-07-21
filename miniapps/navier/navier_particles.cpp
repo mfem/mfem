@@ -93,6 +93,7 @@ void analyticalOnlyLift(const real_t zeta, const Vector &x0, const Vector &v0, d
 void analyticalNoLift(const real_t kappa, const real_t gamma, const Vector &x0, const Vector &v0, double t, Vector &x, Vector &v)
 {
    MFEM_ASSERT(kappa > 0.0, "Kappa must be greater than zero.");
+   MFEM_ASSERT(gamma > 0.0, "Gamma must be greater than zero.");
 
    x.SetSize(2); v.SetSize(2);
    
@@ -266,15 +267,23 @@ int main (int argc, char *argv[])
    else if (ctx.test == 1)
    {
       ctx.zeta = 0.0;
+      if (ctx.kappa <= 0.0)
+      {
+         ctx.kappa = 1.0;
+      }
+      if (ctx.gamma <= 0.0)
+      {
+         ctx.gamma = 1.0;
+      }
    }
 
-   // Initialize a simple straight-edged 2D domain [0,20] x [-10,10]
-   Mesh mesh = Mesh::MakeCartesian2D(10, 10, Element::Type::QUADRILATERAL, true, 20.0, 20.0);
+   // Initialize a simple straight-edged 2D domain [0,20] x [-1,1]
+   Mesh mesh = Mesh::MakeCartesian2D(50,10, Element::Type::QUADRILATERAL, true, 20, 2.0);
    Vector transl(mesh.GetNV()*2);
    // Mesh vertex ordering is byNODES
    for (int i = 0; i < transl.Size()/2; i++)
    {
-      transl[mesh.GetNV() + i] = -5.0; // translate down -1
+      transl[mesh.GetNV() + i] = -1.0; // translate down
    }
    mesh.MoveNodes(transl);
 
@@ -289,7 +298,6 @@ int main (int argc, char *argv[])
       cout << "Reynolds number: " << Re << endl;
    }
    NavierSolver flowsolver(&pmesh, ctx.order, 1.0/Re);
-   flowsolver.Setup(ctx.dt);
 
    // Initialize two particle sets - one numerical, one analytical
    Array<int> vdims(State::SIZE);
@@ -345,14 +353,10 @@ int main (int argc, char *argv[])
    ParGridFunction &w_gf = *flowsolver.GetCurrentVorticity();
    u_excoeff.SetTime(time);
    u_gf.ProjectCoefficient(u_excoeff);
-   MPI_Barrier(MPI_COMM_WORLD);
-   // TODO: Memory bug with Jacobians in ElementTransformation
-   //flowsolver.ComputeCurl2D(u_gf, w_gf);
-   w_gf = -0.5;
 
    // Set fluid BCs
    Array<int> bdr_attr(pmesh.bdr_attributes.Max());
-   bdr_attr[0] = 1; bdr_attr[2] = 1;
+   bdr_attr = 1;
    flowsolver.AddVelDirichletBC(couetteFlow, bdr_attr);
 
    // Initialize particle fluid-dependent IC
@@ -404,6 +408,7 @@ int main (int argc, char *argv[])
    }
    
    Array<real_t> beta, alpha; // EXTk/BDF coefficients
+   flowsolver.Setup(ctx.dt);
    for (int step = 1; step <= ctx.num_steps; step++)
    {
       // Step Navier
@@ -412,12 +417,6 @@ int main (int argc, char *argv[])
          cout << "Stepping flow..." << endl;
       }
       flowsolver.Step(time, ctx.dt, step-1);
-      // ---------------------------------------------------
-      // Temporary: enforce flowfield:
-      u_excoeff.SetTime(time);
-      u_gf.ProjectCoefficient(u_excoeff);
-      flowsolver.ComputeCurl2D(u_gf, w_gf);
-      // ---------------------------------------------------
 
       if (Mpi::Root())
       {
