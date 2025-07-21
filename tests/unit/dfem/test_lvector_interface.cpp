@@ -62,7 +62,6 @@ TEST_CASE("DFEM L-Vector interface", "[Parallel][DFEM]")
    ParFiniteElementSpace *mfes = nodes->ParFESpace();
 
    const auto *ir = &IntRules.Get(pmesh.GetTypicalElementGeometry(), q);
-   const int q1d(IntRules.Get(Geometry::SEGMENT, ir->GetOrder()).GetNPoints());
 
    ParGridFunction x(&pfes), y(&pfes), z(&pfes);
    Vector X(pfes.GetTrueVSize()), Y(pfes.GetTrueVSize()), Z(pfes.GetTrueVSize());
