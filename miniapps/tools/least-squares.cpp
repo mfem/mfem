@@ -31,7 +31,7 @@ enum SolverType
  *
  *  @note Currently we don't need to derive from MassIntegrator, as GetRule is public.
  *  This could be it's own standalone function.
- *  @dev Kernel implementation: requires kernel_dispatch.hpp. MFEM_THREAD_SAFE...
+ *  @todo Kernel implementation: requires kernel_dispatch.hpp. MFEM_THREAD_SAFE...
  */
 class AsymmetricMassIntegrator : public MassIntegrator
 {
@@ -118,7 +118,7 @@ void AsymmetricMassIntegrator::AsymmetricElementMatrix(const FiniteElement
 }
 
 /// @brief Dense small least squares solver
-/// @dev This grew a lot, might good to derive from Solver...
+/// @todo This grew a lot, might good to derive from Solver...
 void LSSolver(Solver& solver, const DenseMatrix& A, const Vector& b,
               Vector& x, real_t shift = 0.0)
 {
@@ -229,7 +229,7 @@ void GetNormalL1Diag(const DenseMatrix& A, Vector& l1_diag)
 }
 
 /// @brief Saturates a neighborhood with hopes to well-pose the least squares problem.
-/// @dev Make friends with @a MCMesh
+/// @todo Make friends with @a MCMesh
 void SaturateNeighborhood(NCMesh& mesh, const int element_idx,
                           const int target_ndofs, const int contributed_ndofs,
                           Array<int>& neighbors)
