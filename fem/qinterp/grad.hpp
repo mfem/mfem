@@ -51,7 +51,13 @@ static void Derivatives1D(const int NE,
             Reshape(y_, q1d, vdim, SDIM, NE):
             Reshape(y_, vdim, SDIM, q1d, NE);
 
-   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
+   mfem::forall(NE, proteus::register_lambda(
+      [=,
+      vdim=proteus::jit_variable(vdim),
+      q1d=proteus::jit_variable(q1d),
+      SDIM=proteus::jit_variable(SDIM),
+      d1d = proteus::jit_variable(d1d)
+      ] MFEM_HOST_DEVICE (int e)
    {
       for (int c = 0; c < vdim; c++)
       {
@@ -95,7 +101,7 @@ static void Derivatives1D(const int NE,
             }
          }
       }
-   });
+   }));
 }
 
 // Template compute kernel for derivatives in 2D: tensor product version.
