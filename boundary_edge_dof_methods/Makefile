@@ -10,19 +10,19 @@ CXXFLAGS = $(MFEM_CXXFLAGS)
 LDFLAGS = $(MFEM_LDFLAGS)
 LDLIBS = $(MFEM_LIBS)
 
-#brute_force_test: brute_force_test.cpp test_utils.cpp #boundary_edge_dofs.cpp 
+#brute_force_test: brute_force_test.cpp test_utils.cpp  
 #	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $^ -o $@ $(LDFLAGS) $(LDLIBS)
 
 #clean:
 #	rm -f brute_force_test
 
-#brute_force_test_internal_bdr: brute_force_test_internal_bdr.cpp test_utils.cpp #boundary_edge_dofs.cpp 
+#brute_force_test_internal_bdr: brute_force_test_internal_bdr.cpp test_utils.cpp 
 #	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $^ -o $@ $(LDFLAGS) $(LDLIBS)
 
 #clean:
 #	rm -f brute_force_test_internal_bdr
 
-cubetest: cubetest.cpp loop_length.cpp loop_orientation.cpp test_utils.cpp boundary_edge_dofs_patch.cpp 
+cubetest: cubetest.cpp loop_length.cpp loop_orientation.cpp #test_utils.cpp 
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $^ -o $@ $(LDFLAGS) $(LDLIBS)
 
 clean:

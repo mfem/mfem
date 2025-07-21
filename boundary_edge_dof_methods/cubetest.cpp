@@ -83,10 +83,8 @@ int main(int argc, char *argv[])
     bdr_attr_marker[10] = 1; // Mark attribute 11 for the loop boundary condition
     
 
-    GetBoundaryEdgeDoFs(fespace, pmesh, bdr_attr_marker, ess_tdof_list, &dof_to_edge, 
+    fespace->GetBoundaryEdgeDoFs(bdr_attr_marker, ess_tdof_list, &dof_to_edge, 
                        &dof_to_orientation, &boundary_edge_ldofs, &dof_to_boundary_element, &ess_edge_list);
-    //fespace->GetBoundaryEdgeDoFs(bdr_attr_marker, ess_tdof_list, &dof_to_edge, 
-    //                   &dof_to_orientation, &boundary_edge_ldofs, &dof_to_boundary_element, &ess_edge_list);
     cout << "Rank " << myid << ", number of edge dofs: " << boundary_edge_ldofs.size() << 
          ", number of essential dofs: " << ess_tdof_list.Size() << endl;
 
