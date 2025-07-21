@@ -41,24 +41,24 @@ struct s_Context
 // Particle State Variables:
 enum State : int
 {
-   U_NP3,
-   U_NP2, 
-   U_NP1,
-   U_N,
+   U_NP3, // 0
+   U_NP2, // 1
+   U_NP1, // 2
+   U_N,   // 3
 
-   V_NP3,
-   V_NP2,
-   V_NP1,
-   V_N, 
+   V_NP3, // 4
+   V_NP2, // 5
+   V_NP1, // 6
+   V_N,   // 7
 
-   W_NP3,
-   W_NP2, 
-   W_NP1,
-   W_N,
+   W_NP3, // 8
+   W_NP2, // 9
+   W_NP1, // 10
+   W_N,   // 11
 
-   X_NP3,
-   X_NP2,
-   X_NP1,
+   X_NP3, // 12
+   X_NP2, // 13
+   X_NP1, // 14
 
    SIZE  
 };
@@ -92,18 +92,20 @@ void analyticalOnlyLift(const real_t zeta, const Vector &x0, const Vector &v0, d
 
 void analyticalNoLift(const real_t kappa, const real_t gamma, const Vector &x0, const Vector &v0, double t, Vector &x, Vector &v)
 {
+   MFEM_ASSERT(kappa > 0.0, "Kappa must be greater than zero.");
+
    x.SetSize(2); v.SetSize(2);
    
    // Drag- + gravity-only contribution
-   const real_t C1_d = v0[1];
-   const real_t C2_d = x0[1];
-   const real_t C3_d = v0[0];
-   const real_t C4_d = x0[0];
+   const real_t C1_d = v0[1] + gamma/kappa;
+   const real_t C2_d = x0[1] + C1_d/kappa;
+   const real_t C3_d = v0[0] - ( C2_d + 1 + gamma/pow(kappa,2) )/2.0;
+   const real_t C4_d = x0[0] - C1_d/( 2*pow(kappa,2) ) + C3_d/kappa;
 
-   x[0] = (kappa/2.0) * ( -gamma*pow(t,4)/24.0 + C1_d*pow(t,3)/6.0 +(C2_d+1)*pow(t,2)/2.0 ) + C3_d*t + C4_d;
-   x[1] = -gamma*pow(t,2)/2.0 + C1_d*t + C2_d;
-   v[0] = (kappa/2.0) * ( -gamma*pow(t,3)/6.0 + C1_d*pow(t,2)/2.0 +(C2_d+1)*t ) + C3_d;
-   v[1] = -gamma*t+C1_d;
+   x[0] = -(C3_d/kappa)*exp(-kappa*t) + (C1_d/2.0)*( (kappa*t+1) / (pow(kappa,2)) ) * exp(-kappa*t) - ( gamma/(4*kappa) )*pow(t,2) + ( ( C2_d + 1 + gamma/pow(kappa,2) )/2.0 )*t + C4_d;
+   x[1] = -(1.0/kappa)*(C1_d*exp(-kappa*t) + gamma*t) + C2_d;
+   v[0] = C3_d*exp(-kappa*t) - (C1_d/2.0)*t*exp(-kappa*t) - (gamma/(2*kappa))*t + ( C2_d + 1 + gamma/pow(kappa,2) )/2.0;
+   v[1] = C1_d*exp(-kappa*t)-gamma/kappa;
 }
 
 class ParticleIntegrator
@@ -424,10 +426,10 @@ int main (int argc, char *argv[])
 
       // Get the time-integration coefficients
       flowsolver.GetTimeIntegrationCoefficients(beta, alpha);
-      
+
       // Step particles
       pint.Step(ctx.dt, beta, alpha, u_gf, w_gf, particles);
-      
+
       if (ctx.print_csv_freq > 0 && step % ctx.print_csv_freq == 0)
       {
          // Output the particles
@@ -450,7 +452,6 @@ int main (int argc, char *argv[])
                   analyticalNoLift(ctx.kappa, ctx.gamma, p_exact.GetStateVar(0), p_exact.GetStateVar(1), time, p_exact.GetCoords(), p_exact.GetStateVar(2));
                }
                particles_exact->SetParticle(i, p_exact);
-               p_exact.Print();
             }
             std::string file_name_exact = csv_prefix + "Exact_" + mfem::to_padded_string(step, 9) + ".csv";
             particles_exact->PrintCSV(file_name_exact.c_str());
