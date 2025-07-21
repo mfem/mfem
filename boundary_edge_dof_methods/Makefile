@@ -22,7 +22,7 @@ LDLIBS = $(MFEM_LIBS)
 #clean:
 #	rm -f brute_force_test_internal_bdr
 
-cubetest: cubetest.cpp loop_length.cpp loop_orientation.cpp #test_utils.cpp 
+cubetest: cubetest.cpp loop_length.cpp #test_utils.cpp 
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $^ -o $@ $(LDFLAGS) $(LDLIBS)
 
 clean:

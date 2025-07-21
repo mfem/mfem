@@ -1,6 +1,4 @@
 #include "mfem.hpp"
-#include "boundary_edge_dofs_patch.hpp"
-#include "loop_orientation.hpp"
 #include "loop_length.hpp"
 
 using namespace std;
@@ -35,6 +33,7 @@ int main(int argc, char *argv[])
 
     // Read the mesh from the given mesh file
     Mesh *mesh = new Mesh(mesh_file, 1, 1);
+    mesh->UniformRefinement();
     int dim = mesh->Dimension();
    
     if (myid == 0)
@@ -42,22 +41,15 @@ int main(int argc, char *argv[])
         cout << "Mesh Dimension: " << dim << endl;
         cout << "Number of Elements: " << mesh->GetNE() << endl;
         cout << "Number of Boundary Elements: " << mesh->GetNBE() << endl;
-        cout << "Number of Vertices: " << mesh->GetNV() << endl;
       
         // Print boundary attributes
         cout << "Boundary Attributes: ";
-        for (int i = 0; i < mesh->bdr_attributes.Size(); i++)
-        {
-            cout << mesh->bdr_attributes[i] << " ";
-        }
+        for (int i = 0; i < mesh->bdr_attributes.Size(); i++) cout << mesh->bdr_attributes[i] << " ";
         cout << endl;
       
         // Print domain attributes
         cout << "Domain Attributes: ";
-        for (int i = 0; i < mesh->attributes.Size(); i++)
-        {
-            cout << mesh->attributes[i] << " ";
-        }
+        for (int i = 0; i < mesh->attributes.Size(); i++) cout << mesh->attributes[i] << " ";
         cout << endl;
     }
 
@@ -66,11 +58,10 @@ int main(int argc, char *argv[])
     delete mesh;
 
     // Create edge-based finite element space (Nédélec)
-    int order = 1;
+    int order = 2;
     FiniteElementCollection *fec = new ND_FECollection(order, pmesh->Dimension());
     ParFiniteElementSpace *fespace = new ParFiniteElementSpace(pmesh, fec);
 
-    // Using the standalone function
     Array<int> ess_tdof_list;
     Array<int> ess_edge_list;
     std::unordered_map<int, int> dof_to_edge, dof_to_orientation;
@@ -88,13 +79,10 @@ int main(int argc, char *argv[])
     cout << "Rank " << myid << ", number of edge dofs: " << boundary_edge_ldofs.size() << 
          ", number of essential dofs: " << ess_tdof_list.Size() << endl;
 
-    // Collect the global number of boundary edge DoFs
+    // Collect the global number of boundary edge DoFs to print
     int local_final_dofs = boundary_edge_ldofs.size();
     int total_final_dofs;
     MPI_Allreduce(&local_final_dofs, &total_final_dofs, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
-
-    // Debug output
-    cout << "Rank " << myid << ", final boundary edge DOFs in this rank: " << local_final_dofs << endl;
     if (myid == 0) cout << "  Total final boundary edge DOFs (all ranks): " << total_final_dofs << endl;
     
     // Determine edge orientations relative to counter-clockwise loop direction
@@ -102,11 +90,9 @@ int main(int argc, char *argv[])
     loop_normal = 0.0;
     //loop_normal[0] = 1.0; // +x direction
     loop_normal[1] = 1.0; // +y direction
-    //loop_normal[2] = -1.0; // +z direction
+    //loop_normal[2] = -1.0; // -z direction
 
     std::unordered_map<int, int> edge_loop_orientation;
-    //ComputeLoopEdgeOrientations(pmesh, dof_to_edge, dof_to_boundary_element,
-    //                                        loop_normal, edge_loop_orientation);
     fespace->ComputeLoopEdgeOrientations(dof_to_edge, dof_to_boundary_element,
                                         loop_normal, edge_loop_orientation);
                                         
@@ -122,9 +108,17 @@ int main(int argc, char *argv[])
     if (myid == 0) cout << "  Total boundary loop perimeter: " << total_length << endl;
     
 
-    // Mark all other boundaries (1-6) for zero tangential boundary condition
+    // Mark all external boundaries (1-6) for zero tangential boundary condition
     Array<int> ess_bdr(pmesh->bdr_attributes.Max());
-    ess_bdr = 1; // Mark all boundary attributes for essential BC
+    //ess_bdr = 1; // Mark all boundary attributes for essential BC
+    ess_bdr = 0; // Initialize all to 0 (no essential BC)
+    ess_bdr[0] = 1; // Attribute 1
+    ess_bdr[1] = 1; // Attribute 2
+    ess_bdr[2] = 1; // Attribute 3
+    ess_bdr[3] = 1; // Attribute 4
+    ess_bdr[4] = 1; // Attribute 5
+    ess_bdr[5] = 1; // Attribute 6
+    ess_bdr[10] = 1; // Attribute 11
 
     // Get essential boundary DOFs for zero tangential field on all boundaries
     Array<int> ess_tdof_list_all;
@@ -161,7 +155,7 @@ int main(int argc, char *argv[])
     
     // Set up the bilinear form for the EM diffusion operator: curl curl + sigma I
     Coefficient *muinv = new ConstantCoefficient(1.0);
-    Coefficient *sigma = new ConstantCoefficient(1.0);
+    Coefficient *sigma = new ConstantCoefficient(20.0);
     ParBilinearForm *a = new ParBilinearForm(fespace);
     a->AddDomainIntegrator(new CurlCurlIntegrator(*muinv));
     a->AddDomainIntegrator(new VectorFEMassIntegrator(*sigma));
@@ -176,8 +170,7 @@ int main(int argc, char *argv[])
     // Create and configure the solver
     if (myid == 0)
     {
-        cout << "Size of linear system: "
-            << A.As<HypreParMatrix>()->GetGlobalNumRows() << endl;
+        cout << "Size of linear system: " << A.As<HypreParMatrix>()->GetGlobalNumRows() << endl;
     }
 
     ParFiniteElementSpace *prec_fespace =
