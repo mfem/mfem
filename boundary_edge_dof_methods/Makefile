@@ -16,10 +16,16 @@ LDLIBS = $(MFEM_LIBS)
 #clean:
 #	rm -f brute_force_test
 
-brute_force_test_internal_bdr: brute_force_test_internal_bdr.cpp test_utils.cpp #boundary_edge_dofs.cpp 
+#brute_force_test_internal_bdr: brute_force_test_internal_bdr.cpp test_utils.cpp #boundary_edge_dofs.cpp 
+#	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $^ -o $@ $(LDFLAGS) $(LDLIBS)
+
+#clean:
+#	rm -f brute_force_test_internal_bdr
+
+cubetest: cubetest.cpp loop_length.cpp loop_orientation.cpp test_utils.cpp boundary_edge_dofs_patch.cpp 
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $^ -o $@ $(LDFLAGS) $(LDLIBS)
 
 clean:
-	rm -f brute_force_test_internal_bdr
+	rm -f cubetest
 
 .PHONY: clean
