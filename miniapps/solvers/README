@@ -129,3 +129,8 @@ This miniapp allows timing comparisons with the LEGACY assembly approach.
 [3] Mihajlović, M.D. and Mijalković, S., "A component decomposition
     preconditioning for 3D stress analysis problems", Numerical Linear
     Algebra with Applications, 2002.
+
+# Incompressible Schrödinger equation
+
+- Linear Schrödinger equation
+- Two examples: leapfrogging vortex rings and jet

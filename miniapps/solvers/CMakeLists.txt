@@ -75,6 +75,16 @@ add_mfem_miniapp(lor_solvers
   EXTRA_HEADERS lor_mms.hpp
   LIBRARIES mfem)
 
+add_mfem_miniapp(schrodinger_flow 
+  MAIN schrodinger_flow.cpp 
+  EXTRA_HEADERS schrodinger_flow.hpp
+  LIBRARIES mfem)
+
+add_mfem_miniapp(pschrodinger_flow 
+  MAIN pschrodinger_flow.cpp 
+  EXTRA_HEADERS schrodinger_flow.hpp
+  LIBRARIES mfem)
+
 if (MFEM_ENABLE_TESTING)
   add_test(NAME lor_solvers_ser COMMAND lor_solvers -fe n -no-vis)
 endif()
