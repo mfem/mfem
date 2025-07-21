@@ -562,7 +562,8 @@ public:
 
     void AFilter(Coefficient* coeff, ParGridFunction& gf)
     {
-        gf.SetSpace(GetFilterFES());
+        gf.SetSpace(GetDesignFES());
+
         tmpv.SetSize(GetFilterFES()->TrueVSize()); tmpv=0.0;
         rhsv.SetSize(GetFilterFES()->TrueVSize());
 
@@ -578,7 +579,11 @@ public:
 
         K->EliminateBC(*A,ess_tdofv,tmpv,rhsv);
         pcg->Mult(rhsv,tmpv);
-        gf.SetFromTrueDofs(tmpv);
+
+        rhsv.SetSize(GetDesignFES()->TrueVSize());
+        S->MultTranspose(tmpv,rhsv);
+
+        gf.SetFromTrueDofs(rhsv);
     }
 
 private:
@@ -619,6 +624,25 @@ private:
 class IsoComplCoef:public Coefficient
 {
 public:
+    IsoComplCoef(bool SIMP_=false,bool PROJ_=false){
+
+        eta=0.5;
+        beta=8.0;
+        p=1.0;
+
+        SIMP=SIMP_;
+        PROJ=PROJ_;
+
+        rho=nullptr;
+        sol=nullptr;
+
+        dMu.reset(new DerivedCoef(this,&IsoComplCoef::EvalMu));
+        dLambda.reset(new DerivedCoef(this,&IsoComplCoef::EvalLambda));
+        dE.reset(new DerivedCoef(this,&IsoComplCoef::EvalE));
+        dIsoCompl.reset(new DerivedCoef(this,&IsoComplCoef::EvalGrad));
+        dnu.reset(new DerivedCoef(this,&IsoComplCoef::EvalNu));
+    }
+
 
     IsoComplCoef(GridFunction* rho_, GridFunction* sol_,bool SIMP_=false,bool PROJ_=false){
 
@@ -636,6 +660,7 @@ public:
         dLambda.reset(new DerivedCoef(this,&IsoComplCoef::EvalLambda));
         dE.reset(new DerivedCoef(this,&IsoComplCoef::EvalE));
         dIsoCompl.reset(new DerivedCoef(this,&IsoComplCoef::EvalGrad));
+        dnu.reset(new DerivedCoef(this,&IsoComplCoef::EvalNu));
     }
 
     virtual
@@ -687,6 +712,7 @@ public:
     Coefficient* GetLambda(){return dLambda.get();}
     Coefficient* GetMu(){return dMu.get();}
     Coefficient* GetGradIsoComp(){return dIsoCompl.get();}
+    Coefficient* GetNu(){return dnu.get();}
 
 
     virtual
@@ -726,6 +752,12 @@ public:
     }
 
 private:
+
+    real_t EvalNu(ElementTransformation &T,
+                  const IntegrationPoint &ip)
+    {
+        return nu->Eval(T,ip);
+    }
 
     real_t EvalGrad(ElementTransformation &T,
              const IntegrationPoint &ip)
@@ -885,6 +917,7 @@ private:
     std::unique_ptr<DerivedCoef> dE;
     std::unique_ptr<DerivedCoef> dLambda;
     std::unique_ptr<DerivedCoef> dIsoCompl;
+    std::unique_ptr<DerivedCoef> dnu;
 
 };
 
