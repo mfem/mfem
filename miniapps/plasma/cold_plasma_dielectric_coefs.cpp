@@ -236,7 +236,7 @@ complex<double> L_cold_plasma(double omega,
    return val;
 }
 
-
+/*
 complex<double> S_cold_plasma(double omega,
                               double kparallel,
                               double Bmag,
@@ -288,8 +288,8 @@ complex<double> S_cold_plasma(double omega,
    }
    return val;
 }
+*/
 
-/*
 complex<double> S_cold_plasma(double omega,
                               double kparallel,
                               double Bmag,
@@ -366,7 +366,7 @@ complex<double> S_cold_plasma(double omega,
    }
    return val;
 }
-*/
+
 complex<double> S_cold_plasma_by_species(double omega,
                                         double kparallel,
                                         double Bmag,
@@ -438,7 +438,7 @@ complex<double> S_cold_plasma_by_species(double omega,
 
    return suscept_particle;
 }
-
+/*
 complex<double> D_cold_plasma(double omega,
                               double kparallel,
                               double Bmag,
@@ -490,8 +490,8 @@ complex<double> D_cold_plasma(double omega,
    }
    return val;
 }
+*/
 
-/*
 complex<double> D_cold_plasma(double omega,
                               double kparallel,
                               double Bmag,
@@ -560,7 +560,7 @@ complex<double> D_cold_plasma(double omega,
    }
    return val;
 }
-*/
+
 complex<double> D_cold_plasma_by_species(double omega,
                                         double kparallel,
                                         double Bmag,
@@ -624,7 +624,7 @@ complex<double> D_cold_plasma_by_species(double omega,
 
    return suscept_particle;
 }
-
+/*
 complex<double> P_cold_plasma(double omega,
                               double kparallel,
                               double nue,
@@ -659,8 +659,8 @@ complex<double> P_cold_plasma(double omega,
    }
    return val;
 }
+*/
 
-/*
 complex<double> P_cold_plasma(double omega,
                               double kparallel,
                               double nue,
@@ -706,7 +706,7 @@ complex<double> P_cold_plasma(double omega,
    }
    return val;
 }
-*/
+
 complex<double> P_cold_plasma_by_species(double omega,
                                         double kparallel,
                                         double Bmag,
