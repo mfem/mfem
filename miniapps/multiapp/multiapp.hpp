@@ -452,44 +452,85 @@ template <typename App>
 class AbstractOperator : public Application
 {
 protected:
-
-    /// @brief A type trait to check if the erased class has the functions Step, Mult, and Solve with the needed signatures.
-    template<class T>
-    using CheckStep = decltype(std::declval<T&>().Step(std::declval<Vector&>(),std::declval<real_t&>(),std::declval<real_t&>()));
-
-    template<class T>
-    using CheckMult = decltype(std::declval<T&>().Mult(std::declval<const Vector&>(),std::declval<Vector&>()));
-
-    template<class T>
-    using CheckSolve = decltype(std::declval<T&>().Solve(std::declval<const Vector&>(),std::declval<Vector&>()));
-    
-
+ 
     // Define a template class 'check' to test for the existence of member functions
-    template <typename C, template<typename> typename Func, typename R>
-    class CheckForMemberFunction {
-        template<typename T> static constexpr auto check(T*) -> typename std::is_same< Func<T>, R >::type;
-        template<typename> static constexpr std::false_type check(...);
-        typedef decltype(check<C>(0)) type;
+    template <typename C>
+    class CheckMember{
+        private:        
+
+        /// @brief A type trait to check if the erased class has the functions Step, Mult, and Solve
+        /// with the needed signatures.
+        template<class T>
+        using Step = decltype(std::declval<T&>().Step(std::declval<Vector&>(),std::declval<real_t&>(),std::declval<real_t&>()));
+
+        template<class T>
+        using StepPtr = decltype(std::declval<T&>().Step(std::declval<const int>(),std::declval<real_t*>(),std::declval<real_t&>(),std::declval<real_t&>()));
+
+        template<class T>
+        using Mult = decltype(std::declval<T&>().Mult(std::declval<const Vector&>(),std::declval<Vector&>()));
+
+        template<class T>
+        using MultPtr = decltype(std::declval<T&>().Mult(std::declval<const int>(),std::declval<const real_t*>(),std::declval<const int>(),std::declval<real_t*>()));
+
+        template<class T>
+        using Solve = decltype(std::declval<T&>().Solve(std::declval<const Vector&>(),std::declval<Vector&>()));
+
+        template<class T>
+        using SolvePtr = decltype(std::declval<T&>().Solve(std::declval<const int>(),std::declval<const real_t*>(),std::declval<const int>(),std::declval<real_t*>()));        
+        // ---------------------------------------------------------------------
+        
+        template <typename T, template<typename> typename Func, typename R>
+        static constexpr auto Check(T*) -> typename std::is_same< Func<T>, R>::type;
+        
+        template <typename, template<typename> typename, typename >
+        static constexpr std::false_type Check(...);
+
+        // --- Check for the existence of the member functions
+        typedef decltype(Check<C,Mult,void>(0)) Has_Mult;
+        typedef decltype(Check<C,Step,void>(0)) Has_Step;
+        typedef decltype(Check<C,Solve,void>(0)) Has_Solve;
+
+        typedef decltype(Check<C,MultPtr,void>(0)) Has_MultPtr;
+        typedef decltype(Check<C,StepPtr,void>(0)) Has_StepPtr;
+        typedef decltype(Check<C,SolvePtr,void>(0)) Has_SolvePtr;
 
     public:
-        static constexpr bool value  = type::value;
+        static constexpr bool HasMult  = Has_Mult::value;
+        static constexpr bool HasStep  = Has_Step::value;
+        static constexpr bool HasSolve = Has_Solve::value;
+        static constexpr bool HasMultPtr  = Has_MultPtr::value;
+        static constexpr bool HasStepPtr  = Has_StepPtr::value;
+        static constexpr bool HasSolvePtr = Has_SolvePtr::value;
+
     };    
+
 
     App *app; ///< Pointer to the application
 
 public:
 
-    constexpr bool HasMult(){return CheckForMemberFunction<App,CheckMult,void>::value;}
-    constexpr bool HasSolve(){return CheckForMemberFunction<App,CheckSolve,void>::value;}
-    constexpr bool HasStep(){return CheckForMemberFunction<App,CheckStep,void>::value;}
+    constexpr bool HasMult(){return CheckMember<App>::HasMult;}
+    constexpr bool HasStep(){return CheckMember<App>::HasStep;}
+    constexpr bool HasSolve(){return CheckMember<App>::HasSolve;}
+
 
     AbstractOperator(App *app_) : app(app_) {}
     
+
+    // void PerformOperation(const int op, const Vector &x, Vector &y) override
+    // {
+    //     app->PerformOperation(x,y);
+    // }
+
     void Solve(const Vector &x, Vector &y) const override
     {
-        if constexpr (CheckForMemberFunction<App,CheckSolve,void>::value)
+        if constexpr (CheckMember<App>::HasSolve)
         {
             app->Solve(x,y);
+        }
+        else if constexpr (CheckMember<App>::HasSolvePtr)
+        {
+            app->Solve(x.Size(), x.GetData(), y.Size(), y.GetData());
         }
         else
         {
@@ -499,9 +540,13 @@ public:
 
     void Mult(const Vector &x, Vector &y) const override
     {
-        if constexpr (CheckForMemberFunction<App,CheckMult,void>::value)
+        if constexpr (CheckMember<App>::HasMult)
         {
             app->Mult(x,y);
+        }
+        else if constexpr (CheckMember<App>::HasMultPtr)
+        {
+            app->Mult(x.Size(), x.GetData(), y.Size(), y.GetData());
         }
         else
         {
@@ -509,16 +554,15 @@ public:
         }
     }
 
-    // void PerformOperation(const int op, const Vector &x, Vector &y) override
-    // {
-    //     app->PerformOperation(x,y);
-    // }
-
     void Step(Vector &x, real_t &t, real_t &dt) override
     {
-        if constexpr (CheckForMemberFunction<App,CheckStep,void>::value)
+        if constexpr (CheckMember<App>::HasStep)
         {
             app->Step(x,t,dt);
+        }
+        else if constexpr (CheckMember<App>::HasStepPtr)
+        {
+            app->Step(x.Size(), x.GetData(), t, dt);
         }
         else
         {
@@ -776,7 +820,8 @@ public:
             }
 
             if(implicit_op->IsLinear())
-            {  // Use b to store the rhs for the linear implicit solve; b=0 (or unused) for nonlinear Newton solves
+            {  // Use b to store the rhs for the linear implicit solve.
+               // b=0 (or unused) for nonlinear Newton solves
                 b.SetSize(Width());
             }
         }
