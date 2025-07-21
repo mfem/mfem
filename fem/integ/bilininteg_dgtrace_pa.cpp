@@ -187,7 +187,6 @@ void DGTraceIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type)
    }
    else
    {
-      // TODO: how to accelerate this?
       r.SetSize(nq * nf);
       auto C_vel = Reshape(vel.HostRead(), dim, nq, nf);
       auto n = Reshape(geom->normal.HostRead(), nq, dim, nf);
