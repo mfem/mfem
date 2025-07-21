@@ -272,6 +272,9 @@ int main(int argc, char* argv[])
    bool preserve_volumes = false; // TODO(Gabriel): Why this is not working?
    bool save_to_file = false;
 
+   bool visualization = true;
+   int visport = 19916;
+
    // Parse options
    OptionsParser args(argc, argv);
    args.AddOption(&ser_ref_levels, "-rs", "--refine",
@@ -311,6 +314,10 @@ int main(int argc, char* argv[])
 
    args.AddOption(&save_to_file, "-s", "--save", "-no-s",
                   "--no-save", "Show or not show approximation error.");
+
+   args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
+                  "--no-visualization", "Enable or disable GLVis visualization.");
+   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
 
    args.ParseCheck();
    MFEM_VERIFY((ser_ref_levels >= 0) && (par_ref_levels >= 0), "")
@@ -510,12 +517,16 @@ int main(int argc, char* argv[])
    u_reconstruction.GetElementAverages(u_rec_avg);
 
    char vishost[] = "localhost";
-   int visport = 19916;
    socketstream glvis_original(vishost, visport);
    socketstream glvis_averages(vishost, visport);
    socketstream glvis_rec_avg(vishost, visport);
    socketstream glvis_reconstruction(vishost, visport);
-   if (glvis_original && glvis_averages && glvis_reconstruction)
+
+   if (glvis_original &&
+       glvis_averages &&
+       glvis_rec_avg &&
+       glvis_reconstruction &&
+       visualization)
    {
       //glvis_original.precision(8);
       glvis_original << "parallel " << mesh.GetNRanks()
@@ -541,7 +552,7 @@ int main(int argc, char* argv[])
                     << "solution\n" << mesh << u_rec_avg
                     << "window_title 'rec average'\n" << std::flush;
    }
-   else
+   else if (visualization)
    {
       MFEM_WARNING("Cannot connect to glvis server, disabling visualization.")
    }
@@ -566,10 +577,7 @@ int main(int argc, char* argv[])
 
       std::ofstream file;
       file.open("convergence.csv", std::ios::out | std::ios::app);
-      if (!file.is_open())
-      {
-         mfem_error("Failed to open");
-      }
+      if (!file.is_open()) { mfem_error("Failed to open file"); }
       file << std::scientific << std::setprecision(16);
       file << error
            << "," << fes_averages.GetNConformingDofs()

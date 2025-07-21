@@ -198,6 +198,9 @@ int main(int argc, char* argv[])
 
    bool save_to_file = true;
 
+   bool visualization = true;
+   int visport = 19916;
+
    // Parse options
    OptionsParser args(argc, argv);
    args.AddOption(&ser_ref_levels, "-rs", "--refine",
@@ -215,6 +218,10 @@ int main(int argc, char* argv[])
 
    args.AddOption(&save_to_file, "-s", "--save", "-no-s",
                   "--no-save", "Show or not show approximation error.");
+
+   args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
+                  "--no-visualization", "Enable or disable GLVis visualization.");
+   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
 
    args.ParseCheck();
    MFEM_VERIFY((ser_ref_levels >= 0) && (par_ref_levels >= 0), "")
@@ -275,12 +282,16 @@ int main(int argc, char* argv[])
 
    // evaluate reconstruction
    char vishost[] = "localhost";
-   int visport = 19916;
    socketstream glvis_original(vishost, visport);
    socketstream glvis_averages(vishost, visport);
    socketstream glvis_rec_avg(vishost, visport);
    socketstream glvis_reconstruction(vishost, visport);
-   if (glvis_original && glvis_averages && glvis_reconstruction)
+
+   if (glvis_original &&
+       glvis_averages &&
+       glvis_rec_avg &&
+       glvis_reconstruction &&
+       visualization)
    {
       //glvis_original.precision(8);
       glvis_original << "parallel " << mesh.GetNRanks()
@@ -305,7 +316,7 @@ int main(int argc, char* argv[])
                     << "solution\n" << mesh << u_rec_avg
                     << "window_title 'rec average'\n" << std::flush;
    }
-   else
+   else if (visualization)
    {
       MFEM_WARNING("Cannot connect to glvis server, disabling visualization.")
    }
