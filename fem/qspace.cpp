@@ -206,7 +206,6 @@ void FaceQuadratureSpace::ConstructOffsets()
    ne = face_indices.Size();
    int offset = 0;
    int f_idx = 0;
-   // TODO: how to get rid of O(n) loop on the CPU?
    for (int i = 0; i < mesh.GetNumFacesWithGhost(); i++)
    {
       const Mesh::FaceInformation face = mesh.GetFaceInformation(i);
