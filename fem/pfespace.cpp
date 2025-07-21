@@ -1118,6 +1118,14 @@ void ParFiniteElementSpace::Synchronize(Array<int> &ldof_marker) const
    gcomm->Bcast(ldof_marker);
 }
 
+void ParFiniteElementSpace::SynchronizeBC(Array<double> &bc_values) const
+{
+
+   // Use the MaxAbs reduction mode
+   gcomm->Reduce<double>(bc_values, GroupCommunicator::MaxAbs);
+   gcomm->Bcast(bc_values);
+}
+
 void ParFiniteElementSpace::GetEssentialVDofs(const Array<int> &bdr_attr_is_ess,
                                               Array<int> &ess_dofs,
                                               int component) const

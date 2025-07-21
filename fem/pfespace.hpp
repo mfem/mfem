@@ -422,6 +422,10 @@ public:
        "partially conforming") space. */
    void Synchronize(Array<int> &ldof_marker) const;
 
+       /** @brief Given a vector of boundary condition values on the local true
+         dofs, perform a reduction across all processors. */
+    void SynchronizeBC(Array<double> &bc_values) const;
+
    /// Determine the boundary degrees of freedom
    void GetEssentialVDofs(const Array<int> &bdr_attr_is_ess,
                           Array<int> &ess_dofs,

@@ -1182,6 +1182,30 @@ void GroupCommunicator::BitOR(OpData<T> opd)
    }
 }
 
+template <class T>
+void GroupCommunicator::MaxAbs(OpData<T> opd)
+{
+   for (int i = 0; i < opd.nldofs; i++)
+   {
+      T data = opd.ldata[opd.ldofs[i]];
+      T abs_data = std::abs(data);
+      
+      for (int j = 0; j < opd.nb; j++)
+      {
+         T b = opd.buf[j*opd.nldofs+i];
+         T abs_b = std::abs(b);
+         
+         if (abs_data < abs_b)
+         {
+            data = b;
+            abs_data = abs_b;
+         }
+      }
+      
+      opd.ldata[opd.ldofs[i]] = data;
+   }
+}
+
 void GroupCommunicator::PrintInfo(std::ostream &os) const
 {
    char c = '\0';
@@ -1338,14 +1362,17 @@ template void GroupCommunicator::Sum<int>(OpData<int>);
 template void GroupCommunicator::Min<int>(OpData<int>);
 template void GroupCommunicator::Max<int>(OpData<int>);
 template void GroupCommunicator::BitOR<int>(OpData<int>);
+template void GroupCommunicator::MaxAbs<int>(OpData<int>);
 
 template void GroupCommunicator::Sum<double>(OpData<double>);
 template void GroupCommunicator::Min<double>(OpData<double>);
 template void GroupCommunicator::Max<double>(OpData<double>);
+template void GroupCommunicator::MaxAbs<double>(OpData<double>);
 
 template void GroupCommunicator::Sum<float>(OpData<float>);
 template void GroupCommunicator::Min<float>(OpData<float>);
 template void GroupCommunicator::Max<float>(OpData<float>);
+template void GroupCommunicator::MaxAbs<float>(OpData<float>);
 
 
 #ifdef __bgq__
