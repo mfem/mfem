@@ -249,29 +249,42 @@ public:
 
    /// @brief Compute the action of the operator on a given vector.
    ///
-   /// @param solutions_t The solution vector in which to compute the action.
+   /// @param solutions_in The solution vector in which to compute the action.
    /// This has to be a T-dof vector if MultLevel is set to TVECTOR, or L-dof
    /// Vector if MultLevel is set to LVECTOR.
-   /// @param result_t Result vector of the action of the operator on
-   /// solutions_t. The result is a T-dof vector or L-dof vector depending on
+   /// @param result_in Result vector of the action of the operator on
+   /// solutions. The result is a T-dof vector or L-dof vector depending on
    /// the MultLevel.
-   void Mult(const Vector &solutions_t, Vector &result_t) const override
+   void Mult(const Vector &solutions_in, Vector &result_in) const override
    {
       MFEM_ASSERT(!action_callbacks.empty(), "no integrators have been set");
-      if (mult_level == MultLevel::TVECTOR)
+
+      if (mult_level == MultLevel::LVECTOR)
       {
-         prolongation(solutions, solutions_t, solutions_l);
+         get_lvectors(solutions, solutions_in, solutions_l);
+         result_in = 0.0;
+         for (auto &action : action_callbacks)
+         {
+            action(solutions_l, parameters_l, result_in);
+         }
+      }
+      else
+      {
+         prolongation(solutions, solutions_in, solutions_l);
+         residual_l = 0.0;
+         for (auto &action : action_callbacks)
+         {
+            action(solutions_l, parameters_l, residual_l);
+         }
       }
 
-      residual_l = 0.0;
-      for (auto &action : action_callbacks)
+      if (mult_level == MultLevel::LVECTOR)
       {
-         action(solutions_l, parameters_l, residual_l);
+         // nothing
       }
-
-      if (mult_level == MultLevel::TVECTOR)
+      else
       {
-         prolongation_transpose(residual_l, result_t);
+         prolongation_transpose(residual_l, result_in);
       }
    }
 
