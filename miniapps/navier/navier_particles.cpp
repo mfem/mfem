@@ -32,7 +32,6 @@ struct s_Context
    real_t kappa = 1.0;
    real_t gamma = 1.0;
    real_t zeta = 4.0;
-   Vector gamma_dir = Vector({0.0,-1.0});
    int test = -1;
    int paraview_freq = 0;
    int print_csv_freq = 0;
@@ -71,24 +70,40 @@ void couetteFlow(const Vector &x, real_t t, Vector &u)
    u[0] = (1.0+x[1])/2.0;
 }
 
-// Test 0
-// Only lift -- no drag nor body force
-void analyticalTest0(const real_t zeta, const Vector &x0, const Vector &v0, double t, Vector &x, Vector &v)
+void analyticalOnlyLift(const real_t zeta, const Vector &x0, const Vector &v0, double t, Vector &x, Vector &v)
 {
+   MFEM_ASSERT(zeta > 0.0, "Zeta must be greater than one.");
+
    x.SetSize(2); v.SetSize(2);
 
-   const real_t C1 = v0[1];
-   const real_t C2 = (sqrt(zeta)/2.0) * (x0[1] + 1 - 2*v0[0])/(sqrt(zeta-1));
-   const real_t C3 = x0[1] + 2.0*C2/(sqrt(zeta*(zeta-1)));
-   const real_t C4 = 0.5*(C3+1);
-   const real_t C5 = x0[0] + (2.0/(zeta-1))*v0[1];
-
+   // Lift-only contribution
+   const real_t C1_l = v0[1];
+   const real_t C2_l = (sqrt(zeta)/2.0) * (x0[1] + 1 - 2*v0[0])/(sqrt(zeta-1));
+   const real_t C3_l = x0[1] + 2.0*C2_l/(sqrt(zeta*(zeta-1)));
+   const real_t C4_l = 0.5*(C3_l+1);
+   const real_t C5_l = x0[0] + (2.0/(zeta-1))*v0[1];
    const real_t lam = zeta*(zeta-1)/4.0;
 
-   x[0] = (zeta/(2.0*lam)) * (-C1*cos(sqrt(lam)*t) - C2*sin(sqrt(lam)*t)) + C4*t + C5;
-   x[1] = (1.0/sqrt(lam)) * (C1*sin(sqrt(lam)*t) - C2*cos(sqrt(lam)*t)) + C3;
-   v[0] = (zeta/(2.0*sqrt(lam))) * ( C1*sin(sqrt(lam)*t) - C2*cos(sqrt(lam)*t)) + C4;
-   v[1] = C1*cos(sqrt(lam)*t) + C2*sin(sqrt(lam)*t);
+   x[0] = (zeta/(2.0*lam)) * (-C1_l*cos(sqrt(lam)*t) - C2_l*sin(sqrt(lam)*t)) + C4_l*t + C5_l;
+   x[1] = (1.0/sqrt(lam)) * (C1_l*sin(sqrt(lam)*t) - C2_l*cos(sqrt(lam)*t)) + C3_l;
+   v[0] = (zeta/(2.0*sqrt(lam))) * ( C1_l*sin(sqrt(lam)*t) - C2_l*cos(sqrt(lam)*t)) + C4_l;
+   v[1] = C1_l*cos(sqrt(lam)*t) + C2_l*sin(sqrt(lam)*t);
+}
+
+void analyticalNoLift(const real_t kappa, const real_t gamma, const Vector &x0, const Vector &v0, double t, Vector &x, Vector &v)
+{
+   x.SetSize(2); v.SetSize(2);
+   
+   // Drag- + gravity-only contribution
+   const real_t C1_d = v0[1];
+   const real_t C2_d = x0[1];
+   const real_t C3_d = v0[0];
+   const real_t C4_d = x0[0];
+
+   x[0] = (kappa/2.0) * ( -gamma*pow(t,4)/24.0 + C1_d*pow(t,3)/6.0 +(C2_d+1)*pow(t,2)/2.0 ) + C3_d*t + C4_d;
+   x[1] = -gamma*pow(t,2)/2.0 + C1_d*t + C2_d;
+   v[0] = (kappa/2.0) * ( -gamma*pow(t,3)/6.0 + C1_d*pow(t,2)/2.0 +(C2_d+1)*t ) + C3_d;
+   v[1] = -gamma*t+C1_d;
 }
 
 class ParticleIntegrator
@@ -96,7 +111,6 @@ class ParticleIntegrator
 private:
    const int dim;
    const real_t kappa, gamma, zeta;
-   const Vector gamma_dir; 
    FindPointsGSLIB finder;
 
    void ParticleStep2D(const real_t &dt, const Array<real_t> &beta, const Array<real_t> &alpha, Particle &p)
@@ -113,7 +127,6 @@ private:
       // Assemble the 2D matrix B
       DenseMatrix B({{beta[0]+dt*kappa, zeta*dt*w_n_ext},
                      {-zeta*dt*w_n_ext, beta[0]+dt*kappa}});
-      
 
       // Assemble the RHS
       Vector r(2);
@@ -123,12 +136,15 @@ private:
          // Add particle velocity component
          add(r, -beta[j], p.GetStateVar(V_N-j), r);
          
+         // Create C
          Vector C(p.GetStateVar(U_N-j));
          C *= kappa;
-         add(C, -gamma, gamma_dir, C);
-         add(C, zeta, Vector({p.GetStateVar(U_N-j)[1], 
-                              -p.GetStateVar(U_N-j)[0]}), C);
-         add(r, dt*alpha[j-1]*w_n_ext, C, r);
+         add(C, -gamma, Vector({0.0, 1.0}), C);
+         add(C, zeta*w_n_ext, Vector({ p.GetStateVar(U_N-j)[1], 
+                                      -p.GetStateVar(U_N-j)[0]}), C);
+
+         // Add C
+         add(r, dt*alpha[j-1], C, r);
       }
 
       // Solve for particle velocity
@@ -147,12 +163,11 @@ private:
    }
 
 public:
-   ParticleIntegrator(MPI_Comm comm, const int dim_, const real_t kappa_, const real_t gamma_, const real_t zeta_, const Vector &gamma_dir_, Mesh &m)
+   ParticleIntegrator(MPI_Comm comm, const int dim_, const real_t kappa_, const real_t gamma_, const real_t zeta_, Mesh &m)
    : dim(dim_),
      kappa(kappa_),
      gamma(gamma_),
      zeta(zeta_),
-     gamma_dir(gamma_dir_),
      finder(comm)
    {
       finder.Setup(m);
@@ -220,8 +235,7 @@ int main (int argc, char *argv[])
    args.AddOption(&ctx.kappa, "-k", "--kappa", "Kappa constant.");
    args.AddOption(&ctx.gamma, "-g", "--gamma", "Gamma constant.");
    args.AddOption(&ctx.zeta, "-z", "--zeta", "Zeta constant.");
-   args.AddOption(&ctx.gamma_dir, "-gd", "--gamma-dir", "Vector direction to impose body force scaled by Gamma.");
-   args.AddOption(&ctx.test, "-t", "--test", "Override settings + run test. -1 to disable. 0 for only-lift, no drag nor body force test. 1 for no-lift terminal velocity test.");
+   args.AddOption(&ctx.test, "-t", "--test", "Run test against analytical w/ exact solution outputting. -1 to disable. 0 for only-lift test. 1 for no-lift (drag + gravity) test.");
    args.AddOption(&ctx.paraview_freq, "-pv", "--paraview-freq", "Frequency of ParaView flow output. 0 to disable.");
    args.AddOption(&ctx.print_csv_freq, "-csv", "--csv-freq", "Frequency of particle CSV outputting. 0 to disable.");
    args.Parse();
@@ -239,22 +253,21 @@ int main (int argc, char *argv[])
    }
 
    if (ctx.test == 0)
-   {  
-      ctx.dt = 0.01;
-      ctx.num_steps = 1000;
-      ctx.num_particles = 100;
-      ctx.zeta = 4.0; // Must be > 1.0
+   {
       ctx.kappa = 0.0;
       ctx.gamma = 0.0;
+      if (ctx.zeta <= 1.0)
+      {
+         ctx.zeta = 4.0;
+      }
    }
    else if (ctx.test == 1)
    {
-
+      ctx.zeta = 0.0;
    }
 
-
-   // Initialize a simple straight-edged 2D domain [0,20] x [-5,5]
-   Mesh mesh = Mesh::MakeCartesian2D(10, 10, Element::Type::QUADRILATERAL, true, 20.0, 10.0);
+   // Initialize a simple straight-edged 2D domain [0,20] x [-10,10]
+   Mesh mesh = Mesh::MakeCartesian2D(10, 10, Element::Type::QUADRILATERAL, true, 20.0, 20.0);
    Vector transl(mesh.GetNV()*2);
    // Mesh vertex ordering is byNODES
    for (int i = 0; i < transl.Size()/2; i++)
@@ -274,6 +287,7 @@ int main (int argc, char *argv[])
       cout << "Reynolds number: " << Re << endl;
    }
    NavierSolver flowsolver(&pmesh, ctx.order, 1.0/Re);
+   flowsolver.Setup(ctx.dt);
 
    // Initialize two particle sets - one numerical, one analytical
    Array<int> vdims(State::SIZE);
@@ -303,7 +317,7 @@ int main (int argc, char *argv[])
       Particle part(pmeta);
 
       InitializeRandom(part, seed, pos_min, pos_max);
-      //part.GetStateVar(V_N) = 0.0; // v0 = 0
+      part.GetStateVar(V_N) = 0.0; // v0 = 0
       particles.AddParticle(part);
 
       if (ctx.test != -1)
@@ -311,7 +325,7 @@ int main (int argc, char *argv[])
          Particle p_exact(*pmeta_exact);
          p_exact.GetCoords() = part.GetCoords();
          p_exact.GetStateVar(2) = part.GetStateVar(V_N);
-         //p_exact.GetStateVar(2) = 0.0; // vn
+         p_exact.GetStateVar(2) = 0.0; // vn
          p_exact.GetStateVar(0) = p_exact.GetCoords(); // Set x0
          p_exact.GetStateVar(1) = p_exact.GetStateVar(2); // v0
          particles_exact->AddParticle(p_exact);
@@ -329,7 +343,10 @@ int main (int argc, char *argv[])
    ParGridFunction &w_gf = *flowsolver.GetCurrentVorticity();
    u_excoeff.SetTime(time);
    u_gf.ProjectCoefficient(u_excoeff);
-   flowsolver.ComputeCurl2D(u_gf, w_gf);
+   MPI_Barrier(MPI_COMM_WORLD);
+   // TODO: Memory bug with Jacobians in ElementTransformation
+   //flowsolver.ComputeCurl2D(u_gf, w_gf);
+   w_gf = -0.5;
 
    // Set fluid BCs
    Array<int> bdr_attr(pmesh.bdr_attributes.Max());
@@ -344,7 +361,7 @@ int main (int argc, char *argv[])
    finder.Interpolate(w_gf, particles.GetAllStateVar(W_N));
 
    // Initialize particle integrator
-   ParticleIntegrator pint(MPI_COMM_WORLD, 2, ctx.kappa, ctx.gamma, ctx.zeta, ctx.gamma_dir, pmesh);
+   ParticleIntegrator pint(MPI_COMM_WORLD, 2, ctx.kappa, ctx.gamma, ctx.zeta, pmesh);
 
    // Initialize ParaView DC (if freq != 0)
    std::unique_ptr<ParaViewDataCollection> pvdc;
@@ -369,17 +386,37 @@ int main (int argc, char *argv[])
       particles.PrintCSV(file_name.c_str());
       if (ctx.test != -1)
       {
+         for (int i = 0; i < particles_exact->GetNP(); i++)
+         {
+            Particle p_exact(*pmeta_exact);
+            particles_exact->GetParticle(i, p_exact);
+            if (ctx.test == 0)
+               analyticalOnlyLift(ctx.zeta, p_exact.GetStateVar(0), p_exact.GetStateVar(1), time, p_exact.GetCoords(), p_exact.GetStateVar(2));
+            else if (ctx.test == 1)
+               analyticalNoLift(ctx.kappa, ctx.gamma, p_exact.GetStateVar(0), p_exact.GetStateVar(1), time, p_exact.GetCoords(), p_exact.GetStateVar(2));
+            particles_exact->SetParticle(i, p_exact);
+         }
          std::string file_name_exact = csv_prefix + "Exact_" + mfem::to_padded_string(0, 9) + ".csv";
          particles_exact->PrintCSV(file_name_exact.c_str());
       }
    }
    
    Array<real_t> beta, alpha; // EXTk/BDF coefficients
-   flowsolver.Setup(ctx.dt);
    for (int step = 1; step <= ctx.num_steps; step++)
    {
       // Step Navier
+      if (Mpi::Root())
+      {
+         cout << "Stepping flow..." << endl;
+      }
       flowsolver.Step(time, ctx.dt, step-1);
+      // ---------------------------------------------------
+      // Temporary: enforce flowfield:
+      u_excoeff.SetTime(time);
+      u_gf.ProjectCoefficient(u_excoeff);
+      flowsolver.ComputeCurl2D(u_gf, w_gf);
+      // ---------------------------------------------------
+
       if (Mpi::Root())
       {
          cout << "Time: " << time << endl;
@@ -390,7 +427,7 @@ int main (int argc, char *argv[])
       
       // Step particles
       pint.Step(ctx.dt, beta, alpha, u_gf, w_gf, particles);
-
+      
       if (ctx.print_csv_freq > 0 && step % ctx.print_csv_freq == 0)
       {
          // Output the particles
@@ -404,8 +441,16 @@ int main (int argc, char *argv[])
             {
                Particle p_exact(*pmeta_exact);
                particles_exact->GetParticle(i, p_exact);
-               analyticalTest0(ctx.zeta, p_exact.GetStateVar(0), p_exact.GetStateVar(1), time, p_exact.GetCoords(), p_exact.GetStateVar(2));
+               if (ctx.test == 0)
+               {
+                  analyticalOnlyLift(ctx.zeta, p_exact.GetStateVar(0), p_exact.GetStateVar(1), time, p_exact.GetCoords(), p_exact.GetStateVar(2));
+               }
+               else if (ctx.test == 1)
+               {
+                  analyticalNoLift(ctx.kappa, ctx.gamma, p_exact.GetStateVar(0), p_exact.GetStateVar(1), time, p_exact.GetCoords(), p_exact.GetStateVar(2));
+               }
                particles_exact->SetParticle(i, p_exact);
+               p_exact.Print();
             }
             std::string file_name_exact = csv_prefix + "Exact_" + mfem::to_padded_string(step, 9) + ".csv";
             particles_exact->PrintCSV(file_name_exact.c_str());
