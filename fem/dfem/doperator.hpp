@@ -231,22 +231,48 @@ public:
       const std::vector<FieldDescriptor> &parameters,
       const ParMesh &mesh);
 
+   /// MultLevel enum to indicate if the T->L Operators are used in the
+   /// Mult method.
+   enum MultLevel
+   {
+      TVECTOR,
+      LVECTOR
+   };
+
+   /// @brief Set the MultLevel mode for the DifferentiableOperator.
+   /// The default is TVECTOR, which means that the Operator will use
+   /// T->L before Mult and L->T Operators after.
+   void SetMultLevel(MultLevel level)
+   {
+      mult_level = level;
+   }
+
    /// @brief Compute the action of the operator on a given vector.
    ///
    /// @param solutions_t The solution vector in which to compute the action.
-   /// This has to be a T-dof vector.
+   /// This has to be a T-dof vector if MultLevel is set to TVECTOR, or L-dof
+   /// Vector if MultLevel is set to LVECTOR.
    /// @param result_t Result vector of the action of the operator on
-   /// solutions_t. The result is a T-dof vector.
+   /// solutions_t. The result is a T-dof vector or L-dof vector depending on
+   /// the MultLevel.
    void Mult(const Vector &solutions_t, Vector &result_t) const override
    {
       MFEM_ASSERT(!action_callbacks.empty(), "no integrators have been set");
-      prolongation(solutions, solutions_t, solutions_l);
+      if (mult_level == MultLevel::TVECTOR)
+      {
+         prolongation(solutions, solutions_t, solutions_l);
+      }
+
       residual_l = 0.0;
       for (auto &action : action_callbacks)
       {
          action(solutions_l, parameters_l, residual_l);
       }
-      prolongation_transpose(residual_l, result_t);
+
+      if (mult_level == MultLevel::TVECTOR)
+      {
+         prolongation_transpose(residual_l, result_t);
+      }
    }
 
    /// @brief Add a domain integrator to the operator.
@@ -345,6 +371,8 @@ public:
 private:
    const ParMesh &mesh;
 
+   MultLevel mult_level = TVECTOR;
+
    std::vector<action_t> action_callbacks;
    std::map<size_t,
        std::vector<derivative_action_t>> derivative_action_callbacks;
@@ -353,7 +381,6 @@ private:
    std::map<size_t,
        std::vector<assemble_derivative_hypreparmatrix_callback_t>>
        assemble_derivative_hypreparmatrix_callbacks;
-
 
    std::vector<FieldDescriptor> solutions;
    std::vector<FieldDescriptor> parameters;
