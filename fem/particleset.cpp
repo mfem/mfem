@@ -511,6 +511,7 @@ void ParticleSet::WriteToFile(const char* fname, const std::stringstream &ss_hea
    // Parallel:
    int rank; MPI_Comm_rank(comm, &rank);
 
+   MPI_File_delete(fname, MPI_INFO_NULL); // delete old file if it exists
    MPI_File file;
    MPI_File_open(comm, fname, MPI_MODE_CREATE | MPI_MODE_WRONLY, MPI_INFO_NULL, &file);
 
