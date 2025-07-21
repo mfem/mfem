@@ -416,6 +416,8 @@ public:
    template <class T> static void Max(OpData<T>);
    /// Reduce operation bitwise OR, instantiated for int only
    template <class T> static void BitOR(OpData<T>);
+      /// Reduce operation max absolute value, instantiated for int and double
+   template <class T> static void MaxAbs(OpData<T>);
 
    /// Print information about the GroupCommunicator from all MPI ranks.
    void PrintInfo(std::ostream &out = mfem::out) const;
