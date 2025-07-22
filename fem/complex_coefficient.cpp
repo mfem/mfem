@@ -21,7 +21,7 @@ real_t
 RealPartCoefficient::Eval(ElementTransformation &T,
                           const IntegrationPoint &ip)
 {
-   complex<real_t> val = complex_coef_.Eval(T, ip);
+   complex_t val = complex_coef_.Eval(T, ip);
    return val.real();
 }
 
@@ -29,7 +29,7 @@ real_t
 ImagPartCoefficient::Eval(ElementTransformation &T,
                           const IntegrationPoint &ip)
 {
-   complex<real_t> val = complex_coef_.Eval(T, ip);
+   complex_t val = complex_coef_.Eval(T, ip);
    return val.imag();
 }
 
@@ -108,7 +108,7 @@ ComplexCoefficient::ComplexCoefficient(Coefficient &c_r,
    c_i.SetTime(time);
 }
 
-complex<real_t>
+complex_t
 ComplexCoefficient::Eval(ElementTransformation &T,
                          const IntegrationPoint &ip)
 {
@@ -119,7 +119,7 @@ ComplexCoefficient::Eval(ElementTransformation &T,
                "implement an Eval method or supply Coefficients "
                "for both the real and imaginary parts of the field.");
 
-   return complex<real_t>(real_coef_.Eval(T, ip), imag_coef_.Eval(T, ip));
+   return complex_t(real_coef_.Eval(T, ip), imag_coef_.Eval(T, ip));
 }
 
 ComplexVectorCoefficient::ComplexVectorCoefficient(VectorCoefficient &v_r,
@@ -154,7 +154,7 @@ void ComplexVectorCoefficient::Eval(ComplexVector &V, ElementTransformation &T,
 }
 
 ComplexConstantCoefficient::ComplexConstantCoefficient(
-   const complex<real_t> z)
+   const complex_t z)
    : val(z), real_coef(z.real()), imag_coef(z.imag())
 {
    real_coef_ = real_coef;
@@ -165,14 +165,14 @@ ComplexConstantCoefficient::ComplexConstantCoefficient(
    real_t z_r, real_t z_i)
    : real_coef(z_r), imag_coef(z_i)
 {
-   val = complex<real_t>(z_r, z_i);
+   val = complex_t(z_r, z_i);
 
    real_coef_ = real_coef;
    imag_coef_ = imag_coef;
 }
 
-complex<real_t> ComplexFunctionCoefficient::Eval(ElementTransformation & T,
-                                                 const IntegrationPoint & ip)
+complex_t ComplexFunctionCoefficient::Eval(ElementTransformation & T,
+                                           const IntegrationPoint & ip)
 {
    real_t x[3];
    Vector transip(x, 3);

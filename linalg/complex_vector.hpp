@@ -13,8 +13,7 @@
 #define MFEM_COMPLEX_VECTOR
 
 #include "vector.hpp"
-
-#include <complex>
+#include "../general/complex_type.hpp"
 
 namespace mfem
 {
@@ -23,7 +22,7 @@ class ComplexVector
 {
 private:
 
-   Memory<std::complex<real_t> > data;
+   Memory<complex_t > data;
    int size;
 
    mutable Vector re_part;
@@ -52,7 +51,7 @@ public:
    /// owned by someone else.
    /// The pointer @a data_ can be NULL. The data array can be replaced later
    /// with SetData().
-   ComplexVector(std::complex<real_t> *data_, int size_)
+   ComplexVector(complex_t *data_, int size_)
    { data.Wrap(data_, size_, false); size = size_; }
 
    /// @brief Create a ComplexVector referencing a sub-vector of the
@@ -77,7 +76,7 @@ public:
 
    /// Create a vector using a braced initializer list
    template <typename CT, typename std::enable_if<
-                std::is_convertible<CT,std::complex<real_t> >::value,bool>::type = true>
+                std::is_convertible<CT,complex_t >::value,bool>::type = true>
    explicit ComplexVector(std::initializer_list<CT> values) : ComplexVector(
          values.size())
    { std::copy(values.begin(), values.end(), begin()); }
@@ -119,7 +118,7 @@ public:
 
    /// Set the Vector data.
    /// @warning This method should be called only when OwnsData() is false.
-   void SetData(std::complex<real_t> *d)
+   void SetData(complex_t *d)
    { data.Wrap(d, data.Capacity(), false); }
 
    /// Set the Vector data and size.
@@ -127,14 +126,14 @@ public:
    /// also used as the new Capacity().
    /// @warning This method should be called only when OwnsData() is false.
    /// @sa NewDataAndSize().
-   void SetDataAndSize(std::complex<real_t> *d, int s)
+   void SetDataAndSize(complex_t *d, int s)
    { data.Wrap(d, s, false); size = s; }
 
    /// Set the Vector data and size, deleting the old data, if owned.
    /// The Vector does not assume ownership of the new data. The new size is
    /// also used as the new Capacity().
    /// @sa SetDataAndSize().
-   void NewDataAndSize(std::complex<real_t> *d, int s)
+   void NewDataAndSize(complex_t *d, int s)
    {
       data.Delete();
       SetDataAndSize(d, s);
@@ -149,7 +148,7 @@ public:
    /// the Vector object takes ownership of all pointers owned by @a mem.
    ///
    /// @sa NewDataAndSize().
-   inline void NewMemoryAndSize(const Memory<std::complex<real_t> > &mem,
+   inline void NewMemoryAndSize(const Memory<complex_t > &mem,
                                 int s, bool own_mem);
 
    /// Reset the Vector to be a reference to a sub-vector of @a base.
@@ -181,27 +180,27 @@ public:
    /// Return a pointer to the beginning of the ComplexVector data.
    /// @warning This method should be used with caution as it gives write access
    /// to the data of const-qualified ComplexVector%s.
-   inline std::complex<real_t> *GetData() const
-   { return const_cast<std::complex<real_t>*>((const std::complex<real_t>*)data); }
+   inline complex_t *GetData() const
+   { return const_cast<complex_t*>((const complex_t*)data); }
 
    /// STL-like begin.
-   inline std::complex<real_t> *begin() { return data; }
+   inline complex_t *begin() { return data; }
 
    /// STL-like end.
-   inline std::complex<real_t> *end() { return data + size; }
+   inline complex_t *end() { return data + size; }
 
    /// STL-like begin (const version).
-   inline const std::complex<real_t> *begin() const { return data; }
+   inline const complex_t *begin() const { return data; }
 
    /// STL-like end (const version).
-   inline const std::complex<real_t> *end() const { return data + size; }
+   inline const complex_t *end() const { return data + size; }
 
    /// Return a reference to the Memory object used by the Vector.
-   Memory<std::complex<real_t> > &GetMemory() { return data; }
+   Memory<complex_t > &GetMemory() { return data; }
 
    /// @brief Return a reference to the Memory object used by the
    /// ComplexVector, const version.
-   const Memory<std::complex<real_t> > &GetMemory() const { return data; }
+   const Memory<complex_t > &GetMemory() const { return data; }
 
    /// Update the memory location of the vector to match @a v.
    void SyncMemory(const ComplexVector &v) const
@@ -215,48 +214,48 @@ public:
    inline bool OwnsData() const { return data.OwnsHostPtr(); }
 
    /// Changes the ownership of the data; after the call the Vector is empty
-   inline void StealData(std::complex<real_t> **p)
+   inline void StealData(complex_t **p)
    { *p = data; data.Reset(); size = 0; }
 
    /// Changes the ownership of the data; after the call the Vector is empty
-   inline std::complex<real_t> *StealData()
-   { std::complex<real_t> *p; StealData(&p); return p; }
+   inline complex_t *StealData()
+   { complex_t *p; StealData(&p); return p; }
 
    /// Access Vector entries. Index i = 0 .. size-1.
-   std::complex<real_t> &Elem(int i);
+   complex_t &Elem(int i);
 
    /// Read only access to Vector entries. Index i = 0 .. size-1.
-   const std::complex<real_t> &Elem(int i) const;
+   const complex_t &Elem(int i) const;
 
    /// Access Vector entries using () for 0-based indexing.
    /// @note If MFEM_DEBUG is enabled, bounds checking is performed.
-   inline std::complex<real_t> &operator()(int i);
+   inline complex_t &operator()(int i);
 
    /// Read only access to Vector entries using () for 0-based indexing.
    /// @note If MFEM_DEBUG is enabled, bounds checking is performed.
-   inline const std::complex<real_t> &operator()(int i) const;
+   inline const complex_t &operator()(int i) const;
 
    /// Access Vector entries using [] for 0-based indexing.
    /// @note If MFEM_DEBUG is enabled, bounds checking is performed.
-   inline std::complex<real_t> &operator[](int i) { return (*this)(i); }
+   inline complex_t &operator[](int i) { return (*this)(i); }
 
    /// Read only access to Vector entries using [] for 0-based indexing.
    /// @note If MFEM_DEBUG is enabled, bounds checking is performed.
-   inline const std::complex<real_t> &operator[](int i) const
+   inline const complex_t &operator[](int i) const
    { return (*this)(i); }
 
    /// Dot product with a `complex<double> *` array.
    /// @note No complex conjugate is performed
-   std::complex<real_t> operator*(const std::complex<real_t> *v) const;
-   std::complex<real_t> operator*(const real_t *v) const;
+   complex_t operator*(const complex_t *v) const;
+   complex_t operator*(const real_t *v) const;
 
    /// Return the inner-product.
    /// @note No complex conjugate is performed
-   std::complex<real_t> operator*(const ComplexVector &v) const;
-   std::complex<real_t> operator*(const Vector &v) const;
+   complex_t operator*(const ComplexVector &v) const;
+   complex_t operator*(const Vector &v) const;
 
    /// Copy Size() entries from @a v.
-   ComplexVector &operator=(const std::complex<real_t> *v);
+   ComplexVector &operator=(const complex_t *v);
    ComplexVector &operator=(const real_t *v);
 
    /// Copy assignment.
@@ -269,11 +268,11 @@ public:
    ComplexVector &operator=(ComplexVector&& v);
 
    /// Redefine '=' for vector = constant.
-   ComplexVector &operator=(std::complex<real_t> value);
+   ComplexVector &operator=(complex_t value);
    ComplexVector &operator=(real_t value);
 
    /// Scale vector by a constant
-   ComplexVector &operator*=(std::complex<real_t> c);
+   ComplexVector &operator*=(complex_t c);
    ComplexVector &operator*=(real_t c);
 
    /// Component-wise scaling: (*this)(i) *= v(i)
@@ -281,7 +280,7 @@ public:
    ComplexVector &operator*=(const Vector &v);
 
    /// Divide vector by a consant
-   ComplexVector &operator/=(std::complex<real_t> c);
+   ComplexVector &operator/=(complex_t c);
    ComplexVector &operator/=(real_t c);
 
    /// Component-wise division: (*this)(i) /= v(i)
@@ -289,7 +288,7 @@ public:
    ComplexVector &operator/=(const Vector &v);
 
    /// Subtract a constant from this vector
-   ComplexVector &operator-=(std::complex<real_t> c);
+   ComplexVector &operator-=(complex_t c);
    ComplexVector &operator-=(real_t c);
 
    /// Subtract a vector from this vector
@@ -297,7 +296,7 @@ public:
    ComplexVector &operator-=(const Vector &v);
 
    /// Add a constant to this vector
-   ComplexVector &operator+=(std::complex<real_t> c);
+   ComplexVector &operator+=(complex_t c);
    ComplexVector &operator+=(real_t c);
 
    /// Add a vector to this vector
@@ -320,27 +319,27 @@ public:
    virtual ~ComplexVector();
 
    /// Shortcut for mfem::Read(vec.GetMemory(), vec.Size(), on_dev).
-   virtual const std::complex<real_t> *Read(bool on_dev = true) const
+   virtual const complex_t *Read(bool on_dev = true) const
    { return mfem::Read(data, size, on_dev); }
 
    /// Shortcut for mfem::Read(vec.GetMemory(), vec.Size(), false).
-   virtual const std::complex<real_t> *HostRead() const
+   virtual const complex_t *HostRead() const
    { return mfem::Read(data, size, false); }
 
    /// Shortcut for mfem::Write(vec.GetMemory(), vec.Size(), on_dev).
-   virtual std::complex<real_t> *Write(bool on_dev = true)
+   virtual complex_t *Write(bool on_dev = true)
    { return mfem::Write(data, size, on_dev); }
 
    /// Shortcut for mfem::Write(vec.GetMemory(), vec.Size(), false).
-   virtual std::complex<real_t> *HostWrite()
+   virtual complex_t *HostWrite()
    { return mfem::Write(data, size, false); }
 
    /// Shortcut for mfem::ReadWrite(vec.GetMemory(), vec.Size(), on_dev).
-   virtual std::complex<real_t> *ReadWrite(bool on_dev = true)
+   virtual complex_t *ReadWrite(bool on_dev = true)
    { return mfem::ReadWrite(data, size, on_dev); }
 
    /// Shortcut for mfem::ReadWrite(vec.GetMemory(), vec.Size(), false).
-   virtual std::complex<real_t> *HostReadWrite()
+   virtual complex_t *HostReadWrite()
    { return mfem::ReadWrite(data, size, false); }
 };
 
@@ -404,7 +403,7 @@ inline void ComplexVector::SetSize(int s, MemoryType mt)
 }
 
 inline void ComplexVector::NewMemoryAndSize(
-   const Memory<std::complex<real_t> > &mem,
+   const Memory<complex_t > &mem,
    int s,
    bool own_mem)
 {
@@ -442,7 +441,7 @@ inline void ComplexVector::Destroy()
    data.UseDevice(use_dev);
 }
 
-inline std::complex<real_t> &ComplexVector::operator()(int i)
+inline complex_t &ComplexVector::operator()(int i)
 {
    MFEM_ASSERT(data && i >= 0 && i < size,
                "index [" << i << "] is out of range [0," << size << ")");
@@ -450,7 +449,7 @@ inline std::complex<real_t> &ComplexVector::operator()(int i)
    return data[i];
 }
 
-inline const std::complex<real_t> &ComplexVector::operator()(int i) const
+inline const complex_t &ComplexVector::operator()(int i) const
 {
    MFEM_ASSERT(data && i >= 0 && i < size,
                "index [" << i << "] is out of range [0," << size << ")");

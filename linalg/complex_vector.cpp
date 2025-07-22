@@ -49,20 +49,20 @@ ComplexVector::ComplexVector(ComplexVector &&v)
    *this = std::move(v);
 }
 
-std::complex<real_t> &ComplexVector::Elem(int i)
+complex_t &ComplexVector::Elem(int i)
 {
    return operator()(i);
 }
 
-const std::complex<real_t> &ComplexVector::Elem(int i) const
+const complex_t &ComplexVector::Elem(int i) const
 {
    return operator()(i);
 }
 
-std::complex<real_t> ComplexVector::operator*(const complex<real_t> *v) const
+complex_t ComplexVector::operator*(const complex_t *v) const
 {
    HostRead();
-   std::complex<real_t> dot = 0.0;
+   complex_t dot = 0.0;
 #ifdef MFEM_USE_LEGACY_OPENMP
    #pragma omp parallel for reduction(+:dot)
 #endif
@@ -73,10 +73,10 @@ std::complex<real_t> ComplexVector::operator*(const complex<real_t> *v) const
    return dot;
 }
 
-std::complex<real_t> ComplexVector::operator*(const real_t *v) const
+complex_t ComplexVector::operator*(const real_t *v) const
 {
    HostRead();
-   std::complex<real_t> dot = 0.0;
+   complex_t dot = 0.0;
 #ifdef MFEM_USE_LEGACY_OPENMP
    #pragma omp parallel for reduction(+:dot)
 #endif
@@ -87,7 +87,7 @@ std::complex<real_t> ComplexVector::operator*(const real_t *v) const
    return dot;
 }
 
-complex<real_t> ComplexVector::operator*(const ComplexVector &v) const
+complex_t ComplexVector::operator*(const ComplexVector &v) const
 {
    MFEM_ASSERT(size == v.size, "incompatible Vectors!");
 
@@ -97,7 +97,7 @@ complex<real_t> ComplexVector::operator*(const ComplexVector &v) const
    const auto m_data = Read(use_dev), v_data = v.Read(use_dev);
 
    // The standard way of computing the dot product is non-deterministic
-   complex<real_t> prod = 0.0;
+   complex_t prod = 0.0;
    for (int i = 0; i < size; i++)
    {
       prod += m_data[i] * v_data[i];
@@ -105,7 +105,7 @@ complex<real_t> ComplexVector::operator*(const ComplexVector &v) const
    return prod;
 }
 
-complex<real_t> ComplexVector::operator*(const Vector &v) const
+complex_t ComplexVector::operator*(const Vector &v) const
 {
    MFEM_ASSERT(size == v.size, "incompatible Vectors!");
 
@@ -116,7 +116,7 @@ complex<real_t> ComplexVector::operator*(const Vector &v) const
    const auto v_data = v.Read(use_dev);
 
    // The standard way of computing the dot product is non-deterministic
-   complex<real_t> prod = 0.0;
+   complex_t prod = 0.0;
    for (int i = 0; i < size; i++)
    {
       prod += m_data[i] * v_data[i];
@@ -124,7 +124,7 @@ complex<real_t> ComplexVector::operator*(const Vector &v) const
    return prod;
 }
 
-ComplexVector &ComplexVector::operator=(const std::complex<real_t> *v)
+ComplexVector &ComplexVector::operator=(const complex_t *v)
 {
    HostRead();
    MFEM_FORALL(i, size, data[i] = v[i]; );
@@ -177,7 +177,7 @@ ComplexVector &ComplexVector::operator=(ComplexVector &&v)
    return *this;
 }
 
-ComplexVector &ComplexVector::operator=(complex<real_t> value)
+ComplexVector &ComplexVector::operator=(complex_t value)
 {
    const bool use_dev = UseDevice();
    const int N = size;
@@ -197,7 +197,7 @@ ComplexVector &ComplexVector::operator=(real_t value)
    return *this;
 }
 
-ComplexVector &ComplexVector::operator*=(complex<real_t> c)
+ComplexVector &ComplexVector::operator*=(complex_t c)
 {
    const bool use_dev = UseDevice();
    const int N = size;
@@ -243,11 +243,11 @@ ComplexVector &ComplexVector::operator*=(const Vector &v)
    return *this;
 }
 
-ComplexVector &ComplexVector::operator/=(complex<real_t> c)
+ComplexVector &ComplexVector::operator/=(complex_t c)
 {
    const bool use_dev = UseDevice();
    const int N = size;
-   const complex<real_t> m = conj(c) / norm(c);
+   const complex_t m = conj(c) / norm(c);
    auto y = ReadWrite(use_dev);
    mfem::forall_switch(use_dev, N, [=] MFEM_HOST_DEVICE (int i)
    { y[i] *= m; });
@@ -291,7 +291,7 @@ ComplexVector &ComplexVector::operator/=(const Vector &v)
    return *this;
 }
 
-ComplexVector &ComplexVector::operator-=(complex<real_t> c)
+ComplexVector &ComplexVector::operator-=(complex_t c)
 {
    const bool use_dev = UseDevice();
    const int N = size;
@@ -337,7 +337,7 @@ ComplexVector &ComplexVector::operator-=(const Vector &v)
    return *this;
 }
 
-ComplexVector &ComplexVector::operator+=(complex<real_t> c)
+ComplexVector &ComplexVector::operator+=(complex_t c)
 {
    const bool use_dev = UseDevice();
    const int N = size;
@@ -393,7 +393,7 @@ ComplexVector &ComplexVector::Set(const Vector &Vr, const Vector &Vi)
    const auto y = Vi.Read(use_dev);
    auto z = Write(use_dev);
    mfem::forall_switch(use_dev, N, [=] MFEM_HOST_DEVICE (int i)
-   { z[i] = complex<real_t>(x[i], y[i]); });
+   { z[i] = complex_t(x[i], y[i]); });
    return *this;
 }
 

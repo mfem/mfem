@@ -47,7 +47,7 @@ public:
    void Update();
 
    /// Assign constant values to the ComplexGridFunction data.
-   ComplexGridFunction &operator=(const std::complex<real_t> & value)
+   ComplexGridFunction &operator=(const complex_t & value)
    { *gfr = value.real(); *gfi = value.imag(); return *this; }
 
    virtual void ProjectCoefficient(Coefficient &real_coeff,
@@ -312,7 +312,7 @@ public:
    virtual ~ComplexLinearForm();
 
    /// Assign constant values to the ComplexLinearForm data.
-   ComplexLinearForm &operator=(const std::complex<real_t> & value)
+   ComplexLinearForm &operator=(const complex_t & value)
    { *lfr = value.real(); *lfi = value.imag(); return *this; }
 
    ComplexOperator::Convention GetConvention() const { return conv; }
@@ -612,7 +612,7 @@ public:
    /// Assembles the linear form i.e. sums over all domain/bdr integrators.
    void Assemble();
 
-   std::complex<real_t> operator()(const ComplexGridFunction &gf) const;
+   complex_t operator()(const ComplexGridFunction &gf) const;
 };
 
 
@@ -1077,7 +1077,7 @@ public:
    void Update();
 
    /// Assign constant values to the ParComplexGridFunction data.
-   ParComplexGridFunction &operator=(const std::complex<real_t> & value)
+   ParComplexGridFunction &operator=(const complex_t & value)
    { *pgfr = value.real(); *pgfi = value.imag(); return *this; }
 
    virtual void ProjectCoefficient(Coefficient &real_coeff,
@@ -1233,7 +1233,7 @@ public:
    virtual ~ParComplexLinearForm();
 
    /// Assign constant values to the ParComplexLinearForm data.
-   ParComplexLinearForm &operator=(const std::complex<real_t> & value)
+   ParComplexLinearForm &operator=(const complex_t & value)
    { *plfr = value.real(); *plfi = value.imag(); return *this; }
 
    ComplexOperator::Convention GetConvention() const { return conv; }
@@ -1538,7 +1538,7 @@ public:
    /// Returns the vector assembled on the true dofs, i.e. P^t v.
    HypreParVector *ParallelAssemble();
 
-   std::complex<real_t> operator()(const ParComplexGridFunction &gf) const;
+   complex_t operator()(const ParComplexGridFunction &gf) const;
 
 };
 

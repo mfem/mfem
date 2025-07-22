@@ -88,7 +88,7 @@ class RealPartMatrixCoefficient : public MatrixCoefficient
 {
 private:
    ComplexMatrixCoefficient &complex_mcoef_;
-   mutable StdComplexDenseMatrix val_;
+   mutable ComplexTypeDenseMatrix val_;
 
 public:
    RealPartMatrixCoefficient(ComplexMatrixCoefficient & complex_mcoef);
@@ -101,7 +101,7 @@ class ImagPartMatrixCoefficient : public MatrixCoefficient
 {
 private:
    ComplexMatrixCoefficient &complex_mcoef_;
-   mutable StdComplexDenseMatrix val_;
+   mutable ComplexTypeDenseMatrix val_;
 
 public:
    ImagPartMatrixCoefficient(ComplexMatrixCoefficient & complex_mcoef);
@@ -149,16 +149,16 @@ public:
    /** @note When this method is called, the caller must make sure that the
        IntegrationPoint associated with @a T is the same as @a ip. This can be
        achieved by calling T.SetIntPoint(&ip). */
-   virtual std::complex<real_t> Eval(ElementTransformation &T,
-                                     const IntegrationPoint &ip);
+   virtual complex_t Eval(ElementTransformation &T,
+                          const IntegrationPoint &ip);
 
    /** @brief Evaluate the coefficient in the element described by @a T at the
        point @a ip at time @a t. */
    /** @note When this method is called, the caller must make sure that the
        IntegrationPoint associated with @a T is the same as @a ip. This can be
        achieved by calling T.SetIntPoint(&ip). */
-   std::complex<real_t> Eval(ElementTransformation &T,
-                             const IntegrationPoint &ip, real_t t)
+   complex_t Eval(ElementTransformation &T,
+                  const IntegrationPoint &ip, real_t t)
    {
       SetTime(t);
       return Eval(T, ip);
@@ -331,7 +331,7 @@ public:
    /** @note When this method is called, the caller must make sure that the
        IntegrationPoint associated with @a T is the same as @a ip. This can be
        achieved by calling T.SetIntPoint(&ip). */
-   virtual void Eval(StdComplexDenseMatrix &K, ElementTransformation &T,
+   virtual void Eval(ComplexTypeDenseMatrix &K, ElementTransformation &T,
                      const IntegrationPoint &ip) = 0;
 
    /** @brief Access a standard Coefficient object reproducing the real part of
@@ -359,18 +359,18 @@ public:
 class ComplexConstantCoefficient : public ComplexCoefficient
 {
 private:
-   std::complex<real_t> val;
+   complex_t val;
 
    ConstantCoefficient real_coef;
    ConstantCoefficient imag_coef;
 
 public:
-   ComplexConstantCoefficient(const std::complex<real_t> z);
+   ComplexConstantCoefficient(const complex_t z);
 
    ComplexConstantCoefficient(real_t z_r, real_t z_i = 0.);
 
-   std::complex<real_t> Eval(ElementTransformation &T,
-                             const IntegrationPoint &ip) { return val; }
+   complex_t Eval(ElementTransformation &T,
+                  const IntegrationPoint &ip) { return val; }
 };
 
 /// Complex-valued vector coefficient that is constant in space and time.
@@ -402,11 +402,11 @@ public:
 class ComplexMatrixConstantCoefficient : public ComplexMatrixCoefficient
 {
 private:
-   StdComplexDenseMatrix mat;
+   ComplexTypeDenseMatrix mat;
 
 public:
    /// Construct the coefficient with constant vector @a v.
-   ComplexMatrixConstantCoefficient(const StdComplexDenseMatrix &m)
+   ComplexMatrixConstantCoefficient(const ComplexTypeDenseMatrix &m)
       : ComplexMatrixCoefficient(m.Height(), m.Width()), mat(m) { }
 
    /// Construct the coefficient with constant vector @a v.
@@ -416,31 +416,31 @@ public:
    using ComplexMatrixCoefficient::Eval;
 
    ///  Evaluate the matrix coefficient at @a ip.
-   void Eval(StdComplexDenseMatrix &M, ElementTransformation &T,
+   void Eval(ComplexTypeDenseMatrix &M, ElementTransformation &T,
              const IntegrationPoint &ip) override { M = mat; }
 
    /// Return a reference to the constant matrix in this class.
-   const StdComplexDenseMatrix& GetMat() const { return mat; }
+   const ComplexTypeDenseMatrix& GetMat() const { return mat; }
 };
 
 /// A general complex-valued function coefficient
 class ComplexFunctionCoefficient : public ComplexCoefficient
 {
 protected:
-   std::function<std::complex<real_t>(const Vector &)> Function;
-   std::function<std::complex<real_t>(const Vector &, real_t)> TDFunction;
+   std::function<complex_t(const Vector &)> Function;
+   std::function<complex_t(const Vector &, real_t)> TDFunction;
 
 public:
    /// Define a time-independent coefficient from a std function
    /** \param F time-independent std::function */
-   ComplexFunctionCoefficient(std::function<std::complex<real_t>
+   ComplexFunctionCoefficient(std::function<complex_t
                               (const Vector &)> F)
       : Function(std::move(F))
    { }
 
    /// Define a time-dependent coefficient from a std function
    /** \param TDF time-dependent function */
-   ComplexFunctionCoefficient(std::function<std::complex<real_t>
+   ComplexFunctionCoefficient(std::function<complex_t
                               (const Vector &, real_t)> TDF)
       : TDFunction(std::move(TDF))
    { }
@@ -448,12 +448,12 @@ public:
    /// (DEPRECATED) Define a time-independent coefficient from a C-function
    /** @deprecated Use the method where the C-function, @a f, uses a const
        Vector argument instead of Vector. */
-   MFEM_DEPRECATED ComplexFunctionCoefficient(std::complex<real_t>
+   MFEM_DEPRECATED ComplexFunctionCoefficient(complex_t
                                               (*f)(Vector &))
    {
       // Cast first to (void*) to suppress a warning from newer version of
       // Clang when using -Wextra.
-      Function = reinterpret_cast<std::complex<real_t>(*)
+      Function = reinterpret_cast<complex_t(*)
                  (const Vector&)>((void*)f);
       TDFunction = NULL;
    }
@@ -461,20 +461,20 @@ public:
    /// (DEPRECATED) Define a time-dependent coefficient from a C-function
    /** @deprecated Use the method where the C-function, @a tdf, uses a const
        Vector argument instead of Vector. */
-   MFEM_DEPRECATED ComplexFunctionCoefficient(std::complex<real_t>
+   MFEM_DEPRECATED ComplexFunctionCoefficient(complex_t
                                               (*tdf)(Vector &, real_t))
    {
       Function = NULL;
       // Cast first to (void*) to suppress a warning from newer version of
       // Clang when using -Wextra.
       TDFunction =
-         reinterpret_cast<std::complex<real_t>(*)(const Vector&,
-                                                  real_t)>((void*)tdf);
+         reinterpret_cast<complex_t(*)(const Vector&,
+                                       real_t)>((void*)tdf);
    }
 
    /// Evaluate the coefficient at @a ip.
-   std::complex<real_t> Eval(ElementTransformation &T,
-                             const IntegrationPoint &ip) override;
+   complex_t Eval(ElementTransformation &T,
+                  const IntegrationPoint &ip) override;
 };
 
 /// A general vector function coefficient
