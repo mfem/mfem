@@ -190,6 +190,12 @@ public:
    /// Prepend an 'el' to the array, resize if necessary.
    inline int Prepend(const T &el);
 
+   /// Insert @a els into the array at index @a i
+   inline int Insert(int i, const Array<T> &els);
+
+   /// Insert @a el into the array at index @a i
+   inline int Insert(int i, const T &el) { return Insert(i, Array<T>({el})); }
+
    /// Return the last element in the array.
    inline T &Last();
 
@@ -876,6 +882,22 @@ inline int Array<T>::Prepend(const T &el)
       data[i] = data[i-1];
    }
    data[0] = el;
+   return size;
+}
+
+template<class T>
+inline int Array<T>::Insert(int i, const Array<T> &els)
+{
+   MFEM_ASSERT(i < size, "Insert index is out-of-bounds.");
+
+   const int old_size = size;
+
+   SetSize(size + els.Size());
+   for (int j = old_size-1; j >= i; j--)
+   {
+      data[j+els.Size()] = data[j];
+   }
+   SetSubArray(i, els);
    return size;
 }
 
