@@ -212,6 +212,9 @@ public:
    Array<real_t> Ba1;
    Array<real_t> Ba2;
    Array<real_t> Ba3;
+   Array<real_t> Ba1t;
+   Array<real_t> Ba2t;
+   Array<real_t> Ba3t;
 
    /** @brief Special structures for gradients of positive basis with partial assembly.
       The gradient arrays exploit properties of the Bernstein basis which allow grad(B^p_alpha)
@@ -221,8 +224,25 @@ public:
    Array<real_t> Ga2;
    Array<real_t> Ga3;
 
+   /** @brief Mapping from the Bernstein multi-index (a_1, ..., a_d) to the lexicographic
+       dof index. */
    Array<int> lex_map;
 
+   /** @brief Special offset arrays that allow for contiguous memory access of ragged tensor
+       arrays. Access to C[a1][a2] is reduced to C[a2 + offset2d[a1]] and access to
+       C[a1][a2][a3] is reduced to C[a3 + offset3d[a1,a2]]. */
+   Array<int> offset2d;
+   Array<int> offset3d;
+
+   Array<int> forward_map2d_diff;
+   Array<int> forward_map3d_diff;
+   Array<int> inverse_map2d_diff;
+   Array<int> inverse_map3d_diff;
+   Array<int> forward_map2d_mass;
+   Array<int> forward_map3d_mass;
+   Array<int> inverse_map2d_mass;
+   Array<int> inverse_map3d_mass;
+    
    /** @brief Gradients/divergences/curls of basis functions evaluated at
        quadrature points. */
    /** The storage layout is column-major with dimensions:
