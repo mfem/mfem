@@ -934,8 +934,15 @@ MatFunc GetKFun(Problem prob, const ProblemParams &params)
             const real_t psi_x = M_PI * sin(M_PI * dx(0)) * cos(M_PI * dx(1));
             const real_t psi_y = M_PI * cos(M_PI * dx(0)) * sin(M_PI * dx(1));
             const real_t psi_norm = hypot(psi_x, psi_y);
-            b(0) = -psi_y / psi_norm;
-            b(1) = +psi_x / psi_norm;
+            if (psi_norm > 0.)
+            {
+               b(0) = -psi_y / psi_norm;
+               b(1) = +psi_x / psi_norm;
+            }
+            else
+            {
+               b = 0.;
+            }
 
             kappa.Diag(ks * k, ndim);
             if (ks != 1.)

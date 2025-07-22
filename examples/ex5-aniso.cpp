@@ -1231,8 +1231,15 @@ MatFunc GetKFun(Problem prob, const ProblemParams &params)
             const real_t psi_x = M_PI * sin(M_PI * dx(0)) * cos(M_PI * dx(1));
             const real_t psi_y = M_PI * cos(M_PI * dx(0)) * sin(M_PI * dx(1));
             const real_t psi_norm = hypot(psi_x, psi_y);
-            b(0) = -psi_y / psi_norm;
-            b(1) = +psi_x / psi_norm;
+            if (psi_norm > 0.)
+            {
+               b(0) = -psi_y / psi_norm;
+               b(1) = +psi_x / psi_norm;
+            }
+            else
+            {
+               b = 0.;
+            }
 
             kappa.Diag(ks * k, ndim);
             if (ks != 1.)
@@ -1414,6 +1421,7 @@ TFunc GetTFun(Problem prob, const ProblemParams &params)
             dx(1) -= y0 + 0.5*sy;
 
             const real_t r = hypot(dx(0), dx(1));
+            if (r <= 0.) { return 0.; }
             const real_t th = atan2(dx(1), dx(0));
 
             const real_t C = w0 / r;
@@ -1578,6 +1586,7 @@ VecTFunc GetQFun(Problem prob, const ProblemParams &params)
             dx(1) -= y0 + 0.5*sy;
 
             const real_t r = hypot(dx(0), dx(1));
+            if (r <= 0.) { v = 0.; return;  }
             const real_t th = atan2(dx(1), dx(0));
 
             const real_t C = w0 / r;
@@ -1843,7 +1852,6 @@ void RandomizeMesh(Mesh &mesh, real_t dr)
    const Table *e2v = mesh.GetEdgeVertexTable();
    const int *I = e2v->GetI();
    const int *J = e2v->GetJ();
-   const int NJ = e2v->Size_of_connections();
    GridFunction &nodes = *mesh.GetNodes();
    const int vdim = fes_v->GetVDim();
    real_t dx_max = 0.;
