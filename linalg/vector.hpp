@@ -644,7 +644,7 @@ inline void Vector::DeleteAt(const Array<int> &indices)
    }
 
    // Resize to remove tail
-   size -= rm_count;
+   SetSize(size - rm_count);
 }
 
 inline void Vector::NewMemoryAndSize(const Memory<real_t> &mem, int s,

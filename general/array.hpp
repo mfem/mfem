@@ -984,7 +984,7 @@ inline void Array<T>::DeleteAt(const Array<int> &indices)
    }
 
    // Resize to remove tail
-   size -= rm_count;
+   SetSize(size - rm_count);
 }
 
 template <class T>
