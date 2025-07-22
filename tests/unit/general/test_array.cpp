@@ -140,3 +140,18 @@ TEST_CASE("Array delete at indices", "[Array]")
       CHECK(test[i] == result[i]);
    }
 }
+
+TEST_CASE("Array set sub array", "[Array]")
+{
+   Array<int>   test({0,1,2,3,4,5,6,7,8});
+   Array<int>     sa({      9,9,9      });
+   Array<int> result({0,1,2,9,9,9,6,7,8});
+   int i = 3;
+
+   test.SetSubArray(i, sa);
+
+   for (int i = 0; i < test.Size(); i++)
+   {
+      CHECK(test[i] == result[i]);
+   }
+}
