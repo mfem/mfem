@@ -54,7 +54,9 @@ public:
                                 const FiniteElement &self_fe,
                                 ElementTransformation &ngh_tr,
                                 ElementTransformation &self_tr,
-                                DenseMatrix &el_mat);
+                                DenseMatrix &el_mat,
+                                int _max_iter = 1000,
+                                real_t _rtol = 1e-15);
 };
 
 void AsymmetricMassIntegrator::AsymmetricElementMatrix(const FiniteElement
@@ -62,7 +64,9 @@ void AsymmetricMassIntegrator::AsymmetricElementMatrix(const FiniteElement
                                                        const FiniteElement &self_fe,
                                                        ElementTransformation &ngh_tr,
                                                        ElementTransformation &self_tr,
-                                                       DenseMatrix &elmat)
+                                                       DenseMatrix &elmat,
+                                                       int _max_iter,
+                                                       real_t _rtol)
 {
    ngh_ndof = ngh_fe.GetDof();
    self_ndof = self_fe.GetDof();
@@ -97,13 +101,15 @@ void AsymmetricMassIntegrator::AsymmetricElementMatrix(const FiniteElement
 
       // Pullback physical neighboring integration points to
       // "extended" reference element under self_tr
+      using InvElTr = mfem::InverseElementTransformation;
       InverseElementTransformation inv_tr(&self_tr);
-      inv_tr.SetPhysicalRelTol(1e-16);
-      inv_tr.SetMaxIter(50);
-      inv_tr.SetSolverType(InverseElementTransformation::SolverType::Newton);
-      inv_tr.SetInitialGuessType(
-         InverseElementTransformation::InitGuessType::ClosestPhysNode);
-      inv_tr.Transform(physical_ngh_ip, ngh_ip);
+      inv_tr.SetPhysicalRelTol(_rtol);
+      inv_tr.SetMaxIter(_max_iter);
+      inv_tr.SetSolverType(InvElTr::SolverType::Newton);
+      inv_tr.SetPrintLevel(0); // TODO(Gabriel): Debug
+      inv_tr.SetInitialGuessType(InvElTr::InitGuessType::ClosestPhysNode);
+      MFEM_VERIFY(inv_tr.Transform(physical_ngh_ip,
+                                   ngh_ip) != InvElTr::TransformResult::Unknown, "");
 
       ngh_tr.SetIntPoint(&ngh_ip);
       self_tr.SetIntPoint(&ip);
@@ -266,6 +272,10 @@ int main(int argc, char* argv[])
    real_t solver_rtol = 1.0e-30;
    real_t solver_atol = 0.0;
    int solver_maxiter = 1000;
+
+   real_t newton_rtol = 1.0e-15;
+   int newton_maxiter = 100;
+
    // TODO(Gabriel): Not implemented yet
    // int solver_plevel = 3;
 
@@ -277,9 +287,9 @@ int main(int argc, char* argv[])
 
    // Parse options
    OptionsParser args(argc, argv);
-   args.AddOption(&ser_ref_levels, "-rs", "--refine",
+   args.AddOption(&ser_ref_levels, "-rs", "--refine-serial",
                   "Number of serial refinement steps.");
-   args.AddOption(&par_ref_levels, "-rp", "--refine",
+   args.AddOption(&par_ref_levels, "-rp", "--refine-parallel",
                   "Number of parallel refinement steps.");
 
    args.AddOption(&order_original, "-O", "--order-original",
@@ -311,6 +321,11 @@ int main(int argc, char* argv[])
    // TODO(Gabriel): Not implemented yet
    // args.AddOption(&solver_plevel, "-Sp", "--solver-print",
    //                "Print level for the iterative solver");
+   //
+   args.AddOption(&newton_rtol, "-Nrtol", "--newton-rtol",
+                  "Relative tolerance for the Newton solver (q-points)");
+   args.AddOption(&newton_maxiter, "-Nmi", "--newton-maxiter",
+                  "Maximum number of iterations for the Newton solver (q-points)");
 
    args.AddOption(&save_to_file, "-s", "--save", "-no-s",
                   "--no-save", "Show or not show approximation error.");
@@ -328,11 +343,13 @@ int main(int argc, char* argv[])
 
    if (Mpi::Root())
    {
-      mfem::out << "Number of serial refs.:  " << ser_ref_levels << "\n";
-      mfem::out << "Number of parallel refs: " << par_ref_levels << "\n";
-      mfem::out << "Original order:          " << order_original << "\n";
-      mfem::out << "Original averages:       " << order_averages << "\n";
-      mfem::out << "Original reconstruction: " << order_reconstruction << "\n";
+      mfem::out << "Number of serial refs.:  " << ser_ref_levels << "\n"
+                << "Number of parallel refs: " << par_ref_levels << "\n"
+                << "Original order:          " << order_original << "\n"
+                << "Original averages:       " << order_averages << "\n"
+                << "Original reconstruction: " << order_reconstruction << "\n"
+                << "Newton relative tol:     " << newton_rtol << "\n"
+                << "Newton max. num. iter.:  " << newton_maxiter << std::endl;
    }
 
    // Mesh
@@ -345,8 +362,8 @@ int main(int argc, char* argv[])
    NCMesh nc_mesh(static_cast<Mesh*>(&mesh));
 
    // target function u(x,y)
-   const int k_x = 1;
-   const int k_y = 2;
+   const real_t k_x = 0.5;
+   const real_t k_y = 1.0;
    std::function<real_t(const Vector &)> u_function =
       [=](const Vector& x)
    {
@@ -456,7 +473,8 @@ int main(int argc, char* argv[])
          DenseMatrix ngh_elem_mat;
          mass.AsymmetricElementMatrix(*fes_reconstruction.GetFE(ngh_e_idx),
                                       *fes_averages.GetFE(e_idx),
-                                      *ngh_tr, *self_tr, ngh_elem_mat);
+                                      *ngh_tr, *self_tr, ngh_elem_mat,
+                                      newton_maxiter, newton_rtol);
 
          if (ngh_elem_mat.Height()!=1) { mfem_error("High order case for source space not implemented yet!"); }
          Vector ngh_vec;
