@@ -39,6 +39,7 @@ namespace mfem
 class GeometricFactors;
 class FaceGeometricFactors;
 class KnotVector;
+class NURBSPatch;
 class NURBSExtension;
 class FiniteElementSpace;
 class GridFunction;
@@ -472,7 +473,7 @@ protected:
                          const int *fine, int nfine, int op);
 
    /// Read NURBS patch/macro-element mesh
-   void LoadPatchTopo(std::istream &input, Array<int> &edge_to_knot);
+   void LoadPatchTopo(std::istream &input, Array<int> &edge_to_ukv);
 
    void UpdateNURBS();
 
@@ -587,9 +588,10 @@ protected:
    void Loader(std::istream &input, int generate_edges = 0,
                std::string parse_tag = "");
 
-   /** If NURBS mesh, write NURBS format. If NCMesh, write mfem v1.1 format.
-       If section_delimiter is empty, write mfem v1.0 format. Otherwise, write
-       mfem v1.2 format with the given section_delimiter at the end.
+   /** @brief If NURBS mesh, write NURBS format. If NCMesh, write mfem v1.1
+       format. If section_delimiter is empty, write mfem v1.0 format. Otherwise,
+       write mfem v1.2 format with the given section_delimiter at the end.
+
        If @a comments is non-empty, it will be printed after the first line of
        the file, and each line should begin with '#'. */
    void Printer(std::ostream &os = mfem::out,
@@ -662,8 +664,34 @@ protected:
                        Array<int> &elem_vtx, Array<int> &attr) const;
 
    // Internal helper used in MakeSimplicial (and ParMesh::MakeSimplicial).
-   void MakeSimplicial_(const Mesh &orig_mesh, int *vglobal);
 
+   /**
+    * @brief Internal helper user in MakeSimplicial (and
+    * ParMesh::MakeSimplicial). Optional return is used in assembling a higher
+    * order mesh.
+    * @details The construction of the higher order nodes must be separated out
+    * because the
+    *
+    * @param orig_mesh The mesh from to create the simplices
+    * @param vglobal An optional global ordering of vertices. Necessary for
+    * parallel splitting.
+    * @return Array<int> parent elements from the orig_mesh for each split
+    * element
+    */
+   Array<int> MakeSimplicial_(const Mesh &orig_mesh, int *vglobal);
+
+   /**
+    * @brief Helper function for constructing higher order nodes from a mesh
+    *   transformed into simplices. Only to be called as part of MakeSimplicial
+    *   or ParMesh::MakeSimplicial.
+    *
+    * @param orig_mesh The mesh that was used to transform this mesh into
+    * simplices.
+    * @param parent_elements parent_elements[i] gives the element in orig_mesh
+    *   split to give element i.
+    */
+   void MakeHigherOrderSimplicial_(const Mesh &orig_mesh,
+                                   const Array<int> &parent_elements);
 public:
 
    /// @anchor mfem_Mesh_ctors
@@ -762,6 +790,29 @@ public:
 
    /// Destroys Mesh.
    virtual ~Mesh() { DestroyPointers(); }
+
+   /** Get the edge to unique knotvector map used by NURBS patch topology meshes
+       Various index maps are defined using the following indices:
+
+       edge:   Edge index in the patch topology mesh
+       pkv:    Patch knotvector index, equivalent to (p * dim + d) where
+               p is the patch index, dim is the topological dimension of
+               the patch, and d is the local dimension
+       rpkv:   Root patch knotvector index; the lowest index pkv for all
+               equivalent pkv.
+       ukv:    (signed) Unique knotvector index. Equivalent to rpkv reordered
+               from 0 to N-1, where N is the number of unique knotvectors +
+               sign, which indicates the orientation of the edge.
+       @param[in,out] edge_to_ukv Array<int> Map from edge index to (signed)
+                                  unique knotvector index. Will be resized
+                                  to the number of edges.
+       @param[in,out] ukv_to_rpkv Array<int> Map from (unsigned) unique
+                                  knotvector index to the (unsigned) root
+                                  patch knotvector index. Will be resized
+                                  to the number of unique knotvectors.
+   */
+   void GetEdgeToUniqueKnotvector(Array<int> &edge_to_ukv,
+                                  Array<int> &ukv_to_rpkv) const;
 
    /// @}
 
@@ -1408,6 +1459,12 @@ public:
 
    /// Set the attribute of patch boundary element i, for a NURBS mesh.
    void SetPatchBdrAttribute(int i, int attr);
+
+   /** Returns a deep copy of all patches. This method is not const
+       as it first sets the patches in NURBSext using control points
+       defined by Nodes. Caller gets ownership of the returned object,
+       and is responsible for deletion.*/
+   void GetNURBSPatches(Array<NURBSPatch*> &patches);
 
    /// Returns the type of element i.
    Element::Type GetElementType(int i) const;
@@ -2426,10 +2483,12 @@ public:
    /// Print the mesh to the given stream using Netgen/Truegrid format.
    virtual void PrintXG(std::ostream &os = mfem::out) const;
 
-   /// Print the mesh to the given stream using the default MFEM mesh format.
-   /// \see mfem::ofgzstream() for on-the-fly compression of ascii outputs. If
-   /// @a comments is non-empty, it will be printed after the first line of the
-   /// file, and each line should begin with '#'.
+   /** @brief Print the mesh to the given stream using the default MFEM mesh
+       format.
+
+       \see mfem::ofgzstream() for on-the-fly compression of ascii outputs. If
+       @a comments is non-empty, it will be printed after the first line of the
+       file, and each line should begin with '#'. */
    virtual void Print(std::ostream &os = mfem::out,
                       const std::string &comments = "") const
    { Printer(os, "", comments); }
@@ -2481,7 +2540,7 @@ public:
 
 #ifdef MFEM_USE_NETCDF
    /// @brief Export a mesh to an Exodus II file.
-   void PrintExodusII(const std::string fpath);
+   void PrintExodusII(const std::string &fpath);
 #endif
 
    /** @brief Prints the mesh with boundary elements given by the boundary of
