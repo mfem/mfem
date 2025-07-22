@@ -399,6 +399,12 @@ public:
    /// v = median(v,lo,hi) entrywise.  Implementation assumes lo <= hi.
    void median(const Vector &lo, const Vector &hi);
 
+   /// Insert sub Vector @a sv at @a offset and resize
+   void Insert(int offset, const Vector &sv);
+
+   /// Insert @a value at @a offset and resize
+   void Insert(int offset, const real_t value) { Insert(offset, Vector({value})); }
+
    /// Extract entries listed in @a dofs to the output Vector @a elemvect.
    /** Negative dof values cause the -dof-1 position in @a elemvect to receive
        the -val in from this Vector. */

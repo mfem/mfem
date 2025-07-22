@@ -263,3 +263,21 @@ TEST_CASE("Vector delete at indices", "[Vector]")
       CHECK(test[i] == result[i]);
    }
 }
+
+TEST_CASE("Vector insert", "[Vector]")
+{
+   Vector   test({0,1,2,3,      7,8});
+   Vector     sa({        4,5,     });
+   Vector result({0,1,2,3,4,5,6,7,8});
+   int i = 4;
+
+   test.Insert(i, sa);
+   test.Insert(6, 6);
+
+   REQUIRE(test.Size() == result.Size());
+
+   for (int i = 0; i < test.Size(); i++)
+   {
+      CHECK(test[i] == result[i]);
+   }
+}
