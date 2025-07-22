@@ -862,20 +862,135 @@ const DofToQuad &H1Pos_TetrahedronElement::GetRaggedTensorDofToQuad(
          d2q->nqpt = nqpt;
          d2q->Ba1.SetSize(nqpt*ndof);
          // d2q->Ba2.SetSize((int) nqpt*ndof*(ndof-1)/2); // second component of ragged tensor basis, technically dof*(dof-1)/2 entries
-         d2q->Ba2.SetSize((int)
-                          nqpt*ndof*ndof); // second component of ragged tensor basis, technically dof*(dof-1)/2 entries
-         d2q->Ba3.SetSize((int)
-                          nqpt*ndof*ndof*ndof); // third component of ragged tensor basis, technically dof*(dof-1)/2 entries
+         d2q->Ba2.SetSize(nqpt * (int) ( ndof*(ndof+1) / 2 )); // second component of ragged tensor basis, technically dof*(dof-1)/2 entries
+         d2q->Ba3.SetSize(nqpt * (int) ( ndof*(ndof+1)*(ndof+2) / 6 )); // third component of ragged tensor basis, technically dof*(dof-1)/2 entries
+         d2q->Ba1t.SetSize(nqpt*ndof);
+         // d2q->Ba2.SetSize((int) nqpt*ndof*(ndof-1)/2); // second component of ragged tensor basis, technically dof*(dof-1)/2 entries
+         d2q->Ba2t.SetSize(nqpt * (int) ( ndof*(ndof+1) / 2 )); // second component of ragged tensor basis, technically dof*(dof-1)/2 entries
+         d2q->Ba3t.SetSize(nqpt * (int) ( ndof*(ndof+1)*(ndof+2) / 6 )); // third component of ragged tensor basis, technically dof*(dof-1)/2 entries
          d2q->Ga1.SetSize(nqpt*(ndof
                                 -1)); // stores first component of ragged tensor basis with order p-1, for gradients only
-         d2q->Ga2.SetSize(nqpt*(ndof-1)*(ndof
-                                         -1)); // stores second component of ragged tensor basis with order p-1
-         d2q->Ga3.SetSize(nqpt*(ndof-1)*(ndof
-                                         -1)*(ndof-1)); // stores third component of ragged tensor basis with order p-1
+         d2q->Ga2.SetSize(nqpt * (int) ( (ndof-1)*(ndof) / 2 )); // stores second component of ragged tensor basis with order p-1
+         // d2q->Ga2.SetSize(nqpt*(ndof-1)*(ndof
+         //                                 -1)); // stores second component of ragged tensor basis with order p-1
+         d2q->Ga3.SetSize(nqpt * (int) ( (ndof-1)*(ndof)*(ndof+1) / 6 )); // stores third component of ragged tensor basis with order p-1
+         // d2q->Ga3.SetSize(nqpt * (ndof-1)*(ndof-1)*(ndof-1)); // stores third component of ragged tensor basis with order p-1
          d2q->lex_map.SetSize(ndof * ndof * ndof);
+         d2q->offset2d.SetSize(ndof-1);
+         d2q->offset3d.SetSize((ndof-1) * (ndof-1));
+
+         d2q->forward_map2d_diff.SetSize((ndof-1) * (ndof-1));
+         d2q->forward_map3d_diff.SetSize((ndof-1) * (ndof-1) * (ndof-1));
+         d2q->inverse_map2d_diff.SetSize(2 * (int) ( (ndof-1)*(ndof) / 2 ));
+         d2q->inverse_map3d_diff.SetSize(3 * (int) ( (ndof-1)*(ndof)*(ndof+1) / 6 ));
+         d2q->forward_map2d_mass.SetSize(ndof * ndof);
+         d2q->forward_map3d_mass.SetSize(ndof * ndof * ndof);
+         d2q->inverse_map2d_mass.SetSize((int) ( ndof*(ndof+1) / 2 ));
+         d2q->inverse_map3d_mass.SetSize(2 * (int) ( ndof*(ndof+1)*(ndof+2) / 6 ));
+
+         // 2D offsets for ragged tensors
+         d2q->offset2d[0] = 0;
+         for (int a2 = 1; a2 < ndof-1; a2++)
+         {
+            int pi = ndof-a2;
+            d2q->offset2d[a2] = pi + d2q->offset2d[a2-1];
+         }
+
+         // 3D offsets with 2D storage for ragged tensors
+         Array<int> C1(ndof);
+         const int dim2d = (ndof-1)*(ndof) / 2;
+         C1[0] = 0;
+         for (int a1 = 1; a1 < ndof-1; a1++)
+         {
+            int pi = ndof-2-a1;
+            C1[a1] = (int) (pi+1)*(pi+2) / 2 + C1[a1-1];
+         }
+
+         for (int a2 = 0; a2 < ndof-1; a2++)
+         {
+            d2q->offset3d[a2] = 0;
+         }
+
+         for (int a1 = 1; a1 < ndof-1; a1++)
+         {
+            for (int a2 = 0; a2 < ndof-a1-1; a2++)
+            {
+               const int idx = a2 + (ndof-1)*a1;   
+               d2q->offset3d[idx] = dim2d + C1[a1-1] - a1 * a2;
+            }
+         }
+
+         for (int a1 = 0; a1 < ndof-1; a1++)
+         {
+            for (int a2 = 0; a2 < ndof-a1-1; a2++)
+            {
+               const int idx = a2 + (ndof-1)*a1;
+               d2q->offset3d[idx] += d2q->offset2d[a2];
+            }
+         }
+
+         // forward and inverse maps for multi-index to collpased 1d index for diffusion
+         int idx = 0;
+         for (int i = 0; i < ndof-1; i++)
+         {
+            for (int j = 0; j < ndof-i-1; j++)
+            {
+               d2q->forward_map2d_diff[j + (ndof-1)*i] = idx;
+               d2q->inverse_map2d_diff[idx] = i;
+               // d2q->inverse_map2d_diff[1 + 2*idx] = j;
+               idx++;
+            }
+         }
+
+         idx = 0;
+         for (int k = 0; k < ndof-1; k++)
+         {
+            for (int j = 0; j < ndof-k-1; j++)
+            {
+               for (int i = 0; i < ndof-k-j-1; i++)
+               {
+                  d2q->forward_map3d_diff[k + (ndof-1)*(j + (ndof-1)*i)] = idx;
+                  d2q->inverse_map3d_diff[3*idx] = i;
+                  d2q->inverse_map3d_diff[1 + 3*idx] = j;
+                  d2q->inverse_map3d_diff[2 + 3*idx] = k;
+                  idx++;
+               }
+            }
+         }
+
+         // forward and inverse maps for multi-index to collpased 1d index for mass
+         idx = 0;
+         for (int j = 0; j < ndof; j++)
+         {
+            for (int i = 0; i < ndof-j; i++)
+            {
+               d2q->forward_map2d_mass[j + ndof*i] = idx;
+               d2q->inverse_map2d_mass[idx] = i;
+               // d2q->inverse_map2d_mass[1 + 2*idx] = j;
+               idx++;
+            }
+         }
+
+         idx = 0;
+         for (int k = 0; k < ndof; k++)
+         {
+            for (int j = 0; j < ndof-k; j++)
+            {
+               for (int i = 0; i < ndof-k-j; i++)
+               {
+                  d2q->forward_map3d_mass[k + ndof*(j + ndof*i)] = idx;
+                  d2q->inverse_map3d_mass[2*idx] = i;
+                  d2q->inverse_map3d_mass[1 + 2*idx] = j;
+                  // d2q->inverse_map3d_mass[2 + 3*idx] = k;
+                  idx++;
+               }
+            }
+         }
+
+         const int dim2d_mass = ndof * (ndof+1) / 2;
+         const int dim3d_mass = ndof * (ndof+1) * (ndof+2) / 6;
          Vector shape_a1(ndof), shape_a2(ndof * ndof), shape_a3(ndof * ndof * ndof);
-         Vector shape_Ga1(ndof-1), shape_Ga2((ndof-1) * (ndof-1)),
-                shape_Ga3((ndof-1) * (ndof-1) * (ndof-1));
+         Vector shape_Ga1(ndof-1), shape_Ga2(ndof-1), shape_Ga3(ndof-1);
          for (int i = 0; i < nqpt; i++)
          {
             // The first 'nqpt' points in 'ir' have the same x-coordinates as those
@@ -884,10 +999,12 @@ const DofToQuad &H1Pos_TetrahedronElement::GetRaggedTensorDofToQuad(
             Poly_1D::CalcBernstein(ndof-2, ir.IntPoint(i).x, shape_Ga1);
             for (int j = 0; j < ndof; j++)
             {
-               d2q->Ba1[i+nqpt*j] = shape_a1(j);
+               d2q->Ba1[i+nqpt*j] = d2q->Ba1t[j+ndof*i] = shape_a1(j);
                if (j < ndof-1)
                {
-                  d2q->Ga1[i+nqpt*j] = shape_Ga1(j);
+                  // d2q->Ga1[i+nqpt*j] = shape_Ga1(j);
+                  // match order from diffusion kernels
+                  d2q->Ga1[i+(ndof-1)*j] = shape_Ga1(j);
                   Poly_1D::CalcBernstein(ndof-2-j, ir.IntPoint(nqpt*i).y, shape_Ga2);
                }
 
@@ -896,20 +1013,41 @@ const DofToQuad &H1Pos_TetrahedronElement::GetRaggedTensorDofToQuad(
                Poly_1D::CalcBernstein(ndof-1-j, ir.IntPoint(nqpt*i).y, shape_a2);
                for (int k = 0; k < ndof-j; k++)
                {
-                  d2q->Ba2[i + nqpt*(j + ndof*k)] = shape_a2(k);
+                  const int a_2d_mass = d2q->forward_map2d_mass[k + ndof*j];
+                  d2q->Ba2[i + nqpt*a_2d_mass] = d2q->Ba2t[a_2d_mass + dim2d_mass*i] = shape_a2(k);
                   if (j < ndof-1 && k < ndof-j-1)
                   {
-                     d2q->Ga2[i + nqpt*(j + (ndof-1)*k)] = shape_Ga2(k);
+                     // d2q->Ga2[i + nqpt*(j + (ndof-1)*k)] = shape_Ga2(k);
+                     // // reverse access
+                     // d2q->Ga2[k + (ndof-1)*(j + (ndof-1)*i)] = shape_Ga2(k);
+                     // // match order from diffusion kernels
+                     // d2q->Ga2[i + nqpt*(k + (ndof-1)*j)] = shape_Ga2(k);
+                     // // collapsed 1D access
+                     // d2q->Ga2[i + nqpt*(k + d2q->offset2d[j])] = shape_Ga2(k);
+                     // collapsed 1D access with mappings
+                     const int a_2d_diff = d2q->forward_map2d_diff[k + (ndof-1)*j];
+                     d2q->Ga2[i + nqpt*a_2d_diff] = shape_Ga2(k);
                      Poly_1D::CalcBernstein(ndof-2-j-k, ir.IntPoint(nqpt*nqpt*i).z, shape_Ga3);
                   }
 
                   Poly_1D::CalcBernstein(ndof-1-j-k, ir.IntPoint(nqpt*nqpt*i).z, shape_a3);
                   for (int m = 0; m < ndof-j-k; m++)
                   {
-                     d2q->Ba3[i + nqpt*(j + ndof*(k + ndof*m))] = shape_a3(m);
+                     const int a_3d_mass = d2q->forward_map3d_mass[m + ndof*(k + ndof*j)];
+                     d2q->Ba3[i + nqpt*a_3d_mass] = d2q->Ba3t[a_3d_mass + dim3d_mass*i] = shape_a3(m);
                      if (j < ndof-1 && k < ndof-j-1 && m < ndof-j-k-1)
                      {
-                        d2q->Ga3[i + nqpt*(j + (ndof-1)*(k + (ndof-1)*m))] = shape_Ga3(m);
+                        // d2q->Ga3[i + nqpt*(m + (ndof-1)*(k + (ndof-1)*j))] = shape_Ga3(m);
+                        // // reverse access
+                        // d2q->Ga3[m + (ndof-1)*(k + (ndof-1)*(j + (ndof-1)*i))] = shape_Ga3(m);
+                        // try matching order in diffusion kernels
+                        // d2q->Ga3[m + (ndof-1)*(i + nqpt*(k + (ndof-1)*j))] = shape_Ga3(m);
+
+                        // // collapsed 1D access
+                        // d2q->Ga3[i + nqpt*(m + d2q->offset3d[k + (ndof-1)*j])] = shape_Ga3(m);
+                        // collapsed 1D access with forward mapping
+                        const int a_3d_diff = d2q->forward_map3d_diff[m + (ndof-1)*(k + (ndof-1)*j)];
+                        d2q->Ga3[i + nqpt*a_3d_diff] = shape_Ga3(m);
                      }
                   }
                }
@@ -929,10 +1067,12 @@ const DofToQuad &H1Pos_TetrahedronElement::GetRaggedTensorDofToQuad(
                   int tet = (p-k)*(p-k+1)*(p-k+2) / 6;
                   int tri = (p+1-k-j)*(p+2-k-j)/2;
                   int idx = dof - tet - tri + i;
+                  // const int multi_idx = k + 
                   d2q->lex_map[k + ndof*(j + ndof*i)] = idx;
                }
             }
          }
+
          dof2quad_array.Append(d2q);
       }
    }

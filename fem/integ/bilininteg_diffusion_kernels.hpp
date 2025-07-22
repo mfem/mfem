@@ -819,6 +819,9 @@ template<int T_D1D = 0, int T_Q1D = 0>
 inline void PADiffusionApplyTriangle(const int NE,
                                      const bool symmetric,
                                      const Array<int> &lex_map_,
+                                     const Array<int> &forward_map2d_,
+                                     const Array<int> &inverse_map2d_,
+                                     const Array<int> &inverse_map3d_,
                                      const Array<real_t> &ga1_,
                                      const Array<real_t> &ga2_,
                                      const Array<real_t> &ga3_, // unused in 2D...
@@ -1452,10 +1455,13 @@ inline void SmemPADiffusionApply3D(const int NE,
        of arbitrary order and optimal assembly procedures. SIAM Journal on Scientific Computing,
        33(6), 3087-3109.
    */
-template<int T_D1D = 0, int T_Q1D = 0>
+  template<int T_D1D = 0, int T_Q1D = 0>
 inline void PADiffusionApplyTetrahedron(const int NE,
                                         const bool symmetric,
                                         const Array<int> &lex_map_,
+                                        const Array<int> &forward_map2d_,
+                                        const Array<int> &inverse_map2d_,
+                                        const Array<int> &inverse_map3d_,
                                         const Array<real_t> &ga1_,
                                         const Array<real_t> &ga2_,
                                         const Array<real_t> &ga3_,
@@ -1467,295 +1473,284 @@ inline void PADiffusionApplyTetrahedron(const int NE,
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
-   const int BASIS_DIM = D1D * (D1D+1) * (D1D+2) / 6;
+   const int BASIS_DIM2D = D1D * (D1D+1) / 2;
+   const int BASIS_DIM3D = D1D * (D1D+1) * (D1D+2) / 6;
+   const int BASIS_DIM2D_DIFF = (D1D-1) * D1D / 2;
+   const int BASIS_DIM3D_DIFF = (D1D-1) * D1D * (D1D+1) / 6;
    MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
    MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
    const auto lex_map = lex_map_.Read();
+   const auto forward_map2d = forward_map2d_.Read();
+   const auto inverse_map2d = inverse_map2d_.Read();
+   const auto inverse_map3d = inverse_map3d_.Read();
    const auto Ga1 = ConstDeviceMatrix(ga1_.Read(), Q1D, D1D-1);
-   const auto Ga2 = ConstDeviceCube(ga2_.Read(), Q1D, D1D-1, D1D-1);
-   const auto Ga3 = DeviceTensor<4,const real_t>(ga3_.Read(), Q1D, D1D-1, D1D-1,
-                                                 D1D-1);
+   const auto Ga2 = ConstDeviceMatrix(ga2_.Read(), Q1D, BASIS_DIM2D_DIFF);
+   const auto Ga3 = ConstDeviceMatrix(ga3_.Read(), Q1D, BASIS_DIM3D_DIFF);
    const auto D = Reshape(d_.Read(), Q1D, Q1D, Q1D, symmetric ? 6 : 9, NE);
-   const auto X = Reshape(x_.Read(), BASIS_DIM, NE);
-   auto Y = Reshape(y_.ReadWrite(), BASIS_DIM, NE);
+   const auto X = Reshape(x_.Read(), BASIS_DIM3D, NE);
+   auto Y = Reshape(y_.ReadWrite(), BASIS_DIM3D, NE);
 
-   int p2 = (D1D-1) * (D1D-1);
+   const int p2 = (D1D-1) * (D1D-1);
 
+   // real_t *C1 = new real_t[(int) 3 * BASIS_DIM2D_DIFF* Q1D] {0};
+   // real_t *C2 = new real_t[3 * (D1D-1) * Q1D * Q1D] {0};
+   // real_t *C3 = new real_t[3 * Q1D * Q1D * Q1D] {0};
+
+   // real_t *F1 = new real_t[3 * (D1D-1) * Q1D * Q1D] {0};
+   // real_t *F2 = new real_t[(int) 3 * BASIS_DIM2D_DIFF * Q1D] {0};
+
+   // std::cout << "Printing from Apply Tetrahedron" << std::endl;
    mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
+
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
+
       // the following variables are evaluated at compile time
       constexpr int max_D1D = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
       constexpr int max_Q1D = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
 
-      for (int idx = 0; idx < BASIS_DIM; idx++)
-      {
-         Y(idx, e) = 0.0;
-      }
+      constexpr int basis_dim2d = (int) 3 * (max_D1D-1) * (max_D1D) / 2;
+      real_t C1[(int) 3 * basis_dim2d * max_Q1D];
+      real_t C2[3 * (max_D1D-1) * max_Q1D * max_Q1D];
+      real_t C3[3 * max_Q1D * max_Q1D * max_Q1D];
+      real_t F1[3 * (max_D1D-1) * max_Q1D * max_Q1D];
+      real_t F2[(int) 3 * basis_dim2d * max_Q1D];
 
-      // TODO: should be using stack memory here like quad version, but this seems faster...
-      real_t *cin = new real_t[3 * (D1D-1) * (D1D-1) * (D1D-1)] {0};
-      real_t *C1 = new real_t[3 * (D1D-1) * (D1D-1) * Q1D] {0};
-      real_t *C2 = new real_t[3 * (D1D-1) * Q1D * Q1D] {0};
-      real_t *C3 = new real_t[3 * Q1D * Q1D * Q1D] {0};
-
-      // cin contains the vector coefficient
-      //    cin_{\beta} = \sum_{k=1}^{4} \nabla\lambda_{k} * X_{\beta + e_{k}},
-      // where \lambda_{k} are the standard barycentric coordinates and e_{k}
-      // is the unit vector with nonzero value in entry k. C3 will contain the
-      // value of the Bernstein polynomial
-      //    \sum_{\beta} cin_{\beta} * B_{\beta}^{p-1}(\Phi(t1,t2,t3)),
-      // where \Phi is the Duffy transform and (t1,t2,t3) is a Stroud quadrature node
-      // in the unit cube.
-      for (int dz = 0; dz < D1D-1; ++dz)
+      for (int i3 = 0; i3 < Q1D; i3++)
       {
-         for (int dy = 0; dy < D1D-dz-1; ++dy)
+         for (int i2 = 0; i2 < Q1D; i2++)
          {
-            for (int dx = 0; dx < D1D-dz-dy-1; ++dx)
+            for (int i1 = 0; i1 < Q1D; i1++)
             {
-               // k=0, component 0
-               int idx = lex_map[dx + D1D*(dy + D1D*(dz + 1))];
-               const int dzdydx = 3*(dx + (D1D-1)*(dy + (D1D-1)*dz));
-               cin[dzdydx] += X(idx, e);
-
-               // // k=0, components 1,2 (not computed because \nabla\lambda_{k}
-               // component is 0)
-               // int idx = lex_map[dx + D1D*(dy + D1D*(dz + 1))];
-               // const int dzdydx = 3*(dx + (D1D-1)*(dy + (D1D-1)*dz));
-               // cin[1 + dzdydx] += X(idx, e) * 0.0;
-
-               // // k=1, components 0,2 (not computed because \nabla\lambda_{k}
-               // component is 0)
-               // idx = lex_map[dx + D1D*(dy+1 + D1D*dz)];
-               // cin[dzdydx] += X(idx, e) * 0.0;
-
-               // k=1, component 1 (not computed because \nabla\lambda_{k}
-               // component is 0)
-               idx = lex_map[dx + D1D*(dy+1 + D1D*dz)];
-               cin[1 + dzdydx] += X(idx, e);
-
-               // // k=2, components 0,1 (not computed because \nabla\lambda_{k}
-               // component is 0)
-               // idx = lex_map[dx+1 + D1D*(dy + D1D*dz)];
-               // cin[dzdydx] -= X(idx, e) * 0.0;
-
-               // k=2, component 2
-               idx = lex_map[dx+1 + D1D*(dy + D1D*dz)];
-               cin[2 + dzdydx] += X(idx, e);
-
-               // k=3, component 0
-               idx = lex_map[dx + D1D*(dy + D1D*dz)];
-               cin[dzdydx] -= X(idx, e);
-
-               // k=3, component 1
-               cin[1 + dzdydx] -= X(idx, e);
-
-               // k=3, component 2
-               cin[2 + dzdydx] -= X(idx, e);
+               const int q = 3*(i1 + Q1D*(i2 + Q1D*i3));
+               C3[q] = 0.0;
+               C3[1+q] = 0.0;
+               C3[2+q] = 0.0;
             }
+            for (int a1 = 0; a1 < D1D-1; a1++)
+            {
+               const int q = 3*(a1 + (D1D-1)*(i2 + Q1D*i3));
+               C2[q] = 0.0;
+               C2[1+q] = 0.0;
+               C2[2+q] = 0.0;
+               F1[q] = 0.0;
+               F1[1+q] = 0.0;
+               F1[2+q] = 0.0;
+            }
+         }
+         
+         for (int a = 0; a < BASIS_DIM2D_DIFF; a++)
+         {
+            const int q = 3*(a + BASIS_DIM2D_DIFF*i3);
+            C1[q] = 0.0;
+            C1[1+q] = 0.0;
+            C1[2+q] = 0.0;
+            F2[q] = 0.0;
+            F2[1+q] = 0.0;
+            F2[2+q] = 0.0;
          }
       }
 
       // C1 contains the Bernstein polynomial on a triangle evaluated at the quadrature
       // point in the first spatial dimension
-      for (int a1 = 0; a1 < D1D-1; a1++)
+      for (int a = 0; a < BASIS_DIM3D_DIFF; a++)
       {
-         for (int a2 = 0; a2 < D1D-a1-1; a2++)
+         const int a1 = inverse_map3d[3*a];
+         const int a2 = inverse_map3d[1 + 3*a];
+         const int a3 = inverse_map3d[2 + 3*a];
+         const int a_2d = forward_map2d[a2 + (D1D-1)*a1];  
+
+         // aggregate input vector
+         real_t u = 0.0, v = 0.0, w = 0.0;
+         // k=3, component 0
+         int idx = lex_map[a3 + D1D*(a2 + D1D*a1)];
+         u -= X(idx, e);
+
+         // k=3, component 1
+         v -= X(idx, e);
+
+         // k=3, component 2
+         w -= X(idx, e);
+
+         // k=2, component 2
+         idx = lex_map[a3+1 + D1D*(a2 + D1D*a1)];
+         w += X(idx, e);
+
+         // k=1, component 1 (not computed because \nabla\lambda_{k}
+         // component is 0)
+         idx = lex_map[a3 + D1D*(a2+1 + D1D*a1)];
+         v += X(idx, e);
+
+         // k=0, component 0
+         idx = lex_map[a3 + D1D*(a2 + D1D*(a1 + 1))];
+         u += X(idx, e);
+
+         for (int i3 = 0; i3 < Q1D; i3++)
          {
-            for (int i3 = 0; i3 < Q1D; i3++)
-            {
-               const int a1a2i3 = 3*(i3 + Q1D*(a2 + (D1D-1)*a1));
-               for (int a3 = 0; a3 < D1D-a1-a2-1; a3++)
-               {
-                  const int a1a2a3 = 3*(a3 + (D1D-1)*(a2 + (D1D-1)*a1));
-                  const real_t Gai = Ga3(i3, a1, a2, a3);
-                  C1[a1a2i3] += cin[a1a2a3] * Gai;
-                  C1[1 + a1a2i3] += cin[1 + a1a2a3] * Gai;
-                  C1[2 + a1a2i3] += cin[2 + a1a2a3] * Gai;
-               }
-            }
+            const int a1a2i3 = 3*(i3 + Q1D*a_2d);
+            const real_t Gai = Ga3(i3,a);
+
+            C1[a1a2i3] += u * Gai; // cin can be stored outside this inner loop...
+            C1[1 + a1a2i3] += v * Gai;
+            C1[2 + a1a2i3] += w * Gai;
          }
       }
 
       // C2 contains the Bernstein polynomial on a triangle evaluated at the quadrature
       // point in the second spatial dimension
+      for (int a = 0; a < BASIS_DIM2D_DIFF; a++)
+      {
+         const int a1 = inverse_map2d[a];
+         for (int i3 = 0; i3 < Q1D; i3++)
+         {
+            const int a1a2i3 = 3*(i3 + Q1D*a);
+            const real_t C1x = C1[a1a2i3];
+            const real_t C1y = C1[1 + a1a2i3];
+            const real_t C1z = C1[2 + a1a2i3];
+            for (int i2 = 0; i2 < Q1D; i2++)
+            {
+               const real_t Gai = Ga2(i2,a);
+
+               const int a1i2i3 = 3*(i2 + Q1D*(i3 + Q1D*a1));
+               C2[a1i2i3] += C1x * Gai;
+               C2[1 + a1i2i3] += C1y * Gai;
+               C2[2 + a1i2i3] += C1z * Gai;
+            }
+         }
+      }
+
       for (int a1 = 0; a1 < D1D-1; a1++)
       {
-         for (int a2 = 0; a2 < D1D-a1-1; a2++)
+         for (int i3 = 0; i3 < Q1D; i3++)
          {
             for (int i2 = 0; i2 < Q1D; i2++)
             {
-               const real_t Gai = Ga2(i2, a1, a2);
-               for (int i3 = 0; i3 < Q1D; i3++)
+               const int a1i2i3 = 3*(i2 + Q1D*(i3 + Q1D*a1));
+               const real_t C2x = C2[a1i2i3];
+               const real_t C2y = C2[1 + a1i2i3];
+               const real_t C2z = C2[2 + a1i2i3];
+               for (int i1 = 0; i1 < Q1D; i1++)
                {
-                  const int a1i2i3 = 3*(i3 + Q1D*(i2 + Q1D*a1));
-                  const int a1a2i3 = 3*(i3 + Q1D*(a2 + (D1D-1)*a1));
-                  C2[a1i2i3] += C1[a1a2i3] * Gai;
-                  C2[1 + a1i2i3] += C1[1 + a1a2i3] * Gai;
-                  C2[2 + a1i2i3] += C1[2 + a1a2i3] * Gai;
+                  const real_t Gai = Ga1(i1,a1);
+                  const int i1i2i3 = 3*(i1 + Q1D*(i2 + Q1D*i3));
+                  C3[i1i2i3] += C2x * Gai;
+                  C3[1 + i1i2i3] += C2y * Gai;
+                  C3[2 + i1i2i3] += C2z * Gai;
                }
-            }
-         }
-      }
-
-      // C3 contains the Bernstein polynomial on a triangle with coefficients cin evaluated at
-      // all of the Stroud quadrature nodes. E.g. if (t1,t2,t3) is a Stroud node, then
-      //    C3[t1,t2,t3] = \sum_{\alpha} cin_{\alpha} * B_{\alpha}^{p-1}(\Phi(t1,t2,t3)),
-      // where \Phi is the Duffy transform.
-      for (int i1 = 0; i1 < Q1D; i1++)
-      {
-         for (int a1 = 0; a1 < D1D-1; a1++)
-         {
-            const real_t Gai = Ga1(i1, a1);
-            for (int i2 = 0; i2 < Q1D; i2++)
-            {
-               for (int i3 = 0; i3 < Q1D; i3++)
-               {
-                  const int i1i2i3 = 3*(i3 + Q1D*(i2 + Q1D*i1));
-                  const int a1i2i3 = 3*(i3 + Q1D*(i2 + Q1D*a1));
-                  C3[i1i2i3] += C2[a1i2i3] * Gai;
-                  C3[1 + i1i2i3] += C2[1 + a1i2i3] * Gai;
-                  C3[2 + i1i2i3] += C2[2 + a1i2i3] * Gai;
-               }
-            }
-         }
-      }
-
-      // now evaluate the Bernstein moments
-      // TODO: switch to stack memory...
-      real_t *fin = new real_t[3 * Q1D * Q1D * Q1D];
-      real_t *F1 = new real_t[3 * (D1D-1) * Q1D * Q1D] {0};
-      real_t *F2 = new real_t[3 * (D1D-1) * (D1D-1) * Q1D] {0};
-      real_t *F3 = new real_t[3 * (D1D-1) * (D1D-1) * (D1D-1)] {0};
-
-      // fin contains (B_{K})^{-1} * D(x) * (B_{K})^{-T} * C3(x). the result stored in F3
-      // will be all Bernstein moments
-      //    \int_{K} B_{\alpha}^{p-1}(x) * fin(x) dx.
-      for (int qz = 0; qz < Q1D; ++qz)
-      {
-         for (int qy = 0; qy < Q1D; ++qy)
-         {
-            for (int qx = 0; qx < Q1D; ++qx)
-            {
-               const real_t O11 = D(qz,qy,qx,0,e);
-               const real_t O12 = D(qz,qy,qx,1,e);
-               const real_t O13 = D(qz,qy,qx,2,e);
-               const real_t O21 = symmetric ? O12 : D(qz,qy,qx,3,e);
-               const real_t O22 = symmetric ? D(qz,qy,qx,3,e) : D(qz,qy,qx,4,e);
-               const real_t O23 = symmetric ? D(qz,qy,qx,4,e) : D(qz,qy,qx,5,e);
-               const real_t O31 = symmetric ? O13 : D(qz,qy,qx,6,e);
-               const real_t O32 = symmetric ? O23 : D(qz,qy,qx,7,e);
-               const real_t O33 = symmetric ? D(qz,qy,qx,5,e) : D(qz,qy,qx,8,e);
-
-               const int q = qx + (qy + qz * Q1D) * Q1D;
-               const int q3 = 3*q;
-               fin[q3] = O11 * C3[q3] + O12 * C3[1 + q3] + O13 * C3[2 + q3];
-               fin[1 + q3] = O21 * C3[q3] + O22 * C3[1 + q3] + O23 * C3[2 + q3];
-               fin[2 + q3] = O31 * C3[q3] + O32 * C3[1 + q3] + O33 * C3[2 + q3];
             }
          }
       }
 
       // F1 computes the Bernstein moment over the first ragged tensor dimension.
-      for (int i1 = 0; i1 < Q1D; i1++)
+      for (int i3 = 0; i3 < Q1D; i3++)
       {
-         for (int a1 = 0; a1 < D1D-1; a1++)
+         for (int i2 = 0; i2 < Q1D; i2++)
          {
-            const real_t Gai = Ga1(i1, a1);
-            for (int i2 = 0; i2 < Q1D; i2++)
+            // const int i1i2 = Q1D*(i2 + Q1D*i1);
+            for (int i1 = 0; i1 < Q1D; i1++)
             {
-               for (int i3 = 0; i3 < Q1D; i3++)
+               const real_t O11 = D(i1,i2,i3,0,e);
+               const real_t O12 = D(i1,i2,i3,1,e);
+               const real_t O13 = D(i1,i2,i3,2,e);
+               const real_t O21 = symmetric ? O12 : D(i1,i2,i3,3,e);
+               const real_t O22 = symmetric ? D(i1,i2,i3,3,e) : D(i1,i2,i3,4,e);
+               const real_t O23 = symmetric ? D(i1,i2,i3,4,e) : D(i1,i2,i3,5,e);
+               const real_t O31 = symmetric ? O13 : D(i1,i2,i3,6,e);
+               const real_t O32 = symmetric ? O23 : D(i1,i2,i3,7,e);
+               const real_t O33 = symmetric ? D(i1,i2,i3,5,e) : D(i1,i2,i3,8,e);
+
+               const int i1i2i3 = 3*(i1 + Q1D*(i2 + Q1D*i3));
+               real_t gX = C3[i1i2i3];
+               real_t gY = C3[1 + i1i2i3];
+               real_t gZ = C3[2 + i1i2i3];
+   
+               const real_t fin1 = O11 * gX + O12 * gY + O13 * gZ;
+               const real_t fin2 = O21 * gX + O22 * gY + O23 * gZ;
+               const real_t fin3 = O31 * gX + O32 * gY + O33 * gZ;
+               for (int a1 = 0; a1 < D1D-1; a1++)
                {
-                  const int i1i2i3 = 3*(i3 + Q1D*(i2 + Q1D*i1));
-                  const int a1i2i3 = 3*(i3 + Q1D*(i2 + Q1D*a1));
-                  F1[a1i2i3] += fin[i1i2i3] * Gai;
-                  F1[1 + a1i2i3] += fin[1 + i1i2i3] * Gai;
-                  F1[2 + a1i2i3] += fin[2 + i1i2i3] * Gai;
+                  const real_t Gai = Ga1(i1, a1);
+                  const int a1i2i3 = 3*(a1 + (D1D-1)*(i2 + Q1D*i3));
+                  F1[a1i2i3] += fin1 * Gai;
+                  F1[1 + a1i2i3] += fin2 * Gai;
+                  F1[2 + a1i2i3] += fin3 * Gai;
                }
             }
          }
       }
 
       // F2 computes the Bernstein moment over the second ragged tensor dimension.
-      for (int a1 = 0; a1 < D1D-1; a1++)
+      for (int i3 = 0; i3 < Q1D; i3++)
       {
-         for (int a2 = 0; a2 < D1D-a1-1; a2++)
+         for (int i2 = 0; i2 < Q1D; i2++)
          {
-            for (int i2 = 0; i2 < Q1D; i2++)
+            for (int a = 0; a < BASIS_DIM2D_DIFF; a++)
             {
-               const real_t Gai = Ga2(i2, a1, a2);
-               for (int i3 = 0; i3 < Q1D; i3++)
-               {
-                  const int a1a2i3 = 3*(i3 + Q1D*(a2 + (D1D-1)*a1));
-                  const int a1i2i3 = 3*(i3 + Q1D*(i2 + Q1D*a1));
-                  F2[a1a2i3] += F1[a1i2i3] * Gai;
-                  F2[1 + a1a2i3] += F1[1 + a1i2i3] * Gai;
-                  F2[2 + a1a2i3] += F1[2 + a1i2i3] * Gai;
-               }
+               const int a1 = inverse_map2d[a];
+               const real_t Gai = Ga2(i2,a);
+
+               const int a1a2i3 = 3*(a + BASIS_DIM2D_DIFF*i3);
+               const int a1i2i3 = 3*(a1 + (D1D-1)*(i2 + Q1D*i3));
+               F2[a1a2i3] += F1[a1i2i3] * Gai;
+               F2[1 + a1a2i3] += F1[1 + a1i2i3] * Gai;
+               F2[2 + a1a2i3] += F1[2 + a1i2i3] * Gai;
             }
          }
       }
 
-      // F3 computes the Bernstein moment over the third/last ragged tensor dimension.
-      for (int a1 = 0; a1 < D1D-1; a1++)
+      for (int a = 0; a < BASIS_DIM3D_DIFF; a++)
       {
-         for (int a2 = 0; a2 < D1D-a1-1; a2++)
+         const int a1 = inverse_map3d[3*a];
+         const int a2 = inverse_map3d[1 + 3*a];
+         const int a3 = inverse_map3d[2 + 3*a];
+         const int a_2d = forward_map2d[a2 + (D1D-1)*a1];  
+
+         real_t u = 0.0, v = 0.0, w = 0.0;
+         // const int a1a2a3 = 3*(a3 + a1a2);
+         for (int i3 = 0; i3 < Q1D; i3++)
          {
-            for (int i3 = 0; i3 < Q1D; i3++)
-            {
-               const int a1a2i3 = 3*(i3 + Q1D*(a2 + (D1D-1)*a1));
-               for (int a3 = 0; a3 < D1D-a1-a2-1; a3++)
-               {
-                  const real_t Gai = Ga3(i3, a1, a2, a3);
-                  const int a1a2a3 = 3*(a3 + (D1D-1)*(a2 + (D1D-1)*a1));
-                  F3[a1a2a3] += F2[a1a2i3] * Gai;
-                  F3[1 + a1a2a3] += F2[1 + a1a2i3] * Gai;
-                  F3[2 + a1a2a3] += F2[2 + a1a2i3] * Gai;
-               }
-            }
+            // const int idx = i3 + Q1D*a;
+            const real_t Gai = Ga3(i3,a);
+            const int a1a2i3 = 3*(a_2d + BASIS_DIM2D_DIFF*i3);
+            u += F2[a1a2i3] * Gai;
+            v += F2[1 + a1a2i3] * Gai;
+            w += F2[2 + a1a2i3] * Gai; 
          }
+
+         // k=3
+         int idx = lex_map[a3 + D1D*(a2 + D1D*a1)];
+         Y(idx,e) -= p2 * (u + v + w);
+         
+         // k=0
+         idx = lex_map[a3 + D1D*(a2 + D1D*(a1+1))];
+         Y(idx,e) += p2 * u;
+
+         // k=1
+         idx = lex_map[a3 + D1D*(a2+1 + D1D*a1)];
+         Y(idx,e) += p2 * v;
+
+         // k=2
+         idx = lex_map[a3+1 + D1D*(a2 + D1D*a1)];
+         Y(idx,e) += p2 * w;
       }
 
-      // compute contributions to local RHS. we have
-      //       Y_{\alpha + e_{k}} = p^{2} * \nabla\lambda_{k} * F3_{\alpha}
-      // where \lambda_{k} is the kth barycentric coordinate and
-      // e_{k} is the unit vector with nonzero entry k, for k=1,2,3,4.
-      for (int a1 = 0; a1 < D1D-1; ++a1)
-      {
-         for (int a2 = 0; a2 < D1D-a1-1; ++a2)
-         {
-            for (int a3 = 0; a3 < D1D-a1-a2-1; ++a3)
-            {
-               // k=0
-               int idx = lex_map[a3 + D1D*(a2 + D1D*(a1+1))];
-               const int a1a2a3 = 3*(a3 + (D1D-1)*(a2 + (D1D-1)*a1));
-               Y(idx,e) += p2 * F3[a1a2a3];
+      // // memset(cin, 0, sizeof(real_t) * (int) 3 * (D1D-1) * (D1D) * (D1D+1) / 6);
+      // memset(C1, 0, sizeof(real_t) * (int) 3 * BASIS_DIM2D_DIFF * Q1D);
+      // memset(C2, 0, sizeof(real_t) * 3 * (D1D-1) * Q1D * Q1D);
+      // memset(C3, 0, sizeof(real_t) * 3 * Q1D * Q1D * Q1D);
 
-               // k=1
-               idx = lex_map[a3 + D1D*(a2+1 + D1D*a1)];
-               Y(idx,e) += p2 * F3[1 + a1a2a3];
-
-               // k=2
-               idx = lex_map[a3+1 + D1D*(a2 + D1D*a1)];
-               Y(idx,e) += p2 * F3[2 + a1a2a3];
-
-               // k=3
-               idx = lex_map[a3 + D1D*(a2 + D1D*a1)];
-               Y(idx,e) -= p2 * (F3[a1a2a3] + F3[1 + a1a2a3] + F3[2 + a1a2a3]);
-            }
-         }
-      }
-
-      delete[] cin;
-      delete[] C1;
-      delete[] C2;
-      delete[] C3;
-      delete[] fin;
-      delete[] F1;
-      delete[] F2;
-      delete[] F3;
+      // // memset(fin, 0, sizeof(real_t) * 3 * Q1D * Q1D * Q1D);
+      // memset(F1, 0, sizeof(real_t) * 3 * (D1D-1) * Q1D * Q1D);
+      // memset(F2, 0, sizeof(real_t) * (int) 3 * BASIS_DIM2D_DIFF * Q1D);
+      // // memset(F3, 0, sizeof(real_t) * (int) 3 * (D1D-1) * (D1D) * (D1D+1) / 6);
    });
+
+   // delete[] C1;
+   // delete[] C2;
+   // delete[] C3;
+   // delete[] F1;
+   // delete[] F2;
 }
 
 } // namespace internal

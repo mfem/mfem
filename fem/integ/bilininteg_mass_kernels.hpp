@@ -950,23 +950,30 @@ MFEM_HOST_DEVICE inline
 void PAMassApplyTetrahedron_Element(const int e,
                                     const int NE,
                                     const int BASIS_DIM,
-                                    const int *lex_map,
+                                    const int BASIS_DIM2D,
+                                    // const int *lex_map,
+                                    const int *forward_map2d,
+                                    const int *inverse_map2d,
+                                    const int *forward_map3d,
+                                    const int *inverse_map3d,
                                     const real_t *ba1_,
                                     const real_t *ba2_,
                                     const real_t *ba3_,
+                                    const real_t *ba1t_,
+                                    const real_t *ba2t_,
+                                    const real_t *ba3t_,
                                     const real_t *d_,
                                     const real_t *x_,
                                     real_t *y_,
-                                    const int *lex_map_,
                                     const int d1d = 0,
                                     const int q1d = 0)
 {
    const int D1D = d1d;
    const int Q1D = q1d;
+   // const int BASIS_DIM2D = D1D * (D1D+1) / 2;
    const auto Ba1 = ConstDeviceMatrix(ba1_, Q1D, D1D);
-   const auto Ba2 = ConstDeviceCube(ba2_, Q1D, D1D, D1D);
-   const auto Ba3 = DeviceTensor<4,const real_t>(ba3_, Q1D, D1D, D1D, D1D);
-
+   const auto Ba2 = ConstDeviceMatrix(ba2_, Q1D, BASIS_DIM2D);
+   const auto Ba3 = ConstDeviceMatrix(ba3_, Q1D, BASIS_DIM);
    const auto D = DeviceTensor<4,const real_t>(d_, Q1D, Q1D, Q1D, NE);
    const auto X = ConstDeviceMatrix(x_, BASIS_DIM, NE);
    auto Y = DeviceMatrix(y_, BASIS_DIM, NE);
@@ -984,131 +991,288 @@ void PAMassApplyTetrahedron_Element(const int e,
    //    C3[t1,t2] = \sum_{\alpha} X_{\alpha} * B_{\alpha}^{p}(\Phi(t1,t2)),
    // where \Phi is the Duffy transformation and (t1,t2) is a Stroud node.
 
-   // TODO: should be using stack memory here like quad version, but this seems faster...
-   real_t *C3 = new real_t[Q1D * Q1D * Q1D] {0};
-   real_t *C2 = new real_t[D1D * Q1D * Q1D] {0};
-   real_t *C1 = new real_t[D1D * D1D * Q1D] {0};
-
    // evaluate Bernstein polynomial over the first ragged tensor dimension
+   const auto Ba1t = ConstDeviceMatrix(ba1t_, D1D, Q1D);
+   const auto Ba2t = ConstDeviceMatrix(ba2t_, BASIS_DIM2D, Q1D);
+   const auto Ba3t = ConstDeviceMatrix(ba3t_, BASIS_DIM, Q1D);
+
+   constexpr int max_D1D = DofQuadLimits::MAX_D1D;
+   constexpr int max_Q1D = DofQuadLimits::MAX_Q1D;
+   constexpr int BASIS_DIM2D_ = max_D1D * (max_D1D) / 2;
+
+   real_t C3[max_Q1D][max_Q1D][max_Q1D];
+   for (int i3 = 0; i3 < Q1D; i3++)
+   {
+      for (int i2 = 0; i2 < Q1D; i2++)
+      {
+         for (int i1 = 0; i1 < Q1D; i1++)
+         {
+            C3[i3][i2][i1] = 0.0;
+         }
+      }
+   }
+
+   
    for (int a1 = 0; a1 < D1D; a1++)
    {
+      real_t C2[max_Q1D][max_Q1D];
+      for (int i3 = 0; i3 < Q1D; i3++)
+      {
+         for (int i2 = 0; i2 < Q1D; i2++)
+         {
+            C2[i3][i2] = 0.0;
+         }  
+      }
+      
       for (int a2 = 0; a2 < D1D-a1; a2++)
       {
+         real_t C1[max_Q1D];
          for (int i3 = 0; i3 < Q1D; i3++)
          {
-            const int a1a2i3 = i3 + Q1D*(a2 + D1D*a1);
-            for (int a3 = 0; a3 < D1D-a1-a2; a3++)
-            {
-               const int idx = lex_map_[a3 + D1D*(a2 + D1D*a1)];
-               C1[a1a2i3] += X(idx, e) * Ba3(i3, a1, a2, a3);
-            }
+            C1[i3] = 0.0;
          }
-      }
-   }
-
-   // evaluate Bernstein polynomial over the second ragged tensor dimension
-   for (int a1 = 0; a1 < D1D; a1++)
-   {
-      for (int a2 = 0; a2 < D1D-a1; a2++)
-      {
-         for (int i2 = 0; i2 < Q1D; i2++)
+         
+         for (int a3 = 0; a3 < D1D-a1-a2; a3++)
          {
-            const real_t Bai = Ba2(i2, a1, a2);
+            const int a = forward_map3d[a3 + D1D*(a2 + D1D*a1)]; 
+            const real_t s = X(a,e);
             for (int i3 = 0; i3 < Q1D; i3++)
             {
-               C2[i3 + Q1D*(i2 + Q1D*a1)] += C1[i3 + Q1D*(a2 + D1D*a1)] * Bai;
+               C1[i3] += s * Ba3(i3,a);
             }
          }
-      }
-   }
-
-   // evaluate Bernstein polynomial over the third/last ragged tensor dimension
-   for (int a1 = 0; a1 < D1D; a1++)
-   {
-      for (int i1 = 0; i1 < Q1D; i1++)
-      {
-         const real_t Bai = Ba1(i1, a1);
-         for (int i2 = 0; i2 < Q1D; i2++)
-         {
-            for (int i3 = 0; i3 < Q1D; i3++)
-            {
-               C3[i3 + Q1D*(i2 + Q1D*i1)] += C2[i3 + Q1D*(i2 + Q1D*a1)] * Bai;
-            }
-         }
-      }
-   }
-
-   for (int qz = 0; qz < Q1D; qz++)
-   {
-      for (int qy = 0; qy < Q1D; qy++)
-      {
-         for (int qx = 0; qx < Q1D; qx++)
-         {
-            C3[qx + Q1D*(qy + Q1D*qz)] *= D(qz, qy, qx, e);
-         }
-      }
-   }
-
-   // now evaluate all of the Bernstein moments of the form
-   //    \int_{K} B_{\alpha}^{p}(x) * C3(x) dx
-   real_t *F3 = new real_t[D1D * D1D * D1D] {0};
-   real_t *F2 = new real_t[D1D * D1D * Q1D] {0};
-   real_t *F1 = new real_t[D1D * Q1D * Q1D] {0};
-
-   // integrate over the first ragged tensor dimension
-   for (int a1 = 0; a1 < D1D; a1++)
-   {
-      for (int i1 = 0; i1 < Q1D; i1++)
-      {
-         const real_t Bai = Ba1(i1, a1);
-         for (int i2 = 0; i2 < Q1D; i2++)
-         {
-            for (int i3 = 0; i3 < Q1D; i3++)
-            {
-               F1[i3 + Q1D*(i2 + Q1D*a1)] += C3[i3 + Q1D*(i2 + Q1D*i1)] * Bai;
-            }
-         }
-      }
-   }
-
-   // integrate over the second ragged tensor dimension
-   for (int a1 = 0; a1 < D1D; a1++)
-   {
-      for (int a2 = 0; a2 < D1D-a1; a2++)
-      {
-         for (int i2 = 0; i2 < Q1D; i2++)
-         {
-            const real_t Bai = Ba2(i2, a1, a2);
-            for (int i3 = 0; i3 < Q1D; i3++)
-            {
-               F2[i3 + Q1D*(a2 + D1D*a1)] += F1[i3 + Q1D*(i2 + Q1D*a1)] * Bai;
-            }
-         }
-      }
-   }
-
-   // integrate over the third/last ragged tensor dimension
-   for (int a1 = 0; a1 < D1D; a1++)
-   {
-      for (int a2 = 0; a2 < D1D-a1; a2++)
-      {
+         
+         const int a_2d = forward_map2d[a2 + D1D*a1];
          for (int i3 = 0; i3 < Q1D; i3++)
          {
-            for (int a3 = 0; a3 < D1D-a1-a2; a3++)
+            const real_t s = C1[i3];
+            for (int i2 = 0; i2 < Q1D; i2++)
             {
-               const int idx = lex_map_[a3 + D1D*(a2 + D1D*a1)];
-               Y(idx,e) += F2[i3 + Q1D*(a2 + D1D*a1)] * Ba3(i3, a1, a2, a3);
+               // const real_t Bai = Ba2(i2,a_2d);
+               C2[i3][i2] += Ba2(i2,a_2d) * s;
+            }
+         }
+      }
+
+      for (int i3 = 0; i3 < Q1D; i3++)
+      {
+         for (int i2 = 0; i2 < Q1D; i2++)
+         {
+            const real_t s = C2[i3][i2];
+            for (int i1 = 0; i1 < Q1D; i1++)
+            {
+               C3[i3][i2][i1] += Ba1(i1,a1) * s;
             }
          }
       }
    }
 
-   delete[] C3;
-   delete[] C2;
-   delete[] C1;
-   delete[] F3;
-   delete[] F2;
-   delete[] F1;
+   for (int i3 = 0; i3 < Q1D; i3++)
+   {
+      for (int i2 = 0; i2 < Q1D; i2++)
+      {
+         for (int i1 = 0; i1 < Q1D; i1++)
+         {
+            C3[i3][i2][i1] *= D(i1,i2,i3,e); 
+         }
+      }
+   }
+
+   for (int i3 = 0; i3 < Q1D; i3++)
+   {
+      real_t F2[BASIS_DIM2D_];
+      for (int a = 0; a < BASIS_DIM2D; a++)
+      {
+         F2[a] = 0.0;
+      }
+      
+      for (int i2 = 0; i2 < Q1D; i2++)
+      {
+         real_t F1[max_D1D];
+         for (int a1 = 0; a1 < D1D; a1++)
+         {
+            F1[a1] = 0.0;
+         }
+         
+         for (int i1 = 0; i1 < Q1D; i1++)
+         {
+            const real_t s = C3[i3][i2][i1];
+            for (int a1 = 0; a1 < D1D; a1++)
+            {
+               F1[a1] += Ba1t(a1,i1) * s;
+            }
+         }
+
+         for (int a1 = 0; a1 < D1D; a1++)
+         {
+            const real_t s = F1[a1];
+            for (int a2 = 0; a2 < D1D-a1; a2++)
+            {
+               const int a_2d = forward_map2d[a2 + D1D*a1]; // change so this returns (a1,a2) ordering
+               F2[a_2d] += Ba2t(a_2d,i2) * s;
+            }
+         }
+      }
+             
+      for (int a1 = 0; a1 < D1D; a1++)
+      {
+         for (int a2 = 0; a2 < D1D-a1; a2++)
+         {
+            const int a_2d = forward_map2d[a2 + D1D*a1];
+            const real_t s = F2[a_2d];
+            for (int a3 = 0; a3 < D1D-a1-a2; a3++)
+            {
+               const int a = forward_map3d[a3 + D1D*(a2 + D1D*a1)];
+               Y(a,e) += Ba3t(a,i3) * s;
+            }
+         }
+      }
+   }
+   
+   // // version with flattened ragged tensor loops
+   // constexpr int max_D1D = DofQuadLimits::MAX_D1D;
+   // constexpr int max_Q1D = DofQuadLimits::MAX_Q1D;
+   // constexpr int BASIS_DIM2D_ = max_D1D * (max_D1D+1) / 2;
+   // real_t C3[max_Q1D * max_Q1D * max_Q1D];
+   // real_t C2[max_D1D * max_Q1D * max_Q1D];
+   // real_t C1[BASIS_DIM2D_ * max_Q1D];
+   // real_t F1[max_D1D * max_Q1D * max_Q1D];
+   // real_t F2[BASIS_DIM2D_ * max_Q1D];
+
+   // for (int i3 = 0; i3 < Q1D; i3++)
+   // {
+   //    for (int i2 = 0; i2 < Q1D; i2++)
+   //    {
+   //       for (int i1 = 0; i1 < Q1D; i1++)
+   //       {
+   //          C3[i1 + Q1D*(i2 + Q1D*i3)] = 0.0;
+   //       }
+
+   //       for (int a1 = 0; a1 < D1D; a1++)
+   //       {
+   //          C2[a1 + D1D*(i2 + Q1D*i3)] = 0.0;
+   //       }
+   //    }
+   //    for (int a = 0; a < BASIS_DIM2D; a++)
+   //    {
+   //       C1[a + BASIS_DIM2D*i3] = 0.0;
+   //    }
+   // }
+   
+   // for (int a = 0; a < BASIS_DIM; a++)
+   // {
+   //    const int a1 = inverse_map3d[2*a];
+   //    const int a2 = inverse_map3d[1 + 2*a];
+   //    const int a_2d = forward_map2d[a2 + D1D*a1];  
+
+   //    // const int idx = lex_map[a3 + D1D*(a2 + D1D*a1)];
+   //    const real_t Xa = X(a,e);
+   //    for (int i3 = 0; i3 < Q1D; i3++)
+   //    {
+   //       const real_t Bai = Ba3(i3,a);
+   //       C1[i3 + Q1D*a_2d] += Xa * Bai;
+   //    }
+   // }
+
+   // // evaluate Bernstein polynomial over the second ragged tensor dimension
+   // for (int a = 0; a < BASIS_DIM2D; a++)
+   // {
+   //    const int a1 = inverse_map2d[a];
+   //    for (int i3 = 0; i3 < Q1D; i3++)
+   //    {
+   //       const int a1i3 = Q1D*(i3 + Q1D*a1);
+   //       const real_t C1a = C1[i3 + Q1D*a];
+   //       for (int i2 = 0; i2 < Q1D; i2++)
+   //       {
+   //          const real_t Bai = Ba2(i2,a);
+   //          C2[i2 + a1i3] += C1a * Bai;
+   //       }
+   //    }
+   // }
+
+   // // evaluate Bernstein polynomial over the third/last ragged tensor dimension
+   // for (int a1 = 0; a1 < D1D; a1++)
+   // {
+   //    for (int i3 = 0; i3 < Q1D; i3++)
+   //    {
+   //       const int a1i3 = Q1D*(i3 + Q1D*a1);
+   //       for (int i2 = 0; i2 < Q1D; i2++)
+   //       {
+   //          const int i2i3 = Q1D*(i2 + Q1D*i3);
+   //          const real_t C2a = C2[i2 + a1i3];
+   //          for (int i1 = 0; i1 < Q1D; i1++)
+   //          {
+   //             const real_t Bai = Ba1(i1,a1);
+   //             C3[i1 + i2i3] += C2a * Bai;
+   //          }
+   //       }
+   //    }
+   // }
+
+   // // now evaluate all of the Bernstein moments of the form
+   // //    \int_{K} B_{\alpha}^{p}(x) * C3(x) dx
+   // // real_t *F2 = new real_t[BASIS_DIM2D * Q1D];
+   // // real_t *F1 = new real_t[D1D * Q1D * Q1D];
+   // for (int i3 = 0; i3 < Q1D; i3++)
+   // {
+   //    for (int i2 = 0; i2 < Q1D; i2++)
+   //    {
+   //       const int i2i3 = Q1D*(i2 + Q1D*i3);
+   //       for (int i1 = 0; i1 < Q1D; i1++)
+   //       {
+   //          C3[i1 + i2i3] *= D(i1,i2,i3,e);
+   //       }
+   //    }
+   // }
+   
+   // // integrate over the first ragged tensor dimension
+   // for (int a1 = 0; a1 < D1D; a1++)
+   // {
+   //    for (int i3 = 0; i3 < Q1D; i3++)
+   //    {
+   //       const int a1i3 = Q1D*(i3 + Q1D*a1);
+   //       for (int i2 = 0; i2 < Q1D; i2++)
+   //       {
+   //          const int i2i3 = Q1D*(i2 + Q1D*i3);
+   //          real_t u = 0.0;
+   //          for (int i1 = 0; i1 < Q1D; i1++)
+   //          {
+   //             u += C3[i1 + i2i3] * Ba1(i1,a1);
+   //          }
+   //          F1[i2 + a1i3] = u;
+   //       }
+   //    }
+   // }
+
+   // // integrate over the second ragged tensor dimension
+   // for (int a = 0; a < BASIS_DIM2D; a++)
+   // {
+   //    const int a1 = inverse_map2d[a];
+   //    for (int i3 = 0; i3 < Q1D; i3++)
+   //    {
+   //       const int a1i3 = Q1D*(i3 + Q1D*a1);
+   //       real_t u = 0.0;
+   //       for (int i2 = 0; i2 < Q1D; i2++)
+   //       {
+   //          u += F1[i2 + a1i3] * Ba2(i2,a);
+   //       }
+   //       F2[i3 + Q1D*a] = u;
+   //    }
+   // }
+
+   // // integrate over the third/last ragged tensor dimension
+   // for (int a = 0; a < BASIS_DIM; a++)
+   // {
+   //    const int a1 = inverse_map3d[2*a];
+   //    const int a2 = inverse_map3d[1 + 2*a];
+   //    const int a_2d = forward_map2d[a2 + D1D*a1];  
+   //    real_t u = 0.0;
+   //    for (int i3 = 0; i3 < Q1D; i3++)
+   //    {
+   //       u += F2[i3 + Q1D*a_2d] * Ba3(i3,a);
+   //    }
+   //    Y(a,e) = u;
+   // }
 }
 
 template<int T_D1D, int T_Q1D, bool ACCUMULATE = true>
@@ -1369,9 +1533,16 @@ inline void PAMassApply2D(const int NE,
 template<int T_D1D = 0, int T_Q1D = 0>
 inline void PAMassApplyTriangle(const int NE,
                                 const Array<int> &lex_map_,
+                                const Array<int> &forward_map2d_,
+                                const Array<int> &inverse_map2d_,
+                                const Array<int> &forward_map3d_,
+                                const Array<int> &inverse_map3d_,
                                 const Array<real_t> &ba1_,
                                 const Array<real_t> &ba2_,
                                 const Array<real_t> &ba3_, // unused in 2D...
+                                const Array<real_t> &ba1t_,
+                                const Array<real_t> &ba2t_,
+                                const Array<real_t> &ba3t_, // unused in 2D...
                                 const Vector &d_,
                                 const Vector &x_,
                                 Vector &y_,
@@ -1457,9 +1628,16 @@ inline void PAMassApply3D(const int NE,
 template<int T_D1D = 0, int T_Q1D = 0>
 inline void PAMassApplyTetrahedron(const int NE,
                                    const Array<int> &lex_map_,
+                                   const Array<int> &forward_map2d_,
+                                   const Array<int> &inverse_map2d_,
+                                   const Array<int> &forward_map3d_,
+                                   const Array<int> &inverse_map3d_,
                                    const Array<real_t> &ba1_,
                                    const Array<real_t> &ba2_,
                                    const Array<real_t> &ba3_,
+                                   const Array<real_t> &ba1t_,
+                                   const Array<real_t> &ba2t_,
+                                   const Array<real_t> &ba3t_,
                                    const Vector &d_,
                                    const Vector &x_,
                                    Vector &y_,
@@ -1470,19 +1648,27 @@ inline void PAMassApplyTetrahedron(const int NE,
    MFEM_VERIFY(T_Q1D ? T_Q1D : q1d <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
 
    const int BASIS_DIM = d1d * (d1d + 1) * (d1d + 2) / 6;
-   const auto lex_map = lex_map_.Read();
+   const int BASIS_DIM2D = d1d * (d1d + 1) / 2;
+   // const auto lex_map = lex_map_.Read();
+   const auto forward_map2d = forward_map2d_.Read();
+   const auto inverse_map2d = inverse_map2d_.Read();
+   const auto forward_map3d = forward_map3d_.Read();
+   const auto inverse_map3d = inverse_map3d_.Read();
    const auto Ba1 = ba1_.Read();
    const auto Ba2 = ba2_.Read();
    const auto Ba3 = ba3_.Read();
+   const auto Ba1t = ba1t_.Read();
+   const auto Ba2t = ba2t_.Read();
+   const auto Ba3t = ba3t_.Read();
    const auto D = d_.Read();
    const auto X = x_.Read();
    auto Y = y_.ReadWrite();
 
    mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
-      internal::PAMassApplyTetrahedron_Element(e, NE, BASIS_DIM, lex_map, Ba1, Ba2,
-                                               Ba3, D, X,
-                                               Y, lex_map, d1d, q1d);
+      internal::PAMassApplyTetrahedron_Element(e, NE, BASIS_DIM, BASIS_DIM2D, forward_map2d,
+                                               inverse_map2d, forward_map3d, inverse_map3d, Ba1, Ba2,
+                                               Ba3, Ba1t, Ba2t, Ba3t, D, X, Y, d1d, q1d);
    });
 }
 
