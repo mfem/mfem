@@ -70,28 +70,29 @@ public:
 class Particle
 {
 protected:
-   std::reference_wrapper<const ParticleMeta> meta;
 
    Vector coords;
-   std::vector<real_t> props;
-   std::vector<Vector> state;
+   Array<std::unique_ptr<Vector>> data;
 
 public:
-   const ParticleMeta& GetMeta() const { return meta; }
-
-   Particle(const ParticleMeta &pmeta);
-
-   Vector& GetCoords() { return coords; }
-
-   real_t& GetProperty(int s) { return props[s]; }
-
-   Vector& GetStateVar(int v) { return state[v]; }
-
-   const Vector& GetCoords() const { return coords; }
    
-   const real_t& GetProperty(int s) const { return props[s]; }
+   // Owning ctor
+   Particle(int dim, const Array<int> &dataVDims);
 
-   const Vector& GetStateVar(int v) const { return state[v]; }
+   // Ref ctor
+   Particle(Vector *coords_, Vector *data_[], int numData);
+
+   Vector& Coords() { return coords; }
+
+   const Vector& Coords() const { return coords; }
+
+   real_t& Data(int f, int c=0) { return (*data[f])[c]; }
+
+   const real_t& Data(int f, int c=0) { return (*data[f])[c]; }
+
+   Vector& VectorData(int f) { return *data[f]; }
+
+   const Vector& VectorData(int f) const { return *data[f]; }
 
    bool operator==(const Particle &rhs) const;
 

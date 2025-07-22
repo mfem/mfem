@@ -93,41 +93,52 @@ const real_t& ParticleVector::ParticleData(int i, int comp) const
    }
 }
 
-Particle::Particle(const ParticleMeta &pmeta)
-: meta(pmeta),
-  coords(pmeta.SpaceDim()),
-  props(pmeta.NumProps()),
-  state(pmeta.NumStateVars())
+Particle::Particle(int dim, const Array<int> &dataVDims)
+: coords(dim),
+  data(dataVDims.Size())
 {
 
-   for (int i = 0; i < state.size(); i++)
+   for (int i = 0; i < dataVDims.size(); i++)
    {
-      state[i].SetSize(pmeta.StateVDim(i));
-      state[i] = 0.0;
+      data[i] = std::make_unique<Vector>(dataVDims[i]);
+      *data[i] = 0.0;
+   }
+}
+
+Particle::Particle(Vector *coords_, Vector *data_[], int numData)
+: coords(coords_->GetData(), coords_->Size()),
+  data(numData)
+{
+   for (int i = 0; i < numData; i++)
+   {
+      data[i] = std::make_unique<Vector>(data_[i]->GetData(), data_->Size());
    }
 }
 
 bool Particle::operator==(const Particle &rhs) const
 {
-   if (&meta.get() != &rhs.meta.get())
+   if (coords.Size() != &rhs.coords.Size())
    {
       return false;
    }
-   for (int d = 0; d < meta.get().SpaceDim(); d++)
+   for (int d = 0; d < coords.Size(); d++)
    {
       if (coords[d] != rhs.coords[d])
          return false;
    }
-   for (int s = 0; s < meta.get().NumProps(); s++)
+   if (data.Size() != rhs.data.Size())
    {
-      if (props.at(s) != rhs.props.at(s))
-         return false;
+      return false;
    }
-   for (int v = 0; v < meta.get().NumStateVars(); v++)
+   for (int f = 0; f < data.Size(); f++)
    {
-      for (int c = 0; c < meta.get().StateVDim(v); c++)
+      if (data[i]->Size() != rhs.data[i]->Size())
       {
-         if (state.at(v)[c] != rhs.state.at(v)[c])
+         return false;
+      }
+      for (int c = 0; c < data[i].Size(); c++)
+      {
+         if ((*data[i])[c] != *(rhs.data[i])[c])
             return false;
       }
    }
@@ -139,13 +150,11 @@ void Particle::Print(std::ostream &out) const
    out << "Coords: (";
    for (int d = 0; d < coords.Size(); d++)
       out << coords[d] << ( (d+1 < coords.Size()) ? "," : ")\n");
-   for (int s = 0; s < props.size(); s++)
-      out << "Property " << s << ": " << props.at(s) << "\n";
-   for (int v = 0; v < state.size(); v++)
+   for (int f = 0; f < data.Size(); f++)
    {
-      out << "State Variable " << v << ": (";
-      for (int c = 0; c < state.at(v).Size(); c++)
-         out << state.at(v)[c] << ( (c+1 < state.at(v).Size()) ? "," : ")\n");
+      out << "Data " << 0 << ": (";
+      for (int c = 0; c < data[i]->Size(); c++)
+         out << (*data[i])[c] << ( (c+1 < data[i]->Size()) ? "," : ")\n");
    }
 }
 
