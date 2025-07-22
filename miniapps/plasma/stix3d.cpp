@@ -1837,16 +1837,16 @@ if (dpp_def.Size() == 0)
 
    if (numbers.Size() > 2)
    {
-      SusceptibilityTensorbySpecies suscept_real_ion2(BField, k_gf, nue_gf, nui_gf, density,
+      suscept_real_ion2 = new SusceptibilityTensorbySpecies(BField, k_gf, nue_gf, nui_gf, density,
                                            temperature, iontemp_gf,
                                            L2FESpace, H1FESpace,
                                            omega, charges, masses, nuprof,
                                            res_lim, true, 2);
-      SusceptibilityTensorbySpecies suscept_imag_ion2(BField, k_gf, nue_gf, nui_gf, density,
+      suscept_imag_ion2 = new SusceptibilityTensorbySpecies(BField, k_gf, nue_gf, nui_gf, density,
                                            temperature, iontemp_gf,
                                            L2FESpace, H1FESpace,
                                            omega, charges, masses, nuprof,
-                                           res_lim, false, 2);     
+                                           res_lim, false, 2);      
    }
 
    SusceptibilityTensorbySpecies *suscept_real_ion3 = NULL;
@@ -1854,12 +1854,12 @@ if (dpp_def.Size() == 0)
 
    if (numbers.Size() > 3)
    {
-      SusceptibilityTensorbySpecies suscept_real_ion3(BField, k_gf, nue_gf, nui_gf, density,
+      suscept_real_ion3 = new SusceptibilityTensorbySpecies(BField, k_gf, nue_gf, nui_gf, density,
                                            temperature, iontemp_gf,
                                            L2FESpace, H1FESpace,
                                            omega, charges, masses, nuprof,
                                            res_lim, true, 3);
-      SusceptibilityTensorbySpecies suscept_imag_ion3(BField, k_gf, nue_gf, nui_gf, density,
+      suscept_imag_ion3 = new SusceptibilityTensorbySpecies(BField, k_gf, nue_gf, nui_gf, density,
                                            temperature, iontemp_gf,
                                            L2FESpace, H1FESpace,
                                            omega, charges, masses, nuprof,
@@ -2221,7 +2221,7 @@ if (dpp_def.Size() == 0)
        visit_dc.RegisterField("Electron_Density", &density_gf);
 
        //nue_gf *= 1/omega;
-       visit_dc.RegisterField("Collisional Profile", &nue_gf);
+       visit_dc.RegisterField("Collisional_Profile", &nue_gf);
 
        visit_dc.RegisterField("B_background", &BField);
 

@@ -1803,29 +1803,32 @@ int main(int argc, char *argv[])
 
    if (numbers.Size() > 2)
    {
-      SusceptibilityTensorbySpecies suscept_real_ion2(BField, k_gf, nue_gf, nui_gf, density,
+      suscept_real_ion2 = new SusceptibilityTensorbySpecies(BField, k_gf, nue_gf, nui_gf, density,
                                            temperature, iontemp_gf,
                                            L2FESpace, H1FESpace,
                                            omega, charges, masses, nuprof,
                                            res_lim, true, 2);
-      SusceptibilityTensorbySpecies suscept_imag_ion2(BField, k_gf, nue_gf, nui_gf, density,
+      suscept_imag_ion2 = new SusceptibilityTensorbySpecies(BField, k_gf, nue_gf, nui_gf, density,
                                            temperature, iontemp_gf,
                                            L2FESpace, H1FESpace,
                                            omega, charges, masses, nuprof,
                                            res_lim, false, 2);     
    }
 
+   //cout << "Test A " << endl;
+   //if (suscept_real_ion2){cout << "Test B " << endl;}
+
    SusceptibilityTensorbySpecies *suscept_real_ion3 = NULL;
    SusceptibilityTensorbySpecies *suscept_imag_ion3 = NULL;
 
    if (numbers.Size() > 3)
    {
-      SusceptibilityTensorbySpecies suscept_real_ion3(BField, k_gf, nue_gf, nui_gf, density,
+      suscept_real_ion3 = new SusceptibilityTensorbySpecies(BField, k_gf, nue_gf, nui_gf, density,
                                            temperature, iontemp_gf,
                                            L2FESpace, H1FESpace,
                                            omega, charges, masses, nuprof,
                                            res_lim, true, 3);
-      SusceptibilityTensorbySpecies suscept_imag_ion3(BField, k_gf, nue_gf, nui_gf, density,
+      suscept_imag_ion3 = new SusceptibilityTensorbySpecies(BField, k_gf, nue_gf, nui_gf, density,
                                            temperature, iontemp_gf,
                                            L2FESpace, H1FESpace,
                                            omega, charges, masses, nuprof,
@@ -2112,7 +2115,7 @@ int main(int argc, char *argv[])
    if (Mpi::Root())
    {
       cout << "Creating Cold Plasma Dielectric solver." << endl;
-   }
+   } 
 
    // Create the cold plasma EM solver
    CPDSolver CPD(pmesh, order, omega,
@@ -2168,7 +2171,7 @@ int main(int argc, char *argv[])
       visit_dc.RegisterField("Electron_Density", &density_gf);
 
       //nue_gf *= 1/omega;
-      visit_dc.RegisterField("Collisional Profile", &nue_gf);
+      visit_dc.RegisterField("Collisional_Profile", &nue_gf);
       visit_dc.RegisterField("Ion_Collisional_Profile", &nui_gf);
 
       visit_dc.RegisterField("B_background", &BField);
@@ -2986,6 +2989,7 @@ void curve_current_source_v2_r(const Vector &x, Vector &j)
    double z = (j_cyl_) ? x[2] : x[1];
 
    /*
+
    // SPARC antennas:
    
    double dlant = 0.328835;
@@ -2998,6 +3002,7 @@ void curve_current_source_v2_r(const Vector &x, Vector &j)
    double c = 0.15;
    double d = 0.0195;
    */
+   
    
    // WEST antennas:
    double dlant = 2*0.276946; 
@@ -3056,10 +3061,6 @@ void curve_current_source_v2_r(const Vector &x, Vector &j)
       // SPARC antennas:
       double zmin2 = -0.3709;
       double zmax2 = -0.0523;
-
-      // WEST antennas:
-      //double zmin2 = -0.3;
-      //double zmax2 = -0.03;
 
       if (r >= xmin && r <= xmax &&
           z >= zmin1 && z <= zmax1)
@@ -3218,9 +3219,6 @@ void curve_current_source_v2_i(const Vector &x, Vector &j)
       double zmin2 = -0.3709;
       double zmax2 = -0.0523;
 
-      // WEST antennas:
-      //double zmin2 = -0.3;
-      //double zmax2 = -0.03;
 
       if (r >= xmin && r <= xmax &&
           z >= zmin1 && z <= zmax1)

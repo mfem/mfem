@@ -2337,15 +2337,17 @@ double PlasmaProfile::EvalByType(Type type,
          double z = cyl_ ? rz_[1] : xyz_[1];
 
          // For stix3d:
+         double phi = 0.0;
          if (dim_)
          {
             r = sqrt(xyz_[0] * xyz_[0] + xyz_[1] * xyz_[1]);
-            z = xyz_[2];         
+            z = xyz_[2];
+            phi = atan2(xyz_[1],xyz_[0]);         
          }
 
          double d = (cyl_ || dim_) ? r : xyz_[0];
 
-         return (nu0*exp(-(d-shift)/decay));
+         return nu0*(phi*phi) + (nu0*exp(-(d-shift)/decay));
       }
       break;
       case NUE:
