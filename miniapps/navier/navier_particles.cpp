@@ -277,14 +277,10 @@ int main (int argc, char *argv[])
       }
    }
 
-   // Initialize a simple straight-edged 2D domain [0,20] x [-1,1]
-   Mesh mesh = Mesh::MakeCartesian2D(50,10, Element::Type::QUADRILATERAL, true, 20, 2.0);
+   // Initialize a simple straight-edged 2D domain [-10,10] x [-10,10]
+   Mesh mesh = Mesh::MakeCartesian2D(50,50, Element::Type::QUADRILATERAL, true, 20, 20);
    Vector transl(mesh.GetNV()*2);
-   // Mesh vertex ordering is byNODES
-   for (int i = 0; i < transl.Size()/2; i++)
-   {
-      transl[mesh.GetNV() + i] = -1.0; // translate down
-   }
+   transl = -10.0; // translate down + left 10
    mesh.MoveNodes(transl);
 
 
@@ -292,12 +288,7 @@ int main (int argc, char *argv[])
    pmesh.EnsureNodes();
 
    // Initialize the Navier solver
-   const real_t Re = 1.0; // TODO. Unimportant right now.
-   if (rank == 0)
-   {
-      cout << "Reynolds number: " << Re << endl;
-   }
-   NavierSolver flowsolver(&pmesh, ctx.order, 1.0/Re);
+   NavierSolver flowsolver(&pmesh, ctx.order, 1.0);
 
    // Initialize two particle sets - one numerical, one analytical
    Array<int> vdims(State::SIZE);
@@ -316,10 +307,10 @@ int main (int argc, char *argv[])
 
    // Initialize both particle sets the same way
    Vector pos_min(2), pos_max(2);
-   pos_min[0] = 3.0;
-   pos_max[0] = 4.0;
-   pos_min[1] = -0.8;
-   pos_max[1] = 0.2;
+   pos_min[0] = -1.0;
+   pos_max[0] = 1.0;
+   pos_min[1] = -1.0;
+   pos_max[1] = 1.0;
    int seed = rank;
 
    for (int p = 0; p < ctx.num_particles; p++)
@@ -327,7 +318,6 @@ int main (int argc, char *argv[])
       Particle part(pmeta);
 
       InitializeRandom(part, seed, pos_min, pos_max);
-      part.GetStateVar(V_N) = 0.0; // v0 = 0
       particles.AddParticle(part);
 
       if (ctx.test != -1)
@@ -335,7 +325,6 @@ int main (int argc, char *argv[])
          Particle p_exact(*pmeta_exact);
          p_exact.GetCoords() = part.GetCoords();
          p_exact.GetStateVar(2) = part.GetStateVar(V_N);
-         p_exact.GetStateVar(2) = 0.0; // vn
          p_exact.GetStateVar(0) = p_exact.GetCoords(); // Set x0
          p_exact.GetStateVar(1) = p_exact.GetStateVar(2); // v0
          particles_exact->AddParticle(p_exact);
@@ -412,16 +401,7 @@ int main (int argc, char *argv[])
    for (int step = 1; step <= ctx.num_steps; step++)
    {
       // Step Navier
-      if (Mpi::Root())
-      {
-         cout << "Stepping flow..." << endl;
-      }
       flowsolver.Step(time, ctx.dt, step-1);
-
-      if (Mpi::Root())
-      {
-         cout << "Time: " << time << endl;
-      }
 
       // Get the time-integration coefficients
       flowsolver.GetTimeIntegrationCoefficients(beta, alpha);
