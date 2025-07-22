@@ -25,6 +25,74 @@ namespace mfem
 {
 
 
+void ParticleVector::GetParticleData(int i, Vector &pdata) const
+{
+   pdata.SetSize(vdim);
+
+   if (ordering == Ordering::byNODES)
+   {
+      for (int c = 0; c < vdim; c++)
+      {
+         pdata[c] = data[i + c*GetNP()];
+      }
+   }
+   else
+   {
+      for (int c = 0; c < vdim; c++)
+      {
+         pdata[c] = data[c + i*vdim];
+      }
+   }
+}
+
+void ParticleVector::GetParticleRef(int i, Vector &pref)
+{
+   MFEM_VERIFY(ordering == Ordering::byVDIM, "GetParticleRef only valid when ordering byVDIM.");
+   pref.MakeRef(data, i*vdim, vdim);
+}
+
+void ParticleVector::SetParticleData(int i, const Vector &pdata)
+{
+   if (ordering == Ordering::byNODES)
+   {
+      for (int c = 0; c < vdim; c++)
+      {
+         data[i + c*GetNP()] = pdata[c];
+      }
+   }
+   else
+   {
+      for (int c = 0; c < vdim; c++)
+      {
+         data[c + i*vdim] = pdata[c];
+      }
+   }
+}
+
+real_t& ParticleVector::ParticleData(int i, int comp)
+{
+   if (ordering == Ordering::byNODES)
+   {
+      return data[i + comp*GetNP()];
+   }
+   else
+   {
+      return data[comp + i*vdim];
+   }
+}
+
+const real_t& ParticleVector::ParticleData(int i, int comp) const
+{
+   if (ordering == Ordering::byNODES)
+   {
+      return data[i + comp*GetNP()];
+   }
+   else
+   {
+      return data[comp + i*vdim];
+   }
+}
+
 Particle::Particle(const ParticleMeta &pmeta)
 : meta(pmeta),
   coords(pmeta.SpaceDim()),
