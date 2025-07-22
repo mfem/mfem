@@ -551,6 +551,31 @@ public:
    void SetStateVector(int i, Vector &state) override;
 };
 
+/// IMEX Backward-Forward Euler ODE solver
+class IMEX_BE_FE : public ODESolver
+{
+protected:
+   Vector k_exp, k_imp, y;
+
+public:
+   virtual void Init(TimeDependentOperator &_f);
+
+   virtual void Step(Vector &x, double &t, double &dt);
+};
+
+/** Second-order IMEX (2,3,2) method, from "Implicit-explicit Runge-Kutta
+    methods for time-dependent partial differential equations" by Ascher, Ruuth
+    and Spiteri, Applied Numerical Mathematics (1997). */
+class IMEXRK2 : public ODESolver
+{
+protected:
+   Vector k_exp, k_imp, y, z;
+
+public:
+   virtual void Init(TimeDependentOperator &_f);
+
+   virtual void Step(Vector &x, double &t, double &dt);
+};
 
 /// The SIASolver class is based on the Symplectic Integration Algorithm
 /// described in "A Symplectic Integration Algorithm for Separable Hamiltonian

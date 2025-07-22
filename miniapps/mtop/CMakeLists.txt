@@ -11,11 +11,14 @@
 
 list(APPEND SEQMTOP_COMMON_SOURCES
 	paramnonlinearform.cpp
-        mtop_integrators.cpp)
+        mtop_integrators.cpp
+	for_back_adv_diff_solve.cpp
+	darcy_heat_transfer_ex.cpp)
 
 list(APPEND SEQMTOP_COMMON_HEADERS
 	paramnonlinearform.hpp
-        mtop_integrators.hpp)
+        mtop_integrators.hpp
+	for_back_adv_diff_solve.hpp)
 
 convert_filenames_to_full_paths(SEQMTOP_COMMON_SOURCES)
 convert_filenames_to_full_paths(SEQMTOP_COMMON_HEADERS)
@@ -26,6 +29,11 @@ set(SEQMTOP_COMMON_FILES
 
 add_mfem_miniapp(seqheat
 	MAIN seqheat.cpp
+	${SEQMTOP_COMMON_FILES}
+	LIBRARIES mfem)
+
+add_mfem_miniapp(seqheat
+	MAIN for_adv_diff_solve.cpp
 	${SEQMTOP_COMMON_FILES}
 	LIBRARIES mfem)
 

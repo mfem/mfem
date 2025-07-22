@@ -25,11 +25,10 @@ include $(DEFAULTS_MK)
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-MTOP_COMMON_SRC = mtop_integrators.cpp paramnonlinearform.cpp pparamnonlinearform.cpp
-
+MTOP_COMMON_SRC = for_adv_diff_solve.cpp darcy_heat_transfer_ex.cpp
 MTOP_COMMON_OBJ = $(MTOP_COMMON_SRC:.cpp=.o)
 
-SEQ_MINIAPPS = seqheat
+SEQ_MINIAPPS = for_adv_diff_solve seqheat darcy_heat_transfer_ex
 PAR_MINIAPPS = parheat
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
@@ -77,4 +76,4 @@ clean-build:
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:
-	@rm -rf SeqHeat* ParHeat*
+	@rm -rf SeqHeat* ParHeat* for_adv_diff_solve* darcy_heat_transfer_ex*
