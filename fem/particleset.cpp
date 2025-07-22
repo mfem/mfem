@@ -93,23 +93,23 @@ const real_t& ParticleVector::ParticleData(int i, int comp) const
    }
 }
 
-Particle::Particle(int dim, const Array<int> &dataVDims)
+Particle::Particle(int dim, const Array<int> &data_vdims)
 : coords(dim),
-  data(dataVDims.Size())
+  data(data_vdims.Size())
 {
 
-   for (int i = 0; i < dataVDims.size(); i++)
+   for (int i = 0; i < data.Size(); i++)
    {
-      data[i] = std::make_unique<Vector>(dataVDims[i]);
+      data[i] = std::make_unique<Vector>(data_vdims[i]);
       *data[i] = 0.0;
    }
 }
 
-Particle::Particle(Vector *coords_, Vector *data_[], int numData)
+Particle::Particle(Vector *coords_, Vector *data_[], int num_data)
 : coords(coords_->GetData(), coords_->Size()),
-  data(numData)
+  data(num_data)
 {
-   for (int i = 0; i < numData; i++)
+   for (int i = 0; i < data.Size(); i++)
    {
       data[i] = std::make_unique<Vector>(data_[i]->GetData(), data_->Size());
    }
@@ -158,51 +158,41 @@ void Particle::Print(std::ostream &out) const
    }
 }
 
-void ParticleSet::SyncVectors()
+
+ParticleSet(int id_stride_, int id_counter_, int num_particles, int dim, Ordering::Type coords_ordering, const Array<int> &data_vdims, const Array<Ordering::Type> &data_orderings, const Array<std::string> &data_names)
+: id_stride(id_stride_),
+  id_counter(id_counter_),
+  coords(num_particles, dim, coords_ordering),
+  data(data_vdims.Size()),
+  names(data_names)
 {
-   // Reset Vector references to data
-   for (int f = 0; f < totalFields; f++)
+   for (int i = 0; i < data.Size(); i++)
    {
-      fields[f] = Vector(data.data() + GetNP()*exclScanFieldVDims[f], GetNP()*fieldVDims[f]);
+      data[i] = std::make_unique<ParticleVector>(num_particles, data_vdims[i], data_orderings[i]);
    }
 }
 
-ParticleSet::ParticleSet(const ParticleMeta &meta_, Ordering::Type ordering_)
-: ordering(ordering_),
-  meta(meta_),
-  totalFields(1+meta.NumProps()+meta.NumStateVars()),
-  totalComps(meta.SpaceDim()+meta.NumProps()+meta.StateVDims().Sum()),
-  fieldVDims(MakeFieldVDims()),
-  exclScanFieldVDims(MakeExclScanFieldVDims()),
-  id_stride(1),
-  id_counter(0),
-  fields(totalFields)
+
+
+
+#ifdef MFEM_USE_MPI
+
+ParticleSet::ParticleSet(MPI_Comm comm_, int num_particles, int dim, Ordering::Type coords_ordering, const Array<int> &data_vdims, const Array<Ordering::Type> &data_orderings, const Array<std::string> &data_names)
+: ParticleSet(GetSize(comm_), GetRank(comm_),
+               GetRankNumParticles(comm_, num_particles),
+               dim,
+               coords_ordering,
+               data_ordering
+
 {
-
-}
-
-
-#if defined(MFEM_USE_MPI) && defined(MFEM_USE_GSLIB)
-
-ParticleSet::ParticleSet(MPI_Comm comm_, const ParticleMeta &meta_, Ordering::Type ordering_)
-: ordering(ordering_),
-  meta(meta_),
-  totalFields(1+meta.NumProps()+meta.NumStateVars()),
-  totalComps(meta.SpaceDim()+meta.NumProps()+meta.StateVDims().Sum()),
-  fieldVDims(MakeFieldVDims()),
-  exclScanFieldVDims(MakeExclScanFieldVDims()),
-  id_stride([&](){int s; MPI_Comm_size(comm_, &s); return s; }()),
-  id_counter([&]() { int r; MPI_Comm_rank(comm_, &r); return r; }()),
-  fields(totalFields),
-  comm(comm_),
-  gsl_comm(std::make_unique<gslib::comm>()),
-  cr(std::make_unique<gslib::crystal>())
-{
+   comm = comm_;
+   gsl_comm = std::make_unique<gslib::comm>();
+   cr = std::make_unique<gslib::crystal>();
    comm_init(gsl_comm.get(), comm);
    crystal_init(cr.get(), gsl_comm.get());
 }
 
-#endif // MFEM_USE_MPI && MFEM_USE_GSLIB
+#endif // MFEM_USE_MPI
 
 
 void ParticleSet::AddParticle(const Particle &p, int id)

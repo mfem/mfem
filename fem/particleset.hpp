@@ -29,7 +29,6 @@ struct crystal;
 } // gslib
 #endif
 
-#include <vector>
 #include <numeric>
 
 namespace mfem
@@ -77,10 +76,10 @@ protected:
 public:
    
    // Owning ctor
-   Particle(int dim, const Array<int> &dataVDims);
+   Particle(int dim, const Array<int> &data_vdims);
 
    // Ref ctor
-   Particle(Vector *coords_, Vector *data_[], int numData);
+   Particle(Vector *coords_, Vector *data_[], int num_data);
 
    Vector& Coords() { return coords; }
 
@@ -106,46 +105,60 @@ public:
 
 class ParticleSet
 {
-protected:
-   const Ordering::Type ordering;
-   const ParticleMeta &meta;
+private:
 
-   const int totalFields; // Total number of fields / particle
-   const int totalComps; // Total comps / particle
-   const Array<int> fieldVDims;
-   const Array<int> exclScanFieldVDims;
-
-   const Array<int> MakeFieldVDims()
+   static Array<Ordering::Type> GetOrderingArray(Ordering::Type o, int N)
    {
-      Array<int> temp(totalFields);
-      temp[0] = meta.SpaceDim();
-      for (int s = 0; s < meta.NumProps(); s++) temp[1+s] = 1;
-      for (int v = 0; v < meta.NumStateVars(); v++) temp[1+meta.NumProps()+v] = meta.StateVDim(v);
-      return temp;
+      Array<Ordering::Type> ordering_arr(data_vdims.Size());
+      ordering_arr = o; 
+      return std::move(ordering_array); 
    }
-   const Array<int> MakeExclScanFieldVDims()
+   static Array<std::string> GetDataNameArray(int N)
    {
-      Array<int> temp(totalFields);
-      temp[0] = 0;
-      for (int i = 1; i < totalFields; i++)
+      Array<std::string> names(data_vdims.Size()); 
+      for (int i = 0; i < N; i++)
       {
-         temp[i] = temp[i-1] + fieldVDims[i-1];
+         names[i] = "Data_" + std::to_string(i);
       }
-      return temp;
+      return std::move(names)
    }
 
+#ifdef MFEM_USE_MPI
+   static int GetRank(MPI_Comm comm_)
+   {
+      int r; MPI_Comm_rank(comm_, &r); 
+      return r;
+   }
+   static int GetSize(MPI_Comm comm_)
+   {
+      int s; MPI_Comm_rank(comm_, &s); 
+      return s;
+   }
+   static int GetRankNumParticles(MPI_Comm comm_, int NP)
+   {
+      return NP/GetSize(comm_) + r < (r < (num_particles % size) ? 1 : 0);
+   }
+#endif // MFEM_USE_MPI
+
+
+protected:
    const std::size_t id_stride;
    std::size_t id_counter;
 
-   std::vector<real_t> data; /// Stores ALL actual particle data
-   std::vector<Vector> fields; /// User-facing Vectors, always referencing actual data
    Array<unsigned int> ids; /// Particle IDs
+   ParticleVector coords;
+   Array<std::unique_ptr<ParticleVector>> data;
+   Array<std::string> names;
 
-   // TODO: consider below... (see member fxns too)
-   //std::vector<Particle> particles; /// Optional internal AoS configuration of particles
+   ParticleSet(int id_stride_, int id_counter_, int num_particles, int dim, Ordering::Type coords_ordering, const Array<int> &data_vdims, const Array<Ordering::Type> &data_orderings, const Array<std::string> &data_names);
+
+#ifdef MFEM_USE_MPI
+   MPI_Comm comm;
+   ParticleSet(MPI_Comm comm_, int num_particles, int dim, Ordering::Type coords_ordering, const Array<int> &data_vdims, const Array<Ordering::Type> &data_orderings, const Array<std::string> &data_names);
+#endif // MFEM_USE_MPI
+
 
 #if defined(MFEM_USE_MPI) && defined(MFEM_USE_GSLIB)
-   MPI_Comm comm;
    std::unique_ptr<gslib::comm> gsl_comm;
    std::unique_ptr<gslib::crystal> cr;
    template<std::size_t N>
@@ -182,9 +195,6 @@ protected:
 #endif // MFEM_USE_MPI && MFEM_USE_GSLIB
 
 
-   /// Sync Vectors in \ref fields
-   void SyncVectors();
-
    /// Add particle w/ given ID
    void AddParticle(const Particle &p, int id);
 
@@ -196,22 +206,35 @@ protected:
 
 public:
 
-   Ordering::Type GetOrdering() const { return ordering; }
+   // Serial constructors
 
-   const ParticleMeta& GetMeta() const { return meta; }
-   /// Serial constructor
-   ParticleSet(const ParticleMeta &meta_, Ordering::Type ordering_);
+   ParticleSet(int num_particles, int dim, Ordering::Type coords_ordering)
+   : ParticleSet(1, 0, num_particles, dim, coords_ordering, Array<int>(), Array<Ordering::Type>(), Array<std::string>()) {}
+   
+   ParticleSet(int num_particles, int dim, Ordering::Type coords_ordering, const Array<int> &data_vdims, Ordering::Type data_ordering)
+   : ParticleSet(1, 0, num_particles, dim, coords_ordering, data_vdims, GetOrderingArray(data_ordering, data_vdims.Size()), GetDataNameArray(data_vdims.Size())) {}
+
+   ParticleSet(int num_particles, int dim, Ordering::Type coords_ordering, const Array<int> &dataVDims, const Array<Ordering::Type> &data_orderings, const Array<std::string> &data_names)
+   : ParticleSet(1, 0, num_particles, dim, coords_ordering, &data_vdims, &data_orderings, &data_names) {};
+
+#ifdef MFEM_USE_MPI
+
+   // Parallel constructors
+   
+   ParticleSet(MPI_Comm comm_, int num_particles, int dim, Ordering::Type default_ordering);
+   
+   ParticleSet(MPI_Comm comm_, int dim, Ordering::Type default_ordering, const Array<int> &dataVDims);
+
+   ParticleSet(MPI_Comm comm_, int dim, Ordering::Type coords_ordering, const Array<int> &dataVDims, const Array<Ordering::Type> &data_orderings, const Array<std::string> &data_names)
+
+#endif // MFEM_USE_MPI
 
 #if defined(MFEM_USE_MPI) && defined(MFEM_USE_GSLIB)
-
-   /// Parallel constructor
-   ParticleSet(MPI_Comm comm_, const ParticleMeta &meta_, Ordering::Type ordering_);
 
    /// Redistribute particles onto ranks specified in \p rank_list .
    void Redistribute(const Array<unsigned int> &rank_list)
    { Redistribute(rank_list, nullptr); }
 
-   
    /// Redistribute points AND FindPointsGSLIB internal data in single comms.
    void Redistribute(FindPointsGSLIB &finder, bool findpts=false)
    { 
