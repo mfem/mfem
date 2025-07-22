@@ -1,0 +1,393 @@
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
+//
+// This file is part of the MFEM library. For more information and source code
+// availability visit https://mfem.org.
+//
+// MFEM is free software; you can redistribute it and/or modify it under the
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
+//
+
+
+#include "navier_solver.hpp"
+#include "../../general/text.hpp"
+
+#include <cmath>
+
+using namespace std;
+using namespace mfem;
+using namespace navier;
+
+struct s_Context
+{
+   int order = 3;
+   real_t dt = 0.01;
+   int num_steps = 1000;
+   int num_particles = 1000;
+   int p_ordering = Ordering::byNODES;
+   real_t kappa = 1.0;
+   real_t gamma = 1.0;
+   real_t zeta = 4.0;
+   int test = -1;
+   int paraview_freq = 0;
+   int print_csv_freq = 0;
+   
+} ctx;
+
+// Fluid-Particle Data:
+struct FluidParticleData
+{
+   ParticleFunction *u[4];
+   ParticleFunction *v[4];
+   ParticleFunction *w[4];
+   ParticleFunction *x[4];
+};
+
+void couetteFlow(const Vector &x, real_t t, Vector &u)
+{
+   u.SetSize(2);
+   u = 0.0;
+   u[0] = (1.0+x[1])/2.0;
+}
+
+void analyticalOnlyLift(const real_t zeta, const Vector &x0, const Vector &v0, double t, Vector &x, Vector &v)
+{
+   MFEM_ASSERT(zeta > 0.0, "Zeta must be greater than one.");
+
+   x.SetSize(2); v.SetSize(2);
+
+   // Lift-only contribution
+   const real_t C1_l = v0[1];
+   const real_t C2_l = (sqrt(zeta)/2.0) * (x0[1] + 1 - 2*v0[0])/(sqrt(zeta-1));
+   const real_t C3_l = x0[1] + 2.0*C2_l/(sqrt(zeta*(zeta-1)));
+   const real_t C4_l = 0.5*(C3_l+1);
+   const real_t C5_l = x0[0] + (2.0/(zeta-1))*v0[1];
+   const real_t lam = zeta*(zeta-1)/4.0;
+
+   x[0] = (zeta/(2.0*lam)) * (-C1_l*cos(sqrt(lam)*t) - C2_l*sin(sqrt(lam)*t)) + C4_l*t + C5_l;
+   x[1] = (1.0/sqrt(lam)) * (C1_l*sin(sqrt(lam)*t) - C2_l*cos(sqrt(lam)*t)) + C3_l;
+   v[0] = (zeta/(2.0*sqrt(lam))) * ( C1_l*sin(sqrt(lam)*t) - C2_l*cos(sqrt(lam)*t)) + C4_l;
+   v[1] = C1_l*cos(sqrt(lam)*t) + C2_l*sin(sqrt(lam)*t);
+}
+
+void analyticalNoLift(const real_t kappa, const real_t gamma, const Vector &x0, const Vector &v0, double t, Vector &x, Vector &v)
+{
+   MFEM_ASSERT(kappa > 0.0, "Kappa must be greater than zero.");
+   MFEM_ASSERT(gamma > 0.0, "Gamma must be greater than zero.");
+
+   x.SetSize(2); v.SetSize(2);
+   
+   // Drag- + gravity-only contribution
+   const real_t C1_d = v0[1] + gamma/kappa;
+   const real_t C2_d = x0[1] + C1_d/kappa;
+   const real_t C3_d = v0[0] - ( C2_d + 1 + gamma/pow(kappa,2) )/2.0;
+   const real_t C4_d = x0[0] - C1_d/( 2*pow(kappa,2) ) + C3_d/kappa;
+
+   x[0] = -(C3_d/kappa)*exp(-kappa*t) + (C1_d/2.0)*( (kappa*t+1) / (pow(kappa,2)) ) * exp(-kappa*t) - ( gamma/(4*kappa) )*pow(t,2) + ( ( C2_d + 1 + gamma/pow(kappa,2) )/2.0 )*t + C4_d;
+   x[1] = -(1.0/kappa)*(C1_d*exp(-kappa*t) + gamma*t) + C2_d;
+   v[0] = C3_d*exp(-kappa*t) - (C1_d/2.0)*t*exp(-kappa*t) - (gamma/(2*kappa))*t + ( C2_d + 1 + gamma/pow(kappa,2) )/2.0;
+   v[1] = C1_d*exp(-kappa*t)-gamma/kappa;
+}
+
+class ParticleIntegrator
+{
+private:
+   const int dim;
+   const real_t kappa, gamma, zeta;
+
+   void ParticleStep2D(const real_t &dt, const Array<real_t> &beta, const Array<real_t> &alpha, Particle &p)
+   {
+      real_t w_n_ext = 0.0;
+
+      // Extrapolate particle vorticity using EXTk (w_n is new vorticity at old particle loc)
+      // w_n_ext = alpha1*w_np1 + alpha2*w_np2 + alpha3*w_np3
+      for (int j = 0; j < 3; j++)
+      {
+         w_n_ext += alpha[j]*(p.GetStateVar(W_N-(j+1))[0]);
+      }
+
+      // Assemble the 2D matrix B
+      DenseMatrix B({{beta[0]+dt*kappa, zeta*dt*w_n_ext},
+                     {-zeta*dt*w_n_ext, beta[0]+dt*kappa}});
+
+      // Assemble the RHS
+      Vector r(2);
+      r = 0.0;
+      for (int j = 1; j <= 3; j++)
+      {
+         // Add particle velocity component
+         add(r, -beta[j], p.GetStateVar(V_N-j), r);
+         
+         // Create C
+         Vector C(p.GetStateVar(U_N-j));
+         C *= kappa;
+         add(C, -gamma, Vector({0.0, 1.0}), C);
+         add(C, zeta*w_n_ext, Vector({ p.GetStateVar(U_N-j)[1], 
+                                      -p.GetStateVar(U_N-j)[0]}), C);
+
+         // Add C
+         add(r, dt*alpha[j-1], C, r);
+      }
+
+      // Solve for particle velocity
+      DenseMatrixInverse B_inv(B);
+      B_inv.Mult(r, p.GetStateVar(V_N));
+
+      // Compute updated particle position
+      p.GetCoords() = 0.0;
+      for (int j = 1; j <= 3; j++)
+      {
+         add(p.GetCoords(), -beta[j], p.GetStateVar((X_NP1+1)-j), p.GetCoords());
+      }
+      add(p.GetCoords(), dt, p.GetStateVar(V_N), p.GetCoords());
+      p.GetCoords() *= 1.0/beta[0];
+
+   }
+
+public:
+   ParticleIntegrator(MPI_Comm comm, const int dim_, const real_t kappa_, const real_t gamma_, const real_t zeta_)
+   : dim(dim_),
+     kappa(kappa_),
+     gamma(gamma_),
+     zeta(zeta_)
+   {
+   }
+
+   void Step(const real_t &dt, const Array<real_t> &beta, const Array<real_t> &alpha, const ParGridFunction &u_gf, const ParGridFunction &w_gf, FluidParticleData &fpdata) // <-- Better type safety
+   {
+      // Shift fluid velocity, fluid vorticity, particle velocity, and particle position
+      for (int i = 0; i < particles.GetNP()*dim; i++)
+      {
+         for (int j = 3; j > 0; j--)
+         {
+            particles.GetAllStateVar(U_N-j)[i] = particles.GetAllStateVar(U_N-j+1)[i];
+            particles.GetAllStateVar(V_N-j)[i] = particles.GetAllStateVar(V_N-j+1)[i];
+            particles.GetAllStateVar(W_N-j)[i] = particles.GetAllStateVar(W_N-j+1)[i];
+            if (j > 1)
+            {
+               particles.GetAllStateVar((X_NP1+1)-j)[i] = particles.GetAllStateVar((X_NP1+1)-(j-1))[i];
+            }
+            else
+            {
+               particles.GetAllStateVar(X_NP1)[i] = particles.GetAllCoords()[i];
+            }
+         }
+      }
+
+      if (dim == 2)
+      {
+         for (int i = 0; i < particles.GetNP(); i++)
+         {
+            Particle p(particles.GetMeta());
+            particles.GetParticle(i, p);
+            ParticleStep2D(dt, beta, alpha, p); // Compute particle velocity + new position
+            particles.SetParticle(i, p);
+         }
+      }
+
+      // Re-interpolate fluid velocity + vorticity onto particles' new location
+      finder.FindPoints(particles.GetAllCoords());
+      Vector &p_wn = particles.GetAllStateVar(W_N);
+      finder.Interpolate(w_gf, p_wn);
+      Ordering::Reorder(p_wn, dim, w_gf.ParFESpace()->GetOrdering(), particles.GetOrdering());
+
+      Vector &p_un = particles.GetAllStateVar(U_N);
+      finder.Interpolate(u_gf, p_un);
+      Ordering::Reorder(p_un, dim, u_gf.ParFESpace()->GetOrdering(), particles.GetOrdering());
+   }
+};
+
+
+int main (int argc, char *argv[])
+{
+   // Initialize MPI and HYPRE.
+   Mpi::Init(argc, argv);
+   int size = Mpi::WorldSize();
+   int rank = Mpi::WorldRank();
+   Hypre::Init();
+
+   OptionsParser args(argc, argv);
+   args.AddOption(&ctx.order, "-o", "--order", "Order (degree) of the finite elements.");
+   args.AddOption(&ctx.dt, "-dt", "--time-step", "Time step.");
+   args.AddOption(&ctx.num_steps, "-ns", "--num-steps", "Number of time steps to take.");
+   args.AddOption(&ctx.num_particles, "-np", "--num-particles", "Number of particles to initialize on the domain.");
+   args.AddOption(&ctx.p_ordering, "-ord", "--particle-ordering", "Ordering of Particle vector data. 0 for byNODES, 1 for byVDIM.");
+   args.AddOption(&ctx.kappa, "-k", "--kappa", "Kappa constant.");
+   args.AddOption(&ctx.gamma, "-g", "--gamma", "Gamma constant.");
+   args.AddOption(&ctx.zeta, "-z", "--zeta", "Zeta constant.");
+   args.AddOption(&ctx.test, "-t", "--test", "Run test against analytical w/ exact solution outputting. -1 to disable. 0 for only-lift test. 1 for no-lift (drag + gravity) test.");
+   args.AddOption(&ctx.paraview_freq, "-pv", "--paraview-freq", "Frequency of ParaView flow output. 0 to disable.");
+   args.AddOption(&ctx.print_csv_freq, "-csv", "--csv-freq", "Frequency of particle CSV outputting. 0 to disable.");
+   args.Parse();
+   if (!args.Good())
+   {
+      if (rank == 0)
+      {
+         args.PrintUsage(cout);
+      }
+      return 1;
+   }
+   if (rank == 0)
+   {
+      args.PrintOptions(cout);
+   }
+
+   if (ctx.test == 0)
+   {
+      ctx.kappa = 0.0;
+      ctx.gamma = 0.0;
+      if (ctx.zeta <= 1.0)
+      {
+         ctx.zeta = 4.0;
+      }
+   }
+   else if (ctx.test == 1)
+   {
+      ctx.zeta = 0.0;
+      if (ctx.kappa <= 0.0)
+      {
+         ctx.kappa = 1.0;
+      }
+      if (ctx.gamma <= 0.0)
+      {
+         ctx.gamma = 1.0;
+      }
+   }
+
+   // Initialize a simple straight-edged 2D domain [-10,10] x [-10,10]
+   real_t S = 20.0;
+   Mesh mesh = Mesh::MakeCartesian2D(50,50, Element::Type::QUADRILATERAL, true, S, S);
+   Vector transl(mesh.GetNV()*2);
+   transl = -S/2.0; // translate down + left
+   mesh.MoveNodes(transl);
+
+
+   ParMesh pmesh(MPI_COMM_WORLD, mesh);
+   pmesh.EnsureNodes();
+
+   // Initialize the Navier solver
+   NavierSolver flowsolver(&pmesh, ctx.order, 1.0);
+
+   // Initialize particle space
+   ParticleSpace particles(MPI_COMM_WORLD, ctx.num_particles, ctx.p_ordering == 0 ? Ordering::byNODES : Ordering::byVDIM, &pmesh, rank);
+
+   // Initialize particle data + store pointers
+   // (Or we can have a ctor for it)
+   FluidParticleData fpdata;
+   for (int i = 0; i < 4; i++)
+   {
+      fpdata.u[i] = &particles.CreateParticleFunction(2, "u_nm" + std::to_string(i)); // Can also have ordering be an option here
+      fpdata.v[i] = &particles.CreateParticleFunction(2, "v_nm" + std::to_string(i));
+      fpdata.w[i] = &particles.CreateParticleFunction(2, "w_nm" + std::to_string(i));
+      if (i < 3)
+      {
+         fpdata.x[i] = &particles.CreateParticleFunction(2, "x_nm" + std::to_string(i));
+      }
+      else
+      {
+         fpdata.x[3] = &particles.GetCoords();
+      }
+   }
+
+
+   real_t time = 0.0;
+
+   // Initialize fluid IC
+   VectorFunctionCoefficient u_excoeff(2, couetteFlow);
+   ParGridFunction &u_gf = *flowsolver.GetCurrentVelocity();
+   ParGridFunction &w_gf = *flowsolver.GetCurrentVorticity();
+   u_excoeff.SetTime(time);
+   u_gf.ProjectCoefficient(u_excoeff);
+
+   // Set fluid BCs
+   Array<int> bdr_attr(pmesh.bdr_attributes.Max());
+   bdr_attr = 1;
+   flowsolver.AddVelDirichletBC(couetteFlow, bdr_attr);
+
+   // Initialize particle fluid-dependent IC
+   // No need for user-managed FindPointsGSLIB
+   fpdata.u[0]->Interpolate(u_gf);
+   fpdata.w[0]->Interpolate(w_gf);
+
+   // Initialize particle integrator
+   ParticleIntegrator pint(MPI_COMM_WORLD, 2, ctx.kappa, ctx.gamma, ctx.zeta);
+
+   // Initialize ParaView DC (if freq != 0)
+   std::unique_ptr<ParaViewDataCollection> pvdc;
+   if (ctx.paraview_freq > 0)
+   {
+      pvdc = std::make_unique<ParaViewDataCollection>("Couette", &pmesh);
+      pvdc->SetPrefixPath("ParaView");
+      pvdc->SetLevelsOfDetail(ctx.order);
+      pvdc->SetDataFormat(VTKFormat::BINARY);
+      pvdc->SetHighOrderOutput(true);
+      pvdc->RegisterField("Velocity", &u_gf);
+      pvdc->RegisterField("Vorticity", &w_gf);
+      pvdc->SetTime(time);
+      pvdc->SetCycle(0);
+      pvdc->Save();
+   }
+   
+   std::string csv_prefix = "Navier_Particles_";
+   if (ctx.print_csv_freq > 0)
+   {
+      std::string file_name = csv_prefix + mfem::to_padded_string(0, 9) + ".csv";
+      particles.PrintCSV(file_name.c_str());
+   }
+   
+   Array<real_t> beta, alpha; // EXTk/BDF coefficients
+   flowsolver.Setup(ctx.dt);
+   for (int step = 1; step <= ctx.num_steps; step++)
+   {
+      // Step Navier
+      flowsolver.Step(time, ctx.dt, step-1);
+
+      // Get the time-integration coefficients
+      flowsolver.GetTimeIntegrationCoefficients(beta, alpha);
+
+      // Step particles
+      pint.Step(ctx.dt, beta, alpha, u_gf, w_gf, fpdata);
+
+      if (ctx.print_csv_freq > 0 && step % ctx.print_csv_freq == 0)
+      {
+         // Output the particles
+         std::string file_name = csv_prefix + mfem::to_padded_string(step, 9) + ".csv";
+         particles.PrintCSV(file_name.c_str());
+
+         // Set + output the exact
+         if (ctx.test != -1)
+         {
+            for (int i = 0; i < particles_exact->GetNP(); i++)
+            {
+               Particle p_exact(*pmeta_exact);
+               particles_exact->GetParticle(i, p_exact);
+               if (ctx.test == 0)
+               {
+                  analyticalOnlyLift(ctx.zeta, p_exact.GetStateVar(0), p_exact.GetStateVar(1), time, p_exact.GetCoords(), p_exact.GetStateVar(2));
+               }
+               else if (ctx.test == 1)
+               {
+                  analyticalNoLift(ctx.kappa, ctx.gamma, p_exact.GetStateVar(0), p_exact.GetStateVar(1), time, p_exact.GetCoords(), p_exact.GetStateVar(2));
+               }
+               particles_exact->SetParticle(i, p_exact);
+            }
+            std::string file_name_exact = csv_prefix + "Exact_" + mfem::to_padded_string(step, 9) + ".csv";
+            particles_exact->PrintCSV(file_name_exact.c_str());
+         }
+      }
+      if (ctx.paraview_freq > 0 && step % ctx.paraview_freq == 0)
+      {
+         pvdc->SetCycle(step);
+         pvdc->SetTime(time);
+         pvdc->Save();
+      }
+   }
+   
+   
+
+
+
+
+}
