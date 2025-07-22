@@ -171,6 +171,9 @@ public:
    /// Resize the vector to size @a s using the MemoryType of @a v.
    void SetSize(int s, const Vector &v) { SetSize(s, v.GetMemory().GetMemoryType()); }
 
+   /// Delete elements at @a indices and resize vector accordingly
+   void DeleteAt(const Array<int> &indices);
+
    /// Set the Vector data.
    /// @warning This method should be called only when OwnsData() is false.
    void SetData(real_t *d) { data.Wrap(d, data.Capacity(), false); }
@@ -396,6 +399,12 @@ public:
    /// v = median(v,lo,hi) entrywise.  Implementation assumes lo <= hi.
    void median(const Vector &lo, const Vector &hi);
 
+   /// Insert sub Vector @a sv at @a offset and resize
+   void Insert(int offset, const Vector &sv);
+
+   /// Insert @a value at @a offset and resize
+   void Insert(int offset, const real_t value) { Insert(offset, Vector({value})); }
+
    /// Extract entries listed in @a dofs to the output Vector @a elemvect.
    /** Negative dof values cause the -dof-1 position in @a elemvect to receive
        the -val in from this Vector. */
@@ -619,6 +628,29 @@ inline void Vector::SetSize(int s, MemoryType mt)
       size = 0;
    }
    data.UseDevice(use_dev);
+}
+
+inline void Vector::DeleteAt(const Array<int> &indices)
+{
+   // Make copy of the indices, sorted.
+   Array<int> sorted_indices(indices);
+   sorted_indices.Sort();
+
+   int rm_count = 0;
+   for (int i = 0; i < size; i++)
+   {
+      if (rm_count < sorted_indices.Size() && i == sorted_indices[rm_count])
+      {
+         rm_count++;
+      }
+      else
+      {
+         data[i-rm_count] = data[i]; // shift data rm_count
+      }
+   }
+
+   // Resize to remove tail
+   SetSize(size - rm_count);
 }
 
 inline void Vector::NewMemoryAndSize(const Memory<real_t> &mem, int s,

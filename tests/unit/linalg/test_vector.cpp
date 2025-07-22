@@ -247,3 +247,36 @@ TEST_CASE("Vector Sum", "[Vector],[GPU]")
 
    REQUIRE(sum_1 == MFEM_Approx(sum_2));
 }
+
+TEST_CASE("Vector delete at indices", "[Vector]")
+{
+   Vector           test({0,1,2,3,4,5,6,7,8});
+   Array<int> rm_indices({0,    3,4,  6,  8});
+   Vector         result({  1,2,    5,  7  });
+
+   test.DeleteAt(rm_indices);
+
+   REQUIRE(test.Size() == result.Size());
+
+   for (int i = 0; i < test.Size(); i++)
+   {
+      CHECK(test[i] == result[i]);
+   }
+}
+
+TEST_CASE("Vector insert", "[Vector]")
+{
+   Vector   test({0,1,2,3,      7,8});
+   Vector     sa({        4,5,     });
+   Vector result({0,1,2,3,4,5,6,7,8});
+
+   test.Insert(4, sa);
+   test.Insert(6, 6);
+
+   REQUIRE(test.Size() == result.Size());
+
+   for (int i = 0; i < test.Size(); i++)
+   {
+      CHECK(test[i] == result[i]);
+   }
+}

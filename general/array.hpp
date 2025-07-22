@@ -190,6 +190,12 @@ public:
    /// Prepend an 'el' to the array, resize if necessary.
    inline int Prepend(const T &el);
 
+   /// Insert @a els into the array at index @a i
+   inline int Insert(int i, const Array<T> &els);
+
+   /// Insert @a el into the array at index @a i
+   inline int Insert(int i, const T &el) { return Insert(i, Array<T>({el})); }
+
    /// Return the last element in the array.
    inline T &Last();
 
@@ -210,6 +216,9 @@ public:
 
    /// Delete the first entry with value == 'el'.
    inline void DeleteFirst(const T &el);
+
+   /// Delete entries at @a indices, and resize
+   inline void DeleteAt(const Array<int> &indices);
 
    /// Delete the whole array.
    inline void DeleteAll();
@@ -248,6 +257,9 @@ public:
 
    /// Copy sub array starting from @a offset out to the provided @a sa.
    inline void GetSubArray(int offset, int sa_size, Array<T> &sa) const;
+
+   /// Set from sub array @sa at @a offset
+   inline void SetSubArray(int offset, const Array<T> &sa);
 
    /// Prints array to stream with width elements per row.
    void Print(std::ostream &out = mfem::out, int width = 4) const;
@@ -873,6 +885,22 @@ inline int Array<T>::Prepend(const T &el)
    return size;
 }
 
+template<class T>
+inline int Array<T>::Insert(int i, const Array<T> &els)
+{
+   MFEM_ASSERT(i < size, "Insert index is out-of-bounds.");
+
+   const int old_size = size;
+
+   SetSize(size + els.Size());
+   for (int j = old_size-1; j >= i; j--)
+   {
+      data[j+els.Size()] = data[j];
+   }
+   SetSubArray(i, els);
+   return size;
+}
+
 template <class T>
 inline T &Array<T>::Last()
 {
@@ -936,6 +964,30 @@ inline void Array<T>::DeleteFirst(const T &el)
 }
 
 template <class T>
+inline void Array<T>::DeleteAt(const Array<int> &indices)
+{
+   // Make a copy of the indices, sorted.
+   Array<int> sorted_indices(indices);
+   sorted_indices.Sort();
+
+   int rm_count = 0;
+   for (int i = 0; i < size; i++)
+   {
+      if (rm_count < sorted_indices.Size() && i == sorted_indices[rm_count])
+      {
+         rm_count++;
+      }
+      else
+      {
+         data[i-rm_count] = data[i]; // shift data rm_count
+      }
+   }
+
+   // Resize to remove tail
+   SetSize(size - rm_count);
+}
+
+template <class T>
 inline void Array<T>::DeleteAll()
 {
    const bool use_dev = data.UseDevice();
@@ -984,6 +1036,18 @@ inline void Array<T>::GetSubArray(int offset, int sa_size, Array<T> &sa) const
    for (int i = 0; i < sa_size; i++)
    {
       sa[i] = (*this)[offset+i];
+   }
+}
+
+template<class T>
+inline void Array<T>::SetSubArray(int offset, const Array<T> &sa)
+{
+   MFEM_ASSERT(offset + sa.Size() < size,
+               "Sub-array with size " << sa.Size() << " is too large to set at offset " <<
+               offset << ", given array size " << size);
+   for (int i = 0; i < sa.Size(); i++)
+   {
+      data[offset + i] = sa[i];
    }
 }
 
