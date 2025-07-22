@@ -146,9 +146,8 @@ TEST_CASE("Array set sub array", "[Array]")
    Array<int>   test({0,1,2,3,4,5,6,7,8});
    Array<int>     sa({      9,9,9      });
    Array<int> result({0,1,2,9,9,9,6,7,8});
-   int i = 3;
 
-   test.SetSubArray(i, sa);
+   test.SetSubArray(3, sa);
 
    for (int i = 0; i < test.Size(); i++)
    {
@@ -161,9 +160,8 @@ TEST_CASE("Array insert", "[Array]")
    Array<int>   test({0,1,2,3,      7,8});
    Array<int>     sa({        4,5,     });
    Array<int> result({0,1,2,3,4,5,6,7,8});
-   int i = 4;
 
-   test.Insert(i, sa);
+   test.Insert(4, sa);
    test.Insert(6, 6);
 
    REQUIRE(test.Size() == result.Size());
