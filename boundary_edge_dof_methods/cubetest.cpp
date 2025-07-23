@@ -64,8 +64,9 @@ int main(int argc, char *argv[])
 
     Array<int> ess_tdof_list;
     Array<int> ess_edge_list;
-    std::unordered_map<int, int> dof_to_edge, dof_to_orientation;
+    Array<int> ldof_marker;
     std::unordered_set<int> boundary_edge_ldofs;
+    std::unordered_map<int, int> dof_to_edge, dof_to_orientation;
     std::unordered_map<int, int> dof_to_boundary_element;
    
     // Get boundary edge DoFs for boundary attribute 5
@@ -74,10 +75,11 @@ int main(int argc, char *argv[])
     bdr_attr_marker[10] = 1; // Mark attribute 11 for the loop boundary condition
     
 
-    fespace->GetBoundaryEdgeDoFs(bdr_attr_marker, ess_tdof_list, &dof_to_edge, 
-                       &dof_to_orientation, &boundary_edge_ldofs, &dof_to_boundary_element, &ess_edge_list);
+    fespace->GetBoundaryEdgeDoFs(bdr_attr_marker, ess_tdof_list, ldof_marker, boundary_edge_ldofs, 
+                        &dof_to_edge, &dof_to_orientation, &dof_to_boundary_element, &ess_edge_list);
     cout << "Rank " << myid << ", number of edge dofs: " << boundary_edge_ldofs.size() << 
-         ", number of essential dofs: " << ess_tdof_list.Size() << endl;
+            ", number of non zero markers: " << ldof_marker.Sum() << 
+            ", number of essential dofs: " << ess_tdof_list.Size() << endl;
 
     // Collect the global number of boundary edge DoFs to print
     int local_final_dofs = boundary_edge_ldofs.size();
@@ -110,7 +112,6 @@ int main(int argc, char *argv[])
 
     // Mark all external boundaries (1-6) for zero tangential boundary condition
     Array<int> ess_bdr(pmesh->bdr_attributes.Max());
-    //ess_bdr = 1; // Mark all boundary attributes for essential BC
     ess_bdr = 0; // Initialize all to 0 (no essential BC)
     ess_bdr[0] = 1; // Attribute 1
     ess_bdr[1] = 1; // Attribute 2
@@ -118,7 +119,7 @@ int main(int argc, char *argv[])
     ess_bdr[3] = 1; // Attribute 4
     ess_bdr[4] = 1; // Attribute 5
     ess_bdr[5] = 1; // Attribute 6
-    ess_bdr[10] = 1; // Attribute 11
+    ess_bdr[10] = 1; // also mark attribute 11 for the loop condition
 
     // Get essential boundary DOFs for zero tangential field on all boundaries
     Array<int> ess_tdof_list_all;
@@ -132,26 +133,39 @@ int main(int argc, char *argv[])
     b->Assemble();
 
     
-    // Create grid function for the solution
+    /// Create grid function for the solution
     ParGridFunction x(fespace);
-    Array<double> bc_values(x.Size());
     x = 0.0;
-    bc_values = 0.0;
-
-    // First set the boundary values in the local grid function
+    
+    // Set boundary values directly in the grid function
     for (int dof : boundary_edge_ldofs)
     {
         int edge = dof_to_edge[dof];
         int orientation = edge_loop_orientation[edge];   
-        
-        // Set the boundary value with orientation correction
-        bc_values[dof] = 1.0 * orientation;
+        x(dof) = 1.0 * orientation;
     }
+    // Now synchronize the boundary values using MaxAbs reduction
+    //SynchronizeMarkedDoFs(fespace, x, ldof_marker);
 
-    // Synchronize boundary values across processors
-    fespace->SynchronizeBC(bc_values);
-    for (int i = 0; i < bc_values.Size(); i++)
-    {x[i] = bc_values[i];}
+    // Synchronize boundary values across processors, but only for marked DoFs
+    // Get the GroupCommunicator from the finite element space
+    GroupCommunicator *gc = fespace->ScalarGroupComm();
+    
+    // First synchronize the marker itself to ensure all processors agree on which DoFs to sync
+    Array<int> global_marker(ldof_marker);
+    gc->Reduce<int>(global_marker.GetData(), GroupCommunicator::BitOR<int>);
+    gc->Bcast(global_marker);
+    
+    // Use the ReduceMarked function with MaxAbs reduction
+    Array<double> values(x.GetData(), x.Size());
+    gc->ReduceBegin(values.GetData());
+    gc->ReduceMarked<double>(values.GetData(), global_marker, 0, GroupCommunicator::MaxAbs<double>);
+    
+    // Broadcast the result
+    gc->Bcast(values.GetData());
+    
+    // Clean up
+    delete gc;
     
     // Set up the bilinear form for the EM diffusion operator: curl curl + sigma I
     Coefficient *muinv = new ConstantCoefficient(1.0);

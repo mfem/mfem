@@ -108,13 +108,10 @@ int main(int argc, char *argv[])
                 // Run GetBoundaryEdgeDoFs
                 Array<int> ess_tdof_list;
                 std::unordered_set<int> boundary_edge_ldofs;
+                Array<int> ldof_marker;
                 
-                /*
-                GetBoundaryEdgeDoFs(fespace, pmesh, bdr_attr_marker, ess_tdof_list, nullptr, nullptr,
-                                    &boundary_edge_ldofs, nullptr, nullptr);
-                */
-                fespace->GetBoundaryEdgeDoFs(bdr_attr_marker, ess_tdof_list,
-                                             nullptr, nullptr, &boundary_edge_ldofs, nullptr, nullptr);
+                fespace->GetBoundaryEdgeDoFs(bdr_attr_marker, ess_tdof_list, ldof_marker, boundary_edge_ldofs, 
+                                             nullptr, nullptr, nullptr, nullptr);
 
                 // Collect total boundary edge DoFs
                 int local_dofs = boundary_edge_ldofs.size();
