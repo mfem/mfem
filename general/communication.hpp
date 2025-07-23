@@ -416,8 +416,43 @@ public:
    template <class T> static void Max(OpData<T>);
    /// Reduce operation bitwise OR, instantiated for int only
    template <class T> static void BitOR(OpData<T>);
-      /// Reduce operation max absolute value, instantiated for int and double
+   /// Reduce operation max absolute value, instantiated for int and double
    template <class T> static void MaxAbs(OpData<T>);
+
+   /** @brief Finalize reduction operation started with ReduceBegin(), but only apply
+       the reduction to DoFs marked in the marker array.
+   */
+   template <class T>
+   void ReduceMarked(T *ldata, const Array<int> &marker, int layout,
+                     void (*Op)(OpData<T>)) const;
+
+   /** @brief Reduce within each group where the master is the root, but only for marked DoFs. */
+   template <class T>
+   void Reduce(T *ldata, const Array<int> &marker, void (*Op)(OpData<T>)) const
+   {
+      ReduceBegin(ldata);
+      ReduceMarked(ldata, marker, 0, Op);
+   }
+
+   // Enum for reduction operations
+   enum ReduceOp { Sum_Op, Min_Op, Max_Op, BitOR_Op, MaxAbs_Op };
+   
+   // Add specialized versions for common operations
+   template <class T>
+   void Reduce(Array<T> &ldata, const Array<int> &marker, ReduceOp op)
+   {
+      void (*Op)(OpData<T>);
+      switch (op)
+      {
+         case Sum_Op:    Op = GroupCommunicator::Sum; break;
+         case Min_Op:    Op = GroupCommunicator::Min; break;
+         case Max_Op:    Op = GroupCommunicator::Max; break;
+         case BitOR_Op:  Op = GroupCommunicator::BitOR; break;
+         case MaxAbs_Op: Op = GroupCommunicator::MaxAbs; break;
+         default:        Op = GroupCommunicator::Sum; break;
+      }
+      Reduce(ldata.GetData(), marker, Op);
+   }
 
    /// Print information about the GroupCommunicator from all MPI ranks.
    void PrintInfo(std::ostream &out = mfem::out) const;
