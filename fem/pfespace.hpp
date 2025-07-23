@@ -465,15 +465,17 @@ public:
        @param[out] dof_to_boundary_element_out Optional map from DOFs to boundary elements
        @param[out] ess_edge_list Optional array of edge indices */
    void GetBoundaryEdgeDoFs(const Array<int> &bdr_attr_marker,
-                           Array<int> &ess_tdof_list,
-                           std::unordered_map<int, int> *dof_to_edge = nullptr,
-                           std::unordered_map<int, int> *dof_to_orientation = nullptr,
-                           std::unordered_set<int> *boundary_edge_dofs_out = nullptr,
-                           std::unordered_map<int, int> *dof_to_boundary_element_out = nullptr,
-                           Array<int> *ess_edge_list = nullptr);
+                                                Array<int> &ess_tdof_list,
+                                                Array<int> &ldof_marker,
+                                                std::unordered_set<int> &boundary_edge_dofs_out,
+                                                std::unordered_map<int, int> *dof_to_edge = nullptr,
+                                                std::unordered_map<int, int> *dof_to_orientation = nullptr,
+                                                std::unordered_map<int, int> *dof_to_boundary_element_out = nullptr,
+                                                Array<int> *ess_edge_list = nullptr);
 
    /** Simplified interface for single boundary attribute */
-   void GetBoundaryEdgeDoFs(int bdr_attr, Array<int> &ess_tdof_list);
+   void GetBoundaryEdgeDoFs(int bdr_attr, Array<int> &ess_tdof_list, Array<int> &ldof_marker,
+                            std::unordered_set<int> &boundary_edge_dofs_out);
 
    /** Compute edge orientations relative to a loop direction defined by a normal vector.
        This is useful for applying circulation boundary conditions.
