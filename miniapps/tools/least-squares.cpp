@@ -272,12 +272,11 @@ int main(int argc, char* argv[])
    real_t solver_rtol = 1.0e-30;
    real_t solver_atol = 0.0;
    int solver_maxiter = 1000;
+   int solver_plevel = -1;
 
    real_t newton_rtol = 1.0e-15;
    int newton_maxiter = 100;
 
-   // TODO(Gabriel): Not implemented yet
-   // int solver_plevel = 3;
 
    bool preserve_volumes = false; // TODO(Gabriel): Why this is not working?
    bool save_to_file = false;
@@ -318,10 +317,14 @@ int main(int argc, char* argv[])
                   "Absolute tolerance for the iterative solver");
    args.AddOption(&solver_maxiter, "-Smi", "--solver-maxiter",
                   "Maximum number of iterations for the solver");
-   // TODO(Gabriel): Not implemented yet
-   // args.AddOption(&solver_plevel, "-Sp", "--solver-print",
-   //                "Print level for the iterative solver");
-   //
+   args.AddOption(&solver_plevel, "-Sp", "--solver-print",
+                  "Print level for the iterative solver:"
+                  "\n\t0: All"
+                  "\n\t1: First and last with warnings"
+                  "\n\t2: Errors"
+                  "\n\tdefault: None"
+                  "\nA negative value deactivates LS check");
+
    args.AddOption(&newton_rtol, "-Nrtol", "--newton-rtol",
                   "Relative tolerance for the Newton solver (q-points)");
    args.AddOption(&newton_maxiter, "-Nmi", "--newton-maxiter",
@@ -432,9 +435,21 @@ int main(int argc, char* argv[])
    auto it_solver = dynamic_cast<IterativeSolver*>(small_solver);
    if (it_solver)
    {
-      // TODO(Gabriel): Not implemented yet
       IterativeSolver::PrintLevel print_level;
-      print_level.All();
+      switch (solver_plevel)
+      {
+         case 0:
+            print_level.All();
+            break;
+         case 1:
+            print_level.FirstAndLast();
+            print_level.Warnings();
+         case 2:
+            print_level.Errors();
+            break;
+         default:
+            print_level.None();
+      }
 
       it_solver->SetRelTol(solver_rtol);
       it_solver->SetAbsTol(solver_atol);
@@ -522,7 +537,7 @@ int main(int argc, char* argv[])
 
       // Check solver
       if (it_solver && !it_solver->GetConverged()) { mfem_error("\n\tIterative solver failed to converge!"); }
-      CheckLSSolver(local_mass_mat, local_u_avg, local_u_rec);
+      if (solver_plevel >= 0) { CheckLSSolver(local_mass_mat, local_u_avg, local_u_rec); }
 
       // Integrate into global solution
       fes_reconstruction.GetElementDofs(e_idx, local_dofs);
