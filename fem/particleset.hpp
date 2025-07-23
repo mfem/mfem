@@ -105,6 +105,7 @@ private:
    static Array<Ordering::Type> GetOrderingArray(Ordering::Type o, int N);
    static std::string GetDefaultFieldName(int i);
    static Array<std::string> GetFieldNameArray(int N);
+   static Array<int> LDof2VDofs(int ndofs, int vdim, const Array<int> &ldofs, Ordering::Type o);
 #ifdef MFEM_USE_MPI
    static int GetRank(MPI_Comm comm_);
    static int GetSize(MPI_Comm comm_);
@@ -145,35 +146,48 @@ protected:
 #if defined(MFEM_USE_MPI) && defined(MFEM_USE_GSLIB)
    std::unique_ptr<gslib::comm> gsl_comm;
    std::unique_ptr<gslib::crystal> cr;
+
+   // If no FindPointsGSLIB data:
    template<std::size_t N>
    struct pdata_t
    {
-      double data[N];
-      unsigned int id, proc;
+      double data[N]; // coords + fields
+      unsigned int id;
    };
 
-   template<std::size_t N>
+   template<std::size_t NData, std::size_t NFinder>
    struct pdata_fdpts_t
    {
-      double data[N];
-      double rst[3], mfem_rst[3]; // gslib ref coords , mfem reference coords
-      unsigned int elem, mfem_elem, code; // gslib elem id, mfem elem id, and code
-      unsigned int id, proc;
+      double data[N]; // coords + fields
+      double rst[3*NFinder], mfem_rst[3*NFinder]; // gslib ref coords , mfem reference coords
+      unsigned int proc[NFinder], elem[NFinder], mfem_elem[NFinder], code[NFinder]; // gslib proc, elem id, mfem elem id, and code
+      unsigned int id;
    };
 
-   static constexpr std::size_t N_MAX = 100;
+   static constexpr std::size_t NDATA_MAX = 100;
+   static constexpr std::size_t NFINDER_MAX = 3;
 
-   template<std::size_t N>
-   void Transfer(const Array<int> &send_idxs, const Array<int> &send_ranks, FindPointsGSLIB *finder);
+   template<std::size_t NData, std::size_t NFinder>
+   void Transfer(const Array<int> &send_idxs, const Array<int> &send_ranks, Array<FindPointsGSLIB*> finders);
 
-   template<std::size_t... Ns>
-   void RuntimeDispatchTransfer(const Array<int> &send_idxs, const Array<int> &send_ranks, std::index_sequence<Ns...>, FindPointsGSLIB *finder)
+   template<std::size_t NData, std::size_t... NFinders>
+   void DispatchFinderTransfer(const Array<int> &send_idxs, const Array<int> &send_ranks, Array<FindPointsGSLIB*> finders, std::index_sequence<NFinders...>)
    {
-      bool success = ( (totalComps == Ns ? (Transfer<Ns>(send_idxs, send_ranks, finder),true) : false) || ...);
-      MFEM_ASSERT(success, "Particles with total components above 100 are currently not supported for redistributing. Please submit a PR to request a particular particle size above this.");
+      bool success = ( (finders.Size() == NFinders ? (Transfer<Ns,NFinders>(send_idxs, send_ranks, finders),true) : false) || ...);
+      MFEM_ASSERT(success, "Redistributing with > " << NFINDER_MAX << " FindPointsGSLIB objects is not supported. Please submit PR to request particular case with more.");
    }
-
-   void Redistribute(const Array<unsigned int> &rank_list, FindPointsGSLIB *finder);
+   
+   template<std::size_t... NDatas>
+   void DispatchDataTransfer(const Array<int> &send_idxs, const Array<int> &send_ranks, Array<FindPointsGSLIB*> finders, std::index_sequence<NDatas...>)
+   {
+      int total_comps = dim;
+      for (std::unique_ptr<ParticleVector> &pv_ptr : active_state.fields)
+      {
+         total_comps += pv_ptr->GetVDim();
+      }
+      bool success = ( (totalComps == Ns ? (DispatchFinderTransfer<Ns>(send_idxs, send_ranks, finders, std::make_index_sequence<N_MAX+1>{}),true) : false) || ...);
+      MFEM_ASSERT(success, "Redistributing with > " << NDATA_MAX << " data values per particle is not supported. Please submit PR to request particular case with more.");
+   }
 
 #endif // MFEM_USE_MPI && MFEM_USE_GSLIB
 
@@ -196,6 +210,8 @@ public:
    ParticleSet(MPI_Comm comm_, int num_particles, int dim, Ordering::Type coords_ordering=Ordering::byVDIM);
    ParticleSet(MPI_Comm comm_, int num_particles, int dim, const Array<int> &field_vdims, Ordering::Type all_ordering=Ordering::byVDIM);
    ParticleSet(MPI_Comm comm_, int num_particles, int dim, Ordering::Type coords_ordering, const Array<int> &field_vdims, const Array<Ordering::Type> &field_orderings, const Array<std::string> &field_names_);
+
+   MPI_Comm GetComm() const { return comm; };
 
 #endif // MFEM_USE_MPI
 
@@ -228,7 +244,7 @@ public:
    /// Get Particle with copy of data associated with particle \p i
    Particle GetParticle(int i) const;
 
-   /// Get Particle that references data associated with particle \p i , only for all ordering byVDIM 
+   /// Get Particle that references data associated with particle \p i , only for coords and all fields ordered byVDIM 
    Particle GetParticleRef(int i);
 
    /// Set data for particle at index \p i with data from provided particle \p p
@@ -241,21 +257,8 @@ public:
 #if defined(MFEM_USE_MPI) && defined(MFEM_USE_GSLIB)
 
    /// Redistribute particles onto ranks specified in \p rank_list .
-   void Redistribute(const Array<unsigned int> &rank_list)
-   { Redistribute(rank_list, nullptr); }
-
-   /// Redistribute points AND FindPointsGSLIB internal data in single comms.
-   void Redistribute(FindPointsGSLIB &finder, bool findpts=false)
-   { 
-      if (findpts)
-      {
-         finder.FindPoints(GetAllCoords(), GetOrdering());
-      }
-      
-      Redistribute(finder.GetProc(), &finder);
-   }
-
-   MPI_Comm GetComm() const { return comm; };
+   /// Optionally include array of FindPointsGSLIB objects to have their internal data transferred as well.
+   void Redistribute(const Array<unsigned int> &rank_list, Array<FindPointsGSLIB*> finders = Array<FindPointsGSLIB*>());
    
 #endif // MFEM_USE_MPI && MFEM_USE_GSLIB
 
