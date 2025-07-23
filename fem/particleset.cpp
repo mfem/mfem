@@ -172,18 +172,47 @@ ParticleSet(int id_stride_, int id_counter_, int num_particles, int dim, Orderin
    }
 }
 
+ParticleSet::ParticleSet(int num_particles, int dim, Ordering::Type coords_ordering)
+: ParticleSet(1, 0, num_particles, dim, coords_ordering, Array<int>(), Array<Ordering::Type>(), Array<std::string>())
+{
+
+}
+   
+ParticleSet::ParticleSet(int num_particles, int dim, Ordering::Type coords_ordering, const Array<int> &data_vdims, Ordering::Type data_ordering)
+: ParticleSet(1, 0, num_particles, dim, coords_ordering, data_vdims, GetOrderingArray(data_ordering, data_vdims.Size()), GetDataNameArray(data_vdims.Size())) 
+{
+
+}
+
+ParticleSet::ParticleSet(int num_particles, int dim, Ordering::Type coords_ordering, const Array<int> &dataVDims, const Array<Ordering::Type> &data_orderings, const Array<std::string> &data_names)
+: ParticleSet(1, 0, num_particles, dim, coords_ordering, &data_vdims, &data_orderings, &data_names)
+{
+
+}
 
 
 
 #ifdef MFEM_USE_MPI
+
+ParticleSet::ParticleSet(MPI_Comm comm_, int num_particles, int dim, Ordering::Type coords_ordering)
+: ParticleSet(comm_, num_particles, dim, coords_ordering, Array<int>(), Array<Ordering::Type>(), Array<std::string>())
+{
+
+};
+
+ParticleSet::ParticleSet(int num_particles, int dim, Ordering::Type coords_ordering, const Array<int> &data_vdims, Ordering::Type data_ordering)
+: ParticleSet(comm_, num_particles, dim, coords_ordering, data_vdims, GetOrderingArray(data_ordering, data_vdims.Size()), GetDataNameArray(data_vdims.Size()))
+{
+
+}
 
 ParticleSet::ParticleSet(MPI_Comm comm_, int num_particles, int dim, Ordering::Type coords_ordering, const Array<int> &data_vdims, const Array<Ordering::Type> &data_orderings, const Array<std::string> &data_names)
 : ParticleSet(GetSize(comm_), GetRank(comm_),
                GetRankNumParticles(comm_, num_particles),
                dim,
                coords_ordering,
-               data_ordering
-
+               data_orderings,
+               data_names)
 {
    comm = comm_;
    gsl_comm = std::make_unique<gslib::comm>();

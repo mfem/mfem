@@ -154,7 +154,6 @@ protected:
 
 #ifdef MFEM_USE_MPI
    MPI_Comm comm;
-   ParticleSet(MPI_Comm comm_, int num_particles, int dim, Ordering::Type coords_ordering, const Array<int> &data_vdims, const Array<Ordering::Type> &data_orderings, const Array<std::string> &data_names);
 #endif // MFEM_USE_MPI
 
 
@@ -208,24 +207,21 @@ public:
 
    // Serial constructors
 
-   ParticleSet(int num_particles, int dim, Ordering::Type coords_ordering)
-   : ParticleSet(1, 0, num_particles, dim, coords_ordering, Array<int>(), Array<Ordering::Type>(), Array<std::string>()) {}
-   
-   ParticleSet(int num_particles, int dim, Ordering::Type coords_ordering, const Array<int> &data_vdims, Ordering::Type data_ordering)
-   : ParticleSet(1, 0, num_particles, dim, coords_ordering, data_vdims, GetOrderingArray(data_ordering, data_vdims.Size()), GetDataNameArray(data_vdims.Size())) {}
+   ParticleSet(int num_particles, int dim, Ordering::Type coords_ordering);
 
-   ParticleSet(int num_particles, int dim, Ordering::Type coords_ordering, const Array<int> &dataVDims, const Array<Ordering::Type> &data_orderings, const Array<std::string> &data_names)
-   : ParticleSet(1, 0, num_particles, dim, coords_ordering, &data_vdims, &data_orderings, &data_names) {};
+   ParticleSet(int num_particles, int dim, Ordering::Type coords_ordering, const Array<int> &data_vdims, Ordering::Type data_ordering);
+
+   ParticleSet(int num_particles, int dim, Ordering::Type coords_ordering, const Array<int> &dataVDims, const Array<Ordering::Type> &data_orderings, const Array<std::string> &data_names);
 
 #ifdef MFEM_USE_MPI
 
    // Parallel constructors
    
-   ParticleSet(MPI_Comm comm_, int num_particles, int dim, Ordering::Type default_ordering);
-   
-   ParticleSet(MPI_Comm comm_, int dim, Ordering::Type default_ordering, const Array<int> &dataVDims);
+   ParticleSet(MPI_Comm comm_, int num_particles, int dim, Ordering::Type coords_ordering);
 
-   ParticleSet(MPI_Comm comm_, int dim, Ordering::Type coords_ordering, const Array<int> &dataVDims, const Array<Ordering::Type> &data_orderings, const Array<std::string> &data_names)
+   ParticleSet(MPI_Comm comm_, int num_particles, int dim, Ordering::Type coords_ordering, const Array<int> &dataVDims);
+
+   ParticleSet(MPI_Comm comm_, int num_particles, int dim, Ordering::Type coords_ordering, const Array<int> &dataVDims, const Array<Ordering::Type> &data_orderings, const Array<std::string> &data_names);
 
 #endif // MFEM_USE_MPI
 
