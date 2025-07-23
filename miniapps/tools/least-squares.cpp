@@ -52,8 +52,8 @@ public:
    /// Assembles element mass matrix, extending @a ngh_fe to @a self_fe.
    void AsymmetricElementMatrix(const FiniteElement &ngh_fe,
                                 const FiniteElement &self_fe,
-                                ElementTransformation &ngh_tr,
-                                ElementTransformation &self_tr,
+                                ElementTransformation &neighbor_trans,
+                                ElementTransformation &e_trans,
                                 DenseMatrix &el_mat,
                                 int _max_iter = 1000,
                                 real_t _rtol = 1e-15);
@@ -62,8 +62,8 @@ public:
 void AsymmetricMassIntegrator::AsymmetricElementMatrix(const FiniteElement
                                                        &ngh_fe,
                                                        const FiniteElement &self_fe,
-                                                       ElementTransformation &ngh_tr,
-                                                       ElementTransformation &self_tr,
+                                                       ElementTransformation &neighbor_trans,
+                                                       ElementTransformation &e_trans,
                                                        DenseMatrix &elmat,
                                                        int _max_iter,
                                                        real_t _rtol)
@@ -89,10 +89,10 @@ void AsymmetricMassIntegrator::AsymmetricElementMatrix(const FiniteElement
     * = int_ref_K phi_i(inv_T_K( T_N(K)(y) )) v( T_N(K)(y) ) |Jac T_N(K)| dy.
     */
 
-   const int int_order = self_fe.GetOrder() + ngh_fe.GetOrder() + self_tr.OrderW();
+   const int int_order = self_fe.GetOrder() + ngh_fe.GetOrder() + e_trans.OrderW();
    const IntegrationRule &ir = IntRules.Get(self_fe.GetGeomType(), int_order);
 
-   ngh_tr.Transform(ir, physical_ngh_pts);
+   neighbor_trans.Transform(ir, physical_ngh_pts);
 
    for (int i = 0; i < ir.GetNPoints(); i++)
    {
@@ -100,9 +100,9 @@ void AsymmetricMassIntegrator::AsymmetricElementMatrix(const FiniteElement
       physical_ngh_pts.GetColumn(i, physical_ngh_ip);
 
       // Pullback physical neighboring integration points to
-      // "extended" reference element under self_tr
+      // "extended" reference element under e_trans
       using InvElTr = mfem::InverseElementTransformation;
-      InverseElementTransformation inv_tr(&self_tr);
+      InverseElementTransformation inv_tr(&e_trans);
       inv_tr.SetPhysicalRelTol(_rtol);
       inv_tr.SetMaxIter(_max_iter);
       inv_tr.SetSolverType(InvElTr::SolverType::Newton);
@@ -111,14 +111,14 @@ void AsymmetricMassIntegrator::AsymmetricElementMatrix(const FiniteElement
       MFEM_VERIFY(inv_tr.Transform(physical_ngh_ip,
                                    ngh_ip) != InvElTr::TransformResult::Unknown, "");
 
-      ngh_tr.SetIntPoint(&ngh_ip);
-      self_tr.SetIntPoint(&ip);
+      neighbor_trans.SetIntPoint(&ngh_ip);
+      e_trans.SetIntPoint(&ip);
 
       // Compute shape functions on self_fe
-      ngh_fe.CalcPhysShape(ngh_tr, ngh_shape);
-      self_fe.CalcPhysShape(self_tr, self_shape);
+      ngh_fe.CalcPhysShape(neighbor_trans, ngh_shape);
+      self_fe.CalcPhysShape(e_trans, self_shape);
 
-      self_shape *= self_tr.Weight() * ip.weight;
+      self_shape *= e_trans.Weight() * ip.weight;
       AddMultVWt(self_shape, ngh_shape, elmat);
    }
 }
@@ -277,7 +277,6 @@ int main(int argc, char* argv[])
    real_t newton_rtol = 1.0e-15;
    int newton_maxiter = 100;
 
-
    bool preserve_volumes = false; // TODO(Gabriel): Why this is not working?
    bool save_to_file = false;
 
@@ -395,13 +394,20 @@ int main(int argc, char* argv[])
    // Declare mass integrator
    AsymmetricMassIntegrator mass;
 
-   // Compute local volumes
-   ConstantCoefficient zeros(0.0);
-   ParGridFunction ones(&fes_averages);
+   // Auxiliary constant coefficients
+   ConstantCoefficient ccf_zeros(0.0);
+   ConstantCoefficient ccf_ones(1.0);
 
-   ones = 1.0;
+   // Auxiliary partition of unity
+   ParGridFunction punity_avg(&fes_averages);
+   ParGridFunction punity_rec(&fes_reconstruction);
+
+   punity_rec.ProjectCoefficient(ccf_ones);
+   punity_avg.ProjectCoefficient(ccf_ones);
+
+   // Compute volumes
    Vector volumes(mesh.GetNE());
-   ones.ComputeElementL1Errors(zeros, volumes);
+   punity_avg.ComputeElementL1Errors(ccf_zeros, volumes);
 
    // Solver choice
    // TODO(Gabriel): Support more solvers?
@@ -413,26 +419,26 @@ int main(int argc, char* argv[])
     * later on. DenseMatrix does not have this method
     * implemented.
     */
-   Solver *small_solver = nullptr;
+   Solver *solver = nullptr;
    switch (solver_type)
    {
       case bicgstab:
-         small_solver = new BiCGSTABSolver();
+         solver = new BiCGSTABSolver();
          break;
       case cg:
-         small_solver = new CGSolver();
+         solver = new CGSolver();
          break;
       case minres:
-         small_solver = new MINRESSolver();
+         solver = new MINRESSolver();
          break;
       case direct:
       default:
-         small_solver = new DenseMatrixInverse();
+         solver = new DenseMatrixInverse();
    }
 
    // Solver setting
-   small_solver->iterative_mode = false;
-   auto it_solver = dynamic_cast<IterativeSolver*>(small_solver);
+   solver->iterative_mode = false;
+   auto it_solver = dynamic_cast<IterativeSolver*>(solver);
    if (it_solver)
    {
       IterativeSolver::PrintLevel print_level;
@@ -457,13 +463,13 @@ int main(int argc, char* argv[])
       it_solver->SetPrintLevel(print_level);
    }
 
-   // L1-Jacobi Preconditioner
-   Vector l1_diag;
+   // TODO(Gabriel): L1-Jacobi Preconditioner
+   // Vector l1_diag;
 
    // Neighboring elements and DoFs
-   Array<int> ngh_e, temp_ngh, local_dofs;
-   auto ngh_tr = new IsoparametricTransformation;
-   auto self_tr = new IsoparametricTransformation;
+   Array<int> neighbors_e, e_dofs;
+   auto neighbor_trans = new IsoparametricTransformation;
+   auto e_trans = new IsoparametricTransformation;
 
    // TODO(Gabriel): Loop too big!
    for (int e_idx = 0; e_idx < mesh.GetNE(); e_idx++ )
@@ -471,81 +477,93 @@ int main(int argc, char* argv[])
       const int fe_rec_e_ndof = fes_reconstruction.GetFE(e_idx)->GetDof();
       const int fe_avg_e_ndof = fes_averages.GetFE(e_idx)->GetDof();
 
-      SaturateNeighborhood(nc_mesh, e_idx, fe_rec_e_ndof, fe_avg_e_ndof, ngh_e);
-      if (preserve_volumes) { ngh_e.DeleteFirst(e_idx); }
+      SaturateNeighborhood(nc_mesh, e_idx, fe_rec_e_ndof, fe_avg_e_ndof, neighbors_e);
+      if (preserve_volumes) { neighbors_e.DeleteFirst(e_idx); }
 
-      // Define small matrix
-      const int num_ngh_e = ngh_e.Size();
-      DenseMatrix local_mass_mat(num_ngh_e, fe_rec_e_ndof);
+      // BEGIN definition small matrix
+      const int num_neighbors = neighbors_e.Size();
+      DenseMatrix fe_rec_to_neighbors_mat(num_neighbors, fe_rec_e_ndof);
 
-      for (int i = 0; i < num_ngh_e; i++)
+      for (int i = 0; i < num_neighbors; i++)
       {
-         const int ngh_e_idx = ngh_e[i];
+         const int neighbor_idx = neighbors_e[i];
 
-         fes_reconstruction.GetElementTransformation(ngh_e_idx, ngh_tr);
-         fes_averages.GetElementTransformation(e_idx, self_tr);
+         fes_reconstruction.GetElementTransformation(neighbor_idx, neighbor_trans);
+         fes_averages.GetElementTransformation(e_idx, e_trans);
 
-         DenseMatrix ngh_elem_mat;
-         mass.AsymmetricElementMatrix(*fes_reconstruction.GetFE(ngh_e_idx),
+         DenseMatrix e_to_neighbor_mat;
+         mass.AsymmetricElementMatrix(*fes_reconstruction.GetFE(neighbor_idx),
                                       *fes_averages.GetFE(e_idx),
-                                      *ngh_tr, *self_tr, ngh_elem_mat,
+                                      *neighbor_trans, *e_trans,
+                                      e_to_neighbor_mat,
                                       newton_maxiter, newton_rtol);
 
-         if (ngh_elem_mat.Height()!=1) { mfem_error("High order case for source space not implemented yet!"); }
-         Vector ngh_vec;
-         ngh_elem_mat.GetRow(0, ngh_vec);
-         local_mass_mat.SetRow(i, ngh_vec);
+         if (e_to_neighbor_mat.Height()!=1) { mfem_error("High order case for source space not implemented yet!"); }
+         Vector neighbor_idx_row;
+         e_to_neighbor_mat.GetRow(0, neighbor_idx_row);
+         fe_rec_to_neighbors_mat.SetRow(i, neighbor_idx_row);
       }
 
-      // Get local volumes and scale patch matrix
-      Vector local_volumes(num_ngh_e);
-      volumes.GetSubVector(ngh_e, local_volumes);
-      local_mass_mat.InvLeftScaling(local_volumes);
-      // End define small matrix
+      // Get neighbors volumes and scale patch matrix
+      Vector neighbors_volumes(num_neighbors);
+      volumes.GetSubVector(neighbors_e, neighbors_volumes);
+      fe_rec_to_neighbors_mat.InvLeftScaling(neighbors_volumes);
+      // END definition small matrix
 
+      // TODO(Gabriel): Cannot use here if need original matrix
       // Define L1-Jacobi PC (diagonal vector) for A^T A
-      GetNormalL1Diag(local_mass_mat, l1_diag);
+      // GetNormalL1Diag(fe_rec_to_neighbors_mat, l1_diag);
 
-      // Solve
-      Vector local_u_avg, local_u_rec;
-      u_averages.GetSubVector(ngh_e, local_u_avg);
+      // Get local averages and local ones
+      Vector u_avg_neighbors, u_rec_e, punity_e;
+      fes_reconstruction.GetElementDofs(e_idx, e_dofs);
+      u_averages.GetSubVector(neighbors_e, u_avg_neighbors);
+      punity_rec.GetSubVector(e_dofs, punity_e);
 
       // Apply preconditioner
-      local_mass_mat.InvLeftScaling(l1_diag);
-      local_u_avg /= l1_diag;
+      // fe_rec_to_neighbors_mat.InvLeftScaling(l1_diag);
+      // u_avg_neighbors /= l1_diag;
 
+      // Solve
       if (preserve_volumes)
       {
-         Vector _mult, exact_average_e(1), self_volume(1);
-         exact_average_e = u_averages(e_idx);
-         self_volume = volumes(e_idx);
+         real_t u_e_avg = u_averages(e_idx);
 
-         DenseMatrix self_avg_mat;
+         Vector shape_avg_e, local_ones(num_neighbors);
+         local_ones = 1.0;
+         DenseMatrix temp_mat;
          mass.AsymmetricElementMatrix(*fes_reconstruction.GetFE(e_idx),
                                       *fes_averages.GetFE(e_idx),
-                                      *self_tr, *self_tr, self_avg_mat);
-         self_avg_mat.InvLeftScaling(self_volume);
+                                      *e_trans, *e_trans, temp_mat);
+         temp_mat *= -1.0/volumes(e_idx);
+         temp_mat.GetRow(0, shape_avg_e);
 
-         LSSolver(*small_solver, local_mass_mat, self_avg_mat,
-                  local_u_avg, exact_average_e,
-                  local_u_rec, _mult, solver_reg);
+         // Set up A - 1 x shape_avgs
+         AddMultVWt(local_ones, shape_avg_e, fe_rec_to_neighbors_mat);
+         // Set up u avgs minus average on e
+         add(1.0, u_avg_neighbors, -u_e_avg, local_ones, u_avg_neighbors);
+
+         LSSolver(*solver, fe_rec_to_neighbors_mat, u_avg_neighbors, u_rec_e,
+                  solver_reg);
+
+         // Add the average to the final solution
+         add(1.0, u_rec_e, u_e_avg, punity_e, u_rec_e);
       }
       else
       {
-         LSSolver(*small_solver, local_mass_mat, local_u_avg, local_u_rec, solver_reg);
+         LSSolver(*solver, fe_rec_to_neighbors_mat, u_avg_neighbors, u_rec_e,
+                  solver_reg);
       }
 
       // Check solver
       if (it_solver && !it_solver->GetConverged()) { mfem_error("\n\tIterative solver failed to converge!"); }
-      if (solver_plevel >= 0) { CheckLSSolver(local_mass_mat, local_u_avg, local_u_rec); }
+      if (solver_plevel >= 0) { CheckLSSolver(fe_rec_to_neighbors_mat, u_avg_neighbors, u_rec_e); }
 
       // Integrate into global solution
-      fes_reconstruction.GetElementDofs(e_idx, local_dofs);
-      u_reconstruction.SetSubVector(local_dofs, local_u_rec);
+      u_reconstruction.SetSubVector(e_dofs, u_rec_e);
 
-      ngh_e.DeleteAll();
-      temp_ngh.DeleteAll();
-      local_dofs.DeleteAll();
+      neighbors_e.DeleteAll();
+      e_dofs.DeleteAll();
    }
    u_reconstruction.GetElementAverages(u_rec_avg);
 
@@ -593,7 +611,7 @@ int main(int argc, char* argv[])
    // Error studies
    real_t error = u_reconstruction.ComputeL2Error(u_coefficient);
    subtract(u_rec_avg, u_averages, diff);
-   real_t error_avg = diff.ComputeL2Error(zeros);
+   real_t error_avg = diff.ComputeL2Error(ccf_zeros);
 
    if (Mpi::Root())
    {
@@ -605,7 +623,7 @@ int main(int argc, char* argv[])
    if (save_to_file && Mpi::Root())
    {
       Vector el_error(mesh.GetNE());
-      ones.ComputeElementLpErrors(2.0, zeros, el_error);
+      punity_avg.ComputeElementLpErrors(2.0, ccf_zeros, el_error);
       real_t hmax = el_error.Max();
 
       std::ofstream file;
@@ -620,9 +638,9 @@ int main(int argc, char* argv[])
       file.close();
    }
 
-   if (small_solver) { delete small_solver; }
-   delete ngh_tr;
-   delete self_tr;
+   if (solver) { delete solver; }
+   delete neighbor_trans;
+   delete e_trans;
 
    Mpi::Finalize();
    return 0;
