@@ -159,17 +159,21 @@ void Particle::Print(std::ostream &out) const
 }
 
 
-ParticleSet(int id_stride_, int id_counter_, int num_particles, int dim, Ordering::Type coords_ordering, const Array<int> &data_vdims, const Array<Ordering::Type> &data_orderings, const Array<std::string> &data_names)
+ParticleSet::ParticleSet(int id_stride_, int id_counter_, int num_particles, int dim, Ordering::Type coords_ordering, const Array<int> &data_vdims, const Array<Ordering::Type> &data_orderings, const Array<std::string> &data_names)
 : id_stride(id_stride_),
-  id_counter(id_counter_),
-  coords(num_particles, dim, coords_ordering),
-  data(data_vdims.Size()),
-  names(data_names)
-{
-   for (int i = 0; i < data.Size(); i++)
+  id_counter(id_counter_)
+{   
+   // Initialize coords
+   CreateParticleData(dim, coords_ordering, "Coords");
+   
+   // Initialize data
+   for (int d = 0; d < data_vdims.Size(); d++)
    {
-      data[i] = std::make_unique<ParticleVector>(num_particles, data_vdims[i], data_orderings[i]);
+      CreateParticleData(data_vdims[i], data_orderings[i], data_names[i]);
    }
+
+   // Add num_particles
+   AddParticles(num_particles);
 }
 
 ParticleSet::ParticleSet(int num_particles, int dim, Ordering::Type coords_ordering)
@@ -178,8 +182,8 @@ ParticleSet::ParticleSet(int num_particles, int dim, Ordering::Type coords_order
 
 }
    
-ParticleSet::ParticleSet(int num_particles, int dim, Ordering::Type coords_ordering, const Array<int> &data_vdims, Ordering::Type data_ordering)
-: ParticleSet(1, 0, num_particles, dim, coords_ordering, data_vdims, GetOrderingArray(data_ordering, data_vdims.Size()), GetDataNameArray(data_vdims.Size())) 
+ParticleSet::ParticleSet(int num_particles, int dim, const Array<int> &data_vdims, Ordering::Type all_ordering)
+: ParticleSet(1, 0, num_particles, dim, all_ordering, data_vdims, GetOrderingArray(all_ordering, data_vdims.Size()), GetDataNameArray(data_vdims.Size())) 
 {
 
 }
@@ -200,8 +204,8 @@ ParticleSet::ParticleSet(MPI_Comm comm_, int num_particles, int dim, Ordering::T
 
 };
 
-ParticleSet::ParticleSet(int num_particles, int dim, Ordering::Type coords_ordering, const Array<int> &data_vdims, Ordering::Type data_ordering)
-: ParticleSet(comm_, num_particles, dim, coords_ordering, data_vdims, GetOrderingArray(data_ordering, data_vdims.Size()), GetDataNameArray(data_vdims.Size()))
+ParticleSet::ParticleSet(MPI_Comm comm_, int num_particles, int dim, const Array<int> &data_vdims, Ordering::Type all_ordering)
+: ParticleSet(comm_, num_particles, dim, all_ordering, data_vdims, GetOrderingArray(all_ordering, data_vdims.Size()), GetDataNameArray(data_vdims.Size()))
 {
 
 }
@@ -223,136 +227,182 @@ ParticleSet::ParticleSet(MPI_Comm comm_, int num_particles, int dim, Ordering::T
 
 #endif // MFEM_USE_MPI
 
-
-void ParticleSet::AddParticle(const Particle &p, int id)
+ParticleVector& ParticleSet::CreateParticleData(int vdim, Ordering::Type data_ordering, std::string data_name)
 {
-   MFEM_ASSERT(&p.GetMeta() == &meta, "Input particle metadata does not match the ParticleSet's!");
-
-   int old_np = GetNP();
-
-   if (ordering == Ordering::byNODES)
+   if (data_name == "")
    {
-      real_t dat;
-      int offset = old_np;
-
-      for (int f = 0; f < totalFields; f++)
-      {
-         for (int c = 0; c < fieldVDims[f]; c++)
-         {
-            if (f == 0) // If processing coord comps
-            {
-               dat = p.GetCoords()[c];
-            }
-            else if (f - 1 < meta.NumProps()) // Else if processing scalars
-            {
-               dat = p.GetProperty(f - 1);
-            }
-            else // Else processing vector comps
-            {
-               dat = p.GetStateVar(f - 1 - meta.NumProps())[c];
-            }
-            data.insert(data.begin() + offset, dat);
-            offset += old_np + 1; // 1 to account for added data each loop iteration
-         }
-      }
+      data_name = GetDefaultDataName(active_state.names.Size());
    }
-   else // byVDIM
-   {
-      const real_t* dat;
-      for (int f = 0; f < totalFields; f++)
-      {
-         if (f == 0)
-         {
-            dat = p.GetCoords().GetData();
-         }
-         else if (f - 1 < meta.NumProps())
-         {
-            dat = &p.GetProperty(f-1);
-         }
-         else
-         {
-            dat = p.GetStateVar(f-1-meta.NumProps()).GetData();
-         }
-         data.insert(data.begin() + old_np*(exclScanFieldVDims[f] + fieldVDims[f]) + exclScanFieldVDims[f], dat, dat + fieldVDims[f]);
-      }
-   }
+   active_state.data.Append(std::make_unique<ParticleVector>(GetNP(), vdim, data_ordering));
+   inactive_state.data.Append(std::make_unique<ParticleVector>(inactive_state.ids.Size(), vdim, data_ordering));
 
-   ids.Append(id); // Add ID
-   SyncVectors();
+   active_state.names.Append(data_name);
+   inactive_state.names.Append(data_name);
 }
 
-void ParticleSet::RemoveParticles(const Array<int> &list)
+void ParticleSet::Reserve(int res)
 {
+   active_state.ids.Reserve(res);
+
+   // Increase Vector capacity implicitly by resizing
+   // TODO: should we just create a Vector::Reserve?
+   for (int f = 0; f < active_state.data.Size(); f++)
+   {
+      int data_res = res*active_state.data[f]->GetVDim();
+      if (active_state.data[f]->Capacity() < data_res)
+      ParticleVector data_copy = *active_state.data[f];
+      active_state.data[f]->SetSize(data_res);
+      active_state.data[f]->SetVector(data_copy, 0);
+   }
+
+}
+
+
+void ParticleSet::AddParticles(int num_new, const Array<int> &new_ids)
+{
+   // TODO: Should we have this functionality within ParticleVector
+   //       (to keep data-manipulation-stuff isolated to there?)
+   //       (below code would look much simpler then)
+
+   MFEM_ASSERT(num_new == new_ids.Size(), "New IDs array size not equal to num_new");
+   
+   int old_np = GetNP();
+   int new_np = num_new + old_np;
+
+   // Increase the capacity of all data (if needed)
+   Reserve(new_np);
+
+   // Add new ids
+   active_state.ids.Append(new_ids);
+
+   // Update data
+   for (int f = 0; f < active_state.data.Size(); f++)
+   {
+      int vdim = active_state.data[f]->GetVDim();
+
+      // Resize all data to new capacity
+      // Old data will not be deleted as capacity has been increased
+      active_state.data[f]->SetSize(new_np*vdim);
+
+      // Properly add new elements based on ordering + default-initialize new particle data
+      if (active_state.data[f]->GetOrdering() == Ordering::byNODES)
+      {
+         // Must shift entries for byNODES...
+         for (int c = vdim-1; c > 0; c--)
+         {
+            for (int i = old_np-1; i >= 0; i--)
+            {
+               *active_state.data[i+c*new_np] = *active_state.data[i+c*old_np];
+            }
+            for (int i = old_np; i < new_np; i++)
+            {
+               data[i+c*new_np] = 0.0;
+            } 
+         }
+      }
+      else // byVDIM
+      {
+         for (int i = old_np*vdim; i < new_np*vdim; i++)
+         {
+            data[i] = 0.0;
+         }
+      }
+   }
+}
+
+void ParticleSet::RemoveParticles(const Array<int> &list, bool delete=false)
+{
+   // TODO: Should we have this functionality within ParticleVector
+   //       (to keep data-manipulation-stuff isolated to there?)
+   //       (below code would look much simpler then)
+
    if (list.Size() == 0)
       return;
 
    int old_np = GetNP();
+   int new_np = old_np - list.Size();
 
-   // Sort the indices
-   Array<int> sorted_list(list);
-   sorted_list.Sort();
-
-   if (ordering == Ordering::byNODES)
+   // Copy data to inactive_state if delete is false
+   if (!delete)
    {
-      int rm_count = 0;
-      for (int i = sorted_list[0]; i < data.size(); i++)
+      for (int i = 0; i < list.Size(); i++)
       {
-         if (i % GetNP() == sorted_list[rm_count % sorted_list.Size()])
-         {
-            rm_count++;
-         }
-         else
-         {
-            data[i-rm_count] = data[i]; // Shift elements rm_count
-         }
-      }
-   }
-   else // byVDIM
-   {
-      int rm_count = 0;
-
-      int f = 0;
-      for (int i = sorted_list[0]*fieldVDims[0]; i < data.size();  i++)
-      {
-         if (f + 1 < fieldVDims.Size() && i == exclScanFieldVDims[f+1]*GetNP())
-         {
-            f++;
-         }
-
-         int d_idx = (i - exclScanFieldVDims[f]*GetNP())/fieldVDims[f];
-         int s_idx = ((rm_count - exclScanFieldVDims[f]*sorted_list.Size())/fieldVDims[f]);
-         if (s_idx < sorted_list.Size() && d_idx == sorted_list[s_idx])
-         {
-            rm_count += fieldVDims[f];
-            i += fieldVDims[f] - 1;
-         }
-         else
-         {
-            data[i-rm_count] = data[i];
-         }
+         inactive_state.ids.Append(ids[list[i]]);
       }
    }
 
-   // Remove old IDs
-   int rm_idx = 0;
-   for (int i = 0; i < old_np; i++)
+   // Delete IDs
+   active_state.ids.DeleteAt(list);
+
+   for (int f = 0; f < active_state.data.Size(); f++)
    {
-      if (rm_idx < sorted_list.Size() && i == sorted_list[rm_idx])
+      int vdim = active_state.data[f]->GetVDim();
+
+      // Convert list particle index array ("ldofs") to "vdofs"
+      Array<int> v_list;
+      v_list.Reserve(list.Size()*vdim);
+      if (active_state.data[f]->GetOrdering() == Ordering::byNODES)
       {
-         rm_idx++;
+         for (int l = 0; l < list.Size(); l++)
+         {
+            for (int vd = 0; vd < vdim; vd++)
+            {
+               v_list.Append(Ordering::Map<Ordering::byNODES>(old_np, vdim, list[l], vd));
+            }
+         }
       }
       else
       {
-         ids[i-rm_idx] = ids[i];
+         for (int l = 0; l < list.Size(); l++)
+         {
+            for (int vd = 0; vd < vdim; vd++)
+            {
+               v_list.Append(Ordering::Map<Ordering::byVDIM>(old_np, vdim, list[l], vd));
+            }
+         }
+      }
+
+      // Copy data to inactive_state if delete is false
+      if (!delete)
+      {
+
+      }
+
+      // Shift non-removed data, maintain capacity AT END OF DATA
+      if (ordering == Ordering::byNODES)
+      {
+         int rm_count = 0;
+         for (int i = sorted_list[0]; i < np_old*vdim; i++)
+         {
+            if (i % np_old == sorted_list[rm_count % sorted_list.Size()])
+            {
+               rm_count++;
+            }
+            else
+            {
+               data[i-rm_count] = data[i]; // Shift elements rm_count
+            }
+         }
+      }
+      else
+      {
+         int rm_count = 0;
+         for (int i = sorted_list[0]*vdim; i < np_old*vdim;  i++)
+         {
+            int p_idx = i/vdim; // particle index
+            int rm_idx = rm_count/vdim;
+            if (rm_idx < sorted_list.Size() && p_idx == sorted_list[rm_idx])
+            {
+               rm_count += vdim;
+               i += vdim - 1;
+            }
+            else
+            {
+               data[i-rm_count] = data[i];
+            }
+         }
       }
    }
-
-   // Resize / remove tails
-   int num_new = old_np - list.Size();
-   data.resize(num_new*totalComps);
-   ids.SetSize(num_new);
-
-   SyncVectors();
 
 }
 
@@ -461,36 +511,6 @@ void ParticleSet::SetParticle(int i, const Particle &p)
       }
    }
 }
-
-// void ParticleSet::PrintPoint3D(std::ostream &os)
-// {
-// #if defined(MFEM_USE_MPI) && defined(MFEM_USE_GSLIB)
-//    MFEM_ABORT("PrintPoint3D not yet implemented in parallel");
-// #else
-//    // Write column headers
-//    os << "x y z id\n";
-
-//    // Write the data
-//    for (int i = 0 ; i < GetNP(); i++)
-//    {
-//       for (int d = 0; d < 3; d++)
-//       {
-//          real_t coord;
-//          if (ordering == Ordering::byNODES)
-//          {
-//             coord = (d < meta.SpaceDim()) ? data[i + d*GetNP()] : 0.0;
-//          }
-//          else
-//          {
-//             coord = (d < meta.SpaceDim()) ? data[d + i*meta.SpaceDim()] : 0.0;
-//          }
-//          os << ZeroSubnormal(coord) << " ";
-//       }
-//       os << ids[i] << "\n";
-//    }
-// #endif
-// }
-
 
 void ParticleSet::PrintCSV(const char *fname, int precision)
 {
@@ -874,5 +894,4 @@ void ParticleSet::Redistribute(const Array<unsigned int> &rank_list, FindPointsG
 #endif // MFEM_USE_MPI && MFEM_USE_GSLIB
 
 
-ParticleSet::~ParticleSet() = default;
 } // namespace mfem

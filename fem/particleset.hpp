@@ -43,7 +43,7 @@ protected:
 
 public:
    ParticleVector(int np, int vdim_, Ordering::Type ordering_)
-   : Vector(np*vdim_), vdim(vdim_), ordering(ordering_) {}
+   : Vector(np*vdim_), vdim(vdim_), ordering(ordering_) { *this = 0.0; }
    
    int GetVDim() const { return vdim; }
 
@@ -106,19 +106,22 @@ public:
 class ParticleSet
 {
 private:
-
    static Array<Ordering::Type> GetOrderingArray(Ordering::Type o, int N)
    {
       Array<Ordering::Type> ordering_arr(data_vdims.Size());
       ordering_arr = o; 
       return std::move(ordering_array); 
    }
+   static std::string GetDefaultDataName(int i)
+   {
+      return "Data_" + std::to_string(i);
+   }
    static Array<std::string> GetDataNameArray(int N)
    {
       Array<std::string> names(data_vdims.Size()); 
       for (int i = 0; i < N; i++)
       {
-         names[i] = "Data_" + std::to_string(i);
+         names[i] = GetDefaultDataName(i);
       }
       return std::move(names)
    }
@@ -142,15 +145,17 @@ private:
 
 
 protected:
+   struct ParticleState
+   {
+      Array<unsigned int> ids; /// Particle IDs
+      Array<std::unique_ptr<ParticleVector>> data;
+      Array<std::string> names;
+   }
+
    const std::size_t id_stride;
    std::size_t id_counter;
-
-   Array<unsigned int> ids; /// Particle IDs
-   ParticleVector coords;
-   Array<std::unique_ptr<ParticleVector>> data;
-   Array<std::string> names;
-
-   ParticleSet(int id_stride_, int id_counter_, int num_particles, int dim, Ordering::Type coords_ordering, const Array<int> &data_vdims, const Array<Ordering::Type> &data_orderings, const Array<std::string> &data_names);
+   ParticleState active_state;
+   ParticleState inactive_state;
 
 #ifdef MFEM_USE_MPI
    MPI_Comm comm;
@@ -193,37 +198,83 @@ protected:
    
 #endif // MFEM_USE_MPI && MFEM_USE_GSLIB
 
+   ParticleSet(int id_stride_, int id_counter_, int num_particles, int dim, Ordering::Type coords_ordering, const Array<int> &data_vdims, const Array<Ordering::Type> &data_orderings, const Array<std::string> &data_names);
 
-   /// Add particle w/ given ID
-   void AddParticle(const Particle &p, int id);
+   /// Increase size of all particle data properly based on ordering, setting new elements to 0
+   void AddParticles(int num_new, const Array<int> &new_ids);
+
+   /// Add particles using id_counter
+   void AddParticles(int num_new)
+   {
+      Array<int> new_ids;
+      for (int i = 0; i < num_new; i++)
+      {
+         new_ids.Append(id_counter);
+         id_counter += id_stride;
+      }
+      AddParticles(num_new, new_ids);
+   }
 
    void PrintHeader(std::ostream &os, bool inc_rank, const char *delimiter);
    void PrintData(std::ostream &os, bool inc_header, const char *delimiter, int *rank=nullptr);
-
-
    void WriteToFile(const char* fname, const std::stringstream &ss_header, const std::stringstream &ss_data);
 
 public:
 
    // Serial constructors
-
-   ParticleSet(int num_particles, int dim, Ordering::Type coords_ordering);
-
-   ParticleSet(int num_particles, int dim, Ordering::Type coords_ordering, const Array<int> &data_vdims, Ordering::Type data_ordering);
-
+   ParticleSet(int num_particles, int dim, Ordering::Type coords_ordering=Ordering::byVDIM);
+   ParticleSet(int num_particles, int dim, const Array<int> &data_vdims, Ordering::Type all_ordering=Ordering::byVDIM);
    ParticleSet(int num_particles, int dim, Ordering::Type coords_ordering, const Array<int> &dataVDims, const Array<Ordering::Type> &data_orderings, const Array<std::string> &data_names);
 
 #ifdef MFEM_USE_MPI
 
    // Parallel constructors
-   
-   ParticleSet(MPI_Comm comm_, int num_particles, int dim, Ordering::Type coords_ordering);
-
-   ParticleSet(MPI_Comm comm_, int num_particles, int dim, Ordering::Type coords_ordering, const Array<int> &dataVDims);
-
+   ParticleSet(MPI_Comm comm_, int num_particles, int dim, Ordering::Type coords_ordering=Ordering::byVDIM);
+   ParticleSet(MPI_Comm comm_, int num_particles, int dim, const Array<int> &data_vdims, Ordering::Type all_ordering=Ordering::byVDIM);
    ParticleSet(MPI_Comm comm_, int num_particles, int dim, Ordering::Type coords_ordering, const Array<int> &dataVDims, const Array<Ordering::Type> &data_orderings, const Array<std::string> &data_names);
 
 #endif // MFEM_USE_MPI
+
+   const Array<unsigned int>& GetIDs() const { return active_state.ids; };
+   
+   ParticleVector& CreateParticleData(int vdim, Ordering::Type data_ordering=Ordering::byVDIM, std::string data_name="");
+
+   /// Reserve room for \p res particles. Can help to avoid re-allocation for adding + removing particles.
+   void Reserve(int res);
+
+   /// Get the number of particles currently held by this ParticleSet.
+   int GetNP() const { return active_state.ids.Size(); }
+
+   /// Add particle
+   void AddParticle(const Particle &p)
+   {
+      AddParticle(p, id_counter);
+      id_counter += id_stride;
+   };
+
+   /// Remove particle data specified by \p list of particle indices.
+   void RemoveParticles(const Array<int> &list, bool delete=false);
+
+   ParticleVector& Coords() { return active_state.data[0]; }
+
+   const ParticleVector& Coords() const { return active_state.data[0]; }
+
+   ParticleVector& Data(int f) { return *active_state.data[f+1]; }
+
+   const ParticleVector& Data(int f) const { return *active_state.data[f+1]; }
+
+   /// Get Particle with copy of data associated with particle \p i
+   Particle GetParticle(int i) const;
+
+   /// Get Particle that references data associated with particle \p i , only for all ordering byVDIM 
+   Particle GetParticleRef(int i);
+
+   /// Set data for particle at index \p i with data from provided particle \p p
+   void SetParticle(int i, const Particle &p);
+
+   /// Print to CSV
+   void PrintCSV(const char* fname, int precision=16);
+
 
 #if defined(MFEM_USE_MPI) && defined(MFEM_USE_GSLIB)
 
@@ -246,62 +297,7 @@ public:
    
 #endif // MFEM_USE_MPI && MFEM_USE_GSLIB
 
-   /// Reserve room for \p res particles. Can help to avoid re-allocation for adding + removing particles.
-   void Reserve(int res) { data.reserve(res*totalComps); ids.Reserve(res); }
-
-   /// Get the number of particles currently held by this ParticleSet.
-   int GetNP() const { return ids.Size(); }
-
-   /// Add particle
-   void AddParticle(const Particle &p)
-   {
-      AddParticle(p, id_counter);
-      id_counter += id_stride;
-   };
-
-   /// Remove particle data specified by \p list of particle indices.
-   void RemoveParticles(const Array<int> &list);
-
-   const Array<unsigned int>& GetIDs() const { return ids; };
-
-   Vector& GetAllCoords() { return fields[0]; }
-
-   Vector& GetAllProperty(int s) { return fields[1+s]; }
-
-   Vector& GetAllStateVar(int v) { return fields[1+meta.NumProps()+v]; }
-
-   const Vector& GetAllCoords() const { return fields[0]; }
-
-   const Vector& GetAllProperty(int s) const { return fields[1+s]; }
-
-   const Vector& GetAllStateVar(int v) const { return fields[1+meta.NumProps()+v]; }
-
-   /// Copy data associated with particle at index \p i into \p p
-   void GetParticle(int i, Particle &p) const;
-
-   /// Set data for particle at index \p i with data from provided particle \p p
-   void SetParticle(int i, const Particle &p);
-
-
-/* TODO: consider below. Maybe helpful??? Maybe not???
-
-   /// Set (optional) internal particle vector from actual set \ref data
-   void SetParticleArray();
-
-   /// Get reference to particle from (optional) internal particle vector
-   Particle& GetParticleFromArray(int i) { return particles[i]; }
-
-   /// Set particle set data from (optional) internal particle vector
-   void SetFromParticleArray();
-*/
-
-   /// Print in VisIt Point3D format
-   void PrintPoint3D(const char* fname, int precision=16);
-
-   /// Print to CSV
-   void PrintCSV(const char* fname, int precision=16);
-
-   ~ParticleSet();
+   ~ParticleSet() = default;
 
 };
 
