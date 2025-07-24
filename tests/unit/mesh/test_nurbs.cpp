@@ -131,3 +131,17 @@ TEST_CASE("NURBS mesh reconstruction", "[NURBS]")
    // Cleanup
    for (auto *p : patches) { delete p; }
 }
+
+TEST_CASE("NURBS NC-patch mesh loading", "[NURBS]")
+{
+   auto mesh_fname = GENERATE("../../data/nc3-nurbs.mesh",
+                              "../../data/nc-nurbs3d.mesh");
+
+   Mesh mesh(mesh_fname, 1, 1);
+   const int dim = mesh.Dimension();
+   const int ne = dim == 2 ? 6 : 24;
+   REQUIRE(mesh.GetNE() == ne);
+
+   mesh.NURBSUniformRefinement();
+   REQUIRE(mesh.GetNE() == ne * std::pow(2, dim));
+}
