@@ -114,6 +114,9 @@ public:
    /** The result of fully matrix-free assembly is stored internally so that it
        can be used later in the methods AddMultMF() and AddMultTransposeMF(). */
    void AssembleMF(const FiniteElementSpace &fes) override;
+   /** Used with BilinearFormIntegrators that have different spaces. */
+   virtual void AssembleMF(const FiniteElementSpace &trial_fes,
+                           const FiniteElementSpace &test_fes);
 
    virtual void AssembleMFBoundary(const FiniteElementSpace &fes);
 
@@ -524,6 +527,8 @@ public:
 
    void AddAbsMultPA(const Vector& x, Vector& y) const override;
 
+   void AssembleMF(const FiniteElementSpace &trial_fes,
+                   const FiniteElementSpace &test_fes) override;
    void AssembleMF(const FiniteElementSpace &fes) override;
 
    void AddMultMF(const Vector &x, Vector &y) const override;
@@ -2330,6 +2335,7 @@ public:
                             ElementTransformation &Trans,
                             Vector &flux, Vector *d_energy = NULL) override;
 
+   using BilinearFormIntegrator::AssembleMF;
    void AssembleMF(const FiniteElementSpace &fes) override;
 
    using BilinearFormIntegrator::AssemblePA;
@@ -2428,6 +2434,7 @@ public:
                                ElementTransformation &Trans,
                                DenseMatrix &elmat) override;
 
+   using BilinearFormIntegrator::AssembleMF;
    void AssembleMF(const FiniteElementSpace &fes) override;
 
    using BilinearFormIntegrator::AssemblePA;
@@ -2519,6 +2526,7 @@ public:
                               ElementTransformation &,
                               DenseMatrix &) override;
 
+   using BilinearFormIntegrator::AssembleMF;
    void AssembleMF(const FiniteElementSpace &fes) override;
 
    using BilinearFormIntegrator::AssemblePA;
@@ -2639,6 +2647,7 @@ public:
                                DenseMatrix &elmat) override;
    using BilinearFormIntegrator::AssemblePA;
    void AssemblePA(const FiniteElementSpace &fes) override;
+   using BilinearFormIntegrator::AssembleMF;
    void AssembleMF(const FiniteElementSpace &fes) override;
    void AssembleDiagonalPA(Vector &diag) override;
    void AssembleDiagonalMF(Vector &diag) override;
@@ -3166,6 +3175,7 @@ public:
                               const Vector &elfun, Vector &elvect) override;
    using BilinearFormIntegrator::AssemblePA;
    void AssemblePA(const FiniteElementSpace &fes) override;
+   using BilinearFormIntegrator::AssembleMF;
    void AssembleMF(const FiniteElementSpace &fes) override;
    void AssembleDiagonalPA(Vector &diag) override;
    void AssembleDiagonalMF(Vector &diag) override;

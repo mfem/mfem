@@ -157,6 +157,13 @@ void BilinearFormIntegrator::AssembleMF(const FiniteElementSpace &fes)
               "   is not implemented for this class.");
 }
 
+void BilinearFormIntegrator::AssembleMF(const FiniteElementSpace &trial_fes,
+                                        const FiniteElementSpace &test_fes)
+{
+   MFEM_ABORT("BilinearFormIntegrator::AssembleMF(...)\n"
+              "   is not implemented for this class.");
+}
+
 void BilinearFormIntegrator::AssembleMFBoundary(const FiniteElementSpace &)
 {
    MFEM_ABORT("BilinearFormIntegrator::AssembleMFBoundary(fes)\n"
@@ -487,6 +494,15 @@ void SumIntegrator::AddAbsMultTransposePA(const Vector &x, Vector &y) const
    for (int i = 0; i < integrators.Size(); i++)
    {
       integrators[i]->AddAbsMultTransposePA(x, y);
+   }
+}
+
+void SumIntegrator::AssembleMF(const FiniteElementSpace &trial_fes,
+                               const FiniteElementSpace &test_fes)
+{
+   for (int i = 0; i < integrators.Size(); i++)
+   {
+      integrators[i]->AssembleMF(trial_fes, test_fes);
    }
 }
 
