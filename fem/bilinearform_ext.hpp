@@ -63,8 +63,8 @@ public:
    virtual void Update() = 0;
 };
 
-/// Data and methods for partially-assembled bilinear forms
-class PABilinearFormExtension : public BilinearFormExtension
+/// Data and methods for matrix-free bilinear forms
+class MFBilinearFormExtension : public BilinearFormExtension
 {
 protected:
    const FiniteElementSpace *trial_fes, *test_fes; // Not owned
@@ -81,6 +81,64 @@ protected:
    const FaceRestriction *int_face_restrict_lex; // Not owned
    const FaceRestriction *bdr_face_restrict_lex; // Not owned
 
+public:
+   MFBilinearFormExtension(BilinearForm *form);
+
+   void Assemble() override;
+   void AssembleDiagonal(Vector &diag) const override;
+   void FormSystemMatrix(const Array<int> &ess_tdof_list,
+                         OperatorHandle &A) override;
+   void FormLinearSystem(const Array<int> &ess_tdof_list,
+                         Vector &x, Vector &b,
+                         OperatorHandle &A, Vector &X, Vector &B,
+                         int copy_interior = 0) override;
+   void Mult(const Vector &x, Vector &y) const override;
+   void MultTranspose(const Vector &x, Vector &y) const override;
+   void Update() override;
+
+protected:
+   void SetupRestrictionOperators(const L2FaceValues m);
+
+   /// @brief Accumulate the action (or transpose) of the integrator on @a x
+   /// into @a y, taking into account the (possibly null) @a markers array.
+   ///
+   /// If @a markers is non-null, then only those elements or boundary elements
+   /// whose attribute is marked in the markers array will be added to @a y.
+   ///
+   /// @param integ The integrator (domain, boundary, or boundary face).
+   /// @param x Input E-vector.
+   /// @param markers Marked attributes (possibly null, meaning all attributes).
+   /// @param attributes Array of element or boundary element attributes.
+   /// @param transpose Compute the action or transpose of the integrator .
+   /// @param y Output E-vector
+   void AddMultWithMarkers(const BilinearFormIntegrator &integ,
+                           const Vector &x,
+                           const Array<int> *markers,
+                           const Array<int> &attributes,
+                           const bool transpose,
+                           Vector &y) const;
+
+   /// @brief Performs the same function as AddMultWithMarkers, but takes as
+   /// input and output face normal derivatives.
+   ///
+   /// This is required when the integrator requires face normal derivatives,
+   /// for example, DGDiffusionIntegrator.
+   ///
+   /// This is called when the integrator's member function
+   /// BilinearFormIntegrator::RequiresFaceNormalDerivatives() returns true.
+   void AddMultNormalDerivativesWithMarkers(
+      const BilinearFormIntegrator &integ,
+      const Vector &x,
+      const Vector &dxdn,
+      const Array<int> *markers,
+      const Array<int> &attributes,
+      Vector &y,
+      Vector &dydn) const;
+};
+
+/// Data and methods for partially-assembled bilinear forms
+class PABilinearFormExtension : public MFBilinearFormExtension
+{
 public:
    PABilinearFormExtension(BilinearForm*);
 
@@ -100,7 +158,6 @@ public:
    void Update() override;
 
 protected:
-   void SetupRestrictionOperators(const L2FaceValues m);
    void MultInternal(const Vector &x, Vector &y,
                      const bool useAbs = false) const;
 
@@ -214,34 +271,6 @@ public:
        computation. */
    void DGMult(const Vector &x, Vector &y) const;
    void DGMultTranspose(const Vector &x, Vector &y) const;
-};
-
-/// Data and methods for matrix-free bilinear forms
-class MFBilinearFormExtension : public BilinearFormExtension
-{
-protected:
-   const FiniteElementSpace *trial_fes, *test_fes; // Not owned
-   mutable Vector localX, localY;
-   mutable Vector int_face_X, int_face_Y;
-   mutable Vector bdr_face_X, bdr_face_Y;
-   const Operator *elem_restrict; // Not owned
-   const FaceRestriction *int_face_restrict_lex; // Not owned
-   const FaceRestriction *bdr_face_restrict_lex; // Not owned
-
-public:
-   MFBilinearFormExtension(BilinearForm *form);
-
-   void Assemble() override;
-   void AssembleDiagonal(Vector &diag) const override;
-   void FormSystemMatrix(const Array<int> &ess_tdof_list,
-                         OperatorHandle &A) override;
-   void FormLinearSystem(const Array<int> &ess_tdof_list,
-                         Vector &x, Vector &b,
-                         OperatorHandle &A, Vector &X, Vector &B,
-                         int copy_interior = 0) override;
-   void Mult(const Vector &x, Vector &y) const override;
-   void MultTranspose(const Vector &x, Vector &y) const override;
-   void Update() override;
 };
 
 /// Class extending the MixedBilinearForm class to support different AssemblyLevels.

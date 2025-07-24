@@ -157,9 +157,33 @@ void BilinearFormIntegrator::AssembleMF(const FiniteElementSpace &fes)
               "   is not implemented for this class.");
 }
 
+void BilinearFormIntegrator::AssembleMFBoundary(const FiniteElementSpace &)
+{
+   MFEM_ABORT("BilinearFormIntegrator::AssembleMFBoundary(fes)\n"
+              "   is not implemented for this class.");
+}
+
+void BilinearFormIntegrator::AssembleMFInteriorFaces(const FiniteElementSpace&)
+{
+   MFEM_ABORT("BilinearFormIntegrator::AssembleMFInteriorFaces(...)\n"
+              "   is not implemented for this class.");
+}
+
+void BilinearFormIntegrator::AssembleMFBoundaryFaces(const FiniteElementSpace&)
+{
+   MFEM_ABORT("BilinearFormIntegrator::AssembleMFBoundaryFaces(...)\n"
+              "   is not implemented for this class.");
+}
+
 void BilinearFormIntegrator::AddMultMF(const Vector &, Vector &) const
 {
    MFEM_ABORT("BilinearFormIntegrator::AddMultMF(...)\n"
+              "   is not implemented for this class.");
+}
+
+void BilinearFormIntegrator::AddMultNURBSMF(const Vector &, Vector &) const
+{
+   MFEM_ABORT("BilinearFormIntegrator::AddMultNURBSMF(...)\n"
               "   is not implemented for this class.");
 }
 
@@ -167,6 +191,12 @@ void BilinearFormIntegrator::AddMultTransposeMF(const Vector &, Vector &) const
 {
    MFEM_ABORT("BilinearFormIntegrator::AddMultTransposeMF(...)\n"
               "   is not implemented for this class.");
+}
+
+void BilinearFormIntegrator::AddMultMFFaceNormalDerivatives(
+   const Vector &x, const Vector &dxdn, Vector &y, Vector &dydn) const
+{
+   MFEM_ABORT("Not implemented.");
 }
 
 void BilinearFormIntegrator::AssembleDiagonalMF(Vector &)

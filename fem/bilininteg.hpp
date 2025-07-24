@@ -115,6 +115,12 @@ public:
        can be used later in the methods AddMultMF() and AddMultTransposeMF(). */
    void AssembleMF(const FiniteElementSpace &fes) override;
 
+   virtual void AssembleMFBoundary(const FiniteElementSpace &fes);
+
+   virtual void AssembleMFInteriorFaces(const FiniteElementSpace &fes);
+
+   virtual void AssembleMFBoundaryFaces(const FiniteElementSpace &fes);
+
    /** Perform the action of integrator on the input @a x and add the result to
        the output @a y. Both @a x and @a y are E-vectors, i.e. they represent
        the element-wise discontinuous version of the FE space.
@@ -122,6 +128,12 @@ public:
        This method can be called only after the method AssembleMF() has been
        called. */
    void AddMultMF(const Vector &x, Vector &y) const override;
+
+   virtual void AddMultNURBSMF(const Vector&x, Vector&y) const;
+
+   virtual void AddMultMFFaceNormalDerivatives(const Vector &x,
+                                               const Vector &dxdn, Vector &y,
+                                               Vector &dydn) const;
 
    /** Perform the transpose action of integrator on the input @a x and add the
        result to the output @a y. Both @a x and @a y are E-vectors, i.e. they
