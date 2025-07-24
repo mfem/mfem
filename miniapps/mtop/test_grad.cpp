@@ -126,14 +126,14 @@ int main(int argc, char *argv[])
     //allocate the fiter
     FilterOperator* filt=new FilterOperator(filter_radius,&pmesh);
     //set the boundary conditions
-    filt->AddBC(1,1.0);
+    filt->AddBC(1,1.0); // free hold 
     filt->AddBC(2,1.0);
     filt->AddBC(3,1.0);
     filt->AddBC(4,1.0);
     filt->AddBC(5,1.0);
     filt->AddBC(6,1.0);
     filt->AddBC(7,1.0);
-    filt->AddBC(8,0.0);
+    filt->AddBC(8,0.0); // outer boundary
     //allocate the slover after setting the BC and before applying the filter
     filt->Assemble();
 
@@ -148,54 +148,54 @@ int main(int argc, char *argv[])
 
 
     //create initial density distribution
-    DensCoeff odc(2*M_PI); //define the coefficient
-    odens.ProjectCoefficient(odc); odens=1.0;
+    DensCoeff odc(2*M_PI); //define the coefficient, arbitrary
+    odens.ProjectCoefficient(odc); odens=1.0; // override density to 1. Better to make it satisfy constraint.
     odens.SetTrueVector();
     Vector odv(filt->GetDesignFES()->TrueVSize()); odens.GetTrueDofs(odv);
 
 
     Vector fdv(filt->GetFilterFES()->TrueVSize()); fdv=0.0; //define the true vector of the filtered field
     //filter the density field
-    filt->Mult(odv,fdv);
+    filt->Mult(odv,fdv); // apply filt to odv, write into fdv. Can do this with ParGrid functions or VectorCoefficients. Generally better to work in true vectors. 
     //set the filtered pargrid function using the filtered true vector
-    fdens.SetFromTrueDofs(fdv);
+    fdens.SetFromTrueDofs(fdv); // fdens is the ParGridFunction. Basically "algebratizes / makes accessible" dofs
 
     //set the elasticity solver
     IsoLinElasticSolver* elsolver=new IsoLinElasticSolver(&pmesh,order);
     //set the boundary conditions [1,2,..,7]
     for(int i=2;i<8;i++){
-        elsolver->AddDispBC(i,4,0.0);
+        elsolver->AddDispBC(i,4,0.0); // start with all of them fixed. 0 displacement in all directions.
     }
 
     //set surface load
-    elsolver->AddSurfLoad(1,0.0,1.0);
+    elsolver->AddSurfLoad(1,0.0,1.0); // set the load on the free hole. 0.0 == x direction, 1.0 == y direction.
 
     //define material and interpolation parameters coefficient factory
     IsoComplCoef icc;
     //set density, solution, and interpolation parameters for the compliance coefficient factory
-    icc.SetGridFunctions(&fdens,&(elsolver->GetDisplacements()));
-    icc.SetMaterial(1e-3,1.0,0.2);
+    icc.SetGridFunctions(&fdens,&(elsolver->GetDisplacements())); // (1) density (2) displacements. Deferred calculation.
+    icc.SetMaterial(1e-3,1.0,0.2); // E_min = 1e-3, E_max = 1.0, Poisson Ratio = 0.2
 
     //set the material to the elasticity solver
-    elsolver->SetMaterial(*(icc.GetE()),*(icc.GetNu()));
+    elsolver->SetMaterial(*(icc.GetE()),*(icc.GetNu())); // take parameters from ICC. It's a coefficient factory. GetE() is a function of density, GetNu() is a constant function (might be a density)
     //solve the discrete elastic system
     elsolver->Assemble();
-    elsolver->FSolve();
+    elsolver->FSolve(); // solve for displacements
 
     //extract the solution
     ParGridFunction& sol=elsolver->GetDisplacements();
 
     //project the coefficients
-    ParGridFunction egf(filt->GetFilterFES()); egf.ProjectCoefficient(*(icc.GetE()));
+    ParGridFunction egf(filt->GetFilterFES()); egf.ProjectCoefficient(*(icc.GetE())); 
     ParGridFunction ngf(filt->GetFilterFES()); ngf.ProjectCoefficient(*(icc.GetNu()));
 
 
     //compute the gradients
-    ParGridFunction ggf(filt->GetFilterFES()); ggf.ProjectCoefficient(*(icc.GetGradIsoComp()));
-    ParGridFunction cgf(filt->GetFilterFES()); cgf.ProjectCoefficient(icc);
+    ParGridFunction ggf(filt->GetFilterFES()); ggf.ProjectCoefficient(*(icc.GetGradIsoComp())); // Computes gradient of compliance onto filtered density space
+    ParGridFunction cgf(filt->GetFilterFES()); cgf.ProjectCoefficient(icc); // Local compliance at every point. Our optimized quantity is the integral of this. 
 
     //unit grid function
-    ParGridFunction onegf(filt->GetFilterFES());
+    ParGridFunction onegf(filt->GetFilterFES()); // constant 1.0 function
     onegf = 1.0;
 
     //compute compliance
@@ -204,7 +204,7 @@ int main(int argc, char *argv[])
         ParLinearForm compl_form(filt->GetFilterFES());
         compl_form.AddDomainIntegrator(new DomainLFIntegrator(icc));
         compl_form.Assemble();
-        vcompl=compl_form(onegf);
+        vcompl=compl_form(onegf); // inner product of compliance and constant 1 function. IE the integral. 
     }
     if(myid==0){
         std::cout<<"Reference Compliance = "<<vcompl<<std::endl;
@@ -217,8 +217,8 @@ int main(int argc, char *argv[])
         ParLinearForm compl_grad(filt->GetFilterFES());
         compl_grad.AddDomainIntegrator(new DomainLFIntegrator(*(icc.GetGradIsoComp())));
         compl_grad.Assemble();
+         // fgrad is in the differential at the point, not the gradient. In the discretzation of the dual space corresponding to the discretzation of the primal.
         compl_grad.ParallelAssemble(fgrad);
-
     }
 
 
@@ -289,13 +289,13 @@ int main(int argc, char *argv[])
 
 
     //true gradient vector
-    Vector ograd(odens.GetTrueVector().Size()); ograd=0.0;
+    Vector ograd(odens.GetTrueVector().Size()); ograd=0.0; // true vector in the original control space. 
     //gradient grid function
-    ParGridFunction ogf(filt->GetDesignFES());
+    ParGridFunction ogf(filt->GetDesignFES()); 
     //Apply the adjoint filter operation
-    filt->AFilter(icc.GetGradIsoComp(),ogf);
+    filt->AFilter(icc.GetGradIsoComp(),ogf); // adjoint operation to projection to find differential in design space. Chain rule. 
     //get the true vector of the gradient
-    ogf.GetTrueDofs(ograd);
+    ogf.GetTrueDofs(ograd); // extracting the information in the ParGridFunction into the ograd. Lives in dual of design space.
 
     //alternative way to compute the gradient with repsect to ograd
     //filt->MultTranspose(fgrad,ograd);
