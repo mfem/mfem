@@ -71,11 +71,9 @@ void InclusiveScan(bool use_dev, InputIt d_in, OutputIt d_out, size_t num_items,
 /// @a d_out output start. Can perform in-place scans with d_out = d_in
 /// @a workspace temporary workspace used for device scans. TODO: replace with
 /// internal temporary workspace once that's added to the memory manager.
-/// @a scan_op binary scan functor. Does not need to be commutative*. Must be
-/// associative. If only weakly associative (i.e. floating point addition)
-/// results are not deterministic.
-///
-/// * There is currently a bug in cub for non-commutative scan operators
+/// @a scan_op binary scan functor. Must be associative. If only weakly
+/// associative (i.e. floating point addition) results are not deterministic. On
+/// device this must also be commutative.
 template <class InputIt, class OutputIt, class ScanOp>
 void InclusiveScan(bool use_dev, InputIt d_in, OutputIt d_out, size_t num_items,
                    Array<char> &workspace, ScanOp scan_op)
@@ -119,11 +117,9 @@ void InclusiveScan(bool use_dev, InputIt d_in, OutputIt d_out, size_t num_items,
 /// @a d_out output start. Can perform in-place scans with d_out = d_in
 /// @a workspace temporary workspace used for device scans. TODO: replace with
 /// internal temporary workspace once that's added to the memory manager.
-/// @a scan_op binary scan functor. Does not need to be commutative*. Must be
-/// associative. If only weakly associative (i.e. floating point addition)
-/// results are not deterministic.
-///
-/// * There is currently a bug in cub for non-commutative scan operators
+/// @a scan_op binary scan functor. Must be associative. If only weakly
+/// associative (i.e. floating point addition) results are not deterministic. On
+/// device this must also be commutative.
 template <class InputIt, class OutputIt, class T, class ScanOp>
 void ExclusiveScan(bool use_dev, InputIt d_in, OutputIt d_out, size_t num_items,
                    T init_value, Array<char> &workspace, ScanOp scan_op)
