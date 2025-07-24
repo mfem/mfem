@@ -131,7 +131,7 @@ protected:
       : coords(0, dim, coords_ordering) {}
       
       int GetNP() const { return ids.Size(); }
-      
+      int GetNF() const { return fields.size(); }
    };
 
    /// Increase capacity of data in \p particles w/o losing existing data
