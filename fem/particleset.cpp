@@ -837,4 +837,6 @@ void ParticleSet::Redistribute(const Array<unsigned int> &rank_list, Array<FindP
 }
 #endif // MFEM_USE_MPI && MFEM_USE_GSLIB
 
+ParticleSet::~ParticleSet() = default;
+
 } // namespace mfem

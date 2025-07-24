@@ -77,6 +77,12 @@ public:
    
    Particle(int dim, const Array<int> &field_vdims);
 
+   int Dim() const { return coords.Size(); }
+
+   int NumFields() const { return fields.size(); }
+
+   int FieldVDim(int f) const { return fields[f].Size(); }
+
    Vector& Coords() { return coords; }
 
    const Vector& Coords() const { return coords; }
@@ -224,7 +230,7 @@ public:
    const int GetDim() const { return active_state.coords.GetVDim(); }
 
    const Array<unsigned int>& GetIDs() const { return active_state.ids; }
-   
+
    ParticleVector& AddField(int vdim, Ordering::Type field_ordering=Ordering::byVDIM, const char *field_name=nullptr);
 
    /// Reserve room for \p res particles. Can help to avoid re-allocation for adding + removing particles.
@@ -268,7 +274,8 @@ public:
    
 #endif // MFEM_USE_MPI && MFEM_USE_GSLIB
 
-   ~ParticleSet() = default;
+   // Destructor must be declared after inclusion of GSLIB header (so sizeof gslib::comm and gslib::crystal can be evaluated)
+   ~ParticleSet();
 
 };
 
