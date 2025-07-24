@@ -101,7 +101,7 @@ Particle::Particle(int dim, const Array<int> &field_vdims)
 
    for (int i = 0; i < fields.Size(); i++)
    {
-      fields[i] = std::make_unique<Vector>(field_vdims[i]);
+      fields[i] = new Vector(field_vdims[i]);
       *fields[i] = 0.0;
    }
 }
@@ -154,6 +154,13 @@ void Particle::Print(std::ostream &out) const
    }
 }
 
+Particle::~Particle()
+{
+   for (Vector *v : fields)
+   {
+      delete v;
+   }
+}
 
 Array<Ordering::Type> ParticleSet::GetOrderingArray(Ordering::Type o, int N)
 {
@@ -647,8 +654,8 @@ ParticleVector& ParticleSet::AddField(int vdim, Ordering::Type field_ordering, s
    {
       data_name = GetDefaultFieldName(field_names.Size());
    }
-   active_state.fields.Append(std::make_unique<ParticleVector>(GetNP(), vdim, data_ordering));
-   inactive_state.fields.Append(std::make_unique<ParticleVector>(inactive_state.ids.Size(), vdim, data_ordering));
+   active_state.fields.Append(new ParticleVector(GetNP(), vdim, data_ordering));
+   inactive_state.fields.Append(new ParticleVector(inactive_state.ids.Size(), vdim, data_ordering));
 
    field_names.Append(data_name);
 

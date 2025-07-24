@@ -43,7 +43,7 @@ protected:
 
 public:
    ParticleVector(int np, int vdim_, Ordering::Type ordering_)
-   : Vector(np*vdim_), vdim(vdim_), ordering(ordering_) { *this = 0.0; }
+   : Vector(np*vdim_), vdim(vdim_), ordering(ordering_) { Vector::operator=(0.0); }
    
    int GetVDim() const { return vdim; }
 
@@ -60,7 +60,7 @@ public:
    real_t& ParticleValue(int i, int comp=0);
 
    const real_t& ParticleValue(int i, int comp=0) const;
-}
+};
 
 
 // -----------------------------------------------------------------------------------------------------
@@ -71,7 +71,7 @@ class Particle
 protected:
 
    Vector coords;
-   Array<std::unique_ptr<Vector>> fields;
+   Array<Vector*> fields; // owning
 
 public:
    
@@ -79,21 +79,23 @@ public:
 
    Vector& Coords() { return coords; }
 
-   const Vector& Coords() const { return *fields[0]; }
+   const Vector& Coords() const { return coords; }
 
-   real_t& FieldValue(int f, int c=0) { return (*fields[f+1])[c]; }
+   real_t& FieldValue(int f, int c=0) { return (*fields[f])[c]; }
 
-   const real_t& FieldValue(int f, int c=0) { return (*fields[f+1])[c]; }
+   const real_t& FieldValue(int f, int c=0) const { return (*fields[f])[c]; }
 
-   Vector& Field(int f) { return *fields[f+1]; }
+   Vector& Field(int f) { return *fields[f]; }
 
-   const Vector& Field(int f) const { return *fields[f+1]; }
+   const Vector& Field(int f) const { return *fields[f]; }
 
    bool operator==(const Particle &rhs) const;
 
    bool operator!=(const Particle &rhs) const { return !operator==(rhs); }
 
    void Print(std::ostream &out=mfem::out) const;
+
+   ~Particle();
 };
 
 // -----------------------------------------------------------------------------------------------------
@@ -118,8 +120,15 @@ protected:
    {
       Array<unsigned int> ids; /// Particle IDs
       ParticleVector coords;
-      Array<std::unique_ptr<ParticleVector>> fields;
+      Array<ParticleVector*> fields; // owning
       int GetNP() const { return ids.Size(); }
+      ~ParticleState()
+      {
+         for (ParticleVector *pv : fields)
+         {
+            delete pv;
+         }
+      }
    };
 
    /// Increase capacity of data in \p particles w/o losing existing data
@@ -136,7 +145,7 @@ protected:
    std::size_t id_counter;
    ParticleState active_state;
    ParticleState inactive_state;
-   Array<std::string> field_names;
+   Array<const char *> field_names;
 
 #ifdef MFEM_USE_MPI
    MPI_Comm comm;
@@ -144,21 +153,22 @@ protected:
 
 
 #if defined(MFEM_USE_MPI) && defined(MFEM_USE_GSLIB)
+   // TODO: Since I need to use raw pointers for Array<..>, should I stay consistent and use raw pointers here too?
    std::unique_ptr<gslib::comm> gsl_comm;
    std::unique_ptr<gslib::crystal> cr;
 
    // If no FindPointsGSLIB data:
-   template<std::size_t N>
+   template<std::size_t NData>
    struct pdata_t
    {
-      double data[N]; // coords + fields
+      double data[NData]; // coords + fields
       unsigned int id;
    };
 
    template<std::size_t NData, std::size_t NFinder>
    struct pdata_fdpts_t
    {
-      double data[N]; // coords + fields
+      double data[NData]; // coords + fields
       double rst[3*NFinder], mfem_rst[3*NFinder]; // gslib ref coords , mfem reference coords
       unsigned int proc[NFinder], elem[NFinder], mfem_elem[NFinder], code[NFinder]; // gslib proc, elem id, mfem elem id, and code
       unsigned int id;
@@ -185,7 +195,7 @@ protected:
       {
          total_comps += pv_ptr->GetVDim();
       }
-      bool success = ( (totalComps == Ns ? (DispatchFinderTransfer<Ns>(send_idxs, send_ranks, finders, std::make_index_sequence<N_MAX+1>{}),true) : false) || ...);
+      bool success = ( (totalComps == NDatas ? (DispatchFinderTransfer<NDatas>(send_idxs, send_ranks, finders, std::make_index_sequence<N_MAX+1>{}),true) : false) || ...);
       MFEM_ASSERT(success, "Redistributing with > " << NDATA_MAX << " data values per particle is not supported. Please submit PR to request particular case with more.");
    }
 
@@ -195,21 +205,21 @@ protected:
 
    void WriteToFile(const char* fname, const std::stringstream &ss_header, const std::stringstream &ss_data);
 
-   ParticleSet(int id_stride_, int id_counter_, int num_particles, int dim, Ordering::Type coords_ordering, const Array<int> &field_vdims, const Array<Ordering::Type> &field_orderings, const Array<std::string> &field_names_);
+   ParticleSet(int id_stride_, int id_counter_, int num_particles, int dim, Ordering::Type coords_ordering, const Array<int> &field_vdims, const Array<Ordering::Type> &field_orderings, const Array<const char*> &field_names_);
 
 public:
 
    // Serial constructors
    ParticleSet(int num_particles, int dim, Ordering::Type coords_ordering=Ordering::byVDIM);
    ParticleSet(int num_particles, int dim, const Array<int> &field_vdims, Ordering::Type all_ordering=Ordering::byVDIM);
-   ParticleSet(int num_particles, int dim, Ordering::Type coords_ordering, const Array<int> &field_vdims, const Array<Ordering::Type> &field_orderings, const Array<std::string> &field_names_);
+   ParticleSet(int num_particles, int dim, Ordering::Type coords_ordering, const Array<int> &field_vdims, const Array<Ordering::Type> &field_orderings, const Array<const char*> &field_names_);
 
 #ifdef MFEM_USE_MPI
 
    // Parallel constructors
    ParticleSet(MPI_Comm comm_, int num_particles, int dim, Ordering::Type coords_ordering=Ordering::byVDIM);
    ParticleSet(MPI_Comm comm_, int num_particles, int dim, const Array<int> &field_vdims, Ordering::Type all_ordering=Ordering::byVDIM);
-   ParticleSet(MPI_Comm comm_, int num_particles, int dim, Ordering::Type coords_ordering, const Array<int> &field_vdims, const Array<Ordering::Type> &field_orderings, const Array<std::string> &field_names_);
+   ParticleSet(MPI_Comm comm_, int num_particles, int dim, Ordering::Type coords_ordering, const Array<int> &field_vdims, const Array<Ordering::Type> &field_orderings, const Array<const char*> &field_names_);
 
    MPI_Comm GetComm() const { return comm; };
 
@@ -219,7 +229,7 @@ public:
 
    const Array<unsigned int>& GetIDs() const { return active_state.ids; }
    
-   ParticleVector& AddField(int vdim, Ordering::Type field_ordering=Ordering::byVDIM, std::string field_name="");
+   ParticleVector& AddField(int vdim, Ordering::Type field_ordering=Ordering::byVDIM, const char *field_name="");
 
    /// Reserve room for \p res particles. Can help to avoid re-allocation for adding + removing particles.
    void Reserve(int res) { Reserve(res, active_state); };
@@ -233,13 +243,13 @@ public:
    /// Remove particle data specified by \p list of particle indices.
    void RemoveParticles(const Array<int> &list, bool delete=false);
 
-   ParticleVector& Coords() { return active_state.data[0]; }
+   ParticleVector& Coords() { return active_state.coords; }
 
-   const ParticleVector& Coords() const { return active_state.data[0]; }
+   const ParticleVector& Coords() const { return active_state.coords; }
 
-   ParticleVector& Field(int f) { return *active_state.data[f+1]; }
+   ParticleVector& Field(int f) { return *active_state.fields[f]; }
 
-   const ParticleVector& Field(int f) const { return *active_state.data[f+1]; }
+   const ParticleVector& Field(int f) const { return *active_state.fields[f]; }
 
    /// Get Particle with copy of data associated with particle \p i
    Particle GetParticle(int i) const;
