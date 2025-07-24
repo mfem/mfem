@@ -754,6 +754,59 @@ template<typename lambda>
 inline void forall(int N, lambda &&body) { ForallWrap<1>(true, N, body); }
 
 template<typename lambda>
+inline void forall(int Nx, int Ny, lambda &&body)
+{
+   if (Device::Allows(Backend::DEVICE_MASK))
+   {
+      forall(Nx * Ny, [=] MFEM_HOST_DEVICE(int idx)
+      {
+         int i = idx / Ny;
+         int j = idx % Ny;
+         body(i, j);
+      });
+   }
+   else
+   {
+      for (int i = 0; i < Nx; ++i)
+      {
+         for (int j = 0; j < Ny; ++j)
+         {
+            body(i, j);
+         }
+      }
+   }
+}
+
+template<typename lambda>
+inline void forall(int Nx, int Ny, int Nz, lambda &&body)
+{
+   if (Device::Allows(Backend::DEVICE_MASK))
+   {
+      forall(Nx * Ny * Nz, [=] MFEM_HOST_DEVICE(int idx)
+      {
+         int k = idx % Nz;
+         int j = idx / Nz;
+         int i = j / Ny;
+         j = j % Ny;
+         body(i, j, k);
+      });
+   }
+   else
+   {
+      for (int i = 0; i < Nx; ++i)
+      {
+         for (int j = 0; j < Ny; ++j)
+         {
+            for (int k = 0; k < Nz; ++k)
+            {
+               body(i, j, k);
+            }
+         }
+      }
+   }
+}
+
+template<typename lambda>
 inline void forall_switch(bool use_dev, int N, lambda &&body)
 {
    ForallWrap<1>(use_dev, N, body);
