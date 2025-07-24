@@ -746,7 +746,7 @@ void ParticleSet::PrintCSV(const char *fname, int precision)
    std::stringstream ss_header;
 
    // Configure header:
-   std::array<char, 3> ax = {'x', 'y', 'z'};
+   std::array<char, 3> ax = {'X', 'Y', 'Z'};
 
    ss_header << "id" << ",";
 
@@ -754,23 +754,21 @@ void ParticleSet::PrintCSV(const char *fname, int precision)
    ss_header << "rank" << ",";
 #endif // MFEM_USE_MPI
 
-   for (int f = 0; f < totalFields; f++)
+   for (int f = -1; f < active_state.fields.Size(); f++)
    {
-      for (int c = 0; c < fieldVDims[f]; c++)
+      ParticleVector &pv = (f == -1 ? particles.coords : *particles.fields[f]);
+
+      for (int c = 0; c < pv.GetVDim(); c++)
       {
-         if (f == 0)
+         if (f == -1)
          {
             ss_header << ax[c];
          }
-         else if (f-1 < meta.NumProps())
-         {
-            ss_header << "Property_" << f-1;
-         }
          else
          {
-            ss_header << "StateVariable_" << f-1-meta.NumProps() << "_" << c;
+            ss_header << field_names[f] << (pv.GetVDim() > 1 ? "_" + std::to_string(c) : "");
          }
-         ss_header << ((f+1 == totalFields && c+1 == fieldVDims[f]) ? "\n" : ",");
+         ss_header << ((f+1 == active_state.fields.Size() && c+1 == pv.GetVDim()) ? "\n" : ",");
       }
    }
 
@@ -783,27 +781,19 @@ void ParticleSet::PrintCSV(const char *fname, int precision)
 #endif // MFEM_USE_MPI
    for (int i = 0; i < GetNP(); i++)
    {
-      ss_data << ids[i] << ",";
+      ss_data << active_state.ids[i] << ",";
 
 #ifdef MFEM_USE_MPI
       ss_data << rank << ",";
 #endif // MFEM_USE_MPI
 
-      for (int f = 0; f < totalFields; f++)
+      for (int f = -1; f < active_state.fields.Size(); f++)
       {
-         for (int c = 0; c < fieldVDims[f]; c++)
+         ParticleVector &pv = (f == -1 ? particles.coords : *particles.fields[f]);
+
+         for (int c = 0; c < pv.GetVDim(); c++)
          {
-            real_t dat;
-            if (ordering == Ordering::byNODES)
-            {
-               dat = data[i + (exclScanFieldVDims[f]+c)*GetNP()];
-            }
-            else
-            {
-               dat = data[c + fieldVDims[f]*i + exclScanFieldVDims[f]*GetNP()];
-            }
-            ss_data << dat;
-            ss_data << ((f+1 == totalFields && c+1 == fieldVDims[f]) ? "\n" : ",");
+            ss_data << pv.ParticleValue(i, c) << ((f+1 == totalFields && c+1 == fieldVDims[f]) ? "\n" : ",");
          }
       }
    }
