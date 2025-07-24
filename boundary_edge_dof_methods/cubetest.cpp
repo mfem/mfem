@@ -1,5 +1,6 @@
 #include "mfem.hpp"
 #include "loop_length.hpp"
+#include "sync_selected.hpp"
 
 using namespace std;
 using namespace mfem;
@@ -145,8 +146,9 @@ int main(int argc, char *argv[])
         x(dof) = 1.0 * orientation;
     }
     // Now synchronize the boundary values using MaxAbs reduction
-    //SynchronizeMarkedDoFs(fespace, x, ldof_marker);
+    SynchronizeMarkedDoFs(fespace, x, ldof_marker);
 
+    /*
     // Synchronize boundary values across processors, but only for marked DoFs
     // Get the GroupCommunicator from the finite element space
     GroupCommunicator *gc = fespace->ScalarGroupComm();
@@ -166,7 +168,7 @@ int main(int argc, char *argv[])
     
     // Clean up
     delete gc;
-    
+    */
     // Set up the bilinear form for the EM diffusion operator: curl curl + sigma I
     Coefficient *muinv = new ConstantCoefficient(1.0);
     Coefficient *sigma = new ConstantCoefficient(20.0);
