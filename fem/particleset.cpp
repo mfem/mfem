@@ -25,7 +25,7 @@ namespace mfem
 {
 
 
-void ParticleVector::GetParticleValues(int i, Vector &GetParticleValues) const
+void ParticleVector::GetParticleValues(int i, Vector &pvals) const
 {
    pvals.SetSize(vdim);
 
@@ -48,7 +48,7 @@ void ParticleVector::GetParticleValues(int i, Vector &GetParticleValues) const
 void ParticleVector::GetParticleRefValues(int i, Vector &pref)
 {
    MFEM_VERIFY(ordering == Ordering::byVDIM, "GetRefParticleField only valid when ordering byVDIM.");
-   pref.MakeRef(data, i*vdim, vdim);
+   pref.MakeRef(*this, i*vdim, vdim);
 }
 
 void ParticleVector::SetParticleValues(int i, const Vector &pvals)
@@ -99,10 +99,10 @@ Particle::Particle(int dim, const Array<int> &field_vdims)
 {
    coords = 0.0;
 
-   for (int i = 0; i < fields.Size(); i++)
+   for (int i = 0; i < fields.size(); i++)
    {
-      fields[i] = new Vector(field_vdims[i]);
-      *fields[i] = 0.0;
+      fields.emplace_back(field_vdims[i]);
+      fields.back() = 0.0;
    }
 }
 
@@ -120,19 +120,19 @@ bool Particle::operator==(const Particle &rhs) const
       }
    }
 
-   if (fields.Size() != rhs.fields.Size())
+   if (fields.size() != rhs.fields.size())
    {
       return false;
    }
-   for (int f = 0; f < fields.Size(); f++)
+   for (int f = 0; f < fields.size(); f++)
    {
-      if (fields[f]->Size() != rhs.fields[f]->Size())
+      if (fields[f].Size() != rhs.fields[f].Size())
       {
          return false;
       }
-      for (int c = 0; c < fields[i].Size(); c++)
+      for (int c = 0; c < fields[f].Size(); c++)
       {
-         if ((*fields[f])[c] != (*rhs.fields[f])[c])
+         if (fields[f][c] != rhs.fields[f][c])
             return false;
       }
    }
@@ -146,19 +146,11 @@ void Particle::Print(std::ostream &out) const
    {
       out << coords[d] << ( (d+1 < coords.Size()) ? "," : ")\n");
    }
-   for (int f = 0; f < fields.Size(); f++)
+   for (int f = 0; f < fields.size(); f++)
    {
       out << "Field " << f << ": (";
-      for (int c = 0; c < fields[f]->Size(); c++)
-         out << (*fields[f])[c] << ( (c+1 < fields[f]->Size()) ? "," : ")\n");
-   }
-}
-
-Particle::~Particle()
-{
-   for (Vector *v : fields)
-   {
-      delete v;
+      for (int c = 0; c < fields[f].Size(); c++)
+         out << fields[f][c] << ( (c+1 < fields[f].Size()) ? "," : ")\n");
    }
 }
 
@@ -166,20 +158,20 @@ Array<Ordering::Type> ParticleSet::GetOrderingArray(Ordering::Type o, int N)
 {
    Array<Ordering::Type> ordering_arr(N);
    ordering_arr = o; 
-   return std::move(ordering_array); 
+   return std::move(ordering_arr); 
 }
 std::string ParticleSet::GetDefaultFieldName(int i)
 {
    return "Field_" + std::to_string(i);
 }
-Array<std::string> ParticleSet::GetFieldNameArray(int N)
+Array<const char*> ParticleSet::GetFieldNameArray(int N)
 {
-   Array<std::string> names(N); 
+   Array<const char*> names(N); 
    for (int i = 0; i < N; i++)
    {
-      names[i] = GetDefaultFieldName(i);
+      names[i] = GetDefaultFieldName(i).c_str();
    }
-   return std::move(names)
+   return std::move(names);
 }
 
 
@@ -188,7 +180,7 @@ Array<int> ParticleSet::LDof2VDofs(int ndofs, int vdim, const Array<int> &ldofs,
    // Convert list index array of "ldofs" to "vdofs"
    Array<int> v_list;
    v_list.Reserve(ldofs.Size()*vdim);
-   if (pv.GetOrdering() == Ordering::byNODES)
+   if (o == Ordering::byNODES)
    {
       for (int l = 0; l < ldofs.Size(); l++)
       {
@@ -225,7 +217,9 @@ int ParticleSet::GetSize(MPI_Comm comm_)
 }
 int ParticleSet::GetRankNumParticles(MPI_Comm comm_, int NP)
 {
-   return NP/GetSize(comm_) + r < (r < (num_particles % size) ? 1 : 0);
+   int rank = GetRank(comm_);
+   int size = GetSize(comm_);
+   return NP/size + (rank < (NP % size) ? 1 : 0);
 }
 #endif // MFEM_USE_MPI
 
@@ -235,9 +229,9 @@ void ParticleSet::ReserveParticles(int res, ParticleState &particles)
 
    // Increase Vector capacity implicitly by resizing
    // TODO: should we just create a Vector::Reserve?
-   for (int f = -1; f < particles.fields.Size(); f++)
+   for (int f = -1; f < particles.fields.size(); f++)
    {
-      ParticleVector &pv = (f == -1 ? particles.coords : *particles.fields[f]);
+      ParticleVector &pv = (f == -1 ? particles.coords : particles.fields[f]);
 
       int pv_res = res*pv.GetVDim();
       if (pv.Capacity() < pv_res)
@@ -246,7 +240,7 @@ void ParticleSet::ReserveParticles(int res, ParticleState &particles)
          pv.SetSize(pv_res);
          pv.SetVector(pv_copy, 0);
       }
-      // Else pv_res is less than existing capacity. Do nothing (just like Array)
+      // Else pv_res is less than existing capacity. Do nothing (just like Array).
    }
 
 }
@@ -258,7 +252,7 @@ void ParticleSet::AddParticles(const Array<int> &new_ids, ParticleState &particl
    int new_np = old_np + num_add;
 
    // Increase the capacity of all data without deleting existing
-   Reserve(new_np, particles);
+   ReserveParticles(new_np, particles);
 
    // Set indices of new particles
    if (new_indices)
@@ -273,9 +267,9 @@ void ParticleSet::AddParticles(const Array<int> &new_ids, ParticleState &particl
    particles.ids.Append(new_ids);
 
    // Update data
-   for (int f = -1; f < particles.fields.Size(); f++)
+   for (int f = -1; f < particles.fields.size(); f++)
    {
-      ParticleVector &pv = (f == -1 ? particles.coords : *particles.fields[f]);
+      ParticleVector &pv = (f == -1 ? particles.coords : particles.fields[f]);
 
       int vdim = pv.GetVDim();
 
@@ -319,9 +313,9 @@ void ParticleSet::RemoveParticles(const Array<int> &list, ParticleState &particl
    particles.ids.DeleteAt(list);
 
    // Delete data
-   for (int f = -1; f < particles.fields.Size(); f++)
+   for (int f = -1; f < particles.fields.size(); f++)
    {
-      ParticleVector &pv = (f == -1 ? particles.coords : *particles.fields[f]);
+      ParticleVector &pv = (f == -1 ? particles.coords : particles.fields[f]);
 
       int vdim = pv.GetVDim();
 
@@ -334,15 +328,17 @@ void ParticleSet::RemoveParticles(const Array<int> &list, ParticleState &particl
 #if defined(MFEM_USE_MPI) && defined(MFEM_USE_GSLIB)
 
 template<std::size_t NData, std::size_t NFinder>
-void ParticleSet::Transfer(const Array<int> &send_idxs, const Array<int> &send_ranks, Array<FindPointsGSLIB*> finders)
+void ParticleSet::Transfer(const Array<unsigned int> &send_idxs, const Array<unsigned int> &send_ranks, Array<FindPointsGSLIB*> finders)
 {
    std::variant<pdata_t<NData>*, pdata_fdpts_t<NData, NFinder>*> pdata_arr_var;
 
    gslib::array gsl_arr;
 
-   if (finder.Size() > 0)
+   if (NFinder > 0)
    {
-      array_init(pdata_fdpts_t<NData, NFinder>, &gsl_arr, send_idxs.Size());
+      // Use alias to mitigate common in template causing macro parsing issues
+      using arr_type = pdata_fdpts_t<NData, NFinder>;
+      array_init(arr_type, &gsl_arr, send_idxs.Size());
       pdata_arr_var = (pdata_fdpts_t<NData, NFinder>*) gsl_arr.ptr;
    }
    else
@@ -372,9 +368,9 @@ void ParticleSet::Transfer(const Array<int> &send_idxs, const Array<int> &send_r
 
          // Copy particle data directly into pdata
          int counter = 0;
-         for (int f = -1; f < active_state.fields.Size(); f++)
+         for (int f = -1; f < active_state.fields.size(); f++)
          {
-            ParticleVector &pv = (f == -1 ? active_state.coords : *active_state.fields[f]);
+            ParticleVector &pv = (f == -1 ? active_state.coords : active_state.fields[f]);
             for (int c = 0; c < pv.GetVDim(); c++)
             {
                pdata.data[counter] = pv.ParticleValue(send_idxs[i], c);
@@ -387,7 +383,7 @@ void ParticleSet::Transfer(const Array<int> &send_idxs, const Array<int> &send_r
          {
             for (int f = 0; f < finders.Size(); f++)
             {
-               FindPointsGSLIB &finder = finders[i];
+               FindPointsGSLIB &finder = *finders[i];
                for (int d = 0; d < finder.dim; d++)
                {
                   // store byVDIM
@@ -409,20 +405,20 @@ void ParticleSet::Transfer(const Array<int> &send_idxs, const Array<int> &send_r
       // Maintain same ordering as coords post-RemoveParticles
       if constexpr (send_fdpts_data)
       {
-         for (FindPointsGSLIB &finder : finders)
+         for (FindPointsGSLIB *finder : finders)
          {
-            finder.gsl_elem.DeleteAt(send_idxs);
-            finder.gsl_mfem_elem.DeleteAt(send_idxs);
-            finder.gsl_code.DeleteAt(send_idxs);
-            finder.gsl_proc.DeleteAt(send_idxs);
-            Array<int> del_arr = LDof2VDofs(finder.points_cnt, finder.dim, send_idxs, Ordering::byVDIM);
-            finder.gsl_ref.DeleteAt(del_arr);
-            finder.gsl_mfem_ref.DeleteAt(del_arr);
+            finder->gsl_elem.DeleteAt(send_idxs);
+            finder->gsl_mfem_elem.DeleteAt(send_idxs);
+            finder->gsl_code.DeleteAt(send_idxs);
+            finder->gsl_proc.DeleteAt(send_idxs);
+            Array<int> del_arr = LDof2VDofs(finder->points_cnt, finder->dim, send_idxs, Ordering::byVDIM);
+            finder->gsl_ref.DeleteAt(del_arr);
+            finder->gsl_mfem_ref.DeleteAt(del_arr);
          }
       }
 
       // Transfer particles
-      sarray_transfer_ext(T, &gsl_arr, *send_ranks, cr.get());
+      sarray_transfer_ext(T, &gsl_arr, send_ranks.GetData(), 1, cr.get());
 
       // Add received particles to this rank
       // Received particles are added to end
@@ -435,26 +431,26 @@ void ParticleSet::Transfer(const Array<int> &send_idxs, const Array<int> &send_r
       ReserveParticles(new_np, active_state);
       if constexpr (send_fdpts_data)
       {
-         for (FindPointsGSLIB &finder : finders)
+         for (FindPointsGSLIB *finder : finders)
          {
-            finder.gsl_elem.Reserve(new_np);
-            finder.gsl_mfem_elem.Reserve(new_np);
-            finder.gsl_code.Reserve(new_np);
-            finder.gsl_proc.Reserve(new_np);
+            finder->gsl_elem.Reserve(new_np);
+            finder->gsl_mfem_elem.Reserve(new_np);
+            finder->gsl_code.Reserve(new_np);
+            finder->gsl_proc.Reserve(new_np);
             
             // TODO: Artificially increase capacity as in ReserveParticles
             // Ensures that increases in Vector size don't delete existing data
-            if (finder.gsl_ref.Capacity() < new_np*finder.dim)
+            if (finder->gsl_ref.Capacity() < new_np*finder->dim)
             {
-               Vector gsl_ref_copy = finder.gsl_ref;
-               finder.gsl_ref.SetSize(new_np*finder.dim);
-               finder.gsl_ref.SetVector(gsl_ref_copy, 0);
+               Vector gsl_ref_copy = finder->gsl_ref;
+               finder->gsl_ref.SetSize(new_np*finder->dim);
+               finder->gsl_ref.SetVector(gsl_ref_copy, 0);
             }
-            if (finder.gsl_mfem_ref.Capacity() < new_np*finder.dim)
+            if (finder->gsl_mfem_ref.Capacity() < new_np*finder->dim)
             {
-               Vector gsl_mfem_ref_copy = finder.gsl_mfem_ref;
-               finder.gsl_mfem_ref.SetSize(new_np*finder.dim);
-               finder.gsl_mfem_ref.SetVector(gsl_mfem_ref_copy, 0);
+               Vector gsl_mfem_ref_copy = finder->gsl_mfem_ref;
+               finder->gsl_mfem_ref.SetSize(new_np*finder->dim);
+               finder->gsl_mfem_ref.SetVector(gsl_mfem_ref_copy, 0);
             }
          }
       }
@@ -470,9 +466,9 @@ void ParticleSet::Transfer(const Array<int> &send_idxs, const Array<int> &send_r
          int new_idx = idx_temp[0]; // Get index of newly-added particle
    
          int counter = 0;
-         for (int f = -1; f < active_state.fields.Size(); f++)
+         for (int f = -1; f < active_state.fields.size(); f++)
          {
-            ParticleVector &pv = (f == -1 ? active_state.coords : *active_state.fields[f]);
+            ParticleVector &pv = (f == -1 ? active_state.coords : active_state.fields[f]);
             for (int c = 0; c < pv.GetVDim(); c++)
             {
                pv.ParticleValue(new_idx, c) = pdata.data[counter];
@@ -482,22 +478,24 @@ void ParticleSet::Transfer(const Array<int> &send_idxs, const Array<int> &send_r
          // Add recvd data to FindPointsGSLIB objects
          if constexpr (send_fdpts_data)
          {
-            for (FindPointsGSLIB &finder : finders)
+            for (int f = 0; f < finders.Size(); f++)
             {
+               FindPointsGSLIB *finder = finders[f];
+
                // Add new particle data 
                // IMPORTANT: Must make sure that order is correct / matches new Coords. We add received particle data to end so we add to end.
-               finder.gsl_elem.Append(pdata.elem);
-               finder.gsl_mfem_elem.Append(pdata.mfem_elem);
-               finder.gsl_code.Append(pdata.code);
-               finder.gsl_proc.Append(pdata.proc);
+               finder->gsl_elem.Append(pdata.elem[f]);
+               finder->gsl_mfem_elem.Append(pdata.mfem_elem[f]);
+               finder->gsl_code.Append(pdata.code[f]);
+               finder->gsl_proc.Append(pdata.proc[f]);
                
                // Increase size without losing data because we "reserved" earlier!
-               finder.gsl_ref.SetSize(gsl_ref.Size()+finder.dim);
-               finder.gsl_mfem_ref.SetSize(finder.gsl_ref.Size()+finder.dim);
+               finder->gsl_ref.SetSize(finder->gsl_ref.Size()+finder->dim);
+               finder->gsl_mfem_ref.SetSize(finder->gsl_ref.Size()+finder->dim);
 
                // Set the new data byVDIM to the end
-               finder.gsl_ref.SetVector(Vector(pdata.rst, finder.dim), finder.gsl_ref.Size()-finder.dim);
-               finder.gsl_mfem_ref.SetVector(Vector(pdata.mfem_rst, finder.dim), finder.gsl_mfem_ref.Size()-finder.dim);
+               finder->gsl_ref.SetVector(Vector(pdata.rst + f*finder->dim, finder->dim), finder->gsl_ref.Size()-finder->dim);
+               finder->gsl_mfem_ref.SetVector(Vector(pdata.mfem_rst + f*finder->dim, finder->dim), finder->gsl_mfem_ref.Size()-finder->dim);
             }
          }
       }
@@ -505,8 +503,11 @@ void ParticleSet::Transfer(const Array<int> &send_idxs, const Array<int> &send_r
 
       if constexpr (send_fdpts_data)
       {
-         // Finally, update points_cnt
-         finder->points_cnt = GetNP();
+         for (FindPointsGSLIB *finder : finders)
+         {
+            // Finally, update points_cnt
+            finder->points_cnt = GetNP();
+         }
       }
 
    }, pdata_arr_var);
@@ -518,10 +519,10 @@ void ParticleSet::Transfer(const Array<int> &send_idxs, const Array<int> &send_r
 
 Particle ParticleSet::CreateParticle() const
 {
-   Array<int> field_vdims(active_state.fields.Size());
+   Array<int> field_vdims(active_state.fields.size());
    for (int f = 0; f < field_vdims.Size(); f++)
    {
-      data_vdims[f] = active_state.fields[f]->GetVDim();
+      field_vdims[f] = active_state.fields[f].GetVDim();
    }
 
    Particle p(GetDim(), field_vdims);
@@ -529,7 +530,7 @@ Particle ParticleSet::CreateParticle() const
    return std::move(p);
 }
 
-void ParticleSet::WriteToFile(const char* fname, const std::stringstream &ss_header, const std::stringstream &ss_data)
+void ParticleSet::WriteToFile(const char *fname, const std::stringstream &ss_header, const std::stringstream &ss_data)
 {
 
 #ifdef MFEM_USE_MPI
@@ -577,9 +578,11 @@ void ParticleSet::WriteToFile(const char* fname, const std::stringstream &ss_hea
 
 }
 
-ParticleSet::ParticleSet(int id_stride_, int id_counter_, int num_particles, int dim, Ordering::Type coords_ordering, const Array<int> &data_vdims, const Array<Ordering::Type> &field_orderings, const Array<std::string> &field_names_)
+ParticleSet::ParticleSet(int id_stride_, int id_counter_, int num_particles, int dim, Ordering::Type coords_ordering, const Array<int> &field_vdims, const Array<Ordering::Type> &field_orderings, const Array<const char*> &field_names_)
 : id_stride(id_stride_),
-  id_counter(id_counter_)
+  id_counter(id_counter_),
+  active_state(dim, coords_ordering),
+  inactive_state(dim, coords_ordering)
 {   
    // Initialize data
    for (int f = 0; f < field_vdims.Size(); f++)
@@ -598,19 +601,19 @@ ParticleSet::ParticleSet(int id_stride_, int id_counter_, int num_particles, int
 }
 
 ParticleSet::ParticleSet(int num_particles, int dim, Ordering::Type coords_ordering)
-: ParticleSet(1, 0, num_particles, dim, coords_ordering, Array<int>(), Array<Ordering::Type>(), Array<std::string>())
+: ParticleSet(1, 0, num_particles, dim, coords_ordering, Array<int>(), Array<Ordering::Type>(), Array<const char*>())
 {
 
 }
    
 ParticleSet::ParticleSet(int num_particles, int dim, const Array<int> &field_vdims, Ordering::Type all_ordering)
-: ParticleSet(1, 0, num_particles, dim, all_ordering, field_vdims, GetOrderingArray(all_ordering, field_vdims.Size()), GetDataNameArray(field_vdims.Size())) 
+: ParticleSet(1, 0, num_particles, dim, all_ordering, field_vdims, GetOrderingArray(all_ordering, field_vdims.Size()), GetFieldNameArray(field_vdims.Size())) 
 {
 
 }
 
-ParticleSet::ParticleSet(int num_particles, int dim, Ordering::Type coords_ordering, const Array<int> &dataVDims, const Array<Ordering::Type> &field_orderings, const Array<std::string> &field_names_)
-: ParticleSet(1, 0, num_particles, dim, coords_ordering, &field_vdims, &field_orderings, &field_names_)
+ParticleSet::ParticleSet(int num_particles, int dim, Ordering::Type coords_ordering, const Array<int> &field_vdims, const Array<Ordering::Type> &field_orderings, const Array<const char*> &field_names_)
+: ParticleSet(1, 0, num_particles, dim, coords_ordering, field_vdims, field_orderings, field_names_)
 {
 
 }
@@ -620,22 +623,23 @@ ParticleSet::ParticleSet(int num_particles, int dim, Ordering::Type coords_order
 #ifdef MFEM_USE_MPI
 
 ParticleSet::ParticleSet(MPI_Comm comm_, int num_particles, int dim, Ordering::Type coords_ordering)
-: ParticleSet(comm_, num_particles, dim, coords_ordering, Array<int>(), Array<Ordering::Type>(), Array<std::string>())
+: ParticleSet(comm_, num_particles, dim, coords_ordering, Array<int>(), Array<Ordering::Type>(), Array<const char*>())
 {
 
 };
 
 ParticleSet::ParticleSet(MPI_Comm comm_, int num_particles, int dim, const Array<int> &field_vdims, Ordering::Type all_ordering)
-: ParticleSet(comm_, num_particles, dim, all_ordering, field_vdims, GetOrderingArray(all_ordering, field_vdims.Size()), GetDataNameArray(field_vdims.Size()))
+: ParticleSet(comm_, num_particles, dim, all_ordering, field_vdims, GetOrderingArray(all_ordering, field_vdims.Size()), GetFieldNameArray(field_vdims.Size()))
 {
 
 }
 
-ParticleSet::ParticleSet(MPI_Comm comm_, int num_particles, int dim, Ordering::Type coords_ordering, const Array<int> &field_vdims, const Array<Ordering::Type> &field_orderings, const Array<std::string> &field_names_)
+ParticleSet::ParticleSet(MPI_Comm comm_, int num_particles, int dim, Ordering::Type coords_ordering, const Array<int> &field_vdims, const Array<Ordering::Type> &field_orderings, const Array<const char*> &field_names_)
 : ParticleSet(GetSize(comm_), GetRank(comm_),
                GetRankNumParticles(comm_, num_particles),
                dim,
                coords_ordering,
+               field_vdims,
                field_orderings,
                field_names_)
 {
@@ -648,18 +652,18 @@ ParticleSet::ParticleSet(MPI_Comm comm_, int num_particles, int dim, Ordering::T
 
 #endif // MFEM_USE_MPI
 
-ParticleVector& ParticleSet::AddField(int vdim, Ordering::Type field_ordering, std::string field_name)
+ParticleVector& ParticleSet::AddField(int vdim, Ordering::Type field_ordering, const char* field_name)
 {
-   if (data_name == "")
+   if (!field_name)
    {
-      data_name = GetDefaultFieldName(field_names.Size());
+      field_name = GetDefaultFieldName(field_names.Size()).c_str();
    }
-   active_state.fields.Append(new ParticleVector(GetNP(), vdim, data_ordering));
-   inactive_state.fields.Append(new ParticleVector(inactive_state.ids.Size(), vdim, data_ordering));
+   active_state.fields.emplace_back(GetNP(), vdim, field_ordering);
+   inactive_state.fields.emplace_back(inactive_state.ids.Size(), vdim, field_ordering);
 
-   field_names.Append(data_name);
+   field_names.Append(field_name);
 
-   return *active_state.fields.Last();
+   return active_state.fields.back();
 }
 
 void ParticleSet::AddParticle(const Particle &p)
@@ -674,10 +678,10 @@ void ParticleSet::AddParticle(const Particle &p)
    SetParticle(idx, p);
 }
 
-void ParticleSet::RemoveParticles(const Array<int> &list, bool delete)
+void ParticleSet::RemoveParticles(const Array<int> &list, bool delete_particles)
 {
    // If not deleting removed particles, first copy particles to inactive_state
-   if (!delete)
+   if (!delete_particles)
    {
       Array<int> rm_ids(list.Size());
       for (int i = 0; i < rm_ids.Size(); i++)
@@ -693,12 +697,12 @@ void ParticleSet::RemoveParticles(const Array<int> &list, bool delete)
       // Set the newly-added particle data
       for (int i = 0; i < list.Size(); i++)
       {
-         for (int f = -1; f < inactive_state.fields.Size(); f++)
+         for (int f = -1; f < inactive_state.fields.size(); f++)
          {
-            ParticleVector &inactive_pv = (f == -1 ? inactive_state.coords : *inactive_state.fields[f]);
-            ParticleVector &active_pv = (f == -1 ? active_state.coords : *active_state.fields[f]);
+            ParticleVector &inactive_pv = (f == -1 ? inactive_state.coords : inactive_state.fields[f]);
+            ParticleVector &active_pv = (f == -1 ? active_state.coords : active_state.fields[f]);
             
-            for (int c = 0; c < pv.GetVDim(); c++)
+            for (int c = 0; c < active_pv.GetVDim(); c++)
             {
                inactive_pv.ParticleValue(inactive_idxs[i], c) = active_pv.ParticleValue(list[i], c);
             }
@@ -716,7 +720,7 @@ Particle ParticleSet::GetParticle(int i) const
 
    Coords().GetParticleValues(i, p.Coords());
    
-   for (int f = 0; f < active_state.fields.Size(); f++)
+   for (int f = 0; f < active_state.fields.size(); f++)
    {
       Field(f).GetParticleValues(i, p.Field(f));  
    }
@@ -730,7 +734,7 @@ Particle ParticleSet::GetParticleRef(int i)
 
    Coords().GetParticleRefValues(i, p.Coords());
 
-   for (int f = 0; f < active_state.fields.Size(); f++)
+   for (int f = 0; f < active_state.fields.size(); f++)
    {
       Field(f).GetParticleRefValues(i, p.Field(f));
    }
@@ -742,7 +746,7 @@ void ParticleSet::SetParticle(int i, const Particle &p)
 {
    Coords().SetParticleValues(i, p.Coords());
 
-   for (int f = 0; f < active_state.fields.Size(); f++)
+   for (int f = 0; f < active_state.fields.size(); f++)
    {
       Field(f).SetParticleValues(i, p.Field(f));
    }
@@ -761,9 +765,9 @@ void ParticleSet::PrintCSV(const char *fname, int precision)
    ss_header << "rank" << ",";
 #endif // MFEM_USE_MPI
 
-   for (int f = -1; f < active_state.fields.Size(); f++)
+   for (int f = -1; f < active_state.fields.size(); f++)
    {
-      ParticleVector &pv = (f == -1 ? particles.coords : *particles.fields[f]);
+      ParticleVector &pv = (f == -1 ? active_state.coords : active_state.fields[f]);
 
       for (int c = 0; c < pv.GetVDim(); c++)
       {
@@ -775,7 +779,7 @@ void ParticleSet::PrintCSV(const char *fname, int precision)
          {
             ss_header << field_names[f] << (pv.GetVDim() > 1 ? "_" + std::to_string(c) : "");
          }
-         ss_header << ((f+1 == active_state.fields.Size() && c+1 == pv.GetVDim()) ? "\n" : ",");
+         ss_header << ((f+1 == active_state.fields.size() && c+1 == pv.GetVDim()) ? "\n" : ",");
       }
    }
 
@@ -794,13 +798,13 @@ void ParticleSet::PrintCSV(const char *fname, int precision)
       ss_data << rank << ",";
 #endif // MFEM_USE_MPI
 
-      for (int f = -1; f < active_state.fields.Size(); f++)
+      for (int f = -1; f < active_state.fields.size(); f++)
       {
-         ParticleVector &pv = (f == -1 ? particles.coords : *particles.fields[f]);
+         ParticleVector &pv = (f == -1 ? active_state.coords : active_state.fields[f]);
 
          for (int c = 0; c < pv.GetVDim(); c++)
          {
-            ss_data << pv.ParticleValue(i, c) << ((f+1 == totalFields && c+1 == fieldVDims[f]) ? "\n" : ",");
+            ss_data << pv.ParticleValue(i, c) << ((f+1 == active_state.fields.size() && c+1 == pv.GetVDim()) ? "\n" : ",");
          }
       }
    }
@@ -817,8 +821,8 @@ void ParticleSet::Redistribute(const Array<unsigned int> &rank_list, Array<FindP
 
    // Get particles to be transferred
    // (Avoid unnecessary copies of particle data into and out of buffers)
-   Array<int> send_idxs;
-   Array<int> send_ranks;
+   Array<unsigned int> send_idxs;
+   Array<unsigned int> send_ranks;
    for (int i = 0; i < rank_list.Size(); i++)
    {
       if (rank != rank_list[i])
@@ -829,7 +833,7 @@ void ParticleSet::Redistribute(const Array<unsigned int> &rank_list, Array<FindP
    }
 
    // Dispatch at runtime to use the correctly-sized static struct for gslib
-   RuntimeDispatchTransfer(send_idxs, send_ranks, finders, std::make_index_sequence<NDATA_MAX+1>{});
+   DispatchDataTransfer(send_idxs, send_ranks, finders, std::make_index_sequence<NDATA_MAX+1>{});
 }
 #endif // MFEM_USE_MPI && MFEM_USE_GSLIB
 

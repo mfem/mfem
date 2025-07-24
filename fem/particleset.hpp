@@ -71,7 +71,7 @@ class Particle
 protected:
 
    Vector coords;
-   Array<Vector*> fields; // owning
+   std::vector<Vector> fields;
 
 public:
    
@@ -81,13 +81,13 @@ public:
 
    const Vector& Coords() const { return coords; }
 
-   real_t& FieldValue(int f, int c=0) { return (*fields[f])[c]; }
+   real_t& FieldValue(int f, int c=0) { return fields[f][c]; }
 
-   const real_t& FieldValue(int f, int c=0) const { return (*fields[f])[c]; }
+   const real_t& FieldValue(int f, int c=0) const { return fields[f][c]; }
 
-   Vector& Field(int f) { return *fields[f]; }
+   Vector& Field(int f) { return fields[f]; }
 
-   const Vector& Field(int f) const { return *fields[f]; }
+   const Vector& Field(int f) const { return fields[f]; }
 
    bool operator==(const Particle &rhs) const;
 
@@ -95,7 +95,6 @@ public:
 
    void Print(std::ostream &out=mfem::out) const;
 
-   ~Particle();
 };
 
 // -----------------------------------------------------------------------------------------------------
@@ -106,7 +105,7 @@ class ParticleSet
 private:
    static Array<Ordering::Type> GetOrderingArray(Ordering::Type o, int N);
    static std::string GetDefaultFieldName(int i);
-   static Array<std::string> GetFieldNameArray(int N);
+   static Array<const char*> GetFieldNameArray(int N);
    static Array<int> LDof2VDofs(int ndofs, int vdim, const Array<int> &ldofs, Ordering::Type o);
 #ifdef MFEM_USE_MPI
    static int GetRank(MPI_Comm comm_);
@@ -120,15 +119,13 @@ protected:
    {
       Array<unsigned int> ids; /// Particle IDs
       ParticleVector coords;
-      Array<ParticleVector*> fields; // owning
+      std::vector<ParticleVector> fields;
+      
+      ParticleState(int dim, Ordering::Type coords_ordering)
+      : coords(0, dim, coords_ordering) {}
+      
       int GetNP() const { return ids.Size(); }
-      ~ParticleState()
-      {
-         for (ParticleVector *pv : fields)
-         {
-            delete pv;
-         }
-      }
+      
    };
 
    /// Increase capacity of data in \p particles w/o losing existing data
@@ -145,7 +142,7 @@ protected:
    std::size_t id_counter;
    ParticleState active_state;
    ParticleState inactive_state;
-   Array<const char *> field_names;
+   Array<const char*> field_names;
 
 #ifdef MFEM_USE_MPI
    MPI_Comm comm;
@@ -153,7 +150,6 @@ protected:
 
 
 #if defined(MFEM_USE_MPI) && defined(MFEM_USE_GSLIB)
-   // TODO: Since I need to use raw pointers for Array<..>, should I stay consistent and use raw pointers here too?
    std::unique_ptr<gslib::comm> gsl_comm;
    std::unique_ptr<gslib::crystal> cr;
 
@@ -178,24 +174,24 @@ protected:
    static constexpr std::size_t NFINDER_MAX = 3;
 
    template<std::size_t NData, std::size_t NFinder>
-   void Transfer(const Array<int> &send_idxs, const Array<int> &send_ranks, Array<FindPointsGSLIB*> finders);
+   void Transfer(const Array<unsigned int> &send_idxs, const Array<unsigned int> &send_ranks, Array<FindPointsGSLIB*> finders);
 
    template<std::size_t NData, std::size_t... NFinders>
-   void DispatchFinderTransfer(const Array<int> &send_idxs, const Array<int> &send_ranks, Array<FindPointsGSLIB*> finders, std::index_sequence<NFinders...>)
+   void DispatchFinderTransfer(const Array<unsigned int> &send_idxs, const Array<unsigned int> &send_ranks, Array<FindPointsGSLIB*> finders, std::index_sequence<NFinders...>)
    {
-      bool success = ( (finders.Size() == NFinders ? (Transfer<Ns,NFinders>(send_idxs, send_ranks, finders),true) : false) || ...);
+      bool success = ( (finders.Size() == NFinders ? (Transfer<NData,NFinders>(send_idxs, send_ranks, finders),true) : false) || ...);
       MFEM_ASSERT(success, "Redistributing with > " << NFINDER_MAX << " FindPointsGSLIB objects is not supported. Please submit PR to request particular case with more.");
    }
    
    template<std::size_t... NDatas>
-   void DispatchDataTransfer(const Array<int> &send_idxs, const Array<int> &send_ranks, Array<FindPointsGSLIB*> finders, std::index_sequence<NDatas...>)
+   void DispatchDataTransfer(const Array<unsigned int> &send_idxs, const Array<unsigned int> &send_ranks, Array<FindPointsGSLIB*> finders, std::index_sequence<NDatas...>)
    {
-      int total_comps = dim;
-      for (std::unique_ptr<ParticleVector> &pv_ptr : active_state.fields)
+      int total_comps = active_state.coords.GetVDim();
+      for (ParticleVector &pv : active_state.fields)
       {
-         total_comps += pv_ptr->GetVDim();
+         total_comps += pv.GetVDim();
       }
-      bool success = ( (totalComps == NDatas ? (DispatchFinderTransfer<NDatas>(send_idxs, send_ranks, finders, std::make_index_sequence<N_MAX+1>{}),true) : false) || ...);
+      bool success = ( (total_comps == NDatas ? (DispatchFinderTransfer<NDatas>(send_idxs, send_ranks, finders, std::make_index_sequence<NFINDER_MAX+1>{}),true) : false) || ...);
       MFEM_ASSERT(success, "Redistributing with > " << NDATA_MAX << " data values per particle is not supported. Please submit PR to request particular case with more.");
    }
 
@@ -203,7 +199,7 @@ protected:
 
    Particle CreateParticle() const;
 
-   void WriteToFile(const char* fname, const std::stringstream &ss_header, const std::stringstream &ss_data);
+   void WriteToFile(const char *fname, const std::stringstream &ss_header, const std::stringstream &ss_data);
 
    ParticleSet(int id_stride_, int id_counter_, int num_particles, int dim, Ordering::Type coords_ordering, const Array<int> &field_vdims, const Array<Ordering::Type> &field_orderings, const Array<const char*> &field_names_);
 
@@ -225,14 +221,14 @@ public:
 
 #endif // MFEM_USE_MPI
 
-   const int GetDim() const { return active_state.data[0]->GetVDim(); }
+   const int GetDim() const { return active_state.coords.GetVDim(); }
 
    const Array<unsigned int>& GetIDs() const { return active_state.ids; }
    
-   ParticleVector& AddField(int vdim, Ordering::Type field_ordering=Ordering::byVDIM, const char *field_name="");
+   ParticleVector& AddField(int vdim, Ordering::Type field_ordering=Ordering::byVDIM, const char *field_name=nullptr);
 
    /// Reserve room for \p res particles. Can help to avoid re-allocation for adding + removing particles.
-   void Reserve(int res) { Reserve(res, active_state); };
+   void Reserve(int res) { ReserveParticles(res, active_state); };
 
    /// Get the number of particles currently held by this ParticleSet.
    int GetNP() const { return active_state.GetNP(); }
@@ -241,15 +237,15 @@ public:
    void AddParticle(const Particle &p);
 
    /// Remove particle data specified by \p list of particle indices.
-   void RemoveParticles(const Array<int> &list, bool delete=false);
+   void RemoveParticles(const Array<int> &list, bool delete_particles=false);
 
    ParticleVector& Coords() { return active_state.coords; }
 
    const ParticleVector& Coords() const { return active_state.coords; }
 
-   ParticleVector& Field(int f) { return *active_state.fields[f]; }
+   ParticleVector& Field(int f) { return active_state.fields[f]; }
 
-   const ParticleVector& Field(int f) const { return *active_state.fields[f]; }
+   const ParticleVector& Field(int f) const { return active_state.fields[f]; }
 
    /// Get Particle with copy of data associated with particle \p i
    Particle GetParticle(int i) const;
@@ -261,7 +257,7 @@ public:
    void SetParticle(int i, const Particle &p);
 
    /// Print to CSV
-   void PrintCSV(const char* fname, int precision=16);
+   void PrintCSV(const char *fname, int precision=16);
 
 
 #if defined(MFEM_USE_MPI) && defined(MFEM_USE_GSLIB)
