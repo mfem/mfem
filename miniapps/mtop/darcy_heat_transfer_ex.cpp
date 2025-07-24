@@ -16,9 +16,6 @@ using namespace mfem;
 
 
 // *****Funtion definitions for the Advection-Diffusion solve******
-// Choice for the problem setup. The fluid velocity, initial condition and
-// boundary condition are chosen based on this parameter.
-int problem;
 
 // Velocity coefficient
 void velocity_function(const Vector &x, Vector &v);
@@ -155,13 +152,13 @@ real_t gFun(const Vector & x);
 
 int main(int argc, char *argv[]){
     // 1. Parse command-line options.
-   const char *mesh_file = "../../data/ref-square.mesh";
+   const char *mesh_file = "square-extended.mesh"; //reference square, but extended to be [-1, 1] x [-1, 1]
    int order_darcy = 1;
    int ref_levels = 2;
    int order_ad = 3;
    int ode_solver_type = 4;
    double t_final = 10.0;
-   double d_coef = 0.01;
+   double d_coef = 0.1;
    double dt = 0.01;
    double sigma = -1.0;
    double kappa = -1.0;
@@ -170,15 +167,13 @@ int main(int argc, char *argv[]){
    bool binary = false;
    int vis_steps = 5;
    bool paraview = false;
-   int precision = 8;
+   int precision = 16;
    const char *device_config = "cpu";
    cout.precision(precision);
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
-   args.AddOption(&problem, "-p", "--problem",
-                  "Problem setup to use. See options in velocity_function().");
    args.AddOption(&ref_levels, "-r", "--refine",
                   "Number of times to refine the mesh uniformly.");
    args.AddOption(&order_darcy, "-od", "--order_darcy",
@@ -228,7 +223,7 @@ int main(int argc, char *argv[]){
    Device device(device_config);
    device.Print();
 
-   // 2. Define the ODE solver used for time integration. Several explicit
+   // 2. Define the ODE solver used for time integration. Several explicit, implicit and IMEX
    //    Runge-Kutta methods are available.
    ODESolver *ode_solver = NULL;
    ODESolver *ode_solver_adj = NULL;
@@ -257,6 +252,7 @@ int main(int argc, char *argv[]){
    }
    mesh.GetBoundingBox(bb_min, bb_max, max(order_ad, 1));
 
+   // ********DARCY SOLVE
    // 5. Define a finite element space on the mesh. Here we use the
    //    Raviart-Thomas finite elements of the specified order.
    FiniteElementCollection *hdiv_coll(new RT_FECollection(order_darcy, dim));
@@ -280,7 +276,7 @@ int main(int argc, char *argv[]){
    std::cout << "dim(R+W) = " << block_offsets.Last() << "\n";
    std::cout << "***********************************************************\n";
 
-   // 7. Define the coefficients, analytical solution, and rhs of the PDE.
+   // 7. Define the coefficients, analytical solution, and rhs of the Darcy PDE.
    ConstantCoefficient k(1.0);
 
    VectorFunctionCoefficient fcoeff(dim, fFun);
@@ -429,30 +425,17 @@ int main(int argc, char *argv[]){
         p_sock << "solution\n" << mesh << p << "window_title 'Pressure'" << endl;
     }
 
-   // 13. Free the used memory.
-//    delete fform;
-//    delete gform;
-//    delete invM;
-//    delete invS;
-//    delete S;
-//    delete Bt;
-//    delete MinvBt;
-//    delete mVarf;
-//    delete bVarf;
-//    delete W_space;
-//    delete R_space;
-//    delete l2_coll;
-//    delete hdiv_coll;
 
    // ******Forward Advection-Diffusion solve
-   // 14. Define the DG finite element space on the
+   // 13. Define the DG finite element space on the
    //    refined mesh of the given polynomial order.
    DG_FECollection fec(order_ad, dim);
    FiniteElementSpace fes(&mesh, &fec);
+   int num_dofs = fes.GetNDofs();
 
    cout << "Number of unknowns (advection diffusion problem): " << fes.GetVSize() << endl;
 
-   // 15. Set up and assemble the parallel bilinear and linear forms (and the
+   // 14. Set up and assemble the parallel bilinear and linear forms (and the
    //    parallel hypre matrices) corresponding to the DG discretization. The
    //    DGTraceIntegrator involves integrals over mesh interior faces.
    ConstantCoefficient diff_coef(d_coef); 
@@ -488,7 +471,7 @@ int main(int argc, char *argv[]){
    a.Finalize(skip_zeros);
    b.Assemble();
 
-   // 16. Define the initial conditions, save the corresponding grid function to
+   // 15. Define the initial conditions, save the corresponding grid function to
    //    a file and (optionally) save data in the VisIt format and initialize
    //    GLVis visualization.
    GridFunction theta(&fes);
@@ -509,7 +492,7 @@ int main(int argc, char *argv[]){
 
 
 
-   // 17. Define the time-dependent evolution operator describing the ODE
+   // 16. Define the time-dependent evolution operator describing the ODE
    //    right-hand side, and perform time-integration (looping over the time
    //    iterations, ti, with a time-step dt).
    TimeDependentOperator *adv = NULL;
@@ -534,15 +517,18 @@ int main(int argc, char *argv[]){
    double dt_real = t_final / n_steps;
    // Vector err_vec(n_steps-1);
 
-   for (int ti = 0; ti < n_steps; )
+   std::vector<GridFunction> theta_gf_vector;
+   theta_gf_vector.push_back(theta);
+
+   for (int ti = 0; ti < n_steps; ti++)
    {
       ode_solver->Step(theta, t, dt_real);
+      theta_gf_vector.push_back(theta);
     //   theta_exact_coeff.SetTime(t);
     //   double loc_err = theta.ComputeL2Error(theta_exact_coeff);
     //   err_vec(ti) = loc_err;
     //   cout << "\n|| E_h - E ||_{L^2} = " << loc_err << '\n' << endl;
-      ti++;
-      if (ti % vis_steps == 0 || ti == n_steps)
+      if (ti % vis_steps == 0 || ti == n_steps -1)
       {
         cout << "time step: " << ti << ", time: " << t << endl;
         if (paraview)
@@ -557,25 +543,18 @@ int main(int argc, char *argv[]){
 //    real_t err_norm = err_vec.Norml2();
 //    cout << "\n Error = " << err_norm << '\n' << endl;
 
-   // 18. Free the used memory.
-//    delete ode_solver;
-//    delete adv;
-
-
-
-
    // ******Backward Advection-Diffusion solve
-      // 19. Define the DG finite element space on the
+      // 17. Define the DG finite element space on the
    //    refined mesh of the given polynomial order.
    DG_FECollection fec_adjoint(order_ad, dim);
    FiniteElementSpace fes_adjoint(&mesh, &fec_adjoint);
 
-   // 20. Set up and assemble the parallel bilinear and linear forms (and the
+   // 18. Set up and assemble the parallel bilinear and linear forms (and the
    //    parallel hypre matrices) corresponding to the DG discretization. The
    //    DGTraceIntegrator involves integrals over mesh interior faces.
    ConstantCoefficient zero(0.0);
    ConstantCoefficient diff_coef_adj(-d_coef); 
-   GridFunctionCoefficient theta_coeff(&theta);
+   GridFunctionCoefficient theta_coeff(&(theta_gf_vector[n_steps-1]));
    FunctionCoefficient forcing_adj(forcing_function); //zero for now
 
    // FunctionCoefficient theta_exact_coeff(theta_exact);
@@ -606,7 +585,7 @@ int main(int argc, char *argv[]){
    a_adj.Finalize(skip_zeros);
    b_adj.Assemble();
 
-   // 16. Define the initial conditions, save the corresponding grid function to
+   // 19. Define the initial conditions, save the corresponding grid function to
    //    a file and (optionally) save data in the VisIt format and initialize
    //    GLVis visualization.
    GridFunction lam(&fes_adjoint);
@@ -625,7 +604,7 @@ int main(int argc, char *argv[]){
       pd_backward->Save();
    }
 
-   // 17. Define the time-dependent evolution operator describing the ODE
+   // 20. Define the time-dependent evolution operator describing the ODE
    //    right-hand side, and perform time-integration (looping over the time
    //    iterations, ti, with a time-step dt).
    TimeDependentOperator *adv_adj = NULL;
@@ -647,24 +626,29 @@ int main(int argc, char *argv[]){
    ode_solver_adj->Init(*adv_adj);
 
    // int n_steps = (int)ceil(t_final / dt);
-   double dt_real_adj = -t_final / n_steps;
+   double dt_real_adj = -dt;
    std::cout << "dt back = " << dt_real_adj << std::endl;
    //Vector err_vec(n_steps-1);
 
-   for (int ti = 0; ti < n_steps; )
+   for (int ti = 0; ti < n_steps; ti++)
    {
-      ode_solver->Step(lam, t_adj, dt_real_adj);
-      theta_coeff.SetTime(t_adj);
-    //   double loc_err = theta.ComputeL2Error(theta_exact_coeff);
-    //   err_vec(ti) = loc_err;
-    //   cout << "\n|| E_h - E ||_{L^2} = " << loc_err << '\n' << endl;
-      ti++;
-      if (ti % vis_steps == 0 || ti == n_steps)
+      ode_solver_adj->Step(lam, t_adj, dt_real_adj);
+      Vector lam_vals(num_dofs);
+      Vector theta_values(num_dofs);
+      const GridFunction* theta_gf = theta_coeff.GetGridFunction();
+      theta_gf->GetTrueDofs(theta_values);
+      lam.GetTrueDofs(lam_vals);
+      // if(ti == n_steps - 1){cout << "lam_val: " << lam_vals(12) << endl; cout << "theta_val: " << theta_values(12) << endl;}
+      theta_coeff = *(new GridFunctionCoefficient(&(theta_gf_vector[n_steps - ti - 1])));
+      b_adj = *(new LinearForm(&fes_adjoint));
+      b_adj.AddDomainIntegrator(new DomainLFIntegrator(theta_coeff));
+      b_adj.Assemble();
+      if (ti % vis_steps == 0 || ti == n_steps - 1) 
       {
         cout << "time step: " << ti << ", time: " << t_adj << endl;
-        if (paraview)
+        if (paraview) 
          {
-            pd_backward->SetCycle(ti);
+            pd_backward->SetCycle(ti); 
             pd_backward->SetTime(t_adj);
             pd_backward->Save();
          }
@@ -674,18 +658,27 @@ int main(int argc, char *argv[]){
 //    real_t err_norm = err_vec.Norml2();
 //    cout << "\n Error = " << err_norm << '\n' << endl;
 
-   // 18. Free the used memory.
-//    delete ode_solver;
-//    delete adv;
-
-
-
-
+   // 21. Free the used memory.
+   delete ode_solver;
+   delete adv;
+   delete adv_adj;
+   delete fform;
+   delete gform;
+   delete invM;
+   delete invS;
+   delete S;
+   delete Bt;
+   delete MinvBt;
+   delete mVarf;
+   delete bVarf;
+   delete W_space;
+   delete R_space;
+   delete l2_coll;
+   delete hdiv_coll;
+   // delete &b_adj;
+   // delete &theta_coeff;
 
    return 0;
-
-   
-
 }
 
 void uFun_ex(const Vector & x, Vector & u)
@@ -703,7 +696,7 @@ void uFun_ex(const Vector & x, Vector & u)
 
    if (x.Size() == 3)
    {
-      u(2) = exp(xi)*sin(yi)*sin(zi);
+      u(2) = exp(xi)*sin(yi)*sin(zi); 
    }
 }
 
@@ -941,13 +934,5 @@ real_t forcing_function(const Vector &x, real_t t)
 // Inflow boundary condition (zero for the problems considered in this example)
 double inflow_function(const Vector &x)
 {
-   switch (problem)
-   {
-      case 0:
-      case 1:
-      case 2:
-      case 3:
-      case 6: return 1.0;
-   }
    return 0.0;
 }
