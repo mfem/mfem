@@ -212,7 +212,7 @@ int ParticleSet::GetRank(MPI_Comm comm_)
 }
 int ParticleSet::GetSize(MPI_Comm comm_)
 {
-   int s; MPI_Comm_rank(comm_, &s); 
+   int s; MPI_Comm_size(comm_, &s); 
    return s;
 }
 int ParticleSet::GetRankNumParticles(MPI_Comm comm_, int NP)
@@ -419,7 +419,7 @@ void ParticleSet::Transfer(const Array<unsigned int> &send_idxs, const Array<uns
       }
 
       // Transfer particles
-      sarray_transfer_ext(T, &gsl_arr, send_ranks.GetData(), 1, cr.get());
+      sarray_transfer_ext(T, &gsl_arr, send_ranks.GetData(), sizeof(unsigned int), cr.get());
 
       // Add received particles to this rank
       // Received particles are added to end
