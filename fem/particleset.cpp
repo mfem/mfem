@@ -384,7 +384,7 @@ void ParticleSet::Transfer(const Array<unsigned int> &send_idxs, const Array<uns
          {
             for (int f = 0; f < finders.Size(); f++)
             {
-               FindPointsGSLIB &finder = *finders[i];
+               FindPointsGSLIB &finder = *finders[f];
                for (int d = 0; d < finder.dim; d++)
                {
                   // store byVDIM
@@ -446,12 +446,14 @@ void ParticleSet::Transfer(const Array<unsigned int> &send_idxs, const Array<uns
                Vector gsl_ref_copy = finder->gsl_ref;
                finder->gsl_ref.SetSize(new_np*finder->dim);
                finder->gsl_ref.SetVector(gsl_ref_copy, 0);
+               finder->gsl_ref.SetSize(gsl_ref_copy.Size());
             }
             if (finder->gsl_mfem_ref.Capacity() < new_np*finder->dim)
             {
                Vector gsl_mfem_ref_copy = finder->gsl_mfem_ref;
                finder->gsl_mfem_ref.SetSize(new_np*finder->dim);
                finder->gsl_mfem_ref.SetVector(gsl_mfem_ref_copy, 0);
+               finder->gsl_mfem_ref.SetSize(gsl_mfem_ref_copy.Size());
             }
          }
       }
@@ -492,7 +494,7 @@ void ParticleSet::Transfer(const Array<unsigned int> &send_idxs, const Array<uns
                
                // Increase size without losing data because we "reserved" earlier!
                finder->gsl_ref.SetSize(finder->gsl_ref.Size()+finder->dim);
-               finder->gsl_mfem_ref.SetSize(finder->gsl_ref.Size()+finder->dim);
+               finder->gsl_mfem_ref.SetSize(finder->gsl_mfem_ref.Size()+finder->dim);
 
                // Set the new data byVDIM to the end
                finder->gsl_ref.SetVector(Vector(pdata.rst + f*finder->dim, finder->dim), finder->gsl_ref.Size()-finder->dim);
