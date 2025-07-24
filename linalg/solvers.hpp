@@ -380,11 +380,11 @@ public:
    void SetPositiveDiagonal(bool pos_diag = true) { use_abs_diag = pos_diag; }
 
    /// Approach the solution of the linear system by applying Jacobi smoothing.
-   void Mult(const Vector &x, Vector &y) const;
+   void Mult(const Vector &x, Vector &y) const override;
 
    /** @brief Approach the solution of the transposed linear system by applying
        Jacobi smoothing. */
-   void MultTranspose(const Vector &x, Vector &y) const { Mult(x, y); }
+   void MultTranspose(const Vector &x, Vector &y) const override { Mult(x, y); }
 
    /** @brief Recompute the diagonal using the method AssembleDiagonal of the
        given new Operator, @a op. */
@@ -397,7 +397,7 @@ public:
        When the new Operator, @a op, is not a (Par)BilinearForm, any previously
        set array of essential true-dofs will be thrown away because in this case
        any essential b.c. will be handled by the AssembleDiagonal method. */
-   void SetOperator(const Operator &op);
+   void SetOperator(const Operator &op) override;
 
 private:
    Vector dinv;
@@ -481,21 +481,22 @@ public:
 
    /** @brief Approach the solution of the linear system by applying Chebyshev
        smoothing. */
-   void Mult(const Vector &x, Vector &y) const;
+   void Mult(const Vector &x, Vector &y) const override;
 
    /** @brief Approach the solution of the transposed linear system by applying
        Chebyshev smoothing. */
-   void MultTranspose(const Vector &x, Vector &y) const { Mult(x, y); }
+   void MultTranspose(const Vector &x, Vector &y) const override { Mult(x, y); }
 
-   void SetOperator(const Operator &op_)
+   void SetOperator(const Operator &op_) override
    {
       oper = &op_;
    }
 
    void Setup();
+   void SetOrder(int new_order);
 
 private:
-   const int order;
+   int order;
    real_t max_eig_estimate;
    const int N;
    Vector dinv;
@@ -503,7 +504,7 @@ private:
    Array<real_t> coeffs;
    const Array<int>& ess_tdof_list;
    mutable Vector residual;
-   mutable Vector helperVector;
+   mutable Vector z;
    const Operator* oper;
 };
 
