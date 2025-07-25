@@ -677,6 +677,16 @@ public:
         sol=sol_;
     }
 
+    void SetDensity(GridFunction* rho_)
+    {
+        rho=rho_;
+    }
+
+    void SetDispl(GridFunction* sol_)
+    {
+        sol=sol_;
+    }
+
     void SetMaterial(real_t Emin_, real_t Emax_, real_t nu_)
     {
         cEmin.constant=Emin_;
@@ -796,7 +806,7 @@ private:
             gvl=gvl*PointwiseTrans::HGrad(val,eta,beta);
         }
 
-        return gvl*density_max;
+        return -gvl*density_max;
     }
 
     real_t EvalLambda(ElementTransformation &T,
