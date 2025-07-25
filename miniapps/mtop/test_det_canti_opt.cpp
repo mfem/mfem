@@ -4,6 +4,7 @@
 #include <fstream>
 #include <iostream>
 
+//@Will I would to copy only the functions you need
 #include "ex37_copy.hpp"
 
 using namespace std;
@@ -45,14 +46,16 @@ real_t proj(ParGridFunction &psi, real_t target_volume, real_t domain_volume, re
     TransformedCoefficient sigmoid_psi_a(&psiA, sigmoid);
     TransformedCoefficient sigmoid_psi_b(&psiB, sigmoid);
 
-    ParLinearForm int_sigmoid_psi_a(psi.FESpace());
+    ParLinearForm int_sigmoid_psi_a(psi.ParFESpace());
     int_sigmoid_psi_a.AddDomainIntegrator(new DomainLFIntegrator(sigmoid_psi_a));
     int_sigmoid_psi_a.Assemble();
+    //@Will - are you trying to evaluate integral? (parallel sum)
     real_t a_vol_minus = int_sigmoid_psi_a.Sum() - target_volume;
 
-    ParLinearForm int_sigmoid_psi_b(psi.FESpace());
+    ParLinearForm int_sigmoid_psi_b(psi.ParFESpace());
     int_sigmoid_psi_b.AddDomainIntegrator(new DomainLFIntegrator(sigmoid_psi_b));
     int_sigmoid_psi_b.Assemble();
+    //@Will - are you trying to evaluate integral? (parallel sum)
     real_t b_vol_minus = int_sigmoid_psi_b.Sum() - target_volume;
 
    bool done = false;
@@ -64,12 +67,13 @@ real_t proj(ParGridFunction &psi, real_t target_volume, real_t domain_volume, re
         // cout << "Iteration count " << k << ".\n"; 
         x = b - b_vol_minus * (b - a) / (b_vol_minus - a_vol_minus);
 
-        LinearForm int_sigmoid_psi_x(psi.FESpace());
+        ParLinearForm int_sigmoid_psi_x(psi.ParFESpace());
         ConstantCoefficient xCoefficient(x);
         SumCoefficient psiX(psi_coeff, xCoefficient);
         TransformedCoefficient sigmoid_psi_x(&psiX, sigmoid);
         int_sigmoid_psi_x.AddDomainIntegrator(new DomainLFIntegrator(sigmoid_psi_x));
         int_sigmoid_psi_x.Assemble();
+        //@Will - are you trying to evaluate integral? One has to do this in parallel
         x_vol = int_sigmoid_psi_x.Sum();
 
         real_t x_vol_minus = x_vol - target_volume;
@@ -278,6 +282,9 @@ int main(int argc, char *argv[])
     vol_form.Assemble();
     real_t domain_volume = vol_form(onegf);
     const real_t target_volume = domain_volume * vol_fraction;
+    if(0==myid){
+        std::cout<<"domain volume="<<domain_volume<<" target_volume="<<target_volume<<std::endl;
+    }
 
     // create initial density distribution
     // DensCoeff odc(2 * M_PI); // define the coefficient, arbitrary
@@ -290,17 +297,18 @@ int main(int argc, char *argv[])
     // odens.SetTrueVector();
     // odens.GetTrueDofs(odv);
     Vector odens_latent_vector(filt->GetDesignFES()->TrueVSize());
-    odens_latent = inv_sigmoid(vol_fraction);
+    odens_latent = inv_sigmoid(vol_fraction); //@Will is that stable? What is inv_sigmoid
     odens_latent.SetTrueVector();
     odens_latent.GetTrueDofs(odens_latent_vector);
 
     // Vector odens_vector(filt->GetDesignFES()->TrueVSize());
+    // The primal design density filed
     ParGridFunction odens_gf = ParGridFunction(filt->GetDesignFES());
     odens_gf.ProjectCoefficient(odens);
     // odens_gf.SetTrueVector();
     // odens_gf.GetTrueDofs(odens_vector);
 
-    // gradient vector in design space
+    // gradient in design space
     // true gradient vector on 
     // Vector ograd(odens_gf.GetTrueVector().Size());
     // gradient grid function
@@ -330,6 +338,16 @@ int main(int argc, char *argv[])
     // paraview_dc.RegisterField("displacements", &displacements);
     paraview_dc.Save();
 
+    // define material and interpolation parameters coefficient factory
+    IsoComplCoef icc;
+    icc.SetGridFunctions(&fdens, &(elsolver->GetDisplacements())); // (1) density (2) displacements. Deferred calculation.
+    icc.SetMaterial(E_min, E_max, poisson_ratio);
+    icc.SetSIMP(3.0);
+
+    // set the material to the elasticity solver
+    elsolver->SetMaterial(*(icc.GetE()), *(icc.GetNu())); // take parameters from ICC. It's a coefficient factory. GetE() is a function of density, GetNu() is a constant function (might be a density)
+
+
     // loop
     for (int k = 1; k <= max_it; k++)
     {
@@ -347,23 +365,9 @@ int main(int argc, char *argv[])
         // filter the density field
 
         // For Boyan: Replace this with Coefficient [WILL NOT COMPILE]
+        //filt->Mult(odens_gf, fdv); // apply filt to odv, write into fdv. Can do this with ParGrid functions or VectorCoefficients. Generally better to work in true vectors.
+        filt->FFilter(&odens,fdens); //filter odens(mapped coefficient) and write the result in the fdens grid function
 
-        filt->Mult(odens_gf, fdv); // apply filt to odv, write into fdv. Can do this with ParGrid functions or VectorCoefficients. Generally better to work in true vectors.
-
-
-        // set the filtered pargrid function using the filtered true vector
-        fdens.SetFromTrueDofs(fdv); // fdens is the ParGridFunction. Basically "algebratizes / makes accessible" dofs
-        cout << "\nSet filtration from true dofs." << endl;
-
-        // define material and interpolation parameters coefficient factory
-        IsoComplCoef icc;
-        // set density, solution, and interpolation parameters for the compliance coefficient factory
-        icc.SetGridFunctions(&fdens, &(elsolver->GetDisplacements())); // (1) density (2) displacements. Deferred calculation.
-        icc.SetMaterial(E_min, E_max, poisson_ratio);                  // E_min = 1e-3, E_max = 1.0, Poisson Ratio = 0.2
-        icc.SetSIMP(3.0);
-
-        // set the material to the elasticity solver
-        elsolver->SetMaterial(*(icc.GetE()), *(icc.GetNu())); // take parameters from ICC. It's a coefficient factory. GetE() is a function of density, GetNu() is a constant function (might be a density)
         // solve the discrete elastic system
         elsolver->Assemble();
         elsolver->FSolve(); // solve for displacements
@@ -402,12 +406,15 @@ int main(int argc, char *argv[])
         // ogf.SetTrueVector();
         // ogf.GetTrueDofs(ograd); // extracting the information in the ParGridFunction into the ograd. Lives in dual of design space.
  
+        //#Will the ogf in the update below is not scaled with M^{-1}
         odens_latent.Add(-alpha, ogf);
         real_t material_volume = proj(odens_latent, target_volume, domain_volume, 1e-12, 25); // last two are tol and max its
         // odens_latent.SetTrueVector();
         // odens_latent.GetTrueDofs(odens_latent_vector);
 
-        cout << "Got material " << material_volume << ". Expected Material " << target_volume << "\n";
+        if(0==myid){
+            cout << "Got material " << material_volume << ". Expected Material " << target_volume << "\n";
+        }
         // real_t total_volume_current = vol_form(odens);
         // odens *= target_volume / total_volume_current;     
         // odens.GetTrueDofs(odv);
