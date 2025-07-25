@@ -21,10 +21,10 @@
 // Compile with: make particle-redistribute
 //
 // Sample runs:
-//   mpirun -np 4 particle-redistribute -n 1000
-//   mpirun -np 4 particle-redistribute -n 5000 -m ../../data/star.mesh
-//   mpirun -np 4 particle-redistribute -n 7500 -m ../../data/toroid-hex.mesh
-//   mpirun -np 4 particle-redistribute -n 7500 -m ../../data/fichera-q3.mesh
+//   mpirun -np 4 particle-redistribute -npt 1000
+//   mpirun -np 4 particle-redistribute -npt 5000 -m ../../data/star.mesh
+//   mpirun -np 4 particle-redistribute -npt 7500 -m ../../data/toroid-hex.mesh
+//   mpirun -np 4 particle-redistribute -npt 7500 -m ../../data/fichera-q3.mesh
 
 #include "mfem.hpp"
 #include "../common/particles_extras.hpp"
@@ -93,7 +93,7 @@ int main (int argc, char *argv[])
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh", "Mesh file to use");
-   args.AddOption(&npt, "-n", "--npt", "Number of particles to initialize on global mesh bounding box by each rank.");
+   args.AddOption(&npt, "-npt", "--num-particles", "Number of particles to initialize on global mesh bounding box.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -109,12 +109,11 @@ int main (int argc, char *argv[])
 
    // Create mesh
    Mesh mesh(mesh_file);
+   // TODO: This should be in FindPointsGSLIB:
    MFEM_ASSERT(mesh.SpaceDimension() == mesh.Dimension(), "FindPointsGSLIB requires that the mesh space dimension + reference element dimension are the same");
    int space_dim = mesh.Dimension();
 
-   ParticleMeta meta(space_dim, 0, {});
-
-   ParticleSet pset(MPI_COMM_WORLD, meta, Ordering::byNODES);
+   ParticleSet pset(MPI_COMM_WORLD, npt, space_dim);
 
    Vector pos_min, pos_max;
    mesh.GetBoundingBox(pos_min, pos_max);
@@ -123,11 +122,10 @@ int main (int argc, char *argv[])
 
    // Generate particles randomly on entire mesh domain, for each rank
    int seed = rank;
-   for (int i = 0; i < npt; i++)
+   for (int i = 0; i < pset.GetNP(); i++)
    {
-      Particle p(meta);
+      Particle p = pset.GetParticleRef(i);
       InitializeRandom(p, seed, pos_min, pos_max);
-      pset.AddParticle(p);
       seed += size;
    }
 
@@ -135,7 +133,7 @@ int main (int argc, char *argv[])
    FindPointsGSLIB finder(MPI_COMM_WORLD);
    pmesh.EnsureNodes();
    finder.Setup(pmesh);
-   finder.FindPoints(pset.GetAllCoords(), pset.GetOrdering());
+   finder.FindPoints(pset.Coords(), pset.Coords().GetOrdering());
 
    // Remove points not in domain
    Array<int> rm_idxs;
@@ -149,11 +147,18 @@ int main (int argc, char *argv[])
    }
    pset.RemoveParticles(rm_idxs);
 
-   // Re-find w/ new particles to re-get Proc array
-   finder.FindPoints(pset.GetAllCoords(), pset.GetOrdering());
+   int num_removed = rm_idxs.Size();
+   MPI_Allreduce(MPI_IN_PLACE, &num_removed, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
    if (rank == 0)
    {
-      mfem::out << "Pre-Redistribute:\n";
+      mfem::out << endl << "Removed " << num_removed << " particles that were not within the mesh" << endl << endl;
+   }
+
+   // Re-find w/ new particles to re-get Proc array
+   finder.FindPoints(pset.Coords(), pset.Coords().GetOrdering());
+   if (rank == 0)
+   {
+      mfem::out << "Pre-Redistribute:" << endl;
    }
 
    PrintOnOffRankCounts(finder.GetProc(), MPI_COMM_WORLD);
@@ -171,7 +176,7 @@ int main (int argc, char *argv[])
    pset.Redistribute(finder.GetProc());
 
    // Find again
-   finder.FindPoints(pset.GetAllCoords(), pset.GetOrdering());
+   finder.FindPoints(pset.Coords(), pset.Coords().GetOrdering());
 
    // Remove particles not in domain
 
