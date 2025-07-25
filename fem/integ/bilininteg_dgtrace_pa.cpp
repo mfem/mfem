@@ -139,8 +139,6 @@ void DGTraceIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type)
    const MemoryType mt = (pa_mt == MemoryType::DEFAULT) ?
                          Device::GetDeviceMemoryType() : pa_mt;
 
-   nf = fes.GetNFbyType(type);
-   if (nf==0) { return; }
    // Assumes tensor-product elements
    Mesh *mesh = fes.GetMesh();
    const FiniteElement &el = *fes.GetTypicalTraceElement();
@@ -148,6 +146,17 @@ void DGTraceIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type)
                                IntRule:
                                &GetRule(el.GetGeomType(), el.GetOrder(),
                                         *mesh->GetTypicalElementTransformation());
+
+   if (!qspace[static_cast<int>(type)])
+   {
+      qspace[static_cast<int>(type)].reset(
+         new FaceQuadratureSpace(*mesh, *ir, type));
+   }
+
+   FaceQuadratureSpace& qs = *qspace[static_cast<int>(type)];
+   nf = qs.GetNumFaces();
+   if (nf==0) { return; }
+
    const int symmDims = 4;
    nq = ir->GetNPoints();
    dim = mesh->Dimension();
@@ -159,8 +168,6 @@ void DGTraceIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type)
    dofs1D = maps->ndof;
    quad1D = maps->nqpt;
    pa_data.SetSize(symmDims * nq * nf, Device::GetMemoryType());
-
-   FaceQuadratureSpace qs(*mesh, *ir, type);
    CoefficientVector vel(*u, qs, CoefficientStorage::COMPRESSED);
 
    CoefficientVector r(qs, CoefficientStorage::COMPRESSED);

@@ -191,13 +191,12 @@ public:
 class FaceQuadratureSpace : public QuadratureSpaceBase
 {
    FaceType face_type; ///< Is the space defined on interior or boundary faces?
-   const int num_faces; ///< Number of faces.
 
    /// Map from boundary or interior face indices to mesh face indices.
-   Array<int> face_indices;
+   const Array<int> &face_indices;
 
    /// Inverse of the map @a face_indices.
-   std::unordered_map<int,int> face_indices_inv;
+   const std::unordered_map<int,int> &face_indices_inv;
 
    const Vector &GetGeometricFactorWeights() const override;
    void ConstructOffsets();
@@ -213,7 +212,7 @@ public:
                        FaceType face_type_);
 
    /// Returns number of faces in the mesh.
-   inline int GetNumFaces() const { return num_faces; }
+   inline int GetNumFaces() const { return face_indices.Size(); }
 
    /// Returns the face type (boundary or interior).
    FaceType GetFaceType() const { return face_type; }
