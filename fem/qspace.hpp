@@ -19,6 +19,12 @@
 namespace mfem
 {
 
+enum class QSpaceOffsetStorage
+{
+   FULL,
+   COMPRESSED
+};
+
 /// Abstract base class for QuadratureSpace and FaceQuadratureSpace.
 /** This class represents the storage layout for QuadratureFunction%s, that may
     be defined either on mesh elements or mesh faces. */
@@ -41,7 +47,17 @@ protected:
    /// can be computed as i * offsets[0], where i is the entity index. Otherwise
    /// has size num_entities + 1.
    ///
+   /// In the non-compressed case, the quadrature point values for entity i are
+   /// stored in the indices between offsets[i] and offsets[i+1].
    Array<int> offsets;
+
+   /// @brief Cached version of the "full" offsets, returned by Offsets() when
+   /// QSpaceOffsetStorage::FULL is provided.
+   ///
+   /// The quadrature point values for entity i are stored in the indices
+   /// between offsets[i] and offsets[i+1].
+   mutable Array<int> full_offset_cache;
+
    /// The quadrature rules used for each geometry type.
    const IntegrationRule *int_rule[Geometry::NumGeom];
 
@@ -74,12 +90,18 @@ public:
 
    /// @brief Entity quadrature point offset array.
    ///
-   /// Supports a constant compression scheme for meshes which have a single
+   /// If @a storage is QSpaceOffsetStorage::COMPRESSED, then the returned array
+   /// supports a constant compression scheme for meshes which have a single
    /// geometry type. When compressed, will have a single value. The true offset
    /// can be computed as i * offsets[0], where i is the entity index. Otherwise
    /// has size num_entities + 1.
    ///
-   const Array<int> &Offsets() const { return offsets; }
+   /// If @a storage is QSpaceOffsetStorage::FULL, then the array will never be
+   /// compressed.
+   ///
+   /// In the non-compressed case, the quadrature point values for entity i are
+   /// stored in the indices between offsets[i] and offsets[i+1].
+   const Array<int> &Offsets(QSpaceOffsetStorage storage) const;
 
    /// Return the total number of quadrature points.
    int GetSize() const { return size; }
