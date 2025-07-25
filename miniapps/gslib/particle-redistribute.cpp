@@ -54,14 +54,15 @@ void PrintOnOffRankCounts(const Array<unsigned int> &procs, MPI_Comm comm)
       }
    }
 
-   MPI_Barrier(comm);
-   for (int i = 0; i < size; i++)
+   std::vector<int> all_on_rank(size), all_off_rank(size);
+   MPI_Gather(&on_rank, 1, MPI_INT, all_on_rank.data(), 1, MPI_INT, 0, comm);
+   MPI_Gather(&off_rank, 1, MPI_INT, all_off_rank.data(), 1, MPI_INT, 0, comm);
+   if (rank == 0)
    {
-      if (i == rank)
+      for (int r = 0; r < size; r++)
       {
-         mfem::out << "Rank " << i << " owns " << on_rank << " within it, " << off_rank << " particles outside it\n";
+         mfem::out << "Rank " << r << " owns " << all_on_rank[r] << " within it, " << all_off_rank[r] << " particles outside it\n";
       }
-      MPI_Barrier(comm);
    }
 }
 
@@ -111,7 +112,7 @@ int main (int argc, char *argv[])
    // TODO: This should be in FindPointsGSLIB:
    MFEM_ASSERT(mesh.SpaceDimension() == mesh.Dimension(), "FindPointsGSLIB requires that the mesh space dimension + reference element dimension are the same");
    int space_dim = mesh.Dimension();
-   mfem::out << "Mesh dim: " << space_dim << std::endl;
+
    ParticleSet pset(MPI_COMM_WORLD, npt, space_dim);
 
    Vector pos_min, pos_max;
