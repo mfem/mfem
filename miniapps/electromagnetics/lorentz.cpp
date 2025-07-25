@@ -70,7 +70,7 @@
 // Joe test case:
 
 // mpirun -np 4 ./tesla -m ../../data/inline-hex.mesh -ubbc '0 0 1'
-// mpirun -np 4 ./lorentz -br Tesla-AMR-Parallel -x0 '0.1 0.5 0.1' -p0 '0 0.4 0.01 -0.2 -0.2 0.0' -tf 90 -npt 1000 -vt 5 --rf 1000 -mm 2
+// mpirun -np 4 ./lorentz -br Tesla-AMR-Parallel -x0 '0.1 0.5 0.1' -p0 '0 0.4 0.01 -0.2 -0.2 0.0' -nt 1000 -npt 1000 -vt 5 --rf 1000 -mm 2
 
 #include "mfem.hpp"
 #include "../common/fem_extras.hpp"
@@ -143,15 +143,14 @@ protected:
    mutable Vector pm_;
    mutable Vector pp_;
 
+   static void GetValues(const ParticleVector &coords, FindPointsGSLIB &finder, GridFunction &gf, ParticleVector &pv);
+
 public:
 
    BorisAlgorithm() {};
 
    BorisAlgorithm(MPI_Comm comm)
-   : E_finder(comm), B_finder(comm)
-   {
-
-   }
+   : E_finder(comm), B_finder(comm) {}
 
    void Step(GridFunction *E_gf, GridFunction *B_gf, ParticleSet &charged_particles, real_t &t, real_t &dt);
 
@@ -391,6 +390,15 @@ int main(int argc, char *argv[])
 }
 
 
+void BorisAlgorithm::GetValues(const ParticleVector &coords, FindPointsGSLIB &finder, GridFunction &gf, ParticleVector &pv)
+{
+   Mesh &mesh = *gf.FESpace()->GetMesh();
+   mesh.EnsureNodes();
+   finder.FindPoints(mesh, coords, coords.GetOrdering());
+   finder.Interpolate(gf, pv);
+   Ordering::Reorder(pv, pv.GetVDim(), gf.FESpace()->GetOrdering(), pv.GetOrdering());
+}
+
 void BorisAlgorithm::Step(GridFunction *E_gf, GridFunction *B_gf, ParticleSet &charged_particles, real_t &t, real_t &dt)
 {
    ParticleVector &X = charged_particles.Coords();
@@ -403,11 +411,7 @@ void BorisAlgorithm::Step(GridFunction *E_gf, GridFunction *B_gf, ParticleSet &c
    // Interpolate E-field + B-field onto particles
    if (E_gf)
    {
-      Mesh &E_mesh = *E_gf->FESpace()->GetMesh();
-      E_mesh.EnsureNodes();
-      E_finder.FindPoints(E_mesh, X, X.GetOrdering());
-      E_finder.Interpolate(*E_gf, E);
-      Ordering::Reorder(E, E.GetVDim(), E_gf->FESpace()->GetOrdering(), E.GetOrdering());
+      GetValues(X, E_finder, *E_gf, E);
    }
    else
    {
@@ -415,11 +419,7 @@ void BorisAlgorithm::Step(GridFunction *E_gf, GridFunction *B_gf, ParticleSet &c
    }
    if (B_gf)
    {
-      Mesh &B_mesh = *B_gf->FESpace()->GetMesh();
-      B_mesh.EnsureNodes();
-      B_finder.FindPoints(B_mesh, X, X.GetOrdering());
-      B_finder.Interpolate(*B_gf, B);
-      Ordering::Reorder(B, B.GetVDim(), B_gf->FESpace()->GetOrdering(), B.GetOrdering());
+      GetValues(X, B_finder, *B_gf, B);
    }
    else
    {
