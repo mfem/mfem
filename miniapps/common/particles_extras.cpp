@@ -154,21 +154,26 @@ void VisualizeParticles(socketstream &sock, const char* vishost, int visport,
 }
 
 
-ParticleTrajectories::ParticleTrajectories(int tail_size_, const char *vishost, int visport, const char *title_, int x_, int y_, int w_, int h_, const char *keys_)
-: tail_size(tail_size_),
+ParticleTrajectories::ParticleTrajectories(const ParticleSet &particles, int tail_size_, const char *vishost, int visport, const char *title_, int x_, int y_, int w_, int h_, const char *keys_)
+: pset(particles),
+  tail_size(tail_size_),
   title(title_),
   x(x_), y(y_), w(w_), h(h_),
-  keys(keys_)
+  keys(keys_),
+#ifdef MFEM_USE_MPI
+   comm(particles.GetComm())
+#endif // MFEM_USE_MPI
 {
    sock.open(vishost, visport);
    sock.precision(8);
    newly_opened = true;
 
+   AddSegmentStart();
+
 }
 
-void ParticleTrajectories::AddSegmentStart(const ParticleSet &pset)
+void ParticleTrajectories::AddSegmentStart()
 {
-   MFEM_ASSERT(segment_completed, "SetSegmentEnd must be called after each AddSegmentStart.");
 
    // Create a new mesh for all particle segments for this timestep
    segment_meshes.emplace(segment_meshes.begin(), 1, pset.GetNP()*2, pset.GetNP(), 0, pset.GetDim());
@@ -189,15 +194,10 @@ void ParticleTrajectories::AddSegmentStart(const ParticleSet &pset)
       pset.Coords().GetParticleValues(i, pcoords);
       segment_meshes.front().AddVertex(pcoords);
    }
-
-   segment_completed = false;
 }
 
-void ParticleTrajectories::SetSegmentEnd(const ParticleSet &pset)
+void ParticleTrajectories::SetSegmentEnd()
 {
-   MFEM_ASSERT(!segment_completed, "AddSegmentStart must be called prior to SetSegmentEnd.");
-
-
    const Array<unsigned int> &end_ids = pset.GetIDs();
 
    // Add all endpoint vertices + segments for all particles
@@ -209,7 +209,7 @@ void ParticleTrajectories::SetSegmentEnd(const ParticleSet &pset)
       if (pidx != -1)
       {
          Vector pcoords;
-         pset.Coords().GetParticleValues(i, pcoords);
+         pset.Coords().GetParticleValues(pidx, pcoords);
          segment_meshes.front().AddVertex(pcoords);
       }
       else // Otherwise set its end vertex == start vertex
@@ -220,13 +220,13 @@ void ParticleTrajectories::SetSegmentEnd(const ParticleSet &pset)
    }
    segment_meshes.front().FinalizeMesh();
 
-   segment_completed = true;
-
 }
 
 
 void ParticleTrajectories::Visualize()
 {
+   SetSegmentEnd();
+
    // Create a mesh of all the trajectory segments
    std::vector<Mesh*> all_meshes;
    for (Mesh &m : segment_meshes)
@@ -256,6 +256,8 @@ void ParticleTrajectories::Visualize()
       sock << std::endl;
       newly_opened = false;
    }
+
+   AddSegmentStart();
 
 }
 

@@ -35,38 +35,33 @@ void VisualizeParticles(socketstream &sock, const char* vishost, int visport,
 
 class ParticleTrajectories
 {
-private:
+protected:
+
+    const ParticleSet &pset;
+
     socketstream sock;
     std::vector<Array<unsigned int>> segment_ids; /// Track particle IDs that exist at the segment start.
     std::vector<Mesh> segment_meshes; /// Each segment is stored as a Mesh snapshot
     
     int tail_size;
-    const char *title, *keys;
     int x, y, w, h;
+    const char *title, *keys;
     
-
-    bool segment_completed = true;
     bool newly_opened;
 #ifdef MFEM_USE_MPI
     MPI_Comm comm;
 #endif // MFEM_USE_MPI
 
+    void AddSegmentStart();
+
+    void SetSegmentEnd();
+
 public:
 
-    ParticleTrajectories(int tail_size_, const char *vishost, int visport, const char *title_, int x_=0, int y_=0, int w_=400, int h_=400, const char *keys_=nullptr);
-
-#ifdef MFEM_USE_MPI
-    ParticleTrajectories(MPI_Comm comm_, int tail_size_, const char* vishost, int visport, const char *title_, int x_=0, int y_=0, int w_=400, int h_=400, const char *keys_=nullptr)
-    : ParticleTrajectories(tail_size_, vishost, visport, title_, x_, y_, w_, h_, keys_) { comm = comm_; }
-#endif // MFEM_USE_MPI
-
-    void AddSegmentStart(const ParticleSet &pset);
-
-    void SetSegmentEnd(const ParticleSet &pset);
+    ParticleTrajectories(const ParticleSet &particles, int tail_size_, const char *vishost, int visport, const char *title_, int x_=0, int y_=0, int w_=400, int h_=400, const char *keys_=nullptr);
 
     void Visualize();
 
-    socketstream& GetSocketStream() { return sock; };
 };
 
 } // namespace common
