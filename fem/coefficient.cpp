@@ -91,7 +91,7 @@ void PWConstCoefficient::Project(QuadratureFunction &qf)
 
    const int *attributes = [&]()
    {
-      if (auto *qs_e = dynamic_cast<QuadratureSpace*>(&qs))
+      if (dynamic_cast<QuadratureSpace*>(&qs) != nullptr)
       {
          return qs.GetMesh()->GetElementAttributes().Read();
       }
