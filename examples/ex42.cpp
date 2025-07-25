@@ -154,11 +154,7 @@ int main(int argc, char *argv[])
    }
 
    // 6. Set up the nonlinear form with euler flux and numerical flux
-   EulerFlux flux(dim, specific_heat_ratio);
-   RusanovFlux numericalFlux(flux);
-   DGHyperbolicConservationLaws euler(
-      vfes, std::unique_ptr<HyperbolicFormIntegrator>(
-         new HyperbolicFormIntegrator(numericalFlux, IntOrderOffset)));
+   // TODO
 
    // 7. Visualize momentum with its magnitude
    socketstream sout;
@@ -194,22 +190,6 @@ int main(int argc, char *argv[])
 
    // When dt is not specified, use CFL condition.
    // Compute h_min and initial maximum characteristic speed
-   real_t hmin = infinity();
-   if (cfl > 0)
-   {
-      for (int i = 0; i < mesh.GetNE(); i++)
-      {
-         hmin = min(mesh.GetElementSize(i, 1), hmin);
-      }
-      // Find a safe dt, using a temporary vector. Calling Mult() computes the
-      // maximum char speed at all quadrature points on all faces (and all
-      // elements with -mf).
-      Vector z(sol.Size());
-      euler.Mult(sol, z);
-
-      real_t max_char_speed = euler.GetMaxCharSpeed();
-      dt = cfl * hmin / max_char_speed / (2 * order + 1);
-   }
 
    // Start the timer.
    tic_toc.Clear();
@@ -217,23 +197,11 @@ int main(int argc, char *argv[])
 
    // Init time integration
    real_t t = 0.0;
-   euler.SetTime(t);
-   ode_solver->Init(euler);
 
    // Integrate in time.
    bool done = false;
    for (int ti = 0; !done;)
    {
-      real_t dt_real = min(dt, t_final - t);
-
-      ode_solver->Step(sol, t, dt_real);
-      if (cfl > 0) // update time step size with CFL
-      {
-         real_t max_char_speed = euler.GetMaxCharSpeed();
-         dt = cfl * hmin / max_char_speed / (2 * order + 1);
-      }
-      ti++;
-
       done = (t >= t_final - 1e-8 * dt);
       if (done || ti % vis_steps == 0)
       {

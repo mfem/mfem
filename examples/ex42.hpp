@@ -16,8 +16,12 @@
 // interface flux.
 //
 
-#include <functional>
 #include "mfem.hpp"
+
+#include "fem/kernel_dispatch.hpp"
+#include "general/forall.hpp"
+
+#include <functional>
 
 namespace mfem
 {
@@ -27,274 +31,256 @@ class EulerInterior : public BilinearFormIntegrator
    const FiniteElementSpace *fes = nullptr;
    real_t gas_gamma;
 
+public:
    using BilinearFormIntegrator::AssembleMF;
-   void AssembleMF(const FiniteElementSpace &fes) override
-   {
-      this->fes = &fes;
-   }
-
-   using BilinearFormIntegrator::AssemblePA;
-   void AssemblePA(const FiniteElementSpace &fes) override
-   {
-      // no-op; actual assembly is performed inside AddMultPA
-      this->fes = &fes;
-   }
+   void AssembleMF(const FiniteElementSpace &fes) override { this->fes = &fes; }
 
    void AddMultMF(const Vector &x, Vector &y) const override;
 
-   void AddMultPA(const Vector &x, Vector &y) const override;
+   static const IntegrationRule &GetRule(const FiniteElement &trial_fe,
+                                         const FiniteElement &test_fe,
+                                         const ElementTransformation &Trans)
+   {
+      int order =
+         Trans.OrderGrad(&trial_fe) + Trans.Order() + test_fe.GetOrder();
 
-   void Update() override;
+      return IntRules.Get(trial_fe.GetGeomType(), order);
+   }
+
+   static const IntegrationRule &GetRule(const FiniteElement &el,
+                                         const ElementTransformation &Trans)
+   {
+      return GetRule(el, el, Trans);
+   }
+
+   /// args: ne, W, J, B, Bt, G, Gt, x, y, dofs1D, quad1D
+   using ApplyMFKernelType = void (*)(const int, const Array<real_t> &,
+                                      const Vector &, const Array<real_t> &,
+                                      const Array<real_t> &,
+                                      const Array<real_t> &,
+                                      const Array<real_t> &, const Vector &,
+                                      Vector &, const int, const int);
+
+   // args: dims, nq1d, ndof1d
+   MFEM_REGISTER_KERNELS(ApplyMFKernels, ApplyMFKernelType, (int, int, int));
+
+   struct Kernels
+   {
+      Kernels();
+   };
+
+   template <int DIM, int D1D, int Q1D> static void AddSpecialization()
+   {
+      ApplyMFKernels::Specialization<DIM, D1D, Q1D>::Add();
+   }
+
+   EulerInterior(real_t gas_gamma, const IntegrationRule *ir = nullptr)
+      : BilinearFormIntegrator(ir), gas_gamma(gas_gamma)
+   {
+      static Kernels kernels;
+   }
+
+protected:
+   const IntegrationRule *
+   GetDefaultIntegrationRule(const FiniteElement &trial_fe,
+                             const FiniteElement &test_fe,
+                             const ElementTransformation &trans) const override
+   {
+      return &GetRule(trial_fe, test_fe, trans);
+   }
 };
 
 class EulerRusanov : public BilinearFormIntegrator
 {
    const FiniteElementSpace *fes = nullptr;
    real_t gas_gamma;
+   FaceType type;
 
+public:
    void AssembleMFInteriorFaces(const FiniteElementSpace &fes) override
    {
       this->fes = &fes;
+      type = FaceType::Interior;
    }
 
-   void AssemblePAInteriorFaces(const FiniteElementSpace &fes) override
+   void AssembleMFBoundaryFaces(const FiniteElementSpace &fes) override
    {
-      // no-op; actual assembly is performed inside AddMultPA
       this->fes = &fes;
+      type = FaceType::Boundary;
    }
 
    void AddMultMF(const Vector &x, Vector &y) const override;
 
-   void AddMultPA(const Vector &x, Vector &y) const override;
+   static const IntegrationRule &GetRule(Geometry::Type geom, int order,
+                                         const FaceElementTransformations &T)
+   {
+      return GetRule(geom, order, *T.Elem1);
+   }
 
-   void Update() override;
+   static const IntegrationRule &GetRule(Geometry::Type geom, int order,
+                                         const ElementTransformation &T)
+   {
+      return IntRules.Get(geom, T.OrderW() + 2 * order);
+   }
+
+   /// args: nf, W, detJ, normal, B, Bt, x, y, dofs1D, quad1D
+   using ApplyMFKernelType = void (*)(const int, const Array<real_t> &,
+                                      const Vector &, const Vector &,
+                                      const Array<real_t> &,
+                                      const Array<real_t> &, const Vector &,
+                                      Vector &, const int, const int);
+
+   // args: dims, nq1d, ndof1d
+   MFEM_REGISTER_KERNELS(ApplyMFKernels, ApplyMFKernelType, (int, int, int));
+
+   struct Kernels
+   {
+      Kernels();
+   };
+
+   template <int DIM, int D1D, int Q1D> static void AddSpecialization()
+   {
+      ApplyMFKernels::Specialization<DIM, D1D, Q1D>::Add();
+   }
+
+   EulerRusanov(real_t gas_gamma, const IntegrationRule *ir = nullptr)
+      : BilinearFormIntegrator(ir), gas_gamma(gas_gamma)
+   {
+      static Kernels kernels;
+   }
 };
 
-/// @brief Time dependent DG operator for hyperbolic conservation laws
-class DGHyperbolicConservationLaws : public TimeDependentOperator
+namespace internal
+{}
+
+void EulerInterior::AddMultMF(const Vector &x, Vector &y) const
 {
-private:
-   const int num_equations; // the number of equations
-   const int dim;
-   FiniteElementSpace &vfes; // vector finite element space
-   // Element integration form. Should contain ComputeFlux
-   std::unique_ptr<HyperbolicFormIntegrator> formIntegrator;
-   // Base Nonlinear Form
-   std::unique_ptr<NonlinearForm> nonlinearForm;
-   // element-wise inverse mass matrix
-   std::vector<DenseMatrix> invmass; // local scalar inverse mass
-   std::vector<DenseMatrix> weakdiv; // local weak divergence (trial space ByDim)
-   // global maximum characteristic speed. Updated by form integrators
-   mutable real_t max_char_speed;
-   // auxiliary variable used in Mult
-   mutable Vector z;
-
-   // Compute element-wise inverse mass matrix
-   void ComputeInvMass();
-   // Compute element-wise weak-divergence matrix
-   void ComputeWeakDivergence();
-
-public:
-   /**
-    * @brief Construct a new DGHyperbolicConservationLaws object
-    *
-    * @param vfes_ vector finite element space. Only tested for DG [Pₚ]ⁿ
-    * @param formIntegrator_ integrator (F(u,x), grad v)
-    * @param preassembleWeakDivergence preassemble weak divergence for faster
-    *                                  assembly
-    */
-   DGHyperbolicConservationLaws(
-      FiniteElementSpace &vfes_,
-      std::unique_ptr<HyperbolicFormIntegrator> formIntegrator_,
-      bool preassembleWeakDivergence=true);
-   /**
-    * @brief Apply nonlinear form to obtain M⁻¹(DIVF + JUMP HAT(F))
-    *
-    * @param x current solution vector
-    * @param y resulting dual vector to be used in an EXPLICIT solver
-    */
-   void Mult(const Vector &x, Vector &y) const override;
-   // get global maximum characteristic speed to be used in CFL condition
-   // where max_char_speed is updated during Mult.
-   real_t GetMaxCharSpeed() { return max_char_speed; }
-   void Update();
-
-};
-
-//////////////////////////////////////////////////////////////////
-///        HYPERBOLIC CONSERVATION LAWS IMPLEMENTATION         ///
-//////////////////////////////////////////////////////////////////
-
-// Implementation of class DGHyperbolicConservationLaws
-DGHyperbolicConservationLaws::DGHyperbolicConservationLaws(
-   FiniteElementSpace &vfes_,
-   std::unique_ptr<HyperbolicFormIntegrator> formIntegrator_,
-   bool preassembleWeakDivergence)
-   : TimeDependentOperator(vfes_.GetTrueVSize()),
-     num_equations(formIntegrator_->num_equations),
-     dim(vfes_.GetMesh()->SpaceDimension()),
-     vfes(vfes_),
-     formIntegrator(std::move(formIntegrator_)),
-     z(vfes_.GetTrueVSize())
-{
-   // Standard local assembly and inversion for energy mass matrices.
-   ComputeInvMass();
-#ifndef MFEM_USE_MPI
-   nonlinearForm.reset(new NonlinearForm(&vfes));
-#else
-   ParFiniteElementSpace *pvfes = dynamic_cast<ParFiniteElementSpace *>(&vfes);
-   if (pvfes)
-   {
-      nonlinearForm.reset(new ParNonlinearForm(pvfes));
-   }
-   else
-   {
-      nonlinearForm.reset(new NonlinearForm(&vfes));
-   }
-#endif
-   if (preassembleWeakDivergence)
-   {
-      ComputeWeakDivergence();
-   }
-   else
-   {
-      nonlinearForm->AddDomainIntegrator(formIntegrator.get());
-   }
-   nonlinearForm->AddInteriorFaceIntegrator(formIntegrator.get());
-   nonlinearForm->UseExternalIntegrators();
-
+   const MemoryType mt =
+      (pa_mt == MemoryType::DEFAULT) ? Device::GetDeviceMemoryType() : pa_mt;
+   Mesh *mesh = fes->GetMesh();
+   const FiniteElement &el = *fes->GetTypicalFE();
+   ElementTransformation &Trans = *mesh->GetTypicalElementTransformation();
+   const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, Trans);
+   auto geom = mesh->GetGeometricFactors(*ir, GeometricFactors::JACOBIANS, mt);
+   auto nq = ir->GetNPoints();
+   auto dim = mesh->Dimension();
+   auto ne = fes->GetNE();
+   auto maps = &el.GetDofToQuad(*ir, DofToQuad::TENSOR);
+   auto dofs1D = maps->ndof;
+   auto quad1D = maps->nqpt;
+   const Array<real_t> &B = maps->B;
+   const Array<real_t> &Bt = maps->Bt;
+   const Array<real_t> &G = maps->G;
+   const Array<real_t> &Gt = maps->Gt;
+   const Array<real_t> &W = ir->GetWeights();
+   const Vector &J = geom->J;
+   ApplyMFKernels::Run(dim, dofs1D, quad1D, ne, W, J, B, Bt, G, Gt, x, y,
+                       dofs1D, quad1D);
 }
 
-void DGHyperbolicConservationLaws::ComputeInvMass()
+void EulerRusanov::AddMultMF(const Vector &x, Vector &y) const
 {
-   InverseIntegrator inv_mass(new MassIntegrator());
+   const MemoryType mt =
+      (pa_mt == MemoryType::DEFAULT) ? Device::GetDeviceMemoryType() : pa_mt;
+   Mesh *mesh = fes->GetMesh();
+   const FiniteElement &el = *fes->GetTypicalFE();
+   const IntegrationRule *ir =
+      IntRule ? IntRule
+      : &GetRule(el.GetGeomType(), el.GetOrder(),
+                 *mesh->GetTypicalElementTransformation());
+   auto nf = mesh->GetNFbyType(type);
+   auto nq = ir->GetNPoints();
+   auto geom = mesh->GetFaceGeometricFactors(
+                  *ir, FaceGeometricFactors::DETERMINANTS | FaceGeometricFactors::NORMALS,
+                  type, mt);
+   auto dim = mesh->Dimension();
+   auto ne = fes->GetNE();
+   auto maps = &el.GetDofToQuad(*ir, DofToQuad::TENSOR);
+   auto dofs1D = maps->ndof;
+   auto quad1D = maps->nqpt;
+   const Array<real_t> &B = maps->B;
+   const Array<real_t> &Bt = maps->Bt;
+   const Array<real_t> &W = ir->GetWeights();
+   const Vector &detJ = geom->detJ;
+   const Vector &normal = geom->normal;
+   ApplyMFKernels::Run(dim, dofs1D, quad1D, nf, W, detJ, normal, B, Bt, x, y,
+                       dofs1D, quad1D);
+}
 
-   invmass.resize(vfes.GetNE());
-   for (int i=0; i<vfes.GetNE(); i++)
+template <int DIM, int T_D1D, int T_Q1D>
+EulerInterior::ApplyMFKernelType EulerInterior::ApplyMFKernels::Kernel()
+{
+   if constexpr (DIM == 1)
    {
-      int dof = vfes.GetFE(i)->GetDof();
-      invmass[i].SetSize(dof);
-      inv_mass.AssembleElementMatrix(*vfes.GetFE(i),
-                                     *vfes.GetElementTransformation(i),
-                                     invmass[i]);
+      // TODO
+   }
+   else if constexpr (DIM == 2)
+   {
+      // TODO
+   }
+   else if constexpr (DIM == 3)
+   {
+      // TODO
+   }
+   MFEM_ABORT("");
+}
+
+inline EulerInterior::ApplyMFKernelType
+EulerInterior::ApplyMFKernels::Fallback(int DIM, int, int)
+{
+   switch (DIM)
+   {
+      case 1:
+      // TODO
+      case 2:
+      // TODO
+      case 3:
+      // TODO
+      default:
+         MFEM_ABORT("");
    }
 }
 
-void DGHyperbolicConservationLaws::ComputeWeakDivergence()
+template <int DIM, int T_D1D, int T_Q1D>
+EulerRusanov::ApplyMFKernelType EulerRusanov::ApplyMFKernels::Kernel()
 {
-   TransposeIntegrator weak_div(new GradientIntegrator());
-   DenseMatrix weakdiv_bynodes;
-
-   weakdiv.resize(vfes.GetNE());
-   for (int i=0; i<vfes.GetNE(); i++)
+   if constexpr (DIM == 1)
    {
-      int dof = vfes.GetFE(i)->GetDof();
-      weakdiv_bynodes.SetSize(dof, dof*dim);
-      weak_div.AssembleElementMatrix2(*vfes.GetFE(i), *vfes.GetFE(i),
-                                      *vfes.GetElementTransformation(i),
-                                      weakdiv_bynodes);
-      weakdiv[i].SetSize(dof, dof*dim);
-      // Reorder so that trial space is ByDim.
-      // This makes applying weak divergence to flux value simpler.
-      for (int j=0; j<dof; j++)
-      {
-         for (int d=0; d<dim; d++)
-         {
-            weakdiv[i].SetCol(j*dim + d, weakdiv_bynodes.GetColumn(d*dof + j));
-         }
-      }
+      // TODO
+   }
+   else if constexpr (DIM == 2)
+   {
+      // TODO
+   }
+   else if constexpr (DIM == 3)
+   {
+      // TODO
+   }
+   MFEM_ABORT("");
+}
 
+inline EulerRusanov::ApplyMFKernelType
+EulerRusanov::ApplyMFKernels::Fallback(int DIM, int, int)
+{
+   switch (DIM)
+   {
+      case 1:
+      // TODO
+      case 2:
+      // TODO
+      case 3:
+      // TODO
+      default:
+         MFEM_ABORT("");
    }
 }
 
-
-void DGHyperbolicConservationLaws::Mult(const Vector &x, Vector &y) const
+std::function<void(const Vector &, Vector &)>
+GetMovingVortexInit(const real_t radius, const real_t Minf, const real_t beta,
+                    const real_t gas_constant, const real_t specific_heat_ratio)
 {
-   // 0. Reset wavespeed computation before operator application.
-   formIntegrator->ResetMaxCharSpeed();
-   // 1. Apply Nonlinear form to obtain an auxiliary result
-   //         z = - <F̂(u_h,n), [[v]]>_e
-   //    If weak-divergence is not preassembled, we also have weak-divergence
-   //         z = - <F̂(u_h,n), [[v]]>_e + (F(u_h), ∇v)
-   nonlinearForm->Mult(x, z);
-   if (!weakdiv.empty()) // if weak divergence is pre-assembled
-   {
-      // Apply weak divergence to F(u_h), and inverse mass to z_loc + weakdiv_loc
-      Vector current_state; // view of current state at a node
-      DenseMatrix current_flux; // flux of current state
-      DenseMatrix flux; // element flux value. Whose column is ordered by dim.
-      DenseMatrix current_xmat; // view of current states in an element, dof x num_eq
-      DenseMatrix current_zmat; // view of element auxiliary result, dof x num_eq
-      DenseMatrix current_ymat; // view of element result, dof x num_eq
-      const FluxFunction &fluxFunction = formIntegrator->GetFluxFunction();
-      Array<int> vdofs;
-      Vector xval, zval;
-      for (int i=0; i<vfes.GetNE(); i++)
-      {
-         ElementTransformation* Tr = vfes.GetElementTransformation(i);
-         int dof = vfes.GetFE(i)->GetDof();
-         vfes.GetElementVDofs(i, vdofs);
-         x.GetSubVector(vdofs, xval);
-         current_xmat.UseExternalData(xval.GetData(), dof, num_equations);
-         flux.SetSize(num_equations, dim*dof);
-         for (int j=0; j<dof; j++) // compute flux for all nodes in the element
-         {
-            current_xmat.GetRow(j, current_state);
-            current_flux.UseExternalData(flux.GetData() + num_equations*dim*j,
-                                         num_equations, dof);
-            fluxFunction.ComputeFlux(current_state, *Tr, current_flux);
-         }
-         // Compute weak-divergence and add it to auxiliary result, z
-         // Recalling that weakdiv is reordered by dim, we can apply
-         // weak-divergence to the transpose of flux.
-         z.GetSubVector(vdofs, zval);
-         current_zmat.UseExternalData(zval.GetData(), dof, num_equations);
-         mfem::AddMult_a_ABt(1.0, weakdiv[i], flux, current_zmat);
-         // Apply inverse mass to auxiliary result to obtain the final result
-         current_ymat.SetSize(dof, num_equations);
-         mfem::Mult(invmass[i], current_zmat, current_ymat);
-         y.SetSubVector(vdofs, current_ymat.GetData());
-      }
-   }
-   else
-   {
-      // Apply block inverse mass
-      Vector zval; // z_loc, dof*num_eq
-
-      DenseMatrix current_zmat; // view of element auxiliary result, dof x num_eq
-      DenseMatrix current_ymat; // view of element result, dof x num_eq
-      Array<int> vdofs;
-      for (int i=0; i<vfes.GetNE(); i++)
-      {
-         int dof = vfes.GetFE(i)->GetDof();
-         vfes.GetElementVDofs(i, vdofs);
-         z.GetSubVector(vdofs, zval);
-         current_zmat.UseExternalData(zval.GetData(), dof, num_equations);
-         current_ymat.SetSize(dof, num_equations);
-         mfem::Mult(invmass[i], current_zmat, current_ymat);
-         y.SetSubVector(vdofs, current_ymat.GetData());
-      }
-   }
-   max_char_speed = formIntegrator->GetMaxCharSpeed();
-}
-
-void DGHyperbolicConservationLaws::Update()
-{
-   nonlinearForm->Update();
-   height = nonlinearForm->Height();
-   width = height;
-   z.SetSize(height);
-
-   ComputeInvMass();
-   if (!weakdiv.empty()) {ComputeWeakDivergence();}
-}
-
-std::function<void(const Vector&, Vector&)> GetMovingVortexInit(
-   const real_t radius, const real_t Minf, const real_t beta,
-   const real_t gas_constant, const real_t specific_heat_ratio)
-{
-   return [specific_heat_ratio,
-           gas_constant, Minf, radius, beta](const Vector &x, Vector &y)
+   return [specific_heat_ratio, gas_constant, Minf, radius,
+                                beta](const Vector &x, Vector &y)
    {
       MFEM_ASSERT(x.Size() == 2, "");
 
@@ -305,8 +291,8 @@ std::function<void(const Vector&, Vector&)> GetMovingVortexInit(
       const real_t den_inf = 1.;
 
       // Derive remainder of background state from this and Minf
-      const real_t pres_inf = (den_inf / specific_heat_ratio) *
-                              (vel_inf / Minf) * (vel_inf / Minf);
+      const real_t pres_inf =
+         (den_inf / specific_heat_ratio) * (vel_inf / Minf) * (vel_inf / Minf);
       const real_t temp_inf = pres_inf / (den_inf * gas_constant);
 
       real_t r2rad = 0.0;
@@ -322,11 +308,9 @@ std::function<void(const Vector&, Vector&)> GetMovingVortexInit(
          vel_inf * beta * (x(0) - xc) / radius * std::exp(-0.5 * r2rad);
       const real_t vel2 = velX * velX + velY * velY;
 
-      const real_t specific_heat =
-         gas_constant * specific_heat_ratio * shrinv1;
-      const real_t temp = temp_inf - 0.5 * (vel_inf * beta) *
-                          (vel_inf * beta) / specific_heat *
-                          std::exp(-r2rad);
+      const real_t specific_heat = gas_constant * specific_heat_ratio * shrinv1;
+      const real_t temp = temp_inf - 0.5 * (vel_inf * beta) * (vel_inf * beta) /
+                          specific_heat * std::exp(-r2rad);
 
       const real_t den = den_inf * std::pow(temp / temp_inf, shrinv1);
       const real_t pres = den * gas_constant * temp;
@@ -357,9 +341,9 @@ Mesh EulerMesh(const int problem)
 }
 
 // Initial condition
-VectorFunctionCoefficient EulerInitialCondition(const int problem,
-                                                const real_t specific_heat_ratio,
-                                                const real_t gas_constant)
+VectorFunctionCoefficient
+EulerInitialCondition(const int problem, const real_t specific_heat_ratio,
+                      const real_t gas_constant)
 {
    switch (problem)
    {
@@ -375,7 +359,7 @@ VectorFunctionCoefficient EulerInitialCondition(const int problem,
          return VectorFunctionCoefficient(4, [](const Vector &x, Vector &y)
          {
             MFEM_ASSERT(x.Size() == 2, "");
-            const real_t density = 1.0 + 0.2 * std::sin(M_PI*(x(0) + x(1)));
+            const real_t density = 1.0 + 0.2 * std::sin(M_PI * (x(0) + x(1)));
             const real_t velocity_x = 0.7;
             const real_t velocity_y = 0.3;
             const real_t pressure = 1.0;
@@ -405,6 +389,54 @@ VectorFunctionCoefficient EulerInitialCondition(const int problem,
       default:
          MFEM_ABORT("Problem Undefined");
    }
+}
+
+EulerInterior::Kernels::Kernels()
+{
+   // 2D
+   EulerInterior::AddSpecialization<2, 1, 1>();
+   EulerInterior::AddSpecialization<2, 2, 2>();
+   EulerInterior::AddSpecialization<2, 3, 3>();
+   EulerInterior::AddSpecialization<2, 4, 4>();
+
+   EulerInterior::AddSpecialization<2, 1, 2>();
+   EulerInterior::AddSpecialization<2, 2, 3>();
+   EulerInterior::AddSpecialization<2, 3, 4>();
+   EulerInterior::AddSpecialization<2, 4, 5>();
+   // 3D
+   EulerInterior::AddSpecialization<3, 1, 1>();
+   EulerInterior::AddSpecialization<3, 2, 2>();
+   EulerInterior::AddSpecialization<3, 3, 3>();
+   EulerInterior::AddSpecialization<3, 4, 4>();
+
+   EulerInterior::AddSpecialization<3, 1, 2>();
+   EulerInterior::AddSpecialization<3, 2, 3>();
+   EulerInterior::AddSpecialization<3, 3, 4>();
+   EulerInterior::AddSpecialization<3, 4, 5>();
+}
+
+EulerRusanov::Kernels::Kernels()
+{
+   // 2D
+   EulerRusanov::AddSpecialization<2, 1, 1>();
+   EulerRusanov::AddSpecialization<2, 2, 2>();
+   EulerRusanov::AddSpecialization<2, 3, 3>();
+   EulerRusanov::AddSpecialization<2, 4, 4>();
+
+   EulerRusanov::AddSpecialization<2, 1, 2>();
+   EulerRusanov::AddSpecialization<2, 2, 3>();
+   EulerRusanov::AddSpecialization<2, 3, 4>();
+   EulerRusanov::AddSpecialization<2, 4, 5>();
+   // 3D
+   EulerRusanov::AddSpecialization<3, 1, 1>();
+   EulerRusanov::AddSpecialization<3, 2, 2>();
+   EulerRusanov::AddSpecialization<3, 3, 3>();
+   EulerRusanov::AddSpecialization<3, 4, 4>();
+
+   EulerRusanov::AddSpecialization<3, 1, 2>();
+   EulerRusanov::AddSpecialization<3, 2, 3>();
+   EulerRusanov::AddSpecialization<3, 3, 4>();
+   EulerRusanov::AddSpecialization<3, 4, 5>();
 }
 
 } // namespace mfem
