@@ -71,7 +71,7 @@
 // Adaptation of magnetic mirror effect:
 // mpirun -np 4 ./volta -m ../../data/ball-nurbs.mesh -dbcs 1 -cs '0 0 0 0.1 2e-11' -rs 2 -maxit 4
 // mpirun -np 4 ./tesla -m ../../data/fichera.mesh -maxit 4 -rs 3  -bm '-0.1 -0.1 -0.1 0.1 0.1 0.1 0.1 -1e10'
-// mpirun -np 4 ./lorentz -er Volta-AMR-Parallel -ec 4 -br Tesla-AMR-Parallel -bc 4 -x0 '0.8 0 0' -p0 '-8 -4 4' -q -10 -dt 1e-3 -nt 1000 -npt 1000 -vt 3 -rf 1000 -pm 2 -vf 5
+// mpirun -np 4 ./lorentz -er Volta-AMR-Parallel -ec 4 -br Tesla-AMR-Parallel -bc 4 -x0 '0.8 0 0' -p0 '-8 -4 4' -q -10 -dt 1e-3 -nt 1000 -npt 500 -vt 3 -rdf 1000 -pm 2 -vf 5
 
 #include "mfem.hpp"
 #include "../common/fem_extras.hpp"
@@ -201,8 +201,8 @@ int main(int argc, char *argv[])
                   "Number of digits in B field MPI rank.");
    args.AddOption(&ctx.particle_mesh, "-pm", "--particle-mesh", 
                   "Particle domain mesh for initialization, redistribution, + lost particle detection. -1 for unit cube. 0 for E field mesh. 1 for B field mesh.");
-   args.AddOption(&ctx.redist_freq, "-rf", "--redist-freq", "Redistribution frequency.");
-   args.AddOption(&ctx.rm_lost_freq, "-rm", "--remove-lost-freq", "Remove lost particles frequency.");
+   args.AddOption(&ctx.redist_freq, "-rdf", "--redist-freq", "Redistribution frequency.");
+   args.AddOption(&ctx.rm_lost_freq, "-rmf", "--remove-lost-freq", "Remove lost particles frequency.");
    args.AddOption(&ctx.ordering, "-o", "--ordering", "Ordering of particle data. 0 = byNODES, 1 = byVDIM.");
    args.AddOption(&ctx.npt, "-npt", "--num-part", "Total number of particles.");
    args.AddOption(&ctx.m, "-m", "--mass",
@@ -333,7 +333,7 @@ int main(int argc, char *argv[])
       }
 
       // Redistribute
-      if (step % ctx.redist_freq == 0 && particles.GetGlobalNP > 0)
+      if (step % ctx.redist_freq == 0 && particles.GetGlobalNP() > 0)
       {  
          // Visualize particles pre-redistribute
          if (ctx.visualization)
