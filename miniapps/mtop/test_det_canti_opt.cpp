@@ -29,9 +29,17 @@ using namespace mfem;
 real_t proj(ParGridFunction &psi, real_t target_volume, real_t domain_volume, real_t tol=1e-12,
             int max_its=10)
 {
+    ParGridFunction onegf(psi.ParFESpace()); onegf=1.0;
+
     GridFunctionCoefficient psi_coeff(&psi);
 
-    const real_t psimax = psi.Normlinf();
+    real_t psimax;
+    {
+        real_t locmax=psi.Normlinf();
+        //MPI_DOUBLE should be replaced with the MFEM data type
+        MPI_Allreduce(&locmax,&psimax,1,MPI_DOUBLE, MPI_MAX, psi.ParFESpace()->GetComm());
+    }
+
     const real_t volume_proportion = target_volume / domain_volume;
 
     real_t a = inv_sigmoid(volume_proportion) - psimax; // lower bound of 0
@@ -49,14 +57,12 @@ real_t proj(ParGridFunction &psi, real_t target_volume, real_t domain_volume, re
     ParLinearForm int_sigmoid_psi_a(psi.ParFESpace());
     int_sigmoid_psi_a.AddDomainIntegrator(new DomainLFIntegrator(sigmoid_psi_a));
     int_sigmoid_psi_a.Assemble();
-    //@Will - are you trying to evaluate integral? (parallel sum)
-    real_t a_vol_minus = int_sigmoid_psi_a.Sum() - target_volume;
+    real_t a_vol_minus = int_sigmoid_psi_a(onegf) - target_volume;
 
     ParLinearForm int_sigmoid_psi_b(psi.ParFESpace());
     int_sigmoid_psi_b.AddDomainIntegrator(new DomainLFIntegrator(sigmoid_psi_b));
     int_sigmoid_psi_b.Assemble();
-    //@Will - are you trying to evaluate integral? (parallel sum)
-    real_t b_vol_minus = int_sigmoid_psi_b.Sum() - target_volume;
+    real_t b_vol_minus = int_sigmoid_psi_b(onegf) - target_volume;
 
    bool done = false;
    real_t x;
@@ -67,14 +73,14 @@ real_t proj(ParGridFunction &psi, real_t target_volume, real_t domain_volume, re
         // cout << "Iteration count " << k << ".\n"; 
         x = b - b_vol_minus * (b - a) / (b_vol_minus - a_vol_minus);
 
-        ParLinearForm int_sigmoid_psi_x(psi.ParFESpace());
         ConstantCoefficient xCoefficient(x);
         SumCoefficient psiX(psi_coeff, xCoefficient);
         TransformedCoefficient sigmoid_psi_x(&psiX, sigmoid);
+
+        ParLinearForm int_sigmoid_psi_x(psi.ParFESpace());
         int_sigmoid_psi_x.AddDomainIntegrator(new DomainLFIntegrator(sigmoid_psi_x));
         int_sigmoid_psi_x.Assemble();
-        //@Will - are you trying to evaluate integral? One has to do this in parallel
-        x_vol = int_sigmoid_psi_x.Sum();
+        x_vol = int_sigmoid_psi_x(onegf);
 
         real_t x_vol_minus = x_vol - target_volume;
 
@@ -104,7 +110,7 @@ real_t proj(ParGridFunction &psi, real_t target_volume, real_t domain_volume, re
         mfem_warning("Projection reached maximum iteration without converging. "
                     "Result may not be accurate.");
     }
-   return x_vol;
+    return x_vol;
 }
 
 class DensCoeff : public Coefficient
@@ -348,6 +354,15 @@ int main(int argc, char *argv[])
     elsolver->SetMaterial(*(icc.GetE()), *(icc.GetNu())); // take parameters from ICC. It's a coefficient factory. GetE() is a function of density, GetNu() is a constant function (might be a density)
 
 
+    ParBilinearForm mass(filt->GetDesignFES());
+    mass.AddDomainIntegrator(new InverseIntegrator(new MassIntegrator(one)));
+    mass.Assemble();
+    HypreParMatrix M;
+    Array<int> empty;
+    mass.FormSystemMatrix(empty,M);
+    Vector tmp_grad; tmp_grad.SetSize(filt->GetDesignFES()->GetTrueVSize());
+
+
     // loop
     for (int k = 1; k <= max_it; k++)
     {
@@ -368,12 +383,14 @@ int main(int argc, char *argv[])
         //filt->Mult(odens_gf, fdv); // apply filt to odv, write into fdv. Can do this with ParGrid functions or VectorCoefficients. Generally better to work in true vectors.
         filt->FFilter(&odens,fdens); //filter odens(mapped coefficient) and write the result in the fdens grid function
 
+        icc.SetGridFunctions(&fdens, &(elsolver->GetDisplacements()));
         // solve the discrete elastic system
         elsolver->Assemble();
         elsolver->FSolve(); // solve for displacements
 
         // extract the solution
         ParGridFunction &sol = elsolver->GetDisplacements();
+        icc.SetGridFunctions(&fdens, &sol);
 
         // // project the coefficients
         // ParGridFunction egf(filt->GetFilterFES());
@@ -403,8 +420,11 @@ int main(int argc, char *argv[])
         // Apply the adjoint filter operation
         filt->AFilter(icc.GetGradIsoComp(), ogf); // adjoint operation to projection to find differential in design space. Chain rule.
         // get the true vector of the gradient
-        // ogf.SetTrueVector();
-        // ogf.GetTrueDofs(ograd); // extracting the information in the ParGridFunction into the ograd. Lives in dual of design space.
+        ogf.SetTrueVector();
+        M.Mult(ogf.GetTrueVector(),tmp_grad);
+        ogf.SetFromTrueDofs(tmp_grad);
+        //ogf.GetTrueDofs(ograd); // extracting the information in the ParGridFunction into the ograd. Lives in dual of design space.
+
  
         //#Will the ogf in the update below is not scaled with M^{-1}
         odens_latent.Add(-alpha, ogf);

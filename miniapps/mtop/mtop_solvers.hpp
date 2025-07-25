@@ -353,7 +353,9 @@ public:
         sfec=new mfem::H1_FECollection(order, dim);
         sfes=new mfem::ParFiniteElementSpace(pmesh,sfec,1);
 
-        ifec=new mfem::H1Pos_FECollection(order-1,dim);
+        //ifec=new mfem::H1Pos_FECollection(order-1,dim);
+        //ifec=new mfem::H1_FECollection(order-1,dim);
+        ifec=new mfem::L2_FECollection(order-1,dim);
         ifes=new mfem::ParFiniteElementSpace(pmesh,ifec,1);
 
         dfes=ifes;
