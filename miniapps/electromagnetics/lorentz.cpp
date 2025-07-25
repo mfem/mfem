@@ -115,7 +115,8 @@ struct LorentzContext
    bool visualization = true;
    int visport = 19916;
    int vis_tail_size = 5;
-   
+   int vis_freq = 5;
+
    int csv_freq = 0;
 } ctx;
 
@@ -222,6 +223,7 @@ int main(int argc, char *argv[])
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
    args.AddOption(&ctx.vis_tail_size, "-vt", "--vis-tail-size", "GLVis visualization trajectory truncation tail size.");
+   args.AddOption(&ctx.vis_freq, "-vf", "--vis-freq", "GLVis visualization frequency.");
    args.AddOption(&ctx.visport, "-p", "--send-port", "Socket for GLVis.");
    args.AddOption(&ctx.csv_freq, "-csv", "--csv-freq", "Frequency of particle CSV outputting.");
 
@@ -318,7 +320,7 @@ int main(int argc, char *argv[])
       }
 
       // Visualize trajectories
-      if(ctx.visualization)
+      if(ctx.visualization && step % ctx.vis_freq == 0)
       {
          traj_vis->Visualize();
       }
@@ -416,7 +418,7 @@ void BorisAlgorithm::Step(GridFunction *E_gf, GridFunction *B_gf, ParticleSet &c
       Mesh &B_mesh = *B_gf->FESpace()->GetMesh();
       B_mesh.EnsureNodes();
       B_finder.FindPoints(B_mesh, X, X.GetOrdering());
-      B_finder.Interpolate(*B_gf, E);
+      B_finder.Interpolate(*B_gf, B);
       Ordering::Reorder(B, B.GetVDim(), B_gf->FESpace()->GetOrdering(), B.GetOrdering());
    }
    else
@@ -436,11 +438,8 @@ void BorisAlgorithm::Step(GridFunction *E_gf, GridFunction *B_gf, ParticleSet &c
       E.GetParticleValues(i, E_p_);
       B.GetParticleValues(i, B_p_);
 
-      cout << "Particle pre-step:" << endl;
-      p.Print();
       ParticleStep(E_p_, B_p_, p, dt);
-      cout << "Particle post-step:" << endl;
-      p.Print();
+
       charged_particles.SetParticle(i, p);
    }
 
