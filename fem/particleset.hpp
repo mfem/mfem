@@ -30,6 +30,7 @@ struct crystal;
 #endif
 
 #include <numeric>
+#include <variant>
 
 namespace mfem
 {
@@ -227,7 +228,7 @@ public:
 
 #endif // MFEM_USE_MPI
 
-   const int GetDim() const { return active_state.coords.GetVDim(); }
+   int GetDim() const { return active_state.coords.GetVDim(); }
 
    const Array<unsigned int>& GetIDs() const { return active_state.ids; }
 

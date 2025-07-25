@@ -45,6 +45,7 @@ void Add3DPoint(const Vector &center, Mesh &m, real_t s)
    for (int i = 0; i < 8; i++)
    {
       v[i].SetSize(3);
+      v[i] = 0.0;
    }
 
    for (int i = 0; i < center.Size(); i++)

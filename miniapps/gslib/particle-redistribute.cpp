@@ -86,7 +86,6 @@ int main (int argc, char *argv[])
 
    const char *mesh_file = "../../data/rt-2d-q3.mesh";
    int npt = 1;
-   int N = 10;
    bool visualization = true;
    int visport = 19916;
    char vishost[] = "localhost";
@@ -112,7 +111,7 @@ int main (int argc, char *argv[])
    // TODO: This should be in FindPointsGSLIB:
    MFEM_ASSERT(mesh.SpaceDimension() == mesh.Dimension(), "FindPointsGSLIB requires that the mesh space dimension + reference element dimension are the same");
    int space_dim = mesh.Dimension();
-
+   mfem::out << "Mesh dim: " << space_dim << std::endl;
    ParticleSet pset(MPI_COMM_WORLD, npt, space_dim);
 
    Vector pos_min, pos_max;
@@ -120,7 +119,7 @@ int main (int argc, char *argv[])
 
    ParMesh pmesh(MPI_COMM_WORLD, mesh);
 
-   // Generate particles randomly on entire mesh domain, for each rank
+   // Set particles randomly on entire mesh domain, for each rank
    int seed = rank;
    for (int i = 0; i < pset.GetNP(); i++)
    {
@@ -136,15 +135,7 @@ int main (int argc, char *argv[])
    finder.FindPoints(pset.Coords(), pset.Coords().GetOrdering());
 
    // Remove points not in domain
-   Array<int> rm_idxs;
-   const Array<unsigned int> &codes = finder.GetCode();
-   for (int i = 0; i < pset.GetNP(); i++)
-   {
-      if (codes[i] == 2)
-      {
-         rm_idxs.Append(i);
-      }
-   }
+   const Array<int> rm_idxs = finder.GetPointsNotFoundIndices();
    pset.RemoveParticles(rm_idxs);
 
    int num_removed = rm_idxs.Size();
@@ -169,7 +160,7 @@ int main (int argc, char *argv[])
       socketstream sock;
       Vector rank_vector(pset.GetNP());
       rank_vector = rank;
-      VisualizeParticles(sock, "localhost", visport, pset, rank_vector, psize, "Particle Owning Rank (Pre-Redistribute)", 0, 0, 400, 400, "bc");
+      VisualizeParticles(sock, vishost, visport, pset, rank_vector, psize, "Particle Owning Rank (Pre-Redistribute)", 0, 0, 400, 400, "bc");
    }
 
    // Redistribute
