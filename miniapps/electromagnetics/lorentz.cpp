@@ -68,9 +68,10 @@
 
 
 // Joe test case:
-
-// mpirun -np 4 ./tesla -m ../../data/inline-hex.mesh -ubbc '0 0 1'
-// mpirun -np 4 ./lorentz -br Tesla-AMR-Parallel -x0 '0.1 0.5 0.1' -p0 '0 0.4 0.01 -0.2 -0.2 0.0' -nt 1000 -npt 1000 -vt 5 --rf 1000 -mm 2
+// Adaptation of magnetic mirror effect:
+// mpirun -np 4 ./volta -m ../../data/ball-nurbs.mesh -dbcs 1 -cs '0 0 0 0.1 2e-11' -rs 2 -maxit 4
+// mpirun -np 4 ./tesla -m ../../data/fichera.mesh -maxit 4 -rs 3  -bm '-0.1 -0.1 -0.1 0.1 0.1 0.1 0.1 -1e10'
+// mpirun -np 4 ./lorentz -er Volta-AMR-Parallel -ec 4 -br Tesla-AMR-Parallel -bc 4 -x0 '0.8 0 0' -p0 '-8 -4 4' -q -10 -dt 1e-3 -nt 1000 -npt 1000 -vt 3 -rf 1000 -pm 2 -vf 5
 
 #include "mfem.hpp"
 #include "../common/fem_extras.hpp"
@@ -332,7 +333,7 @@ int main(int argc, char *argv[])
       }
 
       // Redistribute
-      if (step % ctx.redist_freq == 0)
+      if (step % ctx.redist_freq == 0 && particles.GetGlobalNP > 0)
       {  
          // Visualize particles pre-redistribute
          if (ctx.visualization)
