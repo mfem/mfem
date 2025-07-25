@@ -43,6 +43,9 @@ protected:
    const Ordering::Type ordering;
 
 public:
+
+   using Vector::operator=;
+
    ParticleVector(int np, int vdim_, Ordering::Type ordering_)
    : Vector(np*vdim_), vdim(vdim_), ordering(ordering_) { Vector::operator=(0.0); }
    
@@ -215,6 +218,7 @@ public:
    // Serial constructors
    ParticleSet(int num_particles, int dim, Ordering::Type coords_ordering=Ordering::byVDIM);
    ParticleSet(int num_particles, int dim, const Array<int> &field_vdims, Ordering::Type all_ordering=Ordering::byVDIM);
+   ParticleSet(int num_particles, int dim, const Array<int> &field_vdims, const Array<const char*> &field_names_, Ordering::Type all_ordering=Ordering::byVDIM);
    ParticleSet(int num_particles, int dim, Ordering::Type coords_ordering, const Array<int> &field_vdims, const Array<Ordering::Type> &field_orderings, const Array<const char*> &field_names_);
 
 #ifdef MFEM_USE_MPI
@@ -222,10 +226,13 @@ public:
    // Parallel constructors
    ParticleSet(MPI_Comm comm_, int num_particles, int dim, Ordering::Type coords_ordering=Ordering::byVDIM);
    ParticleSet(MPI_Comm comm_, int num_particles, int dim, const Array<int> &field_vdims, Ordering::Type all_ordering=Ordering::byVDIM);
+   ParticleSet(MPI_Comm comm_, int num_particles, int dim, const Array<int> &field_vdims, const Array<const char*> &field_names_, Ordering::Type all_ordering=Ordering::byVDIM);
    ParticleSet(MPI_Comm comm_, int num_particles, int dim, Ordering::Type coords_ordering, const Array<int> &field_vdims, const Array<Ordering::Type> &field_orderings, const Array<const char*> &field_names_);
 
    MPI_Comm GetComm() const { return comm; };
 
+   HYPRE_BigInt GetGlobalNP() const;
+   
 #endif // MFEM_USE_MPI
 
    int GetDim() const { return active_state.coords.GetVDim(); }
