@@ -37,6 +37,29 @@ void QuadratureSpaceBase::ConstructIntRules(int dim)
    }
 }
 
+const Array<int> &QuadratureSpaceBase::Offsets(
+   QSpaceOffsetStorage storage) const
+{
+   if (storage == QSpaceOffsetStorage::COMPRESSED || offsets.Size() > 1)
+   {
+      return offsets;
+   }
+   else
+   {
+      if (full_offset_cache.Size() == 0)
+      {
+         const int nq = size / ne;
+         full_offset_cache.SetSize(ne + 1);
+         int *d_full_offset_cache = full_offset_cache.Write();
+         mfem::forall(ne + 1, [=] MFEM_HOST_DEVICE (int e)
+         {
+            d_full_offset_cache[e] = nq * e;
+         });
+      }
+      return full_offset_cache;
+   }
+}
+
 namespace
 {
 
