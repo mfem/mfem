@@ -17,8 +17,9 @@ namespace mfem
 {
 
 QuadratureSpaceBase::QuadratureSpaceBase(Mesh &mesh_, Geometry::Type geom,
-                                         const IntegrationRule &ir)
-   : mesh(mesh_), order(ir.GetOrder())
+                                         const IntegrationRule &ir,
+                                         QSpaceStorage storage)
+   : mesh(mesh_), order(ir.GetOrder()), storage(storage)
 {
    for (int g = 0; g < Geometry::NumGeom; g++)
    {
@@ -96,10 +97,10 @@ void QuadratureSpaceBase::Integrate(VectorCoefficient &coeff,
 
 void QuadratureSpace::ConstructOffsets()
 {
-   const int num_elem = mesh.GetNE();
-   ne = num_elem;
+   const int num_elem = ne;
 
-   if (mesh.GetNumGeometries(mesh.Dimension()) == 1)
+   if (storage == QSpaceStorage::COMPRESSED &&
+       mesh.GetNumGeometries(mesh.Dimension()) == 1)
    {
       Array<Geometry::Type> geoms;
       mesh.GetGeometries(mesh.Dimension(), geoms);
@@ -124,14 +125,9 @@ void QuadratureSpace::ConstructOffsets()
    }
 }
 
-void QuadratureSpace::Construct()
-{
-   ConstructIntRules(mesh.Dimension());
-   ConstructOffsets();
-}
-
-QuadratureSpace::QuadratureSpace(Mesh *mesh_, std::istream &in)
-   : QuadratureSpaceBase(*mesh_)
+QuadratureSpace::QuadratureSpace(Mesh *mesh_, std::istream &in,
+                                 QSpaceStorage storage)
+   : QuadratureSpaceBase(*mesh_, 0, storage)
 {
    const char *msg = "invalid input stream";
    std::string ident;
@@ -150,15 +146,24 @@ QuadratureSpace::QuadratureSpace(Mesh *mesh_, std::istream &in)
       return;
    }
 
-   Construct();
+   ne = mesh.GetNE();
+   ConstructIntRules(mesh.Dimension());
 }
 
-QuadratureSpace::QuadratureSpace(Mesh &mesh_, const IntegrationRule &ir)
-   : QuadratureSpaceBase(mesh_, mesh_.GetTypicalElementGeometry(), ir)
+QuadratureSpace::QuadratureSpace(Mesh *mesh_, int order_, QSpaceStorage storage)
+   : QuadratureSpaceBase(*mesh_, order_, storage)
+{
+   ne = mesh.GetNE();
+   ConstructIntRules(mesh.Dimension());
+}
+
+QuadratureSpace::QuadratureSpace(Mesh &mesh_, const IntegrationRule &ir,
+                                 QSpaceStorage storage)
+   : QuadratureSpaceBase(mesh_, mesh_.GetTypicalElementGeometry(), ir, storage)
 {
    MFEM_VERIFY(mesh.GetNumGeometries(mesh.Dimension()) <= 1,
                "Constructor not valid for mixed meshes");
-   ConstructOffsets();
+   ne = mesh.GetNE();
 }
 
 void QuadratureSpace::Save(std::ostream &os) const
@@ -180,31 +185,32 @@ const Vector &QuadratureSpace::GetGeometricFactorWeights() const
 }
 
 FaceQuadratureSpace::FaceQuadratureSpace(Mesh &mesh_, int order_,
-                                         FaceType face_type_)
-   : QuadratureSpaceBase(mesh_, order_), face_type(face_type_),
+                                         FaceType face_type_,
+                                         QSpaceStorage storage)
+   : QuadratureSpaceBase(mesh_, order_, storage), face_type(face_type_),
      face_indices(mesh.GetFaceIndices(face_type_)),
      face_indices_inv(mesh.GetInvFaceIndices(face_type_))
 {
-   Construct();
+   ne = face_indices.Size();
+   ConstructIntRules(mesh.Dimension() - 1);
 }
 
 FaceQuadratureSpace::FaceQuadratureSpace(Mesh &mesh_, const IntegrationRule &ir,
-                                         FaceType face_type_)
-   : QuadratureSpaceBase(mesh_, mesh_.GetTypicalFaceGeometry(), ir),
-     face_type(face_type_),
-     face_indices(mesh.GetFaceIndices(face_type_)),
+                                         FaceType face_type_,
+                                         QSpaceStorage storage)
+   : QuadratureSpaceBase(mesh_, mesh_.GetTypicalFaceGeometry(), ir, storage),
+     face_type(face_type_), face_indices(mesh.GetFaceIndices(face_type_)),
      face_indices_inv(mesh.GetInvFaceIndices(face_type_))
 {
    MFEM_VERIFY(mesh.GetNumGeometries(mesh.Dimension() - 1) <= 1,
                "Constructor not valid for mixed meshes");
-   ConstructOffsets();
+   ne = face_indices.Size();
 }
 
 void FaceQuadratureSpace::ConstructOffsets()
 {
-   ne = face_indices.Size();
-
-   if (mesh.GetNumGeometries(mesh.Dimension() - 1) == 1)
+   if (storage == QSpaceStorage::COMPRESSED &&
+       mesh.GetNumGeometries(mesh.Dimension() - 1) == 1)
    {
       Array<Geometry::Type> geoms;
       mesh.GetGeometries(mesh.Dimension() - 1, geoms);
@@ -226,12 +232,6 @@ void FaceQuadratureSpace::ConstructOffsets()
       }
       offsets[face_indices.Size()] = size = offset;
    }
-}
-
-void FaceQuadratureSpace::Construct()
-{
-   ConstructIntRules(mesh.Dimension() - 1);
-   ConstructOffsets();
 }
 
 int FaceQuadratureSpace::GetPermutedIndex(int idx, int iq) const
