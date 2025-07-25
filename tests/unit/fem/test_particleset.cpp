@@ -271,7 +271,7 @@ void TestRedistribute(Ordering::Type ordering)
 TEST_CASE("Particle Redistribution", "[ParticleSet]" "[Parallel]")
 {
    TestRedistribute(Ordering::byNODES);
-   //TestRedistribute(Ordering::byVDIM);
+   TestRedistribute(Ordering::byVDIM);
 }
 
 #endif // MFEM_USE_MPI && MFEM_USE_GSLIB
