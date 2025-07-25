@@ -108,7 +108,7 @@ struct LorentzContext
    Vector p_init;
    real_t dt = 1e-2;
    real_t t0 = 0.0;
-   real_t tf = 1.0;
+   int nt = 1000.0;
    int redist_freq = 10;
    int rm_lost_freq = 1;
 
@@ -216,8 +216,8 @@ int main(int argc, char *argv[])
                   "Time Step.");
    args.AddOption(&ctx.t0, "-t0", "--initial-time",
                   "Initial Time.");
-   args.AddOption(&ctx.tf, "-tf", "--final-time",
-                  "Final Time.");
+   args.AddOption(&ctx.nt, "-nt", "--num-timesteps",
+                  "Number of timesteps.");
    args.AddOption(&ctx.visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -298,11 +298,6 @@ int main(int argc, char *argv[])
    BorisAlgorithm boris(MPI_COMM_WORLD);
    real_t t = ctx.t0;
    real_t dt = ctx.dt;
-   int nsteps = 1 + (int)ceil((ctx.tf - ctx.t0) / dt);
-   if (Mpi::Root())
-   {
-      mfem::out << "Number of steps: " << nsteps << endl;
-   }
 
    // Setup visualization
    char vishost[] = "localhost";
@@ -313,7 +308,7 @@ int main(int argc, char *argv[])
       traj_vis = std::make_unique<ParticleTrajectories>(particles, ctx.vis_tail_size, vishost, ctx.visport, "Particle Trajectories", 0, 0, 400, 400, "b");
    }
 
-   for (int step = 1; step <= nsteps; step++)
+   for (int step = 1; step <= ctx.nt; step++)
    {
       // Step the Boris algorithm
       boris.Step(E_gf, B_gf, particles, t, dt);
@@ -437,12 +432,15 @@ void BorisAlgorithm::Step(GridFunction *E_gf, GridFunction *B_gf, ParticleSet &c
    for (int i = 0; i < charged_particles.GetNP(); i++)
    {
       Particle p = charged_particles.GetParticle(i);
-
+      
       E.GetParticleValues(i, E_p_);
       B.GetParticleValues(i, B_p_);
 
+      cout << "Particle pre-step:" << endl;
+      p.Print();
       ParticleStep(E_p_, B_p_, p, dt);
-
+      cout << "Particle post-step:" << endl;
+      p.Print();
       charged_particles.SetParticle(i, p);
    }
 
