@@ -1,7 +1,6 @@
 // Comprehensive brute force test for GetBoundaryEdgeDoFs with all tetrahedral pairs
 #include "mfem.hpp"
 #include "test_utils.hpp"
-#include "boundary_edge_dofs_patch.hpp"
 #include <algorithm>
 #include <vector>
 #include <fstream>
@@ -97,21 +96,17 @@ int main(int argc, char *argv[])
                 ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *test_mesh, current_partition.data());
                 ParFiniteElementSpace *fespace = new ParFiniteElementSpace(pmesh, fec);
 
-                // Set up boundary attribute marker for attribute 3
-                Array<int> bdr_attr_marker(pmesh->bdr_attributes.Max());
-                bdr_attr_marker = 0;
-                if (pmesh->bdr_attributes.Size() >= 3) 
-                {
-                    bdr_attr_marker[2] = 1; // Mark attribute 3 (index 2)
-                }
-
-                // Run GetBoundaryEdgeDoFs
+                // Extract boundary edge DoFs
                 Array<int> ess_tdof_list;
                 std::unordered_set<int> boundary_edge_ldofs;
                 Array<int> ldof_marker;
+                Array<int> boundary_elements;
+                // select the shared face to be the tested boundary (attribute 3)
+                int bdr_attr = pmesh->bdr_attributes.Max();  
                 
-                fespace->GetBoundaryEdgeDoFs(bdr_attr_marker, ess_tdof_list, ldof_marker, boundary_edge_ldofs, 
-                                             nullptr, nullptr, nullptr, nullptr);
+                fespace->GetBoundaryElementsByAttribute(bdr_attr, boundary_elements);
+                fespace->GetBoundaryEdgeDoFs(boundary_elements, ess_tdof_list, ldof_marker, 
+                                            boundary_edge_ldofs);
 
                 // Collect total boundary edge DoFs
                 int local_dofs = boundary_edge_ldofs.size();

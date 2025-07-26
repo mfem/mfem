@@ -1,6 +1,5 @@
 // Brute force test for GetBoundaryEdgeDoFs with all possible partitionings
 #include "mfem.hpp"
-#include "boundary_edge_dofs_patch.hpp"
 #include "test_utils.hpp"
 #include <algorithm>
 #include <vector>
@@ -80,21 +79,17 @@ int main(int argc, char *argv[])
         // Create finite element space
         ParFiniteElementSpace *fespace = new ParFiniteElementSpace(pmesh, fec);
 
-        // Set up boundary attribute marker (reuse if possible)
-        Array<int> bdr_attr_marker(pmesh->bdr_attributes.Max());
-        bdr_attr_marker = 0;
-        if (pmesh->bdr_attributes.Size() > 1) 
-        {
-            bdr_attr_marker[1] = 1;
-        }
-
-        // Run GetBoundaryEdgeDoFs
+        // Extract boundary edge DoFs
         Array<int> ess_tdof_list;
         std::unordered_set<int> boundary_edge_ldofs;
         Array<int> ldof_marker;
+        Array<int> boundary_elements;
+        // select the shared face to be the tested boundary
+        int bdr_attr = pmesh->bdr_attributes.Max();  
         
-        fespace->GetBoundaryEdgeDoFs(bdr_attr_marker, ess_tdof_list, ldof_marker, boundary_edge_ldofs, 
-                                    nullptr, nullptr, nullptr, nullptr);
+        fespace->GetBoundaryElementsByAttribute(bdr_attr, boundary_elements);
+        fespace->GetBoundaryEdgeDoFs(boundary_elements, ess_tdof_list, ldof_marker, 
+                                    boundary_edge_ldofs);
                                     
         // Collect total boundary edge DoFs
         int local_dofs = boundary_edge_ldofs.size();

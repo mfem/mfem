@@ -473,12 +473,15 @@ public:
                             std::unordered_map<int, int> *dof_to_boundary_element_out = nullptr,
                             Array<int> *ess_edge_list = nullptr);
 
-    /** Find the boundary elements marked with specified boundary attributes
+   /** Find the boundary elements marked with specified boundary attributes
         @param[in] bdr_attrs list of boundary attributes to search for
         @param[out] attr_to_elements map from boundary attribute to the list of
                                      boundary elements with that attribute */
    void GetBoundaryElementsByAttribute(const Array<int> &bdr_attrs,
                                     std::unordered_map<int, Array<int>> &attr_to_elements);
+
+   /// @brief Simplified interface for single boundary attribute
+   void GetBoundaryElementsByAttribute(int bdr_attr, Array<int> &boundary_elements);
 
    /** Compute edge orientations relative to a loop direction defined by a normal vector.
        This is useful for applying circulation boundary conditions.

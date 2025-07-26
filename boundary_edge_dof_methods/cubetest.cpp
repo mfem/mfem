@@ -1,7 +1,6 @@
 #include "mfem.hpp"
 #include "loop_length.hpp"
 #include "sync_selected.hpp"
-#include "boundary_edge_dofs.hpp"
 
 using namespace std;
 using namespace mfem;
@@ -79,7 +78,7 @@ int main(int argc, char *argv[])
     bdr_attrs[2] = 11;
 
     fespace->GetBoundaryElementsByAttribute(bdr_attrs, attr_to_elements);
-    // Use the interial boundary to test getting the boundary edge DoFs
+    // Use the interial boundary (attribute 11) to test getting the boundary edge DoFs
     Array<int> boundary_element_indices = attr_to_elements[bdr_attrs[2]]; 
     fespace->GetBoundaryEdgeDoFs(boundary_element_indices, ess_tdof_list, ldof_marker, boundary_edge_ldofs, 
                         &dof_to_edge, &dof_to_orientation, &dof_to_boundary_element, &ess_edge_list);

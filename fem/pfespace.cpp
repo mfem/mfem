@@ -1542,6 +1542,19 @@ void ParFiniteElementSpace::GetBoundaryElementsByAttribute(const Array<int> &bdr
    }
 }
 
+void ParFiniteElementSpace::GetBoundaryElementsByAttribute(int bdr_attr, Array<int> &boundary_elements)
+{
+   boundary_elements.SetSize(0);
+   
+   for (int i = 0; i < pmesh->GetNBE(); ++i)
+   {
+      if (pmesh->GetBdrElement(i)->GetAttribute() == bdr_attr)
+      {
+         boundary_elements.Append(i);
+      }
+   }
+}
+
 void ParFiniteElementSpace::ComputeLoopEdgeOrientations(
     const std::unordered_map<int, int>& dof_to_edge,
     const std::unordered_map<int, int>& dof_to_boundary_element,
