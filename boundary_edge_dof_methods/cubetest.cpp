@@ -1,6 +1,7 @@
 #include "mfem.hpp"
 #include "loop_length.hpp"
 #include "sync_selected.hpp"
+#include "boundary_edge_dofs.hpp"
 
 using namespace std;
 using namespace mfem;
@@ -59,10 +60,11 @@ int main(int argc, char *argv[])
     delete mesh;
 
     // Create edge-based finite element space (Nédélec)
-    int order = 2;
+    int order = 1;
     FiniteElementCollection *fec = new ND_FECollection(order, pmesh->Dimension());
     ParFiniteElementSpace *fespace = new ParFiniteElementSpace(pmesh, fec);
 
+    std::unordered_map<int, Array<int>> attr_to_elements;
     Array<int> ess_tdof_list;
     Array<int> ess_edge_list;
     Array<int> ldof_marker;
@@ -70,13 +72,16 @@ int main(int argc, char *argv[])
     std::unordered_map<int, int> dof_to_edge, dof_to_orientation;
     std::unordered_map<int, int> dof_to_boundary_element;
    
-    // Get boundary edge DoFs for boundary attribute 5
-    Array<int> bdr_attr_marker(pmesh->bdr_attributes.Max());
-    bdr_attr_marker = 0;
-    bdr_attr_marker[10] = 1; // Mark attribute 11 for the loop boundary condition
-    
+    // Choose a set of boundary attributes to test getting the boundary elements
+    Array<int> bdr_attrs(3);
+    bdr_attrs[0] = 2;
+    bdr_attrs[1] = 4;
+    bdr_attrs[2] = 11;
 
-    fespace->GetBoundaryEdgeDoFs(bdr_attr_marker, ess_tdof_list, ldof_marker, boundary_edge_ldofs, 
+    fespace->GetBoundaryElementsByAttribute(bdr_attrs, attr_to_elements);
+    // Use the interial boundary to test getting the boundary edge DoFs
+    Array<int> boundary_element_indices = attr_to_elements[bdr_attrs[2]]; 
+    fespace->GetBoundaryEdgeDoFs(boundary_element_indices, ess_tdof_list, ldof_marker, boundary_edge_ldofs, 
                         &dof_to_edge, &dof_to_orientation, &dof_to_boundary_element, &ess_edge_list);
     cout << "Rank " << myid << ", number of edge dofs: " << boundary_edge_ldofs.size() << 
             ", number of non zero markers: " << ldof_marker.Sum() << 
@@ -145,10 +150,9 @@ int main(int argc, char *argv[])
         int orientation = edge_loop_orientation[edge];   
         x(dof) = 1.0 * orientation;
     }
-    // Now synchronize the boundary values using MaxAbs reduction
-    SynchronizeMarkedDoFs(fespace, x, ldof_marker);
+    // (Alternative approach) synchronize the boundary values using MaxAbs reduction done to all ldofs
+    //SynchronizeMarkedDoFs(fespace, x, ldof_marker);
 
-    /*
     // Synchronize boundary values across processors, but only for marked DoFs
     // Get the GroupCommunicator from the finite element space
     GroupCommunicator *gc = fespace->ScalarGroupComm();
@@ -168,7 +172,7 @@ int main(int argc, char *argv[])
     
     // Clean up
     delete gc;
-    */
+
     // Set up the bilinear form for the EM diffusion operator: curl curl + sigma I
     Coefficient *muinv = new ConstantCoefficient(1.0);
     Coefficient *sigma = new ConstantCoefficient(20.0);
