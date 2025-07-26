@@ -1263,8 +1263,7 @@ void ParFiniteElementSpace::GetExteriorVDofs(Array<int> &ext_dofs,
    Synchronize(ext_dofs);
 }
 
-void ParFiniteElementSpace::GetBoundaryEdgeDoFs(
-                                                const Array<int> &bdr_attr_marker,
+void ParFiniteElementSpace::GetBoundaryEdgeDoFs(const Array<int> &boundary_element_indices,
                                                 Array<int> &ess_tdof_list,
                                                 Array<int> &ldof_marker,
                                                 std::unordered_set<int> &boundary_edge_dofs_out,
@@ -1273,17 +1272,6 @@ void ParFiniteElementSpace::GetBoundaryEdgeDoFs(
                                                 std::unordered_map<int, int> *dof_to_boundary_element_out,
                                                 Array<int> *ess_edge_list)
 {
-   // Find boundary elements with target attributes
-   Array<int> boundary_element_indices;
-   for (int i = 0; i < pmesh->GetNBE(); ++i)
-   {
-      int attr = pmesh->GetBdrElement(i)->GetAttribute();
-      if (attr <= bdr_attr_marker.Size() && bdr_attr_marker[attr-1])
-      {
-         boundary_element_indices.Append(i);
-      }
-   }
-
    // Data structures for boundary edge DoFs
    std::unordered_set<int> boundary_edge_dofs;
    std::unordered_map<int, int> dof_to_edge_map;
@@ -1508,45 +1496,50 @@ void ParFiniteElementSpace::GetBoundaryEdgeDoFs(
    // Sort by true DOF index to maintain consistent ordering
    std::sort(tdof_edge_pairs.begin(), tdof_edge_pairs.end());
    
-   // Extract sorted arrays
+   // Extract sorted true DOFs and edges
    for (const auto& pair : tdof_edge_pairs)
    {
       ess_tdof_list.Append(pair.first);
-   }
-   
-   // Build edge list if requested
-   if (ess_edge_list)
-   {
-      ess_edge_list->SetSize(0);
-      ess_edge_list->Reserve(tdof_edge_pairs.size());
-      for (const auto& pair : tdof_edge_pairs)
+      if (ess_edge_list)
       {
          ess_edge_list->Append(pair.second);
       }
    }
 
-   // Return other optional mappings
-   if (dof_to_edge){
-      *dof_to_edge = std::move(dof_to_edge_map);
+   // Set optional output parameters
+   if (dof_to_edge)
+   {
+      *dof_to_edge = dof_to_edge_map;
    }
-   if (dof_to_orientation){
-      *dof_to_orientation = std::move(dof_to_edge_orientation);
+   if (dof_to_orientation)
+   {
+      *dof_to_orientation = dof_to_edge_orientation;
    }
-   if (dof_to_boundary_element_out){
-      *dof_to_boundary_element_out = std::move(dof_to_boundary_element);
+   if (dof_to_boundary_element_out)
+   {
+      *dof_to_boundary_element_out = dof_to_boundary_element;
    }
 }
 
-void ParFiniteElementSpace::GetBoundaryEdgeDoFs(int bdr_attr,
-                                                Array<int> &ess_tdof_list,
-                                                Array<int> &ldof_marker,
-                                                std::unordered_set<int> &boundary_edge_dofs_out)
-{
-   Array<int> bdr_attr_marker(pmesh->bdr_attributes.Max());
-   bdr_attr_marker = 0;
-   bdr_attr_marker[bdr_attr-1] = 1;
-
-   GetBoundaryEdgeDoFs(bdr_attr_marker, ess_tdof_list, ldof_marker, boundary_edge_dofs_out);
+void ParFiniteElementSpace::GetBoundaryElementsByAttribute(const Array<int> &bdr_attrs,
+                                 std::unordered_map<int, Array<int>> &attr_to_elements)
+{   
+   // Initialize arrays for each attribute
+   for (int i = 0; i < bdr_attrs.Size(); ++i)
+   {
+      attr_to_elements[bdr_attrs[i]] = Array<int>();
+   }
+   
+   // Find boundary elements for each attribute
+   for (int i = 0; i < pmesh->GetNBE(); ++i)
+   {
+      int attr = pmesh->GetBdrElement(i)->GetAttribute();
+      auto it = attr_to_elements.find(attr);
+      if (it != attr_to_elements.end())
+      {
+         it->second.Append(i);
+      }
+   }
 }
 
 void ParFiniteElementSpace::ComputeLoopEdgeOrientations(
