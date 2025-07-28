@@ -33,9 +33,27 @@
 //               are offered:
 //               1) sine diffusion - with the asymptotic (a -> infinity) reference
 //                                   solution with the first order correction
-//               2) MFEM logo convection-diffusion - random Gaussian blobs of
-//                                                   conductivity and circular velocity
-//                                                   with ASCII art of MFEM text as IC
+//               2) MFEM text conv-diff - random Gaussian blobs of conductivity
+//                                        and circular velocity with ASCII art
+//                                        of MFEM text as IC
+//               3) diffusion ring - arc segment IC diffused along circle
+//               4) diffusion ring Gauss - Gaussian blobs IC diffused along circle
+//               5) diffusion ring sine - sine profile in radial and angular
+//                                        direction is diffused along circle,
+//                                        analytic solution for asymptotic
+//                                        diffusion with zero radial diffusion
+//               6) boundary layer - exponentially decaying boundary layer problem
+//               7) steady peak - a peak profile with a constant conductivity and
+//                                a manufactured steady-state solution
+//               8) steady varying angle - a concave radial profile diffused
+//                                         along the circle with a manufactured
+//                                         steady-state solution
+//               9) Sovinec problem - a sine profile with diffusion perpendicular
+//                                    to gradient of potential with a manufactured
+//                                    steady-state solution
+//               10) Umansky problem - a transition profile with with diffusion
+//                                     along the interface, where the width is
+//                                     measured automatically
 //               We discretize with Raviart-Thomas finite elements (heat flux q)
 //               and piecewise discontinuous polynomials (temperature T). Alternatively,
 //               the piecewise discontinuous polynomials are used for both quantities.
