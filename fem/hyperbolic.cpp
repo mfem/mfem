@@ -687,6 +687,121 @@ void HyperbolicFormIntegrator::AssembleHDGFaceGrad(
    }
 }
 
+BoundaryHyperbolicLFIntegrator::BoundaryHyperbolicLFIntegrator(
+   const FluxFunction &flux, Coefficient &u, const int IntOrderOffset_,
+   const real_t sign_)
+   : fluxFunction(flux), u_coeff(&u), u_vcoeff(nullptr),
+     IntOrderOffset(IntOrderOffset_), sign(sign_)
+{
+   MFEM_VERIFY(fluxFunction.num_equations == 1, "Flux function is not scalar!");
+#ifndef MFEM_THREAD_SAFE
+   state.SetSize(1);
+   nor.SetSize(fluxFunction.dim);
+   fluxN.SetSize(1);
+#endif
+   ResetMaxCharSpeed();
+}
+
+BoundaryHyperbolicLFIntegrator::BoundaryHyperbolicLFIntegrator(
+   const FluxFunction &flux, VectorCoefficient &u, const int IntOrderOffset_,
+   const real_t sign_)
+   : fluxFunction(flux), u_coeff(nullptr), u_vcoeff(&u),
+     IntOrderOffset(IntOrderOffset_), sign(sign_)
+{
+   MFEM_VERIFY(fluxFunction.num_equations == u_vcoeff->GetVDim(),
+               "Flux function does not match the vector dimension of the coefficient!");
+#ifndef MFEM_THREAD_SAFE
+   state.SetSize(fluxFunction.num_equations);
+   nor.SetSize(fluxFunction.dim);
+   fluxN.SetSize(fluxFunction.num_equations);
+#endif
+   ResetMaxCharSpeed();
+}
+
+void BoundaryHyperbolicLFIntegrator::AssembleRHSElementVect(
+   const FiniteElement &el, ElementTransformation &Tr, Vector &elvect)
+{
+   mfem_error("BoundaryHyperbolicLFIntegrator::AssembleRHSElementVect\n"
+              "  is not implemented as boundary integrator!\n"
+              "  Use LinearForm::AddBdrFaceIntegrator instead of\n"
+              "  LinearForm::AddBoundaryIntegrator.");
+}
+
+void BoundaryHyperbolicLFIntegrator::AssembleRHSElementVect(
+   const FiniteElement &el, FaceElementTransformations &Tr, Vector &elvect)
+{
+   // current elements' the number of degrees of freedom
+   // does not consider the number of equations
+   const int dof = el.GetDof();
+
+#ifdef MFEM_THREAD_SAFE
+   // Local storage for element integration
+
+   // shape function value at an integration point
+   Vector shape(dof);
+   // state value at an integration point
+   Vector state(fluxFunction.num_equations);
+   // normal vector (usually not a unit vector)
+   Vector nor(Tr.GetSpaceDim());
+   // hat(F)(u,x)
+   Vector fluxN(fluxFunction.num_equations);
+#else
+   shape.SetSize(dof);
+#endif
+
+   elvect.SetSize(dof * fluxFunction.num_equations);
+   elvect = 0.0;
+
+   DenseMatrix elvect_mat(elvect.GetData(), dof, fluxFunction.num_equations);
+
+   // Obtain integration rule. If integration is rule is given, then use it.
+   // Otherwise, get (2*p + IntOrderOffset) order integration rule
+   const IntegrationRule *ir = IntRule;
+   if (!ir)
+   {
+      const int order = 2*el.GetOrder() + IntOrderOffset;
+      ir = &IntRules.Get(Tr.GetGeometryType(), order);
+   }
+   // loop over integration points
+   for (int i = 0; i < ir->GetNPoints(); i++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(i);
+
+      Tr.SetAllIntPoints(&ip); // set face and element int. points
+
+      // Calculate basis functions on both elements at the face
+      el.CalcShape(Tr.GetElement1IntPoint(), shape);
+
+      // Evaluate the coefficient at the point
+      if (u_coeff)
+      {
+         state(0) = u_coeff->Eval(Tr, ip);
+      }
+      else
+      {
+         u_vcoeff->Eval(state, Tr, ip);
+      }
+
+      // Get the normal vector and the flux on the face
+      if (nor.Size() == 1)  // if 1D, use 1 or -1.
+      {
+         nor(0) = 2*Tr.GetElement1IntPoint().x - 1.;
+      }
+      else
+      {
+         CalcOrtho(Tr.Jacobian(), nor);
+      }
+      // Compute F(u, x) with maximum characteristic speed
+      const real_t speed = fluxFunction.ComputeFluxDotN(state, nor, Tr, fluxN);
+
+      // Update the global max char speed
+      max_char_speed = std::max(speed, max_char_speed);
+
+      // pre-multiply integration weight to flux
+      AddMult_a_VWt(-ip.weight*sign, shape, fluxN, elvect_mat);
+   }
+}
+
 real_t FluxFunction::ComputeFluxDotN(const Vector &U,
                                      const Vector &normal,
                                      FaceElementTransformations &Tr,
