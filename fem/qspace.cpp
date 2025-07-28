@@ -22,7 +22,7 @@ QuadratureSpaceBase::QuadratureSpaceBase(Mesh &mesh_, Geometry::Type geom,
 {
    for (int g = 0; g < Geometry::NumGeom; g++)
    {
-      int_rule[g] = NULL;
+      int_rule[g] = nullptr;
    }
    int_rule[geom] = &ir;
 }
@@ -34,6 +34,29 @@ void QuadratureSpaceBase::ConstructIntRules(int dim)
    for (Geometry::Type geom : geoms)
    {
       int_rule[geom] = &IntRules.Get(geom, order);
+   }
+}
+
+const Array<int> &QuadratureSpaceBase::Offsets(
+   QSpaceOffsetStorage storage) const
+{
+   if (storage == QSpaceOffsetStorage::COMPRESSED || offsets.Size() > 1)
+   {
+      return offsets;
+   }
+   else
+   {
+      if (full_offset_cache.Size() == 0)
+      {
+         const int nq = size / ne;
+         full_offset_cache.SetSize(ne + 1);
+         int *d_full_offset_cache = full_offset_cache.Write();
+         mfem::forall(ne + 1, [=] MFEM_HOST_DEVICE (int e)
+         {
+            d_full_offset_cache[e] = nq * e;
+         });
+      }
+      return full_offset_cache;
    }
 }
 
@@ -116,7 +139,7 @@ void QuadratureSpace::ConstructOffsets()
       {
          offsets[i] = offset;
          const Geometry::Type geom = mesh.GetElementBaseGeometry(i);
-         MFEM_ASSERT(int_rule[geom] != NULL, "Missing integration rule.");
+         MFEM_ASSERT(int_rule[geom] != nullptr, "Missing integration rule.");
          offset += int_rule[geom]->GetNPoints();
       }
       offsets[num_elem] = offset;
@@ -221,7 +244,7 @@ void FaceQuadratureSpace::ConstructOffsets()
       {
          offsets[i] = offset;
          Geometry::Type geom = mesh.GetFaceGeometry(face_indices[i]);
-         MFEM_ASSERT(int_rule[geom] != NULL, "Missing integration rule");
+         MFEM_ASSERT(int_rule[geom] != nullptr, "Missing integration rule");
          offset += int_rule[geom]->GetNPoints();
       }
       offsets[face_indices.Size()] = size = offset;
