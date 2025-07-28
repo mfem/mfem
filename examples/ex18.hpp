@@ -38,6 +38,8 @@ private:
    std::unique_ptr<HyperbolicFormIntegrator> formIntegrator;
    // Base Nonlinear Form
    std::unique_ptr<NonlinearForm> nonlinearForm;
+   std::unique_ptr<LinearFormIntegrator> rhsIntegrator;
+   std::unique_ptr<LinearForm> rhsForm;
    // element-wise inverse mass matrix
    std::vector<DenseMatrix> invmass; // local scalar inverse mass
    std::vector<DenseMatrix> weakdiv; // local weak divergence (trial space ByDim)
@@ -64,6 +66,10 @@ public:
       FiniteElementSpace &vfes_,
       std::unique_ptr<HyperbolicFormIntegrator> formIntegrator_,
       bool preassembleWeakDivergence=true);
+
+   void AddBdrTerm(Array<int> &ess_bdr);
+   void AddRhs(std::unique_ptr<LinearFormIntegrator> rhs_, Array<int> &bdr_marker);
+
    /**
     * @brief Apply nonlinear form to obtain M⁻¹(DIVF + JUMP HAT(F))
     *
@@ -122,6 +128,20 @@ DGHyperbolicConservationLaws::DGHyperbolicConservationLaws(
 
 }
 
+inline void DGHyperbolicConservationLaws::AddBdrTerm(Array<int> &bdr_marker)
+{
+   nonlinearForm->AddBdrFaceIntegrator(formIntegrator.get(), bdr_marker);
+}
+
+inline void DGHyperbolicConservationLaws::AddRhs(
+   std::unique_ptr<LinearFormIntegrator> rhs_, Array<int> &bdr_marker)
+{
+   rhsIntegrator = std::move(rhs_);
+   rhsForm.reset(new LinearForm(&vfes));
+   rhsForm->AddBdrFaceIntegrator(rhsIntegrator.get(), bdr_marker);
+   rhsForm->UseExternalIntegrators();
+}
+
 void DGHyperbolicConservationLaws::ComputeInvMass()
 {
    InverseIntegrator inv_mass(new MassIntegrator());
@@ -174,6 +194,12 @@ void DGHyperbolicConservationLaws::Mult(const Vector &x, Vector &y) const
    //    If weak-divergence is not preassembled, we also have weak-divergence
    //         z = - <F̂(u_h,n), [[v]]>_e + (F(u_h), ∇v)
    nonlinearForm->Mult(x, z);
+   if (rhsForm)
+   {
+      rhsForm->Assemble();
+      z += *rhsForm;
+   }
+
    if (!weakdiv.empty()) // if weak divergence is pre-assembled
    {
       // Apply weak divergence to F(u_h), and inverse mass to z_loc + weakdiv_loc
