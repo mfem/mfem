@@ -3581,6 +3581,8 @@ HypreSmoother::HypreSmoother() : Solver()
    X0 = X1 = NULL;
    fir_coeffs = NULL;
    A_is_symmetric = false;
+
+   own_oper = false;
 }
 
 HypreSmoother::HypreSmoother(const HypreParMatrix &A_, int type_,
@@ -3604,6 +3606,7 @@ HypreSmoother::HypreSmoother(const HypreParMatrix &A_, int type_,
    fir_coeffs = NULL;
    A_is_symmetric = false;
 
+   own_oper = false;
    SetOperator(A_);
 }
 
@@ -4002,6 +4005,7 @@ HypreSmoother::~HypreSmoother()
    }
    if (X0) { delete X0; }
    if (X1) { delete X1; }
+   if (own_oper && A) { delete A; }
 }
 
 
@@ -4013,6 +4017,7 @@ HypreSolver::HypreSolver()
    auxB.Reset();
    auxX.Reset();
    error_mode = ABORT_HYPRE_ERRORS;
+   own_oper = false;
 }
 
 HypreSolver::HypreSolver(const HypreParMatrix *A_)
@@ -4024,6 +4029,7 @@ HypreSolver::HypreSolver(const HypreParMatrix *A_)
    auxB.Reset();
    auxX.Reset();
    error_mode = ABORT_HYPRE_ERRORS;
+   own_oper = false;
 }
 
 bool HypreSolver::WrapVectors(const Vector &b, Vector &x) const
@@ -4148,6 +4154,7 @@ HypreSolver::~HypreSolver()
 {
    if (B) { delete B; }
    if (X) { delete X; }
+   if (own_oper && A) { delete A; }
    auxB.Delete();
    auxX.Delete();
 }

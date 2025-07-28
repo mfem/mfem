@@ -1214,6 +1214,9 @@ public:
       mat->Print(os, width_);
    }
 
+   /// Indicate that integrators are not owned by the MixedBilinearForm
+   void UseExternalIntegrators() { extern_bfs = 1; }
+
    /** @brief Deletes internal matrices, bilinear integrators, and the
        BilinearFormExtension */
    virtual ~MixedBilinearForm();

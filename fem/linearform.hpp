@@ -262,6 +262,9 @@ public:
        FiniteElementSpace #fes. */
    LinearForm &operator=(const Vector &v);
 
+   /// Indicate that integrators are not owned by the LinearForm
+   void UseExternalIntegrators() { extern_lfs = 1; }
+
    /// Destroys linear form.
    ~LinearForm();
 };
