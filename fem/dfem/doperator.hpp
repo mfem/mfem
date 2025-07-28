@@ -445,14 +445,6 @@ void DifferentiableOperator::AddDomainIntegrator(
    auto output_to_field =
       create_descriptors_to_fields_map<entity_t>(fields, outputs);
 
-   // TODO: factor out
-   std::vector<int> inputs_vdim(num_inputs);
-   for_constexpr<num_inputs>([&](auto i)
-   {
-      inputs_vdim[i] = get<i>(inputs).vdim;
-   });
-
-
    Array<int> elem_attributes;
    elem_attributes.SetSize(mesh.GetNE());
    for (int i = 0; i < mesh.GetNE(); ++i)
