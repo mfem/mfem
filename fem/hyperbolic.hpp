@@ -306,12 +306,14 @@ MFEM_DEPRECATED typedef NumericalFlux RiemannSolver;
 class HyperbolicFormIntegrator : public NonlinearFormIntegrator
 {
 private:
-   // The maximum characteristic speed, updated during element/face vector assembly
-   real_t max_char_speed;
    const NumericalFlux &numFlux;   // Numerical flux that maps F(u±,x) to F̂
    const FluxFunction &fluxFunction;
    const int IntOrderOffset; // integration order offset, 2*p + IntOrderOffset.
    const real_t sign;
+
+   // The maximum characteristic speed, updated during element/face vector assembly
+   real_t max_char_speed;
+
 #ifndef MFEM_THREAD_SAFE
    // Local storage for element integration
    Vector shape;              // shape function value at an integration point
@@ -331,8 +333,9 @@ private:
 
 public:
    const int num_equations;  // the number of equations
+
    /**
-    * @brief Construct a new Hyperbolic Form Integrator object
+    * @brief Construct a new HyperbolicFormIntegrator object
     *
     * @param[in] numFlux numerical flux
     * @param[in] IntOrderOffset integration order offset
@@ -343,21 +346,14 @@ public:
       const int IntOrderOffset = 0,
       const real_t sign = 1.);
 
-   /**
-    * @brief Reset the Max Char Speed 0
-    *
-    */
-   void ResetMaxCharSpeed()
-   {
-      max_char_speed = 0.0;
-   }
+   /// Reset the maximum characteristic speed to zero
+   void ResetMaxCharSpeed() { max_char_speed = 0.0; }
 
-   real_t GetMaxCharSpeed()
-   {
-      return max_char_speed;
-   }
+   /// Get the maximum characteristic speed
+   real_t GetMaxCharSpeed() const { return max_char_speed; }
 
-   const FluxFunction &GetFluxFunction() { return fluxFunction; }
+   /// Get the associated flux function
+   const FluxFunction &GetFluxFunction() const { return fluxFunction; }
 
    /**
     * @brief Implements (F(u), ∇v) with abstract F computed by
