@@ -264,8 +264,9 @@ void CheckLSSolver(const DenseMatrix& A, const Vector& b, const Vector& x)
    Vector res(b), sol(A.Width());
    A.AddMult(x,res,-1.0);
    A.MultTranspose(res, sol);
-   mfem::out << "\nNorm of the residual of LS problem: " << sol.Norml2() <<
-             std::endl;
+   mfem::out << "\nNorm of the residual of LS problem: " << res.Norml2()
+             << "\nNorm of the solution of LS problem: " << sol.Norml2()
+             << std::endl;
 }
 
 /// @brief Get the L1-Jacobi row-subs for the @b normal matrix associated with @a A
