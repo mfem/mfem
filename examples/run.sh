@@ -106,6 +106,8 @@ GMSH_TUTO_DIR=${GMSH_DIR}/tutorials
 GMSH_TUT_MESH_LIST="1 3 4 5 6 7 8 10 11 13 14 15 16 18 19 20"
 #Fix a pb with GMSH format version 2.2 -> doubling the number of triangles
 sed -i "s%^\(Physical Surface(80)\)%//BUG//\1%g" ${GMSH_TUTO_DIR}/t14.geo
+#Fix a pb with GMSH tutorial mesh -> prevent invalid topology with both version 2.2 and 4.1
+sed -Ei 's%v\(0\)%v\(\#v\(\)-1\)%g' ${GMSH_TUTO_DIR}/t16.geo
 
 for i in ${GMSH_TUT_MESH_LIST}; do
     echo -e "\tt${i}.geo"

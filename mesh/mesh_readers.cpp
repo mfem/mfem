@@ -3217,7 +3217,7 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
          attribute_sets.AddToAttributeSet(attr.second, attr.first);
       }
    }
-
+   this->RemoveUnusedVertices();
    this->FinalizeTopology();
 
 
