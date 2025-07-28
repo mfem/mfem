@@ -149,8 +149,8 @@ void DGTraceIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type)
 
    if (!qspace[static_cast<int>(type)])
    {
-      qspace[static_cast<int>(type)].reset(
-         new FaceQuadratureSpace(*mesh, *ir, type));
+      qspace[static_cast<int>(type)] =
+         std::make_unique(new FaceQuadratureSpace(*mesh, *ir, type));
    }
 
    FaceQuadratureSpace& qs = *qspace[static_cast<int>(type)];
