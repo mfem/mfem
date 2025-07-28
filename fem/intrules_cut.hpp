@@ -347,12 +347,12 @@ private:
       T operator() (const blitz::TinyVector<T,3>& x) const
       {
          const int el_order = el->GetOrder();
-         std::unique_ptr<T[]> u1(new T[el_order+1]);
-         std::unique_ptr<T[]> u2(new T[el_order+1]);
-         std::unique_ptr<T[]> u3(new T[el_order+1]);
-         TmplPoly_1D::CalcBernstein(el_order, x[0], u1.get());
-         TmplPoly_1D::CalcBernstein(el_order, x[1], u2.get());
-         TmplPoly_1D::CalcBernstein(el_order, x[2], u3.get());
+         std::vector<T> u1(el_order+1);
+         std::vector<T> u2(el_order+1);
+         std::vector<T> u3(el_order+1);
+         TmplPoly_1D::CalcBernstein(el_order, x[0], u1.data());
+         TmplPoly_1D::CalcBernstein(el_order, x[1], u2.data());
+         TmplPoly_1D::CalcBernstein(el_order, x[2], u3.data());
 
          const Array<int>& dof_map=el->GetDofMap();
 
@@ -371,16 +371,16 @@ private:
       blitz::TinyVector<T,3> grad(const blitz::TinyVector<T,3>& x) const
       {
          const int el_order = el->GetOrder();
-         std::unique_ptr<T[]> u1(new T[el_order+1]);
-         std::unique_ptr<T[]> u2(new T[el_order+1]);
-         std::unique_ptr<T[]> u3(new T[el_order+1]);
-         std::unique_ptr<T[]> d1(new T[el_order+1]);
-         std::unique_ptr<T[]> d2(new T[el_order+1]);
-         std::unique_ptr<T[]> d3(new T[el_order+1]);
+         std::vector<T> u1(el_order+1);
+         std::vector<T> u2(el_order+1);
+         std::vector<T> u3(el_order+1);
+         std::vector<T> d1(el_order+1);
+         std::vector<T> d2(el_order+1);
+         std::vector<T> d3(el_order+1);
 
-         TmplPoly_1D::CalcBernstein(el_order,x[0], u1.get(), d1.get());
-         TmplPoly_1D::CalcBernstein(el_order,x[1], u2.get(), d2.get());
-         TmplPoly_1D::CalcBernstein(el_order,x[2], u3.get(), d3.get());
+         TmplPoly_1D::CalcBernstein(el_order,x[0], u1.data(), d1.data());
+         TmplPoly_1D::CalcBernstein(el_order,x[1], u2.data(), d2.data());
+         TmplPoly_1D::CalcBernstein(el_order,x[2], u3.data(), d3.data());
 
          blitz::TinyVector<T,3> res(T(0.0),T(0.0),T(0.0));
 
@@ -416,10 +416,10 @@ private:
       T operator() (const blitz::TinyVector<T,2>& x) const
       {
          const int el_order = el->GetOrder();
-         std::unique_ptr<T[]> u1(new T[el_order+1]);
-         std::unique_ptr<T[]> u2(new T[el_order+1]);
-         TmplPoly_1D::CalcBernstein(el_order, x[0], u1.get());
-         TmplPoly_1D::CalcBernstein(el_order, x[1], u2.get());
+         std::vector<T> u1(el_order+1);
+         std::vector<T> u2(el_order+1);
+         TmplPoly_1D::CalcBernstein(el_order, x[0], u1.data());
+         TmplPoly_1D::CalcBernstein(el_order, x[1], u2.data());
 
          const Array<int>& dof_map=el->GetDofMap();
 
@@ -438,13 +438,13 @@ private:
       blitz::TinyVector<T,2> grad(const blitz::TinyVector<T,2>& x) const
       {
          const int el_order = el->GetOrder();
-         std::unique_ptr<T[]> u1(new T[el_order+1]);
-         std::unique_ptr<T[]> u2(new T[el_order+1]);
-         std::unique_ptr<T[]> d1(new T[el_order+1]);
-         std::unique_ptr<T[]> d2(new T[el_order+1]);
+         std::vector<T> u1(el_order+1);
+         std::vector<T> u2(el_order+1);
+         std::vector<T> d1(el_order+1);
+         std::vector<T> d2(el_order+1);
 
-         TmplPoly_1D::CalcBernstein(el_order,x[0], u1.get(), d1.get());
-         TmplPoly_1D::CalcBernstein(el_order,x[1], u2.get(), d2.get());
+         TmplPoly_1D::CalcBernstein(el_order,x[0], u1.data(), d1.data());
+         TmplPoly_1D::CalcBernstein(el_order,x[1], u2.data(), d2.data());
 
          blitz::TinyVector<T,2> res(T(0.0),T(0.0));
 
