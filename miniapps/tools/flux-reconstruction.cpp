@@ -79,24 +79,24 @@ void ComputeFaceAverage(const FiniteElementSpace& fes,
  *    ndofs_self = fe_self.GetDof();
  *    ndofs_other = 0;
  *    if (Trans.Elem2No >= 0) { ndofs_other = fe_other.GetDof(); }
- * 
+ *
  *    Vector shape_self(ndofs_self), shape_other(ndofs_other);
- * 
+ *
  *    const IntegrationRule* ir = &IntRules.Get(Trans.GetGeometryType(),
  *                                              Trans.Elem1->OrderW() + fe_self.GetOrder() + fe_other.GetOrder());
- * 
+ *
  *    for (int idx = 0; idx < ir->GetNPoints(); idx++)
  *    {
  *       const IntegrationPoint& ip = ir->IntPoint(idx);
  *       real_t w = ip.weight;
  *       Trans.SetAllIntPoints(&ip);
- * 
+ *
  *       const IntegrationPoint &ip_self = Trans.GetElement1IntPoint();
  *       const IntegrationPoint &ip_other = Trans.GetElement2IntPoint();
- * 
+ *
  *       fe_self.CalcPhysShape(*Trans.Elem1, shape_self);
  *       if (ndofs_other) { fe_other.CalcPhysShape(*Trans.Elem2, shape_other); }
- * 
+ *
  *       // TODO DEBUG
  *       mfem::out << "Shape functions on el1 (in):  " << std::endl;
  *       shape_self.Print(mfem::out,1);
@@ -235,23 +235,23 @@ int main(int argc, char* argv[])
 
    for (int e_idx = 0; e_idx < mesh.GetNE(); e_idx++)
    {
-       mesh.GetElementFaces(e_idx, faces_e, orientation_e);
-       for (int i = 0; i < faces_e.Size(); i++)
-       {
-           const int f_idx = faces_e[i];
-           face_trans = mesh.GetFaceElementTransformations(f_idx);
-           fes_averages.GetFaceDofs(f_idx, face_dofs);
+      mesh.GetElementFaces(e_idx, faces_e, orientation_e);
+      for (int i = 0; i < faces_e.Size(); i++)
+      {
+         const int f_idx = faces_e[i];
+         face_trans = mesh.GetFaceElementTransformations(f_idx);
+         fes_averages.GetFaceDofs(f_idx, face_dofs);
 
-           u_averages.GetSubVector(face_dofs, u_avg_at_face_dofs);
-           ComputeFaceAverage(fes_averages, *face_trans,
-                              u_averages, avg_at_face);
+         u_averages.GetSubVector(face_dofs, u_avg_at_face_dofs);
+         ComputeFaceAverage(fes_averages, *face_trans,
+                            u_averages, avg_at_face);
 
-           mfem::out << "Face " << f_idx << std::endl;
-           avg_at_face.Print(mfem::out,1);
-           mfem::out << "Values of u (avg) at face_dofs" << std::endl;
-           u_avg_at_face_dofs.Print(mfem::out,1);
-           mfem::out << " ---  " << std::endl;
-       }
+         mfem::out << "Face " << f_idx << std::endl;
+         avg_at_face.Print(mfem::out,1);
+         mfem::out << "Values of u (avg) at face_dofs" << std::endl;
+         u_avg_at_face_dofs.Print(mfem::out,1);
+         mfem::out << " ---  " << std::endl;
+      }
    }
 
    char vishost[] = "localhost";

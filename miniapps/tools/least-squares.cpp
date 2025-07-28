@@ -36,7 +36,7 @@ enum SolverType
 class AsymmetricMassIntegrator : public MassIntegrator
 {
 private:
-   Vector ngh_shape, self_shape;
+   Vector neighbor_shape, e_shape;
    Vector phys_neighbor_ip;
    DenseMatrix phys_neighbor_pts;
    IntegrationPoint ngh_ip;
@@ -79,8 +79,8 @@ void AsymmetricMassIntegrator::AsymmetricElementMatrix(const FiniteElement
    neighbor_ndof = neighbor_fe.GetDof();
    e_ndof = e_fe.GetDof();
 
-   self_shape.SetSize(e_ndof);
-   ngh_shape.SetSize(neighbor_ndof);
+   e_shape.SetSize(e_ndof);
+   neighbor_shape.SetSize(neighbor_ndof);
    elmat.SetSize(e_ndof, neighbor_ndof);
    elmat = 0.0;
 
@@ -124,11 +124,11 @@ void AsymmetricMassIntegrator::AsymmetricElementMatrix(const FiniteElement
       e_trans.SetIntPoint(&ip);
 
       // Compute shape functions on e_fe
-      neighbor_fe.CalcPhysShape(neighbor_trans, ngh_shape);
-      e_fe.CalcPhysShape(e_trans, self_shape);
+      neighbor_fe.CalcPhysShape(neighbor_trans, neighbor_shape);
+      e_fe.CalcPhysShape(e_trans, e_shape);
 
-      self_shape *= e_trans.Weight() * ip.weight;
-      AddMultVWt(self_shape, ngh_shape, elmat);
+      e_shape *= e_trans.Weight() * ip.weight;
+      AddMultVWt(e_shape, neighbor_shape, elmat);
    }
 }
 
@@ -142,7 +142,7 @@ void AsymmetricMassIntegrator::AsymmetricElementMatrix(const FiniteElement
 {
    neighbor_ndof = neighbor_fe.GetDof();
 
-   ngh_shape.SetSize(neighbor_ndof);
+   neighbor_shape.SetSize(neighbor_ndof);
    elmat.SetSize(neighbor_ndof);
    elmat = 0.0;
 
@@ -171,8 +171,8 @@ void AsymmetricMassIntegrator::AsymmetricElementMatrix(const FiniteElement
       neighbor_trans.SetIntPoint(&ngh_ip);
       e_trans.SetIntPoint(&ip);
 
-      neighbor_fe.CalcPhysShape(neighbor_trans, ngh_shape);
-      AddMult_a_VVt(e_trans.Weight()*ip.weight, ngh_shape, elmat);
+      neighbor_fe.CalcPhysShape(neighbor_trans, neighbor_shape);
+      AddMult_a_VVt(e_trans.Weight()*ip.weight, neighbor_shape, elmat);
    }
 }
 
@@ -400,9 +400,9 @@ int main(int argc, char* argv[])
    {
       mfem::out << "Number of serial refs.:  " << ser_ref_levels << "\n"
                 << "Number of parallel refs: " << par_ref_levels << "\n"
-                << "Original order:          " << order_original << "\n"
-                << "Original averages:       " << order_averages << "\n"
-                << "Original reconstruction: " << order_reconstruction << "\n"
+                << "Order original:          " << order_original << "\n"
+                << "Order averages:          " << order_averages << "\n"
+                << "Order reconstruction:    " << order_reconstruction << "\n"
                 << "Newton relative tol:     " << newton_rtol << "\n"
                 << "Newton max. num. iter.:  " << newton_maxiter << std::endl;
    }
