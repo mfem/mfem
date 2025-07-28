@@ -106,6 +106,20 @@ std::unique_ptr<ODESolver> ODESolver::SelectImplicit(int ode_solver_type)
    }
 }
 
+std::unique_ptr<SplitODESolver> SplitODESolver::SelectIMEX(int ode_solver_type)
+{
+   using ode_ptr = std::unique_ptr<SplitODESolver>;
+   switch (ode_solver_type)
+   {
+      // IMEX Methods
+      case 55: return ode_ptr(new IMEXExpImplEuler);
+
+      default:
+         MFEM_ABORT("Unknown ODE solver type: " << ode_solver_type );
+   }
+}
+
+
 
 void ODEStateDataVector::SetSize( int vsize, MemoryType m_t)
 {
@@ -1276,5 +1290,33 @@ void GeneralizedAlpha2Solver::Step(Vector &x, Vector &dxdt,
 
    t += dt;
 }
+
+
+void SplitODESolver::Init(SplitTimeDependentOperator &f_)
+{
+   this->f = &f_;
+   mem_type = GetMemoryType(f_.GetMemoryClass());
+}
+
+void IMEXExpImplEuler::Init(SplitTimeDependentOperator &f_)
+{
+   SplitODESolver::Init(f_);
+   int n = f->Width();
+   k1.SetSize(n, mem_type);
+   k2.SetSize(n, mem_type);
+}
+
+void IMEXExpImplEuler::Step(Vector &x, real_t &t, real_t &dt)
+{
+   f->SetTime(t);
+   f->Mult1(x, k1);
+   f->SetTime(t+dt);
+   f->ImplicitSolve2(dt, x, k2);
+   f->SetTime(t);
+   x.Add(dt, k1);
+   x.Add(dt, k2);
+   t += dt;
+}
+
 
 }

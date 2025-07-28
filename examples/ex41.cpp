@@ -39,14 +39,15 @@ Vector bb_min, bb_max;
 class DG_Solver : public Solver
 {
 private:
-   SparseMatrix &M, &K, A;
+   SparseMatrix &M, &K, &S, A;
    GMRESSolver linear_solver;
    BlockILU prec;
    real_t dt;
 public:
-   DG_Solver(SparseMatrix &M_, SparseMatrix &K_, const FiniteElementSpace &fes)
+   DG_Solver(SparseMatrix &M_, SparseMatrix &K_, SparseMatrix &S_, const FiniteElementSpace &fes)
       : M(M_),
         K(K_),
+        S(S_),
         prec(fes.GetTypicalFE()->GetDof(),
              BlockILU::Reordering::MINIMUM_DISCARDED_FILL),
         dt(-1.0)
@@ -65,8 +66,8 @@ public:
       {
          dt = dt_;
          // Form operator A = M - dt*K
-         A = K;
-         A *= -dt;
+         A = S;
+         A *= dt;
          A += M;
 
          // this will also call SetOperator on the preconditioner
@@ -90,10 +91,10 @@ public:
     and advection matrices, and b describes the flow on the boundary. This can
     be written as a general ODE, du/dt = M^{-1} (K u + b), and this class is
     used to evaluate the right-hand side. */
-class FE_Evolution : public TimeDependentOperator
+class IMEX_Evolution : public SplitTimeDependentOperator
 {
 private:
-   BilinearForm &M, &K;
+   BilinearForm &M, &K, &S;
    const Vector &b;
    unique_ptr<Solver> M_prec;
    CGSolver M_solver;
@@ -102,10 +103,10 @@ private:
    mutable Vector z;
 
 public:
-   FE_Evolution(BilinearForm &M_, BilinearForm &K_, const Vector &b_);
+   IMEX_Evolution(BilinearForm &M_, BilinearForm &K_, BilinearForm &S_, const Vector &b_);
 
-   void Mult(const Vector &x, Vector &y) const override;
-   void ImplicitSolve(const real_t dt, const Vector &x, Vector &k) override;
+   void Mult1(const Vector &x, Vector &y) const;
+   void ImplicitSolve2(const real_t dt, const Vector &x, Vector &k) override;
 };
 
 
@@ -113,16 +114,18 @@ int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
    problem = 0;
-   const char *mesh_file = "../data/periodic-hexagon.mesh";
+   const char *mesh_file = "../data/periodic-square.mesh";
    int ref_levels = 2;
    int order = 3;
    const char *device_config = "cpu";
-   int ode_solver_type = 4;
+   int ode_solver_type = 55;
    real_t t_final = 10.0;
-   real_t dt = 0.01;
+   real_t dt = 0.001;
    bool paraview = false;
-   int vis_steps = 5;
-
+   int vis_steps = 50;
+   real_t diffusion_term = 0.01;
+   const real_t kappa = (order+1)*(order+1);
+   const real_t sigma = -1.0;
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh", "Mesh file to use.");
    args.AddOption(&problem, "-p", "--problem",
@@ -153,7 +156,7 @@ int main(int argc, char *argv[])
 
    // 3. Define the ODE solver used for time integration. May be explicit,
    //    implicit, or IMEX.
-   unique_ptr<ODESolver> ode_solver = ODESolver::Select(ode_solver_type);
+   unique_ptr<SplitODESolver> ode_solver = SplitODESolver::SelectIMEX(ode_solver_type);
 
    // 4. Refine the mesh to increase the resolution. In this example we do
    //    'ref_levels' of uniform refinement, where 'ref_levels' is a
@@ -174,27 +177,33 @@ int main(int argc, char *argv[])
    VectorFunctionCoefficient velocity(dim, velocity_function);
    FunctionCoefficient inflow(inflow_function);
    FunctionCoefficient u0(u0_function);
+   ConstantCoefficient diff_coeff(diffusion_term);
 
    BilinearForm m(&fes);
    BilinearForm k(&fes);
+   BilinearForm s(&fes); 
    m.AddDomainIntegrator(new MassIntegrator);
    constexpr real_t alpha = -1.0;
+   s.AddDomainIntegrator(new DiffusionIntegrator(diff_coeff));
+   s.AddInteriorFaceIntegrator(new DGDiffusionIntegrator(diff_coeff, sigma,
+                                                         kappa));
+   s.AddBdrFaceIntegrator(new DGDiffusionIntegrator(diff_coeff, sigma, kappa));
    k.AddDomainIntegrator(new ConvectionIntegrator(velocity, alpha));
-   k.AddInteriorFaceIntegrator(
-      new NonconservativeDGTraceIntegrator(velocity, alpha));
-   k.AddBdrFaceIntegrator(
-      new NonconservativeDGTraceIntegrator(velocity, alpha));
+   k.AddInteriorFaceIntegrator(new NonconservativeDGTraceIntegrator(velocity, alpha));
+   k.AddBdrFaceIntegrator(new NonconservativeDGTraceIntegrator(velocity, alpha));
 
    LinearForm b(&fes);
-   b.AddBdrFaceIntegrator(
-      new BoundaryFlowIntegrator(inflow, velocity, alpha));
+   b.AddBdrFaceIntegrator(new BoundaryFlowIntegrator(inflow, velocity, alpha));
 
-   m.Assemble();
+   
    int skip_zeros = 0;
+   s.Assemble(skip_zeros);
+   m.Assemble(skip_zeros);
    k.Assemble(skip_zeros);
    b.Assemble();
-   m.Finalize();
+   m.Finalize(skip_zeros);
    k.Finalize(skip_zeros);
+   s.Finalize(skip_zeros);
 
    // 7. Define the initial conditions.
    GridFunction u(&fes);
@@ -217,7 +226,7 @@ int main(int argc, char *argv[])
    // 8. Define the time-dependent evolution operator describing the ODE
    //    right-hand side, and perform time-integration (looping over the time
    //    iterations, ti, with a time-step dt).
-   FE_Evolution adv(m, k, b);
+   IMEX_Evolution adv(m, k, s, b);
 
    real_t t = 0.0;
    adv.SetTime(t);
@@ -249,16 +258,16 @@ int main(int argc, char *argv[])
 
 
 // Implementation of class FE_Evolution
-FE_Evolution::FE_Evolution(BilinearForm &M_, BilinearForm &K_, const Vector &b_)
-   : TimeDependentOperator(M_.FESpace()->GetTrueVSize()),
-     M(M_), K(K_), b(b_), z(height)
+IMEX_Evolution::IMEX_Evolution(BilinearForm &M_, BilinearForm &K_, BilinearForm &S_, const Vector &b_)
+   : SplitTimeDependentOperator(M_.FESpace()->GetTrueVSize()),
+     M(M_), K(K_), S(S_), b(b_), z(height)
 {
    Array<int> ess_tdof_list;
    if (M.GetAssemblyLevel() == AssemblyLevel::LEGACY)
    {
       M_prec = make_unique<DSmoother>(M.SpMat());
       M_solver.SetOperator(M.SpMat());
-      dg_solver = make_unique<DG_Solver>(M.SpMat(), K.SpMat(), *M.FESpace());
+      dg_solver = make_unique<DG_Solver>(M.SpMat(), K.SpMat(), S.SpMat(), *M.FESpace());
    }
    else
    {
@@ -274,7 +283,7 @@ FE_Evolution::FE_Evolution(BilinearForm &M_, BilinearForm &K_, const Vector &b_)
    M_solver.SetPrintLevel(0);
 }
 
-void FE_Evolution::Mult(const Vector &x, Vector &y) const
+void IMEX_Evolution::Mult1(const Vector &x, Vector &y) const
 {
    // y = M^{-1} (K x + b)
    K.Mult(x, z);
@@ -282,14 +291,16 @@ void FE_Evolution::Mult(const Vector &x, Vector &y) const
    M_solver.Mult(z, y);
 }
 
-void FE_Evolution::ImplicitSolve(const real_t dt, const Vector &x, Vector &k)
+void IMEX_Evolution::ImplicitSolve2(const real_t dt, const Vector &x, Vector &k)
 {
-   MFEM_VERIFY(dg_solver != NULL,
-               "Implicit time integration is not supported with partial assembly");
-   K.Mult(x, z);
-   z += b;
+   // solve for k, k = -(M+dt S)^{-1} S x 
+   // MFEM_VERIFY(dg_solver != NULL, "Implicit time integration is not supported with partial assembly");
+   S.Mult(x, z);
+   //z += b;
+   z*= -1.0;
    dg_solver->SetTimeStep(dt);
    dg_solver->Mult(z, k);
+   //M_solver.Mult(z, k); 
 }
 
 // Velocity coefficient

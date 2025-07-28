@@ -786,6 +786,34 @@ public:
    virtual ~SecondOrderTimeDependentOperator() { }
 };
 
+// F(y,\frac{dy}{dt},t) = G1(y,t) + G2(y,t)
+class SplitTimeDependentOperator : public TimeDependentOperator
+{
+    // virtual void Mult(...) sum of Mult1 and Mult2
+    public:
+        /** @brief Construct a "square" SecondOrderTimeDependentOperator
+        y = f(x,dxdt,t), where x, dxdt and y have the same dimension @a n. */
+        explicit SplitTimeDependentOperator(int n = 0, real_t t_ = 0.0,
+                                                    Type type_ = EXPLICIT)
+            : TimeDependentOperator(n, t_,type_) { }
+
+        /** @brief Construct a SecondOrderTimeDependentOperator y = f(x,dxdt,t),
+        where x, dxdt and y have the same dimension @a n. */
+        SplitTimeDependentOperator(int h, int w, real_t t_ = 0.0,
+                                            Type type_ = EXPLICIT)
+            : TimeDependentOperator(h, w, t_,type_) { }
+
+        virtual void Mult1(const Vector &u, Vector &k) const; //M^{-1} G1
+        virtual void Mult2(const Vector &u, Vector &k) const; //M^{-1} G2
+        virtual void ImplicitSolve1(const real_t gamma, const Vector &u, Vector &k);  //F(u + gamma k, k, t) = G1(u + gamma k, t)
+        virtual void ImplicitSolve2(const real_t gamma, const Vector &u, Vector &k);  //F(u + gamma k, k, t) = G2(u + gamma k, t)
+
+    // - Fully explicit, need Mult1 and Mult2 (or just plain Mult)
+    // - IMEX, need Mult1 and ImplicitSolve2
+    // - "Split implicit", need ImplicitSolve1 and ImplicitSolve2
+    // - Fully implicit, need ImplicitSolve
+};
+
 
 /// Base class for solvers
 class Solver : public Operator

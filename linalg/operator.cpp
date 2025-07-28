@@ -365,6 +365,29 @@ void SecondOrderTimeDependentOperator::ImplicitSolve(const real_t dt0,
    mfem_error("SecondOrderTimeDependentOperator::ImplicitSolve() is not overridden!");
 }
 
+void SplitTimeDependentOperator::Mult1(const Vector &, Vector &) const
+{
+   mfem_error("SplitTimeDependentOperator::Mult1() is not overridden!");
+}
+
+void SplitTimeDependentOperator::ImplicitSolve1(const real_t, const Vector &,
+                                          Vector &)
+{
+   mfem_error("SplitTimeDependentOperator::ImplicitSolve1() is not overridden!");
+}
+
+void SplitTimeDependentOperator::Mult2(const Vector &, Vector &) const
+{
+   mfem_error("SplitTimeDependentOperator::Mult2() is not overridden!");
+}
+
+void SplitTimeDependentOperator::ImplicitSolve2(const real_t, const Vector &,
+                                          Vector &)
+{
+   mfem_error("SplitTimeDependentOperator::ImplicitSolve2() is not overridden!");
+}
+
+
 SumOperator::SumOperator(const Operator *A, const real_t alpha,
                          const Operator *B, const real_t beta,
                          bool ownA, bool ownB)
