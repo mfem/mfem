@@ -22,7 +22,7 @@ QuadratureSpaceBase::QuadratureSpaceBase(Mesh &mesh_, Geometry::Type geom,
 {
    for (int g = 0; g < Geometry::NumGeom; g++)
    {
-      int_rule[g] = NULL;
+      int_rule[g] = nullptr;
    }
    int_rule[geom] = &ir;
 }
@@ -139,7 +139,7 @@ void QuadratureSpace::ConstructOffsets()
       {
          offsets[i] = offset;
          const Geometry::Type geom = mesh.GetElementBaseGeometry(i);
-         MFEM_ASSERT(int_rule[geom] != NULL, "Missing integration rule.");
+         MFEM_ASSERT(int_rule[geom] != nullptr, "Missing integration rule.");
          offset += int_rule[geom]->GetNPoints();
       }
       offsets[num_elem] = offset;
@@ -244,7 +244,7 @@ void FaceQuadratureSpace::ConstructOffsets()
       {
          offsets[i] = offset;
          Geometry::Type geom = mesh.GetFaceGeometry(face_indices[i]);
-         MFEM_ASSERT(int_rule[geom] != NULL, "Missing integration rule");
+         MFEM_ASSERT(int_rule[geom] != nullptr, "Missing integration rule");
          offset += int_rule[geom]->GetNPoints();
       }
       offsets[face_indices.Size()] = size = offset;
