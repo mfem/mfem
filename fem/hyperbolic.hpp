@@ -412,6 +412,86 @@ public:
                          const Vector &elfun, DenseMatrix &elmat) override;
 };
 
+/**
+ * @brief Abstract boundary hyperbolic linear form integrator, assembling
+ * <-F(u,x) n, v> terms for scalar finite elements.
+ *
+ * This form integrator is coupled with a FluxFunction that evaluates the
+ * flux F at the faces.
+ */
+class BoundaryHyperbolicLFIntegrator : public LinearFormIntegrator
+{
+   const FluxFunction &fluxFunction;
+   Coefficient *u_coeff;
+   VectorCoefficient *u_vcoeff;
+   const int IntOrderOffset; // integration order offset, 2*p + IntOrderOffset.
+   const real_t sign;
+
+   // The maximum characteristic speed, updated during face vector assembly
+   real_t max_char_speed;
+
+#ifndef MFEM_THREAD_SAFE
+   // Local storage for element integration
+   Vector shape;   // shape function value at an integration point
+   Vector state;   // state value at an integration point
+   Vector nor;     // normal vector, see mfem::CalcOrtho()
+   Vector fluxN;   // F(u,x) n
+#endif
+
+public:
+   /**
+    * @brief Construct a new BoundaryHyperbolicLFIntegrator object
+    *
+    * @param[in] flux flux function
+    * @param[in] u scalar state coefficient
+    * @param[in] IntOrderOffset integration order offset
+    * @param[in] sign sign of the convection term
+    */
+   BoundaryHyperbolicLFIntegrator(const FluxFunction &flux, Coefficient &u,
+                                  const int IntOrderOffset = 0, const real_t sign = 1.);
+
+   /**
+    * @brief Construct a new BoundaryHyperbolicLFIntegrator object
+    *
+    * @param[in] flux flux function
+    * @param[in] u vector state coefficient
+    * @param[in] IntOrderOffset integration order offset
+    * @param[in] sign sign of the convection term
+    */
+   BoundaryHyperbolicLFIntegrator(const FluxFunction &flux, VectorCoefficient &u,
+                                  const int IntOrderOffset = 0, const real_t sign = 1.);
+
+   /// Reset the maximum characteristic speed to zero
+   void ResetMaxCharSpeed() { max_char_speed = 0.0; }
+
+   /// Get the maximum characteristic speed
+   real_t GetMaxCharSpeed() const { return max_char_speed; }
+
+   /// Get the associated flux function
+   const FluxFunction &GetFluxFunction() const { return fluxFunction; }
+
+   /**
+    * @warning Boundary element integration not implemented, use
+    * AssembleRHSElementVect(const FiniteElement&,
+    * FaceElementTransformations &, Vector &) instead
+    */
+   void AssembleRHSElementVect(const FiniteElement &el,
+                               ElementTransformation &Tr,
+                               Vector &elvect) override;
+
+   /**
+    * @brief Implements <-F(u,x) n, v> with abstract F computed by
+    * FluxFunction::ComputeFluxDotN() of the flux function object
+    *
+    * @param[in] el finite element
+    * @param[in] Tr face element transformations
+    * @param[out] elvect evaluated dual vector <F(u,x) n, v>
+    */
+   void AssembleRHSElementVect(const FiniteElement &el,
+                               FaceElementTransformations &Tr,
+                               Vector &elvect) override;
+};
+
 
 /**
  * @brief Rusanov flux, also known as local Lax-Friedrichs,
