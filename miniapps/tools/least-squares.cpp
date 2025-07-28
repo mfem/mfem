@@ -37,10 +37,10 @@ class AsymmetricMassIntegrator : public MassIntegrator
 {
 private:
    Vector ngh_shape, self_shape;
-   Vector physical_ngh_ip;
-   DenseMatrix physical_ngh_pts;
+   Vector phys_neighbor_ip;
+   DenseMatrix phys_neighbor_pts;
    IntegrationPoint ngh_ip;
-   int ngh_ndof, self_ndof;
+   int neighbor_ndof, e_ndof;
 
 protected:
    const mfem::FiniteElementSpace *tr_fes, *te_fes;
@@ -49,9 +49,17 @@ public:
 
    AsymmetricMassIntegrator() {};
 
-   /// Assembles element mass matrix, extending @a ngh_fe to @a self_fe.
-   void AsymmetricElementMatrix(const FiniteElement &ngh_fe,
-                                const FiniteElement &self_fe,
+   /// Assembles element mass matrix, extending @a neighbor_fe to @a e_fe.
+   void AsymmetricElementMatrix(const FiniteElement &neighbor_fe,
+                                const FiniteElement &e_fe,
+                                ElementTransformation &neighbor_trans,
+                                ElementTransformation &e_trans,
+                                DenseMatrix &el_mat,
+                                int _max_iter = 1000,
+                                real_t _rtol = 1e-15);
+
+   /// Assembles element mass matrix, computing @a neighbor_fe in @a e_trans.
+   void AsymmetricElementMatrix(const FiniteElement &neighbor_fe,
                                 ElementTransformation &neighbor_trans,
                                 ElementTransformation &e_trans,
                                 DenseMatrix &el_mat,
@@ -60,20 +68,20 @@ public:
 };
 
 void AsymmetricMassIntegrator::AsymmetricElementMatrix(const FiniteElement
-                                                       &ngh_fe,
-                                                       const FiniteElement &self_fe,
+                                                       &neighbor_fe,
+                                                       const FiniteElement &e_fe,
                                                        ElementTransformation &neighbor_trans,
                                                        ElementTransformation &e_trans,
                                                        DenseMatrix &elmat,
                                                        int _max_iter,
                                                        real_t _rtol)
 {
-   ngh_ndof = ngh_fe.GetDof();
-   self_ndof = self_fe.GetDof();
+   neighbor_ndof = neighbor_fe.GetDof();
+   e_ndof = e_fe.GetDof();
 
-   self_shape.SetSize(self_ndof);
-   ngh_shape.SetSize(ngh_ndof);
-   elmat.SetSize(self_ndof, ngh_ndof);
+   self_shape.SetSize(e_ndof);
+   ngh_shape.SetSize(neighbor_ndof);
+   elmat.SetSize(e_ndof, neighbor_ndof);
    elmat = 0.0;
 
    /* Notes:
@@ -89,15 +97,16 @@ void AsymmetricMassIntegrator::AsymmetricElementMatrix(const FiniteElement
     * = int_ref_K phi_i(inv_T_K( T_N(K)(y) )) v( T_N(K)(y) ) |Jac T_N(K)| dy.
     */
 
-   const int int_order = self_fe.GetOrder() + ngh_fe.GetOrder() + e_trans.OrderW();
-   const IntegrationRule &ir = IntRules.Get(self_fe.GetGeomType(), int_order);
+   const int int_order = e_fe.GetOrder() + neighbor_fe.GetOrder() +
+                         e_trans.OrderW();
+   const IntegrationRule &ir = IntRules.Get(e_fe.GetGeomType(), int_order);
 
-   neighbor_trans.Transform(ir, physical_ngh_pts);
+   neighbor_trans.Transform(ir, phys_neighbor_pts);
 
    for (int i = 0; i < ir.GetNPoints(); i++)
    {
       const IntegrationPoint &ip = ir.IntPoint(i);
-      physical_ngh_pts.GetColumn(i, physical_ngh_ip);
+      phys_neighbor_pts.GetColumn(i, phys_neighbor_ip);
 
       // Pullback physical neighboring integration points to
       // "extended" reference element under e_trans
@@ -108,18 +117,62 @@ void AsymmetricMassIntegrator::AsymmetricElementMatrix(const FiniteElement
       inv_tr.SetSolverType(InvElTr::SolverType::Newton);
       inv_tr.SetPrintLevel(0); // TODO(Gabriel): Debug
       inv_tr.SetInitialGuessType(InvElTr::InitGuessType::ClosestPhysNode);
-      MFEM_VERIFY(inv_tr.Transform(physical_ngh_ip,
+      MFEM_VERIFY(inv_tr.Transform(phys_neighbor_ip,
                                    ngh_ip) != InvElTr::TransformResult::Unknown, "");
 
       neighbor_trans.SetIntPoint(&ngh_ip);
       e_trans.SetIntPoint(&ip);
 
-      // Compute shape functions on self_fe
-      ngh_fe.CalcPhysShape(neighbor_trans, ngh_shape);
-      self_fe.CalcPhysShape(e_trans, self_shape);
+      // Compute shape functions on e_fe
+      neighbor_fe.CalcPhysShape(neighbor_trans, ngh_shape);
+      e_fe.CalcPhysShape(e_trans, self_shape);
 
       self_shape *= e_trans.Weight() * ip.weight;
       AddMultVWt(self_shape, ngh_shape, elmat);
+   }
+}
+
+void AsymmetricMassIntegrator::AsymmetricElementMatrix(const FiniteElement
+                                                       &neighbor_fe,
+                                                       ElementTransformation &neighbor_trans,
+                                                       ElementTransformation &e_trans,
+                                                       DenseMatrix &elmat,
+                                                       int _max_iter,
+                                                       real_t _rtol)
+{
+   neighbor_ndof = neighbor_fe.GetDof();
+
+   ngh_shape.SetSize(neighbor_ndof);
+   elmat.SetSize(neighbor_ndof);
+   elmat = 0.0;
+
+   const int int_order = 2*neighbor_fe.GetOrder() + e_trans.OrderW();
+   const IntegrationRule &ir = IntRules.Get(neighbor_fe.GetGeomType(), int_order);
+
+   neighbor_trans.Transform(ir, phys_neighbor_pts);
+
+   for (int i = 0; i < ir.GetNPoints(); i++)
+   {
+      const IntegrationPoint &ip = ir.IntPoint(i);
+      phys_neighbor_pts.GetColumn(i, phys_neighbor_ip);
+
+      // Pullback physical neighboring integration points to
+      // "extended" reference element under e_trans
+      using InvElTr = mfem::InverseElementTransformation;
+      InverseElementTransformation inv_tr(&e_trans);
+      inv_tr.SetPhysicalRelTol(_rtol);
+      inv_tr.SetMaxIter(_max_iter);
+      inv_tr.SetSolverType(InvElTr::SolverType::Newton);
+      inv_tr.SetPrintLevel(0); // TODO(Gabriel): Debug
+      inv_tr.SetInitialGuessType(InvElTr::InitGuessType::ClosestPhysNode);
+      MFEM_VERIFY(inv_tr.Transform(phys_neighbor_ip,
+                                   ngh_ip) != InvElTr::TransformResult::Unknown, "");
+
+      neighbor_trans.SetIntPoint(&ngh_ip);
+      e_trans.SetIntPoint(&ip);
+
+      neighbor_fe.CalcPhysShape(neighbor_trans, ngh_shape);
+      AddMult_a_VVt(e_trans.Weight()*ip.weight, ngh_shape, elmat);
    }
 }
 
