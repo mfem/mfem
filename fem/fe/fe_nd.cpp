@@ -2529,15 +2529,27 @@ void ND_FuentesPyramidElement::calcCurlBasis(const int p,
    }
 }
 
+const real_t ND_R1D_PointElement::tk[6] = { 0.,1.,0., 0.,0.,1. };
+
 ND_R1D_PointElement::ND_R1D_PointElement(int p)
    : VectorFiniteElement(1, Geometry::POINT, 2, p,
-                         H_CURL, FunctionSpace::Pk)
+                         H_CURL, FunctionSpace::Pk),
+     dof2tk(dof)
 {
    // VectorFiniteElement::SetDerivMembers doesn't support 0D H_CURL elements
    // so we mimic a 1D element and then correct the dimension here.
    dim = 0;
    vdim = 2;
    cdim = 0;
+
+   int o = 0;
+   // nodes
+   // (0)
+   Nodes.IntPoint(o).x = 0.0; // y-directed
+   dof2tk[o++] = 0;
+   Nodes.IntPoint(o).x = 0.0; // z-directed
+   dof2tk[o++] = 1;
+
 }
 
 void ND_R1D_PointElement::CalcVShape(const IntegrationPoint &ip,
@@ -2554,6 +2566,24 @@ void ND_R1D_PointElement::CalcVShape(ElementTransformation &Trans,
                                      DenseMatrix &shape) const
 {
    CalcVShape(Trans.GetIntPoint(), shape);
+}
+
+void ND_R1D_PointElement::Project(VectorCoefficient &vc,
+                                  ElementTransformation &Trans,
+                                  Vector &dofs) const
+{
+   real_t data[3];
+   Vector vk(data, 3);
+
+   for (int k = 0; k < dof; k++)
+   {
+      Trans.SetIntPoint(&Nodes.IntPoint(k));
+
+      vc.Eval(vk, Trans, Nodes.IntPoint(k));
+      // dof_k = vk^t J tk
+      Vector t(const_cast<real_t*>(&tk[dof2tk[k] * 3]), 3);
+      dofs(k) = t * vk;
+   }
 }
 
 const real_t ND_R1D_SegmentElement::tk[9] = { 1.,0.,0., 0.,1.,0., 0.,0.,1. };
@@ -2743,7 +2773,6 @@ void ND_R1D_SegmentElement::Project(VectorCoefficient &vc,
       dofs(k) = Trans.Jacobian()(0,0) * t(0) * vk(0) +
                 t(1) * vk(1) + t(2) * vk(2);
    }
-
 }
 
 void ND_R1D_SegmentElement::Project(const FiniteElement &fe,
