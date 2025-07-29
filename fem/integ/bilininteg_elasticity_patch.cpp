@@ -163,44 +163,6 @@ void ElasticityIntegrator::SetupPatchPA(const int patch, Mesh *mesh,
       MFEM_ABORT("Not implemented yet.");
    }
 
-
-   // numPatches = mesh->NURBSext->GetNP();
-
-   // const Array<int>& D1D = pD1D[patch];
-   // const std::vector<Array2D<real_t>>& B = pB[patch];
-   // const std::vector<Array2D<real_t>>& G = pG[patch];
-   // for reduced rules
-   // const IntArrayVar2D& minD = pminD[patch];
-   // const IntArrayVar2D& maxD = pmaxD[patch];
-   // const IntArrayVar2D& minQ = pminQ[patch];
-   // const IntArrayVar2D& maxQ = pmaxQ[patch];
-   // const IntArrayVar2D& minDD = pminDD[patch];
-   // const IntArrayVar2D& maxDD = pmaxDD[patch];
-   // const Array<const IntegrationRule*>& ir1d = pir1d[patch];
-
-   // // Solve for reduced 1D quadrature rules
-   // const int totalDim = numPatches * dim * numTypes;
-   // reducedWeights.resize(totalDim);
-   // reducedIDs.resize(totalDim);
-
-   // auto rw = Reshape(reducedWeights.data(), numTypes, dim, numPatches);
-   // auto rid = Reshape(reducedIDs.data(), numTypes, dim, numPatches);
-
-   // for (int d=0; d<dim; ++d)
-   // {
-   //    // The reduced rules could be cached to avoid repeated computation, but
-   //    // the cost of this setup seems low.
-   //    PatchDiffusionGetReducedRule(Q1D[d], D1D[d], B[d], G[d],
-   //                   minQ[d], maxQ[d],
-   //                   minD[d], maxD[d],
-   //                   minDD[d], maxDD[d], ir1d[d], true,
-   //                   rw(0,d,patch), rid(0,d,patch));
-   //    PatchDiffusionGetReducedRule(Q1D[d], D1D[d], B[d], G[d],
-   //                   minQ[d], maxQ[d],
-   //                   minD[d], maxD[d],
-   //                   minDD[d], maxDD[d], ir1d[d], false,
-   //                   rw(1,d,patch), rid(1,d,patch));
-   // }
 }
 
 }

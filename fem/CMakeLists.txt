@@ -163,6 +163,7 @@ set(HDRS
   bilinearform.hpp
   bilinearform_ext.hpp
   bilininteg.hpp
+  integ/bilininteg_patch.hpp
   integ/bilininteg_diffusion_kernels.hpp
   integ/bilininteg_elasticity_kernels.hpp
   integ/bilininteg_hcurl_kernels.hpp
