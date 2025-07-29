@@ -15,6 +15,13 @@ if (MFEM_USE_MPI)
   list(APPEND NAVIER_COMMON_HEADERS
       navier_solver.hpp)
 
+  if(MFEM_USE_GSLIB)
+    list(APPEND NAVIER_COMMON_SOURCES
+      navier_particles.cpp)
+    list(APPEND NAVIER_COMMON_HEADERS
+      navier_particles.hpp)
+  endif()
+
   convert_filenames_to_full_paths(NAVIER_COMMON_SOURCES)
   convert_filenames_to_full_paths(NAVIER_COMMON_HEADERS)
 
@@ -63,10 +70,15 @@ if (MFEM_USE_MPI)
       ${NAVIER_COMMON_FILES}
       LIBRARIES mfem)
 
-    add_mfem_miniapp(navier_particles
-      MAIN navier_particles.cpp
-      ${NAVIER_COMMON_FILES}
-      LIBRARIES mfem-common)
+    add_mfem_miniapp(navier_couette
+        MAIN navier_couette.cpp
+        ${NAVIER_COMMON_FILES}
+        LIBRARIES mfem)
+
+    # add_mfem_miniapp(navier_bifurcation
+    #   MAIN navier_bifurcation.cpp
+    #   ${NAVIER_COMMON_FILES}
+    #   LIBRARIES mfem-common)
 
     LIST(APPEND NAVIER_MESH_FILES
         fluid-cht.mesh
