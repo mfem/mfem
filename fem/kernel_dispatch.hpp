@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -16,6 +16,7 @@
 #include "kernel_reporter.hpp"
 #include <unordered_map>
 #include <tuple>
+#include <type_traits>
 #include <cstddef>
 
 namespace mfem
@@ -69,20 +70,21 @@ namespace mfem
 // is the concatenation of P1 and P2. We need to pass it as a separate argument
 // to avoid a trailing comma in the case that P2 is empty.
 #define MFEM_REGISTER_KERNELS_(KernelName, KernelType, P1, P2, P3)             \
-   class KernelName : public                                                   \
-   KernelDispatchTable<KernelName, KernelType,                                 \
-      internal::KernelTypeList<MFEM_PARAM_LIST P1>,                            \
-      internal::KernelTypeList<MFEM_PARAM_LIST P2>>                            \
-   {                                                                           \
-   public:                                                                     \
-      const char *kernel_name = MFEM_KERNEL_NAME(KernelName);                  \
-      using KernelSignature = KernelType;                                      \
-      template <MFEM_PARAM_LIST P3>                                            \
-      static MFEM_EXPORT KernelSignature Kernel();                             \
-      static MFEM_EXPORT KernelSignature Fallback(MFEM_PARAM_LIST P1);         \
-      static MFEM_EXPORT KernelName &Get()                                     \
-      { static KernelName table; return table;}                                \
-   }
+  class KernelName                                                             \
+      : public ::mfem::KernelDispatchTable<                                    \
+            KernelName, KernelType,                                            \
+            ::mfem::internal::KernelTypeList<MFEM_PARAM_LIST P1>,              \
+            ::mfem::internal::KernelTypeList<MFEM_PARAM_LIST P2>> {            \
+  public:                                                                      \
+    const char *kernel_name = MFEM_KERNEL_NAME(KernelName);                    \
+    using KernelSignature = KernelType;                                        \
+    template <MFEM_PARAM_LIST P3> static MFEM_EXPORT KernelSignature Kernel(); \
+    static MFEM_EXPORT KernelSignature Fallback(MFEM_PARAM_LIST P1);           \
+    static MFEM_EXPORT KernelName &Get() {                                     \
+      static KernelName table;                                                 \
+      return table;                                                            \
+    }                                                                          \
+  }
 
 /// @brief Hashes variadic packs for which each type contained in the variadic
 /// pack has a specialization of `std::hash` available.
@@ -130,12 +132,37 @@ class KernelDispatchTable<Kernels,
          Signature, KernelDispatchKeyHash<Params...>>;
    TableType table;
 
+   /// @brief Call function @a f with arguments @a args (perfect forwaring).
+   ///
+   /// Only valid when the function @a f is not a member function.
+   template <typename F, typename... Args,
+             typename std::enable_if<std::is_pointer<F>::value,bool>::type=true>
+   static void Invoke(F f, Args&&... args)
+   {
+      f(std::forward<Args>(args)...);
+   }
+
+   /// @brief Calls member function @a f on object @a t with arguments @a args
+   /// (perfect forwarding).
+   ///
+   /// Only valid when @a f is a member function of class @a T.
+   template <typename F, typename T, typename... Args,
+             typename std::enable_if<
+                std::is_member_function_pointer<F>::value,bool>::type=true>
+   static void Invoke(F f, T&& t, Args&&... args)
+   {
+      (t.*f)(std::forward<Args>(args)...);
+   }
+
 public:
    /// @brief Run the kernel with the given dispatch parameters and arguments.
    ///
    /// If a compile-time specialized version of the kernel with the given
    /// parameters has been registered, it will be called. Otherwise, the
    /// fallback kernel will be called.
+   ///
+   /// If the kernel is a member function, then the first argument after @a
+   /// params should be the object on which it is called.
    template<typename... Args>
    static void Run(Params... params, Args&&... args)
    {
@@ -144,12 +171,12 @@ public:
       const auto it = table.find(key);
       if (it != table.end())
       {
-         it->second(std::forward<Args>(args)...);
+         Invoke(it->second, std::forward<Args>(args)...);
       }
       else
       {
          KernelReporter::ReportFallback(Kernels::Get().kernel_name, params...);
-         Kernels::Fallback(params...)(std::forward<Args>(args)...);
+         Invoke(Kernels::Fallback(params...), std::forward<Args>(args)...);
       }
    }
 

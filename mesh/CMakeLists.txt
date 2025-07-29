@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -30,6 +30,7 @@ set(SRCS
   triangle.cpp
   vertex.cpp
   vtk.cpp
+  vtkhdf.cpp
   wedge.cpp
   submesh/submesh.cpp
   submesh/ncsubmesh.cpp
@@ -58,6 +59,7 @@ set(HDRS
   triangle.hpp
   vertex.hpp
   vtk.hpp
+  vtkhdf.hpp
   wedge.hpp
   submesh/ncsubmesh.hpp
   submesh/submesh.hpp

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -83,4 +83,51 @@ TEST_CASE("NURBS refinement and coarsening by spacing formulas", "[NURBS]")
    d -= *mesh2.GetNodes();
    const real_t error = d.Norml2();
    REQUIRE(error == MFEM_Approx(0.0));
+}
+
+TEST_CASE("NURBS mesh reconstruction", "[NURBS]")
+{
+   auto mesh_fname =
+      GENERATE("../../data/segment-nurbs.mesh",
+               "../../data/square-nurbs.mesh",
+               "../../data/beam-quad-nurbs.mesh",
+               "../../data/pipe-nurbs.mesh",
+               "../../miniapps/nurbs/meshes/two-squares-nurbs.mesh",
+               "../../miniapps/nurbs/meshes/two-squares-nurbs-rot.mesh",
+               "../../miniapps/nurbs/meshes/two-squares-nurbs-autoedge.mesh",
+               "../../miniapps/nurbs/meshes/plus-nurbs.mesh",
+               "../../miniapps/nurbs/meshes/plus-nurbs-permuted.mesh",
+               "../../miniapps/nurbs/meshes/ijk-hex-nurbs.mesh");
+
+   Mesh mesh1(mesh_fname, 1, 1);
+
+   // Reconstruct mesh using patches + topology
+   Array<NURBSPatch*> patches;
+   mesh1.GetNURBSPatches(patches);
+   const Mesh patchtopo = mesh1.NURBSext->GetPatchTopology();
+
+   NURBSExtension ne(&patchtopo, patches);
+   Mesh mesh2(ne);
+
+   // Meshes should be identical
+   REQUIRE(mesh1.GetNodes()->Size() > 0);
+   REQUIRE(mesh1.GetNodes()->Size() == mesh2.GetNodes()->Size());
+
+   Vector diff(*mesh1.GetNodes());
+   diff -= *mesh2.GetNodes();
+   const real_t error = diff.Norml2();
+   REQUIRE(error == MFEM_Approx(0.0));
+
+   // Compare weights (these are stored separately from nodes)
+   REQUIRE(mesh1.NURBSext->GetWeights().Size() > 0);
+   REQUIRE(mesh1.NURBSext->GetWeights().Size() ==
+           mesh2.NURBSext->GetWeights().Size());
+
+   Vector wdiff = mesh1.NURBSext->GetWeights();
+   wdiff -= mesh2.NURBSext->GetWeights();
+   const real_t werror = wdiff.Norml2();
+   REQUIRE(werror == MFEM_Approx(0.0));
+
+   // Cleanup
+   for (auto *p : patches) { delete p; }
 }
