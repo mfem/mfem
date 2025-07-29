@@ -794,6 +794,50 @@ void DarcyForm::RecoverFEMSolution(const Vector &X, BlockVector &x)
    RecoverFEMSolution(X, *block_b, x);
 }
 
+void DarcyForm::ReconstructTotalFlux(const BlockVector &sol,
+                                     const Vector &sol_r, GridFunction &ut) const
+{
+   if (!hybridization) { return; }
+
+   VectorCoefficient *vel = NULL;
+   if (M_p && M_p->GetDBFI())
+   {
+      auto &dbfis = *M_p->GetDBFI();
+      if (dbfis.Size())
+      {
+         for (BilinearFormIntegrator *dbfi : dbfis)
+         {
+            auto *ci = dynamic_cast<ConvectionIntegrator*>(dbfi);
+            if (ci) { vel = ci->GetVelocity(); break; }
+
+            auto *cci = dynamic_cast<ConservativeConvectionIntegrator*>(dbfi);
+            if (cci) { vel = cci->GetVelocity(); break; }
+         }
+      }
+   }
+
+   if (vel)
+   {
+      auto fx = [vel](ElementTransformation &Tr, const Vector &q, real_t p,
+                      Vector &qt)
+      {
+         qt = q;
+         Vector cp(q.Size());
+         vel->Eval(cp, Tr, Tr.GetIntPoint());
+         qt.Add(p, cp);
+      };
+      hybridization->ReconstructTotalFlux(sol, sol_r, fx, ut);
+   }
+   else
+   {
+      auto fx = [](ElementTransformation &Tr, const Vector &q, real_t p, Vector &qt)
+      {
+         qt = q;
+      };
+      hybridization->ReconstructTotalFlux(sol, sol_r, fx, ut);
+   }
+}
+
 void DarcyForm::EliminateVDofsInRHS(const Array<int> &vdofs_flux,
                                     const BlockVector &x, BlockVector &b)
 {

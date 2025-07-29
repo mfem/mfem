@@ -921,19 +921,7 @@ int main(int argc, char *argv[])
       if (total_flux_space)
       {
          qt_h.SetSpace(total_flux_space);
-         auto fx = [&ccoeff,bconv](ElementTransformation &Tr, const Vector &q, real_t p,
-                                   Vector &qt)
-         {
-            qt = q;
-            if (bconv)
-            {
-               Vector cp(q.Size());
-               ccoeff.Eval(cp, Tr, Tr.GetIntPoint());
-               cp *= p;
-               qt += cp;
-            }
-         };
-         darcy->GetHybridization()->ReconstructTotalFlux(x, x.GetBlock(2), fx, qt_h);
+         darcy->ReconstructTotalFlux(x, x.GetBlock(2), qt_h);
          real_t err_qt = qt_h.ComputeL2Error(qtcoeff, irs);
          real_t norm_qt = ComputeLpNorm(2., qtcoeff, *mesh, irs);
          cout << "|| qt_h - qt_ex || / || qt_ex || = " << err_qt / norm_qt << "\n";

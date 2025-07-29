@@ -246,6 +246,15 @@ public:
 
    virtual void RecoverFEMSolution(const Vector &X, BlockVector &x);
 
+   /// Reconstruct the total flux from the provided hybridized solution.
+   /** The total flux function is continuous and its finite element space is
+       assumed to have equal number of DOFs at faces as the trace variable.
+       The definition of the total flux inside the elements is deduced from
+       the potential integrators used.
+   */
+   void ReconstructTotalFlux(const BlockVector &sol, const Vector &sol_r,
+                             GridFunction &ut) const;
+
    /** @brief Use the stored eliminated part of the matrix (see
        EliminateVDofs(const Array<int> &, DiagonalPolicy)) to modify the r.h.s.
        @a b; @a vdofs_flux is a list of DOFs (non-directional, i.e. >= 0). */
