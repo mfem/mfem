@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -31,7 +31,9 @@ private:
    const AssemblyLevel al;
    MemoryType opt_mt = MemoryType::DEFAULT;
 
-   void ComputeAtNewPositionScalar(const Vector &new_nodes, Vector &new_field);
+   void ComputeAtNewPositionScalar(const Vector &new_mesh_nodes,
+                                   Vector &new_field);
+
 public:
    AdvectorCG(AssemblyLevel al = AssemblyLevel::LEGACY,
               real_t timestep_scale = 0.5)
@@ -41,9 +43,24 @@ public:
    void SetInitialField(const Vector &init_nodes,
                         const Vector &init_field) override;
 
-   void ComputeAtNewPosition(const Vector &new_nodes,
+   void SetNewFieldFESpace(const FiniteElementSpace &fes) override
+   {
+      MFEM_ABORT("Not supported by AdvectorCG.");
+   }
+
+   /// Perform advection-based remap. Assumptions:
+   /// nodes0 and new_mesh_nodes have the same topology;
+   /// new_field is of the same FE space as field0.
+   void ComputeAtNewPosition(const Vector &new_mesh_nodes,
                              Vector &new_field,
-                             int new_nodes_ordering = Ordering::byNODES) override;
+                             int nodes_ordering = Ordering::byNODES) override;
+
+   void ComputeAtGivenPositions(const Vector &positions,
+                                Vector &values,
+                                int p_ordering = Ordering::byNODES) override
+   {
+      MFEM_ABORT("Not supported by AdvectorCG.");
+   }
 
    /// Set the memory type used for large memory allocations. This memory type
    /// is used when constructing the AdvectorCGOper but currently only for the
@@ -58,21 +75,34 @@ private:
    Vector nodes0;
    GridFunction field0_gf;
    FindPointsGSLIB *finder;
-   // FE space for the nodes of the solution GridFunction.
-   FiniteElementSpace *fes_field_nodes;
-
-   void GetFieldNodesPosition(const Vector &mesh_nodes,
-                              Vector &nodes_pos) const;
+   // FE space for the nodes of the solution GridFunction, not owned.
+   const FiniteElementSpace *fes_new_field;
 
 public:
-   InterpolatorFP() : finder(NULL), fes_field_nodes(NULL) { }
+   InterpolatorFP() : finder(NULL), fes_new_field(NULL) { }
 
    void SetInitialField(const Vector &init_nodes,
                         const Vector &init_field) override;
 
-   void ComputeAtNewPosition(const Vector &new_nodes,
+   /// Must be called when the FE space of the final field is different than
+   /// the FE space of the initial field. This also includes the case when
+   /// the initial and final fields are on different meshes.
+   virtual void SetNewFieldFESpace(const FiniteElementSpace &fes) override
+   {
+      fes_new_field = &fes;
+   }
+
+   /// Perform interpolation-based remap.
+   /// Assumptions when SetNewFieldFESpace() has not been called:
+   /// new_field is of the same FE space and mesh as field0.
+   void ComputeAtNewPosition(const Vector &new_mesh_nodes,
                              Vector &new_field,
-                             int new_nodes_ordering = Ordering::byNODES) override;
+                             int nodes_ordering = Ordering::byNODES) override;
+
+   /// Direct interpolation of field0_gf at the given positions.
+   void ComputeAtGivenPositions(const Vector &positions,
+                                Vector &values,
+                                int p_ordering = Ordering::byNODES) override;
 
    const FindPointsGSLIB *GetFindPointsGSLIB() const
    {
@@ -83,7 +113,6 @@ public:
    {
       finder->FreeData();
       delete finder;
-      delete fes_field_nodes;
    }
 };
 #endif
@@ -141,6 +170,14 @@ protected:
    int solver_type;
    bool parallel;
 
+   // Starting mesh positions. Updated by the call to Mult().
+   // This solver solves for d, where the final mesh is x = x_0 + d.
+   // The displacement d is always the tdof vector of an H1 function.
+   // For periodic meshes, x_0 is an L2 function, and the relation
+   // x = x_0 + d is used only per element with appropriate transitions.
+   mutable GridFunction x_0;
+   mutable bool periodic = false;
+
    // Line search step is rejected if min(detJ) <= min_detJ_limit.
    real_t min_detJ_limit = 0.0;
 
@@ -179,18 +216,18 @@ protected:
       return ir;
    }
 
-   real_t ComputeMinDet(const Vector &x_loc,
+   real_t ComputeMinDet(const Vector &d_loc,
                         const FiniteElementSpace &fes) const;
 
-   real_t MinDetJpr_2D(const FiniteElementSpace*, const Vector&) const;
-   real_t MinDetJpr_3D(const FiniteElementSpace*, const Vector&) const;
+   real_t MinDetJpr_2D(const FiniteElementSpace *, const Vector &) const;
+   real_t MinDetJpr_3D(const FiniteElementSpace *, const Vector &) const;
 
    /** @name Methods for adaptive surface fitting weight. */
    ///@{
    /// Get the average and maximum surface fitting error at the marked nodes.
    /// If there is more than 1 TMOP integrator, we get the maximum of the
    /// average and maximum error over all integrators.
-   virtual void GetSurfaceFittingError(const Vector &x_loc,
+   virtual void GetSurfaceFittingError(const Vector &d_loc,
                                        real_t &err_avg, real_t &err_max) const;
 
    /// Update surface fitting weight as surf_fit_weight *= factor.
@@ -206,11 +243,11 @@ protected:
 public:
 #ifdef MFEM_USE_MPI
    TMOPNewtonSolver(MPI_Comm comm, const IntegrationRule &irule, int type = 0)
-      : LBFGSSolver(comm), solver_type(type), parallel(true),
+      : LBFGSSolver(comm), solver_type(type), parallel(true), x_0(),
         ir(irule), IntegRules(NULL), integ_order(-1) { }
 #endif
    TMOPNewtonSolver(const IntegrationRule &irule, int type = 0)
-      : LBFGSSolver(), solver_type(type), parallel(false),
+      : LBFGSSolver(), solver_type(type), parallel(false), x_0(),
         ir(irule), IntegRules(NULL), integ_order(-1) { }
 
    /// Prescribe a set of integration rules; relevant for mixed meshes.
@@ -230,11 +267,12 @@ public:
    /// Compute scaling factor for the node movement direction using line-search.
    /// We impose constraints on TMOP energy, gradient, minimum Jacobian of
    /// the mesh, and (optionally) on the surface fitting error.
-   real_t ComputeScalingFactor(const Vector &x, const Vector &b) const override;
+   real_t ComputeScalingFactor(const Vector &d, const Vector &b) const override;
 
-   /// Update (i) discrete functions at new nodal positions, and
+   /// Given the new displacements @a d (tdof Vector), update
+   /// (i) discrete functions at new nodal positions, and
    /// (ii) surface fitting weight.
-   void ProcessNewState(const Vector &x) const override;
+   void ProcessNewState(const Vector &dx) const override;
 
    /** @name Methods for adaptive surface fitting.
        \brief These methods control the behavior of the weight and the
@@ -326,18 +364,8 @@ public:
       min_detJ_limit = threshold;
    }
 
-   void Mult(const Vector &b, Vector &x) const override
-   {
-      if (solver_type == 0)
-      {
-         NewtonSolver::Mult(b, x);
-      }
-      else if (solver_type == 1)
-      {
-         LBFGSSolver::Mult(b, x);
-      }
-      else { MFEM_ABORT("Invalid type"); }
-   }
+   /// Optimizes the mesh positions given by @a x.
+   void Mult(const Vector &b, Vector &x) const override;
 
    void SetSolver(Solver &solver) override
    {
@@ -363,6 +391,10 @@ void vis_tmop_metric_p(int order, TMOP_QualityMetric &qm,
                        char *title, int position);
 #endif
 
+// Compute x = x_0 + d, where x and x_0 are L2, d is H1p, all ldof vectors.
+void GetPeriodicPositions(const Vector &x_0, const Vector &dx,
+                          const FiniteElementSpace &fesL2,
+                          const FiniteElementSpace &fesH1, Vector &x);
 }
 
 #endif

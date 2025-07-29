@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -56,21 +56,25 @@ protected:
    static_assert(std::is_trivial<T>::value, "type T must be trivial");
 
 public:
+   using value_type = T; ///< Type alias for stl.
+   using reference = T&; ///< Type alias for stl.
+   using const_reference = const T&; ///< Type alias for stl.
+
    friend void Swap<T>(Array<T> &, Array<T> &);
 
    /// Creates an empty array
-   inline Array() : size(0) { data.Reset(); }
+   inline Array() : size(0) { }
 
    /// Creates an empty array with a given MemoryType
-   inline Array(MemoryType mt) : size(0) { data.Reset(mt); }
+   inline Array(MemoryType mt) : data(mt), size(0) { }
 
    /// Creates array of @a asize elements
    explicit inline Array(int asize)
-      : size(asize) { asize > 0 ? data.New(asize) : data.Reset(); }
+      : size(asize) { if (asize > 0) { data.New(asize); } }
 
    /// Creates array of @a asize elements with a given MemoryType
    inline Array(int asize, MemoryType mt)
-      : size(asize) { asize > 0 ? data.New(asize, mt) : data.Reset(mt); }
+      : data(mt), size(asize) { if (asize > 0) { data.New(asize, mt); } }
 
    /** @brief Creates array using an externally allocated host pointer @a data_
        to @a asize elements. If @a own_data is true, the array takes ownership
@@ -99,7 +103,7 @@ public:
    explicit inline Array(std::initializer_list<CT> values);
 
    /// Move constructor ("steals" data from 'src')
-   inline Array(Array<T> &&src) { Swap(src, *this); }
+   inline Array(Array<T> &&src) : Array() { Swap(src, *this); }
 
    /// Destructor
    inline ~Array() { data.Delete(); }
@@ -173,6 +177,9 @@ public:
 
    /// Append element 'el' to array, resize if necessary.
    inline int Append(const T & el);
+
+   /// STL-like push_back. Append element 'el' to array, resize if necessary.
+   void push_back(const T &el) { Append(el); }
 
    /// Append another array to this array, resize if necessary.
    inline int Append(const T *els, int nels);
@@ -298,6 +305,9 @@ public:
    /// Fill the entries of the array with the cumulative sum of the entries.
    void PartialSum();
 
+   /// Replace each entry of the array with its absolute value.
+   void Abs();
+
    /// Return the sum of all the array entries using the '+'' operator for class 'T'.
    T Sum() const;
 
@@ -316,7 +326,11 @@ public:
        the Size to match this Capacity after this.*/
    template <typename U>
    inline void CopyFrom(const U *src)
-   { std::memcpy(begin(), src, MemoryUsage()); }
+   {
+      if (!begin() || size == 0) { return; }
+      MFEM_ASSERT(begin() && src, "Error in Array::CopyFrom");
+      std::memcpy(begin(), src, MemoryUsage());
+   }
 
    /// STL-like begin.  Returns pointer to the first element of the array.
    inline T* begin() { return data; }

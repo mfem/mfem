@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -149,23 +149,27 @@ TEST_CASE("Gecko integration in MFEM", "[Mesh]")
 TEST_CASE("MakeSimplicial", "[Mesh]")
 {
    auto mesh_fname = GENERATE("../../data/star.mesh",
+                              "../../data/inline-tri.mesh",
                               "../../data/inline-quad.mesh",
                               "../../data/inline-hex.mesh",
+                              "../../data/inline-tet.mesh",
                               "../../data/inline-wedge.mesh",
                               "../../data/beam-wedge.mesh");
 
    Mesh orig_mesh(mesh_fname, 1, 1);
    Mesh simplex_mesh = Mesh::MakeSimplicial(orig_mesh);
 
-   Geometry::Type orig_geom = orig_mesh.GetElementBaseGeometry(0);
-   int factor;
-   switch (orig_geom)
+   Geometry::Type orig_geom = orig_mesh.GetTypicalElementGeometry();
+   const auto factor = [orig_geom]()
    {
-      case Geometry::SQUARE: factor = 2; break;
-      case Geometry::PRISM: factor = 3; break;
-      case Geometry::CUBE: factor = 6; break;
-      default: factor = 1;
-   }
+      switch (orig_geom)
+      {
+         default: return 1; // No-op
+         case Geometry::SQUARE: return 2;
+         case Geometry::PRISM: return 3;
+         case Geometry::CUBE: return 6;
+      }
+   }();
 
    int dim = orig_mesh.Dimension();
    Geometry::Type simplex_geom
@@ -179,6 +183,73 @@ TEST_CASE("MakeSimplicial", "[Mesh]")
    // Note: assuming no hex is subdivided into 5 tets. This can happen depending
    // on the original mesh, but it doesn't happen for these test cases.
    REQUIRE(simplex_mesh.GetNE() == orig_mesh.GetNE()*factor);
+
+   auto curvature = GENERATE(1,2,3);
+   orig_mesh.SetCurvature(curvature, false, -1, GENERATE(0,1));
+   auto ho_simplex_mesh = Mesh::MakeSimplicial(orig_mesh);
+
+   CHECK(orig_mesh.GetNV() == simplex_mesh.GetNV());
+   CHECK(orig_mesh.GetNV() == ho_simplex_mesh.GetNV());
+
+   // Vertex locations should be unchanged after higher order transformation.
+   Vector vert;
+   constexpr real_t tol = 10*std::numeric_limits<real_t>::epsilon();
+   for (int i = 0; i < ho_simplex_mesh.SpaceDimension(); i++)
+   {
+      ho_simplex_mesh.GetNodes()->GetNodalValues(vert, i+1);
+      for (int j = 0; j < ho_simplex_mesh.GetNV(); j++)
+      {
+         REQUIRE(std::abs(simplex_mesh.GetVertex(j)[i] - vert(j)) < tol);
+      }
+   }
+}
+
+TEST_CASE("MakeMixedSimplicial", "[Mesh]")
+{
+   auto mesh_fname = "../../data/fichera-mixed-p2.mesh";
+
+   Mesh orig_mesh(mesh_fname, 1, 1);
+   Mesh simplex_mesh = Mesh::MakeSimplicial(orig_mesh);
+
+   int ntet = 0, ncube = 0, nprism = 0;
+   for (int i = 0; i < orig_mesh.GetNE(); i++)
+   {
+      auto geom_type = orig_mesh.GetElementGeometry(i);
+      switch (geom_type)
+      {
+         case Geometry::Type::TETRAHEDRON : ntet++; break;
+         case Geometry::Type::CUBE : ncube++; break;
+         case Geometry::Type::PRISM : nprism++; break;
+         default: break; // to calm compilers
+      }
+   }
+
+   int dim = orig_mesh.Dimension();
+   Geometry::Type simplex_geom
+      = (dim == 2) ? Geometry::TRIANGLE : Geometry::TETRAHEDRON;
+
+   Array<Geometry::Type> geoms;
+   simplex_mesh.GetGeometries(simplex_mesh.Dimension(), geoms);
+
+   REQUIRE(geoms.Size() == 1);
+   REQUIRE(geoms[0] == simplex_geom);
+   // Note: assuming no hex is subdivided into 5 tets. This can happen depending
+   // on the original mesh, but it doesn't happen for these test cases.
+   REQUIRE(simplex_mesh.GetNE() == ntet + nprism * 3 + ncube * 6);
+
+   CHECK(orig_mesh.GetNV() == simplex_mesh.GetNV());
+
+   // Vertex locations should be unchanged after higher order transformation.
+   Vector vert;
+   constexpr real_t tol = 10*std::numeric_limits<real_t>::epsilon();
+   for (int i = 0; i < simplex_mesh.SpaceDimension(); i++)
+   {
+      simplex_mesh.GetNodes()->GetNodalValues(vert, i+1);
+      for (int j = 0; j < simplex_mesh.GetNV(); j++)
+      {
+         CHECK(std::abs(orig_mesh.GetVertex(j)[i] - vert(j)) < tol);
+      }
+   }
 }
 
 TEST_CASE("MakeNurbs", "[Mesh]")

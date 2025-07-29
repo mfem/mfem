@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -470,8 +470,7 @@ void ComplexBlockStaticCondensation::AssembleReducedSystem(int el,
    }
 
    // Assemble global mat and rhs
-   DofTransformation * doftrans_i, *doftrans_j;
-
+   DofTransformation doftrans_i, doftrans_j;
 
    Array<int> faces, ori;
    int dim = mesh->Dimension();
@@ -499,7 +498,7 @@ void ComplexBlockStaticCondensation::AssembleReducedSystem(int el,
    {
       if (!tr_fes[i]) { continue; }
       Array<int> vdofs_i;
-      doftrans_i = nullptr;
+      doftrans_i.SetDofTransformation(nullptr);
       if (IsTraceSpace[i])
       {
          Array<int> face_vdofs;
@@ -512,14 +511,14 @@ void ComplexBlockStaticCondensation::AssembleReducedSystem(int el,
       }
       else
       {
-         doftrans_i = tr_fes[i]->GetElementVDofs(el, vdofs_i);
+         tr_fes[i]->GetElementVDofs(el, vdofs_i, doftrans_i);
       }
       int skip_j=0;
       for (int j = 0; j<tr_fes.Size(); j++)
       {
          if (!tr_fes[j]) { continue; }
          Array<int> vdofs_j;
-         doftrans_j = nullptr;
+         doftrans_j.SetDofTransformation(nullptr);
 
          if (IsTraceSpace[j])
          {
@@ -533,7 +532,7 @@ void ComplexBlockStaticCondensation::AssembleReducedSystem(int el,
          }
          else
          {
-            doftrans_j = tr_fes[j]->GetElementVDofs(el, vdofs_j);
+            tr_fes[j]->GetElementVDofs(el, vdofs_j, doftrans_j);
          }
 
          DenseMatrix Ae_r, Ae_i;
@@ -541,11 +540,8 @@ void ComplexBlockStaticCondensation::AssembleReducedSystem(int el,
                                    offsets[j],offsets[j+1], Ae_r);
          rmat->imag().GetSubMatrix(offsets[i],offsets[i+1],
                                    offsets[j],offsets[j+1], Ae_i);
-         if (doftrans_i || doftrans_j)
-         {
-            TransformDual(doftrans_i, doftrans_j, Ae_r);
-            TransformDual(doftrans_i, doftrans_j, Ae_i);
-         }
+         TransformDual(doftrans_i, doftrans_j, Ae_r);
+         TransformDual(doftrans_i, doftrans_j, Ae_i);
          S_r->GetBlock(skip_i,skip_j).AddSubMatrix(vdofs_i,vdofs_j, Ae_r);
          S_i->GetBlock(skip_i,skip_j).AddSubMatrix(vdofs_i,vdofs_j, Ae_i);
          skip_j++;
@@ -555,11 +551,8 @@ void ComplexBlockStaticCondensation::AssembleReducedSystem(int el,
       Vector vec1_r(*rvecptr_real, offsets[i], offsets[i+1]-offsets[i]);
       Vector vec1_i(*rvecptr_imag, offsets[i], offsets[i+1]-offsets[i]);
       // ref subvector
-      if (doftrans_i)
-      {
-         doftrans_i->TransformDual(vec1_r);
-         doftrans_i->TransformDual(vec1_i);
-      }
+      doftrans_i.TransformDual(vec1_r);
+      doftrans_i.TransformDual(vec1_i);
       y_r->GetBlock(skip_i).AddElementVector(vdofs_i,vec1_r);
       y_i->GetBlock(skip_i).AddElementVector(vdofs_i,vec1_i);
       skip_i++;

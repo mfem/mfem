@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -146,7 +146,6 @@ void NativeBatchedLinAlg::Invert(DenseTensor &A) const
 
 void NativeBatchedLinAlg::LUFactor(DenseTensor &A, Array<int> &P) const
 {
-   constexpr real_t tol = 0.0; // Make this user-adjustable?
    const int m = A.SizeI();
    const int NE = A.SizeK();
    P.SetSize(m*NE);
@@ -159,52 +158,8 @@ void NativeBatchedLinAlg::LUFactor(DenseTensor &A, Array<int> &P) const
 
    mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
-      for (int i = 0; i < m; i++)
-      {
-         // pivoting
-         {
-            int piv = i;
-            real_t a = fabs(data_all(piv,i,e));
-            for (int j = i+1; j < m; j++)
-            {
-               const real_t b = fabs(data_all(j,i,e));
-               if (b > a)
-               {
-                  a = b;
-                  piv = j;
-               }
-            }
-            ipiv_all(i,e) = piv;
-            if (piv != i)
-            {
-               // swap rows i and piv in both L and U parts
-               for (int j = 0; j < m; j++)
-               {
-                  kernels::internal::Swap<real_t>(data_all(i,j,e), data_all(piv,j,e));
-               }
-            }
-         } // pivot end
-
-         if (std::abs(data_all(i,i,e)) <= tol)
-         {
-            d_pivot_flag[0] = false;
-         }
-
-         const real_t a_ii_inv = 1.0 / data_all(i,i,e);
-         for (int j = i+1; j < m; j++)
-         {
-            data_all(j,i,e) *= a_ii_inv;
-         }
-
-         for (int k = i+1; k < m; k++)
-         {
-            const real_t a_ik = data_all(i,k,e);
-            for (int j = i+1; j < m; j++)
-            {
-               data_all(j,k,e) -= a_ik * data_all(j,i,e);
-            }
-         }
-      }
+      const bool flag = kernels::LUFactor(&data_all(0,0,e), m, &ipiv_all(0,e));
+      if (!flag) { d_pivot_flag[0] = false; }
    });
 
    MFEM_VERIFY(pivot_flag.HostRead()[0], "Batch LU factorization failed");

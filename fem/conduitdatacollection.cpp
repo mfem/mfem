@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -719,7 +719,7 @@ ConduitDataCollection::MeshToBlueprintMesh(Mesh *mesh,
    // copy out. Some other cases (sidre) may actually have contig
    // allocation but I am  not sure how to detect this case from mfem
    int num_ele = mesh->GetNE();
-   int geom = mesh->GetElementBaseGeometry(0);
+   int geom = mesh->GetTypicalElementGeometry();
    int idxs_per_ele = Geometry::NumVerts[geom];
    int num_conn_idxs =  num_ele * idxs_per_ele;
 

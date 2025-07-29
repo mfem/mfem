@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -22,12 +22,10 @@
 #include "ncmesh.hpp"
 #include "../general/communication.hpp"
 #include "../general/sort_pairs.hpp"
+#include "../fem/fespace.hpp"
 
 namespace mfem
 {
-
-class FiniteElementSpace;
-
 
 /** \brief A parallel extension of the NCMesh class.
  *
@@ -112,7 +110,7 @@ public:
        passed. */
    void Rebalance(const Array<int> *custom_partition = NULL);
 
-   // interface for ParFiniteElementSpace
+   // Interface for ParFiniteElementSpace
    int GetNElements() const { return NElements; }
 
    int GetNGhostVertices() const { return NGhostVertices; }
@@ -125,6 +123,10 @@ public:
    const NCList& GetSharedVertices() { GetVertexList(); return shared_vertices; }
    const NCList& GetSharedEdges() { GetEdgeList(); return shared_edges; }
    const NCList& GetSharedFaces() { GetFaceList(); return shared_faces; }
+
+   /* Gets the array of global serial indices in NCMesh::elements of all ghost
+      elements for this processor. */
+   void GetGhostElements(Array<int> & gelem);
 
    /// Helper to get shared vertices/edges/faces ('entity' == 0/1/2 resp.).
    const NCList& GetSharedList(int entity)
@@ -250,6 +252,29 @@ public:
    /** Extract a debugging Mesh containing all leaf elements, including ghosts.
        The debug mesh will have element attributes set to element rank + 1. */
    void GetDebugMesh(Mesh &debug_mesh) const;
+
+   // Ghost element indices and their orders, for parallel p-refinement.
+   struct VarOrderElemInfo
+   {
+      unsigned int element; // Element index
+      char order; // Element order
+   };
+
+   void CommunicateGhostData(
+      const Array<VarOrderElemInfo> & sendData,
+      Array<VarOrderElemInfo> & recvData);
+
+   /** For a ghost element with index @a elem, the edge indices are returned in
+       @a edges. */
+   void FindEdgesOfGhostElement(int elem, Array<int> & edges);
+
+   /** For a ghost element with index @a elem, the face indices are returned in
+       @a faces. */
+   void FindFacesOfGhostElement(int elem, Array<int> & faces);
+
+   /** For a ghost face with index @a face, the edge indices are returned in
+       @a edges. */
+   void FindEdgesOfGhostFace(int face, Array<int> & edges);
 
 protected: // interface for ParMesh
 
@@ -462,7 +487,8 @@ protected: // implementation
    /** Used by ParNCMesh::Refine() to inform neighbors about refinements at
     *  the processor boundary. This keeps their ghost layers synchronized.
     */
-   class NeighborRefinementMessage : public ElementValueMessage<char, false, 289>
+   class NeighborRefinementMessage : public ElementValueMessage<char, false,
+      VarMessageTag::NEIGHBOR_REFINEMENT_VM>
    {
    public:
       void AddRefinement(int elem, char ref_type) { Add(elem, ref_type); }
@@ -471,7 +497,8 @@ protected: // implementation
 
    /** Used by ParNCMesh::Derefine() to keep the ghost layers synchronized.
     */
-   class NeighborDerefinementMessage : public ElementValueMessage<int, false, 290>
+   class NeighborDerefinementMessage : public ElementValueMessage<int, false,
+      VarMessageTag::NEIGHBOR_DEREFINEMENT_VM>
    {
    public:
       void AddDerefinement(int elem, int rank) { Add(elem, rank); }
@@ -481,7 +508,8 @@ protected: // implementation
    /** Used in Step 2 of Rebalance() to synchronize new rank assignments in
     *  the ghost layer.
     */
-   class NeighborElementRankMessage : public ElementValueMessage<int, false, 156>
+   class NeighborElementRankMessage : public ElementValueMessage<int, false,
+      VarMessageTag::NEIGHBOR_ELEMENT_RANK_VM>
    {
    public:
       void AddElementRank(int elem, int rank) { Add(elem, rank); }
@@ -492,7 +520,8 @@ protected: // implementation
     *  RefTypes == true which means the refinement hierarchy will be recreated
     *  on the receiving side.
     */
-   class RebalanceMessage : public ElementValueMessage<int, true, 157>
+   class RebalanceMessage : public ElementValueMessage<int, true,
+      VarMessageTag::REBALANCE_VM>
    {
    public:
       void AddElementRank(int elem, int rank) { Add(elem, rank); }
@@ -502,7 +531,7 @@ protected: // implementation
    /** Allows migrating element data (DOFs) after Rebalance().
     *  Used by SendRebalanceDofs and RecvRebalanceDofs.
     */
-   class RebalanceDofMessage : public VarMessage<158>
+   class RebalanceDofMessage : public VarMessage<VarMessageTag::REBALANCE_DOF_VM>
    {
    public:
       std::vector<int> elem_ids, dofs;
@@ -519,6 +548,16 @@ protected: // implementation
 
       void Encode(int) override;
       void Decode(int) override;
+   };
+
+   /** Used by CommunicateGhostData to send p-refined element indices and
+       their order. */
+   class NeighborPRefinementMessage : public ElementValueMessage<int, false,
+      VarMessageTag::NEIGHBOR_PREFINEMENT_VM>
+   {
+   public:
+      void AddRefinement(int elem, int order) { Add(elem, order); }
+      typedef std::map<int, NeighborPRefinementMessage> Map;
    };
 
    /** Assign new Element::rank to leaf elements and send them to their new
@@ -548,8 +587,8 @@ protected: // implementation
    std::size_t GroupsMemoryUsage() const;
 
    friend class NeighborRowMessage;
+   friend class NeighborOrderMessage;
 };
-
 
 
 // comparison operator so that MeshId can be used as key in std::map

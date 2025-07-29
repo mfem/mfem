@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -36,8 +36,8 @@
 //     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 2 -tid 4 -ni 200 -bnd -qt 1 -qo 8
 //   Adapted analytic size+orientation:
 //     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 14 -tid 4 -ni 200 -bnd -qt 1 -qo 8
-//   Adapted analytic shape+orientation:
-//     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 85 -tid 4 -ni 100 -bnd -qt 1 -qo 8 -fd
+//   Adapted analytic shape+orientation (AD):
+//     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 3 -rs 2 -mid 85 -tid 4 -ni 100 -bnd -qt 1 -qo 8 -rtol 1e-6
 //
 //   Adapted analytic shape and/or size with hr-adaptivity:
 //     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -tid 9  -ni 50 -li 20 -hmid 55 -mid 7 -hr
@@ -50,6 +50,8 @@
 //   * mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 80 -tid 5 -ni 50 -qo 4 -nor -mno 1 -ae 1
 //   Adapted discrete size NC mesh;
 //     mpirun -np 4 pmesh-optimizer -m amr-quad-q2.mesh -o 2 -rs 2 -mid 94 -tid 5 -ni 50 -qo 4 -nor
+//   Adapted discrete size NC mesh (GPU+GSLIB);
+//   * mpirun -np 4 pmesh-optimizer -m ../../data/amr-hex.mesh -o 2 -rs 1 -mid 321 -tid 5 -fix-bnd -ni 50 -qo 6 -nor -vl 2 -ae 1 -d debug
 //   Adapted discrete size 3D with PA:
 //     mpirun -np 4 pmesh-optimizer -m cube.mesh -o 2 -rs 2 -mid 321 -tid 5 -ls 3 -nor -pa -rtol 1e-8
 //   Adapted discrete size 3D with PA on device (requires CUDA):
@@ -58,24 +60,31 @@
 //     mpirun -np 4 pmesh-optimizer -m ../../data/square-mixed.mesh -o 2 -rs 2 -mid 2 -tid 5 -ni 200 -bnd -qo 6 -cmb 2 -nor
 //   Adapted discrete size+aspect_ratio:
 //     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 7 -tid 6 -ni 100
-//   Adapted discrete size+orientation:
-//     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 36 -tid 8 -qo 4 -fd -nor
+//   Adapted discrete size+orientation (AD):
+//     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 36 -tid 8 -qo 4 -nor -rtol 1e-6
 //   Adapted discrete aspect ratio (3D):
 //     mpirun -np 4 pmesh-optimizer -m cube.mesh -o 2 -rs 2 -mid 302 -tid 7 -ni 20 -bnd -qt 1 -qo 8
+//
+//   Periodic 2D + adapted discrete size:
+//     mpirun -np 4 pmesh-optimizer -m ../../data/periodic-square.mesh -o 2 -rs 4 -mid 94 -tid 5 -qo 4 -nor
+//     mpirun -np 4 pmesh-optimizer -m periodic-tri.mesh -o 2 -rs 3 -mid 94 -tid 5 -qo 4 -nor
+//   Periodic 3D + adapted discrete size + PA:
+//     mpirun -np 4 pmesh-optimizer -m periodic-cube.mesh -o 2 -rs 2 -mid 338 -tid 5 -nor -rtol 1e-6 -qo 4 -pa
+//   Periodic 2D NC mesh + adapted discrete size + PA:
+//     (the mesh is in the mfem/data GitHub repository)
+//   * mpirun -np 4 pmesh-optimizer -m ../../../data/periodic/per-amr-square.mesh -o 2 -mid 94 -tid 5 -ni 50 -qo 4 -nor -pa
 //
 //   Adaptive limiting:
 //     mpirun -np 4 pmesh-optimizer -m stretched2D.mesh -o 2 -mid 2 -tid 1 -ni 50 -qo 5 -nor -vl 1 -alc 0.5
 //   Adaptive limiting through the L-BFGS solver:
 //     mpirun -np 4 pmesh-optimizer -m stretched2D.mesh -o 2 -mid 2 -tid 1 -ni 400 -qo 5 -nor -vl 1 -alc 0.5 -st 1 -rtol 1e-8
-//   Adaptive limiting through FD (requires GSLIB):
-//   * mpirun -np 4 pmesh-optimizer -m stretched2D.mesh -o 2 -mid 2 -tid 1 -ni 50 -qo 5 -nor -vl 1 -alc 0.5 -fd -ae 1
 //
 //   Blade shape:
 //     mpirun -np 4 pmesh-optimizer -m blade.mesh -o 4 -mid 2 -tid 1 -ni 30 -ls 3 -art 1 -bnd -qt 1 -qo 8
+//   Blade shape (AD):
+//     mpirun -np 4 pmesh-optimizer -m blade.mesh -o 4 -mid 11 -tid 1 -ni 30 -ls 3 -art 1 -bnd -qt 1 -qo 8
 //     (requires CUDA):
 //   * mpirun -np 4 pmesh-optimizer -m blade.mesh -o 4 -mid 2 -tid 1 -ni 30 -ls 3 -art 1 -bnd -qt 1 -qo 8 -d cuda
-//   Blade shape with FD-based solver:
-//     mpirun -np 4 pmesh-optimizer -m blade.mesh -o 4 -mid 2 -tid 1 -ni 30 -ls 4 -bnd -qt 1 -qo 8 -fd
 //   Blade limited shape:
 //     mpirun -np 4 pmesh-optimizer -m blade.mesh -o 4 -mid 2 -tid 1 -bnd -qt 1 -qo 8 -lc 5000
 //   ICF shape and equal size:
@@ -122,7 +131,7 @@ int main (int argc, char *argv[])
    int myid = Mpi::WorldRank();
    Hypre::Init();
 
-   // 1. Set the method's default parameters.
+   // Set the method's default parameters.
    const char *mesh_file = "icf.mesh";
    int mesh_poly_deg     = 1;
    int rs_levels         = 0;
@@ -160,11 +169,11 @@ int main (int argc, char *argv[])
    bool pa               = false;
    int n_hr_iter         = 5;
    int n_h_iter          = 1;
-   int mesh_node_ordering = 0;
-   int barrier_type       = 0;
-   int worst_case_type    = 0;
+   int mesh_node_order   = 0;
+   int barrier_type      = 0;
+   int worst_case_type   = 0;
 
-   // 2. Parse command-line options.
+   // Parse command-line options.
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
@@ -219,6 +228,8 @@ int main (int argc, char *argv[])
                   "A-metrics\n\t"
                   "11 : (1/4*alpha)|A-(adjA)^T(W^TW)/omega|^2 -- 2D shape\n\t"
                   "36 : (1/alpha)|A-W|^2                      -- 2D shape+size+orientation\n\t"
+                  "49 : (1-gamma) mu_2 + gamma nu_50          -- 2D shape+skew\n\t"
+                  "51 : see fem/tmop.hpp                      -- 2D size+skew\n\t"
                   "107: (1/2*alpha)|A-|A|/|W|W|^2             -- 2D shape+orientation\n\t"
                   "126: (1-gamma)nu_11 + gamma*nu_14a         -- 2D shape+size\n\t"
                  );
@@ -308,7 +319,7 @@ int main (int argc, char *argv[])
    args.AddOption(&n_h_iter, "-nh", "--n_h_iter",
                   "Number of h-adaptivity iterations per r-adaptivity"
                   "iteration.");
-   args.AddOption(&mesh_node_ordering, "-mno", "--mesh_node_ordering",
+   args.AddOption(&mesh_node_order, "-mno", "--mesh_node_ordering",
                   "Ordering of mesh nodes."
                   "0 (default): byNodes, 1: byVDIM");
    args.AddOption(&barrier_type, "-btype", "--barrier-type",
@@ -337,107 +348,130 @@ int main (int argc, char *argv[])
    Device device(devopt);
    if (myid == 0) { device.Print();}
 
-   // 3. Initialize and refine the starting mesh.
+   // Initialize and refine the starting mesh.
    Mesh *mesh = new Mesh(mesh_file, 1, 1, false);
-   for (int lev = 0; lev < rs_levels; lev++)
-   {
-      mesh->UniformRefinement();
-   }
+   for (int lev = 0; lev < rs_levels; lev++) { mesh->UniformRefinement(); }
    const int dim = mesh->Dimension();
 
    if (hradaptivity) { mesh->EnsureNCMesh(); }
+
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
    delete mesh;
-   for (int lev = 0; lev < rp_levels; lev++)
-   {
-      pmesh->UniformRefinement();
-   }
+   for (int lev = 0; lev < rp_levels; lev++) { pmesh->UniformRefinement(); }
 
-   // 4. Define a finite element space on the mesh. Here we use vector finite
-   //    elements which are tensor products of quadratic finite elements. The
-   //    number of components in the vector finite element space is specified by
-   //    the last parameter of the FiniteElementSpace constructor.
+   auto s = pmesh->GetNodalFESpace();
+   const bool periodic = (s && s->IsDGSpace()) ? true : false;
+
+   // Define a FE space on the mesh, based on the input order. This space will
+   // also be used to represent the nodal positions of the mesh. We use a vector
+   // FE space which is a tensor product of a scalar FE space. The number of
+   // components in the vector finite element space matches the dimension.
    FiniteElementCollection *fec;
-   if (mesh_poly_deg <= 0)
+   if (mesh_poly_deg <= 0) { mesh_poly_deg = 2; }
+   if (periodic)
    {
-      fec = new QuadraticPosFECollection;
-      mesh_poly_deg = 2;
+      fec = new L2_FECollection(mesh_poly_deg, dim, BasisType::GaussLobatto);
    }
    else { fec = new H1_FECollection(mesh_poly_deg, dim); }
-   ParFiniteElementSpace *pfespace = new ParFiniteElementSpace(pmesh, fec, dim,
-                                                               mesh_node_ordering);
+   auto pfespace = new ParFiniteElementSpace(pmesh, fec, dim, mesh_node_order);
 
-   // 5. Make the mesh curved based on the above finite element space. This
-   //    means that we define the mesh elements through a fespace-based
-   //    transformation of the reference element.
+   // Make the starting mesh curved. This means we define the mesh elements
+   // through a FE-based transformation of the reference element.
    pmesh->SetNodalFESpace(pfespace);
 
-   // 7. Get the mesh nodes (vertices and other degrees of freedom in the finite
-   //    element space) as a finite element grid function in fespace. Note that
-   //    changing x automatically changes the shapes of the mesh elements.
+   // Get the mesh nodes (vertices and other DOFs in the FE space) as a FE grid
+   // function in pfespace. Note that changing x automatically changes the
+   // shapes of the mesh elements.
    ParGridFunction x(pfespace);
    pmesh->SetNodalGridFunction(&x);
 
-   // 8. Define a vector representing the minimal local mesh size in the mesh
-   //    nodes. We index the nodes using the scalar version of the degrees of
-   //    freedom in pfespace. Note: this is partition-dependent.
-   //
-   //    In addition, compute average mesh size and total volume.
-   Vector h0(pfespace->GetNDofs());
+   // We create an H1 space for the mesh displacement. The displacement is
+   // always in a continuous space, even if the mesh is periodic.
+   // The nonlinear problem will be solved for the continuous displacement.
+   H1_FECollection fec_h1(mesh_poly_deg, dim);
+   ParFiniteElementSpace pfes_h1(pmesh, &fec_h1, dim,  mesh_node_order);
+   ParGridFunction dx(&pfes_h1); dx = 0.0;
+
+   // Define a vector representing the minimal local mesh size in the mesh
+   // nodes. We index the nodes by the scalar version of the DOFs in pfespace.
+   // In addition, compute average mesh size and total volume.
+   // Note: this is MPI partition-dependent.
+   Vector h0(pfes_h1.GetNDofs());
    h0 = infinity();
-   real_t vol_loc = 0.0;
+   real_t mesh_volume = 0.0;
    Array<int> dofs;
    for (int i = 0; i < pmesh->GetNE(); i++)
    {
       // Get the local scalar element degrees of freedom in dofs.
-      pfespace->GetElementDofs(i, dofs);
+      pfes_h1.GetElementDofs(i, dofs);
       // Adjust the value of h0 in dofs based on the local mesh size.
       const real_t hi = pmesh->GetElementSize(i);
       for (int j = 0; j < dofs.Size(); j++)
       {
          h0(dofs[j]) = min(h0(dofs[j]), hi);
       }
-      vol_loc += pmesh->GetElementVolume(i);
+      mesh_volume += pmesh->GetElementVolume(i);
    }
-   real_t vol_glb;
-   MPI_Allreduce(&vol_loc, &vol_glb, 1, MPITypeMap<real_t>::mpi_type,
+   MPI_Allreduce(MPI_IN_PLACE, &mesh_volume, 1, MPITypeMap<real_t>::mpi_type,
                  MPI_SUM, MPI_COMM_WORLD);
-   const real_t small_phys_size = pow(vol_glb, 1.0 / dim) / 100.0;
+   const real_t small_phys_size = pow(mesh_volume, 1.0 / dim) / 100.0;
 
-   // 9. Add a random perturbation to the nodes in the interior of the domain.
-   //    We define a random grid function of fespace and make sure that it is
-   //    zero on the boundary and its values are locally of the order of h0.
-   //    The latter is based on the DofToVDof() method which maps the scalar to
-   //    the vector degrees of freedom in pfespace.
-   ParGridFunction rdm(pfespace);
-   rdm.Randomize();
-   rdm -= 0.25; // Shift to random values in [-0.5,0.5].
-   rdm *= jitter;
-   rdm.HostReadWrite();
-   // Scale the random values to be of order of the local mesh size.
-   for (int i = 0; i < pfespace->GetNDofs(); i++)
+   // Add a random perturbation to the nodes in the interior of the domain.
+   // We define a random grid function of pfespace and make sure that it is
+   // zero on the boundary and its values are locally of the order of h0.
+   // The latter is based on the DofToVDof() method which maps the scalar to
+   // the vector degrees of freedom in pfespace.
+   if (jitter > 0.0)
    {
-      for (int d = 0; d < dim; d++)
+      // The perturbation is always in H1, even though the mesh nodes can be in
+      // L2 when the mesh is periodic.
+      ParGridFunction rdm(&pfes_h1);
+      rdm.Randomize();
+      rdm -= 0.25; // Shift to random values in [-0.5,0.5].
+      rdm *= jitter;
+      rdm.HostReadWrite();
+      // Scale the random values to be of order of the local mesh size.
+      for (int i = 0; i < pfes_h1.GetNDofs(); i++)
       {
-         rdm(pfespace->DofToVDof(i,d)) *= h0(i);
+         for (int d = 0; d < dim; d++)
+         {
+            rdm(pfes_h1.DofToVDof(i, d)) *= h0(i);
+         }
+      }
+      // Set the boundary values to zero. Note that periodic periodic boundaries
+      // will be free to move.
+      Array<int> vdofs;
+      for (int i = 0; i < pfes_h1.GetNBE(); i++)
+      {
+         pfes_h1.GetBdrElementVDofs(i, vdofs);
+         for (int j = 0; j < vdofs.Size(); j++) { rdm(vdofs[j]) = 0.0; }
+      }
+
+      if (periodic)
+      {
+         // For H1 the perturbation is controlled by the true nodes.
+         rdm.SetFromTrueVector();
+         ParGridFunction rdm_l2(pfespace);
+         rdm_l2.ProjectGridFunction(rdm);
+         x -= rdm_l2;
+      }
+      else
+      {
+         x -= rdm;
+         // For H1 the perturbation is controlled by the true nodes.
+         x.SetFromTrueVector();
+      }
+
+      if (visualization)
+      {
+         socketstream vis1;
+         common::VisualizeMesh(vis1, "localhost", 19916, *pmesh, "Perturbed",
+                               300, 600, 300, 300);
       }
    }
-   Array<int> vdofs;
-   for (int i = 0; i < pfespace->GetNBE(); i++)
-   {
-      // Get the vector degrees of freedom in the boundary element.
-      pfespace->GetBdrElementVDofs(i, vdofs);
-      // Set the boundary values to zero.
-      for (int j = 0; j < vdofs.Size(); j++) { rdm(vdofs[j]) = 0.0; }
-   }
-   x -= rdm;
-   // Set the perturbation of all nodes from the true nodes.
-   x.SetTrueVector();
-   x.SetFromTrueVector();
 
-   // 10. Save the starting (prior to the optimization) mesh to a file. This
-   //     output can be viewed later using GLVis: "glvis -m perturbed -np
-   //     num_mpi_tasks".
+   // Save the starting (prior to the optimization) mesh to a file. This
+   // output can be viewed later using GLVis: "glvis -m perturbed -np #tasks".
    {
       ostringstream mesh_name;
       mesh_name << "perturbed.mesh";
@@ -446,11 +480,10 @@ int main (int argc, char *argv[])
       pmesh->PrintAsOne(mesh_ofs);
    }
 
-   // 11. Store the starting (prior to the optimization) positions.
-   ParGridFunction x0(pfespace);
-   x0 = x;
+   // Store the starting (prior to the optimization) positions.
+   ParGridFunction x0(x);
 
-   // 12. Form the integrator that uses the chosen metric and target.
+   // Form the integrator that uses the chosen metric and target.
    real_t min_detJ = -0.1;
    TMOP_QualityMetric *metric = NULL;
    switch (metric_id)
@@ -498,7 +531,9 @@ int main (int argc, char *argv[])
       // A-metrics
       case 11: metric = new TMOP_AMetric_011; break;
       case 36: metric = new TMOP_AMetric_036; break;
-      case 107: metric = new TMOP_AMetric_107a; break;
+      case 49: metric = new TMOP_AMetric_049(0.9); break;
+      case 51: metric = new TMOP_AMetric_051; break;
+      case 107: metric = new TMOP_AMetric_107; break;
       case 126: metric = new TMOP_AMetric_126(0.9); break;
       default:
          if (myid == 0) { cout << "Unknown metric_id: " << metric_id << endl; }
@@ -805,15 +840,6 @@ int main (int argc, char *argv[])
    }
    target_c->SetNodes(x0);
 
-   // Automatically balanced gamma in composite metrics.
-   auto metric_combo = dynamic_cast<TMOP_Combo_QualityMetric *>(metric);
-   if (metric_combo && bal_expl_combo)
-   {
-      Vector bal_weights;
-      metric_combo->ComputeBalancedWeights(x, *target_c, bal_weights);
-      metric_combo->SetWeights(bal_weights);
-   }
-
    TMOP_QualityMetric *metric_to_use = barrier_type > 0 || worst_case_type > 0
                                        ? untangler_metric
                                        : metric;
@@ -861,9 +887,19 @@ int main (int argc, char *argv[])
            << irules->Get(Geometry::PRISM, quad_order).GetNPoints() << endl;
    }
 
+   // Automatically balanced gamma in composite metrics.
+   auto metric_combo = dynamic_cast<TMOP_Combo_QualityMetric *>(metric);
+   if (metric_combo && bal_expl_combo)
+   {
+      Vector bal_weights;
+      auto ir = irules->Get(pmesh->GetTypicalElementGeometry(), quad_order);
+      metric_combo->ComputeBalancedWeights(x, *target_c, bal_weights, pa, &ir);
+      metric_combo->SetWeights(bal_weights);
+   }
+
    // Limit the node movement.
    // The limiting distances can be given by a general function of space.
-   ParFiniteElementSpace dist_pfespace(pmesh, fec); // scalar space
+   ParFiniteElementSpace dist_pfespace(pmesh, &fec_h1); // scalar space
    ParGridFunction dist(&dist_pfespace);
    dist = 1.0;
    // The small_phys_size is relevant only with proper normalization.
@@ -903,24 +939,23 @@ int main (int argc, char *argv[])
       }
    }
 
-   // Has to be after the enabling of the limiting / alignment, as it computes
-   // normalization factors for these terms as well.
-   if (normalization) { tmop_integ->ParEnableNormalization(x0); }
-
-   // 13. Setup the final NonlinearForm (which defines the integral of interest,
-   //     its first and second derivatives). Here we can use a combination of
-   //     metrics, i.e., optimize the sum of two integrals, where both are
-   //     scaled by used-defined space-dependent weights.  Note that there are
-   //     no command-line options for the weights and the type of the second
-   //     metric; one should update those in the code.
-   ParNonlinearForm a(pfespace);
+   //
+   // Setup the ParNonlinearForm which defines the integral of interest, its
+   // first and second derivatives.
+   //
+   // Note that the TMOP optimization always operates on H1 spaces. For periodic
+   // meshes, TMOP solves for a continuous periodic displacement.
+   ParNonlinearForm a(&pfes_h1);
    if (pa) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
+   // We can use a combination of metrics, i.e., optimize the sum of two
+   // integrals, where both are scaled by used-defined space-dependent weights.
+   // Note that there are no command-line options for the weights and the type
+   // of the second metric; one should update those in the code.
    ConstantCoefficient *metric_coeff1 = NULL;
    TMOP_QualityMetric *metric2 = NULL;
    TargetConstructor *target_c2 = NULL;
    FunctionCoefficient metric_coeff2(weight_fun);
-
-   // Explicit combination of metrics.
+   TMOPComboIntegrator *combo = nullptr;
    if (combomet > 0)
    {
       // First metric.
@@ -946,20 +981,24 @@ int main (int argc, char *argv[])
       if (fdscheme) { tmop_integ2->EnableFiniteDifferences(x); }
       tmop_integ2->SetExactActionFlag(exactaction);
 
-      TMOPComboIntegrator *combo = new TMOPComboIntegrator;
+      combo = new TMOPComboIntegrator;
       combo->AddTMOPIntegrator(tmop_integ);
       combo->AddTMOPIntegrator(tmop_integ2);
-      if (normalization) { combo->ParEnableNormalization(x0); }
       if (lim_const != 0.0) { combo->EnableLimiting(x0, dist, lim_coeff); }
 
       a.AddDomainIntegrator(combo);
    }
-   else
-   {
-      a.AddDomainIntegrator(tmop_integ);
-   }
-
+   else { a.AddDomainIntegrator(tmop_integ); }
+   // The PA setup must be performed after all integrators have been added.
    if (pa) { a.Setup(); }
+
+   // Has to be after the enabling of the limiting / alignment, as it computes
+   // normalization factors for these terms as well.
+   if (normalization)
+   {
+      tmop_integ->ParEnableNormalization(x0);
+      if (combomet) { combo->ParEnableNormalization(x0); }
+   }
 
    // Compute the minimum det(J) of the starting mesh.
    min_detJ = infinity();
@@ -994,25 +1033,26 @@ int main (int argc, char *argv[])
                   "Untangling is supported only for ideal targets.");
 
       const DenseMatrix &Wideal =
-         Geometries.GetGeomToPerfGeomJac(pfespace->GetFE(0)->GetGeomType());
+         Geometries.GetGeomToPerfGeomJac(pmesh->GetTypicalElementGeometry());
       min_detJ /= Wideal.Det();
 
-      real_t h0min = h0.Min(), h0min_all;
-      MPI_Allreduce(&h0min, &h0min_all, 1, MPITypeMap<real_t>::mpi_type,
+      real_t h0_min = h0.Min();
+      MPI_Allreduce(MPI_IN_PLACE, &h0_min, 1, MPITypeMap<real_t>::mpi_type,
                     MPI_MIN, MPI_COMM_WORLD);
       // Slightly below minJ0 to avoid div by 0.
-      min_detJ -= 0.01 * h0min_all;
+      min_detJ -= 0.01 * h0_min;
    }
 
    // For HR tests, the energy is normalized by the number of elements.
-   const real_t init_energy = a.GetParGridFunctionEnergy(x) /
+   if (periodic) { tmop_integ->SetInitialMeshPos(&x0); }
+   const real_t init_energy = a.GetParGridFunctionEnergy(periodic ? dx : x) /
                               (hradaptivity ? pmesh->GetGlobalNE() : 1);
    real_t init_metric_energy = init_energy;
    if (lim_const > 0.0 || adapt_lim_const > 0.0)
    {
       lim_coeff.constant = 0.0;
       adapt_lim_coeff.constant = 0.0;
-      init_metric_energy = a.GetParGridFunctionEnergy(x) /
+      init_metric_energy = a.GetParGridFunctionEnergy(periodic ? dx : x) /
                            (hradaptivity ? pmesh->GetGlobalNE() : 1);
       lim_coeff.constant = lim_const;
       adapt_lim_coeff.constant = adapt_lim_const;
@@ -1026,10 +1066,11 @@ int main (int argc, char *argv[])
       vis_tmop_metric_p(mesh_poly_deg, *metric, *target_c, *pmesh, title, 0);
    }
 
-   // 14. Fix all boundary nodes, or fix only a given component depending on the
-   //     boundary attributes of the given mesh.  Attributes 1/2/3 correspond to
-   //     fixed x/y/z components of the node.  Attribute dim+1 corresponds to
-   //     an entirely fixed node.
+   // Fix all boundary nodes, or fix only a given component depending on the
+   // boundary attributes of the given mesh.
+   // Attributes 1/2/3 correspond to fixed x/y/z components of the node.
+   // Attribute 4 corresponds to an entirely fixed node.
+   // All other attributes represent unconstrained boundary nodes.
    if (move_bnd == false)
    {
       Array<int> ess_bdr(pmesh->bdr_attributes.Max());
@@ -1041,7 +1082,7 @@ int main (int argc, char *argv[])
       int n = 0;
       for (int i = 0; i < pmesh->GetNBE(); i++)
       {
-         const int nd = pfespace->GetBE(i)->GetDof();
+         const int nd = pfes_h1.GetBE(i)->GetDof();
          const int attr = pmesh->GetBdrElement(i)->GetAttribute();
          MFEM_VERIFY(!(dim == 2 && attr == 3),
                      "Boundary attribute 3 must be used only for 3D meshes. "
@@ -1050,13 +1091,13 @@ int main (int argc, char *argv[])
          if (attr == 1 || attr == 2 || attr == 3) { n += nd; }
          if (attr == 4) { n += nd * dim; }
       }
-      Array<int> ess_vdofs(n);
+      Array<int> vdofs, ess_vdofs(n);
       n = 0;
       for (int i = 0; i < pmesh->GetNBE(); i++)
       {
-         const int nd = pfespace->GetBE(i)->GetDof();
+         const int nd = pfes_h1.GetBE(i)->GetDof();
          const int attr = pmesh->GetBdrElement(i)->GetAttribute();
-         pfespace->GetBdrElementVDofs(i, vdofs);
+         pfes_h1.GetBdrElementVDofs(i, vdofs);
          if (attr == 1) // Fix x components.
          {
             for (int j = 0; j < nd; j++)
@@ -1141,7 +1182,7 @@ int main (int argc, char *argv[])
    // Perform the nonlinear optimization.
    //
    const IntegrationRule &ir =
-      irules->Get(pfespace->GetFE(0)->GetGeomType(), quad_order);
+      irules->Get(pmesh->GetTypicalElementGeometry(), quad_order);
    TMOPNewtonSolver solver(pfespace->GetComm(), ir, solver_type);
    // Provide all integration rules in case of a mixed mesh.
    solver.SetIntegrationRules(*irules, quad_order);
@@ -1159,7 +1200,7 @@ int main (int argc, char *argv[])
    // Level of output.
    IterativeSolver::PrintLevel newton_print;
    if (verbosity_level > 0) { newton_print.Errors().Warnings().Iterations(); }
-   else { newton_print.Errors().Warnings(); }
+   else                     { newton_print.Errors().Warnings(); }
    solver.SetPrintLevel(newton_print);
    // hr-adaptivity solver.
    // If hr-adaptivity is disabled, r-adaptivity is done once using the
@@ -1173,6 +1214,7 @@ int main (int argc, char *argv[])
                           mesh_poly_deg, h_metric_id,
                           n_hr_iter, n_h_iter);
    hr_solver.AddGridFunctionForUpdate(&x0);
+   hr_solver.AddFESpaceForUpdate(&pfes_h1);
    if (adapt_lim_const > 0.)
    {
       hr_solver.AddGridFunctionForUpdate(&adapt_lim_gf0);
@@ -1180,8 +1222,8 @@ int main (int argc, char *argv[])
    }
    hr_solver.Mult();
 
-   // 16. Save the optimized mesh to a file. This output can be viewed later
-   //     using GLVis: "glvis -m optimized -np num_mpi_tasks".
+   // Save the optimized mesh to a file. This output can be viewed later
+   // using GLVis: "glvis -m optimized -np num_mpi_tasks".
    {
       ostringstream mesh_name;
       mesh_name << "optimized.mesh";
@@ -1191,14 +1233,21 @@ int main (int argc, char *argv[])
    }
 
    // Report the final energy of the functional.
-   const real_t fin_energy = a.GetParGridFunctionEnergy(x) /
+   if (periodic)
+   {
+      ParGridFunction dx_L2(x); dx_L2 -= x0;
+      // Assumes Gauss-Lobatto and continuity in x and x_0 across faces.
+      dx.ProjectGridFunction(dx_L2);
+   }
+   if (periodic) { tmop_integ->SetInitialMeshPos(&x0); }
+   const real_t fin_energy = a.GetParGridFunctionEnergy(periodic ? dx : x) /
                              (hradaptivity ? pmesh->GetGlobalNE() : 1);
    real_t fin_metric_energy = fin_energy;
    if (lim_const > 0.0 || adapt_lim_const > 0.0)
    {
       lim_coeff.constant = 0.0;
       adapt_lim_coeff.constant = 0.0;
-      fin_metric_energy  = a.GetParGridFunctionEnergy(x) /
+      fin_metric_energy  = a.GetParGridFunctionEnergy(periodic ? dx : x) /
                            (hradaptivity ? pmesh->GetGlobalNE() : 1);
       lim_coeff.constant = lim_const;
       adapt_lim_coeff.constant = adapt_lim_const;
