@@ -53,9 +53,6 @@ add_mfem_miniapp(tmop-metric-magnitude
   ${MFEM_MINIAPPS_COMMON_HEADERS}
   LIBRARIES mfem-common)
 
-add_mfem_miniapp(reconstruction
-  MAIN reconstruction.cpp LIBRARIES mfem)
-
 if (MFEM_USE_MPI)
     add_mfem_miniapp(gridfunction-bounds
       MAIN gridfunction-bounds.cpp
@@ -68,4 +65,13 @@ if (MFEM_USE_MPI)
 
    add_mfem_miniapp(nodal-transfer
      MAIN nodal-transfer.cpp LIBRARIES mfem)
+
+   add_mfem_miniapp(reconstruction
+     MAIN reconstruction.cpp LIBRARIES mfem)
+
+   add_mfem_miniapp(least-squares
+     MAIN least-squares.cpp LIBRARIES mfem)
+
+   add_mfem_miniapp(flux-reconstruction
+     MAIN flux-reconstruction.cpp LIBRARIES mfem)
 endif()
