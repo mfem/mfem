@@ -251,6 +251,20 @@ int FaceQuadratureSpace::GetPermutedIndex(int idx, int iq) const
    }
 }
 
+ElementTransformation *FaceQuadratureSpace::GetTransformation(int idx)
+{
+   ElementTransformation *T = mesh.GetFaceTransformation(face_indices[idx]);
+   if (face_type == FaceType::Boundary)
+   {
+      const int be = mesh.GetBdrFaceToBdrElement()[idx];
+      if (be >= 0)
+      {
+         T->Attribute = mesh.GetBdrAttribute(be);
+      }
+   }
+   return T;
+}
+
 int FaceQuadratureSpace::GetEntityIndex(const ElementTransformation &T) const
 {
    auto get_face_index = [this](const int idx)
