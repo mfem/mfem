@@ -1150,8 +1150,10 @@ public:
    void NewMemoryAndSize(const Memory<real_t> &mem, int i, int j, int k,
                          bool own_mem)
    {
-      Mk.UseExternalData(NULL, i, j);
+      ni = i;
+      nj = j;
       nk = k;
+      Mk.ClearExternalData();
       tdata.NewMemoryAndSize(mem, i*j*k, own_mem);
    }
 
