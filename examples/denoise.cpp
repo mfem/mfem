@@ -184,7 +184,7 @@ int main(int argc, char *argv[])
 
    char vishost[] = "localhost";
    int  visport   = 19916;
-   socketstream sol_sock, true_sock;
+   socketstream sol_sock, varphi_sol_sock, true_sock, varphi_true_sock;
    if (visualization)
    {
       sol_sock.open(vishost,visport);
@@ -196,6 +196,12 @@ int main(int argc, char *argv[])
    
       true_sock.open(vishost,visport);
       true_sock.precision(8);
+
+      varphi_sol_sock.open(vishost, visport); 
+      varphi_sol_sock.precision(8); 
+   
+      varphi_true_sock.open(vishost, visport); 
+      varphi_true_sock.precision(8); 
    }
 
    ConstantCoefficient one_cf(1.0); 
@@ -232,10 +238,18 @@ int main(int argc, char *argv[])
 
       if (ex == 1) {
          // NOTE: trig example
-         u(0) = cosh(M_PI*x(0)) * sin(M_PI*x(1));  
-         u(1) = sinh(M_PI*x(0)) * cos(M_PI*x(1)); 
+         // u(0) = cosh(M_PI*x(0)) * sin(M_PI*x(1));  
+         // u(1) = sinh(M_PI*x(0)) * cos(M_PI*x(1)); 
 
-         u /= cosh(M_PI);
+         // u /= cosh(M_PI);
+         // u(0) = pow(x(1), 2) * (1. - 2./3 * x(1)); 
+         // u(1) = pow(x(0), 2) * (-1. + 2./3 * x(0)); 
+         // u*= -4.;
+
+         u(0) = sin(2 * M_PI * x(0)) * cos(2*M_PI*x(1)); 
+         u(1) = cos(2*M_PI*x(0))*sin(2*M_PI*x(1)); 
+         u *= -.9;
+
       }
       else if (ex == 2) { 
          // NOTE: trig example 2
@@ -246,8 +260,23 @@ int main(int argc, char *argv[])
       }
    });
 
+   // mfem::Coefficient *f_rhs = nullptr; 
+// 
+   // f_rhs = new mfem::FunctionCoefficient([](const mfem::Vector &x)
+            // {
+               // return 1./4. * sin(M_PI*x(0)) * sin (M_PI*x(1)); 
+            // });
+
+   // FunctionCoefficient f_rhs([](const mfem::Vector &x)
+            // {
+               // return 1./4. * cos(M_PI*x(0)) * cos(M_PI*x(1)); 
+            // }); 
+
    ScalarVectorProductCoefficient alpha_f_cf(alpha_cf, f_coeff); 
    b0.AddDomainIntegrator(new VectorFEDomainLFIntegrator(alpha_f_cf));
+
+   
+   // ProductCoefficient alpha_f_cf(alpha_cf, f_rhs); 
    // b0.AddDomainIntegrator(new VectorFEDomainLFDivIntegrator(alpha_f_cf)); 
 
    b2.AddDomainIntegrator(new VectorDomainLFIntegrator(Z));
@@ -255,47 +284,38 @@ int main(int argc, char *argv[])
 
    RotationCoefficient R;
    ScalarMatrixProductCoefficient neg_R(neg_one, R); 
-   // MixedBilinearForm a10(&RTfes, &h1fes); 
-   // a10.AddDomainIntegrator(new MixedVectorWeakDivergenceIntegrator(neg_R)); 
-   // a10.Assemble(false); 
-   // a10.Finalize(false); 
-   // SparseMatrix &A10 = a10.SpMat();
-   // SparseMatrix *A01 = Transpose(A10);
+   ScalarMatrixProductCoefficient alpha_R(alpha_cf, R);
 
-  
+   // BlockMatrix A(offsets); 
 
-   // TODO remove RT dofs every iteration too
-   // a20.Assemble(false);
-   // a20.Finalize(false);
-   // SparseMatrix &A20 = a20.SpMat();
-   // SparseMatrix *A02 = Transpose(A20);
-   
-   // MixedBilinearForm a02(&L2fes, &RTfes); 
-   // a02.AddDomainIntegrator(new VectorFEMassIntegrator()); 
+   BilinearForm a11(&h1fes); 
+   a11.AddDomainIntegrator(new DiffusionIntegrator(neg_one)); 
 
-   
-
- 
+   // ConstantCoefficient eps_cf(-1e-6);
 
 
-   // A.SetBlock(1,0,&A10);
-   // A.SetBlock(0,1,A01);
+   a11.Assemble(false);
+   a11.Finalize(false);
+
+   SparseMatrix &A11 = a11.SpMat();
+
+   BilinearForm a22(&L2fes);
+   a22.AddDomainIntegrator(new VectorMassIntegrator(neg_DZ)); 
+   // a22.AddDomainIntegrator(new VectorMassIntegrator(eps_cf)); 
 
 
-
-   // A.SetBlock(0, 1, &A01); 
-   // A.SetBlock(1, 0, A10); 
-// 
-   // A.SetBlock(2,0,&A20); 
-   // A.SetBlock(0,2,A02); 
-
-
-
-
-
+   // Avg 0 condition
+   int dof_h1(h1fes.GetTrueVSize());
+   LinearForm avg0_data(&h1fes);
+   avg0_data.AddDomainIntegrator(new DomainLFIntegrator(one_cf));
+   avg0_data.Assemble();
+   Array<int> avg0_i({0, dof_h1}), avg0_j(dof_h1);
+   std::iota(avg0_j.begin(), avg0_j.end(), 0);
+   SparseMatrix avg0(avg0_i.GetData(), avg0_j.GetData(), avg0_data.GetData(), 1,
+                     dof_h1, false, false, true);
+   auto avg0T = *Transpose(avg0);
 
    
-
    int k;
    int total_iterations = 0;
    real_t increment_p = 0.1;
@@ -320,136 +340,89 @@ int main(int argc, char *argv[])
          BilinearForm a00(&RTfes);
          a00.AddDomainIntegrator(new DivDivIntegrator(alpha_cf)); 
          a00.SetDiagonalPolicy(mfem::Operator::DIAG_ONE);
+
          a00.Assemble();
          a00.EliminateEssentialBC(ess_tdof_list_rt, x.GetBlock(0), rhs.GetBlock(0), mfem::Operator::DIAG_ONE); 
          a00.Finalize(); 
 
          SparseMatrix &A00 = a00.SpMat(); 
 
-         A.SetBlock(0,0,&A00);
-
-         BilinearForm a11(&h1fes); 
-         a11.AddDomainIntegrator(new DiffusionIntegrator(neg_one)); 
-         a11.Assemble(false);
-         a11.Finalize(false);
-
-         SparseMatrix &A11 = a11.SpMat();
-         A.SetBlock(1,1,&A11);
-
-         BilinearForm a22(&L2fes);
-         a22.AddDomainIntegrator(new VectorMassIntegrator(neg_DZ)); 
-
          a22.Assemble(false);
          a22.Finalize(false);
 
          SparseMatrix &A22 = a22.SpMat();
-         A.SetBlock(2,2,&A22);
 
          MixedBilinearForm a01(&h1fes, &RTfes); 
-         a01.AddDomainIntegrator(new MixedVectorGradientIntegrator(R)); 
+         a01.AddDomainIntegrator(new MixedVectorGradientIntegrator(alpha_R)); 
 
          a01.Assemble(false); 
-         a01.EliminateTestDofs(ess_bdr); 
+         a01.EliminateTestDofs(ess_tdof_list_rt); 
          a01.Finalize(false); 
 
          SparseMatrix &A01 = a01.SpMat();
          SparseMatrix *A10 = Transpose(A01);
+         *A10 *= 1.0/alpha; 
 
-         A.SetBlock(0, 1, &A01); 
-         A.SetBlock(1, 0, A10); 
+         // A.SetBlock(0, 1, &A01); 
+         // A.SetBlock(1, 0, A10); 
 
          MixedBilinearForm a20(&RTfes, &L2fes);
          a20.AddDomainIntegrator(new VectorFEMassIntegrator());
 
          a20.Assemble();
-         a20.EliminateTrialDofs(ess_bdr, x.GetBlock(0), b0); 
+         a20.EliminateTrialDofs(ess_tdof_list_rt, x.GetBlock(0), b0); 
 
          a20.Finalize();
          SparseMatrix &A20 = a20.SpMat();
          SparseMatrix *A02 = Transpose(A20);
+
+         // NOTE: this does not work because VectorFEMassIntegrator expects the test & trial spaces to be in a specific order :/ 
+         // MixedBilinearForm a02(&L2fes, &RTfes); 
+         // a02.AddDomainIntegrator(new VectorFEMassIntegrator()); 
+         // a02.Assemble(false); 
+         // a02.EliminateTestDofs(ess_bdr); 
+         // a02.Finalize(); 
+         // SparseMatrix &A02 = a02.SpMat(); 
+         // SparseMatrix *A20 = Transpose(A02); 
+
+         A.SetBlock(0,0,&A00);
+         A.SetBlock(1,0,A10);
+         A.SetBlock(0,1,&A01);
+         A.SetBlock(1,1,&A11);
          A.SetBlock(2,0,&A20); 
          A.SetBlock(0,2,A02); 
-
-         // Avg 0 condition
-         int dof_h1(h1fes.GetTrueVSize());
-         LinearForm avg0_data(&h1fes);
-         avg0_data.AddDomainIntegrator(new DomainLFIntegrator(one_cf));
-         avg0_data.Assemble();
-         Array<int> avg0_i({0, dof_h1}), avg0_j(dof_h1);
-         std::iota(avg0_j.begin(), avg0_j.end(), 0);
-         SparseMatrix avg0(avg0_i.GetData(), avg0_j.GetData(), avg0_data.GetData(), 1,
-                           dof_h1, false, false, true);
-         auto avg0T = *Transpose(avg0);
-
+         A.SetBlock(2,2,&A22);
          A.SetBlock(3, 1, &avg0); 
          A.SetBlock(1, 3, &avg0T); 
 
+         // TODO: correct the schur preconditioner
+         // Vector A22_diag(a22.Height()); 
+         // A22.GetDiag(A22_diag); 
+         // A22_diag.Reciprocal(); 
+         // SparseMatrix *S = Mult_AtDA(A20, A22_diag); 
 
-
-         // a11.EliminateEssentialBC(ess_tdof_list, x.GetBlock(1), rhs.GetBlock(1), mfem::Operator::DIAG_ONE);
-
-
-         
-         // a01.EliminateTestDofs(ess_bdr); 
-         // a01.EliminateEssentialBCFromTrialDofs(ess_tdof_list_rt, x.GetBlock(0), rhs.GetBlock(0)); 
-
-
-         // a10.EliminateEssentialBCFromTrialDofs(ess_tdof_list_rt, x.GetBlock(0), rhs.GetBlock(0)); 
-         // a10.Elimi
-         // a10.Assemble(false); 
-         // a10.Finalize(false); 
-
-         // SparseMatrix &A10 = a10.SpMat();
-         // SparseMatrix *A01 = Transpose(A10);
-
-// 
-         // A.SetBlock(0, 1, A01); 
-         // A.SetBlock(1, 0, &A10); 
-
-         // a20.EliminateTrialDofs(ess_tdof_list_rt); 
-         // a20.EliminateEssentialBCFromTrialDofs(ess_tdof_list_rt, x.GetBlock(0), rhs.GetBlock(0)); 
-
-         // #################3
-         // a20.Assemble();
-         // a20.EliminateTrialDofs(ess_bdr, x.GetBlock(0), b0); 
-         // cout << "elim a20" << endl; 
-// 
-         // a20.Finalize();
-         // SparseMatrix &A20 = a20.SpMat();
-         // SparseMatrix *A02 = Transpose(A20);
-         // A.SetBlock(2,0,&A20); 
-         // A.SetBlock(0,2,A02); 
-         // ###################
-
-         // a02.EliminateTestDofs(ess_bdr); 
-         // a02.EliminateEssentialBCFromTrialDofs(ess_tdof_list_rt, x.GetBlock(0), rhs.GetBlock(0)); 
-
-         // a02.Assemble(false); 
-         // a02.Finalize(false); 
-
-         // SparseMatrix &A02 = a02.SpMat(); 
-         // SparseMatrix *A20 = Transpose(A02); 
-// 
-         // A.SetBlock(2,0,A20); 
-         // A.SetBlock(0,2,&A02); 
-
-
-
+         // prec.SetDiagonalBlock(2, new DSmoother(A22));          
 // #ifndef MFEM_USE_SUITESPARSE 
          BlockDiagonalPreconditioner prec(offsets);
+
          prec.SetDiagonalBlock(0,new GSSmoother(A00));
          prec.SetDiagonalBlock(1,new GSSmoother(A11));
-         prec.SetDiagonalBlock(2,new GSSmoother(A22));
+         prec.SetDiagonalBlock(2,new DSmoother(A22));
 
          prec.owns_blocks = 3;
 
          GMRES(A,prec,rhs,x,0,10000,500,1e-12,0.0);
+
+         // prec.SetDiagonalBlock(0, new GSSmoother(*S)); 
 // #else
+         // prec.SetDiagonalBlock(0, new UMFPackSolver(*S));
          // SparseMatrix *A_mono = A.CreateMonolithic(); 
          // UMFPackSolver umf(*A_mono); 
          // umf.Mult(rhs, x); 
 // #endif
-         // 
+
+         // delete S; 
+
          p_tmp -= p_gf;
          real_t Newton_update_size = p_tmp.ComputeL2Error(zero_vec_cf);
          p_tmp = p_gf;
@@ -467,6 +440,8 @@ int main(int argc, char *argv[])
             p_vec.ProjectCoefficient(p_vc); 
 
             sol_sock << "solution\n" << mesh << p_vec << "window_title 'Discrete solution '" << flush;            
+
+            varphi_sol_sock << "solution\n" << mesh << vphi_gf << "window_title 'Discrete varphi '" << flush; 
          }
 
          mfem::out << "Newton_update_size = " << Newton_update_size << endl;
@@ -515,10 +490,21 @@ int main(int argc, char *argv[])
 
       if (ex == 1) { 
       // NOTE: trig example 
-         u(0) = cosh(M_PI*x(0)) * sin(M_PI*x(1));  
-         u(1) = sinh(M_PI*x(0)) * cos(M_PI*x(1)); 
-         
-         u /= cosh(M_PI);
+         // u(0) = cosh(M_PI*x(0)) * sin(M_PI*x(1));  
+         // u(1) = sinh(M_PI*x(0)) * cos(M_PI*x(1)); 
+         // 
+         // u /= cosh(M_PI);
+         // u(0) = - sin(M_PI*x(0))*cos(M_PI*x(1)); 
+         // u(1) = cos(M_PI*x(0)) * sin(M_PI*x(1)); 
+         // u *= M_PI; 
+
+         // u(0) = x(0) * (1. - x(0))*(1 - 2.*x(1)); 
+         // u(1) = x(1) * (1. - x(1))*(2.*x(0) - 1.); 
+         // u*= 4.;
+
+         u(0) = sin(2 * M_PI * x(0)) * cos(2*M_PI*x(1)); 
+         u(1) = -cos(2*M_PI*x(0))*sin(2*M_PI*x(1)); 
+         u *= 0.9;
       }
       else if (ex == 2) { 
          // NOTE trig example 2 
@@ -527,10 +513,19 @@ int main(int argc, char *argv[])
       }
    });
 
-   GridFunction exact_vec(&L2fes); 
-   exact_vec.ProjectCoefficient(exact_coeff); 
+   FunctionCoefficient varphi_exact_coeff([](const Vector &x) {
+      return 1 / (2. * M_PI) * sin(2*M_PI*x(0)) * sin(2*M_PI*x(1)); 
+   }); 
+   // GridFunctionCoefficient vphi_exact_gf(&varphi_exact_coeff); 
    if (visualization) { 
+      GridFunction vphi_exact_gf(&h1fes); 
+      vphi_exact_gf.ProjectCoefficient(varphi_exact_coeff); 
+
+      GridFunction exact_vec(&L2fes); 
+      exact_vec.ProjectCoefficient(exact_coeff); 
+
       true_sock << "solution\n" << mesh <<  exact_vec << "window_title 'True solution '" << flush; 
+      varphi_true_sock << "solution\n" << mesh << vphi_exact_gf << "window_title 'varphi True Solution '" << flush; 
    }
 
     if (CheckVectorComponents(p_gf, 1.0))
