@@ -210,7 +210,7 @@ int main(int argc, char *argv[])
       cfl = flow_solver.ComputeCFL(u_gf, ctx.dt);
       if (rank == 0)
       {
-         printf("%-11s %-11s %-11s %-11s\n", "Step", "Time", "dt", "CFL");
+         printf("\n%-11s %-11s %-11s %-11s\n", "Step", "Time", "dt", "CFL");
          printf("%-11i %-11.5E %-11.5E %-11.5E\n", step, time, ctx.dt, cfl);
          printf("-----------------------------------------------\n");
          fflush(stdout);
