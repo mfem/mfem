@@ -631,25 +631,25 @@ ParticleSet::ParticleSet(int num_particles, int dim, Ordering::Type coords_order
 
 #ifdef MFEM_USE_MPI
 
-ParticleSet::ParticleSet(MPI_Comm comm_, int num_particles, int dim, Ordering::Type coords_ordering)
+ParticleSet::ParticleSet(MPI_Comm comm_, HYPRE_BigInt num_particles, int dim, Ordering::Type coords_ordering)
 : ParticleSet(comm_, num_particles, dim, coords_ordering, Array<int>(), Array<Ordering::Type>(), Array<const char*>())
 {
 
 };
 
-ParticleSet::ParticleSet(MPI_Comm comm_, int num_particles, int dim, const Array<int> &field_vdims, Ordering::Type all_ordering)
+ParticleSet::ParticleSet(MPI_Comm comm_, HYPRE_BigInt num_particles, int dim, const Array<int> &field_vdims, Ordering::Type all_ordering)
 : ParticleSet(comm_, num_particles, dim, all_ordering, field_vdims, GetOrderingArray(all_ordering, field_vdims.Size()), GetFieldNameArray(field_vdims.Size()))
 {
 
 }
 
-ParticleSet::ParticleSet(MPI_Comm comm_, int num_particles, int dim, const Array<int> &field_vdims, const Array<const char*> &field_names_, Ordering::Type all_ordering)
+ParticleSet::ParticleSet(MPI_Comm comm_, HYPRE_BigInt num_particles, int dim, const Array<int> &field_vdims, const Array<const char*> &field_names_, Ordering::Type all_ordering)
 : ParticleSet(comm_, num_particles, dim, all_ordering, field_vdims, GetOrderingArray(all_ordering, field_vdims.Size()), field_names_)
 {
 
 }
 
-ParticleSet::ParticleSet(MPI_Comm comm_, int num_particles, int dim, Ordering::Type coords_ordering, const Array<int> &field_vdims, const Array<Ordering::Type> &field_orderings, const Array<const char*> &field_names_)
+ParticleSet::ParticleSet(MPI_Comm comm_, HYPRE_BigInt num_particles, int dim, Ordering::Type coords_ordering, const Array<int> &field_vdims, const Array<Ordering::Type> &field_orderings, const Array<const char*> &field_names_)
 : ParticleSet(GetSize(comm_), GetRank(comm_),
                GetRankNumParticles(comm_, num_particles),
                dim,
@@ -749,6 +749,22 @@ Particle ParticleSet::GetParticle(int i) const
    }
 
    return std::move(p);
+}
+
+bool ParticleSet::ParticleRefValid() const
+{
+   if (active_state.coords.GetOrdering() == Ordering::byNODES)
+   {
+      return false;
+   }
+   for (int f = 0; f < active_state.GetNF(); f++)
+   {
+      if (active_state.fields[f].GetOrdering() == Ordering::byNODES)
+      {
+         return false;
+      }
+   }
+   return true;
 }
 
 Particle ParticleSet::GetParticleRef(int i)

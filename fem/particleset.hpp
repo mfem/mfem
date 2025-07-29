@@ -224,15 +224,16 @@ public:
 #ifdef MFEM_USE_MPI
 
    // Parallel constructors
-   ParticleSet(MPI_Comm comm_, int num_particles, int dim, Ordering::Type coords_ordering=Ordering::byVDIM);
-   ParticleSet(MPI_Comm comm_, int num_particles, int dim, const Array<int> &field_vdims, Ordering::Type all_ordering=Ordering::byVDIM);
-   ParticleSet(MPI_Comm comm_, int num_particles, int dim, const Array<int> &field_vdims, const Array<const char*> &field_names_, Ordering::Type all_ordering=Ordering::byVDIM);
-   ParticleSet(MPI_Comm comm_, int num_particles, int dim, Ordering::Type coords_ordering, const Array<int> &field_vdims, const Array<Ordering::Type> &field_orderings, const Array<const char*> &field_names_);
+   ParticleSet(MPI_Comm comm_, HYPRE_BigInt num_particles, int dim, Ordering::Type coords_ordering=Ordering::byVDIM);
+   ParticleSet(MPI_Comm comm_, HYPRE_BigInt num_particles, int dim, const Array<int> &field_vdims, Ordering::Type all_ordering=Ordering::byVDIM);
+   ParticleSet(MPI_Comm comm_, HYPRE_BigInt num_particles, int dim, const Array<int> &field_vdims, const Array<const char*> &field_names_, Ordering::Type all_ordering=Ordering::byVDIM);
+   ParticleSet(MPI_Comm comm_, HYPRE_BigInt num_particles, int dim, Ordering::Type coords_ordering, const Array<int> &field_vdims, const Array<Ordering::Type> &field_orderings, const Array<const char*> &field_names_);
 
    MPI_Comm GetComm() const { return comm; };
 
+   /// Get the global number of active particles
    HYPRE_BigInt GetGlobalNP() const;
-   
+
 #endif // MFEM_USE_MPI
 
    int GetDim() const { return active_state.coords.GetVDim(); }
@@ -264,7 +265,10 @@ public:
    /// Get Particle with copy of data associated with particle \p i
    Particle GetParticle(int i) const;
 
-   /// Get Particle that references data associated with particle \p i , only for coords and all fields ordered byVDIM 
+   /// Returns true if coords and all fields are ordered byVDIM. False otherwise.
+   bool ParticleRefValid() const;
+
+   /// Get Particle that references data associated with particle \p i , only valid when \ref ParticleRefValid() is true 
    Particle GetParticleRef(int i);
 
    /// Set data for particle at index \p i with data from provided particle \p p
