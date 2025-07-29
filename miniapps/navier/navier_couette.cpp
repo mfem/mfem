@@ -123,7 +123,7 @@ int main (int argc, char *argv[])
    }
 
    // Initialize a simple straight-edged 2D domain [-10,10] x [-10,10]
-   Mesh mesh = Mesh::MakeCartesian2D(50,50, Element::Type::QUADRILATERAL, true, 20, 20);
+   Mesh mesh = Mesh::MakeCartesian2D(20, 20, Element::Type::QUADRILATERAL, true, 20, 20);
    Vector transl(mesh.GetNV()*2);
    transl = -10.0; // translate down + left 10
    mesh.MoveNodes(transl);

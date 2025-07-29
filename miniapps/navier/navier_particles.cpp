@@ -190,7 +190,7 @@ void NavierParticles::Step(const real_t &dt, int cur_step, const ParGridFunction
 
 void NavierParticles::InterpolateUW(const ParGridFunction &u_gf, const ParGridFunction &w_gf, const ParticleVector &x, ParticleVector &u, ParticleVector &w)
 {
-   finder.FindPoints(x);
+   finder.FindPoints(x, x.GetOrdering());
 
    finder.Interpolate(u_gf, u);
    Ordering::Reorder(u, u.GetVDim(), u_gf.ParFESpace()->GetOrdering(), u.GetOrdering());
