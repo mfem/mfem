@@ -197,7 +197,7 @@ int main (int argc, char *argv[])
       pvdc->Save();
    }
    
-   std::string csv_prefix = "Navier_Particles_";
+   std::string csv_prefix = "Navier_Couette_";
    if (ctx.print_csv_freq > 0)
    {
       std::string file_name = csv_prefix + mfem::to_padded_string(0, 9) + ".csv";
