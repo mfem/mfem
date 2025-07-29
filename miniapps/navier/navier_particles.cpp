@@ -59,7 +59,7 @@ void NavierParticles::SetTimeIntegrationCoefficients(int step)
             / ((1.0 + rho2) * (1.0 + rho2 + rho2 * rho1));
       alpha[0] = ((1.0 + rho1) * (1.0 + rho2 * (1.0 + rho1))) / (1.0 + rho2);
       alpha[1] = -rho1 * (1.0 + rho2 * (1.0 + rho1));
-      alpha[3] = (pow(rho2, 2.0) * rho1 * (1.0 + rho1)) / (1.0 + rho2);
+      alpha[2] = (pow(rho2, 2.0) * rho1 * (1.0 + rho1)) / (1.0 + rho2);
    }
 }
 
@@ -120,7 +120,7 @@ NavierParticles::NavierParticles(MPI_Comm comm, const real_t kappa_, const real_
 : kappa(kappa_),
   gamma(gamma_),
   zeta(zeta_),
-  fluid_particles(m.SpaceDimension(), num_particles),
+  fluid_particles(comm, num_particles, m.SpaceDimension()),
   finder(comm),
   beta(4),
   alpha(3)
@@ -161,6 +161,10 @@ void NavierParticles::Step(const real_t &dt, int cur_step, const ParGridFunction
       *fp_data.x[i] = fp_data.x[i-1]->GetData();
    }
 
+   if (cur_step == 0)
+   {
+      dthist[0] = dt;
+   }
    SetTimeIntegrationCoefficients(cur_step);
 
    if (fluid_particles.GetDim() == 2)
@@ -177,6 +181,11 @@ void NavierParticles::Step(const real_t &dt, int cur_step, const ParGridFunction
 
    // Re-interpolate fluid velocity + vorticity onto particles' new location
    InterpolateUW(u_gf, w_gf, X(), U(), W());
+
+   // Rotate values in time step history
+   dthist[2] = dthist[1];
+   dthist[1] = dthist[0];
+   dthist[0] = dt;
 }
 
 void NavierParticles::InterpolateUW(const ParGridFunction &u_gf, const ParGridFunction &w_gf, const ParticleVector &x, ParticleVector &u, ParticleVector &w)

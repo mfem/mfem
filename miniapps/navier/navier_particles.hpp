@@ -55,13 +55,13 @@ public:
 
    ParticleSet& GetParticles() { return fluid_particles; }
 
-   ParticleVector& U(int n=0) { return *fp_data.u[abs(n)]; }
+   ParticleVector& U(int nm=0) { return *fp_data.u[nm]; }
 
-   ParticleVector& V(int n=0) { return *fp_data.v[abs(n)]; }
+   ParticleVector& V(int nm=0) { return *fp_data.v[nm]; }
 
-   ParticleVector& W(int n=0) { return *fp_data.w[abs(n)]; }
+   ParticleVector& W(int nm=0) { return *fp_data.w[nm]; }
 
-   ParticleVector& X(int n=0) { return *fp_data.x[abs(n)]; }
+   ParticleVector& X(int nm=0) { return *fp_data.x[nm]; }
 };
 
 
