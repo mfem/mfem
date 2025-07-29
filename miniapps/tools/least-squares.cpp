@@ -26,6 +26,41 @@ enum SolverType
    num_solvers  // last
 };
 
+/// Iterative solver parameters
+struct IterativeSolverParams
+{
+   int print_level;
+   int max_iter;
+   real_t rtol;
+   real_t atol;
+};
+
+struct VisualizationParams
+{
+   bool save_to_files;
+   bool visualization;
+   int port;
+};
+
+/// Alias for ignoring redundant iterative variables
+using SolverParams = std::variant<std::monostate, IterativeSolverParams, int>;
+
+/// Global configuration struct
+struct GlobalConfiguration
+{
+   VisualizationParams vis;
+   IterativeSolverParams newton;
+   SolverType solver_type;
+   SolverParams solver;
+   real_t reg;
+   int ord_smooth;
+   int ord_src;
+   int ord_dst;
+   int ser_ref;
+   int par_ref;
+   bool preserve_volumes;
+};
+
 /** Class for an asymmetric (out-of-element) mass integrator $a_K(u,v) := (E(u),v)_K$,
  *  where $E$ is an extension of $u$ (with original domain $\hat{K}$) to $K$.
  *
@@ -315,107 +350,131 @@ int main(int argc, char* argv[])
    Mpi::Init(argc, argv);
 
    // Default command-line options
-   int ser_ref_levels = 0;
-   int par_ref_levels = 0;
+   GlobalConfiguration params
+   {
+      .vis = {
+         .save_to_files = false,
+         .visualization = false,
+         .port = 19916,
+      },
+      .newton = {
+         .print_level = 0,
+         .max_iter = 1000,
+         .rtol = 1.0e-15,
+         .atol = 0.0,
+      },
+      .solver_type = direct,
+      .solver = -1,
+      .reg = 0.0,
+      .ord_smooth = 3,
+      .ord_src = 0,
+      .ord_dst = 1,
+      .ser_ref = 0,
+      .par_ref = 0,
+      .preserve_volumes = false,
+   };
 
-   int order_original = 3;
-   int order_averages = 0;
-   int order_reconstruction = 1;
-
-   SolverType solver_type = direct;
-   real_t solver_reg = 0.0;
+   int solver_print_level = -1;
+   int solver_max_iter = 1000;
    real_t solver_rtol = 1.0e-30;
    real_t solver_atol = 0.0;
-   int solver_maxiter = 1000;
-   int solver_plevel = -1;
-
-   real_t newton_rtol = 1.0e-15;
-   int newton_maxiter = 100;
-
-   bool preserve_volumes = false; // TODO(Gabriel): Why this is not working?
-   bool save_to_file = false;
-
-   bool visualization = true;
-   int visport = 19916;
 
    // Parse options
    OptionsParser args(argc, argv);
-   args.AddOption(&ser_ref_levels, "-rs", "--refine-serial",
-                  "Number of serial refinement steps.");
-   args.AddOption(&par_ref_levels, "-rp", "--refine-parallel",
-                  "Number of parallel refinement steps.");
+   args.AddOption(&params.vis.save_to_files, "-s", "--save", "-no-s",
+                  "--no-save", "Show or not show approximation error.");
+   args.AddOption(&params.vis.visualization, "-vis", "--visualization", "-no-vis",
+                  "--no-visualization", "Enable or disable GLVis visualization.");
+   args.AddOption(&params.vis.port, "-p", "--send-port", "Socket for GLVis.");
 
-   args.AddOption(&order_original, "-O", "--order-original",
-                  "Order original broken space.");
-   // TODO(Gabriel): Not implemented yet
-   // args.AddOption(&order_averages, "-A", "--order-averages",
-   //                "Order averaged broken space.");
-   args.AddOption(&order_reconstruction, "-R", "--order-reconstruction",
-                  "Order of reconstruction broken space.");
-
-   args.AddOption(&preserve_volumes, "-V", "--preserve-volumes", "-no-V",
-                  "--no-preserve-volumes", "Preserve averages (volumes) by"
-                  " solving a constrained least squares problem");
-
-   args.AddOption((int*)&solver_type, "-S", "--solver",
+   args.AddOption((int*)&params.solver_type, "-S", "--solver",
                   "Solvers to be considered:"
                   "\n\t0: Direct Solver"
                   "\n\t1: CG - Conjugate Gradient"
                   "\n\t2: BiCGSTAB -Biconjugate gradient stabilized"
                   "\n\t3: MINRES - Minimal residual");
-   args.AddOption(&solver_reg, "-Sreg", "--solver-reg",
-                  "Add regularization term to the least squares problem");
-   args.AddOption(&solver_rtol, "-Srtol", "--solver-rtol",
-                  "Relative tolerance for the iterative solver");
-   args.AddOption(&solver_atol, "-Satol", "--solver-atol",
-                  "Absolute tolerance for the iterative solver");
-   args.AddOption(&solver_maxiter, "-Smi", "--solver-maxiter",
-                  "Maximum number of iterations for the solver");
-   args.AddOption(&solver_plevel, "-Sp", "--solver-print",
+
+   args.AddOption(&solver_print_level, "-Spl", "--solver-print",
                   "Print level for the iterative solver:"
                   "\n\t0: All"
                   "\n\t1: First and last with warnings"
                   "\n\t2: Errors"
                   "\n\tdefault: None"
                   "\nA negative value deactivates LS check");
+   args.AddOption(&solver_max_iter, "-Smi", "--solver-max-iter",
+                  "Maximum number of iterations for the solver");
+   args.AddOption(&solver_rtol, "-Srtol", "--solver-rtol",
+                  "Relative tolerance for the iterative solver");
+   args.AddOption(&solver_atol, "-Satol", "--solver-atol",
+                  "Absolute tolerance for the iterative solver");
 
-   args.AddOption(&newton_rtol, "-Nrtol", "--newton-rtol",
-                  "Relative tolerance for the Newton solver (q-points)");
-   args.AddOption(&newton_maxiter, "-Nmi", "--newton-maxiter",
+   args.AddOption(&params.newton.print_level, "-Npl", "--newton-print-level",
+                  "Print level for the Newton solver (q-points)");
+   args.AddOption(&params.newton.max_iter, "-Nmi", "--newton-max-iter",
                   "Maximum number of iterations for the Newton solver (q-points)");
+   args.AddOption(&params.newton.rtol, "-Nrtol", "--newton-rtol",
+                  "Relative tolerance for the Newton solver (q-points)");
+   args.AddOption(&params.newton.atol, "-Natol", "--newton-atol",
+                  "Absolute tolerance for the Newton solver (q-points)");
 
-   args.AddOption(&save_to_file, "-s", "--save", "-no-s",
-                  "--no-save", "Show or not show approximation error.");
+   args.AddOption(&params.reg, "-reg", "--regularization",
+                  "Add regularization term to the least squares problem");
 
-   args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
-                  "--no-visualization", "Enable or disable GLVis visualization.");
-   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
+   args.AddOption(&params.ord_smooth, "-O", "--order-smooth",
+                  "Order original broken space.");
+   // TODO(Gabriel): Not implemented yet
+   // args.AddOption(&params.ord_src, "-A", "--order-source",
+   //                "Order source broken space.");
+   args.AddOption(&params.ord_dst, "-R", "--order-reconstruction",
+                  "Order of reconstruction broken space.");
+   args.AddOption(&params.ser_ref, "-rs", "--refine-serial",
+                  "Number of serial refinement steps.");
+   args.AddOption(&params.par_ref, "-rp", "--refine-parallel",
+                  "Number of parallel refinement steps.");
+   args.AddOption(&params.preserve_volumes, "-V", "--preserve-volumes", "-no-V",
+                  "--no-preserve-volumes", "Preserve averages (volumes) by"
+                  " solving a constrained least squares problem");
 
    args.ParseCheck();
-   MFEM_VERIFY((ser_ref_levels >= 0) && (par_ref_levels >= 0), "")
-   MFEM_VERIFY((solver_reg>=0.0), "")
-   MFEM_VERIFY(order_original > order_averages, "")
-   MFEM_VERIFY((0 <= solver_type) && (solver_type < num_solvers),
-               "invalid solver type: " << solver_type);
+   MFEM_VERIFY(params.ser_ref >= 0, "Invalid number of serial refinements!");
+   MFEM_VERIFY(params.par_ref >= 0, "Invalid number of parallel refinements!");
+   MFEM_VERIFY(params.reg >= 0.0,   "Invalid regularization term!");
+   MFEM_VERIFY(params.ord_smooth > params.ord_src,
+               "Smooth space must be more regular!");
+   MFEM_VERIFY((0 <= params.solver_type) && (params.solver_type <= num_solvers),
+               "invalid solver type: " << params.solver_type);
+
+   if (params.solver_type != direct)
+   {
+      params.solver = IterativeSolverParams
+      {
+         .print_level = solver_print_level,
+         .max_iter = solver_max_iter,
+         .rtol = solver_rtol,
+         .atol = solver_atol,
+      };
+   }
 
    if (Mpi::Root())
    {
-      mfem::out << "Number of serial refs.:  " << ser_ref_levels << "\n"
-                << "Number of parallel refs: " << par_ref_levels << "\n"
-                << "Order original:          " << order_original << "\n"
-                << "Order averages:          " << order_averages << "\n"
-                << "Order reconstruction:    " << order_reconstruction << "\n"
-                << "Newton relative tol:     " << newton_rtol << "\n"
-                << "Newton max. num. iter.:  " << newton_maxiter << std::endl;
+      mfem::out << "Number of serial refs.:  " << params.ser_ref << "\n"
+                << "Number of parallel refs: " << params.par_ref << "\n"
+                << "Order smooth FES:        " << params.ord_smooth << "\n"
+                << "Order source FES:        " << params.ord_src << "\n"
+                << "Order destination FES:   " << params.ord_dst << "\n"
+                << "Newton relative tol:     " << params.newton.rtol << "\n"
+                << "Newton absolute tol:     " << params.newton.atol << "\n"
+                << "Newton max. num. iter.:  " << params.newton.max_iter << "\n"
+                << std::endl;
    }
 
    // Mesh
    const int num_x = 2;
    const int num_y = 2;
    Mesh serial_mesh = Mesh::MakeCartesian2D(num_x, num_y, Element::QUADRILATERAL);
-   for (int i = 0; i < ser_ref_levels; ++i) { serial_mesh.UniformRefinement(); }
+   for (int i = 0; i < params.ser_ref; ++i) { serial_mesh.UniformRefinement(); }
    ParMesh mesh(MPI_COMM_WORLD, serial_mesh);
-   for (int i = 0; i < par_ref_levels; ++i) { mesh.UniformRefinement(); }
+   for (int i = 0; i < params.par_ref; ++i) { mesh.UniformRefinement(); }
    NCMesh nc_mesh(static_cast<Mesh*>(&mesh));
 
    // target function u(x,y)
@@ -429,23 +488,25 @@ int main(int argc, char* argv[])
    FunctionCoefficient u_coefficient(u_function);
 
    // Broken spaces
-   L2_FECollection fec_original(order_original, mesh.Dimension());
-   L2_FECollection fec_averages(order_averages, mesh.Dimension());
-   L2_FECollection fec_reconstruction(order_reconstruction, mesh.Dimension());
+   L2_FECollection fec_smooth(params.ord_smooth, mesh.Dimension());
+   L2_FECollection fec_src(params.ord_src, mesh.Dimension());
+   L2_FECollection fec_dst(params.ord_dst, mesh.Dimension());
 
-   ParFiniteElementSpace fes_original(&mesh, &fec_original);
-   ParFiniteElementSpace fes_averages(&mesh, &fec_averages);
-   ParFiniteElementSpace fes_reconstruction(&mesh, &fec_reconstruction);
+   ParFiniteElementSpace fes_smooth(&mesh, &fec_smooth);
+   ParFiniteElementSpace fes_src(&mesh, &fec_src);
+   ParFiniteElementSpace fes_dst(&mesh, &fec_dst);
 
-   ParGridFunction u_original(&fes_original);
-   ParGridFunction u_averages(&fes_averages);
-   ParGridFunction u_rec_avg(&fes_averages);
-   ParGridFunction diff(&fes_averages);
-   ParGridFunction u_reconstruction(&fes_reconstruction);
+   ParGridFunction u_smooth(&fes_smooth);
+   ParGridFunction u_src(&fes_src);
+   ParGridFunction u_dst_avg(&fes_src);
+   ParGridFunction diff(&fes_src);
+   ParGridFunction u_dst(&fes_dst);
 
-   u_original.ProjectCoefficient(u_coefficient);
-   u_original.GetElementAverages(u_averages);
+   u_smooth.ProjectCoefficient(u_coefficient);
+   // TODO(Gabriel): What if fes_src is H.O.?
+   u_smooth.GetElementAverages(u_src);
 
+   // TODO(Gabriel): Extrude later
    // Declare mass integrator
    AsymmetricMassIntegrator mass;
 
@@ -454,18 +515,17 @@ int main(int argc, char* argv[])
    ConstantCoefficient ccf_ones(1.0);
 
    // Auxiliary partition of unity
-   ParGridFunction punity_avg(&fes_averages);
-   ParGridFunction punity_rec(&fes_reconstruction);
+   ParGridFunction punity_src(&fes_src);
+   ParGridFunction punity_dst(&fes_dst);
 
-   punity_rec.ProjectCoefficient(ccf_ones);
-   punity_avg.ProjectCoefficient(ccf_ones);
+   punity_src.ProjectCoefficient(ccf_ones);
+   punity_dst.ProjectCoefficient(ccf_ones);
 
    // Compute volumes
    Vector volumes(mesh.GetNE());
-   punity_avg.ComputeElementL1Errors(ccf_zeros, volumes);
+   punity_src.ComputeElementL1Errors(ccf_zeros, volumes);
 
    // Solver choice
-   // TODO(Gabriel): Support more solvers?
    // TODO(Gabriel): MPI_Comm  constructor for MPI...
    // TODO(Gabriel): Support more PCs?
    /* Notes:
@@ -475,7 +535,7 @@ int main(int argc, char* argv[])
     * implemented.
     */
    Solver *solver = nullptr;
-   switch (solver_type)
+   switch (params.solver_type)
    {
       case bicgstab:
          solver = new BiCGSTABSolver();
@@ -496,8 +556,9 @@ int main(int argc, char* argv[])
    auto it_solver = dynamic_cast<IterativeSolver*>(solver);
    if (it_solver)
    {
+      auto isp = std::get<IterativeSolverParams>(params.solver);
       IterativeSolver::PrintLevel print_level;
-      switch (solver_plevel)
+      switch (isp.print_level)
       {
          case 0:
             print_level.All();
@@ -512,15 +573,13 @@ int main(int argc, char* argv[])
             print_level.None();
       }
 
-      it_solver->SetRelTol(solver_rtol);
-      it_solver->SetAbsTol(solver_atol);
-      it_solver->SetMaxIter(solver_maxiter);
       it_solver->SetPrintLevel(print_level);
+      it_solver->SetMaxIter(isp.max_iter);
+      it_solver->SetRelTol(isp.rtol);
+      it_solver->SetAbsTol(isp.atol);
    }
 
-   // TODO(Gabriel): L1-Jacobi Preconditioner
-   // Vector l1_diag;
-
+   // TODO(Gabriel): Extrude logic...
    // Neighboring elements and DoFs
    Array<int> neighbors_e, e_dofs;
    auto neighbor_trans = new IsoparametricTransformation;
@@ -529,143 +588,138 @@ int main(int argc, char* argv[])
    // TODO(Gabriel): Loop too big!
    for (int e_idx = 0; e_idx < mesh.GetNE(); e_idx++ )
    {
-      const int fe_rec_e_ndof = fes_reconstruction.GetFE(e_idx)->GetDof();
-      const int fe_avg_e_ndof = fes_averages.GetFE(e_idx)->GetDof();
+      const int fe_dst_e_ndof = fes_dst.GetFE(e_idx)->GetDof();
+      const int fe_src_e_ndof = fes_src.GetFE(e_idx)->GetDof();
 
-      SaturateNeighborhood(nc_mesh, e_idx, fe_rec_e_ndof, fe_avg_e_ndof, neighbors_e);
-      if (preserve_volumes) { neighbors_e.DeleteFirst(e_idx); }
+      SaturateNeighborhood(nc_mesh, e_idx, fe_dst_e_ndof, fe_src_e_ndof, neighbors_e);
+      if (params.preserve_volumes) { neighbors_e.DeleteFirst(e_idx); }
 
       // BEGIN definition small matrix
       const int num_neighbors = neighbors_e.Size();
-      DenseMatrix fe_rec_to_neighbors_mat(num_neighbors, fe_rec_e_ndof);
+      DenseMatrix fe_dst_to_neighbors_mat(num_neighbors, fe_dst_e_ndof);
 
       for (int i = 0; i < num_neighbors; i++)
       {
          const int neighbor_idx = neighbors_e[i];
 
-         fes_reconstruction.GetElementTransformation(neighbor_idx, neighbor_trans);
-         fes_averages.GetElementTransformation(e_idx, e_trans);
+         fes_dst.GetElementTransformation(neighbor_idx, neighbor_trans);
+         fes_src.GetElementTransformation(e_idx, e_trans);
 
          DenseMatrix e_to_neighbor_mat;
-         mass.AsymmetricElementMatrix(*fes_reconstruction.GetFE(neighbor_idx),
-                                      *fes_averages.GetFE(e_idx),
+         mass.AsymmetricElementMatrix(*fes_dst.GetFE(neighbor_idx),
+                                      *fes_src.GetFE(e_idx),
                                       *neighbor_trans, *e_trans,
                                       e_to_neighbor_mat,
-                                      newton_maxiter, newton_rtol);
+                                      params.newton.max_iter,
+                                      params.newton.rtol);
 
          if (e_to_neighbor_mat.Height()!=1) { mfem_error("High order case for source space not implemented yet!"); }
          Vector neighbor_idx_row;
          e_to_neighbor_mat.GetRow(0, neighbor_idx_row);
-         fe_rec_to_neighbors_mat.SetRow(i, neighbor_idx_row);
+         fe_dst_to_neighbors_mat.SetRow(i, neighbor_idx_row);
       }
 
       // Get neighbors volumes and scale patch matrix
       Vector neighbors_volumes(num_neighbors);
       volumes.GetSubVector(neighbors_e, neighbors_volumes);
-      fe_rec_to_neighbors_mat.InvLeftScaling(neighbors_volumes);
+      fe_dst_to_neighbors_mat.InvLeftScaling(neighbors_volumes);
       // END definition small matrix
 
       // TODO(Gabriel): Cannot use here if need original matrix
       // Define L1-Jacobi PC (diagonal vector) for A^T A
-      // GetNormalL1Diag(fe_rec_to_neighbors_mat, l1_diag);
+      // GetNormalL1Diag(fe_dst_to_neighbors_mat, l1_diag);
 
       // Get local averages and local ones
-      Vector u_avg_neighbors, u_rec_e, punity_e;
-      fes_reconstruction.GetElementDofs(e_idx, e_dofs);
-      u_averages.GetSubVector(neighbors_e, u_avg_neighbors);
-      punity_rec.GetSubVector(e_dofs, punity_e);
-
-      // Apply preconditioner
-      // fe_rec_to_neighbors_mat.InvLeftScaling(l1_diag);
-      // u_avg_neighbors /= l1_diag;
+      Vector u_src_neighbors, u_dst_e, punity_e;
+      fes_dst.GetElementDofs(e_idx, e_dofs);
+      u_src.GetSubVector(neighbors_e, u_src_neighbors);
+      punity_dst.GetSubVector(e_dofs, punity_e);
 
       // Solve
-      if (preserve_volumes)
+      if (params.preserve_volumes)
       {
-         real_t u_e_avg = u_averages(e_idx);
+         real_t u_e_avg = u_src(e_idx);
 
          Vector shape_avg_e, local_ones(num_neighbors);
          local_ones = 1.0;
          DenseMatrix temp_mat;
-         mass.AsymmetricElementMatrix(*fes_reconstruction.GetFE(e_idx),
-                                      *fes_averages.GetFE(e_idx),
+         mass.AsymmetricElementMatrix(*fes_dst.GetFE(e_idx),
+                                      *fes_src.GetFE(e_idx),
                                       *e_trans, *e_trans, temp_mat);
          temp_mat *= -1.0/volumes(e_idx);
          temp_mat.GetRow(0, shape_avg_e);
 
          // Set up A - 1 x shape_avgs
-         AddMultVWt(local_ones, shape_avg_e, fe_rec_to_neighbors_mat);
+         AddMultVWt(local_ones, shape_avg_e, fe_dst_to_neighbors_mat);
          // Set up u avgs minus average on e
-         add(1.0, u_avg_neighbors, -u_e_avg, local_ones, u_avg_neighbors);
+         add(1.0, u_src_neighbors, -u_e_avg, local_ones, u_src_neighbors);
 
-         LSSolver(*solver, fe_rec_to_neighbors_mat, u_avg_neighbors, u_rec_e,
-                  solver_reg);
+         LSSolver(*solver, fe_dst_to_neighbors_mat, u_src_neighbors, u_dst_e,
+                  params.reg);
 
          // Add the average to the final solution
-         add(1.0, u_rec_e, u_e_avg, punity_e, u_rec_e);
+         add(1.0, u_dst_e, u_e_avg, punity_e, u_dst_e);
       }
       else
       {
-         LSSolver(*solver, fe_rec_to_neighbors_mat, u_avg_neighbors, u_rec_e,
-                  solver_reg);
+         LSSolver(*solver, fe_dst_to_neighbors_mat, u_src_neighbors, u_dst_e,
+                  params.reg);
       }
 
       // Check solver
       if (it_solver && !it_solver->GetConverged()) { mfem_error("\n\tIterative solver failed to converge!"); }
-      if (solver_plevel >= 0) { CheckLSSolver(fe_rec_to_neighbors_mat, u_avg_neighbors, u_rec_e); }
+      // TODO(Gabriel): Fix this!
+      // if (params.solver >= 0) { CheckLSSolver(fe_dst_to_neighbors_mat, u_src_neighbors, u_dst_e); }
 
       // Integrate into global solution
-      u_reconstruction.SetSubVector(e_dofs, u_rec_e);
+      u_dst.SetSubVector(e_dofs, u_dst_e);
 
       neighbors_e.DeleteAll();
       e_dofs.DeleteAll();
    }
-   u_reconstruction.GetElementAverages(u_rec_avg);
+   u_dst.GetElementAverages(u_dst_avg);
 
    char vishost[] = "localhost";
-   socketstream glvis_original(vishost, visport);
-   socketstream glvis_averages(vishost, visport);
-   socketstream glvis_rec_avg(vishost, visport);
-   socketstream glvis_reconstruction(vishost, visport);
+   socketstream glvis_smooth(vishost, params.vis.port);
+   socketstream glvis_src(vishost, params.vis.port);
+   socketstream glvis_dst_avg(vishost, params.vis.port);
+   socketstream glvis_dst(vishost, params.vis.port);
 
-   if (glvis_original &&
-       glvis_averages &&
-       glvis_rec_avg &&
-       glvis_reconstruction &&
-       visualization)
+   if (glvis_smooth && glvis_src && glvis_dst_avg && glvis_dst &&
+       params.vis.visualization)
    {
-      //glvis_original.precision(8);
-      glvis_original << "parallel " << mesh.GetNRanks()
-                     << " " << mesh.GetMyRank() << "\n"
-                     << "solution\n" << mesh << u_original
-                     << "window_title 'original'\n" << std::flush;
+      //glvis_smooth.precision(8);
+      glvis_smooth << "parallel " << mesh.GetNRanks()
+                   << " " << mesh.GetMyRank() << "\n"
+                   << "solution\n" << mesh << u_smooth
+                   << "window_title 'original'\n" << std::flush;
       MPI_Barrier(mesh.GetComm());
-      //glvis_averages.precision(8);
-      glvis_averages << "parallel " << mesh.GetNRanks()
-                     << " " << mesh.GetMyRank() << "\n"
-                     << "solution\n" << mesh << u_averages
-                     << "window_title 'averages'\n" << std::flush;
+      //glvis_src.precision(8);
+      glvis_src << "parallel " << mesh.GetNRanks()
+                << " " << mesh.GetMyRank() << "\n"
+                << "solution\n" << mesh << u_src
+                << "window_title 'averages'\n" << std::flush;
       MPI_Barrier(mesh.GetComm());
-      //glvis_reconstruction.precision(8);
-      glvis_reconstruction << "parallel " << mesh.GetNRanks()
-                           << " " << mesh.GetMyRank() << "\n"
-                           << "solution\n" << mesh << u_reconstruction
-                           << "window_title 'reconstruction'\n" << std::flush;
+      //glvis_dst.precision(8);
+      glvis_dst << "parallel " << mesh.GetNRanks()
+                << " " << mesh.GetMyRank() << "\n"
+                << "solution\n" << mesh << u_dst
+                << "window_title 'reconstruction'\n" << std::flush;
       MPI_Barrier(mesh.GetComm());
-      //glvis_reconstruction.precision(8);
-      glvis_rec_avg << "parallel " << mesh.GetNRanks()
+      //glvis_dst.precision(8);
+      glvis_dst_avg << "parallel " << mesh.GetNRanks()
                     << " " << mesh.GetMyRank() << "\n"
-                    << "solution\n" << mesh << u_rec_avg
+                    << "solution\n" << mesh << u_dst_avg
                     << "window_title 'rec average'\n" << std::flush;
    }
-   else if (visualization)
+   else if (params.vis.visualization)
    {
       MFEM_WARNING("Cannot connect to glvis server, disabling visualization.")
    }
 
    // Error studies
-   real_t error = u_reconstruction.ComputeL2Error(u_coefficient);
-   subtract(u_rec_avg, u_averages, diff);
+   real_t error = u_dst.ComputeL2Error(u_coefficient);
+   subtract(u_dst_avg, u_src, diff);
    real_t error_avg = diff.ComputeL2Error(ccf_zeros);
 
    if (Mpi::Root())
@@ -675,10 +729,10 @@ int main(int argc, char* argv[])
                 std::endl;
    }
 
-   if (save_to_file && Mpi::Root())
+   if (params.vis.save_to_files && Mpi::Root())
    {
       Vector el_error(mesh.GetNE());
-      punity_avg.ComputeElementLpErrors(2.0, ccf_zeros, el_error);
+      punity_src.ComputeElementLpErrors(2.0, ccf_zeros, el_error);
       real_t hmax = el_error.Max();
 
       std::ofstream file;
@@ -686,8 +740,8 @@ int main(int argc, char* argv[])
       if (!file.is_open()) { mfem_error("Failed to open file"); }
       file << std::scientific << std::setprecision(16);
       file << error
-           << "," << fes_averages.GetNConformingDofs()
-           << "," << fes_reconstruction.GetNConformingDofs()
+           << "," << fes_src.GetNConformingDofs()
+           << "," << fes_dst.GetNConformingDofs()
            << "," << hmax
            << "," << mesh.GetNE() << std::endl;
       file.close();
