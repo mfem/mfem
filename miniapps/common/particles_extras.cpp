@@ -17,27 +17,6 @@ namespace mfem
 namespace common
 {
 
-void InitializeRandom(Particle &p, int seed, const Vector &pos_min, const Vector &pos_max)
-{
-   std::mt19937 gen(seed);
-   std::uniform_real_distribution<> real_dist(0.0,1.0);
-
-   for (int i = 0; i < p.Dim(); i++)
-   {
-      p.Coords()[i] = pos_min[i] + (pos_max[i] - pos_min[i])*real_dist(gen);
-   }
-
-   for (int f = 0; f < p.NumFields(); f++)
-   {
-      for (int c = 0; c < p.FieldVDim(f); c++)
-      {
-         p.FieldValue(f,c) = real_dist(gen);
-      }
-   }
-
-}
-
-
 void Add3DPoint(const Vector &center, Mesh &m, real_t s)
 {
    Vector v[8];

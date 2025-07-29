@@ -21,9 +21,6 @@ namespace mfem
 namespace common
 {
 
-/// Initialize particle with random fields, randomly within bounding box of \p pos_min and \p pos_max
-void InitializeRandom(Particle &p, int seed, const Vector &pos_min, const Vector &pos_max);
-
 /// Add a point to a given Mesh, represented as a hex sixed \p scale
 void Add3DPoint(const Vector &center, Mesh &m, real_t scale=2e-3);
 
