@@ -145,15 +145,15 @@ void AsymmetricMassIntegrator::AsymmetricElementMatrix(const FiniteElement
 
       // Pullback physical neighboring integration points to
       // "extended" reference element under e_trans
-      using InvElTr = mfem::InverseElementTransformation;
-      InverseElementTransformation inv_tr(&e_trans);
+      using InvTr = mfem::InverseElementTransformation;
+      InvTr inv_tr(&e_trans);
       inv_tr.SetPhysicalRelTol(_rtol);
       inv_tr.SetMaxIter(_max_iter);
-      inv_tr.SetSolverType(InvElTr::SolverType::Newton);
+      inv_tr.SetSolverType(InvTr::SolverType::Newton);
       inv_tr.SetPrintLevel(0); // TODO(Gabriel): Debug
-      inv_tr.SetInitialGuessType(InvElTr::InitGuessType::ClosestPhysNode);
+      inv_tr.SetInitialGuessType(InvTr::InitGuessType::ClosestPhysNode);
       MFEM_VERIFY(inv_tr.Transform(phys_neighbor_ip,
-                                   ngh_ip) != InvElTr::TransformResult::Unknown, "");
+                                   ngh_ip) != InvTr::TransformResult::Unknown, "");
 
       neighbor_trans.SetIntPoint(&ngh_ip);
       e_trans.SetIntPoint(&ip);
@@ -193,15 +193,15 @@ void AsymmetricMassIntegrator::AsymmetricElementMatrix(const FiniteElement
 
       // Pullback physical neighboring integration points to
       // "extended" reference element under e_trans
-      using InvElTr = mfem::InverseElementTransformation;
+      using InvTr = mfem::InverseElementTransformation;
       InverseElementTransformation inv_tr(&e_trans);
       inv_tr.SetPhysicalRelTol(_rtol);
       inv_tr.SetMaxIter(_max_iter);
-      inv_tr.SetSolverType(InvElTr::SolverType::Newton);
+      inv_tr.SetSolverType(InvTr::SolverType::Newton);
       inv_tr.SetPrintLevel(0); // TODO(Gabriel): Debug
-      inv_tr.SetInitialGuessType(InvElTr::InitGuessType::ClosestPhysNode);
+      inv_tr.SetInitialGuessType(InvTr::InitGuessType::ClosestPhysNode);
       MFEM_VERIFY(inv_tr.Transform(phys_neighbor_ip,
-                                   ngh_ip) != InvElTr::TransformResult::Unknown, "");
+                                   ngh_ip) != InvTr::TransformResult::Unknown, "");
 
       neighbor_trans.SetIntPoint(&ngh_ip);
       e_trans.SetIntPoint(&ip);
@@ -332,7 +332,8 @@ void SaturateNeighborhood(NCMesh& mesh, const int element_idx,
    Array<int> temp;
    mesh.FindNeighbors(element_idx, neighbors);
    neighbors.Append(element_idx);
-   MFEM_VERIFY(mesh.GetNumElements() * contributed_dofs >= target_ndofs, "Mesh too small!");
+   MFEM_VERIFY(mesh.GetNumElements() * contributed_ndofs >= target_ndofs,
+               "Mesh too small!");
    while (neighbors.Size() * contributed_ndofs < target_ndofs)
    {
       mesh.NeighborExpand(neighbors, temp);
@@ -340,6 +341,74 @@ void SaturateNeighborhood(NCMesh& mesh, const int element_idx,
    }
    neighbors.Unique();
 }
+
+/// @brief An out-of-element, L2-based reconstruction
+void L2Reconstruction(Solver& solver,
+                      ParGridFunction& src,
+                      ParGridFunction& dst,
+                      NCMesh& mesh,
+                      IterativeSolverParams& newton)
+{
+   AsymmetricMassIntegrator mass;
+   auto neighbor_trans = std::make_unique<IsoparametricTransformation>();
+   auto e_trans = std::make_unique<IsoparametricTransformation>();
+
+   const auto fes_src = src.FESpace();
+   const auto fes_dst = dst.FESpace();
+   Array<int> neighbors_e, e_dofs;
+
+   ConstantCoefficient ccf_ones(1.0);
+   // TODO(gabriel): explicit vs auto
+   ParGridFunction punity_dst(static_cast<ParFiniteElementSpace*>(fes_dst));
+   punity_dst.ProjectCoefficient(ccf_ones);
+
+   for (int e_idx = 0; e_idx < mesh.GetNumElements(); e_idx++ )
+   {
+      const int fe_src_e_ndof = fes_src->GetFE(e_idx)->GetDof();
+      const int fe_dst_e_ndof = fes_dst->GetFE(e_idx)->GetDof();
+
+      SaturateNeighborhood(mesh, e_idx, fe_dst_e_ndof, fe_src_e_ndof, neighbors_e);
+      // TODO: Add bool
+      // if (preserve_volumes) { neighbors_e.DeleteFirst(e_idx); }
+
+      const int num_neighbors = neighbors_e.Size();
+      DenseMatrix out_of_elem_shape(fe_dst_e_ndof);
+      Vector rhs_e(fe_dst_e_ndof), dst_e(fe_dst_e_ndof), punity_dst_e(fe_dst_e_ndof);
+      out_of_elem_shape = 0.0;
+      rhs_e = 0.0;
+      for (int i = 0; i < num_neighbors; i++)
+      {
+         const int neighbor_idx = neighbors_e[i];
+         fes_src->GetElementTransformation(e_idx, e_trans.get());
+         fes_dst->GetElementTransformation(neighbor_idx, neighbor_trans.get());
+
+         DenseMatrix neighbor_mass(fe_dst_e_ndof);
+         mass.AsymmetricElementMatrix(*fes_src->GetFE(neighbor_idx),
+                                      *fes_dst->GetFE(e_idx),
+                                      *neighbor_trans.get(),
+                                      *e_trans.get(),
+                                      neighbor_mass,
+                                      // TODO(Gabriel): More general?
+                                      newton.max_iter, newton.rtol);
+         out_of_elem_shape.AddMatrix(neighbor_mass, 0, 0);
+
+         // TODO(Gabriel): Generalize this!
+         // Maybe implement it on the above class
+         const real_t src_neighbor = src(neighbor_idx);
+         fes_dst->GetElementDofs(e_idx, e_dofs);
+         punity_dst.GetSubVector(e_dofs, punity_dst_e);
+         neighbor_mass.AddMult(punity_dst_e, rhs_e, src_neighbor);
+      }
+
+      // This systems comes from a least squares formulation,
+      // so no need to use LSSolver
+      solver.SetOperator(out_of_elem_shape);
+      solver.Mult(rhs_e, dst_e);
+
+      dst.SetSubVector(e_dofs, dst_e);
+   }
+}
+
 
 } // end namespace reconstruction
 
