@@ -208,7 +208,7 @@ int main(int argc, char *argv[])
    args.AddOption(&ctx.q, "-q", "--charge", "Particles' charge.");
    args.AddOption(&ctx.x_min, "-xmin", "--x-min", "Minimum initial particle location.");
    args.AddOption(&ctx.x_max, "-xmax", "--x-max", "Maximum initial particle location.");
-   args.AddOption(&ctx.p_min, "-pmin", "--p-max", "Minimum initial particle momentum.");
+   args.AddOption(&ctx.p_min, "-pmin", "--p-min", "Minimum initial particle momentum.");
    args.AddOption(&ctx.p_max, "-pmax", "--p-max", "Maximum initial particle momentum.");
    args.AddOption(&ctx.dt, "-dt", "--time-step", "Time Step.");
    args.AddOption(&ctx.t0, "-t0", "--initial-time", "Initial Time.");
