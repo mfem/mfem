@@ -332,7 +332,7 @@ void SaturateNeighborhood(NCMesh& mesh, const int element_idx,
    Array<int> temp;
    mesh.FindNeighbors(element_idx, neighbors);
    neighbors.Append(element_idx);
-   MFEM_VERIFY(mesh.GetNumElements() >= target_ndofs, "Mesh too small!");
+   MFEM_VERIFY(mesh.GetNumElements() * contributed_dofs >= target_ndofs, "Mesh too small!");
    while (neighbors.Size() * contributed_ndofs < target_ndofs)
    {
       mesh.NeighborExpand(neighbors, temp);
