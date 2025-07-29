@@ -1275,6 +1275,22 @@ void BilinearForm::Update(FiniteElementSpace *nfes)
    height = width = fes->GetVSize();
 
    if (ext) { ext->Update(); }
+   for (int k = 0; k < domain_integs.Size(); ++k)
+   {
+      domain_integs[k]->Update();
+   }
+   for (int k = 0; k < boundary_integs.Size(); ++k)
+   {
+      boundary_integs[k]->Update();
+   }
+   for (int k = 0; k < interior_face_integs.Size(); ++k)
+   {
+      interior_face_integs[k]->Update();
+   }
+   for (int k = 0; k < boundary_integs.Size(); ++k)
+   {
+      boundary_face_integs[k]->Update();
+   }
 }
 
 void BilinearForm::SetDiagonalPolicy(DiagonalPolicy policy)
@@ -2337,6 +2353,31 @@ void MixedBilinearForm::Update()
    height = test_fes->GetVSize();
    width = trial_fes->GetVSize();
    if (ext) { ext->Update(); }
+
+   for (int k = 0; k < domain_integs.Size(); ++k)
+   {
+      domain_integs[k]->Update();
+   }
+   for (int k = 0; k < boundary_integs.Size(); ++k)
+   {
+      boundary_integs[k]->Update();
+   }
+   for (int k = 0; k < interior_face_integs.Size(); ++k)
+   {
+      interior_face_integs[k]->Update();
+   }
+   for (int k = 0; k < boundary_integs.Size(); ++k)
+   {
+      boundary_face_integs[k]->Update();
+   }
+   for (int k = 0; k < trace_face_integs.Size(); ++k)
+   {
+      trace_face_integs[k]->Update();
+   }
+   for (int k = 0; k < boundary_trace_face_integs.Size(); ++k)
+   {
+      boundary_trace_face_integs[k]->Update();
+   }
 }
 
 MixedBilinearForm::~MixedBilinearForm()
