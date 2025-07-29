@@ -99,7 +99,8 @@ int main(int argc, char *argv[])
 
    // Create the flow solver
    NavierSolver flow_solver(&pmesh, ctx.order, 1.0/ctx.Re);
-
+   flow_solver.EnablePA(true);
+   
    // Create the particle solver
    NavierParticles particle_solver(MPI_COMM_WORLD, ctx.kappa, ctx.gamma, ctx.zeta, ctx.num_particles, pmesh);
 
