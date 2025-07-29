@@ -358,7 +358,7 @@ public:
     matrices. See for example ex9, ex9p. */
 class TransposeIntegrator : public BilinearFormIntegrator
 {
-private:
+protected:
    int own_bfi;
    BilinearFormIntegrator *bfi;
 
@@ -2545,6 +2545,8 @@ public:
    ConvectionIntegrator(VectorCoefficient &q, real_t a = 1.0)
       : Q(&q) { alpha = a; }
 
+   VectorCoefficient *GetVelocity() const { return Q; }
+
    void AssembleElementMatrix(const FiniteElement &,
                               ElementTransformation &,
                               DenseMatrix &) override;
@@ -2595,6 +2597,9 @@ class ConservativeConvectionIntegrator : public TransposeIntegrator
 public:
    ConservativeConvectionIntegrator(VectorCoefficient &q, real_t a = 1.0)
       : TransposeIntegrator(new ConvectionIntegrator(q, -a)) { }
+
+   VectorCoefficient *GetVelocity() const
+   { return static_cast<ConvectionIntegrator*>(bfi)->GetVelocity(); }
 };
 
 /// $\alpha (Q \cdot \nabla u, v)$ using the "group" FE discretization
