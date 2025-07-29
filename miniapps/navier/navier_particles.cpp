@@ -87,7 +87,7 @@ void NavierParticles::ParticleStep2D(const real_t &dt, int p)
 
       // Add particle velocity component
       add(r, -beta[j], vp, r);
-      
+
       // Create C
       C = up;
       C *= kappa;

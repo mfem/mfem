@@ -30,7 +30,7 @@ struct flow_context
    int rs_levels = 0;
    int order = 4;
    real_t Re = 1000;
-   int paraview_freq = 100;
+   int paraview_freq = 500;
    bool visualization = true;
    int visport = 19916;
 
@@ -38,9 +38,9 @@ struct flow_context
    real_t t0p = 5.0;
    int num_particles = 1000;
    real_t kappa = 10.0;
-   real_t gamma = 6.0; //0.2; // should be 6
+   real_t gamma = 0.0; //0.2; // should be 6
    real_t zeta = 0.19;
-   int print_csv_freq = 100;
+   int print_csv_freq = 500;
 } ctx;
 
 // Dirichlet conditions for velocity
@@ -126,7 +126,6 @@ int main(int argc, char *argv[])
    ParGridFunction &u_gf = *flow_solver.GetCurrentVelocity();
    ParGridFunction &w_gf = *flow_solver.GetCurrentVorticity();
    u_excoeff.SetTime(time);
-   u_gf.ProjectCoefficient(u_excoeff);
 
    // Set fluid BCs
    Array<int> attr(pmesh.bdr_attributes.Max());
@@ -170,8 +169,9 @@ int main(int argc, char *argv[])
       std::string file_name = csv_prefix + mfem::to_padded_string(0, 9) + ".csv";
       particle_solver.GetParticles().PrintCSV(file_name.c_str());
    }
-   
+
    flow_solver.Setup(ctx.dt);
+   u_gf.ProjectCoefficient(u_excoeff);
    int pstep = 0;
    for (int step = 1; step <= ctx.nt; step++)
    {
@@ -181,6 +181,8 @@ int main(int argc, char *argv[])
       // Step particles after t0p
       if (time >= ctx.t0p)
       {
+         ctx.print_csv_freq = 10;
+         ctx.paraview_freq = 10;
          if (pstep == 0)
          {
             particle_solver.InterpolateUW(u_gf, w_gf, particle_solver.X(), particle_solver.U(), particle_solver.W());
@@ -195,18 +197,20 @@ int main(int argc, char *argv[])
          std::string file_name = csv_prefix + mfem::to_padded_string(step, 9) + ".csv";
          particle_solver.GetParticles().PrintCSV(file_name.c_str());
       }
+
       if (ctx.paraview_freq > 0 && step % ctx.paraview_freq == 0)
       {
          pvdc->SetTime(time);
          pvdc->SetCycle(step);
          pvdc->Save();
       }
+
       if (ctx.visualization)
       {
          VisualizeField(vis_sol, vishost, ctx.visport, u_gf,
                         "Velocity", Wx, Wy, Ww, Wh, keys);
       }
-      
+
       cfl = flow_solver.ComputeCFL(u_gf, ctx.dt);
       if (rank == 0)
       {
@@ -231,5 +235,5 @@ void vel_dbc(const Vector &x, real_t t, Vector &u)
 
    u(0) = 0.;
    u(1) = 0.;
-   if (std::fabs(xi)<1.e-5) { u(0) = 6.0*yi*(height-yi)/(height*height); }
+   if (std::fabs(yi)<1.0) { u(0) = 6.0*yi*(height-yi)/(height*height); }
 }
