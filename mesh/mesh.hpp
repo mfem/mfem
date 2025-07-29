@@ -2275,7 +2275,7 @@ public:
    void ScaleSubdomains (real_t sf);
    void ScaleElements (real_t sf);
 
-   void Transform(void (*f)(const Vector&, Vector&));
+   void Transform(std::function<void(const Vector &, Vector&)> f);
    void Transform(VectorCoefficient &deformation);
 
    /** @brief This function should be called after the mesh node coordinates
