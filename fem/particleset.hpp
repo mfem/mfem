@@ -129,7 +129,7 @@ protected:
    {
       Array<unsigned int> ids; /// Particle IDs
       ParticleVector coords;
-      std::vector<ParticleVector> fields;
+      std::vector<std::unique_ptr<ParticleVector>> fields;
       
       ParticleState(int dim, Ordering::Type coords_ordering)
       : coords(0, dim, coords_ordering) {}
@@ -152,7 +152,7 @@ protected:
    std::size_t id_counter;
    ParticleState active_state;
    ParticleState inactive_state;
-   Array<const char*> field_names;
+   std::vector<std::string> field_names;
 
 #ifdef MFEM_USE_MPI
    MPI_Comm comm;
@@ -197,9 +197,9 @@ protected:
    void DispatchDataTransfer(const Array<unsigned int> &send_idxs, const Array<unsigned int> &send_ranks, Array<FindPointsGSLIB*> finders, std::index_sequence<NDatas...>)
    {
       int total_comps = active_state.coords.GetVDim();
-      for (ParticleVector &pv : active_state.fields)
+      for (std::unique_ptr<ParticleVector> &pv : active_state.fields)
       {
-         total_comps += pv.GetVDim();
+         total_comps += pv->GetVDim();
       }
       bool success = ( (total_comps == NDatas ? (DispatchFinderTransfer<NDatas>(send_idxs, send_ranks, finders, std::make_index_sequence<NFINDER_MAX+1>{}),true) : false) || ...);
       MFEM_ASSERT(success, "Redistributing with > " << NDATA_MAX << " data values per particle is not supported. Please submit PR to request particular case with more.");
@@ -240,13 +240,15 @@ public:
 
    const Array<unsigned int>& GetIDs() const { return active_state.ids; }
 
-   ParticleVector& AddField(int vdim, Ordering::Type field_ordering=Ordering::byVDIM, const char *field_name=nullptr);
+   ParticleVector& AddField(int vdim, Ordering::Type field_ordering=Ordering::byVDIM, const char* field_name=nullptr);
 
    /// Reserve room for \p res particles. Can help to avoid re-allocation for adding + removing particles.
    void Reserve(int res) { ReserveParticles(res, active_state); };
 
    /// Get the number of particles currently held by this ParticleSet.
    int GetNP() const { return active_state.GetNP(); }
+
+   int GetNF() const { return active_state.GetNF(); }
 
    /// Add particle
    void AddParticle(const Particle &p);
@@ -258,9 +260,9 @@ public:
 
    const ParticleVector& Coords() const { return active_state.coords; }
 
-   ParticleVector& Field(int f) { return active_state.fields[f]; }
+   ParticleVector& Field(int f) { return *active_state.fields[f]; }
 
-   const ParticleVector& Field(int f) const { return active_state.fields[f]; }
+   const ParticleVector& Field(int f) const { return *active_state.fields[f]; }
 
    /// Get Particle with copy of data associated with particle \p i
    Particle GetParticle(int i) const;
