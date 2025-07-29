@@ -57,6 +57,18 @@ bool CheckVectorComponents(const mfem::GridFunction &gf, double limit)
     return true;
 }
 
+class RotationCoefficient : public MatrixCoefficient {
+public:
+    RotationCoefficient() : MatrixCoefficient(2) {}
+
+    virtual void Eval(DenseMatrix &M, ElementTransformation &T,
+                      const IntegrationPoint &ip) {
+        M(0,0) =  0;  M(0,1) = -1;  //  [0, -1]
+        M(1,0) =  1;  M(1,1) =  0;  //  [1, 0]
+    }
+};
+
+
 int main(int argc, char *argv[])
 {
    // const char *mesh_file = "../data/star.mesh";
@@ -103,9 +115,7 @@ int main(int argc, char *argv[])
    }
    args.PrintOptions(cout);
 
-   // Mesh mesh = Mesh::MakeCartesian2D(1, 1, Element::Type::TRIANGLE, false);
-   Mesh mesh = Mesh::MakeCartesian2D(1, 1, Element::Type::QUADRILATERAL, false);
-   
+   Mesh mesh = Mesh::MakeCartesian2D(1, 1, Element::Type::TRIANGLE, false);
    const int dim = mesh.Dimension();
    const int sdim = mesh.SpaceDimension();
 
@@ -120,21 +130,45 @@ int main(int argc, char *argv[])
    RT_FECollection RTfec(order, dim);
    FiniteElementSpace RTfes(&mesh, &RTfec);
 
+   H1_FECollection h1fec(order_l2, sdim);
+   FiniteElementSpace h1fes(&mesh, &h1fec);
+
    L2_FECollection L2fec(order_l2, dim);
    FiniteElementSpace L2fes(&mesh, &L2fec, 2);
+
+   Array<int> ess_tdof_list_rt;
+   RTfes.GetBoundaryTrueDofs(ess_tdof_list_rt);
+   
+   Array<int> ess_tdof_list_h1; 
+   h1fes.GetBoundaryTrueDofs(ess_tdof_list_h1); 
+
+   Array<int> ess_bdr(mesh.bdr_attributes.Max());
+   ess_bdr = 1;
+
+
+   // ess_tdof_list = 1;
+   // if (mesh.bdr_attributes.Size())
+   // {
+      // Array<int> ess_bdr(mesh.bdr_attributes.Max());
+      // ess_bdr = 1;
+
+      // RTfes.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+   // }
 
    cout << "Number of H(div) dofs: "
         << RTfes.GetTrueVSize() << endl;
    cout << "Number of L² dofs: "
         << L2fes.GetTrueVSize() << endl;
+   cout << "Number of H1 dofs: " 
+         << h1fes.GetTrueVSize() << endl; 
 
-   Array<int> offsets({0, RTfes.GetVSize(), L2fes.GetVSize()});
+   Array<int> offsets({0, RTfes.GetVSize(), h1fes.GetVSize(), L2fes.GetVSize(), 1}); 
    offsets.PartialSum();
 
    BlockVector x(offsets), rhs(offsets);
    x = 0.0; rhs = 0.0;
 
-   GridFunction p_gf(&RTfes, x.GetBlock(0)), delta_psi_gf(&L2fes, x.GetBlock(1));
+   GridFunction p_gf(&RTfes, x.GetBlock(0)), vphi_gf(&h1fes, x.GetBlock(1)), delta_psi_gf(&L2fes, x.GetBlock(2));
 
    GridFunction psi_old_gf(&L2fes);
    GridFunction psi_gf(&L2fes);
@@ -158,20 +192,21 @@ int main(int argc, char *argv[])
       
       // sol_sock  << "keys jlA\n";
        // turn off perspective & light 
-      // sol_sock << "keys " << "cmA" << endl; // colorbar + mesh + anti-alias
+      // sol_sock << "keys cmA\n"; // colorbar + mesh + anti-alias
    
       true_sock.open(vishost,visport);
       true_sock.precision(8);
    }
 
+   ConstantCoefficient one_cf(1.0); 
    ConstantCoefficient neg_one(-1.0);
    VectorConstantCoefficient zero_vec_cf(Vector({0., 0.}));
    ConstantCoefficient zero_cf(0.0);
 	VectorConstantCoefficient one_vec_cf(Vector({1., 1.})); 
+	VectorConstantCoefficient neg_one_vec_cf(Vector({-1., -1.})); 
 
    ConstantCoefficient tichonov_cf(tichonov);
    ConstantCoefficient neg_tichonov_cf(-1.0*tichonov);
-
 
    ConstantCoefficient alpha_cf((real_t) alpha); 
    ProductCoefficient neg_alpha_cf(neg_one, alpha_cf); 
@@ -182,7 +217,7 @@ int main(int argc, char *argv[])
 
    VectorSumCoefficient psi_newton_res(psi_old_cf, psi_cf, 1., -1.);
 
-   LinearForm b0(&RTfes, rhs.GetBlock(0).GetData()), b1(&L2fes, rhs.GetBlock(1).GetData());
+   LinearForm b0(&RTfes, rhs.GetBlock(0).GetData()), b2(&L2fes, rhs.GetBlock(2).GetData());
 
    b0.AddDomainIntegrator(new VectorFEDomainLFIntegrator(psi_newton_res));
 
@@ -209,37 +244,57 @@ int main(int argc, char *argv[])
 
          u *= (1. + 2. * pow(M_PI, 2)); 
       }
-      else if (ex == 3) { 
-         // u(0) = 1.; 
-         // u(1) = -2. * pow(x(1), 3) + 3. * pow(x(1), 2) + 12. * x(1) - 6.; 
-
-         u(0) = x(0); 
-         u(1) = -x(1); 
-      }
    });
 
    ScalarVectorProductCoefficient alpha_f_cf(alpha_cf, f_coeff); 
    b0.AddDomainIntegrator(new VectorFEDomainLFIntegrator(alpha_f_cf));
+   // b0.AddDomainIntegrator(new VectorFEDomainLFDivIntegrator(alpha_f_cf)); 
 
-   b1.AddDomainIntegrator(new VectorDomainLFIntegrator(Z));
+   b2.AddDomainIntegrator(new VectorDomainLFIntegrator(Z));
 
-   BilinearForm a00(&RTfes);
-   a00.AddDomainIntegrator(new DivDivIntegrator(alpha_cf)); 
-   a00.AddDomainIntegrator(new VectorFEMassIntegrator(alpha_cf)); 
+
+   RotationCoefficient R;
+   ScalarMatrixProductCoefficient neg_R(neg_one, R); 
+   // MixedBilinearForm a10(&RTfes, &h1fes); 
+   // a10.AddDomainIntegrator(new MixedVectorWeakDivergenceIntegrator(neg_R)); 
+   // a10.Assemble(false); 
+   // a10.Finalize(false); 
+   // SparseMatrix &A10 = a10.SpMat();
+   // SparseMatrix *A01 = Transpose(A10);
+
+  
+
+   // TODO remove RT dofs every iteration too
+   // a20.Assemble(false);
+   // a20.Finalize(false);
+   // SparseMatrix &A20 = a20.SpMat();
+   // SparseMatrix *A02 = Transpose(A20);
    
-   a00.Assemble();
-   a00.Finalize(); 
-   SparseMatrix &A00 = a00.SpMat(); 
+   // MixedBilinearForm a02(&L2fes, &RTfes); 
+   // a02.AddDomainIntegrator(new VectorFEMassIntegrator()); 
 
-   MixedBilinearForm a10(&RTfes, &L2fes);
-   a10.AddDomainIntegrator(new VectorFEMassIntegrator());
-   a10.Assemble(false);
-   a10.Finalize(false);
-   SparseMatrix &A10 = a10.SpMat();
-   SparseMatrix *A01 = Transpose(A10);
+   
 
-   BilinearForm a11(&L2fes);
-   a11.AddDomainIntegrator(new VectorMassIntegrator(neg_DZ)); 
+ 
+
+
+   // A.SetBlock(1,0,&A10);
+   // A.SetBlock(0,1,A01);
+
+
+
+   // A.SetBlock(0, 1, &A01); 
+   // A.SetBlock(1, 0, A10); 
+// 
+   // A.SetBlock(2,0,&A20); 
+   // A.SetBlock(0,2,A02); 
+
+
+
+
+
+
+   
 
    int k;
    int total_iterations = 0;
@@ -258,40 +313,153 @@ int main(int argc, char *argv[])
          total_iterations++;
 
          b0.Assemble();
-         b1.Assemble();
-
-         a11.Assemble(false);
-         a11.Finalize(false);
-         SparseMatrix &A11 = a11.SpMat();
+         b2.Assemble();
 
          BlockMatrix A(offsets); 
+
+         BilinearForm a00(&RTfes);
+         a00.AddDomainIntegrator(new DivDivIntegrator(alpha_cf)); 
+         a00.SetDiagonalPolicy(mfem::Operator::DIAG_ONE);
+         a00.Assemble();
+         a00.EliminateEssentialBC(ess_tdof_list_rt, x.GetBlock(0), rhs.GetBlock(0), mfem::Operator::DIAG_ONE); 
+         a00.Finalize(); 
+
+         SparseMatrix &A00 = a00.SpMat(); 
+
          A.SetBlock(0,0,&A00);
-         A.SetBlock(1,0,&A10);
-         A.SetBlock(0,1,A01);
+
+         BilinearForm a11(&h1fes); 
+         a11.AddDomainIntegrator(new DiffusionIntegrator(neg_one)); 
+         a11.Assemble(false);
+         a11.Finalize(false);
+
+         SparseMatrix &A11 = a11.SpMat();
          A.SetBlock(1,1,&A11);
 
-#ifndef MFEM_USE_SUITESPARSE 
+         BilinearForm a22(&L2fes);
+         a22.AddDomainIntegrator(new VectorMassIntegrator(neg_DZ)); 
+
+         a22.Assemble(false);
+         a22.Finalize(false);
+
+         SparseMatrix &A22 = a22.SpMat();
+         A.SetBlock(2,2,&A22);
+
+         MixedBilinearForm a01(&h1fes, &RTfes); 
+         a01.AddDomainIntegrator(new MixedVectorGradientIntegrator(R)); 
+
+         a01.Assemble(false); 
+         a01.EliminateTestDofs(ess_bdr); 
+         a01.Finalize(false); 
+
+         SparseMatrix &A01 = a01.SpMat();
+         SparseMatrix *A10 = Transpose(A01);
+
+         A.SetBlock(0, 1, &A01); 
+         A.SetBlock(1, 0, A10); 
+
+         MixedBilinearForm a20(&RTfes, &L2fes);
+         a20.AddDomainIntegrator(new VectorFEMassIntegrator());
+
+         a20.Assemble();
+         a20.EliminateTrialDofs(ess_bdr, x.GetBlock(0), b0); 
+
+         a20.Finalize();
+         SparseMatrix &A20 = a20.SpMat();
+         SparseMatrix *A02 = Transpose(A20);
+         A.SetBlock(2,0,&A20); 
+         A.SetBlock(0,2,A02); 
+
+         // Avg 0 condition
+         int dof_h1(h1fes.GetTrueVSize());
+         LinearForm avg0_data(&h1fes);
+         avg0_data.AddDomainIntegrator(new DomainLFIntegrator(one_cf));
+         avg0_data.Assemble();
+         Array<int> avg0_i({0, dof_h1}), avg0_j(dof_h1);
+         std::iota(avg0_j.begin(), avg0_j.end(), 0);
+         SparseMatrix avg0(avg0_i.GetData(), avg0_j.GetData(), avg0_data.GetData(), 1,
+                           dof_h1, false, false, true);
+         auto avg0T = *Transpose(avg0);
+
+         A.SetBlock(3, 1, &avg0); 
+         A.SetBlock(1, 3, &avg0T); 
+
+
+
+         // a11.EliminateEssentialBC(ess_tdof_list, x.GetBlock(1), rhs.GetBlock(1), mfem::Operator::DIAG_ONE);
+
+
+         
+         // a01.EliminateTestDofs(ess_bdr); 
+         // a01.EliminateEssentialBCFromTrialDofs(ess_tdof_list_rt, x.GetBlock(0), rhs.GetBlock(0)); 
+
+
+         // a10.EliminateEssentialBCFromTrialDofs(ess_tdof_list_rt, x.GetBlock(0), rhs.GetBlock(0)); 
+         // a10.Elimi
+         // a10.Assemble(false); 
+         // a10.Finalize(false); 
+
+         // SparseMatrix &A10 = a10.SpMat();
+         // SparseMatrix *A01 = Transpose(A10);
+
+// 
+         // A.SetBlock(0, 1, A01); 
+         // A.SetBlock(1, 0, &A10); 
+
+         // a20.EliminateTrialDofs(ess_tdof_list_rt); 
+         // a20.EliminateEssentialBCFromTrialDofs(ess_tdof_list_rt, x.GetBlock(0), rhs.GetBlock(0)); 
+
+         // #################3
+         // a20.Assemble();
+         // a20.EliminateTrialDofs(ess_bdr, x.GetBlock(0), b0); 
+         // cout << "elim a20" << endl; 
+// 
+         // a20.Finalize();
+         // SparseMatrix &A20 = a20.SpMat();
+         // SparseMatrix *A02 = Transpose(A20);
+         // A.SetBlock(2,0,&A20); 
+         // A.SetBlock(0,2,A02); 
+         // ###################
+
+         // a02.EliminateTestDofs(ess_bdr); 
+         // a02.EliminateEssentialBCFromTrialDofs(ess_tdof_list_rt, x.GetBlock(0), rhs.GetBlock(0)); 
+
+         // a02.Assemble(false); 
+         // a02.Finalize(false); 
+
+         // SparseMatrix &A02 = a02.SpMat(); 
+         // SparseMatrix *A20 = Transpose(A02); 
+// 
+         // A.SetBlock(2,0,A20); 
+         // A.SetBlock(0,2,&A02); 
+
+
+
+// #ifndef MFEM_USE_SUITESPARSE 
          BlockDiagonalPreconditioner prec(offsets);
          prec.SetDiagonalBlock(0,new GSSmoother(A00));
          prec.SetDiagonalBlock(1,new GSSmoother(A11));
-         prec.owns_blocks = 1;
+         prec.SetDiagonalBlock(2,new GSSmoother(A22));
+
+         prec.owns_blocks = 3;
 
          GMRES(A,prec,rhs,x,0,10000,500,1e-12,0.0);
-#else
-         SparseMatrix *A_mono = A.CreateMonolithic(); 
-         UMFPackSolver umf(*A_mono); 
-         umf.Mult(rhs, x); 
-#endif
-         
+// #else
+         // SparseMatrix *A_mono = A.CreateMonolithic(); 
+         // UMFPackSolver umf(*A_mono); 
+         // umf.Mult(rhs, x); 
+// #endif
+         // 
          p_tmp -= p_gf;
          real_t Newton_update_size = p_tmp.ComputeL2Error(zero_vec_cf);
          p_tmp = p_gf;
 
          // Damped Newton update
          psi_gf.Add(newton_scaling, delta_psi_gf);
-         a11.Update();
+         // a11.Update();
+         // a22.Update(); 
          b0.Update();
-         b1.Update();
+         b2.Update();
 
          if (visualization)
          {
@@ -328,7 +496,8 @@ int main(int argc, char *argv[])
       alpha *= max(growth_rate, 1_r);
       alpha_cf.constant = alpha; 
    }
-   delete A01;
+   // delete A01;
+   // delete A10; 
 
    mfem::out << "\n Outer iterations: " << k+1
              << "\n Total iterations: " << total_iterations
@@ -355,13 +524,6 @@ int main(int argc, char *argv[])
          // NOTE trig example 2 
          u(0) = cos(M_PI * x(0)) * sin (M_PI * x(1)); 
          u(1) = cos(M_PI * x(1)) * sin (M_PI * x(0));
-      }
-      else if (ex == 3) { 
-         // u(0) = 1.; 
-         // u(1)= 3. * pow(x(1), 2) - 2. * pow(x(1), 3); 
-
-         u(0) = x(0); 
-         u(1) = -x(1); 
       }
    });
 
@@ -399,13 +561,6 @@ int main(int argc, char *argv[])
          return -2. * M_PI * sin(M_PI * x(0)) * sin(M_PI * x(1));
       });
    }
-   else if (ex == 3) { 
-      // div_u_exact = new mfem::FunctionCoefficient([](const mfem::Vector &x)
-         // {
-            // return 6. * (x(1) - pow(x(1), 2)); 
-         // });
-      div_u_exact = new mfem::ConstantCoefficient(0.0);
-   }
 
    real_t hdiv_error = p_gf.ComputeDivError(div_u_exact);  
 
@@ -439,5 +594,5 @@ void DZCoefficient::Eval(DenseMatrix &K, ElementTransformation &T,
 
    K.SetSize(2);
    K = 0.0;
-   for (int i = 0; i < psi_vals.Size(); ++i) { K(i, i) = (1. - pow(tanh(psi_vals(i) / 2.), 2)) / 2.; }
+   for (int i = 0; i < 2; ++i) { K(i, i) = (1. - pow(tanh(psi_vals(i) / 2.), 2)) / 2.; }
 }

@@ -103,9 +103,9 @@ int main(int argc, char *argv[])
    }
    args.PrintOptions(cout);
 
-   // Mesh mesh = Mesh::MakeCartesian2D(1, 1, Element::Type::TRIANGLE, false);
-   Mesh mesh = Mesh::MakeCartesian2D(1, 1, Element::Type::QUADRILATERAL, false);
+//    Mesh mesh = Mesh::MakeCartesian2D(1, 1, Element::Type::TRIANGLE, false);
    
+   Mesh mesh = Mesh::MakeCartesian3D(1, 1, 1, Element::Type::TETRAHEDRON); 
    const int dim = mesh.Dimension();
    const int sdim = mesh.SpaceDimension();
 
@@ -121,7 +121,7 @@ int main(int argc, char *argv[])
    FiniteElementSpace RTfes(&mesh, &RTfec);
 
    L2_FECollection L2fec(order_l2, dim);
-   FiniteElementSpace L2fes(&mesh, &L2fec, 2);
+   FiniteElementSpace L2fes(&mesh, &L2fec, 3);
 
    cout << "Number of H(div) dofs: "
         << RTfes.GetTrueVSize() << endl;
@@ -186,35 +186,28 @@ int main(int argc, char *argv[])
 
    b0.AddDomainIntegrator(new VectorFEDomainLFIntegrator(psi_newton_res));
 
-   VectorFunctionCoefficient f_coeff(2, [ex](const Vector &x, Vector &u) {
-      // NOTE: constant example 
-      // u(0) = 0.5; 
-      // u(1) = 0.0;
-
-      // NOTE: linear example 
-      // u(0) = x(0); 
-      // u(1) = -1.0 * x(1);
+   VectorFunctionCoefficient f_coeff(3, [ex](const Vector &x, Vector &u) {
 
       if (ex == 1) {
          // NOTE: trig example
-         u(0) = cosh(M_PI*x(0)) * sin(M_PI*x(1));  
-         u(1) = sinh(M_PI*x(0)) * cos(M_PI*x(1)); 
+        real_t a = x(0), b = x(1), c = x(2); 
+        u(0) = std::cos(M_PI * a) * std::sin(M_PI * b) * std::sin(M_PI * c);
+        u(1) = std::sin(M_PI * a) * std::cos(M_PI * b) * std::sin(M_PI * c);
+        u(2) = std::sin(M_PI * a) * std::sin(M_PI * b) * std::cos(M_PI * c); // This is now a valid access.
 
-         u /= cosh(M_PI);
-      }
+        u *= (1.0 + 3.0 * M_PI * M_PI);
+    }
       else if (ex == 2) { 
          // NOTE: trig example 2
-         u(0) = cos(M_PI * x(0)) * sin (M_PI * x(1)); 
-         u(1) = cos(M_PI * x(1)) * sin (M_PI * x(0));
+        //  u(0) = cos(M_PI * x(0)) * sin (M_PI * x(1)); 
+        //  u(1) = cos(M_PI * x(1)) * sin (M_PI * x(0));
+// 
+        //  u *= (1. + 2. * pow(M_PI, 2)); 
+        u(1) = cos(M_PI * x(1)) * sin (M_PI * x(2)); 
+        u(2) = cos(M_PI * x(2)) * sin (M_PI * x(1));
 
-         u *= (1. + 2. * pow(M_PI, 2)); 
-      }
-      else if (ex == 3) { 
-         // u(0) = 1.; 
-         // u(1) = -2. * pow(x(1), 3) + 3. * pow(x(1), 2) + 12. * x(1) - 6.; 
-
-         u(0) = x(0); 
-         u(1) = -x(1); 
+        u /= 1 + 2. * pow(M_PI, 2); 
+        u(0) = 1.; 
       }
    });
 
@@ -335,7 +328,7 @@ int main(int argc, char *argv[])
              << "\n Total dofs:       " << RTfes.GetTrueVSize() + L2fes.GetTrueVSize()
              << endl;
 
-   VectorFunctionCoefficient exact_coeff(2, [ex](const Vector &x, Vector &u) {      
+   VectorFunctionCoefficient exact_coeff(3, [ex](const Vector &x, Vector &u) {      
       // NOTE: constant example 
       // u(0) = 0.5; 
       // u(1) = 0.0; 
@@ -345,23 +338,20 @@ int main(int argc, char *argv[])
       // u(1) = -1.0 * x(1);
 
       if (ex == 1) { 
-      // NOTE: trig example 
-         u(0) = cosh(M_PI*x(0)) * sin(M_PI*x(1));  
-         u(1) = sinh(M_PI*x(0)) * cos(M_PI*x(1)); 
-         
-         u /= cosh(M_PI);
+      // NOTE: trig example
+        real_t a = x(0), b = x(1), c = x(2); 
+
+        u(0) = cos(M_PI*a) * sin(M_PI * b) * sin(M_PI*c); 
+        u(1) = sin(M_PI*a)*cos(M_PI*b)*sin(M_PI*c); 
+        u(2) = sin(M_PI*a)*sin(M_PI*b)*cos(M_PI*c);  
       }
       else if (ex == 2) { 
          // NOTE trig example 2 
-         u(0) = cos(M_PI * x(0)) * sin (M_PI * x(1)); 
-         u(1) = cos(M_PI * x(1)) * sin (M_PI * x(0));
-      }
-      else if (ex == 3) { 
-         // u(0) = 1.; 
-         // u(1)= 3. * pow(x(1), 2) - 2. * pow(x(1), 3); 
-
-         u(0) = x(0); 
-         u(1) = -x(1); 
+        // u(0) = cos(M_PI * x(0)) * sin (M_PI * x(1)); 
+        // u(1) = cos(M_PI * x(1)) * sin (M_PI * x(0));
+        u(0) = 1.; 
+        u(1) = cos(M_PI * x(1)) * sin (M_PI * x(2)); 
+        u(2) = cos(M_PI * x(2)) * sin (M_PI * x(1));
       }
    });
 
@@ -390,21 +380,23 @@ int main(int argc, char *argv[])
     if (ex == 1)
    {
       // For ex=1, the divergence is zero.
-      div_u_exact = new mfem::ConstantCoefficient(0.0);
+    //   div_u_exact = new mfem::ConstantCoefficient(0.0);
+    div_u_exact = new mfem::FunctionCoefficient([](const mfem::Vector &x)
+      {
+        real_t a = x(0), b = x(1), c = x(2); 
+
+        real_t sin_product = std::sin(M_PI * a) * std::sin(M_PI * b) * std::sin(M_PI * c);
+        real_t scale_factor = -3.0 * M_PI;
+
+        return scale_factor * sin_product;
+      });
    }
    else if (ex == 2) { 
    // NOTE: for trig example2, div p != 0 
       div_u_exact = new mfem::FunctionCoefficient([](const mfem::Vector &x)
       {
-         return -2. * M_PI * sin(M_PI * x(0)) * sin(M_PI * x(1));
+         return -2. * M_PI * sin(M_PI * x(2)) * sin(M_PI * x(1));
       });
-   }
-   else if (ex == 3) { 
-      // div_u_exact = new mfem::FunctionCoefficient([](const mfem::Vector &x)
-         // {
-            // return 6. * (x(1) - pow(x(1), 2)); 
-         // });
-      div_u_exact = new mfem::ConstantCoefficient(0.0);
    }
 
    real_t hdiv_error = p_gf.ComputeDivError(div_u_exact);  
@@ -420,10 +412,10 @@ void ZCoefficient::Eval(Vector &V, ElementTransformation &T,
 {
    MFEM_ASSERT(psi != NULL, "grid function is not set");
 
-   Vector psi_vals(2);
+   Vector psi_vals(3);
    psi->GetVectorValue(T, ip, psi_vals);
 
-   V.SetSize(2); 
+   V.SetSize(3); 
 
    for (int i = 0; i < psi_vals.Size(); ++i) { V(i) = tanh(psi_vals(i) / 2.); }
 }
@@ -434,10 +426,10 @@ void DZCoefficient::Eval(DenseMatrix &K, ElementTransformation &T,
 {
    MFEM_ASSERT(psi != NULL, "grid function is not set");
 
-   Vector psi_vals(2);
+   Vector psi_vals(3);
    psi->GetVectorValue(T, ip, psi_vals);
 
-   K.SetSize(2);
+   K.SetSize(3);
    K = 0.0;
    for (int i = 0; i < psi_vals.Size(); ++i) { K(i, i) = (1. - pow(tanh(psi_vals(i) / 2.), 2)) / 2.; }
 }
