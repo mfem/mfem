@@ -672,12 +672,12 @@ inline void SmemPADiffusionApply2D(const int NE,
       real_t (*Gt)[MQ1] = (real_t (*)[MQ1]) (sBG+1);
       MFEM_SHARED real_t Xz[NBZ][MD1][MD1];
       MFEM_SHARED real_t GD[2][NBZ][MD1][MQ1];
-      MFEM_SHARED real_t GQ[2][NBZ][MD1][MQ1];
+      MFEM_SHARED real_t GQ[2][NBZ][MQ1][MQ1];
       real_t (*X)[MD1] = (real_t (*)[MD1])(Xz + tidz);
-      real_t (*DQ0)[MD1] = (real_t (*)[MD1])(GD[0] + tidz);
-      real_t (*DQ1)[MD1] = (real_t (*)[MD1])(GD[1] + tidz);
-      real_t (*QQ0)[MD1] = (real_t (*)[MD1])(GQ[0] + tidz);
-      real_t (*QQ1)[MD1] = (real_t (*)[MD1])(GQ[1] + tidz);
+      real_t (*DQ0)[MQ1] = (real_t (*)[MQ1])(GD[0] + tidz);
+      real_t (*DQ1)[MQ1] = (real_t (*)[MQ1])(GD[1] + tidz);
+      real_t (*QQ0)[MQ1] = (real_t (*)[MQ1])(GQ[0] + tidz);
+      real_t (*QQ1)[MQ1] = (real_t (*)[MQ1])(GQ[1] + tidz);
       MFEM_FOREACH_THREAD(dy,y,D1D)
       {
          MFEM_FOREACH_THREAD(dx,x,D1D)
@@ -1221,8 +1221,8 @@ using DiagonalKernelType = DiffusionIntegrator::DiagonalKernelType;
 template<int DIM, int T_D1D, int T_Q1D>
 ApplyKernelType DiffusionIntegrator::ApplyPAKernels::Kernel()
 {
-   if (DIM == 2) { return internal::SmemPADiffusionApply2D<T_D1D,T_Q1D>; }
-   else if (DIM == 3) { return internal::SmemPADiffusionApply3D<T_D1D, T_Q1D>; }
+   if constexpr (DIM == 2) { return internal::SmemPADiffusionApply2D<T_D1D,T_Q1D>; }
+   else if constexpr (DIM == 3) { return internal::SmemPADiffusionApply3D<T_D1D, T_Q1D>; }
    else { MFEM_ABORT(""); }
 }
 
@@ -1237,8 +1237,8 @@ ApplyKernelType DiffusionIntegrator::ApplyPAKernels::Fallback(int DIM, int, int)
 template<int DIM, int D1D, int Q1D>
 DiagonalKernelType DiffusionIntegrator::DiagonalPAKernels::Kernel()
 {
-   if (DIM == 2) { return internal::SmemPADiffusionDiagonal2D<D1D,Q1D>; }
-   else if (DIM == 3) { return internal::SmemPADiffusionDiagonal3D<D1D, Q1D>; }
+   if constexpr (DIM == 2) { return internal::SmemPADiffusionDiagonal2D<D1D,Q1D>; }
+   else if constexpr (DIM == 3) { return internal::SmemPADiffusionDiagonal3D<D1D, Q1D>; }
    else { MFEM_ABORT(""); }
 }
 
