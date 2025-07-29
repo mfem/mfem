@@ -256,11 +256,7 @@ ElementTransformation *FaceQuadratureSpace::GetTransformation(int idx)
    ElementTransformation *T = mesh.GetFaceTransformation(face_indices[idx]);
    if (face_type == FaceType::Boundary)
    {
-      const int be = mesh.GetBdrFaceToBdrElement()[idx];
-      if (be >= 0)
-      {
-         T->Attribute = mesh.GetBdrAttribute(be);
-      }
+      T->Attribute = mesh.GetBdrElementAttributes()[idx];
    }
    return T;
 }
