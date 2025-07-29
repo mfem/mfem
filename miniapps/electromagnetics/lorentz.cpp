@@ -111,7 +111,9 @@ struct LorentzContext
    real_t dt = 1e-2;
    real_t t0 = 0.0;
    int nt = 1000;
+#ifdef MFEM_USE_GSLIB
    int redist_freq = 10;
+#endif // MFEM_USE_GSLIB
    int redist_mesh = 0;
    int rm_lost_freq = 1;
 
@@ -158,7 +160,9 @@ public:
    void InterpolateEB();
    void Step(real_t &t, real_t &dt);
    void RemoveLostParticles();
+#ifdef MFEM_USE_GSLIB
    void Redistribute(int redist_mesh); // 0 = E field, 1 = B field
+#endif // MFEM_USE_GSLIB
    ParticleSet& GetParticles() { return *charged_particles; }
 
 };
@@ -203,7 +207,9 @@ int main(int argc, char *argv[])
                   "Number of digits in B field cycle.");
    args.AddOption(&ctx.B.pad_digits_rank, "-bpdr", "--b-pad-digits-rank",
                   "Number of digits in B field MPI rank.");
+#ifdef MFEM_USE_GSLIB
    args.AddOption(&ctx.redist_freq, "-rdf", "--redist-freq", "Redistribution frequency.");
+#endif // MFEM_USE_GSLIB
    args.AddOption(&ctx.redist_mesh, "-rdm", "--redistribution-mesh", "Particle domain mesh for redistribution. 0 for E field mesh. 1 for B field mesh.");
    args.AddOption(&ctx.rm_lost_freq, "-rmf", "--remove-lost-freq", "Remove lost particles frequency.");
    args.AddOption(&ctx.ordering, "-o", "--ordering", "Ordering of particle data. 0 = byNODES, 1 = byVDIM.");
@@ -318,9 +324,10 @@ int main(int argc, char *argv[])
             }
             MPI_Barrier(MPI_COMM_WORLD);
          }
-         
+#ifdef MFEM_USE_GSLIB  
          // Redistribute
          boris.Redistribute(ctx.redist_mesh);
+#endif // MFEM_USE_GSLIB
 
          // Visualize particles post-redistribute
          if (ctx.visualization)
