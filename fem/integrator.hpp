@@ -114,13 +114,16 @@ protected:
    { return NULL; }
 };
 
+/** @brief This struct contains information about basis functions
+    used in patchwise integration. */
 struct PatchBasisInfo
 {
+   //
    unsigned int patch;
    int dim;
-   // 1D shape functions [dim x Q1D x D1D]
+   // 1D shape functions [dim x Q1D[d] x D1D[d]]
    std::vector<Array2D<real_t>> B;
-   // Derivatives of 1D shape functions [dim x Q1D x D1D]
+   // Derivatives of 1D shape functions [dim x Q1D[d] x D1D[d]]
    std::vector<Array2D<real_t>> G;
    Array<const IntegrationRule*> ir1d;
    // 1D quadrature points / dofs
@@ -129,36 +132,17 @@ struct PatchBasisInfo
    // Dof index |-> min/max quadrature index within support
    std::vector<std::vector<int>> minD;
    std::vector<std::vector<int>> maxD;
-   // Quadrature index |-> min/max dof index that supports
+   // Quadrature index |-> min/max dof index that supports it
    std::vector<std::vector<int>> minQ;
    std::vector<std::vector<int>> maxQ;
-   // Dof index |-> min/max dof index that has overlapping support
+   // Dof index |-> min/max dof index with overlapping support
    std::vector<std::vector<int>> minDD;
    std::vector<std::vector<int>> maxDD;
    // Size of accumulator (max qpts/dofs in each dimension)
    std::vector<int> accsize;
 
-
-   // Optimization attempt
    Array<int> orders;
    Array<int> E1D; // Number of elements in each dimension
-   Array<int> MAXQ;
-   std::vector<Array<int>> Q0; // First non-zero qpt per [dimension, dof]
-
-   Array<real_t> Btx;
-   Array<real_t> Bty;
-   Array<real_t> Btz;
-   Array<real_t> Gtx;
-   Array<real_t> Gty;
-   Array<real_t> Gtz;
-
-   Array<real_t> Bx;
-   Array<real_t> By;
-   Array<real_t> Bz;
-   Array<real_t> Gx;
-   Array<real_t> Gy;
-   Array<real_t> Gz;
-
 
    // Total quadrature points / dofs
    int NQ, ND;
