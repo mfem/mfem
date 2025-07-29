@@ -90,16 +90,14 @@ public:
                                 ElementTransformation &neighbor_trans,
                                 ElementTransformation &e_trans,
                                 DenseMatrix &el_mat,
-                                int _max_iter = 1000,
-                                real_t _rtol = 1e-15);
+                                IterativeSolverParams &newton);
 
    /// Assembles element mass matrix, computing @a neighbor_fe in @a e_trans.
    void AsymmetricElementMatrix(const FiniteElement &neighbor_fe,
                                 ElementTransformation &neighbor_trans,
                                 ElementTransformation &e_trans,
                                 DenseMatrix &el_mat,
-                                int _max_iter = 1000,
-                                real_t _rtol = 1e-15);
+                                IterativeSolverParams &newton);
 };
 
 void AsymmetricMassIntegrator::AsymmetricElementMatrix(const FiniteElement
@@ -108,8 +106,7 @@ void AsymmetricMassIntegrator::AsymmetricElementMatrix(const FiniteElement
                                                        ElementTransformation &neighbor_trans,
                                                        ElementTransformation &e_trans,
                                                        DenseMatrix &elmat,
-                                                       int _max_iter,
-                                                       real_t _rtol)
+                                                       IterativeSolverParams &newton)
 {
    neighbor_ndof = neighbor_fe.GetDof();
    e_ndof = e_fe.GetDof();
@@ -147,10 +144,10 @@ void AsymmetricMassIntegrator::AsymmetricElementMatrix(const FiniteElement
       // "extended" reference element under e_trans
       using InvTr = mfem::InverseElementTransformation;
       InvTr inv_tr(&e_trans);
-      inv_tr.SetPhysicalRelTol(_rtol);
-      inv_tr.SetMaxIter(_max_iter);
+      inv_tr.SetPrintLevel(newton.print_level);
+      inv_tr.SetMaxIter(newton.max_iter);
+      inv_tr.SetPhysicalRelTol(newton.rtol);
       inv_tr.SetSolverType(InvTr::SolverType::Newton);
-      inv_tr.SetPrintLevel(0); // TODO(Gabriel): Debug
       inv_tr.SetInitialGuessType(InvTr::InitGuessType::ClosestPhysNode);
       MFEM_VERIFY(inv_tr.Transform(phys_neighbor_ip,
                                    ngh_ip) != InvTr::TransformResult::Unknown, "");
@@ -172,8 +169,7 @@ void AsymmetricMassIntegrator::AsymmetricElementMatrix(const FiniteElement
                                                        ElementTransformation &neighbor_trans,
                                                        ElementTransformation &e_trans,
                                                        DenseMatrix &elmat,
-                                                       int _max_iter,
-                                                       real_t _rtol)
+                                                       IterativeSolverParams &newton)
 {
    neighbor_ndof = neighbor_fe.GetDof();
 
@@ -195,10 +191,10 @@ void AsymmetricMassIntegrator::AsymmetricElementMatrix(const FiniteElement
       // "extended" reference element under e_trans
       using InvTr = mfem::InverseElementTransformation;
       InverseElementTransformation inv_tr(&e_trans);
-      inv_tr.SetPhysicalRelTol(_rtol);
-      inv_tr.SetMaxIter(_max_iter);
+      inv_tr.SetPrintLevel(newton.print_level);
+      inv_tr.SetMaxIter(newton.max_iter);
+      inv_tr.SetPhysicalRelTol(newton.rtol);
       inv_tr.SetSolverType(InvTr::SolverType::Newton);
-      inv_tr.SetPrintLevel(0); // TODO(Gabriel): Debug
       inv_tr.SetInitialGuessType(InvTr::InitGuessType::ClosestPhysNode);
       MFEM_VERIFY(inv_tr.Transform(phys_neighbor_ip,
                                    ngh_ip) != InvTr::TransformResult::Unknown, "");
@@ -388,8 +384,7 @@ void L2Reconstruction(Solver& solver,
                                       *neighbor_trans.get(),
                                       *e_trans.get(),
                                       neighbor_mass,
-                                      // TODO(Gabriel): More general?
-                                      newton.max_iter, newton.rtol);
+                                      newton);
          out_of_elem_shape.AddMatrix(neighbor_mass, 0, 0);
 
          // TODO(Gabriel): Generalize this!
@@ -679,8 +674,7 @@ int main(int argc, char* argv[])
                                       *fes_src.GetFE(e_idx),
                                       *neighbor_trans, *e_trans,
                                       e_to_neighbor_mat,
-                                      params.newton.max_iter,
-                                      params.newton.rtol);
+                                      params.newton);
 
          if (e_to_neighbor_mat.Height()!=1) { mfem_error("High order case for source space not implemented yet!"); }
          Vector neighbor_idx_row;
@@ -714,7 +708,8 @@ int main(int argc, char* argv[])
          DenseMatrix temp_mat;
          mass.AsymmetricElementMatrix(*fes_dst.GetFE(e_idx),
                                       *fes_src.GetFE(e_idx),
-                                      *e_trans, *e_trans, temp_mat);
+                                      *e_trans, *e_trans, temp_mat,
+                                      params.newton);
          temp_mat *= -1.0/volumes(e_idx);
          temp_mat.GetRow(0, shape_avg_e);
 
