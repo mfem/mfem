@@ -29,7 +29,7 @@ struct flow_context
    // fluid
    int rs_levels = 0;
    int order = 4;
-   real_t Re = 0.001;
+   real_t Re = 1000;
    int paraview_freq = 100;
    bool visualization = true;
    int visport = 19916;
