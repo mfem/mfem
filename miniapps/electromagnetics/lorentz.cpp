@@ -13,7 +13,7 @@
 //           Lorentz Miniapp:  Simple Lorentz Force Particle Mover
 //           -----------------------------------------------------
 //
-// This miniapp computes the trajectory of a single charged particle subject to
+// This miniapp computes the trajectories of a set of charged particles subject to
 // Lorentz forces.
 //
 //                           dp/dt = q (E + v x B)
@@ -23,11 +23,16 @@
 //
 // The electric and magnetic fields are read from VisItDataCollection objects
 // such as those produced by the Volta and Tesla miniapps. It is notable that
-// these two fields do not need to be defined on the same mesh. Of course, the
-// particle trajectory can only be computed on the intersection of the two
-// domains. The starting point of the path must be chosen within in this
-// intersection and the trajectory will terminate when it leaves the
-// intersection or reaches a specified time duration.
+// these two fields do not need to be defined on the same mesh. At least 
+// one of either an electric field or a magnetic field must be provided. The
+// particles' location and momentum are randomly initialized within a bounding 
+// box specified by command line input.
+//
+// This miniapp demonstrates the use of ParticleSet with FindPointsGSLIB. When 
+// particles leave either domain, they are subject to removal. If MFEM is compiled 
+// with GSLIB, particle data can be redistributed onto the ranks of which they are 
+// physically located on after mesh decomposition, for either the electric field or 
+// magnetic field mesh.
 //
 // Note that the VisItDataCollection objects must have been stored using the
 // parallel format e.g. visit_dc.SetFormat(DataCollection::PARALLEL_FORMAT);.
@@ -36,15 +41,12 @@
 // Compile with: make lorentz
 //
 // Sample runs:
-//
-//   Free particle moving with constant velocity
-//      mpirun -np 4 lorentz -p0 '1 1 1'
-//
+//   TODO: Update
 //   Particle accelerating in a constant electric field
 //      mpirun -np 4 volta -m ../../data/inline-hex.mesh -dbcs '1 6' -dbcv '0 1'
 //      mpirun -np 4 lorentz -er Volta-AMR-Parallel -x0 '0.5 0.5 0.9'
 //                           -p0 '1 0 0'
-//
+//   TODO: Update
 //   Particle accelerating in a constant magnetic field
 //      mpirun -np 4 tesla -m ../../data/inline-hex.mesh -ubbc '0 0 1'
 //      mpirun -np 4 lorentz -br Tesla-AMR-Parallel -x0 '0.1 0.5 0.1'
@@ -55,26 +57,14 @@
 //                         -cs '0 0 0 0.1 2e-11' -rs 2 -maxit 4
 //      mpirun -np 4 tesla -m ../../data/fichera.mesh -maxit 4 -rs 3
 //                         -bm '-0.1 -0.1 -0.1 0.1 0.1 0.1 0.1 -1e10'
-//      mpirun -np 4 lorentz -er Volta-AMR-Parallel -ec 4
-//                           -br Tesla-AMR-Parallel -bc 4 -x0 '0.8 0 0'
-//                           -p0 '-8 -4 4' -q -10 -tf 0.2 -dt 1e-3 -rf 1e-6
-//
-// This miniapp demonstrates the use of the ParMesh::FindPoints functionality
-// to evaluate field data from stored DataCollection objects.  While this
-// miniapp is far from a full particle-in-cell (PIC) code it does demonstrate
-// some of the building blocks that might be used to construct the particle
-// mover portion of a PIC code.
+//      mpirun -np 4 ./lorentz -er Volta-AMR-Parallel -ec 4 
+//                         -br Tesla-AMR-Parallel -bc 4 -q -10 -dt 1e-3 
+//                         -nt 1000 -npt 500 -vt 5 -rdf 500 -rdm 1 -vf 5 
+//                         -pmin '-8 -4 4' -pmax '-8 -4 4' -xmin '-1 -1 -1' 
+//                         -xmax '1 1 1'
 
-
-
-// Joe test case:
-// Adaptation of magnetic mirror effect:
-// mpirun -np 4 ./volta -m ../../data/ball-nurbs.mesh -dbcs 1 -cs '0 0 0 0.1 2e-11' -rs 2 -maxit 4
-// mpirun -np 4 ./tesla -m ../../data/fichera.mesh -maxit 4 -rs 3  -bm '-0.1 -0.1 -0.1 0.1 0.1 0.1 0.1 -1e10'
-// mpirun -np 4 ./lorentz -er Volta-AMR-Parallel -ec 4 -br Tesla-AMR-Parallel -bc 4 -q -10 -dt 1e-3 -nt 1000 -npt 500 -vt 5 -rdf 500 -rdm 1 -vf 5 -pmin '-8 -4 4' -pmax '-8 -4 4' -xmin '-1 -1 -1' -xmax '1 1 1'
 
 #include "mfem.hpp"
-#include "../common/fem_extras.hpp"
 #include "../common/particles_extras.hpp"
 #include "../../general/text.hpp"
 
