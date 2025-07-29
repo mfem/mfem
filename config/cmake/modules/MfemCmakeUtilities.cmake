@@ -888,7 +888,6 @@ function(mfem_export_mk_files)
       set(${var} NO)
     endif()
   endforeach()
-  # TODO: Add support for MFEM_USE_CUDA=YES
   set(MFEM_CXX ${CMAKE_CXX_COMPILER})
   set(MFEM_HOST_CXX ${MFEM_CXX})
   set(MFEM_CPPFLAGS "")
@@ -900,6 +899,23 @@ function(mfem_export_mk_files)
   string(STRIP
          "${cxx_std_flag} ${CMAKE_CXX_FLAGS_${BUILD_TYPE}} ${CMAKE_CXX_FLAGS}"
          MFEM_CXXFLAGS)
+  # If we configured with CUDA support and the user explicitly requested we
+  # store said configuration, we overwrite MFEM_CXX and MFEM_HOST_CXX, and
+  # append CUDA-related flags, plus compiler-specific flags, to MFEM_CXXFLAGS.
+  # We assume CMAKE_CUDA_ARCHITECTURES is a singleton list.
+  if (MFEM_USE_CUDA AND MFEM_EXPORT_CUDA_CONFIG)
+    set(MFEM_CXX ${CMAKE_CUDA_COMPILER})
+    set(MFEM_HOST_CXX ${CMAKE_CUDA_HOST_COMPILER})
+    set(MFEM_CXXFLAGS "${MFEM_CXXFLAGS} ${CMAKE_CUDA_FLAGS}")
+    if (MFEM_CUDA_COMPILER_IS_NVCC)
+      set(MFEM_CXXFLAGS "${MFEM_CXXFLAGS} -arch=sm_${CMAKE_CUDA_ARCHITECTURES}")
+      set(MFEM_CXXFLAGS "${MFEM_CXXFLAGS} --forward-unknown-to-host-compiler")
+      set(MFEM_CXXFLAGS "${MFEM_CXXFLAGS} -ccbin \$(MFEM_HOST_CXX) -x=cu")
+    else()
+      set(MFEM_CXXFLAGS "${MFEM_CXXFLAGS} --cuda-gpu-arch=sm_${CMAKE_CUDA_ARCHITECTURES}")
+      set(MFEM_CXXFLAGS "${MFEM_CXXFLAGS} --cuda-path=${CUDAToolkit_TARGET_DIR} -xcuda")
+    endif()
+  endif()
   set(MFEM_TPLFLAGS "")
   foreach(dir ${TPL_INCLUDE_DIRS})
     set(MFEM_TPLFLAGS "${MFEM_TPLFLAGS} -I${dir}")
