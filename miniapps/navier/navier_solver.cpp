@@ -125,9 +125,6 @@ void NavierSolver::Setup(real_t dt)
       vel_ess_tdof.Append(comp_ess_tdof);
    }
 
-   vel_ess_tdof.Sort();
-   vel_ess_tdof.Unique();
-
    pfes->GetEssentialTrueDofs(pres_ess_attr, pres_ess_tdof);
 
    Array<int> empty;
@@ -1049,17 +1046,6 @@ void NavierSolver::AddVelDirichletBC(Coefficient *coeff, Array<int> &attr,
       }
       mfem::out << std::endl;
    }
-
-   //    // Update the essential attribute array
-   //    for (int i = 0; i < attr.Size(); ++i)
-   //    {
-   //       MFEM_ASSERT((vel_ess_attr[i] && attr[i]) == 0,
-   //                   "Duplicate boundary definition detected.");
-   //       if (attr[i] == 1)
-   //       {
-   //          vel_ess_attr[i] = 1;
-   //       }
-   //    }
 }
 
 void NavierSolver::AddPresDirichletBC(Coefficient *coeff, Array<int> &attr)

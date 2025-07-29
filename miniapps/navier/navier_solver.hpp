@@ -64,11 +64,6 @@ public:
 
    ~VelComponentDirichletBC_T() { delete coeff; }
 
-   // TODO: Likely not needed
-   // Delete copy constructor and assignment operator
-   VelComponentDirichletBC_T(const VelComponentDirichletBC_T&) = delete;
-   VelComponentDirichletBC_T& operator=(const VelComponentDirichletBC_T&) = delete;
-
    Array<int> attr;
    Coefficient *coeff;
    int comp;
