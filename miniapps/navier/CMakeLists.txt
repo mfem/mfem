@@ -75,10 +75,10 @@ if (MFEM_USE_MPI)
         ${NAVIER_COMMON_FILES}
         LIBRARIES mfem)
 
-    # add_mfem_miniapp(navier_bifurcation
-    #   MAIN navier_bifurcation.cpp
-    #   ${NAVIER_COMMON_FILES}
-    #   LIBRARIES mfem-common)
+    add_mfem_miniapp(navier_bifurcation
+      MAIN navier_bifurcation.cpp
+      ${NAVIER_COMMON_FILES}
+      LIBRARIES mfem-common)
 
     LIST(APPEND NAVIER_MESH_FILES
         fluid-cht.mesh
