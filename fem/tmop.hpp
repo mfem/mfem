@@ -2072,6 +2072,10 @@ protected:
    mutable int visout_counter = 0;
    GridFunction *vis_nodes = nullptr;
 
+   // Adapting integration rule
+   Array<int> el_quad_order;
+   int max_quad_order = 0;
+
    //   Jrt: the inverse of the ref->target Jacobian, Jrt = Jtr^{-1}.
    //   Jpr: the ref->physical transformation Jacobian, Jpr = PMatI^t DS.
    //   Jpt: the target->physical transformation Jacobian, Jpt = Jpr Jrt.
@@ -2183,6 +2187,9 @@ protected:
    /** @brief Determines the perturbation, h, for FD-based approximation. */
    void ComputeFDh(const Vector &d, const FiniteElementSpace &fes);
    void ComputeMinJac(const Vector &x, const FiniteElementSpace &fes);
+   void ComputeElementWiseMinJacAtQPs(const Vector &x,
+                                      const FiniteElementSpace &fes,
+                                      Vector &el_qp_min);
 
    void UpdateAfterMeshPositionChange(const Vector &d,
                                       const FiniteElementSpace &d_fes);
@@ -2193,24 +2200,30 @@ protected:
       delete lim_func; lim_func = NULL;
    }
 
-   const IntegrationRule &EnergyIntegrationRule(const FiniteElement &el) const
+   const IntegrationRule &EnergyIntegrationRule(const FiniteElement &el,
+                                                const int el_no=-1) const
    {
       if (IntegRules)
       {
-         return IntegRules->Get(el.GetGeomType(), integ_order);
+         return IntegRules->Get(el.GetGeomType(),
+                                el_quad_order.Size() && el_no > -1 ? el_quad_order[el_no] :
+                                integ_order);
       }
+      MFEM_ABORT("Set Integration Rule for TMOP_Integrator.");
       return (IntRule) ? *IntRule
              /*     */ : IntRules.Get(el.GetGeomType(), 2*el.GetOrder() + 3);
    }
-   const IntegrationRule &ActionIntegrationRule(const FiniteElement &el) const
+   const IntegrationRule &ActionIntegrationRule(const FiniteElement &el,
+      const int el_no=-1) const
    {
       // TODO the energy most likely needs less integration points.
-      return EnergyIntegrationRule(el);
+      return EnergyIntegrationRule(el, el_no);
    }
-   const IntegrationRule &GradientIntegrationRule(const FiniteElement &el) const
+   const IntegrationRule &GradientIntegrationRule(const FiniteElement &el,
+      const int el_no=-1) const
    {
       // TODO the action and energy most likely need less integration points.
-      return EnergyIntegrationRule(el);
+      return EnergyIntegrationRule(el, el_no);
    }
 
    // Auxiliary PA methods
@@ -2292,6 +2305,13 @@ public:
    {
       IntegRules = &irules;
       integ_order = order;
+   }
+
+   void EnableAdaptiveIntegrationRule(int ne, int order, int max_order = 100)
+   {
+      el_quad_order.SetSize(ne);
+      el_quad_order = order;
+      max_quad_order = max_order;
    }
 
    /// As the integrator operates on mesh displacements, this function is needed
@@ -2591,6 +2611,18 @@ public:
    void ComputeDeterminantBounds(const Vector &d,
                                  const FiniteElementSpace &fes,
                                  real_t &lower, real_t &upper);
+   void AdaptQuadIntRules(const Vector &d, const FiniteElementSpace &fes,
+                          const int quad_order_inc,
+                          const real_t ratio_threshold);
+   void GetElementWiseAdaptedQuadOrder(Vector &quad_order_vec)
+   {
+      MFEM_VERIFY(el_quad_order.Size(), "Adaptive quad order not enabled.");
+      quad_order_vec.SetSize(el_quad_order.Size());
+      for (int e = 0; e < el_quad_order.Size(); e++)
+      {
+         quad_order_vec(e) = el_quad_order[e];
+      }
+   }
 };
 
 class TMOPComboIntegrator : public NonlinearFormIntegrator

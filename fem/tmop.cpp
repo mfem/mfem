@@ -4496,7 +4496,7 @@ real_t TMOP_Integrator::GetElementEnergy(const FiniteElement &el,
    Jpt.SetSize(dim);
    PMatI.UseExternalData(elfun.GetData(), dof, dim);
 
-   const IntegrationRule &ir = EnergyIntegrationRule(el);
+   const IntegrationRule &ir = EnergyIntegrationRule(el, el_id);
 
    energy = 0.0;
    DenseTensor Jtr(dim, dim, ir.GetNPoints());
@@ -4841,7 +4841,7 @@ void TMOP_Integrator::AssembleElementVectorExact(const FiniteElement &el,
    elvect.SetSize(dof*dim);
    PMatO.UseExternalData(elvect.GetData(), dof, dim);
 
-   const IntegrationRule &ir = ActionIntegrationRule(el);
+   const IntegrationRule &ir = ActionIntegrationRule(el, el_id);
    const int nqp = ir.GetNPoints();
 
    elvect = 0.0;
@@ -5014,7 +5014,7 @@ void TMOP_Integrator::AssembleElementGradExact(const FiniteElement &el,
    PMatI.UseExternalData(elfun.GetData(), dof, dim);
    elmat.SetSize(dof*dim);
 
-   const IntegrationRule &ir = GradientIntegrationRule(el);
+   const IntegrationRule &ir = GradientIntegrationRule(el, el_id);
    const int nqp = ir.GetNPoints();
 
    elmat = 0.0;
@@ -5479,7 +5479,7 @@ void TMOP_Integrator::AssembleElementVectorFD(const FiniteElement &el,
    // Contributions from adaptive limiting, surface fitting (exact derivatives).
    if (adapt_lim_gf || surf_fit_gf || surf_fit_pos)
    {
-      const IntegrationRule &ir = ActionIntegrationRule(el);
+      const IntegrationRule &ir = ActionIntegrationRule(el, T.ElementNo);
       const int nqp = ir.GetNPoints();
       DenseTensor Jtr(dim, dim, nqp);
       targetC->ComputeElementTargets(T.ElementNo, el, ir, elfun, Jtr);
@@ -5589,7 +5589,7 @@ void TMOP_Integrator::AssembleElementGradFD(const FiniteElement &el,
    // Contributions from adaptive limiting.
    if (adapt_lim_gf || surf_fit_gf || surf_fit_pos)
    {
-      const IntegrationRule &ir = GradientIntegrationRule(el);
+      const IntegrationRule &ir = GradientIntegrationRule(el, T.ElementNo);
       const int nqp = ir.GetNPoints();
       DenseTensor Jtr(dim, dim, nqp);
       targetC->ComputeElementTargets(T.ElementNo, el, ir, elfun, Jtr);
@@ -5682,7 +5682,7 @@ void TMOP_Integrator::ComputeNormalizationEnergies(const GridFunction &x,
    for (int i = 0; i < fes->GetNE(); i++)
    {
       const FiniteElement *fe = fes->GetFE(i);
-      const IntegrationRule &ir = EnergyIntegrationRule(*fe);
+      const IntegrationRule &ir = EnergyIntegrationRule(*fe, i);
       const int nqp = ir.GetNPoints();
       DenseTensor Jtr(dim, dim, nqp);
       const int dof = fe->GetDof();
@@ -5739,9 +5739,8 @@ void TMOP_Integrator::ComputeMinJac(const Vector &x,
                                     const FiniteElementSpace &fes)
 {
    const FiniteElement *fe = fes.GetTypicalFE();
-   const IntegrationRule &ir = EnergyIntegrationRule(*fe);
    const int NE = fes.GetMesh()->GetNE(), dim = fe->GetDim(),
-             dof = fe->GetDof(), nsp = ir.GetNPoints();
+             dof = fe->GetDof();
 
    Array<int> xdofs(dof * dim);
    DenseMatrix dshape(dof, dim), pos(dof, dim);
@@ -5754,6 +5753,8 @@ void TMOP_Integrator::ComputeMinJac(const Vector &x,
    real_t detv_avg_min = std::numeric_limits<float>::max();
    for (int i = 0; i < NE; i++)
    {
+      const IntegrationRule &ir = EnergyIntegrationRule(*(fes.GetFE(i)), i);
+      const int nsp = ir.GetNPoints();
       fes.GetElementVDofs(i, xdofs);
       x.GetSubVector(xdofs, posV);
       detv_sum = 0.;
@@ -5767,6 +5768,38 @@ void TMOP_Integrator::ComputeMinJac(const Vector &x,
       detv_avg_min = std::min(detv_avg, detv_avg_min);
    }
    fd_h = detv_avg_min / fd_h_scale;
+}
+
+void TMOP_Integrator::ComputeElementWiseMinJacAtQPs(const Vector &x,
+                                                    const FiniteElementSpace &fes,
+                                                   Vector &el_qp_min)
+{
+   const FiniteElement *fe = fes.GetTypicalFE();
+   const int NE = fes.GetMesh()->GetNE(), dim = fe->GetDim(),
+             dof = fe->GetDof();
+
+   Array<int> xdofs(dof * dim);
+   DenseMatrix dshape(dof, dim), pos(dof, dim);
+   Vector posV(pos.Data(), dof * dim);
+   Jpr.SetSize(dim);
+
+   real_t detv_min = std::numeric_limits<float>::max();
+   el_qp_min.SetSize(NE);
+   for (int i = 0; i < NE; i++)
+   {
+      const IntegrationRule &ir = EnergyIntegrationRule(*(fes.GetFE(i)), i);
+      const int nsp = ir.GetNPoints();
+      fes.GetElementVDofs(i, xdofs);
+      x.GetSubVector(xdofs, posV);
+      detv_min = std::numeric_limits<float>::max();
+      for (int j = 0; j < nsp; j++)
+      {
+         fes.GetFE(i)->CalcDShape(ir.IntPoint(j), dshape);
+         MultAtB(pos, dshape, Jpr);
+         detv_min = fmin(detv_min, Jpr.Det());
+      }
+      el_qp_min(i) = detv_min;
+   }
 }
 
 void TMOP_Integrator::RemapSurfaceFittingLevelSetAtNodes(const Vector &new_x,
@@ -6036,7 +6069,7 @@ real_t TMOP_Integrator::ComputeMinDetT(const Vector &x,
    for (int i = 0; i < NE; i++)
    {
       const FiniteElement *fe = fes.GetFE(i);
-      const IntegrationRule &ir = EnergyIntegrationRule(*fe);
+      const IntegrationRule &ir = EnergyIntegrationRule(*fe, i);
       const int dof = fe->GetDof(), nsp = ir.GetNPoints();
 
       DSh.SetSize(dof, dim);
@@ -6086,7 +6119,7 @@ ComputeUntanglerMaxMuBarrier(const Vector &x, const FiniteElementSpace &fes)
    for (int i = 0; i < NE; i++)
    {
       const FiniteElement *fe = fes.GetFE(i);
-      const IntegrationRule &ir = EnergyIntegrationRule(*fe);
+      const IntegrationRule &ir = EnergyIntegrationRule(*fe, i);
       const int dof = fe->GetDof(), nsp = ir.GetNPoints();
 
       DSh.SetSize(dof, dim);
@@ -6194,6 +6227,39 @@ void TMOP_Integrator::ComputeDeterminantBounds(const Vector &d,
    detgf->GetBounds(lowerV, upperV, *plb, -1);
    lower = lowerV.Min();
    upper = upperV.Max();
+}
+
+void TMOP_Integrator::
+AdaptQuadIntRules(const Vector &d, const FiniteElementSpace &fes, const int quad_order_inc, const real_t ratio_threshold)
+{
+   if (periodic) { MFEM_ABORT("Periodic not implemented yet."); }
+
+   Vector x_loc(d.Size());
+   if (x_0)
+   {
+      add(*x_0, d, x_loc);
+   }
+   else { x_loc = d; }
+   MFEM_VERIFY(plb, "Functionality only available when determinant bounding "
+                    "is enabled in TMOP_Integrator.");
+
+   Vector el_gf_qp_min(fes.GetNE());
+   ComputeElementWiseMinJacAtQPs(x_loc, fes, el_gf_qp_min);
+
+   UpdateDeterminantGF(x_loc, fes);
+   Vector lowerV, upperV;
+   detgf->GetElementBounds(*plb, lowerV, upperV);
+
+   for (int e = 0; e < fes.GetNE(); e++)
+   {
+      double ratio = el_gf_qp_min(e) / lowerV(e);
+      if (ratio > ratio_threshold || lowerV(e) < 0.0)
+      {
+         //to-do: increase element quad rule
+         MFEM_VERIFY(el_quad_order.Size(), "Adaptive order not enabled in TMOP_Integrator.");
+         el_quad_order[e] = std::min(max_quad_order, el_quad_order[e] + quad_order_inc);
+      }
+   }
 }
 
 IntegrationRule PermuteIR(const IntegrationRule &irule,

@@ -19,34 +19,39 @@
 // Sample runs:
 //
 //    2D untangling:
-//      mpirun -np 4 amster -m jagged.mesh -o 2 -qo 4 -no-wc -no-fit
+//      mpirun -np 4 amster -m jagged.mesh -o 2 -qo 4 -no-fit
 //    2D untangling + worst-case:
 //      mpirun -np 4 amster -m amster_q4warp.mesh -o 2 -qo 6 -no-fit
 //    2D fitting:
-//      mpirun -np 6 amster -m amster_q4warp.mesh -rs 1 -o 3 -no-wc -amr 7
+//      mpirun -np 6 amster -m amster_q4warp.mesh -rs 1 -o 3 -amr 7
 //
 //    2D orders prec:
-//      mpirun -np 6 amster -m ../../data/star.mesh -rs 0 -o 1 -no-wc -amr 7 -vis
+//      mpirun -np 6 amster -m ../../data/star.mesh -rs 0 -o 1 -amr 7 -vis
 //
 //    3D untangling:
-//      mpirun -np 6 amster -m ../../../mfem_data/cube-holes-inv.mesh -o 3 -qo 4 -no-wc -no-fit
+//      mpirun -np 6 amster -m ../../../mfem_data/cube-holes-inv.mesh -o 3 -qo 4 -no-fit
 
 // Some new sample runs:
-// make amster -j4 && mpirun -np 4 amster -m jagged.mesh -o 2 -qo 8 -vis -rs 0 -umid 66 -ni 1000 -no-wc -wcmid 66 -utid 1 -wctid 2 -visit -no-final
+// make amster -j4 && mpirun -np 4 amster -m jagged.mesh -o 2 -qo 8 -vis -rs 0 -umid 66 -ni 1000 -utid 1 -visit -no-final
 
 // Blade
-// make amster -j4 && mpirun -np 4 amster -m blade.mesh -o 4 -qo 8 -vis -rs 0 -no-wc -mid 2 -tid 1 -bdropt 1 -visit -ni 1000 -bnd
+// Original - no bound on Jacobian and no tangential relaxation
+// make amster -j4 && mpirun -np 4 ./amster -m blade.mesh -o 4 -qo 8 -vis -rs 0 -mid 2 -tid 1 -visit -ni 1000 -st 0 -no-bound -bnd
+// Blade + bound on Jacobian
+// make amster -j4 && mpirun -np 4 amster -m blade.mesh -o 4 -qo 8 -vis -rs 0 -mid 2 -tid 1 -bdropt 1 -visit -ni 1000 -bnd
 // Blade + increase quad_order
-// make amster -j4 && mpirun -np 4 amster -m blade.mesh -o 4 -qo 24 -vis -rs 0 -no-wc -mid 2 -tid 1 -bdropt 1 -visit -ni 1000 -bnd
+// make amster -j4 && mpirun -np 4 amster -m blade.mesh -o 4 -qo 24 -vis -rs 0 -mid 2 -tid 1 -bdropt 1 -visit -ni 1000 -bnd
 // Blade + increase quad_order + no bound on Jacobian
-// make amster -j4 && mpirun -np 4 amster -m blade.mesh -o 4 -qo 24 -vis -rs 0 -no-wc -mid 2 -tid 1 -bdropt 1 -visit -ni 1000 -bnd -no-bound
+// make amster -j4 && mpirun -np 4 amster -m blade.mesh -o 4 -qo 24 -vis -rs 0 -mid 2 -tid 1 -bdropt 1 -visit -ni 1000 -bnd -no-bound
+// Blade + bound + adaptive quadrature order
+// make amster -j4 && mpirun -np 4 amster -m blade.mesh -o 4 -qo 8 -vis -rs 0 -mid 2 -tid 1 -bdropt 1 -visit -ni 1000 -bnd -aqp
 
 // Ale tangled - curvilinear right and top boundaries
-// make amster -j4 && mpirun -np 3 amster -m aletangled.mesh -o 2 -qo 8 -vis -rs 0 -umid 4 -no-wc -wcmid 66 -utid 1 -wctid 2 -mid 80 -tid 2 -bdropt 2 -visit -ni 5000 -bnd
+// make amster -j4 && mpirun -np 3 amster -m aletangled.mesh -o 2 -qo 8 -vis -rs 0 -umid 4 -utid 1 -mid 80 -tid 2 -bdropt 2 -visit -ni 5000 -bnd
 // Ale tangled - rotated square hole
-// make amster -j4 && mpirun -np 3 amster -m Laghos_2D_square_hole_800_mesh -o 2 -qo 8 -vis -rs 0 -umid 4 -no-wc -wcmid 66 -utid 1 -wctid 2 -mid 80 -tid 2 -bdropt 3 -visit -ni 200 -bnd
+// make amster -j4 && mpirun -np 3 amster -m Laghos_2D_square_hole_800_mesh -o 2 -qo 8 -vis -rs 0 -umid 4 -utid 1 -mid 80 -tid 2 -bdropt 3 -visit -ni 200 -bnd
 // Ale tangled - circular hole
-// make amster -j4 && mpirun -np 3 amster -m Laghos_2D_circular_hole_650_mesh -o 2 -qo 8 -vis -rs 0 -umid 4 -no-wc -wcmid 66 -utid 1 -wctid 2 -mid 80 -tid 2 -bdropt 4 -visit -ni 200 -bnd -sm square-disc-q4.mesh
+// make amster -j4 && mpirun -np 3 amster -m Laghos_2D_circular_hole_650_mesh -o 2 -qo 8 -vis -rs 0 -umid 4 -utid 1 -mid 80 -tid 2 -bdropt 4 -visit -ni 200 -bnd -sm square-disc-q4.mesh
 
 // 3D
 // make amster -j4 && mpirun -np 10 amster -m hex6.mesh -o 2 -qo 8 -vis -rs 0 -mid 301 -tid 1 -bdropt 5 -visit -ni 200 -bnd -no-bound
@@ -94,7 +99,6 @@ int main (int argc, char *argv[])
    const char *surf_mesh_file = "null.mesh";
    int rs_levels         = 0;
    int mesh_poly_deg     = 2;
-   bool worst_case       = false;
    int solver_iter       = 50;
    int quad_order        = 8;
    int bg_amr_steps      = 6;
@@ -115,6 +119,7 @@ int main (int argc, char *argv[])
    bool bound            = true;
    int solver_type       = 1;
    bool transform        = true;
+   bool adapt_qp         = false;
 
    // Parse command-line input file.
    OptionsParser args(argc, argv);
@@ -126,9 +131,6 @@ int main (int argc, char *argv[])
                   "Number of times to refine the mesh uniformly in serial.");
    args.AddOption(&solver_iter, "-ni", "--newton-iters",
                   "Maximum number of Newton iterations.");
-   args.AddOption(&worst_case, "-wc", "--worst-case",
-                  "-no-wc", "--no-worst-case",
-                  "Enable worst case optimization step.");
    args.AddOption(&quad_order, "-qo", "--quad_order",
                   "Order of the quadrature rule.");
    args.AddOption(&bg_amr_steps, "-amr", "--amr-bg-steps",
@@ -172,6 +174,9 @@ int main (int argc, char *argv[])
    args.AddOption(&transform, "-transform", "--transform", "-no-transform",
                   "--no-transform",
                   "Enable transforms.");
+   args.AddOption(&adapt_qp, "-aqp", "--aqp", "-no-aqp",
+                  "--no-aqp",
+                  "Enable adaptive quad order.");
    args.Parse();
    if (!args.Good())
    {
@@ -442,8 +447,12 @@ int main (int argc, char *argv[])
    ParGridFunction detgf(&fespace_det);
    GetDeterminantJacobianGF(pmesh, &detgf);
 
+   L2_FECollection fec_pw(0, dim);
+   ParFiniteElementSpace fespace_pw(pmesh, &fec_pw);
+   ParGridFunction gf_pw(&fespace_pw);
+
    Vector detgf_lower, detgf_upper;
-   int ref_factor = dim == 2 ? 5 : 8;
+   int ref_factor = dim == 2 ? 10 : 8;
    GridFunction::PLBound *plb = nullptr;
    GridFunction::PLBound plbt = detgf.GetBounds(detgf_lower, detgf_upper,
                                                 ref_factor);
@@ -553,95 +562,6 @@ int main (int argc, char *argv[])
       }
    }
 
-   // Worst case optimization
-   if (!worst_case)
-   {
-      if (myid == 0)
-      {
-         std::cout << "********************************\n";
-         std::cout << "*** Worst case optimization not requested.***\n";
-      }
-   }
-   else
-   {
-      *plb = detgf.GetBounds(detgf_lower, detgf_upper, ref_factor);
-      real_t min_detA_wc0, min_muT_wc0, max_muT_wc0, avg_muT_wc0, volume_wc0;
-      real_t min_detA_wc, min_muT_wc, max_muT_wc, avg_muT_wc, volume_wc;
-      GetMeshStats(pmesh, x0, wcmetric, wctarget_c, quad_order,
-                   min_detA_wc0, min_muT_wc0, max_muT_wc0, avg_muT_wc0, volume_wc0);
-      double min_det_bound0 = detgf_lower.Min();
-
-
-      // Visualize the starting mesh.
-      if (vis &&
-          ((wc_metric_id != u_metric_id && min_detA0 <= 0.0) ||
-           (wc_metric_id != metric_id && min_detA0 > 0.0)))
-      {
-         std::string title = "Initial mesh, worst case mu_" +
-                             std::to_string(wc_metric_id);
-         vis_tmop_metric_p(mesh_poly_deg, *wcmetric, *wctarget_c, *pmesh,
-                           title.c_str(), 300, 300, 300);
-      }
-
-      WorstCaseOptimize(x, quad_order, metric_id, wc_target_id, plb, &detgf,
-                        solver_iter, min_detA_wc0);
-
-      {
-         ostringstream mesh_name;
-         mesh_name << "amster_worst_case.mesh";
-         ofstream mesh_ofs(mesh_name.str().c_str());
-         mesh_ofs.precision(8);
-         pmesh->PrintAsOne(mesh_ofs);
-      }
-
-      if (vis)
-      {
-         std::string title = "After worst-case, mu_" +
-                             std::to_string(wc_metric_id);
-         vis_tmop_metric_p(mesh_poly_deg, *wcmetric, *wctarget_c, *pmesh,
-                           title.c_str(), 600, 300, 300);
-      }
-
-      // Average quality and worst-quality for the mesh.
-      GetMeshStats(pmesh, x, wcmetric, wctarget_c, quad_order,
-                   min_detA_wc, min_muT_wc, max_muT_wc, avg_muT_wc, volume_wc);
-      min_det_cur = min_detA_wc;
-
-      GetDeterminantJacobianGF(pmesh, &detgf);
-      detgf.GetBounds(detgf_lower, detgf_upper, ref_factor);
-      double min_det_bound = detgf_lower.Min();
-      if (myid == 0)
-      {
-         cout << "\n*** Stats of input mesh and worst-case optimized mesh\n";
-         cout << "Minimum det(J):       " << min_detA_wc0 << " " <<
-              min_detA_wc << endl
-              << "Minimum det(J) bound: " << min_det_bound0 << " " <<
-              min_det_bound << endl
-              << "Minimum muT:          " << min_muT_wc0 << " " <<
-              min_muT_wc << endl
-              << "Maximum muT:          " << max_muT_wc0 << " " <<
-              max_muT_wc << endl
-              << "Average muT:          " << avg_muT_wc0 << " " <<
-              avg_muT_wc << endl;
-      }
-
-      // Visualize the mesh displacement.
-      if (vis)
-      {
-         socketstream vis;
-         x0 -= x;
-         common::VisualizeField(vis, "localhost", 19916, x0,
-                                "Displacements", 900, 300, 300, 300, "jRmclA");
-      }
-
-      if (visit)
-      {
-         dc.SetCycle(++vis_count);
-         dc.Save();
-      }
-   }
-
-
    // Do regular mesh optimization
    if (min_det_cur > 0.0 && final_pass)
    {
@@ -651,7 +571,7 @@ int main (int argc, char *argv[])
       GetMeshStats(pmesh, x, metric, target_c, quad_order,
                    min_detA_m0, min_muT_m0, max_muT_m0, avg_muT_m0, volume_m0);
       double min_det_bound0 = detgf_lower.Min();
-      if (vis && min_detA0 > 0.0 && worst_case)
+      if (vis && min_detA0 > 0.0)
       {
          std::string title = "Initial mesh, mu_" +
                              std::to_string(metric_id);
@@ -693,7 +613,7 @@ int main (int argc, char *argv[])
 
       meshopt.Setup(x, &min_detA0, quad_order, metric_id, target_id,
                     plb, &detgf, solver_iter, move_bnd, surf_mesh_attr,
-                    aux_ess_dofs, solver_type);
+                    aux_ess_dofs, solver_type, adapt_qp);
       Array<FindPointsGSLIB *> finder_arr;
       if (bdr_opt_case >= 1)
       {
@@ -827,9 +747,76 @@ int main (int argc, char *argv[])
               << "Maximum muT:          " << max_muT_m0 << " " <<
               max_muT_m << endl
               << "Average muT:          " << avg_muT_m0 << " " <<
-              avg_muT_m << endl;
+              avg_muT_m << endl
+              << "Integral muT:         " << meshopt.init_energy << " " <<
+              meshopt.final_energy << endl;
+      }
+
+      // Vis ratio of min det at quad point vs min bound
+      GetElementWiseMinDetAtQPs(pmesh, x, quad_order, gf_pw);
+      ParGridFunction gf_pw_b(&fespace_pw);
+      detgf.GetElementBounds(gf_pw_b, detgf_upper, ref_factor);
+      for (int e = 0; e < pmesh->GetNE(); e++)
+      {
+         double ratio = gf_pw(e)/gf_pw_b(e);
+         gf_pw(e) = gf_pw_b(e) < 0.0 ? fabs(ratio) : ratio;
+      }
+
+      if (vis)
+      {
+         socketstream vis;
+         common::VisualizeField(vis, "localhost", 19916, gf_pw,
+                                "min det ratio", 1200, 600, 300, 300, "jRmclA");
+      }
+      if (plb)
+      {
+         if (adapt_qp)
+         {
+            meshopt.GetTMOPIntegrator()->GetElementWiseAdaptedQuadOrder(gf_pw);
+         }
+         else {
+            gf_pw = quad_order*1.0;
+         }
+
+         if (vis)
+         {
+            socketstream vis;
+            common::VisualizeField(vis, "localhost", 19916, gf_pw,
+                                   "quad_order", 1500, 600, 300, 300, "jRmclAppppp");
+         }
+      }
+
+      // output invalid elements only
+      if (true)
+      {
+         for (int e = 0; e < pmesh->GetNE(); e++)
+         {
+            pmesh->SetAttribute(e, 1);
+            if (gf_pw_b(e) < 0.0)
+            {
+               pmesh->SetAttribute(e, 2);
+            }
+         }
+         pmesh->SetAttributes();
+         // Make ParSubMesh with elements of attribute 2
+         Array<int> cond_attr;
+         cond_attr.Append(2);
+         ParSubMesh psm(ParSubMesh::CreateFromDomain(*pmesh, cond_attr));
+
+         // Print as serial mesh
+         ostringstream mesh_name;
+         mesh_name << "amster_invalid_elements.mesh";
+         ofstream mesh_ofs(mesh_name.str().c_str());
+         mesh_ofs.precision(8);
+         psm.PrintAsSerial(mesh_ofs);
+
+         auto pvdc = new VisItDataCollection("amster-invalid-elements", &psm);
+         pvdc->SetFormat(DataCollection::PARALLEL_FORMAT);
+         pvdc->Save();
+         delete pvdc;
       }
    }
+
 
    delete target_c;
    delete metric;

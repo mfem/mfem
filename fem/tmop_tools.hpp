@@ -194,6 +194,9 @@ protected:
    bool surf_fit_converge_error = false;
    bool det_bound = false;
    mutable bool vis_flag  = false;
+   int quad_order_inc = 0;
+   real_t quad_order_inc_threshold = 0.0;
+   mutable bool post_newton_update = false;
 
    // Minimum determinant over the whole mesh. Used for mesh untangling.
    real_t *min_det_ptr = nullptr;
@@ -408,6 +411,13 @@ public:
    bool TangentialRelaxation(const Vector &d_loc_in, Vector &d_loc_out) const;
 
    void Visualize(const Vector &d_loc, const FiniteElementSpace *d_fes) const;
+
+   void EnableQuadOrderIncrement(int quad_order_inc_, real_t ratio_threshold)
+   {
+      MFEM_VERIFY(det_bound, "Enable determinant bounding.");
+      quad_order_inc = quad_order_inc_;
+      quad_order_inc_threshold = ratio_threshold;
+   }
 };
 
 void vis_tmop_metric_s(int order, TMOP_QualityMetric &qm,

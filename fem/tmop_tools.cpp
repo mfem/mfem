@@ -802,6 +802,7 @@ real_t TMOPNewtonSolver::ComputeScalingFactor(const Vector &d_in,
       c -= d_out;
       scale = 1.0;
    }
+   post_newton_update = true;
 
    return scale;
 }
@@ -1047,6 +1048,11 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &dx) const
          {
             ti->ComputeUntangleMetricQuantiles(dx_loc, *dx_fes);
          }
+         // if (quad_order_inc > 0)
+         // {
+         //    ti->AdaptQuadIntRules(dx_loc, *dx_fes,
+         //                          quad_order_inc, quad_order_inc_threshold);
+         // }
       }
       co = dynamic_cast<TMOPComboIntegrator *>(integs[i]);
       if (co)
@@ -1107,6 +1113,24 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &dx) const
       }
       surf_fit_avg_err_prvs = surf_fit_avg_err;
       surf_fit_coeff_update = false;
+   }
+
+   if (post_newton_update || true)
+   {
+      const FiniteElementSpace *dx_fes = nlf->FESpace();
+      for (int i = 0; i < integs.Size(); i++)
+      {
+         ti = dynamic_cast<TMOP_Integrator *>(integs[i]);
+         if (ti)
+         {
+            if (quad_order_inc > 0)
+            {
+               ti->AdaptQuadIntRules(dx_loc, *dx_fes,
+                                    quad_order_inc, quad_order_inc_threshold);
+            }
+         }
+      }
+      post_newton_update = false;
    }
 
    if (vis_flag)

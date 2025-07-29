@@ -134,6 +134,7 @@ private:
 #endif
 
 public:
+   double init_energy, final_energy;
    MeshOptimizer(ParMesh *pmesh_): pmesh(pmesh_) { }
 
    ~MeshOptimizer()
@@ -154,7 +155,7 @@ public:
               GridFunction::PLBound *plb,
               ParGridFunction *detgf, int solver_iter,
               bool move_bnd, Array<int> surf_mesh_attr,
-              Array<int> aux_ess_dofs, int solver_type);
+              Array<int> aux_ess_dofs, int solver_type, bool adapt_qp);
 
    // Optimizes the node positions given in x.
    // When we enter, x contains the initial node positions.
@@ -651,7 +652,8 @@ void MeshOptimizer::Setup(ParGridFunction &x,
                           GridFunction::PLBound *plb,
                           ParGridFunction *detgf, int solver_iter,
                           bool move_bnd, Array<int> surf_mesh_attr,
-                          Array<int> aux_ess_dofs, int solver_type)
+                          Array<int> aux_ess_dofs, int solver_type,
+                          bool adapt_qp)
 {
    ParFiniteElementSpace &pfes = *x.ParFESpace();
    x_nodes = &x;
@@ -671,6 +673,12 @@ void MeshOptimizer::Setup(ParGridFunction &x,
    if (plb)
    {
       tmop_integ->SetPLBoundsForDeterminant(plb, detgf);
+      int max_quad_order = 100;
+      if (adapt_qp)
+      {
+         tmop_integ->EnableAdaptiveIntegrationRule(pfes.GetNE(), quad_order,
+         max_quad_order);
+      }
    }
 
    // Nonlinear form.
@@ -781,12 +789,16 @@ void MeshOptimizer::Setup(ParGridFunction &x,
    solver->SetAbsTol(0.0);
    IterativeSolver::PrintLevel newton_pl;
    solver->SetPrintLevel(newton_pl.Iterations().Summary());
+   if (plb && adapt_qp)
+   {
+      solver->EnableQuadOrderIncrement(8, 5.0); /// new
+   }
 }
 
 void MeshOptimizer::OptimizeNodes(ParGridFunction &x)
 {
    MFEM_VERIFY(solver, "Setup() has not been called.");
-   double init_energy = nlf->GetParGridFunctionEnergy(x);
+   init_energy = nlf->GetParGridFunctionEnergy(x);
 
    // Optimize.
    x.SetTrueVector();
@@ -794,7 +806,7 @@ void MeshOptimizer::OptimizeNodes(ParGridFunction &x)
    solver->Mult(b, x.GetTrueVector());
    x.SetFromTrueVector();
 
-   double final_energy = nlf->GetParGridFunctionEnergy(x);
+   final_energy = nlf->GetParGridFunctionEnergy(x);
    if (x.ParFESpace()->GetMyRank() == 0)
    {
       std::cout << "Initial energy: " << init_energy << endl
@@ -892,7 +904,7 @@ void GetMeshStats(ParMesh *pmesh, ParGridFunction &x,
          const double mu = metric->EvalW(T);
          max_muT = fmax(mu, max_muT);
          min_muT = fmin(mu, min_muT);
-         integral_mu += mu * ip.weight * A.Det();
+         integral_mu += mu * ip.weight * T.Det();
          volume += ip.weight * A.Det();
       }
    }
@@ -902,6 +914,29 @@ void GetMeshStats(ParMesh *pmesh, ParGridFunction &x,
                  pfes.GetComm());
    MPI_Allreduce(MPI_IN_PLACE, &volume, 1, MPI_DOUBLE, MPI_SUM, pfes.GetComm());
    avg_muT = integral_mu / volume;
+}
+
+void GetElementWiseMinDetAtQPs(ParMesh *pmesh, ParGridFunction &x,
+                  int quad_order, Vector &min_el_det)
+{
+   int NE = pmesh->GetNE();
+   int dim = pmesh->Dimension();
+   ParFiniteElementSpace &pfes = *(x.ParFESpace());
+   min_el_det.SetSize(NE);
+
+   for (int e = 0; e < NE; e++)
+   {
+      const IntegrationRule &ir =
+         IntRulesLo.Get(pfes.GetFE(e)->GetGeomType(), quad_order);
+      ElementTransformation *transf = pmesh->GetElementTransformation(e);
+      double min_det = infinity();
+      for (int q = 0; q < ir.GetNPoints(); q++)
+      {
+         transf->SetIntPoint(&ir.IntPoint(q));
+         min_det = fmin(min_det, transf->Jacobian().Det());
+      }
+      min_el_det(e) = min_det;
+   }
 }
 
 Mesh *SetupEdgeMesh2D(Mesh *mesh, GridFunction &attr_count_ser,
