@@ -1004,11 +1004,23 @@ void Mesh::ComputeFaceInfo(FaceType ftype) const
       ifidcs[i] = f_idx;
       ++f_idx;
    }
+
+   if (ftype == FaceType::Boundary)
+   {
+      bdr_face_to_be.SetSize(fidcs.Size());
+      bdr_face_to_be = -1;
+      for (int be = 0; be < GetNBE(); ++be)
+      {
+         const int f = GetBdrElementFaceIndex(be);
+         const int bdr_f = ifidcs[f];
+         bdr_face_to_be[bdr_f] = be;
+      }
+   }
 }
 
 const Array<int> &Mesh::GetFaceIndices(FaceType ftype) const
 {
-   if (face_indices[static_cast<int>(ftype)].Size() == 0)
+   if (face_indices[static_cast<int>(ftype)].IsEmpty())
    {
       ComputeFaceInfo(ftype);
    }
@@ -1023,6 +1035,15 @@ Mesh::GetInvFaceIndices(FaceType ftype) const
       ComputeFaceInfo(ftype);
    }
    return inv_face_indices[static_cast<int>(ftype)];
+}
+
+const Array<int> &Mesh::GetBdrFaceToBdrElement() const
+{
+   if (bdr_face_to_be.IsEmpty())
+   {
+      ComputeFaceInfo(FaceType::Boundary);
+   }
+   return bdr_face_to_be;
 }
 
 void Mesh::DeleteGeometricFactors()
@@ -1917,6 +1938,7 @@ void Mesh::Destroy()
    face_indices[1].DeleteAll();
    inv_face_indices[0] = std::unordered_map<int, int>();
    inv_face_indices[1] = std::unordered_map<int, int>();
+   bdr_face_to_be.DeleteAll();
 }
 
 void Mesh::ResetLazyData()
@@ -8193,6 +8215,7 @@ void Mesh::GenerateFaces()
    face_indices[1].SetSize(0);
    inv_face_indices[0].clear();
    inv_face_indices[1].clear();
+   bdr_face_to_be.SetSize(0);
 
    // (re)generate the interior faces and the info for them
    faces.SetSize(nfaces);
@@ -10998,6 +11021,7 @@ void Mesh::Swap(Mesh& other, bool non_geometry)
    mfem::Swap(face_indices[1], other.face_indices[1]);
    inv_face_indices[0].swap(other.inv_face_indices[0]);
    inv_face_indices[1].swap(other.inv_face_indices[1]);
+   mfem::Swap(bdr_face_to_be, other.bdr_face_to_be);
 }
 
 void Mesh::GetElementData(const Array<Element*> &elem_array, int geom,

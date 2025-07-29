@@ -282,6 +282,8 @@ protected:
    mutable Array<int> face_indices[2];
    /// cache for FaceIndices(ftype)
    mutable std::unordered_map<int, int> inv_face_indices[2];
+   /// cache for boundary face to boundary element indices
+   mutable Array<int> bdr_face_to_be;
 
    /// compute face_indices[ftype] and inv_face_indices[type]
    void ComputeFaceInfo(FaceType ftype) const;
@@ -321,8 +323,12 @@ public:
 
    /// Map from boundary or interior face indices to mesh face indices.
    const Array<int>& GetFaceIndices(FaceType ftype) const;
+
    /// Inverse of the map FaceIndices(ftype)
    const std::unordered_map<int, int>& GetInvFaceIndices(FaceType ftype) const;
+
+   /// Map from boundary faces to boundary element indices.
+   const Array<int> &GetBdrFaceToBdrElement() const;
 
 protected:
    Operation last_operation;
