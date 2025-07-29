@@ -36,6 +36,11 @@ add_mfem_miniapp(test_det_canti_opt
      ${PARMTOP_COMMON_FILES}
      LIBRARIES mfem)
 
+add_mfem_miniapp(test_exp_canti_opt
+     MAIN test_exp_canti_opt.cpp
+     ${PARMTOP_COMMON_FILES}
+     LIBRARIES mfem)
+
 add_mfem_miniapp(test_filter
      MAIN test_filter.cpp
      ${PARMTOP_COMMON_FILES}
