@@ -3433,6 +3433,26 @@ public:
    static const IntegrationRule &GetRule(Geometry::Type geom, int order,
                                          const ElementTransformation &T);
 
+   /// arguments: nf, B, Bt, pa_data, x, y, dofs1D, quad1D
+   using ApplyKernelType = void (*)(const int, const Array<real_t> &,
+                                    const Array<real_t> &, const Vector &,
+                                    const Vector &, Vector &, const int,
+                                    const int);
+
+   /// arguments: DIM, d1d, q1d
+   MFEM_REGISTER_KERNELS(ApplyPAKernels, ApplyKernelType, (int, int, int));
+   /// arguments: DIM, d1d, q1d
+   MFEM_REGISTER_KERNELS(ApplyPATKernels, ApplyKernelType, (int, int, int));
+
+   template <int DIM, int D1D, int Q1D> static void AddSpecialization()
+   {
+      ApplyPAKernels::Specialization<DIM, D1D, Q1D>::Add();
+      ApplyPATKernels::Specialization<DIM, D1D, Q1D>::Add();
+   }
+
+   struct Kernels { Kernels(); };
+
+
 private:
    void SetupPA(const FiniteElementSpace &fes, FaceType type);
 };
