@@ -17,7 +17,7 @@
 #include "../ceed/integrators/diffusion/diffusion.hpp"
 #include "../gridfunc.hpp"
 #include "../qfunction.hpp"
-
+/// \cond DO_NOT_DOCUMENT
 namespace mfem
 {
 
@@ -351,5 +351,5 @@ VectorDiffusionIntegrator::ApplyPAKernels::Kernel()
 }
 
 } // namespace mfem
-
+/// \endcond DO_NOT_DOCUMENT
 #endif
