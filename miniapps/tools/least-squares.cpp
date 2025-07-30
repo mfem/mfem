@@ -11,9 +11,7 @@
 
 #include "mfem.hpp"
 
-using namespace mfem;
-
-namespace reconstruction
+namespace mfem::reconstruction
 {
 
 /// Enumerator for solver types
@@ -532,8 +530,9 @@ void L2Reconstruction(Solver& solver,
    }
 }
 
-} // end namespace reconstruction
+} // end namespace mfem::reconstruction
 
+using namespace mfem;
 using namespace reconstruction;
 
 int main(int argc, char* argv[])
@@ -666,7 +665,7 @@ int main(int argc, char* argv[])
                 << "Order source FES:        " << params.ord_src << "\n"
                 << "Order destination FES:   " << params.ord_dst << "\n\n"
                 << "Newton relative tol:     " << params.newton.rtol << "\n"
-                << "Newton absolute tol:     " << params.newton.atol << "\n"
+                // << "Newton absolute tol:     " << params.newton.atol << "\n"
                 << "Newton max. num. iter.:  " << params.newton.max_iter << "\n\n"
                 << std::endl;
    }
@@ -711,7 +710,6 @@ int main(int argc, char* argv[])
    u_smooth.GetElementAverages(u_src);
 
    // Solver choice
-   // TODO(Gabriel): MPI_Comm  constructor for MPI...
    // TODO(Gabriel): Support more PCs?
    /* Notes:
     * OperatorJacobiSmoother will call AssembleDiagonal on
@@ -719,28 +717,28 @@ int main(int argc, char* argv[])
     * later on. DenseMatrix does not have this method
     * implemented.
     */
-   Solver *solver = nullptr;
+   std::shared_ptr<Solver> solver(nullptr);
    switch (params.solver_type)
    {
       case bicgstab:
-         solver = new BiCGSTABSolver();
+         solver.reset(new BiCGSTABSolver(MPI_COMM_WORLD));
          break;
       case cg:
-         solver = new CGSolver();
+         solver.reset(new CGSolver(MPI_COMM_WORLD));
          break;
       case minres:
-         solver = new MINRESSolver();
+         solver.reset(new MINRESSolver(MPI_COMM_WORLD));
          break;
       case direct:
       default:
-         solver = new DenseMatrixInverse();
+         solver.reset(new DenseMatrixInverse());
    }
 
    // Solver setting
    solver->iterative_mode = false;
    if (params.solver_type != direct)
    {
-      auto it_solver = static_cast<IterativeSolver*>(solver);
+      auto it_solver = std::static_pointer_cast<IterativeSolver>(solver);
       auto isp = std::get<IterativeSolverParams>(params.solver);
       IterativeSolver::PrintLevel print_level;
       switch (isp.print_level)
@@ -768,51 +766,53 @@ int main(int argc, char* argv[])
    switch (params.rec)
    {
       case norm:
-         L2Reconstruction(*solver, u_src, u_dst, nc_mesh, params.newton);
+         L2Reconstruction(*solver.get(), u_src, u_dst, nc_mesh, params.newton);
       case average:
       default:
-         AverageReconstruction(*solver, u_src, u_dst, nc_mesh, params.newton,
+         AverageReconstruction(*solver.get(), u_src, u_dst, nc_mesh, params.newton,
                                params.reg);
    }
    u_dst.GetElementAverages(u_dst_avg);
 
    // Visualization
-   char vishost[] = "localhost";
-   socketstream glvis_smooth(vishost, params.vis.port);
-   socketstream glvis_src(vishost, params.vis.port);
-   socketstream glvis_dst_avg(vishost, params.vis.port);
-   socketstream glvis_dst(vishost, params.vis.port);
+   {
+      char vishost[] = "localhost";
+      socketstream glvis_smooth(vishost, params.vis.port);
+      socketstream glvis_src(vishost, params.vis.port);
+      socketstream glvis_dst_avg(vishost, params.vis.port);
+      socketstream glvis_dst(vishost, params.vis.port);
 
-   if (glvis_smooth && glvis_src && glvis_dst_avg && glvis_dst &&
-       params.vis.visualization)
-   {
-      //glvis_smooth.precision(8);
-      glvis_smooth << "parallel " << mesh.GetNRanks()
+      if (glvis_smooth && glvis_src && glvis_dst_avg && glvis_dst &&
+          params.vis.visualization)
+      {
+         //glvis_smooth.precision(8);
+         glvis_smooth << "parallel " << mesh.GetNRanks()
+                      << " " << mesh.GetMyRank() << "\n"
+                      << "solution\n" << mesh << u_smooth
+                      << "window_title 'original'\n" << std::flush;
+         MPI_Barrier(mesh.GetComm());
+         //glvis_src.precision(8);
+         glvis_src << "parallel " << mesh.GetNRanks()
                    << " " << mesh.GetMyRank() << "\n"
-                   << "solution\n" << mesh << u_smooth
-                   << "window_title 'original'\n" << std::flush;
-      MPI_Barrier(mesh.GetComm());
-      //glvis_src.precision(8);
-      glvis_src << "parallel " << mesh.GetNRanks()
-                << " " << mesh.GetMyRank() << "\n"
-                << "solution\n" << mesh << u_src
-                << "window_title 'averages'\n" << std::flush;
-      MPI_Barrier(mesh.GetComm());
-      //glvis_dst.precision(8);
-      glvis_dst << "parallel " << mesh.GetNRanks()
-                << " " << mesh.GetMyRank() << "\n"
-                << "solution\n" << mesh << u_dst
-                << "window_title 'reconstruction'\n" << std::flush;
-      MPI_Barrier(mesh.GetComm());
-      //glvis_dst.precision(8);
-      glvis_dst_avg << "parallel " << mesh.GetNRanks()
-                    << " " << mesh.GetMyRank() << "\n"
-                    << "solution\n" << mesh << u_dst_avg
-                    << "window_title 'rec average'\n" << std::flush;
-   }
-   else if (params.vis.visualization)
-   {
-      MFEM_WARNING("Cannot connect to glvis server, disabling visualization.")
+                   << "solution\n" << mesh << u_src
+                   << "window_title 'averages'\n" << std::flush;
+         MPI_Barrier(mesh.GetComm());
+         //glvis_dst.precision(8);
+         glvis_dst << "parallel " << mesh.GetNRanks()
+                   << " " << mesh.GetMyRank() << "\n"
+                   << "solution\n" << mesh << u_dst
+                   << "window_title 'reconstruction'\n" << std::flush;
+         MPI_Barrier(mesh.GetComm());
+         //glvis_dst.precision(8);
+         glvis_dst_avg << "parallel " << mesh.GetNRanks()
+                       << " " << mesh.GetMyRank() << "\n"
+                       << "solution\n" << mesh << u_dst_avg
+                       << "window_title 'rec average'\n" << std::flush;
+      }
+      else if (params.vis.visualization)
+      {
+         MFEM_WARNING("Cannot connect to glvis server, disabling visualization.")
+      }
    }
 
    // Error studies
@@ -850,8 +850,6 @@ int main(int argc, char* argv[])
            << "," << mesh.GetNE() << std::endl;
       file.close();
    }
-
-   if (solver) { delete solver; }
 
    Mpi::Finalize();
    return 0;
