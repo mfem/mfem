@@ -937,7 +937,8 @@ const Array<int>& Mesh::GetBdrElementAttributes() const
       bdr_attrs_cache.SetSize(nf_bdr);
       int f_ind = 0;
       int missing_bdr_elems = 0;
-      for (int f = 0; f < GetNumFaces(); ++f)
+      const int nf = GetNumFaces();
+      for (int f = 0; f < nf; ++f)
       {
          if (!GetFaceInformation(f).IsOfFaceType(FaceType::Boundary))
          {
