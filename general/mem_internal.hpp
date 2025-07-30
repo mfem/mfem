@@ -15,9 +15,7 @@
 #include "mem_manager.hpp"
 #include "forall.hpp"
 #include <unordered_map>
-
-#include <vector> //delme
-#include <forward_list> //delme
+#include <cstdint>
 
 // Uncomment to try _WIN32 platform
 //#define _WIN32
