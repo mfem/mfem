@@ -15,8 +15,45 @@
 #include "../qfunction.hpp"
 #include "../ceed/integrators/convection/convection.hpp"
 
+/// \cond DO_NOT_DOCUMENT
 namespace mfem
 {
+
+ConvectionIntegrator::ConvectionIntegrator(VectorCoefficient &q, real_t a)
+   : Q(&q), alpha(a)
+{
+   static Kernels kernels;
+}
+
+ConvectionIntegrator::Kernels::Kernels()
+{
+   // 2D
+   // Q = P + 1
+   ConvectionIntegrator::AddSpecialization<2, 2, 2>();
+   ConvectionIntegrator::AddSpecialization<2, 3, 3>();
+   ConvectionIntegrator::AddSpecialization<2, 4, 4>();
+   ConvectionIntegrator::AddSpecialization<2, 5, 5>();
+   ConvectionIntegrator::AddSpecialization<2, 6, 6>();
+   // Q = P + 2
+   ConvectionIntegrator::AddSpecialization<2, 2, 3>();
+   ConvectionIntegrator::AddSpecialization<2, 3, 4>();
+   ConvectionIntegrator::AddSpecialization<2, 4, 5>();
+   ConvectionIntegrator::AddSpecialization<2, 5, 6>();
+   ConvectionIntegrator::AddSpecialization<2, 6, 7>();
+   // 3D
+   // Q = P + 1
+   ConvectionIntegrator::AddSpecialization<3, 2, 2>();
+   ConvectionIntegrator::AddSpecialization<3, 3, 3>();
+   ConvectionIntegrator::AddSpecialization<3, 4, 4>();
+   ConvectionIntegrator::AddSpecialization<3, 5, 5>();
+   ConvectionIntegrator::AddSpecialization<3, 6, 6>();
+   // Q = P + 2
+   ConvectionIntegrator::AddSpecialization<3, 2, 3>();
+   ConvectionIntegrator::AddSpecialization<3, 3, 4>();
+   ConvectionIntegrator::AddSpecialization<3, 4, 5>();
+   ConvectionIntegrator::AddSpecialization<3, 5, 6>();
+   ConvectionIntegrator::AddSpecialization<3, 6, 7>();
+}
 
 // PA Convection Assemble 2D kernel
 static void PAConvectionSetup2D(const int NQ,
@@ -1427,108 +1464,83 @@ void SmemPAConvectionApplyT3D(const int ne,
    });
 }
 
-static void PAConvectionApply(const int dim,
-                              const int D1D,
-                              const int Q1D,
-                              const int NE,
-                              const Array<real_t> &B,
-                              const Array<real_t> &G,
-                              const Array<real_t> &Bt,
-                              const Array<real_t> &Gt,
-                              const Vector &op,
-                              const Vector &x,
-                              Vector &y)
+namespace
 {
-   if (dim == 2)
-   {
-      switch ((D1D << 4 ) | Q1D)
-      {
-         case 0x22: return SmemPAConvectionApply2D<2,2,8>(NE,B,G,Bt,Gt,op,x,y);
-         case 0x33: return SmemPAConvectionApply2D<3,3,4>(NE,B,G,Bt,Gt,op,x,y);
-         case 0x34: return SmemPAConvectionApply2D<3,4,4>(NE,B,G,Bt,Gt,op,x,y);
-         case 0x44: return SmemPAConvectionApply2D<4,4,4>(NE,B,G,Bt,Gt,op,x,y);
-         case 0x46: return SmemPAConvectionApply2D<4,6,4>(NE,B,G,Bt,Gt,op,x,y);
-         case 0x55: return SmemPAConvectionApply2D<5,5,2>(NE,B,G,Bt,Gt,op,x,y);
-         case 0x58: return SmemPAConvectionApply2D<5,8,2>(NE,B,G,Bt,Gt,op,x,y);
-         case 0x66: return SmemPAConvectionApply2D<6,6,1>(NE,B,G,Bt,Gt,op,x,y);
-         case 0x77: return SmemPAConvectionApply2D<7,7,1>(NE,B,G,Bt,Gt,op,x,y);
-         case 0x88: return SmemPAConvectionApply2D<8,8,1>(NE,B,G,Bt,Gt,op,x,y);
-         case 0x99: return SmemPAConvectionApply2D<9,9,1>(NE,B,G,Bt,Gt,op,x,y);
-         default:   return PAConvectionApply2D(NE,B,G,Bt,Gt,op,x,y,D1D,Q1D);
-      }
-   }
-   else if (dim == 3)
-   {
-      switch ((D1D << 4 ) | Q1D)
-      {
-         case 0x22: return SmemPAConvectionApply3D<2,2>(NE,B,G,Bt,Gt,op,x,y);
-         case 0x23: return SmemPAConvectionApply3D<2,3>(NE,B,G,Bt,Gt,op,x,y);
-         case 0x24: return SmemPAConvectionApply3D<2,4>(NE,B,G,Bt,Gt,op,x,y);
-         case 0x26: return SmemPAConvectionApply3D<2,6>(NE,B,G,Bt,Gt,op,x,y);
-         case 0x34: return SmemPAConvectionApply3D<3,4>(NE,B,G,Bt,Gt,op,x,y);
-         case 0x35: return SmemPAConvectionApply3D<3,5>(NE,B,G,Bt,Gt,op,x,y);
-         case 0x45: return SmemPAConvectionApply3D<4,5>(NE,B,G,Bt,Gt,op,x,y);
-         case 0x48: return SmemPAConvectionApply3D<4,8>(NE,B,G,Bt,Gt,op,x,y);
-         case 0x56: return SmemPAConvectionApply3D<5,6>(NE,B,G,Bt,Gt,op,x,y);
-         case 0x67: return SmemPAConvectionApply3D<6,7>(NE,B,G,Bt,Gt,op,x,y);
-         case 0x78: return SmemPAConvectionApply3D<7,8>(NE,B,G,Bt,Gt,op,x,y);
-         case 0x89: return SmemPAConvectionApply3D<8,9>(NE,B,G,Bt,Gt,op,x,y);
-         default:   return PAConvectionApply3D(NE,B,G,Bt,Gt,op,x,y,D1D,Q1D);
-      }
-   }
-   MFEM_ABORT("Unknown kernel.");
+using ApplyKernelType = ConvectionIntegrator::ApplyKernelType;
 }
 
-static void PAConvectionApplyT(const int dim,
-                               const int D1D,
-                               const int Q1D,
-                               const int NE,
-                               const Array<real_t> &B,
-                               const Array<real_t> &G,
-                               const Array<real_t> &Bt,
-                               const Array<real_t> &Gt,
-                               const Vector &op,
-                               const Vector &x,
-                               Vector &y)
+namespace convection
 {
-   if (dim == 2)
+constexpr int ipow(int x, int p) { return p == 0 ? 1 : x*ipow(x, p-1); }
+constexpr int D(int D1D) { return (11 - D1D) / 2; }
+constexpr int NBZ(int D1D)
+{
+   return ipow(2, D(D1D) >= 0 ? D(D1D) : 0);
+}
+}
+
+template<int DIM, int T_D1D, int T_Q1D>
+ApplyKernelType ConvectionIntegrator::ApplyPAKernels::Kernel()
+{
+   if constexpr (DIM == 2)
    {
-      switch ((D1D << 4 ) | Q1D)
-      {
-         case 0x22: return SmemPAConvectionApplyT2D<2,2,8>(NE,B,G,Bt,Gt,op,x,y);
-         case 0x33: return SmemPAConvectionApplyT2D<3,3,4>(NE,B,G,Bt,Gt,op,x,y);
-         case 0x34: return SmemPAConvectionApplyT2D<3,4,4>(NE,B,G,Bt,Gt,op,x,y);
-         case 0x44: return SmemPAConvectionApplyT2D<4,4,4>(NE,B,G,Bt,Gt,op,x,y);
-         case 0x46: return SmemPAConvectionApplyT2D<4,6,4>(NE,B,G,Bt,Gt,op,x,y);
-         case 0x55: return SmemPAConvectionApplyT2D<5,5,2>(NE,B,G,Bt,Gt,op,x,y);
-         case 0x58: return SmemPAConvectionApplyT2D<5,8,2>(NE,B,G,Bt,Gt,op,x,y);
-         case 0x66: return SmemPAConvectionApplyT2D<6,6,1>(NE,B,G,Bt,Gt,op,x,y);
-         case 0x77: return SmemPAConvectionApplyT2D<7,7,1>(NE,B,G,Bt,Gt,op,x,y);
-         case 0x88: return SmemPAConvectionApplyT2D<8,8,1>(NE,B,G,Bt,Gt,op,x,y);
-         case 0x99: return SmemPAConvectionApplyT2D<9,9,1>(NE,B,G,Bt,Gt,op,x,y);
-         default:   return PAConvectionApplyT2D(NE,B,G,Bt,Gt,op,x,y,D1D,Q1D);
-      }
+      constexpr int T_NBZ = convection::NBZ(T_D1D);
+      return SmemPAConvectionApply2D<T_D1D, T_Q1D, T_NBZ>;
    }
-   else if (dim == 3)
+   else if constexpr (DIM == 3)
    {
-      switch ((D1D << 4 ) | Q1D)
-      {
-         case 0x22: return SmemPAConvectionApplyT3D<2,2>(NE,B,G,Bt,Gt,op,x,y);
-         case 0x23: return SmemPAConvectionApplyT3D<2,3>(NE,B,G,Bt,Gt,op,x,y);
-         case 0x24: return SmemPAConvectionApplyT3D<2,4>(NE,B,G,Bt,Gt,op,x,y);
-         case 0x26: return SmemPAConvectionApplyT3D<2,6>(NE,B,G,Bt,Gt,op,x,y);
-         case 0x34: return SmemPAConvectionApplyT3D<3,4>(NE,B,G,Bt,Gt,op,x,y);
-         case 0x35: return SmemPAConvectionApplyT3D<3,5>(NE,B,G,Bt,Gt,op,x,y);
-         case 0x45: return SmemPAConvectionApplyT3D<4,5>(NE,B,G,Bt,Gt,op,x,y);
-         case 0x48: return SmemPAConvectionApplyT3D<4,8>(NE,B,G,Bt,Gt,op,x,y);
-         case 0x56: return SmemPAConvectionApplyT3D<5,6>(NE,B,G,Bt,Gt,op,x,y);
-         case 0x67: return SmemPAConvectionApplyT3D<6,7>(NE,B,G,Bt,Gt,op,x,y);
-         case 0x78: return SmemPAConvectionApplyT3D<7,8>(NE,B,G,Bt,Gt,op,x,y);
-         case 0x89: return SmemPAConvectionApplyT3D<8,9>(NE,B,G,Bt,Gt,op,x,y);
-         default:   return PAConvectionApplyT3D(NE,B,G,Bt,Gt,op,x,y,D1D,Q1D);
-      }
+      return SmemPAConvectionApply3D<T_D1D, T_Q1D>;
    }
-   MFEM_ABORT("Unknown kernel.");
+   MFEM_ABORT("");
+}
+
+inline ApplyKernelType
+ConvectionIntegrator::ApplyPAKernels::Fallback(int DIM, int, int)
+{
+   if (DIM == 2)
+   {
+      return PAConvectionApply2D;
+   }
+   else if (DIM == 3)
+   {
+      return PAConvectionApply3D;
+   }
+   else
+   {
+      MFEM_ABORT("");
+   }
+}
+
+template<int DIM, int T_D1D, int T_Q1D>
+ApplyKernelType ConvectionIntegrator::ApplyPATKernels::Kernel()
+{
+   if constexpr (DIM == 2)
+   {
+      constexpr int T_NBZ = convection::NBZ(T_D1D);
+      return SmemPAConvectionApplyT2D<T_D1D, T_Q1D, T_NBZ>;
+   }
+   else if constexpr (DIM == 3)
+   {
+      return SmemPAConvectionApplyT3D<T_D1D, T_Q1D>;
+   }
+   MFEM_ABORT("");
+}
+
+inline ApplyKernelType
+ConvectionIntegrator::ApplyPATKernels::Fallback(int DIM, int, int)
+{
+   if (DIM == 2)
+   {
+      return PAConvectionApplyT2D;
+   }
+   else if (DIM == 3)
+   {
+      return PAConvectionApplyT3D;
+   }
+   else
+   {
+      MFEM_ABORT("");
+   }
 }
 
 void ConvectionIntegrator::AddMultPA(const Vector &x, Vector &y) const
@@ -1539,9 +1551,8 @@ void ConvectionIntegrator::AddMultPA(const Vector &x, Vector &y) const
    }
    else
    {
-      PAConvectionApply(dim, dofs1D, quad1D, ne,
-                        maps->B, maps->G, maps->Bt, maps->Gt,
-                        pa_data, x, y);
+      ApplyPAKernels::Run(dim, dofs1D, quad1D, ne, maps->B, maps->G, maps->Bt,
+                          maps->Gt, pa_data, x, y, dofs1D, quad1D);
    }
 }
 
@@ -1554,10 +1565,10 @@ void ConvectionIntegrator::AddMultTransposePA(const Vector &x, Vector &y) const
    }
    else
    {
-      PAConvectionApplyT(dim, dofs1D, quad1D, ne,
-                         maps->B, maps->G, maps->Bt, maps->Gt,
-                         pa_data, x, y);
+      ApplyPATKernels::Run(dim, dofs1D, quad1D, ne, maps->B, maps->G, maps->Bt,
+                           maps->Gt, pa_data, x, y, dofs1D, quad1D);
    }
 }
 
 } // namespace mfem
+/// \endcond DO_NOT_DOCUMENT

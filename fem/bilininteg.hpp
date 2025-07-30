@@ -2494,8 +2494,7 @@ private:
 #endif
 
 public:
-   ConvectionIntegrator(VectorCoefficient &q, real_t a = 1.0)
-      : Q(&q) { alpha = a; }
+   ConvectionIntegrator(VectorCoefficient &q, real_t a = 1.0);
 
    void AssembleElementMatrix(const FiniteElement &,
                               ElementTransformation &,
@@ -2527,6 +2526,28 @@ public:
                                          const ElementTransformation &Trans);
 
    bool SupportsCeed() const override { return DeviceCanUseCeed(); }
+
+   /// arguments: NE, B, G, Bt, Gt, pa_data, x, y, D1D, Q1D
+   using ApplyKernelType = void (*)(const int, const Array<real_t> &,
+                                    const Array<real_t> &,
+                                    const Array<real_t> &,
+                                    const Array<real_t> &, const Vector &,
+                                    const Vector &, Vector &, const int,
+                                    const int);
+
+   /// arguments: DIMS, D1D, Q1D
+   MFEM_REGISTER_KERNELS(ApplyPAKernels, ApplyKernelType, (int, int, int));
+   /// arguments: DIMS, D1D, Q1D
+   MFEM_REGISTER_KERNELS(ApplyPATKernels, ApplyKernelType, (int, int, int));
+
+   template <int DIM, int D1D, int Q1D>
+   static void AddSpecialization()
+   {
+      ApplyPAKernels::Specialization<DIM, D1D, Q1D>::Add();
+      ApplyPATKernels::Specialization<DIM, D1D, Q1D>::Add();
+   }
+
+   struct Kernels { Kernels(); };
 
 protected:
    const IntegrationRule* GetDefaultIntegrationRule(
