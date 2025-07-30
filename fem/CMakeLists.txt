@@ -172,6 +172,7 @@ set(HDRS
   bilinearform_ext.hpp
   bilininteg.hpp
   integ/lininteg_domain_kernels.hpp
+  integ/bilininteg_dgdiffusion_kernels.hpp
   integ/bilininteg_dgtrace_kernels.hpp
   integ/bilininteg_vecdiffusion_kernels.hpp
   integ/bilininteg_convection_kernels.hpp
