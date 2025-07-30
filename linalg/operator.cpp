@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -555,7 +555,7 @@ void ConstrainedOperator::AssembleDiagonal(Vector &diag) const
 
 void ConstrainedOperator::EliminateRHS(const Vector &x, Vector &b) const
 {
-   Vector w(height, Device::GetDeviceTemporaryMemoryType());
+   Vector w = Vector::NewTemporary(height);
    w = 0.0;
    const int csz = constraint_list.Size();
    auto idx = constraint_list.Read();
@@ -569,7 +569,7 @@ void ConstrainedOperator::EliminateRHS(const Vector &x, Vector &b) const
    });
 
    // A.AddMult(w, b, -1.0); // if available to all Operators
-   Vector z(height, Device::GetDeviceTemporaryMemoryType());
+   Vector z = Vector::NewTemporary(height);
    A->Mult(w, z);
    b -= z;
 
@@ -599,7 +599,7 @@ void ConstrainedOperator::ConstrainedMult(const Vector &x, Vector &y,
       return;
    }
 
-   Vector z(height, Device::GetDeviceTemporaryMemoryType());
+   Vector z = Vector::NewTemporary(height);
    z = x;
 
    auto idx = constraint_list.Read();
@@ -645,10 +645,79 @@ void ConstrainedOperator::ConstrainedMult(const Vector &x, Vector &y,
    }
 }
 
+void ConstrainedOperator::ConstrainedAbsMult(const Vector &x, Vector &y,
+                                             const bool transpose) const
+{
+   const int csz = constraint_list.Size();
+   if (csz == 0)
+   {
+      if (transpose)
+      {
+         A->AbsMultTranspose(x, y);
+      }
+      else
+      {
+         A->AbsMult(x, y);
+      }
+      return;
+   }
+
+   Vector z = Vector::NewTemporary(height);
+   z = x;
+
+   auto idx = constraint_list.Read();
+   // Use read+write access - we are modifying sub-vector of z
+   auto d_z = z.ReadWrite();
+   mfem::forall(csz, [=] MFEM_HOST_DEVICE (int i) { d_z[idx[i]] = 0.0; });
+
+   if (transpose)
+   {
+      A->AbsMultTranspose(z, y);
+   }
+   else
+   {
+      A->AbsMult(z, y);
+   }
+
+   auto d_x = x.Read();
+   // Use read+write access - we are modifying sub-vector of y
+   auto d_y = y.ReadWrite();
+   switch (diag_policy)
+   {
+      case DIAG_ONE:
+         mfem::forall(csz, [=] MFEM_HOST_DEVICE (int i)
+         {
+            const int id = idx[i];
+            d_y[id] = d_x[id];
+         });
+         break;
+      case DIAG_ZERO:
+         mfem::forall(csz, [=] MFEM_HOST_DEVICE (int i)
+         {
+            const int id = idx[i];
+            d_y[id] = 0.0;
+         });
+         break;
+      case DIAG_KEEP:
+         // Needs action of the operator diagonal on vector
+         mfem_error("ConstrainedOperator::AbsMult #1");
+         break;
+      default:
+         mfem_error("ConstrainedOperator::AbsMult #2");
+         break;
+   }
+}
+
 void ConstrainedOperator::Mult(const Vector &x, Vector &y) const
 {
    constexpr bool transpose = false;
    ConstrainedMult(x, y, transpose);
+}
+
+void ConstrainedOperator::AbsMult(const Vector &x, Vector &y) const
+{
+   constexpr bool transpose = false;
+   ConstrainedAbsMult(x, y, transpose);
 }
 
 void ConstrainedOperator::MultTranspose(const Vector &x, Vector &y) const
@@ -657,10 +726,16 @@ void ConstrainedOperator::MultTranspose(const Vector &x, Vector &y) const
    ConstrainedMult(x, y, transpose);
 }
 
+void ConstrainedOperator::AbsMultTranspose(const Vector &x, Vector &y) const
+{
+   constexpr bool transpose = true;
+   ConstrainedAbsMult(x, y, transpose);
+}
+
 void ConstrainedOperator::AddMult(const Vector &x, Vector &y,
                                   const real_t a) const
 {
-   Vector w(Height(), Device::GetDeviceTemporaryMemoryType());
+   Vector w = Vector::NewTemporary(Height());
    Mult(x, w);
    y.Add(a, w);
 }
@@ -780,7 +855,8 @@ void RectangularConstrainedOperator::MultTranspose(const Vector &x,
 }
 
 real_t PowerMethod::EstimateLargestEigenvalue(Operator& opr, Vector& v0,
-                                              int numSteps, real_t tolerance, int seed)
+                                              int numSteps, real_t tolerance,
+                                              int seed)
 {
    v1.SetSize(v0.Size());
    if (seed != 0)

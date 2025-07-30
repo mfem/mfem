@@ -164,6 +164,9 @@ extern uintptr_t pagemask;
 /// MMU initialization, setting SIGBUS & SIGSEGV signals to MmuError
 extern void MmuInit();
 
+static struct sigaction old_segv_action;
+static struct sigaction old_bus_action;
+
 /// Returns the restricted base address of the DEBUG segment
 inline const void *MmuAddrR(const void *ptr)
 {
@@ -209,7 +212,6 @@ inline uintptr_t MmuLengthP(const void *ptr, const size_t bytes)
    return length;
 }
 
-/// MMU allocation, through ::mmap
 inline void MmuAlloc(void **ptr, const size_t bytes)
 {
    const size_t length = bytes == 0 ? 8 : bytes;
@@ -281,9 +283,26 @@ class UvmHostMemorySpace : public HostMemorySpace
 {
 public:
    UvmHostMemorySpace(): HostMemorySpace() { }
+
    void Alloc(void **ptr, size_t bytes) override
-   { CuMallocManaged(ptr, bytes == 0 ? 8 : bytes); }
-   void Dealloc(Memory &mem) override { CuMemFree(mem.h_ptr); }
+   {
+#ifdef MFEM_USE_CUDA
+      CuMallocManaged(ptr, bytes == 0 ? 8 : bytes);
+#endif
+#ifdef MFEM_USE_HIP
+      HipMallocManaged(ptr, bytes == 0 ? 8 : bytes);
+#endif
+   }
+
+   void Dealloc(Memory &mem) override
+   {
+#ifdef MFEM_USE_CUDA
+      CuMemFree(mem.h_ptr);
+#endif
+#ifdef MFEM_USE_HIP
+      HipMemFree(mem.h_ptr);
+#endif
+   }
 };
 
 /// The 'No' device memory space
@@ -292,12 +311,9 @@ class NoDeviceMemorySpace: public DeviceMemorySpace
 public:
    void Alloc(internal::Memory&) override { mfem_error("! Device Alloc"); }
    void Dealloc(Memory&) override { mfem_error("! Device Dealloc"); }
-   void *HtoD(void*, const void*, size_t) override
-   { mfem_error("!HtoD"); return nullptr; }
-   void *DtoD(void*, const void*, size_t) override
-   { mfem_error("!DtoD"); return nullptr; }
-   void *DtoH(void*, const void*, size_t) override
-   { mfem_error("!DtoH"); return nullptr; }
+   void *HtoD(void*, const void*, size_t) override { mfem_error("!HtoD"); return nullptr; }
+   void *DtoD(void*, const void*, size_t) override { mfem_error("!DtoD"); return nullptr; }
+   void *DtoH(void*, const void*, size_t) override { mfem_error("!DtoH"); return nullptr; }
 };
 
 /// The std:: device memory space, used with the 'debug' device
@@ -378,6 +394,25 @@ public:
    {
       if (dst == src) { MFEM_STREAM_SYNC; return dst; }
       return CuMemcpyDtoH(dst, src, bytes);
+   }
+};
+
+class UvmHipMemorySpace : public DeviceMemorySpace
+{
+public:
+   void Alloc(Memory &base) { base.d_ptr = base.h_ptr; }
+   void Dealloc(Memory&) { }
+   void *HtoD(void *dst, const void *src, size_t bytes)
+   {
+      if (dst == src) { MFEM_STREAM_SYNC; return dst; }
+      return HipMemcpyHtoD(dst, src, bytes);
+   }
+   void *DtoD(void* dst, const void* src, size_t bytes)
+   { return HipMemcpyDtoD(dst, src, bytes); }
+   void *DtoH(void *dst, const void *src, size_t bytes)
+   {
+      if (dst == src) { MFEM_STREAM_SYNC; return dst; }
+      return HipMemcpyDtoH(dst, src, bytes);
    }
 };
 

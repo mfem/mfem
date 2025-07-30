@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -26,8 +26,9 @@ MFEM_LIB_FILE = mfem_is_not_built
 
 SEQ_MINIAPPS = mobius-strip klein-bottle toroid trimmer twist mesh-explorer\
 	shaper extruder mesh-optimizer minimal-surface polar-nc reflector\
-	mesh-quality
-PAR_MINIAPPS = pmesh-optimizer pminimal-surface pmesh-fitting fit-node-position
+	ref321 mesh-quality hpref
+PAR_MINIAPPS = pmesh-optimizer pminimal-surface pmesh-fitting fit-node-position\
+	phpref mesh-bounding-boxes
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
 else
@@ -62,7 +63,7 @@ lib-common:
 # building out-of-source:
 ifneq ($(SRC),)
 MESH_FILES = amr-quad-q2.mesh blade.mesh cube.mesh cube-tet.mesh icf.mesh\
-jagged.mesh square01.mesh square01-tri.mesh stretched2D.mesh 
+jagged.mesh square01.mesh square01-tri.mesh stretched2D.mesh
 $(MESH_FILES): %: $(SRC)%
 	ln -sf $(<) .
 mesh-optimizer pmesh-optimizer pmesh-fitting fit-node-position: | $(MESH_FILES)
@@ -99,6 +100,14 @@ pminimal-surface-test-par: pminimal-surface
 	@$(call mfem-test,$<, $(RUN_MPI), Parallel meshing miniapp)
 reflector-test-seq: reflector
 	@$(call mfem-test-file,$<,, Meshing miniapp,reflected.mesh)
+hpref-test-seq: hpref
+	@$(call mfem-test,$<,, Serial hp-refinement)
+phpref-test-par: phpref
+	@$(call mfem-test,$<, $(RUN_MPI), Parallel hp-refinement)
+mesh-bounding-boxes-test-par: mesh-bounding-boxes
+	@$(call mfem-test,$<, $(RUN_MPI), Parallel bounding boxes)
+ref321-test-seq: ref321
+	@$(call mfem-test-file,$<,, Meshing miniapp,ref321.mesh)
 
 # Testing: Specific execution options
 mesh-explorer-test-seq:
@@ -115,15 +124,14 @@ $(MFEM_LIB_FILE):
 clean: clean-build clean-exec
 
 clean-build:
-	rm -f *.o *~ mobius-strip klein-bottle toroid twist
-	rm -f mesh-explorer shaper extruder trimmer reflector
-	rm -f mesh-optimizer pmesh-optimizer pmesh-fitting polar-nc
-	rm -f minimal-surface pminimal-surface mesh-quality fit-node-position
+	rm -f *.o *~ $(SEQ_MINIAPPS) $(PAR_MINIAPPS)
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:
 	@rm -f mobius-strip.mesh klein-bottle.mesh mesh-explorer.mesh*
 	@rm -f toroid-*.mesh twist-*.mesh trimmer.mesh reflected.mesh
-	@rm -f partitioning.txt shaper.mesh extruder.mesh
+	@rm -f partitioning.txt shaper.mesh extruder.mesh ref321.mesh sol.gf
 	@rm -f optimized* perturbed* polar-nc.mesh
 	@rm -rf mesh-explorer-{visit,paraview}*
+	@rm -f mesh.* order.* sol.* refined.mesh
+	@rm -rf jacobian-determinant-bounds* bounding-box*

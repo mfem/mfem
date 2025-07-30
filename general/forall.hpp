@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -159,7 +159,11 @@ private:
 
 // MFEM_UNROLL pragma macro that can be used inside MFEM_FORALL macros.
 #if defined(MFEM_USE_CUDA) && defined(__CUDA_ARCH__)
+#ifdef __NVCC__
 #define MFEM_UNROLL(N) MFEM_PRAGMA(unroll(N))
+#else // Assuming Clang CUDA
+#define MFEM_UNROLL(N) MFEM_PRAGMA(unroll N)
+#endif
 #else
 #define MFEM_UNROLL(N)
 #endif
@@ -253,7 +257,6 @@ template <typename DBODY>
 void RajaCuWrap2D(const int N, DBODY &&d_body,
                   const int X, const int Y, const int BZ)
 {
-   MFEM_VERIFY(N>0, "");
    MFEM_VERIFY(BZ>0, "");
    const int G = (N+BZ-1)/BZ;
 
@@ -288,7 +291,6 @@ template <typename DBODY>
 void RajaCuWrap3D(const int N, DBODY &&d_body,
                   const int X, const int Y, const int Z, const int G)
 {
-   MFEM_VERIFY(N>0, "");
    const int GRID = G == 0 ? N : G;
    using namespace RAJA;
    using RAJA::RangeSegment;
@@ -355,7 +357,6 @@ template <typename DBODY>
 void RajaHipWrap2D(const int N, DBODY &&d_body,
                    const int X, const int Y, const int BZ)
 {
-   MFEM_VERIFY(N>0, "");
    MFEM_VERIFY(BZ>0, "");
    const int G = (N+BZ-1)/BZ;
 
@@ -390,7 +391,6 @@ template <typename DBODY>
 void RajaHipWrap3D(const int N, DBODY &&d_body,
                    const int X, const int Y, const int Z, const int G)
 {
-   MFEM_VERIFY(N>0, "");
    const int GRID = G == 0 ? N : G;
    using namespace RAJA;
    using RAJA::RangeSegment;
@@ -606,7 +606,7 @@ void HipWrap1D(const int N, DBODY &&d_body)
 {
    if (N==0) { return; }
    const int GRID = (N+BLCK-1)/BLCK;
-   hipLaunchKernelGGL(HipKernel1D,GRID,BLCK,0,0,N,d_body);
+   hipLaunchKernelGGL(HipKernel1D,GRID,BLCK,0,nullptr,N,d_body);
    MFEM_GPU_CHECK(hipGetLastError());
 }
 
@@ -617,7 +617,7 @@ void HipWrap2D(const int N, DBODY &&d_body,
    if (N==0) { return; }
    const int GRID = (N+BZ-1)/BZ;
    const dim3 BLCK(X,Y,BZ);
-   hipLaunchKernelGGL(HipKernel2D,GRID,BLCK,0,0,N,d_body);
+   hipLaunchKernelGGL(HipKernel2D,GRID,BLCK,0,nullptr,N,d_body);
    MFEM_GPU_CHECK(hipGetLastError());
 }
 
@@ -628,7 +628,7 @@ void HipWrap3D(const int N, DBODY &&d_body,
    if (N==0) { return; }
    const int GRID = G == 0 ? N : G;
    const dim3 BLCK(X,Y,Z);
-   hipLaunchKernelGGL(HipKernel3D,GRID,BLCK,0,0,N,d_body);
+   hipLaunchKernelGGL(HipKernel3D,GRID,BLCK,0,nullptr,N,d_body);
    MFEM_GPU_CHECK(hipGetLastError());
 }
 
@@ -836,6 +836,16 @@ inline void hypre_forall(int N, lambda &&body)
       hypre_forall_gpu(N, body);
    }
 #endif
+}
+
+// Return the most general MemoryClass that can be used with mfem::hypre_forall
+// kernels. The returned MemoryClass is the same as the one returned by
+// GerHypreMemoryClass() except when hypre is configured to use UVM, in which
+// case this function returns MemoryClass::HOST or MemoryClass::DEVICE depending
+// on the result of HypreUsingGPU().
+inline MemoryClass GetHypreForallMemoryClass()
+{
+   return HypreUsingGPU() ? MemoryClass::DEVICE : MemoryClass::HOST;
 }
 
 #endif // MFEM_USE_MPI

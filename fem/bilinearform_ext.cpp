@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -16,6 +16,7 @@
 #include "bilinearform.hpp"
 #include "pbilinearform.hpp"
 #include "pgridfunc.hpp"
+#include "fe/face_map_utils.hpp"
 #include "ceed/interface/util.hpp"
 
 namespace mfem
@@ -68,8 +69,8 @@ void MFBilinearFormExtension::AssembleDiagonal(Vector &y) const
    const int iSz = integrators.Size();
    if (elem_restrict && !DeviceCanUseCeed())
    {
-      Vector localX(elem_restrict->Height(), Device::GetDeviceTemporaryMemoryType());
-      Vector localY(elem_restrict->Height(), Device::GetDeviceTemporaryMemoryType());
+      Vector localX = Vector::NewTemporary(elem_restrict->Height());
+      Vector localY = Vector::NewTemporary(elem_restrict->Height());
 
       localY = 0.0;
       for (int i = 0; i < iSz; ++i)
@@ -80,7 +81,7 @@ void MFBilinearFormExtension::AssembleDiagonal(Vector &y) const
          dynamic_cast<const ElementRestriction*>(elem_restrict);
       if (H1elem_restrict)
       {
-         H1elem_restrict->MultTransposeUnsigned(localY, y);
+         H1elem_restrict->AbsMultTranspose(localY, y);
       }
       else
       {
@@ -145,8 +146,8 @@ void MFBilinearFormExtension::Mult(const Vector &x, Vector &y) const
    }
    else
    {
-      Vector localX(elem_restrict->Height(), Device::GetDeviceTemporaryMemoryType());
-      Vector localY(elem_restrict->Height(), Device::GetDeviceTemporaryMemoryType());
+      Vector localX = Vector::NewTemporary(elem_restrict->Height());
+      Vector localY = Vector::NewTemporary(elem_restrict->Height());
 
       elem_restrict->Mult(x, localX);
       localY = 0.0;
@@ -161,10 +162,8 @@ void MFBilinearFormExtension::Mult(const Vector &x, Vector &y) const
    const int iFISz = intFaceIntegrators.Size();
    if (int_face_restrict_lex && iFISz>0)
    {
-      Vector int_face_X(int_face_restrict_lex->Height(),
-                        Device::GetDeviceTemporaryMemoryType());
-      Vector int_face_Y(int_face_restrict_lex->Height(),
-                        Device::GetDeviceTemporaryMemoryType());
+      Vector int_face_X = Vector::NewTemporary(int_face_restrict_lex->Height());
+      Vector int_face_Y = Vector::NewTemporary(int_face_restrict_lex->Height());
 
       int_face_restrict_lex->Mult(x, int_face_X);
       if (int_face_X.Size()>0)
@@ -182,10 +181,8 @@ void MFBilinearFormExtension::Mult(const Vector &x, Vector &y) const
    const int bFISz = bdrFaceIntegrators.Size();
    if (bdr_face_restrict_lex && bFISz>0)
    {
-      Vector bdr_face_X(bdr_face_restrict_lex->Height(),
-                        Device::GetDeviceTemporaryMemoryType());
-      Vector bdr_face_Y(bdr_face_restrict_lex->Height(),
-                        Device::GetDeviceTemporaryMemoryType());
+      Vector bdr_face_X = Vector::NewTemporary(bdr_face_restrict_lex->Height());
+      Vector bdr_face_Y = Vector::NewTemporary(bdr_face_restrict_lex->Height());
 
       bdr_face_restrict_lex->Mult(x, bdr_face_X);
       if (bdr_face_X.Size()>0)
@@ -206,8 +203,8 @@ void MFBilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
    const int iSz = integrators.Size();
    if (elem_restrict)
    {
-      Vector localX(elem_restrict->Height(), Device::GetDeviceTemporaryMemoryType());
-      Vector localY(elem_restrict->Height(), Device::GetDeviceTemporaryMemoryType());
+      Vector localX = Vector::NewTemporary(elem_restrict->Height());
+      Vector localY = Vector::NewTemporary(elem_restrict->Height());
 
       elem_restrict->Mult(x, localX);
       localY = 0.0;
@@ -231,10 +228,8 @@ void MFBilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
    const int iFISz = intFaceIntegrators.Size();
    if (int_face_restrict_lex && iFISz>0)
    {
-      Vector int_face_X(int_face_restrict_lex->Height(),
-                        Device::GetDeviceTemporaryMemoryType());
-      Vector int_face_Y(int_face_restrict_lex->Height(),
-                        Device::GetDeviceTemporaryMemoryType());
+      Vector int_face_X = Vector::NewTemporary(int_face_restrict_lex->Height());
+      Vector int_face_Y = Vector::NewTemporary(int_face_restrict_lex->Height());
 
       int_face_restrict_lex->Mult(x, int_face_X);
       if (int_face_X.Size()>0)
@@ -252,10 +247,8 @@ void MFBilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
    const int bFISz = bdrFaceIntegrators.Size();
    if (bdr_face_restrict_lex && bFISz>0)
    {
-      Vector bdr_face_X(bdr_face_restrict_lex->Height(),
-                        Device::GetDeviceTemporaryMemoryType());
-      Vector bdr_face_Y(bdr_face_restrict_lex->Height(),
-                        Device::GetDeviceTemporaryMemoryType());
+      Vector bdr_face_X = Vector::NewTemporary(bdr_face_restrict_lex->Height());
+      Vector bdr_face_Y = Vector::NewTemporary(bdr_face_restrict_lex->Height());
 
       bdr_face_restrict_lex->Mult(x, bdr_face_X);
       if (bdr_face_X.Size()>0)
@@ -446,7 +439,7 @@ void PABilinearFormExtension::AssembleDiagonal(Vector &y) const
    const int iSz = integrators.Size();
    if (elem_restrict && !DeviceCanUseCeed())
    {
-      Vector localY(elem_restrict->Height(), Device::GetDeviceTemporaryMemoryType());
+      Vector localY = Vector::NewTemporary(elem_restrict->Height());
       if (iSz > 0)
       {
          localY = 0.0;
@@ -460,7 +453,7 @@ void PABilinearFormExtension::AssembleDiagonal(Vector &y) const
             dynamic_cast<const ElementRestriction*>(elem_restrict);
          if (H1elem_restrict)
          {
-            H1elem_restrict->MultTransposeUnsigned(localY, y);
+            H1elem_restrict->AbsMultTranspose(localY, y);
          }
          else
          {
@@ -488,8 +481,7 @@ void PABilinearFormExtension::AssembleDiagonal(Vector &y) const
    const int n_bdr_integs = bdr_integs.Size();
    if (bdr_face_restrict_lex && n_bdr_integs > 0)
    {
-      Vector bdr_face_Y(bdr_face_restrict_lex->Height(),
-                        Device::GetDeviceTemporaryMemoryType());
+      Vector bdr_face_Y = Vector::NewTemporary(bdr_face_restrict_lex->Height());
       Array<Array<int>*> &bdr_markers = *a->GetBBFI_Marker();
       bdr_face_Y = 0.0;
       for (int i = 0; i < n_bdr_integs; ++i)
@@ -497,7 +489,7 @@ void PABilinearFormExtension::AssembleDiagonal(Vector &y) const
          assemble_diagonal_with_markers(*bdr_integs[i], bdr_markers[i],
                                         bdr_attributes, bdr_face_Y);
       }
-      bdr_face_restrict_lex->AddMultTransposeUnsigned(bdr_face_Y, y);
+      bdr_face_restrict_lex->AddAbsMultTranspose(bdr_face_Y, y);
    }
 }
 
@@ -532,7 +524,8 @@ void PABilinearFormExtension::FormLinearSystem(const Array<int> &ess_tdof_list,
    A.Reset(oper); // A will own oper
 }
 
-void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
+void PABilinearFormExtension::MultInternal(const Vector &x, Vector &y,
+                                           const bool useAbs) const
 {
    Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
 
@@ -564,11 +557,13 @@ void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
       {
          if (integrators[i]->Patchwise())
          {
+            MFEM_ASSERT(!useAbs, "AbsMult not implemented with NURBS!")
             integrators[i]->AddMultNURBSPA(x, y);
          }
          else
          {
-            integrators[i]->AddMultPA(x, y);
+            if (useAbs) { integrators[i]->AddAbsMultPA(x, y); }
+            else { integrators[i]->AddMultPA(x, y); }
          }
       }
    }
@@ -576,18 +571,34 @@ void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
    {
       if (iSz)
       {
-         Vector localX(elem_restrict->Height(), Device::GetDeviceTemporaryMemoryType());
-         Vector localY(elem_restrict->Height(), Device::GetDeviceTemporaryMemoryType());
+         Vector localX = Vector::NewTemporary(elem_restrict->Height());
+         Vector localY = Vector::NewTemporary(elem_restrict->Height());
 
          Array<Array<int>*> &elem_markers = *a->GetDBFI_Marker();
-         elem_restrict->Mult(x, localX);
+         auto H1elem_restrict =
+            dynamic_cast<const ElementRestriction*>(elem_restrict);
+         if (H1elem_restrict && useAbs)
+         {
+            H1elem_restrict->AbsMult(x, localX);
+         }
+         else
+         {
+            elem_restrict->Mult(x, localX);
+         }
          localY = 0.0;
          for (int i = 0; i < iSz; ++i)
          {
             AddMultWithMarkers(*integrators[i], localX, elem_markers[i],
-                               elem_attributes, false, localY);
+                               elem_attributes, false, localY, useAbs);
          }
-         elem_restrict->MultTranspose(localY, y);
+         if (H1elem_restrict && useAbs)
+         {
+            H1elem_restrict->AbsMultTranspose(localY, y);
+         }
+         else
+         {
+            elem_restrict->MultTranspose(localY, y);
+         }
       }
       else
       {
@@ -599,13 +610,15 @@ void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
    const int iFISz = intFaceIntegrators.Size();
    if (int_face_restrict_lex && iFISz > 0)
    {
+      MFEM_ASSERT(!useAbs, "AbsMult not implemented for face integrators!")
+
       const int int_face_sz = int_face_restrict_lex->Height();
-      Vector int_face_X(int_face_sz, Device::GetDeviceTemporaryMemoryType());
-      Vector int_face_Y(int_face_sz, Device::GetDeviceTemporaryMemoryType());
+      Vector int_face_X = Vector::NewTemporary(int_face_sz);
+      Vector int_face_Y = Vector::NewTemporary(int_face_sz);
 
       const int dn_int_sz = needs_normal_derivs_int ? int_face_sz : 0;
-      Vector int_face_dXdn(dn_int_sz, Device::GetDeviceTemporaryMemoryType());
-      Vector int_face_dYdn(dn_int_sz, Device::GetDeviceTemporaryMemoryType());
+      Vector int_face_dXdn = Vector::NewTemporary(dn_int_sz);
+      Vector int_face_dYdn = Vector::NewTemporary(dn_int_sz);
 
       // When assembling interior face integrators for DG spaces, we need to
       // exchange the face-neighbor information. This happens inside member
@@ -668,13 +681,15 @@ void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
    const bool has_bdr_integs = (n_bdr_face_integs > 0 || n_bdr_integs > 0);
    if (bdr_face_restrict_lex && has_bdr_integs)
    {
+      MFEM_ASSERT(!useAbs, "AbsMult not implemented for bdr integrators!")
+
       const int bdr_face_sz = bdr_face_restrict_lex->Height();
-      Vector bdr_face_X(bdr_face_sz, Device::GetDeviceTemporaryMemoryType());
-      Vector bdr_face_Y(bdr_face_sz, Device::GetDeviceTemporaryMemoryType());
+      Vector bdr_face_X = Vector::NewTemporary(bdr_face_sz);
+      Vector bdr_face_Y = Vector::NewTemporary(bdr_face_sz);
 
       const int dn_bdr_sz = needs_normal_derivs_bdr ? bdr_face_sz : 0;
-      Vector bdr_face_dXdn(dn_bdr_sz, Device::GetDeviceTemporaryMemoryType());
-      Vector bdr_face_dYdn(dn_bdr_sz, Device::GetDeviceTemporaryMemoryType());
+      Vector bdr_face_dXdn = Vector::NewTemporary(dn_bdr_sz);
+      Vector bdr_face_dYdn = Vector::NewTemporary(dn_bdr_sz);
 
       Array<Array<int>*> &bdr_markers = *a->GetBBFI_Marker();
       Array<Array<int>*> &bdr_face_markers = *a->GetBFBFI_Marker();
@@ -726,8 +741,8 @@ void PABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
    const int iSz = integrators.Size();
    if (elem_restrict)
    {
-      Vector localX(elem_restrict->Height(), Device::GetDeviceTemporaryMemoryType());
-      Vector localY(elem_restrict->Height(), Device::GetDeviceTemporaryMemoryType());
+      Vector localX = Vector::NewTemporary(elem_restrict->Height());
+      Vector localY = Vector::NewTemporary(elem_restrict->Height());
 
       Array<Array<int>*> &elem_markers = *a->GetDBFI_Marker();
       elem_restrict->Mult(x, localX);
@@ -753,10 +768,8 @@ void PABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
    const int iFISz = intFaceIntegrators.Size();
    if (int_face_restrict_lex && iFISz>0)
    {
-      Vector int_face_X(int_face_restrict_lex->Height(),
-                        Device::GetDeviceTemporaryMemoryType());
-      Vector int_face_Y(int_face_restrict_lex->Height(),
-                        Device::GetDeviceTemporaryMemoryType());
+      Vector int_face_X = Vector::NewTemporary(int_face_restrict_lex->Height());
+      Vector int_face_Y = Vector::NewTemporary(int_face_restrict_lex->Height());
 
       int_face_restrict_lex->Mult(x, int_face_X);
       if (int_face_X.Size()>0)
@@ -777,10 +790,8 @@ void PABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
    const bool has_bdr_integs = (n_bdr_face_integs > 0 || n_bdr_integs > 0);
    if (bdr_face_restrict_lex && has_bdr_integs)
    {
-      Vector bdr_face_X(bdr_face_restrict_lex->Height(),
-                        Device::GetDeviceTemporaryMemoryType());
-      Vector bdr_face_Y(bdr_face_restrict_lex->Height(),
-                        Device::GetDeviceTemporaryMemoryType());
+      Vector bdr_face_X = Vector::NewTemporary(bdr_face_restrict_lex->Height());
+      Vector bdr_face_Y = Vector::NewTemporary(bdr_face_restrict_lex->Height());
 
       Array<Array<int>*> &bdr_markers = *a->GetBBFI_Marker();
       Array<Array<int>*> &bdr_face_markers = *a->GetBFBFI_Marker();
@@ -840,8 +851,8 @@ void PABilinearFormExtension::AddMultNormalDerivativesWithMarkers(
 {
    if (markers)
    {
-      Vector tmp_y(y.Size(), Device::GetDeviceTemporaryMemoryType());
-      Vector tmp_dydn(dydn.Size(), Device::GetDeviceTemporaryMemoryType());
+      Vector tmp_y = Vector::NewTemporary(y.Size());
+      Vector tmp_dydn = Vector::NewTemporary(dydn.Size());
       tmp_y = 0.0;
       tmp_dydn = 0.0;
 
@@ -866,22 +877,39 @@ void PABilinearFormExtension::AddMultWithMarkers(
    const Array<int> *markers,
    const Array<int> &attributes,
    const bool transpose,
-   Vector &y) const
+   Vector &y,
+   const bool useAbs) const
 {
    if (markers)
    {
-      Vector tmp_evec(y.Size(), Device::GetDeviceTemporaryMemoryType());
+      Vector tmp_evec = Vector::NewTemporary(y.Size());
       tmp_evec = 0.0;
-      if (transpose) { integ.AddMultTransposePA(x, tmp_evec); }
-      else { integ.AddMultPA(x, tmp_evec); }
+      if (useAbs)
+      {
+         if (transpose) { integ.AddAbsMultTransposePA(x, tmp_evec); }
+         else { integ.AddAbsMultPA(x, tmp_evec); }
+      }
+      else
+      {
+         if (transpose) { integ.AddMultTransposePA(x, tmp_evec); }
+         else { integ.AddMultPA(x, tmp_evec); }
+      }
       const int ne = attributes.Size();
       const int nd = x.Size() / ne;
       AddWithMarkers_(ne, nd, tmp_evec, *markers, attributes, y);
    }
    else
    {
-      if (transpose) { integ.AddMultTransposePA(x, y); }
-      else { integ.AddMultPA(x, y); }
+      if (useAbs)
+      {
+         if (transpose) { integ.AddAbsMultTransposePA(x, y); }
+         else { integ.AddAbsMultPA(x, y); }
+      }
+      else
+      {
+         if (transpose) { integ.AddMultTransposePA(x, y); }
+         else { integ.AddMultPA(x, y); }
+      }
    }
 }
 
@@ -901,56 +929,139 @@ void EABilinearFormExtension::Assemble()
    SetupRestrictionOperators(L2FaceValues::SingleValued);
 
    ne = trial_fes->GetMesh()->GetNE();
-   elemDofs = trial_fes->GetFE(0)->GetDof();
+   elemDofs = trial_fes->GetTypicalFE()->GetDof();
 
-   ea_data.SetSize(ne*elemDofs*elemDofs, Device::GetMemoryType());
-   ea_data.UseDevice(true);
+   Vector ea_data_tmp;
 
-   Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
-   const int integratorCount = integrators.Size();
-   if ( integratorCount == 0 )
+   auto add_with_markers = [&](const Vector &ea_1, Vector &ea_2, const int ne_,
+                               const Array<int> &markers, const Array<int> &attrs,
+                               const bool add)
    {
-      ea_data = 0.0;
+      if (ne_ == 0) { return; }
+      const int sz = ea_1.Size() / ne_;
+      const int *d_m = markers.Read();
+      const int *d_a = attrs.Read();
+      const auto d_ea_1 = Reshape(ea_1.Read(), sz, ne_);
+      auto d_ea_2 = Reshape(add ? ea_2.ReadWrite() : ea_2.Write(), sz, ne_);
+
+      mfem::forall(sz*ne_, [=] MFEM_HOST_DEVICE (int idx)
+      {
+         const int i = idx % sz;
+         const int e = idx / sz;
+         const real_t val = d_m[d_a[e] - 1] ? d_ea_1(i, e) : 0.0;
+         if (add)
+         {
+            d_ea_2(i, e) += val;
+         }
+         else
+         {
+            d_ea_2(i, e) = val;
+         }
+      });
+   };
+
+   {
+      ea_data.SetSize(ne*elemDofs*elemDofs);
+      ea_data.UseDevice(true);
+      Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
+      Array<Array<int>*> &markers_array = *a->GetDBFI_Marker();
+
+      if (integrators.Size() == 0) { ea_data = 0.0; }
+
+      for (int i = 0; i < integrators.Size(); ++i)
+      {
+         const bool add = (i > 0);
+         const Array<int> *markers = markers_array[i];
+         if (markers == nullptr)
+         {
+            integrators[i]->AssembleEA(*a->FESpace(), ea_data, add);
+         }
+         else
+         {
+            ea_data_tmp.SetSize(ea_data.Size());
+            integrators[i]->AssembleEA(*a->FESpace(), ea_data_tmp, false);
+            add_with_markers(ea_data_tmp, ea_data, ne, *markers,
+                             elem_attributes, add);
+         }
+      }
    }
-   for (int i = 0; i < integratorCount; ++i)
+
+   faceDofs = trial_fes->GetTypicalTraceElement()->GetDof();
+
    {
-      integrators[i]->AssembleEA(*a->FESpace(), ea_data, i);
+      Array<BilinearFormIntegrator*> &bdr_integs = *a->GetBBFI();
+      Array<Array<int>*> &markers_array = *a->GetBBFI_Marker();
+      const int n_bdr_integs = bdr_integs.Size();
+      if (n_bdr_integs > 0)
+      {
+         nf_bdr = trial_fes->GetNFbyType(FaceType::Boundary);
+         ea_data_bdr.SetSize(nf_bdr*faceDofs*faceDofs);
+      }
+      for (int i = 0; i < n_bdr_integs; ++i)
+      {
+         const bool add = (i > 0);
+         const Array<int> *markers = markers_array[i];
+         if (markers == nullptr)
+         {
+            bdr_integs[i]->AssembleEABoundary(*a->FESpace(), ea_data_bdr, add);
+         }
+         else
+         {
+            ea_data_tmp.SetSize(ea_data_bdr.Size());
+            bdr_integs[i]->AssembleEABoundary(*a->FESpace(), ea_data_tmp, add);
+            add_with_markers(ea_data_tmp, ea_data_bdr, nf_bdr, *markers,
+                             bdr_attributes, add);
+         }
+      }
    }
 
-   faceDofs = trial_fes ->
-              GetTraceElement(0, trial_fes->GetMesh()->GetFaceGeometry(0)) ->
-              GetDof();
-
-   MFEM_VERIFY(a->GetBBFI()->Size() == 0,
-               "Element assembly does not support AddBoundaryIntegrator yet.");
-
-   Array<BilinearFormIntegrator*> &intFaceIntegrators = *a->GetFBFI();
-   const int intFaceIntegratorCount = intFaceIntegrators.Size();
-   if (intFaceIntegratorCount>0)
    {
-      nf_int = trial_fes->GetNFbyType(FaceType::Interior);
-      ea_data_int.SetSize(2*nf_int*faceDofs*faceDofs, Device::GetMemoryType());
-      ea_data_ext.SetSize(2*nf_int*faceDofs*faceDofs, Device::GetMemoryType());
-   }
-   for (int i = 0; i < intFaceIntegratorCount; ++i)
-   {
-      intFaceIntegrators[i]->AssembleEAInteriorFaces(*a->FESpace(),
-                                                     ea_data_int,
-                                                     ea_data_ext,
-                                                     i);
+      Array<BilinearFormIntegrator*> &intFaceIntegrators = *a->GetFBFI();
+      const int intFaceIntegratorCount = intFaceIntegrators.Size();
+      if (intFaceIntegratorCount>0)
+      {
+         nf_int = trial_fes->GetNFbyType(FaceType::Interior);
+         ea_data_int.SetSize(2*nf_int*faceDofs*faceDofs);
+         ea_data_ext.SetSize(2*nf_int*faceDofs*faceDofs);
+      }
+      for (int i = 0; i < intFaceIntegratorCount; ++i)
+      {
+         const bool add = (i > 0);
+         intFaceIntegrators[i]->AssembleEAInteriorFaces(*a->FESpace(),
+                                                        ea_data_int,
+                                                        ea_data_ext,
+                                                        add);
+      }
    }
 
-   Array<BilinearFormIntegrator*> &bdrFaceIntegrators = *a->GetBFBFI();
-   const int boundFaceIntegratorCount = bdrFaceIntegrators.Size();
-   if (boundFaceIntegratorCount>0)
    {
-      nf_bdr = trial_fes->GetNFbyType(FaceType::Boundary);
-      ea_data_bdr.SetSize(nf_bdr*faceDofs*faceDofs, Device::GetMemoryType());
-      ea_data_bdr = 0.0;
-   }
-   for (int i = 0; i < boundFaceIntegratorCount; ++i)
-   {
-      bdrFaceIntegrators[i]->AssembleEABoundaryFaces(*a->FESpace(),ea_data_bdr,i);
+      Array<BilinearFormIntegrator*> &bdr_face_integs = *a->GetBFBFI();
+      Array<Array<int>*> &markers_array = *a->GetBFBFI_Marker();
+      const int n_bdr_face_integs = bdr_face_integs.Size();
+      if (n_bdr_face_integs > 0)
+      {
+         nf_bdr = trial_fes->GetNFbyType(FaceType::Boundary);
+         ea_data_bdr.SetSize(nf_bdr*faceDofs*faceDofs);
+      }
+      for (int i = 0; i < n_bdr_face_integs; ++i)
+      {
+         const bool add = (i > 0);
+         const Array<int> *markers = markers_array[i];
+         if (markers == nullptr)
+         {
+            bdr_face_integs[i]->AssembleEABoundaryFaces(
+               *a->FESpace(), ea_data_bdr, add);
+         }
+         else
+         {
+            ea_data_tmp.SetSize(ea_data_bdr.Size());
+            bdr_face_integs[i]->AssembleEABoundaryFaces(*a->FESpace(),
+                                                        ea_data_tmp,
+                                                        add);
+            add_with_markers(ea_data_tmp, ea_data_bdr, nf_bdr, *markers,
+                             bdr_attributes, add);
+         }
+      }
    }
 
    if (factorize_face_terms && int_face_restrict_lex)
@@ -965,20 +1076,28 @@ void EABilinearFormExtension::Assemble()
    }
 }
 
-void EABilinearFormExtension::Mult(const Vector &x, Vector &y) const
+void EABilinearFormExtension::MultInternal(const Vector &x, Vector &y,
+                                           const bool useTranspose,
+                                           const bool useAbs) const
 {
+   auto elemRest = dynamic_cast<const ElementRestriction*>(elem_restrict);
+   MFEM_ASSERT(useAbs?(elemRest!=nullptr):true,
+               "elem_restrict is not ElementRestriction*!")
    // Apply the Element Restriction
    const bool useRestrict = !DeviceCanUseCeed() && elem_restrict;
 
-   Vector localX(useRestrict?elem_restrict->Height():0,
-                 Device::GetDeviceTemporaryMemoryType());
-   Vector localY(useRestrict?elem_restrict->Height():0,
-                 Device::GetDeviceTemporaryMemoryType());
+   Vector localX = Vector::NewTemporary(useRestrict?elem_restrict->Height():0);
+   Vector localY = Vector::NewTemporary(useRestrict?elem_restrict->Height():0);
 
    if (!useRestrict)
    {
       y.UseDevice(true); // typically this is a large vector, so store on device
       y = 0.0;
+   }
+   else if (useAbs)
+   {
+      elemRest->AbsMult(x, localX);
+      localY = 0.0;
    }
    else
    {
@@ -987,25 +1106,55 @@ void EABilinearFormExtension::Mult(const Vector &x, Vector &y) const
    }
    // Apply the Element Matrices
    {
+      Vector abs_ea_data;
+      if (useAbs)
+      {
+         abs_ea_data = ea_data;
+         abs_ea_data.Abs();
+      }
       const int NDOFS = elemDofs;
       auto X = Reshape(useRestrict?localX.Read():x.Read(), NDOFS, ne);
       auto Y = Reshape(useRestrict?localY.ReadWrite():y.ReadWrite(), NDOFS, ne);
-      auto A = Reshape(ea_data.Read(), NDOFS, NDOFS, ne);
-      mfem::forall(ne*NDOFS, [=] MFEM_HOST_DEVICE (int glob_j)
+      auto A = Reshape(useAbs?abs_ea_data.Read():ea_data.Read(), NDOFS, NDOFS, ne);
+      if (!useTranspose)
       {
-         const int e = glob_j/NDOFS;
-         const int j = glob_j%NDOFS;
-         real_t res = 0.0;
-         for (int i = 0; i < NDOFS; i++)
+         mfem::forall(ne*NDOFS, [=] MFEM_HOST_DEVICE (int glob_j)
          {
-            res += A(i, j, e)*X(i, e);
-         }
-         Y(j, e) += res;
-      });
+            const int e = glob_j/NDOFS;
+            const int j = glob_j%NDOFS;
+            real_t res = 0.0;
+            for (int i = 0; i < NDOFS; i++)
+            {
+               res += A(i, j, e)*X(i, e);
+            }
+            Y(j, e) += res;
+         });
+      }
+      else
+      {
+         mfem::forall(ne*NDOFS, [=] MFEM_HOST_DEVICE (int glob_j)
+         {
+            const int e = glob_j/NDOFS;
+            const int j = glob_j%NDOFS;
+            real_t res = 0.0;
+            for (int i = 0; i < NDOFS; i++)
+            {
+               res += A(j, i, e)*X(i, e);
+            }
+            Y(j, e) += res;
+         });
+      }
       // Apply the Element Restriction transposed
       if (useRestrict)
       {
-         elem_restrict->MultTranspose(localY, y);
+         if (useAbs)
+         {
+            elemRest->AbsMultTranspose(localY, y);
+         }
+         else
+         {
+            elem_restrict->MultTranspose(localY, y);
+         }
       }
    }
 
@@ -1014,10 +1163,10 @@ void EABilinearFormExtension::Mult(const Vector &x, Vector &y) const
    const int iFISz = intFaceIntegrators.Size();
    if (int_face_restrict_lex && iFISz>0)
    {
-      Vector int_face_X(int_face_restrict_lex->Height(),
-                        Device::GetDeviceTemporaryMemoryType());
-      Vector int_face_Y(int_face_restrict_lex->Height(),
-                        Device::GetDeviceTemporaryMemoryType());
+      MFEM_VERIFY(!useAbs, "AbsMult not implemented with Face integrators!")
+
+      Vector int_face_X = Vector::NewTemporary(int_face_restrict_lex->Height());
+      Vector int_face_Y = Vector::NewTemporary(int_face_restrict_lex->Height());
 
       // Apply the Interior Face Restriction
       int_face_restrict_lex->Mult(x, int_face_X);
@@ -1030,7 +1179,65 @@ void EABilinearFormExtension::Mult(const Vector &x, Vector &y) const
          auto Y = Reshape(int_face_Y.ReadWrite(), NDOFS, 2, nf_int);
          if (!factorize_face_terms)
          {
-            auto A_int = Reshape(ea_data_int.Read(), NDOFS, NDOFS, 2, nf_int);
+            Vector abs_ea_data_int(ea_data_int.Size());
+            if (useAbs)
+            {
+               abs_ea_data_int = ea_data_int;
+               abs_ea_data_int.Abs();
+            }
+            auto A_int = Reshape(useAbs?abs_ea_data_int.Read():ea_data_int.Read(),
+                                 NDOFS, NDOFS, 2, nf_int);
+            if (!useTranspose)
+            {
+               mfem::forall(nf_int*NDOFS, [=] MFEM_HOST_DEVICE (int glob_j)
+               {
+                  const int f = glob_j/NDOFS;
+                  const int j = glob_j%NDOFS;
+                  real_t res = 0.0;
+                  for (int i = 0; i < NDOFS; i++)
+                  {
+                     res += A_int(i, j, 0, f)*X(i, 0, f);
+                  }
+                  Y(j, 0, f) += res;
+                  res = 0.0;
+                  for (int i = 0; i < NDOFS; i++)
+                  {
+                     res += A_int(i, j, 1, f)*X(i, 1, f);
+                  }
+                  Y(j, 1, f) += res;
+               });
+            }
+            else
+            {
+               mfem::forall(nf_int*NDOFS, [=] MFEM_HOST_DEVICE (int glob_j)
+               {
+                  const int f = glob_j/NDOFS;
+                  const int j = glob_j%NDOFS;
+                  real_t res = 0.0;
+                  for (int i = 0; i < NDOFS; i++)
+                  {
+                     res += A_int(j, i, 0, f)*X(i, 0, f);
+                  }
+                  Y(j, 0, f) += res;
+                  res = 0.0;
+                  for (int i = 0; i < NDOFS; i++)
+                  {
+                     res += A_int(j, i, 1, f)*X(i, 1, f);
+                  }
+                  Y(j, 1, f) += res;
+               });
+            }
+         }
+         Vector abs_ea_data_ext(ea_data_ext.Size());
+         if (useAbs)
+         {
+            abs_ea_data_ext = ea_data_ext;
+            abs_ea_data_ext.Abs();
+         }
+         auto A_ext = Reshape(useAbs?abs_ea_data_ext.Read():ea_data_ext.Read(),
+                              NDOFS, NDOFS, 2, nf_int);
+         if (!useTranspose)
+         {
             mfem::forall(nf_int*NDOFS, [=] MFEM_HOST_DEVICE (int glob_j)
             {
                const int f = glob_j/NDOFS;
@@ -1038,60 +1245,62 @@ void EABilinearFormExtension::Mult(const Vector &x, Vector &y) const
                real_t res = 0.0;
                for (int i = 0; i < NDOFS; i++)
                {
-                  res += A_int(i, j, 0, f)*X(i, 0, f);
+                  res += A_ext(i, j, 0, f)*X(i, 0, f);
                }
-               Y(j, 0, f) += res;
+               Y(j, 1, f) += res;
                res = 0.0;
                for (int i = 0; i < NDOFS; i++)
                {
-                  res += A_int(i, j, 1, f)*X(i, 1, f);
+                  res += A_ext(i, j, 1, f)*X(i, 1, f);
                }
-               Y(j, 1, f) += res;
+               Y(j, 0, f) += res;
             });
          }
-         auto A_ext = Reshape(ea_data_ext.Read(), NDOFS, NDOFS, 2, nf_int);
-         mfem::forall(nf_int*NDOFS, [=] MFEM_HOST_DEVICE (int glob_j)
+         else
          {
-            const int f = glob_j/NDOFS;
-            const int j = glob_j%NDOFS;
-            real_t res = 0.0;
-            for (int i = 0; i < NDOFS; i++)
+            mfem::forall(nf_int*NDOFS, [=] MFEM_HOST_DEVICE (int glob_j)
             {
-               res += A_ext(i, j, 0, f)*X(i, 0, f);
-            }
-            Y(j, 1, f) += res;
-            res = 0.0;
-            for (int i = 0; i < NDOFS; i++)
-            {
-               res += A_ext(i, j, 1, f)*X(i, 1, f);
-            }
-            Y(j, 0, f) += res;
-         });
+               const int f = glob_j/NDOFS;
+               const int j = glob_j%NDOFS;
+               real_t res = 0.0;
+               for (int i = 0; i < NDOFS; i++)
+               {
+                  res += A_ext(j, i, 1, f)*X(i, 0, f);
+               }
+               Y(j, 1, f) += res;
+               res = 0.0;
+               for (int i = 0; i < NDOFS; i++)
+               {
+                  res += A_ext(j, i, 0, f)*X(i, 1, f);
+               }
+               Y(j, 0, f) += res;
+            });
+         }
          // Apply the Interior Face Restriction transposed
          int_face_restrict_lex->AddMultTransposeInPlace(int_face_Y, y);
       }
    }
 
    // Treatment of boundary faces
-   Array<BilinearFormIntegrator*> &bdrFaceIntegrators = *a->GetBFBFI();
-   const int bFISz = bdrFaceIntegrators.Size();
-   if (!factorize_face_terms && bdr_face_restrict_lex && bFISz>0)
+   if (!factorize_face_terms && bdr_face_restrict_lex && ea_data_bdr.Size() > 0)
    {
-      Vector bdr_face_X(bdr_face_restrict_lex->Height(),
-                        Device::GetDeviceTemporaryMemoryType());
-      Vector bdr_face_Y(bdr_face_restrict_lex->Height(),
-                        Device::GetDeviceTemporaryMemoryType());
+      MFEM_ASSERT(!useAbs, "AbsMult not implemented with Face integrators!")
+
+      Vector bdr_face_X = Vector::NewTemporary(bdr_face_restrict_lex->Height());
+      Vector bdr_face_Y = Vector::NewTemporary(bdr_face_restrict_lex->Height());
 
       // Apply the Boundary Face Restriction
+      // TODO: AbsMult if needed
       bdr_face_restrict_lex->Mult(x, bdr_face_X);
-      if (bdr_face_X.Size()>0)
+      bdr_face_Y = 0.0;
+      // Apply the boundary face matrices
+      const int NDOFS = faceDofs;
+      auto X = Reshape(bdr_face_X.Read(), NDOFS, nf_bdr);
+      auto Y = Reshape(bdr_face_Y.ReadWrite(), NDOFS, nf_bdr);
+      auto A = Reshape(ea_data_bdr.Read(), NDOFS, NDOFS, nf_bdr);
+      if (!useTranspose)
       {
-         bdr_face_Y = 0.0;
-         // Apply the boundary face matrices
-         const int NDOFS = faceDofs;
-         auto X = Reshape(bdr_face_X.Read(), NDOFS, nf_bdr);
-         auto Y = Reshape(bdr_face_Y.ReadWrite(), NDOFS, nf_bdr);
-         auto A = Reshape(ea_data_bdr.Read(), NDOFS, NDOFS, nf_bdr);
+         // TODO: useAbs
          mfem::forall(nf_bdr*NDOFS, [=] MFEM_HOST_DEVICE (int glob_j)
          {
             const int f = glob_j/NDOFS;
@@ -1103,139 +1312,10 @@ void EABilinearFormExtension::Mult(const Vector &x, Vector &y) const
             }
             Y(j, f) += res;
          });
-         // Apply the Boundary Face Restriction transposed
-         bdr_face_restrict_lex->AddMultTransposeInPlace(bdr_face_Y, y);
       }
-   }
-}
-
-void EABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
-{
-   // Apply the Element Restriction
-   const bool useRestrict = !DeviceCanUseCeed() && elem_restrict;
-
-   Vector localX(useRestrict?elem_restrict->Height():0,
-                 Device::GetDeviceTemporaryMemoryType());
-   Vector localY(useRestrict?elem_restrict->Height():0,
-                 Device::GetDeviceTemporaryMemoryType());
-
-   if (!useRestrict)
-   {
-      y.UseDevice(true); // typically this is a large vector, so store on device
-      y = 0.0;
-   }
-   else
-   {
-      elem_restrict->Mult(x, localX);
-      localY = 0.0;
-   }
-   // Apply the Element Matrices transposed
-   {
-      const int NDOFS = elemDofs;
-      auto X = Reshape(useRestrict?localX.Read():x.Read(), NDOFS, ne);
-      auto Y = Reshape(useRestrict?localY.ReadWrite():y.ReadWrite(), NDOFS, ne);
-      auto A = Reshape(ea_data.Read(), NDOFS, NDOFS, ne);
-      mfem::forall(ne*NDOFS, [=] MFEM_HOST_DEVICE (int glob_j)
+      else
       {
-         const int e = glob_j/NDOFS;
-         const int j = glob_j%NDOFS;
-         real_t res = 0.0;
-         for (int i = 0; i < NDOFS; i++)
-         {
-            res += A(j, i, e)*X(i, e);
-         }
-         Y(j, e) += res;
-      });
-      // Apply the Element Restriction transposed
-      if (useRestrict)
-      {
-         elem_restrict->MultTranspose(localY, y);
-      }
-   }
-
-   // Treatment of interior faces
-   Array<BilinearFormIntegrator*> &intFaceIntegrators = *a->GetFBFI();
-   const int iFISz = intFaceIntegrators.Size();
-   if (int_face_restrict_lex && iFISz>0)
-   {
-      Vector int_face_X(int_face_restrict_lex->Height(),
-                        Device::GetDeviceTemporaryMemoryType());
-      Vector int_face_Y(int_face_restrict_lex->Height(),
-                        Device::GetDeviceTemporaryMemoryType());
-
-      // Apply the Interior Face Restriction
-      int_face_restrict_lex->Mult(x, int_face_X);
-      if (int_face_X.Size()>0)
-      {
-         int_face_Y = 0.0;
-         // Apply the interior face matrices transposed
-         const int NDOFS = faceDofs;
-         auto X = Reshape(int_face_X.Read(), NDOFS, 2, nf_int);
-         auto Y = Reshape(int_face_Y.ReadWrite(), NDOFS, 2, nf_int);
-         if (!factorize_face_terms)
-         {
-            auto A_int = Reshape(ea_data_int.Read(), NDOFS, NDOFS, 2, nf_int);
-            mfem::forall(nf_int*NDOFS, [=] MFEM_HOST_DEVICE (int glob_j)
-            {
-               const int f = glob_j/NDOFS;
-               const int j = glob_j%NDOFS;
-               real_t res = 0.0;
-               for (int i = 0; i < NDOFS; i++)
-               {
-                  res += A_int(j, i, 0, f)*X(i, 0, f);
-               }
-               Y(j, 0, f) += res;
-               res = 0.0;
-               for (int i = 0; i < NDOFS; i++)
-               {
-                  res += A_int(j, i, 1, f)*X(i, 1, f);
-               }
-               Y(j, 1, f) += res;
-            });
-         }
-         auto A_ext = Reshape(ea_data_ext.Read(), NDOFS, NDOFS, 2, nf_int);
-         mfem::forall(nf_int*NDOFS, [=] MFEM_HOST_DEVICE (int glob_j)
-         {
-            const int f = glob_j/NDOFS;
-            const int j = glob_j%NDOFS;
-            real_t res = 0.0;
-            for (int i = 0; i < NDOFS; i++)
-            {
-               res += A_ext(j, i, 1, f)*X(i, 0, f);
-            }
-            Y(j, 1, f) += res;
-            res = 0.0;
-            for (int i = 0; i < NDOFS; i++)
-            {
-               res += A_ext(j, i, 0, f)*X(i, 1, f);
-            }
-            Y(j, 0, f) += res;
-         });
-         // Apply the Interior Face Restriction transposed
-         int_face_restrict_lex->AddMultTransposeInPlace(int_face_Y, y);
-      }
-   }
-
-   // Treatment of boundary faces
-   Array<BilinearFormIntegrator*> &bdrFaceIntegrators = *a->GetBFBFI();
-   const int bFISz = bdrFaceIntegrators.Size();
-   if (!factorize_face_terms && bdr_face_restrict_lex && bFISz>0)
-   {
-      Vector bdr_face_X(bdr_face_restrict_lex->Height(),
-                        Device::GetDeviceTemporaryMemoryType());
-      Vector bdr_face_Y(bdr_face_restrict_lex->Height(),
-                        Device::GetDeviceTemporaryMemoryType());
-
-      // Apply the Boundary Face Restriction
-      bdr_face_restrict_lex->Mult(x, bdr_face_X);
-      if (bdr_face_X.Size()>0)
-      {
-         bdr_face_Y = 0.0;
-         // Apply the boundary face matrices transposed
-         const int NDOFS = faceDofs;
-         auto X = Reshape(bdr_face_X.Read(), NDOFS, nf_bdr);
-         auto Y = Reshape(bdr_face_Y.ReadWrite(), NDOFS, nf_bdr);
-         auto A = Reshape(ea_data_bdr.Read(), NDOFS, NDOFS, nf_bdr);
+         // TODO: useAbs
          mfem::forall(nf_bdr*NDOFS, [=] MFEM_HOST_DEVICE (int glob_j)
          {
             const int f = glob_j/NDOFS;
@@ -1247,9 +1327,144 @@ void EABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
             }
             Y(j, f) += res;
          });
-         // Apply the Boundary Face Restriction transposed
-         bdr_face_restrict_lex->AddMultTransposeInPlace(bdr_face_Y, y);
       }
+      // Apply the Boundary Face Restriction transposed
+      // TODO: AbsMultTranspose if needed
+      bdr_face_restrict_lex->AddMultTransposeInPlace(bdr_face_Y, y);
+   }
+}
+
+void EABilinearFormExtension::GetElementMatrices(
+   DenseTensor &element_matrices, ElementDofOrdering ordering, bool add_bdr)
+{
+   // Ensure the EA data is assembled
+   if (ea_data.Size() == 0) { Assemble(); }
+
+   const int ndofs = elemDofs;
+   element_matrices.SetSize(ndofs, ndofs, ne);
+   const int N = element_matrices.TotalSize();
+
+   const auto d_ea_data = Reshape(ea_data.Read(), ndofs, ndofs, ne);
+   auto d_element_matrices = Reshape(element_matrices.Write(),
+                                     ndofs, ndofs,
+                                     ne);
+
+   const int *d_dof_map = nullptr;
+   Array<int> dof_map;
+   if (ordering == ElementDofOrdering::NATIVE)
+   {
+      const TensorBasisElement* tbe =
+         dynamic_cast<const TensorBasisElement*>(trial_fes->GetFE(0));
+      if (tbe)
+      {
+         // Deep copy to avoid issues with host device (see similar comment in
+         // HybridizationExtension::ConstructC).
+         dof_map = tbe->GetDofMap();
+         d_dof_map = dof_map.Read();
+      }
+   }
+
+   if (d_dof_map)
+   {
+      // Reordering required
+      mfem::forall(N, [=] MFEM_HOST_DEVICE (int idx)
+      {
+         const int e = idx / ndofs / ndofs;
+         const int i = idx % ndofs;
+         const int j = (idx / ndofs) % ndofs;
+         const int ii_s = d_dof_map[i];
+         const int ii = (ii_s >= 0) ? ii_s : -1 - ii_s;
+         const int s_i = (ii_s >= 0) ? 1 : -1;
+         const int jj_s = d_dof_map[j];
+         const int jj = (jj_s >= 0) ? jj_s : -1 - jj_s;
+         const int s_j = (jj_s >= 0) ? 1 : -1;
+         d_element_matrices(ii, jj, e) = s_i*s_j*d_ea_data(j, i, e);
+      });
+   }
+   else
+   {
+      // No reordering required
+      mfem::forall(N, [=] MFEM_HOST_DEVICE (int idx)
+      {
+         const int e = idx / ndofs / ndofs;
+         const int i = idx % ndofs;
+         const int j = (idx / ndofs) % ndofs;
+         d_element_matrices(i, j, e) = d_ea_data(j, i, e);
+      });
+   }
+
+   if (add_bdr && ea_data_bdr.Size() > 0)
+   {
+      const int ndof_face = faceDofs;
+      const auto d_ea_bdr = Reshape(ea_data_bdr.Read(),
+                                    ndof_face, ndof_face, nf_bdr);
+
+      // Get all the local face maps (mapping from lexicographic face index to
+      // lexicographic volume index, depending on the local face index).
+      const Mesh &mesh = *trial_fes->GetMesh();
+      const int dim = mesh.Dimension();
+      const int n_faces_per_el = 2*dim; // assuming tensor product
+      Array<int> face_maps(ndof_face * n_faces_per_el);
+      for (int lf_i = 0; lf_i < n_faces_per_el; ++lf_i)
+      {
+         Array<int> face_map(ndof_face);
+         trial_fes->GetFE(0)->GetFaceMap(lf_i, face_map);
+         for (int i = 0; i < ndof_face; ++i)
+         {
+            face_maps[i + lf_i*ndof_face] = face_map[i];
+         }
+      }
+
+      Array<int> face_info(nf_bdr * 2);
+      {
+         int fidx = 0;
+         for (int f = 0; f < mesh.GetNumFaces(); ++f)
+         {
+            Mesh::FaceInformation finfo = mesh.GetFaceInformation(f);
+            if (!finfo.IsBoundary()) { continue; }
+            face_info[0 + fidx*2] = finfo.element[0].local_face_id;
+            face_info[1 + fidx*2] = finfo.element[0].index;
+            fidx++;
+         }
+      }
+
+      const auto d_face_maps = Reshape(face_maps.Read(), ndof_face, n_faces_per_el);
+      const auto d_face_info = Reshape(face_info.Read(), 2, nf_bdr);
+
+      const bool reorder = (ordering == ElementDofOrdering::NATIVE);
+
+      mfem::forall_2D(nf_bdr, ndof_face, ndof_face, [=] MFEM_HOST_DEVICE (int f)
+      {
+         const int lf_i = d_face_info(0, f);
+         const int e = d_face_info(1, f);
+         // Loop over face indices in "native ordering"
+         MFEM_FOREACH_THREAD(i_lex_face, x, ndof_face)
+         {
+            // Convert from lexicographic face DOF to volume DOF
+            const int i_lex = d_face_maps(i_lex_face, lf_i);
+
+            const int ii_s = d_dof_map[i_lex];
+            const int ii = (ii_s >= 0) ? ii_s : -1 - ii_s;
+
+            const int i = reorder ? ii : i_lex;
+            const int s_i = (ii_s < 0 && reorder) ? -1 : 1;
+
+            MFEM_FOREACH_THREAD(j_lex_face, y, ndof_face)
+            {
+               // Convert from lexicographic face DOF to volume DOF
+               const int j_lex = d_face_maps(j_lex_face, lf_i);
+
+               const int jj_s = d_dof_map[j_lex];
+               const int jj = (jj_s >= 0) ? jj_s : -1 - jj_s;
+
+               const int j = reorder ? jj : j_lex;
+               const int s_j = (jj_s < 0 && reorder) ? -1 : 1;
+
+               AtomicAdd(d_element_matrices(i, j, e),
+                         s_i*s_j*d_ea_bdr(i_lex_face, j_lex_face, f));
+            }
+         }
+      });
    }
 }
 
@@ -1444,7 +1659,7 @@ void FABilinearFormExtension::DGMult(const Vector &x, Vector &y) const
       x_gf.ExchangeFaceNbrData();
       Vector &shared_x = x_gf.FaceNbrData();
       const int local_size = a->FESpace()->GetVSize();
-      Vector dg_x(width, Device::GetDeviceTemporaryMemoryType());
+      Vector dg_x = Vector::NewTemporary(width);
       auto dg_x_ptr = dg_x.Write();
       auto x_ptr = x.Read();
       mfem::forall(local_size, [=] MFEM_HOST_DEVICE (int i)
@@ -1460,7 +1675,7 @@ void FABilinearFormExtension::DGMult(const Vector &x, Vector &y) const
       ParBilinearForm *pform = nullptr;
       if ((pform = dynamic_cast<ParBilinearForm*>(a)) && (pform->keep_nbr_block))
       {
-         Vector dg_y(height, Device::GetDeviceTemporaryMemoryType());
+         Vector dg_y = Vector::NewTemporary(height);
          mat->Mult(dg_x, dg_y);
          // DG Restriction
          auto dg_y_ptr = dg_y.Read();
@@ -1507,7 +1722,7 @@ void FABilinearFormExtension::DGMultTranspose(const Vector &x, Vector &y) const
       x_gf.ExchangeFaceNbrData();
       Vector &shared_x = x_gf.FaceNbrData();
       const int local_size = a->FESpace()->GetVSize();
-      Vector dg_x(width, Device::GetDeviceTemporaryMemoryType());
+      Vector dg_x = Vector::NewTemporary(width);
       auto dg_x_ptr = dg_x.Write();
       auto x_ptr = x.Read();
       mfem::forall(local_size, [=] MFEM_HOST_DEVICE (int i)
@@ -1523,7 +1738,7 @@ void FABilinearFormExtension::DGMultTranspose(const Vector &x, Vector &y) const
       ParBilinearForm *pb = nullptr;
       if ((pb = dynamic_cast<ParBilinearForm*>(a)) && (pb->keep_nbr_block))
       {
-         Vector dg_y(height, Device::GetDeviceTemporaryMemoryType());
+         Vector dg_y = Vector::NewTemporary(height);
          mat->MultTranspose(dg_x, dg_y);
          // DG Restriction
          auto dg_y_ptr = dg_y.Read();
@@ -1701,10 +1916,10 @@ void PAMixedBilinearFormExtension::AddMult(const Vector &x, Vector &y,
    Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
    const int iSz = integrators.Size();
 
-   Vector localTrial(elem_restrict_trial?elem_restrict_trial->Height():0,
-                     Device::GetDeviceTemporaryMemoryType());
-   Vector localTest(elem_restrict_test?elem_restrict_test->Height():0,
-                    Device::GetDeviceTemporaryMemoryType());
+   Vector localTrial = Vector::NewTemporary(elem_restrict_trial
+                                            ?elem_restrict_trial->Height():0);
+   Vector localTest = Vector::NewTemporary(elem_restrict_test
+                                           ?elem_restrict_test->Height():0);
 
    // * G operation
    SetupMultInputs(elem_restrict_trial, x, localTrial,
@@ -1736,10 +1951,10 @@ void PAMixedBilinearFormExtension::AddMultTranspose(const Vector &x, Vector &y,
    Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
    const int iSz = integrators.Size();
 
-   Vector localTrial(elem_restrict_trial?elem_restrict_trial->Height():0,
-                     Device::GetDeviceTemporaryMemoryType());
-   Vector localTest(elem_restrict_test?elem_restrict_test->Height():0,
-                    Device::GetDeviceTemporaryMemoryType());
+   Vector localTrial = Vector::NewTemporary(elem_restrict_trial
+                                            ?elem_restrict_trial->Height():0);
+   Vector localTest = Vector::NewTemporary(elem_restrict_test
+                                           ?elem_restrict_test->Height():0);
 
    // * G operation
    SetupMultInputs(elem_restrict_test, x, localTest,
@@ -1765,15 +1980,15 @@ void PAMixedBilinearFormExtension::AssembleDiagonal_ADAt(const Vector &D,
 
    const int iSz = integrators.Size();
 
-   Vector localTrial(elem_restrict_trial?elem_restrict_trial->Height():0,
-                     Device::GetDeviceTemporaryMemoryType());
+   Vector localTrial = Vector::NewTemporary(elem_restrict_trial
+                                            ?elem_restrict_trial->Height():0);
    if (elem_restrict_trial)
    {
       const ElementRestriction* H1elem_restrict_trial =
          dynamic_cast<const ElementRestriction*>(elem_restrict_trial);
       if (H1elem_restrict_trial)
       {
-         H1elem_restrict_trial->MultUnsigned(D, localTrial);
+         H1elem_restrict_trial->AbsMult(D, localTrial);
       }
       else
       {
@@ -1783,8 +1998,7 @@ void PAMixedBilinearFormExtension::AssembleDiagonal_ADAt(const Vector &D,
 
    if (elem_restrict_test)
    {
-      Vector localTest(elem_restrict_test->Height(),
-                       Device::GetDeviceTemporaryMemoryType());
+      Vector localTest = Vector::NewTemporary(elem_restrict_test->Height());
 
       localTest = 0.0;
       for (int i = 0; i < iSz; ++i)
@@ -1802,7 +2016,7 @@ void PAMixedBilinearFormExtension::AssembleDiagonal_ADAt(const Vector &D,
          dynamic_cast<const ElementRestriction*>(elem_restrict_test);
       if (H1elem_restrict_test)
       {
-         H1elem_restrict_test->MultTransposeUnsigned(localTest, diag);
+         H1elem_restrict_test->AbsMultTranspose(localTest, diag);
       }
       else
       {
@@ -1852,15 +2066,14 @@ void PADiscreteLinearOperatorExtension::Assemble()
    test_multiplicity.UseDevice(true);
    test_multiplicity.SetSize(elem_restrict_test->Width()); // l-vector
 
-   Vector ones(elem_restrict_test->Height(),
-               Device::GetDeviceTemporaryMemoryType()); // e-vector
+   Vector ones = Vector::NewTemporary(elem_restrict_test->Height()); // e-vector
    ones = 1.0;
 
    const ElementRestriction* elem_restrict =
       dynamic_cast<const ElementRestriction*>(elem_restrict_test);
    if (elem_restrict)
    {
-      elem_restrict->MultTransposeUnsigned(ones, test_multiplicity);
+      elem_restrict->AbsMultTranspose(ones, test_multiplicity);
    }
    else
    {
@@ -1880,10 +2093,10 @@ void PADiscreteLinearOperatorExtension::AddMult(
    Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
    const int iSz = integrators.Size();
 
-   Vector localTrial(elem_restrict_trial?elem_restrict_trial->Height():0,
-                     Device::GetDeviceTemporaryMemoryType());
-   Vector localTest(elem_restrict_test?elem_restrict_test->Height():0,
-                    Device::GetDeviceTemporaryMemoryType());
+   Vector localTrial = Vector::NewTemporary(elem_restrict_trial
+                                            ?elem_restrict_trial->Height():0);
+   Vector localTest = Vector::NewTemporary(elem_restrict_test
+                                           ?elem_restrict_test->Height():0);
 
    // * G operation
    SetupMultInputs(elem_restrict_trial, x, localTrial,
@@ -1902,7 +2115,7 @@ void PADiscreteLinearOperatorExtension::AddMult(
       dynamic_cast<const ElementRestriction*>(elem_restrict_test);
    if (elem_restrict)
    {
-      Vector tempY(y.Size(), Device::GetDeviceTemporaryMemoryType());
+      Vector tempY = Vector::NewTemporary(y.Size());
       elem_restrict->MultLeftInverse(localTest, tempY);
       y += tempY;
    }
@@ -1930,10 +2143,10 @@ void PADiscreteLinearOperatorExtension::AddMultTranspose(
       xs[i] *= tm[i];
    });
 
-   Vector localTrial(elem_restrict_trial?elem_restrict_trial->Height():0,
-                     Device::GetDeviceTemporaryMemoryType());
-   Vector localTest(elem_restrict_test?elem_restrict_test->Height():0,
-                    Device::GetDeviceTemporaryMemoryType());
+   Vector localTrial = Vector::NewTemporary(elem_restrict_trial
+                                            ?elem_restrict_trial->Height():0);
+   Vector localTest = Vector::NewTemporary(elem_restrict_test
+                                           ?elem_restrict_test->Height():0);
 
    SetupMultInputs(elem_restrict_test, xscaled, localTest,
                    elem_restrict_trial, y, localTrial, c);

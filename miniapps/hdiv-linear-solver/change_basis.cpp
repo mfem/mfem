@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -80,7 +80,7 @@ ChangeOfBasis_L2::ChangeOfBasis_L2(FiniteElementSpace &fes)
 
    // Convert from the given basis to the "integrated GLL basis".
    // The degrees of freedom are integrals over subcells.
-   const FiniteElement *fe = fes.GetFE(0);
+   const FiniteElement *fe = fes.GetTypicalFE();
    auto *tbe = dynamic_cast<const TensorBasisElement*>(fe);
    MFEM_VERIFY(tbe != nullptr, "Must be a tensor element.");
    const Poly_1D::Basis &basis = tbe->GetBasis1D();
