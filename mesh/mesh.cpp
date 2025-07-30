@@ -937,7 +937,8 @@ const Array<int>& Mesh::GetBdrElementAttributes() const
       bdr_attrs_cache.SetSize(nf_bdr);
       int f_ind = 0;
       int missing_bdr_elems = 0;
-      for (int f = 0; f < GetNumFaces(); ++f)
+      const int nf = GetNumFaces();
+      for (int f = 0; f < nf; ++f)
       {
          if (!GetFaceInformation(f).IsOfFaceType(FaceType::Boundary))
          {
@@ -13349,7 +13350,7 @@ void Mesh::ScaleElements(real_t sf)
    delete [] vn;
 }
 
-void Mesh::Transform(void (*f)(const Vector&, Vector&))
+void Mesh::Transform(std::function<void(const Vector &, Vector&)> f)
 {
    // TODO: support for different new spaceDim.
    if (Nodes == NULL)
@@ -13362,7 +13363,7 @@ void Mesh::Transform(void (*f)(const Vector&, Vector&))
             vold(j) = vertices[i](j);
          }
          vnew.SetData(vertices[i]());
-         (*f)(vold, vnew);
+         f(vold, vnew);
       }
    }
    else
