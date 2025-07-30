@@ -1932,6 +1932,11 @@ void Mesh::ResetLazyData()
    // set size to 0 so re-computations can potentially avoid a new allocation
    bdr_attrs_cache.SetSize(0);
    elem_attrs_cache.SetSize(0);
+
+   face_indices[0].SetSize(0);
+   face_indices[1].SetSize(0);
+   inv_face_indices[0].clear();
+   inv_face_indices[1].clear();
 }
 
 void Mesh::SetAttributes(bool elem_attrs_changed, bool bdr_attrs_changed)
