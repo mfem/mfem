@@ -4535,6 +4535,7 @@ Mesh::Mesh(const Mesh &mesh, bool copy_nodes)
 
    // copy attribute caches
    elem_attrs_cache = mesh.elem_attrs_cache;
+   bdr_attrs_cache = mesh.bdr_attrs_cache;
 }
 
 Mesh::Mesh(Mesh &&mesh) : Mesh()
@@ -10940,6 +10941,7 @@ void Mesh::Swap(Mesh& other, bool non_geometry)
 
    // copy attribute caches
    mfem::Swap(elem_attrs_cache, other.elem_attrs_cache);
+   mfem::Swap(bdr_attrs_cache, other.bdr_attrs_cache);
 }
 
 void Mesh::GetElementData(const Array<Element*> &elem_array, int geom,
