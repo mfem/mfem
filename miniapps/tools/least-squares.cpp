@@ -26,6 +26,14 @@ enum SolverType
    num_solvers  // last
 };
 
+/// Enumerator for reconstruction types
+enum ReconstructionType
+{
+   norm,
+   average,
+   num_reconstructions  // last
+};
+
 /// Iterative solver parameters
 struct IterativeSolverParams
 {
@@ -49,6 +57,7 @@ using SolverParams = std::variant<std::monostate, IterativeSolverParams, int>;
 /// Global configuration struct
 struct GlobalConfiguration
 {
+   ReconstructionType rec;
    VisualizationParams vis;
    IterativeSolverParams newton;
    SolverType solver_type;
@@ -534,6 +543,7 @@ int main(int argc, char* argv[])
    // Default command-line options
    GlobalConfiguration params
    {
+      .rec = norm,
       .vis = {
          .save_to_files = false,
          .visualization = false,
@@ -563,6 +573,12 @@ int main(int argc, char* argv[])
 
    // Parse options
    OptionsParser args(argc, argv);
+
+   args.AddOption((int*)&params.rec, "-rec", "--reconstruction",
+                  "reconstruction methods to be considered:"
+                  "\n\t0: L2-norm least squares "
+                  "\n\t1: Local-averages least square");
+
    args.AddOption(&params.vis.save_to_files, "-s", "--save", "-no-s",
                   "--no-save", "Show or not show approximation error.");
    args.AddOption(&params.vis.visualization, "-vis", "--visualization", "-no-vis",
@@ -748,106 +764,19 @@ int main(int argc, char* argv[])
       it_solver->SetAbsTol(isp.atol);
    }
 
-   // TODO(Gabriel): Extrude logic...
-   // Neighboring elements and DoFs
-   Array<int> neighbors_e, e_dofs;
-   auto neighbor_trans = new IsoparametricTransformation;
-   auto e_trans = new IsoparametricTransformation;
-
-   // TODO(Gabriel): Loop too big!
-   for (int e_idx = 0; e_idx < mesh.GetNE(); e_idx++ )
+   // Reconstruction function
+   switch (params.rec)
    {
-      const int fe_dst_e_ndof = fes_dst.GetFE(e_idx)->GetDof();
-      const int fe_src_e_ndof = fes_src.GetFE(e_idx)->GetDof();
-
-      SaturateNeighborhood(nc_mesh, e_idx, fe_dst_e_ndof, fe_src_e_ndof, neighbors_e);
-      if (params.preserve_volumes) { neighbors_e.DeleteFirst(e_idx); }
-
-      // BEGIN definition small matrix
-      const int num_neighbors = neighbors_e.Size();
-      DenseMatrix fe_dst_to_neighbors_mat(num_neighbors, fe_dst_e_ndof);
-
-      for (int i = 0; i < num_neighbors; i++)
-      {
-         const int neighbor_idx = neighbors_e[i];
-
-         fes_dst.GetElementTransformation(neighbor_idx, neighbor_trans);
-         fes_src.GetElementTransformation(e_idx, e_trans);
-
-         DenseMatrix e_to_neighbor_mat;
-         mass.AsymmetricElementMatrix(*fes_dst.GetFE(neighbor_idx),
-                                      *fes_src.GetFE(e_idx),
-                                      *neighbor_trans, *e_trans,
-                                      e_to_neighbor_mat,
-                                      params.newton);
-
-         if (e_to_neighbor_mat.Height()!=1) { mfem_error("High order case for source space not implemented yet!"); }
-         Vector neighbor_idx_row;
-         e_to_neighbor_mat.GetRow(0, neighbor_idx_row);
-         fe_dst_to_neighbors_mat.SetRow(i, neighbor_idx_row);
-      }
-
-      // Get neighbors volumes and scale patch matrix
-      Vector neighbors_volumes(num_neighbors);
-      volumes.GetSubVector(neighbors_e, neighbors_volumes);
-      fe_dst_to_neighbors_mat.InvLeftScaling(neighbors_volumes);
-      // END definition small matrix
-
-      // TODO(Gabriel): Cannot use here if need original matrix
-      // Define L1-Jacobi PC (diagonal vector) for A^T A
-      // GetNormalL1Diag(fe_dst_to_neighbors_mat, l1_diag);
-
-      // Get local averages and local ones
-      Vector u_src_neighbors, u_dst_e, punity_e;
-      fes_dst.GetElementDofs(e_idx, e_dofs);
-      u_src.GetSubVector(neighbors_e, u_src_neighbors);
-      punity_dst.GetSubVector(e_dofs, punity_e);
-
-      // Solve
-      if (params.preserve_volumes)
-      {
-         real_t u_e_avg = u_src(e_idx);
-
-         Vector shape_avg_e, local_ones(num_neighbors);
-         local_ones = 1.0;
-         DenseMatrix temp_mat;
-         mass.AsymmetricElementMatrix(*fes_dst.GetFE(e_idx),
-                                      *fes_src.GetFE(e_idx),
-                                      *e_trans, *e_trans, temp_mat,
-                                      params.newton);
-         temp_mat *= -1.0/volumes(e_idx);
-         temp_mat.GetRow(0, shape_avg_e);
-
-         // Set up A - 1 x shape_avgs
-         AddMultVWt(local_ones, shape_avg_e, fe_dst_to_neighbors_mat);
-         // Set up u avgs minus average on e
-         add(1.0, u_src_neighbors, -u_e_avg, local_ones, u_src_neighbors);
-
-         LSSolver(*solver, fe_dst_to_neighbors_mat, u_src_neighbors, u_dst_e,
-                  params.reg);
-
-         // Add the average to the final solution
-         add(1.0, u_dst_e, u_e_avg, punity_e, u_dst_e);
-      }
-      else
-      {
-         LSSolver(*solver, fe_dst_to_neighbors_mat, u_src_neighbors, u_dst_e,
-                  params.reg);
-      }
-
-      // Check solver
-      if (it_solver && !it_solver->GetConverged()) { mfem_error("\n\tIterative solver failed to converge!"); }
-      // TODO(Gabriel): Fix this!
-      // if (params.solver >= 0) { CheckLSSolver(fe_dst_to_neighbors_mat, u_src_neighbors, u_dst_e); }
-
-      // Integrate into global solution
-      u_dst.SetSubVector(e_dofs, u_dst_e);
-
-      neighbors_e.DeleteAll();
-      e_dofs.DeleteAll();
+      case norm:
+         L2Reconstruction(*solver, u_src, u_dst, nc_mesh, params.newton);
+      case average:
+      default:
+         AverageReconstruction(*solver, u_src, u_dst, nc_mesh, params.newton,
+                               params.reg);
    }
    u_dst.GetElementAverages(u_dst_avg);
 
+   // Visualization
    char vishost[] = "localhost";
    socketstream glvis_smooth(vishost, params.vis.port);
    socketstream glvis_src(vishost, params.vis.port);
