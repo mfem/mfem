@@ -944,9 +944,43 @@ const Operator *get_element_restriction(const FieldDescriptor &f,
       }
       else
       {
-         static_assert(dfem::always_false<T>, "can't use GetElementRestriction on type");
+         static_assert(dfem::always_false<T>,
+                       "can't use get_element_restriction on type");
       }
       return nullptr; // Unreachable, but avoids compiler warning
+   }, f.data);
+}
+
+/// @brief Get the face restriction operator for a field descriptor.
+///
+/// @param f the field descriptor.
+/// @param o the face dof ordering.
+/// @returns the face restriction operator for the field descriptor in
+/// specified ordering.
+inline
+const Operator *get_face_restriction(const FieldDescriptor &f,
+                                     ElementDofOrdering o,
+                                     FaceType ft,
+                                     L2FaceValues m)
+{
+   return std::visit([&o, &ft, &m](auto&& arg) -> const Operator*
+   {
+      using T = std::decay_t<decltype(arg)>;
+      if constexpr (std::is_same_v<T, const FiniteElementSpace *> ||
+                    std::is_same_v<T, const ParFiniteElementSpace *>)
+      {
+         return arg->GetFaceRestriction(o, ft, m);
+      }
+      else if constexpr (std::is_same_v<T, const ParameterSpace *>)
+      {
+         // ParameterSpace does not support face restrictions
+         MFEM_ABORT("internal error");
+      }
+      else
+      {
+         static_assert(dfem::always_false<T>,
+                       "can't use get_face_restriction on type");
+      }
    }, f.data);
 }
 
@@ -964,6 +998,11 @@ const Operator *get_restriction(const FieldDescriptor &f,
    if constexpr (std::is_same_v<entity_t, Entity::Element>)
    {
       return get_element_restriction(f, o);
+   }
+   else if constexpr (std::is_same_v<entity_t, Entity::BoundaryElement>)
+   {
+      return get_face_restriction(f, o, FaceType::Boundary,
+                                  L2FaceValues::SingleValued);
    }
    MFEM_ABORT("restriction not implemented for Entity");
    return nullptr;
@@ -1371,7 +1410,7 @@ create_descriptors_to_fields_map(
       if constexpr (std::is_same_v<std::decay_t<decltype(fop)>, Weight>)
       {
          // TODO-bug: stealing dimension from the first field
-         fop.dim = GetDimension<Entity::Element>(fields[0]);
+         fop.dim = GetDimension<entity_t>(fields[0]);
          fop.vdim = 1;
          fop.size_on_qp = 1;
          map = -1;

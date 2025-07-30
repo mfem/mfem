@@ -44,7 +44,16 @@ void call_qfunction(
 {
    if (use_sum_factorization)
    {
-      if (dimension == 2)
+      if (dimension == 1)
+      {
+         MFEM_FOREACH_THREAD(q, x, q1d)
+         {
+            auto qf_args = decay_tuple<qf_param_ts> {};
+            auto r = Reshape(&residual_shmem(0, q), rs_qp);
+            apply_kernel(r, qfunc, qf_args, input_shmem, q);
+         }
+      }
+      else if (dimension == 2)
       {
          MFEM_FOREACH_THREAD(qx, x, q1d)
          {
