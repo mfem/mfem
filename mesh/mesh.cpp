@@ -13347,7 +13347,7 @@ void Mesh::ScaleElements(real_t sf)
    delete [] vn;
 }
 
-void Mesh::Transform(void (*f)(const Vector&, Vector&))
+void Mesh::Transform(std::function<void(const Vector &, Vector&)> f)
 {
    // TODO: support for different new spaceDim.
    if (Nodes == NULL)
@@ -13360,7 +13360,7 @@ void Mesh::Transform(void (*f)(const Vector&, Vector&))
             vold(j) = vertices[i](j);
          }
          vnew.SetData(vertices[i]());
-         (*f)(vold, vnew);
+         f(vold, vnew);
       }
    }
    else
