@@ -1243,6 +1243,27 @@ T norm(const tensor<T, n...>& A)
    return std::sqrt(sqnorm(A));
 }
 
+template <typename T, int n, int m> MFEM_HOST_DEVICE
+T weight(const tensor<T, n, m>& A)
+{
+   if constexpr (n == m)
+   {
+      return det(A);
+   }
+   if constexpr (n == 2 && m == 1 ||
+                 n == 3 && m == 1)
+   {
+      return norm(A);
+   }
+   else if constexpr (n == 3 && m == 2)
+   {
+      T E = A[0][0] * A[0][0] + A[1][0] * A[1][0] + A[2][0] * A[2][0];
+      T G = A[0][1] * A[0][1] + A[1][1] * A[1][1] + A[2][1] * A[2][1];
+      T F = A[0][0] * A[0][1] + A[1][0] * A[1][1] + A[2][0] * A[2][1];
+      return std::sqrt(E * G - F * F);
+   }
+}
+
 /**
  * @brief Normalizes the tensor
  * Each element is divided by the Frobenius norm of the tensor, @see norm
