@@ -808,6 +808,8 @@ class SplitTimeDependentOperator : public TimeDependentOperator
         virtual void ImplicitSolve1(const real_t gamma, const Vector &u, Vector &k);  //F(u + gamma k, k, t) = G1(u + gamma k, t)
         virtual void ImplicitSolve2(const real_t gamma, const Vector &u, Vector &k);  //F(u + gamma k, k, t) = G2(u + gamma k, t)
 
+        virtual ~SplitTimeDependentOperator() { }
+
     // - Fully explicit, need Mult1 and Mult2 (or just plain Mult)
     // - IMEX, need Mult1 and ImplicitSolve2
     // - "Split implicit", need ImplicitSolve1 and ImplicitSolve2

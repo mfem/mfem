@@ -28,6 +28,10 @@ std::string ODESolver::ImplicitTypes  =
    "        GA      : 40 -- 50  - Generalized-alpha,\n\t"
    "        AM      : 51 - AM1, 52 - AM2, 53 - AM3, 54 - AM4\n";
 
+std::string ODESolver::IMEXTypes = 
+"\n\tIMEX solver: \n\t"
+"           55 - Forward Backward Euler, 56 - CNAB2\n";
+
 std::string ODESolver::Types = ODESolver::ExplicitTypes +
                                ODESolver::ImplicitTypes;
 
@@ -41,6 +45,10 @@ std::unique_ptr<ODESolver> ODESolver::Select(int ode_solver_type)
    {
       return SelectImplicit(ode_solver_type);
    }
+   // else
+   // {
+   //    return SelectIMEX(ode_solver_type);
+   // }
 }
 
 std::unique_ptr<ODESolver> ODESolver::SelectExplicit(int ode_solver_type)
@@ -106,16 +114,14 @@ std::unique_ptr<ODESolver> ODESolver::SelectImplicit(int ode_solver_type)
    }
 }
 
-std::unique_ptr<SplitODESolver> SplitODESolver::SelectIMEX(int ode_solver_type)
+std::unique_ptr<SplitODESolver> SplitODESolver::Select(int ode_solver_type)
 {
    using ode_ptr = std::unique_ptr<SplitODESolver>;
    switch (ode_solver_type)
    {
-      // IMEX Methods
       case 55: return ode_ptr(new IMEXExpImplEuler);
-
-      default:
-         MFEM_ABORT("Unknown ODE solver type: " << ode_solver_type );
+      case 56: return ode_ptr(new IMEXRK2);
+      default: MFEM_ABORT("Unknown ODE solver type: " << ode_solver_type );
    }
 }
 
@@ -1317,6 +1323,51 @@ void IMEXExpImplEuler::Step(Vector &x, real_t &t, real_t &dt)
    x.Add(dt, k2);
    t += dt;
 }
+
+void IMEXRK2::Init(SplitTimeDependentOperator &f_)
+{
+   SplitODESolver::Init(f_);
+   int n = f->Width();
+   k1_exp.SetSize(n, mem_type);
+   k2_exp.SetSize(n, mem_type);
+   k2_imp.SetSize(n, mem_type);
+   k3_imp.SetSize(n, mem_type);
+   y.SetSize(n, mem_type);
+   z.SetSize(n, mem_type);
+}
+
+void IMEXRK2::Step(Vector &x, real_t &t, real_t &dt)
+{
+   double gamma = 1 - sqrt(2)/2;
+   double delta = 1 - 1/(2*gamma);
+
+   f->SetTime(t); 
+
+   //K1 exp is just f_1(t, x)
+   f->Mult1(x, k1_exp); 
+
+   //K2 exp is f_1(t + gamma dt, x + dt gamma K1)
+   f->SetTime(t + gamma*dt);
+   add(x, dt*gamma, k1_exp, y);
+   f->Mult1(y, k2_exp);
+
+   //K2_imp = f_2(t + gamma dt, x + dt gamma K2_imp)
+   f->ImplicitSolve2(dt*gamma, x, k2_imp);
+
+   //K3_imp = f_2(t+dt,x + dt(1-gamma)K2_imp + dt gamma K3_imp)
+   f -> SetTime(t + dt);
+   add(x, dt*(1-gamma), k2_imp, z);
+   f->ImplicitSolve2(dt*gamma, z, k3_imp);
+
+   //add it all up
+   x.Add(dt*delta, k1_exp);
+   x.Add(dt*(1-delta), k2_exp);
+   x.Add(dt*(1-gamma), k2_imp);
+   x.Add(dt*gamma, k3_imp);
+   t += dt;
+}
+
+
 
 
 }

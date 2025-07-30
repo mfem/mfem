@@ -118,7 +118,7 @@ int main(int argc, char *argv[])
    int ref_levels = 2;
    int order = 3;
    const char *device_config = "cpu";
-   int ode_solver_type = 55;
+   int ode_solver_type = 56;
    real_t t_final = 10.0;
    real_t dt = 0.001;
    bool paraview = false;
@@ -156,8 +156,7 @@ int main(int argc, char *argv[])
 
    // 3. Define the ODE solver used for time integration. May be explicit,
    //    implicit, or IMEX.
-   unique_ptr<SplitODESolver> ode_solver = SplitODESolver::SelectIMEX(ode_solver_type);
-
+   unique_ptr<SplitODESolver> ode_solver = SplitODESolver::Select(ode_solver_type);
    // 4. Refine the mesh to increase the resolution. In this example we do
    //    'ref_levels' of uniform refinement, where 'ref_levels' is a
    //    command-line parameter.
@@ -208,6 +207,7 @@ int main(int argc, char *argv[])
    // 7. Define the initial conditions.
    GridFunction u(&fes);
    u.ProjectCoefficient(u0);
+   GridFunction uu = u;
 
    unique_ptr<ParaViewDataCollection> pv;
    if (paraview)
@@ -237,6 +237,7 @@ int main(int argc, char *argv[])
    {
       real_t dt_real = min(dt, t_final - t);
       ode_solver->Step(u, t, dt_real);
+      GridFunction uu = u;
       ti++;
 
       done = (t >= t_final - 1e-8*dt);
