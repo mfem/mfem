@@ -25,10 +25,10 @@ MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
 SEQ_MINIAPPS = display-basis load-dc convert-dc get-values lor-transfer \
-	tmop-check-metric tmop-metric-magnitude least-squares \
-        flux-reconstruction
+	tmop-check-metric tmop-metric-magnitude
 
-PAR_MINIAPPS = nodal-transfer plor-transfer reconstruction
+PAR_MINIAPPS = nodal-transfer plor-transfer reconstruction \
+	least-squares flux-reconstruction
 
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)

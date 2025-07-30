@@ -364,15 +364,15 @@ void AverageReconstruction(Solver& solver,
    auto neighbor_trans = std::make_unique<IsoparametricTransformation>();
    auto e_trans = std::make_unique<IsoparametricTransformation>();
 
-   const auto fes_src = src.FESpace();
-   const auto fes_dst = dst.FESpace();
+   const auto fes_src = src.ParFESpace();
+   const auto fes_dst = dst.ParFESpace();
    Array<int> neighbors_e, e_dofs;
 
    // Auxiliary constant coefficients and partition of unity
    ConstantCoefficient ccf_ones(1.0);
    ConstantCoefficient ccf_zeros(0.0);
-   ParGridFunction punity_src(static_cast<ParFiniteElementSpace*>(fes_src));
-   ParGridFunction punity_dst(static_cast<ParFiniteElementSpace*>(fes_dst));
+   ParGridFunction punity_src(fes_src);
+   ParGridFunction punity_dst(fes_dst);
    punity_src.ProjectCoefficient(ccf_ones);
    punity_dst.ProjectCoefficient(ccf_ones);
 
@@ -472,13 +472,12 @@ void L2Reconstruction(Solver& solver,
    auto neighbor_trans = std::make_unique<IsoparametricTransformation>();
    auto e_trans = std::make_unique<IsoparametricTransformation>();
 
-   const auto fes_src = src.FESpace();
-   const auto fes_dst = dst.FESpace();
+   const auto fes_src = src.ParFESpace();
+   const auto fes_dst = dst.ParFESpace();
    Array<int> neighbors_e, e_dofs;
 
    ConstantCoefficient ccf_ones(1.0);
-   // TODO(Gabriel): explicit vs auto
-   ParGridFunction punity_dst(static_cast<ParFiniteElementSpace*>(fes_dst));
+   ParGridFunction punity_dst(fes_dst);
    punity_dst.ProjectCoefficient(ccf_ones);
 
    for (int e_idx = 0; e_idx < mesh.GetNumElements(); e_idx++ )
