@@ -305,7 +305,7 @@ int main(int argc, char *argv[])
             }
             MPI_Barrier(MPI_COMM_WORLD);
          }
-         
+
          // Redistribute
          boris.Redistribute(ctx.redist_mesh);
 
@@ -415,11 +415,7 @@ Boris::Boris(MPI_Comm comm, GridFunction *E_gf_, GridFunction *B_gf_, int num_pa
 
    // Create particle set: 2 scalars of mass and charge, 3 vectors of size space dim for momentum, e field, and b field
    Array<int> field_vdims({1, 1, dim, dim, dim});
-   Array<const char*> field_names({"Mass", "Charge", "Momentum", "E Field", "B Field"});
-   Ordering::Type coords_ordering = pdata_ordering;
-   Array<Ordering::Type> field_orderings(Fields::SIZE);
-   field_orderings = pdata_ordering;
-   charged_particles = std::make_unique<ParticleSet>(comm, ctx.npt, dim, coords_ordering, field_vdims, field_orderings, field_names);
+   charged_particles = std::make_unique<ParticleSet>(comm, ctx.npt, dim, field_vdims, pdata_ordering);
 }
 
 void Boris::InterpolateEB()
@@ -555,19 +551,23 @@ void InitializeChargedParticles(ParticleSet &charged_particles, const Vector &x_
 
    int dim = charged_particles.Coords().GetVDim();
    
+   ParticleVector &X = charged_particles->Coords();
+   ParticleVector &P = charged_particles->Field(Boris::MOM);
+   ParticleVector &M = charged_particles->Field(Boris::MASS);
+   ParticleVector &Q = charged_particles->Field(Boris::CHARGE);
+
    for (int i = 0; i < charged_particles.GetNP(); i++)
    {
       for (int d = 0; d < dim; d++)
       {
          // Initialize coords
-         charged_particles.Coords().ParticleValue(i, d) = x_min[d] + real_dist(gen)*(x_max[d] - x_min[d]);
+         X.ParticleValue(i, d) = x_min[d] + real_dist(gen)*(x_max[d] - x_min[d]);
 
          // Initialize momentum
-         charged_particles.Field(Boris::MOM).ParticleValue(i, d) = p_min[d] + real_dist(gen)*(p_max[d] - p_min[d]);
-
-         // Initialize mass + charge
-         charged_particles.Field(Boris::MASS).ParticleValue(i) = m;
-         charged_particles.Field(Boris::CHARGE).ParticleValue(i) = q;
+         P.ParticleValue(i, d) = p_min[d] + real_dist(gen)*(p_max[d] - p_min[d]);
       }
+      // Initialize mass + charge
+      M.ParticleValue(i) = m;
+      Q.ParticleValue(i) = q;  
    }
 }
