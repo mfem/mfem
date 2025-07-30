@@ -3136,21 +3136,18 @@ private:
    Vector vcoeff;
 
 public:
-   VectorDiffusionIntegrator() { }
+   VectorDiffusionIntegrator(const IntegrationRule *ir = nullptr);
 
    /** \brief Integrator with unit coefficient for caller-specified vector
        dimension.
 
        If the vector dimension does not match the true dimension of the space,
        the resulting element matrix will be mathematically invalid. */
-   VectorDiffusionIntegrator(int vector_dimension)
-      : vdim(vector_dimension) { }
+   VectorDiffusionIntegrator(int vector_dimension);
 
-   VectorDiffusionIntegrator(Coefficient &q)
-      : Q(&q) { }
+   VectorDiffusionIntegrator(Coefficient &q);
 
-   VectorDiffusionIntegrator(Coefficient &q, const IntegrationRule *ir)
-      : BilinearFormIntegrator(ir), Q(&q) { }
+   VectorDiffusionIntegrator(Coefficient &q, const IntegrationRule *ir);
 
    /** \brief Integrator with scalar coefficient for caller-specified vector
        dimension.
@@ -3160,8 +3157,7 @@ public:
 
        If the vector dimension does not match the true dimension of the space,
        the resulting element matrix will be mathematically invalid. */
-   VectorDiffusionIntegrator(Coefficient &q, int vector_dimension)
-      : Q(&q), vdim(vector_dimension) { }
+   VectorDiffusionIntegrator(Coefficient &q, int vector_dimension);
 
    /** \brief Integrator with \c VectorCoefficient. The vector dimension of the
        \c FiniteElementSpace is assumed to be the same as the dimension of the
@@ -3172,8 +3168,7 @@ public:
 
        If the vector dimension does not match the true dimension of the space,
        the resulting element matrix will be mathematically invalid. */
-   VectorDiffusionIntegrator(VectorCoefficient &vq)
-      : VQ(&vq), vdim(vq.GetVDim()) { }
+   VectorDiffusionIntegrator(VectorCoefficient &vq);
 
    /** \brief Integrator with \c MatrixCoefficient. The vector dimension of the
        \c FiniteElementSpace is assumed to be the same as the dimension of the
@@ -3184,8 +3179,7 @@ public:
 
        If the vector dimension does not match the true dimension of the space,
        the resulting element matrix will be mathematically invalid. */
-   VectorDiffusionIntegrator(MatrixCoefficient& mq)
-      : MQ(&mq), vdim(mq.GetVDim()) { }
+   VectorDiffusionIntegrator(MatrixCoefficient& mq);
 
    void AssembleElementMatrix(const FiniteElement &el,
                               ElementTransformation &Trans,
@@ -3201,6 +3195,28 @@ public:
    void AddMultPA(const Vector &x, Vector &y) const override;
    void AddMultMF(const Vector &x, Vector &y) const override;
    bool SupportsCeed() const override { return DeviceCanUseCeed(); }
+
+   /// arguments: ne, B, G, Bt, Gt, pa_data, x, y, d1d, q1d, vdim
+   using ApplyKernelType = void (*)(const int, const Array<real_t> &,
+                                    const Array<real_t> &,
+                                    const Array<real_t> &,
+                                    const Array<real_t> &, const Vector &,
+                                    const Vector &, Vector &, const int,
+                                    const int, const int);
+
+   /// arguments: dim, vdim, d1d, q1d
+   MFEM_REGISTER_KERNELS(ApplyPAKernels, ApplyKernelType, (int, int, int, int));
+
+   template <int DIM, int VDIM, int D1D, int Q1D>
+   static void AddSpecialization()
+   {
+      ApplyPAKernels::Specialization<DIM, VDIM, D1D, Q1D>::Add();
+   }
+
+   struct Kernels
+   {
+      Kernels();
+   };
 };
 
 /** Integrator for the linear elasticity form:
