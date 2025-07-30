@@ -42,7 +42,14 @@ void Ctrl::Configure()
 
    // Filling the device memory backends, shifting with the device size
    constexpr int shift = DeviceMemoryType;
+#if defined(MFEM_USE_CUDA)
    device[static_cast<int>(MT::MANAGED)-shift] = new UvmCudaMemorySpace();
+#elif defined(MFEM_USE_HIP)
+   device[static_cast<int>(MT::MANAGED)-shift] = new UvmHipMemorySpace();
+#else
+   // this re-creates the original behavior, but should this be nullptr instead?
+   device[static_cast<int>(MT::MANAGED)-shift] = new UvmCudaMemorySpace();
+#endif
    // All other devices controllers are delayed
    device[static_cast<int>(MemoryType::DEVICE)-shift] = nullptr;
    device[static_cast<int>(MT::DEVICE_DEBUG)-shift] = nullptr;

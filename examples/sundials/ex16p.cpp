@@ -499,7 +499,7 @@ ConductionOperator::ConductionOperator(ParFiniteElementSpace &fes,
                                        const Vector &u,
                                        const Type &ode_expression_type)
    : TimeDependentOperator(fes.GetTrueVSize(), 0.0, ode_expression_type),
-     fespace(fes), alpha(alpha), kappa(kappa), M(&fespace),
+     fespace(fes), M(&fespace), alpha(alpha), kappa(kappa),
      M_solver(fes.GetComm()), T_solver(fes.GetComm()), z(height)
 {
    // specify a relative tolerance for all solves with MFEM integrators
@@ -576,7 +576,7 @@ int ConductionOperator::SUNImplicitSetup(const Vector &u, const Vector &fu,
    T = std::unique_ptr<HypreParMatrix>(Add(1.0, Mmat, gam, Kmat));
    T_solver.SetOperator(*T);
    *jcur = SUNTRUE; // this should eventually only be set true if K(u) is used
-   return SUNLS_SUCCESS;
+   return SUN_SUCCESS;
 }
 
 int ConductionOperator::SUNImplicitSolve(const Vector &r, Vector &dk,
@@ -598,7 +598,7 @@ int ConductionOperator::SUNImplicitSolve(const Vector &r, Vector &dk,
    }
    if (T_solver.GetConverged())
    {
-      return SUNLS_SUCCESS;
+      return SUN_SUCCESS;
    }
    else
    {
@@ -609,7 +609,7 @@ int ConductionOperator::SUNImplicitSolve(const Vector &r, Vector &dk,
 int ConductionOperator::SUNMassSetup()
 {
    // Do nothing b/c mass solver was setup in constructor.
-   return SUNLS_SUCCESS;
+   return SUN_SUCCESS;
 }
 
 int ConductionOperator::SUNMassSolve(const Vector &b, Vector &x, real_t tol)
@@ -619,7 +619,7 @@ int ConductionOperator::SUNMassSolve(const Vector &b, Vector &x, real_t tol)
    M_solver.Mult(b, x);
    if (M_solver.GetConverged())
    {
-      return SUNLS_SUCCESS;
+      return SUN_SUCCESS;
    }
    else
    {
@@ -631,5 +631,5 @@ int ConductionOperator::SUNMassMult(const Vector &x, Vector &v)
 {
    // Compute M x.
    Mmat.Mult(x, v);
-   return SUNLS_SUCCESS;
+   return SUN_SUCCESS;
 }

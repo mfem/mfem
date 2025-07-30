@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -16,13 +16,13 @@
 #include "general/forall.hpp"
 #include "linalg/tensor.hpp"
 
-using mfem::internal::tensor;
-
 namespace mfem
 {
 
 namespace KernelHelpers
 {
+
+using mfem::future::tensor;
 
 // MFEM_SHARED_3D_BLOCK_TENSOR definition
 // Should be moved in backends/cuda/hip header files.

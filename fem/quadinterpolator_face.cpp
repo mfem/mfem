@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -77,7 +77,7 @@ FaceQuadratureInterpolator::FaceQuadratureInterpolator(
 
    if (fespace->GetNE() == 0) { return; }
    GetSigns(*fespace, type, signs);
-   const FiniteElement *fe = fespace->GetFE(0);
+   const FiniteElement *fe = fespace->GetTypicalFE();
    const ScalarFiniteElement *sfe =
       dynamic_cast<const ScalarFiniteElement*>(fe);
    const TensorBasisElement *tfe =
@@ -119,13 +119,13 @@ void FaceQuadratureInterpolator::Eval2D(
    auto val = q_layout == QVectorLayout::byNODES ?
               Reshape(q_val.Write(), NQ1D, VDIM, NF):
               Reshape(q_val.Write(), VDIM, NQ1D, NF);
-   // auto der = Reshape(q_der.Write(), NQ1D, VDIM, NF); // only tangential der
+   auto der = q_layout == QVectorLayout::byNODES ? // only tangential der
+              Reshape(q_der.Write(), NQ1D, VDIM, NF):
+              Reshape(q_der.Write(), VDIM, NQ1D, NF);
    auto det = Reshape(q_det.Write(), NQ1D, NF);
    auto n   = q_layout == QVectorLayout::byNODES ?
               Reshape(q_nor.Write(), NQ1D, 2, NF):
               Reshape(q_nor.Write(), 2, NQ1D, NF);
-   MFEM_VERIFY(eval_flags | DERIVATIVES,
-               "Derivatives on the faces are not yet supported.");
    // If Gauss-Lobatto
    mfem::forall(NF, [=] MFEM_HOST_DEVICE (int f)
    {
@@ -172,6 +172,20 @@ void FaceQuadratureInterpolator::Eval2D(
                {
                   real_t s_e = r_F[d][c];
                   D[c] += s_e * w;
+               }
+            }
+            if (eval_flags & DERIVATIVES)
+            {
+               for (int c = 0; c < VDIM; c++)
+               {
+                  if (q_layout == QVectorLayout::byVDIM)
+                  {
+                     der(c,q,f) =  D[c];
+                  }
+                  else // q_layout == QVectorLayout::byNODES
+                  {
+                     der(q,c,f) =  D[c];
+                  }
                }
             }
             if (VDIM == 2 &&
@@ -232,13 +246,13 @@ void FaceQuadratureInterpolator::Eval3D(
    auto val = q_layout == QVectorLayout::byNODES ?
               Reshape(q_val.Write(), NQ1D, NQ1D, VDIM, NF):
               Reshape(q_val.Write(), VDIM, NQ1D, NQ1D, NF);
-   // auto der = Reshape(q_der.Write(), NQ1D, VDIM, 3, NF);
+   auto der = q_layout == QVectorLayout::byNODES ?
+              Reshape(q_der.Write(), NQ1D, NQ1D, VDIM, 2, NF):
+              Reshape(q_der.Write(), VDIM, 2, NQ1D, NQ1D, NF);
    auto det = Reshape(q_det.Write(), NQ1D, NQ1D, NF);
    auto nor = q_layout == QVectorLayout::byNODES ?
               Reshape(q_nor.Write(), NQ1D, NQ1D, 3, NF):
               Reshape(q_nor.Write(), 3, NQ1D, NQ1D, NF);
-   MFEM_VERIFY(eval_flags | DERIVATIVES,
-               "Derivatives on the faces are not yet supported.");
    mfem::forall(NF, [=] MFEM_HOST_DEVICE (int f)
    {
       constexpr int max_ND1D = T_ND1D ? T_ND1D : MAX_ND1D;
@@ -348,6 +362,28 @@ void FaceQuadratureInterpolator::Eval3D(
                }
             }
          }
+         if (eval_flags & DERIVATIVES)
+         {
+            for (int c = 0; c < VDIM; c++)
+            {
+               for (int q2 = 0; q2 < NQ1D; ++q2)
+               {
+                  for (int q1 = 0; q1 < NQ1D; ++q1)
+                  {
+                     if (q_layout == QVectorLayout::byVDIM)
+                     {
+                        der(c,0,q1,q2,f) = BGu[q2][q1][c];
+                        der(c,1,q1,q2,f) = GBu[q2][q1][c];
+                     }
+                     else // q_layout == QVectorLayout::byNODES
+                     {
+                        der(q1,q2,c,0,f) = BGu[q2][q1][c];
+                        der(q1,q2,c,1,f) = GBu[q2][q1][c];
+                     }
+                  }
+               }
+            }
+         }
          if (VDIM == 3 && ((eval_flags & NORMALS) ||
                            (eval_flags & DETERMINANTS)))
          {
@@ -417,13 +453,13 @@ void FaceQuadratureInterpolator::SmemEval3D(
    auto val = q_layout == QVectorLayout::byNODES ?
               Reshape(q_val.Write(), NQ1D, NQ1D, VDIM, NF):
               Reshape(q_val.Write(), VDIM, NQ1D, NQ1D, NF);
-   // auto der = Reshape(q_der.Write(), NQ1D, VDIM, 3, NF);
+   auto der = q_layout == QVectorLayout::byNODES ?
+              Reshape(q_der.Write(), NQ1D, NQ1D, VDIM, 2, NF):
+              Reshape(q_der.Write(), VDIM, 2, NQ1D, NQ1D, NF);
    auto det = Reshape(q_det.Write(), NQ1D, NQ1D, NF);
    auto nor = q_layout == QVectorLayout::byNODES ?
               Reshape(q_nor.Write(), NQ1D, NQ1D, 3, NF):
               Reshape(q_nor.Write(), 3, NQ1D, NQ1D, NF);
-   MFEM_VERIFY(eval_flags | DERIVATIVES,
-               "Derivatives on the faces are not yet supported.");
 
    mfem::forall_3D(NF, NQ1D, NQ1D, VDIM, [=] MFEM_HOST_DEVICE (int f)
    {
@@ -535,6 +571,29 @@ void FaceQuadratureInterpolator::SmemEval3D(
          }
          MFEM_SYNC_THREAD;
 
+         if (eval_flags & DERIVATIVES)
+         {
+            MFEM_FOREACH_THREAD(q2,x,NQ1D)
+            {
+               MFEM_FOREACH_THREAD(q1,y,NQ1D)
+               {
+                  MFEM_FOREACH_THREAD(c,z,VDIM)
+                  {
+                     if (q_layout == QVectorLayout::byVDIM)
+                     {
+                        der(c,0,q1,q2,f) = BGu[q2][q1][c];
+                        der(c,1,q1,q2,f) = GBu[q2][q1][c];
+                     }
+                     else // q_layout == QVectorLayout::byNODES
+                     {
+                        der(q1,q2,c,0,f) = BGu[q2][q1][c];
+                        der(q1,q2,c,1,f) = GBu[q2][q1][c];
+                     }
+                  }
+               }
+            }
+         }
+
          if (VDIM == 3 && ((eval_flags & NORMALS) ||
                            (eval_flags & DETERMINANTS)))
          {
@@ -587,8 +646,7 @@ void FaceQuadratureInterpolator::Mult(
    if (nf == 0) { return; }
    const int vdim = fespace->GetVDim();
    const int dim = fespace->GetMesh()->Dimension();
-   const FiniteElement *fe =
-      fespace->GetTraceElement(0, fespace->GetMesh()->GetFaceGeometry(0));
+   const FiniteElement *fe = fespace->GetTypicalTraceElement();
    const IntegrationRule *ir = IntRule;
    const DofToQuad &maps = fe->GetDofToQuad(*ir, DofToQuad::TENSOR);
    const int nd1d = maps.ndof;

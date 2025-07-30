@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -13,10 +13,9 @@
 
 using namespace std;
 
-namespace mfem
+namespace mfem::blocksolvers
 {
-namespace blocksolvers
-{
+
 void SetOptions(IterativeSolver& solver, const IterSolveParameters& param)
 {
    solver.SetPrintLevel(param.print_level);
@@ -49,7 +48,7 @@ BDPMinresSolver::BDPMinresSolver(const HypreParMatrix& M,
    prec_.SetDiagonalBlock(0, new HypreDiagScale(M));
    prec_.SetDiagonalBlock(1, new HypreBoomerAMG(*S_.As<HypreParMatrix>()));
    static_cast<HypreBoomerAMG&>(prec_.GetDiagonalBlock(1)).SetPrintLevel(0);
-   prec_.owns_blocks = true;
+   prec_.owns_blocks = 1;
 
    SetOptions(solver_, param);
    solver_.SetOperator(op_);
@@ -61,5 +60,5 @@ void BDPMinresSolver::Mult(const Vector & x, Vector & y) const
    solver_.Mult(x, y);
    for (int dof : ess_zero_dofs_) { y[dof] = 0.0; }
 }
-} // namespace blocksolvers
-} // namespace mfem
+
+} // namespace mfem::blocksolvers

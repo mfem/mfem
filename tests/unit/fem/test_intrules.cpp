@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -141,6 +141,33 @@ TEST_CASE("Integration rule order initialization", "[IntegrationRules]")
    }
 }
 
+
+TEST_CASE("Integration rule weights",
+          "[IntegrationRules]")
+{
+   // This code is automatically re-executed for all of the sections.
+   IntegrationRules my_intrules(0, Quadrature1D::GaussLegendre);
+   const IntegrationRule *ir;
+
+   auto geom  = GENERATE(Geometry::SEGMENT,
+                         Geometry::TRIANGLE, Geometry::SQUARE,
+                         Geometry::TETRAHEDRON, Geometry::CUBE,
+                         Geometry::PRISM, Geometry::PYRAMID);
+   auto order = GENERATE(1, 2, 3, 4, 5);
+
+   CAPTURE(geom);
+   CAPTURE(order);
+
+   ir = &my_intrules.Get(geom, 2*order - 1);
+
+   real_t weight_sum = 0.0;
+   for (int j = 0; j < ir->GetNPoints(); j++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(j);
+      weight_sum += ip.weight;
+   }
+   REQUIRE(Geometry::Volume[geom] == MFEM_Approx(weight_sum));
+}
 
 double poly2d(const IntegrationPoint &ip, int m, int n)
 {

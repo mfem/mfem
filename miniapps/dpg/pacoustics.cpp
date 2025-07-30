@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -442,7 +442,7 @@ int main(int argc, char *argv[])
 
    // integrators in the PML region
    // Custom integration rule for the test space in the PML region
-   const IntegrationRule &ir = IntRules.Get(pmesh.GetElementGeometry(0),
+   const IntegrationRule &ir = IntRules.Get(pmesh.GetTypicalElementGeometry(),
                                             2*test_order + 1);
    if (pml)
    {

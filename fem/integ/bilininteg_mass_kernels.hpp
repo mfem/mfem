@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -21,6 +21,8 @@
 
 namespace mfem
 {
+
+/// \cond DO_NOT_DOCUMENT
 
 namespace internal
 {
@@ -48,6 +50,7 @@ static void PAMassAssembleDiagonal1D(const int NE,
    });
 }
 
+template <bool ACCUMULATE = true>
 MFEM_HOST_DEVICE inline
 void PAMassApply1D_Element(const int e,
                            const int NE,
@@ -66,6 +69,14 @@ void PAMassApply1D_Element(const int e,
    auto D = ConstDeviceMatrix(d_, Q1D, NE);
    auto X = ConstDeviceMatrix(x_, D1D, NE);
    auto Y = DeviceMatrix(y_, D1D, NE);
+
+   if (!ACCUMULATE)
+   {
+      for (int dx = 0; dx < D1D; ++dx)
+      {
+         Y(dx, e) = 0.0;
+      }
+   }
 
    real_t XQ[DofQuadLimits::MAX_Q1D];
    for (int qx = 0; qx < Q1D; ++qx)
@@ -1132,6 +1143,244 @@ inline void SmemPAMassApply3D(const int NE,
    });
 }
 
+template<int T_D1D = 0, int T_Q1D = 0>
+inline void EAMassAssemble1D(const int NE,
+                             const Array<real_t> &basis,
+                             const Vector &padata,
+                             Vector &eadata,
+                             const bool add,
+                             const int d1d = 0,
+                             const int q1d = 0)
+{
+   const int D1D = T_D1D ? T_D1D : d1d;
+   const int Q1D = T_Q1D ? T_Q1D : q1d;
+   MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
+   MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
+   auto B = Reshape(basis.Read(), Q1D, D1D);
+   auto D = Reshape(padata.Read(), Q1D, NE);
+   auto M = Reshape(add ? eadata.ReadWrite() : eadata.Write(), D1D, D1D, NE);
+   mfem::forall_2D(NE, D1D, D1D, [=] MFEM_HOST_DEVICE (int e)
+   {
+      const int D1D = T_D1D ? T_D1D : d1d;
+      const int Q1D = T_Q1D ? T_Q1D : q1d;
+      constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
+      MFEM_FOREACH_THREAD(i1,x,D1D)
+      {
+         real_t r_Bi[MQ1];
+         for (int q = 0; q < Q1D; q++) { r_Bi[q] = B(q,i1); }
+         MFEM_FOREACH_THREAD(j1,y,D1D)
+         {
+            real_t r_Bj[MQ1];
+            for (int q = 0; q < Q1D; q++) { r_Bj[q] = B(q,j1); }
+
+            real_t val = 0.0;
+            for (int k1 = 0; k1 < Q1D; ++k1)
+            {
+               val += r_Bi[k1] * r_Bj[k1] * D(k1, e);
+            }
+            if (add)
+            {
+               M(i1, j1, e) += val;
+            }
+            else
+            {
+               M(i1, j1, e) = val;
+            }
+         }
+      }
+   });
+}
+
+template<int T_D1D = 0, int T_Q1D = 0>
+inline void EAMassAssemble2D(const int NE,
+                             const Array<real_t> &basis,
+                             const Vector &padata,
+                             Vector &eadata,
+                             const bool add,
+                             const int d1d = 0,
+                             const int q1d = 0)
+{
+   const int D1D = T_D1D ? T_D1D : d1d;
+   const int Q1D = T_Q1D ? T_Q1D : q1d;
+   MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
+   MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
+   auto B = Reshape(basis.Read(), Q1D, D1D);
+   auto D = Reshape(padata.Read(), Q1D, Q1D, NE);
+   auto M = Reshape(add ? eadata.ReadWrite() : eadata.Write(), D1D, D1D, D1D, D1D,
+                    NE);
+   mfem::forall_2D(NE, D1D, D1D, [=] MFEM_HOST_DEVICE (int e)
+   {
+      const int D1D = T_D1D ? T_D1D : d1d;
+      const int Q1D = T_Q1D ? T_Q1D : q1d;
+      constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
+      constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
+      real_t r_B[MQ1][MD1];
+      for (int d = 0; d < D1D; d++)
+      {
+         for (int q = 0; q < Q1D; q++)
+         {
+            r_B[q][d] = B(q,d);
+         }
+      }
+      MFEM_SHARED real_t s_D[MQ1][MQ1];
+      MFEM_FOREACH_THREAD(k1,x,Q1D)
+      {
+         MFEM_FOREACH_THREAD(k2,y,Q1D)
+         {
+            s_D[k1][k2] = D(k1,k2,e);
+         }
+      }
+      MFEM_SYNC_THREAD;
+      MFEM_FOREACH_THREAD(i1,x,D1D)
+      {
+         MFEM_FOREACH_THREAD(i2,y,D1D)
+         {
+            for (int j1 = 0; j1 < D1D; ++j1)
+            {
+               for (int j2 = 0; j2 < D1D; ++j2)
+               {
+                  real_t val = 0.0;
+                  for (int k1 = 0; k1 < Q1D; ++k1)
+                  {
+                     for (int k2 = 0; k2 < Q1D; ++k2)
+                     {
+                        val += r_B[k1][i1] * r_B[k1][j1]
+                               * r_B[k2][i2] * r_B[k2][j2]
+                               * s_D[k1][k2];
+                     }
+                  }
+                  if (add)
+                  {
+                     M(i1, i2, j1, j2, e) += val;
+                  }
+                  else
+                  {
+                     M(i1, i2, j1, j2, e) = val;
+                  }
+               }
+            }
+         }
+      }
+   });
+}
+
+template<int T_D1D = 0, int T_Q1D = 0>
+inline void EAMassAssemble3D(const int NE,
+                             const Array<real_t> &basis,
+                             const Vector &padata,
+                             Vector &eadata,
+                             const bool add,
+                             const int d1d = 0,
+                             const int q1d = 0)
+{
+   const int D1D = T_D1D ? T_D1D : d1d;
+   const int Q1D = T_Q1D ? T_Q1D : q1d;
+   MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
+   MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
+   auto B = Reshape(basis.Read(), Q1D, D1D);
+   auto D = Reshape(padata.Read(), Q1D, Q1D, Q1D, NE);
+   auto M = Reshape(add ? eadata.ReadWrite() : eadata.Write(), D1D, D1D, D1D, D1D,
+                    D1D, D1D, NE);
+   mfem::forall_3D(NE, D1D, D1D, D1D, [=] MFEM_HOST_DEVICE (int e)
+   {
+      const int D1D = T_D1D ? T_D1D : d1d;
+      const int Q1D = T_Q1D ? T_Q1D : q1d;
+      constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
+      constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
+      constexpr int DQ = T_D1D * T_Q1D;
+
+      // For quadratic and lower it's better to use registers but for higher-order you start to
+      // spill and it's better to use shared memory
+      constexpr bool USE_REG = DQ != 0 && DQ <= 12;
+      constexpr int MD1r = USE_REG ? MD1 : 1;
+      constexpr int MQ1r = USE_REG ? MQ1 : 1;
+      constexpr int MD1s = USE_REG ? 1 : MD1;
+      constexpr int MQ1s = USE_REG ? 1 : MQ1;
+
+      MFEM_SHARED real_t s_B[MQ1s][MD1s];
+      real_t r_B[MQ1r][MD1r];
+      real_t (*l_B)[MD1] = nullptr;
+      if (USE_REG)
+      {
+         for (int d = 0; d < D1D; d++)
+         {
+            for (int q = 0; q < Q1D; q++)
+            {
+               r_B[q][d] = B(q,d);
+            }
+         }
+         l_B = (real_t (*)[MD1])r_B;
+      }
+      else
+      {
+         if (MFEM_THREAD_ID(z) == 0)
+         {
+            MFEM_FOREACH_THREAD(d,x,D1D)
+            {
+               MFEM_FOREACH_THREAD(q,y,Q1D)
+               {
+                  s_B[q][d] = B(q,d);
+               }
+            }
+         }
+         l_B = (real_t (*)[MD1])s_B;
+      }
+
+      MFEM_SHARED real_t s_D[MQ1][MQ1][MQ1];
+      MFEM_FOREACH_THREAD(k1,x,Q1D)
+      {
+         MFEM_FOREACH_THREAD(k2,y,Q1D)
+         {
+            MFEM_FOREACH_THREAD(k3,z,Q1D)
+            {
+               s_D[k1][k2][k3] = D(k1,k2,k3,e);
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+      MFEM_FOREACH_THREAD(i1,x,D1D)
+      {
+         MFEM_FOREACH_THREAD(i2,y,D1D)
+         {
+            MFEM_FOREACH_THREAD(i3,z,D1D)
+            {
+               for (int j1 = 0; j1 < D1D; ++j1)
+               {
+                  for (int j2 = 0; j2 < D1D; ++j2)
+                  {
+                     for (int j3 = 0; j3 < D1D; ++j3)
+                     {
+                        real_t val = 0.0;
+                        for (int k1 = 0; k1 < Q1D; ++k1)
+                        {
+                           for (int k2 = 0; k2 < Q1D; ++k2)
+                           {
+                              for (int k3 = 0; k3 < Q1D; ++k3)
+                              {
+                                 val += l_B[k1][i1] * l_B[k1][j1]
+                                        * l_B[k2][i2] * l_B[k2][j2]
+                                        * l_B[k3][i3] * l_B[k3][j3]
+                                        * s_D[k1][k2][k3];
+                              }
+                           }
+                        }
+                        if (add)
+                        {
+                           M(i1, i2, i3, j1, j2, j3, e) += val;
+                        }
+                        else
+                        {
+                           M(i1, i2, i3, j1, j2, j3, e) = val;
+                        }
+                     }
+                  }
+               }
+            }
+         }
+      }
+   });
+}
+
 } // namespace internal
 
 namespace
@@ -1175,7 +1424,7 @@ inline DiagonalKernelType MassIntegrator::DiagonalPAKernels::Fallback(
    else if (DIM == 3) { return internal::PAMassAssembleDiagonal3D; }
    else { MFEM_ABORT(""); }
 }
-
+/// \endcond DO_NOT_DOCUMENT
 } // namespace mfem
 
 #endif
