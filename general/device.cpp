@@ -259,6 +259,17 @@ void Device::Configure(const std::string &device, const int device_id)
 #endif
 }
 
+static void VerifyMemoryTypes(MemoryType h_mt, MemoryType d_mt)
+{
+   MFEM_VERIFY(!Device::IsConfigured(), "The default MemoryTypes can only be "
+               "set before Device construction and configuration");
+   MFEM_VERIFY(IsHostMemory(h_mt),
+               "invalid host MemoryType, h_mt = " << (int)h_mt);
+   MFEM_VERIFY(IsDeviceMemory(d_mt) || d_mt == h_mt,
+               "invalid device MemoryType, d_mt = " << (int)d_mt
+               << " (h_mt = " << (int)h_mt << ')');
+}
+
 // static method
 void Device::SetMemoryTypes(MemoryType h_mt, MemoryType d_mt)
 {
@@ -267,13 +278,7 @@ void Device::SetMemoryTypes(MemoryType h_mt, MemoryType d_mt)
    // method.
    if (mem_host_env || mem_device_env || device_env) { return; }
 
-   MFEM_VERIFY(!IsConfigured(), "the default MemoryTypes can only be set before"
-               " Device construction and configuration");
-   MFEM_VERIFY(IsHostMemory(h_mt),
-               "invalid host MemoryType, h_mt = " << (int)h_mt);
-   MFEM_VERIFY(IsDeviceMemory(d_mt) || d_mt == h_mt,
-               "invalid device MemoryType, d_mt = " << (int)d_mt
-               << " (h_mt = " << (int)h_mt << ')');
+   VerifyMemoryTypes(h_mt, d_mt);
 
    Get().host_mem_type = h_mt;
    Get().device_mem_type = d_mt;
@@ -281,6 +286,20 @@ void Device::SetMemoryTypes(MemoryType h_mt, MemoryType d_mt)
 
    // h_mt and d_mt will be set as dual to each other during configuration by
    // the call mm.Configure(...) in UpdateMemoryTypeAndClass()
+}
+
+// static method
+void Device::SetTemporaryMemoryTypes(MemoryType h_mt, MemoryType d_mt)
+{
+   // If the device and/or the MemoryTypes are configured through the
+   // environment (variables 'MFEM_DEVICE', 'MFEM_MEMORY'), ignore calls to this
+   // method.
+   if (mem_host_env || mem_device_env || device_env) { return; }
+
+   VerifyMemoryTypes(h_mt, d_mt);
+
+   Get().host_temp_mem_type = h_mt;
+   Get().device_temp_mem_type = d_mt;
 }
 
 void Device::Print(std::ostream &os)

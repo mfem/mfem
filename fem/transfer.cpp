@@ -1687,10 +1687,8 @@ void TensorProductPRefinementTransferOperator::Mult(const Vector& x,
       return;
    }
 
-   Vector localH(elem_restrict_lex_h->Height(),
-                 Device::GetDeviceTemporaryMemoryType());
-   Vector localL(elem_restrict_lex_l->Height(),
-                 Device::GetDeviceTemporaryMemoryType());
+   Vector localH = Vector::NewTemporary(elem_restrict_lex_h->Height());
+   Vector localL = Vector::NewTemporary(elem_restrict_lex_l->Height());
 
    elem_restrict_lex_l->Mult(x, localL);
    if (dim == 2)
@@ -1718,10 +1716,8 @@ void TensorProductPRefinementTransferOperator::MultTranspose(const Vector& x,
       return;
    }
 
-   Vector localH(elem_restrict_lex_h->Height(),
-                 Device::GetDeviceTemporaryMemoryType());
-   Vector localL(elem_restrict_lex_l->Height(),
-                 Device::GetDeviceTemporaryMemoryType());
+   Vector localH = Vector::NewTemporary(elem_restrict_lex_h->Height());
+   Vector localL = Vector::NewTemporary(elem_restrict_lex_l->Height());
 
    elem_restrict_lex_h->Mult(x, localH);
    if (dim == 2)
@@ -1764,8 +1760,8 @@ void TrueTransferOperator::Mult(const Vector& x, Vector& y) const
 {
    if (P)
    {
-      Vector tmpL(lFESpace.GetVSize(), Device::GetDeviceTemporaryMemoryType());
-      Vector tmpH(hFESpace.GetVSize(), Device::GetDeviceTemporaryMemoryType());
+      Vector tmpL = Vector::NewTemporary(lFESpace.GetVSize());
+      Vector tmpH = Vector::NewTemporary(hFESpace.GetVSize());
 
       P->Mult(x, tmpL);
       localTransferOperator->Mult(tmpL, tmpH);
@@ -1773,7 +1769,7 @@ void TrueTransferOperator::Mult(const Vector& x, Vector& y) const
    }
    else if (R)
    {
-      Vector tmpH(hFESpace.GetVSize(), Device::GetDeviceTemporaryMemoryType());
+      Vector tmpH = Vector::NewTemporary(hFESpace.GetVSize());
 
       localTransferOperator->Mult(x, tmpH);
       R->Mult(tmpH, y);
@@ -1788,8 +1784,8 @@ void TrueTransferOperator::MultTranspose(const Vector& x, Vector& y) const
 {
    if (P)
    {
-      Vector tmpL(lFESpace.GetVSize(), Device::GetDeviceTemporaryMemoryType());
-      Vector tmpH(hFESpace.GetVSize(), Device::GetDeviceTemporaryMemoryType());
+      Vector tmpL = Vector::NewTemporary(lFESpace.GetVSize());
+      Vector tmpH = Vector::NewTemporary(hFESpace.GetVSize());
 
       R->MultTranspose(x, tmpH);
       localTransferOperator->MultTranspose(tmpH, tmpL);
@@ -1797,7 +1793,7 @@ void TrueTransferOperator::MultTranspose(const Vector& x, Vector& y) const
    }
    else if (R)
    {
-      Vector tmpH(hFESpace.GetVSize(), Device::GetDeviceTemporaryMemoryType());
+      Vector tmpH = Vector::NewTemporary(hFESpace.GetVSize());
 
       R->MultTranspose(x, tmpH);
       localTransferOperator->MultTranspose(tmpH, y);

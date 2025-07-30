@@ -61,7 +61,7 @@ void LinearFormExtension::Assemble()
       }
 
       // Assemble the linear form
-      Vector b(elem_restrict_lex->Height(), Device::GetDeviceTemporaryMemoryType());
+      Vector b = Vector::NewTemporary(elem_restrict_lex->Height());
       b = 0.0;
       domain_integs[k]->AssembleDevice(fes, markers, b);
       if (k == 0) { elem_restrict_lex->MultTranspose(b, *lf); }
@@ -105,8 +105,7 @@ void LinearFormExtension::Assemble()
       }
 
       // Assemble the linear form
-      Vector bdr_b(bdr_restrict_lex->Height(),
-                   Device::GetDeviceTemporaryMemoryType());
+      Vector bdr_b = Vector::NewTemporary(bdr_restrict_lex->Height());
       bdr_b = 0.0;
       boundary_integs[k]->AssembleDevice(fes, bdr_markers, bdr_b);
       bdr_restrict_lex->AddMultTranspose(bdr_b, *lf);

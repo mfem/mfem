@@ -145,6 +145,11 @@ private:
    /// Current Device MemoryClass
    MemoryClass device_mem_class = MemoryClass::HOST;
 
+   /// Current host MemoryType for temporary allocations
+   MemoryType host_temp_mem_type = MemoryType::HOST_ARENA;
+   /// Current device MemoryType for temporary allocations
+   MemoryType device_temp_mem_type = MemoryType::DEVICE_ARENA;
+
    char *device_option = NULL;
    Device(Device const&);
    void operator=(Device const&);
@@ -234,6 +239,9 @@ public:
        the subsequent Device configuration. */
    static void SetMemoryTypes(MemoryType h_mt, MemoryType d_mt);
 
+   /// Set the host and device memory types used for temporary allocations.
+   static void SetTemporaryMemoryTypes(MemoryType h_mt, MemoryType d_mt);
+
    /// Print the configuration of the MFEM virtual device object.
    void Print(std::ostream &out = mfem::out);
 
@@ -273,16 +281,14 @@ public:
    */
    static inline MemoryType GetDeviceMemoryType() { return Get().device_mem_type; }
 
+   static inline MemoryType GetHostTemporaryMemoryType()
+   {
+      return Get().host_temp_mem_type;
+   }
+
    static inline MemoryType GetDeviceTemporaryMemoryType()
    {
-      if (IsDeviceMemory(GetDeviceMemoryType()))
-      {
-         return MemoryType::DEVICE_ARENA;
-      }
-      else
-      {
-         return MemoryType::HOST_ARENA;
-      }
+      return Get().device_temp_mem_type;
    }
 
    /// (DEPRECATED) Equivalent to GetDeviceMemoryType().

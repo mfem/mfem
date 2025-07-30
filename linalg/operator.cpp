@@ -555,7 +555,7 @@ void ConstrainedOperator::AssembleDiagonal(Vector &diag) const
 
 void ConstrainedOperator::EliminateRHS(const Vector &x, Vector &b) const
 {
-   Vector w(height, Device::GetDeviceTemporaryMemoryType());
+   Vector w = Vector::NewTemporary(height);
    w = 0.0;
    const int csz = constraint_list.Size();
    auto idx = constraint_list.Read();
@@ -569,7 +569,7 @@ void ConstrainedOperator::EliminateRHS(const Vector &x, Vector &b) const
    });
 
    // A.AddMult(w, b, -1.0); // if available to all Operators
-   Vector z(height, Device::GetDeviceTemporaryMemoryType());
+   Vector z = Vector::NewTemporary(height);
    A->Mult(w, z);
    b -= z;
 
@@ -599,7 +599,7 @@ void ConstrainedOperator::ConstrainedMult(const Vector &x, Vector &y,
       return;
    }
 
-   Vector z(height, Device::GetDeviceTemporaryMemoryType());
+   Vector z = Vector::NewTemporary(height);
    z = x;
 
    auto idx = constraint_list.Read();
@@ -660,7 +660,7 @@ void ConstrainedOperator::MultTranspose(const Vector &x, Vector &y) const
 void ConstrainedOperator::AddMult(const Vector &x, Vector &y,
                                   const real_t a) const
 {
-   Vector w(Height(), Device::GetDeviceTemporaryMemoryType());
+   Vector w = Vector::NewTemporary(Height());
    Mult(x, w);
    y.Add(a, w);
 }
