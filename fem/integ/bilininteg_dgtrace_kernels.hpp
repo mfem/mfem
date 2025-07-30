@@ -18,6 +18,7 @@
 #include "../qfunction.hpp"
 #include "../restriction.hpp"
 
+/// \cond DO_NOT_DOCUMENT
 namespace mfem
 {
 
@@ -787,4 +788,6 @@ DGTraceIntegrator::ApplyKernelType DGTraceIntegrator::ApplyPATKernels::Kernel()
    MFEM_ABORT("");
 }
 } // namespace mfem
+
+/// \endcond DO_NOT_DOCUMENT
 #endif

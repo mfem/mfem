@@ -18,6 +18,7 @@
 #include "../gridfunc.hpp"
 #include "../qfunction.hpp"
 
+/// \cond DO_NOT_DOCUMENT
 namespace mfem
 {
 
@@ -495,5 +496,5 @@ DGDiffusionIntegrator::ApplyPAKernels::Kernel()
    MFEM_ABORT("");
 }
 } // namespace mfem
-
+/// \endcond DO_NOT_DOCUMENT
 #endif
