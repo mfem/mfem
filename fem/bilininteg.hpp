@@ -2819,15 +2819,13 @@ protected:
    bool symmetric = true; ///< False if using a nonsymmetric matrix coefficient
 
 public:
-   CurlCurlIntegrator() { Q = NULL; DQ = NULL; MQ = NULL; }
+   CurlCurlIntegrator();
    /// Construct a bilinear form integrator for Nedelec elements
-   CurlCurlIntegrator(Coefficient &q, const IntegrationRule *ir = NULL) :
-      BilinearFormIntegrator(ir), Q(&q), DQ(NULL), MQ(NULL) { }
+   CurlCurlIntegrator(Coefficient &q, const IntegrationRule *ir = nullptr);
    CurlCurlIntegrator(DiagonalMatrixCoefficient &dq,
-                      const IntegrationRule *ir = NULL) :
-      BilinearFormIntegrator(ir), Q(NULL), DQ(&dq), MQ(NULL) { }
-   CurlCurlIntegrator(MatrixCoefficient &mq, const IntegrationRule *ir = NULL) :
-      BilinearFormIntegrator(ir), Q(NULL), DQ(NULL), MQ(&mq) { }
+                      const IntegrationRule *ir = nullptr);
+   CurlCurlIntegrator(MatrixCoefficient &mq,
+                      const IntegrationRule *ir = nullptr);
 
    /* Given a particular Finite Element, compute the
       element curl-curl matrix elmat */
@@ -2857,6 +2855,34 @@ public:
    void AssembleDiagonalPA(Vector& diag) override;
 
    const Coefficient *GetCoefficient() const { return Q; }
+
+   /// arguments: d1d, q1d, symmetric, NE, bo, bc, bot, bct, gc, gct, pa_data,
+   /// x, y, useAbs
+   using ApplyKernelType = void (*)(
+                              const int, const int, const bool, const int, const Array<real_t> &,
+                              const Array<real_t> &, const Array<real_t> &, const Array<real_t> &,
+                              const Array<real_t> &, const Array<real_t> &, const Vector &,
+                              const Vector &, Vector &, const bool);
+
+   /// arguments: d1d, q1d, symmetric, ne, Bo, Bc, Go, Gc, pa_data, diag
+   using DiagonalKernelType = void (*)(const int, const int, const bool,
+                                       const int, const Array<real_t> &,
+                                       const Array<real_t> &,
+                                       const Array<real_t> &,
+                                       const Array<real_t> &, const Vector &,
+                                       Vector &);
+
+   /// parameters: dim, d1d, q1d
+   MFEM_REGISTER_KERNELS(ApplyPAKernels, ApplyKernelType, (int, int, int));
+   /// parameters: dim, d1d, q1d
+   MFEM_REGISTER_KERNELS(DiagonalPAKernels, DiagonalKernelType, (int, int, int));
+   struct Kernels { Kernels(); };
+
+   template <int DIM, int D1D, int Q1D> static void AddSpecialization()
+   {
+      ApplyPAKernels::Specialization<DIM, D1D, Q1D>::Add();
+      DiagonalPAKernels::Specialization<DIM, D1D, Q1D>::Add();
+   }
 };
 
 /** Integrator for $(\mathrm{curl}(u), \mathrm{curl}(v))$ for FE spaces defined by 'dim' copies of a
