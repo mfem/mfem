@@ -1140,7 +1140,7 @@ public:
    virtual void Finalize(bool refine = false, bool fix_orientation = false);
 
    /// @brief Determine the sets of unique attribute values in domain if @a
-   /// elem_attrs_change and boundary elements if @a bdr_attrs_changed.
+   /// elem_attrs_changed and boundary elements if @a bdr_attrs_changed.
    ///
    /// Separately scan the domain and boundary elements to generate unique,
    /// sorted sets of the element attribute values present in the mesh and
@@ -2272,7 +2272,7 @@ public:
    void ScaleSubdomains (real_t sf);
    void ScaleElements (real_t sf);
 
-   void Transform(void (*f)(const Vector&, Vector&));
+   void Transform(std::function<void(const Vector &, Vector&)> f);
    void Transform(VectorCoefficient &deformation);
 
    /** @brief This function should be called after the mesh node coordinates
