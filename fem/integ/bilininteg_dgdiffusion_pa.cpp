@@ -559,6 +559,28 @@ void DGDiffusionIntegrator::AddMultPAFaceNormalDerivatives(const Vector &x,
                        quad1D);
 }
 
+DGDiffusionIntegrator::DGDiffusionIntegrator(const real_t s, const real_t k)
+   : sigma(s), kappa(k)
+{
+   static Kernels kernels;
+}
+
+DGDiffusionIntegrator::DGDiffusionIntegrator(Coefficient &q, const real_t s,
+                                             const real_t k)
+   : DGDiffusionIntegrator(s, k)
+{
+   Q = &q;
+}
+
+DGDiffusionIntegrator::DGDiffusionIntegrator(MatrixCoefficient &q,
+                                             const real_t s, const real_t k)
+   : DGDiffusionIntegrator(s, k)
+{
+   MQ = &q;
+}
+
+/// \cond DO_NOT_DOCUMENT
+
 DGDiffusionIntegrator::ApplyKernelType
 DGDiffusionIntegrator::ApplyPAKernels::Fallback(int dim, int, int)
 {
@@ -575,5 +597,28 @@ DGDiffusionIntegrator::ApplyPAKernels::Fallback(int dim, int, int)
       MFEM_ABORT("");
    }
 }
+
+DGDiffusionIntegrator::Kernels::Kernels()
+{
+   DGDiffusionIntegrator::AddSpecialization<2, 2, 3>();
+   DGDiffusionIntegrator::AddSpecialization<2, 3, 4>();
+   DGDiffusionIntegrator::AddSpecialization<2, 4, 5>();
+   DGDiffusionIntegrator::AddSpecialization<2, 5, 6>();
+   DGDiffusionIntegrator::AddSpecialization<2, 6, 7>();
+   DGDiffusionIntegrator::AddSpecialization<2, 7, 8>();
+   DGDiffusionIntegrator::AddSpecialization<2, 8, 9>();
+   DGDiffusionIntegrator::AddSpecialization<2, 9, 10>();
+
+   DGDiffusionIntegrator::AddSpecialization<3, 2, 4>();
+   DGDiffusionIntegrator::AddSpecialization<3, 3, 5>();
+   DGDiffusionIntegrator::AddSpecialization<3, 4, 6>();
+   DGDiffusionIntegrator::AddSpecialization<3, 5, 7>();
+   DGDiffusionIntegrator::AddSpecialization<3, 6, 8>();
+   DGDiffusionIntegrator::AddSpecialization<3, 7, 9>();
+   DGDiffusionIntegrator::AddSpecialization<3, 8, 10>();
+   DGDiffusionIntegrator::AddSpecialization<3, 9, 11>();
+}
+
+/// \endcond DO_NOT_DOCUMENT
 
 } // namespace mfem
