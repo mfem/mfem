@@ -115,7 +115,7 @@ class ParticleSet
 private:
    static Array<Ordering::Type> GetOrderingArray(Ordering::Type o, int N);
    static std::string GetDefaultFieldName(int i);
-   static Array<const char*> GetFieldNameArray(int N);
+   static Array<const char*> GetEmptyFieldNameArray(int N);
    static Array<int> LDof2VDofs(int ndofs, int vdim, const Array<int> &ldofs, Ordering::Type o);
 #ifdef MFEM_USE_MPI
    static int GetRank(MPI_Comm comm_);

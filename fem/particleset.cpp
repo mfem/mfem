@@ -164,12 +164,12 @@ std::string ParticleSet::GetDefaultFieldName(int i)
 {
    return "Field_" + std::to_string(i);
 }
-Array<const char*> ParticleSet::GetFieldNameArray(int N)
+Array<const char*> ParticleSet::GetEmptyFieldNameArray(int N)
 {
    Array<const char*> names(N); 
    for (int i = 0; i < N; i++)
    {
-      names[i] = GetDefaultFieldName(i).c_str();
+      names[i] = nullptr;
    }
    return std::move(names);
 }
@@ -610,7 +610,7 @@ ParticleSet::ParticleSet(int num_particles, int dim, Ordering::Type coords_order
 }
    
 ParticleSet::ParticleSet(int num_particles, int dim, const Array<int> &field_vdims, Ordering::Type all_ordering)
-: ParticleSet(1, 0, num_particles, dim, all_ordering, field_vdims, GetOrderingArray(all_ordering, field_vdims.Size()), GetFieldNameArray(field_vdims.Size())) 
+: ParticleSet(1, 0, num_particles, dim, all_ordering, field_vdims, GetOrderingArray(all_ordering, field_vdims.Size()), GetEmptyFieldNameArray(field_vdims.Size())) 
 {
 
 }
@@ -638,7 +638,7 @@ ParticleSet::ParticleSet(MPI_Comm comm_, HYPRE_BigInt num_particles, int dim, Or
 };
 
 ParticleSet::ParticleSet(MPI_Comm comm_, HYPRE_BigInt num_particles, int dim, const Array<int> &field_vdims, Ordering::Type all_ordering)
-: ParticleSet(comm_, num_particles, dim, all_ordering, field_vdims, GetOrderingArray(all_ordering, field_vdims.Size()), GetFieldNameArray(field_vdims.Size()))
+: ParticleSet(comm_, num_particles, dim, all_ordering, field_vdims, GetOrderingArray(all_ordering, field_vdims.Size()), GetEmptyFieldNameArray(field_vdims.Size()))
 {
 
 }

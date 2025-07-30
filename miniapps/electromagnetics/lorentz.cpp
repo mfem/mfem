@@ -551,10 +551,10 @@ void InitializeChargedParticles(ParticleSet &charged_particles, const Vector &x_
 
    int dim = charged_particles.Coords().GetVDim();
    
-   ParticleVector &X = charged_particles->Coords();
-   ParticleVector &P = charged_particles->Field(Boris::MOM);
-   ParticleVector &M = charged_particles->Field(Boris::MASS);
-   ParticleVector &Q = charged_particles->Field(Boris::CHARGE);
+   ParticleVector &X = charged_particles.Coords();
+   ParticleVector &P = charged_particles.Field(Boris::MOM);
+   ParticleVector &M = charged_particles.Field(Boris::MASS);
+   ParticleVector &Q = charged_particles.Field(Boris::CHARGE);
 
    for (int i = 0; i < charged_particles.GetNP(); i++)
    {

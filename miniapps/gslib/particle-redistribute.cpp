@@ -14,7 +14,7 @@
 //    ----------------------------------------------------------------------
 //
 // This miniapp highlights the ParticleSet::Redistribute feature. Particles
-// are initialized onto a square mesh by all ranks, and then re-distributed
+// are initialized onto an input mesh by all ranks, and then re-distributed
 // so that particles are held by the ranks of which they are actually physically
 // located in on the ParMesh.
 //
@@ -121,12 +121,15 @@ int main (int argc, char *argv[])
    ParMesh pmesh(MPI_COMM_WORLD, mesh);
 
    // Set particles randomly on entire mesh domain, for each rank
-   int seed = rank;
+   std::mt19937 gen(rank);
+   std::uniform_real_distribution<> real_dist(0.0,1.0);
    for (int i = 0; i < pset.GetNP(); i++)
    {
       Particle p = pset.GetParticleRef(i);
-      InitializeRandom(p, seed, pos_min, pos_max);
-      seed += size;
+      for (int d = 0; d < pset.GetDim(); d++)
+      {
+         p.Coords()[d] = pos_min[d] + real_dist(gen)*(pos_max[d] - pos_min[d]);
+      }
    }
 
    // Find points

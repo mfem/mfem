@@ -182,8 +182,6 @@ int main(int argc, char *argv[])
       // Step particles after t0p
       if (time >= ctx.t0p)
       {
-         ctx.print_csv_freq = 10;
-         ctx.paraview_freq = 10;
          if (pstep == 0)
          {
             particle_solver.InterpolateUW(u_gf, w_gf, particle_solver.X(), particle_solver.U(), particle_solver.W());
