@@ -466,7 +466,8 @@ void L2Reconstruction(Solver& solver,
                       ParGridFunction& src,
                       ParGridFunction& dst,
                       NCMesh& mesh,
-                      IterativeSolverParams& newton)
+                      IterativeSolverParams& newton,
+                      bool preserve_volumes = false)
 {
    AsymmetricMassIntegrator mass;
    auto neighbor_trans = std::make_unique<IsoparametricTransformation>();
@@ -477,7 +478,9 @@ void L2Reconstruction(Solver& solver,
    Array<int> neighbors_e, e_dofs;
 
    ConstantCoefficient ccf_ones(1.0);
+   ParGridFunction punity_src(fes_src);
    ParGridFunction punity_dst(fes_dst);
+   punity_src.ProjectCoefficient(ccf_ones);
    punity_dst.ProjectCoefficient(ccf_ones);
 
    for (int e_idx = 0; e_idx < mesh.GetNumElements(); e_idx++ )
@@ -486,8 +489,7 @@ void L2Reconstruction(Solver& solver,
       const int fe_dst_e_ndof = fes_dst->GetFE(e_idx)->GetDof();
 
       SaturateNeighborhood(mesh, e_idx, fe_dst_e_ndof, fe_src_e_ndof, neighbors_e);
-      // TODO: Add bool
-      // if (preserve_volumes) { neighbors_e.DeleteFirst(e_idx); }
+      if (preserve_volumes) { neighbors_e.DeleteFirst(e_idx); }
 
       const int num_neighbors = neighbors_e.Size();
       DenseMatrix out_of_elem_shape(fe_dst_e_ndof);
@@ -519,7 +521,22 @@ void L2Reconstruction(Solver& solver,
       // This systems comes from a least squares formulation,
       // so no need to use LSSolver
       solver.SetOperator(out_of_elem_shape);
-      solver.Mult(rhs_e, dst_e);
+      if (preserve_volumes)
+      {
+         // Shift RHS
+         real_t e_src = src(e_idx);
+         Vector punity_e;
+         punity_dst.GetSubVector(e_dofs, punity_e);
+         add(rhs_e, -e_src, punity_e, rhs_e);
+         // Solve
+         solver.Mult(rhs_e, dst_e);
+         add(dst_e, e_src, punity_e, dst_e);
+      }
+      else
+      {
+         solver.Mult(rhs_e, dst_e);
+      }
+
       dst.SetSubVector(e_dofs, dst_e);
 
       neighbors_e.DeleteAll();
@@ -763,7 +780,8 @@ int main(int argc, char* argv[])
    switch (params.rec)
    {
       case norm:
-         L2Reconstruction(*solver.get(), u_src, u_dst, nc_mesh, params.newton);
+         L2Reconstruction(*solver.get(), u_src, u_dst, nc_mesh,
+                          params.newton, params.preserve_volumes);
       case average:
       default:
          AverageReconstruction(*solver.get(), u_src, u_dst, nc_mesh,
