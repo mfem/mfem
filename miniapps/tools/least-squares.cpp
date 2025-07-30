@@ -35,6 +35,7 @@ struct IterativeSolverParams
    real_t atol;
 };
 
+/// Visualization parameters
 struct VisualizationParams
 {
    bool save_to_files;
@@ -100,6 +101,8 @@ public:
                                 IterativeSolverParams &newton);
 };
 
+/// @brief Out-of-element mass matrix.
+/// Trial and test functions come from different elements.
 void AsymmetricMassIntegrator::AsymmetricElementMatrix(const FiniteElement
                                                        &neighbor_fe,
                                                        const FiniteElement &e_fe,
@@ -164,6 +167,8 @@ void AsymmetricMassIntegrator::AsymmetricElementMatrix(const FiniteElement
    }
 }
 
+/// @brief Out-of-element symmetric mass matrix (misnomer).
+/// Shape functions come from neighboring element.
 void AsymmetricMassIntegrator::AsymmetricElementMatrix(const FiniteElement
                                                        &neighbor_fe,
                                                        ElementTransformation &neighbor_trans,
@@ -290,6 +295,7 @@ void LSSolver(Solver& solver, const DenseMatrix& A, const DenseMatrix& C,
    z.GetBlockView(1,y);
 }
 
+/// @brief Check both residuals: of the minimization and the least squares problem
 void CheckLSSolver(const DenseMatrix& A, const Vector& b, const Vector& x)
 {
    Vector res(b), sol(A.Width());
@@ -466,7 +472,7 @@ void L2Reconstruction(Solver& solver,
    Array<int> neighbors_e, e_dofs;
 
    ConstantCoefficient ccf_ones(1.0);
-   // TODO(gabriel): explicit vs auto
+   // TODO(Gabriel): explicit vs auto
    ParGridFunction punity_dst(static_cast<ParFiniteElementSpace*>(fes_dst));
    punity_dst.ProjectCoefficient(ccf_ones);
 
@@ -490,9 +496,8 @@ void L2Reconstruction(Solver& solver,
          fes_src->GetElementTransformation(e_idx, e_trans.get());
          fes_dst->GetElementTransformation(neighbor_idx, neighbor_trans.get());
 
-         DenseMatrix neighbor_mass(fe_dst_e_ndof);
-         mass.AsymmetricElementMatrix(*fes_src->GetFE(neighbor_idx),
-                                      *fes_dst->GetFE(e_idx),
+         DenseMatrix neighbor_mass;
+         mass.AsymmetricElementMatrix(*fes_dst->GetFE(neighbor_idx),
                                       *neighbor_trans.get(),
                                       *e_trans.get(),
                                       neighbor_mass,
@@ -511,11 +516,12 @@ void L2Reconstruction(Solver& solver,
       // so no need to use LSSolver
       solver.SetOperator(out_of_elem_shape);
       solver.Mult(rhs_e, dst_e);
-
       dst.SetSubVector(e_dofs, dst_e);
+
+      neighbors_e.DeleteAll();
+      e_dofs.DeleteAll();
    }
 }
-
 
 } // end namespace reconstruction
 
@@ -565,17 +571,17 @@ int main(int argc, char* argv[])
 
    args.AddOption((int*)&params.solver_type, "-S", "--solver",
                   "Solvers to be considered:"
-                  "\n\t0: Direct Solver"
+                  "\n\t0: Direct solver"
                   "\n\t1: CG - Conjugate Gradient"
-                  "\n\t2: BiCGSTAB -Biconjugate gradient stabilized"
-                  "\n\t3: MINRES - Minimal residual");
+                  "\n\t2: BICGSTAB - BIConjugate Gradient STABilized"
+                  "\n\t3: MINRES - MINimal RESidual");
 
    args.AddOption(&solver_print_level, "-Spl", "--solver-print",
                   "Print level for the iterative solver:"
                   "\n\t0: All"
                   "\n\t1: First and last with warnings"
                   "\n\t2: Errors"
-                  "\n\tdefault: None"
+                  "\n\t3: None"
                   "\nA negative value deactivates LS check");
    args.AddOption(&solver_max_iter, "-Smi", "--solver-max-iter",
                   "Maximum number of iterations for the solver");
@@ -603,6 +609,7 @@ int main(int argc, char* argv[])
    //                "Order source broken space.");
    args.AddOption(&params.ord_dst, "-R", "--order-reconstruction",
                   "Order of reconstruction broken space.");
+
    args.AddOption(&params.ser_ref, "-rs", "--refine-serial",
                   "Number of serial refinement steps.");
    args.AddOption(&params.par_ref, "-rp", "--refine-parallel",
@@ -618,9 +625,13 @@ int main(int argc, char* argv[])
    MFEM_VERIFY(params.ord_smooth > params.ord_src,
                "Smooth space must be more regular!");
    MFEM_VERIFY((0 <= params.solver_type) && (params.solver_type <= num_solvers),
-               "invalid solver type: " << params.solver_type);
+               "Invalid solver type: " << params.solver_type);
 
-   if (params.solver_type != direct)
+   if (params.solver_type == direct)
+   {
+      params.solver = solver_print_level;
+   }
+   else
    {
       params.solver = IterativeSolverParams
       {
@@ -634,13 +645,13 @@ int main(int argc, char* argv[])
    if (Mpi::Root())
    {
       mfem::out << "Number of serial refs.:  " << params.ser_ref << "\n"
-                << "Number of parallel refs: " << params.par_ref << "\n"
+                << "Number of parallel refs: " << params.par_ref << "\n\n"
                 << "Order smooth FES:        " << params.ord_smooth << "\n"
                 << "Order source FES:        " << params.ord_src << "\n"
-                << "Order destination FES:   " << params.ord_dst << "\n"
+                << "Order destination FES:   " << params.ord_dst << "\n\n"
                 << "Newton relative tol:     " << params.newton.rtol << "\n"
                 << "Newton absolute tol:     " << params.newton.atol << "\n"
-                << "Newton max. num. iter.:  " << params.newton.max_iter << "\n"
+                << "Newton max. num. iter.:  " << params.newton.max_iter << "\n\n"
                 << std::endl;
    }
 
@@ -672,6 +683,7 @@ int main(int argc, char* argv[])
    ParFiniteElementSpace fes_src(&mesh, &fec_src);
    ParFiniteElementSpace fes_dst(&mesh, &fec_dst);
 
+   // Grid Functions
    ParGridFunction u_smooth(&fes_smooth);
    ParGridFunction u_src(&fes_src);
    ParGridFunction u_dst_avg(&fes_src);
@@ -681,25 +693,6 @@ int main(int argc, char* argv[])
    u_smooth.ProjectCoefficient(u_coefficient);
    // TODO(Gabriel): What if fes_src is H.O.?
    u_smooth.GetElementAverages(u_src);
-
-   // TODO(Gabriel): Extrude later
-   // Declare mass integrator
-   AsymmetricMassIntegrator mass;
-
-   // Auxiliary constant coefficients
-   ConstantCoefficient ccf_zeros(0.0);
-   ConstantCoefficient ccf_ones(1.0);
-
-   // Auxiliary partition of unity
-   ParGridFunction punity_src(&fes_src);
-   ParGridFunction punity_dst(&fes_dst);
-
-   punity_src.ProjectCoefficient(ccf_ones);
-   punity_dst.ProjectCoefficient(ccf_ones);
-
-   // Compute volumes
-   Vector volumes(mesh.GetNE());
-   punity_src.ComputeElementL1Errors(ccf_zeros, volumes);
 
    // Solver choice
    // TODO(Gabriel): MPI_Comm  constructor for MPI...
@@ -729,9 +722,9 @@ int main(int argc, char* argv[])
 
    // Solver setting
    solver->iterative_mode = false;
-   auto it_solver = dynamic_cast<IterativeSolver*>(solver);
-   if (it_solver)
+   if (params.solver_type != direct)
    {
+      auto it_solver = static_cast<IterativeSolver*>(solver);
       auto isp = std::get<IterativeSolverParams>(params.solver);
       IterativeSolver::PrintLevel print_level;
       switch (isp.print_level)
@@ -895,6 +888,8 @@ int main(int argc, char* argv[])
 
    // Error studies
    real_t error = u_dst.ComputeL2Error(u_coefficient);
+
+   ConstantCoefficient ccf_zeros(0.0);
    subtract(u_dst_avg, u_src, diff);
    real_t error_avg = diff.ComputeL2Error(ccf_zeros);
 
@@ -908,6 +903,10 @@ int main(int argc, char* argv[])
    if (params.vis.save_to_files && Mpi::Root())
    {
       Vector el_error(mesh.GetNE());
+      ParGridFunction punity_src(&fes_src);
+      ConstantCoefficient ccf_ones(1.0);
+      punity_src.ProjectCoefficient(ccf_ones);
+
       punity_src.ComputeElementLpErrors(2.0, ccf_zeros, el_error);
       real_t hmax = el_error.Max();
 
@@ -924,8 +923,6 @@ int main(int argc, char* argv[])
    }
 
    if (solver) { delete solver; }
-   delete neighbor_trans;
-   delete e_trans;
 
    Mpi::Finalize();
    return 0;
