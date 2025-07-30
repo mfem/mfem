@@ -101,9 +101,7 @@ struct LorentzContext
    real_t dt = 1e-2;
    real_t t0 = 0.0;
    int nt = 1000;
-#ifdef MFEM_USE_GSLIB
    int redist_freq = 10;
-#endif // MFEM_USE_GSLIB
    int redist_mesh = 0;
    int rm_lost_freq = 1;
 
@@ -111,8 +109,6 @@ struct LorentzContext
    int visport = 19916;
    int vis_tail_size = 5;
    int vis_freq = 5;
-
-   int csv_freq = 5;
 } ctx;
 
 /// This class implements the Boris algorithm as described in the
@@ -150,9 +146,7 @@ public:
    void InterpolateEB();
    void Step(real_t &t, real_t &dt);
    void RemoveLostParticles();
-#ifdef MFEM_USE_GSLIB
    void Redistribute(int redist_mesh); // 0 = E field, 1 = B field
-#endif // MFEM_USE_GSLIB
    ParticleSet& GetParticles() { return *charged_particles; }
 
 };
@@ -197,9 +191,7 @@ int main(int argc, char *argv[])
                   "Number of digits in B field cycle.");
    args.AddOption(&ctx.B.pad_digits_rank, "-bpdr", "--b-pad-digits-rank",
                   "Number of digits in B field MPI rank.");
-#ifdef MFEM_USE_GSLIB
    args.AddOption(&ctx.redist_freq, "-rdf", "--redist-freq", "Redistribution frequency.");
-#endif // MFEM_USE_GSLIB
    args.AddOption(&ctx.redist_mesh, "-rdm", "--redistribution-mesh", "Particle domain mesh for redistribution. 0 for E field mesh. 1 for B field mesh.");
    args.AddOption(&ctx.rm_lost_freq, "-rmf", "--remove-lost-freq", "Remove lost particles frequency.");
    args.AddOption(&ctx.ordering, "-o", "--ordering", "Ordering of particle data. 0 = byNODES, 1 = byVDIM.");
@@ -217,7 +209,6 @@ int main(int argc, char *argv[])
    args.AddOption(&ctx.vis_tail_size, "-vt", "--vis-tail-size", "GLVis visualization trajectory truncation tail size.");
    args.AddOption(&ctx.vis_freq, "-vf", "--vis-freq", "GLVis visualization frequency.");
    args.AddOption(&ctx.visport, "-p", "--send-port", "Socket for GLVis.");
-   args.AddOption(&ctx.csv_freq, "-csv", "--csv-freq", "Frequency of particle CSV outputting.");
 
    args.Parse();
    if (!args.Good())
@@ -314,10 +305,9 @@ int main(int argc, char *argv[])
             }
             MPI_Barrier(MPI_COMM_WORLD);
          }
-#ifdef MFEM_USE_GSLIB  
+         
          // Redistribute
          boris.Redistribute(ctx.redist_mesh);
-#endif // MFEM_USE_GSLIB
 
          // Visualize particles post-redistribute
          if (ctx.visualization)
@@ -337,13 +327,6 @@ int main(int argc, char *argv[])
             pre_redist_sock.close();
             post_redist_sock.close();
          }
-      }
-
-      // Write CSV
-      if (step % ctx.csv_freq == 0)
-      {
-         std::string file_name = "Lorentz_Particles_" + mfem::to_padded_string(step, 9) + ".csv";
-         boris.GetParticles().PrintCSV(file_name.c_str());
       }
    }
 }
