@@ -3370,8 +3370,8 @@ public:
 class DGTraceIntegrator : public BilinearFormIntegrator
 {
 protected:
-   Coefficient *rho;
-   VectorCoefficient *u;
+   Coefficient *rho = nullptr;
+   VectorCoefficient *u = nullptr;
    real_t alpha, beta;
    // PA extension
    Vector pa_data;
@@ -3384,17 +3384,16 @@ private:
    Vector tr_shape1, te_shape1, tr_shape2, te_shape2;
 
 public:
+   DGTraceIntegrator(real_t a, real_t b);
+
    /// Construct integrator with $\rho = 1$, $\beta = \alpha/2$.
-   DGTraceIntegrator(VectorCoefficient &u_, real_t a)
-   { rho = NULL; u = &u_; alpha = a; beta = 0.5*a; }
+   DGTraceIntegrator(VectorCoefficient &u_, real_t a);
 
    /// Construct integrator with $\rho = 1$.
-   DGTraceIntegrator(VectorCoefficient &u_, real_t a, real_t b)
-   { rho = NULL; u = &u_; alpha = a; beta = b; }
+   DGTraceIntegrator(VectorCoefficient &u_, real_t a, real_t b);
 
    DGTraceIntegrator(Coefficient &rho_, VectorCoefficient &u_,
-                     real_t a, real_t b)
-   { rho = &rho_; u = &u_; alpha = a; beta = b; }
+                     real_t a, real_t b);
 
    using BilinearFormIntegrator::AssembleFaceMatrix;
    void AssembleFaceMatrix(const FiniteElement &el1,
@@ -3499,8 +3498,8 @@ public:
 class DGDiffusionIntegrator : public BilinearFormIntegrator
 {
 protected:
-   Coefficient *Q;
-   MatrixCoefficient *MQ;
+   Coefficient *Q = nullptr;
+   MatrixCoefficient *MQ = nullptr;
    real_t sigma, kappa;
 
    // these are not thread-safe!
@@ -3515,15 +3514,11 @@ protected:
    IntegrationRules irs{0, Quadrature1D::GaussLobatto};
 
 public:
-   DGDiffusionIntegrator(const real_t s, const real_t k)
-      : Q(NULL), MQ(NULL), sigma(s), kappa(k) { }
-   DGDiffusionIntegrator(Coefficient &q, const real_t s, const real_t k)
-      : Q(&q), MQ(NULL), sigma(s), kappa(k) { }
-   DGDiffusionIntegrator(MatrixCoefficient &q, const real_t s, const real_t k)
-      : Q(NULL), MQ(&q), sigma(s), kappa(k) { }
+   DGDiffusionIntegrator(const real_t s, const real_t k);
+   DGDiffusionIntegrator(Coefficient &q, const real_t s, const real_t k);
+   DGDiffusionIntegrator(MatrixCoefficient &q, const real_t s, const real_t k);
    using BilinearFormIntegrator::AssembleFaceMatrix;
-   void AssembleFaceMatrix(const FiniteElement &el1,
-                           const FiniteElement &el2,
+   void AssembleFaceMatrix(const FiniteElement &el1, const FiniteElement &el2,
                            FaceElementTransformations &Trans,
                            DenseMatrix &elmat) override;
 

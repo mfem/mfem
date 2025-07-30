@@ -249,6 +249,33 @@ void DGTraceIntegrator::AddMultTransposePA(const Vector &x, Vector &y) const
                         y, dofs1D, quad1D);
 }
 
+DGTraceIntegrator::DGTraceIntegrator(real_t a, real_t b) : alpha(a), beta(b)
+{
+   static Kernels kernels;
+}
+
+DGTraceIntegrator::DGTraceIntegrator(VectorCoefficient &u_, real_t a)
+   : DGTraceIntegrator(a, 0.5 * a)
+{
+   u = &u_;
+}
+
+DGTraceIntegrator::DGTraceIntegrator(VectorCoefficient &u_, real_t a, real_t b)
+   : DGTraceIntegrator(a, b)
+{
+   u = &u_;
+}
+
+DGTraceIntegrator::DGTraceIntegrator(Coefficient &rho_, VectorCoefficient &u_,
+                                     real_t a, real_t b)
+   : DGTraceIntegrator(a, b)
+{
+   rho = &rho_;
+   u = &u_;
+}
+
+/// \cond DO_NOT_DOCUMENT
+
 DGTraceIntegrator::Kernels::Kernels()
 {
    // 2D
@@ -303,5 +330,7 @@ DGTraceIntegrator::ApplyPATKernels::Fallback(int dim, int, int)
       MFEM_ABORT("");
    }
 }
+
+/// \endcond DO_NOT_DOCUMENT
 
 } // namespace mfem

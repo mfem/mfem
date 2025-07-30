@@ -41,6 +41,8 @@ CurlCurlIntegrator::CurlCurlIntegrator(MatrixCoefficient &mq,
    static Kernels kernels;
 }
 
+/// \cond DO_NOT_DOCUMENT
+
 CurlCurlIntegrator::Kernels::Kernels()
 {
    CurlCurlIntegrator::AddSpecialization<3, 2, 3>();
@@ -90,6 +92,8 @@ CurlCurlIntegrator::DiagonalPAKernels::Fallback(int DIM, int, int)
       MFEM_ABORT("");
    }
 }
+
+/// \endcond DO_NOT_DOCUMENT
 
 void CurlCurlIntegrator::AssemblePA(const FiniteElementSpace &fes)
 {

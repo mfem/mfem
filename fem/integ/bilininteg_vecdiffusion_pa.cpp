@@ -495,6 +495,8 @@ void VectorDiffusionIntegrator::AddMultPA(const Vector &x, Vector &y) const
    }
 }
 
+/// \cond DO_NOT_DOCUMENT
+
 VectorDiffusionIntegrator::ApplyKernelType
 VectorDiffusionIntegrator::ApplyPAKernels::Fallback(int DIM, int, int, int)
 {
@@ -510,5 +512,7 @@ VectorDiffusionIntegrator::Kernels::Kernels()
    VectorDiffusionIntegrator::AddSpecialization<2, 3, 4, 4>();
    VectorDiffusionIntegrator::AddSpecialization<2, 3, 5, 5>();
 }
+
+/// \endcond DO_NOT_DOCUMENT
 
 } // namespace mfem
