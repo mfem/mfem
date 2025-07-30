@@ -338,6 +338,118 @@ void SaturateNeighborhood(NCMesh& mesh, const int element_idx,
    neighbors.Unique();
 }
 
+/// @brief Local-averages-based reconstruction
+void AverageReconstruction(Solver& solver,
+                           ParGridFunction& src,
+                           ParGridFunction& dst,
+                           NCMesh& mesh,
+                           IterativeSolverParams& newton,
+                           real_t reg = 0.0)
+{
+   AsymmetricMassIntegrator mass;
+   auto neighbor_trans = std::make_unique<IsoparametricTransformation>();
+   auto e_trans = std::make_unique<IsoparametricTransformation>();
+
+   const auto fes_src = src.FESpace();
+   const auto fes_dst = dst.FESpace();
+   Array<int> neighbors_e, e_dofs;
+
+   // Auxiliary constant coefficients and partition of unity
+   ConstantCoefficient ccf_ones(1.0);
+   ConstantCoefficient ccf_zeros(0.0);
+   ParGridFunction punity_src(static_cast<ParFiniteElementSpace*>(fes_src));
+   ParGridFunction punity_dst(static_cast<ParFiniteElementSpace*>(fes_dst));
+   punity_src.ProjectCoefficient(ccf_ones);
+   punity_dst.ProjectCoefficient(ccf_ones);
+
+   // Compute volumes
+   Vector volumes(mesh.GetNumElements());
+   punity_src.ComputeElementL1Errors(ccf_zeros, volumes);
+
+   for (int e_idx = 0; e_idx < mesh.GetNumElements(); e_idx++ )
+   {
+      const int fe_dst_e_ndof = fes_dst->GetFE(e_idx)->GetDof();
+      const int fe_src_e_ndof = fes_src->GetFE(e_idx)->GetDof();
+
+      SaturateNeighborhood(mesh, e_idx, fe_dst_e_ndof, fe_src_e_ndof, neighbors_e);
+      // TODO: Add bool
+      // if (params.preserve_volumes) { neighbors_e.DeleteFirst(e_idx); }
+
+      const int num_neighbors = neighbors_e.Size();
+      DenseMatrix fe_dst_to_neighbors_mat(num_neighbors, fe_dst_e_ndof);
+
+      for (int i = 0; i < num_neighbors; i++)
+      {
+         const int neighbor_idx = neighbors_e[i];
+         fes_src->GetElementTransformation(e_idx, e_trans.get());
+         fes_dst->GetElementTransformation(neighbor_idx, neighbor_trans.get());
+
+         DenseMatrix e_to_neighbor_mat;
+         mass.AsymmetricElementMatrix(*fes_dst->GetFE(neighbor_idx),
+                                      *fes_src->GetFE(e_idx),
+                                      *neighbor_trans.get(), *e_trans.get(),
+                                      e_to_neighbor_mat,
+                                      newton);
+
+         if (e_to_neighbor_mat.Height()!=1) { mfem_error("High order case for source space not implemented yet!"); }
+         Vector neighbor_idx_row;
+         e_to_neighbor_mat.GetRow(0, neighbor_idx_row);
+         fe_dst_to_neighbors_mat.SetRow(i, neighbor_idx_row);
+      }
+
+      // Get neighbors volumes and scale patch matrix
+      Vector neighbors_volumes(num_neighbors);
+      volumes.GetSubVector(neighbors_e, neighbors_volumes);
+      fe_dst_to_neighbors_mat.InvLeftScaling(neighbors_volumes);
+
+      // Get local averages and local ones
+      Vector src_neighbors, dst_e, punity_e;
+      fes_dst->GetElementDofs(e_idx, e_dofs);
+      src.GetSubVector(neighbors_e, src_neighbors);
+      punity_dst.GetSubVector(e_dofs, punity_e);
+
+      // Solve
+      /* if (params.preserve_volumes)
+       * {
+       *    real_t e_avg = src(e_idx);
+       *    Vector shape_avg_e, local_ones(num_neighbors);
+       *    local_ones = 1.0;
+       *    DenseMatrix temp_mat;
+       *    mass.AsymmetricElementMatrix(*fes_dst.GetFE(e_idx),
+       *                                 *fes_src.GetFE(e_idx),
+       *                                 *e_trans, *e_trans, temp_mat,
+       *                                 params.newton);
+       *    temp_mat *= -1.0/volumes(e_idx);
+       *    temp_mat.GetRow(0, shape_avg_e);
+       *    // Set up A - 1 x shape_avgs
+       *    AddMultVWt(local_ones, shape_avg_e, fe_dst_to_neighbors_mat);
+       *    // Set up u avgs minus average on e
+       *    add(1.0, src_neighbors, -u_e_avg, local_ones, src_neighbors);
+       *    LSSolver(*solver, fe_dst_to_neighbors_mat, src_neighbors, dst_e,
+       *             params.reg);
+       *    // Add the average to the final solution
+       *    add(1.0, dst_e, e_avg, punity_e, dst_e);
+       * }
+       * else
+       */
+      {
+         LSSolver(solver, fe_dst_to_neighbors_mat, src_neighbors, dst_e, reg);
+      }
+
+      // Check solver
+      auto it_solver = dynamic_cast<IterativeSolver*>(&solver);
+      if (it_solver && !it_solver->GetConverged()) { mfem_error("\n\tIterative solver failed to converge!"); }
+      // TODO(Gabriel): Fix this!
+      // if (params.solver >= 0) { CheckLSSolver(fe_dst_to_neighbors_mat, src_neighbors, u_dst_e); }
+
+      // Integrate into global solution
+      dst.SetSubVector(e_dofs, dst_e);
+
+      neighbors_e.DeleteAll();
+      e_dofs.DeleteAll();
+   }
+}
+
 /// @brief An out-of-element, L2-based reconstruction
 void L2Reconstruction(Solver& solver,
                       ParGridFunction& src,
