@@ -1916,6 +1916,8 @@ void Mesh::Destroy()
 
    face_indices[0].DeleteAll();
    face_indices[1].DeleteAll();
+   // force de-allocation so after this mesh has the smallest memory footprint
+   // possible
    inv_face_indices[0] = std::unordered_map<int, int>();
    inv_face_indices[1] = std::unordered_map<int, int>();
 }
