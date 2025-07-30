@@ -937,7 +937,8 @@ const Array<int>& Mesh::GetBdrElementAttributes() const
       bdr_attrs_cache.SetSize(nf_bdr);
       int f_ind = 0;
       int missing_bdr_elems = 0;
-      for (int f = 0; f < GetNumFaces(); ++f)
+      const int nf = GetNumFaces();
+      for (int f = 0; f < nf; ++f)
       {
          if (!GetFaceInformation(f).IsOfFaceType(FaceType::Boundary))
          {
@@ -1931,6 +1932,11 @@ void Mesh::ResetLazyData()
    // set size to 0 so re-computations can potentially avoid a new allocation
    bdr_attrs_cache.SetSize(0);
    elem_attrs_cache.SetSize(0);
+
+   face_indices[0].SetSize(0);
+   face_indices[1].SetSize(0);
+   inv_face_indices[0].clear();
+   inv_face_indices[1].clear();
 }
 
 void Mesh::SetAttributes(bool elem_attrs_changed, bool bdr_attrs_changed)
@@ -13405,7 +13411,7 @@ void Mesh::ScaleElements(real_t sf)
    delete [] vn;
 }
 
-void Mesh::Transform(void (*f)(const Vector&, Vector&))
+void Mesh::Transform(std::function<void(const Vector &, Vector&)> f)
 {
    // TODO: support for different new spaceDim.
    if (Nodes == NULL)
@@ -13418,7 +13424,7 @@ void Mesh::Transform(void (*f)(const Vector&, Vector&))
             vold(j) = vertices[i](j);
          }
          vnew.SetData(vertices[i]());
-         (*f)(vold, vnew);
+         f(vold, vnew);
       }
    }
    else
