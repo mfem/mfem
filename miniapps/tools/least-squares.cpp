@@ -357,7 +357,8 @@ void AverageReconstruction(Solver& solver,
                            ParGridFunction& dst,
                            NCMesh& mesh,
                            IterativeSolverParams& newton,
-                           real_t reg = 0.0)
+                           real_t reg = 0.0,
+                           bool preserve_volumes = false)
 {
    AsymmetricMassIntegrator mass;
    auto neighbor_trans = std::make_unique<IsoparametricTransformation>();
@@ -385,8 +386,7 @@ void AverageReconstruction(Solver& solver,
       const int fe_src_e_ndof = fes_src->GetFE(e_idx)->GetDof();
 
       SaturateNeighborhood(mesh, e_idx, fe_dst_e_ndof, fe_src_e_ndof, neighbors_e);
-      // TODO: Add bool
-      // if (params.preserve_volumes) { neighbors_e.DeleteFirst(e_idx); }
+      if (preserve_volumes) { neighbors_e.DeleteFirst(e_idx); }
 
       const int num_neighbors = neighbors_e.Size();
       DenseMatrix fe_dst_to_neighbors_mat(num_neighbors, fe_dst_e_ndof);
@@ -422,29 +422,27 @@ void AverageReconstruction(Solver& solver,
       punity_dst.GetSubVector(e_dofs, punity_e);
 
       // Solve
-      /* if (params.preserve_volumes)
-       * {
-       *    real_t e_avg = src(e_idx);
-       *    Vector shape_avg_e, local_ones(num_neighbors);
-       *    local_ones = 1.0;
-       *    DenseMatrix temp_mat;
-       *    mass.AsymmetricElementMatrix(*fes_dst.GetFE(e_idx),
-       *                                 *fes_src.GetFE(e_idx),
-       *                                 *e_trans, *e_trans, temp_mat,
-       *                                 params.newton);
-       *    temp_mat *= -1.0/volumes(e_idx);
-       *    temp_mat.GetRow(0, shape_avg_e);
-       *    // Set up A - 1 x shape_avgs
-       *    AddMultVWt(local_ones, shape_avg_e, fe_dst_to_neighbors_mat);
-       *    // Set up u avgs minus average on e
-       *    add(1.0, src_neighbors, -u_e_avg, local_ones, src_neighbors);
-       *    LSSolver(*solver, fe_dst_to_neighbors_mat, src_neighbors, dst_e,
-       *             params.reg);
-       *    // Add the average to the final solution
-       *    add(1.0, dst_e, e_avg, punity_e, dst_e);
-       * }
-       * else
-       */
+      if (preserve_volumes)
+      {
+         real_t e_src = src(e_idx);
+         Vector shape_src_e, local_ones(num_neighbors);
+         local_ones = 1.0;
+         DenseMatrix temp_mat;
+         mass.AsymmetricElementMatrix(*fes_dst->GetFE(e_idx),
+                                      *fes_src->GetFE(e_idx),
+                                      *e_trans.get(), *e_trans.get(), temp_mat,
+                                      newton);
+         temp_mat *= -1.0/volumes(e_idx);
+         temp_mat.GetRow(0, shape_src_e);
+         // Set up A - 1 x shape_src
+         AddMultVWt(local_ones, shape_src_e, fe_dst_to_neighbors_mat);
+         // Set up u avgs minus average on e
+         add(1.0, src_neighbors, -e_src, local_ones, src_neighbors);
+         LSSolver(solver, fe_dst_to_neighbors_mat, src_neighbors, dst_e, reg);
+         // Add the average to the final solution
+         add(1.0, dst_e, e_src, punity_e, dst_e);
+      }
+      else
       {
          LSSolver(solver, fe_dst_to_neighbors_mat, src_neighbors, dst_e, reg);
       }
@@ -769,8 +767,8 @@ int main(int argc, char* argv[])
          L2Reconstruction(*solver.get(), u_src, u_dst, nc_mesh, params.newton);
       case average:
       default:
-         AverageReconstruction(*solver.get(), u_src, u_dst, nc_mesh, params.newton,
-                               params.reg);
+         AverageReconstruction(*solver.get(), u_src, u_dst, nc_mesh,
+                               params.newton, params.reg, params.preserve_volumes);
    }
    u_dst.GetElementAverages(u_dst_avg);
 
