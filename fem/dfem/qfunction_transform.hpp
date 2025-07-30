@@ -230,7 +230,7 @@ void process_qf_arg(
    {
       for (int j = 0; j < n; j++)
       {
-         arg(j, i) = u((i * m) + j);
+         arg(j, i) = u((i * n) + j);
       }
    }
 }
