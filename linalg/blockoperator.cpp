@@ -78,8 +78,7 @@ void BlockOperator::Mult(const Vector &x, Vector &y) const
 
    for (int iRow=0; iRow < nRowBlocks; ++iRow)
    {
-      tmp.SetSize(row_offsets[iRow+1] - row_offsets[iRow]);
-      tmp.UseDevice(true);
+      Vector tmp = Vector::NewTemporary(row_offsets[iRow+1] - row_offsets[iRow]);
       for (int jCol=0; jCol < nColBlocks; ++jCol)
       {
          if (op(iRow,jCol) && coef(iRow,jCol) != 0.)
@@ -111,8 +110,7 @@ void BlockOperator::MultTranspose(const Vector &x, Vector &y) const
 
    for (int iRow=0; iRow < nColBlocks; ++iRow)
    {
-      tmp.SetSize(col_offsets[iRow+1] - col_offsets[iRow]);
-      tmp.UseDevice(true);
+      Vector tmp = Vector::NewTemporary(col_offsets[iRow+1] - col_offsets[iRow]);
       for (int jCol=0; jCol < nRowBlocks; ++jCol)
       {
          if (op(jCol,iRow) && coef(jCol,iRow) != 0.)
@@ -291,10 +289,8 @@ void BlockLowerTriangularPreconditioner::Mult(const Vector &x,
 
    for (int iRow=0; iRow < nBlocks; ++iRow)
    {
-      tmp.SetSize(offsets[iRow+1] - offsets[iRow]);
-      tmp.UseDevice(true);
-      tmp2.SetSize(offsets[iRow+1] - offsets[iRow]);
-      tmp2.UseDevice(true);
+      Vector tmp = Vector::NewTemporary(offsets[iRow+1] - offsets[iRow]);
+      Vector tmp2 = Vector::NewTemporary(offsets[iRow+1] - offsets[iRow]);
       tmp2 = 0.0;
       tmp2 += xblock.GetBlock(iRow);
       for (int jCol=0; jCol < iRow; ++jCol)
@@ -337,10 +333,8 @@ void BlockLowerTriangularPreconditioner::MultTranspose(const Vector &x,
 
    for (int iRow=nBlocks-1; iRow >=0; --iRow)
    {
-      tmp.SetSize(offsets[iRow+1] - offsets[iRow]);
-      tmp.UseDevice(true);
-      tmp2.SetSize(offsets[iRow+1] - offsets[iRow]);
-      tmp2.UseDevice(true);
+      Vector tmp = Vector::NewTemporary(offsets[iRow+1] - offsets[iRow]);
+      Vector tmp2 = Vector::NewTemporary(offsets[iRow+1] - offsets[iRow]);
       tmp2 = 0.0;
       tmp2 += xblock.GetBlock(iRow);
       for (int jCol=iRow+1; jCol < nBlocks; ++jCol)

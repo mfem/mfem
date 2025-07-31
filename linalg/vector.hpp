@@ -132,6 +132,40 @@ public:
    explicit Vector(std::initializer_list<CT> values) : Vector(values.size())
    { std::copy(values.begin(), values.end(), begin()); }
 
+   /// @brief Return a new "temporary" vector using the fast device allocator
+   /// with device execution enabled.
+   ///
+   /// This can be used to efficiently create temporary vectors (often used as
+   /// short-lived workspace vectors for intermediate results in computations).
+   ///
+   /// The memory type of the new vector will be set to
+   /// Device::GetDeviceTemporaryMemoryType() (by default a fast arena
+   /// allocator), and the "use device" flag will be set to true.
+   ///
+   /// @sa NewHostTemporary().
+   static Vector NewTemporary(int size)
+   {
+      Vector vec(size, Device::GetDeviceTemporaryMemoryType());
+      vec.UseDevice(true);
+      return vec;
+   }
+
+   /// @brief Return a new "temporary" vector using the fast host allocator
+   /// with device execution disabled.
+   ///
+   /// This can be used to efficiently create temporary vectors (often used as
+   /// short-lived workspace vectors for intermediate results in computations).
+   ///
+   /// The memory type of the new vector will be set to
+   /// Device::GetHostTemporaryMemoryType() (by default a fast arena
+   /// allocator), and the "use device" flag will be set to false.
+   ///
+   /// @sa NewTemporary().
+   static Vector NewHostTemporary(int size)
+   {
+      return Vector(size, Device::GetHostTemporaryMemoryType());
+   }
+
    /// Enable execution of Vector operations using the mfem::Device.
    /** The default is to use Backend::CPU (serial execution on each MPI rank),
        regardless of the mfem::Device configuration.

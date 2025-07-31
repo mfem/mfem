@@ -130,7 +130,6 @@ private:
    //! Temporary Vectors used to efficiently apply the Mult and MultTranspose methods.
    mutable BlockVector xblock;
    mutable BlockVector yblock;
-   mutable Vector tmp;
 };
 
 //! @class BlockDiagonalPreconditioner
@@ -284,8 +283,6 @@ private:
    //! methods.
    mutable BlockVector xblock;
    mutable BlockVector yblock;
-   mutable Vector tmp;
-   mutable Vector tmp2;
 };
 
 }

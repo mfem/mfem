@@ -19,6 +19,8 @@ list(APPEND SRCS
   globals.cpp
   hash.cpp
   isockstream.cpp
+  mem_arena.cpp
+  mem_internal.cpp
   mem_manager.cpp
   occa.cpp
   optparser.cpp
@@ -49,6 +51,8 @@ list(APPEND HDRS
   isockstream.hpp
   kdtree.hpp
   mem_alloc.hpp
+  mem_arena.hpp
+  mem_internal.hpp
   mem_manager.hpp
   occa.hpp
   forall.hpp

@@ -38,7 +38,6 @@ protected:
    mutable QVectorLayout q_layout;     ///< Output Q-vector layout
 
    mutable bool use_tensor_products;   ///< Tensor product evaluation mode
-   mutable Vector d_buffer;            ///< Auxiliary device buffer
 
    /// Auxiliary method called by Mult() when using H(div)-conforming space
    void MultHDiv(const Vector &e_vec, unsigned eval_flags,
@@ -166,8 +165,7 @@ public:
                                             real_t *, const int, const int,
                                             const int);
    using DetKernelType = void(*)(const int NE, const real_t *, const real_t *,
-                                 const real_t *, real_t *, const int, const int,
-                                 Vector *);
+                                 const real_t *, real_t *, const int, const int);
    using EvalKernelType = void(*)(const int, const int, const QVectorLayout,
                                   const GeometricFactors *, const DofToQuad &,
                                   const Vector &, Vector &, Vector &, Vector &,

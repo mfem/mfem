@@ -2253,15 +2253,10 @@ TensorProductPRefinementTransferOperator(
    MFEM_VERIFY(elem_restrict_lex_h,
                "High order ElementRestriction not available");
 
-   localL.SetSize(elem_restrict_lex_l->Height(), Device::GetMemoryType());
-   localH.SetSize(elem_restrict_lex_h->Height(), Device::GetMemoryType());
-   localL.UseDevice(true);
-   localH.UseDevice(true);
-
    MFEM_VERIFY(dynamic_cast<const ElementRestriction*>(elem_restrict_lex_h),
                "High order element restriction is of unsupported type");
 
-   mask.SetSize(localH.Size(), Device::GetMemoryType());
+   mask.SetSize(elem_restrict_lex_h->Height(), Device::GetMemoryType());
    static_cast<const ElementRestriction*>(elem_restrict_lex_h)
    ->BooleanMask(mask);
    mask.UseDevice(true);
@@ -2528,6 +2523,9 @@ void TensorProductPRefinementTransferOperator::Mult(const Vector& x,
       return;
    }
 
+   Vector localH = Vector::NewTemporary(elem_restrict_lex_h->Height());
+   Vector localL = Vector::NewTemporary(elem_restrict_lex_l->Height());
+
    elem_restrict_lex_l->Mult(x, localL);
    if (dim == 2)
    {
@@ -2554,6 +2552,9 @@ void TensorProductPRefinementTransferOperator::MultTranspose(const Vector& x,
       return;
    }
 
+   Vector localH = Vector::NewTemporary(elem_restrict_lex_h->Height());
+   Vector localL = Vector::NewTemporary(elem_restrict_lex_l->Height());
+
    elem_restrict_lex_h->Mult(x, localH);
    if (dim == 2)
    {
@@ -2579,7 +2580,7 @@ TrueTransferOperator::TrueTransferOperator(const FiniteElementSpace& lFESpace_,
      lFESpace(lFESpace_),
      hFESpace(hFESpace_)
 {
-   localTransferOperator = new TransferOperator(lFESpace_, hFESpace_);
+   localTransferOperator.reset(new TransferOperator(lFESpace_, hFESpace_));
 
    P = lFESpace.GetProlongationMatrix();
    R = hFESpace.IsVariableOrder() ? hFESpace.GetHpRestrictionMatrix() :
@@ -2589,34 +2590,23 @@ TrueTransferOperator::TrueTransferOperator(const FiniteElementSpace& lFESpace_,
    // P can be null and R not null
    // If P is not null it is assumed that R is not null as well
    if (P) { MFEM_VERIFY(R, "Both P and R have to be not NULL") }
-
-   if (P)
-   {
-      tmpL.SetSize(lFESpace_.GetVSize());
-      tmpH.SetSize(hFESpace_.GetVSize());
-   }
-   // P can be null and R not null
-   else if (R)
-   {
-      tmpH.SetSize(hFESpace_.GetVSize());
-   }
-}
-
-TrueTransferOperator::~TrueTransferOperator()
-{
-   delete localTransferOperator;
 }
 
 void TrueTransferOperator::Mult(const Vector& x, Vector& y) const
 {
    if (P)
    {
+      Vector tmpL = Vector::NewTemporary(lFESpace.GetVSize());
+      Vector tmpH = Vector::NewTemporary(hFESpace.GetVSize());
+
       P->Mult(x, tmpL);
       localTransferOperator->Mult(tmpL, tmpH);
       R->Mult(tmpH, y);
    }
    else if (R)
    {
+      Vector tmpH = Vector::NewTemporary(hFESpace.GetVSize());
+
       localTransferOperator->Mult(x, tmpH);
       R->Mult(tmpH, y);
    }
@@ -2630,12 +2620,17 @@ void TrueTransferOperator::MultTranspose(const Vector& x, Vector& y) const
 {
    if (P)
    {
+      Vector tmpL = Vector::NewTemporary(lFESpace.GetVSize());
+      Vector tmpH = Vector::NewTemporary(hFESpace.GetVSize());
+
       R->MultTranspose(x, tmpH);
       localTransferOperator->MultTranspose(tmpH, tmpL);
       P->MultTranspose(tmpL, y);
    }
    else if (R)
    {
+      Vector tmpH = Vector::NewTemporary(hFESpace.GetVSize());
+
       R->MultTranspose(x, tmpH);
       localTransferOperator->MultTranspose(tmpH, y);
    }

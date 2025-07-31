@@ -67,7 +67,6 @@ QuadratureInterpolator::QuadratureInterpolator(const FiniteElementSpace &fes,
 {
    static internal::quadrature_interpolator::Kernels kernels;
 
-   d_buffer.UseDevice(true);
    if (fespace->GetNE() == 0) { return; }
    const FiniteElement *fe = fespace->GetTypicalFE();
    MFEM_VERIFY(fe->GetMapType() == FiniteElement::MapType::VALUE ||
@@ -84,7 +83,6 @@ QuadratureInterpolator::QuadratureInterpolator(const FiniteElementSpace &fes,
    q_layout(QVectorLayout::byNODES),
    use_tensor_products(UsesTensorBasis(fes))
 {
-   d_buffer.UseDevice(true);
    if (fespace->GetNE() == 0) { return; }
    const FiniteElement *fe = fespace->GetTypicalFE();
    MFEM_VERIFY(fe->GetMapType() == FiniteElement::MapType::VALUE ||
@@ -561,7 +559,7 @@ void QuadratureInterpolator::Mult(const Vector &e_vec,
       {
          DetKernels::Run(dim, vdim, nd, nq, ne, maps.B.Read(),
                          maps.G.Read(), e_vec.Read(), q_det.Write(), nd,
-                         nq, &d_buffer);
+                         nq);
       }
    }
    else // use_tensor_eval == false
