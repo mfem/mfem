@@ -918,7 +918,10 @@ void *MemoryManager::GetAliasHostPtr(const void *ptr, size_t bytes,
    const MemoryType &d_mt = mem->d_mt;
    MFEM_VERIFY_TYPES(h_mt, d_mt);
    void *alias_h_ptr = static_cast<char*>(mem->h_ptr) + alias.offset;
-   void *alias_d_ptr = static_cast<char*>(mem->d_ptr) + alias.offset;
+   // Don't perform pointer arithmetic on null pointer (undefined behavior)
+   void *alias_d_ptr = mem->d_ptr
+                       ? static_cast<char*>(mem->d_ptr) + alias.offset
+                       : nullptr;
    MFEM_ASSERT(alias_h_ptr == ptr,  "internal error");
    mem->h_rw = false;
    ctrl->Host(h_mt)->AliasUnprotect(alias_h_ptr, bytes);
