@@ -996,9 +996,7 @@ public:
        @param[in] keep_nbr_block When set to true the SparseMatrix will
                                  include the rows (in addition to the columns)
                                  corresponding to face-neighbor dofs. The
-                                 default behavior is to disregard those rows.
-
-       @warning This method is not implemented yet. */
+                                 default behavior is to disregard those rows. */
    void FillI(SparseMatrix &mat,
               const bool keep_nbr_block = false) const override;
 
@@ -1016,9 +1014,7 @@ public:
        @param[in] keep_nbr_block When set to true the SparseMatrix will
                                  include the rows (in addition to the columns)
                                  corresponding to face-neighbor dofs. The
-                                 default behavior is to disregard those rows.
-
-       @warning This method is not implemented yet. */
+                                 default behavior is to disregard those rows. */
    void FillJAndData(const Vector &fea_data,
                      SparseMatrix &mat,
                      const bool keep_nbr_block = false) const override;
@@ -1036,9 +1032,7 @@ public:
                               added the face contributions.
                               The format is: dofs x dofs x ne, where dofs is the
                               number of dofs per element and ne the number of
-                              elements.
-
-       @warning This method is not implemented yet. */
+                              elements. */
    void AddFaceMatricesToElementMatrices(const Vector &fea_data,
                                          Vector &ea_data) const override;
 
