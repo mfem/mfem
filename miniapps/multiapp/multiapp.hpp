@@ -20,7 +20,7 @@
 #include <vector>
 #include <type_traits> // std::is_base_of
 #include <experimental/type_traits>
-#include<utility>
+#include <utility>
 
 
 namespace mfem
@@ -31,8 +31,8 @@ using namespace std;
 /* TODO LIST
     1) ADD DESTRUCTORS FOR ALL CLASSES
     2) Handle steady-state and time-dependent applications (DAEs)
+    3) Add FindPts transfer maps
 */
-
 
 
 
@@ -381,6 +381,8 @@ protected:
 public:
     Application(int n=0) : TimeDependentOperator(n) {}
 
+    Application(int h, int w) : TimeDependentOperator(h,w) {}
+
     virtual void Initialize() {
         mfem_error("Application::Initialize() is not overridden!");
     }
@@ -409,8 +411,8 @@ public:
         MFEM_ABORT("Not implemented for this Application.");
     }
 
-    virtual void UpdateOperator() {
-        mfem_error("Application::UpdateOperator() is not overridden!");
+    virtual void Update() {
+        mfem_error("Application::Update() is not overridden!");
     }
     
     virtual void PerformOperation(const int op, const Vector &x, Vector &y) {
@@ -645,10 +647,10 @@ private:
              *        ImplicitMult assumes ODE of the form F(u,k,t) = M k - g(u,t), G(u,t) = 0
              *        For fully implicit, monolithic solver, we take F(u+dt*k,k,t) = M k - g(u+dt*k,t)
              */
-            void Mult(const Vector &x, Vector &y) const override {
-                add(du,*u,dt,x,upk); // upk = u + dt*k
+            void Mult(const Vector &k, Vector &y) const override {
+                add(du,*u,dt,k,upk); // upk = u + dt*k
                 app->Transfer(upk);
-                app->ImplicitMult(upk,x,y); //y = f(upk,k,t)
+                app->ImplicitMult(upk,k,y); //y = f(upk,k,t)
             }
     };
 
