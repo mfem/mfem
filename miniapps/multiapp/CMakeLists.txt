@@ -39,6 +39,12 @@ if (MFEM_USE_MPI)
     LIBRARIES mfem-common)
   add_dependencies(cht-partitioned copy_miniapps_multiapp_data)
 
+  add_mfem_miniapp(navier-stokes
+    MAIN navier-stokes.cpp
+    ${MFEM_MINIAPPS_COMMON_HEADERS}
+    LIBRARIES mfem-common)
+  add_dependencies(navier-stokes copy_miniapps_multiapp_data)
+
 # Add parallel tests.
   # if (MFEM_ENABLE_TESTING)
   #   add_test(NAME multidomain_np${MFEM_MPI_NP}
