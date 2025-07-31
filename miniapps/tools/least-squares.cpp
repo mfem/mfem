@@ -49,9 +49,6 @@ struct VisualizationParams
    int port;
 };
 
-/// Alias for ignoring redundant iterative variables
-using SolverParams = std::variant<std::monostate, IterativeSolverParams, int>;
-
 /// Global configuration struct
 struct GlobalConfiguration
 {
@@ -59,7 +56,7 @@ struct GlobalConfiguration
    VisualizationParams vis;
    IterativeSolverParams newton;
    SolverType solver_type;
-   SolverParams solver;
+   IterativeSolverParams solver;
    real_t reg;
    int ord_smooth;
    int ord_src;
@@ -569,7 +566,12 @@ int main(int argc, char* argv[])
          .atol = 0.0,
       },
       .solver_type = direct,
-      .solver = -1,
+      .solver = {
+         .print_level = -1,
+         .max_iter = 1000,
+         .rtol = 1.0e-30,
+         .atol = 0.0,
+      },
       .reg = 0.0,
       .ord_smooth = 3,
       .ord_src = 0,
@@ -578,11 +580,6 @@ int main(int argc, char* argv[])
       .par_ref = 0,
       .preserve_volumes = false,
    };
-
-   int solver_print_level = -1;
-   int solver_max_iter = 1000;
-   real_t solver_rtol = 1.0e-30;
-   real_t solver_atol = 0.0;
 
    // Parse options
    OptionsParser args(argc, argv);
@@ -605,18 +602,18 @@ int main(int argc, char* argv[])
                   "\n\t2: BICGSTAB - BIConjugate Gradient STABilized"
                   "\n\t3: MINRES - MINimal RESidual");
 
-   args.AddOption(&solver_print_level, "-Spl", "--solver-print",
+   args.AddOption(&params.solver.print_level, "-Spl", "--solver-print",
                   "Print level for the iterative solver:"
                   "\n\t0: All"
                   "\n\t1: First and last with warnings"
                   "\n\t2: Errors"
                   "\n\t3: None"
                   "\nA negative value deactivates LS check");
-   args.AddOption(&solver_max_iter, "-Smi", "--solver-max-iter",
+   args.AddOption(&params.solver.max_iter, "-Smi", "--solver-max-iter",
                   "Maximum number of iterations for the solver");
-   args.AddOption(&solver_rtol, "-Srtol", "--solver-rtol",
+   args.AddOption(&params.solver.rtol, "-Srtol", "--solver-rtol",
                   "Relative tolerance for the iterative solver");
-   args.AddOption(&solver_atol, "-Satol", "--solver-atol",
+   args.AddOption(&params.solver.atol, "-Satol", "--solver-atol",
                   "Absolute tolerance for the iterative solver");
 
    args.AddOption(&params.newton.print_level, "-Npl", "--newton-print-level",
@@ -655,21 +652,6 @@ int main(int argc, char* argv[])
                "Smooth space must be more regular!");
    MFEM_VERIFY((0 <= params.solver_type) && (params.solver_type <= num_solvers),
                "Invalid solver type: " << params.solver_type);
-
-   if (params.solver_type == direct)
-   {
-      params.solver = solver_print_level;
-   }
-   else
-   {
-      params.solver = IterativeSolverParams
-      {
-         .print_level = solver_print_level,
-         .max_iter = solver_max_iter,
-         .rtol = solver_rtol,
-         .atol = solver_atol,
-      };
-   }
 
    if (Mpi::Root())
    {
@@ -753,7 +735,7 @@ int main(int argc, char* argv[])
    if (params.solver_type != direct)
    {
       auto it_solver = std::static_pointer_cast<IterativeSolver>(solver);
-      auto isp = std::get<IterativeSolverParams>(params.solver);
+      auto& isp = params.solver;
       IterativeSolver::PrintLevel print_level;
       switch (isp.print_level)
       {
