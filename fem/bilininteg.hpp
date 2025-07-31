@@ -2593,7 +2593,8 @@ protected:
 public:
    /// Construct an integrator with coefficient 1.0
    VectorMassIntegrator(const IntegrationRule *ir = NULL)
-      : BilinearFormIntegrator(ir), vdim(-1), Q_order(0), Q(NULL), VQ(NULL), MQ(NULL) { }
+      : BilinearFormIntegrator(ir), vdim(-1), Q_order(0), Q(NULL), VQ(NULL),
+        MQ(NULL) { }
    /** Construct an integrator with scalar coefficient q.  If possible, save
        memory by using a scalar integrator since the resulting matrix is block
        diagonal with the same diagonal block repeated. */
@@ -2981,7 +2982,8 @@ private:
 
 public:
    VectorDivergenceIntegrator(const IntegrationRule *ir = NULL) :
-      BilinearFormIntegrator(ir), Q(NULL), trial_maps(NULL), test_maps(NULL), geom(NULL)
+      BilinearFormIntegrator(ir), Q(NULL), trial_maps(NULL), test_maps(NULL),
+      geom(NULL)
    {  }
    VectorDivergenceIntegrator(Coefficient *q_, const IntegrationRule *ir = NULL) :
       BilinearFormIntegrator(ir), Q(q_), trial_maps(NULL), test_maps(NULL), geom(NULL)
@@ -3195,8 +3197,9 @@ private:
    void SetUpQuadratureSpaceAndCoefficients(const FiniteElementSpace &fes);
 
 public:
-   ElasticityIntegrator(Coefficient &l, Coefficient &m, const IntegrationRule *ir = NULL) :
-   BilinearFormIntegrator(ir) { lambda = &l; mu = &m; }
+   ElasticityIntegrator(Coefficient &l, Coefficient &m,
+                        const IntegrationRule *ir = NULL) :
+      BilinearFormIntegrator(ir) { lambda = &l; mu = &m; }
    /** With this constructor $\lambda = q_l m$ and $\mu = q_m m$
        if $dim q_l + 2 q_m = 0$ then $tr(\sigma) = 0$. */
    ElasticityIntegrator(Coefficient &m, real_t q_l, real_t q_m)

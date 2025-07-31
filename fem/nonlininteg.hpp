@@ -390,8 +390,9 @@ private:
    int dim, ne, nq;
 
 public:
-   VectorConvectionNLFIntegrator(Coefficient &q, const IntegrationRule *ir = NULL) : 
-                                 NonlinearFormIntegrator(ir), Q(&q) { }
+   VectorConvectionNLFIntegrator(Coefficient &q,
+                                 const IntegrationRule *ir = NULL) :
+      NonlinearFormIntegrator(ir), Q(&q) { }
 
    VectorConvectionNLFIntegrator() = default;
 

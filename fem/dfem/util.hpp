@@ -652,7 +652,8 @@ public:
                     MPI_COMM_WORLD);
    }
 
-   void Update(const Vector &x_new){
+   void Update(const Vector &x_new)
+   {
       x = x_new;
       f.UseDevice(x.UseDevice());
       xpev.UseDevice(x.UseDevice());
