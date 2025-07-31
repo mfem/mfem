@@ -816,7 +816,7 @@ protected:
    Map interp_map; // The temporary map that stores the interpolators.
 
 public:
-   /** @brief main constructor.
+   /** @brief Constructor.
 
        @param[in] fes      The FiniteElementSpace on which this operates
        @param[in] ordering Request a specific element ordering.

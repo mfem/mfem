@@ -1506,12 +1506,12 @@ void L2FaceRestriction::EnsureNormalDerivativeRestriction() const
    }
 }
 
-InterpolationManager::InterpolationManager(const FiniteElementSpace &fes,
-                                           ElementDofOrdering ordering,
+InterpolationManager::InterpolationManager(const FiniteElementSpace &fes_,
+                                           ElementDofOrdering ordering_,
                                            FaceType type)
-   : fes(fes),
-     ordering(ordering),
-     interp_config( fes.GetNFbyType(type) ),
+   : fes(fes_),
+     ordering(ordering_),
+     interp_config(fes.GetNFbyType(type)),
      nc_cpt(0)
 { }
 
