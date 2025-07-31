@@ -2135,14 +2135,14 @@ private:
    int trial_dofs1D, test_dofs1D, quad1D;
 
 public:
-   GradientIntegrator() :
-      Q{NULL}, trial_maps{NULL}, test_maps{NULL}, geom{NULL}
+   GradientIntegrator(const IntegrationRule *ir = NULL) :
+      BilinearFormIntegrator(ir), Q{NULL}, trial_maps{NULL}, test_maps{NULL}, geom{NULL}
    { }
-   GradientIntegrator(Coefficient *q_) :
-      Q{q_}, trial_maps{NULL}, test_maps{NULL}, geom{NULL}
+   GradientIntegrator(Coefficient *q_, const IntegrationRule *ir = NULL) :
+      BilinearFormIntegrator(ir), Q{q_}, trial_maps{NULL}, test_maps{NULL}, geom{NULL}
    { }
-   GradientIntegrator(Coefficient &q) :
-      Q{&q}, trial_maps{NULL}, test_maps{NULL}, geom{NULL}
+   GradientIntegrator(Coefficient &q, const IntegrationRule *ir = NULL) :
+      BilinearFormIntegrator(ir), Q{&q}, trial_maps{NULL}, test_maps{NULL}, geom{NULL}
    { }
 
    void AssembleElementMatrix2(const FiniteElement &trial_fe,
@@ -2592,8 +2592,8 @@ protected:
 
 public:
    /// Construct an integrator with coefficient 1.0
-   VectorMassIntegrator()
-      : vdim(-1), Q_order(0), Q(NULL), VQ(NULL), MQ(NULL) { }
+   VectorMassIntegrator(const IntegrationRule *ir = NULL)
+      : BilinearFormIntegrator(ir), vdim(-1), Q_order(0), Q(NULL), VQ(NULL), MQ(NULL) { }
    /** Construct an integrator with scalar coefficient q.  If possible, save
        memory by using a scalar integrator since the resulting matrix is block
        diagonal with the same diagonal block repeated. */
@@ -2980,14 +2980,14 @@ private:
    int trial_dofs1D, test_dofs1D, quad1D;
 
 public:
-   VectorDivergenceIntegrator() :
-      Q(NULL), trial_maps(NULL), test_maps(NULL), geom(NULL)
+   VectorDivergenceIntegrator(const IntegrationRule *ir = NULL) :
+      BilinearFormIntegrator(ir), Q(NULL), trial_maps(NULL), test_maps(NULL), geom(NULL)
    {  }
-   VectorDivergenceIntegrator(Coefficient *q_) :
-      Q(q_), trial_maps(NULL), test_maps(NULL), geom(NULL)
+   VectorDivergenceIntegrator(Coefficient *q_, const IntegrationRule *ir = NULL) :
+      BilinearFormIntegrator(ir), Q(q_), trial_maps(NULL), test_maps(NULL), geom(NULL)
    { }
-   VectorDivergenceIntegrator(Coefficient &q) :
-      Q(&q), trial_maps(NULL), test_maps(NULL), geom(NULL)
+   VectorDivergenceIntegrator(Coefficient &q, const IntegrationRule *ir = NULL) :
+      BilinearFormIntegrator(ir), Q(&q), trial_maps(NULL), test_maps(NULL), geom(NULL)
    { }
 
    void AssembleElementMatrix2(const FiniteElement &trial_fe,
@@ -3195,8 +3195,8 @@ private:
    void SetUpQuadratureSpaceAndCoefficients(const FiniteElementSpace &fes);
 
 public:
-   ElasticityIntegrator(Coefficient &l, Coefficient &m)
-   { lambda = &l; mu = &m; }
+   ElasticityIntegrator(Coefficient &l, Coefficient &m, const IntegrationRule *ir = NULL) :
+   BilinearFormIntegrator(ir) { lambda = &l; mu = &m; }
    /** With this constructor $\lambda = q_l m$ and $\mu = q_m m$
        if $dim q_l + 2 q_m = 0$ then $tr(\sigma) = 0$. */
    ElasticityIntegrator(Coefficient &m, real_t q_l, real_t q_m)
