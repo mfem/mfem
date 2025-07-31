@@ -668,6 +668,28 @@ void Vector::median(const Vector &lo, const Vector &hi)
    });
 }
 
+void Vector::Insert(int offset, const Vector &sv)
+{
+   const int old_size = size;
+
+   if (sv.Size() + old_size > Capacity())
+   {
+      Vector copy = *this;
+      SetSize(size + sv.Size());
+      SetVector(copy, 0);
+   }
+   else
+   {
+      SetSize(size + sv.Size());
+   }
+
+   for (int j = old_size-1; j >= offset; j--)
+   {
+      data[j+sv.Size()] = data[j];
+   }
+   SetVector(sv, offset);
+}
+
 void Vector::GetSubVector(const Array<int> &dofs, Vector &elemvect) const
 {
    const int n = dofs.Size();
