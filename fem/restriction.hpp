@@ -816,8 +816,6 @@ protected:
    Map interp_map; // The temporary map that stores the interpolators.
 
 public:
-   InterpolationManager() = delete;
-
    /** @brief main constructor.
 
        @param[in] fes      The FiniteElementSpace on which this operates
