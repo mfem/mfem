@@ -46,6 +46,7 @@ list(APPEND HDRS
   globals.hpp
   zstr.hpp
   hash.hpp
+  hash_util.hpp
   isockstream.hpp
   kdtree.hpp
   mem_alloc.hpp
