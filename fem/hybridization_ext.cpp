@@ -116,183 +116,181 @@ void HybridizationExtension::FactorElementMatrices(Vector &AhatInvCt_mat)
    AhatInvCt_mat.SetSize(Ct_mat.Size());
    auto d_AhatInvCt = Reshape(AhatInvCt_mat.Write(), m, n, n_faces_per_el, ne);
 
+   const int nidofs = idofs.Size();
+   const int nbdofs = bdofs.Size();
+
+   MFEM_VERIFY(nidofs <= MID, "");
+   MFEM_VERIFY(nbdofs <= MBD, "");
+
+   Ahat_ii.SetSize(nidofs*nidofs*ne);
+   Ahat_ib.SetSize(nidofs*nbdofs*ne);
+   Ahat_bi.SetSize(nbdofs*nidofs*ne);
+   Ahat_bb.SetSize(nbdofs*nbdofs*ne);
+
+   Ahat_ii_piv.SetSize(nidofs*ne);
+   Ahat_bb_piv.SetSize(nbdofs*ne);
+
+   const auto *d_idofs = idofs.Read();
+   const auto *d_bdofs = bdofs.Read();
+
+   const auto d_hat_dof_marker = Reshape(hat_dof_marker.Read(), m, ne);
+   auto d_Ahat = Reshape(Ahat.Read(), m, m, ne);
+
+   auto d_A_ii = Reshape(Ahat_ii.Write(), nidofs, nidofs, ne);
+   auto d_A_ib_all = Reshape(Ahat_ib.Write(), nidofs*nbdofs, ne);
+   auto d_A_bi_all = Reshape(Ahat_bi.Write(), nbdofs*nidofs, ne);
+   auto d_A_bb_all = Reshape(Ahat_bb.Write(), nbdofs*nbdofs, ne);
+
+   auto d_ipiv_ii = Reshape(Ahat_ii_piv.Write(), nidofs, ne);
+   auto d_ipiv_bb = Reshape(Ahat_bb_piv.Write(), nbdofs, ne);
+
+   const auto d_Ct_mat = Reshape(Ct_mat.Read(), m, n, n_faces_per_el, ne);
+
+   static constexpr bool GLOBAL = (MID == 0 && MBD == 0);
+
+   using internal::LocalMemory;
+
+   mfem::forall(ne, [=] MFEM_HOST_DEVICE (int e)
    {
-      const int nidofs = idofs.Size();
-      const int nbdofs = bdofs.Size();
+      constexpr int MD1D = DofQuadLimits::HDIV_MAX_D1D;
+      constexpr int MAX_DOFS = 3*MD1D*(MD1D-1)*(MD1D-1);
+      constexpr int MAX_IDOFS = (MID == 0 && MBD == 0) ? MAX_DOFS : MID;
+      constexpr int MAX_BDOFS = (MID == 0 && MBD == 0) ? MAX_DOFS : MBD;
 
-      MFEM_VERIFY(nidofs <= MID, "");
-      MFEM_VERIFY(nbdofs <= MBD, "");
+      LocalMemory<int,MAX_IDOFS> idofs_loc;
+      LocalMemory<int,MAX_BDOFS> bdofs_loc;
+      for (int i = 0; i < nidofs; i++) { idofs_loc[i] = d_idofs[i]; }
+      for (int i = 0; i < nbdofs; i++) { bdofs_loc[i] = d_bdofs[i]; }
 
-      Ahat_ii.SetSize(nidofs*nidofs*ne);
-      Ahat_ib.SetSize(nidofs*nbdofs*ne);
-      Ahat_bi.SetSize(nbdofs*nidofs*ne);
-      Ahat_bb.SetSize(nbdofs*nbdofs*ne);
-
-      Ahat_ii_piv.SetSize(nidofs*ne);
-      Ahat_bb_piv.SetSize(nbdofs*ne);
-
-      const auto *d_idofs = idofs.Read();
-      const auto *d_bdofs = bdofs.Read();
-
-      const auto d_hat_dof_marker = Reshape(hat_dof_marker.Read(), m, ne);
-      auto d_Ahat = Reshape(Ahat.Read(), m, m, ne);
-
-      auto d_A_ii = Reshape(Ahat_ii.Write(), nidofs, nidofs, ne);
-      auto d_A_ib_all = Reshape(Ahat_ib.Write(), nidofs*nbdofs, ne);
-      auto d_A_bi_all = Reshape(Ahat_bi.Write(), nbdofs*nidofs, ne);
-      auto d_A_bb_all = Reshape(Ahat_bb.Write(), nbdofs*nbdofs, ne);
-
-      auto d_ipiv_ii = Reshape(Ahat_ii_piv.Write(), nidofs, ne);
-      auto d_ipiv_bb = Reshape(Ahat_bb_piv.Write(), nbdofs, ne);
-
-      const auto d_Ct_mat = Reshape(Ct_mat.Read(), m, n, n_faces_per_el, ne);
-
-      static constexpr bool GLOBAL = (MID == 0 && MBD == 0);
-
-      using internal::LocalMemory;
-
-      mfem::forall(ne, [=] MFEM_HOST_DEVICE (int e)
+      LocalMemory<int,MAX_BDOFS> essdofs_loc;
+      int nbfdofs = 0;
+      int nessdofs = 0;
+      for (int i = 0; i < nbdofs; i++)
       {
-         constexpr int MD1D = DofQuadLimits::HDIV_MAX_D1D;
-         constexpr int MAX_DOFS = 3*MD1D*(MD1D-1)*(MD1D-1);
-         constexpr int MAX_IDOFS = (MID == 0 && MBD == 0) ? MAX_DOFS : MID;
-         constexpr int MAX_BDOFS = (MID == 0 && MBD == 0) ? MAX_DOFS : MBD;
-
-         LocalMemory<int,MAX_IDOFS> idofs_loc;
-         LocalMemory<int,MAX_BDOFS> bdofs_loc;
-         for (int i = 0; i < nidofs; i++) { idofs_loc[i] = d_idofs[i]; }
-         for (int i = 0; i < nbdofs; i++) { bdofs_loc[i] = d_bdofs[i]; }
-
-         LocalMemory<int,MAX_BDOFS> essdofs_loc;
-         int nbfdofs = 0;
-         int nessdofs = 0;
-         for (int i = 0; i < nbdofs; i++)
+         const int dof_idx = bdofs_loc[i];
+         if (d_hat_dof_marker(dof_idx, e) == ESSENTIAL)
          {
-            const int dof_idx = bdofs_loc[i];
-            if (d_hat_dof_marker(dof_idx, e) == ESSENTIAL)
+            essdofs_loc[nessdofs] = dof_idx;
+            nessdofs += 1;
+         }
+         else
+         {
+            bdofs_loc[nbfdofs] = dof_idx;
+            nbfdofs += 1;
+         }
+      }
+
+      LocalMemory<real_t, MID*MID> A_ii_loc;
+      LocalMemory<real_t, MBD*MID> A_bi_loc;
+      LocalMemory<real_t, MID*MBD> A_ib_loc;
+      LocalMemory<real_t, MBD*MBD> A_bb_loc;
+
+      DeviceMatrix A_ii(GLOBAL ? &d_A_ii(0,0,e) : A_ii_loc, nidofs, nidofs);
+      DeviceMatrix A_ib(GLOBAL ? &d_A_ib_all(0,e) : A_ib_loc, nidofs, nbfdofs);
+      DeviceMatrix A_bi(GLOBAL ? &d_A_bi_all(0,e) : A_bi_loc, nbfdofs, nidofs);
+      DeviceMatrix A_bb(GLOBAL ? &d_A_bb_all(0,e) : A_bb_loc, nbfdofs, nbfdofs);
+
+      for (int j = 0; j < nidofs; j++)
+      {
+         const int jj = idofs_loc[j];
+         for (int i = 0; i < nidofs; i++)
+         {
+            A_ii(i,j) = d_Ahat(idofs_loc[i], jj, e);
+         }
+         for (int i = 0; i < nbfdofs; i++)
+         {
+            A_bi(i,j) = d_Ahat(bdofs_loc[i], jj, e);
+         }
+      }
+      for (int j = 0; j < nbfdofs; j++)
+      {
+         const int jj = bdofs_loc[j];
+         for (int i = 0; i < nidofs; i++)
+         {
+            A_ib(i,j) = d_Ahat(idofs_loc[i], jj, e);
+         }
+         for (int i = 0; i < nbfdofs; i++)
+         {
+            A_bb(i,j) = d_Ahat(bdofs_loc[i], jj, e);
+         }
+      }
+
+      LocalMemory<int,MID> ipiv_ii_loc;
+      LocalMemory<int,MBD> ipiv_bb_loc;
+
+      auto ipiv_ii = GLOBAL ? &d_ipiv_ii(0,e) : ipiv_ii_loc;
+      auto ipiv_bb = GLOBAL ? &d_ipiv_ii(0,e) : ipiv_bb_loc;
+
+      kernels::LUFactor(A_ii, nidofs, ipiv_ii);
+      kernels::BlockFactor(A_ii, nidofs, ipiv_ii, nbfdofs, A_ib, A_bi, A_bb);
+      kernels::LUFactor(A_bb, nbfdofs, ipiv_bb);
+
+      for (int f = 0; f < n_faces_per_el; ++f)
+      {
+         for (int j = 0; j < n; ++j)
+         {
+            LocalMemory<real_t,MAX_BDOFS> Sb_inv_Cb_t;
+            for (int i = 0; i < nbfdofs; ++i)
             {
-               essdofs_loc[nessdofs] = dof_idx;
-               nessdofs += 1;
+               Sb_inv_Cb_t[i] = d_Ct_mat(bdofs_loc[i], j, f, e);
             }
-            else
+            kernels::LUSolve(A_bb, nbfdofs, ipiv_bb, Sb_inv_Cb_t);
+            for (int i = 0; i < nbfdofs; ++i)
             {
-               bdofs_loc[nbfdofs] = dof_idx;
-               nbfdofs += 1;
+               const int b_i = bdofs_loc[i];
+               d_AhatInvCt(b_i, j, f, e) = Sb_inv_Cb_t[i];
+            }
+            for (int i = 0; i < nidofs; ++i)
+            {
+               d_AhatInvCt(idofs_loc[i], j, f, e) = 0.0;
+            }
+            for (int i = 0; i < nessdofs; ++i)
+            {
+               d_AhatInvCt(essdofs_loc[i], j, f, e) = 0.0;
             }
          }
+      }
 
-         LocalMemory<real_t, MID*MID> A_ii_loc;
-         LocalMemory<real_t, MBD*MID> A_bi_loc;
-         LocalMemory<real_t, MID*MBD> A_ib_loc;
-         LocalMemory<real_t, MBD*MBD> A_bb_loc;
-
-         DeviceMatrix A_ii(GLOBAL ? &d_A_ii(0,0,e) : A_ii_loc, nidofs, nidofs);
-         DeviceMatrix A_ib(GLOBAL ? &d_A_ib_all(0,e) : A_ib_loc, nidofs, nbfdofs);
-         DeviceMatrix A_bi(GLOBAL ? &d_A_bi_all(0,e) : A_bi_loc, nbfdofs, nidofs);
-         DeviceMatrix A_bb(GLOBAL ? &d_A_bb_all(0,e) : A_bb_loc, nbfdofs, nbfdofs);
+      // Write out to global memory
+      if (!GLOBAL)
+      {
+         // Note: in the following constructors, avoid using index 0 in
+         //       d_A_{bi,ib,bb}_all when their size is 0.
+         DeviceMatrix d_A_bi((nbfdofs && nidofs) ?
+                             &d_A_bi_all(0,e) : nullptr,
+                             nbfdofs, nidofs);
+         DeviceMatrix d_A_ib((nbfdofs && nidofs) ?
+                             &d_A_ib_all(0,e) : nullptr,
+                             nidofs, nbfdofs);
+         DeviceMatrix d_A_bb((nbfdofs) ? &d_A_bb_all(0,e) : nullptr,
+                             nbfdofs, nbfdofs);
 
          for (int j = 0; j < nidofs; j++)
          {
-            const int jj = idofs_loc[j];
+            d_ipiv_ii(j,e) = ipiv_ii[j];
             for (int i = 0; i < nidofs; i++)
             {
-               A_ii(i,j) = d_Ahat(idofs_loc[i], jj, e);
+               d_A_ii(i,j,e) = A_ii(i,j);
             }
             for (int i = 0; i < nbfdofs; i++)
             {
-               A_bi(i,j) = d_Ahat(bdofs_loc[i], jj, e);
+               d_A_bi(i,j) = A_bi(i,j);
             }
          }
          for (int j = 0; j < nbfdofs; j++)
          {
-            const int jj = bdofs_loc[j];
+            d_ipiv_bb(j,e) = ipiv_bb[j];
             for (int i = 0; i < nidofs; i++)
             {
-               A_ib(i,j) = d_Ahat(idofs_loc[i], jj, e);
+               d_A_ib(i,j) = A_ib(i,j);
             }
             for (int i = 0; i < nbfdofs; i++)
             {
-               A_bb(i,j) = d_Ahat(bdofs_loc[i], jj, e);
+               d_A_bb(i,j) = A_bb(i,j);
             }
          }
-
-         LocalMemory<int,MID> ipiv_ii_loc;
-         LocalMemory<int,MBD> ipiv_bb_loc;
-
-         auto ipiv_ii = GLOBAL ? &d_ipiv_ii(0,e) : ipiv_ii_loc;
-         auto ipiv_bb = GLOBAL ? &d_ipiv_ii(0,e) : ipiv_bb_loc;
-
-         kernels::LUFactor(A_ii, nidofs, ipiv_ii);
-         kernels::BlockFactor(A_ii, nidofs, ipiv_ii, nbfdofs, A_ib, A_bi, A_bb);
-         kernels::LUFactor(A_bb, nbfdofs, ipiv_bb);
-
-         for (int f = 0; f < n_faces_per_el; ++f)
-         {
-            for (int j = 0; j < n; ++j)
-            {
-               LocalMemory<real_t,MAX_BDOFS> Sb_inv_Cb_t;
-               for (int i = 0; i < nbfdofs; ++i)
-               {
-                  Sb_inv_Cb_t[i] = d_Ct_mat(bdofs_loc[i], j, f, e);
-               }
-               kernels::LUSolve(A_bb, nbfdofs, ipiv_bb, Sb_inv_Cb_t);
-               for (int i = 0; i < nbfdofs; ++i)
-               {
-                  const int b_i = bdofs_loc[i];
-                  d_AhatInvCt(b_i, j, f, e) = Sb_inv_Cb_t[i];
-               }
-               for (int i = 0; i < nidofs; ++i)
-               {
-                  d_AhatInvCt(idofs_loc[i], j, f, e) = 0.0;
-               }
-               for (int i = 0; i < nessdofs; ++i)
-               {
-                  d_AhatInvCt(essdofs_loc[i], j, f, e) = 0.0;
-               }
-            }
-         }
-
-         // Write out to global memory
-         if (!GLOBAL)
-         {
-            // Note: in the following constructors, avoid using index 0 in
-            //       d_A_{bi,ib,bb}_all when their size is 0.
-            DeviceMatrix d_A_bi((nbfdofs && nidofs) ?
-                                &d_A_bi_all(0,e) : nullptr,
-                                nbfdofs, nidofs);
-            DeviceMatrix d_A_ib((nbfdofs && nidofs) ?
-                                &d_A_ib_all(0,e) : nullptr,
-                                nidofs, nbfdofs);
-            DeviceMatrix d_A_bb((nbfdofs) ? &d_A_bb_all(0,e) : nullptr,
-                                nbfdofs, nbfdofs);
-
-            for (int j = 0; j < nidofs; j++)
-            {
-               d_ipiv_ii(j,e) = ipiv_ii[j];
-               for (int i = 0; i < nidofs; i++)
-               {
-                  d_A_ii(i,j,e) = A_ii(i,j);
-               }
-               for (int i = 0; i < nbfdofs; i++)
-               {
-                  d_A_bi(i,j) = A_bi(i,j);
-               }
-            }
-            for (int j = 0; j < nbfdofs; j++)
-            {
-               d_ipiv_bb(j,e) = ipiv_bb[j];
-               for (int i = 0; i < nidofs; i++)
-               {
-                  d_A_ib(i,j) = A_ib(i,j);
-               }
-               for (int i = 0; i < nbfdofs; i++)
-               {
-                  d_A_bb(i,j) = A_bb(i,j);
-               }
-            }
-         }
-      });
-   }
+      }
+   });
 }
 
 void HybridizationExtension::ConstructH()
