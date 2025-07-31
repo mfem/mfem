@@ -988,6 +988,37 @@ class IMEXRK2 : public SplitODESolver
 };
 
 
+/**(2,3,2) from "Implicit-explicit Runge-Kutta
+    methods for time-dependent partial differential equations" by Ascher, Ruuth
+    and Spiteri, Applied Numerical Mathematics (1997).**/
+class IMEXRK2_3StageExplicit : public SplitODESolver
+{
+   private:
+      Vector k1_exp; Vector k2_exp; Vector k3_exp; Vector k2_imp; Vector k3_imp;
+      //helper vectors
+      Vector y; Vector z; Vector w;
+   public:
+      void Init(SplitTimeDependentOperator &f_) override;
+
+      void Step(Vector &x, real_t &t, real_t &dt) override;
+};
+
+/**(3,4,3) from "Implicit-explicit Runge-Kutta
+    methods for time-dependent partial differential equations" by Ascher, Ruuth
+    and Spiteri, Applied Numerical Mathematics (1997).**/
+class IMEX_DIRK_RK3 : public SplitODESolver
+{
+   private:
+      Vector k1_exp; Vector k2_exp; Vector k3_exp; Vector k4_exp;
+      Vector k2_imp; Vector k3_imp; Vector k4_imp;
+      //helper vectors
+      Vector y; Vector z; Vector w; Vector u; Vector v;
+   public:
+      void Init(SplitTimeDependentOperator &f_) override;
+
+      void Step(Vector &x, real_t &t, real_t &dt) override;
+};
+
 
 }
 
