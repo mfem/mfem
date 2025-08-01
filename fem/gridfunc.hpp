@@ -80,6 +80,13 @@ public:
       : Vector(orig), fes(orig.fes), fec_owned(NULL), fes_sequence(orig.fes_sequence)
    { UseDevice(true); }
 
+   GridFunction(GridFunction &&orig)
+      : Vector(std::move(orig)), fes(orig.fes), fec_owned(orig.fec_owned),
+        fes_sequence(orig.fes_sequence), t_vec(std::move(orig.t_vec))
+   {
+      orig.fec_owned = nullptr;
+   }
+
    /// Construct a GridFunction associated with the FiniteElementSpace @a *f.
    GridFunction(FiniteElementSpace *f) : Vector(f->GetVSize())
    { fes = f; fec_owned = NULL; fes_sequence = f->GetSequence(); UseDevice(true); }
@@ -116,6 +123,8 @@ public:
        assignment operator. */
    GridFunction &operator=(const GridFunction &rhs)
    { return operator=((const Vector &)rhs); }
+
+   GridFunction &operator=(GridFunction &&gf);
 
    /// Make the GridFunction the owner of #fec_owned and #fes.
    /** If the new FiniteElementCollection, @a fec_, is NULL, ownership of #fec_owned

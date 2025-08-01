@@ -155,6 +155,33 @@ GridFunction::GridFunction(Mesh *m, GridFunction *gf_array[], int num_pieces)
    fes_sequence = fes->GetSequence();
 }
 
+GridFunction &GridFunction::operator=(GridFunction &&gf)
+{
+   if (this != &gf)
+   {
+      Vector::operator=(std::move(gf));
+      t_vec = std::move(gf.t_vec);
+      fes_sequence = gf.fes_sequence;
+      if (fes == gf.fes)
+      {
+         if (gf.fec_owned)
+         {
+            // ensure *this owns fec if gf previously owned it
+            MFEM_ASSERT(fec_owned == nullptr, "gf and *this both own FEC");
+            fec_owned = gf.fec_owned;
+            gf.fec_owned = nullptr;
+         }
+      }
+      else
+      {
+         Destroy();
+         fes = gf.fes;
+         fec_owned = gf.fec_owned;
+      }
+   }
+   return *this;
+}
+
 void GridFunction::Destroy()
 {
    if (fec_owned)

@@ -70,6 +70,8 @@ public:
    ParGridFunction(const ParGridFunction &orig)
       : GridFunction(orig), pfes(orig.pfes) { }
 
+   ParGridFunction(ParGridFunction &&orig) = default;
+
    ParGridFunction(ParFiniteElementSpace *pf) : GridFunction(pf), pfes(pf) { }
 
    /// Construct a ParGridFunction using previously allocated array @a data.
@@ -118,6 +120,8 @@ public:
        assignment operator. */
    ParGridFunction &operator=(const ParGridFunction &rhs)
    { return operator=((const Vector &)rhs); }
+
+   ParGridFunction &operator=(ParGridFunction &&orig) = default;
 
    /// Assign constant values to the ParGridFunction data.
    ParGridFunction &operator=(real_t value)
