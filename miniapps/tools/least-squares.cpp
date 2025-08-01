@@ -355,6 +355,7 @@ void AverageReconstruction(Solver& solver,
                            NCMesh& mesh,
                            IterativeSolverParams& newton,
                            real_t reg = 0.0,
+                           int print_level = -1,
                            bool preserve_volumes = false)
 {
    AsymmetricMassIntegrator mass;
@@ -447,8 +448,7 @@ void AverageReconstruction(Solver& solver,
       // Check solver
       auto it_solver = dynamic_cast<IterativeSolver*>(&solver);
       if (it_solver && !it_solver->GetConverged()) { mfem_error("\n\tIterative solver failed to converge!"); }
-      // TODO(Gabriel): Fix this!
-      // if (params.solver >= 0) { CheckLSSolver(fe_dst_to_neighbors_mat, src_neighbors, u_dst_e); }
+      if (print_level >= 0) { CheckLSSolver(fe_dst_to_neighbors_mat, src_neighbors, dst_e); }
 
       // Integrate into global solution
       dst.SetSubVector(e_dofs, dst_e);
@@ -764,10 +764,12 @@ int main(int argc, char* argv[])
       case norm:
          L2Reconstruction(*solver.get(), u_src, u_dst, nc_mesh,
                           params.newton, params.preserve_volumes);
+         break;
       case average:
       default:
          AverageReconstruction(*solver.get(), u_src, u_dst, nc_mesh,
-                               params.newton, params.reg, params.preserve_volumes);
+                               params.newton, params.reg,
+                               params.solver.print_level, params.preserve_volumes);
    }
    u_dst.GetElementAverages(u_dst_avg);
 
