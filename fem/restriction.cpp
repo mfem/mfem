@@ -1586,6 +1586,14 @@ const DenseMatrix* InterpolationManager::GetCoarseToFineInterpolation(
    isotr.SetPointMat(*ptMat);
    DenseMatrix native_interpolator(face_dofs,face_dofs);
    trace_fe->GetLocalInterpolation(isotr, native_interpolator);
+
+   if (trace_fe->GetMapType() == FiniteElement::INTEGRAL)
+   {
+      // Handle potentially inverted Jacobian matrix
+      isotr.SetIntPoint(&Geometries.GetCenter(trace_fe->GetGeomType()));
+      native_interpolator *= (isotr.Weight() >= 0) ? 1.0 : -1.0;
+   }
+
    const int dim = trace_fe->GetDim()+1;
    const int dof1d = trace_fe->GetOrder()+1;
    int orientation_i = face.element[1].orientation;
