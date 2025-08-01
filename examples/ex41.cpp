@@ -65,7 +65,7 @@ public:
       if (dt_ != dt)
       {
          dt = dt_;
-         // Form operator A = M - dt*K
+         // Form operator A = M + dt*S
          A = S;
          A *= dt;
          A += M;
