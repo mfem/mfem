@@ -994,7 +994,6 @@ void ParNCL2FaceRestriction::ComputeScatterIndicesAndOffsets()
       {
          if ( face.IsConforming() )
          {
-            interpolations.RegisterFaceConformingInterpolation(face,f_ind);
             SetFaceDofsScatterIndices1(face,f_ind);
             if ( m==L2FaceValues::DoubleValued )
             {
@@ -1010,7 +1009,6 @@ void ParNCL2FaceRestriction::ComputeScatterIndicesAndOffsets()
          }
          else // Non-conforming face
          {
-            interpolations.RegisterFaceCoarseToFineInterpolation(face,f_ind);
             SetFaceDofsScatterIndices1(face,f_ind);
             if ( m==L2FaceValues::DoubleValued )
             {
@@ -1028,7 +1026,6 @@ void ParNCL2FaceRestriction::ComputeScatterIndicesAndOffsets()
       }
       else if (type==FaceType::Boundary && face.IsBoundary())
       {
-         interpolations.RegisterFaceConformingInterpolation(face,f_ind);
          SetFaceDofsScatterIndices1(face,f_ind);
          if ( m==L2FaceValues::DoubleValued )
          {
@@ -1046,10 +1043,6 @@ void ParNCL2FaceRestriction::ComputeScatterIndicesAndOffsets()
    {
       gather_offsets[i] += gather_offsets[i - 1];
    }
-
-   // Transform the interpolation matrix map into a contiguous memory structure.
-   interpolations.LinearizeInterpolatorMapIntoVector();
-   interpolations.InitializeNCInterpConfig();
 }
 
 void ParNCL2FaceRestriction::ComputeGatherIndices()

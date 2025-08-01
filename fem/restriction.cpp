@@ -1676,7 +1676,7 @@ NCL2FaceRestriction::NCL2FaceRestriction(const FiniteElementSpace &fes,
                                          const L2FaceValues m,
                                          bool build)
    : L2FaceRestriction(fes, f_ordering, type, m, false),
-     interpolations(fes, f_ordering, type)
+     interpolations(fes.GetInterpolationManager(ordering, type))
 {
    if (!build) { return; }
    x_interp.UseDevice(true);
@@ -2202,14 +2202,6 @@ void NCL2FaceRestriction::ComputeScatterIndicesAndOffsets()
          {
             PermuteAndSetFaceDofsScatterIndices2(face,f_ind);
          }
-         if ( face.IsConforming() )
-         {
-            interpolations.RegisterFaceConformingInterpolation(face,f_ind);
-         }
-         else // Non-conforming face
-         {
-            interpolations.RegisterFaceCoarseToFineInterpolation(face,f_ind);
-         }
          f_ind++;
       }
       else if ( type==FaceType::Boundary && face.IsBoundary() )
@@ -2219,7 +2211,6 @@ void NCL2FaceRestriction::ComputeScatterIndicesAndOffsets()
          {
             SetBoundaryDofsScatterIndices2(face,f_ind);
          }
-         interpolations.RegisterFaceConformingInterpolation(face,f_ind);
          f_ind++;
       }
    }
@@ -2232,10 +2223,6 @@ void NCL2FaceRestriction::ComputeScatterIndicesAndOffsets()
    {
       gather_offsets[i] += gather_offsets[i - 1];
    }
-
-   // Transform the interpolation matrix map into a contiguous memory structure.
-   interpolations.LinearizeInterpolatorMapIntoVector();
-   interpolations.InitializeNCInterpConfig();
 }
 
 void NCL2FaceRestriction::ComputeGatherIndices()

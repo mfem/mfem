@@ -907,7 +907,7 @@ private:
 class NCL2FaceRestriction : virtual public L2FaceRestriction
 {
 protected:
-   InterpolationManager interpolations;
+   const InterpolationManager &interpolations;
    mutable Vector x_interp;
 
    /** @brief Constructs an NCL2FaceRestriction, this is a specialization of a

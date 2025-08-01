@@ -1578,6 +1578,45 @@ const FaceRestriction *FiniteElementSpace::GetFaceRestriction(
       return L2F.emplace(key, std::move(res)).first->second.get();
    }
 }
+
+const InterpolationManager &FiniteElementSpace::GetInterpolationManager(
+   ElementDofOrdering f_ordering, FaceType type) const
+{
+   const auto key = make_tuple(f_ordering, type);
+
+   auto it = interpolations.find(key);
+   if (it != interpolations.end())
+   {
+      return *it->second;
+   }
+   else
+   {
+      auto interp = make_unique<InterpolationManager>(*this, f_ordering, type);
+
+      int face_idx = 0;
+      for (int f = 0; f < mesh->GetNumFaces(); ++f)
+      {
+         Mesh::FaceInformation face = mesh->GetFaceInformation(f);
+         if (!face.IsOfFaceType(type) || face.IsNonconformingCoarse())
+         {
+            continue;
+         }
+         if (face.IsConforming() || face.IsBoundary())
+         {
+            interp->RegisterFaceConformingInterpolation(face, face_idx);
+         }
+         else
+         {
+            interp->RegisterFaceCoarseToFineInterpolation(face, face_idx);
+         }
+         ++face_idx;
+      }
+
+      // Transform the interpolation matrix map into contiguous memory.
+      interp->LinearizeInterpolatorMapIntoVector();
+      interp->InitializeNCInterpConfig();
+
+      return *interpolations.emplace(key, std::move(interp)).first->second;
    }
 }
 
@@ -3986,11 +4025,8 @@ void FiniteElementSpace::Destroy()
       delete E2Q_array[i];
    }
    E2Q_array.SetSize(0);
-   for (auto &x : L2F)
-   {
-      delete x.second;
-   }
    L2F.clear();
+   interpolations.clear();
    for (int i = 0; i < E2IFQ_array.Size(); i++)
    {
       delete E2IFQ_array[i];
