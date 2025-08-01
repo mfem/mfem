@@ -1106,7 +1106,7 @@ void InnerProductCoefficient::Project(QuadratureFunction &qf)
    b->Project(qf_b);
 
    auto a_d = qf_a.Read();
-   auto b_d = qf_a.Read();
+   auto b_d = qf_b.Read();
 
    mfem::forall(qf.GetSpace()->GetSize(), [=] MFEM_HOST_DEVICE (int i)
    {
