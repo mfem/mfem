@@ -76,6 +76,8 @@ void GetElementNeighbors(const Mesh &mesh, int elem_id, Array<int> &neighbors);
 
 void Limiter(GridFunction &u, const FiniteElementSpace &fes, const Vector &bds);
 
+void Limiter(GridFunction &u, GridFunction &u_prev, const FiniteElementSpace &fes, const Vector &bds);
+
 class DG_Solver : public Solver
 {
 private:
@@ -139,12 +141,17 @@ public:
    using ODESolver::Step;
 
    virtual void Step(GridFunction &x, real_t &t, real_t &dt, const FiniteElementSpace &fes, const Vector &bds) = 0;
+
+   virtual void Step(GridFunction &x, GridFunction &x_prev, real_t &t, real_t &dt, const FiniteElementSpace &fes, const Vector &bds) = 0;
 };
 
 class LimitedForwardEulerSolver : public ForwardEulerSolver, public LimitedODESolver //ODESolver
 {
+private:
+   Vector x1;
 public:
-   LimitedForwardEulerSolver(const FiniteElementSpace &fes_, const Vector &bds_) : LimitedODESolver(fes_, bds_) { }
+   LimitedForwardEulerSolver(const FiniteElementSpace &fes_, const Vector &bds_) 
+      : LimitedODESolver(fes_, bds_) { }
 
    void Step(Vector &x, real_t &t, real_t &dt) override 
    {
@@ -159,12 +166,23 @@ public:
       Limiter(x, fes, bds);
       t += dt;
    }
+
+   void Step(GridFunction &x, GridFunction &x_prev, real_t &t, real_t &dt, const FiniteElementSpace &fes, const Vector &bds) override
+   {
+      x_prev = x;
+      f->SetTime(t);
+      f->Mult(x, dxdt);
+      x.Add(dt, dxdt);
+      Limiter(x, x_prev, fes, bds);
+      t += dt;
+   }
 };
 
 class LimitedRK2Solver : public RK2Solver, public LimitedODESolver //ODESolver
 {
 public:
-   LimitedRK2Solver(const FiniteElementSpace &fes_, const Vector bds_, const real_t a_ = 2./3.) : RK2Solver(a_) , LimitedODESolver(fes_, bds_) { }
+   LimitedRK2Solver(const FiniteElementSpace &fes_, const Vector bds_, const real_t a_ = 2./3.) 
+      : RK2Solver(a_) , LimitedODESolver(fes_, bds_) { }
 
    void Step(Vector &x, real_t &t, real_t &dt) override 
    {
@@ -191,6 +209,12 @@ public:
       f->Mult(x, dxdt);
       add(x1, b*dt, dxdt, x);
       Limiter(x, fes, bds);
+      t += dt;
+   }
+
+   void Step(GridFunction &x, GridFunction &x_prev, real_t &t, real_t &dt, const FiniteElementSpace &fes, const Vector &bds) override
+   {
+      f->SetTime(t);
       t += dt;
    }
 };
@@ -235,6 +259,12 @@ public:
       gy.Add(dt, gk);
       add(1./3, x, 2./3, gy, x);
       Limiter(x, fes, bds);
+      t += dt;
+   }
+
+   void Step(GridFunction &x, GridFunction &x_prev, real_t &t, real_t &dt, const FiniteElementSpace &fes, const Vector &bds) override
+   {
+      f->SetTime(t);
       t += dt;
    }
 };
@@ -350,274 +380,301 @@ int main(int argc, char *argv[])
    Mesh mesh(mesh_file, 1, 1);
    int dim = mesh.Dimension();
 
-   // 4. Refine the mesh to increase the resolution. In this example we do
-   //    'ref_levels' of uniform refinement, where 'ref_levels' is a
-   //    command-line parameter. If the mesh is of NURBS type, we convert it to
-   //    a (piecewise-polynomial) high-order mesh.
-   for (int lev = 0; lev < ref_levels; lev++)
+   //TODO: finish computing rate of convergence table: use lower dt, try general final times (by building final_solution expression)
+   // choose refinement levels to run through 
+   Array<int> refs{0, 1, 2, 3};
+   
+   for (int r = 0; r < refs.Size(); r++)
    {
-      mesh.UniformRefinement();
-   }
-   if (mesh.NURBSext)
-   {
-      mesh.SetCurvature(max(order, 1));
-   }
-   mesh.GetBoundingBox(bb_min, bb_max, max(order, 1));
+      ref_levels = refs[r];
 
-   // 5. Define the discontinuous DG finite element space of the given
-   //    polynomial order on the refined mesh.
-   // DG_FECollection fec(order, dim, BasisType::GaussLobatto);
-   DG_FECollection fec(order, dim, BasisType::Positive);
-
-   FiniteElementSpace fes(&mesh, &fec);
-
-   // 6. Set up and assemble the bilinear and linear forms corresponding to the
-   //    DG discretization. The DGTraceIntegrator involves integrals over mesh
-   //    interior faces.
-   VectorFunctionCoefficient velocity(dim, velocity_function);
-   FunctionCoefficient inflow(inflow_function);
-   FunctionCoefficient u0(u0_function);
-   Vector bds = bounds(dim);
-   bds.Print();
-
-   int quadorder = 2*order;
-   const FiniteElement *fe = fes.GetFE(0);
-   IntegrationRules irGL(0, Quadrature1D::GaussLobatto);
-   IntegrationRule ir = irGL.Get(fe->GetGeomType(), quadorder);
-
-   BilinearForm m(&fes);
-   BilinearForm k(&fes);
-   if (pa)
-   {
-      m.SetAssemblyLevel(AssemblyLevel::PARTIAL);
-      k.SetAssemblyLevel(AssemblyLevel::PARTIAL);
-   }
-   else if (ea)
-   {
-      m.SetAssemblyLevel(AssemblyLevel::ELEMENT);
-      k.SetAssemblyLevel(AssemblyLevel::ELEMENT);
-   }
-   else if (fa)
-   {
-      m.SetAssemblyLevel(AssemblyLevel::FULL);
-      k.SetAssemblyLevel(AssemblyLevel::FULL);
-   }
-   m.AddDomainIntegrator(new MassIntegrator(&ir));
-   // m.AddDomainIntegrator(new MassIntegrator);
-   constexpr real_t alpha = -1.0;
-   auto convecInt = new ConvectionIntegrator(velocity, alpha);
-   // const IntegrationRule* intrul = convecInt->GetIntegrationRule();
-   // cout << "int rule order is default: " << intrul->GetNPoints() << endl;
-   convecInt->SetIntRule(&ir);     
-   k.AddDomainIntegrator(convecInt);
-   // k.AddDomainIntegrator(new ConvectionIntegrator(velocity, alpha));
-   k.AddInteriorFaceIntegrator(
-      new NonconservativeDGTraceIntegrator(velocity, alpha));
-   k.AddBdrFaceIntegrator(
-      new NonconservativeDGTraceIntegrator(velocity, alpha));
-
-   LinearForm b(&fes);
-   b.AddBdrFaceIntegrator(
-      new BoundaryFlowIntegrator(inflow, velocity, alpha));
-
-   m.Assemble();
-   int skip_zeros = 0;
-   k.Assemble(skip_zeros);
-   b.Assemble();
-   m.Finalize();
-   k.Finalize(skip_zeros);
-
-   // 3. Define the ODE solver used for time integration. Several explicit
-   //    Runge-Kutta methods are available.
-
-   LimitedODESolver* ode_solver = nullptr;
-   switch (ode_solver_type)
-   {
-      case 1: ode_solver = new LimitedForwardEulerSolver(fes, bds); break;
-      case 2: ode_solver = new LimitedRK2Solver(fes, bds, 0.5); break; // midpoint method (SSP)
-      case 3: ode_solver = new LimitedRK3SSPSolver(fes, bds); break;
-   }
-
-   // 7. Define the initial conditions, save the corresponding grid function to
-   //    a file and (optionally) save data in the VisIt format and initialize
-   //    GLVis visualization.
-   GridFunction u(&fes);
-   u.ProjectCoefficient(u0);
-
-   {
-      ofstream omesh("ex9.mesh");
-      omesh.precision(precision);
-      mesh.Print(omesh);
-      ofstream osol("ex9-init.gf");
-      osol.precision(precision);
-      u.Save(osol);
-   }
-
-   // Create data collection for solution output: either VisItDataCollection for
-   // ascii data files, or SidreDataCollection for binary data files.
-   DataCollection *dc = NULL;
-   if (visit)
-   {
-      if (binary)
+      // 4. Refine the mesh to increase the resolution. In this example we do
+      //    'ref_levels' of uniform refinement, where 'ref_levels' is a
+      //    command-line parameter. If the mesh is of NURBS type, we convert it to
+      //    a (piecewise-polynomial) high-order mesh.
+      for (int lev = 0; lev < ref_levels; lev++)
       {
-#ifdef MFEM_USE_SIDRE
-         dc = new SidreDataCollection("Example9", &mesh);
-#else
-         MFEM_ABORT("Must build with MFEM_USE_SIDRE=YES for binary output.");
-#endif
+         mesh.UniformRefinement();
       }
-      else
+      if (mesh.NURBSext)
       {
-         dc = new VisItDataCollection("Example9", &mesh);
-         dc->SetPrecision(precision);
+         mesh.SetCurvature(max(order, 1));
       }
-      dc->RegisterField("solution", &u);
-      dc->SetCycle(0);
-      dc->SetTime(0.0);
-      dc->Save();
-   }
+      mesh.GetBoundingBox(bb_min, bb_max, max(order, 1));
 
-   ParaViewDataCollection *pd = NULL;
-   if (paraview)
-   {
-      pd = new ParaViewDataCollection("Example9", &mesh);
-      pd->SetPrefixPath("ParaView");
-      pd->RegisterField("solution", &u);
-      pd->SetLevelsOfDetail(order);
-      pd->SetDataFormat(VTKFormat::BINARY);
-      pd->SetHighOrderOutput(true);
-      pd->SetCycle(0);
-      pd->SetTime(0.0);
-      pd->Save();
-   }
+      // 5. Define the discontinuous DG finite element space of the given
+      //    polynomial order on the refined mesh.
+      // DG_FECollection fec(order, dim, BasisType::GaussLobatto);
+      DG_FECollection fec(order, dim, BasisType::Positive); 
 
-   socketstream sout;
-   if (visualization)
-   {
-      char vishost[] = "localhost";
-      int  visport   = 19916;
-      sout.open(vishost, visport);
-      if (!sout)
-      {
-         cout << "Unable to connect to GLVis server at "
-              << vishost << ':' << visport << endl;
-         visualization = false;
-         cout << "GLVis visualization disabled.\n";
-      }
-      else
-      {
-         sout.precision(precision);
-         sout << "solution\n" << mesh << u;
-         // sout << "autoscale on\n"; 
-         // sout << "autoscale off\n";  // Turn off autoscale for colorscare
-         // sout << "scale 0.25 1.75\n";  // Sets colorscale 
-         sout << "pause\n";
-         sout << flush;
-         cout << "GLVis visualization paused."
-              << " Press space (in the GLVis window) to resume it.\n";
-      }
-   }
+      FiniteElementSpace fes(&mesh, &fec);
 
-   // 8. Define the time-dependent evolution operator describing the ODE
-   //    right-hand side, and perform time-integration (looping over the time
-   //    iterations, ti, with a time-step dt).
-   FE_Evolution adv(m, k, b);
-
-   real_t t = 0.0;
-   adv.SetTime(t);
-   ode_solver->Init(adv);
-
-   bool done = false;
-   int offset = 0;
-   double Pmin = bds(1), Pmax = bds(0);
-   for (int ti = 0; !done; )
-   {
-      real_t dt_real = min(dt, t_final - t);
-
-      if (limiter) { ode_solver->Step(u, t, dt_real, fes, bds); }
-      else { ode_solver->Step(u, t, dt_real); }
-
-      ti++;
+      // 6. Set up and assemble the bilinear and linear forms corresponding to the
+      //    DG discretization. The DGTraceIntegrator involves integrals over mesh
+      //    interior faces.
+      VectorFunctionCoefficient velocity(dim, velocity_function);
+      FunctionCoefficient inflow(inflow_function);
+      FunctionCoefficient u0(u0_function);
       
-      Vector nodes(u.Size());
-      Vector node_coords(dim);
-      Vector P(u.Size());
-      offset = 0;
-      for (int el = 0; el < mesh.GetNE(); el++)
+      Vector bds = bounds(dim);
+      bds.Print();
+
+      int quadorder = 2*order;
+      const FiniteElement *fe = fes.GetFE(0);
+      IntegrationRules irGL(0, Quadrature1D::GaussLobatto);
+      IntegrationRule ir = irGL.Get(fe->GetGeomType(), quadorder); //TODO: maybe not necessary
+
+      BilinearForm m(&fes);
+      BilinearForm k(&fes);
+      if (pa)
       {
-         const FiniteElement *fe = fes.GetFE(el);
-         ElementTransformation *trans = mesh.GetElementTransformation(el);
-
-         int edof = fe->GetDof();
-         const IntegrationRule &ir = fe->GetNodes(); // Node locations in reference element
-
-         for (int i = 0; i < edof; i++)
-         {
-            const IntegrationPoint &ip = ir.IntPoint(i);
-
-            // Map reference node to physical coordinates (optional, for info)
-            trans->Transform(ip, node_coords);
-
-            // Evaluate GridFunction at this node
-            real_t value = u.GetValue(el, ip);
-            P[offset+i] = value;
-
-            // cout << "Element " << el << ", node " << i << " at "; node_coords.Print(); cout << ": value = " << value << endl;
-         }
-         offset += edof;
+         m.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+         k.SetAssemblyLevel(AssemblyLevel::PARTIAL);
       }
-      // cout << "u coef values: " << u.Min() << " and " << u.Max() << endl;
-      // cout << "u phys values: " << P.Min() << " and " << P.Max() << endl;
-      Pmin = min(Pmin, P.Min());
-      Pmax = max(Pmax, P.Max());
-      
-      if (HasNegative(P)) {
-         cout << "P has negative value at step " << ti << endl;
-      }
-      // P.Print();
-      // cout << "\n";
-
-      
-      done = (t >= t_final - 1e-8*dt);
-
-      if (done || ti % vis_steps == 0)
+      else if (ea)
       {
-         cout << "time step: " << ti << ", time: " << t << endl;
-         // u.Print();
+         m.SetAssemblyLevel(AssemblyLevel::ELEMENT);
+         k.SetAssemblyLevel(AssemblyLevel::ELEMENT);
+      }
+      else if (fa)
+      {
+         m.SetAssemblyLevel(AssemblyLevel::FULL);
+         k.SetAssemblyLevel(AssemblyLevel::FULL);
+      }
+      m.AddDomainIntegrator(new MassIntegrator(&ir));
+      // m.AddDomainIntegrator(new MassIntegrator);
+      constexpr real_t alpha = -1.0;
+      auto convecInt = new ConvectionIntegrator(velocity, alpha);
+      // const IntegrationRule* intrul = convecInt->GetIntegrationRule();
+      // cout << "int rule order is default: " << intrul->GetNPoints() << endl;
+      convecInt->SetIntRule(&ir);     
+      k.AddDomainIntegrator(convecInt);
+      // k.AddDomainIntegrator(new ConvectionIntegrator(velocity, alpha));
+      k.AddInteriorFaceIntegrator(
+         new NonconservativeDGTraceIntegrator(velocity, alpha));
+      k.AddBdrFaceIntegrator(
+         new NonconservativeDGTraceIntegrator(velocity, alpha));
 
-         if (visualization)
+      LinearForm b(&fes);
+      b.AddBdrFaceIntegrator(
+         new BoundaryFlowIntegrator(inflow, velocity, alpha));
+
+      m.Assemble();
+      int skip_zeros = 0;
+      k.Assemble(skip_zeros);
+      b.Assemble();
+      m.Finalize();
+      k.Finalize(skip_zeros);
+
+      // 3. Define the ODE solver used for time integration. Several explicit
+      //    Runge-Kutta methods are available.
+
+      LimitedODESolver* ode_solver = nullptr;
+      switch (ode_solver_type)
+      {
+         case 1: ode_solver = new LimitedForwardEulerSolver(fes, bds); break;
+         case 2: ode_solver = new LimitedRK2Solver(fes, bds, 0.5); break; // midpoint method (SSP)
+         case 3: ode_solver = new LimitedRK3SSPSolver(fes, bds); break;
+      }
+
+      // 7. Define the initial conditions, save the corresponding grid function to
+      //    a file and (optionally) save data in the VisIt format and initialize
+      //    GLVis visualization.
+      GridFunction u(&fes);
+      u.ProjectCoefficient(u0);
+
+      {
+         ofstream omesh("ex9.mesh");
+         omesh.precision(precision);
+         mesh.Print(omesh);
+         ofstream osol("ex9-init.gf");
+         osol.precision(precision);
+         u.Save(osol);
+      }
+
+      // Create data collection for solution output: either VisItDataCollection for
+      // ascii data files, or SidreDataCollection for binary data files.
+      DataCollection *dc = NULL;
+      if (visit)
+      {
+         if (binary)
          {
-            sout << "solution\n" << mesh << u << flush;
+   #ifdef MFEM_USE_SIDRE
+            dc = new SidreDataCollection("Example9", &mesh);
+   #else
+            MFEM_ABORT("Must build with MFEM_USE_SIDRE=YES for binary output.");
+   #endif
          }
-
-         if (visit)
+         else
          {
-            dc->SetCycle(ti);
-            dc->SetTime(t);
-            dc->Save();
+            dc = new VisItDataCollection("Example9", &mesh);
+            dc->SetPrecision(precision);
          }
+         dc->RegisterField("solution", &u);
+         dc->SetCycle(0);
+         dc->SetTime(0.0);
+         dc->Save();
+      }
 
-         if (paraview)
+      ParaViewDataCollection *pd = NULL;
+      if (paraview)
+      {
+         pd = new ParaViewDataCollection("Example9", &mesh);
+         pd->SetPrefixPath("ParaView");
+         pd->RegisterField("solution", &u);
+         pd->SetLevelsOfDetail(order);
+         pd->SetDataFormat(VTKFormat::BINARY);
+         pd->SetHighOrderOutput(true);
+         pd->SetCycle(0);
+         pd->SetTime(0.0);
+         pd->Save();
+      }
+
+      socketstream sout;
+      if (visualization)
+      {
+         char vishost[] = "localhost";
+         int  visport   = 19916;
+         sout.open(vishost, visport);
+         if (!sout)
          {
-            pd->SetCycle(ti);
-            pd->SetTime(t);
-            pd->Save();
+            cout << "Unable to connect to GLVis server at "
+               << vishost << ':' << visport << endl;
+            visualization = false;
+            cout << "GLVis visualization disabled.\n";
+         }
+         else
+         {
+            sout.precision(precision);
+            sout << "solution\n" << mesh << u;
+            // sout << "autoscale on\n"; 
+            // sout << "autoscale off\n";  // Turn off autoscale for colorscare
+            // sout << "scale 0.25 1.75\n";  // Sets colorscale 
+            sout << "pause\n";
+            sout << flush;
+            cout << "GLVis visualization paused."
+               << " Press space (in the GLVis window) to resume it.\n";
          }
       }
-   }
-   cout << "Minimum and maximum value of P over all time is " << Pmin << " and " << Pmax << endl;
 
-   // 9. Save the final solution. This output can be viewed later using GLVis:
-   //    "glvis -m ex9.mesh -g ex9-final.gf".
-   {
-      ofstream osol("ex9-final.gf");
-      osol.precision(precision);
-      u.Save(osol);
-   }
+      // 8. Define the time-dependent evolution operator describing the ODE
+      //    right-hand side, and perform time-integration (looping over the time
+      //    iterations, ti, with a time-step dt).
+      FE_Evolution adv(m, k, b);
 
-   // 10. Free the used memory.
-   delete pd;
-   delete dc;
+      real_t t = 0.0;
+      adv.SetTime(t);
+      ode_solver->Init(adv);
+
+      bool done = false;
+      int offset = 0;
+      double Pmin = bds(1), Pmax = bds(0);
+      GridFunction u_prev(&fes);
+      u_prev = u;
+      for (int ti = 0; !done; )
+      {
+         real_t dt_real = min(dt, t_final - t);
+
+         if (limiter) { ode_solver->Step(u, t, dt_real, fes, bds); }//ode_solver->Step(u, t, dt_real, fes, bds); }
+         else { ode_solver->Step(u, t, dt_real); }
+
+         ti++;
+         u_prev = u;
+         
+         Vector nodes(u.Size());
+         Vector node_coords(dim);
+         Vector P(u.Size());
+         // int Pintorder = 2*order-1;
+         // Vector P(mesh.GetNE()*Pintorder);
+         offset = 0;
+         for (int el = 0; el < mesh.GetNE(); el++)
+         {
+            const FiniteElement *fe = fes.GetFE(el);
+            ElementTransformation *trans = mesh.GetElementTransformation(el);
+
+            int edof = fe->GetDof();
+            const IntegrationRule &ir = fe->GetNodes(); // Node locations in reference element
+
+            for (int i = 0; i < edof; i++)
+            {
+               const IntegrationPoint &ip = ir.IntPoint(i);
+
+               // Map reference node to physical coordinates (optional, for info)
+               trans->Transform(ip, node_coords);
+
+               // Evaluate GridFunction at this node
+               real_t value = u.GetValue(el, ip);
+               P[offset+i] = value;
+
+               // cout << "Element " << el << ", node " << i << " at "; node_coords.Print(); cout << ": value = " << value << endl;
+            }
+            offset += edof;
+            // int Pintorder = 2*order-1;
+            // IntegrationRules PirGL(0, Quadrature1D::GaussLobatto);
+            // const IntegrationRule &Pir = PirGL.Get(fe->GetGeomType(), Pintorder);
+
+            // for (int q = 0; q < Pir.GetNPoints(); q++)
+            // {
+            //    const IntegrationPoint &ip = Pir.IntPoint(q);
+            //    double value = u.GetValue(el, ip);
+            //    P[offset+q] = value;
+            // }
+            // offset += Pir.GetNPoints();
+         }
+         // cout << "u coef values: " << u.Min() << " and " << u.Max() << endl;
+         // cout << "u phys values: " << P.Min() << " and " << P.Max() << endl;
+         Pmin = min(Pmin, P.Min());
+         Pmax = max(Pmax, P.Max());
+         
+         // P.Print();
+         // cout << "\n";
+
+         
+         done = (t >= t_final - 1e-8*dt);
+
+         if (done || ti % vis_steps == 0)
+         {
+            // cout << "time step: " << ti << ", time: " << t << endl;
+            // u.Print();
+
+            if (visualization)
+            {
+               sout << "solution\n" << mesh << u << flush;
+            }
+
+            if (visit)
+            {
+               dc->SetCycle(ti);
+               dc->SetTime(t);
+               dc->Save();
+            }
+
+            if (paraview)
+            {
+               pd->SetCycle(ti);
+               pd->SetTime(t);
+               pd->Save();
+            }
+         }
+      }
+      cout << "Minimum and maximum value of P over all time is " << Pmin << " and " << Pmax << endl;
+
+      double l2_error = u.ComputeL2Error(u0);
+      cout << "L2 Error: " << l2_error << endl;
+
+      // 9. Save the final solution. This output can be viewed later using GLVis:
+      //    "glvis -m ex9.mesh -g ex9-final.gf".
+      {
+         ofstream osol("ex9-final.gf");
+         osol.precision(precision);
+         u.Save(osol);
+      }
+
+      // 10. Free the used memory.
+      delete pd;
+      delete dc;
+
+   }
 
    return 0;
 }
@@ -764,10 +821,11 @@ real_t u0_function(const Vector &x)
          switch (dim)
          {
             case 1:
-               return exp(-40.*pow(X(0)-0.5,2));
-               // return 0.5*cos(M_PI*X[0])+0.5;
+               return exp(-40.*pow(X(0)-0.5,2))+0.5;
+               // return 0.5*cos(M_PI*X[0])+1;
                // return -(X[0]-1)*(X[0]+1);
                // return 1.0;
+               // return (X[0] < 0.0) ? 0.5 : 1.5;
             case 2:
             case 3:
             {
@@ -812,7 +870,7 @@ Vector bounds(const int dim)
             case 1:
             {
                Vector bds(2);
-               bds(0) = 0.0; bds(1) = 1.0;
+               bds(0) = 0.5; bds(1) = 1.5;
                return bds;
             }
                
@@ -870,7 +928,131 @@ void Limiter(GridFunction &u, const FiniteElementSpace &fes, const Vector &bds)
    const IntegrationRule *ir = nullptr;
    int order = 0;
    Vector u_local, u_vals;
-   DenseMatrix elfun;
+
+   // Loop over elements
+   for (int i = 0; i < fes.GetNE(); i++)
+   {
+      Array<int> dofs;
+      fes.GetElementDofs(i, dofs);
+      fe = fes.GetFE(i);
+      order = fe->GetOrder(); 
+      // cout << "order of fe is " << endl;
+      ElementTransformation *trans = mesh->GetElementTransformation(i);
+
+      // Use a suitable integration rule (e.g., order = 2*fe->GetOrder())
+      // int intorder = ceil((order+3)/2.0);
+      int intorder = 2*order-1;
+      IntegrationRules irGL(0, Quadrature1D::GaussLobatto);
+      ir = &irGL.Get(fe->GetGeomType(), intorder);
+      // ir = &IntRules.Get(fe->GetGeomType(), intorder);
+
+      u_local.SetSize(dofs.Size());
+      u.GetSubVector(dofs, u_local);
+
+      // Evaluate solution at quadrature points
+      u_vals.SetSize(ir->GetNPoints());
+      // cout << "size of u" << u_vals.Size();
+
+      // Compute cell average via quadrature
+      double int_val = 0.0, int_w = 0.0;
+      for (int q = 0; q < ir->GetNPoints(); q++)
+      {
+         const IntegrationPoint &ip = ir->IntPoint(q);
+         trans->SetIntPoint(&ip);
+
+         double w = ip.weight * trans->Weight();
+         u_vals(q) = u.GetValue(i, ip);
+
+         int_val += w * u_vals(q);
+         int_w += w;
+      }
+      // cout << "u_vals is " << u_vals.Min() << " and " << u_vals.Max() << endl;
+      // u_vals.Print();
+      double cell_avg = int_val / int_w;
+      // cout << cell_avg << endl;
+      // if (cell_avg < 0.5) {cout << "cell avg " << cell_avg << " too low" << endl;}
+      // if (cell_avg > 1.5) {cout << "cell avg " << cell_avg << " too high" << endl;}
+
+      // Set bounds 
+      double m_i = bds(0), M_i = bds(1);
+      double u_min = u_vals.Min(), u_max = u_vals.Max();
+      // Compute theta for limiting
+      double theta = 1.0;
+
+      //TODO: swtich method from limiting on dofs to quad points. Here and in the other Limiter(...) function
+      /* Limiter applied to quadrature points, NOT degrees of freedom - UNCOMMENT AS NECESSARY */
+      /* First method - does not check cell avg in bounds: */
+      // theta = min(theta, abs((M_i - cell_avg) / (u_max - cell_avg)) );
+      // theta = min(theta, abs((m_i - cell_avg) / (u_min - cell_avg)) );
+
+      /* Second method - partial check cell avg in bounds: */
+      // for (int k = 0; k < u_vals.Size(); k++)
+      // {
+      //    double diff = u_vals[k] - cell_avg;
+      //    if (diff > 0.0)
+      //    {
+      //          if (cell_avg < M_i)
+      //             theta = std::min(theta, (M_i - cell_avg) / diff);
+      //          else {
+      //             cout << "cell avg outside of M" << endl;
+      //             theta = 0.0;}
+      //    }
+      //    else if (diff < 0.0)
+      //    {
+      //          if (cell_avg > m_i)
+      //             theta = std::min(theta, (m_i - cell_avg) / diff);
+      //          else {
+      //             cout << "cell avg outside of m" << endl;
+      //             theta = 0.0;}
+      //    }
+      // }
+
+      /* Limiter applied to degrees of freedom, NOT quadrature points - UNCOMMENT AS NECESSARY */
+      for (int k = 0; k < u_local.Size(); k++)
+      {
+         double diff = u_local[k] - cell_avg;
+         if (diff > 0.0)
+         {
+               if (cell_avg < M_i)
+                  theta = std::min(theta, (M_i - cell_avg) / diff);
+               else {
+                  // cout << "cell avg outside of M" << endl;
+                  theta = 0.0; }
+         }
+         else if (diff < 0.0)
+         {
+               if (cell_avg > m_i)
+                  theta = std::min(theta, (m_i - cell_avg) / diff);
+               else {
+                  // cout << "cell avg outside of m" << endl;
+                  theta = 0.0; }
+         }
+      }
+      // cout << "theta is " << theta << endl;
+
+      // Apply limiter
+      double value;
+      for (int k = 0; k < u_local.Size(); k++) {
+         value = theta * u_local(k) + (1-theta) * cell_avg;
+         u_local(k) = value;
+         // if (value < 0.5) {cout << "somehthing wrong: " << value << endl; }
+         // if (hold < bds(0) && abs(u_local(k)) < (bds(0)+1e-14) ) u_local(k) = bds(0);
+      }
+      u.SetSubVector(dofs, u_local);
+   }
+
+}
+
+void Limiter(GridFunction &u, GridFunction &u_prev, const FiniteElementSpace &fes, const Vector &bds)
+{
+   //TODO: use local bounds based on cell & its neighbors, instead of global bounds
+   // cout << "try this" << endl;
+   Mesh* mesh = fes.GetMesh(); 
+
+   const FiniteElement *fe = nullptr;
+   const IntegrationRule *ir = nullptr;
+   int order = 0;
+   Vector u_local, u_vals;
 
    // Loop over elements
    for (int i = 0; i < fes.GetNE(); i++)
@@ -882,17 +1064,16 @@ void Limiter(GridFunction &u, const FiniteElementSpace &fes, const Vector &bds)
       ElementTransformation *trans = mesh->GetElementTransformation(i);
 
       // Use a suitable integration rule (e.g., order = 2*fe->GetOrder())
-      int intorder = floor((order+3)/2.0);
+      int intorder = ceil((order+3)/2.0);
       IntegrationRules irGL(0, Quadrature1D::GaussLobatto);
       ir = &irGL.Get(fe->GetGeomType(), intorder);
       // ir = &IntRules.Get(fe->GetGeomType(), intorder);
 
       u_local.SetSize(dofs.Size());
-      u.GetSubVector(dofs, u_local);
+      u.GetSubVector(dofs, u_local); //physical or dof ??
 
       // Evaluate solution at quadrature points
       u_vals.SetSize(ir->GetNPoints());
-      // fe->GetValues(*ir, u_local, u_vals);
 
       // Compute cell average via quadrature
       double int_val = 0.0, int_w = 0.0;
@@ -908,30 +1089,88 @@ void Limiter(GridFunction &u, const FiniteElementSpace &fes, const Vector &bds)
          int_w += w;
       }
       double cell_avg = int_val / int_w;
-      // cout << cell_avg << endl;
+      cout << "cell_avg is " << cell_avg << endl;
 
-      double m_i = bds(0), M_i = bds(1);
+      // Set bounds using previous: global, or local based on cell and its neighbors
+      // double m = bds(0), M = bds(1);
+      double m = cell_avg, M = cell_avg;
+      double m_l, M_l;
+      double m_i, M_i; 
+      Array<int> neighbors;
+      GetElementNeighbors(*mesh, i, neighbors);
+      neighbors.Append(i);
+      cout << "neighbors are ";
+      for (int p = 0; p < neighbors.Size(); p++)
+      {
+         cout << neighbors[p] << " ";
+      }
+      cout << endl;
+
+      for (int j = 0; j < neighbors.Size(); j++)
+      {
+         const FiniteElement *nfe = fes.GetFE(neighbors[j]);
+         int norder = 2 * nfe->GetOrder();
+         const IntegrationRule *nir = &IntRules.Get(nfe->GetGeomType(), norder);
+         Vector n_vals(nir->GetNPoints());
+
+         for (int q = 0; q < nir->GetNPoints(); q++)
+         {
+            const IntegrationPoint &nip = nir->IntPoint(q);
+            n_vals(q) = u_prev.GetValue(neighbors[j], nip); // GetValue is in physical element
+         }
+         n_vals.Print();
+         m_l = n_vals.Min(); M_l = n_vals.Max();
+         if (j=neighbors.Size()-1) {m_i = m_l; M_i = M_l;} // final n_vals is for element i
+         cout << "mi, Mi is " << m_l << ", " << M_l << endl;
+         m = min(m, m_l); M = max(M, M_l);
+         cout << "m, M is " << m << ", " << M << endl;
+      }
+      //check 
+      if (cell_avg < M  && cell_avg > m) {cout << "all ok????" << endl;}
+      
       // Compute theta for limiting
       double theta = 1.0;
-      for (int k = 0; k < u_local.Size(); k++)
+
+      /* Limiter applied to quadrature points, NOT degrees of freedom - UNCOMMENT AS NECESSARY */
+      for (int k = 0; k < u_vals.Size(); k++) // check over GL quadrature points from cellavg calculation 
       {
-         double diff = u_local[k] - cell_avg;
+         double diff = u_vals[k] - cell_avg;
          if (diff > 0.0)
          {
-               if (cell_avg < M_i)
-                  theta = std::min(theta, (M_i - cell_avg) / diff);
+               if (cell_avg < M)
+                  theta = std::min(theta, (M - cell_avg) / diff);
                else
                   theta = 0.0;
          }
          else if (diff < 0.0)
          {
-               if (cell_avg > m_i)
-                  theta = std::min(theta, (m_i - cell_avg) / diff);
+               if (cell_avg > m)
+                  theta = std::min(theta, (m - cell_avg) / diff);
                else
                   theta = 0.0;
          }
       }
-      // cout << "theta is " << theta << endl;
+
+      /* Limiter applied to degrees of freedom, NOT quadrature points - UNCOMMENT AS NECESSARY */
+      // for (int k = 0; k < u_local.Size(); k++)
+      // {
+      //    double diff = u_local[k] - cell_avg;
+      //    if (diff > 0.0)
+      //    {
+      //          if (cell_avg < M)
+      //             theta = std::min(theta, (M - cell_avg) / diff);
+      //          else
+      //             theta = 0.0;
+      //    }
+      //    else if (diff < 0.0)
+      //    {
+      //          if (cell_avg > m)
+      //             theta = std::min(theta, (m - cell_avg) / diff);
+      //          else
+      //             theta = 0.0;
+      //    }
+      // }
+      cout << "theta is " << theta << endl;
 
       // Apply limiter
       for (int k = 0; k < u_local.Size(); k++)
