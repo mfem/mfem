@@ -1536,7 +1536,8 @@ void InterpolationManager::RegisterFaceCoarseToFineInterpolation(
                         face.element[0].local_face_id +
                         6*face.element[1].local_face_id +
                         36*face.element[1].orientation ;
-   // Unfortunately we can't trust unicity of the ptMat to identify the transformation.
+   // Unfortunately we can't trust uniqueness of the ptMat to identify the
+   // transformation.
    Key key(ptMat, face_key);
    auto itr = interp_map.find(key);
    if ( itr == interp_map.end() )
@@ -1583,17 +1584,19 @@ const DenseMatrix* InterpolationManager::GetCoarseToFineInterpolation(
    IsoparametricTransformation isotr;
    isotr.SetIdentityTransformation(trace_fe->GetGeomType());
    isotr.SetPointMat(*ptMat);
-   DenseMatrix& trans_pt_mat = isotr.GetPointMat();
-   // PointMatrix needs to be flipped in 2D
-   if ( trace_fe->GetGeomType()==Geometry::SEGMENT && !is_ghost_slave )
-   {
-      std::swap(trans_pt_mat(0,0),trans_pt_mat(0,1));
-   }
    DenseMatrix native_interpolator(face_dofs,face_dofs);
    trace_fe->GetLocalInterpolation(isotr, native_interpolator);
    const int dim = trace_fe->GetDim()+1;
    const int dof1d = trace_fe->GetOrder()+1;
-   const int orientation = face.element[1].orientation;
+   int orientation_i = face.element[1].orientation;
+   const int orientation_j = face.element[1].orientation;
+
+   // In 2D, need to flip orientation of the segments`
+   if (trace_fe->GetGeomType() == Geometry::SEGMENT && !is_ghost_slave)
+   {
+      orientation_i = 1;
+   }
+
    for (int i = 0; i < face_dofs; i++)
    {
       const int ni = (dof_map.Size()==0) ? i : dof_map[i];
@@ -1602,7 +1605,7 @@ const DenseMatrix* InterpolationManager::GetCoarseToFineInterpolation(
       {
          // master side is elem 2, so we permute to order dofs as elem 1.
          li = PermuteFaceL2(dim, face_id2, face_id1,
-                            orientation, dof1d, li);
+                            orientation_i, dof1d, li);
       }
       for (int j = 0; j < face_dofs; j++)
       {
@@ -1611,7 +1614,7 @@ const DenseMatrix* InterpolationManager::GetCoarseToFineInterpolation(
          {
             // master side is elem 2, so we permute to order dofs as elem 1.
             lj = PermuteFaceL2(dim, face_id2, face_id1,
-                               orientation, dof1d, lj);
+                               orientation_j, dof1d, lj);
          }
          const int nj = (dof_map.Size()==0) ? j : dof_map[j];
          (*interpolator)(li,lj) = native_interpolator(ni,nj);
