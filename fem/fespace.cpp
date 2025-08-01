@@ -1547,36 +1547,37 @@ const FaceRestriction *FiniteElementSpace::GetFaceRestriction(
    const bool is_dg_space = IsDGSpace();
    const L2FaceValues m = (is_dg_space && mul==L2FaceValues::DoubleValued) ?
                           L2FaceValues::DoubleValued : L2FaceValues::SingleValued;
-   key_face key = std::make_tuple(is_dg_space, f_ordering, type, m);
+   auto key = std::make_tuple(is_dg_space, f_ordering, type, m);
    auto itr = L2F.find(key);
    if (itr != L2F.end())
    {
-      return itr->second;
+      return itr->second.get();
    }
    else
    {
-      FaceRestriction *res;
+      std::unique_ptr<FaceRestriction> res;
       if (is_dg_space)
       {
          if (Conforming())
          {
-            res = new L2FaceRestriction(*this, f_ordering, type, m);
+            res.reset(new L2FaceRestriction(*this, f_ordering, type, m));
          }
          else
          {
-            res = new NCL2FaceRestriction(*this, f_ordering, type, m);
+            res.reset(new NCL2FaceRestriction(*this, f_ordering, type, m));
          }
       }
       else if (dynamic_cast<const DG_Interface_FECollection*>(fec))
       {
-         res = new L2InterfaceFaceRestriction(*this, f_ordering, type);
+         res.reset(new L2InterfaceFaceRestriction(*this, f_ordering, type));
       }
       else
       {
-         res = new ConformingFaceRestriction(*this, f_ordering, type);
+         res.reset(new ConformingFaceRestriction(*this, f_ordering, type));
       }
-      L2F[key] = res;
-      return res;
+      return L2F.emplace(key, std::move(res)).first->second.get();
+   }
+}
    }
 }
 

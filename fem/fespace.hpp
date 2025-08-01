@@ -357,8 +357,7 @@ protected:
    mutable OperatorHandle L2E_nat, L2E_lex;
    /// The face restriction operators, see GetFaceRestriction().
    using key_face = std::tuple<bool, ElementDofOrdering, FaceType, L2FaceValues>;
-   using map_L2F = std::unordered_map<key_face,FaceRestriction*>;
-   mutable map_L2F L2F;
+   mutable std::unordered_map<key_face,std::unique_ptr<FaceRestriction>> L2F;
 
    mutable Array<QuadratureInterpolator*> E2Q_array;
    mutable Array<FaceQuadratureInterpolator*> E2IFQ_array;

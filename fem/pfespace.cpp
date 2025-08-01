@@ -646,39 +646,38 @@ const FaceRestriction *ParFiniteElementSpace::GetFaceRestriction(
    auto itr = L2F.find(key);
    if (itr != L2F.end())
    {
-      return itr->second;
+      return itr->second.get();
    }
    else
    {
-      FaceRestriction *res;
+      std::unique_ptr<FaceRestriction> res;
       if (is_dg_space)
       {
          if (Conforming())
          {
-            res = new ParL2FaceRestriction(*this, f_ordering, type, m);
+            res.reset(new ParL2FaceRestriction(*this, f_ordering, type, m));
          }
          else
          {
-            res = new ParNCL2FaceRestriction(*this, f_ordering, type, m);
+            res.reset(new ParNCL2FaceRestriction(*this, f_ordering, type, m));
          }
       }
       else if (dynamic_cast<const DG_Interface_FECollection*>(fec))
       {
-         res = new L2InterfaceFaceRestriction(*this, f_ordering, type);
+         res.reset(new L2InterfaceFaceRestriction(*this, f_ordering, type));
       }
       else
       {
          if (Conforming())
          {
-            res = new ConformingFaceRestriction(*this, f_ordering, type);
+            res.reset(new ConformingFaceRestriction(*this, f_ordering, type));
          }
          else
          {
-            res = new ParNCH1FaceRestriction(*this, f_ordering, type);
+            res.reset(new ParNCH1FaceRestriction(*this, f_ordering, type));
          }
       }
-      L2F[key] = res;
-      return res;
+      return L2F.emplace(key, std::move(res)).first->second.get();
    }
 }
 
