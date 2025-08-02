@@ -120,7 +120,6 @@ int main(int argc, char *argv[])
 
     ParaViewDataCollection fluid_pv("fluid-"+std::to_string(ode_solver_type), &parent_mesh);
 
-
     fluid_pv.SetLevelsOfDetail(order);
     fluid_pv.SetDataFormat(VTKFormat::BINARY);
     fluid_pv.SetHighOrderOutput(true);

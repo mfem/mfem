@@ -45,6 +45,12 @@ if (MFEM_USE_MPI)
     LIBRARIES mfem-common)
   add_dependencies(navier-stokes copy_miniapps_multiapp_data)
 
+  add_mfem_miniapp(elasticity
+    MAIN elasticity.cpp
+    ${MFEM_MINIAPPS_COMMON_HEADERS}
+    LIBRARIES mfem-common)
+  add_dependencies(elasticity copy_miniapps_multiapp_data)
+
 # Add parallel tests.
   # if (MFEM_ENABLE_TESTING)
   #   add_test(NAME multidomain_np${MFEM_MPI_NP}
