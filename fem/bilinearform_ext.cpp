@@ -325,7 +325,7 @@ void PABilinearFormExtension::SetupRestrictionOperators(const L2FaceValues m)
          bdr_face_dYdn.SetSize(bdr_face_restrict_lex->Height());
       }
 
-      bdr_attributes = &trial_fes->GetMesh()->GetBdrElementAttributes();
+      bdr_face_attributes = &trial_fes->GetMesh()->GetBdrFaceAttributes();
    }
 }
 
@@ -447,7 +447,7 @@ void PABilinearFormExtension::AssembleDiagonal(Vector &y) const
       for (int i = 0; i < n_bdr_integs; ++i)
       {
          assemble_diagonal_with_markers(*bdr_integs[i], bdr_markers[i],
-                                        *bdr_attributes, bdr_face_Y);
+                                        *bdr_face_attributes, bdr_face_Y);
       }
       bdr_face_restrict_lex->AddAbsMultTranspose(bdr_face_Y, y);
    }
@@ -649,7 +649,7 @@ void PABilinearFormExtension::MultInternal(const Vector &x, Vector &y,
          for (int i = 0; i < n_bdr_integs; ++i)
          {
             AddMultWithMarkers(*bdr_integs[i], bdr_face_X, bdr_markers[i],
-                               *bdr_attributes, false, bdr_face_Y);
+                               *bdr_face_attributes, false, bdr_face_Y);
          }
          for (int i = 0; i < n_bdr_face_integs; ++i)
          {
@@ -657,13 +657,13 @@ void PABilinearFormExtension::MultInternal(const Vector &x, Vector &y,
             {
                AddMultNormalDerivativesWithMarkers(
                   *bdr_face_integs[i], bdr_face_X, bdr_face_dXdn,
-                  bdr_face_markers[i], *bdr_attributes, bdr_face_Y,
+                  bdr_face_markers[i], *bdr_face_attributes, bdr_face_Y,
                   bdr_face_dYdn);
             }
             else
             {
                AddMultWithMarkers(*bdr_face_integs[i], bdr_face_X,
-                                  bdr_face_markers[i], *bdr_attributes, false,
+                                  bdr_face_markers[i], *bdr_face_attributes, false,
                                   bdr_face_Y);
             }
          }
@@ -735,12 +735,12 @@ void PABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
          for (int i = 0; i < n_bdr_integs; ++i)
          {
             AddMultWithMarkers(*bdr_integs[i], bdr_face_X, bdr_markers[i],
-                               *bdr_attributes, true, bdr_face_Y);
+                               *bdr_face_attributes, true, bdr_face_Y);
          }
          for (int i = 0; i < n_bdr_face_integs; ++i)
          {
             AddMultWithMarkers(*bdr_face_integs[i], bdr_face_X,
-                               bdr_face_markers[i], *bdr_attributes, true,
+                               bdr_face_markers[i], *bdr_face_attributes, true,
                                bdr_face_Y);
          }
          bdr_face_restrict_lex->AddMultTransposeInPlace(bdr_face_Y, y);
@@ -943,7 +943,7 @@ void EABilinearFormExtension::Assemble()
             ea_data_tmp.SetSize(ea_data_bdr.Size());
             bdr_integs[i]->AssembleEABoundary(*a->FESpace(), ea_data_tmp, add);
             add_with_markers(ea_data_tmp, ea_data_bdr, nf_bdr, *markers,
-                             *bdr_attributes, add);
+                             *bdr_face_attributes, add);
          }
       }
    }
@@ -992,7 +992,7 @@ void EABilinearFormExtension::Assemble()
                                                         ea_data_tmp,
                                                         add);
             add_with_markers(ea_data_tmp, ea_data_bdr, nf_bdr, *markers,
-                             *bdr_attributes, add);
+                             *bdr_face_attributes, add);
          }
       }
    }
