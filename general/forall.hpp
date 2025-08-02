@@ -225,6 +225,52 @@ void OmpWrap(const int N, HBODY &&h_body)
 #endif
 }
 
+template <typename HBODY>
+void OmpWrap2D(const int Nx, const int Ny, HBODY &&h_body)
+{
+#ifdef MFEM_USE_OPENMP
+   // requires OpenMP 3.1
+   #pragma omp parallel for collapse(2)
+   for (int j = 0; j < Ny; j++)
+   {
+      for (int i = 0; i < Nx; i++)
+      {
+         h_body(i, j);
+      }
+   }
+#else
+   MFEM_CONTRACT_VAR(Nx);
+   MFEM_CONTRACT_VAR(Ny);
+   MFEM_CONTRACT_VAR(h_body);
+   MFEM_ABORT("OpenMP requested for MFEM but OpenMP is not enabled!");
+#endif
+}
+
+template <typename HBODY>
+void OmpWrap3D(const int Nx, const int Ny, const int Nz, HBODY &&h_body)
+{
+#ifdef MFEM_USE_OPENMP
+   // requires OpenMP 3.1
+   #pragma omp parallel for collapse(3)
+   for (int k = 0; k < Nz; k++)
+   {
+      for (int j = 0; j < Ny; j++)
+      {
+         for (int i = 0; i < Nx; i++)
+         {
+            h_body(i, j, k);
+         }
+      }
+   }
+#else
+   MFEM_CONTRACT_VAR(Nx);
+   MFEM_CONTRACT_VAR(Ny);
+   MFEM_CONTRACT_VAR(Nz);
+   MFEM_CONTRACT_VAR(h_body);
+   MFEM_ABORT("OpenMP requested for MFEM but OpenMP is not enabled!");
+#endif
+}
+
 
 /// RAJA Cuda and Hip backends
 #if defined(MFEM_USE_RAJA) && defined(RAJA_ENABLE_CUDA)
@@ -452,6 +498,42 @@ template <typename HBODY>
 void RajaOmpWrap(const int N, HBODY &&h_body)
 {
    RAJA::forall<RAJA::omp_parallel_for_exec>(RAJA::RangeSegment(0,N), h_body);
+}
+
+template <typename HBODY>
+void RajaOmpWrap2D(const int Nx, const int Ny, HBODY &&h_body)
+{
+   using omp_launch_policy = RAJA::LaunchPolicy<RAJA::omp_launch_t>;
+   using global_thread_xy = RAJA::LoopPolicy<RAJA::omp_for_exec>;
+   RAJA::RangeSegment xrange(0, Nx);
+   RAJA::RangeSegment yrange(0, Ny);
+   RAJA::launch<omp_launch_policy>(RAJA::ExecPlace::HOST, RAJA::LaunchParams(),
+                                   [=](RAJA::LaunchContext ctx)
+   {
+      // contiguous in y
+      RAJA::expt::loop<global_thread_xy>(ctx, xrange, yrange, [&](int i, int j)
+      {
+         h_body(i, j);
+      });
+   });
+}
+
+template <typename HBODY>
+void RajaOmpWrap3D(const int Nx, const int Ny, const int Nz, HBODY &&h_body)
+{
+   using omp_launch_policy = RAJA::LaunchPolicy<RAJA::omp_launch_t>;
+   using global_thread_xyz = RAJA::LoopPolicy<RAJA::omp_for_exec>;
+   RAJA::RangeSegment xrange(0, Nx);
+   RAJA::RangeSegment yrange(0, Ny);
+   RAJA::RangeSegment zrange(0, Nz);
+   RAJA::launch<omp_launch_policy>(RAJA::ExecPlace::HOST, RAJA::LaunchParams(),
+                                   [=](RAJA::LaunchContext ctx)
+   {
+      // contiguous in z
+      RAJA::expt::loop<global_thread_xyz>(ctx, xrange, yrange, zrange,
+                                          [&](int i, int j, int k)
+      { h_body(i, j, k); });
+   });
 }
 
 #endif
@@ -765,6 +847,18 @@ inline void forall(int Nx, int Ny, lambda &&body)
          body(i, j);
       });
    }
+#if defined(MFEM_USE_RAJA) && defined(RAJA_ENABLE_OPENMP)
+   else if (Device::Allows(Backend::RAJA_OMP))
+   {
+      return RajaOmpWrap2D(Nx, Ny, body);
+   }
+#endif
+#ifdef MFEM_USE_OPENMP
+   else if (Device::Allows(Backend::OMP))
+   {
+      return OmpWrap2D(Nx, Ny, body);
+   }
+#endif
    else
    {
       for (int j = 0; j < Ny; ++j)
@@ -791,6 +885,18 @@ inline void forall(int Nx, int Ny, int Nz, lambda &&body)
          body(i, j, k);
       });
    }
+#if defined(MFEM_USE_RAJA) && defined(RAJA_ENABLE_OPENMP)
+   else if (Device::Allows(Backend::RAJA_OMP))
+   {
+      return RajaOmpWrap2D(Nx, Ny, body);
+   }
+#endif
+#ifdef MFEM_USE_OPENMP
+   else if (Device::Allows(Backend::OMP))
+   {
+      return OmpWrap2D(Nx, Ny, body);
+   }
+#endif
    else
    {
       for (int k = 0; k < Nz; ++k)
