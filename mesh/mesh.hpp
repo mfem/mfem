@@ -110,7 +110,7 @@ protected:
    /// internal cache for element attributes
    mutable Array<int> elem_attrs_cache;
    /// internal cache for boundary element attributes
-   mutable Array<int> bdr_attrs_cache;
+   mutable Array<int> bdr_face_attrs_cache;
 
    /** @brief This structure stores the low level information necessary to
        interpret the configuration of elements on a specific face. This
@@ -1128,13 +1128,13 @@ public:
    virtual void Finalize(bool refine = false, bool fix_orientation = false);
 
    /// @brief Determine the sets of unique attribute values in domain if @a
-   /// elem_attrs_changed and boundary elements if @a bdr_attrs_changed.
+   /// elem_attrs_changed and boundary elements if @a bdr_face_attrs_changed.
    ///
    /// Separately scan the domain and boundary elements to generate unique,
    /// sorted sets of the element attribute values present in the mesh and
    /// store these in the Mesh::attributes and Mesh::bdr_attributes arrays.
    virtual void SetAttributes(bool elem_attrs_changed = true,
-                              bool bdr_attrs_changed = true);
+                              bool bdr_face_attrs_changed = true);
 
    /// Check (and optionally attempt to fix) the orientation of the elements
    /** @param[in] fix_it  If `true`, attempt to fix the orientations of some
@@ -2298,7 +2298,7 @@ public:
    /// class (e.g. if a user calls GetElement() then changes the element
    /// attribute directly), one needs to account for such changes by calling the
    /// method SetAttributes().
-   const Array<int>& GetBdrElementAttributes() const;
+   const Array<int>& GetBdrFaceAttributes() const;
 
    /// @}
 

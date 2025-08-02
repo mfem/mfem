@@ -922,9 +922,9 @@ const FaceGeometricFactors* Mesh::GetFaceGeometricFactors(
    return gf;
 }
 
-const Array<int>& Mesh::GetBdrElementAttributes() const
+const Array<int>& Mesh::GetBdrFaceAttributes() const
 {
-   if (bdr_attrs_cache.Size() == 0)
+   if (bdr_face_attrs_cache.Size() == 0)
    {
       std::unordered_map<int, int> f_to_be;
       for (int i = 0; i < GetNBE(); ++i)
@@ -934,7 +934,7 @@ const Array<int>& Mesh::GetBdrElementAttributes() const
       }
       const int nf_bdr = GetNFbyType(FaceType::Boundary);
       // MFEM_VERIFY(size_t(nf_bdr) == f_to_be.size(), "Incompatible sizes");
-      bdr_attrs_cache.SetSize(nf_bdr);
+      bdr_face_attrs_cache.SetSize(nf_bdr);
       int f_ind = 0;
       int missing_bdr_elems = 0;
       const int nf = GetNumFaces();
@@ -958,7 +958,7 @@ const Array<int>& Mesh::GetBdrElementAttributes() const
             // warning at runtime with the number of such missing elements.
             ++missing_bdr_elems;
          }
-         bdr_attrs_cache[f_ind] = attribute;
+         bdr_face_attrs_cache[f_ind] = attribute;
          ++f_ind;
       }
       if (missing_bdr_elems)
@@ -968,7 +968,7 @@ const Array<int>& Mesh::GetBdrElementAttributes() const
                      "for boundary faces.");
       }
    }
-   return bdr_attrs_cache;
+   return bdr_face_attrs_cache;
 }
 
 const Array<int>& Mesh::GetElementAttributes() const
@@ -1870,7 +1870,7 @@ void Mesh::Destroy()
 #endif
 
    elem_attrs_cache.DeleteAll();
-   bdr_attrs_cache.DeleteAll();
+   bdr_face_attrs_cache.DeleteAll();
    attributes.DeleteAll();
    bdr_attributes.DeleteAll();
 }
@@ -1885,15 +1885,15 @@ void Mesh::ResetLazyData()
    nbInteriorFaces = -1;
    nbBoundaryFaces = -1;
    // set size to 0 so re-computations can potentially avoid a new allocation
-   bdr_attrs_cache.SetSize(0);
+   bdr_face_attrs_cache.SetSize(0);
    elem_attrs_cache.SetSize(0);
 }
 
-void Mesh::SetAttributes(bool elem_attrs_changed, bool bdr_attrs_changed)
+void Mesh::SetAttributes(bool elem_attrs_changed, bool bdr_face_attrs_changed)
 {
-   if (bdr_attrs_changed)
+   if (bdr_face_attrs_changed)
    {
-      bdr_attrs_cache.SetSize(0); // Invalidate the cache
+      bdr_face_attrs_cache.SetSize(0); // Invalidate the cache
 
       // Get sorted list of unique boundary element attributes
       std::set<int> attribs;
@@ -4536,7 +4536,7 @@ Mesh::Mesh(const Mesh &mesh, bool copy_nodes)
 
    // copy attribute caches
    elem_attrs_cache = mesh.elem_attrs_cache;
-   bdr_attrs_cache = mesh.bdr_attrs_cache;
+   bdr_face_attrs_cache = mesh.bdr_face_attrs_cache;
 }
 
 Mesh::Mesh(Mesh &&mesh) : Mesh()
@@ -10942,7 +10942,7 @@ void Mesh::Swap(Mesh& other, bool non_geometry)
 
    // copy attribute caches
    mfem::Swap(elem_attrs_cache, other.elem_attrs_cache);
-   mfem::Swap(bdr_attrs_cache, other.bdr_attrs_cache);
+   mfem::Swap(bdr_face_attrs_cache, other.bdr_face_attrs_cache);
 }
 
 void Mesh::GetElementData(const Array<Element*> &elem_array, int geom,
