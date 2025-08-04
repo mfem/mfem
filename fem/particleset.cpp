@@ -321,7 +321,7 @@ void ParticleSet::RemoveParticles(const Array<int> &list, ParticleState &particl
 
 #if defined(MFEM_USE_MPI) && defined(MFEM_USE_GSLIB)
 
-template<std::size_t NData, std::size_t NTag, std::size_t NFinder>
+template<std::size_t NData, std::size_t NFinder>
 void ParticleSet::Transfer(const Array<unsigned int> &send_idxs, const Array<unsigned int> &send_ranks, Array<FindPointsGSLIB*> finders)
 {
    pdata_t<NData, NFinder> *pdata_arr;
