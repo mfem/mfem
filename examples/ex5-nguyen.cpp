@@ -97,6 +97,7 @@ int main(int argc, char *argv[])
    int ny = 0;
    real_t sx = 1.;
    real_t sy = 1.;
+   real_t dr = 0.;
    int order = 1;
    bool dg = false;
    bool brt = false;
@@ -138,6 +139,8 @@ int main(int argc, char *argv[])
                   "Size along x axis.");
    args.AddOption(&sy, "-sy", "--size-y",
                   "Size along y axis.");
+   args.AddOption(&dr, "-dr", "--delta-random",
+                  "Relative random displacement of the mesh nodes.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree).");
    args.AddOption(&dg, "-dg", "--discontinuous", "-no-dg",
@@ -303,6 +306,8 @@ int main(int argc, char *argv[])
       mesh = new Mesh(Mesh::MakeCartesian2D(nx, ny, Element::QUADRILATERAL, false,
                                             sx, sy));
    }
+
+   if (dr > 0.) { RandomizeMesh(*mesh, dr); }
 
    int dim = mesh->Dimension();
 

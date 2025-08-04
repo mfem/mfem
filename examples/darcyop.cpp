@@ -1141,4 +1141,120 @@ std::string DarcyOperator::ParIterativeGLVis::FormFilename(const char *base,
    return ss.str();
 }
 #endif // MFEM_USE_MPI
+
+void RandomizeMesh(Mesh &mesh, real_t dr)
+{
+   const FiniteElementSpace *fes_v = mesh.GetNodalFESpace();
+   if (fes_v)
+   {
+      MFEM_VERIFY(fes_v, "Not a nodal mesh");
+      MFEM_VERIFY(fes_v->FEColl()->GetContType() ==
+                  FiniteElementCollection::CONTINUOUS, "Only continuous mappings are supported");
+      MFEM_VERIFY(fes_v->GetOrdering() == Ordering::byVDIM,
+                  "Only ordering by VDIM is supported");
+      MFEM_VERIFY(fes_v->GetVDim() == 2, "Only 2D is supported at the moment");
+   }
+
+   std::default_random_engine eng(0); //<------
+   std::uniform_real_distribution<real_t> dist(-1., 1.);
+
+   // vertices
+   const int NV = mesh.GetNV();
+   const Table *e2v = mesh.GetEdgeVertexTable();
+   const int *I = e2v->GetI();
+   const int *J = e2v->GetJ();
+   GridFunction *nodes = mesh.GetNodes();
+   const int vdim = mesh.SpaceDimension();
+   real_t dx_max = 0.;
+   for (int v = 0; v < NV; v++)
+   {
+      Array<int> verts;
+      verts.Reserve(4);
+      for (int i = 0; i < e2v->Size(); i++)
+      {
+         for (int j = I[i]; j < I[i+1]; j++)
+         {
+            if (J[j] == v) { verts.Append(i); }
+         }
+      }
+      if (verts.Size() < 4) { continue; } //<--------
+
+      Vector x_min(vdim), x_max(vdim);
+      Vector x_v(mesh.GetVertex(v), vdim);
+      x_min = x_v;
+      x_max = x_v;
+      for (int i : verts)
+      {
+         for (int j = I[i]; j < I[i+1]; j++)
+         {
+            if (J[j] == v) { continue; }
+            const real_t *vert = mesh.GetVertex(J[j]);
+            for (int d = 0; d < vdim; d++)
+            {
+               if (vert[d] < x_min[d]) { x_min[d] = vert[d]; }
+               if (vert[d] > x_max[d]) { x_max[d] = vert[d]; }
+            }
+         }
+      }
+      for (int d = 0; d < vdim; d++)
+      {
+         const real_t r = dist(eng);
+         const real_t dx = (r < 0.)?(x_v[d] - x_min[d]):(x_max[d] - x_v[d]);
+         if (dx > dx_max) { dx_max = dx; }
+         const real_t dv = r * dr * dx;
+         if (nodes)
+         {
+            (*nodes)(v*vdim + d) += dv;
+         }
+         x_v(d) += dv;
+      }
+   }
+
+   if (fes_v)
+   {
+      // interior nodes
+      const int NE = mesh.GetNEdges();
+      Array<int> dofs;
+      for (int e = 0; e < NE; e++)
+      {
+         int el1, el2;
+         mesh.GetFaceElements(e, &el1, &el2);
+         if (el2 < 0) { continue; }
+         fes_v->GetEdgeDofs(e, dofs);
+         Vector xc(vdim);
+         for (int i = 0; i < dofs.Size() - 2; i++)
+         {
+            // to node
+            const real_t dri = dist(eng) * dr;
+            int node;
+            if (dri > 0.)
+            {
+               node = (i+1 >= dofs.Size())?(1):(i+1);
+            }
+            else
+            {
+               node = (i-1 <= 1)?(0):(i-1);
+            }
+
+            for (int d = 0; d < vdim; d++)
+            {
+               real_t &x_i = (*nodes)(dofs[2+i]*vdim + d);
+               const real_t &x_n = (*nodes)(dofs[node]*vdim + d);
+               x_i += fabs(dri) * (x_n - x_i);
+            }
+
+            // to center
+            const real_t drc = dist(eng) * dr;
+            mesh.GetElementCenter((drc > 0.)?(el2):(el1), xc);
+            for (int d = 0; d < vdim; d++)
+            {
+               real_t &x_i = (*nodes)(dofs[2+i]*vdim + d);
+               x_i += fabs(drc) * (xc(d) - x_i);
+            }
+         }
+      }
+
+      mesh.NodesUpdated();
+   }
+}
 }

@@ -219,6 +219,8 @@ public:
    void ImplicitSolve(const real_t dt, const Vector &x, Vector &k) override;
 };
 
+void RandomizeMesh(Mesh &mesh, real_t dr);
+
 }
 
 #endif
