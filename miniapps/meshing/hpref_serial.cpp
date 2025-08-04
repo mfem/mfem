@@ -1,14 +1,12 @@
 //                       Serial hp-refinement example
 //
-// Compile with: make hpref
+// Compile with: make hpref_serial
 //
-// Sample runs:  hpref -dim 2 -n 1000
-//               hpref -dim 3 -n 500
-//               hpref -m ../../data/star-mixed.mesh -pref -n 100
-//               hpref -m ../../data/fichera-mixed.mesh -pref -n 30
+// Sample runs:  hpref_serial -dim 2 -n 1000
+//               hpref_serial -dim 3 -n 500
 //
 // Description:  This example demonstrates h- and p-refinement in a serial
-//               finite element discretization of the Poisson problem (cf. ex1)
+//               finite element discretization of the Laplace problem (cf. ex1)
 //               -Delta u = 1 with homogeneous Dirichlet boundary conditions.
 //               Refinements are performed iteratively, each iteration having h-
 //               or p-refinements. For simplicity, we randomly choose the
@@ -16,7 +14,7 @@
 //               practice, these choices may be made in a problem-dependent way,
 //               but this example serves only to illustrate the capabilities of
 //               hp-refinement.
-//
+
 //               We recommend viewing Example 1 before viewing this example.
 
 #include "mfem.hpp"
@@ -40,7 +38,6 @@ void f_exact(const Vector &x, Vector &f);
 int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
-   const char *mesh_file = "";
    int order = 1;
    const char *device_config = "cpu";
    bool visualization = true;
@@ -48,11 +45,8 @@ int main(int argc, char *argv[])
    int dim = 2;
    bool deterministic = true;
    bool projectSolution = false;
-   bool onlyPref = false;
 
    OptionsParser args(argc, argv);
-   args.AddOption(&mesh_file, "-m", "--mesh",
-                  "Mesh file to use.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree) or -1 for"
                   " isoparametric space.");
@@ -65,13 +59,10 @@ int main(int argc, char *argv[])
    args.AddOption(&dim, "-dim", "--dim", "Mesh dimension (2 or 3)");
    args.AddOption(&deterministic, "-det", "--deterministic", "-not-det",
                   "--not-deterministic",
-                  "Use deterministic random refinements");
+                  "Whether to use deterministic random refinements");
    args.AddOption(&projectSolution, "-proj", "--project-solution", "-no-proj",
                   "--no-project",
-                  "Project a coefficient to solution");
-   args.AddOption(&onlyPref, "-pref", "--only-p-refinement", "-no-pref",
-                  "--hp-refinement",
-                  "Use only p-refinement");
+                  "Whether to project a coefficient to solution");
    args.Parse();
    if (!args.Good())
    {
@@ -85,15 +76,9 @@ int main(int argc, char *argv[])
    Device device(device_config);
    device.Print();
 
-   // 3. Construct or load a coarse mesh.
-   std::string mesh_filename(mesh_file);
+   // 3. Construct a uniform coarse mesh on all processors.
    Mesh mesh;
-   if (!mesh_filename.empty())
-   {
-      mesh = Mesh::LoadFromFile(mesh_filename, 1, 1);
-      dim = mesh.Dimension();
-   }
-   else if (dim == 3)
+   if (dim == 3)
    {
       mesh = Mesh::MakeCartesian3D(2, 2, 2, Element::HEXAHEDRON);
    }
@@ -141,7 +126,7 @@ int main(int argc, char *argv[])
       const int r1 = deterministic ? DetRand(seed) : rand();
       const int r2 = deterministic ? DetRand(seed) : rand();
       const int elem = r1 % mesh.GetNE();
-      const int hp = onlyPref ? 1 : r2 % 2;
+      const int hp = r2 % 2;
 
       cout << "hp-refinement iteration " << iter << ": "
            << hp_char[hp] << "-refinement" << endl;

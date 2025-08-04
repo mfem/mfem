@@ -346,17 +346,17 @@ int main(int argc, char *argv[])
       G_space = 1
    };
    // L2 space for E
-   FiniteElementCollection *E_fec = new L2_FECollection(order-1,dim);
+   const FiniteElementCollection *E_fec = new L2_FECollection(order-1,dim);
    ParFiniteElementSpace *E_fes = new ParFiniteElementSpace(&pmesh,E_fec,dim);
 
    // Vector L2 space for H
-   FiniteElementCollection *H_fec = new L2_FECollection(order-1,dim);
+   const FiniteElementCollection *H_fec = new L2_FECollection(order-1,dim);
    ParFiniteElementSpace *H_fes = new ParFiniteElementSpace(&pmesh,H_fec, dimc);
 
    // H^-1/2 (curl) space for Ê
-   FiniteElementCollection * hatE_fec = nullptr;
-   FiniteElementCollection * hatH_fec = nullptr;
-   FiniteElementCollection * F_fec = nullptr;
+   const FiniteElementCollection * hatE_fec = nullptr;
+   const FiniteElementCollection * hatH_fec = nullptr;
+   const FiniteElementCollection * F_fec = nullptr;
    int test_order = order+delta_order;
    if (dim == 3)
    {
@@ -372,10 +372,10 @@ int main(int argc, char *argv[])
    }
    ParFiniteElementSpace *hatE_fes = new ParFiniteElementSpace(&pmesh,hatE_fec);
    ParFiniteElementSpace *hatH_fes = new ParFiniteElementSpace(&pmesh,hatH_fec);
-   FiniteElementCollection * G_fec = new ND_FECollection(test_order, dim);
+   const FiniteElementCollection * G_fec = new ND_FECollection(test_order, dim);
 
    Array<ParFiniteElementSpace * > trial_fes;
-   Array<FiniteElementCollection * > test_fec;
+   Array<const FiniteElementCollection * > test_fec;
    trial_fes.Append(E_fes);
    trial_fes.Append(H_fes);
    trial_fes.Append(hatE_fes);

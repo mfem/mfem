@@ -115,7 +115,8 @@ int FiniteElementCollection::HasFaceDofs(Geometry::Type geom, int p) const
    return 0;
 }
 
-FiniteElementCollection *FiniteElementCollection::GetTraceCollection() const
+const FiniteElementCollection *FiniteElementCollection::GetTraceCollection()
+const
 {
    MFEM_ABORT("this method is not implemented in this derived class!");
    return NULL;
@@ -408,7 +409,7 @@ FiniteElementCollection *FiniteElementCollection::New(const char *name)
    return fec;
 }
 
-FiniteElementCollection *FiniteElementCollection::Clone(int p) const
+const FiniteElementCollection *FiniteElementCollection::Clone(int p) const
 {
    // default implementation for collections that don't care about variable p
    MFEM_ABORT("Collection " << Name() << " does not support variable orders.");
@@ -2045,7 +2046,7 @@ const int *H1_FECollection::DofOrderForOrientation(Geometry::Type GeomType,
    return NULL;
 }
 
-FiniteElementCollection *H1_FECollection::GetTraceCollection() const
+const FiniteElementCollection *H1_FECollection::GetTraceCollection() const
 {
    int tr_p = H1_dof[Geometry::SEGMENT] + 1;
    int tr_dim = -1;
@@ -2672,7 +2673,7 @@ const int *RT_FECollection::DofOrderForOrientation(Geometry::Type GeomType,
    return NULL;
 }
 
-FiniteElementCollection *RT_FECollection::GetTraceCollection() const
+const FiniteElementCollection *RT_FECollection::GetTraceCollection() const
 {
    int tr_dim, tr_p;
    if (!strncmp(rt_name, "RT_", 3))
@@ -2961,7 +2962,7 @@ const int *ND_FECollection::DofOrderForOrientation(Geometry::Type GeomType,
    return NULL;
 }
 
-FiniteElementCollection *ND_FECollection::GetTraceCollection() const
+const FiniteElementCollection *ND_FECollection::GetTraceCollection() const
 {
    int tr_p, tr_dim, tr_cb_type, tr_ob_type;
 
@@ -3067,7 +3068,7 @@ const int *ND_R1D_FECollection::DofOrderForOrientation(Geometry::Type GeomType,
    return NULL;
 }
 
-FiniteElementCollection *ND_R1D_FECollection::GetTraceCollection() const
+const FiniteElementCollection *ND_R1D_FECollection::GetTraceCollection() const
 {
    return NULL;
 }
@@ -3136,7 +3137,7 @@ const int *RT_R1D_FECollection::DofOrderForOrientation(Geometry::Type GeomType,
    return NULL;
 }
 
-FiniteElementCollection *RT_R1D_FECollection::GetTraceCollection() const
+const FiniteElementCollection *RT_R1D_FECollection::GetTraceCollection() const
 {
    MFEM_ABORT("this method is not implemented in RT_R1D_FECollection!");
    return NULL;
@@ -3244,7 +3245,7 @@ const int *ND_R2D_FECollection::DofOrderForOrientation(Geometry::Type GeomType,
    return NULL;
 }
 
-FiniteElementCollection *ND_R2D_FECollection::GetTraceCollection() const
+const FiniteElementCollection *ND_R2D_FECollection::GetTraceCollection() const
 {
    int p, dim, cb_type, ob_type;
 
@@ -3411,7 +3412,7 @@ const int *RT_R2D_FECollection::DofOrderForOrientation(Geometry::Type GeomType,
    return NULL;
 }
 
-FiniteElementCollection *RT_R2D_FECollection::GetTraceCollection() const
+const FiniteElementCollection *RT_R2D_FECollection::GetTraceCollection() const
 {
    int dim, p;
    if (!strncmp(rt_name, "RT_R2D_", 7))
@@ -3561,7 +3562,7 @@ const int *NURBSFECollection::DofOrderForOrientation(Geometry::Type GeomType,
    return NULL;
 }
 
-FiniteElementCollection *NURBSFECollection::GetTraceCollection() const
+const FiniteElementCollection *NURBSFECollection::GetTraceCollection() const
 {
    MFEM_ABORT("NURBS finite elements can not be statically condensed!");
    return NULL;
@@ -3654,7 +3655,8 @@ const int *NURBS_HDivFECollection::DofOrderForOrientation(
    return NULL;
 }
 
-FiniteElementCollection *NURBS_HDivFECollection::GetTraceCollection() const
+const FiniteElementCollection *NURBS_HDivFECollection::GetTraceCollection()
+const
 {
    MFEM_ABORT("NURBS finite elements can not be statically condensed!");
    return NULL;
@@ -3747,7 +3749,8 @@ const int *NURBS_HCurlFECollection::DofOrderForOrientation(
    return NULL;
 }
 
-FiniteElementCollection *NURBS_HCurlFECollection::GetTraceCollection() const
+const FiniteElementCollection *NURBS_HCurlFECollection::GetTraceCollection()
+const
 {
    MFEM_ABORT("NURBS finite elements can not be statically condensed!");
    return NULL;

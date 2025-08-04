@@ -100,7 +100,7 @@ public:
       return FiniteElementForGeometry(GeomType);
    }
 
-   virtual FiniteElementCollection *GetTraceCollection() const;
+   virtual const FiniteElementCollection *GetTraceCollection() const;
 
    virtual ~FiniteElementCollection();
 
@@ -244,7 +244,7 @@ public:
        used by some of the constructors of derived classes. Instead, this @a p
        represents the order of the new FE collection as it will be returned by
        its GetOrder() method. */
-   virtual FiniteElementCollection *Clone(int p) const;
+   virtual const FiniteElementCollection *Clone(int p) const;
 
 protected:
    const int base_p; ///< Order as returned by GetOrder().
@@ -254,7 +254,7 @@ protected:
 
    void InitVarOrder(int p) const;
 
-   mutable Array<FiniteElementCollection*> var_orders;
+   mutable Array<const FiniteElementCollection*> var_orders;
 
    /// How to treat errors in FiniteElementForGeometry() calls.
    enum ErrorMode
@@ -300,14 +300,14 @@ public:
 
    int GetBasisType() const { return b_type; }
 
-   FiniteElementCollection *GetTraceCollection() const override;
+   const FiniteElementCollection *GetTraceCollection() const override;
 
    /// Get the Cartesian to local H1 dof map
    const int *GetDofMap(Geometry::Type GeomType) const;
    /// Variable order version of GetDofMap
    const int *GetDofMap(Geometry::Type GeomType, int p) const;
 
-   FiniteElementCollection *Clone(int p) const override
+   const FiniteElementCollection *Clone(int p) const override
    { return new H1_FECollection(p, dim, b_type); }
 
    virtual ~H1_FECollection();
@@ -389,7 +389,7 @@ public:
 
    int GetBasisType() const { return b_type; }
 
-   FiniteElementCollection *Clone(int p) const override
+   const FiniteElementCollection *Clone(int p) const override
    { return new L2_FECollection(p, dim, b_type, m_type); }
 
    virtual ~L2_FECollection();
@@ -444,12 +444,12 @@ public:
 
    int GetContType() const override { return NORMAL; }
 
-   FiniteElementCollection *GetTraceCollection() const override;
+   const FiniteElementCollection *GetTraceCollection() const override;
 
    int GetClosedBasisType() const { return cb_type; }
    int GetOpenBasisType() const { return ob_type; }
 
-   FiniteElementCollection *Clone(int p) const override
+   const FiniteElementCollection *Clone(int p) const override
    { return new RT_FECollection(p, dim, cb_type, ob_type); }
 
    virtual ~RT_FECollection();
@@ -510,12 +510,12 @@ public:
 
    int GetContType() const override { return TANGENTIAL; }
 
-   FiniteElementCollection *GetTraceCollection() const override;
+   const FiniteElementCollection *GetTraceCollection() const override;
 
    int GetClosedBasisType() const { return cb_type; }
    int GetOpenBasisType() const { return ob_type; }
 
-   FiniteElementCollection *Clone(int p) const override
+   const FiniteElementCollection *Clone(int p) const override
    { return new ND_FECollection(p, dim, cb_type, ob_type); }
 
    virtual ~ND_FECollection();
@@ -559,7 +559,7 @@ public:
 
    int GetContType() const override { return TANGENTIAL; }
 
-   FiniteElementCollection *GetTraceCollection() const override;
+   const FiniteElementCollection *GetTraceCollection() const override;
 
    virtual ~ND_R1D_FECollection();
 };
@@ -591,7 +591,7 @@ public:
 
    int GetContType() const override { return NORMAL; }
 
-   FiniteElementCollection *GetTraceCollection() const override;
+   const FiniteElementCollection *GetTraceCollection() const override;
 
    virtual ~RT_R1D_FECollection();
 };
@@ -624,7 +624,7 @@ public:
 
    int GetContType() const override { return TANGENTIAL; }
 
-   FiniteElementCollection *GetTraceCollection() const override;
+   const FiniteElementCollection *GetTraceCollection() const override;
 
    virtual ~ND_R2D_FECollection();
 };
@@ -678,7 +678,7 @@ public:
 
    int GetContType() const override { return NORMAL; }
 
-   FiniteElementCollection *GetTraceCollection() const override;
+   const FiniteElementCollection *GetTraceCollection() const override;
 
    virtual ~RT_R2D_FECollection();
 };
@@ -748,7 +748,7 @@ public:
 
    int GetContType() const override { return CONTINUOUS; }
 
-   FiniteElementCollection *GetTraceCollection() const override;
+   const FiniteElementCollection *GetTraceCollection() const override;
 
    virtual ~NURBSFECollection();
 };
@@ -800,7 +800,7 @@ public:
 
    int GetContType() const override { return CONTINUOUS; }
 
-   FiniteElementCollection *GetTraceCollection() const override;
+   const FiniteElementCollection *GetTraceCollection() const override;
 
    virtual ~NURBS_HDivFECollection();
 };
@@ -851,7 +851,7 @@ public:
 
    int GetContType() const override { return CONTINUOUS; }
 
-   FiniteElementCollection *GetTraceCollection() const override;
+   const FiniteElementCollection *GetTraceCollection() const override;
 
    virtual ~NURBS_HCurlFECollection();
 };
