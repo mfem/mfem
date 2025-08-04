@@ -367,7 +367,8 @@ void ComputeFaceAverage(const FiniteElementSpace& fes,
    const int ndof_self = fe_self->GetDof();
    const int ndof_other = has_other?fe_other->GetDof():0;
 
-   const int order = face_trans.OrderW() + fe_self->GetOrder() + fe_other->GetOrder();
+   const int order = face_trans.OrderW() + fe_self->GetOrder() +
+                     fe_other->GetOrder();
    const auto ir = IntRules.Get(face_trans.GetGeometryType(), order);
 
    Array<int> dofs_self, dofs_other;
@@ -397,14 +398,15 @@ void ComputeFaceAverage(const FiniteElementSpace& fes,
 }
 
 int GetLocalNPoints(const FiniteElementSpace& fes,
-                     FaceElementTransformations& face_trans)
+                    FaceElementTransformations& face_trans)
 {
    const bool has_other = (face_trans.Elem2No >= 0);
    const FiniteElement* fe_self = fes.GetFE(face_trans.Elem1No);
    const FiniteElement* fe_other = has_other?fes.GetFE(face_trans.Elem2No):
                                    fe_self;
 
-   const int order = face_trans.OrderW() + fe_self->GetOrder() + fe_other->GetOrder();
+   const int order = face_trans.OrderW() + fe_self->GetOrder() +
+                     fe_other->GetOrder();
    const auto ir = IntRules.Get(face_trans.GetGeometryType(), order);
 
    return ir.GetNPoints();
