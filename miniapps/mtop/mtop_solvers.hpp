@@ -367,7 +367,9 @@ public:
       sfec = new mfem::H1_FECollection(order, dim);
       sfes = new mfem::ParFiniteElementSpace(pmesh, sfec, 1);
 
-      ifec = new mfem::H1Pos_FECollection(order - 1, dim);
+      //ifec = new mfem::H1Pos_FECollection(order - 1, dim);
+      //ifec=new mfem::H1_FECollection(order-1,dim);
+      ifec=new mfem::L2_FECollection(order-1,dim);
       ifes = new mfem::ParFiniteElementSpace(pmesh, ifec, 1);
 
       dfes = ifes;
@@ -570,7 +572,8 @@ public:
 
    void AFilter(mfem::Coefficient *coeff, mfem::ParGridFunction &gf)
    {
-      gf.SetSpace(GetFilterFES());
+      gf.SetSpace(GetDesignFES());
+
       tmpv.SetSize(GetFilterFES()->TrueVSize());
       tmpv = 0.0;
       rhsv.SetSize(GetFilterFES()->TrueVSize());
@@ -587,7 +590,11 @@ public:
 
       K->EliminateBC(*A, ess_tdofv, tmpv, rhsv);
       pcg->Mult(rhsv, tmpv);
-      gf.SetFromTrueDofs(tmpv);
+
+      rhsv.SetSize(GetDesignFES()->TrueVSize());
+      S->MultTranspose(tmpv,rhsv);
+
+      gf.SetFromTrueDofs(rhsv);
    }
 
 private:
@@ -627,6 +634,26 @@ private:
 class IsoComplCoef : public mfem::Coefficient
 {
 public:
+   IsoComplCoef(bool SIMP_=false,bool PROJ_=false)
+   {
+
+      eta=0.5;
+      beta=8.0;
+      p=1.0;
+
+      SIMP=SIMP_;
+      PROJ=PROJ_;
+
+      rho=nullptr;
+      sol=nullptr;
+
+      dMu.reset(new DerivedCoef(this,&IsoComplCoef::EvalMu));
+      dLambda.reset(new DerivedCoef(this,&IsoComplCoef::EvalLambda));
+      dE.reset(new DerivedCoef(this,&IsoComplCoef::EvalE));
+      dIsoCompl.reset(new DerivedCoef(this,&IsoComplCoef::EvalGrad));
+      dnu.reset(new DerivedCoef(this,&IsoComplCoef::EvalNu));
+   }
+
    IsoComplCoef(mfem::GridFunction *rho_, mfem::GridFunction *sol_,
                 bool SIMP_ = false, bool PROJ_ = false)
    {
@@ -640,10 +667,10 @@ public:
       rho = rho_;
       sol = sol_;
 
-      dMu = std::make_unique<DerivedCoef>(this, &IsoComplCoef::EvalMu);
-      dLambda = std::make_unique<DerivedCoef>(this, &IsoComplCoef::EvalLambda);
-      dE = std::make_unique<DerivedCoef>(this, &IsoComplCoef::EvalE);
-      dIsoCompl = std::make_unique<DerivedCoef>(this, &IsoComplCoef::EvalGrad);
+      dMu.reset(new DerivedCoef(this,&IsoComplCoef::EvalMu));
+      dLambda.reset(new DerivedCoef(this,&IsoComplCoef::EvalLambda));
+      dE.reset(new DerivedCoef(this,&IsoComplCoef::EvalE));
+      dIsoCompl.reset(new DerivedCoef(this,&IsoComplCoef::EvalGrad));
    }
 
    virtual ~IsoComplCoef() {}
@@ -652,6 +679,16 @@ public:
    {
       rho = rho_;
       sol = sol_;
+   }
+
+   void SetDensity(GridFunction* rho_)
+   {
+      rho=rho_;
+   }
+
+   void SetDispl(GridFunction* sol_)
+   {
+      sol=sol_;
    }
 
    void SetMaterial(real_t Emin_, real_t Emax_, real_t nu_)
@@ -691,6 +728,7 @@ public:
    Coefficient *GetLambda() { return dLambda.get(); }
    Coefficient *GetMu() { return dMu.get(); }
    Coefficient *GetGradIsoComp() { return dIsoCompl.get(); }
+   Coefficient* GetNu() {return dnu.get();}
 
    real_t Eval(mfem::ElementTransformation &T,
                const mfem::IntegrationPoint &ip) override
@@ -724,6 +762,12 @@ public:
    }
 
 private:
+
+   real_t EvalNu(ElementTransformation &T,
+                 const IntegrationPoint &ip)
+   {
+      return nu->Eval(T,ip);
+   }
    real_t EvalGrad(mfem::ElementTransformation &T,
                    const mfem::IntegrationPoint &ip)
    {
@@ -752,7 +796,7 @@ private:
 
       if (PROJ) { gvl = gvl * PointwiseTrans::HGrad(val, eta, beta); }
 
-      return gvl * density_max;
+      return -gvl * density_max;
    }
 
    real_t EvalLambda(mfem::ElementTransformation &T,
@@ -867,4 +911,5 @@ private:
    std::unique_ptr<DerivedCoef> dE;
    std::unique_ptr<DerivedCoef> dLambda;
    std::unique_ptr<DerivedCoef> dIsoCompl;
+   std::unique_ptr<DerivedCoef> dnu;
 };
