@@ -40,6 +40,7 @@ IsoLinElasticSolver::IsoLinElasticSolver(ParMesh *mesh, int vorder, bool pa):
    adisp(vfes),
    prec(nullptr),
    ls(nullptr),
+   lor_block_offsets(dim + 1),
    lvforce(nullptr),
    volforce(nullptr),
    E(nullptr),
@@ -194,11 +195,16 @@ void IsoLinElasticSolver::SetEssTDofs(Vector &bsol, Array<int> &ess_dofs)
    // copy tdofsx from velocity grid function
    {
       Vector &vc = fdisp.GetTrueVector();
-      for (int ii = 0; ii < ess_tdofx.Size(); ii++)
+      const int Net = ess_tdofx.Size();
+      const auto d_vc = vc.Read();
+      const auto d_ess_tdofx = ess_tdofx.Read();
+      auto d_bsol = bsol.ReadWrite();
+      mfem::forall(Net, [=] MFEM_HOST_DEVICE(int ii)
       {
-         bsol[ess_tdofx[ii]] = vc[ess_tdofx[ii]];
-      }
+         d_bsol[d_ess_tdofx[ii]] = d_vc[d_ess_tdofx[ii]];
+      });
    }
+   ess_tdofx.HostReadWrite(), ess_dofs.HostReadWrite();
    ess_dofs.Append(ess_tdofx);
    ess_tdofx.DeleteAll();
 
@@ -219,10 +225,15 @@ void IsoLinElasticSolver::SetEssTDofs(Vector &bsol, Array<int> &ess_dofs)
    // copy tdofsy from velocity grid function
    {
       Vector &vc = fdisp.GetTrueVector();
-      for (int ii = 0; ii < ess_tdofy.Size(); ii++)
+      const int Net = ess_tdofy.Size();
+      const auto d_vc = vc.Read();
+      const auto d_ess_tdofy = ess_tdofy.Read();
+      auto d_bsol = bsol.ReadWrite();
+      mfem::forall(Net, [=] MFEM_HOST_DEVICE(int ii)
       {
-         bsol[ess_tdofy[ii]] = vc[ess_tdofy[ii]];
-      }
+         d_bsol[d_ess_tdofy[ii]] = d_vc[d_ess_tdofy[ii]];
+      });
+      ess_tdofy.HostReadWrite(), ess_dofs.HostReadWrite();
    }
    ess_dofs.Append(ess_tdofy);
    ess_tdofy.DeleteAll();
@@ -285,7 +296,7 @@ void IsoLinElasticSolver::MultTranspose(const Vector &x,
    auto yp = y.Write();
    const auto ep = ess_tdofv.Read();
 
-   forall(N, [=] MFEM_HOST_DEVICE(int i) { yp[ep[i]] = 0.0; });
+   mfem::forall(N, [=] MFEM_HOST_DEVICE(int i) { yp[ep[i]] = 0.0; });
 }
 
 void IsoLinElasticSolver::Assemble()
@@ -337,9 +348,56 @@ void IsoLinElasticSolver::Assemble()
       }
       else
       {
-         // 3969 vs. 3631
+#if 1
          auto prec_pa = new OperatorJacobiSmoother(*bf, ess_tdofv);
          ls->SetPreconditioner(*prec_pa);
+#else
+         // PA LOR lor_disc & scalar_lor_fespace setup
+         dbg("new ParLORDiscretization");
+         lor_disc = std::make_unique<ParLORDiscretization>(*vfes);
+         ParFiniteElementSpace &lor_space = lor_disc->GetParFESpace();
+         const FiniteElementCollection &lor_fec = *lor_space.FEColl();
+         ParMesh &lor_mesh = *lor_space.GetParMesh();
+         lor_scalar_fespace = std::make_unique<ParFiniteElementSpace>(
+                                 &lor_mesh, &lor_fec, 1, Ordering::byNODES);
+         lor_block_offsets[0] = 0;
+         lor_integrator = std::make_unique<ElasticityIntegrator>(*lambda, *mu);
+         lor_integrator->AssemblePA(lor_disc->GetParFESpace());
+
+         for (int j = 0; j < dim; j++)
+         {
+            auto *block = new ElasticityComponentIntegrator(*lor_integrator, j, j);
+            // create the LOR matrix and corresponding AMG preconditioners.
+            lor_bilinear_forms.emplace_back(new ParBilinearForm(lor_scalar_fespace.get()));
+            lor_bilinear_forms[j]->SetAssemblyLevel(AssemblyLevel::FULL);
+            lor_bilinear_forms[j]->EnableSparseMatrixSorting(Device::IsEnabled());
+            lor_bilinear_forms[j]->AddDomainIntegrator(block);
+            lor_bilinear_forms[j]->Assemble();
+            // get block essential boundary info
+            Array<int> ess_tdof_list_block, ess_bdr_block(pmesh->bdr_attributes.Max());
+            ess_bdr_block = 0;
+            ess_bdr_block[0] = 1;
+            lor_scalar_fespace->GetEssentialTrueDofs(ess_bdr_block, ess_tdof_list_block);
+            lor_block.emplace_back(lor_bilinear_forms[j]->ParallelAssemble());
+            lor_block[j]->EliminateBC(ess_tdof_list_block,
+                                      Operator::DiagonalPolicy::DIAG_ONE);
+            lor_amg_blocks.emplace_back(new HypreBoomerAMG);
+            lor_amg_blocks[j]->SetStrengthThresh(0.25);
+            lor_amg_blocks[j]->SetRelaxType(16);  // Chebyshev
+            lor_amg_blocks[j]->SetOperator(*lor_block[j]);
+            lor_block_offsets[j+1] = lor_amg_blocks[j]->Height();
+         }
+
+         lor_block_offsets.PartialSum();
+         lor_blockDiag = std::make_unique<BlockDiagonalPreconditioner>
+                         (lor_block_offsets);
+         for (int i = 0; i < dim; i++)
+         {
+            lor_blockDiag->SetDiagonalBlock(i, lor_amg_blocks[i].get());
+         }
+         lor_pa_prec.reset(lor_blockDiag.release());
+         ls->SetPreconditioner(*lor_pa_prec);
+#endif
       }
       ls->SetOperator(pa ? *Kh->Ptr() : *K);
       ls->SetPrintLevel(1);

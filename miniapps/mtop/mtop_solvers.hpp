@@ -230,6 +230,18 @@ private:
    mfem::HypreBoomerAMG *prec; // preconditioner
    mfem::CGSolver *ls;         // linear solver
 
+   // PA LOR preconditioner
+   mfem::Array<int> lor_block_offsets;
+   std::unique_ptr<mfem::Solver> lor_pa_prec;
+   std::unique_ptr<mfem::ParLORDiscretization> lor_disc;
+   std::unique_ptr<mfem::ElasticityIntegrator> lor_integrator;
+   std::unique_ptr<mfem::ParFiniteElementSpace> lor_scalar_fespace;
+   std::unique_ptr<mfem::BlockDiagonalPreconditioner> lor_blockDiag;
+   std::vector<std::unique_ptr<mfem::ParBilinearForm>> lor_bilinear_forms;
+   std::vector<std::unique_ptr<mfem::HypreParMatrix>> lor_block;
+   std::vector<std::unique_ptr<mfem::HypreBoomerAMG>> lor_amg_blocks;
+   // std::vector<std::unique_ptr<mfem::ParBilinearForm>> lor_ho_bilinear_form_blocks;
+
    /// Volumetric force created by the solver.
    mfem::VectorConstantCoefficient *lvforce;
    /// Volumetric force coefficient can point to the one
@@ -681,12 +693,12 @@ public:
       sol = sol_;
    }
 
-   void SetDensity(GridFunction* rho_)
+   void SetDensity(mfem::GridFunction* rho_)
    {
       rho=rho_;
    }
 
-   void SetDispl(GridFunction* sol_)
+   void SetDispl(mfem::GridFunction* sol_)
    {
       sol=sol_;
    }
@@ -763,8 +775,8 @@ public:
 
 private:
 
-   real_t EvalNu(ElementTransformation &T,
-                 const IntegrationPoint &ip)
+   real_t EvalNu(mfem::ElementTransformation &T,
+                 const mfem::IntegrationPoint &ip)
    {
       return nu->Eval(T,ip);
    }
