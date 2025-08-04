@@ -1320,6 +1320,9 @@ public:
                            real_t &kappa_min, real_t &kappa_max,
                            Vector *Vh = NULL, Vector *Vk = NULL);
 
+   /// Checks if the mesh is a NURBS mesh
+   bool IsNURBS() const { return NURBSext != NULL; }
+
    /// @}
 
    /// @name Information concerning numbers of mesh entities
