@@ -205,21 +205,15 @@ Array<int> ParticleSet::LDof2VDofs(int ndofs, int vdim, const Array<int> &ldofs,
 }
 
 #ifdef MFEM_USE_MPI
-int ParticleSet::GetRank(MPI_Comm comm_)
+unsigned int ParticleSet::GetRank(MPI_Comm comm_)
 {
    int r; MPI_Comm_rank(comm_, &r); 
    return r;
 }
-int ParticleSet::GetSize(MPI_Comm comm_)
+unsigned int ParticleSet::GetSize(MPI_Comm comm_)
 {
    int s; MPI_Comm_size(comm_, &s); 
    return s;
-}
-int ParticleSet::GetRankNumParticles(MPI_Comm comm_, int NP)
-{
-   int rank = GetRank(comm_);
-   int size = GetSize(comm_);
-   return NP/size + (rank < (NP % size) ? 1 : 0);
 }
 #endif // MFEM_USE_MPI
 
@@ -246,7 +240,7 @@ void ParticleSet::ReserveParticles(int res, ParticleState &particles)
 
 }
 
-void ParticleSet::AddParticles(const Array<int> &new_ids, ParticleState &particles, Array<int> *new_indices)
+void ParticleSet::AddParticles(const Array<unsigned int> &new_ids, ParticleState &particles, Array<int> *new_indices)
 {
    int num_add = new_ids.Size();
    int old_np = particles.GetNP();
@@ -631,27 +625,27 @@ ParticleSet::ParticleSet(int num_particles, int dim, Ordering::Type coords_order
 
 #ifdef MFEM_USE_MPI
 
-ParticleSet::ParticleSet(MPI_Comm comm_, HYPRE_BigInt num_particles, int dim, Ordering::Type coords_ordering)
-: ParticleSet(comm_, num_particles, dim, coords_ordering, Array<int>(), Array<Ordering::Type>(), Array<const char*>())
+ParticleSet::ParticleSet(MPI_Comm comm_, int rank_num_particles, int dim, Ordering::Type coords_ordering)
+: ParticleSet(comm_, rank_num_particles, dim, coords_ordering, Array<int>(), Array<Ordering::Type>(), Array<const char*>())
 {
 
 };
 
-ParticleSet::ParticleSet(MPI_Comm comm_, HYPRE_BigInt num_particles, int dim, const Array<int> &field_vdims, Ordering::Type all_ordering)
-: ParticleSet(comm_, num_particles, dim, all_ordering, field_vdims, GetOrderingArray(all_ordering, field_vdims.Size()), GetEmptyFieldNameArray(field_vdims.Size()))
+ParticleSet::ParticleSet(MPI_Comm comm_, int rank_num_particles, int dim, const Array<int> &field_vdims, Ordering::Type all_ordering)
+: ParticleSet(comm_, rank_num_particles, dim, all_ordering, field_vdims, GetOrderingArray(all_ordering, field_vdims.Size()), GetEmptyFieldNameArray(field_vdims.Size()))
 {
 
 }
 
-ParticleSet::ParticleSet(MPI_Comm comm_, HYPRE_BigInt num_particles, int dim, const Array<int> &field_vdims, const Array<const char*> &field_names_, Ordering::Type all_ordering)
-: ParticleSet(comm_, num_particles, dim, all_ordering, field_vdims, GetOrderingArray(all_ordering, field_vdims.Size()), field_names_)
+ParticleSet::ParticleSet(MPI_Comm comm_, int rank_num_particles, int dim, const Array<int> &field_vdims, const Array<const char*> &field_names_, Ordering::Type all_ordering)
+: ParticleSet(comm_, rank_num_particles, dim, all_ordering, field_vdims, GetOrderingArray(all_ordering, field_vdims.Size()), field_names_)
 {
 
 }
 
-ParticleSet::ParticleSet(MPI_Comm comm_, HYPRE_BigInt num_particles, int dim, Ordering::Type coords_ordering, const Array<int> &field_vdims, const Array<Ordering::Type> &field_orderings, const Array<const char*> &field_names_)
+ParticleSet::ParticleSet(MPI_Comm comm_, int rank_num_particles, int dim, Ordering::Type coords_ordering, const Array<int> &field_vdims, const Array<Ordering::Type> &field_orderings, const Array<const char*> &field_names_)
 : ParticleSet(GetSize(comm_), GetRank(comm_),
-               GetRankNumParticles(comm_, num_particles),
+               rank_num_particles,
                dim,
                coords_ordering,
                field_vdims,
@@ -665,11 +659,10 @@ ParticleSet::ParticleSet(MPI_Comm comm_, HYPRE_BigInt num_particles, int dim, Or
    crystal_init(cr.get(), gsl_comm.get());
 }
 
-
-HYPRE_BigInt ParticleSet::GetGlobalNP() const
+unsigned int ParticleSet::GetGlobalNP() const
 {
-   HYPRE_BigInt total = GetNP();
-   MPI_Allreduce(MPI_IN_PLACE, &total, 1, HYPRE_MPI_BIG_INT, MPI_SUM, comm);
+   unsigned int total = GetNP();
+   MPI_Allreduce(MPI_IN_PLACE, &total, 1, MPI_UNSIGNED, MPI_SUM, comm);
    return total;
 }
 

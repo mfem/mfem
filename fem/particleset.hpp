@@ -118,9 +118,8 @@ private:
    static Array<const char*> GetEmptyFieldNameArray(int N);
    static Array<int> LDof2VDofs(int ndofs, int vdim, const Array<int> &ldofs, Ordering::Type o);
 #ifdef MFEM_USE_MPI
-   static int GetRank(MPI_Comm comm_);
-   static int GetSize(MPI_Comm comm_);
-   static int GetRankNumParticles(MPI_Comm comm_, int NP);
+   static unsigned int GetRank(MPI_Comm comm_);
+   static unsigned int GetSize(MPI_Comm comm_);
 #endif // MFEM_USE_MPI
 
 protected:
@@ -142,14 +141,14 @@ protected:
    static void ReserveParticles(int res, ParticleState &particles);
 
    /// Add size of \p new_ids particles to \p particles , and get indices of new particles in \p new_indices
-   static void AddParticles(const Array<int> &new_ids, ParticleState &particles, Array<int> *new_indices=nullptr);
+   static void AddParticles(const Array<unsigned int> &new_ids, ParticleState &particles, Array<int> *new_indices=nullptr);
 
    /// Remove particles with indices \p list in \p particles
    static void RemoveParticles(const Array<int> &list, ParticleState &particles);
 
 
-   const std::size_t id_stride;
-   std::size_t id_counter;
+   const unsigned int id_stride;
+   unsigned int id_counter;
    ParticleState active_state;
    ParticleState inactive_state;
    std::vector<std::string> field_names;
@@ -224,15 +223,15 @@ public:
 #ifdef MFEM_USE_MPI
 
    // Parallel constructors
-   ParticleSet(MPI_Comm comm_, HYPRE_BigInt num_particles, int dim, Ordering::Type coords_ordering=Ordering::byVDIM);
-   ParticleSet(MPI_Comm comm_, HYPRE_BigInt num_particles, int dim, const Array<int> &field_vdims, Ordering::Type all_ordering=Ordering::byVDIM);
-   ParticleSet(MPI_Comm comm_, HYPRE_BigInt num_particles, int dim, const Array<int> &field_vdims, const Array<const char*> &field_names_, Ordering::Type all_ordering=Ordering::byVDIM);
-   ParticleSet(MPI_Comm comm_, HYPRE_BigInt num_particles, int dim, Ordering::Type coords_ordering, const Array<int> &field_vdims, const Array<Ordering::Type> &field_orderings, const Array<const char*> &field_names_);
+   ParticleSet(MPI_Comm comm_, int rank_num_particles, int dim, Ordering::Type coords_ordering=Ordering::byVDIM);
+   ParticleSet(MPI_Comm comm_, int rank_num_particles, int dim, const Array<int> &field_vdims, Ordering::Type all_ordering=Ordering::byVDIM);
+   ParticleSet(MPI_Comm comm_, int rank_num_particles, int dim, const Array<int> &field_vdims, const Array<const char*> &field_names_, Ordering::Type all_ordering=Ordering::byVDIM);
+   ParticleSet(MPI_Comm comm_, int rank_num_particles, int dim, Ordering::Type coords_ordering, const Array<int> &field_vdims, const Array<Ordering::Type> &field_orderings, const Array<const char*> &field_names_);
 
    MPI_Comm GetComm() const { return comm; };
 
    /// Get the global number of active particles
-   HYPRE_BigInt GetGlobalNP() const;
+   unsigned int GetGlobalNP() const;
 
 #endif // MFEM_USE_MPI
 
