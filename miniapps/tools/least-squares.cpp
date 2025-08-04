@@ -310,6 +310,9 @@ void CheckLSSolver(const DenseMatrix& A, const Vector& b, const Vector& x)
              << std::endl;
 }
 
+/// @name Auxiliary functions
+///@{
+
 /// @brief Get the L1-Jacobi row-subs for the @b normal matrix associated with @a A
 void GetNormalL1Diag(const DenseMatrix& A, Vector& l1_diag)
 {
@@ -348,11 +351,58 @@ void SaturateNeighborhood(NCMesh& mesh, const int element_idx,
    neighbors.Unique();
 }
 
+/// @brief Get face averages at quadrature points, associated to
+/// the face associated to @a face_trans
+void ComputeFaceAverage(const FiniteElementSpace& fes,
+                        FaceElementTransformations& face_trans,
+                        const GridFunction& global_function,
+                        Vector& face_values)
+{
+   const bool has_other = (face_trans.Elem2No >= 0);
+   const FiniteElement* fe_self = fes.GetFE(face_trans.Elem1No);
+   const FiniteElement* fe_other = has_other?fes.GetFE(face_trans.Elem2No):
+                                   fe_self;
+
+   const int ndof_self = fe_self->GetDof();
+   const int ndof_other = has_other?fe_other->GetDof():0;
+
+   const int order = face_trans.OrderW() + fe_self->GetOrder() +
+                     fe_other->GetOrder();
+   const IntegrationRule& ir = IntRules.Get(face_trans.GetGeometryType(), order);
+
+   Array<int> dofs_self, dofs_other;
+   fes.GetElementDofs(face_trans.Elem1No, dofs_self);
+   if (has_other) { fes.GetElementDofs(face_trans.Elem2No, dofs_other); }
+
+   Vector shape_self(ndof_self), shape_other(ndof_other);
+   Vector dofs_at_self, dofs_at_other;
+   global_function.GetSubVector(dofs_self, dofs_at_self);
+   global_function.GetSubVector(dofs_other, dofs_at_other);
+
+   face_values.SetSize(ir.GetNPoints());
+   face_values = 0.0;
+
+   for (int p = 0; p < ir.GetNPoints(); p++)
+   {
+      const IntegrationPoint& ip = ir.IntPoint(p);
+      face_trans.SetAllIntPoints(&ip);
+
+      fe_self->CalcPhysShape(*face_trans.Elem1, shape_self);
+      if (has_other) { fe_other->CalcPhysShape(*face_trans.Elem2, shape_other); }
+
+      face_values(p) = shape_self*dofs_at_self;
+      if (has_other) { face_values(p) += shape_other*dofs_at_other; }
+   }
+   if (has_other) { face_values *= 0.5; }
+}
+
+///@}
+
 /// @brief Local-averages-based reconstruction
 void AverageReconstruction(Solver& solver,
                            ParGridFunction& src,
                            ParGridFunction& dst,
-                           NCMesh& mesh,
+                           ParMesh& mesh,
                            IterativeSolverParams& newton,
                            real_t reg = 0.0,
                            int print_level = -1,
@@ -375,15 +425,16 @@ void AverageReconstruction(Solver& solver,
    punity_dst.ProjectCoefficient(ccf_ones);
 
    // Compute volumes
-   Vector volumes(mesh.GetNumElements());
+   Vector volumes(mesh.GetNE());
    punity_src.ComputeElementL1Errors(ccf_zeros, volumes);
 
-   for (int e_idx = 0; e_idx < mesh.GetNumElements(); e_idx++ )
+   for (int e_idx = 0; e_idx < mesh.GetNE(); e_idx++ )
    {
       const int fe_dst_e_ndof = fes_dst->GetFE(e_idx)->GetDof();
       const int fe_src_e_ndof = fes_src->GetFE(e_idx)->GetDof();
 
-      SaturateNeighborhood(mesh, e_idx, fe_dst_e_ndof, fe_src_e_ndof, neighbors_e);
+      SaturateNeighborhood(*mesh.pncmesh, e_idx, fe_dst_e_ndof, fe_src_e_ndof,
+                           neighbors_e);
       if (preserve_volumes) { neighbors_e.DeleteFirst(e_idx); }
 
       const int num_neighbors = neighbors_e.Size();
@@ -466,7 +517,7 @@ void AverageReconstruction(Solver& solver,
 void L2Reconstruction(Solver& solver,
                       ParGridFunction& src,
                       ParGridFunction& dst,
-                      NCMesh& mesh,
+                      ParMesh& mesh,
                       IterativeSolverParams& newton,
                       bool preserve_volumes = false)
 {
@@ -484,7 +535,7 @@ void L2Reconstruction(Solver& solver,
    punity_src.ProjectCoefficient(ccf_ones);
    punity_dst.ProjectCoefficient(ccf_ones);
 
-   for (int e_idx = 0; e_idx < mesh.GetNumElements(); e_idx++ )
+   for (int e_idx = 0; e_idx < mesh.GetNE(); e_idx++ )
    {
       const int fe_src_e_ndof = fes_src->GetFE(e_idx)->GetDof();
       const int fe_dst_e_ndof = fes_dst->GetFE(e_idx)->GetDof();
@@ -492,7 +543,8 @@ void L2Reconstruction(Solver& solver,
       auto& fe_src_e = *fes_src->GetFE(e_idx);
       // auto& fe_dst_e = *fes_dst->GetFE(e_idx);
 
-      SaturateNeighborhood(mesh, e_idx, fe_dst_e_ndof, fe_src_e_ndof, neighbors_e);
+      SaturateNeighborhood(*mesh.pncmesh, e_idx, fe_dst_e_ndof, fe_src_e_ndof,
+                           neighbors_e);
       if (preserve_volumes) { neighbors_e.DeleteFirst(e_idx); }
 
       fes_dst->GetElementDofs(e_idx, e_dst_dofs);
@@ -560,6 +612,44 @@ void L2Reconstruction(Solver& solver,
 
       neighbors_e.DeleteAll();
       e_dst_dofs.DeleteAll();
+   }
+}
+
+/// @brief A element-based, face-average reconstruction
+void FaceReconstruction(ParGridFunction& src,
+                        ParGridFunction& dst,
+                        ParMesh& mesh)
+{
+   // auto face_trans = std::make_unique<FaceElementTransformations>();
+   FaceElementTransformations* face_trans = nullptr;
+   const auto fes_src = src.ParFESpace();
+   const auto fes_dst = dst.ParFESpace();
+
+   Array<int> faces_e, orientation_e, face_dofs;
+   Vector avg_at_face, u_avg_at_face_dofs;
+
+   for (int e_idx = 0; e_idx < mesh.GetNE(); e_idx++)
+   {
+      // Local average? Local projection?
+
+      mesh.GetElementEdges(e_idx, faces_e, orientation_e);
+      for (int i = 0; i < faces_e.Size(); i++)
+      {
+         const int f_idx = faces_e[i];
+         face_trans = mesh.GetFaceElementTransformations(f_idx);
+         fes_src->GetFaceDofs(f_idx, face_dofs);
+
+         src.GetSubVector(face_dofs, u_avg_at_face_dofs);
+         ComputeFaceAverage(*fes_src, *face_trans,
+                            src, avg_at_face);
+
+         /* DEBUG:
+          * mfem::out << "Face " << f_idx << std::endl;
+          * avg_at_face.Print(mfem::out,1);
+          * mfem::out << "Values of u (avg) at face_dofs" << std::endl;
+          * u_avg_at_face_dofs.Print(mfem::out,1);
+          * mfem::out << " ---  " << std::endl; */
+      }
    }
 }
 
@@ -695,7 +785,7 @@ int main(int argc, char* argv[])
    for (int i = 0; i < params.ser_ref; ++i) { serial_mesh.UniformRefinement(); }
    ParMesh mesh(MPI_COMM_WORLD, serial_mesh);
    for (int i = 0; i < params.par_ref; ++i) { mesh.UniformRefinement(); }
-   NCMesh nc_mesh(static_cast<Mesh*>(&mesh));
+   mesh.EnsureNCMesh();
 
    // target function u(x,y)
    const real_t k_x = 0.5;
@@ -784,12 +874,12 @@ int main(int argc, char* argv[])
    switch (params.rec)
    {
       case norm:
-         L2Reconstruction(*solver.get(), u_src, u_dst, nc_mesh,
+         L2Reconstruction(*solver.get(), u_src, u_dst, mesh,
                           params.newton, params.preserve_volumes);
          break;
       case average:
       default:
-         AverageReconstruction(*solver.get(), u_src, u_dst, nc_mesh,
+         AverageReconstruction(*solver.get(), u_src, u_dst, mesh,
                                params.newton, params.reg,
                                params.solver.print_level, params.preserve_volumes);
    }
