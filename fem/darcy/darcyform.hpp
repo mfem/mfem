@@ -250,7 +250,8 @@ public:
    /** The total flux function is continuous and its finite element space is
        assumed to have equal number of DOFs at faces as the trace variable.
        The definition of the total flux inside the elements is deduced from
-       the potential integrators used.
+       the potential integrators used. If no finite element space is assigned
+       to the grid function, Raviart-Thomas space is constructed. 
    */
    void ReconstructTotalFlux(const BlockVector &sol, const Vector &sol_r,
                              GridFunction &ut) const;

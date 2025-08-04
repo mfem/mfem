@@ -799,6 +799,22 @@ void DarcyForm::ReconstructTotalFlux(const BlockVector &sol,
 {
    if (!hybridization) { return; }
 
+   // automatically set up the finite element space
+   if (!ut.FESpace())
+   {
+      Mesh *mesh = fes_u->GetMesh();
+      const int dim = fes_u->GetMesh()->Dimension();
+      const FiniteElementCollection *u_coll = fes_u->FEColl();
+      int ut_order = u_coll->GetOrder();
+      if (dynamic_cast<const RT_FECollection*>(u_coll)
+          || dynamic_cast<const BrokenRT_FECollection*>(u_coll)) { ut_order--; }
+      FiniteElementCollection *ut_coll = new RT_FECollection(ut_order, dim);
+      FiniteElementSpace *ut_space = new FiniteElementSpace(mesh, ut_coll);
+
+      ut.SetSpace(ut_space);
+      ut.MakeOwner(ut_coll);
+   }
+
    VectorCoefficient *vel = NULL;
    if (M_p && M_p->GetDBFI())
    {

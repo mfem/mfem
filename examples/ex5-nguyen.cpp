@@ -652,8 +652,8 @@ int main(int argc, char *argv[])
       V_space->GetEssentialTrueDofs(bdr_is_neumann, ess_flux_tdofs_list);
    }
 
-   FiniteElementCollection *trace_coll{}, *total_flux_coll{};
-   FiniteElementSpace *trace_space{}, *total_flux_space{};
+   FiniteElementCollection *trace_coll{};
+   FiniteElementSpace *trace_space{};
 
 
    if (hybridization)
@@ -663,11 +663,6 @@ int main(int argc, char *argv[])
 
       trace_coll = new DG_Interface_FECollection(order, dim);
       trace_space = new FiniteElementSpace(mesh, trace_coll);
-      if (total_flux)
-      {
-         total_flux_coll = new RT_FECollection(order, dim);
-         total_flux_space = new FiniteElementSpace(mesh, total_flux_coll);
-      }
       darcy->EnableHybridization(trace_space,
                                  new NormalTraceJumpIntegrator(),
                                  ess_flux_tdofs_list);
@@ -923,9 +918,8 @@ int main(int argc, char *argv[])
          cout << "|| t_h - t_ex || / || t_ex || = " << err_t / norm_t << "\n";
       }
 
-      if (total_flux_space)
+      if (total_flux)
       {
-         qt_h.SetSpace(total_flux_space);
          darcy->ReconstructTotalFlux(x, x.GetBlock(2), qt_h);
          real_t err_qt = qt_h.ComputeL2Error(qtcoeff, irs);
          real_t norm_qt = ComputeLpNorm(2., qtcoeff, *mesh, irs);
@@ -1052,7 +1046,7 @@ int main(int argc, char *argv[])
             q_sock << "window_title 'Heat flux'" << endl;
             q_sock << "keys Rljvvvvvmmc" << endl;
          }
-         if (total_flux_space)
+         if (total_flux)
          {
             static socketstream qt_sock(vishost, visport);
             qt_sock.precision(8);
@@ -1129,12 +1123,10 @@ int main(int argc, char *argv[])
    delete V_space;
    delete V_space_dg;
    delete trace_space;
-   delete total_flux_space;
    delete W_coll;
    delete V_coll;
    delete V_coll_dg;
    delete trace_coll;
-   delete total_flux_coll;
    delete mesh;
 
    return 0;
