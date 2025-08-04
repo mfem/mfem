@@ -357,8 +357,7 @@ void SaturateNeighborhood(NCMesh& mesh, const int element_idx,
 void ComputeFaceAverage(const FiniteElementSpace& fes,
                         FaceElementTransformations& face_trans,
                         const GridFunction& global_function,
-                        Vector& face_values,
-                        IntegrationRule& ir)
+                        Vector& face_values)
 {
    const bool has_other = (face_trans.Elem2No >= 0);
    const FiniteElement* fe_self = fes.GetFE(face_trans.Elem1No);
@@ -368,10 +367,8 @@ void ComputeFaceAverage(const FiniteElementSpace& fes,
    const int ndof_self = fe_self->GetDof();
    const int ndof_other = has_other?fe_other->GetDof():0;
 
-   const int order = face_trans.OrderW() + fe_self->GetOrder() +
-                     fe_other->GetOrder();
-
-   ir = IntRules.Get(face_trans.GetGeometryType(), order);
+   const int order = face_trans.OrderW() + fe_self->GetOrder() + fe_other->GetOrder();
+   const auto ir = IntRules.Get(face_trans.GetGeometryType(), order);
 
    Array<int> dofs_self, dofs_other;
    fes.GetElementDofs(face_trans.Elem1No, dofs_self);
@@ -397,6 +394,20 @@ void ComputeFaceAverage(const FiniteElementSpace& fes,
       if (has_other) { face_values(p) += shape_other*dofs_at_other; }
    }
    if (has_other) { face_values *= 0.5; }
+}
+
+int GetLocalNPoints(const FiniteElementSpace& fes,
+                     FaceElementTransformations& face_trans)
+{
+   const bool has_other = (face_trans.Elem2No >= 0);
+   const FiniteElement* fe_self = fes.GetFE(face_trans.Elem1No);
+   const FiniteElement* fe_other = has_other?fes.GetFE(face_trans.Elem2No):
+                                   fe_self;
+
+   const int order = face_trans.OrderW() + fe_self->GetOrder() + fe_other->GetOrder();
+   const auto ir = IntRules.Get(face_trans.GetGeometryType(), order);
+
+   return ir.GetNPoints();
 }
 
 ///@}
@@ -624,7 +635,10 @@ void FaceReconstruction(Solver& solver,
                         ParGridFunction& dst,
                         ParMesh& mesh)
 {
+   MassIntegrator mass;
    FaceElementTransformations* face_trans = nullptr;
+   auto e_trans = std::make_unique<IsoparametricTransformation>();
+
    const auto fes_src = src.ParFESpace();
    const auto fes_dst = dst.ParFESpace();
 
@@ -633,15 +647,17 @@ void FaceReconstruction(Solver& solver,
 
    for (int e_idx = 0; e_idx < mesh.GetNE(); e_idx++)
    {
-      // TODO(Gabriel): How to generalize?
-      real_t src_e = src(e_idx);
-
       mesh.GetElementEdges(e_idx, faces_e, orientation_e);
 
-      // TODO(Gabriel): How to generalize?
+      // Setup RHS
       Array<int> offsets(1 + faces_e.Size());
-      offsets = 1; // quadpoints per face
       offsets[0] = 0;
+      for (int i = 0; i < faces_e.Size(); i++)
+      {
+         const int f_idx = faces_e[i];
+         face_trans = mesh.GetFaceElementTransformations(f_idx);
+         offsets[i+1] = GetLocalNPoints(*fes_src, *face_trans);
+      }
       offsets.PartialSum();
 
       BlockVector src_face_values(offsets);
@@ -653,17 +669,34 @@ void FaceReconstruction(Solver& solver,
          face_trans = mesh.GetFaceElementTransformations(f_idx);
          fes_src->GetFaceDofs(f_idx, face_dofs);
 
-         // TODO
-         IntegrationRule ir;
-
          src.GetSubVector(face_dofs, u_avg_at_face_dofs);
-         ComputeFaceAverage(*fes_src, *face_trans,
-                            src, avg_at_face, ir);
+         ComputeFaceAverage(*fes_src, *face_trans, src, avg_at_face);
+
          src_face_values.AddSubVector(avg_at_face, i);
       }
 
-      mfem::out << "DEBUG" << std::endl;
-      src_face_values.Print(mfem::out,1);
+      // Setup RHS constraint
+      Array<int> e_src_dofs;
+      fes_src->GetElementDofs(e_idx, e_src_dofs);
+      Vector src_at_e_dofs;
+      src.GetSubVector(e_src_dofs, src_at_e_dofs);
+
+      // Setup matrix
+      // DenseMatrix TODO;
+
+      // Setup constraint matrix
+      fes_dst->GetElementTransformation(e_idx, e_trans.get());
+      auto& fe_dst_e = *fes_dst->GetFE(e_idx);
+      auto& fe_src_e = *fes_src->GetFE(e_idx);
+
+
+      DenseMatrix mass_e_mat;
+      mass.AssembleElementMatrix2(fe_dst_e, fe_src_e, *e_trans, mass_e_mat);
+
+      // Call the solver
+      // LSSolver(solver, TODO, mass_e_mat, src_face_values, src_at_e_dofs,
+      //          TODO_local_src_e, TODO_lagr_mult);
+
    }
 }
 
