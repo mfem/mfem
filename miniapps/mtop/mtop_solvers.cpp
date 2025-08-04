@@ -348,7 +348,7 @@ void IsoLinElasticSolver::Assemble()
       }
       else
       {
-#if 1
+#if 0
          auto prec_pa = new OperatorJacobiSmoother(*bf, ess_tdofv);
          ls->SetPreconditioner(*prec_pa);
 #else
