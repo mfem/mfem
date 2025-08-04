@@ -14,6 +14,15 @@
 namespace mfem::reconstruction
 {
 
+/// Enumerator for reconstruction types
+enum ReconstructionType
+{
+   norm,
+   average,
+   face_average,
+   num_reconstructions  // last
+};
+
 /// Enumerator for solver types
 enum SolverType
 {
@@ -22,14 +31,6 @@ enum SolverType
    bicgstab,
    minres,
    num_solvers  // last
-};
-
-/// Enumerator for reconstruction types
-enum ReconstructionType
-{
-   norm,
-   average,
-   num_reconstructions  // last
 };
 
 /// Iterative solver parameters
@@ -356,7 +357,8 @@ void SaturateNeighborhood(NCMesh& mesh, const int element_idx,
 void ComputeFaceAverage(const FiniteElementSpace& fes,
                         FaceElementTransformations& face_trans,
                         const GridFunction& global_function,
-                        Vector& face_values)
+                        Vector& face_values,
+                        IntegrationRule& ir)
 {
    const bool has_other = (face_trans.Elem2No >= 0);
    const FiniteElement* fe_self = fes.GetFE(face_trans.Elem1No);
@@ -368,7 +370,8 @@ void ComputeFaceAverage(const FiniteElementSpace& fes,
 
    const int order = face_trans.OrderW() + fe_self->GetOrder() +
                      fe_other->GetOrder();
-   const IntegrationRule& ir = IntRules.Get(face_trans.GetGeometryType(), order);
+
+   ir = IntRules.Get(face_trans.GetGeometryType(), order);
 
    Array<int> dofs_self, dofs_other;
    fes.GetElementDofs(face_trans.Elem1No, dofs_self);
@@ -616,11 +619,11 @@ void L2Reconstruction(Solver& solver,
 }
 
 /// @brief A element-based, face-average reconstruction
-void FaceReconstruction(ParGridFunction& src,
+void FaceReconstruction(Solver& solver,
+                        ParGridFunction& src,
                         ParGridFunction& dst,
                         ParMesh& mesh)
 {
-   // auto face_trans = std::make_unique<FaceElementTransformations>();
    FaceElementTransformations* face_trans = nullptr;
    const auto fes_src = src.ParFESpace();
    const auto fes_dst = dst.ParFESpace();
@@ -630,26 +633,37 @@ void FaceReconstruction(ParGridFunction& src,
 
    for (int e_idx = 0; e_idx < mesh.GetNE(); e_idx++)
    {
-      // Local average? Local projection?
+      // TODO(Gabriel): How to generalize?
+      real_t src_e = src(e_idx);
 
       mesh.GetElementEdges(e_idx, faces_e, orientation_e);
+
+      // TODO(Gabriel): How to generalize?
+      Array<int> offsets(1 + faces_e.Size());
+      offsets = 1; // quadpoints per face
+      offsets[0] = 0;
+      offsets.PartialSum();
+
+      BlockVector src_face_values(offsets);
+      src_face_values = 0.0;
+
       for (int i = 0; i < faces_e.Size(); i++)
       {
          const int f_idx = faces_e[i];
          face_trans = mesh.GetFaceElementTransformations(f_idx);
          fes_src->GetFaceDofs(f_idx, face_dofs);
 
+         // TODO
+         IntegrationRule ir;
+
          src.GetSubVector(face_dofs, u_avg_at_face_dofs);
          ComputeFaceAverage(*fes_src, *face_trans,
-                            src, avg_at_face);
-
-         /* DEBUG:
-          * mfem::out << "Face " << f_idx << std::endl;
-          * avg_at_face.Print(mfem::out,1);
-          * mfem::out << "Values of u (avg) at face_dofs" << std::endl;
-          * u_avg_at_face_dofs.Print(mfem::out,1);
-          * mfem::out << " ---  " << std::endl; */
+                            src, avg_at_face, ir);
+         src_face_values.AddSubVector(avg_at_face, i);
       }
+
+      mfem::out << "DEBUG" << std::endl;
+      src_face_values.Print(mfem::out,1);
    }
 }
 
@@ -698,8 +712,9 @@ int main(int argc, char* argv[])
 
    args.AddOption((int*)&params.rec, "-rec", "--reconstruction",
                   "reconstruction methods to be considered:"
-                  "\n\t0: L2-norm least squares "
-                  "\n\t1: Local-averages least square");
+                  "\n\t0: L2-norm least squares"
+                  "\n\t1: Local-averages least square",
+                  "\n\t2: Face-averages (DFR-like) method");
 
    args.AddOption(&params.vis.save_to_files, "-s", "--save", "-no-s",
                   "--no-save", "Show or not show approximation error.");
@@ -782,6 +797,7 @@ int main(int argc, char* argv[])
    const int num_x = 2;
    const int num_y = 2;
    Mesh serial_mesh = Mesh::MakeCartesian2D(num_x, num_y, Element::QUADRILATERAL);
+   serial_mesh.EnsureNCMesh();
    for (int i = 0; i < params.ser_ref; ++i) { serial_mesh.UniformRefinement(); }
    ParMesh mesh(MPI_COMM_WORLD, serial_mesh);
    for (int i = 0; i < params.par_ref; ++i) { mesh.UniformRefinement(); }
@@ -876,6 +892,9 @@ int main(int argc, char* argv[])
       case norm:
          L2Reconstruction(*solver.get(), u_src, u_dst, mesh,
                           params.newton, params.preserve_volumes);
+         break;
+      case face_average:
+         FaceReconstruction(*solver.get(), u_src, u_dst,mesh);
          break;
       case average:
       default:
