@@ -11,9 +11,7 @@
 
 #include "mfem.hpp"
 
-using namespace mfem;
-
-namespace reconstruction
+namespace mfem::reconstruction
 {
 
 /// Enumerator for solver types
@@ -36,7 +34,7 @@ void ComputeFaceAverage(const FiniteElementSpace& fes,
    const bool has_other = (face_trans.Elem2No >= 0);
    const FiniteElement* fe_self = fes.GetFE(face_trans.Elem1No);
    const FiniteElement* fe_other = has_other?fes.GetFE(face_trans.Elem2No):
-                                   fe_self; // nullptr?
+                                   fe_self;
 
    const int ndof_self = fe_self->GetDof();
    const int ndof_other = has_other?fe_other->GetDof():0;
@@ -107,8 +105,9 @@ void ComputeFaceAverage(const FiniteElementSpace& fes,
  * }
  */
 
-} // end namespace reconstruction
+} // end namespace mfem::reconstruction
 
+using namespace mfem;
 using namespace reconstruction;
 
 int main(int argc, char* argv[])
@@ -119,9 +118,9 @@ int main(int argc, char* argv[])
    int ser_ref_levels = 0;
    int par_ref_levels = 0;
 
-   int order_original = 3;
-   int order_averages = 0;
-   int order_reconstruction = 1;
+   int order_smooth = 3;
+   int order_src = 0;
+   int order_dst = 1;
 
    SolverType solver_type = direct;
    real_t solver_reg = 0.0;
@@ -143,12 +142,12 @@ int main(int argc, char* argv[])
    args.AddOption(&par_ref_levels, "-rp", "--refine",
                   "Number of parallel refinement steps.");
 
-   args.AddOption(&order_original, "-O", "--order-original",
+   args.AddOption(&order_smooth, "-O", "--order-original",
                   "Order original broken space.");
    // TODO(Gabriel): Not implemented yet
-   // args.AddOption(&order_averages, "-A", "--order-averages",
+   // args.AddOption(&order_src, "-A", "--order-averages",
    //                "Order averaged broken space.");
-   args.AddOption(&order_reconstruction, "-R", "--order-reconstruction",
+   args.AddOption(&order_dst, "-R", "--order-reconstruction",
                   "Order of reconstruction broken space.");
 
    args.AddOption((int*)&solver_type, "-S", "--solver",
@@ -179,7 +178,7 @@ int main(int argc, char* argv[])
    args.ParseCheck();
    MFEM_VERIFY((ser_ref_levels >= 0) && (par_ref_levels >= 0), "")
    MFEM_VERIFY((solver_reg>=0.0), "")
-   MFEM_VERIFY(order_original > order_averages, "")
+   MFEM_VERIFY(order_smooth > order_src, "")
    MFEM_VERIFY((0 <= solver_type) && (solver_type < num_solvers),
                "invalid solver type: " << solver_type);
 
@@ -187,9 +186,9 @@ int main(int argc, char* argv[])
    {
       mfem::out << "Number of serial refs.:  " << ser_ref_levels << "\n";
       mfem::out << "Number of parallel refs: " << par_ref_levels << "\n";
-      mfem::out << "Original order:          " << order_original << "\n";
-      mfem::out << "Original averages:       " << order_averages << "\n";
-      mfem::out << "Original reconstruction: " << order_reconstruction << "\n";
+      mfem::out << "Original order:          " << order_smooth << "\n";
+      mfem::out << "Original averages:       " << order_src << "\n";
+      mfem::out << "Original reconstruction: " << order_dst << "\n";
    }
 
    // Mesh
@@ -199,7 +198,6 @@ int main(int argc, char* argv[])
    for (int i = 0; i < ser_ref_levels; ++i) { serial_mesh.UniformRefinement(); }
    ParMesh mesh(MPI_COMM_WORLD, serial_mesh);
    for (int i = 0; i < par_ref_levels; ++i) { mesh.UniformRefinement(); }
-   auto table = mesh.ElementToFaceTable();
 
    // target function u(x,y)
    const int k_x = 1;
@@ -212,22 +210,22 @@ int main(int argc, char* argv[])
    FunctionCoefficient u_coefficient(u_function);
 
    // Broken spaces
-   L2_FECollection fec_original(order_original, mesh.Dimension());
-   L2_FECollection fec_averages(order_averages, mesh.Dimension());
-   L2_FECollection fec_reconstruction(order_reconstruction, mesh.Dimension());
+   L2_FECollection fec_smooth(order_smooth, mesh.Dimension());
+   L2_FECollection fec_src(order_src, mesh.Dimension());
+   L2_FECollection fec_dst(order_dst, mesh.Dimension());
 
-   ParFiniteElementSpace fes_original(&mesh, &fec_original);
-   ParFiniteElementSpace fes_averages(&mesh, &fec_averages);
-   ParFiniteElementSpace fes_reconstruction(&mesh, &fec_reconstruction);
+   ParFiniteElementSpace fes_smooth(&mesh, &fec_smooth);
+   ParFiniteElementSpace fes_src(&mesh, &fec_src);
+   ParFiniteElementSpace fes_dst(&mesh, &fec_dst);
 
-   ParGridFunction u_original(&fes_original);
-   ParGridFunction u_averages(&fes_averages);
-   ParGridFunction u_rec_avg(&fes_averages);
-   ParGridFunction diff(&fes_averages);
-   ParGridFunction u_reconstruction(&fes_reconstruction);
+   ParGridFunction u_smooth(&fes_smooth);
+   ParGridFunction u_src(&fes_src);
+   ParGridFunction u_rec_avg(&fes_src);
+   ParGridFunction diff(&fes_src);
+   ParGridFunction u_dst(&fes_dst);
 
-   u_original.ProjectCoefficient(u_coefficient);
-   u_original.GetElementAverages(u_averages);
+   u_smooth.ProjectCoefficient(u_coefficient);
+   u_smooth.GetElementAverages(u_src);
 
    FaceElementTransformations* face_trans = nullptr;
    Array<int> faces_e, orientation_e, face_dofs;
@@ -235,56 +233,60 @@ int main(int argc, char* argv[])
 
    for (int e_idx = 0; e_idx < mesh.GetNE(); e_idx++)
    {
-      mesh.GetElementFaces(e_idx, faces_e, orientation_e);
+      // Local average? Local projection?
+
+
+      mesh.GetElementEdges(e_idx, faces_e, orientation_e);
       for (int i = 0; i < faces_e.Size(); i++)
       {
          const int f_idx = faces_e[i];
          face_trans = mesh.GetFaceElementTransformations(f_idx);
-         fes_averages.GetFaceDofs(f_idx, face_dofs);
+         fes_src.GetFaceDofs(f_idx, face_dofs);
 
-         u_averages.GetSubVector(face_dofs, u_avg_at_face_dofs);
-         ComputeFaceAverage(fes_averages, *face_trans,
-                            u_averages, avg_at_face);
+         u_src.GetSubVector(face_dofs, u_avg_at_face_dofs);
+         ComputeFaceAverage(fes_src, *face_trans,
+                            u_src, avg_at_face);
 
-         mfem::out << "Face " << f_idx << std::endl;
-         avg_at_face.Print(mfem::out,1);
-         mfem::out << "Values of u (avg) at face_dofs" << std::endl;
-         u_avg_at_face_dofs.Print(mfem::out,1);
-         mfem::out << " ---  " << std::endl;
+         /* DEBUG:
+          * mfem::out << "Face " << f_idx << std::endl;
+          * avg_at_face.Print(mfem::out,1);
+          * mfem::out << "Values of u (avg) at face_dofs" << std::endl;
+          * u_avg_at_face_dofs.Print(mfem::out,1);
+          * mfem::out << " ---  " << std::endl; */
       }
    }
 
    char vishost[] = "localhost";
-   socketstream glvis_original(vishost, visport);
-   socketstream glvis_averages(vishost, visport);
+   socketstream glvis_smooth(vishost, visport);
+   socketstream glvis_src(vishost, visport);
    socketstream glvis_rec_avg(vishost, visport);
-   socketstream glvis_reconstruction(vishost, visport);
+   socketstream glvis_dst(vishost, visport);
 
-   if (glvis_original &&
-       glvis_averages &&
+   if (glvis_smooth &&
+       glvis_src &&
        glvis_rec_avg &&
-       glvis_reconstruction &&
+       glvis_dst &&
        visualization)
    {
-      //glvis_original.precision(8);
-      glvis_original << "parallel " << mesh.GetNRanks()
-                     << " " << mesh.GetMyRank() << "\n"
-                     << "solution\n" << mesh << u_original
-                     << "window_title 'original'\n" << std::flush;
+      //glvis_smooth.precision(8);
+      glvis_smooth << "parallel " << mesh.GetNRanks()
+                   << " " << mesh.GetMyRank() << "\n"
+                   << "solution\n" << mesh << u_smooth
+                   << "window_title 'original'\n" << std::flush;
       MPI_Barrier(mesh.GetComm());
-      //glvis_averages.precision(8);
-      glvis_averages << "parallel " << mesh.GetNRanks()
-                     << " " << mesh.GetMyRank() << "\n"
-                     << "solution\n" << mesh << u_averages
-                     << "window_title 'averages'\n" << std::flush;
+      //glvis_src.precision(8);
+      glvis_src << "parallel " << mesh.GetNRanks()
+                << " " << mesh.GetMyRank() << "\n"
+                << "solution\n" << mesh << u_src
+                << "window_title 'averages'\n" << std::flush;
       MPI_Barrier(mesh.GetComm());
-      //glvis_reconstruction.precision(8);
-      glvis_reconstruction << "parallel " << mesh.GetNRanks()
-                           << " " << mesh.GetMyRank() << "\n"
-                           << "solution\n" << mesh << u_reconstruction
-                           << "window_title 'reconstruction'\n" << std::flush;
+      //glvis_dst.precision(8);
+      glvis_dst << "parallel " << mesh.GetNRanks()
+                << " " << mesh.GetMyRank() << "\n"
+                << "solution\n" << mesh << u_dst
+                << "window_title 'reconstruction'\n" << std::flush;
       MPI_Barrier(mesh.GetComm());
-      //glvis_reconstruction.precision(8);
+      //glvis_dst.precision(8);
       glvis_rec_avg << "parallel " << mesh.GetNRanks()
                     << " " << mesh.GetMyRank() << "\n"
                     << "solution\n" << mesh << u_rec_avg
