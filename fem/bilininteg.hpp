@@ -3523,6 +3523,50 @@ public:
                            DenseMatrix &elmat) override;
 };
 
+/// Integrator for the local DG (LDG) form
+/** This form is given by
+    < [u], {q.n} + gamma [q.n] >
+    where u is a scalar DG test function, q a vector DG trial function, and
+    gamma = sgn(beta . n)/2 with beta an arbitrary vector. This defines an
+    arbitrary but consistent upwinding of q. When beta is NULL, gamma = 0.
+
+    The intended use case is a local discontinuous Galerkin discretization of
+    the Poisson equation. With gamma = sgn(beta . n)/2, the discretization is
+    stable without a penalty term. When gamma = 0, penalization is required.
+    Note that Dirichlet boundary conditions require a penalty term on the
+    boundary for any value of gamma.
+*/
+class LDGTraceIntegrator : public BilinearFormIntegrator
+{
+protected:
+   const Vector *beta = nullptr;
+public:
+   LDGTraceIntegrator(const Vector *b=nullptr) { beta = b; }
+   void AssembleFaceMatrix(const FiniteElement &tr_fe1,
+                           const FiniteElement &tr_fe2,
+                           const FiniteElement &te_fe1, const FiniteElement &te_fe2,
+                           FaceElementTransformations &T, DenseMatrix &elmat);
+};
+
+/// Integrator for the DG jump-jump penalty term.
+/** This form is given by
+    < kappa [u], [v] >
+    with u a DG trial function, v a DG test function, and kappa the penalty
+    parameter. When scale=true, kappa is scaled by 1/h with h the characteristic
+    length of the element.
+*/
+class DGJumpJumpIntegrator : public BilinearFormIntegrator
+{
+protected:
+   double kappa;
+   Coefficient *c = nullptr;
+   bool scale = false;
+public:
+   DGJumpJumpIntegrator(double k, bool s=false) : kappa(k), scale(s) { }
+   void AssembleFaceMatrix(const FiniteElement &el1, const FiniteElement &el2,
+                           FaceElementTransformations &T, DenseMatrix &elmat);
+};
+
 /** Integrator for the DG elasticity form, for the formulations see:
     - PhD Thesis of Jonas De Basabe, High-Order Finite %Element Methods for
       Seismic Wave Propagation, UT Austin, 2009, p. 23, and references therein
