@@ -129,14 +129,12 @@ protected:
       Array<unsigned int> ids; /// Particle IDs
       ParticleVector coords;
       std::vector<std::unique_ptr<ParticleVector>> fields;
-      std::vector<std::unique_ptr<Array<int>>> tags;
 
       ParticleState(int dim, Ordering::Type coords_ordering)
       : coords(0, dim, coords_ordering) {}
       
       int GetNP() const { return ids.Size(); }
       int GetNF() const { return fields.size(); }
-      int GetNT() const {return tags.size(); }
    };
 
    /// Increase capacity of data in \p particles w/o losing existing data
@@ -165,35 +163,26 @@ protected:
    std::unique_ptr<gslib::crystal> cr;
 
    // If no FindPointsGSLIB data:
-   template<std::size_t NData, std::size_t NTag, std::size_t NFinder>
+   template<std::size_t NData, std::size_t NFinder>
    struct pdata_t
    {
       std::array<double, NData> data; // coords + fields
-      std::array<int, NTag> tags; // tags
       std::array<double, 3*NFinder> rst, mfem_rst; // gslib ref coords, mfem ref coords
       std::array<unsigned int, NFinder> proc, elem, mfem_elem, code;
       unsigned int id;
    };
 
    static constexpr int NDATA_MAX = 50;
-   static constexpr int NTAG_MAX = 3;
    static constexpr int NFINDER_MAX = 3;
 
-   template<std::size_t NData, std::size_t NTag, std::size_t NFinder>
+   template<std::size_t NData, std::size_t NFinder>
    void Transfer(const Array<unsigned int> &send_idxs, const Array<unsigned int> &send_ranks, Array<FindPointsGSLIB*> finders);
 
-   template<std::size_t NData, std::size_t NTag, std::size_t... NFinders>
+   template<std::size_t NData, std::size_t... NFinders>
    void DispatchFinderTransfer(const Array<unsigned int> &send_idxs, const Array<unsigned int> &send_ranks, Array<FindPointsGSLIB*> finders, std::index_sequence<NFinders...>)
    {
-      bool success = ( (finders.Size() == NFinders ? (Transfer<NData,NTag,NFinders>(send_idxs, send_ranks, finders),true) : false) || ...);
+      bool success = ( (finders.Size() == NFinders ? (Transfer<NData,NFinders>(send_idxs, send_ranks, finders),true) : false) || ...);
       MFEM_ASSERT(success, "Redistributing with > " << NFINDER_MAX << " FindPointsGSLIB objects is not supported. Please submit PR to request particular case with more.");
-   }
-
-   template<std::size_t NData, std::size_t... NTags>
-   void DispatchTagTransfer(const Array<unsigned int> &send_idxs, const Array<unsigned int> &send_ranks, Array<FindPointsGSLIB*> finders, std::index_sequence<NTags...>)
-   {
-      bool success = ( (active_state.GetNT() == NTags ? (DispatchFinderTransfer<NData, NTags>(send_idxs, send_ranks, finders, std::make_index_sequence<NFINDER_MAX+1>{}),true) : false) || ...);
-      MFEM_ASSERT(success, "Redistributing with > " << NTAG_MAX << " tags is not supported. Please submit PR to request particular case with more.");
    }
    
    template<std::size_t... NDatas>
@@ -204,7 +193,7 @@ protected:
       {
          total_comps += pv->GetVDim();
       }
-      bool success = ( (total_comps == NDatas ? (DispatchTagTransfer<NDatas>(send_idxs, send_ranks, finders, std::make_index_sequence<NTAG_MAX+1>{}),true) : false) || ...);
+      bool success = ( (total_comps == NDatas ? (DispatchFinderTransfer<NDatas>(send_idxs, send_ranks, finders, std::make_index_sequence<NFINDER_MAX+1>{}),true) : false) || ...);
       MFEM_ASSERT(success, "Redistributing with > " << NDATA_MAX << " real_t components per particle is not supported. Please submit PR to request particular case with more.");
    }
 
