@@ -556,7 +556,7 @@ void Mesh::CreateVTKMesh(const Vector &points, const Array<int> &cell_data,
          fec = new QuadraticFECollection;
          fes = new FiniteElementSpace(this, fec, spaceDim);
          Nodes = new GridFunction(fes);
-         Nodes->MakeOwner(fec); // Nodes will destroy 'fec' and 'fes'
+         Nodes->MakeOwner(); // Nodes will destroy 'fec' and 'fes'
          own_nodes = 1;
 
          // Map vtk points to edge/face/element dofs
@@ -606,7 +606,7 @@ void Mesh::CreateVTKMesh(const Vector &points, const Array<int> &cell_data,
          fec = new H1_FECollection(order,Dim,BasisType::ClosedUniform);
          fes = new FiniteElementSpace(this, fec, spaceDim);
          Nodes = new GridFunction(fes);
-         Nodes->MakeOwner(fec); // Nodes will destroy 'fec' and 'fes'
+         Nodes->MakeOwner(); // Nodes will destroy 'fec' and 'fes'
          own_nodes = 1;
          Array<int> dofs;
 
@@ -1329,7 +1329,7 @@ void Mesh::ReadNURBSMesh(std::istream &input, int &curved, int &read_gf,
       FiniteElementSpace *fes = new FiniteElementSpace(this, fec, Dim,
                                                        Ordering::byVDIM);
       Nodes = new GridFunction(fes);
-      Nodes->MakeOwner(fec);
+      Nodes->MakeOwner();
       NURBSext->SetCoordsFromPatches(*Nodes);
       own_nodes = 1;
       read_gf = 0;
@@ -2522,7 +2522,7 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
             nfes = new FiniteElementSpace(this, nfec, spaceDim,
                                           Ordering::byVDIM);
             Nodes_gf.SetSpace(nfes);
-            Nodes_gf.MakeOwner(nfec);
+            Nodes_gf.MakeOwner();
 
             int o = 0;
             int el_order = 1;
@@ -4095,7 +4095,7 @@ static void FinalizeCubitSecondOrderMesh(Mesh &mesh,
    FiniteElementSpace *fes = new FiniteElementSpace(&mesh, fec, Dim,
                                                     Ordering::byVDIM);
    GridFunction *Nodes = new GridFunction(fes);
-   Nodes->MakeOwner(fec); // Nodes will destroy 'fec' and 'fes'
+   Nodes->MakeOwner(); // Nodes will destroy 'fec' and 'fes'
    mesh.SetNodalGridFunction(Nodes, true);
 
    for (int block_id : unique_block_ids)

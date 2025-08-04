@@ -31,16 +31,15 @@ namespace mfem
 class GridFunction : public Vector
 {
 protected:
-   /// FE space on which the grid function lives. Owned if #fec_owned is not NULL.
-   FiniteElementSpace *fes;
+   /// FE space on which the grid function lives.
+   FiniteElementSpace *fes = nullptr;
 
    /** @brief Used when the grid function is read from a file. It can also be
-       set explicitly, see MakeOwner().
+       set explicitly, see MakeOwner(). */
+   std::shared_ptr<FiniteElementCollection> fec;
+   std::shared_ptr<FiniteElementSpace> owned_fes;
 
-       If not NULL, this pointer is owned by the GridFunction. */
-   FiniteElementCollection *fec_owned;
-
-   long fes_sequence; // see FiniteElementSpace::sequence, Mesh::sequence
+   long fes_sequence = 0; // see FiniteElementSpace::sequence, Mesh::sequence
 
    /** Optional, internal true-dof vector: if the FiniteElementSpace #fes has a
        non-trivial (i.e. not NULL) prolongation operator, this Vector may hold
@@ -73,23 +72,20 @@ protected:
 
 public:
 
-   GridFunction() { fes = NULL; fec_owned = NULL; fes_sequence = 0; UseDevice(true); }
+   GridFunction() { UseDevice(true); }
 
    /// Copy constructor. The internal true-dof vector #t_vec is not copied.
    GridFunction(const GridFunction &orig)
-      : Vector(orig), fes(orig.fes), fec_owned(NULL), fes_sequence(orig.fes_sequence)
+      : Vector(orig), fes(orig.fes), fec(orig.fec), owned_fes(orig.owned_fes),
+        fes_sequence(orig.fes_sequence)
    { UseDevice(true); }
 
-   GridFunction(GridFunction &&orig)
-      : Vector(std::move(orig)), fes(orig.fes), fec_owned(orig.fec_owned),
-        fes_sequence(orig.fes_sequence), t_vec(std::move(orig.t_vec))
-   {
-      orig.fec_owned = nullptr;
-   }
+   GridFunction(GridFunction &&orig) = default;
 
    /// Construct a GridFunction associated with the FiniteElementSpace @a *f.
-   GridFunction(FiniteElementSpace *f) : Vector(f->GetVSize())
-   { fes = f; fec_owned = NULL; fes_sequence = f->GetSequence(); UseDevice(true); }
+   GridFunction(FiniteElementSpace *f)
+      : Vector(f->GetVSize()), fes(f), fes_sequence(f->GetSequence())
+   { UseDevice(true); }
 
    /// Construct a GridFunction using previously allocated array @a data.
    /** The GridFunction does not assume ownership of @a data which is assumed to
@@ -98,14 +94,15 @@ public:
        array can be replaced later using the method SetData().
     */
    GridFunction(FiniteElementSpace *f, real_t *data)
-      : Vector(data, f->GetVSize())
-   { fes = f; fec_owned = NULL; fes_sequence = f->GetSequence(); UseDevice(true); }
+      : Vector(data, f->GetVSize()), fes(f), fes_sequence(f->GetSequence())
+   { UseDevice(true); }
 
    /** @brief Construct a GridFunction using previously allocated Vector @a base
        starting at the given offset, @a base_offset. */
    GridFunction(FiniteElementSpace *f, Vector &base, int base_offset = 0)
-      : Vector(base, base_offset, f->GetVSize())
-   { fes = f; fec_owned = NULL; fes_sequence = f->GetSequence(); UseDevice(true); }
+      : Vector(base, base_offset, f->GetVSize()), fes(f),
+        fes_sequence(f->GetSequence())
+   { UseDevice(true); }
 
    /// Construct a GridFunction on the given Mesh, using the data from @a input.
    /** The content of @a input should be in the format created by the method
@@ -115,23 +112,25 @@ public:
 
    GridFunction(Mesh *m, GridFunction *gf_array[], int num_pieces);
 
-   /// Copy assignment. Only the data of the base class Vector is copied.
-   /** It is assumed that this object and @a rhs use FiniteElementSpace%s that
-       have the same size.
+   /// Copy assignment. Temporary data is not copied.
+   GridFunction &operator=(const GridFunction &rhs);
 
-       @note Defining this method overwrites the implicitly defined copy
-       assignment operator. */
-   GridFunction &operator=(const GridFunction &rhs)
-   { return operator=((const Vector &)rhs); }
+   GridFunction &operator=(GridFunction &&gf) = default;
 
-   GridFunction &operator=(GridFunction &&gf);
+   /// Make the GridFunction a shared owner of #fec and #fes.
+   void MakeOwner();
+   [[deprecated("Use MakeOwner() instead")]]
+   void MakeOwner(FiniteElementCollection* fec_);
+   /// Gets a shared ownership of #owned_fes and #fec if this GridFunction has
+   /// shared ownership.
+   void ShareOwner(std::shared_ptr<FiniteElementSpace> &fes_,
+                   std::shared_ptr<FiniteElementCollection> &fec_)
+   {
+      fes_ = owned_fes;
+      fec_ = fec_;
+   }
 
-   /// Make the GridFunction the owner of #fec_owned and #fes.
-   /** If the new FiniteElementCollection, @a fec_, is NULL, ownership of #fec_owned
-       and #fes is taken away. */
-   void MakeOwner(FiniteElementCollection *fec_) { fec_owned = fec_; }
-
-   FiniteElementCollection *OwnFEC() { return fec_owned; }
+   FiniteElementCollection* OwnFEC() { return fec.get(); }
 
    /// Shortcut for calling FiniteElementSpace::GetVectorDim() on the underlying #fes
    int VectorDim() const;

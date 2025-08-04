@@ -112,15 +112,7 @@ public:
        constructed. The new ParGridFunction assumes ownership of both. */
    ParGridFunction(ParMesh *pmesh, std::istream &input);
 
-   /// Copy assignment. Only the data of the base class Vector is copied.
-   /** It is assumed that this object and @a rhs use ParFiniteElementSpace%s
-       that have the same size.
-
-       @note Defining this method overwrites the implicitly defined copy
-       assignment operator. */
-   ParGridFunction &operator=(const ParGridFunction &rhs)
-   { return operator=((const Vector &)rhs); }
-
+   ParGridFunction &operator=(const ParGridFunction &rhs);
    ParGridFunction &operator=(ParGridFunction &&orig) = default;
 
    /// Assign constant values to the ParGridFunction data.

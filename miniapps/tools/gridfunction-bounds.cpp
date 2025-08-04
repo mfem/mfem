@@ -128,7 +128,7 @@ int main (int argc, char *argv[])
       ParFiniteElementSpace *fes = new ParFiniteElementSpace(&pmesh, fec,
                                                              vdim, ordering);
       pfunc_proj = new ParGridFunction(fes);
-      pfunc_proj->MakeOwner(fec);
+      pfunc_proj->MakeOwner();
       pfunc_proj->ProjectGridFunction(pfunc);
       if (Mpi::Root())
       {

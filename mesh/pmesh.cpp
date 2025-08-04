@@ -86,7 +86,7 @@ ParMesh::ParMesh(const ParMesh &pmesh, bool copy_nodes)
       ParFiniteElementSpace *pfes_copy =
          new ParFiniteElementSpace(*fes, *this, fec_copy);
       Nodes = new ParGridFunction(pfes_copy);
-      Nodes->MakeOwner(fec_copy);
+      Nodes->MakeOwner();
       *Nodes = *pmesh.Nodes;
       own_nodes = 1;
    }
@@ -286,7 +286,7 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, const int *partitioning_,
             new ParFiniteElementSpace(this, nfec, glob_fes->GetVDim(),
                                       glob_fes->GetOrdering());
          Nodes = new ParGridFunction(pfes);
-         Nodes->MakeOwner(nfec); // Nodes will own nfec and pfes
+         Nodes->MakeOwner(); // Nodes will own nfec and pfes
       }
       own_nodes = 1;
 
@@ -2026,7 +2026,7 @@ void ParMesh::SetCurvature(int order, bool discont, int space_dim, int ordering)
    auto pnodes = new ParGridFunction(nfes);
    GetNodes(*pnodes);
    NewNodes(*pnodes, true);
-   Nodes->MakeOwner(nfec);
+   Nodes->MakeOwner();
 }
 
 void ParMesh::SetNodalFESpace(FiniteElementSpace *nfes)
@@ -2061,9 +2061,7 @@ void ParMesh::EnsureParNodes()
       *new_nodes = *Nodes;
       if (Nodes->OwnFEC())
       {
-         new_nodes->MakeOwner(Nodes->OwnFEC());
-         Nodes->MakeOwner(NULL); // takes away ownership of 'fec' and 'fes'
-         delete Nodes->FESpace();
+         new_nodes->MakeOwner();
       }
       delete Nodes;
       Nodes = new_nodes;
@@ -5491,7 +5489,7 @@ Mesh ParMesh::GetSerialMesh(int save_rank) const
                                               spaceDim,
                                               GetNodalFESpace()->GetOrdering());
       serialmesh.SetNodalFESpace(fespace_serial);
-      serialmesh.GetNodes()->MakeOwner(fec_serial);
+      serialmesh.GetNodes()->MakeOwner();
       // The serial mesh owns its Nodes and they, in turn, own fec_serial and
       // fespace_serial.
    }
