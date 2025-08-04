@@ -21,6 +21,41 @@
 #define dbg(...)
 #endif
 
+using mfem::future::dual;
+using mfem::future::tuple;
+using mfem::future::tensor;
+
+using mfem::future::Weight;
+using mfem::future::Gradient;
+
+using dscalar_t = dual<real_t, real_t>;
+using dscalar_t = dual<real_t, real_t>;
+
+template <int DIM> struct QFunction
+{
+   using matd_t = tensor<real_t, DIM, DIM>;
+
+   struct Elasticity
+   {
+      MFEM_HOST_DEVICE inline auto operator()(const matd_t &dudxi,
+                                              const matd_t &J,
+                                              const real_t &w) const
+      {
+         constexpr real_t E(1.0), ν(0.2);
+         constexpr auto I = mfem::future::IsotropicIdentity<DIM>();
+
+         constexpr auto λ = [&]() { return E * ν / (1.0 + ν) / (1.0 - 2.0 * ν); };
+         constexpr auto μ = [&]() { return E / (2.0 * (1.0 + ν)); };
+
+         constexpr auto lambda = λ(), mu = μ();
+         const auto eps = mfem::future::sym(dudxi * mfem::future::inv(J));
+         const matd_t JxW = transpose(inv(J)) * det(J) * w;
+
+         return tuple{(lambda * tr(eps) * I + 2.0 * mu * eps) * JxW};
+      }
+   };
+};
+
 using namespace mfem;
 
 IsoLinElasticSolver::IsoLinElasticSolver(ParMesh *mesh, int vorder, bool pa):
@@ -48,7 +83,13 @@ IsoLinElasticSolver::IsoLinElasticSolver(ParMesh *mesh, int vorder, bool pa):
    lambda(nullptr),
    mu(nullptr),
    bf(nullptr),
-   lf(nullptr)
+   fe(vfes->GetFE(0)),
+   nodes(static_cast<ParGridFunction *>(pmesh->GetNodes())),
+   mfes(nodes->ParFESpace()),
+   ir(IntRules.Get(fe->GetGeomType(),
+                   fe->GetOrder() + fe->GetOrder() + fe->GetDim() - 1)),
+   dop({{ U, vfes }}, { { Coords, mfes }}, *pmesh),
+lf(nullptr)
 {
    dbg("sol size:{}", sol.Size());
    sol = 0.0;
@@ -65,6 +106,20 @@ IsoLinElasticSolver::IsoLinElasticSolver(ParMesh *mesh, int vorder, bool pa):
 
    lcsurf_load = std::make_unique<SurfaceLoad>(dim, load_coeff);
    glsurf_load = std::make_unique<SurfaceLoad>(dim, surf_loads);
+
+   dop.SetParameters({ nodes });
+
+   if (pmesh->attributes.Size() > 0)
+   {
+      domain_attributes.SetSize(pmesh->attributes.Max());
+      domain_attributes = 1;
+   }
+
+   typename QFunction<2>::Elasticity e2qf;
+   dop.AddDomainIntegrator(e2qf,
+                           mfem::future::tuple{ Gradient<U>{}, Gradient<Coords>{}, Weight{} },
+                           mfem::future::tuple{ Gradient<U>{} },
+                           ir, domain_attributes);
 }
 
 IsoLinElasticSolver::~IsoLinElasticSolver()

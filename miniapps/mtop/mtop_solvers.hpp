@@ -285,6 +285,14 @@ private:
    std::unique_ptr<mfem::OperatorHandle> Kh;
    std::unique_ptr<mfem::HypreParMatrix> K, Ke;
 
+   static constexpr int U = 0, Coords = 1;
+   const mfem::FiniteElement *fe;
+   mfem::ParGridFunction *nodes;
+   mfem::ParFiniteElementSpace *mfes;
+   mfem::Array<int> domain_attributes;
+   const mfem::IntegrationRule &ir;
+   mfem::future::DifferentiableOperator dop;
+
    mfem::ParLinearForm *lf;
 
    class SurfaceLoad: public mfem::VectorCoefficient
