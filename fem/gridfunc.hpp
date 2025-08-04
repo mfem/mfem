@@ -127,7 +127,7 @@ public:
                    std::shared_ptr<FiniteElementCollection> &fec_)
    {
       fes_ = owned_fes;
-      fec_ = fec_;
+      fec_ = fec;
    }
 
    FiniteElementCollection* OwnFEC() { return fec.get(); }
