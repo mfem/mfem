@@ -197,6 +197,7 @@ void DiffusionIntegrator::AddMultPatchPA3D(const Vector &pa_data,
 
    // Accumulators; these are shared between grad_u interpolation and grad_v_T
    // application, so their size is the max of qpts/dofs
+   std::max(Q1D[0], D1D[0]);
    Vector sumXYv(3*acc[0]*acc[1]);
    Vector sumXv(3*acc[0]);
    auto sumXY = Reshape(sumXYv.HostReadWrite(), 3, acc[0], acc[1]);

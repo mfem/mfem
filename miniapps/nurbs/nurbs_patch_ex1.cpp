@@ -88,8 +88,14 @@ int main(int argc, char *argv[])
    args.PrintOptions(cout);
 
    MFEM_VERIFY(!(pa && !patchAssembly), "Patch assembly must be used with -pa");
-   MFEM_VERIFY(!(ir_order!=-1 && spline_integration_type != 2),
-               "Use -int 2 to set a fixed order integration");
+   MFEM_VERIFY(!(ir_order < 0 && spline_integration_type == 2),
+               "Set ir_order > 0 for fixed order integration");
+   if (ir_order > 0 && spline_integration_type != 2)
+   {
+      cout << "Warning: Setting spline_integration_type"
+           << "to 2 (fixed) since ir_order > 0." << endl;
+      spline_integration_type = 2;
+   }
 
    // 2. Enable hardware devices such as GPUs, and programming models such as
    //    CUDA, OCCA, RAJA and OpenMP based on command line options.

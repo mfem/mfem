@@ -233,31 +233,31 @@ void ElasticityIntegrator::AddMultPatchPA3D(const Vector &pa_data,
    const int NQ = pb.NQ;
    MFEM_VERIFY((pb.dim == 3) && (vdim == 3), "Dimension mismatch.");
 
-   // grad(i,j,q): derivative of u_i w.r.t. j evaluated at q=(qx,qy,qz)
-   Vector grad_uhatv(vdim*vdim*NQ);
-   grad_uhatv = 0.0;
-   auto grad_uhat = Reshape(grad_uhatv.HostReadWrite(), vdim, vdim, Q1D[0], Q1D[1],
-                            Q1D[2]);
+   // gradu(i,j,q): d/d(x_j) u_i(x_q)
+   Vector graduv(vdim*vdim*NQ);
+   graduv = 0.0;
+   auto gradu = Reshape(graduv.HostReadWrite(), vdim, vdim, Q1D[0], Q1D[1],
+                        Q1D[2]);
 
-   // S[i,j,q] = D( grad_u )
+   // S[i,j,q] = D( gradu )
    //          = stress[i,j,q] * J^{-T}[q]
    Vector Sv(vdim*vdim*NQ);
    Sv = 0.0;
    auto S = Reshape(Sv.HostReadWrite(), vdim, vdim, Q1D[0], Q1D[1], Q1D[2]);
 
-   // Accumulators; these are shared between grad_u interpolation and grad_v_T
+   // Accumulators; these are shared between gradu interpolation and gradv_T
    // application, so their size is the max of qpts/dofs
    Vector sumXYv(vdim*vdim*pb.accsize[0]*pb.accsize[1]);
    Vector sumXv(vdim*vdim*pb.accsize[0]);
 
-   // 1) Interpolate U at dofs to grad_u in reference quadrature space
-   PatchInterpolateGradient3D(pb, x, sumXYv, sumXv, grad_uhat);
+   // 1) Interpolate U at dofs to gradu in reference quadrature space
+   PatchG3D(pb, x, sumXYv, sumXv, gradu);
 
-   // 2) Apply the "D" operator at each quadrature point: D( grad_uhat )
-   PatchApplyKernel3D(pb, pa_data, grad_uhat, S);
+   // 2) Apply the "D" operator at each quadrature point: D( gradu )
+   PatchApplyKernel3D(pb, pa_data, gradu, S);
 
-   // 3) Apply test function grad_v
-   PatchApplyTestFunction3D(pb, S, sumXYv, sumXv, y);
+   // 3) Apply test function gradv
+   PatchGT3D(pb, S, sumXYv, sumXv, y);
 
 }
 
@@ -309,12 +309,6 @@ void ElasticityIntegrator::AssembleDiagonalPatchPA(const Vector &pa_data,
 
    const auto qd = Reshape(pa_data.HostRead(), NQ, 11);
    static constexpr int dim = 3;
-
-   // grad(i,j,q): derivative of u_i w.r.t. j evaluated at q=(qx,qy,qz)
-   Vector grad_uhatv(vdim*vdim*NQ);
-   grad_uhatv = 0.0;
-   auto grad_uhat = Reshape(grad_uhatv.HostReadWrite(), vdim, vdim, Q1D[0], Q1D[1],
-                            Q1D[2]);
 
    auto Y = Reshape(diag.HostReadWrite(), D1D[0], D1D[1], D1D[2], vdim);
 

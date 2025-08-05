@@ -1,8 +1,4 @@
-#include "../fem.hpp"
-#include "../../mesh/nurbs.hpp"
-
-#include "../../linalg/dtensor.hpp"  // For Reshape
-#include "../../general/forall.hpp"
+#include "../../linalg/dtensor.hpp"
 #include "fem/integrator.hpp"
 #include "linalg/dtensor.hpp"
 #include "linalg/tensor.hpp"
@@ -13,43 +9,13 @@ namespace mfem
 {
 
 /**
- * 1) Compute grad_uhat (reference space) interpolated at quadrature points
- *
- * B_{nq} U_n = \sum_n u_n \tilde{\nabla} \tilde{\phi}_n (\tilde{x}_q)
- *
- * Variables:
- * - c  = component
- * - d  = derivative
- * - dx, dy, dz = degrees of freedom (DOF) indices
- * - qx, qy, qz = quadrature indices
- *
- * Tensor product shape functions:
- * phi[dx,dy,dz](qx,qy,qz) = phix[dx](qx) * phiy[dy](qy) * phiz[dz](qz)
- *
- * Gradient of shape functions:
- * grad_phi[dx,dy,dz](qx,qy,qz) = [
- *    dphix[dx](qx) * phiy[dy](qy)  * phiz[dz](qz),
- *    phix[dx](qx)  * dphiy[dy](qy) * phiz[dz](qz),
- *    phix[dx](qx)  * phiy[dy](qy)  * dphiz[dz](qz)
- * ]
- *
- * Computation of grad_uhat[c,0] (sum factorization):
- * grad_uhat[c,0](qx,qy,qz)
- *    = \sum_{dx,dy,dz} U[c][dx,dy,dz] * grad_phi[dx,dy,dz][0](qx,qy,qz)
- *    = \sum_{dx,dy,dz} U[c][dx,dy,dz] * dphix[dx](qx) * phiy[dy](qy) * phiz[dz](qz)
- *    = \sum_{dz} phiz[dz](qz)
- *       \sum_{dy} phiy[dy](qy)
- *          \sum_{dx} U[c][dx,dy,dz] * dphix[dx](qx)
- *
- * Because a nurbs patch is "sparse" compared to an element in terms of shape
- * function support - we can further optimize the computation by restricting
- * interpolation to only the qudrature points supported in each dimension.
+ * Compute gradient at quadrature points
  */
-void PatchInterpolateGradient3D(const PatchBasisInfo &pb,
-                              const Vector &Uv,
-                              Vector &sumXYv,
-                              Vector &sumXv,
-                              DeviceTensor<5, real_t> &grad_uhat)
+void PatchG3D(const PatchBasisInfo &pb,
+              const Vector &Uv,
+              Vector &sumXYv,
+              Vector &sumXv,
+              DeviceTensor<5, real_t> &gradu)
 {
    // Unpack
    static constexpr int vdim = 3;
@@ -120,9 +86,9 @@ void PatchInterpolateGradient3D(const PatchBasisInfo &pb,
             {
                for (int qx = 0; qx < Q1D[0]; ++qx)
                {
-                  grad_uhat(c,0,qx,qy,qz) += sumXY(c,0,qx,qy) * wz;
-                  grad_uhat(c,1,qx,qy,qz) += sumXY(c,1,qx,qy) * wz;
-                  grad_uhat(c,2,qx,qy,qz) += sumXY(c,2,qx,qy) * wDz;
+                  gradu(c,0,qx,qy,qz) += sumXY(c,0,qx,qy) * wz;
+                  gradu(c,1,qx,qy,qz) += sumXY(c,1,qx,qy) * wz;
+                  gradu(c,2,qx,qy,qz) += sumXY(c,2,qx,qy) * wDz;
                }
             } // qy
          } // c
@@ -131,45 +97,13 @@ void PatchInterpolateGradient3D(const PatchBasisInfo &pb,
 }
 
 /**
- * 3) Contraction with grad_v (quads -> dofs)
- *
- * S[ij] = [
- *    s00, s01, s02,
- *    s10, s11, s12,
- *    s20, s21, s22,
- * ]
- * grad_v[ij] = e[i] * grad_phi[j]
- *             = e[i] * [ dX*Y*Z, X*dY*Z, X*Y*dZ ]
- *
- * Y[i] = S[ij] * grad_phi[j] = [
- *    s00*dX*Y*Z + s01*X*dY*Z + s02*X*Y*dZ,
- *    s10*dX*Y*Z + s11*X*dY*Z + s12*X*Y*dZ,
- *    s20*dX*Y*Z + s21*X*dY*Z + s22*X*Y*dZ,
- * ]
- *
- * sX = [
- *    s00*dX, s01*X, s02*X,
- *    s10*dX, s11*X, s12*X,
- *    s20*dX, s21*X, s22*X,
- * ]
- *
- * sXY = [
- *    (s00*dX) * Y + (s01*X) * dY, (s02*X) * Y,
- *    (s10*dX) * Y + (s11*X) * dY, (s12*X) * Y,
- *    (s20*dX) * Y + (s21*X) * dY, (s22*X) * Y,
- * ]
- *
- * Y[i] = [
- *    ((s00*dX) * Y + (s01*X) * dY) * Z + ((s02*X) * Y) * dZ,
- *    ((s10*dX) * Y + (s11*X) * dY) * Z + ((s12*X) * Y) * dZ,
- *    ((s20*dX) * Y + (s21*X) * dY) * Z + ((s22*X) * Y) * dZ,
- * ]
+ * Contraction with grad_v^T
  */
-void PatchApplyTestFunction3D(const PatchBasisInfo &pb,
-                              DeviceTensor<5, real_t> &S,
-                              Vector &sumXYv,
-                              Vector &sumXv,
-                              Vector &y)
+void PatchGT3D(const PatchBasisInfo &pb,
+               DeviceTensor<5, real_t> &S,
+               Vector &sumXYv,
+               Vector &sumXv,
+               Vector &y)
 {
    // Unpack patch basis info
    static constexpr int vdim = 3;
