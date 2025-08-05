@@ -854,6 +854,358 @@ void DarcyForm::ReconstructTotalFlux(const BlockVector &sol,
    }
 }
 
+void DarcyForm::ReconstructFluxAndPot(const BlockVector &sol,
+                                      const GridFunction &ut, GridFunction &u,
+                                      GridFunction &p, GridFunction &tr) const
+{
+   if (!hybridization) { return; }
+
+   // flux space
+   if (!u.FESpace())
+   {
+      const FiniteElementCollection *u_coll = fes_u->FEColl();
+      int us_order = u_coll->GetOrder() + 1;
+      if (dynamic_cast<const RT_FECollection*>(u_coll)
+          || dynamic_cast<const BrokenRT_FECollection*>(u_coll)) { us_order--; }
+      const int vdim = fes_u->GetVDim();
+      FiniteElementCollection *us_coll = u_coll->Clone(us_order);
+      FiniteElementSpace *us_space = new FiniteElementSpace(fes_u->GetMesh(), us_coll,
+                                                            vdim);
+
+      u.SetSpace(us_space);
+      u.MakeOwner(us_coll);
+   }
+
+   // potential space
+   if (!p.FESpace())
+   {
+      const FiniteElementCollection *p_coll = fes_p->FEColl();
+      const int ps_order = p_coll->GetOrder() + 1;
+      FiniteElementCollection *ps_coll = p_coll->Clone(ps_order);
+      FiniteElementSpace *ps_space = new FiniteElementSpace(fes_p->GetMesh(),
+                                                            ps_coll);
+
+      p.SetSpace(ps_space);
+      p.MakeOwner(ps_coll);
+   }
+
+   // trace space
+   if (!tr.FESpace())
+   {
+      const FiniteElementCollection *tr_coll =
+         hybridization->ConstraintFESpace()->FEColl();
+      int trs_order = tr_coll->GetOrder() + 1;
+      if (dynamic_cast<const RT_FECollection*>(tr_coll)) { trs_order--; }
+      FiniteElementCollection *trs_coll = tr_coll->Clone(trs_order);
+      FiniteElementSpace *trs_space = new FiniteElementSpace(fes_u->GetMesh(),
+                                                             trs_coll);
+
+      tr.SetSpace(trs_space);
+      tr.MakeOwner(trs_coll);
+   }
+
+   // define reconstructed DarcyForm
+   if (!reconstruction || reconstruction->FluxFESpace() != u.FESpace() ||
+       reconstruction->PotentialFESpace() != p.FESpace())
+   {
+      reconstruction.reset(new DarcyForm(u.FESpace(), p.FESpace()));
+
+      BilinearForm *Mu_s = reconstruction->GetFluxMassForm();
+      auto Mu_dbfi = *M_u->GetDBFI();
+      for (BilinearFormIntegrator *bfi : Mu_dbfi)
+      {
+         Mu_s->AddDomainIntegrator(bfi);
+      }
+      Mu_s->UseExternalIntegrators();
+
+      MixedBilinearForm *B_s = reconstruction->GetFluxDivForm();
+      auto B_dbfi = *B->GetDBFI();
+      for (BilinearFormIntegrator *bfi : B_dbfi)
+      {
+         B_s->AddDomainIntegrator(bfi);
+      }
+      B_s->UseExternalIntegrators();
+
+      if (M_p)
+      {
+         BilinearForm *Mp_s = reconstruction->GetPotentialMassForm();
+         auto Mp_dbfi = *M_p->GetDBFI();
+         for (BilinearFormIntegrator *bfi : Mp_dbfi)
+         {
+            Mp_s->AddDomainIntegrator(bfi);
+         }
+
+         auto Mt_fbfi = *M_p->GetFBFI();
+         for (BilinearFormIntegrator *fbfi : Mt_fbfi)
+         {
+            Mp_s->AddInteriorFaceIntegrator(fbfi);
+         }
+
+         Mp_s->UseExternalIntegrators();
+      }
+   }
+
+   GridFunction pc(const_cast<FiniteElementSpace*>(fes_p),
+                   const_cast<Vector&>(sol.GetBlock(1)), 0);
+
+   reconstruction->ReconstructFluxAndPot(*hybridization, pc, ut, u, p, tr);
+}
+
+void DarcyForm::ReconstructFluxAndPot(const DarcyHybridization &h,
+                                      const GridFunction &pc,
+                                      const GridFunction &ut, GridFunction &u,
+                                      GridFunction &p, GridFunction &tr) const
+{
+   BilinearFormIntegrator *c_bfi = h.GetFluxConstraintIntegrator();
+   BilinearFormIntegrator *c_bfi_p = h.GetPotConstraintIntegrator();
+   FiniteElementSpace *fes_tr = tr.FESpace();
+   const FiniteElementSpace *fes_pc = pc.FESpace();
+   const FiniteElementSpace *fes_ut = ut.FESpace();
+   Mesh *mesh = fes_u->GetMesh();
+   const int dim = mesh->Dimension();
+
+   DenseMatrix elmat, Mu_z, Mp_z, B_z, Ct_f, Ct_fz, DEGH_f, D_fz, E_fz, G_fz, H_f;
+   DenseMatrixInverse inv;
+   Vector rhs, rhs_p, shape_p, shape_pc;
+   Vector shape_ut, shape_tr, ut_f, rhs_f;
+   Array<int> faces, oris, vdofs_ut;
+
+   DivergenceGridFunctionCoefficient bp_coeff(&ut);
+   DomainLFIntegrator bp(bp_coeff);
+
+   Vector sol, sol_u, sol_p, sol_pc, sol_tr_f, elmat_e, rhs_e, mass_p;
+   Array<int> vdofs_u, dofs_p, dofs_pc, vdofs_tr;
+
+   u = 0.;
+   p = 0.;
+   tr = 0.;
+
+   for (int z = 0; z < mesh->GetNE(); z++)
+   {
+      fes_u->GetElementVDofs(z, vdofs_u);
+      fes_p->GetElementDofs(z, dofs_p);
+      const int ndof_u = vdofs_u.Size();
+      const int ndof_p = dofs_p.Size();
+
+      switch (dim)
+      {
+         case 1:
+            mesh->GetElementVertices(z, faces);
+            break;
+         case 2:
+            mesh->GetElementEdges(z, faces, oris);
+            break;
+         case 3:
+            mesh->GetElementFaces(z, faces, oris);
+            break;
+      }
+
+      int ndof_tr = 0;
+      for (int f : faces)
+      {
+         ndof_tr += fes_tr->GetFaceElement(f)->GetDof();
+      }
+
+      const int width = ndof_u + ndof_p + ndof_tr;
+#if 1
+      const int height = width;
+#else
+      const int height = width + 1;
+#endif
+      elmat.SetSize(height, width);
+      elmat = 0.;
+
+      rhs.SetSize(height);
+      rhs = 0.;
+
+      M_u->ComputeElementMatrix(z, Mu_z);
+      elmat.CopyMN(Mu_z, 0, 0);
+
+      B->ComputeElementMatrix(z, B_z);
+      elmat.CopyMN(B_z, ndof_u, 0);
+      B_z.Neg();
+      elmat.CopyMNt(B_z, 0, ndof_u);
+
+      if (M_p)
+      {
+         M_p->ComputeElementMatrix(z, Mp_z);
+         elmat.CopyMN(Mp_z, ndof_u, ndof_u);
+      }
+
+      // rhs
+
+      rhs_p.MakeRef(rhs, ndof_u, ndof_p);
+      const FiniteElement *fe_p = fes_p->GetFE(z);
+      ElementTransformation *Tr = mesh->GetElementTransformation(z);
+      bp.AssembleRHSElementVect(*fe_p, *Tr, rhs_p);
+
+      // face terms
+
+      int off_tr = ndof_u + ndof_p;
+      for (int f : faces)
+      {
+         const FiniteElement *fe_tr = fes_tr->GetFaceElement(f);
+         const int ndof_tr_f = fe_tr->GetDof();
+         FaceElementTransformations *Tr = mesh->GetFaceElementTransformations(f);
+
+         // flux constraint
+         const FiniteElement *fe_u1 = fes_u->GetFE(Tr->Elem1No);
+         const FiniteElement *fe_u2 = (Tr->Elem2No >= 0)?(fes_u->GetFE(Tr->Elem2No)):
+                                      (fe_u1);
+
+         c_bfi->AssembleFaceMatrix(*fe_tr, *fe_u1, *fe_u2, *Tr, Ct_f);
+
+         const int off_u = (Tr->Elem1No == z)?(0):(fe_u1->GetDof() * fes_u->GetVDim());
+         Ct_fz.CopyMN(Ct_f, ndof_u, ndof_tr_f, off_u, 0);
+
+         elmat.CopyMN(Ct_fz, 0, off_tr);
+         elmat.CopyMNt(Ct_fz, off_tr, 0);
+
+         //potential constraint
+         if (c_bfi_p)
+         {
+            const FiniteElement *fe_p1 = fes_p->GetFE(Tr->Elem1No);
+            const FiniteElement *fe_p2 = (Tr->Elem2No >= 0)?(fes_p->GetFE(Tr->Elem2No)):
+                                         (fe_p1);
+
+            const int ndof_p1 = fe_p1->GetDof();
+            const int ndof_p2 = fe_p2->GetDof();
+            const int ndof_p12 = (Tr->Elem2No >= 0)?(ndof_p1 + ndof_p2):(ndof_p);
+
+            c_bfi_p->AssembleHDGFaceMatrix(*fe_tr, *fe_p1, *fe_p2, *Tr, DEGH_f);
+
+            const int off_p = (Tr->Elem1No == z)?(0):(ndof_p1);
+            D_fz.CopyMN(DEGH_f, ndof_p, ndof_p, off_p, off_p);
+            E_fz.CopyMN(DEGH_f, ndof_p, ndof_tr_f, off_p, ndof_p12);
+            G_fz.CopyMN(DEGH_f, ndof_tr_f, ndof_p, ndof_p12, off_p);
+            H_f.CopyMN(DEGH_f, ndof_tr_f, ndof_tr_f, ndof_p12, ndof_p12);
+            if (Tr->Elem2No >= 0) { H_f *= 0.5; }
+
+            elmat.AddMatrix(D_fz, ndof_u, ndof_u);
+            elmat.CopyMN(E_fz, ndof_u, off_tr);
+            elmat.CopyMN(G_fz, off_tr, ndof_u);
+            elmat.CopyMN(H_f, off_tr, off_tr);
+         }
+
+         // rhs
+         const FiniteElement *fe_ut = fes_ut->GetFaceElement(f);
+         const int ndof_ut_f = fe_ut->GetDof();
+         int order = fe_ut->GetOrder() + fe_tr->GetOrder();
+         if (fe_tr->GetMapType() != FiniteElement::VALUE) { order += Tr->OrderW(); }
+         const IntegrationRule &ir = IntRules.Get(fe_ut->GetGeomType(), order);
+
+         shape_ut.SetSize(ndof_ut_f);
+         shape_tr.SetSize(ndof_tr_f);
+         rhs_f.MakeRef(rhs, off_tr, ndof_tr_f);
+         rhs_f = 0.;
+
+         fes_ut->GetFaceVDofs(f, vdofs_ut);
+         ut.GetSubVector(vdofs_ut, ut_f);
+
+         MFEM_ASSERT(fe_ut->GetMapType() == FiniteElement::INTEGRAL,
+                     "Non-integral face");
+
+         for (int q = 0; q < ir.GetNPoints(); q++)
+         {
+            const IntegrationPoint &ip = ir.IntPoint(q);
+            fe_ut->CalcShape(ip, shape_ut);
+            const real_t ut_q = shape_ut * ut_f;
+
+            fe_tr->CalcShape(ip, shape_tr);
+            real_t w = ip.weight * ut_q;
+            if (fe_tr->GetMapType() == FiniteElement::INTEGRAL)
+            {
+               Tr->SetIntPoint(&ip);
+               w /= Tr->Weight();
+            }
+
+            rhs_f.Add(w, shape_tr);
+         }
+
+         if (Tr->Elem1No != z) { rhs_f.Neg(); }
+
+         off_tr += ndof_tr_f;
+      }
+
+      // adjust the element average of potential
+      const FiniteElement *fe_pc = fes_pc->GetFE(z);
+      const int order = fe_p->GetOrder() + Tr->OrderW();
+      const IntegrationRule &ir = IntRules.Get(fe_p->GetGeomType(), order);
+      Tr = mesh->GetElementTransformation(z);//just to be sure
+      shape_p.SetSize(ndof_p);
+      shape_pc.SetSize(fe_pc->GetDof());
+      fes_pc->GetElementDofs(z, dofs_pc);
+      pc.GetSubVector(dofs_pc, sol_pc);
+
+      real_t sum = 0.;
+      mass_p.SetSize(ndof_p);
+      mass_p = 0.;
+      for (int q = 0; q < ir.GetNPoints(); q++)
+      {
+         const IntegrationPoint &ip = ir.IntPoint(q);
+         Tr->SetIntPoint(&ip);
+         fe_pc->CalcShape(ip, shape_pc);
+         const real_t val = shape_pc * sol_pc;
+         const real_t w = ip.weight * Tr->Weight();
+         sum += val * w;
+
+         fe_p->CalcShape(ip, shape_p);
+         mass_p.Add(w, shape_p);
+      }
+
+#if 1
+      // replace a potential equation by the average
+      constexpr int i_p = 0;
+      elmat.SetRow(ndof_u + i_p, 0.);
+      for (int i = 0; i < ndof_p; i++)
+      {
+         elmat(ndof_u + i_p, ndof_u + i) = mass_p(i);
+      }
+      rhs(ndof_u + i_p) = sum;
+
+      // LU decompose
+      inv.Factor(elmat);
+      sol.SetSize(rhs.Size());
+      inv.Mult(rhs, sol);
+#else
+      // add the average constraint
+      for (int j = 0; j < ndof_p; j++)
+      {
+         elmat(elmat.Height()-1, ndof_u + j) = mass_p(j);
+      }
+      rhs(rhs.Size()-1) = sum;
+
+      // construct SVD pseudoinverse
+      DenseMatrixSVD svd(elmat, 'S', 'S');
+      svd.Eval(elmat);
+      Vector rhs_ud(svd.Singularvalues().Size());
+      svd.LeftSingularvectors().MultTranspose(rhs, rhs_ud);
+      for (int i = 0; i < rhs_ud.Size(); i++)
+      {
+         rhs_ud(i) /= svd.Singularvalue(i);
+      }
+      sol.SetSize(rhs_ud.Size());
+      svd.RightSingularvectors().MultTranspose(rhs_ud, sol);
+#endif
+
+      // save the reconstructed flux and potential
+      sol_u.MakeRef(sol, 0, ndof_u);
+      u.SetSubVector(vdofs_u, sol_u);
+      sol_p.MakeRef(sol, ndof_u, ndof_p);
+      p.SetSubVector(dofs_p, sol_p);
+
+      // save the traces
+      off_tr = ndof_u + ndof_p;
+      for (int f : faces)
+      {
+         fes_tr->GetFaceVDofs(f, vdofs_tr);
+         sol_tr_f.MakeRef(sol, off_tr, vdofs_tr.Size());
+         tr.SetSubVector(vdofs_tr, sol_tr_f);
+         off_tr += vdofs_tr.Size();
+      }
+   }
+}
+
 void DarcyForm::EliminateVDofsInRHS(const Array<int> &vdofs_flux,
                                     const BlockVector &x, BlockVector &b)
 {
@@ -1018,6 +1370,7 @@ void DarcyForm::Update()
 
    if (reduction) { reduction->Reset(); }
    if (hybridization) { hybridization->Reset(); }
+   reconstruction.reset();
 }
 
 DarcyForm::~DarcyForm()

@@ -48,6 +48,8 @@ protected:
    std::unique_ptr<DarcyReduction> reduction;
    std::unique_ptr<DarcyHybridization> hybridization;
 
+   mutable std::unique_ptr<DarcyForm> reconstruction;
+
    friend class Gradient;
    class Gradient : public Operator
    {
@@ -71,6 +73,10 @@ protected:
    void AllocBlockOp();
    const Operator* ConstructBT(const MixedBilinearForm *B) const;
    const Operator* ConstructBT(const Operator *opB) const;
+
+   void ReconstructFluxAndPot(const DarcyHybridization &h, const GridFunction &pc,
+                              const GridFunction &ut, GridFunction &u, GridFunction &p,
+                              GridFunction &tr) const;
 
 public:
    DarcyForm(FiniteElementSpace *fes_u, FiniteElementSpace *fes_p,
@@ -251,10 +257,32 @@ public:
        assumed to have equal number of DOFs at faces as the trace variable.
        The definition of the total flux inside the elements is deduced from
        the potential integrators used. If no finite element space is assigned
-       to the grid function, Raviart-Thomas space is constructed. 
+       to the grid function, Raviart-Thomas space is constructed and owned by
+       the function.
    */
    void ReconstructTotalFlux(const BlockVector &sol, const Vector &sol_r,
                              GridFunction &ut) const;
+
+   /// Reconstruct the flux, potential and traces from solution and total flux
+   /** The reconstructed quantities are in finite element spaces of one order
+       higher than the original spaces. If no are assigned to the functions,
+       they are automatically constructed from the primary ones and owned by
+       the functions.
+    */
+   void ReconstructFluxAndPot(const BlockVector &sol, const GridFunction &ut,
+                              GridFunction &u, GridFunction &p, GridFunction &tr) const;
+
+   /// Reconstruct all quantities from hybridized solution
+   /** The reconstruction combines the reconstruction of the total flux through
+       ReconstructTotalFlux() and the primary quantities through
+       ReconstructFluxAndPot().
+    */
+   void Reconstruct(const BlockVector &sol, const Vector &sol_r, GridFunction &ut,
+                    GridFunction &u, GridFunction &p, GridFunction &tr) const
+   {
+      ReconstructTotalFlux(sol, sol_r, ut);
+      ReconstructFluxAndPot(sol, ut, u, p, tr);
+   }
 
    /** @brief Use the stored eliminated part of the matrix (see
        EliminateVDofs(const Array<int> &, DiagonalPolicy)) to modify the r.h.s.
