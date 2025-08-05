@@ -223,12 +223,6 @@ void NavierParticles::Apply2DReflectionBC(const Vector &line_start, const Vector
       X().GetParticleValues(i, p_xn);
       X(1).GetParticleValues(i, p_xnmi);
 
-      // Ensure particle x^n is outside the line (facing opposite the normal direction)
-      if (p_xn*normal > 0)
-      {
-         continue;
-      }
-
       // Compute the intersection
       real_t denom = (p_xnmi[0] - p_xn[0])*(line_start[1]-line_end[1]) - (p_xnmi[1] - p_xn[1])*(line_start[0]-line_end[0]);
 
