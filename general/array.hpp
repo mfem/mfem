@@ -422,6 +422,7 @@ public:
    Array2D(int m, int n) : array1d(m*n) { M = m; N = n; }
 
    Array2D(const Array2D &) = default;
+   Array2D(Array2D &&) = default;
 
    void SetSize(int m, int n) { array1d.SetSize(m*n); M = m; N = n; }
 
@@ -485,7 +486,11 @@ public:
    inline void operator=(const T &a)
    { array1d = a; }
 
-   inline Array2D& operator=(const Array2D &a) = default;
+   /// Copy assignment.
+   Array2D& operator=(const Array2D &) = default;
+
+   /// Move assignment.
+   Array2D& operator=(Array2D &&) = default;
 
    /// Make this Array a reference to 'master'
    inline void MakeRef(const Array2D &master)
