@@ -108,7 +108,7 @@ public:
    }
 
    /// Move constructor ("steals" data from 'src')
-   inline Array(Array<T> &&src) { Swap(src, *this); }
+   Array(Array<T> &&src) = default;
 
    /// Destructor
    inline ~Array() { data.Delete(); }
@@ -117,7 +117,7 @@ public:
    Array<T> &operator=(const Array<T> &src) { src.Copy(*this); return *this; }
 
    /// Move assignment operator
-   Array<T> &operator=(Array<T> &&src) { Swap(src, *this); return *this; }
+   Array<T> &operator=(Array<T> &&src) = default;
 
    /// Assignment operator (deep copy) from @a src, an Array of convertible type.
    template <typename CT>
