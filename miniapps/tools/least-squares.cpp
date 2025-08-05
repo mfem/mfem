@@ -217,8 +217,10 @@ void AsymmetricMassIntegrator::AsymmetricElementMatrix(const FiniteElement
    }
 }
 
+/// @name Auxiliary functions
+///@{
+
 /// @brief Dense small least squares solver
-/// @todo This grew a lot, might good to derive from Solver...
 void LSSolver(Solver& solver, const DenseMatrix& A, const Vector& b,
               Vector& x, real_t shift = 0.0)
 {
@@ -338,9 +340,6 @@ void CheckLSSolver(const DenseMatrix& A, const Vector& b, const Vector& x)
              << std::endl;
 }
 
-/// @name Auxiliary functions
-///@{
-
 /// @brief Get the L1-Jacobi row-subs for the @b normal matrix associated with @a A
 void GetNormalL1Diag(const DenseMatrix& A, Vector& l1_diag)
 {
@@ -458,6 +457,9 @@ void GetCommonIntegrationRule(const FiniteElementSpace& fes,
 }
 
 ///@}
+
+/// @name Reconstruction functions
+///@{
 
 /// @brief Local-averages-based reconstruction
 void AverageReconstruction(Solver& solver,
@@ -755,6 +757,8 @@ void FaceReconstruction(Solver& solver,
       face_dofs.DeleteAll();
    }
 }
+
+///@}
 
 } // end namespace mfem::reconstruction
 
