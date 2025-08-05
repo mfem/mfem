@@ -909,6 +909,7 @@ void DarcyForm::ReconstructFluxAndPot(const BlockVector &sol,
        reconstruction->PotentialFESpace() != p.FESpace())
    {
       reconstruction.reset(new DarcyForm(u.FESpace(), p.FESpace()));
+      M_p_src.reset();
 
       BilinearForm *Mu_s = reconstruction->GetFluxMassForm();
       auto Mu_dbfi = *M_u->GetDBFI();
@@ -933,6 +934,18 @@ void DarcyForm::ReconstructFluxAndPot(const BlockVector &sol,
          for (BilinearFormIntegrator *bfi : Mp_dbfi)
          {
             Mp_s->AddDomainIntegrator(bfi);
+
+            // use non-singular terms as a source
+            if (!dynamic_cast<ConvectionIntegrator*>(bfi)
+                && !dynamic_cast<NonconservativeConvectionIntegrator*>(bfi))
+            {
+               if (!M_p_src)
+               {
+                  M_p_src.reset(new MixedBilinearForm(fes_p, p.FESpace()));
+                  M_p_src->UseExternalIntegrators();
+               }
+               M_p_src->AddDomainIntegrator(bfi);
+            }
          }
 
          auto Mt_fbfi = *M_p->GetFBFI();
@@ -948,13 +961,15 @@ void DarcyForm::ReconstructFluxAndPot(const BlockVector &sol,
    GridFunction pc(const_cast<FiniteElementSpace*>(fes_p),
                    const_cast<Vector&>(sol.GetBlock(1)), 0);
 
-   reconstruction->ReconstructFluxAndPot(*hybridization, pc, ut, u, p, tr);
+   reconstruction->ReconstructFluxAndPot(*hybridization, pc, ut, u, p, tr,
+                                         M_p_src.get());
 }
 
 void DarcyForm::ReconstructFluxAndPot(const DarcyHybridization &h,
                                       const GridFunction &pc,
                                       const GridFunction &ut, GridFunction &u,
-                                      GridFunction &p, GridFunction &tr) const
+                                      GridFunction &p, GridFunction &tr,
+                                      MixedBilinearForm *Mp_src) const
 {
    BilinearFormIntegrator *c_bfi = h.GetFluxConstraintIntegrator();
    BilinearFormIntegrator *c_bfi_p = h.GetPotConstraintIntegrator();
@@ -964,7 +979,8 @@ void DarcyForm::ReconstructFluxAndPot(const DarcyHybridization &h,
    Mesh *mesh = fes_u->GetMesh();
    const int dim = mesh->Dimension();
 
-   DenseMatrix elmat, Mu_z, Mp_z, B_z, Ct_f, Ct_fz, DEGH_f, D_fz, E_fz, G_fz, H_f;
+   DenseMatrix elmat, Mu_z, Mp_z, B_z, Ct_f, Ct_fz, DEGH_f, D_fz, E_fz, G_fz, H_f,
+               Mp_src_z;
    DenseMatrixInverse inv;
    Vector rhs, rhs_p, shape_p, shape_pc;
    Vector shape_ut, shape_tr, ut_f, rhs_f;
@@ -1127,66 +1143,56 @@ void DarcyForm::ReconstructFluxAndPot(const DarcyHybridization &h,
          off_tr += ndof_tr_f;
       }
 
-      // adjust the element average of potential
-      const FiniteElement *fe_pc = fes_pc->GetFE(z);
-      const int order = fe_p->GetOrder() + Tr->OrderW();
-      const IntegrationRule &ir = IntRules.Get(fe_p->GetGeomType(), order);
-      Tr = mesh->GetElementTransformation(z);//just to be sure
-      shape_p.SetSize(ndof_p);
-      shape_pc.SetSize(fe_pc->GetDof());
+      // potential mass source (non-singular) / average fix (singular)
       fes_pc->GetElementDofs(z, dofs_pc);
       pc.GetSubVector(dofs_pc, sol_pc);
 
-      real_t sum = 0.;
-      mass_p.SetSize(ndof_p);
-      mass_p = 0.;
-      for (int q = 0; q < ir.GetNPoints(); q++)
+      if (Mp_src)
       {
-         const IntegrationPoint &ip = ir.IntPoint(q);
-         Tr->SetIntPoint(&ip);
-         fe_pc->CalcShape(ip, shape_pc);
-         const real_t val = shape_pc * sol_pc;
-         const real_t w = ip.weight * Tr->Weight();
-         sum += val * w;
-
-         fe_p->CalcShape(ip, shape_p);
-         mass_p.Add(w, shape_p);
+         // add the source part to rhs
+         Mp_src->ComputeElementMatrix(z, Mp_src_z);
+         Mp_src_z.AddMult(sol_pc, rhs_p);
       }
-
-#if 1
-      // replace a potential equation by the average
-      constexpr int i_p = 0;
-      elmat.SetRow(ndof_u + i_p, 0.);
-      for (int i = 0; i < ndof_p; i++)
+      else
       {
-         elmat(ndof_u + i_p, ndof_u + i) = mass_p(i);
+         // adjust the element average of potential
+         const FiniteElement *fe_pc = fes_pc->GetFE(z);
+         const int order = fe_p->GetOrder() + Tr->OrderW();
+         const IntegrationRule &ir = IntRules.Get(fe_p->GetGeomType(), order);
+         Tr = mesh->GetElementTransformation(z);//just to be sure
+         shape_p.SetSize(ndof_p);
+         shape_pc.SetSize(fe_pc->GetDof());
+
+         real_t sum = 0.;
+         mass_p.SetSize(ndof_p);
+         mass_p = 0.;
+         for (int q = 0; q < ir.GetNPoints(); q++)
+         {
+            const IntegrationPoint &ip = ir.IntPoint(q);
+            Tr->SetIntPoint(&ip);
+            fe_pc->CalcShape(ip, shape_pc);
+            const real_t val = shape_pc * sol_pc;
+            const real_t w = ip.weight * Tr->Weight();
+            sum += val * w;
+
+            fe_p->CalcShape(ip, shape_p);
+            mass_p.Add(w, shape_p);
+         }
+
+         // replace a potential equation by the average
+         constexpr int i_p = 0;
+         elmat.SetRow(ndof_u + i_p, 0.);
+         for (int i = 0; i < ndof_p; i++)
+         {
+            elmat(ndof_u + i_p, ndof_u + i) = mass_p(i);
+         }
+         rhs(ndof_u + i_p) = sum;
       }
-      rhs(ndof_u + i_p) = sum;
 
       // LU decompose
       inv.Factor(elmat);
       sol.SetSize(rhs.Size());
       inv.Mult(rhs, sol);
-#else
-      // add the average constraint
-      for (int j = 0; j < ndof_p; j++)
-      {
-         elmat(elmat.Height()-1, ndof_u + j) = mass_p(j);
-      }
-      rhs(rhs.Size()-1) = sum;
-
-      // construct SVD pseudoinverse
-      DenseMatrixSVD svd(elmat, 'S', 'S');
-      svd.Eval(elmat);
-      Vector rhs_ud(svd.Singularvalues().Size());
-      svd.LeftSingularvectors().MultTranspose(rhs, rhs_ud);
-      for (int i = 0; i < rhs_ud.Size(); i++)
-      {
-         rhs_ud(i) /= svd.Singularvalue(i);
-      }
-      sol.SetSize(rhs_ud.Size());
-      svd.RightSingularvectors().MultTranspose(rhs_ud, sol);
-#endif
 
       // save the reconstructed flux and potential
       sol_u.MakeRef(sol, 0, ndof_u);

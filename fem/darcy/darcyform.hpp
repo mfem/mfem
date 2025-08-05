@@ -49,6 +49,7 @@ protected:
    std::unique_ptr<DarcyHybridization> hybridization;
 
    mutable std::unique_ptr<DarcyForm> reconstruction;
+   mutable std::unique_ptr<MixedBilinearForm> M_p_src;
 
    friend class Gradient;
    class Gradient : public Operator
@@ -76,7 +77,7 @@ protected:
 
    void ReconstructFluxAndPot(const DarcyHybridization &h, const GridFunction &pc,
                               const GridFunction &ut, GridFunction &u, GridFunction &p,
-                              GridFunction &tr) const;
+                              GridFunction &tr, MixedBilinearForm *D = NULL) const;
 
 public:
    DarcyForm(FiniteElementSpace *fes_u, FiniteElementSpace *fes_p,
