@@ -137,13 +137,6 @@ void PatchGT3D(const PatchBasisInfo &pb,
                const real_t wx  = B[0](qx,dx);
                const real_t wDx = G[0](qx,dx);
 
-               /*
-               sumX = [
-                  s00*dX, s01*X, s02*X,
-                  s10*dX, s11*X, s12*X,
-                  s20*dX, s21*X, s22*X,
-               ]
-               */
                for (int c = 0; c < vdim; ++c)
                {
                   sumX(c,0,dx) += s(c,0) * wDx;
@@ -154,13 +147,6 @@ void PatchGT3D(const PatchBasisInfo &pb,
          }
          for (int dy = minQ[1][qy]; dy <= maxQ[1][qy]; ++dy)
          {
-            /*
-            sumXY = [
-               (s00*dX) * Y + (s01*X) * dY, (s02*X) * Y,
-               (s10*dX) * Y + (s11*X) * dY, (s12*X) * Y,
-               (s20*dX) * Y + (s21*X) * dY, (s22*X) * Y,
-            ]
-            */
             const real_t wy  = B[1](qy,dy);
             const real_t wDy = G[1](qy,dy);
             for (int dx = 0; dx < D1D[0]; ++dx)

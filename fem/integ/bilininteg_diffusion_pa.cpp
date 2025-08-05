@@ -15,6 +15,7 @@
 #include "../../mesh/nurbs.hpp"
 #include "../ceed/integrators/diffusion/diffusion.hpp"
 #include "bilininteg_diffusion_kernels.hpp"
+#include "bilininteg_patch.hpp"
 
 namespace mfem
 {
@@ -171,6 +172,10 @@ void DiffusionIntegrator::AddMultPatchPA3D(const Vector &pa_data,
                                            Vector &y) const
 {
    MFEM_VERIFY(3 == dim, "");
+   // This could easily be extended for higher vdim
+   static constexpr int vdim = 1;
+   static constexpr int dim = 3;
+   MFEM_VERIFY(pb.dim == 3, "");
 
    // Unpack patch basis info
    const Array<int>& Q1D = pb.Q1D;
@@ -188,65 +193,19 @@ void DiffusionIntegrator::AddMultPatchPA3D(const Vector &pa_data,
    const auto X = Reshape(x.HostRead(), D1D[0], D1D[1], D1D[2]);
    auto Y = Reshape(y.HostReadWrite(), D1D[0], D1D[1], D1D[2]);
 
-   Vector graduv(3*NQ);
+   Vector graduv(vdim*dim*NQ);
    graduv = 0.0;
-   auto gradu = Reshape(graduv.HostReadWrite(), 3, Q1D[0], Q1D[1], Q1D[2]);
+   auto gradu = Reshape(graduv.HostReadWrite(), vdim, dim, Q1D[0], Q1D[1], Q1D[2]);
 
    const auto qd = Reshape(pa_data.HostRead(), NQ, (symmetric ? 6 : 9));
 
-   std::max(Q1D[0], D1D[0]);
-   Vector sumXYv(3*Q1D[0]*Q1D[1]);
-   Vector sumXv(3*Q1D[0]);
-   auto sumXY = Reshape(sumXYv.HostReadWrite(), 3, Q1D[0], Q1D[1]);
-   auto sumX = Reshape(sumXv.HostReadWrite(), 3, Q1D[0]);
+   Vector sumXYv(vdim*dim*Q1D[0]*Q1D[1]);
+   Vector sumXv(dim*Q1D[0]);
+   auto sumXY = Reshape(sumXYv.HostReadWrite(), dim, Q1D[0], Q1D[1]);
+   auto sumX = Reshape(sumXv.HostReadWrite(), dim, Q1D[0]);
 
    // Interpolate gradu
-   for (int dz = 0; dz < D1D[2]; ++dz)
-   {
-      sumXYv = 0.0;
-      for (int dy = 0; dy < D1D[1]; ++dy)
-      {
-         sumXv = 0.0;
-         for (int dx = 0; dx < D1D[0]; ++dx)
-         {
-            const real_t u = X(dx,dy,dz);
-            for (int qx = minD[0][dx]; qx <= maxD[0][dx]; ++qx)
-            {
-               sumX(0,qx) += u * B[0](qx,dx);
-               sumX(1,qx) += u * G[0](qx,dx);
-            }
-         } // dx
-         for (int qy = minD[1][dy]; qy <= maxD[1][dy]; ++qy)
-         {
-            const real_t wy  = B[1](qy,dy);
-            const real_t wDy = G[1](qy,dy);
-            // This full range of qx values is generally necessary.
-            for (int qx = 0; qx < Q1D[0]; ++qx)
-            {
-               const real_t wx  = sumX(0,qx);
-               const real_t wDx = sumX(1,qx);
-               sumXY(0,qx,qy) += wDx * wy;
-               sumXY(1,qx,qy) += wx  * wDy;
-               sumXY(2,qx,qy) += wx  * wy;
-            }
-         } // qy
-      } // dy
-
-      for (int qz = minD[2][dz]; qz <= maxD[2][dz]; ++qz)
-      {
-         const real_t wz  = B[2](qz,dz);
-         const real_t wDz = G[2](qz,dz);
-         for (int qy = 0; qy < Q1D[1]; ++qy)
-         {
-            for (int qx = 0; qx < Q1D[0]; ++qx)
-            {
-               gradu(0,qx,qy,qz) += sumXY(0,qx,qy) * wz;
-               gradu(1,qx,qy,qz) += sumXY(1,qx,qy) * wz;
-               gradu(2,qx,qy,qz) += sumXY(2,qx,qy) * wDz;
-            }
-         }
-      }
-   } // dz
+   PatchG3D<vdim>(pb, x, sumXYv, sumXv, gradu);
 
    // Apply kernel
    for (int qz = 0; qz < Q1D[2]; ++qz)
@@ -255,79 +214,33 @@ void DiffusionIntegrator::AddMultPatchPA3D(const Vector &pa_data,
       {
          for (int qx = 0; qx < Q1D[0]; ++qx)
          {
-            const int q = qx + ((qy + (qz * Q1D[1])) * Q1D[0]);
-            const real_t O00 = qd(q,0);
-            const real_t O01 = qd(q,1);
-            const real_t O02 = qd(q,2);
-            const real_t O10 = symmetric ? O01 : qd(q,3);
-            const real_t O11 = symmetric ? qd(q,3) : qd(q,4);
-            const real_t O12 = symmetric ? qd(q,4) : qd(q,5);
-            const real_t O20 = symmetric ? O02 : qd(q,6);
-            const real_t O21 = symmetric ? O12 : qd(q,7);
-            const real_t O22 = symmetric ? qd(q,5) : qd(q,8);
+            for (int c = 0; c < vdim; ++c)
+            {
+               const int q = qx + ((qy + (qz * Q1D[1])) * Q1D[0]);
+               const real_t O00 = qd(q,0);
+               const real_t O01 = qd(q,1);
+               const real_t O02 = qd(q,2);
+               const real_t O10 = symmetric ? O01 : qd(q,3);
+               const real_t O11 = symmetric ? qd(q,3) : qd(q,4);
+               const real_t O12 = symmetric ? qd(q,4) : qd(q,5);
+               const real_t O20 = symmetric ? O02 : qd(q,6);
+               const real_t O21 = symmetric ? O12 : qd(q,7);
+               const real_t O22 = symmetric ? qd(q,5) : qd(q,8);
 
-            const real_t grad0 = gradu(0,qx,qy,qz);
-            const real_t grad1 = gradu(1,qx,qy,qz);
-            const real_t grad2 = gradu(2,qx,qy,qz);
+               const real_t grad0 = gradu(c,0,qx,qy,qz);
+               const real_t grad1 = gradu(c,1,qx,qy,qz);
+               const real_t grad2 = gradu(c,2,qx,qy,qz);
 
-            gradu(0,qx,qy,qz) = (O00*grad0)+(O01*grad1)+(O02*grad2);
-            gradu(1,qx,qy,qz) = (O10*grad0)+(O11*grad1)+(O12*grad2);
-            gradu(2,qx,qy,qz) = (O20*grad0)+(O21*grad1)+(O22*grad2);
+               gradu(c,0,qx,qy,qz) = (O00*grad0)+(O01*grad1)+(O02*grad2);
+               gradu(c,1,qx,qy,qz) = (O10*grad0)+(O11*grad1)+(O12*grad2);
+               gradu(c,2,qx,qy,qz) = (O20*grad0)+(O21*grad1)+(O22*grad2);
+            }
          } // qx
       } // qy
    } // qz
 
    // Apply gradv^T
-   for (int qz = 0; qz < Q1D[2]; ++qz)
-   {
-      sumXYv = 0.0;
-      for (int qy = 0; qy < Q1D[1]; ++qy)
-      {
-         sumXv = 0.0;
-         for (int qx = 0; qx < Q1D[0]; ++qx)
-         {
-            const real_t gX = gradu(0,qx,qy,qz);
-            const real_t gY = gradu(1,qx,qy,qz);
-            const real_t gZ = gradu(2,qx,qy,qz);
-            for (int dx = minQ[0][qx]; dx <= maxQ[0][qx]; ++dx)
-            {
-               const real_t wx  = B[0](qx,dx);
-               const real_t wDx = G[0](qx,dx);
-               sumX(0,dx) += gX * wDx;
-               sumX(1,dx) += gY * wx;
-               sumX(2,dx) += gZ * wx;
-            }
-         }
-
-         for (int dy = minQ[1][qy]; dy <= maxQ[1][qy]; ++dy)
-         {
-            const real_t wy  = B[1](qy,dy);
-            const real_t wDy = G[1](qy,dy);
-            for (int dx = 0; dx < D1D[0]; ++dx)
-            {
-               sumXY(0,dx,dy) += sumX(0,dx) * wy;
-               sumXY(1,dx,dy) += sumX(1,dx) * wDy;
-               sumXY(2,dx,dy) += sumX(2,dx) * wy;
-            }
-         }
-      }
-
-      for (int dz = minQ[2][qz]; dz <= maxQ[2][qz]; ++dz)
-      {
-         const real_t wz  = B[2](qz,dz);
-         const real_t wDz = G[2](qz,dz);
-         for (int dy = 0; dy < D1D[1]; ++dy)
-         {
-            for (int dx = 0; dx < D1D[0]; ++dx)
-            {
-               Y(dx,dy,dz) +=
-                  ((sumXY(0,dx,dy) * wz) +
-                   (sumXY(1,dx,dy) * wz) +
-                   (sumXY(2,dx,dy) * wDz));
-            }
-         }
-      } // dz
-   } // qz
+   PatchGT3D<vdim>(pb, gradu, sumXYv, sumXv, y);
 }
 
 
