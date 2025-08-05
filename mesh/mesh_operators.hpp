@@ -255,6 +255,9 @@ public:
 
    /// Reset the associated estimator.
    void Reset() override;
+
+   /// Set the array @a refinements of elements to refine, without refining.
+   int MarkWithoutRefining(Mesh & mesh, Array<Refinement> & refinements);
 };
 
 // TODO: BulkRefiner to refine a portion of the global error
