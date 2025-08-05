@@ -283,7 +283,6 @@ public:
       FULL = 0,         /// Use a full Gaussian rule (2*order)
       REDUCED = 1,      /// Use a reduced Gaussian rule (Zou 2022)
       FIXED_ORDER = 2,  /// Use a fixed order Gaussian rule
-      REDUCED_NNLS = 3, /// Use a reduced rule solved with NNLS
    };
 
    SplineIntegrationRule(Type T = Type::FULL, int fixed_order = 0)
@@ -291,7 +290,6 @@ public:
    {
       MFEM_VERIFY(!((T == Type::FIXED_ORDER) && (fixed_order <= 0)),
                   "Fixed order must be positive");
-      MFEM_VERIFY(!(T == Type::REDUCED_NNLS), "Not implemented yet");
    }
 
    SplineIntegrationRule(int type, int fixed_order = 0)

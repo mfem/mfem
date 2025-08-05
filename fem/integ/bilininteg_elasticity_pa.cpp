@@ -18,8 +18,8 @@
 #include "fem/integrator.hpp"
 #include "linalg/dtensor.hpp"
 #include "linalg/tensor.hpp"
-using mfem::internal::tensor;
-using mfem::internal::make_tensor;
+using mfem::future::tensor;
+using mfem::future::make_tensor;
 
 namespace mfem
 {
@@ -170,7 +170,7 @@ LinearElasticityKernel(const tensor<mfem::real_t, dim, dim> Jinvt,
    // Convert gradu_ref to physical space
    const auto gradu = gradu_ref * transpose(Jinvt);
    // Compute stress
-   constexpr auto I = mfem::internal::IsotropicIdentity<dim>();
+   constexpr auto I = mfem::future::IsotropicIdentity<dim>();
    const tensor<mfem::real_t, dim, dim> strain = sym(gradu);
    const auto stress = lambda * tr(strain) * I + 2.0 * mu * strain;
    // Transform back to reference space
