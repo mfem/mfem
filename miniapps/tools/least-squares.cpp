@@ -397,6 +397,35 @@ void ComputeFaceAverage(const FiniteElementSpace& fes,
    if (has_other) { face_values *= 0.5; }
 }
 
+/// @brief Get matrix associated to traces of shape functions on
+/// the face associated to @a face_trans
+void ComputeFaceMatrix(const FiniteElementSpace& fes,
+                       FaceElementTransformations& face_trans,
+                       DenseMatrix& e_shape_to_q_face)
+{
+   const bool has_other = (face_trans.Elem2No >= 0);
+   const FiniteElement* fe_self = fes.GetFE(face_trans.Elem1No);
+   const FiniteElement* fe_other = has_other?fes.GetFE(face_trans.Elem2No):
+                                   fe_self;
+
+   const int ndof_self = fe_self->GetDof();
+
+   const int order = face_trans.OrderW() + fe_self->GetOrder() +
+                     fe_other->GetOrder();
+   const auto ir = IntRules.Get(face_trans.GetGeometryType(), order);
+
+   Vector shape_self(ndof_self);
+   e_shape_to_q_face.SetSize(ir.GetNPoints(), ndof_self);
+   for (int p = 0; p < ir.GetNPoints(); p++)
+   {
+      const IntegrationPoint& ip = ir.IntPoint(p);
+      face_trans.SetAllIntPoints(&ip);
+      fe_self->CalcPhysShape(*face_trans.Elem1, shape_self);
+      e_shape_to_q_face.SetRow(p, shape_self);
+   }
+}
+
+/// @brief Boilerplate code for getting the orders a priori
 int GetLocalNPoints(const FiniteElementSpace& fes,
                     FaceElementTransformations& face_trans)
 {
@@ -644,14 +673,15 @@ void FaceReconstruction(Solver& solver,
    const auto fes_src = src.ParFESpace();
    const auto fes_dst = dst.ParFESpace();
 
-   Array<int> faces_e, orientation_e, face_dofs;
+   Array<int> faces_e, orientation_e, face_dofs, e_dst_dofs;
    Vector avg_at_face, u_avg_at_face_dofs;
 
    for (int e_idx = 0; e_idx < mesh.GetNE(); e_idx++)
    {
       mesh.GetElementEdges(e_idx, faces_e, orientation_e);
+      const int ndof_e = fes_dst->GetFE(e_idx)->GetDof();
 
-      // Setup RHS
+      // Setup RHS and Matrix
       Array<int> offsets(1 + faces_e.Size());
       offsets[0] = 0;
       for (int i = 0; i < faces_e.Size(); i++)
@@ -662,6 +692,7 @@ void FaceReconstruction(Solver& solver,
       }
       offsets.PartialSum();
 
+      DenseMatrix e_to_faces(offsets.Last(), ndof_e);
       BlockVector src_face_values(offsets);
       src_face_values = 0.0;
 
@@ -669,12 +700,17 @@ void FaceReconstruction(Solver& solver,
       {
          const int f_idx = faces_e[i];
          face_trans = mesh.GetFaceElementTransformations(f_idx);
-         fes_src->GetFaceDofs(f_idx, face_dofs);
 
+         // RHS
+         fes_src->GetFaceDofs(f_idx, face_dofs);
          src.GetSubVector(face_dofs, u_avg_at_face_dofs);
          ComputeFaceAverage(*fes_src, *face_trans, src, avg_at_face);
-
          src_face_values.AddSubVector(avg_at_face, i);
+
+         // Matrix
+         DenseMatrix e_to_f;
+         ComputeFaceMatrix(*fes_dst, *face_trans, e_to_f);
+         e_to_faces.SetSubMatrix(offsets[i],0,e_to_f);
       }
 
       // Setup RHS constraint
@@ -683,22 +719,24 @@ void FaceReconstruction(Solver& solver,
       Vector src_at_e_dofs;
       src.GetSubVector(e_src_dofs, src_at_e_dofs);
 
-      // Setup matrix
-      // DenseMatrix TODO;
-
       // Setup constraint matrix
       fes_dst->GetElementTransformation(e_idx, e_trans.get());
       auto& fe_dst_e = *fes_dst->GetFE(e_idx);
       auto& fe_src_e = *fes_src->GetFE(e_idx);
 
-
       DenseMatrix mass_e_mat;
       mass.AssembleElementMatrix2(fe_dst_e, fe_src_e, *e_trans, mass_e_mat);
 
-      // Call the solver
-      // LSSolver(solver, TODO, mass_e_mat, src_face_values, src_at_e_dofs,
-      //          TODO_local_src_e, TODO_lagr_mult);
+      Vector dst_e, mult_e;
+      fes_dst->GetElementDofs(e_idx, e_dst_dofs);
+      LSSolver(solver, e_to_faces, mass_e_mat, src_face_values, src_at_e_dofs,
+               dst_e, mult_e);
+      dst.SetSubVector(e_dst_dofs, dst_e);
 
+      e_dst_dofs.DeleteAll();
+      faces_e.DeleteAll();
+      orientation_e.DeleteAll();
+      face_dofs.DeleteAll();
    }
 }
 
