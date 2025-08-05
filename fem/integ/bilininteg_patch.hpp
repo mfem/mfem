@@ -11,6 +11,7 @@ namespace mfem
 /**
  * Compute gradient at quadrature points
  */
+template <int vdim>
 void PatchG3D(const PatchBasisInfo &pb,
               const Vector &Uv,
               Vector &sumXYv,
@@ -18,8 +19,8 @@ void PatchG3D(const PatchBasisInfo &pb,
               DeviceTensor<5, real_t> &gradu)
 {
    // Unpack
-   static constexpr int vdim = 3;
    static constexpr int dim = 3;
+   MFEM_VERIFY(pb.dim == 3, "");
    const Array<int>& Q1D = pb.Q1D;
    const Array<int>& D1D = pb.D1D;
    const std::vector<Array2D<real_t>>& B = pb.B;
@@ -98,6 +99,7 @@ void PatchG3D(const PatchBasisInfo &pb,
 /**
  * Contraction with grad_v^T
  */
+template<int vdim>
 void PatchGT3D(const PatchBasisInfo &pb,
                DeviceTensor<5, real_t> &S,
                Vector &sumXYv,
@@ -105,8 +107,8 @@ void PatchGT3D(const PatchBasisInfo &pb,
                Vector &y)
 {
    // Unpack patch basis info
-   static constexpr int vdim = 3;
-   const int dim = pb.dim;
+   static constexpr int dim = 3;
+   MFEM_VERIFY(pb.dim == 3, "");
    const Array<int>& Q1D = pb.Q1D;
    const Array<int>& D1D = pb.D1D;
    const std::vector<Array2D<real_t>>& B = pb.B;
@@ -128,12 +130,8 @@ void PatchGT3D(const PatchBasisInfo &pb,
          sumXv = 0.0;
          for (int qx = 0; qx < Q1D[0]; ++qx)
          {
-            const real_t s[3][3] =
-            {
-               { S(0,0,qx,qy,qz), S(0,1,qx,qy,qz), S(0,2,qx,qy,qz) },
-               { S(1,0,qx,qy,qz), S(1,1,qx,qy,qz), S(1,2,qx,qy,qz) },
-               { S(2,0,qx,qy,qz), S(2,1,qx,qy,qz), S(2,2,qx,qy,qz) }
-            };
+            const auto s = make_tensor<vdim, dim>(
+            [&](int i, int j) { return S(i,j,qx,qy,qz); });
             for (int dx = minQ[0][qx]; dx <= maxQ[0][qx]; ++dx)
             {
                const real_t wx  = B[0](qx,dx);
@@ -146,11 +144,11 @@ void PatchGT3D(const PatchBasisInfo &pb,
                   s20*dX, s21*X, s22*X,
                ]
                */
-               for (int c = 0; c < dim; ++c)
+               for (int c = 0; c < vdim; ++c)
                {
-                  sumX(c,0,dx) += s[c][0] * wDx;
-                  sumX(c,1,dx) += s[c][1] * wx;
-                  sumX(c,2,dx) += s[c][2] * wx;
+                  sumX(c,0,dx) += s(c,0) * wDx;
+                  sumX(c,1,dx) += s(c,1) * wx;
+                  sumX(c,2,dx) += s(c,2) * wx;
                }
             }
          }

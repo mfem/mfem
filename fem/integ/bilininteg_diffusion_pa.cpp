@@ -188,9 +188,9 @@ void DiffusionIntegrator::AddMultPatchPA3D(const Vector &pa_data,
    const auto X = Reshape(x.HostRead(), D1D[0], D1D[1], D1D[2]);
    auto Y = Reshape(y.HostReadWrite(), D1D[0], D1D[1], D1D[2]);
 
-   Vector gradv(3*NQ);
-   gradv = 0.0;
-   auto grad = Reshape(gradv.HostReadWrite(), 3, Q1D[0], Q1D[1], Q1D[2]);
+   Vector graduv(3*NQ);
+   graduv = 0.0;
+   auto gradu = Reshape(graduv.HostReadWrite(), 3, Q1D[0], Q1D[1], Q1D[2]);
 
    const auto qd = Reshape(pa_data.HostRead(), NQ, (symmetric ? 6 : 9));
 
@@ -200,7 +200,7 @@ void DiffusionIntegrator::AddMultPatchPA3D(const Vector &pa_data,
    auto sumXY = Reshape(sumXYv.HostReadWrite(), 3, Q1D[0], Q1D[1]);
    auto sumX = Reshape(sumXv.HostReadWrite(), 3, Q1D[0]);
 
-   // Interpolate grad_u
+   // Interpolate gradu
    for (int dz = 0; dz < D1D[2]; ++dz)
    {
       sumXYv = 0.0;
@@ -240,9 +240,9 @@ void DiffusionIntegrator::AddMultPatchPA3D(const Vector &pa_data,
          {
             for (int qx = 0; qx < Q1D[0]; ++qx)
             {
-               grad(0,qx,qy,qz) += sumXY(0,qx,qy) * wz;
-               grad(1,qx,qy,qz) += sumXY(1,qx,qy) * wz;
-               grad(2,qx,qy,qz) += sumXY(2,qx,qy) * wDz;
+               gradu(0,qx,qy,qz) += sumXY(0,qx,qy) * wz;
+               gradu(1,qx,qy,qz) += sumXY(1,qx,qy) * wz;
+               gradu(2,qx,qy,qz) += sumXY(2,qx,qy) * wDz;
             }
          }
       }
@@ -266,13 +266,13 @@ void DiffusionIntegrator::AddMultPatchPA3D(const Vector &pa_data,
             const real_t O21 = symmetric ? O12 : qd(q,7);
             const real_t O22 = symmetric ? qd(q,5) : qd(q,8);
 
-            const real_t grad0 = grad(0,qx,qy,qz);
-            const real_t grad1 = grad(1,qx,qy,qz);
-            const real_t grad2 = grad(2,qx,qy,qz);
+            const real_t grad0 = gradu(0,qx,qy,qz);
+            const real_t grad1 = gradu(1,qx,qy,qz);
+            const real_t grad2 = gradu(2,qx,qy,qz);
 
-            grad(0,qx,qy,qz) = (O00*grad0)+(O01*grad1)+(O02*grad2);
-            grad(1,qx,qy,qz) = (O10*grad0)+(O11*grad1)+(O12*grad2);
-            grad(2,qx,qy,qz) = (O20*grad0)+(O21*grad1)+(O22*grad2);
+            gradu(0,qx,qy,qz) = (O00*grad0)+(O01*grad1)+(O02*grad2);
+            gradu(1,qx,qy,qz) = (O10*grad0)+(O11*grad1)+(O12*grad2);
+            gradu(2,qx,qy,qz) = (O20*grad0)+(O21*grad1)+(O22*grad2);
          } // qx
       } // qy
    } // qz
@@ -286,9 +286,9 @@ void DiffusionIntegrator::AddMultPatchPA3D(const Vector &pa_data,
          sumXv = 0.0;
          for (int qx = 0; qx < Q1D[0]; ++qx)
          {
-            const real_t gX = grad(0,qx,qy,qz);
-            const real_t gY = grad(1,qx,qy,qz);
-            const real_t gZ = grad(2,qx,qy,qz);
+            const real_t gX = gradu(0,qx,qy,qz);
+            const real_t gY = gradu(1,qx,qy,qz);
+            const real_t gZ = gradu(2,qx,qy,qz);
             for (int dx = minQ[0][qx]; dx <= maxQ[0][qx]; ++dx)
             {
                const real_t wx  = B[0](qx,dx);

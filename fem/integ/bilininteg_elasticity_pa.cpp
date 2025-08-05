@@ -228,6 +228,7 @@ void ElasticityIntegrator::AddMultPatchPA3D(const Vector &pa_data,
                                             const Vector &x,
                                             Vector &y) const
 {
+   static constexpr int vdim = 3;
    // Unpack patch basis info
    const Array<int>& Q1D = pb.Q1D;
    const int NQ = pb.NQ;
@@ -249,13 +250,13 @@ void ElasticityIntegrator::AddMultPatchPA3D(const Vector &pa_data,
    Vector sumXv(vdim*vdim*Q1D[0]);
 
    // 1) Interpolate U at dofs to gradu in reference quadrature space
-   PatchG3D(pb, x, sumXYv, sumXv, gradu);
+   PatchG3D<vdim>(pb, x, sumXYv, sumXv, gradu);
 
    // 2) Apply the "D" operator at each quadrature point: D( gradu )
    PatchApplyKernel3D(pb, pa_data, gradu, S);
 
    // 3) Apply test function gradv
-   PatchGT3D(pb, S, sumXYv, sumXv, y);
+   PatchGT3D<vdim>(pb, S, sumXYv, sumXv, y);
 
 }
 

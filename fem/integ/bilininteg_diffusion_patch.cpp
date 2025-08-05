@@ -40,7 +40,6 @@ void PatchDiffusionSetup3D(const int Q1Dx,
    const auto J = Reshape(j.Read(), Q1Dx,Q1Dy,Q1Dz,3,3);
    const auto C = const_c ? Reshape(c.Read(), 1,1,1,1) :
                   Reshape(c.Read(), coeffDim,Q1Dx,Q1Dy,Q1Dz);
-   d.SetSize(Q1Dx * Q1Dy * Q1Dz * (symmetric ? 6 : 9));
    auto D = Reshape(d.Write(), Q1Dx,Q1Dy,Q1Dz, symmetric ? 6 : 9);
    const int NE = 1;  // TODO: MFEM_FORALL_3D without e?
    MFEM_FORALL_3D(e, NE, Q1Dx, Q1Dy, Q1Dz,
@@ -246,15 +245,6 @@ void DiffusionIntegrator::SetupPatchPA(const int patch, Mesh *mesh,
    // Total quadrature points
    const int nq = pbinfo[patch].NQ;
 
-   Vector weightsv(nq);
-   auto weights = Reshape(weightsv.HostReadWrite(), Q1D[0], Q1D[1], Q1D[2]);
-   IntegrationPoint ip;
-
-   // Vector jacv(nq * dim * dim);  // Computed as in GeometricFactors::Compute
-   // auto jac = Reshape(jacv.HostReadWrite(), Q1D[0], Q1D[1], Q1D[2], dim, dim);
-   // Vector coeffsv(nq * 2);        // lambda, mu at quad points
-   // auto coeffs = Reshape(coeffsv.HostReadWrite(), Q1D[0], Q1D[1], Q1D[2], 2);
-
    MFEM_VERIFY(Q1D.Size() == 3, "Only 3D for now");
 
    const int dims = dim;  // TODO: generalize
@@ -262,7 +252,9 @@ void DiffusionIntegrator::SetupPatchPA(const int patch, Mesh *mesh,
 
    int coeffDim = 1;
    Vector coeff;
+   Vector weights(nq);
    const int MQfullDim = MQ ? MQ->GetHeight() * MQ->GetWidth() : 0;
+   IntegrationPoint ip;
 
    Vector jac(dim * dim * nq);  // Computed as in GeometricFactors::Compute
 
@@ -277,7 +269,7 @@ void DiffusionIntegrator::SetupPatchPA(const int patch, Mesh *mesh,
             const int e = patchRules->GetPointElement(patch, qx, qy, qz);
             ElementTransformation *tr = mesh->GetElementTransformation(e);
 
-            weightsv[p] = ip.weight;
+            weights[p] = ip.weight;
 
             tr->SetIntPoint(&ip);
 
@@ -421,12 +413,12 @@ void DiffusionIntegrator::SetupPatchPA(const int patch, Mesh *mesh,
 
    if (unitWeights)
    {
-      weightsv = 1.0;
+      weights = 1.0;
    }
 
-   PatchDiffusionSetup3D(Q1D[0], Q1D[1], Q1D[2], coeffDim, symmetric, weightsv,
-                         jac,
-                         coeff, ppa_data[patch]);
+   ppa_data[patch].SetSize(nq * (symmetric ? 6 : 9));
+   PatchDiffusionSetup3D(Q1D[0], Q1D[1], Q1D[2], coeffDim, symmetric, weights,
+                         jac, coeff, ppa_data[patch]);
 
    if (integrationMode != PATCHWISE_REDUCED)
    {
@@ -1091,6 +1083,8 @@ void DiffusionIntegrator::AssemblePatchMatrix(const int patch,
                                               const FiniteElementSpace &fes,
                                               SparseMatrix*& smat)
 {
+   numPatches = fes.GetMesh()->NURBSext->GetNP();
+   ppa_data.resize(numPatches);
    if (integrationMode == PATCHWISE_REDUCED)
    {
       AssemblePatchMatrix_reducedQuadrature(patch, fes, smat);
