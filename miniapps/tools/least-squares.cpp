@@ -356,6 +356,7 @@ void SaturateNeighborhood(NCMesh& mesh, const int element_idx,
 /// the face associated to @a face_trans
 void ComputeFaceAverage(const FiniteElementSpace& fes,
                         FaceElementTransformations& face_trans,
+                        const IntegrationRule& ir,
                         const GridFunction& global_function,
                         Vector& face_values)
 {
@@ -366,10 +367,6 @@ void ComputeFaceAverage(const FiniteElementSpace& fes,
 
    const int ndof_self = fe_self->GetDof();
    const int ndof_other = has_other?fe_other->GetDof():0;
-
-   const int order = face_trans.OrderW() + fe_self->GetOrder() +
-                     fe_other->GetOrder();
-   const auto ir = IntRules.Get(face_trans.GetGeometryType(), order);
 
    Array<int> dofs_self, dofs_other;
    fes.GetElementDofs(face_trans.Elem1No, dofs_self);
@@ -401,18 +398,11 @@ void ComputeFaceAverage(const FiniteElementSpace& fes,
 /// the face associated to @a face_trans
 void ComputeFaceMatrix(const FiniteElementSpace& fes,
                        FaceElementTransformations& face_trans,
+                       const IntegrationRule& ir,
                        DenseMatrix& e_shape_to_q_face)
 {
-   const bool has_other = (face_trans.Elem2No >= 0);
    const FiniteElement* fe_self = fes.GetFE(face_trans.Elem1No);
-   const FiniteElement* fe_other = has_other?fes.GetFE(face_trans.Elem2No):
-                                   fe_self;
-
    const int ndof_self = fe_self->GetDof();
-
-   const int order = face_trans.OrderW() + fe_self->GetOrder() +
-                     fe_other->GetOrder();
-   const auto ir = IntRules.Get(face_trans.GetGeometryType(), order);
 
    Vector shape_self(ndof_self);
    e_shape_to_q_face.SetSize(ir.GetNPoints(), ndof_self);
@@ -426,8 +416,9 @@ void ComputeFaceMatrix(const FiniteElementSpace& fes,
 }
 
 /// @brief Boilerplate code for getting the orders a priori
-int GetLocalNPoints(const FiniteElementSpace& fes,
-                    FaceElementTransformations& face_trans)
+void GetCommonIntegrationRule(const FiniteElementSpace& fes,
+                              const FaceElementTransformations& face_trans,
+                              IntegrationRule& ir)
 {
    const bool has_other = (face_trans.Elem2No >= 0);
    const FiniteElement* fe_self = fes.GetFE(face_trans.Elem1No);
@@ -436,9 +427,7 @@ int GetLocalNPoints(const FiniteElementSpace& fes,
 
    const int order = face_trans.OrderW() + fe_self->GetOrder() +
                      fe_other->GetOrder();
-   const auto ir = IntRules.Get(face_trans.GetGeometryType(), order);
-
-   return ir.GetNPoints();
+   ir = IntRules.Get(face_trans.GetGeometryType(), order);
 }
 
 ///@}
@@ -681,15 +670,15 @@ void FaceReconstruction(Solver& solver,
       mesh.GetElementEdges(e_idx, faces_e, orientation_e);
       const int ndof_e = fes_dst->GetFE(e_idx)->GetDof();
 
+      // Assumes all faces are equal, dst is more regular than src
+      face_trans = mesh.GetFaceElementTransformations(faces_e[0]);
+      IntegrationRule ir;
+      GetCommonIntegrationRule(*fes_dst, *face_trans, ir);
+
       // Setup RHS and Matrix
       Array<int> offsets(1 + faces_e.Size());
+      offsets = ir.GetNPoints();
       offsets[0] = 0;
-      for (int i = 0; i < faces_e.Size(); i++)
-      {
-         const int f_idx = faces_e[i];
-         face_trans = mesh.GetFaceElementTransformations(f_idx);
-         offsets[i+1] = GetLocalNPoints(*fes_src, *face_trans);
-      }
       offsets.PartialSum();
 
       DenseMatrix e_to_faces(offsets.Last(), ndof_e);
@@ -704,12 +693,12 @@ void FaceReconstruction(Solver& solver,
          // RHS
          fes_src->GetFaceDofs(f_idx, face_dofs);
          src.GetSubVector(face_dofs, u_avg_at_face_dofs);
-         ComputeFaceAverage(*fes_src, *face_trans, src, avg_at_face);
+         ComputeFaceAverage(*fes_src, *face_trans, ir, src, avg_at_face);
          src_face_values.AddSubVector(avg_at_face, i);
 
          // Matrix
          DenseMatrix e_to_f;
-         ComputeFaceMatrix(*fes_dst, *face_trans, e_to_f);
+         ComputeFaceMatrix(*fes_dst, *face_trans, ir, e_to_f);
          e_to_faces.SetSubMatrix(offsets[i],0,e_to_f);
       }
 
