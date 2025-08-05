@@ -327,8 +327,8 @@ void print_mpi_sync(const std::string& msg)
    // First gather string lengths
    size_t msg_len = msg.length();
    std::vector<size_t> lengths(nranks);
-   MPI_Gather(&msg_len, 1, MFEM_MPI_SIZE_T,
-              lengths.data(), 1, MFEM_MPI_SIZE_T,
+   MPI_Gather(&msg_len, 1, MPITypeMap<size_t>::mpi_type,
+              lengths.data(), 1, MPITypeMap<size_t>::mpi_type,
               0, MPI_COMM_WORLD);
 
    if (myrank == 0)
