@@ -207,14 +207,14 @@ real_t KnotVector::GetKnotMult(int i) const
    return uknot_mult[i];
 }
 
-void KnotVector::GetKnotMults(Vector &uknot_mult) const
+void KnotVector::GetKnotMults(Vector &mults) const
 {
    // Get unique knots
    const int NUK = NumOfElements + 1;
-   uknot_mult.SetSize(NUK);
+   mults.SetSize(NUK);
    for (int i = 0; i < NUK; i++)
    {
-      uknot_mult(i) = GetKnotMult(i);
+      mults(i) = GetKnotMult(i);
    }
 }
 

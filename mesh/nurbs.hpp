@@ -187,7 +187,7 @@ public:
    real_t GetKnotMult(int i) const;
 
    /// Get all knot multiplicities
-   void GetKnotMults(Vector &uknot_mult) const;
+   void GetKnotMults(Vector &mults) const;
 
    /** For a given coarsening factor @a cf, find the fine knots between the
        coarse knots. */
