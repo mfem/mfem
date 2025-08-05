@@ -248,7 +248,6 @@ void NavierParticles::Apply2DReflectionBC(const Vector &line_start, const Vector
       // If intersection falls within the segment, apply reflection
       if ( ((x-p_xnmi[0])*(x-p_xn[0]) <= 0) && ((y-p_xnmi[1])*(y-p_xn[1]) <= 0) )
       {
-         cout << "CORRECTING!!" << endl;
          // Correct the velocity + its history
          for (int n = 3; n >= 0; n--)
          {
