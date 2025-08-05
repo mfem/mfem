@@ -681,13 +681,6 @@ protected:
 
 /// inlines ///
 
-template <class T>
-inline void Swap(T &a, T &b)
-{
-   T c = std::move(a);
-   a = std::move(b);
-   b = std::move(c);
-}
 
 template <class T>
 inline void Swap(Array<T> &a, Array<T> &b)
@@ -695,6 +688,7 @@ inline void Swap(Array<T> &a, Array<T> &b)
    Swap(a.data, b.data);
    Swap(a.size, b.size);
 }
+template <class T> inline void Swap(T &a, T &b) { std::swap(a, b); }
 
 template <class T>
 inline Array<T>::Array(const Array &src)
