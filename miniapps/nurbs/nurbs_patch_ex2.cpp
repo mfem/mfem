@@ -1,10 +1,10 @@
-//               MFEM Example 2 - NURBS with patch-wise assembly
+//               MFEM Example 2 - Linear elasticity + patch partial assembly
 //
 // Compile with: make nurbs_patch_ex2
 //
-// Sample runs:  nurbs_patch_ex2 -incdeg 3 -ref 2 -iro 8 -patcha
-//               nurbs_patch_ex2 -incdeg 3 -ref 2 -iro 8 -patcha -pa
-//               nurbs_patch_ex2 -incdeg 3 -ref 2 -iro 8 -patcha -fint
+// Sample runs:  nurbs_patch_ex2 -incdeg 3 -ref 2 -patcha -pa
+//               nurbs_patch_ex2 -incdeg 3 -ref 2 -patcha -pa -int 1
+//               nurbs_patch_ex2 -incdeg 3 -ref 2 -patcha -pa -int 1 -pc 1
 //
 // Description:  This example code solves a simple linear elasticity problem
 //               describing a multi-material cantilever beam.
@@ -25,8 +25,7 @@
 //                    (fixed)      +----------+----------+     (pull down)
 //
 //               This example is a specialization of ex2 which demonstrates
-//               patch-wise matrix assembly and partial assembly on NURBS
-//               meshes.
+//               patch-wise partial assembly on NURBS meshes.
 
 #include "mfem.hpp"
 #include <fstream>
@@ -37,10 +36,6 @@ using namespace mfem;
 
 int main(int argc, char *argv[])
 {
-   // 0. Initialize MPI and HYPRE.
-   Mpi::Init();
-   Hypre::Init();
-
    // 1. Parse command-line options.
    const char *mesh_file = "../../data/beam-hex-nurbs.mesh";
    bool pa = false;
@@ -65,9 +60,9 @@ int main(int argc, char *argv[])
                   "Elevate NURBS mesh degree by this amount.");
    args.AddOption(&spline_integration_type, "-int", "--integration-type",
                   "Integration rule type: 0 - full Gaussian, "
-                  "1 - reduced Gaussian, 2 - fixed order.");
+                  "1 - reduced Gaussian");
    args.AddOption(&preconditioner, "-pc", "--preconditioner",
-                  "Preconditioner: 0 - none, 1 - diagonal, 2 - LOR AMG");
+                  "Preconditioner: 0 - none, 1 - diagonal");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -76,11 +71,8 @@ int main(int argc, char *argv[])
    // Print & verify options
    args.PrintOptions(cout);
    MFEM_VERIFY(!(pa && !patchAssembly), "Patch assembly must be used with -pa");
-   if (preconditioner == 2)
-   {
-      MFEM_VERIFY(nurbs_degree_increase > 0,
-                  "LOR preconditioner requires degree increase");
-   }
+   MFEM_VERIFY(spline_integration_type >= 0 && spline_integration_type < 2,
+               "Spline integration type must be 0 or 1 for this example");
 
    // 2. Read the mesh from the given mesh file.
    Mesh mesh(mesh_file, 1, 1);
@@ -116,8 +108,7 @@ int main(int argc, char *argv[])
    cout << "fec order = " << fec->GetOrder() << endl;
 
    FiniteElementSpace *fespace = new FiniteElementSpace(&mesh, mesh.NURBSext, fec,
-                                                        dim,
-                                                        Ordering::byVDIM);
+                                                        dim, Ordering::byVDIM);
    cout << "Finite Element Collection: " << fec->Name() << endl;
    const int Ndof = fespace->GetTrueVSize();
    cout << "Number of finite element unknowns: " << Ndof << endl;
@@ -160,8 +151,6 @@ int main(int argc, char *argv[])
    Vector mu(mesh.attributes.Max());
    lambda = 1.0; lambda(0) = lambda(1)*50;
    mu = 1.0; mu(0) = mu(1)*50;
-   // Constant coefficients
-   // lambda = 10.0; mu = 10.0;
 
    PWConstCoefficient lambda_func(lambda);
    PWConstCoefficient mu_func(mu);
@@ -198,9 +187,7 @@ int main(int argc, char *argv[])
    cout << "done. " << "(size = " << fespace->GetTrueVSize() << ")" << endl;
 
    // 11. Get the preconditioner
-   // We define solver here because SetOperator needs to be used before
-   // SetPreconditioner *if* we are using hypre
-   CGSolver solver(MPI_COMM_WORLD);
+   CGSolver solver;
    solver.SetOperator(*A);
 
    // No preconditioner
@@ -214,58 +201,6 @@ int main(int argc, char *argv[])
       cout << "Setting up preconditioner (Jacobi) ... " << endl;
       OperatorJacobiSmoother *P = new OperatorJacobiSmoother(a, ess_tdof_list);
       solver.SetPreconditioner(*P);
-   }
-   // LOR AMG
-   else if (preconditioner == 2)
-   {
-      cout << "Setting up preconditioner (LOR AMG) ... " << endl;
-      // Read in mesh again, but don't increase order; refine so that Ndof is equivalent
-      Mesh lo_mesh(mesh_file, 1, 1);
-      lo_mesh.NURBSUniformRefinement(pow(2,ref_levels) + nurbs_degree_increase);
-
-      FiniteElementCollection * lo_fec = lo_mesh.GetNodes()->OwnFEC();
-      FiniteElementSpace *lo_fespace = new FiniteElementSpace(&lo_mesh, lo_fec, dim,
-                                                              Ordering::byVDIM);
-      const int lo_Ndof = lo_fespace->GetTrueVSize();
-      MFEM_VERIFY(Ndof == lo_Ndof, "Low-order problem requires same Ndof");
-
-      // We can reuse variables that are defined by mesh attribute: ess_bdr, f, lambda, mu
-      Array<int> lo_ess_tdof_list;
-      lo_fespace->GetEssentialTrueDofs(ess_bdr, lo_ess_tdof_list);
-
-      LinearForm lo_b(lo_fespace);
-      lo_b.AddBoundaryIntegrator(new VectorBoundaryLFIntegrator(f));
-      lo_b.Assemble();
-
-      GridFunction lo_x(lo_fespace);
-      lo_x = 0.0;
-
-      ElasticityIntegrator *lo_ei = new ElasticityIntegrator(lambda_func, mu_func);
-      // Set up problem
-      BilinearForm lo_a(lo_fespace);
-      lo_a.AddDomainIntegrator(lo_ei);
-      lo_a.Assemble();
-
-      // Define linear system
-      OperatorPtr lo_A;
-      Vector lo_B, lo_X;
-      lo_a.FormLinearSystem(lo_ess_tdof_list, lo_x, lo_b, lo_A, lo_X, lo_B);
-
-      // Set up HypreBoomerAMG on the low-order problem
-      HYPRE_BigInt row_starts[2] = {0, Ndof};
-      SparseMatrix *lo_Amat = new SparseMatrix(lo_a.SpMat());
-      HypreParMatrix *lo_A_hypre = new HypreParMatrix(
-         MPI_COMM_WORLD,
-         HYPRE_BigInt(Ndof),
-         row_starts,
-         lo_Amat
-      );
-      HypreBoomerAMG *lo_P = new HypreBoomerAMG(*lo_A_hypre);
-      // Make sure we set byVDIM ordering (second argument == false)
-      lo_P->SetSystemsOptions(dim, false);
-
-      // Use low-order AMG as preconditioner for high-order problem
-      solver.SetPreconditioner(*lo_P);
    }
    else
    {
@@ -310,7 +245,7 @@ int main(int argc, char *argv[])
    // If file does not exist, write the header
    if (results_ofs.tellp() == 0)
    {
-      results_ofs << "patcha, pa, pc, sint, "           // settings
+      results_ofs << "patcha, pa, pc, sint, "         // settings
                   << "mesh, refs, deg_inc, ndof, "    // mesh
                   << "niter, absnorm, relnorm, "      // solver
                   << "linf, l2, "                     // solution
