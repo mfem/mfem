@@ -217,13 +217,11 @@ void NavierParticles::Apply2DReflectionBC(const Vector &line_start, const Vector
    }
    normal /= normal.Norml2(); // normalize
 
-   Vector p_xn(2), p_xnm1(2), p_xdiff(2), p_vn(2), p_vc(2), p_xc(2), p_vdiff(2), x_int(2);
+   Vector p_xn(2), p_xnmi(2), p_vnmi(2), p_vc(2), x_int(2), p_xc(2), p_vdiff(2), p_xdiff(2);
    for (int i = 0; i < fluid_particles.GetNP(); i++)
    {
       X().GetParticleValues(i, p_xn);
-      X(1).GetParticleValues(i, p_xnm1);
-      p_xdiff = p_xn;
-      p_xdiff -= p_xnm1;
+      X(1).GetParticleValues(i, p_xnmi);
 
       // Ensure particle x^n is outside the line (facing opposite the normal direction)
       if (p_xn*normal > 0)
@@ -232,40 +230,58 @@ void NavierParticles::Apply2DReflectionBC(const Vector &line_start, const Vector
       }
 
       // Compute the intersection
-      real_t denom = (p_xnm1[0] - p_xn[0])*(line_start[1]-line_end[1]) - (p_xnm1[1] - p_xn[1])*(line_start[0]-line_end[0]);
+      real_t denom = (p_xnmi[0] - p_xn[0])*(line_start[1]-line_end[1]) - (p_xnmi[1] - p_xn[1])*(line_start[0]-line_end[0]);
 
-      // if line is parallel, don't compute at all
+      // If line is parallel, don't compute at all
       // Note that nearly-parallel intersections are not well-posed (denom >>> 0)...
       if (abs(denom) < 1e-12)
       {
          continue;
       }
 
-      real_t A = (p_xnm1[0]*p_xn[1] - p_xnm1[1]*p_xn[0]);
+      real_t A = (p_xnmi[0]*p_xn[1] - p_xnmi[1]*p_xn[0]);
       real_t B = (line_start[0]*line_end[1] - line_start[1]*line_end[0]);
       
-      real_t x = ( A*(line_start[0] - line_end[0]) - (p_xnm1[0] - p_xn[0])*B ) / denom;
-      real_t y = ( A*(line_start[1] - line_end[1]) - (p_xnm1[1] - p_xn[1])*B ) / denom;
+      real_t x = ( A*(line_start[0] - line_end[0]) - (p_xnmi[0] - p_xn[0])*B ) / denom;
+      real_t y = ( A*(line_start[1] - line_end[1]) - (p_xnmi[1] - p_xn[1])*B ) / denom;
 
       // If intersection falls within the segment, apply reflection
-      if ( ((x-p_xnm1[0])*(x-p_xn[0]) <= 0) && ((y-p_xnm1[1])*(y-p_xn[1]) <= 0) )
+      if ( ((x-p_xnmi[0])*(x-p_xn[0]) <= 0) && ((y-p_xnmi[1])*(y-p_xn[1]) <= 0) )
       {
-         V().GetParticleValues(i, p_vn);
+         cout << "CORRECTING!!" << endl;
+         // Correct the velocity + its history
+         for (int n = 3; n >= 0; n--)
+         {
+            V(n).GetParticleValues(i, p_vnmi);
+            p_vc = 0.0;
+            add(p_vnmi, -(1+e)*(p_vnmi*normal), normal, p_vc);
+            V(n).SetParticleValues(i, p_vc);
+         }
+         // p_vc is corrected velocity at n
+         // p_vnmi is original velocity at n
          x_int[0] = x;
          x_int[1] = y;
-         real_t dt_c = p_xnm1.DistanceTo(x_int)/p_vn.Norml2();
+         real_t dt_c = p_xnmi.DistanceTo(x_int)/p_vnmi.Norml2();
 
-         // Compute p_vc
-         add(p_vn, -(1+e)*(p_vn*normal), normal, p_vc);
-
-         // Correct the position + velocity
+         // Correct the position
          p_xc = 0.0;
-         p_vdiff = p_vn;
+         p_vdiff = p_vnmi;
          p_vdiff -= p_vc;
          add(p_xn, (1.0/beta[0])*(dt_c - dthist[0]), p_vdiff, p_xc);
          X().SetParticleValues(i, p_xc);
-         V().SetParticleValues(i, p_vc);
 
+         // ... and history
+         for (int n = 3; n > 0; n--)
+         {
+            X(n).GetParticleValues(i, p_xnmi);
+            p_xdiff = x_int;
+            p_xdiff -= p_xnmi;
+            p_xc = 0.0;
+            add(p_xnmi, 2*(p_xdiff*normal), normal, p_xc);
+            X(n).SetParticleValues(i, p_xc);
+         }
+
+         
       }
 
    }
