@@ -55,6 +55,18 @@ public:
    DenseMatrix(real_t *d, int h, int w)
       : Matrix(h, w) { UseExternalData(d, h, w); }
 
+   /// Copy constructor (deep copy).
+   DenseMatrix(const DenseMatrix &) = default;
+
+   /// Move constructor.
+   DenseMatrix(DenseMatrix &&) = default;
+
+   /// Copy assignment (deep copy).
+   DenseMatrix &operator=(const DenseMatrix &) = default;
+
+   /// Move assignment.
+   DenseMatrix &operator=(DenseMatrix &&) = default;
+
    /// Create a dense matrix using a braced initializer list
    /// The inner lists correspond to rows of the matrix
    template <int M, int N, typename T = real_t>
@@ -237,9 +249,6 @@ public:
 
    /// Copy the matrix entries from the given array
    DenseMatrix &operator=(const real_t *d);
-
-   /// Sets the matrix size and elements equal to those of m
-   DenseMatrix &operator=(const DenseMatrix &m);
 
    DenseMatrix &operator+=(const real_t *m);
    DenseMatrix &operator+=(const DenseMatrix &m);

@@ -621,19 +621,6 @@ DenseMatrix &DenseMatrix::operator=(const real_t *d)
    return *this;
 }
 
-DenseMatrix &DenseMatrix::operator=(const DenseMatrix &m)
-{
-   SetSize(m.height, m.width);
-
-   const int hw = height * width;
-   for (int i = 0; i < hw; i++)
-   {
-      data[i] = m.data[i];
-   }
-
-   return *this;
-}
-
 DenseMatrix &DenseMatrix::operator+=(const real_t *m)
 {
    kernels::Add(Height(), Width(), m, (real_t*)data);
