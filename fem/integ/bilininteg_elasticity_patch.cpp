@@ -15,8 +15,8 @@
 
 #include "../../linalg/dtensor.hpp"  // For Reshape
 #include "../../general/forall.hpp"
-#include "fem/bilininteg.hpp"
-#include "fem/integrator.hpp"
+#include "../bilininteg.hpp"
+#include "../integrator.hpp"
 namespace mfem
 {
 
@@ -28,7 +28,7 @@ void PatchElasticitySetup3D(const int Q1Dx,
                             const Vector &c,
                             Vector &d)
 {
-   // computes [J^{-T}(xq), lambda(xq)*W(xq)*det(J(xq)), mu(xq)*W(xq)*det(J(xq))] at quadrature points
+   // computes [J^{-T}, lambda*W*detJ, mu*W*detJ] at quadrature points
    const auto W = Reshape(w.Read(), Q1Dx,Q1Dy,Q1Dz);
    const auto J = Reshape(j.Read(), Q1Dx,Q1Dy,Q1Dz,3,3);
    const auto C = Reshape(c.Read(), Q1Dx,Q1Dy,Q1Dz,2);

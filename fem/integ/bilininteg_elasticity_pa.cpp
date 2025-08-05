@@ -15,9 +15,9 @@
 #include "../../mesh/nurbs.hpp"
 #include "bilininteg_elasticity_kernels.hpp"
 #include "bilininteg_patch.hpp"
-#include "fem/integrator.hpp"
-#include "linalg/dtensor.hpp"
-#include "linalg/tensor.hpp"
+#include "../integrator.hpp"
+#include "../../linalg/dtensor.hpp"
+#include "../../linalg/tensor.hpp"
 using mfem::future::tensor;
 using mfem::future::make_tensor;
 
