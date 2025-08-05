@@ -53,6 +53,15 @@ protected:
    /// Number of elements, defined by distinct knots.
    int NumOfElements;
 
+   /// Stores the values of unique knots.
+   mutable Vector uknot;
+
+   /// Stores the unique knot multiplicities.
+   mutable Vector uknot_mult;
+
+   /// Compute unique knots and their multiplicities.
+   void ComputeUniqueKnots() const;
+
 public:
    /// Create an empty KnotVector.
    KnotVector() { }
@@ -164,8 +173,17 @@ public:
        done. The return value is 1 if uniform or nested spacing is used. */
    int GetCoarseningFactor() const;
 
-   /// Get unique knots and their multiplicities
-   std::pair<Vector, Vector> GetUniqueKnots() const;
+   /// Get the ith unique knot.
+   real_t GetUniqueKnot(int i) const;
+
+   /// Gets all unique knots.
+   void GetUniqueKnots(Vector &uknots) const;
+
+   /// Get the ith unique knot's multiplicity.
+   real_t GetKnotMult(int i) const;
+
+   /// Get all knot multiplicities
+   void GetKnotMults(Vector &uknot_mult) const;
 
    /** For a given coarsening factor @a cf, find the fine knots between the
        coarse knots. */

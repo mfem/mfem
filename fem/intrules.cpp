@@ -184,7 +184,7 @@ IntegrationRule::ApplyToKnotIntervals(const KnotVector &kv) const
    const int ne = kv.GetNE();
 
    IntegrationRule *kvir = new IntegrationRule(ne * np);
-   kvir->SetOrder(this->GetOrder());
+   kvir->SetOrder(GetOrder());
 
    real_t x0 = kv[0];
    real_t x1 = x0;
@@ -229,9 +229,9 @@ SplineIntegrationRule::GetReducedGaussianRule(const KnotVector &kv)
 {
    const int ne = kv.GetNE();
    // Get the unique knot vectors and their multiplicities
-   auto result = kv.GetUniqueKnots();
-   const Vector ukv = result.first;
-   const Vector m = result.second;
+   Vector ukv, m;
+   kv.GetUniqueKnots(ukv);
+   kv.GetKnotMults(m);
    const int p = kv.GetOrder();
 
    // For each knot span, the number of points we need is:

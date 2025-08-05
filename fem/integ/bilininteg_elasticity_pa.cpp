@@ -165,13 +165,13 @@ tensor<mfem::real_t, dim, dim>
 LinearElasticityKernel(const tensor<mfem::real_t, dim, dim> Jinvt,
                        const real_t lambda,
                        const real_t mu,
-                       const tensor<mfem::real_t, dim, dim> grad_uhat)
+                       const tensor<mfem::real_t, dim, dim> gradu_ref)
 {
-   // Convert grad_uhat to physical space
-   const auto grad_u = grad_uhat * transpose(Jinvt);
+   // Convert gradu_ref to physical space
+   const auto gradu = gradu_ref * transpose(Jinvt);
    // Compute stress
    constexpr auto I = mfem::internal::IsotropicIdentity<dim>();
-   const tensor<mfem::real_t, dim, dim> strain = sym(grad_u);
+   const tensor<mfem::real_t, dim, dim> strain = sym(gradu);
    const auto stress = lambda * tr(strain) * I + 2.0 * mu * strain;
    // Transform back to reference space
    return stress * Jinvt;
@@ -182,7 +182,7 @@ LinearElasticityKernel(const tensor<mfem::real_t, dim, dim> Jinvt,
  */
 void PatchApplyKernel3D(const PatchBasisInfo &pb,
                         const Vector &pa_data,
-                        DeviceTensor<5, real_t> &grad,
+                        DeviceTensor<5, real_t> &gradu,
                         DeviceTensor<5, real_t> &S)
 {
    // Unpack patch basis info
@@ -204,9 +204,9 @@ void PatchApplyKernel3D(const PatchBasisInfo &pb,
             const real_t mu      = qd(q,10);
             const auto Jinvt = make_tensor<dim, dim>(
             [&](int i, int j) { return qd(q, i*dim + j); });
-            const auto grad_uhat = make_tensor<dim, dim>(
-            [&](int i, int j) { return grad(i,j,qx,qy,qz); });
-            const auto Sq = LinearElasticityKernel(Jinvt, lambda, mu, grad_uhat);
+            const auto gradu_q = make_tensor<dim, dim>(
+            [&](int i, int j) { return gradu(i,j,qx,qy,qz); });
+            const auto Sq = LinearElasticityKernel(Jinvt, lambda, mu, gradu_q);
 
             for (int i = 0; i < dim; ++i)
             {

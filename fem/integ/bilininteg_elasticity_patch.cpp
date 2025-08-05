@@ -147,7 +147,6 @@ void ElasticityIntegrator::SetupPatchPA(const int patch, Mesh *mesh,
    if (unitWeights)
    {
       weightsv = 1.0;
-      // MFEM_ABORT("Not implemented yet.");
    }
 
    // Computes values at quadrature points

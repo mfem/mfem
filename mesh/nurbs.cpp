@@ -170,13 +170,53 @@ int KnotVector::GetCoarseningFactor() const
    }
 }
 
-std::pair<Vector, Vector> KnotVector::GetUniqueKnots() const
+real_t KnotVector::GetUniqueKnot(int i) const
 {
-   Vector uknots(NumOfElements+1);
-   Vector multiplicities(NumOfElements+1);
+   if (uknot.Size() == 0)
+   {
+      ComputeUniqueKnots();
+   }
+   return uknot[i];
+}
+
+void KnotVector::GetUniqueKnots(Vector &uknots) const
+{
+   // Get unique knots
+   const int NUK = NumOfElements + 1;
+   uknots.SetSize(NUK);
+   for (int i = 0; i < NUK; i++)
+   {
+      uknots(i) = GetUniqueKnot(i);
+   }
+}
+
+real_t KnotVector::GetKnotMult(int i) const
+{
+   if (uknot_mult.Size() == 0)
+   {
+      ComputeUniqueKnots();
+   }
+   return uknot_mult[i];
+}
+
+void KnotVector::GetKnotMults(Vector &uknot_mult) const
+{
+   // Get unique knots
+   const int NUK = NumOfElements + 1;
+   uknot_mult.SetSize(NUK);
+   for (int i = 0; i < NUK; i++)
+   {
+      uknot_mult(i) = GetKnotMult(i);
+   }
+}
+
+void KnotVector::ComputeUniqueKnots() const
+{
+   uknot.SetSize(NumOfElements+1);
+   uknot_mult.SetSize(NumOfElements+1);
 
    real_t x0 = knot[0];
-   uknots[0] = x0;
+   uknot[0] = x0;
    int idx = 1;
    int mult = 1;
 
@@ -184,8 +224,8 @@ std::pair<Vector, Vector> KnotVector::GetUniqueKnots() const
    {
       if (knot[i] != x0)
       {
-         uknots[idx] = knot[i];
-         multiplicities[idx-1] = mult;
+         uknot[idx] = knot[i];
+         uknot_mult[idx-1] = mult;
 
          // Reset
          x0 = knot[i];
@@ -197,9 +237,7 @@ std::pair<Vector, Vector> KnotVector::GetUniqueKnots() const
          mult++;
       }
    }
-   multiplicities[idx-1] = mult;
-
-   return std::make_pair(uknots, multiplicities);
+   uknot_mult[idx-1] = mult;
 }
 
 Vector KnotVector::GetFineKnots(const int cf) const

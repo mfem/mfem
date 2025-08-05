@@ -297,14 +297,17 @@ public:
    SplineIntegrationRule(int type, int fixed_order = 0)
       : SplineIntegrationRule(static_cast<Type>(type), fixed_order) {}
 
-   /// Applies this spline integration rule to the given knot vector
-   /// and returns the resulting integration rule.
+   /** @brief
+       Applies this spline integration rule to the given knot vector
+       and returns the resulting integration rule.
+    */
    IntegrationRule* Get(const KnotVector &kv) const;
 
-   /// Obtains a reduced Gaussian rule. For more details see:
-   /// "Efficient and robust quadratures for isogeometric analysis:
-   //   Reduced Gauss and Gauss-Greville Rules" - Zou 2022
-   /// Generally, this rule should only be used as an approximation
+   /** @brief
+       Obtains a reduced Gaussian rule. For more details see:
+       "Efficient and robust quadratures for isogeometric analysis:
+        Reduced Gauss and Gauss-Greville Rules" - Zou 2022
+       Generally, this rule should only be used as an approximation */
    static IntegrationRule* GetReducedGaussianRule(const KnotVector &kv);
 
 private:
