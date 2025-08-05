@@ -417,7 +417,8 @@ void ComputeFaceAverage(const FiniteElementSpace& fes,
       face_values(p) = shape_self*dofs_at_self;
       if (has_other) { face_values(p) += shape_other*dofs_at_other; }
    }
-   if (has_other) { face_values *= 0.5; }
+   // Average against zero if no has_other
+   face_values *= 0.5;
 }
 
 /// @brief Get matrix associated to traces of shape functions on
