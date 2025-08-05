@@ -209,27 +209,27 @@ public:
    Memory() { Reset(); }
 
    /// Copy constructor: default.
-   Memory(const Memory &orig) = default;
+   Memory(const Memory &) = default;
 
    /** Move constructor. Sets the pointers and associated ownership of validity
        flags of @a *this to those of @a other. Resets @a other. */
-   Memory(Memory &&orig)
+   Memory(Memory &&other)
    {
-      *this = orig;
-      orig.Reset();
+      *this = other;
+      other.Reset();
    }
 
    /// Copy-assignment operator: default.
-   Memory &operator=(const Memory &orig) = default;
+   Memory &operator=(const Memory &) = default;
 
    /** Move assignment operator. Sets the pointers and associated ownership of
        validity flags of @a *this to those of @a other. Resets @a other. */
-   Memory &operator=(Memory &&orig)
+   Memory &operator=(Memory &&other)
    {
       // Guard self-assignment:
-      if (this == &orig) { return *this; }
-      *this = orig;
-      orig.Reset();
+      if (this == &other) { return *this; }
+      *this = other;
+      other.Reset();
       return *this;
    }
 
