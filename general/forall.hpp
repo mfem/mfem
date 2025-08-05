@@ -158,7 +158,7 @@ private:
 #define MFEM_PRAGMA(X) _Pragma(#X)
 
 // MFEM_UNROLL pragma macro that can be used inside MFEM_FORALL macros.
-#if defined(MFEM_USE_CUDA) && defined(__CUDACC__) // Clang cuda or nvcc
+#if defined(MFEM_USE_CUDA) && defined(__CUDA_ARCH__) // Clang cuda or nvcc
 #ifdef __NVCC__ // nvcc specifically
 #define MFEM_UNROLL(N) MFEM_PRAGMA(unroll(N))
 #else // Assuming Clang CUDA
@@ -169,8 +169,8 @@ private:
 #endif
 
 // MFEM_GPU_FORALL: "parallel for" executed with CUDA or HIP based on the MFEM
-// build-time configuration (MFEM_USE_CUDA or MFEM_USE_HIP), and compiling with CUDA.
-// If neither CUDA nor HIP is enabled, this macro is a no-op.
+// build-time configuration (MFEM_USE_CUDA or MFEM_USE_HIP), and if compiling
+// with CUDA/HIP language. Otherwise, this macro is a no-op.
 #if defined(MFEM_USE_CUDA) && defined(__CUDACC__)
 #define MFEM_GPU_FORALL(i, N,...) CuWrap1D(N, [=] MFEM_DEVICE      \
                                        (int i) {__VA_ARGS__})

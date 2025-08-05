@@ -46,11 +46,12 @@
 #define MFEM_THREAD_ID(k) hipThreadIdx_ ##k
 #define MFEM_THREAD_SIZE(k) hipBlockDim_ ##k
 #define MFEM_FOREACH_THREAD(i,k,N) \
-  for(int i=hipThreadIdx_ ##k; i<N; i+=hipBlockDim_ ##k)
+   for(int i=hipThreadIdx_ ##k; i<N; i+=hipBlockDim_ ##k)
 #define MFEM_FOREACH_THREAD_DIRECT(i,k,N) \
-  if(const int i=hipThreadIdx_ ##k; i<N)
+   if(const int i=hipThreadIdx_ ##k; i<N)
 #endif // defined(__HIP_DEVICE_COMPILE__)
 #endif // defined(MFEM_USE_HIP) && defined(__HIP__)
+
 namespace mfem
 {
 
