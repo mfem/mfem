@@ -121,7 +121,7 @@ int main(int argc, char *argv[])
    int solver_type = (int)DarcyOperator::SolverType::Default;
    bool pa = false;
    const char *device_config = "cpu";
-   bool total_flux = false;
+   bool reconstruct = false;
    bool mfem = false;
    bool visit = false;
    bool paraview = false;
@@ -196,9 +196,9 @@ int main(int argc, char *argv[])
                   "--no-partial-assembly", "Enable Partial Assembly.");
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
-   args.AddOption(&total_flux, "-tq", "--total-flux", "-no-tq",
-                  "--no-total-flux",
-                  "Enable or disable total flux reconstruction.");
+   args.AddOption(&reconstruct, "-rec", "--reconstruct", "-no-rec",
+                  "--no-reconstruct",
+                  "Enable or disable quantities reconstruction.");
    args.AddOption(&mfem, "-mfem", "--mfem", "-no-mfem",
                   "--no-mfem",
                   "Enable or disable MFEM output.");
@@ -655,7 +655,6 @@ int main(int argc, char *argv[])
    FiniteElementCollection *trace_coll{};
    FiniteElementSpace *trace_space{};
 
-
    if (hybridization)
    {
       chrono.Clear();
@@ -732,7 +731,7 @@ int main(int argc, char *argv[])
    BlockVector x(block_offsets, mt), rhs(block_offsets, mt);
 
    x = 0.;
-   GridFunction q_h, t_h, qt_h;
+   GridFunction q_h, t_h, qt_h, q_hs, t_hs, tr_hs;
    q_h.MakeRef(V_space, x.GetBlock(0), 0);
    t_h.MakeRef(W_space, x.GetBlock(1), 0);
 
@@ -918,12 +917,16 @@ int main(int argc, char *argv[])
          cout << "|| t_h - t_ex || / || t_ex || = " << err_t / norm_t << "\n";
       }
 
-      if (total_flux)
+      if (reconstruct)
       {
-         darcy->ReconstructTotalFlux(x, x.GetBlock(2), qt_h);
+         darcy->Reconstruct(x, x.GetBlock(2), qt_h, q_hs, t_hs, tr_hs);
          real_t err_qt = qt_h.ComputeL2Error(qtcoeff, irs);
          real_t norm_qt = ComputeLpNorm(2., qtcoeff, *mesh, irs);
          cout << "|| qt_h - qt_ex || / || qt_ex || = " << err_qt / norm_qt << "\n";
+         real_t err_qs = q_hs.ComputeL2Error(qcoeff, irs);
+         cout << "|| q_hs - q_ex || / || q_ex || = " << err_qs / norm_q << "\n";
+         real_t err_ts = t_hs.ComputeL2Error(tcoeff, irs);
+         cout << "|| t_hs - t_ex || / || t_ex || = " << err_ts / norm_t << "\n";
       }
 
       // Project the fluxes
@@ -1046,7 +1049,7 @@ int main(int argc, char *argv[])
             q_sock << "window_title 'Heat flux'" << endl;
             q_sock << "keys Rljvvvvvmmc" << endl;
          }
-         if (total_flux)
+         if (reconstruct)
          {
             static socketstream qt_sock(vishost, visport);
             qt_sock.precision(8);
@@ -1055,6 +1058,22 @@ int main(int argc, char *argv[])
             {
                qt_sock << "window_title 'Total flux'" << endl;
                qt_sock << "keys Rljvvvvvmmc" << endl;
+            }
+            static socketstream qs_sock(vishost, visport);
+            qs_sock.precision(8);
+            qs_sock << "solution\n" << *mesh << q_hs << endl;
+            if (ti == 0)
+            {
+               qs_sock << "window_title 'Recon. flux'" << endl;
+               qs_sock << "keys Rljvvvvvmmc" << endl;
+            }
+            static socketstream ts_sock(vishost, visport);
+            ts_sock.precision(8);
+            ts_sock << "solution\n" << *mesh << t_hs << endl;
+            if (ti == 0)
+            {
+               ts_sock << "window_title 'Recon. temperature'" << endl;
+               ts_sock << "keys Rljmmc" << endl;
             }
          }
          static socketstream t_sock(vishost, visport);
