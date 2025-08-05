@@ -245,10 +245,8 @@ void ElasticityIntegrator::AddMultPatchPA3D(const Vector &pa_data,
    Sv = 0.0;
    auto S = Reshape(Sv.HostReadWrite(), vdim, vdim, Q1D[0], Q1D[1], Q1D[2]);
 
-   // Accumulators; these are shared between gradu interpolation and gradv_T
-   // application, so their size is the max of qpts/dofs
-   Vector sumXYv(vdim*vdim*pb.accsize[0]*pb.accsize[1]);
-   Vector sumXv(vdim*vdim*pb.accsize[0]);
+   Vector sumXYv(vdim*vdim*Q1D[0]*pb.Q1D[1]);
+   Vector sumXv(vdim*vdim*Q1D[0]);
 
    // 1) Interpolate U at dofs to gradu in reference quadrature space
    PatchG3D(pb, x, sumXYv, sumXv, gradu);

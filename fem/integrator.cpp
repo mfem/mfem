@@ -54,7 +54,7 @@ PatchBasisInfo::PatchBasisInfo(Mesh *mesh, unsigned int patch,
    : patch(patch), dim(mesh->NURBSext->Dimension()), B(dim), G(dim), ir1d(dim),
      Q1D(dim), D1D(dim),
      minD(dim), maxD(dim), minQ(dim), maxQ(dim), minDD(dim), maxDD(dim),
-     accsize(dim), orders(dim), E1D(dim)
+     orders(dim), E1D(dim)
 {
    Array<const KnotVector*> pkv;
    mesh->NURBSext->GetPatchKnotVectors(patch, pkv);
@@ -135,12 +135,6 @@ PatchBasisInfo::PatchBasisInfo(Mesh *mesh, unsigned int patch,
          const int qmax = maxD[d][i];
          maxDD[d][i] = maxQ[d][qmax];
       }
-   }
-
-   // Size of accumulator (max qpts/dofs in each dimension)
-   for (int i=0; i<dim; ++i)
-   {
-      accsize[i] = std::max(Q1D[i], D1D[i]);
    }
 
    // Total quadrature points

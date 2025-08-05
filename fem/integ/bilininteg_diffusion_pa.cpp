@@ -184,7 +184,6 @@ void DiffusionIntegrator::AddMultPatchPA3D(const Vector &pa_data,
    const IntArrayVar2D& maxQ = pb.maxQ;
 
    const int NQ = pb.NQ;
-   const std::vector<int> acc = pb.accsize;
 
    const auto X = Reshape(x.HostRead(), D1D[0], D1D[1], D1D[2]);
    auto Y = Reshape(y.HostReadWrite(), D1D[0], D1D[1], D1D[2]);
@@ -195,13 +194,11 @@ void DiffusionIntegrator::AddMultPatchPA3D(const Vector &pa_data,
 
    const auto qd = Reshape(pa_data.HostRead(), NQ, (symmetric ? 6 : 9));
 
-   // Accumulators; these are shared between grad_u interpolation and grad_v_T
-   // application, so their size is the max of qpts/dofs
    std::max(Q1D[0], D1D[0]);
-   Vector sumXYv(3*acc[0]*acc[1]);
-   Vector sumXv(3*acc[0]);
-   auto sumXY = Reshape(sumXYv.HostReadWrite(), 3, acc[0], acc[1]);
-   auto sumX = Reshape(sumXv.HostReadWrite(), 3, acc[0]);
+   Vector sumXYv(3*Q1D[0]*Q1D[1]);
+   Vector sumXv(3*Q1D[0]);
+   auto sumXY = Reshape(sumXYv.HostReadWrite(), 3, Q1D[0], Q1D[1]);
+   auto sumX = Reshape(sumXv.HostReadWrite(), 3, Q1D[0]);
 
    // Interpolate grad_u
    for (int dz = 0; dz < D1D[2]; ++dz)

@@ -138,8 +138,6 @@ struct PatchBasisInfo
    // Dof index |-> min/max dof index with overlapping support
    std::vector<std::vector<int>> minDD;
    std::vector<std::vector<int>> maxDD;
-   // Size of accumulator (max qpts/dofs in each dimension)
-   std::vector<int> accsize;
 
    Array<int> orders;
    Array<int> E1D; // Number of elements in each dimension

@@ -488,18 +488,19 @@ void DiffusionIntegrator::AssemblePatchMatrix_fullQuadrature(
 
    SetupPatchPA(patch, mesh);
 
-   const Array<int>& Q1D = pbinfo[patch].Q1D;
-   const Array<int>& D1D = pbinfo[patch].D1D;
-   const std::vector<Array2D<real_t>>& B = pbinfo[patch].B;
-   const std::vector<Array2D<real_t>>& G = pbinfo[patch].G;
-   const IntArrayVar2D& minD = pbinfo[patch].minD;
-   const IntArrayVar2D& maxD = pbinfo[patch].maxD;
-   const IntArrayVar2D& minQ = pbinfo[patch].minQ;
-   const IntArrayVar2D& maxQ = pbinfo[patch].maxQ;
-   const IntArrayVar2D& minDD = pbinfo[patch].minDD;
-   const IntArrayVar2D& maxDD = pbinfo[patch].maxDD;
+   const PatchBasisInfo& pb = pbinfo[patch];
+   const Array<int>& Q1D = pb.Q1D;
+   const Array<int>& D1D = pb.D1D;
+   const std::vector<Array2D<real_t>>& B = pb.B;
+   const std::vector<Array2D<real_t>>& G = pb.G;
+   const IntArrayVar2D& minD = pb.minD;
+   const IntArrayVar2D& maxD = pb.maxD;
+   const IntArrayVar2D& minQ = pb.minQ;
+   const IntArrayVar2D& maxQ = pb.maxQ;
+   const IntArrayVar2D& minDD = pb.minDD;
+   const IntArrayVar2D& maxDD = pb.maxDD;
 
-   int ndof = pbinfo[patch].ND;
+   int ndof = pb.ND;
 
    MFEM_VERIFY(3 == dim, "Only 3D so far");
 
@@ -769,18 +770,19 @@ void DiffusionIntegrator::AssemblePatchMatrix_reducedQuadrature(
    // data set up in NURBSPatchRule::SetPointToElement.
    SetupPatchPA(patch, mesh, true);
 
-   const Array<int>& Q1D = pbinfo[patch].Q1D;
-   const Array<int>& D1D = pbinfo[patch].D1D;
-   const std::vector<Array2D<real_t>>& B = pbinfo[patch].B;
-   const std::vector<Array2D<real_t>>& G = pbinfo[patch].G;
-   const IntArrayVar2D& minD = pbinfo[patch].minD;
-   const IntArrayVar2D& maxD = pbinfo[patch].maxD;
-   const IntArrayVar2D& minQ = pbinfo[patch].minQ;
-   const IntArrayVar2D& maxQ = pbinfo[patch].maxQ;
-   const IntArrayVar2D& minDD = pbinfo[patch].minDD;
-   const IntArrayVar2D& maxDD = pbinfo[patch].maxDD;
+   const PatchBasisInfo& pb = pbinfo[patch];
+   const Array<int>& Q1D = pb.Q1D;
+   const Array<int>& D1D = pb.D1D;
+   const std::vector<Array2D<real_t>>& B = pb.B;
+   const std::vector<Array2D<real_t>>& G = pb.G;
+   const IntArrayVar2D& minD = pb.minD;
+   const IntArrayVar2D& maxD = pb.maxD;
+   const IntArrayVar2D& minQ = pb.minQ;
+   const IntArrayVar2D& maxQ = pb.maxQ;
+   const IntArrayVar2D& minDD = pb.minDD;
+   const IntArrayVar2D& maxDD = pb.maxDD;
 
-   int ndof = pbinfo[patch].ND;
+   int ndof = pb.ND;
 
    auto rw = Reshape(reducedWeights.data(), numTypes, dim, numPatches);
    auto rid = Reshape(reducedIDs.data(), numTypes, dim, numPatches);
