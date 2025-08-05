@@ -254,6 +254,7 @@ void LSSolver(Solver& solver, const DenseMatrix& A, const Vector& b,
       solver.SetOperator(AtA_reg);
       solver.Mult(Atb, x); // TODO(Gabriel): Lazy fix, redundant...
    }
+   else { mfem_error("Solver not implemented for this wrapper!"); }
 }
 
 /// @brief Dense small least squares solver, with constrains @a C with value @a c
@@ -261,23 +262,10 @@ void LSSolver(Solver& solver, const DenseMatrix& A, const DenseMatrix& C,
               const Vector& b, const Vector& c, Vector& x, Vector& y,
               real_t shift = 0.0)
 {
-   TransposeOperator At(&A);
-   ProductOperator AtA(&At, &A, false, false);
-   IdentityOperator I(AtA.Height());
-   SumOperator AtA_reg(&AtA, 1.0, &I, shift, false, false);
-
-   TransposeOperator Ct(&C);
-
-   // Block matrix
    Array<int> offsets(3);
    offsets[0] = 0;
-   offsets[1] = AtA_reg.Width();
-   offsets[2] = AtA_reg.Width() + Ct.Width();
-
-   BlockOperator block_mat(offsets);
-   block_mat.SetBlock(0, 0, &AtA_reg);
-   block_mat.SetBlock(0, 1, &Ct);
-   block_mat.SetBlock(1, 0, const_cast<DenseMatrix*>(&C));
+   offsets[1] = A.Width();
+   offsets[2] = A.Width() + C.Height();
 
    // Block vectors
    BlockVector rhs(offsets), z(offsets);
@@ -290,8 +278,47 @@ void LSSolver(Solver& solver, const DenseMatrix& A, const DenseMatrix& C,
    rhs.SetVector(Atb, offsets[0]);
    rhs.SetVector(c, offsets[1]);
 
-   solver.SetOperator(block_mat);
-   solver.Mult(rhs, z);
+   if (dynamic_cast<IterativeSolver*>(&solver))
+   {
+      TransposeOperator At(&A);
+      ProductOperator AtA(&At, &A, false, false);
+      IdentityOperator I(AtA.Height());
+      SumOperator AtA_reg(&AtA, 1.0, &I, shift, false, false);
+
+      TransposeOperator Ct(&C);
+
+      // Block operator
+      BlockOperator block_mat(offsets);
+      block_mat.SetBlock(0, 0, &AtA_reg);
+      block_mat.SetBlock(0, 1, &Ct);
+      block_mat.SetBlock(1, 0, const_cast<DenseMatrix*>(&C));
+
+      solver.SetOperator(block_mat);
+      solver.Mult(rhs, z);
+   }
+   else if (dynamic_cast<DenseMatrixInverse*>(&solver))
+   {
+      DenseMatrix AtA_reg(A.Width());
+      Vector col_i(A.Height()), col_j(A.Height());
+      for (int i = 0; i < A.Width(); i++)
+      {
+         A.GetColumn(i, col_i);
+         for (int j = 0; j < A.Width(); j++)
+         {
+            A.GetColumn(j, col_j);
+            AtA_reg(i,j) = col_i * col_j + (i==j)*shift;
+         }
+      }
+
+      DenseMatrix block_mat(AtA_reg.Width() + C.Height()), Ct;
+      const_cast<DenseMatrix*>(&C)->Transpose(Ct);
+      block_mat.SetSubMatrix(0, 0, AtA_reg);
+      block_mat.SetSubMatrix(0, AtA_reg.Width(), Ct);
+      block_mat.SetSubMatrix(AtA_reg.Width(),0, C);
+
+      solver.SetOperator(block_mat);
+      solver.Mult(rhs, z);
+   }
 
    x.SetSize(A.Width());
    y.SetSize(C.Width());
@@ -839,7 +866,7 @@ int main(int argc, char* argv[])
    MFEM_VERIFY(params.reg >= 0.0,   "Invalid regularization term!");
    MFEM_VERIFY(params.ord_smooth > params.ord_src,
                "Smooth space must be more regular!");
-   MFEM_VERIFY((0 <= params.solver_type) && (params.solver_type <= num_solvers),
+   MFEM_VERIFY((0 <= params.solver_type) && (params.solver_type < num_solvers),
                "Invalid solver type: " << params.solver_type);
 
    if (Mpi::Root())
