@@ -56,9 +56,6 @@ add_mfem_miniapp(tmop-metric-magnitude
 add_mfem_miniapp(least-squares
   MAIN least-squares.cpp LIBRARIES mfem)
 
-add_mfem_miniapp(flux-reconstruction
-  MAIN flux-reconstruction.cpp LIBRARIES mfem)
-
 if (MFEM_USE_MPI)
   add_mfem_miniapp(gridfunction-bounds
     MAIN gridfunction-bounds.cpp
