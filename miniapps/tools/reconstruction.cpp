@@ -14,9 +14,7 @@
 #include <string>
 #include <iomanip>
 
-using namespace mfem;
-
-namespace reconstruction
+namespace mfem::reconstruction
 {
 
 // Special integrator for the second derivative
@@ -180,8 +178,9 @@ void reconstructField(const ParGridFunction& src, ParGridFunction& dst)
    dst.ExchangeFaceNbrData();
 }
 
-}  // end namespace reconstruction
+}  // end namespace mfem::reconstruction
 
+using namespace mfem;
 using namespace reconstruction;
 
 int main(int argc, char* argv[])
