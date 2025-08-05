@@ -195,7 +195,7 @@ void DiffusionIntegrator::AddAbsMultTransposePA(const Vector &x,
    }
 }
 
-void DiffusionIntegrator::AddMultPatchPA3D(const Vector &pa_data,
+void DiffusionIntegrator::AddMultPatchPA3D(const Vector &qdata,
                                            const PatchBasisInfo &pb,
                                            const Vector &x,
                                            Vector &y) const
@@ -209,29 +209,16 @@ void DiffusionIntegrator::AddMultPatchPA3D(const Vector &pa_data,
    // Unpack patch basis info
    const Array<int>& Q1D = pb.Q1D;
    const Array<int>& D1D = pb.D1D;
-   const std::vector<Array2D<real_t>>& B = pb.B;
-   const std::vector<Array2D<real_t>>& G = pb.G;
-
-   const IntArrayVar2D& minD = pb.minD;
-   const IntArrayVar2D& maxD = pb.maxD;
-   const IntArrayVar2D& minQ = pb.minQ;
-   const IntArrayVar2D& maxQ = pb.maxQ;
-
    const int NQ = pb.NQ;
-
-   const auto X = Reshape(x.HostRead(), D1D[0], D1D[1], D1D[2]);
-   auto Y = Reshape(y.HostReadWrite(), D1D[0], D1D[1], D1D[2]);
 
    Vector graduv(vdim*dim*NQ);
    graduv = 0.0;
    auto gradu = Reshape(graduv.HostReadWrite(), vdim, dim, Q1D[0], Q1D[1], Q1D[2]);
 
-   const auto qd = Reshape(pa_data.HostRead(), NQ, (symmetric ? 6 : 9));
+   const auto qd = Reshape(qdata.HostRead(), NQ, (symmetric ? 6 : 9));
 
    Vector sumXYv(vdim*dim*Q1D[0]*Q1D[1]);
    Vector sumXv(dim*Q1D[0]);
-   auto sumXY = Reshape(sumXYv.HostReadWrite(), dim, Q1D[0], Q1D[1]);
-   auto sumX = Reshape(sumXv.HostReadWrite(), dim, Q1D[0]);
 
    // Interpolate gradu
    PatchG3D<vdim>(pb, x, sumXYv, sumXv, gradu);

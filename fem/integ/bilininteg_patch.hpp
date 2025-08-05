@@ -32,7 +32,6 @@ void PatchG3D(const PatchBasisInfo &pb,
    // unnecessary interpolations.
    const std::vector<std::vector<int>> minD = pb.minD;
    const std::vector<std::vector<int>> maxD = pb.maxD;
-   const int NQ = pb.NQ;
 
    // Shape as tensors
    const auto U = Reshape(Uv.HostRead(), D1D[0], D1D[1], D1D[2], vdim);
