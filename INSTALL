@@ -847,6 +847,7 @@ The specific libraries and their options are:
 - HIP (optional), used when MFEM_USE_HIP = YES.
   URL: https://rocmdocs.amd.com
   Options: HIP_CXX, HIP_ARCH, HIP_OPT, HIP_LIB.
+  Versions: ROCm >= 5.6.1.
 
 - OCCA (optional), used when MFEM_USE_OCCA = YES.
   URL: https://libocca.org
