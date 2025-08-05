@@ -2291,6 +2291,8 @@ public:
    /// different than the numbering of the boundary elements. We compute
    /// mappings so that the array `bdr_attributes[i]` gives the boundary
    /// attribute of the `i`th boundary face in the mesh face order.
+   /// Attributes <= 0 indicate there is no boundary element and should be
+   /// skipped.
    ///
    /// The returned array points to an internal object that may be invalidated
    /// by mesh operations such as refinement or any element attributes are
