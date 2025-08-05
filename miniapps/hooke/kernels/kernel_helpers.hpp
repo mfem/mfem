@@ -26,7 +26,7 @@ using mfem::future::tensor;
 
 // MFEM_SHARED_3D_BLOCK_TENSOR definition
 // Should be moved in backends/cuda/hip header files.
-#if defined(MFEM_USE_CUDA_OR_HIP)
+#if defined(__CUDA_ARCH__)
 #define MFEM_SHARED_3D_BLOCK_TENSOR(name,T,bx,by,bz,...)\
 MFEM_SHARED tensor<T,bx,by,bz,__VA_ARGS__> name;\
 name(threadIdx.x, threadIdx.y, threadIdx.z) = tensor<T,__VA_ARGS__> {};

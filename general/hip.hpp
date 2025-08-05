@@ -39,6 +39,7 @@
   } while (0)
 
 // Define the MFEM inner threading macros
+#if defined(__HIP_DEVICE_COMPILE__)
 #define MFEM_SHARED __shared__
 #define MFEM_SYNC_THREAD __syncthreads()
 #define MFEM_BLOCK_ID(k) hipBlockIdx_ ##k
@@ -48,6 +49,7 @@
   for(int i=hipThreadIdx_ ##k; i<N; i+=hipBlockDim_ ##k)
 #define MFEM_FOREACH_THREAD_DIRECT(i,k,N) \
   if(const int i=hipThreadIdx_ ##k; i<N)
+#endif // defined(__HIP_DEVICE_COMPILE__)
 #endif // defined(MFEM_USE_HIP) && defined(__HIP__)
 namespace mfem
 {
