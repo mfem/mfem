@@ -30,9 +30,6 @@ namespace mfem
 template <class T>
 class Array;
 
-template <class T>
-void Swap(Array<T> &, Array<T> &);
-
 /**
    Abstract data type Array.
 
@@ -55,8 +52,6 @@ protected:
    static_assert(std::is_trivial<T>::value, "type T must be trivial");
 
 public:
-   friend void Swap<T>(Array<T> &, Array<T> &);
-
    /// Creates an empty array
    inline Array() : size(0) { data.Reset(); }
 
@@ -401,19 +396,11 @@ inline bool operator!=(const Array<T> &LHS, const Array<T> &RHS)
 template <typename T> const T &AsConst(const T &a) { return a; }
 
 
-template <class T>
-class Array2D;
-
-template <class T>
-void Swap(Array2D<T> &, Array2D<T> &);
-
 /// Dynamic 2D array using row-major layout
 template <class T>
 class Array2D
 {
 private:
-   friend void Swap<T>(Array2D<T> &, Array2D<T> &);
-
    Array<T> array1d;
    int M, N; // number of rows and columns
 
@@ -686,13 +673,6 @@ protected:
 
 /// inlines ///
 
-
-template <class T>
-inline void Swap(Array<T> &a, Array<T> &b)
-{
-   Swap(a.data, b.data);
-   Swap(a.size, b.size);
-}
 template <class T> inline void Swap(T &a, T &b) { std::swap(a, b); }
 
 template <class T>
@@ -1053,14 +1033,6 @@ inline T *Array2D<T>::operator[](int i)
                 "Array2D: invalid access of row " << i << " in array with "
                 << array1d.Size()/N << " rows.");
    return &array1d[i*N];
-}
-
-
-template <class T>
-inline void Swap(Array2D<T> &a, Array2D<T> &b)
-{
-   Swap(a.array1d, b.array1d);
-   Swap(a.N, b.N);
 }
 
 
