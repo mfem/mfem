@@ -30,6 +30,7 @@ struct s_Context
    real_t kappa = 1.0;
    real_t gamma = 1.0;
    real_t zeta = 4.0;
+   real_t e = 1.0;
    Vector x_min{-1.0,-1.0};
    Vector x_max{1.0,1.0};
    Vector v_min{-1.0,-1.0};
@@ -79,6 +80,7 @@ int main (int argc, char *argv[])
    args.AddOption(&ctx.kappa, "-k", "--kappa", "Kappa constant.");
    args.AddOption(&ctx.gamma, "-g", "--gamma", "Gamma constant.");
    args.AddOption(&ctx.zeta, "-z", "--zeta", "Zeta constant.");
+   args.AddOption(&ctx.e, "-e", "--e", "Boundary collision restitution constant. 1 for elastic.");
    args.AddOption(&ctx.x_min, "-xmin", "--x-min", "Minimum initial particle location.");
    args.AddOption(&ctx.x_max, "-xmax", "--x-max", "Maximum initial particle location.");
    args.AddOption(&ctx.v_min, "-vmin", "--v-min", "Minimum initial particle velocity.");
@@ -218,6 +220,12 @@ int main (int argc, char *argv[])
 
       // Step NavierParticles
       particle_solver.Step(ctx.dt, step-1, u_gf, w_gf);
+
+      // Apply BCs
+      particle_solver.Apply2DReflectionBC(Vector({10.0, -10.0}), Vector({10.0, 10.0}), ctx.e, false);
+      particle_solver.Apply2DReflectionBC(Vector({-10.0, 10.0}), Vector({10.0, 10.0}), ctx.e, true);
+      particle_solver.Apply2DReflectionBC(Vector({-10.0, -10.0}), Vector({10.0, -10.0}), ctx.e, false);
+      particle_solver.Apply2DReflectionBC(Vector({-10.0, -10.0}), Vector({-10.0, 10.0}), ctx.e, true);
 
       if (ctx.print_csv_freq > 0 && step % ctx.print_csv_freq == 0)
       {
