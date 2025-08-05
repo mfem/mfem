@@ -131,6 +131,7 @@ public:
    MFEM_HOST_DEVICE inline auto &GetShape() const { return sizes; }
 };
 
+
 /** @brief Wrap a pointer as a DeviceTensor with automatically deduced template
     parameters */
 template <typename T, typename... Dims> MFEM_HOST_DEVICE
@@ -138,6 +139,7 @@ inline DeviceTensor<sizeof...(Dims),T> Reshape(T *ptr, Dims... dims)
 {
    return DeviceTensor<sizeof...(Dims),T>(ptr, dims...);
 }
+
 
 typedef DeviceTensor<1,int> DeviceArray;
 typedef DeviceTensor<1,const int> ConstDeviceArray;
