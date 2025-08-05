@@ -199,5 +199,68 @@ void NavierParticles::InterpolateUW(const ParGridFunction &u_gf, const ParGridFu
    Ordering::Reorder(w, w.GetVDim(), w_gf.ParFESpace()->GetOrdering(), w.GetOrdering());
 }
 
+void NavierParticles::Apply2DReflectionBC(const Vector &line_start, const Vector &line_end, bool check_orientation_up, const real_t e)
+{
+   Vector orient(2);
+   Vector diff(2);
+   diff = line_end;
+   diff -= line_start;
+   if (check_orientation_up)
+   {
+      orient[0] = -diff[1];
+      orient[1] = diff[0];
+   }
+   else
+   {
+      orient[0] = diff[1];
+      orient[1] = -diff[0];
+   }
+
+   Vector p_xn(2), p_xnm1(2), p_vn(2), p_vc(2), p_xc(2), p_vdiff(2);
+   for (int i = 0; i < fluid_particles.GetNP(); i++)
+   {
+      X().GetParticleValues(i, p_x);
+      // Determine if particle x^n is "above" (or "below") this line
+      if (p_x*orient <= 0)
+      {
+         continue;
+      }
+
+      // Compute the intersection
+      X(1).GetParticleValues(i, p_xnm1);
+      real_t denom = (p_xn[0] - p_xnm1[0])*(line_start[1]-line_end[1]) - (p_xn[1] - p_xnm1[1])*(line_start[0]-line_end[0]);
+      if (abs(denom) < 1e-12) // if line is (basically) parallel, don't compute at all
+      {
+         continue;
+      }
+
+      real_t A = (p_xn[0]*p_xnm1[1] - p_xn[1]*p_xnm1[0]);
+      real_t B = (line_start[0]*line_end[1] - line_start[1]*line_end[0]);
+      
+      // Note that nearly-parallel intersections are not well-posed...
+      real_t x = ( A*(line_start[0] - line_end[0]) - (p_xn[0] - p_xnm1[0])*B ) / denom;
+      real_t y = ( A*(line_start[1] - line_end[1]) - (p_xn[1] - p_xnm1[1])*B ) / denom;
+
+      // If intersection falls within the segment, apply reflection
+      if ((x > p_xnm1[0] && x < p_xn[0]) && (y > p_xnm1[1] && y < p_xn[1]))
+      {
+         V().GetParticleValues(i, p_vn);
+         Vector x0({x, y});
+         real_t dt_c = p_xnm1.DistanceTo(x0)/p_vn.Norml2();
+
+         // TODO: compute p_vc
+
+         // Correct the position
+         p_xc = 0.0;
+         p_vdiff = p_vn;
+         p_vdiff -= p_vc;
+         add(p_xn, (1.0/beta[0])*(dt_c - dthist[0]), p_vdiff, p_xc);
+         X().SetParticleValues(i, p_xc);
+
+      }
+
+   }
+}
+
 } // namespace navier
 } // namespace mfem

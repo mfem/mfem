@@ -62,6 +62,9 @@ public:
    ParticleVector& W(int nm=0) { return *fp_data.w[nm]; }
 
    ParticleVector& X(int nm=0) { return *fp_data.x[nm]; }
+
+   void Apply2DReflectionBC(const Vector &line_start, const Vector &line_end, bool check_orientation_up, const real_t e);
+
 };
 
 
