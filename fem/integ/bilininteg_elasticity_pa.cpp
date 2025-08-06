@@ -162,10 +162,10 @@ void ElasticityIntegrator::AssemblePatchPA(const int patch,
  */
 template <int dim>
 tensor<mfem::real_t, dim, dim>
-LinearElasticityKernel(const tensor<mfem::real_t, dim, dim> Jinvt,
-                       const real_t lambda,
-                       const real_t mu,
-                       const tensor<mfem::real_t, dim, dim> gradu_ref)
+LinearElasticStress(const tensor<mfem::real_t, dim, dim> Jinvt,
+                    const real_t lambda,
+                    const real_t mu,
+                    const tensor<mfem::real_t, dim, dim> gradu_ref)
 {
    // Convert gradu_ref to physical space
    const auto gradu = gradu_ref * transpose(Jinvt);
@@ -178,7 +178,8 @@ LinearElasticityKernel(const tensor<mfem::real_t, dim, dim> Jinvt,
 }
 
 /**
- * Transforms grad_u into physical space, computes stress, then transforms back to reference space
+ * Transforms grad_u into physical space, computes stress,
+   then transforms back to reference space
  */
 void PatchApplyKernel3D(const PatchBasisInfo &pb,
                         const Vector &pa_data,
@@ -206,7 +207,7 @@ void PatchApplyKernel3D(const PatchBasisInfo &pb,
             [&](int i, int j) { return qd(q, i*dim + j); });
             const auto gradu_q = make_tensor<dim, dim>(
             [&](int i, int j) { return gradu(i,j,qx,qy,qz); });
-            const auto Sq = LinearElasticityKernel(Jinvt, lambda, mu, gradu_q);
+            const auto Sq = LinearElasticStress<dim>(Jinvt, lambda, mu, gradu_q);
 
             for (int i = 0; i < dim; ++i)
             {
@@ -343,7 +344,8 @@ void ElasticityIntegrator::AssembleDiagonalPatchPA(const Vector &pa_data,
                      const auto grad_phi = make_tensor<3,3>(
                      [&](int i, int j) { return grad[j]; });
 
-                     const auto Sq = LinearElasticityKernel(Jinvt, lambda_q, mu_q, grad_phi);
+                     const auto Sq = LinearElasticStress<3>(
+                                        Jinvt, lambda_q, mu_q, grad_phi);
 
                      const auto grad_phiv = make_tensor<3>(
                      [&](int i) { return grad[i]; });
