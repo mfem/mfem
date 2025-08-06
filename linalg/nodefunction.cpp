@@ -87,6 +87,19 @@ void Ordering::Reorder(Vector &v, int vdim, Ordering::Type in_ord,
    }
 }
 
+NodeFunction::NodeFunction(int vdim_, Ordering::Type ordering_)
+: NodeFunction(vdim_, ordering_, 0)
+{
+
+}
+
+NodeFunction::NodeFunction(int vdim_, Ordering::Type ordering_, int num_nodes)
+: Vector(num_nodes*vdim_), vdim(vdim_), ordering(ordering_)
+{ 
+   Vector::operator=(0.0);
+}
+
+
 void NodeFunction::GetNodeValues(int i, Vector &nvals) const
 {
    nvals.SetSize(vdim);
