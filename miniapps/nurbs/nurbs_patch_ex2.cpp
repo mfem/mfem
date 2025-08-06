@@ -161,6 +161,7 @@ int main(int argc, char *argv[])
 
    // Bilinear integrator
    ElasticityIntegrator *ei = new ElasticityIntegrator(lambda_func, mu_func);
+   NURBSMeshRules* meshRules = nullptr;
    if (patchAssembly)
    {
       ei->SetIntegrationMode(NonlinearFormIntegrator::Mode::PATCHWISE);
@@ -310,10 +311,7 @@ int main(int argc, char *argv[])
    }
 
    // 16. Free the used memory.
-   if (meshRules)
-   {
-      delete meshRules;
-   }
+   delete meshRules;
 
    return 0;
 }
