@@ -329,6 +329,88 @@ void LSSolver(Solver& solver, const DenseMatrix& A, const DenseMatrix& C,
    z.GetBlockView(1,y);
 }
 
+/// @brief Dense small least squares solver, with constrains @a C with value @a c
+/// but the constraint is one-dimensional, and passed as a vector. Does not return
+/// the multiplier.
+void LSSolver(Solver& solver, const DenseMatrix& A, const Vector& C,
+              const Vector& b, const real_t& c, Vector& x, real_t shift = 0.0)
+{
+   Vector Atb(A.Width());
+   A.MultTranspose(b, Atb);
+
+   Vector aux_den(A.Width()), aux_num(A.Width());
+
+   if (dynamic_cast<IterativeSolver*>(&solver))
+   {
+      TransposeOperator At(&A);
+      ProductOperator AtA(&At, &A, false, false);
+      IdentityOperator I(AtA.Height());
+      SumOperator AtA_reg(&AtA, 1.0, &I, shift, false, false);
+
+      solver.SetOperator(AtA_reg);
+      solver.Mult(C, aux_den);
+      solver.Mult(Atb, aux_num);
+   }
+   else if (dynamic_cast<DenseMatrixInverse*>(&solver))
+   {
+      DenseMatrix AtA_reg(A.Width());
+      Vector col_i(A.Height()), col_j(A.Height());
+      for (int i = 0; i < A.Width(); i++)
+      {
+         A.GetColumn(i, col_i);
+         for (int j = 0; j < A.Width(); j++)
+         {
+            A.GetColumn(j, col_j);
+            AtA_reg(i,j) = col_i * col_j + (i==j)*shift;
+         }
+      }
+
+      solver.SetOperator(AtA_reg);
+      solver.Mult(C, aux_den);
+      solver.Mult(Atb, aux_num);
+   }
+
+   real_t mult_num = c - (C * aux_num);
+   real_t mult_den = (C * aux_den);
+
+   // DEBUG
+   if (std::abs(mult_den) < 0.001) { mfem_warning("Denominator of lagrange multiplier close to zero!"); }
+   if (std::abs(mult_num) < 0.001) { mfem_warning("Numerator of lagrange multiplier close to zero!"); }
+   real_t mult = mult_num/mult_den;
+
+   add(Atb, mult, C, Atb);
+
+   // TODO(Gabriel): This is bad! Use OperatorPtr or overload the function...
+   if (dynamic_cast<IterativeSolver*>(&solver))
+   {
+      TransposeOperator At(&A);
+      ProductOperator AtA(&At, &A, false, false);
+      IdentityOperator I(AtA.Height());
+      SumOperator AtA_reg(&AtA, 1.0, &I, shift, false, false);
+
+      solver.SetOperator(AtA_reg);
+      solver.Mult(Atb, x);
+   }
+   else if (dynamic_cast<DenseMatrixInverse*>(&solver))
+   {
+      DenseMatrix AtA_reg(A.Width());
+      Vector col_i(A.Height()), col_j(A.Height());
+      for (int i = 0; i < A.Width(); i++)
+      {
+         A.GetColumn(i, col_i);
+         for (int j = 0; j < A.Width(); j++)
+         {
+            A.GetColumn(j, col_j);
+            AtA_reg(i,j) = col_i * col_j + (i==j)*shift;
+         }
+      }
+
+      solver.SetOperator(AtA_reg);
+      solver.Mult(Atb, x);
+   }
+
+}
+
 /// @brief Check both residuals: of the minimization and the least squares problem
 void CheckLSSolver(const DenseMatrix& A, const Vector& b, const Vector& x)
 {
