@@ -510,7 +510,7 @@ void RajaOmpWrap2D(const int Nx, const int Ny, HBODY &&h_body)
    RAJA::launch<omp_launch_policy>(RAJA::ExecPlace::HOST, RAJA::LaunchParams(),
                                    [=](RAJA::LaunchContext ctx)
    {
-      // contiguous in y
+      // contiguous in x
       RAJA::expt::loop<global_thread_xy>(ctx, xrange, yrange, [&](int i, int j)
       {
          h_body(i, j);
@@ -529,7 +529,7 @@ void RajaOmpWrap3D(const int Nx, const int Ny, const int Nz, HBODY &&h_body)
    RAJA::launch<omp_launch_policy>(RAJA::ExecPlace::HOST, RAJA::LaunchParams(),
                                    [=](RAJA::LaunchContext ctx)
    {
-      // contiguous in z
+      // contiguous in x
       RAJA::expt::loop<global_thread_xyz>(ctx, xrange, yrange, zrange,
                                           [&](int i, int j, int k)
       { h_body(i, j, k); });
