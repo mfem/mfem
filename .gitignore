@@ -299,6 +299,7 @@ miniapps/nurbs/nurbs_ex24
 miniapps/nurbs/nurbs_solenoidal
 miniapps/nurbs/nurbs_printfunc
 miniapps/nurbs/nurbs_patch_ex1
+miniapps/nurbs/nurbs_patch_ex2
 miniapps/nurbs/nurbs_curveint
 miniapps/nurbs/nurbs_surface
 miniapps/nurbs/refined.mesh
@@ -320,6 +321,7 @@ miniapps/nurbs/naca-cmesh.mesh
 miniapps/nurbs/glvis_naca-cmesh.mesh
 miniapps/nurbs/Naca_cmesh
 miniapps/nurbs/*-Surface.mesh
+miniapps/nurbs/*.csv
 
 miniapps/performance/ex1
 miniapps/performance/ex1p
