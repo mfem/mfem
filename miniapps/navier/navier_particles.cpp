@@ -223,8 +223,10 @@ void NavierParticles::Apply2DReflectionBC(const Vector &line_start, const Vector
       X().GetParticleValues(i, p_xn);
       X(1).GetParticleValues(i, p_xnmi);
 
-      // Compute the intersection
-      real_t denom = (p_xnmi[0] - p_xn[0])*(line_start[1]-line_end[1]) - (p_xnmi[1] - p_xn[1])*(line_start[0]-line_end[0]);
+      // Compute the intersection parametrically
+      // r_1 = line_start + t1*[line_end - line_start]
+      // r_2 = x_nm1 + t2*[x_n - x_nm1]
+      real_t denom = (line_end[0]-line_start[0])*(p_xnmi[1] - p_xn[1]) - (line_end[1]-line_start[1])*(p_xnmi[0] - p_xn[0]);
 
       // If line is parallel, don't compute at all
       // Note that nearly-parallel intersections are not well-posed (denom >>> 0)...
@@ -233,15 +235,24 @@ void NavierParticles::Apply2DReflectionBC(const Vector &line_start, const Vector
          continue;
       }
 
-      real_t A = (p_xnmi[0]*p_xn[1] - p_xnmi[1]*p_xn[0]);
-      real_t B = (line_start[0]*line_end[1] - line_start[1]*line_end[0]);
-      
-      real_t x = ( A*(line_start[0] - line_end[0]) - (p_xnmi[0] - p_xn[0])*B ) / denom;
-      real_t y = ( A*(line_start[1] - line_end[1]) - (p_xnmi[1] - p_xn[1])*B ) / denom;
+      real_t t1 = ( (p_xnmi[0] - line_start[0])*(p_xnmi[1]-p_xn[1]) - (p_xnmi[1] - line_start[1])*(p_xnmi[0]-p_xn[0]) ) / denom;
+      real_t t2 = ( (line_end[0] - line_start[0])*(p_xnmi[1] - line_start[1]) - (line_end[1] - line_start[1])*(p_xnmi[0] - line_start[0]) ) / denom;
 
-      // If intersection falls within the segment, apply reflection
-      if ( ((x-p_xnmi[0])*(x-p_xn[0]) <= 0) && ((y-p_xnmi[1])*(y-p_xn[1]) <= 0) )
+      // If intersection falls on line segment of x_nm1 to x_n AND line_start to line_end, apply reflection
+      if ((0 < t1 && t1 < 1) && (0 < t2 && t2 < 1))
       {
+         // Get the point of intersection
+         x_int = p_xn;
+         x_int -= p_xnmi;
+         x_int *= t2;
+         x_int += p_xnmi;
+         // cout << "line_start: "; line_start.Print();
+         // cout << "line_end: "; line_end.Print();
+         // cout << "x_nm1: "; p_xnmi.Print();
+         // cout << "x_n: "; p_xn.Print();
+         // cout << "t1: " << t1 << endl;
+         // cout << "intersection: "; x_int.Print();
+
          // Correct the velocity + its history
          for (int n = 3; n >= 0; n--)
          {
@@ -252,8 +263,6 @@ void NavierParticles::Apply2DReflectionBC(const Vector &line_start, const Vector
          }
          // p_vc is corrected velocity at n
          // p_vnmi is original velocity at n
-         x_int[0] = x;
-         x_int[1] = y;
          real_t dt_c = p_xnmi.DistanceTo(x_int)/p_vnmi.Norml2();
 
          // Correct the position
