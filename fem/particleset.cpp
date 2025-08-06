@@ -24,75 +24,6 @@ extern "C"
 namespace mfem
 {
 
-
-void ParticleVector::GetParticleValues(int i, Vector &pvals) const
-{
-   pvals.SetSize(vdim);
-
-   if (ordering == Ordering::byNODES)
-   {
-      for (int c = 0; c < vdim; c++)
-      {
-         pvals[c] = Vector::operator[](i + c*GetNP());
-      }
-   }
-   else
-   {
-      for (int c = 0; c < vdim; c++)
-      {
-         pvals[c] = Vector::operator[](c + i*vdim);
-      }
-   }
-}
-
-void ParticleVector::GetParticleRefValues(int i, Vector &pref)
-{
-   MFEM_VERIFY(ordering == Ordering::byVDIM, "GetRefParticleField only valid when ordering byVDIM.");
-   pref.MakeRef(*this, i*vdim, vdim);
-}
-
-void ParticleVector::SetParticleValues(int i, const Vector &pvals)
-{
-   if (ordering == Ordering::byNODES)
-   {
-      for (int c = 0; c < vdim; c++)
-      {
-         Vector::operator[](i + c*GetNP()) = pvals[c];
-      }
-   }
-   else
-   {
-      for (int c = 0; c < vdim; c++)
-      {
-         Vector::operator[](c + i*vdim) = pvals[c];
-      }
-   }
-}
-
-real_t& ParticleVector::ParticleValue(int i, int comp)
-{
-   if (ordering == Ordering::byNODES)
-   {
-      return Vector::operator[](i + comp*GetNP());
-   }
-   else
-   {
-      return Vector::operator[](comp + i*vdim);
-   }
-}
-
-const real_t& ParticleVector::ParticleValue(int i, int comp) const
-{
-   if (ordering == Ordering::byNODES)
-   {
-      return Vector::operator[](i + comp*GetNP());
-   }
-   else
-   {
-      return Vector::operator[](comp + i*vdim);
-   }
-}
-
 Particle::Particle(int dim, const Array<int> &field_vdims, int num_tags)
 : coords(dim),
   fields(),
@@ -251,23 +182,28 @@ void ParticleSet::ReserveParticles(int res, ParticleState &particles)
 {
    particles.ids.Reserve(res);
 
-   // Increase Vector capacity implicitly by resizing
-   // TODO: should we just create a Vector::Reserve?
+   // Reserve fields
    for (int f = -1; f < particles.GetNF(); f++)
    {
-      ParticleVector &pv = (f == -1 ? particles.coords : *particles.fields[f]);
+      NodeFunction &pv = (f == -1 ? particles.coords : *particles.fields[f]);
 
+      // ------------------------------------------------------------
+      // Increase Vector capacity implicitly by resizing
+      // TODO: should we just create a Vector::Reserve?
+      //       Array::SetSize doesn't delete... Maybe a "GrowSize?"
       int pv_res = res*pv.GetVDim();
       if (pv_res > pv.Capacity())
       {
-         ParticleVector pv_copy = pv;
+         NodeFunction pv_copy = pv;
          pv.SetSize(pv_res);
          pv.SetVector(pv_copy, 0);
          pv.SetSize(pv_copy.Size());
       }
       // Else pv_res is less than existing capacity. Do nothing (just like Array).
+      // ------------------------------------------------------------
    }
 
+   // Reserve tags
    for (int t = 0; t < particles.GetNT(); t++)
    {
       particles.tags[t]->Reserve(res);
@@ -299,7 +235,7 @@ void ParticleSet::AddParticles(const Array<unsigned int> &new_ids, ParticleState
    // Update data
    for (int f = -1; f < particles.GetNF(); f++)
    {
-      ParticleVector &pv = (f == -1 ? particles.coords : *particles.fields[f]);
+      NodeFunction &pv = (f == -1 ? particles.coords : *particles.fields[f]);
 
       int vdim = pv.GetVDim();
 
@@ -352,7 +288,7 @@ void ParticleSet::RemoveParticles(const Array<int> &list, ParticleState &particl
    // Delete data
    for (int f = -1; f < particles.GetNF(); f++)
    {
-      ParticleVector &pv = (f == -1 ? particles.coords : *particles.fields[f]);
+      NodeFunction &pv = (f == -1 ? particles.coords : *particles.fields[f]);
 
       int vdim = pv.GetVDim();
 
@@ -396,10 +332,10 @@ void ParticleSet::Transfer(const Array<unsigned int> &send_idxs, const Array<uns
       int counter = 0;
       for (int f = -1; f < active_state.GetNF(); f++)
       {
-         ParticleVector &pv = (f == -1 ? active_state.coords : *active_state.fields[f]);
+         NodeFunction &pv = (f == -1 ? active_state.coords : *active_state.fields[f]);
          for (int c = 0; c < pv.GetVDim(); c++)
          {
-            pdata.data[counter] = pv.ParticleValue(send_idxs[i], c);
+            pdata.data[counter] = pv(send_idxs[i], c);
             counter++;
          }
       }
@@ -441,10 +377,10 @@ void ParticleSet::Transfer(const Array<unsigned int> &send_idxs, const Array<uns
       int counter = 0;
       for (int f = -1; f < active_state.GetNF(); f++)
       {
-         ParticleVector &pv = (f == -1 ? active_state.coords : *active_state.fields[f]);
+         NodeFunction &pv = (f == -1 ? active_state.coords : *active_state.fields[f]);
          for (int c = 0; c < pv.GetVDim(); c++)
          {
-            pv.ParticleValue(new_idx, c) = pdata.data[counter];
+            pv(new_idx, c) = pdata.data[counter];
             counter++;
          }
       }
@@ -623,14 +559,14 @@ unsigned int ParticleSet::GetGlobalNP() const
 
 #endif // MFEM_USE_MPI
 
-ParticleVector& ParticleSet::AddField(int vdim, Ordering::Type field_ordering, const char* field_name)
+NodeFunction& ParticleSet::AddField(int vdim, Ordering::Type field_ordering, const char* field_name)
 {
    if (!field_name)
    {
       field_name = GetDefaultFieldName(field_names.size()).c_str();
    }
-   active_state.fields.emplace_back(std::make_unique<ParticleVector>(GetNP(), vdim, field_ordering));
-   inactive_state.fields.emplace_back(std::make_unique<ParticleVector>(inactive_state.ids.Size(), vdim, field_ordering));
+   active_state.fields.emplace_back(std::make_unique<NodeFunction>(GetNP(), vdim, field_ordering));
+   inactive_state.fields.emplace_back(std::make_unique<NodeFunction>(inactive_state.ids.Size(), vdim, field_ordering));
 
    field_names.emplace_back(field_name);
 
@@ -684,12 +620,12 @@ void ParticleSet::RemoveParticles(const Array<int> &list, bool delete_particles)
       {
          for (int f = -1; f < inactive_state.GetNF(); f++)
          {
-            ParticleVector &inactive_pv = (f == -1 ? inactive_state.coords : *inactive_state.fields[f]);
-            ParticleVector &active_pv = (f == -1 ? active_state.coords : *active_state.fields[f]);
+            NodeFunction &inactive_pv = (f == -1 ? inactive_state.coords : *inactive_state.fields[f]);
+            NodeFunction &active_pv = (f == -1 ? active_state.coords : *active_state.fields[f]);
             
             for (int c = 0; c < active_pv.GetVDim(); c++)
             {
-               inactive_pv.ParticleValue(inactive_idxs[i], c) = active_pv.ParticleValue(list[i], c);
+               inactive_pv(inactive_idxs[i], c) = active_pv(list[i], c);
             }
          }
          for (int t = 0; t < inactive_state.GetNT(); t++)
@@ -710,11 +646,11 @@ Particle ParticleSet::GetParticle(int i) const
 {
    Particle p = CreateParticle();
 
-   Coords().GetParticleValues(i, p.Coords());
+   Coords().GetNodeValues(i, p.Coords());
    
    for (int f = 0; f < active_state.GetNF(); f++)
    {
-      Field(f).GetParticleValues(i, p.Field(f));  
+      Field(f).GetNodeValues(i, p.Field(f));  
    }
 
    for (int t = 0; t < active_state.GetNT(); t++)
@@ -745,17 +681,17 @@ Particle ParticleSet::GetParticleRef(int i)
 {
    Particle p = CreateParticle();
 
-   Coords().GetParticleRefValues(i, p.Coords());
+   Coords().GetRefNodeValues(i, p.Coords());
 
    for (int f = 0; f < active_state.GetNF(); f++)
    {
-      Field(f).GetParticleRefValues(i, p.Field(f));
+      Field(f).GetRefNodeValues(i, p.Field(f));
    }
 
    for (int t = 0; t < active_state.GetNT(); t++)
    {
-      p.TagMemory(t).Delete();
-      p.TagMemory(t).MakeAlias((*active_state.tags[t]).GetMemory(), i, 1);
+      p.tags[t].Delete();
+      p.tags[t].MakeAlias((*active_state.tags[t]).GetMemory(), i, 1);
    }
 
    return std::move(p);
@@ -763,11 +699,11 @@ Particle ParticleSet::GetParticleRef(int i)
 
 void ParticleSet::SetParticle(int i, const Particle &p)
 {
-   Coords().SetParticleValues(i, p.Coords());
+   Coords().SetNodeValues(i, p.Coords());
 
    for (int f = 0; f < active_state.GetNF(); f++)
    {
-      Field(f).SetParticleValues(i, p.Field(f));
+      Field(f).SetNodeValues(i, p.Field(f));
    }
 
    for (int t = 0; t < active_state.GetNT(); t++)
@@ -791,7 +727,7 @@ void ParticleSet::PrintCSV(const char *fname, int precision)
 
    for (int f = -1; f < active_state.GetNF(); f++)
    {
-      ParticleVector &pv = (f == -1 ? active_state.coords : *active_state.fields[f]);
+      NodeFunction &pv = (f == -1 ? active_state.coords : *active_state.fields[f]);
 
       for (int c = 0; c < pv.GetVDim(); c++)
       {
@@ -830,11 +766,11 @@ void ParticleSet::PrintCSV(const char *fname, int precision)
 
       for (int f = -1; f < active_state.GetNF(); f++)
       {
-         ParticleVector &pv = (f == -1 ? active_state.coords : *active_state.fields[f]);
+         NodeFunction &pv = (f == -1 ? active_state.coords : *active_state.fields[f]);
 
          for (int c = 0; c < pv.GetVDim(); c++)
          {
-            ss_data << "," << pv.ParticleValue(i, c);
+            ss_data << "," << pv(i, c);
          }
       }
       for (int t = 0; t < active_state.GetNT(); t++)

@@ -35,43 +35,18 @@ struct crystal;
 namespace mfem
 {
 
-
-class ParticleVector : public Vector
-{
-protected:
-   const int vdim;
-   const Ordering::Type ordering;
-
-public:
-
-   using Vector::operator=;
-
-   ParticleVector(int np, int vdim_, Ordering::Type ordering_)
-   : Vector(np*vdim_), vdim(vdim_), ordering(ordering_) { Vector::operator=(0.0); }
-   
-   int GetVDim() const { return vdim; }
-
-   Ordering::Type GetOrdering() const { return ordering; }
-
-   int GetNP() const { return Size()/vdim; }
-
-   void GetParticleValues(int i, Vector &pvals) const;
-   
-   void GetParticleRefValues(int i, Vector &pref);
-
-   void SetParticleValues(int i, const Vector &pvals);
-
-   real_t& ParticleValue(int i, int comp=0);
-
-   const real_t& ParticleValue(int i, int comp=0) const;
-};
-
-
 // -----------------------------------------------------------------------------------------------------
 // Define Particle class
 
+class ParticleSet;
+
+
 class Particle
 {
+   // Required only for setting tag Memory<int>::MakeAlias in GetParticleRef.
+   // Can alternatively expose Memory<int>& TagMemory(int t) ....
+   friend class ParticleSet;
+
 protected:
    Vector coords;
    std::vector<Vector> fields;
@@ -104,8 +79,6 @@ public:
 
    const int& Tag(int t) const { return tags[t][0]; }
 
-   Memory<int>& TagMemory(int t) { return tags[t]; }
-
    bool operator==(const Particle &rhs) const;
 
    bool operator!=(const Particle &rhs) const { return !operator==(rhs); }
@@ -135,8 +108,8 @@ protected:
    struct ParticleState
    {
       Array<unsigned int> ids; /// Particle IDs
-      ParticleVector coords;
-      std::vector<std::unique_ptr<ParticleVector>> fields;
+      NodeFunction coords;
+      std::vector<std::unique_ptr<NodeFunction>> fields;
       std::vector<std::unique_ptr<Array<int>>> tags;
 
       ParticleState(int dim, Ordering::Type coords_ordering)
@@ -199,7 +172,7 @@ protected:
    void DispatchDataTransfer(const Array<unsigned int> &send_idxs, const Array<unsigned int> &send_ranks, std::index_sequence<NDatas...>)
    {
       int total_comps = active_state.coords.GetVDim();
-      for (std::unique_ptr<ParticleVector> &pv : active_state.fields)
+      for (std::unique_ptr<NodeFunction> &pv : active_state.fields)
       {
          total_comps += pv->GetVDim();
       }
@@ -242,7 +215,7 @@ public:
 
    const Array<unsigned int>& GetIDs() const { return active_state.ids; }
 
-   ParticleVector& AddField(int vdim, Ordering::Type field_ordering=Ordering::byVDIM, const char* field_name=nullptr);
+   NodeFunction& AddField(int vdim, Ordering::Type field_ordering=Ordering::byVDIM, const char* field_name=nullptr);
 
    Array<int>& AddTag(const char* tag_name=nullptr);
 
@@ -262,13 +235,13 @@ public:
    /// Remove particle data specified by \p list of particle indices.
    void RemoveParticles(const Array<int> &list, bool delete_particles=false);
 
-   ParticleVector& Coords() { return active_state.coords; }
+   NodeFunction& Coords() { return active_state.coords; }
 
-   const ParticleVector& Coords() const { return active_state.coords; }
+   const NodeFunction& Coords() const { return active_state.coords; }
 
-   ParticleVector& Field(int f) { return *active_state.fields[f]; }
+   NodeFunction& Field(int f) { return *active_state.fields[f]; }
 
-   const ParticleVector& Field(int f) const { return *active_state.fields[f]; }
+   const NodeFunction& Field(int f) const { return *active_state.fields[f]; }
 
    Array<int>& Tag(int t) { return *active_state.tags[t]; }
 
