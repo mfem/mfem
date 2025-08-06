@@ -717,7 +717,7 @@ Particle ParticleSet::GetParticle(int i) const
       Field(f).GetParticleValues(i, p.Field(f));  
    }
 
-   for (int t = 0; t < active_state.GetNP(); t++)
+   for (int t = 0; t < active_state.GetNT(); t++)
    {
       p.Tag(t) = Tag(t)[i];
    }
