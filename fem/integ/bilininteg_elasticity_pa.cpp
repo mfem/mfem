@@ -337,15 +337,15 @@ void ElasticityIntegrator::AssembleDiagonalPatchPA(const Vector &pa_data,
                      };
 
                      const int q = qx + ((qy + (qz * Q1D[1])) * Q1D[0]);
-                     const real_t lambda  = qd(q,9);
-                     const real_t mu      = qd(q,10);
+                     const real_t lambda_q  = qd(q,9);
+                     const real_t mu_q      = qd(q,10);
                      const auto Jinvt = make_tensor<dim, dim>(
                      [&](int i, int j) { return qd(q, i*dim + j); });
                      // As second order tensor: e[i] * grad_phi[j]
                      const auto grad_phi = make_tensor<dim, dim>(
                      [&](int i, int j) { return grad[j]; });
 
-                     const auto Sq = LinearElasticityKernel(Jinvt, lambda, mu, grad_phi);
+                     const auto Sq = LinearElasticityKernel(Jinvt, lambda_q, mu_q, grad_phi);
 
                      const auto grad_phiv = make_tensor<dim>(
                      [&](int i) { return grad[i]; });

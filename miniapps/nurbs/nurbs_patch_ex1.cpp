@@ -179,7 +179,7 @@ int main(int argc, char *argv[])
       }
 
       SplineIntegrationRule splineRule(spline_integration_type, ir_order);
-      NURBSMeshRules* meshRules = new NURBSMeshRules(mesh, splineRule);
+      meshRules = new NURBSMeshRules(mesh, splineRule);
       di->SetNURBSPatchIntRule(meshRules);
    }
 
@@ -229,7 +229,6 @@ int main(int argc, char *argv[])
    }
 
    // 14. Free the used memory.
-   delete fec;
    if (meshRules)
    {
       delete meshRules;
