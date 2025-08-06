@@ -73,19 +73,20 @@ public:
 class Particle
 {
 protected:
-
    Vector coords;
    std::vector<Vector> fields;
-
+   std::vector<Memory<int>> tags;
 public:
    
-   Particle(int dim, const Array<int> &field_vdims);
+   Particle(int dim, const Array<int> &field_vdims, int num_tags);
 
    int Dim() const { return coords.Size(); }
 
    int NumFields() const { return fields.size(); }
 
    int FieldVDim(int f) const { return fields[f].Size(); }
+
+   int NumTags() const { return tags.size(); }
 
    Vector& Coords() { return coords; }
 
@@ -98,6 +99,12 @@ public:
    Vector& Field(int f) { return fields[f]; }
 
    const Vector& Field(int f) const { return fields[f]; }
+
+   int& Tag(int t) { return tags[t][0]; }
+
+   const int& Tag(int t) const { return tags[t][0]; }
+
+   Memory<int>& TagMemory(int t) { return tags[t]; }
 
    bool operator==(const Particle &rhs) const;
 
@@ -115,7 +122,8 @@ class ParticleSet
 private:
    static Array<Ordering::Type> GetOrderingArray(Ordering::Type o, int N);
    static std::string GetDefaultFieldName(int i);
-   static Array<const char*> GetEmptyFieldNameArray(int N);
+   static std::string GetDefaultTagName(int i);
+   static Array<const char*> GetEmptyNameArray(int N);
    static Array<int> LDof2VDofs(int ndofs, int vdim, const Array<int> &ldofs, Ordering::Type o);
 #ifdef MFEM_USE_MPI
    static unsigned int GetRank(MPI_Comm comm_);
@@ -154,6 +162,7 @@ protected:
    ParticleState active_state;
    ParticleState inactive_state;
    std::vector<std::string> field_names;
+   std::vector<std::string> tag_names;
 
 #ifdef MFEM_USE_MPI
    MPI_Comm comm;
@@ -165,46 +174,36 @@ protected:
    std::unique_ptr<gslib::crystal> cr;
 
    // If no FindPointsGSLIB data:
-   template<std::size_t NData, std::size_t NTag, std::size_t NFinder>
+   template<std::size_t NData, std::size_t NTag>
    struct pdata_t
    {
       std::array<double, NData> data; // coords + fields
       std::array<int, NTag> tags; // tags
-      std::array<double, 3*NFinder> rst, mfem_rst; // gslib ref coords, mfem ref coords
-      std::array<unsigned int, NFinder> proc, elem, mfem_elem, code;
       unsigned int id;
    };
 
    static constexpr int NDATA_MAX = 50;
    static constexpr int NTAG_MAX = 3;
-   static constexpr int NFINDER_MAX = 3;
 
-   template<std::size_t NData, std::size_t NTag, std::size_t NFinder>
-   void Transfer(const Array<unsigned int> &send_idxs, const Array<unsigned int> &send_ranks, Array<FindPointsGSLIB*> finders);
-
-   template<std::size_t NData, std::size_t NTag, std::size_t... NFinders>
-   void DispatchFinderTransfer(const Array<unsigned int> &send_idxs, const Array<unsigned int> &send_ranks, Array<FindPointsGSLIB*> finders, std::index_sequence<NFinders...>)
-   {
-      bool success = ( (finders.Size() == NFinders ? (Transfer<NData,NTag,NFinders>(send_idxs, send_ranks, finders),true) : false) || ...);
-      MFEM_ASSERT(success, "Redistributing with > " << NFINDER_MAX << " FindPointsGSLIB objects is not supported. Please submit PR to request particular case with more.");
-   }
+   template<std::size_t NData, std::size_t NTag>
+   void Transfer(const Array<unsigned int> &send_idxs, const Array<unsigned int> &send_ranks);
 
    template<std::size_t NData, std::size_t... NTags>
-   void DispatchTagTransfer(const Array<unsigned int> &send_idxs, const Array<unsigned int> &send_ranks, Array<FindPointsGSLIB*> finders, std::index_sequence<NTags...>)
+   void DispatchTagTransfer(const Array<unsigned int> &send_idxs, const Array<unsigned int> &send_ranks, std::index_sequence<NTags...>)
    {
-      bool success = ( (active_state.GetNT() == NTags ? (DispatchFinderTransfer<NData, NTags>(send_idxs, send_ranks, finders, std::make_index_sequence<NFINDER_MAX+1>{}),true) : false) || ...);
+      bool success = ( (active_state.GetNT() == NTags ? (Transfer<NData, NTags>(send_idxs, send_ranks),true) : false) || ...);
       MFEM_ASSERT(success, "Redistributing with > " << NTAG_MAX << " tags is not supported. Please submit PR to request particular case with more.");
    }
    
    template<std::size_t... NDatas>
-   void DispatchDataTransfer(const Array<unsigned int> &send_idxs, const Array<unsigned int> &send_ranks, Array<FindPointsGSLIB*> finders, std::index_sequence<NDatas...>)
+   void DispatchDataTransfer(const Array<unsigned int> &send_idxs, const Array<unsigned int> &send_ranks, std::index_sequence<NDatas...>)
    {
       int total_comps = active_state.coords.GetVDim();
       for (std::unique_ptr<ParticleVector> &pv : active_state.fields)
       {
          total_comps += pv->GetVDim();
       }
-      bool success = ( (total_comps == NDatas ? (DispatchTagTransfer<NDatas>(send_idxs, send_ranks, finders, std::make_index_sequence<NTAG_MAX+1>{}),true) : false) || ...);
+      bool success = ( (total_comps == NDatas ? (DispatchTagTransfer<NDatas>(send_idxs, send_ranks, std::make_index_sequence<NTAG_MAX+1>{}),true) : false) || ...);
       MFEM_ASSERT(success, "Redistributing with > " << NDATA_MAX << " real_t components per particle is not supported. Please submit PR to request particular case with more.");
    }
 
@@ -214,23 +213,23 @@ protected:
 
    void WriteToFile(const char *fname, const std::stringstream &ss_header, const std::stringstream &ss_data);
 
-   ParticleSet(int id_stride_, int id_counter_, int num_particles, int dim, Ordering::Type coords_ordering, const Array<int> &field_vdims, const Array<Ordering::Type> &field_orderings, const Array<const char*> &field_names_);
+   ParticleSet(int id_stride_, int id_counter_, int num_particles, int dim, Ordering::Type coords_ordering, const Array<int> &field_vdims, const Array<Ordering::Type> &field_orderings, const Array<const char*> &field_names_, int num_tags, const Array<const char*> &tag_names_);
 
 public:
 
    // Serial constructors
    ParticleSet(int num_particles, int dim, Ordering::Type coords_ordering=Ordering::byVDIM);
-   ParticleSet(int num_particles, int dim, const Array<int> &field_vdims, Ordering::Type all_ordering=Ordering::byVDIM);
-   ParticleSet(int num_particles, int dim, const Array<int> &field_vdims, const Array<const char*> &field_names_, Ordering::Type all_ordering=Ordering::byVDIM);
-   ParticleSet(int num_particles, int dim, Ordering::Type coords_ordering, const Array<int> &field_vdims, const Array<Ordering::Type> &field_orderings, const Array<const char*> &field_names_);
+   ParticleSet(int num_particles, int dim, const Array<int> &field_vdims, int num_tags, Ordering::Type all_ordering=Ordering::byVDIM);
+   ParticleSet(int num_particles, int dim, const Array<int> &field_vdims, const Array<const char*> &field_names_, int num_tags, const Array<const char*> &tag_names, Ordering::Type all_ordering=Ordering::byVDIM);
+   ParticleSet(int num_particles, int dim, Ordering::Type coords_ordering, const Array<int> &field_vdims, const Array<Ordering::Type> &field_orderings, const Array<const char*> &field_names_, int num_tags, const Array<const char*> &tag_names);
 
 #ifdef MFEM_USE_MPI
 
    // Parallel constructors
    ParticleSet(MPI_Comm comm_, int rank_num_particles, int dim, Ordering::Type coords_ordering=Ordering::byVDIM);
-   ParticleSet(MPI_Comm comm_, int rank_num_particles, int dim, const Array<int> &field_vdims, Ordering::Type all_ordering=Ordering::byVDIM);
-   ParticleSet(MPI_Comm comm_, int rank_num_particles, int dim, const Array<int> &field_vdims, const Array<const char*> &field_names_, Ordering::Type all_ordering=Ordering::byVDIM);
-   ParticleSet(MPI_Comm comm_, int rank_num_particles, int dim, Ordering::Type coords_ordering, const Array<int> &field_vdims, const Array<Ordering::Type> &field_orderings, const Array<const char*> &field_names_);
+   ParticleSet(MPI_Comm comm_, int rank_num_particles, int dim, const Array<int> &field_vdims, int num_tags, Ordering::Type all_ordering=Ordering::byVDIM);
+   ParticleSet(MPI_Comm comm_, int rank_num_particles, int dim, const Array<int> &field_vdims, const Array<const char*> &field_names_, int num_tags, const Array<const char*> &tag_names, Ordering::Type all_ordering=Ordering::byVDIM);
+   ParticleSet(MPI_Comm comm_, int rank_num_particles, int dim, Ordering::Type coords_ordering, const Array<int> &field_vdims, const Array<Ordering::Type> &field_orderings, const Array<const char*> &field_names_, int num_tags, const Array<const char*> &tag_names);
 
    MPI_Comm GetComm() const { return comm; };
 
@@ -245,6 +244,8 @@ public:
 
    ParticleVector& AddField(int vdim, Ordering::Type field_ordering=Ordering::byVDIM, const char* field_name=nullptr);
 
+   Array<int>& AddTag(const char* tag_name=nullptr);
+
    /// Reserve room for \p res particles. Can help to avoid re-allocation for adding + removing particles.
    void Reserve(int res) { ReserveParticles(res, active_state); };
 
@@ -252,6 +253,8 @@ public:
    int GetNP() const { return active_state.GetNP(); }
 
    int GetNF() const { return active_state.GetNF(); }
+
+   int GetNT() const { return active_state.GetNT(); }
 
    /// Add particle
    void AddParticle(const Particle &p);
@@ -266,6 +269,10 @@ public:
    ParticleVector& Field(int f) { return *active_state.fields[f]; }
 
    const ParticleVector& Field(int f) const { return *active_state.fields[f]; }
+
+   Array<int>& Tag(int t) { return *active_state.tags[t]; }
+
+   const Array<int>& Tag(int t) const { return *active_state.tags[t]; }
 
    /// Get Particle with copy of data associated with particle \p i
    Particle GetParticle(int i) const;
@@ -282,12 +289,11 @@ public:
    /// Print to CSV
    void PrintCSV(const char *fname, int precision=16);
 
-
 #if defined(MFEM_USE_MPI) && defined(MFEM_USE_GSLIB)
 
    /// Redistribute particles onto ranks specified in \p rank_list .
    /// Optionally include array of FindPointsGSLIB objects to have their internal data transferred as well.
-   void Redistribute(const Array<unsigned int> &rank_list, Array<FindPointsGSLIB*> finders = Array<FindPointsGSLIB*>());
+   void Redistribute(const Array<unsigned int> &rank_list);
    
 #endif // MFEM_USE_MPI && MFEM_USE_GSLIB
 
