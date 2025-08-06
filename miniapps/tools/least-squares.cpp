@@ -20,6 +20,7 @@ enum ReconstructionType
    norm,
    average,
    face_average,
+   weak_face_average,
    num_reconstructions  // last
 };
 
@@ -621,25 +622,40 @@ void AverageReconstruction(Solver& solver,
       punity_dst.GetSubVector(e_dst_dofs, punity_e);
 
       // Solve
+      /*
+       * if (preserve_volumes)
+       * {
+       *    real_t e_src = src(e_idx);
+       *    Vector shape_src_e, local_ones(num_neighbors);
+       *    local_ones = 1.0;
+       *    DenseMatrix temp_mat;
+       *    mass.AsymmetricElementMatrix(*fes_dst->GetFE(e_idx),
+       *                                 *fes_src->GetFE(e_idx),
+       *                                 *e_trans.get(), *e_trans.get(), temp_mat,
+       *                                 newton);
+       *    temp_mat *= -1.0/volumes(e_idx);
+       *    temp_mat.GetRow(0, shape_src_e);
+       *    // Set up A - 1 x shape_src
+       *    AddMultVWt(local_ones, shape_src_e, fe_dst_to_neighbors_mat);
+       *    // Set up u avgs minus average on e
+       *    add(1.0, src_neighbors, -e_src, local_ones, src_neighbors);
+       *    LSSolver(solver, fe_dst_to_neighbors_mat, src_neighbors, dst_e, reg);
+       *    // Add the average to the final solution
+       *    add(1.0, dst_e, e_src, punity_e, dst_e);
+       * } */
       if (preserve_volumes)
       {
          real_t e_src = src(e_idx);
-         Vector shape_src_e, local_ones(num_neighbors);
-         local_ones = 1.0;
+         Vector shape_src_e;
          DenseMatrix temp_mat;
          mass.AsymmetricElementMatrix(*fes_dst->GetFE(e_idx),
                                       *fes_src->GetFE(e_idx),
                                       *e_trans.get(), *e_trans.get(), temp_mat,
                                       newton);
-         temp_mat *= -1.0/volumes(e_idx);
+         temp_mat *= 1.0/volumes(e_idx);
          temp_mat.GetRow(0, shape_src_e);
-         // Set up A - 1 x shape_src
-         AddMultVWt(local_ones, shape_src_e, fe_dst_to_neighbors_mat);
-         // Set up u avgs minus average on e
-         add(1.0, src_neighbors, -e_src, local_ones, src_neighbors);
-         LSSolver(solver, fe_dst_to_neighbors_mat, src_neighbors, dst_e, reg);
-         // Add the average to the final solution
-         add(1.0, dst_e, e_src, punity_e, dst_e);
+         LSSolver(solver, fe_dst_to_neighbors_mat, shape_src_e,
+                  src_neighbors, e_src, dst_e, reg);
       }
       else
       {
@@ -838,6 +854,43 @@ void FaceReconstruction(Solver& solver,
       faces_e.DeleteAll();
       orientation_e.DeleteAll();
       face_dofs.DeleteAll();
+   }
+}
+
+/// @brief A element-based, face-average reconstruction using weak jumps
+void WeakFaceReconstruction(Solver& solver,
+                            ParGridFunction& src,
+                            ParGridFunction& dst,
+                            ParMesh& mesh)
+{
+   const auto fes_src = src.ParFESpace();
+   const auto fes_dst = dst.ParFESpace();
+
+   Array<int> e_src_dofs;
+   MassIntegrator mass;
+   // DGTraceIntegrator jump(VCOEFF, 1.0, 0.0);
+
+   for (int e_idx=0; e_idx < mesh.GetNE(); e_idx++)
+   {
+      const auto fe_src_e = fes_src->GetFE(e_idx);
+      const auto fe_dst_e = fes_dst->GetFE(e_idx);
+
+      auto e_trans = fes_src->GetElementTransformation(e_idx);
+
+      // Volume constraint: L2-proj
+      DenseMatrix constraint_mat, project_mat;
+      mass.AssembleElementMatrix(*fe_src_e, *e_trans, project_mat);
+      mass.AssembleElementMatrix2(*fe_dst_e, *fe_src_e, *e_trans, constraint_mat);
+
+      Vector src_e, rhs_constr_e(project_mat.Height());
+      fes_src->GetElementDofs(e_idx, e_src_dofs);
+      src.GetSubVector(e_src_dofs, src_e);
+      project_mat.Mult(src_e, rhs_constr_e);
+
+      // Weak jumps with DGInt
+
+
+      e_src_dofs.DeleteAll();
    }
 }
 
