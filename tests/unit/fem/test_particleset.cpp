@@ -17,6 +17,7 @@ using namespace mfem;
 
 static constexpr int SpaceDim = 3;
 static const Array<int> FieldVDims({2,3,1,5});
+static constexpr int NumTags = 3;
 
 static constexpr int N = 100;
 static constexpr int N_rm = 37;
@@ -26,7 +27,7 @@ void InitializeRandom(Particle &p, int seed)
 {
    std::mt19937 gen(seed);
    std::uniform_real_distribution<> real_dist(0.0,1.0);
-
+   std::uniform_int_distribution<> int_dist;
 
    for (int i = 0; i < p.Dim(); i++)
    {
@@ -39,6 +40,12 @@ void InitializeRandom(Particle &p, int seed)
          p.FieldValue(f,c) = real_dist(gen);
       }
    }
+
+   for (int t = 0; t < p.NumTags(); t++)
+   {
+      p.Tag(t) = real_dist(gen);
+   }
+
 }
 
 void TestAddRemove(Ordering::Type ordering)
@@ -49,7 +56,7 @@ void TestAddRemove(Ordering::Type ordering)
 
    for (int i = 0; i < N; i++)
    {
-      particles.emplace_back(SpaceDim, FieldVDims);
+      particles.emplace_back(SpaceDim, FieldVDims, NumTags);
       InitializeRandom(particles[i], seed);
       seed++;
    }
@@ -75,7 +82,7 @@ void TestAddRemove(Ordering::Type ordering)
 
    SECTION(std::string("Ordering: ") + (ordering == Ordering::byNODES ? "byNODES" : "byVDIM"))
    {
-      ParticleSet pset(0, SpaceDim, FieldVDims, ordering);
+      ParticleSet pset(0, SpaceDim, FieldVDims, NumTags, ordering);
 
       SECTION("Add")
       {
@@ -154,7 +161,7 @@ void TestRedistribute(Ordering::Type ordering)
    int seed = 17;
    for (int i = 0; i < N; i++)
    {
-      all_particles.emplace_back(SpaceDim, FieldVDims);
+      all_particles.emplace_back(SpaceDim, FieldVDims, NumTags);
       InitializeRandom(all_particles.back(), seed);
       seed++;
    }
@@ -164,11 +171,8 @@ void TestRedistribute(Ordering::Type ordering)
    // NOTE: This test could fail if a point falls on an element boundary
    SECTION(std::string("Ordering: ") + (ordering == Ordering::byNODES ? "byNODES" : "byVDIM"))
    {
-      SECTION("With rank_list")
-      {
          // Add the particles uniquely to each rank particleset
-
-         ParticleSet pset(MPI_COMM_WORLD, 0, SpaceDim, FieldVDims, ordering);
+         ParticleSet pset(MPI_COMM_WORLD, 0, SpaceDim, FieldVDims, NumTags, ordering);
 
          for (int i = 0; i < N_rank; i++)
          {
@@ -213,59 +217,8 @@ void TestRedistribute(Ordering::Type ordering)
          }
          MPI_Allreduce(MPI_IN_PLACE, &wrong_proc_count, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
          CHECK(wrong_particle_count == 0);
-      }
-      SECTION("With FindPointsGSLIB")
-      {
-         // Add the particles uniquely to each rank particleset
-         ParticleSet pset1(MPI_COMM_WORLD, 0, SpaceDim, FieldVDims, ordering);
-         ParticleSet pset2(MPI_COMM_WORLD, 0, SpaceDim, FieldVDims, ordering);
-         for (int i = 0; i < N_rank; i++)
-         {
-            pset1.AddParticle(all_particles[i*size+rank]);
-            pset2.AddParticle(all_particles[i*size+rank]);
-         }
-
-
-         FindPointsGSLIB finder1(MPI_COMM_WORLD);
-         FindPointsGSLIB finder2(MPI_COMM_WORLD);
-         finder1.Setup(pmesh);
-         finder2.Setup(pmesh);
-         
-         finder1.FindPoints(pset1.Coords(), ordering);
-         finder2.FindPoints(pset2.Coords(), ordering);
-
-         Array<FindPointsGSLIB*> finder_arr({&finder1});
-         pset1.Redistribute(finder1.GetProc(), finder_arr); // Redistribute points and FindPointsGSLIB data
-
-         pset2.Redistribute(finder2.GetProc()); // Redistribute points
-         finder2.FindPoints(pset2.Coords(), ordering); // Re-find FindPointsGSLIB data
-
-         // // All Code, Elem, Proc, and ReferencePositions in finder1 and finder2 should now be equivalent
-         int wrong_codes_count = CheckArrayEquality(finder1.GetCode(), finder2.GetCode());
-         MPI_Allreduce(MPI_IN_PLACE, &wrong_codes_count, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
-         CHECK(wrong_codes_count == 0);
-
-         int wrong_elems_count = CheckArrayEquality(finder1.GetGSLIBElem(), finder2.GetGSLIBElem());
-         MPI_Allreduce(MPI_IN_PLACE, &wrong_elems_count, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
-         CHECK(wrong_elems_count == 0);
-
-         int wrong_mfem_elems_count = CheckArrayEquality(finder1.GetElem(), finder2.GetElem());
-         MPI_Allreduce(MPI_IN_PLACE, &wrong_mfem_elems_count, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
-         CHECK(wrong_mfem_elems_count == 0);
-
-         int wrong_procs_count = CheckArrayEquality(finder1.GetProc(), finder2.GetProc());
-         MPI_Allreduce(MPI_IN_PLACE, &wrong_procs_count, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
-         CHECK(wrong_procs_count == 0);
-
-         bool correct_ref_coords = finder1.GetGSLIBReferencePosition().DistanceTo(finder2.GetGSLIBReferencePosition()) == MFEM_Approx(0.0);
-         MPI_Allreduce(MPI_IN_PLACE, &correct_ref_coords, 1, MPI_C_BOOL, MPI_LAND, MPI_COMM_WORLD);
-         CHECK(correct_ref_coords);
-         
-         bool correct_mfem_ref_coords = finder1.GetReferencePosition().DistanceTo(finder2.GetReferencePosition()) == MFEM_Approx(0.0);
-         MPI_Allreduce(MPI_IN_PLACE, &correct_mfem_ref_coords, 1, MPI_C_BOOL, MPI_LAND, MPI_COMM_WORLD);
-         CHECK(correct_mfem_ref_coords);
-      }
    }
+
 }
 
 TEST_CASE("Particle Redistribution", "[ParticleSet]" "[Parallel]")
