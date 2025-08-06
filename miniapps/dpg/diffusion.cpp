@@ -183,6 +183,7 @@ int main(int argc, char *argv[])
    bool static_cond = false;
    bool reduction = false;
    bool hybridization = false;
+   bool reconstruct = false;
    bool analytic = false;
 
    OptionsParser args(argc, argv);
@@ -234,6 +235,9 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&reconstruct, "-rec", "--reconstruct", "-no-rec",
+                  "--no-reconstruct",
+                  "Enable or disable quantities reconstruction.");
    args.AddOption(&analytic, "-anal", "--analytic", "-no-anal",
                   "--no-analytic",
                   "Enable or disable analytic solution.");
@@ -513,8 +517,8 @@ int main(int argc, char *argv[])
    GridFunction hatu_gf;
 
    // Visualization streams
-   socketstream u_out, uex_out;
-   socketstream sigma_out, sigmaex_out;
+   socketstream u_out, u_rec_out, uex_out;
+   socketstream sigma_out, sigma_rec_out, sigmaex_out;
 
    if (prob == prob_type::manufactured)
    {
@@ -718,7 +722,7 @@ int main(int argc, char *argv[])
          a_darcy->RecoverFEMSolution(X, x);
       }
 
-      GridFunction u_gf, sigma_gf;
+      GridFunction u_gf, sigma_gf, sigma_tot_gf, u_rec_gf, sigma_rec_gf, uhat_rec_gf;
       if (a_dpg)
       {
          u_gf.MakeRef(u_fes,x.GetBlock(0),0);
@@ -730,14 +734,21 @@ int main(int argc, char *argv[])
          u_gf.MakeRef(u_fes,x.GetBlock(1),0);
       }
 
+      if (reconstruct && a_darcy)
+      {
+         a_darcy->Reconstruct(x, X, sigma_tot_gf, sigma_rec_gf, u_rec_gf, uhat_rec_gf);
+      }
+
       chrono_total.Stop();
 
       if (prob == prob_type::manufactured)
       {
          const int l2dofs = u_fes->GetVSize() + sigma_fes->GetVSize();
          const int sysdofs = Ah->Height();
-         real_t u_err = u_gf.ComputeL2Error(uex);
-         real_t sigma_err = sigma_gf.ComputeL2Error(sigmaex);
+         real_t u_err = (reconstruct)?(u_rec_gf.ComputeL2Error(uex)):
+                        (u_gf.ComputeL2Error(uex));
+         real_t sigma_err = (reconstruct)?(sigma_rec_gf.ComputeL2Error(sigmaex)):
+                            (sigma_gf.ComputeL2Error(sigmaex));
          real_t L2Error = sqrt(u_err*u_err + sigma_err*sigma_err);
          real_t rate_err = (it) ? dim*log(err0/L2Error)/log((real_t)dof0/l2dofs) : 0.0;
          err0 = L2Error;
@@ -763,21 +774,36 @@ int main(int argc, char *argv[])
       {
          const char * keys = (it == 0 && dim == 2) ? "jlRcm\n" : nullptr;
          char vishost[] = "localhost";
+         int xoff = 0;
          VisualizeField(u_out,vishost, visport, u_gf,
-                        "Numerical u", 0,0, 500, 500, keys);
+                        "Numerical u", xoff, 0, 500, 500, keys);
+         xoff += 500;
          VisualizeField(sigma_out,vishost, visport, sigma_gf,
-                        "Numerical flux", 500,0,500, 500, keys);
+                        "Numerical flux", xoff, 0, 500, 500, keys);
+         xoff += 500;
+
+         if (reconstruct)
+         {
+            VisualizeField(u_rec_out, vishost, visport, u_rec_gf,
+                           "Recon. u", xoff, 0, 500, 500, keys);
+            xoff += 500;
+            VisualizeField(sigma_rec_out, vishost, visport, sigma_rec_gf,
+                           "Recon. sigma", xoff, 0, 500, 500, keys);
+            xoff += 500;
+         }
          if (analytic)
          {
             GridFunction uex_gf(u_fes);
             uex_gf.ProjectCoefficient(uex);
             VisualizeField(uex_out, vishost, visport, uex_gf,
-                           "Numerical u (analytic)", 1000,0, 500, 500, keys);
+                           "Numerical u (analytic)", xoff, 0, 500, 500, keys);
+            xoff += 500;
 
             GridFunction sigmaex_gf(sigma_fes);
             sigmaex_gf.ProjectCoefficient(sigmaex);
             VisualizeField(sigmaex_out, vishost, visport, sigmaex_gf,
-                           "Numerical flux (analytic)", 1500,0,500, 500, keys);
+                           "Numerical flux (analytic)", xoff, 0, 500, 500, keys);
+            xoff += 500;
          }
       }
 
