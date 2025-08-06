@@ -161,17 +161,17 @@ void ElasticityIntegrator::AssemblePatchPA(const int patch,
  *    return sigma * J^{-T}
  */
 template <int dim>
-tensor<mfem::real_t, dim, dim>
-LinearElasticStress(const tensor<mfem::real_t, dim, dim> Jinvt,
+tensor<real_t, dim, dim>
+LinearElasticStress(const tensor<real_t, dim, dim> Jinvt,
                     const real_t lambda,
                     const real_t mu,
-                    const tensor<mfem::real_t, dim, dim> gradu_ref)
+                    const tensor<real_t, dim, dim> gradu_ref)
 {
    // Convert gradu_ref to physical space
    const auto gradu = gradu_ref * transpose(Jinvt);
    // Compute stress
    constexpr auto I = mfem::future::IsotropicIdentity<dim>();
-   const tensor<mfem::real_t, dim, dim> strain = sym(gradu);
+   const tensor<real_t, dim, dim> strain = sym(gradu);
    const auto stress = lambda * tr(strain) * I + 2.0 * mu * strain;
    // Transform back to reference space
    return stress * Jinvt;
