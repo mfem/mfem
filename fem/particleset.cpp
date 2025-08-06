@@ -238,6 +238,11 @@ void ParticleSet::ReserveParticles(int res, ParticleState &particles)
       // Else pv_res is less than existing capacity. Do nothing (just like Array).
    }
 
+   for (int t = 0; t < particles.GetNT(); t++)
+   {
+      particles.tags[t]->Reserve(res);
+   }
+
 }
 
 void ParticleSet::AddParticles(const Array<unsigned int> &new_ids, ParticleState &particles, Array<int> *new_indices)
@@ -296,6 +301,13 @@ void ParticleSet::AddParticles(const Array<unsigned int> &new_ids, ParticleState
          }
       }
    }
+
+
+   // Update tags
+   for (int t = 0; t < particles.GetNT(); t++)
+   {
+      particles.tags[t]->SetSize(new_np);
+   }
 }
 
 void ParticleSet::RemoveParticles(const Array<int> &list, ParticleState &particles)
@@ -316,6 +328,12 @@ void ParticleSet::RemoveParticles(const Array<int> &list, ParticleState &particl
 
       // Convert list particle index array ("ldofs") to "vdofs" + delete data
       pv.DeleteAt(LDof2VDofs(old_np, vdim, list, pv.GetOrdering()));
+   }
+
+   // Delete tags
+   for (int t = 0; t < particles.GetNT(); t++)
+   {
+      particles.tags[t]->DeleteAt(list);
    }
 }
 
@@ -354,6 +372,13 @@ void ParticleSet::Transfer(const Array<unsigned int> &send_idxs, const Array<uns
             pdata.data[counter] = pv.ParticleValue(send_idxs[i], c);
             counter++;
          }
+      }
+
+      // Copy tags
+      for (int t = 0; t < active_state.GetNT(); t++)
+      {
+         Array<int> &tag_arr = *active_state.tags[t];
+         pdata.tags[t] = tag_arr[send_idxs[i]];
       }
 
       // If updating the FindPointsGSLIB objects as well, get data from it + set into struct
@@ -444,6 +469,12 @@ void ParticleSet::Transfer(const Array<unsigned int> &send_idxs, const Array<uns
             pv.ParticleValue(new_idx, c) = pdata.data[counter];
             counter++;
          }
+      }
+
+      for (int t = 0; t < active_state.GetNT(); t++)
+      {
+         Array<int> &tag_arr = *active_state.tags[t];
+         tag_arr[new_idx] = pdata.tags[t];
       }
 
       // Add recvd data to FindPointsGSLIB objects
