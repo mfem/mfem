@@ -973,8 +973,8 @@ int main(int argc, char* argv[])
    const int num_x = 2;
    const int num_y = 2;
    Mesh serial_mesh = Mesh::MakeCartesian2D(num_x, num_y, Element::QUADRILATERAL);
-   serial_mesh.EnsureNCMesh();
    for (int i = 0; i < params.ser_ref; ++i) { serial_mesh.UniformRefinement(); }
+   serial_mesh.EnsureNCMesh();
    ParMesh mesh(MPI_COMM_WORLD, serial_mesh);
    for (int i = 0; i < params.par_ref; ++i) { mesh.UniformRefinement(); }
    mesh.EnsureNCMesh();
