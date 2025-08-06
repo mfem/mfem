@@ -668,6 +668,7 @@ The specific libraries and their options are:
 - OpenMP (optional), usually part of compiler, used when either MFEM_USE_OPENMP
   or MFEM_USE_LEGACY_OPENMP is set to YES.
   Options: OPENMP_OPT, OPENMP_LIB.
+  Versions: OpenMP >= 3.1 when MFEM_USE_OPENMP=YES.
 
 - High-resolution POSIX clocks: when using MFEM_TIMER_TYPE = 2, it may be
   necessary to link with a system library (e.g. librt.so).
