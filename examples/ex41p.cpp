@@ -98,7 +98,8 @@ public:
 class DG_Solver : public Solver
 {
 private:
-   HypreParMatrix &M, &K, &S, *A;
+   HypreParMatrix &M, &K, &S;
+   HypreParMatrix *A;
    GMRESSolver linear_solver;
    Solver *prec;
    real_t dt;
@@ -109,7 +110,7 @@ public:
         K(K_),
         S(S_),
         linear_solver(M.GetComm()),
-        dt(-1.0)
+        dt(1.0)
    {
       int block_size = fes.GetTypicalFE()->GetDof();
       if (prec_type == PrecType::ILU)
@@ -125,12 +126,13 @@ public:
          MFEM_ABORT("Must have MFEM_HYPRE_VERSION >= 21800 to use AIR.\n");
 #endif
       }
+      //prec = NULL;
       linear_solver.iterative_mode = false;
       linear_solver.SetRelTol(1e-9);
       linear_solver.SetAbsTol(0.0);
       linear_solver.SetMaxIter(100);
       linear_solver.SetPrintLevel(0);
-      linear_solver.SetPreconditioner(*prec);
+      //linear_solver.SetPreconditioner(*prec);
 
       M.GetDiag(M_diag);
    }
@@ -140,14 +142,20 @@ public:
       if (dt_ != dt)
       {
          dt = dt_;
-         // Form operator A = M + dt*S
-         //delete A;
-         A = Add(dt, S, 0.0, S);
+         // // Form operator A = M + dt*S
+         A = Add(dt, S, 0.0, M);
          SparseMatrix A_diag;
          A->GetDiag(A_diag);
          A_diag.Add(1.0, M_diag);
-         // this will also call SetOperator on the preconditioner
+         // // this will also call SetOperator on the preconditioner
          linear_solver.SetOperator(*A);
+
+         // A = S;
+         // A *= dt;
+         // A += M;
+
+         // this will also call SetOperator on the preconditioner
+         //linear_solver.SetOperator(A);
       }
    }
 
@@ -163,7 +171,7 @@ public:
 
   ~DG_Solver() override
    {
-      delete prec;
+      //delete prec;
       delete A;
    }
 };
@@ -183,6 +191,7 @@ private:
    DG_Solver *dg_solver;
 
    mutable Vector z;
+   mutable Vector w;
 
 public:
    IMEX_Evolution(ParBilinearForm &M_, ParBilinearForm &K_, ParBilinearForm &S_, const Vector &b_, PrecType prec_type);
@@ -198,7 +207,6 @@ int main(int argc, char *argv[])
     // 1. Initialize MPI and HYPRE.
    Mpi::Init();
    int num_procs = Mpi::WorldSize();
-   cout << "num procs = " << num_procs << endl;
    int myid = Mpi::WorldRank();
    Hypre::Init();
 
@@ -212,11 +220,11 @@ int main(int argc, char *argv[])
    bool ea = false;
    bool fa = false;
    const char *device_config = "cpu";
-   int ode_solver_type = 55;
-   real_t t_final = 1.0;
+   int ode_solver_type = 58;
+   real_t t_final = 10.0;
    real_t dt = 0.001;
    bool paraview = false;
-   int vis_steps = 1;
+   int vis_steps = 100;
    bool adios2 = false;
    bool binary = false;
    real_t diffusion_term = 0.01;
@@ -228,7 +236,7 @@ int main(int argc, char *argv[])
 #else
    PrecType prec_type = PrecType::ILU;
 #endif
-   int precision = 8;
+   int precision = 16;
    cout.precision(precision);
 
    OptionsParser args(argc, argv);
@@ -251,7 +259,7 @@ int main(int argc, char *argv[])
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
    args.AddOption(&ode_solver_type, "-s", "--ode-solver",
-                  ODESolver::Types.c_str());
+                  SplitODESolver::Types.c_str());
    args.AddOption(&t_final, "-tf", "--t-final",
                   "Final time; start time is 0.");
    args.AddOption(&dt, "-dt", "--time-step",
@@ -384,17 +392,17 @@ int main(int argc, char *argv[])
    u->ProjectCoefficient(u0);
    HypreParVector *U = u->GetTrueDofs();
 
-    {
-      ostringstream mesh_name, sol_name;
-      mesh_name << "ex41-mesh." << setfill('0') << setw(6) << myid;
-      sol_name << "ex41-init." << setfill('0') << setw(6) << myid;
-      ofstream omesh(mesh_name.str().c_str());
-      omesh.precision(precision);
-      pmesh->Print(omesh);
-      ofstream osol(sol_name.str().c_str());
-      osol.precision(precision);
-      u->Save(osol);
-    }
+   //  {
+      // ostringstream mesh_name, sol_name;
+      // mesh_name << "ex41-mesh." << setfill('0') << setw(6) << myid;
+      // //sol_name << "ex41-init." << setfill('0') << setw(6) << myid;
+      // ofstream omesh(mesh_name.str().c_str());
+      // omesh.precision(precision);
+      // pmesh->Print(omesh);
+      // ofstream osol(sol_name.str().c_str());
+      // osol.precision(precision);
+      // u->Save(osol);
+   //  }
 
    ParaViewDataCollection *pd = NULL;
    if (paraview)
@@ -469,9 +477,7 @@ int main(int argc, char *argv[])
       {
          if (Mpi::Root())
          {
-            //real_t unorm = (*U).Norml2();
             cout << "time step: " << ti << ", time: " << t << endl;
-            //cout << "sol norm: " << unorm*unorm << endl;
          }
          *u = *U;
          if (visualization)
@@ -488,14 +494,14 @@ int main(int argc, char *argv[])
       }
    }
 
-    {
-      *u = *U;
-      ostringstream sol_name;
-      sol_name << "ex41-final." << setfill('0') << setw(6) << myid;
-      ofstream osol(sol_name.str().c_str());
-      osol.precision(precision);
-      u->Save(osol);
-   }
+   // {
+   //    *u = *U;
+   //    ostringstream sol_name;
+   //    sol_name << "ex41-final." << setfill('0') << setw(6) << myid;
+   //    ofstream osol(sol_name.str().c_str());
+   //    osol.precision(precision);
+   //    u->Save(osol);
+   // }
 
    // 13. Free the used memory.
    delete U;
@@ -515,13 +521,13 @@ int main(int argc, char *argv[])
 // Implementation of class FE_Evolution
 IMEX_Evolution::IMEX_Evolution(ParBilinearForm &M_, ParBilinearForm &K_, ParBilinearForm &S_, const Vector &b_, PrecType prec_type)
    : SplitTimeDependentOperator(M_.ParFESpace()->GetTrueVSize()), b(b_),
-     M_solver(M_.ParFESpace()->GetComm()), z(height)
+     M_solver(M_.ParFESpace()->GetComm()), z(height), w(height)
 {
    if (M_.GetAssemblyLevel()==AssemblyLevel::LEGACY)
    {
       M.Reset(M_.ParallelAssemble(), true);
       K.Reset(K_.ParallelAssemble(), true);
-      S.Reset(K_.ParallelAssemble(), true);
+      S.Reset(S_.ParallelAssemble(), true);
    }
    else
    {
@@ -569,7 +575,7 @@ void IMEX_Evolution::ImplicitSolve2(const real_t dt, const Vector &x, Vector &k)
    // solve for k, k = -(M+dt S)^{-1} S x 
    MFEM_VERIFY(dg_solver != NULL, "Implicit time integration is not supported with partial assembly");
    S->Mult(x, z);
-   //z += b;
+   z += b;
    z*= -1.0;
    dg_solver->SetTimeStep(dt);
    dg_solver->Mult(z, k);
