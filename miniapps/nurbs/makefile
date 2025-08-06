@@ -202,3 +202,4 @@ clean-exec:
 	@rm -f naca-cmesh.mesh sol_?.gf *-Surface.mesh
 	@rm -rf Example1* Example3* Example5* Solenoidal_* ParaView
 	@rm -rf CurveInt Naca_cmesh glvis_naca-cmesh.mesh solution.dat
+	@rm -rf displaced.mesh *.csv

@@ -322,6 +322,7 @@ miniapps/nurbs/glvis_naca-cmesh.mesh
 miniapps/nurbs/Naca_cmesh
 miniapps/nurbs/*-Surface.mesh
 miniapps/nurbs/*.csv
+miniapps/nurbs/displaced.mesh
 
 miniapps/performance/ex1
 miniapps/performance/ex1p

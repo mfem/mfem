@@ -92,7 +92,7 @@ int main(int argc, char *argv[])
                "Set ir_order > 0 for fixed order integration");
    if (ir_order > 0 && spline_integration_type != 2)
    {
-      cout << "Warning: Setting spline_integration_type"
+      cout << "Warning: Setting spline_integration_type "
            << "to 2 (fixed) since ir_order > 0." << endl;
       spline_integration_type = 2;
    }
@@ -118,11 +118,9 @@ int main(int argc, char *argv[])
 
    // 5. Define an isoparametric/isogeometric finite element space on the mesh.
    FiniteElementCollection *fec = nullptr;
-   bool delete_fec;
    if (mesh.GetNodes())
    {
       fec = mesh.GetNodes()->OwnFEC();
-      delete_fec = false;
       cout << "Using isoparametric FEs: " << fec->Name() << endl;
    }
    else
@@ -164,6 +162,7 @@ int main(int argc, char *argv[])
    //    domain integrator.
    DiffusionIntegrator *di = new DiffusionIntegrator(one);
 
+   NURBSMeshRules* meshRules = nullptr;
    if (patchAssembly)
    {
       if (reducedIntegration && !pa)
@@ -230,9 +229,10 @@ int main(int argc, char *argv[])
    }
 
    // 14. Free the used memory.
-   if (delete_fec)
+   delete fec;
+   if (meshRules)
    {
-      delete fec;
+      delete meshRules;
    }
 
    return 0;

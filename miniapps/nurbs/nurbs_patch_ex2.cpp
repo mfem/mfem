@@ -45,6 +45,7 @@ int main(int argc, char *argv[])
    int spline_integration_type = 0;
    int preconditioner = 0;
    int visport = 19916;
+   bool csv_info = 0;
    bool visualization = 1;
 
    OptionsParser args(argc, argv);
@@ -63,6 +64,9 @@ int main(int argc, char *argv[])
                   "1 - reduced Gaussian");
    args.AddOption(&preconditioner, "-pc", "--preconditioner",
                   "Preconditioner: 0 - none, 1 - diagonal");
+   args.AddOption(&csv_info, "-csv", "--csv-info", "-no-csv",
+                  "--no-csv-info",
+                  "Enable or disable dump of info into csv.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -241,39 +245,42 @@ int main(int argc, char *argv[])
    cout << "Dof/sec (solve): " << dof_per_sec_solve << endl;
    cout << "Dof/sec (total): " << dof_per_sec_total << endl;
 
-   ofstream results_ofs("ex2_results.csv", ios_base::app);
-   // If file does not exist, write the header
-   if (results_ofs.tellp() == 0)
+   if (csv_info)
    {
-      results_ofs << "patcha, pa, pc, sint, "         // settings
-                  << "mesh, refs, deg_inc, ndof, "    // mesh
-                  << "niter, absnorm, relnorm, "      // solver
-                  << "linf, l2, "                     // solution
-                  << "t_assemble, t_solve, t_total, " // timing
-                  << "dof/s_solve, dof/s_total"       // benchmarking
-                  << endl;
+      ofstream results_ofs("ex2_results.csv", ios_base::app);
+      // If file does not exist, write the header
+      if (results_ofs.tellp() == 0)
+      {
+         results_ofs << "patcha, pa, pc, sint, "         // settings
+                     << "mesh, refs, deg_inc, ndof, "    // mesh
+                     << "niter, absnorm, relnorm, "      // solver
+                     << "linf, l2, "                     // solution
+                     << "t_assemble, t_solve, t_total, " // timing
+                     << "dof/s_solve, dof/s_total"       // benchmarking
+                     << endl;
+      }
+
+      results_ofs << patchAssembly << ", "               // settings
+                  << pa << ", "
+                  << preconditioner << ", "
+                  << spline_integration_type << ", "
+                  << mesh_file << ", "                   // mesh
+                  << ref_levels << ", "
+                  << nurbs_degree_increase << ", "
+                  << Ndof << ", "
+                  << Niter << ", "                       // solver
+                  << solver.GetFinalNorm() << ", "
+                  << solver.GetFinalRelNorm() << ", "
+                  << x.Normlinf() << ", "                // solution
+                  << x.Norml2() << ", "
+                  << timeAssemble << ", "                // timing
+                  << timeSolve << ", "
+                  << timeTotal << ", "
+                  << dof_per_sec_solve << ", "           // benchmarking
+                  << dof_per_sec_total << endl;
+
+      results_ofs.close();
    }
-
-   results_ofs << patchAssembly << ", "               // settings
-               << pa << ", "
-               << preconditioner << ", "
-               << spline_integration_type << ", "
-               << mesh_file << ", "                   // mesh
-               << ref_levels << ", "
-               << nurbs_degree_increase << ", "
-               << Ndof << ", "
-               << Niter << ", "                       // solver
-               << solver.GetFinalNorm() << ", "
-               << solver.GetFinalRelNorm() << ", "
-               << x.Normlinf() << ", "                // solution
-               << x.Norml2() << ", "
-               << timeAssemble << ", "                // timing
-               << timeSolve << ", "
-               << timeTotal << ", "
-               << dof_per_sec_solve << ", "           // benchmarking
-               << dof_per_sec_total << endl;
-
-   results_ofs.close();
 
    // 14. Save the displaced mesh and the inverted solution
    {
