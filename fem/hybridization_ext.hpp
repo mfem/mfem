@@ -47,6 +47,11 @@ protected:
 
    Array<int> el_to_face;
    Array<int> face_to_el;
+   Array<int> el_face_offsets;
+   Array<int> face_face_offsets;
+   int n_el_face;
+   int n_face_face;
+
    Vector Ct_mat; ///< Constraint matrix (transposed) stored element-wise.
 
    Array<int> idofs, bdofs;
