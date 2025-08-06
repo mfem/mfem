@@ -47,6 +47,7 @@
 //               visualization.
 
 #include "mfem.hpp"
+#include "fem/dfem/doperator.hpp"
 
 using namespace mfem;
 
@@ -74,7 +75,7 @@ enum DerivativeType
 //
 // This class implements the minimal surface equation, which is a nonlinear
 // operator that provides the residual.
-template <typename dscalar_t, int dim = 2>
+template <typename dscalar_t, int dim = 3>
 class MinimalSurface : public Operator
 {
 private:
@@ -170,21 +171,13 @@ private:
          // DifferentiableOperator::AddDomainIntegrator call.
          dres_du = minsurface->res->GetDerivative(
                       SOLUTION_U, {&minsurface->u}, {mesh_nodes});
+
+         constr_op.reset(new ConstrainedOperator(dres_du.get(), minsurface->ess_tdofs));
       }
 
       void Mult(const Vector &x, Vector &y) const override
       {
-         z = x;
-         z.SetSubVector(minsurface->ess_tdofs, 0.0);
-
-         dres_du->Mult(z, y);
-
-         auto d_y = y.HostReadWrite();
-         const auto d_x = x.HostRead();
-         for (int i = 0; i < minsurface->ess_tdofs.Size(); i++)
-         {
-            d_y[minsurface->ess_tdofs[i]] = d_x[minsurface->ess_tdofs[i]];
-         }
+         constr_op->Mult(z, y);
       }
 
       // Pointer to the wrapped MinimalSurface operator
@@ -192,6 +185,8 @@ private:
 
       // Pointer to the DifferentiableOperator that computes the Jacobian
       std::shared_ptr<DerivativeOperator> dres_du;
+
+      std::unique_ptr<ConstrainedOperator> constr_op;
 
       // Temporary vector
       mutable Vector z;
@@ -261,12 +256,9 @@ private:
 
          dres_du->Mult(z, y);
 
-         auto d_y = y.HostReadWrite();
-         const auto d_x = x.HostRead();
-         for (int i = 0; i < minsurface->ess_tdofs.Size(); i++)
-         {
-            d_y[minsurface->ess_tdofs[i]] = d_x[minsurface->ess_tdofs[i]];
-         }
+         // Reuse z as a temporary vector to avoid unnecessary allocations.
+         x.GetSubVector(minsurface->ess_tdofs, z);
+         y.SetSubVector(minsurface->ess_tdofs, z);
       }
 
       const MinimalSurface *minsurface = nullptr;
@@ -366,6 +358,7 @@ public:
       Array<int> ess_bdr(H1.GetParMesh()->bdr_attributes.Max());
       ess_bdr = 1;
       H1.GetEssentialTrueDofs(ess_bdr, ess_tdofs);
+      ess_tdofs.UseDevice();
    }
 
    void Mult(const Vector &x, Vector &y) const override
@@ -420,7 +413,7 @@ real_t boundary_func(const Vector &coords)
    const real_t y = coords(1);
    if (coords.Size() == 3)
    {
-      MFEM_ABORT("internal error");
+      // MFEM_ABORT("internal error");
    }
    const real_t a = 1.0e-2;
    return log(cos(a * x) / cos(a * y)) / a;
@@ -459,9 +452,8 @@ int main(int argc, char *argv[])
    Device device(device_config);
    if (Mpi::Root()) { device.Print(); }
 
-   // 4. Create a 2D mesh on the square domain [-π/2,π/2]^2
-   Mesh mesh = Mesh::MakeCartesian2D(4, 4, Element::QUADRILATERAL);
-   mesh.SetCurvature(order);
+   Mesh mesh = Mesh::MakeCartesian3D(2, 2, 2, Element::HEXAHEDRON);
+   mesh.SetCurvature(1);
 
    auto transform_mesh = [](const Vector &cold, Vector &cnew)
    {
@@ -490,17 +482,31 @@ int main(int argc, char *argv[])
 
    // 8. Set up the integration rule
    const auto *ir = &IntRules.Get(pmesh.GetTypicalElementGeometry(),
-                                  2 * order + 1);
+                                  2 * order + 2);
+
+   out << "Using integration rule of order: "
+       << ir->GetOrder() << "\n#qp: " << ir->GetNPoints()
+       << "\n#qp1d: " << floor(std::pow(ir->GetNPoints(), 1.0 / dim) + 0.5)
+       << std::endl;
 
    ParGridFunction u(&H1);
    Vector X(H1.GetTrueVSize());
 
    // 9. Create the nonlinear operator for the minimal surface equation
    std::unique_ptr<Operator> minsurface;
+   using minsurface_t = MinimalSurface<real_t, 2>;
 #ifdef MFEM_USE_ENZYME
    // When Enzyme is available, use it for automatic differentiation
-   minsurface = std::make_unique<MinimalSurface<real_t>>(H1, *ir,
-                                                         derivative_type);
+   if (dim == 3)
+   {
+      minsurface = std::make_unique<MinimalSurface<real_t, 3>>(H1, *ir,
+                                                               derivative_type);
+   }
+   else
+   {
+      minsurface = std::make_unique<MinimalSurface<real_t, 2>>(H1, *ir,
+                                                               derivative_type);
+   }
 #else
    // When Enzyme is not available, use the dual type for automatic
    // differentiation
@@ -526,6 +532,38 @@ int main(int argc, char *argv[])
    krylov.SetRelTol(1e-4);
    krylov.SetMaxIter(500);
    krylov.SetPrintLevel(2);
+
+   {
+      const int num_iterations = 1000;
+      auto &A = minsurface->GetGradient(X);
+      krylov.SetOperator(A);
+      Vector B(H1.GetTrueVSize());
+      B.UseDevice(true);
+      X.UseDevice(true);
+      B = 1.0;
+
+      out << "#dofs: " << H1.GetTrueVSize() << std::endl;
+
+      MFEM_DEVICE_SYNC;
+      MPI_Barrier(MPI_COMM_WORLD);
+      tic();
+      for (int i = 0; i < num_iterations; i++)
+      {
+         A.Mult(B, X);
+      }
+      MFEM_DEVICE_SYNC;
+      MPI_Barrier(MPI_COMM_WORLD);
+      real_t elapsed_time = toc();
+      const real_t mdofs = H1.GetTrueVSize() * 1e-6;
+      if (Mpi::Root())
+      {
+         out << "performance: " << mdofs * num_iterations / elapsed_time <<
+             " MDOFs/s"
+             << std::endl;
+      }
+
+      exit(0);
+   }
 
    // 13. Set up the nonlinear solver (Newton) for the minimal surface equation
    NewtonSolver newton(MPI_COMM_WORLD);
