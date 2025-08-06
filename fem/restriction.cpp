@@ -2301,7 +2301,7 @@ L2InterfaceFaceRestriction::L2InterfaceFaceRestriction(
    for (int f = 0; f < mesh.GetNumFaces(); ++f)
    {
       Mesh::FaceInformation face = mesh.GetFaceInformation(f);
-      if (!face.IsOfFaceType(type)) { continue; }
+      if (!face.IsOfFaceType(type) || face.IsNonconformingCoarse()) { continue; }
       for (int i = 0; i < face_dofs; ++i)
       {
          gather_map[i + face_idx*face_dofs] = face2dof.GetJ()[i + f*face_dofs];
