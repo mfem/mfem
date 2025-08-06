@@ -187,6 +187,8 @@ int main(int argc, char *argv[])
    cout << "Assembling system patch-wise and solving" << endl;
    AssembleAndSolve(b, di, ess_tdof_list, pa, algebraic_ceed, x);
 
+   delete meshRules;
+
    // 11. Save the refined mesh and the solution. This output can be viewed
    //     later using GLVis: "glvis -m refined.mesh -g sol.gf".
    ofstream mesh_ofs("refined.mesh");
@@ -226,12 +228,6 @@ int main(int argc, char *argv[])
       cout << "Element-wise solution norm " << solNorm << endl;
       cout << "Relative error of patch-wise solution "
            << x_ew.Norml2() / solNorm << endl;
-   }
-
-   // 14. Free the used memory.
-   if (meshRules)
-   {
-      delete meshRules;
    }
 
    return 0;
