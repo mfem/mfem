@@ -888,13 +888,13 @@ inline void forall(int Nx, int Ny, int Nz, lambda &&body)
 #if defined(MFEM_USE_RAJA) && defined(RAJA_ENABLE_OPENMP)
    else if (Device::Allows(Backend::RAJA_OMP))
    {
-      return RajaOmpWrap2D(Nx, Ny, body);
+      return RajaOmpWrap3D(Nx, Ny, Nz, body);
    }
 #endif
 #ifdef MFEM_USE_OPENMP
    else if (Device::Allows(Backend::OMP))
    {
-      return OmpWrap2D(Nx, Ny, body);
+      return OmpWrap3D(Nx, Ny, Nz, body);
    }
 #endif
    else
