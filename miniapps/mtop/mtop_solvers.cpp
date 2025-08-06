@@ -89,7 +89,7 @@ IsoLinElasticSolver::IsoLinElasticSolver(ParMesh *mesh, int vorder, bool pa):
    ir(IntRules.Get(fe->GetGeomType(),
                    fe->GetOrder() + fe->GetOrder() + fe->GetDim() - 1)),
    dop({{ U, vfes }}, { { Coords, mfes }}, *pmesh),
-lf(nullptr)
+   lf(nullptr)
 {
    dbg("sol size:{}", sol.Size());
    sol = 0.0;
@@ -226,6 +226,28 @@ void IsoLinElasticSolver::SetVolForce(VectorCoefficient &fv)
    volforce = &fv;
 }
 
+
+void IsoLinElasticSolver::SetEssTDofs(int dim,
+                                      ParFiniteElementSpace& scalar_space,
+                                      Array<int> &ess_dofs)
+{
+    // Set the BC
+    ess_dofs.DeleteAll();
+
+    auto cbcc=&bccx;
+    if(dim==1){cbcc=&bccy;}
+    else if(dim==2){cbcc=&bccz;}
+
+    Array<int> ess_bdr(pmesh->bdr_attributes.Max()); ess_bdr=0;
+
+    for (auto it = cbcc->begin(); it != cbcc->end(); it++)
+    {
+        ess_bdr[it->first - 1] = 1;
+    }
+    scalar_space.GetEssentialTrueDofs(ess_bdr,ess_dofs);
+}
+
+
 void IsoLinElasticSolver::SetEssTDofs(Vector &bsol, Array<int> &ess_dofs)
 {
    // Set the BC
@@ -326,7 +348,7 @@ void IsoLinElasticSolver::SetEssTDofs(Vector &bsol, Array<int> &ess_dofs)
 void IsoLinElasticSolver::Mult(const Vector &x, Vector &y) const
 {
    dbg();
-   // the rhs x is assumed to have the contribution of the BC set in advance
+   // the rhs x is assumed to have the contribution of the BC sar_iter);et in advance
    // the BC values are not modified here
    ls->Mult(x, y);
 
@@ -429,10 +451,13 @@ void IsoLinElasticSolver::Assemble()
             lor_bilinear_forms[j]->AddDomainIntegrator(block);
             lor_bilinear_forms[j]->Assemble();
             // get block essential boundary info
-            Array<int> ess_tdof_list_block, ess_bdr_block(pmesh->bdr_attributes.Max());
-            ess_bdr_block = 0;
-            ess_bdr_block[0] = 1;
-            lor_scalar_fespace->GetEssentialTrueDofs(ess_bdr_block, ess_tdof_list_block);
+            //Array<int> ess_tdof_list_block, ess_bdr_block(pmesh->bdr_attributes.Max());
+            //ess_bdr_block = 0;
+            //ess_bdr_block[0] = 1;
+            // set the essential boundaries
+            Array<int> ess_tdof_list_block;
+            SetEssTDofs(j,*lor_scalar_fespace,ess_tdof_list_block);
+            //lor_scalar_fespace->GetEssentialTrueDofs(ess_bdr_block, ess_tdof_list_block);
             lor_block.emplace_back(lor_bilinear_forms[j]->ParallelAssemble());
             lor_block[j]->EliminateBC(ess_tdof_list_block,
                                       Operator::DiagonalPolicy::DIAG_ONE);

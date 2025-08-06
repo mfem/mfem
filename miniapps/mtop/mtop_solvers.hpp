@@ -272,6 +272,7 @@ private:
    // sets the values in the bsol vector
    // the list is written in ess_dofs
    void SetEssTDofs(mfem::Vector &bsol, mfem::Array<int> &ess_dofs);
+   void SetEssTDofs(int dim, mfem::ParFiniteElementSpace& scalar_space, mfem::Array<int> &ess_dofs);
 
    mfem::Coefficient *E;
    mfem::Coefficient *nu;
