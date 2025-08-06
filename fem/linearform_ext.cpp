@@ -56,7 +56,6 @@ void LinearFormExtension::Assemble()
          auto markers_w = markers.Write();
          mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
          {
-            // TODO: should this also check for positive attributes?
             markers_w[e] = dimk[attr[e]-1] == 1;
          });
       }

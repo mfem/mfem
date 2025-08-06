@@ -972,6 +972,8 @@ const Array<int>& Mesh::GetElementAttributes() const
       for (int i = 0; i < GetNE(); ++i)
       {
          elem_attrs_cache[i] = GetAttribute(i);
+         MFEM_ASSERT(elem_attrs_cache[i] > 0,
+                     "Negative attribute on element " << i);
       }
    }
    return elem_attrs_cache;
