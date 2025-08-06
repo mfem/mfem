@@ -113,7 +113,7 @@ protected:
       std::vector<std::unique_ptr<Array<int>>> tags;
 
       ParticleState(int dim, Ordering::Type coords_ordering)
-      : coords(0, dim, coords_ordering) {}
+      : coords(dim, coords_ordering) {}
       
       int GetNP() const { return ids.Size(); }
       int GetNF() const { return fields.size(); }

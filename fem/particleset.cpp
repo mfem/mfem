@@ -565,8 +565,8 @@ NodeFunction& ParticleSet::AddField(int vdim, Ordering::Type field_ordering, con
    {
       field_name = GetDefaultFieldName(field_names.size()).c_str();
    }
-   active_state.fields.emplace_back(std::make_unique<NodeFunction>(GetNP(), vdim, field_ordering));
-   inactive_state.fields.emplace_back(std::make_unique<NodeFunction>(inactive_state.ids.Size(), vdim, field_ordering));
+   active_state.fields.emplace_back(std::make_unique<NodeFunction>(vdim, field_ordering, active_state.GetNP()));
+   inactive_state.fields.emplace_back(std::make_unique<NodeFunction>(vdim, field_ordering, inactive_state.GetNP()));
 
    field_names.emplace_back(field_name);
 
@@ -579,8 +579,8 @@ Array<int>& ParticleSet::AddTag(const char* tag_name)
    {
       tag_name = GetDefaultTagName(tag_names.size()).c_str();
    }
-   active_state.tags.emplace_back(std::make_unique<Array<int>>(GetNP()));
-   inactive_state.tags.emplace_back(std::make_unique<Array<int>>(GetNP()));
+   active_state.tags.emplace_back(std::make_unique<Array<int>>(active_state.GetNP()));
+   inactive_state.tags.emplace_back(std::make_unique<Array<int>>(inactive_state.GetNP()));
 
    tag_names.emplace_back(tag_name);
 

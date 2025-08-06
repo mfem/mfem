@@ -56,7 +56,7 @@ public:
    using Vector::operator=;
    using Vector::operator();
 
-   NodeFunction(int num_nodes, int vdim_, Ordering::Type ordering_)
+   NodeFunction(int vdim_, Ordering::Type ordering_, int num_nodes=0)
    : Vector(num_nodes*vdim_), vdim(vdim_), ordering(ordering_) { Vector::operator=(0.0); }
    
    int GetVDim() const { return vdim; }
