@@ -200,11 +200,9 @@ void DiffusionIntegrator::AddMultPatchPA3D(const Vector &qdata,
                                            const Vector &x,
                                            Vector &y) const
 {
-   MFEM_VERIFY(3 == dim, "");
+   MFEM_VERIFY(dim == 3 && pb.dim == 3, "");
    // This could easily be extended for higher vdim
    static constexpr int vdim = 1;
-   static constexpr int dim = 3;
-   MFEM_VERIFY(pb.dim == 3, "");
 
    // Unpack patch basis info
    const Array<int>& Q1D = pb.Q1D;
