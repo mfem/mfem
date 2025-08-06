@@ -202,23 +202,24 @@ void DiffusionIntegrator::AddMultPatchPA3D(const Vector &qdata,
 {
    MFEM_VERIFY(dim == 3 && pb.dim == 3, "");
    // This could easily be extended for higher vdim
-   static constexpr int vdim = 1;
+   static constexpr int vdim_ = 1;
 
    // Unpack patch basis info
    const Array<int>& Q1D = pb.Q1D;
    const int NQ = pb.NQ;
 
-   Vector graduv(vdim*dim*NQ);
+   Vector graduv(vdim_*dim*NQ);
    graduv = 0.0;
-   auto gradu = Reshape(graduv.HostReadWrite(), vdim, dim, Q1D[0], Q1D[1], Q1D[2]);
+   auto gradu = Reshape(graduv.HostReadWrite(), vdim_, dim, Q1D[0], Q1D[1],
+                        Q1D[2]);
 
    const auto qd = Reshape(qdata.HostRead(), NQ, (symmetric ? 6 : 9));
 
-   Vector sumXYv(vdim*dim*Q1D[0]*Q1D[1]);
+   Vector sumXYv(vdim_*dim*Q1D[0]*Q1D[1]);
    Vector sumXv(dim*Q1D[0]);
 
    // Interpolate gradu
-   PatchG3D<vdim>(pb, x, sumXYv, sumXv, gradu);
+   PatchG3D<vdim_>(pb, x, sumXYv, sumXv, gradu);
 
    // Apply kernel
    for (int qz = 0; qz < Q1D[2]; ++qz)
@@ -227,7 +228,7 @@ void DiffusionIntegrator::AddMultPatchPA3D(const Vector &qdata,
       {
          for (int qx = 0; qx < Q1D[0]; ++qx)
          {
-            for (int c = 0; c < vdim; ++c)
+            for (int c = 0; c < vdim_; ++c)
             {
                const int q = qx + ((qy + (qz * Q1D[1])) * Q1D[0]);
                const real_t O00 = qd(q,0);
@@ -253,7 +254,7 @@ void DiffusionIntegrator::AddMultPatchPA3D(const Vector &qdata,
    } // qz
 
    // Apply gradv^T
-   PatchGT3D<vdim>(pb, gradu, sumXYv, sumXv, y);
+   PatchGT3D<vdim_>(pb, gradu, sumXYv, sumXv, y);
 }
 
 

@@ -228,7 +228,6 @@ void ElasticityIntegrator::AddMultPatchPA3D(const Vector &pa_data,
                                             const Vector &x,
                                             Vector &y) const
 {
-   static constexpr int vdim = 3;
    // Unpack patch basis info
    const Array<int>& Q1D = pb.Q1D;
    const int NQ = pb.NQ;
@@ -250,13 +249,13 @@ void ElasticityIntegrator::AddMultPatchPA3D(const Vector &pa_data,
    Vector sumXv(vdim*vdim*Q1D[0]);
 
    // 1) Interpolate U at dofs to gradu in reference quadrature space
-   PatchG3D<vdim>(pb, x, sumXYv, sumXv, gradu);
+   PatchG3D<3>(pb, x, sumXYv, sumXv, gradu);
 
    // 2) Apply the "D" operator at each quadrature point: D( gradu )
    PatchApplyKernel3D(pb, pa_data, gradu, S);
 
    // 3) Apply test function gradv
-   PatchGT3D<vdim>(pb, S, sumXYv, sumXv, y);
+   PatchGT3D<3>(pb, S, sumXYv, sumXv, y);
 
 }
 
@@ -307,9 +306,8 @@ void ElasticityIntegrator::AssembleDiagonalPatchPA(const Vector &pa_data,
    const std::vector<std::vector<int>> maxD = pb.maxD;
 
    const auto qd = Reshape(pa_data.HostRead(), NQ, 11);
-   static constexpr int dim = 3;
 
-   auto Y = Reshape(diag.HostReadWrite(), D1D[0], D1D[1], D1D[2], vdim);
+   auto Y = Reshape(diag.HostReadWrite(), D1D[0], D1D[1], D1D[2], 3);
 
    for (int dz = 0; dz < D1D[2]; ++dz)
    {
@@ -339,18 +337,18 @@ void ElasticityIntegrator::AssembleDiagonalPatchPA(const Vector &pa_data,
                      const int q = qx + ((qy + (qz * Q1D[1])) * Q1D[0]);
                      const real_t lambda_q  = qd(q,9);
                      const real_t mu_q      = qd(q,10);
-                     const auto Jinvt = make_tensor<dim, dim>(
-                     [&](int i, int j) { return qd(q, i*dim + j); });
+                     const auto Jinvt = make_tensor<3,3>(
+                     [&](int i, int j) { return qd(q, i*3 + j); });
                      // As second order tensor: e[i] * grad_phi[j]
-                     const auto grad_phi = make_tensor<dim, dim>(
+                     const auto grad_phi = make_tensor<3,3>(
                      [&](int i, int j) { return grad[j]; });
 
                      const auto Sq = LinearElasticityKernel(Jinvt, lambda_q, mu_q, grad_phi);
 
-                     const auto grad_phiv = make_tensor<dim>(
+                     const auto grad_phiv = make_tensor<3>(
                      [&](int i) { return grad[i]; });
                      const auto Yq = dot(Sq, grad_phiv);
-                     for (int c = 0; c < vdim; ++c)
+                     for (int c = 0; c < 3; ++c)
                      {
                         Y(dx,dy,dz,c) += Yq[c];
                      }

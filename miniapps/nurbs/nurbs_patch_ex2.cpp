@@ -309,5 +309,11 @@ int main(int argc, char *argv[])
                << "keys agc\n" << std::flush;
    }
 
+   // 16. Free the used memory.
+   if (meshRules)
+   {
+      delete meshRules;
+   }
+
    return 0;
 }
