@@ -150,7 +150,6 @@ void PatchDiffusionGetReducedRule(const PatchBasisInfo &pb, const int d,
                                   std::vector<std::vector<int>> & reducedIDs)
 {
    // Unpack patch basis info
-   const int nq = pb.Q1D[d];
    const int nd = pb.D1D[d];
    const Array2D<real_t>& B = pb.B[d];
    const Array2D<real_t>& G = pb.G[d];

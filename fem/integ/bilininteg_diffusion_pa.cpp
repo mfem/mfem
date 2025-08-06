@@ -208,7 +208,6 @@ void DiffusionIntegrator::AddMultPatchPA3D(const Vector &qdata,
 
    // Unpack patch basis info
    const Array<int>& Q1D = pb.Q1D;
-   const Array<int>& D1D = pb.D1D;
    const int NQ = pb.NQ;
 
    Vector graduv(vdim*dim*NQ);
