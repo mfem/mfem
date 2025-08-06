@@ -9,10 +9,7 @@
 // Description:  This example code demonstrates the use of MFEM to define a
 //               simple finite element discretization of the Poisson problem
 //               -Delta u = 1 with homogeneous Dirichlet boundary conditions.
-//               Specifically, we discretize using a FE space of the specified
-//               order, or if order < 1 using an isoparametric/isogeometric
-//               space (i.e. quadratic for quadratic curvilinear mesh, NURBS for
-//               NURBS mesh, etc.)
+//               Specifically, we discretize using an isogeometric FE space.
 //
 //               This example is a specialization of ex1 which demonstrates
 //               patch-wise matrix assembly and partial assembly on NURBS
@@ -34,7 +31,6 @@ int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
    const char *mesh_file = "../../data/beam-hex-nurbs.mesh";
-   int order = -1;
    bool pa = false;
    const char *device_config = "cpu";
    bool visualization = true;
@@ -106,7 +102,6 @@ int main(int argc, char *argv[])
    //    only 3D hexahedral meshes are currently supported. The NURBS degree is
    //    optionally increased.
    Mesh mesh(mesh_file, 1, 1);
-   int dim = mesh.Dimension();
 
    if (nurbs_degree_increase > 0) { mesh.DegreeElevate(nurbs_degree_increase); }
 
