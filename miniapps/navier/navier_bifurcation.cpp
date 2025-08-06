@@ -110,10 +110,11 @@ int main(int argc, char *argv[])
    pos_max[0] = 4.0;
    pos_min[1] = 0.05;
    pos_max[1] = 0.95;
-   std::mt19937 gen(rank);
    std::uniform_real_distribution<> real_dist(0.0,1.0);
    for (int i = 0; i < particle_solver.GetParticles().GetNP(); i++)
    {
+      std::mt19937 gen(particle_solver.GetParticles().GetIDs()[i]);
+      
       for (int d = 0; d < 2; d++)
       {
          particle_solver.X().ParticleValue(i, d) = pos_min[d] + real_dist(gen)*(pos_max[d] - pos_min[d]);
