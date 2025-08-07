@@ -18,7 +18,7 @@ namespace mfem
 namespace navier
 {
 
-void NavierParticles::SetTimeIntegrationCoefficients(int step)
+void NavierParticles::SetTimeIntegrationCoefficients()
 {
    // Ratio of time step history at dt(t_{n}) - dt(t_{n-1})
    real_t rho1 = 0.0;
@@ -29,43 +29,49 @@ void NavierParticles::SetTimeIntegrationCoefficients(int step)
    rho1 = dthist[0] / dthist[1];
    rho2 = dthist[1] / dthist[2];
 
-   if (step == 0)
+   for (int o = 0; o < 3; o++)
    {
-      beta = 0.0;
-      beta[0] = 1.0;
-      beta[1] = -1.0;
+      if (o == 0) // k=1
+      {
+         beta_k[o] = 0.0;
+         beta_k[o][0] = 1.0;
+         beta_k[o][1] = -1.0;
 
-      alpha = 0.0;
-      alpha[0] = 1.0;
-   }
-   else if (step == 1)
-   {
-      beta[0] = (1.0 + 2.0 * rho1) / (1.0 + rho1);
-      beta[1] = -(1.0 + rho1);
-      beta[2] = pow(rho1, 2.0) / (1.0 + rho1);
-      beta[3] = 0.0;
+         alpha_k[o] = 0.0;
+         alpha_k[o][0] = 1.0;
+      }
+      else if (o == 1) // k=2
+      {
+         beta_k[o][0] = (1.0 + 2.0 * rho1) / (1.0 + rho1);
+         beta_k[o][1] = -(1.0 + rho1);
+         beta_k[o][2] = pow(rho1, 2.0) / (1.0 + rho1);
+         beta_k[o][3] = 0.0;
 
-      alpha[0] = 1.0 + rho1;
-      alpha[1] = -rho1;
-      alpha[2] = 0.0;
-   }
-   else // (step >= 2)
-   {
-      beta[0] = 1.0 + rho1 / (1.0 + rho1)
-            + (rho2 * rho1) / (1.0 + rho2 * (1 + rho1));
-      beta[1] = -1.0 - rho1 - (rho2 * rho1 * (1.0 + rho1)) / (1.0 + rho2);
-      beta[2] = pow(rho1, 2.0) * (rho2 + 1.0 / (1.0 + rho1));
-      beta[3] = -(pow(rho2, 3.0) * pow(rho1, 2.0) * (1.0 + rho1))
-            / ((1.0 + rho2) * (1.0 + rho2 + rho2 * rho1));
-      alpha[0] = ((1.0 + rho1) * (1.0 + rho2 * (1.0 + rho1))) / (1.0 + rho2);
-      alpha[1] = -rho1 * (1.0 + rho2 * (1.0 + rho1));
-      alpha[2] = (pow(rho2, 2.0) * rho1 * (1.0 + rho1)) / (1.0 + rho2);
+         alpha_k[o][0] = 1.0 + rho1;
+         alpha_k[o][1] = -rho1;
+         alpha_k[o][2] = 0.0;
+      }
+      else // k=3
+      {
+         beta_k[o][0] = 1.0 + rho1 / (1.0 + rho1)
+               + (rho2 * rho1) / (1.0 + rho2 * (1 + rho1));
+         beta_k[o][1] = -1.0 - rho1 - (rho2 * rho1 * (1.0 + rho1)) / (1.0 + rho2);
+         beta_k[o][2] = pow(rho1, 2.0) * (rho2 + 1.0 / (1.0 + rho1));
+         beta_k[o][3] = -(pow(rho2, 3.0) * pow(rho1, 2.0) * (1.0 + rho1))
+               / ((1.0 + rho2) * (1.0 + rho2 + rho2 * rho1));
+         alpha_k[o][0] = ((1.0 + rho1) * (1.0 + rho2 * (1.0 + rho1))) / (1.0 + rho2);
+         alpha_k[o][1] = -rho1 * (1.0 + rho2 * (1.0 + rho1));
+         alpha_k[o][2] = (pow(rho2, 2.0) * rho1 * (1.0 + rho1)) / (1.0 + rho2);
+      }
    }
 }
 
 void NavierParticles::ParticleStep2D(const real_t &dt, int p)
 {
    real_t w_n_ext = 0.0;
+   int order_idx = 0;
+   const Array<int> &beta = beta_k[order_idx];
+   const Array<int> &alpha = alpha_k[order_idx];
 
    // Extrapolate particle vorticity using EXTk (w_n is new vorticity at old particle loc)
    // w_n_ext = alpha1*w_nm1 + alpha2*w_nm2 + alpha3*w_nm3
@@ -121,10 +127,15 @@ NavierParticles::NavierParticles(MPI_Comm comm, const real_t kappa_, const real_
   gamma(gamma_),
   zeta(zeta_),
   fluid_particles(comm, num_particles, m.SpaceDimension()),
-  finder(comm),
-  beta(4),
-  alpha(3)
+  finder(comm)
 {
+
+   for (int o = 0; o < 3; o++)
+   {
+      beta_k[o].SetSize(4);
+      alpha_k[o].SetSize(3);
+   }
+
    finder.Setup(m);
 
    int dim = fluid_particles.GetDim();
@@ -169,7 +180,7 @@ void NavierParticles::Step(const real_t &dt, int cur_step, const ParGridFunction
    {
       dthist[0] = dt;
    }
-   SetTimeIntegrationCoefficients(cur_step);
+   SetTimeIntegrationCoefficients();
 
    if (fluid_particles.GetDim() == 2)
    {
