@@ -283,12 +283,10 @@ void LSSolver(Solver& solver, const DenseMatrix& A, const DenseMatrix& C,
    rhs.SetVector(Atb, offsets[0]);
    rhs.SetVector(c, offsets[1]);
 
-   using OpType = Operator::Type;
-   auto block_oper = OperatorPtr(OpType::ANY_TYPE);
-   auto AtA_reg = OperatorPtr(OpType::ANY_TYPE);
-   auto Ct = OperatorPtr(OpType::ANY_TYPE);
+   auto AtA_reg = OperatorPtr(Operator::Type::ANY_TYPE);
+   auto block_solver = OperatorPtr(Operator::Type::ANY_TYPE);
 
-   if (dynamic_cast<IterativeSolver*>(&solver))
+   if (auto it_solver = dynamic_cast<IterativeSolver*>(&solver))
    {
       auto _At = new TransposeOperator(A);
       auto _AtA = new ProductOperator(_At, &A, true, false);
@@ -296,18 +294,17 @@ void LSSolver(Solver& solver, const DenseMatrix& A, const DenseMatrix& C,
       auto _AtA_reg = new SumOperator(_AtA, 1.0, _I, shift, true, true);
       AtA_reg.Reset(_AtA_reg, true);
 
-      auto _Ct = new TransposeOperator(C);
-      Ct.Reset(_Ct, true);
-
       // Block operator
-      auto _block_mat = new BlockOperator(offsets);
-      _block_mat->SetBlock(0, 0, _AtA_reg);
-      _block_mat->SetBlock(0, 1, _Ct);
-      _block_mat->SetBlock(1, 0, const_cast<DenseMatrix*>(&C));
-      block_oper.SetType(OpType::MFEM_Block_Operator);
-      block_oper.Reset(_block_mat, true);
-
-      solver.SetOperator(*_block_mat);
+      if (it_solver->GetComm() != MPI_COMM_NULL)
+      {
+         block_solver.Reset(new SchurConstrainedSolver(it_solver->GetComm(), *_AtA_reg,
+                                                       *const_cast<DenseMatrix*>(&C), solver), true);
+      }
+      else
+      {
+         block_solver.Reset(new SchurConstrainedSolver(*_AtA_reg,
+                                                       *const_cast<DenseMatrix*>(&C), solver), true);
+      }
    }
    else if (dynamic_cast<DenseMatrixInverse*>(&solver))
    {
@@ -324,26 +321,19 @@ void LSSolver(Solver& solver, const DenseMatrix& A, const DenseMatrix& C,
       }
       AtA_reg.Reset(_AtA_reg, true);
 
-      auto _Ct = new DenseMatrix();
-      const_cast<DenseMatrix*>(&C)->Transpose(*_Ct);
-      Ct.Reset(_Ct, true);
-
-      auto _block_mat = new DenseMatrix(_AtA_reg->Width() + C.Height());
-      _block_mat->SetSubMatrix(0, 0, *_AtA_reg);
-      _block_mat->SetSubMatrix(0, _AtA_reg->Width(), *_Ct);
-      _block_mat->SetSubMatrix(_AtA_reg->Width(), 0, C);
-      block_oper.Reset(_block_mat, true);
-
-      solver.SetOperator(*_block_mat);
+      block_solver.Reset(new SchurConstrainedSolver(*_AtA_reg,
+                                                    *const_cast<DenseMatrix*>(&C), solver), true);
    }
 
-   solver.Mult(rhs, z);
+   block_solver.As<SchurConstrainedSolver>()->LagrangeSystemMult(rhs, z);
 
    x.SetSize(A.Width());
    y.SetSize(C.Width());
+   x = 0.0;
+   y = 0.0;
 
-   z.GetBlockView(0,x);
-   z.GetBlockView(1,y);
+   x += z.GetBlock(0);
+   y += z.GetBlock(1);
 }
 
 /// @brief Dense small least squares solver, with constrains @a C with value @a c
