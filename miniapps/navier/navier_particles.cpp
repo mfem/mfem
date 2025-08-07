@@ -29,8 +29,6 @@ void NavierParticles::SetTimeIntegrationCoefficients()
    rho1 = dthist[0] / dthist[1];
    rho2 = dthist[1] / dthist[2];
 
-   cout << "rho1 = " << rho1 << endl;
-   cout << "rho2 = " << rho2 << endl;
    for (int o = 0; o < 3; o++)
    {
       if (o == 0) // k=1
@@ -73,13 +71,8 @@ void NavierParticles::ParticleStep2D(const real_t &dt, int p)
    real_t w_n_ext = 0.0;
 
    int order_idx = (*fp_data.order)[p] - 1;
-   cout << "(*fp_data.order)[p] = " << (*fp_data.order)[p] << endl;
-   cout << "order_idx = " << order_idx << endl;
-   const Array<int> &beta = beta_k[order_idx];
-   const Array<int> &alpha = alpha_k[order_idx];
-
-   cout << "beta = "; beta.Print();
-   cout << "alpha = "; alpha.Print();
+   const Array<real_t> &beta = beta_k[order_idx];
+   const Array<real_t> &alpha = alpha_k[order_idx];
 
    // Extrapolate particle vorticity using EXTk (w_n is new vorticity at old particle loc)
    // w_n_ext = alpha1*w_nm1 + alpha2*w_nm2 + alpha3*w_nm3
