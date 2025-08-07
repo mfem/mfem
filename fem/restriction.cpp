@@ -2276,6 +2276,18 @@ void NCL2FaceRestriction::ComputeGatherIndices()
    gather_offsets[0] = 0;
 }
 
+static int GetSharedVSize(const FiniteElementSpace &fes)
+{
+#ifdef MFEM_USE_MPI
+   if (auto pfes = dynamic_cast<const ParFiniteElementSpace*>(&fes))
+   {
+      const_cast<ParFiniteElementSpace*>(pfes)->ExchangeFaceNbrData();
+      return pfes->GetFaceNbrVSize();
+   }
+#endif
+   return 0;
+}
+
 L2InterfaceFaceRestriction::L2InterfaceFaceRestriction(
    const FiniteElementSpace& fes_,
    const ElementDofOrdering ordering_,
@@ -2286,25 +2298,54 @@ L2InterfaceFaceRestriction::L2InterfaceFaceRestriction(
      nfaces(fes.GetNFbyType(type)),
      vdim(fes.GetVDim()),
      byvdim(fes.GetOrdering() == Ordering::byVDIM),
-     face_dofs(nfaces > 0 ? fes.GetFaceElement(0)->GetDof() : 0),
+     face_dofs(fes.GetTypicalTraceElement()->GetDof()),
      nfdofs(face_dofs*nfaces),
-     ndofs(fes.GetNDofs())
+     ndofs(fes.GetNDofs()),
+     nsdofs(GetSharedVSize(fes))
 {
    height = nfdofs;
    width = ndofs;
+
+#ifdef MFEM_USE_MPI
+   auto pfes = dynamic_cast<const ParFiniteElementSpace*>(&fes);
+#endif
 
    const Table &face2dof = fes.GetFaceToDofTable();
 
    const Mesh &mesh = *fes.GetMesh();
    int face_idx = 0;
    gather_map.SetSize(nfdofs);
-   for (int f = 0; f < mesh.GetNumFaces(); ++f)
+   scatter_map.SetSize(ndofs + nsdofs);
+   scatter_map = -1;
+
+   Array<int> dofs;
+   for (int f = 0; f < mesh.GetNumFacesWithGhost(); ++f)
    {
       Mesh::FaceInformation face = mesh.GetFaceInformation(f);
       if (!face.IsOfFaceType(type) || face.IsNonconformingCoarse()) { continue; }
-      for (int i = 0; i < face_dofs; ++i)
+
+      if (f < mesh.GetNumFaces())
       {
-         gather_map[i + face_idx*face_dofs] = face2dof.GetJ()[i + f*face_dofs];
+         // Local face
+         face2dof.GetRow(f, dofs);
+         for (int i = 0; i < face_dofs; ++i)
+         {
+            gather_map[i + face_idx*face_dofs] = dofs[i];
+            scatter_map[dofs[i]] = i + face_idx*face_dofs;
+         }
+      }
+      else
+      {
+         // Shared (non-conforming) ghost face
+#ifdef MFEM_USE_MPI
+         MFEM_ASSERT(pfes != nullptr, "");
+         pfes->GetFaceNbrFaceVDofs(f, dofs);
+         for (int i = 0; i < face_dofs; ++i)
+         {
+            gather_map[i + face_idx*face_dofs] = ndofs + dofs[i];
+            scatter_map[ndofs + dofs[i]] = i + face_idx*face_dofs;
+         }
+#endif
       }
       ++face_idx;
    }
@@ -2312,13 +2353,19 @@ L2InterfaceFaceRestriction::L2InterfaceFaceRestriction(
 
 void L2InterfaceFaceRestriction::Mult(const Vector &x, Vector &y) const
 {
+   const int NDOFS = ndofs;
    const int nd = face_dofs;
    const int nf = nfaces;
    const int vd = vdim;
    const bool t = byvdim;
    const int *map = gather_map.Read();
 
+   Vector face_nbr_data = GetLVectorFaceNbrData(fes, x, type);
+   MFEM_ASSERT(face_nbr_data.Size() / vd == nsdofs, "");
+
    const auto d_x = Reshape(x.Read(), t?vd:ndofs, t?ndofs:vd);
+   const auto d_x_shared = Reshape(face_nbr_data.Read(),
+                                   t?vd:nsdofs, t?nsdofs:vd);
    auto d_y = Reshape(y.Write(), nd, vd, nf);
 
    mfem::forall(nd*nf, [=] MFEM_HOST_DEVICE (int i)
@@ -2326,7 +2373,8 @@ void L2InterfaceFaceRestriction::Mult(const Vector &x, Vector &y) const
       const int j = map[i];
       for (int c = 0; c < vd; ++c)
       {
-         d_y(i % nd, c, i / nd) = d_x(t?c:j, t?j:c);
+         if (j < NDOFS) { d_y(i % nd, c, i / nd) = d_x(t?c:j, t?j:c); }
+         else { d_y(i % nd, c, i / nd) = d_x_shared(t?c:(j-NDOFS), t?(j-NDOFS):c); }
       }
    });
 }
@@ -2338,18 +2386,42 @@ void L2InterfaceFaceRestriction::AddMultTranspose(
    const int nf = nfaces;
    const int vd = vdim;
    const bool t = byvdim;
-   const int *map = gather_map.Read();
+   const int *map = scatter_map.Read();
 
    const auto d_x = Reshape(x.Read(), nd, vd, nf);
-   auto d_y = Reshape(y.Write(), t?vd:ndofs, t?ndofs:vd);
+   auto d_y = Reshape(y.ReadWrite(), t?vd:ndofs, t?ndofs:vd);
 
-   mfem::forall(ndofs, [=] MFEM_HOST_DEVICE (int i) { d_y[i] = 0.0; });
-   mfem::forall(nd*nf, [=] MFEM_HOST_DEVICE (int i)
+   mfem::forall(ndofs, [=] MFEM_HOST_DEVICE (int i)
    {
       const int j = map[i];
+      if (j < 0) { return; }
       for (int c = 0; c < vd; ++c)
       {
-         d_y(t?c:j, t?j:c) = d_x(i % nd, c, i / nd);
+         d_y(t?c:i, t?i:c) += a*d_x(j % nd, c, j / nd);
+      }
+   });
+}
+
+void L2InterfaceFaceRestriction::MultTransposeShared(
+   const Vector &x, Vector &y) const
+{
+   const int nd = face_dofs;
+   const int nf = nfaces;
+   const int vd = vdim;
+   const bool t = byvdim;
+   const int *map = scatter_map.Read();
+
+   const auto d_x = Reshape(x.Read(), nd, vd, nf);
+   auto d_y = Reshape(y.Write(), t?vd:(ndofs+nsdofs), t?(ndofs+nsdofs):vd);
+   y = 0.0;
+
+   mfem::forall(ndofs + nsdofs, [=] MFEM_HOST_DEVICE (int i)
+   {
+      const int j = map[i];
+      if (j < 0) { return; }
+      for (int c = 0; c < vd; ++c)
+      {
+         d_y(t?c:i, t?i:c) = d_x(j % nd, c, j / nd);
       }
    });
 }
@@ -2357,6 +2429,11 @@ void L2InterfaceFaceRestriction::AddMultTranspose(
 const Array<int> &L2InterfaceFaceRestriction::GatherMap() const
 {
    return gather_map;
+}
+
+const Array<int> &L2InterfaceFaceRestriction::ScatterMap() const
+{
+   return scatter_map;
 }
 
 Vector GetLVectorFaceNbrData(

@@ -1122,7 +1122,9 @@ protected:
    const int face_dofs; ///< Number of dofs on each face
    const int nfdofs; ///< Total number of dofs on the faces (E-vector size)
    const int ndofs; ///< Number of dofs in the space (L-vector size)
+   const int nsdofs; ///< Number of shared face neighbor (ghost) dofs
    Array<int> gather_map; ///< Gather map
+   Array<int> scatter_map; ///< Scatter map
 
 public:
    /** @brief Constructs an L2InterfaceFaceRestriction.
@@ -1160,7 +1162,24 @@ public:
    void AddMultTranspose(const Vector &x, Vector &y,
                          const real_t a = 1.0) const override;
 
+   /// @brief Gather degrees of freedom, from face E-vector to L-vector and
+   /// shared (ghost) DOFs.
+   ///
+   /// @param[in]     x The face E-Vector degrees of freedom with size
+   ///                  (face_dofs, vdim, nf), where nf is the number of
+   ///                  interior or boundary faces requested by @a type in the
+   ///                  constructor. The face_dofs should be ordered according
+   ///                  to the given ElementDofOrdering
+   /// @param[out]    y Vector of length vsize + face neighbor vsize
+   void MultTransposeShared(const Vector &x, Vector &y) const;
+
    const Array<int> &GatherMap() const override;
+
+   /// @brief Return the low-level mapping from L-dofs to E-dofs.
+   ///
+   /// L-dofs that do not correspond to an E-dof (e.g. that lie on a face of a
+   /// different type) are given index -1.
+   const Array<int> &ScatterMap() const;
 };
 
 /** @brief Convert a dof face index from Native ordering to lexicographic
