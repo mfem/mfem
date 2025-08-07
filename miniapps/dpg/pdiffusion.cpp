@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -14,18 +14,18 @@
 // Compile with: make pdiffusion
 //
 // Sample runs
-// mpirun -np 4 pdiffusion -m ../../data/inline-quad.mesh -o 3 -sref 1 -pref 2 -theta 0.0 -prob 0
-// mpirun -np 4 pdiffusion -m ../../data/inline-hex.mesh -o 2 -sref 0 -pref 1 -theta 0.0 -prob 0 -sc
-// mpirun -np 4 pdiffusion -m ../../data/beam-tet.mesh -o 3 -sref 0 -pref 2 -theta 0.0 -prob 0 -sc
+//  mpirun -np 4 pdiffusion -m ../../data/inline-quad.mesh -o 3 -sref 1 -pref 2 -theta 0.0 -prob 0
+//  mpirun -np 4 pdiffusion -m ../../data/inline-hex.mesh -o 2 -sref 0 -pref 1 -theta 0.0 -prob 0 -sc
+//  mpirun -np 4 pdiffusion -m ../../data/beam-tet.mesh -o 3 -sref 0 -pref 2 -theta 0.0 -prob 0 -sc
 
 // L-shape runs
 // Note: uniform ref are expected to give sub-optimal rate for the L-shape problem (rate = 2/3)
-// mpirun -np 4 pdiffusion -o 2 -sref 1 -pref 5 -theta 0.0 -prob 1
+//  mpirun -np 4 pdiffusion -o 2 -sref 1 -pref 5 -theta 0.0 -prob 1
 
 // L-shape AMR runs
-// mpirun -np 4 pdiffusion -o 1 -sref 1 -pref 10 -theta 0.8 -prob 1
-// mpirun -np 4 pdiffusion -o 2 -sref 1 -pref 8 -theta 0.75 -prob 1 -sc
-// mpirun -np 4 pdiffusion -o 3 -sref 1 -pref 6 -theta 0.75 -prob 1 -sc -do 2
+//  mpirun -np 4 pdiffusion -o 1 -sref 1 -pref 10 -theta 0.8 -prob 1
+//  mpirun -np 4 pdiffusion -o 2 -sref 1 -pref 8 -theta 0.75 -prob 1 -sc
+//  mpirun -np 4 pdiffusion -o 3 -sref 1 -pref 6 -theta 0.75 -prob 1 -sc -do 2
 
 // Description:
 // This example code demonstrates the use of MFEM to define and solve
@@ -117,6 +117,7 @@ int main(int argc, char *argv[])
    bool static_cond = false;
    real_t theta = 0.7;
    bool visualization = true;
+   int visport = 19916;
    bool paraview = false;
 
    OptionsParser args(argc, argv);
@@ -142,6 +143,7 @@ int main(int argc, char *argv[])
    args.AddOption(&paraview, "-paraview", "--paraview", "-no-paraview",
                   "--no-paraview",
                   "Enable or disable ParaView visualization.");
+   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.Parse();
    if (!args.Good())
    {
@@ -469,7 +471,6 @@ int main(int argc, char *argv[])
       {
          const char * keys = (it == 0 && dim == 2) ? "jRcm\n" : nullptr;
          char vishost[] = "localhost";
-         int  visport   = 19916;
 
          VisualizeField(u_out,vishost,visport,u_gf,
                         "Numerical u", 0,0,500,500,keys);

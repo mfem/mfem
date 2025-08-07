@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -32,8 +32,8 @@ TEST_CASE("H1 SumIntegrator", "[SumIntegrator][PartialAssembly]")
    integ_sum.AddIntegrator(new MassIntegrator);
    integ_sum.AddIntegrator(new DiffusionIntegrator);
 
-   const FiniteElement &el = *fes.GetFE(0);
-   ElementTransformation &T = *mesh.GetElementTransformation(0);
+   const FiniteElement &el = *fes.GetTypicalFE();
+   ElementTransformation &T = *mesh.GetTypicalElementTransformation();
    DenseMatrix m1, m_tmp, m2;
 
    // AssembleElementMatrix

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -188,7 +188,7 @@ void pa_divergence_transpose_testnd(int dim)
    pa_mixed_transpose_test<VectorDivergenceIntegrator>(fes1, fes2);
 }
 
-TEST_CASE("PA VectorDivergence", "[PartialAssembly], [CUDA]")
+TEST_CASE("PA VectorDivergence", "[PartialAssembly], [GPU]")
 {
    SECTION("2D")
    {
@@ -280,7 +280,7 @@ void pa_gradient_transpose_testnd(int dim, FECType fec_type)
    pa_mixed_transpose_test<GradientIntegrator>(fes1, fes2);
 }
 
-TEST_CASE("PA Gradient", "[PartialAssembly], [CUDA]")
+TEST_CASE("PA Gradient", "[PartialAssembly], [GPU]")
 {
    auto fec_type = GENERATE(FECType::H1, FECType::L2_VALUE,
                             FECType::L2_INTEGRAL);
@@ -329,7 +329,7 @@ real_t test_nl_convection_nd(int dim)
    return difference;
 }
 
-TEST_CASE("Nonlinear Convection", "[PartialAssembly], [NonlinearPA], [CUDA]")
+TEST_CASE("Nonlinear Convection", "[PartialAssembly], [NonlinearPA], [GPU]")
 {
    SECTION("2D")
    {
@@ -371,7 +371,7 @@ real_t test_vector_pa_integrator(int dim)
    return difference;
 }
 
-TEST_CASE("PA Vector Mass", "[PartialAssembly], [VectorPA], [CUDA]")
+TEST_CASE("PA Vector Mass", "[PartialAssembly], [VectorPA], [GPU]")
 {
    SECTION("2D")
    {
@@ -384,7 +384,7 @@ TEST_CASE("PA Vector Mass", "[PartialAssembly], [VectorPA], [CUDA]")
    }
 }
 
-TEST_CASE("PA Vector Diffusion", "[PartialAssembly], [VectorPA], [CUDA]")
+TEST_CASE("PA Vector Diffusion", "[PartialAssembly], [VectorPA], [GPU]")
 {
    SECTION("2D")
    {
@@ -507,7 +507,7 @@ void test_pa_convection(const std::string &meshname, int order, int prob,
 }
 
 // Basic unit tests for convection
-TEST_CASE("PA Convection", "[PartialAssembly], [CUDA]")
+TEST_CASE("PA Convection", "[PartialAssembly], [GPU]")
 {
    // prob:
    // - 0: CG,
@@ -533,7 +533,7 @@ TEST_CASE("PA Convection", "[PartialAssembly], [CUDA]")
 } // test case
 
 // Advanced unit tests for convection
-TEST_CASE("PA Convection advanced", "[PartialAssembly], [MFEMData], [CUDA]")
+TEST_CASE("PA Convection advanced", "[PartialAssembly], [MFEMData], [GPU]")
 {
    if (launch_all_non_regression_tests)
    {
@@ -588,7 +588,7 @@ static void test_pa_integrator()
    // Don't use a special integration rule if q_order_inc == 0
    const bool use_ir = q_order_inc > 0;
    const IntegrationRule *ir =
-      use_ir ? &IntRules.Get(mesh.GetElementGeometry(0), q_order) : nullptr;
+      use_ir ? &IntRules.Get(mesh.GetTypicalElementGeometry(), q_order) : nullptr;
 
    GridFunction x(&fes), y_fa(&fes), y_pa(&fes);
    x.Randomize(1);
@@ -612,17 +612,17 @@ static void test_pa_integrator()
    REQUIRE(y_fa.Normlinf() == MFEM_Approx(0.0));
 }
 
-TEST_CASE("PA Mass", "[PartialAssembly], [CUDA]")
+TEST_CASE("PA Mass", "[PartialAssembly], [GPU]")
 {
    test_pa_integrator<MassIntegrator>();
 } // PA Mass test case
 
-TEST_CASE("PA Diffusion", "[PartialAssembly], [CUDA]")
+TEST_CASE("PA Diffusion", "[PartialAssembly], [GPU]")
 {
    test_pa_integrator<DiffusionIntegrator>();
 } // PA Diffusion test case
 
-TEST_CASE("PA Markers", "[PartialAssembly], [CUDA]")
+TEST_CASE("PA Markers", "[PartialAssembly], [GPU]")
 {
    const bool all_tests = launch_all_non_regression_tests;
    auto fname = GENERATE("../../data/star.mesh", "../../data/star-q3.mesh",
@@ -678,7 +678,7 @@ TEST_CASE("PA Markers", "[PartialAssembly], [CUDA]")
    REQUIRE(y_fa.Normlinf() == MFEM_Approx(0.0));
 }
 
-TEST_CASE("PA Boundary Mass", "[PartialAssembly], [CUDA]")
+TEST_CASE("PA Boundary Mass", "[PartialAssembly], [GPU]")
 {
    const bool all_tests = launch_all_non_regression_tests;
 
@@ -713,4 +713,150 @@ TEST_CASE("PA Boundary Mass", "[PartialAssembly], [CUDA]")
    REQUIRE(y_fa.Normlinf() == MFEM_Approx(0.0));
 }
 
+namespace
+{
+template <typename T> struct ParTypeHelper { };
+template <> struct ParTypeHelper<FiniteElementSpace>
+{
+   using GF_t = GridFunction;
+   using BLF_t = BilinearForm;
+};
+#ifdef MFEM_USE_MPI
+template <> struct ParTypeHelper<ParFiniteElementSpace>
+{
+   using GF_t = ParGridFunction;
+   using BLF_t = ParBilinearForm;
+};
+#endif
+}
+
+template <typename FES>
+void test_dg_diffusion(FES &fes)
+{
+   using GF_t = typename ParTypeHelper<FES>::GF_t;
+   using BLF_t = typename ParTypeHelper<FES>::BLF_t;
+
+   GF_t x(&fes), y_fa(&fes), y_pa(&fes);
+   x.Randomize(1);
+
+   ConstantCoefficient pi(3.14159);
+
+   const real_t sigma = -1.0;
+   const real_t kappa = 10.0;
+
+   IntegrationRules irs(0, Quadrature1D::GaussLobatto);
+   const IntegrationRule &ir = irs.Get(fes.GetMesh()->GetTypicalFaceGeometry(),
+                                       2*fes.GetMaxElementOrder());
+
+   BLF_t blf_fa(&fes);
+   blf_fa.AddInteriorFaceIntegrator(new DGDiffusionIntegrator(pi, sigma, kappa));
+   blf_fa.AddBdrFaceIntegrator(new DGDiffusionIntegrator(pi, sigma, kappa));
+   (*blf_fa.GetFBFI())[0]->SetIntegrationRule(ir);
+   (*blf_fa.GetBFBFI())[0]->SetIntegrationRule(ir);
+   blf_fa.Assemble();
+   blf_fa.Finalize();
+   OperatorHandle A_fa;
+   Array<int> empty;
+   blf_fa.FormSystemMatrix(empty, A_fa);
+   A_fa->Mult(x, y_fa);
+
+   BLF_t blf_pa(&fes);
+   blf_pa.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   blf_pa.AddInteriorFaceIntegrator(new DGDiffusionIntegrator(pi, sigma, kappa));
+   blf_pa.AddBdrFaceIntegrator(new DGDiffusionIntegrator(pi, sigma, kappa));
+   (*blf_pa.GetFBFI())[0]->SetIntegrationRule(ir);
+   (*blf_pa.GetBFBFI())[0]->SetIntegrationRule(ir);
+   blf_pa.Assemble();
+   blf_pa.Mult(x, y_pa);
+
+   y_fa -= y_pa;
+
+   REQUIRE(y_fa.Normlinf() == MFEM_Approx(0.0));
+}
+
+std::vector<std::string> get_dg_test_meshes()
+{
+   std::vector<std::string> mesh_filenames =
+   {
+      "../../data/star.mesh",
+      "../../data/star-q3.mesh",
+      "../../data/fichera.mesh",
+      "../../data/fichera-q3.mesh",
+   };
+   const bool have_data_dir = mfem_data_dir != "";
+   if (have_data_dir)
+   {
+      mesh_filenames.push_back(mfem_data_dir + "/gmsh/v22/unstructured_quad.v22.msh");
+      mesh_filenames.push_back(mfem_data_dir + "/gmsh/v22/unstructured_hex.v22.msh");
+   }
+   return mesh_filenames;
+}
+
+TEST_CASE("PA DG Diffusion", "[PartialAssembly], [GPU]")
+{
+   const auto mesh_fname = GENERATE_COPY(from_range(get_dg_test_meshes()));
+   const int order = GENERATE(1, 2);
+   CAPTURE(order, mesh_fname);
+
+   Mesh mesh = Mesh::LoadFromFile(mesh_fname.c_str());
+   const int dim = mesh.Dimension();
+
+   DG_FECollection fec(order, dim, BasisType::GaussLobatto);
+   FiniteElementSpace fes(&mesh, &fec);
+
+   test_dg_diffusion(fes);
+}
+
+#ifdef MFEM_USE_MPI
+
+TEST_CASE("Parallel PA DG Diffusion", "[PartialAssembly][Parallel][GPU]")
+{
+   const auto mesh_fname = GENERATE_COPY(from_range(get_dg_test_meshes()));
+   const int order = GENERATE(1, 2);
+   CAPTURE(order, mesh_fname);
+
+   Mesh serial_mesh = Mesh::LoadFromFile(mesh_fname.c_str());
+   ParMesh mesh(MPI_COMM_WORLD, serial_mesh);
+   serial_mesh.Clear();
+
+   const int dim = mesh.Dimension();
+
+   DG_FECollection fec(order, dim, BasisType::GaussLobatto);
+   ParFiniteElementSpace fes(&mesh, &fec);
+
+   test_dg_diffusion(fes);
+}
+
+#endif
+
 } // namespace pa_kernels
+
+TEST_CASE("Dispatch Map Specializations")
+{
+   // The kernel specializations are registered the first time the associated
+   // object is created (in the constructor of a static local variable in the
+   // object's constructor). We create a dummy objects here to ensure that the
+   // kernels are registered before testing.
+
+   MassIntegrator{};
+   REQUIRE_FALSE(MassIntegrator::ApplyPAKernels::GetDispatchTable().empty());
+   REQUIRE_FALSE(MassIntegrator::DiagonalPAKernels::GetDispatchTable().empty());
+
+   DiffusionIntegrator{};
+   REQUIRE_FALSE(
+      DiffusionIntegrator::ApplyPAKernels::GetDispatchTable().empty());
+   REQUIRE_FALSE(
+      DiffusionIntegrator::DiagonalPAKernels::GetDispatchTable().empty());
+
+   Mesh mesh = Mesh::MakeCartesian2D(2, 2, Element::QUADRILATERAL);
+   H1_FECollection fec(1, mesh.Dimension());
+   FiniteElementSpace fes(&mesh, &fec);
+   fes.GetQuadratureInterpolator(IntRules.Get(mesh.GetElementGeometry(0), 1));
+
+   using QI = QuadratureInterpolator;
+   REQUIRE_FALSE(QI::TensorEvalKernels::GetDispatchTable().empty());
+   REQUIRE_FALSE(QI::GradKernels::GetDispatchTable().empty());
+   REQUIRE_FALSE(QI::DetKernels::GetDispatchTable().empty());
+   REQUIRE_FALSE(QI::EvalKernels::GetDispatchTable().empty());
+   REQUIRE_FALSE(QI::CollocatedGradKernels::GetDispatchTable().empty());
+}

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -18,6 +18,7 @@
 #include "pgridfunc.hpp"
 #include "pfespace.hpp"
 #include "fespace.hpp"
+#include "fe/face_map_utils.hpp"
 #include "../general/forall.hpp"
 
 namespace mfem
@@ -277,21 +278,22 @@ void ParNCH1FaceRestriction::ComputeGatherIndices(
    gather_offsets[0] = 0;
 }
 
-ParL2FaceRestriction::ParL2FaceRestriction(const ParFiniteElementSpace &fes,
+ParL2FaceRestriction::ParL2FaceRestriction(const ParFiniteElementSpace &pfes_,
                                            ElementDofOrdering f_ordering,
                                            FaceType type,
                                            L2FaceValues m,
                                            bool build)
-   : L2FaceRestriction(fes, f_ordering, type, m, false)
+   : L2FaceRestriction(pfes_, f_ordering, type, m, false),
+     pfes(pfes_)
 {
    if (!build) { return; }
    if (nf==0) { return; }
 
-   CheckFESpace(f_ordering);
+   CheckFESpace();
 
-   ComputeScatterIndicesAndOffsets(f_ordering, type);
+   ComputeScatterIndicesAndOffsets();
 
-   ComputeGatherIndices(f_ordering, type);
+   ComputeGatherIndices();
 }
 
 ParL2FaceRestriction::ParL2FaceRestriction(const ParFiniteElementSpace &fes,
@@ -307,14 +309,8 @@ void ParL2FaceRestriction::DoubleValuedConformingMult(
    MFEM_ASSERT(
       m == L2FaceValues::DoubleValued,
       "This method should be called when m == L2FaceValues::DoubleValued.");
-   const ParFiniteElementSpace &pfes =
-      static_cast<const ParFiniteElementSpace&>(this->fes);
-   ParGridFunction x_gf;
-   x_gf.MakeRef(const_cast<ParFiniteElementSpace*>(&pfes),
-                const_cast<Vector&>(x), 0);
-   // Face-neighbor information is only needed for interior faces. For boundary
-   // faces, no communication is required.
-   if (type == FaceType::Interior) { x_gf.ExchangeFaceNbrData(); }
+
+   Vector face_nbr_data = GetLVectorFaceNbrData(fes, x, type);
 
    // Early return only after calling ParGridFunction::ExchangeFaceNbrData,
    // otherwise MPI communication can hang.
@@ -329,7 +325,7 @@ void ParL2FaceRestriction::DoubleValuedConformingMult(
    auto d_indices1 = scatter_indices1.Read();
    auto d_indices2 = scatter_indices2.Read();
    auto d_x = Reshape(x.Read(), t?vd:ndofs, t?ndofs:vd);
-   auto d_x_shared = Reshape(x_gf.FaceNbrData().Read(),
+   auto d_x_shared = Reshape(face_nbr_data.Read(),
                              t?vd:nsdofs, t?nsdofs:vd);
    auto d_y = Reshape(y.Write(), nface_dofs, vd, 2, nf);
    mfem::forall(nfdofs, [=] MFEM_HOST_DEVICE (int i)
@@ -567,13 +563,9 @@ void ParL2FaceRestriction::FillJAndData(const Vector &ea_data,
    });
 }
 
-void ParL2FaceRestriction::ComputeScatterIndicesAndOffsets(
-   const ElementDofOrdering f_ordering,
-   const FaceType type)
+void ParL2FaceRestriction::ComputeScatterIndicesAndOffsets()
 {
    Mesh &mesh = *fes.GetMesh();
-   const ParFiniteElementSpace &pfes =
-      static_cast<const ParFiniteElementSpace&>(this->fes);
 
    // Initialization of the offsets
    for (int i = 0; i <= ndofs; ++i)
@@ -622,9 +614,7 @@ void ParL2FaceRestriction::ComputeScatterIndicesAndOffsets(
 }
 
 
-void ParL2FaceRestriction::ComputeGatherIndices(
-   const ElementDofOrdering f_ordering,
-   const FaceType type)
+void ParL2FaceRestriction::ComputeGatherIndices()
 {
    Mesh &mesh = *fes.GetMesh();
 
@@ -666,11 +656,11 @@ ParNCL2FaceRestriction::ParNCL2FaceRestriction(const ParFiniteElementSpace &fes,
    if (nf==0) { return; }
    x_interp.UseDevice(true);
 
-   CheckFESpace(f_ordering);
+   CheckFESpace();
 
-   ComputeScatterIndicesAndOffsets(f_ordering, type);
+   ComputeScatterIndicesAndOffsets();
 
-   ComputeGatherIndices(f_ordering, type);
+   ComputeGatherIndices();
 }
 
 void ParNCL2FaceRestriction::SingleValuedNonconformingMult(
@@ -979,9 +969,7 @@ void ParNCL2FaceRestriction::FillJAndData(const Vector &ea_data,
    MFEM_ABORT("Not yet implemented.");
 }
 
-void ParNCL2FaceRestriction::ComputeScatterIndicesAndOffsets(
-   const ElementDofOrdering f_ordering,
-   const FaceType type)
+void ParNCL2FaceRestriction::ComputeScatterIndicesAndOffsets()
 {
    Mesh &mesh = *fes.GetMesh();
 
@@ -1064,9 +1052,7 @@ void ParNCL2FaceRestriction::ComputeScatterIndicesAndOffsets(
    interpolations.InitializeNCInterpConfig();
 }
 
-void ParNCL2FaceRestriction::ComputeGatherIndices(
-   const ElementDofOrdering f_ordering,
-   const FaceType type)
+void ParNCL2FaceRestriction::ComputeGatherIndices()
 {
    Mesh &mesh = *fes.GetMesh();
 

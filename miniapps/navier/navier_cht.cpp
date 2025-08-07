@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -116,10 +116,10 @@ public:
    ConductionOperator(ParFiniteElementSpace &f, real_t alpha, real_t kappa,
                       VectorGridFunctionCoefficient adv_gf_c);
 
-   virtual void Mult(const Vector &u, Vector &du_dt) const;
+   void Mult(const Vector &u, Vector &du_dt) const override;
    /** Solve the Backward-Euler equation: k = f(u + dt*k, t), for the unknown k.
        This is the only requirement for high-order SDIRK implicit integration.*/
-   virtual void ImplicitSolve(const real_t dt, const Vector &u, Vector &k);
+   void ImplicitSolve(const real_t dt, const Vector &u, Vector &k) override;
 
    /// Update the diffusion BilinearForm K using the given true-dof vector `u`.
    void SetParameters(VectorGridFunctionCoefficient adv_gf_c);
@@ -146,6 +146,7 @@ int main(int argc, char *argv[])
          rs_levels(lim_meshes);
    rs_levels                 = 0;
    np_list                   = 1;
+   int visport               = 19916;
    bool visualization        = true;
 
    OptionsParser args(argc, argv);
@@ -160,7 +161,7 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
-
+   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.Parse();
    if (!args.Good())
    {
@@ -211,14 +212,14 @@ int main(int argc, char *argv[])
    delete mesh;
 
    // Setup pointer for FESpaces, GridFunctions, and Solvers
-   H1_FECollection *fec_s            = NULL; //FECollection for solid
-   ParFiniteElementSpace *fes_s      = NULL; //FESpace for solid
-   ParFiniteElementSpace *adv_fes_s  = NULL; //FESpace for advection in solid
-   ParGridFunction *u_gf             = NULL; //Velocity solution on both meshes
-   ParGridFunction *t_gf             = NULL; //Temperature solution
-   NavierSolver *flowsolver          = NULL; //Fluid solver
-   ConductionOperator *coper         = NULL; //Temperature solver
-   Vector t_tdof;                            //Temperature true-dof vector
+   H1_FECollection *fec_s            = NULL; // FECollection for solid
+   ParFiniteElementSpace *fes_s      = NULL; // FESpace for solid
+   ParFiniteElementSpace *adv_fes_s  = NULL; // FESpace for advection in solid
+   ParGridFunction *u_gf             = NULL; // Velocity solution on both meshes
+   ParGridFunction *t_gf             = NULL; // Temperature solution
+   NavierSolver *flowsolver          = NULL; // Fluid solver
+   ConductionOperator *coper         = NULL; // Temperature solver
+   Vector t_tdof;                            // Temperature true-dof vector
 
    real_t t       = 0,
           dt      = schwarz.dt,
@@ -286,7 +287,7 @@ int main(int argc, char *argv[])
       t_gf->SetTrueVector();
       t_gf->GetTrueDofs(t_tdof);
 
-      // Create a list of points for the interior where the gridfunction will
+      // Create a list of points for the interior where the grid function will
       // be interpolate from the fluid mesh
       vxyz = *pmesh->GetNodes();
    }
@@ -307,7 +308,7 @@ int main(int argc, char *argv[])
 
    // Interpolate velocity solution on both meshes. Since the velocity solution
    // does not exist on the temperature mesh, it just passes in a dummy
-   // gridfunction that is not used in any way on the fluid mesh.
+   // grid function that is not used in any way on the fluid mesh.
    finder.Interpolate(vxyz, color_array, *u_gf, interp_vals);
 
    // Transfer the interpolated solution to solid mesh and setup a coefficient.
@@ -323,7 +324,6 @@ int main(int argc, char *argv[])
 
    // Visualize the solution.
    char vishost[] = "localhost";
-   int visport = 19916;
    socketstream vis_sol;
    int Ww = 350, Wh = 350; // window size
    int Wx = color*Ww+10, Wy = 0; // window position

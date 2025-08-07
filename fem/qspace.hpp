@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -214,6 +214,10 @@ public:
    /// For tensor-product faces, returns the lexicographic index of the
    /// quadrature point, oriented relative to "element 1".
    int GetPermutedIndex(int idx, int iq) const override;
+
+   /// @brief Get the face index (in the standard Mesh numbering) associated
+   /// with face @a idx in the FaceQuadratureSpace.
+   int GetMeshFaceIndex(int idx) const { return face_indices[idx]; }
 
    /// @brief Returns the index associated with the face described by @a T.
    ///

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -31,6 +31,22 @@ real_t circle_level_set(const Vector &x)
       const real_t xc = x(0) - 0.5, yc = x(1) - 0.5, zc = x(2) - 0.5;
       const real_t r = sqrt(xc*xc + yc*yc + zc*zc);
       return r-0.3;
+   }
+}
+
+real_t squircle_level_set(const Vector &x)
+{
+   const int dim = x.Size();
+   if (dim == 2)
+   {
+      const real_t xc = x(0) - 0.5, yc = x(1) - 0.5;
+      return std::pow(xc, 4.0) + std::pow(yc, 4.0) - std::pow(0.24, 4.0);
+   }
+   else
+   {
+      const real_t xc = x(0) - 0.5, yc = x(1) - 0.5, zc = x(2) - 0.5;
+      return std::pow(xc, 4.0) + std::pow(yc, 4.0) +
+             std::pow(zc, 4.0) - std::pow(0.24, 4.0);
    }
 }
 

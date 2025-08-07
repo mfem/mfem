@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -15,6 +15,7 @@
 #include "array.hpp"
 #include "../general/forall.hpp"
 #include <fstream>
+#include <type_traits>
 
 namespace mfem
 {
@@ -110,9 +111,22 @@ void Array<T>::PartialSum()
    }
 }
 
+template <class T>
+void Array<T>::Abs()
+{
+   static_assert(std::is_arithmetic<T>::value, "Use with arithmetic types!");
+   const bool useDevice = UseDevice();
+   const int N = size;
+   auto y = ReadWrite(useDevice);
+   mfem::forall_switch(useDevice, N, [=] MFEM_HOST_DEVICE (int i)
+   {
+      y[i] = std::abs(y[i]);
+   });
+}
+
 // Sum
 template <class T>
-T Array<T>::Sum()
+T Array<T>::Sum() const
 {
    T sum = static_cast<T>(0);
    for (int i = 0; i < size; i++)
@@ -124,7 +138,7 @@ T Array<T>::Sum()
 }
 
 template <class T>
-int Array<T>::IsSorted()
+int Array<T>::IsSorted() const
 {
    T val_prev = operator[](0), val;
    for (int i = 1; i < size; i++)
