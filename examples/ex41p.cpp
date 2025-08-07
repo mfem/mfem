@@ -132,7 +132,7 @@ public:
       linear_solver.SetAbsTol(0.0);
       linear_solver.SetMaxIter(100);
       linear_solver.SetPrintLevel(0);
-      //linear_solver.SetPreconditioner(*prec);
+      linear_solver.SetPreconditioner(*prec);
 
       M.GetDiag(M_diag);
    }
@@ -143,10 +143,10 @@ public:
       {
          dt = dt_;
          // // Form operator A = M + dt*S
-         A = Add(dt, S, 0.0, M);
-         SparseMatrix A_diag;
-         A->GetDiag(A_diag);
-         A_diag.Add(1.0, M_diag);
+         A = Add(dt, S, 1.0, M);
+         //SparseMatrix A_diag;
+         //A->GetDiag(A_diag);
+         //A_diag.Add(1.0, M_diag);
          // // this will also call SetOperator on the preconditioner
          linear_solver.SetOperator(*A);
 
