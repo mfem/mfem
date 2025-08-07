@@ -100,7 +100,7 @@ protected:
    static int SparseMatrixCount;
    mutable bool initBuffers = false;
 
-#if defined(MFEM_USE_CUDA) && CUDA_VERSION >= 12000 && CUDA_VERSION < 12800
+#if defined(MFEM_USE_CUDA) && CUDA_VERSION >= 12300 && CUDA_VERSION < 12602
    // Workaround for bug CUSPARSE-1897
 #define MFEM_CUDA_1897_WORKAROUND
    mutable size_t bufferSize = 0;
