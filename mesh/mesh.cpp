@@ -922,9 +922,9 @@ const FaceGeometricFactors* Mesh::GetFaceGeometricFactors(
    return gf;
 }
 
-const Array<int>& Mesh::GetBdrElementAttributes() const
+const Array<int>& Mesh::GetBdrFaceAttributes() const
 {
-   if (bdr_attrs_cache.Size() == 0)
+   if (bdr_face_attrs_cache.Size() == 0)
    {
       std::unordered_map<int, int> f_to_be;
       for (int i = 0; i < GetNBE(); ++i)
@@ -934,16 +934,16 @@ const Array<int>& Mesh::GetBdrElementAttributes() const
       }
       const int nf_bdr = GetNFbyType(FaceType::Boundary);
       // MFEM_VERIFY(size_t(nf_bdr) == f_to_be.size(), "Incompatible sizes");
-      bdr_attrs_cache.SetSize(nf_bdr);
+      bdr_face_attrs_cache.SetSize(nf_bdr);
       int f_ind = 0;
-      int missing_bdr_elems = 0;
-      for (int f = 0; f < GetNumFaces(); ++f)
+      const int nf = GetNumFaces();
+      for (int f = 0; f < nf; ++f)
       {
          if (!GetFaceInformation(f).IsOfFaceType(FaceType::Boundary))
          {
             continue;
          }
-         int attribute = 1; // default value
+         int attribute = -1; // default value
          auto iter = f_to_be.find(f);
          if (iter != f_to_be.end())
          {
@@ -953,21 +953,13 @@ const Array<int>& Mesh::GetBdrElementAttributes() const
          else
          {
             // If a boundary face does not correspond to the a boundary element,
-            // we assign it the default attribute of 1. We also generate a
-            // warning at runtime with the number of such missing elements.
-            ++missing_bdr_elems;
+            // we assign it the default attribute of -1.
          }
-         bdr_attrs_cache[f_ind] = attribute;
+         bdr_face_attrs_cache[f_ind] = attribute;
          ++f_ind;
       }
-      if (missing_bdr_elems)
-      {
-         MFEM_VERIFY(false, "Missing " << missing_bdr_elems
-                     << " boundary elements "
-                     "for boundary faces.");
-      }
    }
-   return bdr_attrs_cache;
+   return bdr_face_attrs_cache;
 }
 
 const Array<int>& Mesh::GetElementAttributes() const
@@ -980,6 +972,8 @@ const Array<int>& Mesh::GetElementAttributes() const
       for (int i = 0; i < GetNE(); ++i)
       {
          elem_attrs_cache[i] = GetAttribute(i);
+         MFEM_ASSERT(elem_attrs_cache[i] > 0,
+                     "Negative attribute on element " << i);
       }
    }
    return elem_attrs_cache;
@@ -1909,12 +1903,14 @@ void Mesh::Destroy()
 #endif
 
    elem_attrs_cache.DeleteAll();
-   bdr_attrs_cache.DeleteAll();
+   bdr_face_attrs_cache.DeleteAll();
    attributes.DeleteAll();
    bdr_attributes.DeleteAll();
 
    face_indices[0].DeleteAll();
    face_indices[1].DeleteAll();
+   // force de-allocation so after this mesh has the smallest memory footprint
+   // possible
    inv_face_indices[0] = std::unordered_map<int, int>();
    inv_face_indices[1] = std::unordered_map<int, int>();
 }
@@ -1929,15 +1925,20 @@ void Mesh::ResetLazyData()
    nbInteriorFaces = -1;
    nbBoundaryFaces = -1;
    // set size to 0 so re-computations can potentially avoid a new allocation
-   bdr_attrs_cache.SetSize(0);
+   bdr_face_attrs_cache.SetSize(0);
    elem_attrs_cache.SetSize(0);
+
+   face_indices[0].SetSize(0);
+   face_indices[1].SetSize(0);
+   inv_face_indices[0].clear();
+   inv_face_indices[1].clear();
 }
 
-void Mesh::SetAttributes(bool elem_attrs_changed, bool bdr_attrs_changed)
+void Mesh::SetAttributes(bool elem_attrs_changed, bool bdr_face_attrs_changed)
 {
-   if (bdr_attrs_changed)
+   if (bdr_face_attrs_changed)
    {
-      bdr_attrs_cache.SetSize(0); // Invalidate the cache
+      bdr_face_attrs_cache.SetSize(0); // Invalidate the cache
 
       // Get sorted list of unique boundary element attributes
       std::set<int> attribs;
@@ -4580,7 +4581,7 @@ Mesh::Mesh(const Mesh &mesh, bool copy_nodes)
 
    // copy attribute caches
    elem_attrs_cache = mesh.elem_attrs_cache;
-   bdr_attrs_cache = mesh.bdr_attrs_cache;
+   bdr_face_attrs_cache = mesh.bdr_face_attrs_cache;
 }
 
 Mesh::Mesh(Mesh &&mesh) : Mesh()
@@ -10992,7 +10993,7 @@ void Mesh::Swap(Mesh& other, bool non_geometry)
 
    // copy attribute caches
    mfem::Swap(elem_attrs_cache, other.elem_attrs_cache);
-   mfem::Swap(bdr_attrs_cache, other.bdr_attrs_cache);
+   mfem::Swap(bdr_face_attrs_cache, other.bdr_face_attrs_cache);
 
    mfem::Swap(face_indices[0], other.face_indices[0]);
    mfem::Swap(face_indices[1], other.face_indices[1]);
@@ -13405,7 +13406,7 @@ void Mesh::ScaleElements(real_t sf)
    delete [] vn;
 }
 
-void Mesh::Transform(void (*f)(const Vector&, Vector&))
+void Mesh::Transform(std::function<void(const Vector &, Vector&)> f)
 {
    // TODO: support for different new spaceDim.
    if (Nodes == NULL)
@@ -13418,7 +13419,7 @@ void Mesh::Transform(void (*f)(const Vector&, Vector&))
             vold(j) = vertices[i](j);
          }
          vnew.SetData(vertices[i]());
-         (*f)(vold, vnew);
+         f(vold, vnew);
       }
    }
    else
