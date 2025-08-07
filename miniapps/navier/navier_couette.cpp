@@ -31,8 +31,8 @@ struct s_Context
    real_t gamma = 1.0;
    real_t zeta = 4.0;
    real_t e = 1.0;
-   Vector x_min{-1.0,-1.0};
-   Vector x_max{1.0,1.0};
+   Vector x_min{-1.0,1.0};
+   Vector x_max{1.0,5.0};
    Vector v_min{-1.0,-1.0};
    Vector v_max{1.0,1.0};
    int test = -1;
@@ -124,10 +124,16 @@ int main (int argc, char *argv[])
       }
    }
 
-   // Initialize a simple straight-edged 2D domain [-10,10] x [-10,10]
-   Mesh mesh = Mesh::MakeCartesian2D(20, 20, Element::Type::QUADRILATERAL, true, 20, 20);
-   Vector transl(mesh.GetNV()*2);
-   transl = -10.0; // translate down + left 10
+   // Initialize a simple straight-edged 2D domain [-10,10] x [-1,10]
+   Mesh mesh = Mesh::MakeCartesian2D(20, 20, Element::Type::QUADRILATERAL, true, 20, 11);
+   mesh.EnsureNodes();
+
+   NodeFunction transl(2, Ordering::byVDIM, mesh.GetNV());
+   for (int i = 0; i < mesh.GetNV(); i++)
+   {
+      transl(i,0) = -10.0; // translate down + left
+      transl(i,1) = -1.0;
+   }
    mesh.MoveNodes(transl);
 
    ParMesh pmesh(MPI_COMM_WORLD, mesh);
