@@ -97,9 +97,10 @@ void LinearFormExtension::Assemble()
          const auto attr = bdr_face_attributes->Read();
          const auto attr_markers = boundary_integs_marker_k->Read();
          auto markers_w = bdr_markers.Write();
-         mfem::forall(NBE, [=] MFEM_HOST_DEVICE (int e)
+         mfem::forall(NBE, [=] MFEM_HOST_DEVICE(int e)
          {
-            markers_w[e] = attr_markers[attr[e]-1] == 1;
+            markers_w[e] =
+               attr[e] > 0 ? (attr_markers[attr[e] - 1] == 1) : false;
          });
       }
 

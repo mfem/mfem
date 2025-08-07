@@ -387,7 +387,7 @@ void PABilinearFormExtension::AssembleDiagonal(Vector &y) const
          mfem::forall(ne, [=] MFEM_HOST_DEVICE (int e)
          {
             const int attr = d_attr[e];
-            if (d_m[attr - 1] == 0)
+            if (attr <= 0 || d_m[attr - 1] == 0)
             {
                for (int i = 0; i < nd; ++i)
                {
@@ -765,7 +765,7 @@ static void AddWithMarkers_(
    mfem::forall(ne, [=] MFEM_HOST_DEVICE (int e)
    {
       const int attr = d_attr[e];
-      if (d_m[attr - 1] == 0) { return; }
+      if (attr <= 0 || d_m[attr - 1] == 0) { return; }
       for (int i = 0; i < nd; ++i)
       {
          d_y(i, e) += d_x(i, e);
@@ -881,7 +881,8 @@ void EABilinearFormExtension::Assemble()
       {
          const int i = idx % sz;
          const int e = idx / sz;
-         const real_t val = d_m[d_a[e] - 1] ? d_ea_1(i, e) : 0.0;
+         const real_t val =
+            d_a[e] > 0 ? (d_m[d_a[e] - 1] ? d_ea_1(i, e) : 0) : 0;
          if (add)
          {
             d_ea_2(i, e) += val;
