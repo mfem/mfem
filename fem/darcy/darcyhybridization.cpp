@@ -2777,6 +2777,7 @@ void DarcyHybridization::ReconstructTotalFlux(
    //element faces
 
    const int nfaces = mesh->GetNumFaces();
+   Array<int> f_2_b = mesh->GetFaceToBdrElMap();
    Array<int> vdofs_ut, vdofs_xf, vdofs1, vdofs2, dofs1, dofs2;
    DenseMatrix Ct, Ct1, Ct2, Mf;
    Vector u1, u2, p1, p2, xf, bf, bf1, bf2, ut_f;
@@ -2856,8 +2857,9 @@ void DarcyHybridization::ReconstructTotalFlux(
 
       //potential constraint
 
-      if (c_bfi_p || c_nlfi_p)
+      if ((c_bfi_p || c_nlfi_p) && ftr->Elem2No >= 0)
       {
+         // first side
          fes_p.GetElementDofs(ftr->Elem1No, dofs1);
          p.GetSubVector(dofs1, p1);
          c_fes.GetFaceVDofs(f, vdofs_xf);
@@ -2879,35 +2881,75 @@ void DarcyHybridization::ReconstructTotalFlux(
          }
          bf += bf1;
 
-         if (ftr->Elem2No >= 0)
-         {
-            const FiniteElement *fe2_p;
+         // second side
+         const FiniteElement *fe2_p;
 #ifdef MFEM_USE_MPI
-            if (ftr->Elem2No >= NE)
-            {
-               const int nbr_el = ftr->Elem2No - NE;
-               pfes_p->GetFaceNbrElementVDofs(nbr_el, dofs2);
-               pp.FaceNbrData().GetSubVector(dofs2, p2);
-               fe2_p = pfes_p->GetFaceNbrFE(nbr_el);
-            }
-            else
+         if (ftr->Elem2No >= NE)
+         {
+            const int nbr_el = ftr->Elem2No - NE;
+            pfes_p->GetFaceNbrElementVDofs(nbr_el, dofs2);
+            pp.FaceNbrData().GetSubVector(dofs2, p2);
+            fe2_p = pfes_p->GetFaceNbrFE(nbr_el);
+         }
+         else
 #endif
-            {
-               fes_p.GetElementDofs(ftr->Elem2No, dofs2);
-               p.GetSubVector(dofs2, p2);
-               fe2_p = fes_p.GetFE(ftr->Elem2No);
-            }
+         {
+            fes_p.GetElementDofs(ftr->Elem2No, dofs2);
+            p.GetSubVector(dofs2, p2);
+            fe2_p = fes_p.GetFE(ftr->Elem2No);
+         }
 
-            type |= 1;
-            if (c_bfi_p)
-            {
-               c_bfi_p->AssembleHDGFaceVector(type, *face_fe, *fe2_p, *ftr, xf, p2, bf2);
-            }
-            else
-            {
-               c_nlfi_p->AssembleHDGFaceVector(type, *face_fe, *fe2_p, *ftr, xf, p2, bf2);
-            }
-            bf -= bf2;
+         type |= 1;
+         if (c_bfi_p)
+         {
+            c_bfi_p->AssembleHDGFaceVector(type, *face_fe, *fe2_p, *ftr, xf, p2, bf2);
+         }
+         else
+         {
+            c_nlfi_p->AssembleHDGFaceVector(type, *face_fe, *fe2_p, *ftr, xf, p2, bf2);
+         }
+         bf -= bf2;
+      }
+
+      // boundary potential constraint
+      if (ftr->Elem2No < 0 && (!boundary_constraint_pot_integs.empty() ||
+                               !boundary_constraint_pot_nonlin_integs.empty()))
+      {
+         constexpr int type = NonlinearFormIntegrator::HDGFaceType::CONSTR
+                              | NonlinearFormIntegrator::HDGFaceType::FACE;
+
+         const FiniteElement *fe_p = fes_p.GetFE(ftr->Elem1No);
+         const FiniteElement *face_fe = c_fes.GetFaceElement(f);
+
+         fes_p.GetElementDofs(ftr->Elem1No, dofs1);
+         p.GetSubVector(dofs1, p1);
+         c_fes.GetFaceVDofs(f, vdofs_xf);
+         x.GetSubVector(vdofs_xf, xf);
+
+         const int bdr_attr = mesh->GetBdrAttribute(f_2_b[f]);
+
+         // linear
+         for (size_t i = 0; i < boundary_constraint_pot_integs.size(); i++)
+         {
+            if (boundary_constraint_pot_integs_marker[i]
+                && (*boundary_constraint_pot_integs_marker[i])[bdr_attr-1] == 0) { continue; }
+
+            boundary_constraint_pot_integs[i]->AssembleHDGFaceVector(type, *face_fe, *fe_p,
+                                                                     *ftr, xf, p1, bf1);
+
+            bf += bf1;
+         }
+
+         // nonlinear
+         for (size_t i = 0; i < boundary_constraint_pot_nonlin_integs.size(); i++)
+         {
+            if (boundary_constraint_pot_nonlin_integs_marker[i]
+                && (*boundary_constraint_pot_nonlin_integs_marker[i])[bdr_attr-1] == 0) { continue; }
+
+            boundary_constraint_pot_nonlin_integs[i]->AssembleHDGFaceVector(type, *face_fe,
+                                                                            *fe_p, *ftr, xf, p1, bf1);
+
+            bf += bf1;
          }
       }
 
