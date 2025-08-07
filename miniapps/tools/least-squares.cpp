@@ -231,19 +231,19 @@ void LSSolver(Solver& solver, const DenseMatrix& A, const Vector& b,
    Vector Atb(A.Width());
    A.MultTranspose(b, Atb);
 
+   auto AtA_reg = OperatorPtr(Operator::Type::ANY_TYPE);
    if (dynamic_cast<IterativeSolver*>(&solver))
    {
-      // Don't compute the products
-      TransposeOperator At(&A);
-      ProductOperator AtA(&At, &A, false, false);
-      IdentityOperator I(AtA.Height());
-      SumOperator AtA_reg(&AtA, 1.0, &I, shift, false, false);
-      solver.SetOperator(AtA_reg);
-      solver.Mult(Atb, x); // TODO(Gabriel): Lazy fix, Operators are scoped...
+      auto _At = new TransposeOperator(A);
+      auto _AtA = new ProductOperator(_At, &A, true, false);
+      auto _I = new IdentityOperator(_AtA->Height());
+      auto _AtA_reg = new SumOperator(_AtA, 1.0, _I, shift, true, true);
+      AtA_reg.Reset(_AtA_reg, true);
+      solver.SetOperator(*_AtA_reg);
    }
    else if (dynamic_cast<DenseMatrixInverse*>(&solver))
    {
-      DenseMatrix AtA_reg(A.Width());
+      auto _AtA_reg = new DenseMatrix(A.Width());
       Vector col_i(A.Height()), col_j(A.Height());
       for (int i = 0; i < A.Width(); i++)
       {
@@ -251,13 +251,15 @@ void LSSolver(Solver& solver, const DenseMatrix& A, const Vector& b,
          for (int j = 0; j < A.Width(); j++)
          {
             A.GetColumn(j, col_j);
-            AtA_reg(i,j) = col_i * col_j + (i==j)*shift;
+            (*_AtA_reg)(i,j) = col_i * col_j + (i==j)*shift;
          }
       }
-      solver.SetOperator(AtA_reg);
-      solver.Mult(Atb, x); // TODO(Gabriel): Lazy fix, redundant...
+      AtA_reg.Reset(_AtA_reg, true);
+      solver.SetOperator(*_AtA_reg);
    }
    else { mfem_error("Solver not implemented for this wrapper!"); }
+
+   solver.Mult(Atb, x);
 }
 
 /// @brief Dense small least squares solver, with constrains @a C with value @a c
@@ -281,27 +283,35 @@ void LSSolver(Solver& solver, const DenseMatrix& A, const DenseMatrix& C,
    rhs.SetVector(Atb, offsets[0]);
    rhs.SetVector(c, offsets[1]);
 
+   using OpType = Operator::Type;
+   auto block_oper = OperatorPtr(OpType::ANY_TYPE);
+   auto AtA_reg = OperatorPtr(OpType::ANY_TYPE);
+   auto Ct = OperatorPtr(OpType::ANY_TYPE);
+
    if (dynamic_cast<IterativeSolver*>(&solver))
    {
-      TransposeOperator At(&A);
-      ProductOperator AtA(&At, &A, false, false);
-      IdentityOperator I(AtA.Height());
-      SumOperator AtA_reg(&AtA, 1.0, &I, shift, false, false);
+      auto _At = new TransposeOperator(A);
+      auto _AtA = new ProductOperator(_At, &A, true, false);
+      auto _I = new IdentityOperator(_AtA->Height());
+      auto _AtA_reg = new SumOperator(_AtA, 1.0, _I, shift, true, true);
+      AtA_reg.Reset(_AtA_reg, true);
 
-      TransposeOperator Ct(&C);
+      auto _Ct = new TransposeOperator(C);
+      Ct.Reset(_Ct, true);
 
       // Block operator
-      BlockOperator block_mat(offsets);
-      block_mat.SetBlock(0, 0, &AtA_reg);
-      block_mat.SetBlock(0, 1, &Ct);
-      block_mat.SetBlock(1, 0, const_cast<DenseMatrix*>(&C));
+      auto _block_mat = new BlockOperator(offsets);
+      _block_mat->SetBlock(0, 0, _AtA_reg);
+      _block_mat->SetBlock(0, 1, _Ct);
+      _block_mat->SetBlock(1, 0, const_cast<DenseMatrix*>(&C));
+      block_oper.SetType(OpType::MFEM_Block_Operator);
+      block_oper.Reset(_block_mat, true);
 
-      solver.SetOperator(block_mat);
-      solver.Mult(rhs, z);
+      solver.SetOperator(*_block_mat);
    }
    else if (dynamic_cast<DenseMatrixInverse*>(&solver))
    {
-      DenseMatrix AtA_reg(A.Width());
+      auto _AtA_reg = new DenseMatrix(A.Width());
       Vector col_i(A.Height()), col_j(A.Height());
       for (int i = 0; i < A.Width(); i++)
       {
@@ -309,19 +319,25 @@ void LSSolver(Solver& solver, const DenseMatrix& A, const DenseMatrix& C,
          for (int j = 0; j < A.Width(); j++)
          {
             A.GetColumn(j, col_j);
-            AtA_reg(i,j) = col_i * col_j + (i==j)*shift;
+            (*_AtA_reg)(i,j) = col_i * col_j + (i==j)*shift;
          }
       }
+      AtA_reg.Reset(_AtA_reg, true);
 
-      DenseMatrix block_mat(AtA_reg.Width() + C.Height()), Ct;
-      const_cast<DenseMatrix*>(&C)->Transpose(Ct);
-      block_mat.SetSubMatrix(0, 0, AtA_reg);
-      block_mat.SetSubMatrix(0, AtA_reg.Width(), Ct);
-      block_mat.SetSubMatrix(AtA_reg.Width(),0, C);
+      auto _Ct = new DenseMatrix();
+      const_cast<DenseMatrix*>(&C)->Transpose(*_Ct);
+      Ct.Reset(_Ct, true);
 
-      solver.SetOperator(block_mat);
-      solver.Mult(rhs, z);
+      auto _block_mat = new DenseMatrix(_AtA_reg->Width() + C.Height());
+      _block_mat->SetSubMatrix(0, 0, *_AtA_reg);
+      _block_mat->SetSubMatrix(0, _AtA_reg->Width(), *_Ct);
+      _block_mat->SetSubMatrix(_AtA_reg->Width(), 0, C);
+      block_oper.Reset(_block_mat, true);
+
+      solver.SetOperator(*_block_mat);
    }
+
+   solver.Mult(rhs, z);
 
    x.SetSize(A.Width());
    y.SetSize(C.Width());
@@ -341,20 +357,19 @@ void LSSolver(Solver& solver, const DenseMatrix& A, const Vector& C,
 
    Vector aux_den(A.Width()), aux_num(A.Width());
 
+   auto AtA_reg = OperatorPtr(Operator::Type::ANY_TYPE);
    if (dynamic_cast<IterativeSolver*>(&solver))
    {
-      TransposeOperator At(&A);
-      ProductOperator AtA(&At, &A, false, false);
-      IdentityOperator I(AtA.Height());
-      SumOperator AtA_reg(&AtA, 1.0, &I, shift, false, false);
-
-      solver.SetOperator(AtA_reg);
-      solver.Mult(C, aux_den);
-      solver.Mult(Atb, aux_num);
+      auto _At = new TransposeOperator(A);
+      auto _AtA = new ProductOperator(_At, &A, true, false);
+      auto _I = new IdentityOperator(_AtA->Height());
+      auto _AtA_reg = new SumOperator(_AtA, 1.0, _I, shift, true, true);
+      AtA_reg.Reset(_AtA_reg, true);
+      solver.SetOperator(*AtA_reg.As<Operator>());
    }
    else if (dynamic_cast<DenseMatrixInverse*>(&solver))
    {
-      DenseMatrix AtA_reg(A.Width());
+      auto _AtA_reg = new DenseMatrix(A.Width());
       Vector col_i(A.Height()), col_j(A.Height());
       for (int i = 0; i < A.Width(); i++)
       {
@@ -362,54 +377,27 @@ void LSSolver(Solver& solver, const DenseMatrix& A, const Vector& C,
          for (int j = 0; j < A.Width(); j++)
          {
             A.GetColumn(j, col_j);
-            AtA_reg(i,j) = col_i * col_j + (i==j)*shift;
+            (*_AtA_reg)(i,j) = col_i * col_j + (i==j)*shift;
          }
       }
-
-      solver.SetOperator(AtA_reg);
-      solver.Mult(C, aux_den);
-      solver.Mult(Atb, aux_num);
+      AtA_reg.Reset(_AtA_reg, true);
+      solver.SetOperator(*AtA_reg.As<DenseMatrix>());
    }
+   else { mfem_error("Solver not implemented for this wrapper!"); }
+
+   solver.Mult(C, aux_den);
+   solver.Mult(Atb, aux_num);
 
    real_t mult_num = c - (C * aux_num);
    real_t mult_den = (C * aux_den);
 
-   // DEBUG
    if (std::abs(mult_den) < 0.001) { mfem_warning("Denominator of lagrange multiplier close to zero!"); }
    if (std::abs(mult_num) < 0.001) { mfem_warning("Numerator of lagrange multiplier close to zero!"); }
    real_t mult = mult_num/mult_den;
 
+   // Pertube RHS and solve
    add(Atb, mult, C, Atb);
-
-   // TODO(Gabriel): This is bad! Use OperatorPtr or overload the function...
-   if (dynamic_cast<IterativeSolver*>(&solver))
-   {
-      TransposeOperator At(&A);
-      ProductOperator AtA(&At, &A, false, false);
-      IdentityOperator I(AtA.Height());
-      SumOperator AtA_reg(&AtA, 1.0, &I, shift, false, false);
-
-      solver.SetOperator(AtA_reg);
-      solver.Mult(Atb, x);
-   }
-   else if (dynamic_cast<DenseMatrixInverse*>(&solver))
-   {
-      DenseMatrix AtA_reg(A.Width());
-      Vector col_i(A.Height()), col_j(A.Height());
-      for (int i = 0; i < A.Width(); i++)
-      {
-         A.GetColumn(i, col_i);
-         for (int j = 0; j < A.Width(); j++)
-         {
-            A.GetColumn(j, col_j);
-            AtA_reg(i,j) = col_i * col_j + (i==j)*shift;
-         }
-      }
-
-      solver.SetOperator(AtA_reg);
-      solver.Mult(Atb, x);
-   }
-
+   solver.Mult(Atb, x);
 }
 
 /// @brief Check both residuals: of the minimization and the least squares problem
