@@ -937,7 +937,7 @@ void DarcyForm::ReconstructFluxAndPot(const BlockVector &sol,
 
             // use non-singular terms as a source
             if (!dynamic_cast<ConvectionIntegrator*>(bfi)
-                && !dynamic_cast<NonconservativeConvectionIntegrator*>(bfi))
+                && !dynamic_cast<ConservativeConvectionIntegrator*>(bfi))
             {
                if (!M_p_src)
                {
