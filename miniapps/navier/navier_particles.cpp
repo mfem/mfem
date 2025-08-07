@@ -69,7 +69,8 @@ void NavierParticles::SetTimeIntegrationCoefficients()
 void NavierParticles::ParticleStep2D(const real_t &dt, int p)
 {
    real_t w_n_ext = 0.0;
-   int order_idx = 0;
+
+   int order_idx = (*fp_data.order)[p] - 1;
    const Array<int> &beta = beta_k[order_idx];
    const Array<int> &alpha = alpha_k[order_idx];
 
