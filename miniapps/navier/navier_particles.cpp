@@ -146,6 +146,10 @@ NavierParticles::NavierParticles(MPI_Comm comm, const real_t kappa_, const real_
       }
    }
 
+   // Initialize order (tag)
+   fp_data.order = &fluid_particles.AddTag("Order");
+   *fp_data.order = 0;
+
    r.SetSize(dim);
    C.SetSize(dim);
 }
@@ -171,6 +175,12 @@ void NavierParticles::Step(const real_t &dt, int cur_step, const ParGridFunction
    {
       for (int i = 0; i < fluid_particles.GetNP(); i++)
       {
+         // Increment particle order
+         int &order = (*fp_data.order)[i];
+         if (order < 3)
+         {
+            order++;
+         }
          ParticleStep2D(dt, i);
       }
    }

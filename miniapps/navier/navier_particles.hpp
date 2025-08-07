@@ -37,6 +37,7 @@ protected:
       NodeFunction *v[4];
       NodeFunction *w[4];
       NodeFunction *x[4];
+      Array<int> *order;
    } fp_data;
 
    void SetTimeIntegrationCoefficients(int step);
