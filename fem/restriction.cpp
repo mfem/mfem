@@ -2314,9 +2314,9 @@ L2InterfaceFaceRestriction::L2InterfaceFaceRestriction(
 
    const Mesh &mesh = *fes.GetMesh();
    int face_idx = 0;
-   gather_map.SetSize(nfdofs);
-   scatter_map.SetSize(ndofs + nsdofs);
-   scatter_map = -1;
+   scatter_map.SetSize(nfdofs);
+   gather_map.SetSize(ndofs + nsdofs);
+   gather_map = -1;
 
    Array<int> dofs;
    for (int f = 0; f < mesh.GetNumFacesWithGhost(); ++f)
@@ -2330,8 +2330,8 @@ L2InterfaceFaceRestriction::L2InterfaceFaceRestriction(
          face2dof.GetRow(f, dofs);
          for (int i = 0; i < face_dofs; ++i)
          {
-            gather_map[i + face_idx*face_dofs] = dofs[i];
-            scatter_map[dofs[i]] = i + face_idx*face_dofs;
+            scatter_map[i + face_idx*face_dofs] = dofs[i];
+            gather_map[dofs[i]] = i + face_idx*face_dofs;
          }
       }
       else
@@ -2342,8 +2342,8 @@ L2InterfaceFaceRestriction::L2InterfaceFaceRestriction(
          pfes->GetFaceNbrFaceVDofs(f, dofs);
          for (int i = 0; i < face_dofs; ++i)
          {
-            gather_map[i + face_idx*face_dofs] = ndofs + dofs[i];
-            scatter_map[ndofs + dofs[i]] = i + face_idx*face_dofs;
+            scatter_map[i + face_idx*face_dofs] = ndofs + dofs[i];
+            gather_map[ndofs + dofs[i]] = i + face_idx*face_dofs;
          }
 #endif
       }
@@ -2358,7 +2358,7 @@ void L2InterfaceFaceRestriction::Mult(const Vector &x, Vector &y) const
    const int nf = nfaces;
    const int vd = vdim;
    const bool t = byvdim;
-   const int *map = gather_map.Read();
+   const int *map = scatter_map.Read();
 
    Vector face_nbr_data = GetLVectorFaceNbrData(fes, x, type);
    MFEM_ASSERT(face_nbr_data.Size() / vd == nsdofs, "");
@@ -2386,7 +2386,7 @@ void L2InterfaceFaceRestriction::AddMultTranspose(
    const int nf = nfaces;
    const int vd = vdim;
    const bool t = byvdim;
-   const int *map = scatter_map.Read();
+   const int *map = gather_map.Read();
 
    const auto d_x = Reshape(x.Read(), nd, vd, nf);
    auto d_y = Reshape(y.ReadWrite(), t?vd:ndofs, t?ndofs:vd);
@@ -2409,7 +2409,7 @@ void L2InterfaceFaceRestriction::MultTransposeShared(
    const int nf = nfaces;
    const int vd = vdim;
    const bool t = byvdim;
-   const int *map = scatter_map.Read();
+   const int *map = gather_map.Read();
 
    const auto d_x = Reshape(x.Read(), nd, vd, nf);
    auto d_y = Reshape(y.Write(), t?vd:(ndofs+nsdofs), t?(ndofs+nsdofs):vd);

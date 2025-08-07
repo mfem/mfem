@@ -421,7 +421,10 @@ void HybridizationExtension::ConstructH()
    const ElementDofOrdering ordering = ElementDofOrdering::NATIVE;
    const FaceRestriction *face_restr =
       h.c_fes.GetFaceRestriction(ordering, FaceType::Interior);
-   const auto c_gather_map = Reshape(face_restr->GatherMap().Read(), n, nf);
+   const auto *l2_face_restr =
+      dynamic_cast<const L2InterfaceFaceRestriction*>(face_restr);
+   MFEM_ASSERT(l2_face_restr, "");
+   const auto c_scatter_map = Reshape(l2_face_restr->ScatterMap().Read(), n, nf);
 
    h.H.reset(new SparseMatrix);
    h.H->OverrideSize(ncdofs, ncdofs);
@@ -437,7 +440,7 @@ void HybridizationExtension::ConstructH()
       {
          const int i = idx_i % n;
          const int fi = idx_i / n;
-         const int ii = c_gather_map(i, fi);
+         const int ii = c_scatter_map(i, fi);
 
          const int begin = d_face_face_offsets[fi];
          const int end = d_face_face_offsets[fi + 1];
@@ -500,7 +503,7 @@ void HybridizationExtension::ConstructH()
       {
          const int i = idx_i % n;
          const int fi = idx_i / n;
-         const int ii = c_gather_map[i + fi*n];
+         const int ii = c_scatter_map[i + fi*n];
          const int begin = d_face_face_offsets[fi];
          const int end = d_face_face_offsets[fi + 1];
          for (int idx = begin; idx < end; ++idx)
@@ -512,7 +515,7 @@ void HybridizationExtension::ConstructH()
                if (val != 0)
                {
                   const int k = I[ii];
-                  const int jj = c_gather_map(j, fj);
+                  const int jj = c_scatter_map(j, fj);
                   I[ii]++;
                   J[k] = jj;
                   V[k] = val;
