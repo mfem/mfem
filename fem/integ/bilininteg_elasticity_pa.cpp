@@ -173,7 +173,7 @@ LinearElasticStress(const tensor<real_t, dim, dim> Jinvt,
    constexpr auto I = mfem::future::IsotropicIdentity<dim>();
    const tensor<real_t, dim, dim> strain = sym(gradu);
    const tensor<real_t, dim, dim> stress =
-      lambda * tr(strain) * I + 2.0 * mu * strain;
+      lambda * tr(strain) * I + static_cast<real_t>(2.0) * mu * strain;
    // Transform back to reference space
    return stress * Jinvt;
 }
