@@ -40,7 +40,7 @@ TEST_CASE("Inclusive Scan", "[Scan],[GPU]")
       {
          int expected = (i + 1) * i / 2;
          CAPTURE(i);
-         REQUIRE(a[i] == expected);
+         REQUIRE(AsConst(a)[i] == expected);
       }
       a.HostReadWrite();
       for (int i = 0; i < a.Size(); ++i)
@@ -55,7 +55,7 @@ TEST_CASE("Inclusive Scan", "[Scan],[GPU]")
       {
          expected *= i + 1;
          CAPTURE(i);
-         REQUIRE(a[i] == expected);
+         REQUIRE(AsConst(a)[i] == expected);
       }
    }
 }
@@ -80,7 +80,7 @@ TEST_CASE("Exclusive Scan", "[Scan],[GPU]")
       {
          int expected = (i + 1) * i / 2 - i + 5;
          CAPTURE(i);
-         REQUIRE(a[i] == expected);
+         REQUIRE(AsConst(a)[i] == expected);
       }
       a.HostReadWrite();
       for (int i = 0; i < a.Size(); ++i)
@@ -95,7 +95,7 @@ TEST_CASE("Exclusive Scan", "[Scan],[GPU]")
       for (int i = 0; i < a.Size(); ++i)
       {
          CAPTURE(i);
-         REQUIRE(a[i] == expected);
+         REQUIRE(AsConst(a)[i] == expected);
          expected *= i + 1;
       }
    }
