@@ -57,7 +57,7 @@ public:
    { }
 
 #ifdef MFEM_USE_MPI
-   Functional(MPI_Comm comm, int n=0)
+   Functional(MPI_Comm comm, int n)
       : Functional(n)
    { SetComm(comm); }
 
@@ -188,7 +188,7 @@ public:
       , manual_update(false)
    { }
 #ifdef MFEM_USE_MPI
-   SharedFunctional(MPI_Comm comm, int n=0)
+   SharedFunctional(MPI_Comm comm, int n)
       : SharedFunctional(n)
    { SetComm(comm); }
 #endif
