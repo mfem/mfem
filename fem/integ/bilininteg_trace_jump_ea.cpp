@@ -90,7 +90,7 @@ void NormalTraceJumpIntegrator::AssembleEAInteriorFaces(
    Array<int> face_info(nf * 4);
    {
       int fidx = 0;
-      for (int f = 0; f < mesh.GetNumFaces(); ++f)
+      for (int f = 0; f < mesh.GetNumFacesWithGhost(); ++f)
       {
          Mesh::FaceInformation finfo = mesh.GetFaceInformation(f);
          if (!finfo.IsInterior() || finfo.IsNonconformingCoarse()) { continue; }

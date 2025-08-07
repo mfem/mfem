@@ -1594,7 +1594,7 @@ const InterpolationManager &FiniteElementSpace::GetInterpolationManager(
       auto interp = make_unique<InterpolationManager>(*this, f_ordering, type);
 
       int face_idx = 0;
-      for (int f = 0; f < mesh->GetNumFaces(); ++f)
+      for (int f = 0; f < mesh->GetNumFacesWithGhost(); ++f)
       {
          Mesh::FaceInformation face = mesh->GetFaceInformation(f);
          if (!face.IsOfFaceType(type) || face.IsNonconformingCoarse())
