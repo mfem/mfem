@@ -1275,21 +1275,21 @@ void BilinearForm::Update(FiniteElementSpace *nfes)
    height = width = fes->GetVSize();
 
    if (ext) { ext->Update(); }
-   for (int k = 0; k < domain_integs.Size(); ++k)
+   for (auto &integral : domain_integs)
    {
-      domain_integs[k]->Update();
+      integral->Update();
    }
-   for (int k = 0; k < boundary_integs.Size(); ++k)
+   for (auto &integral : boundary_integs)
    {
-      boundary_integs[k]->Update();
+      integral->Update();
    }
-   for (int k = 0; k < interior_face_integs.Size(); ++k)
+   for (auto &integral : interior_face_integs)
    {
-      interior_face_integs[k]->Update();
+      integral->Update();
    }
-   for (int k = 0; k < boundary_integs.Size(); ++k)
+   for (auto &integral : boundary_face_integs)
    {
-      boundary_face_integs[k]->Update();
+      integral->Update();
    }
 }
 
@@ -2354,29 +2354,29 @@ void MixedBilinearForm::Update()
    width = trial_fes->GetVSize();
    if (ext) { ext->Update(); }
 
-   for (int k = 0; k < domain_integs.Size(); ++k)
+   for (auto &integral : domain_integs)
    {
-      domain_integs[k]->Update();
+      integral->Update();
    }
-   for (int k = 0; k < boundary_integs.Size(); ++k)
+   for (auto &integral : boundary_integs)
    {
-      boundary_integs[k]->Update();
+      integral->Update();
    }
-   for (int k = 0; k < interior_face_integs.Size(); ++k)
+   for (auto &integral : interior_face_integs)
    {
-      interior_face_integs[k]->Update();
+      integral->Update();
    }
-   for (int k = 0; k < boundary_integs.Size(); ++k)
+   for (auto &integral : boundary_face_integs)
    {
-      boundary_face_integs[k]->Update();
+      integral->Update();
    }
-   for (int k = 0; k < trace_face_integs.Size(); ++k)
+   for (auto &integral : trace_face_integs)
    {
-      trace_face_integs[k]->Update();
+      integral->Update();
    }
-   for (int k = 0; k < boundary_trace_face_integs.Size(); ++k)
+   for (auto &integral : boundary_trace_face_integs)
    {
-      boundary_trace_face_integs[k]->Update();
+      integral->Update();
    }
 }
 

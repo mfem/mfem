@@ -69,7 +69,7 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
       const auto C =
          const_c ? Reshape(coeff.Read(), 1, 1) : Reshape(coeff.Read(), NQ, NE);
       auto v = Reshape(pa_data.Write(), NQ, NE);
-      mfem::forall(NE, NQ, [=] MFEM_HOST_DEVICE(int e, int q)
+      mfem::forall(NQ, NE, [=] MFEM_HOST_DEVICE(int q, int e)
       {
          const real_t detJ = J(q, e);
          const real_t coeff = const_c ? C(0, 0) : C(q, e);
@@ -115,10 +115,8 @@ void MassIntegrator::AssemblePABoundary(const FiniteElementSpace &fes)
       const auto C = const_c ? Reshape(coeff.Read(), 1, 1)
                      : Reshape(coeff.Read(), NQ, NE);
       auto v = Reshape(pa_data.Write(), NQ, NE);
-      mfem::forall(NE * NQ, [=] MFEM_HOST_DEVICE(int idx)
+      mfem::forall(NQ, NE, [=] MFEM_HOST_DEVICE(int q, int e)
       {
-         int e = idx / NQ;
-         int q = idx % NQ;
          const real_t detJ = J(q, e);
          const real_t coeff = const_c ? C(0, 0) : C(q, e);
          v(q, e) = W(q) * coeff * (by_val ? detJ : 1.0 / detJ);

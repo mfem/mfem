@@ -85,8 +85,9 @@ void PWConstCoefficient::Project(QuadratureFunction &qf)
 {
    auto &qs = *qf.GetSpace();
 
-   const bool compressed = qs.Offsets().Size() == 1;
-   const int *offsets = qs.Offsets().Read();
+   const bool compressed =
+      qs.Offsets(QSpaceOffsetStorage::COMPRESSED).Size() == 1;
+   const int *offsets = qs.Offsets(QSpaceOffsetStorage::COMPRESSED).Read();
    const int ne = qs.GetNE();
 
    const int *attributes = [&]()
@@ -99,7 +100,7 @@ void PWConstCoefficient::Project(QuadratureFunction &qf)
       {
          MFEM_VERIFY(qs_f->GetFaceType() == FaceType::Boundary,
                      "Interior faces do not have attributes.");
-         return qs.GetMesh()->GetBdrElementAttributes().Read();
+         return qs.GetMesh()->GetBdrFaceAttributes().Read();
       }
       else
       {

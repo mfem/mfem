@@ -93,13 +93,14 @@ void LinearFormExtension::Assemble()
       else
       {
          // scan the attributes to set the markers to 0 or 1
-         const int NBE = bdr_attributes->Size();
-         const auto attr = bdr_attributes->Read();
+         const int NBE = bdr_face_attributes->Size();
+         const auto attr = bdr_face_attributes->Read();
          const auto attr_markers = boundary_integs_marker_k->Read();
          auto markers_w = bdr_markers.Write();
-         mfem::forall(NBE, [=] MFEM_HOST_DEVICE (int e)
+         mfem::forall(NBE, [=] MFEM_HOST_DEVICE(int e)
          {
-            markers_w[e] = attr_markers[attr[e]-1] == 1;
+            markers_w[e] =
+               attr[e] > 0 ? (attr_markers[attr[e] - 1] == 1) : false;
          });
       }
 
@@ -135,9 +136,9 @@ void LinearFormExtension::Update()
 
    if (lf->boundary_integs.Size() > 0)
    {
-      bdr_attributes = &mesh.GetBdrElementAttributes();
+      bdr_face_attributes = &mesh.GetBdrFaceAttributes();
 
-      const int nf_bdr = bdr_attributes->Size();
+      const int nf_bdr = bdr_face_attributes->Size();
       bdr_markers.SetSize(nf_bdr);
       // bdr_markers.UseDevice(true);
 
