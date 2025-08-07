@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -138,7 +138,9 @@ int main(int argc, char *argv[])
    OptionsParser args(argc, argv);
    args.AddOption(&eInt, "-e", "--elem-type",
                   "Element Type: (1-Segment, 2-Triangle, 3-Quadrilateral, "
-                  "4-Tetrahedron, 5-Hexahedron, 6-Wedge)");
+                  "4-Tetrahedron, 5-Hexahedron, 6-Wedge"
+                  /* , 7-Pyramid not currently supported */
+                  ")");
    args.AddOption(&bInt, "-b", "--basis-type",
                   "Basis Function Type (0-H1, 1-Nedelec, 2-Raviart-Thomas, "
                   "3-L2, 4-Fixed Order Cont.,\n\t5-Gaussian Discontinuous (2D),"
@@ -275,11 +277,12 @@ int main(int argc, char *argv[])
             cout <<
                  "4) Tetrahedron\n"
                  "5) Hexahedron\n"
-                 "6) Wedge\n";
+                 "6) Wedge\n"
+                 "7) Pyramid (** not currently supported **)\n";
          }
          cout << "enter new element type --> " << flush;
          cin >> eInt;
-         if ( eInt <= 0 || eInt > 6 )
+         if ( eInt <= 0 || eInt > 7 )
          {
             cout << "invalid element type \"" << eInt << "\"" << endl << flush;
          }
@@ -532,6 +535,8 @@ string elemTypeStr(const Element::Type & eType)
          return "HEXAHEDRON";
       case Element::WEDGE:
          return "WEDGE";
+      case Element::PYRAMID:
+         return "PYRAMID";
       default:
          return "INVALID";
    };
@@ -553,7 +558,7 @@ bool
 elemIs3D(const Element::Type & eType)
 {
    return eType == Element::TETRAHEDRON || eType == Element::HEXAHEDRON ||
-          eType == Element::WEDGE;
+          eType == Element::WEDGE || eType == Element::PYRAMID;
 }
 
 string

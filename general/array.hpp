@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -23,6 +23,7 @@
 #include <cstring>
 #include <algorithm>
 #include <type_traits>
+#include <initializer_list>
 
 namespace mfem
 {
@@ -52,19 +53,23 @@ protected:
    static_assert(std::is_trivial<T>::value, "type T must be trivial");
 
 public:
+   using value_type = T; ///< Type alias for stl.
+   using reference = T&; ///< Type alias for stl.
+   using const_reference = const T&; ///< Type alias for stl.
+
    /// Creates an empty array
-   inline Array() : size(0) { data.Reset(); }
+   inline Array() : size(0) { }
 
    /// Creates an empty array with a given MemoryType
-   inline Array(MemoryType mt) : size(0) { data.Reset(mt); }
+   inline Array(MemoryType mt) : data(mt), size(0) { }
 
    /// Creates array of @a asize elements
    explicit inline Array(int asize)
-      : size(asize) { asize > 0 ? data.New(asize) : data.Reset(); }
+      : size(asize) { if (asize > 0) { data.New(asize); } }
 
    /// Creates array of @a asize elements with a given MemoryType
    inline Array(int asize, MemoryType mt)
-      : size(asize) { asize > 0 ? data.New(asize, mt) : data.Reset(mt); }
+      : data(mt), size(asize) { if (asize > 0) { data.New(asize, mt); } }
 
    /** @brief Creates array using an externally allocated host pointer @a data_
        to @a asize elements. If @a own_data is true, the array takes ownership
@@ -83,24 +88,14 @@ public:
    template <typename CT>
    inline Array(const Array<CT> &src);
 
-   /// Deep copy from a braced init-list of convertible type
+   /// Construct an Array from a C-style array of static length
    template <typename CT, int N>
    explicit inline Array(const CT (&values)[N]);
 
-   /**
-    * @brief Construct a new Array object from an initializer list.
-    *
-    * @param init_list List of entities to construct from.
-    */
-   Array(const std::initializer_list<T> &init_list)
-      : Array(static_cast<int>(init_list.size()))
-   {
-      auto * it = GetData();
-      for (auto value : init_list)
-      {
-         *it++ = value;
-      }
-   }
+   /// Construct an Array from a braced initializer list of convertible type
+   template <typename CT, typename std::enable_if<
+                std::is_convertible<CT,T>::value,bool>::type = true>
+   explicit inline Array(std::initializer_list<CT> values);
 
    /// Move constructor ("steals" data from 'src')
    Array(Array<T> &&src) = default;
@@ -180,6 +175,9 @@ public:
 
    /// Append element 'el' to array, resize if necessary.
    inline int Append(const T & el);
+
+   /// STL-like push_back. Append element 'el' to array, resize if necessary.
+   void push_back(const T &el) { Append(el); }
 
    /// Append another array to this array, resize if necessary.
    inline int Append(const T *els, int nels);
@@ -302,7 +300,7 @@ public:
    void Unique()
    {
       T* end = std::unique((T*)data, data + size);
-      SetSize(end - data);
+      SetSize((int)(end - data));
    }
 
    /// Return 1 if the array is sorted from lowest to highest.  Otherwise return 0.
@@ -314,8 +312,11 @@ public:
    /// Fill the entries of the array with the cumulative sum of the entries.
    void PartialSum();
 
+   /// Replace each entry of the array with its absolute value.
+   void Abs();
+
    /// Return the sum of all the array entries using the '+'' operator for class 'T'.
-   T Sum();
+   T Sum() const;
 
    /// Set all entries of the array to the provided constant.
    inline void operator=(const T &a);
@@ -332,7 +333,11 @@ public:
        the Size to match this Capacity after this.*/
    template <typename U>
    inline void CopyFrom(const U *src)
-   { std::memcpy(begin(), src, MemoryUsage()); }
+   {
+      if (!begin() || size == 0) { return; }
+      MFEM_ASSERT(begin() && src, "Error in Array::CopyFrom");
+      std::memcpy(begin(), src, MemoryUsage());
+   }
 
    /// STL-like begin.  Returns pointer to the first element of the array.
    inline T* begin() { return data; }
@@ -692,10 +697,18 @@ inline Array<T>::Array(const Array<CT> &src)
    for (int i = 0; i < size; i++) { (*this)[i] = T(src[i]); }
 }
 
+template <typename T>
+template <typename CT, typename std::enable_if<
+             std::is_convertible<CT,T>::value,bool>::type>
+inline Array<T>::Array(std::initializer_list<CT> values) : Array(values.size())
+{
+   std::copy(values.begin(), values.end(), begin());
+}
+
 template <typename T> template <typename CT, int N>
 inline Array<T>::Array(const CT (&values)[N]) : Array(N)
 {
-   for (int i = 0; i < size; i++) { (*this)[i] = T(values[i]); }
+   std::copy(values, values + N, begin());
 }
 
 template <class T>
@@ -893,7 +906,7 @@ inline int Array<T>::FindSorted(const T &el) const
    const T *begin = data, *end = begin + size;
    const T* first = std::lower_bound(begin, end, el);
    if (first == end || !(*first == el)) { return  -1; }
-   return first - begin;
+   return (int)(first - begin);
 }
 
 template <class T>

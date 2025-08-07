@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -123,7 +123,7 @@ void TestBatchedLOR()
 
    // Sanity check that the LOR mesh is valid
    IntegrationRules irs(0, Quadrature1D::GaussLobatto);
-   const IntegrationRule &ir = irs.Get(mesh.GetElementGeometry(0), 1);
+   const IntegrationRule &ir = irs.Get(mesh.GetTypicalElementGeometry(), 1);
    const GeometricFactors::FactorFlags dets = GeometricFactors::DETERMINANTS;
    if (mesh.Dimension() == mesh.SpaceDimension())
    {
@@ -140,17 +140,17 @@ void TestBatchedLOR()
    TestSameMatrices(A2, A1);
 }
 
-TEST_CASE("LOR Batched H1", "[LOR][BatchedLOR][CUDA]")
+TEST_CASE("LOR Batched H1", "[LOR][BatchedLOR][GPU]")
 {
    TestBatchedLOR<H1_FECollection,MassIntegrator,DiffusionIntegrator>();
 }
 
-TEST_CASE("LOR Batched ND", "[LOR][BatchedLOR][CUDA]")
+TEST_CASE("LOR Batched ND", "[LOR][BatchedLOR][GPU]")
 {
    TestBatchedLOR<ND_FECollection,VectorFEMassIntegrator,CurlCurlIntegrator>();
 }
 
-TEST_CASE("LOR Batched RT", "[LOR][BatchedLOR][CUDA]")
+TEST_CASE("LOR Batched RT", "[LOR][BatchedLOR][GPU]")
 {
    TestBatchedLOR<RT_FECollection,VectorFEMassIntegrator,DivDivIntegrator>();
 }
@@ -192,6 +192,8 @@ void ParTestBatchedLOR()
                               "../../data/fichera-q3.mesh"
                            );
 
+   CAPTURE(order, mesh_fname);
+
    Mesh serial_mesh = Mesh::LoadFromFile(mesh_fname);
 
    ParMesh mesh(MPI_COMM_WORLD, serial_mesh);
@@ -226,22 +228,22 @@ void ParTestBatchedLOR()
    TestSameMatrices(A2, A1);
 }
 
-TEST_CASE("Parallel LOR Batched H1", "[LOR][BatchedLOR][Parallel][CUDA]")
+TEST_CASE("Parallel LOR Batched H1", "[LOR][BatchedLOR][Parallel][GPU]")
 {
    ParTestBatchedLOR<H1_FECollection,MassIntegrator,DiffusionIntegrator>();
 }
 
-TEST_CASE("Parallel LOR Batched ND", "[LOR][BatchedLOR][Parallel][CUDA]")
+TEST_CASE("Parallel LOR Batched ND", "[LOR][BatchedLOR][Parallel][GPU]")
 {
    ParTestBatchedLOR<ND_FECollection,VectorFEMassIntegrator,CurlCurlIntegrator>();
 }
 
-TEST_CASE("Parallel LOR Batched RT", "[LOR][BatchedLOR][Parallel][CUDA]")
+TEST_CASE("Parallel LOR Batched RT", "[LOR][BatchedLOR][Parallel][GPU]")
 {
    ParTestBatchedLOR<RT_FECollection,VectorFEMassIntegrator,DivDivIntegrator>();
 }
 
-TEST_CASE("LOR AMS", "[LOR][BatchedLOR][AMS][Parallel][CUDA]")
+TEST_CASE("LOR AMS", "[LOR][BatchedLOR][AMS][Parallel][GPU]")
 {
    enum SpaceType { ND, RT };
    auto space_type = GENERATE(ND, RT);
@@ -313,7 +315,7 @@ TEST_CASE("LOR AMS", "[LOR][BatchedLOR][AMS][Parallel][CUDA]")
    }
 }
 
-TEST_CASE("LOR ADS", "[LOR][BatchedLOR][ADS][Parallel][CUDA]")
+TEST_CASE("LOR ADS", "[LOR][BatchedLOR][ADS][Parallel][GPU]")
 {
    // Only need to test ADS in 3D
    auto mesh_fname = GENERATE("../../data/fichera-q3.mesh");

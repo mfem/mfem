@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -1260,6 +1260,742 @@ void RT_WedgeElement::CalcDivShape(const IntegrationPoint &ip,
       {
          real_t s = (dof2nk[i] == 0) ? -1.0 : 1.0;
          divshape(i) = s * tl2_shape(t_dof[i]) * sh1_dshape(s_dof[i], 0);
+      }
+   }
+}
+
+const real_t RT_FuentesPyramidElement::nk[24] =
+{
+   0,0,-1,  0,-1,0,  1,0,1,  0,1,1,  -1,0,0,
+   M_SQRT2,0,M_SQRT1_2, 0,M_SQRT2,M_SQRT1_2, 0,0,1
+};
+
+RT_FuentesPyramidElement::RT_FuentesPyramidElement(const int p)
+   : VectorFiniteElement(3, Geometry::PYRAMID, (p + 1)*(3*p*(p + 2) + 5),
+                         p + 1, H_DIV, FunctionSpace::Uk),
+     dof2nk(dof)
+{
+   zmax = 0.0;
+
+   const real_t *iop = poly1d.OpenPoints(p);
+   const real_t *icp = poly1d.ClosedPoints(p + 1);
+   const real_t *bop = poly1d.OpenPoints(p);
+
+#ifndef MFEM_THREAD_SAFE
+   tmp1_i.SetSize(p + 2);
+   tmp1_ij.SetSize(p + 2, p + 2);
+   tmp2_ij.SetSize(p + 2, dim);
+   tmp3_ij.SetSize(p + 2, dim);
+   tmp4_ij.SetSize(p + 1, p + 1);
+   tmp1_ijk.SetSize(p + 1, p + 1, dim);
+   tmp2_ijk.SetSize(p + 1, p + 1, dim);
+   tmp3_ijk.SetSize(p + 1, p + 1, dim);
+   tmp4_ijk.SetSize(p + 1, p + 2, dim);
+   tmp5_ijk.SetSize(p + 1, p + 2, dim);
+   tmp6_ijk.SetSize(p + 2, p + 2, dim);
+   tmp7_ijk.SetSize(p + 2, p + 2, dim);
+   u.SetSize(dof, dim);
+   divu.SetSize(dof);
+#else
+   Vector      tmp1_i(p + 2);
+   DenseMatrix tmp1_ij(p + 2, p + 2);
+   DenseMatrix tmp2_ij(p + 2, dim);
+   DenseMatrix tmp3_ij(p + 2, dim);
+   DenseTensor tmp1_ijk(p + 1, p + 1, dim);
+   DenseTensor tmp2_ijk(p + 1, p + 1, dim);
+   DenseTensor tmp3_ijk(p + 1, p + 1, dim);
+   DenseTensor tmp4_ijk(p + 1, p + 2, dim);
+   DenseTensor tmp5_ijk(p + 1, p + 2, dim);
+   DenseTensor tmp6_ijk(p + 2, p + 2, dim);
+   DenseTensor tmp7_ijk(p + 2, p + 2, dim);
+   DenseMatrix u(dof, dim);
+#endif
+
+   int o = 0;
+
+   // quadrilateral face
+   for (int j = 0; j <= p; j++)
+      for (int i = 0; i <= p; i++)  // (3,2,1,0)
+      {
+         Nodes.IntPoint(o).Set3(bop[i], bop[p-j], 0.);
+         dof2nk[o++] = 0;
+      }
+   // triangular faces
+   for (int j = 0; j <= p; j++)
+      for (int i = 0; i + j <= p; i++)  // (0,1,4)
+      {
+         real_t w = bop[i] + bop[j] + bop[p-i-j];
+         Nodes.IntPoint(o).Set3(bop[i]/w, 0., bop[j]/w);
+         dof2nk[o++] = 1;
+      }
+   for (int j = 0; j <= p; j++)
+      for (int i = 0; i + j <= p; i++)  // (1,2,4)
+      {
+         real_t w = bop[i] + bop[j] + bop[p-i-j];
+         Nodes.IntPoint(o).Set3(1.-bop[j]/w, bop[i]/w, bop[j]/w);
+         dof2nk[o++] = 2;
+      }
+   for (int j = 0; j <= p; j++)
+      for (int i = p - j; i >= 0; i--)  // (2,3,4)
+      {
+         real_t w = bop[i] + bop[j] + bop[p-i-j];
+         Nodes.IntPoint(o).Set3(bop[i]/w, 1.0-bop[j]/w, bop[j]/w);
+         dof2nk[o++] = 3;
+      }
+   for (int j = 0; j <= p; j++)
+      for (int i = p - j; i >= 0; i--)  // (3,0,4)
+      {
+         real_t w = bop[i] + bop[j] + bop[p-i-j];
+         Nodes.IntPoint(o).Set3(0., bop[i]/w, bop[j]/w);
+         dof2nk[o++] = 4;
+      }
+
+   // interior
+   // x-components
+   for (int k = 0; k <= p; k++)
+      for (int j = 0; j <= p; j++)
+         for (int i = 1; i <= p; i++)
+         {
+            real_t w = 1.0 - iop[k];
+            Nodes.IntPoint(o).Set3(icp[i]*w, iop[j]*w, iop[k]);
+            dof2nk[o++] = 5;
+         }
+   // y-components
+   for (int k = 0; k <= p; k++)
+      for (int j = 1; j <= p; j++)
+         for (int i = 0; i <= p; i++)
+         {
+            real_t w = 1.0 - iop[k];
+            Nodes.IntPoint(o).Set3(iop[i]*w, icp[j]*w, iop[k]);
+            dof2nk[o++] = 6;
+         }
+   // z-components
+   for (int k = 1; k <= p; k++)
+      for (int j = 0; j <= p; j++)
+         for (int i = 0; i <= p; i++)
+         {
+            real_t w = 1.0 - icp[k];
+            Nodes.IntPoint(o).Set3(iop[i]*w, iop[j]*w, icp[k]);
+            dof2nk[o++] = 7;
+         }
+
+   DenseMatrix T(dof);
+
+   for (int m = 0; m < dof; m++)
+   {
+      const IntegrationPoint &ip = Nodes.IntPoint(m);
+      const Vector nm({nk[3*dof2nk[m]], nk[3*dof2nk[m]+1], nk[3*dof2nk[m]+2]});
+      calcBasis(order, ip, tmp1_i, tmp1_ij, tmp2_ij,
+                tmp1_ijk, tmp2_ijk, tmp3_ijk, tmp4_ijk, tmp5_ijk, tmp6_ijk,
+                tmp7_ijk,
+                tmp3_ij, u);
+      u.Mult(nm, T.GetColumn(m));
+   }
+
+   Ti.Factor(T);
+}
+
+void RT_FuentesPyramidElement::CalcVShape(const IntegrationPoint &ip,
+                                          DenseMatrix &shape) const
+{
+#ifdef MFEM_THREAD_SAFE
+   const int p = order - 1;
+
+   Vector      tmp1_i(p + 2);
+   DenseMatrix tmp1_ij(p + 2, p + 2);
+   DenseMatrix tmp2_ij(p + 2, dim);
+   DenseMatrix tmp3_ij(p + 2, dim);
+   DenseTensor tmp1_ijk(p + 1, p + 1, dim);
+   DenseTensor tmp2_ijk(p + 1, p + 1, dim);
+   DenseTensor tmp3_ijk(p + 1, p + 1, dim);
+   DenseTensor tmp4_ijk(p + 1, p + 2, dim);
+   DenseTensor tmp5_ijk(p + 1, p + 2, dim);
+   DenseTensor tmp6_ijk(p + 2, p + 2, dim);
+   DenseTensor tmp7_ijk(p + 2, p + 2, dim);
+   DenseMatrix u(dof, dim);
+#endif
+
+   calcBasis(order, ip, tmp1_i, tmp1_ij, tmp2_ij,
+             tmp1_ijk, tmp2_ijk, tmp3_ijk, tmp4_ijk, tmp5_ijk, tmp6_ijk,
+             tmp7_ijk, tmp3_ij, u);
+
+   Ti.Mult(u, shape);
+}
+
+void RT_FuentesPyramidElement::CalcRawVShape(const IntegrationPoint &ip,
+                                             DenseMatrix &shape) const
+{
+#ifdef MFEM_THREAD_SAFE
+   const int p = order - 1;
+
+   Vector      tmp1_i(p + 2);
+   DenseMatrix tmp1_ij(p + 2, p + 2);
+   DenseMatrix tmp2_ij(p + 2, dim);
+   DenseMatrix tmp3_ij(p + 2, dim);
+   DenseTensor tmp1_ijk(p + 1, p + 1, dim);
+   DenseTensor tmp2_ijk(p + 1, p + 1, dim);
+   DenseTensor tmp3_ijk(p + 1, p + 1, dim);
+   DenseTensor tmp4_ijk(p + 1, p + 2, dim);
+   DenseTensor tmp5_ijk(p + 1, p + 2, dim);
+   DenseTensor tmp6_ijk(p + 2, p + 2, dim);
+   DenseTensor tmp7_ijk(p + 2, p + 2, dim);
+#endif
+
+   calcBasis(order, ip, tmp1_i, tmp1_ij, tmp2_ij,
+             tmp1_ijk, tmp2_ijk, tmp3_ijk, tmp4_ijk, tmp5_ijk, tmp6_ijk,
+             tmp7_ijk, tmp3_ij, shape);
+}
+
+void RT_FuentesPyramidElement::CalcDivShape(const IntegrationPoint &ip,
+                                            Vector &divshape) const
+{
+#ifdef MFEM_THREAD_SAFE
+   const int p = order - 1;
+
+   Vector      tmp1_i(p + 2);
+   DenseMatrix tmp1_ij(p + 2, p + 2);
+   DenseMatrix tmp2_ij(p + 2, dim);
+   DenseMatrix tmp3_ij(p + 2, dim);
+   DenseMatrix tmp4_ij(p + 1, p + 1);
+   DenseTensor tmp1_ijk(p + 1, p + 1, dim);
+   DenseTensor tmp2_ijk(p + 1, p + 1, dim);
+   DenseTensor tmp3_ijk(p + 1, p + 1, dim);
+   DenseTensor tmp4_ijk(p + 1, p + 2, dim);
+   DenseTensor tmp5_ijk(p + 1, p + 2, dim);
+   DenseTensor tmp6_ijk(p + 2, p + 2, dim);
+   DenseTensor tmp7_ijk(p + 2, p + 2, dim);
+   Vector divu(dof);
+#endif
+   divu = 0.0;
+
+   calcDivBasis(order, ip, tmp1_i, tmp1_ij, tmp2_ij,
+                tmp1_ijk, tmp2_ijk, tmp3_ijk, tmp4_ij, tmp4_ijk, tmp5_ijk,
+                tmp6_ijk, tmp7_ijk, tmp3_ij, divu);
+
+   Ti.Mult(divu, divshape);
+}
+
+void RT_FuentesPyramidElement::CalcRawDivShape(const IntegrationPoint &ip,
+                                               Vector &dshape) const
+{
+#ifdef MFEM_THREAD_SAFE
+   const int p = order - 1;
+
+   Vector      tmp1_i(p + 2);
+   DenseMatrix tmp1_ij(p + 2, p + 2);
+   DenseMatrix tmp2_ij(p + 2, dim);
+   DenseMatrix tmp3_ij(p + 2, dim);
+   DenseMatrix tmp4_ij(p + 1, p + 1);
+   DenseTensor tmp1_ijk(p + 1, p + 1, dim);
+   DenseTensor tmp2_ijk(p + 1, p + 1, dim);
+   DenseTensor tmp3_ijk(p + 1, p + 1, dim);
+   DenseTensor tmp4_ijk(p + 1, p + 2, dim);
+   DenseTensor tmp5_ijk(p + 1, p + 2, dim);
+   DenseTensor tmp6_ijk(p + 2, p + 2, dim);
+   DenseTensor tmp7_ijk(p + 2, p + 2, dim);
+#endif
+
+   calcDivBasis(order, ip, tmp1_i, tmp1_ij, tmp2_ij,
+                tmp1_ijk, tmp2_ijk, tmp3_ijk, tmp4_ij, tmp4_ijk, tmp5_ijk,
+                tmp6_ijk, tmp7_ijk, tmp3_ij, dshape);
+}
+
+void RT_FuentesPyramidElement::calcBasis(const int p,
+                                         const IntegrationPoint &ip,
+                                         Vector &phi_k,
+                                         DenseMatrix &phi_ij,
+                                         DenseMatrix &dphi_k,
+                                         DenseTensor &VQ_ijk,
+                                         DenseTensor &VT_ijk,
+                                         DenseTensor &VTT_ijk,
+                                         DenseTensor &E_ijk,
+                                         DenseTensor &dE_ijk,
+                                         DenseTensor &dphi_ijk,
+                                         DenseTensor &VL_ijk,
+                                         DenseMatrix &VR_ij,
+                                         DenseMatrix &F) const
+{
+   real_t x = ip.x;
+   real_t y = ip.y;
+   real_t z = ip.z;
+   Vector xy({x,y});
+   real_t mu;
+
+   if (std::fabs(1.0 - z) < apex_tol)
+   {
+      z = 1.0 - apex_tol;
+      y = 0.5 * (1.0 - z);
+      x = 0.5 * (1.0 - z);
+      xy(0) = x; xy(1) = y;
+   }
+   zmax = std::max(z, zmax);
+
+   F = 0.0;
+
+   int o = 0;
+
+   // Quadrilateral face
+   if (z < 1.0)
+   {
+      V_Q(p, mu01(z, xy, 1), mu01_grad_mu01(z, xy, 1),
+          mu01(z, xy, 2), mu01_grad_mu01(z, xy, 2),
+          VQ_ijk);
+
+      const real_t muz3 = pow(mu0(z), 3);
+
+      for (int j=0; j<p; j++)
+         for (int i=0; i<p; i++, o++)
+            for (int k=0; k<3; k++)
+            {
+               F(o, k) = muz3 * VQ_ijk(i, j, k);
+            }
+   }
+
+   // Triangular faces
+   if (z < 1.0)
+   {
+      Vector dmuz;
+
+      // (a,b) = (1,2), c = 0
+      V_T(p, nu012(z, xy, 1), nu012_grad_nu012(z, xy, 1), VT_ijk);
+      mu = mu0(z, xy, 2);
+      dmuz.Destroy(); dmuz = grad_mu0(z, xy, 2);
+      VT_T(p, nu012(z, xy, 1), nu01_grad_nu01(z, xy, 1),
+           nu012_grad_nu012(z, xy, 1), mu, dmuz, VTT_ijk);
+      for (int j=0; j<p; j++)
+         for (int i=0; i+j<p; i++, o++)
+            for (int k=0; k<3; k++)
+            {
+               F(o, k) = 0.5 * (mu * VT_ijk(i, j, k) + VTT_ijk(i, j, k));
+            }
+
+      // (a,b) = (1,2), c = 1
+      mu = mu1(z, xy, 2);
+      dmuz.Destroy(); dmuz = grad_mu1(z, xy, 2);
+      VT_T(p, nu012(z, xy, 1), nu01_grad_nu01(z, xy, 1),
+           nu012_grad_nu012(z, xy, 1), mu, dmuz, VTT_ijk);
+      for (int j=0; j<p; j++)
+         for (int i=0; i+j<p; i++, o++)
+            for (int k=0; k<3; k++)
+            {
+               F(o, k) = 0.5 * (mu * VT_ijk(i, j, k) + VTT_ijk(i, j, k));
+            }
+
+      // (a,b) = (2,1), c = 0
+      V_T(p, nu012(z, xy, 2), nu012_grad_nu012(z, xy, 2), VT_ijk);
+      mu = mu0(z, xy, 1);
+      dmuz.Destroy(); dmuz = grad_mu0(z, xy, 1);
+      VT_T(p, nu012(z, xy, 2), nu01_grad_nu01(z, xy, 2),
+           nu012_grad_nu012(z, xy, 2), mu, dmuz, VTT_ijk);
+      for (int j=0; j<p; j++)
+         for (int i=0; i+j<p; i++, o++)
+            for (int k=0; k<3; k++)
+            {
+               F(o, k) = 0.5 * (mu * VT_ijk(i, j, k) + VTT_ijk(i, j, k));
+            }
+
+      // (a,b) = (2,1), c = 1
+      mu = mu1(z, xy, 1);
+      dmuz.Destroy(); dmuz = grad_mu1(z, xy, 1);
+      VT_T(p, nu012(z, xy, 2), nu01_grad_nu01(z, xy, 2),
+           nu012_grad_nu012(z, xy, 2), mu, dmuz, VTT_ijk);
+      for (int j=0; j<p; j++)
+         for (int i=0; i+j<p; i++, o++)
+            for (int k=0; k<3; k++)
+            {
+               F(o, k) = 0.5 * (mu * VT_ijk(i, j, k) + VTT_ijk(i, j, k));
+            }
+   }
+
+   // Interior
+   // Family I
+   if (z < 1.0 && p >= 2)
+   {
+      E_Q(p, mu01(z, xy, 1), grad_mu01(z, xy, 1),
+          mu01(z, xy, 2), grad_mu01(z, xy, 2), E_ijk, dE_ijk);
+      phi_E(p, mu01(z), grad_mu01(z), phi_k, dphi_k);
+      const real_t muz = mu0(z);
+      const Vector dmuz(grad_mu0(z));
+
+      Vector dmuphi(3), E(3), v(3);
+
+      for (int k=2; k<=p; k++)
+      {
+         dmuphi(0) = muz * dphi_k(k,0) + dmuz(0) * phi_k(k);
+         dmuphi(1) = muz * dphi_k(k,1) + dmuz(1) * phi_k(k);
+         dmuphi(2) = muz * dphi_k(k,2) + dmuz(2) * phi_k(k);
+         for (int j=2; j<=p; j++)
+            for (int i=0; i<p; i++, o++)
+            {
+               E(0) = E_ijk(i,j,0); E(1) = E_ijk(i,j,1); E(2) = E_ijk(i,j,2);
+               dmuphi.cross3D(E, v);
+               for (int l=0; l<3; l++)
+               {
+                  F(o, l) = muz * phi_k(k) * dE_ijk(i,j,l) + v(l);
+               }
+            }
+      }
+   }
+
+   // Family II
+   if (z < 1.0 && p >= 2)
+   {
+      E_Q(p, mu01(z, xy, 2), grad_mu01(z, xy, 2),
+          mu01(z, xy, 1), grad_mu01(z, xy, 1), E_ijk, dE_ijk);
+      // Re-using phi_E from Family I
+      const real_t muz = mu0(z);
+      const Vector dmuz(grad_mu0(z));
+
+      Vector dmuphi(3), E(3), v(3);
+
+      for (int k=2; k<=p; k++)
+      {
+         dmuphi(0) = muz * dphi_k(k,0) + dmuz(0) * phi_k(k);
+         dmuphi(1) = muz * dphi_k(k,1) + dmuz(1) * phi_k(k);
+         dmuphi(2) = muz * dphi_k(k,2) + dmuz(2) * phi_k(k);
+         for (int j=2; j<=p; j++)
+            for (int i=0; i<p; i++, o++)
+            {
+               E(0) = E_ijk(i,j,0); E(1) = E_ijk(i,j,1); E(2) = E_ijk(i,j,2);
+               dmuphi.cross3D(E, v);
+               for (int l=0; l<3; l++)
+               {
+                  F(o, l) = muz * phi_k(k) * dE_ijk(i,j,l) + v(l);
+               }
+            }
+      }
+   }
+   // Family III
+   if (z < 1.0 && p >= 2)
+   {
+      phi_Q(p, mu01(z, xy, 2), grad_mu01(z, xy, 2),
+            mu01(z, xy, 1), grad_mu01(z, xy, 1), phi_ij, dphi_ijk);
+      const real_t muz = mu0(z);
+      const Vector dmuz(grad_mu0(z));
+
+      for (int j=2; j<=p; j++)
+         for (int i=2; i<=p; i++, o++)
+         {
+            const int n = std::max(i,j);
+            const real_t nmu = n * pow(muz, n-1);
+            F(o, 0) = nmu * (dphi_ijk(i,j,1) * dmuz(2) -
+                             dphi_ijk(i,j,2) * dmuz(1));
+            F(o, 1) = nmu * (dphi_ijk(i,j,2) * dmuz(0) -
+                             dphi_ijk(i,j,0) * dmuz(2));
+            F(o, 2) = nmu * (dphi_ijk(i,j,0) * dmuz(1) -
+                             dphi_ijk(i,j,1) * dmuz(0));
+         }
+   }
+   // Family IV
+   if (z < 1.0 && p >= 2)
+   {
+      // Re-using V_Q from Quadrilateral Face
+      phi_E(p, mu01(z), phi_k);
+
+      const real_t muz2 = pow(mu0(z), 2);
+
+      for (int k=2; k<=p; k++)
+         for (int j=0; j<p; j++)
+            for (int i=0; i<p; i++, o++)
+               for (int l=0; l<3; l++)
+               {
+                  F(o, l) = muz2 * VQ_ijk(i, j, l) * phi_k(k);
+               }
+
+   }
+   // Family V
+   if (z < 1.0 && p >= 2)
+   {
+      V_L(p, mu01(z, xy, 1), grad_mu01(z, xy, 1),
+          mu01(z, xy, 2), grad_mu01(z, xy, 2), mu0(z), grad_mu0(z), VL_ijk);
+
+      const real_t muz = mu1(z);
+
+      for (int j=2; j<=p; j++)
+         for (int i=2; i<=p; i++, o++)
+         {
+            const int n = std::max(i, j);
+            const real_t muzi = pow(muz, n-1);
+            for (int l=0; l<3; l++)
+            {
+               F(o, l) = muzi * VL_ijk(i, j, l);
+            }
+         }
+   }
+   // Family VI
+   if (z < 1.0 && p >= 2)
+   {
+      V_R(p, mu01(z, xy, 1), grad_mu01(z, xy, 1),
+          mu1(z, xy, 2), grad_mu1(z, xy, 2), mu0(z), grad_mu0(z), VR_ij);
+
+      const real_t muz = mu1(z);
+
+      for (int i=2; i<=p; i++, o++)
+      {
+         const real_t muzi = pow(muz, i-1);
+         for (int l=0; l<3; l++)
+         {
+            F(o, l) = muzi * VR_ij(i, l);
+         }
+      }
+   }
+   // Family VII
+   if (z < 1.0 && p >= 2)
+   {
+      V_R(p, mu01(z, xy, 2), grad_mu01(z, xy, 2),
+          mu1(z, xy, 1), grad_mu1(z,xy,1), mu0(z), grad_mu0(z), VR_ij);
+
+      const real_t muz = mu1(z);
+
+      for (int i=2; i<=p; i++, o++)
+      {
+         const real_t muzi = pow(muz, i-1);
+         for (int l=0; l<3; l++)
+         {
+            F(o, l) = muzi * VR_ij(i, l);
+         }
+      }
+   }
+}
+
+void RT_FuentesPyramidElement::calcDivBasis(const int p,
+                                            const IntegrationPoint &ip,
+                                            Vector &phi_k,
+                                            DenseMatrix &phi_ij,
+                                            DenseMatrix &dphi_k,
+                                            DenseTensor &VQ_ijk,
+                                            DenseTensor &VT_ijk,
+                                            DenseTensor &VTT_ijk,
+                                            DenseMatrix &dVTT_ij,
+                                            DenseTensor &E_ijk,
+                                            DenseTensor &dE_ijk,
+                                            DenseTensor &dphi_ijk,
+                                            DenseTensor &VL_ijk,
+                                            DenseMatrix &VR_ij,
+                                            Vector &dF) const
+{
+   real_t x = ip.x;
+   real_t y = ip.y;
+   real_t z = ip.z;
+   Vector xy({x,y});
+   real_t mu;
+
+   bool limz1 = false;
+   if (std::fabs(1.0 - z) < apex_tol)
+   {
+      limz1 = true;
+      z = 1.0 - apex_tol;
+      y = 0.5 * (1.0 - z);
+      x = 0.5 * (1.0 - z);
+      xy(0) = x; xy(1) = y;
+   }
+   zmax = std::max(z, zmax);
+
+   dF = 0.0;
+
+   int o = 0;
+
+   // Quadrilateral face
+   {
+      V_Q(p, mu01(z, xy, 1), mu01_grad_mu01(z, xy, 1),
+          mu01(z, xy, 2), mu01_grad_mu01(z, xy, 2),
+          VQ_ijk);
+
+      const real_t muz2 = pow(mu0(z), 2);
+      const Vector dmuz = grad_mu0(z);
+
+      const int o0 = o;
+      for (int j=0; j<p; j++)
+         for (int i=0; i<p; i++, o++)
+            for (int k=0; k<3; k++)
+            {
+               dF(o) += 3.0 * muz2 * dmuz(k) * VQ_ijk(i, j, k);
+            }
+
+      // Overwrite lowest order quadrilateral face DoF with known limiting
+      // value
+      if (limz1)
+      {
+         dF(o0) = -3.0;
+      }
+   }
+
+   // Triangular faces
+   {
+      Vector dmuz;
+
+      // (a,b) = (1,2), c = 0
+      V_T(p, nu012(z, xy, 1), nu012_grad_nu012(z, xy, 1), VT_ijk);
+      mu = mu0(z, xy, 2);
+      dmuz.Destroy(); dmuz = grad_mu0(z, xy, 2);
+      VT_T(p, nu012(z, xy, 1), nu01_grad_nu01(z, xy, 1),
+           nu012_grad_nu012(z, xy, 1), grad_nu2(z, xy, 1), mu, dmuz,
+           VTT_ijk, dVTT_ij);
+      const int o1 = o;
+      for (int j=0; j<p; j++)
+         for (int i=0; i+j<p; i++, o++)
+         {
+            dF(o) = 0.5 * dVTT_ij(i, j);
+            for (int k=0; k<3; k++)
+            {
+               dF(o) += 0.5 * dmuz(k) * VT_ijk(i, j, k);
+            }
+         }
+
+      // (a,b) = (1,2), c = 1
+      mu = mu1(z, xy, 2);
+      dmuz.Destroy(); dmuz = grad_mu1(z, xy, 2);
+      VT_T(p, nu012(z, xy, 1), nu01_grad_nu01(z, xy, 1),
+           nu012_grad_nu012(z, xy, 1), grad_nu2(z, xy, 1), mu, dmuz,
+           VTT_ijk, dVTT_ij);
+      const int o2 = o;
+      for (int j=0; j<p; j++)
+         for (int i=0; i+j<p; i++, o++)
+         {
+            dF(o) = 0.5 * dVTT_ij(i, j);
+            for (int k=0; k<3; k++)
+            {
+               dF(o) += 0.5 * dmuz(k) * VT_ijk(i, j, k);
+            }
+         }
+
+      // (a,b) = (2,1), c = 0
+      V_T(p, nu012(z, xy, 2), nu012_grad_nu012(z, xy, 2), VT_ijk);
+      mu = mu0(z, xy, 1);
+      dmuz.Destroy(); dmuz = grad_mu0(z, xy, 1);
+      VT_T(p, nu012(z, xy, 2), nu01_grad_nu01(z, xy, 2),
+           nu012_grad_nu012(z, xy, 2), grad_nu2(z, xy, 2), mu, dmuz,
+           VTT_ijk, dVTT_ij);
+      const int o3 = o;
+      for (int j=0; j<p; j++)
+         for (int i=0; i+j<p; i++, o++)
+         {
+            dF(o) = 0.5 * dVTT_ij(i, j);
+            for (int k=0; k<3; k++)
+            {
+               dF(o) += 0.5 * dmuz(k) * VT_ijk(i, j, k);
+            }
+         }
+
+      // (a,b) = (2,1), c = 1
+      mu = mu1(z, xy, 1);
+      dmuz.Destroy(); dmuz = grad_mu1(z, xy, 1);
+      VT_T(p, nu012(z, xy, 2), nu01_grad_nu01(z, xy, 2),
+           nu012_grad_nu012(z, xy, 2), grad_nu2(z, xy, 2), mu, dmuz,
+           VTT_ijk, dVTT_ij);
+      const int o4 = o;
+      for (int j=0; j<p; j++)
+         for (int i=0; i+j<p; i++, o++)
+         {
+            dF(o) = 0.5 * dVTT_ij(i, j);
+            for (int k=0; k<3; k++)
+            {
+               dF(o) += 0.5 * dmuz(k) * VT_ijk(i, j, k);
+            }
+         }
+
+      // Overwrite lowest order triangular face DoFs with known limiting values
+      if (limz1)
+      {
+         dF(o1) =  1.5;
+         dF(o2) = -1.5;
+         dF(o3) = -1.5;
+         dF(o4) =  1.5;
+      }
+   }
+
+   // Interior
+   // Family I
+   if (p >= 2)
+   {
+      // Divergence is zero so skip ahead
+      o += (p-1) * (p-1) * p;
+   }
+
+   // Family II
+   if (p >= 2)
+   {
+      // Divergence is zero so skip ahead
+      o += (p-1) * (p-1) * p;
+   }
+   // Family III
+   if (p >= 2)
+   {
+      // Divergence is zero so skip ahead
+      o += (p-1) * (p-1);
+   }
+   // Family IV
+   if (p >= 2)
+   {
+      // Re-using V_Q from Quadrilateral Face
+      phi_E(p, mu01(z), grad_mu01(z), phi_k, dphi_k);
+
+      const real_t muz2 = pow(mu0(z), 2);
+      const Vector dmuz = grad_mu0(z);
+
+      for (int k=2; k<=p; k++)
+         for (int j=0; j<p; j++)
+            for (int i=0; i<p; i++, o++)
+               for (int l=0; l<3; l++)
+               {
+                  dF(o) += (muz2 * dphi_k(k, l) +
+                            2.0 * mu0(z) * phi_k(k) * dmuz(l)) * VQ_ijk(i, j, l);
+               }
+   }
+   // Family V
+   if (p >= 2)
+   {
+      V_L(p, mu01(z, xy, 1), grad_mu01(z, xy, 1),
+          mu01(z, xy, 2), grad_mu01(z, xy, 2), mu0(z), grad_mu0(z), VL_ijk);
+
+      const real_t muz = mu1(z);
+      const Vector dmuz = grad_mu1(z);
+
+      for (int j=2; j<=p; j++)
+         for (int i=2; i<=p; i++, o++)
+         {
+            const int n = std::max(i, j);
+            const real_t muzi = pow(muz, n-2);
+            for (int l=0; l<3; l++)
+            {
+               dF(o) += (n-1) * muzi * dmuz(l) * VL_ijk(i, j, l);
+            }
+         }
+   }
+   // Family VI
+   if (p >= 2)
+   {
+      V_R(p, mu01(z, xy, 1), grad_mu01(z, xy, 1),
+          mu1(z, xy, 2), grad_mu1(z, xy, 2), mu0(z), grad_mu0(z), VR_ij);
+
+      const real_t muz = mu1(z);
+      const Vector dmuz = grad_mu1(z);
+
+      for (int i=2; i<=p; i++, o++)
+      {
+         const real_t muzi = pow(muz, i-2);
+         for (int l=0; l<3; l++)
+         {
+            dF(o) += (i-1) * muzi * dmuz(l) * VR_ij(i, l);
+         }
+      }
+   }
+   // Family VII
+   if (p >= 2)
+   {
+      V_R(p, mu01(z, xy, 2), grad_mu01(z, xy, 2),
+          mu1(z, xy, 1), grad_mu1(z,xy,1), mu0(z), grad_mu0(z), VR_ij);
+
+      const real_t muz = mu1(z);
+      const Vector dmuz = grad_mu1(z);
+
+      for (int i=2; i<=p; i++, o++)
+      {
+         const real_t muzi = pow(muz, i-2);
+         for (int l=0; l<3; l++)
+         {
+            dF(o) += (i-1) * muzi * dmuz(l) * VR_ij(i, l);
+         }
       }
    }
 }
