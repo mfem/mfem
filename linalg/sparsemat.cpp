@@ -63,8 +63,10 @@ int SparseMatrix::SparseMatrixCount = 0;
 /// @cond Suppress_Doxygen_warnings
 MFEM_cu_or_hip(sparseHandle_t) SparseMatrix::handle = nullptr;
 /// @endcond
+#ifndef MFEM_CUDA_1897_WORKAROUND
 size_t SparseMatrix::bufferSize = 0;
 void * SparseMatrix::dBuffer = nullptr;
+#endif
 #endif // MFEM_USE_CUDA_OR_HIP
 
 void SparseMatrix::InitGPUSparse()
@@ -4315,6 +4317,14 @@ SparseMatrix::~SparseMatrix()
 #ifdef MFEM_USE_CUDA_OR_HIP
    if (Device::Allows(Backend::CUDA_MASK | Backend::HIP_MASK))
    {
+#ifdef MFEM_CUDA_1897_WORKAROUND
+      if (dBuffer)
+      {
+         MFEM_Cu_or_Hip(MemFree)(dBuffer);
+         dBuffer = nullptr;
+         bufferSize = 0;
+      }
+#endif
       if (SparseMatrixCount==1)
       {
          if (handle)
@@ -4322,12 +4332,14 @@ SparseMatrix::~SparseMatrix()
             MFEM_cu_or_hip(sparseDestroy)(handle);
             handle = nullptr;
          }
+#ifndef MFEM_CUDA_1897_WORKAROUND
          if (dBuffer)
          {
             MFEM_Cu_or_Hip(MemFree)(dBuffer);
             dBuffer = nullptr;
             bufferSize = 0;
          }
+#endif
       }
       SparseMatrixCount--;
    }

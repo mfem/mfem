@@ -98,9 +98,17 @@ protected:
 #ifdef MFEM_USE_CUDA_OR_HIP
    // common for hipSPARSE and cuSPARSE
    static int SparseMatrixCount;
+   mutable bool initBuffers = false;
+
+#if defined(MFEM_USE_CUDA) && CUDA_VERSION >= 12000 && CUDA_VERSION < 12800
+   // Workaround for bug CUSPARSE-1897
+#define MFEM_CUDA_1897_WORKAROUND
+   mutable size_t bufferSize = 0;
+   mutable void *dBuffer = nullptr;
+#else
    static size_t bufferSize;
    static void *dBuffer;
-   mutable bool initBuffers = false;
+#endif
 
 #if defined(MFEM_USE_CUDA)
    cusparseStatus_t status;
