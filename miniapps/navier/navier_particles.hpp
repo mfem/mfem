@@ -63,8 +63,6 @@ public:
 
    NodeFunction& X(int nm=0) { return *fp_data.x[nm]; }
 
-   ParticleVector& X(int nm=0) { return *fp_data.x[nm]; }
-
    void Apply2DReflectionBC(const Vector &line_start, const Vector &line_end, real_t e, bool invert_normal);
 
 };
