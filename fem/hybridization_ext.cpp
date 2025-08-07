@@ -34,6 +34,20 @@ static int GetNFacesPerElement(const Mesh &mesh)
    }
 }
 
+static bool IsParFESpace(const FiniteElementSpace &fes)
+{
+#ifdef MFEM_USE_MPI
+   return dynamic_cast<const ParFiniteElementSpace *>(&fes) != nullptr;
+#else
+   return false;
+#endif
+}
+
+const Operator &HybridizationExtension::GetProlongation() const
+{
+   return P_pc ? *P_pc : *h.c_fes.GetProlongationMatrix();
+}
+
 void HybridizationExtension::ConstructC()
 {
    Mesh &mesh = *h.fes.GetMesh();
@@ -80,6 +94,16 @@ void HybridizationExtension::ConstructC()
          d_Ct_mat(i, j, fi) = d_emat(i_lex, j, ie, f);
       }
    });
+
+#ifdef MFEM_USE_MPI
+   if (auto pc_fes = dynamic_cast<ParFiniteElementSpace*>(&h.c_fes))
+   {
+      if (pc_fes->Nonconforming())
+      {
+         P_pc.reset(pc_fes->GetPartialConformingInterpolation());
+      }
+   }
+#endif
 }
 
 namespace internal
@@ -332,7 +356,7 @@ void HybridizationExtension::ConstructH()
    const int nf = h.fes.GetNFbyType(FaceType::Interior);
    Array<int> face_to_face(n_face_face);
 
-   Array<real_t> CAhatInvCt(n_face_face*n*n);
+   Vector CAhatInvCt(n_face_face*n*n);
 
    const auto d_Ct = Reshape(Ct_mat.Read(), m, n, n_el_face);
    const auto d_face_to_el = Reshape(face_to_el.Read(), 2, 2, nf);
@@ -341,8 +365,6 @@ void HybridizationExtension::ConstructH()
    auto d_CAhatInvCt = Reshape(CAhatInvCt.Write(), n, n, n_face_face);
    auto d_face_to_face = Reshape(face_to_face.Write(), n_face_face);
    auto d_face_face_offsets = face_face_offsets.Read();
-
-   face_to_face = -1;
 
    CAhatInvCt = 0.0;
 
@@ -360,8 +382,7 @@ void HybridizationExtension::ConstructH()
          for (int fj_i = begin_i; fj_i < end_i; ++fj_i)
          {
             const int fj = d_el_to_face[fj_i];
-            // Explicitly allow fi == fj (self-connections)
-            if (fj < 0) { continue; }
+            // Allow fi == fj (self-connections)
 
             // Have we seen this face before? It is possible in some
             // configurations to encounter the same neighboring face twice
@@ -417,7 +438,27 @@ void HybridizationExtension::ConstructH()
       }
    });
 
-   const int ncdofs = h.c_fes.GetVSize();
+
+#ifdef MFEM_USE_MPI
+   auto *c_pfes = dynamic_cast<ParFiniteElementSpace*>(&h.c_fes);
+#endif
+
+   const int ncdofs_face_nbr = [&]()
+   {
+#ifdef MFEM_USE_MPI
+      // Only need to handle face neighbor DOFs when there are nonconforming
+      // (ghost) faces.
+      if (c_pfes && c_pfes->Nonconforming())
+      {
+         c_pfes->ExchangeFaceNbrData();
+         return c_pfes->GetFaceNbrVSize();
+      }
+#endif
+      return 0;
+   }();
+
+   const int ncdofs_local = h.c_fes.GetVSize();
+   const int ncdofs = ncdofs_local + ncdofs_face_nbr;
    const ElementDofOrdering ordering = ElementDofOrdering::NATIVE;
    const FaceRestriction *face_restr =
       h.c_fes.GetFaceRestriction(ordering, FaceType::Interior);
@@ -446,7 +487,6 @@ void HybridizationExtension::ConstructH()
          const int end = d_face_face_offsets[fi + 1];
          for (int idx = begin; idx < end; ++idx)
          {
-            const int fj = d_face_to_face[idx];
             for (int j = 0; j < n; ++j)
             {
                if (d_CAhatInvCt(i, j, idx) != 0)
@@ -461,13 +501,14 @@ void HybridizationExtension::ConstructH()
    // At this point, I[i] contains the number of nonzeros in row I. Perform a
    // partial sum to get I in CSR format. This is serial, so perform on host.
    //
-   // At the same time, we find any empty rows and add a single nonzero (we will
-   // put 1 on the diagonal) and record the row index.
+   // At the same time, we find any empty rows (corresponding to non-ghost DOFs)
+   // and add a single nonzero (we will put 1 on the diagonal) and record the
+   // row index.
    Array<int> empty_rows;
    {
       int *I = h.H->HostReadWriteI();
       int empty_row_count = 0;
-      for (int i = 0; i < ncdofs; i++)
+      for (int i = 0; i < ncdofs_local; i++)
       {
          if (I[i] == 0) { empty_row_count++; }
       }
@@ -478,7 +519,7 @@ void HybridizationExtension::ConstructH()
       for (int i = 0; i < ncdofs; i++)
       {
          int nnz = I[i];
-         if (nnz == 0)
+         if (nnz == 0 && i < ncdofs_local)
          {
             empty_rows[empty_row_idx] = i;
             empty_row_idx++;
@@ -546,13 +587,68 @@ void HybridizationExtension::ConstructH()
    }
 
 #ifdef MFEM_USE_MPI
-   auto *c_pfes = dynamic_cast<ParFiniteElementSpace*>(&h.c_fes);
    if (c_pfes)
    {
-      OperatorHandle pP(h.pH.Type()), dH(h.pH.Type());
-      pP.ConvertFrom(c_pfes->Dof_TrueDof_Matrix());
-      dH.MakeSquareBlockDiag(c_pfes->GetComm(),c_pfes->GlobalVSize(),
-                             c_pfes->GetDofOffsets(), h.H.get());
+      OperatorHandle dH(h.pH.Type());
+
+      if (ncdofs_face_nbr > 0)
+      {
+         // Build the "face neighbor prolongation matrix" P_nbr, which maps from
+         // VDOFs (i.e. L-vector) to L-vectors with face neighbor DOFs. The
+         // action of P_nbr is equivalent to calling ExchangeFaceNbrData on a
+         // ParGridFunction. We compute P^t A P with P = P_nbr to assemble the
+         // face neighbor contributions into a parallel matrix.
+         ParMesh &pmesh = *c_pfes->GetParMesh();
+
+         HYPRE_BigInt ncdofs_bigint = ncdofs;
+         const HYPRE_BigInt global_ncdofs = pmesh.ReduceInt(ncdofs);
+
+         Array<HYPRE_BigInt> rows;
+         Array<HYPRE_BigInt> *offsets[1] = { &rows };
+         pmesh.GenerateOffsets(1, &ncdofs_bigint, offsets);
+
+         Array<int> I(ncdofs + 1);
+         auto d_I = I.Write();
+         mfem::forall(ncdofs + 1, [=] MFEM_HOST_DEVICE (int i) { d_I[i] = i; });
+
+         HYPRE_BigInt offset = c_pfes->GetMyDofOffset();
+         Array<HYPRE_BigInt> J(ncdofs);
+         auto d_J = J.Write();
+         mfem::forall(ncdofs_local, [=] MFEM_HOST_DEVICE (int i)
+         {
+            d_J[i] = offset + i;
+         });
+         const HYPRE_BigInt *map = c_pfes->GetFaceNbrGlobalDofMapArray().Read();
+         mfem::forall(ncdofs_face_nbr, [=] MFEM_HOST_DEVICE (int i)
+         {
+            d_J[ncdofs_local + i] = map[i];
+         });
+
+         Vector V(ncdofs);
+         V.UseDevice();
+         V = 1.0;
+
+         auto P_face_nbr =
+            std::make_unique<HypreParMatrix>(
+               c_pfes->GetComm(), ncdofs, global_ncdofs, c_pfes->GlobalVSize(),
+               I.HostReadWrite(), J.HostReadWrite(), V.HostReadWrite(), rows,
+               c_pfes->GetDofOffsets());
+         HypreParMatrix H_diag(c_pfes->GetComm(), global_ncdofs, rows, h.H.get());
+
+         dH.Reset(RAP(&H_diag, P_face_nbr.get()));
+
+         P_nbr = std::move(P_face_nbr);
+      }
+      else
+      {
+         dH.MakeSquareBlockDiag(c_pfes->GetComm(),c_pfes->GlobalVSize(),
+                                c_pfes->GetDofOffsets(), h.H.get());
+      }
+
+      OperatorHandle pP(h.pH.Type());
+      auto P_hyp = static_cast<HypreParMatrix*>(
+                      P_pc ? P_pc.get() : c_pfes->Dof_TrueDof_Matrix());
+      pP.ConvertFrom(P_hyp);
       h.pH.MakePtAP(dH, pP);
       h.H.reset();
    }
@@ -606,8 +702,8 @@ void HybridizationExtension::MultC(const Vector &x, Vector &y) const
    const int ne = mesh.GetNE();
    const int nf = mesh.GetNFbyType(FaceType::Interior);
 
-   const int n_hat_dof_per_el = h.fes.GetFE(0)->GetDof();
-   const int n_c_dof_per_face = h.c_fes.GetFaceElement(0)->GetDof();
+   const int n_hat_dof_per_el = h.fes.GetTypicalFE()->GetDof();
+   const int n_c_dof_per_face = h.c_fes.GetTypicalTraceElement()->GetDof();
 
    const ElementDofOrdering ordering = ElementDofOrdering::NATIVE;
    const FaceRestriction *face_restr = h.c_fes.GetFaceRestriction(
@@ -641,7 +737,21 @@ void HybridizationExtension::MultC(const Vector &x, Vector &y) const
    });
 
    y.SetSize(face_restr->Width());
-   face_restr->MultTranspose(y_evec, y);
+
+   if (P_nbr)
+   {
+      auto l2_face_restr =
+         dynamic_cast<const L2InterfaceFaceRestriction*>(face_restr);
+      MFEM_ASSERT(l2_face_restr != nullptr, "");
+
+      Vector y_s(P_nbr->Height());
+      l2_face_restr->MultTransposeShared(y_evec, y_s);
+      P_nbr->MultTranspose(y_s, y);
+   }
+   else
+   {
+      face_restr->MultTranspose(y_evec, y);
+   }
 }
 
 void HybridizationExtension::AssembleMatrix(int el, const DenseMatrix &elmat)
@@ -765,7 +875,7 @@ void HybridizationExtension::Init(const Array<int> &ess_tdof_list)
    el_face_offsets.SetSize(ne + 1);
    el_face_offsets = 0;
    // Count faces per element
-   for (int f = 0; f < mesh.GetNumFaces(); ++f)
+   for (int f = 0; f < mesh.GetNumFacesWithGhost(); ++f)
    {
       const Mesh::FaceInformation info = mesh.GetFaceInformation(f);
       if (!info.IsInterior() || info.IsNonconformingCoarse()) { continue; }
@@ -786,13 +896,12 @@ void HybridizationExtension::Init(const Array<int> &ess_tdof_list)
       el_face_counter = 0;
 
       int face_idx = 0;
-      for (int f = 0; f < mesh.GetNumFaces(); ++f)
+      for (int f = 0; f < mesh.GetNumFacesWithGhost(); ++f)
       {
          const Mesh::FaceInformation info = mesh.GetFaceInformation(f);
          if (!info.IsInterior() || info.IsNonconformingCoarse()) { continue; }
 
          const int el1 = info.element[0].index;
-
          int &offset1 = el_face_offsets[el1];
          el_to_face[offset1] = face_idx;
          face_to_el[0 + 4*face_idx] = el1;
@@ -807,7 +916,6 @@ void HybridizationExtension::Init(const Array<int> &ess_tdof_list)
             el_to_face[offset2] = face_idx;
             face_to_el[2 + 4*face_idx] = el2;
             face_to_el[3 + 4*face_idx] = offset2;
-
             offset2 += 1;
          }
          else
@@ -832,7 +940,7 @@ void HybridizationExtension::Init(const Array<int> &ess_tdof_list)
       const auto d_face_to_el = Reshape(face_to_el.Read(), 2, 2, nf);
       const auto d_el_face_offsets = el_face_offsets.Read();
       auto d_face_face_offsets = face_face_offsets.Write();
-      face_face_offsets = 0;
+      mfem::forall(nf + 1, [=] MFEM_HOST_DEVICE (int i) { d_face_face_offsets[i] = 0; });
       mfem::forall(nf, [=] MFEM_HOST_DEVICE (int f)
       {
          int n_connections = 0;
@@ -840,11 +948,15 @@ void HybridizationExtension::Init(const Array<int> &ess_tdof_list)
          {
             // Number of faces adjacent to e
             const int e = d_face_to_el(0, ie, f);
-            n_connections += d_el_face_offsets[e + 1] - d_el_face_offsets[e];
+            if (e < ne)
+            {
+               n_connections += d_el_face_offsets[e + 1] - d_el_face_offsets[e];
+               // Subtract 1 since we are double-counting the face 'f' (it
+               // belongs to both adjacent elements).
+               if (ie > 0) { n_connections -= 1; }
+            }
          }
-         // Subtract 1 since we double-counted the face 'f' (it belongs to both
-         // adjacent elements).
-         d_face_face_offsets[f + 1] = n_connections - 1;
+         d_face_face_offsets[f + 1] = n_connections;
       });
       // TODO: parallel scan on device?
       face_face_offsets.HostReadWrite();
@@ -1157,15 +1269,6 @@ void HybridizationExtension::MultAhatInv(Vector &x) const
    });
 }
 
-static bool IsParFESpace(const FiniteElementSpace &fes)
-{
-#ifdef MFEM_USE_MPI
-   return dynamic_cast<const ParFiniteElementSpace *>(&fes) != nullptr;
-#else
-   return false;
-#endif
-}
-
 void HybridizationExtension::ReduceRHS(const Vector &b, Vector &b_r) const
 {
    Vector b_hat(num_hat_dofs);
@@ -1182,12 +1285,11 @@ void HybridizationExtension::ReduceRHS(const Vector &b, Vector &b_r) const
 
    if (IsParFESpace(h.c_fes))
    {
-      MFEM_VERIFY(h.c_fes.Conforming(), "Not yet supported.");
-      const Operator *P = h.c_fes.GetProlongationMatrix();
-      Vector bl(P->Height());
-      b_r.SetSize(P->Width());
+      const Operator &P = GetProlongation();
+      Vector bl(P.Height());
+      b_r.SetSize(P.Width());
       MultC(b_hat, bl);
-      P->MultTranspose(bl, b_r);
+      P.MultTranspose(bl, b_r);
    }
    else
    {
@@ -1206,10 +1308,9 @@ void HybridizationExtension::ComputeSolution(
 
    if (IsParFESpace(h.c_fes))
    {
-      MFEM_VERIFY(h.c_fes.Conforming(), "Not yet supported.");
-      const Operator *P = h.c_fes.GetProlongationMatrix();
-      Vector sol_l(P->Height());
-      P->Mult(sol_r, sol_l);
+      const Operator &P = GetProlongation();
+      Vector sol_l(P.Height());
+      P.Mult(sol_r, sol_l);
       MultCt(sol_l, tmp1);
    }
    else
