@@ -1120,6 +1120,11 @@ void SparseMatrix::BooleanMultTranspose(const Array<int> &x,
    y.SetSize(Width());
    y = 0;
 
+   HostReadI();
+   HostReadJ();
+   x.HostRead();
+   y.HostReadWrite();
+
    for (int i = 0; i < Height(); i++)
    {
       if (x[i])
