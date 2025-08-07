@@ -58,10 +58,10 @@ struct AnalyticalParticles
    void NoLift(const Vector &x0, const Vector &v0, double t, Vector &x, Vector &v);
    void SetTime(real_t time);
 
-   ParticleVector&  X() { return particles.Coords(); }
-   ParticleVector& X0() { return particles.Field(0); }
-   ParticleVector& V0() { return particles.Field(1); }
-   ParticleVector&  V() { return particles.Field(2); }
+   NodeFunction&  X() { return particles.Coords(); }
+   NodeFunction& X0() { return particles.Field(0); }
+   NodeFunction& V0() { return particles.Field(1); }
+   NodeFunction&  V() { return particles.Field(2); }
 };
 
 int main (int argc, char *argv[])
@@ -153,8 +153,8 @@ int main (int argc, char *argv[])
    {
       for (int d = 0; d < 2; d++)
       {
-         particle_solver.X().ParticleValue(i, d) = ctx.x_min[d] + real_dist(gen)*(ctx.x_max[d] - ctx.x_min[d]);
-         particle_solver.V().ParticleValue(i, d) = ctx.v_min[d] + real_dist(gen)*(ctx.v_max[d] - ctx.v_min[d]);
+         particle_solver.X()(i, d) = ctx.x_min[d] + real_dist(gen)*(ctx.x_max[d] - ctx.x_min[d]);
+         particle_solver.V()(i, d) = ctx.v_min[d] + real_dist(gen)*(ctx.v_max[d] - ctx.v_min[d]);
       }
    }
    if (ctx.test != -1)
@@ -253,7 +253,7 @@ int main (int argc, char *argv[])
 
 AnalyticalParticles::AnalyticalParticles(MPI_Comm comm, const real_t kappa_, const real_t gamma_, const real_t zeta_, int NP, int testID)
 : kappa(kappa_), gamma(gamma_), zeta(zeta_),
-  test(testID), particles(comm, NP, 2, Array<int>({2,2,2})) // Only need to store x0, v0, vn for exact
+  test(testID), particles(comm, NP, 2, Array<int>({2,2,2}), 0) // Only need to store x0, v0, vn for exact
 {
 
 }

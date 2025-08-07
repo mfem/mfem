@@ -74,7 +74,7 @@ void VisualizeParticles(socketstream &sock, const char* vishost, int visport,
    for (int i = 0; i < pset.GetNP(); i++)
    {
       Vector pcoords;
-      pset.Coords().GetParticleValues(i, pcoords);
+      pset.Coords().GetNodeValues(i, pcoords);
       Add3DPoint(pcoords, particles_mesh, psize);
    }
    particles_mesh.FinalizeMesh();
@@ -170,7 +170,7 @@ void ParticleTrajectories::AddSegmentStart()
    for (int i = 0; i < pset.GetNP(); i++)
    {
       Vector pcoords;
-      pset.Coords().GetParticleValues(i, pcoords);
+      pset.Coords().GetNodeValues(i, pcoords);
       segment_meshes.front().AddVertex(pcoords);
    }
 }
@@ -188,7 +188,7 @@ void ParticleTrajectories::SetSegmentEnd()
       if (pidx != -1)
       {
          Vector pcoords;
-         pset.Coords().GetParticleValues(pidx, pcoords);
+         pset.Coords().GetNodeValues(pidx, pcoords);
          segment_meshes.front().AddVertex(pcoords);
       }
       else // Otherwise set its end vertex == start vertex

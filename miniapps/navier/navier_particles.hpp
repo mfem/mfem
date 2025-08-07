@@ -33,10 +33,10 @@ protected:
 
    struct FluidParticleData
    {
-      ParticleVector *u[4];
-      ParticleVector *v[4];
-      ParticleVector *w[4];
-      ParticleVector *x[4];
+      NodeFunction *u[4];
+      NodeFunction *v[4];
+      NodeFunction *w[4];
+      NodeFunction *x[4];
    } fp_data;
 
    void SetTimeIntegrationCoefficients(int step);
@@ -51,15 +51,17 @@ public:
 
    void Step(const real_t &dt, int cur_step, const ParGridFunction &u_gf, const ParGridFunction &w_gf);
 
-   void InterpolateUW(const ParGridFunction &u_gf, const ParGridFunction &w_gf, const ParticleVector &x, ParticleVector &u, ParticleVector &w);
+   void InterpolateUW(const ParGridFunction &u_gf, const ParGridFunction &w_gf, const NodeFunction &x, NodeFunction &u, NodeFunction &w);
 
    ParticleSet& GetParticles() { return fluid_particles; }
 
-   ParticleVector& U(int nm=0) { return *fp_data.u[nm]; }
+   NodeFunction& U(int nm=0) { return *fp_data.u[nm]; }
 
-   ParticleVector& V(int nm=0) { return *fp_data.v[nm]; }
+   NodeFunction& V(int nm=0) { return *fp_data.v[nm]; }
 
-   ParticleVector& W(int nm=0) { return *fp_data.w[nm]; }
+   NodeFunction& W(int nm=0) { return *fp_data.w[nm]; }
+
+   NodeFunction& X(int nm=0) { return *fp_data.x[nm]; }
 
    ParticleVector& X(int nm=0) { return *fp_data.x[nm]; }
 

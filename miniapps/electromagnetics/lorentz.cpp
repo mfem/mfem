@@ -138,7 +138,7 @@ protected:
 
    mutable Vector pxB_, pm_, pp_;
 
-   static void GetValues(const ParticleVector &coords, FindPointsGSLIB &finder, GridFunction &gf, ParticleVector &pv);
+   static void GetValues(const NodeFunction &coords, FindPointsGSLIB &finder, GridFunction &gf, NodeFunction &pv);
    void ParticleStep(Particle &part, real_t &dt);
 public:
 
@@ -331,7 +331,7 @@ int main(int argc, char *argv[])
    }
 }
 
-void Boris::GetValues(const ParticleVector &coords, FindPointsGSLIB &finder, GridFunction &gf, ParticleVector &pv)
+void Boris::GetValues(const NodeFunction &coords, FindPointsGSLIB &finder, GridFunction &gf, NodeFunction &pv)
 {
    Mesh &mesh = *gf.FESpace()->GetMesh();
    mesh.EnsureNodes();
@@ -420,9 +420,9 @@ Boris::Boris(MPI_Comm comm, GridFunction *E_gf_, GridFunction *B_gf_, int num_pa
 
 void Boris::InterpolateEB()
 {
-   ParticleVector &X = charged_particles->Coords();
-   ParticleVector &E = charged_particles->Field(EFIELD);
-   ParticleVector &B = charged_particles->Field(BFIELD);
+   NodeFunction &X = charged_particles->Coords();
+   NodeFunction &E = charged_particles->Field(EFIELD);
+   NodeFunction &B = charged_particles->Field(BFIELD);
 
    // Interpolate E-field + B-field onto particles
    if (E_gf)
@@ -551,23 +551,23 @@ void InitializeChargedParticles(ParticleSet &charged_particles, const Vector &x_
 
    int dim = charged_particles.Coords().GetVDim();
    
-   ParticleVector &X = charged_particles.Coords();
-   ParticleVector &P = charged_particles.Field(Boris::MOM);
-   ParticleVector &M = charged_particles.Field(Boris::MASS);
-   ParticleVector &Q = charged_particles.Field(Boris::CHARGE);
+   NodeFunction &X = charged_particles.Coords();
+   NodeFunction &P = charged_particles.Field(Boris::MOM);
+   NodeFunction &M = charged_particles.Field(Boris::MASS);
+   NodeFunction &Q = charged_particles.Field(Boris::CHARGE);
 
    for (int i = 0; i < charged_particles.GetNP(); i++)
    {
       for (int d = 0; d < dim; d++)
       {
          // Initialize coords
-         X.ParticleValue(i, d) = x_min[d] + real_dist(gen)*(x_max[d] - x_min[d]);
+         X(i, d) = x_min[d] + real_dist(gen)*(x_max[d] - x_min[d]);
 
          // Initialize momentum
-         P.ParticleValue(i, d) = p_min[d] + real_dist(gen)*(p_max[d] - p_min[d]);
+         P(i, d) = p_min[d] + real_dist(gen)*(p_max[d] - p_min[d]);
       }
       // Initialize mass + charge
-      M.ParticleValue(i) = m;
-      Q.ParticleValue(i) = q;  
+      M(i) = m;
+      Q(i) = q;  
    }
 }

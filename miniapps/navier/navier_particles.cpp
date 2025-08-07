@@ -71,7 +71,7 @@ void NavierParticles::ParticleStep2D(const real_t &dt, int p)
    // w_n_ext = alpha1*w_nm1 + alpha2*w_nm2 + alpha3*w_nm3
    for (int j = 1; j <= 3; j++)
    {
-      w_n_ext += alpha[j-1]*(fp_data.w[j]->ParticleValue(p, 0));
+      w_n_ext += alpha[j-1]*(*fp_data.w[j])(p, 0);
    }
 
    // Assemble the 2D matrix B
@@ -82,8 +82,8 @@ void NavierParticles::ParticleStep2D(const real_t &dt, int p)
    r = 0.0;
    for (int j = 1; j <= 3; j++)
    {
-      fp_data.u[j]->GetParticleRefValues(p, up);
-      fp_data.v[j]->GetParticleRefValues(p, vp);
+      fp_data.u[j]->GetRefNodeValues(p, up);
+      fp_data.v[j]->GetRefNodeValues(p, vp);
 
       // Add particle velocity component
       add(r, -beta[j], vp, r);
@@ -100,18 +100,18 @@ void NavierParticles::ParticleStep2D(const real_t &dt, int p)
 
    // Solve for particle velocity
    DenseMatrixInverse B_inv(B);
-   fp_data.v[0]->GetParticleRefValues(p, vp);
+   fp_data.v[0]->GetRefNodeValues(p, vp);
    B_inv.Mult(r, vp);
 
    // Compute updated particle position
-   fp_data.x[0]->GetParticleRefValues(p, xpn);
+   fp_data.x[0]->GetRefNodeValues(p, xpn);
    xpn = 0.0;
    for (int j = 1; j <= 3; j++)
    {
-      fp_data.x[j]->GetParticleRefValues(p, xp);
+      fp_data.x[j]->GetRefNodeValues(p, xp);
       add(xpn, -beta[j], xp, xpn);
    }
-   fp_data.v[0]->GetParticleRefValues(p, vp);
+   fp_data.v[0]->GetRefNodeValues(p, vp);
    add(xpn, dt, vp, xpn);
    xpn *= 1.0/beta[0];
 }
@@ -188,7 +188,7 @@ void NavierParticles::Step(const real_t &dt, int cur_step, const ParGridFunction
    dthist[0] = dt;
 }
 
-void NavierParticles::InterpolateUW(const ParGridFunction &u_gf, const ParGridFunction &w_gf, const ParticleVector &x, ParticleVector &u, ParticleVector &w)
+void NavierParticles::InterpolateUW(const ParGridFunction &u_gf, const ParGridFunction &w_gf, const NodeFunction &x, NodeFunction &u, NodeFunction &w)
 {
    finder.FindPoints(x, x.GetOrdering());
 
@@ -217,16 +217,17 @@ void NavierParticles::Apply2DReflectionBC(const Vector &line_start, const Vector
    }
    normal /= normal.Norml2(); // normalize
 
-   Vector p_xn(2), p_xnmi(2), p_vnmi(2), p_vc(2), x_int(2), p_xc(2), p_vdiff(2), p_xdiff(2);
+   Vector p_xn(2), p_xnm1(2), x_int(2), p_vn(2), p_vdiff(2);
    for (int i = 0; i < fluid_particles.GetNP(); i++)
    {
-      X().GetParticleValues(i, p_xn);
-      X(1).GetParticleValues(i, p_xnmi);
+      X().GetRefNodeValues(i, p_xn);
+      X(1).GetRefNodeValues(i, p_xnm1);
+      V().GetRefNodeValues(i, p_vn);
 
       // Compute the intersection parametrically
       // r_1 = line_start + t1*[line_end - line_start]
       // r_2 = x_nm1 + t2*[x_n - x_nm1]
-      real_t denom = (line_end[0]-line_start[0])*(p_xnmi[1] - p_xn[1]) - (line_end[1]-line_start[1])*(p_xnmi[0] - p_xn[0]);
+      real_t denom = (line_end[0]-line_start[0])*(p_xnm1[1] - p_xn[1]) - (line_end[1]-line_start[1])*(p_xnm1[0] - p_xn[0]);
 
       // If line is parallel, don't compute at all
       // Note that nearly-parallel intersections are not well-posed (denom >>> 0)...
@@ -235,17 +236,20 @@ void NavierParticles::Apply2DReflectionBC(const Vector &line_start, const Vector
          continue;
       }
 
-      real_t t1 = ( (p_xnmi[0] - line_start[0])*(p_xnmi[1]-p_xn[1]) - (p_xnmi[1] - line_start[1])*(p_xnmi[0]-p_xn[0]) ) / denom;
-      real_t t2 = ( (line_end[0] - line_start[0])*(p_xnmi[1] - line_start[1]) - (line_end[1] - line_start[1])*(p_xnmi[0] - line_start[0]) ) / denom;
+      real_t t1 = ( (p_xnm1[0] - line_start[0])*(p_xnm1[1]-p_xn[1]) - (p_xnm1[1] - line_start[1])*(p_xnm1[0]-p_xn[0]) ) / denom;
+      real_t t2 = ( (line_end[0] - line_start[0])*(p_xnm1[1] - line_start[1]) - (line_end[1] - line_start[1])*(p_xnm1[0] - line_start[0]) ) / denom;
 
       // If intersection falls on line segment of x_nm1 to x_n AND line_start to line_end, apply reflection
       if ((0 < t1 && t1 < 1) && (0 < t2 && t2 < 1))
       {
          // Get the point of intersection
          x_int = p_xn;
-         x_int -= p_xnmi;
+         x_int -= p_xnm1;
          x_int *= t2;
-         x_int += p_xnmi;
+         x_int += p_xnm1;
+
+         real_t dt_c = p_xnm1.DistanceTo(x_int)/p_vn.Norml2();
+
          // cout << "line_start: "; line_start.Print();
          // cout << "line_end: "; line_end.Print();
          // cout << "x_nm1: "; p_xnmi.Print();
@@ -253,17 +257,10 @@ void NavierParticles::Apply2DReflectionBC(const Vector &line_start, const Vector
          // cout << "t1: " << t1 << endl;
          // cout << "intersection: "; x_int.Print();
 
-         // Correct the velocity + its history
-         for (int n = 3; n >= 0; n--)
-         {
-            V(n).GetParticleValues(i, p_vnmi);
-            p_vc = 0.0;
-            add(p_vnmi, -(1+e)*(p_vnmi*normal), normal, p_vc);
-            V(n).SetParticleValues(i, p_vc);
-         }
-         // p_vc is corrected velocity at n
-         // p_vnmi is original velocity at n
-         real_t dt_c = p_xnmi.DistanceTo(x_int)/p_vnmi.Norml2();
+         // Correct the velocity
+         p_vdiff = p_vn;
+         add(p_vn, -(1+e)*(p_vn*normal), normal, p_vn);
+         p_vdiff -= p_vn;
 
          // Correct the position
          p_xc = 0.0;

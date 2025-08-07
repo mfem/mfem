@@ -117,7 +117,7 @@ int main(int argc, char *argv[])
       
       for (int d = 0; d < 2; d++)
       {
-         particle_solver.X().ParticleValue(i, d) = pos_min[d] + real_dist(gen)*(pos_max[d] - pos_min[d]);
+         particle_solver.X()(i, d) = pos_min[d] + real_dist(gen)*(pos_max[d] - pos_min[d]);
       }
    }
 
