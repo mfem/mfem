@@ -28,8 +28,8 @@ protected:
    FindPointsGSLIB finder;
 
    Array<real_t> dthist{0.0, 0.0, 0.0};
-   Array<real_t> beta{0.0, 0.0, 0.0, 0.0}; // BDFk coefficients
-   Array<real_t> alpha{0.0, 0.0, 0.0}; // EXTk coefficients
+   std::array<Array<real_t>, 3> beta_k; // BDFk coefficients, k=1,2,3
+   std::array<Array<real_t>, 3> alpha_k; // EXTk coefficients, k=1,2,3
 
    struct FluidParticleData
    {
@@ -40,7 +40,7 @@ protected:
       Array<int> *order;
    } fp_data;
 
-   void SetTimeIntegrationCoefficients(int step);
+   void SetTimeIntegrationCoefficients();
 
    void ParticleStep2D(const real_t &dt, int p);
 
