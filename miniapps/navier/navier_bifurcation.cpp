@@ -185,11 +185,11 @@ int main(int argc, char *argv[])
       {
          particle_solver.Step(ctx.dt, pstep, u_gf, w_gf);
          pstep++;
-         particle_solver.Apply2DReflectionBC(Vector({0.0, 1.0}), Vector({8.0, 1.0}), 1.0, true);
-         particle_solver.Apply2DReflectionBC(Vector({8.0, 1.0}), Vector({8.0, 9.0}), 1.0, true);
-         particle_solver.Apply2DReflectionBC(Vector({9.0, 9.0}), Vector({9.0, 1.0}), 1.0, true);
-         particle_solver.Apply2DReflectionBC(Vector({9.0, 1.0}), Vector({17.0, 1.0}), 1.0, true);
-         particle_solver.Apply2DReflectionBC(Vector({0.0, 0.0}), Vector({17.0, 0.0}), 1.0, false);
+         // particle_solver.Apply2DReflectionBC(Vector({0.0, 1.0}), Vector({8.0, 1.0}), 1.0, true);
+         // particle_solver.Apply2DReflectionBC(Vector({8.0, 1.0}), Vector({8.0, 9.0}), 1.0, true);
+         // particle_solver.Apply2DReflectionBC(Vector({9.0, 9.0}), Vector({9.0, 1.0}), 1.0, true);
+         // particle_solver.Apply2DReflectionBC(Vector({9.0, 1.0}), Vector({17.0, 1.0}), 1.0, true);
+         // particle_solver.Apply2DReflectionBC(Vector({0.0, 0.0}), Vector({17.0, 0.0}), 1.0, false);
       }
 
       if (ctx.print_csv_freq > 0 && step % ctx.print_csv_freq == 0)

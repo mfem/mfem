@@ -228,10 +228,10 @@ int main (int argc, char *argv[])
       particle_solver.Step(ctx.dt, step-1, u_gf, w_gf);
 
       // Apply BCs
-      particle_solver.Apply2DReflectionBC(Vector({10.0, -10.0}), Vector({10.0, 10.0}), ctx.e, false);
-      particle_solver.Apply2DReflectionBC(Vector({-10.0, 10.0}), Vector({10.0, 10.0}), ctx.e, true);
-      particle_solver.Apply2DReflectionBC(Vector({-10.0, -10.0}), Vector({10.0, -10.0}), ctx.e, false);
-      particle_solver.Apply2DReflectionBC(Vector({-10.0, -10.0}), Vector({-10.0, 10.0}), ctx.e, true);
+      // particle_solver.Apply2DReflectionBC(Vector({10.0, -10.0}), Vector({10.0, 10.0}), ctx.e, false);
+      // particle_solver.Apply2DReflectionBC(Vector({-10.0, 10.0}), Vector({10.0, 10.0}), ctx.e, true);
+      // particle_solver.Apply2DReflectionBC(Vector({-10.0, -10.0}), Vector({10.0, -10.0}), ctx.e, false);
+      // particle_solver.Apply2DReflectionBC(Vector({-10.0, -10.0}), Vector({-10.0, 10.0}), ctx.e, true);
 
       if (ctx.print_csv_freq > 0 && step % ctx.print_csv_freq == 0)
       {
