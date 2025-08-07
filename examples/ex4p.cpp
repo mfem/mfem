@@ -230,7 +230,7 @@ int main(int argc, char *argv[])
    pcg->SetMaxIter(2000);
    pcg->SetPrintLevel(1);
    if (hybridization) { prec = new HypreBoomerAMG(*A.As<HypreParMatrix>()); }
-   else if (pa) { prec = new OperatorJacobiSmoother(*a, ess_tdof_list); }
+   else if (pa || ea) { prec = new OperatorJacobiSmoother(*a, ess_tdof_list); }
    else
    {
       ParFiniteElementSpace *prec_fespace =
