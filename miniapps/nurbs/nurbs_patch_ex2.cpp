@@ -168,7 +168,7 @@ int main(int argc, char *argv[])
       // Integration rule for the 1d bases defined on each knotvector
       SplineIntegrationRule splineRule(spline_integration_type);
       // Set the patch integration rules
-      NURBSMeshRules* meshRules = new NURBSMeshRules(mesh, splineRule);
+      meshRules = new NURBSMeshRules(mesh, splineRule);
       ei->SetNURBSPatchIntRule(meshRules);
    }
 
