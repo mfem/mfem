@@ -936,7 +936,6 @@ const Array<int>& Mesh::GetBdrFaceAttributes() const
       // MFEM_VERIFY(size_t(nf_bdr) == f_to_be.size(), "Incompatible sizes");
       bdr_face_attrs_cache.SetSize(nf_bdr);
       int f_ind = 0;
-      int missing_bdr_elems = 0;
       const int nf = GetNumFaces();
       for (int f = 0; f < nf; ++f)
       {
@@ -944,7 +943,7 @@ const Array<int>& Mesh::GetBdrFaceAttributes() const
          {
             continue;
          }
-         int attribute = 1; // default value
+         int attribute = -1; // default value
          auto iter = f_to_be.find(f);
          if (iter != f_to_be.end())
          {
@@ -954,18 +953,10 @@ const Array<int>& Mesh::GetBdrFaceAttributes() const
          else
          {
             // If a boundary face does not correspond to the a boundary element,
-            // we assign it the default attribute of 1. We also generate a
-            // warning at runtime with the number of such missing elements.
-            ++missing_bdr_elems;
+            // we assign it the default attribute of -1.
          }
          bdr_face_attrs_cache[f_ind] = attribute;
          ++f_ind;
-      }
-      if (missing_bdr_elems)
-      {
-         MFEM_VERIFY(false, "Missing " << missing_bdr_elems
-                     << " boundary elements "
-                     "for boundary faces.");
       }
    }
    return bdr_face_attrs_cache;
@@ -981,6 +972,8 @@ const Array<int>& Mesh::GetElementAttributes() const
       for (int i = 0; i < GetNE(); ++i)
       {
          elem_attrs_cache[i] = GetAttribute(i);
+         MFEM_ASSERT(elem_attrs_cache[i] > 0,
+                     "Negative attribute on element " << i);
       }
    }
    return elem_attrs_cache;

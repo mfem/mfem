@@ -510,7 +510,7 @@ void RajaOmpWrap2D(const int Nx, const int Ny, HBODY &&h_body)
    RAJA::launch<omp_launch_policy>(RAJA::ExecPlace::HOST, RAJA::LaunchParams(),
                                    [=](RAJA::LaunchContext ctx)
    {
-      // contiguous in y
+      // contiguous in x
       RAJA::expt::loop<global_thread_xy>(ctx, xrange, yrange, [&](int i, int j)
       {
          h_body(i, j);
@@ -529,7 +529,7 @@ void RajaOmpWrap3D(const int Nx, const int Ny, const int Nz, HBODY &&h_body)
    RAJA::launch<omp_launch_policy>(RAJA::ExecPlace::HOST, RAJA::LaunchParams(),
                                    [=](RAJA::LaunchContext ctx)
    {
-      // contiguous in z
+      // contiguous in x
       RAJA::expt::loop<global_thread_xyz>(ctx, xrange, yrange, zrange,
                                           [&](int i, int j, int k)
       { h_body(i, j, k); });
@@ -888,13 +888,13 @@ inline void forall(int Nx, int Ny, int Nz, lambda &&body)
 #if defined(MFEM_USE_RAJA) && defined(RAJA_ENABLE_OPENMP)
    else if (Device::Allows(Backend::RAJA_OMP))
    {
-      return RajaOmpWrap2D(Nx, Ny, body);
+      return RajaOmpWrap3D(Nx, Ny, Nz, body);
    }
 #endif
 #ifdef MFEM_USE_OPENMP
    else if (Device::Allows(Backend::OMP))
    {
-      return OmpWrap2D(Nx, Ny, body);
+      return OmpWrap3D(Nx, Ny, Nz, body);
    }
 #endif
    else
