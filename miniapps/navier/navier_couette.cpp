@@ -189,6 +189,11 @@ int main (int argc, char *argv[])
    bdr_attr = 1;
    flow_solver.AddVelDirichletBC(couetteFlow, bdr_attr);
 
+   // Set particle BCs
+   particle_solver.Add2DReflectionBC(Vector({-10.0, -1.0}), Vector({10.0, -1.0}), ctx.e, false);
+   particle_solver.Add2DReflectionBC(Vector({-10.0, 10.0}), Vector({10.0, 10.0}), ctx.e, true);
+   particle_solver.Add2DRecirculationBC(Vector({-10.0, -1.0}), Vector({-10.0, 10.0}), true, Vector({10.0, -1.0}), Vector({10.0, 10.0}), false);
+
    // Initialize ParaView DC (if freq != 0)
    std::unique_ptr<ParaViewDataCollection> pvdc;
    if (ctx.paraview_freq > 0)
@@ -226,12 +231,6 @@ int main (int argc, char *argv[])
 
       // Step NavierParticles
       particle_solver.Step(ctx.dt, step-1, u_gf, w_gf);
-
-      // Apply BCs
-      // particle_solver.Apply2DReflectionBC(Vector({10.0, -10.0}), Vector({10.0, 10.0}), ctx.e, false);
-      // particle_solver.Apply2DReflectionBC(Vector({-10.0, 10.0}), Vector({10.0, 10.0}), ctx.e, true);
-      // particle_solver.Apply2DReflectionBC(Vector({-10.0, -10.0}), Vector({10.0, -10.0}), ctx.e, false);
-      // particle_solver.Apply2DReflectionBC(Vector({-10.0, -10.0}), Vector({-10.0, 10.0}), ctx.e, true);
 
       if (ctx.print_csv_freq > 0 && step % ctx.print_csv_freq == 0)
       {

@@ -15,6 +15,9 @@
 
 #include "mfem.hpp"
 
+#include <vector>
+#include <type_traits>
+
 namespace mfem
 {
 namespace navier
@@ -40,9 +43,40 @@ protected:
       Array<int> *order;
    } fp_data;
 
+   struct ReflectionBC_2D
+   {
+      const Vector line_start;
+      const Vector line_end;
+      const real_t e;
+      const bool invert_normal;
+
+   };
+   struct RecirculationBC_2D
+   {
+      const Vector inlet_start;
+      const Vector inlet_end;
+      const bool invert_inlet_normal;
+      const Vector outlet_start;
+      const Vector outlet_end;
+      const bool invert_outlet_normal;
+   };
+
+   using BCVariant = std::variant<ReflectionBC_2D, RecirculationBC_2D>;
+   std::vector<BCVariant> bcs;
+
    void SetTimeIntegrationCoefficients();
 
    void ParticleStep2D(const real_t &dt, int p);
+
+   void Get2DNormal(const Vector &p1, const Vector &p2, bool inv_normal, Vector &normal);
+
+   bool Get2DSegmentIntersection(const Vector &s1_start, const Vector &s1_end, const Vector &s2_start, const Vector &s2_end, Vector &x_int, real_t *t1_ptr=nullptr, real_t *t2_ptr=nullptr);
+
+   void Apply2DReflectionBC(const ReflectionBC_2D &bc);
+
+   void Apply2DRecirculationBC(const RecirculationBC_2D &bc);
+
+   void ApplyBCs();
 
    mutable Vector up, vp, xpn, xp;
    mutable Vector r, C;
@@ -64,8 +98,16 @@ public:
 
    NodeFunction& X(int nm=0) { return *fp_data.x[nm]; }
 
-   void Apply2DReflectionBC(const Vector &line_start, const Vector &line_end, real_t e, bool invert_normal);
+   Array<int>& Order()       { return *fp_data.order; }
+   
+   void Add2DReflectionBC(const Vector &line_start, const Vector &line_end, real_t e, bool invert_normal)
+   { bcs.push_back(ReflectionBC_2D{line_start, line_end, e, invert_normal}); }
 
+   void Add2DRecirculationBC(const Vector &inlet_start, const Vector &inlet_end, bool invert_inlet_normal, const Vector &outlet_start, const Vector &outlet_end, bool invert_outlet_normal)
+   { 
+      MFEM_ASSERT(abs(inlet_start.DistanceTo(inlet_end) - outlet_start.DistanceTo(outlet_end)) < 1e-12, "Inlet + outlet must be same length.");
+      bcs.push_back(RecirculationBC_2D{inlet_start, inlet_end, invert_inlet_normal, outlet_start, outlet_end, invert_outlet_normal}); 
+   }
 };
 
 

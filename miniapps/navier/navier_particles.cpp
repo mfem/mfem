@@ -123,6 +123,168 @@ void NavierParticles::ParticleStep2D(const real_t &dt, int p)
    xpn *= 1.0/beta[0];
 }
 
+void NavierParticles::Get2DNormal(const Vector &p1, const Vector &p2, bool inv_normal, Vector &normal)
+{
+   normal.SetSize(2);
+   Vector diff(p2);
+   diff -= p1;
+   if (inv_normal)
+   {
+      normal[0] = diff[1];
+      normal[1] = -diff[0];
+   }
+   else
+   {
+      normal[0] = -diff[1];
+      normal[1] = diff[0];
+   }
+   normal /= normal.Norml2(); // normalize
+}
+
+bool NavierParticles::Get2DSegmentIntersection(const Vector &s1_start, const Vector &s1_end, const Vector &s2_start, const Vector &s2_end, Vector &x_int, real_t *t1_ptr, real_t *t2_ptr)
+{
+   // Compute the intersection parametrically
+   // r_1 = s1_start + t1*[s1_end - s1_start]
+   // r_2 = s2_start + t2*[s2_end - s2_start]
+   real_t denom = (s1_end[0]-s1_start[0])*(s2_start[1] - s2_end[1]) - (s1_end[1]-s1_start[1])*(s2_start[0] - s2_end[0]);
+
+   // If line is parallel, don't compute at all
+   // Note that nearly-parallel intersections are not well-posed (denom >>> 0)...
+   if (abs(denom) < 1e-12)
+   {
+      return false;
+   }
+
+   real_t t1 = ( (s2_start[0] - s1_start[0])*(s2_start[1]-s2_end[1]) - (s2_start[1] - s1_start[1])*(s2_start[0]-s2_end[0]) ) / denom;
+   real_t t2 = ( (s1_end[0] - s1_start[0])*(s2_start[1] - s1_start[1]) - (s1_end[1] - s1_start[1])*(s2_start[0] - s1_start[0]) ) / denom;
+   
+   // If intersection falls on line segment of s1_start to s1_end AND s2_start to s2_end, set x_int and return true
+   if ((0 <= t1 && t1 <= 1) && (0 <= t2 && t2 <= 1))
+   {
+      // Get the point of intersection
+      x_int = s2_end;
+      x_int -= s2_start;
+      x_int *= t2;
+      x_int += s2_start;
+      if (t1_ptr)
+      {
+         *t1_ptr = t1;
+      }
+      if (t2_ptr)
+      {
+         *t2_ptr = t2;
+      }
+      return true;
+   }
+   return false;
+
+}
+
+void NavierParticles::Apply2DReflectionBC(const ReflectionBC_2D &bc)
+{
+   Vector normal;
+   Get2DNormal(bc.line_start, bc.line_end, bc.invert_normal, normal);
+
+   Vector p_xn(2), p_xnm1(2), x_int(2), p_vn(2), p_vdiff(2);
+   for (int i = 0; i < fluid_particles.GetNP(); i++)
+   {
+      X().GetRefNodeValues(i, p_xn);
+      X(1).GetRefNodeValues(i, p_xnm1);
+      V().GetRefNodeValues(i, p_vn);
+
+      // If line_start to line_end and x_nm1 to x_n intersect, apply reflection
+      if (Get2DSegmentIntersection(bc.line_start, bc.line_end, p_xnm1, p_xn, x_int))
+      {
+         real_t dt_c = p_xnm1.DistanceTo(x_int)/p_vn.Norml2();
+
+         // Correct the velocity
+         p_vdiff = p_vn;
+         add(p_vn, -(1+bc.e)*(p_vn*normal), normal, p_vn);
+         p_vdiff -= p_vn;
+
+         // Correct the position
+         int &o = Order()[i];
+         add(p_xn, (1.0/beta_k[o][0])*(dt_c - dthist[0]), p_vdiff, p_xn);
+
+         // Set order to 0 (so that it becomes 1 on next iteration)
+         o = 0;
+      }
+
+   }
+}
+
+void NavierParticles::Apply2DRecirculationBC(const RecirculationBC_2D &bc)
+{
+   Vector inlet_normal(2), outlet_normal(2);
+   Get2DNormal(bc.inlet_start, bc.inlet_end, bc.invert_inlet_normal, inlet_normal);
+   Get2DNormal(bc.outlet_start, bc.outlet_end, bc.invert_outlet_normal, outlet_normal);
+
+   real_t inlet_length = bc.inlet_start.DistanceTo(bc.inlet_end);
+   real_t outlet_length = bc.outlet_start.DistanceTo(bc.outlet_end); // should be == inlet_length
+
+   Vector inlet_tan(2), outlet_tan(2);
+   inlet_tan = bc.inlet_end;
+   inlet_tan -= bc.inlet_start;
+   inlet_tan /= inlet_length;
+   outlet_tan = bc.outlet_end;
+   outlet_tan -= bc.outlet_start;
+   outlet_tan /= outlet_length;
+
+   real_t t1;
+   Vector p_xn(2), p_xnm1(2), x_int(2), p_xc(2), p_x_int_diff(2);
+   for (int i = 0; i < fluid_particles.GetNP(); i++)
+   {
+      X().GetRefNodeValues(i, p_xn);
+      X(1).GetRefNodeValues(i, p_xnm1);
+
+      // If line_start to line_end and x_nm1 to x_n intersect, apply recirculation
+      if (Get2DSegmentIntersection(bc.outlet_start, bc.outlet_end, p_xnm1, p_xn, x_int, &t1))
+      {
+         // Compute the corresponding intersection location on inlet
+         p_xc = 0.0;
+         add(bc.inlet_start, t1*inlet_length, inlet_tan, p_xc);
+
+         // Compute the normal distance from p_xn to x_int, and add
+         p_x_int_diff = p_xn;
+         p_x_int_diff -= x_int;
+         real_t normal_dist = abs(p_x_int_diff*outlet_normal);
+         add(p_xc, normal_dist, inlet_normal, p_xc);
+
+         // Compute tangential distance from p_xn to x_int, and add
+         real_t tan_dist = abs(p_x_int_diff*outlet_tan);
+         add(p_xc, tan_dist, inlet_tan, p_xc);
+
+         // Update the position
+         p_xn = p_xc;
+
+         // Set order to 0, to avoid re-computing x history as well
+         Order()[i] = 0;
+      }
+
+   }
+}
+
+void NavierParticles::ApplyBCs()
+{
+   for (BCVariant &bc_v : bcs)
+   {
+      std::visit(
+      [this](auto &bc)
+      {
+            using T = std::decay_t<decltype(bc)>;
+            if constexpr(std::is_same_v<T, ReflectionBC_2D>)
+            {
+               Apply2DReflectionBC(bc);
+            }
+            else if constexpr(std::is_same_v<T, RecirculationBC_2D>)
+            {
+               Apply2DRecirculationBC(bc);
+            }
+      },bc_v);
+
+   }
+}
+
 NavierParticles::NavierParticles(MPI_Comm comm, const real_t kappa_, const real_t gamma_, const real_t zeta_, int num_particles, Mesh &m)
 : kappa(kappa_),
   gamma(gamma_),
@@ -201,6 +363,9 @@ void NavierParticles::Step(const real_t &dt, int cur_step, const ParGridFunction
       MFEM_ABORT("3D particles not yet implemented.");
    }
 
+   // Apply any BCs
+   ApplyBCs();
+
    // Re-interpolate fluid velocity + vorticity onto particles' new location
    InterpolateUW(u_gf, w_gf, X(), U(), W());
 
@@ -219,93 +384,6 @@ void NavierParticles::InterpolateUW(const ParGridFunction &u_gf, const ParGridFu
 
    finder.Interpolate(w_gf, w);
    Ordering::Reorder(w, w.GetVDim(), w_gf.ParFESpace()->GetOrdering(), w.GetOrdering());
-}
-
-void NavierParticles::Apply2DReflectionBC(const Vector &line_start, const Vector &line_end, real_t e, bool invert_normal)
-{
-   // Vector normal(2);
-   // Vector diff(2);
-   // diff = line_end;
-   // diff -= line_start;
-   // if (invert_normal)
-   // {
-   //    normal[0] = diff[1];
-   //    normal[1] = -diff[0];
-   // }
-   // else
-   // {
-   //    normal[0] = -diff[1];
-   //    normal[1] = diff[0];
-   // }
-   // normal /= normal.Norml2(); // normalize
-
-   // Vector p_xn(2), p_xnm1(2), x_int(2), p_vn(2), p_vdiff(2);
-   // for (int i = 0; i < fluid_particles.GetNP(); i++)
-   // {
-   //    X().GetRefNodeValues(i, p_xn);
-   //    X(1).GetRefNodeValues(i, p_xnm1);
-   //    V().GetRefNodeValues(i, p_vn);
-
-   //    // Compute the intersection parametrically
-   //    // r_1 = line_start + t1*[line_end - line_start]
-   //    // r_2 = x_nm1 + t2*[x_n - x_nm1]
-   //    real_t denom = (line_end[0]-line_start[0])*(p_xnm1[1] - p_xn[1]) - (line_end[1]-line_start[1])*(p_xnm1[0] - p_xn[0]);
-
-   //    // If line is parallel, don't compute at all
-   //    // Note that nearly-parallel intersections are not well-posed (denom >>> 0)...
-   //    if (abs(denom) < 1e-12)
-   //    {
-   //       continue;
-   //    }
-
-   //    real_t t1 = ( (p_xnm1[0] - line_start[0])*(p_xnm1[1]-p_xn[1]) - (p_xnm1[1] - line_start[1])*(p_xnm1[0]-p_xn[0]) ) / denom;
-   //    real_t t2 = ( (line_end[0] - line_start[0])*(p_xnm1[1] - line_start[1]) - (line_end[1] - line_start[1])*(p_xnm1[0] - line_start[0]) ) / denom;
-
-   //    // If intersection falls on line segment of x_nm1 to x_n AND line_start to line_end, apply reflection
-   //    if ((0 < t1 && t1 < 1) && (0 < t2 && t2 < 1))
-   //    {
-   //       // Get the point of intersection
-   //       x_int = p_xn;
-   //       x_int -= p_xnm1;
-   //       x_int *= t2;
-   //       x_int += p_xnm1;
-
-   //       real_t dt_c = p_xnm1.DistanceTo(x_int)/p_vn.Norml2();
-
-   //       // cout << "line_start: "; line_start.Print();
-   //       // cout << "line_end: "; line_end.Print();
-   //       // cout << "x_nm1: "; p_xnmi.Print();
-   //       // cout << "x_n: "; p_xn.Print();
-   //       // cout << "t1: " << t1 << endl;
-   //       // cout << "intersection: "; x_int.Print();
-
-   //       // Correct the velocity
-   //       p_vdiff = p_vn;
-   //       add(p_vn, -(1+e)*(p_vn*normal), normal, p_vn);
-   //       p_vdiff -= p_vn;
-
-   //       // Correct the position
-   //       p_xc = 0.0;
-   //       p_vdiff = p_vnmi;
-   //       p_vdiff -= p_vc;
-   //       add(p_xn, (1.0/beta[0])*(dt_c - dthist[0]), p_vdiff, p_xc);
-   //       X().SetParticleValues(i, p_xc);
-
-   //       // ... and history
-   //       for (int n = 3; n > 0; n--)
-   //       {
-   //          X(n).GetParticleValues(i, p_xnmi);
-   //          p_xdiff = x_int;
-   //          p_xdiff -= p_xnmi;
-   //          p_xc = 0.0;
-   //          add(p_xnmi, 2*(p_xdiff*normal), normal, p_xc);
-   //          X(n).SetParticleValues(i, p_xc);
-   //       }
-
-         
-   //    }
-
-   // }
 }
 
 } // namespace navier
