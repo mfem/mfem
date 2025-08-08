@@ -185,7 +185,7 @@ void NavierParticles::Apply2DReflectionBC(const ReflectionBC_2D &bc)
    Vector normal;
    Get2DNormal(bc.line_start, bc.line_end, bc.invert_normal, normal);
 
-   Vector p_xn(2), p_xnm1(2), x_int(2), p_vn(2), p_vdiff(2);
+   Vector p_xn(2), p_xnm1(2), p_xdiff(2), x_int(2), p_vn(2), p_vdiff(2);
    for (int i = 0; i < fluid_particles.GetNP(); i++)
    {
       X().GetRefNodeValues(i, p_xn);
@@ -195,6 +195,15 @@ void NavierParticles::Apply2DReflectionBC(const ReflectionBC_2D &bc)
       // If line_start to line_end and x_nm1 to x_n intersect, apply reflection
       if (Get2DSegmentIntersection(bc.line_start, bc.line_end, p_xnm1, p_xn, x_int))
       {
+         // Verify that the particle moved INTO the wall
+         // (Important for cases where p_xnm1 is on the wall within machine precision)
+         p_xdiff = p_xn;
+         p_xdiff -= p_xnm1;
+         if (p_xdiff*normal > 0)
+         {
+            continue;
+         }
+
          real_t dt_c = p_xnm1.DistanceTo(x_int)/p_vn.Norml2();
 
          // Correct the velocity
