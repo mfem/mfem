@@ -690,8 +690,8 @@ Particle ParticleSet::GetParticleRef(int i)
 
    for (int t = 0; t < active_state.GetNT(); t++)
    {
-      p.tags[t].Delete();
-      p.tags[t].MakeAlias((*active_state.tags[t]).GetMemory(), i, 1);
+      p.TagMemory(t).Delete();
+      p.TagMemory(t).MakeAlias((*active_state.tags[t]).GetMemory(), i, 1);
    }
 
    return std::move(p);
