@@ -810,7 +810,18 @@ void DarcyForm::ReconstructTotalFlux(const BlockVector &sol,
       if (dynamic_cast<const RT_FECollection*>(u_coll)
           || dynamic_cast<const BrokenRT_FECollection*>(u_coll)) { ut_order--; }
       FiniteElementCollection *ut_coll = new RT_FECollection(ut_order, dim);
-      FiniteElementSpace *ut_space = new FiniteElementSpace(mesh, ut_coll);
+      FiniteElementSpace *ut_space = NULL;
+#ifdef MFEM_USE_MPI
+      ParMesh *pmesh = dynamic_cast<ParMesh*>(mesh);
+      if (pmesh)
+      {
+         ut_space = new ParFiniteElementSpace(pmesh, ut_coll);
+      }
+      else
+#endif //MFEM_USE_MPI
+      {
+         ut_space = new FiniteElementSpace(mesh, ut_coll);
+      }
 
       ut.SetSpace(ut_space);
       ut.MakeOwner(ut_coll);
@@ -899,14 +910,25 @@ void DarcyForm::ReconstructFluxAndPot(const BlockVector &sol,
    // flux space
    if (!u.FESpace())
    {
+      Mesh *mesh = fes_u->GetMesh();
       const FiniteElementCollection *u_coll = fes_u->FEColl();
       int us_order = u_coll->GetOrder() + 1;
       if (dynamic_cast<const RT_FECollection*>(u_coll)
           || dynamic_cast<const BrokenRT_FECollection*>(u_coll)) { us_order--; }
       const int vdim = fes_u->GetVDim();
       FiniteElementCollection *us_coll = u_coll->Clone(us_order);
-      FiniteElementSpace *us_space = new FiniteElementSpace(fes_u->GetMesh(), us_coll,
-                                                            vdim);
+      FiniteElementSpace *us_space;
+#ifdef MFEM_USE_MPI
+      ParMesh *pmesh = dynamic_cast<ParMesh*>(mesh);
+      if (pmesh)
+      {
+         us_space = new ParFiniteElementSpace(pmesh, us_coll, vdim);
+      }
+      else
+#endif //MFEM_USE_MPI
+      {
+         us_space = new FiniteElementSpace(mesh, us_coll, vdim);
+      }
 
       u.SetSpace(us_space);
       u.MakeOwner(us_coll);
@@ -915,12 +937,22 @@ void DarcyForm::ReconstructFluxAndPot(const BlockVector &sol,
    // potential space
    if (!p.FESpace())
    {
+      Mesh *mesh = fes_p->GetMesh();
       const FiniteElementCollection *p_coll = fes_p->FEColl();
       const int ps_order = p_coll->GetOrder() + 1;
       FiniteElementCollection *ps_coll = p_coll->Clone(ps_order);
-      FiniteElementSpace *ps_space = new FiniteElementSpace(fes_p->GetMesh(),
-                                                            ps_coll);
-
+      FiniteElementSpace *ps_space;
+#ifdef MFEM_USE_MPI
+      ParMesh *pmesh = dynamic_cast<ParMesh*>(mesh);
+      if (pmesh)
+      {
+         ps_space = new ParFiniteElementSpace(pmesh, ps_coll);
+      }
+      else
+#endif //MFEM_USE_MPI
+      {
+         ps_space = new FiniteElementSpace(mesh, ps_coll);
+      }
       p.SetSpace(ps_space);
       p.MakeOwner(ps_coll);
    }
@@ -928,13 +960,24 @@ void DarcyForm::ReconstructFluxAndPot(const BlockVector &sol,
    // trace space
    if (!tr.FESpace())
    {
+      Mesh *mesh = fes_u->GetMesh();
       const FiniteElementCollection *tr_coll =
          hybridization->ConstraintFESpace()->FEColl();
       int trs_order = tr_coll->GetOrder() + 1;
       if (dynamic_cast<const RT_FECollection*>(tr_coll)) { trs_order--; }
       FiniteElementCollection *trs_coll = tr_coll->Clone(trs_order);
-      FiniteElementSpace *trs_space = new FiniteElementSpace(fes_u->GetMesh(),
-                                                             trs_coll);
+      FiniteElementSpace *trs_space;
+#ifdef MFEM_USE_MPI
+      ParMesh *pmesh = dynamic_cast<ParMesh*>(mesh);
+      if (pmesh)
+      {
+         trs_space = new ParFiniteElementSpace(pmesh, trs_coll);
+      }
+      else
+#endif //MFEM_USE_MPI
+      {
+         trs_space = new FiniteElementSpace(mesh, trs_coll);
+      }
 
       tr.SetSpace(trs_space);
       tr.MakeOwner(trs_coll);
@@ -1013,6 +1056,9 @@ void DarcyForm::ReconstructFluxAndPot(const DarcyHybridization &h,
    const FiniteElementSpace *fes_pc = pc.FESpace();
    const FiniteElementSpace *fes_ut = ut.FESpace();
    Mesh *mesh = fes_u->GetMesh();
+#ifdef MFEM_USE_MPI
+   ParMesh *pmesh = dynamic_cast<ParMesh*>(mesh);
+#endif //MFEM_USE_MPI
    const int dim = mesh->Dimension();
 
    DenseMatrix elmat, Mu_z, Mp_z, B_z, Ct_f, Ct_fz, DEGH_f, D_fz, E_fz, G_fz, H_f,
@@ -1099,6 +1145,12 @@ void DarcyForm::ReconstructFluxAndPot(const DarcyHybridization &h,
          const FiniteElement *fe_tr = fes_tr->GetFaceElement(f);
          const int ndof_tr_f = fe_tr->GetDof();
          FaceElementTransformations *Tr = mesh->GetFaceElementTransformations(f);
+#ifdef MFEM_USE_MPI
+         if (Tr->Elem2No < 0 && pmesh && pmesh->FaceIsTrueInterior(f))
+         {
+            Tr = pmesh->GetSharedFaceTransformationsByLocalIndex(f);
+         }
+#endif //MFEM_USE_MPI
 
          // flux constraint
          const FiniteElement *fe_u1 = fes_u->GetFE(Tr->Elem1No);
