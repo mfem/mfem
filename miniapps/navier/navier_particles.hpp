@@ -68,14 +68,11 @@ protected:
 
    void ParticleStep2D(const real_t &dt, int p);
 
-   void Get2DNormal(const Vector &p1, const Vector &p2, bool inv_normal, Vector &normal);
-
-   bool Get2DSegmentIntersection(const Vector &s1_start, const Vector &s1_end, const Vector &s2_start, const Vector &s2_end, Vector &x_int, real_t *t1_ptr=nullptr, real_t *t2_ptr=nullptr);
+   static void Get2DNormal(const Vector &p1, const Vector &p2, bool inv_normal, Vector &normal);
+   static bool Get2DSegmentIntersection(const Vector &s1_start, const Vector &s1_end, const Vector &s2_start, const Vector &s2_end, Vector &x_int, real_t *t1_ptr=nullptr, real_t *t2_ptr=nullptr);
 
    void Apply2DReflectionBC(const ReflectionBC_2D &bc);
-
    void Apply2DRecirculationBC(const RecirculationBC_2D &bc);
-
    void ApplyBCs();
 
    mutable Vector up, vp, xpn, xp;
@@ -105,7 +102,14 @@ public:
 
    void Add2DRecirculationBC(const Vector &inlet_start, const Vector &inlet_end, bool invert_inlet_normal, const Vector &outlet_start, const Vector &outlet_end, bool invert_outlet_normal)
    { 
-      MFEM_ASSERT(abs(inlet_start.DistanceTo(inlet_end) - outlet_start.DistanceTo(outlet_end)) < 1e-12, "Inlet + outlet must be same length.");
+      MFEM_ASSERT([&]()
+      {
+         real_t inlet_dist = inlet_start.DistanceTo(inlet_end);
+         real_t outlet_dist = outlet_start.DistanceTo(outlet_end);
+
+         return abs(inlet_dist-outlet_dist)/inlet_dist < 1e-12;
+         
+      }(), "Inlet + outlet must be same length.");
       bcs.push_back(RecirculationBC_2D{inlet_start, inlet_end, invert_inlet_normal, outlet_start, outlet_end, invert_outlet_normal}); 
    }
 };
