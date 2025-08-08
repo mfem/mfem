@@ -324,6 +324,7 @@ void LSSolver(Solver& solver, const DenseMatrix& A, const DenseMatrix& C,
       block_solver.Reset(new SchurConstrainedSolver(*_AtA_reg,
                                                     *const_cast<DenseMatrix*>(&C), solver), true);
    }
+   else{ mfem_error("Solver not implemented for this wrapper!"); }
 
    block_solver.As<SchurConstrainedSolver>()->LagrangeSystemMult(rhs, z);
 
