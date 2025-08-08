@@ -201,13 +201,13 @@ protected:
 
 public:
    FindPointsGSLIB();
-   FindPointsGSLIB(Mesh *mesh_in, const double bb_t = 0.1,
+   FindPointsGSLIB(Mesh &mesh_in, const double bb_t = 0.1,
                    const double newt_tol = 1.0e-12,
                    const int npt_max = 256);
 
 #ifdef MFEM_USE_MPI
    FindPointsGSLIB(MPI_Comm comm_);
-   FindPointsGSLIB(ParMesh *mesh_in, const double bb_t = 0.1,
+   FindPointsGSLIB(ParMesh &mesh_in, const double bb_t = 0.1,
                    const double newt_tol = 1.0e-12,
                    const int npt_max = 256);
 #endif

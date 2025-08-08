@@ -164,7 +164,7 @@ int main (int argc, char *argv[])
       }
    }
 
-   FindPointsGSLIB finder1(&mesh_1), finder2(&mesh_2);
+   FindPointsGSLIB finder1(mesh_1), finder2(mesh_2);
    Vector interp_vals_1(pts_cnt), interp_vals_2(pts_cnt);
 
    // First solution.

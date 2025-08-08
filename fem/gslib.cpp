@@ -117,11 +117,11 @@ FindPointsGSLIB::FindPointsGSLIB()
    crystal_init(cr, gsl_comm);
 }
 
-FindPointsGSLIB::FindPointsGSLIB(Mesh *mesh_in, const double bb_t,
+FindPointsGSLIB::FindPointsGSLIB(Mesh &mesh_in, const double bb_t,
                                  const double newt_tol, const int npt_max)
    : FindPointsGSLIB()
 {
-   Setup(*mesh_in, bb_t, newt_tol, npt_max);
+   Setup(mesh_in, bb_t, newt_tol, npt_max);
 }
 
 FindPointsGSLIB::~FindPointsGSLIB()
@@ -172,11 +172,11 @@ FindPointsGSLIB::FindPointsGSLIB(MPI_Comm comm_)
    crystal_init(cr, gsl_comm);
 }
 
-FindPointsGSLIB::FindPointsGSLIB(ParMesh *mesh_in, const double bb_t,
+FindPointsGSLIB::FindPointsGSLIB(ParMesh &mesh_in, const double bb_t,
                                  const double newt_tol, const int npt_max)
-   : FindPointsGSLIB(mesh_in->GetComm())
+   : FindPointsGSLIB(mesh_in.GetComm())
 {
-   Setup(*mesh_in, bb_t, newt_tol, npt_max);
+   Setup(mesh_in, bb_t, newt_tol, npt_max);
 }
 #endif
 
