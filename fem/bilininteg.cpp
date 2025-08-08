@@ -232,6 +232,39 @@ void BilinearFormIntegrator::AssembleHDGFaceMatrix(
               " Integrator class.");
 }
 
+void BilinearFormIntegrator::AssembleHDGFaceMatrix(
+   int side, const FiniteElement &trace_el, const FiniteElement &el,
+   FaceElementTransformations &Trans, DenseMatrix &elmat)
+{
+   // Note: This default implementation does not take into account asymmetry
+   // and is not efficient
+   if (Trans.Elem2No >= 0)
+   {
+      DenseMatrix elmat_full;
+      AssembleHDGFaceMatrix(trace_el, el, el, Trans, elmat_full);
+
+      const int tr_ndof = trace_el.GetDof();
+      const int el_ndof = el.GetDof();
+      const int off_el = (side == 0)?(0):(el_ndof);
+      elmat.SetSize(tr_ndof + el_ndof);
+      elmat.CopyMN(elmat_full, el_ndof, el_ndof, off_el, off_el, 0, 0);
+      elmat.CopyMN(elmat_full, tr_ndof, el_ndof, 2*el_ndof, off_el, el_ndof, 0);
+      elmat.CopyMN(elmat_full, el_ndof, tr_ndof, off_el, 2*el_ndof, 0, el_ndof);
+      elmat.CopyMN(elmat_full, tr_ndof, tr_ndof, 2*el_ndof, 2*el_ndof, el_ndof,
+                   el_ndof);
+      // assume symmetry
+      for (int j = 0; j < tr_ndof; j++)
+         for (int i = 0; i < tr_ndof; i++)
+         {
+            elmat(el_ndof+i, el_ndof+j) *= 0.5;
+         }
+   }
+   else
+   {
+      AssembleHDGFaceMatrix(trace_el, el, el, Trans, elmat);
+   }
+}
+
 void BilinearFormIntegrator::AssembleElementVector(
    const FiniteElement &el, ElementTransformation &Tr, const Vector &elfun,
    Vector &elvect)
@@ -261,10 +294,9 @@ void BilinearFormIntegrator::AssembleHDGFaceVector(
 {
    // Note: This default implementation is general but not efficient
    DenseMatrix elmat;
-   AssembleHDGFaceMatrix(trace_face_fe, fe, fe, Tr, elmat);
+   AssembleHDGFaceMatrix(type & 1, trace_face_fe, fe, Tr, elmat);
 
    const int ndof_el = fe.GetDof();
-   const int ndof_els = (Tr.Elem2No >= 0)?(2*ndof_el):(ndof_el);
    const int ndof_face = trace_face_fe.GetDof();
    int ndof = 0;
    if (Tr.Elem2No < 0) { type &= ~1; }
@@ -278,13 +310,12 @@ void BilinearFormIntegrator::AssembleHDGFaceVector(
    }
 
    MFEM_ASSERT(elmat.Width() == elmat.Height() &&
-               elmat.Width() == ndof_els + ndof_face, "Wrong size of the element matrix");
+               elmat.Width() == ndof_el + ndof_face, "Wrong size of the element matrix");
 
    elvect.SetSize(ndof);
    elvect = 0.;
 
    int ioff = 0;
-   const int el_off = (type & 1)?(ndof_el):(0);
    if (type & HDGFaceType::ELEM)
    {
       for (int i = 0; i < ndof_el; i++)
@@ -292,7 +323,7 @@ void BilinearFormIntegrator::AssembleHDGFaceVector(
          real_t sum = 0.;
          for (int j = 0; j < ndof_el; j++)
          {
-            sum += elmat(el_off + i, el_off + j) * elfun(j);
+            sum += elmat(i, j) * elfun(j);
          }
          elvect(ioff + i) += sum;
       }
@@ -304,7 +335,7 @@ void BilinearFormIntegrator::AssembleHDGFaceVector(
          real_t sum = 0.;
          for (int j = 0; j < ndof_face; j++)
          {
-            sum += elmat(el_off + i, ndof_els + j) * trfun(j);
+            sum += elmat(i, ndof_el + j) * trfun(j);
          }
          elvect(ioff + i) += sum;
       }
@@ -320,7 +351,7 @@ void BilinearFormIntegrator::AssembleHDGFaceVector(
          real_t sum = 0.;
          for (int j = 0; j < ndof_el; j++)
          {
-            sum += elmat(ndof_els + i, el_off + j) * elfun(j);
+            sum += elmat(ndof_el + i, j) * elfun(j);
          }
          elvect(ioff + i) += sum;
       }
@@ -332,10 +363,9 @@ void BilinearFormIntegrator::AssembleHDGFaceVector(
          real_t sum = 0.;
          for (int j = 0; j < ndof_face; j++)
          {
-            sum += elmat(ndof_els + i, ndof_els + j) * trfun(j);
+            sum += elmat(ndof_el + i, ndof_el + j) * trfun(j);
          }
-         elvect(ioff + i) += (Tr.Elem2No >= 0)?
-                             (sum / 2.):(sum);//<---single-side contribution, not exact!
+         elvect(ioff + i) += sum;
       }
    }
 }
@@ -346,10 +376,9 @@ void BilinearFormIntegrator::AssembleHDGFaceGrad(
    DenseMatrix &grad)
 {
    DenseMatrix elmat;
-   AssembleHDGFaceMatrix(trace_face_fe, fe, fe, Tr, elmat);
+   AssembleHDGFaceMatrix(type & 1, trace_face_fe, fe, Tr, elmat);
 
    const int ndof_el = fe.GetDof();
-   const int ndof_els = (Tr.Elem2No >= 0)?(2*ndof_el):(ndof_el);
    const int ndof_face = trace_face_fe.GetDof();
    int w = 0, h = 0;
    if (Tr.Elem2No < 0) { type &= ~1; }
@@ -371,17 +400,16 @@ void BilinearFormIntegrator::AssembleHDGFaceGrad(
    }
 
    MFEM_ASSERT(elmat.Width() == elmat.Height() &&
-               elmat.Width() == ndof_els + ndof_face, "Wrong size of the element matrix");
+               elmat.Width() == ndof_el + ndof_face, "Wrong size of the element matrix");
 
    grad.SetSize(h, w);
    grad = 0.;
 
    int ioff = 0;
    int joff = 0;
-   const int el_off = (type & 1)?(ndof_el):(0);
    if (type & HDGFaceType::ELEM)
    {
-      grad.CopyMN(elmat, ndof_el, ndof_el, el_off, el_off, ioff, joff);
+      grad.CopyMN(elmat, ndof_el, ndof_el, 0, 0, ioff, joff);
    }
 
    if (type & (HDGFaceType::ELEM | HDGFaceType::CONSTR))
@@ -389,7 +417,7 @@ void BilinearFormIntegrator::AssembleHDGFaceGrad(
 
    if (type & HDGFaceType::TRACE)
    {
-      grad.CopyMN(elmat, ndof_el, ndof_face, el_off, ndof_els, ioff, joff);
+      grad.CopyMN(elmat, ndof_el, ndof_face, 0, ndof_el, ioff, joff);
    }
 
    if (type & (HDGFaceType::ELEM | HDGFaceType::TRACE))
@@ -398,7 +426,7 @@ void BilinearFormIntegrator::AssembleHDGFaceGrad(
 
    if (type & HDGFaceType::CONSTR)
    {
-      grad.CopyMN(elmat, ndof_face, ndof_el, ndof_els, el_off, ioff, joff);
+      grad.CopyMN(elmat, ndof_face, ndof_el, ndof_el, 0, ioff, joff);
    }
 
    if (type & (HDGFaceType::ELEM | HDGFaceType::CONSTR))
@@ -406,15 +434,7 @@ void BilinearFormIntegrator::AssembleHDGFaceGrad(
 
    if (type & HDGFaceType::FACE)
    {
-      grad.CopyMN(elmat, ndof_face, ndof_face, ndof_els, ndof_els, ioff, joff);
-      if (Tr.Elem2No >= 0) //<---single-side contribution, not exact!
-      {
-         for (int i = 0; i < ndof_face; i++)
-            for (int j = 0; j < ndof_face; j++)
-            {
-               grad(ioff+i, joff+j) /= 2.;
-            }
-      }
+      grad.CopyMN(elmat, ndof_face, ndof_face, ndof_el, ndof_el, ioff, joff);
    }
 }
 
@@ -562,6 +582,20 @@ void SumIntegrator::AssembleHDGFaceMatrix(
    for (int i = 1; i < integrators.Size(); i++)
    {
       integrators[i]->AssembleHDGFaceMatrix(trace_el, el1, el2, Trans, elem_mat);
+      elmat += elem_mat;
+   }
+}
+
+void SumIntegrator::AssembleHDGFaceMatrix(
+   int side, const FiniteElement &trace_el, const FiniteElement &el,
+   FaceElementTransformations &Trans, DenseMatrix &elmat)
+{
+   MFEM_ASSERT(integrators.Size() > 0, "empty SumIntegrator.");
+
+   integrators[0]->AssembleHDGFaceMatrix(side, trace_el, el, Trans, elmat);
+   for (int i = 1; i < integrators.Size(); i++)
+   {
+      integrators[i]->AssembleHDGFaceMatrix(side, trace_el, el, Trans, elem_mat);
       elmat += elem_mat;
    }
 }

@@ -196,9 +196,30 @@ public:
                                         FaceElementTransformations &Trans,
                                         DenseMatrix &elmat);
 
+   /// Assemble the HDG face matrix (double-side version)
+   /** The HDG matrix is composed of the element part (block diagonal), trace
+       flux, constraint and face part. Note that the face term contains
+       contributions from both sides.
+       @see AssembleHDGFaceMatrix(int, const FiniteElement &,
+       const FiniteElement &, FaceElementTransformations &,
+       DenseMatrix &) */
    virtual void AssembleHDGFaceMatrix(const FiniteElement &trace_el,
                                       const FiniteElement &el1,
                                       const FiniteElement &el2,
+                                      FaceElementTransformations &Trans,
+                                      DenseMatrix &elmat);
+
+   /// Assemble the HDG face matrix (single-side version)
+   /** The HDG matrix is composed of the element part, trace flux, constraint
+       and face part. All terms correspond to the contributions from designated
+       side (@a side) of the face (0=side 1, 1=side 2).
+       @note The default implementation in the base class assumes symmetry of
+       the face term, equally splitting the value from the double-side version.
+       @see AssembleHDGFaceMatrix(const FiniteElement &, const FiniteElement &,
+       const FiniteElement &, FaceElementTransformations &, DenseMatrix &) */
+   virtual void AssembleHDGFaceMatrix(int side,
+                                      const FiniteElement &trace_el,
+                                      const FiniteElement &el,
                                       FaceElementTransformations &Trans,
                                       DenseMatrix &elmat);
 
@@ -218,12 +239,12 @@ public:
                            FaceElementTransformations &Tr,
                            const Vector &elfun, Vector &elvect) override;
 
-   /// @brief Perform the local action of the NonlinearFormIntegrator resulting
-   /// from an HDG face integral term.
-   /// @note The default implementation in the base class is general but not
-   /// efficient.
-   /// @note The HDGFaceType::FACE term is split in two to provide the single-side
-   /// contribution, which does not take into account the possible asymmetry
+   /** @brief Perform the local action of the NonlinearFormIntegrator resulting
+       from an HDG face integral term.
+       @note The default implementation in the base class is general but not
+       efficient, calling AssembleHDGFaceMatrix(int, const FiniteElement &,
+       const FiniteElement &, FaceElementTransformations &,
+       DenseMatrix &). */
    void AssembleHDGFaceVector(int type,
                               const FiniteElement &trace_face_fe,
                               const FiniteElement &fe,
@@ -231,10 +252,12 @@ public:
                               const Vector &trfun, const Vector &elfun,
                               Vector &elvect) override;
 
-   /// @brief Perform the local action of the gradient of the NonlinearFormIntegrator
-   /// resulting from an HDG face integral term.
-   /// @note The HDGFaceType::FACE term is split in two to provide the single-side
-   /// contribution, which does not take into account the possible asymmetry
+   /** @brief Perform the local action of the gradient of the
+       NonlinearFormIntegrator resulting from an HDG face integral term.
+       @note The default implementation in the base class is general but not
+       efficient, calling AssembleHDGFaceMatrix(int, const FiniteElement &,
+       const FiniteElement &, FaceElementTransformations &,
+       DenseMatrix &). */
    void AssembleHDGFaceGrad(int type,
                             const FiniteElement &trace_face_fe,
                             const FiniteElement &fe,
@@ -529,11 +552,16 @@ public:
                            Vector &elvect) override
    { nlfi.AssembleFaceVector(el1, el2, Tr, elfun, elvect); }
 
-   virtual void AssembleHDGFaceMatrix(const FiniteElement &trace_el,
-                                      const FiniteElement &el1,
-                                      const FiniteElement &el2,
-                                      FaceElementTransformations &Trans,
-                                      DenseMatrix &elmat);
+   void AssembleHDGFaceMatrix(const FiniteElement &trace_el,
+                              const FiniteElement &el1,
+                              const FiniteElement &el2,
+                              FaceElementTransformations &Trans,
+                              DenseMatrix &elmat) override;
+
+   void AssembleHDGFaceMatrix(int side, const FiniteElement &trace_el,
+                              const FiniteElement &el,
+                              FaceElementTransformations &Trans,
+                              DenseMatrix &elmat) override;
 
    void AssembleHDGFaceVector(int type,
                               const FiniteElement &trace_face_fe,
