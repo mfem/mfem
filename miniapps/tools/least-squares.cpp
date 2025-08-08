@@ -559,10 +559,6 @@ void AverageReconstruction(Solver& solver,
    punity_src.ProjectCoefficient(ccf_ones);
    punity_dst.ProjectCoefficient(ccf_ones);
 
-   // Compute volumes
-   Vector volumes(mesh.GetNE());
-   punity_src.ComputeElementL1Errors(ccf_zeros, volumes);
-
    for (int e_idx = 0; e_idx < mesh.GetNE(); e_idx++ )
    {
       auto& fe_src_e = *fes_src->GetFE(e_idx);
@@ -589,7 +585,6 @@ void AverageReconstruction(Solver& solver,
          const int neighbor_idx = neighbors_e[i];
          auto& fe_src_neighbor = *fes_src->GetFE(neighbor_idx);
          auto& fe_dst_neighbor = *fes_dst->GetFE(neighbor_idx);
-         const int fe_src_neighbor_ndof = fe_src_neighbor.GetDof();
          const int fe_dst_neighbor_ndof = fe_dst_neighbor.GetDof();
 
          fes_src->GetElementDofs(neighbor_idx, neighbor_src_dofs);
@@ -629,7 +624,6 @@ void AverageReconstruction(Solver& solver,
       fe_dst_to_neighbors_mat.InvLeftScaling(neighbors_volume);
       src_neighbors_avg /=neighbors_volume;
 
-      // Solve
       if (preserve_volumes)
       {
          real_t e_volume = mesh.GetElementVolume(e_idx);
@@ -656,33 +650,25 @@ void AverageReconstruction(Solver& solver,
                   fe_dst_to_neighbors_mat, e_to_e_avg,
                   src_neighbors_avg, src_e_avg,
                   dst_e, reg);
-
-         // real_t e_src = src(e_idx);
-         // Vector shape_src_e;
-         // DenseMatrix temp_mat;
-         // mass.AsymmetricElementMatrix(*fes_dst->GetFE(e_idx),
-         //                              *fes_src->GetFE(e_idx),
-         //                              *e_trans.get(), *e_trans.get(), temp_mat,
-         //                              newton);
-         // temp_mat *= 1.0/volumes(e_idx);
-         // temp_mat.GetRow(0, shape_src_e);
-         // LSSolver(solver, fe_dst_to_neighbors_mat, shape_src_e,
-         //          src_neighbors, e_src, dst_e, reg);
       }
       else
       {
          LSSolver(solver, fe_dst_to_neighbors_mat, src_neighbors_avg, dst_e, reg);
       }
 
-      // Check solver
-      auto it_solver = dynamic_cast<IterativeSolver*>(&solver);
-      if (it_solver && !it_solver->GetConverged()) { mfem_error("\n\tIterative solver failed to converge!"); }
+      if (auto iter_solver = dynamic_cast<IterativeSolver*>(&solver))
+      {
+         if (!iter_solver->GetConverged())
+         {
+            mfem_error("\n\tIterative solver failed to converge!");
+         }
+      }
       if (print_level >= 0) { CheckLSSolver(fe_dst_to_neighbors_mat, src_neighbor, dst_e); }
 
-      // Integrate into global solution
       dst.SetSubVector(e_dst_dofs, dst_e);
 
       neighbors_e.DeleteAll();
+      e_src_dofs.DeleteAll();
       e_dst_dofs.DeleteAll();
       neighbor_src_dofs.DeleteAll();
       neighbor_dst_dofs.DeleteAll();
