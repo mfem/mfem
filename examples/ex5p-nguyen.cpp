@@ -126,7 +126,7 @@ int main(int argc, char *argv[])
    int solver_type = (int)DarcyOperator::SolverType::Default;
    bool pa = false;
    const char *device_config = "cpu";
-   bool total_flux = false;
+   bool reconstruct = false;
    bool mfem = false;
    bool visit = false;
    bool paraview = false;
@@ -198,9 +198,9 @@ int main(int argc, char *argv[])
                   "--no-partial-assembly", "Enable Partial Assembly.");
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
-   args.AddOption(&total_flux, "-tq", "--total-flux", "-no-tq",
-                  "--no-total-flux",
-                  "Enable or disable total flux reconstruction.");
+   args.AddOption(&reconstruct, "-rec", "--reconstruct", "-no-rec",
+                  "--no-reconstruct",
+                  "Enable or disable quantities reconstruction.");
    args.AddOption(&mfem, "-mfem", "--mfem", "-no-mfem",
                   "--no-mfem",
                   "Enable or disable MFEM output.");
@@ -660,8 +660,8 @@ int main(int argc, char *argv[])
       V_space->GetEssentialTrueDofs(bdr_is_neumann, ess_flux_tdofs_list);
    }
 
-   FiniteElementCollection *trace_coll{}, *total_flux_coll{};
-   ParFiniteElementSpace *trace_space{}, *total_flux_space{};
+   FiniteElementCollection *trace_coll{};
+   ParFiniteElementSpace *trace_space{};
 
    if (hybridization)
    {
@@ -670,11 +670,6 @@ int main(int argc, char *argv[])
 
       trace_coll = new DG_Interface_FECollection(order, dim);
       trace_space = new ParFiniteElementSpace(pmesh, trace_coll);
-      if (total_flux)
-      {
-         total_flux_coll = new RT_FECollection(order, dim);
-         total_flux_space = new ParFiniteElementSpace(pmesh, total_flux_coll);
-      }
       darcy->EnableHybridization(trace_space,
                                  new NormalTraceJumpIntegrator(),
                                  ess_flux_tdofs_list);
@@ -747,7 +742,7 @@ int main(int argc, char *argv[])
    BlockVector x(block_offsets, mt), rhs(block_offsets, mt);
 
    x = 0.;
-   ParGridFunction q_h, t_h, qt_h;
+   ParGridFunction q_h, t_h, qt_h, q_hs, t_hs, tr_hs;
    q_h.MakeRef(V_space, x.GetBlock(0), 0);
    t_h.MakeRef(W_space, x.GetBlock(1), 0);
 
@@ -931,27 +926,18 @@ int main(int argc, char *argv[])
          }
       }
 
-      if (total_flux_space)
+      if (reconstruct)
       {
-         qt_h.SetSpace(total_flux_space);
-         auto fx = [&ccoeff,bconv](ElementTransformation &Tr, const Vector &q, real_t p,
-                                   Vector &qt)
-         {
-            qt = q;
-            if (bconv)
-            {
-               Vector cp(q.Size());
-               ccoeff.Eval(cp, Tr, Tr.GetIntPoint());
-               cp *= p;
-               qt += cp;
-            }
-         };
-         darcy->GetHybridization()->ReconstructTotalFlux(x, x.GetBlock(2), fx, qt_h);
+         darcy->Reconstruct(x, x.GetBlock(2), qt_h, q_hs, t_hs, tr_hs);
          real_t err_qt = qt_h.ComputeL2Error(qtcoeff, irs);
          real_t norm_qt = ComputeGlobalLpNorm(2., qtcoeff, *pmesh, irs);
+         real_t err_qs = q_hs.ComputeL2Error(qcoeff, irs);
+         real_t err_ts = t_hs.ComputeL2Error(tcoeff, irs);
          if (verbose)
          {
             cout << "|| qt_h - qt_ex || / || qt_ex || = " << err_qt / norm_qt << "\n";
+            cout << "|| q_hs - q_ex || / || q_ex || = " << err_qs / norm_q << "\n";
+            cout << "|| t_hs - t_ex || / || t_ex || = " << err_ts / norm_t << "\n";
          }
       }
 
@@ -1064,7 +1050,7 @@ int main(int argc, char *argv[])
             q_sock << "window_title 'Heat flux'" << endl;
             q_sock << "keys Rljvvvvvmmc" << endl;
          }
-         if (total_flux_space)
+         if (reconstruct)
          {
             // Make sure all ranks have sent their 'q' solution before initiating
             // another set of GLVis connections (one from each rank):
@@ -1077,6 +1063,30 @@ int main(int argc, char *argv[])
             {
                qt_sock << "window_title 'Total flux'" << endl;
                qt_sock << "keys Rljvvvvvmmc" << endl;
+            }
+            // Make sure all ranks have sent their 'qt' solution before initiating
+            // another set of GLVis connections (one from each rank):
+            MPI_Barrier(pmesh->GetComm());
+            static socketstream qs_sock(vishost, visport);
+            qs_sock << "parallel " << num_procs << " " << myid << "\n";
+            qs_sock.precision(8);
+            qs_sock << "solution\n" << *pmesh << q_hs << endl;
+            if (ti == 0)
+            {
+               qs_sock << "window_title 'Recon. flux'" << endl;
+               qs_sock << "keys Rljvvvvvmmc" << endl;
+            }
+            // Make sure all ranks have sent their 'qs' solution before initiating
+            // another set of GLVis connections (one from each rank):
+            MPI_Barrier(pmesh->GetComm());
+            static socketstream ts_sock(vishost, visport);
+            ts_sock << "parallel " << num_procs << " " << myid << "\n";
+            ts_sock.precision(8);
+            ts_sock << "solution\n" << *pmesh << t_hs << endl;
+            if (ti == 0)
+            {
+               ts_sock << "window_title 'Recon. temperature'" << endl;
+               ts_sock << "keys Rljmmc" << endl;
             }
          }
          // Make sure all ranks have sent their 'q' solution before initiating
@@ -1164,11 +1174,9 @@ int main(int argc, char *argv[])
    delete W_space;
    delete V_space;
    delete trace_space;
-   delete total_flux_space;
    delete W_coll;
    delete V_coll;
    delete trace_coll;
-   delete total_flux_coll;
    delete pmesh;
 
    return 0;
