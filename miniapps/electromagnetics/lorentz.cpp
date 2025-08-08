@@ -29,10 +29,7 @@
 // box specified by command line input.
 //
 // This miniapp demonstrates the use of ParticleSet with FindPointsGSLIB. When 
-// particles leave either domain, they are subject to removal. If MFEM is compiled 
-// with GSLIB, particle data can be redistributed onto the ranks of which they are 
-// physically located on after mesh decomposition, for either the electric field or 
-// magnetic field mesh.
+// particles leave both domains, they are subject to removal.
 //
 // Note that the VisItDataCollection objects must have been stored using the
 // parallel format e.g. visit_dc.SetFormat(DataCollection::PARALLEL_FORMAT);.
