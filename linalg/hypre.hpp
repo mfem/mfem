@@ -30,6 +30,8 @@
 #include <_hypre_parcsr_mv.h>
 #include <_hypre_parcsr_ls.h>
 
+#include <HYPRE_parcsr_ls.h>
+
 #ifdef HYPRE_COMPLEX
 #error "MFEM does not work with HYPRE's complex numbers support"
 #endif
