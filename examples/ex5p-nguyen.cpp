@@ -106,6 +106,7 @@ int main(int argc, char *argv[])
    real_t sy = 1.;
    int order = 1;
    bool dg = false;
+   bool brt = false;
    bool upwinded = false;
    int iproblem = Problem::SteadyDiffusion;
    real_t tf = 1.;
@@ -149,6 +150,8 @@ int main(int argc, char *argv[])
                   "Finite element order (polynomial degree).");
    args.AddOption(&dg, "-dg", "--discontinuous", "-no-dg",
                   "--no-discontinuous", "Enable DG elements for fluxes.");
+   args.AddOption(&brt, "-brt", "--broken-RT", "-no-brt",
+                  "--no-broken-RT", "Enable broken RT elements for fluxes.");
    args.AddOption(&upwinded, "-up", "--upwinded", "-ce", "--centered",
                   "Switches between upwinded (1) and centered (0=default) stabilization.");
    args.AddOption(&iproblem, "-p", "--problem",
@@ -385,13 +388,18 @@ int main(int argc, char *argv[])
 
    // 7. Define a finite element space on the mesh. Here we use the
    //    Raviart-Thomas finite elements of the specified order.
-   FiniteElementCollection *V_coll;
+   FiniteElementCollection *V_coll, *V_coll_dg = NULL;
    if (dg)
    {
       // In the case of LDG formulation, we chose a closed basis as it
       // is customary for HDG to match trace DOFs, but an open basis can
       // be used instead.
       V_coll = new L2_FECollection(order, dim, BasisType::GaussLobatto);
+   }
+   else if (brt)
+   {
+      V_coll = new BrokenRT_FECollection(order, dim);
+      V_coll_dg = new L2_FECollection(order+1, dim);
    }
    else
    {
@@ -402,6 +410,8 @@ int main(int argc, char *argv[])
 
    ParFiniteElementSpace *V_space = new ParFiniteElementSpace(pmesh, V_coll,
                                                               (dg)?(dim):(1));
+   FiniteElementSpace *V_space_dg = (V_coll_dg)?(new ParFiniteElementSpace(
+                                                    pmesh, V_coll_dg, dim)):(NULL);
    ParFiniteElementSpace *W_space = new ParFiniteElementSpace(pmesh, W_coll);
 
    ParDarcyForm *darcy = new ParDarcyForm(V_space, W_space);
@@ -508,6 +518,10 @@ int main(int argc, char *argv[])
       else
       {
          Mnl->AddDomainIntegrator(new MixedConductionNLFIntegrator(*HeatFluxFun));
+         if (brt)
+         {
+            MFEM_ABORT("Not implemented");
+         }
       }
    }
 
@@ -556,6 +570,14 @@ int main(int argc, char *argv[])
    if (dg)
    {
       B->AddDomainIntegrator(new VectorDivergenceIntegrator());
+   }
+   else
+   {
+      B->AddDomainIntegrator(new VectorFEDivergenceIntegrator());
+   }
+
+   if (dg || brt)
+   {
       if (upwinded)
       {
          B->AddInteriorFaceIntegrator(new TransposeIntegrator(
@@ -570,10 +592,6 @@ int main(int argc, char *argv[])
          B->AddBdrFaceIntegrator(new TransposeIntegrator(new DGNormalTraceIntegrator(
                                                             -1.)), bdr_is_neumann);
       }
-   }
-   else
-   {
-      B->AddDomainIntegrator(new VectorFEDivergenceIntegrator());
    }
 
    //linear convection in the linear regime
@@ -655,7 +673,7 @@ int main(int argc, char *argv[])
    //set hybridization / assembly level
 
    Array<int> ess_flux_tdofs_list;
-   if (!dg)
+   if (!dg && !brt)
    {
       V_space->GetEssentialTrueDofs(bdr_is_neumann, ess_flux_tdofs_list);
    }
@@ -682,7 +700,7 @@ int main(int argc, char *argv[])
       chrono.Clear();
       chrono.Start();
 
-      if (dg)
+      if (dg || brt)
       {
          darcy->EnableFluxReduction();
       }
@@ -710,11 +728,11 @@ int main(int argc, char *argv[])
    if (verbose)
    {
       std::cout << "***********************************************************\n";
-      if (!reduction || (reduction && !dg))
+      if (!reduction || (reduction && !dg && !brt))
       {
          std::cout << "dim(V) = " << block_offsets[1] - block_offsets[0] << "\n";
       }
-      if (!reduction || (reduction && dg))
+      if (!reduction || (reduction && (dg || brt)))
       {
          std::cout << "dim(W) = " << block_offsets[2] - block_offsets[1] << "\n";
       }
@@ -751,7 +769,7 @@ int main(int argc, char *argv[])
       t_h.ProjectCoefficient(tcoeff); //initial condition
    }
 
-   if (!dg)
+   if (!dg && !brt)
    {
       q_h.ProjectBdrCoefficientNormal(qcoeff,
                                       bdr_is_neumann);   //essential Neumann BC
@@ -772,6 +790,11 @@ int main(int argc, char *argv[])
             gform->AddBdrFaceIntegrator(new VectorBoundaryFluxLFIntegrator(
                                            gcoeff, 0.5), bdr_is_neumann);
       }
+   }
+   else if (brt)
+   {
+      gform->AddBdrFaceIntegrator(new VectorFEBoundaryFluxLFIntegrator(gcoeff),
+                                  bdr_is_dirichlet);
    }
    else
    {
@@ -941,6 +964,21 @@ int main(int argc, char *argv[])
          }
       }
 
+      // Project the fluxes
+
+      ParGridFunction q_vh;
+
+      if (V_space_dg)
+      {
+         VectorGridFunctionCoefficient coeff(&q_h);
+         q_vh.SetSpace(V_space_dg);
+         q_vh.ProjectCoefficient(coeff);
+      }
+      else
+      {
+         q_vh.MakeRef(V_space, q_h, 0);
+      }
+
       // Project the analytic solution
 
       static ParGridFunction q_a, qt_a, t_a, c_gf;
@@ -980,7 +1018,7 @@ int main(int argc, char *argv[])
          ss << ".gf";
          ofstream q_ofs(ss.str());
          q_ofs.precision(8);
-         q_h.Save(q_ofs);
+         q_vh.Save(q_ofs);
 
          ss.str("");
          ss << "sol_t." << setfill('0') << setw(6) << myid;
@@ -997,7 +1035,7 @@ int main(int argc, char *argv[])
          static VisItDataCollection visit_dc("Example5-Parallel", pmesh);
          if (ti == 0)
          {
-            visit_dc.RegisterField("heat flux", &q_h);
+            visit_dc.RegisterField("heat flux", &q_vh);
             visit_dc.RegisterField("temperature", &t_h);
             if (analytic)
             {
@@ -1023,7 +1061,7 @@ int main(int argc, char *argv[])
             paraview_dc.SetLevelsOfDetail(order);
             paraview_dc.SetDataFormat(VTKFormat::BINARY);
             paraview_dc.SetHighOrderOutput(true);
-            paraview_dc.RegisterField("heat flux",&q_h);
+            paraview_dc.RegisterField("heat flux",&q_vh);
             paraview_dc.RegisterField("temperature",&t_h);
             if (analytic)
             {
@@ -1044,7 +1082,7 @@ int main(int argc, char *argv[])
          static socketstream q_sock(vishost, visport);
          q_sock << "parallel " << num_procs << " " << myid << "\n";
          q_sock.precision(8);
-         q_sock << "solution\n" << *pmesh << q_h << endl;
+         q_sock << "solution\n" << *pmesh << q_vh << endl;
          if (ti == 0)
          {
             q_sock << "window_title 'Heat flux'" << endl;
@@ -1173,9 +1211,11 @@ int main(int argc, char *argv[])
    delete darcy;
    delete W_space;
    delete V_space;
+   delete V_space_dg;
    delete trace_space;
    delete W_coll;
    delete V_coll;
+   delete V_coll_dg;
    delete trace_coll;
    delete pmesh;
 
