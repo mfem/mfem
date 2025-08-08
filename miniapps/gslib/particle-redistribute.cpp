@@ -111,6 +111,7 @@ int main (int argc, char *argv[])
    Mesh mesh(mesh_file);
    int space_dim = mesh.Dimension();
 
+   // Create parallel particle set
    ParticleSet pset(MPI_COMM_WORLD, npt, space_dim);
 
    Vector pos_min, pos_max;
