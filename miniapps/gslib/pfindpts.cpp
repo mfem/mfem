@@ -359,7 +359,7 @@ int main (int argc, char *argv[])
 
    // Find and Interpolate FE function values on the desired points.
    Vector interp_vals(pts_cnt*vec_dim);
-   FindPointsGSLIB finder(&pmesh);
+   FindPointsGSLIB finder(pmesh);
    finder.SetDistanceToleranceForPointsFoundOnBoundary(10);
    // Enable GPU to CPU fallback for GPUData only if you are using an older
    // version of GSLIB.
