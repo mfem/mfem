@@ -1080,27 +1080,14 @@ void DarcyForm::ReconstructFluxAndPot(const DarcyHybridization &h,
          //potential constraint
          if (c_bfi_p)
          {
-            const FiniteElement *fe_p1 = fes_p->GetFE(Tr->Elem1No);
-            const FiniteElement *fe_p2 = (Tr->Elem2No >= 0)?(fes_p->GetFE(Tr->Elem2No)):
-                                         (fe_p1);
+            const int side = (Tr->Elem1No == z)?(0):(1);
+            c_bfi_p->AssembleHDGFaceMatrix(side, *fe_tr, *fe_p, *Tr, DEGH_f);
 
-            const int ndof_p1 = fe_p1->GetDof();
-            const int ndof_p2 = fe_p2->GetDof();
-            const int ndof_p12 = (Tr->Elem2No >= 0)?(ndof_p1 + ndof_p2):(ndof_p);
-
-            c_bfi_p->AssembleHDGFaceMatrix(*fe_tr, *fe_p1, *fe_p2, *Tr, DEGH_f);
-
-            const int off_p = (Tr->Elem1No == z)?(0):(ndof_p1);
-            D_fz.CopyMN(DEGH_f, ndof_p, ndof_p, off_p, off_p);
-            E_fz.CopyMN(DEGH_f, ndof_p, ndof_tr_f, off_p, ndof_p12);
-            G_fz.CopyMN(DEGH_f, ndof_tr_f, ndof_p, ndof_p12, off_p);
-            H_f.CopyMN(DEGH_f, ndof_tr_f, ndof_tr_f, ndof_p12, ndof_p12);
-            if (Tr->Elem2No >= 0) { H_f *= 0.5; }
-
+            D_fz.CopyMN(DEGH_f, ndof_p, ndof_p, 0, 0);
             elmat.AddMatrix(D_fz, ndof_u, ndof_u);
-            elmat.CopyMN(E_fz, ndof_u, off_tr);
-            elmat.CopyMN(G_fz, off_tr, ndof_u);
-            elmat.CopyMN(H_f, off_tr, off_tr);
+            elmat.CopyMN(DEGH_f, ndof_p, ndof_tr_f, 0, ndof_p, ndof_u, off_tr);
+            elmat.CopyMN(DEGH_f, ndof_tr_f, ndof_p, ndof_p, 0, off_tr, ndof_u);
+            elmat.CopyMN(DEGH_f, ndof_tr_f, ndof_tr_f, ndof_p, ndof_p, off_tr, off_tr);
          }
 
          // rhs
