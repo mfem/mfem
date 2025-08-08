@@ -305,8 +305,10 @@ public:
    /** Cleans up memory allocated internally by gslib.
        Note that in parallel, this must be called before MPI_Finalize(), as it
        calls MPI_Comm_free() for internal gslib communicators. FreeData is
-       also called by the class destructor and there are no memory if the
-       destructor is called before MPI_Finalize().
+       also called by the class destructor and there are no memory leaks if the
+       destructor is called before MPI_Finalize(). If the destructor is called
+       after MPI_Finalize(), there will be an error because gslib will try to
+       invoke some MPI functions.
    */
    virtual void FreeData();
 
