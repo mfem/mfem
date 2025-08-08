@@ -21,6 +21,11 @@
 //#define _WIN32
 //#define _aligned_malloc(s,a) malloc(s)
 
+#ifdef MFEM_USE_UMPIRE
+#include <umpire/Umpire.hpp>
+#include <umpire/strategy/QuickPool.hpp>
+#endif
+
 #ifndef _WIN32
 #include <unistd.h>
 #include <signal.h>
