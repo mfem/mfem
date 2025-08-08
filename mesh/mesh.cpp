@@ -5039,9 +5039,13 @@ void Mesh::Loader(std::istream &input, int generate_edges,
      {
        string ident;
        skip_comment_lines(input, '#');
-       input >> ident;
-       if (ident == "patch_cp")
-	 NURBSext->ReadCoarsePatchCP(input);
+       // Check for the optional section "patch_cp"
+       if (input.peek() == 'p')
+	 {
+	   input >> ident;
+	   MFEM_VERIFY(ident == "patch_cp", "Invalid mesh format");
+	   NURBSext->ReadCoarsePatchCP(input);
+	 }
      }
 
    // Finalize(...) should be called after this, if needed.
@@ -11814,7 +11818,6 @@ void Mesh::Printer(std::ostream &os, std::string section_delimiter,
       Nodes->Save(os);
 
       NURBSext->PrintCoarsePatches(os);
-
       // patch-wise format
       // NURBSext->ConvertToPatches(*Nodes);
       // NURBSext->Print(os);
