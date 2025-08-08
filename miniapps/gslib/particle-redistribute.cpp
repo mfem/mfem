@@ -172,8 +172,6 @@ int main (int argc, char *argv[])
    // Find again
    finder.FindPoints(pset.Coords(), pset.Coords().GetOrdering());
 
-   // Remove particles not in domain
-
    if (rank == 0)
    {
       mfem::out << "\nPost-Redistribute:\n";
