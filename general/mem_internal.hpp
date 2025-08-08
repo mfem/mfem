@@ -519,7 +519,7 @@ public:
         strat(allocator.getAllocationStrategy()) {}
    void Alloc(void **ptr, size_t bytes) override
    { *ptr = allocator.allocate(bytes); }
-   void Dealloc(void *ptr) override { allocator.deallocate(ptr); }
+   void Dealloc(Memory &base) override { allocator.deallocate(base.h_ptr); }
    void Insert(void *ptr, size_t bytes)
    { rm.registerAllocation(ptr, {ptr, bytes, strat}); }
 };
