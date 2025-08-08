@@ -247,7 +247,7 @@ void NavierParticles::Apply2DRecirculationBC(const RecirculationBC_2D &bc)
       X().GetRefNodeValues(i, p_xn);
       X(1).GetRefNodeValues(i, p_xnm1);
 
-      // If line_start to line_end and x_nm1 to x_n intersect, apply recirculation
+      // If outlet_start to outlet_end and x_nm1 to x_n intersect, apply recirculation
       if (Get2DSegmentIntersection(bc.outlet_start, bc.outlet_end, p_xnm1, p_xn, x_int, &t1))
       {
          // Compute the corresponding intersection location on inlet
