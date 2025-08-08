@@ -150,7 +150,8 @@ bool NavierParticles::Get2DSegmentIntersection(const Vector &s1_start, const Vec
 
    // If line is parallel, don't compute at all
    // Note that nearly-parallel intersections are not well-posed (denom >>> 0)...
-   if (abs(denom) < 1e-12)
+   real_t rho = abs(denom)/(s1_start.DistanceTo(s2_end)*s2_start.DistanceTo(s2_end));
+   if (rho < 1e-12)
    {
       return false;
    }
