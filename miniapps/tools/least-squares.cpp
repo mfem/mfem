@@ -554,7 +554,7 @@ void AverageReconstruction(Solver& solver,
    DenseMatrix e_to_neighbor_mat;
 
    // Auxiliary constant coefficients and partition of unity
-   ConstantCoefficient ccf_ones(1.0), ccf_zeros(0.0);
+   ConstantCoefficient ccf_ones(1.0);
    ParGridFunction punity_src(fes_src), punity_dst(fes_dst);
    punity_src.ProjectCoefficient(ccf_ones);
    punity_dst.ProjectCoefficient(ccf_ones);
@@ -626,6 +626,7 @@ void AverageReconstruction(Solver& solver,
 
       if (preserve_volumes)
       {
+         // Average at e
          real_t e_volume = mesh.GetElementVolume(e_idx);
 
          src.GetSubVector(e_src_dofs, src_e);
@@ -639,6 +640,7 @@ void AverageReconstruction(Solver& solver,
          real_t src_e_avg = e_to_e_mat.InnerProduct(src_e, punity_src_e);
          src_e_avg /= e_volume;
 
+         // (Average) projector
          mass.AssembleElementMatrix(fe_dst_e,
                                     *e_trans.get(),
                                     e_to_e_mat);
@@ -684,58 +686,68 @@ void L2Reconstruction(Solver& solver,
                       bool preserve_volumes = false)
 {
    AsymmetricMassIntegrator mass;
+   const auto fes_src = src.ParFESpace();
+   const auto fes_dst = dst.ParFESpace();
+   // GetElementTransformation requires non-null ptr
    auto neighbor_trans = std::make_unique<IsoparametricTransformation>();
    auto e_trans = std::make_unique<IsoparametricTransformation>();
 
-   const auto fes_src = src.ParFESpace();
-   const auto fes_dst = dst.ParFESpace();
-   Array<int> neighbors_e, e_dst_dofs, neighbor_dofs;
+   Array<int> e_src_dofs, neighbor_src_dofs;
+   Array<int> e_dst_dofs, neighbor_dst_dofs;
+   Array<int> neighbors_e;
+
+   Vector src_e, dst_e;
+   Vector src_neighbor, dst_neighbor;
+   Vector punity_src_e, punity_dst_e;
+   Vector punity_src_neighbor, punity_dst_neighbor;
 
    ConstantCoefficient ccf_ones(1.0);
-   ParGridFunction punity_src(fes_src);
-   ParGridFunction punity_dst(fes_dst);
+   ParGridFunction punity_src(fes_src), punity_dst(fes_dst);
    punity_src.ProjectCoefficient(ccf_ones);
    punity_dst.ProjectCoefficient(ccf_ones);
 
    for (int e_idx = 0; e_idx < mesh.GetNE(); e_idx++ )
    {
-      const int fe_src_e_ndof = fes_src->GetFE(e_idx)->GetDof();
-      const int fe_dst_e_ndof = fes_dst->GetFE(e_idx)->GetDof();
-
       auto& fe_src_e = *fes_src->GetFE(e_idx);
-      // auto& fe_dst_e = *fes_dst->GetFE(e_idx);
+      auto& fe_dst_e = *fes_dst->GetFE(e_idx);
+      const int fe_src_e_ndof = fe_src_e.GetDof();
+      const int fe_dst_e_ndof = fe_dst_e.GetDof();
+
+      fes_src->GetElementDofs(e_idx, e_src_dofs);
+      fes_dst->GetElementDofs(e_idx, e_dst_dofs);
+
+      fes_src->GetElementTransformation(e_idx, e_trans.get());
 
       SaturateNeighborhood(*mesh.pncmesh, e_idx, fe_dst_e_ndof, fe_src_e_ndof,
                            neighbors_e);
       if (preserve_volumes) { neighbors_e.DeleteFirst(e_idx); }
-
-      fes_dst->GetElementDofs(e_idx, e_dst_dofs);
-
       const int num_neighbors = neighbors_e.Size();
+
       DenseMatrix out_of_elem_shape(fe_dst_e_ndof);
       Vector rhs_e(fe_dst_e_ndof), dst_e(fe_dst_e_ndof), punity_dst_e(fe_dst_e_ndof);
       out_of_elem_shape = 0.0;
       rhs_e = 0.0;
-
       for (int i = 0; i < num_neighbors; i++)
       {
          const int neighbor_idx = neighbors_e[i];
-
-         fes_src->GetElementTransformation(e_idx, e_trans.get());
-         fes_dst->GetElementTransformation(neighbor_idx, neighbor_trans.get());
-
-         fes_src->GetElementDofs(neighbor_idx, neighbor_dofs);
-
          auto& fe_dst_neighbor = *fes_dst->GetFE(neighbor_idx);
 
+         fes_src->GetElementDofs(neighbor_idx, neighbor_src_dofs);
+         fes_dst->GetElementDofs(neighbor_idx, neighbor_dst_dofs);
+
+         fes_dst->GetElementTransformation(neighbor_idx, neighbor_trans.get());
+
+         // Matrix accumulates aditively
          DenseMatrix neighbor_mass;
          mass.AsymmetricElementMatrix(fe_dst_neighbor,
                                       *neighbor_trans.get(),
                                       *e_trans.get(),
                                       neighbor_mass,
                                       newton);
+
          out_of_elem_shape.AddMatrix(neighbor_mass, 0, 0);
 
+         // RHS accumulates aditively
          DenseMatrix rhs_neighbor_mat;
          mass.AsymmetricElementMatrix(fe_dst_neighbor,
                                       fe_src_e,
@@ -744,11 +756,10 @@ void L2Reconstruction(Solver& solver,
                                       rhs_neighbor_mat,
                                       newton);
 
-         Vector src_neighbor;
-         src.GetSubVector(neighbor_dofs, src_neighbor);
+         src.GetSubVector(neighbor_src_dofs, src_neighbor);
          rhs_neighbor_mat.AddMultTranspose(src_neighbor, rhs_e);
 
-         neighbor_dofs.DeleteAll();
+         neighbor_src_dofs.DeleteAll();
       }
 
       // These systems come from a least squares formulation,
@@ -756,14 +767,25 @@ void L2Reconstruction(Solver& solver,
       solver.SetOperator(out_of_elem_shape);
       if (preserve_volumes)
       {
-         // Shift RHS
-         real_t e_src = src(e_idx);
-         Vector punity_e;
-         punity_dst.GetSubVector(e_dst_dofs, punity_e);
-         add(rhs_e, -e_src, punity_e, rhs_e);
-         // Solve
+         DenseMatrix e_to_e_mat;
+         Vector e_to_e_avg(fe_dst_e_ndof);
+         // Average at e
+         real_t e_volume = mesh.GetElementVolume(e_idx);
+
+         src.GetSubVector(e_src_dofs, src_e);
+         punity_src.GetSubVector(e_src_dofs, punity_src_e);
+         punity_dst.GetSubVector(e_dst_dofs, punity_dst_e);
+
+         mass.AssembleElementMatrix(fe_src_e,
+                                    *e_trans.get(),
+                                    e_to_e_mat);
+
+         real_t src_e_avg = e_to_e_mat.InnerProduct(src_e, punity_src_e);
+         src_e_avg /= e_volume;
+
+         add(rhs_e, src_e_avg, punity_dst_e, rhs_e);
          solver.Mult(rhs_e, dst_e);
-         add(dst_e, e_src, punity_e, dst_e);
+         add(dst_e, -src_e_avg, punity_dst_e, dst_e);
       }
       else
       {
@@ -773,7 +795,10 @@ void L2Reconstruction(Solver& solver,
       dst.SetSubVector(e_dst_dofs, dst_e);
 
       neighbors_e.DeleteAll();
+      e_src_dofs.DeleteAll();
       e_dst_dofs.DeleteAll();
+      neighbor_src_dofs.DeleteAll();
+      neighbor_dst_dofs.DeleteAll();
    }
 }
 
