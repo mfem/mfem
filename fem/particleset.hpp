@@ -426,10 +426,16 @@ public:
    /// Get new \ref Particle object with copy of data associated with particle \p i .
    Particle GetParticle(int i) const;
 
-   /// Returns true if coords and all fields are ordered byVDIM. False otherwise.
+   /** @brief Determine if \ref GetParticleRef is valid.
+    * 
+    * If coordinates and all fields are ordered byVDIM, then returns true. Otherwise, false.
+    */
    bool ParticleRefValid() const;
 
-   /// Get Particle that references data associated with particle \p i , only valid when \ref ParticleRefValid() is true 
+   /** @brief Get Particle object whose member reference the actual data associated with particle \p i .
+    * 
+    * @see ParticleRefValid 
+    */
    Particle GetParticleRef(int i);
 
    /// Set data for particle at index \p i with data from provided particle \p p
