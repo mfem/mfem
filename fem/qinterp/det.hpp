@@ -232,7 +232,7 @@ inline void Det3D(const int NE,
 
    // if SMEM is true, d_buff will be empty (zero size)
    Vector d_buff = Vector::NewTemporary(buffer_size);
-   real_t *GM = SMEM ? d_buff.Write() : nullptr;
+   real_t *GM = SMEM ? nullptr : d_buff.Write();
 
    mfem::forall_3D_grid(NE, Q1D, Q1D, Q1D, GRID, [=] MFEM_HOST_DEVICE (int e)
    {

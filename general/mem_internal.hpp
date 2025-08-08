@@ -15,10 +15,16 @@
 #include "mem_manager.hpp"
 #include "forall.hpp"  // for CUDA and HIP memory functions
 #include <unordered_map>
+#include <cstdint>
 
 // Uncomment to try _WIN32 platform
 //#define _WIN32
 //#define _aligned_malloc(s,a) malloc(s)
+
+#ifdef MFEM_USE_UMPIRE
+#include <umpire/Umpire.hpp>
+#include <umpire/strategy/QuickPool.hpp>
+#endif
 
 #ifndef _WIN32
 #include <unistd.h>
@@ -481,7 +487,7 @@ public:
         strat(allocator.getAllocationStrategy()) {}
    void Alloc(void **ptr, size_t bytes) override
    { *ptr = allocator.allocate(bytes); }
-   void Dealloc(void *ptr) override { allocator.deallocate(ptr); }
+   void Dealloc(Memory &base) override { allocator.deallocate(base.h_ptr); }
    void Insert(void *ptr, size_t bytes)
    { rm.registerAllocation(ptr, {ptr, bytes, strat}); }
 };
@@ -497,7 +503,7 @@ public:
         UmpireMemorySpace(name, "DEVICE") {}
    void Alloc(Memory &base) override
    { base.d_ptr = allocator.allocate(base.bytes); }
-   void Dealloc(Memory &base) override { rm.deallocate(base.d_ptr); }
+   void Dealloc(Memory &base) override { allocator.deallocate(base.d_ptr); }
    void *HtoD(void *dst, const void *src, size_t bytes) override
    {
 #ifdef MFEM_USE_CUDA
