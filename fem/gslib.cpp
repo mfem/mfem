@@ -164,6 +164,7 @@ void FindPointsGSLIB::Setup(Mesh &m, const double bb_t, const double newt_tol,
                             const int npt_max)
 {
    MFEM_VERIFY(m.GetNodes() != NULL, "Mesh nodes are required.");
+   MFEM_VERIFY(m.SpaceDimension() == m.Dimension(), "Mesh spatial dimension and reference element dimension must be the same");
    const int meshOrder = m.GetNodes()->FESpace()->GetMaxElementOrder();
 
    // call FreeData if FindPointsGSLIB::Setup has been called already

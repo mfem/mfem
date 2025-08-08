@@ -109,8 +109,6 @@ int main (int argc, char *argv[])
 
    // Create mesh
    Mesh mesh(mesh_file);
-   // TODO: This should be in FindPointsGSLIB:
-   MFEM_ASSERT(mesh.SpaceDimension() == mesh.Dimension(), "FindPointsGSLIB requires that the mesh space dimension + reference element dimension are the same");
    int space_dim = mesh.Dimension();
 
    ParticleSet pset(MPI_COMM_WORLD, npt, space_dim);
