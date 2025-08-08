@@ -100,7 +100,7 @@ class DG_Solver : public Solver
 private:
    HypreParMatrix &M, &K, &S;
    HypreParMatrix *A;
-   GMRESSolver linear_solver;
+   CGSolver linear_solver;
    Solver *prec;
    real_t dt;
    SparseMatrix M_diag;
@@ -113,26 +113,27 @@ public:
         dt(1.0)
    {
       int block_size = fes.GetTypicalFE()->GetDof();
-      if (prec_type == PrecType::ILU)
-      {
-         prec = new BlockILU(block_size,
-                             BlockILU::Reordering::MINIMUM_DISCARDED_FILL);
-      }
-      else if (prec_type == PrecType::AIR)
-      {
-#if MFEM_HYPRE_VERSION >= 21800
-         prec = new AIR_prec(block_size);
-#else
-         MFEM_ABORT("Must have MFEM_HYPRE_VERSION >= 21800 to use AIR.\n");
-#endif
-      }
-      //prec = NULL;
+//       if (prec_type == PrecType::ILU)
+//       {
+//          prec = new BlockILU(block_size,
+//                              BlockILU::Reordering::MINIMUM_DISCARDED_FILL);
+//       }
+//       else if (prec_type == PrecType::AIR)
+//       {
+// #if MFEM_HYPRE_VERSION >= 21800
+//          prec = new AIR_prec(block_size);
+// #else
+//          MFEM_ABORT("Must have MFEM_HYPRE_VERSION >= 21800 to use AIR.\n");
+// #endif
+//       }
+      //auto solver = new LORSolver<HypreBoomerAMG>();
+      //solver->GetSolver().SetSystemsOptions(dim, true);
       linear_solver.iterative_mode = false;
       linear_solver.SetRelTol(1e-9);
       linear_solver.SetAbsTol(0.0);
       linear_solver.SetMaxIter(100);
-      linear_solver.SetPrintLevel(0);
-      linear_solver.SetPreconditioner(*prec);
+      linear_solver.SetPrintLevel(1);
+      //linear_solver.SetPreconditioner(*solver);
 
       M.GetDiag(M_diag);
    }
@@ -148,6 +149,8 @@ public:
          //A->GetDiag(A_diag);
          //A_diag.Add(1.0, M_diag);
          // // this will also call SetOperator on the preconditioner
+         //solver->SetOperator(*A);
+         //linear_solver.SetPreconditioner(*solver);
          linear_solver.SetOperator(*A);
 
          // A = S;
@@ -169,6 +172,11 @@ public:
       linear_solver.Mult(x, y);
    }
 
+   void SetPreconditioner(Solver &precond)
+   {
+      linear_solver.SetPreconditioner(precond);
+   }
+
   ~DG_Solver() override
    {
       //delete prec;
@@ -184,7 +192,7 @@ public:
 class IMEX_Evolution : public SplitTimeDependentOperator
 {
 private:
-   OperatorHandle M, K, S;
+   OperatorHandle M, K, S, A;
    const Vector &b;
    Solver *M_prec;
    CGSolver M_solver;
@@ -194,7 +202,7 @@ private:
    mutable Vector w;
 
 public:
-   IMEX_Evolution(ParBilinearForm &M_, ParBilinearForm &K_, ParBilinearForm &S_, const Vector &b_, PrecType prec_type);
+   IMEX_Evolution(ParBilinearForm &M_, ParBilinearForm &K_, ParBilinearForm &S_, const Vector &b_, ParBilinearForm &A_, PrecType prec_type);
 
    void Mult1(const Vector &x, Vector &y) const;
    void ImplicitSolve2(const real_t dt, const Vector &x, Vector &k) override;
@@ -340,6 +348,7 @@ int main(int argc, char *argv[])
    FunctionCoefficient inflow(inflow_function);
    FunctionCoefficient u0(u0_function);
    ConstantCoefficient diff_coeff(diffusion_term);
+   ConstantCoefficient dt_diff_coeff(dt*diffusion_term);
    constexpr real_t alpha = -1.0;
 
    ParBilinearForm *m = new ParBilinearForm(fes);
@@ -376,15 +385,24 @@ int main(int argc, char *argv[])
    ParLinearForm *b = new ParLinearForm(fes);
    b->AddBdrFaceIntegrator(new BoundaryFlowIntegrator(inflow, velocity, alpha));
 
+   //For the preconditioner
+   ParBilinearForm *a = new ParBilinearForm(fes);
+   a->AddDomainIntegrator(new MassIntegrator);
+   a->AddDomainIntegrator(new DiffusionIntegrator(dt_diff_coeff));
+   a->AddInteriorFaceIntegrator(new DGDiffusionIntegrator(dt_diff_coeff, sigma, kappa));
+   a->AddBdrFaceIntegrator(new DGDiffusionIntegrator(dt_diff_coeff, sigma, kappa));
+
    
    int skip_zeros = 0;
    s->Assemble(skip_zeros);
    m->Assemble(skip_zeros);
    k->Assemble(skip_zeros);
+   a->Assemble();
    b->Assemble();
    m->Finalize(skip_zeros);
    k->Finalize(skip_zeros);
    s->Finalize(skip_zeros);
+   a->Finalize(skip_zeros);
 
    HypreParVector *B = b->ParallelAssemble();
    // 7. Define the initial conditions.
@@ -453,11 +471,14 @@ int main(int argc, char *argv[])
    }
 
 
+   // Start the timer.
+   tic_toc.Clear();
+   tic_toc.Start();
 
    // 8. Define the time-dependent evolution operator describing the ODE
    //    right-hand side, and perform time-integration (looping over the time
    //    iterations, ti, with a time-step dt).
-   IMEX_Evolution adv(*m, *k, *s, *B, prec_type);
+   IMEX_Evolution adv(*m, *k, *s, *B, *a, prec_type);
 
    real_t t = 0.0;
    adv.SetTime(t);
@@ -494,6 +515,12 @@ int main(int argc, char *argv[])
       }
    }
 
+   tic_toc.Stop();
+   if (Mpi::Root())
+   {
+      cout << " done, " << tic_toc.RealTime() << "s." << endl;
+   }
+
    // {
    //    *u = *U;
    //    ostringstream sol_name;
@@ -519,7 +546,7 @@ int main(int argc, char *argv[])
 
 
 // Implementation of class FE_Evolution
-IMEX_Evolution::IMEX_Evolution(ParBilinearForm &M_, ParBilinearForm &K_, ParBilinearForm &S_, const Vector &b_, PrecType prec_type)
+IMEX_Evolution::IMEX_Evolution(ParBilinearForm &M_, ParBilinearForm &K_, ParBilinearForm &S_, const Vector &b_, ParBilinearForm &A_, PrecType prec_type)
    : SplitTimeDependentOperator(M_.ParFESpace()->GetTrueVSize()), b(b_),
      M_solver(M_.ParFESpace()->GetComm()), z(height), w(height)
 {
@@ -541,6 +568,7 @@ IMEX_Evolution::IMEX_Evolution(ParBilinearForm &M_, ParBilinearForm &K_, ParBili
    Array<int> ess_tdof_list;
    if (M_.GetAssemblyLevel() == AssemblyLevel::LEGACY)
    {
+      A.Reset(A_.ParallelAssemble(), true);
       HypreParMatrix &M_mat = *M.As<HypreParMatrix>();
       HypreParMatrix &K_mat = *K.As<HypreParMatrix>();
       HypreParMatrix &S_mat = *S.As<HypreParMatrix>();
@@ -548,6 +576,9 @@ IMEX_Evolution::IMEX_Evolution(ParBilinearForm &M_, ParBilinearForm &K_, ParBili
       M_prec = hypre_prec;
 
       dg_solver = new DG_Solver(M_mat, K_mat, S_mat, *M_.FESpace(), prec_type);
+      auto lor_solver = new LORSolver<HypreBoomerAMG>(A_, ess_tdof_list);
+      lor_solver->GetSolver().SetSystemsOptions(A_.ParFESpace()->GetVDim(), true);
+      dg_solver -> SetPreconditioner(*lor_solver);
    }
    else
    {

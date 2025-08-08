@@ -48,11 +48,7 @@ void LORBase::AddIntegratorsAndMarkers(BilinearForm &a_from,
    for (int i=0; i<integrators->Size(); ++i)
    {
       BilinearFormIntegrator *integrator = (*integrators)[i];
-<<<<<<< HEAD
-      if (markers[i] != nullptr)
-=======
       if (markers[i])
->>>>>>> origin/lor_dg_preconditioner
       {
          (a_to.*add_integrator_marker)(integrator, *markers[i]);
       }
