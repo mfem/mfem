@@ -10,6 +10,7 @@
 // CONTRIBUTING.md for details.
 
 #include "darcyform.hpp"
+#include "../hyperbolic.hpp"
 
 namespace mfem
 {
@@ -816,6 +817,7 @@ void DarcyForm::ReconstructTotalFlux(const BlockVector &sol,
    }
 
    VectorCoefficient *vel = NULL;
+   const FluxFunction *flux_fun = NULL;
    if (M_p && M_p->GetDBFI())
    {
       auto &dbfis = *M_p->GetDBFI();
@@ -831,6 +833,24 @@ void DarcyForm::ReconstructTotalFlux(const BlockVector &sol,
          }
       }
    }
+   else if (Mnl_p && Mnl_p->GetDNFI())
+   {
+      auto &dnfis = *Mnl_p->GetDNFI();
+      if (dnfis.Size())
+      {
+         for (NonlinearFormIntegrator *dnfi : dnfis)
+         {
+            auto *ci = dynamic_cast<ConvectionIntegrator*>(dnfi);
+            if (ci) { vel = ci->GetVelocity(); break; }
+
+            auto *cci = dynamic_cast<ConservativeConvectionIntegrator*>(dnfi);
+            if (cci) { vel = cci->GetVelocity(); break; }
+
+            auto *hi = dynamic_cast<HyperbolicFormIntegrator*>(dnfi);
+            if (hi) { flux_fun = &hi->GetFluxFunction(); break; }
+         }
+      }
+   }
 
    if (vel)
    {
@@ -838,9 +858,25 @@ void DarcyForm::ReconstructTotalFlux(const BlockVector &sol,
                       Vector &qt)
       {
          qt = q;
+
          Vector cp(q.Size());
          vel->Eval(cp, Tr, Tr.GetIntPoint());
          qt.Add(p, cp);
+      };
+      hybridization->ReconstructTotalFlux(sol, sol_r, fx, ut);
+   }
+   else if (flux_fun)
+   {
+      auto fx = [flux_fun](ElementTransformation &Tr, const Vector &q, real_t p,
+                           Vector &qt)
+      {
+         qt = q;
+
+         Vector qc(q.Size());
+         DenseMatrix flux(qc.GetData(), 1, qc.Size());
+         Vector state{p};
+         flux_fun->ComputeFlux(state, Tr, flux);
+         qt += qc;
       };
       hybridization->ReconstructTotalFlux(sol, sol_r, fx, ut);
    }
