@@ -22,9 +22,9 @@ namespace mfem
 /* AD related definitions below ========================================*/
 
 /// MFEM native AD-type for first derivatives
-using AD1Type = internal::dual<real_t, real_t>;
+using AD1Type = future::dual<real_t, real_t>;
 /// MFEM native AD-type for second derivatives
-using AD2Type = internal::dual<AD1Type, AD1Type>;
+using AD2Type = future::dual<AD1Type, AD1Type>;
 
 /*
 Functions for 2x2 DenseMatrix cast as std::vector<type>, assuming column-major storage
@@ -495,13 +495,13 @@ void TMOP_Combo_QualityMetric::AssembleH(const DenseMatrix &Jpt,
    }
 }
 
-void TMOP_Combo_QualityMetric::
-ComputeBalancedWeights(const GridFunction &nodes,
-                       const TargetConstructor &tc, Vector &weights) const
+void TMOP_Combo_QualityMetric::ComputeBalancedWeights(
+   const GridFunction &nodes, const TargetConstructor &tc,
+   Vector &weights, bool use_pa, const IntegrationRule *IntRule) const
 {
    const int m_cnt = tmop_q_arr.Size();
    Vector averages;
-   ComputeAvgMetrics(nodes, tc, averages);
+   ComputeAvgMetrics(nodes, tc, averages, use_pa, IntRule);
    weights.SetSize(m_cnt);
 
    // For [ combo_A_B_C = a m_A + b m_B + c m_C ] we would have:
@@ -525,9 +525,9 @@ ComputeBalancedWeights(const GridFunction &nodes,
                "Error: sum should be 1 always: " << weights.Sum());
 }
 
-void TMOP_Combo_QualityMetric::ComputeAvgMetrics(const GridFunction &nodes,
-                                                 const TargetConstructor &tc,
-                                                 Vector &averages) const
+void TMOP_Combo_QualityMetric::ComputeAvgMetrics(
+   const GridFunction &nodes, const TargetConstructor &tc,
+   Vector &averages, bool use_pa, const IntegrationRule *IntRule) const
 {
    const int m_cnt = tmop_q_arr.Size(),
              NE    = nodes.FESpace()->GetNE(),
@@ -535,46 +535,65 @@ void TMOP_Combo_QualityMetric::ComputeAvgMetrics(const GridFunction &nodes,
 
    averages.SetSize(m_cnt);
 
+   auto fe = nodes.FESpace()->GetTypicalFE();
+   const IntegrationRule &ir =
+      (IntRule) ? *IntRule : IntRules.Get(fe->GetGeomType(), 2*fe->GetOrder());
+
    // Integrals of all metrics.
-   Array<int> pos_dofs;
    averages = 0.0;
    real_t volume = 0.0;
-   for (int e = 0; e < NE; e++)
+   if (use_pa)
    {
-      const FiniteElement &fe_pos = *nodes.FESpace()->GetFE(e);
-      const IntegrationRule &ir = IntRules.Get(fe_pos.GetGeomType(),
-                                               2 * fe_pos.GetOrder());
-      const int nsp = ir.GetNPoints(), dof = fe_pos.GetDof();
-
-      DenseMatrix dshape(dof, dim);
-      DenseMatrix pos(dof, dim);
-      pos.SetSize(dof, dim);
-      Vector posV(pos.Data(), dof * dim);
-
-      nodes.FESpace()->GetElementVDofs(e, pos_dofs);
-      nodes.GetSubVector(pos_dofs, posV);
-
-      DenseTensor W(dim, dim, nsp);
-      DenseMatrix Winv(dim), T(dim), A(dim);
-      tc.ComputeElementTargets(e, fe_pos, ir, posV, W);
-
-      for (int q = 0; q < nsp; q++)
+      for (int m = 0; m < m_cnt; m++)
       {
-         const DenseMatrix &Wj = W(q);
-         CalcInverse(Wj, Winv);
-
-         const IntegrationPoint &ip = ir.IntPoint(q);
-         fe_pos.CalcDShape(ip, dshape);
-         MultAtB(pos, dshape, A);
-         Mult(A, Winv, T);
-
-         const real_t w_detA = ip.weight * A.Det();
-         for (int m = 0; m < m_cnt; m++)
+         if (dim == 2)
          {
-            tmop_q_arr[m]->SetTargetJacobian(Wj);
-            averages(m) += tmop_q_arr[m]->EvalW(T) * w_detA;
+            GetLocalEnergyPA_2D(nodes, tc, m, averages(m), volume, ir);
          }
-         volume += w_detA;
+         else
+         {
+            GetLocalEnergyPA_3D(nodes, tc, m, averages(m), volume, ir);
+         }
+      }
+   }
+   else
+   {
+      Array<int> pos_dofs;
+      for (int e = 0; e < NE; e++)
+      {
+         const FiniteElement &fe_pos = *nodes.FESpace()->GetFE(e);
+         const int nsp = ir.GetNPoints(), dof = fe_pos.GetDof();
+
+         DenseMatrix dshape(dof, dim);
+         DenseMatrix pos(dof, dim);
+         pos.SetSize(dof, dim);
+         Vector posV(pos.Data(), dof * dim);
+
+         nodes.FESpace()->GetElementVDofs(e, pos_dofs);
+         nodes.GetSubVector(pos_dofs, posV);
+
+         DenseTensor W(dim, dim, nsp);
+         DenseMatrix Winv(dim), T(dim), A(dim);
+         tc.ComputeElementTargets(e, fe_pos, ir, posV, W);
+
+         for (int q = 0; q < nsp; q++)
+         {
+            const DenseMatrix &Wj = W(q);
+            CalcInverse(Wj, Winv);
+
+            const IntegrationPoint &ip = ir.IntPoint(q);
+            fe_pos.CalcDShape(ip, dshape);
+            MultAtB(pos, dshape, A);
+            Mult(A, Winv, T);
+
+            const real_t w_detA = ip.weight * A.Det();
+            for (int m = 0; m < m_cnt; m++)
+            {
+               tmop_q_arr[m]->SetTargetJacobian(Wj);
+               averages(m) += tmop_q_arr[m]->EvalW(T) * w_detA;
+            }
+            volume += w_detA;
+         }
       }
    }
 
@@ -5103,33 +5122,65 @@ real_t TMOP_Integrator::GetSurfaceFittingWeight()
 
 void TMOP_Integrator::EnableNormalization(const GridFunction &x)
 {
-   ComputeNormalizationEnergies(x, metric_normal, lim_normal, surf_fit_normal);
+   ComputeNormalizationEnergies(x, metric_normal, lim_normal);
    metric_normal = 1.0 / metric_normal;
    lim_normal = 1.0 / lim_normal;
-   //if (surf_fit_gf) { surf_fit_normal = 1.0 / surf_fit_normal; }
    if (surf_fit_gf || surf_fit_pos) { surf_fit_normal = lim_normal; }
 }
 
 #ifdef MFEM_USE_MPI
 void TMOP_Integrator::ParEnableNormalization(const ParGridFunction &x)
 {
-   real_t loc[3];
-   ComputeNormalizationEnergies(x, loc[0], loc[1], loc[2]);
-   real_t rdc[3];
-   MPI_Allreduce(loc, rdc, 3, MPITypeMap<real_t>::mpi_type, MPI_SUM,
+   real_t loc[2];
+   ComputeNormalizationEnergies(x, loc[0], loc[1]);
+   real_t rdc[2];
+   MPI_Allreduce(loc, rdc, 2, MPITypeMap<real_t>::mpi_type, MPI_SUM,
                  x.ParFESpace()->GetComm());
    metric_normal = 1.0 / rdc[0];
    lim_normal    = 1.0 / rdc[1];
-   // if (surf_fit_gf) { surf_fit_normal = 1.0 / rdc[2]; }
    if (surf_fit_gf || surf_fit_pos) { surf_fit_normal = lim_normal; }
 }
 #endif
 
 void TMOP_Integrator::ComputeNormalizationEnergies(const GridFunction &x,
                                                    real_t &metric_energy,
-                                                   real_t &lim_energy,
-                                                   real_t &surf_fit_gf_energy)
+                                                   real_t &lim_energy)
 {
+   metric_energy = 0.0;
+   lim_energy = 0.0;
+   if (PA.enabled)
+   {
+      MFEM_VERIFY(PA.E.Size() > 0, "Must be called after AssemblePA!");
+      MFEM_VERIFY(surf_fit_gf == nullptr,
+                  "Normalization + PA + Fitting is not implemented!");
+
+      const ElementDofOrdering ord = ElementDofOrdering::LEXICOGRAPHIC;
+      auto R = x.FESpace()->GetElementRestriction(ord);
+      Vector xe(R->Height());
+      R->Mult(x, xe);
+
+      // Force update of the target Jacobian.
+      ComputeAllElementTargets(xe);
+
+      if (PA.dim == 2)
+      {
+         GetLocalNormalizationEnergiesPA_2D(xe, metric_energy, lim_energy);
+      }
+      else
+      {
+         GetLocalNormalizationEnergiesPA_3D(xe, metric_energy, lim_energy);
+      }
+
+      // Cases when integration is not over the target element, or when the
+      // targets don't contain volumetric information.
+      if (integ_over_target == false || targetC->ContainsVolumeInfo() == false)
+      {
+         lim_energy = x.FESpace()->GetNE();
+      }
+
+      return;
+   }
+
    Array<int> vdofs;
    Vector x_vals;
    const FiniteElementSpace* const fes = x.FESpace();
@@ -5139,9 +5190,6 @@ void TMOP_Integrator::ComputeNormalizationEnergies(const GridFunction &x,
    Jpr.SetSize(dim);
    Jpt.SetSize(dim);
 
-   metric_energy = 0.0;
-   lim_energy = 0.0;
-   surf_fit_gf_energy = 0.0;
    for (int i = 0; i < fes->GetNE(); i++)
    {
       const FiniteElement *fe = fes->GetFE(i);
@@ -5173,21 +5221,7 @@ void TMOP_Integrator::ComputeNormalizationEnergies(const GridFunction &x,
          lim_energy += weight;
       }
 
-      // Normalization of the surface fitting term.
-      if (surf_fit_gf)
-      {
-         Array<int> dofs;
-         Vector sigma_e;
-         surf_fit_gf->FESpace()->GetElementDofs(i, dofs);
-         surf_fit_gf->GetSubVector(dofs, sigma_e);
-         for (int s = 0; s < dofs.Size(); s++)
-         {
-            if ((*surf_fit_marker)[dofs[s]] == true)
-            {
-               surf_fit_gf_energy += sigma_e(s) * sigma_e(s);
-            }
-         }
-      }
+      // TODO: Normalization of the surface fitting term.
    }
 
    // Cases when integration is not over the target element, or when the
