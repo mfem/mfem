@@ -108,7 +108,15 @@ public:
    inline ~Array() { data.Delete(); }
 
    /// Copy assignment operator: deep copy from 'src'.
-   Array<T> &operator=(const Array<T> &src) { src.Copy(*this); return *this; }
+   Array<T> &operator=(const Array<T> &src)
+   {
+      SetSize(src.Size());
+      data.UseDevice(UseDevice() || src.UseDevice());
+      // keep 'data' where it is, unless 'use_dev' is true
+      if (UseDevice()) { Write(); }
+      data.CopyFrom(src.data, src.Size());
+      return *this;
+   }
 
    /// Move assignment operator
    Array<T> &operator=(Array<T> &&src)
@@ -226,7 +234,7 @@ public:
    /// Reduces the capacity of the array to exactly match the current size.
    inline void ShrinkToFit();
 
-   ///  Create a copy of the internal array to the provided @a copy.
+   /// Create a copy of the internal array to the provided @a copy.
    inline void Copy(Array &copy) const;
 
    /// Make this Array a reference to a pointer.
