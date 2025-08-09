@@ -14,47 +14,41 @@
 #include <fstream>
 #include <iostream>
 
-#include "navier_solver_gcn.hpp"
+#include "ns_operators.hpp"
+using namespace mfem;
 
-namespace mfem {
 
-class RampVectorCoefficient:public VectorCoefficient{
+class RampVectorCoeff:public VectorCoefficient
+{
 public:
-    RampVectorCoefficient(VectorCoefficient& vc_, real_t t0_=0.0, real_t tc_=1.0):
-        VectorCoefficient(vc_.GetVDim()),vc(&vc_),t0(t0_),tc(tc_)
-    {}
-
-    virtual
-    void Eval(Vector &V, ElementTransformation &T,
-                  const IntegrationPoint &ip) override
+    RampVectorCoeff(VectorCoefficient& v, real_t t0_=0.0, real_t t1_=1.0):VectorCoefficient(v.GetVDim())
     {
-        vc->SetTime(GetTime());
-        vc->Eval(V,T,ip);
-        real_t t=GetTime();
+        t0=t0_;
+        t1=t1_;
+        vv=&v;
+    }
 
-        if(t<t0){
-            V*=0.0;
-            return;
+    void Eval(Vector &V, ElementTransformation &T,
+                        const IntegrationPoint &ip) override
+    {
+        real_t ct=GetTime();
+        vv->Eval(V,T,ip);
+        if(ct>t1){return;}
+        else
+        if(ct<t0){ V*=0.0;}
+        else
+        {
+            V*=((ct)/(t1-t0));
         }
-
-        real_t sc=1.0;
-        if(t<tc){
-            sc=t/(tc-t0);
-        }
-        V*=sc;
     }
 
 private:
-    VectorCoefficient* vc;
     real_t t0;
-    real_t tc;
+    real_t t1;
+    VectorCoefficient* vv;
 };
 
-}
 
-
-
-using namespace mfem;
 
 int main(int argc, char *argv[])
 {
@@ -64,7 +58,7 @@ int main(int argc, char *argv[])
    mfem::Hypre::Init();
 
    // Parse command-line options.
-   const char *mesh_file = "../../data/star.mesh";
+   const char *mesh_file = "./mini_flow2d_ball.msh";
    int order = 1;
    bool static_cond = false;
    int ser_ref_levels = 1;
@@ -74,6 +68,7 @@ int main(int argc, char *argv[])
    int newton_iter = 10;
    int print_level = 1;
    bool visualization = false;
+   int ode_solver_type = 21;  // SDIRK33Solver
 
    mfem::OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -109,6 +104,8 @@ int main(int argc, char *argv[])
                   "-it",
                   "--newton-iterations",
                   "Maximum iterations for the Newton solve.");
+   args.AddOption(&ode_solver_type, "-s", "--ode-solver",
+                  ODESolver::Types.c_str());
    args.Parse();
    if (!args.Good())
    {
@@ -157,59 +154,94 @@ int main(int argc, char *argv[])
 
    std::cout<<"My rank="<<pmesh.GetMyRank()<<std::endl;
 
-   mfem::ConstantCoefficient* visc=new mfem::ConstantCoefficient(0.01);
-   mfem::NavierSolverFT* solver=new mfem::NavierSolverFT(&pmesh,2,std::shared_ptr<mfem::Coefficient>(visc));
-
 
    mfem::Vector bcz(dim); bcz=0.0;
    mfem::Vector bci(dim); bci=0.0; bci(0)=1.0;
-   mfem::VectorConstantCoefficient vcz(bcz);
-   mfem::VectorConstantCoefficient vci(bcz);
+   VectorConstantCoefficient cvcz(bcz);
+   VectorConstantCoefficient cvci(bci);
 
 
-   // set the BCs
-   solver->AddVelocityBC(1,std::shared_ptr<mfem::VectorCoefficient>(new mfem::RampVectorCoefficient(vci,0.0,1.0)));
-   //solver->AddVelocityBC(2,std::shared_ptr<mfem::VectorCoefficient>(new mfem::RampVectorCoefficient(vci,0.0,1.0)));
-   solver->AddVelocityBC(4,std::shared_ptr<mfem::VectorCoefficient>(new mfem::RampVectorCoefficient(vcz,0.0,1.0)));
-
+   std::shared_ptr<mfem::VectorCoefficient> vcz(new RampVectorCoeff(cvcz));
+   std::shared_ptr<mfem::VectorCoefficient> vci(new RampVectorCoeff(cvci));
 
    mfem::Vector vforce(dim); vforce=0.0; vforce(0)=1.0;
-   solver->SetVolForce(std::shared_ptr<mfem::VectorCoefficient>(new VectorConstantCoefficient(vforce)));
 
-   //initialize everyhting to zero
-   solver->GetCPressure()=0.0;
-   solver->GetNPressure()=0.0;
-   solver->GetPPressure()=0.0;
+   std::shared_ptr<mfem::ConstantCoefficient> visc(new mfem::ConstantCoefficient(0.1));
 
-   solver->GetCVelocity()=0.0;
-   solver->GetNVelocity()=0.0;
-   solver->GetPVelocity()=0.0;
-
-   real_t dt=0.01;
-   real_t time=0.0;
-   solver->SetupOperator(dt);
+   ParGridFunction velo;
+   ParGridFunction pres;
+   BlockVector sol;
 
 
-   {
-       ParaViewDataCollection dacol("ParaViewExtrapolate", &pmesh);
-       dacol.SetLevelsOfDetail(order);
-       dacol.RegisterField("pres",&(solver->GetCPressure()));
-       dacol.RegisterField("velo",&(solver->GetCVelocity()));
-       dacol.SetTime(0.0);
-       dacol.SetCycle(1);
-       dacol.Save();
+   std::unique_ptr<ODESolver> ode_solver = ODESolver::Select(ode_solver_type);
+   //define the TimeDependentOperator
+   TimeDependentStokes* top=new TimeDependentStokes(&pmesh,2,visc);
 
-       for(int i=0;i<3;i++){
-           solver->Step(time,i); time=time+dt;
-           solver->UpdateHistory();
-           dacol.SetTime(time);
-           dacol.SetCycle(2+i);
-           dacol.Save();
-       }
+   top->AddVelocityBC(1,vci);
+   top->AddVelocityBC(2,vci);
+   top->AddVelocityBC(4,vcz);
+
+   top->Assemble();
+
+   //start the time stepping
+
+
+
+   velo.SetSpace(top->GetVelocitySpace());	velo=0.0;
+   pres.SetSpace(top->GetPressureSpace());  pres=0.0;
+   sol.Update(top->GetTrueBlockOffsets());  sol=0.0;
+
+   if(0==myrank){
+       std::cout<<"s0="<<sol.BlockSize(0)<<" s1="<<sol.BlockSize(1)<<std::endl;
+       std::cout<<" v tv="<<top->GetVelocitySpace()->GetTrueVSize()<<std::endl;
+       std::cout<<" p tv="<<top->GetPressureSpace()->GetTrueVSize()<<std::endl;
+
    }
 
-   delete solver;
+   top->SetEssVBC(0.0,velo);
+   velo.GetTrueDofs(sol.GetBlock(0));
+   pres.GetTrueDofs(sol.GetBlock(1));
 
+
+
+       ParaViewDataCollection paraview_dc("flow", &pmesh);
+       paraview_dc.SetPrefixPath("ParaView");
+       paraview_dc.SetLevelsOfDetail(order);
+       paraview_dc.SetDataFormat(VTKFormat::BINARY);
+       paraview_dc.SetHighOrderOutput(true);
+       paraview_dc.SetCycle(0);
+       paraview_dc.SetTime(0.0);
+       paraview_dc.RegisterField("velo",&velo);
+       paraview_dc.RegisterField("pres",&pres);
+       paraview_dc.Save();
+
+
+   ode_solver->Init(*top);
+   real_t t  = 0.0;
+   real_t tf = 5.5;
+   real_t dt = 0.1;
+
+   bool flag=true;
+   int cycl=1;
+   while(flag)
+   {
+       ode_solver->Step(sol,t,dt);
+       velo.SetFromTrueDofs(sol.GetBlock(0));
+       pres.SetFromTrueDofs(sol.GetBlock(1));
+
+       paraview_dc.SetCycle(cycl);
+       paraview_dc.SetTime(t);
+       paraview_dc.Save();
+
+       cycl++;
+
+       if(t>tf){flag=false;}
+
+   }
+
+
+   //free the time dependent operator
+   delete top;
 
    MPI::Finalize();
 

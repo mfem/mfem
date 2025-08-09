@@ -23,9 +23,9 @@ set(SEQMTOP_COMMON_FILES
 if(MFEM_USE_MPI)
 
 list(APPEND PARMTOP_COMMON_SOURCES
-	navier_solver_gcn.cpp)
+        ns_operators.cpp)
 list(APPEND PARMTOP_COMMON_HEADERS
-	navier_solver_gcn.hpp)
+        ns_operators.hpp)
 
 convert_filenames_to_full_paths(PARMTOP_COMMON_SOURCES)
 convert_filenames_to_full_paths(PARMTOP_COMMON_HEADERS)
