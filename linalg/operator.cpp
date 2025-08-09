@@ -50,7 +50,8 @@ void Operator::InitTVectors(const Operator *Po, const Operator *Ri,
 
 void Operator::AddMult(const Vector &x, Vector &y, const real_t a) const
 {
-   mfem::Vector z(y.Size());
+   Vector z(y.Size(), MemoryType::HOST_ARENA);
+   z.UseDevice(true);
    Mult(x, z);
    y.Add(a, z);
 }
@@ -58,7 +59,8 @@ void Operator::AddMult(const Vector &x, Vector &y, const real_t a) const
 void Operator::AddMultTranspose(const Vector &x, Vector &y,
                                 const real_t a) const
 {
-   mfem::Vector z(y.Size());
+   Vector z(y.Size(), MemoryType::HOST_ARENA);
+   z.UseDevice(true);
    MultTranspose(x, z);
    y.Add(a, z);
 }
@@ -516,13 +518,8 @@ ConstrainedOperator::ConstrainedOperator(Operator *A, const Array<int> &list,
 {
    // 'mem_class' should work with A->Mult() and mfem::forall():
    mem_class = A->GetMemoryClass()*Device::GetDeviceMemoryClass();
-   MemoryType mem_type = GetMemoryType(mem_class);
    list.Read(); // TODO: just ensure 'list' is registered, no need to copy it
    constraint_list.MakeRef(list);
-   // typically z and w are large vectors, so use the device (GPU) to perform
-   // operations on them
-   z.SetSize(height, mem_type); z.UseDevice(true);
-   w.SetSize(height, mem_type); w.UseDevice(true);
 }
 
 void ConstrainedOperator::AssembleDiagonal(Vector &diag) const
@@ -558,6 +555,7 @@ void ConstrainedOperator::AssembleDiagonal(Vector &diag) const
 
 void ConstrainedOperator::EliminateRHS(const Vector &x, Vector &b) const
 {
+   Vector w = Vector::NewTemporary(height);
    w = 0.0;
    const int csz = constraint_list.Size();
    auto idx = constraint_list.Read();
@@ -571,6 +569,7 @@ void ConstrainedOperator::EliminateRHS(const Vector &x, Vector &b) const
    });
 
    // A.AddMult(w, b, -1.0); // if available to all Operators
+   Vector z = Vector::NewTemporary(height);
    A->Mult(w, z);
    b -= z;
 
@@ -600,6 +599,7 @@ void ConstrainedOperator::ConstrainedMult(const Vector &x, Vector &y,
       return;
    }
 
+   Vector z = Vector::NewTemporary(height);
    z = x;
 
    auto idx = constraint_list.Read();
@@ -662,6 +662,7 @@ void ConstrainedOperator::ConstrainedAbsMult(const Vector &x, Vector &y,
       return;
    }
 
+   Vector z = Vector::NewTemporary(height);
    z = x;
 
    auto idx = constraint_list.Read();
@@ -734,6 +735,7 @@ void ConstrainedOperator::AbsMultTranspose(const Vector &x, Vector &y) const
 void ConstrainedOperator::AddMult(const Vector &x, Vector &y,
                                   const real_t a) const
 {
+   Vector w = Vector::NewTemporary(Height());
    Mult(x, w);
    y.Add(a, w);
 }

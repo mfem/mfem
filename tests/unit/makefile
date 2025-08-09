@@ -39,6 +39,7 @@ DATA_DIR = data
 SEQ_MAIN_OBJ = unit_test_main.o
 PAR_MAIN_OBJ = punit_test_main.o
 GPU_MAIN_OBJ = gpu_unit_test_main.o
+UMPIRE_MAIN_OBJ = umpire_unit_test_main.o
 PGPU_MAIN_OBJ = pgpu_unit_test_main.o
 
 # Sedov numerical seq/par files and tests
@@ -47,6 +48,7 @@ SEDOV_FILES = $(SRC)miniapps/test_sedov.cpp
 USE_CUDA := $(MFEM_USE_CUDA:NO=)
 USE_HIP := $(MFEM_USE_HIP:NO=)
 USE_GPU := $(or $(USE_CUDA),$(USE_HIP))
+USE_UMPIRE := $(MFEM_USE_UMPIRE:NO=)
 SEQ_SEDOV_TESTS = sedov_tests_cpu sedov_tests_debug
 SEQ_SEDOV_TESTS += $(if $(USE_GPU),sedov_tests_gpu)
 SEQ_SEDOV_TESTS += $(if $(USE_GPU),sedov_tests_gpu_uvm)
@@ -82,7 +84,7 @@ PAR_TMOP_GPU_OBJ_FILES = $(if $(USE_GPU),$(TMOP_FILES:$(SRC)%.cpp=%.pgpu.o))
 PAR_TMOP_GPU_UVM_OBJ_FILES = $(if $(USE_GPU),$(TMOP_FILES:$(SRC)%.cpp=%.pgpu_uvm.o))
 
 # seq/par files and tests
-SEQ_UNIT_TESTS = unit_tests $(if $(USE_GPU),gpu_unit_tests)
+SEQ_UNIT_TESTS = unit_tests $(if $(USE_GPU),gpu_unit_tests) $(if $(USE_GPU),umpire_unit_tests)
 SEQ_UNIT_TESTS += $(SEQ_SEDOV_TESTS) $(SEQ_TMOP_TESTS)
 PAR_UNIT_TESTS = punit_tests $(if $(USE_GPU),pgpu_unit_tests)
 PAR_UNIT_TESTS += $(PAR_SEDOV_TESTS) $(PAR_TMOP_TESTS)
@@ -119,6 +121,9 @@ punit_tests: $(PAR_MAIN_OBJ) $(LIBTESTS_O) $(MFEM_LIB_FILE) $(CONFIG_MK) $(DATA_
 gpu_unit_tests: $(GPU_MAIN_OBJ) $(LIBTESTS_O) $(MFEM_LIB_FILE) $(CONFIG_MK) $(DATA_DIR)
 	$(CCC) $(GPU_MAIN_OBJ) $(LIBTESTS_O) $(MFEM_LINK_FLAGS) $(MFEM_LIBS) -o $(@)
 
+umpire_unit_tests: $(UMPIRE_MAIN_OBJ) $(LIBTESTS_O) $(MFEM_LIB_FILE) $(CONFIG_MK) $(DATA_DIR)
+	$(CCC) $(UMPIRE_MAIN_OBJ) $(LIBTESTS_O) $(MFEM_LINK_FLAGS) $(MFEM_LIBS) -o $(@)
+
 pgpu_unit_tests: $(PGPU_MAIN_OBJ) $(LIBTESTS_O) $(MFEM_LIB_FILE) $(CONFIG_MK) $(DATA_DIR)
 	$(CCC) $(PGPU_MAIN_OBJ) $(LIBTESTS_O) $(MFEM_LINK_FLAGS) $(MFEM_LIBS) -o $(@)
 
@@ -134,8 +139,8 @@ $(LIBTESTS_O): $(OBJECT_FILES)
 # Note: in this rule, we always use the full path to the source file as a
 # workaround for an issue with coveralls.
 $(OBJECT_FILES) $(SEQ_MAIN_OBJ) $(PAR_MAIN_OBJ) $(GPU_MAIN_OBJ) \
- $(PGPU_MAIN_OBJ) $(DEBUG_DEVICE_OBJ): %.o: $(SRC)%.cpp $(HEADER_FILES) \
- $(CONFIG_MK)
+ $(UMPIRE_MAIN_OBJ) $(PGPU_MAIN_OBJ) $(DEBUG_DEVICE_OBJ): %.o: $(SRC)%.cpp \
+ $(HEADER_FILES) $(CONFIG_MK)
 	@mkdir -p $(@D)
 	$(CCC) $(MFEM_FLAGS) $(INCLUDES) -c $(abspath $(<)) -o $(@)
 

@@ -44,16 +44,18 @@ enum class MemoryType
    HOST_UMPIRE,    /**< Host memory; using an Umpire allocator which can be set
                         with MemoryManager::SetUmpireHostAllocatorName */
    HOST_PINNED,    ///< Host memory: pinned (page-locked)
+   HOST_ARENA,     ///< Host memory: using fast arena allocator
    MANAGED,        /**< Managed memory; using CUDA or HIP *MallocManaged
                         and *Free */
    DEVICE,         ///< Device memory; using CUDA or HIP *Malloc and *Free
    DEVICE_DEBUG,   /**< Pseudo-device memory; allocated on host from a
                         "device-debug" pool */
-   DEVICE_UMPIRE,  /**< Device memory; using an Umpire allocator which can be
+   DEVICE_UMPIRE,   /**< Device memory; using an Umpire allocator which can be
                         set with MemoryManager::SetUmpireDeviceAllocatorName */
    DEVICE_UMPIRE_2, /**< Device memory; using a second Umpire allocator settable
                          with MemoryManager::SetUmpireDevice2AllocatorName */
-   SIZE,           ///< Number of host and device memory types
+   DEVICE_ARENA,    ///< Device memory: using fast arena allocator
+   SIZE,            ///< Number of host and device memory types
 
    PRESERVE,       /**< Pseudo-MemoryType used as default value for MemoryType
                         parameters to request preservation of existing
@@ -80,11 +82,12 @@ extern MFEM_EXPORT const char *MemoryTypeName[MemoryTypeSize];
 enum class MemoryClass
 {
    HOST,    /**< Memory types: { HOST, HOST_32, HOST_64, HOST_DEBUG,
-                                 HOST_UMPIRE, HOST_PINNED, MANAGED } */
+                                 HOST_UMPIRE, HOST_PINNED, HOST_ARENA,
+                                 MANAGED } */
    HOST_32, ///< Memory types: { HOST_32, HOST_64, HOST_DEBUG }
    HOST_64, ///< Memory types: { HOST_64, HOST_DEBUG }
    DEVICE,  /**< Memory types: { DEVICE, DEVICE_DEBUG, DEVICE_UMPIRE,
-                                 DEVICE_UMPIRE_2, MANAGED } */
+                                 DEVICE_UMPIRE_2, DEVICE_ARENA, MANAGED } */
    MANAGED  ///< Memory types: { MANAGED }
 };
 
@@ -141,7 +144,8 @@ MemoryClass operator*(MemoryClass mc1, MemoryClass mc2);
 
     A Memory object stores up to two different pointers: one host pointer (with
     MemoryType from MemoryClass::HOST) and one device pointer (currently one of
-    MemoryType: DEVICE, DEVICE_DEBUG, DEVICE_UMPIRE or MANAGED).
+    MemoryType: DEVICE, DEVICE_DEBUG, DEVICE_UMPIRE, DEVICE_ARENA, or
+    MANAGED).
 
     A Memory object can hold (wrap) an externally allocated pointer with any
     given MemoryType.
@@ -734,6 +738,9 @@ private: // Static methods used by the Memory<T> class
        memory manager. */
    static bool IsAlias_(const void *h_ptr);
 
+   /// Check if the host pointer is potentially a dangling alias.
+   static bool IsDanglingAlias_(const void *h_ptr);
+
    /// Compare the contents of the host and the device memory.
    static int CompareHostAndDevice_(void *h_ptr, size_t size, unsigned flags);
 
@@ -786,19 +793,21 @@ public:
    /// Return the dual MemoryType of the given one, @a mt.
    /** The default dual memory types are:
 
-       memory type     | dual type
-       --------------- | ---------
-       HOST            | DEVICE
-       HOST_32         | DEVICE
-       HOST_64         | DEVICE
-       HOST_DEBUG      | DEVICE_DEBUG
-       HOST_UMPIRE     | DEVICE_UMPIRE
-       HOST_PINNED     | DEVICE
-       MANAGED         | MANAGED
-       DEVICE          | HOST
-       DEVICE_DEBUG    | HOST_DEBUG
-       DEVICE_UMPIRE   | HOST_UMPIRE
-       DEVICE_UMPIRE_2 | HOST_UMPIRE
+       memory type      | dual type
+       ---------------- | ---------
+       HOST             | DEVICE
+       HOST_32          | DEVICE
+       HOST_64          | DEVICE
+       HOST_DEBUG       | DEVICE_DEBUG
+       HOST_UMPIRE      | DEVICE_UMPIRE
+       HOST_PINNED      | DEVICE
+       HOST_ARENA       | DEVICE_ARENA
+       MANAGED          | MANAGED
+       DEVICE           | HOST
+       DEVICE_DEBUG     | HOST_DEBUG
+       DEVICE_UMPIRE    | HOST_UMPIRE
+       DEVICE_UMPIRE_2  | HOST_UMPIRE
+       DEVICE_ARENA     | HOST_ARENA
 
        The dual types can be modified before device configuration using the
        method SetDualMemoryType() or by calling Device::SetMemoryTypes(). */
@@ -846,6 +855,12 @@ public:
 
    /// Return true if the pointer is known by the memory manager as an alias
    bool IsAlias(const void *h_ptr) { return IsAlias_(h_ptr); }
+
+   /// Returns true if the pointer is a (potentially) dangling alias
+   /** Returns true if the pointer is known by the memory manager as an alias
+       and either: the base pointer is not registered; or, the base pointer has
+       a different memory type than the alias. */
+   bool IsDanglingAlias(const void *h_ptr) { return IsDanglingAlias_(h_ptr); }
 
    /// Check if the host pointer has been registered in the memory manager
    void RegisterCheck(void *h_ptr);
@@ -958,6 +973,7 @@ inline void Memory<T>::New(int size, MemoryType mt)
    h_mt = IsHostMemory(mt) ? mt : MemoryManager::GetDualMemoryType(mt);
    T *h_tmp = (h_mt == MemoryType::HOST) ? NewHOST(size) : nullptr;
    h_ptr = (mt_host) ? h_tmp : (T*)MemoryManager::New_(h_tmp, bytes, mt, flags);
+   if (IsDeviceMemory(mt)) { flags |= USE_DEVICE; }
 }
 
 template <typename T>
@@ -982,7 +998,7 @@ inline void Memory<T>::Wrap(T *ptr, int size, bool own)
    if (own && MemoryManager::Exists())
    {
       MemoryType h_ptr_mt = MemoryManager::GetHostMemoryType_(h_ptr);
-      MFEM_VERIFY(h_mt == h_ptr_mt,
+      MFEM_VERIFY(h_mt == h_ptr_mt || MemoryManager::IsDanglingAlias_(h_ptr),
                   "h_mt = " << (int)h_mt << ", h_ptr_mt = " << (int)h_ptr_mt);
    }
 #endif

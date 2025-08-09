@@ -32,11 +32,9 @@ inline void Det1D(const int NE,
                   const real_t *x,
                   real_t *y,
                   const int d1d,
-                  const int q1d,
-                  Vector *d_buff = nullptr)
+                  const int q1d)
 {
    MFEM_CONTRACT_VAR(b);
-   MFEM_CONTRACT_VAR(d_buff);
    const auto G = Reshape(g, q1d, d1d);
    const auto X = Reshape(x, d1d, NE);
 
@@ -63,10 +61,8 @@ inline void Det2D(const int NE,
                   const real_t *x,
                   real_t *y,
                   const int d1d = 0,
-                  const int q1d = 0,
-                  Vector *d_buff = nullptr)
+                  const int q1d = 0)
 {
-   MFEM_CONTRACT_VAR(d_buff);
    static constexpr int SDIM = 2;
    static constexpr int NBZ = 1;
 
@@ -115,11 +111,8 @@ inline void Det2DSurface(const int NE,
                          const real_t *x,
                          real_t *y,
                          const int d1d = 0,
-                         const int q1d = 0,
-                         Vector *d_buff = nullptr)
+                         const int q1d = 0)
 {
-   MFEM_CONTRACT_VAR(d_buff);
-
    static constexpr int SDIM = 3;
    static constexpr int NBZ = 1;
 
@@ -213,8 +206,7 @@ inline void Det3D(const int NE,
                   const real_t *x,
                   real_t *y,
                   const int d1d = 0,
-                  const int q1d = 0,
-                  Vector *d_buff = nullptr) // used only with SMEM = false
+                  const int q1d = 0)
 {
    constexpr int DIM = 3;
    static constexpr int GRID = SMEM ? 0 : 128;
@@ -227,7 +219,7 @@ inline void Det3D(const int NE,
    const auto X = Reshape(x, D1D, D1D, D1D, DIM, NE);
    auto Y = Reshape(y, Q1D, Q1D, Q1D, NE);
 
-   real_t *GM = nullptr;
+   int buffer_size = 0;
    if (!SMEM)
    {
       const DeviceDofQuadLimits &limits = DeviceDofQuadLimits::Get();
@@ -235,9 +227,12 @@ inline void Det3D(const int NE,
       const int max_d1d = T_D1D ? T_D1D : limits.MAX_D1D;
       const int max_qd = std::max(max_q1d, max_d1d);
       const int mem_size = max_qd * max_qd * max_qd * 9;
-      d_buff->SetSize(2*mem_size*GRID);
-      GM = d_buff->Write();
+      buffer_size = 2*mem_size*GRID;
    }
+
+   // if SMEM is true, d_buff will be empty (zero size)
+   Vector d_buff = Vector::NewTemporary(buffer_size);
+   real_t *GM = SMEM ? nullptr : d_buff.Write();
 
    mfem::forall_3D_grid(NE, Q1D, Q1D, Q1D, GRID, [=] MFEM_HOST_DEVICE (int e)
    {
