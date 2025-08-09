@@ -98,7 +98,11 @@ public:
    explicit inline Array(std::initializer_list<CT> values);
 
    /// Move constructor ("steals" data from 'src')
-   Array(Array<T> &&src) = default;
+   Array(Array<T> &&src) : data(std::move(src.data)), size(src.size)
+   {
+      src.size = 0;
+   }
+
 
    /// Destructor
    inline ~Array() { data.Delete(); }
@@ -107,7 +111,14 @@ public:
    Array<T> &operator=(const Array<T> &src) { src.Copy(*this); return *this; }
 
    /// Move assignment operator
-   Array<T> &operator=(Array<T> &&src) = default;
+   Array<T> &operator=(Array<T> &&src)
+   {
+      if (this == &src) { return *this; }
+      std::swap(data, src.data);
+      std::swap(size, src.size);
+      src.DeleteAll();
+      return *this;
+   }
 
    /// Assignment operator (deep copy) from @a src, an Array of convertible type.
    template <typename CT>
