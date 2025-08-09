@@ -568,7 +568,7 @@ struct ThreadBlocks
    int z = 1;
 };
 
-#if (defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))
+#if defined(MFEM_USE_CUDA_OR_HIP)
 template <typename func_t>
 __global__ void forall_kernel_shmem(func_t f, int n)
 {
@@ -591,7 +591,7 @@ void forall(func_t f,
    if (Device::Allows(Backend::CUDA_MASK) ||
        Device::Allows(Backend::HIP_MASK))
    {
-#if (defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))
+#if defined(MFEM_USE_CUDA_OR_HIP)
       // int gridsize = (N + Z - 1) / Z;
       int num_bytes = num_shmem * sizeof(decltype(shmem));
       dim3 block_size(blocks.x, blocks.y, blocks.z);
