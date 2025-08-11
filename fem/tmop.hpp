@@ -19,8 +19,8 @@
 namespace mfem
 {
 
-using AD1Type = internal::dual<real_t, real_t>;
-using AD2Type = internal::dual<AD1Type, AD1Type>;
+using AD1Type = future::dual<real_t, real_t>;
+using AD2Type = future::dual<AD1Type, AD1Type>;
 
 /** @brief Abstract class for local mesh quality metrics in the target-matrix
     optimization paradigm (TMOP) by P. Knupp et al. */
