@@ -225,7 +225,7 @@ IntegrationRule::ApplyToKnotIntervals(const KnotVector &kv) const
 }
 
 IntegrationRule*
-SplineIntegrationRule::GetReducedGaussianRule(const KnotVector &kv)
+SplineIntegrationRule::GetReducedOrderGaussLegendre(const KnotVector &kv)
 {
    const int ne = kv.GetNE();
    // Get the unique knot vectors and their multiplicities
@@ -269,17 +269,17 @@ SplineIntegrationRule::GetReducedGaussianRule(const KnotVector &kv)
 
 IntegrationRule* SplineIntegrationRule::Get(const KnotVector &kv) const
 {
-   if (T == Type::FULL)
+   if (T == Type::FullOrderGaussLegendre)
    {
       const int order = kv.GetOrder();
       const IntegrationRule& ir = IntRules.Get(Geometry::SEGMENT, 2*order);
       return ir.ApplyToKnotIntervals(kv);
    }
-   else if (T == Type::REDUCED)
+   else if (T == Type::ReducedOrderGaussLegendre)
    {
-      return GetReducedGaussianRule(kv);
+      return GetReducedOrderGaussLegendre(kv);
    }
-   else if (T == Type::FIXED_ORDER)
+   else if (T == Type::FixedOrderGaussLegendre)
    {
       MFEM_VERIFY(fixed_order > 0, "Fixed order must be positive");
       const IntegrationRule& ir = IntRules.Get(Geometry::SEGMENT, fixed_order);

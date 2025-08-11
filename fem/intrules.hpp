@@ -280,15 +280,15 @@ class SplineIntegrationRule
 public:
    enum class Type
    {
-      FULL = 0,         /// Use a full Gaussian rule (2*order)
-      REDUCED = 1,      /// Use a reduced Gaussian rule (Zou 2022)
-      FIXED_ORDER = 2,  /// Use a fixed order Gaussian rule
+      FullOrderGaussLegendre = 0,    /// (2*order)
+      ReducedOrderGaussLegendre = 1, /// (see Zou 2022)
+      FixedOrderGaussLegendre = 2,
    };
 
-   SplineIntegrationRule(Type T = Type::FULL, int fixed_order = 0)
+SplineIntegrationRule(Type T = Type::FullOrderGaussLegendre, int fixed_order = 0)
       : T(T), fixed_order(fixed_order)
    {
-      MFEM_VERIFY(!((T == Type::FIXED_ORDER) && (fixed_order <= 0)),
+      MFEM_VERIFY(!((T == Type::FixedOrderGaussLegendre) && (fixed_order <= 0)),
                   "Fixed order must be positive");
    }
 
@@ -309,11 +309,11 @@ public:
        "Efficient and robust quadratures for isogeometric analysis:
         Reduced Gauss and Gauss-Greville Rules" - Zou 2022
        Generally, this rule should only be used as an approximation */
-   static IntegrationRule* GetReducedGaussianRule(const KnotVector &kv);
+   static IntegrationRule* GetReducedOrderGaussLegendre(const KnotVector &kv);
 
 private:
-   Type T = Type::FULL;
-   int fixed_order = 0; /// Used only if T == FIXED_ORDER
+   Type T = Type::FullOrderGaussLegendre;
+   int fixed_order = 0; /// Used only if T == FixedOrderGaussLegendre
 };
 
 

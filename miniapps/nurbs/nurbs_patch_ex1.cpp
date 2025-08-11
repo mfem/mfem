@@ -65,8 +65,8 @@ int main(int argc, char *argv[])
    args.AddOption(&ref_levels, "-ref", "--refine",
                   "Number of uniform mesh refinements.");
    args.AddOption(&spline_integration_type, "-int", "--integration-type",
-                  "Integration rule type: 0 - full Gaussian, "
-                  "1 - reduced Gaussian, 2 - fixed order.");
+                  "Integration rule type: 0 - full order Gauss Legendre, "
+                  "1 - reduced order Gaussian Legendre");
    args.AddOption(&ir_order, "-iro", "--integration-order",
                   "Order of integration rule.");
    args.AddOption(&nurbs_degree_increase, "-incdeg", "--nurbs-degree-increase",

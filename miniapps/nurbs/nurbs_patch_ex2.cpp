@@ -60,8 +60,8 @@ int main(int argc, char *argv[])
    args.AddOption(&nurbs_degree_increase, "-incdeg", "--nurbs-degree-increase",
                   "Elevate NURBS mesh degree by this amount.");
    args.AddOption(&spline_integration_type, "-int", "--integration-type",
-                  "Integration rule type: 0 - full Gaussian, "
-                  "1 - reduced Gaussian");
+                  "Integration rule type: 0 - full order Gauss Legendre, "
+                  "1 - reduced order Gaussian Legendre");
    args.AddOption(&preconditioner, "-pc", "--preconditioner",
                   "Preconditioner: 0 - none, 1 - Jacobi");
    args.AddOption(&csv_info, "-csv", "--csv-info", "-no-csv",
@@ -110,7 +110,7 @@ int main(int argc, char *argv[])
    FiniteElementCollection * fec = mesh.GetNodes()->OwnFEC();
    cout << "fec order = " << fec->GetOrder() << endl;
 
-   FiniteElementSpace fespace = FiniteElementSpace(&mesh, mesh.NURBSext, fec,
+   FiniteElementSpace fespace = FiniteElementSpace(&mesh, fec,
                                                    dim, Ordering::byVDIM);
    cout << "Finite Element Collection: " << fec->Name() << endl;
    const int ndof = fespace.GetTrueVSize();
