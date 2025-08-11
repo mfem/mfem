@@ -278,7 +278,7 @@ public:
 class SplineIntegrationRule
 {
 public:
-   enum Type
+   enum class Type
    {
       FULL = 0,         /// Use a full Gaussian rule (2*order)
       REDUCED = 1,      /// Use a reduced Gaussian rule (Zou 2022)
@@ -302,7 +302,10 @@ public:
    IntegrationRule* Get(const KnotVector &kv) const;
 
    /** @brief
-       Obtains a reduced Gaussian rule. For more details see:
+       Obtains a reduced quadrature rule for splines; points are
+       chosen like GaussLegendre but the number of points depends
+       on the knot multiplicity/continuity. For more details see
+       equation 14 in:
        "Efficient and robust quadratures for isogeometric analysis:
         Reduced Gauss and Gauss-Greville Rules" - Zou 2022
        Generally, this rule should only be used as an approximation */

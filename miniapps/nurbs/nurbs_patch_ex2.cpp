@@ -220,7 +220,6 @@ int main(int argc, char *argv[])
    cout << "Solving linear system ... " << endl;
    solver.SetMaxIter(1e4);
    solver.SetPrintLevel(1);
-   // These tolerances end up getting squared
    solver.SetRelTol(sqrt(1e-6));
    solver.SetAbsTol(sqrt(1e-14));
 

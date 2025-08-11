@@ -245,8 +245,8 @@ SplineIntegrationRule::GetReducedGaussianRule(const KnotVector &kv)
    // This shouldn't really matter?
    kvir->SetOrder(kv.GetOrder());
 
-   // Loop through knot spans
-   for (int e=0; e<ne; ++e)
+   // Loop through knot spans (see equation 14 from Zou 2022)
+   for (int e = 0; e < ne; ++e)
    {
       const int np1 = ceil((m[e] + m[e+1])/2);
       const int np = max(np1, np2);
@@ -255,7 +255,7 @@ SplineIntegrationRule::GetReducedGaussianRule(const KnotVector &kv)
       const real_t s = x1 - x0;
 
       const IntegrationRule ir = IntRules.Get(Geometry::SEGMENT, 2*np-1);
-      for (int j=0; j<np; ++j)
+      for (int j = 0; j < np; ++j)
       {
          const real_t x = x0 + (s * ir[j].x);
          (*kvir)[idx].Set1w(x, ir[j].weight);

@@ -8,7 +8,7 @@ namespace mfem
 {
 
 /**
- * Compute gradient at quadrature points
+ * Compute gradient at quadrature points for a NURBS patch
  */
 template <int vdim>
 void PatchG3D(const PatchBasisInfo &pb,
