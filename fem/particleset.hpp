@@ -124,7 +124,6 @@ private:
    static std::string GetDefaultFieldName(int i);
    static std::string GetDefaultTagName(int i);
    static Array<const char*> GetEmptyNameArray(int N);
-   static Array<int> LDof2VDofs(int ndofs, int vdim, const Array<int> &ldofs, Ordering::Type o);
 #ifdef MFEM_USE_MPI
    static unsigned int GetRank(MPI_Comm comm_);
    static unsigned int GetSize(MPI_Comm comm_);

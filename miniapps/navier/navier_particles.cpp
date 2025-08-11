@@ -89,8 +89,8 @@ void NavierParticles::ParticleStep2D(const real_t &dt, int p)
    r = 0.0;
    for (int j = 1; j <= 3; j++)
    {
-      fp_data.u[j]->GetRefNodeValues(p, up);
-      fp_data.v[j]->GetRefNodeValues(p, vp);
+      fp_data.u[j]->GetVectorRef(p, up);
+      fp_data.v[j]->GetVectorRef(p, vp);
 
       // Add particle velocity component
       add(r, -beta[j], vp, r);
@@ -107,18 +107,18 @@ void NavierParticles::ParticleStep2D(const real_t &dt, int p)
 
    // Solve for particle velocity
    DenseMatrixInverse B_inv(B);
-   fp_data.v[0]->GetRefNodeValues(p, vp);
+   fp_data.v[0]->GetVectorRef(p, vp);
    B_inv.Mult(r, vp);
 
    // Compute updated particle position
-   fp_data.x[0]->GetRefNodeValues(p, xpn);
+   fp_data.x[0]->GetVectorRef(p, xpn);
    xpn = 0.0;
    for (int j = 1; j <= 3; j++)
    {
-      fp_data.x[j]->GetRefNodeValues(p, xp);
+      fp_data.x[j]->GetVectorRef(p, xp);
       add(xpn, -beta[j], xp, xpn);
    }
-   fp_data.v[0]->GetRefNodeValues(p, vp);
+   fp_data.v[0]->GetVectorRef(p, vp);
    add(xpn, dt, vp, xpn);
    xpn *= 1.0/beta[0];
 }
@@ -189,9 +189,9 @@ void NavierParticles::Apply2DReflectionBC(const ReflectionBC_2D &bc)
    Vector p_xn(2), p_xnm1(2), p_xdiff(2), x_int(2), p_vn(2), p_vdiff(2);
    for (int i = 0; i < fluid_particles.GetNP(); i++)
    {
-      X().GetRefNodeValues(i, p_xn);
-      X(1).GetRefNodeValues(i, p_xnm1);
-      V().GetRefNodeValues(i, p_vn);
+      X().GetVectorRef(i, p_xn);
+      X(1).GetVectorRef(i, p_xnm1);
+      V().GetVectorRef(i, p_vn);
 
       // If line_start to line_end and x_nm1 to x_n intersect, apply reflection
       if (Get2DSegmentIntersection(bc.line_start, bc.line_end, p_xnm1, p_xn, x_int))
@@ -244,8 +244,8 @@ void NavierParticles::Apply2DRecirculationBC(const RecirculationBC_2D &bc)
    Vector p_xn(2), p_xnm1(2), x_int(2), p_xc(2), p_x_int_diff(2);
    for (int i = 0; i < fluid_particles.GetNP(); i++)
    {
-      X().GetRefNodeValues(i, p_xn);
-      X(1).GetRefNodeValues(i, p_xnm1);
+      X().GetVectorRef(i, p_xn);
+      X(1).GetVectorRef(i, p_xnm1);
 
       // If outlet_start to outlet_end and x_nm1 to x_n intersect, apply recirculation
       if (Get2DSegmentIntersection(bc.outlet_start, bc.outlet_end, p_xnm1, p_xn, x_int, &t1))

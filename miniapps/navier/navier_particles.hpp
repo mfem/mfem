@@ -23,6 +23,11 @@ namespace mfem
 namespace navier
 {
 
+/** @brief Transient Navier-Stokes fluid-particles solver
+ * 
+ *  @details TODO: Citation, model, equation...
+ * 
+ */
 class NavierParticles
 {
 protected:
@@ -31,8 +36,12 @@ protected:
    FindPointsGSLIB finder;
 
    Array<real_t> dthist{0.0, 0.0, 0.0};
-   std::array<Array<real_t>, 3> beta_k; // BDFk coefficients, k=1,2,3
-   std::array<Array<real_t>, 3> alpha_k; // EXTk coefficients, k=1,2,3
+
+   // BDFk coefficients, k=1,2,3
+   std::array<Array<real_t>, 3> beta_k;
+
+   // EXTk coefficients, k=1,2,3
+   std::array<Array<real_t>, 3> alpha_k;
 
    struct FluidParticleData
    {

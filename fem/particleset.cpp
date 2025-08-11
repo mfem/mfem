@@ -135,36 +135,6 @@ Array<const char*> ParticleSet::GetEmptyNameArray(int N)
    return std::move(names);
 }
 
-
-Array<int> ParticleSet::LDof2VDofs(int ndofs, int vdim, const Array<int> &ldofs, Ordering::Type o)
-{
-   // Convert list index array of "ldofs" to "vdofs"
-   Array<int> v_list;
-   v_list.Reserve(ldofs.Size()*vdim);
-   if (o == Ordering::byNODES)
-   {
-      for (int l = 0; l < ldofs.Size(); l++)
-      {
-         for (int vd = 0; vd < vdim; vd++)
-         {
-            v_list.Append(Ordering::Map<Ordering::byNODES>(ndofs, vdim, ldofs[l], vd));
-         }
-      }
-   }
-   else
-   {
-      for (int l = 0; l < ldofs.Size(); l++)
-      {
-         for (int vd = 0; vd < vdim; vd++)
-         {
-            v_list.Append(Ordering::Map<Ordering::byVDIM>(ndofs, vdim, ldofs[l], vd));
-         }
-      }
-   }
-
-   return std::move(v_list);
-}
-
 #ifdef MFEM_USE_MPI
 unsigned int ParticleSet::GetRank(MPI_Comm comm_)
 {
@@ -293,7 +263,7 @@ void ParticleSet::RemoveParticles(const Array<int> &list, ParticleState &particl
       int vdim = pv.GetVDim();
 
       // Convert list particle index array ("ldofs") to "vdofs" + delete data
-      pv.DeleteAt(LDof2VDofs(old_np, vdim, list, pv.GetOrdering()));
+      pv.DeleteVectorsAt(list);
    }
 
    // Delete tags
@@ -646,11 +616,11 @@ Particle ParticleSet::GetParticle(int i) const
 {
    Particle p = CreateParticle();
 
-   Coords().GetNodeValues(i, p.Coords());
+   Coords().GetVectorValues(i, p.Coords());
    
    for (int f = 0; f < active_state.GetNF(); f++)
    {
-      Field(f).GetNodeValues(i, p.Field(f));  
+      Field(f).GetVectorValues(i, p.Field(f));  
    }
 
    for (int t = 0; t < active_state.GetNT(); t++)
@@ -681,11 +651,11 @@ Particle ParticleSet::GetParticleRef(int i)
 {
    Particle p = CreateParticle();
 
-   Coords().GetRefNodeValues(i, p.Coords());
+   Coords().GetVectorRef(i, p.Coords());
 
    for (int f = 0; f < active_state.GetNF(); f++)
    {
-      Field(f).GetRefNodeValues(i, p.Field(f));
+      Field(f).GetVectorRef(i, p.Field(f));
    }
 
    for (int t = 0; t < active_state.GetNT(); t++)
@@ -699,11 +669,11 @@ Particle ParticleSet::GetParticleRef(int i)
 
 void ParticleSet::SetParticle(int i, const Particle &p)
 {
-   Coords().SetNodeValues(i, p.Coords());
+   Coords().SetVectorValues(i, p.Coords());
 
    for (int f = 0; f < active_state.GetNF(); f++)
    {
-      Field(f).SetNodeValues(i, p.Field(f));
+      Field(f).SetVectorValues(i, p.Field(f));
    }
 
    for (int t = 0; t < active_state.GetNT(); t++)
