@@ -108,15 +108,7 @@ public:
    inline ~Array() { data.Delete(); }
 
    /// Copy assignment operator: deep copy from 'src'.
-   Array<T> &operator=(const Array<T> &src)
-   {
-      SetSize(src.Size());
-      data.UseDevice(UseDevice() || src.UseDevice());
-      // keep 'data' where it is, unless 'use_dev' is true
-      if (UseDevice()) { Write(); }
-      data.CopyFrom(src.data, src.Size());
-      return *this;
-   }
+   Array<T> &operator=(const Array<T> &src) { src.Copy(*this); return *this; }
 
    /// Move assignment operator
    Array<T> &operator=(Array<T> &&src)
@@ -958,9 +950,12 @@ inline void Array<T>::DeleteAll()
 template <typename T>
 inline void Array<T>::Copy(Array &copy) const
 {
-   copy.SetSize(Size(), data.GetMemoryType());
-   data.CopyTo(copy.data, Size());
-   copy.data.UseDevice(data.UseDevice());
+   copy.SetSize(Size());
+   const bool use_dev = UseDevice() || copy.UseDevice();
+   copy.data.UseDevice(use_dev);
+   // keep 'copy.data' where it is, unless 'use_dev' is true
+   if (use_dev) { copy.Write(); }
+   copy.data.CopyFrom(data, Size());
 }
 
 template <class T>
