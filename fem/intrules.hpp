@@ -285,7 +285,8 @@ public:
       FixedOrderGaussLegendre = 2,
    };
 
-SplineIntegrationRule(Type T = Type::FullOrderGaussLegendre, int fixed_order = 0)
+   SplineIntegrationRule(Type T = Type::FullOrderGaussLegendre,
+                         int fixed_order = 0)
       : T(T), fixed_order(fixed_order)
    {
       MFEM_VERIFY(!((T == Type::FixedOrderGaussLegendre) && (fixed_order <= 0)),

@@ -86,14 +86,7 @@ KnotVector::KnotVector(int order, const Vector& intervals,
    MFEM_ASSERT(knot.Size() >= (2*(Order+1)),
                "Insufficient number of knots to define NURBS.");
    // Calculate the number of elements provided by the knot vector
-   NumOfElements = 0;
-   for (int i = 0; i < GetNKS(); ++i)
-   {
-      if (isElement(i))
-      {
-         ++NumOfElements;
-      }
-   }
+   GetElements();
    coarse = false;
 }
 
@@ -105,6 +98,7 @@ KnotVector &KnotVector::operator=(const KnotVector &kv)
    knot = kv.knot;
    coarse = kv.coarse;
    if (kv.spacing) { spacing = kv.spacing->Clone(); }
+   ComputeUniqueKnots();
 
    return *this;
 }
