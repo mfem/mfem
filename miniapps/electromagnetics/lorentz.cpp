@@ -29,7 +29,8 @@
 // box specified by command line input.
 //
 // This miniapp demonstrates the use of ParticleSet with FindPointsGSLIB. When 
-// particles leave both domains, they are subject to removal.
+// particles leave both domains, they are subject to removal. Redistribution of
+// particle data between MPI ranks is also demonstrated.
 //
 // Note that the VisItDataCollection objects must have been stored using the
 // parallel format e.g. visit_dc.SetFormat(DataCollection::PARALLEL_FORMAT);.
@@ -38,16 +39,14 @@
 // Compile with: make lorentz
 //
 // Sample runs:
-//   TODO: Update
+//   
 //   Particle accelerating in a constant electric field
 //      mpirun -np 4 volta -m ../../data/inline-hex.mesh -dbcs '1 6' -dbcv '0 1'
-//      mpirun -np 4 lorentz -er Volta-AMR-Parallel -x0 '0.5 0.5 0.9'
-//                           -p0 '1 0 0'
-//   TODO: Update
+//      mpirun -np 4 ./lorentz -er Volta-AMR-Parallel -npt 100 -xmin '0.0 0.0 0.0' -xmax '1.0 1.0 1.0' -pmin '0 0 0' -pmax '1 0 0' -rdf 0 -vt 0 -nt 10
+//
 //   Particle accelerating in a constant magnetic field
 //      mpirun -np 4 tesla -m ../../data/inline-hex.mesh -ubbc '0 0 1'
-//      mpirun -np 4 lorentz -br Tesla-AMR-Parallel -x0 '0.1 0.5 0.1'
-//                           -p0 '0 0.4 0.1' -tf 9
+//      mpirun -np 4 ./lorentz -br Tesla-AMR-Parallel -npt 10 -xmin '0.0 0.0 0.0' -xmax '1.0 1.0 1.0' -pmin '0 0.1 0.05' -pmax '0 0.4 0.1' -nt 1000 -rdf 0 -vt 0
 //
 //   Magnetic mirror effect near a charged sphere and a bar magnet
 //      mpirun -np 4 volta -m ../../data/ball-nurbs.mesh -dbcs 1
@@ -163,6 +162,8 @@ void InitializeChargedParticles(ParticleSet &particles, const Vector &pos_min, c
 int main(int argc, char *argv[])
 {
    Mpi::Init(argc, argv);
+   int size = Mpi::WorldSize();
+   int rank = Mpi::WorldRank();
    Hypre::Init();
 
    if ( Mpi::Root() ) { display_banner(cout); }
@@ -192,7 +193,7 @@ int main(int argc, char *argv[])
    args.AddOption(&ctx.redist_mesh, "-rdm", "--redistribution-mesh", "Particle domain mesh for redistribution. 0 for E field mesh. 1 for B field mesh.");
    args.AddOption(&ctx.rm_lost_freq, "-rmf", "--remove-lost-freq", "Remove lost particles frequency.");
    args.AddOption(&ctx.ordering, "-o", "--ordering", "Ordering of particle data. 0 = byNODES, 1 = byVDIM.");
-   args.AddOption(&ctx.npt, "-npt", "--num-part", "Total number of particles.");
+   args.AddOption(&ctx.npt, "-npt", "--num-particles", "Total number of particles.");
    args.AddOption(&ctx.m, "-m", "--mass", "Particles' mass.");
    args.AddOption(&ctx.q, "-q", "--charge", "Particles' charge.");
    args.AddOption(&ctx.x_min, "-xmin", "--x-min", "Minimum initial particle location.");
@@ -248,7 +249,8 @@ int main(int argc, char *argv[])
    Ordering::Type ordering_type = ctx.ordering == 0 ? Ordering::byNODES : Ordering::byVDIM;
 
    // Initialize Boris
-   Boris boris(MPI_COMM_WORLD, E_gf, B_gf, ctx.npt, ordering_type);
+   int num_particles = ctx.npt/size + (rank < (ctx.npt % size) ? 1 : 0);
+   Boris boris(MPI_COMM_WORLD, E_gf, B_gf, num_particles, ordering_type);
    InitializeChargedParticles(boris.GetParticles(), ctx.x_min, ctx.x_max, ctx.p_min, ctx.p_max, ctx.m, ctx.q);
    boris.InterpolateEB(); // Interpolate E and B field onto updated particle positions
 
