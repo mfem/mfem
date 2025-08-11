@@ -972,7 +972,8 @@ class IMEXExpImplEuler : public SplitODESolver
 };
 
 
-/**IMEX RK2 Method from "On the Stability of IMEX Upwind gSBP Schemes for 1D Linear Advection‑Difusion Equations" by Sigrun Ortleb. Same as (2,2,2) from "Implicit-explicit Runge-Kutta
+/**IMEX RK2 Method from "On the Stability of IMEX Upwind gSBP Schemes for 1D Linear Advection‑Difusion Equations" by Sigrun Ortleb. 
+ * Same as (2,2,2) from "Implicit-explicit Runge-Kutta
     methods for time-dependent partial differential equations" by Ascher, Ruuth
     and Spiteri, Applied Numerical Mathematics (1997).**/
 class IMEXRK2 : public SplitODESolver

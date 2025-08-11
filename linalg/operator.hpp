@@ -791,13 +791,13 @@ class SplitTimeDependentOperator : public TimeDependentOperator
 {
     // virtual void Mult(...) sum of Mult1 and Mult2
     public:
-        /** @brief Construct a "square" SplitOrderTimeDependentOperator
-        y = f(x,dxdt,t), where x, dxdt and y have the same dimension @a n. */
+        /** @brief Construct a "square" SplitTimeDependentOperator
+        y = F(x,dxdt,t), where x, dxdt and y have the same dimension @a n. */
         explicit SplitTimeDependentOperator(int n = 0, real_t t_ = 0.0,
                                                     Type type_ = EXPLICIT)
             : TimeDependentOperator(n, t_,type_) { }
 
-        /** @brief Construct a SplitTimeDependentOperator y = f(x,dxdt,t),
+        /** @brief Construct a SplitTimeDependentOperator y = F(x,dxdt,t),
         where x, dxdt and y have the same dimension @a n. */
         SplitTimeDependentOperator(int h, int w, real_t t_ = 0.0,
                                             Type type_ = EXPLICIT)

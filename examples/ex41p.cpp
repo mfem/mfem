@@ -2,18 +2,26 @@
 //
 // Compile with: make ex41p
 //
-// Sample runs:
+// Sample runs: mpirun -np 4 ex41p
+//              mpirun -np 4 ex41p -p 0 -dt 0.01 -tf 10
+//              mpirun -np 4 ex41p -m ../data/periodic-hexagon.mesh -p 0 -dt 0.005 -tf 10
+//              mpirun -np 4 ex41p -m ../data/periodic-square.mesh -p 1 -dt 0.005 -tf 9
+//              mpirun -np 4 ex41p -m ../data/periodic-hexagon.mesh -p 1  -dt 0.005 -tf 9
+//              mpirun -np 4 ex41p -m ../data/star-q3.mesh -p 1 -rp 1 -dt 0.001 -tf 9
+//              mpirun -np 4 ex41p -m ../data/disc-nurbs.mesh -p 1 -rp 1 -dt 0.005 -tf 9
+//              mpirun -np 4 ex41p -m ../data/disc-nurbs.mesh -p 2 -rp 1 -dt 0.005 -tf 9
+//              mpirun -np 4 ex41p -m ../data/periodic-square.mesh -rp 2 -dt 0.0025 -tf 9 -vs 20
+//              mpirun -np 4 ex41p -m ../data/periodic-cube.mesh -p 0 -rs 2 -o 2 -dt 0.01 -tf 8
 //
 // Device sample runs:
 //
 // Description:  This example code solves the time-dependent advection-diffusion
-//               equation du/dt + v.grad(u) + a div(grad(u)) = 0, where v is a
+//               equation du/dt + v.grad(u) - a div(grad(u)) = 0, where v is a
 //               given fluid velocity, a is the diffusion coefficient, and
 //               u0(x)=u(0,x) is a given initial condition.
 //
 //               The example demonstrates the use of Discontinuous Galerkin (DG)
-//               bilinear forms in MFEM (face integrators), the use of implicit,
-//               explicit, and IMEX ODE time integrators.
+//               bilinear forms in MFEM (face integrators), DG-LOR Preconditioning and the use of IMEX ODE time integrators.
 
 #include "mfem.hpp"
 
@@ -36,64 +44,6 @@ real_t inflow_function(const Vector &x);
 // Mesh bounding box
 Vector bb_min, bb_max;
 
-enum class PrecType : int
-{
-   ILU = 0,
-   AIR = 1
-};
-
-#if MFEM_HYPRE_VERSION >= 21800
-// Algebraic multigrid preconditioner for advective problems based on
-// approximate ideal restriction (AIR). Most effective when matrix is
-// first scaled by DG block inverse, and AIR applied to scaled matrix.
-// See https://doi.org/10.1137/17M1144350.
-class AIR_prec : public Solver
-{
-private:
-   const HypreParMatrix *A;
-   // Copy of A scaled by block-diagonal inverse
-   HypreParMatrix A_s;
-
-   HypreBoomerAMG *AIR_solver;
-   int blocksize;
-
-public:
-   AIR_prec(int blocksize_) : AIR_solver(NULL), blocksize(blocksize_) { }
-
-   void SetOperator(const Operator &op) override
-   {
-      width = op.Width();
-      height = op.Height();
-
-      A = dynamic_cast<const HypreParMatrix *>(&op);
-      MFEM_VERIFY(A != NULL, "AIR_prec requires a HypreParMatrix.")
-
-      // Scale A by block-diagonal inverse
-      BlockInverseScale(A, &A_s, NULL, NULL, blocksize,
-                        BlockInverseScaleJob::MATRIX_ONLY);
-      delete AIR_solver;
-      AIR_solver = new HypreBoomerAMG(A_s);
-      AIR_solver->SetAdvectiveOptions(1, "", "FA");
-      AIR_solver->SetPrintLevel(0);
-      AIR_solver->SetMaxLevels(50);
-   }
-
-   void Mult(const Vector &x, Vector &y) const override
-   {
-      // Scale the rhs by block inverse and solve system
-      HypreParVector z_s;
-      BlockInverseScale(A, NULL, &x, &z_s, blocksize,
-                        BlockInverseScaleJob::RHS_ONLY);
-      AIR_solver->Mult(z_s, y);
-   }
-
-   ~AIR_prec() override
-   {
-      delete AIR_solver;
-   }
-};
-#endif
-
 
 class DG_Solver : public Solver
 {
@@ -101,39 +51,21 @@ private:
    HypreParMatrix &M, &K, &S;
    HypreParMatrix *A;
    CGSolver linear_solver;
-   Solver *prec;
    real_t dt;
    SparseMatrix M_diag;
 public:
-   DG_Solver(HypreParMatrix &M_, HypreParMatrix &K_, HypreParMatrix &S_, const FiniteElementSpace &fes, PrecType prec_type)
+   DG_Solver(HypreParMatrix &M_, HypreParMatrix &K_, HypreParMatrix &S_, const FiniteElementSpace &fes)
       : M(M_),
         K(K_),
         S(S_),
         linear_solver(M.GetComm()),
         dt(1.0)
    {
-      int block_size = fes.GetTypicalFE()->GetDof();
-//       if (prec_type == PrecType::ILU)
-//       {
-//          prec = new BlockILU(block_size,
-//                              BlockILU::Reordering::MINIMUM_DISCARDED_FILL);
-//       }
-//       else if (prec_type == PrecType::AIR)
-//       {
-// #if MFEM_HYPRE_VERSION >= 21800
-//          prec = new AIR_prec(block_size);
-// #else
-//          MFEM_ABORT("Must have MFEM_HYPRE_VERSION >= 21800 to use AIR.\n");
-// #endif
-//       }
-      //auto solver = new LORSolver<HypreBoomerAMG>();
-      //solver->GetSolver().SetSystemsOptions(dim, true);
       linear_solver.iterative_mode = false;
       linear_solver.SetRelTol(1e-9);
       linear_solver.SetAbsTol(0.0);
       linear_solver.SetMaxIter(100);
-      linear_solver.SetPrintLevel(1);
-      //linear_solver.SetPreconditioner(*solver);
+      linear_solver.SetPrintLevel(0);
 
       M.GetDiag(M_diag);
    }
@@ -145,20 +77,7 @@ public:
          dt = dt_;
          // // Form operator A = M + dt*S
          A = Add(dt, S, 1.0, M);
-         //SparseMatrix A_diag;
-         //A->GetDiag(A_diag);
-         //A_diag.Add(1.0, M_diag);
-         // // this will also call SetOperator on the preconditioner
-         //solver->SetOperator(*A);
-         //linear_solver.SetPreconditioner(*solver);
          linear_solver.SetOperator(*A);
-
-         // A = S;
-         // A *= dt;
-         // A += M;
-
-         // this will also call SetOperator on the preconditioner
-         //linear_solver.SetOperator(A);
       }
    }
 
@@ -179,16 +98,14 @@ public:
 
   ~DG_Solver() override
    {
-      //delete prec;
       delete A;
    }
 };
 
 /** A time-dependent operator for the right-hand side of the ODE. The DG weak
-    form of du/dt = -v.grad(u) is M du/dt = K u + b, where M and K are the mass
-    and advection matrices, and b describes the flow on the boundary. This can
-    be written as a general ODE, du/dt = M^{-1} (K u + b), and this class is
-    used to evaluate the right-hand side. */
+    form of the advection-diffusion equation is (M + dt S) du/dt = Su - K u + b, where M and K are the mass
+    and advection matrices, and b describes the flow on the boundary. In the case of IMEX evolution, the diffusion term is treated
+    implicitly, and the advection term is treated explicitly.  */
 class IMEX_Evolution : public SplitTimeDependentOperator
 {
 private:
@@ -202,7 +119,7 @@ private:
    mutable Vector w;
 
 public:
-   IMEX_Evolution(ParBilinearForm &M_, ParBilinearForm &K_, ParBilinearForm &S_, const Vector &b_, ParBilinearForm &A_, PrecType prec_type);
+   IMEX_Evolution(ParBilinearForm &M_, ParBilinearForm &K_, ParBilinearForm &S_, const Vector &b_, ParBilinearForm &A_);
 
    void Mult1(const Vector &x, Vector &y) const;
    void ImplicitSolve2(const real_t dt, const Vector &x, Vector &k) override;
@@ -218,7 +135,7 @@ int main(int argc, char *argv[])
    int myid = Mpi::WorldRank();
    Hypre::Init();
 
-   // 1. Parse command-line options.
+   // 2. Parse command-line options.
    problem = 0;
    const char *mesh_file = "../data/periodic-square.mesh";
    int ser_ref_levels = 2;
@@ -232,18 +149,18 @@ int main(int argc, char *argv[])
    real_t t_final = 10.0;
    real_t dt = 0.001;
    bool paraview = false;
-   int vis_steps = 100;
+   int vis_steps = 50;
    bool adios2 = false;
    bool binary = false;
    real_t diffusion_term = 0.01;
-   const real_t kappa = (order+1)*(order+1);
-   const real_t sigma = -1.0;
+   real_t kappa = -1.0;
+   real_t sigma = -1.0;
    bool visualization = false;
-   #if MFEM_HYPRE_VERSION >= 21800
-   PrecType prec_type = PrecType::AIR;
-#else
-   PrecType prec_type = PrecType::ILU;
-#endif
+//    #if MFEM_HYPRE_VERSION >= 21800
+//    PrecType prec_type = PrecType::AIR;
+// #else
+//    PrecType prec_type = PrecType::ILU;
+// #endif
    int precision = 16;
    cout.precision(precision);
 
@@ -272,8 +189,6 @@ int main(int argc, char *argv[])
                   "Final time; start time is 0.");
    args.AddOption(&dt, "-dt", "--time-step",
                   "Time step.");
-   args.AddOption((int *)&prec_type, "-pt", "--prec-type", "Preconditioner for "
-                  "implicit solves. 0 for ILU, 1 for pAIR-AMG.");
    args.AddOption(&paraview, "-paraview", "--paraview-datafiles", "-no-paraview",
                   "--no-paraview-datafiles",
                   "Save data files for ParaView (paraview.org) visualization.");
@@ -298,28 +213,35 @@ int main(int argc, char *argv[])
    {
       args.PrintOptions(cout);
    }
-
+   if (kappa < 0)
+   {
+      kappa = (order+1)*(order+1);
+   }
    Device device(device_config);
    if (Mpi::Root()) { device.Print(); }
 
-
-   // 2. Read the mesh from the given mesh file. We can handle geometrically
+   // 3. Read the mesh from the given mesh file. We can handle geometrically
    //    periodic meshes in this code.
    Mesh *mesh = new Mesh(mesh_file);
    const int dim = mesh->Dimension();
-   
 
-   // 3. Define the ODE solver used for time integration. May be explicit,
-   //    implicit, or IMEX.
+   // 4. Define the Split ODE solver used for time integration. The IMEX solvers currently
+   // available are: 55 - Forward Backward Euler, 56 - IMEXRK2(2,2,2), 57 - IMEXRK2(2,3,2), and
+   // 58 - IMEX_DIRK_RK3.
    unique_ptr<SplitODESolver> ode_solver = SplitODESolver::Select(ode_solver_type);
-   // 4. Refine the mesh to increase the resolution. In this example we do
+
+   // 5. Refine the mesh to increase the resolution. In this example we do
    //    'ref_levels' of uniform refinement, where 'ref_levels' is a
    //    command-line parameter.
    for (int lev = 0; lev < ser_ref_levels; lev++) { mesh->UniformRefinement(); }
+   if (mesh->NURBSext)
+   {
+      mesh->SetCurvature(max(order, 1));
+   }
    mesh->GetBoundingBox(bb_min, bb_max, max(order, 1));
 
 
-      // 6. Define the parallel mesh by a partitioning of the serial mesh. Refine
+   // 6. Define the parallel mesh by a partitioning of the serial mesh. Refine
    //    this mesh further in parallel to increase the resolution. Once the
    //    parallel mesh is defined, the serial mesh can be deleted.
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
@@ -329,7 +251,7 @@ int main(int argc, char *argv[])
       pmesh->UniformRefinement();
    }
 
-   // 5. Define the discontinuous DG finite element space of the given
+   // 7. Define the discontinuous DG finite element space of the given
    //    polynomial order on the refined mesh.
    DG_FECollection fec(order, dim, BasisType::GaussLobatto);
    ParFiniteElementSpace *fes = new ParFiniteElementSpace(pmesh, &fec);
@@ -340,16 +262,13 @@ int main(int argc, char *argv[])
       cout << "Number of unknowns: " << global_vSize << endl;
    }
 
-
-   // 6. Set up and assemble the bilinear and linear forms corresponding to the
+   // 8. Set up and assemble the bilinear and linear forms corresponding to the
    //    DG discretization. The DGTraceIntegrator involves integrals over mesh
    //    interior faces.
    VectorFunctionCoefficient velocity(dim, velocity_function);
    FunctionCoefficient inflow(inflow_function);
-   FunctionCoefficient u0(u0_function);
    ConstantCoefficient diff_coeff(diffusion_term);
    ConstantCoefficient dt_diff_coeff(dt*diffusion_term);
-   constexpr real_t alpha = -1.0;
 
    ParBilinearForm *m = new ParBilinearForm(fes);
    ParBilinearForm *k = new ParBilinearForm(fes);
@@ -375,53 +294,55 @@ int main(int argc, char *argv[])
    }
 
    m->AddDomainIntegrator(new MassIntegrator);
-   s->AddDomainIntegrator(new DiffusionIntegrator(diff_coeff));
-   s->AddInteriorFaceIntegrator(new DGDiffusionIntegrator(diff_coeff, sigma, kappa));
-   s->AddBdrFaceIntegrator(new DGDiffusionIntegrator(diff_coeff, sigma, kappa));
+
+   constexpr real_t alpha = -1.0;
    k->AddDomainIntegrator(new ConvectionIntegrator(velocity, alpha));
    k->AddInteriorFaceIntegrator(new NonconservativeDGTraceIntegrator(velocity, alpha));
    k->AddBdrFaceIntegrator(new NonconservativeDGTraceIntegrator(velocity, alpha));
 
+   s->AddDomainIntegrator(new DiffusionIntegrator(diff_coeff));
+   s->AddInteriorFaceIntegrator(new DGDiffusionIntegrator(diff_coeff, sigma, kappa));
+   s->AddBdrFaceIntegrator(new DGDiffusionIntegrator(diff_coeff, sigma, kappa));
+
    ParLinearForm *b = new ParLinearForm(fes);
    b->AddBdrFaceIntegrator(new BoundaryFlowIntegrator(inflow, velocity, alpha));
 
-   //For the preconditioner
+   //For the preconditioner - create billinear form corresponding to operator (M + dt S)
    ParBilinearForm *a = new ParBilinearForm(fes);
    a->AddDomainIntegrator(new MassIntegrator);
    a->AddDomainIntegrator(new DiffusionIntegrator(dt_diff_coeff));
    a->AddInteriorFaceIntegrator(new DGDiffusionIntegrator(dt_diff_coeff, sigma, kappa));
    a->AddBdrFaceIntegrator(new DGDiffusionIntegrator(dt_diff_coeff, sigma, kappa));
-
    
    int skip_zeros = 0;
-   s->Assemble(skip_zeros);
    m->Assemble(skip_zeros);
    k->Assemble(skip_zeros);
+   s->Assemble(skip_zeros);
    a->Assemble();
    b->Assemble();
+
    m->Finalize(skip_zeros);
    k->Finalize(skip_zeros);
    s->Finalize(skip_zeros);
    a->Finalize(skip_zeros);
-
    HypreParVector *B = b->ParallelAssemble();
-   // 7. Define the initial conditions.
+
+   // 9. Define the initial conditions. Set up visualization (if desired).
+   FunctionCoefficient u0(u0_function);
    ParGridFunction *u = new ParGridFunction(fes);
    u->ProjectCoefficient(u0);
    HypreParVector *U = u->GetTrueDofs();
-
-   //  {
-      // ostringstream mesh_name, sol_name;
-      // mesh_name << "ex41-mesh." << setfill('0') << setw(6) << myid;
-      // //sol_name << "ex41-init." << setfill('0') << setw(6) << myid;
-      // ofstream omesh(mesh_name.str().c_str());
-      // omesh.precision(precision);
-      // pmesh->Print(omesh);
-      // ofstream osol(sol_name.str().c_str());
-      // osol.precision(precision);
-      // u->Save(osol);
-   //  }
-
+    {
+      ostringstream mesh_name, sol_name;
+      mesh_name << "ex41-mesh." << setfill('0') << setw(6) << myid;
+      sol_name << "ex41-init." << setfill('0') << setw(6) << myid;
+      ofstream omesh(mesh_name.str().c_str());
+      omesh.precision(precision);
+      pmesh->Print(omesh);
+      ofstream osol(sol_name.str().c_str());
+      osol.precision(precision);
+      u->Save(osol);
+    }
    ParaViewDataCollection *pd = NULL;
    if (paraview)
    {
@@ -435,7 +356,6 @@ int main(int argc, char *argv[])
       pd->SetTime(0.0);
       pd->Save();
    }
-
    socketstream sout;
    if (visualization)
    {
@@ -470,15 +390,10 @@ int main(int argc, char *argv[])
       }
    }
 
-
-   // Start the timer.
-   tic_toc.Clear();
-   tic_toc.Start();
-
-   // 8. Define the time-dependent evolution operator describing the ODE
+   // 10. Define the time-dependent evolution operator describing the ODE
    //    right-hand side, and perform time-integration (looping over the time
    //    iterations, ti, with a time-step dt).
-   IMEX_Evolution adv(*m, *k, *s, *B, *a, prec_type);
+   IMEX_Evolution adv(*m, *k, *s, *B, *a);
 
    real_t t = 0.0;
    adv.SetTime(t);
@@ -515,22 +430,16 @@ int main(int argc, char *argv[])
       }
    }
 
-   tic_toc.Stop();
-   if (Mpi::Root())
    {
-      cout << " done, " << tic_toc.RealTime() << "s." << endl;
+      *u = *U;
+      ostringstream sol_name;
+      sol_name << "ex41-final." << setfill('0') << setw(6) << myid;
+      ofstream osol(sol_name.str().c_str());
+      osol.precision(precision);
+      u->Save(osol);
    }
 
-   // {
-   //    *u = *U;
-   //    ostringstream sol_name;
-   //    sol_name << "ex41-final." << setfill('0') << setw(6) << myid;
-   //    ofstream osol(sol_name.str().c_str());
-   //    osol.precision(precision);
-   //    u->Save(osol);
-   // }
-
-   // 13. Free the used memory.
+   // 11. Free the used memory.
    delete U;
    delete u;
    delete B;
@@ -539,14 +448,12 @@ int main(int argc, char *argv[])
    delete m;
    delete fes;
    delete pmesh;
-   //delete pv;
 
    return 0;
 }
 
-
-// Implementation of class FE_Evolution
-IMEX_Evolution::IMEX_Evolution(ParBilinearForm &M_, ParBilinearForm &K_, ParBilinearForm &S_, const Vector &b_, ParBilinearForm &A_, PrecType prec_type)
+// Implementation of class IMEX_Evolution
+IMEX_Evolution::IMEX_Evolution(ParBilinearForm &M_, ParBilinearForm &K_, ParBilinearForm &S_, const Vector &b_, ParBilinearForm &A_)
    : SplitTimeDependentOperator(M_.ParFESpace()->GetTrueVSize()), b(b_),
      M_solver(M_.ParFESpace()->GetComm()), z(height), w(height)
 {
@@ -575,7 +482,7 @@ IMEX_Evolution::IMEX_Evolution(ParBilinearForm &M_, ParBilinearForm &K_, ParBili
       HypreSmoother *hypre_prec = new HypreSmoother(M_mat, HypreSmoother::Jacobi);
       M_prec = hypre_prec;
 
-      dg_solver = new DG_Solver(M_mat, K_mat, S_mat, *M_.FESpace(), prec_type);
+      dg_solver = new DG_Solver(M_mat, K_mat, S_mat, *M_.FESpace());
       auto lor_solver = new LORSolver<HypreBoomerAMG>(A_, ess_tdof_list);
       lor_solver->GetSolver().SetSystemsOptions(A_.ParFESpace()->GetVDim(), true);
       dg_solver -> SetPreconditioner(*lor_solver);
@@ -595,6 +502,7 @@ IMEX_Evolution::IMEX_Evolution(ParBilinearForm &M_, ParBilinearForm &K_, ParBili
 
 void IMEX_Evolution::Mult1(const Vector &x, Vector &y) const
 {
+   // Perform the explicit step
    // y = M^{-1} (K x + b)
    K->Mult(x, z);
    z += b;
@@ -603,16 +511,14 @@ void IMEX_Evolution::Mult1(const Vector &x, Vector &y) const
 
 void IMEX_Evolution::ImplicitSolve2(const real_t dt, const Vector &x, Vector &k)
 {
+   // Perform the implicit step
    // solve for k, k = -(M+dt S)^{-1} S x 
    MFEM_VERIFY(dg_solver != NULL, "Implicit time integration is not supported with partial assembly");
    S->Mult(x, z);
-   z += b;
    z*= -1.0;
    dg_solver->SetTimeStep(dt);
-   dg_solver->Mult(z, k);
-   //M_solver.Mult(z, k); 
+   dg_solver->Mult(z, k); 
 }
-
 
 // Velocity coefficient
 void velocity_function(const Vector &x, Vector &v)

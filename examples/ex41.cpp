@@ -2,18 +2,28 @@
 //
 // Compile with: make ex41
 //
-// Sample runs:
+// Sample runs: ex41
+//              ex41 -p 0 -r 2 -dt 0.01 -tf 10
+//              ex41 -m ../data/periodic-hexagon.mesh -p 0 -r 2 -dt 0.005 -tf 10
+//              ex41 -m ../data/periodic-square.mesh -p 1 -r 2 -dt 0.005 -tf 9
+//              ex41 -m ../data/periodic-hexagon.mesh -p 1 -r 2 -dt 0.005 -tf 9
+//              ex41 -m ../data/amr-quad.mesh -p 1 -r 2 -dt 0.002 -tf 9
+//              ex41 -m ../data/star-q3.mesh -p 1 -r 2 -dt 0.001 -tf 9
+//              ex41 -m ../data/star-mixed.mesh -p 1 -r 2 -dt 0.005 -tf 9
+//              ex41 -m ../data/disc-nurbs.mesh -p 1 -r 3 -dt 0.005 -tf 9
+//              ex41 -m ../data/disc-nurbs.mesh -p 2 -r 3 -dt 0.005 -tf 9
+//              ex41 -m ../data/periodic-square.mesh -p 3 -r 4 -dt 0.0025 -tf 9 -vs 20
+//              ex41 -m ../data/periodic-cube.mesh -p 0 -r 2 -o 2 -dt 0.01 -tf 8
 //
 // Device sample runs:
 //
 // Description:  This example code solves the time-dependent advection-diffusion
-//               equation du/dt + v.grad(u) + a div(grad(u)) = 0, where v is a
+//               equation du/dt + v.grad(u) - a div(grad(u)) = 0, where v is a
 //               given fluid velocity, a is the diffusion coefficient, and
 //               u0(x)=u(0,x) is a given initial condition.
 //
 //               The example demonstrates the use of Discontinuous Galerkin (DG)
-//               bilinear forms in MFEM (face integrators), the use of implicit,
-//               explicit, and IMEX ODE time integrators.
+//               bilinear forms in MFEM (face integrators), and the use of IMEX ODE time integrators.
 
 #include "mfem.hpp"
 
@@ -30,17 +40,17 @@ void velocity_function(const Vector &x, Vector &v);
 // Initial condition
 real_t u0_function(const Vector &x);
 
-// Inflow boundary condition
+// Inflow boundary condition - 0 for this example
 real_t inflow_function(const Vector &x);
 
 // Mesh bounding box
-Vector bb_min, bb_max;
+Vector bb_min, bb_max; 
 
 class DG_Solver : public Solver
 {
 private:
    SparseMatrix &M, &K, &S, A;
-   GMRESSolver linear_solver;
+   CGSolver linear_solver;
    BlockILU prec;
    real_t dt;
 public:
@@ -50,7 +60,7 @@ public:
         S(S_),
         prec(fes.GetTypicalFE()->GetDof(),
              BlockILU::Reordering::MINIMUM_DISCARDED_FILL),
-        dt(-1.0)
+        dt(1.0)
    {
       linear_solver.iterative_mode = false;
       linear_solver.SetRelTol(1e-9);
@@ -87,10 +97,9 @@ public:
 };
 
 /** A time-dependent operator for the right-hand side of the ODE. The DG weak
-    form of du/dt = -v.grad(u) is M du/dt = K u + b, where M and K are the mass
-    and advection matrices, and b describes the flow on the boundary. This can
-    be written as a general ODE, du/dt = M^{-1} (K u + b), and this class is
-    used to evaluate the right-hand side. */
+    form of the advection-diffusion equation is (M + dt S) du/dt = Su - K u + b, where M and K are the mass
+    and advection matrices, and b describes the flow on the boundary. In the case of IMEX evolution, the diffusion term is treated
+    implicitly, and the advection term is treated explicitly.  */
 class IMEX_Evolution : public SplitTimeDependentOperator
 {
 private:
@@ -118,14 +127,14 @@ int main(int argc, char *argv[])
    int ref_levels = 2;
    int order = 3;
    const char *device_config = "cpu";
-   int ode_solver_type = 56;
+   int ode_solver_type = 58;
    real_t t_final = 10.0;
    real_t dt = 0.001;
    bool paraview = false;
    int vis_steps = 50;
    real_t diffusion_term = 0.01;
-   const real_t kappa = (order+1)*(order+1);
-   const real_t sigma = -1.0;
+   real_t kappa = (order+1)*(order+1);
+   real_t sigma = -1.0;
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh", "Mesh file to use.");
    args.AddOption(&problem, "-p", "--problem",
@@ -144,8 +153,17 @@ int main(int argc, char *argv[])
                   "Save data files for ParaView (paraview.org) visualization.");
    args.AddOption(&vis_steps, "-vs", "--visualization-steps",
                   "Visualize every n-th timestep.");
-   args.ParseCheck();
-
+   args.Parse();
+   if (!args.Good())
+   {
+      args.PrintUsage(cout);
+      return 1;
+   }
+   if (kappa < 0)
+   {
+      kappa = (order+1)*(order+1);
+   }
+   args.PrintOptions(cout);
    Device device(device_config);
    device.Print();
 
@@ -154,13 +172,16 @@ int main(int argc, char *argv[])
    Mesh mesh(mesh_file);
    const int dim = mesh.Dimension();
 
-   // 3. Define the ODE solver used for time integration. May be explicit,
-   //    implicit, or IMEX.
+   // 3. Define the Split ODE solver used for time integration. The IMEX solvers currently
+   // available are: 55 - Forward Backward Euler, 56 - IMEXRK2(2,2,2), 57 - IMEXRK2(2,3,2), and
+   // 58 - IMEX_DIRK_RK3.
    unique_ptr<SplitODESolver> ode_solver = SplitODESolver::Select(ode_solver_type);
+
    // 4. Refine the mesh to increase the resolution. In this example we do
    //    'ref_levels' of uniform refinement, where 'ref_levels' is a
    //    command-line parameter.
-   for (int lev = 0; lev < ref_levels; lev++) { mesh.UniformRefinement(); }
+   for (int lev = 0; lev < ref_levels; lev++) {mesh.UniformRefinement();}
+   if (mesh.NURBSext){mesh.SetCurvature(max(order, 1));}
    mesh.GetBoundingBox(bb_min, bb_max, max(order, 1));
 
    // 5. Define the discontinuous DG finite element space of the given
@@ -174,41 +195,43 @@ int main(int argc, char *argv[])
    //    DG discretization. The DGTraceIntegrator involves integrals over mesh
    //    interior faces.
    VectorFunctionCoefficient velocity(dim, velocity_function);
-   FunctionCoefficient inflow(inflow_function);
-   FunctionCoefficient u0(u0_function);
+   FunctionCoefficient inflow(inflow_function); //Zero for now
    ConstantCoefficient diff_coeff(diffusion_term);
 
    BilinearForm m(&fes);
    BilinearForm k(&fes);
    BilinearForm s(&fes); 
+
    m.AddDomainIntegrator(new MassIntegrator);
+
    constexpr real_t alpha = -1.0;
-   s.AddDomainIntegrator(new DiffusionIntegrator(diff_coeff));
-   s.AddInteriorFaceIntegrator(new DGDiffusionIntegrator(diff_coeff, sigma,
-                                                         kappa));
-   s.AddBdrFaceIntegrator(new DGDiffusionIntegrator(diff_coeff, sigma, kappa));
    k.AddDomainIntegrator(new ConvectionIntegrator(velocity, alpha));
    k.AddInteriorFaceIntegrator(new NonconservativeDGTraceIntegrator(velocity, alpha));
    k.AddBdrFaceIntegrator(new NonconservativeDGTraceIntegrator(velocity, alpha));
 
+   s.AddDomainIntegrator(new DiffusionIntegrator(diff_coeff));
+   s.AddInteriorFaceIntegrator(new DGDiffusionIntegrator(diff_coeff, sigma, kappa));
+   s.AddBdrFaceIntegrator(new DGDiffusionIntegrator(diff_coeff, sigma, kappa));
+
    LinearForm b(&fes);
    b.AddBdrFaceIntegrator(new BoundaryFlowIntegrator(inflow, velocity, alpha));
 
-   
    int skip_zeros = 0;
-   s.Assemble(skip_zeros);
    m.Assemble(skip_zeros);
    k.Assemble(skip_zeros);
+   s.Assemble(skip_zeros);
    b.Assemble();
+
    m.Finalize(skip_zeros);
    k.Finalize(skip_zeros);
    s.Finalize(skip_zeros);
 
    // 7. Define the initial conditions.
+   FunctionCoefficient u0(u0_function);
    GridFunction u(&fes);
    u.ProjectCoefficient(u0);
-   GridFunction uu = u;
 
+   // 8. Set up paraview visualization, if desired.
    unique_ptr<ParaViewDataCollection> pv;
    if (paraview)
    {
@@ -223,7 +246,7 @@ int main(int argc, char *argv[])
       pv->Save();
    }
 
-   // 8. Define the time-dependent evolution operator describing the ODE
+   // 9. Define the time-dependent evolution operator describing the ODE
    //    right-hand side, and perform time-integration (looping over the time
    //    iterations, ti, with a time-step dt).
    IMEX_Evolution adv(m, k, s, b);
@@ -237,7 +260,6 @@ int main(int argc, char *argv[])
    {
       real_t dt_real = min(dt, t_final - t);
       ode_solver->Step(u, t, dt_real);
-      GridFunction uu = u;
       ti++;
 
       done = (t >= t_final - 1e-8*dt);
@@ -253,12 +275,11 @@ int main(int argc, char *argv[])
          }
       }
    }
-
    return 0;
 }
 
 
-// Implementation of class FE_Evolution
+// Implementation of class IMEX_Evolution
 IMEX_Evolution::IMEX_Evolution(BilinearForm &M_, BilinearForm &K_, BilinearForm &S_, const Vector &b_)
    : SplitTimeDependentOperator(M_.FESpace()->GetTrueVSize()),
      M(M_), K(K_), S(S_), b(b_), z(height)
@@ -286,6 +307,7 @@ IMEX_Evolution::IMEX_Evolution(BilinearForm &M_, BilinearForm &K_, BilinearForm 
 
 void IMEX_Evolution::Mult1(const Vector &x, Vector &y) const
 {
+   // Perform the explicit step
    // y = M^{-1} (K x + b)
    K.Mult(x, z);
    z += b;
@@ -294,14 +316,13 @@ void IMEX_Evolution::Mult1(const Vector &x, Vector &y) const
 
 void IMEX_Evolution::ImplicitSolve2(const real_t dt, const Vector &x, Vector &k)
 {
+   // Perform the implicit step
    // solve for k, k = -(M+dt S)^{-1} S x 
-   // MFEM_VERIFY(dg_solver != NULL, "Implicit time integration is not supported with partial assembly");
+   MFEM_VERIFY(dg_solver != NULL, "Implicit time integration is not supported with partial assembly");
    S.Mult(x, z);
-   //z += b;
    z*= -1.0;
    dg_solver->SetTimeStep(dt);
    dg_solver->Mult(z, k);
-   //M_solver.Mult(z, k); 
 }
 
 // Velocity coefficient
@@ -316,7 +337,6 @@ void velocity_function(const Vector &x, Vector &v)
       real_t center = (bb_min[i] + bb_max[i]) * 0.5;
       X(i) = 2 * (x(i) - center) / (bb_max[i] - bb_min[i]);
    }
-
    switch (problem)
    {
       case 0:
