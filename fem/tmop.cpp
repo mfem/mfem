@@ -767,8 +767,7 @@ AD2Type TMOP_WorstCaseUntangleOptimizer_Metric::EvalW_AD2(
 void TMOP_WorstCaseUntangleOptimizer_Metric::EvalP(const DenseMatrix &Jpt,
                                                    DenseMatrix &P) const
 {
-   auto mu_ad_fn = [this](
-                      std::vector<AD1Type> &T, std::vector<AD1Type> &W)
+   auto mu_ad_fn = [this](std::vector<AD1Type> &T, std::vector<AD1Type> &W)
    {
       return EvalW_AD1(T,W);
    };
@@ -790,12 +789,11 @@ void TMOP_WorstCaseUntangleOptimizer_Metric::AssembleH(
 {
    DenseTensor H(Jpt.Height(), Jpt.Height(), Jpt.TotalSize());
    H = 0.0;
-   auto mu_ad_fn = [this](
-                      std::vector<AD2Type> &T, std::vector<AD2Type> &W)
+   auto mu_ad_fn = [this](std::vector<AD2Type> &T, std::vector<AD2Type> &W)
    {
       return EvalW_AD2(T,W);
    };
-   if (tmop_metric.Id() == 4 || tmop_metric.Id() == 14 ||tmop_metric.Id() == 66)
+   if (tmop_metric.Id() == 4 || tmop_metric.Id() == 14 || tmop_metric.Id() == 66)
    {
       ADHessian(mu_ad_fn, H, Jpt);
       this->DefaultAssembleH(H,DS,weight,A);
