@@ -17,6 +17,7 @@
 #include "darcyform.hpp"
 #include "darcyhybridization.hpp"
 #include "darcyreduction.hpp"
+#include "bilininteg_hdg.hpp"
 
 #ifdef MFEM_USE_MPI
 #include "pdarcyform.hpp"
