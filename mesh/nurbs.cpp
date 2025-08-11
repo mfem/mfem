@@ -180,10 +180,6 @@ int KnotVector::GetCoarseningFactor() const
 
 real_t KnotVector::GetUniqueKnot(int i) const
 {
-   if (uknot.Size() == 0)
-   {
-      ComputeUniqueKnots();
-   }
    return uknot[i];
 }
 
@@ -198,27 +194,23 @@ void KnotVector::GetUniqueKnots(Vector &uknots) const
    }
 }
 
-real_t KnotVector::GetKnotMult(int i) const
+int KnotVector::GetKnotMult(int i) const
 {
-   if (uknot_mult.Size() == 0)
-   {
-      ComputeUniqueKnots();
-   }
    return uknot_mult[i];
 }
 
-void KnotVector::GetKnotMults(Vector &mults) const
+void KnotVector::GetKnotMults(Array<int> &mults) const
 {
    // Get unique knots
    const int NUK = NumOfElements + 1;
    mults.SetSize(NUK);
    for (int i = 0; i < NUK; i++)
    {
-      mults(i) = GetKnotMult(i);
+      mults[i] = GetKnotMult(i);
    }
 }
 
-void KnotVector::ComputeUniqueKnots() const
+void KnotVector::ComputeUniqueKnots()
 {
    uknot.SetSize(NumOfElements+1);
    uknot_mult.SetSize(NumOfElements+1);
@@ -355,6 +347,7 @@ void KnotVector::GetElements()
          NumOfElements++;
       }
    }
+   ComputeUniqueKnots();
 }
 
 void KnotVector::Flip()

@@ -229,7 +229,8 @@ SplineIntegrationRule::GetReducedGaussianRule(const KnotVector &kv)
 {
    const int ne = kv.GetNE();
    // Get the unique knot vectors and their multiplicities
-   Vector ukv, m;
+   Vector ukv;
+   Array<int> m;
    kv.GetUniqueKnots(ukv);
    kv.GetKnotMults(m);
    const int p = kv.GetOrder();
@@ -270,7 +271,6 @@ IntegrationRule* SplineIntegrationRule::Get(const KnotVector &kv) const
 {
    if (T == Type::FULL)
    {
-
       const int order = kv.GetOrder();
       const IntegrationRule& ir = IntRules.Get(Geometry::SEGMENT, 2*order);
       return ir.ApplyToKnotIntervals(kv);

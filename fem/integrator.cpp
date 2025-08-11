@@ -138,8 +138,8 @@ PatchBasisInfo::PatchBasisInfo(Mesh *mesh, unsigned int patch,
    }
 
    // Total quadrature points
-   NQ = Q1D.Prod();
-   ND = D1D.Prod();
+   NQ = Q1D.Product();
+   ND = D1D.Product();
 }
 
 }

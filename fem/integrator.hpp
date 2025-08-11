@@ -118,7 +118,7 @@ protected:
     used in patchwise integration. */
 struct PatchBasisInfo
 {
-   //
+   // Patch index
    unsigned int patch;
    int dim;
    // 1D shape functions [dim x Q1D[d] x D1D[d]]

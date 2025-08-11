@@ -477,7 +477,7 @@ void PABilinearFormExtension::AssembleDiagonal(Vector &y) const
 
    const int iSz = integrators.Size();
 
-   bool patchwise = ContainsPatchwiseIntegration(integrators);
+   const bool patchwise = ContainsPatchwiseIntegration(integrators);
 
    if (elem_restrict && !DeviceCanUseCeed() && !patchwise)
    {
@@ -570,7 +570,7 @@ void PABilinearFormExtension::MultInternal(const Vector &x, Vector &y,
    Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
 
    const int iSz = integrators.Size();
-   bool patchwise = ContainsPatchwiseIntegration(integrators);
+   const bool patchwise = ContainsPatchwiseIntegration(integrators);
 
    if (DeviceCanUseCeed() || !elem_restrict || patchwise)
    {

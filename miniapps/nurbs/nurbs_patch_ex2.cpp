@@ -63,7 +63,7 @@ int main(int argc, char *argv[])
                   "Integration rule type: 0 - full Gaussian, "
                   "1 - reduced Gaussian");
    args.AddOption(&preconditioner, "-pc", "--preconditioner",
-                  "Preconditioner: 0 - none, 1 - diagonal");
+                  "Preconditioner: 0 - none, 1 - Jacobi");
    args.AddOption(&csv_info, "-csv", "--csv-info", "-no-csv",
                   "--no-csv-info",
                   "Enable or disable dump of info into csv.");
@@ -86,7 +86,7 @@ int main(int argc, char *argv[])
    // Verify mesh is valid for this problem
    MFEM_VERIFY(isNURBS, "Example is for NURBS meshes");
    MFEM_VERIFY(mesh.GetNodes(), "NURBS mesh must have nodes");
-   if (mesh.bdr_attributes.Max() < 2)
+   if (mesh.attributes.Max() < 2 || mesh.bdr_attributes.Max() < 2)
    {
       cout << "\nInput mesh should have at least two boundary"
            << "attributes! (See schematic in ex2.cpp)\n"
@@ -102,7 +102,6 @@ int main(int argc, char *argv[])
    // 4. Refine the mesh to increase the resolution.
    for (int l = 0; l < ref_levels; l++)
    {
-      // mesh.UniformRefinement();
       mesh.NURBSUniformRefinement();
    }
 
@@ -111,19 +110,19 @@ int main(int argc, char *argv[])
    FiniteElementCollection * fec = mesh.GetNodes()->OwnFEC();
    cout << "fec order = " << fec->GetOrder() << endl;
 
-   FiniteElementSpace *fespace = new FiniteElementSpace(&mesh, mesh.NURBSext, fec,
-                                                        dim, Ordering::byVDIM);
+   FiniteElementSpace fespace = FiniteElementSpace(&mesh, mesh.NURBSext, fec,
+                                                   dim, Ordering::byVDIM);
    cout << "Finite Element Collection: " << fec->Name() << endl;
-   const int Ndof = fespace->GetTrueVSize();
-   cout << "Number of finite element unknowns: " << Ndof << endl;
-   cout << "Number of elements: " << fespace->GetNE() << endl;
+   const int ndof = fespace.GetTrueVSize();
+   cout << "Number of finite element unknowns: " << ndof << endl;
+   cout << "Number of elements: " << fespace.GetNE() << endl;
    cout << "Number of patches: " << mesh.NURBSext->GetNP() << endl;
 
    // 6. Determine the list of true (i.e. conforming) essential boundary dofs.
    Array<int> ess_tdof_list, ess_bdr(mesh.bdr_attributes.Max());
    ess_bdr = 0;
    ess_bdr[0] = 1;
-   fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+   fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
 
    // 7. Set up the linear form b(.)
    VectorArrayCoefficient f(dim);
@@ -138,14 +137,14 @@ int main(int argc, char *argv[])
       f.Set(dim-1, new PWConstCoefficient(pull_force));
    }
 
-   LinearForm b(fespace);
+   LinearForm b(&fespace);
    b.AddBoundaryIntegrator(new VectorBoundaryLFIntegrator(f));
    cout << "Assembling RHS ... " << flush;
    b.Assemble();
    cout << "done." << endl;
 
    // 8. Define the solution vector x as a finite element grid function
-   GridFunction x(fespace);
+   GridFunction x(&fespace);
    x = 0.0;
 
    // 9. Set up the bilinear form a(.,.)
@@ -178,7 +177,7 @@ int main(int argc, char *argv[])
 
    // Define and assemble bilinear form
    cout << "Assembling a ... " << flush;
-   BilinearForm a(fespace);
+   BilinearForm a(&fespace);
    if (pa) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
    a.AddDomainIntegrator(ei);
    a.Assemble();
@@ -189,7 +188,7 @@ int main(int argc, char *argv[])
    OperatorPtr A;
    Vector B, X;
    a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
-   cout << "done. " << "(size = " << fespace->GetTrueVSize() << ")" << endl;
+   cout << "done. " << "(size = " << fespace.GetTrueVSize() << ")" << endl;
 
    // 11. Get the preconditioner
    CGSolver solver;
@@ -219,7 +218,7 @@ int main(int argc, char *argv[])
 
    // 12. Solve the linear system A X = B.
    cout << "Solving linear system ... " << endl;
-   solver.SetMaxIter(1e5);
+   solver.SetMaxIter(1e4);
    solver.SetPrintLevel(1);
    // These tolerances end up getting squared
    solver.SetRelTol(sqrt(1e-6));
@@ -237,9 +236,9 @@ int main(int argc, char *argv[])
    a.RecoverFEMSolution(X, b, x);
 
    // 13. Collect results and write to file
-   const int Niter = solver.GetNumIterations();
-   const int dof_per_sec_solve = Ndof * Niter / timeSolve;
-   const int dof_per_sec_total = Ndof * Niter / timeTotal;
+   const int niter = solver.GetNumIterations();
+   const int dof_per_sec_solve = ndof * niter / timeSolve;
+   const int dof_per_sec_total = ndof * niter / timeTotal;
    cout << "Time to assemble: " << timeAssemble << " seconds" << endl;
    cout << "Time to solve: " << timeSolve << " seconds" << endl;
    cout << "Total time: " << timeTotal << " seconds" << endl;
@@ -268,8 +267,8 @@ int main(int argc, char *argv[])
                   << mesh_file << ", "                   // mesh
                   << ref_levels << ", "
                   << nurbs_degree_increase << ", "
-                  << Ndof << ", "
-                  << Niter << ", "                       // solver
+                  << ndof << ", "
+                  << niter << ", "                       // solver
                   << solver.GetFinalNorm() << ", "
                   << solver.GetFinalRelNorm() << ", "
                   << x.Normlinf() << ", "                // solution

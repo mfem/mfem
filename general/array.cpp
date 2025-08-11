@@ -138,7 +138,7 @@ T Array<T>::Sum() const
 }
 
 template <class T>
-T Array<T>::Prod() const
+T Array<T>::Product() const
 {
    T prod = static_cast<T>(1);
    for (int i = 0; i < size; i++)

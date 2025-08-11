@@ -53,13 +53,13 @@ protected:
    int NumOfElements;
 
    /// Stores the values of unique knots.
-   mutable Vector uknot;
+   Vector uknot;
 
    /// Stores the unique knot multiplicities.
-   mutable Vector uknot_mult;
+   Array<int> uknot_mult;
 
    /// Compute unique knots and their multiplicities.
-   void ComputeUniqueKnots() const;
+   void ComputeUniqueKnots();
 
 public:
    /// Create an empty KnotVector.
@@ -184,10 +184,10 @@ public:
    void GetUniqueKnots(Vector &uknots) const;
 
    /// Get the ith unique knot's multiplicity.
-   real_t GetKnotMult(int i) const;
+   int GetKnotMult(int i) const;
 
    /// Get all knot multiplicities
-   void GetKnotMults(Vector &mults) const;
+   void GetKnotMults(Array<int> &mults) const;
 
    /** For a given coarsening factor @a cf, find the fine knots between the
        coarse knots. */
