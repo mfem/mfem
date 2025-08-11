@@ -687,6 +687,7 @@ void L2Reconstruction(Solver& solver,
                       ParGridFunction& dst,
                       ParMesh& mesh,
                       IterativeSolverParams& newton,
+                      real_t reg = 0.0,
                       bool preserve_volumes = false)
 {
    AsymmetricMassIntegrator mass;
@@ -768,7 +769,6 @@ void L2Reconstruction(Solver& solver,
 
       // These systems come from a least squares formulation,
       // so no need to use LSSolver
-      solver.SetOperator(out_of_elem_shape);
       if (preserve_volumes)
       {
          DenseMatrix e_to_e_mat;
@@ -787,12 +787,22 @@ void L2Reconstruction(Solver& solver,
          real_t src_e_avg = e_to_e_mat.InnerProduct(src_e, punity_src_e);
          src_e_avg /= e_volume;
 
-         add(rhs_e, src_e_avg, punity_dst_e, rhs_e);
-         solver.Mult(rhs_e, dst_e);
-         add(dst_e, -src_e_avg, punity_dst_e, dst_e);
+         // (Average) projector
+         mass.AssembleElementMatrix(fe_dst_e,
+                                    *e_trans.get(),
+                                    e_to_e_mat);
+
+         e_to_e_mat.MultTranspose(punity_dst_e, e_to_e_avg);
+         e_to_e_avg /= e_volume;
+
+         LSSolver(solver,
+                  out_of_elem_shape, e_to_e_avg,
+                  rhs_e, src_e_avg,
+                  dst_e, reg);
       }
       else
       {
+         solver.SetOperator(out_of_elem_shape);
          solver.Mult(rhs_e, dst_e);
       }
 
@@ -1202,7 +1212,7 @@ int main(int argc, char* argv[])
    {
       case norm:
          L2Reconstruction(*solver.get(), u_src, u_dst, mesh,
-                          params.newton, params.preserve_volumes);
+                          params.newton, params.reg, params.preserve_volumes);
          break;
       case face_average:
          FaceReconstruction(*solver.get(), u_src, u_dst, mesh,
