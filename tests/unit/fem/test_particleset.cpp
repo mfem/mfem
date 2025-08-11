@@ -21,6 +21,8 @@ static constexpr int NumTags = 3;
 
 static constexpr int N = 100;
 static constexpr int N_rm = 37;
+static_assert(N_rm < N);
+
 static constexpr int N_e = 10;
 
 void InitializeRandom(Particle &p, int seed)
