@@ -45,7 +45,7 @@ public:
 };
 
 
-class NodeFunction : public Vector
+class MultiVector : public Vector
 {
 protected:
    const int vdim;
@@ -56,9 +56,9 @@ public:
    using Vector::operator=;
    using Vector::operator();
 
-   NodeFunction(int vdim_, Ordering::Type ordering_);
+   MultiVector(int vdim_, Ordering::Type ordering_);
 
-   NodeFunction(int vdim_, Ordering::Type ordering_, int num_nodes);
+   MultiVector(int vdim_, Ordering::Type ordering_, int num_nodes);
 
    int GetVDim() const { return vdim; }
 

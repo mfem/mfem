@@ -134,7 +134,7 @@ protected:
 
    mutable Vector pxB_, pm_, pp_;
 
-   static void GetValues(const NodeFunction &coords, FindPointsGSLIB &finder, GridFunction &gf, NodeFunction &pv);
+   static void GetValues(const MultiVector &coords, FindPointsGSLIB &finder, GridFunction &gf, MultiVector &pv);
    void ParticleStep(Particle &part, real_t &dt);
 public:
 
@@ -330,7 +330,7 @@ int main(int argc, char *argv[])
    }
 }
 
-void Boris::GetValues(const NodeFunction &coords, FindPointsGSLIB &finder, GridFunction &gf, NodeFunction &pv)
+void Boris::GetValues(const MultiVector &coords, FindPointsGSLIB &finder, GridFunction &gf, MultiVector &pv)
 {
    Mesh &mesh = *gf.FESpace()->GetMesh();
    mesh.EnsureNodes();
@@ -419,9 +419,9 @@ Boris::Boris(MPI_Comm comm, GridFunction *E_gf_, GridFunction *B_gf_, int num_pa
 
 void Boris::InterpolateEB()
 {
-   NodeFunction &X = charged_particles->Coords();
-   NodeFunction &E = charged_particles->Field(EFIELD);
-   NodeFunction &B = charged_particles->Field(BFIELD);
+   MultiVector &X = charged_particles->Coords();
+   MultiVector &E = charged_particles->Field(EFIELD);
+   MultiVector &B = charged_particles->Field(BFIELD);
 
    // Interpolate E-field + B-field onto particles
    if (E_gf)
@@ -550,10 +550,10 @@ void InitializeChargedParticles(ParticleSet &charged_particles, const Vector &x_
 
    int dim = charged_particles.Coords().GetVDim();
    
-   NodeFunction &X = charged_particles.Coords();
-   NodeFunction &P = charged_particles.Field(Boris::MOM);
-   NodeFunction &M = charged_particles.Field(Boris::MASS);
-   NodeFunction &Q = charged_particles.Field(Boris::CHARGE);
+   MultiVector &X = charged_particles.Coords();
+   MultiVector &P = charged_particles.Field(Boris::MOM);
+   MultiVector &M = charged_particles.Field(Boris::MASS);
+   MultiVector &Q = charged_particles.Field(Boris::CHARGE);
 
    for (int i = 0; i < charged_particles.GetNP(); i++)
    {

@@ -385,7 +385,7 @@ void NavierParticles::Step(const real_t &dt, int cur_step, const ParGridFunction
    dthist[0] = dt;
 }
 
-void NavierParticles::InterpolateUW(const ParGridFunction &u_gf, const ParGridFunction &w_gf, const NodeFunction &x, NodeFunction &u, NodeFunction &w)
+void NavierParticles::InterpolateUW(const ParGridFunction &u_gf, const ParGridFunction &w_gf, const MultiVector &x, MultiVector &u, MultiVector &w)
 {
    finder.FindPoints(x, x.GetOrdering());
 

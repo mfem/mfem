@@ -87,20 +87,20 @@ void Ordering::Reorder(Vector &v, int vdim, Ordering::Type in_ord,
    }
 }
 
-NodeFunction::NodeFunction(int vdim_, Ordering::Type ordering_)
-: NodeFunction(vdim_, ordering_, 0)
+MultiVector::MultiVector(int vdim_, Ordering::Type ordering_)
+: MultiVector(vdim_, ordering_, 0)
 {
 
 }
 
-NodeFunction::NodeFunction(int vdim_, Ordering::Type ordering_, int num_nodes)
+MultiVector::MultiVector(int vdim_, Ordering::Type ordering_, int num_nodes)
 : Vector(num_nodes*vdim_), vdim(vdim_), ordering(ordering_)
 { 
    Vector::operator=(0.0);
 }
 
 
-void NodeFunction::GetNodeValues(int i, Vector &nvals) const
+void MultiVector::GetNodeValues(int i, Vector &nvals) const
 {
    nvals.SetSize(vdim);
 
@@ -120,13 +120,13 @@ void NodeFunction::GetNodeValues(int i, Vector &nvals) const
    }
 }
 
-void NodeFunction::GetRefNodeValues(int i, Vector &nref)
+void MultiVector::GetRefNodeValues(int i, Vector &nref)
 {
    MFEM_VERIFY(ordering == Ordering::byVDIM, "GetRefNodeValues only valid when ordering byVDIM.");
    nref.MakeRef(*this, i*vdim, vdim);
 }
 
-void NodeFunction::SetNodeValues(int i, const Vector &nvals)
+void MultiVector::SetNodeValues(int i, const Vector &nvals)
 {
    if (ordering == Ordering::byNODES)
    {
@@ -144,7 +144,7 @@ void NodeFunction::SetNodeValues(int i, const Vector &nvals)
    }
 }
 
-real_t& NodeFunction::operator()(int i, int comp)
+real_t& MultiVector::operator()(int i, int comp)
 {
    if (ordering == Ordering::byNODES)
    {
@@ -156,7 +156,7 @@ real_t& NodeFunction::operator()(int i, int comp)
    }
 }
 
-const real_t& NodeFunction::operator()(int i, int comp) const
+const real_t& MultiVector::operator()(int i, int comp) const
 {
    if (ordering == Ordering::byNODES)
    {

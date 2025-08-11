@@ -36,10 +36,10 @@ protected:
 
    struct FluidParticleData
    {
-      NodeFunction *u[4];
-      NodeFunction *v[4];
-      NodeFunction *w[4];
-      NodeFunction *x[4];
+      MultiVector *u[4];
+      MultiVector *v[4];
+      MultiVector *w[4];
+      MultiVector *x[4];
       Array<int> *order;
    } fp_data;
 
@@ -79,21 +79,23 @@ protected:
    mutable Vector r, C;
 
 public:
+
+   
    NavierParticles(MPI_Comm comm, const real_t kappa_, const real_t gamma_, const real_t zeta_, int num_particles, Mesh &m);
 
    void Step(const real_t &dt, int cur_step, const ParGridFunction &u_gf, const ParGridFunction &w_gf);
 
-   void InterpolateUW(const ParGridFunction &u_gf, const ParGridFunction &w_gf, const NodeFunction &x, NodeFunction &u, NodeFunction &w);
+   void InterpolateUW(const ParGridFunction &u_gf, const ParGridFunction &w_gf, const MultiVector &x, MultiVector &u, MultiVector &w);
 
    ParticleSet& GetParticles() { return fluid_particles; }
 
-   NodeFunction& U(int nm=0) { return *fp_data.u[nm]; }
+   MultiVector& U(int nm=0) { return *fp_data.u[nm]; }
 
-   NodeFunction& V(int nm=0) { return *fp_data.v[nm]; }
+   MultiVector& V(int nm=0) { return *fp_data.v[nm]; }
 
-   NodeFunction& W(int nm=0) { return *fp_data.w[nm]; }
+   MultiVector& W(int nm=0) { return *fp_data.w[nm]; }
 
-   NodeFunction& X(int nm=0) { return *fp_data.x[nm]; }
+   MultiVector& X(int nm=0) { return *fp_data.x[nm]; }
 
    Array<int>& Order()       { return *fp_data.order; }
    

@@ -58,10 +58,10 @@ struct AnalyticalParticles
    void NoLift(const Vector &x0, const Vector &v0, double t, Vector &x, Vector &v);
    void SetTime(real_t time);
 
-   NodeFunction&  X() { return particles.Coords(); }
-   NodeFunction& X0() { return particles.Field(0); }
-   NodeFunction& V0() { return particles.Field(1); }
-   NodeFunction&  V() { return particles.Field(2); }
+   MultiVector&  X() { return particles.Coords(); }
+   MultiVector& X0() { return particles.Field(0); }
+   MultiVector& V0() { return particles.Field(1); }
+   MultiVector&  V() { return particles.Field(2); }
 };
 
 int main (int argc, char *argv[])
@@ -128,7 +128,7 @@ int main (int argc, char *argv[])
    Mesh mesh = Mesh::MakeCartesian2D(20, 20, Element::Type::QUADRILATERAL, true, 20, 11);
    mesh.EnsureNodes();
 
-   NodeFunction transl(2, Ordering::byVDIM, mesh.GetNV());
+   MultiVector transl(2, Ordering::byVDIM, mesh.GetNV());
    for (int i = 0; i < mesh.GetNV(); i++)
    {
       transl(i,0) = -10.0; // translate down + left

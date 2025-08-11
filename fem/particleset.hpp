@@ -105,13 +105,13 @@ public:
  *  @details Particles are inherently initialized to have a position and an ID, and optionally can have any number of Vector (of arbitrary vdim) and scalar integer data associated with in the form of @b fields and @b tags respectively. All particle data are internally stored as a Struct-of-Arrays, as elaborated on below.
  * 
  *  @par Coordinates:
- *  %All particle coordinates are stored in a \ref NodeFunction with vdim = spatial dimension, ordered either byNODES or byVDIM.
+ *  %All particle coordinates are stored in a \ref MultiVector with vdim = spatial dimension, ordered either byNODES or byVDIM.
  * 
  *  @par IDs:
  *  %Each particle is assigned a unique global ID of type unsigned int. In parallel, IDs are initialized starting with @b rank and striding by @b size.
  * 
  *  @par Fields:
- *  %Fields represent scalar or Vector \ref real_t data to be associated with each particles, such as mass, momentum, or moment. For a given field, all particle data are stored in a single \ref NodeFunction with a given vector dimension (1 for scalar data) and \ref Ordering::Type (byNODES or byVDIM) to specify how the data is organized in memory.
+ *  %Fields represent scalar or Vector \ref real_t data to be associated with each particles, such as mass, momentum, or moment. For a given field, all particle data are stored in a single \ref MultiVector with a given vector dimension (1 for scalar data) and \ref Ordering::Type (byNODES or byVDIM) to specify how the data is organized in memory.
  * 
  *   @par Tags:
  *   %Tags represent an integer to be associated with each particle. For a given tag, all particle integers are stored in a single \ref Array<int>.
@@ -139,10 +139,10 @@ protected:
       Array<unsigned int> ids;
 
       /// All particle coordinates.
-      NodeFunction coords;
+      MultiVector coords;
       
       /// All particle fields.
-      std::vector<std::unique_ptr<NodeFunction>> fields;
+      std::vector<std::unique_ptr<MultiVector>> fields;
 
       /// All particle tags.
       std::vector<std::unique_ptr<Array<int>>> tags;
@@ -234,7 +234,7 @@ protected:
    void DispatchDataTransfer(const Array<unsigned int> &send_idxs, const Array<unsigned int> &send_ranks, std::index_sequence<NDatas...>)
    {
       int total_comps = active_state.coords.GetVDim();
-      for (std::unique_ptr<NodeFunction> &pv : active_state.fields)
+      for (std::unique_ptr<MultiVector> &pv : active_state.fields)
       {
          total_comps += pv->GetVDim();
       }
@@ -256,7 +256,7 @@ protected:
     *  @param[in] id_counter_         Starting ID counter.
     *  @param[in] num_particles       Number of particles to initialize at construction.
     *  @param[in] dim                 Particle spatial dimension.
-    *  @param[in] coords_ordering     Ordering of coordinates \ref NodeFunction.
+    *  @param[in] coords_ordering     Ordering of coordinates \ref MultiVector.
     *  @param[in] field_vdims         Array of field vector dimensions to register.
     *  @param[in] field_orderings     Array of field ordering types.
     *  @param[in] field_names_        Array of field names.
@@ -271,7 +271,7 @@ public:
     * 
     *  @param[in] num_particles       Number of particles to initialize at construction.
     *  @param[in] dim                 Particle spatial dimension.
-    *  @param[in] coords_ordering     Ordering of coordinates \ref NodeFunction.
+    *  @param[in] coords_ordering     Ordering of coordinates \ref MultiVector.
     */
    ParticleSet(int num_particles, int dim, Ordering::Type coords_ordering=Ordering::byVDIM);
 
@@ -281,7 +281,7 @@ public:
     *  @param[in] dim                 Particle spatial dimension.
     *  @param[in] field_vdims         Array of field vector dimensions to register.
     *  @param[in] num_tags            Number of tags to register.
-    *  @param[in] all_ordering        Ordering of coordinates and field \ref NodeFunction s.
+    *  @param[in] all_ordering        Ordering of coordinates and field \ref MultiVector s.
     */
    ParticleSet(int num_particles, int dim, const Array<int> &field_vdims, int num_tags, Ordering::Type all_ordering=Ordering::byVDIM);
 
@@ -293,7 +293,7 @@ public:
     *  @param[in] field_names_        Array of field names.
     *  @param[in] num_tags            Number of tags to register.
     *  @param[in] tag_names_          Array of tag names. 
-    *  @param[in] all_ordering        Ordering of coordinates and field \ref NodeFunction s.
+    *  @param[in] all_ordering        Ordering of coordinates and field \ref MultiVector s.
     */
    ParticleSet(int num_particles, int dim, const Array<int> &field_vdims, const Array<const char*> &field_names_, int num_tags, const Array<const char*> &tag_names_, Ordering::Type all_ordering=Ordering::byVDIM);
 
@@ -301,7 +301,7 @@ public:
     * 
     *  @param[in] num_particles       Number of particles to initialize at construction.
     *  @param[in] dim                 Particle spatial dimension.
-    *  @param[in] coords_ordering     Ordering of coordinates \ref NodeFunction.
+    *  @param[in] coords_ordering     Ordering of coordinates \ref MultiVector.
     *  @param[in] field_vdims         Array of field vector dimensions to register.
     *  @param[in] field_orderings     Array of field ordering types.
     *  @param[in] field_names_        Array of field names.
@@ -317,7 +317,7 @@ public:
     *  @param[in] comm_               MPI communicator.
     *  @param[in] num_particles       Number of particles to initialize at construction.
     *  @param[in] dim                 Particle spatial dimension.
-    *  @param[in] coords_ordering     Ordering of coordinates \ref NodeFunction.
+    *  @param[in] coords_ordering     Ordering of coordinates \ref MultiVector.
     */
    ParticleSet(MPI_Comm comm_, int rank_num_particles, int dim, Ordering::Type coords_ordering=Ordering::byVDIM);
 
@@ -328,7 +328,7 @@ public:
     *  @param[in] dim                 Particle spatial dimension.
     *  @param[in] field_vdims         Array of field vector dimensions to register.
     *  @param[in] num_tags            Number of tags to register.
-    *  @param[in] all_ordering        Ordering of coordinates and field \ref NodeFunction s.
+    *  @param[in] all_ordering        Ordering of coordinates and field \ref MultiVector s.
     */
    ParticleSet(MPI_Comm comm_, int rank_num_particles, int dim, const Array<int> &field_vdims, int num_tags, Ordering::Type all_ordering=Ordering::byVDIM);
 
@@ -341,7 +341,7 @@ public:
     *  @param[in] field_names_        Array of field names.
     *  @param[in] num_tags            Number of tags to register.
     *  @param[in] tag_names_          Array of tag names. 
-    *  @param[in] all_ordering        Ordering of coordinates and field \ref NodeFunction s.
+    *  @param[in] all_ordering        Ordering of coordinates and field \ref MultiVector s.
     */
    ParticleSet(MPI_Comm comm_, int rank_num_particles, int dim, const Array<int> &field_vdims, const Array<const char*> &field_names_, int num_tags, const Array<const char*> &tag_names, Ordering::Type all_ordering=Ordering::byVDIM);
 
@@ -350,7 +350,7 @@ public:
     *  @param[in] comm_               MPI communicator.
     *  @param[in] rank_num_particles  Number of particles to initialize on this rank at construction.
     *  @param[in] dim                 Particle spatial dimension.
-    *  @param[in] coords_ordering     Ordering of coordinates \ref NodeFunction.
+    *  @param[in] coords_ordering     Ordering of coordinates \ref MultiVector.
     *  @param[in] field_vdims         Array of field vector dimensions to register.
     *  @param[in] field_orderings     Array of field ordering types.
     *  @param[in] field_names_        Array of field names.
@@ -379,7 +379,7 @@ public:
     *  @arg[in] field_ordering   Ordering::Type of the field.
     *  @arg[in] field_name       Name of the field.
     */
-   NodeFunction& AddField(int vdim, Ordering::Type field_ordering=Ordering::byVDIM, const char* field_name=nullptr);
+   MultiVector& AddField(int vdim, Ordering::Type field_ordering=Ordering::byVDIM, const char* field_name=nullptr);
 
    /** @brief Add a tag to the ParticleSet.
     * 
@@ -405,17 +405,17 @@ public:
    /// Remove particle data specified by \p list of particle indices.
    void RemoveParticles(const Array<int> &list, bool delete_particles=false);
 
-   /// Get a reference to the coordinates NodeFunction.
-   NodeFunction& Coords() { return active_state.coords; }
+   /// Get a reference to the coordinates MultiVector.
+   MultiVector& Coords() { return active_state.coords; }
 
-   /// Get a const reference to the coordinates NodeFunction.
-   const NodeFunction& Coords() const { return active_state.coords; }
+   /// Get a const reference to the coordinates MultiVector.
+   const MultiVector& Coords() const { return active_state.coords; }
 
-   /// Get a reference to field \p f 's NodeFunction.
-   NodeFunction& Field(int f) { return *active_state.fields[f]; }
+   /// Get a reference to field \p f 's MultiVector.
+   MultiVector& Field(int f) { return *active_state.fields[f]; }
 
-   /// Get a const reference to field \p f 's NodeFunction.
-   const NodeFunction& Field(int f) const { return *active_state.fields[f]; }
+   /// Get a const reference to field \p f 's MultiVector.
+   const MultiVector& Field(int f) const { return *active_state.fields[f]; }
 
    /// Get a reference to tag \p t 's Array<int>.
    Array<int>& Tag(int t) { return *active_state.tags[t]; }
