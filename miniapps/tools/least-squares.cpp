@@ -702,9 +702,12 @@ void L2Reconstruction(Solver& solver,
    Array<int> neighbors_e;
 
    Vector src_e, dst_e;
+   Vector rhs_e, punity_dst_e;
    Vector src_neighbor, dst_neighbor;
    Vector punity_src_e, punity_dst_e;
    Vector punity_src_neighbor, punity_dst_neighbor;
+
+   DenseMatrix out_of_elem_shape;
 
    ConstantCoefficient ccf_ones(1.0);
    ParGridFunction punity_src(fes_src), punity_dst(fes_dst);
@@ -728,8 +731,11 @@ void L2Reconstruction(Solver& solver,
       if (preserve_volumes) { neighbors_e.DeleteFirst(e_idx); }
       const int num_neighbors = neighbors_e.Size();
 
-      DenseMatrix out_of_elem_shape(fe_dst_e_ndof);
-      Vector rhs_e(fe_dst_e_ndof), dst_e(fe_dst_e_ndof), punity_dst_e(fe_dst_e_ndof);
+      out_of_elem_shape.SetSize(fe_dst_e_ndof);
+      rhs_e.SetSize(fe_dst_e_ndof);
+      dst_e.SetSize(fe_dst_e_ndof);
+      punity_dst_e.SetSize(fe_dst_e_ndof);
+
       out_of_elem_shape = 0.0;
       rhs_e = 0.0;
       for (int i = 0; i < num_neighbors; i++)

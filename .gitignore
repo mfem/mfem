@@ -351,6 +351,9 @@ miniapps/tools/nodal-transfer
 miniapps/tools/ParaView
 miniapps/tools/gridfunc_*
 miniapps/tools/mesh_*
+miniapps/tools/reconstruction
+miniapps/tools/least-squares
+miniapps/tools/convergence.csv
 
 miniapps/toys/automata
 miniapps/toys/life
