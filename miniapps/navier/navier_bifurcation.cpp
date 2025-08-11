@@ -7,6 +7,7 @@
 //
 // Sample run:
 //   mpirun -np 4 navier_bifurcation -rs 2
+//   mpirun -np 10 ./navier_bifurcation -rs 2 -np 1000 -nt 4e5 -csv 50 -pv 50
 
 #include "navier_solver.hpp"
 #include "navier_particles.hpp"
@@ -85,7 +86,7 @@ int main(int argc, char *argv[])
    }
 
    // Load mesh + complete any serial refinements
-   Mesh mesh("../../data/channel2.mesh");
+   Mesh mesh("../../data/channel2longer.mesh");
    int dim = mesh.Dimension();
    for (int lev = 0; lev < ctx.rs_levels; lev++)
    {
@@ -100,7 +101,7 @@ int main(int argc, char *argv[])
    // Create the flow solver
    NavierSolver flow_solver(&pmesh, ctx.order, 1.0/ctx.Re);
    flow_solver.EnablePA(true);
-   
+
    // Create the particle solver
    NavierParticles particle_solver(MPI_COMM_WORLD, ctx.kappa, ctx.gamma, ctx.zeta, ctx.num_particles, pmesh);
 
@@ -114,7 +115,7 @@ int main(int argc, char *argv[])
    for (int i = 0; i < particle_solver.GetParticles().GetNP(); i++)
    {
       std::mt19937 gen(particle_solver.GetParticles().GetIDs()[i]);
-      
+
       for (int d = 0; d < 2; d++)
       {
          particle_solver.X()(i, d) = pos_min[d] + real_dist(gen)*(pos_max[d] - pos_min[d]);
@@ -176,9 +177,10 @@ int main(int argc, char *argv[])
    std::string csv_prefix = "Navier_Bifurcation_";
    if (ctx.print_csv_freq > 0)
    {
-      std::string file_name = csv_prefix + mfem::to_padded_string(0, 9) + ".csv";
+      std::string file_name = csv_prefix + mfem::to_padded_string(0, 6) + ".csv";
       particle_solver.GetParticles().PrintCSV(file_name.c_str());
    }
+   int vis_count = 1;
 
    flow_solver.Setup(ctx.dt);
    u_gf.ProjectCoefficient(u_excoeff);
@@ -197,14 +199,15 @@ int main(int argc, char *argv[])
 
       if (ctx.print_csv_freq > 0 && step % ctx.print_csv_freq == 0)
       {
+         vis_count++;
          // Output the particles
-         std::string file_name = csv_prefix + mfem::to_padded_string(step, 9) + ".csv";
+         std::string file_name = csv_prefix + mfem::to_padded_string(step, 6) + ".csv";
          particle_solver.GetParticles().PrintCSV(file_name.c_str());
       }
 
       if (ctx.paraview_freq > 0 && step % ctx.paraview_freq == 0)
       {
-         pvdc->SetTime(time);
+         pvdc->SetTime(vis_count);
          pvdc->SetCycle(step);
          pvdc->Save();
       }
