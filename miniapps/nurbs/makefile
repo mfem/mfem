@@ -116,7 +116,7 @@ endif
 EX2PATCH_ARGS_1 := -incdeg 2 -rf 4 -patcha -pa
 EX2PATCH_ARGS_2 := -incdeg 2 -rf 4 -patcha -pa -int 1
 EX2PATCH_ARGS_3 := -incdeg 2 -rf 4 -patcha -pa -int 1 -pc 1
-nurbs_patch_ex1-test-seq: nurbs_patch_ex1
+nurbs_patch_ex2-test-seq: nurbs_patch_ex2
 ifeq ($(MFEM_USE_LAPACK),YES)
 	@$(call mfem-test,$<,, NURBS miniapp,$(EX2PATCH_ARGS_1))
 endif
