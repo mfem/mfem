@@ -407,11 +407,11 @@ ParticleSet::ParticleSet(int id_stride_, int id_counter_, int num_particles, int
 
 bool ParticleSet::IsValidParticle(const Particle &p) const
 {
-   if (p.Dim() != GetDim())
+   if (p.GetDim() != GetDim())
    {
       return false;
    }
-   if (p.NumFields() != GetNF())
+   if (p.GetNF() != GetNF())
    {
       return false;
    }
@@ -422,7 +422,7 @@ bool ParticleSet::IsValidParticle(const Particle &p) const
          return false;
       }
    }
-   if (p.NumTags() != GetNT())
+   if (p.GetNT() != GetNT())
    {
       return false;
    }

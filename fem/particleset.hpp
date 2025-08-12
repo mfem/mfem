@@ -51,16 +51,16 @@ public:
    Particle(int dim, const Array<int> &field_vdims, int num_tags);
 
    /// Get the spatial dimension of this particle.
-   int Dim() const { return coords.Size(); }
+   int GetDim() const { return coords.Size(); }
 
    /// Get the number of fields associated with this particle.
-   int NumFields() const { return fields.size(); }
+   int GetNF() const { return fields.size(); }
 
    /// Get the vector dimension of field \p f .
    int FieldVDim(int f) const { return fields[f].Size(); }
 
    /// Get the number of tags associated with this particle.
-   int NumTags() const { return tags.size(); }
+   int GetNT() const { return tags.size(); }
 
    /// Get reference to particle coordinates Vector.
    Vector& Coords() { return coords; }
