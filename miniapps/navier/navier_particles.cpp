@@ -399,7 +399,7 @@ void NavierParticles::InterpolateUW(const ParGridFunction &u_gf, const ParGridFu
    finder.Interpolate(u_gf, U());
    Ordering::Reorder(U(), U().GetVDim(), u_gf.ParFESpace()->GetOrdering(), U().GetOrdering());
 
-   finder.Interpolate(w_gf, w);
+   finder.Interpolate(w_gf, W());
    Ordering::Reorder(W(), W().GetVDim(), w_gf.ParFESpace()->GetOrdering(), W().GetOrdering());
 }
 

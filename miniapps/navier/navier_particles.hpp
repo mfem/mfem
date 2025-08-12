@@ -95,7 +95,7 @@ public:
 
    void Step(const real_t &dt, int cur_step, const ParGridFunction &u_gf, const ParGridFunction &w_gf);
 
-   void InterpolateUW(const ParGridFunction &u_gf, const ParGridFunction &w_gf, const MultiVector &x, MultiVector &u, MultiVector &w);
+   void InterpolateUW(const ParGridFunction &u_gf, const ParGridFunction &w_gf);
 
    void DeactivateLostParticles(bool findpts);
 
