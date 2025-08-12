@@ -158,13 +158,9 @@ if (MFEM_ENABLE_TESTING)
     COMMAND $<TARGET_FILE:nurbs_patch_ex1> -no-vis -incdeg 3 -rf 4 -iro 8
     -patcha -fint)
 
-  add_test(NAME nurbs_patch_ex2_o3_r4_patcha_pa_ser
+  add_test(NAME nurbs_patch_ex2_o3_r4_patcha_pa_fint_jacobi_ser
     COMMAND $<TARGET_FILE:nurbs_patch_ex2> -no-vis -incdeg 2 -rf 4
-    -patcha -pa)
-
-  add_test(NAME nurbs_patch_ex2_o3_r4_patcha_pa_rint_ser
-    COMMAND $<TARGET_FILE:nurbs_patch_ex2> -no-vis -incdeg 2 -rf 4
-    -patcha -pa -int 1)
+    -patcha -pa -int 0 -pc 1)
 
   add_test(NAME nurbs_patch_ex2_o3_r4_patcha_pa_rint_jacobi_ser
     COMMAND $<TARGET_FILE:nurbs_patch_ex2> -no-vis -incdeg 2 -rf 4

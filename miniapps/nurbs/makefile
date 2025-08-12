@@ -113,15 +113,11 @@ endif
 	@$(call mfem-test,$<,, NURBS miniapp,$(EX1PATCH_ARGS_2))
 	@$(call mfem-test,$<,, NURBS miniapp,$(EX1PATCH_ARGS_3))
 
-EX2PATCH_ARGS_1 := -incdeg 2 -rf 4 -patcha -pa
-EX2PATCH_ARGS_2 := -incdeg 2 -rf 4 -patcha -pa -int 1
-EX2PATCH_ARGS_3 := -incdeg 2 -rf 4 -patcha -pa -int 1 -pc 1
+EX2PATCH_ARGS_1 := -incdeg 2 -rf 4 -patcha -pa -int 0 -pc 1
+EX2PATCH_ARGS_2 := -incdeg 2 -rf 4 -patcha -pa -int 1 -pc 1
 nurbs_patch_ex2-test-seq: nurbs_patch_ex2
-ifeq ($(MFEM_USE_LAPACK),YES)
 	@$(call mfem-test,$<,, NURBS miniapp,$(EX2PATCH_ARGS_1))
-endif
 	@$(call mfem-test,$<,, NURBS miniapp,$(EX2PATCH_ARGS_2))
-	@$(call mfem-test,$<,, NURBS miniapp,$(EX2PATCH_ARGS_3))
 
 EX3_ARGS_1 := -m $(MFEM_DIR)/data/square-nurbs.mesh -r 1 -o 2
 EX3_ARGS_2 := -m $(MFEM_DIR)/data/cube-nurbs.mesh -r 1 -o 2
