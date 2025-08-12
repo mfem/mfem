@@ -344,6 +344,9 @@ void LSSolver(Solver& solver, const DenseMatrix& A, const DenseMatrix& C,
 void LSSolver(Solver& solver, const DenseMatrix& A, const Vector& C,
               const Vector& b, const real_t& c, Vector& x, real_t shift = 0.0)
 {
+   x.SetSize(A.Width());
+   x = 0.0;
+
    Vector Atb(A.Width());
    A.MultTranspose(b, Atb);
 
