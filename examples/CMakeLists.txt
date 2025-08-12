@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -46,6 +46,7 @@ list(APPEND ALL_EXE_SRCS
   ex38.cpp
   ex39.cpp
   ex40.cpp
+  ex41.cpp
   )
 
 if (MFEM_USE_MPI)
@@ -89,6 +90,7 @@ if (MFEM_USE_MPI)
     ex37p.cpp
     ex39p.cpp
     ex40p.cpp
+    ex41p.cpp
   )
 endif()
 
@@ -151,7 +153,7 @@ if (MFEM_ENABLE_TESTING)
       ex1 ex3 ex4 ex5 ex6 ex9 ex14 ex22 ex24 ex25 ex26 ex34
       # parallel examples with device support:
       ex1p ex2p ex3p ex4p ex5p ex6p ex7p ex9p ex13p ex14p ex22p ex24p ex25p
-      ex26p ex34p ex35p)
+      ex26p ex34p ex35p ex41p)
   set(MFEM_TEST_DEVICE)
   if (MFEM_USE_CUDA)
     set(MFEM_TEST_DEVICE "cuda")

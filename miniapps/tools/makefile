@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -12,11 +12,10 @@
 # Use the MFEM build directory
 MFEM_DIR ?= ../..
 MFEM_BUILD_DIR ?= ../..
+MFEM_INSTALL_DIR ?= ../../mfem
 SRC = $(if $(MFEM_DIR:../..=),$(MFEM_DIR)/miniapps/tools/,)
-CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
-# Use the MFEM install directory
-# MFEM_INSTALL_DIR = ../../mfem
-# CONFIG_MK = $(MFEM_INSTALL_DIR)/share/mfem/config.mk
+CONFIG_MK = $(or $(wildcard $(MFEM_BUILD_DIR)/config/config.mk),\
+   $(wildcard $(MFEM_INSTALL_DIR)/share/mfem/config.mk))
 
 # Include defaults.mk to get XLINKER
 DEFAULTS_MK = $(MFEM_DIR)/config/defaults.mk
@@ -28,7 +27,7 @@ MFEM_LIB_FILE = mfem_is_not_built
 SEQ_MINIAPPS = display-basis load-dc convert-dc get-values lor-transfer \
 	tmop-check-metric tmop-metric-magnitude
 
-PAR_MINIAPPS = nodal-transfer plor-transfer
+PAR_MINIAPPS = nodal-transfer plor-transfer gridfunction-bounds
 
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
@@ -84,7 +83,7 @@ RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
 # Testing: Specific execution options
 # Do not test: display-basis, load-dc, convert-dc, get-values, lor-transfer, plor-transfer
 NO_TEST_APPS = display-basis load-dc convert-dc get-values lor-transfer \
-	plor-transfer tmop-check-metric tmop-metric-magnitude
+	plor-transfer tmop-check-metric tmop-metric-magnitude gridfunction-bounds
 $(foreach app,$(NO_TEST_APPS),$(app)-test-seq $(app)-test-par):
 	@true
 
@@ -101,5 +100,5 @@ clean-build:
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:
-	@rm -rf mesh_* gridfunc_*
+	@rm -rf mesh_* gridfunc_* jacobian-determinant-bounds*
 	@true

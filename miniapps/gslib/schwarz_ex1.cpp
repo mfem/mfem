@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -56,6 +56,7 @@ int main(int argc, char *argv[])
    bool visualization        = true;
    int r1_levels             = 0;
    int r2_levels             = 0;
+   int visport               = 19916;
    double rel_tol            = 1.e-8;
 
    OptionsParser args(argc, argv);
@@ -75,7 +76,7 @@ int main(int argc, char *argv[])
                   "Number of times to refine the mesh uniformly in serial.");
    args.AddOption(&rel_tol, "-rt", "--relative tolerance",
                   "Tolerance for Schwarz iteration convergence criterion.");
-
+   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.Parse();
    if (!args.Good())
    {
@@ -310,7 +311,6 @@ int main(int argc, char *argv[])
    if (visualization)
    {
       char vishost[] = "localhost";
-      int  visport   = 19916;
       for (int ip = 0; ip<mesharr.Size(); ++ip)
       {
          socketstream sol_sock(vishost, visport);

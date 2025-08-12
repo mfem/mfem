@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -68,10 +68,11 @@ class Hypre
 public:
    /// @brief Initialize hypre by calling HYPRE_Init() and set default options.
    /// After calling Hypre::Init(), hypre will be finalized automatically at
-   /// program exit.
+   /// program exit. May be re-initialized after finalize.
    ///
-   /// Calling HYPRE_Finalize() manually is not compatible with this class.
-   static void Init() { Instance(); }
+   /// Calling HYPRE_Init() or HYPRE_Finalize() manually is only supported for
+   /// HYPRE 2.29.0+
+   static void Init();
 
    /// @brief Configure HYPRE's compute and memory policy.
    ///
@@ -84,9 +85,9 @@ public:
    /// This function is no-op if HYPRE is built without GPU support or the HYPRE
    /// version is less than 2.31.0.
    ///
-   /// This function is NOT called by Init(). Instead it is called by
+   /// In addition to being called by Init(), this function is also called by
    /// Device::Configure() (when MFEM_USE_MPI=YES) after the MFEM device
-   /// configuration is complete.
+   /// configuration is complete, configuring HYPRE for device.
    static void InitDevice();
 
    /// @brief Finalize hypre (called automatically at program exit if
@@ -94,6 +95,9 @@ public:
    ///
    /// Multiple calls to Hypre::Finalize() have no effect. This function can be
    /// called manually to more precisely control when hypre is finalized.
+   ///
+   /// Calling HYPRE_Init() or HYPRE_Finalize() manually is only supported for
+   /// HYPRE 2.29.0+
    static void Finalize();
 
    /// @brief Use MFEM's device policy to configure HYPRE's device policy, true
@@ -104,14 +108,20 @@ public:
    static bool configure_runtime_policy_from_mfem;
 
 private:
-   /// Calls HYPRE_Init() when the singleton is constructed.
-   Hypre();
+   /// Default constructor. Singleton object; private.
+   Hypre() = default;
+
+   /// Copy constructor. Deleted.
+   Hypre(Hypre&) = delete;
+
+   /// Move constructor. Deleted.
+   Hypre(Hypre&&) = delete;
 
    /// The singleton destructor (called at program exit) finalizes hypre.
    ~Hypre() { Finalize(); }
 
    /// Set the default hypre global options (mostly GPU-relevant).
-   void SetDefaultOptions();
+   static void SetDefaultOptions();
 
    /// Create and return the Hypre singleton object.
    static Hypre &Instance()
@@ -120,7 +130,10 @@ private:
       return hypre;
    }
 
-   bool finalized = false; ///< Has Hypre::Finalize() been called already?
+   enum class State { UNINITIALIZED, INITIALIZED };
+
+   /// Tracks whether Hypre was initialized or finalized by this class.
+   static State state;
 };
 
 
@@ -247,6 +260,12 @@ public:
        allocated in the memory location HYPRE_MEMORY_DEVICE. */
    HypreParVector(MPI_Comm comm, HYPRE_BigInt glob_size, real_t *data_,
                   HYPRE_BigInt *col, bool is_device_ptr = false);
+   /** @brief Creates a vector that uses the data of the Vector @a base,
+       starting at the given @a offset. */
+   /** The @a base Vector must have memory types compatible with the MemoryClass
+       returned by GetHypreMemoryClass(). */
+   HypreParVector(MPI_Comm comm, HYPRE_BigInt glob_size, Vector &base,
+                  int offset, HYPRE_BigInt *col);
    /// Creates a deep copy of @a y
    HypreParVector(const HypreParVector &y);
    /// Move constructor for HypreParVector. "Steals" data from its argument.
@@ -312,7 +331,8 @@ public:
    /// Sets the data of the Vector and the hypre_ParVector to @a data_.
    /** Must be used only for HypreParVector%s that do not own the data,
        e.g. created with the constructor:
-       HypreParVector(MPI_Comm, HYPRE_BigInt, double *, HYPRE_BigInt *). */
+       HypreParVector(MPI_Comm, HYPRE_BigInt, real_t *, HYPRE_BigInt *, bool).
+   */
    void SetData(real_t *data_);
 
    /** @brief Prepare the HypreParVector for read access in hypre's device
@@ -332,7 +352,7 @@ public:
        HYPRE_MEMORY_DEVICE. */
    /** This method must be used with HypreParVector%s that do not own the data,
        e.g. created with the constructor:
-       HypreParVector(MPI_Comm, HYPRE_BigInt, double *, HYPRE_BigInt *).
+       HypreParVector(MPI_Comm, HYPRE_BigInt, real_t *, HYPRE_BigInt *, bool).
 
        The Memory @a mem must be accessible with the hypre MemoryClass defined
        by GetHypreMemoryClass(). */
@@ -343,7 +363,7 @@ public:
        space, HYPRE_MEMORY_DEVICE. */
    /** This method must be used with HypreParVector%s that do not own the data,
        e.g. created with the constructor:
-       HypreParVector(MPI_Comm, HYPRE_BigInt, double *, HYPRE_BigInt *).
+       HypreParVector(MPI_Comm, HYPRE_BigInt, real_t *, HYPRE_BigInt *, bool).
 
        The Memory @a mem must be accessible with the hypre MemoryClass defined
        by GetHypreMemoryClass(). */
@@ -354,7 +374,7 @@ public:
        HYPRE_MEMORY_DEVICE. */
    /** This method must be used with HypreParVector%s that do not own the data,
        e.g. created with the constructor:
-       HypreParVector(MPI_Comm, HYPRE_BigInt, double *, HYPRE_BigInt *).
+       HypreParVector(MPI_Comm, HYPRE_BigInt, real_t *, HYPRE_BigInt *, bool).
 
        The Memory @a mem must be accessible with the hypre MemoryClass defined
        by GetHypreMemoryClass(). */
@@ -393,7 +413,7 @@ private:
    /// Auxiliary vectors for typecasting
    mutable HypreParVector *X, *Y;
    /** @brief Auxiliary buffers for the case when the input or output arrays in
-       methods like Mult(double, const Vector &, double, Vector &) need to be
+       methods like Mult(real_t, const Vector &, real_t, Vector &) need to be
        deep copied in order to be used by hypre. */
    mutable Memory<real_t> auxX, auxY;
 
@@ -758,9 +778,18 @@ public:
        of the matrix A. */
    void AbsMult(real_t a, const Vector &x, real_t b, Vector &y) const;
 
+   /// @brief Computes y = |A| * x, using entry-wise absolute values of the matrix A.
+   void AbsMult(const Vector &x, Vector &y) const override
+   { AbsMult(1.0, x, 0.0, y); }
+
    /** @brief Computes y = a * |At| * x + b * y, using entry-wise absolute
        values of the transpose of the matrix A. */
    void AbsMultTranspose(real_t a, const Vector &x, real_t b, Vector &y) const;
+
+   /** @brief Computes y = |At| * x, using entry-wise absolute values of the
+       matrix A. */
+   void AbsMultTranspose(const Vector &x, Vector &y) const override
+   { AbsMultTranspose(1.0, x, 0.0, y); }
 
    /** @brief The "Boolean" analog of y = alpha * A * x + beta * y, where
        elements in the sparsity pattern of the matrix are treated as "true". */
@@ -937,6 +966,10 @@ public:
        HypreParMatrix that can be used to compare matrices from different runs
        without the need to save the whole matrix. */
    void PrintHash(std::ostream &out) const;
+
+   /// @brief Return the Frobenius norm of the matrix (or 0 if the underlying
+   /// hypre matrix is NULL)
+   real_t FNorm() const;
 
    /// Calls hypre's destroy function
    virtual ~HypreParMatrix() { Destroy(); }
@@ -1145,15 +1178,15 @@ public:
 
    /** Set/update the associated operator. Must be called after setting the
        HypreSmoother type and options. */
-   virtual void SetOperator(const Operator &op);
+   void SetOperator(const Operator &op) override;
 
    /// Relax the linear system Ax=b
    virtual void Mult(const HypreParVector &b, HypreParVector &x) const;
-   virtual void Mult(const Vector &b, Vector &x) const;
+   void Mult(const Vector &b, Vector &x) const override;
    using Operator::Mult;
 
    /// Apply transpose of the smoother to relax the linear system Ax=b
-   virtual void MultTranspose(const Vector &b, Vector &x) const;
+   void MultTranspose(const Vector &b, Vector &x) const override;
 
    virtual ~HypreSmoother();
 };
@@ -1216,17 +1249,17 @@ public:
 
    ///@}
 
-   virtual void SetOperator(const Operator &op)
+   void SetOperator(const Operator &op) override
    { mfem_error("HypreSolvers do not support SetOperator!"); }
 
-   virtual MemoryClass GetMemoryClass() const { return GetHypreMemoryClass(); }
+   MemoryClass GetMemoryClass() const override { return GetHypreMemoryClass(); }
 
    ///@{
 
    /// Solve the linear system Ax=b
    virtual void Mult(const HypreParVector &b, HypreParVector &x) const;
    /// Solve the linear system Ax=b
-   virtual void Mult(const Vector &b, Vector &x) const;
+   void Mult(const Vector &b, Vector &x) const override;
    using Operator::Mult;
 
    ///@}
@@ -1255,11 +1288,11 @@ class HypreTriSolve : public HypreSolver
 public:
    HypreTriSolve() : HypreSolver() { }
    explicit HypreTriSolve(const HypreParMatrix &A) : HypreSolver(&A) { }
-   virtual operator HYPRE_Solver() const { return NULL; }
+   operator HYPRE_Solver() const override { return NULL; }
 
-   virtual HYPRE_PtrToParSolverFcn SetupFcn() const
+   HYPRE_PtrToParSolverFcn SetupFcn() const override
    { return (HYPRE_PtrToParSolverFcn) HYPRE_ParCSROnProcTriSetup; }
-   virtual HYPRE_PtrToParSolverFcn SolveFcn() const
+   HYPRE_PtrToParSolverFcn SolveFcn() const override
    { return (HYPRE_PtrToParSolverFcn) HYPRE_ParCSROnProcTriSolve; }
 
    const HypreParMatrix* GetData() const { return A; }
@@ -1285,7 +1318,7 @@ public:
 
    HyprePCG(const HypreParMatrix &A_);
 
-   virtual void SetOperator(const Operator &op);
+   void SetOperator(const Operator &op) override;
 
    void SetTol(real_t tol);
    void SetAbsTol(real_t atol);
@@ -1321,17 +1354,17 @@ public:
    }
 
    /// The typecast to HYPRE_Solver returns the internal pcg_solver
-   virtual operator HYPRE_Solver() const { return pcg_solver; }
+   operator HYPRE_Solver() const override { return pcg_solver; }
 
    /// PCG Setup function
-   virtual HYPRE_PtrToParSolverFcn SetupFcn() const
+   HYPRE_PtrToParSolverFcn SetupFcn() const override
    { return (HYPRE_PtrToParSolverFcn) HYPRE_ParCSRPCGSetup; }
    /// PCG Solve function
-   virtual HYPRE_PtrToParSolverFcn SolveFcn() const
+   HYPRE_PtrToParSolverFcn SolveFcn() const override
    { return (HYPRE_PtrToParSolverFcn) HYPRE_ParCSRPCGSolve; }
 
    /// Solve Ax=b with hypre's PCG
-   virtual void Mult(const HypreParVector &b, HypreParVector &x) const;
+   void Mult(const HypreParVector &b, HypreParVector &x) const override;
    using HypreSolver::Mult;
 
    virtual ~HyprePCG();
@@ -1353,7 +1386,7 @@ public:
 
    HypreGMRES(const HypreParMatrix &A_);
 
-   virtual void SetOperator(const Operator &op);
+   void SetOperator(const Operator &op) override;
 
    void SetTol(real_t tol);
    void SetAbsTol(real_t tol);
@@ -1385,17 +1418,17 @@ public:
    }
 
    /// The typecast to HYPRE_Solver returns the internal gmres_solver
-   virtual operator HYPRE_Solver() const  { return gmres_solver; }
+   operator HYPRE_Solver() const override { return gmres_solver; }
 
    /// GMRES Setup function
-   virtual HYPRE_PtrToParSolverFcn SetupFcn() const
+   HYPRE_PtrToParSolverFcn SetupFcn() const override
    { return (HYPRE_PtrToParSolverFcn) HYPRE_ParCSRGMRESSetup; }
    /// GMRES Solve function
-   virtual HYPRE_PtrToParSolverFcn SolveFcn() const
+   HYPRE_PtrToParSolverFcn SolveFcn() const override
    { return (HYPRE_PtrToParSolverFcn) HYPRE_ParCSRGMRESSolve; }
 
    /// Solve Ax=b with hypre's GMRES
-   virtual void Mult (const HypreParVector &b, HypreParVector &x) const;
+   void Mult(const HypreParVector &b, HypreParVector &x) const override;
    using HypreSolver::Mult;
 
    virtual ~HypreGMRES();
@@ -1417,7 +1450,7 @@ public:
 
    HypreFGMRES(const HypreParMatrix &A_);
 
-   virtual void SetOperator(const Operator &op);
+   void SetOperator(const Operator &op) override;
 
    void SetTol(real_t tol);
    void SetMaxIter(int max_iter);
@@ -1448,17 +1481,17 @@ public:
    }
 
    /// The typecast to HYPRE_Solver returns the internal fgmres_solver
-   virtual operator HYPRE_Solver() const  { return fgmres_solver; }
+   operator HYPRE_Solver() const override { return fgmres_solver; }
 
    /// FGMRES Setup function
-   virtual HYPRE_PtrToParSolverFcn SetupFcn() const
+   HYPRE_PtrToParSolverFcn SetupFcn() const override
    { return (HYPRE_PtrToParSolverFcn) HYPRE_ParCSRFlexGMRESSetup; }
    /// FGMRES Solve function
-   virtual HYPRE_PtrToParSolverFcn SolveFcn() const
+   HYPRE_PtrToParSolverFcn SolveFcn() const override
    { return (HYPRE_PtrToParSolverFcn) HYPRE_ParCSRFlexGMRESSolve; }
 
    /// Solve Ax=b with hypre's FGMRES
-   virtual void Mult (const HypreParVector &b, HypreParVector &x) const;
+   void Mult(const HypreParVector &b, HypreParVector &x) const override;
    using HypreSolver::Mult;
 
    virtual ~HypreFGMRES();
@@ -1468,11 +1501,11 @@ public:
 class HypreIdentity : public HypreSolver
 {
 public:
-   virtual operator HYPRE_Solver() const { return NULL; }
+   operator HYPRE_Solver() const override { return NULL; }
 
-   virtual HYPRE_PtrToParSolverFcn SetupFcn() const
+   HYPRE_PtrToParSolverFcn SetupFcn() const override
    { return (HYPRE_PtrToParSolverFcn) hypre_ParKrylovIdentitySetup; }
-   virtual HYPRE_PtrToParSolverFcn SolveFcn() const
+   HYPRE_PtrToParSolverFcn SolveFcn() const override
    { return (HYPRE_PtrToParSolverFcn) hypre_ParKrylovIdentity; }
 
    virtual ~HypreIdentity() { }
@@ -1484,13 +1517,13 @@ class HypreDiagScale : public HypreSolver
 public:
    HypreDiagScale() : HypreSolver() { }
    explicit HypreDiagScale(const HypreParMatrix &A) : HypreSolver(&A) { }
-   virtual operator HYPRE_Solver() const { return NULL; }
+   operator HYPRE_Solver() const override { return NULL; }
 
-   virtual void SetOperator(const Operator &op);
+   void SetOperator(const Operator &op) override;
 
-   virtual HYPRE_PtrToParSolverFcn SetupFcn() const
+   HYPRE_PtrToParSolverFcn SetupFcn() const override
    { return (HYPRE_PtrToParSolverFcn) HYPRE_ParCSRDiagScaleSetup; }
-   virtual HYPRE_PtrToParSolverFcn SolveFcn() const
+   HYPRE_PtrToParSolverFcn SolveFcn() const override
    { return (HYPRE_PtrToParSolverFcn) HYPRE_ParCSRDiagScale; }
 
    const HypreParMatrix* GetData() const { return A; }
@@ -1521,7 +1554,7 @@ public:
 
    HypreParaSails(const HypreParMatrix &A);
 
-   virtual void SetOperator(const Operator &op);
+   void SetOperator(const Operator &op) override;
 
    /// Set the threshold and levels parameters
    /** The accuracy and cost of ParaSails are parametrized by the real
@@ -1572,11 +1605,11 @@ public:
    void SetLogging(int logging);
 
    /// The typecast to HYPRE_Solver returns the internal sai_precond
-   virtual operator HYPRE_Solver() const { return sai_precond; }
+   operator HYPRE_Solver() const override { return sai_precond; }
 
-   virtual HYPRE_PtrToParSolverFcn SetupFcn() const
+   HYPRE_PtrToParSolverFcn SetupFcn() const override
    { return (HYPRE_PtrToParSolverFcn) HYPRE_ParaSailsSetup; }
-   virtual HYPRE_PtrToParSolverFcn SolveFcn() const
+   HYPRE_PtrToParSolverFcn SolveFcn() const override
    { return (HYPRE_PtrToParSolverFcn) HYPRE_ParaSailsSolve; }
 
    virtual ~HypreParaSails();
@@ -1614,14 +1647,14 @@ public:
    void SetBJ(int bj);
    void SetRowScale(int row_scale);
 
-   virtual void SetOperator(const Operator &op);
+   void SetOperator(const Operator &op) override;
 
    /// The typecast to HYPRE_Solver returns the internal euc_precond
-   virtual operator HYPRE_Solver() const { return euc_precond; }
+   operator HYPRE_Solver() const override { return euc_precond; }
 
-   virtual HYPRE_PtrToParSolverFcn SetupFcn() const
+   HYPRE_PtrToParSolverFcn SetupFcn() const override
    { return (HYPRE_PtrToParSolverFcn) HYPRE_EuclidSetup; }
-   virtual HYPRE_PtrToParSolverFcn SolveFcn() const
+   HYPRE_PtrToParSolverFcn SolveFcn() const override
    { return (HYPRE_PtrToParSolverFcn) HYPRE_EuclidSolve; }
 
    virtual ~HypreEuclid();
@@ -1674,16 +1707,16 @@ public:
    void SetPrintLevel(HYPRE_Int print_level);
 
    /// The typecast to HYPRE_Solver returns the internal ilu_precond
-   virtual operator HYPRE_Solver() const { return ilu_precond; }
+   operator HYPRE_Solver() const override { return ilu_precond; }
 
-   virtual void SetOperator(const Operator &op);
+   void SetOperator(const Operator &op) override;
 
    /// ILU Setup function
-   virtual HYPRE_PtrToParSolverFcn SetupFcn() const
+   HYPRE_PtrToParSolverFcn SetupFcn() const override
    { return (HYPRE_PtrToParSolverFcn) HYPRE_ILUSetup; }
 
    /// ILU Solve function
-   virtual HYPRE_PtrToParSolverFcn SolveFcn() const
+   HYPRE_PtrToParSolverFcn SolveFcn() const override
    { return (HYPRE_PtrToParSolverFcn) HYPRE_ILUSolve; }
 };
 #endif
@@ -1716,7 +1749,7 @@ public:
 
    HypreBoomerAMG(const HypreParMatrix &A);
 
-   virtual void SetOperator(const Operator &op);
+   void SetOperator(const Operator &op) override;
 
    /** More robust options for systems, such as elasticity. */
    void SetSystemsOptions(int dim, bool order_bynodes=false);
@@ -1823,11 +1856,11 @@ public:
    { HYPRE_BoomerAMGSetAggNumLevels(amg_precond, num_levels); }
 
    /// The typecast to HYPRE_Solver returns the internal amg_precond
-   virtual operator HYPRE_Solver() const { return amg_precond; }
+   operator HYPRE_Solver() const override { return amg_precond; }
 
-   virtual HYPRE_PtrToParSolverFcn SetupFcn() const
+   HYPRE_PtrToParSolverFcn SetupFcn() const override
    { return (HYPRE_PtrToParSolverFcn) HYPRE_BoomerAMGSetup; }
-   virtual HYPRE_PtrToParSolverFcn SolveFcn() const
+   HYPRE_PtrToParSolverFcn SolveFcn() const override
    { return (HYPRE_PtrToParSolverFcn) HYPRE_BoomerAMGSolve; }
 
    using HypreSolver::Mult;
@@ -1897,7 +1930,7 @@ public:
    HypreAMS(const HypreParMatrix &A, HypreParMatrix *G_, HypreParVector *x_,
             HypreParVector *y_, HypreParVector *z_=NULL);
 
-   virtual void SetOperator(const Operator &op);
+   void SetOperator(const Operator &op) override;
 
    void SetPrintLevel(int print_lvl);
 
@@ -1909,11 +1942,11 @@ public:
    }
 
    /// The typecast to HYPRE_Solver returns the internal ams object
-   virtual operator HYPRE_Solver() const { return ams; }
+   operator HYPRE_Solver() const override { return ams; }
 
-   virtual HYPRE_PtrToParSolverFcn SetupFcn() const
+   HYPRE_PtrToParSolverFcn SetupFcn() const override
    { return (HYPRE_PtrToParSolverFcn) HYPRE_AMSSetup; }
-   virtual HYPRE_PtrToParSolverFcn SolveFcn() const
+   HYPRE_PtrToParSolverFcn SolveFcn() const override
    { return (HYPRE_PtrToParSolverFcn) HYPRE_AMSSolve; }
 
    virtual ~HypreAMS();
@@ -1971,16 +2004,16 @@ public:
    HypreADS(const HypreParMatrix &A, HypreParMatrix *C_, HypreParMatrix *G_,
             HypreParVector *x_, HypreParVector *y_, HypreParVector *z_);
 
-   virtual void SetOperator(const Operator &op);
+   void SetOperator(const Operator &op) override;
 
    void SetPrintLevel(int print_lvl);
 
    /// The typecast to HYPRE_Solver returns the internal ads object
-   virtual operator HYPRE_Solver() const { return ads; }
+   operator HYPRE_Solver() const override { return ads; }
 
-   virtual HYPRE_PtrToParSolverFcn SetupFcn() const
+   HYPRE_PtrToParSolverFcn SetupFcn() const override
    { return (HYPRE_PtrToParSolverFcn) HYPRE_ADSSetup; }
-   virtual HYPRE_PtrToParSolverFcn SolveFcn() const
+   HYPRE_PtrToParSolverFcn SolveFcn() const override
    { return (HYPRE_PtrToParSolverFcn) HYPRE_ADSSolve; }
 
    virtual ~HypreADS();

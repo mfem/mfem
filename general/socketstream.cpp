@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -10,7 +10,7 @@
 // CONTRIBUTING.md for details.
 
 #ifdef _WIN32
-// Turn off CRT deprecation warnings for strerror (VS 2013)
+// Turn off CRT deprecation warnings for strerror
 #define _CRT_SECURE_NO_WARNINGS
 #endif
 
@@ -30,13 +30,13 @@
 #include <ws2tcpip.h>
 #ifdef _MSC_VER
 typedef int ssize_t;
+typedef int socklen_t;
 // Link with ws2_32.lib
 #pragma comment(lib, "ws2_32.lib")
 #endif
 #endif
 
 #ifdef MFEM_USE_GNUTLS
-#include <cstdlib>  // getenv
 #ifndef MFEM_USE_GNUTLS_X509
 #include <gnutls/openpgp.h>
 #endif
@@ -58,7 +58,7 @@ public:
       int err_flag = WSAStartup(MAKEWORD(2,2), &wsaData);
       if (err_flag != 0)
       {
-         mfem::out << "Error occurred during initialization of WinSock."
+         mfem::err << "Error occurred during initialization of WinSock."
                    << std::endl;
          return;
       }
@@ -108,11 +108,19 @@ int socketbuf::open(const char hostname[], int port)
    hints.ai_socktype = SOCK_STREAM;
    hints.ai_flags = 0;
    hints.ai_protocol = 0;
+   // On Windows, the following need to be set to 0; also required by POSIX.
+   hints.ai_addrlen = 0;
+   hints.ai_canonname = NULL;
+   hints.ai_addr = NULL;
+   hints.ai_next = NULL;
 
    std::string portStr = std::to_string(port);
    int s = getaddrinfo(hostname, portStr.c_str(), &hints, &res);
    if (s != 0)
    {
+#ifdef MFEM_DEBUG
+      mfem::err << "Error in getaddrinfo(): code = " << s << std::endl;
+#endif
       socket_descriptor = -3;
       return -1;
    }
@@ -138,7 +146,8 @@ int socketbuf::open(const char hostname[], int port)
       }
 #endif
 
-      if (connect(socket_descriptor, rp->ai_addr, rp->ai_addrlen) < 0)
+      if (connect(socket_descriptor, rp->ai_addr,
+                  static_cast<socklen_t>(rp->ai_addrlen)) < 0)
       {
          closesocket(socket_descriptor);
          socket_descriptor = -2;
@@ -177,7 +186,7 @@ int socketbuf::sync()
       if (bw < 0)
       {
 #ifdef MFEM_DEBUG
-         mfem::out << "Error in send(): " << strerror(errno) << std::endl;
+         mfem::err << "Error in send(): " << strerror(errno) << std::endl;
 #endif
          setp(pptr() - n, obuf + buflen);
          pbump(n);
@@ -200,7 +209,7 @@ socketbuf::int_type socketbuf::underflow()
 #ifdef MFEM_DEBUG
       if (br < 0)
       {
-         mfem::out << "Error in recv(): " << strerror(errno) << std::endl;
+         mfem::err << "Error in recv(): " << strerror(errno) << std::endl;
       }
 #endif
       setg(NULL, NULL, NULL);
@@ -249,7 +258,7 @@ std::streamsize socketbuf::xsgetn(char_type *s__, std::streamsize n__)
 #ifdef MFEM_DEBUG
          if (br < 0)
          {
-            mfem::out << "Error in recv(): " << strerror(errno) << std::endl;
+            mfem::err << "Error in recv(): " << strerror(errno) << std::endl;
          }
 #endif
          return (n__ - remain);
@@ -286,7 +295,7 @@ std::streamsize socketbuf::xsputn(const char_type *s__, std::streamsize n__)
       if (bw < 0)
       {
 #ifdef MFEM_DEBUG
-         mfem::out << "Error in send(): " << strerror(errno) << std::endl;
+         mfem::err << "Error in send(): " << strerror(errno) << std::endl;
 #endif
          return (n__ - remain);
       }
@@ -433,7 +442,7 @@ static int mfem_gnutls_verify_callback(gnutls_session_t session)
    int ret = gnutls_certificate_verify_peers3(session, hostname, &status);
    if (ret < 0)
    {
-      mfem::out << "Error in gnutls_certificate_verify_peers3:"
+      mfem::err << "Error in gnutls_certificate_verify_peers3:"
                 << gnutls_strerror(ret) << std::endl;
       return GNUTLS_E_CERTIFICATE_ERROR;
    }
@@ -445,7 +454,7 @@ static int mfem_gnutls_verify_callback(gnutls_session_t session)
             status, type, &status_str, 0);
    if (ret < 0)
    {
-      mfem::out << "Error in gnutls_certificate_verification_status_print:"
+      mfem::err << "Error in gnutls_certificate_verification_status_print:"
                 << gnutls_strerror(ret) << std::endl;
       return GNUTLS_E_CERTIFICATE_ERROR;
    }
@@ -456,7 +465,7 @@ static int mfem_gnutls_verify_callback(gnutls_session_t session)
    int ret = gnutls_certificate_verify_peers2(session, &status);
    if (ret < 0)
    {
-      mfem::out << "Error in gnutls_certificate_verify_peers2:"
+      mfem::err << "Error in gnutls_certificate_verify_peers2:"
                 << gnutls_strerror(ret) << std::endl;
       return GNUTLS_E_CERTIFICATE_ERROR;
    }
@@ -643,7 +652,7 @@ void GnuTLS_socketbuf::start_session()
       status.print_on_error("gnutls_priority_set_direct");
       if (!status.good())
       {
-         mfem::out << "Error ptr = \"" << err_ptr << '"' << std::endl;
+         mfem::err << "Error ptr = \"" << err_ptr << '"' << std::endl;
       }
    }
 
@@ -957,7 +966,7 @@ GnuTLS_session_params &socketstream::add_socket()
    {
       state = new GnuTLS_global_state;
       // state->set_log_level(1000);
-      std::string home_dir(getenv("HOME"));
+      std::string home_dir(GetEnv("HOME"));
       std::string client_dir = home_dir + "/.config/glvis/client/";
 #ifndef MFEM_USE_GNUTLS_X509
       std::string pubkey  = client_dir + "pubring.gpg";
@@ -973,10 +982,10 @@ GnuTLS_session_params &socketstream::add_socket()
          GNUTLS_CLIENT);
       if (!params->status.good())
       {
-         mfem::out << "  public key   = " << pubkey << '\n'
+         mfem::err << "  public key   = " << pubkey << '\n'
                    << "  private key  = " << privkey << '\n'
                    << "  trusted keys = " << trustedkeys << std::endl;
-         mfem::out << "Error setting GLVis client parameters.\n"
+         mfem::err << "Error setting GLVis client parameters.\n"
                    "Use the following GLVis script to create your GLVis keys:\n"
                    "   bash glvis-keygen.sh [\"Your Name\"] [\"Your Email\"]"
                    << std::endl;

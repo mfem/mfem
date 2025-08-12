@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -142,19 +142,19 @@ public:
 
    }
 
-   virtual void Mult(const Vector &x, Vector &y) const;
+   void Mult(const Vector &x, Vector &y) const override;
 
-   virtual void AdjointRateMult(const Vector &y, Vector &yB,
-                                Vector &yBdot) const;
+   void AdjointRateMult(const Vector &y, Vector &yB,
+                        Vector &yBdot) const override;
 
-   virtual int SUNImplicitSetup(const Vector &y,
-                                const Vector &fy, int jok, int *jcur,
-                                real_t gamma);
+   int SUNImplicitSetup(const Vector &y,
+                        const Vector &fy, int jok, int *jcur,
+                        real_t gamma) override;
 
-   virtual int SUNImplicitSolve(const Vector &b, Vector &x, real_t tol);
+   int SUNImplicitSolve(const Vector &b, Vector &x, real_t tol) override;
 
-   virtual void QuadratureSensitivityMult(const Vector &y, const Vector &yB,
-                                          Vector &qbdot) const;
+   void QuadratureSensitivityMult(const Vector &y, const Vector &yB,
+                                  Vector &qbdot) const override;
 
    ~AdvDiffSUNDIALS()
    {
@@ -323,11 +323,10 @@ int main(int argc, char *argv[])
    // Perform time-integration for the problem (looping over the time
    // iterations, ti, with a time-step dt).
    bool done = false;
-   for (int ti = 0; !done; )
+   for ( ; !done; )
    {
       real_t dt_real = max(dt, t_final - t);
       cvodes->Step(*U, t, dt_real);
-      ti++;
 
       done = (t >= t_final - 1e-8*dt);
 
