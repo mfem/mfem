@@ -203,8 +203,8 @@ int main(int argc, char *argv[])
    else if (preconditioner == 1)
    {
       cout << "Setting up preconditioner (Jacobi) ... " << endl;
-      OperatorJacobiSmoother *P = new OperatorJacobiSmoother(a, ess_tdof_list);
-      solver.SetPreconditioner(*P);
+      OperatorJacobiSmoother P(a, ess_tdof_list);
+      solver.SetPreconditioner(P);
    }
    else
    {
