@@ -896,6 +896,7 @@ inline HYPRE_MemoryLocation GetHypreMemoryLocation()
 #elif MFEM_HYPRE_VERSION < 23100
    return HYPRE_MEMORY_DEVICE;
 #else // HYPRE_USING_GPU is defined and MFEM_HYPRE_VERSION >= 23100
+   if (!HYPRE_Initialized()) { return HYPRE_MEMORY_HOST; }
    HYPRE_MemoryLocation loc;
    HYPRE_GetMemoryLocation(&loc);
    return loc;
@@ -1057,7 +1058,8 @@ inline void Memory<T>::MakeAlias(const Memory &base, int offset, int size)
          // register the 'base' if the MemoryManager::Exists():
          MemoryManager::Exists()
 #else // HYPRE_USING_GPU is defined and MFEM_HYPRE_VERSION >= 23100
-         MemoryManager::Exists() && HypreUsingGPU()
+         IsDeviceMemory(MemoryManager::GetDeviceMemoryType()) ||
+         (MemoryManager::Exists() && HypreUsingGPU())
 #endif
       )
       {
