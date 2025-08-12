@@ -10972,14 +10972,6 @@ void Mesh::NURBSCoarsening(int cf, real_t tol)
    }
 }
 
-bool Mesh::AnisotropicConflict(const Array<Refinement> &refinements,
-			       std::set<int> &conflicts) const
-{
-  MFEM_VERIFY(ncmesh, "AnisotropicConflict should be called only for NCMesh");
-  MFEM_ABORT("AnisotropicConflict should be called only in ParMesh");
-  return false;
-}
-
 void Mesh::GeneralRefinement(const Array<Refinement> &refinements,
                              int nonconforming, int nc_limit)
 {
