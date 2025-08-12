@@ -371,7 +371,7 @@ void SplitTimeDependentOperator::Mult1(const Vector &, Vector &) const
 }
 
 void SplitTimeDependentOperator::ImplicitSolve1(const real_t, const Vector &,
-                                          Vector &)
+                                                Vector &)
 {
    mfem_error("SplitTimeDependentOperator::ImplicitSolve1() is not overridden!");
 }
@@ -382,7 +382,7 @@ void SplitTimeDependentOperator::Mult2(const Vector &, Vector &) const
 }
 
 void SplitTimeDependentOperator::ImplicitSolve2(const real_t, const Vector &,
-                                          Vector &)
+                                                Vector &)
 {
    mfem_error("SplitTimeDependentOperator::ImplicitSolve2() is not overridden!");
 }

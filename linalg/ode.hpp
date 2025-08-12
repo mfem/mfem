@@ -957,35 +957,36 @@ public:
        - To change the associated SplitTimeDependentOperator. */
    virtual void Init(SplitTimeDependentOperator &f_);
 
-   static MFEM_EXPORT std::unique_ptr<SplitODESolver> Select(const int ode_solver_type);
+   static MFEM_EXPORT std::unique_ptr<SplitODESolver> Select(
+      const int ode_solver_type);
    virtual ~SplitODESolver() { }
 };
 
 class IMEXExpImplEuler : public SplitODESolver
 {
-   private:
-      Vector k1; Vector k2;
-   public:
-      void Init(SplitTimeDependentOperator &f_) override;
+private:
+   Vector k1; Vector k2;
+public:
+   void Init(SplitTimeDependentOperator &f_) override;
 
-      void Step(Vector &x, real_t &t, real_t &dt) override;
+   void Step(Vector &x, real_t &t, real_t &dt) override;
 };
 
 
-/**IMEX RK2 Method from "On the Stability of IMEX Upwind gSBP Schemes for 1D Linear Advection‑Difusion Equations" by Sigrun Ortleb. 
+/**IMEX RK2 Method from "On the Stability of IMEX Upwind gSBP Schemes for 1D Linear Advection‑Difusion Equations" by Sigrun Ortleb.
  * Same as (2,2,2) from "Implicit-explicit Runge-Kutta
     methods for time-dependent partial differential equations" by Ascher, Ruuth
     and Spiteri, Applied Numerical Mathematics (1997).**/
 class IMEXRK2 : public SplitODESolver
 {
-   private:
-      Vector k1_exp; Vector k2_exp; Vector k2_imp; Vector k3_imp;
-      //helper vectors
-      Vector y; Vector z;
-   public:
-      void Init(SplitTimeDependentOperator &f_) override;
+private:
+   Vector k1_exp; Vector k2_exp; Vector k2_imp; Vector k3_imp;
+   //helper vectors
+   Vector y; Vector z;
+public:
+   void Init(SplitTimeDependentOperator &f_) override;
 
-      void Step(Vector &x, real_t &t, real_t &dt) override;
+   void Step(Vector &x, real_t &t, real_t &dt) override;
 };
 
 
@@ -994,14 +995,14 @@ class IMEXRK2 : public SplitODESolver
     and Spiteri, Applied Numerical Mathematics (1997).**/
 class IMEXRK2_3StageExplicit : public SplitODESolver
 {
-   private:
-      Vector k1_exp; Vector k2_exp; Vector k3_exp; Vector k2_imp; Vector k3_imp;
-      //helper vectors
-      Vector y; Vector z; Vector w;
-   public:
-      void Init(SplitTimeDependentOperator &f_) override;
+private:
+   Vector k1_exp; Vector k2_exp; Vector k3_exp; Vector k2_imp; Vector k3_imp;
+   //helper vectors
+   Vector y; Vector z; Vector w;
+public:
+   void Init(SplitTimeDependentOperator &f_) override;
 
-      void Step(Vector &x, real_t &t, real_t &dt) override;
+   void Step(Vector &x, real_t &t, real_t &dt) override;
 };
 
 /**(3,4,3) from "Implicit-explicit Runge-Kutta
@@ -1009,15 +1010,15 @@ class IMEXRK2_3StageExplicit : public SplitODESolver
     and Spiteri, Applied Numerical Mathematics (1997).**/
 class IMEX_DIRK_RK3 : public SplitODESolver
 {
-   private:
-      Vector k1_exp; Vector k2_exp; Vector k3_exp; Vector k4_exp;
-      Vector k2_imp; Vector k3_imp; Vector k4_imp;
-      //helper vectors
-      Vector y; Vector z; Vector w; Vector u; Vector v;
-   public:
-      void Init(SplitTimeDependentOperator &f_) override;
+private:
+   Vector k1_exp; Vector k2_exp; Vector k3_exp; Vector k4_exp;
+   Vector k2_imp; Vector k3_imp; Vector k4_imp;
+   //helper vectors
+   Vector y; Vector z; Vector w; Vector u; Vector v;
+public:
+   void Init(SplitTimeDependentOperator &f_) override;
 
-      void Step(Vector &x, real_t &t, real_t &dt) override;
+   void Step(Vector &x, real_t &t, real_t &dt) override;
 };
 
 

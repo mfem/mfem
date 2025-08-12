@@ -54,7 +54,8 @@ private:
    real_t dt;
    SparseMatrix M_diag;
 public:
-   DG_Solver(HypreParMatrix &M_, HypreParMatrix &K_, HypreParMatrix &S_, const FiniteElementSpace &fes)
+   DG_Solver(HypreParMatrix &M_, HypreParMatrix &K_, HypreParMatrix &S_,
+             const FiniteElementSpace &fes)
       : M(M_),
         K(K_),
         S(S_),
@@ -96,7 +97,7 @@ public:
       linear_solver.SetPreconditioner(precond);
    }
 
-  ~DG_Solver() override
+   ~DG_Solver() override
    {
       delete A;
    }
@@ -119,7 +120,8 @@ private:
    mutable Vector w;
 
 public:
-   IMEX_Evolution(ParBilinearForm &M_, ParBilinearForm &K_, ParBilinearForm &S_, const Vector &b_, ParBilinearForm &A_);
+   IMEX_Evolution(ParBilinearForm &M_, ParBilinearForm &K_, ParBilinearForm &S_,
+                  const Vector &b_, ParBilinearForm &A_);
 
    void Mult1(const Vector &x, Vector &y) const;
    void ImplicitSolve2(const real_t dt, const Vector &x, Vector &k) override;
@@ -129,7 +131,7 @@ public:
 int main(int argc, char *argv[])
 {
 
-    // 1. Initialize MPI and HYPRE.
+   // 1. Initialize MPI and HYPRE.
    Mpi::Init();
    int num_procs = Mpi::WorldSize();
    int myid = Mpi::WorldRank();
@@ -156,11 +158,11 @@ int main(int argc, char *argv[])
    real_t kappa = -1.0;
    real_t sigma = -1.0;
    bool visualization = false;
-//    #if MFEM_HYPRE_VERSION >= 21800
-//    PrecType prec_type = PrecType::AIR;
-// #else
-//    PrecType prec_type = PrecType::ILU;
-// #endif
+   //    #if MFEM_HYPRE_VERSION >= 21800
+   //    PrecType prec_type = PrecType::AIR;
+   // #else
+   //    PrecType prec_type = PrecType::ILU;
+   // #endif
    int precision = 16;
    cout.precision(precision);
 
@@ -273,7 +275,7 @@ int main(int argc, char *argv[])
    ParBilinearForm *m = new ParBilinearForm(fes);
    ParBilinearForm *k = new ParBilinearForm(fes);
    ParBilinearForm *s = new ParBilinearForm(fes);
-   
+
    if (pa)
    {
       m->SetAssemblyLevel(AssemblyLevel::PARTIAL);
@@ -297,11 +299,13 @@ int main(int argc, char *argv[])
 
    constexpr real_t alpha = -1.0;
    k->AddDomainIntegrator(new ConvectionIntegrator(velocity, alpha));
-   k->AddInteriorFaceIntegrator(new NonconservativeDGTraceIntegrator(velocity, alpha));
+   k->AddInteriorFaceIntegrator(new NonconservativeDGTraceIntegrator(velocity,
+                                                                     alpha));
    k->AddBdrFaceIntegrator(new NonconservativeDGTraceIntegrator(velocity, alpha));
 
    s->AddDomainIntegrator(new DiffusionIntegrator(diff_coeff));
-   s->AddInteriorFaceIntegrator(new DGDiffusionIntegrator(diff_coeff, sigma, kappa));
+   s->AddInteriorFaceIntegrator(new DGDiffusionIntegrator(diff_coeff, sigma,
+                                                          kappa));
    s->AddBdrFaceIntegrator(new DGDiffusionIntegrator(diff_coeff, sigma, kappa));
 
    ParLinearForm *b = new ParLinearForm(fes);
@@ -311,9 +315,10 @@ int main(int argc, char *argv[])
    ParBilinearForm *a = new ParBilinearForm(fes);
    a->AddDomainIntegrator(new MassIntegrator);
    a->AddDomainIntegrator(new DiffusionIntegrator(dt_diff_coeff));
-   a->AddInteriorFaceIntegrator(new DGDiffusionIntegrator(dt_diff_coeff, sigma, kappa));
+   a->AddInteriorFaceIntegrator(new DGDiffusionIntegrator(dt_diff_coeff, sigma,
+                                                          kappa));
    a->AddBdrFaceIntegrator(new DGDiffusionIntegrator(dt_diff_coeff, sigma, kappa));
-   
+
    int skip_zeros = 0;
    m->Assemble(skip_zeros);
    k->Assemble(skip_zeros);
@@ -332,7 +337,7 @@ int main(int argc, char *argv[])
    ParGridFunction *u = new ParGridFunction(fes);
    u->ProjectCoefficient(u0);
    HypreParVector *U = u->GetTrueDofs();
-    {
+   {
       ostringstream mesh_name, sol_name;
       mesh_name << "ex41-mesh." << setfill('0') << setw(6) << myid;
       sol_name << "ex41-init." << setfill('0') << setw(6) << myid;
@@ -342,7 +347,7 @@ int main(int argc, char *argv[])
       ofstream osol(sol_name.str().c_str());
       osol.precision(precision);
       u->Save(osol);
-    }
+   }
    ParaViewDataCollection *pd = NULL;
    if (paraview)
    {
@@ -420,7 +425,7 @@ int main(int argc, char *argv[])
          {
             sout << "parallel " << num_procs << " " << myid << "\n";
             sout << "solution\n" << *pmesh << *u << flush;
-         } 
+         }
          if (paraview)
          {
             pd->SetCycle(ti);
@@ -453,7 +458,8 @@ int main(int argc, char *argv[])
 }
 
 // Implementation of class IMEX_Evolution
-IMEX_Evolution::IMEX_Evolution(ParBilinearForm &M_, ParBilinearForm &K_, ParBilinearForm &S_, const Vector &b_, ParBilinearForm &A_)
+IMEX_Evolution::IMEX_Evolution(ParBilinearForm &M_, ParBilinearForm &K_,
+                               ParBilinearForm &S_, const Vector &b_, ParBilinearForm &A_)
    : SplitTimeDependentOperator(M_.ParFESpace()->GetTrueVSize()), b(b_),
      M_solver(M_.ParFESpace()->GetComm()), z(height), w(height)
 {
@@ -512,12 +518,13 @@ void IMEX_Evolution::Mult1(const Vector &x, Vector &y) const
 void IMEX_Evolution::ImplicitSolve2(const real_t dt, const Vector &x, Vector &k)
 {
    // Perform the implicit step
-   // solve for k, k = -(M+dt S)^{-1} S x 
-   MFEM_VERIFY(dg_solver != NULL, "Implicit time integration is not supported with partial assembly");
+   // solve for k, k = -(M+dt S)^{-1} S x
+   MFEM_VERIFY(dg_solver != NULL,
+               "Implicit time integration is not supported with partial assembly");
    S->Mult(x, z);
    z*= -1.0;
    dg_solver->SetTimeStep(dt);
-   dg_solver->Mult(z, k); 
+   dg_solver->Mult(z, k);
 }
 
 // Velocity coefficient

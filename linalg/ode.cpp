@@ -28,10 +28,10 @@ std::string ODESolver::ImplicitTypes  =
    "        GA      : 40 -- 50  - Generalized-alpha,\n\t"
    "        AM      : 51 - AM1, 52 - AM2, 53 - AM3, 54 - AM4\n";
 
-std::string ODESolver::IMEXTypes = 
-"\n\tIMEX solver: \n\t"
-"           55 - Forward Backward Euler, 56 - IMEXRK2(2,2,2), 57 - IMEXRK2(2,3,2)\n\t"
-"           58 - IMEX_DIRK_RK3\n";
+std::string ODESolver::IMEXTypes =
+   "\n\tIMEX solver: \n\t"
+   "           55 - Forward Backward Euler, 56 - IMEXRK2(2,2,2), 57 - IMEXRK2(2,3,2)\n\t"
+   "           58 - IMEX_DIRK_RK3\n";
 
 std::string ODESolver::Types = ODESolver::ExplicitTypes +
                                ODESolver::ImplicitTypes;
@@ -1344,10 +1344,10 @@ void IMEXRK2::Step(Vector &x, real_t &t, real_t &dt)
    double gamma = 1 - sqrt(2)/2;
    double delta = 1 - 1/(2*gamma);
 
-   f->SetTime(t); 
+   f->SetTime(t);
 
    //K1 exp is just f_1(t, x)
-   f->Mult1(x, k1_exp); 
+   f->Mult1(x, k1_exp);
 
    //K2 exp is f_1(t + gamma dt, x + dt gamma K1)
    f->SetTime(t + gamma*dt);
@@ -1390,17 +1390,17 @@ void IMEXRK2_3StageExplicit::Step(Vector &x, real_t &t, real_t &dt)
    double gamma = 1 - sqrt(2)/2;
    double delta = -2*sqrt(2)/3;
 
-   f->SetTime(t); 
+   f->SetTime(t);
 
    //K1 exp is just f_1(t, x)
-   f->Mult1(x, k1_exp); 
+   f->Mult1(x, k1_exp);
 
    //K2 exp is f_1(t + gamma dt, x + dt gamma K1)
    f->SetTime(t + gamma*dt);
    add(x, dt*gamma, k1_exp, y);
    f->Mult1(y, k2_exp);
 
-   //K3 Exp is f_1(t + dt, x + dt gamma K1_exp + dt (1-gamma) K2_exp) 
+   //K3 Exp is f_1(t + dt, x + dt gamma K1_exp + dt (1-gamma) K2_exp)
    f->SetTime(t + dt);
    add(x, dt*delta, k1_exp, y);
    add(y, dt*(1-delta), k2_exp, w);
@@ -1445,16 +1445,16 @@ void IMEX_DIRK_RK3::Step(Vector &x, real_t &t, real_t &dt)
 {
    double gamma = 0.4358665215;
    double b1 = 1.208496649;
-   double b2 = -0.644363171; 
+   double b2 = -0.644363171;
    double a_31 = 0.3212788860;
    double a_32 = 0.3966543747;
    double a_41 = -0.105858296;
    double a_42 = 0.5529291479;
    double a_43 = 0.5529291479;
 
-   //K1_exp 
+   //K1_exp
    f->SetTime(t);
-   f->Mult1(x, k1_exp); 
+   f->Mult1(x, k1_exp);
 
    //K2_imp, K2_exp
    f->SetTime(t + gamma*dt);

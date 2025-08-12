@@ -44,7 +44,7 @@ real_t u0_function(const Vector &x);
 real_t inflow_function(const Vector &x);
 
 // Mesh bounding box
-Vector bb_min, bb_max; 
+Vector bb_min, bb_max;
 
 class DG_Solver : public Solver
 {
@@ -54,7 +54,8 @@ private:
    BlockILU prec;
    real_t dt;
 public:
-   DG_Solver(SparseMatrix &M_, SparseMatrix &K_, SparseMatrix &S_, const FiniteElementSpace &fes)
+   DG_Solver(SparseMatrix &M_, SparseMatrix &K_, SparseMatrix &S_,
+             const FiniteElementSpace &fes)
       : M(M_),
         K(K_),
         S(S_),
@@ -112,7 +113,8 @@ private:
    mutable Vector z;
 
 public:
-   IMEX_Evolution(BilinearForm &M_, BilinearForm &K_, BilinearForm &S_, const Vector &b_);
+   IMEX_Evolution(BilinearForm &M_, BilinearForm &K_, BilinearForm &S_,
+                  const Vector &b_);
 
    void Mult1(const Vector &x, Vector &y) const;
    void ImplicitSolve2(const real_t dt, const Vector &x, Vector &k) override;
@@ -181,7 +183,7 @@ int main(int argc, char *argv[])
    //    'ref_levels' of uniform refinement, where 'ref_levels' is a
    //    command-line parameter.
    for (int lev = 0; lev < ref_levels; lev++) {mesh.UniformRefinement();}
-   if (mesh.NURBSext){mesh.SetCurvature(max(order, 1));}
+   if (mesh.NURBSext) {mesh.SetCurvature(max(order, 1));}
    mesh.GetBoundingBox(bb_min, bb_max, max(order, 1));
 
    // 5. Define the discontinuous DG finite element space of the given
@@ -200,17 +202,19 @@ int main(int argc, char *argv[])
 
    BilinearForm m(&fes);
    BilinearForm k(&fes);
-   BilinearForm s(&fes); 
+   BilinearForm s(&fes);
 
    m.AddDomainIntegrator(new MassIntegrator);
 
    constexpr real_t alpha = -1.0;
    k.AddDomainIntegrator(new ConvectionIntegrator(velocity, alpha));
-   k.AddInteriorFaceIntegrator(new NonconservativeDGTraceIntegrator(velocity, alpha));
+   k.AddInteriorFaceIntegrator(new NonconservativeDGTraceIntegrator(velocity,
+                                                                    alpha));
    k.AddBdrFaceIntegrator(new NonconservativeDGTraceIntegrator(velocity, alpha));
 
    s.AddDomainIntegrator(new DiffusionIntegrator(diff_coeff));
-   s.AddInteriorFaceIntegrator(new DGDiffusionIntegrator(diff_coeff, sigma, kappa));
+   s.AddInteriorFaceIntegrator(new DGDiffusionIntegrator(diff_coeff, sigma,
+                                                         kappa));
    s.AddBdrFaceIntegrator(new DGDiffusionIntegrator(diff_coeff, sigma, kappa));
 
    LinearForm b(&fes);
@@ -280,7 +284,8 @@ int main(int argc, char *argv[])
 
 
 // Implementation of class IMEX_Evolution
-IMEX_Evolution::IMEX_Evolution(BilinearForm &M_, BilinearForm &K_, BilinearForm &S_, const Vector &b_)
+IMEX_Evolution::IMEX_Evolution(BilinearForm &M_, BilinearForm &K_,
+                               BilinearForm &S_, const Vector &b_)
    : SplitTimeDependentOperator(M_.FESpace()->GetTrueVSize()),
      M(M_), K(K_), S(S_), b(b_), z(height)
 {
@@ -289,7 +294,8 @@ IMEX_Evolution::IMEX_Evolution(BilinearForm &M_, BilinearForm &K_, BilinearForm 
    {
       M_prec = make_unique<DSmoother>(M.SpMat());
       M_solver.SetOperator(M.SpMat());
-      dg_solver = make_unique<DG_Solver>(M.SpMat(), K.SpMat(), S.SpMat(), *M.FESpace());
+      dg_solver = make_unique<DG_Solver>(M.SpMat(), K.SpMat(), S.SpMat(),
+                                         *M.FESpace());
    }
    else
    {
@@ -317,8 +323,9 @@ void IMEX_Evolution::Mult1(const Vector &x, Vector &y) const
 void IMEX_Evolution::ImplicitSolve2(const real_t dt, const Vector &x, Vector &k)
 {
    // Perform the implicit step
-   // solve for k, k = -(M+dt S)^{-1} S x 
-   MFEM_VERIFY(dg_solver != NULL, "Implicit time integration is not supported with partial assembly");
+   // solve for k, k = -(M+dt S)^{-1} S x
+   MFEM_VERIFY(dg_solver != NULL,
+               "Implicit time integration is not supported with partial assembly");
    S.Mult(x, z);
    z*= -1.0;
    dg_solver->SetTimeStep(dt);
