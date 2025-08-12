@@ -223,8 +223,12 @@ void AsymmetricMassIntegrator::AsymmetricElementMatrix(const FiniteElement
 ///@{
 
 /// @brief Dense small least squares solver
-void LSSolver(Solver& solver, const DenseMatrix& A, const Vector& b,
-              Vector& x, real_t shift = 0.0)
+void LSSolver(Solver& solver,
+              const DenseMatrix& A,
+              const Vector& b,
+              Vector& x,
+              real_t shift = 0.0,
+              DenseMatrix* M = nullptr)
 {
    x.SetSize(A.Width());
    x = 0.0;
@@ -233,12 +237,16 @@ void LSSolver(Solver& solver, const DenseMatrix& A, const Vector& b,
    A.MultTranspose(b, Atb);
 
    auto AtA_reg = OperatorPtr(Operator::Type::ANY_TYPE);
+   auto _M = OperatorPtr(Operator::Type::ANY_TYPE);
    if (dynamic_cast<IterativeSolver*>(&solver))
    {
+      if (M) { _M.Reset(M, false); }
+      else { _M.Reset(new IdentityOperator(A.Width())); }
+
       auto _At = new TransposeOperator(A);
       auto _AtA = new ProductOperator(_At, &A, true, false);
-      auto _I = new IdentityOperator(_AtA->Height());
-      auto _AtA_reg = new SumOperator(_AtA, 1.0, _I, shift, true, true);
+      auto _AtA_reg = new SumOperator(_AtA, 1.0, _M.As<Operator>(), shift, true,
+                                      false);
       AtA_reg.Reset(_AtA_reg, true);
       solver.SetOperator(*_AtA_reg);
    }
@@ -252,7 +260,7 @@ void LSSolver(Solver& solver, const DenseMatrix& A, const Vector& b,
          for (int j = 0; j < A.Width(); j++)
          {
             A.GetColumn(j, col_j);
-            (*_AtA_reg)(i,j) = col_i * col_j + (i==j)*shift;
+            (*_AtA_reg)(i,j) = col_i * col_j + (M?(*M)(i,j):(i==j)*shift);
          }
       }
       AtA_reg.Reset(_AtA_reg, true);
@@ -264,9 +272,15 @@ void LSSolver(Solver& solver, const DenseMatrix& A, const Vector& b,
 }
 
 /// @brief Dense small least squares solver, with constrains @a C with value @a c
-void LSSolver(Solver& solver, const DenseMatrix& A, const DenseMatrix& C,
-              const Vector& b, const Vector& c, Vector& x, Vector& y,
-              real_t shift = 0.0)
+void LSSolver(Solver& solver,
+              const DenseMatrix& A,
+              const DenseMatrix& C,
+              const Vector& b,
+              const Vector& c,
+              Vector& x,
+              Vector& y,
+              real_t shift = 0.0,
+              DenseMatrix* M = nullptr)
 {
    Array<int> offsets(3);
    offsets[0] = 0;
@@ -285,14 +299,18 @@ void LSSolver(Solver& solver, const DenseMatrix& A, const DenseMatrix& C,
    rhs.SetVector(c, offsets[1]);
 
    auto AtA_reg = OperatorPtr(Operator::Type::ANY_TYPE);
+   auto _M = OperatorPtr(Operator::Type::ANY_TYPE);
    auto block_solver = OperatorPtr(Operator::Type::ANY_TYPE);
 
    if (auto it_solver = dynamic_cast<IterativeSolver*>(&solver))
    {
+      if (M) { _M.Reset(M, false); }
+      else { _M.Reset(new IdentityOperator(A.Width())); }
+
       auto _At = new TransposeOperator(A);
       auto _AtA = new ProductOperator(_At, &A, true, false);
-      auto _I = new IdentityOperator(_AtA->Height());
-      auto _AtA_reg = new SumOperator(_AtA, 1.0, _I, shift, true, true);
+      auto _AtA_reg = new SumOperator(_AtA, 1.0, _M.As<Operator>(), shift, true,
+                                      false);
       AtA_reg.Reset(_AtA_reg, true);
 
       // Block operator
@@ -317,7 +335,7 @@ void LSSolver(Solver& solver, const DenseMatrix& A, const DenseMatrix& C,
          for (int j = 0; j < A.Width(); j++)
          {
             A.GetColumn(j, col_j);
-            (*_AtA_reg)(i,j) = col_i * col_j + (i==j)*shift;
+            (*_AtA_reg)(i,j) = col_i * col_j + (M?(*M)(i,j):(i==j)*shift);
          }
       }
       AtA_reg.Reset(_AtA_reg, true);
@@ -341,8 +359,14 @@ void LSSolver(Solver& solver, const DenseMatrix& A, const DenseMatrix& C,
 /// @brief Dense small least squares solver, with constrains @a C with value @a c
 /// but the constraint is one-dimensional, and passed as a vector. Does not return
 /// the multiplier.
-void LSSolver(Solver& solver, const DenseMatrix& A, const Vector& C,
-              const Vector& b, const real_t& c, Vector& x, real_t shift = 0.0)
+void LSSolver(Solver& solver,
+              const DenseMatrix& A,
+              const Vector& C,
+              const Vector& b,
+              const real_t& c,
+              Vector& x,
+              real_t shift = 0.0,
+              DenseMatrix* M = nullptr)
 {
    x.SetSize(A.Width());
    x = 0.0;
@@ -353,12 +377,16 @@ void LSSolver(Solver& solver, const DenseMatrix& A, const Vector& C,
    Vector aux_den(A.Width()), aux_num(A.Width());
 
    auto AtA_reg = OperatorPtr(Operator::Type::ANY_TYPE);
+   auto _M = OperatorPtr(Operator::Type::ANY_TYPE);
    if (dynamic_cast<IterativeSolver*>(&solver))
    {
+      if (M) { _M.Reset(M, false); }
+      else { _M.Reset(new IdentityOperator(A.Width())); }
+
       auto _At = new TransposeOperator(A);
       auto _AtA = new ProductOperator(_At, &A, true, false);
-      auto _I = new IdentityOperator(_AtA->Height());
-      auto _AtA_reg = new SumOperator(_AtA, 1.0, _I, shift, true, true);
+      auto _AtA_reg = new SumOperator(_AtA, 1.0, _M.As<Operator>(), shift, true,
+                                      false);
       AtA_reg.Reset(_AtA_reg, true);
       solver.SetOperator(*_AtA_reg);
    }
@@ -372,7 +400,7 @@ void LSSolver(Solver& solver, const DenseMatrix& A, const Vector& C,
          for (int j = 0; j < A.Width(); j++)
          {
             A.GetColumn(j, col_j);
-            (*_AtA_reg)(i,j) = col_i * col_j + (i==j)*shift;
+            (*_AtA_reg)(i,j) = col_i * col_j + (M?(*M)(i,j):(i==j)*shift);
          }
       }
       AtA_reg.Reset(_AtA_reg, true);
@@ -996,7 +1024,8 @@ void BoundedVariationReconstruction(Solver& solver,
 
       fes_dst->GetElementTransformation(e_idx, e_trans.get());
 
-      SaturateNeighborhood(*mesh.pncmesh, e_idx, fe_dst_e_ndof, fe_src_e_ndof, neighbors_e);
+      SaturateNeighborhood(*mesh.pncmesh, e_idx, fe_dst_e_ndof, fe_src_e_ndof,
+                           neighbors_e);
       // if (preserve_volumes) { neighbors_e.DeleteFirst(e_idx); }
       const int num_neighbors = neighbors_e.Size();
 
@@ -1026,7 +1055,7 @@ void BoundedVariationReconstruction(Solver& solver,
       // RHS
       //
       // RHS constaint
-      /* 
+      /*
        * // compute <{u_hat} (xhat dot n), psi_hat>_E
        * VectorConstantCoefficient xhat(Vector({1.0,0.0}));
        * Vector b_xhat(mesh.GetNE());
