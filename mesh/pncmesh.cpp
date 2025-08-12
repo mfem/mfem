@@ -1509,7 +1509,7 @@ bool ParNCMesh::AnisotropicConflict(const Array<Refinement> &refinements,
 {
    if (Dim < 3 || NRanks == 1) { return false; }
 
-   for (int i = 0; i < refinements.Size(); i++)
+   for (int i = 0; i < refinements.Size() && Iso; i++)
    {
       const Refinement &ref = refinements[i];
       if (ref.GetType() != Refinement::XYZ)
@@ -1613,7 +1613,7 @@ int GetHexFaceDir(int face)
    return hexFaceDir[face];
 }
 
-char GetHexFaceRefType(bool *refDir, int face)
+char GetHexFaceRefType(const bool (&refDir)[3], int face)
 {
    const int faceDir = GetHexFaceDir(face);
    std::array<int, 2> faceRefDir;
@@ -2014,7 +2014,7 @@ void ParNCMesh::Refine(const Array<Refinement> &refinements)
       return;
    }
 
-   for (int i = 0; i < refinements.Size(); i++)
+   for (int i = 0; i < refinements.Size() && Iso; i++)
    {
       const Refinement &ref = refinements[i];
       if (ref.GetType() != Refinement::XYZ)
