@@ -1007,7 +1007,7 @@ public:
        maximum size of the acceleration space. The value of @a maa can be
        altered after SetOperator() is called but it can't be higher than initial
        maximum. */
-   void SetMAA(int maa);
+   void SetMAA(int m_aa);
 
    /// Set the Jacobian Free Newton Krylov flag. The default is false.
    /** This flag indicates to use JFNK as the linear solver for KINSOL. This

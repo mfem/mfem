@@ -2238,12 +2238,12 @@ void KINSolver::SetMaxSetupCalls(int max_calls)
 
 void KINSolver::SetMAA(int m_aa)
 {
-   // Store internally as maa must be set before calling KINInit() to
+   // Store internally as aa_n must be set before calling KINInit() to
    // set the maximum acceleration space size.
-   maa = m_aa;
+   aa_n = m_aa;
    if (sundials_mem)
    {
-      flag = KINSetMAA(sundials_mem, maa);
+      flag = KINSetMAA(sundials_mem, aa_n);
       MFEM_ASSERT(flag == KIN_SUCCESS, "error in KINSetMAA()");
    }
 }
