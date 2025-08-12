@@ -33,6 +33,7 @@ class NavierParticles
 protected:
    const real_t kappa, gamma, zeta;
    ParticleSet fluid_particles;
+   ParticleSet inactive_fluid_particles;
    FindPointsGSLIB finder;
 
    Array<real_t> dthist{0.0, 0.0, 0.0};
@@ -96,7 +97,11 @@ public:
 
    void InterpolateUW(const ParGridFunction &u_gf, const ParGridFunction &w_gf, const MultiVector &x, MultiVector &u, MultiVector &w);
 
+   void DeactivateLostParticles(bool findpts);
+
    ParticleSet& GetParticles() { return fluid_particles; }
+
+   ParticleSet& GetInactiveParticles() { return inactive_fluid_particles; }
 
    MultiVector& U(int nm=0) { return *fp_data.u[nm]; }
 

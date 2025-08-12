@@ -300,6 +300,7 @@ NavierParticles::NavierParticles(MPI_Comm comm, const real_t kappa_, const real_
   gamma(gamma_),
   zeta(zeta_),
   fluid_particles(comm, num_particles, m.SpaceDimension()),
+  inactive_fluid_particles(comm, 0, m.SpaceDimension()),
   finder(comm)
 {
 
@@ -333,6 +334,9 @@ NavierParticles::NavierParticles(MPI_Comm comm, const real_t kappa_, const real_
    // Initialize order (tag)
    fp_data.order = &fluid_particles.AddTag("Order");
    *fp_data.order = 0;
+
+   // Reserve num_particles for inactive_fluid_particles
+   inactive_fluid_particles.Reserve(num_particles);
 
    r.SetSize(dim);
    C.SetSize(dim);
@@ -379,6 +383,9 @@ void NavierParticles::Step(const real_t &dt, int cur_step, const ParGridFunction
    // Re-interpolate fluid velocity + vorticity onto particles' new location
    InterpolateUW(u_gf, w_gf, X(), U(), W());
 
+   // Move lost particles from active to inactive
+   DeactivateLostParticles(false);
+
    // Rotate values in time step history
    dthist[2] = dthist[1];
    dthist[1] = dthist[0];
@@ -394,6 +401,24 @@ void NavierParticles::InterpolateUW(const ParGridFunction &u_gf, const ParGridFu
 
    finder.Interpolate(w_gf, w);
    Ordering::Reorder(w, w.GetVDim(), w_gf.ParFESpace()->GetOrdering(), w.GetOrdering());
+}
+
+void NavierParticles::DeactivateLostParticles(bool findpts)
+{
+   if (findpts)
+   {
+      finder.FindPoints(X(), X().GetOrdering());
+   }
+
+   const Array<unsigned int> lost_idxs = finder.GetPointsNotFoundIndices();
+   for (const unsigned int &idx : lost_idxs)
+   {
+      Particle p = fluid_particles.GetParticleRef(idx);
+      inactive_fluid_particles.AddParticle(p);
+   }
+
+   fluid_particles.RemoveParticles(lost_idxs);
+
 }
 
 } // namespace navier
