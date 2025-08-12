@@ -59,6 +59,7 @@ public:
       : M(M_),
         K(K_),
         S(S_),
+	A(nullptr),
         linear_solver(M.GetComm()),
         dt(1.0)
    {
@@ -75,6 +76,7 @@ public:
    {
       if (dt_ != dt)
       {
+         delete A;
          dt = dt_;
          // // Form operator A = M + dt*S
          A = Add(dt, S, 1.0, M);
@@ -115,6 +117,7 @@ private:
    Solver *M_prec;
    CGSolver M_solver;
    DG_Solver *dg_solver;
+   LORSolver<HypreBoomerAMG>* lor_solver;
 
    mutable Vector z;
    mutable Vector w;
@@ -123,7 +126,17 @@ public:
    IMEX_Evolution(ParBilinearForm &M_, ParBilinearForm &K_, ParBilinearForm &S_,
                   const Vector &b_, ParBilinearForm &A_);
 
-   void Mult1(const Vector &x, Vector &y) const;
+   virtual
+   ~IMEX_Evolution()
+   {
+       delete dg_solver;
+       delete lor_solver;
+       delete M_prec;
+   }
+
+   virtual
+   void Mult1(const Vector &x, Vector &y) const override;
+   virtual
    void ImplicitSolve2(const real_t dt, const Vector &x, Vector &k) override;
 };
 
@@ -448,7 +461,9 @@ int main(int argc, char *argv[])
    delete U;
    delete u;
    delete B;
+   delete a;
    delete b;
+   delete s;
    delete k;
    delete m;
    delete fes;
@@ -489,7 +504,7 @@ IMEX_Evolution::IMEX_Evolution(ParBilinearForm &M_, ParBilinearForm &K_,
       M_prec = hypre_prec;
 
       dg_solver = new DG_Solver(M_mat, K_mat, S_mat, *M_.FESpace());
-      auto lor_solver = new LORSolver<HypreBoomerAMG>(A_, ess_tdof_list);
+      lor_solver = new LORSolver<HypreBoomerAMG>(A_, ess_tdof_list);
       lor_solver->GetSolver().SetSystemsOptions(A_.ParFESpace()->GetVDim(), true);
       dg_solver -> SetPreconditioner(*lor_solver);
    }
