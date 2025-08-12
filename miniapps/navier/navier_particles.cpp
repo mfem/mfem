@@ -381,7 +381,7 @@ void NavierParticles::Step(const real_t &dt, int cur_step, const ParGridFunction
    ApplyBCs();
 
    // Re-interpolate fluid velocity + vorticity onto particles' new location
-   InterpolateUW(u_gf, w_gf, X(), U(), W());
+   InterpolateUW(u_gf, w_gf);
 
    // Move lost particles from active to inactive
    DeactivateLostParticles(false);
@@ -392,15 +392,15 @@ void NavierParticles::Step(const real_t &dt, int cur_step, const ParGridFunction
    dthist[0] = dt;
 }
 
-void NavierParticles::InterpolateUW(const ParGridFunction &u_gf, const ParGridFunction &w_gf, const MultiVector &x, MultiVector &u, MultiVector &w)
+void NavierParticles::InterpolateUW(const ParGridFunction &u_gf, const ParGridFunction &w_gf)
 {
-   finder.FindPoints(x, x.GetOrdering());
+   finder.FindPoints(X(), X().GetOrdering());
 
-   finder.Interpolate(u_gf, u);
-   Ordering::Reorder(u, u.GetVDim(), u_gf.ParFESpace()->GetOrdering(), u.GetOrdering());
+   finder.Interpolate(u_gf, U());
+   Ordering::Reorder(U(), U().GetVDim(), u_gf.ParFESpace()->GetOrdering(), U().GetOrdering());
 
    finder.Interpolate(w_gf, w);
-   Ordering::Reorder(w, w.GetVDim(), w_gf.ParFESpace()->GetOrdering(), w.GetOrdering());
+   Ordering::Reorder(W(), W().GetVDim(), w_gf.ParFESpace()->GetOrdering(), W().GetOrdering());
 }
 
 void NavierParticles::DeactivateLostParticles(bool findpts)

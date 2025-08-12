@@ -182,7 +182,7 @@ int main (int argc, char *argv[])
    w_gf = -0.5;
 
    // Set initial particle-interpolated fluid velocity and vorticity
-   particle_solver.InterpolateUW(u_gf, w_gf, particle_solver.X(), particle_solver.U(), particle_solver.W());
+   particle_solver.InterpolateUW(u_gf, w_gf);
 
    // Set fluid BCs
    Array<int> bdr_attr(pmesh.bdr_attributes.Max());
