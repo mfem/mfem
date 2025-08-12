@@ -359,6 +359,7 @@ void KnotVector::Flip()
       knot(Order + i) = apb - knot(NumOfControlPoints - i);
       knot(NumOfControlPoints - i) = tmp;
    }
+   ComputeUniqueKnots();
 }
 
 void KnotVector::Print(std::ostream &os) const
