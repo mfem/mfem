@@ -27,7 +27,7 @@ struct flow_context
    real_t nt = 10000;
 
    // fluid
-   int rs_levels = 0;
+   int rs_levels = 3;
    int order = 4;
    real_t Re = 1000;
    int paraview_freq = 500;
@@ -89,7 +89,7 @@ int main(int argc, char *argv[])
    }
 
    // Load mesh + complete any serial refinements
-   Mesh mesh("../../data/channel2longer.mesh");
+   Mesh mesh("../../data/channel2.mesh");
    int dim = mesh.Dimension();
    for (int lev = 0; lev < ctx.rs_levels; lev++)
    {
