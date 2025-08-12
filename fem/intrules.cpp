@@ -262,6 +262,7 @@ SplineIntegrationRule::GetReducedOrderGaussLegendre(const KnotVector &kv)
          idx++;
       }
    }
+
    kvir->SetSize(idx);
 
    return kvir;

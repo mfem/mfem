@@ -129,6 +129,7 @@ struct PatchBasisInfo
    // 1D quadrature points / dofs
    Array<int> Q1D;
    Array<int> D1D;
+   Array<int> MAX1D; // max of Q1D and D1D in each dimension
    // Dof index |-> min/max quadrature index within support
    std::vector<std::vector<int>> minD;
    std::vector<std::vector<int>> maxD;

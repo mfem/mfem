@@ -35,8 +35,9 @@ void PatchG3D(const PatchBasisInfo &pb,
 
    // Shape as tensors
    const auto U = Reshape(Uv.HostRead(), D1D[0], D1D[1], D1D[2], vdim);
-   auto sumXY = Reshape(sumXYv.HostReadWrite(), vdim, dim, Q1D[0], Q1D[1]);
-   auto sumX = Reshape(sumXv.HostReadWrite(), vdim, dim, Q1D[0]);
+   auto sumXY = Reshape(sumXYv.HostReadWrite(), vdim, dim, pb.MAX1D[0],
+                        pb.MAX1D[1]);
+   auto sumX = Reshape(sumXv.HostReadWrite(), vdim, dim, pb.MAX1D[0]);
    for (int dz = 0; dz < D1D[2]; ++dz)
    {
       sumXYv = 0.0;
@@ -99,7 +100,7 @@ void PatchG3D(const PatchBasisInfo &pb,
  */
 template<int vdim>
 void PatchGT3D(const PatchBasisInfo &pb,
-               DeviceTensor<5, real_t> &S,
+               const DeviceTensor<5, real_t> &S,
                Vector &sumXYv,
                Vector &sumXv,
                Vector &y)
@@ -115,8 +116,9 @@ void PatchGT3D(const PatchBasisInfo &pb,
    const std::vector<std::vector<int>> maxQ = pb.maxQ;
 
    // Shape as tensors
-   auto sumXY = Reshape(sumXYv.HostReadWrite(), vdim, dim, Q1D[0], Q1D[1]);
-   auto sumX = Reshape(sumXv.HostReadWrite(), vdim, dim, Q1D[0]);
+   auto sumXY = Reshape(sumXYv.HostReadWrite(), vdim, dim, pb.MAX1D[0],
+                        pb.MAX1D[1]);
+   auto sumX = Reshape(sumXv.HostReadWrite(), vdim, dim, pb.MAX1D[0]);
 
    auto Y = Reshape(y.HostReadWrite(), D1D[0], D1D[1], D1D[2], vdim);
 

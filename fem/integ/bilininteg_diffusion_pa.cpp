@@ -215,8 +215,8 @@ void DiffusionIntegrator::AddMultPatchPA3D(const Vector &qdata,
 
    const auto qd = Reshape(qdata.HostRead(), NQ, (symmetric ? 6 : 9));
 
-   Vector sumXYv(vdim_*dim*Q1D[0]*Q1D[1]);
-   Vector sumXv(dim*Q1D[0]);
+   Vector sumXYv(vdim_*dim*pb.MAX1D[0]*pb.MAX1D[1]);
+   Vector sumXv(dim*pb.MAX1D[0]);
 
    // Interpolate gradu
    PatchG3D<vdim_>(pb, x, sumXYv, sumXv, gradu);

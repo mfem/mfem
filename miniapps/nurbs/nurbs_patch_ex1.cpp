@@ -39,7 +39,7 @@ int main(int argc, char *argv[])
    bool reducedIntegration = true;
    bool compareToElementWise = true;
    int nurbs_degree_increase = 0;  // Elevate the NURBS mesh degree by this
-   int ref_levels = 0;
+   int refinement_factor = 0;
    int visport = 19916;
    int spline_integration_type = 0;
    int ir_order = -1;
@@ -62,8 +62,8 @@ int main(int argc, char *argv[])
                   "--no-patch-assembly", "Enable patch-wise assembly.");
    args.AddOption(&reducedIntegration, "-rint", "--reduced-integration", "-fint",
                   "--full-integration", "Enable reduced integration rules.");
-   args.AddOption(&ref_levels, "-ref", "--refine",
-                  "Number of uniform mesh refinements.");
+   args.AddOption(&refinement_factor, "-rf", "--refinement-factor",
+                  "Refinement factor for the NURBS mesh.");
    args.AddOption(&spline_integration_type, "-int", "--integration-type",
                   "Integration rule type: 0 - full order Gauss Legendre, "
                   "1 - reduced order Gaussian Legendre");
@@ -106,10 +106,7 @@ int main(int argc, char *argv[])
    if (nurbs_degree_increase > 0) { mesh.DegreeElevate(nurbs_degree_increase); }
 
    // 4. Refine the mesh to increase the resolution.
-   for (int l = 0; l < ref_levels; l++)
-   {
-      mesh.UniformRefinement();
-   }
+   mesh.NURBSUniformRefinement(refinement_factor);
 
    // 5. Define an isoparametric/isogeometric finite element space on the mesh.
    FiniteElementCollection *fec = nullptr;

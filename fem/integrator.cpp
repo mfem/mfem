@@ -52,7 +52,7 @@ const IntegrationRule* Integrator::GetIntegrationRule(
 PatchBasisInfo::PatchBasisInfo(Mesh *mesh, unsigned int patch,
                                NURBSMeshRules *patchRules)
    : patch(patch), dim(mesh->NURBSext->Dimension()), B(dim), G(dim), ir1d(dim),
-     Q1D(dim), D1D(dim),
+     Q1D(dim), D1D(dim), MAX1D(dim),
      minD(dim), maxD(dim), minQ(dim), maxQ(dim), minDD(dim), maxDD(dim),
      orders(dim), E1D(dim)
 {
@@ -68,6 +68,7 @@ PatchBasisInfo::PatchBasisInfo(Mesh *mesh, unsigned int patch,
 
       orders[d] = pkv[d]->GetOrder();
       D1D[d] = pkv[d]->GetNCP();
+      MAX1D[d] = std::max(Q1D[d], D1D[d]);
       E1D[d] = pkv[d]->GetNE();
 
       Vector shapeKV(orders[d]+1);

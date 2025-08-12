@@ -247,8 +247,8 @@ void ElasticityIntegrator::AddMultPatchPA3D(const Vector &pa_data,
    Sv = 0.0;
    auto S = Reshape(Sv.HostReadWrite(), vdim, vdim, Q1D[0], Q1D[1], Q1D[2]);
 
-   Vector sumXYv(vdim*vdim*Q1D[0]*pb.Q1D[1]);
-   Vector sumXv(vdim*vdim*Q1D[0]);
+   Vector sumXYv(vdim*vdim*pb.MAX1D[0]*pb.MAX1D[1]);
+   Vector sumXv(vdim*vdim*pb.MAX1D[0]);
 
    // 1) Interpolate U at dofs to gradu in reference quadrature space
    PatchG3D<3>(pb, x, sumXYv, sumXv, gradu);
