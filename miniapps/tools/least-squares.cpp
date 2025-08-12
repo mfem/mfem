@@ -545,9 +545,7 @@ void AverageReconstruction(Solver& solver,
    auto neighbor_trans = std::make_unique<IsoparametricTransformation>();
    auto e_trans = std::make_unique<IsoparametricTransformation>();
 
-   Array<int> e_src_dofs, neighbor_src_dofs;
-   Array<int> e_dst_dofs, neighbor_dst_dofs;
-   Array<int> neighbors_e;
+   Array<int> neighbors_e, e_dst_dofs;
 
    Vector src_e, dst_e;
    Vector src_neighbor, dst_neighbor;
@@ -570,7 +568,6 @@ void AverageReconstruction(Solver& solver,
       const int fe_src_e_ndof = fe_src_e.GetDof();
       const int fe_dst_e_ndof = fe_dst_e.GetDof();
 
-      fes_src->GetElementDofs(e_idx, e_src_dofs);
       fes_dst->GetElementDofs(e_idx, e_dst_dofs);
 
       fes_src->GetElementTransformation(e_idx, e_trans.get());
@@ -591,9 +588,6 @@ void AverageReconstruction(Solver& solver,
          auto& fe_dst_neighbor = *fes_dst->GetFE(neighbor_idx);
          const int fe_dst_neighbor_ndof = fe_dst_neighbor.GetDof();
 
-         fes_src->GetElementDofs(neighbor_idx, neighbor_src_dofs);
-         fes_dst->GetElementDofs(neighbor_idx, neighbor_dst_dofs);
-
          fes_dst->GetElementTransformation(neighbor_idx, neighbor_trans.get());
 
          Vector e_to_neighbor_avg(fe_dst_neighbor_ndof);
@@ -601,9 +595,9 @@ void AverageReconstruction(Solver& solver,
          neighbors_volume(i) = mesh.GetElementVolume(neighbor_idx);
 
          // Get subvectors
-         src.GetSubVector(neighbor_src_dofs, src_neighbor);
-         punity_src.GetSubVector(neighbor_src_dofs, punity_src_neighbor);
-         punity_dst.GetSubVector(neighbor_dst_dofs, punity_dst_neighbor);
+         src.GetElementDofValues(neighbor_idx, src_neighbor);
+         punity_src.GetElementDofValues(neighbor_idx, punity_src_neighbor);
+         punity_dst.GetElementDofValues(neighbor_idx, punity_dst_neighbor);
 
          // neighbor-DOFs to neighbor-DOFs (on neighbor) mass matrix
          mass.AssembleElementMatrix2(fe_src_neighbor,
@@ -633,9 +627,9 @@ void AverageReconstruction(Solver& solver,
          // Average at e
          real_t e_volume = mesh.GetElementVolume(e_idx);
 
-         src.GetSubVector(e_src_dofs, src_e);
-         punity_src.GetSubVector(e_src_dofs, punity_src_e);
-         punity_dst.GetSubVector(e_dst_dofs, punity_dst_e);
+         src.GetElementDofValues(e_idx, src_e);
+         punity_src.GetElementDofValues(e_idx, punity_src_e);
+         punity_dst.GetElementDofValues(e_idx, punity_dst_e);
 
          mass.AssembleElementMatrix(fe_src_e,
                                     *e_trans.get(),
@@ -673,11 +667,8 @@ void AverageReconstruction(Solver& solver,
 
       dst.SetSubVector(e_dst_dofs, dst_e);
 
-      neighbors_e.DeleteAll();
-      e_src_dofs.DeleteAll();
       e_dst_dofs.DeleteAll();
-      neighbor_src_dofs.DeleteAll();
-      neighbor_dst_dofs.DeleteAll();
+      neighbors_e.DeleteAll();
    }
 }
 
@@ -697,12 +688,9 @@ void L2Reconstruction(Solver& solver,
    auto neighbor_trans = std::make_unique<IsoparametricTransformation>();
    auto e_trans = std::make_unique<IsoparametricTransformation>();
 
-   Array<int> e_src_dofs, neighbor_src_dofs;
-   Array<int> e_dst_dofs, neighbor_dst_dofs;
-   Array<int> neighbors_e;
+   Array<int> neighbors_e, e_dst_dofs;
 
-   Vector src_e, dst_e;
-   Vector rhs_e, punity_dst_e;
+   Vector src_e, dst_e, rhs_e;
    Vector src_neighbor, dst_neighbor;
    Vector punity_src_e, punity_dst_e;
    Vector punity_src_neighbor, punity_dst_neighbor;
@@ -721,7 +709,6 @@ void L2Reconstruction(Solver& solver,
       const int fe_src_e_ndof = fe_src_e.GetDof();
       const int fe_dst_e_ndof = fe_dst_e.GetDof();
 
-      fes_src->GetElementDofs(e_idx, e_src_dofs);
       fes_dst->GetElementDofs(e_idx, e_dst_dofs);
 
       fes_src->GetElementTransformation(e_idx, e_trans.get());
@@ -742,9 +729,6 @@ void L2Reconstruction(Solver& solver,
       {
          const int neighbor_idx = neighbors_e[i];
          auto& fe_dst_neighbor = *fes_dst->GetFE(neighbor_idx);
-
-         fes_src->GetElementDofs(neighbor_idx, neighbor_src_dofs);
-         fes_dst->GetElementDofs(neighbor_idx, neighbor_dst_dofs);
 
          fes_dst->GetElementTransformation(neighbor_idx, neighbor_trans.get());
 
@@ -767,10 +751,8 @@ void L2Reconstruction(Solver& solver,
                                       rhs_neighbor_mat,
                                       newton);
 
-         src.GetSubVector(neighbor_src_dofs, src_neighbor);
+         src.GetElementDofValues(neighbor_idx, src_neighbor);
          rhs_neighbor_mat.AddMultTranspose(src_neighbor, rhs_e);
-
-         neighbor_src_dofs.DeleteAll();
       }
 
       // These systems come from a least squares formulation,
@@ -782,9 +764,9 @@ void L2Reconstruction(Solver& solver,
          // Average at e
          real_t e_volume = mesh.GetElementVolume(e_idx);
 
-         src.GetSubVector(e_src_dofs, src_e);
-         punity_src.GetSubVector(e_src_dofs, punity_src_e);
-         punity_dst.GetSubVector(e_dst_dofs, punity_dst_e);
+         src.GetElementDofValues(e_idx, src_e);
+         punity_src.GetElementDofValues(e_idx, punity_src_e);
+         punity_dst.GetElementDofValues(e_idx, punity_dst_e);
 
          mass.AssembleElementMatrix(fe_src_e,
                                     *e_trans.get(),
@@ -815,10 +797,7 @@ void L2Reconstruction(Solver& solver,
       dst.SetSubVector(e_dst_dofs, dst_e);
 
       neighbors_e.DeleteAll();
-      e_src_dofs.DeleteAll();
       e_dst_dofs.DeleteAll();
-      neighbor_src_dofs.DeleteAll();
-      neighbor_dst_dofs.DeleteAll();
    }
 }
 
@@ -897,16 +876,12 @@ void FaceReconstruction(Solver& solver,
          auto& fe_src_e = *fes_src->GetFE(e_idx);
          const int fe_dst_e_ndof = fe_dst_e.GetDof();
 
-         Array<int> e_src_dofs, e_dst_dofs;
          Vector src_e, punity_src_e, punity_dst_e;
          Vector e_to_e_avg(fe_dst_e_ndof);
 
-         fes_src->GetElementDofs(e_idx, e_src_dofs);
-         fes_dst->GetElementDofs(e_idx, e_dst_dofs);
-
-         src.GetSubVector(e_src_dofs, src_e);
-         punity_src.GetSubVector(e_src_dofs, punity_src_e);
-         punity_dst.GetSubVector(e_dst_dofs, punity_dst_e);
+         src.GetElementDofValues(e_idx, src_e);
+         punity_src.GetElementDofValues(e_idx, punity_src_e);
+         punity_dst.GetElementDofValues(e_idx, punity_dst_e);
 
          DenseMatrix e_to_e_mat;
          mass.AssembleElementMatrix(fe_src_e,
@@ -931,10 +906,7 @@ void FaceReconstruction(Solver& solver,
       }
       else
       {
-
-         LSSolver(solver,
-                  e_to_faces, src_face_values,
-                  dst_e, reg);
+         LSSolver(solver, e_to_faces, src_face_values, dst_e, reg);
       }
 
       if (auto iter_solver = dynamic_cast<IterativeSolver*>(&solver))
