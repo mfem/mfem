@@ -21,6 +21,7 @@ enum ReconstructionType
    average,
    face_average,
    weak_face_average,
+   bounded_variation,
    num_reconstructions  // last
 };
 
@@ -932,6 +933,7 @@ void WeakFaceReconstruction(Solver& solver,
                             ParGridFunction& dst,
                             ParMesh& mesh)
 {
+   mfem_error("Not fully implemented yet!");
    const auto fes_src = src.ParFESpace();
    const auto fes_dst = dst.ParFESpace();
 
@@ -960,6 +962,94 @@ void WeakFaceReconstruction(Solver& solver,
 
 
       e_src_dofs.DeleteAll();
+   }
+}
+
+/// @brief A minimum-variation, face-constrained reconstruction average
+void BoundedVariationReconstruction(Solver& solver,
+                                    ParGridFunction& src,
+                                    ParGridFunction& dst,
+                                    ParMesh& mesh)
+{
+   mfem_error("Not fully implemented yet!");
+   DiffusionIntegrator diffusion_int;
+
+   const auto fes_src = src.ParFESpace();
+   const auto fes_dst = dst.ParFESpace();
+
+   auto e_trans = std::make_unique<IsoparametricTransformation>();
+   auto neighbor_trans = std::make_unique<IsoparametricTransformation>();
+
+   Array<int> e_dst_dofs, neighbors_e;
+
+   for (int e_idx=0; e_idx < mesh.GetNE(); e_idx++)
+   {
+      auto& fe_src_e = *fes_src->GetFE(e_idx);
+      auto& fe_dst_e = *fes_dst->GetFE(e_idx);
+      const int fe_src_e_ndof = fe_src_e.GetDof();
+      const int fe_dst_e_ndof = fe_dst_e.GetDof();
+
+      fes_dst->GetElementDofs(e_idx, e_dst_dofs);
+
+      fes_dst->GetElementTransformation(e_idx, e_trans.get());
+
+      SaturateNeighborhood(*mesh.pncmesh, e_idx, fe_dst_e_ndof, fe_src_e_ndof, neighbors_e);
+      // if (preserve_volumes) { neighbors_e.DeleteFirst(e_idx); }
+      const int num_neighbors = neighbors_e.Size();
+
+      // Minimizer
+      DenseMatrix diffusion_mat(fe_dst_e_ndof);
+      diffusion_mat = 0.0;
+
+      for (int i = 0; i < num_neighbors; i++)
+      {
+         const int neighbor_idx = neighbors_e[i];
+         auto& fe_src_neighbor = *fes_src->GetFE(neighbor_idx);
+         auto& fe_dst_neighbor = *fes_dst->GetFE(neighbor_idx);
+         const int fe_dst_neighbor_ndof = fe_dst_neighbor.GetDof();
+
+         fes_dst->GetElementTransformation(neighbor_idx, neighbor_trans.get());
+
+         DenseMatrix neighbor_diffusion_mat;
+         diffusion_int.AssembleElementMatrix(fe_dst_neighbor,
+                                             *neighbor_trans.get(),
+                                             diffusion_mat);
+         diffusion_mat.AddMatrix(neighbor_diffusion_mat, 0, 0);
+      }
+
+
+      // Constaint
+      //
+      // RHS
+      //
+      // RHS constaint
+      /* 
+       * // compute <{u_hat} (xhat dot n), psi_hat>_E
+       * VectorConstantCoefficient xhat(Vector({1.0,0.0}));
+       * Vector b_xhat(mesh.GetNE());
+       * ParBilinearForm B_xhat(src.ParFESpace());
+       * B_xhat.AddInteriorFaceIntegrator(new DGTraceIntegrator(xhat, 1.0, 0.0));
+       * B_xhat.AddBdrFaceIntegrator(new DGTraceIntegrator(xhat, 2.0,
+       *                                                   0.0)); // note the 2 enforces du/dx=0 at the x boundaries
+       * B_xhat.Assemble();
+       * B_xhat.Finalize();
+       * matrix = std::unique_ptr<HypreParMatrix>(B_xhat.ParallelAssemble());
+       * matrix->Mult(*src.GetTrueDofs(), b_xhat);
+
+       * // compute <{u_hat} (yhat dot n), psi_hat>_E
+       * VectorConstantCoefficient yhat(Vector({0.0,1.0}));
+       * Vector b_yhat(mesh.GetNE());
+       * ParBilinearForm B_yhat(src.ParFESpace());
+       * B_yhat.AddInteriorFaceIntegrator(new DGTraceIntegrator(yhat, 1.0, 0.0));
+       * B_yhat.AddBdrFaceIntegrator(new DGTraceIntegrator(yhat, 2.0,
+       *                                                   0.0)); // note the 2 enforces du/dy=0 at the y boundaries
+       * B_yhat.Assemble();
+       * B_yhat.Finalize();
+       * matrix = std::unique_ptr<HypreParMatrix>(B_yhat.ParallelAssemble());
+       * matrix->Mult(*src.GetTrueDofs(), b_yhat); */
+
+      e_dst_dofs.DeleteAll();
+      neighbors_e.DeleteAll();
    }
 }
 
@@ -1195,6 +1285,12 @@ int main(int argc, char* argv[])
       case face_average:
          FaceReconstruction(*solver.get(), u_src, u_dst, mesh,
                             params.reg, params.solver.print_level, params.preserve_volumes);
+         break;
+      case weak_face_average:
+         WeakFaceReconstruction(*solver.get(), u_src, u_dst, mesh);
+         break;
+      case bounded_variation:
+         BoundedVariationReconstruction(*solver.get(), u_src, u_dst, mesh);
          break;
       case average:
       default:
