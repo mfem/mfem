@@ -148,14 +148,14 @@ unsigned int ParticleSet::GetSize(MPI_Comm comm_)
 }
 #endif // MFEM_USE_MPI
 
-void ParticleSet::ReserveParticles(int res, ParticleState &particles)
+void ParticleSet::ReserveParticles(int res)
 {
-   particles.ids.Reserve(res);
+   ids.Reserve(res);
 
    // Reserve fields
-   for (int f = -1; f < particles.GetNF(); f++)
+   for (int f = -1; f < GetNF(); f++)
    {
-      MultiVector &pv = (f == -1 ? particles.coords : *particles.fields[f]);
+      MultiVector &pv = (f == -1 ? coords : *fields[f]);
 
       // ------------------------------------------------------------
       // Increase Vector capacity implicitly by resizing
@@ -174,21 +174,18 @@ void ParticleSet::ReserveParticles(int res, ParticleState &particles)
    }
 
    // Reserve tags
-   for (int t = 0; t < particles.GetNT(); t++)
+   for (int t = 0; t < GetNT(); t++)
    {
-      particles.tags[t]->Reserve(res);
+      tags[t]->Reserve(res);
    }
 
 }
 
-void ParticleSet::AddParticles(const Array<unsigned int> &new_ids, ParticleState &particles, Array<int> *new_indices)
+void ParticleSet::AddParticles(const Array<unsigned int> &new_ids, Array<int> *new_indices)
 {
    int num_add = new_ids.Size();
-   int old_np = particles.GetNP();
+   int old_np = GetNP();
    int new_np = old_np + num_add;
-
-   // Increase the capacity of all data without deleting existing
-   ReserveParticles(new_np, particles);
 
    // Set indices of new particles
    if (new_indices)
@@ -196,80 +193,46 @@ void ParticleSet::AddParticles(const Array<unsigned int> &new_ids, ParticleState
       new_indices->SetSize(num_add);
       for (int i = 0; i < num_add; i++)
       {
-         (*new_indices)[i] = particles.ids.Size() + i;
+         (*new_indices)[i] = ids.Size() + i;
       }
    }
    // Add new ids
-   particles.ids.Append(new_ids);
+   ids.Append(new_ids);
 
    // Update data
-   for (int f = -1; f < particles.GetNF(); f++)
+   for (int f = -1; f < GetNF(); f++)
    {
-      MultiVector &pv = (f == -1 ? particles.coords : *particles.fields[f]);
-
-      int vdim = pv.GetVDim();
-
-      // Resize all data to new capacity
-      // Old data will not be deleted as capacity has been increased !
-      pv.SetSize(new_np*vdim);
-
-      // Properly add new elements based on ordering + default-initialize new particle data
-      if (pv.GetOrdering() == Ordering::byNODES)
-      {
-         // Must shift entries for byNODES...
-         for (int c = vdim-1; c > 0; c--)
-         {
-            for (int i = old_np-1; i >= 0; i--)
-            {
-               pv[i+c*new_np] = pv[i+c*old_np];
-            }
-            for (int i = old_np; i < new_np; i++)
-            {
-               pv[i+c*new_np] = 0.0;
-            } 
-         }
-      }
-      else // byVDIM
-      {
-         for (int i = old_np*vdim; i < new_np*vdim; i++)
-         {
-            pv[i] = 0.0;
-         }
-      }
+      MultiVector &pv = (f == -1 ? coords : *fields[f]);
+      pv.SetNumVectors(new_np); // does not delete existing data
    }
 
-
    // Update tags
-   for (int t = 0; t < particles.GetNT(); t++)
+   for (int t = 0; t < GetNT(); t++)
    {
-      particles.tags[t]->SetSize(new_np);
+      tags[t]->SetSize(new_np);
    }
 }
 
-void ParticleSet::RemoveParticles(const Array<int> &list, ParticleState &particles)
+void ParticleSet::RemoveParticles(const Array<int> &list)
 {
    int num_rm = list.Size();
-   int old_np = particles.GetNP();
+   int old_np = GetNP();
    int new_np = old_np - num_rm;
 
    // Delete IDs
-   particles.ids.DeleteAt(list);
+   ids.DeleteAt(list);
 
    // Delete data
-   for (int f = -1; f < particles.GetNF(); f++)
+   for (int f = -1; f < GetNF(); f++)
    {
-      MultiVector &pv = (f == -1 ? particles.coords : *particles.fields[f]);
-
-      int vdim = pv.GetVDim();
-
-      // Convert list particle index array ("ldofs") to "vdofs" + delete data
+      MultiVector &pv = (f == -1 ? coords : *fields[f]);
       pv.DeleteVectorsAt(list);
    }
 
    // Delete tags
-   for (int t = 0; t < particles.GetNT(); t++)
+   for (int t = 0; t < GetNT(); t++)
    {
-      particles.tags[t]->DeleteAt(list);
+      tags[t]->DeleteAt(list);
    }
 }
 
@@ -332,7 +295,7 @@ void ParticleSet::Transfer(const Array<unsigned int> &send_idxs, const Array<uns
    int new_np = inter_np + recvd;
 
    // Add data individually after reserving once
-   ReserveParticles(new_np, active_state);
+   ReserveParticles(new_np);
 
    // Add newly-recvd data directly to active state
    for (int i = 0; i < recvd; i++)
@@ -369,10 +332,10 @@ void ParticleSet::Transfer(const Array<unsigned int> &send_idxs, const Array<uns
 
 Particle ParticleSet::CreateParticle() const
 {
-   Array<int> field_vdims(active_state.GetNF());
+   Array<int> field_vdims(GetNF());
    for (int f = 0; f < field_vdims.Size(); f++)
    {
-      field_vdims[f] = active_state.fields[f]->GetVDim();
+      field_vdims[f] = fields[f]->GetVDim();
    }
 
    Particle p(GetDim(), field_vdims, GetNT());
@@ -431,8 +394,7 @@ void ParticleSet::WriteToFile(const char *fname, const std::stringstream &ss_hea
 ParticleSet::ParticleSet(int id_stride_, int id_counter_, int num_particles, int dim, Ordering::Type coords_ordering, const Array<int> &field_vdims, const Array<Ordering::Type> &field_orderings, const Array<const char*> &field_names_, int num_tags, const Array<const char*> &tag_names_)
 : id_stride(id_stride_),
   id_counter(id_counter_),
-  active_state(dim, coords_ordering),
-  inactive_state(dim, coords_ordering)
+  coords(dim, coords_ordering)
 {   
    // Initialize fields
    for (int f = 0; f < field_vdims.Size(); f++)
@@ -535,12 +497,10 @@ MultiVector& ParticleSet::AddField(int vdim, Ordering::Type field_ordering, cons
    {
       field_name = GetDefaultFieldName(field_names.size()).c_str();
    }
-   active_state.fields.emplace_back(std::make_unique<MultiVector>(vdim, field_ordering, active_state.GetNP()));
-   inactive_state.fields.emplace_back(std::make_unique<MultiVector>(vdim, field_ordering, inactive_state.GetNP()));
-
+   fields.emplace_back(std::make_unique<MultiVector>(vdim, field_ordering, GetNP()));
    field_names.emplace_back(field_name);
 
-   return *active_state.fields.back();
+   return *fields.back();
 }
 
 Array<int>& ParticleSet::AddTag(const char* tag_name)
@@ -549,19 +509,17 @@ Array<int>& ParticleSet::AddTag(const char* tag_name)
    {
       tag_name = GetDefaultTagName(tag_names.size()).c_str();
    }
-   active_state.tags.emplace_back(std::make_unique<Array<int>>(active_state.GetNP()));
-   inactive_state.tags.emplace_back(std::make_unique<Array<int>>(inactive_state.GetNP()));
-
+   tags.emplace_back(std::make_unique<Array<int>>(GetNP()));
    tag_names.emplace_back(tag_name);
 
-   return *active_state.tags.back();
+   return *tags.back();
 }
 
 void ParticleSet::AddParticle(const Particle &p)
 {
    // Add the particle
    Array<int> idxs;
-   AddParticles(Array<int>({id_counter}), active_state, &idxs);
+   AddParticles(Array<int>({id_counter}), &idxs);
    id_counter += id_stride;
 
    // Set the new particle data
@@ -569,47 +527,8 @@ void ParticleSet::AddParticle(const Particle &p)
    SetParticle(idx, p);
 }
 
-void ParticleSet::RemoveParticles(const Array<int> &list, bool delete_particles)
+void ParticleSet::RemoveParticles(const Array<int> &list)
 {
-   // If not deleting removed particles, first copy particles to inactive_state
-   if (!delete_particles)
-   {
-      Array<int> rm_ids(list.Size());
-      for (int i = 0; i < rm_ids.Size(); i++)
-      {
-         rm_ids[i] = active_state.ids[i];
-      }
-
-      Array<int> inactive_idxs(list.Size());
-
-      // Add padding to inactive_state for new particle data
-      AddParticles(rm_ids, inactive_state, &inactive_idxs);
-
-      // Set the newly-added particle data
-      for (int i = 0; i < list.Size(); i++)
-      {
-         for (int f = -1; f < inactive_state.GetNF(); f++)
-         {
-            MultiVector &inactive_pv = (f == -1 ? inactive_state.coords : *inactive_state.fields[f]);
-            MultiVector &active_pv = (f == -1 ? active_state.coords : *active_state.fields[f]);
-            
-            for (int c = 0; c < active_pv.GetVDim(); c++)
-            {
-               inactive_pv(inactive_idxs[i], c) = active_pv(list[i], c);
-            }
-         }
-         for (int t = 0; t < inactive_state.GetNT(); t++)
-         {
-            Array<int> &inactive_pt = *inactive_state.tags[t];
-            Array<int> &active_pt = *active_state.tags[t];
-
-            inactive_pt[inactive_idxs[i]] = active_pt[list[i]];
-         }
-      }
-   }
-
-   // Delete particles from active_state
-   RemoveParticles(list, active_state);
 }
 
 Particle ParticleSet::GetParticle(int i) const

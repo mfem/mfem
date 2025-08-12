@@ -131,42 +131,17 @@ private:
 
 protected:
 
-   /// Struct containing all particle data.
-   struct ParticleState
-   {
-      /// Array of particle IDs owned.
-      Array<unsigned int> ids;
+   /// Array of particle IDs owned.
+   Array<unsigned int> ids;
 
-      /// All particle coordinates.
-      MultiVector coords;
-      
-      /// All particle fields.
-      std::vector<std::unique_ptr<MultiVector>> fields;
+   /// All particle coordinates.
+   MultiVector coords;
+   
+   /// All particle fields.
+   std::vector<std::unique_ptr<MultiVector>> fields;
 
-      /// All particle tags.
-      std::vector<std::unique_ptr<Array<int>>> tags;
-
-      ParticleState(int dim, Ordering::Type coords_ordering)
-      : coords(dim, coords_ordering) {}
-      
-      /// Get the number of particles in this state.
-      int GetNP() const { return ids.Size(); }
-
-      /// Get the number of fields registered to this state.
-      int GetNF() const { return fields.size(); }
-
-      /// Get the number of tags registered to this state.
-      int GetNT() const {return tags.size(); }
-   };
-
-   /// Increase the capacity of data in \p particles without losing existing data.
-   static void ReserveParticles(int res, ParticleState &particles);
-
-   /// Add size of \p new_ids particles to \p particles , and optionally get the indices of new particles in \p new_indices .
-   static void AddParticles(const Array<unsigned int> &new_ids, ParticleState &particles, Array<int> *new_indices=nullptr);
-
-   /// Remove particles with indices \p list in \p particles .
-   static void RemoveParticles(const Array<int> &list, ParticleState &particles);
+   /// All particle tags.
+   std::vector<std::unique_ptr<Array<int>>> tags;
 
    /// Stride for IDs (when new particles are added).
    const unsigned int id_stride;
@@ -174,14 +149,15 @@ protected:
    /// Current ID to be assigned to the next particle added.
    unsigned int id_counter;
 
-   ParticleState active_state;
-   ParticleState inactive_state;
-
    /// Field names, to be written when \ref PrintCSV is called.
    std::vector<std::string> field_names;
 
    /// Tag names, to be written when \ref PrintCSV is called.
    std::vector<std::string> tag_names;
+
+   /// Add size of \p new_ids particles, with ids \p new_ids and optionally get the indices of new particles in \p new_indices .
+   void AddParticles(const Array<unsigned int> &new_ids, Array<int> *new_indices=nullptr);
+
 
 #ifdef MFEM_USE_MPI
    MPI_Comm comm;
@@ -225,15 +201,15 @@ protected:
    template<std::size_t NData, std::size_t... NTags>
    void DispatchTagTransfer(const Array<unsigned int> &send_idxs, const Array<unsigned int> &send_ranks, std::index_sequence<NTags...>)
    {
-      bool success = ( (active_state.GetNT() == NTags ? (Transfer<NData, NTags>(send_idxs, send_ranks),true) : false) || ...);
+      bool success = ( (tags.size() == NTags ? (Transfer<NData, NTags>(send_idxs, send_ranks),true) : false) || ...);
       MFEM_ASSERT(success, "Redistributing with > " << NTAG_MAX << " tags is not supported. Please submit PR to request particular case with more.");
    }
    
    template<std::size_t... NDatas>
    void DispatchDataTransfer(const Array<unsigned int> &send_idxs, const Array<unsigned int> &send_ranks, std::index_sequence<NDatas...>)
    {
-      int total_comps = active_state.coords.GetVDim();
-      for (std::unique_ptr<MultiVector> &pv : active_state.fields)
+      int total_comps = coords.GetVDim();
+      for (std::unique_ptr<MultiVector> &pv : fields)
       {
          total_comps += pv->GetVDim();
       }
@@ -367,10 +343,10 @@ public:
 #endif // MFEM_USE_MPI
 
    /// Get the spatial dimension.
-   int GetDim() const { return active_state.coords.GetVDim(); }
+   int GetDim() const { return coords.GetVDim(); }
 
    /// Get the IDs of the active particles owned by this ParticleSet.
-   const Array<unsigned int>& GetIDs() const { return active_state.ids; }
+   const Array<unsigned int>& GetIDs() const { return ids; }
 
    /** @brief Add a field to the ParticleSet.
     * 
@@ -387,40 +363,42 @@ public:
    Array<int>& AddTag(const char* tag_name=nullptr);
 
    /// Reserve room for \p res particles. Can help to avoid re-allocation for adding + removing particles.
-   void Reserve(int res) { ReserveParticles(res, active_state); };
+   void Reserve(int res);
 
    /// Get the number of active particles currently held by this ParticleSet.
-   int GetNP() const { return active_state.GetNP(); }
+   int GetNP() const { return ids.Size(); }
 
    /// Get the number of fields registered to particles.
-   int GetNF() const { return active_state.GetNF(); }
+   int GetNF() const { return fields.size(); }
 
    /// Get the number of tags registered to particles
-   int GetNT() const { return active_state.GetNT(); }
+   int GetNT() const { return tags.size(); }
 
    /// Add a particle using \ref Particle .
    void AddParticle(const Particle &p);
 
+   void AddParticles(int num_particles, )
+
    /// Remove particle data specified by \p list of particle indices.
-   void RemoveParticles(const Array<int> &list, bool delete_particles=false);
+   void RemoveParticles(const Array<int> &list);
 
    /// Get a reference to the coordinates MultiVector.
-   MultiVector& Coords() { return active_state.coords; }
+   MultiVector& Coords() { return coords; }
 
    /// Get a const reference to the coordinates MultiVector.
-   const MultiVector& Coords() const { return active_state.coords; }
+   const MultiVector& Coords() const { return coords; }
 
    /// Get a reference to field \p f 's MultiVector.
-   MultiVector& Field(int f) { return *active_state.fields[f]; }
+   MultiVector& Field(int f) { return *fields[f]; }
 
    /// Get a const reference to field \p f 's MultiVector.
-   const MultiVector& Field(int f) const { return *active_state.fields[f]; }
+   const MultiVector& Field(int f) const { return *fields[f]; }
 
    /// Get a reference to tag \p t 's Array<int>.
-   Array<int>& Tag(int t) { return *active_state.tags[t]; }
+   Array<int>& Tag(int t) { return *tags[t]; }
 
    /// Get a const reference to tag \p t 's Array<int>.
-   const Array<int>& Tag(int t) const { return *active_state.tags[t]; }
+   const Array<int>& Tag(int t) const { return *tags[t]; }
 
    /// Get new \ref Particle object with copy of data associated with particle \p i .
    Particle GetParticle(int i) const;
