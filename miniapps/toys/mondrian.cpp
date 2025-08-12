@@ -115,7 +115,7 @@ int main(int argc, char *argv[])
    mesh.GetBoundingBox(xmin, xmax);
 
    // NURBS meshes don't support non-conforming refinement for now
-   if (mesh.NURBSext) { mesh.SetCurvature(2); }
+   if (mesh.IsNURBS()) { mesh.SetCurvature(2); }
 
    // Anisotropic refinement not supported for simplex meshes.
    if (mesh.MeshGenerator() & 1) { aniso = false; }

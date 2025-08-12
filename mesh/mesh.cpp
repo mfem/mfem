@@ -4419,7 +4419,7 @@ Mesh::Mesh(const Mesh &mesh, bool copy_nodes)
    else
 #endif
    {
-      NURBSext = mesh.NURBSext ? new NURBSExtension(*mesh.NURBSext) : NULL;
+      NURBSext = mesh.IsNURBS() ? new NURBSExtension(*mesh.NURBSext) : NULL;
    }
 
    // Deep copy the NCMesh.

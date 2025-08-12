@@ -110,7 +110,7 @@ bool LinearForm::SupportsDevice() const
    // return false for NURBS meshes, so we don’t convert it to non-NURBS
    // through Assemble, AssembleDevice, GetGeometricFactors and EnsureNodes
    const Mesh &mesh = *fes->GetMesh();
-   if (mesh.NURBSext != nullptr) { return false; }
+   if (mesh.IsNURBS()) { return false; }
 
    // scan integrators to verify that all can use device assembly
    auto IntegratorsSupportDevice = [](const Array<LinearFormIntegrator*> &integ)

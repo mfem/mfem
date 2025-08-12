@@ -103,6 +103,10 @@ int main(int argc, char *argv[])
    //    optionally increased.
    Mesh mesh(mesh_file, 1, 1);
 
+   // Verify mesh is valid for this problem
+   MFEM_VERIFY(mesh.IsNURBS(), "Example is for NURBS meshes");
+   MFEM_VERIFY(mesh.GetNodes(), "NURBS mesh must have nodes");
+
    if (nurbs_degree_increase > 0) { mesh.DegreeElevate(nurbs_degree_increase); }
 
    // 4. Refine the mesh to increase the resolution.
@@ -113,15 +117,9 @@ int main(int argc, char *argv[])
 
    // 5. Define an isoparametric/isogeometric finite element space on the mesh.
    FiniteElementCollection *fec = nullptr;
-   if (mesh.GetNodes())
-   {
-      fec = mesh.GetNodes()->OwnFEC();
-      cout << "Using isoparametric FEs: " << fec->Name() << endl;
-   }
-   else
-   {
-      MFEM_ABORT("Mesh must have nodes");
-   }
+   fec = mesh.GetNodes()->OwnFEC();
+   cout << "Using isoparametric FEs: " << fec->Name() << endl;
+
    FiniteElementSpace fespace(&mesh, fec);
    cout << "Number of finite element unknowns: "
         << fespace.GetTrueVSize() << endl;

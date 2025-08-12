@@ -2084,7 +2084,7 @@ void NURBSMeshRules::Finalize(Mesh const& mesh)
 
    MFEM_VERIFY(elementToRule.empty() && patchRules1D.NumRows() > 0
                && npatches > 0, "Assuming patchRules1D is set.");
-   MFEM_VERIFY(mesh.NURBSext, "");
+   MFEM_VERIFY(mesh.IsNURBS(), "");
    MFEM_VERIFY(mesh.Dimension() == dim, "");
 
    pointToElem.resize(npatches);
