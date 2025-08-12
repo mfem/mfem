@@ -372,7 +372,10 @@ public:
    /// Get the number of fields registered to particles.
    int GetNF() const { return fields.size(); }
 
-   /// Get the number of tags registered to particles
+   /// Get an Array<int> of the field vector-dimensions registered to particles.
+   const Array<int> GetFieldVDims() const;
+
+   /// Get the number of tags registered to particles.
    int GetNT() const { return tags.size(); }
 
    /// Add a particle using \ref Particle .

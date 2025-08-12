@@ -181,6 +181,16 @@ void ParticleSet::Reserve(int res)
 
 }
 
+const Array<int> ParticleSet::GetFieldVDims() const
+{
+   Array<int> field_vdims(GetNF());
+   for (int f = 0; f < GetNF(); f++)
+   {
+      field_vdims[f] = Field(f).GetVDim();
+   }
+   return std::move(field_vdims);
+}
+
 void ParticleSet::AddParticles(const Array<unsigned int> &new_ids, Array<int> *new_indices)
 {
    int num_add = new_ids.Size();
