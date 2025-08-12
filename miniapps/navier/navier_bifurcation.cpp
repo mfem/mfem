@@ -36,13 +36,16 @@ struct flow_context
    int visport = 19916;
 
    // particle
-   real_t t0p = 5.0;
-   int num_particles = 1000;
+   int pnt_0 = round(2.0/dt);
+   int add_particles_freq = 100;
+   int num_add_particles = 10;
    real_t kappa = 10.0;
    real_t gamma = 0.0; //0.2; // should be 6
    real_t zeta = 0.19;
    int print_csv_freq = 500;
 } ctx;
+
+void SetInjectedParticles(NavierParticles &particle_solver, const Array<int> &p_idxs);
 
 // Dirichlet conditions for velocity
 void vel_dbc(const Vector &x, real_t t, Vector &u);
@@ -68,8 +71,9 @@ int main(int argc, char *argv[])
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
    args.AddOption(&ctx.visport, "-p", "--send-port", "Socket for GLVis.");
-   args.AddOption(&ctx.t0p, "-t0p", "--particle-time", "Time to begin integrating particles.");
-   args.AddOption(&ctx.num_particles, "-np", "--num-particles", "Number of particles to initialize on the domain.");
+   args.AddOption(&ctx.pnt_0, "-pt", "--particle-timestep", "Timestep to begin integrating particles.");
+   args.AddOption(&ctx.add_particles_freq, "-ipf", "--inject-particles-freq", "Frequency of particle injection at domain inlet.");
+   args.AddOption(&ctx.num_add_particles, "-npt", "--num-particles-inject", "Number of particles to add each injection.");
    args.AddOption(&ctx.kappa, "-k", "--kappa", "Kappa constant.");
    args.AddOption(&ctx.gamma, "-g", "--gamma", "Gamma constant.");
    args.AddOption(&ctx.zeta, "-z", "--zeta", "Zeta constant.");
@@ -103,24 +107,8 @@ int main(int argc, char *argv[])
    flow_solver.EnablePA(true);
 
    // Create the particle solver
-   NavierParticles particle_solver(MPI_COMM_WORLD, ctx.kappa, ctx.gamma, ctx.zeta, ctx.num_particles, pmesh);
-
-   // Initialize particles at the channel inlet randomly
-   Vector pos_min(2), pos_max(2);
-   pos_min[0] = 0.0;
-   pos_max[0] = 4.0;
-   pos_min[1] = 0.05;
-   pos_max[1] = 0.95;
-   std::uniform_real_distribution<> real_dist(0.0,1.0);
-   for (int i = 0; i < particle_solver.GetParticles().GetNP(); i++)
-   {
-      std::mt19937 gen(particle_solver.GetParticles().GetIDs()[i]);
-
-      for (int d = 0; d < 2; d++)
-      {
-         particle_solver.X()(i, d) = pos_min[d] + real_dist(gen)*(pos_max[d] - pos_min[d]);
-      }
-   }
+   NavierParticles particle_solver(MPI_COMM_WORLD, ctx.kappa, ctx.gamma, ctx.zeta, 0, pmesh);
+   particle_solver.GetParticles().Reserve( ((ctx.nt - ctx.pnt_0)/ctx.add_particles_freq ) * ctx.num_add_particles / size);
 
    real_t time = 0.0;
 
@@ -185,14 +173,23 @@ int main(int argc, char *argv[])
    flow_solver.Setup(ctx.dt);
    u_gf.ProjectCoefficient(u_excoeff);
    int pstep = 0;
+   Array<int> add_particle_idxs;
    for (int step = 1; step <= ctx.nt; step++)
    {
       real_t cfl;
       flow_solver.Step(time, ctx.dt, step-1);
 
-      // Step particles after t0p
-      if (time >= ctx.t0p)
+      // Step particles after pnt_0
+      if (step >= ctx.pnt_0)
       {
+         // Inject particles
+         if (step % ctx.add_particles_freq == 0)
+         {
+            int rank_num_particles = ctx.num_add_particles/size + (rank < (ctx.num_add_particles % size) ? 1 : 0);
+            particle_solver.GetParticles().AddParticles(rank_num_particles, &add_particle_idxs);
+            SetInjectedParticles(particle_solver, add_particle_idxs);
+         }
+
          particle_solver.Step(ctx.dt, pstep, u_gf, w_gf);
          pstep++;
       }
@@ -219,12 +216,14 @@ int main(int argc, char *argv[])
       }
 
       cfl = flow_solver.ComputeCFL(u_gf, ctx.dt);
+      int global_np = particle_solver.GetParticles().GetGlobalNP();
+      int inactive_global_np = particle_solver.GetInactiveParticles().GetGlobalNP();
       if (rank == 0)
       {
          printf("\n%-11s %-11s %-11s %-11s\n", "Step", "Time", "dt", "CFL");
          printf("%-11i %-11.5E %-11.5E %-11.5E\n", step, time, ctx.dt, cfl);
-         printf("\n%16s: %-9i\n", "Active Particles", particle_solver.GetParticles().GetNP());
-         printf("%16s: %-9i\n", "Lost Particles", particle_solver.GetInactiveParticles().GetNP());
+         printf("\n%16s: %-9i\n", "Active Particles", global_np);
+         printf("%16s: %-9i\n", "Lost Particles", inactive_global_np);
          printf("-----------------------------------------------\n");
          fflush(stdout);
       }
@@ -233,6 +232,53 @@ int main(int argc, char *argv[])
    flow_solver.PrintTimingData();
 
    return 0;
+}
+
+void SetInjectedParticles(NavierParticles &particle_solver, const Array<int> &p_idxs)
+{
+   // Inject uniformly-distributed along inlet
+   real_t height = 1.0;
+
+   MPI_Comm comm = particle_solver.GetParticles().GetComm();
+
+   int rank_num_add = p_idxs.Size();
+   int global_num_particles = 0;
+   MPI_Allreduce(&rank_num_add, &global_num_particles, 1, MPI_INT, MPI_SUM, comm);
+
+   real_t spacing = height/(global_num_particles + 1);
+
+   // Determine this rank's offset
+   int offset = 0;
+   MPI_Scan(&rank_num_add, &offset, 1, MPI_INT, MPI_SUM, comm);
+   offset -= rank_num_add;
+
+   for (int i = 0; i < p_idxs.Size(); i++)
+   {
+      int idx = p_idxs[i];
+
+      for (int j = 0; j < 4; j++)
+      {
+         if (j == 0)
+         {
+            // Set position
+            particle_solver.X().SetVectorValues(idx, Vector({0.0, spacing*(i+offset+1)}));
+         }
+         else
+         {  
+            // Zero-out position history
+            particle_solver.X(j).SetVectorValues(idx, Vector({0.0,0.0}));
+         }
+
+         // Zero-out particle velocities, fluid velocities, and fluid vorticities
+         particle_solver.V(j).SetVectorValues(idx, Vector({0.0,0.0}));
+         particle_solver.U(j).SetVectorValues(idx, Vector({0.0,0.0}));
+         particle_solver.W(j).SetVectorValues(idx, Vector({0.0,0.0}));   
+      }
+
+      // Set order to 0
+      particle_solver.Order()[idx] = 0;
+   }
+
 }
 
 // Dirichlet conditions for velocity
