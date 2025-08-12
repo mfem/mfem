@@ -193,6 +193,7 @@ int main(int argc, char *argv[])
    // 11. Get the preconditioner
    CGSolver solver;
    solver.SetOperator(*A);
+   Solver *P = nullptr;
 
    // No preconditioner
    if (preconditioner == 0)
@@ -203,13 +204,14 @@ int main(int argc, char *argv[])
    else if (preconditioner == 1)
    {
       cout << "Setting up preconditioner (Jacobi) ... " << endl;
-      OperatorJacobiSmoother P(a, ess_tdof_list);
-      solver.SetPreconditioner(P);
+      OperatorJacobiSmoother *P = new OperatorJacobiSmoother(a, ess_tdof_list);
    }
    else
    {
       MFEM_ABORT("Invalid preconditioner setting.")
    }
+   if (P) { solver.SetPreconditioner(*P); }
+   delete P;
 
    sw.Stop();
    const real_t timeAssemble = sw.RealTime();
