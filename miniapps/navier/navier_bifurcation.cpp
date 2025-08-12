@@ -223,6 +223,8 @@ int main(int argc, char *argv[])
       {
          printf("\n%-11s %-11s %-11s %-11s\n", "Step", "Time", "dt", "CFL");
          printf("%-11i %-11.5E %-11.5E %-11.5E\n", step, time, ctx.dt, cfl);
+         printf("\n%16s: %-9i\n", "Active Particles", particle_solver.GetParticles().GetNP());
+         printf("%16s: %-9i\n", "Lost Particles", particle_solver.GetInactiveParticles().GetNP());
          printf("-----------------------------------------------\n");
          fflush(stdout);
       }
