@@ -190,12 +190,15 @@ int main(int argc, char *argv[])
    a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
    cout << "done. " << "(size = " << fespace.GetTrueVSize() << ")" << endl;
 
-   // 11. Get the preconditioner
+   // 11. Define the solver + preconditioner
    CGSolver solver;
    solver.SetOperator(*A);
-   Solver *P = nullptr;
+   solver.SetMaxIter(1e4);
+   solver.SetPrintLevel(1);
+   solver.SetRelTol(sqrt(1e-6));
+   solver.SetAbsTol(sqrt(1e-14));
 
-   // No preconditioner
+   Solver *P = nullptr;
    if (preconditioner == 0)
    {
       cout << "No preconditioner set ... " << endl;
@@ -204,14 +207,13 @@ int main(int argc, char *argv[])
    else if (preconditioner == 1)
    {
       cout << "Setting up preconditioner (Jacobi) ... " << endl;
-      OperatorJacobiSmoother *P = new OperatorJacobiSmoother(a, ess_tdof_list);
+      P = new OperatorJacobiSmoother(a, ess_tdof_list);
    }
    else
    {
       MFEM_ABORT("Invalid preconditioner setting.")
    }
    if (P) { solver.SetPreconditioner(*P); }
-   delete P;
 
    sw.Stop();
    const real_t timeAssemble = sw.RealTime();
@@ -220,13 +222,8 @@ int main(int argc, char *argv[])
 
    // 12. Solve the linear system A X = B.
    cout << "Solving linear system ... " << endl;
-   solver.SetMaxIter(1e4);
-   solver.SetPrintLevel(1);
-   solver.SetRelTol(sqrt(1e-6));
-   solver.SetAbsTol(sqrt(1e-14));
-
    solver.Mult(B, X);
-
+   delete P;
    cout << "Done solving system." << endl;
 
    sw.Stop();
