@@ -224,6 +224,8 @@ protected:
    /// Write string in \p ss_header , followed by \p ss_data , to a single file; compatible in parallel.
    void WriteToFile(const char *fname, const std::stringstream &ss_header, const std::stringstream &ss_data);
 
+   bool IsValidParticle(const Particle &p) const;
+
    /** @brief Hidden main constructor of ParticleSet 
     * 
     *  @param[in] id_stride_          ID stride.

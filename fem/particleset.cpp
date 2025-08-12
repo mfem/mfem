@@ -395,6 +395,32 @@ ParticleSet::ParticleSet(int id_stride_, int id_counter_, int num_particles, int
    AddParticles(ids);
 }
 
+bool ParticleSet::IsValidParticle(const Particle &p) const
+{
+   if (p.Dim() != GetDim())
+   {
+      return false;
+   }
+   if (p.NumFields() != GetNF())
+   {
+      return false;
+   }
+   for (int f = 0; f < GetNF(); f++)
+   {
+      if (p.FieldVDim(f) != Field(f).GetVDim())
+      {
+         return false;
+      }
+   }
+   if (p.NumTags() != GetNT())
+   {
+      return false;
+   }
+   
+   return true;
+
+}
+
 ParticleSet::ParticleSet(int num_particles, int dim, Ordering::Type coords_ordering)
 : ParticleSet(1, 0, num_particles, dim, coords_ordering, Array<int>(), Array<Ordering::Type>(), Array<const char*>(), 0, Array<const char*>())
 {
@@ -494,6 +520,8 @@ Array<int>& ParticleSet::AddTag(const char* tag_name)
 
 void ParticleSet::AddParticle(const Particle &p)
 {
+   MFEM_ASSERT(IsValidParticle(p), "Particle is incompatible with ParticleSet.");
+
    // Add the particle
    Array<int> idxs;
    AddParticles(Array<int>({id_counter}), &idxs);
