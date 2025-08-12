@@ -282,7 +282,7 @@ public:
    {
       FullOrderGaussLegendre = 0,    /// (2*order)
       ReducedOrderGaussLegendre = 1, /// (see Zou 2022)
-      FixedOrderGaussLegendre = 2,
+      FixedOrderGaussLegendre = 2,   /// User-specified order (set with fixed_order)
    };
 
    SplineIntegrationRule(Type T = Type::FullOrderGaussLegendre,

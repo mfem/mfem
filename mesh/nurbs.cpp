@@ -206,6 +206,10 @@ void KnotVector::GetKnotMults(Array<int> &mults) const
 
 void KnotVector::ComputeUniqueKnots()
 {
+   if (NumOfElements <= 0)
+   {
+      return;
+   }
    uknot.SetSize(NumOfElements+1);
    uknot_mult.SetSize(NumOfElements+1);
 
