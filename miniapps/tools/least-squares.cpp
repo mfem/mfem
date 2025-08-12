@@ -28,11 +28,20 @@ enum ReconstructionType
 /// Enumerator for solver types
 enum SolverType
 {
-   direct,
+   direct_inv,
    cg,
    bicgstab,
    minres,
    num_solvers  // last
+};
+
+/// Enumerator for regularization types
+enum RegularizationType
+{
+   direct,
+   l2,
+   h1,
+   num_regularization  // last
 };
 
 /// Iterative solver parameters
@@ -60,6 +69,7 @@ struct GlobalConfiguration
    IterativeSolverParams newton;
    SolverType solver_type;
    IterativeSolverParams solver;
+   RegularizationType reg_type;
    real_t reg;
    int ord_smooth;
    int ord_src;
@@ -566,6 +576,7 @@ void AverageReconstruction(Solver& solver,
                            ParGridFunction& dst,
                            ParMesh& mesh,
                            IterativeSolverParams& newton,
+                           RegularizationType reg_type = direct,
                            real_t reg = 0.0,
                            int print_level = -1,
                            bool preserve_volumes = false)
@@ -654,6 +665,21 @@ void AverageReconstruction(Solver& solver,
       fe_dst_to_neighbors_mat.InvLeftScaling(neighbors_volume);
       src_neighbors_avg /=neighbors_volume;
 
+      auto reg_mat = std::make_unique<DenseMatrix>();
+      switch (reg_type)
+      {
+         case l2:
+            mfem_error("Not implemented yet!");
+            break;
+         case h1:
+            mfem_error("Not implemented yet!");
+            break;
+         case direct:
+         default:
+            reg_mat.reset(nullptr);
+            break;
+      }
+
       if (preserve_volumes)
       {
          // Average at e
@@ -681,11 +707,14 @@ void AverageReconstruction(Solver& solver,
          LSSolver(solver,
                   fe_dst_to_neighbors_mat, e_to_e_avg,
                   src_neighbors_avg, src_e_avg,
-                  dst_e, reg);
+                  dst_e, reg, reg_mat.get());
       }
       else
       {
-         LSSolver(solver, fe_dst_to_neighbors_mat, src_neighbors_avg, dst_e, reg);
+         LSSolver(solver,
+                  fe_dst_to_neighbors_mat,
+                  src_neighbors_avg,
+                  dst_e, reg, reg_mat.get());
       }
 
       if (auto iter_solver = dynamic_cast<IterativeSolver*>(&solver))
@@ -710,6 +739,7 @@ void L2Reconstruction(Solver& solver,
                       ParGridFunction& dst,
                       ParMesh& mesh,
                       IterativeSolverParams& newton,
+                      RegularizationType reg_type = direct,
                       real_t reg = 0.0,
                       bool preserve_volumes = false)
 {
@@ -787,6 +817,21 @@ void L2Reconstruction(Solver& solver,
          rhs_neighbor_mat.AddMultTranspose(src_neighbor, rhs_e);
       }
 
+      auto reg_mat = std::make_unique<DenseMatrix>();
+      switch (reg_type)
+      {
+         case l2:
+            mfem_error("Not implemented yet!");
+            break;
+         case h1:
+            mfem_error("Not implemented yet!");
+            break;
+         case direct:
+         default:
+            reg_mat.reset(nullptr);
+            break;
+      }
+
       // These systems come from a least squares formulation,
       // so no need to use LSSolver
       if (preserve_volumes)
@@ -818,7 +863,7 @@ void L2Reconstruction(Solver& solver,
          LSSolver(solver,
                   out_of_elem_shape, e_to_e_avg,
                   rhs_e, src_e_avg,
-                  dst_e, reg);
+                  dst_e, reg, reg_mat.get());
       }
       else
       {
@@ -838,6 +883,7 @@ void FaceReconstruction(Solver& solver,
                         ParGridFunction& src,
                         ParGridFunction& dst,
                         ParMesh& mesh,
+                        RegularizationType reg_type = direct,
                         real_t reg = 0.0,
                         int print_level = -1,
                         bool preserve_volumes = false)
@@ -898,6 +944,21 @@ void FaceReconstruction(Solver& solver,
 
       Vector dst_e;
       fes_dst->GetElementDofs(e_idx, e_dst_dofs);
+      auto reg_mat = std::make_unique<DenseMatrix>();
+      switch (reg_type)
+      {
+         case l2:
+            mfem_error("Not implemented yet!");
+            break;
+         case h1:
+            mfem_error("Not implemented yet!");
+            break;
+         case direct:
+         default:
+            reg_mat.reset(nullptr);
+            break;
+      }
+
       if (preserve_volumes)
       {
          // Average at e
@@ -934,11 +995,11 @@ void FaceReconstruction(Solver& solver,
          LSSolver(solver,
                   e_to_faces, e_to_e_avg,
                   src_face_values, src_e_avg,
-                  dst_e, reg);
+                  dst_e, reg, reg_mat.get());
       }
       else
       {
-         LSSolver(solver, e_to_faces, src_face_values, dst_e, reg);
+         LSSolver(solver, e_to_faces, src_face_values, dst_e, reg, reg_mat.get());
       }
 
       if (auto iter_solver = dynamic_cast<IterativeSolver*>(&solver))
@@ -991,9 +1052,9 @@ void WeakFaceReconstruction(Solver& solver,
 
       // Weak jumps with DGInt
 
-
       e_src_dofs.DeleteAll();
    }
+
 }
 
 /// @brief A minimum-variation, face-constrained reconstruction average
@@ -1111,13 +1172,14 @@ int main(int argc, char* argv[])
          .rtol = 1.0e-15,
          .atol = 0.0,
       },
-      .solver_type = direct,
+      .solver_type = direct_inv,
       .solver = {
          .print_level = -1,
          .max_iter = 1000,
          .rtol = 1.0e-30,
          .atol = 0.0,
       },
+      .reg_type = direct,
       .reg = 0.0,
       .ord_smooth = 3,
       .ord_src = 0,
@@ -1131,7 +1193,7 @@ int main(int argc, char* argv[])
    OptionsParser args(argc, argv);
 
    args.AddOption((int*)&params.rec, "-rec", "--reconstruction",
-                  "reconstruction methods to be considered:"
+                  "Reconstruction methods to be considered:"
                   "\n\t0: L2-norm least squares"
                   "\n\t1: Local-averages least square"
                   "\n\t2: Face-averages (DFR-like) method"
@@ -1156,7 +1218,7 @@ int main(int argc, char* argv[])
                   "\n\t1: First and last with warnings"
                   "\n\t2: Errors"
                   "\n\t3: None"
-                  "\nA negative value deactivates LS check");
+                  "\n\tNOTE: A negative value deactivates LS check");
    args.AddOption(&params.solver.max_iter, "-Smi", "--solver-max-iter",
                   "Maximum number of iterations for the solver");
    args.AddOption(&params.solver.rtol, "-Srtol", "--solver-rtol",
@@ -1173,8 +1235,13 @@ int main(int argc, char* argv[])
    args.AddOption(&params.newton.atol, "-Natol", "--newton-atol",
                   "Absolute tolerance for the Newton solver (q-points)");
 
-   args.AddOption(&params.reg, "-reg", "--regularization",
-                  "Add regularization term to the least squares problem");
+   args.AddOption((int*)&params.reg_type, "-reg", "--regularization",
+                  "Regularization types to be considered:"
+                  "\n\t0: Direct ('little l2') regularization"
+                  "\n\t1: L2 regularization"
+                  "\n\t2: H1 regularization");
+   args.AddOption(&params.reg, "-reg-f", "--regularization-factor",
+                  "Regularization factor for the least squares problem");
 
    args.AddOption(&params.ord_smooth, "-O", "--order-smooth",
                   "Order original broken space.");
@@ -1200,6 +1267,8 @@ int main(int argc, char* argv[])
                "Smooth space must be more regular!");
    MFEM_VERIFY((0 <= params.solver_type) && (params.solver_type < num_solvers),
                "Invalid solver type: " << params.solver_type);
+   MFEM_VERIFY((0 <= params.reg_type) && (params.reg_type < num_regularization),
+               "Invalid regularization type: " << params.reg_type);
 
    if (Mpi::Root())
    {
@@ -1274,14 +1343,14 @@ int main(int argc, char* argv[])
       case minres:
          solver.reset(new MINRESSolver(MPI_COMM_WORLD));
          break;
-      case direct:
+      case direct_inv:
       default:
          solver.reset(new DenseMatrixInverse());
    }
 
    // Solver setting
    solver->iterative_mode = false;
-   if (params.solver_type != direct)
+   if (params.solver_type != direct_inv)
    {
       auto it_solver = std::static_pointer_cast<IterativeSolver>(solver);
       auto& isp = params.solver;
@@ -1311,11 +1380,11 @@ int main(int argc, char* argv[])
    switch (params.rec)
    {
       case norm:
-         L2Reconstruction(*solver.get(), u_src, u_dst, mesh,
-                          params.newton, params.reg, params.preserve_volumes);
+         L2Reconstruction(*solver.get(), u_src, u_dst, mesh, params.newton,
+                          params.reg_type, params.reg, params.preserve_volumes);
          break;
       case face_average:
-         FaceReconstruction(*solver.get(), u_src, u_dst, mesh,
+         FaceReconstruction(*solver.get(), u_src, u_dst, mesh, params.reg_type,
                             params.reg, params.solver.print_level, params.preserve_volumes);
          break;
       case weak_face_average:
@@ -1326,8 +1395,9 @@ int main(int argc, char* argv[])
          break;
       case average:
       default:
-         AverageReconstruction(*solver.get(), u_src, u_dst, mesh,
-                               params.newton, params.reg, params.solver.print_level, params.preserve_volumes);
+         AverageReconstruction(*solver.get(), u_src, u_dst, mesh, params.newton,
+                               params.reg_type, params.reg, params.solver.print_level,
+                               params.preserve_volumes);
    }
    u_dst.GetElementAverages(u_dst_avg);
 
