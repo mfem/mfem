@@ -6,8 +6,7 @@
 // availability visit https://mfem.org.
 //
 // Sample run:
-//   mpirun -np 4 navier_bifurcation -rs 2
-//   mpirun -np 10 ./navier_bifurcation -rs 2 -np 1000 -nt 4e5 -csv 50 -pv 50
+//   mpirun -np 10 ./navier_bifurcation -rs 2 -npt 10 -pt 100 -nt 4e5 -csv 50 -pv 50
 
 #include "navier_solver.hpp"
 #include "navier_particles.hpp"
