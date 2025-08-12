@@ -955,7 +955,7 @@ public:
        - When the dimensions of the associated SplitTimeDependentOperator change.
        - When a time stepping sequence has to be restarted.
        - To change the associated SplitTimeDependentOperator. */
-   virtual void Init(SplitTimeDependentOperator &f) override;
+   virtual void Init(SplitTimeDependentOperator &f);
 
    static MFEM_EXPORT std::unique_ptr<SplitODESolver> Select(
       const int ode_solver_type);
