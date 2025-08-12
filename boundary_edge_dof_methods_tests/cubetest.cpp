@@ -1,11 +1,9 @@
 #include "mfem.hpp"
-#include "loop_length.hpp"
-#include "sync_selected.hpp"
 
 using namespace std;
 using namespace mfem;
 
-void f_exact(const Vector &, Vector &);
+double ComputeBoundaryLoopLength(ParMesh* pmesh, const std::unordered_map<int, int>& dof_to_edge);
 int dim;
 
 int main(int argc, char *argv[])
@@ -130,12 +128,9 @@ int main(int argc, char *argv[])
     Array<int> ess_tdof_list_all;
     fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list_all);
 
-    dim = mesh->Dimension();
-    int sdim = mesh->SpaceDimension();
-    VectorFunctionCoefficient f(sdim, f_exact);
+    // Create zero linear form (f = 0)
     ParLinearForm *b = new ParLinearForm(fespace);
-    b->AddDomainIntegrator(new VectorFEDomainLFIntegrator(f));
-    b->Assemble();
+    b->Assemble(); // Assembles to zero vector
 
     
     /// Create grid function for the solution
@@ -232,18 +227,38 @@ int main(int argc, char *argv[])
 }
 
 
-void f_exact(const Vector &x, Vector &f)
+double ComputeBoundaryLoopLength(ParMesh* pmesh, const std::unordered_map<int, int>& dof_to_edge)
 {
-   if (dim == 3)
-   {
-      f(0) = 0.0;
-      f(1) = 0.0;
-      f(2) = 0.0;
-   }
-   else
-   {
-      f(0) = 0.0;
-      f(1) = 0.0;
-      if (x.Size() == 3) { f(2) = 0.0; }
-   }
+    // Calculate local boundary loop length
+    double local_length = 0.0;
+    std::unordered_set<int> processed_edges;
+    
+    // Process each edge in the dof_to_edge map
+    for (const auto& pair : dof_to_edge) 
+    {
+        int edge_id = pair.second;
+        
+        // Skip if already processed this edge
+        if (!processed_edges.insert(edge_id).second) continue;
+        
+        // Get edge vertices
+        Array<int> edge_verts;
+        pmesh->GetEdgeVertices(edge_id, edge_verts);
+        
+        // Calculate edge length
+        const double* v0 = pmesh->GetVertex(edge_verts[0]);
+        const double* v1 = pmesh->GetVertex(edge_verts[1]);
+        
+        double edge_length = 0.0;
+        for (int i = 0; i < pmesh->SpaceDimension(); i++) 
+        {
+            double diff = v1[i] - v0[i];
+            edge_length += diff * diff;
+        }
+        edge_length = sqrt(edge_length);
+        
+        local_length += edge_length;
+    }
+    
+    return local_length;  // Return local portion of the boundary loop length
 }
