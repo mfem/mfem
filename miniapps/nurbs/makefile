@@ -103,9 +103,9 @@ nurbs_ex1-test-seq: nurbs_ex1
 	@$(call mfem-test,$<,, NURBS miniapp,$(EX1_ARGS_17))
 	@$(call mfem-test,$<,, NURBS miniapp,$(EX1_ARGS_18))
 
-EX1PATCH_ARGS_1 := -incdeg 3 -ref 1 -iro 8 -patcha
-EX1PATCH_ARGS_2 := -incdeg 3 -ref 1 -iro 8 -patcha -pa
-EX1PATCH_ARGS_3 := -incdeg 3 -ref 1 -iro 8 -patcha -fint
+EX1PATCH_ARGS_1 := -incdeg 3 -rf 2 -iro 8 -patcha
+EX1PATCH_ARGS_2 := -incdeg 3 -rf 2 -iro 8 -patcha -pa
+EX1PATCH_ARGS_3 := -incdeg 3 -rf 2 -iro 8 -patcha -fint
 nurbs_patch_ex1-test-seq: nurbs_patch_ex1
 ifeq ($(MFEM_USE_LAPACK),YES)
 	@$(call mfem-test,$<,, NURBS miniapp,$(EX1PATCH_ARGS_1))

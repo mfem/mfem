@@ -2,9 +2,9 @@
 //
 // Compile with: make nurbs_patch_ex1
 //
-// Sample runs:  nurbs_patch_ex1 -incdeg 3 -ref 2 -iro 8 -patcha
-//               nurbs_patch_ex1 -incdeg 3 -ref 2 -iro 8 -patcha -pa
-//               nurbs_patch_ex1 -incdeg 3 -ref 2 -iro 8 -patcha -fint
+// Sample runs:  nurbs_patch_ex1 -incdeg 3 -rf 4 -iro 8 -patcha
+//               nurbs_patch_ex1 -incdeg 3 -rf 4 -iro 8 -patcha -pa
+//               nurbs_patch_ex1 -incdeg 3 -rf 4 -iro 8 -patcha -fint
 //
 // Description:  This example code demonstrates the use of MFEM to define a
 //               simple finite element discretization of the Poisson problem
@@ -106,7 +106,10 @@ int main(int argc, char *argv[])
    if (nurbs_degree_increase > 0) { mesh.DegreeElevate(nurbs_degree_increase); }
 
    // 4. Refine the mesh to increase the resolution.
-   mesh.NURBSUniformRefinement(refinement_factor);
+   if (refinement_factor > 1)
+   {
+      mesh.NURBSUniformRefinement(refinement_factor);
+   }
 
    // 5. Define an isoparametric/isogeometric finite element space on the mesh.
    FiniteElementCollection *fec = nullptr;

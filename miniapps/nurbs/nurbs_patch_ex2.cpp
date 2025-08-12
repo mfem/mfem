@@ -40,7 +40,7 @@ int main(int argc, char *argv[])
    const char *mesh_file = "../../data/beam-hex-nurbs.mesh";
    bool pa = false;
    bool patchAssembly = false;
-   int ref_levels = 0;
+   int refinement_factor = 0;
    int nurbs_degree_increase = 0;  // Elevate the NURBS mesh degree by this
    int spline_integration_type = 0;
    int preconditioner = 0;
@@ -55,8 +55,8 @@ int main(int argc, char *argv[])
                   "--no-partial-assembly", "Enable Partial Assembly.");
    args.AddOption(&patchAssembly, "-patcha", "--patch-assembly", "-no-patcha",
                   "--no-patch-assembly", "Enable patch-wise assembly.");
-   args.AddOption(&ref_levels, "-ref", "--refine",
-                  "Number of uniform mesh refinements.");
+   args.AddOption(&refinement_factor, "-rf", "--refinement-factor",
+                  "Refinement factor for the NURBS mesh.");
    args.AddOption(&nurbs_degree_increase, "-incdeg", "--nurbs-degree-increase",
                   "Elevate NURBS mesh degree by this amount.");
    args.AddOption(&spline_integration_type, "-int", "--integration-type",
@@ -100,9 +100,9 @@ int main(int argc, char *argv[])
    }
 
    // 4. Refine the mesh to increase the resolution.
-   for (int l = 0; l < ref_levels; l++)
+   if (refinement_factor > 1)
    {
-      mesh.NURBSUniformRefinement();
+      mesh.NURBSUniformRefinement(refinement_factor);
    }
 
    // 5. Define a finite element space on the mesh.
@@ -251,7 +251,7 @@ int main(int argc, char *argv[])
       if (results_ofs.tellp() == 0)
       {
          results_ofs << "patcha, pa, pc, sint, "         // settings
-                     << "mesh, refs, deg_inc, ndof, "    // mesh
+                     << "mesh, rf, deg_inc, ndof, "      // mesh
                      << "niter, absnorm, relnorm, "      // solver
                      << "linf, l2, "                     // solution
                      << "t_assemble, t_solve, t_total, " // timing
@@ -264,7 +264,7 @@ int main(int argc, char *argv[])
                   << preconditioner << ", "
                   << spline_integration_type << ", "
                   << mesh_file << ", "                   // mesh
-                  << ref_levels << ", "
+                  << refinement_factor << ", "
                   << nurbs_degree_increase << ", "
                   << ndof << ", "
                   << niter << ", "                       // solver
