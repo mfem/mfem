@@ -148,7 +148,7 @@ unsigned int ParticleSet::GetSize(MPI_Comm comm_)
 }
 #endif // MFEM_USE_MPI
 
-void ParticleSet::ReserveParticles(int res)
+void ParticleSet::Reserve(int res)
 {
    ids.Reserve(res);
 
@@ -213,29 +213,6 @@ void ParticleSet::AddParticles(const Array<unsigned int> &new_ids, Array<int> *n
    }
 }
 
-void ParticleSet::RemoveParticles(const Array<int> &list)
-{
-   int num_rm = list.Size();
-   int old_np = GetNP();
-   int new_np = old_np - num_rm;
-
-   // Delete IDs
-   ids.DeleteAt(list);
-
-   // Delete data
-   for (int f = -1; f < GetNF(); f++)
-   {
-      MultiVector &pv = (f == -1 ? coords : *fields[f]);
-      pv.DeleteVectorsAt(list);
-   }
-
-   // Delete tags
-   for (int t = 0; t < GetNT(); t++)
-   {
-      tags[t]->DeleteAt(list);
-   }
-}
-
 #if defined(MFEM_USE_MPI) && defined(MFEM_USE_GSLIB)
 
 template<std::size_t NData, std::size_t NTag>
@@ -259,13 +236,13 @@ void ParticleSet::Transfer(const Array<unsigned int> &send_idxs, const Array<uns
    {
       pdata_t<NData, NTag> &pdata = pdata_arr[i];
 
-      pdata.id = active_state.ids[send_idxs[i]];
+      pdata.id = ids[send_idxs[i]];
 
       // Copy particle data directly into pdata
       int counter = 0;
-      for (int f = -1; f < active_state.GetNF(); f++)
+      for (int f = -1; f < GetNF(); f++)
       {
-         MultiVector &pv = (f == -1 ? active_state.coords : *active_state.fields[f]);
+         MultiVector &pv = (f == -1 ? coords : *fields[f]);
          for (int c = 0; c < pv.GetVDim(); c++)
          {
             pdata.data[counter] = pv(send_idxs[i], c);
@@ -274,15 +251,15 @@ void ParticleSet::Transfer(const Array<unsigned int> &send_idxs, const Array<uns
       }
 
       // Copy tags
-      for (int t = 0; t < active_state.GetNT(); t++)
+      for (int t = 0; t < GetNT(); t++)
       {
-         Array<int> &tag_arr = *active_state.tags[t];
+         Array<int> &tag_arr = *tags[t];
          pdata.tags[t] = tag_arr[send_idxs[i]];
       }
 
    }
    // Remove particles that will be transferred
-   RemoveParticles(send_idxs, active_state);
+   RemoveParticles(send_idxs);
 
    // Transfer particles
    sarray_transfer_ext(arr_type, &gsl_arr, send_ranks.GetData(), sizeof(unsigned int), cr.get());
@@ -291,11 +268,11 @@ void ParticleSet::Transfer(const Array<unsigned int> &send_idxs, const Array<uns
    // Received particles are added to end
    unsigned int recvd = gsl_arr.n;
    pdata_arr = (pdata_t<NData, NTag>*) gsl_arr.ptr;
-   int inter_np = active_state.GetNP(); // pre-recvd NP (after remove)
+   int inter_np = GetNP(); // pre-recvd NP (after remove)
    int new_np = inter_np + recvd;
 
    // Add data individually after reserving once
-   ReserveParticles(new_np);
+   Reserve(new_np);
 
    // Add newly-recvd data directly to active state
    for (int i = 0; i < recvd; i++)
@@ -304,13 +281,13 @@ void ParticleSet::Transfer(const Array<unsigned int> &send_idxs, const Array<uns
       int id = pdata.id;
       
       Array<int> idx_temp;
-      AddParticles(Array<int>({id}), active_state, &idx_temp);
+      AddParticles(Array<int>({id}), &idx_temp);
       int new_idx = idx_temp[0]; // Get index of newly-added particle
 
       int counter = 0;
-      for (int f = -1; f < active_state.GetNF(); f++)
+      for (int f = -1; f < GetNF(); f++)
       {
-         MultiVector &pv = (f == -1 ? active_state.coords : *active_state.fields[f]);
+         MultiVector &pv = (f == -1 ? coords : *fields[f]);
          for (int c = 0; c < pv.GetVDim(); c++)
          {
             pv(new_idx, c) = pdata.data[counter];
@@ -318,9 +295,9 @@ void ParticleSet::Transfer(const Array<unsigned int> &send_idxs, const Array<uns
          }
       }
 
-      for (int t = 0; t < active_state.GetNT(); t++)
+      for (int t = 0; t < GetNT(); t++)
       {
-         Array<int> &tag_arr = *active_state.tags[t];
+         Array<int> &tag_arr = *tags[t];
          tag_arr[new_idx] = pdata.tags[t];
       }
    }
@@ -415,7 +392,7 @@ ParticleSet::ParticleSet(int id_stride_, int id_counter_, int num_particles, int
       ids[i] = id_counter;
       id_counter += id_stride;
    }
-   AddParticles(ids, active_state);
+   AddParticles(ids);
 }
 
 ParticleSet::ParticleSet(int num_particles, int dim, Ordering::Type coords_ordering)
@@ -527,8 +504,40 @@ void ParticleSet::AddParticle(const Particle &p)
    SetParticle(idx, p);
 }
 
+void ParticleSet::AddParticles(int num_particles, Array<int> *new_indices)
+{
+   Array<int> ids(num_particles);
+   for (int i = 0; i < num_particles; i++)
+   {
+      ids[i] = id_counter;
+      id_counter += id_stride;
+   }
+
+   AddParticles(ids, new_indices);
+}
+
 void ParticleSet::RemoveParticles(const Array<int> &list)
 {
+   int num_rm = list.Size();
+   int old_np = GetNP();
+   int new_np = old_np - num_rm;
+
+   // Delete IDs
+   ids.DeleteAt(list);
+
+   // Delete data
+   for (int f = -1; f < GetNF(); f++)
+   {
+      MultiVector &pv = (f == -1 ? coords : *fields[f]);
+      pv.DeleteVectorsAt(list);
+   }
+
+   // Delete tags
+   for (int t = 0; t < GetNT(); t++)
+   {
+      tags[t]->DeleteAt(list);
+   }
+
 }
 
 Particle ParticleSet::GetParticle(int i) const
@@ -537,12 +546,12 @@ Particle ParticleSet::GetParticle(int i) const
 
    Coords().GetVectorValues(i, p.Coords());
    
-   for (int f = 0; f < active_state.GetNF(); f++)
+   for (int f = 0; f < GetNF(); f++)
    {
       Field(f).GetVectorValues(i, p.Field(f));  
    }
 
-   for (int t = 0; t < active_state.GetNT(); t++)
+   for (int t = 0; t < GetNT(); t++)
    {
       p.Tag(t) = Tag(t)[i];
    }
@@ -552,13 +561,13 @@ Particle ParticleSet::GetParticle(int i) const
 
 bool ParticleSet::ParticleRefValid() const
 {
-   if (active_state.coords.GetOrdering() == Ordering::byNODES)
+   if (coords.GetOrdering() == Ordering::byNODES)
    {
       return false;
    }
-   for (int f = 0; f < active_state.GetNF(); f++)
+   for (int f = 0; f < GetNF(); f++)
    {
-      if (active_state.fields[f]->GetOrdering() == Ordering::byNODES)
+      if (fields[f]->GetOrdering() == Ordering::byNODES)
       {
          return false;
       }
@@ -572,15 +581,15 @@ Particle ParticleSet::GetParticleRef(int i)
 
    Coords().GetVectorRef(i, p.Coords());
 
-   for (int f = 0; f < active_state.GetNF(); f++)
+   for (int f = 0; f < GetNF(); f++)
    {
       Field(f).GetVectorRef(i, p.Field(f));
    }
 
-   for (int t = 0; t < active_state.GetNT(); t++)
+   for (int t = 0; t < GetNT(); t++)
    {
       p.TagMemory(t).Delete();
-      p.TagMemory(t).MakeAlias((*active_state.tags[t]).GetMemory(), i, 1);
+      p.TagMemory(t).MakeAlias((*tags[t]).GetMemory(), i, 1);
    }
 
    return std::move(p);
@@ -590,12 +599,12 @@ void ParticleSet::SetParticle(int i, const Particle &p)
 {
    Coords().SetVectorValues(i, p.Coords());
 
-   for (int f = 0; f < active_state.GetNF(); f++)
+   for (int f = 0; f < GetNF(); f++)
    {
       Field(f).SetVectorValues(i, p.Field(f));
    }
 
-   for (int t = 0; t < active_state.GetNT(); t++)
+   for (int t = 0; t < GetNT(); t++)
    {
       Tag(t)[i] = p.Tag(t);
    }
@@ -614,9 +623,9 @@ void ParticleSet::PrintCSV(const char *fname, int precision)
    ss_header << "rank" << ",";
 #endif // MFEM_USE_MPI
 
-   for (int f = -1; f < active_state.GetNF(); f++)
+   for (int f = -1; f < GetNF(); f++)
    {
-      MultiVector &pv = (f == -1 ? active_state.coords : *active_state.fields[f]);
+      MultiVector &pv = (f == -1 ? coords : *fields[f]);
 
       for (int c = 0; c < pv.GetVDim(); c++)
       {
@@ -631,7 +640,7 @@ void ParticleSet::PrintCSV(const char *fname, int precision)
       }
    }
 
-   for (int t = 0; t < active_state.GetNT(); t++)
+   for (int t = 0; t < GetNT(); t++)
    {
       ss_header << "," << tag_names[t];
    }
@@ -647,24 +656,24 @@ void ParticleSet::PrintCSV(const char *fname, int precision)
 #endif // MFEM_USE_MPI
    for (int i = 0; i < GetNP(); i++)
    {
-      ss_data << active_state.ids[i];
+      ss_data << ids[i];
 
 #ifdef MFEM_USE_MPI
       ss_data << "," << rank;
 #endif // MFEM_USE_MPI
 
-      for (int f = -1; f < active_state.GetNF(); f++)
+      for (int f = -1; f < GetNF(); f++)
       {
-         MultiVector &pv = (f == -1 ? active_state.coords : *active_state.fields[f]);
+         MultiVector &pv = (f == -1 ? coords : *fields[f]);
 
          for (int c = 0; c < pv.GetVDim(); c++)
          {
             ss_data << "," << pv(i, c);
          }
       }
-      for (int t = 0; t < active_state.GetNT(); t++)
+      for (int t = 0; t < GetNT(); t++)
       {
-         ss_data << "," << (*active_state.tags[t])[i];
+         ss_data << "," << (*tags[t])[i];
       }
       ss_data << "\n";
 

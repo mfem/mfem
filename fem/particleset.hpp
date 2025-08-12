@@ -30,7 +30,6 @@ struct crystal;
 #endif
 
 #include <numeric>
-#include <variant>
 
 namespace mfem
 {
@@ -377,7 +376,8 @@ public:
    /// Add a particle using \ref Particle .
    void AddParticle(const Particle &p);
 
-   void AddParticles(int num_particles, )
+   /// Add \p num_particles particles, and optionally get the indices of new particles in \p new_indices .
+   void AddParticles(int num_particles, Array<int> *new_indices=nullptr);
 
    /// Remove particle data specified by \p list of particle indices.
    void RemoveParticles(const Array<int> &list);

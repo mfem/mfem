@@ -86,7 +86,7 @@ void TestAddRemove(Ordering::Type ordering)
    {
       ParticleSet pset(0, SpaceDim, FieldVDims, NumTags, ordering);
 
-      SECTION("Add")
+      SECTION("Add Particle object")
       {
          for (int i = 0; i < N; i++)
          {
@@ -104,11 +104,10 @@ void TestAddRemove(Ordering::Type ordering)
          }
          REQUIRE(add_err_count == 0);
 
-         SECTION("Remove")
+         SECTION("Remove particles")
          {
             pset.RemoveParticles(indices_rm);
             REQUIRE(particles_rm.size() == pset.GetNP());
-
 
             int rm_err_count = 0;
             for (int i = 0; i < particles_rm.size(); i++)
@@ -119,6 +118,28 @@ void TestAddRemove(Ordering::Type ordering)
             }
             REQUIRE(rm_err_count == 0);
          }
+      }
+
+      SECTION("Add particles and set")
+      {
+         Array<int> new_idxs;
+         pset.AddParticles(N, &new_idxs);
+
+         for (int i = 0; i < new_idxs.Size(); i++)
+         {
+            pset.SetParticle(new_idxs[i], particles[i]);
+         }
+         REQUIRE(particles.size() == pset.GetNP());
+
+
+         int add_err_count = 0;
+         for (int i = 0; i < N; i++)
+         {
+            Particle p = pset.GetParticle(i);
+            if (particles[i] != p)
+               add_err_count++;
+         }
+         REQUIRE(add_err_count == 0);
       }
    }
 }
