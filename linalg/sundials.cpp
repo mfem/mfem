@@ -2236,6 +2236,18 @@ void KINSolver::SetMaxSetupCalls(int max_calls)
    MFEM_ASSERT(flag == KIN_SUCCESS, "error in KINSetMaxSetupCalls()");
 }
 
+void KINSolver::SetMAA(int m_aa)
+{
+   // Store internally as maa must be set before calling KINInit() to
+   // set the maximum acceleration space size.
+   maa = m_aa;
+   if (sundials_mem)
+   {
+      flag = KINSetMAA(sundials_mem, maa);
+      MFEM_ASSERT(flag == KIN_SUCCESS, "error in KINSetMAA()");
+   }
+}
+
 void KINSolver::EnableAndersonAcc(int n, int orth, int delay, double damping)
 {
    if (sundials_mem != nullptr)
