@@ -151,12 +151,24 @@ if (MFEM_ENABLE_TESTING)
   endif()
 
   add_test(NAME nurbs_patch_ex1_o4_r4_iro8_patcha_pa_ser
-    COMMAND $<TARGET_FILE:nurbs_patch_ex1> -no-vis -incdeg 3 -ref 4 -iro 8
+    COMMAND $<TARGET_FILE:nurbs_patch_ex1> -no-vis -incdeg 3 -rf 4 -iro 8
     -patcha -pa)
 
   add_test(NAME nurbs_patch_ex1_o4_r4_iro8_patcha_fint_ser
     COMMAND $<TARGET_FILE:nurbs_patch_ex1> -no-vis -incdeg 3 -rf 4 -iro 8
     -patcha -fint)
+
+  add_test(NAME nurbs_patch_ex2_o3_r4_patcha_pa_ser
+    COMMAND $<TARGET_FILE:nurbs_patch_ex2> -no-vis -incdeg 2 -rf 4
+    -patcha -pa)
+
+  add_test(NAME nurbs_patch_ex2_o3_r4_patcha_pa_rint_ser
+    COMMAND $<TARGET_FILE:nurbs_patch_ex2> -no-vis -incdeg 2 -rf 4
+    -patcha -pa -int 1)
+
+  add_test(NAME nurbs_patch_ex2_o3_r4_patcha_pa_rint_jacobi_ser
+    COMMAND $<TARGET_FILE:nurbs_patch_ex2> -no-vis -incdeg 2 -rf 4
+    -patcha -pa -int 1 -pc 1)
 
   add_test(NAME nurbs_curveint_unit_weight_ser
     COMMAND $<TARGET_FILE:nurbs_curveint> -no-vis -no-visit

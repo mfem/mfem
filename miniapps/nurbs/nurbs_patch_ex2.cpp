@@ -2,9 +2,9 @@
 //
 // Compile with: make nurbs_patch_ex2
 //
-// Sample runs:  nurbs_patch_ex2 -incdeg 3 -ref 2 -patcha -pa
-//               nurbs_patch_ex2 -incdeg 3 -ref 2 -patcha -pa -int 1
-//               nurbs_patch_ex2 -incdeg 3 -ref 2 -patcha -pa -int 1 -pc 1
+// Sample runs:  nurbs_patch_ex2 -incdeg 2 -rf 4 -patcha -pa
+//               nurbs_patch_ex2 -incdeg 2 -rf 4 -patcha -pa -int 1
+//               nurbs_patch_ex2 -incdeg 2 -rf 4 -patcha -pa -int 1 -pc 1
 //
 // Description:  This example code solves a simple linear elasticity problem
 //               describing a multi-material cantilever beam.
