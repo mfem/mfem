@@ -542,7 +542,8 @@ public:
 */
 class ND_R1D_PointElement : public VectorFiniteElement
 {
-   static const real_t tk[9];
+   static const real_t tk[6];
+   Array<int> dof2tk;
 
 public:
    /** @brief Construct the ND_R1D_PointElement */
@@ -555,6 +556,10 @@ public:
 
    void CalcVShape(ElementTransformation &Trans,
                    DenseMatrix &shape) const override;
+
+   void Project(VectorCoefficient &vc,
+                ElementTransformation &Trans, Vector &dofs) const override;
+
 };
 
 /// Arbitrary order, three component, Nedelec elements in 1D on a segment
