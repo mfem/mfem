@@ -25,7 +25,7 @@ namespace navier
 
 /** @brief Transient Navier-Stokes fluid-particles solver
  * 
- *  @details 
+ *  @details TODO.
  * 
  * 
  * 
@@ -125,7 +125,7 @@ public:
 
    MultiVector& Kappa()     { return fluid_particles.Field(fp_idx.field.kappa); }
 
-   MultiVector& Zeta()     { return fluid_particles.Field(fp_idx.field.zeta); }
+   MultiVector& Zeta()      { return fluid_particles.Field(fp_idx.field.zeta); }
 
    MultiVector& Gamma()     { return fluid_particles.Field(fp_idx.field.gamma); }
 
@@ -137,8 +137,8 @@ public:
 
    MultiVector& X(int nm=0) { return nm == 0 ? fluid_particles.Coords() : fluid_particles.Field(fp_idx.field.x[nm-1]); }
 
-   Array<int>& Order()       { return fluid_particles.Tag(fp_idx.tag.order); }
-   
+   Array<int>& Order()      { return fluid_particles.Tag(fp_idx.tag.order); }
+
    void Add2DReflectionBC(const Vector &line_start, const Vector &line_end, real_t e, bool invert_normal)
    { bcs.push_back(ReflectionBC_2D{line_start, line_end, e, invert_normal}); }
 
