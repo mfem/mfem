@@ -46,44 +46,42 @@ public:
    /// Grid functions for the displacement, velocity, and traction
    mutable ParGridFunction x_gf; ///< displacement
    mutable ParGridFunction u_gf; ///< velocity (dx/dt)
-   mutable ParGridFunction sigma_gf; ///< traction
-
+   mutable ParGridFunction stress_gf; ///< traction
 
    /// Mass and Stiffness forms
-   mutable ParBilinearForm Mform, Mform_rho, Mform_dt, Kform, Kform_dt;
+   mutable ParBilinearForm Mform, Mrho_form, Kform, Kform_e;
 
    /// RHS form
    mutable ParLinearForm bform;
    mutable Vector b;
-   real_t b_norm = 0.0;
+   real_t b_norm = 1.0;
 
    /// Mass and Stiffness operators
-   OperatorHandle M, K;
-   mutable HypreParMatrix Mmat, Kmat, Mmat_dt, Kmat_dt, Mmat_rho, Mmat_e;
+//    mutable OperatorHandle Mmat, Kmat, Kmat_e, Mrhomat;
+   mutable HypreParMatrix Mmat, Kmat, Kmat_e, Mrhomat, Mmat_e;
+     
 
    /// Force 
    VectorGridFunctionCoefficient fcoeff;
+   ScalarVectorProductCoefficient scaled_fcoeff;
 
    /// Mass matrix and implicit solver
    BlockOperator *implicit_op   = nullptr; ///< Block linear operator for the Navier-Stokes system
-   FGMRESSolver implicit_solver;   
+   GMRESSolver implicit_solver;   
    CGSolver M_solver;
+   IdentityOperator IdentityOp;
 
-   /// Mass matrix preconditioner
+
+   /// Preconditioner
    HypreSmoother M_prec;
-   HypreBoomerAMG A_prec_amg;
    mutable BlockLowerTriangularPreconditioner *pc = nullptr;
    mutable Solver *K_pc = nullptr;
 
     /// Auxiliary vectors for the implicit solve
    mutable Vector z;
 
+   ConstantCoefficient zero, one, negative_one;
 
-   ConstantCoefficient zero, one, negative_one, dtc;
-   ProductCoefficient lambdadt, mudt, negative_dtc;
-
-   mutable HypreParMatrix Imat; ///< Identity matrix for implicit solve
-   ParBilinearForm IdentityForm;
    real_t current_dt = -1.0;
 
 public:
@@ -103,16 +101,16 @@ public:
               lambda(lambda_),
               x_gf(ParGridFunction(&fes)),
               u_gf(ParGridFunction(&fes)),
-              sigma_gf(ParGridFunction(&fes)),
-              Mform(&fes), Mform_rho(&fes), Mform_dt(&fes),
-              Kform(&fes), Kform_dt(&fes),
+              stress_gf(ParGridFunction(&fes)),
+              Mform(&fes), Mrho_form(&fes),
+              Kform(&fes), Kform_e(&fes),
               bform(&fes),
-              fcoeff(VectorGridFunctionCoefficient(&sigma_gf)),
+              fcoeff(VectorGridFunctionCoefficient(&stress_gf)),
+              scaled_fcoeff(-1.0, fcoeff),
               implicit_solver(MPI_COMM_WORLD),              
               M_solver(MPI_COMM_WORLD),
-              zero(0.0), one(1.0), negative_one(-1.0), dtc(1.0),
-              lambdadt(lambda,dtc), mudt(mu,dtc), negative_dtc(-1.0, dtc),
-              IdentityForm(&fes)
+              IdentityOp(fes.GetTrueVSize()),
+              zero(0.0), one(1.0), negative_one(-1.0)
    {
 
         fes.GetEssentialTrueDofs(ess_attr, ess_tdofs);
@@ -123,48 +121,44 @@ public:
         b.SetSize(fes.GetTrueVSize());
         z.SetSize(Height());
 
+     //    Mform.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+     //    Mrho_form.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+     //    Kform.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+     //    Kform_e.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+
         Mform.AddDomainIntegrator(new VectorMassIntegrator);
-        Mform_rho.AddDomainIntegrator(new VectorMassIntegrator(density));
-        Mform_dt.AddDomainIntegrator(new VectorMassIntegrator(negative_dtc));
+        Mrho_form.AddDomainIntegrator(new VectorMassIntegrator(density));
         Kform.AddDomainIntegrator(new ElasticityIntegrator(lambda, mu));
-        Kform_dt.AddDomainIntegrator(new ElasticityIntegrator(lambdadt, mudt));
+        Kform_e.AddDomainIntegrator(new ElasticityIntegrator(lambda, mu));
 
         Mform.Assemble();
-        Mform_rho.Assemble();
-        Mform_dt.Assemble();
+        Mrho_form.Assemble();
         Kform.Assemble();
-        Kform_dt.Assemble();
+        Kform_e.Assemble();
 
         Array<int> empty;
-        Mform.FormSystemMatrix(ess_tdofs, Mmat);
-        Mform_dt.FormSystemMatrix(ess_tdofs, Mmat_dt);
-        Mform_rho.FormSystemMatrix(empty, Mmat_rho);
-        Kform_dt.FormSystemMatrix(ess_tdofs, Kmat_dt);
-
+        Mform.FormSystemMatrix(empty, Mmat);
+        Mrho_form.FormSystemMatrix(empty, Mrhomat);
+        Kform_e.FormSystemMatrix(ess_tdofs, Kmat_e);
         Kform.FormSystemMatrix(empty, Kmat);
-        Mform.FormSystemMatrix(empty, Mmat_e);
-        // Kform.FormSystemMatrix(empty, K0mat);
-
-        // Create the identity matrix for implicit solve
-        Array<int> all_dofs(fes.GetTrueVSize());
-        std::iota(std::begin(all_dofs), std::end(all_dofs), 0);        
-        IdentityForm.AddDomainIntegrator(new VectorMassIntegrator(zero));
-        IdentityForm.Assemble();
-        IdentityForm.FormSystemMatrix(all_dofs, Imat);
+     //    Kform.FormSystemMatrix(ess_tdofs, Kmat_e);
 
 
         implicit_op = new BlockOperator(offsets);
-        implicit_op->SetBlock(0, 0, &Kmat_dt);
-        implicit_op->SetBlock(0, 1, &Mmat_rho);
-        implicit_op->SetBlock(1, 0, &Imat);
-        implicit_op->SetBlock(1, 1, &Imat);
-        
+        implicit_op->SetBlock(0, 0, &Kmat_e);
+        implicit_op->SetBlock(0, 1, &Mrhomat);
+        implicit_op->SetBlock(1, 0, &IdentityOp);
+        implicit_op->SetBlock(1, 1, &IdentityOp);
 
-        bform.AddBoundaryIntegrator(new VectorBoundaryLFIntegrator(fcoeff), nat_attr);
-        // bform.AddBoundaryIntegrator(new VectorBoundaryLFIntegrator(fcoeff));
+        if(nat_attr.Size() > 0)
+        {
+            bform.AddBoundaryIntegrator(new VectorBoundaryLFIntegrator(scaled_fcoeff), nat_attr);            
+          //   bform.AddBoundaryIntegrator(new BoundaryNormalLFIntegrator(fcoeff));
+        }
+
         bform.Assemble();
         bform.ParallelAssemble(b);
-        b_norm = b.Norml2();
+        if(nat_attr.Size() > 0) b_norm = b.Norml2();
         
 
         M_solver.iterative_mode = false;
@@ -172,30 +166,31 @@ public:
         M_solver.SetAbsTol(1e-8);
         M_solver.SetMaxIter(1000);
         M_solver.SetPrintLevel(0);
-        M_solver.SetOperator(Mmat_rho);
+        M_solver.SetOperator(Mrhomat);
         M_prec.SetType(HypreSmoother::Jacobi);
-        // M_solver.SetPreconditioner(M_prec);
-
+        M_prec.SetOperator(Mrhomat);
+        M_solver.SetPreconditioner(M_prec);
 
         
         if(K_pc) delete K_pc;
         auto amg = new HypreBoomerAMG;
         HYPRE_BoomerAMGSetSmoothType(*amg, 5);
-        amg->SetOperator(Kmat_dt);
+        amg->SetOperator(Kmat_e);
         amg->SetSystemsOptions(2, true);
         amg->SetElasticityOptions(&fes);
         amg->SetPrintLevel(0);
-        K_pc = amg;
+        K_pc = amg;     
 
         pc = new BlockLowerTriangularPreconditioner(offsets);
+     //    M_prec.SetOperator(Kmat_e);
+     //    pc->SetBlock(0, 0, &M_prec);
         pc->SetBlock(0, 0, K_pc);
-        pc->SetBlock(1, 0, &Imat);
-        // pc->SetBlock(1, 1, &Imat);
-
+        pc->SetBlock(1, 0, &IdentityOp);
+        pc->SetBlock(1, 1, &IdentityOp);
 
         implicit_solver.iterative_mode = false;
-        implicit_solver.SetRelTol(1e-5);
-        implicit_solver.SetAbsTol(1e-5);
+        implicit_solver.SetRelTol(1e-4);
+        implicit_solver.SetAbsTol(0.0);
         implicit_solver.SetMaxIter(100);
         implicit_solver.SetKDim(100);
         implicit_solver.SetPrintLevel(0);
@@ -255,10 +250,11 @@ public:
 
         if(current_dt != dt)
         {            
-            implicit_op->SetBlockCoef(1, 1, -dt);
-            dtc.constant = dt;
+            implicit_op->SetBlockCoef(0, 0, dt);
+            implicit_op->SetBlockCoef(1, 1, -dt);            
+            current_dt = dt;
+          //   dtc.constant = dt;
             Assemble();
-            current_dt = dt;            
         }
 
         zb /= (b_norm*density.constant); // Normalize zb
@@ -271,25 +267,38 @@ public:
 
    void Assemble() override
    {
-        Mform_dt.Assemble();
-        Kform_dt.Assemble();
-        Mform_dt.FormSystemMatrix(ess_tdofs, Mmat_dt);
-        Kform_dt.FormSystemMatrix(ess_tdofs, Kmat_dt);
+     //    Kform_e.Assemble();
+     //    Kform_e.FormSystemMatrix(ess_tdofs, Kmat_e);
    }
 
    void Update() override
    {
-        Mform_dt.Update();
-        Kform_dt.Update();
-
-        Mform_dt.Assemble();
-        Kform_dt.Assemble();
+        // Kform_e.Update(&fes);
+        // Kform_e.Assemble();
 
         bform.Update();
         bform.Assemble();
         bform.ParallelAssemble(b);
-        b_norm = b.Norml2();
+        if(nat_attr.Size() > 0) b_norm = b.Norml2();
    }
+
+    void PreProcess(Vector &x) override
+    {
+        Update();
+    }
+
+    void PostProcess(Vector &x) override
+    {
+        BlockVector xb(x.GetData(), offsets);
+        x_gf.SetFromTrueDofs(xb.GetBlock(0));
+        u_gf.SetFromTrueDofs(xb.GetBlock(1));
+    }
+
+
+   void Transfer(const Vector &x) override
+   {
+        Application::Transfer();
+   }   
 
    ~Elasticity() override
    {

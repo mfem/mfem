@@ -10,7 +10,7 @@
 
 using namespace mfem;
 
-
+// mpirun -np 6 ./elasticity -vs 5 -dt 1e-2 -tf 5 -o 2 -rs 2 -ode 21
 
 int main(int argc, char *argv[])
 {
@@ -46,8 +46,7 @@ int main(int argc, char *argv[])
                     "ODESolver id.");
     args.AddOption(&ser_ref, "-rs", "--serial-refine",
                     "Number of times to refine the mesh in serial.");                  
-    args.AddOption(&F0, "-F", "--force",
-                    "Applied force.");                  
+    args.AddOption(&F0, "-F", "--force", "Applied force.");
 
     args.ParseCheck();
 
@@ -96,11 +95,11 @@ int main(int argc, char *argv[])
     
     ParGridFunction &x_gf = elasticity.x_gf;   x_gf = 0.0;
     ParGridFunction &u_gf = elasticity.u_gf;   u_gf = 0.0;
-    ParGridFunction &sigma_gf = elasticity.sigma_gf;   sigma_gf = 0.0;
+    ParGridFunction &stress_gf = elasticity.stress_gf;   stress_gf = 0.0;
 
     x_gf.ProjectCoefficient(zerovec);
     u_gf.ProjectCoefficient(zerovec);
-    sigma_gf.ProjectCoefficient(zerovec);
+    stress_gf.ProjectCoefficient(zerovec);
 
 
     Vector vg(dim); vg = 0.0;
@@ -120,15 +119,15 @@ int main(int argc, char *argv[])
 
     VectorFunctionCoefficient f_coeff(dim, force_profile);
 
-    sigma_gf.ProjectBdrCoefficient(f_coeff, nat_attr);
+    stress_gf.ProjectBdrCoefficient(f_coeff, nat_attr);
     elasticity.Update();
 
     Array<int> offsets({0,x_fes.GetTrueVSize(), x_fes.GetTrueVSize()});
     offsets.PartialSum();   
-    BlockVector up(offsets);
+    BlockVector xu(offsets);
     
-    x_gf.GetTrueDofs(up.GetBlock(0));
-    u_gf.GetTrueDofs(up.GetBlock(1));    
+    x_gf.GetTrueDofs(xu.GetBlock(0));
+    u_gf.GetTrueDofs(xu.GetBlock(1));    
 
 
     std::unique_ptr<ODESolver> ode_solver = ODESolver::Select(ode_solver_type);   
@@ -142,7 +141,7 @@ int main(int argc, char *argv[])
     solid_pv.SetHighOrderOutput(true);
     solid_pv.RegisterField("displacement",&x_gf);
     solid_pv.RegisterField("velocity",&u_gf);
-    solid_pv.RegisterField("force",&sigma_gf);
+    solid_pv.RegisterField("force",&stress_gf);
     
 
     auto save_callback = [&](int cycle, double t)
@@ -157,15 +156,16 @@ int main(int argc, char *argv[])
 
     real_t t = 0.0;
     bool last_step = false;
+
     save_callback(0, t);
 
     for (int ti = 1; !last_step; ti++)
     {
         if (t + dt >= t_final - dt/2){ last_step = true; }
-        ode_solver->Step(up,t,dt);
+        ode_solver->Step(xu,t,dt);
 
-        x_gf.SetFromTrueDofs(up.GetBlock(0));
-        u_gf.SetFromTrueDofs(up.GetBlock(1));      
+        x_gf.SetFromTrueDofs(xu.GetBlock(0));
+        u_gf.SetFromTrueDofs(xu.GetBlock(1));      
 
         if (last_step || (ti % vis_steps) == 0){
             if (myid == 0) { out << "step " << ti << ", t = " << t << std::endl;}
