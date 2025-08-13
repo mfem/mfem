@@ -100,7 +100,7 @@ public:
    /// Get a copy of Vector \p i 's data.
    void GetVectorValues(int i, Vector &nvals) const;
 
-   /** @brief For `GetOrdering` == Ordering::byVDIM, set \p \nref to refer to Vector \p i 's data.
+   /** @brief For `GetOrdering` == Ordering::byVDIM, set \p nref to refer to Vector \p i 's data.
     *
     *  @warning This method only works when ordering is Ordering::byVDIM, where an individual Vector's data is stored contiguously in memory.
     */
