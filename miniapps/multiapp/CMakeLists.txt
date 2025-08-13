@@ -25,31 +25,49 @@ add_custom_command(OUTPUT data_is_copied
   COMMENT "Copying multiapp miniapps data files ...")
 add_custom_target(copy_miniapps_multiapp_data DEPENDS data_is_copied)
 
+
+list(APPEND MULTIAPP_COMMON_SOURCES
+	multiapp.cpp)
+
+list(APPEND MULTIAPP_COMMON_HEADERS
+	multiapp.hpp)
+
+set(MULTIAPP_COMMON_FILES
+	EXTRA_SOURCES ${MULTIAPP_COMMON_SOURCES}
+	EXTRA_HEADERS ${MULTIAPP_COMMON_HEADERS})
+
+
 # Parallel apps.
 if (MFEM_USE_MPI)
-  add_mfem_miniapp(cht
-    MAIN cht.cpp
-    ${MFEM_MINIAPPS_COMMON_HEADERS}
-    LIBRARIES mfem-common)
-  add_dependencies(cht copy_miniapps_multiapp_data)
+  # add_mfem_miniapp(cht
+  #   MAIN cht.cpp
+  #   ${MFEM_MINIAPPS_COMMON_HEADERS}
+  #   LIBRARIES mfem-common)
+  # add_dependencies(cht copy_miniapps_multiapp_data)
 
   add_mfem_miniapp(cht-partitioned
     MAIN cht-partitioned.cpp
-    ${MFEM_MINIAPPS_COMMON_HEADERS}
+    ${MFEM_MINIAPPS_COMMON_HEADERS} ${MULTIAPP_COMMON_FILES}
     LIBRARIES mfem-common)
   add_dependencies(cht-partitioned copy_miniapps_multiapp_data)
 
   add_mfem_miniapp(navier-stokes
     MAIN navier-stokes.cpp
-    ${MFEM_MINIAPPS_COMMON_HEADERS}
+    ${MFEM_MINIAPPS_COMMON_HEADERS} ${MULTIAPP_COMMON_FILES}
     LIBRARIES mfem-common)
   add_dependencies(navier-stokes copy_miniapps_multiapp_data)
 
   add_mfem_miniapp(elasticity
     MAIN elasticity.cpp
-    ${MFEM_MINIAPPS_COMMON_HEADERS}
+    ${MFEM_MINIAPPS_COMMON_HEADERS} ${MULTIAPP_COMMON_FILES}
     LIBRARIES mfem-common)
   add_dependencies(elasticity copy_miniapps_multiapp_data)
+
+  add_mfem_miniapp(fsi
+    MAIN fsi.cpp
+    ${MFEM_MINIAPPS_COMMON_HEADERS} ${MULTIAPP_COMMON_FILES}
+    LIBRARIES mfem-common)
+  add_dependencies(fsi copy_miniapps_multiapp_data)
 
 # Add parallel tests.
   # if (MFEM_ENABLE_TESTING)
