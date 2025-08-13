@@ -159,6 +159,73 @@ public:
                                DenseMatrix &elmat) override;
 };
 
+class VectorRotatedDivergenceIntegrator : public BilinearFormIntegrator
+{
+   const GridFunction &b_gf;
+
+   DenseMatrix tr_dshape, tr_dshapext, tr_curlshape;
+   Vector tr_shape, te_shape, tr_bgshape;
+
+public:
+   VectorRotatedDivergenceIntegrator(const GridFunction &b)
+      : b_gf(b) { }
+
+   const IntegrationRule* GetDefaultIntegrationRule(
+      const FiniteElement& trial_fe, const FiniteElement& test_fe,
+      const ElementTransformation& Trans) const override
+   {
+      const int order = Trans.OrderGrad(&trial_fe) + test_fe.GetOrder() +
+                        Trans.OrderJ();// + trial_fe.GetOrder() + 1;
+      return &IntRules.Get(trial_fe.GetGeomType(), order);
+   }
+
+   void AssembleElementMatrix2(const FiniteElement &trial_fe,
+                               const FiniteElement &test_fe,
+                               ElementTransformation &Trans,
+                               DenseMatrix &elmat) override;
+};
+
+class DGRotatedWeakNormalTraceIntegrator : public BilinearFormIntegrator
+{
+protected:
+   VectorCoefficient &b_vcoeff;
+   Coefficient *rho;
+   VectorCoefficient *u;
+   real_t alpha, beta;
+
+private:
+   Vector tr_shape1, te_shape1, tr_shape2, te_shape2;
+
+public:
+   /// Construct integrator with $\rho = 1$, $\beta = 0$.
+   DGRotatedWeakNormalTraceIntegrator(VectorCoefficient &bvc, real_t a = 1.)
+      : b_vcoeff(bvc) { rho = NULL; u = NULL; alpha = a; beta = 0.; }
+
+   /// Construct integrator with $\rho = 1$, $\beta = \alpha/2$.
+   DGRotatedWeakNormalTraceIntegrator(VectorCoefficient &bvc,
+                                      VectorCoefficient &u_,
+                                      real_t a = 1.)
+      : b_vcoeff(bvc) { rho = NULL; u = &u_; alpha = a; beta = 0.5*a; }
+
+   /// Construct integrator with $\rho = 1$.
+   DGRotatedWeakNormalTraceIntegrator(VectorCoefficient &bvc,
+                                      VectorCoefficient &u_,
+                                      real_t a, real_t b)
+      : b_vcoeff(bvc) { rho = NULL; u = &u_; alpha = a; beta = b; }
+
+   DGRotatedWeakNormalTraceIntegrator(VectorCoefficient &bvc, Coefficient &rho_,
+                                      VectorCoefficient &u_,
+                                      real_t a, real_t b)
+      : b_vcoeff(bvc) { rho = &rho_; u = &u_; alpha = a; beta = b; }
+
+   void AssembleFaceMatrix(const FiniteElement &trial_fe1,
+                           const FiniteElement &test_fe1,
+                           const FiniteElement &trial_fe2,
+                           const FiniteElement &test_fe2,
+                           FaceElementTransformations &Trans,
+                           DenseMatrix &elmat) override;
+};
+
 class DGRotatedNormalTraceIntegrator : public BilinearFormIntegrator
 {
 protected:
@@ -2221,7 +2288,65 @@ void VectorRotatedWeakDivergenceIntegrator::AssembleElementMatrix2(
    }
 }
 
-void DGRotatedNormalTraceIntegrator::AssembleFaceMatrix(
+void VectorRotatedDivergenceIntegrator::AssembleElementMatrix2(
+   const FiniteElement &trial_fe, const FiniteElement &test_fe,
+   ElementTransformation &Trans, DenseMatrix &elmat)
+{
+   const int tr_dof = trial_fe.GetDof();
+   const int te_dof = test_fe.GetDof();
+   const int dim = trial_fe.GetDim();
+   const int vdim = Trans.GetSpaceDim();
+   MFEM_ASSERT(vdim == 2, "Not implemented");
+
+   tr_shape.SetSize(tr_dof);
+   tr_dshape.SetSize(tr_dof, dim);
+   tr_dshapext.SetSize(tr_dof, vdim);
+   tr_bgshape.SetSize(tr_dof);
+   tr_curlshape.SetSize(tr_dof * vdim, 1);
+   te_shape.SetSize(te_dof);
+
+   Vector b_q(vdim);
+
+   elmat.SetSize(te_dof, tr_dof * vdim);
+   elmat = 0.;
+
+   const IntegrationRule &ir = *GetIntegrationRule(trial_fe, test_fe, Trans);
+   for (int q = 0; q < ir.GetNPoints(); q++)
+   {
+      const IntegrationPoint &ip = ir.IntPoint(q);
+      Trans.SetIntPoint(&ip);
+      trial_fe.CalcDShape(ip, tr_dshape);
+      trial_fe.CalcShape(ip, tr_shape);
+      test_fe.CalcShape(ip, te_shape);
+      mfem::Mult(tr_dshape, Trans.AdjugateJacobian(), tr_dshapext);
+
+      b_gf.GetVectorValue(Trans, ip, b_q);
+      const real_t divb = b_gf.GetDivergence(Trans);
+      Vector curlb(1);
+      b_gf.GetCurl(Trans, curlb);
+
+      const real_t w = ip.weight;
+
+      //b-grad + div b
+      tr_dshapext.Mult(b_q, tr_bgshape);
+
+      for (int j = 0; j < tr_dof; j++)
+         for (int i = 0; i < te_dof; i++)
+         {
+            elmat(i,j) += w * te_shape(i) * (tr_bgshape(j) + divb * tr_shape(j));
+         }
+
+      //b-curl + curl b
+      for (int j = 0; j < tr_dof; j++)
+         for (int i = 0; i < te_dof; i++)
+         {
+            const real_t curl = -tr_dshapext(j, 0) * b_q(1) + tr_dshapext(j, 1) * b_q(0);
+            elmat(i,j + tr_dof) += w * te_shape(i) * (curl - curlb(0) * tr_shape(j));
+         }
+   }
+}
+
+void DGRotatedWeakNormalTraceIntegrator::AssembleFaceMatrix(
    const FiniteElement &trial_fe1, const FiniteElement &test_fe1,
    const FiniteElement &trial_fe2, const FiniteElement &test_fe2,
    FaceElementTransformations &Trans, DenseMatrix &elmat)
@@ -2387,6 +2512,178 @@ void DGRotatedNormalTraceIntegrator::AssembleFaceMatrix(
                   {
                      elmat(i, tr_ndof1*dim + j + d*tr_ndof2) -=
                         w * te_shape1(i) * tr_shape2(j) * bnor2(d);
+                  }
+         }
+      }
+   }
+}
+
+void DGRotatedNormalTraceIntegrator::AssembleFaceMatrix(
+   const FiniteElement &trial_fe1, const FiniteElement &test_fe1,
+   const FiniteElement &trial_fe2, const FiniteElement &test_fe2,
+   FaceElementTransformations &Trans, DenseMatrix &elmat)
+{
+   int tr_ndof1, te_ndof1, tr_ndof2, te_ndof2;
+
+   double un, a, b, w;
+
+   const int dim = test_fe1.GetDim();
+   tr_ndof1 = trial_fe1.GetDof();
+   te_ndof1 = test_fe1.GetDof();
+   Vector vu(dim), nor(dim), bvec(dim), bnor1(dim), bnor2(dim);
+
+   if (Trans.Elem2No >= 0)
+   {
+      tr_ndof2 = trial_fe2.GetDof();
+      te_ndof2 = test_fe2.GetDof();
+   }
+   else
+   {
+      tr_ndof2 = 0;
+      te_ndof2 = 0;
+   }
+
+   tr_shape1.SetSize(tr_ndof1);
+   te_shape1.SetSize(te_ndof1);
+   tr_shape2.SetSize(tr_ndof2);
+   te_shape2.SetSize(te_ndof2);
+   elmat.SetSize((te_ndof1 + te_ndof2)*dim, tr_ndof1 + tr_ndof2);
+   elmat = 0.0;
+
+   const IntegrationRule *ir = IntRule;
+   if (ir == NULL)
+   {
+      int order;
+      // Assuming order(u)==order(mesh)
+      if (Trans.Elem2No >= 0)
+         order = (min(Trans.Elem1->OrderW(), Trans.Elem2->OrderW()) +
+                  max(trial_fe1.GetOrder(), trial_fe2.GetOrder()) +
+                  max(test_fe1.GetOrder(), test_fe2.GetOrder()));
+      else
+      {
+         order = Trans.Elem1->OrderW() + trial_fe1.GetOrder() + test_fe1.GetOrder();
+      }
+      if (trial_fe1.Space() == FunctionSpace::Pk)
+      {
+         order++;
+      }
+      ir = &IntRules.Get(Trans.FaceGeom, order);
+   }
+
+   for (int p = 0; p < ir->GetNPoints(); p++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(p);
+      IntegrationPoint eip1, eip2;
+      Trans.Loc1.Transform(ip, eip1);
+      Trans.Elem1->SetIntPoint(&eip1);
+      if (tr_ndof2 && te_ndof2)
+      {
+         Trans.Loc2.Transform(ip, eip2);
+         Trans.Elem2->SetIntPoint(&eip2);
+      }
+      trial_fe1.CalcPhysShape(*Trans.Elem1, tr_shape1);
+
+      Trans.Face->SetIntPoint(&ip);
+
+      if (dim == 1)
+      {
+         nor(0) = 2*eip1.x - 1.0;
+      }
+      else
+      {
+         CalcOrtho(Trans.Face->Jacobian(), nor);
+      }
+
+      b_vcoeff.Eval(bvec, *Trans.Elem1, eip1);
+      bnor1(0) = nor * bvec;
+      bnor1(1) = -bvec(1) * nor(0) + bvec(0) * nor(1);
+
+      if (tr_ndof2)
+      {
+         Trans.Elem2->SetIntPoint(&eip2);
+         b_vcoeff.Eval(bvec, *Trans.Elem2, eip2);
+         bnor2(0) = nor * bvec;
+         bnor2(1) = -bvec(1) * nor(0) + bvec(0) * nor(1);
+      }
+
+      test_fe1.CalcPhysShape(*Trans.Elem1, te_shape1);
+
+      a = 0.5 * alpha;
+      if (beta != 0.)
+      {
+         u->Eval(vu, *Trans.Elem1, eip1);
+         un = vu * nor;
+         b = (un != 0.)?(beta * un / fabs(un)):(0.);
+      }
+      else
+      {
+         b = 0.;
+      }
+
+      // note: if |alpha/2|==|beta| then |a|==|b|, i.e. (a==b) or (a==-b)
+      //       and therefore two blocks in the element matrix contribution
+      //       (from the current quadrature point) are 0
+
+      if (rho)
+      {
+         double rho_p;
+         if (un >= 0.0 && tr_ndof2 && te_ndof2)
+         {
+            Trans.Elem2->SetIntPoint(&eip2);
+            rho_p = rho->Eval(*Trans.Elem2, eip2);
+         }
+         else
+         {
+            rho_p = rho->Eval(*Trans.Elem1, eip1);
+         }
+         a *= rho_p;
+         b *= rho_p;
+      }
+
+      w = ip.weight * (a+b);
+      if (w != 0.0)
+      {
+         for (int d = 0; d < dim; d++)
+            for (int i = 0; i < te_ndof1; i++)
+               for (int j = 0; j < tr_ndof1; j++)
+               {
+                  elmat(i + d*te_ndof1, j) += w * te_shape1(i) * tr_shape1(j) * bnor1(d);
+               }
+      }
+
+      if (tr_ndof2 && te_ndof2)
+      {
+         trial_fe2.CalcPhysShape(*Trans.Elem2, tr_shape2);
+         test_fe2.CalcPhysShape(*Trans.Elem2, te_shape2);
+
+         if (w != 0.0)
+         {
+            for (int d = 0; d < dim; d++)
+               for (int i = 0; i < te_ndof2; i++)
+                  for (int j = 0; j < tr_ndof1; j++)
+                  {
+                     elmat(te_ndof1*dim + i + d*te_ndof2, j) -=
+                        w * te_shape2(i) * tr_shape1(j) * bnor2(d);
+                  }
+         }
+
+         w = ip.weight * (b-a);
+         if (w != 0.0)
+         {
+            for (int d = 0; d < dim; d++)
+               for (int i = 0; i < te_ndof2; i++)
+                  for (int j = 0; j < tr_ndof2; j++)
+                  {
+                     elmat(te_ndof1*dim + i + d*te_ndof2, tr_ndof1 + j) +=
+                        w * te_shape2(i) * tr_shape2(j) * bnor2(d);
+                  }
+
+            for (int d = 0; d < dim; d++)
+               for (int i = 0; i < te_ndof1; i++)
+                  for (int j = 0; j < tr_ndof2; j++)
+                  {
+                     elmat(i + d*te_ndof1, tr_ndof1 + j) -=
+                        w * te_shape1(i) * tr_shape2(j) * bnor1(d);
                   }
          }
       }
