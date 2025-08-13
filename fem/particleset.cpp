@@ -160,7 +160,7 @@ void ParticleSet::Reserve(int res)
       // ------------------------------------------------------------
       // Increase Vector capacity implicitly by resizing
       // TODO: should we just create a Vector::Reserve?
-      //       Array::SetSize doesn't delete... Maybe a "GrowSize?"
+      //       Array::SetSize doesn't delete..
       int pv_res = res*pv.GetVDim();
       if (pv_res > pv.Capacity())
       {
@@ -650,6 +650,23 @@ void ParticleSet::SetParticle(int i, const Particle &p)
 
 void ParticleSet::PrintCSV(const char *fname, int precision)
 {
+   Array<int> all_field_idxs, all_tag_idxs;
+
+   for (int f = 0; f < GetNF(); f++)
+   {
+      all_field_idxs.Append(f);
+   }
+
+   for (int t = 0; t < GetNT(); t++)
+   {
+      all_tag_idxs.Append(t);
+   }
+
+   PrintCSV(fname, all_field_idxs, all_tag_idxs, precision);
+}
+
+void ParticleSet::PrintCSV(const char *fname, const Array<int> &field_idxs, const Array<int> &tag_idxs, int precision)
+{
    std::stringstream ss_header;
 
    // Configure header:
@@ -661,9 +678,9 @@ void ParticleSet::PrintCSV(const char *fname, int precision)
    ss_header << "rank" << ",";
 #endif // MFEM_USE_MPI
 
-   for (int f = -1; f < GetNF(); f++)
+   for (int f = -1; f < field_idxs.Size(); f++)
    {
-      MultiVector &pv = (f == -1 ? coords : *fields[f]);
+      MultiVector &pv = (f == -1 ? coords : *fields[field_idxs[f]]);
 
       for (int c = 0; c < pv.GetVDim(); c++)
       {
@@ -673,14 +690,14 @@ void ParticleSet::PrintCSV(const char *fname, int precision)
          }
          else
          {
-            ss_header << "," << field_names[f] << (pv.GetVDim() > 1 ? "_" + std::to_string(c) : "");
+            ss_header << "," << field_names[field_idxs[f]] << (pv.GetVDim() > 1 ? "_" + std::to_string(c) : "");
          }
       }
    }
 
-   for (int t = 0; t < GetNT(); t++)
+   for (int t = 0; t < tag_idxs.Size(); t++)
    {
-      ss_header << "," << tag_names[t];
+      ss_header << "," << tag_names[tag_idxs[t]];
    }
 
    ss_header << "\n";
@@ -700,18 +717,18 @@ void ParticleSet::PrintCSV(const char *fname, int precision)
       ss_data << "," << rank;
 #endif // MFEM_USE_MPI
 
-      for (int f = -1; f < GetNF(); f++)
+      for (int f = -1; f < field_idxs.Size(); f++)
       {
-         MultiVector &pv = (f == -1 ? coords : *fields[f]);
+         MultiVector &pv = (f == -1 ? coords : *fields[field_idxs[f]]);
 
          for (int c = 0; c < pv.GetVDim(); c++)
          {
             ss_data << "," << pv(i, c);
          }
       }
-      for (int t = 0; t < GetNT(); t++)
+      for (int t = 0; t < tag_idxs.Size(); t++)
       {
-         ss_data << "," << (*tags[t])[i];
+         ss_data << "," << (*tags[tag_idxs[t]])[i];
       }
       ss_data << "\n";
 

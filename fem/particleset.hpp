@@ -430,6 +430,9 @@ public:
    /// Print all particle data to a CSV file.
    void PrintCSV(const char *fname, int precision=16);
 
+   /// Print only particle field and tags given by \p field_idxs and \p tag_idxs respectively to a CSV file.
+   void PrintCSV(const char *fname, const Array<int> &field_idxs, const Array<int> &tag_idxs, int precision=16);
+
 #if defined(MFEM_USE_MPI) && defined(MFEM_USE_GSLIB)
 
    /** @brief Redistribute particle data to \p rank_list
