@@ -29,3 +29,24 @@ using namespace mfem;
 #include "unit_tests.hpp"
 
 using namespace mfem;
+
+TEST_CASE("Reordering Vector (byVDIM/byNODES)",
+          "[Ordering]")
+{
+   const Vector x_byNODES({1.0, 2.0, 3.0, 4.0, 5.0, 6.0});
+   const Vector x_byVDIM ({1.0, 3.0, 5.0, 2.0, 4.0, 6.0});
+   SECTION("byNODES -> byVDIM")
+   {
+      Vector x_test = x_byNODES;
+
+      Ordering::Reorder(x_test, 3, Ordering::byNODES, Ordering::byVDIM);
+      REQUIRE(x_test.DistanceTo(x_byVDIM) == MFEM_Approx(0));
+   }
+
+   SECTION("byVDIM -> byNODES")
+   {
+      Vector x_test = x_byVDIM;
+      Ordering::Reorder(x_test, 3, Ordering::byVDIM, Ordering::byNODES);
+      REQUIRE(x_test.DistanceTo(x_byNODES) == MFEM_Approx(0));
+   }
+}
