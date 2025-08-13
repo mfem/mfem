@@ -241,6 +241,7 @@ public:
    {
       MFEM_ASSERT(!action_callbacks.empty(), "no integrators have been set");
       prolongation(solutions, solutions_t, solutions_l);
+      residual_l = 0.0;
       for (auto &action : action_callbacks)
       {
          action(solutions_l, parameters_l, residual_l);
