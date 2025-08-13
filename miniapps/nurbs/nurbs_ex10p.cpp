@@ -46,8 +46,7 @@ using namespace mfem;
 
 class ReducedSystemOperator;
 
-template <typename CoefficientType>
-void Project(ParGridFunction &gf, CoefficientType &coef, int proj_type);
+typedef GridFunction::ProjType ProjType;
 
 /** After spatial discretization, the hyperelastic model can be written as a
  *  system of ODEs:
@@ -102,7 +101,7 @@ public:
    real_t KineticEnergy(const ParGridFunction &v) const;
    void GetElasticEnergyDensity(const ParGridFunction &x,
                                 ParGridFunction &w,
-                                int proj_type) const;
+                                ProjType proj_type) const;
 
    ~HyperelasticOperator() override;
 };
@@ -183,7 +182,7 @@ int main(int argc, char *argv[])
    real_t visc = 1e-2;
    real_t mu = 0.25;
    real_t K = 5.0;
-   int proj_type = 2;
+   int proj_type_int = 0;
    bool adaptive_lin_rtol = true;
    bool visualization = true;
    int vis_steps = 1;
@@ -209,11 +208,12 @@ int main(int argc, char *argv[])
                   "Shear modulus in the Neo-Hookean hyperelastic model.");
    args.AddOption(&K, "-K", "--bulk-modulus",
                   "Bulk modulus in the Neo-Hookean hyperelastic model.");
-   args.AddOption(&proj_type, "-proj", "--projection",
+   args.AddOption(&proj_type_int, "-proj", "--projection",
                   "Projection type:\n."
-                  " 0 = Nodal injection at the Botella points.\n"
-                  " 1 = Local L2 projection(DC Thomas etal).\n"
-                  " 2 = Global L2 projection.\n");
+                  " 0 = DEFAULT: ELEMENTL2 for NURBS elements, ELEMENT else.\n"
+                  " 1 = ELEMENT: As defined in the respective element.\n"
+                  " 2 = GLOBALL2: Global L2 projection.\n"
+                  " 3 = ELEMENTL2: Element L2 projection.");
    args.AddOption(&adaptive_lin_rtol, "-alrtol", "--adaptive-lin-rtol",
                   "-no-alrtol", "--no-adaptive-lin-rtol",
                   "Enable or disable adaptive linear solver rtol.");
@@ -235,6 +235,7 @@ int main(int argc, char *argv[])
    {
       args.PrintOptions(cout);
    }
+   ProjType proj_type = static_cast<ProjType>(proj_type_int);
 
    // 3. Read the serial mesh from the given mesh file on all processors. We can
    //    handle triangular, quadrilateral, tetrahedral and hexahedral meshes
@@ -312,10 +313,10 @@ int main(int argc, char *argv[])
    // 8. Set the initial conditions for v_gf, x_gf and vx, and define the
    //    boundary conditions on a beam-like mesh (see description above).
    VectorFunctionCoefficient velo(dim, InitialVelocity);
-   Project(v_gf, velo, proj_type);
+   v_gf.ProjectCoefficient(velo, proj_type);
    v_gf.SetTrueVector();
    VectorFunctionCoefficient deform(dim, InitialDeformation);
-   Project(x_gf, deform, proj_type);
+   x_gf.ProjectCoefficient(deform, proj_type);
    x_gf.SetTrueVector();
 
    v_gf.SetFromTrueVector(); x_gf.SetFromTrueVector();
@@ -646,10 +647,10 @@ real_t HyperelasticOperator::KineticEnergy(const ParGridFunction &v) const
 }
 
 void HyperelasticOperator::GetElasticEnergyDensity(
-   const ParGridFunction &x, ParGridFunction &w, int proj_type) const
+   const ParGridFunction &x, ParGridFunction &w, ProjType  proj_type) const
 {
    ElasticEnergyCoefficient w_coeff(*model, x);
-   Project(w, w_coeff, proj_type);
+   w.ProjectCoefficient(w_coeff, proj_type);
 }
 
 HyperelasticOperator::~HyperelasticOperator()
@@ -689,26 +690,3 @@ void InitialVelocity(const Vector &x, Vector &v)
    v(0) = -s*x(0)*x(0);
 }
 
-template <typename CoefficientType>
-void Project(ParGridFunction &gf, CoefficientType &coef, int proj_type)
-{
-   if (proj_type == 0)
-   {
-      gf.ProjectCoefficient(coef);
-   }
-   else if (proj_type == 1)
-   {
-      gf.ProjectCoefficientLocalL2(coef);
-   }
-   else if (proj_type == 2)
-   {
-      gf.ProjectCoefficientGlobalL2(coef);
-   }
-   else
-   {
-      mfem_error("Incorrect Project Type. Should be 0, 1 or 2");
-   }
-
-   gf.SetTrueVector();
-   gf.SetFromTrueVector();
-}

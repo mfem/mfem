@@ -44,8 +44,7 @@
 using namespace std;
 using namespace mfem;
 
-template <typename CoefficientType>
-void Project(GridFunction &gf, CoefficientType &coef, int proj_type);
+typedef GridFunction::ProjType ProjType;
 
 class ReducedSystemOperator;
 
@@ -100,7 +99,7 @@ public:
    real_t KineticEnergy(const Vector &v) const;
    void GetElasticEnergyDensity(const GridFunction &x,
                                 GridFunction &w,
-                                int proj_type) const;
+                                ProjType proj_type) const;
 
    ~HyperelasticOperator() override;
 };
@@ -172,7 +171,7 @@ int main(int argc, char *argv[])
    real_t visc = 1e-2;
    real_t mu = 0.25;
    real_t K = 5.0;
-   int proj_type = 2;
+   int proj_type_int = 0;
    bool visualization = true;
    int vis_steps = 1;
 
@@ -195,11 +194,12 @@ int main(int argc, char *argv[])
                   "Shear modulus in the Neo-Hookean hyperelastic model.");
    args.AddOption(&K, "-K", "--bulk-modulus",
                   "Bulk modulus in the Neo-Hookean hyperelastic model.");
-   args.AddOption(&proj_type, "-proj", "--projection",
+   args.AddOption(&proj_type_int, "-proj", "--projection",
                   "Projection type:\n."
-                  " 0 = Nodal injection at the Botella points.\n"
-                  " 1 = Local L2 projection(DC Thomas etal).\n"
-                  " 2 = Global L2 projection.\n");
+                  " 0 = DEFAULT: ELEMENTL2 for NURBS elements, ELEMENT else.\n"
+                  " 1 = ELEMENT: As defined in the respective element.\n"
+                  " 2 = GLOBALL2: Global L2 projection.\n"
+                  " 3 = ELEMENTL2: Element L2 projection.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -212,6 +212,8 @@ int main(int argc, char *argv[])
       return 1;
    }
    args.PrintOptions(cout);
+
+   ProjType proj_type = static_cast<ProjType>(proj_type_int);
 
    // 2. Read the mesh from the given mesh file. We can handle triangular,
    //    quadrilateral, tetrahedral and hexahedral meshes with the same code.
@@ -275,11 +277,11 @@ int main(int argc, char *argv[])
    // 6. Set the initial conditions for v and x, and the boundary conditions on
    //    a beam-like mesh (see description above).
    VectorFunctionCoefficient velo(dim, InitialVelocity);
-   Project(v, velo, proj_type);
+   v.ProjectCoefficient(velo, proj_type);
 
    v.SetTrueVector();
    VectorFunctionCoefficient deform(dim, InitialDeformation);
-   Project(x, deform, proj_type);
+   x.ProjectCoefficient(deform, proj_type);
 
    x.SetTrueVector();
 
@@ -578,10 +580,10 @@ real_t HyperelasticOperator::KineticEnergy(const Vector &v) const
 }
 
 void HyperelasticOperator::GetElasticEnergyDensity(
-   const GridFunction &x, GridFunction &w, int proj_type) const
+   const GridFunction &x, GridFunction &w, ProjType proj_type) const
 {
    ElasticEnergyCoefficient w_coeff(*model, x);
-   Project(w, w_coeff, proj_type);
+   w.ProjectCoefficient(w_coeff, proj_type);
 }
 
 HyperelasticOperator::~HyperelasticOperator()
@@ -618,28 +620,4 @@ void InitialVelocity(const Vector &x, Vector &v)
    v = 0.0;
    v(dim-1) = s*x(0)*x(0)*(8.0-x(0));
    v(0) = -s*x(0)*x(0);
-}
-
-template <typename CoefficientType>
-void Project(GridFunction &gf, CoefficientType &coef, int proj_type)
-{
-   if (proj_type == 0)
-   {
-      gf.ProjectCoefficient(coef);
-   }
-   else if (proj_type == 1)
-   {
-      gf.ProjectCoefficientLocalL2(coef);
-   }
-   else if (proj_type == 2)
-   {
-      gf.ProjectCoefficientGlobalL2(coef);
-   }
-   else
-   {
-      mfem_error("Incorrect Project Type. Should be 0, 1 or 2");
-   }
-
-   gf.SetTrueVector();
-   gf.SetFromTrueVector();
 }
