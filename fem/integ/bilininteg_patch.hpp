@@ -193,3 +193,5 @@ void PatchGT3D(const PatchBasisInfo &pb,
 }
 
 } // namespace mfem
+
+#endif
