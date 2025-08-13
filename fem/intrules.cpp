@@ -245,7 +245,15 @@ SplineIntegrationRule::GetReducedOrderGaussLegendre(const KnotVector &kv)
    // This shouldn't really matter?
    kvir->SetOrder(kv.GetOrder());
 
-   // Loop through knot spans (see equation 14 from Zou 2022)
+   // Loop through elements/knot spans and compute the number of points
+   // needed, np=max(np1,np2).
+   //    - np2 is half the "typical" number of Gauss Legendre points required
+   //    - np1 is the ceiling of the mean multiplicity of the surrounding knots
+   // For more details, see Zou 2022, equation 14.
+   //
+   // Asymptotically as patch size increases, this should result in (1/2)^dim
+   // number of quadrature points, given that the interior knots have a
+   // a multiplicity of 1.
    for (int e = 0; e < ne; ++e)
    {
       const int np1 = ceil((m[e] + m[e+1])/2);

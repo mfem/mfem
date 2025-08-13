@@ -114,8 +114,8 @@ protected:
    { return NULL; }
 };
 
-/** @brief This struct contains information about basis functions
-    used in patchwise integration. */
+/** @brief This struct contains information used in patch-wise integration
+    on NURBS meshes. */
 struct PatchBasisInfo
 {
    // Patch index

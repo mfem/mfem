@@ -2,8 +2,7 @@
 //
 // Compile with: make nurbs_patch_ex2
 //
-// Sample runs:  nurbs_patch_ex2 -incdeg 2 -rf 4 -patcha -pa
-//               nurbs_patch_ex2 -incdeg 2 -rf 4 -patcha -pa -int 1
+// Sample runs:  nurbs_patch_ex2 -incdeg 2 -rf 4 -patcha -pa -int 0 -pc 1
 //               nurbs_patch_ex2 -incdeg 2 -rf 4 -patcha -pa -int 1 -pc 1
 //
 // Description:  This example code solves a simple linear elasticity problem
@@ -210,7 +209,7 @@ int main(int argc, char *argv[])
    }
    else
    {
-      MFEM_ABORT("Invalid preconditioner setting.")
+      MFEM_ABORT("Invalid preconditioner setting.");
    }
    if (P) { solver.SetPreconditioner(*P); }
 

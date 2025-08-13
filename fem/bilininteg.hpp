@@ -64,6 +64,7 @@ public:
 
    virtual void AssemblePABoundaryFaces(const FiniteElementSpace &fes);
 
+   /// Assemble diagonal and add it to Vector @a diag.
    virtual void AssembleDiagonalNURBSPA(Vector &diag);
 
    /// Assemble diagonal and add it to Vector @a diag.

@@ -1,8 +1,20 @@
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
+//
+// This file is part of the MFEM library. For more information and source code
+// availability visit https://mfem.org.
+//
+// MFEM is free software; you can redistribute it and/or modify it under the
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
+
+#ifndef MFEM_BILININTEG_PATCH
+#define MFEM_BILININTEG_PATCH
+
 #include "../integrator.hpp"
 #include "../../linalg/dtensor.hpp"
 #include "../../linalg/tensor.hpp"
-using mfem::future::tensor;
-using mfem::future::make_tensor;
 
 namespace mfem
 {
@@ -130,7 +142,7 @@ void PatchGT3D(const PatchBasisInfo &pb,
          sumXv = 0.0;
          for (int qx = 0; qx < Q1D[0]; ++qx)
          {
-            const auto s = make_tensor<vdim, dim>(
+            const auto s = mfem::future::make_tensor<vdim, dim>(
             [&](int i, int j) { return S(i,j,qx,qy,qz); });
             for (int dx = minQ[0][qx]; dx <= maxQ[0][qx]; ++dx)
             {
