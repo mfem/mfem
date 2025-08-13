@@ -743,8 +743,15 @@ int main(int argc, char *argv[])
          if (Mt)
          {
             Mt->AddInteriorFaceIntegrator(new HDGDiffusionIntegrator(kcoeff, td));
-            Mt->AddBdrFaceIntegrator(new HDGDiffusionIntegrator(kcoeff, td),
-                                     bdr_is_neumann);
+            if (rotated)
+            {
+               Mt->AddBdrFaceIntegrator(new HDGDiffusionIntegrator(kcoeff, td));
+            }
+            else
+            {
+               Mt->AddBdrFaceIntegrator(new HDGDiffusionIntegrator(kcoeff, td),
+                                        bdr_is_neumann);
+            }
          }
          if (Mtnl)
          {
@@ -762,6 +769,7 @@ int main(int argc, char *argv[])
       if (rotated)
       {
          B->AddDomainIntegrator(new VectorRotatedWeakDivergenceIntegrator(bhcoeff));
+         //B->AddDomainIntegrator(new VectorRotatedDivergenceIntegrator(b_gf));
       }
       else
       {
@@ -786,8 +794,12 @@ int main(int argc, char *argv[])
       {
          if (rotated)
          {
-            B->AddInteriorFaceIntegrator(new DGRotatedNormalTraceIntegrator(bhcoeff));
-            B->AddBdrFaceIntegrator(new DGRotatedNormalTraceIntegrator(bhcoeff));
+            B->AddInteriorFaceIntegrator(new DGRotatedWeakNormalTraceIntegrator(bhcoeff));
+            B->AddBdrFaceIntegrator(new DGRotatedWeakNormalTraceIntegrator(bhcoeff));
+            /*B->AddInteriorFaceIntegrator(new TransposeIntegrator(
+                                            new DGRotatedNormalTraceIntegrator(bhcoeff, -1.)));
+            B->AddBdrFaceIntegrator(new TransposeIntegrator(
+                                       new DGRotatedNormalTraceIntegrator(bhcoeff, -1.)), bdr_is_neumann);*/
          }
          else
          {
@@ -2436,7 +2448,7 @@ void DGRotatedWeakNormalTraceIntegrator::AssembleFaceMatrix(
 
       test_fe1.CalcPhysShape(*Trans.Elem1, te_shape1);
 
-      a = 0.5 * alpha;
+      a = ((tr_ndof2)?(0.5):(1.)) * alpha;
       if (beta != 0.)
       {
          u->Eval(vu, *Trans.Elem1, eip1);
