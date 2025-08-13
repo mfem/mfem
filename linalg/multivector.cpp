@@ -86,21 +86,22 @@ void MultiVector::GrowSize(int min_num_vectors)
 }
 
 MultiVector::MultiVector(int vdim_, Ordering::Type ordering_)
-: MultiVector(vdim_, ordering_, 0)
+   : MultiVector(vdim_, ordering_, 0)
 {
 
 }
 
 MultiVector::MultiVector(int vdim_, Ordering::Type ordering_, int num_nodes)
-: Vector(num_nodes*vdim_), vdim(vdim_), ordering(ordering_)
-{ 
+   : Vector(num_nodes*vdim_), vdim(vdim_), ordering(ordering_)
+{
    Vector::operator=(0.0);
 }
 
 MultiVector::MultiVector(int vdim_, Ordering::Type ordering_, const Vector &vec)
-: Vector(vec), vdim(vdim_), ordering(ordering_)
-{ 
-   MFEM_ASSERT(vec.Size() % vdim == 0, "Incompatible Vector size of " << vec.Size() << " given vdim " << vdim);
+   : Vector(vec), vdim(vdim_), ordering(ordering_)
+{
+   MFEM_ASSERT(vec.Size() % vdim == 0,
+               "Incompatible Vector size of " << vec.Size() << " given vdim " << vdim);
 }
 
 void MultiVector::GetVectorValues(int i, Vector &nvals) const
@@ -126,7 +127,8 @@ void MultiVector::GetVectorValues(int i, Vector &nvals) const
 
 void MultiVector::GetVectorRef(int i, Vector &nref)
 {
-   MFEM_ASSERT(ordering == Ordering::byVDIM, "GetRefVector only valid when ordering byVDIM.");
+   MFEM_ASSERT(ordering == Ordering::byVDIM,
+               "GetRefVector only valid when ordering byVDIM.");
 
    nref.MakeRef(*this, i*vdim, vdim);
 }
@@ -152,7 +154,9 @@ void MultiVector::SetVectorValues(int i, const Vector &nvals)
 
 real_t& MultiVector::operator()(int i, int comp)
 {
-   MFEM_ASSERT(i < GetNumVectors(), "Vector index " << i << " is out-of-range for number of vectors " << GetNumVectors());
+   MFEM_ASSERT(i < GetNumVectors(),
+               "Vector index " << i << " is out-of-range for number of vectors " <<
+               GetNumVectors());
 
    if (ordering == Ordering::byNODES)
    {
@@ -187,7 +191,8 @@ void MultiVector::DeleteVectorsAt(const Array<int> &indices)
       {
          for (int vd = 0; vd < vdim; vd++)
          {
-            v_list.Append(Ordering::Map<Ordering::byNODES>(GetNumVectors(), vdim, indices[l], vd));
+            v_list.Append(Ordering::Map<Ordering::byNODES>(GetNumVectors(), vdim,
+                                                           indices[l], vd));
          }
       }
    }
@@ -197,7 +202,8 @@ void MultiVector::DeleteVectorsAt(const Array<int> &indices)
       {
          for (int vd = 0; vd < vdim; vd++)
          {
-            v_list.Append(Ordering::Map<Ordering::byVDIM>(GetNumVectors(), vdim, indices[l], vd));
+            v_list.Append(Ordering::Map<Ordering::byVDIM>(GetNumVectors(), vdim, indices[l],
+                                                          vd));
          }
       }
    }
