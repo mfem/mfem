@@ -27,7 +27,7 @@ namespace mfem
 {
 
 #if (defined(MFEM_USE_CUDA) && defined(__CUDACC__)) || \
-    (defined(MFEM_USE_HIP) && defined(__HIPCC__))
+    (defined(MFEM_USE_HIP) && defined(__HIP__))
 #define MFEM_HOST_DEVICE __host__ __device__
 #else
 #define MFEM_HOST_DEVICE
