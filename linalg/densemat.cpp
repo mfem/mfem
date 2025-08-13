@@ -92,12 +92,7 @@ void DenseMatrix::SetSize(int h, int w)
    }
    height = h;
    width = w;
-   const int hw = h*w;
-   if (hw > data.Size())
-   {
-      data.SetSize(hw);
-      *this = 0.0; // init with zeroes
-   }
+   data.SetSize(h*w, 0.0);
 }
 
 real_t &DenseMatrix::Elem(int i, int j)

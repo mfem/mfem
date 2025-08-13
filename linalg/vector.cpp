@@ -118,8 +118,9 @@ Vector::Vector(const Vector &v)
 }
 
 Vector::Vector(Vector &&v)
+   : data(std::move(v.data)), size(v.size)
 {
-   *this = std::move(v);
+   v.size = 0;
 }
 
 void Vector::Load(std::istream **in, int np, int *dim)
@@ -208,19 +209,22 @@ Vector &Vector::operator=(const Vector &v)
    SetSize(v.Size());
    const bool vuse = v.UseDevice();
    const bool use_dev = UseDevice() || vuse;
-   v.UseDevice(use_dev);
+   if (use_dev != vuse) { v.UseDevice(use_dev); }
    // keep 'data' where it is, unless 'use_dev' is true
    if (use_dev) { Write(); }
    data.CopyFrom(v.data, v.Size());
-   v.UseDevice(vuse);
+   if (use_dev != vuse) { v.UseDevice(vuse); }
 #endif
    return *this;
 }
 
 Vector &Vector::operator=(Vector &&v)
 {
-   v.Swap(*this);
-   if (this != &v) { v.Destroy(); }
+   if (this != &v)
+   {
+      v.Swap(*this);
+      v.Destroy();
+   }
    return *this;
 }
 

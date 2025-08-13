@@ -105,8 +105,8 @@ public:
    ///
    /// If Finalize() is not called, it returns the number of possible
    /// connections established by the used constructor. Otherwise, it is exactly
-   /// the number of established connections before calling Finalize(). */
-   inline int Size_of_connections() const { HostReadI(); return I[size]; }
+   /// the number of established connections after calling Finalize(). */
+   inline int Size_of_connections() const { return J.Size(); }
 
    /// @brief Returns index of the connection between element i of TYPE I and
    /// element j of TYPE II.
@@ -133,14 +133,14 @@ public:
    const Memory<int> &GetIMemory() const { return I.GetMemory(); }
    const Memory<int> &GetJMemory() const { return J.GetMemory(); }
 
-   const int *ReadI(bool on_dev = true) const { return I.Read(); }
+   const int *ReadI(bool on_dev = true) const { return I.Read(on_dev); }
    int *WriteI(bool on_dev = true) { return I.Write(on_dev); }
    int *ReadWriteI(bool on_dev = true) { return I.ReadWrite(on_dev); }
    const int *HostReadI() const { return I.HostRead(); }
    int *HostWriteI() { return I.HostWrite(); }
    int *HostReadWriteI() { return I.HostReadWrite(); }
 
-   const int *ReadJ(bool on_dev = true) const { return J.Read(); }
+   const int *ReadJ(bool on_dev = true) const { return J.Read(on_dev); }
    int *WriteJ(bool on_dev = true) { return J.Write(on_dev); }
    int *ReadWriteJ(bool on_dev = true) { return J.ReadWrite(on_dev); }
    const int *HostReadJ() const { return J.HostRead(); }

@@ -95,7 +95,6 @@ public:
    /** The DenseMatrix does not assume ownership of the data array, i.e. it will
        not delete the new array @a d. This method will delete the current data
        array, if owned. */
-
    void Reset(real_t *d, int h, int w)
    { UseExternalData(d, h, w); }
 
@@ -110,7 +109,7 @@ public:
    /// For backward compatibility define Size to be synonym of Width()
    int Size() const { return Width(); }
 
-   // Total size = width*height
+   /// Total size = width*height
    int TotalSize() const { return width*height; }
 
    /// Change the size of the DenseMatrix to s x s.
@@ -119,11 +118,11 @@ public:
    /// Change the size of the DenseMatrix to h x w.
    void SetSize(int h, int w);
 
-   /// Returns the matrix data array.
+   /// Returns the matrix data array. Warning: this method casts away constness.
    inline real_t *Data() const
    { return const_cast<real_t*>((const real_t*)data);}
 
-   /// Returns the matrix data array.
+   /// Returns the matrix data array. Warning: this method casts away constness.
    inline real_t *GetData() const { return Data(); }
 
    Memory<real_t> &GetMemory() { return data.GetMemory(); }

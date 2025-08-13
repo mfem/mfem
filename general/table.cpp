@@ -256,10 +256,8 @@ void Table::SetIJ(int *newI, int *newJ, int newsize)
    {
       size = newsize;
    }
-   I.MakeRef(newI, size + 1);
-   I.MakeDataOwner();
-   J.MakeRef(newJ, I[size]);
-   J.MakeDataOwner();
+   I.MakeRef(newI, size + 1, true);
+   J.MakeRef(newJ, I[size], true);
 }
 
 int Table::Push(int i, int j)

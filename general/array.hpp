@@ -28,8 +28,12 @@
 namespace mfem
 {
 
-template <class T>
-class Array;
+/** @brief Swap objects of type T. The operation is performed using the most
+    specialized `swap` function from the `mfem` namespace (or other visible
+    `swap` functions), or using the `std::swap` generic template and its
+    specializations in the standard library. */
+template <class T> inline void Swap(T &a, T &b);
+
 
 /**
    Abstract data type Array.
@@ -103,7 +107,6 @@ public:
       src.size = 0;
    }
 
-
    /// Destructor
    inline ~Array() { data.Delete(); }
 
@@ -114,8 +117,7 @@ public:
    Array<T> &operator=(Array<T> &&src)
    {
       if (this == &src) { return *this; }
-      std::swap(data, src.data);
-      std::swap(size, src.size);
+      Swap(src);  // Swap does not use move assignment!
       src.DeleteAll();
       return *this;
    }
@@ -123,6 +125,10 @@ public:
    /// Assignment operator (deep copy) from @a src, an Array of convertible type.
    template <typename CT>
    inline Array &operator=(const Array<CT> &src);
+
+   /// Swap the contents of the Array with @a other.
+   /** Implemented without using move assignment, avoiding DeleteAll() calls. */
+   inline void Swap(Array &other);
 
    /// Return the data as 'T *'
    inline operator T *() { return data; }
@@ -452,10 +458,10 @@ public:
    }
 
    /** @brief Save the Array2D to the stream @a out using the format @a fmt.
-       The format @a fmt can be:
 
-          0 - write the number of rows and columns, followed by all entries
-          1 - write only the entries, using row-major layout
+       The format @a fmt can be:
+       - 0 - write the number of rows and columns, followed by all entries
+       - 1 - write only the entries, using row-major layout
    */
    void Save(std::ostream &os, int fmt = 0) const
    {
@@ -464,10 +470,10 @@ public:
    }
 
    /** @brief Read an Array2D from the stream @a in using format @a fmt.
-       The format @a fmt can be:
 
-          0 - read the number of rows and columns, then the entries
-          1 - read NumRows() x NumCols() entries, using row-major layout
+       The format @a fmt can be:
+       - 0 - read the number of rows and columns, then the entries
+       - 1 - read NumRows() x NumCols() entries, using row-major layout
    */
    void Load(std::istream &in, int fmt = 0)
    {
@@ -483,8 +489,7 @@ public:
    void Load(int new_size0,int new_size1, std::istream &in)
    { SetSize(new_size0,new_size1); Load(in, 1); }
 
-   void Copy(Array2D &copy) const
-   { copy.M = M; copy.N = N; array1d.Copy(copy.array1d); }
+   void Copy(Array2D &copy) const { copy = *this; }
 
    inline void operator=(const T &a)
    { array1d = a; }
@@ -495,7 +500,12 @@ public:
    /// Move assignment.
    Array2D& operator=(Array2D &&) = default;
 
-   /// Make this Array a reference to 'master'
+   /// Swap the contents of the Array2D with @a other.
+   /** Implemented without using move assignment, avoiding some unnecessary
+       calls. */
+   inline void Swap(Array2D &other);
+
+   /// Make this Array2D a reference to 'master'
    inline void MakeRef(const Array2D &master)
    { M = master.M; N = master.N; array1d.MakeRef(master.array1d); }
 
@@ -687,9 +697,23 @@ protected:
 };
 
 
-/// inlines ///
+// Inlines
 
-template <class T> inline void Swap(T &a, T &b) { std::swap(a, b); }
+
+template <class T> inline void Swap(T &a, T &b)
+{
+   using std::swap;
+   swap(a, b);
+}
+
+/** @brief Swap of Array<T> objects for use with standard library algorithms.
+    Also, used by mfem::Swap(). */
+template <typename T>
+inline void swap(Array<T> &a, Array<T> &b)
+{
+   // swap without using move assignment
+   a.Swap(b);
+}
 
 template <class T>
 inline Array<T>::Array(const Array &src)
@@ -720,6 +744,13 @@ template <typename T> template <typename CT, int N>
 inline Array<T>::Array(const CT (&values)[N]) : Array(N)
 {
    std::copy(values, values + N, begin());
+}
+
+template <class T>
+inline void Array<T>::Swap(Array &other)
+{
+   mfem::Swap(data, other.data);
+   std::swap(size, other.size);
 }
 
 template <class T>
@@ -941,8 +972,7 @@ template <class T>
 inline void Array<T>::DeleteAll()
 {
    const bool use_dev = data.UseDevice();
-   data.Delete();
-   data.Reset();
+   data.Delete();  // calls data.Reset(h_mt) as well
    size = 0;
    data.UseDevice(use_dev);
 }
@@ -1060,6 +1090,22 @@ inline T *Array2D<T>::operator[](int i)
                 "Array2D: invalid access of row " << i << " in array with "
                 << array1d.Size()/N << " rows.");
    return &array1d[i*N];
+}
+
+template <class T>
+inline void Array2D<T>::Swap(Array2D<T> &other)
+{
+   mfem::Swap(array1d, other.array1d);
+   std::swap(M, other.M);
+   std::swap(N, other.N);
+}
+
+/** @brief Swap of Array2D<T> objects for use with standard library algorithms.
+    Also, used by mfem::Swap(). */
+template <typename T>
+inline void swap(Array2D<T> &a, Array2D<T> &b)
+{
+   a.Swap(b);
 }
 
 
