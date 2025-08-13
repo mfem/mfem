@@ -138,11 +138,11 @@ public:
 
    }
 
-   void UpdateOperator() override {
+   void Update() override {
       Reassemble();
    }
 
-   void Reassemble(){
+   void Reassemble() const {
       Kform.FormLinearSystem(ess_tdofs_, temperature_gf, bform, Kmat, z, u_bc);
    }
 
@@ -153,6 +153,26 @@ public:
       M_solver.Mult(z, du_dt);
       du_dt.SetSubVector(ess_tdofs_, 0.0);
    }
+
+   void ImplicitMult(const Vector &u, const Vector &k, Vector &v ) const override {
+
+      Reassemble();
+
+      Kmat.Mult(u, v); // v = K*u
+      v.Add(-1.0, u_bc);
+
+      Mmat.AddMult(k, v, -1.0); // v - M*k
+      v.Neg(); // v = M*k - K*u
+      v.SetSubVector(ess_tdofs_, 0.0);
+   }
+
+   void ExplicitMult(const Vector &u, Vector &v) const override {
+
+      Reassemble();
+      Kmat.Mult(u, v); // v = K*u
+      v.Add(-1.0, u_bc);
+      v.SetSubVector(ess_tdofs_, 0.0);
+   }   
 
    void ImplicitSolve(const real_t dt, const Vector &u, Vector &du_dt)
    {
@@ -173,7 +193,7 @@ public:
    }
 
 
-   void Transfer(Vector &x) override {
+   void Transfer(const Vector &x) override {
 
       temperature_gf.SetFromTrueDofs(x);
       heat_flux_gf.ProjectBdrCoefficientNormal(gradT_gf,nat_tdofs_);
@@ -190,10 +210,10 @@ public:
    }
 
    /// Mass form
-   ParBilinearForm Mform;
+   mutable ParBilinearForm Mform;
 
    /// Stiffness form. Might include diffusion, convection or both.
-   ParBilinearForm Kform;
+   mutable ParBilinearForm Kform;
 
    /// Mass opeperator
    OperatorHandle M;
@@ -201,11 +221,11 @@ public:
 
    /// Stiffness opeperator. Might include diffusion, convection or both.
    OperatorHandle K;
-   HypreParMatrix Kmat;
+   mutable HypreParMatrix Kmat;
 
 
    /// RHS form
-   ParLinearForm bform;
+   mutable ParLinearForm bform;
 
    /// RHS vector
    Vector *b = nullptr;
@@ -223,10 +243,10 @@ public:
    /// when using an H1 space.
    Array<int> ess_tdofs_;
    Array<int> nat_tdofs_;
-   ParGridFunction temperature_gf;
-   ParGridFunction heat_flux_gf;
-   GradientGridFunctionCoefficient gradT_gf;
-   GridFunctionCoefficient heat_flux_gfc;
+   mutable ParGridFunction temperature_gf;
+   mutable ParGridFunction heat_flux_gf;
+   mutable GradientGridFunctionCoefficient gradT_gf;
+   mutable GridFunctionCoefficient heat_flux_gfc;
 
    real_t current_dt = -1.0;
 
@@ -370,7 +390,7 @@ int main(int argc, char *argv[])
    fes_block.GetEssentialTrueDofs(outer_cylinder_wall_attributes, interface_tdofs);
    
 
-   ConvectionDiffusion diff_block(fes_block, ess_tdofs,outer_cylinder_wall_attributes, 0.0, 1.0, true);
+   ConvectionDiffusion diff_block(fes_block, ess_tdofs,outer_cylinder_wall_attributes, 0.0, 1.0, false);
 
    ParGridFunction &temperature_block_gf = diff_block.temperature_gf;
    ParGridFunction &qflux_block_gf       = diff_block.heat_flux_gf;
@@ -424,21 +444,23 @@ int main(int argc, char *argv[])
    cylinder_ode_solver->Init(cd_cylinder);
    block_ode_solver->Init(diff_block);
 
+   // physics.SetCouplingScheme(CoupledApplication::Scheme::MONOLITHIC);
    physics.SetCouplingScheme(CoupledApplication::Scheme::ALTERNATING_SCHWARZ);
    // physics.SetCouplingType(CoupledApplication::CouplingType::PARTITIONED);
 
 
-   std::string coupling_type_str = "partioned";
+   // std::string coupling_type_str = "partioned";
    // std::string coupling_type_str = "one-way";
+   std::string coupling_type_str = "cht-monolithic-linear";
 
-   // Application* app1 = physics.AddApplication(block_ode_solver.get());
-   // Application* app2 = physics.AddApplication(cylinder_ode_solver.get());
+   Application* app1 = physics.AddOperator(block_ode_solver.get());
+   Application* app2 = physics.AddOperator(cylinder_ode_solver.get());
 
-   Application* app1 = physics.AddApplication(&diff_block);
-   Application* app2 = physics.AddApplication(&cd_cylinder);
+   // Application* app1 = physics.AddOperator(&diff_block);
+   // Application* app2 = physics.AddOperator(&cd_cylinder);
 
    app1->AddLinkedFields(&lf_solid_to_fluid);
-   app2->AddLinkedFields(&lf_fluid_to_solid);
+   // app2->AddLinkedFields(&lf_fluid_to_solid);
 
    // diff_block.AddLinkedFields(&lf_solid_to_fluid);
    // cd_cylinder.AddLinkedFields(&lf_fluid_to_solid);
@@ -453,9 +475,35 @@ int main(int argc, char *argv[])
    fp_solver.SetPrintLevel(0);
    fp_solver.SetRelaxation(1.0, &fp_relax);
 
-   physics.SetSolver(&fp_solver);   
-   physics.Finalize();   
- 
+
+   GMRESSolver gmres_solver(MPI_COMM_WORLD);
+   gmres_solver.iterative_mode = false;
+   gmres_solver.SetRelTol(1e-6);
+   gmres_solver.SetAbsTol(0.0);
+   gmres_solver.SetMaxIter(100);
+   gmres_solver.SetPrintLevel(1);
+
+
+   NewtonSolver newton_solver(MPI_COMM_WORLD);
+   newton_solver.iterative_mode = false;
+   newton_solver.SetRelTol(1e-5);
+   newton_solver.SetAbsTol(0.0);
+   newton_solver.SetMaxIter(100);
+   newton_solver.SetPrintLevel(1);
+   newton_solver.SetSolver(gmres_solver);
+
+   // physics.SetSolver(&fp_solver);   
+   physics.SetSolver(&newton_solver);
+   // physics.SetSolver(&gmres_solver);
+   if(myid==0) std::cout << "Assembling..." << std::endl;
+
+   physics.Assemble();
+   physics.GetCouplingOperator()->SetLinearity(false);
+   if(myid==0) std::cout << "Finalizing..." << std::endl;
+   physics.Finalize();
+
+   if(myid==0) std::cout << "Physics Width: " << physics.Width() << std::endl;
+   
 
    std::unique_ptr<ODESolver> coupled_ode_solver = ODESolver::Select(ode_solver_type);   
    coupled_ode_solver->Init(physics);
@@ -492,8 +540,11 @@ int main(int argc, char *argv[])
    StopWatch timer;
    timer.Start();
 
+   if(myid==0) std::cout << "Starting time integration..." << std::endl;
    real_t t = 0.0;
    bool last_step = false;
+   save_callback(0, t);
+
    for (int ti = 1; !last_step; ti++)
    {
       if (t + dt >= t_final - dt/2)
@@ -515,7 +566,8 @@ int main(int argc, char *argv[])
       // }
       // else if(physics.GetCouplingType() == CoupledApplication::CouplingType::PARTITIONED)
       // {
-         coupled_ode_solver->Step(temperature,t,dt);   
+         // coupled_ode_solver->Step(temperature,t,dt);   
+         physics.Step(temperature, t, dt);
       // }
 
       temperature_block_gf.SetFromTrueDofs(temperature.GetBlock(0));      
