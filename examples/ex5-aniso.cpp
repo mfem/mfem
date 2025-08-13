@@ -265,6 +265,26 @@ public:
                            DenseMatrix &elmat) override;
 };
 
+class RotatedNormalTraceJumpIntegrator : public BilinearFormIntegrator
+{
+private:
+   VectorCoefficient &b_vcoeff;
+   Vector face_shape, normal, shape1_n, shape2_n;
+   DenseMatrix shape1, shape2;
+   real_t sign;
+
+public:
+   RotatedNormalTraceJumpIntegrator(VectorCoefficient &bvc, real_t sign_ = 1.)
+      : b_vcoeff(bvc), sign(sign_) { }
+
+   using BilinearFormIntegrator::AssembleFaceMatrix;
+   void AssembleFaceMatrix(const FiniteElement &trial_face_fe,
+                           const FiniteElement &test_fe1,
+                           const FiniteElement &test_fe2,
+                           FaceElementTransformations &Trans,
+                           DenseMatrix &elmat) override;
+};
+
 MatFunc GetKFun(const ProblemParams &params);
 VecFunc GetBFun(const ProblemParams &params);
 TFunc GetTFun(const ProblemParams &params);
@@ -743,11 +763,11 @@ int main(int argc, char *argv[])
          if (Mt)
          {
             Mt->AddInteriorFaceIntegrator(new HDGDiffusionIntegrator(kcoeff, td));
-            if (rotated)
+            /*if (rotated)
             {
                Mt->AddBdrFaceIntegrator(new HDGDiffusionIntegrator(kcoeff, td));
             }
-            else
+            else*/
             {
                Mt->AddBdrFaceIntegrator(new HDGDiffusionIntegrator(kcoeff, td),
                                         bdr_is_neumann);
@@ -768,8 +788,8 @@ int main(int argc, char *argv[])
    {
       if (rotated)
       {
-         B->AddDomainIntegrator(new VectorRotatedWeakDivergenceIntegrator(bhcoeff));
-         //B->AddDomainIntegrator(new VectorRotatedDivergenceIntegrator(b_gf));
+         //B->AddDomainIntegrator(new VectorRotatedWeakDivergenceIntegrator(bhcoeff));
+         B->AddDomainIntegrator(new VectorRotatedDivergenceIntegrator(b_gf));
       }
       else
       {
@@ -794,12 +814,12 @@ int main(int argc, char *argv[])
       {
          if (rotated)
          {
-            B->AddInteriorFaceIntegrator(new DGRotatedWeakNormalTraceIntegrator(bhcoeff));
-            B->AddBdrFaceIntegrator(new DGRotatedWeakNormalTraceIntegrator(bhcoeff));
-            /*B->AddInteriorFaceIntegrator(new TransposeIntegrator(
+            //B->AddInteriorFaceIntegrator(new DGRotatedWeakNormalTraceIntegrator(bhcoeff));
+            //B->AddBdrFaceIntegrator(new DGRotatedWeakNormalTraceIntegrator(bhcoeff));
+            B->AddInteriorFaceIntegrator(new TransposeIntegrator(
                                             new DGRotatedNormalTraceIntegrator(bhcoeff, -1.)));
             B->AddBdrFaceIntegrator(new TransposeIntegrator(
-                                       new DGRotatedNormalTraceIntegrator(bhcoeff, -1.)), bdr_is_neumann);*/
+                                       new DGRotatedNormalTraceIntegrator(bhcoeff, -1.)), bdr_is_neumann);
          }
          else
          {
@@ -920,9 +940,14 @@ int main(int argc, char *argv[])
 
       trace_coll = new DG_Interface_FECollection(order, dim);
       trace_space = new FiniteElementSpace(mesh, trace_coll);
-      darcy->EnableHybridization(trace_space,
-                                 new NormalTraceJumpIntegrator(),
-                                 ess_flux_tdofs_list);
+      if (rotated)
+         darcy->EnableHybridization(trace_space,
+                                    new RotatedNormalTraceJumpIntegrator(bhcoeff),
+                                    ess_flux_tdofs_list);
+      else
+         darcy->EnableHybridization(trace_space,
+                                    new NormalTraceJumpIntegrator(),
+                                    ess_flux_tdofs_list);
 
       chrono.Stop();
       std::cout << "Hybridization init took " << chrono.RealTime() << "s.\n";
@@ -2687,6 +2712,96 @@ void DGRotatedNormalTraceIntegrator::AssembleFaceMatrix(
                         w * te_shape1(i) * tr_shape2(j) * bnor1(d);
                   }
          }
+      }
+   }
+}
+
+void RotatedNormalTraceJumpIntegrator::AssembleFaceMatrix(
+   const FiniteElement &trial_face_fe, const FiniteElement &test_fe1,
+   const FiniteElement &test_fe2, FaceElementTransformations &Trans,
+   DenseMatrix &elmat)
+{
+   int i, j, face_ndof, ndof1, ndof2, dim;
+   int order;
+
+   MFEM_VERIFY(trial_face_fe.GetMapType() == FiniteElement::VALUE, "");
+
+   face_ndof = trial_face_fe.GetDof();
+   ndof1 = test_fe1.GetDof();
+   dim = test_fe1.GetDim();
+
+   face_shape.SetSize(face_ndof);
+   normal.SetSize(dim);
+   shape1.SetSize(ndof1,dim);
+   shape1_n.SetSize(ndof1);
+
+   if (Trans.Elem2No >= 0)
+   {
+      ndof2 = test_fe2.GetDof();
+      shape2.SetSize(ndof2,dim);
+      shape2_n.SetSize(ndof2);
+   }
+   else
+   {
+      ndof2 = 0;
+   }
+
+   Vector bvec(dim), bnor(dim);
+
+   elmat.SetSize((ndof1 + ndof2) * dim, face_ndof);
+   elmat = 0.0;
+
+   const IntegrationRule *ir = IntRule;
+   if (ir == NULL)
+   {
+      if (Trans.Elem2No >= 0)
+      {
+         order = max(test_fe1.GetOrder(), test_fe2.GetOrder());
+      }
+      else
+      {
+         order = test_fe1.GetOrder();
+      }
+      order += trial_face_fe.GetOrder() + Trans.OrderW();
+      ir = &IntRules.Get(Trans.GetGeometryType(), order);
+   }
+
+   for (int p = 0; p < ir->GetNPoints(); p++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(p);
+      // Trace finite element shape function
+      trial_face_fe.CalcShape(ip, face_shape);
+      Trans.SetIntPoint(&ip);
+      CalcOrtho(Trans.Jacobian(), normal);
+
+      b_vcoeff.Eval(bvec, *Trans.Elem1, Trans.GetElement1IntPoint());
+      bnor(0) = normal * bvec;
+      bnor(1) = -bvec(1) * normal(0) + bvec(0) * normal(1);
+
+      // Side 1 finite element shape function
+      test_fe1.CalcPhysShape(*Trans.Elem1, shape1_n);
+      face_shape *= ip.weight * sign;
+      for (int d = 0; d < dim; d++)
+         for (i = 0; i < ndof1; i++)
+            for (j = 0; j < face_ndof; j++)
+            {
+               elmat(i+d*ndof1, j) += shape1_n(i) * face_shape(j) * bnor(d);
+            }
+      if (ndof2)
+      {
+         b_vcoeff.Eval(bvec, *Trans.Elem2, Trans.GetElement2IntPoint());
+         bnor(0) = normal * bvec;
+         bnor(1) = -bvec(1) * normal(0) + bvec(0) * normal(1);
+
+         // Side 2 finite element shape function
+         test_fe2.CalcPhysShape(*Trans.Elem2, shape2_n);
+         // Subtract contribution from side 2
+         for (int d = 0; d < dim; d++)
+            for (i = 0; i < ndof2; i++)
+               for (j = 0; j < face_ndof; j++)
+               {
+                  elmat(ndof1*dim+i+d*ndof2, j) -= shape2_n(i) * face_shape(j) * bnor(d);
+               }
       }
    }
 }
