@@ -1123,9 +1123,7 @@ void BoundedVariationReconstruction(Solver& solver,
       for (int i = 0; i < num_neighbors; i++)
       {
          const int neighbor_idx = neighbors_e[i];
-         auto& fe_src_neighbor = *fes_src->GetFE(neighbor_idx);
          auto& fe_dst_neighbor = *fes_dst->GetFE(neighbor_idx);
-         const int fe_dst_neighbor_ndof = fe_dst_neighbor.GetDof();
 
          fes_dst->GetElementTransformation(neighbor_idx, neighbor_trans.get());
 
