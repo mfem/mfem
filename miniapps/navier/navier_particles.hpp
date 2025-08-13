@@ -31,7 +31,6 @@ namespace navier
 class NavierParticles
 {
 protected:
-   const real_t kappa, gamma, zeta;
    ParticleSet fluid_particles;
    ParticleSet inactive_fluid_particles;
    FindPointsGSLIB finder;
@@ -46,6 +45,7 @@ protected:
 
    struct FluidParticleData
    {
+      MultiVector *kappa, *zeta, *gamma;
       MultiVector *u[4];
       MultiVector *v[4];
       MultiVector *w[4];
@@ -91,7 +91,7 @@ protected:
 public:
 
    
-   NavierParticles(MPI_Comm comm, const real_t kappa_, const real_t gamma_, const real_t zeta_, int num_particles, Mesh &m);
+   NavierParticles(MPI_Comm comm, int num_particles, Mesh &m);
 
    void Step(const real_t &dt, int cur_step, const ParGridFunction &u_gf, const ParGridFunction &w_gf);
 
@@ -102,6 +102,12 @@ public:
    ParticleSet& GetParticles() { return fluid_particles; }
 
    ParticleSet& GetInactiveParticles() { return inactive_fluid_particles; }
+
+   MultiVector& Kappa()     { return *fp_data.kappa; }
+
+   MultiVector& Zeta()     { return *fp_data.zeta; }
+
+   MultiVector& Gamma()     { return *fp_data.gamma; }
 
    MultiVector& U(int nm=0) { return *fp_data.u[nm]; }
 

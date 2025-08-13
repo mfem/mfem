@@ -74,6 +74,10 @@ void NavierParticles::ParticleStep2D(const real_t &dt, int p)
    const Array<real_t> &beta = beta_k[order_idx];
    const Array<real_t> &alpha = alpha_k[order_idx];
 
+   const real_t &kappa = (*fp_data.kappa)[p];
+   const real_t &zeta = (*fp_data.zeta)[p];
+   const real_t &gamma = (*fp_data.gamma)[p];
+
    // Extrapolate particle vorticity using EXTk (w_n is new vorticity at old particle loc)
    // w_n_ext = alpha1*w_nm1 + alpha2*w_nm2 + alpha3*w_nm3
    for (int j = 1; j <= 3; j++)
@@ -295,11 +299,8 @@ void NavierParticles::ApplyBCs()
    }
 }
 
-NavierParticles::NavierParticles(MPI_Comm comm, const real_t kappa_, const real_t gamma_, const real_t zeta_, int num_particles, Mesh &m)
-: kappa(kappa_),
-  gamma(gamma_),
-  zeta(zeta_),
-  fluid_particles(comm, num_particles, m.SpaceDimension()),
+NavierParticles::NavierParticles(MPI_Comm comm, int num_particles, Mesh &m)
+: fluid_particles(comm, num_particles, m.SpaceDimension()),
   inactive_fluid_particles(comm, 0, m.SpaceDimension()),
   finder(comm)
 {
@@ -313,6 +314,15 @@ NavierParticles::NavierParticles(MPI_Comm comm, const real_t kappa_, const real_
    finder.Setup(m);
 
    int dim = fluid_particles.GetDim();
+
+   // Initialize kappa, zeta, gamma
+   fp_data.kappa = &fluid_particles.AddField(1, Ordering::byVDIM, "kappa");
+   fp_data.zeta = &fluid_particles.AddField(1, Ordering::byVDIM, "zeta");
+   fp_data.gamma = &fluid_particles.AddField(1, Ordering::byVDIM, "gamma");
+
+   inactive_fluid_particles.AddField(1, Ordering::byVDIM, "kappa");
+   inactive_fluid_particles.AddField(1, Ordering::byVDIM, "zeta");
+   inactive_fluid_particles.AddField(1, Ordering::byVDIM, "gamma");
 
    // Initialize fluid particle fields
    for (int i = 0; i < 4; i++)
@@ -411,10 +421,17 @@ void NavierParticles::DeactivateLostParticles(bool findpts)
    }
 
    const Array<unsigned int> lost_idxs = finder.GetPointsNotFoundIndices();
-   for (const unsigned int &idx : lost_idxs)
+   Array<int> inactive_add_idxs;
+   inactive_fluid_particles.AddParticles(lost_idxs.Size(), &inactive_add_idxs);
+
+   Vector coords;
+   for (int i = 0; i < lost_idxs.Size(); i++)
    {
-      Particle p = fluid_particles.GetParticleRef(idx);
-      inactive_fluid_particles.AddParticle(p);
+      X().GetVectorValues(lost_idxs[i], coords);
+      inactive_fluid_particles.Coords().SetVectorValues(inactive_add_idxs[i], coords);
+      inactive_fluid_particles.Field(0)[inactive_add_idxs[i]] = Kappa()[lost_idxs[i]];
+      inactive_fluid_particles.Field(1)[inactive_add_idxs[i]] = Zeta()[lost_idxs[i]];
+      inactive_fluid_particles.Field(2)[inactive_add_idxs[i]] = Gamma()[lost_idxs[i]];
    }
 
    fluid_particles.RemoveParticles(lost_idxs);

@@ -38,13 +38,14 @@ struct flow_context
    int pnt_0 = round(2.0/dt);
    int add_particles_freq = 100;
    int num_add_particles = 10;
-   real_t kappa = 10.0;
-   real_t gamma = 0.0; //0.2; // should be 6
+   real_t kappa_min = 1.0;
+   real_t kappa_max = 10.0;
+   real_t gamma = 0.0;
    real_t zeta = 0.19;
    int print_csv_freq = 500;
 } ctx;
 
-void SetInjectedParticles(NavierParticles &particle_solver, const Array<int> &p_idxs);
+void SetInjectedParticles(NavierParticles &particle_solver, const Array<int> &p_idxs, real_t kappa_min, real_t kappa_max, int kappa_seed, real_t zeta, real_t gamma);
 
 // Dirichlet conditions for velocity
 void vel_dbc(const Vector &x, real_t t, Vector &u);
@@ -73,7 +74,8 @@ int main(int argc, char *argv[])
    args.AddOption(&ctx.pnt_0, "-pt", "--particle-timestep", "Timestep to begin integrating particles.");
    args.AddOption(&ctx.add_particles_freq, "-ipf", "--inject-particles-freq", "Frequency of particle injection at domain inlet.");
    args.AddOption(&ctx.num_add_particles, "-npt", "--num-particles-inject", "Number of particles to add each injection.");
-   args.AddOption(&ctx.kappa, "-k", "--kappa", "Kappa constant.");
+   args.AddOption(&ctx.kappa_min, "-kmin", "--kappa-min", "Kappa constant minimum.");
+   args.AddOption(&ctx.kappa_max, "-kmax", "--kappa-max", "Kappa constant maximum.");
    args.AddOption(&ctx.gamma, "-g", "--gamma", "Gamma constant.");
    args.AddOption(&ctx.zeta, "-z", "--zeta", "Zeta constant.");
    args.AddOption(&ctx.print_csv_freq, "-csv", "--csv-freq", "Frequency of particle CSV outputting. 0 to disable.");
@@ -106,7 +108,7 @@ int main(int argc, char *argv[])
    flow_solver.EnablePA(true);
 
    // Create the particle solver
-   NavierParticles particle_solver(MPI_COMM_WORLD, ctx.kappa, ctx.gamma, ctx.zeta, 0, pmesh);
+   NavierParticles particle_solver(MPI_COMM_WORLD, 0, pmesh);
    particle_solver.GetParticles().Reserve( ((ctx.nt - ctx.pnt_0)/ctx.add_particles_freq ) * ctx.num_add_particles / size);
 
    real_t time = 0.0;
@@ -186,7 +188,7 @@ int main(int argc, char *argv[])
          {
             int rank_num_particles = ctx.num_add_particles/size + (rank < (ctx.num_add_particles % size) ? 1 : 0);
             particle_solver.GetParticles().AddParticles(rank_num_particles, &add_particle_idxs);
-            SetInjectedParticles(particle_solver, add_particle_idxs);
+            SetInjectedParticles(particle_solver, add_particle_idxs, ctx.kappa_min, ctx.kappa_max, (rank+1)*step, ctx.zeta, ctx.gamma);
          }
 
          particle_solver.Step(ctx.dt, pstep, u_gf, w_gf);
@@ -233,7 +235,7 @@ int main(int argc, char *argv[])
    return 0;
 }
 
-void SetInjectedParticles(NavierParticles &particle_solver, const Array<int> &p_idxs)
+void SetInjectedParticles(NavierParticles &particle_solver, const Array<int> &p_idxs, real_t kappa_min, real_t kappa_max, int kappa_seed, real_t zeta, real_t gamma)
 {
    // Inject uniformly-distributed along inlet
    real_t height = 1.0;
@@ -271,7 +273,14 @@ void SetInjectedParticles(NavierParticles &particle_solver, const Array<int> &p_
          // Zero-out particle velocities, fluid velocities, and fluid vorticities
          particle_solver.V(j).SetVectorValues(idx, Vector({0.0,0.0}));
          particle_solver.U(j).SetVectorValues(idx, Vector({0.0,0.0}));
-         particle_solver.W(j).SetVectorValues(idx, Vector({0.0,0.0}));   
+         particle_solver.W(j).SetVectorValues(idx, Vector({0.0,0.0}));
+
+         // Set Kappa, Zeta, Gamma
+         std::mt19937 gen(kappa_seed);
+         std::uniform_real_distribution<> real_dist(0.0,1.0);
+         particle_solver.Kappa()[idx] = kappa_min + real_dist(gen)*(kappa_max - kappa_min);
+         particle_solver.Zeta()[idx] = zeta;
+         particle_solver.Gamma()[idx] = gamma;
       }
 
       // Set order to 0

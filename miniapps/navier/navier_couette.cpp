@@ -143,7 +143,7 @@ int main (int argc, char *argv[])
    NavierSolver flow_solver(&pmesh, ctx.order, 1.0);
 
    // Initialize NavierParticles
-   NavierParticles particle_solver(MPI_COMM_WORLD, ctx.kappa, ctx.gamma, ctx.zeta, ctx.num_particles, pmesh);
+   NavierParticles particle_solver(MPI_COMM_WORLD, ctx.num_particles, pmesh);
 
    // If running test, initialize analytical particles
    std::unique_ptr<AnalyticalParticles> particles_exact;
@@ -161,6 +161,9 @@ int main (int argc, char *argv[])
       {
          particle_solver.X()(i, d) = ctx.x_min[d] + real_dist(gen)*(ctx.x_max[d] - ctx.x_min[d]);
          particle_solver.V()(i, d) = ctx.v_min[d] + real_dist(gen)*(ctx.v_max[d] - ctx.v_min[d]);
+         particle_solver.Kappa()[i] = ctx.kappa;
+         particle_solver.Zeta()[i] = ctx.zeta;
+         particle_solver.Gamma()[i] = ctx.gamma;
       }
    }
    if (ctx.test != -1)
@@ -169,6 +172,7 @@ int main (int argc, char *argv[])
       particles_exact->X0() = particle_solver.X().GetData(); // x0
       particles_exact->V0() = particle_solver.V().GetData(); // v0
       particles_exact->V() = particle_solver.V().GetData(); // vn
+
    }
 
    real_t time = 0.0;
