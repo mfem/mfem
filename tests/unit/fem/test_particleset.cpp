@@ -31,11 +31,11 @@ void InitializeRandom(Particle &p, int seed)
    std::uniform_real_distribution<> real_dist(0.0,1.0);
    std::uniform_int_distribution<> int_dist;
 
-   for (int i = 0; i < p.Dim(); i++)
+   for (int i = 0; i < p.GetDim(); i++)
    {
       p.Coords()[i] = real_dist(gen);
    }
-   for (int f = 0; f < p.NumFields(); f++)
+   for (int f = 0; f < p.GetNF(); f++)
    {
       for (int c = 0; c < p.FieldVDim(f); c++)
       {
@@ -43,7 +43,7 @@ void InitializeRandom(Particle &p, int seed)
       }
    }
 
-   for (int t = 0; t < p.NumTags(); t++)
+   for (int t = 0; t < p.GetNT(); t++)
    {
       p.Tag(t) = real_dist(gen);
    }
