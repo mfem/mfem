@@ -162,6 +162,14 @@ type mu14_ad(const std::vector<type> &T, const std::vector<type> &W)
    return fnorm2_2D(Mat);
 };
 
+// W = (det(T)-1)^2.
+template <typename type>
+type mu55_ad(const std::vector<type> &T, const std::vector<type> &W)
+{
+   auto det = det_2D(T);
+   return pow(det-1.0, 2.0);
+};
+
 // W = |T-T'|^2, where T'= |T|*I/sqrt(2).
 template <typename type>
 type mu85_ad(const std::vector<type> &T, const std::vector<type> &W)
@@ -771,7 +779,8 @@ void TMOP_WorstCaseUntangleOptimizer_Metric::EvalP(const DenseMatrix &Jpt,
    {
       return EvalW_AD1(T,W);
    };
-   if (tmop_metric.Id() == 4 || tmop_metric.Id() == 14 || tmop_metric.Id() == 66)
+   if (tmop_metric.Id() == 4 || tmop_metric.Id() == 14 ||
+       tmop_metric.Id() == 66)
    {
       ADGrad(mu_ad_fn, P, Jpt);
       return;
@@ -793,7 +802,8 @@ void TMOP_WorstCaseUntangleOptimizer_Metric::AssembleH(
    {
       return EvalW_AD2(T,W);
    };
-   if (tmop_metric.Id() == 4 || tmop_metric.Id() == 14 || tmop_metric.Id() == 66)
+   if (tmop_metric.Id() == 4 || tmop_metric.Id() == 14 ||
+       tmop_metric.Id() == 66)
    {
       ADHessian(mu_ad_fn, H, Jpt);
       this->DefaultAssembleH(H,DS,weight,A);
@@ -1295,6 +1305,13 @@ void TMOP_Metric_055::AssembleH(const DenseMatrix &Jpt,
    ie.SetDerivativeMatrix(DS.Height(), DS.GetData());
    ie.Assemble_TProd(2*weight, ie.Get_dI2b(), A.GetData());
    ie.Assemble_ddI2b(2*weight*(ie.Get_I2b() - 1.0), A.GetData());
+}
+
+template <typename type>
+type TMOP_Metric_055::EvalW_AD_impl(const std::vector<type> &T,
+                                    const std::vector<type> &W) const
+{
+   return mu55_ad(T, W);
 }
 
 real_t TMOP_Metric_056::EvalWMatrixForm(const DenseMatrix &Jpt) const
