@@ -226,7 +226,7 @@ void TestRedistribute(Ordering::Type ordering)
          MPI_Allreduce(MPI_IN_PLACE, &wrong_proc_count, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
          CHECK(wrong_proc_count == 0);
 
-         // Check that coordinates + fields are all still correct
+         // Check that coordinates + fields + tags are all still correct
          int wrong_particle_count = 0;
          for (int i = 0; i < pset.GetNP(); i++)
          {
