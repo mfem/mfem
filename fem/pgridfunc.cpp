@@ -543,14 +543,14 @@ void ParGridFunction::GetElementDofValues(int el, Vector &dof_vals) const
    }
 }
 
-void ParGridFunction::ProjectCoefficient(Coefficient &coeff)
+void ParGridFunction::ProjectCoefficient(Coefficient &coeff, ProjType type)
 {
    DeltaCoefficient *delta_c = dynamic_cast<DeltaCoefficient *>(&coeff);
 
    if (delta_c == NULL)
    {
       (*this) = std::numeric_limits<real_t>::min();
-      GridFunction::ProjectCoefficient(coeff);
+      GridFunction::ProjectCoefficient(coeff,type);
 
       // Accumulate for all vdofs.
       if (pfes->GetNURBSext())
@@ -574,9 +574,10 @@ void ParGridFunction::ProjectCoefficient(Coefficient &coeff)
    }
 }
 
-void ParGridFunction::ProjectCoefficient(VectorCoefficient &vcoeff)
+void ParGridFunction::ProjectCoefficient(VectorCoefficient &vcoeff,
+                                         ProjType type)
 {
-   GridFunction::ProjectCoefficient(vcoeff);
+   GridFunction::ProjectCoefficient(vcoeff, type);
 
    // Accumulate for all vdofs.
    if (pfes->GetNURBSext())
@@ -618,10 +619,10 @@ void ParGridFunction::ProjectCoefficientGlobalL2(Coefficient &coeff,
    delete prec;
 }
 
-void ParGridFunction::ProjectCoefficientLocalL2(Coefficient &coeff)
+void ParGridFunction::ProjectCoefficientElementL2(Coefficient &coeff)
 {
    Vector Va;
-   ProjectCoefficientLocalL2_(coeff, *this, Va);
+   ProjectCoefficientElementL2_(coeff, *this, Va);
 
    GroupCommunicator &gcomm = pfes->GroupComm();
    gcomm.Reduce<real_t>(GetData(), GroupCommunicator::Sum);
@@ -672,12 +673,12 @@ void ParGridFunction::ProjectCoefficientGlobalL2(VectorCoefficient &vcoeff,
    delete prec;
 }
 
-void ParGridFunction::ProjectCoefficientLocalL2(VectorCoefficient &vcoeff)
+void ParGridFunction::ProjectCoefficientElementL2(VectorCoefficient &vcoeff)
 {
    if (fes->GetTypicalFE()->GetRangeType() == mfem::FiniteElement::VECTOR)
    {
       Vector Va;
-      ProjectCoefficientLocalL2_(vcoeff, *this, Va);
+      ProjectCoefficientElementL2_(vcoeff, *this, Va);
 
       GroupCommunicator &gcomm = pfes->GroupComm();
       gcomm.Reduce<real_t>(GetData(), GroupCommunicator::Sum);
@@ -697,7 +698,7 @@ void ParGridFunction::ProjectCoefficientLocalL2(VectorCoefficient &vcoeff)
       for (int v = 0; v < VectorDim(); v++)
       {
          coeff.SetIndex(v);
-         ProjectCoefficientLocalL2_(coeff, x, Va);
+         ProjectCoefficientElementL2_(coeff, x, Va);
          fes->GetVDofs(v, vdofs);
          SetSubVector(vdofs, x);
          gVa.SetSubVector(vdofs, Va);

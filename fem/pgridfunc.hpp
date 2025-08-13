@@ -257,10 +257,11 @@ public:
    void GetElementDofValues(int el, Vector &dof_vals) const override;
 
    using GridFunction::ProjectCoefficient;
-   void ProjectCoefficient(Coefficient &coeff) override;
+   void ProjectCoefficient(Coefficient &coeff,
+                           ProjType type = DEFAULT) override;
 
-   void ProjectCoefficient(VectorCoefficient &vcoeff) override;
-
+   void ProjectCoefficient(VectorCoefficient &vcoeff,
+                           ProjType type = DEFAULT) override;
 
    using GridFunction::ProjectDiscCoefficient;
    /** @brief Project a discontinuous vector coefficient as a grid function on
@@ -289,13 +290,13 @@ public:
                                    real_t rtol = 1e-12,
                                    int iter = 1000) override;
 
-   void ProjectCoefficientLocalL2(Coefficient &coeff) override;
+   void ProjectCoefficientElementL2(Coefficient &coeff) override;
 
    void ProjectCoefficientGlobalL2(VectorCoefficient &vcoeff,
                                    real_t rtol = 1e-12,
                                    int iter = 1000) override;
 
-   void ProjectCoefficientLocalL2(VectorCoefficient &vcoeff) override;
+   void ProjectCoefficientElementL2(VectorCoefficient &vcoeff) override;
 
    /// @brief Returns ||u_ex - u_h||_L1 in parallel for H1 or L2 elements
    ///

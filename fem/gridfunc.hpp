@@ -66,10 +66,10 @@ protected:
        degree of freedom. */
    void ProjectDiscCoefficient(VectorCoefficient &coeff, Array<int> &dof_attr);
 
-   /** Helper function for ProjectCoefficientLocalL2 */
-   void ProjectCoefficientLocalL2_(Coefficient &coeff, Vector &sol, Vector &Va);
-   void ProjectCoefficientLocalL2_(VectorCoefficient &vcoeff, Vector &sol,
-                                   Vector &Va);
+   /** Helper function for ProjectCoefficientElementL2 */
+   void ProjectCoefficientElementL2_(Coefficient &coeff, Vector &sol, Vector &Va);
+   void ProjectCoefficientElementL2_(VectorCoefficient &vcoeff, Vector &sol,
+                                     Vector &Va);
 
    /// Loading helper.
    void LegacyNCReorder();
@@ -77,7 +77,6 @@ protected:
    void Destroy();
 
 public:
-
    GridFunction() { fes = NULL; fec_owned = NULL; fes_sequence = 0; UseDevice(true); }
 
    /// Copy constructor. The internal true-dof vector #t_vec is not copied.
@@ -393,6 +392,25 @@ public:
        projection matrix. */
    void ProjectGridFunction(const GridFunction &src);
 
+
+   /** This enumerated type describes the three main projection types:
+       - ELEMENT, assigns the degree of freedom per element, as specified in the
+         specific element
+       - GLOBALL2, solves a global L2 projection
+       - ELEMENTL2, solves a element level L2 projection. Inter element
+         connectivity is dealt with similar as in:
+         Bezier-Projection : A unified approach for local projection and
+         quadrature-free refinement and coarsening of NURBS and T-splines with
+         particular application to isogeometric design and analysis
+         [CMAME (284) 2015 pg 55-105]
+       - DEFAULT, for NURBS spaces this is ELEMENTL2, while for all other spaces
+         this ELEMENT.
+       Note 1: ELEMENTL2 also works for non NURBS elements
+       Note 2: For NURBS elements the ELEMENT projection gives results without
+       over and undershoots. However, the gradient near the boundary does not
+       converge.*/
+   enum ProjType { DEFAULT, ELEMENT, GLOBALL2, ELEMENTL2 };
+
    /** @brief Project @a coeff Coefficient to @a this GridFunction. The
        projection computation depends on the choice of the FiniteElementSpace
        #fes. Note that this is usually interpolation at the degrees of freedom
@@ -403,7 +421,7 @@ public:
        If that is the case it is defined on another rank, and the issue is
        rectified with the appropriate communication, see in ParGridFunction.
        */
-   virtual void ProjectCoefficient(Coefficient &coeff);
+   virtual void ProjectCoefficient(Coefficient &coeff, ProjType type = DEFAULT);
 
    /** @brief Project @a coeff Coefficient to @a this GridFunction. The
        projection is a global L2 projection. This routine can be used a
@@ -418,7 +436,7 @@ public:
        Bezier-Projection [CMAME (284) 2015 pg 55-105]
        This routine can be used a fallback for elements without a projection
        member function.*/
-   virtual void ProjectCoefficientLocalL2(Coefficient &coeff);
+   virtual void ProjectCoefficientElementL2(Coefficient &coeff);
 
    /** @brief Project @a coeff Coefficient to @a this GridFunction, using one
        element for each degree of freedom in @a dofs and nodal interpolation on
@@ -434,7 +452,8 @@ public:
        not be defined, if the evaluation point does not reside on this rank.
        If that is the case it is defined on another rank, and the issue is
        rectified with the appropriate communication, see in ParGridFunction.*/
-   virtual void ProjectCoefficient(VectorCoefficient &vcoeff);
+   virtual void ProjectCoefficient(VectorCoefficient &vcoeff,
+                                   ProjType type = DEFAULT);
 
    /** @brief Project @a coeff Coefficient to @a this GridFunction. The
        projection is a global L2 projection. This routine can be used a
@@ -446,7 +465,7 @@ public:
    /** @brief Project @a coeff Coefficient to @a this GridFunction. The
        projection is a global L2 projection. This routine can be used a
        fallback for elements without a projection member function.*/
-   virtual void ProjectCoefficientLocalL2(VectorCoefficient &vcoeff);
+   virtual void ProjectCoefficientElementL2(VectorCoefficient &vcoeff);
 
    /** @brief Project @a vcoeff VectorCoefficient to @a this GridFunction, using
        one element for each degree of freedom in @a dofs and nodal interpolation

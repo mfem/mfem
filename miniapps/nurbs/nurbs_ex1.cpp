@@ -426,8 +426,10 @@ int main(int argc, char *argv[])
    b->Assemble();
 
    // 7. Define the solution vector x as a finite element grid function
-   //    corresponding to fespace. Initialize x with initial guess of zero,
-   //    which satisfies the boundary conditions.
+   //    corresponding to fespace. Initialize x with initial guess that
+   //    satisfies the boundary conditions. Force the use of the ELEMENT
+   //    projection type, also in the case of a NURBS spaces. For a NURBS space
+   //    this will give a projection without any over and undershoots.
    GridFunction x(fespace);
    if (homogenousBC)
    {
@@ -436,7 +438,7 @@ int main(int argc, char *argv[])
    else
    {
       FunctionCoefficient sol_cf(sol);
-      x.ProjectCoefficient(sol_cf);
+      x.ProjectCoefficient(sol_cf, GridFunction::ELEMENT);
    }
 
    // 8. Set up the bilinear form a(.,.) on the finite element space

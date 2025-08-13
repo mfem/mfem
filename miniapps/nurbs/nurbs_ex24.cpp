@@ -37,6 +37,7 @@
 
 using namespace std;
 using namespace mfem;
+typedef GridFunction::ProjType ProjType;
 
 real_t p_exact(const Vector &x);
 void gradp_exact(const Vector &, Vector &);
@@ -59,7 +60,7 @@ int main(int argc, char *argv[])
    int prob = 0;
    bool static_cond = false;
    bool pa = false;
-   int proj_type = 2;
+   int proj_type_int = 0;
    const char *device_config = "cpu";
    int visport = 19916;
    bool visualization = 1;
@@ -79,11 +80,12 @@ int main(int argc, char *argv[])
                   "--no-static-condensation", "Enable static condensation.");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
                   "--no-partial-assembly", "Enable Partial Assembly.");
-   args.AddOption(&proj_type, "-proj", "--projection",
+   args.AddOption(&proj_type_int, "-proj", "--projection",
                   "Projection type:\n."
-                  " 0 = Nodal injection at the Botella points.\n"
-                  " 1 = Local L2 projection(DC Thomas etal).\n"
-                  " 2 = Global L2 projection.\n");
+                  " 0 = DEFAULT: ELEMENTL2 for NURBS elements, ELEMENT else.\n"
+                  " 1 = ELEMENT: As defined in the respective element.\n"
+                  " 2 = GLOBALL2: Global L2 projection.\n"
+                  " 3 = ELEMENTL2: Element L2 projection.");
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
@@ -98,6 +100,7 @@ int main(int argc, char *argv[])
       return 1;
    }
    args.PrintOptions(cout);
+   ProjType proj_type = static_cast<ProjType>(proj_type_int);
    kappa = freq * M_PI;
 
    // 2. Enable hardware devices such as GPUs, and programming models such as
@@ -154,7 +157,7 @@ int main(int argc, char *argv[])
          trial_fec = new NURBS_HDivFECollection(order, dim);
          test_fec  = new NURBSFECollection(order);
       }
-      cout << "Create NURBS fecs and ext" << endl;
+      cout << "Create NURBS finite element" << endl;
    }
    else
    {
@@ -173,7 +176,7 @@ int main(int argc, char *argv[])
          trial_fec = new RT_FECollection(order-1, dim);
          test_fec = new L2_FECollection(order-1, dim);
       }
-      cout << "Create standard fecs" << endl;
+      cout << "Create standard finite elements" << endl;
    }
 
    FiniteElementSpace trial_fes(mesh, NURBSext, trial_fec);
@@ -213,16 +216,25 @@ int main(int argc, char *argv[])
 
    if (prob == 0)
    {
-      Project(gftrial, p_coef, proj_type);
+      gftrial.ProjectCoefficient(p_coef, proj_type);
    }
    else if (prob == 1)
    {
-      Project(gftrial, v_coef, proj_type);
+      gftrial.ProjectCoefficient(v_coef, proj_type);
    }
    else
    {
-      Project(gftrial, gradp_coef, proj_type);
+      gftrial.ProjectCoefficient(gradp_coef, proj_type);
    }
+
+   if (visualization)
+   {
+      char vishost[] = "localhost";
+      socketstream sol_sock(vishost, visport);
+      sol_sock.precision(8);
+      sol_sock << "solution\n" << *mesh << gftrial << flush;
+   }
+   return 0 ;
 
    // 7. Set up the bilinear forms for L2 projection.
    ConstantCoefficient one(1.0);
@@ -271,7 +283,7 @@ int main(int argc, char *argv[])
       SparseMatrix& mixed = a_mixed.SpMat();
       mixed.Mult(gftrial, x);
    }
-
+   cout<<"274"<<endl;
    // 9. Define and apply a PCG solver for Ax = b with Jacobi preconditioner.
    {
       GridFunction rhs(&test_fes);
@@ -302,20 +314,20 @@ int main(int argc, char *argv[])
 
       }
    }
-
+   cout<<"305"<<endl;
    // 10. Compute the projection of the exact field.
    GridFunction exact_proj(&test_fes);
    if (prob == 0)
    {
-      Project(exact_proj, gradp_coef, proj_type);
+      exact_proj.ProjectCoefficient(gradp_coef, proj_type);
    }
    else if (prob == 1)
    {
-      Project(exact_proj, curlv_coef, proj_type);
+      exact_proj.ProjectCoefficient(curlv_coef, proj_type);
    }
    else
    {
-      Project(exact_proj, divgradp_coef, proj_type);
+      exact_proj.ProjectCoefficient(divgradp_coef, proj_type);
    }
 
    // 11. Compute and print the L_2 norm of the error.
@@ -368,13 +380,13 @@ int main(int argc, char *argv[])
    x.Save(sol_ofs);
 
    // 13. Send the solution by socket to a GLVis server.
-   if (visualization)
-   {
-      char vishost[] = "localhost";
-      socketstream sol_sock(vishost, visport);
-      sol_sock.precision(8);
-      sol_sock << "solution\n" << *mesh << x << flush;
-   }
+   /* if (visualization)
+    {
+       char vishost[] = "localhost";
+       socketstream sol_sock(vishost, visport);
+       sol_sock.precision(8);
+       sol_sock << "solution\n" << *mesh << x << flush;
+    }*/
 
    // 14. Free the used memory.
    delete trial_fec;
@@ -456,28 +468,4 @@ void curlv_exact(const Vector &x, Vector &cv)
    {
       cv = 0.0;
    }
-}
-
-template <typename CoefficientType>
-void Project(GridFunction &gf, CoefficientType &coef, int proj_type)
-{
-   if (proj_type == 0)
-   {
-      gf.ProjectCoefficient(coef);
-   }
-   else if (proj_type == 1)
-   {
-      gf.ProjectCoefficientLocalL2(coef);
-   }
-   else if (proj_type == 2)
-   {
-      gf.ProjectCoefficientGlobalL2(coef);
-   }
-   else
-   {
-      mfem_error("Incorrect Project Type. Should be 0, 1 or 2");
-   }
-
-   gf.SetTrueVector();
-   gf.SetFromTrueVector();
 }
