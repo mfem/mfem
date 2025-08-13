@@ -9,7 +9,7 @@
 
 using namespace mfem;
 
-
+// mpirun -np 6 ./navier-stokes -vs 5 -dt 1e-2 -tf 5 -o 2 -rs 2 -ode 21
 
 int main(int argc, char *argv[])
 {
@@ -53,8 +53,8 @@ int main(int argc, char *argv[])
     delete serial_mesh;
     int dim = parent_mesh.Dimension();
 
-    H1_FECollection pfec(order, dim);
-    H1_FECollection ufec(order+1, dim);
+    H1_FECollection pfec(order-1, dim);
+    H1_FECollection ufec(order, dim);
 
     ParFiniteElementSpace p_fes(&parent_mesh, &pfec);
     ParFiniteElementSpace u_fes(&parent_mesh, &ufec, dim, Ordering::byNODES);
@@ -118,7 +118,7 @@ int main(int argc, char *argv[])
     ode_solver->Init(nse);
 
 
-    ParaViewDataCollection fluid_pv("fluid-"+std::to_string(ode_solver_type), &parent_mesh);
+    ParaViewDataCollection fluid_pv("navier-"+std::to_string(ode_solver_type), &parent_mesh);
 
     fluid_pv.SetLevelsOfDetail(order);
     fluid_pv.SetDataFormat(VTKFormat::BINARY);

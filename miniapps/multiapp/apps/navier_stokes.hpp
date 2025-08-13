@@ -144,15 +144,14 @@ public:
    Array<int> u_ess_attr, p_ess_attr;
    Array<int> u_ess_tdofs, p_ess_tdofs;
 
-   ConstantCoefficient viscosity, density, inv_density;
+   ConstantCoefficient viscosity, density, inv_density; // Fluid properties
 
    mutable ParGridFunction u_gf, p_gf; ///< Grid function for the velocity and pressure
 
-
    mutable ParBilinearForm Mpform, Muform, Kuform; ///< Mass and Stiffness forms
-   mutable ParMixedBilinearForm Gform, Gform_dt, Dform, Dform_dt;   ///< Divergence and Gradient forms
+   mutable ParMixedBilinearForm Gform, Dform;   ///< Divergence and Gradient forms
    mutable ParNonlinearForm Nform; ///< Nonlinear form for the Navier-Stokes equations
-   mutable ParNonlinearForm Nform_dt; ///< Gradient for nonlinear form for the Navier-Stokes equations
+   mutable ParNonlinearForm Nform_e; ///< Gradient for nonlinear form for the Navier-Stokes equations
    mutable ParLinearForm Fform; ///< Right-hand side form for forcing term
    mutable Vector force;
 
@@ -161,8 +160,9 @@ public:
    FGMRESSolver linear_solver;
    NewtonSolver newton_solver;
 
-   mutable HypreParMatrix Mpmat, Mumat, Kumat, Dmat, Gmat;
-   mutable HypreParMatrix Kumat_dt, Dmat_dt, Gmat_dt;
+   mutable OperatorHandle Mumat;
+   mutable OperatorHandle Kumat, Dmat, Gmat;
+   mutable OperatorHandle Kumat_e, Dmat_e, Gmat_e, Mpmat_e;
 
    BlockOperator *implicit_op   = nullptr; ///< Block linear operator for the Navier-Stokes system
    BlockOperator *implicit_grad = nullptr; ///< Block linear operator for the Navier-Stokes gradient
@@ -175,9 +175,8 @@ public:
    mutable Vector z;
 
    ConstantCoefficient zero, one, negative_one; ///< Zero coefficient for boundary conditions
-   ConstantCoefficient dtc;
-   ProductCoefficient nudt; ///< Inverse time step coefficient for time-dependent applications
-   
+   ConstantCoefficient inv_dtc;
+
    IntegrationRules intrules;
    IntegrationRule ir, ir_nl;   
 
@@ -187,6 +186,8 @@ public:
 
    DeviatoricStressCoefficient stress_coeff;
    ParGridFunction stress_gf;
+
+   bool partial_assembly = true; ///< Flag for partial assembly of the Navier-Stokes operator
 
 public:
    NavierStokes(ParFiniteElementSpace &u_fes_,
@@ -208,13 +209,13 @@ public:
                 p_gf(ParGridFunction(&p_fes)),
                 Mpform(&p_fes), Muform(&u_fes),
                 Kuform(&u_fes),
-                Gform(&p_fes, &u_fes), Gform_dt(&p_fes, &u_fes),
-                Dform(&u_fes, &p_fes), Dform_dt(&u_fes, &p_fes),
-                Nform(&u_fes), Nform_dt(&u_fes),
+                Gform(&p_fes, &u_fes),
+                Dform(&u_fes, &p_fes),
+                Nform(&u_fes), Nform_e(&u_fes),
                 Fform(&u_fes),
                 linear_solver(MPI_COMM_WORLD),
                 newton_solver(MPI_COMM_WORLD),
-                zero(0.0), one(1.0), negative_one(-1.0), dtc(1.0), nudt(viscosity, dtc),
+                zero(0.0), one(1.0), negative_one(-1.0), inv_dtc(1.0),
                 stress_coeff(&p_gf, &u_gf, &viscosity, &density),
                 stress_gf(&u_fes)
                 // , gravity(Vector({0.0, 0.0, -9.81}))
@@ -238,13 +239,17 @@ public:
         Nform.AddDomainIntegrator(new VectorConvectionNLFIntegrator(one, &ir_nl));
         Nform.AddDomainIntegrator(new VectorDiffusionIntegrator(viscosity, &ir));
 
-        Gform_dt.AddDomainIntegrator(new GradientIntegrator(dtc, &ir));
-        Dform_dt.AddDomainIntegrator(new VectorDivergenceIntegrator(dtc,&ir));
-        Nform_dt.AddDomainIntegrator(new VectorConvectionNLFIntegrator(dtc, &ir_nl));
-        Nform_dt.AddDomainIntegrator(new VectorDiffusionIntegrator(nudt, &ir));
-        Nform_dt.AddDomainIntegrator(new VectorMassIntegrator(&ir));
+        Nform_e.AddDomainIntegrator(new VectorConvectionNLFIntegrator(one, &ir_nl));
+        Nform_e.AddDomainIntegrator(new VectorDiffusionIntegrator(viscosity, &ir));
+        Nform_e.AddDomainIntegrator(new VectorMassIntegrator(inv_dtc,&ir));
 
-
+        
+        Mpform.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+        Gform.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+        Dform.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+        // Muform.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+        Nform.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+        
 
         Mpform.Assemble();
         Muform.Assemble();
@@ -253,10 +258,8 @@ public:
         Gform.Assemble();
         Nform.Setup();
 
-        Gform_dt.Assemble();
-        Dform_dt.Assemble();
-        Nform_dt.SetEssentialTrueDofs(u_ess_tdofs);
-        Nform_dt.Setup();
+        Nform_e.SetEssentialTrueDofs(u_ess_tdofs);
+        Nform_e.Setup();
 
         if(use_gravity)
         {
@@ -265,27 +268,27 @@ public:
             Fform.ParallelAssemble(force);
         }
 
-        Array<int> empty;
-        Muform.FormSystemMatrix(u_ess_tdofs, Mumat);
-        Mpform.FormSystemMatrix(p_ess_tdofs, Mpmat);
-        Gform_dt.FormRectangularSystemMatrix(p_ess_tdofs, u_ess_tdofs, Gmat_dt);
-        Dform_dt.FormRectangularSystemMatrix(u_ess_tdofs, p_ess_tdofs, Dmat_dt);
+        // Muform.FormSystemMatrix(u_ess_tdofs, Mumat);
+        Mpform.FormSystemMatrix(p_ess_tdofs, Mpmat_e);
+        Gform.FormRectangularSystemMatrix(p_ess_tdofs, u_ess_tdofs, Gmat_e);
+        Dform.FormRectangularSystemMatrix(u_ess_tdofs, p_ess_tdofs, Dmat_e);
 
-        
+        Array<int> empty;        
         Muform.FormSystemMatrix(empty, Mumat);
         Gform.FormRectangularSystemMatrix(empty, empty, Gmat);
         Dform.FormRectangularSystemMatrix(empty, empty, Dmat);
 
+        
         implicit_op = new BlockOperator(offsets);
         implicit_op->SetBlock(0, 0, &Nform);
-        implicit_op->SetBlock(0, 1, &Gmat);
-        implicit_op->SetBlock(1, 0, &Dmat);
+        implicit_op->SetBlock(0, 1, Gmat.Ptr());
+        implicit_op->SetBlock(1, 0, Dmat.Ptr());
 
         
         implicit_grad = new BlockOperator(offsets);
-        implicit_grad->SetBlock(0, 1, &Gmat_dt);
-        implicit_grad->SetBlock(1, 0, &Dmat_dt);
-        implicit_grad->SetBlock(1, 1, &Mpmat);
+        implicit_grad->SetBlock(0, 1, Gmat_e.Ptr());
+        implicit_grad->SetBlock(1, 0, Dmat_e.Ptr());
+        implicit_grad->SetBlock(1, 1, Mpmat_e.Ptr());
 
 
         M_solver.iterative_mode = false;
@@ -293,7 +296,7 @@ public:
         M_solver.SetMaxIter(100);
         M_prec.SetType(HypreSmoother::Jacobi);
         M_solver.SetPreconditioner(M_prec);
-        M_solver.SetOperator(Mumat);
+        M_solver.SetOperator(*Mumat.Ptr());
 
 
         linear_solver.iterative_mode = false;
@@ -303,8 +306,8 @@ public:
         linear_solver.SetKDim(300);
         linear_solver.SetPrintLevel(0);
         pc = new BlockLowerTriangularPreconditioner(offsets);
-        pc->SetBlock(1, 0, &Dmat_dt);
-        linear_solver.SetPreconditioner(*pc);
+        // pc->SetBlock(1, 0, Dmat_e.Ptr());
+        // linear_solver.SetPreconditioner(*pc);
 
 
         newton_residual = new NewtonResidual(this);
@@ -336,8 +339,13 @@ public:
    Operator& GetGradient(const Vector &x) const override
    {    
         BlockVector xb(x.GetData(), offsets);
-        implicit_grad->SetBlock(0, 0, &Nform_dt.GetGradient(xb.GetBlock(0)));
+        implicit_grad->SetBlock(0, 0, &Nform_e.GetGradient(xb.GetBlock(0)));
+        implicit_grad->SetBlockCoef(0,0,current_dt);
+        implicit_grad->SetBlockCoef(0,1,current_dt);
+        implicit_grad->SetBlockCoef(1,0,current_dt);
+
         // UpdatePreconditioner();
+
         return *implicit_grad;
    }
 
@@ -347,7 +355,6 @@ public:
         BlockVector kb(k.GetData(), offsets);
 
         implicit_op->Mult(xb, kb);
-
         if(use_gravity)
         {   // Add the forcing term to the velocity block
             kb.GetBlock(0).Add(1.0, force);
@@ -360,18 +367,18 @@ public:
         kb.GetBlock(1).SetSubVector(p_ess_tdofs, 0.0);
    }
 
-   void ImplicitSolve(const real_t dt, const Vector &u, Vector &k)
+   void ImplicitSolve(const real_t dt, const Vector &u, Vector &k) override
    {
         BlockVector ub(u.GetData(), offsets);
         BlockVector kb(k.GetData(), offsets);
 
         if(current_dt != dt)
         {
-            dtc.constant = dt;
-            Assemble();
+            inv_dtc.constant = 1.0/dt;
             current_dt = dt;
+            Assemble();
         }
-
+        
         Vector zero_vec;
         newton_residual->SetTimeStep(dt);
         newton_residual->SetState(&u);
@@ -390,7 +397,7 @@ public:
 
         // Apply the implicit operator
         implicit_op->Mult(xb, vb); // v = A(x)
-        Mumat.AddMult(kb.GetBlock(0), vb.GetBlock(0), 1.0); // v = A(x) + M*k
+        Mumat->AddMult(kb.GetBlock(0), vb.GetBlock(0), 1.0); // v = A(x) + M*k
 
         if(use_gravity)
         {   // Add the forcing term to the velocity block
@@ -403,12 +410,8 @@ public:
 
    void Assemble() override
    {
-        Dform_dt.Assemble();
-        Gform_dt.Assemble();
-        Nform_dt.SetEssentialTrueDofs(u_ess_tdofs);
-        Nform_dt.Setup();
-        Gform_dt.FormRectangularSystemMatrix(p_ess_tdofs, u_ess_tdofs, Gmat_dt);
-        Dform_dt.FormRectangularSystemMatrix(u_ess_tdofs, p_ess_tdofs, Dmat_dt);
+        Nform_e.SetEssentialTrueDofs(u_ess_tdofs);
+        Nform_e.Setup();
    }
 
    void Update() override
@@ -420,7 +423,7 @@ public:
         Dform.Update();
         Gform.Update();
         Nform.Update();
-        Nform_dt.Update();
+        Nform_e.Update();
 
         Mpform.Assemble();
         Muform.Assemble();
@@ -428,8 +431,33 @@ public:
         Dform.Assemble();
         Gform.Assemble();
         Nform.Setup();
-        Nform_dt.Setup();
+        Nform_e.Setup();
+
+        Gform.FormRectangularSystemMatrix(p_ess_tdofs, u_ess_tdofs, Gmat_e);
+        Dform.FormRectangularSystemMatrix(u_ess_tdofs, p_ess_tdofs, Dmat_e);
+        implicit_grad->SetBlock(0, 1, Gmat_e.Ptr());
+        implicit_grad->SetBlock(1, 0, Dmat_e.Ptr());
    }
+
+    void PreProcess(Vector &x) override
+    {
+        BlockVector xb(x.GetData(), offsets);
+        u_gf.GetTrueDofs(xb.GetBlock(0));
+        stress_gf.ProjectBdrCoefficient(stress_coeff,u_ess_attr);
+    }
+
+    void PostProcess(Vector &x) override
+    {
+        BlockVector xb(x.GetData(), offsets);
+        u_gf.SetFromTrueDofs(xb.GetBlock(0));
+        p_gf.SetFromTrueDofs(xb.GetBlock(1));
+        stress_gf.ProjectBdrCoefficient(stress_coeff,u_ess_attr);
+    }
+
+    void Transfer(const Vector &x) override
+    {
+        Application::Transfer();
+    }
 
    ~NavierStokes()
    {
