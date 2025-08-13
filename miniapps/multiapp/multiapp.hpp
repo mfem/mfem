@@ -14,6 +14,7 @@
 #define MFEM_MULTIAPP_HPP
 
 #include "mfem.hpp"
+#include "fpi_solver.hpp"
 
 #include <algorithm>
 #include <memory>
@@ -77,7 +78,10 @@ public:
     // This should be virtual to use other transfer operations (e.g., findpts)
     virtual void Transfer(const Vector &vsrc, const int idest=-1)
     {
-        source.SetFromTrueDofs(vsrc);
+        if(vsrc.Size() == source.FESpace()->GetVSize() )
+        {   // Set GridFunction if the source vector is the same size.
+            source.SetFromTrueDofs(vsrc);
+        }        
         Transfer(idest);
     }
 
@@ -107,327 +111,217 @@ public:
 
 
 
-class FPIRelaxation
-{
-#ifdef MFEM_USE_MPI    
-private:
-   MPI_Comm comm = MPI_COMM_NULL;
-#endif 
-
-public:
-    FPIRelaxation() = default;
-
-#ifdef MFEM_USE_MPI    
-    FPIRelaxation(MPI_Comm comm_){comm = comm_;}
-    void SetComm(MPI_Comm comm_) {comm = comm_;}
-#endif
-
-    /// @brief Compute the relaxation factor for Fixed Point Iteration.
-    /// @param fac Current relaxation factor
-    /// @param rnew Current residual vector
-    /// @param rnew_norm Norm of the current residual vector
-    /// @param rold Old residual vector
-    /// @param rold_norm Norm of the old residual vector
-    virtual real_t Eval(real_t fac, const Vector &rnew, real_t rnew_norm, Vector &rold, real_t rold_norm)
-    {
-        return fac; // Default implementation returns the fixed factor
-    };
-
-    real_t Dot(const Vector &x, const Vector &y) const
-    {
-    #ifndef MFEM_USE_MPI
-        return (x * y);
-    #else
-        return InnerProduct(comm, x, y);
-    #endif
-    }    
-};
-
-class AitkenRelaxation : public FPIRelaxation
-{
-public:
-    AitkenRelaxation() = default;
-
-#ifdef MFEM_USE_MPI
-    AitkenRelaxation(MPI_Comm comm_) : FPIRelaxation(comm_){}
-#endif
-
-    /// @brief Compute the Aitken relaxation factor for Fixed Point Iteration.
-    virtual real_t Eval(real_t fac, const Vector &rnew, real_t rnew_norm, Vector &rold, real_t rold_norm) override
-    {   
-        real_t num   = Dot(rold, rnew) - (rold_norm * rold_norm);
-        real_t denom = rold.DistanceSquaredTo(rnew);
-        return -fac * num / denom;
-    }
-};
-
-class SteepestDescentRelaxation : public FPIRelaxation
-{
-protected:
-    const Operator *J = nullptr; ///< Preconditioner to apply the Jacobian
-
-    /// @brief Set the preconditioner for the steepest descent relaxation.
-    void SetJacobian(const Operator &jacobian) { J = &jacobian; }
-
-    /// @brief Get the preconditioner for the steepest descent relaxation.
-    const Operator *GetJacobian() const { return J; }
-
-public:
-    SteepestDescentRelaxation() = default;
-
-#ifdef MFEM_USE_MPI
-    SteepestDescentRelaxation(MPI_Comm comm_) : FPIRelaxation(comm_){}
-#endif
-
-    /// @brief Compute the steepest descent relaxation factor for Fixed Point Iteration.
-    virtual real_t Eval(real_t fac, const Vector &rnew, real_t rnew_norm, Vector &rold, real_t rold_norm) override
-    {
-        if (!J){
-            MFEM_ABORT("Jacobian operator not set.");
-        }
-
-        real_t num = rnew_norm * rnew_norm;
-        J->Mult(rnew, rold); // rold = F'(x) * rnew;
-        real_t denom = Dot(rold, rnew);
-        return num/denom;
-    }
-};
-
-
-/// Fixed point iteration solver: x <- f(x)
-class FPISolver : public IterativeSolver
-{
-protected:
-   mutable Vector r, z, rold;
-   mutable real_t rfac = 1.0;
-
-   FPIRelaxation *relax_method_ = nullptr; ///< Relaxation strategy for FPI
-   bool relaxation_owned;
- 
-   void UpdateVectors()
-   {
-        r.SetSize(width);
-        z.SetSize(width);
-        rold.SetSize(width);
-    }
- 
-public:
-   FPISolver() { }
- 
-#ifdef MFEM_USE_MPI
-   FPISolver(MPI_Comm comm_) : IterativeSolver(comm_) { }
-#endif
- 
-   virtual void SetOperator(const Operator &op)
-   { 
-    IterativeSolver::SetOperator(op); 
-    UpdateVectors(); 
-    relax_method_ = new FPIRelaxation(); // Default relaxation strategy
-    relaxation_owned = true;
-   }
-
-   
-   void SetRelaxation(real_t r, FPIRelaxation *relax_method = nullptr)
-   {
-        rfac = r;
-
-        if (relaxation_owned && relax_method)
-        {
-            delete relax_method_; // Delete the previous relaxation strategy
-            relax_method_ = relax_method; // Set the new relaxation strategy
-            relaxation_owned = false;
-        }
-        else if (relax_method)
-        {
-            relax_method_ = relax_method;
-        }
-#ifdef MFEM_USE_MPI    
-        relax_method_->SetComm(this->GetComm());
-#endif
-   }
-    
-   /// Iterative solution of the (non)linear system using Fixed Point Iteration
-   void Mult(const Vector &b, Vector &x) const override
-   {
-        int i;
-        real_t fac = rfac;
-        
-        // FPI with fixed number of iterations and given
-        // initial guess
-        if (rel_tol == 0.0 && iterative_mode)
-        {
-            if (fac == 1.0)
-            {
-                for (i = 0; i < max_iter; i++)
-                {
-                    oper->Mult(x, z);  // z = F(x)
-                    x = z;
-                }
-            }
-            else
-            {
-                for (i = 0; i < max_iter; i++)
-                {
-                    oper->Mult(x, z);  // z = F(x)
-                    subtract(z, x, r); // r = z - x
-                    x.Add(fac, r); // x = x + fac * r
-                }
-            }
-            converged = true;
-            final_iter = i;
-            return;
-        }
-
-        real_t r0, nom, nom0, nomold = 1, cf;
-
-        if (iterative_mode)
-        {
-            oper->Mult(x, z);  // z = F(x)
-            subtract(z, x, r); // r = z - x
-        }
-        else
-        {            
-            x = 0.0;
-            oper->Mult(x, r);  // r = F(x)
-        }
-        
-        nom0 = nom = sqrt(Dot(r, r));
-        initial_norm = nom0;
-
-        if (print_options.iterations | print_options.first_and_last)
-        {
-            mfem::out << "   Iteration : " << setw(3) << right << 0 << "  ||Br|| = "
-                        << nom << (print_options.first_and_last ? " ..." : "") << '\n';
-        }
- 
-        r0 = std::max(nom*rel_tol, abs_tol);
-        if (nom <= r0)
-        {
-            converged = true;
-            final_iter = 0;
-            final_norm = nom;
-            return;
-        }        
-
-        // start iteration
-        converged = false;
-        final_iter = max_iter;
-        for (i = 1; true; )
-        {    
-            oper->Mult(x, z);  // z = F(x)
-            subtract(z, x, r); // r = z - x
-            nom = sqrt(Dot(r, r));
-
-            fac = relax_method_->Eval(fac,r,nom,rold,nomold);
-            x.Add(fac, r); // x = x + fac * r
-            
-            cf = nom/nomold;
-            nomold = nom;
-            rold = r; // Update rold to the current residual
-        
-            bool done = false;
-            if (nom < r0)
-            {
-                converged = true;
-                final_iter = i;
-                done = true;
-            }
-        
-            if (++i > max_iter)
-            {
-                done = true;
-            }
-        
-            if (print_options.iterations || (done && print_options.first_and_last))
-            {
-                mfem::out << "   Iteration : " << setw(3) << right << (i-1)
-                        << "  ||r|| = " << setw(11) << left << nom
-                        << "\tConv. rate: " << cf << '\n';
-            }
-        
-            if (done) { break; }
-        }
- 
-        if (print_options.summary || (print_options.warnings && !converged))
-        {
-            const auto rf = pow (nom/nom0, 1.0/final_iter);
-            mfem::out << "FPI: Number of iterations: " << final_iter << '\n'
-                        << "Conv. rate: " << cf << '\n'
-                        << "Average reduction factor: "<< rf << '\n';
-        }
-        if (print_options.warnings && !converged)
-        {
-            mfem::out << "FPI: No convergence!" << '\n';
-        }
-        
-        final_norm = nom;
-   }
-};
-
-
-
 /** @brief This class is used to define the interface for applications and miniapps.
     It is used to define the Solve method which is used to solve the problem
     defined by the application or miniapp.
  */
 class Application : public TimeDependentOperator
 {
+public: 
+
+    /**
+     * @brief Enum used to keep track of the type of operator
+     */
+    enum OperatorType{
+        ANY_TYPE,       ///< Any MFEM Operator
+        MFEM_TDO,       ///< MFEM TimeDependentOperator
+        MFEM_SOLVER,    ///< MFEM Solver
+        MFEM_ODESOLVER, ///< MFEM ODESolver
+        NOT_MFEM_OBJECT ///<  
+    };
+
+    /**
+     * @brief Used to determine which operation shoudl be performed by 
+     * PerformOperation(const int, const Vector &, Vector&)
+     */
+    enum OperationID{
+        MULT,
+        IMPLICIT_SOLVE,
+        STEP,
+        IMPLICIT_MULT,
+        EXPLICIT_MULT,
+        SOLVE,
+        DEFAULT
+    };
+
 protected:
 
     int oper_index = numeric_limits<int>::max();
     std::vector<LinkedFields*> linked_fields;
-    // Track steady-state here. 
+    OperatorType operator_type = OperatorType::ANY_TYPE; ///< Type of the operator
+    OperationID operation_id = OperationID::DEFAULT;
+
+    std::function<void (Vector&)> pre_process_func; ///< Pre-process function
+    std::function<void (Vector&)> post_process_func; ///< Post-process function
 
 public:
+
+
     Application(int n=0) : TimeDependentOperator(n) {}
 
     Application(int h, int w) : TimeDependentOperator(h,w) {}
 
-    virtual void Initialize() {
+    virtual void Initialize()
+    {
         mfem_error("Application::Initialize() is not overridden!");
     }
 
-    virtual void Assemble() {
+    virtual void Assemble()
+    {
         mfem_error("Application::Assemble() is not overridden!");
     }
 
-    virtual void Finalize() {
+    virtual void Finalize()
+    {
         mfem_error("Application::Finalize() is not overridden!");
     }
 
     /**
-     * @brief Given a vector @a x, solve the problem defined by the application 
+     * @brief Set the Operation ID to call the appropriate operation
+     * from Mult()
+     */
+    void SetOperationID(OperationID id){ operation_id = id; }
+
+    /**
+     * @brief Get the current OperationID
+     */
+    OperationID GetOperationID() const { return operation_id; }
+
+    /**
+     * @brief Set the Operator Type object 
+     */
+    void SetOperatorType(OperatorType type)
+    {
+        operator_type = type;
+    }
+
+    /**
+     * @brief Get the Operator Type
+     */
+    OperatorType GetOperatorType() const
+    {
+        return operator_type;
+    }
+
+    /**
+     * @brief Set the pre-processing function
+     * @param func Pre-processing function
+     * @note This is primarily used for type-erased objects
+     */
+    void SetPreProcessFunction(std::function<void (Vector&)> func)
+    {
+        pre_process_func = std::move(func);
+    }
+
+    /**
+     * @brief Set the post-processing function
+     * @param func Post-processing function
+     * @note This is primarily used for type-erased objects
+     */
+    void SetPostProcessFunction(std::function<void (Vector&)> func)
+    {
+        post_process_func = std::move(func);
+    }
+
+
+    /**
+     * @brief Pre-process the input vector @a x before performing operations such as
+     * Mult, Solve, ImplicitSolve, Step, etc. when coupled with other operators.
+     * @note This method is always called before the main operation is performed, but must
+     * be overridden to have an effect. Currently, it does nothing.
+     * 
+     * The following rules describe some common behavior of the method for particular
+     * operators when coupled with other operators:
+     * - ODESolver: Update the input @a x [in] with initial condition from another application.
+     * - TimeDependentOperator: Set initial guess for @a k in linear solve; not typically needed.
+     */
+    virtual void PreProcess(Vector &x){
+        if(pre_process_func) pre_process_func(x);
+    }
+
+
+    /**
+     * @brief Post-process the input vector @a x after performing operations such as
+     * Mult, Solve, ImplicitSolve, Step, etc. when coupled with other operators.
+     * @note This method is always called after the main operation is performed, but must 
+     * be overridden to have an effect. Currently, it does nothing.
+     * 
+     * The following rules describe some common behavior of the method for particular
+     * operators when coupled with other operators:
+     * - ODESolver: Update the input @a x [in] with initial condition from another application.
+     * - TimeDependentOperator: Prepare to communicate stage updated: un = ui+dt*k.
+     */
+    virtual void PostProcess(Vector &x){
+        if(post_process_func) post_process_func(x);
+    }
+
+
+    /**
+     * @brief Solve the problem defined by the operator, given an input @a x 
      * and return the solution in @a y.
      */
-    virtual void Solve(const Vector &x, Vector &y) const {
+    virtual void Solve(const Vector &x, Vector &y) const
+    {
         MFEM_ABORT("Not implemented for this Application.");
     };
 
     /**
-     * @brief Apply the operator defined by the application to the vector @a x 
-     * and return the result in @a y.
+     * @brief Apply the operator the vector @a x and return the result in @a y.
+     * For @a TimeDependentOperator, this computes (u,t) -> k(u,t).
      */
-    virtual void Mult(const Vector &x, Vector &y) const override {
+    virtual void Mult(const Vector &x, Vector &y) const override
+    {
         MFEM_ABORT("Not implemented for this Application.");
     }
 
-    virtual void Update() {
+    /**
+     * @brief Update the operator state. 
+     */
+    virtual void Update()
+    {
         mfem_error("Application::Update() is not overridden!");
     }
     
-    virtual void PerformOperation(const int op, const Vector &x, Vector &y) {
+    /**
+     * @brief Perform an operation index by @a id on the vector @a x and store the result in @a y.
+     */
+    virtual void PerformOperation(const int id, const Vector &x, Vector &y)
+    {
         mfem_error("Application::PerformOperation() is not overridden!");
     }
 
-    void AddLinkedFields(LinkedFields *field) {
+    /**
+     * @brief Add a LinkedField @a field to the operator.
+     * @note The source field in the @a LinkedField should
+     * be from the current operator.
+     * 
+     */
+    void AddLinkedFields(LinkedFields *field)
+    {
         linked_fields.push_back(field);
     }
 
-    virtual void Step(Vector &x, real_t &t, real_t &dt) {
+    /**
+     * @brief Perform a time step from time @a t [in] to time @a t [out] based
+     * on the requested step size @a dt [in].
+     * @note This function is called if the operator is an ODESolver.
+     * 
+     * @param x Approximate initial solution
+     * @param t Time associated with the approximate solution @a x
+     * @param dt Time step size
+     */
+    virtual void Step(Vector &x, real_t &t, real_t &dt)
+    {
         mfem_error("Application::Step() is not overridden!");
     }
 
-    virtual void Transfer(const Vector &x) {
+    /**
+     * @brief Transfer the data defined in the LinkedFields for current operator.
+     * 
+     * @param x Information to transfer, e.g., current solution vector, stage update, etc.
+     */
+    virtual void Transfer(const Vector &x)
+    {
         int n = linked_fields.size();
         if (n == 1)
         {
@@ -439,7 +333,8 @@ public:
         }
     }
 
-    virtual void Transfer() {
+    virtual void Transfer()
+    {
         int n = linked_fields.size();
         for (int i = 0; i < n; i++)
         {
@@ -450,7 +345,12 @@ public:
 
 
 
-template <typename App>
+/**
+ * @brief An abstract class to define the interface for operators that can be used
+ * with applications. It provides a way to check if the application has the required
+ * member functions and implements the Mult, Solve, and Step methods.
+ */
+template <typename OpType>
 class AbstractOperator : public Application
 {
 protected:
@@ -473,12 +373,6 @@ protected:
 
         template<class T>
         using MultPtr = decltype(std::declval<T&>().Mult(std::declval<const int>(),std::declval<const real_t*>(),std::declval<const int>(),std::declval<real_t*>()));
-
-        template<class T>
-        using Solve = decltype(std::declval<T&>().Solve(std::declval<const Vector&>(),std::declval<Vector&>()));
-
-        template<class T>
-        using SolvePtr = decltype(std::declval<T&>().Solve(std::declval<const int>(),std::declval<const real_t*>(),std::declval<const int>(),std::declval<real_t*>()));        
         // ---------------------------------------------------------------------
         
         template <typename T, template<typename> typename Func, typename R>
@@ -490,85 +384,68 @@ protected:
         // --- Check for the existence of the member functions
         typedef decltype(Check<C,Mult,void>(0)) Has_Mult;
         typedef decltype(Check<C,Step,void>(0)) Has_Step;
-        typedef decltype(Check<C,Solve,void>(0)) Has_Solve;
 
         typedef decltype(Check<C,MultPtr,void>(0)) Has_MultPtr;
         typedef decltype(Check<C,StepPtr,void>(0)) Has_StepPtr;
-        typedef decltype(Check<C,SolvePtr,void>(0)) Has_SolvePtr;
 
     public:
         static constexpr bool HasMult  = Has_Mult::value;
         static constexpr bool HasStep  = Has_Step::value;
-        static constexpr bool HasSolve = Has_Solve::value;
         static constexpr bool HasMultPtr  = Has_MultPtr::value;
         static constexpr bool HasStepPtr  = Has_StepPtr::value;
-        static constexpr bool HasSolvePtr = Has_SolvePtr::value;
-
     };    
 
 
-    App *app; ///< Pointer to the application
+    OpType *op;  ///< Pointer to the operator
+    Application *nested_op = nullptr; ///< Pointer to the nested operator, if any
 
 public:
 
-    constexpr bool HasMult(){return CheckMember<App>::HasMult;}
-    constexpr bool HasStep(){return CheckMember<App>::HasStep;}
-    constexpr bool HasSolve(){return CheckMember<App>::HasSolve;}
+    constexpr bool HasMult(){return CheckMember<OpType>::HasMult;}
+    constexpr bool HasStep(){return CheckMember<OpType>::HasStep;}
 
 
-    AbstractOperator(App *app_) : app(app_) {}
-    
-
-    // void PerformOperation(const int op, const Vector &x, Vector &y) override
-    // {
-    //     app->PerformOperation(x,y);
-    // }
-
-    void Solve(const Vector &x, Vector &y) const override
-    {
-        if constexpr (CheckMember<App>::HasSolve)
+    AbstractOperator(OpType *op_) : op(op_)
+    {    
+        // If the operator is an ODESolver, we need access to its time-dependent operator 
+        if constexpr (std::is_base_of<ODESolver, OpType>::value)
         {
-            app->Solve(x,y);
-        }
-        else if constexpr (CheckMember<App>::HasSolvePtr)
-        {
-            app->Solve(x.Size(), x.GetData(), y.Size(), y.GetData());
-        }
-        else
-        {
-            MFEM_ABORT("The AbstractOperator does not have the function, Solve.");
+            TimeDependentOperator* tdo = op->GetTimeDependentOperator();
+            this->height = tdo->Height();
+            this->width  = tdo->Width();
+            nested_op = dynamic_cast<Application*>(tdo);
         }
     }
 
     void Mult(const Vector &x, Vector &y) const override
     {
-        if constexpr (CheckMember<App>::HasMult)
+        if constexpr (CheckMember<OpType>::HasMult)
         {
-            app->Mult(x,y);
+            op->Mult(x,y);
         }
-        else if constexpr (CheckMember<App>::HasMultPtr)
+        else if constexpr (CheckMember<OpType>::HasMultPtr)
         {
-            app->Mult(x.Size(), x.GetData(), y.Size(), y.GetData());
+            op->Mult(x.Size(), x.GetData(), y.Size(), y.GetData());
         }
         else
         {
-            MFEM_ABORT("The AbstractOperator does not have the function, Mult.");            
+            MFEM_ABORT("The AbstractOperator does not have the function, Mult(const Vector&, Vector&) or Mult(int, double*, int, double*).");            
         }
     }
 
     void Step(Vector &x, real_t &t, real_t &dt) override
     {
-        if constexpr (CheckMember<App>::HasStep)
+        if constexpr (CheckMember<OpType>::HasStep)
         {
-            app->Step(x,t,dt);
+            op->Step(x,t,dt);
         }
-        else if constexpr (CheckMember<App>::HasStepPtr)
+        else if constexpr (CheckMember<OpType>::HasStepPtr)
         {
-            app->Step(x.Size(), x.GetData(), t, dt);
+            op->Step(x.Size(), x.GetData(), t, dt);
         }
         else
         {
-            MFEM_ABORT("The AbstractOperator does not have the function, Step.");
+            MFEM_ABORT("The AbstractOperator does not have the function, Step(Vector&, real_t&, real_t&) or Step(int, double*, double&, double&).");
         }        
     }
 };
@@ -576,542 +453,375 @@ public:
 
 
 
+class CouplingOperator; // forward declaration for CoupledApplication
 
 /**
- * @brief A class to couple multiple applications together.
+ * @brief A class to couple multiple operators together.
  */
 class CoupledApplication : public Application
 {
-private:
-
-    class ImplicitOperator : public TimeDependentOperator
-    {
-        protected:
-            CoupledApplication *app;
-            const Vector *u = nullptr; ///< Pointer to the input vector, used in Mult() methods
-            bool is_linear = false;    ///< Flag to indicate if the operator is linear
-            real_t dt= 0.0;            ///< Time step size, used for time-dependent applications
-        public:
-            ImplicitOperator(CoupledApplication *app_) : TimeDependentOperator(app_->Height(),app_->Width()), app(app_){}
-            virtual void SetTimeStep(real_t dt_){ dt = dt_;}
-            virtual void SetState(const Vector *u_){u = u_;}
-            virtual void SetLinearity(const bool is_linear_){is_linear = is_linear_;}
-            virtual bool IsLinear() const { return is_linear; }
-    };
-    class AdditiveSchwarzOperator : public ImplicitOperator
-    {
-        public:
-            AdditiveSchwarzOperator(CoupledApplication *app_) : ImplicitOperator(app_){}
-            void Mult(const Vector &ki, Vector &k) const override { 
-                k = ki;
-                app->AdditiveSchwarzImplicitSolve(dt,*u,k);
-            }
-    };
-    class AlternatingSchwarzOperator : public ImplicitOperator
-    {
-        public:
-            AlternatingSchwarzOperator(CoupledApplication *app_) : ImplicitOperator(app_){}        
-            void Mult(const Vector &ki, Vector &k) const override { 
-                k = ki;
-                app->AlternatingSchwarzImplicitSolve(dt,*u,k);
-            }
-    };
-    class MonolithicOperator : public ImplicitOperator
-    {
-        protected:
-            mutable Vector upk;
-            mutable future::FDJacobian grad;
-            mutable real_t du = 1.0;
-        public:
-            MonolithicOperator(CoupledApplication *app_, real_t eps=1.0e-6) : ImplicitOperator(app_),
-                                                                              upk(Width()), grad(*this,eps) {}
-            /**
-             * @brief Set the du coefficient in upk = du*u + dt*k, depending on the linearity
-             *        of the operator. For linear problems, du = 0, for nonlinear problems, du = 1.
-             */
-            void SetLinearity(bool is_linear_) override {
-                ImplicitOperator::SetLinearity(is_linear_);
-                du = is_linear ? 0.0 : 1.0; // Set du to 0 for linear problems, 1 for nonlinear
-            }
-                                                                              /**
-             * @brief Update the current state/point of linearization for the nonlinear operator. For
-             *        Jacobian-free methods, i.e. J(k)*v = (F(k+eps*v) - F(k))/eps, this sets the F(k)
-             */
-            Operator& GetGradient(const Vector &k) const override {
-                grad.Update(k);
-                return const_cast<future::FDJacobian&>(grad);
-            }
-
-            /**
-             * @brief Computes the action of the implicit, monolithic operator on vector x.
-             *        ImplicitMult assumes ODE of the form F(u,k,t) = M k - g(u,t), G(u,t) = 0
-             *        For fully implicit, monolithic solver, we take F(u+dt*k,k,t) = M k - g(u+dt*k,t)
-             */
-            void Mult(const Vector &k, Vector &y) const override {
-                add(du,*u,dt,k,upk); // upk = u + dt*k
-                app->Transfer(upk);
-                app->ImplicitMult(upk,k,y); //y = f(upk,k,t)
-            }
-    };
-
 public:
 
     enum class Scheme
     {
-        NONE,                ///< No coupling, solve each app independently
-        MONOLITHIC,          ///< Solve all apps simultaneously
-        ADDITIVE_SCHWARZ,    ///< Jacobi-type: solve each app and transfer data to the next after all apps
-        ALTERNATING_SCHWARZ  ///< Gauss-Seidel-type: solve each app and transfer data to the next immediately
+        NONE,                ///< No coupling, solve each operator independently
+        MONOLITHIC,          ///< Solve all operators simultaneously
+        ADDITIVE_SCHWARZ,    ///< Jacobi-type: solve each operator and transfer data to the next after all operators
+        ALTERNATING_SCHWARZ  ///< Gauss-Seidel-type: solve each operator and transfer data to the next immediately
     };
 
 protected:
 
-    int napps = 0; ///< The number of applications
-    Scheme scheme = Scheme::ADDITIVE_SCHWARZ; ///< Current coupling type
-    
-    std::vector<Application*> apps;
-    ImplicitOperator *implicit_op = nullptr; ///< Coupled operator for the applications
-    Solver *solver = nullptr;   /// Solver for implicit solve (e.g., fixed point, linear, nonlinear)
-    real_t dt_ = 0.0; ///< Timestep used to compute u = u_0 + dt*dudt for transfer to apps in multistage methods
-
+    int nops = 0; ///< The number of applications
+    std::vector<Application*> operators;    
     mfem::Array<int> offsets;   // Block offsets for each operator
-    mutable Vector xt,b;
+    int max_op_size=0;          // Largest operator size
 
+
+    /// Operator for coupling scheme
+    Scheme scheme = Scheme::ADDITIVE_SCHWARZ; ///< Current coupling type
+    CouplingOperator *coupling_op = nullptr;
+    bool own_coupling_op = true;
+    
+    /// Solver for the coupling operator (e.g., FPISolver for Schwarz and Newton/Krylov for Monolithic)
+    Solver *solver = nullptr; 
+    bool own_solver = false;
+
+    real_t dt_ = 0.0; ///< Timestep used to compute u = u_0 + dt*dudt for transfer to operators in multistage methods
+    mutable Vector b;
+    
 public:
 
     /**
-     * @brief Construct a new CoupledApplication object. The total number of applications
-     * @param napp Total number of applications
+     * @brief Construct a new CoupledApplication object.
+     * @param nop Total number of operators to couple
      */
     template<typename... Args>
-    CoupledApplication(const int napp, Args... args) : Application(args...) {
-        apps.reserve(napp);
-        offsets.Reserve(napp+1);
+    CoupledApplication(const int nop, Args... args) : Application(args...) {
+        operators.reserve(nop);
+        offsets.Reserve(nop+1);
         offsets.Prepend(0);
     }
 
     /**
-     * @brief Construct a new CoupledApplication object. The total number of applications
+     * @brief Construct a new CoupledApplication object.
+     * @param nop Total number of operators to couple
      */
-    CoupledApplication(const int napp) : Application() {
-        apps.reserve(napp);
-        offsets.Reserve(napp+1);
+    CoupledApplication(const int nop) : Application() {
+        operators.reserve(nop);
+        offsets.Reserve(nop+1);
         offsets.Prepend(0);
     }
 
     /**
-     * @brief Construct a new CoupledApplication object for an abstract non/mfem application
-     * or templated application, and derived class.
+     * @brief Construct a new CoupledApplication object for an abstract non/mfem operator
+     * or templated operator, and derived class.
      */
-    template <class AppType>
-    CoupledApplication(const AppType &app) : Application() {
-        AddApplication(app);
+    template <class OpType>
+    CoupledApplication(const OpType &op) : Application() {
+        AddOperator(op);
     }
 
+
     /**
-     * @brief Add an application to the list of coupled application and return pointer to it.
+     * @brief Add an operator to the list of coupled operator and return pointer to it.
      */
-    template <class AppType>
-    Application* AddApplication(AppType *app) {
+    template <class OpType>
+    Application* AddOperator(OpType *op_) {
 
         // Add operator to list of operators
-        if constexpr(std::is_base_of<Application, AppType>::value)
+        if constexpr(std::is_base_of<Application, OpType>::value)
         {
-            apps.push_back(app);
+            operators.push_back(op_);
         } 
         else
         {
-            apps.push_back(new AbstractOperator<AppType>(app));
+            operators.push_back(new AbstractOperator<OpType>(op_));
         }
-        napps++;
+        nops++;
 
         // Update size of the coupled operator and the block offsets
-        Application* app_ = apps.back();
+        Application* op = operators.back();
 
         int sum = offsets.Last();
-        offsets.Append(sum + app_->Width());
-        this->width  += app_->Width();
-        this->height += app_->Height();
+        offsets.Append(sum + op->Width());
 
-        return app_;
+        this->width  += op->Width();
+        this->height += op->Height();
+
+        max_op_size = std::max(max_op_size, op->Width()); // Largest operator
+
+        return op;
     }
 
-    Application* GetApplication(const int i) { return apps[i]; }
-
-    virtual void SetCouplingScheme(Scheme scheme_) { scheme = scheme_; }
-    Scheme GetCouplingScheme() const { return scheme; }
-
-    void SetOffsets(Array<int> off_sets) { this->offsets = off_sets; }
-
-    void SetSolver(Solver *solver_){ solver = solver_; }
-
-    ImplicitOperator* GetImplicitOperator(){ return implicit_op; }
-
-    void Initialize(bool do_apps = false)
-    {
-        if (do_apps)
-        {
-            for (auto &app : apps)
-            {
-                app->Initialize();
-            }
-        }
-    }
-
-
-    ImplicitOperator *BuildImplicitOperator(){
-
-        if (implicit_op) delete implicit_op;
-
-        if (scheme == Scheme::MONOLITHIC)
-        {
-            implicit_op = new MonolithicOperator(this, 1e-6); // eps = 1e-6
-        }
-        else if (scheme == Scheme::ADDITIVE_SCHWARZ)
-        {
-            implicit_op = new AdditiveSchwarzOperator(this);
-        }
-        else if (scheme == Scheme::ALTERNATING_SCHWARZ)
-        {
-            implicit_op = new AlternatingSchwarzOperator(this);
-        }
-
-        return implicit_op;
-    }
-
-    void Assemble(bool do_apps = false)
-    {
-        if (do_apps)
-        {
-            for (auto &app : apps)
-            {
-                app->Assemble();
-            }
-        }
-
-        BuildImplicitOperator();
-        auto app = *std::max_element(apps.begin(), apps.end(), [](auto a, auto b) { return a->Width() < b->Width();});
-        int max_size = app->Width(); // size of largest operator
-                    
-        if (scheme == Scheme::MONOLITHIC)
-        {   // Set vector size for the full coupled operator
-            xt.SetSize(this->Width());
-        }
-        else if (scheme == Scheme::ADDITIVE_SCHWARZ || scheme == Scheme::ALTERNATING_SCHWARZ)
-        {   // Set vector size for the the largest operator
-            xt.SetSize(max_size);
-        }
-
-        if(implicit_op && solver) solver->SetOperator(*implicit_op);
-    }
-
-    void Finalize(bool do_apps = false)
-    {
-        if (do_apps)
-        {
-            for (auto &app : apps)
-            {
-                app->Finalize();
-            }
-        }
-        
-        if (implicit_op)
-        {
-            if (!solver){
-                MFEM_ABORT("Solver for implicit operator not defined; set solver using SetSolver(&).");
-            }
-
-            if(implicit_op->IsLinear())
-            {  // Use b to store the rhs for the linear implicit solve.
-               // b=0 (or unused) for nonlinear Newton solves
-                b.SetSize(Width());
-            }
-        }
-    }
 
     /**
-    * @brief Given a vector @a x, solve the problem defined by the application 
-    * or miniapp and return the solution in @a y.
-    */
-    virtual void Solve(const Vector &x, Vector &y) const
-    {
-        for (auto &app : apps)
-        {
-            app->Solve(x, y);
-        }
-    }
+     * @brief Get the number of coupled operators
+     */
+    int Size(){return nops;}
+
+    /**
+     * @brief Get the size of the largest operator
+     */
+    int Max(){return max_op_size;}
+
+
+    /**
+     * @brief Get the Application object at index i
+     */
+    Application* GetOperator(const int i) { return operators[i]; }
+
+    /**
+     * @brief Set the operator coupling scheme
+     * @note Currently supported options are provided in enum Scheme
+     */
+    virtual void SetCouplingScheme(Scheme scheme_) { scheme = scheme_; }
+
+    /**
+     * @brief Get the current operator coupling scheme
+     */
+    Scheme GetCouplingScheme() const { return scheme; }
+
+    /**
+     * @brief Set the offset used by BlockVector for the coupled operator
+     */
+    void SetOffsets(Array<int> off_sets) { this->offsets = off_sets; }
+
+    /**
+     * @brief Return the offset used by BlockVector for the coupled operator
+     */
+    const Array<int> GetOffsets(){return offsets;}
+
+
+    /**
+     * @brief Set the solver used for fixed point iterations or Newton solver in
+     * the implicit solve
+     * @param own If 'true', own @a solver_
+     */
+    void SetSolver(Solver *solver_, bool own = false){ solver = solver_; own_solver = own;}
+
+
+    /**
+     * @brief Get the CouplingOperator corresponding to the coupling scheme
+     */
+    CouplingOperator* GetCouplingOperator(){ return coupling_op; }
+
+    /**
+     * @brief Set the CouplingOperator corresponding to the coupling scheme
+     * @param op CouplingOperator to use
+     * @param own If 'true', own @a op
+     */
+    void SetCouplingOperator(CouplingOperator* op, bool own=false);
+
+    /**
+     * @brief Build and return the appropriate CouplingOperator for the currently
+     * set coupling scheme
+     */
+    CouplingOperator *BuildCouplingOperator();
+
+
+    /**
+     * @brief Initialize the CoupledOperator
+     * @param do_ops If 'true', call Initialize on all operator
+     */
+    void Initialize(bool do_ops = false);
+
+
+    /**
+     * @brief Assemble the CoupledOperator
+     * @param do_ops If 'true', call Assemble on all operator
+     */
+    void Assemble(bool do_ops = false);
+
+
+    /**
+     * @brief Finalize the CoupledOperator
+     * @param do_ops If 'true', call Finalize on all operator
+     */
+    void Finalize(bool do_ops = false);
+
+
+    /**
+     * @brief Pre-process the Vector @a x before an operation (e.g., Mult, ImplictSolve, etc.)
+     * @note See Application::PreProcess(Vector&) for when this can be used
+     * @param do_ops If 'true', call PreProcess for all operators
+     */
+    void PreProcess(Vector &x, bool do_ops = false);
+
+    
+    /**
+     * @brief Post-process the Vector @a x after an operation (e.g., Mult, ImplictSolve, etc.)
+     * @note See Application::PostProcess(Vector&) for when this can be used
+     * @param do_ops If 'true', call PostProcess for all operators
+     */
+    void PostProcess(Vector &x, bool do_ops = false);
+    
+    
+    /**
+     * @brief Transfer Vector @a x to operators via LinkedFields
+     */
+    virtual void Transfer(const Vector &x) override;
 
 
     void SetTime(const real_t t) override
     {
         if (isExplicit()){
             // Compute dt based on the current time and the previous time
-            // Used to compute u = u_0 + dt*dudt for transfer to apps in multistage methods
+            // Used to compute u = u_0 + dt*dudt for transfer to operators in multistage methods
             // Note: this is only needed for explicit operators; ImplicitSolve passes dt directly
             this->dt_ = t - this->GetTime();
         }
 
         TimeDependentOperator::SetTime(t);
-        for (auto &app : apps)
+        for (auto &op : operators)
         {
-            app->SetTime(t);
+            op->SetTime(t);
         }
     }
 
+
+    /**
+     * @brief Perform operation, defined by @a op, on @a x and return in @a y
+     * @note @a id is typically selected from enum Appliction::OperationID
+     */
+    void PerformOperation(const int id, const Vector &x, Vector &y)
+    {
+        for (auto &op : operators) {
+            op->PerformOperation(id, x, y);
+        }
+    }
+
+    
     /**
      * @brief Apply the operator defined by the application to the vector @a x 
      * and return the result in @a y.
      */
-    virtual void Mult(const Vector &x, Vector &y) const
-    {
-        BlockVector xb(x.GetData(), offsets);
-        BlockVector yb(y.GetData(), offsets);
+    virtual void Mult(const Vector &x, Vector &y) const override;
 
-        if (scheme == Scheme::ADDITIVE_SCHWARZ)
-        {   
-            for (int i=0; i < napps; i++)
-            {
-                Vector &xi = xb.GetBlock(i);
-                Vector &yi = yb.GetBlock(i);
-                apps[i]->Mult(xi,yi);
-            }
-
-            // Transfer data. If app is steady-state and Mult solves F(x) = 0, then
-            // dt_ = 0 and x is transferred to all applications. If app is explicit, time-dependent,
-            // then Mult computes dxdt = F(x), updates xt = xi + dt*dxdt, and transfers xt to all applications.
-            for (int i=0; i < napps; i++)
-            {
-                Vector &xi = xb.GetBlock(i);
-                Vector &yi = yb.GetBlock(i);
-                int isize  = xi.Size();
-
-                xt.SetSize(isize);
-                add(1.0,xi,dt_,yi,xt); ///< Compute the solution (xt = xi + dt*ki)
-                apps[i]->Transfer(xt);  ///< Transfer the data to all applications
-            }            
-        }
-        else if (scheme == Scheme::ALTERNATING_SCHWARZ)
-        {
-            for (int i=0; i < napps; i++)
-            {
-                Vector &xi = xb.GetBlock(i);
-                Vector &yi = yb.GetBlock(i);
-                apps[i]->Mult(xi,yi);
-
-                int isize  = xi.Size();
-                xt.SetSize(isize);
-                add(1.0,xi,dt_,yi,xt); ///< Compute the solution (xt = xi + dt*ki)                
-                apps[i]->Transfer(xt);  ///< Transfer the data to all applications
-            }
-        }
-        else 
-        {
-            for (int i=0; i < napps; i++)
-            {
-                apps[i]->Mult(xb.GetBlock(i), yb.GetBlock(i));
-            }
-        }
-    }
 
     /**
-     * @brief 
-     * 
+     * @brief Advance the time step for each application. \Phi_i(x_i; t, dt) = x_i(t) -> x_i(t+dt).
+     * @note This is used when the operator to be coupled are of type ODESolver.
+     * @note For Additive Schwarz, forms a Jacobi-type coupling, where the information @a x at time @a t is
+     *       first transfered, followed by advancing all operators
+     * @note The Alternating Schwarz forms a Gauss-Seidel-type coupling, where each operator, \Phi_i, is advanced
+     *       sequentially, and the new state, x_i(t+dt), is transfered to all other operators. This requires that
+     *       the operators are ordered.
      */
-    void PerformOperation(const int op, const Vector &x, Vector &y)
-    {
-        for (auto &app : apps) {
-            app->PerformOperation(op, x, y);
-        }
-    }
+    void Step(Vector &x, real_t &t, real_t &dt) override;
 
-    virtual void Transfer(const Vector &x)
-    {
-        BlockVector xb(x.GetData(), offsets);
-        for (int i=0; i < napps; i++)
-        {
-            apps[i]->Transfer(xb.GetBlock(i));
-        }
-    }
 
     /**
-     * @brief Advance the time step for each application. If the coupling type is ONE_WAY,
-     * the data from the current application is transferred to all others. This coupling
-     * is forward and requires the applications to be ordered in the desired sequence.
+     * @brief Solve for the unknown k, at the current time t, the following equation: F(u + gamma k, k, t) = G(u + gamma k, t).
+     * The solution procedure is determinied by the coupling scheme (e.g., partitioned vs monolithic solves).
      */
-    void Step(Vector &x, real_t &t, real_t &dt) override
-    {
-        BlockVector xb(x.GetData(), offsets);
-
-        if (scheme == Scheme::ADDITIVE_SCHWARZ)
-        {
-            // Step forward all operators
-            // TODO: Add time-interpolation to enable different time step for each operator; 
-            //       currently, all operators are stepped forward with the same time step
-            for (int i=0; i < napps; i++)
-            {
-                real_t t0 = t;   ///< Store the current time
-                real_t dt0 = dt; ///< Store the current time step
-
-                Vector &xi = xb.GetBlock(i);
-                apps[i]->Step(xi,t0,dt0); ///< Advance the time step for application
-            }
-
-            // Transfer the data after all applications have been stepped forward
-            for (int i=0; i < napps; i++)
-            {
-                Vector &xi = xb.GetBlock(i);
-                apps[i]->Transfer(xi);
-            }
-        }
-        else if (scheme == Scheme::ALTERNATING_SCHWARZ)
-        {
-            for (int i=0; i < napps; i++)
-            {
-                real_t t0 = t;   ///< Store the current time
-                real_t dt0 = dt; ///< Store the current time step
-
-                Vector &xi = xb.GetBlock(i);
-                apps[i]->Step(xi,t0,dt0); ///< Advance the time step for application
-                apps[i]->Transfer(xi);    ///< Transfer the data to all applications
-            }
-        }
-        else if (scheme == Scheme::NONE)
-        {
-            for (int i=0; i < napps; i++)
-            {
-                real_t t0 = t;   ///< Store the current time
-                real_t dt0 = dt; ///< Store the current time step
-                Vector &xi = xb.GetBlock(i);
-                apps[i]->Step(xi,t0,dt0); ///< Advance the time step for application
-            }
-        }
-
-    }
+    void ImplicitSolve(const real_t dt, const Vector &x, Vector &k );
 
     /**
-     * @brief Solves the implicit system. The PARTITIONED implicit solve is handled by/within 
-     * each individual app. This function performs an implicit solve for the monolithic system
+     * @brief Perform the action of the implicit part of all operators, F_i: v_i = F(u_i, k_i, t)
+     * where t is the current time. This function performs an implicit solve for the monolithic system
      */
-    void ImplicitMult(const Vector &u, const Vector &k, Vector &v) const override {
+    void ImplicitMult(const Vector &u, const Vector &k, Vector &v) const override;
 
-        BlockVector ub(u.GetData(), offsets);
-        BlockVector kb(k.GetData(), offsets);
-        BlockVector vb(v.GetData(), offsets);
-
-        for (int i=0; i < napps; i++)
-        {
-            Vector &ui = ub.GetBlock(i);
-            Vector &ki = kb.GetBlock(i);
-            Vector &vi = vb.GetBlock(i);
-            apps[i]->ImplicitMult(ui,ki,vi); ///< Solve the implicit system for the application
-        }
-    }
-
+    
     /**
-     * @brief Solves the implicit system. The PARTITIONED implicit solve is handled by/within 
-     * each individual app. This function performs an implicit solve for the monolithic system
+     * @brief Perform the action of the explicit part of all operators, G_i: v_i = G(u_i, t)
+     * where t is the current time.
      */
-    void ExplicitMult(const Vector &u, Vector &v) const override {
+    void ExplicitMult(const Vector &u, Vector &v) const override;
 
-        BlockVector ub(u.GetData(), offsets);
-        BlockVector vb(v.GetData(), offsets);
-
-        for (int i=0; i < napps; i++)
-        {
-            Vector &ui = ub.GetBlock(i);
-            Vector &vi = vb.GetBlock(i);
-            apps[i]->ExplicitMult(ui,vi); ///< Solve the implicit system for the application
-        }
-    }
-
+    
     /**
-     * @brief Solves the implicit system. The PARTITIONED implicit solve is handled by/within 
-     * each individual app. This function performs an implicit solve for the monolithic system
+     * @brief Destroy the Coupled Application object
      */
-    void ImplicitSolve(const real_t dt, const Vector &x, Vector &k ){
-
-        if (scheme == Scheme::MONOLITHIC) ///< Solve all physics simultaneously
-        {
-            implicit_op->SetTimeStep(dt); ///< Set the time step for the implicit operator
-            implicit_op->SetState(&x); ///< Set the input vector for the implicit operator
-            if (implicit_op->IsLinear()){
-                ExplicitMult(x,b);  // Compute the rhs for the linear implicit system
-            }
-            solver->Mult(b,k);
-        }
-        else if (scheme == Scheme::ADDITIVE_SCHWARZ || scheme == Scheme::ALTERNATING_SCHWARZ) ///< Solve each physics independently
-        {
-            implicit_op->SetTimeStep(dt); ///< Set the time step for the implicit operator
-            implicit_op->SetState(&x); ///< Set the input vector for the implicit operator
-            solver->Mult(b,k); ///< Solve the implicit system using the solver (b is unused for FPISolver)
-        }
-        else
-        {
-            BlockVector xb(x.GetData(), offsets);
-            BlockVector kb(k.GetData(), offsets);
-
-            for (int i=0; i < napps; i++)
-            {
-                Vector &xi = xb.GetBlock(i);
-                Vector &ki = kb.GetBlock(i);
-                apps[i]->ImplicitSolve(dt,xi,ki); ///< Solve the implicit system for the application
-            }
-        }
-    }
-
-    /**
-     * @brief Solves the implicit system app-by-app for the PARTITIONED coupling 
-     */
-    void AdditiveSchwarzImplicitSolve(const real_t dt, const Vector &x, Vector &k )
-    {
-        BlockVector xb(x.GetData(), offsets);
-        BlockVector kb(k.GetData(), offsets);
-
-        for (int i=0; i < napps; i++)
-        {
-            Vector &xi = xb.GetBlock(i);
-            Vector &ki = kb.GetBlock(i);
-            int isize  = xi.Size();
-
-            xt.SetSize(isize);
-            add(1.0,xi,dt,ki,xt); ///< Compute the solution (xt = xi + dt*ki)
-            apps[i]->Transfer(xt);  ///< Transfer the data to all applications
-        }
-
-        for (int i=0; i < napps; i++)
-        {
-            Vector &xi = xb.GetBlock(i);
-            Vector &ki = kb.GetBlock(i);
-            apps[i]->ImplicitSolve(dt,xi,ki); ///< Solve the implicit system for the application
-        }
-    }
-
-    /**
-     * @brief Solves the implicit system app-by-app for the PARTITIONED coupling
-     * @note k on input is the initial gues for dudt, and is used to transfer solution
-     */
-    void AlternatingSchwarzImplicitSolve(const real_t dt, const Vector &x, Vector &k )
-    {
-        BlockVector xb(x.GetData(), offsets);
-        BlockVector kb(k.GetData(), offsets);
-       
-        for (int i=0; i < napps; i++)
-        {
-            Vector &xi = xb.GetBlock(i);
-            Vector &ki = kb.GetBlock(i);
-            int isize  = xi.Size();
-
-            xt.SetSize(isize);
-            add(1.0,xi,dt,ki,xt); ///< Compute the solution (xt = xi + dt*ki)
-            
-            apps[i]->Transfer(xt);  ///< Transfer the data to all applications
-            apps[i]->ImplicitSolve(dt,xi,ki); ///< Solve the implicit system for the application
-        }
-    }
-
+    ~CoupledApplication();
 };
 
-}
+
+
+
+
+class CouplingOperator : public Application
+{
+    protected:
+        CoupledApplication *coupled_operator;
+        const Vector *u = nullptr; ///< Pointer to the input vector, used in Mult() methods
+        bool is_linear = false;    ///< Flag to indicate if the operator is linear
+        real_t dt= 0.0;            ///< Time step size, used for time-dependent applications
+        friend class CoupledApplication;
+    public:
+        CouplingOperator(CoupledApplication *op) : Application(op->Height(),
+                                                   op->Width()),
+                                                   coupled_operator(op){}
+
+        virtual void SetTimeStep(real_t dt_){ dt = dt_;}
+        virtual void SetState(const Vector *u_){u = u_;}
+        virtual void SetLinearity(const bool is_linear_){is_linear = is_linear_;}
+        virtual bool IsLinear() const { return is_linear; }
+};
+
+class AdditiveSchwarzOperator : public CouplingOperator
+{
+    protected:
+        mutable Vector z;
+    public:
+        AdditiveSchwarzOperator(CoupledApplication *op) : CouplingOperator(op){
+            z.SetSize(coupled_operator->Max());
+        }
+        void Mult(const Vector &ki, Vector &k) const override;
+        void ImplicitSolve(const real_t dt, const Vector &x, Vector &k ) override;
+        void Step(Vector &x, real_t &t, real_t &dt) override;
+};
+
+class AlternatingSchwarzOperator : public CouplingOperator
+{
+    protected:
+        mutable Vector z;
+    public:
+        AlternatingSchwarzOperator(CoupledApplication *op) : CouplingOperator(op){
+            z.SetSize(coupled_operator->Max());
+        }
+        void Mult(const Vector &ki, Vector &k) const override;
+        void ImplicitSolve(const real_t dt, const Vector &x, Vector &k ) override;
+        void Step(Vector &x, real_t &t, real_t &dt) override;
+};
+
+class MonolithicOperator : public CouplingOperator
+{
+    protected:
+        mutable future::FDJacobian grad;
+        mutable real_t du = 1.0;
+        mutable Vector upk;
+
+    public:
+        MonolithicOperator(CoupledApplication *op, real_t eps=1.0e-6) : CouplingOperator(op),
+                                                                        grad(*this,eps), 
+                                                                        upk(Width()) {}
+        /**
+         * @brief Set the du coefficient in upk = du*u + dt*k, depending on the linearity
+         *        of the operator. For linear problems, du = 0, for nonlinear problems, du = 1.
+         */
+        void SetLinearity(bool is_linear_) override {
+            CouplingOperator::SetLinearity(is_linear_);
+            du = is_linear ? 0.0 : 1.0; // Set du to 0 for linear problems, 1 for nonlinear
+        }
+
+        /**
+         * @brief Computes the action of the implicit, monolithic operator on vector x.
+         *        ImplicitMult assumes ODE of the form F(u,k,t) = M k - g(u,t), G(u,t) = 0
+         *        For fully implicit, monolithic solver, we take F(u+dt*k,k,t) = M k - g(u+dt*k,t)
+         */
+        void Mult(const Vector &ki, Vector &k) const override;
+        
+        /**
+         * @brief Update the current state/point of linearization for the nonlinear operator. For
+         *        Jacobian-free methods, i.e. J(k)*v = (F(k+eps*v) - F(k))/eps, this sets the F(k)
+         */
+        Operator& GetGradient(const Vector &k) const override;
+};
+
+
+} //mfem namespace
 
 
 #endif
