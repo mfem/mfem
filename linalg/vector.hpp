@@ -171,7 +171,7 @@ public:
    /// Resize the vector to size @a s using the MemoryType of @a v.
    void SetSize(int s, const Vector &v) { SetSize(s, v.GetMemory().GetMemoryType()); }
 
-   /// Update \ref Capacity() to @a res (if less than current), keeping existing entries. 
+   /// Update \ref Capacity() to @a res (if less than current), keeping existing entries.
    void Reserve(int res);
 
    /// Delete entries at @a indices and resize vector accordingly.
