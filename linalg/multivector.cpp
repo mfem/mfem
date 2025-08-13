@@ -14,4 +14,36 @@
 namespace mfem
 {
 
+template <>
+void Ordering::DofsToVDofs<Ordering::byNODES>(int ndofs, int vdim,
+                                              Array<int> &dofs)
+{
+   // static method
+   int size = dofs.Size();
+   dofs.SetSize(size*vdim);
+   for (int vd = 1; vd < vdim; vd++)
+   {
+      for (int i = 0; i < size; i++)
+      {
+         dofs[i+size*vd] = Map<byNODES>(ndofs, vdim, dofs[i], vd);
+      }
+   }
+}
+
+template <>
+void Ordering::DofsToVDofs<Ordering::byVDIM>(int ndofs, int vdim,
+                                             Array<int> &dofs)
+{
+   // static method
+   int size = dofs.Size();
+   dofs.SetSize(size*vdim);
+   for (int vd = vdim-1; vd >= 0; vd--)
+   {
+      for (int i = 0; i < size; i++)
+      {
+         dofs[i+size*vd] = Map<byVDIM>(ndofs, vdim, dofs[i], vd);
+      }
+   }
+}
+
 } // namespace mfem
