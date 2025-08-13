@@ -270,7 +270,7 @@ void LSSolver(Solver& solver,
          for (int j = 0; j < A.Width(); j++)
          {
             A.GetColumn(j, col_j);
-            (*_AtA_reg)(i,j) = col_i * col_j + (M?(*M)(i,j):(i==j)*shift);
+            (*_AtA_reg)(i,j) = col_i * col_j + (M?(*M)(i,j):(i==j))*shift;
          }
       }
       AtA_reg.Reset(_AtA_reg, true);
@@ -345,7 +345,7 @@ void LSSolver(Solver& solver,
          for (int j = 0; j < A.Width(); j++)
          {
             A.GetColumn(j, col_j);
-            (*_AtA_reg)(i,j) = col_i * col_j + (M?(*M)(i,j):(i==j)*shift);
+            (*_AtA_reg)(i,j) = col_i * col_j + (M?(*M)(i,j):(i==j))*shift;
          }
       }
       AtA_reg.Reset(_AtA_reg, true);
@@ -410,7 +410,7 @@ void LSSolver(Solver& solver,
          for (int j = 0; j < A.Width(); j++)
          {
             A.GetColumn(j, col_j);
-            (*_AtA_reg)(i,j) = col_i * col_j + (M?(*M)(i,j):(i==j)*shift);
+            (*_AtA_reg)(i,j) = col_i * col_j + (M?(*M)(i,j):(i==j))*shift;
          }
       }
       AtA_reg.Reset(_AtA_reg, true);
@@ -666,13 +666,17 @@ void AverageReconstruction(Solver& solver,
       src_neighbors_avg /=neighbors_volume;
 
       auto reg_mat = std::make_unique<DenseMatrix>();
+      auto _diff_int = std::make_unique<DiffusionIntegrator>();
+      auto _h1_int = std::make_unique<SumIntegrator>(0);
       switch (reg_type)
       {
          case l2:
-            mfem_error("Not implemented yet!");
+            mass.AssembleElementMatrix(fe_dst_e, *e_trans.get(), *reg_mat.get());
             break;
          case h1:
-            mfem_error("Not implemented yet!");
+            _h1_int->AddIntegrator(&mass);
+            _h1_int->AddIntegrator(_diff_int.get());
+            _h1_int->AssembleElementMatrix(fe_dst_e, *e_trans.get(), *reg_mat.get());
             break;
          case direct:
          default:
@@ -818,13 +822,17 @@ void L2Reconstruction(Solver& solver,
       }
 
       auto reg_mat = std::make_unique<DenseMatrix>();
+      auto _diff_int = std::make_unique<DiffusionIntegrator>();
+      auto _h1_int = std::make_unique<SumIntegrator>(0);
       switch (reg_type)
       {
          case l2:
-            mfem_error("Not implemented yet!");
+            mass.AssembleElementMatrix(fe_dst_e, *e_trans.get(), *reg_mat.get());
             break;
          case h1:
-            mfem_error("Not implemented yet!");
+            _h1_int->AddIntegrator(&mass);
+            _h1_int->AddIntegrator(_diff_int.get());
+            _h1_int->AssembleElementMatrix(fe_dst_e, *e_trans.get(), *reg_mat.get());
             break;
          case direct:
          default:
@@ -889,11 +897,11 @@ void FaceReconstruction(Solver& solver,
                         bool preserve_volumes = false)
 {
    MassIntegrator mass;
-   FaceElementTransformations* face_trans = nullptr;
-   auto e_trans = std::make_unique<IsoparametricTransformation>();
-
    const auto fes_src = src.ParFESpace();
    const auto fes_dst = dst.ParFESpace();
+
+   FaceElementTransformations* face_trans = nullptr;
+   auto e_trans = std::make_unique<IsoparametricTransformation>();
 
    // Auxiliary constant coefficients and partition of unity
    ConstantCoefficient ccf_ones(1.0);
@@ -906,13 +914,16 @@ void FaceReconstruction(Solver& solver,
 
    for (int e_idx = 0; e_idx < mesh.GetNE(); e_idx++)
    {
-      mesh.GetElementEdges(e_idx, faces_e, orientation_e);
-      const int ndof_e = fes_dst->GetFE(e_idx)->GetDof();
+      auto& fe_dst_e = *fes_dst->GetFE(e_idx);
+      const int ndof_e = fe_dst_e.GetDof();
 
-      face_trans = mesh.GetFaceElementTransformations(faces_e[0]);
+      mesh.GetElementEdges(e_idx, faces_e, orientation_e);
+
+      fes_src->GetElementTransformation(e_idx, e_trans.get());
 
       // Assumes all faces are equal
       IntegrationRule ir;
+      face_trans = mesh.GetFaceElementTransformations(faces_e[0]);
       GetCommonIntegrationRule(*fes_src, *fes_dst, *face_trans, ir);
 
       // Setup RHS and Matrix
@@ -944,14 +955,19 @@ void FaceReconstruction(Solver& solver,
 
       Vector dst_e;
       fes_dst->GetElementDofs(e_idx, e_dst_dofs);
+
       auto reg_mat = std::make_unique<DenseMatrix>();
+      auto _diff_int = std::make_unique<DiffusionIntegrator>();
+      auto _h1_int = std::make_unique<SumIntegrator>(0);
       switch (reg_type)
       {
          case l2:
-            mfem_error("Not implemented yet!");
+            mass.AssembleElementMatrix(fe_dst_e, *e_trans.get(), *reg_mat.get());
             break;
          case h1:
-            mfem_error("Not implemented yet!");
+            _h1_int->AddIntegrator(&mass);
+            _h1_int->AddIntegrator(_diff_int.get());
+            _h1_int->AssembleElementMatrix(fe_dst_e, *e_trans.get(), *reg_mat.get());
             break;
          case direct:
          default:
