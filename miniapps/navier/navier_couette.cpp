@@ -228,13 +228,14 @@ int main (int argc, char *argv[])
    }
 
    flow_solver.Setup(ctx.dt);
+   particle_solver.Setup(ctx.dt);
    for (int step = 1; step <= ctx.num_steps; step++)
    {
       // Step Navier
       flow_solver.Step(time, ctx.dt, step-1);
 
       // Step NavierParticles
-      particle_solver.Step(ctx.dt, step-1, u_gf, w_gf);
+      particle_solver.Step(ctx.dt, u_gf, w_gf);
 
       if (ctx.print_csv_freq > 0 && step % ctx.print_csv_freq == 0)
       {

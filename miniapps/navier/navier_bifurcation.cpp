@@ -110,7 +110,7 @@ int main(int argc, char *argv[])
    // Create the particle solver
    NavierParticles particle_solver(MPI_COMM_WORLD, 0, pmesh);
    particle_solver.GetParticles().Reserve( ((ctx.nt - ctx.pnt_0)/ctx.add_particles_freq ) * ctx.num_add_particles / size);
-
+   
    real_t time = 0.0;
 
    // Initialize fluid IC
@@ -172,6 +172,8 @@ int main(int argc, char *argv[])
    int vis_count = 1;
 
    flow_solver.Setup(ctx.dt);
+   particle_solver.Setup(ctx.dt);
+
    u_gf.ProjectCoefficient(u_excoeff);
    int pstep = 0;
    Array<int> add_particle_idxs;
@@ -191,7 +193,7 @@ int main(int argc, char *argv[])
             SetInjectedParticles(particle_solver, add_particle_idxs, ctx.kappa_min, ctx.kappa_max, (rank+1)*step, ctx.zeta, ctx.gamma);
          }
 
-         particle_solver.Step(ctx.dt, pstep, u_gf, w_gf);
+         particle_solver.Step(ctx.dt, u_gf, w_gf);
          pstep++;
       }
 

@@ -348,7 +348,7 @@ NavierParticles::NavierParticles(MPI_Comm comm, int num_particles, Mesh &m)
    C.SetSize(dim);
 }
 
-void NavierParticles::Step(const real_t &dt, int cur_step, const ParGridFunction &u_gf, const ParGridFunction &w_gf)
+void NavierParticles::Step(const real_t &dt, const ParGridFunction &u_gf, const ParGridFunction &w_gf)
 {
    // Shift fluid velocity, fluid vorticity, particle velocity, and particle position
    for (int i = 3; i > 0; i--)
@@ -359,10 +359,6 @@ void NavierParticles::Step(const real_t &dt, int cur_step, const ParGridFunction
       X(i) = X(i-1).GetData();
    }
 
-   if (cur_step == 0)
-   {
-      dthist[0] = dt;
-   }
    SetTimeIntegrationCoefficients();
 
    if (fluid_particles.GetDim() == 2)
