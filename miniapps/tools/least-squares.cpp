@@ -14,6 +14,15 @@
 namespace mfem::reconstruction
 {
 
+/// Enumerator for different function examples
+enum ExamplesType
+{
+   plane,
+   sine,
+   exp_sine,
+   num_examples  // last
+};
+
 /// Enumerator for reconstruction types
 enum ReconstructionType
 {
@@ -71,6 +80,7 @@ struct GlobalConfiguration
    IterativeSolverParams solver;
    RegularizationType reg_type;
    real_t reg;
+   ExamplesType example;
    int ord_smooth;
    int ord_src;
    int ord_dst;
@@ -1164,6 +1174,32 @@ void BoundedVariationReconstruction(Solver& solver,
 
 ///@}
 
+namespace example
+{
+
+using std::exp, std::sin, std::hypot, std::function;
+real_t k_x;
+real_t k_y;
+
+function<real_t(const Vector &)> plane = [](const Vector& x)
+{
+   return 1.0 + k_x * x(0) + k_y * x(1);
+};
+
+function<real_t(const Vector &)> sine = [](const Vector& x)
+{
+   return sin(2.0 * M_PI * k_x * x(0)) * sin(2.0 * M_PI * k_y * x(1));
+};
+
+function<real_t(const Vector &)> exp_sine = [](const Vector& x)
+{
+   return exp(hypot(x(0),x(1))) *
+          sin(2.0 * M_PI * k_x * x(0)) *
+          sin(2.0 * M_PI * k_y * x(1));
+};
+
+} // end namespace example
+
 } // end namespace mfem::reconstruction
 
 using namespace mfem;
@@ -1197,6 +1233,7 @@ int main(int argc, char* argv[])
       },
       .reg_type = direct,
       .reg = 0.0,
+      .example = plane,
       .ord_smooth = 3,
       .ord_src = 0,
       .ord_dst = 1,
@@ -1204,6 +1241,8 @@ int main(int argc, char* argv[])
       .par_ref = 0,
       .preserve_volumes = false,
    };
+   example::k_x = 2.0;
+   example::k_y = 4.0;
 
    // Parse options
    OptionsParser args(argc, argv);
@@ -1275,6 +1314,14 @@ int main(int argc, char* argv[])
                   "--no-preserve-volumes", "Preserve averages (volumes) by"
                   " solving a constrained least squares problem");
 
+   args.AddOption((int*)&params.example, "-E", "--example",
+                  "Function to be reconstructed:"
+                  "\n\t0: 1 + k_x x + k_y y"
+                  "\n\t1: sin(k_x x) sin(k_y y)"
+                  "\n\t2: exp(r) cos(k_x x) sin(k_y y)");
+   args.AddOption(&example::k_x, "-Ex", "--example-Kx", "Value k_x");
+   args.AddOption(&example::k_y, "-Ey", "--example-Ky", "Value k_y");
+
    args.ParseCheck();
    MFEM_VERIFY(params.ser_ref >= 0, "Invalid number of serial refinements!");
    MFEM_VERIFY(params.par_ref >= 0, "Invalid number of parallel refinements!");
@@ -1310,13 +1357,20 @@ int main(int argc, char* argv[])
    mesh.EnsureNCMesh();
 
    // target function u(x,y)
-   const real_t k_x = 0.5;
-   const real_t k_y = 1.0;
-   std::function<real_t(const Vector &)> u_function =
-      [=](const Vector& x)
+   std::function<real_t(const Vector &)> u_function;
+   switch (params.example)
    {
-      return std::cos(2*M_PI*k_x * x(0)) * std::sin(2*M_PI*k_y * x(1));
-   };
+      default:
+      case plane:
+         u_function = example::plane;
+         break;
+      case sine:
+         u_function = example::sine;
+         break;
+      case exp_sine:
+         u_function = example::exp_sine;
+         break;
+   }
    FunctionCoefficient u_coefficient(u_function);
 
    // Broken spaces
