@@ -25,33 +25,53 @@ namespace navier
 
 /** @brief Transient Navier-Stokes fluid-particles solver
  * 
- *  @details TODO: Citation, model, equation...
+ *  @details 
+ * 
+ * 
+ * 
+ * 
+ *  [1] Dutta, Som (2017). Ph.D. Dissertation: Bulle-Effect and its implications for morphodynamics of river diversions. https://www.ideals.illinois.edu/items/102343.
  * 
  */
 class NavierParticles
 {
 protected:
+
+   /// Active fluid particle set.
    ParticleSet fluid_particles;
+
+   /// Inactive fluid particle set. Particles that leave the domain are added here.
    ParticleSet inactive_fluid_particles;
+
    FindPointsGSLIB finder;
 
+   /// Timestep history.
    Array<real_t> dthist{0.0, 0.0, 0.0};
 
-   // BDFk coefficients, k=1,2,3
+   /// BDFk coefficients, k=1,2,3.
    std::array<Array<real_t>, 3> beta_k;
 
-   // EXTk coefficients, k=1,2,3
+   /// EXTk coefficients, k=1,2,3.
    std::array<Array<real_t>, 3> alpha_k;
 
-   struct FluidParticleData
+   /// Carrier of field + tag indices.
+   struct FluidParticleIndices
    {
-      MultiVector *kappa, *zeta, *gamma;
-      MultiVector *u[4];
-      MultiVector *v[4];
-      MultiVector *w[4];
-      MultiVector *x[4];
-      Array<int> *order;
-   } fp_data;
+      struct FieldIndices
+      {
+         int kappa, zeta, gamma;
+         int u[4];
+         int v[4];
+         int w[4];
+         int x[3];
+      } field;
+      
+      struct TagIndices
+      {
+         int order;
+      } tag;
+
+   } fp_idx;
 
    struct ReflectionBC_2D
    {
@@ -103,21 +123,21 @@ public:
 
    ParticleSet& GetInactiveParticles() { return inactive_fluid_particles; }
 
-   MultiVector& Kappa()     { return *fp_data.kappa; }
+   MultiVector& Kappa()     { return fluid_particles.Field(fp_idx.field.kappa); }
 
-   MultiVector& Zeta()     { return *fp_data.zeta; }
+   MultiVector& Zeta()     { return fluid_particles.Field(fp_idx.field.zeta); }
 
-   MultiVector& Gamma()     { return *fp_data.gamma; }
+   MultiVector& Gamma()     { return fluid_particles.Field(fp_idx.field.gamma); }
 
-   MultiVector& U(int nm=0) { return *fp_data.u[nm]; }
+   MultiVector& U(int nm=0) { return fluid_particles.Field(fp_idx.field.u[nm]); }
 
-   MultiVector& V(int nm=0) { return *fp_data.v[nm]; }
+   MultiVector& V(int nm=0) { return fluid_particles.Field(fp_idx.field.v[nm]); }
 
-   MultiVector& W(int nm=0) { return *fp_data.w[nm]; }
+   MultiVector& W(int nm=0) { return fluid_particles.Field(fp_idx.field.w[nm]); }
 
-   MultiVector& X(int nm=0) { return *fp_data.x[nm]; }
+   MultiVector& X(int nm=0) { return nm == 0 ? fluid_particles.Coords() : fluid_particles.Field(fp_idx.field.x[nm-1]); }
 
-   Array<int>& Order()       { return *fp_data.order; }
+   Array<int>& Order()       { return fluid_particles.Tag(fp_idx.tag.order); }
    
    void Add2DReflectionBC(const Vector &line_start, const Vector &line_end, real_t e, bool invert_normal)
    { bcs.push_back(ReflectionBC_2D{line_start, line_end, e, invert_normal}); }

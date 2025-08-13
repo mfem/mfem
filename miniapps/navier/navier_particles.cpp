@@ -70,19 +70,19 @@ void NavierParticles::ParticleStep2D(const real_t &dt, int p)
 {
    real_t w_n_ext = 0.0;
 
-   int order_idx = (*fp_data.order)[p] - 1;
+   int order_idx = Order()[p] - 1;
    const Array<real_t> &beta = beta_k[order_idx];
    const Array<real_t> &alpha = alpha_k[order_idx];
 
-   const real_t &kappa = (*fp_data.kappa)[p];
-   const real_t &zeta = (*fp_data.zeta)[p];
-   const real_t &gamma = (*fp_data.gamma)[p];
+   const real_t &kappa = Kappa()[p];
+   const real_t &zeta = Zeta()[p];
+   const real_t &gamma = Gamma()[p];
 
    // Extrapolate particle vorticity using EXTk (w_n is new vorticity at old particle loc)
    // w_n_ext = alpha1*w_nm1 + alpha2*w_nm2 + alpha3*w_nm3
    for (int j = 1; j <= 3; j++)
    {
-      w_n_ext += alpha[j-1]*(*fp_data.w[j])(p, 0);
+      w_n_ext += alpha[j-1]*W(j)(p, 0);
    }
 
    // Assemble the 2D matrix B
@@ -93,8 +93,8 @@ void NavierParticles::ParticleStep2D(const real_t &dt, int p)
    r = 0.0;
    for (int j = 1; j <= 3; j++)
    {
-      fp_data.u[j]->GetVectorRef(p, up);
-      fp_data.v[j]->GetVectorRef(p, vp);
+      U(j).GetVectorRef(p, up);
+      V(j).GetVectorRef(p, vp);
 
       // Add particle velocity component
       add(r, -beta[j], vp, r);
@@ -111,18 +111,18 @@ void NavierParticles::ParticleStep2D(const real_t &dt, int p)
 
    // Solve for particle velocity
    DenseMatrixInverse B_inv(B);
-   fp_data.v[0]->GetVectorRef(p, vp);
+   V(0).GetVectorRef(p, vp);
    B_inv.Mult(r, vp);
 
    // Compute updated particle position
-   fp_data.x[0]->GetVectorRef(p, xpn);
+   X(0).GetVectorRef(p, xpn);
    xpn = 0.0;
    for (int j = 1; j <= 3; j++)
    {
-      fp_data.x[j]->GetVectorRef(p, xp);
+      X(j).GetVectorRef(p, xp);
       add(xpn, -beta[j], xp, xpn);
    }
-   fp_data.v[0]->GetVectorRef(p, vp);
+   V(0).GetVectorRef(p, vp);
    add(xpn, dt, vp, xpn);
    xpn *= 1.0/beta[0];
 }
@@ -316,9 +316,9 @@ NavierParticles::NavierParticles(MPI_Comm comm, int num_particles, Mesh &m)
    int dim = fluid_particles.GetDim();
 
    // Initialize kappa, zeta, gamma
-   fp_data.kappa = &fluid_particles.AddField(1, Ordering::byVDIM, "kappa");
-   fp_data.zeta = &fluid_particles.AddField(1, Ordering::byVDIM, "zeta");
-   fp_data.gamma = &fluid_particles.AddField(1, Ordering::byVDIM, "gamma");
+   fp_idx.field.kappa = fluid_particles.AddField(1, Ordering::byVDIM, "kappa");
+   fp_idx.field.zeta = fluid_particles.AddField(1, Ordering::byVDIM, "zeta");
+   fp_idx.field.gamma = fluid_particles.AddField(1, Ordering::byVDIM, "gamma");
 
    inactive_fluid_particles.AddField(1, Ordering::byVDIM, "kappa");
    inactive_fluid_particles.AddField(1, Ordering::byVDIM, "zeta");
@@ -328,22 +328,18 @@ NavierParticles::NavierParticles(MPI_Comm comm, int num_particles, Mesh &m)
    for (int i = 0; i < 4; i++)
    {
       string suffix = i > 0 ? "_nm" + to_string(i) : "_n";
-      fp_data.u[i] = &fluid_particles.AddField(dim, Ordering::byVDIM, ("u" + suffix).c_str());
-      fp_data.v[i] = &fluid_particles.AddField(dim, Ordering::byVDIM, ("v" + suffix).c_str());
-      fp_data.w[i] = &fluid_particles.AddField(dim, Ordering::byVDIM, ("w" + suffix).c_str());
-      if (i == 0)
+      fp_idx.field.u[i] = fluid_particles.AddField(dim, Ordering::byVDIM, ("u" + suffix).c_str());
+      fp_idx.field.v[i] = fluid_particles.AddField(dim, Ordering::byVDIM, ("v" + suffix).c_str());
+      fp_idx.field.w[i] = fluid_particles.AddField(dim, Ordering::byVDIM, ("w" + suffix).c_str());
+      if (i > 0)
       {
-         fp_data.x[i] = &fluid_particles.Coords();
-      }
-      else
-      {
-         fp_data.x[i] = &fluid_particles.AddField(dim, Ordering::byVDIM, ("x" + suffix).c_str());
+         fp_idx.field.x[i-1] = fluid_particles.AddField(dim, Ordering::byVDIM, ("x" + suffix).c_str());
       }
    }
 
    // Initialize order (tag)
-   fp_data.order = &fluid_particles.AddTag("Order");
-   *fp_data.order = 0;
+   fp_idx.tag.order = fluid_particles.AddTag("Order");
+   fluid_particles.Tag(fp_idx.tag.order) = 0;
 
    // Reserve num_particles for inactive_fluid_particles
    inactive_fluid_particles.Reserve(num_particles);
@@ -357,10 +353,10 @@ void NavierParticles::Step(const real_t &dt, int cur_step, const ParGridFunction
    // Shift fluid velocity, fluid vorticity, particle velocity, and particle position
    for (int i = 3; i > 0; i--)
    {
-      *fp_data.u[i] = fp_data.u[i-1]->GetData();
-      *fp_data.v[i] = fp_data.v[i-1]->GetData();
-      *fp_data.w[i] = fp_data.w[i-1]->GetData();
-      *fp_data.x[i] = fp_data.x[i-1]->GetData();
+      U(i) = U(i-1).GetData();
+      V(i) = V(i-1).GetData();
+      W(i) = W(i-1).GetData();
+      X(i) = X(i-1).GetData();
    }
 
    if (cur_step == 0)
@@ -374,7 +370,7 @@ void NavierParticles::Step(const real_t &dt, int cur_step, const ParGridFunction
       for (int i = 0; i < fluid_particles.GetNP(); i++)
       {
          // Increment particle order
-         int &order = (*fp_data.order)[i];
+         int &order = Order()[i];
          if (order < 3)
          {
             order++;

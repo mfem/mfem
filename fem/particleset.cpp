@@ -504,7 +504,7 @@ unsigned int ParticleSet::GetGlobalNP() const
 
 #endif // MFEM_USE_MPI
 
-MultiVector& ParticleSet::AddField(int vdim, Ordering::Type field_ordering, const char* field_name)
+int ParticleSet::AddField(int vdim, Ordering::Type field_ordering, const char* field_name)
 {
    if (!field_name)
    {
@@ -513,10 +513,10 @@ MultiVector& ParticleSet::AddField(int vdim, Ordering::Type field_ordering, cons
    fields.emplace_back(std::make_unique<MultiVector>(vdim, field_ordering, GetNP()));
    field_names.emplace_back(field_name);
 
-   return *fields.back();
+   return GetNF() - 1;
 }
 
-Array<int>& ParticleSet::AddTag(const char* tag_name)
+int ParticleSet::AddTag(const char* tag_name)
 {
    if (!tag_name)
    {
@@ -525,7 +525,7 @@ Array<int>& ParticleSet::AddTag(const char* tag_name)
    tags.emplace_back(std::make_unique<Array<int>>(GetNP()));
    tag_names.emplace_back(tag_name);
 
-   return *tags.back();
+   return GetNT() - 1;
 }
 
 void ParticleSet::AddParticle(const Particle &p)

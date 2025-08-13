@@ -354,14 +354,18 @@ public:
     *  @arg[in] vdim             Vector dimension of the field.
     *  @arg[in] field_ordering   Ordering::Type of the field.
     *  @arg[in] field_name       Name of the field.
+    * 
+    *  @return Index of the newly-added field.
     */
-   MultiVector& AddField(int vdim, Ordering::Type field_ordering=Ordering::byVDIM, const char* field_name=nullptr);
+   int AddField(int vdim, Ordering::Type field_ordering=Ordering::byVDIM, const char* field_name=nullptr);
 
    /** @brief Add a tag to the ParticleSet.
     * 
     *  @arg[in] field_name       Name of the tag.
+    * 
+    *  @return Index of the newly-added tag.
     */
-   Array<int>& AddTag(const char* tag_name=nullptr);
+   int AddTag(const char* tag_name=nullptr);
 
    /// Reserve room for \p res particles. Can help to avoid re-allocation for adding + removing particles.
    void Reserve(int res);
