@@ -282,7 +282,11 @@ public:
 
    /// Swap without using move assignment, avoiding Reset() calls.
    void Swap(Memory &other)
-   { Memory tmp(*this); *this = other; other = tmp; }
+   {
+      Memory tmp(*this);
+      *this = other;
+      other = tmp;
+   }
 
    /** @brief Return true if the host pointer is owned. Ownership indicates
        whether the pointer will be deleted by the method Delete(). */
