@@ -163,8 +163,8 @@ class VectorRotatedDivergenceIntegrator : public BilinearFormIntegrator
 {
    const GridFunction &b_gf;
 
-   DenseMatrix tr_dshape, tr_dshapext, tr_curlshape;
-   Vector tr_shape, te_shape, tr_bgshape;
+   DenseMatrix tr_dshape, tr_dshapext, b_vals;
+   Vector te_shape, tr_divshape;
 
 public:
    VectorRotatedDivergenceIntegrator(const GridFunction &b)
@@ -2310,11 +2310,9 @@ void VectorRotatedDivergenceIntegrator::AssembleElementMatrix2(
    const int vdim = Trans.GetSpaceDim();
    MFEM_ASSERT(vdim == 2, "Not implemented");
 
-   tr_shape.SetSize(tr_dof);
    tr_dshape.SetSize(tr_dof, dim);
    tr_dshapext.SetSize(tr_dof, vdim);
-   tr_bgshape.SetSize(tr_dof);
-   tr_curlshape.SetSize(tr_dof * vdim, 1);
+   tr_divshape.SetSize(tr_dof*vdim);
    te_shape.SetSize(te_dof);
 
    Vector b_q(vdim);
@@ -2322,39 +2320,30 @@ void VectorRotatedDivergenceIntegrator::AssembleElementMatrix2(
    elmat.SetSize(te_dof, tr_dof * vdim);
    elmat = 0.;
 
+   b_vals.SetSize(tr_dof, vdim);
+   Vector b_valsv(b_vals.GetData(), tr_dof*vdim);
+   b_gf.GetElementDofValues(Trans.ElementNo, b_valsv);
+
    const IntegrationRule &ir = *GetIntegrationRule(trial_fe, test_fe, Trans);
    for (int q = 0; q < ir.GetNPoints(); q++)
    {
       const IntegrationPoint &ip = ir.IntPoint(q);
       Trans.SetIntPoint(&ip);
       trial_fe.CalcDShape(ip, tr_dshape);
-      trial_fe.CalcShape(ip, tr_shape);
       test_fe.CalcShape(ip, te_shape);
       mfem::Mult(tr_dshape, Trans.AdjugateJacobian(), tr_dshapext);
 
-      b_gf.GetVectorValue(Trans, ip, b_q);
-      const real_t divb = b_gf.GetDivergence(Trans);
-      Vector curlb(1);
-      b_gf.GetCurl(Trans, curlb);
-
       const real_t w = ip.weight;
 
-      //b-grad + div b
-      tr_dshapext.Mult(b_q, tr_bgshape);
+      for (int i = 0; i < tr_dof; i++)
+      {
+         tr_divshape(i         ) = +b_vals(i,0) * tr_dshapext(i, 0) + b_vals(i,
+                                                                             1) * tr_dshapext(i, 1);
+         tr_divshape(i + tr_dof) = -b_vals(i,1) * tr_dshapext(i, 0) + b_vals(i,
+                                                                             0) * tr_dshapext(i, 1);
+      }
 
-      for (int j = 0; j < tr_dof; j++)
-         for (int i = 0; i < te_dof; i++)
-         {
-            elmat(i,j) += w * te_shape(i) * (tr_bgshape(j) + divb * tr_shape(j));
-         }
-
-      //b-curl + curl b
-      for (int j = 0; j < tr_dof; j++)
-         for (int i = 0; i < te_dof; i++)
-         {
-            const real_t curl = -tr_dshapext(j, 0) * b_q(1) + tr_dshapext(j, 1) * b_q(0);
-            elmat(i,j + tr_dof) += w * te_shape(i) * (curl - curlb(0) * tr_shape(j));
-         }
+      AddMult_a_VWt(w, te_shape, tr_divshape, elmat);
    }
 }
 
