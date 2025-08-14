@@ -96,10 +96,10 @@ int main(int argc, char *argv[])
    args.Parse();
    if (!args.Good())
    {
-      args.PrintUsage(cout);
+      args.PrintUsage(mfem::out);
       return 1;
    }
-   args.PrintOptions(cout);
+   args.PrintOptions(mfem::out);
    ProjType proj_type = static_cast<ProjType>(proj_type_int);
    kappa = freq * M_PI;
 
@@ -126,7 +126,7 @@ int main(int argc, char *argv[])
    {
       if (ref_levels < 0)
       {
-         ref_levels = (int)floor(log(1000./mesh->GetNE())/log(2.)/dim);
+         ref_levels = (int)floor(log(50000./mesh->GetNE())/log(2.)/dim);
       }
       for (int l = 0; l < ref_levels; l++)
       {
@@ -157,7 +157,7 @@ int main(int argc, char *argv[])
          trial_fec = new NURBS_HDivFECollection(order, dim);
          test_fec  = new NURBSFECollection(order);
       }
-      cout << "Create NURBS finite element" << endl;
+      mfem::out << "Create NURBS finite element" << endl;
    }
    else
    {
@@ -176,7 +176,7 @@ int main(int argc, char *argv[])
          trial_fec = new RT_FECollection(order-1, dim);
          test_fec = new L2_FECollection(order-1, dim);
       }
-      cout << "Create standard finite elements" << endl;
+      mfem::out << "Create standard finite elements" << endl;
    }
 
    FiniteElementSpace trial_fes(mesh, NURBSext, trial_fec);
@@ -187,20 +187,20 @@ int main(int argc, char *argv[])
 
    if (prob == 0)
    {
-      cout << "Number of HCurl finite element unknowns: " << test_size << endl;
-      cout << "Number of H1 finite element unknowns: " << trial_size << endl;
+      mfem::out << "Number of HCurl finite element unknowns: " << test_size << endl;
+      mfem::out << "Number of H1 finite element unknowns: " << trial_size << endl;
    }
    else if (prob == 1)
    {
-      cout << "Number of HCurl finite element unknowns: " << trial_size << endl;
-      cout << "Number of HDiv finite element unknowns: " << test_size
-           << endl;
+      mfem::out << "Number of HCurl finite element unknowns: " << trial_size << endl;
+      mfem::out << "Number of HDiv finite element unknowns: " << test_size
+                << endl;
    }
    else
    {
-      cout << "Number of HDiv finite element unknowns: "
-           << trial_size << endl;
-      cout << "Number of L2 finite element unknowns: " << test_size << endl;
+      mfem::out << "Number of HDiv finite element unknowns: "
+                << trial_size << endl;
+      mfem::out << "Number of L2 finite element unknowns: " << test_size << endl;
    }
 
    // 6. Define the solution vector as a finite element grid function
@@ -226,15 +226,8 @@ int main(int argc, char *argv[])
    {
       gftrial.ProjectCoefficient(gradp_coef, proj_type);
    }
-
-   if (visualization)
-   {
-      char vishost[] = "localhost";
-      socketstream sol_sock(vishost, visport);
-      sol_sock.precision(8);
-      sol_sock << "solution\n" << *mesh << gftrial << flush;
-   }
-   return 0 ;
+   gftrial.SetTrueVector();
+   gftrial.SetFromTrueVector();
 
    // 7. Set up the bilinear forms for L2 projection.
    ConstantCoefficient one(1.0);
@@ -283,7 +276,7 @@ int main(int argc, char *argv[])
       SparseMatrix& mixed = a_mixed.SpMat();
       mixed.Mult(gftrial, x);
    }
-   cout<<"274"<<endl;
+
    // 9. Define and apply a PCG solver for Ax = b with Jacobi preconditioner.
    {
       GridFunction rhs(&test_fes);
@@ -314,7 +307,7 @@ int main(int argc, char *argv[])
 
       }
    }
-   cout<<"305"<<endl;
+
    // 10. Compute the projection of the exact field.
    GridFunction exact_proj(&test_fes);
    if (prob == 0)
@@ -329,6 +322,8 @@ int main(int argc, char *argv[])
    {
       exact_proj.ProjectCoefficient(divgradp_coef, proj_type);
    }
+   exact_proj.SetTrueVector();
+   exact_proj.SetFromTrueVector();
 
    // 11. Compute and print the L_2 norm of the error.
    if (prob == 0)
@@ -336,20 +331,20 @@ int main(int argc, char *argv[])
       real_t errSol = x.ComputeL2Error(gradp_coef);
       real_t errProj = exact_proj.ComputeL2Error(gradp_coef);
 
-      cout << "\n Solution of (E_h,v) = (grad p_h,v) for E_h and v in H(curl): "
-           "|| E_h - grad p ||_{L_2} = " << errSol << '\n' << endl;
-      cout << " Projection E_h of exact grad p in H(curl): || E_h - grad p "
-           "||_{L_2} = " << errProj << '\n' << endl;
+      mfem::out << "\n Solution of (E_h,v) = (grad p_h,v) for E_h and v in H(curl): "
+                "|| E_h - grad p ||_{L_2} = " << errSol << '\n' << endl;
+      mfem::out << " Projection E_h of exact grad p in H(curl): || E_h - grad p "
+                "||_{L_2} = " << errProj << '\n' << endl;
    }
    else if (prob == 1)
    {
       real_t errSol = x.ComputeL2Error(curlv_coef);
       real_t errProj = exact_proj.ComputeL2Error(curlv_coef);
 
-      cout << "\n Solution of (E_h,w) = (curl v_h,w) for E_h and w in H(div): "
-           "|| E_h - curl v ||_{L_2} = " << errSol << '\n' << endl;
-      cout << " Projection E_h of exact curl v in H(div): || E_h - curl v "
-           "||_{L_2} = " << errProj << '\n' << endl;
+      mfem::out << "\n Solution of (E_h,w) = (curl v_h,w) for E_h and w in H(div): "
+                "|| E_h - curl v ||_{L_2} = " << errSol << '\n' << endl;
+      mfem::out << " Projection E_h of exact curl v in H(div): || E_h - curl v "
+                "||_{L_2} = " << errProj << '\n' << endl;
    }
    else
    {
@@ -363,11 +358,11 @@ int main(int argc, char *argv[])
       real_t errSol = x.ComputeL2Error(divgradp_coef, irs);
       real_t errProj = exact_proj.ComputeL2Error(divgradp_coef, irs);
 
-      cout << "\n Solution of (f_h,q) = (div v_h,q) for f_h and q in L_2: "
-           "|| f_h - div v ||_{L_2} = " << errSol << '\n' << endl;
+      mfem::out << "\n Solution of (f_h,q) = (div v_h,q) for f_h and q in L_2: "
+                "|| f_h - div v ||_{L_2} = " << errSol << '\n' << endl;
 
-      cout << " Projection f_h of exact div v in L_2: || f_h - div v "
-           "||_{L_2} = " << errProj << '\n' << endl;
+      mfem::out << " Projection f_h of exact div v in L_2: || f_h - div v "
+                "||_{L_2} = " << errProj << '\n' << endl;
    }
 
    // 12. Save the refined mesh and the solution. This output can be viewed
@@ -380,13 +375,13 @@ int main(int argc, char *argv[])
    x.Save(sol_ofs);
 
    // 13. Send the solution by socket to a GLVis server.
-   /* if (visualization)
-    {
-       char vishost[] = "localhost";
-       socketstream sol_sock(vishost, visport);
-       sol_sock.precision(8);
-       sol_sock << "solution\n" << *mesh << x << flush;
-    }*/
+   if (visualization)
+   {
+      char vishost[] = "localhost";
+      socketstream sol_sock(vishost, visport);
+      sol_sock.precision(8);
+      sol_sock << "solution\n" << *mesh << x << flush;
+   }
 
    // 14. Free the used memory.
    delete trial_fec;
