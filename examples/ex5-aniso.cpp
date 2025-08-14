@@ -72,6 +72,8 @@
 #include <algorithm>
 #include <random>
 
+#define DIFFUSION_STRONG
+
 using namespace std;
 using namespace mfem;
 
@@ -763,11 +765,13 @@ int main(int argc, char *argv[])
          if (Mt)
          {
             Mt->AddInteriorFaceIntegrator(new HDGDiffusionIntegrator(kcoeff, td));
-            /*if (rotated)
+#ifndef DIFFUSION_STRONG
+            if (rotated)
             {
                Mt->AddBdrFaceIntegrator(new HDGDiffusionIntegrator(kcoeff, td));
             }
-            else*/
+            else
+#endif //DIFFUSION_STRONG
             {
                Mt->AddBdrFaceIntegrator(new HDGDiffusionIntegrator(kcoeff, td),
                                         bdr_is_neumann);
@@ -788,8 +792,11 @@ int main(int argc, char *argv[])
    {
       if (rotated)
       {
-         //B->AddDomainIntegrator(new VectorRotatedWeakDivergenceIntegrator(bhcoeff));
+#ifndef DIFFUSION_STRONG
+         B->AddDomainIntegrator(new VectorRotatedWeakDivergenceIntegrator(bhcoeff));
+#else //DIFFUSION_STRONG
          B->AddDomainIntegrator(new VectorRotatedDivergenceIntegrator(b_gf));
+#endif //DIFFUSION_STRONG
       }
       else
       {
@@ -814,12 +821,15 @@ int main(int argc, char *argv[])
       {
          if (rotated)
          {
-            //B->AddInteriorFaceIntegrator(new DGRotatedWeakNormalTraceIntegrator(bhcoeff));
-            //B->AddBdrFaceIntegrator(new DGRotatedWeakNormalTraceIntegrator(bhcoeff));
+#ifndef DIFFUSION_STRONG
+            B->AddInteriorFaceIntegrator(new DGRotatedWeakNormalTraceIntegrator(bhcoeff));
+            B->AddBdrFaceIntegrator(new DGRotatedWeakNormalTraceIntegrator(bhcoeff));
+#else //DIFFUSION_STRONG
             B->AddInteriorFaceIntegrator(new TransposeIntegrator(
                                             new DGRotatedNormalTraceIntegrator(bhcoeff, -1.)));
             B->AddBdrFaceIntegrator(new TransposeIntegrator(
                                        new DGRotatedNormalTraceIntegrator(bhcoeff, -1.)), bdr_is_neumann);
+#endif //DIFFUSION_STRONG
          }
          else
          {
