@@ -1489,7 +1489,7 @@ void DarcyForm::AssembleDivLDGFaces(int skip_zeros)
          for (int i = 1; i < interior_face_integs.Size(); i++)
          {
             interior_face_integs[i]->AssembleFaceMatrix(*trial_fe1, *test_fe1, *trial_fe2,
-                                                        *test_fe2, *tr, elmat);
+                                                        *test_fe2, *tr, elem_mat);
             elmat += elem_mat;
          }
 
