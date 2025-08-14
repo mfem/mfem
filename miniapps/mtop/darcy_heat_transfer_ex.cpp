@@ -3,7 +3,7 @@
 // Compile with: make darcy_heat_transfer_ex
 //
 //
-// Description:  This code performs the forward and backward adjoint solve for advection diffusion, where the velocity field is given by Darcy 
+// Description:  This code performs the forward and backward adjoint solve for advection diffusion, where the velocity field is given by Darcy
 
 
 #include "mfem.hpp"
@@ -37,111 +37,79 @@ real_t f_natural(const Vector & x);
 // Mesh bounding box
 Vector bb_min, bb_max;
 
-
-/** A time-dependent operator for the right-hand side of the ODE for use with
-    explicit ODE solvers. The DG weak form of du/dt = div(D grad(u))-v.grad(u) is
-    M du/dt = - S u + K u + b, where M, S, and K are the mass,
-    stiffness, and advection matrices, and b describes sources and the flow on
-    the boundary.
-    This can be written as a general ODE,
-    du/dt = M^{-1} (-S u + K u + b), and this class is used to compute the RHS
-    and perform the solve for du/dt. */
-class EX_Evolution : public TimeDependentOperator
+class DG_Solver : public Solver
 {
 private:
-   SparseMatrix &M, &S, &K;
-   const Vector &b;
-
-   DSmoother M_prec;
-   CGSolver M_solver;
-
-   mutable Vector z;
-
-   void initA(double dt);
-
+   SparseMatrix &M, &K, &S, A;
+   CGSolver linear_solver;
+   BlockILU prec;
+   real_t dt;
 public:
-   EX_Evolution(SparseMatrix &_M, SparseMatrix &_S, SparseMatrix &_K,
-                const Vector &_b);
+   DG_Solver(SparseMatrix &M_, SparseMatrix &K_, SparseMatrix &S_,
+             const FiniteElementSpace &fes)
+      : M(M_),
+        K(K_),
+        S(S_),
+        prec(fes.GetTypicalFE()->GetDof(),
+             BlockILU::Reordering::MINIMUM_DISCARDED_FILL),
+        dt(1.0)
+   {
+      linear_solver.iterative_mode = false;
+      linear_solver.SetRelTol(1e-9);
+      linear_solver.SetAbsTol(0.0);
+      linear_solver.SetMaxIter(100);
+      linear_solver.SetPrintLevel(0);
+      linear_solver.SetPreconditioner(prec);
+   }
 
-   virtual void Mult(const Vector &x, Vector &y) const;
+   void SetTimeStep(real_t dt_)
+   {
+      if (dt_ != dt)
+      {
+         dt = dt_;
+         // Form operator A = M + dt*S
+         A = S;
+         A *= dt;
+         A += M;
 
-   virtual ~EX_Evolution() {}
+         // this will also call SetOperator on the preconditioner
+         linear_solver.SetOperator(A);
+      }
+   }
+
+   void SetOperator(const Operator &op) override
+   {
+      linear_solver.SetOperator(op);
+   }
+
+   void Mult(const Vector &x, Vector &y) const override
+   {
+      linear_solver.Mult(x, y);
+   }
 };
 
-/** A time-dependent operator for the right-hand side of the ODE for use with
-    implicit ODE solvers. The DG weak form of du/dt = div(D grad(u))-v.grad(u) is
-    [M + dt (S - K)] du/dt = - S u + K u + b, where M, S, and K are the mass,
-    stiffness, and advection matrices, and b describes sources and the flow on
-    the boundary.
-    This can be written as a general ODE,
-    du/dt = A^{-1} (-S u + K u + b) with A = [M + dt (S - K)], and this class is
-    used to perform the fully implicit solve for du/dt. */
-class IM_Evolution : public TimeDependentOperator
+
+/** A time-dependent operator for the right-hand side of the ODE. The DG weak
+    form of the advection-diffusion equation is (M + dt S) du/dt = Su - K u + b, where M and K are the mass
+    and advection matrices, and b describes the flow on the boundary. In the case of IMEX evolution, the diffusion term is treated
+    implicitly, and the advection term is treated explicitly.  */
+class IMEX_Evolution : public SplitTimeDependentOperator
 {
 private:
-   SparseMatrix &M, &S, &K;
-   SparseMatrix *A;
+   BilinearForm &M, &K, &S;
    const Vector &b;
-
-   DSmoother M_prec;
+   unique_ptr<Solver> M_prec;
    CGSolver M_solver;
-
-   DSmoother *A_prec;
-   GMRESSolver *A_solver;
-   double dt;
+   unique_ptr<DG_Solver> dg_solver;
 
    mutable Vector z;
 
-   void initA(double dt);
-
 public:
-   IM_Evolution(SparseMatrix &_M, SparseMatrix &_S, SparseMatrix &_K,
-                const Vector &_b);
+   IMEX_Evolution(BilinearForm &M_, BilinearForm &K_, BilinearForm &S_,
+                  const Vector &b_);
 
-   virtual void Mult(const Vector &x, Vector &y) const;
-
-   virtual void ImplicitSolve(const double dt, const Vector &x, Vector &y);
-
-   virtual ~IM_Evolution() { delete A_solver; delete A_prec; delete A; }
-};
-
-/** A time-dependent operator for the right-hand side of the ODE for use with
-    IMEX (Implicit-Explicit) ODE solvers. The DG weak form of
-    du/dt = div(D grad(u))-v.grad(u) is
-    [M + dt S] du/dt = - S u + K u + b, where M, S, and K are the mass,
-    stiffness, and advection matrices, and b describes sources and the flow on
-    the boundary.
-    This can be written as a general ODE,
-    du/dt = A^{-1} (-S u + K u + b) with A = [M + dt (S - K)], and this class is
-    used to perform the implicit or explicit solve for du/dt. */
-class IMEX_Evolution : public TimeDependentOperator
-{
-private:
-   SparseMatrix &M, &S, &K;
-   SparseMatrix *A;
-   const Vector &b;
-
-   DSmoother M_prec;
-   CGSolver M_solver;
-
-   DSmoother *A_prec;
-   CGSolver *A_solver;
-   double dt;
-
-   mutable Vector z;
-
-   void initA(double dt);
-
-public:
-   IMEX_Evolution(SparseMatrix &_M, SparseMatrix &_S, SparseMatrix &_K,
-                  const Vector &_b);
-
-   virtual void ExplicitMult(const Vector &x, Vector &y) const;
-   virtual void Mult(const Vector &x, Vector &y) const;
-
-   virtual void ImplicitSolve(const double dt, const Vector &x, Vector &y);
-
-   virtual ~IMEX_Evolution() { delete A_solver; delete A_prec; delete A; }
+   void Mult1(const Vector &x, Vector &y) const;
+   void ImplicitSolve2(const real_t dt, const Vector &x, Vector &k) override;
 };
 
 // *****Define the analytical solution and forcing terms / boundary conditions for Darcy*****
@@ -150,15 +118,17 @@ real_t pFun_ex(const Vector & x);
 void fFun(const Vector & x, Vector & f);
 real_t gFun(const Vector & x);
 
-int main(int argc, char *argv[]){
-    // 1. Parse command-line options.
-   const char *mesh_file = "square-extended.mesh"; //reference square, but extended to be [-1, 1] x [-1, 1]
+int main(int argc, char *argv[])
+{
+   // 1. Parse command-line options.
+   const char *mesh_file =
+      "square-extended.mesh"; //reference square, but extended to be [-1, 1] x [-1, 1]
    int order_darcy = 1;
    int ref_levels = 2;
    int order_ad = 3;
-   int ode_solver_type = 4;
+   int ode_solver_type = 55;
    double t_final = 10.0;
-   double d_coef = 0.1;
+   double d_coef = 0.01;
    double dt = 0.01;
    double sigma = -1.0;
    double kappa = -1.0;
@@ -178,11 +148,10 @@ int main(int argc, char *argv[]){
                   "Number of times to refine the mesh uniformly.");
    args.AddOption(&order_darcy, "-od", "--order_darcy",
                   "Order (degree) of the finite elements for darcy solve.");
-    args.AddOption(&order_ad, "-oad", "--order_ad",
+   args.AddOption(&order_ad, "-oad", "--order_ad",
                   "Order (degree) of the finite elements for advection diffusion.");
    args.AddOption(&ode_solver_type, "-s", "--ode-solver",
-                  "ODE solver: 1 - Forward Euler, 2 - RK4, 3 - Implicit Euler,"
-                  " 4 - IMEX Implicit-Explicit Euler, 5 - IMEX RK2.");
+                  "55 - Forward Backward Euler, 56 - IMEXRK2(2,2,2), 57 - IMEXRK2(2,3,2), 58 - IMEX_DIRK_RK3\n");
    args.AddOption(&t_final, "-tf", "--t-final",
                   "Final time; start time is 0.");
    args.AddOption(&dt, "-dt", "--time-step",
@@ -206,7 +175,7 @@ int main(int argc, char *argv[]){
                   "Use binary (Sidre) or ascii format for VisIt data files.");
    args.AddOption(&vis_steps, "-vs", "--visualization-steps",
                   "Visualize every n-th timestep.");
-    args.AddOption(&paraview, "-paraview", "--paraview-datafiles", "-no-paraview",
+   args.AddOption(&paraview, "-paraview", "--paraview-datafiles", "-no-paraview",
                   "--no-paraview-datafiles",
                   "Save data files for ParaView (paraview.org) visualization.");
    args.Parse();
@@ -225,31 +194,17 @@ int main(int argc, char *argv[]){
 
    // 2. Define the ODE solver used for time integration. Several explicit, implicit and IMEX
    //    Runge-Kutta methods are available.
-   ODESolver *ode_solver = NULL;
-   ODESolver *ode_solver_adj = NULL;
-   switch (ode_solver_type)
-   {
-      case 1: ode_solver = new ForwardEulerSolver; ode_solver_adj = new ForwardEulerSolver; break;
-      case 2: ode_solver = new RK4Solver; ode_solver_adj = new RK4Solver; break;
-      case 3: ode_solver = new BackwardEulerSolver; ode_solver_adj = new BackwardEulerSolver; break;
-      case 4: ode_solver = new IMEX_BE_FE; ode_solver_adj = new IMEX_BE_FE; break;
-      case 5: ode_solver = new IMEXRK2; ode_solver_adj = new IMEXRK2; break;
-      default:
-         cout << "Unknown ODE solver type: " << ode_solver_type << '\n';
-         return 3;
-   }
-
-   // 3. Read the mesh from the given mesh file. 
+   unique_ptr<SplitODESolver> ode_solver = SplitODESolver::Select(ode_solver_type);
+   unique_ptr<SplitODESolver> ode_solver_adj = SplitODESolver::Select(ode_solver_type);
+   // 3. Read the mesh from the given mesh file.
    Mesh mesh(mesh_file, 1, 1);
    int dim = mesh.Dimension();
 
-    // 4. Refine the mesh in serial to increase the resolution. In this example
+   // 4. Refine the mesh in serial to increase the resolution. In this example
    //    we do 'ser_ref_levels' of uniform refinement, where 'ser_ref_levels' is
-   //    a command-line parameter. 
-   for (int lev = 0; lev < ref_levels; lev++)
-   {
-      mesh.UniformRefinement();
-   }
+   //    a command-line parameter.
+   for (int lev = 0; lev < ref_levels; lev++){mesh.UniformRefinement();}
+   if (mesh.NURBSext) {mesh.SetCurvature(max(order_ad, 1));}
    mesh.GetBoundingBox(bb_min, bb_max, max(order_ad, 1));
 
    // ********DARCY SOLVE
@@ -277,7 +232,7 @@ int main(int argc, char *argv[]){
    std::cout << "***********************************************************\n";
 
    // 7. Define the coefficients, analytical solution, and rhs of the Darcy PDE.
-   ConstantCoefficient k(1.0);
+   ConstantCoefficient one(1.0);
 
    VectorFunctionCoefficient fcoeff(dim, fFun);
    FunctionCoefficient fnatcoeff(f_natural);
@@ -312,7 +267,7 @@ int main(int argc, char *argv[]){
    //     M = \int_\Omega k u_h \cdot v_h d\Omega   u_h, v_h \in R_h
    //     B   = -\int_\Omega \div u_h q_h d\Omega   u_h \in R_h, q_h \in W_h
    BilinearForm *mVarf(new BilinearForm(R_space));
-   mVarf->AddDomainIntegrator(new VectorFEMassIntegrator(k));
+   mVarf->AddDomainIntegrator(new VectorFEMassIntegrator(one));
    mVarf->Assemble();
    MixedBilinearForm *bVarf(new MixedBilinearForm(R_space, W_space));
    bVarf->AddDomainIntegrator(new VectorFEDivergenceIntegrator);
@@ -353,11 +308,11 @@ int main(int argc, char *argv[]){
    }
    S = Mult(B, *MinvBt);
    invM = new DSmoother(M);
-   #ifndef MFEM_USE_SUITESPARSE
-     invS = new GSSmoother(*S);
-   #else
-     invS = new UMFPackSolver(*S);
-   #endif
+#ifndef MFEM_USE_SUITESPARSE
+   invS = new GSSmoother(*S);
+#else
+   invS = new UMFPackSolver(*S);
+#endif
    invM->iterative_mode = false;
    invS->iterative_mode = false;
 
@@ -414,68 +369,72 @@ int main(int argc, char *argv[]){
    std::cout << "|| p_h - p_ex || / || p_ex || = " << err_p / norm_p << "\n";
 
    if (visualization)
-    {
-        char vishost[] = "localhost";
-        int  visport   = 19916;
-        socketstream u_sock(vishost, visport);
-        u_sock.precision(8);
-        u_sock << "solution\n" << mesh << u << "window_title 'Velocity'" << endl;
-        socketstream p_sock(vishost, visport);
-        p_sock.precision(8);
-        p_sock << "solution\n" << mesh << p << "window_title 'Pressure'" << endl;
-    }
+   {
+      char vishost[] = "localhost";
+      int  visport   = 19916;
+      socketstream u_sock(vishost, visport);
+      u_sock.precision(8);
+      u_sock << "solution\n" << mesh << u << "window_title 'Velocity'" << endl;
+      socketstream p_sock(vishost, visport);
+      p_sock.precision(8);
+      p_sock << "solution\n" << mesh << p << "window_title 'Pressure'" << endl;
+   }
 
 
    // ******Forward Advection-Diffusion solve
    // 13. Define the DG finite element space on the
    //    refined mesh of the given polynomial order.
-   DG_FECollection fec(order_ad, dim);
+   DG_FECollection fec(order_ad, dim, BasisType::GaussLobatto);
    FiniteElementSpace fes(&mesh, &fec);
    int num_dofs = fes.GetNDofs();
 
-   cout << "Number of unknowns (advection diffusion problem): " << fes.GetVSize() << endl;
+   cout << "Number of unknowns (advection diffusion problem): " << fes.GetVSize()
+        << endl;
 
    // 14. Set up and assemble the parallel bilinear and linear forms (and the
    //    parallel hypre matrices) corresponding to the DG discretization. The
    //    DGTraceIntegrator involves integrals over mesh interior faces.
-   ConstantCoefficient diff_coef(d_coef); 
    const GridFunction* u_pointer = &u;
    VectorGridFunctionCoefficient velocity(u_pointer);
-   FunctionCoefficient theta0(theta0_function);
-   FunctionCoefficient forcing(forcing_function);
-   // FunctionCoefficient theta_exact_coeff(theta_exact);
+   FunctionCoefficient inflow(inflow_function);
+   ConstantCoefficient diff_coef(d_coef);
+
    BilinearForm m(&fes);
    m.AddDomainIntegrator(new MassIntegrator);
+
+   BilinearForm k(&fes);
+   k.AddDomainIntegrator(new ConvectionIntegrator(velocity, -1.0));
+   k.AddInteriorFaceIntegrator(new NonconservativeDGTraceIntegrator(velocity,
+                                                                    -1.0));
+   k.AddBdrFaceIntegrator(new NonconservativeDGTraceIntegrator(velocity, -1.0));
 
    BilinearForm s(&fes);
    s.AddDomainIntegrator(new DiffusionIntegrator(diff_coef));
    s.AddInteriorFaceIntegrator(new DGDiffusionIntegrator(diff_coef, sigma, kappa));
    s.AddBdrFaceIntegrator(new DGDiffusionIntegrator(diff_coef, sigma, kappa));
 
-   BilinearForm a(&fes);
-   a.AddDomainIntegrator(new ConvectionIntegrator(velocity, -1.0));
-   a.AddInteriorFaceIntegrator(new NonconservativeDGTraceIntegrator(velocity, -1.0));
-   a.AddBdrFaceIntegrator(new NonconservativeDGTraceIntegrator(velocity, -1.0));
-
-
    LinearForm b(&fes);
-   b.AddDomainIntegrator(new DomainLFIntegrator(forcing));
+   b.AddBdrFaceIntegrator(new BoundaryFlowIntegrator(inflow, velocity, -1.0));
    //b.AddBdrFaceIntegrator(new DGDirichletLFIntegrator(U, diff_coef, sigma, kappa));
 
    int skip_zeros = 0;
    m.Assemble(skip_zeros);
-   m.Finalize(skip_zeros);
+   k.Assemble(skip_zeros);
    s.Assemble(skip_zeros);
-   s.Finalize(skip_zeros);
-   a.Assemble(skip_zeros);
-   a.Finalize(skip_zeros);
    b.Assemble();
+
+   m.Finalize(skip_zeros);
+   k.Finalize(skip_zeros);
+   s.Finalize(skip_zeros);
 
    // 15. Define the initial conditions, save the corresponding grid function to
    //    a file and (optionally) save data in the VisIt format and initialize
    //    GLVis visualization.
+   FunctionCoefficient theta0(theta0_function);
    GridFunction theta(&fes);
    theta.ProjectCoefficient(theta0);
+
+   // Set up visualization, if desired.
    ParaViewDataCollection *pd_forward = NULL;
    if (paraview)
    {
@@ -490,28 +449,14 @@ int main(int argc, char *argv[]){
       pd_forward->Save();
    }
 
-
-
    // 16. Define the time-dependent evolution operator describing the ODE
    //    right-hand side, and perform time-integration (looping over the time
    //    iterations, ti, with a time-step dt).
-   TimeDependentOperator *adv = NULL;
-   if (ode_solver_type < 3)
-   {
-      adv = new EX_Evolution(m.SpMat(), s.SpMat(), a.SpMat(), b);
-   }
-   else if (ode_solver_type == 3)
-   {
-      adv = new IM_Evolution(m.SpMat(), s.SpMat(), a.SpMat(), b);
-   }
-   else
-   {
-      adv = new IMEX_Evolution(m.SpMat(), s.SpMat(), a.SpMat(), b);
-   }
+   IMEX_Evolution adv(m, k, s, b);
 
-   double t = 0.0;
-   adv->SetTime(t);
-   ode_solver->Init(*adv);
+   real_t t = 0.0;
+   adv.SetTime(t);
+   ode_solver->Init(adv);
 
    int n_steps = (int)ceil(t_final / dt);
    double dt_real = t_final / n_steps;
@@ -524,14 +469,10 @@ int main(int argc, char *argv[]){
    {
       ode_solver->Step(theta, t, dt_real);
       theta_gf_vector.push_back(theta);
-    //   theta_exact_coeff.SetTime(t);
-    //   double loc_err = theta.ComputeL2Error(theta_exact_coeff);
-    //   err_vec(ti) = loc_err;
-    //   cout << "\n|| E_h - E ||_{L^2} = " << loc_err << '\n' << endl;
       if (ti % vis_steps == 0 || ti == n_steps -1)
       {
-        cout << "time step: " << ti << ", time: " << t << endl;
-        if (paraview)
+         cout << "time step: " << ti << ", time: " << t << endl;
+         if (paraview)
          {
             pd_forward->SetCycle(ti);
             pd_forward->SetTime(t);
@@ -540,11 +481,8 @@ int main(int argc, char *argv[]){
       }
    }
 
-//    real_t err_norm = err_vec.Norml2();
-//    cout << "\n Error = " << err_norm << '\n' << endl;
-
    // ******Backward Advection-Diffusion solve
-      // 17. Define the DG finite element space on the
+   // 17. Define the DG finite element space on the
    //    refined mesh of the given polynomial order.
    DG_FECollection fec_adjoint(order_ad, dim);
    FiniteElementSpace fes_adjoint(&mesh, &fec_adjoint);
@@ -553,36 +491,39 @@ int main(int argc, char *argv[]){
    //    parallel hypre matrices) corresponding to the DG discretization. The
    //    DGTraceIntegrator involves integrals over mesh interior faces.
    ConstantCoefficient zero(0.0);
-   ConstantCoefficient diff_coef_adj(-d_coef); 
    GridFunctionCoefficient theta_coeff(&(theta_gf_vector[n_steps-1]));
-   FunctionCoefficient forcing_adj(forcing_function); //zero for now
+   FunctionCoefficient inflow_adj(inflow_function); //zero for now
+   ConstantCoefficient diff_coef_adj(-d_coef);
 
    // FunctionCoefficient theta_exact_coeff(theta_exact);
    BilinearForm m_adj(&fes_adjoint);
    m_adj.AddDomainIntegrator(new MassIntegrator);
 
+   BilinearForm k_adj(&fes_adjoint);
+   k_adj.AddDomainIntegrator(new ConvectionIntegrator(velocity, -1.0));
+   k_adj.AddInteriorFaceIntegrator(new NonconservativeDGTraceIntegrator(velocity,
+                                                                        -1.0));
+   k_adj.AddBdrFaceIntegrator(new NonconservativeDGTraceIntegrator(velocity,
+                                                                   -1.0));
+
    BilinearForm s_adj(&fes_adjoint);
    s_adj.AddDomainIntegrator(new DiffusionIntegrator(diff_coef_adj));
-   s_adj.AddInteriorFaceIntegrator(new DGDiffusionIntegrator(diff_coef_adj, sigma, kappa));
-   s_adj.AddBdrFaceIntegrator(new DGDiffusionIntegrator(diff_coef_adj, sigma, kappa));
-
-   BilinearForm a_adj(&fes_adjoint);
-   a_adj.AddDomainIntegrator(new ConvectionIntegrator(velocity, -1.0));
-   a_adj.AddInteriorFaceIntegrator(new NonconservativeDGTraceIntegrator(velocity, -1.0));
-   a_adj.AddBdrFaceIntegrator(new NonconservativeDGTraceIntegrator(velocity, -1.0));
-
+   s_adj.AddInteriorFaceIntegrator(new DGDiffusionIntegrator(diff_coef_adj, sigma,
+                                                             kappa));
+   s_adj.AddBdrFaceIntegrator(new DGDiffusionIntegrator(diff_coef_adj, sigma,
+                                                        kappa));
 
    LinearForm b_adj(&fes_adjoint);
    b_adj.AddDomainIntegrator(new DomainLFIntegrator(theta_coeff));
    //b.AddBdrFaceIntegrator(new DGDirichletLFIntegrator(zero, diff_coef, sigma, kappa));
 
-   // int skip_zeros = 0;
+   //int skip_zeros = 0;
    m_adj.Assemble(skip_zeros);
    m_adj.Finalize(skip_zeros);
+   k_adj.Assemble(skip_zeros);
+   k_adj.Finalize(skip_zeros);
    s_adj.Assemble(skip_zeros);
    s_adj.Finalize(skip_zeros);
-   a_adj.Assemble(skip_zeros);
-   a_adj.Finalize(skip_zeros);
    b_adj.Assemble();
 
    // 19. Define the initial conditions, save the corresponding grid function to
@@ -607,23 +548,11 @@ int main(int argc, char *argv[]){
    // 20. Define the time-dependent evolution operator describing the ODE
    //    right-hand side, and perform time-integration (looping over the time
    //    iterations, ti, with a time-step dt).
-   TimeDependentOperator *adv_adj = NULL;
-   if (ode_solver_type < 3)
-   {
-      adv_adj = new EX_Evolution(m_adj.SpMat(), s_adj.SpMat(), a_adj.SpMat(), b_adj);
-   }
-   else if (ode_solver_type == 3)
-   {
-      adv_adj = new IM_Evolution(m_adj.SpMat(), s_adj.SpMat(), a_adj.SpMat(), b_adj);
-   }
-   else
-   {
-      adv_adj = new IMEX_Evolution(m_adj.SpMat(), s_adj.SpMat(), a_adj.SpMat(), b_adj);
-   }
+   IMEX_Evolution adv_adj(m_adj, k_adj, s_adj, b_adj);
 
-   double t_adj = t_final;
-   adv_adj->SetTime(t_adj);
-   ode_solver_adj->Init(*adv_adj);
+   real_t t_adj = t_final;
+   adv_adj.SetTime(t_adj);
+   ode_solver_adj->Init(adv_adj);
 
    // int n_steps = (int)ceil(t_final / dt);
    double dt_real_adj = -dt;
@@ -638,30 +567,27 @@ int main(int argc, char *argv[]){
       const GridFunction* theta_gf = theta_coeff.GetGridFunction();
       theta_gf->GetTrueDofs(theta_values);
       lam.GetTrueDofs(lam_vals);
-      // if(ti == n_steps - 1){cout << "lam_val: " << lam_vals(12) << endl; cout << "theta_val: " << theta_values(12) << endl;}
-      theta_coeff = *(new GridFunctionCoefficient(&(theta_gf_vector[n_steps - ti - 1])));
+      theta_coeff = *(new GridFunctionCoefficient(&(theta_gf_vector[n_steps - ti -
+                                                                            1])));
       b_adj = *(new LinearForm(&fes_adjoint));
       b_adj.AddDomainIntegrator(new DomainLFIntegrator(theta_coeff));
       b_adj.Assemble();
-      if (ti % vis_steps == 0 || ti == n_steps - 1) 
+      if (ti % vis_steps == 0 || ti == n_steps - 1)
       {
-        cout << "time step: " << ti << ", time: " << t_adj << endl;
-        if (paraview) 
+         cout << "time step: " << ti << ", time: " << t_adj << endl;
+         if (paraview)
          {
-            pd_backward->SetCycle(ti); 
+            pd_backward->SetCycle(ti);
             pd_backward->SetTime(t_adj);
             pd_backward->Save();
          }
       }
    }
 
-//    real_t err_norm = err_vec.Norml2();
-//    cout << "\n Error = " << err_norm << '\n' << endl;
-
    // 21. Free the used memory.
-   delete ode_solver;
-   delete adv;
-   delete adv_adj;
+   // delete &ode_solver;
+   // delete &adv;
+   // delete &adv_adj;
    delete fform;
    delete gform;
    delete invM;
@@ -696,7 +622,7 @@ void uFun_ex(const Vector & x, Vector & u)
 
    if (x.Size() == 3)
    {
-      u(2) = exp(xi)*sin(yi)*sin(zi); 
+      u(2) = exp(xi)*sin(yi)*sin(zi);
    }
 }
 
@@ -737,106 +663,27 @@ real_t f_natural(const Vector & x)
    return (-pFun_ex(x));
 }
 
-
-
-// Implementation of class EX_Evolution
-EX_Evolution::EX_Evolution(SparseMatrix &_M, SparseMatrix &_S,
-                           SparseMatrix &_K, const Vector &_b)
-   : TimeDependentOperator(_M.Height()),
-     M(_M), S(_S), K(_K), b(_b), z(_M.Height())
-{
-   M_solver.SetPreconditioner(M_prec);
-   M_solver.SetOperator(M);
-
-   M_solver.iterative_mode = false;
-   M_solver.SetRelTol(1e-9);
-   M_solver.SetAbsTol(0.0);
-   M_solver.SetMaxIter(100);
-   M_solver.SetPrintLevel(0);
-}
-
-void EX_Evolution::Mult(const Vector &x, Vector &y) const
-{
-   // y = M^{-1} (-S x + K x + b)
-   K.Mult(x, z);
-   S.AddMult(x, z, -1.0);
-   z += b;
-   M_solver.Mult(z, y);
-}
-
-// Implementation of class IM_Evolution
-IM_Evolution::IM_Evolution(SparseMatrix &_M, SparseMatrix &_S,
-                           SparseMatrix &_K, const Vector &_b)
-   : TimeDependentOperator(_M.Height()),
-     M(_M), S(_S), K(_K), A(NULL), b(_b),
-     A_prec(NULL), A_solver(NULL), dt(-1.0), z(_M.Height())
-{
-   M_solver.SetPreconditioner(M_prec);
-   M_solver.SetOperator(M);
-
-   M_solver.iterative_mode = false;
-   M_solver.SetRelTol(1e-9);
-   M_solver.SetAbsTol(0.0);
-   M_solver.SetMaxIter(100);
-   M_solver.SetPrintLevel(0);
-}
-
-void IM_Evolution::initA(double _dt)
-{
-   if (fabs(dt - _dt) > 1e-4 * _dt)
-   {
-      delete A_solver;
-      delete A_prec;
-      delete A;
-
-      SparseMatrix * SK = Add(1.0, S, -1.0, K);
-      A = Add(1.0, M, _dt, *SK);
-      delete SK;
-      dt = _dt;
-
-      A_prec = new DSmoother(*A);
-      A_solver = new GMRESSolver;
-      A_solver->SetOperator(*A);
-      A_solver->SetPreconditioner(*A_prec);
-
-      A_solver->iterative_mode = false;
-      A_solver->SetRelTol(1e-9);
-      A_solver->SetAbsTol(0.0);
-      A_solver->SetMaxIter(100);
-      A_solver->SetPrintLevel(0);
-   }
-}
-
-void IM_Evolution::Mult(const Vector &x, Vector &y) const
-{
-   // y = M^{-1} (-S x + K x + b)
-   K.Mult(x, z);
-   S.AddMult(x, z, -1.0);
-   z += b;
-   M_solver.Mult(z, y);
-}
-
-void IM_Evolution::ImplicitSolve(const double _dt, const Vector &x, Vector &y)
-{
-   this->initA(_dt);
-
-   // y = (M + dt S - dt K)^{-1} (-S x + K x + b)
-   K.Mult(x, z);
-   S.AddMult(x, z, -1.0);
-   z += b;
-   A_solver->Mult(z, y);
-}
-
 // Implementation of class IMEX_Evolution
-IMEX_Evolution::IMEX_Evolution(SparseMatrix &_M, SparseMatrix &_S,
-                               SparseMatrix &_K, const Vector &_b)
-   : TimeDependentOperator(_M.Height()),
-     M(_M), S(_S), K(_K), A(NULL), b(_b),
-     A_prec(NULL), A_solver(NULL), dt(-1.0), z(_M.Height())
+IMEX_Evolution::IMEX_Evolution(BilinearForm &M_, BilinearForm &K_,
+                               BilinearForm &S_, const Vector &b_)
+   : SplitTimeDependentOperator(M_.FESpace()->GetTrueVSize()),
+     M(M_), K(K_), S(S_), b(b_), z(height)
 {
-   M_solver.SetPreconditioner(M_prec);
-   M_solver.SetOperator(M);
-
+   Array<int> ess_tdof_list;
+   if (M.GetAssemblyLevel() == AssemblyLevel::LEGACY)
+   {
+      M_prec = make_unique<DSmoother>(M.SpMat());
+      M_solver.SetOperator(M.SpMat());
+      dg_solver = make_unique<DG_Solver>(M.SpMat(), K.SpMat(), S.SpMat(),
+                                         *M.FESpace());
+   }
+   else
+   {
+      M_prec = make_unique<OperatorJacobiSmoother>(M, ess_tdof_list);
+      M_solver.SetOperator(M);
+      dg_solver = NULL;
+   }
+   M_solver.SetPreconditioner(*M_prec);
    M_solver.iterative_mode = false;
    M_solver.SetRelTol(1e-9);
    M_solver.SetAbsTol(0.0);
@@ -844,56 +691,27 @@ IMEX_Evolution::IMEX_Evolution(SparseMatrix &_M, SparseMatrix &_S,
    M_solver.SetPrintLevel(0);
 }
 
-void IMEX_Evolution::initA(double _dt)
+void IMEX_Evolution::Mult1(const Vector &x, Vector &y) const
 {
-   if (fabs(dt - _dt) > 1e-4 * _dt)
-   {
-      delete A_solver;
-      delete A_prec;
-      delete A;
-
-      A = Add(_dt, S, 1.0, M); // A = M + dt * S
-      dt = _dt;
-
-      A_prec = new DSmoother(*A);
-      A_solver = new CGSolver;
-      A_solver->SetOperator(*A);
-      A_solver->SetPreconditioner(*A_prec);
-
-      A_solver->iterative_mode = false;
-      A_solver->SetRelTol(1e-9);
-      A_solver->SetAbsTol(0.0);
-      A_solver->SetMaxIter(100);
-      A_solver->SetPrintLevel(0);
-   }
-}
-
-void IMEX_Evolution::Mult(const Vector &x, Vector &y) const
-{
-   // y = M^{-1} (-S x + K x + b)
-   K.Mult(x, z);
-   S.AddMult(x, z, -1.0);
-   z += b;
-   M_solver.Mult(z, y);
-}
-
-void IMEX_Evolution::ExplicitMult(const Vector &x, Vector &y) const
-{
+   // Perform the explicit step
    // y = M^{-1} (K x + b)
    K.Mult(x, z);
    z += b;
    M_solver.Mult(z, y);
 }
 
-void IMEX_Evolution::ImplicitSolve(const double _dt, const Vector &x, Vector &y)
+void IMEX_Evolution::ImplicitSolve2(const real_t dt, const Vector &x, Vector &k)
 {
-   this->initA(_dt);
-   // y = (M + dt S)^{-1} (-S x + b)
+   // Perform the implicit step
+   // solve for k, k = -(M+dt S)^{-1} S x
+   MFEM_VERIFY(dg_solver != NULL,
+               "Implicit time integration is not supported with partial assembly");
    S.Mult(x, z);
-   z *= -1.0;
-   z += b;
-   A_solver->Mult(z, y);
+   z*= -1.0;
+   dg_solver->SetTimeStep(dt);
+   dg_solver->Mult(z, k);
 }
+
 
 // Initial condition
 double theta0_function(const Vector &x)
@@ -907,17 +725,18 @@ double theta0_function(const Vector &x)
    //    X(i) = 2 * (x(i) - center) / (bb_max[i] - bb_min[i]);
    // }
 
-    double rx = 0.45, ry = 0.25, cx = 0., cy = -0.2, w = 10.;
-    if (dim == 3)
-    {
-        const double s = (1. + 0.25*cos(2*M_PI*x(2)));
-        rx *= s;
-        ry *= s;
-    }
-    return ( erfc(w*(x(0)-cx-rx))*erfc(-w*(x(0)-cx+rx))*erfc(w*(x(1)-cy-ry))*erfc(-w*(x(1)-cy+ry)) )/16;
+   double rx = 0.45, ry = 0.25, cx = 0., cy = -0.2, w = 10.;
+   if (dim == 3)
+   {
+      const double s = (1. + 0.25*cos(2*M_PI*x(2)));
+      rx *= s;
+      ry *= s;
+   }
+   return ( erfc(w*(x(0)-cx-rx))*erfc(-w*(x(0)-cx+rx))*erfc(w*(x(1)-cy-ry))*erfc(
+               -w*(x(1)-cy+ry)) )/16;
 }
 
-//forcing term 
+//forcing term
 real_t forcing_function(const Vector &x, real_t t)
 {
    int dim = x.Size();
@@ -926,7 +745,7 @@ real_t forcing_function(const Vector &x, real_t t)
    for (int i = 0; i < dim; i++)
    {
       double center = (bb_min[i] + bb_max[i]) * 0.5;
-      X(i) = 2 * (x(i) - center) / (bb_max[i] - bb_min[i]); 
+      X(i) = 2 * (x(i) - center) / (bb_max[i] - bb_min[i]);
    }
    return 0.0;
 }

@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -10,30 +10,21 @@
 # CONTRIBUTING.md for details.
 
 list(APPEND SEQMTOP_COMMON_SOURCES
-	paramnonlinearform.cpp
-        mtop_integrators.cpp
-	for_back_adv_diff_solve.cpp
 	darcy_heat_transfer_ex.cpp)
 
-list(APPEND SEQMTOP_COMMON_HEADERS
-	paramnonlinearform.hpp
-        mtop_integrators.hpp
-	for_back_adv_diff_solve.hpp)
+# list(APPEND SEQMTOP_COMMON_HEADERS
+# 	paramnonlinearform.hpp
+#         mtop_integrators.hpp)
 
 convert_filenames_to_full_paths(SEQMTOP_COMMON_SOURCES)
-convert_filenames_to_full_paths(SEQMTOP_COMMON_HEADERS)
+//convert_filenames_to_full_paths(SEQMTOP_COMMON_HEADERS)
 
 set(SEQMTOP_COMMON_FILES
 	EXTRA_SOURCES ${SEQMTOP_COMMON_SOURCES}
 	EXTRA_HEADERS ${SEQMTOP_COMMON_HEADERS})
 
 add_mfem_miniapp(seqheat
-	MAIN seqheat.cpp
-	${SEQMTOP_COMMON_FILES}
-	LIBRARIES mfem)
-
-add_mfem_miniapp(seqheat
-	MAIN for_adv_diff_solve.cpp
+	MAIN darcy_heat_transfer_ex.cpp
 	${SEQMTOP_COMMON_FILES}
 	LIBRARIES mfem)
 

@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -12,10 +12,11 @@
 # Use the MFEM build directory
 MFEM_DIR ?= ../..
 MFEM_BUILD_DIR ?= ../..
-MFEM_INSTALL_DIR ?= ../../mfem
 SRC = $(if $(MFEM_DIR:../..=),$(MFEM_DIR)/miniapps/mtop/,)
-CONFIG_MK = $(or $(wildcard $(MFEM_BUILD_DIR)/config/config.mk),\
-   $(wildcard $(MFEM_INSTALL_DIR)/share/mfem/config.mk))
+CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
+# Use the MFEM install directory
+# MFEM_INSTALL_DIR = ../../mfem
+# CONFIG_MK = $(MFEM_INSTALL_DIR)/share/mfem/config.mk
 
 # Include defaults.mk to get XLINKER
 DEFAULTS_MK = $(MFEM_DIR)/config/defaults.mk
@@ -24,10 +25,10 @@ include $(DEFAULTS_MK)
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-MTOP_COMMON_SRC = for_adv_diff_solve.cpp darcy_heat_transfer_ex.cpp
+MTOP_COMMON_SRC =  darcy_heat_transfer_ex.cpp
 MTOP_COMMON_OBJ = $(MTOP_COMMON_SRC:.cpp=.o)
 
-SEQ_MINIAPPS = for_adv_diff_solve seqheat darcy_heat_transfer_ex
+SEQ_MINIAPPS = seqheat darcy_heat_transfer_ex
 PAR_MINIAPPS = parheat
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
