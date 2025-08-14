@@ -556,10 +556,9 @@ void ComputeFaceMatrix(const FiniteElementSpace& fes,
 }
 
 /// @brief Boilerplate code for getting the orders a priori
-void GetCommonIntegrationRule(const FiniteElementSpace& fes_src,
-                              const FiniteElementSpace& fes_dst,
-                              const FaceElementTransformations& face_trans,
-                              IntegrationRule& ir)
+const IntegrationRule& GetCommonIntegrationRule(const FiniteElementSpace& fes_src,
+                                                const FiniteElementSpace& fes_dst,
+                                                const FaceElementTransformations& face_trans)
 {
    const bool has_other = (face_trans.Elem2No >= 0);
    const FiniteElement* fe_src_self = fes_src.GetFE(face_trans.Elem1No);
@@ -572,7 +571,7 @@ void GetCommonIntegrationRule(const FiniteElementSpace& fes_src,
    const int order = face_trans.OrderW() +
                      std::max(fe_src_self->GetOrder(), fe_dst_self->GetOrder()) +
                      std::max(fe_src_other->GetOrder(), fe_dst_other->GetOrder());
-   ir = IntRules.Get(face_trans.GetGeometryType(), order);
+   return IntRules.Get(face_trans.GetGeometryType(), order);
 }
 
 ///@}
@@ -932,9 +931,8 @@ void FaceReconstruction(Solver& solver,
       fes_src->GetElementTransformation(e_idx, e_trans.get());
 
       // Assumes all faces are equal
-      IntegrationRule ir;
       face_trans = mesh.GetFaceElementTransformations(faces_e[0]);
-      GetCommonIntegrationRule(*fes_src, *fes_dst, *face_trans, ir);
+      auto ir = GetCommonIntegrationRule(*fes_src, *fes_dst, *face_trans);
 
       // Setup RHS and Matrix
       Array<int> offsets(1 + faces_e.Size());
