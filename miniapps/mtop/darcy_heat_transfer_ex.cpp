@@ -195,7 +195,8 @@ int main(int argc, char *argv[])
    // 2. Define the ODE solver used for time integration. Several explicit, implicit and IMEX
    //    Runge-Kutta methods are available.
    unique_ptr<SplitODESolver> ode_solver = SplitODESolver::Select(ode_solver_type);
-   unique_ptr<SplitODESolver> ode_solver_adj = SplitODESolver::Select(ode_solver_type);
+   unique_ptr<SplitODESolver> ode_solver_adj = SplitODESolver::Select(
+                                                  ode_solver_type);
    // 3. Read the mesh from the given mesh file.
    Mesh mesh(mesh_file, 1, 1);
    int dim = mesh.Dimension();
@@ -203,7 +204,7 @@ int main(int argc, char *argv[])
    // 4. Refine the mesh in serial to increase the resolution. In this example
    //    we do 'ser_ref_levels' of uniform refinement, where 'ser_ref_levels' is
    //    a command-line parameter.
-   for (int lev = 0; lev < ref_levels; lev++){mesh.UniformRefinement();}
+   for (int lev = 0; lev < ref_levels; lev++) {mesh.UniformRefinement();}
    if (mesh.NURBSext) {mesh.SetCurvature(max(order_ad, 1));}
    mesh.GetBoundingBox(bb_min, bb_max, max(order_ad, 1));
 
