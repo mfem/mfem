@@ -815,6 +815,22 @@ public:
    /// Debugging method
    void PrintSharedEntities(const std::string &fname_prefix) const;
 
+   /** @brief Return true if the input array of refinements to be performed would
+       result in conflicting anisotropic directions on a face. Indices of
+       @a refinements entries are contained in @a conflicts, for marked elements
+       neighboring a face with a conflict.
+
+       The return value is globally MPI-reduced (true if any MPI process has a
+       conflict), whereas @a conflicts contains local indices of conflicting
+       entries of @a refinements. Conflicts are defined as anisotropic
+       refinements in different directions on a face shared by two elements.
+       Conflicts are checked for the mesh that would result from the input
+       refinements. If there are no conflicts, then the refinements can be
+       performed without forced refinements. This function is supported only for
+       3D meshes with all hexahedral elements. */
+   bool AnisotropicConflict(const Array<Refinement> &refinements,
+                            std::set<int> &conflicts) const;
+
    virtual ~ParMesh();
 };
 
