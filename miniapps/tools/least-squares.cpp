@@ -1623,8 +1623,8 @@ int main(int argc, char* argv[])
       if (!file.is_open()) { mfem_error("Failed to open file"); }
       file << std::scientific << std::setprecision(16);
       file << error
-           << "," << fes_src.GetNConformingDofs()
-           << "," << fes_dst.GetNConformingDofs()
+           << "," << fes_src.GetNDofs()
+           << "," << fes_dst.GetNDofs()
            << "," << hmax
            << "," << mesh.GetNE() << std::endl;
       file.close();
