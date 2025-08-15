@@ -220,6 +220,7 @@ miniapps/gslib/pfindpts
 miniapps/gslib/schwarz_ex1
 miniapps/gslib/schwarz_ex1p
 miniapps/gslib/interpolated.gf
+miniapps/gslib/particles_redist
 
 miniapps/meshing/mobius-strip
 miniapps/meshing/klein-bottle
