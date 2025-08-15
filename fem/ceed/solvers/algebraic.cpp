@@ -228,7 +228,7 @@ void AddToCompositeOperator(BilinearFormIntegrator *integ, CeedOperator op)
 {
    if (integ->SupportsCeed())
    {
-      CeedCompositeOperatorAddSub(op, integ->GetCeedOp().GetCeedOperator());
+      CeedOperatorCompositeAddSub(op, integ->GetCeedOp().GetCeedOperator());
    }
    else
    {
@@ -240,7 +240,7 @@ CeedOperator CreateCeedCompositeOperatorFromBilinearForm(BilinearForm &form)
 {
    int ierr;
    CeedOperator op;
-   ierr = CeedCompositeOperatorCreate(internal::ceed, &op); PCeedChk(ierr);
+   ierr = CeedOperatorCreateComposite(internal::ceed, &op); PCeedChk(ierr);
 
    MFEM_VERIFY(form.GetBBFI()->Size() == 0,
                "Not implemented for this integrator!");
@@ -271,18 +271,13 @@ CeedOperator CoarsenCeedCompositeOperator(
    MFEM_ASSERT(isComposite, "");
 
    CeedOperator op_coarse;
-   ierr = CeedCompositeOperatorCreate(internal::ceed,
+   ierr = CeedOperatorCreateComposite(internal::ceed,
                                       &op_coarse); PCeedChk(ierr);
 
    int nsub;
    CeedOperator *subops;
-#if CEED_VERSION_GE(0, 10, 2)
-   ierr = CeedCompositeOperatorGetNumSub(op, &nsub); PCeedChk(ierr);
-   ierr = CeedCompositeOperatorGetSubList(op, &subops); PCeedChk(ierr);
-#else
-   ierr = CeedOperatorGetNumSub(op, &nsub); PCeedChk(ierr);
-   ierr = CeedOperatorGetSubList(op, &subops); PCeedChk(ierr);
-#endif
+   ierr = CeedOperatorCompositeGetNumSub(op, &nsub); PCeedChk(ierr);
+   ierr = CeedOperatorCompositeGetSubList(op, &subops); PCeedChk(ierr);
    for (int isub=0; isub<nsub; ++isub)
    {
       CeedOperator subop = subops[isub];
@@ -294,7 +289,7 @@ CeedOperator CoarsenCeedCompositeOperator(
       // refcounted by existing objects
       ierr = CeedBasisDestroy(&basis_coarse); PCeedChk(ierr);
       ierr = CeedBasisDestroy(&basis_c2f); PCeedChk(ierr);
-      ierr = CeedCompositeOperatorAddSub(op_coarse, subop_coarse);
+      ierr = CeedOperatorCompositeAddSub(op_coarse, subop_coarse);
       PCeedChk(ierr);
       ierr = CeedOperatorDestroy(&subop_coarse); PCeedChk(ierr);
    }
