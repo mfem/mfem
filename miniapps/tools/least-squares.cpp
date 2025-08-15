@@ -275,6 +275,7 @@ void TraceAverageIntegrator::AssembleFaceMatrix(const FiniteElement&
    const int test_self_ndofs = test_fe_self.GetDof();
    const int test_other_ndofs = has_other?test_fe_self.GetDof():0;
 
+   face_shape.SetSize(trial_face_ndofs);
    shape_self.SetSize(test_self_ndofs);
    shape_other.SetSize(test_other_ndofs);
 
