@@ -23,6 +23,9 @@
 #include "_config.hpp"
 #endif
 
+#include <cstdint>
+#include <climits>
+
 namespace mfem
 {
 

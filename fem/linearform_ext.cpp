@@ -51,7 +51,7 @@ void LinearFormExtension::Assemble()
       {
          // scan the attributes to set the markers to 0 or 1
          const int NE = fes.GetNE();
-         const auto attr = attributes.Read();
+         const auto attr = attributes->Read();
          const auto dimk = domain_integs_marker_k->Read();
          auto markers_w = markers.Write();
          mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
@@ -93,13 +93,14 @@ void LinearFormExtension::Assemble()
       else
       {
          // scan the attributes to set the markers to 0 or 1
-         const int NBE = bdr_attributes.Size();
-         const auto attr = bdr_attributes.Read();
+         const int NBE = bdr_face_attributes->Size();
+         const auto attr = bdr_face_attributes->Read();
          const auto attr_markers = boundary_integs_marker_k->Read();
          auto markers_w = bdr_markers.Write();
-         mfem::forall(NBE, [=] MFEM_HOST_DEVICE (int e)
+         mfem::forall(NBE, [=] MFEM_HOST_DEVICE(int e)
          {
-            markers_w[e] = attr_markers[attr[e]-1] == 1;
+            markers_w[e] =
+               attr[e] > 0 ? (attr_markers[attr[e] - 1] == 1) : false;
          });
       }
 
@@ -125,8 +126,7 @@ void LinearFormExtension::Update()
       //markers.UseDevice(true);
 
       // Gather the attributes on the host from all the elements
-      attributes.SetSize(NE);
-      for (int i = 0; i < NE; ++i) { attributes[i] = mesh.GetAttribute(i); }
+      attributes = &mesh.GetElementAttributes();
 
       elem_restrict_lex = fes.GetElementRestriction(ordering);
       MFEM_VERIFY(elem_restrict_lex, "Element restriction not available");
@@ -136,33 +136,11 @@ void LinearFormExtension::Update()
 
    if (lf->boundary_integs.Size() > 0)
    {
-      const int nf_bdr = fes.GetNFbyType(FaceType::Boundary);
+      bdr_face_attributes = &mesh.GetBdrFaceAttributes();
+
+      const int nf_bdr = bdr_face_attributes->Size();
       bdr_markers.SetSize(nf_bdr);
       // bdr_markers.UseDevice(true);
-
-      // The face restriction will give us "face E-vectors" on the boundary that
-      // are numbered in the order of the faces of mesh. This numbering will be
-      // different than the numbering of the boundary elements. We compute
-      // mappings so that the array `bdr_attributes[i]` gives the boundary
-      // attribute of the `i`th boundary face in the mesh face order.
-      std::unordered_map<int,int> f_to_be;
-      for (int i = 0; i < mesh.GetNBE(); ++i)
-      {
-         const int f = mesh.GetBdrElementFaceIndex(i);
-         f_to_be[f] = i;
-      }
-      MFEM_VERIFY(size_t(nf_bdr) == f_to_be.size(), "Incompatible sizes");
-      bdr_attributes.SetSize(nf_bdr);
-      int f_ind = 0;
-      for (int f = 0; f < mesh.GetNumFaces(); ++f)
-      {
-         if (f_to_be.find(f) != f_to_be.end())
-         {
-            const int be = f_to_be[f];
-            bdr_attributes[f_ind] = mesh.GetBdrAttribute(be);
-            ++f_ind;
-         }
-      }
 
       bdr_restrict_lex =
          dynamic_cast<const FaceRestriction*>(
