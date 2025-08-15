@@ -518,10 +518,12 @@ ParticleSet::ParticleSet(MPI_Comm comm_, int rank_num_particles, int dim,
                  tag_names_)
 {
    comm = comm_;
+#ifdef MFEM_USE_GSLIB
    gsl_comm = std::make_unique<gslib::comm>();
    cr = std::make_unique<gslib::crystal>();
    comm_init(gsl_comm.get(), comm);
    crystal_init(cr.get(), gsl_comm.get());
+#endif // MFEM_USE_GSLIB
 }
 
 unsigned int ParticleSet::GetGlobalNP() const
