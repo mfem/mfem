@@ -198,6 +198,8 @@ public:
 #endif
 
    virtual ~FindPointsGSLIB();
+   FindPointsGSLIB(const FindPointsGSLIB&) = delete;
+   FindPointsGSLIB& operator=(const FindPointsGSLIB&) = delete;
 
    /** Initializes the internal mesh in gslib, by sending the positions of the
        Gauss-Lobatto nodes of the input Mesh object \p m.
