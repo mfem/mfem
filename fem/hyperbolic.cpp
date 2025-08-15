@@ -181,7 +181,7 @@ void HyperbolicFormIntegrator::AssembleFaceVector(
    // current elements' the number of degrees of freedom
    // does not consider the number of equations
    const int dof1 = el1.GetDof();
-   const int dof2 = el2.GetDof();
+   const int dof2 = (Tr.Elem2No >= 0)?(el2.GetDof()):(0);
 
 #ifdef MFEM_THREAD_SAFE
    // Local storage for element integration
@@ -219,7 +219,15 @@ void HyperbolicFormIntegrator::AssembleFaceVector(
    const IntegrationRule *ir = IntRule;
    if (!ir)
    {
-      const int order = 2*std::max(el1.GetOrder(), el2.GetOrder()) + IntOrderOffset;
+      int order;
+      if (dof2)
+      {
+         order = 2*std::max(el1.GetOrder(), el2.GetOrder()) + IntOrderOffset;
+      }
+      else
+      {
+         order = 2*el1.GetOrder() + IntOrderOffset;
+      }
       ir = &IntRules.Get(Tr.GetGeometryType(), order);
    }
    // loop over integration points
@@ -231,18 +239,22 @@ void HyperbolicFormIntegrator::AssembleFaceVector(
 
       // Calculate basis functions on both elements at the face
       el1.CalcShape(Tr.GetElement1IntPoint(), shape1);
-      el2.CalcShape(Tr.GetElement2IntPoint(), shape2);
 
       // Interpolate elfun at the point
       elfun1_mat.MultTranspose(shape1, state1);
-      elfun2_mat.MultTranspose(shape2, state2);
+
+      if (dof2)
+      {
+         // Calculate basis functions on both elements at the face
+         el2.CalcShape(Tr.GetElement2IntPoint(), shape2);
+         // Interpolate elfun at the point
+         elfun2_mat.MultTranspose(shape2, state2);
+      }
 
       // Get the normal vector and the flux on the face
       if (nor.Size() == 1)  // if 1D, use 1 or -1.
       {
-         // This assume the 1D integration point is in (0,1). This may not work
-         // if this changes.
-         nor(0) = (Tr.GetElement1IntPoint().x - 0.5) * 2.0;
+         nor(0) = 2*Tr.GetElement1IntPoint().x - 1.;
       }
       else
       {
@@ -250,14 +262,18 @@ void HyperbolicFormIntegrator::AssembleFaceVector(
       }
       // Compute F(u+, x) and F(u-, x) with maximum characteristic speed
       // Compute hat(F) using evaluated quantities
-      const real_t speed = numFlux.Eval(state1, state2, nor, Tr, fluxN);
+      const real_t speed = (dof2) ? numFlux.Eval(state1, state2, nor, Tr, fluxN):
+                           fluxFunction.ComputeFluxDotN(state1, nor, Tr, fluxN);
 
       // Update the global max char speed
       max_char_speed = std::max(speed, max_char_speed);
 
       // pre-multiply integration weight to flux
       AddMult_a_VWt(-ip.weight*sign, shape1, fluxN, elvect1_mat);
-      AddMult_a_VWt(+ip.weight*sign, shape2, fluxN, elvect2_mat);
+      if (dof2)
+      {
+         AddMult_a_VWt(+ip.weight*sign, shape2, fluxN, elvect2_mat);
+      }
    }
 }
 
@@ -268,7 +284,7 @@ void HyperbolicFormIntegrator::AssembleFaceGrad(
    // current elements' the number of degrees of freedom
    // does not consider the number of equations
    const int dof1 = el1.GetDof();
-   const int dof2 = el2.GetDof();
+   const int dof2 = (Tr.Elem2No >= 0)?(el2.GetDof()):(0);
 
 #ifdef MFEM_THREAD_SAFE
    // Local storage for element integration
@@ -302,7 +318,15 @@ void HyperbolicFormIntegrator::AssembleFaceGrad(
    const IntegrationRule *ir = IntRule;
    if (!ir)
    {
-      const int order = 2*std::max(el1.GetOrder(), el2.GetOrder()) + IntOrderOffset;
+      int order;
+      if (dof2)
+      {
+         order = 2*std::max(el1.GetOrder(), el2.GetOrder()) + IntOrderOffset;
+      }
+      else
+      {
+         order = 2*el1.GetOrder() + IntOrderOffset;
+      }
       ir = &IntRules.Get(Tr.GetGeometryType(), order);
    }
    // loop over integration points
@@ -314,18 +338,23 @@ void HyperbolicFormIntegrator::AssembleFaceGrad(
 
       // Calculate basis functions on both elements at the face
       el1.CalcShape(Tr.GetElement1IntPoint(), shape1);
-      el2.CalcShape(Tr.GetElement2IntPoint(), shape2);
 
       // Interpolate elfun at the point
       elfun1_mat.MultTranspose(shape1, state1);
-      elfun2_mat.MultTranspose(shape2, state2);
+
+      if (dof2)
+      {
+         // Calculate basis functions on both elements at the face
+         el2.CalcShape(Tr.GetElement2IntPoint(), shape2);
+
+         // Interpolate elfun at the point
+         elfun2_mat.MultTranspose(shape2, state2);
+      }
 
       // Get the normal vector and the flux on the face
       if (nor.Size() == 1)  // if 1D, use 1 or -1.
       {
-         // This assume the 1D integration point is in (0,1). This may not work
-         // if this changes.
-         nor(0) = (Tr.GetElement1IntPoint().x - 0.5) * 2.0;
+         nor(0) = 2*Tr.GetElement1IntPoint().x - 1.;
       }
       else
       {
@@ -335,7 +364,14 @@ void HyperbolicFormIntegrator::AssembleFaceGrad(
       // Trial side 1
 
       // Compute hat(J) using evaluated quantities
-      numFlux.Grad(1, state1, state2, nor, Tr, JDotN);
+      if (dof2)
+      {
+         numFlux.Grad(1, state1, state2, nor, Tr, JDotN);
+      }
+      else
+      {
+         fluxFunction.ComputeFluxJacobianDotN(state1, nor, Tr, JDotN);
+      }
 
       const int ioff = fluxFunction.num_equations * dof1;
 
@@ -360,33 +396,151 @@ void HyperbolicFormIntegrator::AssembleFaceGrad(
             }
          }
 
-      // Trial side 2
+      if (dof2)
+      {
+         // Trial side 2
 
-      // Compute hat(J) using evaluated quantities
-      numFlux.Grad(2, state1, state2, nor, Tr, JDotN);
+         // Compute hat(J) using evaluated quantities
+         numFlux.Grad(2, state1, state2, nor, Tr, JDotN);
 
-      const int joff = ioff;
+         const int joff = ioff;
 
-      for (int di = 0; di < fluxFunction.num_equations; di++)
-         for (int dj = 0; dj < fluxFunction.num_equations; dj++)
-         {
-            // pre-multiply integration weight to Jacobian
-            const real_t w = +ip.weight * sign * JDotN(di,dj);
-            for (int j = 0; j < dof2; j++)
+         for (int di = 0; di < fluxFunction.num_equations; di++)
+            for (int dj = 0; dj < fluxFunction.num_equations; dj++)
             {
-               // Test side 1
-               for (int i = 0; i < dof1; i++)
+               // pre-multiply integration weight to Jacobian
+               const real_t w = +ip.weight * sign * JDotN(di,dj);
+               for (int j = 0; j < dof2; j++)
                {
-                  elmat(i+dof1*di, joff+j+dof2*dj) += w * shape1(i) * shape2(j);
-               }
+                  // Test side 1
+                  for (int i = 0; i < dof1; i++)
+                  {
+                     elmat(i+dof1*di, joff+j+dof2*dj) += w * shape1(i) * shape2(j);
+                  }
 
-               // Test side 2
-               for (int i = 0; i < dof2; i++)
-               {
-                  elmat(ioff+i+dof2*di, joff+j+dof2*dj) -= w * shape2(i) * shape2(j);
+                  // Test side 2
+                  for (int i = 0; i < dof2; i++)
+                  {
+                     elmat(ioff+i+dof2*di, joff+j+dof2*dj) -= w * shape2(i) * shape2(j);
+                  }
                }
             }
-         }
+      }
+   }
+}
+
+BoundaryHyperbolicLFIntegrator::BoundaryHyperbolicLFIntegrator(
+   const FluxFunction &flux, Coefficient &u, const int IntOrderOffset_,
+   const real_t sign_)
+   : fluxFunction(flux), u_coeff(&u), u_vcoeff(nullptr),
+     IntOrderOffset(IntOrderOffset_), sign(sign_)
+{
+   MFEM_VERIFY(fluxFunction.num_equations == 1, "Flux function is not scalar!");
+#ifndef MFEM_THREAD_SAFE
+   state.SetSize(1);
+   nor.SetSize(fluxFunction.dim);
+   fluxN.SetSize(1);
+#endif
+   ResetMaxCharSpeed();
+}
+
+BoundaryHyperbolicLFIntegrator::BoundaryHyperbolicLFIntegrator(
+   const FluxFunction &flux, VectorCoefficient &u, const int IntOrderOffset_,
+   const real_t sign_)
+   : fluxFunction(flux), u_coeff(nullptr), u_vcoeff(&u),
+     IntOrderOffset(IntOrderOffset_), sign(sign_)
+{
+   MFEM_VERIFY(fluxFunction.num_equations == u_vcoeff->GetVDim(),
+               "Flux function does not match the vector dimension of the coefficient!");
+#ifndef MFEM_THREAD_SAFE
+   state.SetSize(fluxFunction.num_equations);
+   nor.SetSize(fluxFunction.dim);
+   fluxN.SetSize(fluxFunction.num_equations);
+#endif
+   ResetMaxCharSpeed();
+}
+
+void BoundaryHyperbolicLFIntegrator::AssembleRHSElementVect(
+   const FiniteElement &el, ElementTransformation &Tr, Vector &elvect)
+{
+   mfem_error("BoundaryHyperbolicLFIntegrator::AssembleRHSElementVect\n"
+              "  is not implemented as boundary integrator!\n"
+              "  Use LinearForm::AddBdrFaceIntegrator instead of\n"
+              "  LinearForm::AddBoundaryIntegrator.");
+}
+
+void BoundaryHyperbolicLFIntegrator::AssembleRHSElementVect(
+   const FiniteElement &el, FaceElementTransformations &Tr, Vector &elvect)
+{
+   // current elements' the number of degrees of freedom
+   // does not consider the number of equations
+   const int dof = el.GetDof();
+
+#ifdef MFEM_THREAD_SAFE
+   // Local storage for element integration
+
+   // shape function value at an integration point
+   Vector shape(dof);
+   // state value at an integration point
+   Vector state(fluxFunction.num_equations);
+   // normal vector (usually not a unit vector)
+   Vector nor(Tr.GetSpaceDim());
+   // hat(F)(u,x)
+   Vector fluxN(fluxFunction.num_equations);
+#else
+   shape.SetSize(dof);
+#endif
+
+   elvect.SetSize(dof * fluxFunction.num_equations);
+   elvect = 0.0;
+
+   DenseMatrix elvect_mat(elvect.GetData(), dof, fluxFunction.num_equations);
+
+   // Obtain integration rule. If integration is rule is given, then use it.
+   // Otherwise, get (2*p + IntOrderOffset) order integration rule
+   const IntegrationRule *ir = IntRule;
+   if (!ir)
+   {
+      const int order = 2*el.GetOrder() + IntOrderOffset;
+      ir = &IntRules.Get(Tr.GetGeometryType(), order);
+   }
+   // loop over integration points
+   for (int i = 0; i < ir->GetNPoints(); i++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(i);
+
+      Tr.SetAllIntPoints(&ip); // set face and element int. points
+
+      // Calculate basis functions on both elements at the face
+      el.CalcShape(Tr.GetElement1IntPoint(), shape);
+
+      // Evaluate the coefficient at the point
+      if (u_coeff)
+      {
+         state(0) = u_coeff->Eval(Tr, ip);
+      }
+      else
+      {
+         u_vcoeff->Eval(state, Tr, ip);
+      }
+
+      // Get the normal vector and the flux on the face
+      if (nor.Size() == 1)  // if 1D, use 1 or -1.
+      {
+         nor(0) = 2*Tr.GetElement1IntPoint().x - 1.;
+      }
+      else
+      {
+         CalcOrtho(Tr.Jacobian(), nor);
+      }
+      // Compute F(u, x) with maximum characteristic speed
+      const real_t speed = fluxFunction.ComputeFluxDotN(state, nor, Tr, fluxN);
+
+      // Update the global max char speed
+      max_char_speed = std::max(speed, max_char_speed);
+
+      // pre-multiply integration weight to flux
+      AddMult_a_VWt(-ip.weight*sign, shape, fluxN, elvect_mat);
    }
 }
 
