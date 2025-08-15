@@ -38,6 +38,31 @@ const Operator *BilinearFormExtension::GetRestriction() const
    return a->GetRestriction();
 }
 
+bool ContainsPatchwiseIntegration(Array<BilinearFormIntegrator*> &integrators)
+{
+   const int iSz = integrators.Size();
+
+   bool allPatchwise = true;
+   bool somePatchwise = false;
+
+   for (int i = 0; i < iSz; ++i)
+   {
+      if (integrators[i]->Patchwise())
+      {
+         somePatchwise = true;
+      }
+      else
+      {
+         allPatchwise = false;
+      }
+   }
+
+   MFEM_VERIFY(!(somePatchwise && !allPatchwise),
+               "All or none of the integrators should be patchwise");
+
+   return allPatchwise;
+}
+
 // Data and methods for partially-assembled bilinear forms
 MFBilinearFormExtension::MFBilinearFormExtension(BilinearForm *form)
    : BilinearFormExtension(form),
@@ -376,7 +401,17 @@ void PABilinearFormExtension::AssembleDiagonal(Vector &y) const
                                              const Array<int> &attributes,
                                              Vector &d)
    {
-      integ.AssembleDiagonalPA(d);
+      if (integ.Patchwise())
+      {
+         MFEM_VERIFY(a->FESpace()->GetNURBSext(),
+                     "Requires a NURBS FE space");
+         integ.AssembleDiagonalNURBSPA(d);
+      }
+      else
+      {
+         integ.AssembleDiagonalPA(d);
+      }
+
       if (markers)
       {
          const int ne = attributes.Size();
@@ -399,7 +434,10 @@ void PABilinearFormExtension::AssembleDiagonal(Vector &y) const
    };
 
    const int iSz = integrators.Size();
-   if (elem_restrict && !DeviceCanUseCeed())
+
+   const bool patchwise = ContainsPatchwiseIntegration(integrators);
+
+   if (elem_restrict && !DeviceCanUseCeed() && !patchwise)
    {
       if (iSz > 0)
       {
@@ -490,26 +528,9 @@ void PABilinearFormExtension::MultInternal(const Vector &x, Vector &y,
    Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
 
    const int iSz = integrators.Size();
+   const bool patchwise = ContainsPatchwiseIntegration(integrators);
 
-   bool allPatchwise = true;
-   bool somePatchwise = false;
-
-   for (int i = 0; i < iSz; ++i)
-   {
-      if (integrators[i]->Patchwise())
-      {
-         somePatchwise = true;
-      }
-      else
-      {
-         allPatchwise = false;
-      }
-   }
-
-   MFEM_VERIFY(!(somePatchwise && !allPatchwise),
-               "All or none of the integrators should be patchwise");
-
-   if (DeviceCanUseCeed() || !elem_restrict || allPatchwise)
+   if (DeviceCanUseCeed() || !elem_restrict || patchwise)
    {
       y.UseDevice(true); // typically this is a large vector, so store on device
       y = 0.0;
