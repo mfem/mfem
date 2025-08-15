@@ -1392,9 +1392,9 @@ using DiagonalKernelType = MassIntegrator::DiagonalKernelType;
 template<int DIM, int T_D1D, int T_Q1D>
 ApplyKernelType MassIntegrator::ApplyPAKernels::Kernel()
 {
-   if (DIM == 1) { return internal::PAMassApply1D; }
-   else if (DIM == 2) { return internal::SmemPAMassApply2D<T_D1D,T_Q1D>; }
-   else if (DIM == 3) { return internal::SmemPAMassApply3D<T_D1D, T_Q1D>; }
+   if constexpr (DIM == 1) { return internal::PAMassApply1D; }
+   else if constexpr (DIM == 2) { return internal::SmemPAMassApply2D<T_D1D,T_Q1D>; }
+   else if constexpr (DIM == 3) { return internal::SmemPAMassApply3D<T_D1D, T_Q1D>; }
    else { MFEM_ABORT(""); }
 }
 
@@ -1410,9 +1410,9 @@ inline ApplyKernelType MassIntegrator::ApplyPAKernels::Fallback(
 template<int DIM, int T_D1D, int T_Q1D>
 DiagonalKernelType MassIntegrator::DiagonalPAKernels::Kernel()
 {
-   if (DIM == 1) { return internal::PAMassAssembleDiagonal1D; }
-   else if (DIM == 2) { return internal::SmemPAMassAssembleDiagonal2D<T_D1D,T_Q1D>; }
-   else if (DIM == 3) { return internal::SmemPAMassAssembleDiagonal3D<T_D1D, T_Q1D>; }
+   if constexpr (DIM == 1) { return internal::PAMassAssembleDiagonal1D; }
+   else if constexpr (DIM == 2) { return internal::SmemPAMassAssembleDiagonal2D<T_D1D,T_Q1D>; }
+   else if constexpr (DIM == 3) { return internal::SmemPAMassAssembleDiagonal3D<T_D1D, T_Q1D>; }
    else { MFEM_ABORT(""); }
 }
 
