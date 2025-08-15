@@ -168,7 +168,9 @@ int CeedOperatorGetActiveField(CeedOperator oper, CeedOperatorField *field)
    {
       ierr = CeedOperatorFieldGetVector(inputfields[i], &if_vector); PCeedChk(ierr);
       bool is_active = if_vector == CEED_VECTOR_ACTIVE;
+      #if CEED_VERSION_GE(0, 13, 0)
       ierr = CeedVectorDestroy(&if_vector); PCeedChk(ierr);
+      #endif
       if (is_active)
       {
          if (found)
