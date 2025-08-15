@@ -45,6 +45,7 @@ set(UNIT_TESTS_SRCS
   linalg/test_matrix_sparse.cpp
   linalg/test_matrix_square.cpp
   linalg/test_mma.cpp
+  linalg/test_multivector.cpp
   linalg/test_ode.cpp
   linalg/test_ode2.cpp
   linalg/test_operator.cpp
@@ -114,6 +115,7 @@ set(UNIT_TESTS_SRCS
   fem/test_pa_grad.cpp
   fem/test_pa_idinterp.cpp
   fem/test_pa_kernels.cpp
+  fem/test_particleset.cpp
   fem/test_pgridfunc_save_serial.cpp
   fem/test_project_bdr.cpp
   fem/test_project_bdr_par.cpp
