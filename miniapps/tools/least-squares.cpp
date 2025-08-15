@@ -89,6 +89,9 @@ struct GlobalConfiguration
    bool preserve_volumes;
 };
 
+/// @name Specialized integrators
+///@{
+
 /** Class for an asymmetric (out-of-element) mass integrator $a_K(u,v) := (E(u),v)_K$,
  *  where $E$ is an extension of $u$ (with original domain $\hat{K}$) to $K$.
  *
@@ -238,6 +241,88 @@ void AsymmetricMassIntegrator::AsymmetricElementMatrix(const FiniteElement
       AddMult_a_VVt(e_trans.Weight()*ip.weight, neighbor_shape, elmat);
    }
 }
+
+
+/** Integrator of the DPG form $\langle v, \lbrace w \rbrace \rangle$ where
+ *  $\lbrace \cdot \rbrace$ represents the average of the traces of the argument.
+ */
+class TraceAverageIntegrator : public BilinearFormIntegrator
+{
+private:
+   Vector shape_self, shape_other, face_shape;
+
+public:
+   TraceAverageIntegrator() { };
+   using BilinearFormIntegrator::AssembleFaceMatrix;
+   void AssembleFaceMatrix(const FiniteElement& trial_face_fe,
+                           const FiniteElement& test_fe_self,
+                           const FiniteElement& test_fe_other,
+                           FaceElementTransformations& Trans,
+                           DenseMatrix& elmat);
+};
+
+void TraceAverageIntegrator::AssembleFaceMatrix(const FiniteElement&
+                                                trial_face_fe,
+                                                const FiniteElement& test_fe_self,
+                                                const FiniteElement& test_fe_other,
+                                                FaceElementTransformations& Trans,
+                                                DenseMatrix& elmat)
+{
+   const bool has_other = (Trans.Elem2No>=0);
+   const bool is_map_type_value = (trial_face_fe.GetMapType() ==
+                                   FiniteElement::VALUE);
+   const int trial_face_ndofs = trial_face_fe.GetDof();
+   const int test_self_ndofs = test_fe_self.GetDof();
+   const int test_other_ndofs = has_other?test_fe_self.GetDof():0;
+
+   shape_self.SetSize(test_self_ndofs);
+   shape_other.SetSize(test_other_ndofs);
+
+   elmat.SetSize(test_self_ndofs + test_other_ndofs, trial_face_ndofs);
+   elmat = 0.0;
+
+   const IntegrationRule* ir = IntRule;
+   if (!ir)
+   {
+      const int order = has_other?std::max(test_fe_self.GetOrder(),
+                                           test_fe_other.GetOrder()):test_fe_self.GetOrder() +
+                        trial_face_fe.GetOrder() + is_map_type_value*Trans.OrderW();
+      ir = &IntRules.Get(Trans.GetGeometryType(), order);
+   }
+
+   for (int p = 0; p < ir->GetNPoints(); p++)
+   {
+      const auto& ip = ir->IntPoint(p);
+      Trans.SetAllIntPoints(&ip);
+
+      trial_face_fe.CalcShape(ip, face_shape);
+      test_fe_self.CalcPhysShape(*Trans.Elem1, shape_self);
+      if (has_other) { test_fe_other.CalcPhysShape(*Trans.Elem2, shape_other); }
+
+      face_shape *= is_map_type_value?Trans.Weight()*ip.weight:ip.weight;
+
+      for (int i = 0; i < test_self_ndofs; i++)
+      {
+         for (int j = 0; j < trial_face_ndofs; j++)
+         {
+            elmat(i, j) += shape_self(i) * face_shape(j);
+         }
+      }
+      if (has_other)
+      {
+         for (int i = 0; i < test_other_ndofs; i++)
+         {
+            for (int j = 0; j < trial_face_ndofs; j++)
+            {
+               elmat(test_self_ndofs + i, j) += shape_other(i) * face_shape(j);
+            }
+         }
+         elmat *= 0.5;
+      }
+   }
+}
+
+///@}
 
 /// @name Auxiliary functions
 ///@{
@@ -556,7 +641,8 @@ void ComputeFaceMatrix(const FiniteElementSpace& fes,
 }
 
 /// @brief Boilerplate code for getting the orders a priori
-const IntegrationRule& GetCommonIntegrationRule(const FiniteElementSpace& fes_src,
+const IntegrationRule& GetCommonIntegrationRule(const FiniteElementSpace&
+                                                fes_src,
                                                 const FiniteElementSpace& fes_dst,
                                                 const FaceElementTransformations& face_trans)
 {
