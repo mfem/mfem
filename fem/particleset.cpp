@@ -464,9 +464,9 @@ ParticleSet::ParticleSet(int num_particles, int dim,
                          Ordering::Type coords_ordering, const Array<int> &field_vdims,
                          const Array<Ordering::Type> &field_orderings,
                          const Array<const char*> &field_names_, int num_tags,
-                         const Array<const char*> &tag_names)
+                         const Array<const char*> &tag_names_)
    : ParticleSet(1, 0, num_particles, dim, coords_ordering, field_vdims,
-                 field_orderings, field_names_, num_tags, tag_names)
+                 field_orderings, field_names_, num_tags, tag_names_)
 {
 
 }

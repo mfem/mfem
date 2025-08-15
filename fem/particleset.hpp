@@ -315,7 +315,7 @@ public:
    /** @brief Construct a parallel ParticleSet.
     *
     *  @param[in] comm_               MPI communicator.
-    *  @param[in] num_particles       Number of particles to initialize at construction.
+    *  @param[in] rank_num_particles       Number of particles to initialize at construction.
     *  @param[in] dim                 Particle spatial dimension.
     *  @param[in] coords_ordering     Ordering of coordinates \ref MultiVector.
     */
@@ -348,7 +348,7 @@ public:
     */
    ParticleSet(MPI_Comm comm_, int rank_num_particles, int dim,
                const Array<int> &field_vdims, const Array<const char*> &field_names_,
-               int num_tags, const Array<const char*> &tag_names,
+               int num_tags, const Array<const char*> &tag_names_,
                Ordering::Type all_ordering=Ordering::byVDIM);
 
    /** @brief Comprehensive parallel constructor of ParticleSet.
@@ -367,7 +367,7 @@ public:
                Ordering::Type coords_ordering, const Array<int> &field_vdims,
                const Array<Ordering::Type> &field_orderings,
                const Array<const char*> &field_names_, int num_tags,
-               const Array<const char*> &tag_names);
+               const Array<const char*> &tag_names_);
 
    /// Get the MPI communicator for this ParticleSet.
    MPI_Comm GetComm() const { return comm; };
