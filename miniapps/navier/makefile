@@ -99,4 +99,4 @@ clean-build:
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:
-	@rm -rf tgv_out*.txt *_output
+	@rm -rf tgv_out*.txt *_output ParaView Navier_Bifurcation_*
