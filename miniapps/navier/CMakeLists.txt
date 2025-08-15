@@ -15,6 +15,13 @@ if (MFEM_USE_MPI)
   list(APPEND NAVIER_COMMON_HEADERS
       navier_solver.hpp)
 
+  if(MFEM_USE_GSLIB)
+    list(APPEND NAVIER_COMMON_SOURCES
+      navier_particles.cpp)
+    list(APPEND NAVIER_COMMON_HEADERS
+      navier_particles.hpp)
+  endif()
+
   convert_filenames_to_full_paths(NAVIER_COMMON_SOURCES)
   convert_filenames_to_full_paths(NAVIER_COMMON_HEADERS)
 
