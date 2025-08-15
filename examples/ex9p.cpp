@@ -2,14 +2,14 @@
 //
 // Compile with: make ex9p
 //
-// Sample runs:
+// DG sample runs:
 //    mpirun -np 4 ex9p -m ../data/periodic-segment.mesh -p 0 -dt 0.005
 //    mpirun -np 4 ex9p -m ../data/periodic-square.mesh -p 0 -dt 0.01
 //    mpirun -np 4 ex9p -m ../data/periodic-hexagon.mesh -p 0 -dt 0.01
 //    mpirun -np 4 ex9p -m ../data/periodic-square.mesh -p 1 -dt 0.005 -tf 9
 //    mpirun -np 4 ex9p -m ../data/periodic-hexagon.mesh -p 1 -dt 0.005 -tf 9
 //    mpirun -np 4 ex9p -m ../data/amr-quad.mesh -p 1 -rp 1 -dt 0.002 -tf 9
-//    mpirun -np 4 ex9p -m ../data/amr-quad.mesh -p 1 -rp 1 -dt 0.02 -s 23 -tf 9
+//    mpirun -np 4 ex9p -m ../data/amr-quad.mesh -p 1 -rp 1 -dt 0.02 -s 13 -tf 9
 //    mpirun -np 4 ex9p -m ../data/star-q3.mesh -p 1 -rp 1 -dt 0.004 -tf 9
 //    mpirun -np 4 ex9p -m ../data/star-mixed.mesh -p 1 -rp 1 -dt 0.004 -tf 9
 //    mpirun -np 4 ex9p -m ../data/disc-nurbs.mesh -p 1 -rp 1 -dt 0.005 -tf 9
@@ -20,7 +20,24 @@
 //    mpirun -np 4 ex9p -m ../data/periodic-cube.msh -p 0 -rs 1 -o 2 -tf 2
 //    mpirun -np 3 ex9p -m ../data/amr-hex.mesh -p 1 -rs 1 -rp 0 -dt 0.005 -tf 0.5
 //
-// Device sample runs:
+// CG sample runs:
+//    mpirun -np 4 ex9p -m ../data/periodic-segment.mesh -p 0 -rp 5 -dt 0.00025 -sc 11 -o 1 -s 2 -vs 200
+//    mpirun -np 4 ex9p -m ../data/periodic-segment.mesh -p 0 -rp 5 -dt 0.00025 -sc 12 -o 1 -s 2 -vs 200
+//    mpirun -np 4 ex9p -m ../data/periodic-segment.mesh -p 0 -rp 5 -dt 0.00025 -sc 13 -o 1 -s 2 -vs 200
+//    mpirun -np 4 ex9p -m ../data/periodic-square.mesh -p 0 -rp 1 -dt 0.0025 -tf 2 -vs 20 -sc 11 -s 3 -o 2
+//    mpirun -np 4 ex9p -m ../data/periodic-hexagon.mesh -p 0 -rp 1 -dt 0.0025 -tf 2 -vs 20 -sc 11
+//    mpirun -np 4 ex9p -m ../data/periodic-square.mesh -p 1 -rp 3 -dt 0.002 -tf 9 -sc 11 -o 1 -s 2 -vs 20
+//    mpirun -np 4 ex9p -m ../data/periodic-square.mesh -p 1 -rp 1 -dt 0.002 -tf 9 -sc 11 -vs 20
+//    mpirun -np 4 ex9p -m ../data/periodic-square.mesh -p 1 -rp 3 -dt 0.002 -tf 9 -sc 13 -o 1 -s 2 -vs 20
+//    mpirun -np 4 ex9p -m ../data/star-mixed.mesh -p 1 -rp 2 -dt 0.004 -tf 9 -vs 20 -sc 11 -o 1 -s 2
+//    mpirun -np 4 ex9p -m ../data/star-q3.mesh -p 1 -rp 2 -dt 0.004 -tf 9 -vs 20 -sc 11 -o 1 -s 2
+//    mpirun -np 4 ex9p -m ../data/disc-nurbs.mesh -p 1 -rp 1 -dt 0.005 -tf 9 -sc 11 -vs 20
+//    mpirun -np 4 ex9p -m ../data/disc-nurbs.mesh -p 2 -rp 2 -dt 0.005 -tf 9 -sc 12 -s 3 -o 2 -vs 20
+//    mpirun -np 4 ex9p -m ../data/periodic-square.mesh -p 3 -rp 4 -dt 0.0025 -tf 9 -vs 20 -sc 11 -s 2 -o 1
+//    mpirun -np 4 ex9p -m ../data/periodic-cube.mesh -p 0 -o 2 -s 3 -rp 1 -dt 0.01 -tf 8 -sc 11
+//    mpirun -np 4 ex9p -m ../data/periodic-cube.msh -p 0 -rp 1 -o 2 -s 3 -tf 2 -sc 11
+//
+// Device sample runs (DG only):
 //    mpirun -np 4 ex9p -pa
 //    mpirun -np 4 ex9p -ea
 //    mpirun -np 4 ex9p -fa
@@ -43,10 +60,15 @@
 //               with VisIt (visit.llnl.gov) and ParaView (paraview.org), as
 //               well as the optional saving with ADIOS2 (adios2.readthedocs.io)
 //               are also illustrated.
+//               Additionally, the example showcases the parallel implementation
+//               of an element-based Clip & Scale limiter for continuous finite
+//               elements, which is designed to be bound-preserving.
+//               For more detail, see https://doi.org/10.1142/13466.
 
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
+#include "ex9.hpp"
 
 using namespace std;
 using namespace mfem;
@@ -63,6 +85,9 @@ real_t u0_function(const Vector &x);
 
 // Inflow boundary condition
 real_t inflow_function(const Vector &x);
+
+// Function f = 1 for lumped boundary operator
+real_t one(const Vector &x) {return 1.0;}
 
 // Mesh bounding box
 Vector bb_min, bb_max;
@@ -92,7 +117,7 @@ private:
 public:
    AIR_prec(int blocksize_) : AIR_solver(NULL), blocksize(blocksize_) { }
 
-   void SetOperator(const Operator &op) override
+   void SetOperator(const Operator &op)
    {
       width = op.Width();
       height = op.Height();
@@ -110,7 +135,7 @@ public:
       AIR_solver->SetMaxLevels(50);
    }
 
-   void Mult(const Vector &x, Vector &y) const override
+   virtual void Mult(const Vector &x, Vector &y) const
    {
       // Scale the rhs by block inverse and solve system
       HypreParVector z_s;
@@ -119,7 +144,7 @@ public:
       AIR_solver->Mult(z_s, y);
    }
 
-   ~AIR_prec() override
+   ~AIR_prec()
    {
       delete AIR_solver;
    }
@@ -137,7 +162,8 @@ private:
    Solver *prec;
    real_t dt;
 public:
-   DG_Solver(HypreParMatrix &M_, HypreParMatrix &K_, const FiniteElementSpace &fes,
+   DG_Solver(HypreParMatrix &M_, HypreParMatrix &K_,
+             const FiniteElementSpace &fes,
              PrecType prec_type)
       : M(M_),
         K(K_),
@@ -185,17 +211,17 @@ public:
       }
    }
 
-   void SetOperator(const Operator &op) override
+   void SetOperator(const Operator &op)
    {
       linear_solver.SetOperator(op);
    }
 
-   void Mult(const Vector &x, Vector &y) const override
+   virtual void Mult(const Vector &x, Vector &y) const
    {
       linear_solver.Mult(x, y);
    }
 
-   ~DG_Solver() override
+   ~DG_Solver()
    {
       delete prec;
       delete A;
@@ -208,7 +234,7 @@ public:
     and advection matrices, and b describes the flow on the boundary. This can
     be written as a general ODE, du/dt = M^{-1} (K u + b), and this class is
     used to evaluate the right-hand side. */
-class FE_Evolution : public TimeDependentOperator
+class DG_FE_Evolution : public TimeDependentOperator
 {
 private:
    OperatorHandle M, K;
@@ -220,15 +246,14 @@ private:
    mutable Vector z;
 
 public:
-   FE_Evolution(ParBilinearForm &M_, ParBilinearForm &K_, const Vector &b_,
-                PrecType prec_type);
+   DG_FE_Evolution(ParBilinearForm &M_, ParBilinearForm &K_, const Vector &b_,
+                   PrecType prec_type);
 
-   void Mult(const Vector &x, Vector &y) const override;
-   void ImplicitSolve(const real_t dt, const Vector &x, Vector &k) override;
+   virtual void Mult(const Vector &x, Vector &y) const;
+   virtual void ImplicitSolve(const real_t dt, const Vector &x, Vector &k);
 
-   ~FE_Evolution() override;
+   virtual ~DG_FE_Evolution();
 };
-
 
 int main(int argc, char *argv[])
 {
@@ -249,6 +274,7 @@ int main(int argc, char *argv[])
    bool fa = false;
    const char *device_config = "cpu";
    int ode_solver_type = 4;
+   int scheme = 1;
    real_t t_final = 10.0;
    real_t dt = 0.01;
    bool visualization = true;
@@ -285,7 +311,17 @@ int main(int argc, char *argv[])
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
    args.AddOption(&ode_solver_type, "-s", "--ode-solver",
-                  ODESolver::Types.c_str());
+                  "ODE solver: 1 - Forward Euler,\n\t"
+                  "            2 - RK2 SSP, 3 - RK3 SSP, 4 - RK4, 6 - RK6,\n\t"
+                  "            11 - Backward Euler,\n\t"
+                  "            12 - SDIRK23 (L-stable), 13 - SDIRK33,\n\t"
+                  "            22 - Implicit Midpoint Method,\n\t"
+                  "            23 - SDIRK23 (A-stable), 24 - SDIRK34");
+   args.AddOption(&scheme, "-sc", "--scheme",
+                  "FE scheme: 1 - DG high-order, unstabilized,\n\t"
+                  "           11 - CG low-order,\n\t"
+                  "           12 - CG high-order, stabilized,\n\t"
+                  "           13 - CG high-order, stabilized, limited.");
    args.AddOption(&t_final, "-tf", "--t-final",
                   "Final time; start time is 0.");
    args.AddOption(&dt, "-dt", "--time-step",
@@ -323,17 +359,82 @@ int main(int argc, char *argv[])
       args.PrintOptions(cout);
    }
 
+   const bool DG = (scheme < 10);
+
+   // Limiter is only implemented to run on cpu.
+   if (!DG && strcmp(device_config, "cuda") == 0)
+   {
+      if (Mpi::Root())
+      {
+         cout << "Cuda not supported for this CG implementation" << endl;
+      }
+      return 2;
+   }
+
    Device device(device_config);
-   if (Mpi::Root()) { device.Print(); }
+   if (Mpi::Root())
+   {
+      device.Print();
+   }
 
    // 3. Read the serial mesh from the given mesh file on all processors. We can
    //    handle geometrically periodic meshes in this code.
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
    int dim = mesh->Dimension();
 
-   // 4. Define the ODE solver used for time integration. Several explicit
-   //    Runge-Kutta methods are available.
-   unique_ptr<ODESolver> ode_solver = ODESolver::Select(ode_solver_type);
+   // Nonconforming meshes are not feasible for continuous elements
+   if (!DG && !mesh->Conforming())
+   {
+      if (Mpi::Root())
+      {
+         cout << "CG needs a conforming mesh." << endl;
+      }
+      return 3;
+   }
+
+   // 4. Define the ODE solver used for time integration.
+   //    Several explicit Runge-Kutta methods are available.
+   //    The CG Limiter is only implemented for explicit
+   //    time-stepping methods.
+   if (!DG && ode_solver_type > 10)
+   {
+      cout << "The CG methods are supported only with explicit RK schemes.\n";
+      return 4;
+   }
+   // Limiter and low order scheme are only provably
+   // bound preserving when employing SSP-RK time-stepping methods
+   else if ((scheme == 11 || scheme == 13) && ode_solver_type > 3)
+   {
+      if (Mpi::Root())
+      {
+         MFEM_WARNING("Non-SSP-RK mehod! Bounds might be violated.");
+      }
+   }
+   unique_ptr<ODESolver> ode_solver = nullptr;
+   switch (ode_solver_type)
+   {
+      // Explicit methods
+      case 1: ode_solver.reset(new ForwardEulerSolver); break;
+      case 2: ode_solver.reset(new RK2Solver(1.0)); break;
+      case 3: ode_solver.reset(new RK3SSPSolver); break;
+      case 4: ode_solver.reset(new RK4Solver); break;
+      case 6: ode_solver.reset(new RK6Solver); break;
+      // Implicit (L-stable) methods
+      case 11: ode_solver.reset(new BackwardEulerSolver); break;
+      case 12: ode_solver.reset(new SDIRK23Solver(2)); break;
+      case 13: ode_solver.reset(new SDIRK33Solver); break;
+      // Implicit A-stable methods (not L-stable)
+      case 22: ode_solver.reset(new ImplicitMidpointSolver); break;
+      case 23: ode_solver.reset(new SDIRK23Solver); break;
+      case 24: ode_solver.reset(new SDIRK34Solver); break;
+      default:
+         if (Mpi::Root())
+         {
+            cout << "Unknown ODE solver type: " << ode_solver_type << '\n';
+         }
+         delete mesh;
+         return 5;
+   }
 
    // 5. Refine the mesh in serial to increase the resolution. In this example
    //    we do 'ser_ref_levels' of uniform refinement, where 'ser_ref_levels' is
@@ -352,17 +453,31 @@ int main(int argc, char *argv[])
    // 6. Define the parallel mesh by a partitioning of the serial mesh. Refine
    //    this mesh further in parallel to increase the resolution. Once the
    //    parallel mesh is defined, the serial mesh can be deleted.
-   ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
+   ParMesh pmesh(MPI_COMM_WORLD, *mesh);
    delete mesh;
    for (int lev = 0; lev < par_ref_levels; lev++)
    {
-      pmesh->UniformRefinement();
+      pmesh.UniformRefinement();
    }
 
-   // 7. Define the parallel discontinuous DG finite element space on the
-   //    parallel refined mesh of the given polynomial order.
-   DG_FECollection fec(order, dim, BasisType::GaussLobatto);
-   ParFiniteElementSpace *fes = new ParFiniteElementSpace(pmesh, &fec);
+   // 7. Define the parallel discontinuous DG finite element or continuouts CG
+   // space on the parallel refined mesh of the given polynomial order.
+   DG_FECollection fec_DG(order, dim, BasisType::GaussLobatto);
+   H1_FECollection fec_CG(order, dim, BasisType::Positive);
+   unique_ptr<ParFiniteElementSpace> fes = nullptr;
+   switch (scheme)
+   {
+      case 1: fes.reset(new ParFiniteElementSpace(&pmesh, &fec_DG)); break;
+      case 11:
+      case 12:
+      case 13: fes.reset(new ParFiniteElementSpace(&pmesh, &fec_CG)); break;
+      default:
+         if (Mpi::Root())
+         {
+            cout << "Unknown scheme: " << scheme << '\n';
+         }
+         return 6;
+   }
 
    HYPRE_BigInt global_vSize = fes->GlobalTrueVSize();
    if (Mpi::Root())
@@ -377,52 +492,82 @@ int main(int argc, char *argv[])
    FunctionCoefficient inflow(inflow_function);
    FunctionCoefficient u0(u0_function);
 
-   ParBilinearForm *m = new ParBilinearForm(fes);
-   ParBilinearForm *k = new ParBilinearForm(fes);
-   if (pa)
+   ParBilinearForm m(fes.get());
+   ParBilinearForm k(fes.get());
+   if (DG)
    {
-      m->SetAssemblyLevel(AssemblyLevel::PARTIAL);
-      k->SetAssemblyLevel(AssemblyLevel::PARTIAL);
+      if (pa)
+      {
+         m.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+         k.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+      }
+      else if (ea)
+      {
+         m.SetAssemblyLevel(AssemblyLevel::ELEMENT);
+         k.SetAssemblyLevel(AssemblyLevel::ELEMENT);
+      }
+      else if (fa)
+      {
+         m.SetAssemblyLevel(AssemblyLevel::FULL);
+         k.SetAssemblyLevel(AssemblyLevel::FULL);
+      }
    }
-   else if (ea)
+   else if (scheme == 13 && (pa || ea))
    {
-      m->SetAssemblyLevel(AssemblyLevel::ELEMENT);
-      k->SetAssemblyLevel(AssemblyLevel::ELEMENT);
-   }
-   else if (fa)
-   {
-      m->SetAssemblyLevel(AssemblyLevel::FULL);
-      k->SetAssemblyLevel(AssemblyLevel::FULL);
+      if (Mpi::Root())
+      {
+         cout << "The CG Limiter needs full assembly of the mass matrix to "
+              << "obtain the local stencil via its sparsity pattern.\n";
+      }
+      return 7;
    }
 
-   m->AddDomainIntegrator(new MassIntegrator);
+   m.AddDomainIntegrator(new MassIntegrator);
+   m.Assemble();
+   m.Finalize();
+
    constexpr real_t alpha = -1.0;
-   k->AddDomainIntegrator(new ConvectionIntegrator(velocity, alpha));
-   k->AddInteriorFaceIntegrator(
-      new NonconservativeDGTraceIntegrator(velocity, alpha));
-   k->AddBdrFaceIntegrator(
-      new NonconservativeDGTraceIntegrator(velocity, alpha));
-
-   ParLinearForm *b = new ParLinearForm(fes);
-   b->AddBdrFaceIntegrator(
-      new BoundaryFlowIntegrator(inflow, velocity, alpha));
-
    int skip_zeros = 0;
-   m->Assemble();
-   k->Assemble(skip_zeros);
-   b->Assemble();
-   m->Finalize();
-   k->Finalize(skip_zeros);
+   Vector lumpedmassmatrix(m.Height());
 
+   // The convective bilinear form is not needed in the CG case.
+   if (DG)
+   {
+      k.AddDomainIntegrator(new ConvectionIntegrator(velocity, alpha));
+      k.AddInteriorFaceIntegrator(
+         new NonconservativeDGTraceIntegrator(velocity, alpha));
+      k.AddBdrFaceIntegrator(
+         new NonconservativeDGTraceIntegrator(velocity, alpha));
 
-   HypreParVector *B = b->ParallelAssemble();
+      k.Assemble(skip_zeros);
+      k.Finalize(skip_zeros);
+   }
+   // lumped mass matrix not needed in the DG case
+   else
+   {
+      ParBilinearForm mL(fes.get());
+      mL.AddDomainIntegrator(new LumpedIntegrator(new MassIntegrator));
+      mL.Assemble();
+      mL.Finalize();
+      mL.SpMat().GetDiag(lumpedmassmatrix);
+   }
+
+   ParLinearForm b(fes.get());
+   b.AddBdrFaceIntegrator(new BoundaryFlowIntegrator(inflow, velocity, alpha));
+   b.Assemble();
+   unique_ptr<HypreParVector> B(b.ParallelAssemble());
 
    // 9. Define the initial conditions, save the corresponding grid function to
    //    a file and (optionally) save data in the VisIt format and initialize
    //    GLVis visualization.
-   ParGridFunction *u = new ParGridFunction(fes);
-   u->ProjectCoefficient(u0);
-   HypreParVector *U = u->GetTrueDofs();
+   ParGridFunction u(fes.get());
+   u.ProjectCoefficient(u0);
+
+   // DG uses a HypreParVector to communicate between processess.
+   // In the implementation of the element-based Clip & Scale limiter we do
+   // this by hand.
+   unique_ptr<HypreParVector> U = nullptr;
+   if (DG) { U.reset(u.GetTrueDofs()); }
 
    {
       ostringstream mesh_name, sol_name;
@@ -430,15 +575,15 @@ int main(int argc, char *argv[])
       sol_name << "ex9-init." << setfill('0') << setw(6) << myid;
       ofstream omesh(mesh_name.str().c_str());
       omesh.precision(precision);
-      pmesh->Print(omesh);
+      pmesh.Print(omesh);
       ofstream osol(sol_name.str().c_str());
       osol.precision(precision);
-      u->Save(osol);
+      u.Save(osol);
    }
 
    // Create data collection for solution output: either VisItDataCollection for
    // ascii data files, or SidreDataCollection for binary data files.
-   DataCollection *dc = NULL;
+   unique_ptr<DataCollection> dc = nullptr;
    if (visit)
    {
       if (binary)
@@ -451,23 +596,23 @@ int main(int argc, char *argv[])
       }
       else
       {
-         dc = new VisItDataCollection("Example9-Parallel", pmesh);
+         dc.reset(new VisItDataCollection("Example9-Parallel", &pmesh));
          dc->SetPrecision(precision);
          // To save the mesh using MFEM's parallel mesh format:
          // dc->SetFormat(DataCollection::PARALLEL_FORMAT);
       }
-      dc->RegisterField("solution", u);
+      dc->RegisterField("solution", &u);
       dc->SetCycle(0);
       dc->SetTime(0.0);
       dc->Save();
    }
 
-   ParaViewDataCollection *pd = NULL;
+   unique_ptr<ParaViewDataCollection> pd = nullptr;
    if (paraview)
    {
-      pd = new ParaViewDataCollection("Example9P", pmesh);
+      pd.reset(new ParaViewDataCollection("Example9P", &pmesh));
       pd->SetPrefixPath("ParaView");
-      pd->RegisterField("solution", u);
+      pd->RegisterField("solution", &u);
       pd->SetLevelsOfDetail(order);
       pd->SetDataFormat(VTKFormat::BINARY);
       pd->SetHighOrderOutput(true);
@@ -479,7 +624,7 @@ int main(int argc, char *argv[])
    // Optionally output a BP (binary pack) file using ADIOS2. This can be
    // visualized with the ParaView VTX reader.
 #ifdef MFEM_USE_ADIOS2
-   ADIOS2DataCollection *adios2_dc = NULL;
+   unique_ptr<ADIOS2DataCollection> adios2_dc = nullptr;
    if (adios2)
    {
       std::string postfix(mesh_file);
@@ -487,7 +632,7 @@ int main(int argc, char *argv[])
       postfix += "_o" + std::to_string(order);
       const std::string collection_name = "ex9-p-" + postfix + ".bp";
 
-      adios2_dc = new ADIOS2DataCollection(MPI_COMM_WORLD, collection_name, pmesh);
+      adios2_dc.reset(ADIOS2DataCollection(MPI_COMM_WORLD, collection_name, pmesh));
       // output data substreams are half the number of mpi processes
       adios2_dc->SetParameter("SubStreams", std::to_string(num_procs/2) );
       // adios2_dc->SetLevelsOfDetail(2);
@@ -521,7 +666,7 @@ int main(int argc, char *argv[])
       {
          sout << "parallel " << num_procs << " " << myid << "\n";
          sout.precision(precision);
-         sout << "solution\n" << *pmesh << *u;
+         sout << "solution\n" << pmesh << u;
          sout << "pause\n";
          sout << flush;
          if (Mpi::Root())
@@ -535,19 +680,31 @@ int main(int argc, char *argv[])
    // 10. Define the time-dependent evolution operator describing the ODE
    //     right-hand side, and perform time-integration (looping over the time
    //     iterations, ti, with a time-step dt).
-   FE_Evolution adv(*m, *k, *B, prec_type);
+   unique_ptr<TimeDependentOperator> adv = nullptr;
+   switch (scheme)
+   {
+      case 1: adv.reset(new DG_FE_Evolution(m, k, *B, prec_type)); break;
+      case 11: adv.reset(new LowOrderScheme(*fes, lumpedmassmatrix,
+                                               inflow, velocity, m)); break;
+      case 12: adv.reset(new HighOrderTargetScheme(*fes, lumpedmassmatrix,
+                                                      inflow, velocity, m)); break;
+      case 13: adv.reset(new ClipAndScale(*fes, lumpedmassmatrix,
+                                             inflow, velocity, m)); break;
+   }
 
    real_t t = 0.0;
-   adv.SetTime(t);
-   ode_solver->Init(adv);
+   adv->SetTime(t);
+   ode_solver->Init(*adv);
 
    bool done = false;
    for (int ti = 0; !done; )
    {
       real_t dt_real = min(dt, t_final - t);
-      ode_solver->Step(*U, t, dt_real);
-      ti++;
 
+      if (DG) { ode_solver->Step(*U, t, dt_real); }
+      else    { ode_solver->Step(u, t, dt_real); }
+
+      ti++;
       done = (t >= t_final - 1e-8*dt);
 
       if (done || ti % vis_steps == 0)
@@ -557,14 +714,15 @@ int main(int argc, char *argv[])
             cout << "time step: " << ti << ", time: " << t << endl;
          }
 
-         // 11. Extract the parallel grid function corresponding to the finite
-         //     element approximation U (the local solution on each processor).
-         *u = *U;
+         // 11. In case of DG extract the parallel grid function corresponding
+         //     to the finite element approximation U.
+         //     (the local solution on each processor).
+         if (DG) { u = *U; }
 
          if (visualization)
          {
             sout << "parallel " << num_procs << " " << myid << "\n";
-            sout << "solution\n" << *pmesh << *u << flush;
+            sout << "solution\n" << pmesh << u << flush;
          }
 
          if (visit)
@@ -596,39 +754,23 @@ int main(int argc, char *argv[])
    // 12. Save the final solution in parallel. This output can be viewed later
    //     using GLVis: "glvis -np <np> -m ex9-mesh -g ex9-final".
    {
-      *u = *U;
       ostringstream sol_name;
       sol_name << "ex9-final." << setfill('0') << setw(6) << myid;
       ofstream osol(sol_name.str().c_str());
       osol.precision(precision);
-      u->Save(osol);
+      u.Save(osol);
    }
 
-   // 13. Free the used memory.
-   delete U;
-   delete u;
-   delete B;
-   delete b;
-   delete k;
-   delete m;
-   delete fes;
-   delete pmesh;
-   delete pd;
-#ifdef MFEM_USE_ADIOS2
-   if (adios2)
-   {
-      delete adios2_dc;
-   }
-#endif
-   delete dc;
+   ConstantCoefficient zero(0.0);
+   std::cout << "Norm: " << u.ComputeL2Error(zero) << std::endl;
 
    return 0;
 }
 
 
-// Implementation of class FE_Evolution
-FE_Evolution::FE_Evolution(ParBilinearForm &M_, ParBilinearForm &K_,
-                           const Vector &b_, PrecType prec_type)
+// Implementation of class DG_FE_Evolution
+DG_FE_Evolution::DG_FE_Evolution(ParBilinearForm &M_, ParBilinearForm &K_,
+                                 const Vector &b_, PrecType prec_type)
    : TimeDependentOperator(M_.ParFESpace()->GetTrueVSize()), b(b_),
      M_solver(M_.ParFESpace()->GetComm()),
      z(height)
@@ -674,7 +816,7 @@ FE_Evolution::FE_Evolution(ParBilinearForm &M_, ParBilinearForm &K_,
 //    u_t = M^{-1}(Ku + b),
 // by solving associated linear system
 //    (M - dt*K) d = K*u + b
-void FE_Evolution::ImplicitSolve(const real_t dt, const Vector &x, Vector &k)
+void DG_FE_Evolution::ImplicitSolve(const real_t dt, const Vector &x, Vector &k)
 {
    K->Mult(x, z);
    z += b;
@@ -682,7 +824,7 @@ void FE_Evolution::ImplicitSolve(const real_t dt, const Vector &x, Vector &k)
    dg_solver->Mult(z, k);
 }
 
-void FE_Evolution::Mult(const Vector &x, Vector &y) const
+void DG_FE_Evolution::Mult(const Vector &x, Vector &y) const
 {
    // y = M^{-1} (K x + b)
    K->Mult(x, z);
@@ -690,12 +832,11 @@ void FE_Evolution::Mult(const Vector &x, Vector &y) const
    M_solver.Mult(z, y);
 }
 
-FE_Evolution::~FE_Evolution()
+DG_FE_Evolution::~DG_FE_Evolution()
 {
    delete M_prec;
    delete dg_solver;
 }
-
 
 // Velocity coefficient
 void velocity_function(const Vector &x, Vector &v)
@@ -717,9 +858,17 @@ void velocity_function(const Vector &x, Vector &v)
          // Translations in 1D, 2D, and 3D
          switch (dim)
          {
-            case 1: v(0) = 1.0; break;
-            case 2: v(0) = sqrt(2./3.); v(1) = sqrt(1./3.); break;
-            case 3: v(0) = sqrt(3./6.); v(1) = sqrt(2./6.); v(2) = sqrt(1./6.);
+            case 1:
+               v(0) = 1.0;
+               break;
+            case 2:
+               v(0) = sqrt(2./3.);
+               v(1) = sqrt(1./3.);
+               break;
+            case 3:
+               v(0) = sqrt(3./6.);
+               v(1) = sqrt(2./6.);
+               v(2) = sqrt(1./6.);
                break;
          }
          break;
@@ -731,9 +880,18 @@ void velocity_function(const Vector &x, Vector &v)
          const real_t w = M_PI/2;
          switch (dim)
          {
-            case 1: v(0) = 1.0; break;
-            case 2: v(0) = w*X(1); v(1) = -w*X(0); break;
-            case 3: v(0) = w*X(1); v(1) = -w*X(0); v(2) = 0.0; break;
+            case 1:
+               v(0) = 1.0;
+               break;
+            case 2:
+               v(0) = w*X(1);
+               v(1) = -w*X(0);
+               break;
+            case 3:
+               v(0) = w*X(1);
+               v(1) = -w*X(0);
+               v(2) = 0.0;
+               break;
          }
          break;
       }
@@ -745,9 +903,18 @@ void velocity_function(const Vector &x, Vector &v)
          d = d*d;
          switch (dim)
          {
-            case 1: v(0) = 1.0; break;
-            case 2: v(0) = d*w*X(1); v(1) = -d*w*X(0); break;
-            case 3: v(0) = d*w*X(1); v(1) = -d*w*X(0); v(2) = 0.0; break;
+            case 1:
+               v(0) = 1.0;
+               break;
+            case 2:
+               v(0) = d*w*X(1);
+               v(1) = -d*w*X(0);
+               break;
+            case 3:
+               v(0) = d*w*X(1);
+               v(1) = -d*w*X(0);
+               v(2) = 0.0;
+               break;
          }
          break;
       }
@@ -815,7 +982,8 @@ real_t inflow_function(const Vector &x)
       case 0:
       case 1:
       case 2:
-      case 3: return 0.0;
+      case 3:
+         return 0.0;
    }
    return 0.0;
 }
