@@ -624,8 +624,10 @@ int CeedATPMGOperator(CeedOperator oper, int order_reduction,
    {
       ierr = CeedOperatorFieldGetElemRestriction(inputfields[i],
                                                  &er_input[i]); PCeedChk(ierr);
-      ierr = CeedOperatorFieldGetVector(inputfields[i], &if_vector[i]); PCeedChk(ierr);
-      ierr = CeedOperatorFieldGetBasis(inputfields[i], &basis_input[i]); PCeedChk(ierr);
+      ierr = CeedOperatorFieldGetVector(inputfields[i], &if_vector[i]);
+      PCeedChk(ierr);
+      ierr = CeedOperatorFieldGetBasis(inputfields[i], &basis_input[i]);
+      PCeedChk(ierr);
       if (if_vector[i] == CEED_VECTOR_ACTIVE)
       {
          if (active_input_basis < 0)
@@ -642,8 +644,10 @@ int CeedATPMGOperator(CeedOperator oper, int order_reduction,
    {
       ierr = CeedOperatorFieldGetElemRestriction(outputfields[i],
                                                  &er_output[i]); PCeedChk(ierr);
-      ierr = CeedOperatorFieldGetVector(outputfields[i], &of_vector[i]); PCeedChk(ierr);
-      ierr = CeedOperatorFieldGetBasis(outputfields[i], &basis_output[i]); PCeedChk(ierr);
+      ierr = CeedOperatorFieldGetVector(outputfields[i], &of_vector[i]);
+      PCeedChk(ierr);
+      ierr = CeedOperatorFieldGetBasis(outputfields[i], &basis_output[i]);
+      PCeedChk(ierr);
       if (of_vector[i] == CEED_VECTOR_ACTIVE)
       {
          // should already be coarsened
@@ -667,7 +671,7 @@ int CeedATPMGOperator(CeedOperator oper, int order_reduction,
 #if CEED_VERSION_GE(0, 13, 0)
       const char * fieldname;
 #else
-       char * fieldname;
+      char * fieldname;
 #endif
       ierr = CeedQFunctionFieldGetName(inputqfields[i], &fieldname); PCeedChk(ierr);
       if (if_vector[i] == CEED_VECTOR_ACTIVE)
@@ -680,18 +684,18 @@ int CeedATPMGOperator(CeedOperator oper, int order_reduction,
          ierr = CeedOperatorSetField(coper, fieldname, er_input[i], basis_input[i],
                                      if_vector[i]); PCeedChk(ierr);
       }
-      #if CEED_VERSION_GE(0, 13, 0)
+#if CEED_VERSION_GE(0, 13, 0)
       ierr = CeedVectorDestroy(&if_vector[i]); PCeedChk(ierr);
       ierr = CeedElemRestrictionDestroy(&er_input[i]); PCeedChk(ierr);
       ierr = CeedBasisDestroy(&basis_input[i]); PCeedChk(ierr);
-      #endif
+#endif
    }
    for (int i = 0; i < numoutputfields; ++i)
    {
 #if CEED_VERSION_GE(0, 13, 0)
       const char * fieldname;
 #else
-       char * fieldname;
+      char * fieldname;
 #endif
       ierr = CeedQFunctionFieldGetName(outputqfields[i], &fieldname); PCeedChk(ierr);
       if (of_vector[i] == CEED_VECTOR_ACTIVE)
@@ -704,11 +708,11 @@ int CeedATPMGOperator(CeedOperator oper, int order_reduction,
          ierr = CeedOperatorSetField(coper, fieldname, er_output[i], basis_output[i],
                                      of_vector[i]); PCeedChk(ierr);
       }
-      #if CEED_VERSION_GE(0, 13, 0)
+#if CEED_VERSION_GE(0, 13, 0)
       ierr = CeedVectorDestroy(&of_vector[i]); PCeedChk(ierr);
       ierr = CeedElemRestrictionDestroy(&er_output[i]); PCeedChk(ierr);
       ierr = CeedBasisDestroy(&basis_output[i]); PCeedChk(ierr);
-      #endif
+#endif
    }
    delete [] er_input;
    delete [] er_output;
@@ -759,9 +763,9 @@ int CeedOperatorGetOrder(CeedOperator oper, CeedInt * order)
    int P1d;
    ierr = CeedBasisGetNumNodes1D(basis, &P1d); PCeedChk(ierr);
    *order = P1d - 1;
-   #if CEED_VERSION_GE(0, 13, 0)
+#if CEED_VERSION_GE(0, 13, 0)
    ierr = CeedBasisDestroy(&basis); PCeedChk(ierr);
-   #endif
+#endif
    return 0;
 }
 

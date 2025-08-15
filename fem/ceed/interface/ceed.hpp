@@ -33,9 +33,11 @@
     CeedCompositeOperatorGetSubList((op), (list))
 #endif
 
-namespace mfem {
+namespace mfem
+{
 
-namespace internal {
+namespace internal
+{
 
 extern Ceed ceed;
 
