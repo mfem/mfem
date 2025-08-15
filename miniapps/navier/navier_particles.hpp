@@ -221,7 +221,7 @@ public:
     *  @param[in] inlet_start             Inlet line segment start point.
     *  @param[in] inlet_end               Inlet line segment end point.
     *  @param[in] invert_inlet_normal     Invert direction of the inlet normal.
-    *  @param[in] outlet_end              Outlet line segment end point.
+    *  @param[in] outlet_start              Outlet line segment start point.
     *  @param[in] outlet_end              Outlet line segment end point.
     *  @param[in] invert_outlet_normal    Invert direction of the outlet normal.
     *
