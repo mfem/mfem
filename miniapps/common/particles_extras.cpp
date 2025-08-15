@@ -140,9 +140,9 @@ ParticleTrajectories::ParticleTrajectories(const ParticleSet &particles,
      tail_size(tail_size_),
      title(title_),
      x(x_), y(y_), w(w_), h(h_),
-     keys(keys_),
+     keys(keys_)
 #ifdef MFEM_USE_MPI
-     comm(particles.GetComm())
+     ,comm(particles.GetComm())
 #endif // MFEM_USE_MPI
 {
    sock.open(vishost, visport);

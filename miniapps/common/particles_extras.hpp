@@ -13,6 +13,9 @@
 #define MFEM_PARTICLES_EXTRAS
 
 #include "mfem.hpp"
+#ifndef MFEM_USE_MPI
+#include "fem_extras.hpp"
+#endif // !MFEM_USE_MPI
 
 namespace mfem
 {
