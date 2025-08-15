@@ -93,24 +93,24 @@ bool Particle::operator==(const Particle &rhs) const
    return true;
 }
 
-void Particle::Print(std::ostream &out) const
+void Particle::Print(std::ostream &os) const
 {
-   out << "Coords: (";
+   os << "Coords: (";
    for (int d = 0; d < coords.Size(); d++)
    {
-      out << coords[d] << ( (d+1 < coords.Size()) ? "," : ")\n");
+      os << coords[d] << ( (d+1 < coords.Size()) ? "," : ")\n");
    }
    for (int f = 0; f < fields.size(); f++)
    {
-      out << "Field " << f << ": (";
+      os << "Field " << f << ": (";
       for (int c = 0; c < fields[f].Size(); c++)
       {
-         out << fields[f][c] << ( (c+1 < fields[f].Size()) ? "," : ")\n");
+         os << fields[f][c] << ( (c+1 < fields[f].Size()) ? "," : ")\n");
       }
    }
    for (int t = 0; t < tags.size(); t++)
    {
-      out << "Tag " << t << ": " << tags[t][0] << "\n";
+      os << "Tag " << t << ": " << tags[t][0] << "\n";
    }
 }
 
@@ -118,7 +118,7 @@ Array<Ordering::Type> ParticleSet::GetOrderingArray(Ordering::Type o, int N)
 {
    Array<Ordering::Type> ordering_arr(N);
    ordering_arr = o;
-   return std::move(ordering_arr);
+   return ordering_arr;
 }
 std::string ParticleSet::GetDefaultFieldName(int i)
 {
@@ -137,7 +137,7 @@ Array<const char*> ParticleSet::GetEmptyNameArray(int N)
    {
       names[i] = nullptr;
    }
-   return std::move(names);
+   return names;
 }
 
 #ifdef MFEM_USE_MPI
@@ -179,7 +179,7 @@ const Array<int> ParticleSet::GetFieldVDims() const
    {
       field_vdims[f] = Field(f).GetVDim();
    }
-   return std::move(field_vdims);
+   return field_vdims;
 }
 
 void ParticleSet::AddParticles(const Array<unsigned int> &new_ids,
@@ -231,9 +231,6 @@ void ParticleSet::Transfer(const Array<unsigned int> &send_idxs,
    pdata_arr = (pdata_t<NData, NTag>*) gsl_arr.ptr;
 
    gsl_arr.n = send_idxs.Size();
-
-   int rank = GetRank(comm);
-   int size = GetSize(comm);
 
    for (int i = 0; i < send_idxs.Size(); i++)
    {
@@ -313,15 +310,7 @@ void ParticleSet::Transfer(const Array<unsigned int> &send_idxs,
 
 Particle ParticleSet::CreateParticle() const
 {
-   Array<int> field_vdims(GetNF());
-   for (int f = 0; f < field_vdims.Size(); f++)
-   {
-      field_vdims[f] = fields[f]->GetVDim();
-   }
-
-   Particle p(GetDim(), field_vdims, GetNT());
-
-   return std::move(p);
+   return Particle(GetDim(), GetFieldVDims(), GetNT());
 }
 
 void ParticleSet::WriteToFile(const char *fname,
@@ -398,13 +387,13 @@ ParticleSet::ParticleSet(int id_stride_, int id_counter_, int num_particles,
    }
 
    // Add num_particles
-   Array<int> ids(num_particles);
+   Array<int> init_ids(num_particles);
    for (int i = 0; i < num_particles; i++)
    {
-      ids[i] = id_counter;
+      init_ids[i] = id_counter;
       id_counter += id_stride;
    }
-   AddParticles(ids);
+   AddParticles(init_ids);
 }
 
 bool ParticleSet::IsValidParticle(const Particle &p) const
@@ -577,22 +566,18 @@ void ParticleSet::AddParticle(const Particle &p)
 
 void ParticleSet::AddParticles(int num_particles, Array<int> *new_indices)
 {
-   Array<int> ids(num_particles);
+   Array<int> add_ids(num_particles);
    for (int i = 0; i < num_particles; i++)
    {
-      ids[i] = id_counter;
+      add_ids[i] = id_counter;
       id_counter += id_stride;
    }
 
-   AddParticles(ids, new_indices);
+   AddParticles(add_ids, new_indices);
 }
 
 void ParticleSet::RemoveParticles(const Array<int> &list)
 {
-   int num_rm = list.Size();
-   int old_np = GetNP();
-   int new_np = old_np - num_rm;
-
    // Delete IDs
    ids.DeleteAt(list);
 
@@ -608,7 +593,6 @@ void ParticleSet::RemoveParticles(const Array<int> &list)
    {
       tags[t]->DeleteAt(list);
    }
-
 }
 
 Particle ParticleSet::GetParticle(int i) const
@@ -627,7 +611,7 @@ Particle ParticleSet::GetParticle(int i) const
       p.Tag(t) = Tag(t)[i];
    }
 
-   return std::move(p);
+   return p;
 }
 
 bool ParticleSet::ParticleRefValid() const
@@ -663,7 +647,7 @@ Particle ParticleSet::GetParticleRef(int i)
       p.TagMemory(t).MakeAlias((*tags[t]).GetMemory(), i, 1);
    }
 
-   return std::move(p);
+   return p;
 }
 
 void ParticleSet::SetParticle(int i, const Particle &p)
@@ -777,7 +761,6 @@ void ParticleSet::PrintCSV(const char *fname, const Array<int> &field_idxs,
 void ParticleSet::Redistribute(const Array<unsigned int> &rank_list)
 {
    int rank = GetRank(comm);
-   int size = GetSize(comm);
 
    // Get particles to be transferred
    // (Avoid unnecessary copies of particle data into and out of buffers)

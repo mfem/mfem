@@ -97,7 +97,7 @@ public:
    bool operator!=(const Particle &rhs) const { return !operator==(rhs); }
 
    /// Print all particle data to \p out .
-   void Print(std::ostream &out=mfem::out) const;
+   void Print(std::ostream &os=mfem::out) const;
 
 };
 
@@ -132,6 +132,12 @@ private:
 
 protected:
 
+   /// Stride for IDs (when new particles are added).
+   const unsigned int id_stride;
+
+   /// Current ID to be assigned to the next particle added.
+   unsigned int id_counter;
+
    /// Array of particle IDs owned.
    Array<unsigned int> ids;
 
@@ -143,12 +149,6 @@ protected:
 
    /// All particle tags.
    std::vector<std::unique_ptr<Array<int>>> tags;
-
-   /// Stride for IDs (when new particles are added).
-   const unsigned int id_stride;
-
-   /// Current ID to be assigned to the next particle added.
-   unsigned int id_counter;
 
    /// Field names, to be written when \ref PrintCSV is called.
    std::vector<std::string> field_names;

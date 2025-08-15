@@ -2093,7 +2093,7 @@ const Array<unsigned int> FindPointsGSLIB::GetPointsNotFoundIndices() const
          nf_idxs.Append(i);
       }
    }
-   return std::move(nf_idxs);
+   return nf_idxs;
 }
 
 void FindPointsGSLIB::DistributePointInfoToOwningMPIRanks(
