@@ -54,11 +54,11 @@ void NavierParticles::SetTimeIntegrationCoefficients()
       else // k=3
       {
          beta_k[o][0] = 1.0 + rho1 / (1.0 + rho1)
-               + (rho2 * rho1) / (1.0 + rho2 * (1 + rho1));
+                        + (rho2 * rho1) / (1.0 + rho2 * (1 + rho1));
          beta_k[o][1] = -1.0 - rho1 - (rho2 * rho1 * (1.0 + rho1)) / (1.0 + rho2);
          beta_k[o][2] = pow(rho1, 2.0) * (rho2 + 1.0 / (1.0 + rho1));
          beta_k[o][3] = -(pow(rho2, 3.0) * pow(rho1, 2.0) * (1.0 + rho1))
-               / ((1.0 + rho2) * (1.0 + rho2 + rho2 * rho1));
+                        / ((1.0 + rho2) * (1.0 + rho2 + rho2 * rho1));
          alpha_k[o][0] = ((1.0 + rho1) * (1.0 + rho2 * (1.0 + rho1))) / (1.0 + rho2);
          alpha_k[o][1] = -rho1 * (1.0 + rho2 * (1.0 + rho1));
          alpha_k[o][2] = (pow(rho2, 2.0) * rho1 * (1.0 + rho1)) / (1.0 + rho2);
@@ -87,7 +87,7 @@ void NavierParticles::ParticleStep2D(const real_t &dt, int p)
 
    // Assemble the 2D matrix B
    DenseMatrix B({{beta[0]+dt*kappa, zeta*dt*w_n_ext},
-                  {-zeta*dt*w_n_ext, beta[0]+dt*kappa}});
+      {-zeta*dt*w_n_ext, beta[0]+dt*kappa}});
 
    // Assemble the RHS
    r = 0.0;
@@ -127,7 +127,8 @@ void NavierParticles::ParticleStep2D(const real_t &dt, int p)
    xpn *= 1.0/beta[0];
 }
 
-void NavierParticles::Get2DNormal(const Vector &p1, const Vector &p2, bool inv_normal, Vector &normal)
+void NavierParticles::Get2DNormal(const Vector &p1, const Vector &p2,
+                                  bool inv_normal, Vector &normal)
 {
    normal.SetSize(2);
    Vector diff(p2);
@@ -145,23 +146,29 @@ void NavierParticles::Get2DNormal(const Vector &p1, const Vector &p2, bool inv_n
    normal /= normal.Norml2(); // normalize
 }
 
-bool NavierParticles::Get2DSegmentIntersection(const Vector &s1_start, const Vector &s1_end, const Vector &s2_start, const Vector &s2_end, Vector &x_int, real_t *t1_ptr, real_t *t2_ptr)
+bool NavierParticles::Get2DSegmentIntersection(const Vector &s1_start,
+                                               const Vector &s1_end, const Vector &s2_start, const Vector &s2_end,
+                                               Vector &x_int, real_t *t1_ptr, real_t *t2_ptr)
 {
    // Compute the intersection parametrically
    // r_1 = s1_start + t1*[s1_end - s1_start]
    // r_2 = s2_start + t2*[s2_end - s2_start]
-   real_t denom = (s1_end[0]-s1_start[0])*(s2_start[1] - s2_end[1]) - (s1_end[1]-s1_start[1])*(s2_start[0] - s2_end[0]);
+   real_t denom = (s1_end[0]-s1_start[0])*(s2_start[1] - s2_end[1]) -
+                  (s1_end[1]-s1_start[1])*(s2_start[0] - s2_end[0]);
 
    // If line is parallel, don't compute at all
    // Note that nearly-parallel intersections are not well-posed (denom >>> 0)...
-   real_t rho = abs(denom)/(s1_start.DistanceTo(s2_end)*s2_start.DistanceTo(s2_end));
+   real_t rho = abs(denom)/(s1_start.DistanceTo(s2_end)*s2_start.DistanceTo(
+                               s2_end));
    if (rho < 1e-12)
    {
       return false;
    }
 
-   real_t t1 = ( (s2_start[0] - s1_start[0])*(s2_start[1]-s2_end[1]) - (s2_start[1] - s1_start[1])*(s2_start[0]-s2_end[0]) ) / denom;
-   real_t t2 = ( (s1_end[0] - s1_start[0])*(s2_start[1] - s1_start[1]) - (s1_end[1] - s1_start[1])*(s2_start[0] - s1_start[0]) ) / denom;
+   real_t t1 = ( (s2_start[0] - s1_start[0])*(s2_start[1]-s2_end[1]) -
+                 (s2_start[1] - s1_start[1])*(s2_start[0]-s2_end[0]) ) / denom;
+   real_t t2 = ( (s1_end[0] - s1_start[0])*(s2_start[1] - s1_start[1]) -
+                 (s1_end[1] - s1_start[1])*(s2_start[0] - s1_start[0]) ) / denom;
 
    // If intersection falls on line segment of s1_start to s1_end AND s2_start to s2_end, set x_int and return true
    if ((0 <= t1 && t1 <= 1) && (0 <= t2 && t2 <= 1))
@@ -231,10 +238,12 @@ void NavierParticles::Apply2DRecirculationBC(const RecirculationBC_2D &bc)
 {
    Vector inlet_normal(2), outlet_normal(2);
    Get2DNormal(bc.inlet_start, bc.inlet_end, bc.invert_inlet_normal, inlet_normal);
-   Get2DNormal(bc.outlet_start, bc.outlet_end, bc.invert_outlet_normal, outlet_normal);
+   Get2DNormal(bc.outlet_start, bc.outlet_end, bc.invert_outlet_normal,
+               outlet_normal);
 
    real_t inlet_length = bc.inlet_start.DistanceTo(bc.inlet_end);
-   real_t outlet_length = bc.outlet_start.DistanceTo(bc.outlet_end); // should be == inlet_length
+   real_t outlet_length = bc.outlet_start.DistanceTo(
+                             bc.outlet_end); // should be == inlet_length
 
    Vector inlet_tan(2), outlet_tan(2);
    inlet_tan = bc.inlet_end;
@@ -252,7 +261,8 @@ void NavierParticles::Apply2DRecirculationBC(const RecirculationBC_2D &bc)
       X(1).GetVectorRef(i, p_xnm1);
 
       // If outlet_start to outlet_end and x_nm1 to x_n intersect, apply recirculation
-      if (Get2DSegmentIntersection(bc.outlet_start, bc.outlet_end, p_xnm1, p_xn, x_int, &t1))
+      if (Get2DSegmentIntersection(bc.outlet_start, bc.outlet_end, p_xnm1, p_xn,
+                                   x_int, &t1))
       {
          // Compute the corresponding intersection location on inlet
          p_xc = 0.0;
@@ -283,26 +293,26 @@ void NavierParticles::ApplyBCs()
    for (BCVariant &bc_v : bcs)
    {
       std::visit(
-      [this](auto &bc)
+         [this](auto &bc)
       {
-            using T = std::decay_t<decltype(bc)>;
-            if constexpr(std::is_same_v<T, ReflectionBC_2D>)
-            {
-               Apply2DReflectionBC(bc);
-            }
-            else if constexpr(std::is_same_v<T, RecirculationBC_2D>)
-            {
-               Apply2DRecirculationBC(bc);
-            }
+         using T = std::decay_t<decltype(bc)>;
+         if constexpr(std::is_same_v<T, ReflectionBC_2D>)
+         {
+            Apply2DReflectionBC(bc);
+         }
+         else if constexpr(std::is_same_v<T, RecirculationBC_2D>)
+         {
+            Apply2DRecirculationBC(bc);
+         }
       },bc_v);
 
    }
 }
 
 NavierParticles::NavierParticles(MPI_Comm comm, int num_particles, Mesh &m)
-: fluid_particles(comm, num_particles, m.SpaceDimension()),
-  inactive_fluid_particles(comm, 0, m.SpaceDimension()),
-  finder(comm)
+   : fluid_particles(comm, num_particles, m.SpaceDimension()),
+     inactive_fluid_particles(comm, 0, m.SpaceDimension()),
+     finder(comm)
 {
 
    for (int o = 0; o < 3; o++)
@@ -328,12 +338,16 @@ NavierParticles::NavierParticles(MPI_Comm comm, int num_particles, Mesh &m)
    for (int i = 0; i < 4; i++)
    {
       string suffix = i > 0 ? "_nm" + to_string(i) : "_n";
-      fp_idx.field.u[i] = fluid_particles.AddField(dim, Ordering::byVDIM, ("u" + suffix).c_str());
-      fp_idx.field.v[i] = fluid_particles.AddField(dim, Ordering::byVDIM, ("v" + suffix).c_str());
-      fp_idx.field.w[i] = fluid_particles.AddField(dim, Ordering::byVDIM, ("w" + suffix).c_str());
+      fp_idx.field.u[i] = fluid_particles.AddField(dim, Ordering::byVDIM,
+                                                   ("u" + suffix).c_str());
+      fp_idx.field.v[i] = fluid_particles.AddField(dim, Ordering::byVDIM,
+                                                   ("v" + suffix).c_str());
+      fp_idx.field.w[i] = fluid_particles.AddField(dim, Ordering::byVDIM,
+                                                   ("w" + suffix).c_str());
       if (i > 0)
       {
-         fp_idx.field.x[i-1] = fluid_particles.AddField(dim, Ordering::byVDIM, ("x" + suffix).c_str());
+         fp_idx.field.x[i-1] = fluid_particles.AddField(dim, Ordering::byVDIM,
+                                                        ("x" + suffix).c_str());
       }
    }
 
@@ -348,7 +362,8 @@ NavierParticles::NavierParticles(MPI_Comm comm, int num_particles, Mesh &m)
    C.SetSize(dim);
 }
 
-void NavierParticles::Step(const real_t &dt, const ParGridFunction &u_gf, const ParGridFunction &w_gf)
+void NavierParticles::Step(const real_t &dt, const ParGridFunction &u_gf,
+                           const ParGridFunction &w_gf)
 {
    // Shift fluid velocity, fluid vorticity, particle velocity, and particle position
    for (int i = 3; i > 0; i--)
@@ -394,15 +409,18 @@ void NavierParticles::Step(const real_t &dt, const ParGridFunction &u_gf, const 
    dthist[0] = dt;
 }
 
-void NavierParticles::InterpolateUW(const ParGridFunction &u_gf, const ParGridFunction &w_gf)
+void NavierParticles::InterpolateUW(const ParGridFunction &u_gf,
+                                    const ParGridFunction &w_gf)
 {
    finder.FindPoints(X(), X().GetOrdering());
 
    finder.Interpolate(u_gf, U());
-   Ordering::Reorder(U(), U().GetVDim(), u_gf.ParFESpace()->GetOrdering(), U().GetOrdering());
+   Ordering::Reorder(U(), U().GetVDim(), u_gf.ParFESpace()->GetOrdering(),
+                     U().GetOrdering());
 
    finder.Interpolate(w_gf, W());
-   Ordering::Reorder(W(), W().GetVDim(), w_gf.ParFESpace()->GetOrdering(), W().GetOrdering());
+   Ordering::Reorder(W(), W().GetVDim(), w_gf.ParFESpace()->GetOrdering(),
+                     W().GetOrdering());
 }
 
 void NavierParticles::DeactivateLostParticles(bool findpts)
