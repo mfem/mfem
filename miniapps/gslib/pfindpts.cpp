@@ -359,10 +359,9 @@ int main (int argc, char *argv[])
 
    // Find and Interpolate FE function values on the desired points.
    Vector interp_vals(pts_cnt*vec_dim);
-   FindPointsGSLIB finder(MPI_COMM_WORLD);
-   finder.Setup(pmesh);
+   FindPointsGSLIB finder(pmesh);
    finder.SetDistanceToleranceForPointsFoundOnBoundary(10);
-   // Enable GPU to CPU fallback for GPUData only if you must use an older
+   // Enable GPU to CPU fallback for GPUData only if you are using an older
    // version of GSLIB.
    // finder.SetGPUtoCPUFallback(true);
    finder.FindPoints(vxyz, point_ordering);
@@ -442,9 +441,6 @@ int main (int argc, char *argv[])
            << "\nMax dist (of found):  " << max_dist
            << endl;
    }
-
-   // Free the internal gslib data.
-   finder.FreeData();
 
    delete fec;
    if (randomization != 0) { delete mesh; }
