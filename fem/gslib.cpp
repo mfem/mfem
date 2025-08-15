@@ -164,6 +164,8 @@ void FindPointsGSLIB::Setup(Mesh &m, const double bb_t, const double newt_tol,
                             const int npt_max)
 {
    MFEM_VERIFY(m.GetNodes() != NULL, "Mesh nodes are required.");
+   MFEM_VERIFY(m.SpaceDimension() == m.Dimension(),
+               "Mesh spatial dimension and reference element dimension must be the same");
    const int meshOrder = m.GetNodes()->FESpace()->GetMaxElementOrder();
 
    // call FreeData if FindPointsGSLIB::Setup has been called already
@@ -2079,6 +2081,19 @@ void FindPointsGSLIB::InterpolateGeneral(const GridFunction &field_in,
          delete savpt;
       } // ncomp > 1
    } // parallel
+}
+
+const Array<unsigned int> FindPointsGSLIB::GetPointsNotFoundIndices() const
+{
+   Array<int> nf_idxs;
+   for (int i = 0; i < gsl_code.Size(); i++)
+   {
+      if (gsl_code[i] == 2)
+      {
+         nf_idxs.Append(i);
+      }
+   }
+   return std::move(nf_idxs);
 }
 
 void FindPointsGSLIB::DistributePointInfoToOwningMPIRanks(
