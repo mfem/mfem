@@ -77,7 +77,7 @@ int main(int argc, char *argv[])
                   "Enable or disable GLVis visualization.");
    args.AddOption(&ctx.visport, "-p", "--send-port", "Socket for GLVis.");
    args.AddOption(&ctx.pnt_0, "-pt", "--particle-timestep",
-                  "Timestep to begin integrating particles.");
+                  "Timestep to begin injecting particles.");
    args.AddOption(&ctx.add_particles_freq, "-ipf", "--inject-particles-freq",
                   "Frequency of particle injection at domain inlet.");
    args.AddOption(&ctx.num_add_particles, "-npt", "--num-particles-inject",
