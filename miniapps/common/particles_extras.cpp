@@ -9,13 +9,15 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#ifndef MFEM_COMMON_HPP
-#define MFEM_COMMON_HPP
-
-#include "fem_extras.hpp"
-#include "mesh_extras.hpp"
-#include "pfem_extras.hpp"
-#include "dist_solver.hpp"
 #include "particles_extras.hpp"
 
-#endif
+
+namespace mfem
+{
+namespace common
+{
+
+
+
+} // namespace common
+} // namespace mfem
