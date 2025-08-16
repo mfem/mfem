@@ -513,10 +513,7 @@ public:
    void *HtoD(void *dst, const void *src, size_t bytes) override
    { return HipMemcpyHtoD(dst, src, bytes); }
    void *DtoD(void* dst, const void* src, size_t bytes) override
-   // Unlike cudaMemcpy(DtoD), hipMemcpy(DtoD) causes a host-side synchronization so
-   // instead we use hipMemcpyAsync to get similar behavior.
-   // for more info see: https://github.com/mfem/mfem/pull/2780
-   { return HipMemcpyDtoDAsync(dst, src, bytes); }
+   { return HipMemcpyDtoD(dst, src, bytes); }
    void *DtoH(void *dst, const void *src, size_t bytes) override
    { return HipMemcpyDtoH(dst, src, bytes); }
 };
@@ -658,10 +655,7 @@ public:
       return CuMemcpyDtoD(dst, src, bytes);
 #endif
 #ifdef MFEM_USE_HIP
-      // Unlike cudaMemcpy(DtoD), hipMemcpy(DtoD) causes a host-side synchronization so
-      // instead we use hipMemcpyAsync to get similar behavior.
-      // for more info see: https://github.com/mfem/mfem/pull/2780
-      return HipMemcpyDtoDAsync(dst, src, bytes);
+      return HipMemcpyDtoD(dst, src, bytes);
 #endif
       // rm.copy(dst, const_cast<void*>(src), bytes); return dst;
    }
