@@ -24,7 +24,7 @@ variables:
 # TODO: add a clean-up mechanism
   BUILD_ROOT: ${USER_CI_TOP_DIR}/${CI_PROJECT_NAME}-${MACHINE_NAME}-pipeline-${CI_PIPELINE_ID}
 
-# On LLNL's ruby, there is only one allocation shared among jobs in order to
+# On LLNL's Dane, there is only one allocation shared among jobs in order to
 # save time and resource. This allocation has to be uniquely named so that we
 # are sure to retrieve it.
   ALLOC_NAME: ${CI_PROJECT_NAME}_ci_${CI_PIPELINE_ID}
