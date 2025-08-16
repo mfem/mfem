@@ -2372,10 +2372,10 @@ void VectorRotatedDivergenceIntegrator::AssembleElementMatrix2(
 
       for (int i = 0; i < tr_dof; i++)
       {
-         tr_divshape(i         ) = +b_vals(i,0) * tr_dshapext(i, 0) + b_vals(i,
-                                                                             1) * tr_dshapext(i, 1);
-         tr_divshape(i + tr_dof) = -b_vals(i,1) * tr_dshapext(i, 0) + b_vals(i,
-                                                                             0) * tr_dshapext(i, 1);
+         tr_divshape(i         ) = + b_vals(i,0) * tr_dshapext(i, 0)
+                                   + b_vals(i,1) * tr_dshapext(i, 1);
+         tr_divshape(i + tr_dof) = - b_vals(i,1) * tr_dshapext(i, 0)
+                                   + b_vals(i,0) * tr_dshapext(i, 1);
       }
 
       AddMult_a_VWt(w, te_shape, tr_divshape, elmat);
