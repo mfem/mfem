@@ -571,7 +571,7 @@ protected:
    /// Return the sign (orientation) of the KnotVector for edge @a edge.
    inline int KnotSign(int edge) const;
 
-   bool nonconforming = false; /// Whether patchTopo is a nonconforming mesh.
+   bool nonconformingPT = false; /// Whether patchTopo is a nonconforming mesh.
 
    int num_structured_patches = 0; /// Number of structured patches
 
@@ -1013,7 +1013,7 @@ public:
    const Array<int>& GetPatchBdrElements(int patch);
 
    /// Return true if the patch topology mesh is nonconforming.
-   bool Nonconforming() const { return nonconforming; }
+   bool NonconformingPatches() const { return nonconformingPT; }
 
    /// Return a pointer to the NCMesh of a nonconforming patch topology mesh.
    NCMesh *GetNCMesh() const { return patchTopo->ncmesh; }

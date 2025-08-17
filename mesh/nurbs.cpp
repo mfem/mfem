@@ -4858,7 +4858,7 @@ void NURBSExtension::GetCoarseningFactors(Array<int> & f) const
          MFEM_VERIFY(f.Size() == pf.Size(), "");
          for (int i=0; i<f.Size(); ++i)
          {
-            if (nonconforming)
+            if (nonconformingPT)
             {
                if ((f[i] == 1 && pf[i] != 1) || (pf[i] < f[i] && pf[i] != 1))
                {
@@ -5922,7 +5922,7 @@ void NURBSPatchMap::SetPatchDofMap(int p, const KnotVector *kv[])
       J = kv[1]->GetNCP() - 2;
       SetMasterEdges(true);
 
-      if (Ext->nonconforming && Ext->patchTopo->ncmesh
+      if (Ext->NonconformingPatches() && Ext->patchTopo->ncmesh
           && Ext->patchTopo->ncmesh->GetVertexToKnotSpan().Size() > 0)
       {
          for (int i = 0; i < edges.Size(); i++)

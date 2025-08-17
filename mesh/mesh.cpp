@@ -5035,7 +5035,7 @@ void Mesh::Loader(std::istream &input, int generate_edges,
                   "invalid mesh: end of file tag not found");
    }
 
-   if (NURBSext && NURBSext->Nonconforming())
+   if (NURBSext && NURBSext->NonconformingPatches())
      {
        string ident;
        skip_comment_lines(input, '#');
@@ -6210,12 +6210,12 @@ void Mesh::RefineNURBS(bool usingKVF, real_t tol, const Array<int> &rf,
        cf1 = (cf1 && f == 1);
      }
 
-   if (!cf1 && NURBSext->Nonconforming())
+   if (!cf1 && NURBSext->NonconformingPatches())
      {
        NURBSext->FullyCoarsen();
        last_operation = Mesh::NONE; // FiniteElementSpace::Update is not supported
      }
-   else if (!cf1 && !NURBSext->Nonconforming())
+   else if (!cf1 && !NURBSext->NonconformingPatches())
      {
        MFEM_VERIFY(!usingKVF, "This refinement type is not supported for this"
 		   " NURBS mesh type");
@@ -6230,9 +6230,9 @@ void Mesh::RefineNURBS(bool usingKVF, real_t tol, const Array<int> &rf,
        NURBSext->UniformRefinement(cf);
      }
 
-   if (cf1 || NURBSext->Nonconforming())
+   if (cf1 || NURBSext->NonconformingPatches())
      {
-       if (usingKVF || NURBSext->Nonconforming())
+       if (usingKVF || NURBSext->NonconformingPatches())
 	 NURBSext->RefineWithKVFactors(rf[0], kvf, !cf1);
        else
 	 NURBSext->UniformRefinement(rf);
@@ -15288,6 +15288,8 @@ bool Mesh::Conforming() const
 {
    if (NURBSext)
    {
+      // NURBS meshes are always conforming (element-wise). NURBS patch
+      // conformity is indicated by NURBSExtension::NonconformingPatches.
       return true;
    }
    else
