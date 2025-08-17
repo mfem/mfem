@@ -36,7 +36,7 @@ NCNURBSExtension::NCNURBSExtension(std::istream &input, bool spacing)
    // Read topology
    patchTopo = new Mesh;
    patchTopo->LoadNonconformingPatchTopo(input, edge_to_ukv);
-   nonconforming = true;
+   nonconformingPT = true;
 
    Load(input, spacing);
 }
@@ -2524,7 +2524,6 @@ int NCNURBSExtension::SetPatchFactors(int p)
       {
          const int edgeIndex = dim == 3 ? dirEdges3D[d][i] : dirEdges2D[d][i];
          const int edge = edges[edgeIndex];
-         //const bool isMaster = masterEdges.count(edge) > 0;
          const bool isMaster = IsMasterEdge(edge);
          const int kv = KnotInd(edge);
          const bool rev = KnotSign(edge) < 0;
@@ -2735,11 +2734,6 @@ void NCNURBSExtension::PropagateFactorsForKV(int rf_default)
       }
    };
 
-   auto auxFaceNeighbors = [&](int p, std::set<int> &nghb)
-   {
-      // TODO: this comes from masterFaceNeighbors?
-   };
-
    const int npatchall = patches.Size();
    Array<int> patchState(npatchall);
    patchState = 0;
@@ -2779,11 +2773,8 @@ void NCNURBSExtension::PropagateFactorsForKV(int rf_default)
          // First, find neighbors sharing a conforming face, via face2elem.
          faceNeighbors(p, neighbors);
 
-         // Second, find neighbors sharing a slave face in patchTopo.
+         // Second, find neighbors sharing a slave/auxiliary face in patchTopo.
          masterFaceNeighbors(p, neighbors);
-
-         // Third, find neighbors sharing an auxFace.
-         auxFaceNeighbors(p, neighbors);
 
          // Add neighbors not done to nextPatches. Note that a patch can be
          // added to nextPatches on multiple iterations, to propagate factors in
@@ -3346,7 +3337,7 @@ std::pair<int, int> VertexToKnotSpan::GetVertexParentPair(int index) const
 
 void NCNURBSExtension::UniformRefinement(const Array<int> &rf)
 {
-   MFEM_VERIFY(!nonconforming,
+   MFEM_VERIFY(!nonconformingPT,
                "NURBS NC-patch meshes cannot use this method of refinement");
 
    if (ref_factors.Size())
@@ -3369,7 +3360,7 @@ void NCNURBSExtension::Refine(bool coarsened, const Array<int> *rf)
 
    for (int p = 0; p < patches.Size(); p++)
    {
-      if (nonconforming)
+      if (nonconformingPT)
       {
          std::vector<Array<int>> prf(dim);
          Array<KnotVector*> pkv(dim);
@@ -3414,7 +3405,7 @@ void NCNURBSExtension::Refine(bool coarsened, const Array<int> *rf)
       }
    }
 
-   if (nonconforming)
+   if (nonconformingPT)
    {
       patchTopo->ncmesh->RefineVertexToKnotSpan(kvf, knotVectors, parentToKV);
       UpdateAuxiliaryKnotSpans(ref_factors);
