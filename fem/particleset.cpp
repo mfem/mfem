@@ -64,7 +64,7 @@ bool Particle::operator==(const Particle &rhs) const
    {
       return false;
    }
-   for (int f = 0; f < fields.size(); f++)
+   for (std::size_t f = 0; f < fields.size(); f++)
    {
       if (fields[f].Size() != rhs.fields[f].Size())
       {
@@ -82,7 +82,7 @@ bool Particle::operator==(const Particle &rhs) const
    {
       return false;
    }
-   for (int t = 0; t < tags.size(); t++)
+   for (std::size_t t = 0; t < tags.size(); t++)
    {
       if (tags[t][0] != rhs.tags[t][0])
       {
@@ -100,7 +100,7 @@ void Particle::Print(std::ostream &os) const
    {
       os << coords[d] << ( (d+1 < coords.Size()) ? "," : ")\n");
    }
-   for (int f = 0; f < fields.size(); f++)
+   for (std::size_t f = 0; f < fields.size(); f++)
    {
       os << "Field " << f << ": (";
       for (int c = 0; c < fields[f].Size(); c++)
@@ -108,7 +108,7 @@ void Particle::Print(std::ostream &os) const
          os << fields[f][c] << ( (c+1 < fields[f].Size()) ? "," : ")\n");
       }
    }
-   for (int t = 0; t < tags.size(); t++)
+   for (std::size_t t = 0; t < tags.size(); t++)
    {
       os << "Tag " << t << ": " << tags[t][0] << "\n";
    }
