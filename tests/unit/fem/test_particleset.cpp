@@ -12,6 +12,8 @@
 #include "mfem.hpp"
 #include "unit_tests.hpp"
 
+#include <numeric>
+
 using namespace std;
 using namespace mfem;
 
