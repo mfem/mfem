@@ -32,12 +32,14 @@ Particle::Particle(int dim, const Array<int> &field_vdims, int num_tags)
 {
    coords = 0.0;
 
+   fields.reserve(field_vdims.Size());
    for (int f = 0; f < field_vdims.Size(); f++)
    {
       fields.emplace_back(field_vdims[f]);
       fields.back() = 0.0;
    }
 
+   tags.reserve(num_tags);
    for (int t = 0; t < num_tags; t++)
    {
       tags.emplace_back(1);
