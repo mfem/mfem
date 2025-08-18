@@ -378,15 +378,15 @@ void SumIntegrator::AssembleFaceMatrix(
 
 void SumIntegrator::AssembleFaceMatrix(
    const FiniteElement &tr_fe,
-   const FiniteElement &te_fe1, const FiniteElement &te_fe2,
+   const FiniteElement &test_fe1, const FiniteElement &test_fe2,
    FaceElementTransformations &Trans, DenseMatrix &elmat)
 {
    MFEM_ASSERT(integrators.Size() > 0, "empty SumIntegrator.");
 
-   integrators[0]->AssembleFaceMatrix(tr_fe, te_fe1, te_fe2, Trans, elmat);
+   integrators[0]->AssembleFaceMatrix(tr_fe, test_fe1, test_fe2, Trans, elmat);
    for (int i = 1; i < integrators.Size(); i++)
    {
-      integrators[i]->AssembleFaceMatrix(tr_fe, te_fe1, te_fe2, Trans, elem_mat);
+      integrators[i]->AssembleFaceMatrix(tr_fe, test_fe1, test_fe2, Trans, elem_mat);
       elmat += elem_mat;
    }
 }
@@ -3979,20 +3979,22 @@ void DGDiffusionIntegrator::AssembleFaceMatrix(
 
 // TODO(@swj): this ordering of trial and test finite elements is not
 // consistent with the MFEM convention
-void LDGTraceIntegrator::AssembleFaceMatrix(const FiniteElement &tr_fe1,
-                                            const FiniteElement &tr_fe2,
-                                            const FiniteElement &te_fe1, const FiniteElement &te_fe2,
-                                            FaceElementTransformations &T, DenseMatrix &elmat)
+void LDGTraceIntegrator::AssembleFaceMatrix(const FiniteElement &trial_fe1,
+                                            const FiniteElement &test_fe1,
+                                            const FiniteElement &trial_fe2,
+                                            const FiniteElement &test_fe2,
+                                            FaceElementTransformations &Trans,
+                                            DenseMatrix &elmat)
 {
-   int dim = tr_fe1.GetDim();
+   int dim = trial_fe1.GetDim();
    int tr_ndof1, te_ndof1, tr_ndof2, te_ndof2, tr_ndofs, te_ndofs;
-   tr_ndof1 = tr_fe1.GetDof();
-   te_ndof1 = te_fe1.GetDof();
+   tr_ndof1 = trial_fe1.GetDof();
+   te_ndof1 = test_fe1.GetDof();
 
-   if (T.Elem2No >= 0)
+   if (Trans.Elem2No >= 0)
    {
-      tr_ndof2 = tr_fe2.GetDof();
-      te_ndof2 = te_fe2.GetDof();
+      tr_ndof2 = trial_fe2.GetDof();
+      te_ndof2 = test_fe2.GetDof();
    }
    else
    {
@@ -4017,14 +4019,14 @@ void LDGTraceIntegrator::AssembleFaceMatrix(const FiniteElement &tr_fe1,
       int order;
       if (tr_ndof2)
       {
-         order = max(tr_fe1.GetOrder(), tr_fe2.GetOrder()) + max(te_fe1.GetOrder(),
-                                                                 te_fe2.GetOrder());
+         order = max(trial_fe1.GetOrder(), trial_fe2.GetOrder()) + max(test_fe1.GetOrder(),
+                                                                 test_fe2.GetOrder());
       }
       else
       {
-         order = tr_fe1.GetOrder() + te_fe1.GetOrder();
+         order = trial_fe1.GetOrder() + test_fe1.GetOrder();
       }
-      ir = &IntRules.Get(T.GetGeometryType(), order);
+      ir = &IntRules.Get(Trans.GetGeometryType(), order);
    }
 
    DenseMatrix A11(te_ndof1, tr_ndof1);
@@ -4035,13 +4037,13 @@ void LDGTraceIntegrator::AssembleFaceMatrix(const FiniteElement &tr_fe1,
    for (int n=0; n<ir->GetNPoints(); n++)
    {
       const IntegrationPoint &ip = ir->IntPoint(n);
-      T.SetAllIntPoints(&ip);
-      const IntegrationPoint &eip1 = T.GetElement1IntPoint();
-      const IntegrationPoint &eip2 = T.GetElement2IntPoint();
+      Trans.SetAllIntPoints(&ip);
+      const IntegrationPoint &eip1 = Trans.GetElement1IntPoint();
+      const IntegrationPoint &eip2 = Trans.GetElement2IntPoint();
       if (dim==1) {
          ortho(0) = 2*eip1.x - 1.0;
       } else {
-         CalcOrtho(T.Jacobian(), ortho);         
+         CalcOrtho(Trans.Jacobian(), ortho);         
       }
       w = ip.weight;
       if (tr_ndof2) { w /= 2; }
@@ -4051,8 +4053,8 @@ void LDGTraceIntegrator::AssembleFaceMatrix(const FiniteElement &tr_fe1,
       if (beta and tr_ndof2) { sign = (*beta * ortho >= 0 ? 1.0 : -1.0); }
       else { sign = 0.0; }
 
-      tr_fe1.CalcShape(eip1, tr_s1);
-      te_fe1.CalcShape(eip1, te_s1);
+      trial_fe1.CalcShape(eip1, tr_s1);
+      test_fe1.CalcShape(eip1, te_s1);
       MultVWt(te_s1, tr_s1, A11);
       for (int d=0; d<dim; d++)
       {
@@ -4061,8 +4063,8 @@ void LDGTraceIntegrator::AssembleFaceMatrix(const FiniteElement &tr_fe1,
 
       if (tr_ndof2)
       {
-         tr_fe2.CalcShape(eip2, tr_s2);
-         te_fe2.CalcShape(eip2, te_s2);
+         trial_fe2.CalcShape(eip2, tr_s2);
+         test_fe2.CalcShape(eip2, te_s2);
          MultVWt(te_s1, tr_s2, A12);
          MultVWt(te_s2, tr_s1, A21);
          MultVWt(te_s2, tr_s2, A22);
@@ -4079,14 +4081,14 @@ void LDGTraceIntegrator::AssembleFaceMatrix(const FiniteElement &tr_fe1,
 
 void DGJumpJumpIntegrator::AssembleFaceMatrix(const FiniteElement &el1,
                                               const FiniteElement &el2,
-                                              FaceElementTransformations &T,
+                                              FaceElementTransformations &Trans,
                                               DenseMatrix &elmat)
 {
    int ndof1 = el1.GetDof();
    int ndofs, ndof2;
    Vector s1(ndof1);
    Vector s2;
-   if (T.Elem2No >= 0)
+   if (Trans.Elem2No >= 0)
    {
       ndof2 = el2.GetDof();
       s2.SetSize(ndof2);
@@ -4112,7 +4114,7 @@ void DGJumpJumpIntegrator::AssembleFaceMatrix(const FiniteElement &el1,
       {
          order = 2*el1.GetOrder();
       }
-      ir = &IntRules.Get(T.GetGeometryType(), order);
+      ir = &IntRules.Get(Trans.GetGeometryType(), order);
    }
 
    DenseMatrix A11(ndof1);
@@ -4123,33 +4125,33 @@ void DGJumpJumpIntegrator::AssembleFaceMatrix(const FiniteElement &el1,
    for (int n=0; n<ir->GetNPoints(); n++)
    {
       const IntegrationPoint &ip = ir->IntPoint(n);
-      T.SetAllIntPoints(&ip);
-      const IntegrationPoint &eip1 = T.GetElement1IntPoint();
-      const IntegrationPoint &eip2 = T.GetElement2IntPoint();
+      Trans.SetAllIntPoints(&ip);
+      const IntegrationPoint &eip1 = Trans.GetElement1IntPoint();
+      const IntegrationPoint &eip2 = Trans.GetElement2IntPoint();
 
       if (c)
       {
-         double q = c->Eval(*T.Elem1, eip1) / ( (scale) ? T.Elem1->Weight() : 1 );
+         double q = c->Eval(*Trans.Elem1, eip1) / ( (scale) ? Trans.Elem1->Weight() : 1 );
          if (ndof2)
          {
-            q += c->Eval(*T.Elem2, eip2) / ( (scale) ? T.Elem2->Weight() : 1 );
+            q += c->Eval(*Trans.Elem2, eip2) / ( (scale) ? Trans.Elem2->Weight() : 1 );
             q /= 2;
          }
-         w = kappa * ip.weight * T.Weight() * q;
+         w = kappa * ip.weight * Trans.Weight() * q;
       }
       else
       {
          double h = 1;
          if (scale)
          {
-            h = T.Elem1->Weight();
+            h = Trans.Elem1->Weight();
             if (ndof2)
             {
-               h += T.Elem2->Weight();
+               h += Trans.Elem2->Weight();
                h /= 2;
             }
          }
-         w = kappa * ip.weight * T.Weight() / h;
+         w = kappa * ip.weight * Trans.Weight() / h;
       }
 
       el1.CalcShape(eip1, s1);

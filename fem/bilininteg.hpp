@@ -3542,10 +3542,12 @@ protected:
    const Vector *beta = nullptr;
 public:
    LDGTraceIntegrator(const Vector *b=nullptr) { beta = b; }
-   void AssembleFaceMatrix(const FiniteElement &tr_fe1,
-                           const FiniteElement &tr_fe2,
-                           const FiniteElement &te_fe1, const FiniteElement &te_fe2,
-                           FaceElementTransformations &T, DenseMatrix &elmat);
+   void AssembleFaceMatrix(const FiniteElement &trial_fe1,
+                           const FiniteElement &test_fe1,
+                           const FiniteElement &trial_fe2,
+                           const FiniteElement &test_fe2,
+                           FaceElementTransformations &Trans,
+                           DenseMatrix &elmat) override;
 };
 
 /// Integrator for the DG jump-jump penalty term.
@@ -3564,7 +3566,8 @@ protected:
 public:
    DGJumpJumpIntegrator(double k, bool s=false) : kappa(k), scale(s) { }
    void AssembleFaceMatrix(const FiniteElement &el1, const FiniteElement &el2,
-                           FaceElementTransformations &T, DenseMatrix &elmat);
+                           FaceElementTransformations &Trans,
+                           DenseMatrix &elmat) override;
 };
 
 /** Integrator for the DG elasticity form, for the formulations see:
