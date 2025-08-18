@@ -3362,7 +3362,6 @@ real_t GridFunction::ComputeLpError(const real_t p, Coefficient &exsol,
       // TODO: make this a method
       {
          const FiniteElement &fe = *fes->GetTypicalFE();
-         const int dim  = fe.GetDim();
          const int vdim = fes->GetVDim();
          const int NE   = fes->GetNE();
          const int ND   = fe.GetDof();

@@ -251,7 +251,6 @@ struct ExactSolution : Coefficient
 
    void Project(QuadratureFunction &qf) override
    {
-      const int dim = qf.GetSpace()->GetMesh()->Dimension();
       switch (dim)
       {
          case 1: ProjectBPSFunction<sol_1d>(n, qf); break;
