@@ -102,7 +102,7 @@ void NavierParticles::ParticleStep2D(const real_t &dt, int p)
       // Create C
       C = up;
       C *= kappa;
-      add(C, -gamma, Vector({0.0, 1.0}), C);
+      add(C, -gamma, Vector({real_t(0.0), real_t(1.0)}), C);
       add(C, zeta*w_n_ext, Vector({ up[1], -up[0]}), C);
 
       // Add C

@@ -44,7 +44,9 @@ void Add3DPoint(const Vector &center, Mesh &m, real_t s)
    v[3] = v[2];
    v[3][0] -= 2*s;
 
-   Vector v_s_z({0.0,0.0,s});
+   Vector v_s_z(3);
+   v_s_z = 0.0;
+   v_s_z[2] = s;
    for (int i = 4; i < 8; i++)
    {
       add(1.0, v[i-4], 2.0, v_s_z, v[i]);
