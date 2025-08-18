@@ -527,22 +527,24 @@ unsigned int ParticleSet::GetGlobalNP() const
 int ParticleSet::AddField(int vdim, Ordering::Type field_ordering,
                           const char* field_name)
 {
+   std::string field_name_str(field_name);
    if (!field_name)
    {
-      field_name = GetDefaultFieldName(field_names.size()).c_str();
+      field_name_str = GetDefaultFieldName(field_names.size());
    }
    fields.emplace_back(std::make_unique<MultiVector>(vdim, field_ordering,
                                                      GetNP()));
-   field_names.emplace_back(field_name);
+   field_names.emplace_back(field_name_str);
 
    return GetNF() - 1;
 }
 
 int ParticleSet::AddTag(const char* tag_name)
 {
+   std::string tag_name_str(tag_name);
    if (!tag_name)
    {
-      tag_name = GetDefaultTagName(tag_names.size()).c_str();
+      tag_name_str = GetDefaultTagName(tag_names.size());
    }
    tags.emplace_back(std::make_unique<Array<int>>(GetNP()));
    tag_names.emplace_back(tag_name);
