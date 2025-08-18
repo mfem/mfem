@@ -62,9 +62,11 @@ ParFiniteElementSpace::ParFiniteElementSpace(
 
 ParFiniteElementSpace::ParFiniteElementSpace(
    ParMesh *pm, const FiniteElementCollection *f, int dim, int ordering)
-   : FiniteElementSpace(pm, f, dim, ordering)
+   : FiniteElementSpace((MFEM_PERF_BEGIN(_MFEM_FUNC_NAME), pm),
+                        f, dim, ordering)
 {
    ParInit(pm);
+   MFEM_PERF_END(_MFEM_FUNC_NAME);
 }
 
 ParFiniteElementSpace::ParFiniteElementSpace(
@@ -91,6 +93,7 @@ ParNURBSExtension *ParFiniteElementSpace::MakeLocalNURBSext(
 
 void ParFiniteElementSpace::ParInit(ParMesh *pm)
 {
+   MFEM_PERF_FUNCTION;
    pmesh = pm;
    pncmesh = nullptr;
 
@@ -180,6 +183,7 @@ void ParFiniteElementSpace::CommunicateGhostOrder()
 
 void ParFiniteElementSpace::Construct()
 {
+   MFEM_PERF_FUNCTION;
    if (NURBSext)
    {
       ConstructTrueNURBSDofs();
@@ -838,6 +842,8 @@ void ParFiniteElementSpace::Build_Dof_TrueDof_Matrix() const // matrix P
 
    if (P) { return; }
 
+   MFEM_PERF_FUNCTION;
+
    if (!nd_strias)
    {
       // Safe to assume 1-1 correspondence between shared dofs
@@ -1423,6 +1429,7 @@ const Operator *ParFiniteElementSpace::GetRestrictionOperator() const
       if (NRanks == 1)
       {
          R_transpose.reset(new IdentityOperator(GetTrueVSize()));
+         Rconf = new IdentityOperator(GetTrueVSize());
       }
       else
       {
@@ -1435,8 +1442,8 @@ const Operator *ParFiniteElementSpace::GetRestrictionOperator() const
             R_transpose.reset(
                new DeviceConformingProlongationOperator(*this, true));
          }
+         Rconf = new TransposeOperator(*R_transpose);
       }
-      Rconf = new TransposeOperator(*R_transpose);
       return Rconf;
    }
    else

@@ -71,6 +71,8 @@ struct CGMonitor : IterativeSolverMonitor
    void MonitorResidual(int it, real_t norm, const Vector &r, bool final)
    override
    {
+      MFEM_PERF_FUNCTION;
+
       MFEM_CONTRACT_VAR(norm);
       // Avoid recomputing the norm if it was already computed -- this method
       // is called two times for the final iteration: once with final = false
@@ -220,9 +222,15 @@ int main(int argc, char *argv[])
    report_env_vars();
 
    // Generate mesh
+   MFEM_PERF_BEGIN("CreateKershawMesh");
    ParMesh mesh_coarse = CreateKershawMesh(nx, ny, nz, epsy, epsz);
+   MFEM_PERF_END("CreateKershawMesh");
    const int dim = mesh_coarse.Dimension();
-   for (int i=0; i<ref_par; ++i) { mesh_coarse.UniformRefinement(); }
+   for (int i=0; i<ref_par; ++i)
+   {
+      MFEM_PERF_SCOPE("Mesh UniformRefinement");
+      mesh_coarse.UniformRefinement();
+   }
 
    int coarse_order = 0, order = 0, h_ref = ref_par;
    // Parse order specification
@@ -297,6 +305,7 @@ int main(int argc, char *argv[])
    }
 #endif
 
+   MFEM_PERF_BEGIN("Setup [hierarchy]");
    vector<unique_ptr<FiniteElementCollection>> fe_collections;
    fe_collections.emplace_back(new H1_FECollection(coarse_order, dim));
    ParFiniteElementSpace fes_coarse(&mesh_coarse, fe_collections.back().get());
@@ -315,6 +324,7 @@ int main(int argc, char *argv[])
          hierarchy.AddOrderRefinedLevel(fe_collections.back().get());
       }
    }
+   MFEM_PERF_END("Setup [hierarchy]");
 
    const int nlevels = hierarchy.GetNumLevels();
    if (Mpi::Root())
@@ -349,7 +359,9 @@ int main(int argc, char *argv[])
 
    ParFiniteElementSpace &fes = hierarchy.GetFinestFESpace();
    ParMesh &mesh = *fes.GetParMesh();
+   MFEM_PERF_BEGIN("ParMesh PrintInfo");
    mesh.PrintInfo(cout);
+   MFEM_PERF_END("ParMesh PrintInfo");
    HYPRE_Int ndof = fes.GlobalTrueVSize();
    if (Mpi::Root())
    {
@@ -368,6 +380,7 @@ int main(int argc, char *argv[])
    ConstantCoefficient coeff(1.0); // Diffusion coefficient
    // Set up RHS
    if (Mpi::Root()) { cout << "Assembling right-hand side..." << endl; }
+   MFEM_PERF_BEGIN("Setup [RHS]");
    RHS rhs_coeff(dim, rhs_n);
    ParLinearForm b(&fes);
    const int rhs_ir_inc = 2*q1d_inc+1;
@@ -375,12 +388,20 @@ int main(int argc, char *argv[])
    b.AddDomainIntegrator(new DomainLFIntegrator(rhs_coeff, 2, rhs_ir_inc));
    b.UseFastAssembly(true);
    b.Assemble();
+   MFEM_PERF_END("Setup [RHS]");
    if (Mpi::Root()) { cout << "Assembling right-hand side... Done." << endl; }
+
+   // Free device memory: the geometric facros computed so far are:
+   // * the coordinates, for the rhs coefficient evaluation, and
+   // * the detJ, for the DomainLFIntegrator.
+   // These are no-longer needed (?), so we can free the memory.
+   mesh.DeleteGeometricFactors();
 
    // make sure the GPU is done with any previous tasks:
    if (Device::Allows(Backend::DEVICE_MASK)) { MFEM_STREAM_SYNC; }
    // make sure all ranks are done with any previous tasks:
    MPI_Barrier(MPI_COMM_WORLD);
+   MFEM_PERF_BEGIN("Setup [DiffusionMultigrid]");
    tic();
    // Set up operators in the multigrid hierarchy
    DiffusionMultigrid MG(hierarchy, coeff, ess_bdr, coarse_solver, q1d_inc,
@@ -391,36 +412,42 @@ int main(int argc, char *argv[])
    // make sure all ranks are done with all setup tasks:
    MPI_Barrier(MPI_COMM_WORLD);
    const double t_setup = tic_toc.RealTime();
+   MFEM_PERF_END("Setup [DiffusionMultigrid]");
 
    ParGridFunction x(&fes);
    x = 0.0;
 
    OperatorPtr A;
    Vector X, B;
+   MFEM_PERF_BEGIN("Setup [MG.FormFineLinearSystem]");
    MG.FormFineLinearSystem(x, b, A, X, B);
+   MFEM_PERF_END("Setup [MG.FormFineLinearSystem]");
 
    const real_t l2_tol = 1e-8;
    CGMonitor monitor(l2_tol);
 
    CGSolver cg(MPI_COMM_WORLD);
    cg.SetRelTol(0.0); // use the 'monitor' for convergence
-   cg.SetPrintLevel(1);
+   cg.SetPrintLevel(3);
    cg.SetOperator(*A);
    cg.SetPreconditioner(MG);
    cg.SetMonitor(monitor);
    // Run 2 CG iterations to ensure everything is allocated and initialized for
    // the full CG solve:
    if (Mpi::Root()) { cout << "Running 2 warm-up CG iterations ...\n"; }
+   MFEM_PERF_BEGIN("Warm-up");
    cg.SetMaxIter(2);
    {
       Vector X_save(X);
       cg.Mult(B, X);
       X = X_save;
    }
+   MFEM_PERF_END("Warm-up");
    if (coarse_solver.inner_sli &&
        ((coarse_solver.type == SolverConfig::FA_HYPRE /* && order > 1 */) ||
         coarse_solver.type == SolverConfig::LOR_HYPRE))
    {
+      MFEM_PERF_SCOPE("Auto-tuning");
       // timing data: (t-solve,sli-iter,cheby-order,pcg-iter)
       std::vector<std::tuple<double,int,int,int>> timings;
       Vector X_save(X);
@@ -432,6 +459,8 @@ int main(int argc, char *argv[])
          for (int cheby_order = 1; cheby_order <= smoothers_cheby_order;
               cheby_order++)
          {
+            MFEM_PERF_SCOPE(("Timing [" + to_string(sli_it) + "," +
+                             to_string(cheby_order) + "]").c_str());
             MG.SetSmoothersChebyshevOrder(cheby_order);
 
             if (Mpi::Root())
@@ -512,6 +541,7 @@ int main(int argc, char *argv[])
    if (Device::Allows(Backend::DEVICE_MASK)) { MFEM_STREAM_SYNC; }
    // make sure all ranks are done with any previous tasks:
    MPI_Barrier(MPI_COMM_WORLD);
+   MFEM_PERF_BEGIN("Final CG Solve");
    tic();
    cg.Mult(B, X);
    // make sure the GPU is done with all solve tasks:
@@ -519,6 +549,7 @@ int main(int argc, char *argv[])
    // make sure all ranks are done with all solve tasks:
    MPI_Barrier(MPI_COMM_WORLD);
    const double t_solve = tic_toc.RealTime();
+   MFEM_PERF_END("Final CG Solve");
 
    const int niter = cg.GetConverged() ? cg.GetNumIterations() : -1;
 
@@ -531,10 +562,12 @@ int main(int argc, char *argv[])
 
    MG.RecoverFineFEMSolution(X, b, x);
 
+   MFEM_PERF_BEGIN("Compute L2 Error");
    ExactSolution exact_coeff(dim, rhs_n);
    // ExactGrad exact_grad_coeff(dim, rhs_n);
    real_t L2_err = x.ComputeL2Error(exact_coeff);
    // real_t grad_err = x.ComputeGradError(&exact_grad_coeff);
+   MFEM_PERF_END("Compute L2 Error");
    if (Mpi::Root())
    {
       cout << "\nL2 Error: " << setprecision(10) << scientific

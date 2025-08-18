@@ -13,6 +13,7 @@
 #define MFEM_OPERATOR
 
 #include "vector.hpp"
+#include "../general/annotation.hpp"
 
 namespace mfem
 {
@@ -825,10 +826,12 @@ public:
    explicit IdentityOperator(int n) : Operator(n) { }
 
    /// Operator application
-   void Mult(const Vector &x, Vector &y) const override { y = x; }
+   void Mult(const Vector &x, Vector &y) const override
+   { MFEM_PERF_FUNCTION; y = x; }
 
    /// Application of the transpose
-   void MultTranspose(const Vector &x, Vector &y) const override { y = x; }
+   void MultTranspose(const Vector &x, Vector &y) const override
+   { MFEM_PERF_FUNCTION; y = x; }
 };
 
 /// Returns true if P is the identity prolongation, i.e. if it is either NULL or

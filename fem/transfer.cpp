@@ -2328,6 +2328,8 @@ static void SmemProlongation3D(const int NE,
                                const Vector& localL, Vector& localH,
                                const Array<real_t> &b, const Vector& mask)
 {
+   MFEM_PERF_FUNCTION;
+
    auto u_lo = Reshape(localL.Read(), DLO, DLO, DLO, NE);
    auto u_hi = Reshape(localH.Write(), DHI, DHI, DHI, NE);
    auto d_b = Reshape(b.Read(), DHI, DLO);
@@ -2523,6 +2525,8 @@ static void SmemProlongationTranspose3D(
    const int NE, const Vector& localH, Vector& localL,
    const Array<real_t>& bt, const Vector& mask)
 {
+   MFEM_PERF_FUNCTION;
+
    auto u_h = Reshape(localH.Read(), DHI, DHI, DHI, NE);
    auto u_l = Reshape(localL.Write(), DLO, DLO, DLO, NE);
    auto d_bt = Reshape(bt.Read(), DLO, DHI);
@@ -2662,6 +2666,7 @@ void ProlongationTranspose3D(const int NE, const int D1D, const int Q1D,
 void TensorProductPRefinementTransferOperator::Mult(const Vector& x,
                                                     Vector& y) const
 {
+   MFEM_PERF_FUNCTION;
    using namespace TransferKernels;
 
    if (lFESpace.GetMesh()->GetNE() == 0)
@@ -2704,6 +2709,7 @@ void TensorProductPRefinementTransferOperator::Mult(const Vector& x,
 void TensorProductPRefinementTransferOperator::MultTranspose(const Vector& x,
                                                              Vector& y) const
 {
+   MFEM_PERF_FUNCTION;
    using namespace TransferKernels;
 
    if (lFESpace.GetMesh()->GetNE() == 0)
@@ -2754,20 +2760,20 @@ TrueTransferOperator::TrueTransferOperator(const FiniteElementSpace& lFESpace_,
 
    P = lFESpace.GetProlongationMatrix();
    R = hFESpace.IsVariableOrder() ? hFESpace.GetHpRestrictionMatrix() :
-       hFESpace.GetRestrictionMatrix();
+       hFESpace.GetRestrictionOperator();
 
    // P and R can be both null
    // P can be null and R not null
    // If P is not null it is assumed that R is not null as well
    if (P) { MFEM_VERIFY(R, "Both P and R have to be not NULL") }
 
-   if (P)
+   if (!IsIdentityProlongation(P))
    {
       tmpL.SetSize(lFESpace_.GetVSize());
       tmpH.SetSize(hFESpace_.GetVSize());
    }
    // P can be null and R not null
-   else if (R)
+   else if (!IsIdentityProlongation(R))
    {
       tmpH.SetSize(hFESpace_.GetVSize());
    }
@@ -2780,13 +2786,14 @@ TrueTransferOperator::~TrueTransferOperator()
 
 void TrueTransferOperator::Mult(const Vector& x, Vector& y) const
 {
-   if (P)
+   MFEM_PERF_FUNCTION;
+   if (!IsIdentityProlongation(P))
    {
       P->Mult(x, tmpL);
       localTransferOperator->Mult(tmpL, tmpH);
       R->Mult(tmpH, y);
    }
-   else if (R)
+   else if (!IsIdentityProlongation(R))
    {
       localTransferOperator->Mult(x, tmpH);
       R->Mult(tmpH, y);
@@ -2799,13 +2806,14 @@ void TrueTransferOperator::Mult(const Vector& x, Vector& y) const
 
 void TrueTransferOperator::MultTranspose(const Vector& x, Vector& y) const
 {
-   if (P)
+   MFEM_PERF_FUNCTION;
+   if (!IsIdentityProlongation(P))
    {
       R->MultTranspose(x, tmpH);
       localTransferOperator->MultTranspose(tmpH, tmpL);
       P->MultTranspose(tmpL, y);
    }
-   else if (R)
+   else if (!IsIdentityProlongation(R))
    {
       R->MultTranspose(x, tmpH);
       localTransferOperator->MultTranspose(tmpH, y);

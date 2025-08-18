@@ -96,6 +96,7 @@ void QuadratureSpaceBase::Integrate(VectorCoefficient &coeff,
 
 void QuadratureSpace::ConstructOffsets()
 {
+   MFEM_PERF_FUNCTION;
    const int num_elem = mesh.GetNE();
    offsets.SetSize(num_elem + 1);
    int offset = 0;

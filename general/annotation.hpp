@@ -98,7 +98,7 @@ struct ScopeAnnotation
 #else // #ifdef MFEM_USE_CALIPER
 
 #define MFEM_PERF_FUNCTION
-#define MFEM_PERF_BEGIN(s)
+#define MFEM_PERF_BEGIN(s) ((void)(0))
 #define MFEM_PERF_END(s)
 #define MFEM_PERF_SCOPE(name)
 

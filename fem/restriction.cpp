@@ -25,7 +25,7 @@ namespace mfem
 
 ElementRestriction::ElementRestriction(const FiniteElementSpace &f,
                                        ElementDofOrdering e_ordering)
-   : fes(f),
+   : fes((MFEM_PERF_BEGIN(_MFEM_FUNC_NAME), f)),
      ne(fes.GetNE()),
      vdim(fes.GetVDim()),
      byvdim(fes.GetOrdering() == Ordering::byVDIM),
@@ -104,10 +104,13 @@ ElementRestriction::ElementRestriction(const FiniteElementSpace &f,
       offsets[i] = offsets[i - 1];
    }
    offsets[0] = 0;
+   MFEM_PERF_END(_MFEM_FUNC_NAME);
 }
 
 void ElementRestriction::Mult(const Vector& x, Vector& y) const
 {
+   MFEM_PERF_FUNCTION;
+
    // Assumes all elements have the same number of dofs
    const int nd = dof;
    const int vd = vdim;
@@ -152,6 +155,8 @@ void ElementRestriction::AbsMult(const Vector& x, Vector& y) const
 template <bool ADD>
 void ElementRestriction::TAddMultTranspose(const Vector& x, Vector& y) const
 {
+   MFEM_PERF_FUNCTION;
+
    // Assumes all elements have the same number of dofs
    const int nd = dof;
    const int vd = vdim;

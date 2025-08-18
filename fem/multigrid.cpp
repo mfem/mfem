@@ -10,6 +10,7 @@
 // CONTRIBUTING.md for details.
 
 #include "multigrid.hpp"
+#include "../general/annotation.hpp"
 
 namespace mfem
 {
@@ -135,6 +136,8 @@ void MultigridBase::Mult(const Vector& x, Vector& y) const
 void MultigridBase::ArrayMult(const Array<const Vector*>& X_,
                               Array<Vector*>& Y_) const
 {
+   MFEM_PERF_FUNCTION;
+
    MFEM_ASSERT(operators.Size() > 0,
                "Multigrid solver does not have operators set!");
    MFEM_ASSERT(X_.Size() == Y_.Size(),
@@ -158,6 +161,8 @@ void MultigridBase::ArrayMult(const Array<const Vector*>& X_,
 
 void MultigridBase::SmoothingStep(int level, bool zero, bool transpose) const
 {
+   MFEM_PERF_FUNCTION;
+
    // y = y + S (x - A y) or y = y + S^T (x - A y)
 
    // Note: 'zero' == true means that Y(level,*) are not initialized and we
@@ -201,6 +206,8 @@ void MultigridBase::SmoothingStep(int level, bool zero, bool transpose) const
 
 void MultigridBase::CoarseSolve(bool zero) const
 {
+   MFEM_PERF_FUNCTION;
+
    // See the comment about iterative mode in SmoothingStep()
    coarse_solver->iterative_mode = false;
 

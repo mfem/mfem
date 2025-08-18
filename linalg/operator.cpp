@@ -588,6 +588,8 @@ void ConstrainedOperator::EliminateRHS(const Vector &x, Vector &b) const
 void ConstrainedOperator::ConstrainedMult(const Vector &x, Vector &y,
                                           const bool transpose) const
 {
+   MFEM_PERF_FUNCTION;
+
    const int csz = constraint_list.Size();
    if (csz == 0)
    {
@@ -787,6 +789,8 @@ void RectangularConstrainedOperator::EliminateRHS(const Vector &x,
 
 void RectangularConstrainedOperator::Mult(const Vector &x, Vector &y) const
 {
+   MFEM_PERF_FUNCTION;
+
    const int trial_csz = trial_constraints.Size();
    const int test_csz = test_constraints.Size();
    if (trial_csz == 0)
@@ -822,6 +826,8 @@ void RectangularConstrainedOperator::Mult(const Vector &x, Vector &y) const
 void RectangularConstrainedOperator::MultTranspose(const Vector &x,
                                                    Vector &y) const
 {
+   MFEM_PERF_FUNCTION;
+
    const int trial_csz = trial_constraints.Size();
    const int test_csz = test_constraints.Size();
    if (test_csz == 0)

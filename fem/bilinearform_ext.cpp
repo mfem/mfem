@@ -904,6 +904,7 @@ EABilinearFormExtension::EABilinearFormExtension(BilinearForm *form)
 
 void EABilinearFormExtension::Assemble()
 {
+   MFEM_PERF_FUNCTION;
    SetupRestrictionOperators(L2FaceValues::SingleValued);
 
    ne = trial_fes->GetMesh()->GetNE();
@@ -1451,6 +1452,7 @@ FABilinearFormExtension::FABilinearFormExtension(BilinearForm *form)
 
 void FABilinearFormExtension::Assemble()
 {
+   MFEM_PERF_FUNCTION;
    EABilinearFormExtension::Assemble();
    FiniteElementSpace &fes = *a->FESpace();
    int width = fes.GetVSize();
