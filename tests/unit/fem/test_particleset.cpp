@@ -92,7 +92,7 @@ void TestAddRemove(Ordering::Type ordering)
          {
             pset.AddParticle(particles[i]);
          }
-         REQUIRE(particles.size() == pset.GetNP());
+         REQUIRE(static_cast<int>(particles.size()) == pset.GetNP());
 
 
          int add_err_count = 0;
@@ -109,10 +109,10 @@ void TestAddRemove(Ordering::Type ordering)
          SECTION("Remove particles")
          {
             pset.RemoveParticles(indices_rm);
-            REQUIRE(particles_rm.size() == pset.GetNP());
+            REQUIRE(static_cast<int>(particles_rm.size()) == pset.GetNP());
 
             int rm_err_count = 0;
-            for (int i = 0; i < particles_rm.size(); i++)
+            for (std::size_t i = 0; i < particles_rm.size(); i++)
             {
                Particle p = pset.GetParticle(i);
                if (particles_rm[i] != p)
@@ -133,7 +133,7 @@ void TestAddRemove(Ordering::Type ordering)
          {
             pset.SetParticle(new_idxs[i], particles[i]);
          }
-         REQUIRE(particles.size() == pset.GetNP());
+         REQUIRE(static_cast<int>(particles.size()) == pset.GetNP());
 
 
          int add_err_count = 0;
