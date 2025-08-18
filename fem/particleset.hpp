@@ -207,6 +207,7 @@ protected:
    {
       bool success = ( (tags.size() == NTags ? (Transfer<NData, NTags>(send_idxs,
                                                                        send_ranks),true) : false) || ...);
+      (void)success;
       MFEM_ASSERT(success, "Redistributing with > " << NTAG_MAX <<
                   " tags is not supported. Please submit PR to request particular case with more.");
    }
@@ -223,6 +224,7 @@ protected:
       bool success = ( (total_comps == NDatas ? (DispatchTagTransfer<NDatas>
                                                  (send_idxs, send_ranks, std::make_index_sequence<NTAG_MAX+1> {}),
                                                  true) : false) || ...);
+      (void)success;
       MFEM_ASSERT(success, "Redistributing with > " << NDATA_MAX <<
                   " real_t components per particle is not supported. Please submit PR to request particular case with more.");
    }

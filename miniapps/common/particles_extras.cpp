@@ -165,7 +165,7 @@ void ParticleTrajectories::AddSegmentStart()
    // Add segment start particle IDs
    segment_ids.emplace(segment_ids.begin(), pset.GetIDs());
 
-   if (tail_size > 0 && segment_meshes.size() > tail_size)
+   if (tail_size > 0 && static_cast<int>(segment_meshes.size()) > tail_size)
    {
       segment_meshes.pop_back();
       segment_ids.pop_back();

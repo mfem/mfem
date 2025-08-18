@@ -103,7 +103,6 @@ int main(int argc, char *argv[])
 
    // Load mesh + complete any serial refinements
    Mesh mesh("../../data/channel2.mesh");
-   int dim = mesh.Dimension();
    for (int lev = 0; lev < ctx.rs_levels; lev++)
    {
       mesh.UniformRefinement();
@@ -193,7 +192,7 @@ int main(int argc, char *argv[])
    particle_solver.Setup(ctx.dt);
 
    u_gf.ProjectCoefficient(u_excoeff);
-   int pstep = 0;
+
    Array<int> add_particle_idxs;
    for (int step = 1; step <= ctx.nt; step++)
    {
@@ -215,7 +214,6 @@ int main(int argc, char *argv[])
          }
 
          particle_solver.Step(ctx.dt, u_gf, w_gf);
-         pstep++;
       }
 
       if (ctx.print_csv_freq > 0 && step % ctx.print_csv_freq == 0)
@@ -318,7 +316,6 @@ void SetInjectedParticles(NavierParticles &particle_solver,
 // Dirichlet conditions for velocity
 void vel_dbc(const Vector &x, real_t t, Vector &u)
 {
-   real_t xi = x(0);
    real_t yi = x(1);
    real_t height = 1.0;
 
