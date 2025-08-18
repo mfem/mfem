@@ -3330,16 +3330,28 @@ real_t GridFunction::ComputeLpError(const real_t p, Coefficient &exsol,
    MFEM_PERF_FUNCTION;
    real_t error = 0.0;
 
-   const bool device_eval = true;
+   bool device_eval = true;
    // TODO: check for cases that are not supported on device:
    //       * mixed meshes
+   //       * meshes with non-tensor-product elements can have negative weights
    //       * variable orders
    //       * weight is not NULL
    //       * elems is not NULL
+   //       * map type is not VALUE
    //       * ...
+   Mesh *mesh = fes->GetMesh();
+   const FiniteElement *fe = fes->GetTypicalFE();
+   if (mesh->GetNumGeometries(mesh->Dimension()) > 1 ||
+       (mesh->Dimension() > 1 && mesh->MeshGenerator() != 2) ||
+       fes->IsVariableOrder() ||
+       weight != nullptr ||
+       elems != nullptr ||
+       fe->GetMapType() != FiniteElement::MapType::VALUE)
+   {
+      device_eval = false;
+   }
    if (device_eval)
    {
-      Mesh *mesh = fes->GetMesh();
       Geometry::Type geom = mesh->GetTypicalElementGeometry();
       const IntegrationRule *ir_p;
       if (irs)
@@ -3348,8 +3360,7 @@ real_t GridFunction::ComputeLpError(const real_t p, Coefficient &exsol,
       }
       else
       {
-         const FiniteElement &fe = *fes->GetTypicalFE();
-         int intorder = 2*fe.GetOrder() + 3; // <----------
+         int intorder = 2*fe->GetOrder() + 3; // <----------
          ir_p = &(IntRules.Get(geom, intorder));
       }
       const IntegrationRule &ir = *ir_p;
@@ -3361,10 +3372,10 @@ real_t GridFunction::ComputeLpError(const real_t p, Coefficient &exsol,
       Vector q_vals;
       // TODO: make this a method
       {
-         const FiniteElement &fe = *fes->GetTypicalFE();
+         // const FiniteElement *fe = fes->GetTypicalFE();
          const int vdim = fes->GetVDim();
          const int NE   = fes->GetNE();
-         const int ND   = fe.GetDof();
+         const int ND   = fe->GetDof();
          const int NQ   = ir.GetNPoints();
          MemoryType my_d_mt = (d_mt != MemoryType::DEFAULT) ? d_mt :
                               Device::GetDeviceMemoryType();
@@ -3380,7 +3391,7 @@ real_t GridFunction::ComputeLpError(const real_t p, Coefficient &exsol,
             ElementDofOrdering::LEXICOGRAPHIC :
             ElementDofOrdering::NATIVE;
          const Operator *elem_restr = fes->GetElementRestriction(e_ordering);
-         if (fe.GetMapType() == FiniteElement::MapType::INTEGRAL)
+         if (fe->GetMapType() == FiniteElement::MapType::INTEGRAL)
          {
             // Pre-compute the geometric factors in order to set the desired
             // MemoryType they use:
@@ -3433,7 +3444,6 @@ real_t GridFunction::ComputeLpError(const real_t p, Coefficient &exsol,
       return error;
    }
 
-   const FiniteElement *fe;
    ElementTransformation *T;
    Vector vals;
 
