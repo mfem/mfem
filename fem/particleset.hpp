@@ -96,7 +96,7 @@ public:
 
    bool operator!=(const Particle &rhs) const { return !operator==(rhs); }
 
-   /// Print all particle data to \p out .
+   /// Print all particle data to \p os.
    void Print(std::ostream &os=mfem::out) const;
 
 };
@@ -106,13 +106,13 @@ public:
  *  @details Particles are inherently initialized to have a position and an ID, and optionally can have any number of Vector (of arbitrary vdim) and scalar integer data associated with in the form of @b fields and @b tags respectively. All particle data are internally stored as a Struct-of-Arrays, as elaborated on below.
  *
  *  @par Coordinates:
- *  %All particle coordinates are stored in a \ref MultiVector with vdim = spatial dimension, ordered either byNODES or byVDIM.
+ *  %All particle coordinates are stored in a \ref MultiVector with vector dimension equal to the spatial dimension, ordered either Ordering::byNODES or Ordering::byVDIM.
  *
  *  @par IDs:
  *  %Each particle is assigned a unique global ID of type unsigned int. In parallel, IDs are initialized starting with @b rank and striding by @b size.
  *
  *  @par Fields:
- *  %Fields represent scalar or Vector \ref real_t data to be associated with each particles, such as mass, momentum, or moment. For a given field, all particle data are stored in a single \ref MultiVector with a given vector dimension (1 for scalar data) and \ref Ordering::Type (byNODES or byVDIM) to specify how the data is organized in memory.
+ *  %Fields represent scalar or vector \ref real_t data to be associated with each particles, such as mass, momentum, or moment. For a given field, all particle data are stored in a single \ref MultiVector with a given vector dimension (1 for scalar data) and \ref Ordering::Type (byNODES or byVDIM) to specify how the data is organized in memory.
  *
  *   @par Tags:
  *   %Tags represent an integer to be associated with each particle. For a given tag, all particle integers are stored in a single \ref Array<int>.
@@ -276,12 +276,12 @@ public:
     *  @param[in] dim                 Particle spatial dimension.
     *  @param[in] field_vdims         Array of field vector dimensions to register.
     *  @param[in] num_tags            Number of tags to register.
-    *  @param[in] all_ordering        Ordering of coordinates and field \ref MultiVector s.
+    *  @param[in] all_ordering        (Optional) Ordering of coordinates and field \ref MultiVector s.
     */
    ParticleSet(int num_particles, int dim, const Array<int> &field_vdims,
                int num_tags, Ordering::Type all_ordering=Ordering::byVDIM);
 
-   /** @brief Construct a serial ParticleSet with specified fields and tags at construction, with names ( \ref PrintCSV ). More may be added later.
+   /** @brief Construct a serial ParticleSet with specified fields and tags at construction, with names (for \ref PrintCSV). More may be added later.
     *
     *  @param[in] num_particles       Number of particles to initialize at construction.
     *  @param[in] dim                 Particle spatial dimension.
@@ -289,7 +289,7 @@ public:
     *  @param[in] field_names_        Array of field names.
     *  @param[in] num_tags            Number of tags to register.
     *  @param[in] tag_names_          Array of tag names.
-    *  @param[in] all_ordering        Ordering of coordinates and field \ref MultiVector s.
+    *  @param[in] all_ordering        (Optional) Ordering of coordinates and field \ref MultiVector s.
     */
    ParticleSet(int num_particles, int dim, const Array<int> &field_vdims,
                const Array<const char*> &field_names_, int num_tags,
@@ -319,7 +319,7 @@ public:
     *  @param[in] comm_               MPI communicator.
     *  @param[in] rank_num_particles       Number of particles to initialize at construction.
     *  @param[in] dim                 Particle spatial dimension.
-    *  @param[in] coords_ordering     Ordering of coordinates \ref MultiVector.
+    *  @param[in] coords_ordering     (Optional) Ordering of coordinates \ref MultiVector.
     */
    ParticleSet(MPI_Comm comm_, int rank_num_particles, int dim,
                Ordering::Type coords_ordering=Ordering::byVDIM);
@@ -331,13 +331,13 @@ public:
     *  @param[in] dim                 Particle spatial dimension.
     *  @param[in] field_vdims         Array of field vector dimensions to register.
     *  @param[in] num_tags            Number of tags to register.
-    *  @param[in] all_ordering        Ordering of coordinates and field \ref MultiVector s.
+    *  @param[in] all_ordering        (Optional) Ordering of coordinates and field \ref MultiVector s.
     */
    ParticleSet(MPI_Comm comm_, int rank_num_particles, int dim,
                const Array<int> &field_vdims, int num_tags,
                Ordering::Type all_ordering=Ordering::byVDIM);
 
-   /** @brief Construct a parallel ParticleSet with specified fields and tags at construction, with names ( \ref PrintCSV ). More may be added later.
+   /** @brief Construct a parallel ParticleSet with specified fields and tags at construction, with names (for \ref PrintCSV). More may be added later.
     *
     *  @param[in] comm_               MPI communicator.
     *  @param[in] rank_num_particles  Number of particles to initialize on this rank at construction.
@@ -346,7 +346,7 @@ public:
     *  @param[in] field_names_        Array of field names.
     *  @param[in] num_tags            Number of tags to register.
     *  @param[in] tag_names_          Array of tag names.
-    *  @param[in] all_ordering        Ordering of coordinates and field \ref MultiVector s.
+    *  @param[in] all_ordering        (Optional) Ordering of coordinates and field \ref MultiVector s.
     */
    ParticleSet(MPI_Comm comm_, int rank_num_particles, int dim,
                const Array<int> &field_vdims, const Array<const char*> &field_names_,
@@ -388,8 +388,8 @@ public:
    /** @brief Add a field to the ParticleSet.
     *
     *  @arg[in] vdim             Vector dimension of the field.
-    *  @arg[in] field_ordering   Ordering::Type of the field.
-    *  @arg[in] field_name       Name of the field.
+    *  @arg[in] field_ordering   (Optional) Ordering::Type of the field.
+    *  @arg[in] field_name       (Optional) Name of the field.
     *
     *  @return Index of the newly-added field.
     */
@@ -398,7 +398,7 @@ public:
 
    /** @brief Add a tag to the ParticleSet.
     *
-    *  @arg[in] field_name       Name of the tag.
+    *  @arg[in] field_name      (Optional) Name of the tag.
     *
     *  @return Index of the newly-added tag.
     */
