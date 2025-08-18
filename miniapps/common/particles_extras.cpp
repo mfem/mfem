@@ -138,8 +138,8 @@ ParticleTrajectories::ParticleTrajectories(const ParticleSet &particles,
                                            int y_, int w_, int h_, const char *keys_)
    : pset(particles),
      tail_size(tail_size_),
-     title(title_),
      x(x_), y(y_), w(w_), h(h_),
+     title(title_),
      keys(keys_)
 #ifdef MFEM_USE_MPI
    ,comm(particles.GetComm())
