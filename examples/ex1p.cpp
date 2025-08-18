@@ -39,9 +39,9 @@
 //               mpirun -np 4 ex1p -pa -d ceed-cpu -m ../data/fichera-mixed.mesh
 //             * mpirun -np 4 ex1p -pa -d ceed-cuda
 //             * mpirun -np 4 ex1p -pa -d ceed-hip
-//               mpirun -np 4 ex1p -pa -d ceed-cuda:/gpu/cuda/shared
-//               mpirun -np 4 ex1p -pa -d ceed-cuda:/gpu/cuda/shared -m ../data/square-mixed.mesh
-//               mpirun -np 4 ex1p -pa -d ceed-cuda:/gpu/cuda/shared -m ../data/fichera-mixed.mesh
+//               mpirun -np 4 ex1p -pa -d ceed-cuda
+//               mpirun -np 4 ex1p -pa -d ceed-cuda -m ../data/square-mixed.mesh
+//               mpirun -np 4 ex1p -pa -d ceed-cuda -m ../data/fichera-mixed.mesh
 //               mpirun -np 4 ex1p -m ../data/beam-tet.mesh -pa -d ceed-cpu
 //
 // Description:  This example code demonstrates the use of MFEM to define a

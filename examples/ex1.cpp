@@ -42,12 +42,12 @@
 //               ex1 -pa -d ceed-cpu -m ../data/fichera-mixed.mesh
 //             * ex1 -pa -d ceed-cuda
 //             * ex1 -pa -d ceed-hip
-//               ex1 -pa -d ceed-cuda:/gpu/cuda/shared
-//               ex1 -pa -d ceed-cuda:/gpu/cuda/shared -m ../data/square-mixed.mesh
-//               ex1 -pa -d ceed-cuda:/gpu/cuda/shared -m ../data/fichera-mixed.mesh
+//               ex1 -pa -d ceed-cuda
+//               ex1 -pa -d ceed-cuda -m ../data/square-mixed.mesh
+//               ex1 -pa -d ceed-cuda -m ../data/fichera-mixed.mesh
 //               ex1 -m ../data/beam-hex.mesh -pa -d cuda
 //               ex1 -m ../data/beam-tet.mesh -pa -d ceed-cpu
-//               ex1 -m ../data/beam-tet.mesh -pa -d ceed-cuda:/gpu/cuda/ref
+//               ex1 -m ../data/beam-tet.mesh -pa -d ceed-cuda
 //
 // Description:  This example code demonstrates the use of MFEM to define a
 //               simple finite element discretization of the Poisson problem
