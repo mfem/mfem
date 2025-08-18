@@ -327,8 +327,8 @@ void print_mpi_sync(const std::string& msg)
    // First gather string lengths
    size_t msg_len = msg.length();
    std::vector<size_t> lengths(nranks);
-   MPI_Gather(&msg_len, 1, MPI_INT,
-              lengths.data(), 1, MPI_INT,
+   MPI_Gather(&msg_len, 1, MPITypeMap<size_t>::mpi_type,
+              lengths.data(), 1, MPITypeMap<size_t>::mpi_type,
               0, MPI_COMM_WORLD);
 
    if (myrank == 0)
@@ -568,7 +568,7 @@ struct ThreadBlocks
    int z = 1;
 };
 
-#if (defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))
+#if defined(MFEM_USE_CUDA_OR_HIP)
 template <typename func_t>
 __global__ void forall_kernel_shmem(func_t f, int n)
 {
@@ -591,7 +591,7 @@ void forall(func_t f,
    if (Device::Allows(Backend::CUDA_MASK) ||
        Device::Allows(Backend::HIP_MASK))
    {
-#if (defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))
+#if defined(MFEM_USE_CUDA_OR_HIP)
       // int gridsize = (N + Z - 1) / Z;
       int num_bytes = num_shmem * sizeof(decltype(shmem));
       dim3 block_size(blocks.x, blocks.y, blocks.z);
@@ -987,7 +987,7 @@ get_restriction_transpose(
    {
       auto RT = [=](const Vector &v_e, Vector &v_l)
       {
-         v_l = v_e;
+         v_l += v_e;
       };
       return std::make_tuple(RT, 1);
    }
@@ -996,7 +996,7 @@ get_restriction_transpose(
       const Operator *R = get_restriction<entity_t>(f, o);
       std::function<void(const Vector&, Vector&)> RT = [=](const Vector &x, Vector &y)
       {
-         R->MultTranspose(x, y);
+         R->AddMultTranspose(x, y);
       };
       return std::make_tuple(RT, R->Height());
    }

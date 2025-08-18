@@ -631,7 +631,7 @@ void Device::Setup(const std::string &device_option, const int device_id)
    if (Allows(Backend::DEBUG_DEVICE)) { ngpu = 1; }
 }
 
-MemoryType Device::QueryMemoryType(void *ptr)
+MemoryType Device::QueryMemoryType(const void* ptr)
 {
    // from HYPRE's hypre_GetPointerLocation
    MemoryType res = MemoryType::HOST;
