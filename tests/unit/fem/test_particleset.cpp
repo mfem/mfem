@@ -23,8 +23,6 @@ static constexpr int N = 100;
 static constexpr int N_rm = 37;
 static_assert(N_rm < N);
 
-static constexpr int N_e = 10;
-
 void InitializeRandom(Particle &p, int seed)
 {
    std::mt19937 gen(seed);
@@ -161,6 +159,8 @@ TEST_CASE("Adding + Removing Particles",
 }
 
 #if defined(MFEM_USE_MPI) && defined(MFEM_USE_GSLIB)
+
+static constexpr int N_e = 10;
 
 template<typename T>
 int CheckArrayEquality(const Array<T> &arr1, const Array<T> &arr2)
