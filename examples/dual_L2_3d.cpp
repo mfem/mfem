@@ -1,9 +1,85 @@
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
+#include <functional>
 
 using namespace std;
 using namespace mfem;
+
+real_t factorial(int n) {
+    if (n <= 1) return 1.0;
+    real_t result = 1.0;
+    for (int i = 2; i <= n; ++i) {
+        result *= i;
+    }
+    return result;
+}
+
+class AlphaRuleManager {
+private:
+    int rule_type;
+    real_t C, m_real, q, r;
+    int m_int;
+    real_t alpha_prev;  // For rule 4
+    std::function<real_t(int)> update_func;
+
+public:
+    AlphaRuleManager(int rule, real_t C_val, real_t m_r, real_t q_val, real_t r_val, int m_i)
+        : rule_type(rule), C(C_val), m_real(m_r), q(q_val), r(r_val), m_int(m_i), alpha_prev(0.0) {
+        setupRule();
+    }
+
+    void setupRule() {
+        switch (rule_type) {
+            case 0:
+                break;
+            case 1: // alpha_k = C * k * (k+1) * ... * (k+m)
+                update_func = [this](int k) {
+                    real_t product = 1.0;
+                    for (int i = 0; i <= m_int; ++i) {
+                        product *= (k + 1 + i);
+                    }
+                    return C * product;
+                };
+                break;
+            case 2: // alpha_k = C * pow(m, k-1)
+                update_func = [this](int k) {
+                    return C * pow(m_real, k);
+                };
+                break;
+            case 3: // alpha_{k+1} = C * k * k!
+                update_func = [this](int k) {
+                    return C * (k + 1) * factorial(k + 1);
+                };
+                break;
+            case 4: // alpha_{k+1} = r^{1/(q-1)} * m^{q^k} - alpha_k
+                update_func = [this](int k) {
+                    real_t alpha_new = pow(r, 1.0 / (q - 1.0)) * pow(m_real, pow(q, k + 1)) - alpha_prev;
+                    alpha_prev = alpha_new;
+                    return alpha_new;
+                };
+                break;
+            default:
+                update_func = [](int k) { return 1.0; }; // fallback
+                break;
+        }
+    }
+
+    real_t updateAlpha(int iteration, real_t current_alpha, real_t growth_rate) {
+        if (rule_type == 0) {
+            return current_alpha * max(growth_rate, 1_r);
+        } else {
+            return update_func(iteration);
+        }
+    }
+
+    real_t getInitialAlpha() {
+        if (rule_type == 4) {
+            return pow(r, 1.0 / (q - 1.0));
+        }
+        return 1.0; 
+    }
+};
 
 class ZCoefficient : public VectorCoefficient
 {
@@ -71,6 +147,14 @@ int main(int argc, char *argv[])
    real_t tol = 1e-6;
 
    int ex = 1; 
+   int alpha_rule = 0;  // 0 = original rule, 1-4 = new rules
+   
+   // Parameters for alpha update rules
+   real_t C = 1.0;      // Constant for all rules
+   int m_int = 2;       // Integer parameter for rules 1 and 3
+   real_t m_real = 2.0; // Real parameter for rule 2
+   real_t q = 2.0;      // Parameter for rule 4
+   real_t r = 2.0;      // Parameter for rule 4
 
    bool visualization = true;
 
@@ -92,6 +176,18 @@ int main(int argc, char *argv[])
                   "Initial size alpha");
    args.AddOption(&growth_rate, "-gr", "--growth-rate",
                   "Growth rate of the step size alpha");
+   args.AddOption(&alpha_rule, "-ar", "--alpha-rule",
+                  "Alpha update rule (0=original, 1-4=new rules)");
+   args.AddOption(&C, "-C", "--constant",
+                  "Constant C for alpha update rules");
+   args.AddOption(&m_int, "-mi", "--m-int",
+                  "Integer parameter m for alpha rules 1 and 3");
+   args.AddOption(&m_real, "-mr", "--m-real",
+                  "Real parameter m for alpha rule 2");
+   args.AddOption(&q, "-q", "--q-param",
+                  "Parameter q for alpha rule 4");
+   args.AddOption(&r, "-r-param", "--r-param",
+                  "Parameter r for alpha rule 4");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -102,6 +198,20 @@ int main(int argc, char *argv[])
       return 1;
    }
    args.PrintOptions(cout);
+
+   // NOTE: based on step size update rules in PG paper appendix
+   if (alpha_rule < 0 || alpha_rule > 4) {
+      mfem::out << "Error: alpha_rule must be between 0 and 4" << endl;
+      return 1;
+   }
+   // if (alpha_rule == 2 && m_real <= 1.0) {
+      // mfem::out << "Error: for rule 2, m_real must be > 1" << endl;
+      // return 1;
+   // }
+   // if (alpha_rule == 4 && (q <= 1.0 || r <= 1.0)) {
+      // mfem::out << "Error: for rule 4, q and r must be > 1" << endl;
+      // return 1;
+   // }
 
 //    Mesh mesh = Mesh::MakeCartesian2D(1, 1, Element::Type::TRIANGLE, false);
    
@@ -193,7 +303,7 @@ int main(int argc, char *argv[])
         real_t a = x(0), b = x(1), c = x(2); 
         u(0) = std::cos(M_PI * a) * std::sin(M_PI * b) * std::sin(M_PI * c);
         u(1) = std::sin(M_PI * a) * std::cos(M_PI * b) * std::sin(M_PI * c);
-        u(2) = std::sin(M_PI * a) * std::sin(M_PI * b) * std::cos(M_PI * c); // This is now a valid access.
+        u(2) = std::sin(M_PI * a) * std::sin(M_PI * b) * std::cos(M_PI * c); 
 
         u *= (1.0 + 3.0 * M_PI * M_PI);
     }
@@ -238,6 +348,12 @@ int main(int argc, char *argv[])
    int total_iterations = 0;
    real_t increment_p = 0.1;
    GridFunction p_tmp(&RTfes);
+
+   AlphaRuleManager alpha_manager(alpha_rule, C, m_real, q, r, m_int);
+   alpha = alpha_manager.getInitialAlpha(); 
+   alpha_cf.constant = alpha; 
+   
+   mfem::out << "Using alpha update rule " << alpha_rule << " with initial alpha = " << alpha << endl;
 
    for (k = 0; k < max_it; k++)
    {
@@ -309,6 +425,7 @@ int main(int argc, char *argv[])
 
       mfem::out << "Number of Newton iterations = " << j+1 << endl;
       mfem::out << "Increment (|| uₕ - uₕ_prvs||) = " << increment_p << endl;
+      mfem::out << "Current alpha = " << alpha << " (rule " << alpha_rule << ")" << endl;
 
       p_old_gf = p_gf;
       psi_old_gf = psi_gf;
@@ -318,7 +435,8 @@ int main(int argc, char *argv[])
          break;
       }
 
-      alpha *= max(growth_rate, 1_r);
+      // Update alpha according to the specified rule
+      alpha = alpha_manager.updateAlpha(k, alpha, growth_rate);
       alpha_cf.constant = alpha; 
    }
    delete A01;

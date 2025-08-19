@@ -370,7 +370,7 @@ int main(int argc, char *argv[])
          a20.AddDomainIntegrator(new VectorFEMassIntegrator());
 
          a20.Assemble();
-         a20.EliminateTrialDofs(ess_tdof_list_rt, x.GetBlock(0), b0); 
+         a20.EliminateTrialDofs(ess_tdof_list_rt, x.GetBlock(0), rhs.GetBlock(0)); 
 
          a20.Finalize();
          SparseMatrix &A20 = a20.SpMat();
