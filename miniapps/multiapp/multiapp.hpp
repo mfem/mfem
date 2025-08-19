@@ -141,7 +141,8 @@ public:
         IMPLICIT_MULT,
         EXPLICIT_MULT,
         SOLVE,
-        DEFAULT
+        DEFAULT,
+        NONE
     };
 
 protected:
@@ -177,10 +178,20 @@ public:
     }
 
     /**
+     * @brief Set the index of the operator
+     */
+    void SetOperatorIndex(int index){ oper_index = index; }
+
+    /**
+     * @brief Get the index of the operator
+     */
+    int GetOperatorIndex() const { return oper_index; }
+
+    /**
      * @brief Set the Operation ID to call the appropriate operation
      * from Mult()
      */
-    void SetOperationID(OperationID id){ operation_id = id; }
+    virtual void SetOperationID(OperationID id){ operation_id = id; }
 
     /**
      * @brief Get the current OperationID
@@ -448,6 +459,12 @@ public:
             MFEM_ABORT("The AbstractOperator does not have the function, Step(Vector&, real_t&, real_t&) or Step(int, double*, double&, double&).");
         }        
     }
+
+    void SetOperationID(OperationID id) override
+    {
+        Application::SetOperationID(id);
+        if (nested_op) nested_op->SetOperationID(id);
+    }
 };
 
 
@@ -542,6 +559,7 @@ public:
 
         // Update size of the coupled operator and the block offsets
         Application* op = operators.back();
+        op->SetOperatorIndex(nops-1); // Set the index of the operator
 
         int sum = offsets.Last();
         offsets.Append(sum + op->Width());
