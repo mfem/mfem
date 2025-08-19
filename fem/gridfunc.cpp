@@ -3328,6 +3328,9 @@ real_t GridFunction::ComputeLpError(const real_t p, Coefficient &exsol,
                                     const Array<int> *elems) const
 {
    MFEM_PERF_FUNCTION;
+
+   MFEM_VERIFY(fes->GetVDim() == 1, "invalid vector dimension!");
+
    real_t error = 0.0;
 
    bool device_eval = true;
