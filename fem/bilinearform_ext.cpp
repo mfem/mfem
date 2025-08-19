@@ -57,7 +57,7 @@ bool ContainsPatchwiseIntegration(Array<BilinearFormIntegrator*> &integrators)
       }
    }
 
-   MFEM_VERIFY(!(somePatchwise && !allPatchwise),
+   MFEM_VERIFY(allPatchwise || !somePatchwise,
                "All or none of the integrators should be patchwise");
 
    return allPatchwise;
