@@ -631,7 +631,7 @@ inline void Vector::Reserve(int res)
 {
    if (res > Capacity())
    {
-      Memory<T> p(res, data.GetMemoryType());
+      Memory<real_t> p(res, data.GetMemoryType());
       p.CopyFrom(data, size);
       p.UseDevice(data.UseDevice());
       data.Delete();
