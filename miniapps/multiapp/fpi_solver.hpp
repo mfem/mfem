@@ -133,7 +133,6 @@ public:
         real_t num   = Dot(rold, residual) - (rold_norm * rold_norm);
         real_t denom = NormSquared(rold, residual);
         real_t ratio = num / denom;
-        // real_t denom = rold.DistanceSquaredTo(residual);
 
         if(ratio == 0.0) ratio = -1.0; // Avoid num = 0.0 at first call
         rold_norm = res_norm*res_norm; // Update the old residual norm
