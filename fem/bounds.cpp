@@ -662,6 +662,86 @@ void PLBound::SetupBernsteinBasisMat(DenseMatrix &basisMat,
    }
 }
 
+DenseMatrix PLBound::GetLowerBoundMatrix(int dim)
+{
+   if (dim == 1)
+   {
+      return lbound;
+   }
+   else if (dim == 2)
+   {
+      int ncpd = static_cast<int>(std::pow(ncp, dim));
+      int nbd = static_cast<int>(std::pow(nb, dim));
+      DenseMatrix lbound2D(ncpd, nbd);
+      Vector phimin, phimax;
+      DenseMatrix coeff_mat(nb, nb);
+      coeff_mat = 0.0;
+      Vector cx(nb), cy(nb);
+      cx = 0.0;
+      cy = 0.0;
+      for (int j = 0; j < nb; j++)
+      {
+         cy(j) = 1.0;
+         for (int i = 0; i < nb; i++)
+         {
+            cx(i) = 1.0;
+            MultVWt(cy, cx, coeff_mat);
+            Vector coeffvec(coeff_mat.GetData(), nb*nb);
+            lbound2D.GetColumnReference(j*nb + i, phimin);
+            Get2DBounds(coeffvec, phimin, phimax);
+            cx(i) = 0.0;
+         }
+         cy(j) = 0.0;
+      }
+      return lbound2D;
+   }
+   else if (dim == 3)
+   {
+      MFEM_ABORT("3D lower bound matrix not implemented.");
+   }
+   return lbound;
+}
+
+DenseMatrix PLBound::GetUpperBoundMatrix(int dim)
+{
+   if (dim == 1)
+   {
+      return ubound;
+   }
+   else if (dim == 2)
+   {
+      int ncpd = static_cast<int>(std::pow(ncp, dim));
+      int nbd = static_cast<int>(std::pow(nb, dim));
+      DenseMatrix ubound2D(ncpd, nbd);
+      Vector phimin, phimax;
+      DenseMatrix coeff_mat(nb, nb);
+      coeff_mat = 0.0;
+      Vector cx(nb), cy(nb);
+      cx = 0.0;
+      cy = 0.0;
+      for (int j = 0; j < nb; j++)
+      {
+         cy(j) = 1.0;
+         for (int i = 0; i < nb; i++)
+         {
+            cx(i) = 1.0;
+            MultVWt(cy, cx, coeff_mat);
+            Vector coeffvec(coeff_mat.GetData(), nb*nb);
+            ubound2D.GetColumnReference(j*nb + i, phimax);
+            Get2DBounds(coeffvec, phimin, phimax);
+            cx(i) = 0.0;
+         }
+         cy(j) = 0.0;
+      }
+      return ubound2D;
+   }
+   else if (dim == 3)
+   {
+      MFEM_ABORT("3D lower bound matrix not implemented.");
+   }
+   return ubound;
+}
+
 constexpr int PLBound::min_ncp_gl_x[2][11];
 constexpr int PLBound::min_ncp_gll_x[2][11];
 constexpr int PLBound::min_ncp_pos_x[2][11];

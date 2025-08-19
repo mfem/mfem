@@ -262,6 +262,84 @@ int main (int argc, char *argv[])
       }
    }
 
+   // Construct nD bounding matrix
+   {
+      int mesh_order = pfunc_proj->FESpace()->GetMaxElementOrder();
+      int b_type = pfunc_proj->FESpace()->IsDGSpace() ? 0 : 1;
+      int nx = mesh_order + 1;
+      int mx = 2*nx;
+      PLBound plb(nx, mx, b_type, 0, 0.0);
+      DenseMatrix basis_lower = plb.GetLowerBoundMatrix(dim);
+      DenseMatrix basis_upper = plb.GetUpperBoundMatrix(dim);
+
+      // verify that the bounds from the basis matrix are tighter than
+      // the bounds from PLBound.
+      plb.SetProjectionFlagForBounding(false); // turn off linear projection
+      for (int e = 0; e < pmesh.GetNE(); e++)
+      {
+         // Get nodal data in lexicographic order
+         const FiniteElement *fe = pfunc_proj->FESpace()->GetFE(e);
+         int fes_dim  = pfunc_proj->FESpace()->GetVDim();
+         int rdim  = fe->GetDim();
+
+         const TensorBasisElement *tbe =
+            dynamic_cast<const TensorBasisElement *>(fe);
+         MFEM_VERIFY(tbe != NULL, "TensorBasis FiniteElement expected.");
+         const Array<int> &dof_map = tbe->GetDofMap();
+
+         Vector loc_data;
+         Array<int> dof_idx;
+         pfunc_proj->FESpace()->GetElementDofs(e, dof_idx);
+         int ndofs = dof_idx.Size();
+         pfunc_proj->GetSubVector(dof_idx, loc_data);
+         Vector nodal_data;
+         if (dof_map.Size() == 0)
+         {
+            nodal_data.SetDataAndSize(loc_data.GetData(), ndofs);
+         }
+         else
+         {
+            nodal_data.SetSize(ndofs);
+            for (int j = 0; j < ndofs; j++)
+            {
+               nodal_data(j) = loc_data(dof_map[j]);
+            }
+         }
+         Vector nodal_data_pos(ndofs), nodal_data_neg(ndofs);
+         nodal_data_pos = 0.0;
+         nodal_data_neg = 0.0;
+         for (int j = 0; j < ndofs; j++)
+         {
+            if (nodal_data(j) < 0.0)
+            {
+               nodal_data_neg(j) = nodal_data(j);
+            }
+            else
+            {
+               nodal_data_pos(j) = nodal_data(j);
+            }
+         }
+
+         // Use PLBound to compute tensor product bounds
+         Vector boundmin1, boundmax1;
+         plb.GetNDBounds(rdim, nodal_data, boundmin1, boundmax1);
+
+         // Compute bounds using higher dimensional basis matrix
+         Vector boundmin2(mx*mx), boundmax2(mx*mx);
+         basis_lower.Mult(nodal_data_pos, boundmin2);
+         basis_upper.AddMult(nodal_data_neg, boundmin2);
+
+         basis_upper.Mult(nodal_data_pos, boundmax2);
+         basis_upper.AddMult(nodal_data_neg, boundmax2);
+
+         // Verify tensor product bounds are tighter
+         MFEM_VERIFY(boundmin2.Min()-1e-10 <= boundmin1.Min() &&
+                     boundmax2.Max()+1e-10 >= boundmax1.Max(),
+                     "Bounds from basis matrix should be tighter than "
+                     "bounds from PLBound.");
+      }
+   }
+
    if (b_type >= 0)
    {
       delete pfunc_proj;
