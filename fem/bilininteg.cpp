@@ -21,6 +21,11 @@ using namespace std;
 namespace mfem
 {
 
+void BilinearFormIntegrator::Update()
+{
+   // default no-op
+}
+
 void BilinearFormIntegrator::AssemblePA(const FiniteElementSpace&)
 {
    MFEM_ABORT("BilinearFormIntegrator::AssemblePA(fes)\n"
@@ -3458,6 +3463,12 @@ real_t ElasticityIntegrator::ComputeFluxEnergy(const FiniteElement &fluxelem,
       energy += w * pt_e;
    }
    return energy;
+}
+
+void DGTraceIntegrator::Update()
+{
+   qspace[0].reset();
+   qspace[1].reset();
 }
 
 void DGTraceIntegrator::AssembleFaceMatrix(const FiniteElement &el1,

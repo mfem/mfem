@@ -23,6 +23,8 @@
 
 namespace mfem
 {
+class QuadratureSpace;
+class FaceQuadratureSpace;
 
 /// Abstract base class BilinearFormIntegrator
 class BilinearFormIntegrator : public NonlinearFormIntegrator
@@ -43,6 +45,10 @@ public:
    // base class NonlinearFormIntegrator, except that not all assembly levels
    // make sense for the action of the nonlinear operator (but they all make
    // sense for its Jacobian).
+
+   /// Signal this integrator that something about either the trial or test space has changed.
+   virtual void Update();
+
 
    /// Method defining partial assembly.
    /** The result of the partial assembly is stored internally so that it can be
@@ -3311,6 +3317,7 @@ protected:
    VectorCoefficient *u;
    real_t alpha, beta;
    // PA extension
+   std::unique_ptr<FaceQuadratureSpace> qspace[2];
    Vector pa_data;
    const DofToQuad *maps;             ///< Not owned
    const FaceGeometricFactors *geom;  ///< Not owned
@@ -3332,6 +3339,8 @@ public:
    DGTraceIntegrator(Coefficient &rho_, VectorCoefficient &u_,
                      real_t a, real_t b)
    { rho = &rho_; u = &u_; alpha = a; beta = b; }
+
+   void Update() override;
 
    using BilinearFormIntegrator::AssembleFaceMatrix;
    void AssembleFaceMatrix(const FiniteElement &el1,
