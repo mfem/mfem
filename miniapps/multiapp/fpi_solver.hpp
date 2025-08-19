@@ -43,6 +43,8 @@ private:
 
 protected:
    const Operator *op = nullptr; ///< Operator being solved
+   real_t minf = numeric_limits<real_t>::lowest();
+   real_t maxf = numeric_limits<real_t>::max();
 
 public:
     FPIRelaxation() = default;
@@ -54,6 +56,13 @@ public:
 
     /// @brief Set the operator for the relaxation method.
     virtual void Init(const Operator &op_){op = &op_;}
+
+    void SetMin(real_t minf_){ minf = minf_; }
+    void SetMax(real_t maxf_){ maxf = maxf_; }
+    void SetMinAndMax(real_t minf_, real_t maxf_){ minf = minf_; maxf = maxf_;}
+
+    /// @brief Clamp the relaxation factor to the specified range.
+    real_t Clamp(real_t factor) const { return std::max(std::min(factor, maxf), minf);}
 
     /// @brief Compute the relaxation factor for Fixed Point Iteration.
     /// @param state Current state vector
@@ -73,7 +82,18 @@ public:
     #else
         return InnerProduct(comm, x, y);
     #endif
-    }    
+    }
+    
+    real_t NormSquared(const Vector &x, const Vector &y) const
+    {
+    #ifndef MFEM_USE_MPI
+        return x.DistanceSquaredTo(y);
+    #else
+        return DistanceSquared(comm, x, y);
+    #endif
+    }
+
+    virtual ~FPIRelaxation(){}
 };
 
 /**
@@ -99,7 +119,7 @@ public:
         FPIRelaxation::Init(op_);
         rold.SetSize(op->Width()); // Initialize the old residual vector size
         rold = 0.0;      // Initialize the old residual vector to zero
-        rold_norm = 0.0; // Initialize the old residual norm
+        rold_norm = 0.0; // Initialize the old residual norm to zero
     }
 
     /// @brief Compute the Aitken relaxation factor for Fixed Point Iteration.
@@ -111,12 +131,21 @@ public:
     real_t Eval(const Vector &state, const Vector &residual, real_t res_norm, real_t rfactor) override
     {
         real_t num   = Dot(rold, residual) - (rold_norm * rold_norm);
-        real_t denom = rold.DistanceSquaredTo(residual);
+        real_t denom = NormSquared(rold, residual);
+        real_t ratio = num / denom;
+        // real_t denom = rold.DistanceSquaredTo(residual);
 
-        rold_norm = res_norm; // Update the old residual norm
-        rold = residual;      // Update the old residual vector
-        return -rfactor * num / denom;
+        if(ratio == 0.0) ratio = -1.0; // Avoid num = 0.0 at first call
+        rold_norm = res_norm*res_norm; // Update the old residual norm
+        rold      = residual;          // Update the old residual vector
+
+        return Clamp(-rfactor * ratio); // Clamp the relaxation factor
     };
+
+    ~AitkenRelaxation()
+    {
+        rold.Destroy();
+    }
 };
 
 /**
@@ -157,8 +186,14 @@ public:
         real_t num = res_norm * res_norm;
         J->Mult(residual, z); // rold = F'(x) * rnew;
         real_t denom = Dot(z, residual);
-        return num/denom;
+        return Clamp(num/denom); // Clamp the relaxation factor
     };
+
+    ~SteepestDescentRelaxation()
+    {
+        z.Destroy();
+    }
+    
 };
 
 
@@ -212,7 +247,7 @@ public:
             relax_method = relaxation;
         }
 #ifdef MFEM_USE_MPI    
-        relax_method->SetComm(this->GetComm());
+        if(relax_method) relax_method->SetComm(this->GetComm());
 #endif
    }
     
@@ -248,7 +283,7 @@ public:
             return;
         }
 
-        real_t r0, nom, nom0, nomold = 1, cf;
+        real_t r0, nom, nom0, nomold = 1, cf, fac_old = factor;
 
         if (iterative_mode)
         {
@@ -277,22 +312,23 @@ public:
             final_iter = 0;
             final_norm = nom;
             return;
-        }        
-
+        }
+        
         // start iteration
         converged = false;
         final_iter = max_iter;
         for (i = 1; true; )
         {    
+            factor = relax_method->Eval(x,r,nom,fac_old);
+            x.Add(factor, r); // x = x + factor * r
+
             oper->Mult(x, z);  // z = F(x)
             subtract(z, x, r); // r = z - x
             nom = sqrt(Dot(r, r));
-
-            factor = relax_method->Eval(x,r,nom,factor);
-            x.Add(factor, r); // x = x + factor * r
             
             cf = nom/nomold;
             nomold = nom;
+            fac_old = factor;
         
             bool done = false;
             if (nom < r0)
