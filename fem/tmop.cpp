@@ -3712,7 +3712,7 @@ void TMOP_Integrator::EnableSurfaceFitting(const ParGridFunction &s0,
                                                                dim);
    // Initial gradients.
    surf_fit_grad = new GridFunction(fes_grad);
-   surf_fit_grad->MakeOwner(fec_grad);
+   surf_fit_grad->MakeOwner();
    for (int d = 0; d < dim; d++)
    {
       ParGridFunction surf_fit_grad_comp(fes, surf_fit_grad->GetData()+d*s0.Size());
@@ -3730,7 +3730,7 @@ void TMOP_Integrator::EnableSurfaceFitting(const ParGridFunction &s0,
                                                                dim*dim);
    // Initial Hessians.
    surf_fit_hess = new GridFunction(fes_hess);
-   surf_fit_hess->MakeOwner(fec_hess);
+   surf_fit_hess->MakeOwner();
    int id = 0;
    for (int d = 0; d < dim; d++)
    {
