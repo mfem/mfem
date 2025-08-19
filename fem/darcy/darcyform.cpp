@@ -800,33 +800,6 @@ void DarcyForm::ReconstructTotalFlux(const BlockVector &sol,
 {
    if (!hybridization) { return; }
 
-   // automatically set up the finite element space
-   if (!ut.FESpace())
-   {
-      Mesh *mesh = fes_u->GetMesh();
-      const int dim = fes_u->GetMesh()->Dimension();
-      const FiniteElementCollection *u_coll = fes_u->FEColl();
-      int ut_order = u_coll->GetOrder();
-      if (dynamic_cast<const RT_FECollection*>(u_coll)
-          || dynamic_cast<const BrokenRT_FECollection*>(u_coll)) { ut_order--; }
-      FiniteElementCollection *ut_coll = new RT_FECollection(ut_order, dim);
-      FiniteElementSpace *ut_space = NULL;
-#ifdef MFEM_USE_MPI
-      ParMesh *pmesh = dynamic_cast<ParMesh*>(mesh);
-      if (pmesh)
-      {
-         ut_space = new ParFiniteElementSpace(pmesh, ut_coll);
-      }
-      else
-#endif //MFEM_USE_MPI
-      {
-         ut_space = new FiniteElementSpace(mesh, ut_coll);
-      }
-
-      ut.SetSpace(ut_space);
-      ut.MakeOwner(ut_coll);
-   }
-
    VectorCoefficient *vel = NULL;
    const FluxFunction *flux_fun = NULL;
    if (M_p && M_p->GetDBFI())
@@ -874,7 +847,7 @@ void DarcyForm::ReconstructTotalFlux(const BlockVector &sol,
          vel->Eval(cp, Tr, Tr.GetIntPoint());
          qt.Add(p, cp);
       };
-      hybridization->ReconstructTotalFlux(sol, sol_r, fx, ut);
+      ReconstructTotalFlux(sol, sol_r, std::move(fx), ut);
    }
    else if (flux_fun)
    {
@@ -889,7 +862,7 @@ void DarcyForm::ReconstructTotalFlux(const BlockVector &sol,
          flux_fun->ComputeFlux(state, Tr, flux);
          qt += qc;
       };
-      hybridization->ReconstructTotalFlux(sol, sol_r, fx, ut);
+      ReconstructTotalFlux(sol, sol_r, std::move(fx), ut);
    }
    else
    {
@@ -897,8 +870,44 @@ void DarcyForm::ReconstructTotalFlux(const BlockVector &sol,
       {
          qt = q;
       };
-      hybridization->ReconstructTotalFlux(sol, sol_r, fx, ut);
+      ReconstructTotalFlux(sol, sol_r, std::move(fx), ut);
    }
+}
+
+void DarcyForm::ReconstructTotalFlux(const BlockVector &sol,
+                                     const Vector &sol_r, DarcyHybridization::total_flux_fun fun,
+                                     GridFunction &ut) const
+{
+   if (!hybridization) { return; }
+
+   // automatically set up the finite element space
+   if (!ut.FESpace())
+   {
+      Mesh *mesh = fes_u->GetMesh();
+      const int dim = fes_u->GetMesh()->Dimension();
+      const FiniteElementCollection *u_coll = fes_u->FEColl();
+      int ut_order = u_coll->GetOrder();
+      if (dynamic_cast<const RT_FECollection*>(u_coll)
+          || dynamic_cast<const BrokenRT_FECollection*>(u_coll)) { ut_order--; }
+      FiniteElementCollection *ut_coll = new RT_FECollection(ut_order, dim);
+      FiniteElementSpace *ut_space = NULL;
+#ifdef MFEM_USE_MPI
+      ParMesh *pmesh = dynamic_cast<ParMesh*>(mesh);
+      if (pmesh)
+      {
+         ut_space = new ParFiniteElementSpace(pmesh, ut_coll);
+      }
+      else
+#endif //MFEM_USE_MPI
+      {
+         ut_space = new FiniteElementSpace(mesh, ut_coll);
+      }
+
+      ut.SetSpace(ut_space);
+      ut.MakeOwner(ut_coll);
+   }
+
+   hybridization->ReconstructTotalFlux(sol, sol_r, fun, ut);
 }
 
 void DarcyForm::ReconstructFluxAndPot(const BlockVector &sol,

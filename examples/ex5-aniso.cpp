@@ -1187,7 +1187,23 @@ int main(int argc, char *argv[])
 
       if (reconstruct)
       {
-         darcy->Reconstruct(x, x.GetBlock(2), qt_h, q_hs, t_hs, tr_hs);
+         if (rotated)
+         {
+            auto fx = [&b_gf](ElementTransformation &Tr, const Vector &q, real_t p,
+                              Vector &qt)
+            {
+               Vector b(q.Size());
+               b_gf.GetVectorValue(Tr, Tr.GetIntPoint(), b);
+               qt(0) = q(0) * b(0) - q(1) * b(1);
+               qt(1) = q(0) * b(1) + q(1) * b(0);
+            };
+            darcy->ReconstructTotalFlux(x, x.GetBlock(2), std::move(fx), qt_h);
+            darcy->ReconstructFluxAndPot(x, qt_h, q_hs, t_hs, tr_hs);
+         }
+         else
+         {
+            darcy->Reconstruct(x, x.GetBlock(1), qt_h, q_hs, t_hs, tr_hs);
+         }
          real_t err_qt = qt_h.ComputeL2Error(qtcoeff, irs);
          real_t norm_qt = ComputeLpNorm(2., qtcoeff, *mesh, irs);
          cout << "|| qt_h - qt_ex || / || qt_ex || = " << err_qt / norm_qt << "\n";

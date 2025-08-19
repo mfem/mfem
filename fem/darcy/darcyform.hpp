@@ -264,6 +264,9 @@ public:
    void ReconstructTotalFlux(const BlockVector &sol, const Vector &sol_r,
                              GridFunction &ut) const;
 
+   void ReconstructTotalFlux(const BlockVector &sol, const Vector &sol_r,
+                             DarcyHybridization::total_flux_fun fun, GridFunction &ut) const;
+
    /// Reconstruct the flux, potential and traces from solution and total flux
    /** The reconstructed quantities are in finite element spaces of one order
        higher than the original spaces. If no are assigned to the functions,
