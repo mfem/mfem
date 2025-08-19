@@ -22,7 +22,6 @@
 #include "../general/communication.hpp"
 #endif
 #include <iostream>
-#include <set>
 
 namespace mfem
 {
@@ -55,7 +54,7 @@ protected:
 
 public:
    /// Create an empty KnotVector.
-   KnotVector() { }
+   KnotVector() = default;
 
    /** @brief Create a KnotVector by reading data from stream @a input. Two
        integers are read, for order and number of control points. */
@@ -74,7 +73,7 @@ public:
        polynomial degree). Periodicity is not supported.
    */
    KnotVector(int order, const Vector& intervals,
-              const Array<int>& continuity );
+              const Array<int>& continuity);
 
    /// Copy constructor.
    KnotVector(const KnotVector &kv) { (*this) = kv; }
@@ -144,8 +143,13 @@ public:
    /** @brief Global curve interpolation through the points @a x (overwritten).
        @a x is an array with the length of the spatial dimension containing
        vectors with spatial coordinates. The control points of the interpolated
-       curve are returned in @a x in the same form. */
-   void FindInterpolant(Array<Vector*> &x);
+       curve are returned in @a x in the same form.
+
+       The inverse of the collocation matrix, used in the interpolation, is
+       stored for repeated calls and used if @a reuse_inverse is true. Reuse is
+       valid only if this KnotVector has not changed since the initial call with
+       @a reuse_inverse false. */
+   void FindInterpolant(Array<Vector*> &x, bool reuse_inverse = false);
 
    /** Set @a diff, comprised of knots in @a kv not contained in this KnotVector.
        @a kv must be of the same order as this KnotVector. The current
@@ -203,6 +207,14 @@ public:
    /** Flag to indicate whether the KnotVector has been coarsened, which means
        it is ready for non-nested refinement. */
    bool coarse;
+
+#ifdef MFEM_USE_LAPACK
+   // Data for reusing banded matrix factorization in FindInterpolant().
+   DenseMatrix fact_AB; /// Banded matrix factorization
+   Array<int> fact_ipiv; /// Row pivot indices
+#else
+   DenseMatrix A_coll_inv; /// Collocation matrix inverse
+#endif
 };
 
 
@@ -286,7 +298,7 @@ public:
        includes the weight. The array of control point coordinates stores each
        point's coordinates contiguously, and points are ordered in a standard
        ijk grid ordering. */
-   NURBSPatch(Array<const KnotVector *> &kv_,  int dim_,
+   NURBSPatch(Array<const KnotVector *> &kv_, int dim_,
               const real_t* control_points);
 
    /// Constructor for a patch of dimension equal to the size of @a kv.
@@ -701,7 +713,8 @@ public:
 
    NURBSExtension(Mesh *mesh_array[], int num_pieces);
 
-   NURBSExtension(const Mesh *patch_topology, const Array<const NURBSPatch*> p);
+   NURBSExtension(const Mesh *patch_topology,
+                  const Array<const NURBSPatch*> &patches_);
 
    /// Copy assignment not supported.
    NURBSExtension& operator=(const NURBSExtension&) = delete;
