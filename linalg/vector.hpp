@@ -631,10 +631,11 @@ inline void Vector::Reserve(int res)
 {
    if (res > Capacity())
    {
-      Vector copy = *this;
-      SetSize(res);
-      SetVector(copy, 0);
-      SetSize(copy.Size());
+      Memory<T> p(res, data.GetMemoryType());
+      p.CopyFrom(data, size);
+      p.UseDevice(data.UseDevice());
+      data.Delete();
+      data = p;
    }
 }
 
