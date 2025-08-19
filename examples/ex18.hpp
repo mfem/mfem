@@ -22,6 +22,7 @@
 //
 
 #include <functional>
+#include <list>
 #include "mfem.hpp"
 
 namespace mfem
@@ -38,6 +39,7 @@ private:
    std::unique_ptr<HyperbolicFormIntegrator> formIntegrator;
    // Base Nonlinear Form
    std::unique_ptr<NonlinearForm> nonlinearForm;
+   std::list<std::unique_ptr<NonlinearFormIntegrator>> rhsIntegrators;
    std::unique_ptr<LinearFormIntegrator> rhsIntegrator;
    std::unique_ptr<LinearForm> rhsForm;
    // element-wise inverse mass matrix
@@ -67,7 +69,9 @@ public:
       std::unique_ptr<HyperbolicFormIntegrator> formIntegrator_,
       bool preassembleWeakDivergence=true);
 
-   void AddBdrTerm(Array<int> &ess_bdr);
+   void AddBdrTerm(std::unique_ptr<NonlinearFormIntegrator> nlfi,
+                   Array<int> &bdr_marker);
+   void AddBdrTerm(Array<int> &bdr_marker);
    void AddRhs(std::unique_ptr<LinearFormIntegrator> rhs_, Array<int> &bdr_marker);
 
    /**
@@ -126,6 +130,13 @@ DGHyperbolicConservationLaws::DGHyperbolicConservationLaws(
    nonlinearForm->AddInteriorFaceIntegrator(formIntegrator.get());
    nonlinearForm->UseExternalIntegrators();
 
+}
+
+inline void DGHyperbolicConservationLaws::AddBdrTerm(
+   std::unique_ptr<NonlinearFormIntegrator> nlfi, Array<int> &bdr_marker)
+{
+   nonlinearForm->AddBdrFaceIntegrator(nlfi.get(), bdr_marker);
+   rhsIntegrators.emplace_back(std::move(nlfi));
 }
 
 inline void DGHyperbolicConservationLaws::AddBdrTerm(Array<int> &bdr_marker)

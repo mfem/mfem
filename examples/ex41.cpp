@@ -70,6 +70,7 @@ int main(int argc, char *argv[])
    const char *device_config = "cpu";
    int ode_solver_type = 1;
    int limiter_type = 2;
+   bool nlbc = false;
    real_t t_final = 1;
    real_t dt = 1e-4;
    bool visualization = true;
@@ -96,6 +97,9 @@ int main(int argc, char *argv[])
                   "Limiter: 0 - None,\n\t"
                   "         1 - Discrete,\n\t"
                   "         2 - Continuous");
+   args.AddOption(&nlbc, "-nlbc", "--nonlinear-bc", "-no-nlbc",
+                  "--no-nonlinear-bc",
+                  "Enable or disable nonlinear Dirichlet BC.");
    args.AddOption(&t_final, "-tf", "--t-final",
                   "Final time; start time is 0.");
    args.AddOption(&dt, "-dt", "--time-step",
@@ -200,8 +204,14 @@ int main(int argc, char *argv[])
    Array<int> dirichlet_bdr(mesh.bdr_attributes.Max());
    dirichlet_bdr = 0;
    dirichlet_bdr[0] = 1;
-   adv.AddRhs(std::unique_ptr<LinearFormIntegrator>(
-                 new BoundaryHyperbolicLFIntegrator(flux, u_bc)), dirichlet_bdr);
+   if (nlbc)
+   {
+      adv.AddBdrTerm(std::unique_ptr<NonlinearFormIntegrator>(
+                        new BdrHyperbolicFormIntegrator(numericalFlux, u_bc)), dirichlet_bdr);
+   }
+   else
+      adv.AddRhs(std::unique_ptr<LinearFormIntegrator>(
+                    new BoundaryHyperbolicLFIntegrator(flux, u_bc)), dirichlet_bdr);
 
    Array<int> free_bdr(mesh.bdr_attributes.Max());
    free_bdr = 0;
