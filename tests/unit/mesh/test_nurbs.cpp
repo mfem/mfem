@@ -145,3 +145,19 @@ TEST_CASE("NURBS NC-patch mesh loading", "[NURBS]")
    mesh.NURBSUniformRefinement();
    REQUIRE(mesh.GetNE() == ne * std::pow(2, dim));
 }
+
+TEST_CASE("NURBS NC-patch large meshes", "[MFEMData][NURBS]")
+{
+   auto mesh_fname = GENERATE("bricks2D.mesh",
+                              "schwarz2D.mesh",
+                              "schwarz3D.mesh");
+
+   const std::string & fpath = (mfem_data_dir + "/nurbs/nc_patch/");
+
+   Mesh mesh(fpath + mesh_fname, 1, 1);
+   const int dim = mesh.Dimension();
+   const int ne = mesh.GetNE();
+
+   mesh.NURBSUniformRefinement();
+   REQUIRE(mesh.GetNE() == ne * std::pow(2, dim));
+}
