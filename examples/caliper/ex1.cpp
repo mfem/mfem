@@ -39,7 +39,7 @@
 //               ex1 -pa -d ceed-cuda:/gpu/cuda/shared
 //               ex1 -m ../data/beam-hex.mesh -pa -d cuda
 //               ex1 -m ../data/beam-tet.mesh -pa -d ceed-cpu
-//               ex1 -m ../data/beam-tet.mesh -pa -d ceed-cuda
+//               ex1 -m ../data/beam-tet.mesh -pa -d ceed-cuda:/gpu/cuda/ref
 //
 // Description: This example is a copy of Example 1 instrumented with the
 //              Caliper performance profilinh library. Any option supported by
