@@ -101,7 +101,10 @@ FiniteElementSpace::FiniteElementSpace(const FiniteElementSpace &orig,
 FiniteElementSpace::FiniteElementSpace(Mesh *mesh,
                                        const FiniteElementCollection *fec,
                                        int vdim, int ordering)
-{ Constructor(mesh, NULL, fec, vdim, ordering); }
+{
+   MFEM_PERF_FUNCTION;
+   Constructor(mesh, NULL, fec, vdim, ordering);
+}
 
 FiniteElementSpace::FiniteElementSpace(Mesh *mesh, NURBSExtension *ext,
                                        const FiniteElementCollection *fec,
@@ -392,6 +395,8 @@ void FiniteElementSpace::GetEdgeInteriorVDofs(int i, Array<int> &vdofs) const
 void FiniteElementSpace::BuildElementToDofTable() const
 {
    if (elem_dof) { return; }
+
+   MFEM_PERF_FUNCTION;
 
    // TODO: can we call GetElementDofs only once per element?
    Table *el_dof = new Table;
@@ -2748,6 +2753,8 @@ void FiniteElementSpace::BuildNURBSFaceToDofTable() const
 
 void FiniteElementSpace::Construct()
 {
+   MFEM_PERF_FUNCTION;
+
    // This method should be used only for non-NURBS spaces.
    MFEM_VERIFY(!NURBSext, "internal error");
 
