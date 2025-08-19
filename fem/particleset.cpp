@@ -48,6 +48,11 @@ Particle::Particle(int dim, const Array<int> &field_vdims, int num_tags)
 
 }
 
+void Particle::SetTagRef(int t, int *tag_data)
+{
+   tags[t].MakeRef(tag_data, 1);
+}
+
 bool Particle::operator==(const Particle &rhs) const
 {
    if (coords.Size() != rhs.coords.Size())
@@ -647,8 +652,7 @@ Particle ParticleSet::GetParticleRef(int i)
 
    for (int t = 0; t < GetNT(); t++)
    {
-      p.TagMemory(t).Delete();
-      p.TagMemory(t).MakeAlias((*tags[t]).GetMemory(), i, 1);
+      p.SetTagRef(t, &(*tags[t])[i]);
    }
 
    return p;

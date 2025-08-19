@@ -42,7 +42,7 @@ class Particle
 protected:
    Vector coords;
    std::vector<Vector> fields;
-   std::vector<Memory<int>> tags;
+   std::vector<Array<int>> tags;
 public:
 
    /** @brief Construct a Particle instance
@@ -88,8 +88,8 @@ public:
    /// Get const reference to tag \p t .
    const int& Tag(int t) const { return tags[t][0]; }
 
-   /// Get reference to underlying memory object of tag \p t .
-   Memory<int>& TagMemory(int t) { return tags[t]; }
+   /// Set tag \p t to reference external data.
+   void SetTagRef(int t, int *tag_data);
 
    /// Particle equality operator.
    bool operator==(const Particle &rhs) const;

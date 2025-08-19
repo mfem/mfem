@@ -160,6 +160,26 @@ TEST_CASE("Adding + Removing Particles",
    TestAddRemove(Ordering::byVDIM);
 }
 
+TEST_CASE("Get Particle Reference", "[ParticleSet]")
+{
+   int seed = 17;
+   Particle p1(SpaceDim, FieldVDims, NumTags);
+   InitializeRandom(p1, seed);
+
+   ParticleSet pset(1, SpaceDim, FieldVDims, NumTags, Ordering::byVDIM);
+   Particle p2_copy_0 = pset.GetParticle(0);
+   InitializeRandom(p2_copy_0, seed+1);
+   pset.SetParticle(0, p2_copy_0);
+
+   Particle p2_ref = pset.GetParticleRef(0);
+   InitializeRandom(p2_ref, seed);
+
+   Particle p2_copy_f = pset.GetParticle(0);
+
+   REQUIRE(p1 == p2_copy_f);
+
+}
+
 #if defined(MFEM_USE_MPI) && defined(MFEM_USE_GSLIB)
 
 static constexpr int N_e = 10;
