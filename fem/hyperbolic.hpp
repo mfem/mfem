@@ -413,6 +413,109 @@ public:
 };
 
 /**
+ * @brief Abstract boundary hyperbolic form integrator, assembling
+ * <F̂(u⁻,u_b,x) n, [v]> term for scalar finite elements at the boundary.
+ *
+ * This form integrator is coupled with a NumericalFlux that implements the
+ * numerical flux F̂ at the boundary faces. The flux F is obtained from the
+ * FluxFunction assigned to the aforementioned NumericalFlux with the given
+ * boundary coefficient for the state u_b.
+ */
+class BdrHyperbolicFormIntegrator : public NonlinearFormIntegrator
+{
+private:
+   const NumericalFlux &numFlux;    // Numerical flux that maps F to F̂
+   const FluxFunction &fluxFunction;
+   Coefficient *u_coeff;            // Boundary state coefficient
+   VectorCoefficient *u_vcoeff;     // Boundary state vector coefficient
+   const int IntOrderOffset; // integration order offset, 2*p + IntOrderOffset.
+   const real_t sign;
+
+   // The maximum characteristic speed, updated during element/face vector assembly
+   real_t max_char_speed;
+
+#ifndef MFEM_THREAD_SAFE
+   // Local storage for element integration
+   Vector shape;  // shape function value at an integration point
+   Vector state_in;  // state value at an integration point - interior
+   Vector state_out;  // state value at an integration point - boundary
+   Vector nor;     // normal vector, see mfem::CalcOrtho()
+   Vector fluxN;   // F̂(u⁻,u_b,x) n
+   DenseMatrix JDotN;   // Ĵ(u⁻,u_b,x) n
+#endif
+
+public:
+   const int num_equations;  // the number of equations
+
+   /**
+    * @brief Construct a new BdrHyperbolicFormIntegrator object
+    *
+    * @param[in] numFlux numerical flux
+    * @param[in] bdrState boundary state coefficient
+    * @param[in] IntOrderOffset integration order offset
+    * @param[in] sign sign of the convection term
+    */
+   BdrHyperbolicFormIntegrator(
+      const NumericalFlux &numFlux,
+      Coefficient &bdrState,
+      const int IntOrderOffset = 0,
+      const real_t sign = 1.);
+
+   /**
+    * @brief Construct a new BdrHyperbolicFormIntegrator object
+    *
+    * @param[in] numFlux numerical flux
+    * @param[in] bdrState boundary state coefficient
+    * @param[in] IntOrderOffset integration order offset
+    * @param[in] sign sign of the convection term
+    */
+   BdrHyperbolicFormIntegrator(
+      const NumericalFlux &numFlux,
+      VectorCoefficient &bdrState,
+      const int IntOrderOffset = 0,
+      const real_t sign = 1.);
+
+   /// Reset the maximum characteristic speed to zero
+   void ResetMaxCharSpeed() { max_char_speed = 0.0; }
+
+   /// Get the maximum characteristic speed
+   real_t GetMaxCharSpeed() const { return max_char_speed; }
+
+   /// Get the associated flux function
+   const FluxFunction &GetFluxFunction() const { return fluxFunction; }
+
+   /**
+    * @brief Implements <-F̂(u⁻,u_b,x) n, [v]> with abstract F̂ computed by
+    * NumericalFlux::Eval() of the numerical flux object
+    *
+    * @param[in] el1 finite element of the interior element
+    * @param[in] el2 not used
+    * @param[in] Tr face element transformations
+    * @param[in] elfun local coefficient of basis for the interior element
+    * @param[out] elvect evaluated dual vector <-F̂(u⁻,u_b,x) n, [v]>
+    */
+   void AssembleFaceVector(const FiniteElement &el1,
+                           const FiniteElement &el2,
+                           FaceElementTransformations &Tr,
+                           const Vector &elfun, Vector &elvect) override;
+
+   /**
+    * @brief Implements <-Ĵ(u⁻,u_b,x) n, [v]> with abstract Ĵ computed by
+    * NumericalFlux::Grad() of the numerical flux object
+    *
+    * @param[in] el1 finite element of the interior element
+    * @param[in] el2 not used
+    * @param[in] Tr face element transformations
+    * @param[in] elfun local coefficient of basis for the interior element
+    * @param[out] elmat evaluated Jacobian matrix <-Ĵ(u⁻,u_b,x) n, [v]>
+    */
+   void AssembleFaceGrad(const FiniteElement &el1,
+                         const FiniteElement &el2,
+                         FaceElementTransformations &Tr,
+                         const Vector &elfun, DenseMatrix &elmat) override;
+};
+
+/**
  * @brief Abstract boundary hyperbolic linear form integrator, assembling
  * <-F(u,x) n, v> terms for scalar finite elements.
  *
