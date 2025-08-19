@@ -211,6 +211,9 @@ public:
    /// Delete the first entry with value == 'el'.
    inline void DeleteFirst(const T &el);
 
+   /// Delete entries at @a indices, and resize.
+   inline void DeleteAt(const Array<int> &indices);
+
    /// Delete the whole array.
    inline void DeleteAll();
 
@@ -933,6 +936,30 @@ inline void Array<T>::DeleteFirst(const T &el)
          return;
       }
    }
+}
+
+template <class T>
+inline void Array<T>::DeleteAt(const Array<int> &indices)
+{
+   // Make a copy of the indices, sorted.
+   Array<int> sorted_indices(indices);
+   sorted_indices.Sort();
+
+   int rm_count = 0;
+   for (int i = 0; i < size; i++)
+   {
+      if (rm_count < sorted_indices.Size() && i == sorted_indices[rm_count])
+      {
+         rm_count++;
+      }
+      else
+      {
+         data[i-rm_count] = data[i]; // shift data rm_count
+      }
+   }
+
+   // Resize to remove tail
+   size -= rm_count;
 }
 
 template <class T>
