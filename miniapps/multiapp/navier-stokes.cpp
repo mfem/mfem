@@ -67,8 +67,8 @@ int main(int argc, char *argv[])
         p_ess_attr.SetSize(parent_mesh.bdr_attributes.Max());
         
         u_ess_attr = 1;
-        u_ess_attr[1] = 0;
-        u_ess_attr[4] = 0;
+        u_ess_attr[1] = 0; // outlet
+        u_ess_attr[4] = 0; // beam wall
         p_ess_attr = 0;
         p_ess_attr[1] = 1;      
     }
@@ -96,7 +96,9 @@ int main(int argc, char *argv[])
 
     real_t nu = 1.0e-3; // Kinematic viscosity
     real_t rho = 1.0; // Density
-    NavierStokes nse(u_fes, p_fes, u_ess_attr, p_ess_attr, rho, nu);
+    real_t compressibility = 1e-4; // Artificial Compressibility for Navier-Stokes
+
+    NavierStokes nse(u_fes, p_fes, u_ess_attr, p_ess_attr, rho, nu, compressibility);
 
     ParGridFunction &p_gf = nse.p_gf;   p_gf = 0.0;
     ParGridFunction &u_gf = nse.u_gf;   u_gf = 0.0;

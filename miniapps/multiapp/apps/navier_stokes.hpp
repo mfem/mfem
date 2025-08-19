@@ -144,9 +144,10 @@ public:
    Array<int> u_ess_attr, p_ess_attr;
    Array<int> u_ess_tdofs, p_ess_tdofs;
 
-   ConstantCoefficient viscosity, density, inv_density; // Fluid properties
+   ConstantCoefficient viscosity, density, inv_density, compressibility; // Fluid properties
 
    mutable ParGridFunction u_gf, p_gf; ///< Grid function for the velocity and pressure
+   mutable ParGridFunction p_gf_trans; ///< Pressure Grid function for transfer
 
    mutable ParBilinearForm Mpform, Muform, Kuform; ///< Mass and Stiffness forms
    mutable ParMixedBilinearForm Gform, Dform;   ///< Divergence and Gradient forms
@@ -160,7 +161,7 @@ public:
    FGMRESSolver linear_solver;
    NewtonSolver newton_solver;
 
-   mutable OperatorHandle Mumat;
+   mutable OperatorHandle Mumat, Mpmat;
    mutable OperatorHandle Kumat, Dmat, Gmat;
    mutable OperatorHandle Kumat_e, Dmat_e, Gmat_e, Mpmat_e;
 
@@ -187,7 +188,9 @@ public:
    DeviatoricStressCoefficient stress_coeff;
    ParGridFunction stress_gf;
 
-   bool partial_assembly = true; ///< Flag for partial assembly of the Navier-Stokes operator
+
+   bool stage_coupled = false; ///< Flag for coupled mode (e.g., FSI)   
+   Vector kt;
 
 public:
    NavierStokes(ParFiniteElementSpace &u_fes_,
@@ -195,7 +198,8 @@ public:
                 Array<int> u_ess_attr,
                 Array<int> p_ess_attr,
                 real_t density_ = 1.0,
-                real_t viscosity_ = 1.0) :
+                real_t viscosity_ = 1.0,
+                real_t compressibility_ = 1.0) :
                 Application(u_fes_.GetTrueVSize()+p_fes_.GetTrueVSize()),
                 mesh(*p_fes_.GetParMesh()),
                 u_fes(u_fes_),
@@ -205,8 +209,10 @@ public:
                 viscosity(viscosity_),
                 density(density_),
                 inv_density(1.0/density_),
+                compressibility(compressibility_),
                 u_gf(ParGridFunction(&u_fes)),
                 p_gf(ParGridFunction(&p_fes)),
+                p_gf_trans(ParGridFunction(&p_fes)),
                 Mpform(&p_fes), Muform(&u_fes),
                 Kuform(&u_fes),
                 Gform(&p_fes, &u_fes),
@@ -216,7 +222,7 @@ public:
                 linear_solver(MPI_COMM_WORLD),
                 newton_solver(MPI_COMM_WORLD),
                 zero(0.0), one(1.0), negative_one(-1.0), inv_dtc(1.0),
-                stress_coeff(&p_gf, &u_gf, &viscosity, &density),
+                stress_coeff(&p_gf_trans, &u_gf, &viscosity, &density),
                 stress_gf(&u_fes)
                 // , gravity(Vector({0.0, 0.0, -9.81}))
    {
@@ -231,7 +237,7 @@ public:
         ir    = intrules.Get(geom_type, (int)(2*(u_fes.GetOrder(0)+1) - 3));
         ir_nl = intrules.Get(geom_type, (int)(ceil(1.5 * 2*(u_fes.GetOrder(0)+1) - 3)));
 
-        Mpform.AddDomainIntegrator(new MassIntegrator(zero,&ir));
+        Mpform.AddDomainIntegrator(new MassIntegrator(compressibility,&ir));
         Muform.AddDomainIntegrator(new VectorMassIntegrator(&ir));
         // Kuform.AddDomainIntegrator(new VectorDiffusionIntegrator(viscosity, &ir));
         Gform.AddDomainIntegrator(new GradientIntegrator(inv_density, &ir));
@@ -274,6 +280,7 @@ public:
         Dform.FormRectangularSystemMatrix(u_ess_tdofs, p_ess_tdofs, Dmat_e);
 
         Array<int> empty;        
+        Mpform.FormSystemMatrix(empty, Mpmat);
         Muform.FormSystemMatrix(empty, Mumat);
         Gform.FormRectangularSystemMatrix(empty, empty, Gmat);
         Dform.FormRectangularSystemMatrix(empty, empty, Dmat);
@@ -283,6 +290,7 @@ public:
         implicit_op->SetBlock(0, 0, &Nform);
         implicit_op->SetBlock(0, 1, Gmat.Ptr());
         implicit_op->SetBlock(1, 0, Dmat.Ptr());
+        // implicit_op->SetBlock(1, 1, Mpmat.Ptr());
 
         
         implicit_grad = new BlockOperator(offsets);
@@ -302,7 +310,7 @@ public:
         linear_solver.iterative_mode = false;
         linear_solver.SetRelTol(1e-4);
         linear_solver.SetAbsTol(1e-4);
-        linear_solver.SetMaxIter(1000);
+        linear_solver.SetMaxIter(500);
         linear_solver.SetKDim(300);
         linear_solver.SetPrintLevel(0);
         pc = new BlockLowerTriangularPreconditioner(offsets);
@@ -318,7 +326,6 @@ public:
         newton_solver.SetPrintLevel(0);
         newton_solver.SetOperator(*newton_residual);
         newton_solver.SetPreconditioner(linear_solver);
-
    }
 
    void UpdatePreconditioner() const
@@ -331,9 +338,7 @@ public:
       amg->SetSystemsOptions(2, true);
       amg->SetPrintLevel(0);
       Nu_pc = amg;
-
       pc->SetBlock(0, 0, Nu_pc);
-    //   pc->SetBlock(0, 0, &implicit_grad->GetBlock(0, 0));
    }
 
    Operator& GetGradient(const Vector &x) const override
@@ -378,13 +383,31 @@ public:
             current_dt = dt;
             Assemble();
         }
+
+        const bool newton_iterative_mode = newton_solver.iterative_mode;
+        if(stage_coupled)
+        { // In stage-coupled mode, we have to impose the BC through `k' (instead of `u')
+          // since ImplicitSolve() solves for k (i.e. dudt). we impose velocity boundary 
+          // condition (BC) through the initial guess in the Newton solve, with the residual
+          // at the ess_dofs set to zero.
+            newton_solver.iterative_mode = true;
+            kt.SetSize(u_fes.GetTrueVSize());
+            u_gf.GetTrueDofs(kt); // u_gf contains the BC if transferred from other apps
+            kt -= ub.GetBlock(0); // kt = u_bc - u_i 
+            kt /= dt;             // kt = (u_bc - u_i)/dt (kt now contains the velocity BC in k)
+            // k = 0.0;
+            kb.GetBlock(0).SetSubVector(u_ess_tdofs, kt); // Set initial guess for ess_dofs
+        }
         
         Vector zero_vec;
         newton_residual->SetTimeStep(dt);
         newton_residual->SetState(&u);
         newton_solver.Mult(zero_vec, k); // Solve the nonlinear system
+        newton_solver.iterative_mode = newton_iterative_mode; // Reset the newton solve to the original mode
 
-        kb.GetBlock(0).SetSubVector(u_ess_tdofs, 0.0);
+        if(!stage_coupled){
+            kb.GetBlock(0).SetSubVector(u_ess_tdofs, 0.0);
+        }
         kb.GetBlock(1).SetSubVector(p_ess_tdofs, 0.0);
    }
 
@@ -398,6 +421,7 @@ public:
         // Apply the implicit operator
         implicit_op->Mult(xb, vb); // v = A(x)
         Mumat->AddMult(kb.GetBlock(0), vb.GetBlock(0), 1.0); // v = A(x) + M*k
+        Mpmat->AddMult(kb.GetBlock(1), vb.GetBlock(1), 1.0); // v = A(x) + M*k
 
         if(use_gravity)
         {   // Add the forcing term to the velocity block
@@ -441,21 +465,33 @@ public:
 
     void PreProcess(Vector &x) override
     {
-        BlockVector xb(x.GetData(), offsets);
-        u_gf.GetTrueDofs(xb.GetBlock(0));
-        stress_gf.ProjectBdrCoefficient(stress_coeff,u_ess_attr);
+        if(operation_id == OperationID::NONE || operation_id == OperationID::STEP)
+        {   // Only do this pre-processing for operations that are not for multi-stage 
+            // time stepping
+            BlockVector xb(x.GetData(), offsets);
+            u_gf.GetTrueDofs(xb.GetBlock(0));
+            p_gf.GetTrueDofs(xb.GetBlock(1));
+        }
     }
 
     void PostProcess(Vector &x) override
     {
-        BlockVector xb(x.GetData(), offsets);
-        u_gf.SetFromTrueDofs(xb.GetBlock(0));
-        p_gf.SetFromTrueDofs(xb.GetBlock(1));
-        stress_gf.ProjectBdrCoefficient(stress_coeff,u_ess_attr);
+        if(operation_id == OperationID::NONE || operation_id == OperationID::STEP)
+        {   // Only do this pre-processing for operations that are not for multi-stage 
+            // time stepping
+            BlockVector xb(x.GetData(), offsets);
+            u_gf.SetFromTrueDofs(xb.GetBlock(0));
+            p_gf.SetFromTrueDofs(xb.GetBlock(1));
+            p_gf_trans.SetFromTrueDofs(xb.GetBlock(1));
+            stress_gf.ProjectBdrCoefficient(stress_coeff,u_ess_attr);
+        }
     }
 
     void Transfer(const Vector &x) override
     {
+        BlockVector xb(x.GetData(), offsets);
+        p_gf_trans.SetFromTrueDofs(xb.GetBlock(1));
+        stress_gf.ProjectBdrCoefficient(stress_coeff,u_ess_attr);
         Application::Transfer();
     }
 
