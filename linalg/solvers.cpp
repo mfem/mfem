@@ -55,6 +55,8 @@ IterativeSolver::IterativeSolver(MPI_Comm comm_)
 
 real_t IterativeSolver::Dot(const Vector &x, const Vector &y) const
 {
+   MFEM_PERF_FUNCTION;
+
 #ifndef MFEM_USE_MPI
    return (x * y);
 #else
@@ -373,7 +375,7 @@ OperatorChebyshevSmoother::OperatorChebyshevSmoother(const Operator &oper_,
                                                      real_t power_tolerance,
                                                      int power_seed)
 #endif
-   : Solver(d.Size()),
+   : Solver((MFEM_PERF_BEGIN(_MFEM_FUNC_NAME), d.Size())),
      order(order_),
      N(d.Size()),
      dinv(N),
@@ -400,6 +402,7 @@ OperatorChebyshevSmoother::OperatorChebyshevSmoother(const Operator &oper_,
                                                             power_seed);
 
    Setup();
+   MFEM_PERF_END(_MFEM_FUNC_NAME);
 }
 
 OperatorChebyshevSmoother::OperatorChebyshevSmoother(const Operator* oper_,
@@ -521,6 +524,8 @@ void OperatorChebyshevSmoother::SetOrder(int new_order)
 
 void OperatorChebyshevSmoother::Mult(const Vector& x, Vector &y) const
 {
+   MFEM_PERF_FUNCTION;
+
    if (iterative_mode)
    {
       MFEM_ABORT("Chebyshev smoother not implemented for iterative mode");

@@ -175,6 +175,56 @@ real_t w_xx(int n, real_t x)
 
 #endif // CEED_SOLVER_BP_SOLUTION_OPTION
 
+using BPSFunctionType = real_t(*)(int n, const real_t *xyz);
+
+template <BPSFunctionType F>
+void ProjectBPSFunction(int n, QuadratureFunction &qf)
+{
+   MFEM_PERF_FUNCTION;
+   QuadratureSpaceBase &qs = *qf.GetSpace();
+   Mesh &mesh = *qs.GetMesh();
+   const IntegrationRule &ir = qs.GetIntRule(0);
+
+   auto *geom = mesh.GetGeometricFactors(ir, GeometricFactors::COORDINATES);
+
+   const int dim = qs.GetMesh()->Dimension();
+   const int nq = ir.Size();
+   const int N = qf.Size();
+
+   const real_t *d_x = geom->X.Read();
+   real_t *d_q = qf.Write();
+
+   mfem::forall(N, [=] MFEM_HOST_DEVICE (int ii)
+   {
+      const int i = ii / nq;
+      const int j = ii % nq;
+      real_t xvec[3];
+      for (int d = 0; d < dim; ++d)
+      {
+         xvec[d] = d_x[j + d*nq + i*dim*nq];
+      }
+      d_q[ii] = F(n, xvec);
+   });
+}
+
+MFEM_HOST_DEVICE inline
+real_t sol_1d(const int n, const real_t *xyz)
+{
+   return w(n, xyz[0]);
+}
+
+MFEM_HOST_DEVICE inline
+real_t sol_2d(const int n, const real_t *xyz)
+{
+   return w(n, xyz[0])*w(n, xyz[1]);
+}
+
+MFEM_HOST_DEVICE inline
+real_t sol_3d(const int n, const real_t *xyz)
+{
+   return w(n, xyz[0])*w(n, xyz[1])*w(n, xyz[2]);
+}
+
 struct ExactSolution : Coefficient
 {
    int dim, n;
@@ -196,6 +246,17 @@ struct ExactSolution : Coefficient
       else // dim == 3
       {
          return w(n, xyz[0])*w(n, xyz[1])*w(n, xyz[2]);
+      }
+   }
+
+   void Project(QuadratureFunction &qf) override
+   {
+      switch (dim)
+      {
+         case 1: ProjectBPSFunction<sol_1d>(n, qf); break;
+         case 2: ProjectBPSFunction<sol_2d>(n, qf); break;
+         case 3: ProjectBPSFunction<sol_3d>(n, qf); break;
+         default: MFEM_ABORT("Unsupported dimension.");
       }
    }
 };
@@ -254,45 +315,14 @@ real_t rhs_3d(const int n, const real_t *xyz)
           - w(n, xyz[0])*w(n, xyz[1])*w_xx(n, xyz[2]);
 }
 
-using RHSFunctionType = real_t(*)(int dim, const real_t *xyz);
-
-template <RHSFunctionType F>
-void ProjectRHS_(int n, QuadratureFunction &qf)
-{
-   QuadratureSpaceBase &qs = *qf.GetSpace();
-   Mesh &mesh = *qs.GetMesh();
-   const IntegrationRule &ir = qs.GetIntRule(0);
-
-   auto *geom = mesh.GetGeometricFactors(ir, GeometricFactors::COORDINATES);
-
-   const int dim = qs.GetMesh()->Dimension();
-   const int nq = ir.Size();
-   const int N = qf.Size();
-
-   const real_t *d_x = geom->X.Read();
-   real_t *d_q = qf.Write();
-
-   mfem::forall(N, [=] MFEM_HOST_DEVICE (int ii)
-   {
-      const int i = ii / nq;
-      const int j = ii % nq;
-      real_t xvec[3];
-      for (int d = 0; d < dim; ++d)
-      {
-         xvec[d] = d_x[j + d*nq + i*dim*nq];
-      }
-      d_q[ii] = F(n, xvec);
-   });
-}
-
 void ProjectRHS(int n, QuadratureFunction &qf)
 {
    const int dim = qf.GetSpace()->GetMesh()->Dimension();
    switch (dim)
    {
-      case 1: ProjectRHS_<rhs_1d>(n, qf); break;
-      case 2: ProjectRHS_<rhs_2d>(n, qf); break;
-      case 3: ProjectRHS_<rhs_3d>(n, qf); break;
+      case 1: ProjectBPSFunction<rhs_1d>(n, qf); break;
+      case 2: ProjectBPSFunction<rhs_2d>(n, qf); break;
+      case 3: ProjectBPSFunction<rhs_3d>(n, qf); break;
       default: MFEM_ABORT("Unsupported dimension.");
    }
 }

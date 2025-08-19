@@ -96,17 +96,33 @@ void QuadratureSpaceBase::Integrate(VectorCoefficient &coeff,
 
 void QuadratureSpace::ConstructOffsets()
 {
+   MFEM_PERF_FUNCTION;
    const int num_elem = mesh.GetNE();
-   offsets.SetSize(num_elem + 1);
-   int offset = 0;
-   for (int i = 0; i < num_elem; i++)
+   ne = num_elem;
+
+   if (mesh.GetNumGeometries(mesh.Dimension()) == 1)
    {
-      offsets[i] = offset;
-      int geom = mesh.GetElementBaseGeometry(i);
-      MFEM_ASSERT(int_rule[geom] != NULL, "Missing integration rule.");
-      offset += int_rule[geom]->GetNPoints();
+      Array<Geometry::Type> geoms;
+      mesh.GetGeometries(mesh.Dimension(), geoms);
+      offsets.SetSize(1);
+      offsets.HostWrite();
+      offsets[0] = int_rule[geoms[0]]->GetNPoints();
+      size = num_elem * offsets[0];
    }
-   offsets[num_elem] = size = offset;
+   else
+   {
+      offsets.SetSize(num_elem + 1);
+      int offset = 0;
+      for (int i = 0; i < num_elem; i++)
+      {
+         offsets[i] = offset;
+         const Geometry::Type geom = mesh.GetElementBaseGeometry(i);
+         MFEM_ASSERT(int_rule[geom] != NULL, "Missing integration rule.");
+         offset += int_rule[geom]->GetNPoints();
+      }
+      offsets[num_elem] = offset;
+      size = offsets.Last();
+   }
 }
 
 void QuadratureSpace::Construct()
@@ -188,6 +204,7 @@ void FaceQuadratureSpace::ConstructOffsets()
 {
    face_indices.SetSize(num_faces);
    offsets.SetSize(num_faces + 1);
+   ne = num_faces;
    int offset = 0;
    int f_idx = 0;
    for (int i = 0; i < mesh.GetNumFacesWithGhost(); i++)

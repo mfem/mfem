@@ -117,7 +117,7 @@ Vector::Vector(const Vector &v)
    UseDevice(v.UseDevice());
 }
 
-Vector::Vector(Vector &&v)
+Vector::Vector(Vector &&v) : Vector()
 {
    *this = std::move(v);
 }
@@ -205,14 +205,16 @@ Vector &Vector::operator=(const Vector &v)
    data.CopyFrom(v.data, v.Size());
    UseDevice(v.UseDevice());
 #else
-   SetSize(v.Size());
    const bool vuse = v.UseDevice();
    const bool use_dev = UseDevice() || vuse;
+   if (use_dev) { MFEM_PERF_BEGIN(_MFEM_FUNC_NAME); }
+   SetSize(v.Size());
    v.UseDevice(use_dev);
    // keep 'data' where it is, unless 'use_dev' is true
    if (use_dev) { Write(); }
    data.CopyFrom(v.data, v.Size());
    v.UseDevice(vuse);
+   if (use_dev) { MFEM_PERF_END(_MFEM_FUNC_NAME); }
 #endif
    return *this;
 }
@@ -227,9 +229,11 @@ Vector &Vector::operator=(Vector &&v)
 Vector &Vector::operator=(real_t value)
 {
    const bool use_dev = UseDevice();
+   if (use_dev) { MFEM_PERF_BEGIN(_MFEM_FUNC_NAME); }
    const int N = size;
    auto y = Write(use_dev);
    mfem::forall_switch(use_dev, N, [=] MFEM_HOST_DEVICE (int i) { y[i] = value; });
+   if (use_dev) { MFEM_PERF_END(_MFEM_FUNC_NAME); }
    return *this;
 }
 
@@ -290,10 +294,12 @@ Vector &Vector::operator-=(const Vector &v)
    MFEM_ASSERT(size == v.size, "incompatible Vectors!");
 
    const bool use_dev = UseDevice() || v.UseDevice();
+   if (use_dev) { MFEM_PERF_BEGIN(_MFEM_FUNC_NAME); }
    const int N = size;
    const auto x = v.Read(use_dev);
    auto y = ReadWrite(use_dev);
    mfem::forall_switch(use_dev, N, [=] MFEM_HOST_DEVICE (int i) { y[i] -= x[i]; });
+   if (use_dev) { MFEM_PERF_END(_MFEM_FUNC_NAME); }
    return *this;
 }
 
@@ -311,10 +317,12 @@ Vector &Vector::operator+=(const Vector &v)
    MFEM_ASSERT(size == v.size, "incompatible Vectors!");
 
    const bool use_dev = UseDevice() || v.UseDevice();
+   if (use_dev) { MFEM_PERF_BEGIN(_MFEM_FUNC_NAME); }
    const int N = size;
    const auto x = v.Read(use_dev);
    auto y = ReadWrite(use_dev);
    mfem::forall_switch(use_dev, N, [=] MFEM_HOST_DEVICE (int i) { y[i] += x[i]; });
+   if (use_dev) { MFEM_PERF_END(_MFEM_FUNC_NAME); }
    return *this;
 }
 
@@ -326,9 +334,11 @@ Vector &Vector::Add(const real_t a, const Vector &Va)
    {
       const int N = size;
       const bool use_dev = UseDevice() || Va.UseDevice();
+      if (use_dev) { MFEM_PERF_BEGIN(_MFEM_FUNC_NAME); }
       const auto x = Va.Read(use_dev);
       auto y = ReadWrite(use_dev);
       mfem::forall_switch(use_dev, N, [=] MFEM_HOST_DEVICE (int i) { y[i] += a * x[i]; });
+      if (use_dev) { MFEM_PERF_END(_MFEM_FUNC_NAME); }
    }
    return *this;
 }
@@ -445,6 +455,7 @@ void add(const Vector &v1, real_t alpha, const Vector &v2, Vector &v)
    {
 #if !defined(MFEM_USE_LEGACY_OPENMP)
       const bool use_dev = v1.UseDevice() || v2.UseDevice() || v.UseDevice();
+      if (use_dev) { MFEM_PERF_BEGIN(_MFEM_FUNC_NAME); }
       const int N = v.size;
       // Note: get read access first, in case v is the same as v1/v2.
       const auto d_x = v1.Read(use_dev);
@@ -454,6 +465,7 @@ void add(const Vector &v1, real_t alpha, const Vector &v2, Vector &v)
       {
          d_z[i] = d_x[i] + alpha * d_y[i];
       });
+      if (use_dev) { MFEM_PERF_END(_MFEM_FUNC_NAME); }
 #else
       const real_t *v1p = v1.data, *v2p = v2.data;
       real_t *vp = v.data;
@@ -569,6 +581,7 @@ void subtract(const Vector &x, const Vector &y, Vector &z)
 
 #if !defined(MFEM_USE_LEGACY_OPENMP)
    const bool use_dev = x.UseDevice() || y.UseDevice() || z.UseDevice();
+   if (use_dev) { MFEM_PERF_BEGIN(_MFEM_FUNC_NAME); }
    const int N = x.size;
    // Note: get read access first, in case z is the same as x/y.
    const auto xd = x.Read(use_dev);
@@ -578,6 +591,7 @@ void subtract(const Vector &x, const Vector &y, Vector &z)
    {
       zd[i] = xd[i] - yd[i];
    });
+   if (use_dev) { MFEM_PERF_END(_MFEM_FUNC_NAME); }
 #else
    const real_t *xp = x.data;
    const real_t *yp = y.data;

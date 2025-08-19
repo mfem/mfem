@@ -764,6 +764,8 @@ void SparseMatrix::Mult(const Vector &x, Vector &y) const
 
 void SparseMatrix::AddMult(const Vector &x, Vector &y, const real_t a) const
 {
+   MFEM_PERF_FUNCTION;
+
    MFEM_ASSERT(width == x.Size(), "Input vector size (" << x.Size()
                << ") must match matrix width (" << width << ")");
    MFEM_ASSERT(height == y.Size(), "Output vector size (" << y.Size()
@@ -964,6 +966,8 @@ void SparseMatrix::MultTranspose(const Vector &x, Vector &y) const
 void SparseMatrix::AddMultTranspose(const Vector &x, Vector &y,
                                     const real_t a) const
 {
+   MFEM_PERF_FUNCTION;
+
    MFEM_ASSERT(height == x.Size(), "Input vector size (" << x.Size()
                << ") must match matrix height (" << height << ")");
    MFEM_ASSERT(width == y.Size(), "Output vector size (" << y.Size()

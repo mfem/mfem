@@ -639,7 +639,7 @@ private:
    const FiniteElementSpace& lFESpace;
    const FiniteElementSpace& hFESpace;
    const Operator * P = nullptr;
-   const SparseMatrix * R = nullptr;
+   const Operator * R = nullptr;
    TransferOperator* localTransferOperator;
    mutable Vector tmpL;
    mutable Vector tmpH;

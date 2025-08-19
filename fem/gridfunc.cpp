@@ -19,6 +19,7 @@
 #include "../mesh/nurbs.hpp"
 #include "../mesh/vtkhdf.hpp"
 #include "../general/text.hpp"
+#include "../general/reducers.hpp"
 
 #ifdef MFEM_USE_MPI
 #include "pfespace.hpp"
@@ -3326,8 +3327,123 @@ real_t GridFunction::ComputeLpError(const real_t p, Coefficient &exsol,
                                     const IntegrationRule *irs[],
                                     const Array<int> *elems) const
 {
+   MFEM_PERF_FUNCTION;
    real_t error = 0.0;
-   const FiniteElement *fe;
+
+   bool device_eval = true;
+   // TODO: check for cases that are not supported on device:
+   //       * mixed meshes
+   //       * meshes with non-tensor-product elements can have negative weights
+   //       * variable orders
+   //       * weight is not NULL
+   //       * elems is not NULL
+   //       * map type is not VALUE
+   //       * ...
+   Mesh *mesh = fes->GetMesh();
+   const FiniteElement *fe = fes->GetTypicalFE();
+   if (mesh->GetNumGeometries(mesh->Dimension()) > 1 ||
+       (mesh->Dimension() > 1 && mesh->MeshGenerator() != 2) ||
+       fes->IsVariableOrder() ||
+       weight != nullptr ||
+       elems != nullptr ||
+       fe->GetMapType() != FiniteElement::MapType::VALUE)
+   {
+      device_eval = false;
+   }
+   if (device_eval)
+   {
+      Geometry::Type geom = mesh->GetTypicalElementGeometry();
+      const IntegrationRule *ir_p;
+      if (irs)
+      {
+         ir_p = irs[geom];
+      }
+      else
+      {
+         int intorder = 2*fe->GetOrder() + 3; // <----------
+         ir_p = &(IntRules.Get(geom, intorder));
+      }
+      const IntegrationRule &ir = *ir_p;
+      QuadratureSpace qs(*mesh, ir);
+      CoefficientVector coeff(exsol, qs, CoefficientStorage::FULL);
+
+      const QVectorLayout ql = QVectorLayout::byNODES;
+      const MemoryType d_mt = MemoryType::DEFAULT;
+      Vector q_vals;
+      // TODO: make this a method
+      {
+         // const FiniteElement *fe = fes->GetTypicalFE();
+         const int vdim = fes->GetVDim();
+         const int NE   = fes->GetNE();
+         const int ND   = fe->GetDof();
+         const int NQ   = ir.GetNPoints();
+         MemoryType my_d_mt = (d_mt != MemoryType::DEFAULT) ? d_mt :
+                              Device::GetDeviceMemoryType();
+         // byNODES : NQPT x VDIM x NE
+         // byVDIM  : VDIM x NQPT x NE
+         q_vals.SetSize(vdim*NQ*NE, my_d_mt);
+         const QuadratureInterpolator &qi = *fes->GetQuadratureInterpolator(ir);
+         qi.SetOutputLayout(ql);
+         const bool use_tensor_products = UsesTensorBasis(*fes);
+         qi.DisableTensorProducts(!use_tensor_products);
+         const ElementDofOrdering e_ordering =
+            use_tensor_products ?
+            ElementDofOrdering::LEXICOGRAPHIC :
+            ElementDofOrdering::NATIVE;
+         const Operator *elem_restr = fes->GetElementRestriction(e_ordering);
+         if (fe->GetMapType() == FiniteElement::MapType::INTEGRAL)
+         {
+            // Pre-compute the geometric factors in order to set the desired
+            // MemoryType they use:
+            fes->GetMesh()->GetGeometricFactors(
+               ir, GeometricFactors::DETERMINANTS, my_d_mt);
+         }
+         if (elem_restr)
+         {
+            Vector f_e(vdim*ND*NE, my_d_mt);
+            elem_restr->Mult(*this, f_e);
+            qi.PhysValues(f_e, q_vals);
+         }
+         else
+         {
+            qi.PhysValues(*this, q_vals);
+         }
+      }
+
+      const real_t *exact_d = coeff.Read();
+      const real_t *gridf_d = q_vals.Read();
+      // FIXME: reuse the workspace vector from vector.cpp?
+      static Array<real_t> workspace;
+      if (p < infinity())
+      {
+         MemoryType my_d_mt = (d_mt != MemoryType::DEFAULT) ? d_mt :
+                              Device::GetDeviceMemoryType();
+         const GeometricFactors *geom_factors =
+            fes->GetMesh()->GetGeometricFactors(
+               ir, GeometricFactors::DETERMINANTS, my_d_mt);
+         const real_t *detJ_d = geom_factors->detJ.Read();
+         const real_t *w_d = ir.GetWeights().Read();
+         const int NQ = ir.GetNPoints();
+         mfem::reduce(q_vals.Size(), error,
+                      [=] MFEM_HOST_DEVICE(int i, real_t &r)
+         {
+            const real_t diff = fabs(exact_d[i] - gridf_d[i]);
+            r += w_d[i%NQ] * detJ_d[i] * pow(diff, p);
+         }, SumReducer<real_t> {}, true, workspace);
+         error = pow(error, 1./p);
+      }
+      else
+      {
+         mfem::reduce(q_vals.Size(), error,
+                      [=] MFEM_HOST_DEVICE(int i, real_t &r)
+         {
+            const real_t diff = fabs(exact_d[i] - gridf_d[i]);
+            r = fmax(r, diff);
+         }, MaxReducer<real_t> {}, true, workspace);
+      }
+      return error;
+   }
+
    ElementTransformation *T;
    Vector vals;
 
