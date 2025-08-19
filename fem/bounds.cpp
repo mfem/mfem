@@ -716,22 +716,16 @@ DenseMatrix PLBound::GetUpperBoundMatrix(int dim)
       Vector phimin, phimax;
       DenseMatrix coeff_mat(nb, nb);
       coeff_mat = 0.0;
-      Vector cx(nb), cy(nb);
-      cx = 0.0;
-      cy = 0.0;
       for (int j = 0; j < nb; j++)
       {
-         cy(j) = 1.0;
          for (int i = 0; i < nb; i++)
          {
-            cx(i) = 1.0;
-            MultVWt(cy, cx, coeff_mat);
+            coeff_mat(i, j) = 1.0;
             Vector coeffvec(coeff_mat.GetData(), nb*nb);
             ubound2D.GetColumnReference(j*nb + i, phimax);
             Get2DBounds(coeffvec, phimin, phimax);
-            cx(i) = 0.0;
+            coeff_mat(i, j) = 0.0;
          }
-         cy(j) = 0.0;
       }
       return ubound2D;
    }
