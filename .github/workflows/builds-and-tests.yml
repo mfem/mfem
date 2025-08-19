@@ -171,7 +171,7 @@ jobs:
       - name: Xcode version setup (MacOS)
         if: matrix.os == 'macos-latest'
         run: |
-          XCODE_PATH="/Applications/Xcode_15.3.app"
+          XCODE_PATH="/Applications/Xcode_16.4.app"
           echo "> sudo xcode-select -s ${XCODE_PATH}"
           sudo xcode-select -s ${XCODE_PATH}
           echo "> g++ -v"
