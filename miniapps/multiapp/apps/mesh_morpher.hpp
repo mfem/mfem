@@ -445,13 +445,21 @@ public:
    }
 
     void PreProcess(Vector &x) override
-    {        
-        x_gf.GetTrueDofs(x);
+    {   
+        if(operation_id == OperationID::NONE || operation_id == OperationID::STEP)
+        {   // Only do this pre-processing for operations that are not for multi-stage 
+            // time stepping
+            x_gf.GetTrueDofs(x);
+        }
     }
 
     void PostProcess(Vector &x) override
-    {        
-        x_gf.SetFromTrueDofs(x);
+    {
+        if(operation_id == OperationID::NONE || operation_id == OperationID::STEP)
+        {   // Only do this pre-processing for operations that are not for multi-stage 
+            // time stepping
+            x_gf.SetFromTrueDofs(x);
+        }
     }
 
 

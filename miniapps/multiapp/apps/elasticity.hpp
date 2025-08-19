@@ -46,6 +46,7 @@ public:
    /// Grid functions for the displacement, velocity, and traction
    mutable ParGridFunction x_gf; ///< displacement
    mutable ParGridFunction u_gf; ///< velocity (dx/dt)
+   mutable ParGridFunction u_gf_trans; ///< velocity (dx/dt) for transfer
    mutable ParGridFunction stress_gf; ///< traction
 
    /// Mass and Stiffness forms
@@ -101,6 +102,7 @@ public:
               lambda(lambda_),
               x_gf(ParGridFunction(&fes)),
               u_gf(ParGridFunction(&fes)),
+              u_gf_trans(ParGridFunction(&fes)),
               stress_gf(ParGridFunction(&fes)),
               Mform(&fes), Mrho_form(&fes),
               Kform(&fes), Kform_e(&fes),
@@ -289,14 +291,21 @@ public:
 
     void PostProcess(Vector &x) override
     {
-        BlockVector xb(x.GetData(), offsets);
-        x_gf.SetFromTrueDofs(xb.GetBlock(0));
-        u_gf.SetFromTrueDofs(xb.GetBlock(1));
+        if(operation_id == OperationID::NONE || operation_id == OperationID::STEP)
+        {   // Only do this pre-processing for operations that are not for multi-stage 
+            // time stepping
+          BlockVector xb(x.GetData(), offsets);
+          x_gf.SetFromTrueDofs(xb.GetBlock(0));
+          u_gf.SetFromTrueDofs(xb.GetBlock(1));
+          u_gf_trans.SetFromTrueDofs(xb.GetBlock(1));
+        }
     }
 
 
    void Transfer(const Vector &x) override
    {
+        BlockVector xb(x.GetData(), offsets);
+        u_gf_trans.SetFromTrueDofs(xb.GetBlock(1));
         Application::Transfer();
    }   
 
