@@ -1134,38 +1134,161 @@ void FaceReconstruction(Solver& solver,
 void WeakFaceReconstruction(Solver& solver,
                             ParGridFunction& src,
                             ParGridFunction& dst,
-                            ParMesh& mesh)
+                            ParMesh& mesh,
+                            RegularizationType reg_type = direct,
+                            real_t reg = 0.0,
+                            int print_level = -1,
+                            bool preserve_volumes = false)
 {
-   mfem_error("Not fully implemented yet!");
-   const auto fes_src = src.ParFESpace();
-   const auto fes_dst = dst.ParFESpace();
+   auto& fes_src = *src.ParFESpace();
+   auto& fes_dst = *dst.ParFESpace();
 
-   Array<int> e_src_dofs;
+   Array<int> e_dst_dofs;
+   Array<int> faces_e, orientation_e;
+
+   Vector src_e, dst_e;
+   Vector punity_src_e, punity_dst_e;
+
+   // Auxiliary constant coefficients and partition of unity
+   ConstantCoefficient ccf_ones(1.0);
+   ParGridFunction punity_src(&fes_src), punity_dst(&fes_dst);
+   punity_src.ProjectCoefficient(ccf_ones);
+   punity_dst.ProjectCoefficient(ccf_ones);
+
    MassIntegrator mass;
-   // DGTraceIntegrator jump(VCOEFF, 1.0, 0.0);
+   TraceIntegrator trace_int;
+   TraceAverageIntegrator average_int;
+   TraceJumpIntegrator jump_int;
 
    for (int e_idx=0; e_idx < mesh.GetNE(); e_idx++)
    {
-      const auto fe_src_e = fes_src->GetFE(e_idx);
-      const auto fe_dst_e = fes_dst->GetFE(e_idx);
+      const auto& fe_src_e = *fes_src.GetFE(e_idx);
+      const auto& fe_dst_e = *fes_dst.GetFE(e_idx);
 
-      auto e_trans = fes_src->GetElementTransformation(e_idx);
+      const int dst_e_ndofs = fe_dst_e.GetDof();
 
-      // Volume constraint: L2-proj
-      DenseMatrix constraint_mat, project_mat;
-      mass.AssembleElementMatrix(*fe_src_e, *e_trans, project_mat);
-      mass.AssembleElementMatrix2(*fe_dst_e, *fe_src_e, *e_trans, constraint_mat);
+      fes_dst.GetElementDofs(e_idx, e_dst_dofs);
 
-      Vector src_e, rhs_constr_e(project_mat.Height());
-      fes_src->GetElementDofs(e_idx, e_src_dofs);
-      src.GetSubVector(e_src_dofs, src_e);
-      project_mat.Mult(src_e, rhs_constr_e);
+      mesh.GetElementEdges(e_idx, faces_e, orientation_e);
 
-      // Weak jumps with DGInt
+      auto e_trans = fes_src.GetElementTransformation(e_idx);
 
-      e_src_dofs.DeleteAll();
+      Vector e_rhs(dst_e_ndofs);
+      DenseMatrix e_mat(dst_e_ndofs);
+      e_rhs = 0.0;
+      e_mat = 0.0;
+      for (int i = 0; i < faces_e.Size(); i++)
+      {
+         const int f_idx = faces_e[i];
+
+         auto& face_trans = *mesh.GetFaceElementTransformations(f_idx);
+         const int elem1_idx = face_trans.Elem1No;
+         const int elem2_idx = face_trans.Elem2No;
+
+         const auto& fe_elem1 = *fes_src.GetFE(elem1_idx);
+         const auto& fe_elem2 = (elem2_idx>=0)?*fes_src.GetFE(e_idx):fe_elem1;
+
+         DenseMatrix local_face_mat;
+
+         Array<int> offsets(3);
+         offsets[0] = 0;
+         offsets[1] = fes_src.GetFE(elem1_idx)->GetDof();
+         offsets[2] = (elem2_idx>=0)?fes_src.GetFE(elem2_idx)->GetDof():0;
+         offsets.PartialSum();
+         BlockVector face_avg(offsets);
+         face_avg = 0.0;
+
+         Vector src_elem;
+         src.GetElementDofValues(elem1_idx, src_elem);
+         face_avg.AddSubVector(src_elem, 0);
+         if (elem2_idx >=0)
+         {
+            src.GetElementDofValues(elem2_idx, src_elem);
+            face_avg.AddSubVector(src_elem, offsets[1]);
+         }
+
+         Vector punity_dst_e, face_trace(dst_e_ndofs);
+         punity_dst.GetElementDofValues(e_idx, punity_dst_e);
+
+         trace_int.AssembleTraceFaceMatrix(e_idx, fe_dst_e, fe_dst_e, face_trans,
+                                           local_face_mat);
+         local_face_mat.Mult(punity_dst_e, face_trace);
+
+         average_int.AssembleFaceMatrix(fe_dst_e, fe_elem1, fe_elem2, face_trans,
+                                        local_face_mat);
+
+         add(e_rhs, local_face_mat.InnerProduct(punity_dst_e,face_avg), face_trace,
+             e_rhs);
+         AddMultVVt(face_trace, e_mat);
+      }
+
+      // Regularize
+      auto reg_mat = std::make_unique<DenseMatrix>();
+      auto _diff_int = std::make_unique<DiffusionIntegrator>();
+      auto _h1_int = std::make_unique<SumIntegrator>(0);
+      switch (reg_type)
+      {
+         case l2:
+            mass.AssembleElementMatrix(fe_dst_e, *e_trans, *reg_mat.get());
+            break;
+         case h1:
+            _h1_int->AddIntegrator(&mass);
+            _h1_int->AddIntegrator(_diff_int.get());
+            _h1_int->AssembleElementMatrix(fe_dst_e, *e_trans, *reg_mat.get());
+            break;
+         case direct:
+         default:
+            reg_mat.reset(nullptr);
+            break;
+      }
+
+      // Solve
+      dst_e.SetSize(dst_e_ndofs);
+      if (preserve_volumes)
+      {
+         DenseMatrix e_to_e_mat;
+         Vector e_to_e_avg;
+         // Average at e
+         real_t e_volume = mesh.GetElementVolume(e_idx);
+
+         src.GetElementDofValues(e_idx, src_e);
+         punity_src.GetElementDofValues(e_idx, punity_src_e);
+         punity_dst.GetElementDofValues(e_idx, punity_dst_e);
+
+         mass.AssembleElementMatrix(fe_src_e, *e_trans, e_to_e_mat);
+
+         real_t src_e_avg = e_to_e_mat.InnerProduct(src_e, punity_src_e);
+         src_e_avg /= e_volume;
+
+         // (Average) projector
+         mass.AssembleElementMatrix(fe_dst_e, *e_trans, e_to_e_mat);
+
+         e_to_e_mat.MultTranspose(punity_dst_e, e_to_e_avg);
+         e_to_e_avg /= e_volume;
+
+         LSSolver(solver, e_mat, e_to_e_avg, e_rhs, src_e_avg, dst_e, reg,
+                  reg_mat.get());
+      }
+      else
+      {
+         LSSolver(solver, e_mat, e_rhs, dst_e, reg, reg_mat.get());
+      }
+
+      if (auto iter_solver = dynamic_cast<IterativeSolver*>(&solver))
+      {
+         if (!iter_solver->GetConverged())
+         {
+            mfem_error("\n\tIterative solver failed to converge!");
+         }
+      }
+      if (print_level >= 0) { CheckLSSolver(e_mat, e_rhs, dst_e); }
+
+      dst.SetSubVector(e_dst_dofs, dst_e);
+
+      e_dst_dofs.DeleteAll();
+      faces_e.DeleteAll();
+      orientation_e.DeleteAll();
    }
-
 }
 
 /// @brief A minimum-variation, face-constrained reconstruction average
