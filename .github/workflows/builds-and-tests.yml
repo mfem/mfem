@@ -168,9 +168,15 @@ jobs:
           env
         shell: bash
 
+      # For info on Xcode see:
+      #  - https://github.com/actions/runner-images/issues/12541
+      #  - https://github.com/actions/runner-images/blob/releases/macos-15-arm64/20250811/images/macos/macos-15-arm64-Readme.md#xcode
       - name: Xcode version setup (MacOS)
         if: matrix.os == 'macos-latest'
         run: |
+          XCODE_PATH="/Applications/Xcode_16.4.app"
+          echo "> sudo xcode-select -s ${XCODE_PATH}"
+          sudo xcode-select -s ${XCODE_PATH}
           echo "> g++ -v"
           g++ -v
           echo "> clang++ -v"
