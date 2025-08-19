@@ -65,7 +65,7 @@ namespace mfem
 class StaticCondensation
 {
    FiniteElementSpace *fes, *tr_fes;
-   FiniteElementCollection *tr_fec;
+   const FiniteElementCollection *tr_fec;
    Table elem_pdof;           // Element to private dof
    int npdofs;                // Number of private dofs
    Array<int> rdof_edof;      // Map from reduced dofs to exposed dofs

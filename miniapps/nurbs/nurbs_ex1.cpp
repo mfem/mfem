@@ -239,7 +239,7 @@ int main(int argc, char *argv[])
    // 4. Define a finite element space on the mesh. Here we use continuous
    //    Lagrange finite elements of the specified order. If order < 1, we
    //    instead use an isoparametric/isogeometric space.
-   FiniteElementCollection *fec;
+   const FiniteElementCollection *fec;
    NURBSExtension *NURBSext = NULL;
    int own_fec = 0;
 
