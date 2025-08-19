@@ -3184,11 +3184,6 @@ private:
    Vector divshape;
 #endif
 
-   // PA extension
-   void SetupPatchPA(const int patch, Mesh *mesh, bool unitWeights=false);
-
-   void SetupPatchBasisData(Mesh *mesh, unsigned int patch);
-
    const DofToQuad *maps;         ///< Not owned
    const GeometricFactors *geom;  ///< Not owned
    int vdim, ndofs;
@@ -3199,9 +3194,6 @@ private:
    std::unique_ptr<CoefficientVector> lambda_quad, mu_quad;
    /// Workspace vector
    std::unique_ptr<QuadratureFunction> q_vec;
-
-   /// Set up the quadrature space and project lambda and mu coefficients
-   void SetUpQuadratureSpaceAndCoefficients(const FiniteElementSpace &fes);
 
    // Data for NURBS patch PA
    // Set in PatchElasticitySetup3D: [numPatches x [ NQ[patch] x 12 ]]
@@ -3215,10 +3207,16 @@ private:
 
    int numPatches = 0;
    static constexpr int numTypes = 2;  // Number of rule types
-
+   // For reduced integration rules on patches
    std::vector<std::vector<Vector>> reducedWeights;
    std::vector<IntArrayVar2D> reducedIDs;
 
+   // PA extension
+   void SetupPatchPA(const int patch, Mesh *mesh, bool unitWeights=false);
+   void SetupPatchBasisData(Mesh *mesh, unsigned int patch);
+
+   /// Set up the quadrature space and project lambda and mu coefficients
+   void SetUpQuadratureSpaceAndCoefficients(const FiniteElementSpace &fes);
 
 public:
    ElasticityIntegrator(Coefficient &l, Coefficient &m)
