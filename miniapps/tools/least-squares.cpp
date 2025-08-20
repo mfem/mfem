@@ -622,13 +622,19 @@ void ComputeFaceAverage(const FiniteElementSpace& fes,
 
 /// @brief Get matrix associated to traces of shape functions on
 /// the face associated to @a face_trans
-void ComputeFaceMatrix(const FiniteElementSpace& fes,
+void ComputeFaceMatrix(int e_idx,
+                       const FiniteElementSpace& fes,
                        FaceElementTransformations& face_trans,
                        const IntegrationRule& ir,
                        DenseMatrix& e_shape_to_q_face)
 {
-   const FiniteElement* fe_self = fes.GetFE(face_trans.Elem1No);
-   const int ndof_self = fe_self->GetDof();
+   MFEM_VERIFY(face_trans.Elem1No == e_idx || face_trans.Elem2No == e_idx,
+               "Selected element does not conform face in face_trans!");
+
+   const auto& fe_self = *fes.GetFE(e_idx);
+   const int ndof_self = fe_self.GetDof();
+   auto& e_trans = (face_trans.Elem1No == e_idx)?*face_trans.Elem1:
+                   *face_trans.Elem2;
 
    Vector shape_self(ndof_self);
    e_shape_to_q_face.SetSize(ir.GetNPoints(), ndof_self);
@@ -636,7 +642,7 @@ void ComputeFaceMatrix(const FiniteElementSpace& fes,
    {
       const IntegrationPoint& ip = ir.IntPoint(p);
       face_trans.SetAllIntPoints(&ip);
-      fe_self->CalcPhysShape(*face_trans.Elem1, shape_self);
+      fe_self.CalcPhysShape(e_trans, shape_self);
       e_shape_to_q_face.SetRow(p, shape_self);
    }
 }
@@ -1044,7 +1050,7 @@ void FaceReconstruction(Solver& solver,
 
          // Matrix
          DenseMatrix e_to_f;
-         ComputeFaceMatrix(*fes_dst, *face_trans, ir, e_to_f);
+         ComputeFaceMatrix(e_idx, *fes_dst, *face_trans, ir, e_to_f);
          e_to_faces.SetSubMatrix(offsets[i], 0, e_to_f);
       }
 
