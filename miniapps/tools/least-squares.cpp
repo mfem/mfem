@@ -1242,7 +1242,7 @@ void WeakFaceReconstruction(Solver& solver,
       if (preserve_volumes)
       {
          DenseMatrix e_to_e_mat;
-         Vector e_to_e_avg;
+         Vector e_to_e_avg(dst_e_ndofs);
          // Average at e
          real_t e_volume = mesh.GetElementVolume(e_idx);
 
