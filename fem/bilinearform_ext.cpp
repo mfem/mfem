@@ -46,6 +46,7 @@ bool IsValidPatchwise(BilinearForm &a)
    // Patchwise integration is only defined on domains
    Array<BilinearFormIntegrator*> &integrators = *(a.GetDBFI());
    const int iSz = integrators.Size();
+   if (iSz == 0) {return false;}
 
    bool allPatchwise = true;
    bool somePatchwise = false;
@@ -369,12 +370,11 @@ void PABilinearFormExtension::Assemble()
    SetupRestrictionOperators(L2FaceValues::DoubleValued);
 
    Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
+   const bool patchwise = IsValidPatchwise(*a);
    for (BilinearFormIntegrator *integ : integrators)
    {
-      if (integ->Patchwise())
+      if (patchwise)
       {
-         MFEM_VERIFY(a->FESpace()->GetNURBSext(),
-                     "Patchwise integration requires a NURBS FE space");
          integ->AssembleNURBSPA(*a->FESpace());
       }
       else
