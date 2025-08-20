@@ -1001,14 +1001,6 @@ public:
    /** param[in] damping fixed point iteration or Picard damping parameter */
    void SetDamping(double damping);
 
-   /// Set the number of acceleration vectors to use with KIN_FP or KIN_PICARD.
-   /** The default is 0.
-       @ note This method must be called before SetOperator() to set the
-       maximum size of the acceleration space. The value of @a maa can be
-       altered after SetOperator() is called but it can't be higher than initial
-       maximum. */
-   void SetMAA(int m_aa);
-
    /// Set the Jacobian Free Newton Krylov flag. The default is false.
    /** This flag indicates to use JFNK as the linear solver for KINSOL. This
        means that the Solver object set in SetSolver() or SetPreconditioner() is
