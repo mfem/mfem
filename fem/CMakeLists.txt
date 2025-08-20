@@ -165,6 +165,7 @@ set(SRCS
   hyperbolic.cpp
   integrator.cpp
   bounds.cpp
+  blockform.cpp
   )
 
 set(HDRS
@@ -277,6 +278,7 @@ set(HDRS
   hyperbolic.hpp
   integrator.hpp
   bounds.hpp
+  blockform.hpp
   )
 
 if (MFEM_USE_SIDRE)
