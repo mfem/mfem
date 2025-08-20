@@ -1008,8 +1008,8 @@ void FaceReconstruction(Solver& solver,
    punity_src.ProjectCoefficient(ccf_ones);
    punity_dst.ProjectCoefficient(ccf_ones);
 
-   Array<int> faces_e, orientation_e, face_dofs, e_dst_dofs;
-   Vector avg_at_face, src_avg_at_face_dofs;
+   Array<int> faces_e, orientation_e, e_dst_dofs;
+   Vector avg_at_face;
 
    for (int e_idx = 0; e_idx < mesh.GetNE(); e_idx++)
    {
@@ -1040,8 +1040,6 @@ void FaceReconstruction(Solver& solver,
          face_trans = mesh.GetFaceElementTransformations(f_idx);
 
          // RHS
-         fes_src.GetFaceDofs(f_idx, face_dofs);
-         src.GetSubVector(face_dofs, src_avg_at_face_dofs);
          ComputeFaceAverage(fes_src, *face_trans, ir, src, avg_at_face);
          src_face_values.AddSubVector(avg_at_face, offsets[i]);
 
@@ -1050,9 +1048,6 @@ void FaceReconstruction(Solver& solver,
          ComputeFaceMatrix(e_idx, fes_dst, *face_trans, ir, e_to_f);
          e_to_faces.SetSubMatrix(offsets[i], 0, e_to_f);
       }
-
-      Vector dst_e;
-      fes_dst.GetElementDofs(e_idx, e_dst_dofs);
 
       auto reg_mat = std::make_unique<DenseMatrix>();
       auto _diff_int = std::make_unique<DiffusionIntegrator>();
@@ -1073,6 +1068,7 @@ void FaceReconstruction(Solver& solver,
             break;
       }
 
+      Vector dst_e;
       if (preserve_volumes)
       {
          // Average at e
@@ -1116,12 +1112,13 @@ void FaceReconstruction(Solver& solver,
          }
       }
       if (print_level >= 0) { CheckLSSolver(e_to_faces, src_face_values, dst_e); }
+
+      fes_dst.GetElementDofs(e_idx, e_dst_dofs);
       dst.SetSubVector(e_dst_dofs, dst_e);
 
       e_dst_dofs.DeleteAll();
       faces_e.DeleteAll();
       orientation_e.DeleteAll();
-      face_dofs.DeleteAll();
    }
 }
 
@@ -1212,7 +1209,7 @@ void WeakFaceReconstruction(Solver& solver,
          average_int.AssembleFaceMatrix(fe_dst_e, fe_elem1, fe_elem2, face_trans,
                                         local_face_mat);
 
-         add(e_rhs, local_face_mat.InnerProduct(punity_dst_e,face_avg), face_trace,
+         add(e_rhs, local_face_mat.InnerProduct(punity_dst_e, face_avg), face_trace,
              e_rhs);
          AddMultVVt(face_trace, e_mat);
       }
