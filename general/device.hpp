@@ -198,6 +198,10 @@ public:
          'ceed-hip', 'hip', 'debug',
          'occa-omp', 'raja-omp', 'omp',
          'ceed-cpu', 'occa-cpu', 'raja-cpu', 'cpu'.
+       - The following backend aliases are also available: 'ceed-gpu',
+         'occa-gpu', 'raja-gpu', and 'gpu' where they alias their respective
+         '*-cuda' or '*-hip' backends depending on the MFEM build-time
+         configuration.
        - Multiple backends can be configured at the same time.
        - Only one 'occa-*' backend can be configured at a time.
        - The backend 'occa-cuda' enables the 'cuda' backend unless 'raja-cuda'
@@ -293,9 +297,9 @@ public:
    /// Get the status of GPU-aware MPI flag.
    static bool GetGPUAwareMPI() { return Get().mpi_gpu_aware; }
 
-   /** @brief Query the device driver for what memory type a given @a ptr is
-       allocated with. */
-   static MemoryType QueryMemoryType(void *ptr);
+   /** Query the device driver for what memory type a given @a ptr is allocated
+    * with. */
+   static MemoryType QueryMemoryType(const void* ptr);
 
    /** @brief The number of hardware compute units/streaming multiprocessors
        available on a given compute device @a device_id. */
