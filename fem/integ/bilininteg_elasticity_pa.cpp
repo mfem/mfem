@@ -178,6 +178,38 @@ LinearElasticStress(const tensor<real_t, dim, dim> Jinvt,
    return stress * Jinvt;
 }
 
+
+template <int dim>
+tensor<mfem::real_t, dim, dim, dim, dim>
+Grad_NeoHookeanStress(const tensor<real_t, dim, dim> Jinvt,
+                      const real_t C1,
+                      const real_t D1,
+                      const tensor<real_t, dim, dim> gradu_ref)
+{
+   static constexpr auto I = mfem::future::IsotropicIdentity<dim>();
+   const auto gradu = gradu_ref * transpose(Jinvt);
+
+   tensor<mfem::real_t, dim, dim> F = I + gradu;
+   tensor<mfem::real_t, dim, dim> invF = inv(F);
+   tensor<mfem::real_t, dim, dim> devB =
+      dev(gradu + transpose(gradu) + dot(gradu, transpose(gradu)));
+   mfem::real_t j = det(F);
+   mfem::real_t coef = (C1 / pow(j, 5.0 / 3.0));
+   return make_tensor<dim, dim, dim, dim>([&](int i, int j, int k,
+                                              int l)
+   {
+      auto dstress = 2 * (D1 * j * (i == j) -
+                          mfem::real_t(5.0 / 3.0) * coef * devB[i][j]) *
+                     invF[l][k] +
+                     2 * coef *
+                     ((i == k) * F[j][l] + F[i][l] * (j == k) -
+                      mfem::real_t(2.0 / 3.0) * ((i == j) * F[k][l]));
+
+      // Transform back to reference space
+      return dstress * Jinvt;
+   });
+}
+
 /**
  * Transforms grad_u into physical space, computes stress,
    then transforms back to reference space
@@ -209,6 +241,7 @@ void PatchApplyKernel3D(const PatchBasisInfo &pb,
             const auto gradu_q = make_tensor<dim, dim>(
             [&](int i, int j) { return gradu(i,j,qx,qy,qz); });
             const auto Sq = LinearElasticStress<dim>(Jinvt, lambda, mu, gradu_q);
+            // const auto Sq = NeoHookeanStress<dim>(Jinvt, lambda, mu, gradu_q);
 
             for (int i = 0; i < dim; ++i)
             {
