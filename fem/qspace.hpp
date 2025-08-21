@@ -19,39 +19,49 @@
 namespace mfem
 {
 
+enum class QSpaceStorage
+{
+   FULL,
+   COMPRESSED
+};
+
 /// Abstract base class for QuadratureSpace and FaceQuadratureSpace.
 /** This class represents the storage layout for QuadratureFunction%s, that may
     be defined either on mesh elements or mesh faces. */
 class QuadratureSpaceBase
 {
 protected:
-   friend class QuadratureFunction; // Uses the offsets.
-
    Mesh &mesh; ///< The underlying mesh.
    int order; ///< The order of integration rule.
-   int size; ///< Total number of quadrature points.
+   int size = -1; ///< Total number of quadrature points. -1 indicates
+   ///< offsets/size not computed yet.
    int ne; ///< Actual number of entities
    mutable Vector weights; ///< Integration weights.
    mutable long nodes_sequence = 0; ///< Nodes counter for cache invalidation.
+
+   QSpaceStorage storage;
 
    /// @brief Entity quadrature point offset array.
    ///
    /// Supports a constant compression scheme for meshes which have a single
    /// geometry type. When compressed, will have a single value. The true offset
    /// can be computed as i * offsets[0], where i is the entity index. Otherwise
-   /// has size num_entities + 1.
+   /// has size num_entities + 1. Lazily constructed.
    ///
    Array<int> offsets;
    /// The quadrature rules used for each geometry type.
    const IntegrationRule *int_rule[Geometry::NumGeom];
 
    /// Protected constructor. Used by derived classes.
-   QuadratureSpaceBase(Mesh &mesh_, int order_ = 0)
-      : mesh(mesh_), order(order_) { }
+   QuadratureSpaceBase(Mesh &mesh_, int order_ = 0,
+                       QSpaceStorage storage = QSpaceStorage::COMPRESSED)
+      : mesh(mesh_), order(order_), storage(storage)
+   {}
 
    /// Protected constructor. Used by derived classes.
    QuadratureSpaceBase(Mesh &mesh_, Geometry::Type geom,
-                       const IntegrationRule &ir);
+                       const IntegrationRule &ir,
+                       QSpaceStorage storage = QSpaceStorage::COMPRESSED);
 
    /// Fill the @ref int_rule array for each geometry type using @ref order.
    void ConstructIntRules(int dim);
@@ -62,13 +72,21 @@ protected:
    /// Compute the integration weights.
    void ConstructWeights() const;
 
+   virtual void ConstructOffsets() = 0;
+
 public:
+   QSpaceStorage StorageType() const { return storage; }
+
    /// @brief Gets the offset for a given entity @a idx.
    ///
    /// The quadrature point values for entity i are stored in the indices
    /// between Offset(i) and Offset(i+1)
    int Offset(int idx) const
    {
+      if (size < 0)
+      {
+         const_cast<QuadratureSpaceBase *>(this)->ConstructOffsets();
+      }
       return (offsets.Size() == 1) ? (idx * offsets[0]) : offsets[idx];
    }
 
@@ -79,10 +97,24 @@ public:
    /// can be computed as i * offsets[0], where i is the entity index. Otherwise
    /// has size num_entities + 1.
    ///
-   const Array<int> &Offsets() const { return offsets; }
+   const Array<int> &Offsets() const
+   {
+      if (size < 0)
+      {
+         const_cast<QuadratureSpaceBase *>(this)->ConstructOffsets();
+      }
+      return offsets;
+   }
 
    /// Return the total number of quadrature points.
-   int GetSize() const { return size; }
+   int GetSize() const
+   {
+      if (size < 0)
+      {
+         const_cast<QuadratureSpaceBase *>(this)->ConstructOffsets();
+      }
+      return size;
+   }
 
    /// Return the order of the quadrature rule(s) used by all elements.
    int GetOrder() const { return order; }
@@ -142,19 +174,20 @@ class QuadratureSpace : public QuadratureSpaceBase
 {
 protected:
    const Vector &GetGeometricFactorWeights() const override;
-   void ConstructOffsets();
-   void Construct();
+   void ConstructOffsets() override;
 public:
    /// Create a QuadratureSpace based on the global rules from #IntRules.
-   QuadratureSpace(Mesh *mesh_, int order_)
-      : QuadratureSpaceBase(*mesh_, order_) { Construct(); }
+   QuadratureSpace(Mesh *mesh_, int order_,
+                   QSpaceStorage storage = QSpaceStorage::COMPRESSED);
 
    /// @brief Create a QuadratureSpace with an IntegrationRule, valid only when
    /// the mesh has one element type.
-   QuadratureSpace(Mesh &mesh_, const IntegrationRule &ir);
+   QuadratureSpace(Mesh &mesh_, const IntegrationRule &ir,
+                   QSpaceStorage storage = QSpaceStorage::COMPRESSED);
 
    /// Read a QuadratureSpace from the stream @a in.
-   QuadratureSpace(Mesh *mesh_, std::istream &in);
+   QuadratureSpace(Mesh *mesh_, std::istream &in,
+                   QSpaceStorage storage = QSpaceStorage::COMPRESSED);
 
    /// Returns number of elements in the mesh.
    inline int GetNE() const { return mesh.GetNE(); }
@@ -191,29 +224,29 @@ public:
 class FaceQuadratureSpace : public QuadratureSpaceBase
 {
    FaceType face_type; ///< Is the space defined on interior or boundary faces?
-   const int num_faces; ///< Number of faces.
 
    /// Map from boundary or interior face indices to mesh face indices.
-   Array<int> face_indices;
+   const Array<int> &face_indices;
 
    /// Inverse of the map @a face_indices.
-   std::unordered_map<int,int> face_indices_inv;
+   const std::unordered_map<int,int> &face_indices_inv;
 
    const Vector &GetGeometricFactorWeights() const override;
-   void ConstructOffsets();
-   void Construct();
+   void ConstructOffsets() override;
 
 public:
    /// Create a FaceQuadratureSpace based on the global rules from #IntRules.
-   FaceQuadratureSpace(Mesh &mesh_, int order_, FaceType face_type_);
+   FaceQuadratureSpace(Mesh &mesh_, int order_, FaceType face_type_,
+                       QSpaceStorage storage = QSpaceStorage::COMPRESSED);
 
    /// @brief Create a FaceQuadratureSpace with an IntegrationRule, valid only
    /// when the mesh has one type of face geometry.
    FaceQuadratureSpace(Mesh &mesh_, const IntegrationRule &ir,
-                       FaceType face_type_);
+                       FaceType face_type_,
+                       QSpaceStorage storage = QSpaceStorage::COMPRESSED);
 
    /// Returns number of faces in the mesh.
-   inline int GetNumFaces() const { return num_faces; }
+   inline int GetNumFaces() const { return face_indices.Size(); }
 
    /// Returns the face type (boundary or interior).
    FaceType GetFaceType() const { return face_type; }

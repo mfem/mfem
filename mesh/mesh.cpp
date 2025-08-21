@@ -979,6 +979,46 @@ const Array<int>& Mesh::GetElementAttributes() const
    return elem_attrs_cache;
 }
 
+void Mesh::ComputeFaceInfo(FaceType ftype) const
+{
+   auto &fidcs = face_indices[static_cast<int>(ftype)];
+   auto &ifidcs = inv_face_indices[static_cast<int>(ftype)];
+   fidcs.SetSize(GetNFbyType(ftype));
+   fidcs.HostWrite();
+   ifidcs.reserve(fidcs.Size());
+   int f_idx = 0;
+   for (int i = 0; i < GetNumFacesWithGhost(); ++i)
+   {
+      const FaceInformation face = GetFaceInformation(i);
+      if (face.IsNonconformingCoarse() || !face.IsOfFaceType(ftype))
+      {
+         continue;
+      }
+      fidcs[f_idx] = i;
+      ifidcs[i] = f_idx;
+      ++f_idx;
+   }
+}
+
+const Array<int> &Mesh::GetFaceIndices(FaceType ftype) const
+{
+   if (face_indices[static_cast<int>(ftype)].Size() == 0)
+   {
+      ComputeFaceInfo(ftype);
+   }
+   return face_indices[static_cast<int>(ftype)];
+}
+
+const std::unordered_map<int, int> &
+Mesh::GetInvFaceIndices(FaceType ftype) const
+{
+   if (inv_face_indices[static_cast<int>(ftype)].empty())
+   {
+      ComputeFaceInfo(ftype);
+   }
+   return inv_face_indices[static_cast<int>(ftype)];
+}
+
 void Mesh::DeleteGeometricFactors()
 {
    for (int i = 0; i < geom_factors.Size(); i++)
@@ -1866,6 +1906,11 @@ void Mesh::Destroy()
    bdr_face_attrs_cache.DeleteAll();
    attributes.DeleteAll();
    bdr_attributes.DeleteAll();
+
+   face_indices[0].DeleteAll();
+   face_indices[1].DeleteAll();
+   inv_face_indices[0] = std::unordered_map<int, int>();
+   inv_face_indices[1] = std::unordered_map<int, int>();
 }
 
 void Mesh::ResetLazyData()
@@ -8137,6 +8182,12 @@ void Mesh::GenerateFaces()
       FreeElement(f);
    }
 
+   // delete caches
+   face_indices[0].SetSize(0);
+   face_indices[1].SetSize(0);
+   inv_face_indices[0].clear();
+   inv_face_indices[1].clear();
+
    // (re)generate the interior faces and the info for them
    faces.SetSize(nfaces);
    faces_info.SetSize(nfaces);
@@ -10936,6 +10987,11 @@ void Mesh::Swap(Mesh& other, bool non_geometry)
    // copy attribute caches
    mfem::Swap(elem_attrs_cache, other.elem_attrs_cache);
    mfem::Swap(bdr_face_attrs_cache, other.bdr_face_attrs_cache);
+
+   mfem::Swap(face_indices[0], other.face_indices[0]);
+   mfem::Swap(face_indices[1], other.face_indices[1]);
+   inv_face_indices[0].swap(other.inv_face_indices[0]);
+   inv_face_indices[1].swap(other.inv_face_indices[1]);
 }
 
 void Mesh::GetElementData(const Array<Element*> &elem_array, int geom,
