@@ -941,6 +941,8 @@ inline void Array<T>::DeleteFirst(const T &el)
 template <class T>
 inline void Array<T>::DeleteAt(const Array<int> &indices)
 {
+   HostReadWrite();
+
    // Make a copy of the indices, sorted.
    Array<int> sorted_indices(indices);
    sorted_indices.Sort();
