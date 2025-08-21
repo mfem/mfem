@@ -1275,21 +1275,21 @@ void BilinearForm::Update(FiniteElementSpace *nfes)
    height = width = fes->GetVSize();
 
    if (ext) { ext->Update(); }
-   for (auto &integral : domain_integs)
+   for (auto &integrator : domain_integs)
    {
-      integral->Update();
+      integrator->Update();
    }
-   for (auto &integral : boundary_integs)
+   for (auto &integrator : boundary_integs)
    {
-      integral->Update();
+      integrator->Update();
    }
-   for (auto &integral : interior_face_integs)
+   for (auto &integrator : interior_face_integs)
    {
-      integral->Update();
+      integrator->Update();
    }
-   for (auto &integral : boundary_face_integs)
+   for (auto &integrator : boundary_face_integs)
    {
-      integral->Update();
+      integrator->Update();
    }
 }
 
@@ -2354,29 +2354,29 @@ void MixedBilinearForm::Update()
    width = trial_fes->GetVSize();
    if (ext) { ext->Update(); }
 
-   for (auto &integral : domain_integs)
+   for (auto &integrator : domain_integs)
    {
-      integral->Update();
+      integrator->Update();
    }
-   for (auto &integral : boundary_integs)
+   for (auto &integrator : boundary_integs)
    {
-      integral->Update();
+      integrator->Update();
    }
-   for (auto &integral : interior_face_integs)
+   for (auto &integrator : interior_face_integs)
    {
-      integral->Update();
+      integrator->Update();
    }
-   for (auto &integral : boundary_face_integs)
+   for (auto &integrator : boundary_face_integs)
    {
-      integral->Update();
+      integrator->Update();
    }
-   for (auto &integral : trace_face_integs)
+   for (auto &integrator : trace_face_integs)
    {
-      integral->Update();
+      integrator->Update();
    }
-   for (auto &integral : boundary_trace_face_integs)
+   for (auto &integrator : boundary_trace_face_integs)
    {
-      integral->Update();
+      integrator->Update();
    }
 }
 

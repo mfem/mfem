@@ -36,7 +36,7 @@ protected:
    Mesh &mesh; ///< The underlying mesh.
    int order; ///< The order of integration rule.
    int size; ///< Total number of quadrature points.
-   int ne; ///< Actual number of entities
+   int ne; ///< Number of entities
    mutable Vector weights; ///< Integration weights.
    mutable long nodes_sequence = 0; ///< Nodes counter for cache invalidation.
 

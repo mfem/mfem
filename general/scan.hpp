@@ -22,19 +22,20 @@
 
 #include <functional>
 #include <numeric>
+#include <cstddef>
 
 namespace mfem
 {
 /// Equivalent to InclusiveScan(use_dev, d_in, d_out, num_items, workspace,
 /// std::plus<>{})
 template <class InputIt, class OutputIt>
-void InclusiveScan(bool use_dev, InputIt d_in, OutputIt d_out, size_t num_items,
-                   Array<char> &workspace)
+void InclusiveScan(bool use_dev, InputIt d_in, OutputIt d_out, size_t num_items)
 {
    // forward to InclusiveSum for potentially faster kernels
 #if defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP)
    if (use_dev && mfem::Device::Allows(Backend::CUDA_MASK | Backend::HIP_MASK))
    {
+      static Array<std::byte> workspace;
       size_t bytes = workspace.Size();
       if (bytes)
       {
@@ -65,22 +66,22 @@ void InclusiveScan(bool use_dev, InputIt d_in, OutputIt d_out, size_t num_items,
    std::inclusive_scan(d_in, d_in + num_items, d_out);
 }
 
-/// Performs an inclusive scan of [d_in, d_in+num_items) -> [d_out,
+/// @brief Performs an inclusive scan of [d_in, d_in+num_items) -> [d_out,
 /// d_out+num_items). This call is potentially asynchronous on the device.
+///
 /// @a d_in input start.
 /// @a d_out output start. Can perform in-place scans with d_out = d_in
-/// @a workspace temporary workspace used for device scans. TODO: replace with
-/// internal temporary workspace once that's added to the memory manager.
 /// @a scan_op binary scan functor. Must be associative. If only weakly
 /// associative (i.e. floating point addition) results are not deterministic. On
 /// device this must also be commutative.
 template <class InputIt, class OutputIt, class ScanOp>
 void InclusiveScan(bool use_dev, InputIt d_in, OutputIt d_out, size_t num_items,
-                   Array<char> &workspace, ScanOp scan_op)
+                   ScanOp scan_op)
 {
 #if defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP)
    if (use_dev && mfem::Device::Allows(Backend::CUDA_MASK | Backend::HIP_MASK))
    {
+      static Array<std::byte> workspace;
       size_t bytes = workspace.Size();
       if (bytes)
       {
@@ -115,18 +116,17 @@ void InclusiveScan(bool use_dev, InputIt d_in, OutputIt d_out, size_t num_items,
 /// d_out+num_items). This call is potentially asynchronous on the device.
 /// @a d_in input start.
 /// @a d_out output start. Can perform in-place scans with d_out = d_in
-/// @a workspace temporary workspace used for device scans. TODO: replace with
-/// internal temporary workspace once that's added to the memory manager.
 /// @a scan_op binary scan functor. Must be associative. If only weakly
 /// associative (i.e. floating point addition) results are not deterministic. On
 /// device this must also be commutative.
 template <class InputIt, class OutputIt, class T, class ScanOp>
 void ExclusiveScan(bool use_dev, InputIt d_in, OutputIt d_out, size_t num_items,
-                   T init_value, Array<char> &workspace, ScanOp scan_op)
+                   T init_value, ScanOp scan_op)
 {
 #if defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP)
    if (use_dev && mfem::Device::Allows(Backend::CUDA_MASK | Backend::HIP_MASK))
    {
+      static Array<std::byte> workspace;
       size_t bytes = workspace.Size();
       if (bytes)
       {
@@ -163,10 +163,9 @@ void ExclusiveScan(bool use_dev, InputIt d_in, OutputIt d_out, size_t num_items,
 /// workspace, std::plus<>{})
 template <class InputIt, class OutputIt, class T>
 void ExclusiveScan(bool use_dev, InputIt d_in, OutputIt d_out, size_t num_items,
-                   T init_value, Array<char> &workspace)
+                   T init_value)
 {
-   ExclusiveScan(use_dev, d_in, d_out, num_items, init_value, workspace,
-                 std::plus<> {});
+   ExclusiveScan(use_dev, d_in, d_out, num_items, init_value, std::plus<> {});
 }
 
 } // namespace mfem
