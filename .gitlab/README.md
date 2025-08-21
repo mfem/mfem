@@ -24,7 +24,7 @@ and `test type`.
 
 Machines typically include:
 
-* Ruby: 2nd Gen Intel Xeon (Cascade Lake)
+* Dane: Intel Sapphire Rapids
 * Lassen: Power9 + Nvidia GPU
 * Corona: AMD GPU
 
@@ -76,13 +76,13 @@ with a spack spec of MFEM, within the limits permitted by the MFEM spack
 package.
 
 In any build-and-test sub-pipeline a job basically consists in defining the
-spack spec to use. Adding a job on ruby for example resumes to:
+spack spec to use. Adding a job on Dane for example resumes to:
 
 ```yaml
 <job_name>:
   variables:
     SPEC: "<spack_spec>"
-  extends: .build_and_test_on_ruby
+  extends: .build_and_test_on_dane
 ```
 
 The remaining and non trivial work is to make sure this spec is working. To
