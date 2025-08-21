@@ -379,9 +379,7 @@ inline void MmuDealloc(void *ptr, const size_t bytes)
 inline void MmuProtect(const void *ptr, const size_t bytes)
 {
    static const bool mmu_protect_error = GetEnv("MFEM_MMU_PROTECT_ERROR");
-   // Don't protect if MFEM_MMU_SILENT is defined. Just emulate device memory movement.
-   static const bool mmu_silent = GetEnv("MFEM_MMU_SILENT");
-   if (mmu_silent || !::mprotect(const_cast<void*>(ptr), bytes, PROT_NONE)) { return; }
+   if (!::mprotect(const_cast<void*>(ptr), bytes, PROT_NONE)) { return; }
    if (mmu_protect_error) { mfem_error("MMU protection (NONE) error"); }
 }
 
@@ -390,9 +388,7 @@ inline void MmuAllow(const void *ptr, const size_t bytes)
 {
    const int RW = PROT_READ | PROT_WRITE;
    static const bool mmu_protect_error = GetEnv("MFEM_MMU_PROTECT_ERROR");
-   // Don't protect if MFEM_MMU_SILENT is defined. Just emulate device memory movement.
-   static const bool mmu_silent = GetEnv("MFEM_MMU_SILENT");
-   if (mmu_silent || !::mprotect(const_cast<void*>(ptr), bytes, RW)) { return; }
+   if (!::mprotect(const_cast<void*>(ptr), bytes, RW)) { return; }
    if (mmu_protect_error) { mfem_error("MMU protection (R/W) error"); }
 }
 #else
@@ -763,7 +759,9 @@ private:
    {
       switch (mt)
       {
-         case MT::HOST_DEBUG: return new MmuHostMemorySpace();
+         case MT::HOST_DEBUG:
+            if (GetEnv("MFEM_MMU_STD")) { return new StdHostMemorySpace(); }
+            return new MmuHostMemorySpace();
 #ifdef MFEM_USE_UMPIRE
          case MT::HOST_UMPIRE:
             return new UmpireHostMemorySpace(
@@ -792,7 +790,9 @@ private:
          case MT::DEVICE_UMPIRE: return new NoDeviceMemorySpace();
          case MT::DEVICE_UMPIRE_2: return new NoDeviceMemorySpace();
 #endif
-         case MT::DEVICE_DEBUG: return new MmuDeviceMemorySpace();
+         case MT::DEVICE_DEBUG:
+            if (GetEnv("MFEM_MMU_STD")) { return new StdDeviceMemorySpace(); }
+            return new MmuDeviceMemorySpace();
          case MT::DEVICE:
          {
 #if defined(MFEM_USE_CUDA)
