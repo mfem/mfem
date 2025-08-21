@@ -2083,9 +2083,9 @@ void FindPointsGSLIB::InterpolateGeneral(const GridFunction &field_in,
    } // parallel
 }
 
-const Array<unsigned int> FindPointsGSLIB::GetPointsNotFoundIndices() const
+Array<unsigned int> FindPointsGSLIB::GetPointsNotFoundIndices() const
 {
-   Array<int> nf_idxs;
+   Array<unsigned int> nf_idxs;
    for (int i = 0; i < gsl_code.Size(); i++)
    {
       if (gsl_code[i] == 2)
@@ -2093,7 +2093,7 @@ const Array<unsigned int> FindPointsGSLIB::GetPointsNotFoundIndices() const
          nf_idxs.Append(i);
       }
    }
-   return std::move(nf_idxs);
+   return nf_idxs;
 }
 
 void FindPointsGSLIB::DistributePointInfoToOwningMPIRanks(
