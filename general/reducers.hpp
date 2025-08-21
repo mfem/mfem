@@ -537,7 +537,7 @@ void reduce(int N, T &res, B &&body, const R &reducer, bool use_dev,
       return;
    }
 
-#if defined(MFEM_USE_HIP) || defined(MFEM_USE_CUDA)
+#if defined(MFEM_USE_CUDA_OR_HIP)
    if (use_dev &&
        mfem::Device::Allows(Backend::CUDA | Backend::HIP | Backend::RAJA_CUDA |
                             Backend::RAJA_HIP))
