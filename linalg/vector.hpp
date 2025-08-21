@@ -639,29 +639,6 @@ inline void Vector::Reserve(int res)
    }
 }
 
-inline void Vector::DeleteAt(const Array<int> &indices)
-{
-   // Make copy of the indices, sorted.
-   Array<int> sorted_indices(indices);
-   sorted_indices.Sort();
-
-   int rm_count = 0;
-   for (int i = 0; i < size; i++)
-   {
-      if (rm_count < sorted_indices.Size() && i == sorted_indices[rm_count])
-      {
-         rm_count++;
-      }
-      else
-      {
-         data[i-rm_count] = data[i]; // shift data rm_count
-      }
-   }
-
-   // Resize to remove tail
-   size -= rm_count;
-}
-
 inline void Vector::NewMemoryAndSize(const Memory<real_t> &mem, int s,
                                      bool own_mem)
 {
