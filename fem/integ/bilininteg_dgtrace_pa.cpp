@@ -147,13 +147,8 @@ void DGTraceIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type)
                                &GetRule(el.GetGeomType(), el.GetOrder(),
                                         *mesh->GetTypicalElementTransformation());
 
-   if (!qspace[static_cast<int>(type)])
-   {
-      qspace[static_cast<int>(type)] =
-         std::make_unique<FaceQuadratureSpace>(*mesh, *ir, type);
-   }
 
-   FaceQuadratureSpace& qs = *qspace[static_cast<int>(type)];
+   FaceQuadratureSpace qs(*mesh, *ir, type);
    nf = qs.GetNumFaces();
    if (nf==0) { return; }
 
