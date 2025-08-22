@@ -23,6 +23,7 @@ list(APPEND SRCS
   complex_operator.cpp
   constraints.cpp
   densemat.cpp
+  functional.cpp
   symmat.cpp
   handle.cpp
   matrix.cpp
@@ -49,6 +50,7 @@ list(APPEND HDRS
   complex_operator.hpp
   constraints.hpp
   densemat.hpp
+  functional.hpp
   dinvariants.hpp
   symmat.hpp
   dtensor.hpp
