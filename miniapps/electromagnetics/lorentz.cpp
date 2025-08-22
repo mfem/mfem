@@ -23,12 +23,12 @@
 //
 // The electric and magnetic fields are read from VisItDataCollection objects
 // such as those produced by the Volta and Tesla miniapps. It is notable that
-// these two fields do not need to be defined on the same mesh. At least 
+// these two fields do not need to be defined on the same mesh. At least
 // one of either an electric field or a magnetic field must be provided. The
-// particles' location and momentum are randomly initialized within a bounding 
+// particles' location and momentum are randomly initialized within a bounding
 // box specified by command line input.
 //
-// This miniapp demonstrates the use of ParticleSet with FindPointsGSLIB. When 
+// This miniapp demonstrates the use of ParticleSet with FindPointsGSLIB. When
 // particles leave both domains, they are subject to removal. Redistribution of
 // particle data between MPI ranks is also demonstrated.
 //
@@ -39,7 +39,7 @@
 // Compile with: make lorentz
 //
 // Sample runs:
-//   
+//
 //   Particle accelerating in a constant electric field
 //      mpirun -np 4 volta -m ../../data/inline-hex.mesh -dbcs '1 6' -dbcv '0 1'
 //      mpirun -np 4 ./lorentz -er Volta-AMR-Parallel -npt 100 -xmin '0.0 0.0 0.0' -xmax '1.0 1.0 1.0' -pmin '0 0 0' -pmax '1 0 0' -rdf 0 -vt 0 -nt 10
@@ -49,15 +49,9 @@
 //      mpirun -np 4 ./lorentz -br Tesla-AMR-Parallel -npt 10 -xmin '0.0 0.0 0.0' -xmax '1.0 1.0 1.0' -pmin '0 0.1 0.05' -pmax '0 0.4 0.1' -nt 1000 -rdf 0 -vt 0
 //
 //   Magnetic mirror effect near a charged sphere and a bar magnet
-//      mpirun -np 4 volta -m ../../data/ball-nurbs.mesh -dbcs 1
-//                         -cs '0 0 0 0.1 2e-11' -rs 2 -maxit 4
-//      mpirun -np 4 tesla -m ../../data/fichera.mesh -maxit 4 -rs 3
-//                         -bm '-0.1 -0.1 -0.1 0.1 0.1 0.1 0.1 -1e10'
-//      mpirun -np 4 ./lorentz -er Volta-AMR-Parallel -ec 4 
-//                         -br Tesla-AMR-Parallel -bc 4 -q -10 -dt 1e-3 
-//                         -nt 1000 -npt 500 -vt 5 -rdf 500 -rdm 1 -vf 5 
-//                         -pmin '-8 -4 4' -pmax '-8 -4 4' -xmin '-1 -1 -1' 
-//                         -xmax '1 1 1'
+//      mpirun -np 4 volta -m ../../data/ball-nurbs.mesh -dbcs 1 -cs '0 0 0 0.1 2e-11' -rs 2 -maxit 4
+//      mpirun -np 4 tesla -m ../../data/fichera.mesh -maxit 4 -rs 3 -bm '-0.1 -0.1 -0.1 0.1 0.1 0.1 0.1 -1e10'
+//      mpirun -np 4 ./lorentz -er Volta-AMR-Parallel -ec 4 -br Tesla-AMR-Parallel -bc 4 -q -10 -dt 1e-3 -nt 1000 -npt 500 -vt 5 -rdf 500 -rdm 1 -vf 5 -pmin '-8 -4 4' -pmax '-8 -4 4' -xmin '-1 -1 -1' -xmax '1 1 1'
 
 
 #include "mfem.hpp"
@@ -97,7 +91,7 @@ struct LorentzContext
    real_t dt = 1e-2;
    real_t t0 = 0.0;
    int nt = 1000;
-   int redist_freq = 10;
+   int redist_freq = 1e6;
    int redist_mesh = 0;
    int rm_lost_freq = 1;
 
@@ -285,11 +279,15 @@ int main(int argc, char *argv[])
       if (step % ctx.rm_lost_freq == 0)
       {
          boris.RemoveLostParticles();
+         std::string csv_prefix = "Lorentz_Part_";
+         Array<int> field_idx, tag_idx;
+         std::string file_name = csv_prefix + mfem::to_padded_string(step, 6) + ".csv";
+         boris.GetParticles().PrintCSV(file_name.c_str(), field_idx, tag_idx);
       }
 
       // Redistribute
       if (step % ctx.redist_freq == 0 && boris.GetParticles().GetGlobalNP() > 0)
-      {  
+      {
          // Visualize particles pre-redistribute
          if (ctx.visualization)
          {
@@ -475,7 +473,7 @@ void Boris::RemoveLostParticles()
    Array<int> lost_idxs;
    const Array<int> E_lost = E_finder.GetPointsNotFoundIndices();
    const Array<int> B_lost = B_finder.GetPointsNotFoundIndices();
-   
+
    for (const int &elem : E_lost)
    {
          lost_idxs.Union(elem);
@@ -549,7 +547,7 @@ void InitializeChargedParticles(ParticleSet &charged_particles, const Vector &x_
    std::uniform_real_distribution<> real_dist(0.0,1.0);
 
    int dim = charged_particles.Coords().GetVDim();
-   
+
    MultiVector &X = charged_particles.Coords();
    MultiVector &P = charged_particles.Field(Boris::MOM);
    MultiVector &M = charged_particles.Field(Boris::MASS);
@@ -567,6 +565,6 @@ void InitializeChargedParticles(ParticleSet &charged_particles, const Vector &x_
       }
       // Initialize mass + charge
       M(i) = m;
-      Q(i) = q;  
+      Q(i) = q;
    }
 }

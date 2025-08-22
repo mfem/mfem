@@ -110,7 +110,7 @@ int main(int argc, char *argv[])
    // Create the particle solver
    NavierParticles particle_solver(MPI_COMM_WORLD, 0, pmesh);
    particle_solver.GetParticles().Reserve( ((ctx.nt - ctx.pnt_0)/ctx.add_particles_freq ) * ctx.num_add_particles / size);
-   
+
    real_t time = 0.0;
 
    // Initialize fluid IC
@@ -169,7 +169,7 @@ int main(int argc, char *argv[])
       std::string file_name = csv_prefix + mfem::to_padded_string(0, 6) + ".csv";
       particle_solver.GetParticles().PrintCSV(file_name.c_str());
    }
-   int vis_count = 1;
+   int vis_count = 0;
 
    flow_solver.Setup(ctx.dt);
    particle_solver.Setup(ctx.dt);
@@ -201,7 +201,7 @@ int main(int argc, char *argv[])
       {
          vis_count++;
          // Output the particles
-         std::string file_name = csv_prefix + mfem::to_padded_string(step, 6) + ".csv";
+         std::string file_name = csv_prefix + mfem::to_padded_string(vis_count, 6) + ".csv";
          particle_solver.GetParticles().PrintCSV(file_name.c_str());
       }
 
@@ -267,7 +267,7 @@ void SetInjectedParticles(NavierParticles &particle_solver, const Array<int> &p_
             particle_solver.X().SetVectorValues(idx, Vector({0.0, spacing*(i+offset+1)}));
          }
          else
-         {  
+         {
             // Zero-out position history
             particle_solver.X(j).SetVectorValues(idx, Vector({0.0,0.0}));
          }

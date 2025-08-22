@@ -112,8 +112,8 @@ void Particle::Print(std::ostream &out) const
 Array<Ordering::Type> ParticleSet::GetOrderingArray(Ordering::Type o, int N)
 {
    Array<Ordering::Type> ordering_arr(N);
-   ordering_arr = o; 
-   return std::move(ordering_arr); 
+   ordering_arr = o;
+   return std::move(ordering_arr);
 }
 std::string ParticleSet::GetDefaultFieldName(int i)
 {
@@ -127,7 +127,7 @@ std::string ParticleSet::GetDefaultTagName(int i)
 
 Array<const char*> ParticleSet::GetEmptyNameArray(int N)
 {
-   Array<const char*> names(N); 
+   Array<const char*> names(N);
    for (int i = 0; i < N; i++)
    {
       names[i] = nullptr;
@@ -138,12 +138,12 @@ Array<const char*> ParticleSet::GetEmptyNameArray(int N)
 #ifdef MFEM_USE_MPI
 unsigned int ParticleSet::GetRank(MPI_Comm comm_)
 {
-   int r; MPI_Comm_rank(comm_, &r); 
+   int r; MPI_Comm_rank(comm_, &r);
    return r;
 }
 unsigned int ParticleSet::GetSize(MPI_Comm comm_)
 {
-   int s; MPI_Comm_size(comm_, &s); 
+   int s; MPI_Comm_size(comm_, &s);
    return s;
 }
 #endif // MFEM_USE_MPI
@@ -241,7 +241,7 @@ void ParticleSet::Transfer(const Array<unsigned int> &send_idxs, const Array<uns
 
    int rank = GetRank(comm);
    int size = GetSize(comm);
-   
+
    for (int i = 0; i < send_idxs.Size(); i++)
    {
       pdata_t<NData, NTag> &pdata = pdata_arr[i];
@@ -289,7 +289,7 @@ void ParticleSet::Transfer(const Array<unsigned int> &send_idxs, const Array<uns
    {
       pdata_t<NData, NTag> &pdata = pdata_arr[i];
       int id = pdata.id;
-      
+
       Array<int> idx_temp;
       AddParticles(Array<int>({id}), &idx_temp);
       int new_idx = idx_temp[0]; // Get index of newly-added particle
@@ -382,7 +382,7 @@ ParticleSet::ParticleSet(int id_stride_, int id_counter_, int num_particles, int
 : id_stride(id_stride_),
   id_counter(id_counter_),
   coords(dim, coords_ordering)
-{   
+{
    // Initialize fields
    for (int f = 0; f < field_vdims.Size(); f++)
    {
@@ -426,7 +426,7 @@ bool ParticleSet::IsValidParticle(const Particle &p) const
    {
       return false;
    }
-   
+
    return true;
 
 }
@@ -436,15 +436,15 @@ ParticleSet::ParticleSet(int num_particles, int dim, Ordering::Type coords_order
 {
 
 }
-   
+
 ParticleSet::ParticleSet(int num_particles, int dim, const Array<int> &field_vdims, int num_tags, Ordering::Type all_ordering)
-: ParticleSet(1, 0, num_particles, dim, all_ordering, field_vdims, GetOrderingArray(all_ordering, field_vdims.Size()), GetEmptyNameArray(field_vdims.Size()), num_tags, GetEmptyNameArray(num_tags)) 
+: ParticleSet(1, 0, num_particles, dim, all_ordering, field_vdims, GetOrderingArray(all_ordering, field_vdims.Size()), GetEmptyNameArray(field_vdims.Size()), num_tags, GetEmptyNameArray(num_tags))
 {
 
 }
 
 ParticleSet::ParticleSet(int num_particles, int dim, const Array<int> &field_vdims, const Array<const char*> &field_names_, int num_tags, const Array<const char*> &tag_names_, Ordering::Type all_ordering)
-: ParticleSet(1, 0, num_particles, dim, all_ordering, field_vdims, GetOrderingArray(all_ordering, field_vdims.Size()), field_names_, num_tags, tag_names_) 
+: ParticleSet(1, 0, num_particles, dim, all_ordering, field_vdims, GetOrderingArray(all_ordering, field_vdims.Size()), field_names_, num_tags, tag_names_)
 {
 
 }
@@ -583,10 +583,10 @@ Particle ParticleSet::GetParticle(int i) const
    Particle p = CreateParticle();
 
    Coords().GetVectorValues(i, p.Coords());
-   
+
    for (int f = 0; f < GetNF(); f++)
    {
-      Field(f).GetVectorValues(i, p.Field(f));  
+      Field(f).GetVectorValues(i, p.Field(f));
    }
 
    for (int t = 0; t < GetNT(); t++)
@@ -675,7 +675,7 @@ void ParticleSet::PrintCSV(const char *fname, const Array<int> &field_idxs, cons
    ss_header << "id" << ",";
 
 #ifdef MFEM_USE_MPI
-   ss_header << "rank" << ",";
+   // ss_header << "rank" << ",";
 #endif // MFEM_USE_MPI
 
    for (int f = -1; f < field_idxs.Size(); f++)
@@ -714,7 +714,7 @@ void ParticleSet::PrintCSV(const char *fname, const Array<int> &field_idxs, cons
       ss_data << ids[i];
 
 #ifdef MFEM_USE_MPI
-      ss_data << "," << rank;
+      // ss_data << "," << rank;
 #endif // MFEM_USE_MPI
 
       for (int f = -1; f < field_idxs.Size(); f++)
