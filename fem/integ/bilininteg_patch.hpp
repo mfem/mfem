@@ -18,7 +18,6 @@
 
 namespace mfem
 {
-
 /**
  * Compute gradient at quadrature points for a NURBS patch
  */
@@ -108,7 +107,7 @@ void PatchG3D(const PatchBasisInfo &pb,
 }
 
 /**
- * Contraction with grad_v^T
+ * Contraction with gradv^T
  */
 template<int vdim>
 void PatchGT3D(const PatchBasisInfo &pb,
@@ -191,6 +190,192 @@ void PatchGT3D(const PatchBasisInfo &pb,
    } // qz
 
 }
+
+
+/**
+ * Transforms gradu into physical space, apply kernel,
+   then transforms back to reference space
+ */
+template <typename Kernel>
+void PatchApplyKernel3D(const PatchBasisInfo &pb,
+                        const Vector &pa_data,
+                        Kernel&& kernel,
+                        DeviceTensor<5, real_t> &gradu_ref,
+                        DeviceTensor<5, real_t> &S)
+{
+   // Unpack patch basis info
+   static constexpr int dim = 3;
+   const Array<int>& Q1D = pb.Q1D;
+   const int NQ = pb.NQ;
+   // Quadrature data. 11 values per quadrature point.
+   // First 9 entries are J^{-T}; then c1*W*detJ and c2*W*detJ
+   // TODO - generalize number of coefficients
+   const auto qd = Reshape(pa_data.HostRead(), NQ, 11);
+
+   for (int qz = 0; qz < Q1D[2]; ++qz)
+   {
+      for (int qy = 0; qy < Q1D[1]; ++qy)
+      {
+         for (int qx = 0; qx < Q1D[0]; ++qx)
+         {
+            const int q = qx + ((qy + (qz * Q1D[1])) * Q1D[0]);
+            const Vector coeffs({qd(q,9), qd(q,10)});
+            const auto Jinvt = mfem::future::make_tensor<dim, dim>(
+               [&](int i, int j) { return qd(q, i*dim + j); });
+            // dudx at quadrature point in reference space
+            const auto dudx_ref = mfem::future::make_tensor<dim, dim>(
+               [&](int i, int j) { return gradu_ref(i,j,qx,qy,qz); });
+            // convert to physical space
+            const auto dudx = dudx_ref * transpose(Jinvt);
+            const auto Sq = kernel(coeffs, dudx) * Jinvt;
+
+            for (int i = 0; i < dim; ++i)
+            {
+               for (int j = 0; j < dim; ++j)
+               {
+                  S(i,j,qx,qy,qz) = Sq(i,j);
+               }
+            }
+         } // qx
+      } // qy
+   } // qz
+}
+
+/**
+ * Transforms gradu and dgradu into physical space,
+   apply kernel, then transforms back to reference space
+ */
+template <typename Kernel>
+void PatchApplyGradKernel3D(const PatchBasisInfo &pb,
+                            const Vector &pa_data,
+                            Kernel&& kernel,
+                            DeviceTensor<5, real_t> &gradu_ref,
+                            DeviceTensor<5, real_t> &dgradu_ref,
+                            DeviceTensor<5, real_t> &S)
+{
+   // Unpack patch basis info
+   static constexpr int dim = 3;
+   const Array<int>& Q1D = pb.Q1D;
+   const int NQ = pb.NQ;
+   // Quadrature data. 11 values per quadrature point.
+   // First 9 entries are J^{-T}; then c1*W*detJ and c2*W*detJ
+   // TODO - generalize number of coefficients
+   const auto qd = Reshape(pa_data.HostRead(), NQ, 11);
+
+   for (int qz = 0; qz < Q1D[2]; ++qz)
+   {
+      for (int qy = 0; qy < Q1D[1]; ++qy)
+      {
+         for (int qx = 0; qx < Q1D[0]; ++qx)
+         {
+            const int q = qx + ((qy + (qz * Q1D[1])) * Q1D[0]);
+            const Vector coeffs({qd(q,9), qd(q,10)});
+            const auto Jinvt = mfem::future::make_tensor<dim, dim>(
+               [&](int i, int j) { return qd(q, i*dim + j); });
+            // dudx at quadrature point in reference space
+            const auto dudx_ref = mfem::future::make_tensor<dim, dim>(
+               [&](int i, int j) { return gradu_ref(i,j,qx,qy,qz); });
+            const auto ddudx_ref = mfem::future::make_tensor<dim, dim>(
+               [&](int i, int j) { return dgradu_ref(i,j,qx,qy,qz); });
+            // convert to physical space
+            const auto dudx = dudx_ref * transpose(Jinvt);
+            const auto ddudx = ddudx_ref * transpose(Jinvt);
+            // apply kernel
+            const auto Sq = kernel(coeffs, dudx, ddudx) * Jinvt;
+
+            for (int i = 0; i < dim; ++i)
+            {
+               for (int j = 0; j < dim; ++j)
+               {
+                  S(i,j,qx,qy,qz) = Sq(i,j);
+               }
+            }
+         } // qx
+      } // qy
+   } // qz
+}
+
+/**
+ * Compute stress:
+ *    sigma = lambda*tr(dudx)*I + mu*(dudx + dudx^T)
+ *
+ * Coefficients (lambda and mu) have W*detJ factored in
+ */
+template <int dim>
+mfem::future::tensor<real_t, dim, dim>
+LinearElasticStress(const Vector coeffs,
+                    const mfem::future::tensor<real_t, dim, dim> dudx)
+{
+   const real_t lambda = coeffs(0);
+   const real_t mu = coeffs(1);
+   constexpr auto I = mfem::future::IsotropicIdentity<dim>();
+   const mfem::future::tensor<real_t, dim, dim> strain = sym(dudx);
+   const mfem::future::tensor<real_t, dim, dim> stress =
+      lambda * tr(strain) * I + static_cast<real_t>(2.0) * mu * strain;
+   return stress;
+}
+
+template <int dim>
+mfem::future::tensor<real_t, dim, dim>
+NeoHookeanStress(const Vector coeffs,
+                 const mfem::future::tensor<real_t, dim, dim> dudx)
+{
+   const real_t C1 = coeffs(0);
+   const real_t D1 = coeffs(1);
+   static constexpr auto I = mfem::future::IsotropicIdentity<dim>();
+   const auto J = det(I + dudx);
+   const auto p = -2.0 * D1 * J * (J - 1);
+   const auto devB = dev(dudx + transpose(dudx) + dot(dudx, transpose(dudx)));
+   auto stress = -(p / J) * I + 2 * (C1 / pow(J, 5.0 / 3.0)) * devB;
+   return stress;
+}
+
+// Stress kernel function type, first argument is coeffs vector, second is dudx (physical space)
+// template <int dim>
+// using Kernel = mfem::future::tensor<real_t, dim, dim> (*)(const Vector, const mfem::future::tensor<real_t, dim, dim>);
+
+// Action of d(stress)/d(grad_u)
+template <int dim>
+mfem::future::tensor<real_t, dim, dim>
+GradNeoHookeanStress(const Vector coeffs,
+                     const mfem::future::tensor<real_t, dim, dim> dudx,
+                     const mfem::future::tensor<real_t, dim, dim> ddudx)
+{
+   static constexpr auto I = mfem::future::IsotropicIdentity<dim>();
+   const real_t C1 = coeffs(0);
+   const real_t D1 = coeffs(1);
+
+   mfem::future::tensor<real_t, dim, dim> F = I + dudx;
+   mfem::future::tensor<real_t, dim, dim> invFT = inv(transpose(F));
+   mfem::future::tensor<real_t, dim, dim> devB =
+      dev(dudx + transpose(dudx) + dot(dudx, transpose(dudx)));
+   const real_t j = det(F);
+   const real_t coef = (C1 / pow(j, 5.0 / 3.0));
+   const real_t a1 = ddot(invFT, ddudx);
+   const real_t a2 = ddot(F, ddudx);
+
+   const auto dsigma = ((2 * D1 * j * a1 - real_t(4.0 / 3.0) * coef * a2) * I -
+            (real_t(10.0 / 3.0) * coef * a1) * devB +
+            (2 * coef) * (dot(ddudx, transpose(F)) + dot(F, transpose(ddudx))));
+
+
+   // Transform back to reference space
+   // return dsigma * Jinvt;
+   // return ddot(dsigma, ddudx);
+   return dsigma;
+   // return transpose(Jinvt) * ddot(dsigma, gradu);
+}
+
+
+void PatchElasticitySetup3D(const int Q1Dx,
+                            const int Q1Dy,
+                            const int Q1Dz,
+                            const Vector &w,
+                            const Vector &j,
+                            const Vector &c,
+                            Vector &d);
+
+
 
 } // namespace mfem
 

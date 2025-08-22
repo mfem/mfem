@@ -36,6 +36,7 @@ set(SRCS
   integ/bilininteg_mass_ea.cpp
   integ/bilininteg_mixedcurl_pa.cpp
   integ/bilininteg_mixedvecgrad_pa.cpp
+  integ/bilininteg_patch.cpp
   integ/bilininteg_trace_jump_ea.cpp
   integ/bilininteg_transpose_ea.cpp
   integ/bilininteg_vecdiffusion_mf.cpp

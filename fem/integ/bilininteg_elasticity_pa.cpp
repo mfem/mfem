@@ -148,83 +148,6 @@ void ElasticityIntegrator::AssemblePatchPA(const int patch,
    SetupPatchPA(patch, mesh);  // For full quadrature, unitWeights = false
 }
 
-/**
- * Transform grad_uhat (reference) to physical space:
- *    grad_u = grad_uhat * J^{-1}
- *
- * Compute stress:
- *    sigma = lambda*tr(grad_u)*I + mu*(grad_u + grad_u^T)
- *
- * lambda and mu have W*detJ factored in
- *
- * Transform back to reference space:
- *    return sigma * J^{-T}
- */
-template <int dim>
-tensor<real_t, dim, dim>
-LinearElasticStress(const tensor<real_t, dim, dim> Jinvt,
-                    const real_t lambda,
-                    const real_t mu,
-                    const tensor<real_t, dim, dim> gradu_ref)
-{
-   // Convert gradu_ref to physical space
-   const auto gradu = gradu_ref * transpose(Jinvt);
-   // Compute stress
-   constexpr auto I = mfem::future::IsotropicIdentity<dim>();
-   const tensor<real_t, dim, dim> strain = sym(gradu);
-   const tensor<real_t, dim, dim> stress =
-      lambda * tr(strain) * I + static_cast<real_t>(2.0) * mu * strain;
-   // Transform back to reference space
-   return stress * Jinvt;
-}
-
-
-
-/**
- * Transforms grad_u into physical space, computes stress,
-   then transforms back to reference space
- */
-void PatchApplyKernel3D(const PatchBasisInfo &pb,
-                        const Vector &pa_data,
-                        DeviceTensor<5, real_t> &gradu,
-                        DeviceTensor<5, real_t> &S)
-{
-   // Unpack patch basis info
-   static constexpr int dim = 3;
-   const Array<int>& Q1D = pb.Q1D;
-   const int NQ = pb.NQ;
-   // Quadrature data. 11 values per quadrature point.
-   // First 9 entries are J^{-T}; then lambda*W*detJ and mu*W*detJ
-   const auto qd = Reshape(pa_data.HostRead(), NQ, 11);
-
-   for (int qz = 0; qz < Q1D[2]; ++qz)
-   {
-      for (int qy = 0; qy < Q1D[1]; ++qy)
-      {
-         for (int qx = 0; qx < Q1D[0]; ++qx)
-         {
-            const int q = qx + ((qy + (qz * Q1D[1])) * Q1D[0]);
-            const real_t lambda  = qd(q,9);
-            const real_t mu      = qd(q,10);
-            const auto Jinvt = make_tensor<dim, dim>(
-            [&](int i, int j) { return qd(q, i*dim + j); });
-            const auto gradu_q = make_tensor<dim, dim>(
-            [&](int i, int j) { return gradu(i,j,qx,qy,qz); });
-            const auto Sq = LinearElasticStress<dim>(Jinvt, lambda, mu, gradu_q);
-            // const auto Sq = NeoHookeanStress<dim>(Jinvt, lambda, mu, gradu_q);
-
-            for (int i = 0; i < dim; ++i)
-            {
-               for (int j = 0; j < dim; ++j)
-               {
-                  S(i,j,qx,qy,qz) = Sq(i,j);
-               }
-            }
-         } // qx
-      } // qy
-   } // qz
-}
-
 
 // This version uses full 1D quadrature rules, taking into account the
 // minimum interaction between basis functions and integration points.
@@ -257,7 +180,8 @@ void ElasticityIntegrator::AddMultPatchPA3D(const Vector &pa_data,
    PatchG3D<3>(pb, x, sumXYv, sumXv, gradu);
 
    // 2) Apply the "D" operator at each quadrature point: D( gradu )
-   PatchApplyKernel3D(pb, pa_data, gradu, S);
+
+   PatchApplyKernel3D(pb, pa_data, LinearElasticStress<3>, gradu, S);
 
    // 3) Apply test function gradv
    PatchGT3D<3>(pb, S, sumXYv, sumXv, y);
@@ -340,16 +264,15 @@ void ElasticityIntegrator::AssembleDiagonalPatchPA(const Vector &pa_data,
                      };
 
                      const int q = qx + ((qy + (qz * Q1D[1])) * Q1D[0]);
-                     const real_t lambda_q  = qd(q,9);
-                     const real_t mu_q      = qd(q,10);
+                     const Vector coeffs({qd(q,9), qd(q,10)});
                      const auto Jinvt = make_tensor<3,3>(
                      [&](int i, int j) { return qd(q, i*3 + j); });
                      // As second order tensor: e[i] * grad_phi[j]
                      const auto grad_phi = make_tensor<3,3>(
                      [&](int i, int j) { return grad[j]; });
 
-                     const auto Sq = LinearElasticStress<3>(
-                                        Jinvt, lambda_q, mu_q, grad_phi);
+                     const auto dphi_dx = grad_phi * transpose(Jinvt);
+                     const auto Sq = LinearElasticStress<3>(coeffs, grad_phi) * Jinvt;
 
                      const auto grad_phiv = make_tensor<3>(
                      [&](int i) { return grad[i]; });
