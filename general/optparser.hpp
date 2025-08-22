@@ -32,7 +32,7 @@ class OptionsParser
 {
 public:
    enum OptionType { INT, DOUBLE, STRING, STD_STRING, ENABLE, DISABLE, ARRAY,
-                     VECTOR, CHAR_ARRAY
+                     VECTOR, CHAR, CHAR_ARRAY
                    };
 
 private:
@@ -97,6 +97,14 @@ public:
                   const char *description, bool required = false)
    {
       options.Append(Option(INT, var, short_name, long_name, description,
+                            required));
+   }
+
+   /// Add a character option and set 'var' to receive the value.
+   void AddOption(char *var, const char *short_name, const char *long_name,
+                  const char *description, bool required = false)
+   {
+      options.Append(Option(CHAR, var, short_name, long_name, description,
                             required));
    }
 

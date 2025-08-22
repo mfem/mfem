@@ -19,6 +19,16 @@ namespace mfem
 
 using namespace std;
 
+int isValidAsChar(char * s)
+{
+   if ( s == NULL || *s == '\0' )
+   {
+      return 0;   // Empty string
+   }
+
+   return 1;
+}
+
 int isValidAsInt(char * s)
 {
    if ( s == NULL || *s == '\0' )
@@ -238,6 +248,10 @@ void OptionsParser::Parse()
                case VECTOR:
                   parseVector(argv[i++], *(Vector*)(options[j].var_ptr) );
                   break;
+               case CHAR:
+                  isValid = isValidAsChar(argv[i]);
+                  *(char *)(options[j].var_ptr) = *argv[i++];
+                  break;
                case CHAR_ARRAY:
                   parseArray(argv[i++], *(Array<char>*)(options[j].var_ptr) );
                   break;
@@ -292,6 +306,10 @@ void OptionsParser::WriteValue(const Option &opt, std::ostream &os)
 {
    switch (opt.type)
    {
+      case CHAR:
+         os << *(char *)(opt.var_ptr);
+         break;
+
       case INT:
          os << *(int *)(opt.var_ptr);
          break;
