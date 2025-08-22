@@ -28,188 +28,8 @@ using mfem::future::tensor;
 using mfem::future::make_tensor;
 
 
-void PatchElasticitySetup3D(const int Q1Dx,
-                            const int Q1Dy,
-                            const int Q1Dz,
-                            const Vector &w,
-                            const Vector &j,
-                            const Vector &c,
-                            Vector &d)
-{
-   // computes [J^{-T}, lambda*W*detJ, mu*W*detJ] at quadrature points
-   const auto W = Reshape(w.Read(), Q1Dx,Q1Dy,Q1Dz);
-   const auto J = Reshape(j.Read(), Q1Dx,Q1Dy,Q1Dz,3,3);
-   const auto C = Reshape(c.Read(), Q1Dx,Q1Dy,Q1Dz,2);
-   // nq * [9 (J^{-T}) + 1 (WdetJ) + 1 (C1) + 1 (D1)]
-   d.SetSize(Q1Dx * Q1Dy * Q1Dz * 11);
-   auto D = Reshape(d.Write(), Q1Dx,Q1Dy,Q1Dz, 11);
-   const int NE = 1;
-   MFEM_FORALL_3D(e, NE, Q1Dx, Q1Dy, Q1Dz,
-   {
-      MFEM_FOREACH_THREAD(qx,x,Q1Dx)
-      {
-         MFEM_FOREACH_THREAD(qy,y,Q1Dy)
-         {
-            MFEM_FOREACH_THREAD(qz,z,Q1Dz)
-            {
-               const real_t J11 = J(qx,qy,qz,0,0);
-               const real_t J21 = J(qx,qy,qz,1,0);
-               const real_t J31 = J(qx,qy,qz,2,0);
-               const real_t J12 = J(qx,qy,qz,0,1);
-               const real_t J22 = J(qx,qy,qz,1,1);
-               const real_t J32 = J(qx,qy,qz,2,1);
-               const real_t J13 = J(qx,qy,qz,0,2);
-               const real_t J23 = J(qx,qy,qz,1,2);
-               const real_t J33 = J(qx,qy,qz,2,2);
-               const real_t detJ = J11 * (J22 * J33 - J32 * J23) -
-               /* */               J21 * (J12 * J33 - J32 * J13) +
-               /* */               J31 * (J12 * J23 - J22 * J13);
-               const real_t wdetj = W(qx,qy,qz) * detJ;
-               // adj(J)
-               const real_t A11 = (J22 * J33) - (J23 * J32);
-               const real_t A12 = (J32 * J13) - (J12 * J33);
-               const real_t A13 = (J12 * J23) - (J22 * J13);
-               const real_t A21 = (J31 * J23) - (J21 * J33);
-               const real_t A22 = (J11 * J33) - (J13 * J31);
-               const real_t A23 = (J21 * J13) - (J11 * J23);
-               const real_t A31 = (J21 * J32) - (J31 * J22);
-               const real_t A32 = (J31 * J12) - (J11 * J32);
-               const real_t A33 = (J11 * J22) - (J12 * J21);
-
-               // store J^{-T} = adj(J)^T / detJ
-               D(qx,qy,qz,0) = A11 / detJ;
-               D(qx,qy,qz,1) = A21 / detJ;
-               D(qx,qy,qz,2) = A31 / detJ;
-               D(qx,qy,qz,3) = A12 / detJ;
-               D(qx,qy,qz,4) = A22 / detJ;
-               D(qx,qy,qz,5) = A32 / detJ;
-               D(qx,qy,qz,6) = A13 / detJ;
-               D(qx,qy,qz,7) = A23 / detJ;
-               D(qx,qy,qz,8) = A33 / detJ;
-               // Coefficients
-               D(qx,qy,qz,9) = C(qx,qy,qz,0) * wdetj; // C1 * w * detj
-               D(qx,qy,qz,10) = C(qx,qy,qz,1) * wdetj; // D1 * w * detj
-            }
-         }
-      }
-   });
-}
-
-template <int dim>
-tensor<real_t, dim, dim>
-LinearElasticStress(const tensor<real_t, dim, dim> Jinvt,
-                    const real_t lambda,
-                    const real_t mu,
-                    const tensor<real_t, dim, dim> gradu_ref)
-{
-   // cout << "graduref[0,0] = " << gradu_ref(0,0) << endl;
-   // cout << "Jinvt[0,0] = " << Jinvt(0,0) << endl;
-   // Convert gradu_ref to physical space
-   const auto gradu = gradu_ref * transpose(Jinvt);
-   // Compute stress
-   constexpr auto I = mfem::future::IsotropicIdentity<dim>();
-   const tensor<real_t, dim, dim> strain = sym(gradu);
-   const tensor<real_t, dim, dim> stress =
-      lambda * tr(strain) * I + static_cast<real_t>(2.0) * mu * strain;
-   // Transform back to reference space
-   return stress * Jinvt;
-}
-
-template <int dim>
-tensor<real_t, dim, dim>
-NeoHookeanStress(const tensor<real_t, dim, dim> Jinvt,
-                 const real_t C1,
-                 const real_t D1,
-                 const tensor<real_t, dim, dim> gradu_ref)
-{
-   static constexpr auto I = mfem::future::IsotropicIdentity<dim>();
-   const auto gradu = gradu_ref * transpose(Jinvt);
-   const auto J = det(I + gradu);
-   const auto p = -2.0 * D1 * J * (J - 1);
-   const auto devB = dev(gradu + transpose(gradu) + dot(gradu, transpose(gradu)));
-   auto stress = -(p / J) * I + 2 * (C1 / pow(J, 5.0 / 3.0)) * devB;
-   // Transform back to reference space
-   return stress * Jinvt;
-}
-
-template <int dim>
-tensor<mfem::real_t, dim, dim>
-GradNeoHookeanStress(const tensor<real_t, dim, dim> Jinvt,
-                      const real_t C1,
-                      const real_t D1,
-                      const tensor<real_t, dim, dim> gradu_ref)
-{
-   static constexpr auto I = mfem::future::IsotropicIdentity<dim>();
-   const auto gradu = gradu_ref * transpose(Jinvt);
-
-   tensor<mfem::real_t, dim, dim> F = I + gradu;
-   tensor<mfem::real_t, dim, dim> invF = inv(F);
-   tensor<mfem::real_t, dim, dim> devB =
-      dev(gradu + transpose(gradu) + dot(gradu, transpose(gradu)));
-   mfem::real_t j = det(F);
-   mfem::real_t coef = (C1 / pow(j, 5.0 / 3.0));
-   const auto dsigma = make_tensor<dim, dim, dim, dim>([&](int i, int j, int k, int l)
-   {
-      return 2 * (D1 * j * (i == j) -
-                          mfem::real_t(5.0 / 3.0) * coef * devB[i][j]) *
-                     invF[l][k] +
-                     2 * coef *
-                     ((i == k) * F[j][l] + F[i][l] * (j == k) -
-                      mfem::real_t(2.0 / 3.0) * ((i == j) * F[k][l]));
-   });
-
-   // Transform back to reference space
-   // return dsigma * Jinvt;
-   return ddot(dsigma, Jinvt);
-}
-
-template <typename Kernel>
-void PatchApplyKernel3D(const PatchBasisInfo &pb,
-                        const Vector &pa_data,
-                        Kernel&& kernel,
-                        DeviceTensor<5, real_t> &gradu,
-                        DeviceTensor<5, real_t> &S)
-{
-   // Unpack patch basis info
-   static constexpr int dim = 3;
-   const Array<int>& Q1D = pb.Q1D;
-   const int NQ = pb.NQ;
-   // Quadrature data. 11 values per quadrature point.
-   // First 9 entries are J^{-T}; then C1*W*detJ and D1*W*detJ
-   const auto qd = Reshape(pa_data.HostRead(), NQ, 11);
-
-   for (int qz = 0; qz < Q1D[2]; ++qz)
-   {
-      for (int qy = 0; qy < Q1D[1]; ++qy)
-      {
-         for (int qx = 0; qx < Q1D[0]; ++qx)
-         {
-            const int q = qx + ((qy + (qz * Q1D[1])) * Q1D[0]);
-            const real_t C1 = qd(q,9);
-            const real_t D1 = qd(q,10);
-            const auto Jinvt = make_tensor<dim, dim>(
-            [&](int i, int j) { return qd(q, i*dim + j); });
-            const auto gradu_q = make_tensor<dim, dim>(
-            [&](int i, int j) { return gradu(i,j,qx,qy,qz); });
-            const auto Sq = kernel(Jinvt, C1, D1, gradu_q);
-
-            // cout << "Sq[1,1] = " << Sq(1,1) << endl;
-
-            for (int i = 0; i < dim; ++i)
-            {
-               for (int j = 0; j < dim; ++j)
-               {
-                  S(i,j,qx,qy,qz) = Sq(i,j);
-               }
-            }
-         } // qx
-      } // qy
-   } // qz
-}
-
 class NeoHookeanNLFIntegrator : public NonlinearFormIntegrator
 // class NeoHookeanNLFIntegrator : public Operator
-// class NeoHookeanNLFIntegrator : public BilinearFormIntegrator
 {
 private:
    // Data for NURBS patch PA
@@ -224,8 +44,10 @@ private:
    static constexpr int vdim = 3;
    static constexpr int dim = 3;
 
-   // const IntegrationRule *IntRule;
    NURBSMeshRules *patchRules = nullptr;
+
+   // cached values of u (for computing gradient)
+   mutable Vector ucache;
 
 public:
    NeoHookeanNLFIntegrator(PWConstCoefficient &c, PWConstCoefficient &d, NURBSMeshRules *pr)
@@ -234,22 +56,23 @@ public:
       patchRules = pr;
    }
 
-   void AssembleNURBSPA(const FiniteElementSpace &fes);
    void AssemblePA(const FiniteElementSpace &fes);
 
-   template <typename Kernel>
-   void MultPatchPA3D(const Vector &pa_data, const PatchBasisInfo &pb, Kernel&& kernel,
-                         const Vector &x, Vector &y) const;
+   void MultPatch(const Vector &pa_data, const PatchBasisInfo &pb,
+                  const Vector &x, Vector &y) const;
    void Mult(const Vector &x, Vector &y) const;
-   void AddMult(const Vector &x, Vector &y) const;
 
-   void MultGradPatchPA3D(const Vector &pa_data, const PatchBasisInfo &pb,
-                         const Vector &x, Vector &y) const;
-   void MultGradPA(const Vector &x, Vector &y) const;
+   void MultGradPatch(const Vector &pa_data, const PatchBasisInfo &pb,
+                      const Vector &u, const Vector &x, Vector &y) const;
+   void MultGrad(const Vector &x, Vector &y) const;
+
+   void Update(const Vector &x);
 
 };
 
-void NeoHookeanNLFIntegrator::AssembleNURBSPA(const FiniteElementSpace &fes)
+// Computes everything we need at quadrature points (jacobian + coeffs) for
+// partial assembly on patches
+void NeoHookeanNLFIntegrator::AssemblePA(const FiniteElementSpace &fes)
 {
    Mesh &mesh = *fes.GetMesh();
    fespace = &fes;
@@ -312,17 +135,10 @@ void NeoHookeanNLFIntegrator::AssembleNURBSPA(const FiniteElementSpace &fes)
    }
 }
 
-void NeoHookeanNLFIntegrator::AssemblePA(const FiniteElementSpace &fes)
-{
-   AssembleNURBSPA(fes);
-}
-
-template <typename Kernel>
-void NeoHookeanNLFIntegrator::MultPatchPA3D(const Vector &pa_data,
-                                               const PatchBasisInfo &pb,
-                                               Kernel&& kernel,
-                                               const Vector &x,
-                                               Vector &y) const
+void NeoHookeanNLFIntegrator::MultPatch(const Vector &pa_data,
+                                        const PatchBasisInfo &pb,
+                                        const Vector &x,
+                                        Vector &y) const
 {
    // Unpack patch basis info
    const Array<int>& Q1D = pb.Q1D;
@@ -347,7 +163,7 @@ void NeoHookeanNLFIntegrator::MultPatchPA3D(const Vector &pa_data,
    PatchG3D<3>(pb, x, sumXYv, sumXv, gradu);
 
    // 2) Apply the "D" operator at each quadrature point: D( gradu )
-   PatchApplyKernel3D(pb, pa_data, kernel, gradu, S);
+   PatchApplyKernel3D(pb, pa_data, NeoHookeanStress<3>, gradu, S);
 
    // 3) Apply test function gradv
    PatchGT3D<3>(pb, S, sumXYv, sumXv, y);
@@ -368,20 +184,58 @@ void NeoHookeanNLFIntegrator::Mult(const Vector &x, Vector &y) const
       yp.SetSize(vdofs.Size());
       yp = 0.0;
 
-      MultPatchPA3D(ppa_data[p], pbinfo[p], NeoHookeanStress<3>, xp, yp);
+      MultPatch(ppa_data[p], pbinfo[p], xp, yp);
 
       y.AddElementVector(vdofs, yp);
    }
 }
 
-void NeoHookeanNLFIntegrator::AddMult(const Vector &x, Vector &y) const
+void NeoHookeanNLFIntegrator::MultGradPatch(const Vector &pa_data,
+                                            const PatchBasisInfo &pb,
+                                            const Vector &u,
+                                            const Vector &x,
+                                            Vector &y) const
 {
-   NeoHookeanNLFIntegrator::Mult(x, y);
+   // Unpack patch basis info
+   const Array<int>& Q1D = pb.Q1D;
+   const int NQ = pb.NQ;
+   MFEM_VERIFY((pb.dim == 3) && (vdim == 3), "Dimension mismatch.");
+
+   // gradu(i,j,q): d/d(x_j) u_i(x_q)
+   Vector graduv(vdim*vdim*NQ);
+   graduv = 0.0;
+   auto gradu = Reshape(graduv.HostReadWrite(), vdim, vdim, Q1D[0], Q1D[1], Q1D[2]);
+
+   // direction of action
+   Vector dgraduv(vdim*vdim*NQ);
+   dgraduv = 0.0;
+   auto dgradu = Reshape(dgraduv.HostReadWrite(), vdim, vdim, Q1D[0], Q1D[1], Q1D[2]);
+
+   Vector Sv(vdim*vdim*NQ);
+   Sv = 0.0;
+   auto S = Reshape(Sv.HostReadWrite(), vdim, vdim, Q1D[0], Q1D[1], Q1D[2]);
+
+   Vector sumXYv(vdim*vdim*pb.MAX1D[0]*pb.MAX1D[1]);
+   Vector sumXv(vdim*vdim*pb.MAX1D[0]);
+
+   // 1) Interpolate U at dofs to gradu in reference quadrature space
+   PatchG3D<3>(pb, u, sumXYv, sumXv, gradu);
+   sumXYv = 0.0; sumXv = 0.0;
+   PatchG3D<3>(pb, x, sumXYv, sumXv, dgradu);
+
+   // 2) Apply the "D" operator at each quadrature point: D( gradu )
+   PatchApplyGradKernel3D(pb, pa_data, GradNeoHookeanStress<3>, gradu, dgradu, S);
+
+   // 3) Apply test function gradv
+   PatchGT3D<3>(pb, S, sumXYv, sumXv, y);
+   cout << "done add mult" << endl;
+
 }
 
-void NeoHookeanNLFIntegrator::MultGradPA(const Vector &x, Vector &y) const
+void NeoHookeanNLFIntegrator::MultGrad(const Vector &x, Vector &y) const
 {
    Vector xp, yp;
+   Vector up; // evaluation point of gradient
 
    for (int p=0; p<numPatches; ++p)
    {
@@ -389,22 +243,29 @@ void NeoHookeanNLFIntegrator::MultGradPA(const Vector &x, Vector &y) const
       fespace->GetPatchVDofs(p, vdofs);
 
       x.GetSubVector(vdofs, xp);
+      ucache.GetSubVector(vdofs, up);
       yp.SetSize(vdofs.Size());
       yp = 0.0;
 
-      MultPatchPA3D(ppa_data[p], pbinfo[p], GradNeoHookeanStress<3>, xp, yp);
+      MultGradPatch(ppa_data[p], pbinfo[p], up, xp, yp);
 
       y.AddElementVector(vdofs, yp);
    }
+   cout << "done mult grad" << endl;
+}
+
+void NeoHookeanNLFIntegrator::Update(const Vector &x)
+{
+   ucache = x;
 }
 
 class Residual : public Operator
 {
 private:
-   NeoHookeanNLFIntegrator *F1i; // domain terms
+   NeoHookeanNLFIntegrator *F1; // domain terms
    LinearForm *F2; // boundary terms
    Array<int> ess_tdofs;
-   NonlinearForm *F1 = nullptr; // domain terms
+   // NonlinearForm *F1 = nullptr; // domain terms
 
    class Jacobian : public Operator
    {
@@ -420,7 +281,7 @@ private:
          z = x;
          z.SetSubVector(residual->ess_tdofs, 0.0);
 
-         residual->F1->Mult(z, y);
+         residual->F1->MultGrad(z, y);
 
          auto d_y = y.HostReadWrite();
          const auto d_x = x.HostRead();
@@ -438,7 +299,7 @@ private:
    };
 
 public:
-   Residual(NeoHookeanNLFIntegrator *F1i_, FiniteElementSpace &fespace, LinearForm *F2_, Array<int> &ess_tdof_list);
+   Residual(NeoHookeanNLFIntegrator *F1_, FiniteElementSpace &fespace, LinearForm *F2_, Array<int> &ess_tdof_list);
 
    void Mult(const Vector &x, Vector &y) const override;
 
@@ -447,15 +308,9 @@ public:
    mutable std::shared_ptr<Jacobian> J;
 };
 
-Residual::Residual(NeoHookeanNLFIntegrator *F1i_, FiniteElementSpace &fespace, LinearForm *F2_, Array<int> &ess)
-   : Operator(fespace.GetTrueVSize()), F1i(F1i_), F2(F2_), ess_tdofs(ess)
-{
-   F1 = new NonlinearForm(&fespace);
-   F1->SetAssemblyLevel(AssemblyLevel::PARTIAL);
-   F1->AddDomainIntegrator(F1i);
-   F1->SetEssentialBC(ess_tdofs);
-   F1->Setup();
-}
+Residual::Residual(NeoHookeanNLFIntegrator *F1_, FiniteElementSpace &fespace, LinearForm *F2_, Array<int> &ess)
+   : Operator(fespace.GetTrueVSize()), F1(F1_), F2(F2_), ess_tdofs(ess)
+{ }
 
 void Residual::Mult(const Vector &x, Vector &y) const
 {
@@ -465,15 +320,20 @@ void Residual::Mult(const Vector &x, Vector &y) const
    const real_t* v = F2->HostRead();
    for (int i = 0; i < F2->Size(); ++i)
    {
-      y[i] -= v[i];
+      y[i] += v[i];
    }
 
    y.SetSubVector(ess_tdofs, 0.0);
+
+   cout << "Residual::Mult" << endl;
 }
 
 Operator &Residual::GetGradient(const Vector &x) const
 {
+   // action of gradient is calculated by the NeoHookeanNLFIntegrator, so update its data
+   F1->Update(x);
    J = std::make_shared<Jacobian>(this);
+   cout << "Residual::GetGradient" << endl;
    return *J;
 }
 
@@ -598,19 +458,25 @@ int main(int argc, char *argv[])
    cout << "done." << endl;
 
    // Form system
-   CGSolver krylov;
-   krylov.SetAbsTol(0.0);
-   krylov.SetRelTol(1e-4);
-   krylov.SetMaxIter(500);
-   krylov.SetPrintLevel(2);
+   CGSolver lsolver;
+   lsolver.SetAbsTol(0.0);
+   lsolver.SetRelTol(1e-4);
+   lsolver.SetMaxIter(500);
+   lsolver.SetPrintLevel(2);
+
+   // GMRESSolver *lsolver = new GMRESSolver();
+   // lsolver->iterative_mode = false;
+   // lsolver->SetRelTol(1e-12);
+   // lsolver->SetAbsTol(1e-12);
+   // lsolver->SetMaxIter(300);
 
    // Set up the nonlinear solver
    NewtonSolver newton;
    newton.SetOperator(F);
-   newton.SetAbsTol(0.0);
+   newton.SetAbsTol(1e-6);
    newton.SetRelTol(1e-6);
    newton.SetMaxIter(10);
-   newton.SetSolver(krylov);
+   newton.SetSolver(lsolver);
    newton.SetPrintLevel(1);
 
    // Solve
