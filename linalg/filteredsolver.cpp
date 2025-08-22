@@ -36,29 +36,34 @@ const Operator * FilteredSolver::GetPtAP(const Operator *Aop,
    return new RAPOperator(*Pop, *Aop, *Pop);
 }
 
-void FilteredSolver::MakeSolver() const
+void FilteredSolver::InitVectors() const
 {
-   if (solver_set) { return; }
-
    MFEM_VERIFY(A, "FilteredSolver::MakeSolver: Operator not set");
    MFEM_VERIFY(P, "FilteredSolver::MakeSolver: Transfer operator not set");
    MFEM_VERIFY(M, "FilteredSolver::MakeSolver: Solver is not set.");
    MFEM_VERIFY(Mf,"FilteredSolver::MakeSolver: Filtered space solver is not set.");
 
-   // Original space solver
-   M->SetOperator(*A);
-
-   // Filtered space operator
-   delete PtAP;
-   PtAP = GetPtAP(A, P);
-
-   // Filtered space solver
-   Mf->SetOperator(*PtAP);
-
    z.SetSize(height);
    r.SetSize(height);
    xf.SetSize(P->Width());
    rf.SetSize(P->Width());
+}
+
+
+void FilteredSolver::MakeSolver() const
+{
+   if (solver_set) { return; }
+
+   InitVectors();
+
+   // Original space solver
+   M->SetOperator(*A);
+
+   // Filtered space operator
+   PtAP.reset(GetPtAP(A, P));
+
+   // Filtered space solver
+   Mf->SetOperator(*PtAP);
 
    solver_set = true;
 }
@@ -92,7 +97,7 @@ void FilteredSolver::SetFilteredSubspaceSolver(Solver &Mf_)
 void FilteredSolver::Mult(const Vector &b, Vector &x) const
 {
    MFEM_VERIFY(b.Size() == x.Size(),
-               "FilteredSolver::Mult: Inconsistent x and y size");
+               "FilteredSolver::Mult: Inconsistent b and x size");
    MakeSolver();
 
    x = 0.0;
@@ -126,10 +131,16 @@ void FilteredSolver::Mult(const Vector &b, Vector &x) const
    x+=z;
 }
 
-FilteredSolver::~FilteredSolver()
+void AMGFSolver::SetOperator(const Operator &A_)
 {
-   delete PtAP;
+   auto Ah = dynamic_cast<const HypreParMatrix*>(&A_);
+   MFEM_VERIFY(Ah, "AMGFSolver::SetOperator: HypreParMatrix expected.");
+   FilteredSolver::SetOperator(*Ah);
 }
 
+void AMGFSolver::SetFilteredSubspaceTransferOperator(const HypreParMatrix &Pop)
+{
+   FilteredSolver::SetFilteredSubspaceTransferOperator(Pop);
+}
 
 } // namespace mfem

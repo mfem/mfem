@@ -25,26 +25,31 @@ class FilteredSolver : public Solver
 public:
    FilteredSolver() : Solver() { }
 
-   void SetOperator(const Operator &A);
-   void SetSolver(Solver &M);
+   virtual void SetOperator(const Operator &A) override;
+   virtual void SetSolver(Solver &M);
 
    // Transfer operator from Filtered subspace to the original space
    void SetFilteredSubspaceTransferOperator(const Operator &P);
    void SetFilteredSubspaceSolver(Solver &Mf);
 
-   void Mult(const Vector &x, Vector &y) const;
+   void Mult(const Vector &x, Vector &y) const override;
 
-   ~FilteredSolver();
+   virtual ~FilteredSolver() = default;
 
-private:
+   FilteredSolver(const FilteredSolver&) = delete;
+   FilteredSolver& operator=(const FilteredSolver&) = delete;
+   FilteredSolver(FilteredSolver&&) = default;
+   FilteredSolver& operator=(FilteredSolver&&) = default;
 
+protected:
    const Operator * A = nullptr;
    const Operator * P = nullptr;
-   const mutable Operator * PtAP = nullptr;
    Solver * M = nullptr;
    Solver * Mf = nullptr;
-
+   mutable std::unique_ptr<const Operator> PtAP = nullptr;
+   void InitVectors() const;
    bool mutable solver_set = false;
+private:
 
    const Operator * GetPtAP(const Operator *Aop, const Operator *Pop) const;
    void MakeSolver() const;
@@ -55,6 +60,38 @@ private:
    mutable Vector r;
 
 }; // mfem::FilteredSolver class
+
+
+#ifdef MFEM_USE_MPI
+class AMGFSolver : public FilteredSolver
+{
+private:
+   std::unique_ptr<HypreBoomerAMG> amg;
+public:
+   AMGFSolver() : FilteredSolver()
+   {
+      amg = std::make_unique<HypreBoomerAMG>();
+      FilteredSolver::SetSolver(*amg);
+   }
+   virtual void SetOperator(const Operator &A) override;
+
+   HypreBoomerAMG& AMG() { solver_set = false; return *amg; }
+   const HypreBoomerAMG& AMG() const { return *amg; }
+
+
+   void SetSolver(Solver &M) override
+   {
+      MFEM_ABORT("SetSolver is not supported in AMGFSolver. It is set to AMG by default");
+   }
+
+   // Transfer operator from Filtered subspace to the original space
+   void SetFilteredSubspaceTransferOperator(const HypreParMatrix &Pop);
+
+   ~AMGFSolver() override = default;
+
+};
+#endif
+
 
 } // namespace mfem
 
