@@ -13,6 +13,7 @@
 #define MFEM_PLASMA_HPP
 
 #include <cmath>
+#include <complex>
 
 namespace mfem
 {
@@ -50,6 +51,8 @@ inline double cyclotronFrequency(double B, double m, double q)
 {
    return fabs(q * q_ * B / (m * amu_));
 }
+
+typedef std::complex<real_t> complex_t;
 
 } // namespace plasma
 
