@@ -14,6 +14,7 @@
 
 #include "../config/config.hpp"
 #include "operator.hpp"
+#include "handle.hpp"
 
 
 namespace mfem
@@ -28,56 +29,47 @@ class FilteredSolver : public Solver
 {
 public:
    /**
-    * @brief Constructor with MPI_Comm parameter.
+    * @brief Constructor
     */
-   FilteredSolver(MPI_Comm comm_);
+   FilteredSolver() : Solver() { }
 
    /**
-    * @brief Constructor with a generic Operator.
+    * @brief Set the Operator
     */
-   FilteredSolver(const Operator &op);
+   void SetOperator(const Operator &A);
+   void SetSolver(Solver &M);
 
-   /**
-    * @brief Set the Operator and perform factorization
-    */
-   void SetOperator(const Operator &op);
+   // Transfer operator from Filtered subspace to the original space
+   void SetFilteredSubspaceTransferOperator(const Operator &P);
+   void SetFilteredSubspaceSolver(Solver &Mf);
+   void Reset() { solver_set = false; }
 
    void Mult(const Vector &x, Vector &y) const;
-
-   /**
-    * @brief Set the error print level
-    *
-    * Supported values are:
-    * - 0:  No output printed
-    * - 1:  Only errors printed
-    * - 2:  Errors, warnings, and main stats printed
-    * - 3:  Errors, warning, main stats, and terse diagnostics printed
-    * - 4:  Errors, warning, main stats, diagnostics, and input/output printed
-    *
-    * @param print_lvl Print level, default is 2
-    *
-    * @note This method has to be called before SetOperator
-    */
-   void SetPrintLevel(int print_lvl);
 
    // Destructor
    ~FilteredSolver();
 
 private:
-   // MPI communicator
-   MPI_Comm comm;
 
-   // Number of procs
-   int numProcs;
+   OperatorHandle Ah;
+   OperatorHandle Ph;
+   OperatorHandle PtAPh;
+   Operator * A = nullptr;
+   Operator * P = nullptr;
 
-   // MPI rank
-   int myid;
+   Solver * M = nullptr;
+   Solver * Mf = nullptr;
 
-   // Parameter controlling the printing level
-   int print_level;
+   bool solver_set = false;
 
-   /// Method for initialization
-   void Init(MPI_Comm comm_);
+   void SetupOperatorHandle(const Operator *A, OperatorHandle &handle);
+
+   void MakeSolver();
+
+   mutable Vector z;
+   mutable Vector rf;
+   mutable Vector xf;
+   mutable Vector r;
 
 }; // mfem::FilteredSolver class
 
