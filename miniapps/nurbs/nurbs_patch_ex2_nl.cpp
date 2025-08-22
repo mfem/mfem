@@ -8,16 +8,6 @@
 // Description:  This example code solves a simple nonlinear elasticity problem
 //               describing a multi-material cantilever beam.
 //
-//               Specifically, we approximate the weak form of -div(sigma(u))=0
-//               where sigma(u)=lambda*div(u)*I+mu*(grad*u+u*grad) is the stress
-//               tensor corresponding to displacement field u, and lambda and mu
-//               are the material Lame constants. The boundary conditions are
-//               u=0 on the fixed part of the boundary with attribute 1, and
-//               sigma(u).n=f on the remainder with f being a constant pull down
-//               vector on boundary elements with attribute 2, and zero
-//               otherwise. The geometry of the domain is assumed to be as
-//               follows:
-//
 //                                 +----------+----------+
 //                    boundary --->| material | material |<--- boundary
 //                    attribute 1  |    1     |    2     |     attribute 2
@@ -142,9 +132,41 @@ NeoHookeanStress(const tensor<real_t, dim, dim> Jinvt,
    return stress * Jinvt;
 }
 
+template <int dim>
+tensor<mfem::real_t, dim, dim>
+GradNeoHookeanStress(const tensor<real_t, dim, dim> Jinvt,
+                      const real_t C1,
+                      const real_t D1,
+                      const tensor<real_t, dim, dim> gradu_ref)
+{
+   static constexpr auto I = mfem::future::IsotropicIdentity<dim>();
+   const auto gradu = gradu_ref * transpose(Jinvt);
 
+   tensor<mfem::real_t, dim, dim> F = I + gradu;
+   tensor<mfem::real_t, dim, dim> invF = inv(F);
+   tensor<mfem::real_t, dim, dim> devB =
+      dev(gradu + transpose(gradu) + dot(gradu, transpose(gradu)));
+   mfem::real_t j = det(F);
+   mfem::real_t coef = (C1 / pow(j, 5.0 / 3.0));
+   const auto dsigma = make_tensor<dim, dim, dim, dim>([&](int i, int j, int k, int l)
+   {
+      return 2 * (D1 * j * (i == j) -
+                          mfem::real_t(5.0 / 3.0) * coef * devB[i][j]) *
+                     invF[l][k] +
+                     2 * coef *
+                     ((i == k) * F[j][l] + F[i][l] * (j == k) -
+                      mfem::real_t(2.0 / 3.0) * ((i == j) * F[k][l]));
+   });
+
+   // Transform back to reference space
+   // return dsigma * Jinvt;
+   return ddot(dsigma, Jinvt);
+}
+
+template <typename Kernel>
 void PatchApplyKernel3D(const PatchBasisInfo &pb,
                         const Vector &pa_data,
+                        Kernel&& kernel,
                         DeviceTensor<5, real_t> &gradu,
                         DeviceTensor<5, real_t> &S)
 {
@@ -153,7 +175,7 @@ void PatchApplyKernel3D(const PatchBasisInfo &pb,
    const Array<int>& Q1D = pb.Q1D;
    const int NQ = pb.NQ;
    // Quadrature data. 11 values per quadrature point.
-   // First 9 entries are J^{-T}; then lambda*W*detJ and mu*W*detJ
+   // First 9 entries are J^{-T}; then C1*W*detJ and D1*W*detJ
    const auto qd = Reshape(pa_data.HostRead(), NQ, 11);
 
    for (int qz = 0; qz < Q1D[2]; ++qz)
@@ -163,14 +185,13 @@ void PatchApplyKernel3D(const PatchBasisInfo &pb,
          for (int qx = 0; qx < Q1D[0]; ++qx)
          {
             const int q = qx + ((qy + (qz * Q1D[1])) * Q1D[0]);
-            const real_t lambda  = qd(q,9);
-            const real_t mu      = qd(q,10);
+            const real_t C1 = qd(q,9);
+            const real_t D1 = qd(q,10);
             const auto Jinvt = make_tensor<dim, dim>(
             [&](int i, int j) { return qd(q, i*dim + j); });
             const auto gradu_q = make_tensor<dim, dim>(
             [&](int i, int j) { return gradu(i,j,qx,qy,qz); });
-            // const auto Sq = NeoHookeanStress<dim>(Jinvt, lambda, mu, gradu_q);
-            const auto Sq = LinearElasticStress<dim>(Jinvt, lambda, mu, gradu_q);
+            const auto Sq = kernel(Jinvt, C1, D1, gradu_q);
 
             // cout << "Sq[1,1] = " << Sq(1,1) << endl;
 
@@ -187,6 +208,7 @@ void PatchApplyKernel3D(const PatchBasisInfo &pb,
 }
 
 class NeoHookeanNLFIntegrator : public NonlinearFormIntegrator
+// class NeoHookeanNLFIntegrator : public Operator
 // class NeoHookeanNLFIntegrator : public BilinearFormIntegrator
 {
 private:
@@ -203,28 +225,27 @@ private:
    static constexpr int dim = 3;
 
    // const IntegrationRule *IntRule;
-   // NURBSMeshRules *patchRules = nullptr;
+   NURBSMeshRules *patchRules = nullptr;
 
 public:
-   NeoHookeanNLFIntegrator(PWConstCoefficient &c, PWConstCoefficient &d)
-   { C1 = &c; D1 = &d; }
-
-   // static const IntegrationRule &GetRule(const FiniteElement &fe,
-                                       //   const ElementTransformation &T);
-
-   void AssembleNURBSPA(const FiniteElementSpace &fes) override;
-   void AssemblePA(const FiniteElementSpace &fes) override;
-
-   void AddMultPatchPA3D(const Vector &pa_data, const PatchBasisInfo &pb,
-                         const Vector &x, Vector &y) const;
-
-   void AddMultNURBSPA(const Vector &x, Vector &y) const override;
-   void AddMultPA(const Vector &x, Vector &y) const override;
-
-   ~NeoHookeanNLFIntegrator() override
+   NeoHookeanNLFIntegrator(PWConstCoefficient &c, PWConstCoefficient &d, NURBSMeshRules *pr)
    {
-      delete patchRules;
+      C1 = &c; D1 = &d;
+      patchRules = pr;
    }
+
+   void AssembleNURBSPA(const FiniteElementSpace &fes);
+   void AssemblePA(const FiniteElementSpace &fes);
+
+   template <typename Kernel>
+   void MultPatchPA3D(const Vector &pa_data, const PatchBasisInfo &pb, Kernel&& kernel,
+                         const Vector &x, Vector &y) const;
+   void Mult(const Vector &x, Vector &y) const;
+   void AddMult(const Vector &x, Vector &y) const;
+
+   void MultGradPatchPA3D(const Vector &pa_data, const PatchBasisInfo &pb,
+                         const Vector &x, Vector &y) const;
+   void MultGradPA(const Vector &x, Vector &y) const;
 
 };
 
@@ -296,8 +317,10 @@ void NeoHookeanNLFIntegrator::AssemblePA(const FiniteElementSpace &fes)
    AssembleNURBSPA(fes);
 }
 
-void NeoHookeanNLFIntegrator::AddMultPatchPA3D(const Vector &pa_data,
+template <typename Kernel>
+void NeoHookeanNLFIntegrator::MultPatchPA3D(const Vector &pa_data,
                                                const PatchBasisInfo &pb,
+                                               Kernel&& kernel,
                                                const Vector &x,
                                                Vector &y) const
 {
@@ -324,7 +347,7 @@ void NeoHookeanNLFIntegrator::AddMultPatchPA3D(const Vector &pa_data,
    PatchG3D<3>(pb, x, sumXYv, sumXv, gradu);
 
    // 2) Apply the "D" operator at each quadrature point: D( gradu )
-   PatchApplyKernel3D(pb, pa_data, gradu, S);
+   PatchApplyKernel3D(pb, pa_data, kernel, gradu, S);
 
    // 3) Apply test function gradv
    PatchGT3D<3>(pb, S, sumXYv, sumXv, y);
@@ -332,7 +355,7 @@ void NeoHookeanNLFIntegrator::AddMultPatchPA3D(const Vector &pa_data,
 
 }
 
-void NeoHookeanNLFIntegrator::AddMultNURBSPA(const Vector &x, Vector &y) const
+void NeoHookeanNLFIntegrator::Mult(const Vector &x, Vector &y) const
 {
    Vector xp, yp;
 
@@ -345,17 +368,114 @@ void NeoHookeanNLFIntegrator::AddMultNURBSPA(const Vector &x, Vector &y) const
       yp.SetSize(vdofs.Size());
       yp = 0.0;
 
-      AddMultPatchPA3D(ppa_data[p], pbinfo[p], xp, yp);
+      MultPatchPA3D(ppa_data[p], pbinfo[p], NeoHookeanStress<3>, xp, yp);
 
       y.AddElementVector(vdofs, yp);
    }
 }
 
-void NeoHookeanNLFIntegrator::AddMultPA(const Vector &x, Vector &y) const
+void NeoHookeanNLFIntegrator::AddMult(const Vector &x, Vector &y) const
 {
-   AddMultNURBSPA(x, y);
+   NeoHookeanNLFIntegrator::Mult(x, y);
 }
 
+void NeoHookeanNLFIntegrator::MultGradPA(const Vector &x, Vector &y) const
+{
+   Vector xp, yp;
+
+   for (int p=0; p<numPatches; ++p)
+   {
+      Array<int> vdofs;
+      fespace->GetPatchVDofs(p, vdofs);
+
+      x.GetSubVector(vdofs, xp);
+      yp.SetSize(vdofs.Size());
+      yp = 0.0;
+
+      MultPatchPA3D(ppa_data[p], pbinfo[p], GradNeoHookeanStress<3>, xp, yp);
+
+      y.AddElementVector(vdofs, yp);
+   }
+}
+
+class Residual : public Operator
+{
+private:
+   NeoHookeanNLFIntegrator *F1i; // domain terms
+   LinearForm *F2; // boundary terms
+   Array<int> ess_tdofs;
+   NonlinearForm *F1 = nullptr; // domain terms
+
+   class Jacobian : public Operator
+   {
+   public:
+      Jacobian(const Residual *res) :
+         Operator(res->Height()),
+         residual(res),
+         z(res->Height())
+      { }
+
+      void Mult(const Vector &x, Vector &y) const override
+      {
+         z = x;
+         z.SetSubVector(residual->ess_tdofs, 0.0);
+
+         residual->F1->Mult(z, y);
+
+         auto d_y = y.HostReadWrite();
+         const auto d_x = x.HostRead();
+         for (int i = 0; i < residual->ess_tdofs.Size(); i++)
+         {
+            d_y[residual->ess_tdofs[i]] = d_x[residual->ess_tdofs[i]];
+         }
+      }
+
+      // Pointer to the wrapped Residual operator
+      const Residual *residual = nullptr;
+
+      // Temporary vector
+      mutable Vector z;
+   };
+
+public:
+   Residual(NeoHookeanNLFIntegrator *F1i_, FiniteElementSpace &fespace, LinearForm *F2_, Array<int> &ess_tdof_list);
+
+   void Mult(const Vector &x, Vector &y) const override;
+
+   Operator &GetGradient(const Vector &x) const override;
+
+   mutable std::shared_ptr<Jacobian> J;
+};
+
+Residual::Residual(NeoHookeanNLFIntegrator *F1i_, FiniteElementSpace &fespace, LinearForm *F2_, Array<int> &ess)
+   : Operator(fespace.GetTrueVSize()), F1i(F1i_), F2(F2_), ess_tdofs(ess)
+{
+   F1 = new NonlinearForm(&fespace);
+   F1->SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   F1->AddDomainIntegrator(F1i);
+   F1->SetEssentialBC(ess_tdofs);
+   F1->Setup();
+}
+
+void Residual::Mult(const Vector &x, Vector &y) const
+{
+   F1->Mult(x, y);
+
+   // Add the boundary terms
+   const real_t* v = F2->HostRead();
+   for (int i = 0; i < F2->Size(); ++i)
+   {
+      y[i] -= v[i];
+   }
+
+   y.SetSubVector(ess_tdofs, 0.0);
+}
+
+Operator &Residual::GetGradient(const Vector &x) const
+{
+   J = std::make_shared<Jacobian>(this);
+   return *J;
+}
 
 
 int main(int argc, char *argv[])
@@ -409,28 +529,15 @@ int main(int argc, char *argv[])
            << endl;
    }
 
-   // 3. Optionally, increase the NURBS degree.
-   if (nurbs_degree_increase > 0)
-   {
-      mesh.DegreeElevate(nurbs_degree_increase);
-   }
-
-   // 4. Refine the mesh to increase the resolution.
-   if (refinement_factor > 1)
-   {
-      mesh.NURBSUniformRefinement(refinement_factor);
-   }
+   if (nurbs_degree_increase > 0) { mesh.DegreeElevate(nurbs_degree_increase); }
+   if (refinement_factor > 1) { mesh.NURBSUniformRefinement(refinement_factor); }
 
    // 5. Define a finite element space on the mesh.
-   // Node ordering is important - right now, only works with byVDIM
    FiniteElementCollection * fec = mesh.GetNodes()->OwnFEC();
-   cout << "fec order = " << fec->GetOrder() << endl;
-
-   FiniteElementSpace fespace = FiniteElementSpace(&mesh, fec,
-                                                   dim, Ordering::byVDIM);
+   FiniteElementSpace fespace = FiniteElementSpace(&mesh, fec, dim, Ordering::byVDIM);
+   // FiniteElementSpace fespace = FiniteElementSpace(&mesh, fec, dim);
    cout << "Finite Element Collection: " << fec->Name() << endl;
-   const int ndof = fespace.GetTrueVSize();
-   cout << "Number of finite element unknowns: " << ndof << endl;
+   cout << "Number of finite element unknowns: " << fespace.GetTrueVSize() << endl;
    cout << "Number of elements: " << fespace.GetNE() << endl;
    cout << "Number of patches: " << mesh.NURBSext->GetNP() << endl;
 
@@ -439,8 +546,6 @@ int main(int argc, char *argv[])
    ess_bdr = 0;
    ess_bdr[0] = 1;
    fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
-
-
 
    // 7. Set up the linear form b(.)
    VectorArrayCoefficient f(dim);
@@ -480,150 +585,68 @@ int main(int argc, char *argv[])
    PWConstCoefficient C1_func(C1);
    PWConstCoefficient D1_func(D1);
 
-   // Integrator
-   // ElasticityIntegrator *nhi = new ElasticityIntegrator(C1_func, D1_func);
-   NeoHookeanNLFIntegrator *nhi = new NeoHookeanNLFIntegrator(C1_func, D1_func);
-   nhi->SetIntegrationMode(NonlinearFormIntegrator::Mode::PATCHWISE);
-   // Integration rule for the 1d bases defined on each knotvector
-   SplineIntegrationRule splineRule(spline_integration_type);
-   // Set the patch integration rules
-   NURBSMeshRules* meshRules = new NURBSMeshRules(mesh, splineRule);
-   nhi->SetNURBSPatchIntRule(meshRules);
-
-   nhi->AssemblePA(fespace);
-
-   // 10. Assembly
-   StopWatch sw;
-   sw.Start();
-
-   // Define and assemble nonlinear form
    cout << "Assembling F ... " << flush;
-   // BilinearForm a(&fespace);
-   // a.SetAssemblyLevel(AssemblyLevel::PARTIAL);
-   // a.AddDomainIntegrator(nhi);
-   // a.Assemble();
+   // Integration rule
+   SplineIntegrationRule splineRule(spline_integration_type);
+   NURBSMeshRules* meshRules = new NURBSMeshRules(mesh, splineRule);
+   // Integrator
+   NeoHookeanNLFIntegrator nhi(C1_func, D1_func, meshRules);
+   nhi.AssemblePA(fespace);
 
-   NonlinearForm F(&fespace);
-   F.SetAssemblyLevel(AssemblyLevel::PARTIAL);
-   F.AddDomainIntegrator(nhi);
-   F.Setup(); // assemblePA
-
-   // F.Assemble();
-
+   // Define nonlinear form
+   Residual F(&nhi, fespace, &b, ess_tdof_list);
    cout << "done." << endl;
 
-   // // Form linear system
-   // cout << "Forming linear system ... " << flush;
-   // OperatorPtr A;
+   // Form system
+   CGSolver krylov;
+   krylov.SetAbsTol(0.0);
+   krylov.SetRelTol(1e-4);
+   krylov.SetMaxIter(500);
+   krylov.SetPrintLevel(2);
+
+   // Set up the nonlinear solver
+   NewtonSolver newton;
+   newton.SetOperator(F);
+   newton.SetAbsTol(0.0);
+   newton.SetRelTol(1e-6);
+   newton.SetMaxIter(10);
+   newton.SetSolver(krylov);
+   newton.SetPrintLevel(1);
+
+   // Solve
+   // H1.GetRestrictionMatrix()->Mult(u, X);
+   Vector zero;
+   Vector X(fespace.GetTrueVSize());
+   newton.Mult(zero, X);
+   // H1.GetProlongationMatrix()->Mult(X, u);
    // Vector B, X;
+   // F.SetEssentialTrueDofs(ess_tdof_list);
+
+
+
+   // OperatorPtr A;
    // a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
    // cout << "done. " << "(size = " << fespace.GetTrueVSize() << ")" << endl;
 
    // 11. Define the solver + preconditioner
-   CGSolver solver;
-   solver.SetOperator(*A);
-   solver.SetMaxIter(1e4);
-   solver.SetPrintLevel(1);
-   solver.SetRelTol(sqrt(1e-6));
-   solver.SetAbsTol(sqrt(1e-14));
+   // CGSolver solver;
+   // solver.SetOperator(*A);
+   // solver.SetMaxIter(1e4);
+   // solver.SetPrintLevel(1);
+   // solver.SetRelTol(sqrt(1e-6));
+   // solver.SetAbsTol(sqrt(1e-14));
 
-
-   // sw.Stop();
-   // const real_t timeAssemble = sw.RealTime();
-   // sw.Clear(); sw.Start();
 
    // 12. Solve the linear system A X = B.
-   cout << "Solving linear system ... " << endl;
-   solver.Mult(B, X);
-   cout << "Done solving system." << endl;
-   // Recover the solution as a finite element grid function.
-   a.RecoverFEMSolution(X, b, x);
+   // cout << "Solving linear system ... " << endl;
+   // solver.Mult(B, X);
+   // cout << "Done solving system." << endl;
+   // // Recover the solution as a finite element grid function.
+   // a.RecoverFEMSolution(X, b, x);
 
 
 
 
-   // sw.Stop();
-   // const real_t timeSolve = sw.RealTime();
-   // const real_t timeTotal = timeAssemble + timeSolve;
-
-
-
-   // // 13. Collect results and write to file
-   // const int niter = solver.GetNumIterations();
-   // const int dof_per_sec_solve = ndof * niter / timeSolve;
-   // const int dof_per_sec_total = ndof * niter / timeTotal;
-   // cout << "Time to assemble: " << timeAssemble << " seconds" << endl;
-   // cout << "Time to solve: " << timeSolve << " seconds" << endl;
-   // cout << "Total time: " << timeTotal << " seconds" << endl;
-   // cout << "Dof/sec (solve): " << dof_per_sec_solve << endl;
-   // cout << "Dof/sec (total): " << dof_per_sec_total << endl;
-
-   // if (csv_info)
-   // {
-   //    ofstream results_ofs("ex2_results.csv", ios_base::app);
-   //    // If file does not exist, write the header
-   //    if (results_ofs.tellp() == 0)
-   //    {
-   //       results_ofs << "patcha, pa, pc, sint, "         // settings
-   //                   << "mesh, rf, deg_inc, ndof, "      // mesh
-   //                   << "niter, absnorm, relnorm, "      // solver
-   //                   << "linf, l2, "                     // solution
-   //                   << "t_assemble, t_solve, t_total, " // timing
-   //                   << "dof/s_solve, dof/s_total"       // benchmarking
-   //                   << endl;
-   //    }
-
-   //    results_ofs << patchAssembly << ", "               // settings
-   //                << pa << ", "
-   //                << preconditioner << ", "
-   //                << spline_integration_type << ", "
-   //                << mesh_file << ", "                   // mesh
-   //                << refinement_factor << ", "
-   //                << nurbs_degree_increase << ", "
-   //                << ndof << ", "
-   //                << niter << ", "                       // solver
-   //                << solver.GetFinalNorm() << ", "
-   //                << solver.GetFinalRelNorm() << ", "
-   //                << x.Normlinf() << ", "                // solution
-   //                << x.Norml2() << ", "
-   //                << timeAssemble << ", "                // timing
-   //                << timeSolve << ", "
-   //                << timeTotal << ", "
-   //                << dof_per_sec_solve << ", "           // benchmarking
-   //                << dof_per_sec_total << endl;
-
-   //    results_ofs.close();
-   // }
-
-   // // 14. Save the displaced mesh and the inverted solution
-   // {
-   //    cout << "Saving mesh and solution to file..." << endl;
-   //    GridFunction *nodes = mesh.GetNodes();
-   //    *nodes += x;
-   //    x *= -1;
-   //    ofstream mesh_ofs("displaced.mesh");
-   //    mesh_ofs.precision(8);
-   //    mesh.Print(mesh_ofs);
-   //    ofstream sol_ofs("sol.gf");
-   //    sol_ofs.precision(16);
-   //    x.Save(sol_ofs);
-   // }
-
-   // // 15. Send the data by socket to a GLVis server.
-   // if (visualization)
-   // {
-   //    // send to socket
-   //    char vishost[] = "localhost";
-   //    socketstream sol_sock(vishost, visport);
-   //    sol_sock.precision(8);
-   //    sol_sock << "solution\n" << mesh << x;
-   //    sol_sock << "window_geometry " << 0 << " " << 0 << " "
-   //             << 800 << " " << 800 << "\n"
-   //             << "keys agc\n" << std::flush;
-   // }
-
-   // 16. Free the used memory.
-   // delete meshRules;
 
    return 0;
 }
