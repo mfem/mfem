@@ -1126,7 +1126,7 @@ void WeakFaceReconstruction(Solver& solver,
 
       mesh.GetElementEdges(e_idx, faces_e, orientation_e);
 
-      auto e_trans = fes_src.GetElementTransformation(e_idx);
+      auto& e_trans = *fes_src.GetElementTransformation(e_idx);
 
       Vector e_rhs(dst_e_ndofs);
       DenseMatrix e_mat(dst_e_ndofs);
@@ -1184,12 +1184,12 @@ void WeakFaceReconstruction(Solver& solver,
       switch (reg_type)
       {
          case l2:
-            mass.AssembleElementMatrix(fe_dst_e, *e_trans, *reg_mat.get());
+            mass.AssembleElementMatrix(fe_dst_e, e_trans, *reg_mat.get());
             break;
          case h1:
             _h1_int->AddIntegrator(&mass);
             _h1_int->AddIntegrator(_diff_int.get());
-            _h1_int->AssembleElementMatrix(fe_dst_e, *e_trans, *reg_mat.get());
+            _h1_int->AssembleElementMatrix(fe_dst_e, e_trans, *reg_mat.get());
             break;
          case direct:
          default:
@@ -1210,13 +1210,13 @@ void WeakFaceReconstruction(Solver& solver,
          punity_src.GetElementDofValues(e_idx, punity_src_e);
          punity_dst.GetElementDofValues(e_idx, punity_dst_e);
 
-         mass.AssembleElementMatrix(fe_src_e, *e_trans, e_to_e_mat);
+         mass.AssembleElementMatrix(fe_src_e, e_trans, e_to_e_mat);
 
          real_t src_e_avg = e_to_e_mat.InnerProduct(src_e, punity_src_e);
          src_e_avg /= e_volume;
 
          // (Average) projector
-         mass.AssembleElementMatrix(fe_dst_e, *e_trans, e_to_e_mat);
+         mass.AssembleElementMatrix(fe_dst_e, e_trans, e_to_e_mat);
 
          e_to_e_mat.MultTranspose(punity_dst_e, e_to_e_avg);
          e_to_e_avg /= e_volume;
