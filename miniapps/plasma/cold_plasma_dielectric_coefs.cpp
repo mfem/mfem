@@ -232,19 +232,19 @@ complex<real_t> P_cold_plasma(real_t omega,
    return val;
 }
 
-StixCoefBase::StixCoefBase(StixParams &stixParams, ReImPart re_im_part)
-   : BCoef_(stixParams.BCoef),
-     nue_(stixParams.nueCoef),
-     nui_(stixParams.nuiCoef),
-     spec_density_(stixParams.specDensityCoef),
-     spec_temperature_(stixParams.specTemperatureCoef),
-     omega_(stixParams.omega),
+StixCoefBase::StixCoefBase(StixParams &stix_params, ReImPart re_im_part)
+   : BCoef_(stix_params.BCoef),
+     nue_(stix_params.nueCoef),
+     nui_(stix_params.nuiCoef),
+     spec_density_(stix_params.specDensityCoef),
+     spec_temperature_(stix_params.specTemperatureCoef),
+     omega_(stix_params.omega),
      re_im_part_(re_im_part),
-     nuprof_(stixParams.nuProfile),
-     res_lim_(stixParams.resLimit),
+     nuprof_(stix_params.nuProfile),
+     res_lim_(stix_params.resLimit),
      BVec_(3),
-     charges_(stixParams.charges),
-     masses_(stixParams.masses)
+     charges_(stix_params.charges),
+     masses_(stix_params.masses)
 {
    MFEM_VERIFY(BCoef_.GetVDim() == 3,
                "B Field must be a three component vector field");
@@ -297,8 +297,8 @@ void StixCoefBase::fillTemperatureVals(ElementTransformation &T,
    spec_temperature_.Eval(temperature_vals_, T, ip);
 }
 
-StixLCoef::StixLCoef(StixParams &stixParams, ReImPart re_im_part)
-  : StixCoefBase(stixParams, re_im_part)
+StixLCoef::StixLCoef(StixParams &stix_params, ReImPart re_im_part)
+   : StixCoefBase(stix_params, re_im_part)
 {}
 
 real_t StixLCoef::Eval(ElementTransformation &T,
@@ -328,8 +328,8 @@ real_t StixLCoef::Eval(ElementTransformation &T,
    }
 }
 
-StixRCoef::StixRCoef(StixParams &stixParams, ReImPart re_im_part)
-  : StixCoefBase(stixParams, re_im_part)
+StixRCoef::StixRCoef(StixParams &stix_params, ReImPart re_im_part)
+   : StixCoefBase(stix_params, re_im_part)
 {}
 
 real_t StixRCoef::Eval(ElementTransformation &T,
@@ -346,7 +346,7 @@ real_t StixRCoef::Eval(ElementTransformation &T,
    // Evaluate Stix Coefficient
    complex<real_t> R = R_cold_plasma(omega_, Bmag, nue_vals_, nui_vals_,
                                      density_vals_, charges_, masses_,
-				     temperature_vals_, nuprof_);
+                                     temperature_vals_, nuprof_);
 
    // Return the selected component
    if (re_im_part_ == REAL_PART)
@@ -359,8 +359,8 @@ real_t StixRCoef::Eval(ElementTransformation &T,
    }
 }
 
-StixSCoef::StixSCoef(StixParams &stixParams, ReImPart re_im_part)
-  : StixCoefBase(stixParams, re_im_part)
+StixSCoef::StixSCoef(StixParams &stix_params, ReImPart re_im_part)
+   : StixCoefBase(stix_params, re_im_part)
 {}
 
 real_t StixSCoef::Eval(ElementTransformation &T,
@@ -390,8 +390,8 @@ real_t StixSCoef::Eval(ElementTransformation &T,
    }
 }
 
-StixDCoef::StixDCoef(StixParams &stixParams, ReImPart re_im_part)
-  : StixCoefBase(stixParams, re_im_part)
+StixDCoef::StixDCoef(StixParams &stix_params, ReImPart re_im_part)
+   : StixCoefBase(stix_params, re_im_part)
 {}
 
 real_t StixDCoef::Eval(ElementTransformation &T,
@@ -421,8 +421,8 @@ real_t StixDCoef::Eval(ElementTransformation &T,
    }
 }
 
-StixPCoef::StixPCoef(StixParams &stixParams, ReImPart re_im_part)
-  : StixCoefBase(stixParams, re_im_part)
+StixPCoef::StixPCoef(StixParams &stix_params, ReImPart re_im_part)
+   : StixCoefBase(stix_params, re_im_part)
 {}
 
 real_t StixPCoef::Eval(ElementTransformation &T,
@@ -450,45 +450,45 @@ real_t StixPCoef::Eval(ElementTransformation &T,
 }
 
 real_t StixInvSPCoef::Eval(ElementTransformation &T,
-			   const IntegrationPoint &ip)
+                           const IntegrationPoint &ip)
 {
-  // Collect density, temperature, and magnetic field values
-  real_t Bmag = this->getBMagnitude(T, ip);
-  nue_vals_ = nue_.Eval(T, ip);
-  nui_vals_ = nui_.Eval(T, ip);
+   // Collect density, temperature, and magnetic field values
+   real_t Bmag = this->getBMagnitude(T, ip);
+   nue_vals_ = nue_.Eval(T, ip);
+   nui_vals_ = nui_.Eval(T, ip);
 
-  this->fillDensityVals(T, ip);
-  this->fillTemperatureVals(T, ip);
+   this->fillDensityVals(T, ip);
+   this->fillTemperatureVals(T, ip);
 
-  // Evaluate Stix Coefficient
-  complex<real_t> S = S_cold_plasma(omega_, Bmag, nue_vals_, nui_vals_,
-				    density_vals_, charges_, masses_,
-				    temperature_vals_, nuprof_, res_lim_);
-  complex<real_t> P = P_cold_plasma(omega_, nue_vals_, density_vals_,
-				    charges_, masses_, temperature_vals_,
-				    nuprof_);
-  
-  complex<real_t> SP = S * P;
-  real_t absSP = std::abs(SP);
-  real_t argSP = std::arg(SP);
-  complex<real_t> InvSP = (absSP > 1e-4) ? 1.0 / (S * P) :
-    std::polar(1e4, -argSP);
+   // Evaluate Stix Coefficient
+   complex<real_t> S = S_cold_plasma(omega_, Bmag, nue_vals_, nui_vals_,
+                                     density_vals_, charges_, masses_,
+                                     temperature_vals_, nuprof_, res_lim_);
+   complex<real_t> P = P_cold_plasma(omega_, nue_vals_, density_vals_,
+                                     charges_, masses_, temperature_vals_,
+                                     nuprof_);
 
-  // Return the selected component
-  if (re_im_part_ == REAL_PART)
-  {
-    return InvSP.real();
-  }
-  else
-  {
-    return InvSP.imag();
-  }
+   complex<real_t> SP = S * P;
+   real_t absSP = std::abs(SP);
+   real_t argSP = std::arg(SP);
+   complex<real_t> InvSP = (absSP > 1e-4) ? 1.0 / (S * P) :
+                           std::polar(1e4, -argSP);
+
+   // Return the selected component
+   if (re_im_part_ == REAL_PART)
+   {
+      return InvSP.real();
+   }
+   else
+   {
+      return InvSP.imag();
+   }
 }
 
 StixWaveLengthCoef::StixWaveLengthCoef(char type,
-				       StixParams &stixParams,
+                                       StixParams &stix_params,
                                        ReImPart re_im_part)
-  : StixCoefBase(stixParams, re_im_part),
+   : StixCoefBase(stix_params, re_im_part),
      type_(type)
 {}
 
@@ -546,9 +546,9 @@ real_t StixWaveLengthCoef::Eval(ElementTransformation &T,
 }
 
 StixAdmittanceCoef::StixAdmittanceCoef(char type,
-				       StixParams &stixParams,
+                                       StixParams &stix_params,
                                        ReImPart re_im_part)
-  : StixCoefBase(stixParams, re_im_part),
+   : StixCoefBase(stix_params, re_im_part),
      type_(type)
 {}
 
@@ -601,8 +601,8 @@ real_t StixAdmittanceCoef::Eval(ElementTransformation &T,
    }
 }
 
-StixTensorBase::StixTensorBase(StixParams &stixParams, ReImPart re_im_part)
-   : StixCoefBase(stixParams, re_im_part)
+StixTensorBase::StixTensorBase(StixParams &stix_params, ReImPart re_im_part)
+   : StixCoefBase(stix_params, re_im_part)
 {}
 
 void StixTensorBase::addParallelComp(real_t P, DenseMatrix & eps)
@@ -648,9 +648,9 @@ void StixTensorBase::addPerpSkewComp(real_t D, DenseMatrix & eps)
    eps(1,0) += D * BVec_[2];
 }
 
-DielectricTensor::DielectricTensor(StixParams &stixParams, ReImPart re_im_part)
+DielectricTensor::DielectricTensor(StixParams &stix_params, ReImPart re_im_part)
    : MatrixCoefficient(3),
-     StixTensorBase(stixParams, re_im_part)
+     StixTensorBase(stix_params, re_im_part)
 {}
 
 void DielectricTensor::Eval(DenseMatrix &epsilon, ElementTransformation &T,
@@ -674,30 +674,30 @@ void DielectricTensor::Eval(DenseMatrix &epsilon, ElementTransformation &T,
                                      temperature_vals_, nuprof_, res_lim_);
    complex<real_t> P = P_cold_plasma(omega_, nue_vals_, density_vals_,
                                      charges_, masses_, temperature_vals_,
-				     nuprof_);
+                                     nuprof_);
    complex<real_t> D = D_cold_plasma(omega_, Bmag, nue_vals_, nui_vals_,
                                      density_vals_, charges_, masses_,
                                      temperature_vals_, nuprof_, res_lim_);
 
    if (re_im_part_ == REAL_PART)
    {
-     this->addParallelComp( P.real(), epsilon);
-     this->addPerpDiagComp( S.real(), epsilon);
-     this->addPerpSkewComp(-D.imag(), epsilon);
+      this->addParallelComp( P.real(), epsilon);
+      this->addPerpDiagComp( S.real(), epsilon);
+      this->addPerpSkewComp(-D.imag(), epsilon);
    }
    else
    {
-     this->addParallelComp( P.imag(), epsilon);
-     this->addPerpDiagComp( S.imag(), epsilon);
-     this->addPerpSkewComp( D.real(), epsilon);
+      this->addParallelComp( P.imag(), epsilon);
+      this->addPerpDiagComp( S.imag(), epsilon);
+      this->addPerpSkewComp( D.real(), epsilon);
    }
    epsilon *= epsilon0_;
 }
 
-InverseDielectricTensor::InverseDielectricTensor(StixParams &stixParams,
-						 ReImPart re_im_part)
+InverseDielectricTensor::InverseDielectricTensor(StixParams &stix_params,
+                                                 ReImPart re_im_part)
    : MatrixCoefficient(3),
-     StixTensorBase(stixParams, re_im_part)
+     StixTensorBase(stix_params, re_im_part)
 {}
 
 void InverseDielectricTensor::Eval(DenseMatrix &epsilonInv,
@@ -722,7 +722,7 @@ void InverseDielectricTensor::Eval(DenseMatrix &epsilonInv,
                                      temperature_vals_, nuprof_, res_lim_);
    complex<real_t> P = P_cold_plasma(omega_, nue_vals_, density_vals_,
                                      charges_, masses_, temperature_vals_,
-				     nuprof_);
+                                     nuprof_);
    complex<real_t> D = D_cold_plasma(omega_, Bmag, nue_vals_, nui_vals_,
                                      density_vals_, charges_, masses_,
                                      temperature_vals_, nuprof_, res_lim_);
@@ -735,23 +735,23 @@ void InverseDielectricTensor::Eval(DenseMatrix &epsilonInv,
 
    if (re_im_part_ == REAL_PART)
    {
-     this->addParallelComp( PInv.real(), epsilonInv);
-     this->addPerpDiagComp( SInv.real(), epsilonInv);
-     this->addPerpSkewComp( DInv.imag(), epsilonInv);
+      this->addParallelComp( PInv.real(), epsilonInv);
+      this->addPerpDiagComp( SInv.real(), epsilonInv);
+      this->addPerpSkewComp( DInv.imag(), epsilonInv);
    }
    else
    {
-     this->addParallelComp( PInv.imag(), epsilonInv);
-     this->addPerpDiagComp( SInv.imag(), epsilonInv);
-     this->addPerpSkewComp(-DInv.real(), epsilonInv);
+      this->addParallelComp( PInv.imag(), epsilonInv);
+      this->addPerpDiagComp( SInv.imag(), epsilonInv);
+      this->addPerpSkewComp(-DInv.real(), epsilonInv);
    }
-   
+
    epsilonInv *= 1.0 / epsilon0_;
 }
 
-SPDDielectricTensor::SPDDielectricTensor(StixParams &stixParams)
+SPDDielectricTensor::SPDDielectricTensor(StixParams &stix_params)
    : MatrixCoefficient(3),
-     StixCoefBase(stixParams, REAL_PART)
+     StixCoefBase(stix_params, REAL_PART)
 {}
 
 void SPDDielectricTensor::Eval(DenseMatrix &epsilon, ElementTransformation &T,
@@ -774,7 +774,7 @@ void SPDDielectricTensor::Eval(DenseMatrix &epsilon, ElementTransformation &T,
                                      temperature_vals_, nuprof_, res_lim_);
    complex<real_t> P = P_cold_plasma(omega_, nue_vals_, density_vals_,
                                      charges_, masses_, temperature_vals_,
-				     nuprof_);
+                                     nuprof_);
    complex<real_t> D = D_cold_plasma(omega_, Bmag, nue_vals_, nui_vals_,
                                      density_vals_, charges_, masses_,
                                      temperature_vals_, nuprof_, res_lim_);
@@ -842,11 +842,11 @@ real_t PlasmaProfile::Eval(ElementTransformation &T,
 
          if (a < -10.0)
          {
-            return 2.0 * p_[0] - p_[1];
+            return p_[0];
          }
          else if (a < 10.0)
          {
-            return p_[0] + (p_[1] - p_[0]) * tanh(a);
+            return 0.5 * (p_[0] + p_[1] + (p_[1] - p_[0]) * tanh(a));
          }
          else
          {
@@ -1019,16 +1019,89 @@ real_t PlasmaProfile::Eval(ElementTransformation &T,
 MultiSpeciesPlasmaProfiles::MultiSpeciesPlasmaProfiles(
    Array<PlasmaProfile::Type> types,
    const Vector & params)
-   : VectorCoefficient(types.Size()), prof_(types.Size())
+   : VectorCoefficient(types.Size()),
+     prof_(types.Size()),
+     electron_profile_type_(PlasmaProfile::AVERAGE),
+     ion_spec_coefs_(types.Size() - 1)
 {
+   const int num_ion_spec = types.Size() - 1;
+   ion_spec_coefs_ = 1.0 / num_ion_spec;
+
    int o = 0;
-   for (unsigned int t=0; t<types.Size(); t++)
+   unsigned int t = 0;
+   for (; t<num_ion_spec; t++)
    {
       PlasmaProfile::Type type = types[t];
       int np = PlasmaProfile::GetNumParams(type);
       const Vector param(const_cast<real_t*>(&params[o]), np);
       prof_[t].Init(type, param);
       o += np;
+   }
+
+   t = num_ion_spec;
+   electron_profile_type_ = types[t];
+   switch (electron_profile_type_)
+   {
+      case PlasmaProfile::AVERAGE:
+         // Nothing to do
+         break;
+      case PlasmaProfile::NEUTRALITY:
+         MFEM_VERIFY(false, "Charge neutrality electron profile requires "
+                     "the ion charges.");
+         break;
+      default:
+         // Create user requested type for electrons
+         PlasmaProfile::Type type = types[t];
+         int np = PlasmaProfile::GetNumParams(type);
+         const Vector param(const_cast<real_t*>(&params[o]), np);
+         prof_[t].Init(type, param);
+         o += np;
+         break;
+   }
+}
+
+MultiSpeciesPlasmaProfiles::MultiSpeciesPlasmaProfiles(
+   Array<PlasmaProfile::Type> types,
+   const Vector & params, const Vector & charges)
+   : VectorCoefficient(types.Size()),
+     prof_(types.Size()),
+     electron_profile_type_(PlasmaProfile::NEUTRALITY),
+     ion_spec_coefs_(types.Size() - 1)
+{
+   const int num_ion_spec = types.Size() - 1;
+
+   int o = 0;
+   unsigned int t = 0;
+   for (; t<num_ion_spec; t++)
+   {
+      PlasmaProfile::Type type = types[t];
+      int np = PlasmaProfile::GetNumParams(type);
+      const Vector param(const_cast<real_t*>(&params[o]), np);
+      prof_[t].Init(type, param);
+      ion_spec_coefs_[t] = charges[t];
+      o += np;
+   }
+   ion_spec_coefs_ /= -charges[num_ion_spec];
+
+   t = num_ion_spec;
+   electron_profile_type_ = types[t];
+   switch (electron_profile_type_)
+   {
+      case PlasmaProfile::AVERAGE:
+         // Reset the coefs to compute the average
+         ion_spec_coefs_ = 1.0 / num_ion_spec;
+         break;
+      case PlasmaProfile::NEUTRALITY:
+         // Nothing to do
+         break;
+      default:
+         // Create user requested type for electrons
+         PlasmaProfile::Type type = types[t];
+         int np = PlasmaProfile::GetNumParams(type);
+         const Vector param(const_cast<real_t*>(&params[o]), np);
+         prof_[t].Init(type, param);
+         o += np;
+         break;
    }
 }
 
@@ -1037,9 +1110,24 @@ void MultiSpeciesPlasmaProfiles::Eval(Vector &p, ElementTransformation &T,
 {
    p.SetSize(vdim);
 
-   for (int i=0; i<vdim; i++)
+   real_t electron_prof_val = 0.0;
+   for (int i=0; i<vdim - 1; i++)
    {
       p[i] = prof_[i].Eval(T, ip);
+      electron_prof_val += p[i] * ion_spec_coefs_[i];
+   }
+
+   switch (electron_profile_type_)
+   {
+      case PlasmaProfile::AVERAGE:
+      case PlasmaProfile::NEUTRALITY:
+         // Set average or charge neutrality value for the electron profile
+         p[vdim - 1] = electron_prof_val;
+         break;
+      default:
+         // Compute user requested electron profile value
+         p[vdim - 1] = prof_[vdim - 1].Eval(T, ip);
+         break;
    }
 }
 
@@ -1245,6 +1333,532 @@ void ComplexPhaseVectorCoefficient::Eval(Vector &V, ElementTransformation &T,
    else
    {
       add(sinkx, vRe_, coskx, vIm_, V);
+   }
+}
+
+ColdPlasmaPlaneWaveBase::ColdPlasmaPlaneWaveBase(Vector k_dir, char type,
+                                                 StixParams & stix_params,
+                                                 ReImPart re_im_part)
+   :  StixCoefBase(stix_params, re_im_part),
+      VectorCoefficient(3),
+      type_(type),
+      Bmag_(-1.0),
+      kappa_(0.0),
+      b_(3),
+      bc_(3),
+      bcc_(3),
+      k_dir_(k_dir),
+      k_r_(3),
+      k_i_(3),
+      beta_r_(3),
+      beta_i_(3)
+{
+   k_dir_ /= k_dir.Norml2();
+
+   beta_r_ = 0.0;
+   beta_i_ = 0.0;
+}
+
+void ColdPlasmaPlaneWaveBase::ComputeFieldAxes(ElementTransformation &T,
+                                               const IntegrationPoint &ip)
+{
+   Bmag_ = this->getBMagnitude(T, ip);
+
+   b_.Set(1.0 / Bmag_, BVec_);
+   k_dir_.cross3D(b_, kxb_);
+
+   {
+      real_t bx = b_(0);
+      real_t by = b_(1);
+      real_t bz = b_(2);
+
+      bc_(0) = by - bz;
+      bc_(1) = bz - bx;
+      bc_(2) = bx - by;
+
+      bcc_(0) = by*by + bz*bz - bx*(by + bz);
+      bcc_(1) = bz*bz + bx*bx - by*(bz + bx);
+      bcc_(2) = bx*bx + by*by - bz*(bx + by);
+
+      bc_  *= 1.0 / bc_.Norml2();
+      bcc_ *= 1.0 / bcc_.Norml2();
+   }
+}
+
+void ColdPlasmaPlaneWaveBase::ComputeStixCoefs()
+{
+   S_ = S_cold_plasma(omega_, Bmag_, 0.0, 0.0, density_vals_, charges_, masses_,
+                      temperature_vals_, nuprof_, res_lim_);
+   D_ = D_cold_plasma(omega_, Bmag_, 0.0, 0.0, density_vals_, charges_, masses_,
+                      temperature_vals_, nuprof_, res_lim_);
+   P_ = P_cold_plasma(omega_, 0.0, density_vals_, charges_, masses_,
+                      temperature_vals_, nuprof_);
+}
+
+void ColdPlasmaPlaneWaveBase::ComputeWaveNumber()
+{
+   switch (type_)
+   {
+      case 'L':
+      {
+         kappa_ = omega_ * sqrt(S_ - D_) / c0_;
+      }
+      break;
+      case 'R':
+      {
+         kappa_ = omega_ * sqrt(S_ + D_) / c0_;
+      }
+      break;
+      case 'O':
+      {
+         kappa_ = omega_ * sqrt(P_) / c0_;
+      }
+      break;
+      case 'X':
+      {
+         kappa_ = omega_ * sqrt(S_ - D_ * D_ / S_) / c0_;
+      }
+      break;
+   }
+
+   if (kappa_.imag() < 0.0) { kappa_ *= -1.0; }
+}
+
+void ColdPlasmaPlaneWaveBase::ComputeWaveVector()
+{
+   k_r_.Set(kappa_.real(), k_dir_);
+   k_i_.Set(kappa_.imag(), k_dir_);
+}
+
+ColdPlasmaPlaneWaveE::ColdPlasmaPlaneWaveE(Vector k_dir, char type,
+                                           StixParams & stix_params,
+                                           ReImPart re_im_part)
+   :  ColdPlasmaPlaneWaveBase(k_dir, type, stix_params, re_im_part),
+      e_r_(3),
+      e_i_(3)
+{
+}
+
+void ColdPlasmaPlaneWaveE::ComputePolarizationVectorE()
+{
+   switch (type_)
+   {
+      case 'L':
+      {
+         e_r_.Set(1.0, bc_);
+         e_i_.Set(1.0, bcc_);
+      }
+      break;
+      case 'R':
+      {
+         e_r_.Set( 1.0, bc_);
+         e_i_.Set(-1.0, bcc_);
+      }
+      break;
+      case 'O':
+      {
+         e_r_.Set(1.0, b_);
+         e_i_ = 0.0;
+      }
+      break;
+      case 'X':
+      {
+         complex<real_t> den = sqrt(S_ * S_ + D_ * D_);
+         complex<real_t> ec  = D_ / den;
+         complex<real_t> ecc = S_ / den;
+
+         e_r_.Set(ecc.real(), kxb_);
+         e_r_.Add( ec.imag(), k_dir_);
+         e_i_.Set(-ec.real(), k_dir_);
+         e_i_.Add(ecc.imag(), kxb_);
+      }
+      break;
+   }
+}
+
+void ColdPlasmaPlaneWaveE::Eval(Vector &V, ElementTransformation &T,
+                                const IntegrationPoint &ip)
+{
+   V.SetSize(3);
+
+   complex<real_t> i = complex<real_t>(0.0,1.0);
+
+   real_t x_data[3];
+   Vector x(x_data, 3);
+   T.Transform(ip, x);
+
+   this->ComputeFieldAxes(T, ip);
+   this->fillDensityVals(T, ip);
+   this->fillTemperatureVals(T, ip);
+   this->ComputeStixCoefs();
+   this->ComputeWaveNumber();
+   this->ComputeWaveVector();
+   this->ComputePolarizationVectorE();
+
+   complex<real_t> kx = 0.0;
+   for (int d=0; d<x.Size(); d++)
+   {
+      kx += (k_r_[d] - beta_r_[d] + i * (k_i_[d] - beta_i_[d])) * x[d];
+   }
+
+   complex<real_t> e_mag = exp(i * kx);
+
+   if (re_im_part_ == REAL_PART)
+   {
+      add(e_mag.real(), e_r_, -e_mag.imag(), e_i_, V);
+   }
+   else
+   {
+      add(e_mag.imag(), e_r_, e_mag.real(), e_i_, V);
+   }
+}
+
+ColdPlasmaPlaneWaveH::ColdPlasmaPlaneWaveH(Vector k_dir, char type,
+                                           StixParams & stix_params,
+                                           ReImPart re_im_part)
+   :  ColdPlasmaPlaneWaveE(k_dir, type, stix_params, re_im_part),
+      h_r_(3),
+      h_i_(3),
+      v_tmp_(3)
+{
+}
+
+void ColdPlasmaPlaneWaveH::ComputePolarizationVectorH()
+{
+   this->ComputePolarizationVectorE();
+
+   k_r_.cross3D(e_r_, h_r_);
+   k_i_.cross3D(e_i_, v_tmp_);
+   h_r_ -= v_tmp_;
+   h_r_ /= omega_ * mu0_;
+
+   k_r_.cross3D(e_i_, h_i_);
+   k_i_.cross3D(e_r_, v_tmp_);
+   h_i_ += v_tmp_;
+   h_i_ /= omega_ * mu0_;
+}
+
+void ColdPlasmaPlaneWaveH::Eval(Vector &V, ElementTransformation &T,
+                                const IntegrationPoint &ip)
+{
+   V.SetSize(3);
+
+   complex<real_t> i = complex<real_t>(0.0,1.0);
+
+   real_t x_data[3];
+   Vector x(x_data, 3);
+   T.Transform(ip, x);
+
+   this->ComputeFieldAxes(T, ip);
+   this->fillDensityVals(T, ip);
+   this->fillTemperatureVals(T, ip);
+   this->ComputeStixCoefs();
+   this->ComputeWaveNumber();
+   this->ComputeWaveVector();
+   this->ComputePolarizationVectorH();
+
+   complex<real_t> kx = 0.0;
+   for (int d=0; d<x.Size(); d++)
+   {
+      kx += (k_r_[d] - beta_r_[d] + i * (k_i_[d] - beta_i_[d])) * x[d];
+   }
+
+   complex<real_t> h_mag = exp(i * (kx - omega_ * time));
+
+   if (re_im_part_ == REAL_PART)
+   {
+      add(h_mag.real(), h_r_, -h_mag.imag(), h_i_, V);
+   }
+   else
+   {
+      add(h_mag.imag(), h_r_, h_mag.real(), h_i_, V);
+   }
+}
+ColdPlasmaCenterFeedBase::ColdPlasmaCenterFeedBase(real_t j_pos, real_t j_dx,
+                                                   int j_profile)
+   : j_pos_(j_pos),
+     j_dx_(j_dx),
+     j_prof_(j_profile)
+{}
+
+ColdPlasmaCenterFeedE::ColdPlasmaCenterFeedE(Vector k_dir, char type,
+                                             real_t j_pos, real_t j_dx,
+                                             int j_profile,
+                                             StixParams & stix_params,
+                                             ReImPart re_im_part)
+   :  ColdPlasmaPlaneWaveE(k_dir, type, stix_params, re_im_part),
+      ColdPlasmaCenterFeedBase(j_pos, j_dx, j_profile)
+{}
+
+void ColdPlasmaCenterFeedE::Eval(Vector &V, ElementTransformation &T,
+                                 const IntegrationPoint &ip)
+{
+   V.SetSize(3);
+
+   complex<real_t> i = complex<real_t>(0.0,1.0);
+
+   real_t x_data[3];
+   Vector x(x_data, 3);
+   T.Transform(ip, x);
+
+   this->ComputeFieldAxes(T, ip);
+   this->fillDensityVals(T, ip);
+   this->fillTemperatureVals(T, ip);
+   this->ComputeStixCoefs();
+   this->ComputeWaveNumber();
+   this->ComputeWaveVector();
+   this->ComputePolarizationVectorE();
+
+   complex<real_t> e_mag;
+   complex<real_t> phase;
+
+   real_t ks = 2.0 * M_PI / j_dx_;
+
+   if (x[0] < j_pos_ - 0.5 * j_dx_)
+   {
+      e_mag = i / kappa_ / kappa_;
+      if (j_prof_ == 0)
+      {
+         e_mag *= sin(0.5 * kappa_ * j_dx_);
+      }
+      else
+      {
+         e_mag *= 0.5 * M_PI * sinc(M_PI * (1.0 - kappa_ / ks))
+                  / (1.0 + kappa_ / ks);
+      }
+      phase = exp(i * (-kappa_ * (x[0] - j_pos_) - omega_ * time));
+      e_mag *= phase;
+   }
+   else if (x[0] < j_pos_ + 0.5 * j_dx_)
+   {
+      e_mag = 1.0 / kappa_ / kappa_;
+
+      complex<real_t> coskx = cos(kappa_ * (x[0] - j_pos_));
+      if (j_prof_ == 0)
+      {
+         e_mag *= coskx * exp(0.5 * i * kappa_ * j_dx_) - 1.0;
+      }
+      else
+      {
+         complex<real_t> kx = kappa_ * (x[0] - j_pos_);
+         complex<real_t> sinkx = sin(kx);
+         complex<real_t> kd = ks - kappa_;
+         complex<real_t> kdn = 1.0 - kappa_ / ks;
+         complex<real_t> kdx = kd * (x[0] - j_pos_);
+         complex<real_t> sinckdx = sinc(kdx);
+         complex<real_t> sinckdx2 = sinc(kdx / 2.0);
+         complex<real_t> sinckdn = sinc(M_PI * kdn);
+         complex<real_t> sinckdn2 = sinc(M_PI * kdn / 2.0);
+         e_mag *= 0.5 * (coskx *
+                         (0.5 * kd *
+                          (pow(M_PI * sinckdn2, 2) - pow(kx * sinckdx2, 2))
+                          - ks - kappa_ + i * M_PI * ks * sinckdn
+                         )
+                         - kappa_ * kx * sinkx * sinckdx - ks - kappa_
+                        ) / (kappa_ + ks);
+      }
+      phase = exp(-i * omega_ * time);
+      e_mag *= phase;
+   }
+   else
+   {
+      e_mag = i / kappa_ / kappa_;
+      if (j_prof_ == 0)
+      {
+         e_mag *= sin(0.5 * kappa_ * j_dx_);
+      }
+      else
+      {
+         e_mag *= 0.5 * M_PI * sinc(M_PI * (1.0 - kappa_ / ks))
+                  / (1.0 + kappa_ / ks);
+      }
+      phase = exp(i * (kappa_ * (x[0] - j_pos_) - omega_ * time));
+      e_mag *= phase;
+   }
+
+   if (re_im_part_ == REAL_PART)
+   {
+      add(e_mag.real(), e_r_, -e_mag.imag(), e_i_, V);
+   }
+   else
+   {
+      add(e_mag.imag(), e_r_, e_mag.real(), e_i_, V);
+   }
+}
+
+ColdPlasmaCenterFeedH::ColdPlasmaCenterFeedH(Vector k_dir, char type,
+                                             real_t j_pos, real_t j_dx,
+                                             int j_profile,
+                                             StixParams & stix_params,
+                                             ReImPart re_im_part)
+   : ColdPlasmaPlaneWaveH(k_dir, type, stix_params, re_im_part),
+     ColdPlasmaCenterFeedBase(j_pos, j_dx, j_profile)
+{
+}
+
+void ColdPlasmaCenterFeedH::Eval(Vector &V, ElementTransformation &T,
+                                 const IntegrationPoint &ip)
+{
+   V.SetSize(3);
+
+   complex<real_t> i = complex<real_t>(0.0,1.0);
+
+   real_t x_data[3];
+   Vector x(x_data, 3);
+   T.Transform(ip, x);
+
+   this->ComputeFieldAxes(T, ip);
+   this->fillDensityVals(T, ip);
+   this->fillTemperatureVals(T, ip);
+   this->ComputeStixCoefs();
+   this->ComputeWaveNumber();
+   this->ComputeWaveVector();
+   this->ComputePolarizationVectorH();
+
+   complex<real_t> h_mag;
+   complex<real_t> phase;
+
+   real_t ks = 2.0 * M_PI / j_dx_;
+
+   if (x[0] < j_pos_ - 0.5 * j_dx_)
+   {
+      h_mag = -i / kappa_ / kappa_;
+      if (j_prof_ == 0)
+      {
+         h_mag *= sin(0.5 * kappa_ * j_dx_);
+      }
+      else
+      {
+         h_mag *= 0.5 * M_PI * sinc(M_PI * (1.0 - kappa_ / ks))
+                  / (1.0 + kappa_ / ks);
+      }
+      phase = exp(i * (-kappa_ * (x[0] - j_pos_) - omega_ * time));
+      h_mag *= phase;
+   }
+   else if (x[0] < j_pos_ + 0.5 * j_dx_)
+   {
+      h_mag = i / kappa_ / kappa_;
+      if (j_prof_ == 0)
+      {
+         h_mag *= sin(kappa_ * (x[0] - j_pos_));
+         h_mag *= exp(i * 0.5 * kappa_ * j_dx_);
+      }
+      else
+      {
+         h_mag *= 0.5 / (1.0 - pow(kappa_ / ks, 2.0));
+         h_mag *= sin(kappa_ * (x[0] - j_pos_)) *
+                  exp(0.5 * i * kappa_ * j_dx_)
+                  + sin(ks * (x[0] - j_pos_)) * kappa_ / ks;
+      }
+      phase = exp(-i * omega_ * time);
+      h_mag *= phase;
+   }
+   else
+   {
+      h_mag = i / kappa_ / kappa_;
+      if (j_prof_ == 0)
+      {
+         h_mag *= sin(0.5 * kappa_ * j_dx_);
+      }
+      else
+      {
+         h_mag *= 0.5 * M_PI * sinc(M_PI * (1.0 - kappa_ / ks))
+                  / (1.0 + kappa_ / ks);
+      }
+      phase = exp(i * (kappa_ * (x[0] - j_pos_) - omega_ * time));
+      h_mag *= phase;
+   }
+
+   if (re_im_part_ == REAL_PART)
+   {
+      add(h_mag.real(), h_r_, -h_mag.imag(), h_i_, V);
+   }
+   else
+   {
+      add(h_mag.imag(), h_r_, h_mag.real(), h_i_, V);
+   }
+}
+
+ColdPlasmaCenterFeedJ::ColdPlasmaCenterFeedJ(Vector k_dir, char type,
+                                             real_t j_pos, real_t j_dx,
+                                             int j_profile,
+                                             StixParams & stix_params,
+                                             ReImPart re_im_part)
+   : ColdPlasmaCenterFeedH(k_dir, type, j_pos, j_dx, j_profile,
+                           stix_params, re_im_part),
+     j_r_(3),
+     j_i_(3)
+{
+}
+
+void ColdPlasmaCenterFeedJ::ComputePolarizationVectorJ()
+{
+   this->ComputePolarizationVectorH();
+
+   // k_dir_.cross3D(h_r_, j_r_);
+   // k_dir_.cross3D(h_i_, j_i_);
+
+   k_r_.cross3D(h_i_, j_r_);
+   k_i_.cross3D(h_r_, v_tmp_);
+   j_r_ += v_tmp_;
+   j_r_ *= -1.0;
+
+   k_r_.cross3D(h_r_, j_i_);
+   k_i_.cross3D(h_i_, v_tmp_);
+   j_i_ -= v_tmp_;
+}
+
+void ColdPlasmaCenterFeedJ::Eval(Vector &V, ElementTransformation &T,
+                                 const IntegrationPoint &ip)
+{
+   V.SetSize(3);
+
+   real_t x_data[3];
+   Vector x(x_data, 3);
+   T.Transform(ip, x);
+
+   if (x[0] > j_pos_ - 0.5 * j_dx_ && x[0] < j_pos_ + 0.5 * j_dx_)
+   {
+      complex<real_t> i = complex<real_t>(0.0,1.0);
+
+      this->ComputeFieldAxes(T, ip);
+      if (type_ == 'X')
+      {
+         this->fillDensityVals(T, ip);
+         this->fillTemperatureVals(T, ip);
+         this->ComputeStixCoefs();
+         this->ComputeWaveNumber();
+         this->ComputeWaveVector();
+      }
+      else
+      {
+         kappa_ = 1.0;
+         k_r_ = k_dir_;
+         k_i_ = 0.0;
+      }
+      this->ComputePolarizationVectorJ();
+
+      complex_t j_mag = 1.0 / kappa_ / kappa_;
+      if (j_prof_ == 1)
+      {
+         j_mag *= pow(cos(M_PI * (x[0] - j_pos_) / j_dx_), 2.0);
+      }
+      complex_t phase = exp(-i * omega_ * time);
+      j_mag *= phase;
+
+      if (re_im_part_ == REAL_PART)
+      {
+         add(j_mag.real(), j_r_, -j_mag.imag(), j_i_, V);
+      }
+      else
+      {
+         add(j_mag.imag(), j_r_, j_mag.real(), j_i_, V);
+      }
+
+   }
+   else
+   {
+      V = 0.0;
    }
 }
 

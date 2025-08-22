@@ -411,22 +411,24 @@ public:
 class PlasmaProfile : public Coefficient
 {
 public:
-   enum Type {CONSTANT     =  0,
-              GRADIENT     =  1,
-              TANH         =  2,
-              ELLIPTIC_COS =  3,
-              PARABOLIC    =  4,
-              PEDESTAL     =  5,
-              NUABSORB     =  6,
-              NUE          =  7,
-              NUI          =  8,
-              CMODDEN      =  9,
-              SPARC_RES    = 10,
-              SPARC_DEN    = 11,
-              CUSTOM1      = 12,
-              CUSTOM2      = 13,
-              POWER        = 14,
-              WHAM         = 15
+   enum Type { AVERAGE      = -2,
+               NEUTRALITY   = -1,
+               CONSTANT     =  0,
+               GRADIENT     =  1,
+               TANH         =  2,
+               ELLIPTIC_COS =  3,
+               PARABOLIC    =  4,
+               PEDESTAL     =  5,
+               NUABSORB     =  6,
+               NUE          =  7,
+               NUI          =  8,
+               CMODDEN      =  9,
+               SPARC_RES    = 10,
+               SPARC_DEN    = 11,
+               CUSTOM1      = 12,
+               CUSTOM2      = 13,
+               POWER        = 14,
+               WHAM         = 15
              };
 
 private:
@@ -445,6 +447,13 @@ public:
    PlasmaProfile() = default;
    PlasmaProfile(Type type, const Vector & params);
 
+   // Special Constructor for profile type AVERAGE
+   PlasmaProfile(Type type, const Array<int> &types, const Vector &params);
+
+   // Special Constructor for profile type NEUTRALITY
+   PlasmaProfile(Type type, const Array<int> &types, const Vector &params,
+                 const Vector &charges);
+
    void Init(Type type, const Vector & params);
 
    real_t Eval(ElementTransformation &T,
@@ -458,10 +467,15 @@ class MultiSpeciesPlasmaProfiles : public VectorCoefficient
 {
 private:
    std::vector<PlasmaProfile> prof_;
+   int electron_profile_type_;
+   Vector ion_spec_coefs_;
 
 public:
    MultiSpeciesPlasmaProfiles(Array<PlasmaProfile::Type> types,
                               const Vector & params);
+
+   MultiSpeciesPlasmaProfiles(Array<PlasmaProfile::Type> types,
+                              const Vector & params, const Vector & charges);
 
    void Eval(Vector &p, ElementTransformation &T,
              const IntegrationPoint &ip);
@@ -689,6 +703,144 @@ public:
          return v3_[2] / x_[1];
       }
    }
+};
+
+class ColdPlasmaPlaneWaveBase: public StixCoefBase, public VectorCoefficient
+{
+protected:
+   char type_;
+   real_t Bmag_;
+   complex_t kappa_;
+   Vector b_;   // Normalized vector in direction of B
+   Vector bc_;  // Normalized vector perpendicular to b_, (by-bz,bz-bx,bx-by)
+   Vector bcc_; // Normalized vector perpendicular to b_ and bc_
+   Vector k_dir_;
+   Vector kxb_;
+   Vector k_r_;
+   Vector k_i_;
+   Vector beta_r_;
+   Vector beta_i_;
+
+   complex_t S_;
+   complex_t D_;
+   complex_t P_;
+
+protected:
+   ColdPlasmaPlaneWaveBase(Vector k_dir, char type,
+                           StixParams & stix_params,
+                           ReImPart re_im_part);
+
+   void ComputeFieldAxes(ElementTransformation &T,
+                         const IntegrationPoint &ip);
+
+   void ComputeStixCoefs();
+
+   void ComputeWaveNumber();
+
+   void ComputeWaveVector();
+
+public:
+   void SetPhaseShift(const Vector & beta)
+   { beta_r_ = beta; beta_i_ = 0.0; }
+
+   void SetPhaseShift(const Vector & beta_r,
+                      const Vector & beta_i)
+   { beta_r_ = beta_r; beta_i_ = beta_i; }
+
+   void GetWaveVector(Vector & k_r, Vector & k_i) const
+   { k_r = k_r_; k_i = k_i_; }
+};
+
+class ColdPlasmaPlaneWaveE: public ColdPlasmaPlaneWaveBase
+{
+public:
+   ColdPlasmaPlaneWaveE(Vector k_dir, char type,
+                        StixParams & stix_params,
+                        ReImPart re_im_part);
+
+   void ComputePolarizationVectorE();
+
+   void Eval(Vector &V, ElementTransformation &T,
+             const IntegrationPoint &ip);
+
+protected:
+   Vector e_r_;
+   Vector e_i_;
+};
+
+class ColdPlasmaPlaneWaveH: public ColdPlasmaPlaneWaveE
+{
+public:
+   ColdPlasmaPlaneWaveH(Vector k_dir, char type,
+                        StixParams & stix_params,
+                        ReImPart re_im_part);
+
+   void ComputePolarizationVectorH();
+
+   void Eval(Vector &V, ElementTransformation &T,
+             const IntegrationPoint &ip);
+
+protected:
+   Vector h_r_;
+   Vector h_i_;
+   mutable Vector v_tmp_;
+};
+
+class ColdPlasmaCenterFeedBase
+{
+protected:
+   ColdPlasmaCenterFeedBase(real_t j_pos, real_t j_dx, int j_profile);
+
+   static complex_t sinc(complex_t z)
+   { return (abs(z) > 1e-6)? (sin(z)/z) : 1.0; }
+
+   real_t j_pos_;
+   real_t j_dx_;
+   int j_prof_;
+};
+
+class ColdPlasmaCenterFeedE: public ColdPlasmaPlaneWaveE,
+   public ColdPlasmaCenterFeedBase
+{
+public:
+   ColdPlasmaCenterFeedE(Vector k_dir, char type,
+                         real_t j_pos, real_t j_dx, int j_profile,
+                         StixParams & stix_params,
+                         ReImPart re_im_part);
+
+   void Eval(Vector &V, ElementTransformation &T,
+             const IntegrationPoint &ip);
+};
+
+class ColdPlasmaCenterFeedH: public ColdPlasmaPlaneWaveH,
+   public ColdPlasmaCenterFeedBase
+{
+public:
+   ColdPlasmaCenterFeedH(Vector k_dir, char type,
+                         real_t j_pos, real_t j_dx, int j_profile,
+                         StixParams & stix_params,
+                         ReImPart re_im_part);
+
+   void Eval(Vector &V, ElementTransformation &T,
+             const IntegrationPoint &ip);
+};
+
+class ColdPlasmaCenterFeedJ: public ColdPlasmaCenterFeedH
+{
+public:
+   ColdPlasmaCenterFeedJ(Vector k_dir, char type,
+                         real_t j_pos, real_t j_dx, int j_profile,
+                         StixParams & stix_params,
+                         ReImPart re_im_part);
+
+   void ComputePolarizationVectorJ();
+
+   void Eval(Vector &V, ElementTransformation &T,
+             const IntegrationPoint &ip);
+
+protected:
+   Vector j_r_;
+   Vector j_i_;
 };
 
 } // namespace plasma
