@@ -254,21 +254,25 @@ private:
 public:
    TraceAverageIntegrator() { };
    using BilinearFormIntegrator::AssembleFaceMatrix;
-   void AssembleFaceMatrix(const FiniteElement& trial_face_fe,
+   void AssembleFaceMatrix(const int e_idx,
+                           const FiniteElement& trial_face_fe,
                            const FiniteElement& test_fe_self,
                            const FiniteElement& test_fe_other,
                            FaceElementTransformations& Trans,
                            DenseMatrix& elmat);
 };
 
-void TraceAverageIntegrator::AssembleFaceMatrix(const FiniteElement&
-                                                trial_face_fe,
+void TraceAverageIntegrator::AssembleFaceMatrix(const int e_idx,
+                                                const FiniteElement& trial_face_fe,
                                                 const FiniteElement& test_fe_self,
                                                 const FiniteElement& test_fe_other,
-                                                FaceElementTransformations& Trans,
+                                                FaceElementTransformations& face_trans,
                                                 DenseMatrix& elmat)
 {
-   const bool has_other = (Trans.Elem2No>=0);
+   MFEM_VERIFY(face_trans.Elem1No == e_idx || face_trans.Elem2No == e_idx,
+               "Selected element does not conform face in face_trans!");
+   const real_t sign = (face_trans.Elem1No == e_idx)?1.0:-1.0;
+   const bool has_other = (face_trans.Elem2No>=0);
    const bool is_map_type_value = (trial_face_fe.GetMapType() ==
                                    FiniteElement::VALUE);
    const int trial_face_ndofs = trial_face_fe.GetDof();
@@ -287,20 +291,21 @@ void TraceAverageIntegrator::AssembleFaceMatrix(const FiniteElement&
    {
       const int order = has_other?std::max(test_fe_self.GetOrder(),
                                            test_fe_other.GetOrder()):test_fe_self.GetOrder() +
-                        trial_face_fe.GetOrder() + is_map_type_value*Trans.OrderW();
-      ir = &IntRules.Get(Trans.GetGeometryType(), order);
+                        trial_face_fe.GetOrder() + is_map_type_value*face_trans.OrderW();
+      ir = &IntRules.Get(face_trans.GetGeometryType(), order);
    }
 
    for (int p = 0; p < ir->GetNPoints(); p++)
    {
       const auto& ip = ir->IntPoint(p);
-      Trans.SetAllIntPoints(&ip);
+      face_trans.SetAllIntPoints(&ip);
 
       trial_face_fe.CalcShape(ip, face_shape);
-      test_fe_self.CalcPhysShape(*Trans.Elem1, shape_self);
-      if (has_other) { test_fe_other.CalcPhysShape(*Trans.Elem2, shape_other); }
+      face_shape *= sign;
+      test_fe_self.CalcPhysShape(*face_trans.Elem1, shape_self);
+      if (has_other) { test_fe_other.CalcPhysShape(*face_trans.Elem2, shape_other); }
 
-      face_shape *= is_map_type_value?Trans.Weight()*ip.weight:ip.weight;
+      face_shape *= is_map_type_value?face_trans.Weight()*ip.weight:ip.weight;
 
       for (int i = 0; i < test_self_ndofs; i++)
       {
@@ -1169,7 +1174,7 @@ void WeakFaceReconstruction(Solver& solver,
                                            local_face_mat);
          local_face_mat.Mult(punity_dst_e, face_trace);
 
-         average_int.AssembleFaceMatrix(fe_dst_e, fe_elem1, fe_elem2, face_trans,
+         average_int.AssembleFaceMatrix(e_idx, fe_dst_e, fe_elem1, fe_elem2, face_trans,
                                         local_face_mat);
 
          add(e_rhs, local_face_mat.InnerProduct(punity_dst_e, face_avg), face_trace,
