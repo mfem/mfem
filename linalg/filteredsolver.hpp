@@ -20,51 +20,34 @@
 namespace mfem
 {
 
-/**
- * @brief FilteredSolver:
- *
- * Interface for the FilteredSolver solver
- */
 class FilteredSolver : public Solver
 {
 public:
-   /**
-    * @brief Constructor
-    */
    FilteredSolver() : Solver() { }
 
-   /**
-    * @brief Set the Operator
-    */
    void SetOperator(const Operator &A);
    void SetSolver(Solver &M);
 
    // Transfer operator from Filtered subspace to the original space
    void SetFilteredSubspaceTransferOperator(const Operator &P);
    void SetFilteredSubspaceSolver(Solver &Mf);
-   void Reset() { solver_set = false; }
 
    void Mult(const Vector &x, Vector &y) const;
 
-   // Destructor
    ~FilteredSolver();
 
 private:
 
-   OperatorHandle Ah;
-   OperatorHandle Ph;
-   OperatorHandle PtAPh;
-   Operator * A = nullptr;
-   Operator * P = nullptr;
-
+   const Operator * A = nullptr;
+   const Operator * P = nullptr;
+   const mutable Operator * PtAP = nullptr;
    Solver * M = nullptr;
    Solver * Mf = nullptr;
 
-   bool solver_set = false;
+   bool mutable solver_set = false;
 
-   void SetupOperatorHandle(const Operator *A, OperatorHandle &handle);
-
-   void MakeSolver();
+   const Operator * GetPtAP(const Operator *Aop, const Operator *Pop) const;
+   void MakeSolver() const;
 
    mutable Vector z;
    mutable Vector rf;

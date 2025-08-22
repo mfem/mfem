@@ -15,88 +15,85 @@
 namespace mfem
 {
 
-void FilteredSolver::SetupOperatorHandle(const Operator *op,
-                                         OperatorHandle &handle)
+
+const Operator * FilteredSolver::GetPtAP(const Operator *Aop,
+                                         const Operator *Pop) const
 {
-   handle.Clear();
-   SparseMatrix * Asparse = const_cast<SparseMatrix*>
-                            (dynamic_cast<const SparseMatrix*>(op));
-   if (Asparse) { handle.Reset(Asparse, false); return; }
 #ifdef MFEM_USE_MPI
-   HypreParMatrix * Ahypre = const_cast<HypreParMatrix*>
-                             (dynamic_cast<const HypreParMatrix*>(op));
-   if (Ahypre) { handle.Reset(Ahypre, false); return; }
+   const HypreParMatrix * Ah = dynamic_cast<const HypreParMatrix*>(Aop);
+   const HypreParMatrix * Ph = dynamic_cast<const HypreParMatrix*>(Pop);
+   if (Ah && Ph) { return RAP(Ah, Ph); }
 #endif
 #ifdef MFEM_USE_PETSC
-   PetscParMatrix * Apetsc = const_cast<PetscParMatrix*>
-                             (dynamic_cast<const PetscParMatrix*>(op));
-   if (Apetsc) { handle.Reset(Apetsc, false); return; }
+   const PetscParMatrix* Ap = dynamic_cast<const PetscParMatrix*>(Aop);
+   const PetscParMatrix* Pp = dynamic_cast<const PetscParMatrix*>(Pop);
+   if (Ap && Pp) { return RAP(Ap, Pp); }
 #endif
-   handle.Reset(const_cast<Operator*>(op), false);
+   const SparseMatrix * Asp = dynamic_cast<const SparseMatrix*>(Aop);
+   const SparseMatrix * Psp = dynamic_cast<const SparseMatrix*>(Pop);
+   if (Asp && Psp)   { return RAP(*Asp, *Psp); }
+
+   return new RAPOperator(*Pop, *Aop, *Pop);
 }
 
-void FilteredSolver::MakeSolver()
+void FilteredSolver::MakeSolver() const
 {
    if (solver_set) { return; }
 
-   MFEM_VERIFY(Ah.Ptr(), "FilteredSolver::MakeSolver: Operator not set");
-   MFEM_VERIFY(Ph.Ptr(), "FilteredSolver::MakeSolver: Transfer operator not set");
-   MFEM_VERIFY(M,"FilteredSolver::MakeSolver: Solver is not set.");
-   MFEM_VERIFY(Mf,
-               "FilteredSolver::MakeSolver: Filtered space solver is not set.");
+   MFEM_VERIFY(A, "FilteredSolver::MakeSolver: Operator not set");
+   MFEM_VERIFY(P, "FilteredSolver::MakeSolver: Transfer operator not set");
+   MFEM_VERIFY(M, "FilteredSolver::MakeSolver: Solver is not set.");
+   MFEM_VERIFY(Mf,"FilteredSolver::MakeSolver: Filtered space solver is not set.");
 
    // Original space solver
-   M->SetOperator(*Ah.Ptr());
+   M->SetOperator(*A);
 
    // Filtered space operator
-   PtAPh.Clear();
-   PtAPh.MakePtAP(Ah,Ph);
+   delete PtAP;
+   PtAP = GetPtAP(A, P);
 
    // Filtered space solver
-   Mf->SetOperator(*PtAPh.Ptr());
+   Mf->SetOperator(*PtAP);
 
    z.SetSize(height);
    r.SetSize(height);
-   xf.SetSize(Ph.Ptr()->Width());
-   rf.SetSize(Ph.Ptr()->Width());
+   xf.SetSize(P->Width());
+   rf.SetSize(P->Width());
 
    solver_set = true;
 }
 
 void FilteredSolver::SetOperator(const Operator &op)
 {
-   Reset();
-   SetupOperatorHandle(&op, Ah);
+   A = &op;
    height = op.Height();
    width = op.Width();
-   if (M && Mf && Ph.Ptr()) { MakeSolver(); }
+   solver_set = false;
 }
 
 void FilteredSolver::SetSolver(Solver &M_)
 {
-   Reset();
    M = &M_;
-   if (Mf && Ah.Ptr() && Ph.Ptr()) { MakeSolver(); }
+   solver_set = false;
 }
 
 void FilteredSolver::SetFilteredSubspaceTransferOperator(const Operator &P_)
 {
-   Reset();
-   SetupOperatorHandle(&P_, Ph);
-   if (M && Mf && Ah.Ptr()) { MakeSolver(); }
+   P = &P_;
+   solver_set = false;
 }
 
 void FilteredSolver::SetFilteredSubspaceSolver(Solver &Mf_)
 {
-   Reset();
    Mf = &Mf_;
-   if (M && Ah.Ptr() && Ph.Ptr()) { MakeSolver(); }
+   solver_set = false;
 }
 
 void FilteredSolver::Mult(const Vector &b, Vector &x) const
 {
    MFEM_VERIFY(b.Size() == x.Size(),
                "FilteredSolver::Mult: Inconsistent x and y size");
+   MakeSolver();
 
    x = 0.0;
    r = b;
@@ -107,29 +104,32 @@ void FilteredSolver::Mult(const Vector &b, Vector &x) const
    x+=z;
 
    // r = b - A x = r - A z
-   Ah.Ptr()->AddMult(z, r, -1.0);
+   A->AddMult(z, r, -1.0);
 
    // rf = Pᵀ r
-   Ph.Ptr()->MultTranspose(r, rf);
+   P->MultTranspose(r, rf);
 
    // xf = Mf rf
    Mf->Mult(rf, xf);
 
    // z = P xf
-   Ph.Ptr()->Mult(xf, z);
+   P->Mult(xf, z);
 
    // x = x + z
    x+=z;
 
    // r = b - A x = r - A z
-   Ah.Ptr()->AddMult(z, r, -1.0);
+   A->AddMult(z, r, -1.0);
 
    // z = M r
    M->Mult(r, z);
    x+=z;
 }
 
-FilteredSolver::~FilteredSolver() { }
+FilteredSolver::~FilteredSolver()
+{
+   delete PtAP;
+}
 
 
 } // namespace mfem
