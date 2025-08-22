@@ -1,6 +1,7 @@
 #include "navier_solver.hpp"
 #include "navier_particles.hpp"
 #include "../common/pfem_extras.hpp"
+#include "../common/particles_extras.hpp"
 #include "../../general/text.hpp"
 #include <fstream>
 #include <iostream>
@@ -18,11 +19,14 @@ struct flow_context
 
    // fluid
    int rs_levels = 3;
-   int order = 4;
+   int order = 3;
+   real_t inlet_speed = 1.0;
    real_t Re = 1000;
-   int paraview_freq = 500;
+   int paraview_freq = 10;
    bool visualization = true;
    int visport = 19916;
+   int vis_tail_size = 5;
+   int vis_freq = 5;
 
    // particle
    int pnt_0 = round(2.0/dt);
@@ -32,13 +36,22 @@ struct flow_context
    real_t kappa_max = 10.0;
    real_t gamma = 0.0;
    real_t zeta = 0.19;
-   int print_csv_freq = 500;
+   int print_csv_freq = 10;
 } ctx;
 
 void SetInjectedParticles(NavierParticles &particle_solver, const Array<int> &p_idxs, real_t kappa_min, real_t kappa_max, int kappa_seed, real_t zeta, real_t gamma);
 
-// Dirichlet conditions for velocity
-void vel_dbc(const Vector &x, real_t t, Vector &u);
+void inlet_dbc(const Vector &x, real_t t, Vector &u)
+{ 
+   u[0] = 0.0;
+   u[1] = ctx.inlet_speed;
+}
+
+void no_slip_dbc(const Vector &x, real_t t, Vector &u)
+{ 
+   u = 0.0; 
+}
+
 
 int main(int argc, char *argv[])
 {
@@ -55,12 +68,15 @@ int main(int argc, char *argv[])
    args.AddOption(&ctx.rs_levels, "-rs", "--refine-serial",
                   "Number of times to refine the mesh in serial.");
    args.AddOption(&ctx.order, "-o", "--order", "Order (degree) of the finite elements.");
+   args.AddOption(&ctx.inlet_speed, "-is", "--inlet-speed", "Inlet speed.");
    args.AddOption(&ctx.Re, "-Re", "--reynolds-number", "Reynolds number.");
    args.AddOption(&ctx.paraview_freq, "-pv", "--paraview-freq", "ParaView data collection write frequency. 0 to disable.");
    args.AddOption(&ctx.visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
    args.AddOption(&ctx.visport, "-p", "--send-port", "Socket for GLVis.");
+   args.AddOption(&ctx.vis_tail_size, "-vt", "--vis-tail-size", "GLVis visualization trajectory truncation tail size.");
+   args.AddOption(&ctx.vis_freq, "-vf", "--vis-freq", "GLVis visualization frequency.");
    args.AddOption(&ctx.pnt_0, "-pt", "--particle-timestep", "Timestep to begin integrating particles.");
    args.AddOption(&ctx.add_particles_freq, "-ipf", "--inject-particles-freq", "Frequency of particle injection at domain inlet.");
    args.AddOption(&ctx.num_add_particles, "-npt", "--num-particles-inject", "Number of particles to add each injection.");
@@ -69,6 +85,7 @@ int main(int argc, char *argv[])
    args.AddOption(&ctx.gamma, "-g", "--gamma", "Gamma constant.");
    args.AddOption(&ctx.zeta, "-z", "--zeta", "Zeta constant.");
    args.AddOption(&ctx.print_csv_freq, "-csv", "--csv-freq", "Frequency of particle CSV outputting. 0 to disable.");
+   
    args.Parse();
    if (!args.Good())
    {
@@ -81,7 +98,7 @@ int main(int argc, char *argv[])
    }
 
    // Load mesh + complete any serial refinements
-   Mesh mesh("../../data/MFEM_original_enhanced.mesh");
+   Mesh mesh("../../data/mfem.mesh");
    int dim = mesh.Dimension();
    for (int lev = 0; lev < ctx.rs_levels; lev++)
    {
@@ -94,7 +111,6 @@ int main(int argc, char *argv[])
 
    // Create the flow solver
    NavierSolver flow_solver(&pmesh, ctx.order, 1.0/ctx.Re);
-   flow_solver.EnablePA(true);
 
    // Create the particle solver
    NavierParticles particle_solver(MPI_COMM_WORLD, 0, pmesh);
@@ -103,36 +119,43 @@ int main(int argc, char *argv[])
    real_t time = 0.0;
 
    // Initialize fluid IC
-   VectorFunctionCoefficient u_excoeff(2, vel_dbc);
    ParGridFunction &u_gf = *flow_solver.GetCurrentVelocity();
    ParGridFunction &w_gf = *flow_solver.GetCurrentVorticity();
-   u_excoeff.SetTime(time);
+   u_gf = 0.0;
+   w_gf = 0.0;
 
    // Set fluid BCs
-   Array<int> attr(pmesh.bdr_attributes.Max());
-   attr = 1;
-   flow_solver.AddVelDirichletBC(vel_dbc, attr);
+   Array<int> wall_attr(pmesh.bdr_attributes.Max());
+   wall_attr = 1;
+   wall_attr[0] = 0;
+   wall_attr[1] = 0;
+   flow_solver.AddVelDirichletBC(no_slip_dbc, wall_attr);
+
+   Array<int> inlet_attr(pmesh.bdr_attributes.Max());
+   inlet_attr = 0;
+   inlet_attr[0] = 1;
+   flow_solver.AddVelDirichletBC(inlet_dbc, inlet_attr);
 
 
    // Set particle BCs
-   std::vector<Vector> wall_bcs;
-   bool setting_bcs = true;
-   while (setting_bcs)
-   {
-      Vector p1, p2;
-      p1 = Vector(mesh.GetVertex(0), 2);
-      p2 = Vector(mesh.GetVertex(1), 2);
-      for (int i = 2; i < mesh.GetNV(); i++)
-      {
+   // std::vector<Vector> wall_bcs;
+   // bool setting_bcs = true;
+   // while (setting_bcs)
+   // {
+   //    Vector p1, p2;
+   //    p1 = Vector(mesh.GetVertex(0), 2);
+   //    p2 = Vector(mesh.GetVertex(1), 2);
+   //    for (int i = 2; i < mesh.GetNV(); i++)
+   //    {
          
-      }
-   }
+   //    }
+   // }
 
-   particle_solver.Add2DReflectionBC(Vector({0.0, 1.0}), Vector({8.0, 1.0}), 1.0, true);
-   particle_solver.Add2DReflectionBC(Vector({8.0, 1.0}), Vector({8.0, 9.0}), 1.0, true);
-   particle_solver.Add2DReflectionBC(Vector({9.0, 9.0}), Vector({9.0, 1.0}), 1.0, true);
-   particle_solver.Add2DReflectionBC(Vector({9.0, 1.0}), Vector({17.0, 1.0}), 1.0, true);
-   particle_solver.Add2DReflectionBC(Vector({0.0, 0.0}), Vector({17.0, 0.0}), 1.0, false);
+   // particle_solver.Add2DReflectionBC(Vector({0.0, 1.0}), Vector({8.0, 1.0}), 1.0, true);
+   // particle_solver.Add2DReflectionBC(Vector({8.0, 1.0}), Vector({8.0, 9.0}), 1.0, true);
+   // particle_solver.Add2DReflectionBC(Vector({9.0, 9.0}), Vector({9.0, 1.0}), 1.0, true);
+   // particle_solver.Add2DReflectionBC(Vector({9.0, 1.0}), Vector({17.0, 1.0}), 1.0, true);
+   // particle_solver.Add2DReflectionBC(Vector({0.0, 0.0}), Vector({17.0, 0.0}), 1.0, false);
 
    // Set up solution visualization
    char vishost[] = "localhost";
@@ -140,16 +163,18 @@ int main(int argc, char *argv[])
    int Ww = 350, Wh = 350; // window size
    int Wx = 10, Wy = 0; // window position
    char keys[] = "mAcRjlmm]]]]]]]]]";
-   if (ctx.visualization)
-   {
-      VisualizeField(vis_sol, vishost, ctx.visport, u_gf, "Velocity", Wx, Wy, Ww, Wh, keys);
-   }
+   std::unique_ptr<ParticleTrajectories> traj_vis;
+   // if (ctx.visualization)
+   // {
+   //    //VisualizeField(vis_sol, vishost, ctx.visport, u_gf, "Velocity", Wx, Wy, Ww, Wh, keys);
+   //    traj_vis = std::make_unique<ParticleTrajectories>(particle_solver.GetParticles(), ctx.vis_tail_size, vishost, ctx.visport, "Particle Trajectories", Wx, Wy, Ww, Wh, keys);
+   // }
 
    // Initialize ParaView DC (if freq != 0)
    std::unique_ptr<ParaViewDataCollection> pvdc;
    if (ctx.paraview_freq > 0)
    {
-      pvdc = std::make_unique<ParaViewDataCollection>("Bifurcation", &pmesh);
+      pvdc = std::make_unique<ParaViewDataCollection>("MFEM", &pmesh);
       pvdc->SetPrefixPath("ParaView");
       pvdc->SetLevelsOfDetail(ctx.order);
       pvdc->SetDataFormat(VTKFormat::BINARY);
@@ -161,7 +186,7 @@ int main(int argc, char *argv[])
       pvdc->Save();
    }
 
-   std::string csv_prefix = "Navier_Bifurcation_";
+   std::string csv_prefix = "Navier_MFEM_";
    if (ctx.print_csv_freq > 0)
    {
       std::string file_name = csv_prefix + mfem::to_padded_string(0, 6) + ".csv";
@@ -172,7 +197,6 @@ int main(int argc, char *argv[])
    flow_solver.Setup(ctx.dt);
    particle_solver.Setup(ctx.dt);
 
-   u_gf.ProjectCoefficient(u_excoeff);
    int pstep = 0;
    Array<int> add_particle_idxs;
    for (int step = 1; step <= ctx.nt; step++)
@@ -190,9 +214,17 @@ int main(int argc, char *argv[])
             particle_solver.GetParticles().AddParticles(rank_num_particles, &add_particle_idxs);
             SetInjectedParticles(particle_solver, add_particle_idxs, ctx.kappa_min, ctx.kappa_max, (rank+1)*step, ctx.zeta, ctx.gamma);
          }
-
+         if (!traj_vis)
+         {
+            traj_vis = std::make_unique<ParticleTrajectories>(particle_solver.GetParticles(), ctx.vis_tail_size, vishost, ctx.visport, "Particle Trajectories", Wx, Wy, Ww, Wh, keys);
+         }
          particle_solver.Step(ctx.dt, u_gf, w_gf);
          pstep++;
+      }
+
+      if(ctx.visualization && step % ctx.vis_freq == 0 && step >= ctx.pnt_0)
+      {
+         traj_vis->Visualize();
       }
 
       if (ctx.print_csv_freq > 0 && step % ctx.print_csv_freq == 0)
@@ -208,12 +240,6 @@ int main(int argc, char *argv[])
          pvdc->SetTime(vis_count);
          pvdc->SetCycle(step);
          pvdc->Save();
-      }
-
-      if (ctx.visualization)
-      {
-         VisualizeField(vis_sol, vishost, ctx.visport, u_gf,
-                        "Velocity", Wx, Wy, Ww, Wh, keys);
       }
 
       cfl = flow_solver.ComputeCFL(u_gf, ctx.dt);
@@ -238,7 +264,7 @@ int main(int argc, char *argv[])
 void SetInjectedParticles(NavierParticles &particle_solver, const Array<int> &p_idxs, real_t kappa_min, real_t kappa_max, int kappa_seed, real_t zeta, real_t gamma)
 {
    // Inject uniformly-distributed along inlet
-   real_t height = 1.0;
+   real_t width = 1.0;
 
    MPI_Comm comm = particle_solver.GetParticles().GetComm();
 
@@ -246,7 +272,7 @@ void SetInjectedParticles(NavierParticles &particle_solver, const Array<int> &p_
    int global_num_particles = 0;
    MPI_Allreduce(&rank_num_add, &global_num_particles, 1, MPI_INT, MPI_SUM, comm);
 
-   real_t spacing = height/(global_num_particles + 1);
+   real_t spacing = width/(global_num_particles + 1);
 
    // Determine this rank's offset
    int offset = 0;
@@ -262,7 +288,7 @@ void SetInjectedParticles(NavierParticles &particle_solver, const Array<int> &p_
          if (j == 0)
          {
             // Set position
-            particle_solver.X().SetVectorValues(idx, Vector({0.0, spacing*(i+offset+1)}));
+            particle_solver.X().SetVectorValues(idx, Vector({spacing*(i+offset+1), 0.0}));
          }
          else
          {  
@@ -287,16 +313,4 @@ void SetInjectedParticles(NavierParticles &particle_solver, const Array<int> &p_
       particle_solver.Order()[idx] = 0;
    }
 
-}
-
-// Dirichlet conditions for velocity
-void vel_dbc(const Vector &x, real_t t, Vector &u)
-{
-   real_t xi = x(0);
-   real_t yi = x(1);
-   real_t height = 1.0;
-
-   u(0) = 0.;
-   u(1) = 0.;
-   if (std::fabs(yi)<1.0) { u(0) = 6.0*yi*(height-yi)/(height*height); }
 }
