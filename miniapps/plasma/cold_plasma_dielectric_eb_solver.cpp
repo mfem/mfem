@@ -214,11 +214,11 @@ Maxwell2ndE::Maxwell2ndE(ParFiniteElementSpace & HCurlFESpace,
    if ( kReCoef || kImCoef )
    {
       this->AddDomainIntegrator(new VectorFEMassIntegrator(kmkReCoef_),
-				new VectorFEMassIntegrator(kmkImCoef_));
+                                new VectorFEMassIntegrator(kmkImCoef_));
       this->AddDomainIntegrator(new MixedVectorCurlIntegrator(kmImCoef_),
-				new MixedVectorCurlIntegrator(kmReCoef_));
+                                new MixedVectorCurlIntegrator(kmReCoef_));
       this->AddDomainIntegrator(new MixedVectorWeakCurlIntegrator(kmImCoef_),
-				new MixedVectorWeakCurlIntegrator(kmReCoef_));
+                                new MixedVectorWeakCurlIntegrator(kmReCoef_));
    }
 }
 
@@ -263,9 +263,9 @@ CurrentSourceE::CurrentSourceE(ParFiniteElementSpace & HCurlFESpace,
                                                            false, true);
 
       this->AddDomainIntegrator(
-	       new VectorFEDomainLFIntegrator(*jtilde_[i]->imag),
-	       new VectorFEDomainLFIntegrator(*jtilde_[i]->real),
-				jtilde_[i]->attr_marker);
+         new VectorFEDomainLFIntegrator(*jtilde_[i]->imag),
+         new VectorFEDomainLFIntegrator(*jtilde_[i]->real),
+         jtilde_[i]->attr_marker);
    }
 
    for (int i = 0; i < ksrc.Size(); i++)
@@ -283,9 +283,9 @@ CurrentSourceE::CurrentSourceE(ParFiniteElementSpace & HCurlFESpace,
                                                            false, true);
 
       this->AddBoundaryIntegrator(
-	    new VectorFEBoundaryTangentLFIntegrator(*ktilde_[i]->imag),
-	    new VectorFEBoundaryTangentLFIntegrator(*ktilde_[i]->real),
-	    ktilde_[i]->attr_marker);
+         new VectorFEBoundaryTangentLFIntegrator(*ktilde_[i]->imag),
+         new VectorFEBoundaryTangentLFIntegrator(*ktilde_[i]->real),
+         ktilde_[i]->attr_marker);
    }
 
    this->real().Vector::operator=(0.0);
@@ -419,6 +419,25 @@ void FaradaysLaw::ComputeB()
    }
 }
 
+real_t
+FaradaysLaw::GetBFieldError(const VectorCoefficient & BReCoef,
+                            const VectorCoefficient & BImCoef) const
+{
+   ParFiniteElementSpace * fes =
+      const_cast<ParFiniteElementSpace*>(b_.ParFESpace());
+   ParComplexGridFunction z(fes);
+   z = 0.0;
+
+   real_t solNorm = z.ComputeL2Error(const_cast<VectorCoefficient&>(BReCoef),
+                                     const_cast<VectorCoefficient&>(BImCoef));
+
+
+   real_t solErr = b_.ComputeL2Error(const_cast<VectorCoefficient&>(BReCoef),
+                                     const_cast<VectorCoefficient&>(BImCoef));
+
+   return (solNorm > 0.0) ? solErr / solNorm : solErr;
+}
+
 GausssLaw::GausssLaw(const ParComplexGridFunction &f,
                      ParFiniteElementSpace & L2FESpace,
                      VectorCoefficient * kReCoef,
@@ -544,14 +563,14 @@ void Displacement::ComputeD()
    Operator *pcg = NULL;
 
    {
-     diag = new HypreDiagScale(*M.As<HypreParMatrix>());
-     HyprePCG *cg = new HyprePCG(*M.As<HypreParMatrix>());
-     cg->SetPreconditioner(static_cast<HypreDiagScale&>(*diag));
-     cg->SetTol(1e-12);
-     cg->SetMaxIter(1000);
-     pcg = cg;
+      diag = new HypreDiagScale(*M.As<HypreParMatrix>());
+      HyprePCG *cg = new HyprePCG(*M.As<HypreParMatrix>());
+      cg->SetPreconditioner(static_cast<HypreDiagScale&>(*diag));
+      cg->SetTol(1e-12);
+      cg->SetMaxIter(1000);
+      pcg = cg;
    }
-   
+
    d_lf_.Assemble();
    d_lf_.SyncAlias();
 
@@ -977,7 +996,7 @@ void SheathPotential::PrintStatistics() const
 ParallelElectricFieldVisObject::ParallelElectricFieldVisObject(
    const std::string & field_name,
    VectorCoefficient & BCoef,
-   L2_ParFESpace *sfes,
+   shared_ptr<L2_ParFESpace> sfes,
    bool cyl, bool pseudo)
    : ComplexScalarFieldVisObject(field_name, sfes, cyl, pseudo), BCoef_(BCoef)
 {}
@@ -1000,7 +1019,7 @@ void ParallelElectricFieldVisObject::PrepareVisField(const
 
 ElectricEnergyDensityVisObject::ElectricEnergyDensityVisObject(
    const std::string & field_name,
-   L2_ParFESpace *sfes,
+   shared_ptr<L2_ParFESpace> sfes,
    bool cyl, bool pseudo)
    : ComplexScalarFieldVisObject(field_name, sfes, cyl, pseudo)
 {}
@@ -1018,18 +1037,18 @@ void ElectricEnergyDensityVisObject::PrepareVisField(const
 
    this->PrepareVisField(ur, ui, NULL, NULL);
 }
-
+/*
 ElectricEnergyDensityEDVisObject::ElectricEnergyDensityEDVisObject(
    const std::string & field_name,
-   L2_ParFESpace *sfes,
+   shared_ptr<L2_ParFESpace> sfes,
    bool cyl, bool pseudo)
    : ComplexScalarFieldVisObject(field_name, sfes, cyl, pseudo)
 {}
 
 void ElectricEnergyDensityEDVisObject::PrepareVisField(const
-                                                     ParComplexGridFunction &e,
-                                                     const
-						       ParComplexGridFunction &d)
+                                                       ParComplexGridFunction &e,
+                                                       const
+                                                       ParComplexGridFunction &d)
 {
    VectorGridFunctionCoefficient Er(&e.real());
    VectorGridFunctionCoefficient Ei(&e.imag());
@@ -1042,10 +1061,10 @@ void ElectricEnergyDensityEDVisObject::PrepareVisField(const
 
    this->PrepareVisField(ur, ui, NULL, NULL);
 }
-
+*/
 MagneticEnergyDensityVisObject::MagneticEnergyDensityVisObject(
    const std::string & field_name,
-   L2_ParFESpace *sfes,
+   shared_ptr<L2_ParFESpace> sfes,
    bool cyl, bool pseudo)
    : ComplexScalarFieldVisObject(field_name, sfes, cyl, pseudo)
 {}
@@ -1065,7 +1084,7 @@ void MagneticEnergyDensityVisObject::PrepareVisField(const
 }
 
 EnergyDensityVisObject::EnergyDensityVisObject(const std::string & field_name,
-                                               L2_ParFESpace *sfes,
+                                               shared_ptr<L2_ParFESpace> sfes,
                                                bool cyl, bool pseudo)
    : ComplexScalarFieldVisObject(field_name, sfes, cyl, pseudo)
 {}
@@ -1088,10 +1107,8 @@ void EnergyDensityVisObject::PrepareVisField(const ParComplexGridFunction &e,
 }
 
 PoyntingVectorVisObject::PoyntingVectorVisObject(const std::string & field_name,
-                                                 L2_ParFESpace *vfes,
-                                                 L2_ParFESpace *sfes,
-                                                 bool cyl, bool pseudo)
-   : ComplexVectorFieldVisObject(field_name, vfes, sfes, cyl, pseudo)
+                                                 shared_ptr<L2_ParFESpace> vfes)
+   : ComplexVectorFieldVisObject(field_name, vfes)
 {}
 
 void PoyntingVectorVisObject::PrepareVisField(const ParComplexGridFunction &e,
@@ -1111,10 +1128,8 @@ void PoyntingVectorVisObject::PrepareVisField(const ParComplexGridFunction &e,
 
 MinkowskiMomentumDensityVisObject::MinkowskiMomentumDensityVisObject(
    const std::string & field_name,
-   L2_ParFESpace *vfes,
-   L2_ParFESpace *sfes,
-   bool cyl, bool pseudo)
-   : ComplexVectorFieldVisObject(field_name, vfes, sfes, cyl, pseudo)
+   shared_ptr<L2_ParFESpace> vfes)
+   : ComplexVectorFieldVisObject(field_name, vfes)
 {}
 
 void MinkowskiMomentumDensityVisObject::PrepareVisField(
@@ -1135,7 +1150,7 @@ void MinkowskiMomentumDensityVisObject::PrepareVisField(
 }
 
 TensorCompVisObject::TensorCompVisObject(const std::string & field_name,
-                                         L2_ParFESpace *sfes,
+                                         shared_ptr<L2_ParFESpace> sfes,
                                          bool cyl, bool pseudo)
    : ComplexScalarFieldVisObject(field_name, sfes, cyl, pseudo)
 {}
@@ -1150,197 +1165,499 @@ void TensorCompVisObject::PrepareVisField(MatrixCoefficient &mr,
    this->PrepareVisField(mrCoef, miCoef, NULL, NULL);
 }
 
+void CPDVisBase::set_bool_flags(unsigned int num_flags,
+                                unsigned int active_flags_mask,
+                                Array<bool> &flags)
+{
+   flags.SetSize(num_flags);
+   for (int i=0; i<num_flags; i++)
+   {
+      flags[i] = active_flags_mask >> i & 1;
+   }
+}
+
+void CPDVisBase::SetOptions(const Array<bool> &opts)
+{
+   for (int i=0; i<opts.Size(); i++)
+   {
+      if (opts[i])
+      {
+         this->SetVisFlag(i);
+      }
+      else
+      {
+         this->ClearVisFlag(i);
+      }
+   }
+}
+
+const string CPDInputVis::opt_str_[] =
+{
+   "bb", "background-b", "background magnetic flux",
+   "id", "ion-densities", "ion species densities",
+   "it", "ion-temperatures", "ion species temperatures",
+   "ed", "electron-density", "electron density",
+   "et", "electron-temperature", "electron temperature",
+   "ss", "stix-s", "Stix S coefficient",
+   "sd", "stix-d", "Stix D coefficient",
+   "sp", "stix-p", "Stix P coefficient",
+   "wl", "wavelength-l", "wavelength L",
+   "wr", "wavelength-r", "wavelength R",
+   "wo", "wavelength-o", "wavelength O",
+   "wx", "wavelength-x", "wavelength X",
+   "dl", "skin-depth-l", "skin-depth L",
+   "dr", "skin-depth-r", "skin-depth R",
+   "do", "skin-depth-o", "skin-depth O",
+   "dx", "skin-depth-x", "skin-depth X"
+};
+
+std::array<std::string, CPDInputVis::NUM_VIS_FIELDS> CPDInputVis::optt_;
+std::array<std::string, CPDInputVis::NUM_VIS_FIELDS> CPDInputVis::optlt_;
+std::array<std::string, CPDInputVis::NUM_VIS_FIELDS> CPDInputVis::optf_;
+std::array<std::string, CPDInputVis::NUM_VIS_FIELDS> CPDInputVis::optlf_;
+std::array<std::string, CPDInputVis::NUM_VIS_FIELDS> CPDInputVis::optd_;
+
+void CPDInputVis::AddOptions(OptionsParser &args, Array<bool> &opts)
+{
+   for (int i=0; i<NUM_VIS_FIELDS; i++)
+   {
+      optt_[i]  = "-vi" + opt_str_[3*i+0];
+      optlt_[i] = "--vis-input-" + opt_str_[3*i+1];
+      optf_[i]  = "-no-vi" + opt_str_[3*i+0];
+      optlf_[i] = "--no-vis-input-" + opt_str_[3*i+1];
+      optd_[i]  = "Visualize input " + opt_str_[3*i+2];
+      args.AddOption(&opts[i],
+                     optt_[i].c_str(), optlt_[i].c_str(),
+                     optf_[i].c_str(), optlf_[i].c_str(),
+                     optd_[i].c_str());
+   }
+}
+
 CPDInputVis::CPDInputVis(StixParams &stixParams,
-			 std::shared_ptr<L2_ParFESpace> l2_sfes,
-			 std::shared_ptr<L2_ParFESpace> l2_vfes,
-			 bool cyl)
-  : sfes_(l2_sfes),
-    vfes_(l2_vfes),
-    BCoef_(stixParams.BCoef),
-    B_("BackgroundB", l2_vfes.get(), l2_sfes.get(), cyl, false),
-    //
-    stixSReCoef_(stixParams, StixCoef::REAL_PART),
-    stixSImCoef_(stixParams, StixCoef::IMAG_PART),
-    stixDReCoef_(stixParams, StixCoef::REAL_PART),
-    stixDImCoef_(stixParams, StixCoef::IMAG_PART),
-    stixPReCoef_(stixParams, StixCoef::REAL_PART),
-    stixPImCoef_(stixParams, StixCoef::IMAG_PART),
-    stixS_("StixS", l2_sfes.get(), cyl, false),
-    stixD_("StixD", l2_sfes.get(), cyl, false),
-    stixP_("StixP", l2_sfes.get(), cyl, false),
-    //
-    lambdaLCoef_('L', stixParams, StixCoef::REAL_PART),
-    lambdaRCoef_('R', stixParams, StixCoef::REAL_PART),
-    lambdaOCoef_('O', stixParams, StixCoef::REAL_PART),
-    lambdaXCoef_('X', stixParams, StixCoef::REAL_PART),
-    waveLengthL_("LambdaL", l2_sfes.get(), cyl, false),
-    waveLengthR_("LambdaR", l2_sfes.get(), cyl, false),
-    waveLengthO_("LambdaO", l2_sfes.get(), cyl, false),
-    waveLengthX_("LambdaX", l2_sfes.get(), cyl, false),
-    //
-    deltaLCoef_('L', stixParams, StixCoef::IMAG_PART),
-    deltaRCoef_('R', stixParams, StixCoef::IMAG_PART),
-    deltaOCoef_('O', stixParams, StixCoef::IMAG_PART),
-    deltaXCoef_('X', stixParams, StixCoef::IMAG_PART),
-    skinDepthL_("DeltaL", l2_sfes.get(), cyl, false),
-    skinDepthR_("DeltaR", l2_sfes.get(), cyl, false),
-    skinDepthO_("DeltaO", l2_sfes.get(), cyl, false),
-    skinDepthX_("DeltaX", l2_sfes.get(), cyl, false)
-{}
+                         std::shared_ptr<L2_ParFESpace> l2_sfes,
+                         std::shared_ptr<L2_ParFESpace> l2_vfes,
+                         unsigned int vis_flag,
+                         bool cyl)
+   : CPDVisBase(vis_flag),
+     sfes_(l2_sfes),
+     vfes_(l2_vfes),
+     BCoef_(stixParams.BCoef),
+     B_("BackgroundB", l2_vfes),
+     //
+     numIonSpec_(stixParams.specDensityCoef.GetVDim() - 1),
+     ionDensityCoefs_(numIonSpec_),
+     ionTempCoefs_(numIonSpec_),
+     ionDensities_(numIonSpec_),
+     ionTemps_(numIonSpec_),
+     //
+     electronDensityCoef_(numIonSpec_,stixParams.specDensityCoef),
+     electronTempCoef_(numIonSpec_,stixParams.specTemperatureCoef),
+     electronDensity_("ElectronDensity", l2_sfes.get(), cyl, false),
+     electronTemp_("ElectronTemperature", l2_sfes.get(), cyl, false),
+     //
+     stixSReCoef_(stixParams, StixCoef::REAL_PART),
+     stixSImCoef_(stixParams, StixCoef::IMAG_PART),
+     stixDReCoef_(stixParams, StixCoef::REAL_PART),
+     stixDImCoef_(stixParams, StixCoef::IMAG_PART),
+     stixPReCoef_(stixParams, StixCoef::REAL_PART),
+     stixPImCoef_(stixParams, StixCoef::IMAG_PART),
+     stixS_("StixS", l2_sfes, cyl, false),
+     stixD_("StixD", l2_sfes, cyl, false),
+     stixP_("StixP", l2_sfes, cyl, false),
+     //
+     lambdaLCoef_('L', stixParams, StixCoef::REAL_PART),
+     lambdaRCoef_('R', stixParams, StixCoef::REAL_PART),
+     lambdaOCoef_('O', stixParams, StixCoef::REAL_PART),
+     lambdaXCoef_('X', stixParams, StixCoef::REAL_PART),
+     waveLengthL_("LambdaL", l2_sfes.get(), cyl, false),
+     waveLengthR_("LambdaR", l2_sfes.get(), cyl, false),
+     waveLengthO_("LambdaO", l2_sfes.get(), cyl, false),
+     waveLengthX_("LambdaX", l2_sfes.get(), cyl, false),
+     //
+     deltaLCoef_('L', stixParams, StixCoef::IMAG_PART),
+     deltaRCoef_('R', stixParams, StixCoef::IMAG_PART),
+     deltaOCoef_('O', stixParams, StixCoef::IMAG_PART),
+     deltaXCoef_('X', stixParams, StixCoef::IMAG_PART),
+     skinDepthL_("DeltaL", l2_sfes.get(), cyl, false),
+     skinDepthR_("DeltaR", l2_sfes.get(), cyl, false),
+     skinDepthO_("DeltaO", l2_sfes.get(), cyl, false),
+     skinDepthX_("DeltaX", l2_sfes.get(), cyl, false)
+{
+   for (int i=0; i<numIonSpec_; i++)
+   {
+      ionDensityCoefs_[i] =
+         new ComponentCoefficient(i,stixParams.specDensityCoef);
+      ionTempCoefs_[i] =
+         new ComponentCoefficient(i,stixParams.specTemperatureCoef);
+
+      ostringstream oss_den, oss_temp;
+      oss_den << "IonDensity";
+      oss_temp << "IonTemperature";
+      if (numIonSpec_ > 1)
+      {
+         oss_den << " (Species " << i+1 << ")";
+         oss_temp << " (Species " << i+1 << ")";
+      }
+      ionDensities_[i] =
+         new ScalarFieldVisObject(oss_den.str(), l2_sfes.get(), cyl, false);
+      ionTemps_[i] =
+         new ScalarFieldVisObject(oss_temp.str(), l2_sfes.get(), cyl, false);
+   }
+}
+
+CPDInputVis::~CPDInputVis()
+{
+   for (int i=0; i<numIonSpec_; i++)
+   {
+      delete ionDensityCoefs_[i];
+      delete ionTempCoefs_[i];
+      delete ionDensities_[i];
+      delete ionTemps_[i];
+   }
+}
 
 void CPDInputVis::RegisterVisItFields(VisItDataCollection & visit_dc)
 {
-  B_.RegisterVisItFields(visit_dc);
+   if (CheckVisFlag(BACKGROUND_B)) { B_.RegisterVisItFields(visit_dc); }
 
-  stixS_.RegisterVisItFields(visit_dc);
-  stixD_.RegisterVisItFields(visit_dc);
-  stixP_.RegisterVisItFields(visit_dc);
-  
-  waveLengthL_.RegisterVisItFields(visit_dc);
-  waveLengthR_.RegisterVisItFields(visit_dc);
-  waveLengthO_.RegisterVisItFields(visit_dc);
-  waveLengthX_.RegisterVisItFields(visit_dc);
+   if (CheckVisFlag(ION_DENSITIES))
+   {
+      for (int i=0; i<numIonSpec_; i++)
+      {
+         ionDensities_[i]->RegisterVisItFields(visit_dc);
+      }
+   }
+   if (CheckVisFlag(ION_TEMPERATURES))
+   {
+      for (int i=0; i<numIonSpec_; i++)
+      {
+         ionTemps_[i]->RegisterVisItFields(visit_dc);
+      }
+   }
 
-  skinDepthL_.RegisterVisItFields(visit_dc);
-  skinDepthR_.RegisterVisItFields(visit_dc);
-  skinDepthO_.RegisterVisItFields(visit_dc);
-  skinDepthX_.RegisterVisItFields(visit_dc);
+   if (CheckVisFlag(ELECTRON_DENSITY))
+   { electronDensity_.RegisterVisItFields(visit_dc); }
+   if (CheckVisFlag(ELECTRON_TEMPERATURE))
+   { electronTemp_.RegisterVisItFields(visit_dc); }
+
+   if (CheckVisFlag(STIX_S)) { stixS_.RegisterVisItFields(visit_dc); }
+   if (CheckVisFlag(STIX_D)) { stixD_.RegisterVisItFields(visit_dc); }
+   if (CheckVisFlag(STIX_P)) { stixP_.RegisterVisItFields(visit_dc); }
+
+   if (CheckVisFlag(WAVELENGTH_L))
+   { waveLengthL_.RegisterVisItFields(visit_dc); }
+   if (CheckVisFlag(WAVELENGTH_R))
+   { waveLengthR_.RegisterVisItFields(visit_dc); }
+   if (CheckVisFlag(WAVELENGTH_O))
+   { waveLengthO_.RegisterVisItFields(visit_dc); }
+   if (CheckVisFlag(WAVELENGTH_X))
+   { waveLengthX_.RegisterVisItFields(visit_dc); }
+
+   if (CheckVisFlag(SKIN_DEPTH_L))
+   { skinDepthL_.RegisterVisItFields(visit_dc); }
+   if (CheckVisFlag(SKIN_DEPTH_R))
+   { skinDepthR_.RegisterVisItFields(visit_dc); }
+   if (CheckVisFlag(SKIN_DEPTH_O))
+   { skinDepthO_.RegisterVisItFields(visit_dc); }
+   if (CheckVisFlag(SKIN_DEPTH_X))
+   { skinDepthX_.RegisterVisItFields(visit_dc); }
 }
 
 void CPDInputVis::PrepareVisFields()
 {
-  B_.PrepareVisField(BCoef_);
-  
-  stixS_.PrepareVisField(stixSReCoef_, stixSImCoef_, NULL, NULL);
-  stixD_.PrepareVisField(stixDReCoef_, stixDImCoef_, NULL, NULL);
-  stixP_.PrepareVisField(stixPReCoef_, stixPImCoef_, NULL, NULL);
-  
-  waveLengthL_.PrepareVisField(lambdaLCoef_);
-  waveLengthR_.PrepareVisField(lambdaRCoef_);
-  waveLengthO_.PrepareVisField(lambdaOCoef_);
-  waveLengthX_.PrepareVisField(lambdaXCoef_);
+   if (CheckVisFlag(BACKGROUND_B)) { B_.PrepareVisField(BCoef_); }
 
-  skinDepthL_.PrepareVisField(deltaLCoef_);
-  skinDepthR_.PrepareVisField(deltaRCoef_);
-  skinDepthO_.PrepareVisField(deltaOCoef_);
-  skinDepthX_.PrepareVisField(deltaXCoef_);
+   if (CheckVisFlag(ION_DENSITIES))
+   {
+      for (int i=0; i<numIonSpec_; i++)
+      {
+         ionDensities_[i]->PrepareVisField(*ionDensityCoefs_[i]);
+      }
+   }
+   if (CheckVisFlag(ION_TEMPERATURES))
+   {
+      for (int i=0; i<numIonSpec_; i++)
+      {
+         ionTemps_[i]->PrepareVisField(*ionTempCoefs_[i]);
+      }
+   }
+
+   if (CheckVisFlag(ELECTRON_DENSITY))
+   { electronDensity_.PrepareVisField(electronDensityCoef_); }
+   if (CheckVisFlag(ELECTRON_TEMPERATURE))
+   { electronTemp_.PrepareVisField(electronTempCoef_); }
+
+   if (CheckVisFlag(STIX_S))
+   { stixS_.PrepareVisField(stixSReCoef_, stixSImCoef_, NULL, NULL); }
+   if (CheckVisFlag(STIX_D))
+   { stixD_.PrepareVisField(stixDReCoef_, stixDImCoef_, NULL, NULL); }
+   if (CheckVisFlag(STIX_P))
+   { stixP_.PrepareVisField(stixPReCoef_, stixPImCoef_, NULL, NULL); }
+
+   if (CheckVisFlag(WAVELENGTH_L))
+   { waveLengthL_.PrepareVisField(lambdaLCoef_); }
+   if (CheckVisFlag(WAVELENGTH_R))
+   { waveLengthR_.PrepareVisField(lambdaRCoef_); }
+   if (CheckVisFlag(WAVELENGTH_O))
+   { waveLengthO_.PrepareVisField(lambdaOCoef_); }
+   if (CheckVisFlag(WAVELENGTH_X))
+   { waveLengthX_.PrepareVisField(lambdaXCoef_); }
+
+   if (CheckVisFlag(SKIN_DEPTH_L)) { skinDepthL_.PrepareVisField(deltaLCoef_); }
+   if (CheckVisFlag(SKIN_DEPTH_R)) { skinDepthR_.PrepareVisField(deltaRCoef_); }
+   if (CheckVisFlag(SKIN_DEPTH_O)) { skinDepthO_.PrepareVisField(deltaOCoef_); }
+   if (CheckVisFlag(SKIN_DEPTH_X)) { skinDepthX_.PrepareVisField(deltaXCoef_); }
+}
+
+void CPDInputVis::DisplayToGLVis()
+{
+   if (CheckVisFlag(BACKGROUND_B)) { B_.DisplayToGLVis(); }
+
+   if (CheckVisFlag(ION_DENSITIES))
+   {
+      for (int i=0; i<numIonSpec_; i++)
+      {
+         ionDensities_[i]->DisplayToGLVis();
+      }
+   }
+   if (CheckVisFlag(ION_TEMPERATURES))
+   {
+      for (int i=0; i<numIonSpec_; i++)
+      {
+         ionTemps_[i]->DisplayToGLVis();
+      }
+   }
+
+   if (CheckVisFlag(ELECTRON_DENSITY))
+   { electronDensity_.DisplayToGLVis(); }
+   if (CheckVisFlag(ELECTRON_TEMPERATURE))
+   { electronTemp_.DisplayToGLVis(); }
+
+   if (CheckVisFlag(STIX_S)) { stixS_.DisplayToGLVis(); }
+   if (CheckVisFlag(STIX_D)) { stixD_.DisplayToGLVis(); }
+   if (CheckVisFlag(STIX_P)) { stixP_.DisplayToGLVis(); }
+
+   if (CheckVisFlag(WAVELENGTH_L)) { waveLengthL_.DisplayToGLVis(); }
+   if (CheckVisFlag(WAVELENGTH_R)) { waveLengthR_.DisplayToGLVis(); }
+   if (CheckVisFlag(WAVELENGTH_O)) { waveLengthO_.DisplayToGLVis(); }
+   if (CheckVisFlag(WAVELENGTH_X)) { waveLengthX_.DisplayToGLVis(); }
+
+   if (CheckVisFlag(SKIN_DEPTH_L)) { skinDepthL_.DisplayToGLVis(); }
+   if (CheckVisFlag(SKIN_DEPTH_R)) { skinDepthR_.DisplayToGLVis(); }
+   if (CheckVisFlag(SKIN_DEPTH_O)) { skinDepthO_.DisplayToGLVis(); }
+   if (CheckVisFlag(SKIN_DEPTH_X)) { skinDepthX_.DisplayToGLVis(); }
 }
 
 void CPDInputVis::Update()
 {
-  sfes_->Update();
-  vfes_->Update();
-  
-  B_.Update();
+   sfes_->Update();
+   vfes_->Update();
 
-  stixS_.Update();
-  stixD_.Update();
-  stixP_.Update();
-  
-  waveLengthL_.Update();
-  waveLengthR_.Update();
-  waveLengthO_.Update();
-  waveLengthX_.Update();
+   B_.Update();
 
-  skinDepthL_.Update();
-  skinDepthR_.Update();
-  skinDepthO_.Update();
-  skinDepthX_.Update();
+   stixS_.Update();
+   stixD_.Update();
+   stixP_.Update();
+
+   waveLengthL_.Update();
+   waveLengthR_.Update();
+   waveLengthO_.Update();
+   waveLengthX_.Update();
+
+   skinDepthL_.Update();
+   skinDepthR_.Update();
+   skinDepthO_.Update();
+   skinDepthX_.Update();
+}
+
+const string CPDFieldVis::opt_str_[] =
+{
+   "ef", "e-field", "electric field",
+   "bf", "b-flux", "magnetic flux"
+};
+
+std::array<std::string, CPDFieldVis::NUM_VIS_FIELDS> CPDFieldVis::optt_;
+std::array<std::string, CPDFieldVis::NUM_VIS_FIELDS> CPDFieldVis::optlt_;
+std::array<std::string, CPDFieldVis::NUM_VIS_FIELDS> CPDFieldVis::optf_;
+std::array<std::string, CPDFieldVis::NUM_VIS_FIELDS> CPDFieldVis::optlf_;
+std::array<std::string, CPDFieldVis::NUM_VIS_FIELDS> CPDFieldVis::optd_;
+
+void CPDFieldVis::AddOptions(OptionsParser &args, Array<bool> &opts)
+{
+   for (int i=0; i<NUM_VIS_FIELDS; i++)
+   {
+      optt_[i]  = "-v" + opt_str_[3*i+0];
+      optlt_[i] = "--vis-" + opt_str_[3*i+1];
+      optf_[i]  = "-no-v" + opt_str_[3*i+0];
+      optlf_[i] = "--no-vis-" + opt_str_[3*i+1];
+      optd_[i]  = "Visualize " + opt_str_[3*i+2];
+      args.AddOption(&opts[i],
+                     optt_[i].c_str(), optlt_[i].c_str(),
+                     optf_[i].c_str(), optlf_[i].c_str(),
+                     optd_[i].c_str());
+   }
 }
 
 CPDFieldVis::CPDFieldVis(StixParams &stixParams,
-			 std::shared_ptr<L2_ParFESpace> l2_sfes,
-			 std::shared_ptr<L2_ParFESpace> l2_vfes,
-			 const std::string hcurl_field_name,
-			 const std::string hdiv_field_name,
-			 bool cyl)
-  : sfes_(l2_sfes),
-    vfes_(l2_vfes),
-    HCurlField_(hcurl_field_name, l2_vfes.get(), l2_sfes.get(), cyl, false),
-    HDivField_(hdiv_field_name, l2_vfes.get(), l2_sfes.get(), cyl, true)
+                         std::shared_ptr<L2_ParFESpace> l2_sfes,
+                         std::shared_ptr<L2_ParFESpace> l2_vfes,
+                         const std::string hcurl_field_name,
+                         const std::string hdiv_field_name,
+                         unsigned int vis_flag)
+   : CPDVisBase(vis_flag),
+     sfes_(l2_sfes),
+     vfes_(l2_vfes),
+     HCurlField_(hcurl_field_name, l2_vfes),
+     HDivField_(hdiv_field_name, l2_vfes)
 {
 }
 
 void CPDFieldVis::RegisterVisItFields(VisItDataCollection & visit_dc)
 {
-  HCurlField_.RegisterVisItFields(visit_dc);
-  HDivField_.RegisterVisItFields(visit_dc);
+   if (CheckVisFlag(ELECTRIC_FIELD))
+   { HCurlField_.RegisterVisItFields(visit_dc); }
+   if (CheckVisFlag(MAGNETIC_FLUX))
+   { HDivField_.RegisterVisItFields(visit_dc); }
 }
 
 void CPDFieldVis::PrepareVisFields(const ParComplexGridFunction & e,
-				  const ParComplexGridFunction & b,
-				  VectorCoefficient * kReCoef,
-				  VectorCoefficient * kImCoef)
+                                   const ParComplexGridFunction & b,
+                                   VectorCoefficient * kReCoef,
+                                   VectorCoefficient * kImCoef)
 {
-  HCurlField_.PrepareVisField(e, kReCoef, kImCoef);
-  HDivField_.PrepareVisField(b, kReCoef, kImCoef);
+   if (CheckVisFlag(ELECTRIC_FIELD))
+   { HCurlField_.PrepareVisField(e, kReCoef, kImCoef); }
+   if (CheckVisFlag(MAGNETIC_FLUX))
+   { HDivField_.PrepareVisField(b, kReCoef, kImCoef); }
+}
+
+void CPDFieldVis::DisplayToGLVis()
+{
+   if (CheckVisFlag(ELECTRIC_FIELD)) { HCurlField_.DisplayToGLVis(); }
+   if (CheckVisFlag(MAGNETIC_FLUX)) { HDivField_.DisplayToGLVis(); }
 }
 
 void CPDFieldVis::Update()
 {
-  sfes_->Update();
-  vfes_->Update();
-  
-  HCurlField_.Update();
-  HDivField_.Update();
+   sfes_->Update();
+   vfes_->Update();
+
+   HCurlField_.Update();
+   HDivField_.Update();
+}
+
+const string CPDOutputVis::opt_str_[] =
+{
+   "u", "energy-density", "energy density",
+   "pf", "poynting-flux", "Poynting flux",
+   "md", "momentum-density", "Minkowski momentum density",
+   "ue", "electric-energy-density", "electric energy density",
+   "um", "magnetic-energy-density", "magnetic energy density"
+};
+
+std::array<std::string, CPDOutputVis::NUM_VIS_FIELDS> CPDOutputVis::optt_;
+std::array<std::string, CPDOutputVis::NUM_VIS_FIELDS> CPDOutputVis::optlt_;
+std::array<std::string, CPDOutputVis::NUM_VIS_FIELDS> CPDOutputVis::optf_;
+std::array<std::string, CPDOutputVis::NUM_VIS_FIELDS> CPDOutputVis::optlf_;
+std::array<std::string, CPDOutputVis::NUM_VIS_FIELDS> CPDOutputVis::optd_;
+
+void CPDOutputVis::AddOptions(OptionsParser &args, Array<bool> &opts)
+{
+   for (int i=0; i<NUM_VIS_FIELDS; i++)
+   {
+      optt_[i]  = "-vo" + opt_str_[3*i+0];
+      optlt_[i] = "--vis-output-" + opt_str_[3*i+1];
+      optf_[i]  = "-no-vo" + opt_str_[3*i+0];
+      optlf_[i] = "--no-vis-output-" + opt_str_[3*i+1];
+      optd_[i]  = "Visualize output " + opt_str_[3*i+2];
+      args.AddOption(&opts[i],
+                     optt_[i].c_str(), optlt_[i].c_str(),
+                     optf_[i].c_str(), optlf_[i].c_str(),
+                     optd_[i].c_str());
+   }
 }
 
 CPDOutputVis::CPDOutputVis(StixParams &stixParams,
-			   std::shared_ptr<L2_ParFESpace> l2_sfes,
-			   std::shared_ptr<L2_ParFESpace> l2_vfes,
-			   real_t omega,
-			   bool cyl)
-  : sfes_(l2_sfes),
-    vfes_(l2_vfes),
-    omega_(omega),
-    epsReCoef_(stixParams, StixCoef::REAL_PART),
-    epsImCoef_(stixParams, StixCoef::IMAG_PART),
-    muInvCoef_(1.0 / mu0_),
-    energyDensity_("EnergyDensity", l2_sfes.get(), cyl, true),
-    poyntingFlux_("PoyntingFlux", l2_vfes.get(), l2_sfes.get(), cyl, true),
-    momentumDensity_("MomentumDensity", l2_vfes.get(), l2_sfes.get(),
-		     cyl, true),
-    edEnergyDensity_("EDEnergyDensity", l2_sfes.get(), cyl, true)
+                           std::shared_ptr<L2_ParFESpace> l2_sfes,
+                           std::shared_ptr<L2_ParFESpace> l2_vfes,
+                           real_t omega,
+                           unsigned int vis_flag,
+                           bool cyl)
+   : CPDVisBase(vis_flag),
+     sfes_(l2_sfes),
+     vfes_(l2_vfes),
+     omega_(omega),
+     epsReCoef_(stixParams, StixCoef::REAL_PART),
+     epsImCoef_(stixParams, StixCoef::IMAG_PART),
+     muInvCoef_(1.0 / mu0_),
+     energyDensity_("EnergyDensity", l2_sfes, cyl, true),
+     poyntingFlux_("PoyntingFlux", l2_vfes),
+     momentumDensity_("MomentumDensity", l2_vfes),
+     edEnergyDensity_("EDEnergyDensity", l2_sfes, cyl, true),
+     bhEnergyDensity_("BHEnergyDensity", l2_sfes, cyl, true)
 {
 }
 
 void CPDOutputVis::RegisterVisItFields(VisItDataCollection & visit_dc)
 {
-  energyDensity_.RegisterVisItFields(visit_dc);
-  poyntingFlux_.RegisterVisItFields(visit_dc);
-  momentumDensity_.RegisterVisItFields(visit_dc);
-  edEnergyDensity_.RegisterVisItFields(visit_dc);
+   if (CheckVisFlag(ENERGY_DENSITY))
+   { energyDensity_.RegisterVisItFields(visit_dc); }
+   if (CheckVisFlag(POYNTING_FLUX))
+   { poyntingFlux_.RegisterVisItFields(visit_dc); }
+   if (CheckVisFlag(MOMENTUM_DENSITY))
+   { momentumDensity_.RegisterVisItFields(visit_dc); }
+   if (CheckVisFlag(ED_ENERGY_DENSITY))
+   { edEnergyDensity_.RegisterVisItFields(visit_dc); }
+   if (CheckVisFlag(BH_ENERGY_DENSITY))
+   { bhEnergyDensity_.RegisterVisItFields(visit_dc); }
 }
 
 void CPDOutputVis::PrepareVisFields(const ParComplexGridFunction & e,
-				    const ParComplexGridFunction & d)
+                                    const ParComplexGridFunction & d)
 {
-  energyDensity_.PrepareVisField(e, omega_, epsReCoef_, epsImCoef_, muInvCoef_);
-  poyntingFlux_.PrepareVisField(e, omega_, muInvCoef_);
-  momentumDensity_.PrepareVisField(e, omega_, epsReCoef_, epsImCoef_);
-  edEnergyDensity_.PrepareVisField(e, d);
+   if (CheckVisFlag(ENERGY_DENSITY))
+   {
+      energyDensity_.PrepareVisField(e, omega_, epsReCoef_,
+                                     epsImCoef_, muInvCoef_);
+   }
+   if (CheckVisFlag(POYNTING_FLUX))
+   { poyntingFlux_.PrepareVisField(e, omega_, muInvCoef_); }
+   if (CheckVisFlag(MOMENTUM_DENSITY))
+   { momentumDensity_.PrepareVisField(e, omega_, epsReCoef_, epsImCoef_); }
+   if (CheckVisFlag(ED_ENERGY_DENSITY))
+   { edEnergyDensity_.PrepareVisField(e, epsReCoef_, epsImCoef_); }
+   if (CheckVisFlag(BH_ENERGY_DENSITY))
+   { bhEnergyDensity_.PrepareVisField(e, omega_, muInvCoef_); }
+}
+
+void CPDOutputVis::DisplayToGLVis()
+{
+   if (CheckVisFlag(ENERGY_DENSITY)) { energyDensity_.DisplayToGLVis(); }
+   if (CheckVisFlag(POYNTING_FLUX)) { poyntingFlux_.DisplayToGLVis(); }
+   if (CheckVisFlag(MOMENTUM_DENSITY)) { momentumDensity_.DisplayToGLVis(); }
+   if (CheckVisFlag(ED_ENERGY_DENSITY)) { edEnergyDensity_.DisplayToGLVis(); }
+   if (CheckVisFlag(BH_ENERGY_DENSITY)) { bhEnergyDensity_.DisplayToGLVis(); }
 }
 
 void CPDOutputVis::Update()
 {
-  sfes_->Update();
-  vfes_->Update();
-  
-  energyDensity_.Update();
-  poyntingFlux_.Update();
-  momentumDensity_.Update();
-  edEnergyDensity_.Update();
+   sfes_->Update();
+   vfes_->Update();
+
+   energyDensity_.Update();
+   poyntingFlux_.Update();
+   momentumDensity_.Update();
+   edEnergyDensity_.Update();
+   bhEnergyDensity_.Update();
 }
 
 CPDSolverEB::CPDSolverEB(ParMesh & pmesh, int order,
                          CPDSolverEB::SolverType sol, SolverOptions & sOpts,
                          CPDSolverEB::PrecondType prec,
                          ComplexOperator::Convention conv,
-			 StixParams &stixParams,
-			 // Coefficient * etaInvCoef,
+                         StixParams &stixParams,
                          VectorCoefficient * kReCoef,
                          VectorCoefficient * kImCoef,
-			 // Array<int> & abcs,
                          StixBCs & stixBCs,
                          bool vis_u, bool cyl)
    : myid_(0),
@@ -1352,66 +1669,45 @@ CPDSolverEB::CPDSolverEB(ParMesh & pmesh, int order,
      prec_(prec),
      conv_(conv),
      stixParams_(stixParams),
-     // ownsEtaInv_(etaInvCoef == NULL),
      cyl_(cyl),
      vis_u_(vis_u),
      omega_(stixParams.omega),
      pmesh_(&pmesh),
-     // H1FESpace_(new H1_ParFESpace(pmesh_, order, pmesh_->Dimension())),
-     L2FESpace_(new L2_ParFESpace(pmesh_, order-1, pmesh_->Dimension())),
-     L2FESpace2p_(new L2_ParFESpace(pmesh_,2*order-1,pmesh_->Dimension())),
+     // L2FESpace_(new L2_ParFESpace(pmesh_, order-1, pmesh_->Dimension())),
+     L2FESpace_(std::make_shared<L2_ParFESpace>(pmesh_, order-1,
+                                                pmesh_->Dimension())),
+     L2FESpace2p_(std::make_shared<L2_ParFESpace>(pmesh_,2*order-1,
+                                                  pmesh_->Dimension())),
      L2VSFESpace_(new L2_ParFESpace(pmesh_,order,pmesh_->Dimension(),
                                     pmesh_->SpaceDimension())),
      L2VSFESpace2p_(new L2_ParFESpace(pmesh_,2*order-1,pmesh_->Dimension(),
                                       pmesh_->SpaceDimension())),
      L2V3FESpace_(NULL),
-     // L2FESpacep_(new L2_ParFESpace(pmesh_, order, pmesh_->Dimension())),
-     // L2VFESpacep_(new L2_ParFESpace(pmesh_, order, pmesh_->Dimension(),
-     //				    pmesh_->Dimension())),
+     L2VFESpace_(make_shared<L2_ParFESpace>(pmesh_, order_,
+                                            pmesh_->Dimension(), 3)),
      HCurlFESpace_(MakeHCurlParFESpace(pmesh, order)),
      HDivFESpace_(MakeHDivParFESpace(pmesh, order)),
-     // HDivFESpace2p_(NULL),
      b1_(NULL),
      e_(HCurlFESpace_),
      e_v_(NULL),
      e_t_(NULL),
      e_b_(NULL),
-     inputVis_(stixParams,
-	       std::make_shared<L2_ParFESpace>(pmesh_, order,
-					       pmesh_->Dimension()),
-	       std::make_shared<L2_ParFESpace>(pmesh_, order,
-					       pmesh_->Dimension(),
-					       pmesh_->Dimension()), cyl_),
-     fieldVis_(stixParams,
-	       inputVis_.GetScalarFES(), inputVis_.GetVectorFES(),
-	       "E", "B", cyl_),
-     outputVis_(stixParams,
-		std::make_shared<L2_ParFESpace>(pmesh_, 2*order-1,
-						pmesh_->Dimension()),
-		inputVis_.GetVectorFES(),
-		omega_, cyl_),
+     inputVis_(stixParams, L2FESpace_, L2VFESpace_),
+     fieldVis_(stixParams, L2FESpace_, L2VFESpace_, "E", "B"),
+     outputVis_(stixParams, L2FESpace2p_, L2VFESpace_, omega_, cyl_),
      // e_v_("E", L2VSFESpace_, L2FESpace_, cyl_, false),
      // b_v_("B", L2VSFESpace_, L2FESpace_, cyl_, true),
      db_v_("DivB", L2FESpace_, cyl_, true),
-     d_v_("D", L2VSFESpace_, L2FESpace_, cyl_, true),
+     // d_v_("D", L2VSFESpace_, L2FESpace_, cyl_, true),
      dd_v_("DivD", L2FESpace_, cyl_, true),
-     j_v_("J", L2VSFESpace_, L2FESpace_, cyl_, true),
-     k_v_("K", L2VSFESpace_, L2FESpace_, cyl_, true),
+     // j_v_("J", L2VSFESpace_, L2FESpace_, cyl_, true),
+     // k_v_("K", L2VSFESpace_),
      // eb_v_("ParallelE", BCoef, L2FESpace_, cyl_, true),
-     ue_v_("uE", L2FESpace_, cyl_, true),
-     ub_v_("uB", L2FESpace_, cyl_, true),
+     // ue_v_("uE", L2FESpace_, cyl_, true),
+     // ub_v_("uB", L2FESpace_, cyl_, true),
      // u_v_("u", L2FESpace_, cyl_, true),
      // s_v_("S", L2VSFESpace_, L2FESpace_, cyl_, true),
      // g_v_("G", L2VSFESpace_, L2FESpace_, cyl_, true),
-     // eps_00_v_("eps00", L2FESpace_, cyl_, true),
-     // eps_01_v_("eps01", L2FESpace_, cyl_, true),
-     // eps_02_v_("eps02", L2FESpace_, cyl_, true),
-     // eps_10_v_("eps10", L2FESpace_, cyl_, true),
-     // eps_11_v_("eps11", L2FESpace_, cyl_, true),
-     // eps_12_v_("eps12", L2FESpace_, cyl_, true),
-     // eps_20_v_("eps20", L2FESpace_, cyl_, true),
-     // eps_21_v_("eps21", L2FESpace_, cyl_, true),
-     // eps_22_v_("eps22", L2FESpace_, cyl_, true),
      b_hat_(NULL),
      // u_(NULL),
      // uE_(NULL),
@@ -1422,7 +1718,6 @@ CPDSolverEB::CPDSolverEB(ParMesh & pmesh, int order,
      epsImCoef_(stixParams, StixCoef::IMAG_PART),
      epsAbsCoef_(stixParams),
      muInvCoef_(1.0 / mu0_),
-     // etaInvCoef_(etaInvCoef),
      kReCoef_(kReCoef),
      kImCoef_(kImCoef),
      omegaCoef_(new ConstantCoefficient(omega_)),
@@ -1431,24 +1726,21 @@ CPDSolverEB::CPDSolverEB(ParMesh & pmesh, int order,
      negOmega2Coef_(new ConstantCoefficient(-pow(omega_, 2))),
      abcReCoef_(NULL),
      abcImCoef_(NULL),
-     // sbcReCoef_(NULL),
-     // sbcImCoef_(NULL),
      sinkx_(NULL),
      coskx_(NULL),
      negsinkx_(NULL),
      posMassCoef_(NULL),
      derCoef_(NULL),
      deiCoef_(NULL),
-     uCoef_(omega_, erCoef_, eiCoef_, derCoef_, deiCoef_,
-            epsReCoef_, epsImCoef_, muInvCoef_),
-     uECoef_(erCoef_, eiCoef_, epsReCoef_, epsImCoef_),
-     uBCoef_(omega_, derCoef_, deiCoef_, muInvCoef_),
-     SrCoef_(omega_, erCoef_, eiCoef_, derCoef_, deiCoef_, muInvCoef_),
-     SiCoef_(omega_, erCoef_, eiCoef_, derCoef_, deiCoef_, muInvCoef_),
+     // uCoef_(omega_, erCoef_, eiCoef_, derCoef_, deiCoef_,
+     //     epsReCoef_, epsImCoef_, muInvCoef_),
+     // uECoef_(erCoef_, eiCoef_, epsReCoef_, epsImCoef_),
+     // uBCoef_(omega_, derCoef_, deiCoef_, muInvCoef_),
+     // SrCoef_(omega_, erCoef_, eiCoef_, derCoef_, deiCoef_, muInvCoef_),
+     // SiCoef_(omega_, erCoef_, eiCoef_, derCoef_, deiCoef_, muInvCoef_),
      dbcs_(stixBCs.GetDirichletBCs()),
      nbcs_(stixBCs.GetNeumannBCs()),
      abcs_(stixBCs.GetSommerfeldBCs()),
-     // sbcs_(stixBCs.GetSheathBCs()),
      axis_(stixBCs.GetCylindricalAxis()),
      maxwell_(*HCurlFESpace_, omega_, conv,
               epsReCoef_, epsImCoef_, muInvCoef_,
@@ -1458,8 +1750,6 @@ CPDSolverEB::CPDSolverEB(ParMesh & pmesh, int order,
      faraday_(e_, *HDivFESpace_, omega_, kReCoef, kImCoef),
      divB_(faraday_.GetMagneticFlux(), *L2FESpace_, kReCoef, kImCoef),
      displacement_(e_, *HDivFESpace_, epsReCoef_, epsImCoef_),
-     // sheathPot_(omega_, sbcs_, displacement_.GetDisplacement(),
-     //         *H1FESpace_, *HCurlFESpace_, *L2FESpace_, pa_),
      divD_(displacement_.GetDisplacement(), *L2FESpace_, kReCoef, kImCoef),
      visit_dc_(NULL)
 {
@@ -1477,7 +1767,7 @@ CPDSolverEB::CPDSolverEB(ParMesh & pmesh, int order,
 
    if (false /*BCoef_*/)
    {
-      e_b_ = new ParComplexGridFunction(L2FESpace_);
+      e_b_ = new ParComplexGridFunction(L2FESpace_.get());
       *e_b_ = 0.0;
       b_hat_ = new ParGridFunction(HDivFESpace_);
    }
@@ -1602,17 +1892,17 @@ CPDSolverEB::CPDSolverEB(ParMesh & pmesh, int order,
          // Mark all boundaries as absorbing
          abc_bdr_marker_ = 1;
 
-	 for (int i=1; i<=pmesh.bdr_attributes.Max(); i++)
-	 {
-	   if (abcs_[0]->real != NULL)
-	   {
-	     etaInvReCoef_.UpdateCoefficient(i, *(abcs_[0]->real));
-	   }
-	   if (abcs_[0]->imag != NULL)
-	   {
-	     etaInvImCoef_.UpdateCoefficient(i, *(abcs_[0]->imag));
-	   }
-	 }
+         for (int i=1; i<=pmesh.bdr_attributes.Max(); i++)
+         {
+            if (abcs_[0]->real != NULL)
+            {
+               etaInvReCoef_.UpdateCoefficient(i, *(abcs_[0]->real));
+            }
+            if (abcs_[0]->imag != NULL)
+            {
+               etaInvImCoef_.UpdateCoefficient(i, *(abcs_[0]->imag));
+            }
+         }
       }
       else
       {
@@ -1620,29 +1910,29 @@ CPDSolverEB::CPDSolverEB(ParMesh & pmesh, int order,
          abc_bdr_marker_ = 0;
          for (int i=0; i<abcs_.Size(); i++)
          {
-	   for (int j=0; j<abcs_[i]->attr.Size(); j++)
-	   {
-	     abc_bdr_marker_[abcs_[i]->attr[j]-1] = 1;
-	     if (abcs_[i]->real != NULL)
-	       {
-		 etaInvReCoef_.UpdateCoefficient(abcs_[i]->attr[j], *(abcs_[i]->real));
-	       }
-	     if (abcs_[i]->imag != NULL)
-	       {
-		 etaInvImCoef_.UpdateCoefficient(abcs_[i]->attr[j], *(abcs_[i]->imag));
-	       }
-	   }
-	 }
+            for (int j=0; j<abcs_[i]->attr.Size(); j++)
+            {
+               abc_bdr_marker_[abcs_[i]->attr[j]-1] = 1;
+               if (abcs_[i]->real != NULL)
+               {
+                  etaInvReCoef_.UpdateCoefficient(abcs_[i]->attr[j], *(abcs_[i]->real));
+               }
+               if (abcs_[i]->imag != NULL)
+               {
+                  etaInvImCoef_.UpdateCoefficient(abcs_[i]->attr[j], *(abcs_[i]->imag));
+               }
+            }
+         }
       }
       // if ( etaInvCoef_ == NULL )
       // {
-        // etaInvCoef_ = new ConstantCoefficient(sqrt(epsilon0_/mu0_));
-	// etaInvCoef_ = new StixAdmittanceCoef('R', stixParams_, true);
+      // etaInvCoef_ = new ConstantCoefficient(sqrt(epsilon0_/mu0_));
+      // etaInvCoef_ = new StixAdmittanceCoef('R', stixParams_, true);
       // }
       abcReCoef_ = new TransformedCoefficient(omegaCoef_, &etaInvImCoef_,
-					      prodFunc);
+                                              prodFunc);
       abcImCoef_ = new TransformedCoefficient(negOmegaCoef_, &etaInvReCoef_,
-					      prodFunc);
+                                              prodFunc);
    }
    /*
    // Complex Impedance
@@ -1762,8 +2052,8 @@ CPDSolverEB::~CPDSolverEB()
    delete b1_;
 
    // delete H1FESpace_;
-   delete L2FESpace_;
-   delete L2FESpace2p_;
+   // delete L2FESpace_;
+   // delete L2FESpace2p_;
    delete L2VSFESpace_;
    delete L2VSFESpace2p_;
    delete L2V3FESpace_;
@@ -1916,11 +2206,11 @@ CPDSolverEB::Update()
    outputVis_.Update();
    // e_v_.Update();
    // b_v_.Update();
-   d_v_.Update();
-   j_v_.Update();
-   k_v_.Update();
-   ue_v_.Update();
-   ub_v_.Update();
+   // d_v_.Update();
+   // j_v_.Update();
+   // k_v_.Update();
+   // ue_v_.Update();
+   // ub_v_.Update();
    db_v_.Update();
    dd_v_.Update();
    if (b_hat_) { b_hat_->Update(); }
@@ -2381,12 +2671,12 @@ void CPDSolverEB::prepareVisFields()
 {
    inputVis_.PrepareVisFields();
    fieldVis_.PrepareVisFields(e_, faraday_.GetMagneticFlux(),
-			      kReCoef_, kImCoef_);
+                              kReCoef_, kImCoef_);
    outputVis_.PrepareVisFields(e_, displacement_.GetDisplacement());
-  
+
    // e_v_.PrepareVisField(e_, kReCoef_, kImCoef_);
    // b_v_.PrepareVisField(faraday_.GetMagneticFlux(), kReCoef_, kImCoef_);
-   d_v_.PrepareVisField(displacement_.GetDisplacement(), kReCoef_, kImCoef_);
+   // d_v_.PrepareVisField(displacement_.GetDisplacement(), kReCoef_, kImCoef_);
    /*
    // phi_v_.PrepareVisField(sheathPot_.GetSheathPotential(), kReCoef_, kImCoef_);
    j_v_.PrepareVisField(current_.GetVolumeCurrentDensity(),
@@ -2395,7 +2685,7 @@ void CPDSolverEB::prepareVisFields()
                         kReCoef_, kImCoef_);
    eb_v_.PrepareVisField(e_, kReCoef_, kImCoef_);
    */
-   ue_v_.PrepareVisField(e_, epsReCoef_, epsImCoef_);
+   // ue_v_.PrepareVisField(e_, epsReCoef_, epsImCoef_);
    /*
    ub_v_.PrepareVisField(e_, omega_, *muInvCoef_);
    u_v_.PrepareVisField(e_, omega_, *epsReCoef_, *epsImCoef_, *muInvCoef_);
@@ -2473,8 +2763,8 @@ void CPDSolverEB::prepareVisFields()
    {
       // VectorGridFunctionCoefficient b_hat(b_hat_);
       // VectorR2DCoef b_hat_3D(b_hat, *pmesh_);
-     // VectorR2DCoef b_hat_3D(*BCoef_, *pmesh_);
-     // b_hat_v_->ProjectCoefficient(b_hat_3D);
+      // VectorR2DCoef b_hat_3D(*BCoef_, *pmesh_);
+      // b_hat_v_->ProjectCoefficient(b_hat_3D);
       /*
       VectorGridFunctionCoefficient e_r(&e_v_->real());
       VectorGridFunctionCoefficient e_i(&e_v_->imag());
@@ -2504,10 +2794,10 @@ CPDSolverEB::RegisterVisItFields(VisItDataCollection & visit_dc)
    inputVis_.RegisterVisItFields(visit_dc);
    fieldVis_.RegisterVisItFields(visit_dc);
    outputVis_.RegisterVisItFields(visit_dc);
-   
+
    // e_v_.RegisterVisItFields(visit_dc);
    // b_v_.RegisterVisItFields(visit_dc);
-   d_v_.RegisterVisItFields(visit_dc);
+   // d_v_.RegisterVisItFields(visit_dc);
    /*
    j_v_.RegisterVisItFields(visit_dc);
    k_v_.RegisterVisItFields(visit_dc);
@@ -2516,7 +2806,7 @@ CPDSolverEB::RegisterVisItFields(VisItDataCollection & visit_dc)
    /*
    eb_v_.RegisterVisItFields(visit_dc);
    */
-   ue_v_.RegisterVisItFields(visit_dc);
+   // ue_v_.RegisterVisItFields(visit_dc);
    /*
    ub_v_.RegisterVisItFields(visit_dc);
    u_v_.RegisterVisItFields(visit_dc);
@@ -2698,6 +2988,10 @@ CPDSolverEB::DisplayToGLVis()
    int offx = Ww+10, offy = Wh+45; // window offsets
    */
    prepareVisFields();
+
+   inputVis_.DisplayToGLVis();
+   fieldVis_.DisplayToGLVis();
+   outputVis_.DisplayToGLVis();
    /*
    if (kReCoef_ || kImCoef_)
    {
@@ -2903,7 +3197,7 @@ void
 CPDSolverEB::DisplayAnimationToGLVis()
 {
    if (myid_ == 0) { cout << "Sending animation data to GLVis ..." << flush; }
-   
+
    if (kReCoef_ || kImCoef_)
    {
       VectorGridFunctionCoefficient e_r(&e_.real());

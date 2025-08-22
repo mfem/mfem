@@ -12,6 +12,7 @@
 #ifndef MFEM_COLD_PLASMA_DIELECTRIC_EB_SOLVER
 #define MFEM_COLD_PLASMA_DIELECTRIC_EB_SOLVER
 
+#include "../../general/optparser.hpp"
 #include "../common/fem_extras.hpp"
 #include "../common/pfem_extras.hpp"
 #include "plasma.hpp"
@@ -713,6 +714,10 @@ public:
    void Update();
    void Assemble();
    void ComputeB();
+
+   real_t GetBFieldError(const VectorCoefficient & BReCoef,
+                         const VectorCoefficient & BImCoef) const;
+
 };
 
 class GausssLaw
@@ -869,7 +874,7 @@ private:
 public:
    ParallelElectricFieldVisObject(const std::string & field_name,
                                   VectorCoefficient &BCoef,
-                                  L2_ParFESpace *sfes,
+                                  std::shared_ptr<L2_ParFESpace> sfes,
                                   bool cyl, bool pseudo);
 
    void PrepareVisField(const ParComplexGridFunction &e,
@@ -885,27 +890,12 @@ private:
 
 public:
    ElectricEnergyDensityVisObject(const std::string & field_name,
-                                  L2_ParFESpace *sfes,
+                                  std::shared_ptr<L2_ParFESpace> sfes,
                                   bool cyl, bool pseudo);
 
    void PrepareVisField(const ParComplexGridFunction &e,
                         MatrixCoefficient &epsr,
                         MatrixCoefficient &epsi);
-};
-
-class ElectricEnergyDensityEDVisObject : public ComplexScalarFieldVisObject
-{
-private:
-
-   using ComplexScalarFieldVisObject::PrepareVisField;
-
-public:
-   ElectricEnergyDensityEDVisObject(const std::string & field_name,
-				    L2_ParFESpace *sfes,
-				    bool cyl, bool pseudo);
-
-   void PrepareVisField(const ParComplexGridFunction &e,
-                        const ParComplexGridFunction &d);
 };
 
 class MagneticEnergyDensityVisObject : public ComplexScalarFieldVisObject
@@ -916,7 +906,7 @@ private:
 
 public:
    MagneticEnergyDensityVisObject(const std::string & field_name,
-                                  L2_ParFESpace *sfes,
+                                  std::shared_ptr<L2_ParFESpace> sfes,
                                   bool cyl, bool pseudo);
 
    void PrepareVisField(const ParComplexGridFunction &de,
@@ -932,7 +922,7 @@ private:
 
 public:
    EnergyDensityVisObject(const std::string & field_name,
-                          L2_ParFESpace *sfes,
+                          std::shared_ptr<L2_ParFESpace> sfes,
                           bool cyl, bool pseudo);
 
    void PrepareVisField(const ParComplexGridFunction &e,
@@ -950,8 +940,7 @@ private:
 
 public:
    PoyntingVectorVisObject(const std::string & field_name,
-                           L2_ParFESpace *vfes, L2_ParFESpace *sfes,
-                           bool cyl, bool pseudo);
+                           std::shared_ptr<L2_ParFESpace> vfes);
 
    void PrepareVisField(const ParComplexGridFunction &e,
                         real_t omega,
@@ -966,8 +955,7 @@ private:
 
 public:
    MinkowskiMomentumDensityVisObject(const std::string & field_name,
-                                     L2_ParFESpace *vfes, L2_ParFESpace *sfes,
-                                     bool cyl, bool pseudo);
+                                     std::shared_ptr<L2_ParFESpace> vfes);
 
    void PrepareVisField(const ParComplexGridFunction &e,
                         real_t omega,
@@ -983,7 +971,7 @@ private:
 
 public:
    TensorCompVisObject(const std::string & field_name,
-                       L2_ParFESpace *sfes,
+                       std::shared_ptr<L2_ParFESpace> sfes,
                        bool cyl, bool pseudo);
 
    void PrepareVisField(MatrixCoefficient &mr,
@@ -991,126 +979,288 @@ public:
                         int i, int j);
 };
 
-class CPDInputVis
+class CPDVisBase
+{
+protected:
+   unsigned int vis_mask_;
+
+   CPDVisBase(unsigned int mask = 0) : vis_mask_(mask) {}
+
+   static void set_bool_flags(unsigned int num_flags,
+                              unsigned int active_flags_mask,
+                              Array<bool> &flags);
+
+public:
+
+   static unsigned int GetNumVisFields();
+   static unsigned int GetDefaultVisFlag();
+
+   virtual void SetOptions(const Array<bool> &opts);
+
+   inline bool CheckVisFlag(unsigned int flag) const
+   { return (vis_mask_ >> flag) & 1; }
+
+   inline unsigned int SetVisFlag(unsigned int flag)
+   { return (vis_mask_ |= 1 << flag); }
+
+   inline unsigned int ClearVisFlag(unsigned int flag)
+   { return vis_mask_ &= ~(1 << flag); }
+
+   inline unsigned int FlipVisFlag(unsigned int flag)
+   { return vis_mask_ ^= 1 << flag; }
+};
+
+class CPDInputVis : public CPDVisBase
 {
 public:
+   enum VisField {BACKGROUND_B = 0,
+                  ION_DENSITIES,
+                  ION_TEMPERATURES,
+                  ELECTRON_DENSITY,
+                  ELECTRON_TEMPERATURE,
+                  STIX_S,
+                  STIX_D,
+                  STIX_P,
+                  WAVELENGTH_L,
+                  WAVELENGTH_R,
+                  WAVELENGTH_O,
+                  WAVELENGTH_X,
+                  SKIN_DEPTH_L,
+                  SKIN_DEPTH_R,
+                  SKIN_DEPTH_O,
+                  SKIN_DEPTH_X,
+                  NUM_VIS_FIELDS
+                 };
+
+private:
+   // Visualize only BACKGROUND_B by default
+   static const unsigned int default_vis_mask_ = 1;
+
+   // Strings needed for option parser
+   static const std::string opt_str_[];
+
+   // Strings constructed for option parser arguments
+   static std::array<std::string, NUM_VIS_FIELDS> optt_;
+   static std::array<std::string, NUM_VIS_FIELDS> optlt_;
+   static std::array<std::string, NUM_VIS_FIELDS> optf_;
+   static std::array<std::string, NUM_VIS_FIELDS> optlf_;
+   static std::array<std::string, NUM_VIS_FIELDS> optd_;
+
+public:
    CPDInputVis(StixParams &stixParams,
-	       std::shared_ptr<L2_ParFESpace> l2_sfes,
-	       std::shared_ptr<L2_ParFESpace> l2_vfes,
-	       bool cyl);
+               std::shared_ptr<L2_ParFESpace> l2_sfes,
+               std::shared_ptr<L2_ParFESpace> l2_vfes,
+               unsigned int vis_flag = default_vis_mask_, bool cyl = false);
+
+   ~CPDInputVis();
+
+   static unsigned int GetNumVisFields() { return NUM_VIS_FIELDS; }
+   static unsigned int GetDefaultVisMask() { return default_vis_mask_; }
+   static Array<bool> GetDefaultVisFlags()
+   {
+      Array<bool> flags;
+      CPDVisBase::set_bool_flags(GetNumVisFields(), GetDefaultVisMask(), flags);
+      return flags;
+   }
+   static void AddOptions(OptionsParser &args, Array<bool> &opts);
 
    std::shared_ptr<L2_ParFESpace> GetScalarFES() const { return sfes_; }
    std::shared_ptr<L2_ParFESpace> GetVectorFES() const { return vfes_; }
-  
+
    void RegisterVisItFields(VisItDataCollection & visit_dc);
 
    void PrepareVisFields();
 
+   void DisplayToGLVis();
+
    void Update();
-  
+
 private:
 
-  std::shared_ptr<L2_ParFESpace> sfes_;
-  std::shared_ptr<L2_ParFESpace> vfes_;
-  
-  // Background Magnetic Field
-  VectorCoefficient &BCoef_;
+   std::shared_ptr<L2_ParFESpace> sfes_;
+   std::shared_ptr<L2_ParFESpace> vfes_;
 
-  VectorFieldVisObject B_;
-  
-  // Stix Dielectric tensor Coefficients
-  StixSCoef stixSReCoef_;
-  StixSCoef stixSImCoef_;
-  StixDCoef stixDReCoef_;
-  StixDCoef stixDImCoef_;
-  StixPCoef stixPReCoef_;
-  StixPCoef stixPImCoef_;
-  
-  ComplexScalarFieldVisObject stixS_;
-  ComplexScalarFieldVisObject stixD_;
-  ComplexScalarFieldVisObject stixP_;
+   // Background Magnetic Field
+   VectorCoefficient &BCoef_;
 
-  // Wave Lengths of plane waves parallel or perpendicular to the magnetic field
-  StixWaveLengthCoef lambdaLCoef_;
-  StixWaveLengthCoef lambdaRCoef_;
-  StixWaveLengthCoef lambdaOCoef_;
-  StixWaveLengthCoef lambdaXCoef_;
-  
-  ScalarFieldVisObject waveLengthL_;
-  ScalarFieldVisObject waveLengthR_;
-  ScalarFieldVisObject waveLengthO_;
-  ScalarFieldVisObject waveLengthX_;
+   VectorFieldVisObject B_;
 
-  // Decay constants for plane waves parallel or perpendicular to the magnetic
-  // field
-  StixWaveLengthCoef deltaLCoef_;
-  StixWaveLengthCoef deltaRCoef_;
-  StixWaveLengthCoef deltaOCoef_;
-  StixWaveLengthCoef deltaXCoef_;
+   // Ion Species States
+   int numIonSpec_;
+   Array<ComponentCoefficient*> ionDensityCoefs_;
+   Array<ComponentCoefficient*> ionTempCoefs_;
 
-  ScalarFieldVisObject skinDepthL_;
-  ScalarFieldVisObject skinDepthR_;
-  ScalarFieldVisObject skinDepthO_;
-  ScalarFieldVisObject skinDepthX_;  
+   Array<ScalarFieldVisObject*> ionDensities_;
+   Array<ScalarFieldVisObject*> ionTemps_;
+
+   // electron state
+   ComponentCoefficient electronDensityCoef_;
+   ComponentCoefficient electronTempCoef_;
+
+   ScalarFieldVisObject electronDensity_;
+   ScalarFieldVisObject electronTemp_;
+
+   // Stix Dielectric tensor Coefficients
+   StixSCoef stixSReCoef_;
+   StixSCoef stixSImCoef_;
+   StixDCoef stixDReCoef_;
+   StixDCoef stixDImCoef_;
+   StixPCoef stixPReCoef_;
+   StixPCoef stixPImCoef_;
+
+   ComplexScalarFieldVisObject stixS_;
+   ComplexScalarFieldVisObject stixD_;
+   ComplexScalarFieldVisObject stixP_;
+
+   // Wave Lengths of plane waves parallel or perpendicular to the magnetic field
+   StixWaveLengthCoef lambdaLCoef_;
+   StixWaveLengthCoef lambdaRCoef_;
+   StixWaveLengthCoef lambdaOCoef_;
+   StixWaveLengthCoef lambdaXCoef_;
+
+   ScalarFieldVisObject waveLengthL_;
+   ScalarFieldVisObject waveLengthR_;
+   ScalarFieldVisObject waveLengthO_;
+   ScalarFieldVisObject waveLengthX_;
+
+   // Decay constants for plane waves parallel or perpendicular to the magnetic
+   // field
+   StixWaveLengthCoef deltaLCoef_;
+   StixWaveLengthCoef deltaRCoef_;
+   StixWaveLengthCoef deltaOCoef_;
+   StixWaveLengthCoef deltaXCoef_;
+
+   ScalarFieldVisObject skinDepthL_;
+   ScalarFieldVisObject skinDepthR_;
+   ScalarFieldVisObject skinDepthO_;
+   ScalarFieldVisObject skinDepthX_;
 };
 
-class CPDFieldVis
+class CPDFieldVis : public CPDVisBase
 {
 public:
+   enum VisField {ELECTRIC_FIELD = 0,
+                  MAGNETIC_FLUX,
+                  NUM_VIS_FIELDS
+                 };
+
+private:
+   // Visualize both E and B fields by default
+   static const unsigned int default_vis_mask_ = 3;
+
+   // Strings needed for option parser
+   static const std::string opt_str_[];
+
+   // Strings constructed for option parser arguments
+   static std::array<std::string, NUM_VIS_FIELDS> optt_;
+   static std::array<std::string, NUM_VIS_FIELDS> optlt_;
+   static std::array<std::string, NUM_VIS_FIELDS> optf_;
+   static std::array<std::string, NUM_VIS_FIELDS> optlf_;
+   static std::array<std::string, NUM_VIS_FIELDS> optd_;
+
+public:
    CPDFieldVis(StixParams &stixParams,
-	       std::shared_ptr<L2_ParFESpace> l2_sfes,
-	       std::shared_ptr<L2_ParFESpace> l2_vfes,
-	       const std::string hcurl_field_name,
-	       const std::string hdiv_field_name,
-	       bool cyl);
+               std::shared_ptr<L2_ParFESpace> l2_sfes,
+               std::shared_ptr<L2_ParFESpace> l2_vfes,
+               const std::string hcurl_field_name,
+               const std::string hdiv_field_name,
+               unsigned int vis_flag = default_vis_mask_);
+
+   static unsigned int GetNumVisFields() { return NUM_VIS_FIELDS; }
+   static unsigned int GetDefaultVisMask() { return default_vis_mask_; }
+   static Array<bool> GetDefaultVisFlags()
+   {
+      Array<bool> flags;
+      CPDVisBase::set_bool_flags(GetNumVisFields(), GetDefaultVisMask(), flags);
+      return flags;
+   }
+   static void AddOptions(OptionsParser &args, Array<bool> &opts);
 
    std::shared_ptr<L2_ParFESpace> GetScalarFES() const { return sfes_; }
    std::shared_ptr<L2_ParFESpace> GetVectorFES() const { return vfes_; }
-  
+
    void RegisterVisItFields(VisItDataCollection & visit_dc);
 
    void PrepareVisFields(const ParComplexGridFunction & e,
-			 const ParComplexGridFunction & b,
-			 VectorCoefficient * kReCoef,
-			 VectorCoefficient * kImCoef);
+                         const ParComplexGridFunction & b,
+                         VectorCoefficient * kReCoef,
+                         VectorCoefficient * kImCoef);
+
+   void DisplayToGLVis();
 
    void Update();
-  
+
 private:
 
-  std::shared_ptr<L2_ParFESpace> sfes_;
-  std::shared_ptr<L2_ParFESpace> vfes_;
+   std::shared_ptr<L2_ParFESpace> sfes_;
+   std::shared_ptr<L2_ParFESpace> vfes_;
 
-  ComplexVectorFieldVisObject HCurlField_;
-  ComplexVectorFieldVisObject HDivField_;
+   ComplexVectorFieldVisObject HCurlField_;
+   ComplexVectorFieldVisObject HDivField_;
 };
 
-class CPDOutputVis
+class CPDOutputVis : public CPDVisBase
 {
 public:
+   enum VisField {ENERGY_DENSITY = 0,
+                  POYNTING_FLUX,
+                  MOMENTUM_DENSITY,
+                  ED_ENERGY_DENSITY,
+                  BH_ENERGY_DENSITY,
+                  NUM_VIS_FIELDS
+                 };
+
+private:
+   // Visualize nothing by default
+   static const unsigned int default_vis_mask_ = 0;
+
+   // Strings needed for option parser
+   static const std::string opt_str_[];
+
+   // Strings constructed for option parser arguments
+   static std::array<std::string, NUM_VIS_FIELDS> optt_;
+   static std::array<std::string, NUM_VIS_FIELDS> optlt_;
+   static std::array<std::string, NUM_VIS_FIELDS> optf_;
+   static std::array<std::string, NUM_VIS_FIELDS> optlf_;
+   static std::array<std::string, NUM_VIS_FIELDS> optd_;
+
+public:
    CPDOutputVis(StixParams &stixParams,
-		std::shared_ptr<L2_ParFESpace> l2_sfes,
-		std::shared_ptr<L2_ParFESpace> l2_vfes,
-		real_t omega,
-		bool cyl);
+                std::shared_ptr<L2_ParFESpace> l2_sfes,
+                std::shared_ptr<L2_ParFESpace> l2_vfes,
+                real_t omega,
+                unsigned int vis_flag = default_vis_mask_,
+                bool cyl = false);
+
+   static unsigned int GetNumVisFields() { return NUM_VIS_FIELDS; }
+   static unsigned int GetDefaultVisMask() { return default_vis_mask_; }
+   static Array<bool> GetDefaultVisFlags()
+   {
+      Array<bool> flags;
+      CPDVisBase::set_bool_flags(GetNumVisFields(), GetDefaultVisMask(), flags);
+      return flags;
+   }
+   static void AddOptions(OptionsParser &args, Array<bool> &opts);
 
    std::shared_ptr<L2_ParFESpace> GetScalarFES() const { return sfes_; }
    std::shared_ptr<L2_ParFESpace> GetVectorFES() const { return vfes_; }
-  
+
    void RegisterVisItFields(VisItDataCollection & visit_dc);
 
-  void PrepareVisFields(const ParComplexGridFunction & e,
-			const ParComplexGridFunction & d);
+   void PrepareVisFields(const ParComplexGridFunction & e,
+                         const ParComplexGridFunction & d);
+
+   void DisplayToGLVis();
 
    void Update();
-  
+
 private:
 
    std::shared_ptr<L2_ParFESpace> sfes_;
    std::shared_ptr<L2_ParFESpace> vfes_;
 
    real_t omega_;
-  
+
    DielectricTensor epsReCoef_;    // Dielectric Material Coefficient
    DielectricTensor epsImCoef_;    // Dielectric Material Coefficient
    ConstantCoefficient muInvCoef_; // Dia/Paramagnetic Material Coefficient
@@ -1119,7 +1269,8 @@ private:
    PoyntingVectorVisObject poyntingFlux_;
    MinkowskiMomentumDensityVisObject momentumDensity_;
 
-   ElectricEnergyDensityEDVisObject edEnergyDensity_;
+   ElectricEnergyDensityVisObject edEnergyDensity_;
+   MagneticEnergyDensityVisObject bhEnergyDensity_;
 };
 
 /// Cold Plasma Dielectric Solver
@@ -1163,11 +1314,9 @@ public:
                CPDSolverEB::SolverType s, SolverOptions & sOpts,
                CPDSolverEB::PrecondType p,
                ComplexOperator::Convention conv,
-	       StixParams &stixParams,
-	       // Coefficient * etaInvCoef,
+               StixParams &stixParams,
                VectorCoefficient * kReCoef,
                VectorCoefficient * kImCoef,
-	       // Array<int> & abcs,
                StixBCs & stixBCs,
                bool vis_u = false, bool cyl = false);
    ~CPDSolverEB();
@@ -1185,7 +1334,31 @@ public:
    real_t GetEFieldError(const VectorCoefficient & EReCoef,
                          const VectorCoefficient & EImCoef) const;
 
+   real_t GetBFieldError(const VectorCoefficient & BReCoef,
+                         const VectorCoefficient & BImCoef) const
+   {
+      return faraday_.GetBFieldError(BReCoef, BImCoef);
+   }
+
    void GetErrorEstimates(Vector & errors);
+
+   void SetInputVisOptions(const Array<bool> &opts)
+   { inputVis_.SetOptions(opts); }
+
+   void SetFieldVisOptions(const Array<bool> &opts)
+   { fieldVis_.SetOptions(opts); }
+
+   void SetOutputVisOptions(const Array<bool> &opts)
+   { outputVis_.SetOptions(opts); }
+
+   unsigned int SetInputVisFlag(unsigned int flag)
+   { return inputVis_.SetVisFlag(flag); }
+
+   unsigned int SetFieldVisFlag(unsigned int flag)
+   { return fieldVis_.SetVisFlag(flag); }
+
+   unsigned int SetOutputVisFlag(unsigned int flag)
+   { return outputVis_.SetVisFlag(flag); }
 
    void RegisterVisItFields(VisItDataCollection & visit_dc);
 
@@ -1196,6 +1369,11 @@ public:
    void DisplayToGLVis();
 
    void DisplayAnimationToGLVis();
+
+   std::shared_ptr<L2_ParFESpace> GetScalarVisFES() const
+   { return inputVis_.GetScalarFES(); }
+   std::shared_ptr<L2_ParFESpace> GetVectorVisFES() const
+   { return L2VFESpace_; }
 
 private:
 
@@ -1227,8 +1405,7 @@ private:
    ComplexOperator::Convention conv_;
 
    StixParams &stixParams_;
-  
-   // bool ownsEtaInv_;
+
    bool cyl_;
    bool vis_u_;
 
@@ -1236,11 +1413,12 @@ private:
 
    ParMesh * pmesh_;
 
-   L2_ParFESpace * L2FESpace_;
-   L2_ParFESpace * L2FESpace2p_;
+   std::shared_ptr<L2_ParFESpace> L2FESpace_;
+   std::shared_ptr<L2_ParFESpace> L2FESpace2p_;
    L2_ParFESpace * L2VSFESpace_;
    L2_ParFESpace * L2VSFESpace2p_;
    L2_ParFESpace * L2V3FESpace_;
+   std::shared_ptr<L2_ParFESpace> L2VFESpace_;
    ParFiniteElementSpace * HCurlFESpace_;
    ParFiniteElementSpace * HDivFESpace_;
 
@@ -1256,15 +1434,15 @@ private:
    CPDInputVis   inputVis_;
    CPDFieldVis   fieldVis_;
    CPDOutputVis outputVis_;
-  
-   ComplexScalarFieldVisObject db_v_; // Complex divergence of magnetic flux (L2)
-   ComplexVectorFieldVisObject d_v_;
-   ComplexScalarFieldVisObject dd_v_; // Complex divergence of electric flux (L2)
-   ComplexVectorFieldVisObject j_v_;
-   ComplexVectorFieldVisObject k_v_;
 
-   ElectricEnergyDensityVisObject ue_v_;
-   MagneticEnergyDensityVisObject ub_v_;
+   ComplexScalarFieldVisObject db_v_; // Complex divergence of magnetic flux (L2)
+   // ComplexVectorFieldVisObject d_v_;
+   ComplexScalarFieldVisObject dd_v_; // Complex divergence of electric flux (L2)
+   // ComplexVectorFieldVisObject j_v_;
+   // ComplexVectorFieldVisObject k_v_;
+
+   // ElectricEnergyDensityVisObject ue_v_;
+   // MagneticEnergyDensityVisObject ub_v_;
 
    ParGridFunction        * b_hat_; // Unit vector along B (HDiv)
    GridFunction           * b_hat_v_; // Unit vector along B (L2^d)
@@ -1283,8 +1461,8 @@ private:
    Coefficient * negOmegaCoef_;  // -omega expressed as a Coefficient
    Coefficient * omega2Coef_;    // omega^2 expressed as a Coefficient
    Coefficient * negOmega2Coef_; // -omega^2 expressed as a Coefficient
-   Coefficient * abcReCoef_;       // -omega Re(eta^{-1})
-   Coefficient * abcImCoef_;       // -omega Im(eta^{-1})
+   Coefficient * abcReCoef_;     // -omega Re(eta^{-1})
+   Coefficient * abcImCoef_;     // -omega Im(eta^{-1})
    Coefficient * sbcReCoef_;     //  omega Im(eta^{-1})
    Coefficient * sbcImCoef_;     // -omega Re(eta^{-1})
    Coefficient * sinkx_;         // sin(ky * y + kz * z)
@@ -1299,11 +1477,11 @@ private:
    CurlGridFunctionCoefficient derCoef_;
    CurlGridFunctionCoefficient deiCoef_;
 
-   EnergyDensityCoef     uCoef_;
-   ElectricEnergyDensityCoef uECoef_;
-   MagneticEnergyDensityCoef uBCoef_;
-   PoyntingVectorReCoef SrCoef_;
-   PoyntingVectorImCoef SiCoef_;
+   // EnergyDensityCoef     uCoef_;
+   // ElectricEnergyDensityCoef uECoef_;
+   // MagneticEnergyDensityCoef uBCoef_;
+   // PoyntingVectorReCoef SrCoef_;
+   // PoyntingVectorImCoef SiCoef_;
 
    // Array of 0's and 1's marking the location of absorbing surfaces
    Array<int> abc_bdr_marker_;
@@ -1317,7 +1495,7 @@ private:
    Array<ComplexVectorCoefficientByAttr*> nkbcs_; // Neumann BCs (-i*omega*K)
 
    const Array<ComplexCoefficientByAttr*> & abcs_; // Sommerfeld (absorbing) BCs
-  
+
    const Array<AttributeArrays*> & axis_; // Cylindrical Axis
    Array<int> axis_tdofs_;
 
