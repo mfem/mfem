@@ -25,7 +25,43 @@ using common::L2_ParFESpace;
 namespace plasma
 {
 
-class ScalarFieldVisObject
+class VisObjectBase
+{
+protected:
+   static int Sw, Sh;
+   static int Mt, Mb, Ml, Mr;
+   static int Fw, Fh;
+   static int Ww, Wh;
+   static int offx, offy, offs;
+   static int Wx, Wy, Sx, Sy;
+
+public:
+
+   static void SetScreenDimensions(int width, int height)
+   { Sw = width; Sh = height; }
+
+   static void SetMenuDimensions(int top, int bottom, int left, int right)
+   { Mt = top; Mb = bottom; Ml = left; Mr = right; }
+
+   static void SetFrameDimensions(int width, int height)
+   { Fw = width; Fh = height; SetOffsets(offs); }
+
+   static void SetWindowDimensions(int width, int height)
+   { Ww = width; Wh = height; SetOffsets(offs); }
+
+   static void SetOffsets(int new_screen_offset = 10)
+   { offx = Ww + Fw; offy = Wh + Fh; offs = new_screen_offset; }
+
+   static void IncrementGLVisWindowPosition();
+
+   virtual void RegisterVisItFields(VisItDataCollection & visit_dc) = 0;
+
+   virtual void DisplayToGLVis() = 0;
+
+   virtual void Update() = 0;
+};
+
+class ScalarFieldVisObject : public VisObjectBase
 {
 protected:
    bool cyl_;
@@ -42,7 +78,7 @@ public:
                         ParFiniteElementSpace *sfes,
                         bool cyl, bool pseudo);
 
-   ~ScalarFieldVisObject();
+   virtual ~ScalarFieldVisObject();
 
    virtual void RegisterVisItFields(VisItDataCollection & visit_dc);
 
@@ -50,16 +86,16 @@ public:
 
    virtual void PrepareVisField(Coefficient &uCoef);
 
+   virtual void DisplayToGLVis();
+
    virtual void Update();
 };
 
-class ComplexScalarFieldVisObject
+class ComplexScalarFieldVisObject : public VisObjectBase
 {
 protected:
    bool cyl_;
    bool pseudo_;
-
-   int dim_;
 
    std::string field_name_;
 
@@ -67,10 +103,10 @@ protected:
 
 public:
    ComplexScalarFieldVisObject(const std::string & field_name,
-			       L2_ParFESpace *sfes,
-			       bool cyl, bool pseudo);
+                               std::shared_ptr<L2_ParFESpace> sfes,
+                               bool cyl, bool pseudo);
 
-   ~ComplexScalarFieldVisObject();
+   virtual ~ComplexScalarFieldVisObject();
 
    virtual void RegisterVisItFields(VisItDataCollection & visit_dc);
 
@@ -82,6 +118,8 @@ public:
                                 Coefficient &uImCoef,
                                 VectorCoefficient * kReCoef,
                                 VectorCoefficient * kImCoef);
+
+   virtual void DisplayToGLVis();
 
    virtual void Update();
 };
@@ -103,7 +141,7 @@ public:
                            L2_ParFESpace *sfes,
                            bool cyl, bool pseudo);
 
-   ~ScalarFieldBdrVisObject();
+   virtual ~ScalarFieldBdrVisObject();
 
    virtual void RegisterVisItFields(VisItDataCollection & visit_dc);
 
@@ -121,26 +159,18 @@ public:
    virtual void Update();
 };
 
-class VectorFieldVisObject
+class VectorFieldVisObject : public VisObjectBase
 {
 protected:
-   bool cyl_;
-   bool pseudo_;
-
-   int dim_;
-
    std::string field_name_;
 
    GridFunction * v_; // field in problem domain (L2^d)
-   GridFunction * v_y_; // field y component in 1D (L2)
-   GridFunction * v_z_; // field z component in 1D or 2D (L2)
 
 public:
    VectorFieldVisObject(const std::string & field_name,
-                        L2_ParFESpace *vfes, L2_ParFESpace *sfes,
-                        bool cyl, bool pseudo);
+                        std::shared_ptr<L2_ParFESpace> vfes);
 
-   ~VectorFieldVisObject();
+   virtual ~VectorFieldVisObject();
 
    virtual void RegisterVisItFields(VisItDataCollection & visit_dc);
 
@@ -148,29 +178,23 @@ public:
 
    virtual void PrepareVisField(VectorCoefficient &uCoef);
 
+   virtual void DisplayToGLVis();
+
    virtual void Update();
 };
 
-class ComplexVectorFieldVisObject
+class ComplexVectorFieldVisObject : public VisObjectBase
 {
 protected:
-   bool cyl_;
-   bool pseudo_;
-
-   int dim_;
-
    std::string field_name_;
 
-   ComplexGridFunction * v_; // Complex field in problem domain (L2^d)
-   ComplexGridFunction * v_y_; // Complex field y component in 1D (L2)
-   ComplexGridFunction * v_z_; // Complex field z component in 1D or 2D (L2)
+   ComplexGridFunction * v_;    // Complex field in problem domain (L2^d)
 
 public:
    ComplexVectorFieldVisObject(const std::string & field_name,
-                               L2_ParFESpace *vfes, L2_ParFESpace *sfes,
-                               bool cyl, bool pseudo);
+                               std::shared_ptr<L2_ParFESpace> vfes);
 
-   ~ComplexVectorFieldVisObject();
+   virtual ~ComplexVectorFieldVisObject();
 
    virtual void RegisterVisItFields(VisItDataCollection & visit_dc);
 
@@ -182,6 +206,8 @@ public:
                                 VectorCoefficient &uImCoef,
                                 VectorCoefficient * kReCoef,
                                 VectorCoefficient * kImCoef);
+
+   virtual void DisplayToGLVis();
 
    virtual void Update();
 };

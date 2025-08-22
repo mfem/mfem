@@ -23,6 +23,48 @@ using namespace common;
 namespace plasma
 {
 
+int VisObjectBase::Sw   = 1728;    // Screen Width
+int VisObjectBase::Sh   = 1117;    // Screen Height
+int VisObjectBase::Mt   = 66;      // Top Menu width (top)
+int VisObjectBase::Mb   = 0;       // Top Menu width (bottom)
+int VisObjectBase::Ml   = 0;       // Top Menu width (left)
+int VisObjectBase::Mr   = 0;       // Top Menu width (right)
+int VisObjectBase::Fw   = 0;       // Frame Width
+int VisObjectBase::Fh   = 28;      // Frame Height
+int VisObjectBase::Ww   = 420;     // Window Width
+int VisObjectBase::Wh   = 260;     // Window Height
+int VisObjectBase::offx = Ww + Fw; // Horizontal Offset
+int VisObjectBase::offy = Wh + Fh; // Vertical Offset
+int VisObjectBase::offs = 10;      // Shift after screen fills
+int VisObjectBase::Sx   = Ml;      // Screen Horizontal Position
+int VisObjectBase::Sy   = Mt;      // Screen Vertical Position
+int VisObjectBase::Wx   = Sx;      // Window Horizontal Position
+int VisObjectBase::Wy   = Sy;      // Window Vertical Position
+
+void VisObjectBase::IncrementGLVisWindowPosition()
+{
+   Wx += offx;
+   if (Wx + offx > Sw)
+   {
+      Wx = Sx;
+      Wy += offy;
+
+      if (Wy + offy > Sh)
+      {
+         Sx += offs;
+         Sy += offs;
+
+         if (Sx + offs > Sw || Sy + offs > Sh)
+         {
+            Sx = 0; Sy = 0;
+         }
+
+         Wx = Sx;
+         Wy = Sy;
+      }
+   }
+}
+
 ScalarFieldVisObject::ScalarFieldVisObject(const std::string & field_name,
                                            ParFiniteElementSpace *sfes,
                                            bool cyl,
@@ -60,8 +102,24 @@ void ScalarFieldVisObject::PrepareVisField(const ParGridFunction &u)
 
 void ScalarFieldVisObject::PrepareVisField(Coefficient &uCoef)
 {
-  PseudoScalarCoef   psu(uCoef, pseudo_ && cyl_);
-  v_->ProjectCoefficient(psu);
+   PseudoScalarCoef   psu(uCoef, pseudo_ && cyl_);
+   v_->ProjectCoefficient(psu);
+}
+
+void ScalarFieldVisObject::DisplayToGLVis()
+{
+   char vishost[] = "localhost";
+   int  visport   = 19916;
+
+   socketstream sock;
+   sock.precision(8);
+
+   string keys = "c";
+
+   VisualizeField(sock, vishost, visport,
+                  *v_, field_name_.c_str(), Wx, Wy, Ww, Wh,
+                  keys.c_str());
+   IncrementGLVisWindowPosition();
 }
 
 void ScalarFieldVisObject::Update()
@@ -70,22 +128,14 @@ void ScalarFieldVisObject::Update()
 }
 
 ComplexScalarFieldVisObject::ComplexScalarFieldVisObject(
-					   const std::string & field_name,
-                                           L2_ParFESpace *sfes,
-                                           bool cyl,
-                                           bool pseudo)
-   : cyl_(cyl),
-     pseudo_(pseudo),
-     dim_(-1),
-     field_name_(field_name),
+   const std::string & field_name,
+   shared_ptr<L2_ParFESpace> sfes,
+   bool cyl,
+   bool pseudo)
+   : field_name_(field_name),
      v_(NULL)
 {
-   MFEM_VERIFY(sfes != NULL, "ComplexScalarFieldVisObject: "
-               "FiniteElementSpace sfes must be non NULL.");
-
-   dim_ = sfes->GetParMesh()->SpaceDimension();
-
-   v_ = new ComplexGridFunction(sfes);
+   v_ = new ComplexGridFunction(sfes.get());
 }
 
 ComplexScalarFieldVisObject::~ComplexScalarFieldVisObject()
@@ -94,7 +144,7 @@ ComplexScalarFieldVisObject::~ComplexScalarFieldVisObject()
 }
 
 void ComplexScalarFieldVisObject::RegisterVisItFields(
-					     VisItDataCollection & visit_dc)
+   VisItDataCollection & visit_dc)
 {
    ostringstream oss_r;
    ostringstream oss_i;
@@ -107,9 +157,9 @@ void ComplexScalarFieldVisObject::RegisterVisItFields(
 }
 
 void ComplexScalarFieldVisObject::PrepareVisField(
-					   const ParComplexGridFunction &u,
-                                           VectorCoefficient * kReCoef,
-                                           VectorCoefficient * kImCoef)
+   const ParComplexGridFunction &u,
+   VectorCoefficient * kReCoef,
+   VectorCoefficient * kImCoef)
 {
    GridFunctionCoefficient u_r(&u.real());
    GridFunctionCoefficient u_i(&u.imag());
@@ -118,9 +168,9 @@ void ComplexScalarFieldVisObject::PrepareVisField(
 }
 
 void ComplexScalarFieldVisObject::PrepareVisField(Coefficient &u_r,
-						  Coefficient &u_i,
-						  VectorCoefficient * kReCoef,
-						  VectorCoefficient * kImCoef)
+                                                  Coefficient &u_i,
+                                                  VectorCoefficient * kReCoef,
+                                                  VectorCoefficient * kImCoef)
 {
    if (kReCoef || kImCoef)
    {
@@ -141,6 +191,31 @@ void ComplexScalarFieldVisObject::PrepareVisField(Coefficient &u_r,
 
       v_->ProjectCoefficient(psu_r, psu_i);
    }
+}
+
+void ComplexScalarFieldVisObject::DisplayToGLVis()
+{
+   char vishost[] = "localhost";
+   int  visport   = 19916;
+
+   socketstream sock_r, sock_i;
+   sock_r.precision(8);
+   sock_i.precision(8);
+
+   ostringstream oss_r; oss_r << "Re(" << field_name_ << ")";
+   ostringstream oss_i; oss_i << "Im(" << field_name_ << ")";
+
+   string keys = "c";
+
+   VisualizeField(sock_r, vishost, visport,
+                  v_->real(), oss_r.str().c_str(), Wx, Wy, Ww, Wh,
+                  keys.c_str());
+   IncrementGLVisWindowPosition();
+
+   VisualizeField(sock_i, vishost, visport,
+                  v_->imag(), oss_i.str().c_str(), Wx, Wy, Ww, Wh,
+                  keys.c_str());
+   IncrementGLVisWindowPosition();
 }
 
 void ComplexScalarFieldVisObject::Update()
@@ -229,111 +304,19 @@ void ScalarFieldBdrVisObject::Update()
 }
 
 VectorFieldVisObject::VectorFieldVisObject(const std::string & field_name,
-                                           L2_ParFESpace *vfes,
-                                           L2_ParFESpace *sfes,
-                                           bool cyl,
-                                           bool pseudo)
-   : cyl_(cyl),
-     pseudo_(pseudo),
-     dim_(-1),
-     field_name_(field_name),
-     v_(NULL),
-     v_y_(NULL),
-     v_z_(NULL)
-{
-   MFEM_VERIFY(vfes != NULL || sfes != NULL, "VectorFieldVisObject: "
-               "Either vfes or sfes must be non NULL.");
-
-   if (vfes)
-   {
-      dim_ = vfes->GetParMesh()->SpaceDimension();
-   }
-   else
-   {
-      dim_ = sfes->GetParMesh()->SpaceDimension();
-   }
-
-   switch (dim_)
-   {
-      case 1:
-         MFEM_VERIFY(sfes != NULL, "VectorFieldVisObject: "
-                     "sfes must be non NULL in 1D.");
-         v_   = new GridFunction(sfes);
-         v_y_ = new GridFunction(sfes);
-         v_z_ = new GridFunction(sfes);
-         break;
-      case 2:
-         MFEM_VERIFY(vfes != NULL && sfes != NULL, "VectorFieldVisObject: "
-                     "vfes and sfes must be non NULL in 2D.");
-         v_   = new GridFunction(vfes);
-         v_z_ = new GridFunction(sfes);
-         break;
-      case 3:
-         MFEM_VERIFY(vfes != NULL, "VectorFieldVisObject: "
-                     "vfes must be non NULL in 3D.");
-         v_   = new GridFunction(vfes);
-         break;
-   }
-}
+                                           shared_ptr<L2_ParFESpace> vfes)
+   : field_name_(field_name),
+     v_(new GridFunction(vfes.get()))
+{}
 
 VectorFieldVisObject::~VectorFieldVisObject()
 {
    delete v_;
-   delete v_y_;
-   delete v_z_;
 }
 
 void VectorFieldVisObject::RegisterVisItFields(VisItDataCollection & visit_dc)
 {
-   switch (dim_)
-   {
-      case 1:
-      {
-         ostringstream oss_x;
-         ostringstream oss_y;
-         ostringstream oss_z;
-
-         oss_x << field_name_ << "x";
-         oss_y << field_name_ << "y";
-         oss_z << field_name_ << "z";
-
-         visit_dc.RegisterField(oss_x.str(), v_);
-         visit_dc.RegisterField(oss_y.str(), v_y_);
-         visit_dc.RegisterField(oss_z.str(), v_z_);
-      }
-      break;
-      case 2:
-      {
-         ostringstream oss_xy;
-         ostringstream oss_z;
-
-         oss_xy << field_name_;
-         oss_z  << field_name_;
-
-         if (!cyl_)
-         {
-            oss_xy << "xy";
-            oss_z << "z";
-
-            visit_dc.RegisterField(oss_xy.str(), v_);
-            visit_dc.RegisterField(oss_z.str(), v_z_);
-         }
-         else
-         {
-            oss_xy << "zr";
-            oss_z << "phi";
-
-            visit_dc.RegisterField(oss_xy.str(), v_);
-            visit_dc.RegisterField(oss_z.str(), v_z_);
-         }
-      }
-      break;
-      case 3:
-      {
-         visit_dc.RegisterField(field_name_, v_);
-      }
-      break;
-   }
+   visit_dc.RegisterField(field_name_, v_);
 }
 
 void VectorFieldVisObject::PrepareVisField(const ParGridFunction &u)
@@ -345,180 +328,53 @@ void VectorFieldVisObject::PrepareVisField(const ParGridFunction &u)
 
 void VectorFieldVisObject::PrepareVisField(VectorCoefficient &u)
 {
-   switch (dim_)
-   {
-      case 1:
-      {
-         ComponentCoefficient ux(0, u);
-         ComponentCoefficient uy(1, u);
-         ComponentCoefficient uz(2, u);
+   v_->ProjectCoefficient(u);
+}
 
-         v_->ProjectCoefficient(ux);
-         v_y_->ProjectCoefficient(uy);
-         v_z_->ProjectCoefficient(uz);
-      }
-      break;
-      case 2:
-      {
-         VectorXYCoef uxy(u, pseudo_ && cyl_);
-         VectorZCoef   uz(u, !pseudo_ && cyl_);
+void VectorFieldVisObject::DisplayToGLVis()
+{
+   char vishost[] = "localhost";
+   int  visport   = 19916;
 
-         v_->ProjectCoefficient(uxy);
-         if (v_z_) { v_z_->ProjectCoefficient(uz); }
-      }
-      break;
-      case 3:
-      {
-         v_->ProjectCoefficient(u);
-      }
-      break;
-   }
+   socketstream sock;
+   sock.precision(8);
+
+   string keys = "cvvv";
+
+   VisualizeField(sock, vishost, visport,
+                  *v_, field_name_.c_str(), Wx, Wy, Ww, Wh,
+                  keys.c_str());
+   IncrementGLVisWindowPosition();
 }
 
 void VectorFieldVisObject::Update()
 {
    if (v_) { v_->Update(); }
-   if (v_y_) { v_y_->Update(); }
-   if (v_z_) { v_z_->Update(); }
 }
 
 ComplexVectorFieldVisObject
 ::ComplexVectorFieldVisObject(const std::string & field_name,
-                              L2_ParFESpace *vfes,
-                              L2_ParFESpace *sfes,
-                              bool cyl,
-                              bool pseudo)
-   : cyl_(cyl),
-     pseudo_(pseudo),
-     dim_(-1),
-     field_name_(field_name),
-     v_(NULL),
-     v_y_(NULL),
-     v_z_(NULL)
-{
-   MFEM_VERIFY(vfes != NULL || sfes != NULL, "ComplexVectorFieldVisObject: "
-               "Either vfes or sfes must be non NULL.");
-
-   if (vfes)
-   {
-      dim_ = vfes->GetParMesh()->SpaceDimension();
-   }
-   else
-   {
-      dim_ = sfes->GetParMesh()->SpaceDimension();
-   }
-
-   switch (dim_)
-   {
-      case 1:
-         MFEM_VERIFY(sfes != NULL, "ComplexVectorFieldVisObject: "
-                     "sfes must be non NULL in 1D.");
-         v_   = new ComplexGridFunction(sfes);
-         v_y_ = new ComplexGridFunction(sfes);
-         v_z_ = new ComplexGridFunction(sfes);
-         break;
-      case 2:
-         MFEM_VERIFY(vfes != NULL && sfes != NULL,
-                     "ComplexVectorFieldVisObject: "
-                     "both vfes and sfes must be non NULL in 2D.");
-         v_   = new ComplexGridFunction(vfes);
-         v_z_ = new ComplexGridFunction(sfes);
-         break;
-      case 3:
-         MFEM_VERIFY(vfes != NULL, "ComplexVectorFieldVisObject: "
-                     "vfes must be non NULL in 3D.");
-         v_   = new ComplexGridFunction(vfes);
-         break;
-   }
-}
+                              shared_ptr<L2_ParFESpace> vfes)
+   : field_name_(field_name),
+     v_(new ComplexGridFunction(vfes.get()))
+{}
 
 ComplexVectorFieldVisObject::~ComplexVectorFieldVisObject()
 {
    delete v_;
-   delete v_y_;
-   delete v_z_;
 }
 
 void ComplexVectorFieldVisObject
 ::RegisterVisItFields(VisItDataCollection & visit_dc)
 {
-   switch (dim_)
-   {
-      case 1:
-      {
-         ostringstream oss_x_r;
-         ostringstream oss_x_i;
-         ostringstream oss_y_r;
-         ostringstream oss_y_i;
-         ostringstream oss_z_r;
-         ostringstream oss_z_i;
+   ostringstream oss_r;
+   ostringstream oss_i;
 
-         oss_x_r << "Re_" << field_name_ << "x";
-         oss_x_i << "Im_" << field_name_ << "x";
-         oss_y_r << "Re_" << field_name_ << "y";
-         oss_y_i << "Im_" << field_name_ << "y";
-         oss_z_r << "Re_" << field_name_ << "z";
-         oss_z_i << "Im_" << field_name_ << "z";
+   oss_r << "Re_" << field_name_;
+   oss_i << "Im_" << field_name_;
 
-         visit_dc.RegisterField(oss_x_r.str(), &v_->real());
-         visit_dc.RegisterField(oss_x_i.str(), &v_->imag());
-         visit_dc.RegisterField(oss_y_r.str(), &v_y_->real());
-         visit_dc.RegisterField(oss_y_i.str(), &v_y_->imag());
-         visit_dc.RegisterField(oss_z_r.str(), &v_z_->real());
-         visit_dc.RegisterField(oss_z_i.str(), &v_z_->imag());
-      }
-      break;
-      case 2:
-      {
-         ostringstream oss_xy_r;
-         ostringstream oss_xy_i;
-         ostringstream oss_z_r;
-         ostringstream oss_z_i;
-
-         oss_xy_r << "Re_" << field_name_;
-         oss_xy_i << "Im_" << field_name_;
-         oss_z_r << "Re_" << field_name_;
-         oss_z_i << "Im_" << field_name_;
-
-         if (!cyl_)
-         {
-            oss_xy_r << "xy";
-            oss_xy_i << "xy";
-            oss_z_r << "z";
-            oss_z_i << "z";
-
-            visit_dc.RegisterField(oss_xy_r.str(), &v_->real());
-            visit_dc.RegisterField(oss_xy_i.str(), &v_->imag());
-            visit_dc.RegisterField(oss_z_r.str(), &v_z_->real());
-            visit_dc.RegisterField(oss_z_i.str(), &v_z_->imag());
-         }
-         else
-         {
-            oss_xy_r << "zr";
-            oss_xy_i << "zr";
-            oss_z_r << "phi";
-            oss_z_i << "phi";
-
-            visit_dc.RegisterField(oss_xy_r.str(), &v_->real());
-            visit_dc.RegisterField(oss_xy_i.str(), &v_->imag());
-            visit_dc.RegisterField(oss_z_r.str(), &v_z_->real());
-            visit_dc.RegisterField(oss_z_i.str(), &v_z_->imag());
-         }
-      }
-      break;
-      case 3:
-      {
-         ostringstream oss_r;
-         ostringstream oss_i;
-
-         oss_r << "Re_" << field_name_;
-         oss_i << "Im_" << field_name_;
-
-         visit_dc.RegisterField(oss_r.str(), &v_->real());
-         visit_dc.RegisterField(oss_i.str(), &v_->imag());
-      }
-      break;
-   }
+   visit_dc.RegisterField(oss_r.str(), &v_->real());
+   visit_dc.RegisterField(oss_i.str(), &v_->imag());
 }
 
 void ComplexVectorFieldVisObject
@@ -544,83 +400,42 @@ void ComplexVectorFieldVisObject::PrepareVisField(VectorCoefficient &u_r,
       ComplexPhaseVectorCoefficient uk_i(kReCoef, kImCoef, &u_r, &u_i,
                                          false, false);
 
-      switch (dim_)
-      {
-         case 1:
-         {
-            ComponentCoefficient ukx_r(0, uk_r);
-            ComponentCoefficient ukx_i(0, uk_i);
-            ComponentCoefficient uky_r(1, uk_r);
-            ComponentCoefficient uky_i(1, uk_i);
-            ComponentCoefficient ukz_r(2, uk_r);
-            ComponentCoefficient ukz_i(2, uk_i);
-
-            v_->ProjectCoefficient(ukx_r, ukx_i);
-            v_y_->ProjectCoefficient(uky_r, uky_i);
-            v_z_->ProjectCoefficient(ukz_r, ukz_i);
-         }
-         break;
-         case 2:
-         {
-            VectorXYCoef ukxy_r(uk_r, pseudo_ && cyl_);
-            VectorXYCoef ukxy_i(uk_i, pseudo_ && cyl_);
-            VectorZCoef   ukz_r(uk_r, !pseudo_ && cyl_);
-            VectorZCoef   ukz_i(uk_i, !pseudo_ && cyl_);
-
-            v_->ProjectCoefficient(ukxy_r, ukxy_i);
-            if (v_z_) { v_z_->ProjectCoefficient(ukz_r, ukz_i); }
-         }
-         break;
-         case 3:
-         {
-            v_->ProjectCoefficient(uk_r, uk_i);
-         }
-         break;
-      }
+      v_->ProjectCoefficient(uk_r, uk_i);
    }
    else
    {
-      switch (dim_)
-      {
-         case 1:
-         {
-            ComponentCoefficient ux_r(0, u_r);
-            ComponentCoefficient ux_i(0, u_i);
-            ComponentCoefficient uy_r(1, u_r);
-            ComponentCoefficient uy_i(1, u_i);
-            ComponentCoefficient uz_r(2, u_r);
-            ComponentCoefficient uz_i(2, u_i);
-
-            v_->ProjectCoefficient(ux_r, ux_i);
-            v_y_->ProjectCoefficient(uy_r, uy_i);
-            v_z_->ProjectCoefficient(uz_r, uz_i);
-         }
-         break;
-         case 2:
-         {
-            VectorXYCoef uxy_r(u_r, pseudo_ && cyl_);
-            VectorXYCoef uxy_i(u_i, pseudo_ && cyl_);
-            VectorZCoef   uz_r(u_r, !pseudo_ && cyl_);
-            VectorZCoef   uz_i(u_i, !pseudo_ && cyl_);
-
-            v_->ProjectCoefficient(uxy_r, uxy_i);
-            if (v_z_) { v_z_->ProjectCoefficient(uz_r, uz_i); }
-         }
-         break;
-         case 3:
-         {
-            v_->ProjectCoefficient(u_r, u_i);
-         }
-         break;
-      }
+      v_->ProjectCoefficient(u_r, u_i);
    }
+}
+
+void ComplexVectorFieldVisObject::DisplayToGLVis()
+{
+   char vishost[] = "localhost";
+   int  visport   = 19916;
+
+   socketstream sock_r, sock_i;
+   sock_r.precision(8);
+   sock_i.precision(8);
+
+   ostringstream oss_r; oss_r << "Re(" << field_name_ << ")";
+   ostringstream oss_i; oss_i << "Im(" << field_name_ << ")";
+
+   string keys = "cvvv";
+
+   VisualizeField(sock_r, vishost, visport,
+                  v_->real(), oss_r.str().c_str(), Wx, Wy, Ww, Wh,
+                  keys.c_str());
+   IncrementGLVisWindowPosition();
+
+   VisualizeField(sock_i, vishost, visport,
+                  v_->imag(), oss_i.str().c_str(), Wx, Wy, Ww, Wh,
+                  keys.c_str());
+   IncrementGLVisWindowPosition();
 }
 
 void ComplexVectorFieldVisObject::Update()
 {
    if (v_) { v_->Update(); }
-   if (v_y_) { v_y_->Update(); }
-   if (v_z_) { v_z_->Update(); }
 }
 
 } // namespace plasma
