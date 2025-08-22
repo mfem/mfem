@@ -80,6 +80,11 @@ if (MFEM_USE_MPI)
       ${NAVIER_COMMON_FILES}
       LIBRARIES mfem-common)
 
+    add_mfem_miniapp(navier_mfem
+      MAIN navier_mfem.cpp
+      ${NAVIER_COMMON_FILES}
+      LIBRARIES mfem-common)
+
     LIST(APPEND NAVIER_MESH_FILES
         fluid-cht.mesh
         solid-cht.mesh)
