@@ -436,7 +436,7 @@ public:
 
    // Enum for reduction operations
    enum ReduceOp { Sum_Op, Min_Op, Max_Op, BitOR_Op, MaxAbs_Op };
-   
+
    // Add specialized versions for common operations
    template <class T>
    void Reduce(Array<T> &ldata, const Array<int> &marker, ReduceOp op)

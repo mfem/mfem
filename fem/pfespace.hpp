@@ -422,9 +422,9 @@ public:
        "partially conforming") space. */
    void Synchronize(Array<int> &ldof_marker) const;
 
-       /** @brief Given a vector of boundary condition values on the local true
-         dofs, perform a reduction across all processors. */
-    void SynchronizeBC(Array<double> &bc_values) const;
+   /** @brief Given a vector of boundary condition values on the local true
+     dofs, perform a reduction across all processors. */
+   void SynchronizeBC(Array<double> &bc_values) const;
 
    /// Determine the boundary degrees of freedom
    void GetEssentialVDofs(const Array<int> &bdr_attr_is_ess,
@@ -459,6 +459,7 @@ public:
        artificial boundary edges that appear at processor boundaries.
        @param[in] boundary_element_indices Array of boundary element indices
        @param[out] ess_tdof_list Array of essential true DOF indices
+       @param[out] ldof_marker Array marking which local DOFs are boundary edge DOFs
        @param[out] boundary_edge_dofs_out set of boundary edge DOFs
        @param[out] dof_to_edge Optional map from DOFs to edge indices
        @param[out] dof_to_orientation Optional map from DOFs to edge orientations
@@ -478,10 +479,11 @@ public:
         @param[out] attr_to_elements map from boundary attribute to the list of
                                      boundary elements with that attribute */
    void GetBoundaryElementsByAttribute(const Array<int> &bdr_attrs,
-                                    std::unordered_map<int, Array<int>> &attr_to_elements);
+                                       std::unordered_map<int, Array<int>> &attr_to_elements);
 
    /// @brief Simplified interface for single boundary attribute
-   void GetBoundaryElementsByAttribute(int bdr_attr, Array<int> &boundary_elements);
+   void GetBoundaryElementsByAttribute(int bdr_attr,
+                                       Array<int> &boundary_elements);
 
    /** Compute edge orientations relative to a loop direction defined by a normal vector.
        This is useful for applying circulation boundary conditions.
@@ -489,10 +491,11 @@ public:
        @param[in] dof_to_boundary_element Map from DOFs to boundary elements
        @param[in] loop_normal Normal vector defining the loop direction
        @param[out] edge_loop_orientations Map from edge indices to orientations (+1 or -1) */
-   void ComputeLoopEdgeOrientations(const std::unordered_map<int, int>& dof_to_edge,
-                                   const std::unordered_map<int, int>& dof_to_boundary_element,
-                                   const Vector& loop_normal,
-                                   std::unordered_map<int, int>& edge_loop_orientations);
+   void ComputeLoopEdgeOrientations(const std::unordered_map<int, int>&
+                                    dof_to_edge,
+                                    const std::unordered_map<int, int>& dof_to_boundary_element,
+                                    const Vector& loop_normal,
+                                    std::unordered_map<int, int>& edge_loop_orientations);
 
    /** If the given ldof is owned by the current processor, return its local
        tdof number, otherwise return -1 */

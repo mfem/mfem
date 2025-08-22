@@ -1257,13 +1257,14 @@ void ParFiniteElementSpace::GetExteriorVDofs(Array<int> &ext_dofs,
                                              int component) const
 {
    FiniteElementSpace::GetExteriorVDofs(ext_dofs, component);
-   
+
    // Make sure that processors without boundary elements mark
    // their boundary dofs (if they have any).
    Synchronize(ext_dofs);
 }
 
-void ParFiniteElementSpace::GetBoundaryEdgeDoFs(const Array<int> &boundary_element_indices,
+void ParFiniteElementSpace::GetBoundaryEdgeDoFs(const Array<int>
+                                                &boundary_element_indices,
                                                 Array<int> &ess_tdof_list,
                                                 Array<int> &ldof_marker,
                                                 std::unordered_set<int> &boundary_edge_dofs_out,
@@ -1280,27 +1281,27 @@ void ParFiniteElementSpace::GetBoundaryEdgeDoFs(const Array<int> &boundary_eleme
 
    // Collect boundary edge DoFs using a toggle approach
    Array<int> edges, edge_orientations, edge_dofs;
-   for (int i = 0; i < boundary_element_indices.Size(); ++i) 
+   for (int i = 0; i < boundary_element_indices.Size(); ++i)
    {
       int boundary_element_idx = boundary_element_indices[i];
       int face_index, face_orientation;
       pmesh->GetBdrElementFace(boundary_element_idx, &face_index, &face_orientation);
       pmesh->GetFaceEdges(face_index, edges, edge_orientations);
-      
-      for (int j = 0; j < edges.Size(); ++j) 
+
+      for (int j = 0; j < edges.Size(); ++j)
       {
          GetEdgeDofs(edges[j], edge_dofs);
-         for (int k = 0; k < edge_dofs.Size(); ++k) 
+         for (int k = 0; k < edge_dofs.Size(); ++k)
          {
             int dof = edge_dofs[k];
-            if (!boundary_edge_dofs.count(dof)) 
+            if (!boundary_edge_dofs.count(dof))
             {
                boundary_edge_dofs.insert(dof);
                dof_to_edge_map[dof] = edges[j];
                dof_to_boundary_element[dof] = boundary_element_idx;
                dof_to_edge_orientation[dof] = edge_orientations[j];
-            } 
-            else 
+            }
+            else
             {
                // DoF appears twice - interior to boundary, remove it
                boundary_edge_dofs.erase(dof);
@@ -1315,20 +1316,20 @@ void ParFiniteElementSpace::GetBoundaryEdgeDoFs(const Array<int> &boundary_eleme
    // Build edge sharing lookup table
    std::unordered_map<int, int> edge_to_group_size;
    int num_groups = pmesh->GetNGroups();
-   
+
    int total_shared_edges = 0;
-   for (int group = 1; group < num_groups; group++) 
+   for (int group = 1; group < num_groups; group++)
    {
       total_shared_edges += pmesh->GroupNEdges(group);
    }
    edge_to_group_size.reserve(total_shared_edges);
-   
-   for (int group = 1; group < num_groups; group++) 
-   {  
+
+   for (int group = 1; group < num_groups; group++)
+   {
       int group_size = pmesh->gtopo.GetGroupSize(group);
       int num_edges_in_group = pmesh->GroupNEdges(group);
-      
-      for (int i = 0; i < num_edges_in_group; i++) 
+
+      for (int i = 0; i < num_edges_in_group; i++)
       {
          edge_to_group_size.emplace(pmesh->GroupEdge(group, i), group_size);
       }
@@ -1337,13 +1338,13 @@ void ParFiniteElementSpace::GetBoundaryEdgeDoFs(const Array<int> &boundary_eleme
    // Get global indices
    Array<HYPRE_BigInt> global_edge_indices;
    pmesh->GetGlobalEdgeIndices(global_edge_indices);
-   
+
    Array<HYPRE_BigInt> global_face_indices;
    pmesh->GetGlobalFaceIndices(global_face_indices);
 
    // Pre-compute face indices for boundary elements
    std::unordered_map<int, int> boundary_element_to_face;
-   for (int i = 0; i < boundary_element_indices.Size(); ++i) 
+   for (int i = 0; i < boundary_element_indices.Size(); ++i)
    {
       int boundary_element_idx = boundary_element_indices[i];
       int face_index, face_orientation;
@@ -1354,26 +1355,26 @@ void ParFiniteElementSpace::GetBoundaryEdgeDoFs(const Array<int> &boundary_eleme
    // Collect shared boundary edge-face pairs
    std::vector<HYPRE_BigInt> local_data;
    local_data.reserve(boundary_edge_dofs.size() * 2);
-   
+
    std::unordered_set<int> processed_edges;
    processed_edges.reserve(boundary_edge_dofs.size());
-   
-   for (const auto& pair : dof_to_edge_map) 
+
+   for (const auto& pair : dof_to_edge_map)
    {
       int local_edge = pair.second;
-      
+
       // Skip if already processed this edge
-      if (!processed_edges.insert(local_edge).second) continue;
-      
+      if (!processed_edges.insert(local_edge).second) { continue; }
+
       // Check if edge is shared (fast lookup)
       auto it = edge_to_group_size.find(local_edge);
-      if (it != edge_to_group_size.end() && it->second > 1) 
+      if (it != edge_to_group_size.end() && it->second > 1)
       {
          // Get boundary element and face index directly from pre-computed map
          int dof = pair.first;
          int boundary_element_idx = dof_to_boundary_element[dof];
          int face_index = boundary_element_to_face[boundary_element_idx];
-         
+
          // Store edge-face pair
          local_data.push_back(global_edge_indices[local_edge]);
          local_data.push_back(global_face_indices[face_index]);
@@ -1383,15 +1384,15 @@ void ParFiniteElementSpace::GetBoundaryEdgeDoFs(const Array<int> &boundary_eleme
    // MPI communication
    int num_procs = pmesh->GetNRanks();
    int local_size = local_data.size();
-   
+
    std::vector<int> mpi_arrays(num_procs * 4);
    int* all_sizes = mpi_arrays.data();
    int* displs = all_sizes + num_procs;
    int* byte_sizes = displs + num_procs;
    int* byte_displs = byte_sizes + num_procs;
-   
+
    MPI_Allgather(&local_size, 1, MPI_INT, all_sizes, 1, MPI_INT, pmesh->GetComm());
-   
+
    int total_size = 0;
    constexpr int hypre_size = sizeof(HYPRE_BigInt);
    for (int i = 0; i < num_procs; i++)
@@ -1403,13 +1404,13 @@ void ParFiniteElementSpace::GetBoundaryEdgeDoFs(const Array<int> &boundary_eleme
    }
 
    std::unordered_set<int> dofs_to_remove;
-   
+
    if (total_size > 0)
    {
       std::vector<HYPRE_BigInt> all_data(total_size);
       MPI_Allgatherv(local_data.data(), local_size * hypre_size, MPI_BYTE,
                      all_data.data(), byte_sizes, byte_displs, MPI_BYTE, pmesh->GetComm());
-      
+
       // Build global-to-local edge mapping
       std::unordered_map<HYPRE_BigInt, int> global_to_local_edge;
       global_to_local_edge.reserve(global_edge_indices.Size());
@@ -1417,23 +1418,24 @@ void ParFiniteElementSpace::GetBoundaryEdgeDoFs(const Array<int> &boundary_eleme
       {
          global_to_local_edge[global_edge_indices[i]] = i;
       }
-      
+
       // Process collected data
-      std::unordered_map<HYPRE_BigInt, std::unordered_set<HYPRE_BigInt>> edge_to_faces;
+      std::unordered_map<HYPRE_BigInt, std::unordered_set<HYPRE_BigInt>>
+                                                                      edge_to_faces;
       edge_to_faces.reserve(total_size / 2);
-      
+
       for (size_t i = 0; i < all_data.size(); i += 2)
       {
          edge_to_faces[all_data[i]].insert(all_data[i + 1]);
       }
-      
+
       // Mark DoFs from artificial edges for removal
       dofs_to_remove.reserve(local_data.size() / 4);
-      
+
       for (size_t i = 0; i < local_data.size(); i += 2)
       {
          HYPRE_BigInt global_edge_id = local_data[i];
-         
+
          // If this edge appears in 2+ distinct faces, it's artificial
          if (edge_to_faces[global_edge_id].size() >= 2)
          {
@@ -1442,14 +1444,14 @@ void ParFiniteElementSpace::GetBoundaryEdgeDoFs(const Array<int> &boundary_eleme
             if (it != global_to_local_edge.end())
             {
                int local_edge = it->second;
-               Array<int> edge_dofs;
-               GetEdgeDofs(local_edge, edge_dofs);
-               
+               Array<int> local_edge_dofs;
+               GetEdgeDofs(local_edge, local_edge_dofs);
+
                // Mark boundary DoFs of this edge for removal
-               for (int k = 0; k < edge_dofs.Size(); ++k) 
+               for (int k = 0; k < local_edge_dofs.Size(); ++k)
                {
-                  int dof = edge_dofs[k];
-                  if (boundary_edge_dofs.count(dof)) 
+                  int dof = local_edge_dofs[k];
+                  if (boundary_edge_dofs.count(dof))
                   {
                      dofs_to_remove.insert(dof);
                   }
@@ -1460,14 +1462,14 @@ void ParFiniteElementSpace::GetBoundaryEdgeDoFs(const Array<int> &boundary_eleme
    }
 
    // Remove artificial DoFs
-   for (int dof : dofs_to_remove) 
+   for (int dof : dofs_to_remove)
    {
       boundary_edge_dofs.erase(dof);
       dof_to_edge_map.erase(dof);
       dof_to_boundary_element.erase(dof);
       dof_to_edge_orientation.erase(dof);
    }
-   
+
    // Copy boundary edge dofs to output parameter
    boundary_edge_dofs_out = boundary_edge_dofs;
 
@@ -1492,10 +1494,10 @@ void ParFiniteElementSpace::GetBoundaryEdgeDoFs(const Array<int> &boundary_eleme
          tdof_edge_pairs.push_back({tdof, edge});
       }
    }
-   
+
    // Sort by true DOF index to maintain consistent ordering
    std::sort(tdof_edge_pairs.begin(), tdof_edge_pairs.end());
-   
+
    // Extract sorted true DOFs and edges
    for (const auto& pair : tdof_edge_pairs)
    {
@@ -1521,15 +1523,16 @@ void ParFiniteElementSpace::GetBoundaryEdgeDoFs(const Array<int> &boundary_eleme
    }
 }
 
-void ParFiniteElementSpace::GetBoundaryElementsByAttribute(const Array<int> &bdr_attrs,
-                                 std::unordered_map<int, Array<int>> &attr_to_elements)
-{   
+void ParFiniteElementSpace::GetBoundaryElementsByAttribute(
+   const Array<int> &bdr_attrs,
+   std::unordered_map<int, Array<int>> &attr_to_elements)
+{
    // Initialize arrays for each attribute
    for (int i = 0; i < bdr_attrs.Size(); ++i)
    {
       attr_to_elements[bdr_attrs[i]] = Array<int>();
    }
-   
+
    // Find boundary elements for each attribute
    for (int i = 0; i < pmesh->GetNBE(); ++i)
    {
@@ -1542,10 +1545,11 @@ void ParFiniteElementSpace::GetBoundaryElementsByAttribute(const Array<int> &bdr
    }
 }
 
-void ParFiniteElementSpace::GetBoundaryElementsByAttribute(int bdr_attr, Array<int> &boundary_elements)
+void ParFiniteElementSpace::GetBoundaryElementsByAttribute(int bdr_attr,
+                                                           Array<int> &boundary_elements)
 {
    boundary_elements.SetSize(0);
-   
+
    for (int i = 0; i < pmesh->GetNBE(); ++i)
    {
       if (pmesh->GetBdrElement(i)->GetAttribute() == bdr_attr)
@@ -1556,71 +1560,72 @@ void ParFiniteElementSpace::GetBoundaryElementsByAttribute(int bdr_attr, Array<i
 }
 
 void ParFiniteElementSpace::ComputeLoopEdgeOrientations(
-    const std::unordered_map<int, int>& dof_to_edge,
-    const std::unordered_map<int, int>& dof_to_boundary_element,
-    const Vector& loop_normal,
-    std::unordered_map<int, int>& edge_loop_orientations)
+   const std::unordered_map<int, int>& dof_to_edge,
+   const std::unordered_map<int, int>& dof_to_boundary_element,
+   const Vector& loop_normal,
+   std::unordered_map<int, int>& edge_loop_orientations)
 {
-    // Process each edge locally
-    for (const auto& pair : dof_to_boundary_element) 
-    {
-        int dof = pair.first;
-        int bdr_elem_idx = pair.second;
-        
-        // Check if this DOF has a corresponding edge
-        auto edge_it = dof_to_edge.find(dof);
-        if (edge_it == dof_to_edge.end()) continue;
-        
-        int edge_id = edge_it->second;
-        
-        // Get edge vertices
-        Array<int> edge_verts;
-        pmesh->GetEdgeVertices(edge_id, edge_verts);
-        
-        const double *v0 = pmesh->GetVertex(edge_verts[0]);
-        const double *v1 = pmesh->GetVertex(edge_verts[1]);
-        
-        // Get boundary element vertices
-        Array<int> bdr_elem_verts;
-        pmesh->GetBdrElement(bdr_elem_idx)->GetVertices(bdr_elem_verts);
-        
-        // Find the third vertex (not part of the edge)
-        int third_vertex = -1;
-        for (int i = 0; i < bdr_elem_verts.Size(); i++) 
-        {
-            int v = bdr_elem_verts[i];
-            if (v != edge_verts[0] && v != edge_verts[1]) {
-                third_vertex = v;
-                break;
-            }
-        }
-        
-        if (third_vertex == -1) continue; // No third vertex found, skip this edge
-        
-        const double *v2 = pmesh->GetVertex(third_vertex);
-        
-        // Edge vector
-        Vector edge_vec(3);
-        for (int i = 0; i < 3; i++) edge_vec[i] = v1[i] - v0[i];
-        
-        // Vector from third vertex to edge (use edge midpoint)
-        Vector to_edge_vec(3);
-        for (int i = 0; i < 3; i++) 
-        {
-            double edge_midpoint = (v0[i] + v1[i]) * 0.5;
-            to_edge_vec[i] = edge_midpoint - v2[i];
-        }
-        
-        // Cross product: to_edge × edge
-        Vector cross_product(3);
-        cross_product[0] = to_edge_vec[1] * edge_vec[2] - to_edge_vec[2] * edge_vec[1];
-        cross_product[1] = to_edge_vec[2] * edge_vec[0] - to_edge_vec[0] * edge_vec[2];
-        cross_product[2] = to_edge_vec[0] * edge_vec[1] - to_edge_vec[1] * edge_vec[0];
-        
-        // Check alignment with loop normal
-        double dot_product = cross_product * loop_normal;
-        edge_loop_orientations[edge_id] = (dot_product > 0) ? 1 : -1;
-    }
+   // Process each edge locally
+   for (const auto& pair : dof_to_boundary_element)
+   {
+      int dof = pair.first;
+      int bdr_elem_idx = pair.second;
+
+      // Check if this DOF has a corresponding edge
+      auto edge_it = dof_to_edge.find(dof);
+      if (edge_it == dof_to_edge.end()) { continue; }
+
+      int edge_id = edge_it->second;
+
+      // Get edge vertices
+      Array<int> edge_verts;
+      pmesh->GetEdgeVertices(edge_id, edge_verts);
+
+      const double *v0 = pmesh->GetVertex(edge_verts[0]);
+      const double *v1 = pmesh->GetVertex(edge_verts[1]);
+
+      // Get boundary element vertices
+      Array<int> bdr_elem_verts;
+      pmesh->GetBdrElement(bdr_elem_idx)->GetVertices(bdr_elem_verts);
+
+      // Find the third vertex (not part of the edge)
+      int third_vertex = -1;
+      for (int i = 0; i < bdr_elem_verts.Size(); i++)
+      {
+         int v = bdr_elem_verts[i];
+         if (v != edge_verts[0] && v != edge_verts[1])
+         {
+            third_vertex = v;
+            break;
+         }
+      }
+
+      if (third_vertex == -1) { continue; } // No third vertex found, skip this edge
+
+      const double *v2 = pmesh->GetVertex(third_vertex);
+
+      // Edge vector
+      Vector edge_vec(3);
+      for (int i = 0; i < 3; i++) { edge_vec[i] = v1[i] - v0[i]; }
+
+      // Vector from third vertex to edge (use edge midpoint)
+      Vector to_edge_vec(3);
+      for (int i = 0; i < 3; i++)
+      {
+         double edge_midpoint = (v0[i] + v1[i]) * 0.5;
+         to_edge_vec[i] = edge_midpoint - v2[i];
+      }
+
+      // Cross product: to_edge × edge
+      Vector cross_product(3);
+      cross_product[0] = to_edge_vec[1] * edge_vec[2] - to_edge_vec[2] * edge_vec[1];
+      cross_product[1] = to_edge_vec[2] * edge_vec[0] - to_edge_vec[0] * edge_vec[2];
+      cross_product[2] = to_edge_vec[0] * edge_vec[1] - to_edge_vec[1] * edge_vec[0];
+
+      // Check alignment with loop normal
+      double dot_product = cross_product * loop_normal;
+      edge_loop_orientations[edge_id] = (dot_product > 0) ? 1 : -1;
+   }
 }
 
 

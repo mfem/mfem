@@ -1109,8 +1109,9 @@ void GroupCommunicator::ReduceEnd(T *ldata, int layout,
 }
 
 template <class T>
-void GroupCommunicator::ReduceMarked(T *ldata, const Array<int> &marker, int layout,
-                                    void (*Op)(OpData<T>)) const
+void GroupCommunicator::ReduceMarked(T *ldata, const Array<int> &marker,
+                                     int layout,
+                                     void (*Op)(OpData<T>)) const
 {
    if (comm_lock == 0) { return; }
    // The above also handles the case (group_buf_size == 0).
@@ -1146,7 +1147,7 @@ void GroupCommunicator::ReduceMarked(T *ldata, const Array<int> &marker, int lay
             opd.ldofs = (layout == 0) ?
                         group_ldof.GetRow(gr) : group_ltdof.GetRow(gr);
             opd.nb = gtopo.GetGroupSize(gr)-1;
-            
+
             // Apply operation only to marked DoFs
             for (int i = 0; i < opd.nldofs; i++)
             {
@@ -1159,7 +1160,7 @@ void GroupCommunicator::ReduceMarked(T *ldata, const Array<int> &marker, int lay
                   single_opd.ldofs = opd.ldofs + i;
                   single_opd.nldofs = 1;
                   single_opd.nb = opd.nb;
-                  
+
                   // Apply the operation
                   Op(single_opd);
                }
@@ -1184,10 +1185,10 @@ void GroupCommunicator::ReduceMarked(T *ldata, const Array<int> &marker, int lay
                {
                   // Custom version of ReduceGroupFromBuffer that checks marker
                   int gr = grp_list[i];
-                  const int *ldofs = (layout == 0) ? 
-                                    group_ldof.GetRow(gr) : group_ltdof.GetRow(gr);
+                  const int *ldofs = (layout == 0) ?
+                                     group_ldof.GetRow(gr) : group_ltdof.GetRow(gr);
                   const int nldofs = group_ldof.RowSize(gr);
-                  
+
                   for (int j = 0; j < nldofs; j++)
                   {
                      if (marker[ldofs[j]])
@@ -1199,12 +1200,12 @@ void GroupCommunicator::ReduceMarked(T *ldata, const Array<int> &marker, int lay
                         opd.ldofs = ldofs + j;
                         opd.nldofs = 1;
                         opd.nb = 1;
-                        
+
                         // Apply the operation
                         Op(opd);
                      }
                   }
-                  
+
                   buf += nldofs;
                }
             }
@@ -1298,19 +1299,19 @@ void GroupCommunicator::MaxAbs(OpData<T> opd)
    {
       T data = opd.ldata[opd.ldofs[i]];
       T abs_data = std::abs(data);
-      
+
       for (int j = 0; j < opd.nb; j++)
       {
          T b = opd.buf[j*opd.nldofs+i];
          T abs_b = std::abs(b);
-         
+
          if (abs_data < abs_b)
          {
             data = b;
             abs_data = abs_b;
          }
       }
-      
+
       opd.ldata[opd.ldofs[i]] = data;
    }
 }
