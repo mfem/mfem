@@ -27,15 +27,15 @@ namespace plasma
 
 // Cyclotron frequency (Radians / second)
 inline std::complex<real_t> omega_c(real_t Bmag             /* Tesla */,
-				    real_t charge /* electron charge */,
-				    std::complex<real_t> mass /* AMU */)
+                                    real_t charge /* electron charge */,
+                                    std::complex<real_t> mass /* AMU */)
 {
    return (charge * q_ * Bmag) / (mass * amu_);
 }
 
 // Plasma frequency (Radians / second)
 inline std::complex<real_t> omega_p(real_t number /* particles / m^3 */,
-				    real_t charge /* electron charge */,
+                                    real_t charge /* electron charge */,
                                     std::complex<real_t> mass /* AMU */)
 {
    return fabs(charge * q_) * 1.0 * sqrt(number / (epsilon0_ * mass * amu_));
@@ -100,47 +100,47 @@ std::complex<real_t> D_cold_plasma(real_t omega, real_t Bmag,
 
 struct StixParams
 {
-  StixParams(VectorCoefficient &B,
-		  Coefficient &nue,
-		  Coefficient &nui,
-		  VectorCoefficient &spec_densities,
-		  VectorCoefficient &spec_temperatures,
-		  real_t omega_val,
-		  const Vector & spec_charges,
-		  const Vector & spec_masses,
-		  int nuprof,
-		  real_t res_lim)
-    : BCoef(B), nueCoef(nue), nuiCoef(nui),
-     specDensityCoef(spec_densities),
-     specTemperatureCoef(spec_temperatures),
-     omega(omega_val),
-     charges(spec_charges),
-      masses(spec_masses),
-     nuProfile(nuprof),
-     resLimit(res_lim)
-  {}
+   StixParams(VectorCoefficient &B,
+              Coefficient &nue,
+              Coefficient &nui,
+              VectorCoefficient &spec_densities,
+              VectorCoefficient &spec_temperatures,
+              real_t omega_val,
+              const Vector & spec_charges,
+              const Vector & spec_masses,
+              int nuprof,
+              real_t res_lim)
+      : BCoef(B), nueCoef(nue), nuiCoef(nui),
+        specDensityCoef(spec_densities),
+        specTemperatureCoef(spec_temperatures),
+        omega(omega_val),
+        charges(spec_charges),
+        masses(spec_masses),
+        nuProfile(nuprof),
+        resLimit(res_lim)
+   {}
 
-  VectorCoefficient &BCoef;
-  Coefficient &nueCoef;
-  Coefficient &nuiCoef;
-  VectorCoefficient &specDensityCoef;
-  VectorCoefficient &specTemperatureCoef;
-  real_t omega;
-  const Vector &charges;
-  const Vector &masses;
-  int nuProfile;
-  real_t resLimit;
+   VectorCoefficient &BCoef;
+   Coefficient &nueCoef;
+   Coefficient &nuiCoef;
+   VectorCoefficient &specDensityCoef;
+   VectorCoefficient &specTemperatureCoef;
+   real_t omega;
+   const Vector &charges;
+   const Vector &masses;
+   int nuProfile;
+   real_t resLimit;
 };
 
 class StixCoefBase
 {
 public:
    enum ReImPart {REAL_PART,
-		  IMAG_PART,
-		  IMAGINARY_PART /* Reduntant but fault tolerant */
-   };
-  
-   StixCoefBase(StixParams &stixParams,
+                  IMAG_PART,
+                  IMAGINARY_PART /* Reduntant but fault tolerant */
+                 };
+
+   StixCoefBase(StixParams &stix_params,
                 ReImPart re_im_part);
 
    // Copy constructor
@@ -200,7 +200,7 @@ typedef StixCoefBase StixCoef;
 class StixLCoef: public Coefficient, public StixCoefBase
 {
 public:
-   StixLCoef(StixParams &stixParams, ReImPart re_im_part);
+   StixLCoef(StixParams &stix_params, ReImPart re_im_part);
 
    StixLCoef(StixCoefBase &s) : StixCoefBase(s) {}
 
@@ -212,7 +212,7 @@ public:
 class StixRCoef: public Coefficient, public StixCoefBase
 {
 public:
-   StixRCoef(StixParams &stixParams, ReImPart re_im_part);
+   StixRCoef(StixParams &stix_params, ReImPart re_im_part);
 
    StixRCoef(StixCoefBase &s) : StixCoefBase(s) {}
 
@@ -224,7 +224,7 @@ public:
 class StixSCoef: public Coefficient, public StixCoefBase
 {
 public:
-   StixSCoef(StixParams &stixParams, ReImPart re_im_part);
+   StixSCoef(StixParams &stix_params, ReImPart re_im_part);
 
    StixSCoef(StixCoefBase &s) : StixCoefBase(s) {}
 
@@ -236,7 +236,7 @@ public:
 class StixDCoef: public Coefficient, public StixCoefBase
 {
 public:
-   StixDCoef(StixParams &stixParams, ReImPart re_im_part);
+   StixDCoef(StixParams &stix_params, ReImPart re_im_part);
 
    StixDCoef(StixCoefBase &s) : StixCoefBase(s) {}
 
@@ -248,7 +248,7 @@ public:
 class StixPCoef: public Coefficient, public StixCoefBase
 {
 public:
-   StixPCoef(StixParams &stixParams, ReImPart re_im_part);
+   StixPCoef(StixParams &stix_params, ReImPart re_im_part);
 
    StixPCoef(StixCoefBase &s) : StixCoefBase(s) {}
 
@@ -260,15 +260,15 @@ public:
 class StixInvSPCoef: public Coefficient, public StixCoefBase
 {
 public:
-  StixInvSPCoef(StixParams &stixParams, ReImPart re_im_part)
-      : StixCoefBase(stixParams, re_im_part)
+   StixInvSPCoef(StixParams &stix_params, ReImPart re_im_part)
+      : StixCoefBase(stix_params, re_im_part)
    {}
 
    StixInvSPCoef(StixCoefBase &s) : StixCoefBase(s) {}
 
    virtual real_t Eval(ElementTransformation &T,
                        const IntegrationPoint &ip);
-  
+
    virtual ~StixInvSPCoef() {}
 };
 
@@ -279,7 +279,7 @@ private:
 
 public:
    StixWaveLengthCoef(char type,
-                      StixParams &stixParams,
+                      StixParams &stix_params,
                       ReImPart re_im);
 
    StixWaveLengthCoef(StixCoefBase &s) : StixCoefBase(s) {}
@@ -288,41 +288,41 @@ public:
                        const IntegrationPoint &ip);
    virtual ~StixWaveLengthCoef() {}
 };
-  /*
+/*
 class StixDensityCoef: public Coefficient, public StixCoefBase
 {
 private:
-   real_t a_;
-   int p_;
+ real_t a_;
+ int p_;
 
 public:
-   StixDensityCoef(StixParams &stixParams,
-                   bool realPart,
-                   real_t a, int p);
+ StixDensityCoef(StixParams &stix_params,
+                 bool realPart,
+                 real_t a, int p);
 
-   StixDensityCoef(StixCoefBase &s) : StixCoefBase(s) {}
+ StixDensityCoef(StixCoefBase &s) : StixCoefBase(s) {}
 
-   virtual real_t Eval(ElementTransformation &T,
-                       const IntegrationPoint &ip);
-   virtual ~StixDensityCoef() {}
+ virtual real_t Eval(ElementTransformation &T,
+                     const IntegrationPoint &ip);
+ virtual ~StixDensityCoef() {}
 };
-  */
+*/
 class StixAdmittanceCoef: public Coefficient, public StixCoefBase
 {
 private:
-  char type_;
+   char type_;
 
 public:
-  StixAdmittanceCoef(char type, StixParams & stixParams, ReImPart re_im_part);
+   StixAdmittanceCoef(char type, StixParams & stix_params, ReImPart re_im_part);
 
    virtual real_t Eval(ElementTransformation &T,
-                       const IntegrationPoint &ip);  
+                       const IntegrationPoint &ip);
 };
-  
+
 class StixTensorBase: public StixCoefBase
 {
 public:
-   StixTensorBase(StixParams &stixParams, ReImPart re_im_part);
+   StixTensorBase(StixParams &stix_params, ReImPart re_im_part);
 
    StixTensorBase(StixCoefBase &s) : StixCoefBase(s) {}
 
@@ -337,7 +337,7 @@ protected:
 class DielectricTensor: public MatrixCoefficient, public StixTensorBase
 {
 public:
-   DielectricTensor(StixParams &stixParams, ReImPart re_im_part);
+   DielectricTensor(StixParams &stix_params, ReImPart re_im_part);
 
    DielectricTensor(StixCoefBase &s)
       : MatrixCoefficient(3), StixTensorBase(s) {}
@@ -351,7 +351,7 @@ public:
 class InverseDielectricTensor: public MatrixCoefficient, public StixTensorBase
 {
 public:
-   InverseDielectricTensor(StixParams &stixParams, ReImPart re_im_part);
+   InverseDielectricTensor(StixParams &stix_params, ReImPart re_im_part);
 
    InverseDielectricTensor(StixCoefBase &s)
       : MatrixCoefficient(3), StixTensorBase(s) {}
@@ -365,7 +365,7 @@ public:
 class SPDDielectricTensor: public MatrixCoefficient, public StixCoefBase
 {
 public:
-   SPDDielectricTensor(StixParams &stixParams);
+   SPDDielectricTensor(StixParams &stix_params);
 
    virtual void Eval(DenseMatrix &K, ElementTransformation &T,
                      const IntegrationPoint &ip);
