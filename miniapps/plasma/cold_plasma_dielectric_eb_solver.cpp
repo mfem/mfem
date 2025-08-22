@@ -26,178 +26,96 @@ using namespace common;
 namespace plasma
 {
 
-ElectricEnergyDensityCoef::ElectricEnergyDensityCoef(VectorCoefficient &Er,
-                                                     VectorCoefficient &Ei,
-                                                     MatrixCoefficient &epsr,
-                                                     MatrixCoefficient &epsi)
-   : ErCoef_(Er),
-     EiCoef_(Ei),
-     epsrCoef_(epsr),
-     epsiCoef_(epsi),
-     Er_(3),
-     Ei_(3),
-     Dr_(3),
-     Di_(3),
-     eps_r_(3),
-     eps_i_(3)
-{}
-
-real_t ElectricEnergyDensityCoef::Eval(ElementTransformation &T,
-                                       const IntegrationPoint &ip)
-{
-   ErCoef_.Eval(Er_, T, ip);
-   EiCoef_.Eval(Ei_, T, ip);
-
-   epsrCoef_.Eval(eps_r_, T, ip);
-   epsiCoef_.Eval(eps_i_, T, ip);
-
-   eps_r_.Mult(Er_, Dr_);
-   eps_i_.AddMult_a(-1.0, Ei_, Dr_);
-
-   eps_i_.Mult(Er_, Di_);
-   eps_r_.AddMult(Ei_, Di_);
-
-   real_t u = (Er_ * Dr_) + (Ei_ * Di_);
-
-   return 0.5 * u;
-}
-
-ElectricEnergyDensityEDCoef::ElectricEnergyDensityEDCoef(VectorCoefficient &Er,
-							 VectorCoefficient &Ei,
-							 VectorCoefficient &Dr,
-							 VectorCoefficient &Di)
-   : ErCoef_(Er),
-     EiCoef_(Ei),
-     DrCoef_(Dr),
-     DiCoef_(Di),
-     Er_(3),
-     Ei_(3),
-     Dr_(3),
-     Di_(3)
-{}
-
-real_t ElectricEnergyDensityEDCoef::Eval(ElementTransformation &T,
-					 const IntegrationPoint &ip)
-{
-   ErCoef_.Eval(Er_, T, ip);
-   EiCoef_.Eval(Ei_, T, ip);
-
-   DrCoef_.Eval(Dr_, T, ip);
-   DiCoef_.Eval(Di_, T, ip);
-
-   real_t u = (Er_ * Dr_) + (Ei_ * Di_);
-
-   return 0.5 * u;
-}
-
-MagneticEnergyDensityCoef::MagneticEnergyDensityCoef(real_t omega,
-                                                     VectorCoefficient &dEr,
-                                                     VectorCoefficient &dEi,
-                                                     Coefficient &muInv)
-   : omega_(omega),
-     dErCoef_(dEr),
-     dEiCoef_(dEi),
-     muInvCoef_(muInv),
-     Br_(3),
-     Bi_(3)
-{}
-
-real_t MagneticEnergyDensityCoef::Eval(ElementTransformation &T,
-                                       const IntegrationPoint &ip)
-{
-   dErCoef_.Eval(Bi_, T, ip); Bi_ /=  omega_;
-   dEiCoef_.Eval(Br_, T, ip); Br_ /= -omega_;
-
-   real_t muInv = muInvCoef_.Eval(T, ip);
-
-   real_t u = ((Br_ * Br_) + (Bi_ * Bi_)) * muInv;
-
-   return 0.5 * u;
-}
-
-EnergyDensityCoef::EnergyDensityCoef(real_t omega,
-                                     VectorCoefficient &Er,
-                                     VectorCoefficient &Ei,
-                                     VectorCoefficient &dEr,
-                                     VectorCoefficient &dEi,
-                                     MatrixCoefficient &epsr,
-                                     MatrixCoefficient &epsi,
-                                     Coefficient &muInv)
-   : omega_(omega),
-     ErCoef_(Er),
-     EiCoef_(Ei),
-     dErCoef_(dEr),
-     dEiCoef_(dEi),
-     epsrCoef_(epsr),
-     epsiCoef_(epsi),
-     muInvCoef_(muInv),
-     Er_(3),
-     Ei_(3),
-     Dr_(3),
-     Di_(3),
-     Br_(3),
-     Bi_(3),
-     eps_r_(3),
-     eps_i_(3)
-{}
-
-real_t EnergyDensityCoef::Eval(ElementTransformation &T,
+void ElectricFieldFromE::EvalE(ElementTransformation &T,
                                const IntegrationPoint &ip)
 {
    ErCoef_.Eval(Er_, T, ip);
    EiCoef_.Eval(Ei_, T, ip);
+}
 
-   dErCoef_.Eval(Bi_, T, ip); Bi_ /=  omega_;
-   dEiCoef_.Eval(Br_, T, ip); Br_ /= -omega_;
+void MagneticFluxFromCurlE::EvalB(ElementTransformation &T,
+                                  const IntegrationPoint &ip)
+{
+   dErCoef_.Eval(Bi_, T, ip); Bi_ /= -omega_;
+   dEiCoef_.Eval(Br_, T, ip); Br_ /=  omega_;
+}
 
+void ElectricFluxFromE::EvalD(ElementTransformation &T,
+                              const IntegrationPoint &ip)
+{
    epsrCoef_.Eval(eps_r_, T, ip);
    epsiCoef_.Eval(eps_i_, T, ip);
+
+   EvalE(T, ip);
 
    eps_r_.Mult(Er_, Dr_);
    eps_i_.AddMult_a(-1.0, Ei_, Dr_);
 
    eps_i_.Mult(Er_, Di_);
    eps_r_.AddMult(Ei_, Di_);
+}
+
+void MagneticFieldFromCurlE::EvalH(ElementTransformation &T,
+                                   const IntegrationPoint &ip)
+{
+   EvalB(T, ip);
 
    real_t muInv = muInvCoef_.Eval(T, ip);
 
-   real_t u = 2.*(Er_ * Dr_) + 2.*(Ei_ * Di_) + 0.*((Br_ * Br_) + (Bi_ * Bi_)) * muInv;
+   Hr_.Set(muInv, Br_);
+   Hi_.Set(muInv, Bi_);
+}
+
+real_t ElectricEnergyDensityReCoef::Eval(ElementTransformation &T,
+                                         const IntegrationPoint &ip)
+{
+   EvalD(T, ip);
+
+   real_t u = (Er_ * Dr_) + (Ei_ * Di_);
 
    return 0.5 * u;
 }
 
-PoyntingVectorReCoef::PoyntingVectorReCoef(real_t omega,
-                                           VectorCoefficient &Er,
-                                           VectorCoefficient &Ei,
-                                           VectorCoefficient &dEr,
-                                           VectorCoefficient &dEi,
-                                           Coefficient &muInv)
-   : VectorCoefficient(3),
-     omega_(omega),
-     ErCoef_(Er),
-     EiCoef_(Ei),
-     dErCoef_(dEr),
-     dEiCoef_(dEi),
-     muInvCoef_(muInv),
-     Er_(3),
-     Ei_(3),
-     Hr_(3),
-     Hi_(3)
-{}
+real_t ElectricEnergyDensityImCoef::Eval(ElementTransformation &T,
+                                         const IntegrationPoint &ip)
+{
+   EvalD(T, ip);
+
+   real_t u = (Ei_ * Dr_) - (Er_ * Di_);
+
+   return 0.5 * u;
+}
+
+real_t MagneticEnergyDensityReCoef::Eval(ElementTransformation &T,
+                                         const IntegrationPoint &ip)
+{
+   EvalH(T, ip);
+
+   real_t u = (Hr_ * Br_) + (Hi_ * Bi_);
+
+   return 0.5 * u;
+}
+
+real_t EnergyDensityReCoef::Eval(ElementTransformation &T,
+                                 const IntegrationPoint &ip)
+{
+   EvalD(T, ip);
+   EvalH(T, ip);
+
+   real_t u = Er_ * Dr_ + Ei_ * Di_ + Hr_ * Br_ + Hi_ * Bi_;
+
+   return 0.5 * u;
+}
 
 void PoyntingVectorReCoef::Eval(Vector &S, ElementTransformation &T,
                                 const IntegrationPoint &ip)
 {
-   ErCoef_.Eval(Er_, T, ip);
-   EiCoef_.Eval(Ei_, T, ip);
-
-   real_t muInv = muInvCoef_.Eval(T, ip);
-
-   dErCoef_.Eval(Hi_, T, ip); Hi_ *=  muInv / omega_;
-   dEiCoef_.Eval(Hr_, T, ip); Hr_ *= -muInv / omega_;
+   EvalE(T, ip);
+   EvalH(T, ip);
 
    S.SetSize(3);
 
+   // S = 1/2 E x Conj(H)
    S[0] = Er_[1] * Hr_[2] - Er_[2] * Hr_[1] +
           Ei_[1] * Hi_[2] - Ei_[2] * Hi_[1] ;
 
@@ -210,95 +128,36 @@ void PoyntingVectorReCoef::Eval(Vector &S, ElementTransformation &T,
    S *= 0.5;
 }
 
-PoyntingVectorImCoef::PoyntingVectorImCoef(real_t omega,
-                                           VectorCoefficient &Er,
-                                           VectorCoefficient &Ei,
-                                           VectorCoefficient &dEr,
-                                           VectorCoefficient &dEi,
-                                           Coefficient &muInv)
-   : VectorCoefficient(3),
-     omega_(omega),
-     ErCoef_(Er),
-     EiCoef_(Ei),
-     dErCoef_(dEr),
-     dEiCoef_(dEi),
-     muInvCoef_(muInv),
-     Er_(3),
-     Ei_(3),
-     Hr_(3),
-     Hi_(3)
-{}
-
 void PoyntingVectorImCoef::Eval(Vector &S, ElementTransformation &T,
                                 const IntegrationPoint &ip)
 {
-   ErCoef_.Eval(Er_, T, ip);
-   EiCoef_.Eval(Ei_, T, ip);
-
-   real_t muInv = muInvCoef_.Eval(T, ip);
-
-   dErCoef_.Eval(Hi_, T, ip); Hi_ *=  muInv / omega_;
-   dEiCoef_.Eval(Hr_, T, ip); Hr_ *= -muInv / omega_;
+   EvalE(T, ip);
+   EvalH(T, ip);
 
    S.SetSize(3);
 
-   S[0] = Er_[1] * Hi_[2] - Er_[2] * Hi_[1] -
-          Ei_[1] * Hr_[2] + Ei_[2] * Hr_[1] ;
+   // S = 1/2 E x Conj(H)
+   S[0] = -(Er_[1] * Hi_[2] - Er_[2] * Hi_[1]) +
+          Ei_[1] * Hr_[2] - Ei_[2] * Hr_[1];
 
-   S[1] = Er_[2] * Hi_[0] - Er_[0] * Hi_[2] -
-          Ei_[2] * Hr_[0] + Ei_[0] * Hr_[2] ;
+   S[1] = -(Er_[2] * Hi_[0] - Er_[0] * Hi_[2]) +
+          Ei_[2] * Hr_[0] - Ei_[0] * Hr_[2];
 
-   S[2] = Er_[0] * Hi_[1] - Er_[1] * Hi_[0] -
-          Ei_[0] * Hr_[1] + Ei_[1] * Hr_[0] ;
+   S[2] = -(Er_[0] * Hi_[1] - Er_[1] * Hi_[0]) +
+          Ei_[0] * Hr_[1] - Ei_[1] * Hr_[0];
 
    S *= 0.5;
 }
 
-MinkowskiMomentumDensityReCoef::MinkowskiMomentumDensityReCoef(real_t omega,
-                                                               VectorCoefficient &Er,
-                                                               VectorCoefficient &Ei,
-                                                               VectorCoefficient &dEr,
-                                                               VectorCoefficient &dEi,
-                                                               MatrixCoefficient &epsr,
-                                                               MatrixCoefficient &epsi)
-   : VectorCoefficient(3),
-     omega_(omega),
-     ErCoef_(Er),
-     EiCoef_(Ei),
-     dErCoef_(dEr),
-     dEiCoef_(dEi),
-     epsrCoef_(epsr),
-     epsiCoef_(epsi),
-     Er_(3),
-     Ei_(3),
-     Dr_(3),
-     Di_(3),
-     Br_(3),
-     Bi_(3),
-     epsr_(3),
-     epsi_(3)
-{}
-
 void MinkowskiMomentumDensityReCoef::Eval(Vector &G, ElementTransformation &T,
                                           const IntegrationPoint &ip)
 {
-   ErCoef_.Eval(Er_, T, ip);
-   EiCoef_.Eval(Ei_, T, ip);
-
-   dErCoef_.Eval(Bi_, T, ip); Bi_ *=  1.0 / omega_;
-   dEiCoef_.Eval(Br_, T, ip); Br_ *= -1.0 / omega_;
-
-   epsrCoef_.Eval(epsr_, T, ip);
-   epsiCoef_.Eval(epsi_, T, ip);
-
-   epsr_.Mult(Er_, Dr_);
-   epsi_.AddMult_a(-1.0, Ei_, Dr_);
-
-   epsr_.Mult(Ei_, Di_);
-   epsi_.AddMult(Er_, Di_);
+   EvalD(T, ip);
+   EvalB(T, ip);
 
    G.SetSize(3);
 
+   // 1/2 D x Conj(B)
    G[0] = Dr_[1] * Br_[2] - Dr_[2] * Br_[1] +
           Di_[1] * Bi_[2] - Di_[2] * Bi_[1] ;
 
@@ -311,59 +170,23 @@ void MinkowskiMomentumDensityReCoef::Eval(Vector &G, ElementTransformation &T,
    G *= 0.5;
 }
 
-MinkowskiMomentumDensityImCoef::MinkowskiMomentumDensityImCoef(real_t omega,
-                                                               VectorCoefficient &Er,
-                                                               VectorCoefficient &Ei,
-                                                               VectorCoefficient &dEr,
-                                                               VectorCoefficient &dEi,
-                                                               MatrixCoefficient &epsr,
-                                                               MatrixCoefficient &epsi)
-   : VectorCoefficient(3),
-     omega_(omega),
-     ErCoef_(Er),
-     EiCoef_(Ei),
-     dErCoef_(dEr),
-     dEiCoef_(dEi),
-     epsrCoef_(epsr),
-     epsiCoef_(epsi),
-     Er_(3),
-     Ei_(3),
-     Dr_(3),
-     Di_(3),
-     Br_(3),
-     Bi_(3),
-     epsr_(3),
-     epsi_(3)
-{}
-
 void MinkowskiMomentumDensityImCoef::Eval(Vector &G, ElementTransformation &T,
                                           const IntegrationPoint &ip)
 {
-   ErCoef_.Eval(Er_, T, ip);
-   EiCoef_.Eval(Ei_, T, ip);
-
-   dErCoef_.Eval(Bi_, T, ip); Bi_ *=  1.0 / omega_;
-   dEiCoef_.Eval(Br_, T, ip); Br_ *= -1.0 / omega_;
-
-   epsrCoef_.Eval(epsr_, T, ip);
-   epsiCoef_.Eval(epsi_, T, ip);
-
-   epsr_.Mult(Er_, Dr_);
-   epsi_.AddMult_a(-1.0, Ei_, Dr_);
-
-   epsr_.Mult(Ei_, Di_);
-   epsi_.AddMult(Er_, Di_);
+   EvalD(T, ip);
+   EvalB(T, ip);
 
    G.SetSize(3);
 
-   G[0] = Dr_[1] * Br_[2] - Dr_[2] * Br_[1] -
-          Di_[1] * Bi_[2] + Di_[2] * Bi_[1] ;
+   // 1/2 D x Conj(B)
+   G[0] = -(Dr_[1] * Bi_[2] - Dr_[2] * Bi_[1]) +
+          Di_[1] * Br_[2] - Di_[2] * Br_[1] ;
 
-   G[1] = Dr_[2] * Br_[0] - Dr_[0] * Br_[2] -
-          Di_[2] * Bi_[0] + Di_[0] * Bi_[2] ;
+   G[1] = -(Dr_[2] * Bi_[0] - Dr_[0] * Bi_[2]) +
+          Di_[2] * Br_[0] - Di_[0] * Br_[2] ;
 
-   G[2] = Dr_[0] * Br_[1] - Dr_[1] * Br_[0] -
-          Di_[0] * Bi_[1] + Di_[1] * Bi_[0] ;
+   G[2] = -(Dr_[0] * Bi_[1] - Dr_[1] * Bi_[0]) +
+          Di_[0] * Br_[1] - Di_[1] * Br_[0] ;
 
    G *= 0.5;
 }
@@ -1190,8 +1013,8 @@ void ElectricEnergyDensityVisObject::PrepareVisField(const
    VectorGridFunctionCoefficient Er(&e.real());
    VectorGridFunctionCoefficient Ei(&e.imag());
 
-   ElectricEnergyDensityCoef ur(Er, Ei, epsr, epsi);
-   ConstantCoefficient ui(0.0);
+   ElectricEnergyDensityReCoef ur(Er, Ei, epsr, epsi);
+   ElectricEnergyDensityImCoef ui(Er, Ei, epsr, epsi);
 
    this->PrepareVisField(ur, ui, NULL, NULL);
 }
@@ -1235,8 +1058,8 @@ void MagneticEnergyDensityVisObject::PrepareVisField(const
    CurlGridFunctionCoefficient dEr(&e.real());
    CurlGridFunctionCoefficient dEi(&e.imag());
 
-   MagneticEnergyDensityCoef ur(omega, dEr, dEi, muInv);
-   ConstantCoefficient ui(0.0);
+   MagneticEnergyDensityReCoef ur(omega, dEr, dEi, muInv);
+   MagneticEnergyDensityImCoef ui;
 
    this->PrepareVisField(ur, ui, NULL, NULL);
 }
@@ -1258,8 +1081,8 @@ void EnergyDensityVisObject::PrepareVisField(const ParComplexGridFunction &e,
    CurlGridFunctionCoefficient dEr(&e.real());
    CurlGridFunctionCoefficient dEi(&e.imag());
 
-   EnergyDensityCoef ur(omega, Er, Ei, dEr, dEi, epsr, epsi, muInv);
-   ConstantCoefficient ui(0.0);
+   EnergyDensityReCoef ur(omega, Er, Ei, dEr, dEi, epsr, epsi, muInv);
+   EnergyDensityImCoef ui(omega, Er, Ei, dEr, dEi, epsr, epsi, muInv);
 
    this->PrepareVisField(ur, ui, NULL, NULL);
 }

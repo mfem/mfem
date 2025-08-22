@@ -108,157 +108,228 @@ public:
  }
 };
 */
-class ElectricEnergyDensityCoef : public Coefficient
-{
-public:
-   ElectricEnergyDensityCoef(VectorCoefficient &Er, VectorCoefficient &Ei,
-                             MatrixCoefficient &epsr, MatrixCoefficient &epsi);
-
-   real_t Eval(ElementTransformation &T,
-               const IntegrationPoint &ip);
-
-private:
-   VectorCoefficient &ErCoef_;
-   VectorCoefficient &EiCoef_;
-   MatrixCoefficient &epsrCoef_;
-   MatrixCoefficient &epsiCoef_;
-
-   mutable Vector Er_;
-   mutable Vector Ei_;
-   mutable Vector Dr_;
-   mutable Vector Di_;
-   mutable DenseMatrix eps_r_;
-   mutable DenseMatrix eps_i_;
-};
-
+/*
 class ElectricEnergyDensityEDCoef : public Coefficient
 {
 public:
-  ElectricEnergyDensityEDCoef(VectorCoefficient &Er, VectorCoefficient &Ei,
-			      VectorCoefficient &Dr, VectorCoefficient &Di);
+ ElectricEnergyDensityEDCoef(VectorCoefficient &Er, VectorCoefficient &Ei,
+           VectorCoefficient &Dr, VectorCoefficient &Di);
 
-   real_t Eval(ElementTransformation &T,
-               const IntegrationPoint &ip);
+ real_t Eval(ElementTransformation &T,
+             const IntegrationPoint &ip);
 
 private:
+ VectorCoefficient &ErCoef_;
+ VectorCoefficient &EiCoef_;
+ VectorCoefficient &DrCoef_;
+ VectorCoefficient &DiCoef_;
+
+ mutable Vector Er_;
+ mutable Vector Ei_;
+ mutable Vector Dr_;
+ mutable Vector Di_;
+};
+*/
+class ElectricFieldFromE
+{
+protected:
+   ElectricFieldFromE(VectorCoefficient &Er,
+                      VectorCoefficient &Ei)
+      : ErCoef_(Er), EiCoef_(Ei), Er_(3), Ei_(3)
+   {}
+
+   virtual void EvalE(ElementTransformation &T,
+                      const IntegrationPoint &ip);
+
    VectorCoefficient &ErCoef_;
    VectorCoefficient &EiCoef_;
-   VectorCoefficient &DrCoef_;
-   VectorCoefficient &DiCoef_;
 
    mutable Vector Er_;
    mutable Vector Ei_;
-   mutable Vector Dr_;
-   mutable Vector Di_;
 };
 
-class MagneticEnergyDensityCoef : public Coefficient
+class MagneticFluxFromCurlE
 {
-public:
-   MagneticEnergyDensityCoef(real_t omega,
-                             VectorCoefficient &dEr, VectorCoefficient &dEi,
-                             Coefficient &muInv);
+protected:
+   MagneticFluxFromCurlE(real_t omega,
+                         VectorCoefficient &dEr,
+                         VectorCoefficient &dEi)
+      : omega_(omega), dErCoef_(dEr), dEiCoef_(dEi), Br_(3), Bi_(3)
+   {}
 
-   real_t Eval(ElementTransformation &T,
-               const IntegrationPoint &ip);
+   virtual void EvalB(ElementTransformation &T,
+                      const IntegrationPoint &ip);
 
-private:
    real_t omega_;
 
    VectorCoefficient &dErCoef_;
    VectorCoefficient &dEiCoef_;
-   Coefficient &muInvCoef_;
 
    mutable Vector Br_;
    mutable Vector Bi_;
 };
 
-class EnergyDensityCoef : public Coefficient
+class ElectricFluxFromE : public ElectricFieldFromE
 {
-public:
-   EnergyDensityCoef(real_t omega,
-                     VectorCoefficient &Er, VectorCoefficient &Ei,
-                     VectorCoefficient &dEr, VectorCoefficient &dEi,
-                     MatrixCoefficient &epsr, MatrixCoefficient &epsi,
-                     Coefficient &muInv);
+protected:
+   ElectricFluxFromE(VectorCoefficient &Er,
+                     VectorCoefficient &Ei,
+                     MatrixCoefficient &epsr,
+                     MatrixCoefficient &epsi)
+      : ElectricFieldFromE(Er, Ei),
+        epsrCoef_(epsr), epsiCoef_(epsi), Dr_(3), Di_(3), eps_r_(3), eps_i_(3)
+   {}
 
-   real_t Eval(ElementTransformation &T,
-               const IntegrationPoint &ip);
+   virtual void EvalD(ElementTransformation &T,
+                      const IntegrationPoint &ip);
 
-private:
-   real_t omega_;
-
-   VectorCoefficient &ErCoef_;
-   VectorCoefficient &EiCoef_;
-   VectorCoefficient &dErCoef_;
-   VectorCoefficient &dEiCoef_;
    MatrixCoefficient &epsrCoef_;
    MatrixCoefficient &epsiCoef_;
-   Coefficient &muInvCoef_;
 
-   mutable Vector Er_;
-   mutable Vector Ei_;
    mutable Vector Dr_;
    mutable Vector Di_;
-   mutable Vector Br_;
-   mutable Vector Bi_;
    mutable DenseMatrix eps_r_;
    mutable DenseMatrix eps_i_;
 };
 
-class PoyntingVectorReCoef : public VectorCoefficient
+class MagneticFieldFromCurlE : public MagneticFluxFromCurlE
+{
+protected:
+   MagneticFieldFromCurlE(real_t omega,
+                          VectorCoefficient &dEr,
+                          VectorCoefficient &dEi,
+                          Coefficient &muInv)
+      : MagneticFluxFromCurlE(omega, dEr, dEi),
+        muInvCoef_(muInv), Hr_(3), Hi_(3)
+   {}
+
+   virtual void EvalH(ElementTransformation &T,
+                      const IntegrationPoint &ip);
+
+   Coefficient &muInvCoef_;
+
+   mutable Vector Hr_;
+   mutable Vector Hi_;
+};
+
+class ElectricEnergyDensityReCoef : public Coefficient,
+   public ElectricFluxFromE
+{
+public:
+   ElectricEnergyDensityReCoef(VectorCoefficient &Er,
+                               VectorCoefficient &Ei,
+                               MatrixCoefficient &epsr,
+                               MatrixCoefficient &epsi)
+      : ElectricFluxFromE(Er, Ei, epsr, epsi) {}
+
+
+   real_t Eval(ElementTransformation &T,
+               const IntegrationPoint &ip);
+};
+
+class ElectricEnergyDensityImCoef : public Coefficient,
+   public ElectricFluxFromE
+{
+public:
+   ElectricEnergyDensityImCoef(VectorCoefficient &Er,
+                               VectorCoefficient &Ei,
+                               MatrixCoefficient &epsr,
+                               MatrixCoefficient &epsi)
+      : ElectricFluxFromE(Er, Ei, epsr, epsi) {}
+
+   real_t Eval(ElementTransformation &T,
+               const IntegrationPoint &ip);
+};
+
+class MagneticEnergyDensityReCoef : public Coefficient,
+   public MagneticFieldFromCurlE
+{
+public:
+   MagneticEnergyDensityReCoef(real_t omega,
+                               VectorCoefficient &dEr,
+                               VectorCoefficient &dEi,
+                               Coefficient &muInv)
+      : MagneticFieldFromCurlE(omega, dEr, dEi, muInv) {}
+
+   real_t Eval(ElementTransformation &T,
+               const IntegrationPoint &ip);
+};
+
+class MagneticEnergyDensityImCoef : public ConstantCoefficient
+{
+public:
+   MagneticEnergyDensityImCoef() : ConstantCoefficient(0.0) {}
+};
+
+class EnergyDensityReCoef : public Coefficient,
+   public ElectricFluxFromE,
+   public MagneticFieldFromCurlE
+{
+public:
+   EnergyDensityReCoef(real_t omega,
+                       VectorCoefficient &Er, VectorCoefficient &Ei,
+                       VectorCoefficient &dEr, VectorCoefficient &dEi,
+                       MatrixCoefficient &epsr, MatrixCoefficient &epsi,
+                       Coefficient &muInv)
+      : ElectricFluxFromE(Er, Ei, epsr, epsi),
+        MagneticFieldFromCurlE(omega, dEr, dEi, muInv)
+   {}
+
+   real_t Eval(ElementTransformation &T,
+               const IntegrationPoint &ip);
+};
+
+class EnergyDensityImCoef : public ElectricEnergyDensityImCoef
+{
+public:
+   EnergyDensityImCoef(real_t omega,
+                       VectorCoefficient &Er, VectorCoefficient &Ei,
+                       VectorCoefficient &dEr, VectorCoefficient &dEi,
+                       MatrixCoefficient &epsr, MatrixCoefficient &epsi,
+                       Coefficient &muInv)
+      : ElectricEnergyDensityImCoef(Er, Ei, epsr, epsi)
+   {}
+};
+
+class PoyntingVectorReCoef : public VectorCoefficient,
+   public ElectricFieldFromE,
+   public MagneticFieldFromCurlE
 {
 public:
    PoyntingVectorReCoef(real_t omega,
                         VectorCoefficient &Er, VectorCoefficient &Ei,
                         VectorCoefficient &dEr, VectorCoefficient &dEi,
-                        Coefficient &muInv);
+                        Coefficient &muInv)
+      : VectorCoefficient(3),
+        ElectricFieldFromE(Er, Ei),
+        MagneticFieldFromCurlE(omega, dEr, dEi, muInv)
+   {}
 
    void Eval(Vector &S, ElementTransformation &T,
              const IntegrationPoint &ip);
-
-private:
-   real_t omega_;
-
-   VectorCoefficient &ErCoef_;
-   VectorCoefficient &EiCoef_;
-   VectorCoefficient &dErCoef_;
-   VectorCoefficient &dEiCoef_;
-   Coefficient &muInvCoef_;
-
-   mutable Vector Er_;
-   mutable Vector Ei_;
-   mutable Vector Hr_;
-   mutable Vector Hi_;
 };
 
-class PoyntingVectorImCoef : public VectorCoefficient
+class PoyntingVectorImCoef : public VectorCoefficient,
+   public ElectricFieldFromE,
+   public MagneticFieldFromCurlE
 {
 public:
    PoyntingVectorImCoef(real_t omega,
                         VectorCoefficient &Er, VectorCoefficient &Ei,
                         VectorCoefficient &dEr, VectorCoefficient &dEi,
-                        Coefficient &muInv);
+                        Coefficient &muInv)
+      : VectorCoefficient(3),
+        ElectricFieldFromE(Er, Ei),
+        MagneticFieldFromCurlE(omega, dEr, dEi, muInv)
+   {}
 
    void Eval(Vector &S, ElementTransformation &T,
              const IntegrationPoint &ip);
-
-private:
-   real_t omega_;
-
-   VectorCoefficient &ErCoef_;
-   VectorCoefficient &EiCoef_;
-   VectorCoefficient &dErCoef_;
-   VectorCoefficient &dEiCoef_;
-   Coefficient &muInvCoef_;
-
-   mutable Vector Er_;
-   mutable Vector Ei_;
-   mutable Vector Hr_;
-   mutable Vector Hi_;
 };
 
-class MinkowskiMomentumDensityReCoef : public VectorCoefficient
+class MinkowskiMomentumDensityReCoef : public VectorCoefficient,
+   public ElectricFluxFromE,
+   public MagneticFluxFromCurlE
 {
 public:
    MinkowskiMomentumDensityReCoef(real_t omega,
@@ -267,32 +338,19 @@ public:
                                   VectorCoefficient &dEr,
                                   VectorCoefficient &dEi,
                                   MatrixCoefficient &epsr,
-                                  MatrixCoefficient &epsi);
+                                  MatrixCoefficient &epsi)
+      : VectorCoefficient(3),
+        ElectricFluxFromE(Er, Ei, epsr, epsi),
+        MagneticFluxFromCurlE(omega, dEr, dEi)
+   {}
 
    void Eval(Vector &S, ElementTransformation &T,
              const IntegrationPoint &ip);
-
-private:
-   real_t omega_;
-
-   VectorCoefficient &ErCoef_;
-   VectorCoefficient &EiCoef_;
-   VectorCoefficient &dErCoef_;
-   VectorCoefficient &dEiCoef_;
-   MatrixCoefficient &epsrCoef_;
-   MatrixCoefficient &epsiCoef_;
-
-   mutable Vector Er_;
-   mutable Vector Ei_;
-   mutable Vector Dr_;
-   mutable Vector Di_;
-   mutable Vector Br_;
-   mutable Vector Bi_;
-   mutable DenseMatrix epsr_;
-   mutable DenseMatrix epsi_;
 };
 
-class MinkowskiMomentumDensityImCoef : public VectorCoefficient
+class MinkowskiMomentumDensityImCoef : public VectorCoefficient,
+   public ElectricFluxFromE,
+   public MagneticFluxFromCurlE
 {
 public:
    MinkowskiMomentumDensityImCoef(real_t omega,
@@ -301,29 +359,14 @@ public:
                                   VectorCoefficient &dEr,
                                   VectorCoefficient &dEi,
                                   MatrixCoefficient &epsr,
-                                  MatrixCoefficient &epsi);
+                                  MatrixCoefficient &epsi)
+      : VectorCoefficient(3),
+        ElectricFluxFromE(Er, Ei, epsr, epsi),
+        MagneticFluxFromCurlE(omega, dEr, dEi)
+   {}
 
    void Eval(Vector &S, ElementTransformation &T,
              const IntegrationPoint &ip);
-
-private:
-   real_t omega_;
-
-   VectorCoefficient &ErCoef_;
-   VectorCoefficient &EiCoef_;
-   VectorCoefficient &dErCoef_;
-   VectorCoefficient &dEiCoef_;
-   MatrixCoefficient &epsrCoef_;
-   MatrixCoefficient &epsiCoef_;
-
-   mutable Vector Er_;
-   mutable Vector Ei_;
-   mutable Vector Dr_;
-   mutable Vector Di_;
-   mutable Vector Br_;
-   mutable Vector Bi_;
-   mutable DenseMatrix epsr_;
-   mutable DenseMatrix epsi_;
 };
 
 class TensorCompCoef : public Coefficient
