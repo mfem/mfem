@@ -119,8 +119,8 @@ void StixBCs::AddNeumannBC(const Array<int> & bdr,
 }
 
 void StixBCs::AddSommerfeldBC(const Array<int> & bdr,
-			      Coefficient &real_val,
-			      Coefficient &imag_val)
+                              Coefficient &real_val,
+                              Coefficient &imag_val)
 {
    for (int i=0; i<bdr.Size(); i++)
    {

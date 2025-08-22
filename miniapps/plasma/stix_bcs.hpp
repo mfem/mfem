@@ -50,7 +50,8 @@ class StixBCs
 {
 public:
    enum BCType {DIRICHLET_BC, NEUMANN_BC, SOMMERFELD_BC, SHEATH_BC,
-		CYL_AXIS, CURRENT_SRC};
+                CYL_AXIS, CURRENT_SRC
+               };
 
 private:
    Array<ComplexVectorCoefficientByAttr*>  dbc; // Dirichlet BC data
@@ -90,8 +91,8 @@ public:
 
    // First order absorbing boundary condition
    void AddSommerfeldBC(const Array<int> & bdr,
-			Coefficient &real_admit,
-			Coefficient &imag_admit);
+                        Coefficient &real_admit,
+                        Coefficient &imag_admit);
 
    // Model a non-linear plasma sheath on boundaries with attributes in bdr
    void AddSheathBC(const Array<int> & bdr,
