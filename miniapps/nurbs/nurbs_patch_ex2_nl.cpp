@@ -392,15 +392,20 @@ int main(int argc, char *argv[])
    // Verify mesh is valid for this problem
    MFEM_VERIFY(mesh.IsNURBS(), "Example is for NURBS meshes");
    MFEM_VERIFY(mesh.GetNodes(), "NURBS mesh must have nodes");
-   // if (mesh.attributes.Max() < 2 || mesh.bdr_attributes.Max() < 2)
-   // {
-   //    cout << "\nInput mesh should have at least two boundary"
-   //         << "attributes! (See schematic in ex2.cpp)\n"
-   //         << endl;
-   // }
+   if (mesh.attributes.Max() < 2 || mesh.bdr_attributes.Max() < 2)
+   {
+      cout << "\nInput mesh should have at least two boundary"
+           << "attributes! (See schematic in ex2.cpp)\n"
+           << endl;
+   }
 
    if (nurbs_degree_increase > 0) { mesh.DegreeElevate(nurbs_degree_increase); }
    if (refinement_factor > 1) { mesh.NURBSUniformRefinement(refinement_factor); }
+
+   // ofstream orig_ofs("ho_mesh.mesh");
+   // orig_ofs.precision(8);
+   // mesh.Print(orig_ofs);
+   // cout << "High-Order mesh written to ho_mesh.mesh" << endl;
 
    // 5. Define a finite element space on the mesh.
    FiniteElementCollection * fec = mesh.GetNodes()->OwnFEC();
@@ -443,16 +448,15 @@ int main(int argc, char *argv[])
    // 9. Set up the nonlinear form F
 
    // Lame parameters -> Mooney-Rivlin coefficients
+   // (to compare behavior with ex2)
    Vector C1(mesh.attributes.Max());
    Vector D1(mesh.attributes.Max());
-   // int lambda1 = 1.0;
-   // int lambda2 = lambda1*50;
-   // int mu1 = 1.0;
-   // int mu2 = mu1*50;
-   // C1 = 0.5 * mu1; C1(0) = 0.5 * mu2;
-   // D1 = 0.5 * (lambda1 + 2.0/3 * mu1); D1(0) = 0.5 * (lambda2 + 2.0/3 * mu2);
+   int lambda1 = 1.0; int lambda2 = lambda1*50;
+   int mu1 = 1.0; int mu2 = mu1*50;
+   C1 = 0.5 * mu1; C1(0) = 0.5 * mu2;
+   D1 = 0.5 * (lambda1 + 2.0/3 * mu1); D1(0) = 0.5 * (lambda2 + 2.0/3 * mu2);
 
-   C1 = 0.5; D1 = 2.83333;
+   // C1 = 0.5; D1 = 2.83333333333; // lambda = 5.0, mu = 1.0
    // C1 = 5.0; D1 = 1.0; //lambda, mu
 
    PWConstCoefficient C1_func(C1);
@@ -471,26 +475,27 @@ int main(int argc, char *argv[])
    cout << "done." << endl;
 
    // Form system
-   CGSolver lsolver;
-   lsolver.SetAbsTol(0);
-   lsolver.SetRelTol(1e-4);
-   lsolver.SetMaxIter(500);
-   lsolver.SetPrintLevel(2);
-
-   // GMRESSolver lsolver;
+   // CGSolver lsolver;
    // lsolver.iterative_mode = true;
-   // lsolver.SetRelTol(1e-12);
    // lsolver.SetAbsTol(0);
-   // lsolver.SetMaxIter(300);
+   // lsolver.SetRelTol(1e-4);
+   // lsolver.SetMaxIter(500);
+   // lsolver.SetPrintLevel(2);
+
+   GMRESSolver lsolver;
+   lsolver.iterative_mode = true;
+   lsolver.SetRelTol(1e-6);
+   lsolver.SetAbsTol(0);
+   lsolver.SetMaxIter(1000);
 
    // Set up the nonlinear solver
    NewtonSolver newton;
-   newton.iterative_mode = true;
+   newton.iterative_mode = false;
    newton.SetOperator(F);
    newton.SetAbsTol(0);
-   // newton.SetAbsTol(1e-6);
+   newton.SetAbsTol(1e-6);
    newton.SetRelTol(1e-6);
-   newton.SetMaxIter(20);
+   newton.SetMaxIter(100);
    newton.SetSolver(lsolver);
    newton.SetPrintLevel(1);
 
@@ -518,7 +523,7 @@ int main(int argc, char *argv[])
    // x = Y;
    x = X;
 
-   cout << " x = " << endl; x.Print();
+   // cout << " x = " << endl; x.Print();
 
    // OperatorPtr A;
    // a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
