@@ -164,10 +164,11 @@ void NeoHookeanNLFIntegrator::MultPatch(const Vector &pa_data,
 
    // 2) Apply the "D" operator at each quadrature point: D( gradu )
    PatchApplyKernel3D(pb, pa_data, NeoHookeanStress<3>, gradu, S);
+   // PatchApplyKernel3D(pb, pa_data, LinearElasticStress<3>, gradu, S);
 
    // 3) Apply test function gradv
    PatchGT3D<3>(pb, S, sumXYv, sumXv, y);
-   cout << "done add mult" << endl;
+   // cout << "done add mult" << endl;
 
 }
 
@@ -201,7 +202,6 @@ void NeoHookeanNLFIntegrator::MultGradPatch(const Vector &pa_data,
    const int NQ = pb.NQ;
    MFEM_VERIFY((pb.dim == 3) && (vdim == 3), "Dimension mismatch.");
 
-   // gradu(i,j,q): d/d(x_j) u_i(x_q)
    Vector graduv(vdim*vdim*NQ);
    graduv = 0.0;
    auto gradu = Reshape(graduv.HostReadWrite(), vdim, vdim, Q1D[0], Q1D[1], Q1D[2]);
@@ -225,10 +225,11 @@ void NeoHookeanNLFIntegrator::MultGradPatch(const Vector &pa_data,
 
    // 2) Apply the "D" operator at each quadrature point: D( gradu )
    PatchApplyGradKernel3D(pb, pa_data, GradNeoHookeanStress<3>, gradu, dgradu, S);
+   // PatchApplyKernel3D(pb, pa_data, LinearElasticStress<3>, dgradu, S);
 
    // 3) Apply test function gradv
    PatchGT3D<3>(pb, S, sumXYv, sumXv, y);
-   cout << "done add mult" << endl;
+   // cout << "done add mult" << endl;
 
 }
 
@@ -251,7 +252,7 @@ void NeoHookeanNLFIntegrator::MultGrad(const Vector &x, Vector &y) const
 
       y.AddElementVector(vdofs, yp);
    }
-   cout << "done mult grad" << endl;
+   // cout << "done mult grad" << endl;
 }
 
 void NeoHookeanNLFIntegrator::Update(const Vector &x)
@@ -280,6 +281,7 @@ private:
       {
          z = x;
          z.SetSubVector(residual->ess_tdofs, 0.0);
+         y = 0.0;
 
          residual->F1->MultGrad(z, y);
 
@@ -289,6 +291,7 @@ private:
          {
             d_y[residual->ess_tdofs[i]] = d_x[residual->ess_tdofs[i]];
          }
+
       }
 
       // Pointer to the wrapped Residual operator
@@ -314,18 +317,25 @@ Residual::Residual(NeoHookeanNLFIntegrator *F1_, FiniteElementSpace &fespace, Li
 
 void Residual::Mult(const Vector &x, Vector &y) const
 {
+   // cout << "debugging, x = " << endl; x.Print();
+   y = 0.0;
+
    F1->Mult(x, y);
 
    // Add the boundary terms
    const real_t* v = F2->HostRead();
    for (int i = 0; i < F2->Size(); ++i)
    {
-      y[i] += v[i];
+      y[i] -= v[i];
    }
+
 
    y.SetSubVector(ess_tdofs, 0.0);
 
-   cout << "Residual::Mult" << endl;
+   // cout << endl << endl << "debugging, y = " << endl; y.Print();
+   // cout << endl << endl << "debugging, esstdofs = " << endl; ess_tdofs.Print();
+
+   // cout << "Residual::Mult" << endl;
 }
 
 Operator &Residual::GetGradient(const Vector &x) const
@@ -333,7 +343,7 @@ Operator &Residual::GetGradient(const Vector &x) const
    // action of gradient is calculated by the NeoHookeanNLFIntegrator, so update its data
    F1->Update(x);
    J = std::make_shared<Jacobian>(this);
-   cout << "Residual::GetGradient" << endl;
+   // cout << "Residual::GetGradient" << endl;
    return *J;
 }
 
@@ -382,12 +392,12 @@ int main(int argc, char *argv[])
    // Verify mesh is valid for this problem
    MFEM_VERIFY(mesh.IsNURBS(), "Example is for NURBS meshes");
    MFEM_VERIFY(mesh.GetNodes(), "NURBS mesh must have nodes");
-   if (mesh.attributes.Max() < 2 || mesh.bdr_attributes.Max() < 2)
-   {
-      cout << "\nInput mesh should have at least two boundary"
-           << "attributes! (See schematic in ex2.cpp)\n"
-           << endl;
-   }
+   // if (mesh.attributes.Max() < 2 || mesh.bdr_attributes.Max() < 2)
+   // {
+   //    cout << "\nInput mesh should have at least two boundary"
+   //         << "attributes! (See schematic in ex2.cpp)\n"
+   //         << endl;
+   // }
 
    if (nurbs_degree_increase > 0) { mesh.DegreeElevate(nurbs_degree_increase); }
    if (refinement_factor > 1) { mesh.NURBSUniformRefinement(refinement_factor); }
@@ -435,12 +445,15 @@ int main(int argc, char *argv[])
    // Lame parameters -> Mooney-Rivlin coefficients
    Vector C1(mesh.attributes.Max());
    Vector D1(mesh.attributes.Max());
-   int lambda1 = 1.0;
-   int lambda2 = lambda1*50;
-   int mu1 = 1.0;
-   int mu2 = mu1*50;
-   C1 = 0.5 * mu1; C1(0) = 0.5 * mu2;
-   D1 = 0.5 * (lambda1 + 2.0/3 * mu1); D1(0) = 0.5 * (lambda2 + 2.0/3 * mu2);
+   // int lambda1 = 1.0;
+   // int lambda2 = lambda1*50;
+   // int mu1 = 1.0;
+   // int mu2 = mu1*50;
+   // C1 = 0.5 * mu1; C1(0) = 0.5 * mu2;
+   // D1 = 0.5 * (lambda1 + 2.0/3 * mu1); D1(0) = 0.5 * (lambda2 + 2.0/3 * mu2);
+
+   C1 = 0.5; D1 = 2.83333;
+   // C1 = 5.0; D1 = 1.0; //lambda, mu
 
    PWConstCoefficient C1_func(C1);
    PWConstCoefficient D1_func(D1);
@@ -459,36 +472,53 @@ int main(int argc, char *argv[])
 
    // Form system
    CGSolver lsolver;
-   lsolver.SetAbsTol(0.0);
+   lsolver.SetAbsTol(0);
    lsolver.SetRelTol(1e-4);
    lsolver.SetMaxIter(500);
    lsolver.SetPrintLevel(2);
 
-   // GMRESSolver *lsolver = new GMRESSolver();
-   // lsolver->iterative_mode = false;
-   // lsolver->SetRelTol(1e-12);
-   // lsolver->SetAbsTol(1e-12);
-   // lsolver->SetMaxIter(300);
+   // GMRESSolver lsolver;
+   // lsolver.iterative_mode = true;
+   // lsolver.SetRelTol(1e-12);
+   // lsolver.SetAbsTol(0);
+   // lsolver.SetMaxIter(300);
 
    // Set up the nonlinear solver
    NewtonSolver newton;
+   newton.iterative_mode = true;
    newton.SetOperator(F);
-   newton.SetAbsTol(1e-6);
+   newton.SetAbsTol(0);
+   // newton.SetAbsTol(1e-6);
    newton.SetRelTol(1e-6);
-   newton.SetMaxIter(10);
+   newton.SetMaxIter(20);
    newton.SetSolver(lsolver);
    newton.SetPrintLevel(1);
 
    // Solve
-   // H1.GetRestrictionMatrix()->Mult(u, X);
    Vector zero;
    Vector X(fespace.GetTrueVSize());
+   // fespace.GetRestrictionMatrix()->Mult(x, X);
+   // fespace.GetRestrictionOperator()->Mult(x, X);
    newton.Mult(zero, X);
-   // H1.GetProlongationMatrix()->Mult(X, u);
-   // Vector B, X;
-   // F.SetEssentialTrueDofs(ess_tdof_list);
 
+   // debugging - linear
+   // X[4] = 0.01;
+   // cout << "debugging, X = " << endl; X.Print();
+   // Vector Y(fespace.GetTrueVSize());
+   // F.Mult(X,Y);
+   // cout << "debugging, F(X) = " << endl;
+   // Y.Print();
 
+   // fespace.GetProlongationMatrix()->Mult(X, x);
+   // fespace.GetProlongationOperator()->Mult(X, x);
+
+   // IdentityOperator I(fespace.GetTrueVSize());
+   // I.Mult(Y, x);
+   // x.SyncMemory(Y);
+   // x = Y;
+   x = X;
+
+   cout << " x = " << endl; x.Print();
 
    // OperatorPtr A;
    // a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
@@ -509,6 +539,32 @@ int main(int argc, char *argv[])
    // cout << "Done solving system." << endl;
    // // Recover the solution as a finite element grid function.
    // a.RecoverFEMSolution(X, b, x);
+
+   {
+      cout << "Saving mesh and solution to file..." << endl;
+      GridFunction *nodes = mesh.GetNodes();
+      *nodes += x;
+      x *= -1;
+      ofstream mesh_ofs("displaced.mesh");
+      mesh_ofs.precision(8);
+      mesh.Print(mesh_ofs);
+      ofstream sol_ofs("sol.gf");
+      sol_ofs.precision(16);
+      x.Save(sol_ofs);
+   }
+
+   // 15. Send the data by socket to a GLVis server.
+   if (visualization)
+   {
+      // send to socket
+      char vishost[] = "localhost";
+      socketstream sol_sock(vishost, visport);
+      sol_sock.precision(8);
+      sol_sock << "solution\n" << mesh << x;
+      sol_sock << "window_geometry " << 100 << " " << 800 << " "
+               << 600 << " " << 600 << "\n"
+               << "keys agc\n" << std::flush;
+   }
 
 
 

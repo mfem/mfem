@@ -323,10 +323,12 @@ NeoHookeanStress(const Vector coeffs,
    const real_t C1 = coeffs(0);
    const real_t D1 = coeffs(1);
    static constexpr auto I = mfem::future::IsotropicIdentity<dim>();
-   const auto J = det(I + dudx);
-   const auto p = -2.0 * D1 * J * (J - 1);
+   const auto j = det(I + dudx);
+   // const auto j = det(dudx);
+   // std::cout << "debugging: j = " << j << std::endl;
+   const auto p = -2.0 * D1 * j * (j - 1);
    const auto devB = dev(dudx + transpose(dudx) + dot(dudx, transpose(dudx)));
-   auto stress = -(p / J) * I + 2 * (C1 / pow(J, 5.0 / 3.0)) * devB;
+   auto stress = -(p / j) * I + 2 * (C1 / pow(j, 5.0 / 3.0)) * devB;
    return stress;
 }
 
