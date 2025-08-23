@@ -258,7 +258,7 @@ void DiscreteAdaptTC::ComputeAllElementTargets(const FiniteElementSpace &pa_fes,
    if (current_W_type != fe.GetGeomType())
    {
       current_W_type = fe.GetGeomType();
-      W = Geometries.GetGeomToPerfGeomJac(current_W_type);
+      current_W = Geometries.GetGeomToPerfGeomJac(current_W_type);
    }
    const DofToQuad::Mode mode = DofToQuad::TENSOR;
    const DofToQuad &maps = fe.GetDofToQuad(ir, mode);
@@ -287,12 +287,12 @@ void DiscreteAdaptTC::ComputeAllElementTargets(const FiniteElementSpace &pa_fes,
    if (dim == 2)
    {
       MFEM_LAUNCH_TMOP_KERNEL(DatcSize_2D,id,NE,ncomp,sizeidx,input_min_size,
-                              W, B,tspec_e, nc_size_red, Jtr);
+                              current_W, B,tspec_e, nc_size_red, Jtr);
    }
    else
    {
       MFEM_LAUNCH_TMOP_KERNEL(DatcSize_3D,id,NE,ncomp,sizeidx,input_min_size,
-                              W, B, tspec_e, nc_size_red, Jtr);
+                              current_W, B, tspec_e, nc_size_red, Jtr);
    }
 }
 
