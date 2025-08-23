@@ -63,6 +63,7 @@ MFEM_REGISTER_TMOP_KERNELS(bool, TC_IDEAL_SHAPE_GIVEN_SIZE_3D_KERNEL,
 {
    constexpr int DIM = 3;
 
+   w_.HostRead(); // DenseMatrix::Det requires matrix on host.
    const real_t detW = w_.Det();
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -128,7 +129,11 @@ TargetConstructor::ComputeAllElementTargets<3>(const FiniteElementSpace &fes,
    MFEM_VERIFY(!fes.IsVariableOrder(), "variable orders are not supported");
    const FiniteElement &fe = *fes.GetTypicalFE();
    MFEM_VERIFY(fe.GetGeomType() == Geometry::CUBE, "");
-   const DenseMatrix &W = Geometries.GetGeomToPerfGeomJac(Geometry::CUBE);
+   if (current_W_type != Geometry::CUBE)
+   {
+      current_W_type = Geometry::CUBE;
+      W = Geometries.GetGeomToPerfGeomJac(current_W_type);
+   }
    const DofToQuad::Mode mode = DofToQuad::TENSOR;
    const DofToQuad &maps = fe.GetDofToQuad(ir, mode);
    const Array<real_t> &B = maps.B;
