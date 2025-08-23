@@ -255,7 +255,11 @@ void DiscreteAdaptTC::ComputeAllElementTargets(const FiniteElementSpace &pa_fes,
                "mixed meshes are not supported");
    MFEM_VERIFY(!fes->IsVariableOrder(), "variable orders are not supported");
    const FiniteElement &fe = *fes->GetTypicalFE();
-   const DenseMatrix &W = Geometries.GetGeomToPerfGeomJac(fe.GetGeomType());
+   if (current_W_type != fe.GetGeomType())
+   {
+      current_W_type = fe.GetGeomType();
+      current_W = Geometries.GetGeomToPerfGeomJac(current_W_type);
+   }
    const DofToQuad::Mode mode = DofToQuad::TENSOR;
    const DofToQuad &maps = fe.GetDofToQuad(ir, mode);
    const Array<real_t> &B = maps.B;
@@ -283,12 +287,12 @@ void DiscreteAdaptTC::ComputeAllElementTargets(const FiniteElementSpace &pa_fes,
    if (dim == 2)
    {
       MFEM_LAUNCH_TMOP_KERNEL(DatcSize_2D,id,NE,ncomp,sizeidx,input_min_size,
-                              W, B,tspec_e, nc_size_red, Jtr);
+                              current_W, B,tspec_e, nc_size_red, Jtr);
    }
    else
    {
       MFEM_LAUNCH_TMOP_KERNEL(DatcSize_3D,id,NE,ncomp,sizeidx,input_min_size,
-                              W, B, tspec_e, nc_size_red, Jtr);
+                              current_W, B, tspec_e, nc_size_red, Jtr);
    }
 }
 
