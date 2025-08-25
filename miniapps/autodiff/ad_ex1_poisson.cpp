@@ -59,7 +59,13 @@ int main(int argc, char *argv[])
    GridFunction x(&fes);
    x = 0.0;
    SparseMatrix &op = static_cast<SparseMatrix&>(nlf.GetGradient(x));
-   UMFPackSolver lin_solver(op);
+   CGSolver lin_solver;
+   GSSmoother prec;
+   lin_solver.SetPreconditioner(prec);
+   lin_solver.SetOperator(op);
+   lin_solver.SetRelTol(1e-12);
+   lin_solver.SetAbsTol(0.0);
+   lin_solver.SetMaxIter(1e04);
    lin_solver.Mult(load, x);
    GLVis glvis("localhost", 19916);
    glvis.Append(x, "x", "Rjc");

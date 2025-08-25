@@ -37,8 +37,10 @@ add_mfem_miniapp(ad_ex0 MAIN ad_ex0_simple.cpp ${SEQADIFF_COMMON_FILES} LIBRARIE
 add_mfem_miniapp(ad_ex1 MAIN ad_ex1_poisson.cpp ${SEQADIFF_COMMON_FILES} LIBRARIES mfem)
 add_mfem_miniapp(ad_ex2 MAIN ad_ex2_minsurf.cpp ${SEQADIFF_COMMON_FILES} LIBRARIES mfem)
 add_mfem_miniapp(ad_ex3 MAIN ad_ex3_elast.cpp ${SEQADIFF_COMMON_FILES} LIBRARIES mfem)
-add_mfem_miniapp(ad_ex4 MAIN ad_ex4_obstacle_pg.cpp ${SEQADIFF_COMMON_FILES} LIBRARIES mfem)
-add_mfem_miniapp(ad_ex5 MAIN ad_ex5_gradobstacle_pg.cpp ${SEQADIFF_COMMON_FILES} LIBRARIES mfem)
+if (MFEM_USE_MUMPS)
+  add_mfem_miniapp(ad_ex4 MAIN ad_ex4_obstacle_pg.cpp ${SEQADIFF_COMMON_FILES} LIBRARIES mfem)
+  add_mfem_miniapp(ad_ex5 MAIN ad_ex5_gradobstacle_pg.cpp ${SEQADIFF_COMMON_FILES} LIBRARIES mfem)
+endif ()
 add_mfem_miniapp(ad_ex6 MAIN ad_ex6_darcy_mixed.cpp ${SEQADIFF_COMMON_FILES} LIBRARIES mfem)
 
 #

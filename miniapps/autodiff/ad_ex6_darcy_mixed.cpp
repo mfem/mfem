@@ -113,8 +113,33 @@ int main(int argc, char *argv[])
    b.ParallelAssemble(rhs.GetBlock(1));
    rhs.GetBlock(0) = 0.0;
 
-   MUMPSMonoSolver lin_solver(comm);
-   lin_solver.SetOperator(bnlf.GetGradient(flux_and_potential));
+   GMRESSolver lin_solver(comm);
+   lin_solver.SetRelTol(1e-08);
+   lin_solver.SetAbsTol(0.0);
+   lin_solver.SetMaxIter(1e04);
+   lin_solver.SetKDim(100);
+
+   BlockOperator &darcy_op = bnlf.GetGradient(flux_and_potential);
+   Vector Md(flux_fes.GetTrueVSize());
+   HypreParMatrix &M = static_cast<HypreParMatrix&>(darcy_op.GetBlock(0,0));
+   HypreParMatrix &B = static_cast<HypreParMatrix&>(darcy_op.GetBlock(1,0));
+   M.GetDiag(Md);
+   HypreParMatrix invMBt(static_cast<HypreParMatrix&>(darcy_op.GetBlock(0,1)));
+   invMBt.InvScaleRows(Md);
+   std::unique_ptr<HypreParMatrix> S(ParMult(&B, &invMBt));
+   BlockDiagonalPreconditioner prec(offsets);
+   HypreDiagScale invM(M);
+   HypreBoomerAMG invS(*S);
+   invS.SetPrintLevel(0);
+   invM.iterative_mode = false;
+   invS.iterative_mode = false;
+   invS.SetMaxIter(1);
+   prec.SetDiagonalBlock(0, &invM);
+   prec.SetDiagonalBlock(1, &invS);
+   prec.owns_blocks = false;
+
+   lin_solver.SetPreconditioner(prec);
+   lin_solver.SetOperator(darcy_op);
    lin_solver.Mult(rhs, flux_and_potential);
    flux.SetFromTrueDofs(flux_and_potential.GetBlock(0));
    potential.SetFromTrueDofs(flux_and_potential.GetBlock(1));

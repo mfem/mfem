@@ -149,6 +149,9 @@ int main(int argc, char *argv[])
    Array<Vector*> rhs_list{&rhs.GetBlock(0), &rhs.GetBlock(1)};
    bnlf.SetEssentialBC(is_bdr_ess, rhs_list);
 
+#ifndef MFEM_USE_MUMPS
+#error "MUMPS is required to run this example."
+#endif
    MUMPSMonoSolver lin_solver(comm);
    NewtonSolver solver(comm);
    solver.SetSolver(lin_solver);
