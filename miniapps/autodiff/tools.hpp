@@ -156,7 +156,7 @@ public:
 #endif
 
 inline std::tuple<std::unique_ptr<FiniteElementSpace>, std::unique_ptr<L2_FECollection>>
-QSpaceToFESpace(QuadratureSpace &qs)
+      QSpaceToFESpace(QuadratureSpace &qs)
 {
    Mesh *mesh = qs.GetMesh();
    const int dim = mesh->Dimension();

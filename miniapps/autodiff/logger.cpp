@@ -150,7 +150,7 @@ bool GLVis::Append(GridFunction *gf, QuadratureFunction *qf,
       nrrank.Last() = pmesh->GetNRanks();
       myrank.Last() = pmesh->GetMyRank();
       socket << "parallel " << nrrank.Last() << " " << myrank.Last() <<
-                "\n";
+             "\n";
    }
 #endif
    if (is_gf)
@@ -233,7 +233,7 @@ void GLVis::Update()
       if (parallel[i])
       {
          *sockets[i] << "parallel " << nrrank[i] << " " << myrank[i] <<
-                        "\n";
+                     "\n";
       }
 #endif
       if (gfs[i] != nullptr)

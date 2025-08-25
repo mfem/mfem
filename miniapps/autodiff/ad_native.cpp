@@ -294,7 +294,7 @@ void Lagrangian::ProcessParameters(ElementTransformation &Tr,
 }
 
 ALFunctional ALFunctional::AddEqConstraint(ADFunction &constraint,
-      real_t target)
+                                           real_t target)
 {
    eq_con.push_back(&constraint);
    int numCon = eq_con.size();

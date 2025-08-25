@@ -88,7 +88,8 @@ protected:
    }
 
 public:
-   ADPGFunctional(ADFunction &f, ADEntropy &dual_entropy, Evaluator::param_t alpha, int idx=0)
+   ADPGFunctional(ADFunction &f, ADEntropy &dual_entropy, Evaluator::param_t alpha,
+                  int idx=0)
       : ADFunction(f.n_input + dual_entropy.n_input, 1)
       , f(f), dual_entropy{&dual_entropy}
       , primal_idx(1)
@@ -136,7 +137,8 @@ public:
    }
 
    ADPGFunctional(ADFunction &f, std::vector<ADEntropy*> dual_entropy,
-                  std::vector<GridFunction*> latent_k_gf, std::vector<int> &primal_begin, Evaluator::param_t alpha)
+                  std::vector<GridFunction*> latent_k_gf, std::vector<int> &primal_begin,
+                  Evaluator::param_t alpha)
       : ADPGFunctional(f, std::move(dual_entropy), primal_begin, alpha)
    {
       MFEM_VERIFY(latent_k_gf.size() == this->dual_entropy.size(),
@@ -153,12 +155,15 @@ public:
       }
    }
    // Multiple entropies
-   ADPGFunctional(ADFunction &f, std::vector<std::unique_ptr<ADEntropy>> &dual_entropy,
+   ADPGFunctional(ADFunction &f,
+                  std::vector<std::unique_ptr<ADEntropy>> &dual_entropy,
                   std::vector<int> &primal_begin, Evaluator::param_t alpha)
       : ADPGFunctional(f, uniquevec2ptrvec(dual_entropy), primal_begin, alpha)
    {}
-   ADPGFunctional(ADFunction &f, std::vector<std::unique_ptr<ADEntropy>> &dual_entropy,
-                  std::vector<std::unique_ptr<GridFunction>> &latent_k_gf, std::vector<int> primal_begin, Evaluator::param_t alpha)
+   ADPGFunctional(ADFunction &f,
+                  std::vector<std::unique_ptr<ADEntropy>> &dual_entropy,
+                  std::vector<std::unique_ptr<GridFunction>> &latent_k_gf,
+                  std::vector<int> primal_begin, Evaluator::param_t alpha)
       : ADPGFunctional(f, uniquevec2ptrvec(dual_entropy),
                        uniquevec2ptrvec(latent_k_gf), primal_begin, alpha)
    {}
@@ -287,7 +292,8 @@ protected:
    mutable real_t shift;
    mutable real_t scale;
 public:
-   FermiDiracEntropy(Evaluator::param_t lower_bound, Evaluator::param_t upper_bound)
+   FermiDiracEntropy(Evaluator::param_t lower_bound,
+                     Evaluator::param_t upper_bound)
       : ADEntropy(1, 2)
       , upper_bound(*evaluator.val.GetData())
       , lower_bound(*(evaluator.val.GetData()+1))
@@ -461,7 +467,8 @@ public:
       offsets = &blocks->RowOffsets();
       MFEM_VERIFY(offsets->Size() == 3, "Only two blocks supported");
 
-      const HypreParMatrix * A = dynamic_cast<const HypreParMatrix*>(&blocks->GetBlock(0,0));
+      const HypreParMatrix * A = dynamic_cast<const HypreParMatrix*>
+                                 (&blocks->GetBlock(0,0));
       MFEM_VERIFY(A != nullptr, "Not a HypreParMatrix");
       stiffness_prec = std::make_unique<HypreBoomerAMG>(*A);
       stiffness_prec->SetPrintLevel(0);
@@ -568,7 +575,7 @@ public:
       {
          for (int i=0; i<prefix; i++) { out << " "; }
          out << "Average Linear Solver Iterations: " << (numIterations /
-               (it + 1.)) << std::endl;
+                                                         (it + 1.)) << std::endl;
          numIterations = 0;
          return;
       }

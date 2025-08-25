@@ -304,10 +304,10 @@ void ADNonlinearFormIntegrator<mode>::AssembleFaceGrad(
 
 template <ADEval... modes>
 inline std::array<int, sizeof...(modes)>
-                              ADBlockNonlinearFormIntegrator<modes...>::InitInputShapes(
-                                 const Array<const FiniteElement *>& els,
-                                 ElementTransformation &Tr,
-                                 std::vector<DenseMatrix> &shapes)
+ADBlockNonlinearFormIntegrator<modes...>::InitInputShapes(
+   const Array<const FiniteElement *>& els,
+   ElementTransformation &Tr,
+   std::vector<DenseMatrix> &shapes)
 {
    MFEM_ASSERT(els.Size() == numSpaces,
                "ADBlockNonlinearFormIntegrator: "
