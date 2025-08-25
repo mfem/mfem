@@ -13,11 +13,11 @@ int Evaluator::GetSize(const param_t &param)
       }
       if constexpr (std::is_same_v<T, Vector>)
       {
-         return 1;
+         return arg.Size();
       }
       if constexpr (std::is_same_v<T, DenseMatrix>)
       {
-         return 1;
+         return arg.TotalSize();
       }
       if constexpr (std::is_same_v<T, const real_t*>)
       {
