@@ -16,7 +16,6 @@
 
 #include <cmath>
 #include <iostream>
-#include <limits>
 #if defined(_MSC_VER) && (_MSC_VER < 1800)
 #include <float.h>
 #define isfinite _finite
@@ -119,11 +118,7 @@ public:
        with SetData(). */
    TAutoDiffVector(dtype *_data, int _size)
    {
-      if (capacity > 0)
-      {
-         delete[] data;
-         capacity = 0;
-      }
+      capacity = 0;
       size = _size;
       data = _data;
    }
@@ -315,7 +310,7 @@ public:
    /// Dot product with a `dtype *` array.
    dtype operator*(const dtype *v) const
    {
-      dtype dot = 0.0;
+      dtype dot = {};
       for (int i = 0; i < size; i++)
       {
          dot += data[i] * v[i];
@@ -327,7 +322,7 @@ public:
    dtype operator*(const TAutoDiffVector<dtype> &v) const
    {
       MFEM_ASSERT(size == v.Size(), "incompatible Vectors!");
-      dtype dot = 0.0;
+      dtype dot = {};
       for (int i = 0; i < size; i++)
       {
          dot += data[i] * v[i];
@@ -338,7 +333,7 @@ public:
    dtype operator*(const Vector &v) const
    {
       MFEM_ASSERT(size == v.Size(), "incompatible Vectors!");
-      dtype dot = 0.0;
+      dtype dot = {};
       for (int i = 0; i < size; i++)
       {
          dot += data[i] * v[i];
@@ -586,7 +581,7 @@ public:
    }
 
    /// Destroys vector.
-   ~TAutoDiffVector() { delete[] data; }
+   ~TAutoDiffVector() { if (OwnsData()) { delete[] data; } }
 
    /// Prints vector to stream @a os with @a width entries per line.
    void Print(std::ostream &os = mfem::out, int width = 8) const
@@ -649,8 +644,8 @@ public:
          return abs(data[0]);
       } // end if 1 == size
 
-      dtype scale = 0.0;
-      dtype sum = 0.0;
+      dtype scale = {};
+      dtype sum = {};
 
       for (int i = 0; i < size; i++)
       {
@@ -674,7 +669,7 @@ public:
    /// Returns the l_infinity norm of the vector.
    dtype Normlinf() const
    {
-      dtype max = 0.0;
+      dtype max = {};
       for (int i = 0; i < size; i++)
       {
          max = max(abs(data[i]), max);
@@ -684,7 +679,7 @@ public:
    /// Returns the l_1 norm of the vector.
    dtype Norml1() const
    {
-      dtype sum = 0.0;
+      dtype sum = {};
       for (int i = 0; i < size; i++)
       {
          sum += abs(data[i]);
