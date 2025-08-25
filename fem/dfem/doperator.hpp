@@ -276,14 +276,6 @@ public:
          {
             action(solutions_l, parameters_l, residual_l);
          }
-      }
-
-      if (mult_level == MultLevel::LVECTOR)
-      {
-         // nothing
-      }
-      else
-      {
          prolongation_transpose(residual_l, result_in);
       }
    }
