@@ -170,6 +170,7 @@ int main(int argc, char *argv[])
    real_t kappa = -1.0;
    real_t sigma = -1.0;
    bool visualization = false;
+   bool visit = false;
    //    #if MFEM_HYPRE_VERSION >= 21800
    //    PrecType prec_type = PrecType::AIR;
    // #else
@@ -206,6 +207,9 @@ int main(int argc, char *argv[])
    args.AddOption(&paraview, "-paraview", "--paraview-datafiles", "-no-paraview",
                   "--no-paraview-datafiles",
                   "Save data files for ParaView (paraview.org) visualization.");
+   args.AddOption(&visit, "-visit", "--visit-datafiles", "-no-visit",
+                  "--no-visit-datafiles",
+                  "Save data files for VisIt (visit.llnl.gov) visualization.");
    args.AddOption(&adios2, "-adios2", "--adios2-streams", "-no-adios2",
                   "--no-adios2-streams",
                   "Save data using adios2 streams.");
@@ -360,6 +364,29 @@ int main(int argc, char *argv[])
       osol.precision(precision);
       u->Save(osol);
    }
+   DataCollection *dc = NULL;
+   if (visit)
+   {
+      if (binary)
+      {
+#ifdef MFEM_USE_SIDRE
+         dc = new SidreDataCollection("Example41-Parallel", pmesh);
+#else
+         MFEM_ABORT("Must build with MFEM_USE_SIDRE=YES for binary output.");
+#endif
+      }
+      else
+      {
+         dc = new VisItDataCollection("Example41-Parallel", pmesh);
+         dc->SetPrecision(precision);
+         // To save the mesh using MFEM's parallel mesh format:
+         // dc->SetFormat(DataCollection::PARALLEL_FORMAT);
+      }
+      dc->RegisterField("solution", u);
+      dc->SetCycle(0);
+      dc->SetTime(0.0);
+      dc->Save();
+   }
    ParaViewDataCollection *pd = NULL;
    if (paraview)
    {
@@ -406,6 +433,26 @@ int main(int argc, char *argv[])
          }
       }
    }
+   #ifdef MFEM_USE_ADIOS2
+   ADIOS2DataCollection *adios2_dc = NULL;
+   if (adios2)
+   {
+      std::string postfix(mesh_file);
+      postfix.erase(0, std::string("../data/").size() );
+      postfix += "_o" + std::to_string(order);
+      const std::string collection_name = "ex41-p-" + postfix + ".bp";
+
+      adios2_dc = new ADIOS2DataCollection(MPI_COMM_WORLD, collection_name, pmesh);
+      // output data substreams are half the number of mpi processes
+      adios2_dc->SetParameter("SubStreams", std::to_string(num_procs/2) );
+      // adios2_dc->SetLevelsOfDetail(2);
+      adios2_dc->RegisterField("solution", u);
+      adios2_dc->SetCycle(0);
+      adios2_dc->SetTime(0.0);
+      adios2_dc->Save();
+   }
+#endif
+
 
    // 10. Define the time-dependent evolution operator describing the ODE
    //    right-hand side, and perform time-integration (looping over the time
@@ -444,6 +491,15 @@ int main(int argc, char *argv[])
             pd->SetTime(t);
             pd->Save();
          }
+#ifdef MFEM_USE_ADIOS2
+         // transient solutions can be visualized with ParaView
+         if (adios2)
+         {
+            adios2_dc->SetCycle(ti);
+            adios2_dc->SetTime(t);
+            adios2_dc->Save();
+         }
+#endif
       }
    }
 
@@ -467,6 +523,7 @@ int main(int argc, char *argv[])
    delete m;
    delete fes;
    delete pmesh;
+   delete dc;
 
    return 0;
 }

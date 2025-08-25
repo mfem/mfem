@@ -134,8 +134,12 @@ int main(int argc, char *argv[])
    bool paraview = false;
    int vis_steps = 50;
    real_t diffusion_term = 0.01;
-   real_t kappa = (order+1)*(order+1);
+   real_t kappa = -1.0;
    real_t sigma = -1.0;
+   bool visualization = true;
+   bool visit = false;
+   bool binary = false;
+   int precision = 8;
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh", "Mesh file to use.");
    args.AddOption(&problem, "-p", "--problem",
@@ -154,6 +158,15 @@ int main(int argc, char *argv[])
                   "Save data files for ParaView (paraview.org) visualization.");
    args.AddOption(&vis_steps, "-vs", "--visualization-steps",
                   "Visualize every n-th timestep.");
+   args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
+                  "--no-visualization",
+                  "Enable or disable GLVis visualization.");
+   args.AddOption(&binary, "-binary", "--binary-datafiles", "-ascii",
+                  "--ascii-datafiles",
+                  "Use binary (Sidre) or ascii format for VisIt data files.");
+   args.AddOption(&visit, "-visit", "--visit-datafiles", "-no-visit",
+                  "--no-visit-datafiles",
+                  "Save data files for VisIt (visit.llnl.gov) visualization.");
    args.Parse();
    if (!args.Good())
    {
@@ -234,6 +247,30 @@ int main(int argc, char *argv[])
    GridFunction u(&fes);
    u.ProjectCoefficient(u0);
 
+   // Create data collection for solution output: either VisItDataCollection for
+   // ascii data files, or SidreDataCollection for binary data files.
+   DataCollection *dc = NULL;
+   if (visit)
+   {
+      if (binary)
+      {
+#ifdef MFEM_USE_SIDRE
+         dc = new SidreDataCollection("Example41", &mesh);
+#else
+         MFEM_ABORT("Must build with MFEM_USE_SIDRE=YES for binary output.");
+#endif
+      }
+      else
+      {
+         dc = new VisItDataCollection("Example41", &mesh);
+         dc->SetPrecision(precision);
+      }
+      dc->RegisterField("solution", &u);
+      dc->SetCycle(0);
+      dc->SetTime(0.0);
+      dc->Save();
+   }
+
    // 8. Set up paraview visualization, if desired.
    unique_ptr<ParaViewDataCollection> pv;
    if (paraview)
@@ -247,6 +284,29 @@ int main(int argc, char *argv[])
       pv->SetCycle(0);
       pv->SetTime(0.0);
       pv->Save();
+   }
+   socketstream sout;
+   if (visualization)
+   {
+      char vishost[] = "localhost";
+      int  visport   = 19916;
+      sout.open(vishost, visport);
+      if (!sout)
+      {
+         cout << "Unable to connect to GLVis server at "
+              << vishost << ':' << visport << endl;
+         visualization = false;
+         cout << "GLVis visualization disabled.\n";
+      }
+      else
+      {
+         sout.precision(precision);
+         sout << "solution\n" << mesh << u;
+         sout << "pause\n";
+         sout << flush;
+         cout << "GLVis visualization paused."
+              << " Press space (in the GLVis window) to resume it.\n";
+      }
    }
 
    // 9. Define the time-dependent evolution operator describing the ODE
@@ -276,8 +336,26 @@ int main(int argc, char *argv[])
             pv->SetTime(t);
             pv->Save();
          }
+         if (visualization)
+         {
+            sout << "solution\n" << mesh << u << flush;
+         }
+         if (visit)
+         {
+            dc->SetCycle(ti);
+            dc->SetTime(t);
+            dc->Save();
+         }
+
       }
    }
+
+   {
+      ofstream osol("ex41-final.gf");
+      osol.precision(precision);
+      u.Save(osol);
+   }
+
    return 0;
 }
 
