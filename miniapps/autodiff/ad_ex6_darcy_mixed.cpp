@@ -15,7 +15,7 @@ struct DarcyFunctional : public ADVectorFunction
    // output: coefficient for w, divw, v -> dim + 1 + 1 (w, v are test functions)
    DarcyFunctional(int dim) : ADVectorFunction(dim + 1 + 1, dim + 1 + 1),
       dim(dim) {}
-   // (q, w) + (div w, u) -> res[w] = q, res[divw] = u
+   // (q, w) - (div w, u) -> res[w] = q, res[divw] = -u
    // (div q, v) -> res[v] = div q
    AD_VEC_IMPL(T, V, M, q_divq_u, res,
    {
@@ -28,7 +28,7 @@ struct DarcyFunctional : public ADVectorFunction
       T &divw_cf = res[dim];
       T &v_cf = res[dim+1];
       w_cf = q;
-      divw_cf = u;
+      divw_cf = -u;
       v_cf = divq;
    });
 };
@@ -111,7 +111,6 @@ int main(int argc, char *argv[])
    b.AddDomainIntegrator(new DomainLFIntegrator(load_cf));
    b.Assemble();
    b.ParallelAssemble(rhs.GetBlock(1));
-   rhs.GetBlock(1).Neg();
    rhs.GetBlock(0) = 0.0;
 
    MUMPSMonoSolver lin_solver(comm);
@@ -130,9 +129,10 @@ int main(int argc, char *argv[])
    });
    VectorFunctionCoefficient exact_flux(dim, [](const Vector &x, Vector &q)
    {
+      // flux = - grad u
       q.SetSize(x.Size());
-      q[0] = M_PI*std::cos(M_PI*x[0])*std::sin(M_PI*x[1]);
-      q[1] = M_PI*std::sin(M_PI*x[0])*std::cos(M_PI*x[1]);
+      q[0] = -M_PI*std::cos(M_PI*x[0])*std::sin(M_PI*x[1]);
+      q[1] = -M_PI*std::sin(M_PI*x[0])*std::cos(M_PI*x[1]);
    });
    out << "L2 Error in Potential: "
        << potential.ComputeL2Error(exact_potential) << std::endl;
