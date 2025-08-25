@@ -10,7 +10,7 @@
 // CONTRIBUTING.md for details.
 
 #include "filteredsolver.hpp"
-
+#include "sparsemat.hpp"
 
 namespace mfem
 {
