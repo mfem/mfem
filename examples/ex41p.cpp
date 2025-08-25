@@ -554,7 +554,6 @@ IMEX_Evolution::IMEX_Evolution(ParBilinearForm &M_, ParBilinearForm &K_,
    {
       A.Reset(A_.ParallelAssemble(), true);
       HypreParMatrix &M_mat = *M.As<HypreParMatrix>();
-      HypreParMatrix &K_mat = *K.As<HypreParMatrix>();
       HypreParMatrix &S_mat = *S.As<HypreParMatrix>();
       HypreSmoother *hypre_prec = new HypreSmoother(M_mat, HypreSmoother::Jacobi);
       M_prec = hypre_prec;
