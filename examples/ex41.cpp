@@ -115,7 +115,7 @@ public:
    IMEX_Evolution(BilinearForm &M_, BilinearForm &K_, BilinearForm &S_,
                   const Vector &b_);
 
-   void Mult1(const Vector &x, Vector &y) const;
+   void Mult1(const Vector &x, Vector &y) const override;
    void ImplicitSolve2(const real_t dt, const Vector &x, Vector &k) override;
 };
 
