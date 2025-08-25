@@ -15,7 +15,7 @@
 #include "../config/config.hpp"
 #include "operator.hpp"
 #include "handle.hpp"
-
+#include <memory>
 
 namespace mfem
 {
