@@ -131,6 +131,8 @@ void FilteredSolver::Mult(const Vector &b, Vector &x) const
    x+=z;
 }
 
+#ifdef MFEM_USE_MPI
+
 void AMGFSolver::SetOperator(const Operator &A_)
 {
    auto Ah = dynamic_cast<const HypreParMatrix*>(&A_);
@@ -142,5 +144,7 @@ void AMGFSolver::SetFilteredSubspaceTransferOperator(const HypreParMatrix &Pop)
 {
    FilteredSolver::SetFilteredSubspaceTransferOperator(Pop);
 }
+
+#endif
 
 } // namespace mfem
