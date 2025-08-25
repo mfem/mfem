@@ -48,16 +48,15 @@ Vector bb_min, bb_max;
 class DG_Solver : public Solver
 {
 private:
-   HypreParMatrix &M, &K, &S;
+   HypreParMatrix &M, &S;
    HypreParMatrix *A;
    CGSolver linear_solver;
    real_t dt;
    SparseMatrix M_diag;
 public:
-   DG_Solver(HypreParMatrix &M_, HypreParMatrix &K_, HypreParMatrix &S_,
+   DG_Solver(HypreParMatrix &M_, HypreParMatrix &S_,
              const FiniteElementSpace &fes)
       : M(M_),
-        K(K_),
         S(S_),
         A(nullptr),
         linear_solver(M.GetComm()),
@@ -503,7 +502,7 @@ IMEX_Evolution::IMEX_Evolution(ParBilinearForm &M_, ParBilinearForm &K_,
       HypreSmoother *hypre_prec = new HypreSmoother(M_mat, HypreSmoother::Jacobi);
       M_prec = hypre_prec;
 
-      dg_solver = new DG_Solver(M_mat, K_mat, S_mat, *M_.FESpace());
+      dg_solver = new DG_Solver(M_mat, S_mat, *M_.FESpace());
       lor_solver = new LORSolver<HypreBoomerAMG>(A_, ess_tdof_list);
       lor_solver->GetSolver().SetSystemsOptions(A_.ParFESpace()->GetVDim(), true);
       dg_solver -> SetPreconditioner(*lor_solver);

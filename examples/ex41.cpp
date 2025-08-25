@@ -49,15 +49,14 @@ Vector bb_min, bb_max;
 class DG_Solver : public Solver
 {
 private:
-   SparseMatrix &M, &K, &S, A;
+   SparseMatrix &M, &S, A;
    CGSolver linear_solver;
    BlockILU prec;
    real_t dt;
 public:
-   DG_Solver(SparseMatrix &M_, SparseMatrix &K_, SparseMatrix &S_,
+   DG_Solver(SparseMatrix &M_, SparseMatrix &S_,
              const FiniteElementSpace &fes)
       : M(M_),
-        K(K_),
         S(S_),
         prec(fes.GetTypicalFE()->GetDof(),
              BlockILU::Reordering::MINIMUM_DISCARDED_FILL),
@@ -294,7 +293,7 @@ IMEX_Evolution::IMEX_Evolution(BilinearForm &M_, BilinearForm &K_,
    {
       M_prec = make_unique<DSmoother>(M.SpMat());
       M_solver.SetOperator(M.SpMat());
-      dg_solver = make_unique<DG_Solver>(M.SpMat(), K.SpMat(), S.SpMat(),
+      dg_solver = make_unique<DG_Solver>(M.SpMat(), S.SpMat(),
                                          *M.FESpace());
    }
    else
