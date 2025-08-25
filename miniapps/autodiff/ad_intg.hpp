@@ -318,9 +318,9 @@ protected:
    }
 
    std::array<int, sizeof...(modes)> InitInputShapes(
-                             const Array<const FiniteElement *>& el,
-                             ElementTransformation &Tr,
-                             std::vector<DenseMatrix> &shapes);
+      const Array<const FiniteElement *>& el,
+      ElementTransformation &Tr,
+      std::vector<DenseMatrix> &shapes);
 
    void CalcInputShapes(
       const Array<const FiniteElement *>& el,
