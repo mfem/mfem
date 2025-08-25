@@ -73,8 +73,13 @@ int main(int argc, char *argv[])
    GridFunction x(&fes);
    x = 0.0;
    x.ProjectBdrCoefficient(bdry_cf, is_bdr_ess);
+   CGSolver lin_solver;
+   GSSmoother prec;
+   lin_solver.SetPreconditioner(prec);
+   lin_solver.SetRelTol(1e-12);
+   lin_solver.SetAbsTol(0.0);
+   lin_solver.SetMaxIter(1e04);
    NewtonSolver solver;
-   UMFPackSolver lin_solver;
    solver.SetSolver(lin_solver);
    solver.SetOperator(nlf);
    solver.SetAbsTol(1e-10);
