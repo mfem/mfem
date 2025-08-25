@@ -59,7 +59,7 @@ public:
       : M(M_),
         K(K_),
         S(S_),
-	A(nullptr),
+        A(nullptr),
         linear_solver(M.GetComm()),
         dt(1.0)
    {
@@ -129,9 +129,9 @@ public:
    virtual
    ~IMEX_Evolution()
    {
-       delete dg_solver;
-       delete lor_solver;
-       delete M_prec;
+      delete dg_solver;
+      delete lor_solver;
+      delete M_prec;
    }
 
    virtual
