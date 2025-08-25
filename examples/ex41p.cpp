@@ -433,7 +433,7 @@ int main(int argc, char *argv[])
          }
       }
    }
-   #ifdef MFEM_USE_ADIOS2
+#ifdef MFEM_USE_ADIOS2
    ADIOS2DataCollection *adios2_dc = NULL;
    if (adios2)
    {
