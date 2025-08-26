@@ -1751,4 +1751,66 @@ real_t EulerFlux::ComputeFluxDotN(const Vector &x,
    return speed + sound;
 }
 
+void EulerFlux::ComputeFluxJacobian(const Vector &U, ElementTransformation &Tr,
+                                    DenseTensor &JU) const
+{
+   // 1. Get states
+   const real_t density = U(0);                  // ρ
+   const Vector momentum(U.GetData() + 1, dim);  // ρu
+   const real_t energy = U(1 + dim);             // E, internal energy ρe
+   const real_t kinetic_energy = 0.5 * (momentum*momentum) / density;
+   // pressure, p = (γ-1)*(E - ½ρ|u|^2)
+   const real_t pressure = (specific_heat_ratio - 1.0) *
+                           (energy - kinetic_energy);
+
+   // Check whether the solution is physical only in debug mode
+   MFEM_ASSERT(density >= 0, "Negative Density");
+   MFEM_ASSERT(pressure >= 0, "Negative Pressure");
+   MFEM_ASSERT(energy >= 0, "Negative Energy");
+
+   // 2. Compute Jacobian
+   JU = 0.;
+   for (int d = 0; d < dim; d++)
+   {
+      const real_t velocity_d = momentum(d) / density;
+      // ρu
+      JU(0, 1 + d, d) = 1.;
+      // ρuuᵀ
+      JU(1 + d, 1 + d, d) = 2. * velocity_d;
+      for (int i = 0; i < dim; i++)
+      {
+         const real_t velocity_i = momentum(i) / density;
+         // ρuuᵀ
+         JU(1 + i, 0, d) = -velocity_i * velocity_d;
+         if (i != d)
+         {
+            JU(1 + i, 1 + i, d) = velocity_d;
+            JU(1 + i, 1 + d, d) = velocity_i;
+         }
+      }
+      // (ρuuᵀ) + p
+      JU(1 + d, 0, d) += (specific_heat_ratio - 1.0) * kinetic_energy / density;
+      for (int i = 0; i < dim; i++)
+      {
+         JU(1 + d, 1 + i, d) -= (specific_heat_ratio - 1.0) * momentum(i) / density;
+      }
+      JU(1 + d, 1 + dim, d) = specific_heat_ratio - 1.0;
+   }
+   // enthalpy H = e + p/ρ = (E + p)/ρ
+   const real_t H = (energy + pressure) / density;
+   // u(E+p) = ρu*(E + p)/ρ = ρu*H
+   for (int d = 0; d < dim; d++)
+   {
+      const real_t velocity_d = momentum(d) / density;
+      JU(1 + dim, 0, d) = velocity_d * (-H + (specific_heat_ratio - 1.0) *
+                                        kinetic_energy);
+      for (int i = 0; i < dim; i++)
+      {
+         JU(1 + dim, 1 + i, d) = -(specific_heat_ratio - 1.0) * velocity_d
+                                 * momentum(i) / density;
+      }
+      JU(1 + dim, 1 + d, d) += H;
+      JU(1 + dim, 1 + dim, d) = specific_heat_ratio * velocity_d;
+   }
+}
 } // namespace mfem

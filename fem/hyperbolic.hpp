@@ -1122,15 +1122,26 @@ public:
    /**
     * @brief Compute normal flux, F(ρ, ρu, E)n
     *
-    * @param x x (ρ, ρu, E) at current integration point
+    * @param state state (ρ, ρu, E) at the current integration point
     * @param normal normal vector, usually not a unit vector
     * @param Tr current element transformation with the integration point
     * @param fluxN F(ρ, ρu, E)n = [ρu⋅n; ρu(u⋅n) + pn; (u⋅n)(E + p)]
     * @return real_t maximum characteristic speed, |u| + √(γp/ρ)
     */
-   real_t ComputeFluxDotN(const Vector &x, const Vector &normal,
+   real_t ComputeFluxDotN(const Vector &state, const Vector &normal,
                           FaceElementTransformations &Tr,
                           Vector &fluxN) const override;
+
+   /**
+    * @brief Compute J(ρ, ρu, E)
+    *
+    * @param state state (ρ, ρu, E) at current integration point
+    * @param Tr current element transformation with the integration point
+    * @param J J(ρ, ρu, E)
+    */
+   void ComputeFluxJacobian(const Vector &state,
+                            ElementTransformation &Tr,
+                            DenseTensor &J) const override;
 };
 
 } // namespace mfem
