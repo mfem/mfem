@@ -10,7 +10,7 @@
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
-#include "ipsolver/ParIPsolver.hpp"
+#include "utils/ip.hpp"
 
 using namespace std;
 using namespace mfem;

@@ -1,5 +1,5 @@
 #include "mfem.hpp"
-#include "../problems/parproblems.hpp"
+#include "problems.hpp"
 #include <fstream>
 #include <iostream>
 

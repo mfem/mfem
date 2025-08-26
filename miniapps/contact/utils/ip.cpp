@@ -1,5 +1,5 @@
 #include "mfem.hpp"
-#include "ParIPsolver.hpp"
+#include "ip.hpp"
 #include <fstream>
 #include <iostream>
 #include <cstdlib>

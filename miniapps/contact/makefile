@@ -1,82 +1,61 @@
-# Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
-# at the Lawrence Livermore National Laboratory. All Rights reserved. See files
-# LICENSE and NOTICE for details. LLNL-CODE-806117.
-#
-# This file is part of the MFEM library. For more information and source code
-# availability visit https://mfem.org.
-#
-# MFEM is free software; you can redistribute it and/or modify it under the
-# terms of the BSD-3 license. We welcome feedback and contributions, see file
-# CONTRIBUTING.md for details.
+# Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC.
+# See LICENSE and NOTICE for details. LLNL-CODE-806117.
 
 # Use the MFEM build directory
 MFEM_DIR ?= ../..
 MFEM_BUILD_DIR ?= ../..
+MFEM_INSTALL_DIR ?= ../../mfem
 SRC = $(if $(MFEM_DIR:../..=),$(MFEM_DIR)/miniapps/contact/,)
-CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
-
-# Include defaults.mk to get XLINKER
-DEFAULTS_MK = $(MFEM_DIR)/config/defaults.mk
-include $(DEFAULTS_MK)
+CONFIG_MK = $(or $(wildcard $(MFEM_BUILD_DIR)/config/config.mk),\
+   $(wildcard $(MFEM_INSTALL_DIR)/share/mfem/config.mk))
 
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-CONTACT_SRC = ipsolver/ParIPsolver.cpp problems/parproblems.cpp 
-CONTACT_OBJ = $(CONTACT_SRC:.cpp=.o)
-
-
-SEQ_MINIAPPS = 
-PAR_MINIAPPS = contact 
-
-ifeq ($(MFEM_USE_MPI),NO)
-   MINIAPPS = $(SEQ_MINIAPPS)
+# Build only if TRIBOL is enabled
+ifeq ($(MFEM_USE_TRIBOL)$(MFEM_USE_MPI),YESYES)
+   MINIAPPS = contact
 else
-   MINIAPPS = $(PAR_MINIAPPS) $(SEQ_MINIAPPS)
+   MINIAPPS =
 endif
-
-COMMON_LIB = -L$(MFEM_BUILD_DIR)/miniapps/common -lmfem-common
-
-# If MFEM_SHARED is set, add the ../common rpath
-COMMON_LIB += $(if $(MFEM_SHARED:YES=),,\
-   $(if $(MFEM_USE_CUDA:YES=),$(CXX_XLINKER),$(CUDA_XLINKER))-rpath,$(abspath\
-   $(MFEM_BUILD_DIR)/miniapps/common))
 
 .SUFFIXES:
 .SUFFIXES: .o .cpp .mk
-.PHONY: all lib-common clean clean-build clean-exec
+.PHONY: all clean clean-build clean-exec
 
-# Remove built-in rule
+# Remove built-in single-file rule (kept for completeness)
 %: %.cpp
-%.o: %.cpp
 
-%: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONTACT_OBJ) $(CONFIG_MK)
-	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ $(CONTACT_OBJ) $(COMMON_LIB) $(MFEM_LIBS) \
-		-l$(patsubst lib%,%,$(basename $(notdir $(MFEM_LIB_FILE))))
+# ---- Contact miniapp multi-file build ----
+# Sources
+UTILS_SRC = utils
+CONTACT_SRCS = contact.cpp \
+               $(UTILS_SRC)/ip.cpp \
+               $(UTILS_SRC)/problems.cpp
+CONTACT_OBJS = $(CONTACT_SRCS:.cpp=.o)
 
-%.o: $(SRC)%.cpp $(wildcard $(SRC)%.hpp) $(MFEM_LIB_FILE)\
- $(CONFIG_MK) | lib-common
-	$(MFEM_CXX) $(MFEM_FLAGS) -c $< -o $@
+# Link rule
+contact: $(CONTACT_OBJS) $(MFEM_LIB_FILE) $(CONFIG_MK)
+	$(MFEM_CXX) $(MFEM_FLAGS) $(CONTACT_OBJS) -o $@ $(MFEM_LIBS) 
 
-problems/%.o: $(SRC)problems/%.cpp $(wildcard $(SRC)problems/%.hpp) $(MFEM_LIB_FILE)\
- $(CONFIG_MK) | lib-common
-	mkdir -p $(@D)
-	$(MFEM_CXX) $(MFEM_FLAGS) -c $< -o $@
+# Compile objects (add local headers)
+$(SRC)%.o: $(SRC)%.cpp $(CONFIG_MK)
+	$(MFEM_CXX) $(MFEM_FLAGS) -I$(UTILS_SRC) -c $< -o $@
 
-
+# Default target
 all: $(MINIAPPS)
 
-# Rule for building lib-common
-lib-common:
-	$(MAKE) -C $(MFEM_BUILD_DIR)/miniapps/common
-
+# ---- MFEM test harness wiring ----
 MFEM_TESTS = MINIAPPS
 include $(MFEM_TEST_MK)
 
-# Testing: Specific execution options
+# Testing: Parallel vs. serial runs
 RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
-contact-test-par: contact
-	@$(call mfem-test,$<, $(RUN_MPI), pcontact miniapp,)
+TEST_NAME := Contact miniapp
+%-test-par: %
+	@$(call mfem-test,$<, $(RUN_MPI), $(TEST_NAME))
+%-test-seq: %
+	@$(call mfem-test,$<,, $(TEST_NAME))
 
 # Generate an error message if the MFEM library is not built and exit
 $(MFEM_LIB_FILE):
@@ -85,8 +64,7 @@ $(MFEM_LIB_FILE):
 clean: clean-build clean-exec
 
 clean-build:
-	rm -f *.o *~ $(PAR_MINIAPPS) $(SEQ_MINIAPPS)
-	rm -f $(CONTACT_OBJ)  
+	rm -f $(CONTACT_OBJS) *~ $(MINIAPPS)
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:
