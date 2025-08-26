@@ -50,8 +50,8 @@
 #include "dgmassinv.hpp"
 #include "hyperbolic.hpp"
 #include "bounds.hpp"
-
 #include "dfem/doperator.hpp"
+#include "blockform.hpp"
 
 #ifdef MFEM_USE_MPI
 #include "pfespace.hpp"
