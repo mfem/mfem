@@ -18,6 +18,7 @@ list(APPEND SRCS
   gecko.cpp
   globals.cpp
   hash.cpp
+  hash_util.cpp
   isockstream.cpp
   mem_manager.cpp
   occa.cpp

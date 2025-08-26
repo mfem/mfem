@@ -812,7 +812,8 @@ protected:
        PointMatrix and a local face identifier. */
    using Key = std::pair<const DenseMatrix*,int>;
    /// The temporary map used to store the different interpolators.
-   using Map = std::unordered_map<Key, std::pair<int,const DenseMatrix*>>;
+   using Map =
+      std::unordered_map<Key, std::pair<int,const DenseMatrix*>, PairHasher>;
    Map interp_map; // The temporary map that stores the interpolators.
 
 public:

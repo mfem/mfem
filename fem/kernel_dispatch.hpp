@@ -100,7 +100,8 @@ class KernelDispatchTable<Kernels,
          internal::KernelTypeList<Params...>,
          internal::KernelTypeList<OptParams...>>
 {
-   using TableType = std::unordered_map<std::tuple<Params...>, Signature>;
+   using TableType =
+      std::unordered_map<std::tuple<Params...>, Signature, TupleHasher>;
    TableType table;
 
    /// @brief Call function @a f with arguments @a args (perfect forwaring).
