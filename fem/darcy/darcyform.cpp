@@ -1546,7 +1546,7 @@ void DarcyForm::AssembleDivLDGFaces(int skip_zeros)
             const FiniteElement *trial_fe1 = fes_u->GetFE(tr->Elem1No);
             const FiniteElement *test_fe1 = fes_p->GetFE(tr->Elem1No);
             const int tr_ndof1 = trial_fe1->GetDof() * fes_u->GetVDim();
-            const int te_ndof1 = test_fe1->GetDof();
+            const int te_ndof1 = test_fe1->GetDof() * fes_p->GetVDim();
 
             elmat.SetSize(te_ndof1, tr_ndof1);
             elmat = 0.;
@@ -1608,13 +1608,13 @@ void DarcyForm::AssemblePotLDGFaces(int skip_zeros)
          reduction->AssemblePotFaceMatrix(i, elmat);
 
 #ifndef MFEM_DARCY_REDUCTION_ELIM_BCS
-         const int ndof1 = fe1->GetDof();
          fes_p->GetElementVDofs(tr->Elem1No, vdofs1);
+         const int ndof1 = vdofs1.Size();
          elmat1.CopyMN(elmat, ndof1, ndof1, 0, 0);
          M_p->SpMat().AddSubMatrix(vdofs1, vdofs1, elmat1, skip_zeros);
 
-         const int ndof2 = fe2->GetDof();
          fes_p->GetElementVDofs(tr->Elem2No, vdofs2);
+         const int ndof2 = vdofs2.Size();
          elmat2.CopyMN(elmat, ndof2, ndof2, ndof1, ndof1);
          M_p->SpMat().AddSubMatrix(vdofs2, vdofs2, elmat2, skip_zeros);
 #endif //MFEM_DARCY_REDUCTION_ELIM_BCS
@@ -1658,7 +1658,7 @@ void DarcyForm::AssemblePotLDGFaces(int skip_zeros)
          if (tr != NULL)
          {
             const FiniteElement *fe1 = fes_p->GetFE(tr->Elem1No);
-            const int ndof1 = fe1->GetDof();
+            const int ndof1 = fe1->GetDof() * fes_p->GetVDim();
 
             elmat.SetSize(ndof1);
             elmat = 0.;
