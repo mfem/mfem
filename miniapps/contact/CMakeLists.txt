@@ -9,7 +9,7 @@
 # terms of the BSD-3 license. We welcome feedback and contributions, see file
 # CONTRIBUTING.md for details.
 
-if (MFEM_USE_TRIBOL && MFEM_USE_MPI)
+if (MFEM_USE_TRIBOL AND MFEM_USE_MPI)
   list(APPEND CONTACT_SOURCES
   utils/ip.cpp
   utils/problems.cpp)
