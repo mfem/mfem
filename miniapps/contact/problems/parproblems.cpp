@@ -1,14 +1,16 @@
 #include "parproblems.hpp"
 
 
-ElasticityOperator::ElasticityOperator(ParMesh * pmesh_, Array<int> & ess_bdr_attr_, Array<int> & ess_bdr_attr_comp_,
-                       const Vector & E, const Vector & nu, bool nonlinear_)
-: nonlinear(nonlinear_), pmesh(pmesh_), ess_bdr_attr(ess_bdr_attr_), ess_bdr_attr_comp(ess_bdr_attr_comp_) 
+ElasticityOperator::ElasticityOperator(ParMesh * pmesh_,
+                                       Array<int> & ess_bdr_attr_, Array<int> & ess_bdr_attr_comp_,
+                                       const Vector & E, const Vector & nu, bool nonlinear_)
+   : nonlinear(nonlinear_), pmesh(pmesh_), ess_bdr_attr(ess_bdr_attr_),
+     ess_bdr_attr_comp(ess_bdr_attr_comp_)
 {
    comm = pmesh->GetComm();
    SetParameters(E,nu);
    Init();
-} 
+}
 
 void ElasticityOperator::SetParameters(const Vector & E, const Vector & nu)
 {
@@ -36,7 +38,7 @@ void ElasticityOperator::SetParameters(const Vector & E, const Vector & nu)
    c1_cf.UpdateConstants(c1);
    c2_cf.UpdateConstants(c2);
 }
-  
+
 
 void ElasticityOperator::Init()
 {
@@ -63,7 +65,7 @@ void ElasticityOperator::SetEssentialBC()
    {
       ess_bdr.SetSize(pmesh->bdr_attributes.Max());
    }
-   ess_bdr = 0; 
+   ess_bdr = 0;
    Array<int> ess_tdof_list_temp;
    for (int i = 0; i < ess_bdr_attr.Size(); i++ )
    {
@@ -82,13 +84,15 @@ void ElasticityOperator::SetUpOperator()
    {
       material_model = new NeoHookeanModel(c1_cf, c2_cf);
       op = new ParNonlinearForm(fes);
-      dynamic_cast<ParNonlinearForm*>(op)->AddDomainIntegrator(new HyperelasticNLFIntegrator(material_model));
+      dynamic_cast<ParNonlinearForm*>(op)->AddDomainIntegrator(
+         new HyperelasticNLFIntegrator(material_model));
       dynamic_cast<ParNonlinearForm*>(op)->SetEssentialTrueDofs(ess_tdof_list);
    }
    else
    {
       op = new ParBilinearForm(fes);
-      dynamic_cast<ParBilinearForm*>(op)->AddDomainIntegrator(new ElasticityIntegrator(c1_cf,c2_cf));
+      dynamic_cast<ParBilinearForm*>(op)->AddDomainIntegrator(
+         new ElasticityIntegrator(c1_cf,c2_cf));
       K = new HypreParMatrix();
       dynamic_cast<ParBilinearForm*>(op)->Assemble();
       dynamic_cast<ParBilinearForm*>(op)->FormSystemMatrix(ess_tdof_list,*K);
@@ -97,7 +101,7 @@ void ElasticityOperator::SetUpOperator()
 
 void ElasticityOperator::FormLinearSystem()
 {
-   if (!formsystem) 
+   if (!formsystem)
    {
       formsystem = true;
       b->Assemble();
@@ -119,21 +123,25 @@ void ElasticityOperator::UpdateRHS()
    b = new ParLinearForm(fes);
 }
 
-void ElasticityOperator::SetNeumanPressureData(ConstantCoefficient &f, Array<int> & bdr_marker)
+void ElasticityOperator::SetNeumanPressureData(ConstantCoefficient &f,
+                                               Array<int> & bdr_marker)
 {
    pressure_cf.constant = f.constant;
-   b->AddBoundaryIntegrator(new VectorBoundaryFluxLFIntegrator(pressure_cf),bdr_marker);
+   b->AddBoundaryIntegrator(new VectorBoundaryFluxLFIntegrator(pressure_cf),
+                            bdr_marker);
 }
 
-void ElasticityOperator::SetDisplacementDirichletData(const Vector & delta, Array<int> essbdr)
+void ElasticityOperator::SetDisplacementDirichletData(const Vector & delta,
+                                                      Array<int> essbdr)
 {
    VectorConstantCoefficient delta_cf(delta);
    x.ProjectBdrCoefficient(delta_cf,essbdr);
-} 
+}
 
 void ElasticityOperator::ResetDisplacementDirichletData() { x = 0.0; }
 
-void ElasticityOperator::UpdateEssentialBC(Array<int> & ess_bdr_attr_, Array<int> & ess_bdr_attr_comp_)
+void ElasticityOperator::UpdateEssentialBC(Array<int> & ess_bdr_attr_,
+                                           Array<int> & ess_bdr_attr_comp_)
 {
    ess_bdr_attr = ess_bdr_attr_;
    ess_bdr_attr_comp = ess_bdr_attr_comp_;
@@ -173,7 +181,7 @@ void ElasticityOperator::GetGradient(const Vector & u, Vector & gradE) const
       gradE.SetSize(K->Height());
       K->Mult(u, gradE);
    }
-   gradE.Add(-1.0, B); 
+   gradE.Add(-1.0, B);
 }
 
 HypreParMatrix * ElasticityOperator::GetHessian(const Vector & u)
@@ -181,7 +189,8 @@ HypreParMatrix * ElasticityOperator::GetHessian(const Vector & u)
    if (nonlinear)
    {
       Vector tu(xref); tu += u;
-      return dynamic_cast<HypreParMatrix *>(&dynamic_cast<ParNonlinearForm*>(op)->GetGradient(tu));
+      return dynamic_cast<HypreParMatrix *>(&dynamic_cast<ParNonlinearForm*>
+                                            (op)->GetGradient(tu));
    }
    else
    {
@@ -195,28 +204,30 @@ ElasticityOperator::~ElasticityOperator()
    delete b;
    delete fes;
    delete fec;
-   if (K) delete K;
-   if (material_model) delete material_model;
+   if (K) { delete K; }
+   if (material_model) { delete material_model; }
 }
 
 
-OptContactProblem::OptContactProblem(ElasticityOperator * problem_, 
-                     const std::set<int> & mortar_attrs_, 
-                     const std::set<int> & nonmortar_attrs_,
-                     ParGridFunction * coords_, 
-                     const Vector & xref_, 
-                     const Vector & xrefbc_, 
-                     double tribol_ratio_,
-		               bool bound_constraints_,
-		               bool mass_weights_)
-: problem(problem_), mortar_attrs(mortar_attrs_), nonmortar_attrs(nonmortar_attrs_),
-  coords(coords_), xref(xref_), xrefbc(xrefbc_), 
-   tribol_ratio(tribol_ratio_),  
-	bound_constraints(bound_constraints_), useMassWeights(mass_weights_), block_offsetsg(4)
+OptContactProblem::OptContactProblem(ElasticityOperator * problem_,
+                                     const std::set<int> & mortar_attrs_,
+                                     const std::set<int> & nonmortar_attrs_,
+                                     ParGridFunction * coords_,
+                                     const Vector & xref_,
+                                     const Vector & xrefbc_,
+                                     double tribol_ratio_,
+                                     bool bound_constraints_,
+                                     bool mass_weights_)
+   : problem(problem_), mortar_attrs(mortar_attrs_),
+     nonmortar_attrs(nonmortar_attrs_),
+     coords(coords_), xref(xref_), xrefbc(xrefbc_),
+     tribol_ratio(tribol_ratio_),
+     bound_constraints(bound_constraints_), useMassWeights(mass_weights_),
+     block_offsetsg(4)
 {
-   comm = problem->GetComm(); 
+   comm = problem->GetComm();
    pmesh = problem->GetMesh();
-   vfes = problem->GetFESpace(); 
+   vfes = problem->GetFESpace();
    dim = pmesh->Dimension();
    ComputeGapJacobian();
 
@@ -245,7 +256,8 @@ OptContactProblem::OptContactProblem(ElasticityOperator * problem_,
 
    diagVec = -1.0;
    tempSparse = new SparseMatrix(diagVec);
-   negIu = new HypreParMatrix(comm, GetGlobalNumDofs(), GetDofStarts(), tempSparse);
+   negIu = new HypreParMatrix(comm, GetGlobalNumDofs(), GetDofStarts(),
+                              tempSparse);
    HypreStealOwnership(*negIu, *tempSparse);
    delete tempSparse;
 
@@ -268,7 +280,7 @@ OptContactProblem::OptContactProblem(ElasticityOperator * problem_,
    MFEM_VERIFY(vfes, "space is null");
    ParBilinearForm MassForm(vfes);
    MassForm.AddDomainIntegrator(new VectorMassIntegrator);
-   MassForm.Assemble(); 
+   MassForm.Assemble();
 
    Array<int> empty_tdof_list;
    Mv = new HypreParMatrix();
@@ -285,15 +297,16 @@ OptContactProblem::OptContactProblem(ElasticityOperator * problem_,
 
 void OptContactProblem::ComputeGapJacobian()
 {
-   if (J) delete J;
+   if (J) { delete J; }
    Vector gap1;
-   J = const_cast<HypreParMatrix *>(SetupTribol(pmesh,coords,problem->GetEssentialDofs(),
-                                     mortar_attrs, nonmortar_attrs,gapv, tribol_ratio));
+   J = const_cast<HypreParMatrix *>(SetupTribol(pmesh,coords,
+                                                problem->GetEssentialDofs(),
+                                                mortar_attrs, nonmortar_attrs,gapv, tribol_ratio));
 
    dof_starts.SetSize(2);
    dof_starts[0] = J->ColPart()[0];
    dof_starts[1] = J->ColPart()[1];
-   
+
    constraints_starts.SetSize(2);
    if (bound_constraints)
    {
@@ -336,7 +349,7 @@ HypreParMatrix * OptContactProblem::Duc(const BlockVector & x)
       dcduBlockMatrix(0, 0) = J;
       dcduBlockMatrix(1, 0) = Iu;
       dcduBlockMatrix(2, 0) = negIu;
-      if(dcdu)
+      if (dcdu)
       {
          delete dcdu;
       }
@@ -355,7 +368,8 @@ HypreParMatrix * OptContactProblem::Dmc(const BlockVector &)
    {
       Vector negone(dimM); negone = -1.0;
       SparseMatrix diag(negone);
-      NegId = new HypreParMatrix(comm, GetGlobalNumConstraints(), GetConstraintsStarts(), &diag);
+      NegId = new HypreParMatrix(comm, GetGlobalNumConstraints(),
+                                 GetConstraintsStarts(), &diag);
       HypreStealOwnership(*NegId, diag);
    }
    return NegId;
@@ -415,11 +429,11 @@ HypreParMatrix * OptContactProblem::GetContactSubspaceTransferOperator()
       MPI_Allreduce(&nrows_c, &glob_nrows_c,1,MPI_INT,MPI_SUM,comm);
 
       HypreParMatrix * P_ct = new HypreParMatrix(comm, nrows_c, glob_nrows_c,
-                                                glob_ncols_c, Pct.GetI(), Pct.GetJ(),
-                                                Pct.GetData(), rows_c,cols_c); 
+                                                 glob_ncols_c, Pct.GetI(), Pct.GetJ(),
+                                                 Pct.GetData(), rows_c,cols_c);
       // HypreStealOwnership(*P_ct, Pct);
       Pc = P_ct->Transpose();
-      delete P_ct;                         
+      delete P_ct;
    }
 
    return Pc;
@@ -435,7 +449,7 @@ void OptContactProblem::g(const Vector & d, Vector & gd)
 }
 
 
-//           [     g1(d)      ]  
+//           [     g1(d)      ]
 // c(d, s) = [ eps + (d - dl) ] - s
 //           [ eps - (d - dl) ]
 
@@ -443,12 +457,12 @@ void OptContactProblem::g(const Vector & d, Vector & gd)
 void OptContactProblem::c(const BlockVector & x, Vector & y)
 {
    const Vector disp  = x.GetBlock(0);
-   const Vector slack = x.GetBlock(1); 
-   
+   const Vector slack = x.GetBlock(1);
+
    if (bound_constraints)
    {
       BlockVector yblock(block_offsetsg); yblock = 0.0;
-      
+
       g(disp, yblock.GetBlock(0));
       yblock.GetBlock(1).Set( 1.0, disp );
       yblock.GetBlock(1).Add(-1.0, dl);
@@ -470,7 +484,8 @@ real_t OptContactProblem::CalcObjective(const BlockVector & x, int & eval_err)
    return E(x.GetBlock(0), eval_err);
 }
 
-void OptContactProblem::CalcObjectiveGrad(const BlockVector & x, BlockVector & y)
+void OptContactProblem::CalcObjectiveGrad(const BlockVector & x,
+                                          BlockVector & y)
 {
    DdE(x.GetBlock(0), y.GetBlock(0));
    y.GetBlock(1) = 0.0;
@@ -508,7 +523,7 @@ real_t OptContactProblem::E(const Vector & d, int & eval_err)
       if (Mpi::Root() && eval_err == 1)
       {
          cout << "energy = " << energy << endl;
-	      cout << "eval_err = " << eval_err << endl;
+         cout << "eval_err = " << eval_err << endl;
       }
       return energy;
    }
@@ -546,10 +561,13 @@ HypreParMatrix * OptContactProblem::DddE(const Vector & d)
    }
 }
 
-void OptContactProblem::SetBoundConstraints(const Vector & dl_, const Vector & eps_)
+void OptContactProblem::SetBoundConstraints(const Vector & dl_,
+                                            const Vector & eps_)
 {
-   MFEM_VERIFY(dl_.Size() == dimU, "constraint vector dl is not of the correct size");
-   MFEM_VERIFY(eps_.Size() == dimU, "constraint vector eps is not the correct size");
+   MFEM_VERIFY(dl_.Size() == dimU,
+               "constraint vector dl is not of the correct size");
+   MFEM_VERIFY(eps_.Size() == dimU,
+               "constraint vector eps is not the correct size");
    dl.Set(1.0, dl_);
    eps.Set(1.0, eps_);
 }
@@ -571,10 +589,11 @@ OptContactProblem::~OptContactProblem()
    }
 }
 
-HypreParMatrix * OptContactProblem::SetupTribol(ParMesh * pmesh, ParGridFunction * coords, 
-                             const Array<int> & ess_tdofs, const std::set<int> & mortar_attrs, 
-                              const std::set<int> & non_mortar_attrs, 
-                              Vector &gap, double ratio)
+HypreParMatrix * OptContactProblem::SetupTribol(ParMesh * pmesh,
+                                                ParGridFunction * coords,
+                                                const Array<int> & ess_tdofs, const std::set<int> & mortar_attrs,
+                                                const std::set<int> & non_mortar_attrs,
+                                                Vector &gap, double ratio)
 {
    axom::slic::SimpleLogger logger;
    axom::slic::setIsRoot(mfem::Mpi::Root());
@@ -584,7 +603,7 @@ HypreParMatrix * OptContactProblem::SetupTribol(ParMesh * pmesh, ParGridFunction
 
    int coupling_scheme_id = 0;
    int mesh1_id = 0; int mesh2_id = 1;
-   
+
    tribol::registerMfemCouplingScheme(
       coupling_scheme_id, mesh1_id, mesh2_id,
       *pmesh, *coords, mortar_attrs, non_mortar_attrs,
@@ -601,17 +620,17 @@ HypreParMatrix * OptContactProblem::SetupTribol(ParMesh * pmesh, ParGridFunction
    // Access Tribol's pressure grid function (on the contact surface)
    auto& pressure = tribol::getMfemPressure(coupling_scheme_id);
    int vsize = pressure.ParFESpace()->GlobalTrueVSize();
-   
+
    ParBilinearForm acs_form(pressure.ParFESpace());
    acs_form.AddDomainIntegrator(new MassIntegrator);
    acs_form.Assemble();
    Array<int> empty_tdof_list;
    Mcs = new HypreParMatrix();
    acs_form.FormSystemMatrix(empty_tdof_list,*Mcs);
-   
+
    Vector onecs(Mcs->Width()); onecs = 1.0;
    Mcslumpfull.SetSize(Mcs->Height()); //Vector
-   Mcs->Mult(onecs, Mcslumpfull); 
+   Mcs->Mult(onecs, Mcslumpfull);
 
    if (mfem::Mpi::Root())
    {
@@ -636,10 +655,10 @@ HypreParMatrix * OptContactProblem::SetupTribol(ParMesh * pmesh, ParGridFunction
 
    // Return contact contribution to the tangent stiffness matrix
    auto A_blk = tribol::getMfemBlockJacobian(coupling_scheme_id);
-   
+
    HypreParMatrix * Mfull = (HypreParMatrix *)(&A_blk->GetBlock(1,0));
    if (useMassWeights)
-   { 
+   {
       Mfull->InvScaleRows(Mcslumpfull); // scaling
    }
    HypreParMatrix * Me = Mfull->EliminateCols(ess_tdofs);
@@ -649,7 +668,7 @@ HypreParMatrix * OptContactProblem::SetupTribol(ParMesh * pmesh, ParGridFunction
    SparseMatrix merged;
    Mfull->MergeDiagAndOffd(merged);
    Array<int> nonzero_rows;
-   
+
    double max_l1_row_norm = 0.0;
    double rel_row_norm_threshold = 1.e-5;
    for (int i = 0; i < h; i++)
@@ -659,7 +678,7 @@ HypreParMatrix * OptContactProblem::SetupTribol(ParMesh * pmesh, ParGridFunction
          max_l1_row_norm = max( max_l1_row_norm, merged.GetRowNorml1(i));
       }
    }
-   
+
    for (int i = 0; i<h; i++)
    {
       if (!merged.RowIsEmpty(i))
@@ -701,23 +720,23 @@ HypreParMatrix * OptContactProblem::SetupTribol(ParMesh * pmesh, ParGridFunction
 
    int glob_ncols = reduced_merged->Width();
    HypreParMatrix * M = new HypreParMatrix(Mfull->GetComm(), nrows, glob_nrows,
-                          glob_ncols, reduced_merged->GetI(), reduced_merged->GetJ(),
-                          reduced_merged->GetData(), rows,cols); 
+                                           glob_ncols, reduced_merged->GetI(), reduced_merged->GetJ(),
+                                           reduced_merged->GetData(), rows,cols);
    // HypreStealOwnership(*M, *reduced_merged);
-   delete reduced_merged;                          
+   delete reduced_merged;
 
    Vector gap_full;
    tribol::getMfemGap(coupling_scheme_id, gap_full);
 
    auto& P_submesh = *pressure.ParFESpace()->GetProlongationMatrix();
    Vector gap_true(P_submesh.Width());
-   
-   
+
+
    P_submesh.MultTranspose(gap_full,gap_true);
    gap.SetSize(nrows);
    Mcslump.SetSize(nrows);
 
-   for (int i = 0; i<nrows; i++) 
+   for (int i = 0; i<nrows; i++)
    {
       gap[i] = gap_true[nonzero_rows[i]];
       Mcslump(i) = Mcslumpfull(nonzero_rows[i]);

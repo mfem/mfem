@@ -4,8 +4,8 @@
 // mpirun -np 4 ./contact -prob 1 -sr 0 -pr 0 -tr 2 -nsteps 4  -msteps 6 -no-amgf
 // mpirun -np 4 ./contact -prob 2 -sr 0 -pr 0 -tr 2 -nsteps 10 -msteps 0 -lin -amgf
 // mpirun -np 4 ./contact -prob 2 -sr 0 -pr 0 -tr 2 -nsteps 10 -msteps 0 -lin -no-amgf
-// mpirun -np 4 ./contact -prob 2 -sr 0 -pr 0 -tr 2 -nsteps 10 -msteps 0 -nonlin -amgf 
-// mpirun -np 4 ./contact -prob 2 -sr 0 -pr 0 -tr 2 -nsteps 10 -msteps 0 -nonlin -no-amgf 
+// mpirun -np 4 ./contact -prob 2 -sr 0 -pr 0 -tr 2 -nsteps 10 -msteps 0 -nonlin -amgf
+// mpirun -np 4 ./contact -prob 2 -sr 0 -pr 0 -tr 2 -nsteps 10 -msteps 0 -nonlin -no-amgf
 
 #include "mfem.hpp"
 #include <fstream>
@@ -39,7 +39,7 @@ int main(int argc, char *argv[])
    int nsteps = 1;
    int msteps = 0;
    bool nonlinear = false;
-   
+
    real_t tribol_ratio = 8.0;
    bool amgf = false;
 
@@ -51,18 +51,18 @@ int main(int argc, char *argv[])
                   "1: ironing problem"
                   "2: beam-sphere problem");
    args.AddOption(&nonlinear, "-nonlin", "--nonlinear", "-lin",
-                  "--linear", "Choice between linear and non-linear Elasticiy model.");          
+                  "--linear", "Choice between linear and non-linear Elasticiy model.");
    args.AddOption(&sref, "-sr", "--serial-refinements",
-                  "Number of uniform refinements.");                  
+                  "Number of uniform refinements.");
    args.AddOption(&nsteps, "-nsteps", "--nsteps",
                   "Number of steps.");
    args.AddOption(&msteps, "-msteps", "--msteps",
-                  "Number of extra steps.");                  
+                  "Number of extra steps.");
    args.AddOption(&pref, "-pr", "--parallel-refinements",
                   "Number of uniform refinements.");
    args.AddOption(&amgf, "-amgf", "--amgf", "-no-amgf",
                   "--no-amgf",
-                  "Enable or disable AMGF with Filtering solver.");                  
+                  "Enable or disable AMGF with Filtering solver.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -70,7 +70,7 @@ int main(int argc, char *argv[])
                   "--no-paraview",
                   "Enable or disable ParaView visualization.");
    args.AddOption(&tribol_ratio, "-tr", "--tribol-proximity-parameter",
-                     "Tribol-proximity-parameter.");                  
+                  "Tribol-proximity-parameter.");
 
    args.Parse();
    if (!args.Good())
@@ -87,13 +87,15 @@ int main(int argc, char *argv[])
    }
 
 
-   MFEM_VERIFY(prob_no >= 0 && prob_no <= 2, "Unknown test problem number: " << prob_no); 
+   MFEM_VERIFY(prob_no >= 0 &&
+               prob_no <= 2, "Unknown test problem number: " << prob_no);
 
    if (nonlinear && prob_name!=problem_name::beamsphere)
    {
       if (myid == 0)
       {
-         cout << "Non-linear elasticity not supported for the two-block and ironing problems" << endl;
+         cout << "Non-linear elasticity not supported for the two-block and ironing problems"
+              << endl;
          cout << "Switching to the linear model ..." << endl;
       }
       nonlinear = false;
@@ -142,29 +144,29 @@ int main(int argc, char *argv[])
    Array<int> ess_bdr_attr_comp;
    switch (prob_name)
    {
-   case twoblock:
-      ess_bdr_attr.Append(1); ess_bdr_attr_comp.Append(-1);
-      ess_bdr_attr.Append(10); ess_bdr_attr_comp.Append(-1);
-      E[0] = 1.0;  E[1] = 1e3;
-      nu[0] = 0.499;  nu[1] = 0.0;
-      break;
-   case ironing:
-      ess_bdr_attr.Append(2); ess_bdr_attr_comp.Append(-1);
-      ess_bdr_attr.Append(6); ess_bdr_attr_comp.Append(-1);
-      E[0] = 1.0;  E[1] = 1e3;
-      nu[0] = 0.499;  nu[1] = 0.0;
-      break;
-   case beamsphere:
-      ess_bdr_attr.Append(1); ess_bdr_attr_comp.Append(1);
-      ess_bdr_attr.Append(2); ess_bdr_attr_comp.Append(2);
-      ess_bdr_attr.Append(4); ess_bdr_attr_comp.Append(0);
-      ess_bdr_attr.Append(5); ess_bdr_attr_comp.Append(-1);
-      E = 1.e3;
-      nu = 0.3;
-      break;
-   default:
-      MFEM_ABORT("Should be unreachable");
-      break;
+      case twoblock:
+         ess_bdr_attr.Append(1); ess_bdr_attr_comp.Append(-1);
+         ess_bdr_attr.Append(10); ess_bdr_attr_comp.Append(-1);
+         E[0] = 1.0;  E[1] = 1e3;
+         nu[0] = 0.499;  nu[1] = 0.0;
+         break;
+      case ironing:
+         ess_bdr_attr.Append(2); ess_bdr_attr_comp.Append(-1);
+         ess_bdr_attr.Append(6); ess_bdr_attr_comp.Append(-1);
+         E[0] = 1.0;  E[1] = 1e3;
+         nu[0] = 0.499;  nu[1] = 0.0;
+         break;
+      case beamsphere:
+         ess_bdr_attr.Append(1); ess_bdr_attr_comp.Append(1);
+         ess_bdr_attr.Append(2); ess_bdr_attr_comp.Append(2);
+         ess_bdr_attr.Append(4); ess_bdr_attr_comp.Append(0);
+         ess_bdr_attr.Append(5); ess_bdr_attr_comp.Append(-1);
+         E = 1.e3;
+         nu = 0.3;
+         break;
+      default:
+         MFEM_ABORT("Should be unreachable");
+         break;
    }
 
    ElasticityOperator prob(&pmesh, ess_bdr_attr,ess_bdr_attr_comp, E,nu,nonlinear);
@@ -189,7 +191,7 @@ int main(int argc, char *argv[])
          mortar_attr.insert(3);
          nonmortar_attr.insert(4);
          break;
-      case beamsphere:   
+      case beamsphere:
          mortar_attr.insert(6);
          mortar_attr.insert(9);
          nonmortar_attr.insert(7);
@@ -203,7 +205,7 @@ int main(int argc, char *argv[])
 
    ParFiniteElementSpace * fes = prob.GetFESpace();
    Array<int> ess_tdof_list = prob.GetEssentialDofs();
-   
+
    int gndofs = fes->GlobalTrueVSize();
    if (myid == 0)
    {
@@ -215,10 +217,10 @@ int main(int argc, char *argv[])
    ParMesh pmesh_copy(pmesh);
    ParFiniteElementSpace fes_copy(*fes,pmesh_copy);
    ParGridFunction xcopy_gf(&fes_copy); xcopy_gf = x_gf;
-   
+
    ParaViewDataCollection * paraview_dc = nullptr;
    ParGridFunction xBC(fes); xBC = 0.0;
-   
+
    if (paraview)
    {
       std::ostringstream paraview_file_name;
@@ -244,11 +246,11 @@ int main(int argc, char *argv[])
       sol_sock.open(vishost, visport);
       sol_sock.precision(8);
    }
-   ParGridFunction ref_coords(prob.GetFESpace()); 
-   ParGridFunction new_coords(prob.GetFESpace()); 
+   ParGridFunction ref_coords(prob.GetFESpace());
+   ParGridFunction new_coords(prob.GetFESpace());
    pmesh.GetNodes(new_coords);
    pmesh.GetNodes(ref_coords);
-   
+
    // deviation from the reference configuration
    Vector xref(x_gf.GetTrueVector().Size()); xref = 0.0;
    Vector xrefbc(x_gf.GetTrueVector().Size()); xrefbc = 0.0;
@@ -273,57 +275,57 @@ int main(int argc, char *argv[])
    {
       switch (prob_name)
       {
-      case twoblock:
-         ess_bdr = 0;
-         essbdr_attr = 10;
-         ess_bdr[essbdr_attr-1] = 1;
-         ess_values = 0.0;
-         if (i < nsteps)
-         {
-            ess_values[2] = -1.0/1.4*(i+1)/nsteps;
-         }
-         else
-         {
-            ess_values[0] = 6.0/1.4*(i+1-nsteps)/msteps;
-            ess_values[2] = -1.0/1.4;
-         }
-         prob.SetDisplacementDirichletData(ess_values, ess_bdr);
-         break;
-      case ironing:
-         ess_bdr = 0;
-         essbdr_attr = 6;
-         ess_bdr[essbdr_attr-1] = 1;
-         ess_values = 0.0;
-         if (i < nsteps)
-         {
-            ess_values[2] = -1.0/1.4*(i+1)/nsteps;
-         }
-         else
-         {
-            ess_values[0] = 3.0/1.4*(i+1-nsteps)/msteps;
-            ess_values[2] = -1.0/1.4;
-         }
-         prob.SetDisplacementDirichletData(ess_values, ess_bdr);
-         break;   
-      case beamsphere:
-         ess_bdr = 0;
-         ess_bdr[2] = 1;
-         f.constant = -p*(i+1)/nsteps;
-         prob.SetNeumanPressureData(f,ess_bdr);
-         break;
-      default:
-         MFEM_ABORT("Should be unreachable");
-         break;
+         case twoblock:
+            ess_bdr = 0;
+            essbdr_attr = 10;
+            ess_bdr[essbdr_attr-1] = 1;
+            ess_values = 0.0;
+            if (i < nsteps)
+            {
+               ess_values[2] = -1.0/1.4*(i+1)/nsteps;
+            }
+            else
+            {
+               ess_values[0] = 6.0/1.4*(i+1-nsteps)/msteps;
+               ess_values[2] = -1.0/1.4;
+            }
+            prob.SetDisplacementDirichletData(ess_values, ess_bdr);
+            break;
+         case ironing:
+            ess_bdr = 0;
+            essbdr_attr = 6;
+            ess_bdr[essbdr_attr-1] = 1;
+            ess_values = 0.0;
+            if (i < nsteps)
+            {
+               ess_values[2] = -1.0/1.4*(i+1)/nsteps;
+            }
+            else
+            {
+               ess_values[0] = 3.0/1.4*(i+1-nsteps)/msteps;
+               ess_values[2] = -1.0/1.4;
+            }
+            prob.SetDisplacementDirichletData(ess_values, ess_bdr);
+            break;
+         case beamsphere:
+            ess_bdr = 0;
+            ess_bdr[2] = 1;
+            f.constant = -p*(i+1)/nsteps;
+            prob.SetNeumanPressureData(f,ess_bdr);
+            break;
+         default:
+            MFEM_ABORT("Should be unreachable");
+            break;
       }
 
       prob.FormLinearSystem();
       x_gf.SetTrueVector();
-     
+
       // xref will also satisfy the essential boundary conditions and the nonessential
       // dofs will be equal to the solution at the previous time step (if it exists)
-      // or zero  
+      // or zero
       // xref will be used to set the reference/expansion point used for the QPOptContactProblem
-      // and also used as the initial point for the IP solver 
+      // and also used as the initial point for the IP solver
       if (i == 0)
       {
          xref = 0.0;
@@ -331,41 +333,44 @@ int main(int argc, char *argv[])
       }
       else
       {
-         x_gf.GetTrueDofs(xref);      
-         x_gf.GetTrueDofs(xrefbc);      
+         x_gf.GetTrueDofs(xref);
+         x_gf.GetTrueDofs(xrefbc);
       }
 
       // set essential dofs with respect
-      // to a deformation relative to the "frame" or 
+      // to a deformation relative to the "frame" or
       // the reference configuration given by the original mesh
       // xBC is a grid function that satisfies the essential boundary conditions
       xBC = 0.0;
       VectorConstantCoefficient xBC_cf(ess_values);
       xBC.ProjectBdrCoefficient(xBC_cf, ess_bdr);
       Vector xBCtrue;
-      xBC.GetTrueDofs(xBCtrue);      
+      xBC.GetTrueDofs(xBCtrue);
       xBCtrue.GetSubVector(ess_tdof_list, DCvals);
       xrefbc.SetSubVector(ess_tdof_list, DCvals);
-   
+
       int bound_constraints_step = 3;
-      bool enable_bound_constraints = (bound_constraints && i >= bound_constraints_step) ? true : false;
+      bool enable_bound_constraints = (bound_constraints &&
+                                       i >= bound_constraints_step) ? true : false;
 
       bool use_mass_weights = true;
-      OptContactProblem contact(&prob, mortar_attr, nonmortar_attr, &new_coords, xref,xrefbc, tribol_ratio, enable_bound_constraints, use_mass_weights);
-      
-      if( i >= bound_constraints_step && bound_constraints)
+      OptContactProblem contact(&prob, mortar_attr, nonmortar_attr, &new_coords, xref,
+                                xrefbc, tribol_ratio, enable_bound_constraints, use_mass_weights);
+
+      if ( i >= bound_constraints_step && bound_constraints)
       {
-         eps_min = max(eps_min, GlobalLpNorm(infinity(), eps.Normlinf(), MPI_COMM_WORLD));  
+         eps_min = max(eps_min, GlobalLpNorm(infinity(), eps.Normlinf(),
+                                             MPI_COMM_WORLD));
          // update eps and set parameters
          // could we do something more conservative here...
-	      for (int j = 0; j < eps.Size(); j++)
+         for (int j = 0; j < eps.Size(); j++)
          {
             eps(j) = max(eps_min, eps(j));
          }
          xl.Set(1.0, xrefbc);
          contact.SetBoundConstraints(xl, eps);
       }
-      else if( i > 0)
+      else if ( i > 0)
       {
          for (int j = 0; j < eps.Size(); j++)
          {
@@ -389,7 +394,8 @@ int main(int argc, char *argv[])
          amgfprec->AMG().SetPrintLevel(0);
          amgfprec->AMG().SetRelaxType(88);
          amgfprec->SetFilteredSubspaceSolver(*mumpssolver);
-         amgfprec->SetFilteredSubspaceTransferOperator(*contact.GetContactSubspaceTransferOperator());
+         amgfprec->SetFilteredSubspaceTransferOperator(
+            *contact.GetContactSubspaceTransferOperator());
       }
       else
       {
@@ -417,7 +423,7 @@ int main(int argc, char *argv[])
       optimizer.Mult(x0, xf);
 
       delete prec;
-      if (mumpssolver) delete mumpssolver;
+      if (mumpssolver) { delete mumpssolver; }
 
 
       dx.Set(1.0, xf);
@@ -437,9 +443,9 @@ int main(int argc, char *argv[])
          mfem::out << " Final Energy objective          = " << Efinal << endl;
          mfem::out << " Global number of dofs           = " << gndofs << endl;
          mfem::out << " Optimizer number of iterations  = " <<
-                optimizer.GetNumIterations() << endl;
+                   optimizer.GetNumIterations() << endl;
          mfem::out << " CG iteration numbers            = " ;
-         for (int i = 0; i < CGiterations.Size(); ++i) 
+         for (int i = 0; i < CGiterations.Size(); ++i)
          {
             std::cout << " " << std::setw(7) << CGiterations[i] << " |";
          }
@@ -460,26 +466,26 @@ int main(int argc, char *argv[])
 
       if (visualization)
       {
-        sol_sock << "parallel " << num_procs << " " << myid << "\n"
-                 << "solution\n" << pmesh_copy << x_gf << flush;
-      
-        if (i == total_steps - 1)
-        {
-           pmesh.MoveNodes(x_gf);
-           char vishost[] = "localhost";
-           int  visport   = 19916;
-           socketstream sol_sock_final(vishost, visport);
-           sol_sock_final << "parallel " << num_procs << " " << myid << "\n";
-           sol_sock_final.precision(8);
-           sol_sock_final << "solution\n" << pmesh << x_gf << flush;
-        }
+         sol_sock << "parallel " << num_procs << " " << myid << "\n"
+                  << "solution\n" << pmesh_copy << x_gf << flush;
+
+         if (i == total_steps - 1)
+         {
+            pmesh.MoveNodes(x_gf);
+            char vishost[] = "localhost";
+            int  visport   = 19916;
+            socketstream sol_sock_final(vishost, visport);
+            sol_sock_final << "parallel " << num_procs << " " << myid << "\n";
+            sol_sock_final.precision(8);
+            sol_sock_final << "solution\n" << pmesh << x_gf << flush;
+         }
       }
 
 
-      if (i == total_steps-1) break;
+      if (i == total_steps-1) { break; }
       prob.UpdateRHS();
    }
 
-   if (paraview_dc) delete paraview_dc;
+   if (paraview_dc) { delete paraview_dc; }
    return 0;
 }
