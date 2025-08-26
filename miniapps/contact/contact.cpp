@@ -378,9 +378,6 @@ int main(int argc, char *argv[])
          }
       }
 
-      ParInteriorPointSolver optimizer(&contact);
-      optimizer.SetTol(1e-6);
-      optimizer.SetMaxIter(100);
 
       Solver * prec = nullptr;
       MUMPSSolver * mumpssolver = nullptr;
@@ -406,12 +403,15 @@ int main(int argc, char *argv[])
          amgprec->SetRelaxType(88);
       }
 
-
       CGSolver cgsolver(MPI_COMM_WORLD);
       cgsolver.SetPrintLevel(3);
       cgsolver.SetRelTol(1e-10);
       cgsolver.SetMaxIter(10000);
       cgsolver.SetPreconditioner(*prec);
+
+      ParInteriorPointSolver optimizer(&contact);
+      optimizer.SetTol(1e-6);
+      optimizer.SetMaxIter(100);
       optimizer.SetLinearSolver(&cgsolver);
       optimizer.SetUsingMassWeights(use_mass_weights);
 
