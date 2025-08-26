@@ -221,6 +221,44 @@ public:
 
 void RandomizeMesh(Mesh &mesh, real_t dr);
 
+class VectorBlockDiagonalIntegrator : public BilinearFormIntegrator
+{
+   int numIntegs;
+   std::vector<BilinearFormIntegrator*> integs;
+   bool own_integs{true};
+
+   std::vector<DenseMatrix> elmats;
+
+public:
+   VectorBlockDiagonalIntegrator(int n) : numIntegs(n) { integs.resize(n); }
+   VectorBlockDiagonalIntegrator(int n, BilinearFormIntegrator *integ_)
+      : numIntegs(n) { integs.push_back(integ_); }
+
+   ~VectorBlockDiagonalIntegrator()
+   {
+      if (own_integs)
+      {
+         for (BilinearFormIntegrator *bfi : integs) { delete bfi; }
+      }
+   }
+
+   void SetIntegrator(int i, BilinearFormIntegrator *integ_) { integs[i] = integ_; }
+   BilinearFormIntegrator *GetIntegrator(int i) const { return integs[i]; }
+
+   inline int GetNumIntegrators() const { return numIntegs; }
+
+   void UseExternalIntegrators() { own_integs = false; }
+
+   void AssembleElementMatrix(const FiniteElement &el,
+                              ElementTransformation &Trans,
+                              DenseMatrix &elmat) override;
+
+   void AssembleElementMatrix2(const FiniteElement &trial_fe,
+                               const FiniteElement &test_fe,
+                               ElementTransformation &Trans,
+                               DenseMatrix &elmat) override;
+};
+
 }
 
 #endif
