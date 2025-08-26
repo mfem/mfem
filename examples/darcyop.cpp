@@ -737,11 +737,27 @@ void DarcyOperator::SchurPreconditioner::Construct(const Vector &x_v) const
    }
    else
    {
-      BlockOperator *bop = NULL;
+      const BlockOperator *bop = NULL;
+      const BlockOperator *bgrad = NULL;
+
+      if (nonlinear)
+      {
+         bop = dynamic_cast<const BlockOperator*>(op);
+         /*if (!bop)
+         {
+            auto *grad = dynamic_cast<const DarcyForm::Gradient*>(op);
+            MFEM_ASSERT(grad, "Unknown gradient operator!");
+            bop = &grad->BlockMatrices();
+         }*/
+      }
 
       // get diagonal
       const SparseMatrix *Mqm;
-      if (Mq)
+      if (bop)
+      {
+         Mqm = static_cast<const SparseMatrix*>(&bop->GetBlock(0,0));
+      }
+      else if (Mq)
       {
          Mqm = &Mq->SpMat();
       }
@@ -751,8 +767,8 @@ void DarcyOperator::SchurPreconditioner::Construct(const Vector &x_v) const
       }
       else if (Mnl)
       {
-         bop = static_cast<BlockOperator*>(&Mnl->GetGradient(x));
-         Mqm = static_cast<SparseMatrix*>(&bop->GetBlock(0,0));
+         bgrad = static_cast<const BlockOperator*>(&Mnl->GetGradient(x));
+         Mqm = static_cast<const SparseMatrix*>(&bgrad->GetBlock(0,0));
       }
       else
       {
@@ -775,23 +791,31 @@ void DarcyOperator::SchurPreconditioner::Construct(const Vector &x_v) const
       S.reset(mfem::Mult(Bm, *MinvBt));
       delete MinvBt;
 
-      if (Mt)
+      const SparseMatrix *Mtm = NULL;
+      if (bop && !bop->IsZeroBlock(1,1))
       {
-         const SparseMatrix &Mtm(Mt->SpMat());
-         S.reset(Add(Mtm, *S));
+         Mtm = static_cast<const SparseMatrix*>(&bop->GetBlock(1,1));
+      }
+      else if (Mt)
+      {
+         Mtm = &Mt->SpMat();
       }
       else if (Mtnl)
       {
-         const SparseMatrix &Mtm = static_cast<SparseMatrix&>(
-                                      Mtnl->GetGradient(x.GetBlock(1)));
-         S.reset(Add(Mtm, *S));
+         Mtm = static_cast<SparseMatrix*>(&Mtnl->GetGradient(x.GetBlock(1)));
       }
-      if (Mnl)
+
+      if (Mtm)
       {
-         const SparseMatrix &Mtm = static_cast<SparseMatrix&>(bop->GetBlock(1,1));
-         if (Mtm.NumNonZeroElems() > 0)
+         S.reset(Add(*Mtm, *S));
+      }
+
+      if (!bop && Mnl)
+      {
+         Mtm = static_cast<const SparseMatrix*>(&bgrad->GetBlock(1,1));
+         if (Mtm->NumNonZeroElems() > 0)
          {
-            S.reset(Add(Mtm, *S));
+            S.reset(Add(*Mtm, *S));
          }
       }
 
