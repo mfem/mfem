@@ -233,7 +233,8 @@ int main(int argc, char *argv[])
 
    if (dg && td > 0.)
    {
-      Mtnl->AddInteriorFaceIntegrator(new HDGDiffusionIntegrator(kcoeff, td));
+      Mtnl->AddInteriorFaceIntegrator(new VectorBlockDiagonalIntegrator(num_equations,
+                                                                        new HDGDiffusionIntegrator(kcoeff, td)));
    }
 
    //divergence/weak gradient
@@ -251,8 +252,8 @@ int main(int argc, char *argv[])
 
    if (dg || brt)
    {
-      B->AddInteriorFaceIntegrator(new TransposeIntegrator(
-                                      new DGNormalTraceIntegrator(-1.)));
+      B->AddInteriorFaceIntegrator(new VectorBlockDiagonalIntegrator(
+                                      num_equations, new TransposeIntegrator(new DGNormalTraceIntegrator(-1.))));
    }
 
    //nonlinear convection
