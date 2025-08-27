@@ -35,21 +35,24 @@ std::vector<std::pair<std::bitset<N>, real_t>> getProbabilitySpace(real_t p1, re
 
     real_t p0 = 1.0 - N * p1 - (N - 1) * p2 - (N - 2) * p3 - (N - 3) * p4;
 
+    bitset<N> noFailures;
+    probability_space.emplace_back(noFailures, p0);
+
     // Example: pair of a vector of ints and a float
-    probability_space.emplace_back(std::bitset<N>(), p0);
+    // probability_space.emplace_back(std::bitset<N>(), p0);
     for (int i = 0; i < N; i++)
     {
         bitset<N> singleFailure;
         singleFailure.set(i);
         probability_space.emplace_back(singleFailure, p1);
     }
-    // for (int i = 0; i < N - 1; i++)
-    // {
-    //     bitset<N> doubleFailure;
-    //     doubleFailure.set(i);
-    //     doubleFailure.set(i + 1);
-    //     probability_space.emplace_back(doubleFailure, p2);
-    // }
+    for (int i = 0; i < N - 1; i++)
+    {
+        bitset<N> doubleFailure;
+        doubleFailure.set(i);
+        doubleFailure.set(i + 1);
+        probability_space.emplace_back(doubleFailure, p2);
+    }
     // for (int i = 0; i < N - 2; i++)
     // {
     //     bitset<N> tripleFailure;
@@ -80,12 +83,12 @@ real_t proj_latent_onto_probability_simplex(
     int max_its = 10)
 {
     int myid = Mpi::WorldRank();
-    max_its = std::min(max_its, 10);
+    max_its = std::max(max_its, 10);
 
     if (myid == 0) {
         std::cout << "Printing latent_probabilities_unnormalized within Illinois.\n";
         for (size_t i = 0; i < latent_probabilities_unnormalized.size(); ++i) {
-            std::cout << i << ":" << std::get<2>(latent_probabilities_unnormalized[i]) << " ";
+            std::cout << i << ":" << std::get<1>(latent_probabilities_unnormalized[i]) << "_" << std::get<2>(latent_probabilities_unnormalized[i]) << " ";
         }
         std::cout << "\n";
         std::cout << "Done printing latent_probabilities_unnormalized.\n";
@@ -94,9 +97,9 @@ real_t proj_latent_onto_probability_simplex(
     // todo [asnesw]: Figure out edge cases with these guys.
     real_t negative_latent_max = (real_t) -(DBL_MAX - 1);
     real_t negative_latent_min = (real_t) DBL_MAX;
-    if (myid == 0) {
-        cout << "negative_latent_max: " << negative_latent_max << ", negative_latent_min: " << negative_latent_min << "\n";
-    }
+    // if (myid == 0) {
+    //     cout << "negative_latent_max: " << negative_latent_max << ", negative_latent_min: " << negative_latent_min << "\n";
+    // }
 
     for (auto &[bits, original_probability, latent_probability] : latent_probabilities_unnormalized)
     {
@@ -151,7 +154,8 @@ real_t proj_latent_onto_probability_simplex(
         real_t x_vol_minus = calculate_summation_for_t(x) - 1;
 
         if (myid == 0) {
-            cout << "a_vol_minus: " << a_vol_minus << ", b_vol_minus: " << b_vol_minus << " x_vol_minus: " << x_vol_minus << ", x: " << x << ".\n";
+            cout << "a: " << a << ", b: " << b << ", x: " << x << ".\n";
+            cout << "a_vol_minus: " << a_vol_minus << ", b_vol_minus: " << b_vol_minus << " x_vol_minus: " << x_vol_minus << ".\n";
         }
 
         if (b_vol_minus * x_vol_minus < 0)
@@ -170,14 +174,14 @@ real_t proj_latent_onto_probability_simplex(
         {
             done = true;
             if (myid == 0) {
-            cout << "x_vol_minus = " << x_vol_minus << " IS WITHINT tolerance of " << tol << ".\n";
+            cout << "x_vol_minus = " << x_vol_minus << " IS WITHIN tolerance of " << tol << ".\n";
             }
             break;
         }
         else
         {
             if (myid == 0) {
-            cout << "x_vol_minus = " << x_vol_minus << " not within tolerance of " << tol << ".\n";
+                cout << "x_vol_minus = " << x_vol_minus << " not within tolerance of " << tol << ".\n";
             }
         }
     }
@@ -347,8 +351,8 @@ int main(int argc, char *argv[])
     bool algebraic_ceed = false;
     real_t filter_radius = real_t(0.025);
 
-    real_t gamma = 1.0;
-    real_t vol_fraction = 0.35;
+    real_t gamma = 10.0;
+    real_t vol_fraction = 0.6;
     int max_it = 100;
     real_t itol = 1e-1;
     real_t ntol = 1e-4;
@@ -360,13 +364,13 @@ int main(int argc, char *argv[])
     bool paraview_output = true;
 
     const real_t p1 = 0.1;
-    const real_t p2 = 0.01;
-    const real_t p3 = 0.001;
-    const real_t p4 = 0.0001;
+    const real_t p2 = 0.05;
+    const real_t p3 = 0.0;
+    const real_t p4 = 0.0;
 
     const real_t cvar_alpha = 0.05;
-    const int outer_loop_iterations = 20;
-    const int inner_loop_iterations = 1;
+    const int outer_loop_iterations = 100;
+    const int inner_loop_iterations = 4;
 
     std::vector<std::pair<std::bitset<N>, real_t>> probability_space = getProbabilitySpace(p1, p2, p3, p4);
 
@@ -614,16 +618,20 @@ int main(int argc, char *argv[])
                 {
                     if (!(bits.test(i - 2)))
                     {
+                        elsolver->AddDispBC(i, 4, 0.0); // start with all of them fixed. 0 displacement in all directions.
+                    } else {
                         if (myid == 0) {
                             std::cout << "Skipping bit " << (i - 2) << " in scenario " << bits << ".\n";
                         }
-                        elsolver->AddDispBC(i, 4, 0.0); // start with all of them fixed. 0 displacement in all directions.
                     }
                 }
 
                 // solve the discrete elastic system
                 elsolver->Assemble();
                 elsolver->FSolve(); // solve for displacements
+
+                ParGridFunction &sol = elsolver->GetDisplacements();
+                icc.SetGridFunctions(&fdens, &sol);
 
                 ParLinearForm compl_form(filt->GetFilterFES());
                 compl_form.AddDomainIntegrator(new DomainLFIntegrator(icc));
@@ -653,7 +661,7 @@ int main(int argc, char *argv[])
                 latent_probabilities,
                 cvar_alpha,
                 1e-10,
-                1000
+                25
             );
 
             // iterate through the probability space
