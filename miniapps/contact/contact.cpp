@@ -380,17 +380,21 @@ int main(int argc, char *argv[])
 
 
       Solver * prec = nullptr;
-      MUMPSSolver * mumpssolver = nullptr;
+      Solver * subspacesolver = nullptr;
       if (amgf)
       {
-         mumpssolver = new MUMPSSolver(MPI_COMM_WORLD);
-         mumpssolver->SetPrintLevel(0);
+#ifdef MFEM_USE_MUMPS
+         subspacesolver = new MUMPSSolver(MPI_COMM_WORLD);
+         dynamic_cast<MUMPSSolver*>(subspacesolver)->SetPrintLevel(0);
+#else
+         MFEM_ABORT("MFEM must be built with MUMPS in order to use AMGF");
+#endif
          prec = new AMGFSolver();
          auto * amgfprec = dynamic_cast<AMGFSolver *>(prec);
          amgfprec->AMG().SetSystemsOptions(3);
          amgfprec->AMG().SetPrintLevel(0);
          amgfprec->AMG().SetRelaxType(88);
-         amgfprec->SetFilteredSubspaceSolver(*mumpssolver);
+         amgfprec->SetFilteredSubspaceSolver(*subspacesolver);
          amgfprec->SetFilteredSubspaceTransferOperator(
             *contact.GetContactSubspaceTransferOperator());
       }
@@ -423,7 +427,7 @@ int main(int argc, char *argv[])
       optimizer.Mult(x0, xf);
 
       delete prec;
-      if (mumpssolver) { delete mumpssolver; }
+      if (subspacesolver) { delete subspacesolver; }
 
 
       dx.Set(1.0, xf);
