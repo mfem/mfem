@@ -229,6 +229,9 @@ class VectorBlockDiagonalIntegrator : public BilinearFormIntegrator
 
    std::vector<DenseMatrix> elmats;
 
+   template<typename FType, typename... Args> void AssembleMatrix(
+      FType f, DenseMatrix &elmat, Args&&... args);
+
 public:
    VectorBlockDiagonalIntegrator(int n) : numIntegs(n) { integs.resize(n); }
    VectorBlockDiagonalIntegrator(int n, BilinearFormIntegrator *integ_)
@@ -251,13 +254,69 @@ public:
 
    void AssembleElementMatrix(const FiniteElement &el,
                               ElementTransformation &Trans,
-                              DenseMatrix &elmat) override;
+                              DenseMatrix &elmat) override
+   {
+      AssembleMatrix<>(&BilinearFormIntegrator::AssembleElementMatrix, elmat, el,
+                       Trans);
+   }
 
    void AssembleElementMatrix2(const FiniteElement &trial_fe,
                                const FiniteElement &test_fe,
                                ElementTransformation &Trans,
-                               DenseMatrix &elmat) override;
+                               DenseMatrix &elmat) override
+   {
+      AssembleMatrix<>(&BilinearFormIntegrator::AssembleElementMatrix2, elmat,
+                       trial_fe, test_fe, Trans);
+   }
 };
+
+template<typename FType, typename... Args>
+void VectorBlockDiagonalIntegrator::AssembleMatrix(
+   FType f, DenseMatrix &elmat, Args&&... args)
+{
+   if (numIntegs > (int)integs.size())
+   {
+      elmats.resize(1);
+      (integs[0]->*f)(args..., elmats[0]);
+      const int w = elmats[0].Width();
+      const int h = elmats[0].Height();
+
+      elmat.SetSize(numIntegs * h, numIntegs * w);
+      elmat = 0.0;
+
+      for (int i = 0; i < numIntegs; i++)
+      {
+         elmat.CopyMN(elmats[0], i * h, i * w);
+      }
+   }
+   else
+   {
+      elmats.resize(numIntegs);
+      int w = 0, h = 0;
+      for (int i = 0; i < numIntegs; i++)
+      {
+         if (!integs[i])
+         {
+            elmats[i].SetSize(0);
+            continue;
+         }
+         (integs[i]->*f)(args..., elmats[i]);
+         w += elmats[i].Width();
+         h += elmats[i].Height();
+      }
+
+      elmat.SetSize(h, w);
+      elmat = 0.0;
+
+      int off_i = 0, off_j = 0;
+      for (int i = 0; i < numIntegs; i++)
+      {
+         elmat.CopyMN(elmats[i], off_i, off_j);
+         off_j += elmats[i].Width();
+         off_i += elmats[i].Height();
+      }
+   }
+}
 
 }
 
