@@ -221,10 +221,10 @@ void PatchApplyKernel3D(const PatchBasisInfo &pb,
             const int q = qx + ((qy + (qz * Q1D[1])) * Q1D[0]);
             const Vector coeffs({qd(q,9), qd(q,10)});
             const auto Jinvt = mfem::future::make_tensor<dim, dim>(
-               [&](int i, int j) { return qd(q, i*dim + j); });
+            [&](int i, int j) { return qd(q, i*dim + j); });
             // dudx at quadrature point in reference space
             const auto dudx_ref = mfem::future::make_tensor<dim, dim>(
-               [&](int i, int j) { return gradu_ref(i,j,qx,qy,qz); });
+            [&](int i, int j) { return gradu_ref(i,j,qx,qy,qz); });
             // convert to physical space
             const auto dudx = dudx_ref * transpose(Jinvt);
             const auto Sq = kernel(coeffs, dudx) * Jinvt;
@@ -271,12 +271,12 @@ void PatchApplyGradKernel3D(const PatchBasisInfo &pb,
             const int q = qx + ((qy + (qz * Q1D[1])) * Q1D[0]);
             const Vector coeffs({qd(q,9), qd(q,10)});
             const auto Jinvt = mfem::future::make_tensor<dim, dim>(
-               [&](int i, int j) { return qd(q, i*dim + j); });
+            [&](int i, int j) { return qd(q, i*dim + j); });
             // dudx at quadrature point in reference space
             const auto dudx_ref = mfem::future::make_tensor<dim, dim>(
-               [&](int i, int j) { return gradu_ref(i,j,qx,qy,qz); });
+            [&](int i, int j) { return gradu_ref(i,j,qx,qy,qz); });
             const auto ddudx_ref = mfem::future::make_tensor<dim, dim>(
-               [&](int i, int j) { return dgradu_ref(i,j,qx,qy,qz); });
+            [&](int i, int j) { return dgradu_ref(i,j,qx,qy,qz); });
             // convert to physical space
             const auto dudx = dudx_ref * transpose(Jinvt);
             const auto ddudx = ddudx_ref * transpose(Jinvt);
@@ -357,8 +357,8 @@ GradNeoHookeanStress(const Vector coeffs,
    const real_t a2 = ddot(F, ddudx);
 
    const auto dsigma = ((2 * D1 * j * a1 - real_t(4.0 / 3.0) * coef * a2) * I -
-            (real_t(10.0 / 3.0) * coef * a1) * devB +
-            (2 * coef) * (dot(ddudx, transpose(F)) + dot(F, transpose(ddudx))));
+                        (real_t(10.0 / 3.0) * coef * a1) * devB +
+                        (2 * coef) * (dot(ddudx, transpose(F)) + dot(F, transpose(ddudx))));
 
 
    // Transform back to reference space
