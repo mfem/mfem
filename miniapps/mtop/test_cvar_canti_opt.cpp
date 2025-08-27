@@ -43,30 +43,30 @@ std::vector<std::pair<std::bitset<N>, real_t>> getProbabilitySpace(real_t p1, re
         singleFailure.set(i);
         probability_space.emplace_back(singleFailure, p1);
     }
-    for (int i = 0; i < N - 1; i++)
-    {
-        bitset<N> doubleFailure;
-        doubleFailure.set(i);
-        doubleFailure.set(i + 1);
-        probability_space.emplace_back(doubleFailure, p2);
-    }
-    for (int i = 0; i < N - 2; i++)
-    {
-        bitset<N> tripleFailure;
-        tripleFailure.set(i);
-        tripleFailure.set(i + 1);
-        tripleFailure.set(i + 2);
-        probability_space.emplace_back(tripleFailure, p3);
-    }
-    for (int i = 0; i < N - 3; i++)
-    {
-        bitset<N> quadrupleFailure;
-        quadrupleFailure.set(i);
-        quadrupleFailure.set(i + 1);
-        quadrupleFailure.set(i + 2);
-        quadrupleFailure.set(i + 3);
-        probability_space.emplace_back(quadrupleFailure, p4);
-    }
+    // for (int i = 0; i < N - 1; i++)
+    // {
+    //     bitset<N> doubleFailure;
+    //     doubleFailure.set(i);
+    //     doubleFailure.set(i + 1);
+    //     probability_space.emplace_back(doubleFailure, p2);
+    // }
+    // for (int i = 0; i < N - 2; i++)
+    // {
+    //     bitset<N> tripleFailure;
+    //     tripleFailure.set(i);
+    //     tripleFailure.set(i + 1);
+    //     tripleFailure.set(i + 2);
+    //     probability_space.emplace_back(tripleFailure, p3);
+    // }
+    // for (int i = 0; i < N - 3; i++)
+    // {
+    //     bitset<N> quadrupleFailure;
+    //     quadrupleFailure.set(i);
+    //     quadrupleFailure.set(i + 1);
+    //     quadrupleFailure.set(i + 2);
+    //     quadrupleFailure.set(i + 3);
+    //     probability_space.emplace_back(quadrupleFailure, p4);
+    // }
 
     return probability_space;
 }
@@ -79,20 +79,41 @@ real_t proj_latent_onto_probability_simplex(
     real_t tol = 1e-12,
     int max_its = 10)
 {
+    int myid = Mpi::WorldRank();
     max_its = std::min(max_its, 10);
 
-    real_t negative_latent_max = 0.0;
-    real_t negative_latent_min = 0.0;
+    if (myid == 0) {
+        std::cout << "Printing latent_probabilities_unnormalized within Illinois.\n";
+        for (size_t i = 0; i < latent_probabilities_unnormalized.size(); ++i) {
+            std::cout << i << ":" << std::get<2>(latent_probabilities_unnormalized[i]) << " ";
+        }
+        std::cout << "\n";
+        std::cout << "Done printing latent_probabilities_unnormalized.\n";
+    }
+
+    // todo [asnesw]: Figure out edge cases with these guys.
+    real_t negative_latent_max = (real_t) -(DBL_MAX - 1);
+    real_t negative_latent_min = (real_t) DBL_MAX;
+    if (myid == 0) {
+        cout << "negative_latent_max: " << negative_latent_max << ", negative_latent_min: " << negative_latent_min << "\n";
+    }
 
     for (auto &[bits, original_probability, latent_probability] : latent_probabilities_unnormalized)
     {
         negative_latent_max = std::max(negative_latent_max, -latent_probability);
         negative_latent_min = std::min(negative_latent_min, -latent_probability);
+        if (myid == 0) {
+            cout << "negative_latent_max: " << negative_latent_max << ", negative_latent_min: " << negative_latent_min << "\n";
+        }
     };
 
     // these bound 1
-    real_t a = inv_sigmoid(1 - alpha) + negative_latent_min - 0.1;
-    real_t b = inv_sigmoid(1 - alpha) + negative_latent_max + 0.1;
+    real_t a = inv_sigmoid(1 - alpha) + negative_latent_min - 1.0;
+    real_t b = inv_sigmoid(1 - alpha) + negative_latent_max + 1.0;
+
+    if (myid == 0) {
+        cout << "a: " << a << ", b: " << b << "\n";
+    }
 
     // // we avoid summing
     // real_t calculate_summation_for_t(real_t t) {
@@ -121,12 +142,17 @@ real_t proj_latent_onto_probability_simplex(
 
     for (int k = 0; k < max_its; k++) // Illinois iteration
     {
-        cout << "Iteration count " << k << ".\n";
+        if (myid == 0) {
+            cout << "Iteration count " << k << ".\n";
+        }
+
         x = b - b_vol_minus * (b - a) / (b_vol_minus - a_vol_minus);
 
         real_t x_vol_minus = calculate_summation_for_t(x) - 1;
 
-        cout << "a_vol_minus: " << a_vol_minus << ", b_vol_minus: " << b_vol_minus << " x_vol_minus: " << x_vol_minus << ".\n";
+        if (myid == 0) {
+            cout << "a_vol_minus: " << a_vol_minus << ", b_vol_minus: " << b_vol_minus << " x_vol_minus: " << x_vol_minus << ", x: " << x << ".\n";
+        }
 
         if (b_vol_minus * x_vol_minus < 0)
         {
@@ -143,12 +169,16 @@ real_t proj_latent_onto_probability_simplex(
         if (abs(x_vol_minus) < tol)
         {
             done = true;
+            if (myid == 0) {
             cout << "x_vol_minus = " << x_vol_minus << " IS WITHINT tolerance of " << tol << ".\n";
+            }
             break;
         }
         else
         {
+            if (myid == 0) {
             cout << "x_vol_minus = " << x_vol_minus << " not within tolerance of " << tol << ".\n";
+            }
         }
     }
 
@@ -335,10 +365,14 @@ int main(int argc, char *argv[])
     const real_t p4 = 0.0001;
 
     const real_t cvar_alpha = 0.05;
-    const int outer_loop_iterations = 10;
-    const int inner_loop_iterations = 10;
+    const int outer_loop_iterations = 20;
+    const int inner_loop_iterations = 1;
 
     std::vector<std::pair<std::bitset<N>, real_t>> probability_space = getProbabilitySpace(p1, p2, p3, p4);
+
+    if (myid == 0) {
+    std::cout << "Size of probability space: " << probability_space.size() << "\n";
+    }
 
     OptionsParser args(argc, argv);
     args.AddOption(&mesh_file, "-m", "--mesh",
@@ -560,7 +594,7 @@ int main(int argc, char *argv[])
             icc.SetGridFunctions(&fdens, &(elsolver->GetDisplacements()));
 
             // iterate through the probability space
-            for (auto &[bits, original_probability, latent_probability] : latent_probabilities)
+            for (auto &[bits, original_probability, latent_probability] : latent_probabilities_old)
             {
                 if (0 == myid)
                 {
@@ -580,6 +614,9 @@ int main(int argc, char *argv[])
                 {
                     if (!(bits.test(i - 2)))
                     {
+                        if (myid == 0) {
+                            std::cout << "Skipping bit " << (i - 2) << " in scenario " << bits << ".\n";
+                        }
                         elsolver->AddDispBC(i, 4, 0.0); // start with all of them fixed. 0 displacement in all directions.
                     }
                 }
@@ -593,8 +630,21 @@ int main(int argc, char *argv[])
                 compl_form.Assemble();
                 real_t compliance_i = compl_form(onegf); // inner product of compliance and constant 1 function. IE the integral.
 
+                if (myid == 0) {
+                    std::cout << "Latent: " << latent_probability << ", gamma: " << gamma << ", compliance: " << compliance_i << ".\n";
+                }
+
                 latent_probabilities_unnormalized.emplace_back(
                     bits, original_probability, latent_probability + gamma * compliance_i);
+            }
+
+            if (myid == 0) {
+                std::cout << "Printing latent_probabilities_unnormalized within inner loop, after calculating.\n";
+                for (size_t i = 0; i < latent_probabilities_unnormalized.size(); ++i) {
+                    std::cout << i << ":" << std::get<2>(latent_probabilities_unnormalized[i]) << " ";
+                }
+                std::cout << "\n";
+                std::cout << "Done printing latent_probabilities_unnormalized.\n";
             }
 
             // then we update the new latents to ensure they sum to 1.
