@@ -2,8 +2,8 @@
 //
 // Compile with: make nurbs_patch_ex2_nl
 //
-// Sample runs:  nurbs_patch_ex2 -incdeg 2 -rf 4 -int 0
-//               nurbs_patch_ex2 -incdeg 2 -rf 4 -int 1
+// Sample runs:  nurbs_patch_ex2_nl -incdeg 2 -rf 4 -int 0
+//               nurbs_patch_ex2_nl -incdeg 2 -rf 4 -int 1
 //
 // Description:  This example code solves a simple nonlinear elasticity problem
 //               describing a multi-material cantilever beam.
@@ -14,7 +14,7 @@
 //                    (fixed)      +----------+----------+     (pull down)
 //
 //               This example is a specialization of ex2 which demonstrates
-//               patch-wise partial assembly on NURBS meshes.
+//               non-linear patch-wise partial assembly on NURBS meshes.
 
 #include "mfem.hpp"
 #include <fstream>
@@ -37,7 +37,7 @@ private:
    std::vector<Vector> ppa_data;
    // Vector [numPatches] of structs containing basis info for each patch
    std::vector<PatchBasisInfo> pbinfo;
-   const FiniteElementSpace *fespace;   ///< Not owned.
+   const FiniteElementSpace *fespace; ///< Not owned.
    Vector pa_data;
    PWConstCoefficient *C1, *D1;
    int numPatches;
@@ -50,7 +50,8 @@ private:
    mutable Vector ucache;
 
 public:
-   NeoHookeanNLFIntegrator(PWConstCoefficient &c, PWConstCoefficient &d, NURBSMeshRules *pr)
+   NeoHookeanNLFIntegrator(PWConstCoefficient &c, PWConstCoefficient &d,
+                           NURBSMeshRules *pr)
    {
       C1 = &c; D1 = &d;
       patchRules = pr;
@@ -129,9 +130,9 @@ void NeoHookeanNLFIntegrator::AssemblePA(const FiniteElementSpace &fes)
          }
       }
 
-   // Computes values at quadrature points
-   PatchElasticitySetup3D(Q1D[0], Q1D[1], Q1D[2], weightsv, jacv, coeffsv,
-                          ppa_data[patch]);
+      // Computes values at quadrature points
+      PatchElasticitySetup3D(Q1D[0], Q1D[1], Q1D[2], weightsv, jacv, coeffsv,
+                             ppa_data[patch]);
    }
 }
 
@@ -148,7 +149,8 @@ void NeoHookeanNLFIntegrator::MultPatch(const Vector &pa_data,
    // gradu(i,j,q): d/d(x_j) u_i(x_q)
    Vector graduv(vdim*vdim*NQ);
    graduv = 0.0;
-   auto gradu = Reshape(graduv.HostReadWrite(), vdim, vdim, Q1D[0], Q1D[1], Q1D[2]);
+   auto gradu = Reshape(graduv.HostReadWrite(), vdim, vdim, Q1D[0], Q1D[1],
+                        Q1D[2]);
 
    // S[i,j,q] = D( gradu )
    //          = stress[i,j,q] * J^{-T}[q]
@@ -164,12 +166,9 @@ void NeoHookeanNLFIntegrator::MultPatch(const Vector &pa_data,
 
    // 2) Apply the "D" operator at each quadrature point: D( gradu )
    PatchApplyKernel3D(pb, pa_data, NeoHookeanStress<3>, gradu, S);
-   // PatchApplyKernel3D(pb, pa_data, LinearElasticStress<3>, gradu, S);
 
    // 3) Apply test function gradv
    PatchGT3D<3>(pb, S, sumXYv, sumXv, y);
-   // cout << "done add mult" << endl;
-
 }
 
 void NeoHookeanNLFIntegrator::Mult(const Vector &x, Vector &y) const
@@ -204,12 +203,14 @@ void NeoHookeanNLFIntegrator::MultGradPatch(const Vector &pa_data,
 
    Vector graduv(vdim*vdim*NQ);
    graduv = 0.0;
-   auto gradu = Reshape(graduv.HostReadWrite(), vdim, vdim, Q1D[0], Q1D[1], Q1D[2]);
+   auto gradu = Reshape(graduv.HostReadWrite(), vdim, vdim, Q1D[0], Q1D[1],
+                        Q1D[2]);
 
-   // direction of action
+   // Direction of action
    Vector dgraduv(vdim*vdim*NQ);
    dgraduv = 0.0;
-   auto dgradu = Reshape(dgraduv.HostReadWrite(), vdim, vdim, Q1D[0], Q1D[1], Q1D[2]);
+   auto dgradu = Reshape(dgraduv.HostReadWrite(), vdim, vdim, Q1D[0], Q1D[1],
+                         Q1D[2]);
 
    Vector Sv(vdim*vdim*NQ);
    Sv = 0.0;
@@ -225,12 +226,9 @@ void NeoHookeanNLFIntegrator::MultGradPatch(const Vector &pa_data,
 
    // 2) Apply the "D" operator at each quadrature point: D( gradu )
    PatchApplyGradKernel3D(pb, pa_data, GradNeoHookeanStress<3>, gradu, dgradu, S);
-   // PatchApplyKernel3D(pb, pa_data, LinearElasticStress<3>, dgradu, S);
 
    // 3) Apply test function gradv
    PatchGT3D<3>(pb, S, sumXYv, sumXv, y);
-   // cout << "done add mult" << endl;
-
 }
 
 void NeoHookeanNLFIntegrator::MultGrad(const Vector &x, Vector &y) const
@@ -252,7 +250,6 @@ void NeoHookeanNLFIntegrator::MultGrad(const Vector &x, Vector &y) const
 
       y.AddElementVector(vdofs, yp);
    }
-   // cout << "done mult grad" << endl;
 }
 
 void NeoHookeanNLFIntegrator::Update(const Vector &x)
@@ -266,7 +263,6 @@ private:
    NeoHookeanNLFIntegrator *F1; // domain terms
    LinearForm *F2; // boundary terms
    Array<int> ess_tdofs;
-   // NonlinearForm *F1 = nullptr; // domain terms
 
    class Jacobian : public Operator
    {
@@ -302,7 +298,8 @@ private:
    };
 
 public:
-   Residual(NeoHookeanNLFIntegrator *F1_, FiniteElementSpace &fespace, LinearForm *F2_, Array<int> &ess_tdof_list);
+   Residual(NeoHookeanNLFIntegrator *F1_, FiniteElementSpace &fespace,
+            LinearForm *F2_, Array<int> &ess_tdof_list);
 
    void Mult(const Vector &x, Vector &y) const override;
 
@@ -311,13 +308,13 @@ public:
    mutable std::shared_ptr<Jacobian> J;
 };
 
-Residual::Residual(NeoHookeanNLFIntegrator *F1_, FiniteElementSpace &fespace, LinearForm *F2_, Array<int> &ess)
+Residual::Residual(NeoHookeanNLFIntegrator *F1_, FiniteElementSpace &fespace,
+                   LinearForm *F2_, Array<int> &ess)
    : Operator(fespace.GetTrueVSize()), F1(F1_), F2(F2_), ess_tdofs(ess)
 { }
 
 void Residual::Mult(const Vector &x, Vector &y) const
 {
-   // cout << "debugging, x = " << endl; x.Print();
    y = 0.0;
 
    F1->Mult(x, y);
@@ -329,13 +326,7 @@ void Residual::Mult(const Vector &x, Vector &y) const
       y[i] -= v[i];
    }
 
-
    y.SetSubVector(ess_tdofs, 0.0);
-
-   // cout << endl << endl << "debugging, y = " << endl; y.Print();
-   // cout << endl << endl << "debugging, esstdofs = " << endl; ess_tdofs.Print();
-
-   // cout << "Residual::Mult" << endl;
 }
 
 Operator &Residual::GetGradient(const Vector &x) const
@@ -343,7 +334,6 @@ Operator &Residual::GetGradient(const Vector &x) const
    // action of gradient is calculated by the NeoHookeanNLFIntegrator, so update its data
    F1->Update(x);
    J = std::make_shared<Jacobian>(this);
-   // cout << "Residual::GetGradient" << endl;
    return *J;
 }
 
@@ -402,15 +392,10 @@ int main(int argc, char *argv[])
    if (nurbs_degree_increase > 0) { mesh.DegreeElevate(nurbs_degree_increase); }
    if (refinement_factor > 1) { mesh.NURBSUniformRefinement(refinement_factor); }
 
-   // ofstream orig_ofs("ho_mesh.mesh");
-   // orig_ofs.precision(8);
-   // mesh.Print(orig_ofs);
-   // cout << "High-Order mesh written to ho_mesh.mesh" << endl;
-
    // 5. Define a finite element space on the mesh.
    FiniteElementCollection * fec = mesh.GetNodes()->OwnFEC();
-   FiniteElementSpace fespace = FiniteElementSpace(&mesh, fec, dim, Ordering::byVDIM);
-   // FiniteElementSpace fespace = FiniteElementSpace(&mesh, fec, dim);
+   FiniteElementSpace fespace = FiniteElementSpace(&mesh, fec, dim,
+                                                   Ordering::byVDIM);
    cout << "Finite Element Collection: " << fec->Name() << endl;
    cout << "Number of finite element unknowns: " << fespace.GetTrueVSize() << endl;
    cout << "Number of elements: " << fespace.GetNE() << endl;
@@ -447,17 +432,13 @@ int main(int argc, char *argv[])
 
    // 9. Set up the nonlinear form F
 
-   // Lame parameters -> Mooney-Rivlin coefficients
-   // (to compare behavior with ex2)
+   // Lame parameters -> Mooney-Rivlin coefficients (to compare behavior with ex2)
    Vector C1(mesh.attributes.Max());
    Vector D1(mesh.attributes.Max());
    int lambda1 = 1.0; int lambda2 = lambda1*50;
    int mu1 = 1.0; int mu2 = mu1*50;
    C1 = 0.5 * mu1; C1(0) = 0.5 * mu2;
    D1 = 0.5 * (lambda1 + 2.0/3 * mu1); D1(0) = 0.5 * (lambda2 + 2.0/3 * mu2);
-
-   // C1 = 0.5; D1 = 2.83333333333; // lambda = 5.0, mu = 1.0
-   // C1 = 5.0; D1 = 1.0; //lambda, mu
 
    PWConstCoefficient C1_func(C1);
    PWConstCoefficient D1_func(D1);
@@ -483,13 +464,14 @@ int main(int argc, char *argv[])
    // lsolver.SetPrintLevel(2);
 
    GMRESSolver lsolver;
-   lsolver.iterative_mode = true;
+   // lsolver.iterative_mode = true;
    lsolver.SetRelTol(1e-6);
    lsolver.SetAbsTol(0);
    lsolver.SetMaxIter(1000);
 
    // Set up the nonlinear solver
    NewtonSolver newton;
+   // This should probably always be false
    newton.iterative_mode = false;
    newton.SetOperator(F);
    newton.SetAbsTol(0);
@@ -502,48 +484,8 @@ int main(int argc, char *argv[])
    // Solve
    Vector zero;
    Vector X(fespace.GetTrueVSize());
-   // fespace.GetRestrictionMatrix()->Mult(x, X);
-   // fespace.GetRestrictionOperator()->Mult(x, X);
    newton.Mult(zero, X);
-
-   // debugging - linear
-   // X[4] = 0.01;
-   // cout << "debugging, X = " << endl; X.Print();
-   // Vector Y(fespace.GetTrueVSize());
-   // F.Mult(X,Y);
-   // cout << "debugging, F(X) = " << endl;
-   // Y.Print();
-
-   // fespace.GetProlongationMatrix()->Mult(X, x);
-   // fespace.GetProlongationOperator()->Mult(X, x);
-
-   // IdentityOperator I(fespace.GetTrueVSize());
-   // I.Mult(Y, x);
-   // x.SyncMemory(Y);
-   // x = Y;
    x = X;
-
-   // cout << " x = " << endl; x.Print();
-
-   // OperatorPtr A;
-   // a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
-   // cout << "done. " << "(size = " << fespace.GetTrueVSize() << ")" << endl;
-
-   // 11. Define the solver + preconditioner
-   // CGSolver solver;
-   // solver.SetOperator(*A);
-   // solver.SetMaxIter(1e4);
-   // solver.SetPrintLevel(1);
-   // solver.SetRelTol(sqrt(1e-6));
-   // solver.SetAbsTol(sqrt(1e-14));
-
-
-   // 12. Solve the linear system A X = B.
-   // cout << "Solving linear system ... " << endl;
-   // solver.Mult(B, X);
-   // cout << "Done solving system." << endl;
-   // // Recover the solution as a finite element grid function.
-   // a.RecoverFEMSolution(X, b, x);
 
    {
       cout << "Saving mesh and solution to file..." << endl;
@@ -570,9 +512,6 @@ int main(int argc, char *argv[])
                << 600 << " " << 600 << "\n"
                << "keys agc\n" << std::flush;
    }
-
-
-
 
 
    return 0;
