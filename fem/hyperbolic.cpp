@@ -219,7 +219,8 @@ void HyperbolicFormIntegrator::AssembleFaceVector(
    const IntegrationRule *ir = IntRule;
    if (!ir)
    {
-      const int max_el_order = dof2 ? std::max(el1.GetOrder(), el2.GetOrder()) : el1.GetOrder();
+      const int max_el_order = dof2 ? std::max(el1.GetOrder(),
+                                               el2.GetOrder()) : el1.GetOrder();
       const int order = 2*max_el_order + IntOrderOffset;
       ir = &IntRules.Get(Tr.GetGeometryType(), order);
    }
@@ -311,7 +312,8 @@ void HyperbolicFormIntegrator::AssembleFaceGrad(
    const IntegrationRule *ir = IntRule;
    if (!ir)
    {
-      const int max_el_order = dof2 ? std::max(el1.GetOrder(), el2.GetOrder()) : el1.GetOrder();
+      const int max_el_order = dof2 ? std::max(el1.GetOrder(),
+                                               el2.GetOrder()) : el1.GetOrder();
       const int order = 2*max_el_order + IntOrderOffset;
       ir = &IntRules.Get(Tr.GetGeometryType(), order);
    }
