@@ -9,43 +9,38 @@ SRC = $(if $(MFEM_DIR:../..=),$(MFEM_DIR)/miniapps/contact/,)
 CONFIG_MK = $(or $(wildcard $(MFEM_BUILD_DIR)/config/config.mk),\
    $(wildcard $(MFEM_INSTALL_DIR)/share/mfem/config.mk))
 
+# Include defaults.mk to get XLINKER
+DEFAULTS_MK = $(MFEM_DIR)/config/defaults.mk
+include $(DEFAULTS_MK)
+
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-# Build only if TRIBOL is enabled
+CONTACT_SRC = utils/ip.cpp utils/problems.cpp
+CONTACT_OBJ = $(CONTACT_SRC:.cpp=.o)
+
 ifeq ($(MFEM_USE_TRIBOL)$(MFEM_USE_MPI),YESYES)
    MINIAPPS = contact
 else
-   MINIAPPS =
+   MINIAPPS = 
 endif
 
 .SUFFIXES:
 .SUFFIXES: .o .cpp .mk
 .PHONY: all clean clean-build clean-exec
 
-# Remove built-in single-file rule (kept for completeness)
+# Remove built-in rules
 %: %.cpp
+%.o: %.cpp
 
-# ---- Contact miniapp multi-file build ----
-# Sources
-UTILS_SRC = utils
-CONTACT_SRCS = contact.cpp \
-               $(UTILS_SRC)/ip.cpp \
-               $(UTILS_SRC)/problems.cpp
-CONTACT_OBJS = $(CONTACT_SRCS:.cpp=.o)
+%: %.o $(CONTACT_OBJ)
+	$(MFEM_CXX) $(MFEM_LINK_FLAGS) $^ -o $@ $(MFEM_LIBS)
 
-# Link rule
-contact: $(CONTACT_OBJS) $(MFEM_LIB_FILE) $(CONFIG_MK)
-	$(MFEM_CXX) $(MFEM_FLAGS) $(CONTACT_OBJS) -o $@ $(MFEM_LIBS) 
+%.o: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
+	$(MFEM_CXX) $(MFEM_FLAGS) -c $< -o $@
 
-# Compile objects (add local headers)
-$(SRC)%.o: $(SRC)%.cpp $(CONFIG_MK)
-	$(MFEM_CXX) $(MFEM_FLAGS) -I$(UTILS_SRC) -c $< -o $@
-
-# Default target
 all: $(MINIAPPS)
 
-# ---- MFEM test harness wiring ----
 MFEM_TESTS = MINIAPPS
 include $(MFEM_TEST_MK)
 
