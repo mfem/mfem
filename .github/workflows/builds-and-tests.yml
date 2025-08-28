@@ -132,7 +132,7 @@ jobs:
             hypre-target: int32
             precision: fp64
             enzyme: true
-            config-opts: MFEM_USE_ENZYME=YES ENZYME_DIR=$(brew --prefix enzyme)
+            config-opts: MFEM_USE_ENZYME=YES ENZYME_DIR=$(brew --prefix enzyme) LDFLAGS=-L$LLVM_PREFIX/lib/c++
 
     name: ${{ matrix.os }}-${{ matrix.build-system }}-${{ matrix.target }}-${{ matrix.mpi }}-${{ matrix.hypre-target }}-${{ matrix.precision }}${{ matrix.enzyme && '-enzyme' || '' }}
 
