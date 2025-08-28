@@ -298,7 +298,6 @@ OptContactProblem::OptContactProblem(ElasticityOperator * problem_,
 void OptContactProblem::ComputeGapJacobian()
 {
    if (J) { delete J; }
-   Vector gap1;
    J = const_cast<HypreParMatrix *>(SetupTribol(pmesh,coords,
                                                 problem->GetEssentialDofs(),
                                                 mortar_attrs, nonmortar_attrs,gapv, tribol_ratio));

@@ -31,8 +31,11 @@ protected:
    real_t alpha, alphaz;
    real_t thx0, thxtrial;
    real_t phx0, phxtrial;
-   bool descentDirection, switchCondition, sufficientDecrease, lineSearchSuccess,
-        inFilterRegion;
+   bool descentDirection = false;
+   bool switchCondition = false;
+   bool sufficientDecrease = false;
+   bool lineSearchSuccess = false;
+   bool inFilterRegion = false;
    real_t Dxphi0_xhat;
 
    int dimU, dimM, dimC;
