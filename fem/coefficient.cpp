@@ -1095,7 +1095,7 @@ void InnerProductCoefficient::Project(QuadratureFunction &qf)
    const int vdim = a->GetVDim();
    MFEM_VERIFY(vdim >= 1, "invalid vdim: " << vdim);
 
-   // When running on device, aake sure the output data is allocated before any
+   // When running on device, make sure the output data is allocated before any
    // local temporary data:
    auto dot_d = qf.Write();
 
