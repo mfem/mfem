@@ -324,7 +324,7 @@ void HyperbolicFormIntegrator::AssembleFaceGrad(
 
       Tr.SetAllIntPoints(&ip); // set face and element int. points
 
-      // Calculate basis functions on both elements at the face
+      // Calculate basis functions of the first element at the face
       el1.CalcShape(Tr.GetElement1IntPoint(), shape1);
 
       // Interpolate elfun at the point
@@ -332,7 +332,7 @@ void HyperbolicFormIntegrator::AssembleFaceGrad(
 
       if (dof2)
       {
-         // Calculate basis functions on both elements at the face
+         // Calculate basis function of the second element at the face
          el2.CalcShape(Tr.GetElement2IntPoint(), shape2);
 
          // Interpolate elfun at the point
