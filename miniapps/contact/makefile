@@ -16,27 +16,34 @@ include $(DEFAULTS_MK)
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-CONTACT_SRC = utils/ip.cpp utils/problems.cpp
-CONTACT_OBJ = $(CONTACT_SRC:.cpp=.o)
 
 ifeq ($(MFEM_USE_TRIBOL)$(MFEM_USE_MPI),YESYES)
    MINIAPPS = contact
+   CONTACT_SRC = utils/ip.cpp utils/problems.cpp
 else
    MINIAPPS = 
+   CONTACT_SRC = 
+   .PHONY: contact
+   contact:
+	@echo "Rebuild MFEM with MFEM_USE_TRIBOL=YES and MFEM_USE_MPI=YES to enable."
 endif
+
+CONTACT_OBJ = $(CONTACT_SRC:.cpp=.o)
 
 .SUFFIXES:
 .SUFFIXES: .o .cpp .mk
 .PHONY: all clean clean-build clean-exec
 
-# Remove built-in rules
+# Remove built-in rule
 %: %.cpp
 %.o: %.cpp
 
-%: %.o $(CONTACT_OBJ)
-	$(MFEM_CXX) $(MFEM_LINK_FLAGS) $^ -o $@ $(MFEM_LIBS)
+%: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONTACT_OBJ) $(CONFIG_MK)
+	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ $(CONTACT_OBJ) $(MFEM_LIBS) \
+		-l$(patsubst lib%,%,$(basename $(notdir $(MFEM_LIB_FILE))))
 
-%.o: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
+%.o: $(SRC)%.cpp $(wildcard $(SRC)%.hpp) $(MFEM_LIB_FILE)\
+ $(CONFIG_MK) | 
 	$(MFEM_CXX) $(MFEM_FLAGS) -c $< -o $@
 
 all: $(MINIAPPS)
