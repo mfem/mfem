@@ -8,7 +8,7 @@ using namespace mfem;
 
 #include "tribol/interface/tribol.hpp"
 #include "tribol/interface/mfem_tribol.hpp"
-#include "tribol/mesh/CouplingScheme.hpp"
+// #include "tribol/mesh/CouplingScheme.hpp"
 
 
 class ElasticityOperator
