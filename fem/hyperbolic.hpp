@@ -420,6 +420,8 @@ public:
  * numerical flux F̂ at the boundary faces. The flux F is obtained from the
  * FluxFunction assigned to the aforementioned NumericalFlux with the given
  * boundary coefficient for the state u_b.
+ *
+ * Note the class can be used for imposing conditions on interior interfaces.
  */
 class BdrHyperbolicDirichletIntegrator : public NonlinearFormIntegrator
 {
