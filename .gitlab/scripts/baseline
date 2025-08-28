@@ -14,7 +14,7 @@
 # locals
 glob_err=${BASELINE_TEST}.err
 base=${BASELINE_TEST}-${SYS_TYPE}
-if [[ "${MACHINE_NAME}" == "ruby" ]]; then
+if [[ "${MACHINE_NAME}" == "dane" ]]; then
   base="${BASELINE_TEST}-${MACHINE_NAME}"
 fi
 base_diff=${base}.diff
@@ -31,7 +31,7 @@ cd tests
 mkdir _${BASELINE_TEST} && cd _${BASELINE_TEST}
 
 # run
-if [[ "${MACHINE_NAME}" == "ruby" ]]; then
+if [[ "${MACHINE_NAME}" == "dane" ]]; then
   salloc --nodes=1 --exclusive --reservation=ci ../runtest ../../mfem "${BASELINE_TEST} ${TPLS_DIR}"
 elif [[ ${MACHINE_NAME} == "corona" ]]; then
   salloc --nodes=1 -t 60 -p pbatch ../runtest ../../mfem "${BASELINE_TEST} ${TPLS_DIR}"

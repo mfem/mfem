@@ -19,54 +19,54 @@ stages:
 allocate_resource:
   variables:
     GIT_STRATEGY: none
-  extends: .on_ruby
+  extends: .on_dane
   stage: allocate_resource
   script:
     - echo ${ALLOC_NAME}
     - salloc --exclusive --nodes=1 --reservation=ci --time=60 --no-shell --job-name=${ALLOC_NAME}
   timeout: 6h
 
-# GitLab jobs for the Ruby machine at LLNL
+# GitLab jobs for the Dane machine at LLNL
 debug_ser_gcc_10:
   variables:
     SPEC: "%gcc@10.3.1 +debug~mpi"
-  extends: .build_and_test_on_ruby
+  extends: .build_and_test_on_dane
 
 debug_par_gcc_10:
   variables:
     SPEC: "%gcc@10.3.1 +debug+mpi"
-  extends: .build_and_test_on_ruby
+  extends: .build_and_test_on_dane
 
 opt_ser_gcc_10:
   variables:
     SPEC: "%gcc@10.3.1 ~mpi"
-  extends: .build_and_test_on_ruby
+  extends: .build_and_test_on_dane
 
 opt_par_gcc_10:
   variables:
     SPEC: "%gcc@10.3.1"
-  extends: .build_and_test_on_ruby
+  extends: .build_and_test_on_dane
 
 opt_par_gcc_10_sundials:
   variables:
     SPEC: "%gcc@10.3.1 +sundials"
-  extends: .build_and_test_on_ruby
+  extends: .build_and_test_on_dane
 
 opt_par_gcc_10_petsc:
   variables:
     SPEC: "%gcc@10.3.1 +petsc ^petsc+mumps~superlu-dist"
-  extends: .build_and_test_on_ruby
+  extends: .build_and_test_on_dane
 
 opt_par_gcc_10_pumi:
   variables:
     SPEC: "%gcc@10.3.1 +pumi"
-  extends: .build_and_test_on_ruby
+  extends: .build_and_test_on_dane
 
 # Release
 release_resource:
   variables:
     GIT_STRATEGY: none
-  extends: .on_ruby
+  extends: .on_dane
   stage: release_resource_and_report
   script:
     - echo ${ALLOC_NAME}
@@ -78,17 +78,17 @@ release_resource:
 report_job_success:
   stage: release_resource_and_report
   extends:
-    - .on_ruby
+    - .on_dane
     - .report_job_success
 
 report_job_failure:
   stage: release_resource_and_report
   extends:
-    - .on_ruby
+    - .on_dane
     - .report_job_failure
 
 include:
   - local: .gitlab/configs/common.yml
-  - local: .gitlab/configs/ruby-config.yml
+  - local: .gitlab/configs/dane-config.yml
   - local: .gitlab/configs/setup-build-and-test.yml
   - local: .gitlab/configs/report-build-and-test.yml

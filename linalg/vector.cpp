@@ -117,7 +117,7 @@ Vector::Vector(const Vector &v)
    UseDevice(v.UseDevice());
 }
 
-Vector::Vector(Vector &&v)
+Vector::Vector(Vector &&v) : Vector()
 {
    *this = std::move(v);
 }
