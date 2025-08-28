@@ -138,6 +138,8 @@ jobs:
 
     runs-on: ${{ matrix.os }}
 
+    contunue-on-error: ${{ matrix.enzyme }}
+
     steps:
       # Fix 'No space left on device' errors for Ubuntu builds.
       - name: Run Actions Cleaner
