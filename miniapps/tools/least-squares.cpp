@@ -692,6 +692,9 @@ void AverageReconstruction(Solver& solver,
    auto& fes_src = *src.ParFESpace();
    auto& fes_dst = *dst.ParFESpace();
 
+   auto e_trans = std::make_unique<IsoparametricTransformation>();
+   auto neighbor_trans = std::make_unique<IsoparametricTransformation>();
+
    Array<int> neighbors_e, e_dst_dofs;
 
    Vector src_e, dst_e;
@@ -716,8 +719,7 @@ void AverageReconstruction(Solver& solver,
       const int fe_dst_e_ndof = fe_dst_e.GetDof();
 
       fes_dst.GetElementDofs(e_idx, e_dst_dofs);
-
-      auto& e_trans = *fes_src.GetElementTransformation(e_idx);
+      fes_src.GetElementTransformation(e_idx, e_trans.get());
 
       SaturateNeighborhood(*mesh.pncmesh, e_idx, fe_dst_e_ndof, fe_src_e_ndof,
                            neighbors_e);
@@ -735,7 +737,7 @@ void AverageReconstruction(Solver& solver,
          auto& fe_dst_neighbor = *fes_dst.GetFE(neighbor_idx);
          const int fe_dst_neighbor_ndof = fe_dst_neighbor.GetDof();
 
-         auto&  neighbor_trans = *fes_dst.GetElementTransformation(neighbor_idx);
+         fes_dst.GetElementTransformation(neighbor_idx, neighbor_trans.get());
 
          Vector e_to_neighbor_avg(fe_dst_neighbor_ndof);
 
@@ -747,13 +749,14 @@ void AverageReconstruction(Solver& solver,
          punity_dst.GetElementDofValues(neighbor_idx, punity_dst_neighbor);
 
          // neighbor-DOFs to neighbor-DOFs (on neighbor) mass matrix
-         mass.AssembleElementMatrix2(fe_src_neighbor, fe_dst_neighbor, neighbor_trans,
+         mass.AssembleElementMatrix2(fe_src_neighbor, fe_dst_neighbor, *neighbor_trans,
                                      neighbor_to_neighbor_mat);
          src_neighbors_avg(i) = neighbor_to_neighbor_mat.InnerProduct(src_neighbor,
                                                                       punity_dst_neighbor);
 
          // e-DOFs to neighbor-DOFs (on neighbor) mass matrix
-         mass.AsymmetricElementMatrix(fe_dst_neighbor, fe_src_e, neighbor_trans, e_trans,
+         mass.AsymmetricElementMatrix(fe_dst_neighbor, fe_src_e, *neighbor_trans,
+                                      *e_trans,
                                       e_to_neighbor_mat, newton);
 
          e_to_neighbor_mat.MultTranspose(punity_src_neighbor, e_to_neighbor_avg);
@@ -769,12 +772,12 @@ void AverageReconstruction(Solver& solver,
       switch (reg_type)
       {
          case l2:
-            mass.AssembleElementMatrix(fe_dst_e, e_trans, *reg_mat.get());
+            mass.AssembleElementMatrix(fe_dst_e, *e_trans, *reg_mat);
             break;
          case h1:
             _h1_int->AddIntegrator(&mass);
             _h1_int->AddIntegrator(_diff_int.get());
-            _h1_int->AssembleElementMatrix(fe_dst_e, e_trans, *reg_mat.get());
+            _h1_int->AssembleElementMatrix(fe_dst_e, *e_trans, *reg_mat);
             break;
          case direct:
          default:
@@ -791,13 +794,13 @@ void AverageReconstruction(Solver& solver,
          punity_src.GetElementDofValues(e_idx, punity_src_e);
          punity_dst.GetElementDofValues(e_idx, punity_dst_e);
 
-         mass.AssembleElementMatrix(fe_src_e, e_trans, e_to_e_mat);
+         mass.AssembleElementMatrix(fe_src_e, *e_trans, e_to_e_mat);
 
          real_t src_e_avg = e_to_e_mat.InnerProduct(src_e, punity_src_e);
          src_e_avg /= e_volume;
 
          // (Average) projector
-         mass.AssembleElementMatrix(fe_dst_e, e_trans, e_to_e_mat);
+         mass.AssembleElementMatrix(fe_dst_e, *e_trans, e_to_e_mat);
 
          e_to_e_mat.MultTranspose(punity_dst_e, e_to_e_avg);
          e_to_e_avg /= e_volume;
@@ -841,6 +844,9 @@ void L2Reconstruction(Solver& solver,
    auto& fes_src = *src.ParFESpace();
    auto& fes_dst = *dst.ParFESpace();
 
+   auto e_trans = std::make_unique<IsoparametricTransformation>();
+   auto neighbor_trans = std::make_unique<IsoparametricTransformation>();
+
    Array<int> neighbors_e, e_dst_dofs;
 
    Vector src_e, dst_e, rhs_e;
@@ -864,7 +870,7 @@ void L2Reconstruction(Solver& solver,
 
       fes_dst.GetElementDofs(e_idx, e_dst_dofs);
 
-      auto& e_trans = *fes_src.GetElementTransformation(e_idx);
+      fes_src.GetElementTransformation(e_idx, e_trans.get());
 
       SaturateNeighborhood(*mesh.pncmesh, e_idx, fe_dst_e_ndof, fe_src_e_ndof,
                            neighbors_e);
@@ -882,16 +888,17 @@ void L2Reconstruction(Solver& solver,
       {
          const int neighbor_idx = neighbors_e[i];
          auto& fe_dst_neighbor = *fes_dst.GetFE(neighbor_idx);
-         auto& neighbor_trans = *fes_dst.GetElementTransformation(neighbor_idx);
+         fes_dst.GetElementTransformation(neighbor_idx, neighbor_trans.get());
 
          // System accumulates aditively
          DenseMatrix neighbor_mass;
-         mass.AsymmetricElementMatrix(fe_dst_neighbor, neighbor_trans, e_trans,
+         mass.AsymmetricElementMatrix(fe_dst_neighbor, *neighbor_trans, *e_trans,
                                       neighbor_mass, newton);
          out_of_elem_shape.AddMatrix(neighbor_mass, 0, 0);
 
          DenseMatrix rhs_neighbor_mat;
-         mass.AsymmetricElementMatrix(fe_dst_neighbor, fe_src_e, neighbor_trans, e_trans,
+         mass.AsymmetricElementMatrix(fe_dst_neighbor, fe_src_e, *neighbor_trans,
+                                      *e_trans,
                                       rhs_neighbor_mat, newton);
          src.GetElementDofValues(neighbor_idx, src_neighbor);
          rhs_neighbor_mat.AddMultTranspose(src_neighbor, rhs_e);
@@ -903,12 +910,12 @@ void L2Reconstruction(Solver& solver,
       switch (reg_type)
       {
          case l2:
-            mass.AssembleElementMatrix(fe_dst_e, e_trans, *reg_mat.get());
+            mass.AssembleElementMatrix(fe_dst_e, *e_trans, *reg_mat.get());
             break;
          case h1:
             _h1_int->AddIntegrator(&mass);
             _h1_int->AddIntegrator(_diff_int.get());
-            _h1_int->AssembleElementMatrix(fe_dst_e, e_trans, *reg_mat.get());
+            _h1_int->AssembleElementMatrix(fe_dst_e, *e_trans, *reg_mat.get());
             break;
          case direct:
          default:
@@ -929,13 +936,13 @@ void L2Reconstruction(Solver& solver,
          punity_src.GetElementDofValues(e_idx, punity_src_e);
          punity_dst.GetElementDofValues(e_idx, punity_dst_e);
 
-         mass.AssembleElementMatrix(fe_src_e, e_trans, e_to_e_mat);
+         mass.AssembleElementMatrix(fe_src_e, *e_trans, e_to_e_mat);
 
          real_t src_e_avg = e_to_e_mat.InnerProduct(src_e, punity_src_e);
          src_e_avg /= e_volume;
 
          // (Average) projector
-         mass.AssembleElementMatrix(fe_dst_e, e_trans, e_to_e_mat);
+         mass.AssembleElementMatrix(fe_dst_e, *e_trans, e_to_e_mat);
 
          e_to_e_mat.MultTranspose(punity_dst_e, e_to_e_avg);
          e_to_e_avg /= e_volume;
@@ -970,6 +977,8 @@ void FaceReconstruction(Solver& solver,
    auto& fes_src = *src.ParFESpace();
    auto& fes_dst = *dst.ParFESpace();
 
+   auto e_trans = std::make_unique<IsoparametricTransformation>();
+
    // Auxiliary constant coefficients and partition of unity
    ConstantCoefficient ccf_ones(1.0);
    ParGridFunction punity_src(&fes_src), punity_dst(&fes_dst);
@@ -989,7 +998,7 @@ void FaceReconstruction(Solver& solver,
 
       // Assumes all faces are equal
       auto face_trans = mesh.GetFaceElementTransformations(faces_e[0]);
-      auto e_trans = fes_src.GetElementTransformation(e_idx);
+      fes_src.GetElementTransformation(e_idx, e_trans.get());
       auto ir = GetCommonIntegrationRule(fes_src, fes_dst, *face_trans);
 
       // Setup RHS and Matrix
@@ -1023,12 +1032,12 @@ void FaceReconstruction(Solver& solver,
       switch (reg_type)
       {
          case l2:
-            mass.AssembleElementMatrix(fe_dst_e, *e_trans, *reg_mat.get());
+            mass.AssembleElementMatrix(fe_dst_e, *e_trans, *reg_mat);
             break;
          case h1:
             _h1_int->AddIntegrator(&mass);
             _h1_int->AddIntegrator(_diff_int.get());
-            _h1_int->AssembleElementMatrix(fe_dst_e, *e_trans, *reg_mat.get());
+            _h1_int->AssembleElementMatrix(fe_dst_e, *e_trans, *reg_mat);
             break;
          case direct:
          default:
@@ -1042,7 +1051,7 @@ void FaceReconstruction(Solver& solver,
          // Average at e
          real_t e_volume = mesh.GetElementVolume(e_idx);
 
-         e_trans = fes_dst.GetElementTransformation(e_idx);
+         fes_dst.GetElementTransformation(e_idx, e_trans.get());
          const int fe_dst_e_ndof = fe_dst_e.GetDof();
 
          Vector src_e, punity_src_e, punity_dst_e;
@@ -1103,6 +1112,8 @@ void WeakFaceReconstruction(Solver& solver,
    auto& fes_src = *src.ParFESpace();
    auto& fes_dst = *dst.ParFESpace();
 
+   auto e_trans = std::make_unique<IsoparametricTransformation>();
+
    Array<int> e_dst_dofs;
    Array<int> faces_e, orientation_e;
 
@@ -1131,7 +1142,7 @@ void WeakFaceReconstruction(Solver& solver,
 
       mesh.GetElementEdges(e_idx, faces_e, orientation_e);
 
-      auto& e_trans = *fes_src.GetElementTransformation(e_idx);
+      fes_src.GetElementTransformation(e_idx, e_trans.get());
 
       Vector e_rhs(dst_e_ndofs);
       DenseMatrix e_mat(dst_e_ndofs);
@@ -1141,9 +1152,9 @@ void WeakFaceReconstruction(Solver& solver,
       {
          const int f_idx = faces_e[i];
 
-         auto& face_trans = *mesh.GetFaceElementTransformations(f_idx);
-         const int elem1_idx = face_trans.Elem1No;
-         const int elem2_idx = face_trans.Elem2No;
+         auto face_trans = mesh.GetFaceElementTransformations(f_idx);
+         const int elem1_idx = face_trans->Elem1No;
+         const int elem2_idx = face_trans->Elem2No;
 
          const auto& fe_elem1 = *fes_src.GetFE(elem1_idx);
          const auto& fe_elem2 = (elem2_idx>=0)?*fes_src.GetFE(e_idx):fe_elem1;
@@ -1170,11 +1181,11 @@ void WeakFaceReconstruction(Solver& solver,
          Vector punity_dst_e, face_trace(dst_e_ndofs);
          punity_dst.GetElementDofValues(e_idx, punity_dst_e);
 
-         trace_int.AssembleTraceFaceMatrix(e_idx, fe_dst_e, fe_dst_e, face_trans,
+         trace_int.AssembleTraceFaceMatrix(e_idx, fe_dst_e, fe_dst_e, *face_trans,
                                            local_face_mat);
          local_face_mat.Mult(punity_dst_e, face_trace);
 
-         average_int.AssembleFaceMatrix(e_idx, fe_dst_e, fe_elem1, fe_elem2, face_trans,
+         average_int.AssembleFaceMatrix(e_idx, fe_dst_e, fe_elem1, fe_elem2, *face_trans,
                                         local_face_mat);
 
          add(e_rhs, local_face_mat.InnerProduct(punity_dst_e, face_avg), face_trace,
@@ -1189,12 +1200,12 @@ void WeakFaceReconstruction(Solver& solver,
       switch (reg_type)
       {
          case l2:
-            mass.AssembleElementMatrix(fe_dst_e, e_trans, *reg_mat.get());
+            mass.AssembleElementMatrix(fe_dst_e, *e_trans, *reg_mat);
             break;
          case h1:
             _h1_int->AddIntegrator(&mass);
             _h1_int->AddIntegrator(_diff_int.get());
-            _h1_int->AssembleElementMatrix(fe_dst_e, e_trans, *reg_mat.get());
+            _h1_int->AssembleElementMatrix(fe_dst_e, *e_trans, *reg_mat);
             break;
          case direct:
          default:
@@ -1215,13 +1226,13 @@ void WeakFaceReconstruction(Solver& solver,
          punity_src.GetElementDofValues(e_idx, punity_src_e);
          punity_dst.GetElementDofValues(e_idx, punity_dst_e);
 
-         mass.AssembleElementMatrix(fe_src_e, e_trans, e_to_e_mat);
+         mass.AssembleElementMatrix(fe_src_e, *e_trans, e_to_e_mat);
 
          real_t src_e_avg = e_to_e_mat.InnerProduct(src_e, punity_src_e);
          src_e_avg /= e_volume;
 
          // (Average) projector
-         mass.AssembleElementMatrix(fe_dst_e, e_trans, e_to_e_mat);
+         mass.AssembleElementMatrix(fe_dst_e, *e_trans, e_to_e_mat);
 
          e_to_e_mat.MultTranspose(punity_dst_e, e_to_e_avg);
          e_to_e_avg /= e_volume;
