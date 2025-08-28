@@ -417,7 +417,7 @@ void HyperbolicFormIntegrator::AssembleFaceGrad(
    }
 }
 
-BdrHyperbolicFormIntegrator::BdrHyperbolicFormIntegrator(
+BdrHyperbolicDirichletIntegrator::BdrHyperbolicDirichletIntegrator(
    const NumericalFlux &numFlux,
    Coefficient &bdrState,
    const int IntOrderOffset,
@@ -441,7 +441,7 @@ BdrHyperbolicFormIntegrator::BdrHyperbolicFormIntegrator(
    ResetMaxCharSpeed();
 }
 
-BdrHyperbolicFormIntegrator::BdrHyperbolicFormIntegrator(
+BdrHyperbolicDirichletIntegrator::BdrHyperbolicDirichletIntegrator(
    const NumericalFlux &numFlux,
    VectorCoefficient &bdrState,
    const int IntOrderOffset,
@@ -466,7 +466,7 @@ BdrHyperbolicFormIntegrator::BdrHyperbolicFormIntegrator(
    ResetMaxCharSpeed();
 }
 
-void BdrHyperbolicFormIntegrator::AssembleFaceVector(
+void BdrHyperbolicDirichletIntegrator::AssembleFaceVector(
    const FiniteElement &el, const FiniteElement &,
    FaceElementTransformations &Tr, const Vector &elfun, Vector &elvect)
 {
@@ -552,7 +552,7 @@ void BdrHyperbolicFormIntegrator::AssembleFaceVector(
    }
 }
 
-void BdrHyperbolicFormIntegrator::AssembleFaceGrad(
+void BdrHyperbolicDirichletIntegrator::AssembleFaceGrad(
    const FiniteElement &el, const FiniteElement &,
    FaceElementTransformations &Tr, const Vector &elfun, DenseMatrix &elmat)
 {
