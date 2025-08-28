@@ -51,7 +51,6 @@ env:
 jobs:
   builds-and-tests:
     strategy:
-      fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
         target: [dbg, opt]
