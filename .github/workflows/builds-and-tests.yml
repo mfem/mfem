@@ -139,7 +139,7 @@ jobs:
 
     runs-on: ${{ matrix.os }}
 
-    continue-on-error: ${{ matrix.enzyme }}
+    continue-on-error: ${{ matrix.enzyme && 'true' || 'false' }}
 
     steps:
       # Fix 'No space left on device' errors for Ubuntu builds.
