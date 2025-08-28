@@ -402,11 +402,11 @@ void GinkgoIterativeSolver::update_stop_factory()
    if (use_implicit_res_norm)
    {
       imp_rel_criterion  = ImplicitResidualCriterionFactory::build()
-                           .with_reduction_factor(sqrt(rel_tol))
+                           .with_reduction_factor(rel_tol)
                            .with_baseline(gko::stop::mode::initial_resnorm)
                            .on(executor);
       imp_abs_criterion  = ImplicitResidualCriterionFactory::build()
-                           .with_reduction_factor(sqrt(abs_tol))
+                           .with_reduction_factor(abs_tol)
                            .with_baseline(gko::stop::mode::absolute)
                            .on(executor);
       combined_factory =

@@ -452,7 +452,7 @@ real_t compute_norm(const VecType *b)
    // Use the dense `compute_norm2` function to compute the norm.
    b->compute_norm2(b_norm);
    // Use the other utility function to return the norm contained in `b_norm``
-   return std::pow(get_norm<ValueType>(b_norm.get()),2);
+   return get_norm<ValueType>(b_norm.get());
 }
 
 /**
@@ -607,7 +607,7 @@ private:
             auto dense_norm = gko::as<gko::matrix::Dense<real_t>>
                               (implicit_sq_residual_norm);
             // Add the norm to the `residual_norms` vector
-            final_residual_norm = get_norm<real_t>(dense_norm);
+            final_residual_norm = std::sqrt(get_norm<real_t>(dense_norm));
          }
          // Otherwise, use the recurrent residual vector
          else if (residual_norm)
@@ -808,7 +808,7 @@ private:
             auto dense_norm = gko::as<gko::matrix::Dense<real_t>>
                               (implicit_sq_residual_norm);
             // Add the norm to the `residual_norms` vector
-            residual_norms.push_back(get_norm<real_t>(dense_norm));
+            residual_norms.push_back(std::sqrt(get_norm<real_t>(dense_norm)));
          }
          // Otherwise, use the recurrent residual norm
          else if (residual_norm)

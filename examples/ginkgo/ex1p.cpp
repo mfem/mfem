@@ -264,7 +264,7 @@ int main(int argc, char *argv[])
             Ginkgo::SchwarzPreconditioner gko_M(exec, MPI_COMM_WORLD, local_solver);
             Ginkgo::CGSolver ginkgo_solver(exec, MPI_COMM_WORLD, gko_M);
             ginkgo_solver.SetPrintLevel(print_lvl);
-            ginkgo_solver.SetRelTol(1e-12);
+            ginkgo_solver.SetRelTol(sqrt(1e-12));
             ginkgo_solver.SetAbsTol(0.0);
             ginkgo_solver.SetMaxIter(400);
             ginkgo_solver.SetOperator(*(A.Ptr()));
@@ -282,7 +282,7 @@ int main(int argc, char *argv[])
             Ginkgo::MFEMPreconditioner gko_M(exec, M, MPI_COMM_WORLD);
             Ginkgo::CGSolver ginkgo_solver(exec, MPI_COMM_WORLD, gko_M);
             ginkgo_solver.SetPrintLevel(print_lvl);
-            ginkgo_solver.SetRelTol(1e-12);
+            ginkgo_solver.SetRelTol(sqrt(1e-12));
             ginkgo_solver.SetAbsTol(0.0);
             ginkgo_solver.SetMaxIter(400);
             ginkgo_solver.SetOperator(*(A.Ptr()));
@@ -299,7 +299,7 @@ int main(int argc, char *argv[])
             Ginkgo::SchwarzPreconditioner M(exec, MPI_COMM_WORLD, local_M);
             M.SetOperator(*(A.Ptr()));  // Generate the preconditioner for the matrix A.
             CGSolver cg(MPI_COMM_WORLD);
-            cg.SetRelTol(1e-12);
+            cg.SetRelTol(sqrt(1e-12));
             cg.SetMaxIter(400);
             cg.SetPrintLevel(1);
             cg.SetPreconditioner(M);
@@ -314,7 +314,7 @@ int main(int argc, char *argv[])
             if (myid == 0) { cout << "Using MFEM solver + MFEM preconditioner...\n"; }
             HypreBoomerAMG M((HypreParMatrix&)(*A));
             CGSolver cg(MPI_COMM_WORLD);
-            cg.SetRelTol(1e-12);
+            cg.SetRelTol(sqrt(1e-12));
             cg.SetMaxIter(400);
             cg.SetPrintLevel(1);
             cg.SetPreconditioner(M);
@@ -351,7 +351,7 @@ int main(int argc, char *argv[])
                Ginkgo::MFEMPreconditioner gko_M(exec, M, MPI_COMM_WORLD);
                Ginkgo::CGSolver ginkgo_solver(exec, MPI_COMM_WORLD, gko_M);
                ginkgo_solver.SetPrintLevel(print_lvl);
-               ginkgo_solver.SetRelTol(1e-12);
+               ginkgo_solver.SetRelTol(sqrt(1e-12));
                ginkgo_solver.SetAbsTol(0.0);
                ginkgo_solver.SetMaxIter(400);
                ginkgo_solver.SetOperator(*(A.Ptr()));
@@ -373,7 +373,7 @@ int main(int argc, char *argv[])
             {
                if (myid == 0) { cout << "Using MFEM solver + MFEM preconditioner...\n"; }
                CGSolver cg(MPI_COMM_WORLD);
-               cg.SetRelTol(1e-12);
+               cg.SetRelTol(sqrt(1e-12));
                cg.SetMaxIter(400);
                cg.SetPrintLevel(1);
                cg.SetPreconditioner(M);
@@ -387,7 +387,7 @@ int main(int argc, char *argv[])
       {
          if (myid == 0) { cout << "Using MFEM solver + no preconditioner...\n"; }
          CGSolver cg(MPI_COMM_WORLD);
-         cg.SetRelTol(1e-12);
+         cg.SetRelTol(sqrt(1e-12));
          cg.SetMaxIter(400);
          cg.SetPrintLevel(1);
          cg.SetOperator(*A);
