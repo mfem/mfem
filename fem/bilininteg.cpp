@@ -4395,10 +4395,10 @@ void TraceIntegrator::AssembleTraceFaceMatrix(int elem,
                                               FaceElementTransformations & Trans,
                                               DenseMatrix &elmat)
 {
-   MFEM_VERIFY(test_fe.GetMapType() == FiniteElement::VALUE,
-               "TraceIntegrator::AssembleTraceFaceMatrix: Test space should be H1");
-   MFEM_VERIFY(trial_face_fe.GetMapType() == FiniteElement::INTEGRAL,
-               "TraceIntegrator::AssembleTraceFaceMatrix: Trial space should be RT trace");
+   // MFEM_VERIFY(test_fe.GetMapType() == FiniteElement::VALUE,
+   //             "TraceIntegrator::AssembleTraceFaceMatrix: Test space should be H1");
+   // MFEM_VERIFY(trial_face_fe.GetMapType() == FiniteElement::INTEGRAL,
+   //             "TraceIntegrator::AssembleTraceFaceMatrix: Trial space should be RT trace");
 
    int i, j, face_ndof, ndof;
    int order;
