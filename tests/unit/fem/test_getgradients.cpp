@@ -95,32 +95,32 @@ real_t CompareGradients(const GridFunction &f,
    return max_rel_error;
 }
 
+real_t RandReal()
+{
+   static std::mt19937_64 gen(8'656'127'438'685'088'196);
+   static std::uniform_real_distribution<real_t> dis_real(0_r, 1_r); // [0, 1)
+   return dis_real(gen);
+}
+
 TEST_CASE("GetGradients All Elements", "[GridFunction][GPU]")
 {
-   std::mt19937_64 gen(8'656'127'438'685'088'196);
-   std::uniform_real_distribution<real_t> dis_real(0_r, 1_r); // in [0, 1)
+   auto geom = GENERATE(range(int(Geometry::SEGMENT),
+                              int(Geometry::NUM_GEOMETRIES)));
+   auto mesh_p = GENERATE(0, 2);
+   auto p = GENERATE(1, 3);
 
-   for (int geom = Geometry::SEGMENT; geom < Geometry::NUM_GEOMETRIES; geom++)
+   Mesh mesh = MakePerturbedMesh((Geometry::Type)geom, mesh_p);
+   H1_FECollection h1_fec(p, Geometry::Dimension[geom]);
+   FiniteElementSpace h1_fes(&mesh, &h1_fec);
+   GridFunction h1_gf(&h1_fes);
+   for (auto &d : h1_gf) { d = RandReal(); }
+   Vector grad_h1_gf;
+   const IntegrationRule &ir = IntRules.Get(geom, 2*p+1);
+   for (auto ql : {QVectorLayout::byNODES, QVectorLayout::byVDIM})
    {
-      for (int mesh_p : {0, 2})
-      {
-         for (int p : {1, 3})
-         {
-            Mesh mesh = MakePerturbedMesh((Geometry::Type)geom, mesh_p);
-            H1_FECollection h1_fec(p, Geometry::Dimension[geom]);
-            FiniteElementSpace h1_fes(&mesh, &h1_fec);
-            GridFunction h1_gf(&h1_fes);
-            for (auto &d : h1_gf) { d = dis_real(gen); }
-            Vector grad_h1_gf;
-            const IntegrationRule &ir = IntRules.Get(geom, 2*p+1);
-            for (auto ql : {QVectorLayout::byNODES, QVectorLayout::byVDIM})
-            {
-               h1_gf.GetGradients(ir, grad_h1_gf, ql);
-               real_t rel_err = CompareGradients(h1_gf, ir, grad_h1_gf, ql);
-               CAPTURE(geom, mesh_p, p, ql);
-               CHECK(rel_err == MFEM_Approx(0_r));
-            }
-         }
-      }
+      h1_gf.GetGradients(ir, grad_h1_gf, ql);
+      real_t rel_err = CompareGradients(h1_gf, ir, grad_h1_gf, ql);
+      CAPTURE(geom, mesh_p, p, ql);
+      CHECK(rel_err == MFEM_Approx(0_r));
    }
 }
