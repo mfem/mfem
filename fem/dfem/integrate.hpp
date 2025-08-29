@@ -225,6 +225,17 @@ void map_quadrature_data_to_fields_tensor_impl_2d(
          MFEM_SYNC_THREAD;
       }
    }
+   else if constexpr (is_sum_fop<std::decay_t<output_t>>::value)
+   {
+      const auto [q1d, unused, d1d] = B.GetShape();
+      auto fqp = Reshape(&f(0, 0, 0), q1d * q1d);
+      auto yqp = Reshape(&y(0, 0), output.size_on_qp);
+      for (int i = 0; i < q1d * q1d; i++)
+      {
+         yqp(0) += fqp(i);
+      }
+      MFEM_SYNC_THREAD;
+   }
    else
    {
       MFEM_ABORT("quadrature data mapping to field is not implemented for"
@@ -410,6 +421,17 @@ void map_quadrature_data_to_fields_tensor_impl_3d(
          }
          MFEM_SYNC_THREAD;
       }
+   }
+   else if constexpr (is_sum_fop<std::decay_t<output_t>>::value)
+   {
+      const auto [q1d, unused, d1d] = B.GetShape();
+      auto fqp = Reshape(&f(0, 0, 0), q1d * q1d * q1d);
+      auto yqp = Reshape(&y(0, 0), output.size_on_qp);
+      for (int i = 0; i < q1d * q1d * q1d; i++)
+      {
+         yqp(0) += fqp(i);
+      }
+      MFEM_SYNC_THREAD;
    }
    else
    {

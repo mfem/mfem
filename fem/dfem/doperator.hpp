@@ -368,8 +368,15 @@ private:
    mutable Vector residual_e;
 
    std::function<void(Vector &, Vector &)> prolongation_transpose;
+
+   // TODO: This can probably be removed, as it is only used in
+   // the callbacks so they can copy it during the capture.
    std::function<void(Vector &, Vector &)> output_restriction_transpose;
+
    restriction_callback_t restriction_callback;
+
+   std::map<size_t, std::function<void(const Vector &, Vector &)>>
+                                                                daction_prolongation_transpose;
 
    std::map<size_t, size_t> assembled_vector_sizes;
 
@@ -513,7 +520,7 @@ void DifferentiableOperator::AddDomainIntegrator(
    const int num_entities = GetNumEntities<entity_t>(mesh);
    const int num_qp = integration_rule.GetNPoints();
 
-   if constexpr (is_sum_fop<decltype(output_fop)>::value)
+   if constexpr (is_sum_fop<std::remove_cv_t<decltype(output_fop)>>::value)
    {
       residual_l.SetSize(1);
       height = 1;
@@ -547,8 +554,19 @@ void DifferentiableOperator::AddDomainIntegrator(
 
    const int test_vdim = output_fop.vdim;
    const int test_op_dim = output_fop.size_on_qp / output_fop.vdim;
-   const int num_test_dof =
-      num_entities ? (output_e_size / output_fop.vdim / num_entities) : 0;
+
+   int num_test_dof = 0;
+   if (num_entities)
+   {
+      if constexpr (is_sum_fop<std::decay_t<decltype(output_fop)>>::value)
+      {
+         num_test_dof = 1;
+      }
+      else
+      {
+         num_test_dof = output_e_size / output_fop.vdim / num_entities;
+      }
+   }
 
    auto ir_weights = Reshape(integration_rule.GetWeights().Read(), num_qp);
 
@@ -666,11 +684,16 @@ void DifferentiableOperator::AddDomainIntegrator(
    if constexpr (derivative_ids_t::size() != 0)
    {
       // Create the action of the derivatives
-      for_constexpr([&, &or_transpose =
-                        this->output_restriction_transpose](const std::size_t derivative_id)
+      for_constexpr([&,
+                     &or_transpose = this->output_restriction_transpose,
+                     &dapr_transpose = this->daction_prolongation_transpose]
+                    (const std::size_t derivative_id)
       {
          const size_t d_field_idx = FindIdx(derivative_id, fields);
          const auto direction = fields[d_field_idx];
+
+         dapr_transpose[derivative_id] = get_generic_prolongation_transpose(direction);
+
          const int da_size_on_qp =
             GetSizeOnQP<entity_t>(output_fop, fields[test_space_field_idx]);
 
