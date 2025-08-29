@@ -329,7 +329,7 @@ void ParBlockNonlinearForm::SetGradientType(Operator::Type tid)
    }
 }
 
-Operator & ParBlockNonlinearForm::GetGradient(const Vector &x) const
+BlockOperator & ParBlockNonlinearForm::GetGradient(const Vector &x) const
 {
    if (pBlockGrad == NULL)
    {
