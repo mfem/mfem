@@ -438,6 +438,119 @@ void ComplexVectorFieldVisObject::Update()
    if (v_) { v_->Update(); }
 }
 
+ComplexVectorFieldAnimObject
+::ComplexVectorFieldAnimObject(const std::string & field_name,
+			       shared_ptr<L2_ParFESpace> vfes,
+			       unsigned int num_frames)
+   : field_name_(field_name),
+     num_frames_(num_frames),
+     v_(new ParComplexGridFunction(vfes.get())),
+     v_t_(new ParGridFunction(vfes.get()))
+{}
+
+ComplexVectorFieldAnimObject::~ComplexVectorFieldAnimObject()
+{
+   delete v_;
+   delete v_t_;
+}
+
+void ComplexVectorFieldAnimObject
+::PrepareVisField(const ParComplexGridFunction &u,
+                  VectorCoefficient * kReCoef,
+                  VectorCoefficient * kImCoef)
+{
+   VectorGridFunctionCoefficient u_r(&u.real());
+   VectorGridFunctionCoefficient u_i(&u.imag());
+
+   this->PrepareVisField(u_r, u_i, kReCoef, kImCoef);
+}
+
+void ComplexVectorFieldAnimObject::PrepareVisField(VectorCoefficient &u_r,
+						   VectorCoefficient &u_i,
+						   VectorCoefficient * kReCoef,
+						   VectorCoefficient * kImCoef)
+{
+   if (kReCoef || kImCoef)
+   {
+      ComplexPhaseVectorCoefficient uk_r(kReCoef, kImCoef, &u_r, &u_i,
+                                         true, false);
+      ComplexPhaseVectorCoefficient uk_i(kReCoef, kImCoef, &u_r, &u_i,
+                                         false, false);
+
+      v_->ProjectCoefficient(uk_r, uk_i);
+   }
+   else
+   {
+      v_->ProjectCoefficient(u_r, u_i);
+   }
+
+   Vector zeroVec(3); zeroVec = 0.0;
+   VectorConstantCoefficient zeroCoef(zeroVec);
+
+   norm_r_ = v_->real().ComputeMaxError(zeroCoef);
+   norm_i_ = v_->imag().ComputeMaxError(zeroCoef);
+
+   *v_t_ = v_->real();
+}
+
+void ComplexVectorFieldAnimObject
+::RegisterVisItFields(VisItDataCollection & visit_dc)
+{
+  // Animation not yet supported in VisIt output
+}
+
+void ComplexVectorFieldAnimObject::DisplayToGLVis()
+{
+   ParMesh &pmesh = *v_->real().ParFESpace()->GetParMesh();
+   MPI_Comm comm = pmesh.GetComm();
+
+   int num_procs, myid;
+   MPI_Comm_size(comm, &num_procs);
+   MPI_Comm_rank(comm, &myid);
+
+   char vishost[] = "localhost";
+   int  visport   = 19916;
+   socketstream sol_sock(vishost, visport);
+
+   ostringstream oss;
+   oss.precision(4);
+   oss << "Harmonic " << field_name_ << " (t = "
+       << std::setw(6) << std::setfill('0') << std::left << 0.0 << " T)";
+   
+   sol_sock << "parallel " << num_procs << " " << myid << "\n";
+   sol_sock.precision(8);
+   sol_sock << "solution\n" << pmesh << *v_t_
+            << "window_title '" << oss.str() << "'\n"
+	    << "window_geometry "
+	    << (2 * Sw - 3 * Ww) / 4 << " " << (2 * Sh - 3 * Wh) / 4 << " "
+	    << 3 * Ww / 2 << " " << 3 * Wh / 2 << "\n"
+            << "valuerange 0.0 " << max(norm_r_, norm_i_) << "\n"
+            << "autoscale off\n"
+            << "keys cvvv\n" << flush;
+
+   int i = 1;
+   while (sol_sock)
+   {
+      real_t t = (real_t)(i % num_frames_) / num_frames_;
+      oss.str("");
+      oss << "Harmonic " << field_name_ << " (t = "
+	  << std::setw(6) << std::setfill('0') << std::left << t << " T)";
+
+      add( cos( 2.0 * M_PI * t), v_->real(),
+           sin( 2.0 * M_PI * t), v_->imag(), *v_t_);
+      sol_sock << "parallel " << num_procs << " " << myid << "\n";
+      sol_sock << "solution\n" << pmesh << *v_t_
+               << "window_title '" << oss.str() << "'" << flush;
+      i++;
+   }
+}
+
+void ComplexVectorFieldAnimObject::Update()
+{
+   if (v_) { v_->Update(); }
+   if (v_t_) { v_t_->Update(); }
+}
+
 } // namespace plasma
 
 } // namespace mfem
