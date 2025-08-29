@@ -51,6 +51,10 @@ GPU computing
   spaces, and is the default derefinement operator constructed by
   `FiniteElementSpace::Update` and `ParFiniteElementSpace::Update`.
   The operator requires `FiniteElementSpace::Nonconforming() == true`.
+- Added new method: GridFunction::GetGradients, with GPU support, for computing
+  the gradients of a GridFunction on all elements.
+- Added GPU support in GradientGridFunctionCoefficient and
+  InnerProductCoefficient by implementing their Project methods.
 
 New and updated examples and miniapps
 -------------------------------------
