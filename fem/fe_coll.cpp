@@ -488,7 +488,7 @@ GetFace(int &nv, v_t &v, int &ne, e_t &e, eo_t &eo,
       int v0 = v[f_consts::Edges[i][0]];
       int v1 = v[f_consts::Edges[i][1]];
       int eor = 0;
-      if (v0 > v1) { swap(v0, v1); eor = 1; }
+      if (v0 > v1) { std::swap(v0, v1); eor = 1; }
       for (int j = g_consts::VertToVert::I[v0]; true; j++)
       {
          MFEM_ASSERT(j < g_consts::VertToVert::I[v0+1],
