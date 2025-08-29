@@ -365,6 +365,8 @@ public:
 
    virtual void SetEssentialBC(const Array<Array<int> *>&bdr_attr_is_ess,
                                Array<Vector *> &rhs);
+   virtual void SetEssentialTrueDofs(const Array<Array<int> *>&ess_tdof_list,
+                          Array<Vector*>&rhs);
 
    virtual real_t GetEnergy(const Vector &x) const;
 

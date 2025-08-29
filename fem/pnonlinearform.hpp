@@ -105,6 +105,9 @@ public:
    // Here, rhs is a true dof vector
    void SetEssentialBC(const Array<Array<int> *>&bdr_attr_is_ess,
                        Array<Vector *> &rhs) override;
+   // Set essential boundaries for given true dofs. Here, rhs is a true dof vector
+   void SetEssentialTrueDofs(const Array<Array<int> *>&ess_tdofs,
+                          Array<Vector*>&rhs) override;
 
    /// Block T-Vector to Block T-Vector
    void Mult(const Vector &x, Vector &y) const override;
