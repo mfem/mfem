@@ -35,6 +35,19 @@ void LinearFormIntegrator::AssembleRHSElementVect(
    mfem_error("LinearFormIntegrator::AssembleRHSElementVect(...)");
 }
 
+DomainLFIntegrator::DomainLFIntegrator(Coefficient &QF, int a, int b)
+   : DeltaLFIntegrator(QF), Q(QF), oa(a), ob(b)
+{
+   static Kernels kernels;
+}
+
+DomainLFIntegrator::DomainLFIntegrator(Coefficient &QF,
+                                       const IntegrationRule *ir)
+   : DeltaLFIntegrator(QF, ir), Q(QF), oa(1), ob(1)
+{
+   static Kernels kernels;
+}
+
 void DomainLFIntegrator::AssembleRHSElementVect(const FiniteElement &el,
                                                 ElementTransformation &Tr,
                                                 Vector &elvect)
@@ -264,6 +277,13 @@ void BoundaryTangentialLFIntegrator::AssembleRHSElementVect(
 
       add(elvect, ip.weight*(Qvec*tangent), shape, elvect);
    }
+}
+
+VectorDomainLFIntegrator::VectorDomainLFIntegrator(VectorCoefficient &QF,
+                                                   const IntegrationRule *ir)
+   : DeltaLFIntegrator(QF, ir), Q(QF)
+{
+   static DomainLFIntegrator::Kernels kernels;
 }
 
 void VectorDomainLFIntegrator::AssembleRHSElementVect(
