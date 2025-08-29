@@ -129,9 +129,6 @@ real_t ParInteriorPointSolver::MaxStepSize(Vector &x, Vector &xl, Vector &xhat,
       }
    }
 
-   // alphaMaxloc is the local maximum step size which is
-   // distinct on each MPI process. Need to compute
-   // the global maximum step size
    real_t alphaMaxglb;
    MPI_Allreduce(&alphaMaxloc, &alphaMaxglb, 1, MPITypeMap<real_t>::mpi_type,
                  MPI_MIN, MPI_COMM_WORLD);
@@ -196,7 +193,7 @@ void ParInteriorPointSolver::Mult(const BlockVector &x0, BlockVector &xf)
     */
    real_t theta0 = theta(xk);
    thetaMin = 1.e-4 * max(1.0, theta0);
-   thetaMax = 1.e8  * thetaMin; // 1.e4 * max(1.0, theta0)
+   thetaMax = 1.e8  * thetaMin;
 
    real_t Eeval, Eeval0, maxBarrierSolves, Eevalmu0;
    bool printOptimalityError; // control optimality error print to console for log-barrier subproblems
@@ -208,7 +205,7 @@ void ParInteriorPointSolver::Mult(const BlockVector &x0, BlockVector &xf)
       if (iAmRoot)
       {
          std::cout << "\n" << std::string(50,'-') << endl;
-         std::cout << "interior-point solve step " << jOpt << endl;
+         std::cout << "interior-point solve step # " << jOpt << endl;
       }
       // A-2. Check convergence of overall optimization problem
       printOptimalityError = true;
@@ -218,19 +215,6 @@ void ParInteriorPointSolver::Mult(const BlockVector &x0, BlockVector &xf)
          converged = true;
          int numActiveConstraintsLoc = 0;
          real_t zinfnorm = GlobalLpNorm(infinity(), zlk.Normlinf(), MPI_COMM_WORLD);
-         real_t uinfnorm = GlobalLpNorm(infinity(), Xk.GetBlock(0).Normlinf(),
-                                        MPI_COMM_WORLD);
-         real_t sinfnorm = GlobalLpNorm(infinity(), Xk.GetBlock(1).Normlinf(),
-                                        MPI_COMM_WORLD);
-         real_t linfnorm = GlobalLpNorm(infinity(), lk.Normlinf(), MPI_COMM_WORLD);
-         if (iAmRoot)
-         {
-            cout << "||u||_inf = " << uinfnorm << endl;
-            cout << "||s||_inf = " << sinfnorm << endl;
-            cout << "||z||_inf = " << zinfnorm << endl;
-            cout << "||l||_inf = " << linfnorm << endl;
-         }
-
          int dimG = dimM;
          if (dimM > dimU)
          {
@@ -254,7 +238,7 @@ void ParInteriorPointSolver::Mult(const BlockVector &x0, BlockVector &xf)
 
          if (iAmRoot)
          {
-            cout << "solved optimization problem :)\n";
+            cout << "solved optimization problem\n";
          }
          break;
       }
@@ -274,7 +258,7 @@ void ParInteriorPointSolver::Mult(const BlockVector &x0, BlockVector &xf)
          {
             if (iAmRoot)
             {
-               cout << "solved barrier subproblem :), for mu = " << mu_k << endl;
+               cout << "solved mu = " << mu_k << " barrier subproblem\n";
             }
             // A-3.1. Recompute the barrier parameter
             mu_k  = max(OptTol / 10., min(kMu * mu_k, pow(mu_k, thetaMu)));
@@ -292,13 +276,13 @@ void ParInteriorPointSolver::Mult(const BlockVector &x0, BlockVector &xf)
       // solve for (uhat, mhat, lhat)
       if (iAmRoot)
       {
-         cout << "\n** A-4. IP-Newton solve **\n";
+         cout << "\n** IP-Newton solve **\n";
       }
       zlhat = 0.0; Xhatuml = 0.0;
 
 
       bool passedCTest = false;
-      IPNewtonSolve(xk, lk, zlk, zlhat, Xhatuml, passedCTest, mu_k, false);
+      IPNewtonSolve(xk, lk, zlk, zlhat, Xhatuml, passedCTest, mu_k);
       if (!passedCTest)
       {
          if (iAmRoot) {  cout << "curvature test failed\n"; }
@@ -317,7 +301,7 @@ void ParInteriorPointSolver::Mult(const BlockVector &x0, BlockVector &xf)
          }
          // solve with regularization
          zlhat = 0.0; Xhatuml = 0.0;
-         IPNewtonSolve(xk, lk, zlk, zlhat, Xhatuml, passedCTest, mu_k, false, deltaReg);
+         IPNewtonSolve(xk, lk, zlk, zlhat, Xhatuml, passedCTest, mu_k, deltaReg);
 
          for (int numCTests = 0; numCTests < maxCTests; numCTests++)
          {
@@ -347,7 +331,7 @@ void ParInteriorPointSolver::Mult(const BlockVector &x0, BlockVector &xf)
             }
             // solve with regularization
             zlhat = 0.0; Xhatuml = 0.0;
-            IPNewtonSolve(xk, lk, zlk, zlhat, Xhatuml, passedCTest, mu_k, false, deltaReg);
+            IPNewtonSolve(xk, lk, zlk, zlhat, Xhatuml, passedCTest, mu_k, deltaReg);
          }
       }
 
@@ -397,7 +381,7 @@ void ParInteriorPointSolver::Mult(const BlockVector &x0, BlockVector &xf)
       {
          if (iAmRoot)
          {
-            cout << "lineSearch not successful :(\n";
+            cout << "lineSearch not successful\n";
             cout << "attempting feasibility restoration with theta = " << thx0 << endl;
             cout << "no feasibility restoration implemented, exiting now \n";
          }
@@ -406,7 +390,7 @@ void ParInteriorPointSolver::Mult(const BlockVector &x0, BlockVector &xf)
       }
       if (jOpt + 1 == max_iter && iAmRoot)
       {
-         cout << "maximum optimization iterations :(\n";
+         cout << "maximum optimization iterations\n";
       }
    }
    // done with optimization routine, just reassign data to xf reference so
@@ -539,7 +523,7 @@ void ParInteriorPointSolver::FormIPNewtonMat(BlockVector & x, Vector & l,
 // determine the search direction
 void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l,
                                            Vector &zl, Vector &zlhat, BlockVector &Xhat, bool & passedCTest, real_t mu,
-                                           bool socSolve, real_t delta)
+                                           real_t delta)
 {
    StopWatch chrono;
    chrono.Clear();
@@ -564,14 +548,7 @@ void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l,
       b.GetBlock(ii).Set(1.0, gradphi.GetBlock(ii));
       b.GetBlock(ii).Add(1.0, JTl.GetBlock(ii));
    }
-   if (!socSolve)
-   {
-      problem->c(x, b.GetBlock(2));
-   }
-   else
-   {
-      b.GetBlock(2).Set(1.0, ckSoc);
-   }
+   problem->c(x, b.GetBlock(2));
    b *= -1.0;
    Xhat = 0.0;
 
@@ -623,7 +600,6 @@ void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l,
 }
 
 // here Xhat, X will be BlockVectors w.r.t. the 4 partitioning X = (u, m, l, zl)
-
 void ParInteriorPointSolver::lineSearch(BlockVector& X0, BlockVector& Xhat,
                                         real_t mu)
 {
@@ -700,7 +676,7 @@ void ParInteriorPointSolver::lineSearch(BlockVector& X0, BlockVector& Xhat,
       {
          if (iAmRoot)
          {
-            cout << "bad step\n";
+            cout << "bad log-barrier objective eval, reducing step length\n";
          }
          alpha *= 0.5;
          continue;
@@ -710,7 +686,7 @@ void ParInteriorPointSolver::lineSearch(BlockVector& X0, BlockVector& Xhat,
       {
          if (iAmRoot)
          {
-            cout << "not in filter region :)\n";
+            cout << "not in filter region\n";
          }
          // ------ A.5.4: Check sufficient decrease
          if (!descentDirection)
@@ -753,11 +729,6 @@ void ParInteriorPointSolver::lineSearch(BlockVector& X0, BlockVector& Xhat,
                lineSearchSuccess = true;
                break;
             }
-         }
-         // A-5.5: Initialize the second-order correction
-         if ((!(thx0 < thxtrial)) && i == 0)
-         {
-            ////WARNING: not complete but currently solver isn't entering this region
          }
       }
       else
@@ -835,12 +806,6 @@ bool ParInteriorPointSolver::CurvatureTest(const BlockOperator & A,
    }
    real_t lplusTck = -1.0 * InnerProduct(MPI_COMM_WORLD, lplus, b.GetBlock(2));
 
-   //if (iAmRoot)
-   //{
-   //   cout << "d^T W d + max{-(l+)^T c, 0} = " << dWd + fmax(-lplusTck, 0.0) << endl;
-   //   cout << "d^T d = " << dd << endl;
-   //   cout << "d^T W d / d^T d = " << dWd / dd << endl;
-   //}
    bool passed = (dWd + fmax(-lplusTck,
                              0.0) >= alphaCurvatureTest * dd) ? true : false;
    return passed;
@@ -1104,13 +1069,6 @@ void ParInteriorPointSolver::SetBarrierParameter(real_t mu_0)
 void ParInteriorPointSolver::SetUsingMassWeights(bool useMassWeights_)
 {
    useMassWeights = useMassWeights_;
-}
-
-void ParInteriorPointSolver::SaveLogBarrierHessianIterates(bool save)
-{
-   MFEM_ASSERT(MyRank == 0 ||
-               save == false, "currently can only save logbarrier hessian in serial codes");
-   saveLogBarrierIterates = save;
 }
 
 ParInteriorPointSolver::~ParInteriorPointSolver()

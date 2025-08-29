@@ -80,10 +80,7 @@ protected:
    int MyRank;
    bool iAmRoot;
 
-   bool saveLogBarrierIterates = false;
-   bool save_matrix_data = false;
    bool useMassWeights = false;
-   int label = -1;
    MPI_Comm comm;
 public:
    ParInteriorPointSolver(OptContactProblem*);
@@ -94,7 +91,7 @@ public:
    void FormIPNewtonMat(BlockVector&, Vector&, Vector&, BlockOperator &,
                         real_t delta = 0.0);
    void IPNewtonSolve(BlockVector&, Vector&, Vector&, Vector&, BlockVector&,
-                      bool &, real_t, bool, real_t delta = 0.0);
+                      bool &, real_t, real_t delta = 0.0);
    void lineSearch(BlockVector&, BlockVector&, real_t);
    void projectZ(const Vector &, Vector &, real_t);
    void filterCheck(real_t, real_t);
@@ -113,13 +110,9 @@ public:
    void SetMaxIter(int);
    void SetBarrierParameter(real_t);
    void SetUsingMassWeights(bool);
-   void SaveLogBarrierHessianIterates(bool);
    void SetLinearSolver(Solver * solver_) { solver = solver_ ;}
    bool CurvatureTest(const BlockOperator & A, const BlockVector & Xhat,
                       const Vector &l, const BlockVector & b, const real_t & delta);
-   void EnableSaveMatrix() { save_matrix_data = true;};
-   void DisableSaveMatrix() { save_matrix_data = false;};
-   void SetProblemLabel(int label_) { label = label_;};
    real_t GetNumActiveConstraints() { return numActiveConstraints;};
    void Clear()
    {
