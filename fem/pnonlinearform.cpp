@@ -217,6 +217,23 @@ void ParBlockNonlinearForm::SetEssentialBC(const
    }
 }
 
+void ParBlockNonlinearForm::SetEssentialTrueDofs(
+   const Array<Array<int> *>&ess_tdof_list, Array<Vector*>&rhs)
+{
+   Array<Vector *> nullarray(fes.Size());
+   nullarray = nullptr;
+
+   BlockNonlinearForm::SetEssentialTrueDofs(ess_tdof_list, nullarray);
+
+   for (int s = 0; s < fes.Size(); ++s)
+   {
+      if (rhs[s])
+      {
+         rhs[s]->SetSubVector(*ess_tdofs[s], 0.0);
+      }
+   }
+}
+
 real_t ParBlockNonlinearForm::GetEnergy(const Vector &x) const
 {
    // xs_true is not modified, so const_cast is okay
@@ -312,7 +329,7 @@ void ParBlockNonlinearForm::SetGradientType(Operator::Type tid)
    }
 }
 
-BlockOperator & ParBlockNonlinearForm::GetGradient(const Vector &x) const
+Operator & ParBlockNonlinearForm::GetGradient(const Vector &x) const
 {
    if (pBlockGrad == NULL)
    {
