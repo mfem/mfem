@@ -22,7 +22,7 @@ protected:
    Vector lk, zlk;
 
    real_t sMax, kSig, tauMin, eta, thetaMin, delta, sTheta, sPhi, kMu, thetaMu;
-   real_t thetaMax, kSoc, gTheta, gPhi, kEps;
+   real_t thetaMax, gTheta, gPhi, kEps;
 
    // filter
    Array<real_t> F1, F2;
@@ -45,7 +45,6 @@ protected:
    Array<int> block_offsetsumlz, block_offsetsuml, block_offsetsx;
    Vector ml;
 
-   Vector ckSoc;
    HypreParMatrix * Huu = nullptr;
    HypreParMatrix * Hum = nullptr;
    HypreParMatrix * Hmu = nullptr;
@@ -84,10 +83,21 @@ protected:
    MPI_Comm comm;
 public:
    ParInteriorPointSolver(OptContactProblem*);
-   real_t MaxStepSize(Vector&, Vector&, Vector&, real_t);
-   real_t MaxStepSize(Vector&, Vector&, real_t);
    void Mult(const BlockVector&, BlockVector&);
    void Mult(const Vector&, Vector &);
+   void SetTol(real_t);
+   void SetMaxIter(int);
+   void SetBarrierParameter(real_t);
+   void SetUsingMassWeights(bool);
+   void SetLinearSolver(Solver * solver_) { solver = solver_ ;}
+   bool GetConverged() const;
+   Array<int> & GetCGIterNumbers() {return cgnum_iterations;};
+   int GetNumIterations() {return iter;};
+   real_t GetNumActiveConstraints() { return numActiveConstraints;};
+   virtual ~ParInteriorPointSolver();
+private: 
+   real_t MaxStepSize(Vector&, Vector&, Vector&, real_t);
+   real_t MaxStepSize(Vector&, Vector&, real_t);
    void FormIPNewtonMat(BlockVector&, Vector&, Vector&, BlockOperator &,
                         real_t delta = 0.0);
    void IPNewtonSolve(BlockVector&, Vector&, Vector&, Vector&, BlockVector&,
@@ -95,32 +105,22 @@ public:
    void lineSearch(BlockVector&, BlockVector&, real_t);
    void projectZ(const Vector &, Vector &, real_t);
    void filterCheck(real_t, real_t);
-   real_t E(const BlockVector &, const Vector &, const Vector &, real_t, bool);
-   real_t E(const BlockVector &, const Vector &, const Vector &, bool);
-   bool GetConverged() const;
-   Array<int> & GetCGIterNumbers() {return cgnum_iterations;};
-   int GetNumIterations() {return iter;};
+   real_t OptimalityError(const BlockVector &, const Vector &, const Vector &, real_t, bool);
+   real_t OptimalityError(const BlockVector &, const Vector &, const Vector &, bool);
    real_t theta(const BlockVector &);
    real_t phi(const BlockVector &, real_t);
    real_t phi(const BlockVector &, real_t, int &);
    void Dxphi(const BlockVector &, real_t, BlockVector &);
    real_t L(const BlockVector &, const Vector &, const Vector &);
    void DxL(const BlockVector &, const Vector &, const Vector &, BlockVector &);
-   void SetTol(real_t);
-   void SetMaxIter(int);
-   void SetBarrierParameter(real_t);
-   void SetUsingMassWeights(bool);
-   void SetLinearSolver(Solver * solver_) { solver = solver_ ;}
    bool CurvatureTest(const BlockOperator & A, const BlockVector & Xhat,
                       const Vector &l, const BlockVector & b, const real_t & delta);
-   real_t GetNumActiveConstraints() { return numActiveConstraints;};
    void Clear()
    {
       F1.DeleteAll();
       F2.DeleteAll();
       mu_k = 1.0;
    };
-   virtual ~ParInteriorPointSolver();
 };
 
 #endif

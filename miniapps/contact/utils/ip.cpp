@@ -11,13 +11,14 @@ using namespace mfem;
 ParInteriorPointSolver::ParInteriorPointSolver(OptContactProblem * problem_)
    : problem(problem_)
 {
-   OptTol  = 1.e-2;
-   max_iter = 20;
-   mu_k     = 1.0;
+   OptTol  = 1.e-2; // Tolerance of the optimizer
+   max_iter = 20;   // Maximum iterations
+   mu_k     = 1.0;  // Log-barrier penalty parameter
 
+   
    sMax     = 1.e2;
    kSig     = 1.e10;   // control deviation from primal Hessian
-   tauMin   = 0.99;     // control rate at which iterates can approach the boundary
+   tauMin   = 0.99;    // control rate at which iterates can approach the boundary
    eta      = 1.e-4;   // backtracking constant
    thetaMin = 1.e-4;   // allowed violation of the equality constraints
 
@@ -31,8 +32,6 @@ ParInteriorPointSolver::ParInteriorPointSolver(OptContactProblem * problem_)
    thetaMu = 1.5;
 
    thetaMax = 1.e6; // maximum constraint violation
-   // data for the second order correction
-   kSoc     = 0.99;
 
    // equation (18)
    gTheta = 1.e-5;
@@ -56,14 +55,10 @@ ParInteriorPointSolver::ParInteriorPointSolver(OptContactProblem * problem_)
 
    comm = problem->GetComm();
    problem->GetLumpedMassWeights(Mcslump, Mvlump);
-   // MFEM_VERIFY(Mcslump.Size() == dimM, "does not work when the bound constraints are active");
-   // MFEM_VERIFY(Mvlump.Size() == dimU, "size check failure");
 
    MPI_Allreduce(&dimU,&gdimU,1,MPI_INT,MPI_SUM,comm);
    MPI_Allreduce(&dimM,&gdimM,1,MPI_INT,MPI_SUM,comm);
    MPI_Allreduce(&dimC,&gdimC,1,MPI_INT,MPI_SUM,comm);
-
-   ckSoc.SetSize(dimC);
 
    block_offsetsumlz.SetSize(5);
    block_offsetsuml.SetSize(4);
@@ -209,7 +204,7 @@ void ParInteriorPointSolver::Mult(const BlockVector &x0, BlockVector &xf)
       }
       // A-2. Check convergence of overall optimization problem
       printOptimalityError = true;
-      Eevalmu0 = E(xk, lk, zlk, printOptimalityError);
+      Eevalmu0 = OptimalityError(xk, lk, zlk, printOptimalityError);
       if (Eevalmu0 < OptTol) // div Eeval0 for rel tol
       {
          converged = true;
@@ -249,7 +244,7 @@ void ParInteriorPointSolver::Mult(const BlockVector &x0, BlockVector &xf)
       {
          // A-3. Check convergence of the barrier subproblem
          printOptimalityError = true;
-         Eeval = E(xk, lk, zlk, mu_k, printOptimalityError);
+         Eeval = OptimalityError(xk, lk, zlk, mu_k, printOptimalityError);
          if (i == 0)
          {
             Eeval_mu_0 = Eeval;
@@ -812,7 +807,7 @@ bool ParInteriorPointSolver::CurvatureTest(const BlockOperator & A,
 }
 
 
-real_t ParInteriorPointSolver::E(const BlockVector &x, const Vector &l,
+real_t ParInteriorPointSolver::OptimalityError(const BlockVector &x, const Vector &l,
                                  const Vector &zl, real_t mu, bool printEeval)
 {
    real_t E1, E2, E3; // stationarity, feasibility, and complementarity errors
@@ -880,10 +875,10 @@ real_t ParInteriorPointSolver::E(const BlockVector &x, const Vector &l,
    return optimalityError;
 }
 
-real_t ParInteriorPointSolver::E(const BlockVector &x, const Vector &l,
+real_t ParInteriorPointSolver::OptimalityError(const BlockVector &x, const Vector &l,
                                  const Vector &zl, bool printEeval)
 {
-   return E(x, l, zl, 0.0, printEeval);
+   return OptimalityError(x, l, zl, 0.0, printEeval);
 }
 
 real_t ParInteriorPointSolver::theta(const BlockVector &x)
