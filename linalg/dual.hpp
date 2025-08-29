@@ -403,8 +403,105 @@ template <typename value_type, typename gradient_type> MFEM_HOST_DEVICE
 dual<value_type, gradient_type> pow(dual<value_type, gradient_type> a, real_t b)
 {
    using std::pow;
-   value_type value = pow(a.value, b);
-   return {value, value * a.gradient * b / a.value};
+   return {pow(a.value, b), b*pow(a.value, b-1) * a.gradient };
+}
+
+/** @brief implementation of max of two dual numbers */
+template <typename value_type, typename gradient_type> MFEM_HOST_DEVICE
+dual<value_type, gradient_type> max(dual<value_type, gradient_type> a,
+                                    dual<value_type, gradient_type> b)
+{
+   using std::max;
+   if (a.value > b.value)
+   {
+      return a;
+   }
+   else if (a.value < b.value)
+   {
+      return b;
+   }
+   else { return (a+b)*0.5; } // subgradient at the kink
+}
+
+/** @brief implementation of max of a dual number and a non-dual number */
+template <typename value_type, typename gradient_type> MFEM_HOST_DEVICE
+dual<value_type, gradient_type> max(real_t a, dual<value_type, gradient_type> b)
+{
+   using std::max;
+   if (a > b.value)
+   {
+      return {a, {}};
+   }
+   else if (a < b.value)
+   {
+      return b;
+   }
+   else { return {a, b.gradient*0.5}; } // subgradient at the kink
+}
+
+/** @brief implementation of max of two non-dual numbers */
+template <typename value_type > MFEM_HOST_DEVICE
+value_type max(value_type a, value_type b)
+{
+   using std::pow;
+   return max(a, b);
+}
+
+/** @brief implementation of max of a dual number and a non-dual number */
+template <typename value_type, typename gradient_type> MFEM_HOST_DEVICE
+dual<value_type, gradient_type> max(dual<value_type, gradient_type> a, real_t b)
+{
+   using std::max;
+   return max(b, a);
+}
+
+/** @brief implementation of min of two dual numbers */
+template <typename value_type, typename gradient_type> MFEM_HOST_DEVICE
+dual<value_type, gradient_type> min(dual<value_type, gradient_type> a,
+                                    dual<value_type, gradient_type> b)
+{
+   using std::max;
+   if (a.value < b.value)
+   {
+      return a;
+   }
+   else if (a.value > b.value)
+   {
+      return b;
+   }
+   else { return (a+b)*0.5; } // subgradient at the kink
+}
+
+/** @brief implementation of min of a dual number and a non-dual number */
+template <typename value_type, typename gradient_type> MFEM_HOST_DEVICE
+dual<value_type, gradient_type> min(real_t a, dual<value_type, gradient_type> b)
+{
+   using std::max;
+   if (a < b.value)
+   {
+      return {a, {}};
+   }
+   else if (a > b.value)
+   {
+      return b;
+   }
+   else { return {a, b.gradient*0.5}; } // subgradient at the kink
+}
+
+/** @brief implementation of min of two non-dual numbers */
+template <typename value_type > MFEM_HOST_DEVICE
+value_type min(value_type a, value_type b)
+{
+   using std::pow;
+   return min(a, b);
+}
+
+/** @brief implementation of min of a dual number and a non-dual number */
+template <typename value_type, typename gradient_type> MFEM_HOST_DEVICE
+dual<value_type, gradient_type> min(dual<value_type, gradient_type> a, real_t b)
+{
+   using std::max;
+   return min(b, a);
 }
 
 /** @brief overload of operator<< for `dual` to work with work with standard output streams */
