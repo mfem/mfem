@@ -25,9 +25,9 @@ namespace mfem
 // forward declaration
 class Vector;
 
-/** \brief MMA (Method of Moving Asymptotes) solves a nonlinear optimization problem
- *         involving an objective function, inequality constraints, and
- *         variable bounds.
+/** \brief MMA (Method of Moving Asymptotes) solves a nonlinear optimization
+ *         problem involving an objective function, inequality constraints,
+ *         and variable bounds.
  *
  *  \details
  *  This class finds ${\bf x} \in R^n$ that solves the following nonlinear
@@ -37,7 +37,8 @@ class Vector;
  *    \min_{{\bf x} \in R^n} & F({\bf x})\\
  *     \textrm{subject to}   & C({\bf x})_i \leq 0,\quad
  *                             \textrm{for all}\quad i = 1,\ldots m\\
- *                           & {\bf x}_{\textrm{lo}} \leq {\bf x} \leq {\bf x}_{\textrm{hi}}.
+ *                           & {\bf x}_{\textrm{lo}} \leq {\bf x} \leq
+ *                             {\bf x}_{\textrm{hi}}.
  *    \end{array}
  *   $$
  *   Here $F : R^n \to R$ is the objective function, and
@@ -51,13 +52,13 @@ class Vector;
  *    The unique optimal solution of this subproblem is returned as the next
  *    iteration point. Optimality is determined by the KKT conditions.
  *
- *  The "Update" function in MMA advances the optimization and must be called
- *  in every optimization iteration. Current and previous iteration points
- *  construct the "moving asymptotes". The design variables, objective function,
- *  constraints are passed to an approximating subproblem. The design variables
- *  are updated and returned. Its implementation closely follows the original
- *  formulation of <a
- *  href="https://people.kth.se/~krille/mmagcmma.pdf">'Svanberg,  K. (2007).
+ *  The "Update" function in MMA advances the optimization and must be
+ *  called in every optimization iteration. Current and previous iteration
+ *  points construct the "moving asymptotes". The design variables,
+ *  objective function, constraints are passed to an approximating
+ *  subproblem. The design variables are updated and returned. Its
+ *  implementation closely follows the original formulation of <a
+ *  href="https://people.kth.se/~krille/mmagcmma.pdf">'Svanberg, K. (2007).
  *  MMA and GCMMA-two methods for nonlinear optimization. vol, 1, 1-15.'</a>
  *
  *  When used in parallel, all Vectors are assumed to be true dof vectors,
@@ -175,7 +176,7 @@ public:
     *                the next design variable value to use.
     *
     * \details
-    * The caller returns ownership of all Vectors passed into this method.
+    * The caller retains ownership of all Vectors passed into this method.
     */
    void Update(const Vector& dfdx,
                const Vector& gx, const Vector& dgdx,
@@ -201,7 +202,7 @@ public:
     *                the next design variable value to use.
     *
     * \details
-    * The caller returns ownership of all Vectors passed into this method.
+    * The caller retains ownership of all Vectors passed into this method.
     * This should be used when the number of inequality constraints is zero.
     */
    void Update( const Vector& dfdx,
@@ -252,7 +253,7 @@ private:
    /// KKT norm
    real_t kktnorm;
 
-   /// intialization state
+   /// initialization state
    bool isInitialized = false;
 
 #ifdef MFEM_USE_MPI
