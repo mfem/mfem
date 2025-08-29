@@ -23,7 +23,7 @@ list(APPEND SRCS
   complex_operator.cpp
   constraints.cpp
   densemat.cpp
-  symmat.cpp
+  filteredsolver.cpp
   handle.cpp
   matrix.cpp
   mma.cpp
@@ -32,6 +32,7 @@ list(APPEND SRCS
   solvers.cpp
   sparsemat.cpp
   sparsesmoothers.cpp
+  symmat.cpp
   vector.cpp
   )
 
@@ -50,8 +51,9 @@ list(APPEND HDRS
   constraints.hpp
   densemat.hpp
   dinvariants.hpp
-  symmat.hpp
   dtensor.hpp
+  dual.hpp
+  filteredsolver.hpp
   handle.hpp
   invariants.hpp
   kernels.hpp
@@ -64,11 +66,11 @@ list(APPEND HDRS
   solvers.hpp
   sparsemat.hpp
   sparsesmoothers.hpp
+  symmat.hpp
   tlayout.hpp
   tmatrix.hpp
   ttensor.hpp
   tensor.hpp
-  dual.hpp
   vector.hpp
   )
 
