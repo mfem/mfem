@@ -981,6 +981,7 @@ const Array<int>& Mesh::GetElementAttributes() const
 
 void Mesh::DeleteGeometricFactors()
 {
+   MFEM_PERF_FUNCTION;
    for (int i = 0; i < geom_factors.Size(); i++)
    {
       delete geom_factors[i];
@@ -6579,6 +6580,7 @@ void XYZ_VectorFunction(const Vector &p, Vector &v)
 
 void Mesh::GetNodes(GridFunction &nodes) const
 {
+   MFEM_PERF_FUNCTION;
    if (Nodes == NULL || Nodes->FESpace() != nodes.FESpace())
    {
       const int newSpaceDim = nodes.FESpace()->GetVDim();
@@ -6599,6 +6601,7 @@ void Mesh::SetNodalFESpace(FiniteElementSpace *nfes)
 
 void Mesh::EnsureNodes()
 {
+   MFEM_PERF_FUNCTION;
    if (Nodes)
    {
       const FiniteElementCollection *fec = GetNodalFESpace()->FEColl();
@@ -6651,6 +6654,7 @@ const FiniteElementSpace *Mesh::GetNodalFESpace() const
 
 void Mesh::SetCurvature(int order, bool discont, int space_dim, int ordering)
 {
+   MFEM_PERF_FUNCTION;
    if (order <= 0)
    {
       delete Nodes;
@@ -14735,7 +14739,7 @@ GeometricFactors::GeometricFactors(const GridFunction &nodes,
 void GeometricFactors::Compute(const GridFunction &nodes,
                                MemoryType d_mt)
 {
-
+   MFEM_PERF_FUNCTION;
    const FiniteElementSpace *fespace = nodes.FESpace();
    const FiniteElement *fe = fespace->GetTypicalFE();
    const int dim  = fe->GetDim();
