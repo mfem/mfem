@@ -22,6 +22,8 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdarg>
+#include <unordered_set>
+#include <unordered_map>
 
 using namespace std;
 
@@ -4493,6 +4495,57 @@ void FiniteElementSpace
       for (auto f : bdr_faces)
       {
          faces.insert(f);
+      }
+   }
+}
+
+void FiniteElementSpace::GetBoundaryEdgeDofs(
+   const Array<int> &boundary_element_indices,
+   std::unordered_set<int> &boundary_edge_dofs,
+   std::unordered_map<int, int> &dof_to_edge,
+   std::unordered_map<int, int> &dof_to_boundary_element,
+   std::unordered_map<int, int> &dof_to_edge_orientation) const
+{
+   MFEM_VERIFY(mesh->Dimension() >= 3,
+               "GetBoundaryEdgeDofs requires 3D meshes to find 1D edge objects");
+
+   // Clear output containers
+   boundary_edge_dofs.clear();
+   dof_to_edge.clear();
+   dof_to_boundary_element.clear();
+   dof_to_edge_orientation.clear();
+
+   // Collect boundary edge DoFs using a toggle approach
+   Array<int> edges, edge_orientations, edge_dofs;
+   for (int i = 0; i < boundary_element_indices.Size(); ++i)
+   {
+      int boundary_element_idx = boundary_element_indices[i];
+      int face_index, face_orientation;
+      mesh->GetBdrElementFace(boundary_element_idx, &face_index, &face_orientation);
+      mesh->GetFaceEdges(face_index, edges, edge_orientations);
+
+      for (int j = 0; j < edges.Size(); ++j)
+      {
+         GetEdgeDofs(edges[j], edge_dofs);
+         for (int k = 0; k < edge_dofs.Size(); ++k)
+         {
+            int dof = edge_dofs[k];
+            if (!boundary_edge_dofs.count(dof))
+            {
+               boundary_edge_dofs.insert(dof);
+               dof_to_edge[dof] = edges[j];
+               dof_to_boundary_element[dof] = boundary_element_idx;
+               dof_to_edge_orientation[dof] = edge_orientations[j];
+            }
+            else
+            {
+               // DoF appears twice - interior to boundary, remove it
+               boundary_edge_dofs.erase(dof);
+               dof_to_edge.erase(dof);
+               dof_to_boundary_element.erase(dof);
+               dof_to_edge_orientation.erase(dof);
+            }
+         }
       }
    }
 }
