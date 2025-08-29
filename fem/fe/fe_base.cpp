@@ -661,65 +661,78 @@ void ScalarFiniteElement::ScalarLocalL2Restriction(
 void NodalFiniteElement::CreateLexicographicFullMap(const IntegrationRule &ir)
 const
 {
-   // Get the FULL version of the map.
-   auto &d2q = GetDofToQuad(ir, DofToQuad::FULL);
-   //Undo the native ordering which is what FiniteElement::GetDofToQuad returns.
-   auto *d2q_new = new DofToQuad(d2q);
-   d2q_new->mode = DofToQuad::LEXICOGRAPHIC_FULL;
-   const int nqpt = ir.GetNPoints();
 
-   const int b_dim = (range_type == VECTOR) ? dim : 1;
-
-   for (int i = 0; i < nqpt; i++)
+#if defined(MFEM_THREAD_SAFE) && defined(MFEM_USE_OPENMP)
+   #pragma omp critical (DofToQuad)
+#endif
    {
-      for (int d = 0; d < b_dim; d++)
+      // Get the FULL version of the map.
+      auto &d2q = GetDofToQuad(ir, DofToQuad::FULL);
+      //Undo the native ordering which is what FiniteElement::GetDofToQuad returns.
+      auto *d2q_new = new DofToQuad(d2q);
+      d2q_new->mode = DofToQuad::LEXICOGRAPHIC_FULL;
+      const int nqpt = ir.GetNPoints();
+
+      const int b_dim = (range_type == VECTOR) ? dim : 1;
+
+      for (int i = 0; i < nqpt; i++)
       {
-         for (int j = 0; j < dof; j++)
+         for (int d = 0; d < b_dim; d++)
          {
-            const double val = d2q.B[i + nqpt*(d+b_dim*lex_ordering[j])];
-            d2q_new->B[i+nqpt*(d+b_dim*j)] = val;
-            d2q_new->Bt[j+dof*(i+nqpt*d)] = val;
+            for (int j = 0; j < dof; j++)
+            {
+               const double val = d2q.B[i + nqpt*(d+b_dim*lex_ordering[j])];
+               d2q_new->B[i+nqpt*(d+b_dim*j)] = val;
+               d2q_new->Bt[j+dof*(i+nqpt*d)] = val;
+            }
          }
       }
-   }
 
-   const int g_dim = [this]()
-   {
-      switch (deriv_type)
+      const int g_dim = [this]()
       {
-         case GRAD: return dim;
-         case DIV: return 1;
-         case CURL: return cdim;
-         default: return 0;
-      }
-   }();
-
-   for (int i = 0; i < nqpt; i++)
-   {
-      for (int d = 0; d < g_dim; d++)
-      {
-         for (int j = 0; j < dof; j++)
+         switch (deriv_type)
          {
-            const double val = d2q.G[i + nqpt*(d+g_dim*lex_ordering[j])];
-            d2q_new->G[i+nqpt*(d+g_dim*j)] = val;
-            d2q_new->Gt[j+dof*(i+nqpt*d)] = val;
+            case GRAD: return dim;
+            case DIV: return 1;
+            case CURL: return cdim;
+            default: return 0;
+         }
+      }();
+
+      for (int i = 0; i < nqpt; i++)
+      {
+         for (int d = 0; d < g_dim; d++)
+         {
+            for (int j = 0; j < dof; j++)
+            {
+               const double val = d2q.G[i + nqpt*(d+g_dim*lex_ordering[j])];
+               d2q_new->G[i+nqpt*(d+g_dim*j)] = val;
+               d2q_new->Gt[j+dof*(i+nqpt*d)] = val;
+            }
          }
       }
-   }
 
-   dof2quad_array.Append(d2q_new);
+      dof2quad_array.Append(d2q_new);
+   }
 }
 
 const DofToQuad &NodalFiniteElement::GetDofToQuad(const IntegrationRule &ir,
                                                   DofToQuad::Mode mode) const
 {
-   //Should make this loop a function of FiniteElement
-   for (int i = 0; i < dof2quad_array.Size(); i++)
+   DofToQuad *d2q = nullptr;
+#if defined(MFEM_THREAD_SAFE) && defined(MFEM_USE_OPENMP)
+   #pragma omp critical (DofToQuad)
+#endif
    {
-      const DofToQuad &d2q = *dof2quad_array[i];
-      if (d2q.IntRule == &ir && d2q.mode == mode) { return d2q; }
+      //Should make this loop a function of FiniteElement
+      for (int i = 0; i < dof2quad_array.Size(); i++)
+      {
+         d2q = dof2quad_array[i];
+         if (d2q->IntRule == &ir && d2q->mode == mode) { break; }
+         d2q = nullptr;
+      }
    }
-
+   if (d2q) { return *d2q; }
    if (mode != DofToQuad::LEXICOGRAPHIC_FULL)
    {
       return FiniteElement::GetDofToQuad(ir, mode);
