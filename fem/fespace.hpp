@@ -20,6 +20,7 @@
 #include "restriction.hpp"
 #include <iostream>
 #include <unordered_map>
+#include <unordered_set>
 
 namespace mfem
 {
@@ -1399,6 +1400,14 @@ public:
        can be used to restricts the marked tDOFs to the specified component. */
    virtual void GetExteriorTrueDofs(Array<int> &exterior_dofs,
                                     int component = -1) const;
+
+   /** @brief Extract boundary edge DOFs from specified boundary elements.
+       Serial version that performs the toggle-based collection of boundary edge DOFs. */
+   virtual void GetBoundaryEdgeDofs(const Array<int> &boundary_element_indices,
+                                    std::unordered_set<int> &boundary_edge_dofs,
+                                    std::unordered_map<int, int> &dof_to_edge,
+                                    std::unordered_map<int, int> &dof_to_boundary_element,
+                                    std::unordered_map<int, int> &dof_to_edge_orientation) const;
 
    /// Convert a Boolean marker array to a list containing all marked indices.
    static void MarkerToList(const Array<int> &marker, Array<int> &list);

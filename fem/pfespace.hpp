@@ -465,7 +465,7 @@ public:
        @param[out] dof_to_orientation Optional map from DOFs to edge orientations
        @param[out] dof_to_boundary_element_out Optional map from DOFs to boundary elements
        @param[out] ess_edge_list Optional array of edge indices */
-   void GetBoundaryEdgeDoFs(const Array<int> &boundary_element_indices,
+   void GetBoundaryEdgeDofs(const Array<int> &boundary_element_indices,
                             Array<int> &ess_tdof_list,
                             Array<int> &ldof_marker,
                             std::unordered_set<int> &boundary_edge_dofs_out,

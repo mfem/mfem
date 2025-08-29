@@ -1120,7 +1120,6 @@ void ParFiniteElementSpace::Synchronize(Array<int> &ldof_marker) const
 
 void ParFiniteElementSpace::SynchronizeBC(Array<double> &bc_values) const
 {
-
    // Use the MaxAbs reduction mode
    gcomm->Reduce<double>(bc_values, GroupCommunicator::MaxAbs);
    gcomm->Bcast(bc_values);
@@ -1263,7 +1262,7 @@ void ParFiniteElementSpace::GetExteriorVDofs(Array<int> &ext_dofs,
    Synchronize(ext_dofs);
 }
 
-void ParFiniteElementSpace::GetBoundaryEdgeDoFs(const Array<int>
+void ParFiniteElementSpace::GetBoundaryEdgeDofs(const Array<int>
                                                 &boundary_element_indices,
                                                 Array<int> &ess_tdof_list,
                                                 Array<int> &ldof_marker,
@@ -1273,47 +1272,23 @@ void ParFiniteElementSpace::GetBoundaryEdgeDoFs(const Array<int>
                                                 std::unordered_map<int, int> *dof_to_boundary_element_out,
                                                 Array<int> *ess_edge_list)
 {
-   // Data structures for boundary edge DoFs
+   MFEM_ASSERT(!pmesh->Nonconforming(),
+               "GetBoundaryEdgeDofs does not support nonconforming meshes");
+   MFEM_VERIFY(pmesh->Dimension() >= 3,
+               "GetBoundaryEdgeDofs requires 3D meshes to find 1D edge objects");
+
+   // Call serial version to get initial boundary edge DOFs
    std::unordered_set<int> boundary_edge_dofs;
    std::unordered_map<int, int> dof_to_edge_map;
    std::unordered_map<int, int> dof_to_boundary_element;
    std::unordered_map<int, int> dof_to_edge_orientation;
 
-   // Collect boundary edge DoFs using a toggle approach
-   Array<int> edges, edge_orientations, edge_dofs;
-   for (int i = 0; i < boundary_element_indices.Size(); ++i)
-   {
-      int boundary_element_idx = boundary_element_indices[i];
-      int face_index, face_orientation;
-      pmesh->GetBdrElementFace(boundary_element_idx, &face_index, &face_orientation);
-      pmesh->GetFaceEdges(face_index, edges, edge_orientations);
+   FiniteElementSpace::GetBoundaryEdgeDofs(boundary_element_indices,
+                                           boundary_edge_dofs,
+                                           dof_to_edge_map, dof_to_boundary_element,
+                                           dof_to_edge_orientation);
 
-      for (int j = 0; j < edges.Size(); ++j)
-      {
-         GetEdgeDofs(edges[j], edge_dofs);
-         for (int k = 0; k < edge_dofs.Size(); ++k)
-         {
-            int dof = edge_dofs[k];
-            if (!boundary_edge_dofs.count(dof))
-            {
-               boundary_edge_dofs.insert(dof);
-               dof_to_edge_map[dof] = edges[j];
-               dof_to_boundary_element[dof] = boundary_element_idx;
-               dof_to_edge_orientation[dof] = edge_orientations[j];
-            }
-            else
-            {
-               // DoF appears twice - interior to boundary, remove it
-               boundary_edge_dofs.erase(dof);
-               dof_to_edge_map.erase(dof);
-               dof_to_boundary_element.erase(dof);
-               dof_to_edge_orientation.erase(dof);
-            }
-         }
-      }
-   }
-
-   // Build edge sharing lookup table
+   // Parallel processing: Build edge sharing lookup table
    std::unordered_map<int, int> edge_to_group_size;
    int num_groups = pmesh->GetNGroups();
 
@@ -1344,9 +1319,8 @@ void ParFiniteElementSpace::GetBoundaryEdgeDoFs(const Array<int>
 
    // Pre-compute face indices for boundary elements
    std::unordered_map<int, int> boundary_element_to_face;
-   for (int i = 0; i < boundary_element_indices.Size(); ++i)
+   for (int boundary_element_idx : boundary_element_indices)
    {
-      int boundary_element_idx = boundary_element_indices[i];
       int face_index, face_orientation;
       pmesh->GetBdrElementFace(boundary_element_idx, &face_index, &face_orientation);
       boundary_element_to_face[boundary_element_idx] = face_index;
@@ -1359,10 +1333,8 @@ void ParFiniteElementSpace::GetBoundaryEdgeDoFs(const Array<int>
    std::unordered_set<int> processed_edges;
    processed_edges.reserve(boundary_edge_dofs.size());
 
-   for (const auto& pair : dof_to_edge_map)
+   for (const auto& [dof, local_edge] : dof_to_edge_map)
    {
-      int local_edge = pair.second;
-
       // Skip if already processed this edge
       if (!processed_edges.insert(local_edge).second) { continue; }
 
@@ -1371,7 +1343,6 @@ void ParFiniteElementSpace::GetBoundaryEdgeDoFs(const Array<int>
       if (it != edge_to_group_size.end() && it->second > 1)
       {
          // Get boundary element and face index directly from pre-computed map
-         int dof = pair.first;
          int boundary_element_idx = dof_to_boundary_element[dof];
          int face_index = boundary_element_to_face[boundary_element_idx];
 
@@ -1420,8 +1391,7 @@ void ParFiniteElementSpace::GetBoundaryEdgeDoFs(const Array<int>
       }
 
       // Process collected data
-      std::unordered_map<HYPRE_BigInt, std::unordered_set<HYPRE_BigInt>>
-                                                                      edge_to_faces;
+      std::unordered_map<HYPRE_BigInt, std::unordered_set<HYPRE_BigInt>>edge_to_faces;
       edge_to_faces.reserve(total_size / 2);
 
       for (size_t i = 0; i < all_data.size(); i += 2)
@@ -1429,7 +1399,8 @@ void ParFiniteElementSpace::GetBoundaryEdgeDoFs(const Array<int>
          edge_to_faces[all_data[i]].insert(all_data[i + 1]);
       }
 
-      // Mark DoFs from artificial edges for removal
+      // Mark Dofs from artificial edges introduced by partitioning the mesh into
+      // ranks for removal
       dofs_to_remove.reserve(local_data.size() / 4);
 
       for (size_t i = 0; i < local_data.size(); i += 2)

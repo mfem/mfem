@@ -104,7 +104,7 @@ TEST_CASE("BoundaryEdgeDoFsPartitionInvariant",
       std::unordered_map<int, int> dof_to_boundary_element;
       Array<int> ess_edge_list;
 
-      fespace.GetBoundaryEdgeDoFs(boundary_elements, ess_tdof_list, ldof_marker,
+      fespace.GetBoundaryEdgeDofs(boundary_elements, ess_tdof_list, ldof_marker,
                                   boundary_edge_ldofs, &dof_to_edge, &dof_to_orientation,
                                   &dof_to_boundary_element, &ess_edge_list);
 
@@ -160,7 +160,7 @@ TEST_CASE("BoundaryEdgeDoFsBasicFunctionality",
    std::unordered_map<int, int> dof_to_boundary_element;
    Array<int> ess_edge_list;
 
-   fespace.GetBoundaryEdgeDoFs(boundary_elements, ess_tdof_list, ldof_marker,
+   fespace.GetBoundaryEdgeDofs(boundary_elements, ess_tdof_list, ldof_marker,
                                boundary_edge_ldofs, &dof_to_edge, &dof_to_orientation,
                                &dof_to_boundary_element, &ess_edge_list);
 
@@ -272,7 +272,7 @@ TEST_CASE("BoundaryEdgeDoFsNestedCubes",
       std::unordered_map<int, int> dof_to_boundary_element;
       Array<int> ess_edge_list;
 
-      fespace.GetBoundaryEdgeDoFs(boundary_elements, ess_tdof_list, ldof_marker,
+      fespace.GetBoundaryEdgeDofs(boundary_elements, ess_tdof_list, ldof_marker,
                                   boundary_edge_ldofs, &dof_to_edge, &dof_to_orientation,
                                   &dof_to_boundary_element, &ess_edge_list);
 
