@@ -265,12 +265,18 @@ public:
    bool parallel;
    bool IsParallel() const { return parallel; }
 #ifdef MFEM_USE_MPI
-   void SetComm(MPI_Comm comm) { parallel = true; this->comm = comm; }
+   void SetComm(MPI_Comm comm)
+   {
+      parallel = comm != MPI_COMM_NULL;
+      this->comm = comm;
+   }
    MPI_Comm GetComm() const { return comm; }
 #endif
 
 protected:
+#ifdef MFEM_USE_MPI
    MPI_Comm comm;
+#endif
    std::vector<Functional*> funcs;
 
    class GradientOperator : public Operator
