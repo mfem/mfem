@@ -11,6 +11,7 @@
 #include "blockvector.hpp"
 #include "solvers.hpp"
 #include <cxxabi.h>
+#include <vector>
 
 namespace mfem
 {
@@ -154,118 +155,6 @@ private:
 
    mutable GradientOperator grad_operator;
    mutable HessianActionOperator hessian_action_operator;
-};
-
-/// @brief A base class for functionals that shares evaluation points
-/// either across multiple functionals or across multiple member functions.
-///
-/// When a functional shares evaluation points, then the evaluation point
-/// for the "viewer' functional will ignore the input x.
-/// The owner is responsible for processing the evaluation point,
-/// and the viewer have shallow copy of the processed evaluation point.
-/// @warning Evaluating the viewer functional prior to the owner functional will results in
-/// unsynchronized evaluation point, which is not recommended.
-///
-/// A derived class must implement ProcessX() and ShallowCopyprocessedX().
-/// See, SharedFunctional::SharePoint() and SharedFunctional::ProcessX().
-///
-/// When the manual update is enabled, the input x will be ignored,
-/// Users must call SharedFunctional::Update() at the owner functional to update x.
-///
-/// The derived class must implement
-/// 1) ProcessX(const Vector &x) which sets internally processed evaluation point
-/// 2) ShallowCopyProcessedX(OtherSharedFunctional &owner) which copies processed evaluation point
-/// 3) MultCurrent(Vector &y)
-/// 4) (optional) EvalGradientCurrent(Vector &y)
-/// 5) (optional) HessianMultCurrent(const Vector &d, Vector &y)
-class SharedFunctional : public Functional
-{
-public:
-   SharedFunctional(int n=0)
-      : Functional(n)
-      , owner(nullptr)
-      , viewers(0)
-      , manual_update(false)
-   { }
-#ifdef MFEM_USE_MPI
-   SharedFunctional(MPI_Comm comm, int n=0)
-      : SharedFunctional(n)
-   { SetComm(comm); }
-#endif
-
-   void EnableManualUpdate(bool enable=true) { manual_update = enable; }
-   bool IsManualUpdateEnabled() const { return manual_update; }
-
-
-   /// @brief Share the processed point with another functional. Input is a viewer.
-   /// The viewer should implement ShallowCopyProcessedX() to copy the processed point data.
-   void SharePointTo(SharedFunctional &viewer);
-
-   /// @brief Update the processed point with a new evaluation point x.
-   /// When caching is enabled, this will invalidate the cached values of Mult() and EvalGradient()
-   /// This will increase owner's sequence number, not the viewer's.
-   void Update(const Vector &x) const;
-   /// @brief Get evaluation point update sequence number of the current functional.
-   int GetSequence() const { return sequence; }
-   /// @brief Get the owner sequence number of the current functional.
-   int GetOwnerSequence() const { return owner ? owner->GetSequence() : sequence; }
-
-   /// @brief Helper method to evaluate the functional at the processed point. X is not used.
-   void Mult(const Vector &x, Vector &y) const override final
-   {
-      if (owner == nullptr && !manual_update) { ProcessX(x); }
-      MultCurrent(y);
-   }
-   /// Helper method to evaluate the gradient of functional at the processed point. Use cached value if available.
-   void EvalGradient(const Vector &x, Vector &y) const override final
-   {
-      if (owner == nullptr && !manual_update) { ProcessX(x); }
-      EvalGradientCurrent(y);
-   }
-   /// Helper method to evaluate the gradient of functional at the processed point.
-   /// Caching is not used here to avoid assembling possibly full or expensive Hessian assembly.
-   /// If the Hessian can be stored, then assemble it in HessianMult(const Vector &, Vector &).
-   /// After assembling the Hessian, set hessianCached to true and reuse the assembled Hessian until hessianCached is false.
-   /// hessianCached will be set to false when Update() is called.
-   void HessianMult(const Vector &x, const Vector &d,
-                    Vector &y) const override final
-   {
-      if (owner == nullptr && !manual_update) { ProcessX(x); }
-      HessianMultCurrent(d, y);
-   }
-
-   /// Evaluate the functional at the processed point. Use processed evaluation point.
-   virtual void MultCurrent(Vector &y) const = 0;
-   /// Evaluate the gradient of functional at the processed point. Use processed evaluation point.
-   virtual void EvalGradientCurrent(Vector &y) const
-   {
-      MFEM_ABORT("SharedFunctional::EvalGrad() is not implemented.");
-   }
-   /// Evaluate the Hessian action of functional at the processed point. Use processed evaluation point.
-   virtual void HessianMultCurrent(const Vector &d, Vector &y) const
-   {
-      MFEM_ABORT("SharedFunctional::HessianMult() is not implemented.");
-   }
-
-protected:
-   /// Derived classes must implement the following methods:
-
-   /// Process evaluation point x. This will be called by Update(x).
-   virtual void ProcessX(const Vector &x) const = 0;
-
-   /// By default, this method will abort. Derived classes should implement for specific types using dynamic_cast.
-   virtual void ShallowCopyProcessedX(SharedFunctional &owner);
-   // This can be used to track the evaluation point update sequence.
-   // One use case is to track Mult() calls to avoid re-evaluating the same point.
-   // In that case, create a multSequence variable in the derived class,
-   // and reset it to multSequence=sequence when Mult() actually evaluates.
-   // Otherwise, return the cached value.
-   mutable int sequence;
-
-private:
-   SharedFunctional *owner; // null if owner==this
-   std::vector<SharedFunctional*> viewers;
-   bool manual_update;
 };
 
 /// @brief Stacked functioanl operator, [f1, ..., fk] where fi:R^n->R are functionals
@@ -462,78 +351,6 @@ protected:
    mutable GradientOperator grad_helper_op;
    mutable HessianActionOperator hessian_helper_op;
 private:
-};
-
-/// @brief A StackedFunctional that shares the evaluation point with the first functional.
-/// All functionals should be of type SharedFunctional and support ShallowCopyProcessedX() with the first functional.
-/// See, SharedFunctional::SharePoint() and SharedFunctional::ShallowCopyProcessedX()
-/// @warning The manual update should be enabled for all/none of the functionals before adding them to the StackedSharedFunctional.
-class StackedSharedFunctional : public StackedFunctional
-{
-public:
-   StackedSharedFunctional(int n=0)
-      : StackedFunctional(n)
-   {}
-   StackedSharedFunctional(SharedFunctional &f)
-      : StackedFunctional(f.Width())
-   { AddFunctional(f); }
-   StackedSharedFunctional(const std::vector<SharedFunctional*> &funcs)
-      : StackedFunctional(funcs[0]->Width())
-   { for (auto &f : funcs) { AddFunctional(*f); } }
-   void EnableManualUpdate(bool enable=true)
-   {
-      manual_update = enable;
-      for (auto &f : funcs) { static_cast<SharedFunctional*>(f)->EnableManualUpdate(enable); }
-   }
-   bool IsManualUpdateEnabled() const { return manual_update; }
-   void Update(const Vector &x)
-   {
-      SharedFunctional *owner = static_cast<SharedFunctional*>(funcs[0]);
-      owner->Update(x);
-      sequence = owner->GetSequence();
-   }
-
-   void AddFunctional(SharedFunctional &f)
-   {
-      if (funcs.empty())
-      {
-         manual_update = f.IsManualUpdateEnabled();
-      }
-      else
-      {
-         MFEM_VERIFY(f.IsManualUpdateEnabled() == manual_update,
-                     "StackedSharedFunctional: Cannot add a functional with different manual update setting.");
-         static_cast<SharedFunctional*>(funcs[0])->SharePointTo(f);
-      }
-      StackedFunctional::AddFunctional(f);
-   }
-
-   void Mult(const Vector &x, Vector &y) const override
-   {
-      if (!manual_update) { static_cast<SharedFunctional*>(funcs[0])->Update(x); }
-      StackedFunctional::Mult(x, y);
-   }
-
-   Operator &GetGradient(const Vector &x) const override
-   {
-      if (!manual_update) { static_cast<SharedFunctional*>(funcs[0])->Update(x); }
-      return StackedFunctional::GetGradient(x);
-   }
-
-   void GetGradientMatrix(const Vector &x, DenseMatrix &grads) const
-   {
-      if (!manual_update) { static_cast<SharedFunctional*>(funcs[0])->Update(x); }
-      StackedFunctional::GetGradientMatrix(x, grads);
-   }
-
-   Operator &GetHessian(const Vector &x, const Vector &lambda) const
-   {
-      if (!manual_update) { static_cast<SharedFunctional*>(funcs[0])->Update(x); }
-      return StackedFunctional::GetHessian(x, lambda);
-   }
-private:
-   bool manual_update = false;
-   int sequence = 0;
 };
 
 class ConstrainedOptimizationProblem : public Functional
