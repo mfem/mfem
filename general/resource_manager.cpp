@@ -5,6 +5,7 @@
 #include "cuda.hpp"
 #include "hip.hpp"
 
+#include <cstdlib>
 #include <tuple>
 
 namespace mfem
@@ -16,6 +17,18 @@ struct StdAllocator : public Allocator
 
    void Dealloc(void *ptr) override { delete[] reinterpret_cast<char *>(ptr); }
    virtual ~StdAllocator() = default;
+};
+
+struct StdAlignedAllocator : public Allocator
+{
+   size_t alignment = 64;
+   void Alloc(void **ptr, size_t nbytes) override
+   {
+      *ptr = aligned_alloc(alignment, nbytes);
+   }
+
+   void Dealloc(void *ptr) override { free(ptr); }
+   virtual ~StdAlignedAllocator() = default;
 };
 
 struct HostPinnedAllocator : public Allocator
@@ -298,11 +311,13 @@ ResourceManager::ResourceManager()
    allocs[1].reset(new HostPinnedAllocator);
    allocs[2].reset(new ManagedAllocator);
    allocs[3].reset(new DeviceAllocator);
+   allocs[4].reset(new StdAlignedAllocator);
 
-   allocs[4].reset(new TempAllocator<StdAllocator>);
-   allocs[5].reset(new TempAllocator<HostPinnedAllocator>);
-   allocs[6].reset(new TempAllocator<ManagedAllocator>);
-   allocs[7].reset(new TempAllocator<DeviceAllocator>);
+   allocs[5].reset(new TempAllocator<StdAllocator>);
+   allocs[6].reset(new TempAllocator<HostPinnedAllocator>);
+   allocs[7].reset(new TempAllocator<ManagedAllocator>);
+   allocs[8].reset(new TempAllocator<DeviceAllocator>);
+   allocs[9].reset(new TempAllocator<StdAlignedAllocator>);
 }
 
 ResourceManager::~ResourceManager() { clear(); }
@@ -319,7 +334,7 @@ void ResourceManager::clear()
    }
    storage.nodes.clear();
    storage.segments.clear();
-   for (int i = 0; i < 8; ++i)
+   for (int i = 0; i < allocs.size(); ++i)
    {
       allocs[i]->Clear();
    }
@@ -330,7 +345,7 @@ void ResourceManager::dealloc(char *ptr, ResourceLocation loc, bool temporary)
    size_t offset = 0;
    if (temporary)
    {
-      offset = 4;
+      offset = allocs.size() / 2;
    }
    switch (loc)
    {
@@ -345,6 +360,9 @@ void ResourceManager::dealloc(char *ptr, ResourceLocation loc, bool temporary)
          break;
       case DEVICE:
          allocs[offset + 3]->Dealloc(ptr);
+         break;
+      case HOST_64:
+         allocs[offset + 4]->Dealloc(ptr);
          break;
       default:
          throw std::runtime_error("Invalid ptr location");
@@ -363,6 +381,8 @@ std::array<size_t, 8> ResourceManager::usage() const
          switch (seg.loc)
          {
             case ResourceLocation::HOST:
+            case ResourceLocation::HOST_64:
+               // count all host allocations the same
                res[offset] += nbytes;
                break;
             case ResourceLocation::HOSTPINNED:
@@ -405,7 +425,7 @@ char *ResourceManager::alloc(size_t nbytes, ResourceLocation loc,
    size_t offset = 0;
    if (temporary)
    {
-      offset = 4;
+      offset = allocs.size() / 2;
    }
    void *res;
    switch (loc)
@@ -421,6 +441,9 @@ char *ResourceManager::alloc(size_t nbytes, ResourceLocation loc,
          break;
       case DEVICE:
          allocs[offset + 3]->Alloc(&res, nbytes);
+         break;
+      case HOST_64:
+         allocs[offset + 4]->Alloc(&res, nbytes);
          break;
       default:
          throw std::runtime_error("Invalid ptr location");
@@ -526,6 +549,7 @@ void ResourceManager::ensure_other(size_t segment, ResourceLocation loc)
       switch (loc)
       {
          case HOST:
+         case HOST_64:
          case HOSTPINNED:
          case MANAGED:
          case DEVICE:
@@ -605,8 +629,7 @@ void ResourceManager::print_segment(size_t segment)
 {
    auto &seg = storage.get_segment(segment);
    mfem::out << "seg " << segment << ", " << seg.loc << ": "
-             << (uint64_t)seg.lower << ", " << (uint64_t)seg.upper
-             << std::endl;
+             << (uint64_t)seg.lower << ", " << (uint64_t)seg.upper << std::endl;
    auto curr = storage.first(seg.root);
    while (curr)
    {

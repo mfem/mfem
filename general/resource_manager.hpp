@@ -29,13 +29,18 @@ public:
    enum ResourceLocation
    {
       HOST = 1,
+      HOST_UMPIRE = HOST,
+      HOST_32 = (1 << 4) | HOST, // always align to 64-byte boundaries internally
+      HOST_64 = (1 << 4) | HOST,
       HOSTPINNED = 1 << 1,
       MANAGED = 1 << 2,
       DEVICE = 1 << 3,
+      DEVICE_UMPIRE = 1 << 3,
+      DEVICE_UMPIRE_2 = 1 << 3,
       // used for querying where a Resource object is currently valid
       INDETERMINATE = 0,
       // for requesting any buffer which is accessible on host
-      ANY_HOST = HOST | HOSTPINNED | MANAGED,
+      ANY_HOST = HOST | HOST_32 | HOST_64 | HOSTPINNED | MANAGED,
       // for requesting any buffer which is accessible on device
       ANY_DEVICE = HOSTPINNED | MANAGED | DEVICE
    };
@@ -169,7 +174,7 @@ private:
    ResourceManager();
 
    RBase storage;
-   std::unique_ptr<Allocator> allocs[8];
+   std::array<std::unique_ptr<Allocator>, 10> allocs;
 
    size_t insert(char *lower, char *upper, ResourceLocation loc,
                  RBase::Segment::Flags init_flag);

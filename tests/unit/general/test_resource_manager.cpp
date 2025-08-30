@@ -55,6 +55,8 @@ TEST_CASE("Resource Aliasing", "[Resource Manager][GPU]")
    std::array<size_t, 8> expected = {0};
    REQUIRE(usage == expected);
    ResourceManager::ResourceLocation loc;
+   // TODO: temporary hack until dynamic ResourceManager allocator backends is
+   // implemented
    if (Device::Allows(Backend::CUDA_MASK | Backend::HIP_MASK))
    {
       loc = ResourceManager::DEVICE;
@@ -63,52 +65,54 @@ TEST_CASE("Resource Aliasing", "[Resource Manager][GPU]")
    {
       loc = ResourceManager::HOSTPINNED;
    }
-   Resource<int> tmp(100, ResourceManager::HOST, false);
-   auto hptr = tmp.Write(ResourceManager::HOST);
-   for (int i = 0; i < 100; ++i)
    {
-      tmp[i] = i;
-   }
-   // [5, 10)
-   Resource<int> alias0 = tmp.create_alias(5, 5);
-   // [8, 19)
-   Resource<int> alias1 = tmp.create_alias(8, 11);
-   // [50, 55)
-   Resource<int> alias2 = tmp.create_alias(50, 5);
-   {
-      auto ptr = alias0.Write(loc);
-      REQUIRE(ptr != hptr);
-      forall(5, [=] MFEM_HOST_DEVICE(int i) { ptr[i] = 0; });
-   }
-   {
-      auto ptr = alias1.Write(loc);
-      REQUIRE(ptr != hptr);
-      forall(11, [=] MFEM_HOST_DEVICE(int i) { ptr[i] = 1; });
-   }
-   {
-      auto ptr = alias2.Write(loc);
-      REQUIRE(ptr != hptr);
-      forall(5, [=] MFEM_HOST_DEVICE(int i) { ptr[i] = 2; });
-   }
-   {
-      tmp.Read(ResourceManager::HOST);
+      Resource<int> tmp(100, ResourceManager::HOST, false);
+      auto hptr = tmp.Write(ResourceManager::HOST);
       for (int i = 0; i < 100; ++i)
       {
-         if (i >= 5 && i < 8)
+         tmp[i] = i;
+      }
+      // [5, 10)
+      Resource<int> alias0 = tmp.create_alias(5, 5);
+      // [8, 19)
+      Resource<int> alias1 = tmp.create_alias(8, 11);
+      // [50, 55)
+      Resource<int> alias2 = tmp.create_alias(50, 5);
+      {
+         auto ptr = alias0.Write(loc);
+         REQUIRE(ptr != hptr);
+         forall(5, [=] MFEM_HOST_DEVICE(int i) { ptr[i] = 0; });
+      }
+      {
+         auto ptr = alias1.Write(loc);
+         REQUIRE(ptr != hptr);
+         forall(11, [=] MFEM_HOST_DEVICE(int i) { ptr[i] = 1; });
+      }
+      {
+         auto ptr = alias2.Write(loc);
+         REQUIRE(ptr != hptr);
+         forall(5, [=] MFEM_HOST_DEVICE(int i) { ptr[i] = 2; });
+      }
+      {
+         tmp.Read(ResourceManager::HOST);
+         for (int i = 0; i < 100; ++i)
          {
-            REQUIRE(tmp[i] == 0);
-         }
-         else if (i >= 8 && i < 19)
-         {
-            REQUIRE(tmp[i] == 1);
-         }
-         else if (i >= 50 && i < 55)
-         {
-            REQUIRE(tmp[i] == 2);
-         }
-         else
-         {
-            REQUIRE(tmp[i] == i);
+            if (i >= 5 && i < 8)
+            {
+               REQUIRE(tmp[i] == 0);
+            }
+            else if (i >= 8 && i < 19)
+            {
+               REQUIRE(tmp[i] == 1);
+            }
+            else if (i >= 50 && i < 55)
+            {
+               REQUIRE(tmp[i] == 2);
+            }
+            else
+            {
+               REQUIRE(tmp[i] == i);
+            }
          }
       }
    }
