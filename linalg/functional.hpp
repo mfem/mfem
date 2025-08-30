@@ -684,7 +684,7 @@ public:
       dx.SetSize(x.Size());
       y.SetSize(x.Size());
       y = x;
-      MFEM_ASSERT(subproblem != nullptr,
+      MFEM_ASSERT(f != nullptr,
                   "NewtonOptimizer::Mult() called without a functional operator.");
       MFEM_ASSERT(prec != nullptr,
                   "NewtonOptimizer::Mult() called without a linear solver.");
@@ -722,7 +722,7 @@ public:
       grad.SetSize(x.Size());
       y.SetSize(x.Size());
       y = x;
-      MFEM_ASSERT(subproblem != nullptr,
+      MFEM_ASSERT(f != nullptr,
                   "NewtonOptimizer::Mult() called without a functional operator.");
       MFEM_ASSERT(prec != nullptr,
                   "NewtonOptimizer::Mult() called without a linear solver.");
