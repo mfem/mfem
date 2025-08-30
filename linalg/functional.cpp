@@ -3,7 +3,7 @@
 namespace mfem
 {
 QuadraticFunctional::QuadraticFunctional(const Operator *A,
-      const Vector *b, const real_t beta, const real_t c)
+                                         const Vector *b, const real_t beta, const real_t c)
    : Functional(A ? A->Width() : 0)
    , A(A), beta(beta), b(b), c(c)
    , aux(A ? A->Width() : 0)
