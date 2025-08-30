@@ -604,23 +604,23 @@ public:
       : Functional(0)
       , A(nullptr), b(nullptr), c(0.0)
    {}
-   QuadraticFunctional(const Operator *A, const Vector *b=nullptr,
-                       const real_t beta=1.0,
-                       const real_t c=0.0);
+   QuadraticFunctional(const Operator *A_, const Vector *b_=nullptr,
+                       const real_t beta_=1.0,
+                       const real_t c_=0.0);
 #ifdef MFEM_USE_MPI
-   QuadraticFunctional(MPI_Comm comm)
+   QuadraticFunctional(MPI_Comm comm_)
       : QuadraticFunctional()
-   { SetComm(comm); }
+   { SetComm(comm_); }
 
-   QuadraticFunctional(MPI_Comm comm, const Operator *A, const Vector *b=nullptr,
-                       const real_t beta=1.0, const real_t c=0.0)
-      : QuadraticFunctional(A, b, beta, c)
-   { SetComm(comm); }
+   QuadraticFunctional(MPI_Comm comm_, const Operator *A_, const Vector *b_=nullptr,
+                       const real_t beta_=1.0, const real_t c_=0.0)
+      : QuadraticFunctional(A_, b_, beta_, c_)
+   { SetComm(comm_); }
 #endif
 
-   void SetOperator(const Operator &A);
-   void SetVector(const Vector &b, const real_t beta=1.0);
-   void SetConstant(real_t c);
+   void SetOperator(const Operator &A_);
+   void SetVector(const Vector &b_, const real_t beta_=1.0);
+   void SetConstant(real_t c_);
 
    void Mult(const Vector &x, Vector &y) const override;
    void EvalGradient(const Vector &x, Vector &y) const override;

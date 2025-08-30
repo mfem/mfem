@@ -2,38 +2,38 @@
 
 namespace mfem
 {
-QuadraticFunctional::QuadraticFunctional(const Operator *A,
-                                         const Vector *b, const real_t beta, const real_t c)
-   : Functional(A ? A->Width() : 0)
-   , A(A), beta(beta), b(b), c(c)
-   , aux(A ? A->Width() : 0)
+QuadraticFunctional::QuadraticFunctional(const Operator *A_,
+                                         const Vector *b_, const real_t beta_, const real_t c_)
+   : Functional(A_ ? A_->Width() : 0)
+   , A(A_), beta(beta_), b(b_), c(c_)
+   , aux(A_ ? A_->Width() : 0)
 {
-   MFEM_VERIFY(A != nullptr,
+   MFEM_VERIFY(A_ != nullptr,
                "QuadraticFunctional: A must not be nullptr. "
                << "Use QuadraticFunctional() constructor to create an empty Quadratic functional.");
-   MFEM_VERIFY(A->Width() == A->Height(),
+   MFEM_VERIFY(A_->Width() == A_->Height(),
                "QuadraticFunctional: A must be a square operator.");
-   MFEM_VERIFY(b == nullptr || A->Width() == b->Size(),
+   MFEM_VERIFY(b_ == nullptr || A_->Width() == b_->Size(),
                "QuadraticFunctional: A and b must have compatible sizes");
 }
 
-void QuadraticFunctional::SetOperator(const Operator &A)
+void QuadraticFunctional::SetOperator(const Operator &A_)
 {
-   MFEM_VERIFY(A.Width() == A.Height(),
+   MFEM_VERIFY(A_.Width() == A_.Height(),
                "QuadraticFunctional: A must be a square operator.");
-   this->A = &A;
-   width = A.Width();
+   A = &A_;
+   width = A_.Width();
    aux.SetSize(width);
 }
 
-void QuadraticFunctional::SetVector(const Vector &b, const real_t beta)
+void QuadraticFunctional::SetVector(const Vector &b_, const real_t beta_)
 {
-   MFEM_VERIFY(A != nullptr && A->Width() == b.Size(),
+   MFEM_VERIFY(A != nullptr && A->Width() == b_.Size(),
                "QuadraticFunctional: A and b must have compatible sizes.");
-   this->b = &b;
-   this->beta = beta;
+   b = &b_;
+   beta = beta_;
 }
-void QuadraticFunctional::SetConstant(real_t c) { this->c = c; }
+void QuadraticFunctional::SetConstant(real_t c_) { c = c_; }
 
 void QuadraticFunctional::Mult(const Vector &x, Vector &y) const
 {
