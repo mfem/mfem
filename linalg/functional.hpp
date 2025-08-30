@@ -258,7 +258,7 @@ public:
    }
    Functional &GetFunctional(int i) const
    {
-      MFEM_VERIFY(i >= 0 && i < funcs.size(),
+      MFEM_VERIFY(i >= 0 && i < (int)funcs.size(),
                   "StackedFunctional::GetFunctional: Index out of bounds.");
       return *funcs[i];
    }
