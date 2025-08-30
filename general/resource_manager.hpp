@@ -90,6 +90,18 @@ private:
             TEMPORARY = 1 << 1,
          };
          Flags flag = Flags::NONE;
+
+         void set_owns(bool own)
+         {
+            if (own)
+            {
+               flag = static_cast<Flags>(flag | OWN);
+            }
+            else
+            {
+               flag = static_cast<Flags>(flag & ~OWN);
+            }
+         }
       };
       std::vector<Node> nodes;
       std::vector<Segment> segments;
@@ -194,6 +206,14 @@ private:
    char *fast_read_write(size_t segment, char *lower, char *upper,
                          ResourceLocation loc);
 
+   bool owns_host_ptr(size_t segment);
+   void set_owns_host_ptr(size_t segment, bool own);
+
+   bool owns_device_ptr(size_t segment);
+   void set_owns_device_ptr(size_t segment, bool own);
+
+   void clear_owner_flags(size_t segment);
+
 public:
    ResourceManager(const ResourceManager &) = delete;
 
@@ -224,6 +244,7 @@ template <class T> class Resource
    T *lower;
    T *upper;
    size_t segment;
+   bool use_device = false;
 
 public:
    Resource() : lower(nullptr), upper(nullptr), segment(0) {}
@@ -239,16 +260,145 @@ public:
 
    ~Resource();
 
-   Resource create_alias(size_t offset, size_t count);
+   size_t Capacity() const { return upper - lower; }
 
-   Resource create_alias(size_t offset);
+   bool OwnsHostPtr() const
+   {
+      auto &inst = ResourceManager::instance();
+      return inst.owns_host_ptr(segment);
+   }
+
+   void SetHostPtrOwner(bool own) const
+   {
+      auto &inst = ResourceManager::instance();
+      inst.set_owns_host_ptr(segment, own);
+   }
+
+   bool OwnsDevicePtr() const
+   {
+      auto &inst = ResourceManager::instance();
+      return inst.owns_device_ptr(segment);
+   }
+
+   void SetDevicePtrOwner(bool own) const
+   {
+      auto &inst = ResourceManager::instance();
+      inst.set_owns_device_ptr(segment, own);
+   }
+
+   void ClearOwnerFlags() const
+   {
+      auto &inst = ResourceManager::instance();
+      inst.clear_owner_flags(segment);
+   }
+
+   bool UseDevice() const { return use_device; }
+   void UseDevice(bool use_dev) const { use_device = use_dev; }
+
+   Resource create_alias(size_t offset, size_t count) const;
+
+   Resource create_alias(size_t offset) const;
+
+   void MakeAlias(const Resource &base, int offset, int size)
+   {
+      *this = base.create_alias(offset, size);
+   }
+
+   void SetDeviceMemoryType(ResourceManager::ResourceLocation loc)
+   {
+      if (segment)
+      {
+         auto& inst = ResourceManager::instance();
+         auto &seg = inst.storage.get_segment(segment);
+         if (seg.other)
+         {
+            auto &oseg = inst.storage.get_segment(seg.other);
+            if (oseg.loc == loc)
+            {
+               return;
+            }
+            inst.erase(seg.other, false);
+            seg.other = 0;
+         }
+         inst.ensure_other(segment, loc);
+      }
+   }
+
+   void Reset()
+   {
+      *this = Resource{};
+   }
+
+   bool Empty() const { return lower == nullptr; }
+
+   void New(size_t size, bool temporary = false)
+   {
+      *this = Resource(size, ResourceManager::HOST, temporary);
+   }
+
+   void New(size_t size, ResourceManager::ResourceLocation loc,
+            bool temporary = false)
+   {
+      *this = Resource(size, loc, temporary);
+   }
+
+   void New(size_t size, ResourceManager::ResourceLocation loc_a,
+            ResourceManager::ResourceLocation loc_b, bool temporary = false)
+   {
+      *this = Resource(size, loc_a, temporary);
+      auto& inst = ResourceManager::instance();
+      inst.ensure_other(segment, loc_b);
+   }
+
+   void Delete()
+   {
+      *this = Resource();
+   }
+
+   void Wrap(T *ptr, size_t size, bool own)
+   {
+      *this = Resource(ptr, size, ResourceManager::HOST);
+      SetHostPtrOwner(own);
+   }
+
+   void Wrap(T *ptr, size_t size, ResourceManager::ResourceLocation loc,
+             bool own)
+   {
+      *this = Resource(ptr, size, loc);
+      SetHostPtrOwner(own);
+   }
+
+   void Wrap(T *h_ptr, T *d_ptr, size_t size,
+             ResourceManager::ResourceLocation hloc,
+             ResourceManager::ResourceLocation dloc, bool own,
+             bool valid_host = false, bool valid_device = true)
+   {
+      *this = Resource(h_ptr, size, hloc);
+      SetHostPtrOwner(own);
+      auto &inst = ResourceManager::instance();
+      auto& seg = inst.storage.get_segment(segment);
+      seg.other =
+         inst.insert(reinterpret_cast<char *>(d_ptr),
+                     reinterpret_cast<char *>(d_ptr + size), dloc, own, false);
+      if (!valid_host)
+      {
+         // mark host as invalid
+         inst.mark_invalid(segment, 0, size * sizeof(T), [](size_t) {});
+      }
+
+      if (!valid_device)
+      {
+         // mark device as invalid
+         inst.mark_invalid(seg.other, 0, size * sizeof(T), [](size_t) {});
+      }
+   }
 
    Resource mirror(ResourceManager::ResourceLocation mirror_loc =
                       ResourceManager::ResourceLocation::ANY_HOST) const;
 
-   T *write(ResourceManager::ResourceLocation loc);
-   T *read_write(ResourceManager::ResourceLocation loc);
-   const T *read(ResourceManager::ResourceLocation loc) const;
+   T *Write(ResourceManager::ResourceLocation loc);
+   T *ReadWrite(ResourceManager::ResourceLocation loc);
+   const T *Read(ResourceManager::ResourceLocation loc) const;
 
    /// note: these do not check or update validity flags! Allows read/write on
    /// ANY_HOST. Assumes that segment is a host-accessible segment.
@@ -256,6 +406,45 @@ public:
    /// note: these do not check or update validity flags! Allows read on
    /// ANY_HOST. Assumes that segment is a host-accessible segment.
    const T &operator[](size_t idx) const;
+
+
+   void DeleteDevice(bool copy_to_host = true)
+   {
+      if (segment)
+      {
+         auto& inst = ResourceManager::instance();
+         auto &seg = inst.storage.get_segment(segment);
+         if (seg.other)
+         {
+            if (copy_to_host)
+            {
+               Read(ResourceManager::ANY_HOST);
+            }
+            inst.erase(seg.other, false);
+            seg.other = 0;
+         }
+      }
+   }
+
+   /// @deprecated This is a no-op
+   [[deprecated]]
+   void Sync(const Resource &other) const
+   {}
+   /// @deprecated This is a no-op
+   [[deprecated]]
+   void SyncAlias(const Resource &other) const
+   {}
+
+   // TODO: GetMemoryType
+   // TODO: GetHostMemoryType
+   // TODO: GetDeviceMemoryType
+   // TODO: HostIsValid
+   // TODO: DeviceIsValid
+   // TODO: CopyFrom
+   // TODO: CopyTo
+   // TODO: CopyToHost
+   // TODO: PrintFlags
+   // TODO: CompareHostAndDevice
 };
 
 template <class T>
@@ -354,7 +543,7 @@ template <class T> Resource<T> &Resource<T>::operator=(Resource &&r) noexcept
 }
 
 template <class T>
-Resource<T> Resource<T>::create_alias(size_t offset, size_t count)
+Resource<T> Resource<T>::create_alias(size_t offset, size_t count) const
 {
    Resource<T> res = *this;
    if (segment)
@@ -365,7 +554,7 @@ Resource<T> Resource<T>::create_alias(size_t offset, size_t count)
    return res;
 }
 
-template <class T> Resource<T> Resource<T>::create_alias(size_t offset)
+template <class T> Resource<T> Resource<T>::create_alias(size_t offset) const
 {
    Resource<T> res = *this;
    if (segment)
@@ -397,7 +586,7 @@ Resource<T> Resource<T>::mirror(ResourceManager::ResourceLocation loc) const
    return res;
 }
 
-template <class T> T *Resource<T>::write(ResourceManager::ResourceLocation loc)
+template <class T> T *Resource<T>::Write(ResourceManager::ResourceLocation loc)
 {
    auto &inst = ResourceManager::instance();
    return reinterpret_cast<T *>(
@@ -406,7 +595,7 @@ template <class T> T *Resource<T>::write(ResourceManager::ResourceLocation loc)
 }
 
 template <class T>
-T *Resource<T>::read_write(ResourceManager::ResourceLocation loc)
+T *Resource<T>::ReadWrite(ResourceManager::ResourceLocation loc)
 {
    auto &inst = ResourceManager::instance();
    return reinterpret_cast<T *>(
@@ -415,7 +604,7 @@ T *Resource<T>::read_write(ResourceManager::ResourceLocation loc)
 }
 
 template <class T>
-const T *Resource<T>::read(ResourceManager::ResourceLocation loc) const
+const T *Resource<T>::Read(ResourceManager::ResourceLocation loc) const
 {
    auto &inst = ResourceManager::instance();
    return reinterpret_cast<const T *>(

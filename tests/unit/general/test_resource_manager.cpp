@@ -18,7 +18,7 @@ TEST_CASE("Resource Creation", "[Resource Manager]")
       usage = inst.usage();
       expected[0] = 10 * sizeof(int);
       REQUIRE(usage == expected);
-      tmp.write(ResourceManager::ANY_DEVICE);
+      tmp.Write(ResourceManager::ANY_DEVICE);
       usage = inst.usage();
       expected[3] = expected[0];
       REQUIRE(usage == expected);
@@ -34,7 +34,7 @@ TEST_CASE("Resource Creation", "[Resource Manager]")
       usage = inst.usage();
       expected[4] = 10 * sizeof(int);
       REQUIRE(usage == expected);
-      tmp.write(ResourceManager::ANY_DEVICE);
+      tmp.Write(ResourceManager::ANY_DEVICE);
       usage = inst.usage();
       expected[4 + 3] = 10 * sizeof(int);
       REQUIRE(usage == expected);
@@ -64,7 +64,7 @@ TEST_CASE("Resource Aliasing", "[Resource Manager][GPU]")
       loc = ResourceManager::HOSTPINNED;
    }
    Resource<int> tmp(100, ResourceManager::HOST, false);
-   auto hptr = tmp.write(ResourceManager::HOST);
+   auto hptr = tmp.Write(ResourceManager::HOST);
    for (int i = 0; i < 100; ++i)
    {
       tmp[i] = i;
@@ -76,22 +76,22 @@ TEST_CASE("Resource Aliasing", "[Resource Manager][GPU]")
    // [50, 55)
    Resource<int> alias2 = tmp.create_alias(50, 5);
    {
-      auto ptr = alias0.write(loc);
+      auto ptr = alias0.Write(loc);
       REQUIRE(ptr != hptr);
       forall(5, [=] MFEM_HOST_DEVICE(int i) { ptr[i] = 0; });
    }
    {
-      auto ptr = alias1.write(loc);
+      auto ptr = alias1.Write(loc);
       REQUIRE(ptr != hptr);
       forall(11, [=] MFEM_HOST_DEVICE(int i) { ptr[i] = 1; });
    }
    {
-      auto ptr = alias2.write(loc);
+      auto ptr = alias2.Write(loc);
       REQUIRE(ptr != hptr);
       forall(5, [=] MFEM_HOST_DEVICE(int i) { ptr[i] = 2; });
    }
    {
-      tmp.read(ResourceManager::HOST);
+      tmp.Read(ResourceManager::HOST);
       for (int i = 0; i < 100; ++i)
       {
          if (i >= 5 && i < 8)

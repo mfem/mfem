@@ -988,4 +988,56 @@ const char *ResourceManager::fast_read(size_t segment, char *lower, char *upper,
    return lower;
 }
 
+bool ResourceManager::owns_host_ptr(size_t segment)
+{
+   if (segment)
+   {
+      auto &seg = storage.get_segment(segment);
+      return seg.flag & RBase::Segment::OWN;
+   }
+   return false;
+}
+
+void ResourceManager::set_owns_host_ptr(size_t segment, bool own)
+{
+   if (segment)
+   {
+      auto &seg = storage.get_segment(segment);
+      seg.set_owns(own);
+   }
+}
+
+bool ResourceManager::owns_device_ptr(size_t segment)
+{
+   if (segment)
+   {
+      auto &seg = storage.get_segment(segment);
+      if (seg.other)
+      {
+         auto &oseg = storage.get_segment(seg.other);
+         return oseg.flag & RBase::Segment::OWN;
+      }
+   }
+   return false;
+}
+
+void ResourceManager::set_owns_device_ptr(size_t segment, bool own)
+{
+   if (segment)
+   {
+      auto &seg = storage.get_segment(segment);
+      if (seg.other)
+      {
+         auto &oseg = storage.get_segment(seg.other);
+         oseg.set_owns(own);
+      }
+   }
+}
+
+void ResourceManager::clear_owner_flags(size_t segment)
+{
+   set_owns_host_ptr(segment, false);
+   set_owns_device_ptr(segment, false);
+}
+
 } // namespace mfem
