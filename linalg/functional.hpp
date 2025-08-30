@@ -61,7 +61,11 @@ public:
       : Functional(n)
    { SetComm(comm); }
 
-   void SetComm(MPI_Comm comm) { parallel = true; this->comm = comm; }
+   void SetComm(MPI_Comm comm_)
+   {
+      parallel = comm_ != MPI_COMM_NULL;
+      comm = comm_;
+   }
    MPI_Comm GetComm() const { return comm; }
    bool IsParallel() const { return parallel; }
 #else
@@ -151,7 +155,7 @@ private:
       const Vector *x;
    public:
       HessianActionOperator(const Functional &f) : Operator(f.Width()), f(f) {}
-      void SetX(const Vector &new_x) { this->x = &new_x; }
+      void SetX(const Vector &new_x) { x = &new_x; }
       void Mult(const Vector &d, Vector &y) const override { f.HessianMult(*x, d, y); }
    };
    friend class HessianActionOperator;
@@ -268,10 +272,10 @@ public:
    bool parallel;
    bool IsParallel() const { return parallel; }
 #ifdef MFEM_USE_MPI
-   void SetComm(MPI_Comm comm)
+   void SetComm(MPI_Comm comm_)
    {
       parallel = comm != MPI_COMM_NULL;
-      this->comm = comm;
+      comm = comm_;
    }
    MPI_Comm GetComm() const { return comm; }
 #endif
