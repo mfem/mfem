@@ -52,7 +52,6 @@ public:
    /// if differentiability_order is 1 or 2.
    Functional(int n=0)
       : Operator(1, n)
-      , parallel(false)
       , grad_operator(*this)
       , hessian_action_operator(*this)
    { }
@@ -69,7 +68,7 @@ public:
    constexpr bool IsParallel() const { return false; }
 #endif
 
-   void SetRieszMap(Operator &riesz_map) { this->riesz_map = &riesz_map; }
+   void SetRieszMap(Operator &op) { riesz_map = &op; }
    /// @brief return the GradientOperator that evaluates the gradient
    ///        input x is not used. Use GetGradient().Mult(x,y) to evaluate the gradient
    ///        we recommend using GetGradient() instead of GetGradient(x)
@@ -109,7 +108,11 @@ public:
       return hessian_action_operator;
    }
 private:
-   bool parallel;
+#ifdef MFEM_USE_MPI
+   bool parallel=false;
+#else
+   const static bool parallel=false;
+#endif
 #ifdef MFEM_USE_MPI
    MPI_Comm comm;
 #endif
@@ -148,7 +151,7 @@ private:
       const Vector *x;
    public:
       HessianActionOperator(const Functional &f) : Operator(f.Width()), f(f) {}
-      void SetX(const Vector &x) { this->x = &x; }
+      void SetX(const Vector &new_x) { this->x = &new_x; }
       void Mult(const Vector &d, Vector &y) const override { f.HessianMult(*x, d, y); }
    };
    friend class HessianActionOperator;
@@ -362,13 +365,13 @@ private:
 class ConstrainedOptimizationProblem : public Functional
 {
 public:
-   ConstrainedOptimizationProblem(Functional &objective,
-                                  Operator *eq_constraints=nullptr,
-                                  Operator *ineq_constraints=nullptr)
-      : Functional(objective.Width())
-      , objective(objective)
-      , eq_constraints(eq_constraints)
-      , ineq_constraints(ineq_constraints)
+   ConstrainedOptimizationProblem(Functional &objective_,
+                                  Operator *eq_constraints_=nullptr,
+                                  Operator *ineq_constraints_=nullptr)
+      : Functional(objective_.Width())
+      , objective(objective_)
+      , eq_constraints(eq_constraints_)
+      , ineq_constraints(ineq_constraints_)
    {
       // Check Size
       MFEM_VERIFY((eq_constraints == nullptr ||
@@ -451,7 +454,7 @@ public:
       y.SetSize(Width());
       BlockVector output_block(y, offsets);
       Vector &opt_residual = output_block.GetBlock(0);
-      Vector &eq_residual = output_block.GetBlock(1);
+      eq_residual = output_block.GetBlock(1);
       y = 0.0;
       // grad F(u) + \sum_i lambda_i grad C_i(u)
       objective.GetGradient().Mult(u, opt_residual);
@@ -505,29 +508,29 @@ protected:
 class AugLagrangianFunctional : public ConstrainedOptimizationProblem
 {
 public:
-   AugLagrangianFunctional(Functional &objective,
-                           Operator &eq_constraints)
-      : ConstrainedOptimizationProblem(objective, &eq_constraints)
-      , lambda(eq_constraints.Height())
+   AugLagrangianFunctional(Functional &objective_,
+                           Operator &eq_constraints_)
+      : ConstrainedOptimizationProblem(objective_, &eq_constraints_)
+      , lambda(eq_constraints_.Height())
       , mu(1.0)
-      , eq_residual(eq_constraints.Height())
-      , eq_dir(eq_constraints.Height())
+      , eq_residual(eq_constraints_.Height())
+      , eq_dir(eq_constraints_.Height())
    {
       lambda = 0.0;
    }
 
-   void SetLambda(const Vector &lambda)
+   void SetLambda(const Vector &lambda_)
    {
-      MFEM_VERIFY(lambda.Size() == eq_constraints->Height(),
+      MFEM_VERIFY(lambda_.Size() == eq_constraints->Height(),
                   "AugLagrangianFunctional: Lambda size does not match with the equality constraints.");
-      this->lambda = lambda;
+      lambda = lambda_;
    }
 
-   void SetPenalty(real_t mu)
+   void SetPenalty(real_t mu_)
    {
-      MFEM_VERIFY(mu >= 0.0,
+      MFEM_VERIFY(mu_ >= 0.0,
                   "AugLagrangianFunctional: Penalty parameter mu must be non-negative.");
-      this->mu = mu;
+      mu = mu_;
    }
 
    virtual void Update(const Vector &x)
@@ -545,7 +548,6 @@ public:
    {
       y.SetSize(1);
       objective.Mult(x, y);
-      Vector eq_residual(eq_constraints->Height());
       eq_constraints->Mult(x, eq_residual);
       y[0] += lambda*eq_residual;
       y[0] += 0.5 * mu * (eq_residual*eq_residual);
@@ -643,17 +645,17 @@ protected:
 class Optimizer : public IterativeSolver
 {
 public:
-   Optimizer() : IterativeSolver(), subproblem(nullptr) { }
+   Optimizer() : IterativeSolver(), f(nullptr) { }
 #ifdef MFEM_USE_MPI
-   Optimizer(MPI_Comm comm) : IterativeSolver(comm), subproblem(nullptr) { }
+   Optimizer(MPI_Comm comm) : IterativeSolver(comm), f(nullptr) { }
 #endif
    // @brief Set the subproblem functional operator
    // @param op the functional operator
    // @note The functional will be stored in subproblem, and oper will be set to the gradient of the functional.
-   void SetOperator(const Functional &f)
+   void SetOperator(const Functional &f_)
    {
-      subproblem = &f;
-      IterativeSolver::SetOperator(f.GetGradient());
+      f = &f_;
+      IterativeSolver::SetOperator(f_.GetGradient());
    }
    virtual void SetLinearSolver(Solver &prec) { IterativeSolver::SetPreconditioner(prec); }
 
@@ -663,7 +665,7 @@ public:
       MFEM_ABORT("OptSolver::SetOperator() should not be called directly. Use SetFunctional() instead.");
    }
 protected:
-   const Functional * subproblem;
+   const Functional * f;
 };
 
 class NewtonOptimizer : public Optimizer
@@ -675,7 +677,7 @@ public:
 #ifdef MFEM_USE_MPI
    NewtonOptimizer(MPI_Comm comm) : Optimizer(comm) { }
 #endif
-   void SetStepSize(real_t step_size) { this->step_size = step_size; }
+   void SetStepSize(real_t step_size_) { step_size = step_size_; }
 
    void Mult(const Vector &x, Vector &y) const override
    {
@@ -688,7 +690,11 @@ public:
                   "NewtonOptimizer::Mult() called without a linear solver.");
       for (int i=0; i<max_iter; i++)
       {
-         Step(y, dx, step_size);
+         oper->Mult(y, grad);
+         Operator &hess = oper->GetGradient(y);
+         prec->SetOperator(hess);
+         prec->Mult(grad, dx);
+         y.Add(-step_size, dx);
          if (Dot(dx, dx) < abs_tol*abs_tol)
          {
             break;
@@ -696,16 +702,6 @@ public:
       }
    }
 private:
-   // inplace Newton step
-   // x <- x - step_size * dx, where H_f(x) dx = grad_f(x)
-   void Step(Vector &x, Vector &dx, real_t step_size=1.0) const
-   {
-      oper->Mult(x, grad);
-      Operator &hess = oper->GetGradient(x);
-      prec->SetOperator(hess);
-      prec->Mult(grad, dx);
-      x.Add(-step_size, dx);
-   }
    mutable Vector grad;
    mutable Vector dx;
 };
@@ -719,11 +715,11 @@ public:
 #ifdef MFEM_USE_MPI
    GradientDescentOptimizer(MPI_Comm comm) : Optimizer(comm) { }
 #endif
-   void SetStepSize(real_t step_size) { this->step_size = step_size; }
+   void SetStepSize(real_t step_size_) { step_size = step_size_; }
 
    void Mult(const Vector &x, Vector &y) const override
    {
-      dx.SetSize(x.Size());
+      grad.SetSize(x.Size());
       y.SetSize(x.Size());
       y = x;
       MFEM_ASSERT(subproblem != nullptr,
@@ -732,23 +728,16 @@ public:
                   "NewtonOptimizer::Mult() called without a linear solver.");
       for (int i=0; i<max_iter; i++)
       {
-         Step(y, dx, step_size);
-         if (Dot(dx, dx) < abs_tol*abs_tol)
+         oper->Mult(y, grad);
+         y.Add(-step_size, grad);
+         if (Dot(grad, grad) < abs_tol*abs_tol)
          {
             break;
          }
       }
    }
 private:
-   // inplace Newton step
-   // x <- x - step_size * dx, where H_f(x) dx = grad_f(x)
-   void Step(Vector &x, Vector &dx, real_t step_size=1.0) const
-   {
-      oper->Mult(x, grad);
-      x.Add(-step_size, grad);
-   }
    mutable Vector grad;
-   mutable Vector dx;
 };
 
 
