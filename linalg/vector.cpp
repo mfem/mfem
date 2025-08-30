@@ -14,6 +14,7 @@
 #include "../general/forall.hpp"
 #include "../general/reducers.hpp"
 #include "../general/hash.hpp"
+#include "../general/scan.hpp"
 #include "vector.hpp"
 
 #ifdef MFEM_USE_OPENMP
@@ -1250,6 +1251,46 @@ real_t Vector::Sum() const
    },
    SumReducer<real_t> {}, UseDevice(), vector_workspace());
    return res;
+}
+
+void Vector::DeleteAt(const Array<int> &indices)
+{
+   const bool use_dev = UseDevice();
+
+   Array<int> flag(size);
+   const auto d_flag = flag.Write(use_dev);
+   mfem::forall_switch(use_dev, size, [=] MFEM_HOST_DEVICE (int i)
+   {
+      d_flag[i] = true;
+   });
+   const auto d_indices = indices.Read(use_dev);
+   mfem::forall_switch(use_dev, indices.Size(), [=] MFEM_HOST_DEVICE (int i)
+   {
+      d_flag[d_indices[i]] = false;
+   });
+
+   Array<int> out_idx(size);
+   auto d_out_idx = out_idx.Write(use_dev);
+   Array<char> workspace;
+   // Perform inclusive scan so that the last entry is the new size.
+   InclusiveScan(use_dev, d_flag, d_out_idx, size, workspace);
+
+   Vector copy(*this);
+   auto d_in = copy.Read(use_dev);
+   auto d_out = Write(use_dev);
+   mfem::forall_switch(use_dev, size, [=] MFEM_HOST_DEVICE (int i)
+   {
+      if (d_flag[i])
+      {
+         // Transform inclusive scan to exclusive by shifting.
+         const int j = (i > 0) ? d_out_idx[i - 1] : 0;
+         d_out[j] = d_in[i];
+      }
+   });
+
+   // Get the new size of the vector. Copy only the last entry.
+   Memory<int> submem(out_idx.GetMemory(), out_idx.Size() - 1, 1);
+   size = submem.Read(MemoryClass::HOST, 1)[0];
 }
 
 } // namespace mfem
