@@ -76,61 +76,6 @@ MakeHDivParFESpace(ParMesh &pmesh, int order)
    }
 }
 
-/*
-/// Coefficient which returns func(kr*x)*exp(-ki*x) where kr and ki are vectors
-class ComplexPhaseCoefficient : public Coefficient
-{
-private:
- real_t(*func_)(real_t);
- VectorCoefficient * kr_;
- VectorCoefficient * ki_;
- mutable Vector krVec_;
- mutable Vector kiVec_;
-
-public:
- ComplexPhaseCoefficient(Vector & kr, Vector & ki, real_t(&func)(real_t))
-    : func_(&func), kr_(NULL), ki_(NULL), krVec_(kr), kiVec_(ki) {}
-
- ComplexPhaseCoefficient(VectorCoefficient & kr, VectorCoefficient & ki,
-                         real_t(&func)(real_t))
-    : func_(&func), kr_(&kr), ki_(&ki),
-      krVec_(kr.GetVDim()), kiVec_(ki.GetVDim()) {}
-
- real_t Eval(ElementTransformation &T,
-             const IntegrationPoint &ip)
- {
-    real_t x[3];
-    Vector transip(x, 3); transip = 0.0;
-    T.Transform(ip, transip);
-    if (kr_) { kr_->Eval(krVec_, T, ip); }
-    if (ki_) { ki_->Eval(kiVec_, T, ip); }
-    transip.SetSize(krVec_.Size());
-    return (*func_)(krVec_ * transip)*exp(-(kiVec_ * transip));
- }
-};
-*/
-/*
-class ElectricEnergyDensityEDCoef : public Coefficient
-{
-public:
- ElectricEnergyDensityEDCoef(VectorCoefficient &Er, VectorCoefficient &Ei,
-           VectorCoefficient &Dr, VectorCoefficient &Di);
-
- real_t Eval(ElementTransformation &T,
-             const IntegrationPoint &ip);
-
-private:
- VectorCoefficient &ErCoef_;
- VectorCoefficient &EiCoef_;
- VectorCoefficient &DrCoef_;
- VectorCoefficient &DiCoef_;
-
- mutable Vector Er_;
- mutable Vector Ei_;
- mutable Vector Dr_;
- mutable Vector Di_;
-};
-*/
 class ElectricFieldFromE
 {
 protected:
@@ -1411,23 +1356,15 @@ public:
 
    void GetErrorEstimates(Vector & errors);
 
-   void SetInputVisOptions(const Array<bool> &opts)
-   { inputVis_.SetOptions(opts); }
+   const CPDInputVis & GetInputVis() const { return inputVis_; }
+   const CPDFieldVis & GetFieldVis() const { return fieldVis_; }
+   const CPDOutputVis & GetOutputVis() const { return outputVis_; }
+   const CPDFieldAnim & GetFieldAnim() const { return fieldAnim_; }
 
-   void SetFieldVisOptions(const Array<bool> &opts)
-   { fieldVis_.SetOptions(opts); }
-
-   void SetOutputVisOptions(const Array<bool> &opts)
-   { outputVis_.SetOptions(opts); }
-
-   unsigned int SetInputVisFlag(unsigned int flag)
-   { return inputVis_.SetVisFlag(flag); }
-
-   unsigned int SetFieldVisFlag(unsigned int flag)
-   { return fieldVis_.SetVisFlag(flag); }
-
-   unsigned int SetOutputVisFlag(unsigned int flag)
-   { return outputVis_.SetVisFlag(flag); }
+   CPDInputVis & GetInputVis() { return inputVis_; }
+   CPDFieldVis & GetFieldVis() { return fieldVis_; }
+   CPDOutputVis & GetOutputVis() { return outputVis_; }
+   CPDFieldAnim & GetFieldAnim() { return fieldAnim_; }
 
    void RegisterVisItFields(VisItDataCollection & visit_dc);
 
@@ -1537,12 +1474,6 @@ private:
 
    CurlGridFunctionCoefficient derCoef_;
    CurlGridFunctionCoefficient deiCoef_;
-
-   // EnergyDensityCoef     uCoef_;
-   // ElectricEnergyDensityCoef uECoef_;
-   // MagneticEnergyDensityCoef uBCoef_;
-   // PoyntingVectorReCoef SrCoef_;
-   // PoyntingVectorImCoef SiCoef_;
 
    // Array of 0's and 1's marking the location of absorbing surfaces
    Array<int> abc_bdr_marker_;
