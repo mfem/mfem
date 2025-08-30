@@ -4,7 +4,7 @@ namespace mfem
 {
 
 TableLogger::TableLogger(std::ostream &os)
-   : os(os), w(14), var_name_printed(false), isRoot(true)
+   : os(os), w(14), var_name_printed(false)
 {
 #ifdef MFEM_USE_MPI
    isRoot = mfem::Mpi::IsInitialized() ? mfem::Mpi::Root() : true;

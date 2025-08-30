@@ -59,8 +59,7 @@ const GridFunction& ADPGFunctional::GetPrevLatent(int i) const
    const GridFunction* gf = std::visit([&](auto arg)
    {
       using T = std::decay_t<decltype(arg)>;
-      if constexpr (std::is_same_v<T, const GridFunction*> ||
-                    std::is_same_v<T, const ParGridFunction*>)
+      if constexpr (std::is_same_v<T, const GridFunction*>)
       {
          return (const GridFunction*)arg;
       }

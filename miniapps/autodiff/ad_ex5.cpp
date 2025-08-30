@@ -27,7 +27,7 @@ int main(int argc, char *argv[])
    MPI_Comm comm = MPI_COMM_WORLD;
    // file name to be saved
    std::stringstream filename;
-   filename << "ad-obstacle-";
+   filename << "ad-grad-obstacle";
    int rule_type = PGStepSizeRule::RuleType::CONSTANT;
    real_t max_alpha = 1e06;
    real_t alpha0 = 1.0;
@@ -150,27 +150,10 @@ int main(int argc, char *argv[])
    Array<Vector*> rhs_list{&rhs.GetBlock(0), &rhs.GetBlock(1)};
    bnlf.SetEssentialBC(is_bdr_ess, rhs_list);
 
-   // MUMPSMonoSolver lin_solver(comm);
-   std::unique_ptr<Solver> lin_solver;
-   std::unique_ptr<NewtonLinearSolverMonitor> lin_monitor;
-   std::unique_ptr<Operator> petsc_bnlf;
-   if (use_iterative)
-   {
-      auto petsc_solver = std::make_unique<PetscLinearSolver>(comm);
-      petsc_solver->SetMaxIter(1e04);
-      lin_monitor = std::make_unique<NewtonLinearSolverMonitor>(*petsc_solver);
-      lin_monitor->SetPrefix(2);
-      lin_solver = std::move(petsc_solver);
-      petsc_bnlf = std::make_unique<PetscOperatorWrapper>(comm, bnlf);
-   }
-   else
-   {
-      lin_solver = std::make_unique<MUMPSMonoSolver>(comm);
-   }
+   MUMPSMonoSolver lin_solver(comm);
    NewtonSolver solver(comm);
-   if (lin_monitor) { solver.SetMonitor(*lin_monitor); }
-   solver.SetSolver(*lin_solver);
-   solver.SetOperator(petsc_bnlf ? *petsc_bnlf : bnlf);
+   solver.SetSolver(lin_solver);
+   solver.SetOperator(bnlf);
    IterativeSolver::PrintLevel print_level;
    solver.SetPrintLevel(print_level);
    solver.SetAbsTol(1e-09);
@@ -178,11 +161,27 @@ int main(int argc, char *argv[])
    solver.SetMaxIter(20);
    solver.iterative_mode = true;
 
-   GLVis glvis("localhost", 19916, 400, 350, 3);
-   glvis.Append(x, "u", "Rjclmm");
-   glvis.Append(u_cf, visspace, "U(psi)", "RjclQmm");
-   glvis.Append(lambda, "lambda", "Rjclmm");
-   glvis.Update();
+   std::unique_ptr<GLVis> glvis;
+   if (visualization)
+   {
+      glvis = std::make_unique<GLVis>("localhost", 19916, 400, 350, 3);
+      glvis->Append(x, "u", "Rjclmm");
+      glvis->Append(u_cf, visspace, "U(psi)", "RjclQmm");
+      glvis->Append(lambda, "lambda", "Rjclmm");
+   }
+   std::unique_ptr<ParaViewDataCollection> paraview_dc;
+   if (paraview)
+   {
+      filename << "r" << ref_levels << "-o" << order;
+      paraview_dc = std::make_unique<ParaViewDataCollection>(filename.str(), &mesh);
+      paraview_dc->SetLevelsOfDetail(order);
+      paraview_dc->SetDataFormat(VTKFormat::BINARY);
+      paraview_dc->SetHighOrderOutput(true);
+      paraview_dc->RegisterField("solution", &x);
+      paraview_dc->SetCycle(0);
+      paraview_dc->SetTime(0.0);
+      paraview_dc->Save();
+   }
 
    real_t lambda_diff = infinity();
    for (int i=0; i<100; i++)
@@ -202,7 +201,13 @@ int main(int argc, char *argv[])
       x.SetFromTrueDofs(x_and_latent.GetBlock(0));
       latent.SetFromTrueDofs(x_and_latent.GetBlock(1));
 
-      glvis.Update();
+      if (glvis) { glvis->Update(); }
+      if (paraview_dc)
+      {
+         paraview_dc->SetCycle(i+1);
+         paraview_dc->SetTime(i+1);
+         paraview_dc->Save();
+      }
 
       subtract(latent, latent_k, lambda);
       lambda *= 1.0 / pg_functional.GetAlpha();

@@ -57,7 +57,7 @@ public:
                    real_t, Vector, DenseMatrix, // pass by value
                    const real_t*, const Vector*, const DenseMatrix*, // pass by pointer
                    Coefficient*, VectorCoefficient*, MatrixCoefficient*,
-                   const GridFunction*, const ParGridFunction*,
+                   const GridFunction*,
                    const QuadratureFunction*>;
 private:
    Array<int> offsets;

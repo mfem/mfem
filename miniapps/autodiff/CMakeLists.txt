@@ -33,35 +33,15 @@ set(SEQADIFF_COMMON_FILES
 	EXTRA_SOURCES ${SEQADIFF_COMMON_SOURCES}
 	EXTRA_HEADERS ${SEQADIFF_COMMON_HEADERS})
 
-add_mfem_miniapp(ad_ex0 MAIN ad_ex0_simple.cpp ${SEQADIFF_COMMON_FILES} LIBRARIES mfem)
-add_mfem_miniapp(ad_ex1 MAIN ad_ex1_poisson.cpp ${SEQADIFF_COMMON_FILES} LIBRARIES mfem)
-add_mfem_miniapp(ad_ex2 MAIN ad_ex2_minsurf.cpp ${SEQADIFF_COMMON_FILES} LIBRARIES mfem)
-add_mfem_miniapp(ad_ex3 MAIN ad_ex3_elast.cpp ${SEQADIFF_COMMON_FILES} LIBRARIES mfem)
+add_mfem_miniapp(ad_ex0 MAIN ad_ex0.cpp ${SEQADIFF_COMMON_FILES} LIBRARIES mfem)
+add_mfem_miniapp(ad_ex1 MAIN ad_ex1.cpp ${SEQADIFF_COMMON_FILES} LIBRARIES mfem)
+add_mfem_miniapp(ad_ex2 MAIN ad_ex2.cpp ${SEQADIFF_COMMON_FILES} LIBRARIES mfem)
+add_mfem_miniapp(ad_ex3 MAIN ad_ex3.cpp ${SEQADIFF_COMMON_FILES} LIBRARIES mfem)
 if (MFEM_USE_MUMPS)
-  add_mfem_miniapp(ad_ex4 MAIN ad_ex4_obstacle_pg.cpp ${SEQADIFF_COMMON_FILES} LIBRARIES mfem)
-  add_mfem_miniapp(ad_ex5 MAIN ad_ex5_gradobstacle_pg.cpp ${SEQADIFF_COMMON_FILES} LIBRARIES mfem)
+  add_mfem_miniapp(ad_ex4 MAIN ad_ex4.cpp ${SEQADIFF_COMMON_FILES} LIBRARIES mfem)
+  add_mfem_miniapp(ad_ex5 MAIN ad_ex5.cpp ${SEQADIFF_COMMON_FILES} LIBRARIES mfem)
 endif ()
-add_mfem_miniapp(ad_ex6 MAIN ad_ex6_darcy_mixed.cpp ${SEQADIFF_COMMON_FILES} LIBRARIES mfem)
+if (MFEM_USE_MPI)
+  add_mfem_miniapp(ad_ex6 MAIN ad_ex6.cpp ${SEQADIFF_COMMON_FILES} LIBRARIES mfem)
+endif ()
 
-#
-# if(MFEM_USE_MPI)
-#
-# list(APPEND PARADIFF_COMMON_SOURCES)
-# list(APPEND PARADIFF_COMMON_HEADERS)
-#
-# convert_filenames_to_full_paths(PARADIFF_COMMON_SOURCES)
-# convert_filenames_to_full_paths(PARADIFF_COMMON_HEADERS)
-#
-# set(PARADIFF_COMMON_FILES
-# 	EXTRA_SOURCES ${PARADIFF_COMMON_SOURCES} ${SEQADIFF_COMMON_SOURCES}
-# 	EXTRA_HEADERS ${PARADIFF_COMMON_HEADERS} ${SEQADIFF_COMMON_HEADERS})
-#
-# # message(STATUS "PARADIFF_COMMON_FILES: ${PARADIFF_COMMON_FILES}")
-# # message(STATUS "SEQADIFF_COMMON_FILES: ${SEQADIFF_COMMON_FILES}")
-#
-# add_mfem_miniapp(paradiff
-#      MAIN par_example.cpp
-#      ${PARADIFF_COMMON_FILES}
-#      LIBRARIES mfem)
-#
-# endif ()

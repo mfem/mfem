@@ -42,7 +42,7 @@ int main(int argc, char *argv[])
    MPI_Comm comm = MPI_COMM_WORLD;
    // file name to be saved
    std::stringstream filename;
-   filename << "ad-darcy-";
+   filename << "ad-darcy";
 
    int order = 2;
    int ref_levels = 3;
@@ -144,9 +144,26 @@ int main(int argc, char *argv[])
    flux.SetFromTrueDofs(flux_and_potential.GetBlock(0));
    potential.SetFromTrueDofs(flux_and_potential.GetBlock(1));
 
-   GLVis glvis("localhost", 19916, 400, 350, 3);
-   glvis.Append(flux, "flux", "RjclQmm");
-   glvis.Append(potential, "potential", "Rjclmm");
+   if (visualization)
+   {
+      GLVis glvis("localhost", 19916, 400, 350, 3);
+      glvis.Append(flux, "flux", "RjclQmm");
+      glvis.Append(potential, "potential", "Rjclmm");
+   }
+   if (paraview)
+   {
+      std::stringstream pvloc;
+      pvloc << "ParaView/" << filename.str();
+      ParaViewDataCollection paraview_dc(pvloc.str(), &mesh);
+      paraview_dc.SetLevelsOfDetail(order);
+      paraview_dc.SetDataFormat(VTKFormat::BINARY);
+      paraview_dc.SetHighOrderOutput(true);
+      paraview_dc.RegisterField("flux", &flux);
+      paraview_dc.RegisterField("potential", &potential);
+      paraview_dc.SetCycle(0);
+      paraview_dc.SetTime(0.0);
+      paraview_dc.Save();
+   }
 
    FunctionCoefficient exact_potential([](const Vector &x)
    {

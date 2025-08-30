@@ -43,8 +43,7 @@ int Evaluator::GetSize(const param_t &param)
       {
          return arg->GetHeight() * arg->GetWidth();
       }
-      if constexpr (std::is_same_v<T, const GridFunction*> ||
-                    std::is_same_v<T, const ParGridFunction*>)
+      if constexpr (std::is_same_v<T, const GridFunction*>)
       {
          return arg->FESpace()->GetVDim();
       }
@@ -163,8 +162,7 @@ const Vector& Evaluator::Eval(int i, ElementTransformation &Tr,
          arg->Eval(m, Tr, ip);
          return;
       }
-      if constexpr (std::is_same_v<T, const GridFunction*> ||
-                    std::is_same_v<T, const ParGridFunction*>)
+      if constexpr (std::is_same_v<T, const GridFunction*>)
       {
          arg->GetVectorValue(Tr, ip, v);
          return;

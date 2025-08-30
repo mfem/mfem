@@ -1,4 +1,4 @@
-/// Example 1: AD Diffusion
+/// Example 3: AD Linear Elasticity with Vector FE
 #include "mfem.hpp"
 #include "logger.hpp"
 #include "ad_intg.hpp"
@@ -6,14 +6,15 @@
 using namespace std;
 using namespace mfem;
 
+
 int main(int argc, char *argv[])
 {
    // file name to be saved
    std::stringstream filename;
-   filename << "ad-diffusion";
+   filename << "ad-elasticity";
 
    int order = 1;
-   int ref_levels = 1;
+   int ref_levels = 3;
    bool visualization = false;
    bool paraview = false;
 
@@ -29,6 +30,7 @@ int main(int argc, char *argv[])
                   "Enable Paraview Export. Default is false");
    args.ParseCheck();
 
+   // Mesh mesh = rhs_fun_circle
    Mesh mesh = Mesh::MakeCartesian2D(10, 10,
                                      Element::QUADRILATERAL);
    const int dim = mesh.Dimension();
@@ -36,23 +38,29 @@ int main(int argc, char *argv[])
    {
       mesh.UniformRefinement();
    }
-   FunctionCoefficient load_cf([](const Vector &x)
+   VectorFunctionCoefficient load_cf(dim, [dim](const Vector &x, Vector &y)
    {
-      return 2*M_PI * M_PI * std::sin(M_PI * x(0)) * std::sin(M_PI * x(1));
+      y.SetSize(dim);
+      y = 1.0;
    });
 
    H1_FECollection fec(order, dim);
-   FiniteElementSpace fes(&mesh, &fec);
+   FiniteElementSpace fes(&mesh, &fec, dim);
+   Array<int> is_bdr_ess(mesh.bdr_attributes.Max());
+   is_bdr_ess = 0;
+   is_bdr_ess[3] = 1;
    Array<int> ess_tdof_list;
-   fes.GetBoundaryTrueDofs(ess_tdof_list);
+   fes.GetEssentialTrueDofs(is_bdr_ess, ess_tdof_list);
 
-   DiffusionEnergy energy(dim);
+   real_t lambda(1.0), mu(1.0);
+   LinearElasticityEnergy energy(dim, lambda, mu);
 
    NonlinearForm nlf(&fes);
-   nlf.AddDomainIntegrator(new ADNonlinearFormIntegrator<ADEval::GRAD>(energy));
-   nlf.SetEssentialTrueDofs(ess_tdof_list);
+   nlf.AddDomainIntegrator(
+      new ADNonlinearFormIntegrator<ADEval::GRAD | ADEval::VECTOR>(energy));
+   nlf.SetEssentialBC(is_bdr_ess);
    LinearForm load(&fes);
-   load.AddDomainIntegrator(new DomainLFIntegrator(load_cf));
+   load.AddDomainIntegrator(new VectorDomainLFIntegrator(load_cf));
    load.Assemble();
    load.SetSubVector(ess_tdof_list, 0.0);
 
@@ -67,14 +75,24 @@ int main(int argc, char *argv[])
    lin_solver.SetAbsTol(0.0);
    lin_solver.SetMaxIter(1e04);
    lin_solver.Mult(load, x);
-   GLVis glvis("localhost", 19916);
-   glvis.Append(x, "x", "Rjc");
 
-   FunctionCoefficient exact_sol([](const Vector &x)
+   if (visualization)
    {
-      return std::sin(M_PI * x(0)) * std::sin(M_PI * x(1));
-   });
-   real_t err = x.ComputeL2Error(exact_sol);
-   out << "Error: " << err << std::endl;
+      GLVis glvis("localhost", 19916);
+      glvis.Append(x, "x", "Rjc");
+   }
+   if (paraview)
+   {
+      std::stringstream pvloc;
+      pvloc << "ParaView/" << filename.str();
+      ParaViewDataCollection paraview_dc(pvloc.str(), &mesh);
+      paraview_dc.SetLevelsOfDetail(order);
+      paraview_dc.SetDataFormat(VTKFormat::BINARY);
+      paraview_dc.SetHighOrderOutput(true);
+      paraview_dc.RegisterField("solution", &x);
+      paraview_dc.SetCycle(0);
+      paraview_dc.SetTime(0.0);
+      paraview_dc.Save();
+   }
    return 0;
 }

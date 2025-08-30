@@ -24,7 +24,7 @@ int main(int argc, char *argv[])
 {
    // file name to be saved
    std::stringstream filename;
-   filename << "ad-minimalsurface-";
+   filename << "ad-minimalsurface";
 
    int order = 1;
    int ref_levels = 3;
@@ -90,14 +90,30 @@ int main(int argc, char *argv[])
    solver.SetMaxIter(100);
    solver.iterative_mode = true;
    Vector dummy(0);
-   GLVis glvis("localhost", 19916);
-   glvis.Append(x, "x", "Rjc");
-   glvis.Update();
+   std::unique_ptr<GLVis> glvis;
+   if (visualization)
+   {
+      glvis = std::make_unique<GLVis>("localhost", 19916);
+      glvis->Append(x, "x", "Rjc");
+   }
    for (int i=0; i<30; i++)
    {
       solver.Mult(dummy, x);
-      glvis.Update();
+      if (glvis) { glvis->Update(); }
       energy.eps *= 0.5;
+   }
+   if (paraview)
+   {
+      std::stringstream pvloc;
+      pvloc << "ParaView/" << filename.str();
+      ParaViewDataCollection paraview_dc(pvloc.str(), &mesh);
+      paraview_dc.SetLevelsOfDetail(order);
+      paraview_dc.SetDataFormat(VTKFormat::BINARY);
+      paraview_dc.SetHighOrderOutput(true);
+      paraview_dc.RegisterField("solution", &x);
+      paraview_dc.SetCycle(0);
+      paraview_dc.SetTime(0.0);
+      paraview_dc.Save();
    }
    return 0;
 }

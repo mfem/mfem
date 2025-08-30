@@ -29,7 +29,11 @@ protected:
    int w;
    // Whether the variable name row has been printed or not
    bool var_name_printed;
+#ifdef MFEM_USE_MPI
    bool isRoot; // true if serial or root in parallel
+#else
+   static constexpr bool isRoot = true;
+#endif
    std::unique_ptr<std::fstream> file;
 
 private:
