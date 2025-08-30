@@ -1194,6 +1194,7 @@ void CPDVisBase::SetOptions(const Array<bool> &opts)
 const string CPDInputVis::opt_str_[] =
 {
    "bb", "background-b", "background magnetic flux",
+   "vc", "volume-current", "volumetric current density",
    "id", "ion-densities", "ion species densities",
    "it", "ion-temperatures", "ion species temperatures",
    "ed", "electron-density", "electron density",
@@ -1243,6 +1244,7 @@ CPDInputVis::CPDInputVis(StixParams &stixParams,
      vfes_(l2_vfes),
      BCoef_(stixParams.BCoef),
      B_("BackgroundB", l2_vfes),
+     J_("VolumeCurrent", l2_vfes),
      //
      numIonSpec_(stixParams.specDensityCoef.GetVDim() - 1),
      ionDensityCoefs_(numIonSpec_),
@@ -1319,6 +1321,7 @@ CPDInputVis::~CPDInputVis()
 void CPDInputVis::RegisterVisItFields(VisItDataCollection & visit_dc)
 {
    if (CheckVisFlag(BACKGROUND_B)) { B_.RegisterVisItFields(visit_dc); }
+   if (CheckVisFlag(VOLUMETRIC_CURRENT)) { J_.RegisterVisItFields(visit_dc); }
 
    if (CheckVisFlag(ION_DENSITIES))
    {
@@ -1363,9 +1366,15 @@ void CPDInputVis::RegisterVisItFields(VisItDataCollection & visit_dc)
    { skinDepthX_.RegisterVisItFields(visit_dc); }
 }
 
-void CPDInputVis::PrepareVisFields()
+void CPDInputVis::PrepareVisFields(const ParComplexGridFunction & j,
+                                   VectorCoefficient * kReCoef,
+                                   VectorCoefficient * kImCoef)
 {
    if (CheckVisFlag(BACKGROUND_B)) { B_.PrepareVisField(BCoef_); }
+   if (CheckVisFlag(VOLUMETRIC_CURRENT))
+   {
+      J_.PrepareVisField(j, kReCoef, kImCoef);
+   }
 
    if (CheckVisFlag(ION_DENSITIES))
    {
@@ -1412,6 +1421,7 @@ void CPDInputVis::PrepareVisFields()
 void CPDInputVis::DisplayToGLVis()
 {
    if (CheckVisFlag(BACKGROUND_B)) { B_.DisplayToGLVis(); }
+   if (CheckVisFlag(VOLUMETRIC_CURRENT)) { J_.DisplayToGLVis(); }
 
    if (CheckVisFlag(ION_DENSITIES))
    {
@@ -1454,6 +1464,7 @@ void CPDInputVis::Update()
    vfes_->Update();
 
    B_.Update();
+   J_.Update();
 
    stixS_.Update();
    stixD_.Update();
@@ -2744,7 +2755,8 @@ void CPDSolverEB::prepareVectorVisField(const ParComplexGridFunction &u,
 
 void CPDSolverEB::prepareVisFields()
 {
-   inputVis_.PrepareVisFields();
+   inputVis_.PrepareVisFields(current_.GetVolumeCurrentDensity(),
+                              kReCoef_, kImCoef_);
    fieldVis_.PrepareVisFields(e_, faraday_.GetMagneticFlux(),
                               kReCoef_, kImCoef_);
    outputVis_.PrepareVisFields(e_, displacement_.GetDisplacement());

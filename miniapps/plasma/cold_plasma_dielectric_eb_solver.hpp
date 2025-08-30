@@ -1014,6 +1014,7 @@ class CPDInputVis : public CPDVisBase
 {
 public:
    enum VisField {BACKGROUND_B = 0,
+                  VOLUMETRIC_CURRENT,
                   ION_DENSITIES,
                   ION_TEMPERATURES,
                   ELECTRON_DENSITY,
@@ -1069,7 +1070,9 @@ public:
 
    void RegisterVisItFields(VisItDataCollection & visit_dc);
 
-   void PrepareVisFields();
+   void PrepareVisFields(const ParComplexGridFunction & j,
+                         VectorCoefficient * kReCoef,
+                         VectorCoefficient * kImCoef);
 
    void DisplayToGLVis();
 
@@ -1084,6 +1087,9 @@ private:
    VectorCoefficient &BCoef_;
 
    VectorFieldVisObject B_;
+
+   // Volumetric Current Density (J)
+   ComplexVectorFieldVisObject J_;
 
    // Ion Species States
    int numIonSpec_;
