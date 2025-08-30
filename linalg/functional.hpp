@@ -18,13 +18,13 @@ namespace mfem
 /// @brief A base class for functionals F:R^n->R
 ///
 /// This class provides an interface for evaluating
-/// F:R^n->R, \nabla F:R^n->R^n, and \nabla^2 F:R^n x R^n ->R^n.
+/// $ F:R^n->R, \nabla F:R^n->R^n $, and $ \nabla^2 F:R^n x R^n ->R^n $.
 /// F.Mult(x, y) evaluates the functional at a point x, and stores the result in y[0]
 /// F.GetGradient() returns an operator that evaluates the gradient
 /// F.GetGradient().GetGradient(x) returns an Hessian action operator.
 ///
 /// The usual Operator::GetGradient(const Vector &x) method for this method
-/// is deprecated as \nabla F only takes a single argument x.
+/// is deprecated as $ \nabla F $ only takes a single argument x.
 /// It is redundant to use F.GetGradient(x).Mult(x, y) to evaluate the gradient.
 /// Instead, use F.GetGradient().Mult(x, y) to evaluate the gradient at x.
 ///
@@ -46,10 +46,6 @@ class Functional : public Operator
 public:
    /// @brief Create a Functional with optional gradient and hessian
    /// @param n number of variables
-   /// @param differentiability_order differentiability order
-   /// 0: not differentiable, 1: differentiable, 2: twice differentiable
-   /// @note EvalGradient() and HessianMult() should be implemented
-   /// if differentiability_order is 1 or 2.
    Functional(int n=0)
       : Operator(1, n)
       , grad_operator(*this)
@@ -76,7 +72,6 @@ public:
    /// @brief return the GradientOperator that evaluates the gradient
    ///        input x is not used. Use GetGradient().Mult(x,y) to evaluate the gradient
    ///        we recommend using GetGradient() instead of GetGradient(x)
-
    /// Deprecated. See Functional::GetGradient()
    MFEM_DEPRECATED
    Operator &GetGradient(const Vector &dummy) const override final { return GetGradient(); }
@@ -170,10 +165,10 @@ private:
    For example, consider a minimization problem with k constraints,
    min f0(u) s.t. fi(u)=0, i=1,...,k.
    The Lagrangian functional is
-   L(u, lambda) = F0(u) + sum_i lambda_i * fi(u)
+   $ L(u, lambda) = F0(u) + sum_i lambda_i * fi(u) $
    The first-order optimality conditions are
-   grad f0(u) + sum_i lambda_i * grad fi(u) = 0
-   fi(u) = 0
+   $ \nabla f0(u) + \sum_i lambda_i * grad fi(u) = 0 $
+   $ fi(u) = 0 $
    where lambda_i are the Lagrange multipliers.
    The StackedFunctional class can be used to represent the list of constraints fi(u).
 
@@ -191,7 +186,7 @@ private:
    y[i] = <grad fi(u), d>
 
    StackedFunctional::GetHessian(u, lambda).Mult(d, y) will return the contracted Hessian action
-   y = sum_i lambda_i * H_{fi}(u, d)
+   $ y = \sum_i \lambda_i * H_{fi}(u, d) $
 */
 /// @warning Functionals should be all serial or all parallel.
 ///
@@ -406,8 +401,8 @@ protected:
 /// subject to C(u) = 0
 /// That is, L(u, lambda) = F(u) + <lambda, C(u)>
 ///
-/// We assume that F:R^n -> R is a functional,
-///                C:R^n -> R^k is an equality constraint operator,
+/// We assume that $ F:R^n -> R $ is a functional,
+///                $ C:R^n -> R^k $ is an equality constraint operator,
 /// C should return a residual. That is,
 /// C(u) = c, then C.Mult(u, y) should return y[i] = C_i(u) - c_i.
 ///
@@ -469,7 +464,7 @@ public:
 
    /// @brief Evaluate the Hessian action at a point x=[u, lambda]
    /// and direction d=[v, mu]
-   /// [H_F(u,d) + \sum_i lambda_i H_{C_i}(u, d) + <grad C_i(u), mu>
+   /// $ [H_F(u,d) + \sum_i lambda_i H_{C_i}(u, d) + <\nabla C_i(u), mu> $
    void HessianMult(const Vector &x, const Vector &d, Vector &y) const override
    {
       const BlockVector input_block(const_cast<Vector&>(x), offsets);
@@ -570,7 +565,7 @@ public:
 
    /// @brief Evaluate the Hessian action at a point x=[u, lambda]
    /// and direction d=[v, mu]
-   /// [H_F(u,d) + \sum_i lambda_i H_{C_i}(u, d) + <grad C_i(u), mu>
+   /// $ H_F(u,d) + \sum_i \lambda_i H_{C_i}(u, d) + <\nabla C_i(u), mu> $
    void HessianMult(const Vector &x, const Vector &d, Vector &y) const override
    {
       // H_F(u,d) + \sum_i lambda_i H_{C_i}(u, d) + mu_i grad C_i(u) <grad C_i(u), d>
