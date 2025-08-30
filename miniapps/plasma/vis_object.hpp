@@ -219,14 +219,14 @@ protected:
    unsigned int num_frames_;
 
    real_t norm_r_, norm_i_;
-   
+
    ParComplexGridFunction * v_; // Complex field in problem domain (L2^d)
    ParGridFunction * v_t_;      // Time-dependent field in problem domain (L2^d)
 
 public:
    ComplexVectorFieldAnimObject(const std::string & field_name,
-				std::shared_ptr<L2_ParFESpace> vfes,
-				unsigned int num_frames = 24);
+                                std::shared_ptr<L2_ParFESpace> vfes,
+                                unsigned int num_frames = 24);
    virtual ~ComplexVectorFieldAnimObject();
    virtual void PrepareVisField(const ParComplexGridFunction &u,
                                 VectorCoefficient * kReCoef,
@@ -238,7 +238,7 @@ public:
                                 VectorCoefficient * kImCoef);
 
    virtual void RegisterVisItFields(VisItDataCollection & visit_dc);
-  
+
    virtual void DisplayToGLVis();
 
    virtual void Update();

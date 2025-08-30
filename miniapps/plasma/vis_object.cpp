@@ -440,8 +440,8 @@ void ComplexVectorFieldVisObject::Update()
 
 ComplexVectorFieldAnimObject
 ::ComplexVectorFieldAnimObject(const std::string & field_name,
-			       shared_ptr<L2_ParFESpace> vfes,
-			       unsigned int num_frames)
+                               shared_ptr<L2_ParFESpace> vfes,
+                               unsigned int num_frames)
    : field_name_(field_name),
      num_frames_(num_frames),
      v_(new ParComplexGridFunction(vfes.get())),
@@ -466,9 +466,9 @@ void ComplexVectorFieldAnimObject
 }
 
 void ComplexVectorFieldAnimObject::PrepareVisField(VectorCoefficient &u_r,
-						   VectorCoefficient &u_i,
-						   VectorCoefficient * kReCoef,
-						   VectorCoefficient * kImCoef)
+                                                   VectorCoefficient &u_i,
+                                                   VectorCoefficient * kReCoef,
+                                                   VectorCoefficient * kImCoef)
 {
    if (kReCoef || kImCoef)
    {
@@ -496,7 +496,7 @@ void ComplexVectorFieldAnimObject::PrepareVisField(VectorCoefficient &u_r,
 void ComplexVectorFieldAnimObject
 ::RegisterVisItFields(VisItDataCollection & visit_dc)
 {
-  // Animation not yet supported in VisIt output
+   // Animation not yet supported in VisIt output
 }
 
 void ComplexVectorFieldAnimObject::DisplayToGLVis()
@@ -516,14 +516,14 @@ void ComplexVectorFieldAnimObject::DisplayToGLVis()
    oss.precision(4);
    oss << "Harmonic " << field_name_ << " (t = "
        << std::setw(6) << std::setfill('0') << std::left << 0.0 << " T)";
-   
+
    sol_sock << "parallel " << num_procs << " " << myid << "\n";
    sol_sock.precision(8);
    sol_sock << "solution\n" << pmesh << *v_t_
             << "window_title '" << oss.str() << "'\n"
-	    << "window_geometry "
-	    << (2 * Sw - 3 * Ww) / 4 << " " << (2 * Sh - 3 * Wh) / 4 << " "
-	    << 3 * Ww / 2 << " " << 3 * Wh / 2 << "\n"
+            << "window_geometry "
+            << (2 * Sw - 3 * Ww) / 4 << " " << (2 * Sh - 3 * Wh) / 4 << " "
+            << 3 * Ww / 2 << " " << 3 * Wh / 2 << "\n"
             << "valuerange 0.0 " << max(norm_r_, norm_i_) << "\n"
             << "autoscale off\n"
             << "keys cvvv\n" << flush;
@@ -534,7 +534,7 @@ void ComplexVectorFieldAnimObject::DisplayToGLVis()
       real_t t = (real_t)(i % num_frames_) / num_frames_;
       oss.str("");
       oss << "Harmonic " << field_name_ << " (t = "
-	  << std::setw(6) << std::setfill('0') << std::left << t << " T)";
+          << std::setw(6) << std::setfill('0') << std::left << t << " T)";
 
       add( cos( 2.0 * M_PI * t), v_->real(),
            sin( 2.0 * M_PI * t), v_->imag(), *v_t_);

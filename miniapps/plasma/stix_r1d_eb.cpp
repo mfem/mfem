@@ -327,6 +327,7 @@ int main(int argc, char *argv[])
    Array<bool>  inputVisOpts = CPDInputVis::GetDefaultVisFlags();
    Array<bool>  fieldVisOpts = CPDFieldVis::GetDefaultVisFlags();
    Array<bool> outputVisOpts = CPDOutputVis::GetDefaultVisFlags();
+   Array<bool> fieldAnimOpts = CPDFieldAnim::GetDefaultVisFlags();
 
    bool logo = false;
    const char *device_config = "cpu";
@@ -488,6 +489,7 @@ int main(int argc, char *argv[])
    CPDInputVis::AddOptions(args, inputVisOpts);
    CPDFieldVis::AddOptions(args, fieldVisOpts);
    CPDOutputVis::AddOptions(args, outputVisOpts);
+   CPDFieldAnim::AddOptions(args, fieldAnimOpts);
    args.Parse();
    if (!args.Good())
    {
@@ -739,9 +741,10 @@ int main(int argc, char *argv[])
                    stixBCs,
                    vis_u);
 
-   CPD.SetInputVisOptions(inputVisOpts);
-   CPD.SetFieldVisOptions(fieldVisOpts);
-   CPD.SetOutputVisOptions(outputVisOpts);
+   CPD.GetInputVis().SetOptions(inputVisOpts);
+   CPD.GetFieldVis().SetOptions(fieldVisOpts);
+   CPD.GetOutputVis().SetOptions(outputVisOpts);
+   CPD.GetFieldAnim().SetOptions(fieldAnimOpts);
 
    // Initialize GLVis visualization
    if (visualization)
@@ -875,12 +878,6 @@ int main(int argc, char *argv[])
          CPD.Update();
          VisExactE.Update();
       }
-   }
-
-   // Send the solution by socket to a GLVis server.
-   if (visualization)
-   {
-      CPD.DisplayAnimationToGLVis();
    }
 
    return 0;

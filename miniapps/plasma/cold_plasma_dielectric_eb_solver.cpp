@@ -1651,6 +1651,79 @@ void CPDOutputVis::Update()
    bhEnergyDensity_.Update();
 }
 
+const string CPDFieldAnim::opt_str_[] =
+{
+   "efa", "e-field-anim", "electric field animation",
+   "bfa", "b-flux-anim", "magnetic flux animation"
+};
+
+std::array<std::string, CPDFieldAnim::NUM_VIS_FIELDS> CPDFieldAnim::optt_;
+std::array<std::string, CPDFieldAnim::NUM_VIS_FIELDS> CPDFieldAnim::optlt_;
+std::array<std::string, CPDFieldAnim::NUM_VIS_FIELDS> CPDFieldAnim::optf_;
+std::array<std::string, CPDFieldAnim::NUM_VIS_FIELDS> CPDFieldAnim::optlf_;
+std::array<std::string, CPDFieldAnim::NUM_VIS_FIELDS> CPDFieldAnim::optd_;
+
+void CPDFieldAnim::AddOptions(OptionsParser &args, Array<bool> &opts)
+{
+   for (int i=0; i<NUM_VIS_FIELDS; i++)
+   {
+      optt_[i]  = "-v" + opt_str_[3*i+0];
+      optlt_[i] = "--vis-" + opt_str_[3*i+1];
+      optf_[i]  = "-no-v" + opt_str_[3*i+0];
+      optlf_[i] = "--no-vis-" + opt_str_[3*i+1];
+      optd_[i]  = "Visualize " + opt_str_[3*i+2];
+      args.AddOption(&opts[i],
+                     optt_[i].c_str(), optlt_[i].c_str(),
+                     optf_[i].c_str(), optlf_[i].c_str(),
+                     optd_[i].c_str());
+   }
+}
+
+CPDFieldAnim::CPDFieldAnim(StixParams &stixParams,
+                           std::shared_ptr<L2_ParFESpace> l2_sfes,
+                           std::shared_ptr<L2_ParFESpace> l2_vfes,
+                           const std::string hcurl_field_name,
+                           const std::string hdiv_field_name,
+                           unsigned int vis_flag)
+   : CPDVisBase(vis_flag),
+     sfes_(l2_sfes),
+     vfes_(l2_vfes),
+     HCurlFieldAnim_(hcurl_field_name, l2_vfes),
+     HDivFieldAnim_(hdiv_field_name, l2_vfes)
+{
+}
+
+void CPDFieldAnim::RegisterVisItFields(VisItDataCollection & visit_dc)
+{
+   // Animation not yet supported for VisIt output
+}
+
+void CPDFieldAnim::PrepareVisFields(const ParComplexGridFunction & e,
+                                    const ParComplexGridFunction & b,
+                                    VectorCoefficient * kReCoef,
+                                    VectorCoefficient * kImCoef)
+{
+   if (CheckVisFlag(ELECTRIC_FIELD_ANIM))
+   { HCurlFieldAnim_.PrepareVisField(e, kReCoef, kImCoef); }
+   if (CheckVisFlag(MAGNETIC_FLUX_ANIM))
+   { HDivFieldAnim_.PrepareVisField(b, kReCoef, kImCoef); }
+}
+
+void CPDFieldAnim::DisplayToGLVis()
+{
+   if (CheckVisFlag(ELECTRIC_FIELD_ANIM)) { HCurlFieldAnim_.DisplayToGLVis(); }
+   if (CheckVisFlag(MAGNETIC_FLUX_ANIM)) { HDivFieldAnim_.DisplayToGLVis(); }
+}
+
+void CPDFieldAnim::Update()
+{
+   sfes_->Update();
+   vfes_->Update();
+
+   HCurlFieldAnim_.Update();
+   HDivFieldAnim_.Update();
+}
+
 CPDSolverEB::CPDSolverEB(ParMesh & pmesh, int order,
                          CPDSolverEB::SolverType sol, SolverOptions & sOpts,
                          CPDSolverEB::PrecondType prec,
@@ -1697,6 +1770,7 @@ CPDSolverEB::CPDSolverEB(ParMesh & pmesh, int order,
      outputVis_(stixParams, L2FESpace2p_, L2VFESpace_, omega_, cyl_),
      // e_v_("E", L2VSFESpace_, L2FESpace_, cyl_, false),
      // b_v_("B", L2VSFESpace_, L2FESpace_, cyl_, true),
+     fieldAnim_(stixParams, L2FESpace_, L2VFESpace_, "E", "B"),
      db_v_("DivB", L2FESpace_, cyl_, true),
      // d_v_("D", L2VSFESpace_, L2FESpace_, cyl_, true),
      dd_v_("DivD", L2FESpace_, cyl_, true),
@@ -2211,6 +2285,7 @@ CPDSolverEB::Update()
    // k_v_.Update();
    // ue_v_.Update();
    // ub_v_.Update();
+   fieldAnim_.Update();
    db_v_.Update();
    dd_v_.Update();
    if (b_hat_) { b_hat_->Update(); }
@@ -2673,6 +2748,8 @@ void CPDSolverEB::prepareVisFields()
    fieldVis_.PrepareVisFields(e_, faraday_.GetMagneticFlux(),
                               kReCoef_, kImCoef_);
    outputVis_.PrepareVisFields(e_, displacement_.GetDisplacement());
+   fieldAnim_.PrepareVisFields(e_, faraday_.GetMagneticFlux(),
+                               kReCoef_, kImCoef_);
 
    // e_v_.PrepareVisField(e_, kReCoef_, kImCoef_);
    // b_v_.PrepareVisField(faraday_.GetMagneticFlux(), kReCoef_, kImCoef_);
@@ -2794,6 +2871,7 @@ CPDSolverEB::RegisterVisItFields(VisItDataCollection & visit_dc)
    inputVis_.RegisterVisItFields(visit_dc);
    fieldVis_.RegisterVisItFields(visit_dc);
    outputVis_.RegisterVisItFields(visit_dc);
+   fieldAnim_.RegisterVisItFields(visit_dc);
 
    // e_v_.RegisterVisItFields(visit_dc);
    // b_v_.RegisterVisItFields(visit_dc);
@@ -3072,6 +3150,7 @@ CPDSolverEB::DisplayToGLVis()
    VisualizeField(*socks_["Ei"], vishost, visport,
                   e_v_->imag(), "Electric Field, Im(E)", Wx, Wy, Ww, Wh);
    */
+   fieldAnim_.DisplayToGLVis();
    /*
    Wx += offx;
    VisualizeField(*socks_["Dr"], vishost, visport,
@@ -3140,118 +3219,8 @@ CPDSolverEB::DisplayToGLVis()
                      j_v_->imag(), "Current Density, Im(J)", Wx, Wy, Ww, Wh);
       */
    }
-   // Wx = 0; Wy += offy; // next line
 
-   // if ( u_ )
-   {
-      /*
-       Wx = 0; Wy += offy; // next line
-
-       u_->ProjectCoefficient(uCoef_);
-       uE_->ProjectCoefficient(uECoef_);
-       uB_->ProjectCoefficient(uBCoef_);
-       S_->ProjectCoefficient(SrCoef_, SiCoef_);
-
-       VisualizeField(*socks_["U"], vishost, visport,
-                      *u_, "Energy Density, U", Wx, Wy, Ww, Wh);
-
-       Wx += offx;
-       VisualizeField(*socks_["U_E"], vishost, visport,
-                      *uE_, "Energy Density, U_E", Wx, Wy, Ww, Wh);
-
-       Wx += offx;
-       VisualizeField(*socks_["U_B"], vishost, visport,
-                      *uB_, "Energy Density, U_B", Wx, Wy, Ww, Wh);
-
-       Wx += offx;
-       VisualizeField(*socks_["Sr"], vishost, visport,
-                      S_->real(), "Poynting Vector, Re(S)", Wx, Wy, Ww, Wh);
-       Wx += offx;
-       VisualizeField(*socks_["Si"], vishost, visport,
-                      S_->imag(), "Poynting Vector, Im(S)", Wx, Wy, Ww, Wh);
-      */
-   }
-   // Wx = 0; Wy += offy; // next line
-   /*
-   if ( k_ )
-   {
-      VisualizeField(*socks_["K"], vishost, visport,
-                     *k_, "Surface Current Density (K)", Wx, Wy, Ww, Wh);
-      Wx += offx;
-      VisualizeField(*socks_["Psi"], vishost, visport,
-                     *SurfCur_->GetPsi(),
-                     "Surface Current Potential (Psi)", Wx, Wy, Ww, Wh);
-      Wx += offx;
-   }
-   if ( m_ )
-   {
-      VisualizeField(*socks_["M"], vishost, visport,
-                     *m_, "Magnetization (M)", Wx, Wy, Ww, Wh);
-      Wx += offx;
-   }
-   */
    if (myid_ == 0) { cout << " done." << endl; }
-}
-
-void
-CPDSolverEB::DisplayAnimationToGLVis()
-{
-   if (myid_ == 0) { cout << "Sending animation data to GLVis ..." << flush; }
-
-   if (kReCoef_ || kImCoef_)
-   {
-      VectorGridFunctionCoefficient e_r(&e_.real());
-      VectorGridFunctionCoefficient e_i(&e_.imag());
-      VectorSumCoefficient erCoef(e_r, e_i, *coskx_, *negsinkx_);
-      VectorSumCoefficient eiCoef(e_i, e_r, *coskx_, *sinkx_);
-
-      e_v_->ProjectCoefficient(erCoef, eiCoef);
-   }
-   else
-   {
-      VectorGridFunctionCoefficient e_r(&e_.real());
-      VectorGridFunctionCoefficient e_i(&e_.imag());
-
-      e_v_->ProjectCoefficient(e_r, e_i);
-   }
-
-   Vector zeroVec(3); zeroVec = 0.0;
-   VectorConstantCoefficient zeroCoef(zeroVec);
-
-   real_t norm_r = e_v_->real().ComputeMaxError(zeroCoef);
-   real_t norm_i = e_v_->imag().ComputeMaxError(zeroCoef);
-
-   *e_t_ = e_v_->real();
-
-   char vishost[] = "localhost";
-   int  visport   = 19916;
-   socketstream sol_sock(vishost, visport);
-   sol_sock << "parallel " << num_procs_ << " " << myid_ << "\n";
-   sol_sock.precision(8);
-   sol_sock << "solution\n" << *pmesh_ << *e_t_
-            << "window_title 'Harmonic Solution (t = 0.0 T)'"
-            << "valuerange 0.0 " << max(norm_r, norm_i) << "\n"
-            << "autoscale off\n"
-            << "keys cvvv\n"
-            << "pause\n" << flush;
-   if (myid_ == 0)
-      cout << "GLVis visualization paused."
-           << " Press space (in the GLVis window) to resume it.\n";
-   int num_frames = 24;
-   int i = 0;
-   while (sol_sock)
-   {
-      real_t t = (real_t)(i % num_frames) / num_frames;
-      ostringstream oss;
-      oss << "Harmonic Solution (t = " << t << " T)";
-
-      add( cos( 2.0 * M_PI * t), e_v_->real(),
-           sin( 2.0 * M_PI * t), e_v_->imag(), *e_t_);
-      sol_sock << "parallel " << num_procs_ << " " << myid_ << "\n";
-      sol_sock << "solution\n" << *pmesh_ << *e_t_
-               << "window_title '" << oss.str() << "'" << flush;
-      i++;
-   }
 }
 
 } // namespace plasma

@@ -1273,6 +1273,69 @@ private:
    MagneticEnergyDensityVisObject bhEnergyDensity_;
 };
 
+class CPDFieldAnim : public CPDVisBase
+{
+public:
+   enum VisField {ELECTRIC_FIELD_ANIM = 0,
+                  MAGNETIC_FLUX_ANIM,
+                  NUM_VIS_FIELDS
+                 };
+
+private:
+   // Visualize both E and B fields by default
+   static const unsigned int default_vis_mask_ = 1;
+
+   // Strings needed for option parser
+   static const std::string opt_str_[];
+
+   // Strings constructed for option parser arguments
+   static std::array<std::string, NUM_VIS_FIELDS> optt_;
+   static std::array<std::string, NUM_VIS_FIELDS> optlt_;
+   static std::array<std::string, NUM_VIS_FIELDS> optf_;
+   static std::array<std::string, NUM_VIS_FIELDS> optlf_;
+   static std::array<std::string, NUM_VIS_FIELDS> optd_;
+
+public:
+   CPDFieldAnim(StixParams &stixParams,
+                std::shared_ptr<L2_ParFESpace> l2_sfes,
+                std::shared_ptr<L2_ParFESpace> l2_vfes,
+                const std::string hcurl_field_name,
+                const std::string hdiv_field_name,
+                unsigned int vis_flag = default_vis_mask_);
+
+   static unsigned int GetNumVisFields() { return NUM_VIS_FIELDS; }
+   static unsigned int GetDefaultVisMask() { return default_vis_mask_; }
+   static Array<bool> GetDefaultVisFlags()
+   {
+      Array<bool> flags;
+      CPDVisBase::set_bool_flags(GetNumVisFields(), GetDefaultVisMask(), flags);
+      return flags;
+   }
+   static void AddOptions(OptionsParser &args, Array<bool> &opts);
+
+   std::shared_ptr<L2_ParFESpace> GetScalarFES() const { return sfes_; }
+   std::shared_ptr<L2_ParFESpace> GetVectorFES() const { return vfes_; }
+
+   void RegisterVisItFields(VisItDataCollection & visit_dc);
+
+   void PrepareVisFields(const ParComplexGridFunction & e,
+                         const ParComplexGridFunction & b,
+                         VectorCoefficient * kReCoef,
+                         VectorCoefficient * kImCoef);
+
+   void DisplayToGLVis();
+
+   void Update();
+
+private:
+
+   std::shared_ptr<L2_ParFESpace> sfes_;
+   std::shared_ptr<L2_ParFESpace> vfes_;
+
+   ComplexVectorFieldAnimObject HCurlFieldAnim_;
+   ComplexVectorFieldAnimObject HDivFieldAnim_;
+};
+
 /// Cold Plasma Dielectric Solver
 class CPDSolverEB
 {
@@ -1368,8 +1431,6 @@ public:
 
    void DisplayToGLVis();
 
-   void DisplayAnimationToGLVis();
-
    std::shared_ptr<L2_ParFESpace> GetScalarVisFES() const
    { return inputVis_.GetScalarFES(); }
    std::shared_ptr<L2_ParFESpace> GetVectorVisFES() const
@@ -1434,19 +1495,13 @@ private:
    CPDInputVis   inputVis_;
    CPDFieldVis   fieldVis_;
    CPDOutputVis outputVis_;
+   CPDFieldAnim fieldAnim_;
 
    ComplexScalarFieldVisObject db_v_; // Complex divergence of magnetic flux (L2)
-   // ComplexVectorFieldVisObject d_v_;
    ComplexScalarFieldVisObject dd_v_; // Complex divergence of electric flux (L2)
-   // ComplexVectorFieldVisObject j_v_;
-   // ComplexVectorFieldVisObject k_v_;
-
-   // ElectricEnergyDensityVisObject ue_v_;
-   // MagneticEnergyDensityVisObject ub_v_;
 
    ParGridFunction        * b_hat_; // Unit vector along B (HDiv)
    GridFunction           * b_hat_v_; // Unit vector along B (L2^d)
-   ParGridFunction        * uB_;  // Magnetic Energy density (L2)
 
    DielectricTensor epsReCoef_;     // Dielectric Material Coefficient
    DielectricTensor epsImCoef_;     // Dielectric Material Coefficient
