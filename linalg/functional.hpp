@@ -211,7 +211,7 @@ public:
    { AddFunctional(f); }
 
    StackedFunctional(const std::vector<Functional*> &funcs)
-      : Operator(funcs.size(), funcs[0]->Width())
+      : Operator((int)funcs.size(), funcs[0]->Width())
       , grad_helper_op(*this)
       , hessian_helper_op(*this)
    { for (auto &f : funcs) { AddFunctional(*f); } }
@@ -231,9 +231,9 @@ public:
 
    void Mult(const Vector &x, Vector &y) const override
    {
-      y.SetSize(funcs.size());
+      y.SetSize(Height());
       Vector yview;
-      for (int i=0; i<funcs.size(); i++)
+      for (int i=0; i<Height(); i++)
       {
          yview.MakeRef(y, i, 1);
          funcs[i]->Mult(x, yview);
@@ -248,9 +248,9 @@ public:
 
    void GetGradientMatrix(const Vector &x, DenseMatrix &grads) const
    {
-      grads.SetSize(Width(), funcs.size());
+      grads.SetSize(Width(), Height());
       Vector grad;
-      for (int i=0; i<funcs.size(); i++)
+      for (int i=0; i<Height(); i++)
       {
          grads.GetColumnReference(i, grad);
          funcs[i]->GetGradient().Mult(x, grad);
@@ -258,7 +258,7 @@ public:
    }
    Functional &GetFunctional(int i) const
    {
-      MFEM_VERIFY(i >= 0 && i < (int)funcs.size(),
+      MFEM_VERIFY(i >= 0 && i < Height(),
                   "StackedFunctional::GetFunctional: Index out of bounds.");
       return *funcs[i];
    }
