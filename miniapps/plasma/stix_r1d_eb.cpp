@@ -797,11 +797,16 @@ int main(int argc, char *argv[])
 
          if (visualization)
          {
-            VisExactE.PrepareVisField(EReCoef, EImCoef, NULL, NULL);
-            VisExactB.PrepareVisField(BReCoef, BImCoef, NULL, NULL);
-
-            VisExactE.DisplayToGLVis();
-            VisExactB.DisplayToGLVis();
+            if (CPD.GetFieldVis().CheckVisFlag(CPDFieldVis::ELECTRIC_FIELD))
+            {
+               VisExactE.PrepareVisField(EReCoef, EImCoef, NULL, NULL);
+               VisExactE.DisplayToGLVis();
+            }
+            if (CPD.GetFieldVis().CheckVisFlag(CPDFieldVis::MAGNETIC_FLUX))
+            {
+               VisExactB.PrepareVisField(BReCoef, BImCoef, NULL, NULL);
+               VisExactB.DisplayToGLVis();
+            }
          }
       }
 
