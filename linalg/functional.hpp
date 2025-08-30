@@ -612,7 +612,8 @@ public:
       : QuadraticFunctional()
    { SetComm(comm_); }
 
-   QuadraticFunctional(MPI_Comm comm_, const Operator *A_, const Vector *b_=nullptr,
+   QuadraticFunctional(MPI_Comm comm_, const Operator *A_,
+                       const Vector *b_=nullptr,
                        const real_t beta_=1.0, const real_t c_=0.0)
       : QuadraticFunctional(A_, b_, beta_, c_)
    { SetComm(comm_); }
