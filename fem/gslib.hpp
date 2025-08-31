@@ -198,6 +198,8 @@ public:
 #endif
 
    virtual ~FindPointsGSLIB();
+   FindPointsGSLIB(const FindPointsGSLIB&) = delete;
+   FindPointsGSLIB& operator=(const FindPointsGSLIB&) = delete;
 
    /** Initializes the internal mesh in gslib, by sending the positions of the
        Gauss-Lobatto nodes of the input Mesh object \p m.
@@ -311,6 +313,9 @@ public:
    /// Return reference coordinates in [-1,1] (internal range in GSLIB) for each
    /// point found by FindPoints.
    virtual const Vector &GetGSLIBReferencePosition() const { return gsl_ref; }
+
+   /// Get array of indices of not-found points.
+   Array<unsigned int> GetPointsNotFoundIndices() const;
 
    /** @name Methods to support a custom interpolation procedure.
        \brief The physical-space point that the user seeks to interpolate at
