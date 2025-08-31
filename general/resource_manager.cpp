@@ -307,17 +307,35 @@ ResourceManager &ResourceManager::instance()
 
 ResourceManager::ResourceManager()
 {
+   // host
    allocs[0].reset(new StdAllocator);
+   // host-pinned
    allocs[1].reset(new HostPinnedAllocator);
+   // managed
    allocs[2].reset(new ManagedAllocator);
+   // device
    allocs[3].reset(new DeviceAllocator);
+   // host32 and host64
    allocs[4].reset(new StdAlignedAllocator);
+   // host debug
+   allocs[5].reset(new StdAllocator);
+   // device debug
+   allocs[6].reset(new StdAllocator);
 
-   allocs[5].reset(new TempAllocator<StdAllocator>);
-   allocs[6].reset(new TempAllocator<HostPinnedAllocator>);
-   allocs[7].reset(new TempAllocator<ManagedAllocator>);
-   allocs[8].reset(new TempAllocator<DeviceAllocator>);
-   allocs[9].reset(new TempAllocator<StdAlignedAllocator>);
+   // host
+   allocs[7].reset(new TempAllocator<StdAllocator>);
+   // host-pinned
+   allocs[8].reset(new TempAllocator<HostPinnedAllocator>);
+   // managed
+   allocs[9].reset(new TempAllocator<ManagedAllocator>);
+   // device
+   allocs[10].reset(new TempAllocator<DeviceAllocator>);
+   // host32 and host64
+   allocs[11].reset(new TempAllocator<StdAlignedAllocator>);
+   // host debug
+   allocs[12].reset(new TempAllocator<StdAlignedAllocator>);
+   // device debug
+   allocs[13].reset(new TempAllocator<StdAlignedAllocator>);
 }
 
 ResourceManager::~ResourceManager() { clear(); }
@@ -364,6 +382,12 @@ void ResourceManager::dealloc(char *ptr, ResourceLocation loc, bool temporary)
       case HOST_64:
          allocs[offset + 4]->Dealloc(ptr);
          break;
+      case HOST_DEBUG:
+         allocs[offset + 5]->Dealloc(ptr);
+         break;
+      case DEVICE_DEBUG:
+         allocs[offset + 6]->Dealloc(ptr);
+         break;
       default:
          throw std::runtime_error("Invalid ptr location");
    }
@@ -382,6 +406,7 @@ std::array<size_t, 8> ResourceManager::usage() const
          {
             case ResourceLocation::HOST:
             case ResourceLocation::HOST_64:
+            case ResourceLocation::HOST_DEBUG:
                // count all host allocations the same
                res[offset] += nbytes;
                break;
@@ -392,6 +417,7 @@ std::array<size_t, 8> ResourceManager::usage() const
                res[offset + 2] += nbytes;
                break;
             case ResourceLocation::DEVICE:
+            case ResourceLocation::DEVICE_DEBUG:
                res[offset + 3] += nbytes;
                break;
             default:
@@ -444,6 +470,12 @@ char *ResourceManager::alloc(size_t nbytes, ResourceLocation loc,
          break;
       case HOST_64:
          allocs[offset + 4]->Alloc(&res, nbytes);
+         break;
+      case HOST_DEBUG:
+         allocs[offset + 5]->Alloc(&res, nbytes);
+         break;
+      case DEVICE_DEBUG:
+         allocs[offset + 6]->Alloc(&res, nbytes);
          break;
       default:
          throw std::runtime_error("Invalid ptr location");
@@ -550,15 +582,31 @@ void ResourceManager::ensure_other(size_t segment, ResourceLocation loc)
       {
          case HOST:
          case HOST_64:
+         case HOST_DEBUG:
+         case DEVICE_DEBUG:
          case HOSTPINNED:
          case MANAGED:
          case DEVICE:
             break;
          case ANY_HOST:
-            loc = ResourceLocation::HOST;
+            if (seg->loc & (1 << 5))
+            {
+               loc = ResourceLocation::HOST_DEBUG;
+            }
+            else
+            {
+               loc = ResourceLocation::HOST;
+            }
             break;
          case ANY_DEVICE:
-            loc = ResourceLocation::DEVICE;
+            if (seg->loc & (1 << 5))
+            {
+               loc = ResourceLocation::DEVICE_DEBUG;
+            }
+            else
+            {
+               loc = ResourceLocation::DEVICE;
+            }
             break;
          default:
             throw std::runtime_error("invalid memory location");

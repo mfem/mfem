@@ -63,7 +63,7 @@ TEST_CASE("Resource Aliasing", "[Resource Manager][GPU]")
    }
    else
    {
-      loc = ResourceManager::HOSTPINNED;
+      loc = ResourceManager::DEVICE_DEBUG;
    }
    {
       Resource<int> tmp(100, ResourceManager::HOST, false);
