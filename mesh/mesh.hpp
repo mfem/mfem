@@ -107,6 +107,11 @@ protected:
    Array<Element *> boundary;
    Array<Element *> faces;
 
+   /// internal cache for element attributes
+   mutable Array<int> elem_attrs_cache;
+   /// internal cache for boundary element attributes
+   mutable Array<int> bdr_face_attrs_cache;
+
    /** @brief This structure stores the low level information necessary to
        interpret the configuration of elements on a specific face. This
        information can be accessed using methods like GetFaceElements(),
@@ -1122,13 +1127,14 @@ public:
        Mesh vertices or nodes are set. */
    virtual void Finalize(bool refine = false, bool fix_orientation = false);
 
-   /// @brief Determine the sets of unique attribute values in domain and
-   /// boundary elements.
+   /// @brief Determine the sets of unique attribute values in domain if @a
+   /// elem_attrs_changed and boundary elements if @a bdr_face_attrs_changed.
    ///
    /// Separately scan the domain and boundary elements to generate unique,
    /// sorted sets of the element attribute values present in the mesh and
    /// store these in the Mesh::attributes and Mesh::bdr_attributes arrays.
-   virtual void SetAttributes();
+   virtual void SetAttributes(bool elem_attrs_changed = true,
+                              bool bdr_face_attrs_changed = true);
 
    /// Check (and optionally attempt to fix) the orientation of the elements
    /** @param[in] fix_it  If `true`, attempt to fix the orientations of some
@@ -2254,7 +2260,7 @@ public:
    void ScaleSubdomains (real_t sf);
    void ScaleElements (real_t sf);
 
-   void Transform(void (*f)(const Vector&, Vector&));
+   void Transform(std::function<void(const Vector &, Vector&)> f);
    void Transform(VectorCoefficient &deformation);
 
    /** @brief This function should be called after the mesh node coordinates
@@ -2266,6 +2272,35 @@ public:
        @note Unlike the similarly named protected method UpdateNodes() this
        method does not modify the nodes. */
    void NodesUpdated() { DeleteGeometricFactors(); }
+
+   /// @brief Returns the attributes for all elements in this mesh. The i'th
+   /// entry of the array is the attribute of the i'th element of the mesh.
+   ///
+   /// The returned array points to an internal object that may be invalidated
+   /// by mesh operations such as refinement or any element attributes are
+   /// modified. Since not all such modifications can be tracked by the Mesh
+   /// class (e.g. if a user calls GetElement() then changes the element
+   /// attribute directly), one needs to account for such changes by calling the
+   /// method SetAttributes().
+   const Array<int>& GetElementAttributes() const;
+
+   /// @brief Returns the attributes for all boundary elements in this mesh.
+   ///
+   /// The face restriction will give "face E-vectors" on the boundary that
+   /// are numbered in the order of the faces of mesh. This numbering will be
+   /// different than the numbering of the boundary elements. We compute
+   /// mappings so that the array `bdr_attributes[i]` gives the boundary
+   /// attribute of the `i`th boundary face in the mesh face order.
+   /// Attributes <= 0 indicate there is no boundary element and should be
+   /// skipped.
+   ///
+   /// The returned array points to an internal object that may be invalidated
+   /// by mesh operations such as refinement or any element attributes are
+   /// modified. Since not all such modifications can be tracked by the Mesh
+   /// class (e.g. if a user calls GetElement() then changes the element
+   /// attribute directly), one needs to account for such changes by calling the
+   /// method SetAttributes().
+   const Array<int>& GetBdrFaceAttributes() const;
 
    /// @}
 
