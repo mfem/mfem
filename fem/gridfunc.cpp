@@ -2668,7 +2668,7 @@ void GridFunction::ProjectBdrCoefficient(Coefficient *coeff[],
    }
    for (int i = 0; i < values_counter.Size(); i++)
    {
-      MFEM_ASSERT(bool(values_counter[i]) == ess_vdofs_marker[i],
+      MFEM_ASSERT(bool(values_counter[i]) == bool(ess_vdofs_marker[i]),
                   "internal error");
    }
 #endif
