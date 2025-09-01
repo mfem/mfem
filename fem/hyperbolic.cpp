@@ -419,37 +419,13 @@ void HyperbolicFormIntegrator::AssembleFaceGrad(
 
 BdrHyperbolicDirichletIntegrator::BdrHyperbolicDirichletIntegrator(
    const NumericalFlux &numFlux,
-   Coefficient &bdrState,
-   const int IntOrderOffset,
-   real_t sign)
-   : NonlinearFormIntegrator(),
-     numFlux(numFlux),
-     fluxFunction(numFlux.GetFluxFunction()),
-     u_coeff(&bdrState), u_vcoeff(nullptr),
-     IntOrderOffset(IntOrderOffset),
-     sign(sign),
-     num_equations(1)
-{
-   MFEM_VERIFY(fluxFunction.num_equations == 1, "Flux function is not scalar!");
-#ifndef MFEM_THREAD_SAFE
-   state_in.SetSize(1);
-   state_out.SetSize(1);
-   fluxN.SetSize(1);
-   JDotN.SetSize(1);
-   nor.SetSize(fluxFunction.dim);
-#endif
-   ResetMaxCharSpeed();
-}
-
-BdrHyperbolicDirichletIntegrator::BdrHyperbolicDirichletIntegrator(
-   const NumericalFlux &numFlux,
    VectorCoefficient &bdrState,
    const int IntOrderOffset,
    real_t sign)
    : NonlinearFormIntegrator(),
      numFlux(numFlux),
      fluxFunction(numFlux.GetFluxFunction()),
-     u_coeff(nullptr), u_vcoeff(&bdrState),
+     u_vcoeff(bdrState),
      IntOrderOffset(IntOrderOffset),
      sign(sign),
      num_equations(fluxFunction.num_equations)
@@ -522,14 +498,7 @@ void BdrHyperbolicDirichletIntegrator::AssembleFaceVector(
       elfun_mat.MultTranspose(shape, state_in);
 
       // Evaluate boundary state at the point
-      if (u_coeff)
-      {
-         state_out(0) = u_coeff->Eval(Tr, ip);
-      }
-      else
-      {
-         u_vcoeff->Eval(state_out, Tr, ip);
-      }
+      u_vcoeff.Eval(state_out, Tr, ip);
 
       // Get the normal vector and the flux on the face
       if (nor.Size() == 1)  // if 1D, use 1 or -1.
@@ -604,14 +573,7 @@ void BdrHyperbolicDirichletIntegrator::AssembleFaceGrad(
       elfun_mat.MultTranspose(shape, state_in);
 
       // Evaluate boundary state at the point
-      if (u_coeff)
-      {
-         state_out(0) = u_coeff->Eval(Tr, ip);
-      }
-      else
-      {
-         u_vcoeff->Eval(state_out, Tr, ip);
-      }
+      u_vcoeff.Eval(state_out, Tr, ip);
 
       // Get the normal vector and the flux on the face
       if (nor.Size() == 1)  // if 1D, use 1 or -1.

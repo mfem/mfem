@@ -428,8 +428,7 @@ class BdrHyperbolicDirichletIntegrator : public NonlinearFormIntegrator
 private:
    const NumericalFlux &numFlux;    // Numerical flux that maps F to F̂
    const FluxFunction &fluxFunction;
-   Coefficient *u_coeff;            // Boundary state coefficient
-   VectorCoefficient *u_vcoeff;     // Boundary state vector coefficient
+   VectorCoefficient &u_vcoeff;     // Boundary state vector coefficient
    const int IntOrderOffset; // integration order offset, 2*p + IntOrderOffset.
    const real_t sign;
 
@@ -448,20 +447,6 @@ private:
 
 public:
    const int num_equations;  // the number of equations
-
-   /**
-    * @brief Construct a new BdrHyperbolicDirichletIntegrator object
-    *
-    * @param[in] numFlux numerical flux
-    * @param[in] bdrState boundary state coefficient
-    * @param[in] IntOrderOffset integration order offset
-    * @param[in] sign sign of the convection term
-    */
-   BdrHyperbolicDirichletIntegrator(
-      const NumericalFlux &numFlux,
-      Coefficient &bdrState,
-      const int IntOrderOffset = 0,
-      const real_t sign = 1.);
 
    /**
     * @brief Construct a new BdrHyperbolicDirichletIntegrator object
