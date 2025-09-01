@@ -200,18 +200,18 @@ int main(int argc, char *argv[])
                                        new HyperbolicFormIntegrator(
                                           numericalFlux, 0)), false);
 
-   FunctionCoefficient u_bc([](const Vector &x, real_t t)->real_t { return fabs(sin(4.*M_PI*t)); });
+   VectorFunctionCoefficient u_bc(1, [](const Vector &x, real_t t, Vector &v) { v(0) = fabs(sin(4.*M_PI*t)); });
    Array<int> dirichlet_bdr(mesh.bdr_attributes.Max());
    dirichlet_bdr = 0;
    dirichlet_bdr[0] = 1;
    if (nlbc)
    {
       adv.AddBdrTerm(std::unique_ptr<NonlinearFormIntegrator>(
-                        new BdrHyperbolicFormIntegrator(numericalFlux, u_bc)), dirichlet_bdr);
+                        new BdrHyperbolicDirichletIntegrator(numericalFlux, u_bc)), dirichlet_bdr);
    }
    else
       adv.AddRhs(std::unique_ptr<LinearFormIntegrator>(
-                    new BoundaryHyperbolicLFIntegrator(flux, u_bc)), dirichlet_bdr);
+                    new BoundaryHyperbolicFlowIntegrator(flux, u_bc)), dirichlet_bdr);
 
    Array<int> free_bdr(mesh.bdr_attributes.Max());
    free_bdr = 0;
