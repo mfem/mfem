@@ -101,7 +101,7 @@ public:
    HashTable& operator=(const HashTable&) = delete;
    ~HashTable();
 
-   /** @brief Item accessor with key (or parents) the pair p1, p2. Default
+   /** @brief Item accessor with key (or parents) the pair 'p1', 'p2'. Default
        construct an item of type T if no value corresponds to the requested key.
 
        @param[in] p1 First part of the key.
@@ -136,9 +136,9 @@ public:
        @warning This method should only be called if T inherits from Hashed2. */
    int GetId(int p1, int p2);
 
-   /** @brief Get the "id" of an item, this "id" corresponding to the index of
-       the item in the underlying BlockArray<T> object. Default construct an item
-       and "id" if no value corresponds to the requested key.
+   /** @brief Get the "id" of an item, this "id" corresponding to the index of the
+       item in the underlying BlockArray<T> object. Default construct an item
+       and id if no value corresponds to the requested key.
 
        @param[in] p1 First part of the key.
        @param[in] p2 Second part of the key.
@@ -149,8 +149,9 @@ public:
        @warning This method should only be called if T inherits from Hashed4. */
    int GetId(int p1, int p2, int p3, int p4 = -1);
 
-   /** @brief Item accessor with key (or parents) the pair p1, p2. Return
-       NULL if no value corresponds to the requested key.
+   /// Find item whose parents are p1, p2... Return NULL if it doesn't exist.
+   /** @brief Item accessor with key (or parents) the pair 'p1', 'p2'. Return
+       nullptr if no value corresponds to the requested key.
 
        @param[in] p1 First part of the key.
        @param[in] p2 Second part of the key.
@@ -159,9 +160,9 @@ public:
        @warning This method should only be called if T inherits from Hashed2. */
    T* Find(int p1, int p2);
 
-   /** @brief Item accessor with key (or parents) the quadruplet p1, p2, p3, p4.
-       The key p4 is optional. Return NULL if no value corresponds to the
-       requested key.
+   /** @brief Item accessor with key (or parents) the quadruplet 'p1', 'p2',
+       'p3', 'p4'. The key 'p4' is optional. Return nullptr if no value
+       corresponds to the requested key.
 
        @param[in] p1 First part of the key.
        @param[in] p2 Second part of the key.
@@ -172,8 +173,8 @@ public:
        @warning This method should only be called if T inherits from Hashed4. */
    T* Find(int p1, int p2, int p3, int p4 = -1);
 
-   /** @brief Item const accessor with key (or parents) the pair p1, p2.
-       Return NULL if no value corresponds to the requested key.
+   /** @brief Item const accessor with key (or parents) the pair 'p1', 'p2'.
+       Return nullptr if no value corresponds to the requested key.
 
        @param[in] p1 First part of the key.
        @param[in] p2 Second part of the key.
@@ -182,9 +183,9 @@ public:
       @warning This method should only be called if T inherits from Hashed2. */
    const T* Find(int p1, int p2) const;
 
-   /** @brief Item const accessor with key (or parents) the quadruplet p1, p2,
-       p3, p4. The key p4 is optional. Return NULL if no value corresponds to the
-       requested key.
+   /** @brief Item const accessor with key (or parents) the quadruplet 'p1',
+       'p2', 'p3', 'p4'. The key 'p4' is optional. Return nullptr if no value
+       corresponds to the requested key.
 
        @param[in] p1 First part of the key.
        @param[in] p2 Second part of the key.
@@ -195,12 +196,10 @@ public:
        @warning This method should only be called if T inherits from Hashed4. */
    const T* Find(int p1, int p2, int p3, int p4 = -1) const;
 
-   /** @brief Find the "id" of an item whose parents are p1, p2. Return -1 if it
-       does not exist.
-
-       This "id" corresponds to the index of the item in the underlying
-       BlockArray<T> object. Default construct an item and "id" if no value
-       corresponds to the requested key.
+   /// Find id of item whose parents are p1, p2... Return -1 if it doesn't exist.
+   /** @brief Find the "id" of an item, this "id" corresponding to the index of
+       the item in the underlying BlockArray<T> object. Default construct an
+       item and id if no value corresponds to the requested key.
 
        @param[in] p1 First part of the key.
        @param[in] p2 Second part of the key.
@@ -210,9 +209,8 @@ public:
    int FindId(int p1, int p2) const;
 
    /** @brief Find the "id" of an item, this "id" corresponding to the index of
-       the item in the underlying BlockArray<T> object. Return -1 if it does not
-       exist. Default construct an item and "id" if no value corresponds to the
-       requested key.
+       the item in the underlying BlockArray<T> object. Default construct an
+       item and id if no value corresponds to the requested key.
 
        @param[in] p1 First part of the key.
        @param[in] p2 Second part of the key.
