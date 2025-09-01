@@ -640,10 +640,11 @@ void BdrHyperbolicDirichletIntegrator::AssembleFaceGrad(
    }
 }
 
-BoundaryHyperbolicLFIntegrator::BoundaryHyperbolicLFIntegrator(
-   const FluxFunction &flux, VectorCoefficient &u, const int IntOrderOffset_,
-   const real_t sign_)
-   : fluxFunction(flux), u_vcoeff(u), IntOrderOffset(IntOrderOffset_), sign(sign_)
+BoundaryHyperbolicFlowIntegrator::BoundaryHyperbolicFlowIntegrator(
+   const FluxFunction &flux, VectorCoefficient &u, real_t alpha_, real_t beta_,
+   const int IntOrderOffset_)
+   : fluxFunction(flux), u_vcoeff(u), alpha(alpha_), beta(beta_),
+     IntOrderOffset(IntOrderOffset_)
 {
    MFEM_VERIFY(fluxFunction.num_equations == u_vcoeff.GetVDim(),
                "Flux function does not match the vector dimension of the coefficient!");
@@ -655,16 +656,16 @@ BoundaryHyperbolicLFIntegrator::BoundaryHyperbolicLFIntegrator(
    ResetMaxCharSpeed();
 }
 
-void BoundaryHyperbolicLFIntegrator::AssembleRHSElementVect(
+void BoundaryHyperbolicFlowIntegrator::AssembleRHSElementVect(
    const FiniteElement &el, ElementTransformation &Tr, Vector &elvect)
 {
-   mfem_error("BoundaryHyperbolicLFIntegrator::AssembleRHSElementVect\n"
+   mfem_error("BoundaryHyperbolicFlowIntegrator::AssembleRHSElementVect\n"
               "  is not implemented as boundary integrator!\n"
               "  Use LinearForm::AddBdrFaceIntegrator instead of\n"
               "  LinearForm::AddBoundaryIntegrator.");
 }
 
-void BoundaryHyperbolicLFIntegrator::AssembleRHSElementVect(
+void BoundaryHyperbolicFlowIntegrator::AssembleRHSElementVect(
    const FiniteElement &el, FaceElementTransformations &Tr, Vector &elvect)
 {
    // current elements' the number of degrees of freedom
@@ -728,7 +729,15 @@ void BoundaryHyperbolicLFIntegrator::AssembleRHSElementVect(
       max_char_speed = std::max(speed, max_char_speed);
 
       // pre-multiply integration weight to flux
-      AddMult_a_VWt(-ip.weight*sign, shape, fluxN, elvect_mat);
+      const real_t a = 0.5 * alpha  * ip.weight;
+      const real_t b = beta * ip.weight;
+
+      for (int n = 0; n < fluxFunction.num_equations; n++)
+      {
+         fluxN(n) = a * fluxN(n) - b * fabs(fluxN(n));
+      }
+
+      AddMultVWt(shape, fluxN, elvect_mat);
    }
 }
 
