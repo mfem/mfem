@@ -2,6 +2,7 @@
 
 #include "globals.hpp"
 
+#include "device.hpp"
 #include "cuda.hpp"
 #include "hip.hpp"
 
@@ -307,6 +308,8 @@ ResourceManager &ResourceManager::instance()
 
 ResourceManager::ResourceManager()
 {
+   Setup();
+#if 0
    // host
    allocs[0].reset(new StdAllocator);
    // host-pinned
@@ -336,6 +339,137 @@ ResourceManager::ResourceManager()
    allocs[12].reset(new TempAllocator<StdAlignedAllocator>);
    // device debug
    allocs[13].reset(new TempAllocator<StdAlignedAllocator>);
+#endif
+}
+
+static Allocator* CreateAllocator(ResourceManager::ResourceLocation loc)
+{
+   switch (loc)
+   {
+      case ResourceManager::HOST:
+      case ResourceManager::HOST_DEBUG:
+      // case ResourceManager::HOST_UMPIRE:
+      // case ResourceManager::HOST_32:
+      case ResourceManager::DEVICE_DEBUG:
+         return new StdAllocator;
+      case ResourceManager::HOST_64:
+         return new StdAlignedAllocator;
+      case ResourceManager::HOSTPINNED:
+         return new HostPinnedAllocator;
+      case ResourceManager::MANAGED:
+         return new ManagedAllocator;
+      case ResourceManager::DEVICE:
+         // case ResourceManager::DEVICE_UMPIRE:
+         // case ResourceManager::DEVICE_UMPIRE_2:
+         return new DeviceAllocator;
+      default:
+         throw std::runtime_error("Invalid allocator location");
+   }
+}
+
+static Allocator* CreateTempAllocator(ResourceManager::ResourceLocation loc)
+{
+   switch (loc)
+   {
+      case ResourceManager::HOST:
+      case ResourceManager::HOST_DEBUG:
+      // case ResourceManager::HOST_UMPIRE:
+      case ResourceManager::DEVICE_DEBUG:
+         return new TempAllocator<StdAllocator>;
+      // case ResourceManager::HOST_32:
+      case ResourceManager::HOST_64:
+         return new TempAllocator<StdAlignedAllocator>;
+      case ResourceManager::HOSTPINNED:
+         return new TempAllocator<HostPinnedAllocator>;
+      case ResourceManager::MANAGED:
+         return new TempAllocator<ManagedAllocator>;
+      case ResourceManager::DEVICE:
+         // case ResourceManager::DEVICE_UMPIRE:
+         // case ResourceManager::DEVICE_UMPIRE_2:
+         return new TempAllocator<DeviceAllocator>;
+      default:
+         throw std::runtime_error("Invalid temp allocator location");
+   }
+}
+
+void ResourceManager::Setup(ResourceLocation host_loc,
+                            ResourceLocation hostpinned_loc,
+                            ResourceLocation managed_loc,
+                            ResourceLocation device_loc)
+{
+   if (host_loc == DEFAULT)
+   {
+      if (Device::Allows(Backend::DEBUG_DEVICE))
+      {
+         host_loc = HOST_DEBUG;
+      }
+      else
+      {
+         host_loc = HOST;
+      }
+   }
+   if (hostpinned_loc == DEFAULT)
+   {
+      if (Device::Allows(Backend::CUDA_MASK | Backend::HIP_MASK))
+      {
+         hostpinned_loc = HOSTPINNED;
+      }
+      else
+      {
+         hostpinned_loc = HOST;
+      }
+   }
+   if (managed_loc == DEFAULT)
+   {
+      if (Device::Allows(Backend::CUDA_MASK | Backend::HIP_MASK))
+      {
+         managed_loc = MANAGED;
+      }
+      else
+      {
+         managed_loc = HOST;
+      }
+   }
+
+   if (device_loc == DEFAULT)
+   {
+      if (Device::Allows(Backend::DEBUG_DEVICE))
+      {
+         device_loc = DEVICE_DEBUG;
+      }
+      else if (Device::Allows(Backend::CUDA_MASK | Backend::HIP_MASK))
+      {
+         device_loc = DEVICE;
+      }
+      else
+      {
+         device_loc = HOST;
+      }
+   }
+   if (allocator_locs[0] != host_loc)
+   {
+      allocs[0].reset(CreateAllocator(host_loc));
+      allocs[4].reset(CreateTempAllocator(host_loc));
+      allocator_locs[0] = host_loc;
+   }
+   if (allocator_locs[1] != hostpinned_loc)
+   {
+      allocs[1].reset(CreateAllocator(hostpinned_loc));
+      allocs[5].reset(CreateTempAllocator(hostpinned_loc));
+      allocator_locs[1] = hostpinned_loc;
+   }
+   if (allocator_locs[2] != managed_loc)
+   {
+      allocs[2].reset(CreateAllocator(managed_loc));
+      allocs[6].reset(CreateTempAllocator(managed_loc));
+      allocator_locs[2] = managed_loc;
+   }
+   if (allocator_locs[3] != device_loc)
+   {
+      allocs[3].reset(CreateAllocator(device_loc));
+      allocs[7].reset(CreateTempAllocator(device_loc));
+      allocator_locs[3] = device_loc;
+   }
 }
 
 ResourceManager::~ResourceManager() { clear(); }
@@ -378,15 +512,6 @@ void ResourceManager::dealloc(char *ptr, ResourceLocation loc, bool temporary)
          break;
       case DEVICE:
          allocs[offset + 3]->Dealloc(ptr);
-         break;
-      case HOST_64:
-         allocs[offset + 4]->Dealloc(ptr);
-         break;
-      case HOST_DEBUG:
-         allocs[offset + 5]->Dealloc(ptr);
-         break;
-      case DEVICE_DEBUG:
-         allocs[offset + 6]->Dealloc(ptr);
          break;
       default:
          throw std::runtime_error("Invalid ptr location");
@@ -467,15 +592,6 @@ char *ResourceManager::alloc(size_t nbytes, ResourceLocation loc,
          break;
       case DEVICE:
          allocs[offset + 3]->Alloc(&res, nbytes);
-         break;
-      case HOST_64:
-         allocs[offset + 4]->Alloc(&res, nbytes);
-         break;
-      case HOST_DEBUG:
-         allocs[offset + 5]->Alloc(&res, nbytes);
-         break;
-      case DEVICE_DEBUG:
-         allocs[offset + 6]->Alloc(&res, nbytes);
          break;
       default:
          throw std::runtime_error("Invalid ptr location");
@@ -581,32 +697,15 @@ void ResourceManager::ensure_other(size_t segment, ResourceLocation loc)
       switch (loc)
       {
          case HOST:
-         case HOST_64:
-         case HOST_DEBUG:
-         case DEVICE_DEBUG:
          case HOSTPINNED:
          case MANAGED:
          case DEVICE:
             break;
          case ANY_HOST:
-            if (seg->loc & (1 << 5))
-            {
-               loc = ResourceLocation::HOST_DEBUG;
-            }
-            else
-            {
-               loc = ResourceLocation::HOST;
-            }
+            loc = ResourceLocation::HOST;
             break;
          case ANY_DEVICE:
-            if (seg->loc & (1 << 5))
-            {
-               loc = ResourceLocation::DEVICE_DEBUG;
-            }
-            else
-            {
-               loc = ResourceLocation::DEVICE;
-            }
+            loc = ResourceLocation::DEVICE;
             break;
          default:
             throw std::runtime_error("invalid memory location");

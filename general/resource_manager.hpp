@@ -178,7 +178,10 @@ private:
    ResourceManager();
 
    RBase storage;
-   std::array<std::unique_ptr<Allocator>, 14> allocs;
+   std::array<std::unique_ptr<Allocator>, 8> allocs;
+   std::array<ResourceLocation, 4> allocator_locs = {DEFAULT, DEFAULT, DEFAULT,
+                                                     DEFAULT
+                                                    };
 
    size_t insert(char *lower, char *upper, ResourceLocation loc,
                  RBase::Segment::Flags init_flag);
@@ -230,6 +233,11 @@ public:
    ~ResourceManager();
 
    static ResourceManager &instance();
+
+   void Setup(ResourceLocation host_loc = DEFAULT,
+              ResourceLocation hostpinned_loc = DEFAULT,
+              ResourceLocation managed_loc = DEFAULT,
+              ResourceLocation device_loc = DEFAULT);
 
    /// forcibly deletes all allocations and removes all nodes
    void clear();
