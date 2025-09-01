@@ -527,8 +527,7 @@ public:
 class BoundaryHyperbolicLFIntegrator : public LinearFormIntegrator
 {
    const FluxFunction &fluxFunction;
-   Coefficient *u_coeff;
-   VectorCoefficient *u_vcoeff;
+   VectorCoefficient &u_vcoeff;
    const int IntOrderOffset; // integration order offset, 2*p + IntOrderOffset.
    const real_t sign;
 
@@ -544,17 +543,6 @@ class BoundaryHyperbolicLFIntegrator : public LinearFormIntegrator
 #endif
 
 public:
-   /**
-    * @brief Construct a new BoundaryHyperbolicLFIntegrator object
-    *
-    * @param[in] flux flux function
-    * @param[in] u scalar state coefficient
-    * @param[in] IntOrderOffset integration order offset
-    * @param[in] sign sign of the convection term
-    */
-   BoundaryHyperbolicLFIntegrator(const FluxFunction &flux, Coefficient &u,
-                                  const int IntOrderOffset = 0, const real_t sign = 1.);
-
    /**
     * @brief Construct a new BoundaryHyperbolicLFIntegrator object
     *

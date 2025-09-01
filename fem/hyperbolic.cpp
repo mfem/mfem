@@ -641,27 +641,11 @@ void BdrHyperbolicDirichletIntegrator::AssembleFaceGrad(
 }
 
 BoundaryHyperbolicLFIntegrator::BoundaryHyperbolicLFIntegrator(
-   const FluxFunction &flux, Coefficient &u, const int IntOrderOffset_,
-   const real_t sign_)
-   : fluxFunction(flux), u_coeff(&u), u_vcoeff(nullptr),
-     IntOrderOffset(IntOrderOffset_), sign(sign_)
-{
-   MFEM_VERIFY(fluxFunction.num_equations == 1, "Flux function is not scalar!");
-#ifndef MFEM_THREAD_SAFE
-   state.SetSize(1);
-   nor.SetSize(fluxFunction.dim);
-   fluxN.SetSize(1);
-#endif
-   ResetMaxCharSpeed();
-}
-
-BoundaryHyperbolicLFIntegrator::BoundaryHyperbolicLFIntegrator(
    const FluxFunction &flux, VectorCoefficient &u, const int IntOrderOffset_,
    const real_t sign_)
-   : fluxFunction(flux), u_coeff(nullptr), u_vcoeff(&u),
-     IntOrderOffset(IntOrderOffset_), sign(sign_)
+   : fluxFunction(flux), u_vcoeff(u), IntOrderOffset(IntOrderOffset_), sign(sign_)
 {
-   MFEM_VERIFY(fluxFunction.num_equations == u_vcoeff->GetVDim(),
+   MFEM_VERIFY(fluxFunction.num_equations == u_vcoeff.GetVDim(),
                "Flux function does not match the vector dimension of the coefficient!");
 #ifndef MFEM_THREAD_SAFE
    state.SetSize(fluxFunction.num_equations);
@@ -726,14 +710,7 @@ void BoundaryHyperbolicLFIntegrator::AssembleRHSElementVect(
       el.CalcShape(Tr.GetElement1IntPoint(), shape);
 
       // Evaluate the coefficient at the point
-      if (u_coeff)
-      {
-         state(0) = u_coeff->Eval(Tr, ip);
-      }
-      else
-      {
-         u_vcoeff->Eval(state, Tr, ip);
-      }
+      u_vcoeff.Eval(state, Tr, ip);
 
       // Get the normal vector and the flux on the face
       if (nor.Size() == 1)  // if 1D, use 1 or -1.
