@@ -77,6 +77,7 @@ int main(int argc, char *argv[])
    real_t cfl = 0.3;
    real_t k = 1.;
    real_t td = 0.5;
+   bool reduction = false;
    bool visualization = true;
    bool preassembleWeakDiv = true;
    int vis_steps = 50;
@@ -109,6 +110,8 @@ int main(int argc, char *argv[])
                   "Diffusivity coefficient");
    args.AddOption(&td, "-td", "--stab_diff",
                   "Diffusion stabilization factor (1/2=default)");
+   args.AddOption(&reduction, "-rd", "--reduction", "-no-rd",
+                  "--no-reduction", "Enable reduction.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -265,8 +268,21 @@ int main(int argc, char *argv[])
       new HyperbolicFormIntegrator(numericalFlux, 0, -1.));
    Mtnl->AddDomainIntegrator(hyperbolicIntegrator.get());
    Mtnl->AddInteriorFaceIntegrator(hyperbolicIntegrator.get());
-   Mtnl->UseExternalIntegrators();
 
+   //set hybridization / reduction
+
+   if (reduction)
+   {
+      if (dg || brt)
+      {
+         darcy.EnableFluxReduction();
+      }
+      else
+      {
+         std::cerr << "No possible reduction!" << std::endl;
+         return 1;
+      }
+   }
 
    Array<int> ess_flux_tdofs_list;
    Array<Coefficient*> coeffs;
