@@ -345,8 +345,9 @@ TEST_CASE("Variable Order FiniteElementSpace",
 
 #ifdef MFEM_USE_MPI
 TEST_CASE("Parallel Variable Order FiniteElementSpace",
-          "[FiniteElementCollection], [FiniteElementSpace], [NCMesh]"
-          "[Parallel]")
+          "[FiniteElementCollection]"
+          "[FiniteElementSpace]"
+          "[NCMesh][Parallel]")
 {
    SECTION("Quad mesh")
    {
@@ -359,33 +360,33 @@ TEST_CASE("Parallel Variable Order FiniteElementSpace",
 
       // Standard H1 space with order 1 elements
       H1_FECollection fe_coll(1, pmesh.Dimension());
-      ParFiniteElementSpace fespace(&pmesh, &fe_coll);
+      ParFiniteElementSpace pfes(&pmesh, &fe_coll);
 
-      REQUIRE(fespace.GlobalTrueVSize() == 9);
+      REQUIRE(pfes.GlobalTrueVSize() == 9);
 
       // Convert to variable order space by p-refinement
       // Increase order on all elements
       for (int i = 0; i < pmesh.GetNE(); i++)
       {
-         fespace.SetElementOrder(i, fespace.GetElementOrder(i) + 1);
+         pfes.SetElementOrder(i, pfes.GetElementOrder(i) + 1);
       }
-      fespace.Update(false);
+      pfes.Update(false);
 
       // DOFs for vertices + edges + elements = 9 + 12 + 4 = 25
-      REQUIRE(fespace.GlobalTrueVSize() == 25);
+      REQUIRE(pfes.GlobalTrueVSize() == 25);
 
       int rank;
       MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
-      if (rank == 0) { fespace.SetElementOrder(0, 4); }
-      fespace.Update(false);
+      if (rank == 0) { pfes.SetElementOrder(0, 4); }
+      pfes.Update(false);
 
       Array<Refinement> refs;
       if (rank == 0) { refs.Append(Refinement(0)); }
       pmesh.GeneralRefinement(refs);
-      fespace.Update(false);
+      pfes.Update(false);
 
-      TestSolvePar(fespace);
+      TestSolvePar(pfes);
    }
 
    SECTION("Hex mesh")
@@ -399,32 +400,32 @@ TEST_CASE("Parallel Variable Order FiniteElementSpace",
 
       // Standard H1 space with order 1 elements
       H1_FECollection fe_coll(1, pmesh.Dimension());
-      ParFiniteElementSpace fespace(&pmesh, &fe_coll);
+      ParFiniteElementSpace pfes(&pmesh, &fe_coll);
 
-      REQUIRE(fespace.GlobalTrueVSize() == 27);  // 3^3
+      REQUIRE(pfes.GlobalTrueVSize() == 27);  // 3^3
 
       // Convert to variable order space by p-refinement
       for (int i = 0; i < pmesh.GetNE(); i++)
       {
-         fespace.SetElementOrder(i, fespace.GetElementOrder(i) + 1);
+         pfes.SetElementOrder(i, pfes.GetElementOrder(i) + 1);
       }
-      fespace.Update(false);
+      pfes.Update(false);
 
       // DOFs for vertices + edges + faces + elements = 27 + 54 + 36 + 8 = 125
-      REQUIRE(fespace.GlobalTrueVSize() == 125);  // 5^3
+      REQUIRE(pfes.GlobalTrueVSize() == 125);  // 5^3
 
       int rank;
       MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
-      if (rank == 0) { fespace.SetElementOrder(0, 4); }
-      fespace.Update(false);
+      if (rank == 0) { pfes.SetElementOrder(0, 4); }
+      pfes.Update(false);
 
       Array<Refinement> refs;
       if (rank == 0) { refs.Append(Refinement(0)); }
       pmesh.GeneralRefinement(refs);
-      fespace.Update(false);
+      pfes.Update(false);
 
-      TestSolvePar(fespace);
+      TestSolvePar(pfes);
    }
 
    SECTION("Hex mesh with intermediate orders")
@@ -579,8 +580,9 @@ TEST_CASE("Parallel Variable Order FiniteElementSpace",
 }
 
 TEST_CASE("Serial-parallel Comparison for Variable Order FiniteElementSpace",
-          "[FiniteElementCollection], [FiniteElementSpace], [NCMesh]"
-          "[Parallel]")
+          "[FiniteElementCollection]"
+          "[FiniteElementSpace]"
+          "[NCMesh][Parallel]")
 {
 
    int dimension = GENERATE(2, 3);
@@ -725,9 +727,9 @@ static void TestSolveVec(FiniteElementSpace &fespace)
 }
 
 #ifdef MFEM_USE_MPI
-static void TestSolvePar(ParFiniteElementSpace &fespace)
+static void TestSolvePar(ParFiniteElementSpace &pfes)
 {
-   ParMesh *pmesh = fespace.GetParMesh();
+   ParMesh *pmesh = pfes.GetParMesh();
 
    // exact solution and RHS for the problem -\Delta u = 1
    FunctionCoefficient exsol(exact_sln);
@@ -738,19 +740,19 @@ static void TestSolvePar(ParFiniteElementSpace &fespace)
    ess_attr = 1;
 
    Array<int> ess_tdof_list;
-   fespace.GetEssentialTrueDofs(ess_attr, ess_tdof_list);
+   pfes.GetEssentialTrueDofs(ess_attr, ess_tdof_list);
 
-   ParGridFunction x(&fespace);
+   ParGridFunction x(&pfes);
    x = 0.0;
    x.ProjectBdrCoefficient(exsol, ess_attr);
 
    // assemble the linear form
-   ParLinearForm lf(&fespace);
+   ParLinearForm lf(&pfes);
    lf.AddDomainIntegrator(new DomainLFIntegrator(rhs));
    lf.Assemble();
 
    // assemble the bilinear form.
-   ParBilinearForm bf(&fespace);
+   ParBilinearForm bf(&pfes);
    bf.AddDomainIntegrator(new DiffusionIntegrator());
    bf.Assemble();
 
@@ -760,7 +762,7 @@ static void TestSolvePar(ParFiniteElementSpace &fespace)
 
    // solve
    HypreBoomerAMG prec;
-   CGSolver cg(fespace.GetComm());
+   CGSolver cg(pfes.GetComm());
    cg.SetRelTol(1e-30);
    cg.SetMaxIter(100);
    cg.SetPrintLevel(1);
@@ -809,24 +811,24 @@ void TestSolveSerial1(const Mesh & mesh, GridFunction & x)
    bf.RecoverFEMSolution(X, lf, x);
 }
 
-void TestSolveParallel1(ParMesh & mesh, ParGridFunction & x)
+void TestSolveParallel1(ParMesh &pmesh, ParGridFunction &x)
 {
-   ParFiniteElementSpace *fespace = x.ParFESpace();
+   ParFiniteElementSpace *pfes = x.ParFESpace();
 
-   Array<int> ess_attr(mesh.bdr_attributes.Max());
+   Array<int> ess_attr(pmesh.bdr_attributes.Max());
    ess_attr = 1;  // Dirichlet BC
 
    Array<int> ess_tdof_list;
-   fespace->GetEssentialTrueDofs(ess_attr, ess_tdof_list);
+   pfes->GetEssentialTrueDofs(ess_attr, ess_tdof_list);
 
    // assemble the linear form
-   ParLinearForm lf(fespace);
+   ParLinearForm lf(pfes);
    ConstantCoefficient one(1.0);
    lf.AddDomainIntegrator(new DomainLFIntegrator(one));
    lf.Assemble();
 
    // assemble the bilinear form.
-   ParBilinearForm bf(fespace);
+   ParBilinearForm bf(pfes);
    bf.AddDomainIntegrator(new DiffusionIntegrator());
    bf.Assemble();
 
@@ -849,8 +851,8 @@ void TestSolveParallel1(ParMesh & mesh, ParGridFunction & x)
 GridFunction *TestRandomPRefinement_serial(Mesh & mesh)
 {
    // standard H1 space with order 1 elements
-   H1_FECollection *fec = new H1_FECollection(1, mesh.Dimension());
-   FiniteElementSpace *fespace = new FiniteElementSpace(&mesh, fec);
+   auto *fec = new H1_FECollection(1, mesh.Dimension());
+   auto *fespace = new FiniteElementSpace(&mesh, fec);
 
    for (int i=0; i<mesh.GetNE(); ++i)
    {
@@ -860,7 +862,8 @@ GridFunction *TestRandomPRefinement_serial(Mesh & mesh)
 
    fespace->Update(false);
 
-   GridFunction *sol = new GridFunction(fespace);
+   auto *sol = new GridFunction(fespace);
+   sol->MakeOwner(fec);
    *sol = 0.0;  // Essential DOF value
    TestSolveSerial1(mesh, *sol);
    return sol;
@@ -870,21 +873,22 @@ ParGridFunction *TestRandomPRefinement_parallel(Mesh & mesh)
 {
    // standard H1 space with order 1 elements
 
-   ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, mesh);
-   H1_FECollection *pfec = new H1_FECollection(1, mesh.Dimension());
-   ParFiniteElementSpace *pfespace = new ParFiniteElementSpace(pmesh, pfec);
+   auto *pmsh = new ParMesh(MPI_COMM_WORLD, mesh);
+   auto *pfec = new H1_FECollection(1, mesh.Dimension());
+   auto *pfes = new ParFiniteElementSpace(pmsh, pfec);
 
-   for (int i=0; i<pmesh->GetNE(); ++i)
+   for (int i=0; i<pmsh->GetNE(); ++i)
    {
-      const int p = pmesh->GetAttribute(i);
-      if (p > 1) { pfespace->SetElementOrder(i, p); }
+      const int p = pmsh->GetAttribute(i);
+      if (p > 1) { pfes->SetElementOrder(i, p); }
    }
 
-   pfespace->Update(false);
+   pfes->Update(false);
 
-   ParGridFunction *sol = new ParGridFunction(pfespace);
+   auto *sol = new ParGridFunction(pfes);
+   sol->MakeOwner(pfec);
    *sol = 0.0;  // Essential DOF value
-   TestSolveParallel1(*pmesh, *sol);
+   TestSolveParallel1(*pmsh, *sol);
    return sol;
 }
 
@@ -1056,12 +1060,9 @@ static void TestRandomPRefinement(Mesh & mesh)
    const real_t discontinuity = CheckH1Continuity(*solParallel);
    REQUIRE(discontinuity == MFEM_Approx(0.0));
 
-   FiniteElementSpace *fespace = solSerial->FESpace();
-   ParFiniteElementSpace *pfespace = solParallel->ParFESpace();
+   delete solParallel->ParFESpace()->GetParMesh();
    delete solSerial;
    delete solParallel;
-   delete fespace;
-   delete pfespace;
 }
 
 static void TestSolveParVec(ParFiniteElementSpace &fespace)
