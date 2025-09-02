@@ -15,29 +15,41 @@ ParInteriorPointSolver::ParInteriorPointSolver(OptContactProblem * problem_)
    max_iter = 20;   // Maximum iterations
    mu_k     = 1.0;  // Log-barrier penalty parameter
 
-   
-   kSig     = 1.e10;   // control deviation from primal Hessian
-   tauMin   = 0.99;    // control rate at which iterates can approach the boundary
-   eta      = 1.e-4;   // backtracking constant
-   thetaMin = 1.e-4;   // allowed violation of the equality constraints
 
-   // constants in line-step A-5.4
-   delta    = 1.0;
-   sTheta   = 1.1;
-   sPhi     = 2.3;
+   /* The following constants follow that of 
+    * Wächter, Andreas, and Lorenz T. Biegler. 
+    * "On the implementation of an interior-point filter line-search algorithm for large-scale nonlinear programming." 
+    * Mathematical programming 106.1 (2006): 25-57.
+    */
 
-   // control the rate at which the penalty parameter is decreased
-   kMu     = 0.2;
+   /* line search constants */
+   tauMin   = 0.99;  // constant that controls the rate iterates approach boundary > 0, < 1
+   eta      = 1.e-4; // Armijo backtracking sufficient-decrease condition constant > 0, < 1
+   thetaMin = 1.e-4; // allowed equality constraint violation
+   delta    = 1.0;   // sufficient barrier objective progress constant > 0
+   sTheta   = 1.1;   // sufficient barrier objective progress constant > 0
+   sPhi     = 2.3;   // sufficient barrier objective progress constant >= 0
+   gTheta = 1.e-5;   // sufficient constraint violation decrease constant > 0, < 1
+   gPhi   = 1.e-5;   // sufficient barrier objective decrease constant > 0, < 1
+   thetaMax = 1.e6; // maximum constraint violation (defines initial filter)
+
+   /* interior-point continuation constants 
+    * \mu_new = max{abs_tol / 10, \min{ kMu * \mu_old, (\mu_old)^thetaMu}}
+    * */
+   kMu     = 0.2; 
    thetaMu = 1.5;
-
-   thetaMax = 1.e6; // maximum constraint violation
-
-   // equation (18)
-   gTheta = 1.e-5;
-   gPhi   = 1.e-5;
-
-   kEps   = 1.e1;
-
+   kEps   = 1.e1; // constant that determines when the log-barrier parameter is decreased
+   
+   kSig     = 1.e10; // primal-dual Hessian deviation constant
+   
+   
+   /* The following constants follow that of
+    * Chiang, Nai-Yuan, and Victor M. Zavala. 
+    * "An inertia-free filter line-search algorithm for large-scale nonlinear programming." 
+    * Computational Optimization and Applications 64.2 (2016): 327-354.
+    */
+   
+   /* inertia-regularization constants */
    alphaCurvatureTest = 1.e-11;
    deltaRegLast = 0.0;
    deltaRegMin = 1.e-20;
@@ -108,7 +120,6 @@ ParInteriorPointSolver::ParInteriorPointSolver(OptContactProblem * problem_)
    iAmRoot = MyRank == 0 ? true : false;
 }
 
-// s>=0, s --> s* = O(h^2)
 real_t ParInteriorPointSolver::MaxStepSize(Vector &x, Vector &xl, Vector &xhat,
                                            real_t tau)
 {
@@ -125,7 +136,7 @@ real_t ParInteriorPointSolver::MaxStepSize(Vector &x, Vector &xl, Vector &xhat,
 
    real_t alphaMaxglb;
    MPI_Allreduce(&alphaMaxloc, &alphaMaxglb, 1, MPITypeMap<real_t>::mpi_type,
-                 MPI_MIN, MPI_COMM_WORLD);
+                 MPI_MIN, comm);
    return alphaMaxglb;
 }
 
@@ -208,7 +219,7 @@ void ParInteriorPointSolver::Mult(const BlockVector &x0, BlockVector &xf)
       {
          converged = true;
          int numActiveConstraintsLoc = 0;
-         real_t zinfnorm = GlobalLpNorm(infinity(), zlk.Normlinf(), MPI_COMM_WORLD);
+         real_t zinfnorm = GlobalLpNorm(infinity(), zlk.Normlinf(), comm);
          int dimG = dimM;
          if (dimM > dimU)
          {
@@ -228,7 +239,7 @@ void ParInteriorPointSolver::Mult(const BlockVector &x0, BlockVector &xf)
             }
          }
          MPI_Allreduce(&numActiveConstraintsLoc, &numActiveConstraints, 1, MPI_INT,
-                       MPI_SUM, MPI_COMM_WORLD);
+                       MPI_SUM, comm);
 
          if (iAmRoot)
          {
@@ -387,8 +398,6 @@ void ParInteriorPointSolver::Mult(const BlockVector &x0, BlockVector &xf)
          cout << "maximum optimization iterations\n";
       }
    }
-   // done with optimization routine, just reassign data to xf reference so
-   // that the application code has access to the optimal point
    xf = 0.0;
    xf.GetBlock(0).Set(1.0, xk.GetBlock(0));
    xf.GetBlock(1).Set(1.0, xk.GetBlock(1));
@@ -398,9 +407,6 @@ void ParInteriorPointSolver::FormIPNewtonMat(BlockVector & x, Vector & l,
                                              Vector &zl,
                                              BlockOperator &Ak, real_t delta)
 {
-   // WARNING: Huu, Hum, Hmu, Hmm should all be Hessian terms of the Lagrangian, currently we
-   //          them by Hessian terms of the objective function and neglect the Hessian of l^T c
-
    Huu = problem->Duuf(x);
    Hum = problem->Dumf(x);
    Hmu = problem->Dmuf(x);
@@ -519,8 +525,6 @@ void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l,
                                            Vector &zl, Vector &zlhat, BlockVector &Xhat, bool & passedCTest, real_t mu,
                                            real_t delta)
 {
-   StopWatch chrono;
-   chrono.Clear();
    iter++;
    // solve A x = b, where A is the IP-Newton matrix
    BlockOperator A(block_offsetsuml, block_offsetsuml);
@@ -633,7 +637,7 @@ void ParInteriorPointSolver::lineSearch(BlockVector& X0, BlockVector& Xhat,
 
    Dxphi(x0, mu, Dxphi0);
 
-   real_t Dxphi0_xhat = InnerProduct(MPI_COMM_WORLD, Dxphi0, xhat);
+   real_t Dxphi0_xhat = InnerProduct(comm, Dxphi0, xhat);
    descentDirection = Dxphi0_xhat < 0. ? true : false;
 
 
@@ -793,12 +797,12 @@ bool ParInteriorPointSolver::CurvatureTest(const BlockOperator & A,
          {
             Vector temp(A.GetBlock(i, j).Height()); temp = 0.0;
             A.GetBlock(i, j).Mult(Xhat.GetBlock(j), temp);
-            dWd += InnerProduct(MPI_COMM_WORLD, Xhat.GetBlock(i), temp);
+            dWd += InnerProduct(comm, Xhat.GetBlock(i), temp);
          }
       }
-      dd += InnerProduct(MPI_COMM_WORLD, Xhat.GetBlock(i), Xhat.GetBlock(i));
+      dd += InnerProduct(comm, Xhat.GetBlock(i), Xhat.GetBlock(i));
    }
-   real_t lplusTck = -1.0 * InnerProduct(MPI_COMM_WORLD, lplus, b.GetBlock(2));
+   real_t lplusTck = -1.0 * InnerProduct(comm, lplus, b.GetBlock(2));
 
    bool passed = (dWd + fmax(-lplusTck,
                              0.0) >= alphaCurvatureTest * dd) ? true : false;
@@ -829,9 +833,9 @@ real_t ParInteriorPointSolver::OptimalityError(const BlockVector &x, const Vecto
 
    if (!useMassWeights)
    {
-      E1 = GlobalLpNorm(infinity(), gradL.Normlinf(), MPI_COMM_WORLD);
-      E2 = GlobalLpNorm(infinity(), cx.Normlinf(), MPI_COMM_WORLD);
-      E3 = GlobalLpNorm(infinity(), comp.Normlinf(), MPI_COMM_WORLD);
+      E1 = GlobalLpNorm(infinity(), gradL.Normlinf(), comm);
+      E2 = GlobalLpNorm(infinity(), cx.Normlinf(), comm);
+      E3 = GlobalLpNorm(infinity(), comp.Normlinf(), comm);
    }
    else
    {
@@ -847,9 +851,9 @@ real_t ParInteriorPointSolver::OptimalityError(const BlockVector &x, const Vecto
          gradsL.GetBlock(2) /= Mvlump;
       }
       MxinvgradL.GetBlock(1).Set(1.0, gradsL);
-      E1 = sqrt(InnerProduct(MPI_COMM_WORLD, gradL, MxinvgradL));
-      E2 = GlobalLpNorm(infinity(), cx.Normlinf(), MPI_COMM_WORLD);
-      E3 = GlobalLpNorm(infinity(), comp.Normlinf(), MPI_COMM_WORLD);
+      E1 = sqrt(InnerProduct(comm, gradL, MxinvgradL));
+      E2 = GlobalLpNorm(infinity(), cx.Normlinf(), comm);
+      E3 = GlobalLpNorm(infinity(), comp.Normlinf(), comm);
    }
 
    optimalityError = max(max(E1, E2), E3);
@@ -882,7 +886,7 @@ real_t ParInteriorPointSolver::theta(const BlockVector &x)
          Vector Mcx(dimC);
          Mcx.Set(1.0, cx);
          Mcx *= Mcslump;
-         return sqrt(InnerProduct(MPI_COMM_WORLD, Mcx, cx));
+         return sqrt(InnerProduct(comm, Mcx, cx));
       }
       else
       {
@@ -891,12 +895,12 @@ real_t ParInteriorPointSolver::theta(const BlockVector &x)
          Mcx.GetBlock(0) *= Mcslump;
          Mcx.GetBlock(1) *= Mvlump;
          Mcx.GetBlock(2) *= Mvlump;
-         return sqrt(InnerProduct(MPI_COMM_WORLD, Mcx, cx));
+         return sqrt(InnerProduct(comm, Mcx, cx));
       }
    }
    else
    {
-      return sqrt(InnerProduct(MPI_COMM_WORLD, cx, cx));
+      return sqrt(InnerProduct(comm, cx, cx));
    }
 }
 
@@ -933,7 +937,7 @@ real_t ParInteriorPointSolver::phi(const BlockVector &x, real_t mu,
    }
    real_t logBarrierGlb;
    MPI_Allreduce(&logBarrierLoc, &logBarrierGlb, 1, MPITypeMap<real_t>::mpi_type,
-                 MPI_SUM, MPI_COMM_WORLD);
+                 MPI_SUM, comm);
    return fx - mu * logBarrierGlb;
 }
 
@@ -991,8 +995,7 @@ real_t ParInteriorPointSolver::L(const BlockVector &x, const Vector &l,
          temp.GetBlock(2) *= Mvlump;
       }
    }
-   return (fx + InnerProduct(MPI_COMM_WORLD, cx, l) - InnerProduct(MPI_COMM_WORLD,
-                                                                   temp, zl));
+   return (fx + InnerProduct(comm, cx, l) - InnerProduct(comm, temp, zl));
 }
 
 void ParInteriorPointSolver::DxL(const BlockVector &x, const Vector &l,
