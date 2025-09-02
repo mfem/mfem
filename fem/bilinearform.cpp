@@ -1275,22 +1275,6 @@ void BilinearForm::Update(FiniteElementSpace *nfes)
    height = width = fes->GetVSize();
 
    if (ext) { ext->Update(); }
-   for (auto &integral : domain_integs)
-   {
-      integral->Update();
-   }
-   for (auto &integral : boundary_integs)
-   {
-      integral->Update();
-   }
-   for (auto &integral : interior_face_integs)
-   {
-      integral->Update();
-   }
-   for (auto &integral : boundary_face_integs)
-   {
-      integral->Update();
-   }
 }
 
 void BilinearForm::SetDiagonalPolicy(DiagonalPolicy policy)
@@ -2353,31 +2337,6 @@ void MixedBilinearForm::Update()
    height = test_fes->GetVSize();
    width = trial_fes->GetVSize();
    if (ext) { ext->Update(); }
-
-   for (auto &integral : domain_integs)
-   {
-      integral->Update();
-   }
-   for (auto &integral : boundary_integs)
-   {
-      integral->Update();
-   }
-   for (auto &integral : interior_face_integs)
-   {
-      integral->Update();
-   }
-   for (auto &integral : boundary_face_integs)
-   {
-      integral->Update();
-   }
-   for (auto &integral : trace_face_integs)
-   {
-      integral->Update();
-   }
-   for (auto &integral : boundary_trace_face_integs)
-   {
-      integral->Update();
-   }
 }
 
 MixedBilinearForm::~MixedBilinearForm()
