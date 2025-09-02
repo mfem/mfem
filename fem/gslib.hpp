@@ -312,6 +312,9 @@ public:
    /// point found by FindPoints.
    virtual const Vector &GetGSLIBReferencePosition() const { return gsl_ref; }
 
+   /// Get array of indices of not-found points.
+   const Array<unsigned int> GetPointsNotFoundIndices() const;
+
    /** @name Methods to support a custom interpolation procedure.
        \brief The physical-space point that the user seeks to interpolate at
        could be located inside an element on another mpi rank.
