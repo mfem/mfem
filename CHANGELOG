@@ -10,8 +10,76 @@
 
 Version 4.8.1 (development)
 ===========================
-- Added support for variational resampling of H1 vector fields to ParMoonolith 
-  integration.
+
+Starting with this version, MFEM requires a C++17 compiler.
+
+Discretization improvements
+---------------------------
+- Introduced dFEM: a new MFEM capability for Automatic Differentiation (AD) of
+  nonlinear finite element operators, based on Enzyme or dual numbers AD at
+  quadrature points. These features are part of the new mfem::future namespace
+  and some of the API can change in the future. See the new dFEM minimal surface
+  miniapp in the miniapps/dfem/ directory for illustration of dFEM's use.
+
+- Using Enzyme for AD in MFEM is tested with clang v19 and requires clang/LLVM
+  built with plugin support. See INSTALL for more details.
+
+- In the ParMoonolith integration, added support for variational resampling of
+  H1 vector fields.
+
+Meshing improvements
+--------------------
+
+- Added support for higher order meshes in Mesh::MakeSimplicial and
+  ParMesh::MakeSimplicial.
+
+- Added a new miniapp for interpolating a surface grid of points in 3D using a
+  smooth NURBS surface, that can then be sampled at arbitrary resolution while
+  staying close to the original geometry. See miniapps/nurbs/nurbs_surface.
+
+GPU computing
+-------------
+- The function Vector::SetSubVector(const Array<int> &, const real_t) now
+  executes on device if either the vector or the array have the device flag
+  set. This is most often used for setting constant essential boundary
+  conditions. A new function Vector::SetSubVectorHost has been added in cases
+  where host execution is always needed (e.g. when the DOFs array is small).
+- Introduced MFEM_FOREACH_THREAD_DIRECT, which directly maps loop tasks to GPU
+  threads, assigning one task per thread.
+- Implemented a GPU-accelerated matrix-free AMR derefinement `GridFunction`
+  update operator. This supports mixed geometry meshes and variable order
+  spaces, and is the default derefinement operator constructed by
+  `FiniteElementSpace::Update` and `ParFiniteElementSpace::Update`.
+  The operator requires `FiniteElementSpace::Nonconforming() == true`.
+
+New and updated examples and miniapps
+-------------------------------------
+- Added miniapps to demonstrate an implementation of the absolute-value
+  L(1)-Jacobi preconditioners in partially assembled operators. This includes
+  Multigrid wrapper to demonstrate the effectiveness of these Jacobi-type
+  operators as smoothers.
+  These miniapps can be found in `miniapps/diag-smoothers`.
+
+API changes
+-----------
+- mfem::internal::tensor and mfem::internal::dual have been moved to
+  mfem::future::tensor and mfem::future::dual.
+- API addition: in class `Operator`, added virtual functions: `AbsMult`, and
+  `AbsMultTranspose`; in class `Vector`, added `Abs` and `Pow`.
+
+Miscellaneous
+-------------
+- Added the "gpu", "raja-gpu", and "ceed-gpu" backend aliases/shortcuts which
+  automatically select between CUDA or HIP.
+- The CUDA-specific names used by some of the unit tests like 'cunit_tests' and
+  'pcunit_tests' were replaced by names using 'gpu' instead of 'c' (short for
+  CUDA) or 'cuda'. These tests automatically run the CUDA/HIP tests based on the
+  MFEM build configuration.
+- Added the option to enable GPU-aware MPI in MFEM using the environment
+  variable 'MFEM_GPU_AWARE_MPI' set to any value. Setting this environment
+  variable is an alternative to calling 'Device::SetGPUAwareMPI(true)'.
+- Added parallel Address Sanitizer, serial and parallel Undefined Behavior
+  Sanitizer and serial Memory Sanitizer GitHub actions tests on Ubuntu.
 
 Version 4.8, released on Apr 9, 2025
 ====================================

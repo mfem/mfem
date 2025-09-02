@@ -14,7 +14,7 @@
 
 using namespace mfem;
 
-TEST_CASE("FA Determinism", "[PartialAssembly][CUDA]")
+TEST_CASE("FA Determinism", "[PartialAssembly][GPU]")
 {
    const int order = 3;
    const char *mesh_filename = "../../data/star-q3.mesh";
