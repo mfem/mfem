@@ -1616,7 +1616,7 @@ if (myid == 0) {
       paraview_dc.SetHighOrderOutput(true);
       paraview_dc.SetCycle(0);
       paraview_dc.SetTime(1.0);
-      //paraview_dc.RegisterField("Solution",&x_gf);
+      paraview_dc.RegisterField("Solution",&x_gf);
       paraview_dc.Save();
     }
 
