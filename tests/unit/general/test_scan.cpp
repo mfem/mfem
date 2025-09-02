@@ -22,7 +22,6 @@ using namespace mfem;
 
 TEST_CASE("Inclusive Scan", "[Scan],[GPU]")
 {
-   Array<char> workspace;
    Array<int> a(10);
 
    for (int use_dev = 0; use_dev < 2; ++use_dev)
@@ -34,7 +33,7 @@ TEST_CASE("Inclusive Scan", "[Scan],[GPU]")
          a[i] = i;
       }
       auto dptr = a.ReadWrite(use_dev);
-      InclusiveScan(use_dev, dptr, dptr, a.Size(), workspace);
+      InclusiveScan(use_dev, dptr, dptr, a.Size());
       a.HostRead();
       for (int i = 0; i < a.Size(); ++i)
       {
@@ -48,7 +47,7 @@ TEST_CASE("Inclusive Scan", "[Scan],[GPU]")
          a[i] = i + 1;
       }
       a.ReadWrite(use_dev);
-      InclusiveScan(use_dev, dptr, dptr, a.Size(), workspace, std::multiplies<> {});
+      InclusiveScan(use_dev, dptr, dptr, a.Size(), std::multiplies<> {});
       a.HostRead();
       int expected = 1;
       for (int i = 0; i < a.Size(); ++i)
@@ -62,7 +61,6 @@ TEST_CASE("Inclusive Scan", "[Scan],[GPU]")
 
 TEST_CASE("Exclusive Scan", "[Scan],[GPU]")
 {
-   Array<char> workspace;
    Array<int> a(10);
 
    for (int use_dev = 0; use_dev < 2; ++use_dev)
@@ -74,7 +72,7 @@ TEST_CASE("Exclusive Scan", "[Scan],[GPU]")
          a[i] = i;
       }
       auto dptr = a.ReadWrite(use_dev);
-      ExclusiveScan(use_dev, dptr, dptr, a.Size(), 5, workspace);
+      ExclusiveScan(use_dev, dptr, dptr, a.Size(), 5);
       a.HostRead();
       for (int i = 0; i < a.Size(); ++i)
       {
@@ -88,8 +86,7 @@ TEST_CASE("Exclusive Scan", "[Scan],[GPU]")
          a[i] = i + 1;
       }
       a.ReadWrite(use_dev);
-      ExclusiveScan(use_dev, dptr, dptr, a.Size(), 5, workspace,
-                    std::multiplies<> {});
+      ExclusiveScan(use_dev, dptr, dptr, a.Size(), 5, std::multiplies<> {});
       a.HostRead();
       int expected = 5;
       for (int i = 0; i < a.Size(); ++i)
