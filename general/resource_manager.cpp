@@ -795,6 +795,96 @@ void ResourceManager::print_segment(size_t segment)
 }
 
 template <class F>
+void ResourceManager::check_valid(size_t segment, ptrdiff_t start,
+                                  ptrdiff_t stop, F &&func)
+{
+   auto &seg = storage.get_segment(segment);
+   size_t curr = find_marker(segment, seg.lower + start);
+   if (!curr)
+   {
+      return;
+   }
+   auto pos = std::max(start, storage.get_node(curr).point - seg.lower);
+   while (pos < stop)
+   {
+      auto &n = storage.get_node(curr);
+      size_t next = storage.successor(curr);
+      // n.point <= pos < next point
+      if (!n.is_valid())
+      {
+         if (next)
+         {
+            // pn is always valid
+            auto &pn = storage.get_node(next);
+            if (seg.lower + stop >= pn.point)
+            {
+               if (func(pos, pn.point - seg.lower, false))
+               {
+                  return;
+               }
+            }
+            else
+            {
+               if (func(pos, stop, false))
+               {
+                  return;
+               }
+               break;
+            }
+         }
+         else
+         {
+            if (func(pos, stop, false))
+            {
+               return;
+            }
+            break;
+         }
+      }
+      else
+      {
+         if (next)
+         {
+            // pn is always valid
+            auto &pn = storage.get_node(next);
+            if (seg.lower + stop >= pn.point)
+            {
+               if (func(pos, pn.point - seg.lower, true))
+               {
+                  return;
+               }
+            }
+            else
+            {
+               if (func(pos, stop, true))
+               {
+                  return;
+               }
+               break;
+            }
+         }
+         else
+         {
+            if (func(pos, stop, true))
+            {
+               return;
+            }
+            break;
+         }
+      }
+      if (next)
+      {
+         pos = storage.get_node(next).point - seg.lower;
+      }
+      else
+      {
+         pos = seg.upper - seg.lower;
+      }
+      curr = next;
+   }
+}
+
+template <class F>
 void ResourceManager::mark_valid(size_t segment, ptrdiff_t start,
                                  ptrdiff_t stop, F &&func)
 {
@@ -1040,6 +1130,98 @@ void ResourceManager::mark_invalid(size_t segment, ptrdiff_t start,
    }
 }
 
+ResourceManager::ResourceLocation
+ResourceManager::where_valid(size_t segment, char *lower, char *upper)
+{
+   ResourceLocation loc = INDETERMINATE;
+   if (segment)
+   {
+      auto &seg = storage.get_segment(segment);
+      bool any_invalid = false;
+      check_valid(segment, lower - seg.lower, upper - seg.upper,
+                  [&](auto, auto, bool valid)
+      {
+         if (valid)
+         {
+            return false;
+         }
+         any_invalid = true;
+         return true;
+      });
+      if (!any_invalid)
+      {
+         loc = seg.loc;
+      }
+      if (seg.other)
+      {
+         bool any_invalid = false;
+         check_valid(seg.other, lower - seg.lower, upper - seg.upper,
+                     [&](auto, auto, bool valid)
+         {
+            if (valid)
+            {
+               return false;
+            }
+            any_invalid = true;
+            return true;
+         });
+         if (!any_invalid)
+         {
+            loc = static_cast<ResourceLocation>(
+                     loc | storage.get_segment(seg.other).loc);
+         }
+      }
+   }
+   return loc;
+}
+
+bool ResourceManager::is_valid(size_t segment, char *lower, char *upper,
+                               ResourceLocation loc)
+{
+   if (segment)
+   {
+      auto &seg = storage.get_segment(segment);
+      if (seg.loc & loc)
+      {
+         bool all_valid = true;
+         check_valid(segment, lower - seg.lower, upper - seg.upper,
+                     [&](auto, auto, bool valid)
+         {
+            if (valid)
+            {
+               return false;
+            }
+            all_valid = false;
+            return true;
+         });
+         return all_valid;
+      }
+      else
+      {
+         if (seg.other)
+         {
+            auto &oseg = storage.get_segment(seg.other);
+            if (seg.other & loc)
+            {
+               bool all_valid = true;
+               check_valid(seg.other, lower - seg.lower, upper - seg.upper,
+                           [&](auto, auto, bool valid)
+               {
+                  if (valid)
+                  {
+                     return false;
+                  }
+                  all_valid = false;
+                  return true;
+               });
+               return all_valid;
+            }
+         }
+      }
+   }
+   return false;
+}
+
 char *ResourceManager::write(size_t segment, char *lower, char *upper,
                              ResourceLocation loc)
 {
@@ -1208,6 +1390,37 @@ void ResourceManager::clear_owner_flags(size_t segment)
 {
    set_owns_host_ptr(segment, false);
    set_owns_device_ptr(segment, false);
+}
+
+int ResourceManager::compare_other(size_t segment, char *lower, char *upper)
+{
+   if (segment)
+   {
+      auto& seg = storage.get_segment(segment);
+      if (seg.other)
+      {
+         auto &oseg = storage.get_segment(seg.other);
+         auto start = lower - seg.lower;
+         auto stop = upper - seg.lower;
+         Resource<char> tmp0, tmp1; //(stop - start, HOST, true);
+         char *ptr0 = lower;
+         char *ptr1 = oseg.lower + start;
+         if (seg.loc & DEVICE)
+         {
+            tmp0 = Resource<char>(stop - start, HOST, true);
+            ptr0 = tmp0.lower;
+            MemCopy(ptr0, lower, stop - start, HOST, seg.loc);
+         }
+         if (oseg.loc & DEVICE)
+         {
+            tmp1 = Resource<char>(stop - start, HOST, true);
+            ptr1 = tmp1.lower;
+            MemCopy(ptr1, oseg.lower+start, stop - start, HOST, oseg.loc);
+         }
+         return std::memcmp(ptr0, ptr1, stop - start);
+      }
+   }
+   return 0;
 }
 
 } // namespace mfem

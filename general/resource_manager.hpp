@@ -193,6 +193,9 @@ private:
    size_t find_marker(size_t segment, char *lower);
 
    template <class F>
+   void check_valid(size_t segment, ptrdiff_t start, ptrdiff_t stop, F &&func);
+
+   template <class F>
    void mark_valid(size_t segment, ptrdiff_t start, ptrdiff_t stop, F &&func);
 
    template <class F>
@@ -203,6 +206,11 @@ private:
 
    /// Decreases reference count on @a segment
    void erase(size_t segment, bool linked);
+
+   ResourceLocation where_valid(size_t segment, char *lower, char *upper);
+
+   bool is_valid(size_t segment, char *lower, char *upper,
+                 ResourceLocation loc);
 
    /// updates validity flags, and copies if needed
    char *write(size_t segment, char *lower, char *upper, ResourceLocation loc);
@@ -226,8 +234,9 @@ private:
 
    void clear_owner_flags(size_t segment);
 
-public:
+   int compare_other(size_t segment, char *lower, char *upper);
 
+public:
    ResourceManager(const ResourceManager &) = delete;
 
    ~ResourceManager();
@@ -257,12 +266,19 @@ public:
    char *alloc(size_t nbytes, ResourceLocation loc, bool temporary);
 };
 
+/// WARNING: In general using Resource is not thread safe, even when surrounded
+/// by an external synchronization mechanism like a mutex (due to calls into
+/// ResourceManager). The only operation which can be made thread-safe is
+/// operator[]; you will still need an external synchronization mechanism for
+/// parallel read/write, similar to raw pointer access.
 template <class T> class Resource
 {
    T *lower;
    T *upper;
    size_t segment;
    bool use_device = false;
+
+   friend class ResourceManager;
 
 public:
    Resource() : lower(nullptr), upper(nullptr), segment(0) {}
@@ -453,16 +469,78 @@ public:
    void SyncAlias(const Resource &other) const
    {}
 
-   // TODO: GetMemoryType
-   // TODO: GetHostMemoryType
-   // TODO: GetDeviceMemoryType
-   // TODO: HostIsValid
-   // TODO: DeviceIsValid
-   // TODO: CopyFrom
-   // TODO: CopyTo
-   // TODO: CopyToHost
-   // TODO: PrintFlags
-   // TODO: CompareHostAndDevice
+   /// Returns where the memory is currently valid
+   ResourceManager::ResourceLocation WhereValid() const
+   {
+      auto &inst = ResourceManager::instance();
+      return inst.where_valid(segment, lower, upper);
+   }
+
+   /// Returns where the memory is currently valid
+   [[deprecated("Use Resource::WhereValid() instead.")]]
+   ResourceManager::ResourceLocation GetMemoryType() const
+   {
+      auto &inst = ResourceManager::instance();
+      return inst.where_valid(segment, lower, upper);
+   }
+
+   ResourceManager::ResourceLocation GetHostMemoryType() const
+   {
+      if (segment)
+      {
+         auto &inst = ResourceManager::instance();
+         // TODO: edge case if seg.loc is device, then the other is the host
+         return inst.storage.get_segment(segment).loc;
+      }
+      return ResourceManager::INDETERMINATE;
+   }
+
+   ResourceManager::ResourceLocation GetDeviceMemoryType() const
+   {
+      if (segment)
+      {
+         auto &inst = ResourceManager::instance();
+         auto& seg = inst.storage.get_segment(segment);
+         if (seg.other)
+         {
+            // TODO: edge case if seg.loc is device, then the other is the host
+            return inst.storage.get_segment(seg.other).loc;
+         }
+         else
+         {
+            return seg.loc & ResourceManager::ANY_DEVICE;
+         }
+      }
+      return ResourceManager::INDETERMINATE;
+   }
+
+   bool HostIsValid() const
+   {
+      auto &inst = ResourceManager::instance();
+      return inst.is_valid(segment, lower, upper, ResourceManager::ANY_HOST);
+   }
+
+   bool DeviceIsValid() const
+   {
+      auto &inst = ResourceManager::instance();
+      return inst.is_valid(segment, lower, upper, ResourceManager::ANY_DEVICE);
+   }
+   void CopyFrom(const Resource &src, int size);
+   void CopyFromHost(const T *src, int size);
+
+   void CopyTo(Resource &dst, int size) const;
+   void CopyToHost(T *dst, int size) const;
+
+   /// no-op
+   [[deprecated]]
+   void PrintFlags() const
+   {}
+
+   int CompareHostAndDevice(int size) const
+   {
+      auto &inst = ResourceManager::instance();
+      return inst.compare_other(segment, lower, lower + size);
+   }
 };
 
 template <class T>
@@ -655,6 +733,26 @@ template <class T> Resource<T>::~Resource()
       auto &inst = ResourceManager::instance();
       inst.erase(segment, true);
    }
+}
+
+template <class T> void Resource<T>::CopyFrom(const Resource &src, int size)
+{
+   // TODO
+}
+
+template <class T> void Resource<T>::CopyFromHost(const T *src, int size)
+{
+   // TODO: how to determine where to copy to without modifying validity flags?
+}
+
+template <class T> void Resource<T>::CopyTo(Resource &dst, int size) const
+{
+   dst.CopyFrom(*this, size);
+}
+
+template <class T> void Resource<T>::CopyToHost(T *dst, int size) const
+{
+   // TODO
 }
 } // namespace mfem
 
