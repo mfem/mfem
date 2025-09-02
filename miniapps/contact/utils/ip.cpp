@@ -11,7 +11,7 @@ using namespace mfem;
 ParInteriorPointSolver::ParInteriorPointSolver(OptContactProblem * problem_)
    : problem(problem_)
 {
-   OptTol  = 1.e-2; // Tolerance of the optimizer
+   abs_tol  = 1.e-2; // Tolerance of the optimizer
    max_iter = 20;   // Maximum iterations
    mu_k     = 1.0;  // Log-barrier penalty parameter
 
@@ -204,7 +204,7 @@ void ParInteriorPointSolver::Mult(const BlockVector &x0, BlockVector &xf)
       // A-2. Check convergence of overall optimization problem
       printOptimalityError = true;
       Eevalmu0 = OptimalityError(xk, lk, zlk, printOptimalityError);
-      if (Eevalmu0 < OptTol) // div Eeval0 for rel tol
+      if (Eevalmu0 < abs_tol)
       {
          converged = true;
          int numActiveConstraintsLoc = 0;
@@ -221,7 +221,7 @@ void ParInteriorPointSolver::Mult(const BlockVector &x0, BlockVector &xf)
             // slack < Lagrange multiplier
             // min(s_i, z_i) \approx 0 for i = 1,2,...,dimM
             // at convergence point
-            // s_i z_i \approx OptTol for each i
+            // s_i z_i \approx mu_k for each i
             if (zlk(i) > sqrt(mu_k) * zinfnorm)
             {
                numActiveConstraintsLoc += 1;
@@ -255,7 +255,7 @@ void ParInteriorPointSolver::Mult(const BlockVector &x0, BlockVector &xf)
                cout << "solved mu = " << mu_k << " barrier subproblem\n";
             }
             // A-3.1. Recompute the barrier parameter
-            mu_k  = max(OptTol / 10., min(kMu * mu_k, pow(mu_k, thetaMu)));
+            mu_k  = max(abs_tol / 10., min(kMu * mu_k, pow(mu_k, thetaMu)));
             // A-3.2. Re-initialize the filter
             F1.DeleteAll();
             F2.DeleteAll();
@@ -633,7 +633,7 @@ void ParInteriorPointSolver::lineSearch(BlockVector& X0, BlockVector& Xhat,
 
    Dxphi(x0, mu, Dxphi0);
 
-   Dxphi0_xhat = InnerProduct(MPI_COMM_WORLD, Dxphi0, xhat);
+   real_t Dxphi0_xhat = InnerProduct(MPI_COMM_WORLD, Dxphi0, xhat);
    descentDirection = Dxphi0_xhat < 0. ? true : false;
 
 
@@ -1038,7 +1038,7 @@ bool ParInteriorPointSolver::GetConverged() const
 
 void ParInteriorPointSolver::SetTol(real_t Tol)
 {
-   OptTol = Tol;
+   abs_tol = Tol;
 }
 
 void ParInteriorPointSolver::SetMaxIter(int max_it)

@@ -15,7 +15,7 @@ class ParInteriorPointSolver
 protected:
    OptContactProblem* problem = nullptr;
    int numActiveConstraints = -1;
-   real_t OptTol;
+   real_t abs_tol;
    int  max_iter;
    int  iter=0;
    real_t mu_k; // \mu_k
@@ -36,7 +36,6 @@ protected:
    bool sufficientDecrease = false;
    bool lineSearchSuccess = false;
    bool inFilterRegion = false;
-   real_t Dxphi0_xhat;
 
    int dimU, dimM, dimC;
    int dimG; // num of gap constraints
