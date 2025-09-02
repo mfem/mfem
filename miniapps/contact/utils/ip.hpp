@@ -21,7 +21,7 @@ protected:
    real_t mu_k; // \mu_k
    Vector lk, zlk;
 
-   real_t sMax, kSig, tauMin, eta, thetaMin, delta, sTheta, sPhi, kMu, thetaMu;
+   real_t kSig, tauMin, eta, thetaMin, delta, sTheta, sPhi, kMu, thetaMu;
    real_t thetaMax, gTheta, gPhi, kEps;
 
    // filter

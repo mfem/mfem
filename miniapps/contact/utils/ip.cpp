@@ -16,7 +16,6 @@ ParInteriorPointSolver::ParInteriorPointSolver(OptContactProblem * problem_)
    mu_k     = 1.0;  // Log-barrier penalty parameter
 
    
-   sMax     = 1.e2;
    kSig     = 1.e10;   // control deviation from primal Hessian
    tauMin   = 0.99;    // control rate at which iterates can approach the boundary
    eta      = 1.e-4;   // backtracking constant
@@ -833,15 +832,6 @@ real_t ParInteriorPointSolver::OptimalityError(const BlockVector &x, const Vecto
       E1 = GlobalLpNorm(infinity(), gradL.Normlinf(), MPI_COMM_WORLD);
       E2 = GlobalLpNorm(infinity(), cx.Normlinf(), MPI_COMM_WORLD);
       E3 = GlobalLpNorm(infinity(), comp.Normlinf(), MPI_COMM_WORLD);
-
-      // compute norms of Lagrange multipliers
-      // if they are growing large this is indicative of
-      // poorly conditioned constraint Jacobians
-      // and here we terminate the algorithm early
-      real_t zl1 = GlobalLpNorm(1, zl.Norml1(), MPI_COMM_WORLD);
-      real_t ll1 = GlobalLpNorm(1, l.Norml1(), MPI_COMM_WORLD);
-      sc = max(sMax, zl1 / (real_t(gdimM)) ) / sMax;
-      sd = max(sMax, (ll1 + zl1) / (real_t(gdimC + gdimM))) / sMax;
    }
    else
    {
