@@ -71,13 +71,13 @@ protected:
    Solver * solver = nullptr;
    ParFiniteElementSpace *pfes = nullptr;
 
-   int jOpt;
    bool converged;
 
    int MyRank;
    bool iAmRoot;
 
    bool useMassWeights = false;
+   int print_level = 0;
    MPI_Comm comm;
 public:
    ParInteriorPointSolver(OptContactProblem*);
@@ -87,7 +87,8 @@ public:
    void SetMaxIter(int);
    void SetBarrierParameter(real_t);
    void SetUsingMassWeights(bool);
-   void SetLinearSolver(Solver * solver_) { solver = solver_ ;}
+   void SetLinearSolver(Solver * solver_) { solver = solver_; };
+   void SetPrintLevel(int print_level_) { print_level = print_level_; };
    bool GetConverged() const;
    Array<int> & GetCGIterNumbers() {return cgnum_iterations;};
    int GetNumIterations() {return iter;};
