@@ -91,9 +91,10 @@ option(MFEM_ENABLE_BENCHMARKS "Build all of the benchmarks" OFF)
 
 # Allow a user to specify fetching of certain third-party libraries instead of
 # searching for existing installations.
-option(FETCH_TPLS "Enable fetching of all supported third-party libraries" OFF)
-option(HYPRE_FETCH "Enable fetching of hypre" OFF)
-option(METIS_FETCH "Enable fetching of METIS" OFF)
+option(MFEM_FETCH_TPLS "Enable fetching of all supported third-party libraries" OFF)
+option(MFEM_GSLIB_FETCH "Enable fetching of GSLIB" OFF)
+option(MFEM_HYPRE_FETCH "Enable fetching of hypre" OFF)
+option(MFEM_METIS_FETCH "Enable fetching of METIS" OFF)
 
 # Setting CXX/MPICXX on the command line or in user.cmake will overwrite the
 # autodetected C++ compiler.
