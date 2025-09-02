@@ -14,7 +14,6 @@ class ParInteriorPointSolver
 {
 protected:
    OptContactProblem* problem = nullptr;
-   int numActiveConstraints = -1;
    real_t abs_tol;
    int  max_iter;
    int  iter=0;
@@ -92,7 +91,6 @@ public:
    bool GetConverged() const;
    Array<int> & GetCGIterNumbers() {return cgnum_iterations;};
    int GetNumIterations() {return iter;};
-   real_t GetNumActiveConstraints() { return numActiveConstraints;};
    virtual ~ParInteriorPointSolver();
 private: 
    real_t MaxStepSize(Vector&, Vector&, Vector&, real_t);
