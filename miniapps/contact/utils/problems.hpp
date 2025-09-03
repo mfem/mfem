@@ -153,6 +153,7 @@ public:
                      real_t tribol_ratio_,
                      bool bound_constraints_=true,
                      bool mass_weights_=false);
+   void Update(ParGridFunction * coords_, const Vector & xref);
    int GetDimU() {return dimU;}
    int GetDimM() {return dimM;}
    int GetDimC() {return dimC;}

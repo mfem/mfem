@@ -115,6 +115,11 @@ void ElasticityOperator::FormLinearSystem()
          x.GetTrueDofs(X);
          dynamic_cast<ParBilinearForm*>(op)->EliminateVDofsInRHS(ess_tdof_list, X, B);
       }
+      x.GetTrueDofs(xrefbc);
+      //Vector xBCtrue, DCvals;
+      //x.GetTrueDofs(xBCtrue);
+      //xBCtrue.GetSubVector(essbdr, DCvals);
+      //xrefbc.SetSubVector(essbdr, DCvals);
    }
 }
 
@@ -336,7 +341,91 @@ OptContactProblem::OptContactProblem(ElasticityOperator * problem_,
    Mv->Mult(onev, Mvlump);
 }
 
+void OptContactProblem::Update(ParGridFunction * coords_, const Vector & xref_)
+{
+   //comm = problem->GetComm();
+   //pmesh = problem->GetMesh();
+   //vfes = problem->GetFESpace();
+   //dim = pmesh->Dimension();
+   coords = coords_;
+   xref.Set(1.0, xref_);
+   ComputeGapJacobian();
 
+   problem->Getxrefbc(xrefbc);
+
+   if (problem->IsNonlinear())
+   {
+      energy_ref = problem->GetEnergy(xrefbc);
+      problem->GetGradient(xrefbc,grad_ref);
+      Kref = problem->GetHessian(xrefbc);
+   }
+   dimU = J->Width();
+   dimG = J->Height();
+   num_constraints = J->GetGlobalNumRows();
+   if (bound_constraints) { num_constraints += 2 * J->GetGlobalNumCols(); }
+
+   block_offsetsg[0] = 0;
+   block_offsetsg[1] = dimG;
+   block_offsetsg[2] = dimU;
+   block_offsetsg[3] = dimU;
+   block_offsetsg.PartialSum();
+
+   Vector diagVec(dimU); diagVec = 0.0;
+   SparseMatrix * tempSparse;
+
+   diagVec = 1.0;
+   tempSparse = new SparseMatrix(diagVec);
+   Iu = new HypreParMatrix(comm, GetGlobalNumDofs(), GetDofStarts(), tempSparse);
+   HypreStealOwnership(*Iu, *tempSparse);
+   delete tempSparse;
+
+   diagVec = -1.0;
+   tempSparse = new SparseMatrix(diagVec);
+   negIu = new HypreParMatrix(comm, GetGlobalNumDofs(), GetDofStarts(),
+                              tempSparse);
+   HypreStealOwnership(*negIu, *tempSparse);
+   delete tempSparse;
+
+
+   if (bound_constraints)
+   {
+      dimM = dimG + 2 * dimU;
+   }
+   else
+   {
+      dimM = dimG;
+   }
+   dimC = dimM;
+
+   ml.SetSize(dimM); ml = 0.0;
+
+   MFEM_VERIFY(vfes, "space is null");
+   ParBilinearForm MassForm(vfes);
+   MassForm.AddDomainIntegrator(new VectorMassIntegrator);
+   MassForm.Assemble();
+
+   Array<int> empty_tdof_list;
+   Mv = new HypreParMatrix();
+   MassForm.FormSystemMatrix(empty_tdof_list,*Mv);
+
+   Vector onev(Mv->Width()); onev = 1.0;
+   Mvlump.SetSize(Mv->Height());
+   Mv->Mult(onev, Mvlump);
+   //delete J; J = nullptr;
+   //delete Jt;
+   //delete Pc;
+   //delete NegId;
+   //delete Iu;
+   //delete negIu;
+   //delete Mv;
+   //delete Mcs;
+  //if (dcdu)
+  //{
+  //   delete dcdu;
+  //}
+  //OptContactProblem(problem, mortar_attrs, nonmortar_attrs, coords_, xref_, tribol_ratio, bound_constraints, useMassWeights); 
+
+}
 
 
 

@@ -254,6 +254,10 @@ int main(int argc, char *argv[])
 
    // deviation from the reference configuration
    Vector xref(x_gf.GetTrueVector().Size()); xref = 0.0;
+   bool use_mass_weights = true;
+   bool enable_bound_constraints = false;
+   OptContactProblem contact(&prob, mortar_attr, nonmortar_attr, &new_coords, xref,
+                                 tribol_ratio, enable_bound_constraints, use_mass_weights);
    Vector dx(xref.Size()); dx = 0.0;
 
    real_t p = 30.0;
@@ -311,28 +315,12 @@ int main(int argc, char *argv[])
       prob.FormLinearSystem();
       x_gf.SetTrueVector();
 
-      // xref will also satisfy the essential boundary conditions and the nonessential
-      // dofs will be equal to the solution at the previous time step (if it exists)
-      // or zero
-      // xref will be used to set the reference/expansion point used for the QPOptContactProblem
-      // and also used as the initial point for the IP solver
-      if (i == 0)
+      x_gf.GetTrueDofs(xref);
+
+      if (i > 0)
       {
-         xref = 0.0;
+         contact.Update(&new_coords, xref);
       }
-      else
-      {
-         x_gf.GetTrueDofs(xref);
-      }
-
-      int bound_constraints_step = 3;
-      bool enable_bound_constraints = (bound_constraints &&
-                                       i >= bound_constraints_step) ? true : false;
-
-      bool use_mass_weights = true;
-      OptContactProblem contact(&prob, mortar_attr, nonmortar_attr, &new_coords, xref,
-                                tribol_ratio, enable_bound_constraints, use_mass_weights);
-
       if (bound_constraints)
       {
          contact.SetBoundConstraints(i);
