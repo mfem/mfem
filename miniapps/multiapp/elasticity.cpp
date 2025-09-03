@@ -86,10 +86,19 @@ int main(int argc, char *argv[])
     VectorConstantCoefficient zerovec(vzero);
    
     real_t E = 5.6e6; 
-    real_t nu = 4.0e-2;
+    real_t nu = 4.0e-1;
     real_t rho = 1.0e3;
     real_t mu = E / (2.0 * (1.0 + nu));
     real_t lambda = 2*mu*nu/(1-2*nu);
+
+    if(myid == 0)
+    {
+        std::cout << "Young's Modulus: " << E << std::endl;
+        std::cout << "Poisson's Ratio: " << nu << std::endl;
+        std::cout << "Lame's Mu: " << mu << std::endl;
+        std::cout << "Lame's Lambda: " << lambda << std::endl;
+        std::cout << "Density: " << rho << std::endl;
+    }
 
     Elasticity elasticity(x_fes, ess_attr, nat_attr, mu, rho, lambda);
     
@@ -162,17 +171,19 @@ int main(int argc, char *argv[])
     for (int ti = 1; !last_step; ti++)
     {
         if (t + dt >= t_final - dt/2){ last_step = true; }
+        elasticity.Update();
+
         ode_solver->Step(xu,t,dt);
 
         x_gf.SetFromTrueDofs(xu.GetBlock(0));
         u_gf.SetFromTrueDofs(xu.GetBlock(1));      
 
+        GridFunction *nodes = mesh.GetNodes();
+        *nodes += x_gf;
+        mesh.DeleteGeometricFactors();
+
         if (last_step || (ti % vis_steps) == 0){
-            if (myid == 0) { out << "step " << ti << ", t = " << t << std::endl;}
-            GridFunction *nodes = mesh.GetNodes();
-            *nodes += x_gf;
-            mesh.DeleteGeometricFactors();
-            
+            if (myid == 0) { out << "step " << ti << ", t = " << t << std::endl;}            
             save_callback(ti, t);
         }
     }

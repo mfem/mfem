@@ -9,7 +9,7 @@
 
 using namespace mfem;
 
-// mpirun -np 6 ./navier-stokes -vs 5 -dt 1e-2 -tf 5 -o 2 -rs 2 -ode 21
+// mpirun -np 6 ./navier-stokes -vs 5 -dt 1e-2 -tf 5 -o 2 -rs 2 -ode 21 -U 1.0 -rho 1e3 -nu 1e-3
 
 int main(int argc, char *argv[])
 {
@@ -26,6 +26,11 @@ int main(int argc, char *argv[])
     int vis_steps = 10;
     int ode_solver_type = 21;  // (34) SDIRK34Solver, (21) BackwardEulerSolver, (23) SDIRK33Solver, (3) RK3SSPSolver
     int ser_ref = 0;
+    real_t U0 = 1.5;    
+    real_t nu = 1.0e-3; // Kinematic viscosity
+    real_t rho = 1.0e3; // Density
+    real_t compressibility = 1e-4; // Artificial Compressibility for Navier-Stokes
+    bool scaled_pressure = true;
 
 
     OptionsParser args(argc, argv);
@@ -43,7 +48,10 @@ int main(int argc, char *argv[])
     args.AddOption(&ode_solver_type, "-ode", "--ode-solver-type",
                     "ODESolver id.");
     args.AddOption(&ser_ref, "-rs", "--serial-refine",
-                    "Number of times to refine the mesh in serial.");                  
+                    "Number of times to refine the mesh in serial.");
+    args.AddOption(&U0, "-U", "--velocity", "Mean velocity.");
+    args.AddOption(&rho, "-rho", "--Density", "Density");
+    args.AddOption(&nu, "-nu", "--Viscosity", "Viscosity.");
     args.ParseCheck();
 
     Mesh *serial_mesh = new Mesh("channel-cylinder.msh");
@@ -75,7 +83,6 @@ int main(int argc, char *argv[])
 
 
     // Inlet velocity boundary condition
-    real_t U0 = 1.5;
     auto velocity_profile = [&U0](const Vector &x, double t, Vector &u) mutable
     {
         double xi = x(0), xc=0.2, r=0.051;
@@ -86,7 +93,7 @@ int main(int argc, char *argv[])
         // if (xi == 0.0) 
         if (d > (r*r))
         {
-            u(0) = 4.0 * U * yi * (0.41 - yi) / (pow(0.41, 2.0));
+            u(0) = 1.5 * 4.0 * U * yi * (0.41 - yi) / (pow(0.41, 2.0));
             u(1) = 0.0;
         }
     };
@@ -94,11 +101,8 @@ int main(int argc, char *argv[])
     VectorFunctionCoefficient u_coeff(dim, velocity_profile);
     ConstantCoefficient p_coeff(0.0);
 
-    real_t nu = 1.0e-3; // Kinematic viscosity
-    real_t rho = 1.0; // Density
-    real_t compressibility = 1e-4; // Artificial Compressibility for Navier-Stokes
 
-    NavierStokes nse(u_fes, p_fes, u_ess_attr, p_ess_attr, rho, nu, compressibility);
+    NavierStokes nse(u_fes, p_fes, u_ess_attr, p_ess_attr, rho, nu, compressibility,scaled_pressure);
 
     ParGridFunction &p_gf = nse.p_gf;   p_gf = 0.0;
     ParGridFunction &u_gf = nse.u_gf;   u_gf = 0.0;
