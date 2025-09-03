@@ -389,7 +389,7 @@ int main(int argc, char *argv[])
 #ifdef MFEM_USE_MKL_CPARDISO
          subspacesolver = new CPardisoSolver(MPI_COMM_WORLD);
 #else
-	 MFEM_ABORT("MFEM must be built with MUMPS in order to use AMGF");
+	 MFEM_ABORT("MFEM must be built with MUMPS or MKL_CPARDISO in order to use AMGF");
 #endif
 #endif
          prec = new AMGFSolver();
