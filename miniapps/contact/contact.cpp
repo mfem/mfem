@@ -90,6 +90,8 @@ int main(int argc, char *argv[])
    MFEM_VERIFY(prob_no >= 0 &&
                prob_no <= 2, "Unknown test problem number: " << prob_no);
 
+   prob_name = (problem_name)prob_no;
+
    if (nonlinear && prob_name!=problem_name::beamsphere)
    {
       if (myid == 0)
@@ -101,7 +103,6 @@ int main(int argc, char *argv[])
       nonlinear = false;
    }
 
-   prob_name = (problem_name)prob_no;
 
    bool bound_constraints = (nonlinear) ? true : false;
 
@@ -169,7 +170,8 @@ int main(int argc, char *argv[])
          break;
    }
 
-   ElasticityOperator prob(&pmesh, ess_bdr_attr,ess_bdr_attr_comp, E, nu, nonlinear);
+   ElasticityOperator prob(&pmesh, ess_bdr_attr,ess_bdr_attr_comp, E, nu,
+                           nonlinear);
 
    int dim = pmesh.Dimension();
    Vector ess_values(dim);
@@ -357,31 +359,11 @@ int main(int argc, char *argv[])
       OptContactProblem contact(&prob, mortar_attr, nonmortar_attr, &new_coords, xref,
                                 tribol_ratio, enable_bound_constraints, use_mass_weights);
 
-      //if ( i >= bound_constraints_step && bound_constraints)
-      //{
-      //   eps_min = max(eps_min, GlobalLpNorm(infinity(), eps.Normlinf(),
-      //                                       MPI_COMM_WORLD));
-      //   // update eps and set parameters
-      //   for (int j = 0; j < eps.Size(); j++)
-      //   {
-      //      eps(j) = max(eps_min, eps(j));
-      //   }
-      //   xl.Set(1.0, xrefbc);
-      //   contact.SetBoundConstraints(xl, eps);
-      //}
-      //else if ( i > 0)
-      //{
-      //   for (int j = 0; j < eps.Size(); j++)
-      //   {
-      //      eps(j) = max(eps(j), abs(dx(j)));
-      //   }
-      //}
-
       if (bound_constraints)
       {
          contact.SetBoundConstraints(i);
       }
-      
+
 
       Solver * prec = nullptr;
       Solver * subspacesolver = nullptr;
@@ -394,7 +376,7 @@ int main(int argc, char *argv[])
 #ifdef MFEM_USE_MKL_CPARDISO
          subspacesolver = new CPardisoSolver(MPI_COMM_WORLD);
 #else
-	 MFEM_ABORT("MFEM must be built with MUMPS or MKL_CPARDISO in order to use AMGF");
+         MFEM_ABORT("MFEM must be built with MUMPS or MKL_CPARDISO in order to use AMGF");
 #endif
 #endif
          prec = new AMGFSolver();
@@ -421,7 +403,7 @@ int main(int argc, char *argv[])
       cgsolver.SetMaxIter(10000);
       cgsolver.SetPreconditioner(*prec);
 
-      ParInteriorPointSolver optimizer(&contact);
+      IPSolver optimizer(&contact);
       optimizer.SetTol(1e-6);
       optimizer.SetMaxIter(100);
       optimizer.SetLinearSolver(&cgsolver);
@@ -446,7 +428,7 @@ int main(int argc, char *argv[])
       int eval_err;
       real_t Einitial = contact.E(x0, eval_err);
       real_t Efinal = contact.E(xf, eval_err);
-      Array<int> & CGiterations = optimizer.GetCGIterNumbers();
+      Array<int> & CGiterations = optimizer.GetCGNumIterations();
       CGiter.push_back(CGiterations);
       int gndofs = prob.GetGlobalNumDofs();
 

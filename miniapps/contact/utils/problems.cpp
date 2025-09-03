@@ -162,7 +162,7 @@ void ElasticityOperator::SetTimeStepDisplacement(int i, const Vector & dx)
          eps(j) = max(eps(j), abs(dx(j)));
       }
    }
-  // update eps
+   // update eps
 }
 
 
@@ -178,13 +178,13 @@ void ElasticityOperator::UpdateEssentialBC(Array<int> & ess_bdr_attr_,
 
 void ElasticityOperator::Getxrefbc(Vector & xrefbc_) const
 {
-   xrefbc_.SetSize(ntdofs); 
+   xrefbc_.SetSize(ntdofs);
    xrefbc_.Set(1.0, xrefbc);
 }
 
 void ElasticityOperator::Geteps(Vector & eps_) const
 {
-   eps_.SetSize(ntdofs); 
+   eps_.SetSize(ntdofs);
    eps_.Set(1.0, eps);
 }
 
@@ -279,8 +279,11 @@ OptContactProblem::OptContactProblem(ElasticityOperator * problem_,
       problem->GetGradient(xrefbc,grad_ref);
       Kref = problem->GetHessian(xrefbc);
    }
-   dimU = J->Width();//problem->GetNumTDofs();
+   dimU = J->Width();
    dimG = J->Height();
+   num_constraints = J->GetGlobalNumRows();
+   if (bound_constraints) { num_constraints += 2 * J->GetGlobalNumCols(); }
+
    block_offsetsg[0] = 0;
    block_offsetsg[1] = dimG;
    block_offsetsg[2] = dimU;
@@ -472,7 +475,6 @@ HypreParMatrix * OptContactProblem::GetContactSubspaceTransferOperator()
       HypreParMatrix * P_ct = new HypreParMatrix(comm, nrows_c, glob_nrows_c,
                                                  glob_ncols_c, Pct.GetI(), Pct.GetJ(),
                                                  Pct.GetData(), rows_c,cols_c);
-      // HypreStealOwnership(*P_ct, Pct);
       Pc = P_ct->Transpose();
       delete P_ct;
    }
@@ -628,7 +630,6 @@ OptContactProblem::~OptContactProblem()
    delete J;
    delete Jt;
    delete Pc;
-   delete Pnc;
    delete NegId;
    delete Iu;
    delete negIu;

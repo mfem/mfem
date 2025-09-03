@@ -13,7 +13,7 @@ using namespace mfem;
  * s.t. c(u, m) = 0
  *           m >= ml
  */
-ParInteriorPointSolver::ParInteriorPointSolver(OptContactProblem * problem_)
+IPSolver::IPSolver(OptContactProblem * problem_)
    : problem(problem_)
 {
    abs_tol  = 1.e-2; // Tolerance of the optimizer
@@ -21,15 +21,17 @@ ParInteriorPointSolver::ParInteriorPointSolver(OptContactProblem * problem_)
    mu_k     = 1.0;  // Log-barrier penalty parameter
 
 
-   /* The following constants follow that of 
-    * Wächter, Andreas, and Lorenz T. Biegler. 
-    * "On the implementation of an interior-point filter line-search algorithm for large-scale nonlinear programming." 
+   /* The following constants follow that of
+    * Wächter, Andreas, and Lorenz T. Biegler.
+    * "On the implementation of an interior-point filter line-search algorithm for large-scale nonlinear programming."
     * Mathematical programming 106.1 (2006): 25-57.
     */
 
    /* line search constants */
-   tauMin   = 0.99;  // constant that controls the rate iterates approach boundary > 0, < 1
-   eta      = 1.e-4; // Armijo backtracking sufficient-decrease condition constant > 0, < 1
+   tauMin   =
+      0.99;  // constant that controls the rate iterates approach boundary > 0, < 1
+   eta      =
+      1.e-4; // Armijo backtracking sufficient-decrease condition constant > 0, < 1
    thetaMin = 1.e-4; // allowed equality constraint violation
    delta    = 1.0;   // sufficient barrier objective progress constant > 0
    sTheta   = 1.1;   // sufficient barrier objective progress constant > 0
@@ -38,25 +40,25 @@ ParInteriorPointSolver::ParInteriorPointSolver(OptContactProblem * problem_)
    gPhi   = 1.e-5;   // sufficient barrier objective decrease constant > 0, < 1
    thetaMax = 1.e6; // maximum constraint violation (defines initial filter)
 
-   /* interior-point continuation constants 
+   /* interior-point continuation constants
     * \mu_new = max{abs_tol / 10, \min{ kMu * \mu_old, (\mu_old)^thetaMu}}
     * */
-   kMu     = 0.2; 
+   kMu     = 0.2;
    thetaMu = 1.5;
    kEps   = 1.e1; // constant that determines when the log-barrier parameter is decreased
-   
+
    kSig     = 1.e10; // primal-dual Hessian deviation constant
-   
-   
+
+
    /* The following constants follow that of
-    * Chiang, Nai-Yuan, and Victor M. Zavala. 
-    * "An inertia-free filter line-search algorithm for large-scale nonlinear programming." 
+    * Chiang, Nai-Yuan, and Victor M. Zavala.
+    * "An inertia-free filter line-search algorithm for large-scale nonlinear programming."
     * Computational Optimization and Applications 64.2 (2016): 327-354.
     * See Inertia-Free Regularizaton Algorithm (IFR).
-    * We use the second variant (see Section 4.1 "Alternative Inertia-Free Tests") 
+    * We use the second variant (see Section 4.1 "Alternative Inertia-Free Tests")
     * which does not require solving for normal and tangential components.
     */
-   
+
    /* inertia-regularization constants */
    alphaCurvatureTest = 1.e-11;
    deltaRegLast = 0.0;
@@ -70,7 +72,8 @@ ParInteriorPointSolver::ParInteriorPointSolver(OptContactProblem * problem_)
    dimU = problem->GetDimU();
    dimM = problem->GetDimM();
    dimC = problem->GetDimC();
-   MFEM_VERIFY(dimM == dimC, "Expecting equal numbers of equality and inequality constraints");
+   MFEM_VERIFY(dimM == dimC,
+               "Expecting equal numbers of equality and inequality constraints");
 
    comm = problem->GetComm();
    problem->GetLumpedMassWeights(Mcslump, Mvlump);
@@ -126,8 +129,8 @@ ParInteriorPointSolver::ParInteriorPointSolver(OptContactProblem * problem_)
    MPI_Comm_rank(comm, &myid);
 }
 
-real_t ParInteriorPointSolver::MaxStepSize(Vector &x, Vector &xl, Vector &xhat,
-                                           real_t tau)
+real_t IPSolver::GetMaxStepSize(Vector &x, Vector &xl, Vector &xhat,
+                                real_t tau)
 {
    real_t alphaMaxloc = 1.0;
    real_t alphaTmp;
@@ -146,14 +149,14 @@ real_t ParInteriorPointSolver::MaxStepSize(Vector &x, Vector &xl, Vector &xhat,
    return alphaMaxglb;
 }
 
-real_t ParInteriorPointSolver::MaxStepSize(Vector &x, Vector &xhat, real_t tau)
+real_t IPSolver::GetMaxStepSize(Vector &x, Vector &xhat, real_t tau)
 {
    Vector zero(x.Size()); zero = 0.0;
-   return MaxStepSize(x, zero, xhat, tau);
+   return GetMaxStepSize(x, zero, xhat, tau);
 }
 
 
-void ParInteriorPointSolver::Mult(const Vector &x0, Vector &xf)
+void IPSolver::Mult(const Vector &x0, Vector &xf)
 {
    BlockVector x0block(block_offsetsx); x0block = 0.0;
    x0block.GetBlock(0).Set(1.0, x0);
@@ -165,7 +168,7 @@ void ParInteriorPointSolver::Mult(const Vector &x0, Vector &xf)
 }
 
 
-void ParInteriorPointSolver::Mult(const BlockVector &x0, BlockVector &xf)
+void IPSolver::Mult(const BlockVector &x0, BlockVector &xf)
 {
    converged = false;
    BlockVector xk(block_offsetsx), xhat(block_offsetsx); xk = 0; xhat = 0.0;
@@ -202,7 +205,7 @@ void ParInteriorPointSolver::Mult(const BlockVector &x0, BlockVector &xf)
     * that is the filter does not allow for iterates where the constraint violation
     * is larger than that of thetaMax
     */
-   real_t theta0 = theta(xk);
+   real_t theta0 = GetTheta(xk);
    thetaMin = 1.e-4 * max(1.0, theta0);
    thetaMax = 1.e8  * thetaMin;
 
@@ -221,7 +224,7 @@ void ParInteriorPointSolver::Mult(const BlockVector &x0, BlockVector &xf)
       if (Eevalmu0 < abs_tol)
       {
          converged = true;
-         if (myid == 0 && print_level > 0) 
+         if (myid == 0 && print_level > 0)
          {
             cout << "solved optimization problem\n";
          }
@@ -265,10 +268,10 @@ void ParInteriorPointSolver::Mult(const BlockVector &x0, BlockVector &xf)
       IPNewtonSolve(xk, lk, zlk, zlhat, Xhatuml, passedCTest, mu_k);
       if (!passedCTest)
       {
-         if (myid == 0 && print_level > 0) 
-	 {  
-            cout << "curvature test failed\n"; 
-	 }
+         if (myid == 0 && print_level > 0)
+         {
+            cout << "curvature test failed\n";
+         }
          real_t deltaReg = 0.0;
          int maxCTests = 30;
 
@@ -281,8 +284,8 @@ void ParInteriorPointSolver::Mult(const BlockVector &x0, BlockVector &xf)
          {
             deltaReg = fmax(deltaRegMin, kRegMinus * deltaRegLast);
          }
-         
-	 // solve regularized IP-Newton linear system
+
+         // solve regularized IP-Newton linear system
          zlhat = 0.0; Xhatuml = 0.0;
          IPNewtonSolve(xk, lk, zlk, zlhat, Xhatuml, passedCTest, mu_k, deltaReg);
 
@@ -335,7 +338,7 @@ void ParInteriorPointSolver::Mult(const BlockVector &x0, BlockVector &xf)
       {
          cout << "mu = " << mu_k << endl;
       }
-      lineSearch(Xk, Xhat, mu_k);
+      LineSearch(Xk, Xhat, mu_k);
 
       if (lineSearchSuccess)
       {
@@ -353,7 +356,7 @@ void ParInteriorPointSolver::Mult(const BlockVector &x0, BlockVector &xf)
          xk.GetBlock(1).Add(alpha, Xhat.GetBlock(1));
          lk.Add(alpha,   Xhat.GetBlock(2));
          zlk.Add(alphaz, Xhat.GetBlock(3));
-         projectZ(xk, zlk, mu_k);
+         ProjectZ(xk, zlk, mu_k);
       }
       else
       {
@@ -374,9 +377,9 @@ void ParInteriorPointSolver::Mult(const BlockVector &x0, BlockVector &xf)
    xf.GetBlock(1).Set(1.0, xk.GetBlock(1));
 }
 
-void ParInteriorPointSolver::FormIPNewtonMat(BlockVector & x, Vector & l,
-                                             Vector &zl,
-                                             BlockOperator &Ak, real_t delta)
+void IPSolver::FormIPNewtonMat(BlockVector & x, Vector & l,
+                               Vector &zl,
+                               BlockOperator &Ak, real_t delta)
 {
    Huu = problem->Duuf(x);
    Hum = problem->Dumf(x);
@@ -396,7 +399,7 @@ void ParInteriorPointSolver::FormIPNewtonMat(BlockVector & x, Vector & l,
          for (int i = 0; i < dimM; i++)
          {
             DiagLogBar(i) = (Mcslump(i) * zl(i)) / (x(i+dimU) - ml(
-                                                          i)) + delta * Mcslump(i);
+                                                       i)) + delta * Mcslump(i);
          }
       }
       else if (constraint_offsets.Size() == 4)
@@ -404,17 +407,17 @@ void ParInteriorPointSolver::FormIPNewtonMat(BlockVector & x, Vector & l,
          for (int i = 0; i < dimG; i++)
          {
             DiagLogBar(i) = (Mcslump(i) * zl(i)) / (x(i+dimU) - ml(
-                                                          i)) + delta * Mcslump(i);
+                                                       i)) + delta * Mcslump(i);
          }
          for (int i = dimG; i < dimG + dimU; i++)
          {
             DiagLogBar(i) = (Mvlump(i - dimG) * zl(i)) / (x(i+dimU) - ml(
-                                                                i)) + delta * Mvlump(i-dimG);
+                                                             i)) + delta * Mvlump(i-dimG);
          }
          for (int i = dimG + dimU; i < dimM; i++)
          {
             DiagLogBar(i) = (Mvlump(i - dimG - dimU) * zl(i)) / (x(i+dimU) - ml(
-                                                                       i)) + delta * Mvlump(i - dimG - dimU);
+                                                                    i)) + delta * Mvlump(i - dimG - dimU);
          }
       }
    }
@@ -492,9 +495,9 @@ void ParInteriorPointSolver::FormIPNewtonMat(BlockVector & x, Vector & l,
 
 // perturbed KKT system solve
 // determine the search direction
-void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l,
-                                           Vector &zl, Vector &zlhat, BlockVector &Xhat, bool & passedCTest, real_t mu,
-                                           real_t delta)
+void IPSolver::IPNewtonSolve(BlockVector &x, Vector &l,
+                             Vector &zl, Vector &zlhat, BlockVector &Xhat, bool & passedCTest, real_t mu,
+                             real_t delta)
 {
    iter++;
    // solve A x = b, where A is the IP-Newton matrix
@@ -507,7 +510,7 @@ void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l,
    //       [          c        ]
    BlockVector gradphi(block_offsetsx); gradphi = 0.0;
    BlockVector JTl(block_offsetsx); JTl = 0.0;
-   Dxphi(x, mu, gradphi);
+   GetDxphi(x, mu, gradphi);
 
    (A.GetBlock(0,2)).Mult(l, JTl.GetBlock(0));
    (A.GetBlock(1,2)).Mult(l, JTl.GetBlock(1));
@@ -564,13 +567,13 @@ void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l,
    for (int i = 0; i < dimM; i++)
    {
       zlhat(i) = -1.*(zl(i) + (zl(i) * Xhat(i + dimU) - mu) / (x(i + dimU) - ml(
-                                                                      i)) );
+                                                                  i)) );
    }
 }
 
 // here Xhat, X will be BlockVectors w.r.t. the 4 partitioning X = (u, m, l, zl)
-void ParInteriorPointSolver::lineSearch(BlockVector& X0, BlockVector& Xhat,
-                                        real_t mu)
+void IPSolver::LineSearch(BlockVector& X0, BlockVector& Xhat,
+                          real_t mu)
 {
    real_t tau  = max(tauMin, 1.0 - mu);
    int eval_err = 0;
@@ -582,8 +585,8 @@ void ParInteriorPointSolver::lineSearch(BlockVector& X0, BlockVector& Xhat,
    Vector mhat = Xhat.GetBlock(1);
    Vector lhat = Xhat.GetBlock(2);
    Vector zhat = Xhat.GetBlock(3);
-   real_t alphaMax  = MaxStepSize(m0, ml, mhat, tau);
-   real_t alphaMaxz = MaxStepSize(z0, zhat, tau);
+   real_t alphaMax  = GetMaxStepSize(m0, ml, mhat, tau);
+   real_t alphaMaxz = GetMaxStepSize(z0, zhat, tau);
    alphaz = alphaMaxz;
 
    BlockVector x0(block_offsetsx); x0 = 0.0;
@@ -606,7 +609,7 @@ void ParInteriorPointSolver::lineSearch(BlockVector& X0, BlockVector& Xhat,
    Vector uhatsoc(dimU); uhatsoc = 0.0;
    Vector mhatsoc(dimM); mhatsoc = 0.0;
 
-   Dxphi(x0, mu, Dxphi0);
+   GetDxphi(x0, mu, Dxphi0);
 
    real_t Dxphi0_xhat = InnerProduct(comm, Dxphi0, xhat);
    descentDirection = Dxphi0_xhat < 0. ? true : false;
@@ -622,8 +625,8 @@ void ParInteriorPointSolver::lineSearch(BlockVector& X0, BlockVector& Xhat,
       cout << " a descent direction for the log-barrier objective\n";
    }
 
-   thx0 = theta(x0);
-   phx0 = phi(x0, mu);
+   thx0 = GetTheta(x0);
+   phx0 = GetPhi(x0, mu);
 
    lineSearchSuccess = false;
    for (int i = 0; i < maxBacktrack; i++)
@@ -637,8 +640,8 @@ void ParInteriorPointSolver::lineSearch(BlockVector& X0, BlockVector& Xhat,
       xtrial.Add(alpha, xhat);
 
       // ------ A-5.3. if not in filter region go to A.5.4 otherwise go to A-5.5.
-      thxtrial = theta(xtrial);
-      phxtrial = phi(xtrial, mu, eval_err);
+      thxtrial = GetTheta(xtrial);
+      phxtrial = GetPhi(xtrial, mu, eval_err);
       if (eval_err == 1)
       {
          if (myid == 0 && print_level > 0)
@@ -648,7 +651,7 @@ void ParInteriorPointSolver::lineSearch(BlockVector& X0, BlockVector& Xhat,
          alpha *= 0.5;
          continue;
       }
-      filterCheck(thxtrial, phxtrial);
+      FilterCheck(thxtrial, phxtrial);
       if (!inFilterRegion)
       {
          if (myid == 0 && print_level > 0)
@@ -680,10 +683,10 @@ void ParInteriorPointSolver::lineSearch(BlockVector& X0, BlockVector& Xhat,
                                  false;
             if (sufficientDecrease)
             {
-               if (myid == 0 && print_level > 0) 
-	       { 
-                  cout << "Line search successful: sufficient decrease in log-barrier objective.\n"; 
-	       }
+               if (myid == 0 && print_level > 0)
+               {
+                  cout << "Line search successful: sufficient decrease in log-barrier objective.\n";
+               }
                // accept the trial step
                lineSearchSuccess = true;
                break;
@@ -693,10 +696,10 @@ void ParInteriorPointSolver::lineSearch(BlockVector& X0, BlockVector& Xhat,
          {
             if (thxtrial <= (1. - gTheta) * thx0 || phxtrial <= phx0 - gPhi * thx0)
             {
-               if (myid == 0 && print_level > 0) 
-	       { 
-                  cout << "Line search successful: infeasibility or log-barrier objective decreased.\n"; 
-	       }
+               if (myid == 0 && print_level > 0)
+               {
+                  cout << "Line search successful: infeasibility or log-barrier objective decreased.\n";
+               }
                // accept the trial step
                lineSearchSuccess = true;
                break;
@@ -714,7 +717,7 @@ void ParInteriorPointSolver::lineSearch(BlockVector& X0, BlockVector& Xhat,
    }
 }
 
-void ParInteriorPointSolver::projectZ(const Vector &x, Vector &z, real_t mu)
+void IPSolver::ProjectZ(const Vector &x, Vector &z, real_t mu)
 {
    real_t zi;
    real_t mudivmml;
@@ -726,7 +729,7 @@ void ParInteriorPointSolver::projectZ(const Vector &x, Vector &z, real_t mu)
    }
 }
 
-void ParInteriorPointSolver::filterCheck(real_t th, real_t ph)
+void IPSolver::FilterCheck(real_t th, real_t ph)
 {
    inFilterRegion = false;
    if (th > thetaMax)
@@ -751,9 +754,9 @@ void ParInteriorPointSolver::filterCheck(real_t th, real_t ph)
 // see "An Inertia-Free Filter Line-search Algorithm for
 // Large-scale Nonlinear Programming" by Nai-Yuan Chiang and
 // Victor M Zavala, Computational Optimization and Applications (2016)
-bool ParInteriorPointSolver::CurvatureTest(const BlockOperator & A,
-                                           const BlockVector & Xhat, const Vector & l, const BlockVector & b,
-                                           const real_t & delta)
+bool IPSolver::CurvatureTest(const BlockOperator & A,
+                             const BlockVector & Xhat, const Vector & l, const BlockVector & b,
+                             const real_t & delta)
 {
    Vector lplus(l.Size());
    lplus.Set(1.0, l);
@@ -783,7 +786,7 @@ bool ParInteriorPointSolver::CurvatureTest(const BlockOperator & A,
 }
 
 
-real_t ParInteriorPointSolver::OptimalityError(const BlockVector &x, const Vector &l,
+real_t IPSolver::OptimalityError(const BlockVector &x, const Vector &l,
                                  const Vector &zl, real_t mu)
 {
    /* stationarity, feasibility, and complementarity errors */
@@ -793,8 +796,8 @@ real_t ParInteriorPointSolver::OptimalityError(const BlockVector &x, const Vecto
    /* gradient of Lagrangian */
    BlockVector gradL(block_offsetsx);
    gradL = 0.0;
-   DxL(x, l, zl, gradL);
-   
+   EvalLagrangianGradient(x, l, zl, gradL);
+
    /* constraint function c(u, m) = 0 */
    Vector cx(dimC); cx = 0.0;
    problem->c(x, cx);
@@ -845,7 +848,7 @@ real_t ParInteriorPointSolver::OptimalityError(const BlockVector &x, const Vecto
    return optimalityError;
 }
 
-real_t ParInteriorPointSolver::theta(const BlockVector &x)
+real_t IPSolver::GetTheta(const BlockVector &x)
 {
    Vector cx(dimC);
    problem->c(x, cx);
@@ -875,8 +878,8 @@ real_t ParInteriorPointSolver::theta(const BlockVector &x)
 }
 
 // log-barrier objective
-real_t ParInteriorPointSolver::phi(const BlockVector &x, real_t mu,
-                                   int & eval_err)
+real_t IPSolver::GetPhi(const BlockVector &x, real_t mu,
+                        int eval_err)
 {
    real_t fx = problem->CalcObjective(x, eval_err);
    real_t logBarrierLoc = 0.0;
@@ -911,16 +914,9 @@ real_t ParInteriorPointSolver::phi(const BlockVector &x, real_t mu,
    return fx - mu * logBarrierGlb;
 }
 
-real_t ParInteriorPointSolver::phi(const BlockVector & x, real_t mu)
-{
-   int eval_err = 0;
-   return phi(x, mu, eval_err);
-}
-
-
 // gradient of log-barrier objective with respect to x = (u, m)
-void ParInteriorPointSolver::Dxphi(const BlockVector &x, real_t mu,
-                                   BlockVector &y)
+void IPSolver::GetDxphi(const BlockVector &x, real_t mu,
+                        BlockVector &y)
 {
    problem->CalcObjectiveGrad(x, y);
    BlockVector ytemp(constraint_offsets); ytemp = 0.0;
@@ -943,7 +939,7 @@ void ParInteriorPointSolver::Dxphi(const BlockVector &x, real_t mu,
 
 // Lagrangian function evaluation
 // L(x, l, zl) = f(x) + l^T c(x) - zl^T m
-real_t ParInteriorPointSolver::L(const BlockVector &x, const Vector &l,
+real_t IPSolver::EvalLangrangian(const BlockVector &x, const Vector &l,
                                  const Vector &zl)
 {
    int eval_err = 0;
@@ -964,8 +960,8 @@ real_t ParInteriorPointSolver::L(const BlockVector &x, const Vector &l,
    return (fx + InnerProduct(comm, cx, l) - InnerProduct(comm, temp, zl));
 }
 
-void ParInteriorPointSolver::DxL(const BlockVector &x, const Vector &l,
-                                 const Vector &zl, BlockVector &y)
+void IPSolver::EvalLagrangianGradient(const BlockVector &x, const Vector &l,
+                                      const Vector &zl, BlockVector &y)
 {
    // evaluate the gradient of the objective with respect to the primal variables x = (u, m)
    BlockVector gradxf(block_offsetsx); gradxf = 0.0;
@@ -1000,32 +996,32 @@ void ParInteriorPointSolver::DxL(const BlockVector &x, const Vector &l,
    (y.GetBlock(1)).Add(-1.0, temp);
 }
 
-bool ParInteriorPointSolver::GetConverged() const
+bool IPSolver::GetConverged() const
 {
    return converged;
 }
 
-void ParInteriorPointSolver::SetTol(real_t Tol)
+void IPSolver::SetTol(real_t Tol)
 {
    abs_tol = Tol;
 }
 
-void ParInteriorPointSolver::SetMaxIter(int max_it)
+void IPSolver::SetMaxIter(int max_it)
 {
    max_iter = max_it;
 }
 
-void ParInteriorPointSolver::SetBarrierParameter(real_t mu_0)
+void IPSolver::SetBarrierParameter(real_t mu_0)
 {
    mu_k = mu_0;
 }
 
-void ParInteriorPointSolver::SetUsingMassWeights(bool useMassWeights_)
+void IPSolver::SetUsingMassWeights(bool useMassWeights_)
 {
    useMassWeights = useMassWeights_;
 }
 
-ParInteriorPointSolver::~ParInteriorPointSolver()
+IPSolver::~IPSolver()
 {
    if (iter > 0)
    {

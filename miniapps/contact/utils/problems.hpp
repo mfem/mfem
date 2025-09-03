@@ -93,34 +93,27 @@ private:
    MPI_Comm comm;
    ElasticityOperator * problem = nullptr;
    ParFiniteElementSpace * vfes = nullptr;
-   int dim;
-   int dimU, dimM, dimC;
-   int dimG;
-   Vector ml;
-   HypreParMatrix * NegId = nullptr;
-   HypreParMatrix * Kref=nullptr;
-   Vector grad_ref;
-   real_t energy_ref;
-
    ParMesh * pmesh = nullptr;
+   int dim, dimU, dimM, dimC, dimG;
+   int num_constraints;
+   real_t energy_ref;
+   Vector ml, grad_ref, xref, xrefbc, gapv;
    std::set<int> mortar_attrs;
    std::set<int> nonmortar_attrs;
-   ParGridFunction * coords = nullptr;
 
-   Vector xref;
-   Vector xrefbc;
-   bool qp;
-
-   void ComputeGapJacobian();
-   Vector gapv;
+   HypreParMatrix * NegId = nullptr;
+   HypreParMatrix * Kref=nullptr;
    // Jacobian of gap
    HypreParMatrix * J = nullptr;
    // Transpose of the Jacobian of gap
    HypreParMatrix * Jt = nullptr;
-   // Restriction operator to the contact dofs
+   // Transfer operator from the contact space to the displacement space
    HypreParMatrix * Pc = nullptr;
-   // Restriction operator to the non-contact dofs
-   HypreParMatrix * Pnc = nullptr;
+   ParGridFunction * coords = nullptr;
+
+
+   void ComputeGapJacobian();
+
    Array<HYPRE_BigInt> constraints_starts;
    Array<HYPRE_BigInt> dof_starts;
 
@@ -166,17 +159,7 @@ public:
    Vector & Getml() {return ml;}
    MPI_Comm GetComm() {return comm ;}
    HYPRE_BigInt * GetConstraintsStarts() {return constraints_starts.GetData();}
-   HYPRE_BigInt GetGlobalNumConstraints()
-   {
-      if (bound_constraints)
-      {
-         return J->GetGlobalNumRows() + 2 * J->GetGlobalNumCols();
-      }
-      else
-      {
-         return J->GetGlobalNumRows();
-      }
-   }
+   HYPRE_BigInt GetGlobalNumConstraints() { return num_constraints; }
 
    HYPRE_BigInt * GetDofStarts() {return dof_starts.GetData();}
    HYPRE_BigInt GetGlobalNumDofs() {return J->GetGlobalNumCols(); }

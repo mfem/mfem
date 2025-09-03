@@ -10,14 +10,14 @@ using namespace mfem;
 #ifndef PARIPSOLVER
 #define PARIPSOLVER
 
-class ParInteriorPointSolver
+class IPSolver
 {
 protected:
    OptContactProblem* problem = nullptr;
    real_t abs_tol;
    int  max_iter;
    int  iter=0;
-   real_t mu_k; // \mu_k
+   real_t mu_k;
    Vector lk, zlk;
 
    real_t kSig, tauMin, eta, thetaMin, delta, sTheta, sPhi, kMu, thetaMu;
@@ -79,7 +79,7 @@ protected:
    int print_level = 0;
    MPI_Comm comm;
 public:
-   ParInteriorPointSolver(OptContactProblem*);
+   IPSolver(OptContactProblem*);
    void Mult(const BlockVector&, BlockVector&);
    void Mult(const Vector&, Vector &);
    void SetTol(real_t);
@@ -89,26 +89,27 @@ public:
    void SetLinearSolver(Solver * solver_) { solver = solver_; };
    void SetPrintLevel(int print_level_) { print_level = print_level_; };
    bool GetConverged() const;
-   Array<int> & GetCGIterNumbers() {return cgnum_iterations;};
+   Array<int> & GetCGNumIterations() {return cgnum_iterations;};
    int GetNumIterations() {return iter;};
-   virtual ~ParInteriorPointSolver();
-private: 
-   real_t MaxStepSize(Vector&, Vector&, Vector&, real_t);
-   real_t MaxStepSize(Vector&, Vector&, real_t);
+   virtual ~IPSolver();
+private:
+   real_t GetMaxStepSize(Vector&, Vector&, Vector&, real_t);
+   real_t GetMaxStepSize(Vector&, Vector&, real_t);
    void FormIPNewtonMat(BlockVector&, Vector&, Vector&, BlockOperator &,
                         real_t delta = 0.0);
    void IPNewtonSolve(BlockVector&, Vector&, Vector&, Vector&, BlockVector&,
                       bool &, real_t, real_t delta = 0.0);
-   void lineSearch(BlockVector&, BlockVector&, real_t);
-   void projectZ(const Vector &, Vector &, real_t);
-   void filterCheck(real_t, real_t);
-   real_t OptimalityError(const BlockVector &, const Vector &, const Vector &, real_t mu = 0.0);
-   real_t theta(const BlockVector &);
-   real_t phi(const BlockVector &, real_t);
-   real_t phi(const BlockVector &, real_t, int &);
-   void Dxphi(const BlockVector &, real_t, BlockVector &);
-   real_t L(const BlockVector &, const Vector &, const Vector &);
-   void DxL(const BlockVector &, const Vector &, const Vector &, BlockVector &);
+   void LineSearch(BlockVector&, BlockVector&, real_t);
+   void ProjectZ(const Vector &, Vector &, real_t);
+   void FilterCheck(real_t, real_t);
+   real_t OptimalityError(const BlockVector &, const Vector &, const Vector &,
+                          real_t mu = 0.0);
+   real_t GetTheta(const BlockVector &);
+   real_t GetPhi(const BlockVector &, real_t, int eval_err = 0);
+   void GetDxphi(const BlockVector &, real_t, BlockVector &);
+   real_t EvalLangrangian(const BlockVector &, const Vector &, const Vector &);
+   void EvalLagrangianGradient(const BlockVector &, const Vector &, const Vector &,
+                               BlockVector &);
    bool CurvatureTest(const BlockOperator & A, const BlockVector & Xhat,
                       const Vector &l, const BlockVector & b, const real_t & delta);
    void Clear()
