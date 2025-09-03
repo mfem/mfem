@@ -272,17 +272,17 @@ void ParInteriorPointSolver::Mult(const BlockVector &x0, BlockVector &xf)
          real_t deltaReg = 0.0;
          int maxCTests = 30;
 
-         // choose appropriate initial inertia regularization
+         // inertia regularization initialization
          if (deltaRegLast < deltaRegMin)
          {
             deltaReg = deltaReg0;
          }
          else
          {
-            // try a potentially smaller regularization value than the one that worked last time
             deltaReg = fmax(deltaRegMin, kRegMinus * deltaRegLast);
          }
-         // solve with regularization
+         
+	 // solve regularized IP-Newton linear system
          zlhat = 0.0; Xhatuml = 0.0;
          IPNewtonSolve(xk, lk, zlk, zlhat, Xhatuml, passedCTest, mu_k, deltaReg);
 
@@ -393,36 +393,36 @@ void ParInteriorPointSolver::FormIPNewtonMat(BlockVector & x, Vector & l,
    {
       if (constraint_offsets.Size() == 2)
       {
-         for (int ii = 0; ii < dimM; ii++)
+         for (int i = 0; i < dimM; i++)
          {
-            DiagLogBar(ii) = (Mcslump(ii) * zl(ii)) / (x(ii+dimU) - ml(
-                                                          ii)) + delta * Mcslump(ii);
+            DiagLogBar(i) = (Mcslump(i) * zl(i)) / (x(i+dimU) - ml(
+                                                          i)) + delta * Mcslump(i);
          }
       }
       else if (constraint_offsets.Size() == 4)
       {
-         for (int ii = 0; ii < dimG; ii++)
+         for (int i = 0; i < dimG; i++)
          {
-            DiagLogBar(ii) = (Mcslump(ii) * zl(ii)) / (x(ii+dimU) - ml(
-                                                          ii)) + delta * Mcslump(ii);
+            DiagLogBar(i) = (Mcslump(i) * zl(i)) / (x(i+dimU) - ml(
+                                                          i)) + delta * Mcslump(i);
          }
-         for (int ii = dimG; ii < dimG + dimU; ii++)
+         for (int i = dimG; i < dimG + dimU; i++)
          {
-            DiagLogBar(ii) = (Mvlump(ii - dimG) * zl(ii)) / (x(ii+dimU) - ml(
-                                                                ii)) + delta * Mvlump(ii-dimG);
+            DiagLogBar(i) = (Mvlump(i - dimG) * zl(i)) / (x(i+dimU) - ml(
+                                                                i)) + delta * Mvlump(i-dimG);
          }
-         for (int ii = dimG + dimU; ii < dimM; ii++)
+         for (int i = dimG + dimU; i < dimM; i++)
          {
-            DiagLogBar(ii) = (Mvlump(ii - dimG - dimU) * zl(ii)) / (x(ii+dimU) - ml(
-                                                                       ii)) + delta * Mvlump(ii - dimG - dimU);
+            DiagLogBar(i) = (Mvlump(i - dimG - dimU) * zl(i)) / (x(i+dimU) - ml(
+                                                                       i)) + delta * Mvlump(i - dimG - dimU);
          }
       }
    }
    else
    {
-      for (int ii = 0; ii < dimM; ii++)
+      for (int i = 0; i < dimM; i++)
       {
-         DiagLogBar(ii) = zl(ii) / (x(ii+dimU) - ml(ii)) + delta;
+         DiagLogBar(i) = zl(i) / (x(i+dimU) - ml(i)) + delta;
       }
    }
 
@@ -512,10 +512,10 @@ void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l,
    (A.GetBlock(0,2)).Mult(l, JTl.GetBlock(0));
    (A.GetBlock(1,2)).Mult(l, JTl.GetBlock(1));
 
-   for (int ii = 0; ii < 2; ii++)
+   for (int i = 0; i < 2; i++)
    {
-      b.GetBlock(ii).Set(1.0, gradphi.GetBlock(ii));
-      b.GetBlock(ii).Add(1.0, JTl.GetBlock(ii));
+      b.GetBlock(i).Set(1.0, gradphi.GetBlock(i));
+      b.GetBlock(i).Add(1.0, JTl.GetBlock(i));
    }
    problem->c(x, b.GetBlock(2));
    b *= -1.0;
@@ -561,10 +561,10 @@ void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l,
    passedCTest = CurvatureTest(A, Xhat, l, b, delta);
 
    /* backsolve to determine zlhat */
-   for (int ii = 0; ii < dimM; ii++)
+   for (int i = 0; i < dimM; i++)
    {
-      zlhat(ii) = -1.*(zl(ii) + (zl(ii) * Xhat(ii + dimU) - mu) / (x(ii + dimU) - ml(
-                                                                      ii)) );
+      zlhat(i) = -1.*(zl(i) + (zl(i) * Xhat(i + dimU) - mu) / (x(i + dimU) - ml(
+                                                                      i)) );
    }
 }
 
@@ -786,22 +786,25 @@ bool ParInteriorPointSolver::CurvatureTest(const BlockOperator & A,
 real_t ParInteriorPointSolver::OptimalityError(const BlockVector &x, const Vector &l,
                                  const Vector &zl, real_t mu)
 {
-   real_t E1, E2, E3; // stationarity, feasibility, and complementarity errors
+   /* stationarity, feasibility, and complementarity errors */
+   real_t E1, E2, E3;
    real_t optimalityError;
-   real_t sc, sd;
+
+   /* gradient of Lagrangian */
    BlockVector gradL(block_offsetsx);
-   gradL = 0.0; // stationarity grad L = grad f + J^T l - z
-   Vector cx(dimC); cx = 0.0;     // feasibility c = c(x)
-   Vector comp(dimM); comp = 0.0; // complementarity M Z - mu 1
-
+   gradL = 0.0;
    DxL(x, l, zl, gradL);
-
+   
+   /* constraint function c(u, m) = 0 */
+   Vector cx(dimC); cx = 0.0;
    problem->c(x, cx);
 
-
-   for (int ii = 0; ii < dimM; ii++)
+   /* regularized complementarity
+    * |z_i * (m - ml)_i - mu| */
+   Vector comp(dimM); comp = 0.0; // complementarity Z (m - ml) - mu 1
+   for (int i = 0; i < dimM; i++)
    {
-      comp(ii) = abs((x(dimU + ii) - ml(ii)) * zl(ii) - mu);
+      comp(i) = abs((x(dimU + i) - ml(i)) * zl(i) - mu);
    }
 
    if (!useMassWeights)
@@ -920,7 +923,6 @@ void ParInteriorPointSolver::Dxphi(const BlockVector &x, real_t mu,
                                    BlockVector &y)
 {
    problem->CalcObjectiveGrad(x, y);
-   //Vector ytemp(dimM); ytemp = 0.0;
    BlockVector ytemp(constraint_offsets); ytemp = 0.0;
    for (int i = 0; i < dimM; i++)
    {
@@ -936,9 +938,7 @@ void ParInteriorPointSolver::Dxphi(const BlockVector &x, real_t mu,
          ytemp.GetBlock(2) *= Mvlump;
       }
    }
-
    y.GetBlock(1).Add(-mu, ytemp);
-
 }
 
 // Lagrangian function evaluation
@@ -949,7 +949,6 @@ real_t ParInteriorPointSolver::L(const BlockVector &x, const Vector &l,
    int eval_err = 0;
    real_t fx = problem->CalcObjective(x, eval_err);
    Vector cx(dimC); problem->c(x, cx);
-   //Vector temp(dimM); temp = 0.0;
    BlockVector temp(constraint_offsets); temp = 0.0;
    temp.Set(1.0, x.GetBlock(1));
    temp.Add(-1.0, ml);
@@ -1028,8 +1027,11 @@ void ParInteriorPointSolver::SetUsingMassWeights(bool useMassWeights_)
 
 ParInteriorPointSolver::~ParInteriorPointSolver()
 {
-   delete JuT;
-   delete JmT;
-   delete Wuu;
-   delete Wmm;
+   if (iter > 0)
+   {
+      delete JuT;
+      delete JmT;
+      delete Wuu;
+      delete Wmm;
+   }
 }
