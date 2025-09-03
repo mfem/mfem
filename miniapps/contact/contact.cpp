@@ -221,7 +221,6 @@ int main(int argc, char *argv[])
    ParGridFunction xcopy_gf(&fes_copy); xcopy_gf = x_gf;
 
    ParaViewDataCollection * paraview_dc = nullptr;
-   ParGridFunction xBC(fes); xBC = 0.0;
 
    if (paraview)
    {
@@ -255,23 +254,12 @@ int main(int argc, char *argv[])
 
    // deviation from the reference configuration
    Vector xref(x_gf.GetTrueVector().Size()); xref = 0.0;
-   Vector xrefbc(x_gf.GetTrueVector().Size()); xrefbc = 0.0;
-
-   // bound constraints
-   // - eps <= x - xl <= eps
-   // warning: eps_i = 0 will guarantee that LICQ is violated and
-   // issues with the optimizer
-   // eps_min > 0 ensures that this issue will not occur
-   Vector xl(xref.Size()); xl = 0.0;
-   Vector eps(xref.Size()); eps = 0.0;
    Vector dx(xref.Size()); dx = 0.0;
-   real_t eps_min = 1.e-4;
 
    real_t p = 30.0;
    ConstantCoefficient f(p);
    std::vector<Array<int>> CGiter;
 
-   Vector DCvals;
    int total_steps = nsteps + msteps;
    for (int i = 0; i<total_steps; i++)
    {
@@ -331,25 +319,11 @@ int main(int argc, char *argv[])
       if (i == 0)
       {
          xref = 0.0;
-         xrefbc = 0.0;
       }
       else
       {
          x_gf.GetTrueDofs(xref);
-         x_gf.GetTrueDofs(xrefbc);
       }
-
-      // set essential dofs with respect
-      // to a deformation relative to the "frame" or
-      // the reference configuration given by the original mesh
-      // xBC is a grid function that satisfies the essential boundary conditions
-      xBC = 0.0;
-      VectorConstantCoefficient xBC_cf(ess_values);
-      xBC.ProjectBdrCoefficient(xBC_cf, ess_bdr);
-      Vector xBCtrue;
-      xBC.GetTrueDofs(xBCtrue);
-      xBCtrue.GetSubVector(ess_tdof_list, DCvals);
-      xrefbc.SetSubVector(ess_tdof_list, DCvals);
 
       int bound_constraints_step = 3;
       bool enable_bound_constraints = (bound_constraints &&
