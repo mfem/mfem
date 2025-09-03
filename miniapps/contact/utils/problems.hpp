@@ -38,9 +38,12 @@ private:
    PWConstCoefficient c1_cf, c2_cf;
    NeoHookeanModel * material_model = nullptr;
 
+
    Vector xref;
    Vector xrefbc;
-
+   Vector eps;
+   real_t eps_min = 1.e-4;
+   int bound_constraint_step = 3;
    void Init();
    void SetEssentialBC();
    void SetUpOperator();
@@ -52,6 +55,7 @@ public:
    void SetParameters(const Vector & E, const Vector & nu);
    void SetNeumanPressureData(ConstantCoefficient &f, Array<int> & bdr_marker);
    void SetDisplacementDirichletData(const Vector & delta, Array<int> essbdr);
+   void SetTimeStepDisplacement(int i, const Vector & dx);
    void ResetDisplacementDirichletData();
    void UpdateEssentialBC(Array<int> & ess_bdr_attr_,
                           Array<int> & ess_bdr_attr_comp_);
@@ -73,6 +77,8 @@ public:
    const ParGridFunction & GetDisplacementGridFunction() const { return x; };
    const Array<int> & GetEssentialDofs() const { return ess_tdof_list; };
    void Getxrefbc(Vector & xrefbc_) const;
+   void Geteps(Vector & eps_) const;
+   int GetBoundConstraintStep() const { return bound_constraint_step; };
    real_t GetEnergy(const Vector & u) const;
    void GetGradient(const Vector & u, Vector & gradE) const;
    HypreParMatrix * GetHessian(const Vector & u);
@@ -197,6 +203,7 @@ public:
    HypreParMatrix * DddE(const Vector & d);
 
    void SetBoundConstraints(const Vector & dl_, const Vector & eps_);
+   void SetBoundConstraints(int i);
    HypreParMatrix *  SetupTribol(ParMesh * pmesh, ParGridFunction * coords,
                                  const Array<int> & ess_tdofs,
                                  const std::set<int> & mortar_attrs,

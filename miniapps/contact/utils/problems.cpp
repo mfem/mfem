@@ -55,6 +55,7 @@ void ElasticityOperator::Init()
    ParGridFunction xr(fes); xr.ProjectCoefficient(ref_cf);
    xr.GetTrueDofs(xref);
    xrefbc.SetSize(ntdofs); xrefbc = 0.0;
+   eps.SetSize(ntdofs); eps = eps_min;
    SetEssentialBC();
    SetUpOperator();
 }
@@ -144,6 +145,27 @@ void ElasticityOperator::SetDisplacementDirichletData(const Vector & delta,
    xrefbc.SetSubVector(essbdr, DCvals);
 }
 
+void ElasticityOperator::SetTimeStepDisplacement(int i, const Vector & dx)
+{
+   if (i >= bound_constraint_step)
+   {
+      eps_min = max(eps_min, GlobalLpNorm(infinity(), eps.Normlinf(), comm));
+      for (int j = 0; j < ntdofs; j++)
+      {
+         eps(j) = max(eps_min, eps(j));
+      }
+   }
+   else
+   {
+      for (int j = 0; j < ntdofs; j++)
+      {
+         eps(j) = max(eps(j), abs(dx(j)));
+      }
+   }
+  // update eps
+}
+
+
 void ElasticityOperator::ResetDisplacementDirichletData() { x = 0.0; }
 
 void ElasticityOperator::UpdateEssentialBC(Array<int> & ess_bdr_attr_,
@@ -158,6 +180,12 @@ void ElasticityOperator::Getxrefbc(Vector & xrefbc_) const
 {
    xrefbc_.SetSize(ntdofs); 
    xrefbc_.Set(1.0, xrefbc);
+}
+
+void ElasticityOperator::Geteps(Vector & eps_) const
+{
+   eps_.SetSize(ntdofs); 
+   eps_.Set(1.0, eps);
 }
 
 
@@ -571,6 +599,16 @@ HypreParMatrix * OptContactProblem::DddE(const Vector & d)
    else
    {
       return problem->GetHessian(d);
+   }
+}
+
+void OptContactProblem::SetBoundConstraints(int i)
+{
+   Vector eps;
+   if (i >= problem->GetBoundConstraintStep())
+   {
+      problem->Geteps(eps);
+      SetBoundConstraints(xrefbc, eps);
    }
 }
 

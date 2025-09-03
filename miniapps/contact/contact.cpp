@@ -357,26 +357,31 @@ int main(int argc, char *argv[])
       OptContactProblem contact(&prob, mortar_attr, nonmortar_attr, &new_coords, xref,
                                 tribol_ratio, enable_bound_constraints, use_mass_weights);
 
-      if ( i >= bound_constraints_step && bound_constraints)
-      {
-         eps_min = max(eps_min, GlobalLpNorm(infinity(), eps.Normlinf(),
-                                             MPI_COMM_WORLD));
-         // update eps and set parameters
-         for (int j = 0; j < eps.Size(); j++)
-         {
-            eps(j) = max(eps_min, eps(j));
-         }
-         xl.Set(1.0, xrefbc);
-         contact.SetBoundConstraints(xl, eps);
-      }
-      else if ( i > 0)
-      {
-         for (int j = 0; j < eps.Size(); j++)
-         {
-            eps(j) = max(eps(j), abs(dx(j)));
-         }
-      }
+      //if ( i >= bound_constraints_step && bound_constraints)
+      //{
+      //   eps_min = max(eps_min, GlobalLpNorm(infinity(), eps.Normlinf(),
+      //                                       MPI_COMM_WORLD));
+      //   // update eps and set parameters
+      //   for (int j = 0; j < eps.Size(); j++)
+      //   {
+      //      eps(j) = max(eps_min, eps(j));
+      //   }
+      //   xl.Set(1.0, xrefbc);
+      //   contact.SetBoundConstraints(xl, eps);
+      //}
+      //else if ( i > 0)
+      //{
+      //   for (int j = 0; j < eps.Size(); j++)
+      //   {
+      //      eps(j) = max(eps(j), abs(dx(j)));
+      //   }
+      //}
 
+      if (bound_constraints)
+      {
+         contact.SetBoundConstraints(i);
+      }
+      
 
       Solver * prec = nullptr;
       Solver * subspacesolver = nullptr;
@@ -426,7 +431,7 @@ int main(int argc, char *argv[])
       x_gf.SetTrueVector();
       int ndofs = prob.GetFESpace()->GetTrueVSize();
       Vector x0(ndofs); x0 = 0.0;
-      x0.Set(1.0, xrefbc);
+      x0.Set(1.0, xref);
       Vector xf(ndofs); xf = 0.0;
       optimizer.Mult(x0, xf);
 
@@ -436,6 +441,7 @@ int main(int argc, char *argv[])
 
       dx.Set(1.0, xf);
       dx.Add(-1.0, x0);
+      prob.SetTimeStepDisplacement(i, dx);
 
       int eval_err;
       real_t Einitial = contact.E(x0, eval_err);
