@@ -71,9 +71,9 @@ protected:
    Solver * solver = nullptr;
    ParFiniteElementSpace *pfes = nullptr;
 
-   bool converged;
+   bool converged = false;
 
-   int myid;
+   int myid = -1;
 
    bool useMassWeights = false;
    int print_level = 0;
@@ -102,8 +102,7 @@ private:
    void lineSearch(BlockVector&, BlockVector&, real_t);
    void projectZ(const Vector &, Vector &, real_t);
    void filterCheck(real_t, real_t);
-   real_t OptimalityError(const BlockVector &, const Vector &, const Vector &, real_t, bool);
-   real_t OptimalityError(const BlockVector &, const Vector &, const Vector &, bool);
+   real_t OptimalityError(const BlockVector &, const Vector &, const Vector &, real_t mu = 0.0);
    real_t theta(const BlockVector &);
    real_t phi(const BlockVector &, real_t);
    real_t phi(const BlockVector &, real_t, int &);

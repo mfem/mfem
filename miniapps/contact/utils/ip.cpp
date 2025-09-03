@@ -207,10 +207,8 @@ void ParInteriorPointSolver::Mult(const BlockVector &x0, BlockVector &xf)
    thetaMax = 1.e8  * thetaMin;
 
    real_t Eeval, Eeval0, maxBarrierSolves, Eevalmu0;
-   bool printOptimalityError; // control optimality error print to console for log-barrier subproblems
 
    maxBarrierSolves = 10;
-
    for (int j = 0; j < max_iter; j++)
    {
       if (myid == 0 && print_level > 0)
@@ -219,8 +217,7 @@ void ParInteriorPointSolver::Mult(const BlockVector &x0, BlockVector &xf)
          cout << "interior-point solve step # " << j << endl;
       }
       // Check convergence of optimization problem
-      printOptimalityError = true;
-      Eevalmu0 = OptimalityError(xk, lk, zlk, printOptimalityError);
+      Eevalmu0 = OptimalityError(xk, lk, zlk);
       if (Eevalmu0 < abs_tol)
       {
          converged = true;
@@ -236,8 +233,7 @@ void ParInteriorPointSolver::Mult(const BlockVector &x0, BlockVector &xf)
       for (int i = 0; i < maxBarrierSolves; i++)
       {
          // Check convergence of the barrier subproblem
-         printOptimalityError = true;
-         Eeval = OptimalityError(xk, lk, zlk, mu_k, printOptimalityError);
+         Eeval = OptimalityError(xk, lk, zlk, mu_k);
          if (i == 0)
          {
             Eeval_mu_0 = Eeval;
@@ -788,7 +784,7 @@ bool ParInteriorPointSolver::CurvatureTest(const BlockOperator & A,
 
 
 real_t ParInteriorPointSolver::OptimalityError(const BlockVector &x, const Vector &l,
-                                 const Vector &zl, real_t mu, bool printEeval)
+                                 const Vector &zl, real_t mu)
 {
    real_t E1, E2, E3; // stationarity, feasibility, and complementarity errors
    real_t optimalityError;
@@ -835,7 +831,7 @@ real_t ParInteriorPointSolver::OptimalityError(const BlockVector &x, const Vecto
 
    optimalityError = max(max(E1, E2), E3);
 
-   if (myid == 0 && printEeval && print_level > 0)
+   if (myid == 0 && print_level > 0)
    {
       cout << "evaluating optimality error for mu = " << mu << endl;
       cout << "stationarity measure = " << E1 << endl;
@@ -844,12 +840,6 @@ real_t ParInteriorPointSolver::OptimalityError(const BlockVector &x, const Vecto
       cout << "optimality error = " << optimalityError << endl;
    }
    return optimalityError;
-}
-
-real_t ParInteriorPointSolver::OptimalityError(const BlockVector &x, const Vector &l,
-                                 const Vector &zl, bool printEeval)
-{
-   return OptimalityError(x, l, zl, 0.0, printEeval);
 }
 
 real_t ParInteriorPointSolver::theta(const BlockVector &x)
