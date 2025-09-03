@@ -27,6 +27,7 @@ protected:
     ParGridFunction *u_gf  = nullptr;  ///< Grid function for velocity
     Coefficient *viscosity = nullptr;  ///< Coefficient for the kinematic viscosity
     Coefficient *density   = nullptr;  ///< Coefficient for the density
+    bool scaled_pressure   = false;    ///< Flag to indicate if pressure is scaled
 
     DenseMatrix dudx, tau; ///< Velocity gradient tensor
     Vector normal;
@@ -36,10 +37,11 @@ public:
     DeviatoricStressCoefficient(ParGridFunction *p_gf_,
                                 ParGridFunction *u_gf_,                                
                                 Coefficient *viscosity_,
-                                Coefficient *density_) : 
+                                Coefficient *density_,
+                                bool scaled_pressure_ = false) : 
                                 VectorCoefficient(p_gf_->FESpace()->GetMesh()->Dimension()),
                                 p_gf(p_gf_), u_gf(u_gf_),
-                                viscosity(viscosity_), density(density_)
+                                viscosity(viscosity_), density(density_), scaled_pressure(scaled_pressure_)
     {
         int ndim = p_gf->FESpace()->GetMesh()->Dimension();
         normal.SetSize(ndim);
@@ -59,6 +61,7 @@ public:
               const IntegrationPoint &ip) override
     {
         v.SetSize(vdim);
+        v=0.0;
 
         const DenseMatrix &jacobian = T.Jacobian();
         
@@ -69,17 +72,19 @@ public:
         const double scale = normal.Norml2();
         normal /= scale;
 
+        real_t rho = density ? density->Eval(T, ip) : 1.0;        
+
         if(p_gf)
         {   // Add pressure term to the deviatoric stress tensor
+            real_t pscale = scaled_pressure ? rho : 1.0;
             for (int i = 0; i < vdim; ++i)
             {
-                v(i) = -p_gf->GetValue(T, ip) * normal(i);
+                v(i) = -pscale*p_gf->GetValue(T, ip) * normal(i);
             }
         }
 
         if(u_gf)
         {
-            real_t rho = density ? density->Eval(T, ip) : 1.0;        
             real_t nu  = viscosity ? viscosity->Eval(T, ip) : 1.0;
             u_gf->GetVectorGradient(T, dudx);
 
@@ -199,7 +204,8 @@ public:
                 Array<int> p_ess_attr,
                 real_t density_ = 1.0,
                 real_t viscosity_ = 1.0,
-                real_t compressibility_ = 1.0) :
+                real_t compressibility_ = 1.0,
+                bool scaled_pressure = true) :
                 Application(u_fes_.GetTrueVSize()+p_fes_.GetTrueVSize()),
                 mesh(*p_fes_.GetParMesh()),
                 u_fes(u_fes_),
@@ -208,7 +214,7 @@ public:
                 p_ess_attr(p_ess_attr),
                 viscosity(viscosity_),
                 density(density_),
-                inv_density(1.0/density_),
+                inv_density(scaled_pressure ? 1.0 : 1.0/density_),
                 compressibility(compressibility_),
                 u_gf(ParGridFunction(&u_fes)),
                 p_gf(ParGridFunction(&p_fes)),
@@ -222,7 +228,7 @@ public:
                 linear_solver(MPI_COMM_WORLD),
                 newton_solver(MPI_COMM_WORLD),
                 zero(0.0), one(1.0), negative_one(-1.0), inv_dtc(1.0),
-                stress_coeff(&p_gf_trans, &u_gf, &viscosity, &density),
+                stress_coeff(&p_gf_trans, &u_gf, &viscosity, &density, scaled_pressure),
                 stress_gf(&u_fes)
                 // , gravity(Vector({0.0, 0.0, -9.81}))
    {
@@ -249,11 +255,11 @@ public:
         Nform_e.AddDomainIntegrator(new VectorDiffusionIntegrator(viscosity, &ir));
         Nform_e.AddDomainIntegrator(new VectorMassIntegrator(inv_dtc,&ir));
 
-        
+
+        // Muform.SetAssemblyLevel(AssemblyLevel::PARTIAL);        
         Mpform.SetAssemblyLevel(AssemblyLevel::PARTIAL);
         Gform.SetAssemblyLevel(AssemblyLevel::PARTIAL);
         Dform.SetAssemblyLevel(AssemblyLevel::PARTIAL);
-        // Muform.SetAssemblyLevel(AssemblyLevel::PARTIAL);
         Nform.SetAssemblyLevel(AssemblyLevel::PARTIAL);
         
 
@@ -279,7 +285,7 @@ public:
         Gform.FormRectangularSystemMatrix(p_ess_tdofs, u_ess_tdofs, Gmat_e);
         Dform.FormRectangularSystemMatrix(u_ess_tdofs, p_ess_tdofs, Dmat_e);
 
-        Array<int> empty;        
+        Array<int> empty;
         Mpform.FormSystemMatrix(empty, Mpmat);
         Muform.FormSystemMatrix(empty, Mumat);
         Gform.FormRectangularSystemMatrix(empty, empty, Gmat);
@@ -440,10 +446,19 @@ public:
 
    void Update() override
    {
+
+        u_fes.Update();
+        p_fes.Update();
+        
+        u_gf.Update();
+        p_gf.Update();
+        p_gf_trans.Update();
+        stress_gf.Update();
+
         // Update the bilinear forms
         Mpform.Update();
         Muform.Update();
-        // Kuform.Update();
+        Kuform.Update();
         Dform.Update();
         Gform.Update();
         Nform.Update();
@@ -455,16 +470,31 @@ public:
         Dform.Assemble();
         Gform.Assemble();
         Nform.Setup();
+        Nform_e.SetEssentialTrueDofs(u_ess_tdofs);
         Nform_e.Setup();
 
+        Mpform.FormSystemMatrix(p_ess_tdofs, Mpmat_e);        
         Gform.FormRectangularSystemMatrix(p_ess_tdofs, u_ess_tdofs, Gmat_e);
         Dform.FormRectangularSystemMatrix(u_ess_tdofs, p_ess_tdofs, Dmat_e);
+
+        Array<int> empty;
+        Mpform.FormSystemMatrix(empty, Mpmat);
+        Muform.FormSystemMatrix(empty, Mumat);
+        Gform.FormRectangularSystemMatrix(empty, empty, Gmat);
+        Dform.FormRectangularSystemMatrix(empty, empty, Dmat);
+
+        implicit_op->SetBlock(0, 0, &Nform);
+        implicit_op->SetBlock(0, 1, Gmat.Ptr());
+        implicit_op->SetBlock(1, 0, Dmat.Ptr());
+
         implicit_grad->SetBlock(0, 1, Gmat_e.Ptr());
         implicit_grad->SetBlock(1, 0, Dmat_e.Ptr());
+        implicit_grad->SetBlock(1, 1, Mpmat_e.Ptr());
    }
 
     void PreProcess(Vector &x) override
     {
+        Update();
         if(operation_id == OperationID::NONE || operation_id == OperationID::STEP)
         {   // Only do this pre-processing for operations that are not for multi-stage 
             // time stepping
