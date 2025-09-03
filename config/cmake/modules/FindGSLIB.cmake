@@ -31,7 +31,7 @@ if (MFEM_FETCH_GSLIB OR MFEM_FETCH_TPLS)
     UPDATE_DISCONNECTED TRUE
     PREFIX ${PREFIX}
     CONFIGURE_COMMAND ""
-    BUILD_COMMAND cd ${PREFIX}/src/gslib && make DESTDIR=${PREFIX}
+    BUILD_COMMAND cd ${PREFIX}/src/gslib && make DESTDIR=${PREFIX} MPI=$<BOOL:${MFEM_USE_MPI}>
     INSTALL_COMMAND "")
   file(MAKE_DIRECTORY ${PREFIX}/include)
   # set imported library target properties
