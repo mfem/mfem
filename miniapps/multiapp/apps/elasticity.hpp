@@ -76,7 +76,6 @@ public:
    /// Preconditioner
    HypreSmoother M_prec;
    mutable BlockLowerTriangularPreconditioner *pc = nullptr;
-   mutable Solver *K_pc = nullptr;
 
     /// Auxiliary vectors for the implicit solve
    mutable Vector z;
@@ -139,23 +138,22 @@ public:
         Kform_e.Assemble();
 
         Array<int> empty;
-        Mform.FormSystemMatrix(empty, Mmat);
-        Mrho_form.FormSystemMatrix(empty, Mrhomat);
-        Kform_e.FormSystemMatrix(ess_tdofs, Kmat_e);
+        Mform.FormSystemMatrix(ess_tdofs, Mmat);
+        Mrho_form.FormSystemMatrix(ess_tdofs, Mrhomat);
+        Kform_e.FormSystemMatrix(empty, Kmat_e);
         Kform.FormSystemMatrix(empty, Kmat);
      //    Kform.FormSystemMatrix(ess_tdofs, Kmat_e);
 
 
         implicit_op = new BlockOperator(offsets);
-        implicit_op->SetBlock(0, 0, &Kmat_e);
-        implicit_op->SetBlock(0, 1, &Mrhomat);
+        implicit_op->SetBlock(0, 0, &Mrhomat);
+        implicit_op->SetBlock(0, 1, &Kmat_e);
         implicit_op->SetBlock(1, 0, &IdentityOp);
         implicit_op->SetBlock(1, 1, &IdentityOp);
 
         if(nat_attr.Size() > 0)
         {
             bform.AddBoundaryIntegrator(new VectorBoundaryLFIntegrator(scaled_fcoeff), nat_attr);            
-          //   bform.AddBoundaryIntegrator(new BoundaryNormalLFIntegrator(fcoeff));
         }
 
         bform.Assemble();
@@ -174,27 +172,16 @@ public:
         M_solver.SetPreconditioner(M_prec);
 
         
-        if(K_pc) delete K_pc;
-        auto amg = new HypreBoomerAMG;
-        HYPRE_BoomerAMGSetSmoothType(*amg, 5);
-        amg->SetOperator(Kmat_e);
-        amg->SetSystemsOptions(2, true);
-        amg->SetElasticityOptions(&fes);
-        amg->SetPrintLevel(0);
-        K_pc = amg;     
-
         pc = new BlockLowerTriangularPreconditioner(offsets);
-     //    M_prec.SetOperator(Kmat_e);
-     //    pc->SetBlock(0, 0, &M_prec);
-        pc->SetBlock(0, 0, K_pc);
+        pc->SetBlock(0, 0, &M_prec);
         pc->SetBlock(1, 0, &IdentityOp);
         pc->SetBlock(1, 1, &IdentityOp);
 
         implicit_solver.iterative_mode = false;
         implicit_solver.SetRelTol(1e-4);
         implicit_solver.SetAbsTol(0.0);
-        implicit_solver.SetMaxIter(100);
-        implicit_solver.SetKDim(100);
+        implicit_solver.SetMaxIter(500);
+        implicit_solver.SetKDim(200);
         implicit_solver.SetPrintLevel(0);
         implicit_solver.SetPreconditioner(*pc);
         implicit_solver.SetOperator(*implicit_op);
@@ -207,11 +194,11 @@ public:
         BlockVector kb(k.GetData(), offsets);
         BlockVector zb(z.GetData(), offsets);        
 
-        Vector &pos = ub.GetBlock(0);
-        Vector &vel = ub.GetBlock(1);
+        Vector &vel = ub.GetBlock(0);
+        Vector &pos = ub.GetBlock(1);
 
-        Vector &kx = kb.GetBlock(0);
-        Vector &ku = kb.GetBlock(1);
+        Vector &ku = kb.GetBlock(0);
+        Vector &kx = kb.GetBlock(1);
         
         Vector &z0 = zb.GetBlock(0);
 
@@ -219,15 +206,12 @@ public:
         z0.Neg();
         z0.Add(1.0, b);
 
-        z0 /= (b_norm*density.constant); // Normalize zb
-
         kx = vel; // dx/dt = u        
         M_solver.Mult(z0, ku);
 
-        ku *= (b_norm*density.constant); // Scale back ku
-
+        ku.SetSubVector(ess_tdofs, 0.0);        
         kx.SetSubVector(ess_tdofs, 0.0);
-        ku.SetSubVector(ess_tdofs, 0.0);
+
    }
 
    void ImplicitSolve(const real_t dt, const Vector &u, Vector &k)
@@ -236,11 +220,11 @@ public:
         BlockVector kb(k.GetData(), offsets);
         BlockVector zb(z.GetData(), offsets);        
 
-        Vector &pos = ub.GetBlock(0);
-        Vector &vel = ub.GetBlock(1);
+        Vector &vel = ub.GetBlock(0);
+        Vector &pos = ub.GetBlock(1);
 
-        Vector &kx = kb.GetBlock(0);        
-        Vector &ku = kb.GetBlock(1);
+        Vector &ku = kb.GetBlock(0);
+        Vector &kx = kb.GetBlock(1);        
 
         Vector &z0 = zb.GetBlock(0);
         Vector &z1 = zb.GetBlock(1);
@@ -251,20 +235,17 @@ public:
         z1 = vel; // dx/dt = u
 
         if(current_dt != dt)
-        {            
-            implicit_op->SetBlockCoef(0, 0, dt);
-            implicit_op->SetBlockCoef(1, 1, -dt);            
+        {
+            implicit_op->SetBlockCoef(0, 1, dt);
+            implicit_op->SetBlockCoef(1, 0, -dt);
             current_dt = dt;
-          //   dtc.constant = dt;
             Assemble();
         }
 
-        zb /= (b_norm*density.constant); // Normalize zb
         implicit_solver.Mult(zb, kb);
-        kb *= (b_norm*density.constant); // Scale back kb
 
-        kx.SetSubVector(ess_tdofs, 0.0);
         ku.SetSubVector(ess_tdofs, 0.0);
+        kx.SetSubVector(ess_tdofs, 0.0);
    }
 
    void Assemble() override
@@ -275,8 +256,31 @@ public:
 
    void Update() override
    {
-        // Kform_e.Update(&fes);
-        // Kform_e.Assemble();
+        fes.Update();
+        u_gf.Update();
+        x_gf.Update();
+        u_gf_trans.Update();
+    
+        Kform_e.Update();
+        Mform.Update();
+        Mrho_form.Update();
+        Kform.Update();
+        Kform_e.Update();
+
+        Kform_e.Assemble();
+        Mform.Assemble();
+        Mrho_form.Assemble();
+        Kform.Assemble();
+        Kform_e.Assemble();
+
+        Array<int> empty;
+        Mform.FormSystemMatrix(empty, Mmat);
+        Mrho_form.FormSystemMatrix(ess_tdofs, Mrhomat);
+        Kform_e.FormSystemMatrix(ess_tdofs, Kmat_e);
+        Kform.FormSystemMatrix(empty, Kmat);
+
+        implicit_op->SetBlock(0, 0, &Mrhomat);
+        implicit_op->SetBlock(0, 1, &Kmat_e);
 
         bform.Update();
         bform.Assemble();
@@ -295,9 +299,9 @@ public:
         {   // Only do this pre-processing for operations that are not for multi-stage 
             // time stepping
           BlockVector xb(x.GetData(), offsets);
-          x_gf.SetFromTrueDofs(xb.GetBlock(0));
-          u_gf.SetFromTrueDofs(xb.GetBlock(1));
-          u_gf_trans.SetFromTrueDofs(xb.GetBlock(1));
+          u_gf.SetFromTrueDofs(xb.GetBlock(0));
+          x_gf.SetFromTrueDofs(xb.GetBlock(1));
+          u_gf_trans.SetFromTrueDofs(xb.GetBlock(0));
         }
     }
 
@@ -305,14 +309,13 @@ public:
    void Transfer(const Vector &x) override
    {
         BlockVector xb(x.GetData(), offsets);
-        u_gf_trans.SetFromTrueDofs(xb.GetBlock(1));
+        u_gf_trans.SetFromTrueDofs(xb.GetBlock(0));
         Application::Transfer();
    }   
 
    ~Elasticity() override
    {
         if (implicit_op) { delete implicit_op; }
-        if (K_pc) { delete K_pc; }        
         if (pc) { delete pc; }
    }
 };
