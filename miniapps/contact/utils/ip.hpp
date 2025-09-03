@@ -73,8 +73,7 @@ protected:
 
    bool converged;
 
-   int MyRank;
-   bool iAmRoot;
+   int myid;
 
    bool useMassWeights = false;
    int print_level = 0;
