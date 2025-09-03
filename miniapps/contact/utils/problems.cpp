@@ -54,6 +54,7 @@ void ElasticityOperator::Init()
    VectorFunctionCoefficient ref_cf(dim,ref_func);
    ParGridFunction xr(fes); xr.ProjectCoefficient(ref_cf);
    xr.GetTrueDofs(xref);
+   xrefbc.SetSize(ntdofs); xrefbc = 0.0;
    SetEssentialBC();
    SetUpOperator();
 }
@@ -136,6 +137,11 @@ void ElasticityOperator::SetDisplacementDirichletData(const Vector & delta,
 {
    VectorConstantCoefficient delta_cf(delta);
    x.ProjectBdrCoefficient(delta_cf,essbdr);
+
+   Vector xBCtrue, DCvals;
+   x.GetTrueDofs(xBCtrue);
+   xBCtrue.GetSubVector(essbdr, DCvals);
+   xrefbc.SetSubVector(essbdr, DCvals);
 }
 
 void ElasticityOperator::ResetDisplacementDirichletData() { x = 0.0; }
@@ -147,6 +153,13 @@ void ElasticityOperator::UpdateEssentialBC(Array<int> & ess_bdr_attr_,
    ess_bdr_attr_comp = ess_bdr_attr_comp_;
    SetEssentialBC();
 }
+
+void ElasticityOperator::Getxrefbc(Vector & xrefbc_) const
+{
+   xrefbc_.SetSize(ntdofs); 
+   xrefbc_.Set(1.0, xrefbc);
+}
+
 
 real_t ElasticityOperator::GetEnergy(const Vector & u) const
 {
@@ -214,13 +227,12 @@ OptContactProblem::OptContactProblem(ElasticityOperator * problem_,
                                      const std::set<int> & nonmortar_attrs_,
                                      ParGridFunction * coords_,
                                      const Vector & xref_,
-                                     const Vector & xrefbc_,
                                      double tribol_ratio_,
                                      bool bound_constraints_,
                                      bool mass_weights_)
    : problem(problem_), mortar_attrs(mortar_attrs_),
      nonmortar_attrs(nonmortar_attrs_),
-     coords(coords_), xref(xref_), xrefbc(xrefbc_),
+     coords(coords_), xref(xref_),
      tribol_ratio(tribol_ratio_),
      bound_constraints(bound_constraints_), useMassWeights(mass_weights_),
      block_offsetsg(4)
@@ -230,6 +242,8 @@ OptContactProblem::OptContactProblem(ElasticityOperator * problem_,
    vfes = problem->GetFESpace();
    dim = pmesh->Dimension();
    ComputeGapJacobian();
+
+   problem->Getxrefbc(xrefbc);
 
    if (problem->IsNonlinear())
    {

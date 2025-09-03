@@ -39,6 +39,8 @@ private:
    NeoHookeanModel * material_model = nullptr;
 
    Vector xref;
+   Vector xrefbc;
+
    void Init();
    void SetEssentialBC();
    void SetUpOperator();
@@ -70,7 +72,7 @@ public:
 
    const ParGridFunction & GetDisplacementGridFunction() const { return x; };
    const Array<int> & GetEssentialDofs() const { return ess_tdof_list; };
-
+   void Getxrefbc(Vector & xrefbc_) const;
    real_t GetEnergy(const Vector & u) const;
    void GetGradient(const Vector & u, Vector & gradE) const;
    HypreParMatrix * GetHessian(const Vector & u);
@@ -149,7 +151,6 @@ public:
                      const std::set<int> & nonmortar_attrs_,
                      ParGridFunction * coords_,
                      const Vector & xref_,
-                     const Vector & xrefbc_,
                      real_t tribol_ratio_,
                      bool bound_constraints_=true,
                      bool mass_weights_=false);

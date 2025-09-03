@@ -169,7 +169,7 @@ int main(int argc, char *argv[])
          break;
    }
 
-   ElasticityOperator prob(&pmesh, ess_bdr_attr,ess_bdr_attr_comp, E,nu,nonlinear);
+   ElasticityOperator prob(&pmesh, ess_bdr_attr,ess_bdr_attr_comp, E, nu, nonlinear);
 
    int dim = pmesh.Dimension();
    Vector ess_values(dim);
@@ -355,14 +355,13 @@ int main(int argc, char *argv[])
 
       bool use_mass_weights = true;
       OptContactProblem contact(&prob, mortar_attr, nonmortar_attr, &new_coords, xref,
-                                xrefbc, tribol_ratio, enable_bound_constraints, use_mass_weights);
+                                tribol_ratio, enable_bound_constraints, use_mass_weights);
 
       if ( i >= bound_constraints_step && bound_constraints)
       {
          eps_min = max(eps_min, GlobalLpNorm(infinity(), eps.Normlinf(),
                                              MPI_COMM_WORLD));
          // update eps and set parameters
-         // could we do something more conservative here...
          for (int j = 0; j < eps.Size(); j++)
          {
             eps(j) = max(eps_min, eps(j));
@@ -387,7 +386,11 @@ int main(int argc, char *argv[])
          subspacesolver = new MUMPSSolver(MPI_COMM_WORLD);
          dynamic_cast<MUMPSSolver*>(subspacesolver)->SetPrintLevel(0);
 #else
-         MFEM_ABORT("MFEM must be built with MUMPS in order to use AMGF");
+#ifdef MFEM_USE_MKL_CPARDISO
+         subspacesolver = new CPardisoSolver(MPI_COMM_WORLD);
+#else
+	 MFEM_ABORT("MFEM must be built with MUMPS in order to use AMGF");
+#endif
 #endif
          prec = new AMGFSolver();
          auto * amgfprec = dynamic_cast<AMGFSolver *>(prec);
@@ -418,6 +421,7 @@ int main(int argc, char *argv[])
       optimizer.SetMaxIter(100);
       optimizer.SetLinearSolver(&cgsolver);
       optimizer.SetUsingMassWeights(use_mass_weights);
+      optimizer.SetPrintLevel(1);
 
       x_gf.SetTrueVector();
       int ndofs = prob.GetFESpace()->GetTrueVSize();
