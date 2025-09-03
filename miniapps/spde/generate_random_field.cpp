@@ -33,8 +33,6 @@
 //     (2D random field with anisotropy)
 //     mpirun -np 4 generate_random_field -o 1 -r 3 -rp 3 -nu 4 -l1 0.09 -l2 0.03 -l3 0.05 -s 0.01 -t 0.08 -top 1 -no-rs -m ../../data/ref-square.mesh
 
-#include <math.h>
-#include <fstream>
 #include <iostream>
 #include <string>
 #include "mfem.hpp"
@@ -260,7 +258,8 @@ int main(int argc, char *argv[])
    // III.3 Solve the SPDE problem
    spde::SPDESolver solver(nu, bc, &fespace, l1, l2, l3, e1, e2,
                            e3);
-   const int seed = (random_seed) ? 0 : std::numeric_limits<int>::max();
+   const int seed = (random_seed) ? 0 :
+                    std::numeric_limits<int>::max() - Mpi::WorldRank();
    solver.SetupRandomFieldGenerator(seed);
    solver.GenerateRandomField(u);
 
