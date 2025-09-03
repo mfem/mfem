@@ -217,7 +217,7 @@ miniapps/electromagnetics/joule
 miniapps/electromagnetics/Volta-AMR*
 miniapps/electromagnetics/Tesla-AMR*
 miniapps/electromagnetics/Maxwell-Parallel*
-miniapps/electromagnetics/Joule_*
+miniapps/electromagnetics/Joule_[0-9]*
 
 miniapps/gslib/field-diff
 miniapps/gslib/field-interp
@@ -273,9 +273,9 @@ miniapps/meshing/bounding-box*
 miniapps/meshing/jacobian-determinant*
 
 miniapps/mtop/parheat
-miniapps/mtop/ParHeat*
+miniapps/mtop/ParHeat/*
 miniapps/mtop/seqheat
-miniapps/mtop/SeqHeat*
+miniapps/mtop/SeqHeat/*
 
 miniapps/autodiff/paradiff
 miniapps/autodiff/seqadiff
@@ -283,7 +283,7 @@ miniapps/autodiff/seqtest
 miniapps/autodiff/par_example
 miniapps/autodiff/seq_example
 miniapps/autodiff/seq_test
-miniapps/autodiff/Exampl*
+miniapps/autodiff/Example/*
 
 miniapps/navier/navier_mms
 miniapps/navier/navier_kovasznay
