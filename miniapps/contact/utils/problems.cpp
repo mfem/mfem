@@ -419,11 +419,11 @@ void OptContactProblem::Update(ParGridFunction * coords_, const Vector & xref_)
    //delete negIu;
    //delete Mv;
    //delete Mcs;
-  //if (dcdu)
-  //{
-  //   delete dcdu;
-  //}
-  //OptContactProblem(problem, mortar_attrs, nonmortar_attrs, coords_, xref_, tribol_ratio, bound_constraints, useMassWeights); 
+   //if (dcdu)
+   //{
+   //   delete dcdu;
+   //}
+   //OptContactProblem(problem, mortar_attrs, nonmortar_attrs, coords_, xref_, tribol_ratio, bound_constraints, useMassWeights);
 
 }
 

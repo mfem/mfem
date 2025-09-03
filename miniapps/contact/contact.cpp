@@ -252,14 +252,6 @@ int main(int argc, char *argv[])
    pmesh.GetNodes(new_coords);
    pmesh.GetNodes(ref_coords);
 
-   // deviation from the reference configuration
-   Vector xref(x_gf.GetTrueVector().Size()); xref = 0.0;
-   bool use_mass_weights = true;
-   bool enable_bound_constraints = false;
-   OptContactProblem contact(&prob, mortar_attr, nonmortar_attr, &new_coords, xref,
-                                 tribol_ratio, enable_bound_constraints, use_mass_weights);
-   Vector dx(xref.Size()); dx = 0.0;
-
    real_t p = 30.0;
    ConstantCoefficient f(p);
    std::vector<Array<int>> CGiter;
@@ -312,9 +304,17 @@ int main(int argc, char *argv[])
             break;
       }
 
+      // deviation from the reference configuration
+      Vector xref(x_gf.GetTrueVector().Size()); xref = 0.0;
+      bool use_mass_weights = true;
+      bool enable_bound_constraints = false;
       prob.FormLinearSystem();
-      x_gf.SetTrueVector();
+      OptContactProblem contact(&prob, mortar_attr, nonmortar_attr, &new_coords, xref,
+                                tribol_ratio, enable_bound_constraints, use_mass_weights);
+      Vector dx(xref.Size()); dx = 0.0;
 
+
+      x_gf.SetTrueVector();
       x_gf.GetTrueDofs(xref);
 
       if (i > 0)
