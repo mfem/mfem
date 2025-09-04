@@ -10,6 +10,7 @@
 #include <stdexcept>
 #include <tuple>
 #include <vector>
+#include <type_traits>
 
 namespace mfem
 {
@@ -23,6 +24,9 @@ struct Allocator
    virtual ~Allocator() = default;
 };
 
+/// Adapter to allow ResourceManager to be used in place of std::allocator
+template <class T> class AllocatorAdaptor;
+
 class ResourceManager
 {
 public:
@@ -31,7 +35,8 @@ public:
       HOST = 1,
       HOST_DEBUG = (1 << 5) | HOST,
       HOST_UMPIRE = HOST,
-      HOST_32 = (1 << 4) | HOST, // always align to 64-byte boundaries internally
+      HOST_32 =
+         (1 << 4) | HOST, // always align to 64-byte boundaries internally
       HOST_64 = (1 << 4) | HOST,
       HOSTPINNED = 1 << 1,
       MANAGED = 1 << 2,
@@ -42,7 +47,7 @@ public:
       // used for querying where a Resource object is currently valid
       INDETERMINATE = 0,
       PRESERVE = 0, // TODO: need to handle
-      DEFAULT = 0, // TODO: need to handle
+      DEFAULT = 0,  // TODO: need to handle
       // for requesting any buffer which is accessible on host
       ANY_HOST = HOST | HOST_32 | HOST_64 | HOST_DEBUG | HOSTPINNED | MANAGED,
       // for requesting any buffer which is accessible on device
@@ -174,6 +179,7 @@ private:
 
 private:
    template <class T> friend class Resource;
+   template <class T> friend class AllocatorAdaptor;
 
    ResourceManager();
 
@@ -220,6 +226,12 @@ private:
    const char *read(size_t segment, char *lower, char *upper,
                     ResourceLocation loc);
 
+   void CopyFromHost(size_t segment, char *lower, char *upper, const char *src,
+                     size_t size);
+
+   void CopyToHost(size_t segment, const char *lower, const char *upper,
+                   char *dst, size_t size);
+
    /// Does no checking/updating of validity flags
    const char *fast_read(size_t segment, char *lower, char *upper,
                          ResourceLocation loc);
@@ -235,6 +247,13 @@ private:
    void clear_owner_flags(size_t segment);
 
    int compare_other(size_t segment, char *lower, char *upper);
+
+   void BatchMemCopy(
+      char *dst, const char *src, ResourceLocation dst_loc,
+      ResourceLocation src_loc,
+      const std::vector<std::pair<ptrdiff_t, ptrdiff_t>,
+      AllocatorAdaptor<std::pair<ptrdiff_t, ptrdiff_t>>>
+      &copy_segs);
 
 public:
    ResourceManager(const ResourceManager &) = delete;
@@ -264,6 +283,59 @@ public:
    void dealloc(char *ptr, ResourceLocation loc, bool temporary);
    /// Raw unregistered allocation of a buffer
    char *alloc(size_t nbytes, ResourceLocation loc, bool temporary);
+};
+
+template <class T> class AllocatorAdaptor
+{
+   int idx = 0;
+
+public:
+   using value_type = T;
+   using size_type = size_t;
+   using difference_type = ptrdiff_t;
+   using propagate_on_container_move_assignment = std::true_type;
+
+   AllocatorAdaptor(
+      ResourceManager::ResourceLocation loc = ResourceManager::HOST,
+      bool temporary = false)
+   {
+      idx = temporary ? 4 : 0;
+      switch (loc)
+      {
+         case ResourceManager::HOST:
+            break;
+         case ResourceManager::HOSTPINNED:
+            idx += 1;
+            break;
+         case ResourceManager::MANAGED:
+            idx += 2;
+            break;
+         default:
+            // can't do device-only location
+            throw std::runtime_error("Unsupported location");
+      }
+   }
+
+   template <class U>
+   AllocatorAdaptor(const AllocatorAdaptor<U> &o) : idx(o.idx)
+   {
+   }
+
+   template <class U> AllocatorAdaptor(AllocatorAdaptor<U> &&o) : idx(o.idx) {}
+
+   T *allocate(size_t n)
+   {
+      auto &inst = ResourceManager::instance();
+      void *res;
+      inst.allocs[idx]->Alloc(&res, n * sizeof(T));
+      return static_cast<T *>(res);
+   }
+
+   void deallocate(T *ptr, size_t n)
+   {
+      auto &inst = ResourceManager::instance();
+      inst.allocs[idx]->Dealloc(ptr);
+   }
 };
 
 /// WARNING: In general using Resource is not thread safe, even when surrounded
@@ -342,7 +414,7 @@ public:
    {
       if (segment)
       {
-         auto& inst = ResourceManager::instance();
+         auto &inst = ResourceManager::instance();
          auto &seg = inst.storage.get_segment(segment);
          if (seg.other)
          {
@@ -358,10 +430,7 @@ public:
       }
    }
 
-   void Reset()
-   {
-      *this = Resource{};
-   }
+   void Reset() { *this = Resource{}; }
 
    bool Empty() const { return lower == nullptr; }
 
@@ -380,14 +449,11 @@ public:
             ResourceManager::ResourceLocation loc_b, bool temporary = false)
    {
       *this = Resource(size, loc_a, temporary);
-      auto& inst = ResourceManager::instance();
+      auto &inst = ResourceManager::instance();
       inst.ensure_other(segment, loc_b);
    }
 
-   void Delete()
-   {
-      *this = Resource();
-   }
+   void Delete() { *this = Resource(); }
 
    void Wrap(T *ptr, size_t size, bool own)
    {
@@ -410,7 +476,7 @@ public:
       *this = Resource(h_ptr, size, hloc);
       SetHostPtrOwner(own);
       auto &inst = ResourceManager::instance();
-      auto& seg = inst.storage.get_segment(segment);
+      auto &seg = inst.storage.get_segment(segment);
       seg.other =
          inst.insert(reinterpret_cast<char *>(d_ptr),
                      reinterpret_cast<char *>(d_ptr + size), dloc, own, false);
@@ -441,12 +507,11 @@ public:
    /// ANY_HOST. Assumes that segment is a host-accessible segment.
    const T &operator[](size_t idx) const;
 
-
    void DeleteDevice(bool copy_to_host = true)
    {
       if (segment)
       {
-         auto& inst = ResourceManager::instance();
+         auto &inst = ResourceManager::instance();
          auto &seg = inst.storage.get_segment(segment);
          if (seg.other)
          {
@@ -500,7 +565,7 @@ public:
       if (segment)
       {
          auto &inst = ResourceManager::instance();
-         auto& seg = inst.storage.get_segment(segment);
+         auto &seg = inst.storage.get_segment(segment);
          if (seg.other)
          {
             // TODO: edge case if seg.loc is device, then the other is the host
@@ -742,7 +807,9 @@ template <class T> void Resource<T>::CopyFrom(const Resource &src, int size)
 
 template <class T> void Resource<T>::CopyFromHost(const T *src, int size)
 {
-   // TODO: how to determine where to copy to without modifying validity flags?
+   auto &inst = ResourceManager::instance();
+   inst.CopyFromHost(segment, lower, upper, reinterpret_cast<const char *>(src),
+                     size * sizeof(T));
 }
 
 template <class T> void Resource<T>::CopyTo(Resource &dst, int size) const
@@ -752,7 +819,8 @@ template <class T> void Resource<T>::CopyTo(Resource &dst, int size) const
 
 template <class T> void Resource<T>::CopyToHost(T *dst, int size) const
 {
-   // TODO
+   auto &inst = ResourceManager::instance();
+   inst.CopyToHost(segment, lower, upper, dst, size);
 }
 } // namespace mfem
 

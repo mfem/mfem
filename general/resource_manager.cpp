@@ -2,8 +2,9 @@
 
 #include "globals.hpp"
 
-#include "device.hpp"
+#include "forall.hpp"
 #include "cuda.hpp"
+#include "device.hpp"
 #include "hip.hpp"
 
 #include <cstdlib>
@@ -342,7 +343,7 @@ ResourceManager::ResourceManager()
 #endif
 }
 
-static Allocator* CreateAllocator(ResourceManager::ResourceLocation loc)
+static Allocator *CreateAllocator(ResourceManager::ResourceLocation loc)
 {
    switch (loc)
    {
@@ -367,7 +368,7 @@ static Allocator* CreateAllocator(ResourceManager::ResourceLocation loc)
    }
 }
 
-static Allocator* CreateTempAllocator(ResourceManager::ResourceLocation loc)
+static Allocator *CreateTempAllocator(ResourceManager::ResourceLocation loc)
 {
    switch (loc)
    {
@@ -1252,24 +1253,136 @@ char *ResourceManager::write(size_t segment, char *lower, char *upper,
    return nullptr;
 }
 
+struct BatchCopyKernel
+{
+   char *dst;
+   const char *src;
+   const std::pair<ptrdiff_t, ptrdiff_t> *segs;
+
+   void MFEM_HOST_DEVICE operator()(int seg) const
+   {
+      ptrdiff_t start = segs[seg].first;
+      ptrdiff_t stop = segs[seg].second;
+      MFEM_FOREACH_THREAD(i, x, stop - start)
+      {
+         dst[start + i] = src[start + i];
+      }
+   }
+};
+
+void ResourceManager::BatchMemCopy(
+   char *dst, const char *src, ResourceLocation dst_loc,
+   ResourceLocation src_loc,
+   const std::vector<std::pair<ptrdiff_t, ptrdiff_t>,
+   AllocatorAdaptor<std::pair<ptrdiff_t, ptrdiff_t>>>
+   &copy_segs)
+{
+   // copy_segs is assumed to be allocated in either HOSTPINNED or MANAGED
+   switch (copy_segs.size())
+   {
+      case 0:
+         return;
+      case 1:
+         MemCopy(dst + copy_segs[0].first, src + copy_segs[0].first,
+                 copy_segs[0].second - copy_segs[0].first, dst_loc, src_loc);
+         return;
+      default:
+         auto dloc = Device::QueryMemoryType(dst);
+         auto sloc = Device::QueryMemoryType(src);
+         if (sloc == MemoryType::HOST)
+         {
+            if (sloc == MemoryType::DEVICE)
+            {
+               // TODO: heuristic for when to to use a temporary buffer accessible
+               // on device
+               for (auto &seg : copy_segs)
+               {
+                  MemCopy(dst + seg.first, src + seg.first, seg.second - seg.first,
+                          dst_loc, src_loc);
+               }
+            }
+            else
+            {
+               // dst and src accessible from host
+               for (auto &seg : copy_segs)
+               {
+                  MemCopy(dst + seg.first, src + seg.first, seg.second - seg.first,
+                          dst_loc, src_loc);
+               }
+               MFEM_STREAM_SYNC;
+            }
+         }
+         else if (sloc == MemoryType::DEVICE)
+         {
+            if (dloc == MemoryType::HOST)
+            {
+               // TODO: heuristic for when to to use a temporary buffer accessible
+               // on device
+               for (auto &seg : copy_segs)
+               {
+                  MemCopy(dst + seg.first, src + seg.first, seg.second - seg.first,
+                          dst_loc, src_loc);
+               }
+            }
+            else
+            {
+               // dst and src accessible from device
+               BatchCopyKernel kernel;
+               kernel.dst = dst;
+               kernel.src = src;
+               kernel.segs = copy_segs.data();
+               forall_2D(copy_segs.size(), 256, 1, kernel);
+            }
+         }
+         else
+         {
+            if (dloc == MemoryType::HOST)
+            {
+               // dst and src accessible from host
+               for (auto &seg : copy_segs)
+               {
+                  MemCopy(dst + seg.first, src + seg.first, seg.second - seg.first,
+                          dst_loc, src_loc);
+               }
+            }
+            else
+            {
+               // dst and src accessible from device
+               BatchCopyKernel kernel;
+               kernel.dst = dst;
+               kernel.src = src;
+               kernel.segs = copy_segs.data();
+               forall_2D(copy_segs.size(), 256, 1, kernel);
+               MFEM_STREAM_SYNC;
+            }
+         }
+         return;
+   }
+}
+
 char *ResourceManager::read_write(size_t segment, char *lower, char *upper,
                                   ResourceLocation loc)
 {
+   std::vector<std::pair<ptrdiff_t, ptrdiff_t>,
+       AllocatorAdaptor<std::pair<ptrdiff_t, ptrdiff_t>>>
+       copy_segs(
+          AllocatorAdaptor<std::pair<ptrdiff_t, ptrdiff_t>>(MANAGED, true));
    auto seg = &storage.get_segment(segment);
    if (seg->loc & loc)
    {
       auto start = lower - seg->lower;
       auto stop = upper - seg->lower;
       mark_valid(segment, start, stop, [&](auto start, auto stop)
+      { copy_segs.emplace_back(start, stop); });
+      if (copy_segs.size())
       {
          if (!seg->other)
          {
             throw std::runtime_error("no other to read from");
          }
          auto &os = storage.get_segment(seg->other);
-         MemCopy(seg->lower + start, os.lower + start, stop - start, seg->loc,
-                 os.loc);
-      });
+         BatchMemCopy(seg->lower, os.lower, seg->loc, os.loc, copy_segs);
+      }
 
       if (seg->other)
       {
@@ -1302,21 +1415,27 @@ char *ResourceManager::fast_read_write(size_t segment, char *lower, char *upper,
 const char *ResourceManager::read(size_t segment, char *lower, char *upper,
                                   ResourceLocation loc)
 {
+   std::vector<std::pair<ptrdiff_t, ptrdiff_t>,
+       AllocatorAdaptor<std::pair<ptrdiff_t, ptrdiff_t>>>
+       copy_segs(
+          AllocatorAdaptor<std::pair<ptrdiff_t, ptrdiff_t>>(MANAGED, true));
    auto seg = &storage.get_segment(segment);
    if (seg->loc & loc)
    {
       auto start = lower - seg->lower;
       auto stop = upper - seg->lower;
       mark_valid(segment, start, stop, [&](auto start, auto stop)
+      { copy_segs.emplace_back(start, stop); });
+
+      if (copy_segs.size())
       {
          if (!seg->other)
          {
             throw std::runtime_error("no other to read from");
          }
          auto &os = storage.get_segment(seg->other);
-         MemCopy(seg->lower + start, os.lower + start, stop - start, seg->loc,
-                 os.loc);
-      });
+         BatchMemCopy(seg->lower, os.lower, seg->loc, os.loc, copy_segs);
+      }
 
       return lower;
    }
@@ -1396,7 +1515,7 @@ int ResourceManager::compare_other(size_t segment, char *lower, char *upper)
 {
    if (segment)
    {
-      auto& seg = storage.get_segment(segment);
+      auto &seg = storage.get_segment(segment);
       if (seg.other)
       {
          auto &oseg = storage.get_segment(seg.other);
@@ -1415,12 +1534,24 @@ int ResourceManager::compare_other(size_t segment, char *lower, char *upper)
          {
             tmp1 = Resource<char>(stop - start, HOST, true);
             ptr1 = tmp1.lower;
-            MemCopy(ptr1, oseg.lower+start, stop - start, HOST, oseg.loc);
+            MemCopy(ptr1, oseg.lower + start, stop - start, HOST, oseg.loc);
          }
          return std::memcmp(ptr0, ptr1, stop - start);
       }
    }
    return 0;
+}
+
+void ResourceManager::CopyFromHost(size_t segment, char *lower, char *upper,
+                                   const char *src, size_t size)
+{
+   // TODO
+}
+
+void ResourceManager::CopyToHost(size_t segment, const char *lower,
+                                 const char *upper, char *dst, size_t size)
+{
+   // TODO
 }
 
 } // namespace mfem
