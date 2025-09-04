@@ -166,7 +166,7 @@ int main(int argc, char *argv[])
    {
       std::string file_name = csv_prefix + mfem::to_padded_string(0, 6) + ".csv";
       Array<int> field_idx, tag_idx;
-      // particle_solver.GetParticles().PrintCSV(file_name.c_str(), field_idx, tag_idx);
+      particle_solver.GetParticles().PrintCSV(file_name.c_str(), field_idx, tag_idx);
    }
    int vis_count = 0;
 
@@ -306,10 +306,10 @@ void vel_dbc(const Vector &x, real_t t, Vector &u)
    u(1) = 0.;
    if (std::fabs(yi)<1e-5)
    {
-      u(1) = 6.0*xi*(length-xi)/(length*length)*sin(M_PI*t/0.5);
+      u(1) = 6.0*xi*(length-xi)/(length*length);
    }
    else if (std::fabs(yi)>0.99999)
    {
-      u(1) = -6.0*xi*(length-xi)/(length*length)*sin(M_PI*t/0.5);
+      u(1) = -6.0*xi*(length-xi)/(length*length);
    }
 }
