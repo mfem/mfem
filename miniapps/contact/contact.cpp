@@ -313,7 +313,6 @@ int main(int argc, char *argv[])
                                 tribol_ratio, enable_bound_constraints, use_mass_weights);
       Vector dx(xref.Size()); dx = 0.0;
 
-
       x_gf.SetTrueVector();
       x_gf.GetTrueDofs(xref);
 

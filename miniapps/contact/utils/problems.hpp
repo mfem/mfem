@@ -111,7 +111,7 @@ private:
    HypreParMatrix * Pc = nullptr;
    ParGridFunction * coords = nullptr;
 
-
+   void ReleaseMemory();
    void ComputeGapJacobian();
 
    Array<HYPRE_BigInt> constraints_starts;

@@ -265,7 +265,6 @@ OptContactProblem::OptContactProblem(ElasticityOperator * problem_,
                                      bool mass_weights_)
    : problem(problem_), mortar_attrs(mortar_attrs_),
      nonmortar_attrs(nonmortar_attrs_),
-     coords(coords_), xref(xref_),
      tribol_ratio(tribol_ratio_),
      bound_constraints(bound_constraints_), useMassWeights(mass_weights_),
      block_offsetsg(4)
@@ -274,58 +273,11 @@ OptContactProblem::OptContactProblem(ElasticityOperator * problem_,
    pmesh = problem->GetMesh();
    vfes = problem->GetFESpace();
    dim = pmesh->Dimension();
-   ComputeGapJacobian();
 
-   problem->Getxrefbc(xrefbc);
-
-   if (problem->IsNonlinear())
-   {
-      energy_ref = problem->GetEnergy(xrefbc);
-      problem->GetGradient(xrefbc,grad_ref);
-      Kref = problem->GetHessian(xrefbc);
-   }
-   dimU = J->Width();
-   dimG = J->Height();
-   num_constraints = J->GetGlobalNumRows();
-   if (bound_constraints) { num_constraints += 2 * J->GetGlobalNumCols(); }
-
-   block_offsetsg[0] = 0;
-   block_offsetsg[1] = dimG;
-   block_offsetsg[2] = dimU;
-   block_offsetsg[3] = dimU;
-   block_offsetsg.PartialSum();
-
-   Vector diagVec(dimU); diagVec = 0.0;
-   SparseMatrix * tempSparse;
-
-   diagVec = 1.0;
-   tempSparse = new SparseMatrix(diagVec);
-   Iu = new HypreParMatrix(comm, GetGlobalNumDofs(), GetDofStarts(), tempSparse);
-   HypreStealOwnership(*Iu, *tempSparse);
-   delete tempSparse;
-
-   diagVec = -1.0;
-   tempSparse = new SparseMatrix(diagVec);
-   negIu = new HypreParMatrix(comm, GetGlobalNumDofs(), GetDofStarts(),
-                              tempSparse);
-   HypreStealOwnership(*negIu, *tempSparse);
-   delete tempSparse;
-
+   Update(coords_, xref_);
 
    dl.SetSize(dimU); dl = 0.0;
    eps.SetSize(dimU); eps = 1.e6;
-
-   if (bound_constraints)
-   {
-      dimM = dimG + 2 * dimU;
-   }
-   else
-   {
-      dimM = dimG;
-   }
-   dimC = dimM;
-
-   ml.SetSize(dimM); ml = 0.0;
 
    MFEM_VERIFY(vfes, "space is null");
    ParBilinearForm MassForm(vfes);
@@ -333,6 +285,7 @@ OptContactProblem::OptContactProblem(ElasticityOperator * problem_,
    MassForm.Assemble();
 
    Array<int> empty_tdof_list;
+   delete Mv;
    Mv = new HypreParMatrix();
    MassForm.FormSystemMatrix(empty_tdof_list,*Mv);
 
@@ -341,14 +294,29 @@ OptContactProblem::OptContactProblem(ElasticityOperator * problem_,
    Mv->Mult(onev, Mvlump);
 }
 
+void OptContactProblem::ReleaseMemory()
+{
+   delete J; J = nullptr;
+   delete Jt; Jt = nullptr;
+   delete Pc; Pc = nullptr;
+   delete NegId; NegId = nullptr;
+   delete Iu; Iu = nullptr;
+   delete negIu; negIu = nullptr;
+   delete Mv; Mv = nullptr;
+   delete Mcs; Mcs = nullptr;
+   if (dcdu)
+   {
+      delete dcdu;
+      dcdu = nullptr;
+   }
+}
+
+
 void OptContactProblem::Update(ParGridFunction * coords_, const Vector & xref_)
 {
-   //comm = problem->GetComm();
-   //pmesh = problem->GetMesh();
-   //vfes = problem->GetFESpace();
-   //dim = pmesh->Dimension();
    coords = coords_;
-   xref.Set(1.0, xref_);
+   xref.SetDataAndSize(xref_.GetData(), xref_.Size());
+
    ComputeGapJacobian();
 
    problem->Getxrefbc(xrefbc);
@@ -411,20 +379,6 @@ void OptContactProblem::Update(ParGridFunction * coords_, const Vector & xref_)
    Vector onev(Mv->Width()); onev = 1.0;
    Mvlump.SetSize(Mv->Height());
    Mv->Mult(onev, Mvlump);
-   //delete J; J = nullptr;
-   //delete Jt;
-   //delete Pc;
-   //delete NegId;
-   //delete Iu;
-   //delete negIu;
-   //delete Mv;
-   //delete Mcs;
-   //if (dcdu)
-   //{
-   //   delete dcdu;
-   //}
-   //OptContactProblem(problem, mortar_attrs, nonmortar_attrs, coords_, xref_, tribol_ratio, bound_constraints, useMassWeights);
-
 }
 
 
@@ -716,18 +670,7 @@ void OptContactProblem::SetBoundConstraints(const Vector & dl_,
 
 OptContactProblem::~OptContactProblem()
 {
-   delete J;
-   delete Jt;
-   delete Pc;
-   delete NegId;
-   delete Iu;
-   delete negIu;
-   delete Mv;
-   delete Mcs;
-   if (dcdu)
-   {
-      delete dcdu;
-   }
+   ReleaseMemory();
 }
 
 HypreParMatrix * OptContactProblem::SetupTribol(ParMesh * pmesh,
@@ -738,9 +681,6 @@ HypreParMatrix * OptContactProblem::SetupTribol(ParMesh * pmesh,
 {
    axom::slic::SimpleLogger logger;
    axom::slic::setIsRoot(mfem::Mpi::Root());
-
-   // Initialize Tribol contact library
-   tribol::initialize(pmesh->Dimension(), pmesh->GetComm());
 
    int coupling_scheme_id = 0;
    int mesh1_id = 0; int mesh2_id = 1;
