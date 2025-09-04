@@ -4446,16 +4446,19 @@ void NitscheElasticityIntegrator::AssembleFaceMatrix(
          CalcOrtho(Trans.Jacobian(), nor);
       }
 
-      // Set w to the unit normal vector if not provided
-      VectorConstantCoefficient n_coef(n);
       if (!w)
       {
-         w = &n_coef;
+         // Set w to the unit normal vector if not provided
+         w1 = nor;
+         w1 /= w1.Norml2();
+         if (ndofs2) { w2 = w1; }
       }
-
-      // Evaluate vector function w at integration points
-      w->Eval(w1, *Trans.Elem1, eip1);
-      if (ndofs2) { w->Eval(w2, *Trans.Elem2, eip2); }
+      else
+      {
+         // Evaluate vector function w at integration points
+         w->Eval(w1, *Trans.Elem1, eip1);
+         if (ndofs2) { w->Eval(w2, *Trans.Elem2, eip2); }
+      }
 
       real_t W, WLM;
       if (ndofs2)
