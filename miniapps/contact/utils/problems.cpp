@@ -258,40 +258,17 @@ ElasticityOperator::~ElasticityOperator()
 OptContactProblem::OptContactProblem(ElasticityOperator * problem_,
                                      const std::set<int> & mortar_attrs_,
                                      const std::set<int> & nonmortar_attrs_,
-                                     ParGridFunction * coords_,
-                                     const Vector & xref_,
                                      double tribol_ratio_,
-                                     bool bound_constraints_,
-                                     bool mass_weights_)
+                                     bool bound_constraints_)
    : problem(problem_), mortar_attrs(mortar_attrs_),
      nonmortar_attrs(nonmortar_attrs_),
      tribol_ratio(tribol_ratio_),
-     bound_constraints(bound_constraints_), useMassWeights(mass_weights_),
-     block_offsetsg(4)
+     bound_constraints(bound_constraints_), block_offsetsg(4)
 {
    comm = problem->GetComm();
    pmesh = problem->GetMesh();
    vfes = problem->GetFESpace();
    dim = pmesh->Dimension();
-
-   Update(coords_, xref_);
-
-   dl.SetSize(dimU); dl = 0.0;
-   eps.SetSize(dimU); eps = 1.e6;
-
-   MFEM_VERIFY(vfes, "space is null");
-   ParBilinearForm MassForm(vfes);
-   MassForm.AddDomainIntegrator(new VectorMassIntegrator);
-   MassForm.Assemble();
-
-   Array<int> empty_tdof_list;
-   delete Mv;
-   Mv = new HypreParMatrix();
-   MassForm.FormSystemMatrix(empty_tdof_list,*Mv);
-
-   Vector onev(Mv->Width()); onev = 1.0;
-   Mvlump.SetSize(Mv->Height());
-   Mv->Mult(onev, Mvlump);
 }
 
 void OptContactProblem::ReleaseMemory()
@@ -311,8 +288,15 @@ void OptContactProblem::ReleaseMemory()
    }
 }
 
+void OptContactProblem::UpdateContactSystem(ParGridFunction * coords_, const Vector & xref_)
+{
+   ReleaseMemory();
+   FormContactSystem(coords_, xref_);
+}
 
-void OptContactProblem::Update(ParGridFunction * coords_, const Vector & xref_)
+
+
+void OptContactProblem::FormContactSystem(ParGridFunction * coords_, const Vector & xref_)
 {
    coords = coords_;
    xref.SetDataAndSize(xref_.GetData(), xref_.Size());
@@ -379,6 +363,9 @@ void OptContactProblem::Update(ParGridFunction * coords_, const Vector & xref_)
    Vector onev(Mv->Width()); onev = 1.0;
    Mvlump.SetSize(Mv->Height());
    Mv->Mult(onev, Mvlump);
+   
+   dl.SetSize(dimU); dl = 0.0;
+   eps.SetSize(dimU); eps = 1.e6;
 }
 
 
@@ -738,10 +725,7 @@ HypreParMatrix * OptContactProblem::SetupTribol(ParMesh * pmesh,
    auto A_blk = tribol::getMfemBlockJacobian(coupling_scheme_id);
 
    HypreParMatrix * Mfull = (HypreParMatrix *)(&A_blk->GetBlock(1,0));
-   if (useMassWeights)
-   {
-      Mfull->InvScaleRows(Mcslumpfull); // scaling
-   }
+   Mfull->InvScaleRows(Mcslumpfull); // scaling
    HypreParMatrix * Me = Mfull->EliminateCols(ess_tdofs);
    delete Me;
 
@@ -822,10 +806,7 @@ HypreParMatrix * OptContactProblem::SetupTribol(ParMesh * pmesh,
       gap[i] = gap_true[nonzero_rows[i]];
       Mcslump(i) = Mcslumpfull(nonzero_rows[i]);
    }
-   if (useMassWeights)
-   {
-      gap /= Mcslump;
-   }
+   gap /= Mcslump;   
    tribol::finalize();
    return M;
 }

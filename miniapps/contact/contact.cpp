@@ -255,6 +255,10 @@ int main(int argc, char *argv[])
    real_t p = 30.0;
    ConstantCoefficient f(p);
    std::vector<Array<int>> CGiter;
+  
+   
+   OptContactProblem contact(&prob, mortar_attr, nonmortar_attr,
+                              tribol_ratio, bound_constraints);
 
    int total_steps = nsteps + msteps;
    for (int i = 0; i<total_steps; i++)
@@ -303,22 +307,21 @@ int main(int argc, char *argv[])
             MFEM_ABORT("Should be unreachable");
             break;
       }
+      
+      prob.FormLinearSystem();
 
       // deviation from the reference configuration
       Vector xref(x_gf.GetTrueVector().Size()); xref = 0.0;
-      bool use_mass_weights = true;
-      bool enable_bound_constraints = false;
-      prob.FormLinearSystem();
-      OptContactProblem contact(&prob, mortar_attr, nonmortar_attr, &new_coords, xref,
-                                tribol_ratio, enable_bound_constraints, use_mass_weights);
-      Vector dx(xref.Size()); dx = 0.0;
-
       x_gf.SetTrueVector();
       x_gf.GetTrueDofs(xref);
-
-      if (i > 0)
+      bool enable_bound_constraints = false;
+      if (i == 0)
       {
-         contact.Update(&new_coords, xref);
+         contact.FormContactSystem(&new_coords, xref);
+      }
+      else
+      {
+         contact.UpdateContactSystem(&new_coords, xref);
       }
       if (bound_constraints)
       {
@@ -368,7 +371,7 @@ int main(int argc, char *argv[])
       optimizer.SetTol(1e-6);
       optimizer.SetMaxIter(100);
       optimizer.SetLinearSolver(&cgsolver);
-      optimizer.SetUsingMassWeights(use_mass_weights);
+      optimizer.SetUsingMassWeights(true);
       optimizer.SetPrintLevel(1);
 
       x_gf.SetTrueVector();
@@ -381,7 +384,7 @@ int main(int argc, char *argv[])
       delete prec;
       if (subspacesolver) { delete subspacesolver; }
 
-
+      Vector dx(ndofs); dx = 0.0;
       dx.Set(1.0, xf);
       dx.Add(-1.0, x0);
       prob.SetTimeStepDisplacement(i, dx);

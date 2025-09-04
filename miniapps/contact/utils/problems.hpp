@@ -136,7 +136,6 @@ private:
    Vector Mvlump;
    Vector Mcslumpfull;
    Vector Mcslump;
-   bool useMassWeights;
 
 
    Vector dl;
@@ -148,12 +147,10 @@ public:
    OptContactProblem(ElasticityOperator * problem_,
                      const std::set<int> & mortar_attrs_,
                      const std::set<int> & nonmortar_attrs_,
-                     ParGridFunction * coords_,
-                     const Vector & xref_,
                      real_t tribol_ratio_,
-                     bool bound_constraints_=true,
-                     bool mass_weights_=false);
-   void Update(ParGridFunction * coords_, const Vector & xref);
+                     bool bound_constraints_=true);
+   void FormContactSystem(ParGridFunction * coords_, const Vector & xref);
+   void UpdateContactSystem(ParGridFunction * coords_, const Vector & xref);
    int GetDimU() {return dimU;}
    int GetDimM() {return dimM;}
    int GetDimC() {return dimC;}
