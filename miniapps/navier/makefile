@@ -34,7 +34,7 @@ COMMON_LIB += $(if $(MFEM_SHARED:YES=),,\
    $(MFEM_BUILD_DIR)/miniapps/common))
 
 PAR_MINIAPPS = navier_mms navier_kovasznay navier_kovasznay_vs navier_tgv\
- navier_shear navier_3dfoc navier_turbchan navier_bifurcation \
+ navier_shear navier_3dfoc navier_turbchan navier_bifurcation navier_junction\
  navier_couette
 ifeq ($(MFEM_USE_GSLIB),YES)
    PAR_MINIAPPS += navier_cht
