@@ -1288,6 +1288,17 @@ void ParFiniteElementSpace::GetBoundaryEdgeDofs(const Array<int>
                                            dof_to_edge_map, dof_to_boundary_element,
                                            dof_to_edge_orientation);
 
+   // Apply the encoding trick that combines edge index and orientation:
+   // if orientation is positive then use the positive index
+   // and -1 - index if orientation is negative
+   std::unordered_map<int, int> dof_to_encoded_edge;
+   for (const auto& [dof, edge] : dof_to_edge_map)
+   {
+      int orientation = dof_to_edge_orientation[dof];
+      int encoded_edge = (orientation > 0) ? edge : -1 - edge;
+      dof_to_encoded_edge[dof] = encoded_edge;
+   }
+
    // Parallel processing: Build edge sharing lookup table
    std::unordered_map<int, int> edge_to_group_size;
    int num_groups = pmesh->GetNGroups();
@@ -1333,8 +1344,11 @@ void ParFiniteElementSpace::GetBoundaryEdgeDofs(const Array<int>
    std::unordered_set<int> processed_edges;
    processed_edges.reserve(boundary_edge_dofs.size());
 
-   for (const auto& [dof, local_edge] : dof_to_edge_map)
+   for (const auto& [dof, encoded_edge] : dof_to_encoded_edge)
    {
+      // Decode the edge index from the encoded value
+      int local_edge = (encoded_edge >= 0) ? encoded_edge : -1 - encoded_edge;
+      
       // Skip if already processed this edge
       if (!processed_edges.insert(local_edge).second) { continue; }
 
@@ -1439,6 +1453,7 @@ void ParFiniteElementSpace::GetBoundaryEdgeDofs(const Array<int>
       dof_to_edge_map.erase(dof);
       dof_to_boundary_element.erase(dof);
       dof_to_edge_orientation.erase(dof);
+      dof_to_encoded_edge.erase(dof);
    }
 
    // Copy boundary edge dofs to output parameter
@@ -1459,9 +1474,10 @@ void ParFiniteElementSpace::GetBoundaryEdgeDofs(const Array<int>
    {
       ldof_marker[dof] = 1; // Mark all boundary edge dofs
       int tdof = GetLocalTDofNumber(dof);
-      if (tdof >= 0)
+      if (tdof >= 0) // tdof == -1 means not present on this rank
       {
-         int edge = dof_to_edge_map[dof];
+         int encoded_edge = dof_to_encoded_edge[dof];
+         int edge = (encoded_edge >= 0) ? encoded_edge : -1 - encoded_edge;
          tdof_edge_pairs.push_back({tdof, edge});
       }
    }
@@ -1536,12 +1552,11 @@ void ParFiniteElementSpace::ComputeLoopEdgeOrientations(
    const Vector& loop_normal,
    std::unordered_map<int, int>& edge_loop_orientations)
 {
+   Array<int> edge_verts, bdr_elem_verts;
+   Vector edge_vec(3), to_edge_vec(3), cross_product(3);   
    // Process each edge locally
-   for (const auto& pair : dof_to_boundary_element)
+   for (const auto& [dof, bdr_elem_idx] : dof_to_boundary_element)
    {
-      int dof = pair.first;
-      int bdr_elem_idx = pair.second;
-
       // Check if this DOF has a corresponding edge
       auto edge_it = dof_to_edge.find(dof);
       if (edge_it == dof_to_edge.end()) { continue; }
@@ -1549,14 +1564,12 @@ void ParFiniteElementSpace::ComputeLoopEdgeOrientations(
       int edge_id = edge_it->second;
 
       // Get edge vertices
-      Array<int> edge_verts;
       pmesh->GetEdgeVertices(edge_id, edge_verts);
 
-      const double *v0 = pmesh->GetVertex(edge_verts[0]);
-      const double *v1 = pmesh->GetVertex(edge_verts[1]);
+      const real_t *v0 = pmesh->GetVertex(edge_verts[0]);
+      const real_t *v1 = pmesh->GetVertex(edge_verts[1]);
 
       // Get boundary element vertices
-      Array<int> bdr_elem_verts;
       pmesh->GetBdrElement(bdr_elem_idx)->GetVertices(bdr_elem_verts);
 
       // Find the third vertex (not part of the edge)
@@ -1571,30 +1584,31 @@ void ParFiniteElementSpace::ComputeLoopEdgeOrientations(
          }
       }
 
-      if (third_vertex == -1) { continue; } // No third vertex found, skip this edge
+      if (third_vertex == -1) 
+      { 
+         MFEM_ABORT("Boundary element " << bdr_elem_idx << " has only 2 vertices, "
+                   "but 3D boundary elements must have at least 3 vertices"); 
+      }
 
-      const double *v2 = pmesh->GetVertex(third_vertex);
+      const real_t *v2 = pmesh->GetVertex(third_vertex);
 
       // Edge vector
-      Vector edge_vec(3);
       for (int i = 0; i < 3; i++) { edge_vec[i] = v1[i] - v0[i]; }
 
       // Vector from third vertex to edge (use edge midpoint)
-      Vector to_edge_vec(3);
       for (int i = 0; i < 3; i++)
       {
-         double edge_midpoint = (v0[i] + v1[i]) * 0.5;
+         real_t edge_midpoint = (v0[i] + v1[i]) * 0.5;
          to_edge_vec[i] = edge_midpoint - v2[i];
       }
 
       // Cross product: to_edge × edge
-      Vector cross_product(3);
       cross_product[0] = to_edge_vec[1] * edge_vec[2] - to_edge_vec[2] * edge_vec[1];
       cross_product[1] = to_edge_vec[2] * edge_vec[0] - to_edge_vec[0] * edge_vec[2];
       cross_product[2] = to_edge_vec[0] * edge_vec[1] - to_edge_vec[1] * edge_vec[0];
 
       // Check alignment with loop normal
-      double dot_product = cross_product * loop_normal;
+      real_t dot_product = cross_product * loop_normal;
       edge_loop_orientations[edge_id] = (dot_product > 0) ? 1 : -1;
    }
 }

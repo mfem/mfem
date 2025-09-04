@@ -1409,6 +1409,25 @@ public:
                                     std::unordered_map<int, int> &dof_to_boundary_element,
                                     std::unordered_map<int, int> &dof_to_edge_orientation) const;
 
+   /** @brief Get boundary elements grouped by attribute.
+       Serial version that finds all boundary elements with specified attributes. */
+   virtual void GetBoundaryElementsByAttribute(
+      const Array<int> &bdr_attrs,
+      std::unordered_map<int, Array<int>> &attr_to_elements);
+
+   /** @brief Get boundary elements with a specific attribute.
+       Serial version that finds all boundary elements with the given attribute. */
+   virtual void GetBoundaryElementsByAttribute(int bdr_attr,
+                                               Array<int> &boundary_elements);
+
+   /** @brief Compute edge orientations for loop traversal.
+       Serial version that determines edge orientations relative to a loop normal. */
+   virtual void ComputeLoopEdgeOrientations(
+      const std::unordered_map<int, int>& dof_to_edge,
+      const std::unordered_map<int, int>& dof_to_boundary_element,
+      const Vector& loop_normal,
+      std::unordered_map<int, int>& edge_loop_orientations);
+
    /// Convert a Boolean marker array to a list containing all marked indices.
    static void MarkerToList(const Array<int> &marker, Array<int> &list);
 

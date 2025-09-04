@@ -479,11 +479,11 @@ public:
         @param[out] attr_to_elements map from boundary attribute to the list of
                                      boundary elements with that attribute */
    void GetBoundaryElementsByAttribute(const Array<int> &bdr_attrs,
-                                       std::unordered_map<int, Array<int>> &attr_to_elements);
+                                       std::unordered_map<int, Array<int>> &attr_to_elements) override;
 
    /// @brief Simplified interface for single boundary attribute
    void GetBoundaryElementsByAttribute(int bdr_attr,
-                                       Array<int> &boundary_elements);
+                                       Array<int> &boundary_elements) override;
 
    /** Compute edge orientations relative to a loop direction defined by a normal vector.
        This is useful for applying circulation boundary conditions.
@@ -495,7 +495,7 @@ public:
                                     dof_to_edge,
                                     const std::unordered_map<int, int>& dof_to_boundary_element,
                                     const Vector& loop_normal,
-                                    std::unordered_map<int, int>& edge_loop_orientations);
+                                    std::unordered_map<int, int>& edge_loop_orientations) override;
 
    /** If the given ldof is owned by the current processor, return its local
        tdof number, otherwise return -1 */

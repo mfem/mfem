@@ -26,7 +26,7 @@ void GeneratePartitionings(int n_elements, int num_procs,
 {
    std::vector<int> partition(n_elements);
 
-   std::function<void(int)> generate = [&](int elem)
+   auto generate = [&](auto&& self, int elem) -> void
    {
       if (elem == n_elements)
       {
@@ -37,17 +37,17 @@ void GeneratePartitionings(int n_elements, int num_procs,
       for (int proc = 0; proc < num_procs; proc++)
       {
          partition[elem] = proc;
-         generate(elem + 1);
+         self(self, elem + 1);
       }
    };
 
-   generate(0);
+   generate(generate, 0);
 }
 
 } // namespace boundary_edge_dof_test
 
 TEST_CASE("BoundaryEdgeDoFsPartitionInvariant",
-          "[Parallel], [ParMesh], [BoundaryEdgeDoFs]")
+          "[Parallel][ParMesh][BoundaryEdgeDoFs]")
 {
    const int orientation = 3;
    const int order = 1;
