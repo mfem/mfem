@@ -90,7 +90,7 @@ void map_quadrature_data_to_fields_impl(
    }
    else
    {
-      MFEM_ABORT("quadrature data mapping to field is not implemented for"
+      MFEM_ABORT_KERNEL("quadrature data mapping to field is not implemented for"
                  " this field descriptor");
    }
 }
@@ -227,8 +227,8 @@ void map_quadrature_data_to_fields_tensor_impl_2d(
    }
    else
    {
-      MFEM_ABORT("quadrature data mapping to field is not implemented for"
-                 " this field descriptor with sum factorization on tensor product elements");
+      MFEM_ABORT_KERNEL("quadrature data mapping to field is not implemented for"
+                        " this field descriptor with sum factorization on tensor product elements");
    }
 }
 
@@ -413,8 +413,8 @@ void map_quadrature_data_to_fields_tensor_impl_3d(
    }
    else
    {
-      MFEM_ABORT("quadrature data mapping to field is not implemented for"
-                 " this field descriptor with sum factorization on tensor product elements");
+      MFEM_ABORT_KERNEL("quadrature data mapping to field is not implemented for"
+                        " this field descriptor with sum factorization on tensor product elements");
    }
 }
 
