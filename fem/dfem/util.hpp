@@ -969,6 +969,29 @@ const Operator *get_restriction(const FieldDescriptor &f,
    return nullptr;
 }
 
+template <typename entity_t>
+inline int get_num_entities(const FieldDescriptor& f)
+{
+   if constexpr (std::is_same_v<entity_t, Entity::Element>) {
+      return std::visit(
+         [](auto&& arg) {
+            using T = std::decay_t<decltype(arg)>;
+            if constexpr (std::is_same_v<T, const FiniteElementSpace*> ||
+                          std::is_same_v<T, const ParFiniteElementSpace*>) {
+               return arg->GetNE();
+            } else if constexpr (std::is_same_v<T, const ParameterSpace*>) {
+               // TODO: implement GetNE() on ParameterSpace
+               return 1;  // arg->GetNE();
+            } else {
+               static_assert(dfem::always_false<T>, "can't use get_num_entities on type");
+            }
+            return 0;  // Unreachable, but avoids compiler warning
+         },
+         f.data);
+  }
+  MFEM_ABORT("get_num_entities not implemented for Entity");
+}
+
 /// @brief Get a transpose restriction callback for a field descriptor.
 ///
 /// @param f the field descriptor.
@@ -987,9 +1010,10 @@ get_restriction_transpose(
    {
       auto RT = [=](const Vector &v_e, Vector &v_l)
       {
-         v_l += v_e;
+         v_l += v_e.Sum();
       };
-      return std::make_tuple(RT, 1);
+      auto n_el = get_num_entities<entity_t>(f);
+      return std::make_tuple(RT, n_el);
    }
    else
    {
