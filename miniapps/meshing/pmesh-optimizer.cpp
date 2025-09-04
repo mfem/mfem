@@ -662,6 +662,12 @@ int main (int argc, char *argv[])
          tc->SetParDiscreteTargetSize(size);
          tc->SetMinSizeForTargets(size.Min());
          target_c = tc;
+         if (visualization)
+         {
+            socketstream vis1;
+            common::VisualizeField(vis1, "localhost", 19916, size, "Zeta 0",
+                                 300, 600, 300, 300);
+         }
          break;
       }
       case 6: // material indicator 2D

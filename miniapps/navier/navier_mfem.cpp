@@ -11,6 +11,23 @@ using namespace mfem;
 using namespace navier;
 using namespace mfem::common;
 
+Vector get_random_point(Mesh &mesh)
+{
+   // choose a random element and generate a random point within it
+   int nelem = mesh.GetNE();
+   int elem_id = (rand_real()*mesh.GetNE());
+   real_t ipx = rand_real();
+   real_t ipy = rand_real();
+
+   IntegrationPoint ip;
+   ip.Set2(ipx, ipy);
+
+   Vector pos(mesh.Dimension());
+   ElementTransformation *transf = mesh.GetElementTransformation(elem_id);
+   transf->Transform(ip, pos);
+   return pos;
+}
+
 struct flow_context
 {
    // common
@@ -39,7 +56,7 @@ struct flow_context
    int print_csv_freq = 10;
 } ctx;
 
-void SetInjectedParticles(NavierParticles &particle_solver, const Array<int> &p_idxs, real_t kappa_min, real_t kappa_max, int kappa_seed, real_t zeta, real_t gamma, int step);
+void SetInjectedParticles(NavierParticles &particle_solver, const Array<int> &p_idxs, real_t kappa_min, real_t kappa_max, int kappa_seed, real_t zeta, real_t gamma, int step, Mesh &mesh);
 
 void inlet_dbc(const Vector &x, real_t t, Vector &u)
 {
@@ -201,7 +218,6 @@ int main(int argc, char *argv[])
    // Parallel decompose mesh
    ParMesh pmesh(MPI_COMM_WORLD, mesh);
    pmesh.EnsureNodes();
-   mesh.Clear();
 
    // Create the flow solver
    NavierSolver flow_solver(&pmesh, ctx.order, 1.0/ctx.Re);
@@ -307,7 +323,7 @@ int main(int argc, char *argv[])
          {
             int rank_num_particles = ctx.num_add_particles/size + (rank < (ctx.num_add_particles % size) ? 1 : 0);
             particle_solver.GetParticles().AddParticles(rank_num_particles, &add_particle_idxs);
-            SetInjectedParticles(particle_solver, add_particle_idxs, ctx.kappa_min, ctx.kappa_max, (rank+1)*step, ctx.zeta, ctx.gamma,step);
+            SetInjectedParticles(particle_solver, add_particle_idxs, ctx.kappa_min, ctx.kappa_max, (rank+1)*step, ctx.zeta, ctx.gamma,step, mesh);
          }
          if (!traj_vis)
          {
@@ -356,7 +372,7 @@ int main(int argc, char *argv[])
    return 0;
 }
 
-void SetInjectedParticles(NavierParticles &particle_solver, const Array<int> &p_idxs, real_t kappa_min, real_t kappa_max, int kappa_seed, real_t zeta, real_t gamma, int step)
+void SetInjectedParticles(NavierParticles &particle_solver, const Array<int> &p_idxs, real_t kappa_min, real_t kappa_max, int kappa_seed, real_t zeta, real_t gamma, int step, Mesh &mesh)
 {
    // Inject uniformly-distributed along inlet
    real_t width = 1.0;
@@ -388,8 +404,10 @@ void SetInjectedParticles(NavierParticles &particle_solver, const Array<int> &p_
          if (j == 0)
          {
             // Set position
-            double xinit = real_dist(gen);
+            double xinit = real_dist(gen);//
             particle_solver.X().SetVectorValues(idx, Vector({xinit, 0.0}));
+            Vector xyrand = get_random_point(mesh);
+            particle_solver.X().SetVectorValues(idx, xyrand);
          }
          else
          {

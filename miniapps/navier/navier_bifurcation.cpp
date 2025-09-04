@@ -7,6 +7,8 @@
 //
 // Sample run:
 //   mpirun -np 10 ./navier_bifurcation -rs 3 -npt 10 -pt 100 -nt 4e5 -csv 50 -pv 50
+// mpirun -np 10 ./navier_bifurcation -rs 3 -npt 10 -pt 100 -nt 1e5 -csv 50
+// make navier_bifurcation -j4 && mpirun -np 10 ./navier_bifurcation -rs 3 -npt 5 -pt 100 -nt 1e5 -csv 20 -ipf 10
 
 #include "navier_solver.hpp"
 #include "navier_particles.hpp"
@@ -38,14 +40,14 @@ struct flow_context
    int pnt_0 = round(2.0/dt);
    int add_particles_freq = 100;
    int num_add_particles = 10;
-   real_t kappa_min = 1.0;
-   real_t kappa_max = 10.0;
+   real_t kappa_min = 10.0;
+   real_t kappa_max = 20.0;
    real_t gamma = 0.0;
    real_t zeta = 0.19;
    int print_csv_freq = 500;
 } ctx;
 
-void SetInjectedParticles(NavierParticles &particle_solver, const Array<int> &p_idxs, real_t kappa_min, real_t kappa_max, int kappa_seed, real_t zeta, real_t gamma);
+void SetInjectedParticles(NavierParticles &particle_solver, const Array<int> &p_idxs, real_t kappa_min, real_t kappa_max, int kappa_seed, real_t zeta, real_t gamma, int step);
 
 // Dirichlet conditions for velocity
 void vel_dbc(const Vector &x, real_t t, Vector &u);
@@ -167,7 +169,8 @@ int main(int argc, char *argv[])
    if (ctx.print_csv_freq > 0)
    {
       std::string file_name = csv_prefix + mfem::to_padded_string(0, 6) + ".csv";
-      particle_solver.GetParticles().PrintCSV(file_name.c_str());
+      Array<int> field_idx, tag_idx;
+      // particle_solver.GetParticles().PrintCSV(file_name.c_str(), field_idx, tag_idx);
    }
    int vis_count = 0;
 
@@ -188,21 +191,24 @@ int main(int argc, char *argv[])
          // Inject particles
          if (step % ctx.add_particles_freq == 0)
          {
-            int rank_num_particles = ctx.num_add_particles/size + (rank < (ctx.num_add_particles % size) ? 1 : 0);
+            //int rank_num_particles = ctx.num_add_particles/size + (rank < (ctx.num_add_particles % size) ? 1 : 0);
+            int rank_num_particles = rank > 0 ? 0 : ctx.num_add_particles;
             particle_solver.GetParticles().AddParticles(rank_num_particles, &add_particle_idxs);
-            SetInjectedParticles(particle_solver, add_particle_idxs, ctx.kappa_min, ctx.kappa_max, (rank+1)*step, ctx.zeta, ctx.gamma);
+            SetInjectedParticles(particle_solver, add_particle_idxs, ctx.kappa_min, ctx.kappa_max, (rank+1)*step, ctx.zeta, ctx.gamma, step);
          }
 
          particle_solver.Step(ctx.dt, u_gf, w_gf);
          pstep++;
       }
 
-      if (ctx.print_csv_freq > 0 && step % ctx.print_csv_freq == 0)
+      if (ctx.print_csv_freq > 0 && step % ctx.print_csv_freq == 0 && step >= ctx.pnt_0)
       {
          vis_count++;
          // Output the particles
          std::string file_name = csv_prefix + mfem::to_padded_string(vis_count, 6) + ".csv";
-         particle_solver.GetParticles().PrintCSV(file_name.c_str());
+         Array<int> field_idx, tag_idx;
+         particle_solver.GetParticles().PrintCSV(file_name.c_str(), field_idx, tag_idx);
+         // particle_solver.GetParticles().PrintCSV(file_name.c_str());
       }
 
       if (ctx.paraview_freq > 0 && step % ctx.paraview_freq == 0)
@@ -237,7 +243,7 @@ int main(int argc, char *argv[])
    return 0;
 }
 
-void SetInjectedParticles(NavierParticles &particle_solver, const Array<int> &p_idxs, real_t kappa_min, real_t kappa_max, int kappa_seed, real_t zeta, real_t gamma)
+void SetInjectedParticles(NavierParticles &particle_solver, const Array<int> &p_idxs, real_t kappa_min, real_t kappa_max, int kappa_seed, real_t zeta, real_t gamma, int step)
 {
    // Inject uniformly-distributed along inlet
    real_t height = 1.0;
@@ -259,12 +265,17 @@ void SetInjectedParticles(NavierParticles &particle_solver, const Array<int> &p_
    {
       int idx = p_idxs[i];
 
+      std::uniform_real_distribution<> real_dist(0.0,1.0);
+      std::mt19937 gen(kappa_seed+step+idx);
+
       for (int j = 0; j < 4; j++)
       {
          if (j == 0)
          {
             // Set position
-            particle_solver.X().SetVectorValues(idx, Vector({0.0, spacing*(i+offset+1)}));
+            // particle_solver.X().SetVectorValues(idx, Vector({0.0, spacing*(i+offset+1)}));
+            double yinit = real_dist(gen);
+            particle_solver.X().SetVectorValues(idx, Vector({0.0, yinit}));
          }
          else
          {

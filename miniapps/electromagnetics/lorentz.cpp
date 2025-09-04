@@ -257,7 +257,7 @@ int main(int argc, char *argv[])
    std::unique_ptr<ParticleTrajectories> traj_vis;
    if (ctx.visualization)
    {
-      traj_vis = std::make_unique<ParticleTrajectories>(boris.GetParticles(), ctx.vis_tail_size, vishost, ctx.visport, "Particle Trajectories", 0, 0, 400, 400, "b");
+      traj_vis = std::make_unique<ParticleTrajectories>(boris.GetParticles(), ctx.vis_tail_size, vishost, ctx.visport, "Particle Trajectories", 0, 0, 800, 800, "ba");
    }
 
    for (int step = 1; step <= ctx.nt; step++)
@@ -286,7 +286,7 @@ int main(int argc, char *argv[])
       }
 
       // Redistribute
-      if (step % ctx.redist_freq == 0 && boris.GetParticles().GetGlobalNP() > 0)
+      if (ctx.redist_freq > 0 && step % ctx.redist_freq == 0 && boris.GetParticles().GetGlobalNP() > 0)
       {
          // Visualize particles pre-redistribute
          if (ctx.visualization)
