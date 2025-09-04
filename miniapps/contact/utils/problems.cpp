@@ -314,7 +314,6 @@ void OptContactProblem::FormContactSystem(ParGridFunction * coords_, const Vecto
    dimU = J->Width();
    dimG = J->Height();
    num_constraints = J->GetGlobalNumRows();
-   if (bound_constraints) { num_constraints += 2 * J->GetGlobalNumCols(); }
 
    block_offsetsg[0] = 0;
    block_offsetsg[1] = dimG;
@@ -339,14 +338,7 @@ void OptContactProblem::FormContactSystem(ParGridFunction * coords_, const Vecto
    delete tempSparse;
 
 
-   if (bound_constraints)
-   {
-      dimM = dimG + 2 * dimU;
-   }
-   else
-   {
-      dimM = dimG;
-   }
+   dimM = dimG;
    dimC = dimM;
 
    ml.SetSize(dimM); ml = 0.0;
@@ -365,7 +357,27 @@ void OptContactProblem::FormContactSystem(ParGridFunction * coords_, const Vecto
    Mv->Mult(onev, Mvlump);
    
    dl.SetSize(dimU); dl = 0.0;
-   eps.SetSize(dimU); eps = 1.e6;
+   eps.SetSize(dimU); eps = 0.0; // minimum size of eps controlled by eps_min
+}
+
+void OptContactProblem::SetTimeStepDisplacement(int i, const Vector & dx)
+{
+   if (i >= bound_constraint_step)
+   {
+      eps_min = max(eps_min, GlobalLpNorm(infinity(), eps.Normlinf(), comm));
+      for (int j = 0; j < dimU; j++)
+      {
+         eps(j) = max(eps_min, eps(j));
+      }
+   }
+   else
+   {
+      for (int j = 0; j < dimU; j++)
+      {
+         eps(j) = max(eps(j), abs(dx(j)));
+      }
+   }
+   // update eps
 }
 
 
@@ -382,7 +394,7 @@ void OptContactProblem::ComputeGapJacobian()
    dof_starts[1] = J->ColPart()[1];
 
    constraints_starts.SetSize(2);
-   if (bound_constraints)
+   if (enable_bound_constraints)
    {
       constraints_starts[0] = J->RowPart()[0] + 2 * J->ColPart()[0];
       constraints_starts[1] = J->RowPart()[1] + 2 * J->ColPart()[1];
@@ -417,7 +429,7 @@ HypreParMatrix * OptContactProblem::Dmmf(const BlockVector & x)
 
 HypreParMatrix * OptContactProblem::Duc(const BlockVector & x)
 {
-   if (bound_constraints)
+   if (enable_bound_constraints)
    {
       Array2D<const HypreParMatrix *> dcduBlockMatrix(3, 1);
       dcduBlockMatrix(0, 0) = J;
@@ -532,7 +544,7 @@ void OptContactProblem::c(const BlockVector & x, Vector & y)
    const Vector disp  = x.GetBlock(0);
    const Vector slack = x.GetBlock(1);
 
-   if (bound_constraints)
+   if (enable_bound_constraints)
    {
       BlockVector yblock(block_offsetsg); yblock = 0.0;
 
@@ -636,11 +648,16 @@ HypreParMatrix * OptContactProblem::DddE(const Vector & d)
 
 void OptContactProblem::SetBoundConstraints(int i)
 {
-   Vector eps;
-   if (i >= problem->GetBoundConstraintStep())
+   if (i >= bound_constraint_step && bound_constraints)
    {
-      problem->Geteps(eps);
-      SetBoundConstraints(xrefbc, eps);
+      dl.Set(1.0, xrefbc);
+      enable_bound_constraints = true;
+      constraints_starts[0] = J->RowPart()[0] + 2 * J->ColPart()[0];
+      constraints_starts[1] = J->RowPart()[1] + 2 * J->ColPart()[1];
+      num_constraints = J->GetGlobalNumRows() + 2 * J->GetGlobalNumCols();
+      dimM = dimG + 2 * dimU;
+      dimC = dimM;
+      ml.SetSize(dimM); ml = 0.0;
    }
 }
 

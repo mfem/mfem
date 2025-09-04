@@ -256,7 +256,6 @@ int main(int argc, char *argv[])
    ConstantCoefficient f(p);
    std::vector<Array<int>> CGiter;
   
-   
    OptContactProblem contact(&prob, mortar_attr, nonmortar_attr,
                               tribol_ratio, bound_constraints);
 
@@ -314,7 +313,8 @@ int main(int argc, char *argv[])
       Vector xref(x_gf.GetTrueVector().Size()); xref = 0.0;
       x_gf.SetTrueVector();
       x_gf.GetTrueDofs(xref);
-      bool enable_bound_constraints = false;
+     
+      // TODO: update logic to remove this if/else statement 
       if (i == 0)
       {
          contact.FormContactSystem(&new_coords, xref);
@@ -372,7 +372,7 @@ int main(int argc, char *argv[])
       optimizer.SetMaxIter(100);
       optimizer.SetLinearSolver(&cgsolver);
       optimizer.SetUsingMassWeights(true);
-      optimizer.SetPrintLevel(1);
+      optimizer.SetPrintLevel(0);
 
       x_gf.SetTrueVector();
       int ndofs = prob.GetFESpace()->GetTrueVSize();
@@ -387,7 +387,7 @@ int main(int argc, char *argv[])
       Vector dx(ndofs); dx = 0.0;
       dx.Set(1.0, xf);
       dx.Add(-1.0, x0);
-      prob.SetTimeStepDisplacement(i, dx);
+      contact.SetTimeStepDisplacement(i, dx);
 
       int eval_err;
       real_t Einitial = contact.E(x0, eval_err);

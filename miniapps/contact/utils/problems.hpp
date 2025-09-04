@@ -140,8 +140,11 @@ private:
 
    Vector dl;
    Vector eps;
+   real_t eps_min = 1.e-4; // > 0
+   int bound_constraint_step = 3;
    Array<int> block_offsetsg;
    bool bound_constraints;
+   bool enable_bound_constraints = false;
    real_t tribol_ratio;
 public:
    OptContactProblem(ElasticityOperator * problem_,
@@ -183,6 +186,7 @@ public:
    void DdE(const Vector & d, Vector & gradE);
    HypreParMatrix * DddE(const Vector & d);
 
+   void SetTimeStepDisplacement(int i, const Vector & dx);
    void SetBoundConstraints(const Vector & dl_, const Vector & eps_);
    void SetBoundConstraints(int i);
    HypreParMatrix *  SetupTribol(ParMesh * pmesh, ParGridFunction * coords,
