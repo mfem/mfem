@@ -22,6 +22,7 @@
 #include <type_traits> // std::is_base_of
 #include <experimental/type_traits>
 #include <utility>
+#include <tuple>
 
 
 namespace mfem
@@ -31,51 +32,251 @@ using namespace std;
 
 /* TODO LIST
     1) ADD DESTRUCTORS FOR ALL CLASSES
-    2) Handle steady-state and time-dependent applications (DAEs)
-    3) Add FindPts transfer maps
 */
 
+
+/**
+ * @brief Base class for transfering fields (GridFunctions) on meshes. The extension
+ * should implement the Transfer(const ParGridFunction&, ParGridFunction&)
+ */
+class FieldTransfer
+{
+protected:
+    ParFiniteElementSpace *src_fes = nullptr, *dst_fes = nullptr;
+public:
+
+    enum Type {
+        NATIVE,     ///< Native MFEM transfer using ParTransferMap
+        GSLIB       ///< GSLIB-based transfer using FindPointsGSLIB
+    };
+
+    FieldTransfer(ParFiniteElementSpace *src = nullptr, 
+                  ParFiniteElementSpace *dst = nullptr) : 
+                  src_fes(src), dst_fes(dst) {}
+
+    virtual void Transfer(const ParGridFunction &src, ParGridFunction &dst) = 0;
+    virtual ~FieldTransfer() {}
+};
+
+
+/**
+ * @brief Native MFEM transfer between two FiniteElementSpaces using ParTransferMap
+ */
+class NativeTransfer : public FieldTransfer
+{
+protected:
+    ParTransferMap transfer_map;
+public:
+
+    NativeTransfer(ParFiniteElementSpace &src,
+                   ParFiniteElementSpace &dst) :
+                   FieldTransfer(&src, &dst),
+                   transfer_map(*src_fes, *dst_fes)
+                   {}
+
+    NativeTransfer(ParGridFunction &src, ParGridFunction &dst) : 
+                   NativeTransfer(*src.ParFESpace(), *dst.ParFESpace())
+                   {}
+                   
+    virtual void Transfer(const ParGridFunction &src, ParGridFunction &dst) override
+    {
+        transfer_map.Transfer(src, dst);
+    }
+};
+
+/**
+ * @brief GSLib-based FindPoints transfer
+ */
+class GSLibTransfer : public FieldTransfer
+{
+protected:
+
+    ParMesh *src_mesh = nullptr;
+    FindPointsGSLIB finder;
+    Array<int> attr, dofs, dst_dofs;
+    Vector coords, interp_vals;
+
+public:
+
+    /**
+     * @brief Constructor given a source mesh and coordinates to be transferred
+     */
+    GSLibTransfer(ParMesh *src, Vector &coordinates) : src_mesh(src), finder(src_mesh->GetComm())
+                 {
+                    SetCoordinates(coordinates);
+                    finder.Setup(*src_mesh);
+                    Initialize();
+                 }
+    
+    /**
+     * @brief Constructor given a source and target ParFiniteElementSpace
+     */
+    GSLibTransfer(ParFiniteElementSpace &src,
+                  ParFiniteElementSpace &dst,
+                  Array<int> attr = Array<int>() ) : FieldTransfer(&src, &dst),
+                  src_mesh(src_fes->GetParMesh()),
+                  finder(src_fes->GetComm()), attr(attr)
+                  {
+                    ComputeCoordinates();
+                    finder.Setup(*src_mesh);
+                    Initialize();
+                  }
+
+    /**
+     * @brief Constructor given a source and target ParGridFunction
+     */
+    GSLibTransfer(ParGridFunction &src_gf, 
+                  ParGridFunction &dst_gf,
+                  Array<int> attr = Array<int>()) :
+                  GSLibTransfer(*src_gf.ParFESpace(), *dst_gf.ParFESpace(), attr)
+                  {}
+
+
+    /**
+     * @brief Set/update coordinates for interpolation.
+     */
+    void SetCoordinates(Vector &coordinates, bool update = true)
+    {
+        coords.SetDataAndSize(coordinates.GetData(), coordinates.Size());
+        dofs.SetSize(coords.Size()/src_mesh->Dimension());
+        std::iota(std::begin(dofs), std::end(dofs), 0);
+        if(update) Initialize();
+    }
+
+    /**
+     * @brief Compute coordinates from the FiniteElementSpaces
+     */
+    void ComputeCoordinates()
+    {
+        ParMesh *mesh = dst_fes->GetParMesh();
+        Vector nodes = mesh->GetNodes()->GetTrueVector();
+
+        if(attr.Size()>0)
+        {
+            dst_fes->GetEssentialTrueDofs(attr,dofs,0);
+        }
+        else
+        {
+            dofs.SetSize(dst_fes->GetTrueVSize());
+            std::iota(std::begin(dofs), std::end(dofs), 0);
+        }
+
+        int dim = mesh->Dimension();
+        int nnodes = nodes.Size()/dim;
+        int nstep = 1, vstep = 0;
+
+        if(dst_fes->GetOrdering() == Ordering::byVDIM){
+            nstep = 0;
+            vstep = 1;
+        }
+        
+        coords.SetSize(dofs.Size()*dim);
+
+        for (int i=0; i<dofs.Size(); i++)
+        {
+            int idof = dofs[i];
+            for (int d=0; d<dim; d++)
+            {
+                int idx = (idof + nnodes*d)*nstep + (idof*dim + d)*vstep;
+                coords(i*dim + d) = nodes(idx);
+            }
+        }
+    }
+
+    /**
+     * @brief Initialize/Update FindPoints finder for new coordinates.
+     */
+    void Initialize()
+    {
+        dst_dofs.DeleteAll();
+        finder.FindPoints(coords);
+
+        const Array<unsigned int> &code_out = finder.GetCode();
+        for (int i = 0; i < code_out.Size(); i++)
+        {
+            if (code_out[i] != 2) // Only keep points found in the mesh
+            {
+                dst_dofs.Append(dofs[i]);
+            }
+        }
+    }
+
+    virtual void Transfer(const ParGridFunction &src, ParGridFunction &dst) override
+    {        
+        finder.Interpolate(src,interp_vals);
+
+        int dim = dst_fes->GetParMesh()->Dimension();
+        int src_nstep = 1, src_vstep = 0;
+        int dst_nstep = 1, dst_vstep = 0;
+        int src_nnodes = interp_vals.Size()/dim;
+        int dst_nnodes = dst.Size()/dim;
+
+        if(src_fes->GetOrdering() == Ordering::byVDIM){ src_nstep = 0; src_vstep = 1; }        
+        if(dst_fes->GetOrdering() == Ordering::byVDIM){ dst_nstep = 0; dst_vstep = 1; }
+       
+        for (int i = 0; i < dst_dofs.Size(); i++)
+        {
+            int idof = dst_dofs[i];
+            for (int d=0; d<dim; d++)
+            {
+                int src_idx = (i + src_nnodes*d)*src_nstep + (i*dim + d)*src_vstep;
+                int dst_idx = (idof + dst_nnodes*d)*dst_nstep + (idof*dim + d)*dst_vstep;
+                dst(dst_idx) = interp_vals(src_idx);
+            }
+        }
+    }
+
+    virtual ~GSLibTransfer(){ 
+        finder.FreeData();
+    }
+};
 
 
 /**
  * @brief A class to handle variables and transfers on shared boundaries
- * TODO: Add transfer maps using FindPoints and for time-interpolation
  */
 class LinkedFields 
 {
-
 protected:
+    using Type = FieldTransfer::Type;
+    using Pair = std::tuple<ParGridFunction*, FieldTransfer*, bool>;
 
-    using Pair = std::pair<ParGridFunction*, ParTransferMap*>;
-
-    ParGridFunction &source;
+    Type transfer_type = Type::NATIVE;
     std::vector<Pair> destinations;
-
+    ParGridFunction &source;
     int ndest;
 
 public:
 
     LinkedFields(ParGridFunction &src, ParGridFunction &dst) : source(src)
     {
-        destinations.push_back(std::make_pair(&dst, new ParTransferMap(source, dst)));
+        AddDestination(dst);
     }
 
-    LinkedFields(ParGridFunction &src, ParGridFunction &dst, ParTransferMap &transfer_map) : source(src)
+    LinkedFields(ParGridFunction &src, ParGridFunction &dst, FieldTransfer &transfer_map) : source(src)
     {
-        destinations.push_back(std::make_pair(&dst, &transfer_map));
+        AddDestination(dst, transfer_map);
     }
     
-    void AddDestination(ParGridFunction &dst){
-        destinations.push_back(std::make_pair(&dst, new ParTransferMap(source, dst)));
+    void AddDestination(ParGridFunction &dst)
+    {
+        if(transfer_type == Type::NATIVE)
+        {
+            destinations.push_back(std::make_tuple(&dst, new NativeTransfer(source, dst), true));
+        }
+        else if(transfer_type == Type::GSLIB)
+        {
+            destinations.push_back(std::make_tuple(&dst, new GSLibTransfer(source, dst), true));
+        }        
         ndest++;
     }
 
-    void AddDestination(ParGridFunction &dst, ParTransferMap &transfer_map){
-        destinations.push_back(std::make_pair(&dst, &transfer_map));
+    void AddDestination(ParGridFunction &dst, FieldTransfer &transfer_map)
+    {
+        destinations.push_back(std::make_tuple(&dst, &transfer_map, false));
         ndest++;
     }
 
-    // This should be virtual to use other transfer operations (e.g., findpts)
     virtual void Transfer(const Vector &vsrc, const int idest=-1)
     {
         if(vsrc.Size() == source.FESpace()->GetVSize() )
@@ -90,21 +291,23 @@ public:
     {
         if(idest >= 0)
         {
-            ParGridFunction *destination = destinations[idest].first;
-            ParTransferMap *transfer_map = destinations[idest].second;
-            transfer_map->Transfer(source,*destination);
+            auto [target, transfer_map, owned] = destinations[idest];
+            transfer_map->Transfer(source,*target);
         }
         else
         {
             for (auto &destination : destinations) {
-                destination.second->Transfer(source,*destination.first);
+                auto [target, transfer_map, owned] = destination;
+                transfer_map->Transfer(source,*target);
             }
         }        
     }
 
-    virtual ~LinkedFields() {
+    virtual ~LinkedFields()
+    {
         for (auto &dest : destinations) {
-            if (dest.second) delete dest.second; // Delete the transfer map
+            auto [target, transfer_map, owned] = dest;
+            if(owned) delete transfer_map; // Delete the transfer map
         }
     }
 };
@@ -150,7 +353,7 @@ protected:
     int oper_index = numeric_limits<int>::max();
     std::vector<LinkedFields*> linked_fields;
     OperatorType operator_type = OperatorType::ANY_TYPE; ///< Type of the operator
-    OperationID operation_id = OperationID::DEFAULT;
+    OperationID operation_id = OperationID::NONE;
 
     std::function<void (Vector&)> pre_process_func; ///< Pre-process function
     std::function<void (Vector&)> post_process_func; ///< Post-process function
@@ -768,10 +971,8 @@ class CouplingOperator : public Application
         real_t dt= 0.0;            ///< Time step size, used for time-dependent applications
         friend class CoupledApplication;
     public:
-        CouplingOperator(CoupledApplication *op) : Application(op->Height(),
-                                                   op->Width()),
+        CouplingOperator(CoupledApplication *op) : Application(op->Height(),op->Width()),
                                                    coupled_operator(op){}
-
         virtual void SetTimeStep(real_t dt_){ dt = dt_;}
         virtual void SetState(const Vector *u_){u = u_;}
         virtual void SetLinearity(const bool is_linear_){is_linear = is_linear_;}
