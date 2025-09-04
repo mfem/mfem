@@ -83,6 +83,38 @@ public:
       height = h; width = w;
    }
 
+   /**
+    * @brief Reset the DenseMatrix to use the given external Memory @a mem and
+    * dimensions @a i and @a j.
+    *
+    * If @a own_mem is false, the DenseMatrix will not own any of the pointers
+    * of @a mem.
+    *
+    * Note that when @a own_mem is true, the @a mem object can be destroyed
+    * immediately by the caller, but `mem.Delete()` should NOT be called since
+    * the DenseMatrix object takes ownership of all pointers owned by @a mem.
+    *
+    * @param mem The memory to be used
+    * @param i The new height of the DenseMatrix
+    * @param j The new width of the DenseMatrix
+    * @param own_mem Whether @a mem will be owned by this DenseMatrix.
+    * @param offset Offset into @a mem to place the reference.
+    */
+   void NewMemoryAndSize(const Memory<real_t> &mem, int i, int j, bool own_mem,
+                         int offset = 0)
+   {
+      if (OwnsData()) { data.Delete(); }
+      if (own_mem)
+      {
+         data = mem;
+      }
+      else
+      {
+         data.MakeAlias(mem, offset, i*j);
+      }
+      height = i; width = j;
+   }
+
    /// Change the data array and the size of the DenseMatrix.
    /** The DenseMatrix does not assume ownership of the data array, i.e. it will
        not delete the new array @a d. This method will delete the current data
@@ -1225,16 +1257,13 @@ public:
    DenseMatrix &operator()(int k, DenseMatrix& buff)
    {
       MFEM_ASSERT_INDEX_IN_RANGE(k, 0, SizeK());
-      buff.UseExternalData(nullptr, SizeI(), SizeJ());
-      buff.data = Memory<real_t>(GetData(k), SizeI()*SizeJ(), false);
+      buff.NewMemoryAndSize(GetMemory(), SizeI(), SizeJ(), false, k*SizeI()*SizeJ());
       return buff;
    }
    const DenseMatrix &operator()(int k, DenseMatrix& buff) const
    {
       MFEM_ASSERT_INDEX_IN_RANGE(k, 0, SizeK());
-      buff.UseExternalData(nullptr, SizeI(), SizeJ());
-      buff.data = Memory<real_t>(const_cast<real_t*>(GetData(k)), SizeI()*SizeJ(),
-                                 false);
+      buff.NewMemoryAndSize(GetMemory(), SizeI(), SizeJ(), false, k*SizeI()*SizeJ());
       return buff;
    }
 
