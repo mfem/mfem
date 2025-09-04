@@ -5,10 +5,7 @@
 // This file is part of the MFEM library. For more information and source code
 // availability visit https://mfem.org.
 //
-// Sample run:
-//   mpirun -np 10 ./navier_bifurcation -rs 3 -npt 10 -pt 100 -nt 4e5 -csv 50 -pv 50
-// mpirun -np 10 ./navier_bifurcation -rs 3 -npt 10 -pt 100 -nt 1e5 -csv 50
-// make navier_bifurcation -j4 && mpirun -np 10 ./navier_bifurcation -rs 3 -npt 5 -pt 100 -nt 1e5 -csv 20 -ipf 10
+// Sample run: mpirun -np 12 ./navier_junction
 
 #include "navier_solver.hpp"
 #include "navier_particles.hpp"
