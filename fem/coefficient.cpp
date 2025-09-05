@@ -114,11 +114,12 @@ void PWConstCoefficient::Project(QuadratureFunction &qf)
    mfem::forall(ne, [=] MFEM_HOST_DEVICE (int e)
    {
       const int a = attributes[e];
+      const real_t elementConstant = d_c[a - 1];
       const int begin = compressed ? e*offsets[0] : offsets[e];
       const int end = compressed ? (e+1)*offsets[0] : offsets[e+1];
       for (int i = begin; i < end; ++i)
       {
-         d_qf[i] = d_c[a - 1];
+         d_qf[i] = elementConstant;
       }
    });
 }
