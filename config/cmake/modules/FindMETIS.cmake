@@ -18,7 +18,7 @@
 #   - METIS (imported library target)
 #   - METIS_VERSION_5 (cache variable)
 
-if (METIS_FETCH OR FETCH_TPLS)
+if (MFEM_FETCH_METIS OR MFEM_FETCH_TPLS)
   set(METIS_FETCH_VERSION 4.0.3)
   add_library(METIS STATIC IMPORTED)
   # define external project

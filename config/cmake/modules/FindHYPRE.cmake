@@ -36,7 +36,7 @@ if (HYPRE_FOUND OR TARGET HYPRE)
   endif()
 endif()
 
-if (HYPRE_FETCH OR FETCH_TPLS)
+if (MFEM_FETCH_HYPRE OR MFEM_FETCH_TPLS)
   set(HYPRE_FETCH_VERSION 2.33.0)
   add_library(HYPRE STATIC IMPORTED)
   # set options and associated dependencies
