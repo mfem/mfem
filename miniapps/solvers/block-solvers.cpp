@@ -160,7 +160,7 @@ DarcyProblem::DarcyProblem(MPI_Comm comm, Mesh &mesh, int num_refs, int order,
    u_.ProjectBdrCoefficientNormal(ucoeff_, ess_bdr);
 
    ParLinearForm fform(u_fes);
-   fform.AddDomainIntegrator(new VectorFEDomainLFIntegrator(fcoeff));
+   // fform.AddDomainIntegrator(new VectorFEDomainLFIntegrator(fcoeff));
    fform.AddBoundaryIntegrator(new VectorFEBoundaryFluxLFIntegrator(natcoeff));
    fform.Assemble();
 
@@ -480,14 +480,15 @@ void u_exact(const Vector &x, Vector &u)
 {
    double xi(x(0));
    double xj(x(1));
-   u(0) = -pi * pow(sin(pi*xi), 2) * sin(2*pi*xj);
-   u(1) = pi * sin(2*pi*xi) * pow(sin(pi*xj), 2);
+   u(0) = -exp(xi) * sin(xj);
+   u(1) = -exp(xi) * cos(xj);
 }
 
 double p_exact(const Vector &x)
 {
    double xi(x(0));
-   return -sin(pi*xi) + 2/pi;
+   double xj(x(1));
+   return exp(xi) * sin(xj);
 }
 
 void f_exact(const Vector &x, Vector &f)
