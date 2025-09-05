@@ -33,6 +33,11 @@ Discretization improvements
 Meshing improvements
 --------------------
 
+- Introduced NC-patch NURBS meshes, which are conforming element-wise but allow
+  for nonconforming patch topology. This new mesh format supports element
+  spacing formulas for refinement, as well as local refinement factors for a
+  subset of knot vectors.
+
 - Added support for higher order meshes in Mesh::MakeSimplicial and
   ParMesh::MakeSimplicial.
 
