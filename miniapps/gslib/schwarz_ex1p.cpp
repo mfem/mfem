@@ -308,7 +308,6 @@ int main(int argc, char *argv[])
    pmesh->GetNodes()->SetTrueVector();
    Vector vxyz = pmesh->GetNodes()->GetTrueVector();
 
-
    OversetFindPointsGSLIB finder(MPI_COMM_WORLD);
    finder.Setup(*pmesh, color);
 
@@ -431,7 +430,6 @@ int main(int argc, char *argv[])
    }
 
    // 15. Free the used memory.
-   finder.FreeData();
    delete a;
    delete fespace;
    if (order > 0) { delete fec; }
