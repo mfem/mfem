@@ -13,11 +13,12 @@
 //      Stix_R1D_EB Miniapp: Cold Plasma Electromagnetic Simulation Code
 //   -----------------------------------------------------------------------
 //
-//   Assumes that all sources and boundary conditions oscillate with the same
-//   frequency although not necessarily in phase with one another.  This
-//   assumption implies that we can factor out the time dependence which we
-//   take to be of the form exp(-i omega t).  With these assumptions we can
-//   write the Maxwell equations for E and B in the form:
+//   Assumes that all sources and boundary conditions oscillate with
+//   the same frequency although not necessarily in phase with one
+//   another.  This assumption implies that we can factor out the time
+//   dependence which we take to be of the form exp(-i omega t).  With
+//   these assumptions we can write the Maxwell equations for E and B
+//   in the form:
 //
 //   -i omega epsilon E = Curl mu^{-1} B - J
 //    i omega B         = Curl E
@@ -32,14 +33,21 @@
 //   of the plasma including the masses and charges of its constituent
 //   ion species.
 //
-//   For a magnetic field aligned with the z-axis the dielectric tensor has
-//   the form:
-//              | S  -iD 0 |
-//    epsilon = |iD   S  0 |
-//              | 0   0  P |
+//   We have the option of defining a real or complex valued phase
+//   vector, beta, which appears in the definition of the electric
+//   field as E = \tilde{E} exp(i beta.x). If beta is non-zero the
+//   system of equations is modified to solve for \tilde{E} rather
+//   than E. In this 1D mini-application this produces no noticeable
+//   effect on the solution E. In higher dimensional domains this
+//   enables support for imposing a known phase difference across
+//   periodic domains.
 //
-//   In this example we will use only the simplest coefficients; constants
-//   or linear functions of position.
+//   For a magnetic field aligned with the z-axis the dielectric
+//   tensor has the form:
+//      | S -iD 0 | epsilon = |iD S 0 | | 0 0 P |
+//
+//   In this example we will use only the simplest coefficients;
+//   constants or linear functions of position.
 //
 //   We discretize this equation with H(Curl) a.k.a Nedelec basis
 //   functions.  The curl curl operator must be handled with
@@ -53,11 +61,29 @@
 //   (W, Curl mu^{-1} Curl E) = (Curl W, mu^{-1} Curl E)
 //               + i omega (W, n x H)_{\Gamma}
 //
-// (By default the sources and fields are all zero)
+//   The resulting surface integral, (W, n x H)_{\Gamma}, can be used
+//   to impose surface current boundary conditions which are an
+//   example of Neumann boundary conditions. This term can also be
+//   used to impose a first order Sommerfeld absorbing boundary
+//   condition. The code also supports fixing the values of the
+//   electric field on certain boundaries as Dirichlet (or essential)
+//   boundary conditions.
+//
+//   This mini-application makes use of adaptive mesh refinement (AMR)
+//   in two manners. First, it adaptively refines the mesh to capture
+//   variations of the dielectric tensor due to changes in the ion
+//   densities (or temperatures). Second, it further refines the mesh
+//   to reduce errors in the computed electric field.
+//
+//   (By default the sources, boundary conditions, and fields are all zero)
 //
 // Compile with: make stix_r1d_eb
 //
 // Sample runs:
+//
+// Any of the following sample runs could be run in parallel but as
+// they are 1D examples this is hardly necessary.
+//
 // Dirichlet BCs:
 //   ./stix_r1d_eb -w R -dbcs 1 -abcs 2 -rs 4 -s 4 -vis -f 16e6
 //   ./stix_r1d_eb -w L -dbcs 1 -abcs 2 -rs 4 -s 4 -vis -f 4e6
@@ -82,9 +108,12 @@
 //   ./stix_r1d_eb -w X -slab '0.4 0.2' -jp 1 -abcs '1 2' -rs 4 -s 4 -vis -f 8e6
 //
 // Variable Plasma Density:
-//   ./stix_r1d_eb -w R -dbcs 1 -abcs 2 -rs 4 -s 4 -vis -f 8e7 -dp 1 -dpp '1e16 0 0 0 5e19 0 0'
-//   ./stix_r1d_eb -w R -dbcs 1 -abcs 2 -rs 4 -s 4 -vis -f 16e6 -dp 2 -dpp '1e16 1e19 0.01 0.5 0 0 1 0 0'
-//   ./stix_r1d_eb -w R -dbcs 1 -abcs 2 -rs 4 -s 4 -vis -f 16e6 -ic '1 1' -im '1 2' -dp '1 2' -dpp '1e19 0 0 0 -999e16 0 0 1e16 1e19 0.01 0.5 0 0 1 0 0'
+//   ./stix_r1d_eb -w R -dbcs 1 -abcs 2 -rs 4 -s 4 -vis -f 8e7 -dp 1 -dpp '1e16 0 0 0 5e19 0 0' -viid
+//   ./stix_r1d_eb -w R -dbcs 1 -abcs 2 -rs 4 -s 4 -vis -f 16e6 -dp 2 -dpp '1e16 1e19 0.01 0.5 0 0 1 0 0' -viid
+//   ./stix_r1d_eb -w R -dbcs 1 -abcs 2 -rs 4 -s 4 -vis -f 16e6 -ic '1 1' -im '1 2' -dp '1 2' -dpp '1e19 0 0 0 -999e16 0 0 1e16 1e19 0.01 0.5 0 0 1 0 0' -viid
+//
+// Adaptive Mesh Refinement:
+//   ./stix_r1d_eb -w R -dbcs 1 -abcs 2 -rs 2 -s 4 -vis -f 16e6 -ic '1 1' -im '1 2' -dp '1 2' -dpp '1e19 0 0 0 -999e16 0 0 1e16 1e19 0.01 0.5 0 0 1 0 0' -viid -visisp -iamr ISP -iatol 1e-4
 //
 
 #include "cold_plasma_dielectric_coefs.hpp"
@@ -100,51 +129,27 @@ using namespace mfem;
 using namespace mfem::common;
 using namespace mfem::plasma;
 
+// Create density and temperature profiles for each ion species and
+// electrons.  The number of ion species is determined by the lengths
+// of the `charges` and `masses` vectors. The density and temperature
+// profiles are either constant or defined by user input. The electron
+// density is computed to create a neutral plasma. The electron
+// temperature is set so that the electron energy equals the average
+// of the ion energies.
 void SetDensityAndTempProfiles(Vector &charges, Vector &masses,
                                Array<int> &dpt, Vector &dpp,
                                Array<int> &tpt, Vector &tpp);
 
+// Adaptively refine the initial mesh in order to adequately capture
+// features of the Stix coefficients. The `coef` argument selects the
+// function used to guide the refinement. Choices for `coef` are: S,
+// D, P, L, R, or ISP.
 void AdaptInitialMesh(ParMesh &pmesh,
                       int order, int p, StixParams &stixParams,
                       const char * coef, real_t tol, int max_its, int max_dofs,
                       bool visualization);
 
-// Type of plane wave being simulated
-static char wave_type_ = 'Z';
-
-// Current Density Function
-// Position in 1D, and size in 1D
-static Vector slab_params_(0);
-// Piecewise constant or a single sinusoidal bump
-static int slab_profile_ = 0;
-
-// Vectors storing the direction of the current source
-//static Vector j_r_vec_;
-//static Vector j_i_vec_;
-/*
-void slab_current_init();
-void slab_current_source_r(const Vector &x, Vector &j);
-void slab_current_source_i(const Vector &x, Vector &j);
-void j_src_r(const Vector &x, Vector &j)
-{
-   if (slab_params_.Size() > 0)
-   {
-      slab_current_source_r(x, j);
-   }
-}
-void j_src_i(const Vector &x, Vector &j)
-{
-   if (slab_params_.Size() > 0)
-   {
-      slab_current_source_i(x, j);
-   }
-}
-*/
-// Electric Field Boundary Condition: The following function returns zero but
-// any function could be used.
-//void e_bc_r(const Vector &x, Vector &E);
-//void e_bc_i(const Vector &x, Vector &E);
-
+// Wrapper for the exact solution fields and sources
 class Stix1DExactSol : public VectorCoefficient
 {
 public:
@@ -161,7 +166,7 @@ private:
    real_t j_dx_;
    int    j_prof_;
 
-   VectorCoefficient *coef_;
+   ColdPlasmaPlaneWaveBase *coef_;
 
    void initCoef()
    {
@@ -233,6 +238,16 @@ public:
    void SetCurrentSlab(real_t j_pos, real_t j_dx, int j_profile)
    { j_pos_ = j_pos; j_dx_ = j_dx; j_prof_ = j_profile; initCoef(); }
 
+   void SetPhaseShift(const Vector & beta_r,
+                      const Vector & beta_i)
+   { coef_->SetPhaseShift(beta_r, beta_i); }
+
+   void ClearPhaseShift()
+   { coef_->ClearPhaseShift(); }
+
+   void InvertPhaseShift()
+   { coef_->InvertPhaseShift(); }
+
    void Eval(Vector &V, ElementTransformation &T,
              const IntegrationPoint &ip)
    {
@@ -252,6 +267,7 @@ public:
 // Prints the program's logo to the given output stream
 void display_banner(ostream & os);
 
+// Prints a copy of the program's command line to a text file
 void record_cmd_line(int argc, char *argv[]);
 
 int main(int argc, char *argv[])
@@ -280,10 +296,19 @@ int main(int argc, char *argv[])
    bool exact_sol = false;
    bool vis_u = false;
    bool visualization = false;
-   Array<int> vis_flags;
 
    real_t freq = 1.0e6;
+   Vector phaseVec(0);
    Vector kVec({1.0, 0.0, 0.0});
+
+   // Type of plane wave being simulated
+   char wave_type = 'Z';
+
+   // Current Density Function
+   // Position in 1D, and size in 1D
+   Vector slab_params(0);
+   // Piecewise constant or a single sinusoidal bump
+   int slab_profile = 0;
 
    Vector charges(1); charges[0] = 1.0;
    Vector masses(1); masses[0] = 2.01410178;
@@ -310,9 +335,6 @@ int main(int argc, char *argv[])
    Array<int> jsrca; // Current Source region attributes
 
    Array<char> abct; // Absorbing BC plane wave types
-
-   int msa_n = 0;
-   Vector msa_p(0);
 
    int num_elements = 10;
    real_t length_x = 1.0;
@@ -344,7 +366,8 @@ int main(int argc, char *argv[])
    args.AddOption(&par_ref_levels, "-rp", "--refine-parallel",
                   "Number of times to refine the mesh uniformly in parallel.");
    args.AddOption(&init_amr, "-iamr", "--init-amr",
-                  "Initial AMR to capture Stix coefficient: S, D, L, or R.");
+                  "Initial AMR to capture Stix coefficient: S, D, P, L, R"
+                  " or 1 / (S P).");
    args.AddOption(&init_amr_tol, "-iatol", "--init-amr-tol",
                   "Initial AMR tolerance.");
    args.AddOption(&init_amr_max_its, "-iamit", "--init-amr-max-its",
@@ -355,6 +378,10 @@ int main(int argc, char *argv[])
                   "Finite element order (polynomial degree).");
    args.AddOption(&freq, "-f", "--frequency",
                   "Frequency in Hertz (of course...)");
+   args.AddOption(&phaseVec, "-p-vec", "--phase-vector",
+                  "Phase shift vector across periodic directions."
+                  " For complex phase shifts input 3 real phase shifts "
+                  "followed by 3 imaginary phase shifts");
    args.AddOption(&dpt, "-dp", "--density-profile",
                   "Density Profile Type (for each ion species, "
                   "electrons will be set to enforce charge neutrality): \n"
@@ -418,14 +445,12 @@ int main(int argc, char *argv[])
                   "0 - Standard e-i Collision Freq, 1 - Custom Freq.");
    args.AddOption(&res_lim, "-res-lim", "--resonance-limiter",
                   "Resonance limit factor [0,1).");
-   args.AddOption(&wave_type_, "-w", "--wave-type",
+   args.AddOption(&wave_type, "-w", "--wave-type",
                   "Wave type: 'R' - Right Circularly Polarized, "
                   "'L' - Left Circularly Polarized, "
                   "'O' - Ordinary, 'X' - Extraordinary, "
                   "'J' - Current Slab (in conjunction with -slab), "
                   "'Z' - Zero");
-   args.AddOption(&msa_n, "-ns", "--num-straps","");
-   args.AddOption(&msa_p, "-sp", "--strap-params","");
    args.AddOption(&charges, "-ic", "--ion-charges",
                   "Charges of the various ion species "
                   "(in units of electron charge)");
@@ -459,10 +484,10 @@ int main(int argc, char *argv[])
                   "Euclid factorization level for ILU(k).");
    args.AddOption(&jsrca, "-jsrc", "--j-src-reg",
                   "Current source region attributes");
-   args.AddOption(&slab_params_, "-slab", "--slab_params",
+   args.AddOption(&slab_params, "-slab", "--slab_params",
                   "3D Vector Amplitude (Real x,y,z, Imag x,y,z), "
                   "1D Midpoint Position, 1D Size");
-   args.AddOption(&slab_profile_, "-jp", "--current-profile",
+   args.AddOption(&slab_profile, "-jp", "--current-profile",
                   "0 (Constant) or 1 (Sin Function)");
    args.AddOption(&abcs, "-abcs", "--absorbing-bc-surf",
                   "Absorbing Boundary Condition Surfaces");
@@ -523,7 +548,7 @@ int main(int argc, char *argv[])
    {
       bpp.SetSize(3);
       bpp = 0.0;
-      if (wave_type_ == 'O' || wave_type_ == 'X' )
+      if (wave_type == 'O' || wave_type == 'X' )
       {
          bpp[1] = 1.0;
       }
@@ -537,6 +562,11 @@ int main(int argc, char *argv[])
       num_elements = 10;
    }
    real_t omega = 2.0 * M_PI * freq;
+   bool phase_shift = false;
+   if (phaseVec.Size() != 0)
+   {
+      phase_shift = true;
+   }
 
    if (Mpi::Root())
    {
@@ -621,6 +651,28 @@ int main(int argc, char *argv[])
                        visualization);
    }
 
+   Vector phaseReVec(3); phaseReVec = 0.0;
+   Vector phaseImVec(3); phaseImVec = 0.0;
+   if (phase_shift)
+   {
+      if (phaseVec.Size() >= 3)
+      {
+         phaseReVec.SetDataAndSize(&phaseVec[0], 3);
+      }
+      if (phaseVec.Size() >= 6)
+      {
+         phaseImVec.SetDataAndSize(&phaseVec[3], 3);
+      }
+
+      mfem::out << "Setting phase shift of ("
+                << complex_t(phaseReVec[0],phaseImVec[0]) << ","
+                << complex_t(phaseReVec[1],phaseImVec[1]) << ","
+                << complex_t(phaseReVec[2],phaseImVec[2]) << ")" << endl;
+
+   }
+   VectorConstantCoefficient phaseReCoef(phaseReVec);
+   VectorConstantCoefficient phaseImCoef(phaseImVec);
+
    if (dpt.Size() == 2 && dpt[0] == 0 ) { exact_sol = true; }
    if (Mpi::Root() && exact_sol)
    {
@@ -628,28 +680,36 @@ int main(int argc, char *argv[])
    }
 
 
-   Stix1DExactSol EReCoef(Stix1DExactSol::E_FIELD, kVec, wave_type_,
+   Stix1DExactSol EReCoef(Stix1DExactSol::E_FIELD, kVec, wave_type,
                           stixParams, StixCoef::REAL_PART);
-   Stix1DExactSol EImCoef(Stix1DExactSol::E_FIELD, kVec, wave_type_,
+   Stix1DExactSol EImCoef(Stix1DExactSol::E_FIELD, kVec, wave_type,
                           stixParams, StixCoef::IMAG_PART);
-   Stix1DExactSol HReCoef(Stix1DExactSol::H_FIELD, kVec, wave_type_,
+   Stix1DExactSol HReCoef(Stix1DExactSol::H_FIELD, kVec, wave_type,
                           stixParams, StixCoef::REAL_PART);
-   Stix1DExactSol HImCoef(Stix1DExactSol::H_FIELD, kVec, wave_type_,
+   Stix1DExactSol HImCoef(Stix1DExactSol::H_FIELD, kVec, wave_type,
                           stixParams, StixCoef::IMAG_PART);
    ScalarVectorProductCoefficient BReCoef(mu0_, HReCoef);
    ScalarVectorProductCoefficient BImCoef(mu0_, HImCoef);
 
-   if (Mpi::Root() && slab_params_.Size() > 0)
+   if (Mpi::Root() && slab_params.Size() > 0)
    {
       cout << "Setup current source." << endl;
    }
-   if (slab_params_.Size() > 0)
+   if (slab_params.Size() > 0)
    {
-      EReCoef.SetCurrentSlab(slab_params_[0], slab_params_[1], slab_profile_);
-      EImCoef.SetCurrentSlab(slab_params_[0], slab_params_[1], slab_profile_);
-      HReCoef.SetCurrentSlab(slab_params_[0], slab_params_[1], slab_profile_);
-      HImCoef.SetCurrentSlab(slab_params_[0], slab_params_[1], slab_profile_);
+      EReCoef.SetCurrentSlab(slab_params[0], slab_params[1], slab_profile);
+      EImCoef.SetCurrentSlab(slab_params[0], slab_params[1], slab_profile);
+      HReCoef.SetCurrentSlab(slab_params[0], slab_params[1], slab_profile);
+      HImCoef.SetCurrentSlab(slab_params[0], slab_params[1], slab_profile);
    }
+   if (phase_shift)
+   {
+      EReCoef.SetPhaseShift(phaseReVec, phaseImVec);
+      EImCoef.SetPhaseShift(phaseReVec, phaseImVec);
+      HReCoef.SetPhaseShift(phaseReVec, phaseImVec);
+      HImCoef.SetPhaseShift(phaseReVec, phaseImVec);
+   }
+
 
    if (Mpi::Root())
    {
@@ -690,7 +750,7 @@ int main(int argc, char *argv[])
       if (abct.Size() < abcs.Size())
       {
          abct.SetSize(abcs.Size());
-         abct = wave_type_;
+         abct = wave_type;
       }
 
       for (int i=0; i<abcs.Size(); i++)
@@ -707,12 +767,14 @@ int main(int argc, char *argv[])
       }
    }
 
-
-   Stix1DExactSol JReCoef(Stix1DExactSol::J_SOURCE, kVec, wave_type_,
+   // Note that the phase shift, if present, is applied to the current
+   // source as part of the PDE so these coefficients do not need to
+   // have the phase shift applied.
+   Stix1DExactSol JReCoef(Stix1DExactSol::J_SOURCE, kVec, wave_type,
                           stixParams, StixCoef::REAL_PART);
-   Stix1DExactSol JImCoef(Stix1DExactSol::J_SOURCE, kVec, wave_type_,
+   Stix1DExactSol JImCoef(Stix1DExactSol::J_SOURCE, kVec, wave_type,
                           stixParams, StixCoef::IMAG_PART);
-   if (slab_params_.Size() > 0)
+   if (slab_params.Size() > 0)
    {
       if (Mpi::Root())
       {
@@ -722,8 +784,8 @@ int main(int argc, char *argv[])
       {
          jsrca = pmesh.attributes;
       }
-      JReCoef.SetCurrentSlab(slab_params_[0], slab_params_[1], slab_profile_);
-      JImCoef.SetCurrentSlab(slab_params_[0], slab_params_[1], slab_profile_);
+      JReCoef.SetCurrentSlab(slab_params[0], slab_params[1], slab_profile);
+      JImCoef.SetCurrentSlab(slab_params[0], slab_params[1], slab_profile);
       stixBCs.AddCurrentSrc(jsrca, JReCoef, JImCoef);
    }
 
@@ -737,10 +799,12 @@ int main(int argc, char *argv[])
                    (CPDSolverEB::SolverType)sol, solOpts,
                    (CPDSolverEB::PrecondType)prec,
                    conv, stixParams,
-                   NULL, NULL,
+                   (phase_shift) ? &phaseReCoef : NULL,
+                   (phase_shift) ? &phaseImCoef : NULL,
                    stixBCs,
                    vis_u);
 
+   // Set the visualization flags
    CPD.GetInputVis().SetOptions(inputVisOpts);
    CPD.GetFieldVis().SetOptions(fieldVisOpts);
    CPD.GetOutputVis().SetOptions(outputVisOpts);
@@ -751,9 +815,6 @@ int main(int argc, char *argv[])
    {
       CPD.InitializeGLVis();
    }
-
-   std::shared_ptr<L2_ParFESpace> vis_sfes = CPD.GetScalarVisFES();
-   std::shared_ptr<L2_ParFESpace> vis_vfes = CPD.GetVectorVisFES();
 
    ComplexVectorFieldVisObject VisExactE("Exact E",
                                          CPD.GetVectorVisFES());
@@ -799,12 +860,16 @@ int main(int argc, char *argv[])
          {
             if (CPD.GetFieldVis().CheckVisFlag(CPDFieldVis::ELECTRIC_FIELD))
             {
-               VisExactE.PrepareVisField(EReCoef, EImCoef, NULL, NULL);
+               VisExactE.PrepareVisField(EReCoef, EImCoef,
+                                         (phase_shift) ? &phaseReCoef : NULL,
+                                         (phase_shift) ? &phaseImCoef : NULL);
                VisExactE.DisplayToGLVis();
             }
             if (CPD.GetFieldVis().CheckVisFlag(CPDFieldVis::MAGNETIC_FLUX))
             {
-               VisExactB.PrepareVisField(BReCoef, BImCoef, NULL, NULL);
+               VisExactB.PrepareVisField(BReCoef, BImCoef,
+                                         (phase_shift) ? &phaseReCoef : NULL,
+                                         (phase_shift) ? &phaseImCoef : NULL);
                VisExactB.DisplayToGLVis();
             }
          }
@@ -873,6 +938,7 @@ int main(int argc, char *argv[])
       // Update the electromagnetic solver to reflect the new state of the mesh.
       CPD.Update();
       VisExactE.Update();
+      VisExactB.Update();
 
       if (pmesh.Nonconforming() && Mpi::WorldSize() > 1 && false)
       {
@@ -882,6 +948,7 @@ int main(int argc, char *argv[])
          // Update again after rebalancing
          CPD.Update();
          VisExactE.Update();
+         VisExactB.Update();
       }
    }
 
@@ -978,9 +1045,8 @@ void AdaptInitialMesh(ParMesh &pmesh,
                       const char * coef, real_t tol, int max_its, int max_dofs,
                       bool visualization)
 {
-   if (strcmp(coef,"S") && strcmp(coef,"D") &&
-       strcmp(coef,"L") && strcmp(coef,"R") &&
-       strcmp(coef,"ISP"))
+   if (strcmp(coef,"S") && strcmp(coef,"D") && strcmp(coef,"P") &&
+       strcmp(coef,"L") && strcmp(coef,"R") && strcmp(coef,"ISP"))
    {
       if (Mpi::Root())
       {
@@ -1015,6 +1081,11 @@ void AdaptInitialMesh(ParMesh &pmesh,
       ReCoefPtr = new StixDCoef(stixParams, StixCoef::REAL_PART);
       ImCoefPtr = new StixDCoef(stixParams, StixCoef::IMAG_PART);
    }
+   else if (!strcmp(coef,"P"))
+   {
+      ReCoefPtr = new StixPCoef(stixParams, StixCoef::REAL_PART);
+      ImCoefPtr = new StixPCoef(stixParams, StixCoef::IMAG_PART);
+   }
    else if (!strcmp(coef,"L"))
    {
       ReCoefPtr = new StixLCoef(stixParams, StixCoef::REAL_PART);
@@ -1043,14 +1114,6 @@ void AdaptInitialMesh(ParMesh &pmesh,
    refiner.SetTotalErrorNormP(p);
    refiner.SetLocalErrorGoal(tol);
 
-   vector<socketstream> sout(2);
-   char vishost[] = "localhost";
-   int  visport   = 19916;
-
-   int Wx = 0, Wy = 0; // window position
-   int Ww = 275, Wh = 250; // window size
-   int offx = Ww + 3;
-
    for (int it = 0; it < max_its; it++)
    {
       HYPRE_Int global_dofs = L2FESpace.GlobalTrueVSize();
@@ -1077,19 +1140,6 @@ void AdaptInitialMesh(ParMesh &pmesh,
          }
       }
 
-      // 19. Send the solution by socket to a GLVis server.
-      if (visualization)
-      {
-         VisualizeField(sout[0], vishost, visport, gf.real(),
-                        "Real Stix Coef",
-                        Wx, Wy, Ww, Wh);
-         Wx += offx;
-
-         VisualizeField(sout[1], vishost, visport, gf.imag(),
-                        "Imaginary Stix Coef",
-                        Wx, Wy, Ww, Wh);
-      }
-
       if (global_dofs > max_dofs)
       {
          if (Mpi::Root())
@@ -1099,10 +1149,10 @@ void AdaptInitialMesh(ParMesh &pmesh,
          break;
       }
 
-      // 20. Call the refiner to modify the mesh. The refiner calls the error
-      //     estimator to obtain element errors, then it selects elements to be
-      //     refined and finally it modifies the mesh. The Stop() method can be
-      //     used to determine if a stopping criterion was met.
+      // Call the refiner to modify the mesh. The refiner calls the error
+      // estimator to obtain element errors, then it selects elements to be
+      // refined and finally it modifies the mesh. The Stop() method can be
+      // used to determine if a stopping criterion was met.
       refiner.Apply(pmesh);
       if (refiner.Stop())
       {
@@ -1113,12 +1163,12 @@ void AdaptInitialMesh(ParMesh &pmesh,
          break;
       }
 
-      // 21. Update the finite element space (recalculate the number of DOFs,
-      //     etc.)
+      // Update the finite element space (recalculate the number of DOFs,
+      // etc.)
       L2FESpace.Update();
 
-      // 22. Load balance the mesh, and update the space and solution. Currently
-      //     available only for nonconforming meshes.
+      // Load balance the mesh, and update the space and solution. Currently
+      // available only for nonconforming meshes.
       if (pmesh.Nonconforming())
       {
          pmesh.Rebalance();
@@ -1136,73 +1186,7 @@ void AdaptInitialMesh(ParMesh &pmesh,
    delete ReCoefPtr;
    delete ImCoefPtr;
 }
-/*
-void Update(// ParFiniteElementSpace & H1FESpace,
-       // ParFiniteElementSpace & HCurlFESpace,
-       // ParFiniteElementSpace & HDivFESpace,
-            // ParFiniteElementSpace & L2FESpace,
-            // ParFiniteElementSpace & L2V2FESpace,
-            VectorCoefficient & BCoef,
-            Coefficient & rhoCoef,
-            Coefficient & TCoef,
-            Coefficient & nueCoef,
-            Coefficient & nuiCoef,
-            int & size_h1,
-            int & size_l2,
-            Array<int> & density_offsets,
-            Array<int> & temperature_offsets,
-            BlockVector & density,
-            BlockVector & temperature,
-            ParGridFunction & BField,
-            VectorFieldVisObject & BField_v,
-            ParGridFunction & density_gf,
-            ParGridFunction & temperature_gf,
-            ParGridFunction & nue_gf,
-            ParGridFunction & nui_gf)
-{
-   H1FESpace.Update();
-   // HCurlFESpace.Update();
-   // HDivFESpace.Update();
-   L2FESpace.Update();
-   L2V2FESpace.Update();
 
-   BField.Update();
-   BField.ProjectCoefficient(BCoef);
-
-   BField_v.Update();
-   BField_v.PrepareVisField(BCoef);
-
-   nue_gf.Update();
-   nue_gf.ProjectCoefficient(nueCoef);
-
-   nui_gf.Update();
-   nui_gf.ProjectCoefficient(nuiCoef);
-
-   size_l2 = L2FESpace.GetVSize();
-   for (int i=1; i<density_offsets.Size(); i++)
-   {
-      density_offsets[i] = density_offsets[i - 1] + size_l2;
-   }
-   density.Update(density_offsets);
-   for (int i=0; i<density_offsets.Size()-1; i++)
-   {
-      density_gf.MakeRef(&L2FESpace, density.GetBlock(i).GetData());
-      density_gf.ProjectCoefficient(rhoCoef);
-   }
-
-   size_h1 = H1FESpace.GetVSize();
-   for (int i=1; i<temperature_offsets.Size(); i++)
-   {
-      temperature_offsets[i] = temperature_offsets[i - 1] + size_h1;
-   }
-   temperature.Update(temperature_offsets);
-   for (int i=0; i<temperature_offsets.Size()-1; i++)
-   {
-      temperature_gf.MakeRef(&H1FESpace, temperature.GetBlock(i).GetData());
-      temperature_gf.ProjectCoefficient(TCoef);
-   }
-}
-*/
 const char * banner[6] =
 {
    R"(  _________ __   __       __________  ____     ________________________ )",
@@ -1236,25 +1220,25 @@ void record_cmd_line(int argc, char *argv[])
 {
    ofstream ofs("stix_r1d_eb_cmd.txt");
 
+   // We need to include single quotes around arguments which may
+   // contain white space such as arguments corresponding to Vector or
+   // Array objects.
+
    for (int i=0; i<argc; i++)
    {
       ofs << argv[i] << " ";
-      if (strcmp(argv[i], "-bm"     ) == 0 ||
-          strcmp(argv[i], "-cm"     ) == 0 ||
-          strcmp(argv[i], "-sm"     ) == 0 ||
+      if (strcmp(argv[i], "-im"     ) == 0 ||
+          strcmp(argv[i], "-ic"     ) == 0 ||
           strcmp(argv[i], "-bpp"    ) == 0 ||
-          strcmp(argv[i], "-dpp"    ) == 0 ||
+          strcmp(argv[i], "-dp"     ) == 0 ||
+          strcmp(argv[i], "-dpp"     ) == 0 ||
+          strcmp(argv[i], "-tp"    ) == 0 ||
           strcmp(argv[i], "-tpp"    ) == 0 ||
           strcmp(argv[i], "-nepp"   ) == 0 ||
           strcmp(argv[i], "-nipp"   ) == 0 ||
-          strcmp(argv[i], "-B"      ) == 0 ||
-          strcmp(argv[i], "-k-vec"  ) == 0 ||
-          strcmp(argv[i], "-q"      ) == 0 ||
-          strcmp(argv[i], "-min"    ) == 0 ||
+          strcmp(argv[i], "-p-vec"  ) == 0 ||
           strcmp(argv[i], "-jsrc"   ) == 0 ||
           strcmp(argv[i], "-slab"   ) == 0 ||
-          strcmp(argv[i], "-curve"  ) == 0 ||
-          strcmp(argv[i], "-sp"     ) == 0 ||
           strcmp(argv[i], "-abcs"   ) == 0 ||
           strcmp(argv[i], "-abct"   ) == 0 ||
           strcmp(argv[i], "-pecs"   ) == 0 ||
@@ -1267,155 +1251,3 @@ void record_cmd_line(int argc, char *argv[])
    ofs << endl << flush;
    ofs.close();
 }
-
-/*
-// The Impedance is an optional coefficient defined on boundary surfaces which
-// can be used in conjunction with absorbing boundary conditions.
-Coefficient *
-SetupImpedanceCoefficient(const Mesh & mesh, const Array<int> & abcs)
-{
-   Coefficient * coef = NULL;
-
-   if ( pw_eta_.Size() > 0 )
-   {
-      MFEM_VERIFY(pw_eta_.Size() == abcs.Size(),
-                  "Each impedance value must be associated with exactly one "
-                  "absorbing boundary surface.");
-
-      pw_bdr_eta_.SetSize(mesh.bdr_attributes.Size());
-
-      if ( abcs[0] == -1 )
-      {
-         pw_bdr_eta_ = pw_eta_[0];
-      }
-      else
-      {
-         pw_bdr_eta_ = 0.0;
-
-         for (int i=0; i<pw_eta_.Size(); i++)
-         {
-            pw_bdr_eta_[abcs[i]-1] = pw_eta_[i];
-         }
-      }
-      coef = new PWConstCoefficient(pw_bdr_eta_);
-   }
-
-   return coef;
-}
-
-// The Admittance is an optional coefficient defined on boundary surfaces which
-// can be used in conjunction with absorbing boundary conditions.
-Coefficient *
-SetupAdmittanceCoefficient(const Mesh & mesh, const Array<int> & abcs)
-{
-   Coefficient * coef = NULL;
-
-   if ( pw_eta_.Size() > 0 )
-   {
-      MFEM_VERIFY(pw_eta_.Size() == abcs.Size(),
-                  "Each impedance value must be associated with exactly one "
-                  "absorbing boundary surface.");
-
-      pw_bdr_eta_inv_.SetSize(mesh.bdr_attributes.Size());
-
-      if ( abcs[0] == -1 )
-      {
-         pw_bdr_eta_inv_ = 1.0 / pw_eta_[0];
-      }
-      else
-      {
-         pw_bdr_eta_inv_ = 0.0;
-
-         for (int i=0; i<pw_eta_.Size(); i++)
-         {
-            pw_bdr_eta_inv_[abcs[i]-1] = 1.0 / pw_eta_[i];
-         }
-      }
-      coef = new PWConstCoefficient(pw_bdr_eta_inv_);
-   }
-
-   return coef;
-}
-*/
-/*
-void slab_current_init()
-{
-   j_r_vec_.SetSize(3); j_r_vec_ = 0.0;
-   j_i_vec_.SetSize(3); j_i_vec_ = 0.0;
-
-   switch (wave_type_)
-   {
-      case 'L':
-         j_r_vec_[1] = -1.0;
-         j_i_vec_[2] =  1.0;
-         break;
-      case 'R':
-         j_r_vec_[1] =  M_SQRT1_2;
-         j_r_vec_[2] = -M_SQRT1_2;
-         j_i_vec_[1] =  M_SQRT1_2;
-         j_i_vec_[2] =  M_SQRT1_2;
-         break;
-      case 'O':
-         j_r_vec_[1] = -1.0;
-         break;
-      case 'X':
-         j_i_vec_[2] = -1.0;
-         break;
-   }
-}
-
-void slab_current_source_r(const Vector &x, Vector &j)
-{
-   int sdim = x.Size();
-
-   j.SetSize(3);
-   j = 0.0;
-
-   real_t x0 = slab_params_(0);
-   real_t dx = slab_params_(1);
-
-   if (x[0] >= x0-0.5*dx && x[0] <= x0+0.5*dx)
-   {
-      j = j_r_vec_;
-
-      if (slab_profile_ == 1)
-      {
-         j *= 0.5 * (1.0 + cos(2.0 * M_PI * (x[0] - x0)/dx));
-      }
-   }
-}
-
-void slab_current_source_i(const Vector &x, Vector &j)
-{
-   int sdim = x.Size();
-
-   j.SetSize(3);
-   j = 0.0;
-
-   real_t x0 = slab_params_(0);
-   real_t dx = slab_params_(1);
-
-   if (x[0] >= x0-0.5*dx && x[0] <= x0+0.5*dx)
-   {
-      j = j_i_vec_;
-
-      if (slab_profile_ == 1)
-      {
-         j *= 0.5 * (1.0 + cos(2.0 * M_PI * (x[0] - x0)/dx));
-      }
-   }
-}
-
-void e_bc_r(const Vector &x, Vector &E)
-{
-   E.SetSize(3);
-   E = 0.0;
-
-}
-
-void e_bc_i(const Vector &x, Vector &E)
-{
-   E.SetSize(3);
-   E = 0.0;
-}
-*/
