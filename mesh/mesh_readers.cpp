@@ -1694,7 +1694,7 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
          for (int i = 0; i < NumPoints; ++i)
          {
             input >> tag >> xmax >> ymax >> zmax >> n_tags;
-            for (int j = 0; j < n_tags; ++j)
+            for (size_t j = 0; j < n_tags; ++j)
             {
                input >> tag_i;
                PointsGPhysical[tag].push_back(tag_i);
@@ -1705,13 +1705,13 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
          {
             input >> tag >> xmin >> ymin >> zmin >> \
                   xmax >> ymax >> zmax >> n_tags;
-            for (int j = 0; j < n_tags; ++j)
+            for (size_t j = 0; j < n_tags; ++j)
             {
                input >> tag_i;
                CurvesGPhysical[tag].push_back(tag_i);
             }
             input >> n_bnd;
-            for (int k = 0; k < n_bnd; ++k)
+            for (size_t k = 0; k < n_bnd; ++k)
             {
                input >> tag_i;
             }
@@ -1721,13 +1721,13 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
          {
             input >> tag >> xmin >> ymin >> zmin >> \
                   xmax >> ymax >> zmax >> n_tags;
-            for (int j = 0; j < n_tags; ++j)
+            for (size_t j = 0; j < n_tags; ++j)
             {
                input >> tag_i;
                SurfacesGPhysical[tag].push_back(tag_i);
             }
             input >> n_bnd;
-            for (int k = 0; k < n_bnd; ++k)
+            for (size_t k = 0; k < n_bnd; ++k)
             {
                input >> tag_i;
             }
@@ -1737,13 +1737,13 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
          {
             input >> tag >> xmin >> ymin >> zmin >> \
                   xmax >> ymax >> zmax >> n_tags;
-            for (int j = 0; j < n_tags; ++j)
+            for (size_t j = 0; j < n_tags; ++j)
             {
                input >> tag_i;
                VolumesGPhysical[tag].push_back(tag_i);
             }
             input >> n_bnd;
-            for (int k = 0; k < n_bnd; ++k)
+            for (size_t k = 0; k < n_bnd; ++k)
             {
                input >> tag_i;
             }
