@@ -455,6 +455,11 @@ class RT_R1D_SegmentElement : public VectorFiniteElement
 
    Poly_1D::Basis &cbasis1d, &obasis1d;
 
+private:
+   void LocalInterpolation(const VectorFiniteElement &cfe,
+                           ElementTransformation &Trans,
+                           DenseMatrix &I) const;
+
 public:
    /** @brief Construct the RT_R1D_SegmentElement of order @a p and closed and
        open BasisType @a cb_type and @a ob_type */
@@ -470,6 +475,12 @@ public:
 
    void CalcDivShape(const IntegrationPoint &ip,
                      Vector &divshape) const override;
+
+   virtual void GetLocalInterpolation(ElementTransformation &Trans,
+                                      DenseMatrix &I) const
+   {
+      LocalInterpolation(*this, Trans, I);
+   }
 
    using FiniteElement::Project;
 

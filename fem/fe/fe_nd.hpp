@@ -577,6 +577,11 @@ class ND_R1D_SegmentElement : public VectorFiniteElement
 
    Poly_1D::Basis &cbasis1d, &obasis1d;
 
+private:
+   void LocalInterpolation(const VectorFiniteElement &cfe,
+                           ElementTransformation &Trans,
+                           DenseMatrix &I) const;
+
 public:
    /** @brief Construct the ND_R1D_SegmentElement of order @a p and closed and
        open BasisType @a cb_type and @a ob_type */
@@ -601,7 +606,7 @@ public:
 
    void GetLocalInterpolation(ElementTransformation &Trans,
                               DenseMatrix &I) const override
-   { LocalInterpolation_ND(*this, tk, dof2tk, Trans, I); }
+   { LocalInterpolation(*this, Trans, I); }
 
    void GetLocalRestriction(ElementTransformation &Trans,
                             DenseMatrix &R) const override
@@ -610,7 +615,7 @@ public:
    void GetTransferMatrix(const FiniteElement &fe,
                           ElementTransformation &Trans,
                           DenseMatrix &I) const override
-   { LocalInterpolation_ND(CheckVectorFE(fe), tk, dof2tk, Trans, I); }
+   { LocalInterpolation(CheckVectorFE(fe), Trans, I); }
 
    using FiniteElement::Project;
 
