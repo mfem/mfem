@@ -293,71 +293,77 @@ DarcyOperator::DarcyOperator(const Array<int> &ess_flux_tdofs_list_,
       NonlinearForm *Mqnl = const_cast<NonlinearForm*>(
                                (const_cast<const DarcyForm*>(darcy))->GetFluxMassNonlinearForm());
       const int dim = darcy->FluxFESpace()->GetMesh()->Dimension();
+      const int vdim = darcy->FluxFESpace()->GetVDim();
       const bool dg = (darcy->FluxFESpace()->FEColl()->GetRangeType(
                           dim) == FiniteElement::SCALAR);
-      if (Mq)
-      {
-         if (dg)
-         {
-            Mq->AddDomainIntegrator(new VectorMassIntegrator(*idtcoeff));
-         }
-         else
-         {
-            Mq->AddDomainIntegrator(new VectorFEMassIntegrator(*idtcoeff));
-         }
-      }
-      if (Mqnl)
-      {
-         if (dg)
-         {
-            Mqnl->AddDomainIntegrator(new VectorMassIntegrator(*idtcoeff));
-         }
-         else
-         {
-            Mqnl->AddDomainIntegrator(new VectorFEMassIntegrator(*idtcoeff));
-         }
 
-         if (trace_space)
-         {
-            //hybridization must be reconstructed, since the non-linear
-            //potential mass must be passed to it
-            darcy->EnableHybridization(trace_space,
-                                       new NormalTraceJumpIntegrator(),
-                                       ess_flux_tdofs_list);
-         }
-      }
-      Mq0.reset(new BilinearForm(darcy->FluxFESpace()));
       if (dg)
       {
-         Mq0->AddDomainIntegrator(new VectorMassIntegrator(*idtcoeff));
+         auto *bfi = new VectorMassIntegrator(*idtcoeff);
+         bfi->SetVDim(vdim);
+         if (Mq) { Mq->AddDomainIntegrator(bfi); }
+         else if (Mqnl) { Mqnl->AddDomainIntegrator(bfi); }
       }
       else
       {
+         MFEM_VERIFY(vdim == dim, "Unsupported case");
+         auto *bfi = new VectorFEMassIntegrator(*idtcoeff);
+         if (Mq) { Mq->AddDomainIntegrator(bfi); }
+         else if (Mqnl) { Mqnl->AddDomainIntegrator(bfi); }
+      }
+
+      if (Mqnl && trace_space)
+      {
+         //hybridization must be reconstructed, since the non-linear
+         //potential mass must be passed to it
+         darcy->EnableHybridization(trace_space,
+                                    new NormalTraceJumpIntegrator(),
+                                    ess_flux_tdofs_list);
+      }
+
+      Mq0.reset(new BilinearForm(darcy->FluxFESpace()));
+      if (dg)
+      {
+         auto *bfi = new VectorMassIntegrator(*idtcoeff);
+         bfi->SetVDim(vdim);
+         Mq0->AddDomainIntegrator(bfi);
+      }
+      else
+      {
+         MFEM_VERIFY(vdim == dim, "Unsupported case");
          Mq0->AddDomainIntegrator(new VectorFEMassIntegrator(*idtcoeff));
       }
    }
 
    if (btime_p)
    {
+      const int vdim = darcy->PotentialFESpace()->GetVDim();
+
       BilinearForm *Mt = const_cast<BilinearForm*>(
                             (const_cast<const DarcyForm*>(darcy))->GetPotentialMassForm());
       NonlinearForm *Mtnl = const_cast<NonlinearForm*>(
                                (const_cast<const DarcyForm*>(darcy))->GetPotentialMassNonlinearForm());
-      if (Mt) { Mt->AddDomainIntegrator(new MassIntegrator(*idtcoeff)); }
-      if (Mtnl)
+
+      auto *bfi = new VectorMassIntegrator(*idtcoeff);
+      bfi->SetVDim(vdim);
+      if (Mt) { Mt->AddDomainIntegrator(bfi); }
+      else if (Mtnl) { Mtnl->AddDomainIntegrator(bfi); }
+
+      if (Mtnl && trace_space)
       {
-         Mtnl->AddDomainIntegrator(new MassIntegrator(*idtcoeff));
-         if (trace_space)
-         {
-            //hybridization must be reconstructed, since the non-linear
-            //potential mass must be passed to it
-            darcy->EnableHybridization(trace_space,
-                                       new NormalTraceJumpIntegrator(),
-                                       ess_flux_tdofs_list);
-         }
+         //hybridization must be reconstructed, since the non-linear
+         //potential mass must be passed to it
+         darcy->EnableHybridization(trace_space,
+                                    new NormalTraceJumpIntegrator(),
+                                    ess_flux_tdofs_list);
       }
+
       Mt0.reset(new BilinearForm(darcy->PotentialFESpace()));
-      Mt0->AddDomainIntegrator(new MassIntegrator(*idtcoeff));
+      {
+         auto *bfi = new VectorMassIntegrator(*idtcoeff);
+         bfi->SetVDim(vdim);
+         Mt0->AddDomainIntegrator(bfi);
+      }
    }
 }
 
