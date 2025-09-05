@@ -2537,7 +2537,7 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
          } // if ASCII format 2.2
          if ((!binary) && iversion == 41)
          {
-            int DimEntity, Tag, TagEntity, nb_Elements, totelt;
+            int DimEntity, TagEntity, nb_Elements, totelt;
 
             totelt = 0;
             for (int bk = 0; bk < num_of_block_elements; ++bk)
