@@ -564,6 +564,8 @@ public:
    /// Get the associated flux function
    const FluxFunction &GetFluxFunction() const { return fluxFunction; }
 
+   using LinearFormIntegrator::AssembleRHSElementVect;
+
    /**
     * @warning Boundary element integration not implemented, use
     * AssembleRHSElementVect(const FiniteElement&,
