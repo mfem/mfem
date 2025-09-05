@@ -12,6 +12,7 @@
 // Implementation of Coefficient class
 
 #include "fem.hpp"
+#include "../general/forall.hpp"
 
 #include <cmath>
 #include <limits>
@@ -78,6 +79,49 @@ real_t PWConstCoefficient::Eval(ElementTransformation & T,
 {
    int att = T.Attribute;
    return (constants(att-1));
+}
+
+void PWConstCoefficient::Project(QuadratureFunction &qf)
+{
+   auto &qs = *qf.GetSpace();
+
+   const bool compressed =
+      qs.Offsets(QSpaceOffsetStorage::COMPRESSED).Size() == 1;
+   const int *offsets = qs.Offsets(QSpaceOffsetStorage::COMPRESSED).Read();
+   const int ne = qs.GetNE();
+
+   const int *attributes = [&]()
+   {
+      if (dynamic_cast<QuadratureSpace*>(&qs) != nullptr)
+      {
+         return qs.GetMesh()->GetElementAttributes().Read();
+      }
+      else if (auto *qs_f = dynamic_cast<FaceQuadratureSpace*>(&qs))
+      {
+         MFEM_VERIFY(qs_f->GetFaceType() == FaceType::Boundary,
+                     "Interior faces do not have attributes.");
+         return qs.GetMesh()->GetBdrFaceAttributes().Read();
+      }
+      else
+      {
+         MFEM_ABORT("Unsupported case.");
+      }
+   }();
+
+   const real_t *d_c = constants.Read();
+   real_t *d_qf = qf.Write();
+
+   mfem::forall(ne, [=] MFEM_HOST_DEVICE (int e)
+   {
+      const int a = attributes[e];
+      const real_t elementConstant = d_c[a - 1];
+      const int begin = compressed ? e*offsets[0] : offsets[e];
+      const int end = compressed ? (e+1)*offsets[0] : offsets[e+1];
+      for (int i = begin; i < end; ++i)
+      {
+         d_qf[i] = elementConstant;
+      }
+   });
 }
 
 void PWCoefficient::InitMap(const Array<int> & attr,
