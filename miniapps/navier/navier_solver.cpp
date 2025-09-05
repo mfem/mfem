@@ -371,8 +371,11 @@ void NavierSolver::Step(Vector &up, real_t &t, real_t &dt)
    BlockVector upb(up.GetData(), offsets);
 
    un_gf.SetFromTrueDofs(upb.GetBlock(0));
+   un_next_gf.SetFromTrueDofs(upb.GetBlock(0));
    pn_gf.SetFromTrueDofs(upb.GetBlock(1));
+
    Step(t, dt, (int) t/dt,false);
+   
    un_gf.GetTrueDofs(upb.GetBlock(0));
    pn_gf.GetTrueDofs(upb.GetBlock(1));
 }
