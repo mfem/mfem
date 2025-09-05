@@ -1374,6 +1374,50 @@ void GridFunction::GetVectorGradientHat(
    MultAtB(loc_data_mat, dshape, gh);
 }
 
+void GridFunction::GetGradients(const IntegrationRule &ir, Vector &grad,
+                                QVectorLayout ql, MemoryType d_mt) const
+{
+   const FiniteElement &fe = *fes->GetTypicalFE();
+   const int dim  = fe.GetDim();
+   const int vdim = fes->GetVDim();
+   const int NE   = fes->GetNE();
+   const int ND   = fe.GetDof();
+   const int NQ   = ir.GetNPoints();
+
+   MemoryType my_d_mt = (d_mt != MemoryType::DEFAULT) ? d_mt :
+                        Device::GetDeviceMemoryType();
+
+   // ql == QVectorLayout::byNODES :   NQ x VDIM x  DIM x NE
+   // ql == QVectorLayout::byVDIM  : VDIM x  DIM x NQPT x NE
+   grad.SetSize(dim*vdim*NQ*NE, my_d_mt);
+
+   const QuadratureInterpolator &qi = *fes->GetQuadratureInterpolator(ir);
+   qi.SetOutputLayout(ql);
+
+   const bool use_tensor_products = UsesTensorBasis(*fes);
+   qi.DisableTensorProducts(!use_tensor_products);
+   const ElementDofOrdering e_ordering = use_tensor_products ?
+                                         ElementDofOrdering::LEXICOGRAPHIC :
+                                         ElementDofOrdering::NATIVE;
+   const Operator *elem_restr = fes->GetElementRestriction(e_ordering);
+
+   // Pre-compute the geometric factors in order to set the desired MemoryType
+   // they use:
+   fes->GetMesh()->GetGeometricFactors(
+      ir, GeometricFactors::JACOBIANS, my_d_mt);
+
+   if (elem_restr) // currently, always true
+   {
+      Vector f_e(vdim*ND*NE, my_d_mt);
+      elem_restr->Mult(*this, f_e);
+      qi.PhysDerivatives(f_e, grad);
+   }
+   else
+   {
+      qi.PhysDerivatives(*this, grad);
+   }
+}
+
 real_t GridFunction::GetDivergence(ElementTransformation &T) const
 {
    DofTransformation doftrans;
@@ -2624,7 +2668,7 @@ void GridFunction::ProjectBdrCoefficient(Coefficient *coeff[],
    }
    for (int i = 0; i < values_counter.Size(); i++)
    {
-      MFEM_ASSERT(bool(values_counter[i]) == ess_vdofs_marker[i],
+      MFEM_ASSERT(bool(values_counter[i]) == bool(ess_vdofs_marker[i]),
                   "internal error");
    }
 #endif
