@@ -187,6 +187,20 @@ real_t SphericalPolarCoefficient::Eval(ElementTransformation & T,
                 transip[2]);
 }
 
+ComponentCoefficient::ComponentCoefficient(int comp_, VectorCoefficient &vcoef_)
+   : comp(comp_), vcoef(vcoef_), vec(vcoef_.GetVDim())
+{
+   MFEM_VERIFY(comp >= 0 && comp < vcoef.GetVDim(),
+               "Invalid component");
+}
+
+real_t ComponentCoefficient::Eval(ElementTransformation & T,
+                                  const IntegrationPoint & ip)
+{
+   vcoef.Eval(vec, T, ip);
+   return vec[comp];
+}
+
 real_t GridFunctionCoefficient::Eval (ElementTransformation &T,
                                       const IntegrationPoint &ip)
 {
