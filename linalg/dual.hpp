@@ -367,7 +367,7 @@ dual<value_type, gradient_type> sinh(dual<value_type, gradient_type> a)
 {
    using std::sinh;
    using std::cosh;
-   return { sinh(a.value) , cosh(a.value) * a.gradient};
+   return { sinh(a.value), cosh(a.value) * a.gradient};
 }
 
 /** @brief implementation of hyperbolic cosine function for dual numbers */
@@ -376,7 +376,7 @@ dual<value_type, gradient_type> cosh(dual<value_type, gradient_type> a)
 {
    using std::sinh;
    using std::cosh;
-   return { cosh(a.value) , sinh(a.value) * a.gradient};
+   return { cosh(a.value), sinh(a.value) * a.gradient};
 }
 
 
