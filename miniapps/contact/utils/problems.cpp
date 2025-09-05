@@ -54,7 +54,6 @@ void ElasticityOperator::Init()
    VectorFunctionCoefficient ref_cf(dim,ref_func);
    ParGridFunction xr(fes); xr.ProjectCoefficient(ref_cf);
    xr.GetTrueDofs(xref);
-   xrefbc.SetSize(ntdofs); xrefbc = 0.0;
    eps.SetSize(ntdofs); eps = eps_min;
    SetEssentialBC();
    SetUpOperator();
@@ -115,11 +114,6 @@ void ElasticityOperator::FormLinearSystem()
          x.GetTrueDofs(X);
          dynamic_cast<ParBilinearForm*>(op)->EliminateVDofsInRHS(ess_tdof_list, X, B);
       }
-      x.GetTrueDofs(xrefbc);
-      //Vector xBCtrue, DCvals;
-      //x.GetTrueDofs(xBCtrue);
-      //xBCtrue.GetSubVector(essbdr, DCvals);
-      //xrefbc.SetSubVector(essbdr, DCvals);
    }
 }
 
@@ -128,6 +122,7 @@ void ElasticityOperator::UpdateRHS()
    formsystem = false;
    delete b;
    b = new ParLinearForm(fes);
+   x = 0.0;
 }
 
 void ElasticityOperator::SetNeumanPressureData(ConstantCoefficient &f,
@@ -143,11 +138,6 @@ void ElasticityOperator::SetDisplacementDirichletData(const Vector & delta,
 {
    VectorConstantCoefficient delta_cf(delta);
    x.ProjectBdrCoefficient(delta_cf,essbdr);
-
-   Vector xBCtrue, DCvals;
-   x.GetTrueDofs(xBCtrue);
-   xBCtrue.GetSubVector(essbdr, DCvals);
-   xrefbc.SetSubVector(essbdr, DCvals);
 }
 
 void ElasticityOperator::SetTimeStepDisplacement(int i, const Vector & dx)
@@ -181,10 +171,9 @@ void ElasticityOperator::UpdateEssentialBC(Array<int> & ess_bdr_attr_,
    SetEssentialBC();
 }
 
-void ElasticityOperator::Getxrefbc(Vector & xrefbc_) const
+void ElasticityOperator::Getxrefbc(Vector & xrefbc) const
 {
-   xrefbc_.SetSize(ntdofs);
-   xrefbc_.Set(1.0, xrefbc);
+   x.GetTrueDofs(xrefbc);
 }
 
 void ElasticityOperator::Geteps(Vector & eps_) const
@@ -288,22 +277,31 @@ void OptContactProblem::ReleaseMemory()
    }
 }
 
-void OptContactProblem::UpdateContactSystem(ParGridFunction * coords_, const Vector & xref_)
+// void OptContactProblem::UpdateContactSystem(ParGridFunction * coords_, const Vector & xref_)
+// {
+//    ReleaseMemory();
+//    FormContactSystem(coords_, xref_);
+// }
+
+
+
+void OptContactProblem::FormContactSystem(ParGridFunction * coords_,
+                                          const Vector & xref_)
 {
    ReleaseMemory();
-   FormContactSystem(coords_, xref_);
-}
 
-
-
-void OptContactProblem::FormContactSystem(ParGridFunction * coords_, const Vector & xref_)
-{
    coords = coords_;
    xref.SetDataAndSize(xref_.GetData(), xref_.Size());
 
    ComputeGapJacobian();
 
    problem->Getxrefbc(xrefbc);
+   const Array<int> & ess_tdof_list = problem->GetEssentialDofs();
+   Vector ess_values;
+
+   xrefbc.GetSubVector(ess_tdof_list, ess_values);
+   xrefbc=xref;
+   xrefbc.SetSubVector(ess_tdof_list, ess_values);
 
    if (problem->IsNonlinear())
    {
@@ -355,9 +353,12 @@ void OptContactProblem::FormContactSystem(ParGridFunction * coords_, const Vecto
    Vector onev(Mv->Width()); onev = 1.0;
    Mvlump.SetSize(Mv->Height());
    Mv->Mult(onev, Mvlump);
-   
-   dl.SetSize(dimU); dl = 0.0;
-   eps.SetSize(dimU); eps = 0.0; // minimum size of eps controlled by eps_min
+
+   if (!dl.Size())
+   {
+      dl.SetSize(dimU); dl = 0.0;
+      eps.SetSize(dimU); eps = 0.0; // minimum size of eps controlled by eps_min
+   }
 }
 
 void OptContactProblem::SetTimeStepDisplacement(int i, const Vector & dx)
@@ -646,31 +647,28 @@ HypreParMatrix * OptContactProblem::DddE(const Vector & d)
    }
 }
 
-void OptContactProblem::SetBoundConstraints(int i)
+void OptContactProblem::ActivateBoundConstraints()
 {
-   if (i >= bound_constraint_step && bound_constraints)
-   {
-      dl.Set(1.0, xrefbc);
-      enable_bound_constraints = true;
-      constraints_starts[0] = J->RowPart()[0] + 2 * J->ColPart()[0];
-      constraints_starts[1] = J->RowPart()[1] + 2 * J->ColPart()[1];
-      num_constraints = J->GetGlobalNumRows() + 2 * J->GetGlobalNumCols();
-      dimM = dimG + 2 * dimU;
-      dimC = dimM;
-      ml.SetSize(dimM); ml = 0.0;
-   }
+   dl.Set(1.0, xrefbc);
+   enable_bound_constraints = true;
+   constraints_starts[0] = J->RowPart()[0] + 2 * J->ColPart()[0];
+   constraints_starts[1] = J->RowPart()[1] + 2 * J->ColPart()[1];
+   num_constraints = J->GetGlobalNumRows() + 2 * J->GetGlobalNumCols();
+   dimM = dimG + 2 * dimU;
+   dimC = dimM;
+   ml.SetSize(dimM); ml = 0.0;
 }
 
-void OptContactProblem::SetBoundConstraints(const Vector & dl_,
-                                            const Vector & eps_)
-{
-   MFEM_VERIFY(dl_.Size() == dimU,
-               "constraint vector dl is not of the correct size");
-   MFEM_VERIFY(eps_.Size() == dimU,
-               "constraint vector eps is not the correct size");
-   dl.Set(1.0, dl_);
-   eps.Set(1.0, eps_);
-}
+// void OptContactProblem::SetBoundConstraints(const Vector & dl_,
+//                                             const Vector & eps_)
+// {
+//    MFEM_VERIFY(dl_.Size() == dimU,
+//                "constraint vector dl is not of the correct size");
+//    MFEM_VERIFY(eps_.Size() == dimU,
+//                "constraint vector eps is not the correct size");
+//    dl.Set(1.0, dl_);
+//    eps.Set(1.0, eps_);
+// }
 
 OptContactProblem::~OptContactProblem()
 {
@@ -823,7 +821,7 @@ HypreParMatrix * OptContactProblem::SetupTribol(ParMesh * pmesh,
       gap[i] = gap_true[nonzero_rows[i]];
       Mcslump(i) = Mcslumpfull(nonzero_rows[i]);
    }
-   gap /= Mcslump;   
+   gap /= Mcslump;
    tribol::finalize();
    return M;
 }

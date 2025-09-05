@@ -40,7 +40,6 @@ private:
 
 
    Vector xref;
-   Vector xrefbc;
    Vector eps;
    real_t eps_min = 1.e-4;
    int bound_constraint_step = 3;
@@ -187,8 +186,8 @@ public:
    HypreParMatrix * DddE(const Vector & d);
 
    void SetTimeStepDisplacement(int i, const Vector & dx);
-   void SetBoundConstraints(const Vector & dl_, const Vector & eps_);
-   void SetBoundConstraints(int i);
+   // void SetBoundConstraints(const Vector & dl_, const Vector & eps_);
+   void ActivateBoundConstraints();
    HypreParMatrix *  SetupTribol(ParMesh * pmesh, ParGridFunction * coords,
                                  const Array<int> & ess_tdofs,
                                  const std::set<int> & mortar_attrs,

@@ -163,7 +163,7 @@ int main(int argc, char *argv[])
          ess_bdr_attr.Append(4); ess_bdr_attr_comp.Append(0);
          ess_bdr_attr.Append(5); ess_bdr_attr_comp.Append(-1);
          E = 1.e3;
-         nu = 0.3;
+         nu = 0.4;
          break;
       default:
          MFEM_ABORT("Should be unreachable");
@@ -255,9 +255,9 @@ int main(int argc, char *argv[])
    real_t p = 30.0;
    ConstantCoefficient f(p);
    std::vector<Array<int>> CGiter;
-  
+
    OptContactProblem contact(&prob, mortar_attr, nonmortar_attr,
-                              tribol_ratio, bound_constraints);
+                             tribol_ratio, bound_constraints);
 
    int total_steps = nsteps + msteps;
    for (int i = 0; i<total_steps; i++)
@@ -306,27 +306,15 @@ int main(int argc, char *argv[])
             MFEM_ABORT("Should be unreachable");
             break;
       }
-      
+
       prob.FormLinearSystem();
 
       // deviation from the reference configuration
-      Vector xref(x_gf.GetTrueVector().Size()); xref = 0.0;
-      x_gf.SetTrueVector();
+      Vector xref;
       x_gf.GetTrueDofs(xref);
-     
-      // TODO: update logic to remove this if/else statement 
-      if (i == 0)
-      {
-         contact.FormContactSystem(&new_coords, xref);
-      }
-      else
-      {
-         contact.UpdateContactSystem(&new_coords, xref);
-      }
-      if (bound_constraints)
-      {
-         contact.SetBoundConstraints(i);
-      }
+
+      contact.FormContactSystem(&new_coords, xref);
+      if (bound_constraints && i>3) { contact.ActivateBoundConstraints(); }
 
 
       Solver * prec = nullptr;
