@@ -50,6 +50,7 @@ ElementTransformation *RefinedToCoarse(
 
 void Coefficient::Project(QuadratureFunction &qf)
 {
+   MFEM_PERF_FUNCTION;
    QuadratureSpaceBase &qspace = *qf.GetSpace();
    const int ne = qspace.GetNE();
    Vector values;
