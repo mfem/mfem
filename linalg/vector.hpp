@@ -367,6 +367,7 @@ public:
    void Pow(const real_t p);
 
    /// Swap the contents of two Vectors
+   /** Implemented without using move assignment, avoiding Destroy() calls. */
    inline void Swap(Vector &other);
 
    /// Set v = v1 + v2.
@@ -652,9 +653,8 @@ inline void Vector::MakeRef(Vector &base, int offset)
 inline void Vector::Destroy()
 {
    const bool use_dev = data.UseDevice();
-   data.Delete();
+   data.Delete();  // calls data.Reset(h_mt) as well
    size = 0;
-   data.Reset();
    data.UseDevice(use_dev);
 }
 
@@ -680,8 +680,9 @@ inline void Vector::Swap(Vector &other)
    mfem::Swap(size, other.size);
 }
 
-/// Specialization of the template function Swap<> for class Vector
-template<> inline void Swap<Vector>(Vector &a, Vector &b)
+/** @brief Swap of Vector objects for use with standard library algorithms.
+    Also, used by mfem::Swap(). */
+inline void swap(Vector &a, Vector &b)
 {
    a.Swap(b);
 }
