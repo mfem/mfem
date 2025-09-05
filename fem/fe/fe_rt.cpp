@@ -2168,6 +2168,42 @@ void RT_R1D_SegmentElement::Project(VectorCoefficient &vc,
    }
 }
 
+void RT_R1D_SegmentElement::ProjectMatrixCoefficient(
+   MatrixCoefficient &mc,
+   ElementTransformation &Trans,
+   Vector &dofs) const
+{
+   MFEM_ASSERT(mc.GetWidth() == 3, "");
+   DenseMatrix MQ(mc.GetHeight(), mc.GetWidth());
+   MFEM_ASSERT(dofs.Size() == dof*MQ.Height(), "");
+
+   real_t data[3];
+   Vector vk1(data, 1);
+   Vector vk3(data, 3);
+
+   real_t * nk_ptr = const_cast<real_t*>(nk);
+
+   for (int k = 0; k < dof; k++)
+   {
+      Trans.SetIntPoint(&Nodes.IntPoint(k));
+
+      // dof_k = nk^t adj(J) vk
+      Vector n1(&nk_ptr[dof2nk[k] * 3], 1);
+      Vector n3(&nk_ptr[dof2nk[k] * 3], 3);
+
+      mc.Eval(MQ, Trans, Nodes.IntPoint(k));
+
+      for (int r = 0; r < MQ.Height(); r++)
+      {
+         MQ.GetRow(r, vk3);
+
+         dofs(k+dof*r) = Trans.AdjugateJacobian().InnerProduct(vk1, n1) +
+                         Trans.Weight() * vk3(1) * n3(1) +
+                         Trans.Weight() * vk3(2) * n3(2);
+      }
+   }
+}
+
 void RT_R1D_SegmentElement::Project(const FiniteElement &fe,
                                     ElementTransformation &Trans,
                                     DenseMatrix &I) const

@@ -476,6 +476,10 @@ public:
    void Project(VectorCoefficient &vc,
                 ElementTransformation &Trans, Vector &dofs) const override;
 
+   void ProjectMatrixCoefficient(MatrixCoefficient &mc,
+                                 ElementTransformation &T,
+                                 Vector &dofs) const override;
+
    void Project(const FiniteElement &fe,
                 ElementTransformation &Trans,
                 DenseMatrix &I) const override;
