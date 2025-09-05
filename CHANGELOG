@@ -30,6 +30,10 @@ Discretization improvements
 - Added method to compute piecewise linear bounds on high-order functions on
   tensor-product elements.
 
+- Parallel anisotropic refinement of hexahedral meshes is now supported,
+  provided that neighboring hexahedra are not refined in conflicting directions.
+  A new ParMesh method is added to check for such conflicts, before refinement.
+
 Meshing improvements
 --------------------
 
