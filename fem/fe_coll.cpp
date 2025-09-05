@@ -401,9 +401,6 @@ FiniteElementCollection *FiniteElementCollection::New(const char *name)
    {
       MFEM_ABORT("unknown FiniteElementCollection: " << name);
    }
-   MFEM_VERIFY(!strcmp(fec->Name(), name), "input name: \"" << name
-               << "\" does not match the created collection name: \""
-               << fec->Name() << '"');
 
    return fec;
 }
