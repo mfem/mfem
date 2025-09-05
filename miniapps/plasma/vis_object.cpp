@@ -66,7 +66,7 @@ void VisObjectBase::IncrementGLVisWindowPosition()
 }
 
 ScalarFieldVisObject::ScalarFieldVisObject(const std::string & field_name,
-                                           ParFiniteElementSpace *sfes,
+                                           shared_ptr<L2_ParFESpace> sfes,
                                            bool cyl,
                                            bool pseudo)
    : cyl_(cyl),
@@ -80,7 +80,7 @@ ScalarFieldVisObject::ScalarFieldVisObject(const std::string & field_name,
 
    dim_ = sfes->GetParMesh()->SpaceDimension();
 
-   v_ = new GridFunction(sfes);
+   v_ = new GridFunction(sfes.get());
 }
 
 ScalarFieldVisObject::~ScalarFieldVisObject()
@@ -224,7 +224,7 @@ void ComplexScalarFieldVisObject::Update()
 }
 
 ScalarFieldBdrVisObject::ScalarFieldBdrVisObject(const std::string & field_name,
-                                                 L2_ParFESpace *sfes,
+                                                 std::shared_ptr<L2_ParFESpace> sfes,
                                                  bool cyl,
                                                  bool pseudo)
    : cyl_(cyl),
@@ -238,7 +238,7 @@ ScalarFieldBdrVisObject::ScalarFieldBdrVisObject(const std::string & field_name,
 
    dim_ = sfes->GetParMesh()->SpaceDimension();
 
-   v_ = new ComplexGridFunction(sfes);
+   v_ = new ComplexGridFunction(sfes.get());
    (*v_) = 0.0;
 }
 

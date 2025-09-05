@@ -75,7 +75,7 @@ protected:
 
 public:
    ScalarFieldVisObject(const std::string & field_name,
-                        ParFiniteElementSpace *sfes,
+                        std::shared_ptr<L2_ParFESpace> sfes,
                         bool cyl, bool pseudo);
 
    virtual ~ScalarFieldVisObject();
@@ -138,7 +138,7 @@ protected:
 
 public:
    ScalarFieldBdrVisObject(const std::string & field_name,
-                           L2_ParFESpace *sfes,
+                           std::shared_ptr<L2_ParFESpace> sfes,
                            bool cyl, bool pseudo);
 
    virtual ~ScalarFieldBdrVisObject();
