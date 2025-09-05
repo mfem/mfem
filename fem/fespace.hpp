@@ -671,7 +671,8 @@ public:
        NURBSExtension, @a ext. */
    FiniteElementSpace(Mesh *mesh, NURBSExtension *ext,
                       const FiniteElementCollection *fec,
-                      int vdim = 1, int ordering = Ordering::byNODES);
+                      int vdim = 1, int ordering = Ordering::byNODES)
+   { Constructor(mesh, ext, fec, vdim, ordering); }
 
    /// Copy assignment not supported
    FiniteElementSpace& operator=(const FiniteElementSpace&) = delete;

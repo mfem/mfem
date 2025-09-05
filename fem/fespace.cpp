@@ -103,11 +103,6 @@ FiniteElementSpace::FiniteElementSpace(Mesh *mesh,
                                        int vdim, int ordering)
 { Constructor(mesh, NULL, fec, vdim, ordering); }
 
-FiniteElementSpace::FiniteElementSpace(Mesh *mesh, NURBSExtension *ext,
-                                       const FiniteElementCollection *fec,
-                                       int vdim, int ordering)
-{ Constructor(mesh, ext, fec, vdim, ordering); }
-
 void FiniteElementSpace::CopyProlongationAndRestriction(
    const FiniteElementSpace &fes, const Array<int> *perm)
 {

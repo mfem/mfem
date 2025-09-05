@@ -28,7 +28,6 @@ namespace mfem
 
 class GridFunction;
 
-
 /** @brief A vector of knots in one dimension, with B-spline basis functions of
     a prescribed order.
 
@@ -58,6 +57,12 @@ protected:
    /// Stores the unique knot multiplicities.
    Array<int> uknot_mult;
 
+   // Stores the demko points
+   mutable Vector demko;
+
+   /// Compute all the Demko points
+   void ComputeDemko() const;
+
    /// Compute unique knots and their multiplicities.
    void ComputeUniqueKnots();
 
@@ -72,6 +77,9 @@ public:
    /** @brief Create a KnotVector with undefined knots (initialized to -1) of
        order @a order and number of control points @a NCP. */
    KnotVector(int order, int NCP);
+
+   /** @brief Create a KnotVector with order @a order and knots @a knot. */
+   KnotVector(int order, const Vector &k);
 
    /** @brief Create a KnotVector by passing in a degree, a Vector of interval
        lengths of length n, and a list of continuity of length n + 1.
@@ -113,21 +121,94 @@ public:
        with @a isElement for non-empty knot spans (elements). */
    int GetNKS() const { return NumOfControlPoints - Order; }
 
-   /** @brief Return the parameter for element reference coordinate @a xi
-       in [0,1], for the element beginning at knot @a ni. */
-   real_t getKnotLocation(real_t xi, int ni) const
-   { return (xi*knot(ni+1) + (1. - xi)*knot(ni)); }
+   /// Return whether knot location @a u is in a given span @a ni.
+   bool inSpan(real_t u, int ni) const
+   {
+      if ((u < knot(ni)) || (u > knot(ni+1))) { return false; }
+      return true;
+   }
 
    /// Return the index of the knot span containing parameter @a u.
-   int findKnotSpan(real_t u) const;
+   int GetSpan(real_t u) const;
+
+   /// Return the index of the unique knot span containing parameter @a u.
+   int GetUniqueSpan(real_t u) const;
+
+   /** @brief Return the reference coordinate in [0,1] for parameter @a u
+       in the element beginning at knot @a ni. */
+   real_t GetRefPoint(real_t u, int ni) const
+   { return (u-knot(ni))/(knot(ni+1)-knot(ni)); };
+
+   /** @brief Return the knot location for element reference coordinate @a xi
+       in [0,1], for the element beginning at knot @a ni. */
+   real_t GetKnotLocation(real_t xi, int ni) const
+   { return (xi*knot(ni+1) + (1. - xi)*knot(ni)); }
+
+   /** @brief Return the parameter for element reference coordinate @a xi
+       in [0,1], for the element beginning at knot @a ni. */
+   MFEM_DEPRECATED real_t getKnotLocation(real_t xi, int ni) const
+   { return (xi*knot(ni+1) + (1. - xi)*knot(ni)); } // Use GetKnot instead
+
+   /// Return the index of the knot span containing parameter @a u.
+   MFEM_DEPRECATED int findKnotSpan(real_t u) const;  // Use GetSpan instead
+
+   /** Gives the @a i average knot location. Average is taken over @a Order
+       number of nodes. For background see:
+
+       G. Farin,
+       Curves and Surfaces for Computer Aided Geometric Design, fourth ed.
+       Academic Press, San Diego, CA, 1997*/
+   real_t GetGreville(int i) const;
+
+   /** Gives the knot location where the @a i shape function is maximum.
+       Reverts to the Greville point if knot is repeated @a Order +1 times.
+       For background see:
+
+       Botella, Olivier, and Karim Shariff.
+       "B-spline methods in fluid dynamics."
+       International Journal of Computational Fluid Dynamics 17.2 (2003): 133-149.
+
+       Points are found using Newton iteration, with the Greville point as the
+       starting value. */
+   real_t GetBotella(int i) const;
+
+   /** Gives the knot location of the @a i extremum of the Chebyshev spline.
+       For background see:
+
+       Stephen Demko
+       "On the existence of interpolating projections onto spline spaces."
+       Journal of approximation theory 43.2 (1985): 151-156.
+
+       Points are found using Remez iteration:
+        - Find interpolant, given by a, through given points, given by Demko
+        - Find extrema of this polynom and update Demko points
+        - Repeat untill converged
+        - Use the Greville point as starting point */
+   real_t GetDemko(int i) const { ComputeDemko(); return demko[i]; };
 
    // The following functions evaluate shape functions, which are B-spline basis
    // functions.
+
+   // Struct for storing the evaluation of the shape functions at a given knot
+   struct ShapeValues
+   {
+      real_t u;     // knot
+      int dofidx;   // index of first non-zero dof
+      Vector shape; // non-zero shape functions (always of size Order+1)
+   };
 
    /** @brief Calculate the nonvanishing shape function values in @a shape for
        the element corresponding to knot index @a i and element reference
        coordinate @a xi. */
    void CalcShape  (Vector &shape, int i, real_t xi) const;
+
+   /** @brief Calculate the nonvanishing shape function values in @a shape for
+       knot @a u. Returns the first non-zero dof index. */
+   int CalcShape(Vector &shape, real_t u) const;
+
+   /** @brief Calculate the nonvanishing shape function values for a vector of
+       knots @a u. Returns the first non-zero dof index. */
+   std::vector<ShapeValues> CalcShapes(const Vector &u) const;
 
    /** @brief Calculate derivatives of the nonvanishing shape function values in
        @a grad for the element corresponding to knot index @a i and element
@@ -146,19 +227,38 @@ public:
    /** @brief Gives the locations of the maxima of the KnotVector in reference
        space. The function gives the knot span @a ks, the coordinate in the
        knot span @a xi, and the coordinate of the maximum in parameter space
-       @a u. */
-   void FindMaxima(Array<int> &ks, Vector &xi, Vector &u) const;
+       @a u.
+       The main purpose of this function is its use in FindInterpolant.
+       Use GetBotella instead for each shape function separately, perhaps in
+       conjuction with GetSpan and GetRefPoint.*/
+   MFEM_DEPRECATED void FindMaxima(Array<int> &ks, Vector &xi, Vector &u) const;
+
+   void AssembleCollocationMatrix(Vector &u);
+
+   void AssembleCollocationMatrix(NURBSInterpolationRule interp_rule);
 
    /** @brief Global curve interpolation through the points @a x (overwritten).
        @a x is an array with the length of the spatial dimension containing
        vectors with spatial coordinates. The control points of the interpolated
-       curve are returned in @a x in the same form.
-
+       curve are returned in @a x in the same form. */
        The inverse of the collocation matrix, used in the interpolation, is
        stored for repeated calls and used if @a reuse_inverse is true. Reuse is
        valid only if this KnotVector has not changed since the initial call with
        @a reuse_inverse false. */
    void FindInterpolant(Array<Vector*> &x, bool reuse_inverse = false);
+
+   /// Dispatcher for different rules
+   Vector GetInterpolationPoints(NURBSInterpolationRule interp_rule) const;
+
+   /** @brief Get the control points @a for an interpolating spline that has the
+      values @a x at the knot location @a u.
+      For the knot location one can use  for instance GetBotella, GetDemko or
+      GetGreville. The Demko points might be most appropriate.*/
+   void GetInterpolant(const Vector &x, const Vector &u, Vector &a) const;
+
+   void GetInterpolant(const Vector &x, const NURBSInterpolationRule interp_rule,
+                       Vector &a) const
+   { GetInterpolant(x, GetInterpolationPoints(interp_rule), a); }
 
    /** Set @a diff, comprised of knots in @a kv not contained in this KnotVector.
        @a kv must be of the same order as this KnotVector. The current
@@ -198,6 +298,28 @@ public:
    /// @note The returned object should be deleted by the caller.
    KnotVector *DegreeElevate(int t) const;
 
+   /** @brief Return a new KnotVector with degree one and (p-1) additional
+       knots (number of control points is unchanged). The new knots are
+       are located at points determined by NURBSInterpolationRule (e.g.
+       Greville, Botella, Demko) applied to the original KnotVector. */
+   /// @note The returned object should be deleted by the caller.
+   KnotVector *Linearize(NURBSInterpolationRule interp_rule =
+                            NURBSInterpolationRule::Greville) const;
+
+   // Return the matrix X_ij = phi_j(u_i) that interpolates values
+   // to the locations given by u
+   SparseMatrix GetInterpolationMatrix(const Vector &u) const;
+
+   SparseMatrix GetInterpolationMatrix(NURBSInterpolationRule interp_rule) const;
+
+   real_t GetUniqueKnot(int i) const;
+
+   void GetUniqueKnots(Vector &uknots) const;
+
+   real_t GetKnotMult(int i) const;
+
+   int GetNUK() const;
+
    /// Reverse the knots.
    void Flip();
 
@@ -212,6 +334,18 @@ public:
        to count the elements before using this function. @a samples is the
        number of samples of the shape functions per element.*/
    void PrintFunctions(std::ostream &os, int samples=11) const;
+
+   /** Prints the function with basis function coefficient @a a, and its first
+       and second derivatives associated with the KnotVector per element.
+       Use GetElements() to count the elements before using this function.
+       @a samples is the number of samples of the shape functions per element.*/
+   void PrintFunction(std::ostream &os, const Vector &a, int samples=11) const;
+
+   /** Prints the @a i-th function and its first and second
+       derivatives associated with the KnotVector per element. Use GetElements()
+       to count the elements before using this function. @a samples is the
+       number of samples of the shape functions per element.*/
+   void PrintFunction(std::ostream &os, int i, int samples=11) const;
 
    /// Destroys KnotVector
    ~KnotVector() { }
@@ -371,6 +505,13 @@ public:
 
    void DegreeElevate(int t);
 
+   /** @brief Return a new NURBSPatch with degree one in each dimension
+       and (number of control points is unchanged). The new knots are
+       are located at points determined by NURBSInterpolationRule (e.g.
+       Greville, Botella, Demko) applied to the original KnotVector. */
+   /// @note The returned object should be deleted by the caller.
+   // NURBSPatch *Linearize(NURBSInterpolationRule interp_rule=NURBSInterpolationRule::Greville) const;
+
    /** @brief Refine with optional refinement factor @a rf. Uniform means
        refinement is done everywhere by the same factor, although nonuniform
        spacing functions may be used.
@@ -408,6 +549,8 @@ public:
    /// Return a pointer to the KnotVector in direction @a dir.
    /// @note The returned object should NOT be deleted by the caller.
    KnotVector *GetKV(int dir) { return kv[dir]; }
+
+   int GetDataSize() const;
 
    // Standard B-NET access functions
 
@@ -456,6 +599,28 @@ public:
    /** Elevate KnotVectors in all directions to degree @a degree if given,
        otherwise to the maximum current degree among all directions. */
    int MakeUniformDegree(int degree = -1);
+
+   /** @brief Caller is responsible for deleting the returned object. */
+   void GetUniqueKnots(Array<Vector*> &kvs);
+
+   /// Number of unique knots in patch
+   int GetNUK() const;
+
+   /// Number of control points in patch
+   int GetNCP() const;
+
+   /** @brief Returns the matrix that interpolates DOFs on this patch to
+         the locations defined by the tensor product of the knots in @a kvs.
+         The matrix is of size [(Prod(kvs.Size) * vdim) x (NCP * vdim)]
+         and cartesian ordering is assumed. @a vdim is the vector dimension
+         of the output matrix - values are tiled if vdim > 1. */
+   void GetInterpolationMatrix(const Array<Vector*> &kvs,
+                               SparseMatrix &X) const;
+
+   /** @brief Construct the interpolation matrix from this patch to the points
+       defined by the unique knots of @a patch. */
+   void GetInterpolationMatrix(NURBSPatch &patch,
+                               SparseMatrix &X) const;
 
    /** @brief Given two patches @a p1 and @a p2 of the same dimensions, create
        and return a new patch by merging their knots and data. */
@@ -955,6 +1120,8 @@ public:
        are instantiated, use Mesh::GetNURBSPatches() instead. Caller gets
        ownership of the returned object, and is responsible for deletion.*/
    void GetPatches(Array<NURBSPatch*> &patches);
+
+   void AssembleCollocationMatrix(NURBSInterpolationRule interp_rule);
 
    /// Return the array of indices of all elements in patch @a patch.
    const Array<int>& GetPatchElements(int patch);

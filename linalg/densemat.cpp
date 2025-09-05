@@ -4419,6 +4419,19 @@ void BandedSolve(int KL, int KU, DenseMatrix &AB, DenseMatrix &B,
    MFEM_ASSERT(info == 0, "BandedSolve failed in LAPACK");
 }
 
+void BandedFactorize(int KL, int KU, DenseMatrix &AB, Array<int> &ipiv)
+{
+   int LDAB = (2*KL) + KU + 1;
+   int N = AB.NumCols();
+   // Only defined for square matrices for now
+   int M = N;
+   int info;
+   ipiv.SetSize(N);
+   MFEM_LAPACK_PREFIX(gbtrf_)(&M, &N, &KL, &KU, AB.GetData(), &LDAB,
+                              ipiv.GetData(), &info);
+   MFEM_ASSERT(info == 0, "BandedFactorize failed in LAPACK");
+}
+
 void BandedFactorizedSolve(int KL, int KU, DenseMatrix &AB, DenseMatrix &B,
                            bool transpose, Array<int> &ipiv)
 {

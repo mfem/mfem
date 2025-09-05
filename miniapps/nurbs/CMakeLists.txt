@@ -40,9 +40,22 @@ add_mfem_miniapp(nurbs_ex1
   LIBRARIES mfem)
   add_dependencies(nurbs_ex1 copy_miniapps_nurbs_data)
 
-add_mfem_miniapp(nurbs_patch_ex2
-  MAIN nurbs_patch_ex2.cpp
+add_mfem_miniapp(nurbs_lor
+  MAIN nurbs_lor.cpp
+  EXTRA_HEADERS nurbs_lor.hpp
   LIBRARIES mfem)
+  add_dependencies(nurbs_lor copy_miniapps_nurbs_data)
+
+add_mfem_miniapp(nurbs_lor_solve
+  MAIN nurbs_lor_solve.cpp
+  EXTRA_HEADERS nurbs_lor.hpp
+  LIBRARIES mfem)
+  add_dependencies(nurbs_lor_solve copy_miniapps_nurbs_data)
+
+add_mfem_miniapp(nurbs_lor_cartesian
+  MAIN nurbs_lor_cartesian.cpp
+  LIBRARIES mfem)
+  add_dependencies(nurbs_lor_cartesian copy_miniapps_nurbs_data)
 
 add_mfem_miniapp(nurbs_ex3
   MAIN nurbs_ex3.cpp
@@ -74,10 +87,19 @@ add_mfem_miniapp(nurbs_printfunc
   LIBRARIES mfem)
   add_dependencies(nurbs_printfunc copy_miniapps_nurbs_data)
 
+add_mfem_miniapp(nurbs_mesh_info
+  MAIN nurbs_mesh_info.cpp
+  LIBRARIES mfem)
+  add_dependencies(nurbs_mesh_info copy_miniapps_nurbs_data)
+
 add_mfem_miniapp(nurbs_patch_ex1
   MAIN nurbs_patch_ex1.cpp
   LIBRARIES mfem)
   add_dependencies(nurbs_patch_ex1 copy_miniapps_nurbs_data)
+
+add_mfem_miniapp(nurbs_patch_ex2
+  MAIN nurbs_patch_ex2.cpp
+  LIBRARIES mfem)
 
 add_mfem_miniapp(nurbs_solenoidal
   MAIN nurbs_solenoidal.cpp

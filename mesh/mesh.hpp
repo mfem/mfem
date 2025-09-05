@@ -45,6 +45,15 @@ class FiniteElementSpace;
 class GridFunction;
 struct Refinement;
 
+//** An enum type to specify the type of interpolation to use for a NURBS basis */
+enum class NURBSInterpolationRule
+{
+   Greville,
+   Botella,
+   Demko,
+   Uniform,
+};
+
 /** An enum type to specify if interior or boundary faces are desired. */
 enum class FaceType : bool {Interior, Boundary};
 
@@ -2457,7 +2466,6 @@ public:
    bool Conforming() const { return ncmesh == NULL; }
    /// Return a bool indicating whether this mesh is nonconforming.
    bool Nonconforming() const { return ncmesh != NULL; }
-   /// Is this a NURBS mesh?
    bool IsNURBS() const { return NURBSext != NULL; }
 
    /** Designate this mesh for output as "NC mesh v1.1", meaning it is
@@ -2513,6 +2521,10 @@ public:
          new_degree = max(old_degree, min(old_degree + rel_degree, degree)). */
    void DegreeElevate(int rel_degree, int degree = 16);
    ///@}
+
+   Mesh GetLowOrderNURBSMesh(NURBSInterpolationRule interp_rule,
+                             int vdim = 1,
+                             SparseMatrix* R = nullptr);
 
    /// @name Print/Save/Export methods
    /// @{

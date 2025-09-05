@@ -257,6 +257,91 @@ void DiffusionIntegrator::SetupPatchPA(const int patch, Mesh *mesh,
 
    Vector jac(dim * dim * nq);  // Computed as in GeometricFactors::Compute
 
+   std::function<void(int, ElementTransformation*, IntegrationPoint&)> getC;
+
+   if (auto *SMQ = dynamic_cast<SymmetricMatrixCoefficient *>(MQ))
+   {
+      MFEM_VERIFY(SMQ->GetSize() == dim, "");
+      coeffDim = symmDims;
+      coeff.SetSize(symmDims * nq);
+      DenseSymmetricMatrix sym_mat;
+      sym_mat.SetSize(dim);
+      auto C = Reshape(coeff.HostWrite(), symmDims, nq);
+
+      getC = [&](int p, ElementTransformation *tr, IntegrationPoint &ip)
+      {
+         SMQ->Eval(sym_mat, *tr, ip);
+         int cnt = 0;
+         for (int i=0; i<dim; ++i)
+            for (int j=i; j<dim; ++j, ++cnt)
+            {
+               C(cnt, p) = sym_mat(i,j);
+            }
+      };
+   }
+   else if (MQ)
+   {
+      symmetric = false;
+      MFEM_VERIFY(MQ->GetHeight() == dim && MQ->GetWidth() == dim, "");
+      coeffDim = MQfullDim;
+      coeff.SetSize(MQfullDim * nq);
+      DenseMatrix mat;
+      mat.SetSize(dim);
+      auto C = Reshape(coeff.HostWrite(), MQfullDim, nq);
+
+      getC = [&](int p, ElementTransformation *tr, IntegrationPoint &ip)
+      {
+         MQ->Eval(mat, *tr, ip);
+         for (int i=0; i<dim; ++i)
+            for (int j=0; j<dim; ++j)
+            {
+               C(j+(i*dim), p) = mat(i,j);
+            }
+      };
+   }
+   else if (VQ)
+   {
+      MFEM_VERIFY(VQ->GetVDim() == dim, "");
+      coeffDim = VQ->GetVDim();
+      coeff.SetSize(coeffDim * nq);
+      auto C = Reshape(coeff.HostWrite(), coeffDim, nq);
+      Vector DM(coeffDim);
+
+      getC = [&](int p, ElementTransformation *tr, IntegrationPoint &ip)
+      {
+         VQ->Eval(DM, *tr, ip);
+         for (int i=0; i<coeffDim; ++i)
+         {
+            C(i, p) = DM[i];
+         }
+      };
+   }
+   else if (Q == nullptr)
+   {
+      coeff.SetSize(1);
+      coeff(0) = 1.0;
+   }
+   else if (ConstantCoefficient* cQ = dynamic_cast<ConstantCoefficient*>(Q))
+   {
+      coeff.SetSize(1);
+      coeff(0) = cQ->constant;
+   }
+   else if (dynamic_cast<QuadratureFunctionCoefficient*>(Q))
+   {
+      MFEM_ABORT("QuadratureFunction not supported yet\n");
+   }
+   else
+   {
+      coeff.SetSize(nq);
+      auto C = Reshape(coeff.HostWrite(), nq);
+
+      getC = [&](int p, ElementTransformation *tr, IntegrationPoint &ip)
+      {
+         C(p) = Q->Eval(*tr, ip);
+      };
+   }
+
+   // compute jacobian and coefficients
    for (int qz=0; qz<Q1D[2]; ++qz)
    {
       for (int qy=0; qy<Q1D[1]; ++qy)
@@ -278,137 +363,15 @@ void DiffusionIntegrator::SetupPatchPA(const int patch, Mesh *mesh,
                {
                   jac[p + ((i + (j * dim)) * nq)] = Jp(i,j);
                }
-         }
-      }
-   }
 
-   if (auto *SMQ = dynamic_cast<SymmetricMatrixCoefficient *>(MQ))
-   {
-      MFEM_VERIFY(SMQ->GetSize() == dim, "");
-      coeffDim = symmDims;
-      coeff.SetSize(symmDims * nq);
-
-      DenseSymmetricMatrix sym_mat;
-      sym_mat.SetSize(dim);
-
-      auto C = Reshape(coeff.HostWrite(), symmDims, nq);
-      for (int qz=0; qz<Q1D[2]; ++qz)
-      {
-         for (int qy=0; qy<Q1D[1]; ++qy)
-         {
-            for (int qx=0; qx<Q1D[0]; ++qx)
+            if (getC)
             {
-               const int p = qx + (qy * Q1D[0]) + (qz * Q1D[0] * Q1D[1]);
-               const int e = patchRules->GetPointElement(patch, qx, qy, qz);
-               ElementTransformation *tr = mesh->GetElementTransformation(e);
-               patchRules->GetIntegrationPointFrom1D(patch, qx, qy, qz, ip);
-
-               SMQ->Eval(sym_mat, *tr, ip);
-               int cnt = 0;
-               for (int i=0; i<dim; ++i)
-                  for (int j=i; j<dim; ++j, ++cnt)
-                  {
-                     C(cnt, p) = sym_mat(i,j);
-                  }
+               getC(p, tr, ip);
             }
          }
       }
    }
-   else if (MQ)
-   {
-      symmetric = false;
-      MFEM_VERIFY(MQ->GetHeight() == dim && MQ->GetWidth() == dim, "");
 
-      coeffDim = MQfullDim;
-
-      coeff.SetSize(MQfullDim * nq);
-
-      DenseMatrix mat;
-      mat.SetSize(dim);
-
-      auto C = Reshape(coeff.HostWrite(), MQfullDim, nq);
-      for (int qz=0; qz<Q1D[2]; ++qz)
-      {
-         for (int qy=0; qy<Q1D[1]; ++qy)
-         {
-            for (int qx=0; qx<Q1D[0]; ++qx)
-            {
-               const int p = qx + (qy * Q1D[0]) + (qz * Q1D[0] * Q1D[1]);
-               const int e = patchRules->GetPointElement(patch, qx, qy, qz);
-               ElementTransformation *tr = mesh->GetElementTransformation(e);
-               patchRules->GetIntegrationPointFrom1D(patch, qx, qy, qz, ip);
-
-               MQ->Eval(mat, *tr, ip);
-               for (int i=0; i<dim; ++i)
-                  for (int j=0; j<dim; ++j)
-                  {
-                     C(j+(i*dim), p) = mat(i,j);
-                  }
-            }
-         }
-      }
-   }
-   else if (VQ)
-   {
-      MFEM_VERIFY(VQ->GetVDim() == dim, "");
-      coeffDim = VQ->GetVDim();
-      coeff.SetSize(coeffDim * nq);
-      auto C = Reshape(coeff.HostWrite(), coeffDim, nq);
-      Vector DM(coeffDim);
-      for (int qz=0; qz<Q1D[2]; ++qz)
-      {
-         for (int qy=0; qy<Q1D[1]; ++qy)
-         {
-            for (int qx=0; qx<Q1D[0]; ++qx)
-            {
-               const int p = qx + (qy * Q1D[0]) + (qz * Q1D[0] * Q1D[1]);
-               const int e = patchRules->GetPointElement(patch, qx, qy, qz);
-               ElementTransformation *tr = mesh->GetElementTransformation(e);
-               patchRules->GetIntegrationPointFrom1D(patch, qx, qy, qz, ip);
-
-               VQ->Eval(DM, *tr, ip);
-               for (int i=0; i<coeffDim; ++i)
-               {
-                  C(i, p) = DM[i];
-               }
-            }
-         }
-      }
-   }
-   else if (Q == nullptr)
-   {
-      coeff.SetSize(1);
-      coeff(0) = 1.0;
-   }
-   else if (ConstantCoefficient* cQ = dynamic_cast<ConstantCoefficient*>(Q))
-   {
-      coeff.SetSize(1);
-      coeff(0) = cQ->constant;
-   }
-   else if (dynamic_cast<QuadratureFunctionCoefficient*>(Q))
-   {
-      MFEM_ABORT("QuadratureFunction not supported yet\n");
-   }
-   else
-   {
-      coeff.SetSize(nq);
-      auto C = Reshape(coeff.HostWrite(), nq);
-      for (int qz=0; qz<Q1D[2]; ++qz)
-      {
-         for (int qy=0; qy<Q1D[1]; ++qy)
-         {
-            for (int qx=0; qx<Q1D[0]; ++qx)
-            {
-               const int p = qx + (qy * Q1D[0]) + (qz * Q1D[0] * Q1D[1]);
-               const int e = patchRules->GetPointElement(patch, qx, qy, qz);
-               ElementTransformation *tr = mesh->GetElementTransformation(e);
-               patchRules->GetIntegrationPointFrom1D(patch, qx, qy, qz, ip);
-
-               C(p) = Q->Eval(*tr, ip);
-            }
-         }
-      }
-   }
 
    if (unitWeights)
    {
@@ -719,6 +682,13 @@ void DiffusionIntegrator::SetupPatchBasisData(Mesh *mesh, unsigned int patch)
    PatchBasisInfo pb(mesh, patch, patchRules);
    pbinfo.push_back(pb);
 }
+// void DiffusionIntegrator::SetupPatchBasisData(Mesh *mesh, unsigned int patch)
+// {
+//    // Push patch data to global data structures
+//    PatchBasisInfo pb(vdim, mesh, patch, patchRules);
+//    pbinfo.push_back(pb);
+// }
+
 
 // This version uses reduced 1D quadrature rules.
 void DiffusionIntegrator::AssemblePatchMatrix_reducedQuadrature(

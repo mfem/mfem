@@ -52,6 +52,53 @@ KnotVector::KnotVector(int order, int NCP)
    knot = -1.;
 }
 
+KnotVector::KnotVector(int order, const Vector &k)
+{
+   Order = order;
+
+   bool repeated = true;
+   const int size = k.Size();
+   const int last = size - 1;
+   if (k.Size() < 2*Order  + 2)
+   {
+      repeated = false;
+   }
+   else
+   {
+      for (int i = 0; i <= Order; i++)
+      {
+         if (k[i] != k[0]) { repeated = false; }
+         if (k[last - i] != k[last]) { repeated = false; }
+      }
+   }
+
+   if (repeated)
+   {
+      knot = k;
+   }
+   else
+   {
+      knot.SetSize(size + 2*Order);
+      for (int i = 0; i <= Order; i++)
+      {
+         knot[i] = k[0];
+      }
+
+      for (int i = 0; i < last; i++)
+      {
+         knot[i + Order + 1] = k[i+1];
+      }
+
+      for (int i = 0; i <= Order; i++)
+      {
+         knot[Order + last + i] = k[last];
+      }
+   }
+
+   NumOfControlPoints = knot.Size() - Order - 1;
+   GetElements();
+}
+
 KnotVector::KnotVector(int order, const Vector& intervals,
                        const Array<int>& continuity)
 {
@@ -102,6 +149,216 @@ KnotVector &KnotVector::operator=(const KnotVector &kv)
    return *this;
 }
 
+int KnotVector::GetSpan(real_t u) const
+{
+   int low, mid, high;
+
+   if (u == knot(NumOfControlPoints+Order))
+   {
+      mid = NumOfControlPoints-1;
+   }
+   else if (u == knot(0))
+   {
+      mid = Order;
+   }
+   else if ((u > knot(0)) && (u < knot(NumOfControlPoints+Order)))
+   {
+      low = Order;
+      high = NumOfControlPoints;
+      mid = (low + high)/2;
+      while ( (u < knot(mid)) || (u >= knot(mid+1)) )
+      {
+         if (u < knot(mid))
+         {
+            high = mid;
+         }
+         else
+         {
+            low = mid;
+         }
+         mid = (low + high)/2;
+      }
+   }
+   else
+   {
+      mfem_error("Knot location outside of the range of the KnotVector");
+   }
+
+   return mid;
+}
+
+int KnotVector::GetUniqueSpan(real_t u) const
+{
+   real_t low, high;
+   low = GetUniqueKnot(0);
+   for (int i = 1; i < NumOfElements+1; i++)
+   {
+      high = GetUniqueKnot(i);
+      if (u >= low && u < high)
+      {
+         return i-1;
+      }
+      low = high;
+   }
+   if (u == high)
+   {
+      return NumOfElements-1;
+   }
+
+   mfem_error("Knot location outside of the range of the KnotVector");
+}
+
+void KnotVector::ComputeUniqueKnots() const
+{
+   uknot.SetSize(NumOfElements+1);
+   uknot_mult.SetSize(NumOfElements+1);
+
+   real_t x0 = knot[0];
+   uknot[0] = x0;
+   int idx = 1;
+   int mult = 1;
+
+   for (int i=1; i<knot.Size(); ++i)
+   {
+      if (knot[i] != x0)
+      {
+         uknot[idx] = knot[i];
+         uknot_mult[idx-1] = mult;
+
+         // Reset
+         x0 = knot[i];
+         idx++;
+         mult = 1;
+      }
+      else
+      {
+         mult++;
+      }
+   }
+   uknot_mult[idx-1] = mult;
+}
+
+real_t KnotVector::GetGreville(int i) const
+{
+   real_t sum = 0.0;
+   for (int j = 1; j < Order+1; j++) { sum += knot[i + j]; }
+   return sum/real_t(Order);
+}
+
+real_t KnotVector::GetBotella(int i) const
+{
+   constexpr int itermax = 10;
+   constexpr real_t tol = 1e-8;
+
+   Vector grad(Order+1);
+   Vector hess(Order+1);
+
+   real_t u,xi;
+   int iter, ks, o;
+
+   // Get initial guess
+   u = GetGreville(i);
+
+   // Check for a repeated knot -- include begin and end
+   if (knot[i + 1] == knot[i + Order])
+   {
+      return u;
+   }
+
+   for (iter = 0; iter < itermax; iter++)
+   {
+      ks = GetSpan (u);
+      xi = GetRefPoint(u, ks);
+      o = Order - (ks - i);
+
+      CalcDShape(grad, ks-Order, xi);
+      CalcD2Shape(hess, ks-Order, xi);
+
+      u -= (grad[o]/hess[o])*(knot(ks+1) - knot(ks));
+
+      if (fabs(grad[o])< tol) { break; }
+   }
+   if (iter >= itermax)
+   {
+      MFEM_WARNING("KnotVector::GetBotella not converged");
+      mfem::out<<"i = "<<i<<",iter = "<<iter<<", grad = "<< grad[o]<<endl;
+   }
+   return u;
+}
+
+void KnotVector::ComputeDemko() const
+{
+   if (demko.Size() == GetNCP()) { return; }
+
+   const int itermax1 = 10;
+   const int itermax2 = 10;
+
+   const real_t tol1 = 1e-12;
+   const real_t tol2 = 1e-12;
+
+   Vector x(GetNCP());
+   for ( int i = 0; i <x.Size(); i++)
+   {
+      x[i] = std::pow(-1.0, i);
+   }
+
+   demko.SetSize(GetNCP());
+   for (int i = 0; i <GetNCP(); i++)
+   {
+      demko[i] = GetGreville(i);
+   }
+
+   // Remez iteration
+   //  - Find interpolant, given by a, through given points, given by demko
+   //  - Find extrema of this polynom and update demko points
+   //  - Repeat untill converged
+   Vector a(GetNCP()),anew(GetNCP());
+   Vector shgrad(Order+1);
+   Vector shhess(Order+1);
+
+   real_t u,xi, grad, hess;
+   int iter1, iter2, ks;
+
+   GetInterpolant(x, demko, a);
+   for (iter1 = 0; iter1 < itermax1; iter1++)
+   {
+      for (int i = 0; i <GetNCP(); i++)
+      {
+         // Check for a repeated knot -- include begin and end
+         if (knot[i + 1] == knot[i + Order])
+         {
+            continue;
+         }
+
+         u = demko[i];
+         for (iter2 = 0; iter2 <itermax2; iter2++)
+         {
+            ks = GetSpan (u);
+            xi = GetRefPoint(u, ks);
+
+            CalcDShape(shgrad, ks-Order, xi);
+            CalcD2Shape(shhess, ks-Order, xi);
+            grad = hess = 0.0;
+            for (int p = 0; p <Order+1; p++)
+            {
+               grad += a[ks-Order + p]*shgrad[p];
+               hess += a[ks-Order + p]*shhess[p];
+            }
+            u -= (grad/hess)*(knot(ks+1) - knot(ks));
+
+            if (fabs(grad)< tol2) { break; }
+         }
+         if (iter2 >= itermax2) { mfem::out<<"Demko: Iteration to find extremum not converged"<<fabs(grad)<<endl; }
+         demko[i] = u;
+      }
+      GetInterpolant(x, demko, anew);
+      a -= anew;
+      if (a.Norml2() < tol1) { break; }
+      a = anew;
+   }
+   if (iter1 >= itermax1) { mfem::out<<"Demko: Remez iteration  not converged"<<a.Norml2()<<endl; }
+}
+
 KnotVector *KnotVector::DegreeElevate(int t) const
 {
    if (t < 0)
@@ -129,6 +386,122 @@ KnotVector *KnotVector::DegreeElevate(int t) const
    newkv->GetElements();
 
    return newkv;
+}
+
+Vector KnotVector::GetInterpolationPoints(NURBSInterpolationRule interp_rule)
+const
+{
+   // Define the function that gets the interpolation points
+   std::function<real_t(int)> GetPoints;
+   switch (interp_rule)
+   {
+      case NURBSInterpolationRule::Greville:
+         GetPoints = [&](int i) -> real_t { return GetGreville(i); };
+         break;
+      case NURBSInterpolationRule::Botella:
+         GetPoints = [&](int i) -> real_t { return GetBotella(i); };
+         break;
+      case NURBSInterpolationRule::Demko:
+         ComputeDemko(); // this computes then caches the points
+         GetPoints = [&](int i) -> real_t { return demko[i]; };
+         break;
+      case NURBSInterpolationRule::Uniform:
+      {
+         const real_t h = (knot[NumOfControlPoints+Order]-knot[0]) /
+                          (NumOfControlPoints - 1);
+         GetPoints = [h](int i) -> real_t { return i*h; };
+         break;
+      }
+      default:
+         mfem_error("Unknown NURBS interpolation rule");
+   }
+
+   // Get the interpolation points using the rule
+   Vector u(NumOfControlPoints);
+   for (int i = 0; i < NumOfControlPoints; i++)
+   {
+      u[i] = GetPoints(i);
+   }
+   return u;
+}
+
+KnotVector *KnotVector::Linearize(NURBSInterpolationRule interp_rule) const
+{
+   MFEM_VERIFY(Order >= 1, "Order must be at least 1 to linearize.");
+
+   Vector newknots = GetInterpolationPoints(interp_rule);
+
+   // Return the new knot vector
+   KnotVector *newkv = new KnotVector(1, newknots);
+   return newkv;
+}
+
+SparseMatrix KnotVector::GetInterpolationMatrix(const Vector &u) const
+{
+   // Check that the output knots are contained within the knotvector
+   MFEM_VERIFY((u.Min() >= knot[0]) &&
+               (u.Max() <= knot[knot.Size()-1]),
+               "KnotVector::GetInterpolationMatrix : "
+               "Evaluation knots must be contained within the knotvector.");
+
+   SparseMatrix X(u.Size(), NumOfControlPoints, Order+1);
+
+   std::vector<KnotVector::ShapeValues> shapes = CalcShapes(u);
+   Array<int> cols(Order+1);
+   for (int i = 0; i < u.Size(); i++)
+   {
+      for (int j = 0; j < Order+1; j++)
+      {
+         cols[j] = shapes[i].dofidx + j;
+      }
+      X.SetRow(i, cols, shapes[i].shape);
+   }
+
+   return X;
+}
+
+SparseMatrix KnotVector::GetInterpolationMatrix(NURBSInterpolationRule interp_rule) const
+{
+   const Vector newknots = GetInterpolationPoints(interp_rule);
+   return GetInterpolationMatrix(newknots);
+}
+
+real_t KnotVector::GetUniqueKnot(int i) const
+{
+   if (uknot.Size() == 0)
+   {
+      ComputeUniqueKnots();
+   }
+   return uknot[i];
+}
+
+void KnotVector::GetUniqueKnots(Vector &uknots) const
+{
+   // Get unique knots
+   const int NUK = GetNUK();
+   uknots.SetSize(NUK);
+   for (int i = 0; i < NUK; i++)
+   {
+      uknots(i) = GetUniqueKnot(i);
+   }
+}
+
+real_t KnotVector::GetKnotMult(int i) const
+{
+   if (uknot_mult.Size() == 0)
+   {
+      ComputeUniqueKnots();
+   }
+   return uknot_mult[i];
+}
+
+int KnotVector::GetNUK() const
+{
+   if (uknot.Size() == 0)
+   {
+      ComputeUniqueKnots();
+   }
+   return uknot.Size();
 }
 
 void KnotVector::UniformRefinement(Vector &newknots, int rf) const
@@ -373,36 +746,88 @@ void KnotVector::PrintFunctions(std::ostream &os, int samples) const
 
    Vector shape(Order+1);
 
-   real_t x, dx = 1.0/real_t (samples - 1);
+   real_t xi, dxi = 1.0/real_t (samples - 1);
 
-   /* @a cnt is a counter including elements between repeated knots if
-      present. This is required for usage of CalcShape. */
-   int cnt = 0;
-
-   for (int e = 0; e < GetNE(); e++, cnt++)
+   for (int ks = 0; ks < GetNKS(); ks++)
    {
       // Avoid printing shapes between repeated knots
-      if (!isElement(cnt)) { e--; continue; }
+      if (!isElement(ks)) { continue; }
 
       for (int j = 0; j <samples; j++)
       {
-         x = j*dx;
-         os << x + e;
+         xi =j*dxi;
+         os <<GetKnotLocation(xi, ks+Order)<<"\t";
 
-         CalcShape(shape, cnt, x);
+         CalcShape(shape, ks, xi);
          for (int d = 0; d < Order+1; d++) { os<<"\t"<<shape[d]; }
 
-         CalcDShape(shape, cnt, x);
+         CalcDShape(shape, ks, xi);
          for (int d = 0; d < Order+1; d++) { os<<"\t"<<shape[d]; }
 
-         CalcD2Shape(shape, cnt, x);
+         CalcD2Shape(shape, ks, xi);
          for (int d = 0; d < Order+1; d++) { os<<"\t"<<shape[d]; }
          os << endl;
       }
    }
 }
 
-// Routine from "The NURBS Book" - 2nd ed - Piegl and Tiller
+void KnotVector::PrintFunction(std::ostream &os, const Vector &a,
+                               int samples) const
+{
+   MFEM_VERIFY(GetNE(), "Elements not counted. Use GetElements().");
+
+   Vector shape(Order+1);
+
+   real_t xi, val, dxi = 1.0/real_t (samples - 1);
+
+   /* @a cnt is a counter including elements between repeated knots if
+      present. This is required for usage of CalcShape. */
+   for (int ks = 0; ks < GetNKS(); ks++)
+   {
+      // Avoid printing shapes between repeated knots
+      if (!isElement(ks)) { continue; }
+
+      for (int j = 0; j <samples; j++)
+      {
+         xi =j*dxi;
+         os <<GetKnotLocation(xi, ks+Order)<<"\t";
+
+         CalcShape ( shape, ks, xi);
+         val = 0.0;
+         for (int p = 0; p <Order+1; p++)
+         {
+            val += a[ks + p]*shape[p];
+         }
+         os<<val<<"\t";
+
+         CalcDShape ( shape, ks, xi);
+         val = 0.0;
+         for (int p = 0; p <Order+1; p++)
+         {
+            val += a[ks + p]*shape[p];
+         }
+         os<<val<<"\t";
+
+         CalcD2Shape ( shape, ks, xi);
+         val = 0.0;
+         for (int p = 0; p <Order+1; p++)
+         {
+            val += a[ks + p]*shape[p];
+         }
+         os<<val<<endl;
+      }
+   }
+}
+
+void KnotVector::PrintFunction(std::ostream &os, int i, int samples) const
+{
+   Vector a(GetNCP());
+   a = 0.0;
+   a[i] = 1.0;
+   PrintFunction(os, a, samples);
+}
+
+// Routine from "The NURBS book" - 2nd ed - Piegl and Tiller
 // Algorithm A2.2 p. 70
 void KnotVector::CalcShape(Vector &shape, int i, real_t xi) const
 {
@@ -410,7 +835,7 @@ void KnotVector::CalcShape(Vector &shape, int i, real_t xi) const
 
    int    p = Order;
    int    ip = (i >= 0) ? (i + p) : (-1 - i + p);
-   real_t u = getKnotLocation((i >= 0) ? xi : 1. - xi, ip), saved, tmp;
+   real_t u = GetKnotLocation((i >= 0) ? xi : 1. - xi, ip), saved, tmp;
    real_t left[MaxOrder+1], right[MaxOrder+1];
 
    shape(0) = 1.;
@@ -429,13 +854,40 @@ void KnotVector::CalcShape(Vector &shape, int i, real_t xi) const
    }
 }
 
-// Routine from "The NURBS Book" - 2nd ed - Piegl and Tiller
+int KnotVector::CalcShape(Vector &shape, real_t u) const
+{
+   int kspan = GetSpan(u);
+   real_t xref = GetRefPoint(u, kspan);
+   // Referred to as the "knot index" - maybe should be named dof index?
+   int kidx = kspan - Order;
+
+   CalcShape(shape, kidx, xref);
+   return kidx;
+}
+
+std::vector<KnotVector::ShapeValues> KnotVector::CalcShapes(
+   const Vector &u) const
+{
+   const int size = u.Size();
+   std::vector<ShapeValues> shapes(size);
+
+   for (int i = 0; i < size; ++i)
+   {
+      Vector shape(Order+1);
+      int dofidx = CalcShape(shape, u[i]);
+      shapes[i] = ShapeValues({u[i], dofidx, shape});
+   }
+
+   return shapes;
+}
+
+// Routine from "The NURBS book" - 2nd ed - Piegl and Tiller
 // Algorithm A2.3 p. 72
 void KnotVector::CalcDShape(Vector &grad, int i, real_t xi) const
 {
    int    p = Order, rk, pk;
    int    ip = (i >= 0) ? (i + p) : (-1 - i + p);
-   real_t u = getKnotLocation((i >= 0) ? xi : 1. - xi, ip), temp, saved, d;
+   real_t u = GetKnotLocation((i >= 0) ? xi : 1. - xi, ip), temp, saved, d;
    real_t ndu[MaxOrder+1][MaxOrder+1], left[MaxOrder+1], right[MaxOrder+1];
 
 #ifdef MFEM_DEBUG
@@ -493,7 +945,7 @@ void KnotVector::CalcDnShape(Vector &gradn, int n, int i, real_t xi) const
 {
    int    p = Order, rk, pk, j1, j2,r,j,k;
    int    ip = (i >= 0) ? (i + p) : (-1 - i + p);
-   real_t u = getKnotLocation((i >= 0) ? xi : 1. - xi, ip);
+   real_t u = GetKnotLocation((i >= 0) ? xi : 1. - xi, ip);
    real_t temp, saved, d;
    real_t a[2][MaxOrder+1],ndu[MaxOrder+1][MaxOrder+1], left[MaxOrder+1],
           right[MaxOrder+1];
@@ -642,14 +1094,96 @@ void KnotVector::FindMaxima(Array<int> &ks, Vector &xi, Vector &u) const
                maxima[j] = max;
                ks[j] = i;
                xi[j] = arg;
-               u[j]  = getKnotLocation(arg, i+Order);
+               u[j]  = GetKnotLocation(arg, i+Order);
             }
          }
       }
    }
 }
 
-// Routine from "The NURBS Book" - 2nd ed - Piegl and Tiller
+void KnotVector::AssembleCollocationMatrix(Vector &u)
+{
+   int ncp = GetNCP();
+   int order = GetOrder();
+
+   MFEM_VERIFY(u.Size() == ncp,
+               "KnotVector::AssembleCollocationMatrix: "
+               "u.Size() must match the number of control points.");
+
+   // Get spans and refpoints associated with knots (u).
+   Vector xi_args(ncp);
+   Array<int> i_args(ncp);
+   for (int i = 0; i < ncp; i++)
+   {
+      i_args[i] = GetSpan(u[i]) - order;
+      xi_args[i] = GetRefPoint(u[i], i_args[i]+order);
+   }
+
+   // Assemble collocation matrix
+#ifdef MFEM_USE_LAPACK
+   // If using LAPACK, we use banded matrix storage (order + 1 nonzeros per row).
+   // Find banded structure of matrix.
+   int KL = 0; // Number of subdiagonals
+   int KU = 0; // Number of superdiagonals
+   for (int i = 0; i < ncp; i++)
+   {
+      for (int p = 0; p < order+1; p++)
+      {
+         const int col = i_args[i] + p;
+         if (col < i)
+         {
+            KL = std::max(KL, i - col);
+         }
+         else if (i < col)
+         {
+            KU = std::max(KU, col - i);
+         }
+      }
+   }
+
+   const int LDAB = (2*KL) + KU + 1;
+   const int N = ncp;
+
+   fact_AB.SetSize(LDAB, N);
+#else
+   // Without LAPACK, we store and invert a DenseMatrix (inefficient).
+   if (!reuse_inverse)
+   {
+      A_coll_inv.SetSize(ncp, ncp);
+      A_coll_inv = 0.0;
+   }
+#endif
+
+   Vector shape(order+1);
+
+   for (int i = 0; i < ncp; i++)
+   {
+      CalcShape(shape, i_args[i], xi_args[i]);
+      for (int p = 0; p < order+1; p++)
+      {
+         const int j = i_args[i] + p;
+#ifdef MFEM_USE_LAPACK
+         fact_AB(KL+KU+i-j,j) = shape[p];
+#else
+         A_coll_inv(i,j) = shape[p];
+#endif
+      }
+   }
+
+   // If built with LAPACK, also factorze the band matrix
+#ifdef MFEM_USE_LAPACK
+   BandedFactorize(KL, KU, fact_AB, fact_ipiv);
+#endif
+
+}
+
+void KnotVector::AssembleCollocationMatrix(NURBSInterpolationRule interp_rule)
+{
+   Vector u = GetInterpolationPoints(interp_rule);
+   AssembleCollocationMatrix(u);
+}
+
+// Routine from "The NURBS book" - 2nd ed - Piegl and Tiller
 // Algorithm A9.1 p. 369
 void KnotVector::FindInterpolant(Array<Vector*> &x, bool reuse_inverse)
 {
@@ -657,9 +1191,14 @@ void KnotVector::FindInterpolant(Array<Vector*> &x, bool reuse_inverse)
    int ncp = GetNCP();
 
    // Find interpolation points
-   Vector xi_args, u_args;
-   Array<int> i_args;
-   FindMaxima(i_args, xi_args, u_args);
+   Vector xi_args(ncp), u_args(ncp);
+   Array<int> i_args(ncp);
+   for (int i = 0; i < ncp; i++)
+   {
+      u_args[i] = GetBotella(i);
+      i_args[i] = GetSpan(u_args[i]) - Order;
+      xi_args[i] = GetRefPoint(u_args[i],i_args[i]+Order);
+   }
 
    // Assemble collocation matrix
 #ifdef MFEM_USE_LAPACK
@@ -748,6 +1287,35 @@ void KnotVector::FindInterpolant(Array<Vector*> &x, bool reuse_inverse)
 #endif
 }
 
+// Routine from "The NURBS book" - 2nd ed - Piegl and Tiller
+// Algorithm A9.1 p. 369
+void KnotVector::GetInterpolant(const Vector &x, const Vector &u,
+                                Vector &a) const
+{
+   // Assemble collocation matrix
+   Vector shape(Order+1);
+   DenseMatrix A(NumOfControlPoints);
+   A = 0.0;
+
+   for (int i = 0; i < NumOfControlPoints; i++)
+   {
+      const int ks = GetSpan(u[i]);
+      const real_t xi = GetRefPoint(u[i], ks);
+      CalcShape ( shape, ks-Order, xi);
+
+      for (int p = 0; p < Order+1; p++)
+      {
+         A(i, ks - Order + p ) =  shape[p];
+      }
+   }
+
+   // Solve problem
+   // Note: A is banded, which is not exploited -> future optimization possible
+   A.Invert();
+   A.Mult(x,a);
+}
+
+
 int KnotVector::findKnotSpan(real_t u) const
 {
    int low, mid, high;
@@ -814,64 +1382,35 @@ void KnotVector::Difference(const KnotVector &kv, Vector &diff) const
 
 void NURBSPatch::init(int dim)
 {
-   MFEM_ASSERT(dim > 1, "NURBS patch dimension (including weight) must be "
-               "greater than 1.");
+   MFEM_ASSERT(dim > 1 && dim < 5,
+               "NURBS patch dimension (including weight) must be "
+               "within [2, 4].");
+   const int nkv = kv.Size();
+   MFEM_ASSERT(nkv > 0 && nkv < 4,
+               "NURBSPatch::init : Wrong dimension of knotvectors!");
    Dim = dim;
    sd = nd = -1;
 
-   if (kv.Size() == 1)
+   // Set the number of control points per dimension
+   std::vector<int> ncps(3,-1);
+   for (int i = 0; i < nkv; i++)
    {
-      ni = kv[0]->GetNCP();
-      MFEM_ASSERT(ni > 0, "Invalid knot vector dimension.");
-      nj = -1;
-      nk = -1;
+      ncps[i] = kv[i]->GetNCP();
+      MFEM_ASSERT(ncps[i] > 0, "Invalid knot vector dimension.");
+   }
+   ni = ncps[0];
+   nj = ncps[1];
+   nk = ncps[2];
 
-      data = new real_t[ni*Dim];
-
+   // Allocate space for data
+   const int data_size = GetDataSize();
+   data = new real_t[data_size];
 #ifdef MFEM_DEBUG
-      for (int i = 0; i < ni*Dim; i++)
-      {
-         data[i] = -999.99;
-      }
-#endif
-   }
-   else if (kv.Size() == 2)
+   for (int i = 0; i < data_size; i++)
    {
-      ni = kv[0]->GetNCP();
-      nj = kv[1]->GetNCP();
-      MFEM_ASSERT(ni > 0 && nj > 0, "Invalid knot vector dimensions.");
-      nk = -1;
-
-      data = new real_t[ni*nj*Dim];
-
-#ifdef MFEM_DEBUG
-      for (int i = 0; i < ni*nj*Dim; i++)
-      {
-         data[i] = -999.99;
-      }
+      data[i] = -999.99;
+   }
 #endif
-   }
-   else if (kv.Size() == 3)
-   {
-      ni = kv[0]->GetNCP();
-      nj = kv[1]->GetNCP();
-      nk = kv[2]->GetNCP();
-      MFEM_ASSERT(ni > 0 && nj > 0 && nk > 0,
-                  "Invalid knot vector dimensions.");
-
-      data = new real_t[ni*nj*nk*Dim];
-
-#ifdef MFEM_DEBUG
-      for (int i = 0; i < ni*nj*nk*Dim; i++)
-      {
-         data[i] = -999.99;
-      }
-#endif
-   }
-   else
-   {
-      mfem_error("NURBSPatch::init : Wrong dimension of knotvectors!");
-   }
 }
 
 NURBSPatch::NURBSPatch(const NURBSPatch &orig)
@@ -1259,8 +1798,8 @@ void NURBSPatch::KnotInsert(int dir, const Vector &knot)
    }
 
    int rr = knot.Size() - 1;
-   int a  = oldkv.findKnotSpan(knot(0))  - 1;
-   int b  = oldkv.findKnotSpan(knot(rr)) - 1;
+   int a  = oldkv.GetSpan(knot(0));
+   int b  = oldkv.GetSpan(knot(rr));
    int pl = oldkv.GetOrder();
    int ml = oldkv.GetNCP();
 
@@ -1986,6 +2525,139 @@ int NURBSPatch::MakeUniformDegree(int degree)
    return maxd;
 }
 
+void NURBSPatch::GetUniqueKnots(Array<Vector*> &kvs)
+{
+   const int dim = GetNKV();  // Topological dimension
+   kvs.SetSize(dim);
+   for (int d = 0; d < dim; d++)
+   {
+      const KnotVector& kv = *GetKV(d);
+      // Get unique knots
+      const int NUK = kv.GetNUK();
+      kvs[d] = new Vector(NUK);
+      for (int i = 0; i < NUK; i++)
+      {
+         (*kvs[d])[i] = kv.GetUniqueKnot(i);
+      }
+   }
+}
+
+int NURBSPatch::GetNUK() const
+{
+   int nuk = 1;
+   for (int d = 0; d < kv.Size(); d++)
+   {
+      nuk *= kv[d]->GetNUK();
+   }
+   return nuk;
+}
+
+int NURBSPatch::GetNCP() const
+{
+   int ncp = 1;
+   for (int d = 0; d < kv.Size(); d++)
+   {
+      ncp *= kv[d]->GetNCP();
+   }
+   return ncp;
+}
+
+void NURBSPatch::GetInterpolationMatrix(const Array<Vector*> &kvs,
+                                        SparseMatrix &X) const
+{
+   // Check inputs
+   const int dim = kvs.Size();  // Topological dimension
+   constexpr int maxdim = 3;
+   MFEM_VERIFY(dim == kv.Size(), "dim != number of knot vectors.");
+
+   // Setup
+   Array<int> sizes(maxdim); // Number of knots (per dim) to interpolate to
+   Array<int> ndofs(maxdim); // Number of dofs in this patch (per dim)
+   Array<int> nnzs(maxdim);  // Maximum non-zero shape functions (per dim)
+   sizes = 1;                 // Initialize to 1
+   ndofs = 1;
+   nnzs = 1;
+   for (int d = 0; d < dim; d++)
+   {
+      sizes[d] = kvs[d]->Size();
+      ndofs[d] = kv[d]->GetNCP();
+      nnzs[d] = kv[d]->GetOrder() + 1;
+      // Check that the output knots are contained within the patch
+      MFEM_VERIFY(kvs[d]->Min() >= (*kv[d])[0] &&
+                  kvs[d]->Max() <= (*kv[d])[kv[d]->Size()-1],
+                  "NURBSPatch::GetInterpolationMatrix : "
+                  "Output knots must be contained within the patch.");
+   }
+
+   // Evaluate shape functions independently in each dimension,
+   // taking advantage of the tensor product structure
+   std::vector<std::vector<KnotVector::ShapeValues>> shapes(dim);
+   for (int d = 0; d < dim; d++)
+   {
+      shapes[d] = kv[d]->CalcShapes(*kvs[d]);
+   }
+
+   // Build the interpolation matrix, row-by-row
+   const int nrows = sizes.Product();
+   const int ncols = ndofs.Product();
+   const int NNZ = nnzs.Product();
+
+   // Check that the matrix is large enough
+   MFEM_VERIFY(nrows <= X.Height() &&
+               ncols <= X.Width(),
+               "NURBSPatch::GetInterpolationMatrix : "
+               "Output matrix is not large enough.");
+   // SparseMatrix R(nrows, ncols);//, NNZ);
+   // sizes of flattened dimensions
+   const int flatsizes[maxdim] = {1, sizes[0], sizes[0]*sizes[1]};
+   const int flatndofs[maxdim] = {1, ndofs[0], ndofs[0]*ndofs[1]};
+   // {x,y,z} loop is over new knots
+   for (int z = 0; z < sizes[2]; z++)
+   {
+      for (int y = 0; y < sizes[1]; y++)
+      {
+         for (int x = 0; x < sizes[0]; x++)
+         {
+            int row = x + y*flatsizes[1] + z*flatsizes[2];
+            int xyz[maxdim] = {x,y,z};
+
+            // Get the root dof index
+            int dof0 = shapes[0][x].dofidx;
+            for (int d = 1; d < dim; d++)
+            {
+               dof0 += shapes[d][xyz[d]].dofidx * flatsizes[d];
+            }
+            // Loop over flattened dofs (cartesian ordering)
+            for (int dofidx = 0; dofidx < NNZ; dofidx++)
+            {
+               int di = dofidx % nnzs[0];
+               int dj = (dofidx / nnzs[0]) % nnzs[1];
+               int dk = dofidx / (nnzs[0] * nnzs[1]);
+               int dijk[maxdim] = {di,dj,dk};
+
+               int col = dof0 + di + dj*flatndofs[1] + dk*flatndofs[2];
+               real_t val = shapes[0][x].shape[di];
+               for (int d = 1; d < dim; d++)
+               {
+                  val *= shapes[d][xyz[d]].shape[dijk[d]];
+               }
+               // Assign
+               X.Set(row, col, val);
+            }
+         }
+      }
+   }
+
+}
+
+void NURBSPatch::GetInterpolationMatrix(NURBSPatch &patch,
+                                        SparseMatrix &X) const
+{
+   Array<Vector*> kvs;
+   patch.GetUniqueKnots(kvs);
+   GetInterpolationMatrix(kvs, X);
+}
+
 NURBSPatch *Interpolate(NURBSPatch &p1, NURBSPatch &p2)
 {
    if (p1.kv.Size() != p2.kv.Size() || p1.Dim != p2.Dim)
@@ -2099,6 +2771,11 @@ void NURBSPatch::SetKnotVectorsCoarse(bool c)
    {
       kv[i]->coarse = c;
    }
+}
+
+int NURBSPatch::GetDataSize() const
+{
+   return Dim*ni*(nj==-1 ? 1 : nj)*(nk==-1 ? 1 : nk);
 }
 
 NURBSExtension::NURBSExtension(const NURBSExtension &orig)
@@ -5010,6 +5687,17 @@ void NURBSExtension::GetPatches(Array<NURBSPatch*> &patches_copy)
    for (int p = 0; p < NP; p++)
    {
       patches_copy[p] = new NURBSPatch(*GetPatch(p));
+   }
+}
+
+void NURBSExtension::AssembleCollocationMatrix(NURBSInterpolationRule interp_rule)
+{
+   // This should really be using the unique kvs (knotVectors) but
+   // knotVectorsCompr (which are completely different objects) seems
+   // to be what is used throughout
+   for (int i = 0; i < knotVectorsCompr.Size(); i++)
+   {
+      knotVectorsCompr[i]->AssembleCollocationMatrix(interp_rule);
    }
 }
 

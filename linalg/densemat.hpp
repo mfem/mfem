@@ -1332,6 +1332,7 @@ void BatchLUSolve(const DenseTensor &Mlu, const Array<int> &P, Vector &X);
 #ifdef MFEM_USE_LAPACK
 void BandedSolve(int KL, int KU, DenseMatrix &AB, DenseMatrix &B,
                  Array<int> &ipiv);
+void BandedFactorize(int KL, int KU, DenseMatrix &AB, Array<int> &ipiv);
 void BandedFactorizedSolve(int KL, int KU, DenseMatrix &AB, DenseMatrix &B,
                            bool transpose, Array<int> &ipiv);
 #endif

@@ -45,6 +45,9 @@ extern "C" void
 MFEM_LAPACK_PREFIX(gbsv_)(int *, int *, int *, int *, real_t *, int *, int *,
                           real_t *, int *, int *);
 extern "C" void
+MFEM_LAPACK_PREFIX(gbtrf_)(int *, int *, int *, int *, real_t *, int *, int *,
+                           int *);
+extern "C" void
 MFEM_LAPACK_PREFIX(gbtrs_)(char *, int *, int *, int *, int *, real_t *, int *,
                            int *, real_t *, int *, int *);
 

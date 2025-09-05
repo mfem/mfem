@@ -5071,6 +5071,11 @@ void HypreBoomerAMG::SetDefaultOptions()
    HYPRE_BoomerAMGSetCoarsenType(amg_precond, coarsen_type);
    HYPRE_BoomerAMGSetAggNumLevels(amg_precond, agg_levels);
    HYPRE_BoomerAMGSetRelaxType(amg_precond, relax_type);
+
+   // JGL - Debugging
+   HYPRE_BoomerAMGSetCycleRelaxType(amg_precond, relax_type, 3);
+   HYPRE_BoomerAMGSetMinCoarseSize(amg_precond, 5);
+
    // default in hypre is 1.0 with some exceptions, e.g. for relax_type = 7
    // HYPRE_BoomerAMGSetRelaxWt(amg_precond, 1.0);
    HYPRE_BoomerAMGSetNumSweeps(amg_precond, relax_sweeps);
