@@ -191,6 +191,22 @@ void MinkowskiMomentumDensityImCoef::Eval(Vector &G, ElementTransformation &T,
    G *= 0.5;
 }
 
+real_t EAlongBackgroundBCoef::Eval(ElementTransformation &T,
+                                   const IntegrationPoint &ip)
+{
+   EvalE(T, ip);
+   BCoef_.Eval(B_, T, ip);
+
+   const real_t magB = B_.Norml2();
+
+   if (magB > 0.0)
+   {
+      return sqrt(pow(Er_ * B_, 2) + pow(Ei_ * B_, 2)) / magB;
+   }
+
+   return 0.0;
+}
+
 Maxwell2ndE::Maxwell2ndE(ParFiniteElementSpace & HCurlFESpace,
                          real_t omega,
                          ComplexOperator::Convention conv,
@@ -1149,6 +1165,25 @@ void MinkowskiMomentumDensityVisObject::PrepareVisField(
    this->PrepareVisField(Gr, Gi, NULL, NULL);
 }
 
+EAlongBackgroundBVisObject::EAlongBackgroundBVisObject(
+   const std::string & field_name,
+   std::shared_ptr<L2_ParFESpace> sfes,
+   bool cyl, bool pseudo)
+   : ScalarFieldVisObject(field_name, sfes, cyl, pseudo)
+{}
+
+void
+EAlongBackgroundBVisObject::PrepareVisField(const ParComplexGridFunction &e,
+                                            VectorCoefficient &BCoef)
+{
+   VectorGridFunctionCoefficient Er(&e.real());
+   VectorGridFunctionCoefficient Ei(&e.imag());
+
+   EAlongBackgroundBCoef ebCoef(Er, Ei, BCoef);
+
+   this->PrepareVisField(ebCoef);
+}
+
 TensorCompVisObject::TensorCompVisObject(const std::string & field_name,
                                          shared_ptr<L2_ParFESpace> sfes,
                                          bool cyl, bool pseudo)
@@ -1202,6 +1237,9 @@ const string CPDInputVis::opt_str_[] =
    "ss", "stix-s", "Stix S coefficient",
    "sd", "stix-d", "Stix D coefficient",
    "sp", "stix-p", "Stix P coefficient",
+   "sl", "stix-l", "Stix L coefficient",
+   "sr", "stix-r", "Stix R coefficient",
+   "sisp", "stix-inv-sp", "Stix 1 / (S P) coefficient",
    "wl", "wavelength-l", "wavelength L",
    "wr", "wavelength-r", "wavelength R",
    "wo", "wavelength-o", "wavelength O",
@@ -1254,8 +1292,8 @@ CPDInputVis::CPDInputVis(StixParams &stixParams,
      //
      electronDensityCoef_(numIonSpec_,stixParams.specDensityCoef),
      electronTempCoef_(numIonSpec_,stixParams.specTemperatureCoef),
-     electronDensity_("ElectronDensity", l2_sfes.get(), cyl, false),
-     electronTemp_("ElectronTemperature", l2_sfes.get(), cyl, false),
+     electronDensity_("ElectronDensity", l2_sfes, cyl, false),
+     electronTemp_("ElectronTemperature", l2_sfes, cyl, false),
      //
      stixSReCoef_(stixParams, StixCoef::REAL_PART),
      stixSImCoef_(stixParams, StixCoef::IMAG_PART),
@@ -1263,27 +1301,36 @@ CPDInputVis::CPDInputVis(StixParams &stixParams,
      stixDImCoef_(stixParams, StixCoef::IMAG_PART),
      stixPReCoef_(stixParams, StixCoef::REAL_PART),
      stixPImCoef_(stixParams, StixCoef::IMAG_PART),
+     stixLReCoef_(stixParams, StixCoef::REAL_PART),
+     stixLImCoef_(stixParams, StixCoef::IMAG_PART),
+     stixRReCoef_(stixParams, StixCoef::REAL_PART),
+     stixRImCoef_(stixParams, StixCoef::IMAG_PART),
+     stixInvSPReCoef_(stixParams, StixCoef::REAL_PART),
+     stixInvSPImCoef_(stixParams, StixCoef::IMAG_PART),
      stixS_("StixS", l2_sfes, cyl, false),
      stixD_("StixD", l2_sfes, cyl, false),
      stixP_("StixP", l2_sfes, cyl, false),
+     stixL_("StixL", l2_sfes, cyl, false),
+     stixR_("StixR", l2_sfes, cyl, false),
+     stixInvSP_("StixInvSP", l2_sfes, cyl, false),
      //
      lambdaLCoef_('L', stixParams, StixCoef::REAL_PART),
      lambdaRCoef_('R', stixParams, StixCoef::REAL_PART),
      lambdaOCoef_('O', stixParams, StixCoef::REAL_PART),
      lambdaXCoef_('X', stixParams, StixCoef::REAL_PART),
-     waveLengthL_("LambdaL", l2_sfes.get(), cyl, false),
-     waveLengthR_("LambdaR", l2_sfes.get(), cyl, false),
-     waveLengthO_("LambdaO", l2_sfes.get(), cyl, false),
-     waveLengthX_("LambdaX", l2_sfes.get(), cyl, false),
+     waveLengthL_("LambdaL", l2_sfes, cyl, false),
+     waveLengthR_("LambdaR", l2_sfes, cyl, false),
+     waveLengthO_("LambdaO", l2_sfes, cyl, false),
+     waveLengthX_("LambdaX", l2_sfes, cyl, false),
      //
      deltaLCoef_('L', stixParams, StixCoef::IMAG_PART),
      deltaRCoef_('R', stixParams, StixCoef::IMAG_PART),
      deltaOCoef_('O', stixParams, StixCoef::IMAG_PART),
      deltaXCoef_('X', stixParams, StixCoef::IMAG_PART),
-     skinDepthL_("DeltaL", l2_sfes.get(), cyl, false),
-     skinDepthR_("DeltaR", l2_sfes.get(), cyl, false),
-     skinDepthO_("DeltaO", l2_sfes.get(), cyl, false),
-     skinDepthX_("DeltaX", l2_sfes.get(), cyl, false)
+     skinDepthL_("DeltaL", l2_sfes, cyl, false),
+     skinDepthR_("DeltaR", l2_sfes, cyl, false),
+     skinDepthO_("DeltaO", l2_sfes, cyl, false),
+     skinDepthX_("DeltaX", l2_sfes, cyl, false)
 {
    for (int i=0; i<numIonSpec_; i++)
    {
@@ -1301,9 +1348,9 @@ CPDInputVis::CPDInputVis(StixParams &stixParams,
          oss_temp << " (Species " << i+1 << ")";
       }
       ionDensities_[i] =
-         new ScalarFieldVisObject(oss_den.str(), l2_sfes.get(), cyl, false);
+         new ScalarFieldVisObject(oss_den.str(), l2_sfes, cyl, false);
       ionTemps_[i] =
-         new ScalarFieldVisObject(oss_temp.str(), l2_sfes.get(), cyl, false);
+         new ScalarFieldVisObject(oss_temp.str(), l2_sfes, cyl, false);
    }
 }
 
@@ -1346,6 +1393,9 @@ void CPDInputVis::RegisterVisItFields(VisItDataCollection & visit_dc)
    if (CheckVisFlag(STIX_S)) { stixS_.RegisterVisItFields(visit_dc); }
    if (CheckVisFlag(STIX_D)) { stixD_.RegisterVisItFields(visit_dc); }
    if (CheckVisFlag(STIX_P)) { stixP_.RegisterVisItFields(visit_dc); }
+   if (CheckVisFlag(STIX_L)) { stixL_.RegisterVisItFields(visit_dc); }
+   if (CheckVisFlag(STIX_R)) { stixR_.RegisterVisItFields(visit_dc); }
+   if (CheckVisFlag(STIX_INVSP)) { stixInvSP_.RegisterVisItFields(visit_dc); }
 
    if (CheckVisFlag(WAVELENGTH_L))
    { waveLengthL_.RegisterVisItFields(visit_dc); }
@@ -1402,6 +1452,15 @@ void CPDInputVis::PrepareVisFields(const ParComplexGridFunction & j,
    { stixD_.PrepareVisField(stixDReCoef_, stixDImCoef_, NULL, NULL); }
    if (CheckVisFlag(STIX_P))
    { stixP_.PrepareVisField(stixPReCoef_, stixPImCoef_, NULL, NULL); }
+   if (CheckVisFlag(STIX_L))
+   { stixL_.PrepareVisField(stixLReCoef_, stixLImCoef_, NULL, NULL); }
+   if (CheckVisFlag(STIX_R))
+   { stixR_.PrepareVisField(stixRReCoef_, stixRImCoef_, NULL, NULL); }
+   if (CheckVisFlag(STIX_INVSP))
+   {
+      stixInvSP_.PrepareVisField(stixInvSPReCoef_, stixInvSPImCoef_,
+                                 NULL, NULL);
+   }
 
    if (CheckVisFlag(WAVELENGTH_L))
    { waveLengthL_.PrepareVisField(lambdaLCoef_); }
@@ -1446,6 +1505,9 @@ void CPDInputVis::DisplayToGLVis()
    if (CheckVisFlag(STIX_S)) { stixS_.DisplayToGLVis(); }
    if (CheckVisFlag(STIX_D)) { stixD_.DisplayToGLVis(); }
    if (CheckVisFlag(STIX_P)) { stixP_.DisplayToGLVis(); }
+   if (CheckVisFlag(STIX_L)) { stixL_.DisplayToGLVis(); }
+   if (CheckVisFlag(STIX_R)) { stixR_.DisplayToGLVis(); }
+   if (CheckVisFlag(STIX_INVSP)) { stixInvSP_.DisplayToGLVis(); }
 
    if (CheckVisFlag(WAVELENGTH_L)) { waveLengthL_.DisplayToGLVis(); }
    if (CheckVisFlag(WAVELENGTH_R)) { waveLengthR_.DisplayToGLVis(); }
@@ -1469,6 +1531,9 @@ void CPDInputVis::Update()
    stixS_.Update();
    stixD_.Update();
    stixP_.Update();
+   stixL_.Update();
+   stixR_.Update();
+   stixInvSP_.Update();
 
    waveLengthL_.Update();
    waveLengthR_.Update();
@@ -1563,7 +1628,8 @@ const string CPDOutputVis::opt_str_[] =
    "pf", "poynting-flux", "Poynting flux",
    "md", "momentum-density", "Minkowski momentum density",
    "ue", "electric-energy-density", "electric energy density",
-   "um", "magnetic-energy-density", "magnetic energy density"
+   "um", "magnetic-energy-density", "magnetic energy density",
+   "eb", "e-dot-b", "electric field along background B"
 };
 
 std::array<std::string, CPDOutputVis::NUM_VIS_FIELDS> CPDOutputVis::optt_;
@@ -1598,6 +1664,7 @@ CPDOutputVis::CPDOutputVis(StixParams &stixParams,
      sfes_(l2_sfes),
      vfes_(l2_vfes),
      omega_(omega),
+     BCoef_(stixParams.BCoef),
      epsReCoef_(stixParams, StixCoef::REAL_PART),
      epsImCoef_(stixParams, StixCoef::IMAG_PART),
      muInvCoef_(1.0 / mu0_),
@@ -1605,7 +1672,8 @@ CPDOutputVis::CPDOutputVis(StixParams &stixParams,
      poyntingFlux_("PoyntingFlux", l2_vfes),
      momentumDensity_("MomentumDensity", l2_vfes),
      edEnergyDensity_("EDEnergyDensity", l2_sfes, cyl, true),
-     bhEnergyDensity_("BHEnergyDensity", l2_sfes, cyl, true)
+     bhEnergyDensity_("BHEnergyDensity", l2_sfes, cyl, true),
+     ealongb_("EAlongBackgroundB", l2_sfes, cyl, true)
 {
 }
 
@@ -1621,6 +1689,8 @@ void CPDOutputVis::RegisterVisItFields(VisItDataCollection & visit_dc)
    { edEnergyDensity_.RegisterVisItFields(visit_dc); }
    if (CheckVisFlag(BH_ENERGY_DENSITY))
    { bhEnergyDensity_.RegisterVisItFields(visit_dc); }
+   if (CheckVisFlag(E_BACKGROUND_B))
+   { ealongb_.RegisterVisItFields(visit_dc); }
 }
 
 void CPDOutputVis::PrepareVisFields(const ParComplexGridFunction & e,
@@ -1639,6 +1709,8 @@ void CPDOutputVis::PrepareVisFields(const ParComplexGridFunction & e,
    { edEnergyDensity_.PrepareVisField(e, epsReCoef_, epsImCoef_); }
    if (CheckVisFlag(BH_ENERGY_DENSITY))
    { bhEnergyDensity_.PrepareVisField(e, omega_, muInvCoef_); }
+   if (CheckVisFlag(E_BACKGROUND_B))
+   { ealongb_.PrepareVisField(e, BCoef_); }
 }
 
 void CPDOutputVis::DisplayToGLVis()
@@ -1648,6 +1720,7 @@ void CPDOutputVis::DisplayToGLVis()
    if (CheckVisFlag(MOMENTUM_DENSITY)) { momentumDensity_.DisplayToGLVis(); }
    if (CheckVisFlag(ED_ENERGY_DENSITY)) { edEnergyDensity_.DisplayToGLVis(); }
    if (CheckVisFlag(BH_ENERGY_DENSITY)) { bhEnergyDensity_.DisplayToGLVis(); }
+   if (CheckVisFlag(E_BACKGROUND_B)) { ealongb_.DisplayToGLVis(); }
 }
 
 void CPDOutputVis::Update()
@@ -1660,6 +1733,7 @@ void CPDOutputVis::Update()
    momentumDensity_.Update();
    edEnergyDensity_.Update();
    bhEnergyDensity_.Update();
+   ealongb_.Update();
 }
 
 const string CPDFieldAnim::opt_str_[] =

@@ -315,6 +315,24 @@ public:
              const IntegrationPoint &ip);
 };
 
+class EAlongBackgroundBCoef : public Coefficient,
+   public ElectricFieldFromE
+{
+private:
+   VectorCoefficient &BCoef_;
+
+   mutable Vector B_;
+
+public:
+   EAlongBackgroundBCoef(VectorCoefficient &Er,
+                         VectorCoefficient &Ei,
+                         VectorCoefficient &B)
+      : ElectricFieldFromE(Er, Ei), BCoef_(B), B_(3) {}
+
+   real_t Eval(ElementTransformation &T,
+               const IntegrationPoint &ip);
+};
+
 class TensorCompCoef : public Coefficient
 {
 public:
@@ -908,6 +926,21 @@ public:
                         MatrixCoefficient & epsImCoef);
 };
 
+class EAlongBackgroundBVisObject : public ScalarFieldVisObject
+{
+private:
+
+   using ScalarFieldVisObject::PrepareVisField;
+
+public:
+   EAlongBackgroundBVisObject(const std::string & field_name,
+                              std::shared_ptr<L2_ParFESpace> sfes,
+                              bool cyl, bool pseudo);
+
+   void PrepareVisField(const ParComplexGridFunction &e,
+                        VectorCoefficient &BCoef);
+};
+
 class TensorCompVisObject : public ComplexScalarFieldVisObject
 {
 private:
@@ -967,6 +1000,9 @@ public:
                   STIX_S,
                   STIX_D,
                   STIX_P,
+                  STIX_L,
+                  STIX_R,
+                  STIX_INVSP,
                   WAVELENGTH_L,
                   WAVELENGTH_R,
                   WAVELENGTH_O,
@@ -1058,10 +1094,19 @@ private:
    StixDCoef stixDImCoef_;
    StixPCoef stixPReCoef_;
    StixPCoef stixPImCoef_;
+   StixLCoef stixLReCoef_;
+   StixLCoef stixLImCoef_;
+   StixRCoef stixRReCoef_;
+   StixRCoef stixRImCoef_;
+   StixInvSPCoef stixInvSPReCoef_;
+   StixInvSPCoef stixInvSPImCoef_;
 
    ComplexScalarFieldVisObject stixS_;
    ComplexScalarFieldVisObject stixD_;
    ComplexScalarFieldVisObject stixP_;
+   ComplexScalarFieldVisObject stixL_;
+   ComplexScalarFieldVisObject stixR_;
+   ComplexScalarFieldVisObject stixInvSP_;
 
    // Wave Lengths of plane waves parallel or perpendicular to the magnetic field
    StixWaveLengthCoef lambdaLCoef_;
@@ -1158,6 +1203,7 @@ public:
                   MOMENTUM_DENSITY,
                   ED_ENERGY_DENSITY,
                   BH_ENERGY_DENSITY,
+                  E_BACKGROUND_B,
                   NUM_VIS_FIELDS
                  };
 
@@ -1212,6 +1258,8 @@ private:
 
    real_t omega_;
 
+   VectorCoefficient &BCoef_; // Background B field
+
    DielectricTensor epsReCoef_;    // Dielectric Material Coefficient
    DielectricTensor epsImCoef_;    // Dielectric Material Coefficient
    ConstantCoefficient muInvCoef_; // Dia/Paramagnetic Material Coefficient
@@ -1222,6 +1270,8 @@ private:
 
    ElectricEnergyDensityVisObject edEnergyDensity_;
    MagneticEnergyDensityVisObject bhEnergyDensity_;
+
+   EAlongBackgroundBVisObject ealongb_;
 };
 
 class CPDFieldAnim : public CPDVisBase
