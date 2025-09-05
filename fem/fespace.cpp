@@ -22,6 +22,8 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdarg>
+#include <unordered_set>
+#include <unordered_map>
 
 using namespace std;
 
@@ -4494,6 +4496,160 @@ void FiniteElementSpace
       {
          faces.insert(f);
       }
+   }
+}
+
+void FiniteElementSpace::GetBoundaryEdgeDofs(
+   const Array<int> &boundary_element_indices,
+   std::unordered_set<int> &boundary_edge_dofs,
+   std::unordered_map<int, int> &dof_to_edge,
+   std::unordered_map<int, int> &dof_to_boundary_element,
+   std::unordered_map<int, int> &dof_to_edge_orientation) const
+{
+   MFEM_VERIFY(mesh->Dimension() >= 3,
+               "GetBoundaryEdgeDofs requires 3D meshes to find 1D edge objects");
+
+   // Clear output containers
+   boundary_edge_dofs.clear();
+   dof_to_edge.clear();
+   dof_to_boundary_element.clear();
+   dof_to_edge_orientation.clear();
+
+   // Collect boundary edge DoFs using a toggle approach
+   Array<int> edges, edge_orientations, edge_dofs;
+   for (int i = 0; i < boundary_element_indices.Size(); ++i)
+   {
+      int boundary_element_idx = boundary_element_indices[i];
+      int face_index, face_orientation;
+      mesh->GetBdrElementFace(boundary_element_idx, &face_index, &face_orientation);
+      mesh->GetFaceEdges(face_index, edges, edge_orientations);
+
+      for (int j = 0; j < edges.Size(); ++j)
+      {
+         GetEdgeDofs(edges[j], edge_dofs);
+         for (int k = 0; k < edge_dofs.Size(); ++k)
+         {
+            int dof = edge_dofs[k];
+            if (!boundary_edge_dofs.count(dof))
+            {
+               boundary_edge_dofs.insert(dof);
+               dof_to_edge[dof] = edges[j];
+               dof_to_boundary_element[dof] = boundary_element_idx;
+               dof_to_edge_orientation[dof] = edge_orientations[j];
+            }
+            else
+            {
+               // DoF appears twice - interior to boundary, remove it
+               boundary_edge_dofs.erase(dof);
+               dof_to_edge.erase(dof);
+               dof_to_boundary_element.erase(dof);
+               dof_to_edge_orientation.erase(dof);
+            }
+         }
+      }
+   }
+}
+
+void FiniteElementSpace::GetBoundaryElementsByAttribute(
+   const Array<int> &bdr_attrs,
+   std::unordered_map<int, Array<int>> &attr_to_elements)
+{
+   // Initialize arrays for each attribute
+   for (int i = 0; i < bdr_attrs.Size(); ++i)
+   {
+      attr_to_elements[bdr_attrs[i]] = Array<int>();
+   }
+
+   // Find boundary elements for each attribute
+   for (int i = 0; i < mesh->GetNBE(); ++i)
+   {
+      int attr = mesh->GetBdrElement(i)->GetAttribute();
+      auto it = attr_to_elements.find(attr);
+      if (it != attr_to_elements.end())
+      {
+         it->second.Append(i);
+      }
+   }
+}
+
+void FiniteElementSpace::GetBoundaryElementsByAttribute(int bdr_attr,
+                                                        Array<int> &boundary_elements)
+{
+   boundary_elements.SetSize(0);
+
+   for (int i = 0; i < mesh->GetNBE(); ++i)
+   {
+      if (mesh->GetBdrElement(i)->GetAttribute() == bdr_attr)
+      {
+         boundary_elements.Append(i);
+      }
+   }
+}
+
+void FiniteElementSpace::ComputeLoopEdgeOrientations(
+   const std::unordered_map<int, int>& dof_to_edge,
+   const std::unordered_map<int, int>& dof_to_boundary_element,
+   const Vector& loop_normal,
+   std::unordered_map<int, int>& edge_loop_orientations)
+{
+   Array<int> edge_verts, bdr_elem_verts;
+   Vector edge_vec(3), to_edge_vec(3), cross_product(3);   
+   // Process each edge locally
+   for (const auto& [dof, bdr_elem_idx] : dof_to_boundary_element)
+   {
+      // Check if this DOF has a corresponding edge
+      auto edge_it = dof_to_edge.find(dof);
+      if (edge_it == dof_to_edge.end()) { continue; }
+
+      int edge_id = edge_it->second;
+
+      // Get edge vertices
+      mesh->GetEdgeVertices(edge_id, edge_verts);
+
+      const real_t *v0 = mesh->GetVertex(edge_verts[0]);
+      const real_t *v1 = mesh->GetVertex(edge_verts[1]);
+
+      // Get boundary element vertices
+      mesh->GetBdrElement(bdr_elem_idx)->GetVertices(bdr_elem_verts);
+
+      // Find the third vertex (not part of the edge)
+      int third_vertex = -1;
+      for (int i = 0; i < bdr_elem_verts.Size(); i++)
+      {
+         int v = bdr_elem_verts[i];
+         if (v != edge_verts[0] && v != edge_verts[1])
+         {
+            third_vertex = v;
+            break;
+         }
+      }
+
+      if (third_vertex == -1) 
+      { 
+         MFEM_ABORT("Boundary element " << bdr_elem_idx << " has only 2 vertices, "
+                   "but 3D boundary elements must have at least 3 vertices"); 
+      }
+
+      const real_t *v2 = mesh->GetVertex(third_vertex);
+
+      // Edge vector
+      for (int i = 0; i < 3; i++) { edge_vec[i] = v1[i] - v0[i]; }
+
+      // Vector from third vertex to edge (use edge midpoint)
+      for (int i = 0; i < 3; i++)
+      {
+         real_t edge_midpoint = (v0[i] + v1[i]) * 0.5;
+         to_edge_vec[i] = edge_midpoint - v2[i];
+      }
+
+      // Cross product: to_edge × edge
+      cross_product[0] = to_edge_vec[1] * edge_vec[2] - to_edge_vec[2] * edge_vec[1];
+      cross_product[1] = to_edge_vec[2] * edge_vec[0] - to_edge_vec[0] * edge_vec[2];
+      cross_product[2] = to_edge_vec[0] * edge_vec[1] - to_edge_vec[1] * edge_vec[0];
+
+      // Check alignment with loop normal
+      real_t dot_product = cross_product * loop_normal;
+      edge_loop_orientations[edge_id] = (dot_product > 0) ? 1 : -1;
    }
 }
 

@@ -20,6 +20,7 @@
 #include "restriction.hpp"
 #include <iostream>
 #include <unordered_map>
+#include <unordered_set>
 
 namespace mfem
 {
@@ -1402,6 +1403,33 @@ public:
        can be used to restricts the marked tDOFs to the specified component. */
    virtual void GetExteriorTrueDofs(Array<int> &exterior_dofs,
                                     int component = -1) const;
+
+   /** @brief Extract boundary edge DOFs from specified boundary elements.
+       Serial version that performs the toggle-based collection of boundary edge DOFs. */
+   virtual void GetBoundaryEdgeDofs(const Array<int> &boundary_element_indices,
+                                    std::unordered_set<int> &boundary_edge_dofs,
+                                    std::unordered_map<int, int> &dof_to_edge,
+                                    std::unordered_map<int, int> &dof_to_boundary_element,
+                                    std::unordered_map<int, int> &dof_to_edge_orientation) const;
+
+   /** @brief Get boundary elements grouped by attribute.
+       Serial version that finds all boundary elements with specified attributes. */
+   virtual void GetBoundaryElementsByAttribute(
+      const Array<int> &bdr_attrs,
+      std::unordered_map<int, Array<int>> &attr_to_elements);
+
+   /** @brief Get boundary elements with a specific attribute.
+       Serial version that finds all boundary elements with the given attribute. */
+   virtual void GetBoundaryElementsByAttribute(int bdr_attr,
+                                               Array<int> &boundary_elements);
+
+   /** @brief Compute edge orientations for loop traversal.
+       Serial version that determines edge orientations relative to a loop normal. */
+   virtual void ComputeLoopEdgeOrientations(
+      const std::unordered_map<int, int>& dof_to_edge,
+      const std::unordered_map<int, int>& dof_to_boundary_element,
+      const Vector& loop_normal,
+      std::unordered_map<int, int>& edge_loop_orientations);
 
    /// Convert a Boolean marker array to a list containing all marked indices.
    static void MarkerToList(const Array<int> &marker, Array<int> &list);
