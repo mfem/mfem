@@ -1660,25 +1660,22 @@ int main(int argc, char* argv[])
       if (glvis_smooth && glvis_src && glvis_dst_avg && glvis_dst &&
           params.vis.visualization)
       {
-         //glvis_smooth.precision(8);
+         glvis_smooth.precision(8);
          glvis_smooth << "parallel " << mesh.GetNRanks()
                       << " " << mesh.GetMyRank() << "\n"
                       << "solution\n" << mesh << u_smooth
                       << "window_title 'original'\n" << std::flush;
-         MPI_Barrier(mesh.GetComm());
-         //glvis_src.precision(8);
+         glvis_src.precision(8);
          glvis_src << "parallel " << mesh.GetNRanks()
                    << " " << mesh.GetMyRank() << "\n"
                    << "solution\n" << mesh << u_src
                    << "window_title 'averages'\n" << std::flush;
-         MPI_Barrier(mesh.GetComm());
-         //glvis_dst.precision(8);
+         glvis_dst.precision(8);
          glvis_dst << "parallel " << mesh.GetNRanks()
                    << " " << mesh.GetMyRank() << "\n"
                    << "solution\n" << mesh << u_dst
                    << "window_title 'reconstruction'\n" << std::flush;
-         MPI_Barrier(mesh.GetComm());
-         //glvis_dst.precision(8);
+         glvis_dst.precision(8);
          glvis_dst_avg << "parallel " << mesh.GetNRanks()
                        << " " << mesh.GetMyRank() << "\n"
                        << "solution\n" << mesh << u_dst_avg
@@ -1688,6 +1685,10 @@ int main(int argc, char* argv[])
       {
          MFEM_WARNING("Cannot connect to glvis server, disabling visualization.")
       }
+      glvis_smooth.close();
+      glvis_src.close();
+      glvis_dst.close();
+      glvis_dst_avg.close();
    }
 
    // Error studies
