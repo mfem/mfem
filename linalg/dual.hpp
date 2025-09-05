@@ -432,7 +432,6 @@ template <typename value_type, typename gradient_type> MFEM_HOST_DEVICE
 dual<value_type, gradient_type> max(dual<value_type, gradient_type> a,
                                     dual<value_type, gradient_type> b)
 {
-   using std::max;
    if (a.value > b.value)
    {
       return a;
@@ -448,7 +447,6 @@ dual<value_type, gradient_type> max(dual<value_type, gradient_type> a,
 template <typename value_type, typename gradient_type> MFEM_HOST_DEVICE
 dual<value_type, gradient_type> max(real_t a, dual<value_type, gradient_type> b)
 {
-   using std::max;
    if (a > b.value)
    {
       return {a, {}};
@@ -464,7 +462,7 @@ dual<value_type, gradient_type> max(real_t a, dual<value_type, gradient_type> b)
 template <typename value_type > MFEM_HOST_DEVICE
 value_type max(value_type a, value_type b)
 {
-   using std::pow;
+   using std::max;
    return max(a, b);
 }
 
@@ -481,7 +479,6 @@ template <typename value_type, typename gradient_type> MFEM_HOST_DEVICE
 dual<value_type, gradient_type> min(dual<value_type, gradient_type> a,
                                     dual<value_type, gradient_type> b)
 {
-   using std::max;
    if (a.value < b.value)
    {
       return a;
@@ -497,7 +494,6 @@ dual<value_type, gradient_type> min(dual<value_type, gradient_type> a,
 template <typename value_type, typename gradient_type> MFEM_HOST_DEVICE
 dual<value_type, gradient_type> min(real_t a, dual<value_type, gradient_type> b)
 {
-   using std::max;
    if (a < b.value)
    {
       return {a, {}};
@@ -513,7 +509,7 @@ dual<value_type, gradient_type> min(real_t a, dual<value_type, gradient_type> b)
 template <typename value_type > MFEM_HOST_DEVICE
 value_type min(value_type a, value_type b)
 {
-   using std::pow;
+   using std::min;
    return min(a, b);
 }
 
@@ -521,7 +517,7 @@ value_type min(value_type a, value_type b)
 template <typename value_type, typename gradient_type> MFEM_HOST_DEVICE
 dual<value_type, gradient_type> min(dual<value_type, gradient_type> a, real_t b)
 {
-   using std::max;
+   using std::min;
    return min(b, a);
 }
 
