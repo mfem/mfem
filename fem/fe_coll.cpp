@@ -2515,6 +2515,7 @@ RT_FECollection::RT_FECollection(const int p, const int dim,
                                  const int map_type, const bool signs,
                                  const int ob_type)
    : FiniteElementCollection(p + 1)
+   , dim(dim)
    , ob_type(ob_type)
 {
    if (Quadrature1D::CheckOpen(BasisType::GetQuadrature1D(ob_type)) ==
