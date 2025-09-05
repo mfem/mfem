@@ -286,16 +286,16 @@ void IsoLinElasticSolver::Assemble()
         prec=new mfem::HypreBoomerAMG();
         //set the rigid body modes
         prec->SetElasticityOptions(vfes);
-        prec->SetPrintLevel(1);
+        prec->SetPrintLevel(0);
         ls->SetPreconditioner(*prec);
         ls->SetOperator(*K);
-        ls->SetPrintLevel(1);
+        ls->SetPrintLevel(0);
     }else{
         ls->SetOperator(*K);
     }
 
-    std::cout<<pmesh->GetMyRank()<<" LSW="<<ls->Width()<<" LSH="<<ls->Height()
-              <<" KFW="<<K->Width()<<" KFH="<<K->Height()<<std::endl;
+    //std::cout<<pmesh->GetMyRank()<<" LSW="<<ls->Width()<<" LSH="<<ls->Height()
+    //          <<" KFW="<<K->Width()<<" KFH="<<K->Height()<<std::endl;
 }
 
 void IsoLinElasticSolver::FSolve()

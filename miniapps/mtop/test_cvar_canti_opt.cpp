@@ -40,12 +40,14 @@ std::vector<std::pair<std::bitset<N>, real_t>> getProbabilitySpace(real_t p1, re
 
     // Example: pair of a vector of ints and a float
     // probability_space.emplace_back(std::bitset<N>(), p0);
+
     for (int i = 0; i < N; i++)
     {
         bitset<N> singleFailure;
         singleFailure.set(i);
         probability_space.emplace_back(singleFailure, p1);
     }
+
     for (int i = 0; i < N - 1; i++)
     {
         bitset<N> doubleFailure;
@@ -53,14 +55,16 @@ std::vector<std::pair<std::bitset<N>, real_t>> getProbabilitySpace(real_t p1, re
         doubleFailure.set(i + 1);
         probability_space.emplace_back(doubleFailure, p2);
     }
-    // for (int i = 0; i < N - 2; i++)
-    // {
-    //     bitset<N> tripleFailure;
-    //     tripleFailure.set(i);
-    //     tripleFailure.set(i + 1);
-    //     tripleFailure.set(i + 2);
-    //     probability_space.emplace_back(tripleFailure, p3);
-    // }
+
+    for (int i = 0; i < N - 2; i++)
+    {
+         bitset<N> tripleFailure;
+         tripleFailure.set(i);
+         tripleFailure.set(i + 1);
+         tripleFailure.set(i + 2);
+         probability_space.emplace_back(tripleFailure, p3);
+    }
+
     // for (int i = 0; i < N - 3; i++)
     // {
     //     bitset<N> quadrupleFailure;
@@ -349,27 +353,27 @@ int main(int argc, char *argv[])
     const char *device_config = "cpu";
     bool visualization = true;
     bool algebraic_ceed = false;
-    real_t filter_radius = real_t(0.025);
+    real_t filter_radius = real_t(0.015);
 
     real_t gamma = 10.0;
-    real_t vol_fraction = 0.6;
+    real_t vol_fraction = 0.3;
     int max_it = 100;
     real_t itol = 1e-1;
     real_t ntol = 1e-4;
     real_t rho_min = 1e-6;
-    real_t E_min = 1e-3;
+    real_t E_min = 1e-6;
     real_t E_max = 1.0;
     real_t poisson_ratio = 0.2;
     bool glvis_visualization = true;
     bool paraview_output = true;
 
-    const real_t p1 = 0.1;
+    const real_t p1 = 0.05;
     const real_t p2 = 0.05;
-    const real_t p3 = 0.0;
+    const real_t p3 = 0.05;
     const real_t p4 = 0.0;
 
     const real_t cvar_alpha = 0.05;
-    const int outer_loop_iterations = 100;
+    const int outer_loop_iterations = 50;
     const int inner_loop_iterations = 4;
 
     std::vector<std::pair<std::bitset<N>, real_t>> probability_space = getProbabilitySpace(p1, p2, p3, p4);
@@ -479,18 +483,24 @@ int main(int argc, char *argv[])
     // 9. Define some tools for later.
     ConstantCoefficient zero(0.0);
     ConstantCoefficient one(1.0);
-    ParGridFunction onegf(filt->GetDesignFES());
+    ParGridFunction onegf(filt->GetFilterFES());
     onegf = 1.0;
-    ParGridFunction zerogf(filt->GetDesignFES());
-    zerogf = 0.0;
+    //ParGridFunction zerogf(filt->GetDesignFES());
+    //zerogf = 0.0;
     ParLinearForm vol_form(filt->GetDesignFES());
     vol_form.AddDomainIntegrator(new DomainLFIntegrator(one));
     vol_form.Assemble();
-    real_t domain_volume = vol_form(onegf);
-    const real_t target_volume = domain_volume * vol_fraction;
-    if (0 == myid)
+    real_t domain_volume;
+    real_t target_volume;
     {
-        std::cout << "domain volume=" << domain_volume << " target_volume=" << target_volume << std::endl;
+        ParGridFunction donegf(filt->GetDesignFES());
+        donegf = 1.0;
+        domain_volume = vol_form(donegf);
+        target_volume = domain_volume * vol_fraction;
+        if (0 == myid)
+        {
+            std::cout << "domain volume=" << domain_volume << " target_volume=" << target_volume << std::endl;
+        }
     }
 
     // create initial density distribution
@@ -527,6 +537,9 @@ int main(int argc, char *argv[])
 
     Vector fdv(filt->GetFilterFES()->TrueVSize());
     fdv = 0.0; // define the true vector of the filtered field
+
+    // filter the initial density
+    filt->FFilter(&odens,fdens);
 
     // set up the paraview
     mfem::ParaViewDataCollection paraview_dc("cvar_optimization", &pmesh);
@@ -568,11 +581,17 @@ int main(int argc, char *argv[])
     // vector of [Bitset, Original Probability, Latent Probability]
     // ensures that $q$ is initialized as $p$.
     std::vector<std::tuple<std::bitset<N>, real_t, real_t>> latent_probabilities_old;
-    for (auto &[bits, value] : probability_space)
     {
         real_t latent_probability_i = log((1 - cvar_alpha) / cvar_alpha);
-        latent_probabilities_old.emplace_back(bits, value, latent_probability_i);
+        for (auto &[bits, value] : probability_space)
+        {
+            latent_probabilities_old.emplace_back(bits, value, latent_probability_i);
+        }
     }
+
+    std::vector<std::tuple<std::bitset<N>, real_t, real_t>> latent_probabilities_unnormalized;
+    std::vector<std::tuple<std::bitset<N>, real_t, real_t>> latent_probabilities;
+
     // loop
     for (int k = 1; k <= outer_loop_iterations; k++)
     {
@@ -585,17 +604,13 @@ int main(int argc, char *argv[])
             cout << "\nStep = " << k << endl;
         }
 
-        std::vector<std::tuple<std::bitset<N>, real_t, real_t>> latent_probabilities_unnormalized;
-        std::vector<std::tuple<std::bitset<N>, real_t, real_t>> latent_probabilities;
+        filt->FFilter(&odens, fdens);
 
         // first we calculate and find the new latent probabilities.
         for (int inner = 1; inner <= inner_loop_iterations; inner++)
         {
             latent_probabilities_unnormalized.clear();
             latent_probabilities.clear(); // fresh start in inner loop
-
-            filt->FFilter(&odens, fdens);
-            icc.SetGridFunctions(&fdens, &(elsolver->GetDisplacements()));
 
             // iterate through the probability space
             for (auto &[bits, original_probability, latent_probability] : latent_probabilities_old)
@@ -663,6 +678,14 @@ int main(int argc, char *argv[])
                 1e-10,
                 25
             );
+
+            for (auto &[bits, original_probability, latent_probability] : latent_probabilities)
+            {
+                if (myid == 0) {
+                    std::cout <<"case: "<<bits.to_string()<<" "<<" p="<<original_probability<<" l="<<latent_probability<<std::endl;
+                }
+            }
+
 
             // iterate through the probability space
             for (auto &[bits, original_probability, latent_probability] : latent_probabilities)
