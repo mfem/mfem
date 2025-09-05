@@ -268,6 +268,16 @@ DarcyOperator::DarcyOperator(const Array<int> &ess_flux_tdofs_list_,
    offsets = ConstructOffsets(*darcy);
    width = height = offsets.Last();
 
+   if (!g)
+   {
+      g = darcy->GetFluxRHS();
+   }
+
+   if (!f)
+   {
+      f = darcy->GetPotentialRHS();
+   }
+
    if (darcy->GetHybridization())
    {
       trace_space = darcy->GetHybridization()->ConstraintFESpace();
@@ -510,7 +520,7 @@ void DarcyOperator::ImplicitSolve(const real_t dt, const Vector &x_v,
 #endif
       {
          X.MakeRef(dx_v, offsets[2], trace_space->GetVSize());
-         RHS.MakeRef(*h, 0, trace_space->GetVSize());
+         if (h) { RHS.MakeRef(*h, 0, trace_space->GetVSize()); }
       }
    }
 
