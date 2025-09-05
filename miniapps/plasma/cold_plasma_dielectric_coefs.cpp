@@ -19,17 +19,17 @@ using namespace common;
 namespace plasma
 {
 
-complex<real_t> R_cold_plasma(real_t omega,
-                              real_t Bmag,
-                              real_t nue,
-                              real_t nui,
-                              const Vector & number,
-                              const Vector & charge,
-                              const Vector & mass,
-                              const Vector & temp,
-                              int nuprof)
+complex_t R_cold_plasma(real_t omega,
+                        real_t Bmag,
+                        real_t nue,
+                        real_t nui,
+                        const Vector & number,
+                        const Vector & charge,
+                        const Vector & mass,
+                        const Vector & temp,
+                        int nuprof)
 {
-   complex<real_t> val(1.0, 0.0);
+   complex_t val(1.0, 0.0);
    real_t n = number[0];
    real_t q = charge[0];
    real_t m = mass[0];
@@ -38,7 +38,7 @@ complex<real_t> R_cold_plasma(real_t omega,
    real_t nuei = (nuprof == 0) ?
                  nu_ei(q, coul_log, m, Te, n) :
                  nue;
-   complex<real_t> collision_correction(1.0, nuei/omega);
+   complex_t collision_correction(1.0, nuei/omega);
    real_t nui_res = 0.0;
 
    for (int i=0; i<number.Size(); i++)
@@ -46,29 +46,29 @@ complex<real_t> R_cold_plasma(real_t omega,
       real_t n = number[i];
       real_t q = charge[i];
       real_t m = mass[i];
-      complex<real_t> m_eff = m;
+      complex_t m_eff = m;
       if (i == 0) { m_eff = m * collision_correction; }
       if (i == 1) { nui_res = nui; }
-      complex<real_t> w_c =
-         omega_c(Bmag, q, m_eff) - complex<real_t>(0.0, nui_res);
-      complex<real_t> w_p = omega_p(n, q, m_eff);
+      complex_t w_c =
+         omega_c(Bmag, q, m_eff) - complex_t(0.0, nui_res);
+      complex_t w_p = omega_p(n, q, m_eff);
       val -= w_p * w_p / (omega * (omega + w_c));
    }
    return val;
 }
 
-complex<real_t> L_cold_plasma(real_t omega,
-                              real_t Bmag,
-                              real_t nue,
-                              real_t nui,
-                              const Vector & number,
-                              const Vector & charge,
-                              const Vector & mass,
-                              const Vector & temp,
-                              int nuprof,
-                              real_t res_lim)
+complex_t L_cold_plasma(real_t omega,
+                        real_t Bmag,
+                        real_t nue,
+                        real_t nui,
+                        const Vector & number,
+                        const Vector & charge,
+                        const Vector & mass,
+                        const Vector & temp,
+                        int nuprof,
+                        real_t res_lim)
 {
-   complex<real_t> val(1.0, 0.0);
+   complex_t val(1.0, 0.0);
    real_t n = number[0];
    real_t q = charge[0];
    real_t m = mass[0];
@@ -77,7 +77,7 @@ complex<real_t> L_cold_plasma(real_t omega,
    real_t nuei = (nuprof == 0) ?
                  nu_ei(q, coul_log, m, Te, n) :
                  nue;
-   complex<real_t> collision_correction(1.0, nuei/omega);
+   complex_t collision_correction(1.0, nuei/omega);
    real_t nui_res = 0.0;
 
    for (int i=0; i<number.Size(); i++)
@@ -85,34 +85,34 @@ complex<real_t> L_cold_plasma(real_t omega,
       real_t n = number[i];
       real_t q = charge[i];
       real_t m = mass[i];
-      complex<real_t> m_eff = m;
+      complex_t m_eff = m;
       if (i == 0) { m_eff = m * collision_correction; }
       if (i == 1) { nui_res = nui; }
-      complex<real_t> w_c =
-         omega_c(Bmag, q, m_eff) - complex<real_t>(0.0, nui_res);
+      complex_t w_c =
+         omega_c(Bmag, q, m_eff) - complex_t(0.0, nui_res);
       if (res_lim != 0.0)
       {
          real_t expw_c = exp(-pow(1.0 - w_c.real() / omega, 2));
-         w_c -= complex<real_t>(0.0, res_lim * omega * expw_c);
+         w_c -= complex_t(0.0, res_lim * omega * expw_c);
       }
-      complex<real_t> w_p = omega_p(n, q, m_eff);
+      complex_t w_p = omega_p(n, q, m_eff);
       val -= w_p * w_p / (omega * (omega - w_c));
    }
    return val;
 }
 
-complex<real_t> S_cold_plasma(real_t omega,
-                              real_t Bmag,
-                              real_t nue,
-                              real_t nui,
-                              const Vector & number,
-                              const Vector & charge,
-                              const Vector & mass,
-                              const Vector & temp,
-                              int nuprof,
-                              real_t res_lim)
+complex_t S_cold_plasma(real_t omega,
+                        real_t Bmag,
+                        real_t nue,
+                        real_t nui,
+                        const Vector & number,
+                        const Vector & charge,
+                        const Vector & mass,
+                        const Vector & temp,
+                        int nuprof,
+                        real_t res_lim)
 {
-   complex<real_t> val(1.0, 0.0);
+   complex_t val(1.0, 0.0);
    real_t n = number[0];
    real_t q = charge[0];
    real_t m = mass[0];
@@ -121,7 +121,7 @@ complex<real_t> S_cold_plasma(real_t omega,
    real_t nuei = (nuprof == 0) ?
                  nu_ei(q, coul_log, m, Te, n) :
                  nue;
-   complex<real_t> collision_correction(1.0, nuei/omega);
+   complex_t collision_correction(1.0, nuei/omega);
    real_t nui_res = 0.0;
 
    for (int i=0; i<number.Size(); i++)
@@ -129,38 +129,38 @@ complex<real_t> S_cold_plasma(real_t omega,
       real_t n = number[i];
       real_t q = charge[i];
       real_t m = mass[i];
-      complex<real_t> m_eff = m;
+      complex_t m_eff = m;
       if (i == 0) { m_eff = m * collision_correction; }
       if (i == 1) { nui_res = nui; }
-      complex<real_t> w_c =
-         omega_c(Bmag, q, m_eff) - complex<real_t>(0.0, nui_res);
-      complex<real_t> w_c_c = w_c;
-      complex<real_t> num(1.0, 0.0);
+      complex_t w_c =
+         omega_c(Bmag, q, m_eff) - complex_t(0.0, nui_res);
+      complex_t w_c_c = w_c;
+      complex_t num(1.0, 0.0);
       if (res_lim != 0.0)
       {
          real_t expw_c = exp(-pow(1.0 - w_c.real() / omega, 2));
-         w_c_c -= complex<real_t>(0.0, res_lim * omega * expw_c);
-         num += complex<real_t>(0.0, 0.5 * res_lim * expw_c);
+         w_c_c -= complex_t(0.0, res_lim * omega * expw_c);
+         num += complex_t(0.0, 0.5 * res_lim * expw_c);
       }
-      complex<real_t> w_p = omega_p(n, q, m_eff);
+      complex_t w_p = omega_p(n, q, m_eff);
       val -= w_p * w_p * num / ((omega + w_c) * (omega - w_c_c));
 
    }
    return val;
 }
 
-complex<real_t> D_cold_plasma(real_t omega,
-                              real_t Bmag,
-                              real_t nue,
-                              real_t nui,
-                              const Vector & number,
-                              const Vector & charge,
-                              const Vector & mass,
-                              const Vector & temp,
-                              int nuprof,
-                              real_t res_lim)
+complex_t D_cold_plasma(real_t omega,
+                        real_t Bmag,
+                        real_t nue,
+                        real_t nui,
+                        const Vector & number,
+                        const Vector & charge,
+                        const Vector & mass,
+                        const Vector & temp,
+                        int nuprof,
+                        real_t res_lim)
 {
-   complex<real_t> val(0.0, 0.0);
+   complex_t val(0.0, 0.0);
    real_t n = number[0];
    real_t q = charge[0];
    real_t m = mass[0];
@@ -169,7 +169,7 @@ complex<real_t> D_cold_plasma(real_t omega,
    real_t nuei = (nuprof == 0) ?
                  nu_ei(q, coul_log, m, Te, n) :
                  nue;
-   complex<real_t> collision_correction(1.0, nuei/omega);
+   complex_t collision_correction(1.0, nuei/omega);
    real_t nui_res = 0.0;
 
    for (int i=0; i<number.Size(); i++)
@@ -177,34 +177,34 @@ complex<real_t> D_cold_plasma(real_t omega,
       real_t n = number[i];
       real_t q = charge[i];
       real_t m = mass[i];
-      complex<real_t> m_eff = m;
+      complex_t m_eff = m;
       if (i == 0) { m_eff = m*collision_correction; }
       if (i == 1) { nui_res = nui; }
-      complex<real_t> w_c =
-         omega_c(Bmag, q, m_eff) - complex<real_t>(0.0, nui_res);
-      complex<real_t> w_c_c = w_c;
-      complex<real_t> num = w_c;
+      complex_t w_c =
+         omega_c(Bmag, q, m_eff) - complex_t(0.0, nui_res);
+      complex_t w_c_c = w_c;
+      complex_t num = w_c;
       if (res_lim != 0.0)
       {
          real_t expw_c = exp(-pow(1.0 - w_c.real() / omega, 2));
-         w_c_c -= complex<real_t>(0.0, res_lim * omega * expw_c);
-         num -= complex<real_t>(0.0, 0.5 * omega * res_lim * expw_c);
+         w_c_c -= complex_t(0.0, res_lim * omega * expw_c);
+         num -= complex_t(0.0, 0.5 * omega * res_lim * expw_c);
       }
-      complex<real_t> w_p = omega_p(n, q, m_eff);
+      complex_t w_p = omega_p(n, q, m_eff);
       val += w_p * w_p * num / (omega * (omega + w_c) * (omega - w_c_c));
    }
    return val;
 }
 
-complex<real_t> P_cold_plasma(real_t omega,
-                              real_t nue,
-                              const Vector & number,
-                              const Vector & charge,
-                              const Vector & mass,
-                              const Vector & temp,
-                              int nuprof)
+complex_t P_cold_plasma(real_t omega,
+                        real_t nue,
+                        const Vector & number,
+                        const Vector & charge,
+                        const Vector & mass,
+                        const Vector & temp,
+                        int nuprof)
 {
-   complex<real_t> val(1.0, 0.0);
+   complex_t val(1.0, 0.0);
    real_t n = number[0];
    real_t q = charge[0];
    real_t m = mass[0];
@@ -213,16 +213,16 @@ complex<real_t> P_cold_plasma(real_t omega,
    real_t nuei = (nuprof == 0) ?
                  nu_ei(q, coul_log, m, Te, n) :
                  nue;
-   complex<real_t> collision_correction(1.0, nuei/omega);
+   complex_t collision_correction(1.0, nuei/omega);
 
    for (int i=0; i<number.Size(); i++)
    {
       real_t n = number[i];
       real_t q = charge[i];
       real_t m = mass[i];
-      complex<real_t> m_eff = m;
+      complex_t m_eff = m;
       if (i == 0) { m_eff = m*collision_correction; }
-      complex<real_t> w_p = omega_p(n, q, m_eff);
+      complex_t w_p = omega_p(n, q, m_eff);
       val -= w_p * w_p / (omega * omega);
    }
    if (fabs(val.real()) < 1e-4)
@@ -313,9 +313,9 @@ real_t StixLCoef::Eval(ElementTransformation &T,
    this->fillTemperatureVals(T, ip);
 
    // Evaluate Stix Coefficient
-   complex<real_t> L = L_cold_plasma(omega_, Bmag, nue_vals_, nui_vals_,
-                                     density_vals_, charges_, masses_,
-                                     temperature_vals_, nuprof_, res_lim_);
+   complex_t L = L_cold_plasma(omega_, Bmag, nue_vals_, nui_vals_,
+                               density_vals_, charges_, masses_,
+                               temperature_vals_, nuprof_, res_lim_);
 
    // Return the selected component
    if (re_im_part_ == REAL_PART)
@@ -344,9 +344,9 @@ real_t StixRCoef::Eval(ElementTransformation &T,
    this->fillTemperatureVals(T, ip);
 
    // Evaluate Stix Coefficient
-   complex<real_t> R = R_cold_plasma(omega_, Bmag, nue_vals_, nui_vals_,
-                                     density_vals_, charges_, masses_,
-                                     temperature_vals_, nuprof_);
+   complex_t R = R_cold_plasma(omega_, Bmag, nue_vals_, nui_vals_,
+                               density_vals_, charges_, masses_,
+                               temperature_vals_, nuprof_);
 
    // Return the selected component
    if (re_im_part_ == REAL_PART)
@@ -375,9 +375,9 @@ real_t StixSCoef::Eval(ElementTransformation &T,
    this->fillTemperatureVals(T, ip);
 
    // Evaluate Stix Coefficient
-   complex<real_t> S = S_cold_plasma(omega_, Bmag, nue_vals_, nui_vals_,
-                                     density_vals_, charges_, masses_,
-                                     temperature_vals_, nuprof_, res_lim_);
+   complex_t S = S_cold_plasma(omega_, Bmag, nue_vals_, nui_vals_,
+                               density_vals_, charges_, masses_,
+                               temperature_vals_, nuprof_, res_lim_);
 
    // Return the selected component
    if (re_im_part_ == REAL_PART)
@@ -406,9 +406,9 @@ real_t StixDCoef::Eval(ElementTransformation &T,
    this->fillTemperatureVals(T, ip);
 
    // Evaluate Stix Coefficient
-   complex<real_t> D = D_cold_plasma(omega_, Bmag, nue_vals_, nui_vals_,
-                                     density_vals_, charges_, masses_,
-                                     temperature_vals_, nuprof_, res_lim_);
+   complex_t D = D_cold_plasma(omega_, Bmag, nue_vals_, nui_vals_,
+                               density_vals_, charges_, masses_,
+                               temperature_vals_, nuprof_, res_lim_);
 
    // Return the selected component
    if (re_im_part_ == REAL_PART)
@@ -434,9 +434,9 @@ real_t StixPCoef::Eval(ElementTransformation &T,
    this->fillTemperatureVals(T, ip);
 
    // Evaluate Stix Coefficient
-   complex<real_t> P = P_cold_plasma(omega_, nue_vals_, density_vals_,
-                                     charges_, masses_, temperature_vals_,
-                                     nuprof_);
+   complex_t P = P_cold_plasma(omega_, nue_vals_, density_vals_,
+                               charges_, masses_, temperature_vals_,
+                               nuprof_);
 
    // Return the selected component
    if (re_im_part_ == REAL_PART)
@@ -461,18 +461,18 @@ real_t StixInvSPCoef::Eval(ElementTransformation &T,
    this->fillTemperatureVals(T, ip);
 
    // Evaluate Stix Coefficient
-   complex<real_t> S = S_cold_plasma(omega_, Bmag, nue_vals_, nui_vals_,
-                                     density_vals_, charges_, masses_,
-                                     temperature_vals_, nuprof_, res_lim_);
-   complex<real_t> P = P_cold_plasma(omega_, nue_vals_, density_vals_,
-                                     charges_, masses_, temperature_vals_,
-                                     nuprof_);
+   complex_t S = S_cold_plasma(omega_, Bmag, nue_vals_, nui_vals_,
+                               density_vals_, charges_, masses_,
+                               temperature_vals_, nuprof_, res_lim_);
+   complex_t P = P_cold_plasma(omega_, nue_vals_, density_vals_,
+                               charges_, masses_, temperature_vals_,
+                               nuprof_);
 
-   complex<real_t> SP = S * P;
+   complex_t SP = S * P;
    real_t absSP = std::abs(SP);
    real_t argSP = std::arg(SP);
-   complex<real_t> InvSP = (absSP > 1e-4) ? 1.0 / (S * P) :
-                           std::polar(1e4, -argSP);
+   complex_t InvSP = (absSP > 1e-4) ? 1.0 / (S * P) :
+                     std::polar(1e4, -argSP);
 
    // Return the selected component
    if (re_im_part_ == REAL_PART)
@@ -502,17 +502,17 @@ real_t StixWaveLengthCoef::Eval(ElementTransformation &T,
    this->fillTemperatureVals(T, ip);
 
    // Evaluate Stix Coefficient
-   complex<real_t> S = S_cold_plasma(omega_, Bmag, nue_vals_, nui_vals_,
-                                     density_vals_, charges_, masses_,
-                                     temperature_vals_, nuprof_, res_lim_);
-   complex<real_t> D = D_cold_plasma(omega_, Bmag, nue_vals_, nui_vals_,
-                                     density_vals_, charges_, masses_,
-                                     temperature_vals_, nuprof_, res_lim_);
-   complex<real_t> P = P_cold_plasma(omega_, nue_vals_, density_vals_,
-                                     charges_, masses_, temperature_vals_,
-                                     nuprof_);
+   complex_t S = S_cold_plasma(omega_, Bmag, nue_vals_, nui_vals_,
+                               density_vals_, charges_, masses_,
+                               temperature_vals_, nuprof_, res_lim_);
+   complex_t D = D_cold_plasma(omega_, Bmag, nue_vals_, nui_vals_,
+                               density_vals_, charges_, masses_,
+                               temperature_vals_, nuprof_, res_lim_);
+   complex_t P = P_cold_plasma(omega_, nue_vals_, density_vals_,
+                               charges_, masses_, temperature_vals_,
+                               nuprof_);
 
-   complex<real_t> kappa;
+   complex_t kappa;
 
    switch (type_)
    {
@@ -562,17 +562,17 @@ real_t StixAdmittanceCoef::Eval(ElementTransformation &T,
    this->fillTemperatureVals(T, ip);
 
    // Evaluate Stix Coefficient
-   complex<real_t> S = S_cold_plasma(omega_, Bmag, nue_vals_, nui_vals_,
-                                     density_vals_, charges_, masses_,
-                                     temperature_vals_, nuprof_, res_lim_);
-   complex<real_t> D = D_cold_plasma(omega_, Bmag, nue_vals_, nui_vals_,
-                                     density_vals_, charges_, masses_,
-                                     temperature_vals_, nuprof_, res_lim_);
-   complex<real_t> P = P_cold_plasma(omega_, nue_vals_, density_vals_,
-                                     charges_, masses_, temperature_vals_,
-                                     nuprof_);
+   complex_t S = S_cold_plasma(omega_, Bmag, nue_vals_, nui_vals_,
+                               density_vals_, charges_, masses_,
+                               temperature_vals_, nuprof_, res_lim_);
+   complex_t D = D_cold_plasma(omega_, Bmag, nue_vals_, nui_vals_,
+                               density_vals_, charges_, masses_,
+                               temperature_vals_, nuprof_, res_lim_);
+   complex_t P = P_cold_plasma(omega_, nue_vals_, density_vals_,
+                               charges_, masses_, temperature_vals_,
+                               nuprof_);
 
-   complex<real_t> etaInv;
+   complex_t etaInv;
 
    switch (type_)
    {
@@ -669,15 +669,15 @@ void DielectricTensor::Eval(DenseMatrix &epsilon, ElementTransformation &T,
    this->fillTemperatureVals(T, ip);
 
    // Evaluate the Stix Coefficients
-   complex<real_t> S = S_cold_plasma(omega_, Bmag, nue_vals_, nui_vals_,
-                                     density_vals_, charges_, masses_,
-                                     temperature_vals_, nuprof_, res_lim_);
-   complex<real_t> P = P_cold_plasma(omega_, nue_vals_, density_vals_,
-                                     charges_, masses_, temperature_vals_,
-                                     nuprof_);
-   complex<real_t> D = D_cold_plasma(omega_, Bmag, nue_vals_, nui_vals_,
-                                     density_vals_, charges_, masses_,
-                                     temperature_vals_, nuprof_, res_lim_);
+   complex_t S = S_cold_plasma(omega_, Bmag, nue_vals_, nui_vals_,
+                               density_vals_, charges_, masses_,
+                               temperature_vals_, nuprof_, res_lim_);
+   complex_t P = P_cold_plasma(omega_, nue_vals_, density_vals_,
+                               charges_, masses_, temperature_vals_,
+                               nuprof_);
+   complex_t D = D_cold_plasma(omega_, Bmag, nue_vals_, nui_vals_,
+                               density_vals_, charges_, masses_,
+                               temperature_vals_, nuprof_, res_lim_);
 
    if (re_im_part_ == REAL_PART)
    {
@@ -717,21 +717,21 @@ void InverseDielectricTensor::Eval(DenseMatrix &epsilonInv,
    this->fillTemperatureVals(T, ip);
 
    // Evaluate the Stix Coefficients
-   complex<real_t> S = S_cold_plasma(omega_, Bmag, nue_vals_, nui_vals_,
-                                     density_vals_, charges_, masses_,
-                                     temperature_vals_, nuprof_, res_lim_);
-   complex<real_t> P = P_cold_plasma(omega_, nue_vals_, density_vals_,
-                                     charges_, masses_, temperature_vals_,
-                                     nuprof_);
-   complex<real_t> D = D_cold_plasma(omega_, Bmag, nue_vals_, nui_vals_,
-                                     density_vals_, charges_, masses_,
-                                     temperature_vals_, nuprof_, res_lim_);
+   complex_t S = S_cold_plasma(omega_, Bmag, nue_vals_, nui_vals_,
+                               density_vals_, charges_, masses_,
+                               temperature_vals_, nuprof_, res_lim_);
+   complex_t P = P_cold_plasma(omega_, nue_vals_, density_vals_,
+                               charges_, masses_, temperature_vals_,
+                               nuprof_);
+   complex_t D = D_cold_plasma(omega_, Bmag, nue_vals_, nui_vals_,
+                               density_vals_, charges_, masses_,
+                               temperature_vals_, nuprof_, res_lim_);
 
-   complex<real_t> Q = S * S - D * D;
-   complex<real_t> QInv = 1.0 / Q;
-   complex<real_t> SInv = S * QInv;
-   complex<real_t> PInv = 1.0 / P;
-   complex<real_t> DInv = D * QInv;
+   complex_t Q = S * S - D * D;
+   complex_t QInv = 1.0 / Q;
+   complex_t SInv = S * QInv;
+   complex_t PInv = 1.0 / P;
+   complex_t DInv = D * QInv;
 
    if (re_im_part_ == REAL_PART)
    {
@@ -769,15 +769,15 @@ void SPDDielectricTensor::Eval(DenseMatrix &epsilon, ElementTransformation &T,
    this->fillDensityVals(T, ip);
    this->fillTemperatureVals(T, ip);
 
-   complex<real_t> S = S_cold_plasma(omega_, Bmag, nue_vals_, nui_vals_,
-                                     density_vals_, charges_, masses_,
-                                     temperature_vals_, nuprof_, res_lim_);
-   complex<real_t> P = P_cold_plasma(omega_, nue_vals_, density_vals_,
-                                     charges_, masses_, temperature_vals_,
-                                     nuprof_);
-   complex<real_t> D = D_cold_plasma(omega_, Bmag, nue_vals_, nui_vals_,
-                                     density_vals_, charges_, masses_,
-                                     temperature_vals_, nuprof_, res_lim_);
+   complex_t S = S_cold_plasma(omega_, Bmag, nue_vals_, nui_vals_,
+                               density_vals_, charges_, masses_,
+                               temperature_vals_, nuprof_, res_lim_);
+   complex_t P = P_cold_plasma(omega_, nue_vals_, density_vals_,
+                               charges_, masses_, temperature_vals_,
+                               nuprof_);
+   complex_t D = D_cold_plasma(omega_, Bmag, nue_vals_, nui_vals_,
+                               density_vals_, charges_, masses_,
+                               temperature_vals_, nuprof_, res_lim_);
 
    epsilon(0,0) = abs(S + (P - S) * BVec_(0) * BVec_(0));
    epsilon(1,1) = abs(S + (P - S) * BVec_(1) * BVec_(1));
@@ -1463,9 +1463,9 @@ void ColdPlasmaPlaneWaveE::ComputePolarizationVectorE()
       break;
       case 'X':
       {
-         complex<real_t> den = sqrt(S_ * S_ + D_ * D_);
-         complex<real_t> ec  = D_ / den;
-         complex<real_t> ecc = S_ / den;
+         complex_t den = sqrt(S_ * S_ + D_ * D_);
+         complex_t ec  = D_ / den;
+         complex_t ecc = S_ / den;
 
          e_r_.Set(ecc.real(), kxb_);
          e_r_.Add( ec.imag(), k_dir_);
@@ -1481,7 +1481,7 @@ void ColdPlasmaPlaneWaveE::Eval(Vector &V, ElementTransformation &T,
 {
    V.SetSize(3);
 
-   complex<real_t> i = complex<real_t>(0.0,1.0);
+   complex_t i = complex_t(0.0,1.0);
 
    real_t x_data[3];
    Vector x(x_data, 3);
@@ -1495,13 +1495,13 @@ void ColdPlasmaPlaneWaveE::Eval(Vector &V, ElementTransformation &T,
    this->ComputeWaveVector();
    this->ComputePolarizationVectorE();
 
-   complex<real_t> kx = 0.0;
+   complex_t kx = 0.0;
    for (int d=0; d<x.Size(); d++)
    {
       kx += (k_r_[d] - beta_r_[d] + i * (k_i_[d] - beta_i_[d])) * x[d];
    }
 
-   complex<real_t> e_mag = exp(i * kx);
+   complex_t e_mag = exp(i * kx);
 
    if (re_im_part_ == REAL_PART)
    {
@@ -1543,7 +1543,7 @@ void ColdPlasmaPlaneWaveH::Eval(Vector &V, ElementTransformation &T,
 {
    V.SetSize(3);
 
-   complex<real_t> i = complex<real_t>(0.0,1.0);
+   complex_t i = complex_t(0.0,1.0);
 
    real_t x_data[3];
    Vector x(x_data, 3);
@@ -1557,13 +1557,13 @@ void ColdPlasmaPlaneWaveH::Eval(Vector &V, ElementTransformation &T,
    this->ComputeWaveVector();
    this->ComputePolarizationVectorH();
 
-   complex<real_t> kx = 0.0;
+   complex_t kx = 0.0;
    for (int d=0; d<x.Size(); d++)
    {
       kx += (k_r_[d] - beta_r_[d] + i * (k_i_[d] - beta_i_[d])) * x[d];
    }
 
-   complex<real_t> h_mag = exp(i * (kx - omega_ * time));
+   complex_t h_mag = exp(i * (kx - omega_ * time));
 
    if (re_im_part_ == REAL_PART)
    {
@@ -1595,7 +1595,7 @@ void ColdPlasmaCenterFeedE::Eval(Vector &V, ElementTransformation &T,
 {
    V.SetSize(3);
 
-   complex<real_t> i = complex<real_t>(0.0,1.0);
+   complex_t i = complex_t(0.0,1.0);
 
    real_t x_data[3];
    Vector x(x_data, 3);
@@ -1701,7 +1701,7 @@ void ColdPlasmaCenterFeedH::Eval(Vector &V, ElementTransformation &T,
 {
    V.SetSize(3);
 
-   complex<real_t> i = complex<real_t>(0.0,1.0);
+   complex_t i = complex_t(0.0,1.0);
 
    real_t x_data[3];
    Vector x(x_data, 3);
@@ -1819,7 +1819,7 @@ void ColdPlasmaCenterFeedJ::Eval(Vector &V, ElementTransformation &T,
 
    if (x[0] > j_pos_ - 0.5 * j_dx_ && x[0] < j_pos_ + 0.5 * j_dx_)
    {
-      complex<real_t> i = complex<real_t>(0.0,1.0);
+      complex_t i = complex_t(0.0,1.0);
 
       this->ComputeFieldAxes(T, ip);
       if (type_ == 'X')

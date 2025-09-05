@@ -26,17 +26,17 @@ namespace plasma
 {
 
 // Cyclotron frequency (Radians / second)
-inline std::complex<real_t> omega_c(real_t Bmag             /* Tesla */,
-                                    real_t charge /* electron charge */,
-                                    std::complex<real_t> mass /* AMU */)
+inline complex_t omega_c(real_t Bmag             /* Tesla */,
+                         real_t charge /* electron charge */,
+                         complex_t mass /* AMU */)
 {
    return (charge * q_ * Bmag) / (mass * amu_);
 }
 
 // Plasma frequency (Radians / second)
-inline std::complex<real_t> omega_p(real_t number /* particles / m^3 */,
-                                    real_t charge /* electron charge */,
-                                    std::complex<real_t> mass /* AMU */)
+inline complex_t omega_p(real_t number /* particles / m^3 */,
+                         real_t charge /* electron charge */,
+                         complex_t mass /* AMU */)
 {
    return fabs(charge * q_) * 1.0 * sqrt(number / (epsilon0_ * mass * amu_));
 }
@@ -56,47 +56,47 @@ inline real_t nu_ei(real_t charge, real_t coul_log, real_t mass,
            * pow(Te, 1.5));
 }
 
-std::complex<real_t> R_cold_plasma(real_t omega, real_t Bmag,
-                                   real_t nue, real_t nui,
-                                   const Vector & number,
-                                   const Vector & charge,
-                                   const Vector & mass,
-                                   const Vector & temp,
-                                   int nuprof);
+complex_t R_cold_plasma(real_t omega, real_t Bmag,
+                        real_t nue, real_t nui,
+                        const Vector & number,
+                        const Vector & charge,
+                        const Vector & mass,
+                        const Vector & temp,
+                        int nuprof);
 
-std::complex<real_t> L_cold_plasma(real_t omega, real_t Bmag,
-                                   real_t nue, real_t nui,
-                                   const Vector & number,
-                                   const Vector & charge,
-                                   const Vector & mass,
-                                   const Vector & temp,
-                                   int nuprof,
-                                   real_t res_lim);
+complex_t L_cold_plasma(real_t omega, real_t Bmag,
+                        real_t nue, real_t nui,
+                        const Vector & number,
+                        const Vector & charge,
+                        const Vector & mass,
+                        const Vector & temp,
+                        int nuprof,
+                        real_t res_lim);
 
-std::complex<real_t> P_cold_plasma(real_t omega, real_t nue,
-                                   const Vector & number,
-                                   const Vector & charge,
-                                   const Vector & mass,
-                                   const Vector & temp,
-                                   int nuprof);
+complex_t P_cold_plasma(real_t omega, real_t nue,
+                        const Vector & number,
+                        const Vector & charge,
+                        const Vector & mass,
+                        const Vector & temp,
+                        int nuprof);
 
-std::complex<real_t> S_cold_plasma(real_t omega, real_t Bmag,
-                                   real_t nue, real_t nui,
-                                   const Vector & number,
-                                   const Vector & charge,
-                                   const Vector & mass,
-                                   const Vector & temp,
-                                   int nuprof,
-                                   real_t res_lim);
+complex_t S_cold_plasma(real_t omega, real_t Bmag,
+                        real_t nue, real_t nui,
+                        const Vector & number,
+                        const Vector & charge,
+                        const Vector & mass,
+                        const Vector & temp,
+                        int nuprof,
+                        real_t res_lim);
 
-std::complex<real_t> D_cold_plasma(real_t omega, real_t Bmag,
-                                   real_t nue, real_t nui,
-                                   const Vector & number,
-                                   const Vector & charge,
-                                   const Vector & mass,
-                                   const Vector & temp,
-                                   int nuprof,
-                                   real_t res_lim);
+complex_t D_cold_plasma(real_t omega, real_t Bmag,
+                        real_t nue, real_t nui,
+                        const Vector & number,
+                        const Vector & charge,
+                        const Vector & mass,
+                        const Vector & temp,
+                        int nuprof,
+                        real_t res_lim);
 
 struct StixParams
 {
