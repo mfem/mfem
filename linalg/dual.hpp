@@ -309,15 +309,6 @@ dual<value_type, gradient_type> sin(dual<value_type, gradient_type> a)
    return {sin(a.value), a.gradient * cos(a.value)};
 }
 
-/** @brief implementation of sinh for dual numbers */
-template <typename value_type, typename gradient_type> MFEM_HOST_DEVICE
-dual<value_type, gradient_type> sinh(dual<value_type, gradient_type> a)
-{
-   using std::sinh;
-   using std::cosh;
-   return {sinh(a.value), a.gradient * cosh(a.value)};
-}
-
 /** @brief implementation of acos for dual numbers */
 template <typename value_type, typename gradient_type> MFEM_HOST_DEVICE
 dual<value_type, gradient_type> acos(dual<value_type, gradient_type> a)
@@ -360,6 +351,34 @@ dual<value_type, gradient_type> exp(dual<value_type, gradient_type> a)
    using std::exp;
    return {exp(a.value), exp(a.value) * a.gradient};
 }
+
+/** @brief implementation of hyperbolic tangent function for dual numbers */
+template <typename value_type, typename gradient_type> MFEM_HOST_DEVICE
+dual<value_type, gradient_type> tanh(dual<value_type, gradient_type> a)
+{
+   using std::tanh;
+   auto th = tanh(a.value);
+   return {th, (1.0 - th * th) * a.gradient};
+}
+
+/** @brief implementation of hyperbolic sine function for dual numbers */
+template <typename value_type, typename gradient_type> MFEM_HOST_DEVICE
+dual<value_type, gradient_type> sinh(dual<value_type, gradient_type> a)
+{
+   using std::sinh;
+   using std::cosh;
+   return { sinh(a.value) , cosh(a.value) * a.gradient};
+}
+
+/** @brief implementation of hyperbolic cosine function for dual numbers */
+template <typename value_type, typename gradient_type> MFEM_HOST_DEVICE
+dual<value_type, gradient_type> cosh(dual<value_type, gradient_type> a)
+{
+   using std::sinh;
+   using std::cosh;
+   return { cosh(a.value) , sinh(a.value) * a.gradient};
+}
+
 
 /** @brief implementation of the natural logarithm function for dual numbers */
 template <typename value_type, typename gradient_type> MFEM_HOST_DEVICE
