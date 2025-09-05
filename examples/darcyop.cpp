@@ -525,7 +525,7 @@ void DarcyOperator::ImplicitSolve(const real_t dt, const Vector &x_v,
    }
 
    darcy->FormLinearSystem(ess_flux_tdofs_list, x, rhs,
-                           op, X, RHS);
+                           op, X, RHS, btime_u || btime_p);
 
 
    chrono.Stop();
