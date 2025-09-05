@@ -1609,8 +1609,14 @@ void ColdPlasmaCenterFeedE::Eval(Vector &V, ElementTransformation &T,
    this->ComputeWaveVector();
    this->ComputePolarizationVectorE();
 
-   complex<real_t> e_mag;
-   complex<real_t> phase;
+   complex_t e_mag;
+   complex_t phase;
+   complex_t kx = 0.0;
+   for (int d=0; d<x.Size(); d++)
+   {
+      kx += (beta_r_[d] + i * beta_i_[d]) * x[d];
+   }
+   phase = exp(-i * kx);
 
    real_t ks = 2.0 * M_PI / j_dx_;
 
@@ -1626,29 +1632,29 @@ void ColdPlasmaCenterFeedE::Eval(Vector &V, ElementTransformation &T,
          e_mag *= 0.5 * M_PI * sinc(M_PI * (1.0 - kappa_ / ks))
                   / (1.0 + kappa_ / ks);
       }
-      phase = exp(i * (-kappa_ * (x[0] - j_pos_) - omega_ * time));
+      phase *= exp(i * (-kappa_ * (x[0] - j_pos_) - omega_ * time));
       e_mag *= phase;
    }
    else if (x[0] < j_pos_ + 0.5 * j_dx_)
    {
       e_mag = 1.0 / kappa_ / kappa_;
 
-      complex<real_t> coskx = cos(kappa_ * (x[0] - j_pos_));
+      complex_t coskx = cos(kappa_ * (x[0] - j_pos_));
       if (j_prof_ == 0)
       {
          e_mag *= coskx * exp(0.5 * i * kappa_ * j_dx_) - 1.0;
       }
       else
       {
-         complex<real_t> kx = kappa_ * (x[0] - j_pos_);
-         complex<real_t> sinkx = sin(kx);
-         complex<real_t> kd = ks - kappa_;
-         complex<real_t> kdn = 1.0 - kappa_ / ks;
-         complex<real_t> kdx = kd * (x[0] - j_pos_);
-         complex<real_t> sinckdx = sinc(kdx);
-         complex<real_t> sinckdx2 = sinc(kdx / 2.0);
-         complex<real_t> sinckdn = sinc(M_PI * kdn);
-         complex<real_t> sinckdn2 = sinc(M_PI * kdn / 2.0);
+         complex_t kx = kappa_ * (x[0] - j_pos_);
+         complex_t sinkx = sin(kx);
+         complex_t kd = ks - kappa_;
+         complex_t kdn = 1.0 - kappa_ / ks;
+         complex_t kdx = kd * (x[0] - j_pos_);
+         complex_t sinckdx = sinc(kdx);
+         complex_t sinckdx2 = sinc(kdx / 2.0);
+         complex_t sinckdn = sinc(M_PI * kdn);
+         complex_t sinckdn2 = sinc(M_PI * kdn / 2.0);
          e_mag *= 0.5 * (coskx *
                          (0.5 * kd *
                           (pow(M_PI * sinckdn2, 2) - pow(kx * sinckdx2, 2))
@@ -1657,7 +1663,7 @@ void ColdPlasmaCenterFeedE::Eval(Vector &V, ElementTransformation &T,
                          - kappa_ * kx * sinkx * sinckdx - ks - kappa_
                         ) / (kappa_ + ks);
       }
-      phase = exp(-i * omega_ * time);
+      phase *= exp(-i * omega_ * time);
       e_mag *= phase;
    }
    else
@@ -1672,7 +1678,7 @@ void ColdPlasmaCenterFeedE::Eval(Vector &V, ElementTransformation &T,
          e_mag *= 0.5 * M_PI * sinc(M_PI * (1.0 - kappa_ / ks))
                   / (1.0 + kappa_ / ks);
       }
-      phase = exp(i * (kappa_ * (x[0] - j_pos_) - omega_ * time));
+      phase *= exp(i * (kappa_ * (x[0] - j_pos_) - omega_ * time));
       e_mag *= phase;
    }
 
@@ -1715,8 +1721,14 @@ void ColdPlasmaCenterFeedH::Eval(Vector &V, ElementTransformation &T,
    this->ComputeWaveVector();
    this->ComputePolarizationVectorH();
 
-   complex<real_t> h_mag;
-   complex<real_t> phase;
+   complex_t h_mag;
+   complex_t phase;
+   complex_t kx = 0.0;
+   for (int d=0; d<x.Size(); d++)
+   {
+      kx += (beta_r_[d] + i * beta_i_[d]) * x[d];
+   }
+   phase = exp(-i * kx);
 
    real_t ks = 2.0 * M_PI / j_dx_;
 
@@ -1732,7 +1744,7 @@ void ColdPlasmaCenterFeedH::Eval(Vector &V, ElementTransformation &T,
          h_mag *= 0.5 * M_PI * sinc(M_PI * (1.0 - kappa_ / ks))
                   / (1.0 + kappa_ / ks);
       }
-      phase = exp(i * (-kappa_ * (x[0] - j_pos_) - omega_ * time));
+      phase *= exp(i * (-kappa_ * (x[0] - j_pos_) - omega_ * time));
       h_mag *= phase;
    }
    else if (x[0] < j_pos_ + 0.5 * j_dx_)
@@ -1750,7 +1762,7 @@ void ColdPlasmaCenterFeedH::Eval(Vector &V, ElementTransformation &T,
                   exp(0.5 * i * kappa_ * j_dx_)
                   + sin(ks * (x[0] - j_pos_)) * kappa_ / ks;
       }
-      phase = exp(-i * omega_ * time);
+      phase *= exp(-i * omega_ * time);
       h_mag *= phase;
    }
    else
@@ -1765,7 +1777,7 @@ void ColdPlasmaCenterFeedH::Eval(Vector &V, ElementTransformation &T,
          h_mag *= 0.5 * M_PI * sinc(M_PI * (1.0 - kappa_ / ks))
                   / (1.0 + kappa_ / ks);
       }
-      phase = exp(i * (kappa_ * (x[0] - j_pos_) - omega_ * time));
+      phase *= exp(i * (kappa_ * (x[0] - j_pos_) - omega_ * time));
       h_mag *= phase;
    }
 
@@ -1843,7 +1855,13 @@ void ColdPlasmaCenterFeedJ::Eval(Vector &V, ElementTransformation &T,
       {
          j_mag *= pow(cos(M_PI * (x[0] - j_pos_) / j_dx_), 2.0);
       }
-      complex_t phase = exp(-i * omega_ * time);
+
+      complex_t kx = 0.0;
+      for (int d=0; d<x.Size(); d++)
+      {
+         kx += (beta_r_[d] + i * beta_i_[d]) * x[d];
+      }
+      complex_t phase = exp(-i * (kx + omega_ * time));
       j_mag *= phase;
 
       if (re_im_part_ == REAL_PART)

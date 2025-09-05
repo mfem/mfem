@@ -288,25 +288,7 @@ public:
                        const IntegrationPoint &ip);
    virtual ~StixWaveLengthCoef() {}
 };
-/*
-class StixDensityCoef: public Coefficient, public StixCoefBase
-{
-private:
- real_t a_;
- int p_;
 
-public:
- StixDensityCoef(StixParams &stix_params,
-                 bool realPart,
-                 real_t a, int p);
-
- StixDensityCoef(StixCoefBase &s) : StixCoefBase(s) {}
-
- virtual real_t Eval(ElementTransformation &T,
-                     const IntegrationPoint &ip);
- virtual ~StixDensityCoef() {}
-};
-*/
 class StixAdmittanceCoef: public Coefficient, public StixCoefBase
 {
 private:
@@ -746,6 +728,12 @@ public:
    void SetPhaseShift(const Vector & beta_r,
                       const Vector & beta_i)
    { beta_r_ = beta_r; beta_i_ = beta_i; }
+
+   void ClearPhaseShift()
+   { beta_r_ = 0.0; beta_i_ = 0.0; }
+
+   void InvertPhaseShift()
+   { beta_r_ *= -1.0; beta_i_ *= -1.0; }
 
    void GetWaveVector(Vector & k_r, Vector & k_i) const
    { k_r = k_r_; k_i = k_i_; }
