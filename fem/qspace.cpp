@@ -305,13 +305,36 @@ void FaceQuadratureSpace::Save(std::ostream &os) const
 
 const Vector &FaceQuadratureSpace::GetGeometricFactorWeights() const
 {
-   auto flags = FaceGeometricFactors::DETERMINANTS;
-   // TODO: assumes only one integration rule. This should be fixed once
-   // Mesh::GetFaceGeometricFactors acceps a QuadratureSpace instead of
-   // IntegrationRule.
-   const IntegrationRule &ir = GetIntRule(0);
-   auto *geom = mesh.GetFaceGeometricFactors(ir, flags, face_type);
-   return geom->detJ;
+   if (mesh.MeshGenerator() == (1 << 1)) // only tensor product elements
+   {
+      auto flags = FaceGeometricFactors::DETERMINANTS;
+      const IntegrationRule &ir = GetIntRule(0);
+      auto *geom = mesh.GetFaceGeometricFactors(ir, flags, face_type);
+      return geom->detJ;
+   }
+   else
+   {
+      if (non_tensor_weights.Size() == 0)
+      {
+         non_tensor_weights.SetSize(size);
+         int idx = 0;
+         for (int f = 0; f < face_indices.Size(); ++f)
+         {
+            const int f_idx = face_indices[f];
+            const Geometry::Type geom = mesh.GetFaceGeometry(f_idx);
+            ElementTransformation &T = *mesh.GetFaceTransformation(f_idx);
+            const IntegrationRule &ir = *int_rule[geom];
+            for (int q = 0; q < ir.Size(); ++q)
+            {
+               const IntegrationPoint &ip = ir.IntPoint(q);
+               T.SetIntPoint(&ip);
+               non_tensor_weights[idx] = T.Weight();
+               idx += 1;
+            }
+         }
+      }
+      return non_tensor_weights;
+   }
 }
 
 } // namespace mfem
