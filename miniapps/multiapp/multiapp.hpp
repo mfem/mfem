@@ -16,20 +16,10 @@
 #include "mfem.hpp"
 #include "fpi_solver.hpp"
 
-// #include <algorithm>
-// #include <memory>
-#include <vector>
-// #include <type_traits> // std::is_base_of
-// #include <experimental/type_traits>
-// #include <utility>
-#include <tuple>
-
-
 namespace mfem
 {
 
 using namespace std;
-
 
 /**
  * @brief Base class for transfering fields (GridFunctions) on meshes. The extension
@@ -96,6 +86,8 @@ public:
 
     /**
      * @brief Constructor given a source mesh and coordinates to be transferred
+     * @param src Source mesh (does not own)
+     * @param coordinates Coordinates where the values are to be interpolated
      */
     GSLibTransfer(ParMesh *src, Vector &coordinates) : src_mesh(src), finder(src_mesh->GetComm())
                  {
@@ -106,6 +98,9 @@ public:
     
     /**
      * @brief Constructor given a source and target ParFiniteElementSpace
+     * @param src Source ParFiniteElementSpace
+     * @param dst Target ParFiniteElementSpace
+     * @param attr Attributes (optional) mesh markers for transfer
      */
     GSLibTransfer(ParFiniteElementSpace &src,
                   ParFiniteElementSpace &dst,
@@ -120,6 +115,9 @@ public:
 
     /**
      * @brief Constructor given a source and target ParGridFunction
+     * @param src Source ParGridFunction
+     * @param dst Target ParGridFunction
+     * @param attr Attributes (optional) mesh markers for transfer
      */
     GSLibTransfer(ParGridFunction &src_gf, 
                   ParGridFunction &dst_gf,
@@ -140,7 +138,7 @@ public:
     }
 
     /**
-     * @brief Compute coordinates from the FiniteElementSpaces
+     * @brief Compute coordinates from the target ParFiniteElementSpaces
      */
     void ComputeCoordinates()
     {
@@ -197,6 +195,11 @@ public:
         }
     }
 
+    /**
+     * @brief Transfer from source to target ParGridFunction
+     * @param src Source ParGridFunction
+     * @param dst Target ParGridFunction
+     */
     virtual void Transfer(const ParGridFunction &src, ParGridFunction &dst) override
     {        
         finder.Interpolate(src,interp_vals);
@@ -244,16 +247,30 @@ protected:
 
 public:
 
+    /**
+     * @brief Constructor given a source and target ParGridFunction
+     * @param src Source ParGridFunction
+     * @param dst Target ParGridFunction
+     */
     LinkedFields(ParGridFunction &src, ParGridFunction &dst) : source(src)
     {
         AddDestination(dst);
     }
 
+    /**
+     * @brief Constructor given a source and target ParGridFunction
+     * @param src Source ParGridFunction
+     * @param dst Target ParGridFunction
+     * @param transfer_map FieldTransfer operator from src to dst
+     */
     LinkedFields(ParGridFunction &src, ParGridFunction &dst, FieldTransfer &transfer_map) : source(src)
     {
         AddDestination(dst, transfer_map);
     }
     
+    /**
+     * @brief Add a ParGridFunction to the list of targets
+     */
     void AddDestination(ParGridFunction &dst)
     {
         if(transfer_type == Type::NATIVE)
@@ -267,12 +284,20 @@ public:
         ndest++;
     }
 
+    /**
+     * @brief Add a ParGridFunction with a specified FieldTransfer operator to the list of targets
+     */
     void AddDestination(ParGridFunction &dst, FieldTransfer &transfer_map)
     {
         destinations.push_back(std::make_tuple(&dst, &transfer_map, false));
         ndest++;
     }
 
+    /**
+     * @brief Transfer from source to all the @a idest destination. If the source vector is the same size
+     * @param vsrc the source vector to transfer from; if the size matches the source ParGridFunction, it is used to set the GridFunction
+     * @param idest the index of the destination to transfer to. If <0 (default) transfer to all destinations
+     */
     virtual void Transfer(const Vector &vsrc, const int idest=-1)
     {
         if(vsrc.Size() == source.ParFESpace()->GetVSize() )
@@ -282,7 +307,9 @@ public:
         Transfer(idest);
     }
 
-    // Transfer from internally stored grid function to the destination
+    /**
+     * @brief Transfer internally stored ParGridFunction from source to all the @a idest destination; if @a idest <0 (default) transfer to all destinations
+     */
     virtual void Transfer(const int idest = -1)
     {
         if(idest >= 0)
@@ -326,7 +353,7 @@ public:
         MFEM_TDO,       ///< MFEM TimeDependentOperator
         MFEM_SOLVER,    ///< MFEM Solver
         MFEM_ODESOLVER, ///< MFEM ODESolver
-        NOT_MFEM_OBJECT ///<  
+        NOT_MFEM_OBJECT ///< Object is not derived from an MFEM class 
     };
 
     /**
@@ -347,7 +374,7 @@ public:
 protected:
 
     int oper_index = numeric_limits<int>::max();
-    std::vector<LinkedFields*> linked_fields;
+    std::vector<LinkedFields*> linked_fields; ///< List of linked fields
     OperatorType operator_type = OperatorType::ANY_TYPE; ///< Type of the operator
     OperationID operation_id = OperationID::NONE;
 
@@ -355,7 +382,6 @@ protected:
     std::function<void (Vector&)> post_process_func; ///< Post-process function
 
 public:
-
 
     Application(int n=0) : TimeDependentOperator(n) {}
 
@@ -566,7 +592,7 @@ public:
 /**
  * @brief An abstract class to define the interface for operators that can be used
  * with applications. It provides a way to check if the application has the required
- * member functions and implements the Mult, Solve, and Step methods.
+ * member functions and implements the Mult, and Step methods to call the stored object's functions.
  */
 template <typename OpType>
 class AbstractOperator : public Application
@@ -622,7 +648,7 @@ public:
     constexpr bool HasMult(){return CheckMember<OpType>::HasMult;}
     constexpr bool HasStep(){return CheckMember<OpType>::HasStep;}
 
-
+    /// @brief Constructor for the type-erased AbstractOperator class
     AbstractOperator(OpType *op_, int h, int w) : Application(h,w), op(op_)
     {    
         // If the operator is an ODESolver, we need access to its time-dependent operator 
@@ -635,9 +661,13 @@ public:
         }
     }
 
+    /// @brief Constructor for the type-erased AbstractOperator class
     AbstractOperator(OpType *op_, int s = 0) : AbstractOperator(op_,s,s) {}
 
 
+    /**
+     * @brief Perform Mult operation with the stored operator, if it exists.
+     */
     void Mult(const Vector &x, Vector &y) const override
     {
         if constexpr (CheckMember<OpType>::HasMult)
@@ -654,6 +684,9 @@ public:
         }
     }
 
+    /**
+     * @brief Perform Step operation with the stored operator, if it exists.
+     */
     void Step(Vector &x, real_t &t, real_t &dt) override
     {
         if constexpr (CheckMember<OpType>::HasStep)
@@ -670,6 +703,9 @@ public:
         }        
     }
 
+    /**
+     * @brief Set the Operation ID to call the appropriate operation
+     */
     void SetOperationID(OperationID id) override
     {
         Application::SetOperationID(id);
@@ -683,7 +719,7 @@ public:
 class CouplingOperator; // forward declaration for CoupledApplication
 
 /**
- * @brief A class to couple multiple operators together.
+ * @brief A class to store multiple, coupled operators together.
  */
 class CoupledApplication : public Application
 {
@@ -782,6 +818,9 @@ public:
         return op;
     }
 
+    /**
+     * @brief Add an operator to the list of coupled operator and return pointer to it.
+     */
     template <class OpType>
     Application* AddOperator(OpType *op_, int s = 0) { return AddOperator(op_,s,s);}
 
@@ -829,7 +868,11 @@ public:
      * the implicit solve
      * @param own If 'true', own @a solver_
      */
-    void SetSolver(Solver *solver_, bool own = false){ solver = solver_; own_solver = own;}
+    void SetSolver(Solver *solver_, bool own = false)
+    { 
+        if(own_solver && solver) delete solver;
+        solver = solver_; own_solver = own;
+    }
 
 
     /**

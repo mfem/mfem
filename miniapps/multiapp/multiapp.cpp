@@ -1,9 +1,7 @@
 #include "multiapp.hpp"
 
-
 namespace mfem
 {
-
 
 CoupledApplication::~CoupledApplication()
 {
@@ -16,7 +14,6 @@ void CoupledApplication::SetCouplingOperator(CouplingOperator* op, bool own){
     coupling_op = op;
     own_coupling_op = own;
 }
-
 
 CouplingOperator *CoupledApplication::BuildCouplingOperator(){
 
@@ -51,7 +48,6 @@ void CoupledApplication::Initialize(bool do_ops)
         }
     }
 }
-
 
 void CoupledApplication::Assemble(bool do_ops)
 {
@@ -88,7 +84,6 @@ void CoupledApplication::Finalize(bool do_ops)
     }
 }
 
-
 void CoupledApplication::PreProcess(Vector &x, bool do_ops) 
 {
     if (do_ops)
@@ -103,7 +98,6 @@ void CoupledApplication::PreProcess(Vector &x, bool do_ops)
     }
 }
 
-
 void CoupledApplication::PostProcess(Vector &x, bool do_ops) 
 {
     if (do_ops)
@@ -117,7 +111,6 @@ void CoupledApplication::PostProcess(Vector &x, bool do_ops)
         }
     }
 }    
-
 
 void CoupledApplication::Transfer(const Vector &x)
 {
@@ -158,7 +151,6 @@ void CoupledApplication::Mult(const Vector &x, Vector &y) const
     }
 }
 
-
 void CoupledApplication::ImplicitSolve(const real_t dt, const Vector &x, Vector &k ){
 
     if(coupling_op && scheme != Scheme::NONE)
@@ -183,7 +175,6 @@ void CoupledApplication::ImplicitSolve(const real_t dt, const Vector &x, Vector 
     }
 }
 
-
 void CoupledApplication::ImplicitMult(const Vector &u, const Vector &k, Vector &v) const 
 {
     BlockVector ub(u.GetData(), offsets);
@@ -200,7 +191,6 @@ void CoupledApplication::ImplicitMult(const Vector &u, const Vector &k, Vector &
     }
 }
 
-
 void CoupledApplication::ExplicitMult(const Vector &u, Vector &v) const
 {
     BlockVector ub(u.GetData(), offsets);
@@ -214,7 +204,6 @@ void CoupledApplication::ExplicitMult(const Vector &u, Vector &v) const
         operators[i]->ExplicitMult(ui,vi); ///< Solve the implicit system for the application
     }
 }
-
 
 void CoupledApplication::Step(Vector &x, real_t &t, real_t &dt)
 {
@@ -238,7 +227,6 @@ void CoupledApplication::Step(Vector &x, real_t &t, real_t &dt)
                  ///< NOTE: does not work for adaptive time-stepping
     }
 }
-
 
 void AdditiveSchwarzOperator::Mult(const Vector &x, Vector &y) const
 {
@@ -277,7 +265,6 @@ void AdditiveSchwarzOperator::Mult(const Vector &x, Vector &y) const
     }
 }
 
-
 void AdditiveSchwarzOperator::ImplicitSolve(const real_t dt, const Vector &x, Vector &k )
 {
     int nops = coupled_operator->Size();
@@ -308,7 +295,6 @@ void AdditiveSchwarzOperator::ImplicitSolve(const real_t dt, const Vector &x, Ve
         op->PostProcess(ki); ///< Postprocess the data for the application        
     }
 }
-
 
 void AdditiveSchwarzOperator::Step(Vector &x, real_t &t_, real_t &dt_)
 {
@@ -347,7 +333,6 @@ void AdditiveSchwarzOperator::Step(Vector &x, real_t &t_, real_t &dt_)
                ///< NOTE: does not work for adaptive time-stepping
 }
 
-
 void AlternatingSchwarzOperator::Mult(const Vector &x, Vector &y) const
 {
     if(GetOperationID() == OperationID::IMPLICIT_SOLVE)
@@ -378,7 +363,6 @@ void AlternatingSchwarzOperator::Mult(const Vector &x, Vector &y) const
     }
 }
 
-
 void AlternatingSchwarzOperator::ImplicitSolve(const real_t dt, const Vector &x, Vector &k )
 {
     int nops = coupled_operator->Size();
@@ -402,7 +386,6 @@ void AlternatingSchwarzOperator::ImplicitSolve(const real_t dt, const Vector &x,
         op->Transfer(xi,ki,dt);     ///< Transfer the data to all applications
     }
 }
-
 
 void AlternatingSchwarzOperator::Step(Vector &x, real_t &t_, real_t &dt_)
 {
@@ -430,21 +413,15 @@ void AlternatingSchwarzOperator::Step(Vector &x, real_t &t_, real_t &dt_)
                ///< NOTE: does not work for adaptive time-stepping
 }
 
-
 void MonolithicOperator::Mult(const Vector &k, Vector &y) const {
     add(du,*u,dt,k,upk); // upk = u + dt*k
     coupled_operator->Transfer(upk);
     coupled_operator->ImplicitMult(upk,k,y); //y = f(upk,k,t)
 }
 
-
 Operator& MonolithicOperator::GetGradient(const Vector &k) const {
     grad.Update(k);
     return const_cast<future::FDJacobian&>(grad);
 }
-
-
-
-
 
 }
