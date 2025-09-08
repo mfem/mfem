@@ -27,7 +27,7 @@ int main(int argc, char *argv[])
     int vis_steps = 10;
     int ode_solver_type = 21;  // (34) SDIRK34Solver, (21) BackwardEulerSolver, (23) SDIRK33Solver, (3) RK3SSPSolver
     int ser_ref = 0;
-    real_t F0 = -1.0e3;
+    real_t force = 2.0;
 
 
     OptionsParser args(argc, argv);
@@ -46,7 +46,7 @@ int main(int argc, char *argv[])
                     "ODESolver id.");
     args.AddOption(&ser_ref, "-rs", "--serial-refine",
                     "Number of times to refine the mesh in serial.");                  
-    args.AddOption(&F0, "-F", "--force", "Applied force.");
+    args.AddOption(&force, "-F", "--force", "Applied force.");
 
     args.ParseCheck();
 
@@ -85,7 +85,7 @@ int main(int argc, char *argv[])
     Vector vzero(dim); vzero = 0.0;
     VectorConstantCoefficient zerovec(vzero);
    
-    real_t E = 5.6e6; 
+    real_t E = 1.4e6; 
     real_t nu = 4.0e-1;
     real_t rho = 1.0e3;
     real_t mu = E / (2.0 * (1.0 + nu));
@@ -98,9 +98,10 @@ int main(int argc, char *argv[])
         std::cout << "Lame's Mu: " << mu << std::endl;
         std::cout << "Lame's Lambda: " << lambda << std::endl;
         std::cout << "Density: " << rho << std::endl;
+        std::cout << "Gravity: " << force << std::endl;
     }
 
-    Elasticity elasticity(x_fes, ess_attr, nat_attr, mu, rho, lambda);
+    Elasticity elasticity(x_fes, ess_attr, nat_attr, rho, mu, lambda);
     
     ParGridFunction &x_gf = elasticity.x_gf;   x_gf = 0.0;
     ParGridFunction &u_gf = elasticity.u_gf;   u_gf = 0.0;
@@ -110,25 +111,22 @@ int main(int argc, char *argv[])
     u_gf.ProjectCoefficient(zerovec);
     stress_gf.ProjectCoefficient(zerovec);
 
-
-    Vector vg(dim); vg = 0.0;
-    vg(1) = -9.81; // Gravity in the y-direction
-    VectorConstantCoefficient gravity(vg);
-    auto force_profile = [&F0](const Vector &x, double t, Vector &u) mutable
+    auto force_profile = [&force](const Vector &x, double t, Vector &u) mutable
     {
         double xi = x(0), xc=0.2;
         double yi = x(1), yc=0.2;
         u = 0.0;
-        if (xi >= 0.5 && xi < 0.55 && yi > 0.2) 
+        // if (xi >= 0.5 && xi < 0.55 && yi > 0.2) 
         {
             u(0) = 0.0;
-            u(1) = F0;
+            u(1) = force;
         }
     };
 
     VectorFunctionCoefficient f_coeff(dim, force_profile);
 
-    stress_gf.ProjectBdrCoefficient(f_coeff, nat_attr);
+    // stress_gf.ProjectBdrCoefficient(f_coeff, nat_attr);
+    stress_gf.ProjectCoefficient(f_coeff);    
     elasticity.Update();
 
     Array<int> offsets({0,x_fes.GetTrueVSize(), x_fes.GetTrueVSize()});
@@ -171,16 +169,16 @@ int main(int argc, char *argv[])
     for (int ti = 1; !last_step; ti++)
     {
         if (t + dt >= t_final - dt/2){ last_step = true; }
-        elasticity.Update();
+        // elasticity.Update();
 
         ode_solver->Step(xu,t,dt);
 
         x_gf.SetFromTrueDofs(xu.GetBlock(0));
         u_gf.SetFromTrueDofs(xu.GetBlock(1));      
 
-        GridFunction *nodes = mesh.GetNodes();
-        *nodes += x_gf;
-        mesh.DeleteGeometricFactors();
+        // GridFunction *nodes = mesh.GetNodes();
+        // *nodes += x_gf;
+        // mesh.DeleteGeometricFactors();
 
         if (last_step || (ti % vis_steps) == 0){
             if (myid == 0) { out << "step " << ti << ", t = " << t << std::endl;}            
