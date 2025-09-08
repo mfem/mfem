@@ -12,10 +12,12 @@
 #ifndef MFEM_SCAN_HPP
 #define MFEM_SCAN_HPP
 
+#include "backends.hpp"
+
 #ifdef MFEM_USE_CUDA
 #include <cub/device/device_scan.cuh>
 #define MFEM_CUB_NAMESPACE cub
-#elif MFEM_USE_HIP
+#elif defined(MFEM_USE_HIP)
 #include <hipcub/device/device_scan.hpp>
 #define MFEM_CUB_NAMESPACE hipcub
 #endif
@@ -63,7 +65,25 @@ void InclusiveScan(bool use_dev, InputIt d_in, OutputIt d_out, size_t num_items)
       return;
    }
 #endif
+#if 0
    std::inclusive_scan(d_in, d_in + num_items, d_out);
+#else
+   // work-around to some compilers not fully supporting C++17
+   if (num_items)
+   {
+      *d_out = *d_in;
+      auto prev = d_out;
+      ++d_in;
+      ++d_out;
+      for (size_t i = 1; i < num_items; ++i)
+      {
+         *d_out = (*prev) + (*d_in);
+         prev = d_out;
+         ++d_in;
+         ++d_out;
+      }
+   }
+#endif
 }
 
 /// @brief Performs an inclusive scan of [d_in, d_in+num_items) -> [d_out,
@@ -109,7 +129,25 @@ void InclusiveScan(bool use_dev, InputIt d_in, OutputIt d_out, size_t num_items,
       return;
    }
 #endif
+#if 0
    std::inclusive_scan(d_in, d_in + num_items, d_out, scan_op);
+#else
+   // work-around to some compilers not fully supporting C++17
+   if (num_items)
+   {
+      *d_out = *d_in;
+      auto prev = d_out;
+      ++d_in;
+      ++d_out;
+      for (size_t i = 1; i < num_items; ++i)
+      {
+         *d_out = scan_op(*prev, *d_in);
+         prev = d_out;
+         ++d_in;
+         ++d_out;
+      }
+   }
+#endif
 }
 
 /// Performs an exclusive scan of [d_in, d_in+num_items) -> [d_out,
@@ -156,7 +194,22 @@ void ExclusiveScan(bool use_dev, InputIt d_in, OutputIt d_out, size_t num_items,
       return;
    }
 #endif
+#if 0
    std::exclusive_scan(d_in, d_in + num_items, d_out, init_value, scan_op);
+#else
+   // work-around to some compilers not fully supporting C++17
+   if (num_items)
+   {
+      for (size_t i = 0; i < num_items; ++i)
+      {
+         auto next = scan_op(init_value, *d_in);
+         *d_out = init_value;
+         init_value = next;
+         ++d_out;
+         ++d_in;
+      }
+   }
+#endif
 }
 
 /// Equivalent to ExclusiveScan(use_dev, d_in, d_out, num_items, init_value,
