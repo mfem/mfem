@@ -361,6 +361,15 @@ dual<value_type, gradient_type> exp(dual<value_type, gradient_type> a)
    return {exp(a.value), exp(a.value) * a.gradient};
 }
 
+/** @brief implementation of hyperbolic tangent function for dual numbers */
+template <typename value_type, typename gradient_type> MFEM_HOST_DEVICE
+dual<value_type, gradient_type> tanh(dual<value_type, gradient_type> a)
+{
+   using std::tanh;
+   return {tanh(a.value),
+               (1.0-tanh(a.value)*tanh(a.value)) * a.gradient};
+}
+
 /** @brief implementation of the natural logarithm function for dual numbers */
 template <typename value_type, typename gradient_type> MFEM_HOST_DEVICE
 dual<value_type, gradient_type> log(dual<value_type, gradient_type> a)

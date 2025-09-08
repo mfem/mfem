@@ -341,19 +341,14 @@ public:
         vel_bcs[id]=val;
     }
 
-    //pressure boundary conditions
-    void AddPressureBC(int id, std::shared_ptr<Coefficient> val)
+    //zero pressure BC
+    void SetZeroMeanPressure(bool val_)
     {
-        pre_bcs[id]=val;
+        zero_mean_pres=val_;
     }
 
     /// Set the Velocity BC on a given ParGridFunction.
     void SetEssVBC(real_t t, ParGridFunction& pgf);
-
-    /// Set the Pressure BC on a given ParGridFunction.
-    void SetEssPBC(real_t t, ParGridFunction& pgf);
-
-
 
 
     /// Set Brinkman coefficient
@@ -426,13 +421,10 @@ private:
 
    //boundary conditions
    std::map<int, std::shared_ptr<VectorCoefficient>> vel_bcs;
-   std::map<int, std::shared_ptr<Coefficient>> pre_bcs;
+   bool zero_mean_pres;
 
    // holds the velocity constrained DOFs
    mfem::Array<int> ess_tdofv;
-
-   // holds the pressure constrained DOFs
-   mfem::Array<int> ess_tdofp;
 
    // Volume force coefficient
    std::shared_ptr<VectorCoefficient> vol_force;
@@ -446,7 +438,6 @@ private:
 
    /// Extracts the true boundary doffs of the velocity
    void SetEssTDofsV(mfem::Array<int>& ess_dofs);
-   void SetEssTDofsP(mfem::Array<int>& ess_dofs);
 
 
    std::unique_ptr<HypreParMatrix> M;
@@ -466,10 +457,680 @@ private:
    std::unique_ptr<HypreParMatrix> A21e;
    std::unique_ptr<HypreParMatrix> A22e;
 
+
    mutable BlockVector rhs;
    mutable ParGridFunction vel;
    mutable ParGridFunction pre;
 
+
+};
+
+
+
+template <int dim = 2>
+struct StokesMomentumQFunction
+{
+   StokesMomentumQFunction() = default;
+
+   MFEM_HOST_DEVICE inline
+   auto operator()(
+      // velocity gradient in reference space
+      const future::tensor<future::dual<double,double>, dim, dim> &dudxi,
+      const double &p,
+      const future::tensor<double, dim, dim> &J,
+      const double &w) const
+   {
+      constexpr real_t kinematic_viscosity = 1.0;
+      auto I = mfem::future::IsotropicIdentity<dim>();
+      auto invJ = inv(J);
+      auto dudx = dudxi * invJ;
+      auto viscous_stress = -p * I + 2.0 * kinematic_viscosity * sym(dudx);
+      auto JxW = det(J) * w * transpose(invJ);
+      return mfem::future::tuple{-viscous_stress * JxW};
+   }
+};
+
+template <int dim = 2>
+struct StokesMassConservationQFunction
+{
+   StokesMassConservationQFunction() = default;
+
+   MFEM_HOST_DEVICE inline
+   auto operator()(
+      // velocity gradient in reference space
+      const future::tensor<double, dim, dim> &dudxi,
+      const future::tensor<double, dim, dim> &J,
+      const double &w) const
+   {
+      return mfem::future::tuple{tr(dudxi * inv(J)) * det(J) * w};
+   }
+};
+
+
+class StokesSolver:public Operator
+{
+public:
+    StokesSolver(ParMesh* mesh, int order_,bool partial_assembly_=false, bool verbose_=false);
+
+    virtual
+    ~StokesSolver();
+
+    /// Set the Linear Solver
+     void SetLinearSolver(const real_t rtol = 1e-8,
+                          const real_t atol = 1e-12,
+                          const int miter = 4000){
+         linear_atol=atol;
+         linear_rtol=rtol;
+         linear_iter=miter;
+     }
+
+     /// Sets BC dofs, bilinear form, preconditioner and solver.
+     /// Should be called before calling Mult of MultTranspose
+     virtual void Assemble();
+
+
+     /// Solves the forward problem.
+     void FSolve();
+
+     /// Solves the adjoint with the provided rhs.
+     void ASolve(mfem::Vector &rhs);
+
+     /// Solves the forward problem with the provided rhs.
+     void FSolve(mfem::Vector &rhs);
+
+     /// Clear all  BC
+     void DeleteBC();
+
+
+     /// Set the values of the volumetric force.
+     void SetVolForce(real_t fx, real_t fy, real_t fz = 0.0);
+
+     //velocity boundary conditions
+     void AddVelocityBC(int id, std::shared_ptr<VectorCoefficient> val)
+     {
+         vel_bcs[id]=val;
+     }
+
+     //pressure boundary conditions
+     void AddPressureBC(int id, std::shared_ptr<Coefficient> val)
+     {
+         pre_bcs[id]=val;
+     }
+
+     /// Set the Velocity BC on a given ParGridFunction.
+     void SetEssVBC(ParGridFunction& pgf);
+
+     /// Set the Pressure BC on a given ParGridFunction.
+     void SetEssPBC(ParGridFunction& pgf);
+
+     /// Forward solve with given RHS. x is the RHS vector.
+     /// The BC are set to the specified BC.
+     void Mult(const mfem::Vector &x, mfem::Vector &y) const override;
+
+     /// Adjoint solve with given RHS. x is the RHS vector.
+     /// The BC are set to zero.
+     void MultTranspose(const mfem::Vector &x, mfem::Vector &y) const override;
+
+     /// Return velocity grid function
+     mfem::ParGridFunction& GetVelocity()
+     {
+         vel.SetFromTrueDofs(sol.GetBlock(0));
+         return vel;
+     }
+
+     /// Return pressure grid function
+     mfem::GridFunction& GetPressure()
+     {
+         pre.SetFromTrueDofs(sol.GetBlock(1));
+         return pre;
+     }
+
+     /// Return velocty FES
+     ParFiniteElementSpace* GetVelocitySpace(){return vfes;}
+
+     /// Return pressure FES
+     ParFiniteElementSpace* GetPressureSpace(){return pfes;}
+
+     /// Return the block offset for providing RHS vectors for
+     /// Mult and MultTranspose.
+     Array<int>& GetTrueBlockOffsets(){return block_true_offsets;}
+
+
+private:
+    bool partial_assembly;
+    bool verbose;
+
+
+    /// The parallel mesh.
+    ParMesh *pmesh = nullptr;
+
+    /// The order of the velocity  space.
+    int order;
+
+    /// linear system solvers parameters
+    real_t linear_atol;
+    real_t linear_rtol;
+    int  linear_iter;
+
+    std::shared_ptr<Coefficient> visc; //viscosity
+    std::shared_ptr<Coefficient> brink; //Brinkman penalization
+
+    H1_FECollection* vfec; //velocity collections
+    H1_FECollection* pfec; //pressure collecation
+    ParFiniteElementSpace* vfes;
+    ParFiniteElementSpace* pfes;
+
+    std::unique_ptr<IterativeSolver> ls;
+    std::unique_ptr<Solver> prec;
+
+    //boundary conditions
+    std::map<int, std::shared_ptr<VectorCoefficient>> vel_bcs;
+    std::map<int, std::shared_ptr<Coefficient>> pre_bcs;
+
+    // holds the velocity constrained DOFs
+    mfem::Array<int> ess_tdofv;
+
+    // holds the pressure constrained DOFs
+    mfem::Array<int> ess_tdofp;
+
+    // Volume force coefficient
+    std::shared_ptr<VectorCoefficient> vol_force;
+
+    Array<int> block_true_offsets;
+    int siz_u;
+    int siz_p;
+
+    ConstantCoefficient onecoeff;
+    ConstantCoefficient zerocoef;
+
+    /// Extracts the true boundary doffs of the velocity
+    void SetEssTDofsV(mfem::Array<int>& ess_dofs);
+    void SetEssTDofsP(mfem::Array<int>& ess_dofs);
+
+    void SetEssTDofsV(Vector& v);
+    void SetEssTDofsP(Vector& p);
+
+    ParGridFunction vel; //velocity
+    ParGridFunction pre; //pressure
+
+    std::unique_ptr<HypreParMatrix> A11;
+    std::unique_ptr<HypreParMatrix> A12;
+    std::unique_ptr<HypreParMatrix> A21;
+    std::unique_ptr<HypreParMatrix> A22;
+
+    std::unique_ptr<HypreParMatrix> A11e;
+    std::unique_ptr<HypreParMatrix> A12e;
+    std::unique_ptr<HypreParMatrix> A21e;
+    std::unique_ptr<HypreParMatrix> A22e;
+
+    std::unique_ptr<mfem::ParBilinearForm> bf11;
+    std::unique_ptr<mfem::ParBilinearForm> bf22;
+    std::unique_ptr<mfem::ParMixedBilinearForm> bf12;
+    std::unique_ptr<mfem::ParMixedBilinearForm> bf21;
+
+    std::unique_ptr<BlockOperator> bop;
+    BlockVector rhs;
+    BlockVector sol;
+
+
+};
+
+
+class SpaceOrthOperator:public Operator
+{
+public:
+
+    SpaceOrthOperator():Operator(-1)
+    {
+#ifdef MFEM_USE_MPI
+        comm=MPI_COMM_SELF;
+#endif
+    }
+
+    SpaceOrthOperator(MPI_Comm comm_):Operator(-1),comm(comm_)
+    {
+
+    }
+
+    /// Adds vector to the vector space.
+    /// The first vector determines the size of the operator.
+    void AddVector(Vector& v)
+    {
+        if(0==vspace.size())
+        {
+            Operator::width=v.Size();
+            Operator::height=v.Size();
+        }
+        vspace.push_back(Vector(v));
+    }
+
+    /// Operator application
+    void Mult (const mfem::Vector & x, mfem::Vector & y) const override
+    {
+        y.SetSize(x.Size());
+        for(int i=0;i<x.Size();i++){
+            y[i]=x[i];
+        }
+#ifdef MFEM_USE_MPI
+        for(int i=0;i<vspace.size();i++){
+            real_t r=InnerProduct(comm,y,vspace[i]);
+            y.Add(-r,vspace[i]);
+        }
+#else
+        for(int i=0;i<vspace.size();i++){
+            real_t r=InnerProduct(y,vspace[i]);
+            y.Add(-r,vspace[i]);
+        }
+
+#endif
+    }
+
+    /// Action of the transpose operator
+    void MultTranspose (const mfem::Vector & x, mfem::Vector & y) const override
+    {
+        Mult(x,y);
+    }
+
+private:
+    std::vector<Vector> vspace;
+#ifdef MFEM_USE_MPI
+    MPI_Comm comm;
+#endif
+
+};
+
+
+///The LSC preconditioner based on:
+///H. Elman, V. E. Howle, J. Shadid, R. Shuttleworth, and R. Tuminaro,
+/// “Block Preconditioners Based on Approximate Commutators,”
+/// SIAM Journal on Scientific Computing, vol. 27, pp. 1651–1668, 2006.
+/// The preconditioner is applied to the following system
+/// [F  G] |u| = |f|
+/// [D -C] |p| = |g|
+/// and has the form
+/// [Fa^{-1}  0    ]
+/// [0      Sa^{-1}]
+/// where Fa approximates the inverse of F
+/// and Sa approximates the Schur complement DF^{-1}G
+/// Sa^{-1}=(D S^{-1} G)^{-1} (D S^{-1} F S^{-1} G) (D S^{-1} G)^{-1}
+/// S is optional diagonal scaling matrix which can be taken to be
+/// S=diag(G) or S=lump(G) where G is a mass matrix in the discrete space of u.
+class DLSCPrec:public IterativeSolver
+{
+public:
+
+    DLSCPrec(HypreParMatrix* F_, HypreParMatrix* D_, HypreParMatrix* G_,
+            bool zero_mean_pres_,
+            Vector* S_=nullptr, int dim=-1,
+             int print_lvl=-1):
+        zero_mean_pres(zero_mean_pres_),F(F_), D(D_), G(G_), S(S_)
+    {
+        //form A=D*S^{-1}*G if S!=nullptr
+        //or A=D*G if S==nullptr
+        if(nullptr==S){
+            A.reset(ParMult(D,G));
+        }else{
+            HypreParMatrix T(*G);
+            T.InvScaleRows(*S);
+            A.reset(ParMult(D,&T));
+        }
+
+        //set the preconditioner for F
+        {
+            HypreBoomerAMG* p=new HypreBoomerAMG();
+            p->SetPrintLevel(print_lvl);
+            p->SetOperator(*F);
+            if((-1)!=dim){p->SetSystemsOptions(dim, true);}
+            pr11.reset(p);
+
+        }
+
+        //set the solver and the preconditioner for A
+        {
+            HypreBoomerAMG* p=new HypreBoomerAMG();
+            p->SetPrintLevel(print_lvl);
+            p->SetOperator(*A);
+            if(zero_mean_pres){
+                std::cout<<"Ortho Solver"<<std::endl;
+                OrthoSolver* os=new OrthoSolver(F->GetComm());
+                os->SetSolver(*p);
+                fpaa.reset(os);
+                lsaa.reset(new GMRESSolver(F->GetComm()));
+            }else{
+                praa.reset(p);
+                fpaa=praa;
+                lsaa.reset(new CGSolver(F->GetComm()));
+            }
+
+            //lsaa.reset(new GMRESSolver(F->GetComm()));
+            //lsaa.reset(new CGSolver(F->GetComm()));
+            lsaa->SetOperator(*A);
+            lsaa->SetPreconditioner(*fpaa);
+            lsaa->SetAbsTol(1e-12);
+            lsaa->SetRelTol(1e-12);
+            lsaa->SetMaxIter(10);
+            lsaa->iterative_mode=true;
+        }
+
+        siz_u=F->GetNumRows();
+        siz_p=D->GetNumRows();
+
+        block_true_offsets.SetSize(3);
+        block_true_offsets[0] = 0;
+        block_true_offsets[1] = siz_u;
+        block_true_offsets[2] = siz_p;
+        block_true_offsets.PartialSum();
+
+        tv.Update(block_true_offsets); tv=0.0;
+        av.Update(block_true_offsets); av=0.0;
+    }
+
+    virtual
+    ~DLSCPrec()
+    {
+
+    }
+
+    /// Operator application
+    void Mult (const mfem::Vector & x, mfem::Vector & y) const override
+    {
+        xb.Update(const_cast<Vector&>(x), block_true_offsets);
+        yb.Update(y, block_true_offsets);
+
+        //u=F^{-1}*f
+        pr11->Mult(xb.GetBlock(0),yb.GetBlock(0));
+
+        //Schur complement
+        lsaa->Mult(xb.GetBlock(1),tv.GetBlock(1));
+        G->Mult(tv.GetBlock(1),tv.GetBlock(0));
+        if(nullptr!=S){
+            for(int i=0;i<S->Size();i++){
+                tv.GetBlock(0)[i]=(tv.GetBlock(0))[i]/(*S)[i];
+            }
+        }
+        F->Mult(tv.GetBlock(0),av.GetBlock(0));
+        if(nullptr!=S){
+            for(int i=0;i<S->Size();i++){
+                av.GetBlock(0)[i]=(av.GetBlock(0))[i]/(*S)[i];
+            }
+        }
+        D->Mult(av.GetBlock(0),av.GetBlock(1));
+
+        /*
+        real_t dd=InnerProduct(F->GetComm(),av.GetBlock(1),av.GetBlock(1));
+        std::cout<<"nr="<<dd<<std::endl;
+        dd=InnerProduct(F->GetComm(),yb.GetBlock(1),yb.GetBlock(1));
+        std::cout<<"br="<<dd<<std::endl;
+        */
+
+        lsaa->Mult(av.GetBlock(1),yb.GetBlock(1));
+    }
+
+    /// Action of the transpose operator
+    void MultTranspose (const mfem::Vector & x, mfem::Vector & y) const override
+    {
+        Mult(x,y);
+    }
+
+    virtual void SetPrintLevel(int print_lvl) override
+    {
+        lsaa->SetPrintLevel(print_lvl);
+    }
+
+    virtual void SetAbsTol(real_t tol_)
+    {
+        lsaa->SetAbsTol(tol_);
+    }
+
+    virtual void SetRelTol(real_t tol_)
+    {
+       lsaa->SetRelTol(tol_);
+    }
+
+    virtual void SetMaxIter(int it)
+    {
+        lsaa->SetMaxIter(it);
+    }
+
+
+private:
+    bool zero_mean_pres;
+
+    HypreParMatrix* F;
+    HypreParMatrix* D;
+    HypreParMatrix* G;
+    Vector* S;
+
+    std::shared_ptr<HypreParMatrix> A;
+
+    //the preconditioner used for solving A^{-1}*RHS
+    //holds either praa or OrthoSolver(praa)
+    //depending on the pressure boundary conditions
+    std::shared_ptr<Solver> fpaa;
+    std::shared_ptr<Solver> praa; //AMG preconditioner for A
+    std::unique_ptr<IterativeSolver> lsaa; //solver approximating A^{-1}
+    std::unique_ptr<Solver> pr11; //preconditioner for F
+
+    int siz_u;
+    int siz_p;
+    Array<int> block_true_offsets;
+    mutable BlockVector tv;
+    mutable BlockVector av;
+    mutable BlockVector yb;
+    mutable BlockVector xb;
+
+};
+
+
+
+/// Block diagonal preconditioner for time dependent
+/// Stokes problem
+/// K.-A. Mardal and R. Winther, Uniform preconditioners
+/// for the time dependent Stokes problem,
+/// Numerische Mathematik, vol. 98, Art. no. 2, 2004.
+class BlockDiagTSPrec:public IterativeSolver
+{
+public:
+    BlockDiagTSPrec(real_t dt_, std::shared_ptr<Coefficient> visc_,
+                    ParFiniteElementSpace* vfes_, ParFiniteElementSpace* pfes_,
+                    mfem::Array<int>& ess_tdofv_, mfem::Array<int>& ess_tdofp_):
+                        dt(dt_),
+                        visc(visc_),
+                        vfes(vfes_),
+                        pfes(pfes_),
+                        ess_tdofv(ess_tdofv_),
+                        ess_tdofp(ess_tdofp_)
+    {
+
+        orto.reset(new SpaceOrthOperator(pfes->GetComm()));
+        {
+            ParGridFunction gfone(pfes);
+            ConstantCoefficient one(1.0);
+            gfone.ProjectCoefficient(one);
+            gfone.SetTrueVector();
+            orto->AddVector(gfone.GetTrueVector());
+        }
+
+        std::unique_ptr<ParBilinearForm> b11(new ParBilinearForm(vfes));
+        std::unique_ptr<ParBilinearForm> b22(new ParBilinearForm(pfes));
+        std::unique_ptr<ParBilinearForm> bmm(new ParBilinearForm(pfes));
+
+        ConstantCoefficient onecoeff(1.0);
+        ConstantCoefficient zerocoef(0.0);
+
+        ProductCoefficient svisc(dt,*visc);
+        //RatioCoefficient svisc(1.0,*visc);
+
+
+        ConstantCoefficient onecoeffdt(1.0/dt);
+        b11->AddDomainIntegrator(new  VectorMassIntegrator(onecoeff));
+        b11->AddDomainIntegrator(new  ElasticityIntegrator(zerocoef,svisc));
+        b11->Assemble(0);
+        b11->Finalize(0);
+        A11.reset(b11->ParallelAssemble());
+
+        HypreParMatrix* Ae=A11->EliminateRowsCols(ess_tdofv);
+        delete Ae;
+
+        int dim=vfes->GetVDim();
+        prec11.reset(new HypreBoomerAMG());
+        prec11->SetOperator(*A11);
+        prec11->SetSystemsOptions(dim, true);
+
+        b22->AddDomainIntegrator(new DiffusionIntegrator());
+        b22->Assemble(0);
+        b22->Finalize(0);
+        A22.reset(b22->ParallelAssemble());
+        Ae=A22->EliminateRowsCols(ess_tdofp);
+        delete Ae;
+
+        pop.reset(new ProductOperator(orto.get(),A22.get(),false,false));
+
+        prec22.reset(new HypreBoomerAMG());
+        prec22->SetOperator(*A22);
+
+        //bmm->AddDomainIntegrator(new LumpedIntegrator(new MassIntegrator(svisc)));
+        bmm->AddDomainIntegrator(new MassIntegrator(svisc));
+        bmm->Assemble(0);
+        bmm->Finalize(0);
+        M22.reset(bmm->ParallelAssemble());
+        Ae=M22->EliminateRowsCols(ess_tdofp);
+        delete Ae;
+
+        precmm.reset(new HypreBoomerAMG());
+        precmm->SetOperator(*M22);
+        lm22.reset(new CGSolver(pfes->GetComm()));
+        lm22->SetOperator(*M22);
+        lm22->SetPreconditioner(*precmm);
+        lm22->SetAbsTol(1e-12);
+        lm22->SetRelTol(1e-12);
+        lm22->SetMaxIter(10);
+
+
+
+
+        ls11.reset(new CGSolver(vfes->GetComm()));
+        ls11->SetOperator(*A11);
+        ls11->SetPreconditioner(*prec11);
+        ls11->SetAbsTol(1e-12);
+        ls11->SetRelTol(1e-12);
+        ls11->SetMaxIter(10);
+
+        //ls22.reset(new CGSolver(pfes->GetComm()));
+        ls22.reset(new GMRESSolver(pfes->GetComm()));
+        //ls22->SetOperator(*pop);
+        ls22->SetOperator(*A22);
+        orts.reset(new OrthoSolver(pfes->GetComm()));
+        orts->SetSolver(*prec22);
+        ls22->SetPreconditioner(*orts);
+        ls22->SetAbsTol(1e-12);
+        ls22->SetRelTol(1e-12);
+        ls22->SetMaxIter(10);
+
+        siz_u=vfes->TrueVSize();
+        siz_p=pfes->TrueVSize();
+
+        block_true_offsets.SetSize(3);
+        block_true_offsets[0] = 0;
+        block_true_offsets[1] = siz_u;
+        block_true_offsets[2] = siz_p;
+        block_true_offsets.PartialSum();
+
+        tv.Update(block_true_offsets); tv=0.0;
+
+    }
+
+    virtual ~BlockDiagTSPrec()
+    {
+
+    }
+
+    /// Operator application
+    void Mult (const mfem::Vector & x, mfem::Vector & y) const override
+    {
+        xb.Update(const_cast<Vector&>(x), block_true_offsets);
+        yb.Update(y, block_true_offsets);
+
+        ls11->Mult(xb.GetBlock(0),yb.GetBlock(0));
+        if(0==pfes->GetMyRank())
+        {
+            std::cout<<"A11 is ready!"<<std::endl;
+        }
+        ls22->Mult(xb.GetBlock(1),tv.GetBlock(1));
+        lm22->Mult(xb.GetBlock(1),yb.GetBlock(1));
+        //M22->Mult(xb.GetBlock(1),yb.GetBlock(1));
+        yb.GetBlock(1).Add(1.0,tv.GetBlock(1));
+        if(0==pfes->GetMyRank())
+        {
+            std::cout<<"A22 is ready!"<<std::endl;
+        }
+    }
+
+    /// Action of the transpose operator
+    void MultTranspose (const mfem::Vector & x, mfem::Vector & y) const override
+    {
+        Mult(x,y);
+    }
+
+    virtual void SetPrintLevel(int print_lvl) override
+    {
+        prec11->SetPrintLevel(print_lvl);
+        prec22->SetPrintLevel(print_lvl);
+        ls11->SetPrintLevel(print_lvl);
+        ls22->SetPrintLevel(print_lvl);
+        lm22->SetPrintLevel(print_lvl);
+    }
+
+    virtual void SetAbsTol(real_t tol_)
+    {
+        ls11->SetAbsTol(tol_);
+        ls22->SetAbsTol(tol_);
+        lm22->SetAbsTol(tol_);
+    }
+
+    virtual void SetRelTol(real_t tol_)
+    {
+       ls11->SetRelTol(tol_);
+       ls22->SetRelTol(tol_);
+       lm22->SetRelTol(tol_);
+    }
+
+    virtual void SetMaxIter(int it)
+    {
+        ls11->SetMaxIter(it);
+        ls22->SetMaxIter(it);
+        lm22->SetMaxIter(it);
+    }
+
+private:
+    real_t dt;
+    std::shared_ptr<Coefficient> visc;
+    ParFiniteElementSpace* vfes;
+    ParFiniteElementSpace* pfes;
+    mfem::Array<int>& ess_tdofv;
+    mfem::Array<int>& ess_tdofp;
+
+    std::unique_ptr<HypreParMatrix> A11;
+    std::unique_ptr<HypreParMatrix> A22;
+    std::unique_ptr<HypreParMatrix> M22;
+
+    std::unique_ptr<mfem::HypreBoomerAMG> prec11;
+    std::unique_ptr<mfem::HypreBoomerAMG> prec22;
+    std::unique_ptr<mfem::HypreBoomerAMG> precmm;
+    std::unique_ptr<mfem::CGSolver> ls11;
+    std::unique_ptr<mfem::IterativeSolver> ls22;
+    std::unique_ptr<mfem::CGSolver> lm22;
+
+    int siz_u;
+    int siz_p;
+    Array<int> block_true_offsets;
+    mutable BlockVector tv;
+    mutable BlockVector yb;
+    mutable BlockVector xb;
+
+    std::unique_ptr<OrthoSolver> orts;
+    std::unique_ptr<SpaceOrthOperator> orto;
+    std::unique_ptr<ProductOperator> pop;
 
 };
 

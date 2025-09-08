@@ -42,4 +42,19 @@ add_mfem_miniapp(navier_tst
      ${PARMTOP_COMMON_FILES}
      LIBRARIES mfem)
 
+add_mfem_miniapp(stokes_tst
+      MAIN stokes_tst.cpp
+      ${PARMTOP_COMMON_FILES}
+      LIBRARIES mfem)
+
+add_mfem_miniapp(gmg
+     MAIN gmg.cpp
+     ${PARMTOP_COMMON_FILES}
+     LIBRARIES mfem)
+
+add_mfem_miniapp(tad
+     MAIN test_ad.cpp
+     ${PARMTOP_COMMON_FILES}
+     LIBRARIES mfem)
+
 endif ()

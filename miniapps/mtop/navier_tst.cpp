@@ -15,7 +15,70 @@
 #include <iostream>
 
 #include "ns_operators.hpp"
+#include "mms_coefficients.hpp"
 using namespace mfem;
+
+template<template<typename> typename VeloPotential,
+         template<typename> typename Pres>
+class Stokes2DForcing:public VectorCoefficient
+{
+public:
+    Stokes2DForcing(std::shared_ptr<Coefficient> visc_):VectorCoefficient(2)
+    {
+        visc=visc_;
+    }
+
+    virtual void Eval(Vector &V, ElementTransformation &T,
+                      const IntegrationPoint &ip) override
+    {
+        V.SetSize(2); V=0.0;
+        real_t t=VectorCoefficient::GetTime();
+        Vector tv(2);
+        VectorCoefficient* gp;
+        //add pressure contribution
+
+        gp=press.GetGradient();
+        gp->SetTime(t);
+        gp->Eval(tv,T,ip); V.Add(1.0,tv);
+        //add inertia
+        gp=velo.TimeDerivative();
+        gp->SetTime(t);
+        gp->Eval(tv,T,ip); V.Add(1.0,tv);
+        //add laplacian
+        real_t mu=visc->Eval(T,ip);
+        gp=velo.VectorLaplacian();
+        gp->SetTime(t);
+        gp->Eval(tv,T,ip); V.Add(-mu,tv);
+
+    }
+
+private:
+    std::shared_ptr<Coefficient> visc;
+    ADScalar2DCoeff<Pres> press;
+    ADDivFree2DVelocity<VeloPotential> velo;
+};
+
+//Define the 2D potentials and pressure fields
+template<typename fp_type>
+class Velo2DPotential
+{
+public:
+   fp_type operator()(fp_type t,fp_type x,fp_type y)
+   {
+       return tanh(t)*sin(2*M_PI*x)*sin(2*M_PI*y)*sin(x+y);
+   }
+};
+
+template<typename fp_type>
+class Pressure2D
+{
+public:
+   fp_type  operator()(fp_type t,fp_type x,fp_type y)
+   {
+       return tanh(t)*sin(M_PI*x)*sin(M_PI*y);
+
+   }
+};
 
 
 class RampVectorCoeff:public VectorCoefficient
@@ -131,6 +194,7 @@ int main(int argc, char *argv[])
    // this example we do 'ref_levels' of uniform refinement. We choose
    // 'ref_levels' to be the largest number that gives a final mesh with no
    // more than 10,000 elements.
+   /*
    {
       int ref_levels =
          (int)floor(log(10000./mesh.GetNE())/log(2.)/dim);
@@ -138,7 +202,7 @@ int main(int argc, char *argv[])
       {
          mesh.UniformRefinement();
       }
-   }
+   }*/
 
    // Define a parallel mesh by a partitioning of the serial mesh. Refine
    // this mesh further in parallel to increase the resolution. Once the
@@ -154,38 +218,55 @@ int main(int argc, char *argv[])
 
    std::cout<<"My rank="<<pmesh.GetMyRank()<<std::endl;
 
-
+   /*
    mfem::Vector bcz(dim); bcz=0.0;
    mfem::Vector bci(dim); bci=0.0; bci(0)=1.0;
    VectorConstantCoefficient cvcz(bcz);
    VectorConstantCoefficient cvci(bci);
 
-
    std::shared_ptr<mfem::VectorCoefficient> vcz(new RampVectorCoeff(cvcz));
    std::shared_ptr<mfem::VectorCoefficient> vci(new RampVectorCoeff(cvci));
 
    mfem::Vector vforce(dim); vforce=0.0; vforce(0)=1.0;
+   */
 
-   std::shared_ptr<mfem::ConstantCoefficient> visc(new mfem::ConstantCoefficient(0.1));
+   std::shared_ptr<mfem::VectorCoefficient>
+           vc(new ADDivFree2DVelocity<Velo2DPotential>());
+
+   std::shared_ptr<mfem::ConstantCoefficient>
+           visc(new mfem::ConstantCoefficient(0.1));
+
+
+   std::shared_ptr<mfem::VectorCoefficient>
+           fc(new Stokes2DForcing<Velo2DPotential,Pressure2D>(visc));
+
+   std::shared_ptr<mfem::Coefficient>
+           pres_co(new ADScalar2DCoeff<Pressure2D>());
 
    ParGridFunction velo;
    ParGridFunction pres;
    BlockVector sol;
+   ParGridFunction tvelo;
+   ParGridFunction tpres;
 
 
    std::unique_ptr<ODESolver> ode_solver = ODESolver::Select(ode_solver_type);
    //define the TimeDependentOperator
    TimeDependentStokes* top=new TimeDependentStokes(&pmesh,2,visc);
 
-   top->AddVelocityBC(1,vci);
-   top->AddVelocityBC(2,vci);
-   top->AddVelocityBC(4,vcz);
+   top->AddVelocityBC(1,vc);
+   top->AddVelocityBC(2,vc);
+   top->AddVelocityBC(3,vc);
+   top->AddVelocityBC(4,vc);
+
+   top->SetVolForce(fc);
 
    top->Assemble();
 
    //start the time stepping
 
-
+   tvelo.SetSpace(top->GetVelocitySpace()); tvelo=0.0;
+   tpres.SetSpace(top->GetPressureSpace()); tpres=0.0;
 
    velo.SetSpace(top->GetVelocitySpace());	velo=0.0;
    pres.SetSpace(top->GetPressureSpace());  pres=0.0;
@@ -202,6 +283,11 @@ int main(int argc, char *argv[])
    velo.GetTrueDofs(sol.GetBlock(0));
    pres.GetTrueDofs(sol.GetBlock(1));
 
+   std::cout<<"Start projection!"<<std::endl;
+   tvelo.ProjectCoefficient(*vc);
+   tpres.ProjectCoefficient(*pres_co);
+   std::cout<<"End projection!"<<std::endl;
+
 
 
        ParaViewDataCollection paraview_dc("flow", &pmesh);
@@ -213,13 +299,15 @@ int main(int argc, char *argv[])
        paraview_dc.SetTime(0.0);
        paraview_dc.RegisterField("velo",&velo);
        paraview_dc.RegisterField("pres",&pres);
+       paraview_dc.RegisterField("velot",&tvelo);
+       paraview_dc.RegisterField("prest",&tpres);
        paraview_dc.Save();
 
 
    ode_solver->Init(*top);
    real_t t  = 0.0;
-   real_t tf = 5.5;
-   real_t dt = 0.1;
+   real_t tf = 0.5;
+   real_t dt = 0.5;
 
    bool flag=true;
    int cycl=1;
@@ -228,6 +316,11 @@ int main(int argc, char *argv[])
        ode_solver->Step(sol,t,dt);
        velo.SetFromTrueDofs(sol.GetBlock(0));
        pres.SetFromTrueDofs(sol.GetBlock(1));
+
+       vc->SetTime(t);
+       pres_co->SetTime(t);
+       tvelo.ProjectCoefficient(*vc);
+       tpres.ProjectCoefficient(*pres_co);
 
        paraview_dc.SetCycle(cycl);
        paraview_dc.SetTime(t);
