@@ -353,14 +353,14 @@ int main(int argc, char *argv[])
     const char *device_config = "cpu";
     bool visualization = true;
     bool algebraic_ceed = false;
-    real_t filter_radius = real_t(0.015);
+    real_t filter_radius = real_t(0.03);
 
-    real_t gamma = 10.0;
+    real_t gamma = 0.001;
     real_t vol_fraction = 0.3;
     int max_it = 100;
     real_t itol = 1e-1;
     real_t ntol = 1e-4;
-    real_t rho_min = 1e-6;
+    real_t rho_min = 1e-3;
     real_t E_min = 1e-6;
     real_t E_max = 1.0;
     real_t poisson_ratio = 0.2;
@@ -373,8 +373,8 @@ int main(int argc, char *argv[])
     const real_t p4 = 0.0;
 
     const real_t cvar_alpha = 0.05;
-    const int outer_loop_iterations = 50;
-    const int inner_loop_iterations = 4;
+    const int outer_loop_iterations = 150;
+    const int inner_loop_iterations = 2;
 
     std::vector<std::pair<std::bitset<N>, real_t>> probability_space = getProbabilitySpace(p1, p2, p3, p4);
 
@@ -541,6 +541,8 @@ int main(int argc, char *argv[])
     // filter the initial density
     filt->FFilter(&odens,fdens);
 
+    ParGridFunction& sol=elsolver->GetDisplacements();
+
     // set up the paraview
     mfem::ParaViewDataCollection paraview_dc("cvar_optimization", &pmesh);
     // rho_gf.ProjectCoefficient(rho);
@@ -554,6 +556,7 @@ int main(int argc, char *argv[])
     paraview_dc.RegisterField("filtered_density", &fdens);
     paraview_dc.RegisterField("control_gradient", &odens_gradient_single);
     paraview_dc.RegisterField("latent_density", &odens_latent);
+    paraview_dc.RegisterField("disp",&sol);
     // paraview_dc.RegisterField("displacements", &displacements);
     paraview_dc.Save();
 
@@ -606,6 +609,13 @@ int main(int argc, char *argv[])
 
         filt->FFilter(&odens, fdens);
 
+        {
+            odens_gf.ProjectCoefficient(odens);
+            paraview_dc.SetCycle(k);
+            paraview_dc.SetTime((real_t)k);
+            paraview_dc.Save();
+        }
+
         // first we calculate and find the new latent probabilities.
         for (int inner = 1; inner <= inner_loop_iterations; inner++)
         {
@@ -648,10 +658,14 @@ int main(int argc, char *argv[])
                 ParGridFunction &sol = elsolver->GetDisplacements();
                 icc.SetGridFunctions(&fdens, &sol);
 
-                ParLinearForm compl_form(filt->GetFilterFES());
-                compl_form.AddDomainIntegrator(new DomainLFIntegrator(icc));
-                compl_form.Assemble();
-                real_t compliance_i = compl_form(onegf); // inner product of compliance and constant 1 function. IE the integral.
+                real_t compliance_i = 0.0;
+                {
+                    ParLinearForm compl_form(filt->GetFilterFES());
+                    compl_form.AddDomainIntegrator(new DomainLFIntegrator(icc));
+                    compl_form.Assemble();
+                    compliance_i = compl_form(onegf); // inner product of compliance and constant 1 function. IE the integral.
+
+                }
 
                 if (myid == 0) {
                     std::cout << "Latent: " << latent_probability << ", gamma: " << gamma << ", compliance: " << compliance_i << ".\n";

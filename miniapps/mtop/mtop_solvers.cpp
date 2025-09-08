@@ -262,15 +262,14 @@ void IsoLinElasticSolver::MultTranspose(const mfem::Vector &x, mfem::Vector &y) 
 
 void IsoLinElasticSolver::Assemble()
 {
-    if(bf==nullptr){return;}
 
     //set BC
     sol=mfem::real_t(0.0);
     SetEssTDofs(sol,ess_tdofv);
 
-    double nr=mfem::ParNormlp(sol,2,pmesh->GetComm());
-    if(pmesh->GetMyRank()==0){std::cout<<"sol="<<nr<<std::endl;}
-
+    delete bf;
+    bf=new ParBilinearForm(vfes);
+    bf->AddDomainIntegrator(new ElasticityIntegrator(*lambda,*mu));
     bf->Assemble(0);
     bf->Finalize();
     //bf->FormSystemMatrix(ess_tdofv,K);
@@ -322,12 +321,12 @@ void IsoLinElasticSolver::FSolve()
 
     K->EliminateBC(*Ke,ess_tdofv,sol,rhs);
 
-    {
-        double nr=mfem::ParNormlp(rhs,2,pmesh->GetComm());
-        if(pmesh->GetMyRank()==0){std::cout<<"rhs="<<nr<<std::endl;}
-    }
-
     ls->Mult(rhs,sol);
+
+    {
+        double cp=mfem::InnerProduct(pmesh->GetComm(),rhs,sol);
+        if(pmesh->GetMyRank()==0){std::cout<<"cmpl="<<cp<<std::endl;}
+    }
 
     delete lf;
     lf=nullptr;

@@ -36,10 +36,10 @@ private:
 };
 
 
-class IsoElasticySchearCoeff: public Coefficient
+class IsoElasticyShearCoeff: public Coefficient
 {
 public:
-    IsoElasticySchearCoeff(mfem::Coefficient* E_, mfem::Coefficient* nu_):E(E_),nu(nu_)
+    IsoElasticyShearCoeff(mfem::Coefficient* E_, mfem::Coefficient* nu_):E(E_),nu(nu_)
     {}
 
     virtual double Eval(mfem::ElementTransformation &T,
@@ -137,6 +137,9 @@ public:
     /// Returns the adjoint solution vector.
     mfem::Vector& GetAdj(){return adj;}
 
+    /// Returns the last RHS of the system
+    mfem::Vector& GetRHS(){return rhs;}
+
     void GetSol(mfem::ParGridFunction& sgf){
         sgf.SetSpace(vfes); sgf.SetFromTrueDofs(sol);}
 
@@ -161,13 +164,15 @@ public:
 
         delete lambda;
         delete mu;
-        delete bf;
 
         lambda=new IsoElasticyLambdaCoeff(E,nu);
-        mu=new IsoElasticySchearCoeff(E,nu);
+        mu=new IsoElasticyShearCoeff(E,nu);
 
-        bf=new ParBilinearForm(vfes);
-        bf->AddDomainIntegrator(new ElasticityIntegrator(*lambda,*mu));
+        //delete bf;
+        //bf=new ParBilinearForm(vfes);
+        //bf->AddDomainIntegrator(new ElasticityIntegrator(*lambda,*mu));
+        //bf->Assemble(0);
+        //bf->Finalize();
     }
 
 private:
@@ -456,7 +461,7 @@ public:
         S->MultTranspose(tmpv,y);
     }
 
-    void SetSolver(double rtol_=1e-8, double atol_=1e-12,int miter_=1000, int prt_level_=1)
+    void SetSolver(double rtol_=1e-8, double atol_=1e-12,int miter_=1000, int prt_level_=0)
     {
         rtol=rtol_;
         atol=atol_;
@@ -702,8 +707,8 @@ public:
 
         llmax.reset(new IsoElasticyLambdaCoeff(Emax,nu));
         llmin.reset(new IsoElasticyLambdaCoeff(Emin,nu));
-        mmmax.reset(new IsoElasticySchearCoeff(Emax,nu));
-        mmmin.reset(new IsoElasticySchearCoeff(Emin,nu));
+        mmmax.reset(new IsoElasticyShearCoeff(Emax,nu));
+        mmmin.reset(new IsoElasticyShearCoeff(Emin,nu));
 
     }
 
@@ -737,6 +742,7 @@ public:
         real_t Lmin = llmin->Eval(T, ip);
         real_t Mmin = mmmin->Eval(T, ip);
 
+        T.SetIntPoint(&ip);
         sol->GetVectorGradient(T, grad);
         real_t div_u = grad.Trace();
         real_t density_max = Lmax*div_u*div_u;
@@ -760,6 +766,9 @@ public:
             val=PointwiseTrans::SIMPInterpolation(val,p);
         }
 
+        if(val<0.0){val=0.0;}
+        if(val>1.0){val=1.0;}
+
         return val*density_max+density_min;
     }
 
@@ -777,7 +786,7 @@ private:
         real_t Lmax = llmax->Eval(T, ip);
         real_t Mmax = mmmax->Eval(T, ip);
 
-
+        T.SetIntPoint(&ip);
         sol->GetVectorGradient(T, grad);
         real_t div_u = grad.Trace();
         real_t density_max = Lmax*div_u*div_u;
@@ -791,6 +800,9 @@ private:
             }
         }
         real_t val = rho->GetValue(T,ip);
+        if(val<0.0){val=0.0;}
+        if(val>1.0){val=1.0;}
+
         real_t hvl = val;
         real_t gvl=1.0;
 
@@ -816,6 +828,9 @@ private:
         real_t Lmin = llmin->Eval(T, ip);
 
         real_t val = rho->GetValue(T,ip);
+        if(val<0.0){val=0.0;}
+        if(val>1.0){val=1.0;}
+
         if(PROJ){
             val=PointwiseTrans::HProject(val,eta,beta);
         }
@@ -834,6 +849,9 @@ private:
         real_t Mmin = mmmin->Eval(T, ip);
 
         real_t val = rho->GetValue(T,ip);
+        if(val<0.0){val=0.0;}
+        if(val>1.0){val=1.0;}
+
         if(PROJ){
             val=PointwiseTrans::HProject(val,eta,beta);
         }
@@ -851,6 +869,9 @@ private:
         real_t vEmax = Emax->Eval(T,ip);
         real_t vEmin = Emin->Eval(T,ip);
         real_t val = rho->GetValue(T,ip);
+        if(val<0.0){val=0.0;}
+        if(val>1.0){val=1.0;}
+
         if(PROJ){
             val=PointwiseTrans::HProject(val,eta,beta);
         }
@@ -866,8 +887,8 @@ private:
     real_t beta;
     real_t p;
 
-    bool SIMP=0;
-    bool PROJ=0;
+    bool SIMP=false;
+    bool PROJ=false;
 
     Coefficient* Emax;
     Coefficient* Emin;
@@ -878,10 +899,10 @@ private:
     ConstantCoefficient cnu;
 
     std::unique_ptr<IsoElasticyLambdaCoeff> llmax;
-    std::unique_ptr<IsoElasticySchearCoeff> mmmax;
+    std::unique_ptr<IsoElasticyShearCoeff> mmmax;
 
     std::unique_ptr<IsoElasticyLambdaCoeff> llmin;
-    std::unique_ptr<IsoElasticySchearCoeff> mmmin;
+    std::unique_ptr<IsoElasticyShearCoeff> mmmin;
 
     GridFunction* sol;
     GridFunction* rho;
