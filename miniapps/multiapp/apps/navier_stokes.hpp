@@ -178,7 +178,7 @@ public:
    HypreSmoother M_prec;
    mutable BlockLowerTriangularPreconditioner *pc = nullptr;
    mutable Solver *Nu_pc = nullptr;
-   mutable Vector z;
+   mutable Vector z, pz;
 
    ConstantCoefficient zero, one, negative_one; ///< Zero coefficient for boundary conditions
    ConstantCoefficient inv_dtc;
@@ -192,6 +192,7 @@ public:
 
    DeviatoricStressCoefficient stress_coeff;
    ParGridFunction stress_gf;
+   VectorCoefficient *ale_velocity; ///< ALE velocity for moving mesh problems
 
 
    bool stage_coupled = false; ///< Flag for coupled mode (e.g., FSI)   
@@ -205,7 +206,8 @@ public:
                 real_t density_ = 1.0,
                 real_t viscosity_ = 1.0,
                 real_t compressibility_ = 1.0,
-                bool scaled_pressure = true) :
+                bool scaled_pressure = true,
+                VectorCoefficient *ale_velocity_ = nullptr) :
                 Application(u_fes_.GetTrueVSize()+p_fes_.GetTrueVSize()),
                 mesh(*p_fes_.GetParMesh()),
                 u_fes(u_fes_),
@@ -229,7 +231,7 @@ public:
                 newton_solver(MPI_COMM_WORLD),
                 zero(0.0), one(1.0), negative_one(-1.0), inv_dtc(1.0),
                 stress_coeff(&p_gf_trans, &u_gf, &viscosity, &density, scaled_pressure),
-                stress_gf(&u_fes)
+                stress_gf(&u_fes), ale_velocity(ale_velocity_)
                 // , gravity(Vector({0.0, 0.0, -9.81}))
    {
 
@@ -248,10 +250,10 @@ public:
         // Kuform.AddDomainIntegrator(new VectorDiffusionIntegrator(viscosity, &ir));
         Gform.AddDomainIntegrator(new GradientIntegrator(inv_density, &ir));
         Dform.AddDomainIntegrator(new VectorDivergenceIntegrator(&ir));        
-        Nform.AddDomainIntegrator(new VectorConvectionNLFIntegrator(one, &ir_nl));
+        Nform.AddDomainIntegrator(new VectorConvectionNLFIntegrator(one, *ale_velocity, &ir_nl));
         Nform.AddDomainIntegrator(new VectorDiffusionIntegrator(viscosity, &ir));
 
-        Nform_e.AddDomainIntegrator(new VectorConvectionNLFIntegrator(one, &ir_nl));
+        Nform_e.AddDomainIntegrator(new VectorConvectionNLFIntegrator(one, *ale_velocity, &ir_nl));
         Nform_e.AddDomainIntegrator(new VectorDiffusionIntegrator(viscosity, &ir));
         Nform_e.AddDomainIntegrator(new VectorMassIntegrator(inv_dtc,&ir));
 
@@ -328,7 +330,7 @@ public:
         newton_solver.iterative_mode = false;
         newton_solver.SetRelTol(0.0);
         newton_solver.SetAbsTol(1e-4);
-        newton_solver.SetMaxIter(10);
+        newton_solver.SetMaxIter(30);
         newton_solver.SetPrintLevel(0);
         newton_solver.SetOperator(*newton_residual);
         newton_solver.SetPreconditioner(linear_solver);
@@ -398,10 +400,9 @@ public:
           // at the ess_dofs set to zero.
             newton_solver.iterative_mode = true;
             kt.SetSize(u_fes.GetTrueVSize());
-            u_gf.GetTrueDofs(kt); // u_gf contains the BC if transferred from other apps
+            u_gf.GetTrueDofs(kt); // u_gf contains the BC in terms of k
             kt -= ub.GetBlock(0); // kt = u_bc - u_i 
             kt /= dt;             // kt = (u_bc - u_i)/dt (kt now contains the velocity BC in k)
-            // k = 0.0;
             kb.GetBlock(0).SetSubVector(u_ess_tdofs, kt); // Set initial guess for ess_dofs
         }
         
@@ -521,6 +522,18 @@ public:
     {
         BlockVector xb(x.GetData(), offsets);
         p_gf_trans.SetFromTrueDofs(xb.GetBlock(1));
+        stress_gf.ProjectBdrCoefficient(stress_coeff,u_ess_attr);
+        Application::Transfer();
+    }
+
+    void Transfer(const Vector &u, const Vector &k, real_t dt = 0.0) override
+    {
+        BlockVector ub(u.GetData(), offsets);
+        BlockVector kb(k.GetData(), offsets);
+        
+        pz.SetSize(p_fes.GetTrueVSize());
+        add(1.0,ub.GetBlock(1), dt, kb.GetBlock(1), pz); // compute pressure update and transfer
+        p_gf_trans.SetFromTrueDofs(pz);
         stress_gf.ProjectBdrCoefficient(stress_coeff,u_ess_attr);
         Application::Transfer();
     }
