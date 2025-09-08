@@ -1395,10 +1395,7 @@ ApplyKernelType MassIntegrator::ApplyPAKernels::Kernel()
    if constexpr (DIM == 1) { return internal::PAMassApply1D; }
    else if constexpr (DIM == 2) { return internal::SmemPAMassApply2D<T_D1D,T_Q1D>; }
    else if constexpr (DIM == 3) { return internal::SmemPAMassApply3D<T_D1D, T_Q1D>; }
-   else { MFEM_ABORT(""); }
-   // work-around for some compilers not handling if constexpr correctly when
-   // detecting no return value
-   return nullptr;
+   MFEM_ABORT("");
 }
 
 inline ApplyKernelType MassIntegrator::ApplyPAKernels::Fallback(
@@ -1416,10 +1413,7 @@ DiagonalKernelType MassIntegrator::DiagonalPAKernels::Kernel()
    if constexpr (DIM == 1) { return internal::PAMassAssembleDiagonal1D; }
    else if constexpr (DIM == 2) { return internal::SmemPAMassAssembleDiagonal2D<T_D1D,T_Q1D>; }
    else if constexpr (DIM == 3) { return internal::SmemPAMassAssembleDiagonal3D<T_D1D, T_Q1D>; }
-   else { MFEM_ABORT(""); }
-   // work-around for some compilers not handling if constexpr correctly when
-   // detecting no return value
-   return nullptr;
+   MFEM_ABORT("");
 }
 
 inline DiagonalKernelType MassIntegrator::DiagonalPAKernels::Fallback(
