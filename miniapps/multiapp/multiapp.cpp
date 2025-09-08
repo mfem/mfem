@@ -42,15 +42,15 @@ CouplingOperator *CoupledApplication::BuildCouplingOperator(){
 }
 
 void CoupledApplication::Initialize(bool do_ops)
+{
+    if (do_ops)
     {
-        if (do_ops)
+        for (auto &op : operators)
         {
-            for (auto &op : operators)
-            {
-                op->Initialize();
-            }
+            op->Initialize();
         }
     }
+}
 
 
 void CoupledApplication::Assemble(bool do_ops)
@@ -128,6 +128,15 @@ void CoupledApplication::Transfer(const Vector &x)
     }
 }
 
+void CoupledApplication::Transfer(const Vector &u, const Vector &k, real_t dt)
+{
+    BlockVector ub(u.GetData(), offsets);
+    BlockVector kb(k.GetData(), offsets);
+    for (int i=0; i < nops; i++)
+    {
+        operators[i]->Transfer(ub.GetBlock(i), kb.GetBlock(i), dt);
+    }
+}
 
 void CoupledApplication::Mult(const Vector &x, Vector &y) const
 {
@@ -247,28 +256,24 @@ void AdditiveSchwarzOperator::Mult(const Vector &x, Vector &y) const
     BlockVector xb(x.GetData(), offsets);
     BlockVector yb(y.GetData(), offsets);
 
+    // Transfer data.
+    for (int i=0; i < nops; i++)
+    {
+        Vector &xi = xb.GetBlock(i);
+        auto op = coupled_operator->GetOperator(i);
+        op->Transfer(xi);
+    }
+
     for (int i=0; i < nops; i++)
     {
         Vector &xi = xb.GetBlock(i);
         Vector &yi = yb.GetBlock(i);
         auto op = coupled_operator->GetOperator(i);
         op->SetOperationID(OperationID::MULT);
+        
+        op->PreProcess(xi); ///< Postprocess the data for the application
         op->Mult(xi,yi);
-    }
-
-    // Transfer data. If app is steady-state and Mult solves F(x) = 0, then
-    // dt_ = 0 and x is transferred to all applications. If app is explicit, time-dependent,
-    // then Mult computes dxdt = F(x), updates z = xi + dt*dxdt, and transfers z to all applications.
-    for (int i=0; i < nops; i++)
-    {
-        Vector &xi = xb.GetBlock(i);
-        Vector &yi = yb.GetBlock(i);
-        int isize  = xi.Size();
-
-        z.SetSize(isize);
-        add(1.0,xi,dt,yi,z); ///< Compute the solution (z = xi + dt*ki)
-        auto op = coupled_operator->GetOperator(i);
-        op->Transfer(z);  ///< Transfer the data to all applications
+        op->PostProcess(yi); ///< Postprocess the data for the application
     }
 }
 
@@ -287,10 +292,7 @@ void AdditiveSchwarzOperator::ImplicitSolve(const real_t dt, const Vector &x, Ve
         Vector &ki = kb.GetBlock(i);
         int nxi    = xi.Size();
         auto op = coupled_operator->GetOperator(i);
-
-        z.SetSize(nxi);
-        add(1.0,xi,dt,ki,z); ///< Compute the solution (z = xi + dt*ki)
-        op->Transfer(z);     ///< Transfer the data to all applications
+        op->Transfer(xi,ki,dt);     ///< Transfer the data to all applications
     }
 
     for (int i=0; i < nops; i++)
@@ -301,9 +303,8 @@ void AdditiveSchwarzOperator::ImplicitSolve(const real_t dt, const Vector &x, Ve
         auto op = coupled_operator->GetOperator(i);
         op->SetOperationID(OperationID::IMPLICIT_SOLVE);
 
-        z = xi;
-        op->PreProcess(z); ///< Postprocess the data for the application
-        op->ImplicitSolve(dt,z,ki); ///< Solve the implicit system for the application
+        op->PreProcess(xi); ///< Postprocess the data for the application
+        op->ImplicitSolve(dt,xi,ki); ///< Solve the implicit system for the application
         op->PostProcess(ki); ///< Postprocess the data for the application        
     }
 }
@@ -315,6 +316,15 @@ void AdditiveSchwarzOperator::Step(Vector &x, real_t &t_, real_t &dt_)
     const Array<int> offsets = coupled_operator->GetOffsets();
     
     BlockVector xb(x.GetData(), offsets);
+
+    // Transfer the data before all applications have been stepped forward
+    for (int i=0; i < nops; i++)
+    {
+        Vector &xi = xb.GetBlock(i);
+        auto op = coupled_operator->GetOperator(i);
+        op->Transfer(xi);
+    }
+
 
     // Step forward all operators
     // TODO: Add time-interpolation to enable different time step for each operator; 
@@ -333,14 +343,6 @@ void AdditiveSchwarzOperator::Step(Vector &x, real_t &t_, real_t &dt_)
         op->PostProcess(xi); ///< Postprocess the data for the application
     }
 
-    // Transfer the data after all applications have been stepped forward
-    for (int i=0; i < nops; i++)
-    {
-        Vector &xi = xb.GetBlock(i);
-        auto op = coupled_operator->GetOperator(i);
-        op->Transfer(xi);
-    }
-
     t_ += dt_; ///< Update the time after all applications have been stepped forward
                ///< NOTE: does not work for adaptive time-stepping
 }
@@ -348,6 +350,14 @@ void AdditiveSchwarzOperator::Step(Vector &x, real_t &t_, real_t &dt_)
 
 void AlternatingSchwarzOperator::Mult(const Vector &x, Vector &y) const
 {
+    if(GetOperationID() == OperationID::IMPLICIT_SOLVE)
+    {// if the operation is an implicit solve (set by CoupledApplication::ImplicitSolve), 
+     // then Mult was called by the Solver
+        y=x; // input vector passed as initial guess for k in ImpliicitSolve
+        const_cast<AlternatingSchwarzOperator*>(this)->ImplicitSolve(dt,*u,y);
+        return;
+    }
+
     int nops = coupled_operator->Size();
     const Array<int> offsets = coupled_operator->GetOffsets();
 
@@ -360,12 +370,11 @@ void AlternatingSchwarzOperator::Mult(const Vector &x, Vector &y) const
         Vector &yi = yb.GetBlock(i);
         auto op = coupled_operator->GetOperator(i);
         op->SetOperationID(OperationID::MULT);
-        op->Mult(xi,yi);
 
-        int isize  = xi.Size();
-        z.SetSize(isize);
-        add(1.0,xi,dt,yi,z); ///< Compute the solution (z = xi + dt*ki)                
-        op->Transfer(z);  ///< Transfer the data to all applications
+        op->PreProcess(xi);
+        op->Mult(xi,yi);
+        op->PostProcess(yi); ///< Postprocess the data for the application
+        op->Transfer(yi);  ///< Transfer the data to all applications
     }
 }
 
@@ -382,16 +391,15 @@ void AlternatingSchwarzOperator::ImplicitSolve(const real_t dt, const Vector &x,
     {
         Vector &xi = xb.GetBlock(i);
         Vector &ki = kb.GetBlock(i);
-        int isize  = xi.Size();
+        int nxi    = xi.Size();
 
-        z.SetSize(isize);
-        add(1.0,xi,dt,ki,z); ///< Compute the solution (z = xi + dt*ki)
-
-        auto op = coupled_operator->GetOperator(i);     
+        auto op = coupled_operator->GetOperator(i);
         op->SetOperationID(OperationID::IMPLICIT_SOLVE);
 
-        op->Transfer(z);  ///< Transfer the data to all applications
+        op->PreProcess(xi); ///< Preprocess the data for the application
         op->ImplicitSolve(dt,xi,ki); ///< Solve the implicit system for the application
+        op->PostProcess(ki); ///< Postprocess the data for the application
+        op->Transfer(xi,ki,dt);     ///< Transfer the data to all applications
     }
 }
 

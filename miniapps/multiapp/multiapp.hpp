@@ -16,12 +16,12 @@
 #include "mfem.hpp"
 #include "fpi_solver.hpp"
 
-#include <algorithm>
-#include <memory>
+// #include <algorithm>
+// #include <memory>
 #include <vector>
-#include <type_traits> // std::is_base_of
-#include <experimental/type_traits>
-#include <utility>
+// #include <type_traits> // std::is_base_of
+// #include <experimental/type_traits>
+// #include <utility>
 #include <tuple>
 
 
@@ -29,10 +29,6 @@ namespace mfem
 {
 
 using namespace std;
-
-/* TODO LIST
-    1) ADD DESTRUCTORS FOR ALL CLASSES
-*/
 
 
 /**
@@ -205,7 +201,7 @@ public:
     {        
         finder.Interpolate(src,interp_vals);
 
-        int dim = dst_fes->GetParMesh()->Dimension();
+        int dim = dst_fes->GetVDim();
         int src_nstep = 1, src_vstep = 0;
         int dst_nstep = 1, dst_vstep = 0;
         int src_nnodes = interp_vals.Size()/dim;
@@ -279,7 +275,7 @@ public:
 
     virtual void Transfer(const Vector &vsrc, const int idest=-1)
     {
-        if(vsrc.Size() == source.FESpace()->GetVSize() )
+        if(vsrc.Size() == source.ParFESpace()->GetVSize() )
         {   // Set GridFunction if the source vector is the same size.
             source.SetFromTrueDofs(vsrc);
         }        
@@ -531,7 +527,6 @@ public:
 
     /**
      * @brief Transfer the data defined in the LinkedFields for current operator.
-     * 
      * @param x Information to transfer, e.g., current solution vector, stage update, etc.
      */
     virtual void Transfer(const Vector &x)
@@ -545,6 +540,15 @@ public:
         {
             Transfer();
         }
+    }
+
+    /**
+     * @brief Transfer the stage 'u' and 'k' from multistage methods. Can be used to transfer
+     * the stage-updated solution, e.g., un = ui + dt*ki, to other applications.
+     */
+    virtual void Transfer(const Vector &u, const Vector &k, real_t dt = 0.0)
+    {
+        Application::Transfer(u);
     }
 
     virtual void Transfer()
@@ -619,7 +623,7 @@ public:
     constexpr bool HasStep(){return CheckMember<OpType>::HasStep;}
 
 
-    AbstractOperator(OpType *op_) : op(op_)
+    AbstractOperator(OpType *op_, int h, int w) : Application(h,w), op(op_)
     {    
         // If the operator is an ODESolver, we need access to its time-dependent operator 
         if constexpr (std::is_base_of<ODESolver, OpType>::value)
@@ -630,6 +634,9 @@ public:
             nested_op = dynamic_cast<Application*>(tdo);
         }
     }
+
+    AbstractOperator(OpType *op_, int s = 0) : AbstractOperator(op_,s,s) {}
+
 
     void Mult(const Vector &x, Vector &y) const override
     {
@@ -747,7 +754,7 @@ public:
      * @brief Add an operator to the list of coupled operator and return pointer to it.
      */
     template <class OpType>
-    Application* AddOperator(OpType *op_) {
+    Application* AddOperator(OpType *op_, int h, int w) {
 
         // Add operator to list of operators
         if constexpr(std::is_base_of<Application, OpType>::value)
@@ -756,7 +763,7 @@ public:
         } 
         else
         {
-            operators.push_back(new AbstractOperator<OpType>(op_));
+            operators.push_back(new AbstractOperator<OpType>(op_,h,w));
         }
         nops++;
 
@@ -774,6 +781,9 @@ public:
 
         return op;
     }
+
+    template <class OpType>
+    Application* AddOperator(OpType *op_, int s = 0) { return AddOperator(op_,s,s);}
 
 
     /**
@@ -883,6 +893,12 @@ public:
      */
     virtual void Transfer(const Vector &x) override;
 
+    /**
+     * @brief Transfer the stage 'u' and 'k' from multistage methods. Can be used to transfer
+     * the stage-updated solution, e.g., un = ui + dt*ki, to other applications.
+     */
+    virtual void Transfer(const Vector &u, const Vector &k, real_t dt = 0.0) override;
+
 
     void SetTime(const real_t t) override
     {
@@ -981,12 +997,8 @@ class CouplingOperator : public Application
 
 class AdditiveSchwarzOperator : public CouplingOperator
 {
-    protected:
-        mutable Vector z;
     public:
-        AdditiveSchwarzOperator(CoupledApplication *op) : CouplingOperator(op){
-            z.SetSize(coupled_operator->Max());
-        }
+        AdditiveSchwarzOperator(CoupledApplication *op) : CouplingOperator(op){}
         void Mult(const Vector &ki, Vector &k) const override;
         void ImplicitSolve(const real_t dt, const Vector &x, Vector &k ) override;
         void Step(Vector &x, real_t &t, real_t &dt) override;
@@ -994,12 +1006,8 @@ class AdditiveSchwarzOperator : public CouplingOperator
 
 class AlternatingSchwarzOperator : public CouplingOperator
 {
-    protected:
-        mutable Vector z;
     public:
-        AlternatingSchwarzOperator(CoupledApplication *op) : CouplingOperator(op){
-            z.SetSize(coupled_operator->Max());
-        }
+        AlternatingSchwarzOperator(CoupledApplication *op) : CouplingOperator(op){}
         void Mult(const Vector &ki, Vector &k) const override;
         void ImplicitSolve(const real_t dt, const Vector &x, Vector &k ) override;
         void Step(Vector &x, real_t &t, real_t &dt) override;
