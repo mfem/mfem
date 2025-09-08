@@ -281,8 +281,10 @@ void KnotVector::GetDemko(Vector &xi) const
 
 void KnotVector::ComputeDemko() const
 {
-   const int itermax1 = 10;
-   const int itermax2 = 10;
+   const int itermax1 = 25;
+   const int itermax2 = 1;
+
+   const real_t relax2 = 0.9;
 
    const real_t tol1 = 1e-12;
    const real_t tol2 = 1e-12;
@@ -321,7 +323,10 @@ void KnotVector::ComputeDemko() const
             continue;
          }
 
+         // Get current demko point
          u = demko[i];
+
+         // Find location of extremum
          for (iter2 = 0; iter2 <itermax2; iter2++)
          {
             ks = GetSpan (u);
@@ -329,6 +334,7 @@ void KnotVector::ComputeDemko() const
 
             CalcDShape(shgrad, ks-Order, xi);
             CalcD2Shape(shhess, ks-Order, xi);
+
             grad = hess = 0.0;
             for (int p = 0; p <Order+1; p++)
             {
@@ -336,18 +342,41 @@ void KnotVector::ComputeDemko() const
                hess += a[ks-Order + p]*shhess[p];
             }
             u -= (grad/hess)*(knot(ks+1) - knot(ks));
-
             if (fabs(grad)< tol2) { break; }
          }
-         if (iter2 >= itermax2) { mfem::out<<"Demko: Iteration to find extremum not converged"<<fabs(grad)<<endl; }
-         demko[i] = u;
+
+         // Check convergence
+         if ((itermax2 > 1) &&
+             (itermax2 == iter2))
+         {
+            mfem::out<<"Demko: Iteration to find extremum not converged"<<endl;
+            mfem::out<<"|grad| = "<<fabs(grad)<<endl;
+         }
+
+         // Update
+         demko[i] = relax2*u + (1.0 - relax2)*demko[i];
       }
+
+      // Correct order or demko vector
+      // - assumes vector is almost in the correct order
+      for (int i = 0; i <GetNCP()-1; i++)
+      {
+         if (demko[i] > demko[i+1]) {std::swap(demko[i], demko[i+1]);}
+      }
+
+      // Find new interpolant and compare with old interpolant
       GetInterpolant(x, demko, anew);
       a -= anew;
       if (a.Norml2() < tol1) { break; }
       a = anew;
    }
-   if (iter1 >= itermax1) { mfem::out<<"Demko: Remez iteration  not converged"<<a.Norml2()<<endl; }
+
+   // Check convergence
+   if (iter1 >= itermax1)
+   {
+      mfem::out<<"Demko: Remez iteration not converged"<<endl;
+      mfem::out<<"|a - anew| = "<<a.Norml2()<<endl;
+   }
 }
 
 KnotVector *KnotVector::DegreeElevate(int t) const
