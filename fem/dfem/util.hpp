@@ -1100,6 +1100,24 @@ void prolongation(const std::vector<FieldDescriptor> fields,
    }
 }
 
+inline
+void get_lvectors(const std::vector<FieldDescriptor> fields,
+                  const Vector &x,
+                  std::vector<Vector> &fields_l)
+{
+   int data_offset = 0;
+   for (std::size_t i = 0; i < fields.size(); i++)
+   {
+      const int sz = GetVSize(fields[i]);
+      fields_l[i].SetSize(sz);
+
+      const Vector x_i(const_cast<Vector&>(x), data_offset, sz);
+      fields_l[i] = x_i;
+
+      data_offset += sz;
+   }
+}
+
 /// @brief Get a transpose prolongation callback for a field descriptor.
 ///
 /// In the special case of a one field operator, the transpose prolongation
