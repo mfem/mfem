@@ -20,6 +20,7 @@ set(UNIT_TESTS_SRCS
   dfem/test_diffusion.cpp
   dfem/test_divergence.cpp
   dfem/test_mass.cpp
+  dfem/test_lvector_interface.cpp
   general/test_array.cpp
   general/test_reduction.cpp
   general/test_arrays_by_name.cpp
@@ -144,11 +145,11 @@ set(UNIT_TESTS_SRCS
 # SERIAL CPU TESTS: unit_tests
 #-----------------------------------------------------------
 if (MFEM_USE_CUDA)
-   set_property(SOURCE unit_test_main.cpp ${UNIT_TESTS_SRCS}
+    set_property(SOURCE unit_test_main.cpp ${UNIT_TESTS_SRCS}
                 PROPERTY LANGUAGE CUDA)
 endif()
 if (MFEM_USE_HIP)
-  set_property(SOURCE unit_test_main.cpp ${UNIT_TESTS_SRCS}
+    set_property(SOURCE unit_test_main.cpp ${UNIT_TESTS_SRCS}
                PROPERTY HIP_SOURCE_PROPERTY_FORMAT TRUE)
 endif()
 
@@ -175,7 +176,7 @@ COMMAND ${CMAKE_COMMAND} -E copy_directory
 #   make unit_tests
 #   ctest -R unit_tests [-V]
 if (MFEM_USE_DOUBLE) # otherwise returns MFEM_SKIP_RETURN_VALUE
-  add_test(NAME unit_tests COMMAND unit_tests)
+    add_test(NAME unit_tests COMMAND unit_tests)
 endif()
 
 #-----------------------------------------------------------
@@ -183,16 +184,16 @@ endif()
 #-----------------------------------------------------------
 # Create CUDA executable and test
 if (MFEM_USE_CUDA)
-   # gpu_unit_tests
-   set(GPU_UNIT_TESTS_SRCS gpu_unit_test_main.cpp)
-   set_property(SOURCE ${GPU_UNIT_TESTS_SRCS} PROPERTY LANGUAGE CUDA)
-   mfem_add_executable(gpu_unit_tests ${GPU_UNIT_TESTS_SRCS} ${UNIT_TESTS_SRCS})
-   target_link_libraries(gpu_unit_tests mfem)
-   add_dependencies(gpu_unit_tests copy_data)
-   add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} gpu_unit_tests)
-   if (MFEM_USE_DOUBLE) # otherwise returns MFEM_SKIP_RETURN_VALUE
-      add_test(NAME gpu_unit_tests COMMAND gpu_unit_tests)
-   endif()
+    # gpu_unit_tests
+    set(GPU_UNIT_TESTS_SRCS gpu_unit_test_main.cpp)
+    set_property(SOURCE ${GPU_UNIT_TESTS_SRCS} PROPERTY LANGUAGE CUDA)
+    mfem_add_executable(gpu_unit_tests ${GPU_UNIT_TESTS_SRCS} ${UNIT_TESTS_SRCS})
+    target_link_libraries(gpu_unit_tests mfem)
+    add_dependencies(gpu_unit_tests copy_data)
+    add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} gpu_unit_tests)
+    if (MFEM_USE_DOUBLE) # otherwise returns MFEM_SKIP_RETURN_VALUE
+        add_test(NAME gpu_unit_tests COMMAND gpu_unit_tests)
+    endif()
 endif()
 
 #-----------------------------------------------------------
@@ -200,15 +201,15 @@ endif()
 #-----------------------------------------------------------
 # Create HIP 'gpu_unit_tests' executable and test
 if (MFEM_USE_HIP)
-   # gpu_unit_tests
-   set(GPU_UNIT_TESTS_SRCS gpu_unit_test_main.cpp)
-   mfem_add_executable(gpu_unit_tests ${GPU_UNIT_TESTS_SRCS} ${UNIT_TESTS_SRCS})
-   target_link_libraries(gpu_unit_tests mfem)
-   add_dependencies(gpu_unit_tests copy_data)
-   add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} gpu_unit_tests)
-   if (MFEM_USE_DOUBLE) # otherwise returns MFEM_SKIP_RETURN_VALUE
-      add_test(NAME gpu_unit_tests COMMAND gpu_unit_tests)
-   endif()
+    # gpu_unit_tests
+    set(GPU_UNIT_TESTS_SRCS gpu_unit_test_main.cpp)
+    mfem_add_executable(gpu_unit_tests ${GPU_UNIT_TESTS_SRCS} ${UNIT_TESTS_SRCS})
+    target_link_libraries(gpu_unit_tests mfem)
+    add_dependencies(gpu_unit_tests copy_data)
+    add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} gpu_unit_tests)
+    if (MFEM_USE_DOUBLE) # otherwise returns MFEM_SKIP_RETURN_VALUE
+        add_test(NAME gpu_unit_tests COMMAND gpu_unit_tests)
+    endif()
 endif()
 
 #-----------------------------------------------------------
@@ -224,7 +225,7 @@ function(add_serial_miniapp_test name test_uvm)
 
     set(${NAME}_TESTS_SRCS miniapps/test_${name}.cpp)
     if (MFEM_USE_CUDA)
-       set_property(SOURCE ${${NAME}_TESTS_SRCS} PROPERTY LANGUAGE CUDA)
+        set_property(SOURCE ${${NAME}_TESTS_SRCS} PROPERTY LANGUAGE CUDA)
     endif(MFEM_USE_CUDA)
 
     mfem_add_executable(${name}_tests_cpu ${${NAME}_TESTS_SRCS})
@@ -244,25 +245,25 @@ function(add_serial_miniapp_test name test_uvm)
     endif()
 
     if (MFEM_USE_CUDA OR MFEM_USE_HIP)
-       mfem_add_executable(${name}_tests_gpu ${${NAME}_TESTS_SRCS})
-       target_compile_definitions(${name}_tests_gpu PUBLIC MFEM_${NAME}_DEVICE="gpu")
-       target_link_libraries(${name}_tests_gpu mfem)
-       add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} ${name}_tests_gpu)
-       if (MFEM_USE_DOUBLE) # otherwise returns MFEM_SKIP_RETURN_VALUE
-           add_test(NAME ${name}_tests_gpu COMMAND ${name}_tests_gpu)
-       endif()
+        mfem_add_executable(${name}_tests_gpu ${${NAME}_TESTS_SRCS})
+        target_compile_definitions(${name}_tests_gpu PUBLIC MFEM_${NAME}_DEVICE="gpu")
+        target_link_libraries(${name}_tests_gpu mfem)
+        add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} ${name}_tests_gpu)
+        if (MFEM_USE_DOUBLE) # otherwise returns MFEM_SKIP_RETURN_VALUE
+            add_test(NAME ${name}_tests_gpu COMMAND ${name}_tests_gpu)
+        endif()
 
-       if (test_uvm)
-           mfem_add_executable(${name}_tests_gpu_uvm ${${NAME}_TESTS_SRCS})
-           target_compile_definitions(${name}_tests_gpu_uvm PUBLIC
+        if (test_uvm)
+            mfem_add_executable(${name}_tests_gpu_uvm ${${NAME}_TESTS_SRCS})
+            target_compile_definitions(${name}_tests_gpu_uvm PUBLIC
                MFEM_${NAME}_DEVICE="gpu:uvm")
-           target_link_libraries(${name}_tests_gpu_uvm mfem)
-           add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME}
+            target_link_libraries(${name}_tests_gpu_uvm mfem)
+            add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME}
                ${name}_tests_gpu_uvm)
-           if (MFEM_USE_DOUBLE) # otherwise returns MFEM_SKIP_RETURN_VALUE
-               add_test(NAME ${name}_tests_gpu_uvm COMMAND ${name}_tests_gpu_uvm)
-           endif()
-       endif()
+            if (MFEM_USE_DOUBLE) # otherwise returns MFEM_SKIP_RETURN_VALUE
+                add_test(NAME ${name}_tests_gpu_uvm COMMAND ${name}_tests_gpu_uvm)
+            endif()
+        endif()
     endif()
 endfunction(add_serial_miniapp_test)
 
@@ -277,25 +278,25 @@ add_dependencies(tmop_pa_tests_cpu copy_miniapps_meshing_data)
 #-----------------------------------------------------------
 # Add 'ceed_tests' executable and test; add extra tests 'ceed_test_*'
 if (MFEM_USE_CEED)
-   set(CEED_TESTS_SRCS
+    set(CEED_TESTS_SRCS
       ceed/test_ceed.cpp
       ceed/test_ceed_main.cpp)
-   if (MFEM_USE_CUDA)
-      set_property(SOURCE ${CEED_TESTS_SRCS} PROPERTY LANGUAGE CUDA)
-   endif(MFEM_USE_CUDA)
-   mfem_add_executable(ceed_tests ${CEED_TESTS_SRCS})
-   target_link_libraries(ceed_tests mfem)
-   add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} ceed_tests)
-   # Add CEED tests
-   add_test(NAME ceed_tests COMMAND ceed_tests)
-   if (MFEM_USE_CUDA)
-      add_test(NAME ceed_tests_cuda_ref
+    if (MFEM_USE_CUDA)
+        set_property(SOURCE ${CEED_TESTS_SRCS} PROPERTY LANGUAGE CUDA)
+    endif(MFEM_USE_CUDA)
+    mfem_add_executable(ceed_tests ${CEED_TESTS_SRCS})
+    target_link_libraries(ceed_tests mfem)
+    add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} ceed_tests)
+    # Add CEED tests
+    add_test(NAME ceed_tests COMMAND ceed_tests)
+    if (MFEM_USE_CUDA)
+        add_test(NAME ceed_tests_cuda_ref
                COMMAND ceed_tests --device ceed-cuda:/gpu/cuda/ref)
-      add_test(NAME ceed_tests_cuda_shared
+        add_test(NAME ceed_tests_cuda_shared
                COMMAND ceed_tests --device ceed-cuda:/gpu/cuda/shared)
-      add_test(NAME ceed_tests_cuda_gen
+        add_test(NAME ceed_tests_cuda_gen
                COMMAND ceed_tests --device ceed-cuda:/gpu/cuda/gen)
-   endif()
+    endif()
 endif()
 
 #-----------------------------------------------------------
@@ -303,54 +304,54 @@ endif()
 #-----------------------------------------------------------
 # Define executables and tests
 if (MFEM_USE_MPI)
-   # punit_tests
-   if (MFEM_USE_CUDA)
-      set_property(SOURCE punit_test_main.cpp PROPERTY LANGUAGE CUDA)
-   endif()
-   mfem_add_executable(punit_tests punit_test_main.cpp ${UNIT_TESTS_SRCS})
-   target_link_libraries(punit_tests mfem)
-   add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} punit_tests)
-   foreach(np 1 ${MFEM_MPI_NP})
-      if (MFEM_USE_DOUBLE) # otherwise returns MFEM_SKIP_RETURN_VALUE
-         add_test(NAME punit_tests_np=${np}
+    # punit_tests
+    if (MFEM_USE_CUDA)
+        set_property(SOURCE punit_test_main.cpp PROPERTY LANGUAGE CUDA)
+    endif()
+    mfem_add_executable(punit_tests punit_test_main.cpp ${UNIT_TESTS_SRCS})
+    target_link_libraries(punit_tests mfem)
+    add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} punit_tests)
+    foreach(np 1 ${MFEM_MPI_NP})
+        if (MFEM_USE_DOUBLE) # otherwise returns MFEM_SKIP_RETURN_VALUE
+            add_test(NAME punit_tests_np=${np}
                   COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${np}
                   ${MPIEXEC_PREFLAGS} $<TARGET_FILE:punit_tests>
                   ${MPIEXEC_POSTFLAGS})
-      endif()
-   endforeach()
-   if (MFEM_USE_CUDA)
-       # pgpu_unit_tests
-       set(PGPU_UNIT_TESTS_SRCS pgpu_unit_test_main.cpp)
-       set_property(SOURCE ${PGPU_UNIT_TESTS_SRCS} PROPERTY LANGUAGE CUDA)
-       mfem_add_executable(pgpu_unit_tests ${PGPU_UNIT_TESTS_SRCS} ${UNIT_TESTS_SRCS})
-       add_dependencies(pgpu_unit_tests copy_data)
-       target_link_libraries(pgpu_unit_tests mfem)
-       add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} pgpu_unit_tests)
-       foreach(np 1 ${MFEM_MPI_NP})
-          if (MFEM_USE_DOUBLE) # otherwise returns MFEM_SKIP_RETURN_VALUE
-             add_test(NAME pgpu_unit_tests_np=${np}
+        endif()
+    endforeach()
+    if (MFEM_USE_CUDA)
+        # pgpu_unit_tests
+        set(PGPU_UNIT_TESTS_SRCS pgpu_unit_test_main.cpp)
+        set_property(SOURCE ${PGPU_UNIT_TESTS_SRCS} PROPERTY LANGUAGE CUDA)
+        mfem_add_executable(pgpu_unit_tests ${PGPU_UNIT_TESTS_SRCS} ${UNIT_TESTS_SRCS})
+        add_dependencies(pgpu_unit_tests copy_data)
+        target_link_libraries(pgpu_unit_tests mfem)
+        add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} pgpu_unit_tests)
+        foreach(np 1 ${MFEM_MPI_NP})
+            if (MFEM_USE_DOUBLE) # otherwise returns MFEM_SKIP_RETURN_VALUE
+                add_test(NAME pgpu_unit_tests_np=${np}
                       COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${np}
                       ${MPIEXEC_PREFLAGS} $<TARGET_FILE:pgpu_unit_tests>
                       ${MPIEXEC_POSTFLAGS})
-          endif()
-       endforeach()
+            endif()
+        endforeach()
     endif()
     if (MFEM_USE_HIP)
-       # pgpu_unit_tests
-       set(PGPU_UNIT_TESTS_SRCS pgpu_unit_test_main.cpp)
-       mfem_add_executable(pgpu_unit_tests ${PGPU_UNIT_TESTS_SRCS} ${UNIT_TESTS_SRCS})
-       add_dependencies(pgpu_unit_tests copy_data)
-       target_link_libraries(pgpu_unit_tests mfem)
-       add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} pgpu_unit_tests)
-       foreach(np 1 ${MFEM_MPI_NP})
-          if (MFEM_USE_DOUBLE) # otherwise returns MFEM_SKIP_RETURN_VALUE
-             add_test(NAME pgpu_unit_tests_np=${np}
+        # pgpu_unit_tests
+        set(PGPU_UNIT_TESTS_SRCS pgpu_unit_test_main.cpp)
+        mfem_add_executable(pgpu_unit_tests ${PGPU_UNIT_TESTS_SRCS} ${UNIT_TESTS_SRCS})
+        add_dependencies(pgpu_unit_tests copy_data)
+        target_link_libraries(pgpu_unit_tests mfem)
+        add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} pgpu_unit_tests)
+        foreach(np 1 ${MFEM_MPI_NP})
+            if (MFEM_USE_DOUBLE) # otherwise returns MFEM_SKIP_RETURN_VALUE
+                add_test(NAME pgpu_unit_tests_np=${np}
                       COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${np}
                       ${MPIEXEC_PREFLAGS} $<TARGET_FILE:pgpu_unit_tests>
                       ${MPIEXEC_POSTFLAGS})
-          endif()
-       endforeach()
-   endif()
+            endif()
+        endforeach()
+    endif()
 endif(MFEM_USE_MPI)
 
 #-----------------------------------------------------------
@@ -424,8 +425,8 @@ endfunction(add_parallel_miniapp_test)
 
 # Additional MPI unit tests
 if (MFEM_USE_MPI)
-   add_parallel_miniapp_test(sedov TRUE)
-   add_parallel_miniapp_test(tmop_pa FALSE)
+    add_parallel_miniapp_test(sedov TRUE)
+    add_parallel_miniapp_test(tmop_pa FALSE)
 endif(MFEM_USE_MPI)
 
 #-----------------------------------------------------------
@@ -434,10 +435,10 @@ endif(MFEM_USE_MPI)
 #-----------------------------------------------------------
 set(DEBUG_DEVICE_SRCS miniapps/test_debug_device.cpp)
 if (MFEM_USE_CUDA)
-   set_property(SOURCE ${DEBUG_DEVICE_SRCS} PROPERTY LANGUAGE CUDA)
+    set_property(SOURCE ${DEBUG_DEVICE_SRCS} PROPERTY LANGUAGE CUDA)
 endif()
 if (MFEM_USE_HIP)
-   set_property(SOURCE ${DEBUG_DEVICE_SRCS}
+    set_property(SOURCE ${DEBUG_DEVICE_SRCS}
                 PROPERTY HIP_SOURCE_PROPERTY_FORMAT TRUE)
 endif()
 mfem_add_executable(debug_device_tests ${DEBUG_DEVICE_SRCS})
