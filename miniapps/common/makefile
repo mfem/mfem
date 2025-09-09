@@ -31,7 +31,11 @@ ifneq (clean,$(MAKECMDGOALS))
    -include $(CONFIG_MK)
 
    ifeq ($(MFEM_USE_CUDA),YES)
-      XLINKER = $(CUDA_XLINKER)
+      ifeq ($(shell $(MFEM_CXX) --version 2>&1 | grep "NVIDIA"),)
+         XLINKER = $(CXX_XLINKER)
+      else
+         XLINKER = $(CUDA_XLINKER)
+      endif
    else ifeq ($(MFEM_USE_HIP),YES)
       XLINKER = $(HIP_XLINKER)
    else
