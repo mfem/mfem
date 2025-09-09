@@ -327,8 +327,8 @@ void print_mpi_sync(const std::string& msg)
    // First gather string lengths
    size_t msg_len = msg.length();
    std::vector<size_t> lengths(nranks);
-   MPI_Gather(&msg_len, 1, MPI_INT,
-              lengths.data(), 1, MPI_INT,
+   MPI_Gather(&msg_len, 1, MPITypeMap<size_t>::mpi_type,
+              lengths.data(), 1, MPITypeMap<size_t>::mpi_type,
               0, MPI_COMM_WORLD);
 
    if (myrank == 0)
@@ -568,7 +568,7 @@ struct ThreadBlocks
    int z = 1;
 };
 
-#if (defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))
+#if defined(MFEM_USE_CUDA_OR_HIP)
 template <typename func_t>
 __global__ void forall_kernel_shmem(func_t f, int n)
 {
@@ -591,7 +591,7 @@ void forall(func_t f,
    if (Device::Allows(Backend::CUDA_MASK) ||
        Device::Allows(Backend::HIP_MASK))
    {
-#if (defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))
+#if defined(MFEM_USE_CUDA_OR_HIP)
       // int gridsize = (N + Z - 1) / Z;
       int num_bytes = num_shmem * sizeof(decltype(shmem));
       dim3 block_size(blocks.x, blocks.y, blocks.z);
@@ -1095,6 +1095,24 @@ void prolongation(const std::vector<FieldDescriptor> fields,
       fields_l[i].SetSize(P->Height());
       P->Mult(x_i, fields_l[i]);
       data_offset += width;
+   }
+}
+
+inline
+void get_lvectors(const std::vector<FieldDescriptor> fields,
+                  const Vector &x,
+                  std::vector<Vector> &fields_l)
+{
+   int data_offset = 0;
+   for (std::size_t i = 0; i < fields.size(); i++)
+   {
+      const int sz = GetVSize(fields[i]);
+      fields_l[i].SetSize(sz);
+
+      const Vector x_i(const_cast<Vector&>(x), data_offset, sz);
+      fields_l[i] = x_i;
+
+      data_offset += sz;
    }
 }
 

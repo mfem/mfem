@@ -1590,21 +1590,27 @@ void ParMesh::DistributeAttributes(Array<int> &attr)
    delete [] glb_attr_marker;
 }
 
-void ParMesh::SetAttributes()
+void ParMesh::SetAttributes(bool elem_attrs_changed, bool bdr_attrs_changed)
 {
    // Determine the attributes occurring in local interior and boundary elements
-   Mesh::SetAttributes();
+   Mesh::SetAttributes(elem_attrs_changed, bdr_attrs_changed);
 
-   DistributeAttributes(bdr_attributes);
-   if (bdr_attributes.Size() > 0 && bdr_attributes[0] <= 0)
+   if (bdr_attrs_changed)
    {
-      MFEM_WARNING("Non-positive boundary element attributes found!");
+      DistributeAttributes(bdr_attributes);
+      if (bdr_attributes.Size() > 0 && bdr_attributes[0] <= 0)
+      {
+         MFEM_WARNING("Non-positive boundary element attributes found!");
+      }
    }
 
-   DistributeAttributes(attributes);
-   if (attributes.Size() > 0 && attributes[0] <= 0)
+   if (elem_attrs_changed)
    {
-      MFEM_WARNING("Non-positive element attributes found!");
+      DistributeAttributes(attributes);
+      if (attributes.Size() > 0 && attributes[0] <= 0)
+      {
+         MFEM_WARNING("Non-positive element attributes found!");
+      }
    }
 }
 
@@ -3889,6 +3895,13 @@ void ParMesh::LocalRefinement(const Array<int> &marked_el, int type)
    CheckElementOrientation(false);
    CheckBdrElementOrientation(false);
 #endif
+}
+
+bool ParMesh::AnisotropicConflict(const Array<Refinement> &refinements,
+                                  std::set<int> &conflicts) const
+{
+   MFEM_VERIFY(pncmesh, "AnisotropicConflict should be called only for NCMesh");
+   return pncmesh->AnisotropicConflict(refinements, conflicts);
 }
 
 void ParMesh::NonconformingRefinement(const Array<Refinement> &refinements,
