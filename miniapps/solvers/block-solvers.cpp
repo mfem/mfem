@@ -175,13 +175,13 @@ DarcyProblem::DarcyProblem(MPI_Comm comm, Mesh &mesh, int num_refs, int order,
 
    Mform_ = make_shared<ParBilinearForm>(u_fes);
    Mform_->AddDomainIntegrator(new VectorFEMassIntegrator(*mass_coeff_));
-   // Mform_->ComputeElementMatrices();
+   Mform_->ComputeElementMatrices();
    Mform_->Assemble();
    Mform_->Finalize();
 
    Bform_ = make_shared<ParMixedBilinearForm>(u_fes, p_fes);
    Bform_->AddDomainIntegrator(new VectorFEDivergenceIntegrator());
-   // Bform_->ComputeElementMatrices();
+   Bform_->ComputeElementMatrices();
    Bform_->Assemble();
    Bform_->SpMat() *= -1.0;
    Bform_->Finalize();
@@ -279,9 +279,9 @@ int main(int argc, char *argv[])
    const char *coef_file = "";
    const char *ess_bdr_attr_file = "";
    int order = 0;
-   int ser_ref_levels = 1;
-   int par_ref_levels = 1;
-   bool show_error = false;
+   int ser_ref_levels = 0;
+   int par_ref_levels = 0;
+   bool show_error = true;
    bool visualization = false;
 
    DFSParameters param;
@@ -323,8 +323,8 @@ int main(int argc, char *argv[])
    }
 
    // Initialize the mesh, boundary attributes, and solver parameters
-   // Mesh *mesh = new Mesh(mesh_file, 1, 1);
-   Mesh *mesh = new Mesh(Mesh::MakeCartesian2D(8, 8, Element::TRIANGLE, 1));
+   Mesh *mesh = new Mesh(mesh_file, 1, 1);
+   // Mesh *mesh = new Mesh(Mesh::MakeCartesian2D(1, 1, Element::TRIANGLE, 1));
    int dim = mesh->Dimension();
 
    for (int i = 0; i < ser_ref_levels; ++i)
@@ -341,8 +341,8 @@ int main(int argc, char *argv[])
    }
 
    Array<int> ess_bdr(mesh->bdr_attributes.Max());
-   ess_bdr = 1;
-   ess_bdr[0] = 0;
+   ess_bdr = 0;
+   // ess_bdr[0] = 0;
    if (std::strcmp(ess_bdr_attr_file, ""))
    {
       ifstream ess_bdr_attr_str(ess_bdr_attr_file);
