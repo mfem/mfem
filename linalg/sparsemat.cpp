@@ -47,9 +47,9 @@
 #endif // defined(MFEM_USE_CUDA)
 
 #if defined(MFEM_USE_SINGLE)
-#define MFEM_REAL_T MFEM_CUDA_or_HIP(_R_32F)
+#define MFEM_CUDA_or_HIP_REAL_T MFEM_CUDA_or_HIP(_R_32F)
 #elif defined(MFEM_USE_DOUBLE)
-#define MFEM_REAL_T MFEM_CUDA_or_HIP(_R_64F)
+#define MFEM_CUDA_or_HIP_REAL_T MFEM_CUDA_or_HIP(_R_64F)
 #endif
 
 namespace mfem
@@ -510,14 +510,15 @@ void SparseMatrix::SortColumnIndices()
 
       // Create the (input) dense vector with the unsorted values.
       MFEM_cu_or_hip(sparseDnVecDescr_t) d_a_dense;
-      MFEM_cu_or_hip(sparseCreateDnVec)(&d_a_dense, nnzA, d_a_unsorted, MFEM_REAL_T);
+      MFEM_cu_or_hip(sparseCreateDnVec)(&d_a_dense, nnzA, d_a_unsorted,
+                                        MFEM_CUDA_or_HIP_REAL_T);
 
       // Create the (output) sparse vector that will have the sorted values.
       MFEM_cu_or_hip(sparseSpVecDescr_t) d_a_sparse;
       MFEM_cu_or_hip(sparseCreateSpVec)(&d_a_sparse, nnzA, nnzA, d_P, d_a,
                                         MFEM_CU_or_HIP(SPARSE_INDEX_32I),
                                         MFEM_CU_or_HIP(SPARSE_INDEX_BASE_ZERO),
-                                        MFEM_REAL_T);
+                                        MFEM_CUDA_or_HIP_REAL_T);
 
       // Sort the matrix values using the permutation vector.
       MFEM_cu_or_hip(sparseGather)(handle, d_a_dense, d_a_sparse);
@@ -786,15 +787,15 @@ void SparseMatrix::AddMult(const Vector &x, Vector &y, const real_t a) const
             MFEM_CU_or_HIP(SPARSE_INDEX_32I),
             MFEM_CU_or_HIP(SPARSE_INDEX_32I),
             MFEM_CU_or_HIP(SPARSE_INDEX_BASE_ZERO),
-            MFEM_REAL_T);
+            MFEM_CUDA_or_HIP_REAL_T);
 
          // Create handles for input/output vectors
          MFEM_cu_or_hip(sparseCreateDnVec)(&vecX_descr,
                                            x.Size(),
                                            const_cast<real_t *>(d_x),
-                                           MFEM_REAL_T);
+                                           MFEM_CUDA_or_HIP_REAL_T);
          MFEM_cu_or_hip(sparseCreateDnVec)(&vecY_descr, y.Size(), d_y,
-                                           MFEM_REAL_T);
+                                           MFEM_CUDA_or_HIP_REAL_T);
 #else
          cusparseCreateMatDescr(&matA_descr);
          cusparseSetMatIndexBase(matA_descr, CUSPARSE_INDEX_BASE_ZERO);
@@ -813,7 +814,7 @@ void SparseMatrix::AddMult(const Vector &x, Vector &y, const real_t a) const
          vecX_descr,
          &beta,
          vecY_descr,
-         MFEM_REAL_T,
+         MFEM_CUDA_or_HIP_REAL_T,
          MFEM_GPUSPARSE_ALG,
          &newBufferSize);
 
@@ -840,7 +841,7 @@ void SparseMatrix::AddMult(const Vector &x, Vector &y, const real_t a) const
          vecX_descr,
          &beta,
          vecY_descr,
-         MFEM_REAL_T,
+         MFEM_CUDA_or_HIP_REAL_T,
          MFEM_GPUSPARSE_ALG,
          dBuffer);
 #else
