@@ -55,6 +55,10 @@
 #error "MFEM_USE_HIP=YES is required when HYPRE is built with HIP!"
 #endif
 
+#if MFEM_HYPRE_VERSION > 21500
+#define HYPRE_AssumedPartitionCheck() 1
+#endif
+
 namespace mfem
 {
 
