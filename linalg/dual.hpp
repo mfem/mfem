@@ -436,11 +436,10 @@ dual<value_type, gradient_type> max(dual<value_type, gradient_type> a,
    {
       return a;
    }
-   else if (a.value < b.value)
+   else
    {
       return b;
    }
-   else { return (a+b)*0.5; } // subgradient at the kink
 }
 
 /** @brief implementation of max of a dual number and a non-dual number */
@@ -451,11 +450,10 @@ dual<value_type, gradient_type> max(real_t a, dual<value_type, gradient_type> b)
    {
       return {a, {}};
    }
-   else if (a < b.value)
+   else
    {
       return b;
    }
-   else { return {a, b.gradient*0.5}; } // subgradient at the kink
 }
 
 /** @brief implementation of max of two non-dual numbers */
@@ -483,11 +481,10 @@ dual<value_type, gradient_type> min(dual<value_type, gradient_type> a,
    {
       return a;
    }
-   else if (a.value > b.value)
+   else
    {
       return b;
    }
-   else { return (a+b)*0.5; } // subgradient at the kink
 }
 
 /** @brief implementation of min of a dual number and a non-dual number */
@@ -498,11 +495,10 @@ dual<value_type, gradient_type> min(real_t a, dual<value_type, gradient_type> b)
    {
       return {a, {}};
    }
-   else if (a > b.value)
+   else
    {
       return b;
    }
-   else { return {a, b.gradient*0.5}; } // subgradient at the kink
 }
 
 /** @brief implementation of min of two non-dual numbers */
