@@ -811,7 +811,6 @@ void DifferentiableOperator::AddDomainIntegrator(
                // capture by copy:
                dimension,             // int
                num_entities,          // int
-               num_test_dof,          // int
                num_qp,                // int
                // q1d,                   // int
                test_vdim,             // int (= output_fop.vdim)
