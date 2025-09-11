@@ -834,7 +834,6 @@ void DifferentiableOperator::AddDomainIntegrator(
                //       and capture it by ref.
                elem_attributes,       // Array<int>
                input_size_on_qp,
-               input_is_dependent,    // std::array<bool, num_inputs>
                direction,             // FieldDescriptor
                direction_e,           // Vector
                derivative_action_e,   // Vector
@@ -933,7 +932,6 @@ void DifferentiableOperator::AddDomainIntegrator(
                num_entities,          // int
                num_test_dof,          // int
                num_qp,                // int
-               q1d,                   // int
                test_vdim,             // int (= output_fop.vdim)
                test_op_dim,           // int (derived from output_fop)
                trial_vdim,
@@ -944,9 +942,7 @@ void DifferentiableOperator::AddDomainIntegrator(
                use_sum_factorization, // bool
                input_dtq_maps,        // std::array<DofToQuadMap, num_fields>
                output_dtq_maps,       // std::array<DofToQuadMap, num_fields>
-               input_to_field,        // std::array<int, s>
                output_fop,            // class derived from FieldOperator
-               qfunc,                 // qfunc_t
                thread_blocks,         // ThreadBlocks
                shmem_cache,           // Vector (local)
                shmem_info,            // SharedMemoryInfo
@@ -959,7 +955,6 @@ void DifferentiableOperator::AddDomainIntegrator(
                direction_e,           // Vector
                derivative_action_e,   // Vector
                element_dof_ordering,  // ElementDofOrdering
-               da_size_on_qp,         // int
                num_dependent_inputs,
                dependent_inputs_trial_op_dim,
                // capture by ref:
