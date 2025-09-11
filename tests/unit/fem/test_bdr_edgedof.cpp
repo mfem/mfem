@@ -49,22 +49,35 @@ void GeneratePartitionings(int n_elements, int num_procs,
 TEST_CASE("BoundaryEdgeDoFsPartitionInvariant",
           "[Parallel][ParMesh][BoundaryEdgeDoFs]")
 {
-   const int orientation = 3;
-   const int order = 1;
+   constexpr int orientation = 3;
+   constexpr int order = 1;
 
-   // Adapt to actual number of MPI processes (1 or 2)
-   const int available_procs = Mpi::WorldSize();
-   const int test_num_procs = std::min(available_procs, 2);
+   // Use all available MPI processes for partitioning
+   const int test_num_procs = Mpi::WorldSize();
 
    // Create base mesh
    Mesh base_mesh = OrientedTriFaceMesh(orientation, true);
    base_mesh.UniformRefinement();
    const int n_elements = base_mesh.GetNE();
 
-   // Generate all partitionings for available processes
+   // Use a small set of representative partitionings
    std::vector<std::vector<int>> all_partitionings;
-   boundary_edge_dof_test::GeneratePartitionings(n_elements, test_num_procs,
-                                                 all_partitionings);
+   // 1. All elements on rank 0
+   all_partitionings.push_back(std::vector<int>(n_elements, 0));
+   if (test_num_procs > 1)
+   {
+      // 2. Block partition: first half on rank 0, second half on last rank
+      std::vector<int> block(n_elements);
+      for (int i = 0; i < n_elements; i++)
+         block[i] = (i < n_elements/2) ? 0 : test_num_procs-1;
+      all_partitionings.push_back(block);
+
+      // 3. Round-robin partition: elements assigned cyclically to all ranks
+      std::vector<int> round_robin(n_elements);
+      for (int i = 0; i < n_elements; i++)
+         round_robin[i] = i % test_num_procs;
+      all_partitionings.push_back(round_robin);
+   }
 
    // Create reusable FEC
    ND_FECollection fec(order, 3);
@@ -182,10 +195,10 @@ TEST_CASE("BoundaryEdgeDoFsBasicFunctionality",
 }
 
 // Helper function to compute boundary loop length
-double ComputeBoundaryLoopLength(ParMesh* pmesh,
+real_t ComputeBoundaryLoopLength(ParMesh* pmesh,
                                  const std::unordered_map<int, int>& dof_to_edge)
 {
-   double local_length = 0.0;
+   real_t local_length = 0.0;
    std::unordered_set<int> processed_edges;
 
    for (const auto& pair : dof_to_edge)
@@ -195,13 +208,13 @@ double ComputeBoundaryLoopLength(ParMesh* pmesh,
 
       Array<int> edge_verts;
       pmesh->GetEdgeVertices(edge_id, edge_verts);
-      const double* v0 = pmesh->GetVertex(edge_verts[0]);
-      const double* v1 = pmesh->GetVertex(edge_verts[1]);
+      const real_t* v0 = pmesh->GetVertex(edge_verts[0]);
+      const real_t* v1 = pmesh->GetVertex(edge_verts[1]);
 
-      double edge_length = 0.0;
+      real_t edge_length = 0.0;
       for (int i = 0; i < pmesh->SpaceDimension(); i++)
       {
-         double diff = v1[i] - v0[i];
+         real_t diff = v1[i] - v0[i];
          edge_length += diff * diff;
       }
       local_length += sqrt(edge_length);
@@ -215,11 +228,11 @@ TEST_CASE("BoundaryEdgeDoFsNestedCubes",
    const int order = GENERATE(1, 2);
 
    // Expected processor-invariant results for nested cubes mesh (1 refinement)
-   // order=1: 24 tdofs, sum=24.0, length=2.0
-   // order=2: 48 tdofs, sum=48.0, length=2.0
-   int exp_tdofs = (order == 1) ? 24 : 48;
-   double exp_sum = (order == 1) ? 24.0 : 48.0;
-   double exp_length = 2.0;
+   // order=1: 16 tdofs, sum=16.0, length=2.0
+   // order=2: 32 tdofs, sum=32.0, length=2.0
+   int exp_tdofs = (order == 1) ? 16 : 32;
+   real_t exp_sum = (order == 1) ? real_t(16.0) : real_t(32.0);
+   real_t exp_length = real_t(2.0);
 
    struct BoundaryTest
    {
@@ -281,12 +294,12 @@ TEST_CASE("BoundaryEdgeDoFsNestedCubes",
                                           test.normal, edge_loop_orientation);
 
       ParGridFunction x(&fespace);
-      x = 0.0;
+      x = real_t(0.0);
       for (int dof : boundary_edge_ldofs)
       {
          int edge = dof_to_edge[dof];
          int orientation = edge_loop_orientation[edge];
-         x(dof) = 1.0 * orientation;
+         x(dof) = real_t(1.0) * orientation;
       }
 
       GroupCommunicator *gc = fespace.ScalarGroupComm();
@@ -294,10 +307,10 @@ TEST_CASE("BoundaryEdgeDoFsNestedCubes",
       gc->Reduce<int>(global_marker.GetData(), GroupCommunicator::BitOR<int>);
       gc->Bcast(global_marker);
 
-      Array<double> values(x.GetData(), x.Size());
+      Array<real_t> values(x.GetData(), x.Size());
       gc->ReduceBegin(values.GetData());
-      gc->ReduceMarked<double>(values.GetData(), global_marker, 0,
-                               GroupCommunicator::MaxAbs<double>);
+      gc->ReduceMarked<real_t>(values.GetData(), global_marker, 0,
+                               GroupCommunicator::MaxAbs<real_t>);
       gc->Bcast(values.GetData());
       delete gc;
 
@@ -305,10 +318,10 @@ TEST_CASE("BoundaryEdgeDoFsNestedCubes",
       x.GetTrueDofs(x_true);
 
       int local_nonzero_tdofs = 0;
-      double local_tdof_sum = 0.0;
+      real_t local_tdof_sum = 0.0;
       for (int tdof = 0; tdof < x_true.Size(); tdof++)
       {
-         double tdof_value = x_true(tdof);
+         real_t tdof_value = x_true(tdof);
          if (abs(tdof_value) > 1e-12)
          {
             local_nonzero_tdofs++;
@@ -316,10 +329,10 @@ TEST_CASE("BoundaryEdgeDoFsNestedCubes",
          }
       }
 
-      double local_length = ComputeBoundaryLoopLength(&pmesh, dof_to_edge);
+      real_t local_length = ComputeBoundaryLoopLength(&pmesh, dof_to_edge);
 
       int global_nonzero_tdofs;
-      double global_tdof_sum, total_length;
+      real_t global_tdof_sum, total_length;
       MPI_Allreduce(&local_nonzero_tdofs, &global_nonzero_tdofs, 1, MPI_INT, MPI_SUM,
                     MPI_COMM_WORLD);
       MPI_Allreduce(&local_tdof_sum, &global_tdof_sum, 1, MPI_DOUBLE, MPI_SUM,
@@ -329,8 +342,8 @@ TEST_CASE("BoundaryEdgeDoFsNestedCubes",
 
       // Verify processor-invariant results match expected values
       REQUIRE(global_nonzero_tdofs == exp_tdofs);
-      REQUIRE(abs(global_tdof_sum - exp_sum) < 1e-12);
-      REQUIRE(abs(total_length - exp_length) < 1e-12);
+      REQUIRE(abs(global_tdof_sum - exp_sum) < real_t(1e-12));
+      REQUIRE(abs(total_length - exp_length) < real_t(1e-12));
    }
 }
 

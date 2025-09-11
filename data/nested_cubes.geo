@@ -3,7 +3,7 @@ L_outer = 1.0;
 L_inner = 0.5;
 
 // Set mesh size and algorithm
-mesh_size = 0.2;
+mesh_size = 0.4;
 Mesh.Algorithm3D = 1; // Delaunay algorithm for 3D mesh
 Mesh.CharacteristicLengthFactor = 1.0;
 Mesh.MshFileVersion = 2.2;

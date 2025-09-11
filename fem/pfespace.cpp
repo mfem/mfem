@@ -1118,10 +1118,10 @@ void ParFiniteElementSpace::Synchronize(Array<int> &ldof_marker) const
    gcomm->Bcast(ldof_marker);
 }
 
-void ParFiniteElementSpace::SynchronizeBC(Array<double> &bc_values) const
+void ParFiniteElementSpace::SynchronizeBC(Array<real_t> &bc_values) const
 {
    // Use the MaxAbs reduction mode
-   gcomm->Reduce<double>(bc_values, GroupCommunicator::MaxAbs);
+   gcomm->Reduce<real_t>(bc_values, GroupCommunicator::MaxAbs);
    gcomm->Bcast(bc_values);
 }
 

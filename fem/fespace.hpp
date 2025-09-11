@@ -1401,8 +1401,21 @@ public:
    virtual void GetExteriorTrueDofs(Array<int> &exterior_dofs,
                                     int component = -1) const;
 
-   /** @brief Extract boundary edge DOFs from specified boundary elements.
-       Serial version that performs the toggle-based collection of boundary edge DOFs. */
+   /** @brief Extract edge degrees of freedom from specified boundary elements.
+       This method identifies all edge-based degrees of freedom that lie on the
+       boundary edges of 2D boundary elements embedded in 3D mesh.
+       @param[in] boundary_element_indices Array of all boundary element indices on a certain 
+       boundary surface
+       @param[out] boundary_edge_dofs Set of local DoF indices that lie on boundary edges
+       @param[out] dof_to_edge Map from boundary edge DoF index to local edge index
+       @param[out] dof_to_boundary_element Map from DoF index to a boundary element containing it
+       @param[out] dof_to_edge_orientation Map from DoF index to edge orientation (+1 or -1)
+       
+       @note This is the serial version. For parallel meshes, use the parallel
+       version in ParFiniteElementSpace which handles processor boundaries correctly.
+       @note Requires a 3D mesh to identify edge objects. The method will assert
+       if called on 1D or 2D meshes.
+       @note Only supports conforming meshes; non-conforming meshes are not supported. */
    virtual void GetBoundaryEdgeDofs(const Array<int> &boundary_element_indices,
                                     std::unordered_set<int> &boundary_edge_dofs,
                                     std::unordered_map<int, int> &dof_to_edge,
@@ -1421,6 +1434,8 @@ public:
                                                Array<int> &boundary_elements);
 
    /** @brief Compute edge orientations for loop traversal.
+       Here, a "loop" refers to a connected sequence of boundary edges that together
+       form a closed or open path along the boundary of a surface.
        Serial version that determines edge orientations relative to a loop normal. */
    virtual void ComputeLoopEdgeOrientations(
       const std::unordered_map<int, int>& dof_to_edge,
