@@ -885,7 +885,7 @@ void DifferentiableOperator::AddDomainIntegrator(
                {
                   for (int j = 0; j < trial_vdim; j++)
                   {
-                     size_t m_offset = 0;
+                     int m_offset = 0;
                      for (int s_i = 0; s_i < num_dependent_inputs; s_i++)
                      {
                         const int s = dpitod(s_i, 0);
@@ -1014,7 +1014,7 @@ void DifferentiableOperator::AddDomainIntegrator(
                      for (int k = 0; k < test_op_dim; k++)
                      {
                         real_t sum = 0.0;
-                        size_t m_offset = 0;
+                        int m_offset = 0;
                         for (int s_i = 0; s_i < num_dependent_inputs; s_i++)
                         {
                            const int s = dpitod(s_i, 0);
