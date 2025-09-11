@@ -198,23 +198,23 @@ void print_tuple(const std::tuple<Args...>& t)
 /// @param m mfem::DenseMatrix to print
 void pretty_print(const mfem::DenseMatrix& m)
 {
-   std::cout << "[";
+   out << "[";
    for (int i = 0; i < m.NumRows(); i++)
    {
       for (int j = 0; j < m.NumCols(); j++)
       {
-         std::cout << m(i, j);
+         out << m(i, j);
          if (j < m.NumCols() - 1)
          {
-            std::cout << ", ";
+            out << ", ";
          }
       }
       if (i < m.NumRows() - 1)
       {
-         std::cout << ", ";
+         out << ", ";
       }
    }
-   std::cout << "]\n";
+   out << "]\n";
 }
 
 /// @brief Pretty print an mfem::Vector to std::cout
@@ -225,16 +225,16 @@ void pretty_print(const mfem::DenseMatrix& m)
 /// @param v Vector of vectors to print
 void pretty_print(const mfem::Vector& v)
 {
-   std::cout << "[";
+   out << "[";
    for (int i = 0; i < v.Size(); i++)
    {
-      std::cout << v(i);
+      out << v(i);
       if (i < v.Size() - 1)
       {
-         std::cout << ", ";
+         out << ", ";
       }
    }
-   std::cout << "]\n";
+   out << "]\n";
 }
 
 /// @brief Pretty print an mfem::Array to std::cout
@@ -248,16 +248,16 @@ void pretty_print(const mfem::Vector& v)
 template <typename T>
 void pretty_print(const mfem::Array<T>& v)
 {
-   std::cout << "[";
+   out << "[";
    for (int i = 0; i < v.Size(); i++)
    {
-      std::cout << v[i];
+      out << v[i];
       if (i < v.Size() - 1)
       {
-         std::cout << ", ";
+         out << ", ";
       }
    }
-   std::cout << "]\n";
+   out << "]\n";
 }
 
 /// @brief Pretty prints an unordered map of std::array to std::cout
@@ -270,24 +270,24 @@ void pretty_print(const mfem::Array<T>& v)
 template<typename K, typename T, size_t N>
 void pretty_print(const std::unordered_map<K,std::array<T,N>>& map)
 {
-   std::cout << "{";
+   out << "{";
    size_t count = 0;
    for (const auto& [key, value] : map)
    {
-      std::cout << key << ": [";
+      out << key << ": [";
       for (size_t i = 0; i < N; i++)
       {
-         std::cout << value[i];
-         if (i < N-1) { std::cout << ", "; }
+         out << value[i];
+         if (i < N-1) { out << ", "; }
       }
-      std::cout << "]";
+      out << "]";
       if (count < map.size() - 1)
       {
-         std::cout << ", ";
+         out << ", ";
       }
       count++;
    }
-   std::cout << "}\n";
+   out << "}\n";
 }
 
 void print_mpi_root(const std::string& msg)

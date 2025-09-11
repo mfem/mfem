@@ -37,7 +37,10 @@ enum EXT_DATA_IDX
    CFL = 0,
    ORDER_VEL,
    VISCOSITY_FLAG,
-   H0
+   VISCOSITY_TYPE,
+   H0,
+   DT_ESTIMATE,
+   COUNT
 };
 
 int problem = 0;
@@ -65,6 +68,69 @@ real_t taylor_source(const Vector &x)
    return 3.0 / 8.0 * M_PI * ( cos(3.0*M_PI*x(0)) * cos(M_PI*x(1)) -
                                cos(M_PI*x(0))     * cos(3.0*M_PI*x(1)) );
 };
+
+template <typename T, int n>
+MFEM_HOST_DEVICE inline
+tensor<T, n> shift(const tensor<T, n> &v, T s)
+{
+   tensor<T, n> sv;
+   for (int i = 0; i < n; i++)
+   {
+      sv(i) = v(i) - s;
+   }
+   return sv;
+}
+
+template <typename T, int n>
+MFEM_HOST_DEVICE inline
+T min(const tensor<T, n> &v)
+{
+   T min = std::numeric_limits<T>::max();
+   for (int i = 0; i < n; i++)
+   {
+      if (v(i) < min)
+      {
+         min = v(i);
+      }
+   }
+   return min;
+}
+
+template <typename T, int n>
+MFEM_HOST_DEVICE inline
+std::tuple<T, tensor<T, n>> sinvpm(const tensor<T, n, n> &A, int maxit, T tol)
+{
+   auto shift = [](const tensor<T, n, n> &A, const T& mu)
+   {
+      const auto I = mfem::internal::Identity<n>();
+      tensor<T, n, n> B = A;
+      B -= mu * I;
+      return B;
+   };
+
+   auto As = shift(A, tol);
+   auto mu = min(std::get<0>(eig(As)));
+   tensor<T, n> x = {};
+   x(0) = 1.0;
+   x = x / norm(x);
+   const auto Binv = inv(shift(A, mu));
+   auto y = Binv * x;
+   auto la = dot(y, x);
+
+   for (int i = 0; i < maxit; i++)
+   {
+      const auto err = norm(y - la * x) / norm(y);
+      if (err <= tol)
+      {
+         break;
+      }
+      x = y / norm(y);
+      y = Binv * x;
+      la = dot(y, x);
+   }
+
+   return {mu + 1.0 / la, x};
+}
 
 // Smooth transition between 0 and 1 for x in [-eps, eps].
 MFEM_HOST_DEVICE inline
@@ -120,15 +186,14 @@ std::tuple<tensor<real_t, 2>, tensor<real_t, 2, 2>> grad_eig2(
    return grad_eig(A, dA);
 }
 
-void* __enzyme_register_grad_eig[] =
+void* __enzyme_register_derivative_eig[] =
 {
    (std::tuple<tensor<real_t, 2>, tensor<real_t, 2, 2>>*)eig2,
    (std::tuple<tensor<real_t, 2>, tensor<real_t, 2, 2>>*)grad_eig2,
 };
 
-template <bool compute_dtest = false>
 MFEM_HOST_DEVICE inline
-mfem::tuple<matd, real_t> qdata_setup(
+matd qdata_setup(
    const matd &dvdxi,
    const real_t &rho0,
    const matd &J0,
@@ -139,18 +204,19 @@ mfem::tuple<matd, real_t> qdata_setup(
    const real_t &h0,
    const real_t &order_v,
    const real_t &cfl,
-   const bool &use_viscosity)
+   const bool &use_viscosity,
+   const int &viscosity_type,
+   real_t &dt_est)
 {
    constexpr real_t eps = 1e-12;
    constexpr real_t vorticity_coeff = 1.0;
    real_t p, cs;
-   real_t detJ = det(J);
-   matd invJ = inv(J);
+   const real_t detJ = det(J);
+   const matd invJ = inv(J);
    matd stress{{{0.0}}};
    const real_t rho = rho0 * det(J0) / detJ;
    const real_t Ez = fmax(0.0, E);
-   real_t visc_coeff = 0.0;
-   real_t dt_est = std::numeric_limits<real_t>::infinity();
+   real_t dt_visc_coeff = 0.0;
 
    ComputeMaterialProperties(gamma, rho, Ez, p, cs);
 
@@ -159,90 +225,107 @@ mfem::tuple<matd, real_t> qdata_setup(
       stress(d, d) = -p;
    }
 
+   // out << "qpinfo: " << rho << " " << Ez << " " << p << " " << cs << "\n";
+   // out << "Ez: " << E << "\n";
+
    if (use_viscosity)
    {
-      auto softstep = [](const real_t &eps, const real_t x)
+      if (viscosity_type == 2)
       {
-         return 1.0 / (1.0 + exp(-x / eps));
-      };
+         auto symdvdx = sym(dvdxi * invJ);
+         auto [eigvals, eigvecs] = eig(symdvdx);
 
-      auto softabs = [=](const real_t &eps, const real_t x)
+         const real_t mu = eigvals(0);
+         vecd compr_dir = get_col(eigvecs, 0);
+         auto ph_dir = (J * inv(J0)) * compr_dir;
+         const real_t h = h0 * norm(ph_dir) / norm(compr_dir);
+         // Measure of maximal compression.
+         auto visc_coeff = 2.0 * rho * h * h * fabs(mu);
+         visc_coeff += 0.5 * rho * h * cs * vorticity_coeff *
+                       (1.0 - smooth_step_01(mu - 2.0 * eps, eps));
+         stress += visc_coeff * symdvdx;
+         dt_visc_coeff = visc_coeff;
+      }
+      else if (viscosity_type == 21)
       {
-         return x * (softstep(eps, x) - softstep(eps, -x));
-      };
+         auto symdvdx = sym(dvdxi * invJ);
+         auto [mu, compr_dir] = sinvpm(symdvdx, 100, 1e-12);
 
-      auto smooth_abs = [](real_t x, real_t epsilon)
+         auto ph_dir = (J * inv(J0)) * compr_dir;
+         const real_t h = h0 * norm(ph_dir) / norm(compr_dir);
+         // Measure of maximal compression.
+         auto visc_coeff = 2.0 * rho * h * h * fabs(mu);
+         visc_coeff += 0.5 * rho * h * cs * vorticity_coeff *
+                       (1.0 - smooth_step_01(mu - 2.0 * eps, eps));
+         stress += visc_coeff * symdvdx;
+         dt_visc_coeff = visc_coeff;
+      }
+      else if (viscosity_type == 22)
       {
-         return sqrt(x*x + epsilon);
-      };
+         auto symdvdx = sym(dvdxi * invJ);
+         auto [eigvals, eigvecs] = eig2(symdvdx);
 
-      auto symdvdx = sym(dvdxi * invJ);
-      // auto [mu, compr_dir] = power_method(symdvdx, 100, eps);
-      auto [eigv, eigV] = eig2(symdvdx);
-      auto mu = eigv(0);
-      auto compr_dir = get_col(eigV, 0);
-      auto ph_dir = (J * inv(J0)) * compr_dir;
-      const real_t h = h0 * norm(ph_dir) / norm(compr_dir);
-      // Measure of maximal compression.
-      visc_coeff = 2.0 * rho * h * h * smooth_abs(mu, eps);
-      visc_coeff += 0.5 * rho * h * cs * vorticity_coeff *
-                    (1.0 - smooth_step_01(mu - 2.0 * eps, eps));
-      stress += visc_coeff * symdvdx;
-
-      // const auto delta = 0.2 * cs;
-      // const auto q1 = 10.0;
-      // const auto q2 = 10.0;
-      // const auto dvdx = dvdxi * invJ;
-      // const auto h = h0 * pow(detJ, 1.0 / DIMENSION);
-      // const auto delta_v = h * tr(dvdx);
-      // const auto psi1 = softstep(delta, -delta_v);
-      // const auto mu = 3.0 / 4.0 * rho * h * psi1 * (q2 * softabs(delta,
-      //                                                            delta_v) + q1 * cs);
-      // stress += 2.0 * mu * sym(dvdx);
-
-      // if (isnan(mu))
-      // {
-      //    out << "detJ: " << detJ << "\n";
-      //    out << "delta: " << delta << "\n";
-      //    out << "h: " << h << "\n";
-      //    out << "delta_v: " << delta_v << "\n";
-      //    out << "psi: " << psi1 << "\n";
-      //    out << "mu: " << mu << "\n";
-      //    MFEM_ABORT("NAN");
-      // }
-   }
-
-   if constexpr (compute_dtest)
-   {
-      if (detJ < 0.0)
+         const real_t mu = eigvals(0);
+         vecd compr_dir = get_col(eigvecs, 0);
+         auto ph_dir = (J * inv(J0)) * compr_dir;
+         const real_t h = h0 * norm(ph_dir) / norm(compr_dir);
+         // Measure of maximal compression.
+         auto visc_coeff = 2.0 * rho * h * h * fabs(mu);
+         visc_coeff += 0.5 * rho * h * cs * vorticity_coeff *
+                       (1.0 - smooth_step_01(mu - 2.0 * eps, eps));
+         stress += visc_coeff * symdvdx;
+         dt_visc_coeff = visc_coeff;
+      }
+      else if (viscosity_type == 4)
       {
-         // MFEM_ABORT("inverted element detected in qdata_setup");
-         // This will force repetition of the step with smaller dt.
-         dt_est = 0.0;
+         auto symdvdx = sym(dvdxi * invJ);
+         auto [lam, s] = eig(symdvdx);
+
+         for (int k = 0; k < DIMENSION; k++)
+         {
+            const auto ph_dir = (J * inv(J0)) * s(k);
+            const real_t h = h0 * norm(ph_dir) / norm(s(k));
+            auto visc_coeff = 2.0 * rho * h * h * fabs(lam(k));
+            visc_coeff += 0.5 * rho * h * cs * vorticity_coeff *
+                          (1.0 - smooth_step_01(lam(k) - 2.0 * eps, eps));
+            stress += visc_coeff * symdvdx;
+            dt_visc_coeff += visc_coeff;
+         }
       }
       else
       {
-         const real_t h_min = calcsv(J, DIMENSION-1) / static_cast<real_t>(order_v);
-         const real_t idt = cs / h_min + 2.5 * visc_coeff / rho / h_min / h_min;
+         exit(0);
+      }
+   }
 
-         if (idt > 0.0)
-         {
-            dt_est = cfl / idt;
-         }
-         else
-         {
-            dt_est = std::numeric_limits<real_t>::infinity();
-         }
+   if (detJ < 0.0)
+   {
+      // MFEM_ABORT("inverted element detected in qdata_setup");
+      // This will force repetition of the step with smaller dt.
+      dt_est = 0.0;
+   }
+   else
+   {
+      const real_t sv = calcsv(J, DIMENSION-1);
+      // out << sv << ", ";
+      const real_t hmin = sv / static_cast<real_t>(order_v);
+      const real_t ihmin = 1.0 / hmin;
+      const real_t irhoihminsq = ihmin * ihmin / rho;
+      const real_t idt = cs / hmin + 2.5 * dt_visc_coeff * irhoihminsq;
+
+      if (idt > 0.0)
+      {
+         dt_est = fmin(dt_est, cfl / idt);
       }
    }
 
    matd stressJiT = stress * transpose(invJ) * detJ * w;
-   return mfem::tuple{stressJiT, dt_est};
+   return stressJiT;
 }
 
 struct TimeStepEstimateQFunction
 {
-   TimeStepEstimateQFunction(const real_t *external_data) :
+   TimeStepEstimateQFunction(real_t *external_data) :
       external_data(external_data) {}
 
    MFEM_HOST_DEVICE inline
@@ -255,22 +338,25 @@ struct TimeStepEstimateQFunction
       const real_t &E,
       const real_t &w) const
    {
-      real_t dt_est = mfem::get<1>(
-                         qdata_setup<true>(
-                            dvdxi, rho0, J0, J, gamma, E, w,
-                            external_data[EXT_DATA_IDX::H0],
-                            external_data[EXT_DATA_IDX::ORDER_VEL],
-                            external_data[EXT_DATA_IDX::CFL],
-                            static_cast<bool>(external_data[EXT_DATA_IDX::VISCOSITY_FLAG])));
-      return mfem::tuple{dt_est};
+      // real_t dt_est = mfem::get<1>(
+      //                    qdata_setup(
+      //                       dvdxi, rho0, J0, J, gamma, E, w,
+      //                       external_data[EXT_DATA_IDX::H0],
+      //                       external_data[EXT_DATA_IDX::ORDER_VEL],
+      //                       external_data[EXT_DATA_IDX::CFL],
+      //                       static_cast<bool>(external_data[EXT_DATA_IDX::VISCOSITY_FLAG]),
+      //                       dt_est));
+      out << " >>>> PANIC \n";
+      exit(0);
+      return mfem::tuple{external_data[EXT_DATA_IDX::DT_ESTIMATE]};
    }
 
-   const real_t *external_data;
+   real_t *external_data;
 };
 
 struct UpdateQuadratureDataQFunction
 {
-   UpdateQuadratureDataQFunction(const real_t *external_data) :
+   UpdateQuadratureDataQFunction(real_t *external_data) :
       external_data(external_data) {}
 
    MFEM_HOST_DEVICE inline
@@ -283,23 +369,26 @@ struct UpdateQuadratureDataQFunction
       const real_t &E,
       const real_t &w) const
    {
-      auto stressJiT = mfem::get<0>(
-                          qdata_setup(
-                             dvdxi, rho0, J0, J, gamma, E, w,
-                             external_data[EXT_DATA_IDX::H0],
-                             external_data[EXT_DATA_IDX::ORDER_VEL],
-                             external_data[EXT_DATA_IDX::CFL],
-                             static_cast<bool>(external_data[EXT_DATA_IDX::VISCOSITY_FLAG])));
+      // out << "qdata update on qp\n";
+      auto stressJiT =
+         qdata_setup(
+            dvdxi, rho0, J0, J, gamma, E, w,
+            external_data[EXT_DATA_IDX::H0],
+            external_data[EXT_DATA_IDX::ORDER_VEL],
+            external_data[EXT_DATA_IDX::CFL],
+            static_cast<bool>(external_data[EXT_DATA_IDX::VISCOSITY_FLAG]),
+            external_data[EXT_DATA_IDX::VISCOSITY_TYPE],
+            external_data[EXT_DATA_IDX::DT_ESTIMATE]);
       return mfem::tuple{stressJiT};
    }
 
-   const real_t *external_data;
+   real_t *external_data;
 };
 
 class MomentumQFunction
 {
 public:
-   MomentumQFunction(const real_t *external_data) :
+   MomentumQFunction(real_t *external_data) :
       external_data(external_data) {}
 
    MFEM_HOST_DEVICE inline
@@ -312,17 +401,20 @@ public:
       const real_t &E,
       const real_t &w) const
    {
-      auto stressJiT = mfem::get<0>(
-                          qdata_setup(
-                             dvdxi, rho0, J0, J, gamma, E, w,
-                             external_data[EXT_DATA_IDX::H0],
-                             external_data[EXT_DATA_IDX::ORDER_VEL],
-                             external_data[EXT_DATA_IDX::CFL],
-                             static_cast<bool>(external_data[EXT_DATA_IDX::VISCOSITY_FLAG])));
+      auto stressJiT =
+         qdata_setup(
+            dvdxi, rho0, J0, J, gamma, E, w,
+            external_data[EXT_DATA_IDX::H0],
+            external_data[EXT_DATA_IDX::ORDER_VEL],
+            external_data[EXT_DATA_IDX::CFL],
+            static_cast<bool>(external_data[EXT_DATA_IDX::VISCOSITY_FLAG]),
+            external_data[EXT_DATA_IDX::VISCOSITY_TYPE],
+            dt_est_dummy);
       return mfem::tuple{stressJiT};
    }
 
-   const real_t *external_data;
+   mutable real_t dt_est_dummy = std::numeric_limits<real_t>::infinity();
+   real_t *external_data;
 };
 
 class MomentumPAQFunction
@@ -352,19 +444,21 @@ public:
       const matd &J,
       const real_t &gamma,
       const real_t &E,
-
       const real_t &w) const
    {
-      auto stressJiT = mfem::get<0>(
-                          qdata_setup(
-                             dvdxi, rho0, J0, J, gamma, E, w,
-                             external_data[EXT_DATA_IDX::H0],
-                             external_data[EXT_DATA_IDX::ORDER_VEL],
-                             external_data[EXT_DATA_IDX::CFL],
-                             static_cast<bool>(external_data[EXT_DATA_IDX::VISCOSITY_FLAG])));
+      auto stressJiT =
+         qdata_setup(
+            dvdxi, rho0, J0, J, gamma, E, w,
+            external_data[EXT_DATA_IDX::H0],
+            external_data[EXT_DATA_IDX::ORDER_VEL],
+            external_data[EXT_DATA_IDX::CFL],
+            static_cast<bool>(external_data[EXT_DATA_IDX::VISCOSITY_FLAG]),
+            external_data[EXT_DATA_IDX::VISCOSITY_TYPE],
+            dt_est);
       return mfem::tuple{ddot(stressJiT, dvdxi)};
    }
 
+   mutable real_t dt_est = std::numeric_limits<real_t>::infinity();
    const real_t *external_data;
 };
 
@@ -436,7 +530,7 @@ public:
       : NewtonSolver(comm),
         beta(0.5),    // Backtracking reduction factor
         alpha(1e-2),  // Sufficient decrease constant (Armijo condition)
-        max_line_iter(10) {}
+        max_line_iter(50) {}
 
    void SetBacktrackingFactor(real_t b) { beta = b; }
    void SetArmijoConstant(real_t a) { alpha = a; }
@@ -480,9 +574,9 @@ protected:
          lambda *= beta;
       }
 
-      out << "\n\nlineserach didn't converge\n\n";
+      out << ">>> linesearch didn't converge\n";
       // If we get here, use a small step as fallback
-      return 0.0;
+      return 1e-12;
    }
 
 private:
@@ -738,11 +832,6 @@ public:
             return;
          }
 
-         if (Mpi::Root())
-         {
-            out << "Preconditioner: Rebuilding" << std::endl;
-         }
-
          jacobian = dynamic_cast<const LagrangianHydroJacobianOperator*>(&op);
          MFEM_ASSERT(jacobian != nullptr,
                      "Preconditioner can only be set with LagrangianHydroJacobianOperator");
@@ -961,6 +1050,7 @@ public:
          Rx = kx;
          Rx -= uv;
 
+         hydro.qdata_is_current = false;
          hydro.UpdateQuadratureData(u_l);
 
          hydro.momentum_pa->SetParameters({&hydro.qdata->stressp});
@@ -1117,7 +1207,8 @@ public:
       const real_t &nonlinear_relative_tolerance,
       const int &krylov_maximum_iterations,
       const int &preconditioner_lag,
-      const PRECONDITIONER_TYPE &preconditioner_type) :
+      const PRECONDITIONER_TYPE &preconditioner_type,
+      Vector& external_data) :
       TimeDependentOperator(2*H1.GetVSize()+L2.GetVSize()),
       H1(H1),
       L2(L2),
@@ -1160,7 +1251,8 @@ public:
       nonlinear_relative_tolerance(nonlinear_relative_tolerance),
       krylov_maximum_iterations(krylov_maximum_iterations),
       preconditioner_lag(preconditioner_lag),
-      preconditioner_type(preconditioner_type)
+      preconditioner_type(preconditioner_type),
+      external_data(external_data)
    {
       Mv = new MassPAOperator(H1c, ir, rho0_coeff);
       Array<int> empty_tdofs;
@@ -1202,12 +1294,12 @@ public:
       gmres->SetMaxIter(krylov_maximum_iterations);
       gmres->SetRelTol(1e-12);
       gmres->SetAbsTol(0.0);
-      gmres->SetPrintLevel(IterativeSolver::PrintLevel().Summary());
+      gmres->SetPrintLevel(IterativeSolver::PrintLevel().None());
       gmres->SetPreconditioner(*preconditioner);
       krylov.reset(gmres);
 
       newton.reset(new LineSearchNewtonSolver(MPI_COMM_WORLD));
-      newton->SetPrintLevel(IterativeSolver::PrintLevel().Iterations());
+      newton->SetPrintLevel(IterativeSolver::PrintLevel().None());
       newton->SetOperator(*residual);
       newton->SetSolver(*krylov);
       newton->SetMaxIter(nonlinear_maximum_iterations);
@@ -1237,6 +1329,9 @@ public:
       // solve position
       dx = v;
 
+      // out << ">>> dx\n";
+      // pretty_print(dx);
+
       // solve velocity
       {
          dv = 0.0;
@@ -1248,6 +1343,9 @@ public:
          momentum_pa->Mult(Xv, RHSv);
          RHSv.Neg();
          H1.GetRestrictionMatrix()->MultTranspose(RHSv, rhsv);
+
+         // out << ">>> rhsv\n";
+         // pretty_print(rhsv);
 
          // solve for each velocity component
          const int size = H1c.GetVSize();
@@ -1288,6 +1386,8 @@ public:
             dvc.GetMemory().SyncAlias(dSdt.GetMemory(), dvc.Size());
          }
       }
+      // out << ">>> dv\n";
+      // pretty_print(dv);
 
       // solve energy
       {
@@ -1321,7 +1421,15 @@ public:
          cg.SetPrintLevel(-1);
          cg.Mult(rhse, de);
          de.GetMemory().SyncAlias(dSdt.GetMemory(), de.Size());
+
+         // out << ">>> de\n";
+         // pretty_print(de);
       }
+
+      qdata_is_current = false;
+
+      // out << ">>> dSdt\n";
+      // pretty_print(dSdt);
    }
 
    void ImplicitSolve(const real_t dt, const Vector &x, Vector &k) override
@@ -1382,32 +1490,52 @@ public:
       H1.GetParMesh()->NewNodes(mesh_nodes, false);
    }
 
+   void ResetTimeStepEstimate()
+   {
+      external_data[EXT_DATA_IDX::DT_ESTIMATE] =
+         std::numeric_limits<double>::infinity();
+   }
+
+   void ResetQuadratureData() const
+   {
+      qdata_is_current = false;
+   }
+
    real_t GetTimeStepEstimate(const Vector &S)
    {
       UpdateMesh(S);
+      UpdateQuadratureData(S);
 
-      auto sptr = const_cast<Vector*>(&S);
-      const int H1vsize = H1.GetVSize();
-      ParGridFunction x, v, e;
-      x.MakeRef(&H1, *sptr, 0);
-      v.MakeRef(&H1, *sptr, H1vsize);
-      e.MakeRef(&L2, *sptr, 2*H1vsize);
-      dtest_mf->SetParameters({&v, &rho0, &x0, &x, &material, &e});
-      auto &dt_est = qdata->dt_est;
-      dtest_mf->Mult(dt_est, dt_est);
+      // auto sptr = const_cast<Vector*>(&S);
+      // const int H1vsize = H1.GetVSize();
+      // ParGridFunction x, v, e;
+      // x.MakeRef(&H1, *sptr, 0);
+      // v.MakeRef(&H1, *sptr, H1vsize);
+      // e.MakeRef(&L2, *sptr, 2*H1vsize);
+      // dtest_mf->SetParameters({&v, &rho0, &x0, &x, &material, &e});
+      // auto &dt_est = qdata->dt_est;
+      // dtest_mf->Mult(dt_est, dt_est);
 
-      real_t dt_est_local = std::numeric_limits<real_t>::infinity();
-      for (int i = 0; i < dt_est.Size(); i++)
-      {
-         if (dt_est(i) == 0.0)
-         {
-            return 0.0;
-         }
-         dt_est_local = fmin(dt_est_local, dt_est(i));
-      }
+      // out << ">>> dt_est\n";
+      // pretty_print(dt_est);
+
+      // real_t dt_est_local = std::numeric_limits<real_t>::infinity();
+      // for (int i = 0; i < dt_est.Size(); i++)
+      // {
+      //    if (dt_est(i) == 0.0)
+      //    {
+      //       return 0.0;
+      //    }
+      //    dt_est_local = fmin(dt_est_local, dt_est(i));
+      // }
+
+      // update_qdata
+
+      real_t dt_est_local = external_data[EXT_DATA_IDX::DT_ESTIMATE];
 
       real_t dt_est_global;
-      MPI_Allreduce(&dt_est_local, &dt_est_global, 1, MPI_DOUBLE, MPI_MIN,
+      MPI_Allreduce(&dt_est_local, &dt_est_global, 1, MPITypeMap<real_t>::mpi_type,
+                    MPI_MIN,
                     L2.GetComm());
 
       return dt_est_global;
@@ -1478,6 +1606,10 @@ public:
 
    void UpdateQuadratureData(const Vector &S) const
    {
+      if (qdata_is_current) { return; }
+      // out << "updating qdata\n";
+      qdata_is_current = true;
+
       auto sptr = const_cast<Vector*>(&S);
       const int H1vsize = H1.GetVSize();
       ParGridFunction x, v, e;
@@ -1543,6 +1675,8 @@ public:
    const int preconditioner_lag;
    const PRECONDITIONER_TYPE preconditioner_type;
    bool newton_converged = true;
+   Vector &external_data;
+   mutable bool qdata_is_current = false;
 };
 
 static auto CreateLagrangianHydroOperator(
@@ -1594,7 +1728,7 @@ static auto CreateLagrangianHydroOperator(
    // qdata->order_v = order_v;
    qdata->dt_est = std::numeric_limits<real_t>::infinity();
 
-   const auto d_external_data = external_data.Read();
+   auto d_external_data = external_data.ReadWrite();
 
    Array<int> all_domain_attr(mesh.attributes.Max());
    all_domain_attr = 1;
@@ -1964,13 +2098,16 @@ static auto CreateLagrangianHydroOperator(
              nonlinear_relative_tolerance,
              krylov_maximum_iterations,
              preconditioner_lag,
-             preconditioner_type);
+             preconditioner_type,
+             external_data);
 }
 
 int main(int argc, char *argv[])
 {
    Mpi::Init();
    Hypre::Init();
+
+   out << std::setprecision(15);
 
    const char *device_config = "cpu";
 
@@ -1993,6 +2130,7 @@ int main(int argc, char *argv[])
    int krylov_maximum_iterations = 10;
    int preconditioner_lag = 0;
    int vis_steps = 1;
+   int viscosity_type = 2;
    int preconditioner_type =
       PRECONDITIONER_TYPE::BLOCK_DIAGONAL_AMG;
 
@@ -2029,12 +2167,11 @@ int main(int argc, char *argv[])
                   "Preconditioner type: 0 - SuperLU_DIST, 1 - Block Diagonal AMG");
    args.AddOption(&vis_steps, "-vis-steps", "--vis-steps",
                   "Number of visualization steps.");
+   args.AddOption(&viscosity_type, "-av-type", "--av-type", "");
    args.ParseCheck();
 
    Device device(device_config);
    if (Mpi::Root()) { device.Print(); }
-
-   out << std::setprecision(6);
 
    Mesh serial_mesh = Mesh(mesh_file, true, true);
 
@@ -2253,10 +2390,13 @@ int main(int argc, char *argv[])
 
    // Create external data vector
    // Layout is [cfl, order_velocity, use_viscosity, h0]
-   Vector external_data(4);
+   Vector external_data(EXT_DATA_IDX::COUNT);
    external_data[EXT_DATA_IDX::CFL] = cfl;
    external_data[EXT_DATA_IDX::ORDER_VEL] = order_v;
    external_data[EXT_DATA_IDX::VISCOSITY_FLAG] = use_viscosity;
+   external_data[EXT_DATA_IDX::VISCOSITY_TYPE] = viscosity_type;
+   external_data[EXT_DATA_IDX::DT_ESTIMATE] =
+      std::numeric_limits<real_t>::infinity();
 
    auto hydro = CreateLagrangianHydroOperator(H1FESpace,
                                               L2FESpace,
@@ -2296,19 +2436,22 @@ int main(int argc, char *argv[])
    const real_t energy_init = hydro->InternalEnergy(e_gf) +
                               hydro->KineticEnergy(v_gf);
 
+   if (Mpi::Root())
+   {
+      out << "IE: " << energy_init << "\n";
+   }
+
    // out << "IE " << hydro.InternalEnergy(e_gf) << "\n"
    //     << "KE "<< hydro.KineticEnergy(v_gf) << "\n";
 
+   hydro->ResetTimeStepEstimate();
    real_t t = 0.0;
    real_t dt = hydro->GetTimeStepEstimate(S);
 
-
    if (Mpi::Root())
    {
-      out << "energy initial: " << energy_init << "\n";
       out << "time step estimate: " << dt << "\n";
    }
-
 
    real_t t_old;
    bool last_step = false;
@@ -2351,18 +2494,20 @@ int main(int argc, char *argv[])
       }
       S_old = S;
       t_old = t;
+      hydro->ResetTimeStepEstimate();
 
       // S is the vector of dofs, t is the current time, and dt is the time step
       // to advance.
       ode_solver->Step(S, t, dt);
       steps++;
 
+      // out << ">>> S:\n";
+      // pretty_print(S);
+
       // Adaptive time step control.
       const real_t dt_est = hydro->GetTimeStepEstimate(S);
-      if (Mpi::Root())
-      {
-         out << "dt_est: " << dt_est << std::endl;
-      }
+      // out << "dt_est: " << dt_est << "\n";
+
       if (ode_solver_type > 10)
       {
          if (dt_est < dt || !hydro->newton_converged)
@@ -2370,6 +2515,7 @@ int main(int argc, char *argv[])
             dt *= 0.85;
             t = t_old;
             S = S_old;
+            hydro->ResetQuadratureData();
             last_step = false;
             if (Mpi::Root())
             {
@@ -2399,8 +2545,9 @@ int main(int argc, char *argv[])
          { MFEM_ABORT("The time step crashed!"); }
          t = t_old;
          S = S_old;
+         hydro->ResetQuadratureData();
          last_step = false;
-         if (Mpi::Root()) { out << "\nRepeating step " << ti << std::endl; }
+         if (Mpi::Root()) { out << "Repeating step " << ti << std::endl; }
          ti--; continue;
       }
       else if (dt_est > 1.25 * dt) { dt *= 1.02; }
@@ -2419,10 +2566,9 @@ int main(int argc, char *argv[])
 
       if (Mpi::Root())
       {
-         out << "\n";
          out << "step " << std::setw(5) << ti
-             << ",\tt = " << std::setw(5) << std::setprecision(4) << t
-             << ",\tdt = " << std::setw(5) << std::setprecision(6) << dt;
+             << ",\tt = " << std::setw(5) << t
+             << ",\tdt = " << std::setw(5) << dt;
          out << std::endl;
       }
 
@@ -2444,17 +2590,24 @@ int main(int argc, char *argv[])
 
    const real_t energy_final = hydro->InternalEnergy(e_gf)
                                + hydro->KineticEnergy(v_gf);
-   const real_t v_err_max = v_gf.ComputeMaxError(v_coeff);
-   const real_t v_err_l1 = v_gf.ComputeL1Error(v_coeff);
-   const real_t v_err_l2 = v_gf.ComputeL2Error(v_coeff);
 
    if (Mpi::Root())
    {
       out << std::scientific << std::setprecision(2)
-          << "Energy diff: " << fabs(energy_init - energy_final) << std::endl
-          << "L_inf  error: " << v_err_max << std::endl
-          << "L_1    error: " << v_err_l1 << std::endl
-          << "L_2    error: " << v_err_l2 << std::endl;
+          << "Energy diff: " << fabs(energy_init - energy_final) << std::endl;
+   }
+
+   if (problem == 1)
+   {
+      const real_t v_err_max = v_gf.ComputeMaxError(v_coeff);
+      const real_t v_err_l1 = v_gf.ComputeL1Error(v_coeff);
+      const real_t v_err_l2 = v_gf.ComputeL2Error(v_coeff);
+      if (Mpi::Root())
+      {
+         out << "L_inf  error: " << v_err_max << std::endl
+             << "L_1    error: " << v_err_l1 << std::endl
+             << "L_2    error: " << v_err_l2 << std::endl;
+      }
    }
 
    delete hydro;
