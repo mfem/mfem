@@ -30,7 +30,7 @@ jobs:
         exempt-issue-labels: "bug,WIP,ready-for-review,in-review,in-next"
         exempt-pr-labels: "bug,WIP,ready-for-review,in-review,in-next"
 
-  # Stale workflow for PRs with "in-review" label.
+  # Stale action for PRs with "in-review" label.
   stale-in-review-pr:
 
     runs-on: ubuntu-latest
