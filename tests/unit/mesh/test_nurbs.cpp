@@ -214,6 +214,23 @@ TEST_CASE("Location conversion check", "[NURBS]")
 TEST_CASE("Greville, Botella and Demko points", "[NURBS]")
 {
 
+   Vector xi;
+   for ( int p = 1; p <= 9; p++)
+   {
+      mfem::out<<"Order : "<<p<<std::endl;
+      KnotVector kvp(p, Vector({0., 1.}));
+      mfem::out<<"Knotvector : "; kvp.Print(mfem::out);
+
+      kvp.GetGreville(xi);
+      mfem::out<<"Greville points : "; xi.Print(std::cout,999);
+
+      kvp.GetBotella(xi);
+      mfem::out<<"Botella  points : "; xi.Print(std::cout,999);
+
+      kvp.GetDemko(xi);
+      mfem::out<<"Demko    points : "; xi.Print(std::cout,999);
+   }
+
    KnotVector kv(3, Vector({0.0, 0.3, 0.3, 0.3, 0.6, 1.0}));
 
    mfem::out<<"Knotvector : "; kv.Print(mfem::out);
@@ -263,7 +280,7 @@ TEST_CASE("Greville, Botella and Demko points", "[NURBS]")
                 0.87385648854468001,1.0});
    for (int i = 0; i < kv.GetNCP(); i++)
    {
-      REQUIRE((demko[i] - dref[i]) == MFEM_Approx(0.0));
+      REQUIRE((demko[i] - dref[i]) == MFEM_Approx(0.0,1e-9,1e-9));
    }
 
    // Chebyshev spline

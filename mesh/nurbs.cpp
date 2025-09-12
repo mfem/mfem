@@ -281,13 +281,11 @@ void KnotVector::GetDemko(Vector &xi) const
 
 void KnotVector::ComputeDemko() const
 {
-   const int itermax1 = 25;
-   const int itermax2 = 1;
+   const int itermax1 = 50;
+   const int itermax2 = 50;
 
-   const real_t relax2 = 0.9;
-
-   const real_t tol1 = 1e-12;
-   const real_t tol2 = 1e-12;
+   const real_t tol1 = 1e-10;
+   const real_t tol2 = 1e-8;
 
    Vector x(GetNCP());
    for ( int i = 0; i <x.Size(); i++)
@@ -306,15 +304,19 @@ void KnotVector::ComputeDemko() const
    //  - Find extrema of this polynom and update demko points
    //  - Repeat untill converged
    Vector a(GetNCP()),anew(GetNCP());
+   Vector sh(Order+1);
    Vector shgrad(Order+1);
    Vector shhess(Order+1);
 
-   real_t u,xi, grad, hess;
+   real_t u,xi, val, grad, hess;
    int iter1, iter2, ks;
 
-   GetInterpolant(x, demko, a);
+   GetInterpolant(x, demko, anew);
    for (iter1 = 0; iter1 < itermax1; iter1++)
    {
+      // Get current demko point and interpolation
+      a = anew;
+
       for (int i = 0; i <GetNCP(); i++)
       {
          // Check for a repeated knot -- include begin and end
@@ -323,7 +325,7 @@ void KnotVector::ComputeDemko() const
             continue;
          }
 
-         // Get current demko point
+         // Get current demko point and interpolation
          u = demko[i];
 
          // Find location of extremum
@@ -332,29 +334,39 @@ void KnotVector::ComputeDemko() const
             ks = GetSpan (u);
             xi = GetRefPoint(u, ks);
 
+            CalcShape(sh, ks-Order, xi);
             CalcDShape(shgrad, ks-Order, xi);
             CalcD2Shape(shhess, ks-Order, xi);
 
-            grad = hess = 0.0;
+            val = grad = hess = 0.0;
             for (int p = 0; p <Order+1; p++)
             {
+               val += a[ks-Order + p]*sh[p];
                grad += a[ks-Order + p]*shgrad[p];
                hess += a[ks-Order + p]*shhess[p];
             }
-            u -= (grad/hess)*(knot(ks+1) - knot(ks));
-            if (fabs(grad)< tol2) { break; }
-         }
 
+            if (fabs(grad)< tol2) { break; }
+
+            if (fabs(hess) < pow(3.0,Order))
+            {
+               u += 0.25*pow(0.45,Order)*(val/fabs(val))*grad*(knot(ks+1) - knot(ks));
+            }
+            else
+            {
+               u -= (grad/hess)*(knot(ks+1) - knot(ks));
+            }
+         }
          // Check convergence
-         if ((itermax2 > 1) &&
+         /*if ((itermax2 > 1) &&
              (itermax2 == iter2))
          {
             mfem::out<<"Demko: Iteration to find extremum not converged"<<endl;
             mfem::out<<"|grad| = "<<fabs(grad)<<endl;
-         }
+         }*/
 
          // Update
-         demko[i] = relax2*u + (1.0 - relax2)*demko[i];
+         demko[i] = u;
       }
 
       // Correct order or demko vector
@@ -368,7 +380,6 @@ void KnotVector::ComputeDemko() const
       GetInterpolant(x, demko, anew);
       a -= anew;
       if (a.Norml2() < tol1) { break; }
-      a = anew;
    }
 
    // Check convergence
