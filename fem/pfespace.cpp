@@ -1118,13 +1118,6 @@ void ParFiniteElementSpace::Synchronize(Array<int> &ldof_marker) const
    gcomm->Bcast(ldof_marker);
 }
 
-void ParFiniteElementSpace::SynchronizeBC(Array<real_t> &bc_values) const
-{
-   // Use the MaxAbs reduction mode
-   gcomm->Reduce<real_t>(bc_values, GroupCommunicator::MaxAbs);
-   gcomm->Bcast(bc_values);
-}
-
 void ParFiniteElementSpace::GetEssentialVDofs(const Array<int> &bdr_attr_is_ess,
                                               Array<int> &ess_dofs,
                                               int component) const
@@ -1262,20 +1255,20 @@ void ParFiniteElementSpace::GetExteriorVDofs(Array<int> &ext_dofs,
    Synchronize(ext_dofs);
 }
 
-void ParFiniteElementSpace::GetBoundaryEdgeDofs(const Array<int>
-                                                &boundary_element_indices,
-                                                Array<int> &ess_tdof_list,
-                                                Array<int> &ldof_marker,
-                                                std::unordered_set<int> &boundary_edge_dofs_out,
-                                                std::unordered_map<int, int> *dof_to_edge,
-                                                std::unordered_map<int, int> *dof_to_orientation,
-                                                std::unordered_map<int, int> *dof_to_boundary_element_out,
-                                                Array<int> *ess_edge_list)
+void ParFiniteElementSpace::GetBoundaryLoopEdgeDofs(const Array<int>
+                                                    &boundary_element_indices,
+                                                    Array<int> &ess_tdof_list,
+                                                    Array<int> &ldof_marker,
+                                                    std::unordered_set<int> &boundary_edge_dofs_out,
+                                                    std::unordered_map<int, int> *dof_to_edge,
+                                                    std::unordered_map<int, int> *dof_to_orientation,
+                                                    std::unordered_map<int, int> *dof_to_boundary_element_out,
+                                                    Array<int> *ess_edge_list)
 {
    MFEM_ASSERT(!pmesh->Nonconforming(),
-               "GetBoundaryEdgeDofs does not support nonconforming meshes");
-   MFEM_VERIFY(pmesh->Dimension() >= 3,
-               "GetBoundaryEdgeDofs requires 3D meshes to find 1D edge objects");
+               "GetBoundaryLoopEdgeDofs does not support nonconforming meshes");
+   MFEM_VERIFY(pmesh->Dimension() >= 2,
+               "GetBoundaryLoopEdgeDofs requires 2D or 3D meshes to find 1D edge objects");
 
    // Call serial version to get initial boundary edge DOFs
    std::unordered_set<int> boundary_edge_dofs;
@@ -1283,10 +1276,10 @@ void ParFiniteElementSpace::GetBoundaryEdgeDofs(const Array<int>
    std::unordered_map<int, int> dof_to_boundary_element;
    std::unordered_map<int, int> dof_to_edge_orientation;
 
-   FiniteElementSpace::GetBoundaryEdgeDofs(boundary_element_indices,
-                                           boundary_edge_dofs,
-                                           dof_to_edge_map, dof_to_boundary_element,
-                                           dof_to_edge_orientation);
+   FiniteElementSpace::GetBoundaryLoopEdgeDofs(boundary_element_indices,
+                                               boundary_edge_dofs,
+                                               dof_to_edge_map, dof_to_boundary_element,
+                                               dof_to_edge_orientation);
 
    // Apply the encoding trick that combines edge index and orientation:
    // if orientation is positive then use the positive index
@@ -1325,126 +1318,129 @@ void ParFiniteElementSpace::GetBoundaryEdgeDofs(const Array<int>
    Array<HYPRE_BigInt> global_edge_indices;
    pmesh->GetGlobalEdgeIndices(global_edge_indices);
 
+   // Handle dimension-specific boundary element relationships
    Array<HYPRE_BigInt> global_face_indices;
-   pmesh->GetGlobalFaceIndices(global_face_indices);
-
-   // Pre-compute face indices for boundary elements
-   std::unordered_map<int, int> boundary_element_to_face;
-   for (int boundary_element_idx : boundary_element_indices)
-   {
-      int face_index, face_orientation;
-      pmesh->GetBdrElementFace(boundary_element_idx, &face_index, &face_orientation);
-      boundary_element_to_face[boundary_element_idx] = face_index;
-   }
-
-   // Collect shared boundary edge-face pairs
-   std::vector<HYPRE_BigInt> local_data;
-   local_data.reserve(boundary_edge_dofs.size() * 2);
-
-   std::unordered_set<int> processed_edges;
-   processed_edges.reserve(boundary_edge_dofs.size());
-
-   for (const auto& [dof, encoded_edge] : dof_to_encoded_edge)
-   {
-      // Decode the edge index from the encoded value
-      int local_edge = (encoded_edge >= 0) ? encoded_edge : -1 - encoded_edge;
-      
-      // Skip if already processed this edge
-      if (!processed_edges.insert(local_edge).second) { continue; }
-
-      // Check if edge is shared (fast lookup)
-      auto it = edge_to_group_size.find(local_edge);
-      if (it != edge_to_group_size.end() && it->second > 1)
-      {
-         // Get boundary element and face index directly from pre-computed map
-         int boundary_element_idx = dof_to_boundary_element[dof];
-         int face_index = boundary_element_to_face[boundary_element_idx];
-
-         // Store edge-face pair
-         local_data.push_back(global_edge_indices[local_edge]);
-         local_data.push_back(global_face_indices[face_index]);
-      }
-   }
-
-   // MPI communication
-   int num_procs = pmesh->GetNRanks();
-   int local_size = local_data.size();
-
-   std::vector<int> mpi_arrays(num_procs * 4);
-   int* all_sizes = mpi_arrays.data();
-   int* displs = all_sizes + num_procs;
-   int* byte_sizes = displs + num_procs;
-   int* byte_displs = byte_sizes + num_procs;
-
-   MPI_Allgather(&local_size, 1, MPI_INT, all_sizes, 1, MPI_INT, pmesh->GetComm());
-
-   int total_size = 0;
-   constexpr int hypre_size = sizeof(HYPRE_BigInt);
-   for (int i = 0; i < num_procs; i++)
-   {
-      displs[i] = total_size;
-      byte_displs[i] = total_size * hypre_size;
-      total_size += all_sizes[i];
-      byte_sizes[i] = all_sizes[i] * hypre_size;
-   }
-
+   std::unordered_map<int, int> boundary_element_to_companion;
    std::unordered_set<int> dofs_to_remove;
-
-   if (total_size > 0)
+   
+   const int dim = pmesh->Dimension();
+   if (dim == 3)
    {
-      std::vector<HYPRE_BigInt> all_data(total_size);
-      MPI_Allgatherv(local_data.data(), local_size * hypre_size, MPI_BYTE,
-                     all_data.data(), byte_sizes, byte_displs, MPI_BYTE, pmesh->GetComm());
-
-      // Build global-to-local edge mapping
-      std::unordered_map<HYPRE_BigInt, int> global_to_local_edge;
-      global_to_local_edge.reserve(global_edge_indices.Size());
-      for (int i = 0; i < global_edge_indices.Size(); ++i)
+      // In 3D: boundary elements are faces, we track which face each boundary element is
+      pmesh->GetGlobalFaceIndices(global_face_indices);
+      for (int boundary_element_idx : boundary_element_indices)
       {
-         global_to_local_edge[global_edge_indices[i]] = i;
+         int face_index, face_orientation;
+         pmesh->GetBdrElementFace(boundary_element_idx, &face_index, &face_orientation);
+         boundary_element_to_companion[boundary_element_idx] = face_index;
       }
 
-      // Process collected data
-      std::unordered_map<HYPRE_BigInt, std::unordered_set<HYPRE_BigInt>>edge_to_faces;
-      edge_to_faces.reserve(total_size / 2);
+      std::vector<HYPRE_BigInt> local_data;
+      local_data.reserve(boundary_edge_dofs.size() * 2);
 
-      for (size_t i = 0; i < all_data.size(); i += 2)
+      std::unordered_set<int> processed_edges;
+      processed_edges.reserve(boundary_edge_dofs.size());
+
+      for (const auto& [dof, encoded_edge] : dof_to_encoded_edge)
       {
-         edge_to_faces[all_data[i]].insert(all_data[i + 1]);
-      }
+         // Decode the edge index from the encoded value
+         int local_edge = (encoded_edge >= 0) ? encoded_edge : -1 - encoded_edge;
+         
+         // Skip if already processed this edge
+         if (!processed_edges.insert(local_edge).second) { continue; }
 
-      // Mark Dofs from artificial edges introduced by partitioning the mesh into
-      // ranks for removal
-      dofs_to_remove.reserve(local_data.size() / 4);
-
-      for (size_t i = 0; i < local_data.size(); i += 2)
-      {
-         HYPRE_BigInt global_edge_id = local_data[i];
-
-         // If this edge appears in 2+ distinct faces, it's artificial
-         if (edge_to_faces[global_edge_id].size() >= 2)
+         // Check if edge is shared (fast lookup)
+         auto it = edge_to_group_size.find(local_edge);
+         if (it != edge_to_group_size.end() && it->second > 1)
          {
-            // Fast lookup using pre-built map
-            auto it = global_to_local_edge.find(global_edge_id);
-            if (it != global_to_local_edge.end())
-            {
-               int local_edge = it->second;
-               Array<int> local_edge_dofs;
-               GetEdgeDofs(local_edge, local_edge_dofs);
+            // Get boundary element and companion index directly from pre-computed map
+            int boundary_element_idx = dof_to_boundary_element[dof];
+            int companion_index = boundary_element_to_companion[boundary_element_idx];
 
-               // Mark boundary DoFs of this edge for removal
-               for (int k = 0; k < local_edge_dofs.Size(); ++k)
+            // Store edge-face pair for 3D artificial boundary detection
+            local_data.push_back(global_edge_indices[local_edge]);
+            local_data.push_back(global_face_indices[companion_index]);
+         }
+      }
+
+      // MPI communication for 3D artificial boundary detection
+      int num_procs = pmesh->GetNRanks();
+      int local_size = local_data.size();
+
+      std::vector<int> mpi_arrays(num_procs * 4);
+      int* all_sizes = mpi_arrays.data();
+      int* displs = all_sizes + num_procs;
+      int* byte_sizes = displs + num_procs;
+      int* byte_displs = byte_sizes + num_procs;
+
+      MPI_Allgather(&local_size, 1, MPI_INT, all_sizes, 1, MPI_INT, pmesh->GetComm());
+
+      int total_size = 0;
+      constexpr int hypre_size = sizeof(HYPRE_BigInt);
+      for (int i = 0; i < num_procs; i++)
+      {
+         displs[i] = total_size;
+         byte_displs[i] = total_size * hypre_size;
+         total_size += all_sizes[i];
+         byte_sizes[i] = all_sizes[i] * hypre_size;
+      }
+
+      if (total_size > 0)
+      {
+         std::vector<HYPRE_BigInt> all_data(total_size);
+         MPI_Allgatherv(local_data.data(), local_size * hypre_size, MPI_BYTE,
+                        all_data.data(), byte_sizes, byte_displs, MPI_BYTE, pmesh->GetComm());
+
+         // Build global-to-local edge mapping
+         std::unordered_map<HYPRE_BigInt, int> global_to_local_edge;
+         global_to_local_edge.reserve(global_edge_indices.Size());
+         for (int i = 0; i < global_edge_indices.Size(); ++i)
+         {
+            global_to_local_edge[global_edge_indices[i]] = i;
+         }
+
+         // Process collected data to find edges in multiple faces (artificial boundaries)
+         std::unordered_map<HYPRE_BigInt, std::unordered_set<HYPRE_BigInt>>edge_to_faces;
+         edge_to_faces.reserve(total_size / 2);
+
+         for (size_t i = 0; i < all_data.size(); i += 2)
+         {
+            edge_to_faces[all_data[i]].insert(all_data[i + 1]);
+         }
+
+         // Mark DoFs from artificial edges for removal
+         dofs_to_remove.reserve(local_data.size() / 4);
+
+         for (size_t i = 0; i < local_data.size(); i += 2)
+         {
+            HYPRE_BigInt global_edge_id = local_data[i];
+
+            // If this edge appears in 2+ distinct faces, it's artificial
+            if (edge_to_faces[global_edge_id].size() >= 2)
+            {
+               auto it = global_to_local_edge.find(global_edge_id);
+               if (it != global_to_local_edge.end())
                {
-                  int dof = local_edge_dofs[k];
-                  if (boundary_edge_dofs.count(dof))
+                  int local_edge = it->second;
+                  Array<int> local_edge_dofs;
+                  GetEdgeDofs(local_edge, local_edge_dofs);
+
+                  // Mark boundary DoFs of this edge for removal
+                  for (int k = 0; k < local_edge_dofs.Size(); ++k)
                   {
-                     dofs_to_remove.insert(dof);
+                     int dof = local_edge_dofs[k];
+                     if (boundary_edge_dofs.count(dof))
+                     {
+                        dofs_to_remove.insert(dof);
+                     }
                   }
                }
             }
          }
       }
    }
+   // In 2D: No artificial boundary detection needed
+   // Boundary elements ARE edges, so no geometric complexity or artificial boundaries
 
    // Remove artificial DoFs
    for (int dof : dofs_to_remove)

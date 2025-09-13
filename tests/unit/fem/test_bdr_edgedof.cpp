@@ -117,9 +117,9 @@ TEST_CASE("BoundaryEdgeDoFsPartitionInvariant",
       std::unordered_map<int, int> dof_to_boundary_element;
       Array<int> ess_edge_list;
 
-      fespace.GetBoundaryEdgeDofs(boundary_elements, ess_tdof_list, ldof_marker,
-                                  boundary_edge_ldofs, &dof_to_edge, &dof_to_orientation,
-                                  &dof_to_boundary_element, &ess_edge_list);
+      fespace.GetBoundaryLoopEdgeDofs(boundary_elements, ess_tdof_list, ldof_marker,
+                                      boundary_edge_ldofs, &dof_to_edge, &dof_to_orientation,
+                                      &dof_to_boundary_element, &ess_edge_list);
 
       // Collect total boundary edge DoFs
       int local_dofs = boundary_edge_ldofs.size();
@@ -173,9 +173,9 @@ TEST_CASE("BoundaryEdgeDoFsBasicFunctionality",
    std::unordered_map<int, int> dof_to_boundary_element;
    Array<int> ess_edge_list;
 
-   fespace.GetBoundaryEdgeDofs(boundary_elements, ess_tdof_list, ldof_marker,
-                               boundary_edge_ldofs, &dof_to_edge, &dof_to_orientation,
-                               &dof_to_boundary_element, &ess_edge_list);
+   fespace.GetBoundaryLoopEdgeDofs(boundary_elements, ess_tdof_list, ldof_marker,
+                                   boundary_edge_ldofs, &dof_to_edge, &dof_to_orientation,
+                                   &dof_to_boundary_element, &ess_edge_list);
 
    // Basic validation
    REQUIRE(boundary_edge_ldofs.size() >= 0);
@@ -285,9 +285,9 @@ TEST_CASE("BoundaryEdgeDoFsNestedCubes",
       std::unordered_map<int, int> dof_to_boundary_element;
       Array<int> ess_edge_list;
 
-      fespace.GetBoundaryEdgeDofs(boundary_elements, ess_tdof_list, ldof_marker,
-                                  boundary_edge_ldofs, &dof_to_edge, &dof_to_orientation,
-                                  &dof_to_boundary_element, &ess_edge_list);
+      fespace.GetBoundaryLoopEdgeDofs(boundary_elements, ess_tdof_list, ldof_marker,
+                                      boundary_edge_ldofs, &dof_to_edge, &dof_to_orientation,
+                                      &dof_to_boundary_element, &ess_edge_list);
 
       std::unordered_map<int, int> edge_loop_orientation;
       fespace.ComputeLoopEdgeOrientations(dof_to_edge, dof_to_boundary_element,
@@ -345,6 +345,121 @@ TEST_CASE("BoundaryEdgeDoFsNestedCubes",
       REQUIRE(abs(global_tdof_sum - exp_sum) < real_t(1e-12));
       REQUIRE(abs(total_length - exp_length) < real_t(1e-12));
    }
+}
+
+TEST_CASE("BoundaryEdgeDoFs2DSquareInSquare",
+          "[Parallel][ParMesh][BoundaryEdgeDoFs]")
+{
+   // Test 2D boundary edge DoF extraction using square-in-square mesh
+   constexpr int order = 2;
+   
+   // Test multiple inner boundary attributes
+   std::vector<int> inner_attrs_to_test = {5, 6, 7, 8};
+   
+   // Load 2D square-in-square mesh from file
+   const char* mesh_file = "../../data/square_in_square.msh";
+   Mesh serial_mesh(mesh_file, 1, 1);
+   serial_mesh.UniformRefinement();
+   
+   int num_procs = Mpi::WorldSize();
+   int rank = Mpi::WorldRank();
+   
+   // Test each boundary attribute
+   for (int inner_attr : inner_attrs_to_test)
+   {
+      CAPTURE(inner_attr); // Capture the attribute being tested for better test output
+   
+      // Test that results are consistent across different mesh partitionings
+      const int n_elements = serial_mesh.GetNE();
+      
+      // Generate multiple different partitionings
+      std::vector<std::vector<int>> all_partitionings;
+      
+      // 1. All elements on rank 0
+      all_partitionings.push_back(std::vector<int>(n_elements, 0));
+      
+      if (num_procs > 1)
+      {
+         // 2. Block partition: first half on rank 0, second half on last rank
+         std::vector<int> block(n_elements);
+         for (int i = 0; i < n_elements; i++)
+            block[i] = (i < n_elements/2) ? 0 : num_procs-1;
+         all_partitionings.push_back(block);
+         
+         // 3. Round-robin partition: elements assigned cyclically to all ranks
+         std::vector<int> round_robin(n_elements);
+         for (int i = 0; i < n_elements; i++)
+            round_robin[i] = i % num_procs;
+         all_partitionings.push_back(round_robin);
+      }
+      
+      ND_FECollection fec(order, 2);
+      std::vector<int> all_dof_results;
+      all_dof_results.reserve(all_partitionings.size());
+      
+      // Test each partitioning
+      int partition_idx = 0;
+      for (const auto& partition : all_partitionings)
+      {
+         // Create parallel mesh with current partitioning
+         Mesh test_mesh(mesh_file, 1, 1);
+         test_mesh.UniformRefinement();
+         ParMesh pmesh = (num_procs == 1) ?
+                           ParMesh(MPI_COMM_WORLD, test_mesh) :
+                           ParMesh(MPI_COMM_WORLD, test_mesh, partition.data());
+         
+         ParFiniteElementSpace fespace(&pmesh, &fec);
+         
+         // Find boundary elements with the inner attribute
+         std::unordered_map<int, Array<int>> attr_to_elements;
+         Array<int> inner_attrs(1);
+         inner_attrs[0] = inner_attr;
+         fespace.GetBoundaryElementsByAttribute(inner_attrs, attr_to_elements);
+         
+         Array<int> inner_boundary_elements;
+         if (attr_to_elements.find(inner_attr) != attr_to_elements.end())
+         {
+            inner_boundary_elements = attr_to_elements[inner_attr];
+         }
+           
+         Array<int> ess_tdofs, ess_edges;
+         Array<int> ldof_marker;
+         std::unordered_set<int> boundary_dofs;
+         std::unordered_map<int, int> dof_to_edge, dof_to_orientation;
+         std::unordered_map<int, int> dof_to_boundary_element;
+         
+         fespace.GetBoundaryLoopEdgeDofs(inner_boundary_elements, ess_tdofs, ldof_marker, boundary_dofs,
+                                         &dof_to_edge, &dof_to_orientation, &dof_to_boundary_element, &ess_edges);
+          
+         // Verify consistency between different outputs
+         if (boundary_dofs.size() > 0)
+         {
+            REQUIRE(boundary_dofs.size() == dof_to_edge.size());
+            if (dof_to_orientation.size() > 0)
+            {
+               REQUIRE(dof_to_edge.size() == dof_to_orientation.size());
+            }
+         }
+         
+         // Gather global counts for this partitioning
+         int local_dof_count = boundary_dofs.size();
+         int global_dof_count;
+         MPI_Allreduce(&local_dof_count, &global_dof_count, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+            
+         all_dof_results.push_back(global_dof_count);
+         
+         partition_idx++;
+      }
+      
+      // Verify all partitionings give identical results
+      REQUIRE(!all_dof_results.empty());
+      
+      int expected_dofs = all_dof_results[0];
+      for (int result : all_dof_results)
+      {
+         REQUIRE(result == expected_dofs);
+      }
+   } // End of inner_attr loop
 }
 
 #endif // MFEM_USE_MPI

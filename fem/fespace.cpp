@@ -4499,15 +4499,15 @@ void FiniteElementSpace
    }
 }
 
-void FiniteElementSpace::GetBoundaryEdgeDofs(
+void FiniteElementSpace::GetBoundaryLoopEdgeDofs(
    const Array<int> &boundary_element_indices,
    std::unordered_set<int> &boundary_edge_dofs,
    std::unordered_map<int, int> &dof_to_edge,
    std::unordered_map<int, int> &dof_to_boundary_element,
    std::unordered_map<int, int> &dof_to_edge_orientation) const
 {
-   MFEM_VERIFY(mesh->Dimension() >= 3,
-               "GetBoundaryEdgeDofs requires 3D meshes to find 1D edge objects");
+   MFEM_VERIFY(mesh->Dimension() >= 2,
+               "GetBoundaryLoopEdgeDofs requires 2D or 3D meshes to find edge objects");
 
    // Clear output containers
    boundary_edge_dofs.clear();
@@ -4515,27 +4515,71 @@ void FiniteElementSpace::GetBoundaryEdgeDofs(
    dof_to_boundary_element.clear();
    dof_to_edge_orientation.clear();
 
-   // Collect boundary edge DoFs using a toggle approach
-   Array<int> edges, edge_orientations, edge_dofs;
-   for (int i = 0; i < boundary_element_indices.Size(); ++i)
-   {
-      int boundary_element_idx = boundary_element_indices[i];
-      int face_index, face_orientation;
-      mesh->GetBdrElementFace(boundary_element_idx, &face_index, &face_orientation);
-      mesh->GetFaceEdges(face_index, edges, edge_orientations);
+   Array<int> edge_dofs;
 
-      for (int j = 0; j < edges.Size(); ++j)
+   if (mesh->Dimension() == 3)
+   {
+      // 3D case: boundary elements are 2D faces, extract their 1D edges
+      Array<int> edges, edge_orientations;
+      for (int i = 0; i < boundary_element_indices.Size(); ++i)
       {
-         GetEdgeDofs(edges[j], edge_dofs);
+         int boundary_element_idx = boundary_element_indices[i];
+         int face_index, face_orientation;
+         mesh->GetBdrElementFace(boundary_element_idx, &face_index, &face_orientation);
+         mesh->GetFaceEdges(face_index, edges, edge_orientations);
+
+         for (int j = 0; j < edges.Size(); ++j)
+         {
+            GetEdgeDofs(edges[j], edge_dofs);
+            for (int k = 0; k < edge_dofs.Size(); ++k)
+            {
+               int dof = edge_dofs[k];
+               if (!boundary_edge_dofs.count(dof))
+               {
+                  boundary_edge_dofs.insert(dof);
+                  dof_to_edge[dof] = edges[j];
+                  dof_to_boundary_element[dof] = boundary_element_idx;
+                  dof_to_edge_orientation[dof] = edge_orientations[j];
+               }
+               else
+               {
+                  // DoF appears twice - interior to boundary, remove it
+                  boundary_edge_dofs.erase(dof);
+                  dof_to_edge.erase(dof);
+                  dof_to_boundary_element.erase(dof);
+                  dof_to_edge_orientation.erase(dof);
+               }
+            }
+         }
+      }
+   }
+   else if (mesh->Dimension() == 2)
+   {
+      // 2D case: boundary elements are 1D segments (edges)
+      // Extract DoFs from specified boundary edges
+      Array<int> edges, edge_orientations;
+      for (int i = 0; i < boundary_element_indices.Size(); ++i)
+      {
+         int boundary_element_idx = boundary_element_indices[i];
+         mesh->GetBdrElementEdges(boundary_element_idx, edges, edge_orientations);
+         
+         // In 2D, each boundary element should have exactly one edge
+         MFEM_VERIFY(edges.Size() == 1, 
+                     "2D boundary element should have exactly one edge");
+         
+         int edge_index = edges[0];
+         int edge_orientation = edge_orientations[0];
+         
+         GetEdgeDofs(edge_index, edge_dofs);
          for (int k = 0; k < edge_dofs.Size(); ++k)
          {
             int dof = edge_dofs[k];
             if (!boundary_edge_dofs.count(dof))
             {
                boundary_edge_dofs.insert(dof);
-               dof_to_edge[dof] = edges[j];
+               dof_to_edge[dof] = edge_index;
                dof_to_boundary_element[dof] = boundary_element_idx;
-               dof_to_edge_orientation[dof] = edge_orientations[j];
+               dof_to_edge_orientation[dof] = edge_orientation;
             }
             else
             {

@@ -422,10 +422,6 @@ public:
        "partially conforming") space. */
    void Synchronize(Array<int> &ldof_marker) const;
 
-   /** @brief Given a vector of boundary condition values on the local true
-     dofs, perform a reduction across all processors. */
-   void SynchronizeBC(Array<real_t> &bc_values) const;
-
    /// Determine the boundary degrees of freedom
    void GetEssentialVDofs(const Array<int> &bdr_attr_is_ess,
                           Array<int> &ess_dofs,
@@ -465,14 +461,14 @@ public:
        @param[out] dof_to_orientation Optional map from DOFs to edge orientations
        @param[out] dof_to_boundary_element_out Optional map from DOFs to boundary elements
        @param[out] ess_edge_list Optional array of edge indices */
-   void GetBoundaryEdgeDofs(const Array<int> &boundary_element_indices,
-                            Array<int> &ess_tdof_list,
-                            Array<int> &ldof_marker,
-                            std::unordered_set<int> &boundary_edge_dofs_out,
-                            std::unordered_map<int, int> *dof_to_edge = nullptr,
-                            std::unordered_map<int, int> *dof_to_orientation = nullptr,
-                            std::unordered_map<int, int> *dof_to_boundary_element_out = nullptr,
-                            Array<int> *ess_edge_list = nullptr);
+   void GetBoundaryLoopEdgeDofs(const Array<int> &boundary_element_indices,
+                                Array<int> &ess_tdof_list,
+                                Array<int> &ldof_marker,
+                                std::unordered_set<int> &boundary_edge_dofs_out,
+                                std::unordered_map<int, int> *dof_to_edge = nullptr,
+                                std::unordered_map<int, int> *dof_to_orientation = nullptr,
+                                std::unordered_map<int, int> *dof_to_boundary_element_out = nullptr,
+                                Array<int> *ess_edge_list = nullptr);
 
    /** Find the boundary elements marked with specified boundary attributes
         @param[in] bdr_attrs list of boundary attributes to search for
