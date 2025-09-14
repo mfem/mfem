@@ -955,6 +955,8 @@ const Operator *get_element_restriction(const FieldDescriptor &f,
 ///
 /// @param f the field descriptor.
 /// @param o the face dof ordering.
+/// @param ft the face type
+/// @param m indicator if single or double valued
 /// @returns the face restriction operator for the field descriptor in
 /// specified ordering.
 inline
