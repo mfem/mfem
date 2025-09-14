@@ -1250,8 +1250,8 @@ T weight(const tensor<T, n, m>& A)
    {
       return det(A);
    }
-   if constexpr (n == 2 && m == 1 ||
-                 n == 3 && m == 1)
+   if constexpr ((n == 2) && (m == 1) ||
+                 (n == 3) && (m == 1))
    {
       return norm(A);
    }
