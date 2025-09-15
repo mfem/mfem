@@ -294,7 +294,6 @@ int main(int argc, char *argv[])
    int prec = 1;
    bool herm_conv = false;
    bool exact_sol = false;
-   bool vis_u = false;
    bool visualization = false;
 
    real_t freq = 1.0e6;
@@ -492,9 +491,6 @@ int main(int argc, char *argv[])
                   "Max number of iterations in the main AMR loop.");
    args.AddOption(&herm_conv, "-herm", "--hermitian", "-no-herm",
                   "--no-hermitian", "Use convention for Hermitian operators.");
-   args.AddOption(&vis_u, "-vis-u", "--visualize-energy", "-no-vis-u",
-                  "--no-visualize-energy",
-                  "Enable or disable visualization of energy density.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -790,8 +786,7 @@ int main(int argc, char *argv[])
                    conv, stixParams,
                    (phase_shift) ? &phaseReCoef : NULL,
                    (phase_shift) ? &phaseImCoef : NULL,
-                   stixBCs,
-                   vis_u);
+                   stixBCs);
 
    // Set the visualization flags
    CPD.GetInputVis().SetOptions(inputVisOpts);
@@ -799,12 +794,7 @@ int main(int argc, char *argv[])
    CPD.GetOutputVis().SetOptions(outputVisOpts);
    CPD.GetFieldAnim().SetOptions(fieldAnimOpts);
 
-   // Initialize GLVis visualization
-   if (visualization)
-   {
-      CPD.InitializeGLVis();
-   }
-
+   // Initialize visualization objects for exact solutions
    ComplexVectorFieldVisObject VisExactE("Exact E",
                                          CPD.GetVectorVisFES());
 

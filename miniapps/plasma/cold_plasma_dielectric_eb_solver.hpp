@@ -1382,7 +1382,7 @@ public:
                VectorCoefficient * kReCoef,
                VectorCoefficient * kImCoef,
                StixBCs & stixBCs,
-               bool vis_u = false, bool cyl = false);
+               bool cyl = false);
    ~CPDSolverEB();
 
    HYPRE_Int GetProblemSize();
@@ -1420,8 +1420,6 @@ public:
 
    void WriteVisItFields(int it = 0);
 
-   void InitializeGLVis();
-
    void DisplayToGLVis();
 
    std::shared_ptr<L2_ParFESpace> GetScalarVisFES() const
@@ -1436,14 +1434,6 @@ private:
 
    void computeD(const ParComplexGridFunction & e,
                  ParComplexGridFunction & d);
-
-   void prepareScalarVisField(const ParComplexGridFunction &u,
-                              ComplexGridFunction &v);
-
-   void prepareVectorVisField(const ParComplexGridFunction &u,
-                              ComplexGridFunction &v,
-                              ComplexGridFunction *vy,
-                              ComplexGridFunction *vz);
 
    void prepareVisFields();
 
@@ -1461,7 +1451,6 @@ private:
    StixParams &stixParams_;
 
    bool cyl_;
-   bool vis_u_;
 
    real_t omega_;
 
@@ -1502,8 +1491,8 @@ private:
    ConstantCoefficient muInvCoef_;    // Dia/Paramagnetic Material Coefficient
    PWCoefficient       etaInvReCoef_; // Admittance Coefficient
    PWCoefficient       etaInvImCoef_; // Admittance Coefficient
-   VectorCoefficient * kReCoef_;        // Wave Vector
-   VectorCoefficient * kImCoef_;        // Wave Vector
+   VectorCoefficient * betaReCoef_;   // Phase Shift Vector
+   VectorCoefficient * betaImCoef_;   // Phase Shift Vector
 
    Coefficient * omegaCoef_;     // omega expressed as a Coefficient
    Coefficient * negOmegaCoef_;  // -omega expressed as a Coefficient
@@ -1518,12 +1507,6 @@ private:
    Coefficient * negsinkx_;      // -sin(ky * y + kz * z)
 
    MatrixCoefficient * posMassCoef_; // omega^2 Abs(epsilon)
-
-   VectorGridFunctionCoefficient erCoef_;
-   VectorGridFunctionCoefficient eiCoef_;
-
-   CurlGridFunctionCoefficient derCoef_;
-   CurlGridFunctionCoefficient deiCoef_;
 
    // Array of 0's and 1's marking the location of absorbing surfaces
    Array<int> abc_bdr_marker_;

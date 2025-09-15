@@ -1814,10 +1814,10 @@ CPDSolverEB::CPDSolverEB(ParMesh & pmesh, int order,
                          CPDSolverEB::PrecondType prec,
                          ComplexOperator::Convention conv,
                          StixParams &stixParams,
-                         VectorCoefficient * kReCoef,
-                         VectorCoefficient * kImCoef,
+                         VectorCoefficient * betaReCoef,
+                         VectorCoefficient * betaImCoef,
                          StixBCs & stixBCs,
-                         bool vis_u, bool cyl)
+                         bool cyl)
    : myid_(0),
      num_procs_(1),
      order_(order),
@@ -1828,7 +1828,6 @@ CPDSolverEB::CPDSolverEB(ParMesh & pmesh, int order,
      conv_(conv),
      stixParams_(stixParams),
      cyl_(cyl),
-     vis_u_(vis_u),
      omega_(stixParams.omega),
      pmesh_(&pmesh),
      L2FESpace_(std::make_shared<L2_ParFESpace>(pmesh_, order-1,
@@ -1854,17 +1853,14 @@ CPDSolverEB::CPDSolverEB(ParMesh & pmesh, int order,
      outputVis_(stixParams, L2FESpace2p_, L2VFESpace_, omega_, cyl_),
      fieldAnim_(stixParams, L2FESpace_, L2VFESpace_, "E", "B"),
      db_v_("DivB", L2FESpace_, cyl_, true),
-     // d_v_("D", L2VSFESpace_, L2FESpace_, cyl_, true),
      dd_v_("DivD", L2FESpace_, cyl_, true),
-     // j_v_("J", L2VSFESpace_, L2FESpace_, cyl_, true),
-     // k_v_("K", L2VSFESpace_),
      b_hat_(NULL),
      epsReCoef_(stixParams, StixCoef::REAL_PART),
      epsImCoef_(stixParams, StixCoef::IMAG_PART),
      epsAbsCoef_(stixParams),
      muInvCoef_(1.0 / mu0_),
-     kReCoef_(kReCoef),
-     kImCoef_(kImCoef),
+     betaReCoef_(betaReCoef),
+     betaImCoef_(betaImCoef),
      omegaCoef_(new ConstantCoefficient(omega_)),
      negOmegaCoef_(new ConstantCoefficient(-omega_)),
      omega2Coef_(new ConstantCoefficient(pow(omega_, 2))),
@@ -1875,21 +1871,19 @@ CPDSolverEB::CPDSolverEB(ParMesh & pmesh, int order,
      coskx_(NULL),
      negsinkx_(NULL),
      posMassCoef_(NULL),
-     derCoef_(NULL),
-     deiCoef_(NULL),
      dbcs_(stixBCs.GetDirichletBCs()),
      nbcs_(stixBCs.GetNeumannBCs()),
      abcs_(stixBCs.GetSommerfeldBCs()),
      axis_(stixBCs.GetCylindricalAxis()),
      maxwell_(*HCurlFESpace_, omega_, conv,
               epsReCoef_, epsImCoef_, muInvCoef_,
-              kReCoef, kImCoef),
+              betaReCoef, betaImCoef),
      current_(*HCurlFESpace_, *HDivFESpace_, omega_, conv,
-              stixBCs.GetCurrentSrcs(), nbcs_, kReCoef, kImCoef),
-     faraday_(e_, *HDivFESpace_, omega_, kReCoef, kImCoef),
-     divB_(faraday_.GetMagneticFlux(), *L2FESpace_, kReCoef, kImCoef),
+              stixBCs.GetCurrentSrcs(), nbcs_, betaReCoef, betaImCoef),
+     faraday_(e_, *HDivFESpace_, omega_, betaReCoef, betaImCoef),
+     divB_(faraday_.GetMagneticFlux(), *L2FESpace_, betaReCoef, betaImCoef),
      displacement_(e_, *HDivFESpace_, epsReCoef_, epsImCoef_),
-     divD_(displacement_.GetDisplacement(), *L2FESpace_, kReCoef, kImCoef),
+     divD_(displacement_.GetDisplacement(), *L2FESpace_, betaReCoef, betaImCoef),
      visit_dc_(NULL)
 {
    // Initialize MPI variables
@@ -1904,7 +1898,7 @@ CPDSolverEB::CPDSolverEB(ParMesh & pmesh, int order,
    tic_toc.Clear();
    tic_toc.Start();
 
-   if (kReCoef_ || kImCoef_)
+   if (betaReCoef_ || betaImCoef_)
    {
       e_v_ = new ParComplexGridFunction(L2VSFESpace_);
       e_t_ = new ParGridFunction(L2VSFESpace_);
@@ -2055,14 +2049,6 @@ CPDSolverEB::CPDSolverEB(ParMesh & pmesh, int order,
    // Build grid functions
    e_ = 0.0;
 
-   if (vis_u_)
-   {
-      erCoef_.SetGridFunction(&e_.real());
-      eiCoef_.SetGridFunction(&e_.imag());
-
-      derCoef_.SetGridFunction(&e_.real());
-      deiCoef_.SetGridFunction(&e_.imag());
-   }
    tic_toc.Stop();
 
    if ( myid_ == 0 && logging_ > 0 )
@@ -2073,7 +2059,6 @@ CPDSolverEB::CPDSolverEB(ParMesh & pmesh, int order,
 
 CPDSolverEB::~CPDSolverEB()
 {
-   std::cout << "Entering CPDSolverEB d'tor\n";
    for (int i=0; i<vCoefs_.Size(); i++)
    {
       delete vCoefs_[i];
@@ -2089,7 +2074,6 @@ CPDSolverEB::~CPDSolverEB()
    delete negOmegaCoef_;
    delete omega2Coef_;
    delete negOmega2Coef_;
-   std::cout << "CPDSolverEB d'tor\n";
    delete e_b_;
    delete b_hat_;
    delete e_v_;
@@ -2108,7 +2092,6 @@ CPDSolverEB::~CPDSolverEB()
    {
       delete mit->second;
    }
-   std::cout << "Exiting CPDSolverEB d'tor\n";
 }
 
 HYPRE_Int
@@ -2280,10 +2263,10 @@ CPDSolverEB::Solve()
          bool dbc_phase = true;
          if (dbc_phase)
          {
-            ComplexPhaseVectorCoefficient re_e_dbc(kReCoef_, kImCoef_,
+            ComplexPhaseVectorCoefficient re_e_dbc(betaReCoef_, betaImCoef_,
                                                    dbcs_[i]->real,
                                                    dbcs_[i]->imag, true, true);
-            ComplexPhaseVectorCoefficient im_e_dbc(kReCoef_, kImCoef_,
+            ComplexPhaseVectorCoefficient im_e_dbc(betaReCoef_, betaImCoef_,
                                                    dbcs_[i]->real,
                                                    dbcs_[i]->imag, false, true);
 
@@ -2590,180 +2573,15 @@ CPDSolverEB::GetErrorEstimates(Vector & errors)
    if ( myid_ == 0 && logging_ > 0 ) { cout << "done." << endl; }
 }
 
-void CPDSolverEB::prepareScalarVisField(const ParComplexGridFunction &u,
-                                        ComplexGridFunction &v)
-{
-   if (kReCoef_ || kImCoef_)
-   {
-      GridFunctionCoefficient u_r(&u.real());
-      GridFunctionCoefficient u_i(&u.imag());
-      ComplexPhaseCoefficient uk_r(kReCoef_, kImCoef_, &u_r, &u_i,
-                                   true, false);
-      ComplexPhaseCoefficient uk_i(kReCoef_, kImCoef_, &u_r, &u_i,
-                                   false, false);
-
-      ScalarR2DCoef uk_r_3D(uk_r, *pmesh_);
-      ScalarR2DCoef uk_i_3D(uk_i, *pmesh_);
-
-      v.ProjectCoefficient(uk_r_3D, uk_i_3D);
-   }
-   else
-   {
-      GridFunctionCoefficient u_r(&u.real());
-      GridFunctionCoefficient u_i(&u.imag());
-
-      ScalarR2DCoef u_r_3D(u_r, *pmesh_);
-      ScalarR2DCoef u_i_3D(u_i, *pmesh_);
-
-      v.ProjectCoefficient(u_r_3D, u_i_3D);
-   }
-}
-
-void CPDSolverEB::prepareVectorVisField(const ParComplexGridFunction &u,
-                                        ComplexGridFunction &v,
-                                        ComplexGridFunction *vy,
-                                        ComplexGridFunction *vz)
-{
-   if (kReCoef_ || kImCoef_)
-   {
-      VectorGridFunctionCoefficient u_r(&u.real());
-      VectorGridFunctionCoefficient u_i(&u.imag());
-      ComplexPhaseVectorCoefficient uk_r(kReCoef_, kImCoef_, &u_r, &u_i,
-                                         true, false);
-      ComplexPhaseVectorCoefficient uk_i(kReCoef_, kImCoef_, &u_r, &u_i,
-                                         false, false);
-
-      switch (pmesh_->SpaceDimension())
-      {
-         case 1:
-         {}
-         break;
-         case 2:
-         {
-            VectorXYCoef ukxy_r(uk_r);
-            VectorXYCoef ukxy_i(uk_i);
-            VectorZCoef   ukz_r(uk_r);
-            VectorZCoef   ukz_i(uk_i);
-
-            v.ProjectCoefficient(ukxy_r, ukxy_i);
-            if (vz) { vz->ProjectCoefficient(ukz_r, ukz_i); }
-         }
-         break;
-         case 3:
-         {}
-         break;
-      }
-      // VectorR2DCoef uk_r_3D(uk_r, *pmesh_);
-      // VectorR2DCoef uk_i_3D(uk_i, *pmesh_);
-
-      // v.ProjectCoefficient(uk_r_3D, uk_i_3D);
-   }
-   else
-   {
-      VectorGridFunctionCoefficient u_r(&u.real());
-      VectorGridFunctionCoefficient u_i(&u.imag());
-
-      switch (pmesh_->SpaceDimension())
-      {
-         case 1:
-         {}
-         break;
-         case 2:
-         {
-            VectorXYCoef uxy_r(u_r);
-            VectorXYCoef uxy_i(u_i);
-            VectorZCoef   uz_r(u_r);
-            VectorZCoef   uz_i(u_i);
-
-            v.ProjectCoefficient(uxy_r, uxy_i);
-            if (vz) { vz->ProjectCoefficient(uz_r, uz_i); }
-         }
-         break;
-         case 3:
-         {}
-         break;
-      }
-   }
-}
-
 void CPDSolverEB::prepareVisFields()
 {
    inputVis_.PrepareVisFields(current_.GetVolumeCurrentDensity(),
-                              kReCoef_, kImCoef_);
+                              betaReCoef_, betaImCoef_);
    fieldVis_.PrepareVisFields(e_, faraday_.GetMagneticFlux(),
-                              kReCoef_, kImCoef_);
+                              betaReCoef_, betaImCoef_);
    outputVis_.PrepareVisFields(e_, displacement_.GetDisplacement());
    fieldAnim_.PrepareVisFields(e_, faraday_.GetMagneticFlux(),
-                               kReCoef_, kImCoef_);
-
-   /*
-   // phi_v_.PrepareVisField(sheathPot_.GetSheathPotential(), kReCoef_, kImCoef_);
-   j_v_.PrepareVisField(current_.GetVolumeCurrentDensity(),
-                        kReCoef_, kImCoef_);
-   k_v_.PrepareVisField(current_.GetSurfaceCurrentDensity(),
-                        kReCoef_, kImCoef_);
-   eb_v_.PrepareVisField(e_, kReCoef_, kImCoef_);
-   */
-   // ue_v_.PrepareVisField(e_, epsReCoef_, epsImCoef_);
-   /*
-   divB_.ComputeDiv();
-   divD_.ComputeDiv();
-
-   db_v_.PrepareVisField(divB_.GetDivergence(), kReCoef_, kImCoef_);
-   dd_v_.PrepareVisField(divD_.GetDivergence(), kReCoef_, kImCoef_);
-   */
-   /*
-   prepareScalarVisField(divB_.GetDivergence(), *db_v_);
-
-    prepareScalarVisField(divD_.GetDivergence(), *dd_v_);
-   */
-   /*
-    if (h_tilde_)
-    {
-       VectorGridFunctionCoefficient u_r(&h_->real());
-       VectorGridFunctionCoefficient u_i(&h_->imag());
-
-       VectorR2DCoef u_r_3D(u_r, *pmesh_);
-       VectorR2DCoef u_i_3D(u_i, *pmesh_);
-
-       h_tilde_->ProjectCoefficient(u_r_3D, u_i_3D);
-    }
-    */
-   /*
-   {
-      VectorGridFunctionCoefficient d_r(&d_->real());
-      VectorGridFunctionCoefficient d_i(&d_->real());
-
-      DivergenceGridFunctionCoefficient div_d_r(&d_->real());
-      DivergenceGridFunctionCoefficient div_d_i(&d_->imag());
-
-      VectorR2DCoef dReCoef(d_r, *pmesh_);
-      VectorR2DCoef dImCoef(d_i, *pmesh_);
-
-      Vector ZeroVec(3); ZeroVec = 0.0;
-      VectorConstantCoefficient ZeroCoef(ZeroVec);
-      VectorCoefficient * kReCoef = (kReCoef_) ? kReCoef_ : &ZeroCoef;
-      VectorCoefficient * kImCoef = (kImCoef_) ? kImCoef_ : &ZeroCoef;
-
-      InnerProductCoefficient krdr(*kReCoef, dReCoef);
-      InnerProductCoefficient krdi(*kReCoef, dImCoef);
-      InnerProductCoefficient kidr(*kImCoef, dReCoef);
-      InnerProductCoefficient kidi(*kImCoef, dImCoef);
-
-      SumCoefficient ikd_r(krdi, kidr, -1.0, -1.0);
-      SumCoefficient ikd_i(krdr, kidi,  1.0, -1.0);
-
-      SumCoefficient div_d_r_3D(div_d_r, ikd_r);
-      SumCoefficient div_d_i_3D(div_d_i, ikd_i);
-
-      ComplexPhaseCoefficient ddk_r(kReCoef_, kImCoef_, &div_d_r_3D, &div_d_i_3D,
-                                    true, false);
-      ComplexPhaseCoefficient ddk_i(kReCoef_, kImCoef_, &div_d_r_3D, &div_d_i_3D,
-                                    false, false);
-
-      div_d_->ProjectCoefficient(ddk_r, ddk_i);
-   }
-   */
+                               betaReCoef_, betaImCoef_);
 }
 
 void
@@ -2781,22 +2599,6 @@ CPDSolverEB::RegisterVisItFields(VisItDataCollection & visit_dc)
    fieldVis_.RegisterVisItFields(visit_dc);
    outputVis_.RegisterVisItFields(visit_dc);
    fieldAnim_.RegisterVisItFields(visit_dc);
-
-   /*
-   j_v_.RegisterVisItFields(visit_dc);
-   k_v_.RegisterVisItFields(visit_dc);
-   */
-   // phi_v_.RegisterVisItFields(visit_dc);
-   /*
-   eb_v_.RegisterVisItFields(visit_dc);
-   */
-   // ue_v_.RegisterVisItFields(visit_dc);
-   /*
-   db_v_.RegisterVisItFields(visit_dc);
-   dd_v_.RegisterVisItFields(visit_dc);
-   */
-   // if ( m_ ) { visit_dc.RegisterField("M", m_); }
-   // if ( SurfCur_ ) { visit_dc.RegisterField("Psi", SurfCur_->GetPsi()); }
 }
 
 void
@@ -2807,12 +2609,7 @@ CPDSolverEB::WriteVisItFields(int it)
       if (myid_ == 0) { cout << "Writing VisIt files ..." << flush; }
 
       prepareVisFields();
-      /*
-      if ( j_ )
-      {
-         j_->ProjectCoefficient(*jrCoef_, *jiCoef_);
-      }
-      */
+
       HYPRE_Int prob_size = this->GetProblemSize();
       visit_dc_->SetCycle(it);
       visit_dc_->SetTime(prob_size);
@@ -2820,47 +2617,6 @@ CPDSolverEB::WriteVisItFields(int it)
 
       if (myid_ == 0) { cout << " done." << endl; }
    }
-}
-
-void
-CPDSolverEB::InitializeGLVis()
-{
-   if ( myid_ == 0 ) { cout << "Opening GLVis sockets." << endl; }
-
-   if (false /*BCoef_*/)
-   {
-      socks_["EBr"] = new socketstream;
-      socks_["EBr"]->precision(8);
-
-      socks_["EBi"] = new socketstream;
-      socks_["EBi"]->precision(8);
-   }
-
-   /*
-   if ( j_v_ )
-   {
-      socks_["Jr"] = new socketstream;
-      socks_["Jr"]->precision(8);
-
-      socks_["Ji"] = new socketstream;
-      socks_["Ji"]->precision(8);
-   }
-   */
-   /*
-   if ( k_ )
-   {
-      socks_["K"] = new socketstream;
-      socks_["K"]->precision(8);
-      socks_["Psi"] = new socketstream;
-      socks_["Psi"]->precision(8);
-   }
-   if ( m_ )
-   {
-      socks_["M"] = new socketstream;
-      socks_["M"]->precision(8);
-   }
-   */
-   if ( myid_ == 0 ) { cout << "GLVis sockets open." << endl; }
 }
 
 void
@@ -2874,44 +2630,6 @@ CPDSolverEB::DisplayToGLVis()
    fieldVis_.DisplayToGLVis();
    outputVis_.DisplayToGLVis();
    fieldAnim_.DisplayToGLVis();
-   /*
-   Wx += offx;
-   VisualizeField(*socks_["Dr"], vishost, visport,
-                  d_v_->real(), "Electric Flux, Re(D)", Wx, Wy, Ww, Wh);
-   Wx += offx;
-
-   VisualizeField(*socks_["Di"], vishost, visport,
-                  d_v_->imag(), "Electric Flux, Im(D)", Wx, Wy, Ww, Wh);
-   */
-
-   // if ( j_v_ )
-   {
-      /*
-      Wx = 0; Wy += offy; // next line
-
-      j_->ProjectCoefficient(*jrCoef_, *jiCoef_);
-
-      if (kReCoef_ || kImCoef_)
-      {
-         VectorGridFunctionCoefficient j_r(&j_->real());
-         VectorGridFunctionCoefficient j_i(&j_->imag());
-         VectorSumCoefficient jrCoef(j_r, j_i, *coskx_, *negsinkx_);
-         VectorSumCoefficient jiCoef(j_i, j_r, *coskx_, *sinkx_);
-
-         j_v_->ProjectCoefficient(jrCoef, jiCoef);
-      }
-      else
-      {
-         j_v_ = j_;
-      }
-
-      VisualizeField(*socks_["Jr"], vishost, visport,
-                     j_v_->real(), "Current Density, Re(J)", Wx, Wy, Ww, Wh);
-      Wx += offx;
-      VisualizeField(*socks_["Ji"], vishost, visport,
-                     j_v_->imag(), "Current Density, Im(J)", Wx, Wy, Ww, Wh);
-      */
-   }
 
    if (myid_ == 0) { cout << " done." << endl; }
 }
