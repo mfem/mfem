@@ -386,60 +386,50 @@ int main(int argc, char *argv[])
                   "Density Profile Type (for each ion species, "
                   "electrons will be set to enforce charge neutrality): \n"
                   "0 - Constant, 1 - Constant Gradient, "
-                  "2 - Hyprebolic Tangent, 3 - Elliptic Cosine.");
+                  "2 - Hyprebolic Tangent.");
    args.AddOption(&dpp, "-dpp", "--density-profile-params",
                   "Density Profile Parameters:\n"
                   "   CONSTANT: density value\n"
                   "   GRADIENT: value, location, gradient (7 params)\n"
                   "   TANH:     starting value, final value, skin depth, "
-                  "location of mid point, unit vector along gradient, "
-                  "   ELLIPTIC_COS: value at -1, value at 1, "
-                  "radius in x, radius in y, location of center.");
+                  "location of mid point, unit vector along gradient.");
    args.AddOption((int*)&bpt, "-bp", "--Bfield-profile",
                   "BField Profile Type: \n"
-                  "0 - Constant, 1 - Constant Gradient, "
-                  "2 - Hyprebolic Tangent, 3 - Elliptic Cosine.");
+                  "0 - Constant.");
    args.AddOption(&bpp, "-bpp", "--Bfield-profile-params",
                   "BField Profile Parameters:\n"
-                  "  B_P: value at -1, value at 1, "
-                  "radius in x, radius in y, location of center, Bz, placeholder.");
+                  "  Bx, By, Bz.");
    args.AddOption(&tpt, "-tp", "--temperature-profile",
                   "Temperature Profile Type "
                   "(for each ion species and electrons): \n"
                   "0 - Constant, 1 - Constant Gradient, "
-                  "2 - Hyperbolic Tangent, 3 - Elliptic Cosine.");
+                  "2 - Hyperbolic Tangent.");
    args.AddOption(&tpp, "-tpp", "--temperature-profile-params",
                   "Temperature Profile Parameters: \n"
                   "   CONSTANT: temperature value \n"
                   "   GRADIENT: value, location, gradient (7 params)\n"
-                  "   TANH:     value at 0, value at 1, skin depth, "
-                  "location of 0 point, unit vector along gradient, "
-                  "   ELLIPTIC_COS: value at -1, value at 1, "
-                  "radius in x, radius in y, location of center.");
+                  "   TANH:     starting value, final value, skin depth, "
+                  "location of mid point, unit vector along gradient.");
    args.AddOption((int*)&nept, "-nep", "--electron-collision-profile",
                   "Electron Collisions Profile Type: \n"
                   "0 - Constant, 1 - Constant Gradient, "
-                  "2 - Hyperbolic Tangent, 3 - Elliptic Cosine.");
+                  "2 - Hyperbolic Tangent.");
    args.AddOption(&nepp, "-nepp", "--electron-collisions-profile-params",
                   "Electron Collisions Profile Parameters: \n"
                   "   CONSTANT: temperature value \n"
                   "   GRADIENT: value, location, gradient (7 params)\n"
-                  "   TANH:     value at 0, value at 1, skin depth, "
-                  "location of 0 point, unit vector along gradient, "
-                  "   ELLIPTIC_COS: value at -1, value at 1, "
-                  "radius in x, radius in y, location of center.");
+                  "   TANH:     starting value, final value, skin depth, "
+                  "location of mid point, unit vector along gradient.");
    args.AddOption((int*)&nipt, "-nip", "--ion-collision-profile",
                   "Ion Collisions Profile Type: \n"
                   "0 - Constant, 1 - Constant Gradient, "
-                  "2 - Hyperbolic Tangent, 3 - Elliptic Cosine.");
+                  "2 - Hyperbolic Tangent.");
    args.AddOption(&nipp, "-nipp", "--ion-collisions-profile-params",
                   "Ion Collisions Profile Parameters: \n"
                   "   CONSTANT: temperature value \n"
                   "   GRADIENT: value, location, gradient (7 params)\n"
-                  "   TANH:     value at 0, value at 1, skin depth, "
-                  "location of 0 point, unit vector along gradient, "
-                  "   ELLIPTIC_COS: value at -1, value at 1, "
-                  "radius in x, radius in y, location of center.");
+                  "   TANH:     starting value, final value, skin depth, "
+                  "location of mid point, unit vector along gradient.");
    args.AddOption(&nuprof, "-nuprof", "--collisional-profile",
                   "Temperature Profile Type: \n"
                   "0 - Standard e-i Collision Freq, 1 - Custom Freq.");
@@ -449,7 +439,6 @@ int main(int argc, char *argv[])
                   "Wave type: 'R' - Right Circularly Polarized, "
                   "'L' - Left Circularly Polarized, "
                   "'O' - Ordinary, 'X' - Extraordinary, "
-                  "'J' - Current Slab (in conjunction with -slab), "
                   "'Z' - Zero");
    args.AddOption(&charges, "-ic", "--ion-charges",
                   "Charges of the various ion species "
