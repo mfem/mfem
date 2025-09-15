@@ -19,7 +19,7 @@ DarcyForm::DarcyForm(FiniteElementSpace *fes_u_, FiniteElementSpace *fes_p_,
                      bool bsymmetrize)
    : fes_u(fes_u_), fes_p(fes_p_), bsym(bsymmetrize)
 {
-   this->UpdateOffsetsAndSize();
+   UpdateOffsetsAndSize();
 }
 
 void DarcyForm::UpdateOffsetsAndSize()

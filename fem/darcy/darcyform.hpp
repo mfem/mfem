@@ -63,7 +63,7 @@ protected:
       void Mult(const Vector &x, Vector &y) const override;
    };
 
-   virtual void UpdateOffsetsAndSize();
+   void UpdateOffsetsAndSize();
    void EnableReduction(const Array<int> &ess_flux_tdof_list,
                         DarcyReduction *reduction);
 

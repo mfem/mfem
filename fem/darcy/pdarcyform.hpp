@@ -35,7 +35,7 @@ protected:
    ParMixedBilinearForm *pB{};
    ParBlockNonlinearForm *pMnl{};
 
-   void UpdateOffsetsAndSize() override;
+   void UpdateTOffsets();
    void AllocBlockOp();
 
    void AssembleDivLDGSharedFaces(int skip_zeros);
@@ -193,7 +193,7 @@ public:
    /// Read-only access to the associated flux FiniteElementSpace.
    const ParFiniteElementSpace *ParPotentialFESpace() const { return &pfes_p; }
 
-   //virtual void Update();
+   void Update() override;
 
    /// Destroys Darcy form.
    virtual ~ParDarcyForm();
