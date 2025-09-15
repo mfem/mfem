@@ -154,10 +154,13 @@ if (MFEM_USE_HIP)
                PROPERTY HIP_SOURCE_PROPERTY_FORMAT TRUE)
 endif()
 
+add_library(unit_tests_srcs OBJECT ${UNIT_TESTS_SRCS})
+target_link_libraries(unit_tests_srcs PUBLIC mfem)
+
 # All serial non-device unit tests are built into a single executable,
 # 'unit_tests'.
-mfem_add_executable(unit_tests unit_test_main.cpp ${UNIT_TESTS_SRCS})
-target_link_libraries(unit_tests mfem)
+mfem_add_executable(unit_tests unit_test_main.cpp)
+target_link_libraries(unit_tests unit_tests_srcs)
 add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} unit_tests)
 # Unit tests need the ../../data directory.
 add_dependencies(unit_tests copy_data)
@@ -188,8 +191,8 @@ if (MFEM_USE_CUDA)
     # gpu_unit_tests
     set(GPU_UNIT_TESTS_SRCS gpu_unit_test_main.cpp)
     set_property(SOURCE ${GPU_UNIT_TESTS_SRCS} PROPERTY LANGUAGE CUDA)
-    mfem_add_executable(gpu_unit_tests ${GPU_UNIT_TESTS_SRCS} ${UNIT_TESTS_SRCS})
-    target_link_libraries(gpu_unit_tests mfem)
+    mfem_add_executable(gpu_unit_tests ${GPU_UNIT_TESTS_SRCS})
+    target_link_libraries(gpu_unit_tests unit_tests_srcs)
     add_dependencies(gpu_unit_tests copy_data)
     add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} gpu_unit_tests)
     if (MFEM_USE_DOUBLE) # otherwise returns MFEM_SKIP_RETURN_VALUE
@@ -204,8 +207,8 @@ endif()
 if (MFEM_USE_HIP)
     # gpu_unit_tests
     set(GPU_UNIT_TESTS_SRCS gpu_unit_test_main.cpp)
-    mfem_add_executable(gpu_unit_tests ${GPU_UNIT_TESTS_SRCS} ${UNIT_TESTS_SRCS})
-    target_link_libraries(gpu_unit_tests mfem)
+    mfem_add_executable(gpu_unit_tests ${GPU_UNIT_TESTS_SRCS})
+    target_link_libraries(gpu_unit_tests unit_tests_srcs)
     add_dependencies(gpu_unit_tests copy_data)
     add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} gpu_unit_tests)
     if (MFEM_USE_DOUBLE) # otherwise returns MFEM_SKIP_RETURN_VALUE
@@ -309,8 +312,8 @@ if (MFEM_USE_MPI)
     if (MFEM_USE_CUDA)
         set_property(SOURCE punit_test_main.cpp PROPERTY LANGUAGE CUDA)
     endif()
-    mfem_add_executable(punit_tests punit_test_main.cpp ${UNIT_TESTS_SRCS})
-    target_link_libraries(punit_tests mfem)
+    mfem_add_executable(punit_tests punit_test_main.cpp)
+    target_link_libraries(punit_tests unit_tests_srcs)
     add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} punit_tests)
     foreach(np 1 ${MFEM_MPI_NP})
         if (MFEM_USE_DOUBLE) # otherwise returns MFEM_SKIP_RETURN_VALUE
@@ -324,9 +327,9 @@ if (MFEM_USE_MPI)
         # pgpu_unit_tests
         set(PGPU_UNIT_TESTS_SRCS pgpu_unit_test_main.cpp)
         set_property(SOURCE ${PGPU_UNIT_TESTS_SRCS} PROPERTY LANGUAGE CUDA)
-        mfem_add_executable(pgpu_unit_tests ${PGPU_UNIT_TESTS_SRCS} ${UNIT_TESTS_SRCS})
+        mfem_add_executable(pgpu_unit_tests ${PGPU_UNIT_TESTS_SRCS})
         add_dependencies(pgpu_unit_tests copy_data)
-        target_link_libraries(pgpu_unit_tests mfem)
+        target_link_libraries(pgpu_unit_tests unit_tests_srcs)
         add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} pgpu_unit_tests)
         foreach(np 1 ${MFEM_MPI_NP})
             if (MFEM_USE_DOUBLE) # otherwise returns MFEM_SKIP_RETURN_VALUE
@@ -340,9 +343,9 @@ if (MFEM_USE_MPI)
     if (MFEM_USE_HIP)
         # pgpu_unit_tests
         set(PGPU_UNIT_TESTS_SRCS pgpu_unit_test_main.cpp)
-        mfem_add_executable(pgpu_unit_tests ${PGPU_UNIT_TESTS_SRCS} ${UNIT_TESTS_SRCS})
+        mfem_add_executable(pgpu_unit_tests ${PGPU_UNIT_TESTS_SRCS})
         add_dependencies(pgpu_unit_tests copy_data)
-        target_link_libraries(pgpu_unit_tests mfem)
+        target_link_libraries(pgpu_unit_tests unit_tests_srcs)
         add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} pgpu_unit_tests)
         foreach(np 1 ${MFEM_MPI_NP})
             if (MFEM_USE_DOUBLE) # otherwise returns MFEM_SKIP_RETURN_VALUE
