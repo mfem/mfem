@@ -312,6 +312,18 @@ public:
 
    // Return the right hand side vector
    void ParallelVectorSC(int i, Vector &tv);
+
+   // 2025 Sept begins
+   HypreParMatrix *ParallelAssemble(int i, SparseMatrix *m);
+
+   void ParallelAssemble(OperatorHandle &A, int i = 0) { ParallelAssemble(i, A, mat[i]); }
+
+   /** Returns the matrix @a A_local assembled on the true dofs, i.e.
+      @a A = P^t A_local P in the format (type id) specified by @a A. */
+   // needs input i to know which part of the Schur complement are we working on
+   void ParallelAssemble(int i, OperatorHandle &A, SparseMatrix *m);
+   // 2025 Sept ends
+
 #endif
 };
 

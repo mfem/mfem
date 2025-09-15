@@ -331,6 +331,18 @@ int main(int argc, char *argv[])
       assemblyTime = chrono.RealTime();
       HypreParMatrix *SC = AVarf->ParallelAssembleSC();
 
+      // 2025 Hypre -> PETSc issue testing starts
+      // if you comment all of this out, the error message comes later, at
+      // petsc_precon = new PetscPreconditioner(MPI_COMM_WORLD,*SC,"solver_");
+      Operator::Type tid = Operator::PETSC_MATAIJ;
+      PetscParMatrix *pSC = NULL;
+
+      OperatorHandle hSC(tid);
+      AVarf->ParallelAssemble(hSC);
+      if (!petsc) { hSC.Get(pSC); }
+      // 2025 Hypre -> PETSc issue testing ends
+
+
       HypreParVector *rhs_SC = AVarf->ParallelVectorSC();
       // AVarf->ParallelVectorSC() provides -C*A^{-1} RF, the RHS for the
       // Schur complement is  L - C*A^{-1} RF, but L is zero for this case

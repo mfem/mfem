@@ -868,6 +868,100 @@ DenseMatrix HDGBilinearForm::CalculateInverse(DenseMatrix A_local)
 }
 
 #ifdef MFEM_USE_MPI
+// 2025 Sept begins
+HypreParMatrix *HDGBilinearForm::ParallelAssemble(int i, SparseMatrix *m)
+{
+   OperatorHandle Mh(Operator::Hypre_ParCSR);
+   ParallelAssemble(i, Mh, m);
+   Mh.SetOperatorOwner(false);
+   return Mh.As<HypreParMatrix>();
+}
+
+void HDGBilinearForm::ParallelAssemble(int i, OperatorHandle &A, SparseMatrix *m)
+{
+   A.Clear();
+
+   ParFiniteElementSpace* pfes = NULL;
+
+   MFEM_VERIFY(m->Finalized(), "local matrix needs to be finalized for "
+               "ParallelAssemble3");
+
+   OperatorHandle dA(A.Type()), Ph(A.Type()), hdA;
+
+   if (i%(NSkeletalFES + 1) == 0)
+   {
+      // diagonal terms this is based on ParBilinearform->ParallelAssemble
+      pfes = dynamic_cast<ParFiniteElementSpace*>(skeletal_fes[i/(NSkeletalFES + 1)]);
+
+      int lvsize = pfes->GetVSize();
+      const HYPRE_BigInt *face_nbr_glob_ldof = pfes->GetFaceNbrGlobalDofMap();
+      HYPRE_BigInt ldof_offset = pfes->GetMyDofOffset();
+
+      Array<HYPRE_BigInt> glob_J(m->NumNonZeroElems());
+      int *J = m->GetJ();
+      for (int ii = 0; ii < glob_J.Size(); ii++)
+      {
+            if (J[ii] < lvsize)
+            {
+               glob_J[ii] = J[ii] + ldof_offset;
+            }
+            else
+            {
+               glob_J[ii] = face_nbr_glob_ldof[J[ii] - lvsize];
+            }
+      }
+
+      // TODO - construct dA directly in the A format
+      hdA.Reset(
+            new HypreParMatrix(pfes->GetComm(), lvsize,
+                             pfes->GlobalVSize(),
+                             pfes->GlobalVSize(), m->GetI(), glob_J,
+                             m->GetData(), pfes->GetDofOffsets(),
+                             pfes->GetDofOffsets()));
+
+      // - hdA owns the new HypreParMatrix
+      // - the above constructor copies all input arrays
+      glob_J.DeleteAll();
+
+      cout << "HDGBilinearForm::ParallelAssemble before dA.ConvertFrom(hdA);" << endl << flush;
+      // this line fails
+      dA.ConvertFrom(hdA);
+      cout << "HDGBilinearForm::ParallelAssemble after da.ConvertFrom(hdA);" << endl << flush;
+
+      Ph.ConvertFrom(pfes->Dof_TrueDof_Matrix());
+
+      A.MakePtAP(dA, Ph);
+   }
+   else
+   {
+      // diagonal terms this is based on ParMixedBilinearform->ParallelAssemble
+      int col = i%NSkeletalFES;
+      int row = (i - col)/NSkeletalFES;
+      pfes = dynamic_cast<ParFiniteElementSpace*>(skeletal_fes[row]);
+      ParFiniteElementSpace* pfes2 = dynamic_cast<ParFiniteElementSpace*>
+                                     (skeletal_fes[col]);
+
+      OperatorHandle dA(A.Type());
+      dA.MakeRectangularBlockDiag(pfes2->GetComm(),
+                             pfes->GlobalVSize(),
+                             pfes2->GlobalVSize(),
+                             pfes->GetDofOffsets(),
+                             pfes2->GetDofOffsets(),
+                             m);
+
+      OperatorHandle P_test(A.Type()), P_trial(A.Type());
+
+      // TODO - construct the Dof_TrueDof_Matrix directly in the required format.
+      P_test.ConvertFrom(pfes->Dof_TrueDof_Matrix());
+      P_trial.ConvertFrom(pfes2->Dof_TrueDof_Matrix());
+
+      A.MakeRAP(P_test, dA, P_trial);
+   }
+
+}
+// 2025 Seot ends
+
+
 HypreParMatrix *HDGBilinearForm::ParallelAssembleSC(int i, SparseMatrix *m)
 {
    if (m == NULL)
