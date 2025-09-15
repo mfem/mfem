@@ -463,6 +463,26 @@ TEST_CASE("Batched Linear Algebra",
          }
       }
    }
+
+   // Test batched inverse
+   DenseTensor A_inv_batch(A_batch);
+   BatchedLinAlg::Get(backend).Invert(A_inv_batch);
+
+   for (int i = 0; i < n_mat; ++i)
+   {
+      DenseMatrix result(n, n);
+      Mult(As[i], A_inv_batch(i), result);
+
+      // Check that A * A^{-1} = I
+      for (int j = 0; j < n; ++j)
+      {
+         for (int k = 0; k < n; ++k)
+         {
+            real_t expected = (j == k) ? 1.0 : 0.0;
+            REQUIRE(result(j, k) == MFEM_Approx(expected, 1e-10));
+         }
+      }
+   }
 }
 
 TEST_CASE("DenseTensor copy", "[DenseMatrix][DenseTensor]")
