@@ -79,7 +79,8 @@ public:
 class IsoLinElasticSolver : public mfem::Operator
 {
 public:
-   IsoLinElasticSolver(mfem::ParMesh *mesh, int vorder = 1, bool pa = false);
+   IsoLinElasticSolver(mfem::ParMesh *mesh, int vorder = 1,
+                       bool pa = false, bool dfem = false);
 
    ~IsoLinElasticSolver();
 
@@ -192,16 +193,20 @@ public:
       lambda = new IsoElasticyLambdaCoeff(E, nu);
       mu = new IsoElasticySchearCoeff(E, nu);
 
-      dbg("new ParBilinearForm");
+      dbg("new bf ParBilinearForm");
       bf = new mfem::ParBilinearForm(vfes);
-      bf->AddDomainIntegrator(new mfem::ElasticityIntegrator(*lambda, *mu));
-      if (pa) { bf->SetAssemblyLevel(mfem::AssemblyLevel::PARTIAL); }
-      // bf->UseExternalIntegrators();
+
+      if (dfem) { AddDFemDomainIntegrator(*lambda, *mu); }
+      else
+      {
+         bf->AddDomainIntegrator(new mfem::ElasticityIntegrator(*lambda, *mu));
+         if (pa) { bf->SetAssemblyLevel(mfem::AssemblyLevel::PARTIAL); }
+      }
    }
 
 private:
    mfem::ParMesh *pmesh;
-   const bool pa; // partial assembly
+   const bool pa, dfem; // partial assembly, dFEM operator
    const int vorder, dim, spaceDim;
 
    // finite element collection for linear elasticity
@@ -240,7 +245,6 @@ private:
    std::vector<std::unique_ptr<mfem::ParBilinearForm>> lor_bilinear_forms;
    std::vector<std::unique_ptr<mfem::HypreParMatrix>> lor_block;
    std::vector<std::unique_ptr<mfem::HypreBoomerAMG>> lor_amg_blocks;
-   // std::vector<std::unique_ptr<mfem::ParBilinearForm>> lor_ho_bilinear_form_blocks;
 
    /// Volumetric force created by the solver.
    mfem::VectorConstantCoefficient *lvforce;
@@ -272,7 +276,8 @@ private:
    // sets the values in the bsol vector
    // the list is written in ess_dofs
    void SetEssTDofs(mfem::Vector &bsol, mfem::Array<int> &ess_dofs);
-   void SetEssTDofs(int dim, mfem::ParFiniteElementSpace& scalar_space, mfem::Array<int> &ess_dofs);
+   void SetEssTDofs(const int j, mfem::ParFiniteElementSpace& scalar_space,
+                    mfem::Array<int> &ess_dofs);
 
    mfem::Coefficient *E;
    mfem::Coefficient *nu;
@@ -293,6 +298,7 @@ private:
    mfem::Array<int> domain_attributes;
    const mfem::IntegrationRule &ir;
    mfem::future::DifferentiableOperator dop;
+   void AddDFemDomainIntegrator(mfem::Coefficient &l, mfem::Coefficient &m);
 
    mfem::ParLinearForm *lf;
 

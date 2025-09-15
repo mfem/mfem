@@ -21,6 +21,8 @@
 #define dbg(...)
 #endif
 
+using namespace mfem;
+
 using mfem::future::dual;
 using mfem::future::tuple;
 using mfem::future::tensor;
@@ -56,18 +58,31 @@ template <int DIM> struct QFunction
    };
 };
 
-using namespace mfem;
+void IsoLinElasticSolver::AddDFemDomainIntegrator(Coefficient &l,
+                                                  Coefficient &m)
+{
+   dbg("\x1b[36m dfem elasticity operator");
+   dop.SetParameters({ nodes });
 
-IsoLinElasticSolver::IsoLinElasticSolver(ParMesh *mesh, int vorder, bool pa):
+   typename QFunction<2>::Elasticity e2qf;
+   dop.AddDomainIntegrator(e2qf,
+                           mfem::future::tuple{ Gradient<U>{}, Gradient<Coords>{}, Weight{} },
+                           mfem::future::tuple{ Gradient<U>{} },
+                           ir, domain_attributes);
+}
+
+IsoLinElasticSolver::IsoLinElasticSolver(ParMesh *mesh, int vorder,
+                                         bool pa, bool dfem):
    pmesh(mesh),
    pa(pa),
+   dfem(dfem),
    vorder(vorder),
    dim(mesh->Dimension()),
    spaceDim(mesh->SpaceDimension()),
    vfec(new H1_FECollection(vorder, dim)),
    vfes(new ParFiniteElementSpace(pmesh, vfec, dim,
-                                  // Elasticity PA only implemented for byNODES ordering
-                                  pa ? Ordering::byNODES :Ordering::byVDIM)),
+                                  // PA Elasticity only implemented for byNODES ordering
+                                  pa||dfem ? Ordering::byNODES : Ordering::byVDIM)),
    sol(vfes->GetTrueVSize()),
    adj(vfes->GetTrueVSize()),
    rhs(vfes->GetTrueVSize()),
@@ -88,8 +103,7 @@ IsoLinElasticSolver::IsoLinElasticSolver(ParMesh *mesh, int vorder, bool pa):
    mfes(nodes->ParFESpace()),
    ir(IntRules.Get(fe->GetGeomType(),
                    fe->GetOrder() + fe->GetOrder() + fe->GetDim() - 1)),
-   dop({{ U, vfes }}, { { Coords, mfes }}, *pmesh),
-   lf(nullptr)
+   dop({{ U, vfes }}, { { Coords, mfes }}, *pmesh), lf(nullptr)
 {
    dbg("sol size:{}", sol.Size());
    sol = 0.0;
@@ -107,19 +121,11 @@ IsoLinElasticSolver::IsoLinElasticSolver(ParMesh *mesh, int vorder, bool pa):
    lcsurf_load = std::make_unique<SurfaceLoad>(dim, load_coeff);
    glsurf_load = std::make_unique<SurfaceLoad>(dim, surf_loads);
 
-   dop.SetParameters({ nodes });
-
    if (pmesh->attributes.Size() > 0)
    {
       domain_attributes.SetSize(pmesh->attributes.Max());
       domain_attributes = 1;
    }
-
-   typename QFunction<2>::Elasticity e2qf;
-   dop.AddDomainIntegrator(e2qf,
-                           mfem::future::tuple{ Gradient<U>{}, Gradient<Coords>{}, Weight{} },
-                           mfem::future::tuple{ Gradient<U>{} },
-                           ir, domain_attributes);
 }
 
 IsoLinElasticSolver::~IsoLinElasticSolver()
@@ -227,24 +233,24 @@ void IsoLinElasticSolver::SetVolForce(VectorCoefficient &fv)
 }
 
 
-void IsoLinElasticSolver::SetEssTDofs(int dim,
+void IsoLinElasticSolver::SetEssTDofs(int j,
                                       ParFiniteElementSpace& scalar_space,
                                       Array<int> &ess_dofs)
 {
-    // Set the BC
-    ess_dofs.DeleteAll();
+   // Set the BC
+   ess_dofs.DeleteAll();
 
-    auto cbcc=&bccx;
-    if(dim==1){cbcc=&bccy;}
-    else if(dim==2){cbcc=&bccz;}
+   auto cbcc = &bccx;
+   if (j == 1) { cbcc = &bccy; }
+   else if (j == 2) { cbcc = &bccz; }
 
-    Array<int> ess_bdr(pmesh->bdr_attributes.Max()); ess_bdr=0;
+   Array<int> ess_bdr(pmesh->bdr_attributes.Max()); ess_bdr = 0;
 
-    for (auto it = cbcc->begin(); it != cbcc->end(); it++)
-    {
-        ess_bdr[it->first - 1] = 1;
-    }
-    scalar_space.GetEssentialTrueDofs(ess_bdr,ess_dofs);
+   for (auto it = cbcc->begin(); it != cbcc->end(); it++)
+   {
+      ess_bdr[it->first - 1] = 1;
+   }
+   scalar_space.GetEssentialTrueDofs(ess_bdr,ess_dofs);
 }
 
 
@@ -396,14 +402,20 @@ void IsoLinElasticSolver::Assemble()
       bf->FormSystemOperator(ess_tdofv, Kop);
       Kh = std::make_unique<OperatorHandle>(Kop);
       Kc = dynamic_cast<mfem::ConstrainedOperator*>(Kop);
-      dbg("Kc size: {}x{}", Kc->Width(), Kc->Height());
+   }
+   else if (dfem)
+   {
+      dbg("\x1b[36m dfem FormSystemOperator: Kh, Kc");
+      Operator *Kop;
+      dop.FormSystemOperator(ess_tdofv, Kop);
+      Kh = std::make_unique<OperatorHandle>(Kop);
+      Kc = dynamic_cast<mfem::ConstrainedOperator*>(Kop);
    }
    else
    {
       dbg("Assemble/Finalize/ParallelAssemble/EliminateRowsCols");
       bf->Assemble(0);
       bf->Finalize();
-      // bf->FormSystemMatrix(ess_tdofv,K);
       K.reset(bf->ParallelAssemble());
       Ke.reset(K->EliminateRowsCols(ess_tdofv));
    }
@@ -415,20 +427,8 @@ void IsoLinElasticSolver::Assemble()
       ls->SetAbsTol(linear_atol);
       ls->SetRelTol(linear_rtol);
       ls->SetMaxIter(linear_iter);
-      if (!pa)
+      if (pa || dfem)
       {
-         prec = new HypreBoomerAMG();
-         // set the rigid body modes
-         prec->SetElasticityOptions(vfes);
-         prec->SetPrintLevel(1);
-         ls->SetPreconditioner(*prec);
-      }
-      else
-      {
-#if 0
-         auto prec_pa = new OperatorJacobiSmoother(*bf, ess_tdofv);
-         ls->SetPreconditioner(*prec_pa);
-#else
          // PA LOR lor_disc & scalar_lor_fespace setup
          dbg("new ParLORDiscretization");
          lor_disc = std::make_unique<ParLORDiscretization>(*vfes);
@@ -450,14 +450,9 @@ void IsoLinElasticSolver::Assemble()
             lor_bilinear_forms[j]->EnableSparseMatrixSorting(Device::IsEnabled());
             lor_bilinear_forms[j]->AddDomainIntegrator(block);
             lor_bilinear_forms[j]->Assemble();
-            // get block essential boundary info
-            //Array<int> ess_tdof_list_block, ess_bdr_block(pmesh->bdr_attributes.Max());
-            //ess_bdr_block = 0;
-            //ess_bdr_block[0] = 1;
             // set the essential boundaries
             Array<int> ess_tdof_list_block;
             SetEssTDofs(j,*lor_scalar_fespace,ess_tdof_list_block);
-            //lor_scalar_fespace->GetEssentialTrueDofs(ess_bdr_block, ess_tdof_list_block);
             lor_block.emplace_back(lor_bilinear_forms[j]->ParallelAssemble());
             lor_block[j]->EliminateBC(ess_tdof_list_block,
                                       Operator::DiagonalPolicy::DIAG_ONE);
@@ -469,27 +464,35 @@ void IsoLinElasticSolver::Assemble()
          }
 
          lor_block_offsets.PartialSum();
-         lor_blockDiag = std::make_unique<BlockDiagonalPreconditioner>
-                         (lor_block_offsets);
+         lor_blockDiag =
+            std::make_unique<BlockDiagonalPreconditioner>(lor_block_offsets);
          for (int i = 0; i < dim; i++)
          {
             lor_blockDiag->SetDiagonalBlock(i, lor_amg_blocks[i].get());
          }
          lor_pa_prec.reset(lor_blockDiag.release());
          ls->SetPreconditioner(*lor_pa_prec);
-#endif
       }
-      ls->SetOperator(pa ? *Kh->Ptr() : *K);
+      else
+      {
+         dbg("HypreBoomerAMG preconditioner");
+         prec = new HypreBoomerAMG();
+         // set the rigid body modes
+         prec->SetElasticityOptions(vfes);
+         prec->SetPrintLevel(1);
+         ls->SetPreconditioner(*prec);
+      }
+      ls->SetOperator(((pa||dfem) ? *Kh->Ptr() : *K));
       ls->SetPrintLevel(1);
    }
    else
    {
-      ls->SetOperator(pa ? *Kh->Ptr() : *K);
+      ls->SetOperator((pa||dfem) ? *Kh->Ptr() : *K);
    }
 
    mfem::out << pmesh->GetMyRank() << " LSW=" << ls->Width()
-             << " LSH=" << ls->Height() << " KFW=" << (pa?Kc->Width():K->Width())
-             << " KFH=" << (pa?Kc->Height():K->Height()) << std::endl;
+             << " LSH=" << ls->Height() << " KFW=" << ((pa||dfem) ? Kc->Width():K->Width())
+             << " KFH=" << ((pa||dfem)?Kc->Height():K->Height()) << std::endl;
 }
 
 void IsoLinElasticSolver::FSolve()
@@ -508,23 +511,14 @@ void IsoLinElasticSolver::FSolve()
 
    (*lf) = real_t(0.0);
 
-   if (pa) { lf->UseFastAssembly(true); }
+   if (pa || dfem) { lf->UseFastAssembly(true); }
    lf->Assemble();
    lf->ParallelAssemble(rhs);
 
-   /*
-   Ke->AddMult(sol,rhs,1.0);
-   for(int i=0;i<ess_tdofv.Size();i++){
-       rhs[ess_tdofv[i]]=-sol[ess_tdofv[i]];
-   }*/
-
-   if (!pa)
-   {
-      K->EliminateBC(*Ke, ess_tdofv, sol, rhs);
-   }
+   if (pa || dfem) { Kc->EliminateRHS(sol, rhs); }
    else
    {
-      Kc->EliminateRHS(sol, rhs);
+      K->EliminateBC(*Ke, ess_tdofv, sol, rhs);
    }
 
    {

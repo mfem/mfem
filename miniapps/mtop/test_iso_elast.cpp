@@ -30,10 +30,11 @@ int main(int argc, char *argv[])
    Hypre::Init();
 
    // 2. Parse command-line options.
-   const char *mesh_file = "canti_2D_6.msh";
+   const char *mesh_file = MFEM_SOURCE_DIR "/miniapps/mtop/canti_2D_6.msh";
    const char *device_config = "cpu";
    int order = 2;
    bool pa = false;
+   bool dfem = false;
    bool paraview = true;
    bool visualization = true;
 
@@ -46,6 +47,8 @@ int main(int argc, char *argv[])
                   " isoparametric space.");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
                   "--no-partial-assembly", "Enable Partial Assembly.");
+   args.AddOption(&dfem, "-dfem", "--dFEM", "-no-dfem", "--no-dFEM",
+                  "Enable or not dFEM.");
    args.AddOption(&paraview, "-pv", "--paraview", "-no-pv", "--no-paraview",
                   "Enable or not Paraview visualization");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
@@ -91,7 +94,7 @@ int main(int argc, char *argv[])
 #endif
 
    dbg("Creating IsoLinElasticSolver");
-   IsoLinElasticSolver elsolver(&pmesh, order, pa);
+   IsoLinElasticSolver elsolver(&pmesh, order, pa, dfem);
 
    // set BC
    // elsolver.AddDispBC(2,4,0.0);
