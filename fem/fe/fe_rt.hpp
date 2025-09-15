@@ -477,7 +477,7 @@ public:
                      Vector &divshape) const override;
 
    virtual void GetLocalInterpolation(ElementTransformation &Trans,
-                                      DenseMatrix &I) const
+                                      DenseMatrix &I) const override
    {
       LocalInterpolation(*this, Trans, I);
    }
