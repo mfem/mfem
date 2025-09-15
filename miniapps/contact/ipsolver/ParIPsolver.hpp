@@ -70,6 +70,13 @@ protected:
 
     Array<int> cgnum_iterations;
     Array<int> amg_num_iterations;
+    Array<double> cgtimes;
+    Array<double> amg_times;
+    Array<double> coarse_times;
+    Array<double> amgf_setup_times;
+    Array<double> amg_setup_times;
+    Array<double> coarse_setup_times;
+    Array<double> OCs;
     Array<double> dmaxmin_ratio;
     Array<double> jtdj_ratio;
     Array<double> Adiag_ratio;
@@ -113,6 +120,13 @@ public:
     bool GetConverged() const;
     Array<int> & GetCGIterNumbers() {return cgnum_iterations;};
     Array<int> & GetAMGIterNumbers() {return amg_num_iterations;};
+    Array<double> & GetCGTimes() {return cgtimes;};
+    Array<double> & GetAMGTimes() {return amg_times;};
+    Array<double> & GetCoarseTimes() {return coarse_times;};
+    Array<double> & GetAMGFSetupTimes() {return amgf_setup_times;};
+    Array<double> & GetAMGSetupTimes() {return amg_setup_times;};
+    Array<double> & GetCoarseSetupTimes() {return coarse_setup_times;};
+    Array<double> & GetOCs() {return OCs;};
     Array<double> & GetDMaxMinRatios() {return dmaxmin_ratio;};
     Array<double> & GetJtDJMaxMinRatios() {return jtdj_ratio;};
     Array<double> & GetAdiagMaxMinRatios() {return Adiag_ratio;};

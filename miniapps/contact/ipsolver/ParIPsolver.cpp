@@ -792,6 +792,57 @@ void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl
 //#ifdef MFEM_USE_MUMPS
       else if (dynamiclinSolver == 6) // Two level
       {
+         int print_level = 3;
+         double average_prec_time = 0.0;
+         if (amg_contact_solve)
+         {
+            if (iAmRoot)
+            {
+               std::cout << "\n" << std::string(50,'-') << endl;
+               mfem::out << std::string(20,' ') << "AMG-PCG SOLVER" << endl;
+               std::cout << std::string(50,'-') << endl;
+            }
+
+            Vector XX(breduced.Size()); XX=0.0;
+            chrono.Restart();
+            HypreBoomerAMG prec(*Areduced);
+            prec.SetSystemsOptions(3,false);
+            prec.SetRelaxType(relax_type);
+            prec.SetPrintLevel(0);
+
+            prec.Mult(breduced,XX);
+
+            chrono.Stop();
+            double amg_setup_time = chrono.RealTime();
+            // amg_setup_times.Append(chrono.RealTime());
+
+            CGSolver cgsolver(MPI_COMM_WORLD);
+            cgsolver.SetRelTol(linSolveRelTol);
+            cgsolver.SetMaxIter(5000);
+            cgsolver.SetPrintLevel(print_level);
+            cgsolver.SetOperator(*Areduced);
+            cgsolver.SetPreconditioner(prec);
+            chrono.Clear();
+            chrono.Start();
+            Vector X(breduced.Size()); X=0.0;
+            cgsolver.Mult(breduced,X);
+            chrono.Stop();
+            int m = cgsolver.GetNumIterations();
+            amg_num_iterations.Append(m);
+            amg_times.Append(chrono.RealTime());
+            average_prec_time = chrono.RealTime()/m;
+            amg_setup_time -= average_prec_time;
+            amg_setup_times.Append(amg_setup_time);
+            if (iAmRoot)
+            {
+               mfem::out << "AMG contact setup mult took " << amg_setup_time << " seconds.\n";
+               mfem::out << "AMG-PCG Mult total time     = " << chrono.RealTime() << endl;
+               mfem::out << "AMG-PCG Mult time/iteration = " << chrono.RealTime()/m << endl;
+            }
+         }
+
+
+
          if (iAmRoot)
          {
             std::cout << "\n" << std::string(50,'-') << endl;
@@ -799,12 +850,23 @@ void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl
             std::cout << std::string(50,'-') << endl;
          } 
          HypreParMatrix * Pb = problem->GetRestrictionToContactDofs();
+
+         chrono.Restart();
          TwoLevelAMGSolver prec(*Areduced, *Pb);
          prec.SetAMGRelaxType(relax_type);
+         chrono.Stop();
+         amgf_setup_times.Append(chrono.RealTime()-average_prec_time);
+         coarse_setup_times.Append(prec.GetCoarseSetupTime());
+         if (iAmRoot)
+         {
+            mfem::out << "AMGF total setup time     = " << chrono.RealTime() << endl;
+         }
+
+
          CGSolver AreducedSolver(MPI_COMM_WORLD);
          AreducedSolver.SetRelTol(linSolveRelTol);
          AreducedSolver.SetMaxIter(500);
-         AreducedSolver.SetPrintLevel(3);
+         AreducedSolver.SetPrintLevel(print_level);
          AreducedSolver.SetOperator(*Areduced);
          AreducedSolver.SetPreconditioner(prec);
          chrono.Clear();
@@ -818,10 +880,17 @@ void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl
          {
             n = AreducedSolver.GetNumIterations();
             cgnum_iterations.Append(n);
+            double coarse_time = prec.GetCoarseSolveTime();
+            cgtimes.Append(chrono.RealTime());
+            coarse_times.Append(coarse_time);
+            OCs.Append(prec.GetOperatorComplexity());
             if (iAmRoot)
             {
                mfem::out << "CG Mult total time     = " << chrono.RealTime() << endl;
                mfem::out << "CG Mult time/iteration = " << chrono.RealTime()/n << endl;
+               mfem::out << "Coarse Mult total time = " << coarse_time << endl;
+               mfem::out << "Coarse Mult time/iteration = " << coarse_time/n << endl;
+               mfem::out << "AMGF OC = " << OCs.Last() << endl;
             }
          }
          else
@@ -836,7 +905,7 @@ void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl
             GMRESSolver gmres(MPI_COMM_WORLD);
             gmres.SetRelTol(linSolveRelTol);
             gmres.SetMaxIter(500);
-            gmres.SetPrintLevel(3);
+            gmres.SetPrintLevel(1);
             gmres.SetOperator(*Areduced);
             gmres.SetPreconditioner(prec);
             chrono.Clear();
@@ -848,29 +917,6 @@ void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl
             MFEM_VERIFY(gmres.GetConverged(), "GMRES solver did not converge");
          }
 
-         if (amg_contact_solve)
-         {
-            if (iAmRoot)
-            {
-               std::cout << "\n" << std::string(50,'-') << endl;
-               mfem::out << std::string(20,' ') << "AMG-PCG SOLVER" << endl;
-               std::cout << std::string(50,'-') << endl;
-            } 
-            HypreBoomerAMG prec(*Areduced);
-            prec.SetSystemsOptions(3,false);
-            prec.SetRelaxType(relax_type);
-            prec.SetPrintLevel(0);
-            CGSolver cgsolver(MPI_COMM_WORLD);
-            cgsolver.SetRelTol(linSolveRelTol);
-            cgsolver.SetMaxIter(10000);
-            cgsolver.SetPrintLevel(3);
-            cgsolver.SetOperator(*Areduced);
-            cgsolver.SetPreconditioner(prec);
-            Vector X(breduced.Size()); X=0.0;
-	         cgsolver.Mult(breduced,X);
-            int m = cgsolver.GetNumIterations();
-            amg_num_iterations.Append(m);
-         }
 
          // AMGCGsolver for no-contact   
          if (no_contact_solve)
@@ -881,24 +927,58 @@ void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl
                mfem::out << std::string(20,' ') << "AMG-PCG NO CONTACT SOLVER" << endl;
                std::cout << std::string(50,'-') << endl;
             } 
+
+            Vector XX(breduced.Size()); XX=0.0;
+            chrono.Restart();
+
             HypreBoomerAMG prec(*Huu);
             prec.SetSystemsOptions(3,false);
             prec.SetRelaxType(relax_type);
             prec.SetPrintLevel(0);
+
+            chrono.Stop();
+            if (iAmRoot)
+            {
+               std::cout << "AMG no contact setup took " << chrono.RealTime() << " seconds.\n";
+            }
+            chrono.Restart();
+
+	         prec.Mult(breduced,XX);
+            chrono.Stop();
+            if (iAmRoot)
+            {
+               std::cout << "AMG no contact setup mult took " << chrono.RealTime() << " seconds.\n";
+            }
+            chrono.Restart();
+            prec.Mult(breduced,XX);
+            chrono.Stop();
+            if (iAmRoot)
+            {
+               std::cout << "AMG no contact mult after setup mult took " << chrono.RealTime() << " seconds.\n";
+            }
+
             CGSolver cgsolver(MPI_COMM_WORLD);
             cgsolver.SetRelTol(linSolveRelTol);
             cgsolver.SetMaxIter(500);
-            cgsolver.SetPrintLevel(3);
+            cgsolver.SetPrintLevel(print_level);
             cgsolver.SetOperator(*Huu);
             cgsolver.SetPreconditioner(prec);
             Vector X(Huu->Height()); X=0.0;
+            chrono.Clear();
+            chrono.Start();
 	         cgsolver.Mult(breduced,X);
+            chrono.Stop();
             int m = cgsolver.GetNumIterations();
             cgnum_iterations_nocontact.Append(m);
-            // no_contact_solve = false;
+            no_contact_solve = false;
+
+            if (iAmRoot)
+            {
+               double amg_time = chrono.RealTime();
+               mfem::out << "no contact CG Mult total time     = " << amg_time << endl;
+               mfem::out << "no contact CG Mult time/iteration = " << amg_time/m << endl;
+            }
          }
-
-
       }
       else // if linsolver == 3 or 4
       {

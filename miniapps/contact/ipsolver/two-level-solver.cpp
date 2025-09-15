@@ -60,15 +60,72 @@ void TwoLevelAMGSolver::SetNonContactTransferMap(const Operator & P)
 
 void TwoLevelAMGSolver::InitAMG()
 {
+    chrono.Restart();
     amg = new HypreBoomerAMG(*A);
     amg->SetPrintLevel(0);
     amg->SetSystemsOptions(3);
     amg->SetRelaxType(relax_type);
+
+    chrono.Stop();
+    if (myid == 0)
+    {
+        std::cout << "AMG in AMGF setup took " << chrono.RealTime() << " seconds.\n";
+    }
+
+    // Setup AMG
+    Vector b(A->NumRows());
+    b = 1.0;
+    Vector z(A->NumRows());
+    z = 0.0;
+    chrono.Restart();
+    amg->Mult(b, z);
+    chrono.Stop();
+    if (myid == 0)
+    {
+        std::cout << "AMG in AMGF setup mult took " << chrono.RealTime() << " seconds.\n";
+    }
+    // chrono.Restart();
+    // amg->Mult(b, z);
+    // chrono.Stop();
+    // if (myid == 0)
+    // {
+    //     std::cout << "AMG in AMGF mult after setup mult took " << chrono.RealTime() << " seconds.\n";
+    // }
+    // chrono.Restart();
+    // amg->Mult(b, z);
+    // chrono.Stop();
+    // if (myid == 0)
+    // {
+    //     std::cout << "AMG in AMGF mult after setup mult took " << chrono.RealTime() << " seconds.\n";
+    // }
 }
 
 void TwoLevelAMGSolver::InitCoarseSolver()
 {
+    chrono.Restart();
     Ac = RAP(A, Pc);
+    chrono.Stop();
+
+    double A_nnz = ((double)A->NNZ());
+    double Ac_nnz = ((double)Ac->NNZ());
+    if (A_nnz < 0.0) // it's a hack, only works if overflow a little bit
+    {
+        A_nnz += 2147483648.0 * 2;
+    }
+    if (Ac_nnz < 0.0)
+    {
+        Ac_nnz += 2147483648.0 * 2;
+    }
+
+    if (myid == 0)
+    {
+        std::cout << "RAP(A, Pc) took " << chrono.RealTime() << " seconds.\n";
+        std::cout << "A->NNZ() = " << A_nnz << "\n";
+        std::cout << "Ac->NNZ() = " << Ac_nnz << "\n";
+    }
+    operator_complexity = 1.0 + (Ac_nnz / A_nnz);
+
+    chrono.Restart();
 #ifdef MFEM_USE_MUMPS
     Mcoarse = new MUMPSSolver(comm);
     auto M = dynamic_cast<MUMPSSolver *>(Mcoarse);
@@ -85,6 +142,13 @@ void TwoLevelAMGSolver::InitCoarseSolver()
     MFEM_VERIFY(false, "TwoLevelSolver will only work for an mfem build that uses mumps or mkl_cpardiso");
 #endif
 #endif
+    chrono.Stop();
+    coarse_setup_time = chrono.RealTime();
+    if (myid == 0)
+    {
+        std::cout << "Coarse solver setup took " << chrono.RealTime() << " seconds.\n";
+    }
+    chrono.Clear();
 }
 
 
@@ -113,7 +177,9 @@ void TwoLevelAMGSolver::Mult(const Vector & b, Vector & x) const
         // 3. Restrict to subspace
         Pc->MultTranspose(r,rc);
         // 4. Solve on the subspace
+        chrono.Start();
         Mcoarse->Mult(rc,xc);
+        chrono.Stop();
         // 5. Transfer to fine space
         Pc->Mult(xc,z);
         // 6. Update Correction

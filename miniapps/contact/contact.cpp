@@ -136,7 +136,9 @@ void LoadState(const char * state_file, ParMesh * &pmesh, ParGridFunction *&x_gf
 }
 
 void OutputData(ostringstream & file_name, double E0, double Ef, int dofs, int contactdofs, int constr, int numactiveconstraints, int optit, 
-   const Array<int> & iters, const Array<int> & amgiters, const Array<int> & nocontactiters, const Array<int> &dratios)
+   const Array<int> & iters, const Array<int> & amgiters, const Array<int> & nocontactiters, const Array<int> &dratios,
+   Array<double> & cgtimes, const Array<double> & amgtimes, Array<double> & coarsetimes,
+   Array<double> & amgfsetuptimes, const Array<double> & amgsetuptimes, Array<double> & coarsesetuptimes, Array<double> & OCs)
 {
    file_name << ".csv";
    std::ofstream outputfile(file_name.str().c_str());
@@ -154,6 +156,13 @@ void OutputData(ostringstream & file_name, double E0, double Ef, int dofs, int c
    outputfile << "CG iteration numbers            = "; iters.Print(outputfile, iters.Size());
    outputfile << "AMG CG iteration numbers        = "; amgiters.Print(outputfile, amgiters.Size());
    outputfile << "AMG No contact CG iterations    = "; nocontactiters.Print(outputfile, nocontactiters.Size());
+   outputfile << "CG times.                       = "; cgtimes.Print(outputfile, cgtimes.Size());
+   outputfile << "AMG CG times                    = "; amgtimes.Print(outputfile, amgtimes.Size());
+   outputfile << "AMGF coarse times               = "; coarsetimes.Print(outputfile, coarsetimes.Size());
+   outputfile << "AMGF setup times.               = "; amgfsetuptimes.Print(outputfile, amgfsetuptimes.Size());
+   outputfile << "AMG setup times                 = "; amgsetuptimes.Print(outputfile, amgsetuptimes.Size());
+   outputfile << "AMGF coarse setup times         = "; coarsesetuptimes.Print(outputfile, coarsesetuptimes.Size());
+   outputfile << "AMGF operator complexities      = "; OCs.Print(outputfile, OCs.Size());
    //outputfile << "Dmaxmin ratios = "; dratios.Print(outputfile, dratios.Size());
    // outputfile << "OptimizerIteration,CGIterations" << endl;
    // for (int i = 0; i< iters.Size(); i++)
@@ -170,7 +179,14 @@ void OutputFinalData(ostringstream & file_name, int dofs,
    const Array<int> & active_constraints,
    const std::vector<Array<int>> & iters, 
    const std::vector<Array<int>> & amgiters, 
-   const std::vector<Array<int>> & no_contact_iter)
+   const std::vector<Array<int>> & no_contact_iter,
+   const std::vector<Array<double>> & cgtimes,
+   const std::vector<Array<double>> & amgtimes,
+   const std::vector<Array<double>> & coarsetimes,
+   const std::vector<Array<double>> & amgfsetuptimes,
+   const std::vector<Array<double>> & amgsetuptimes,
+   const std::vector<Array<double>> & coarsesetuptimes,
+   const std::vector<Array<double>> & OCs)
 {
    file_name << ".csv";
    std::ofstream outputfile(file_name.str().c_str());
@@ -227,6 +243,104 @@ void OutputFinalData(ostringstream & file_name, int dofs,
       outputfile << endl;
    }
 
+   outputfile << "\nCG Times: " << endl;
+   for (int i = 0; i< cgtimes.size(); i++)
+   {
+      for (int j = 0; j < cgtimes[i].Size(); j++)
+      {
+         outputfile << cgtimes[i][j] ;
+         if (j < cgtimes[i].Size()-1)
+         {
+            outputfile << ", ";
+         }
+      }
+      outputfile << endl;
+   }
+
+   outputfile << "\nAMGCG Times: " << endl;
+   for (int i = 0; i< amgtimes.size(); i++)
+   {
+      for (int j = 0; j < amgtimes[i].Size(); j++)
+      {
+         outputfile << amgtimes[i][j] ;
+         if (j < amgtimes[i].Size()-1)
+         {
+            outputfile << ", ";
+         }
+      }
+      outputfile << endl;
+   }
+
+   outputfile << "\nAMGF Coarse Times: " << endl;
+   for (int i = 0; i< coarsetimes.size(); i++)
+   {
+      for (int j = 0; j < coarsetimes[i].Size(); j++)
+      {
+         outputfile << coarsetimes[i][j] ;
+         if (j < coarsetimes[i].Size()-1)
+         {
+            outputfile << ", ";
+         }
+      }
+      outputfile << endl;
+   }
+
+   outputfile << "\nAMGF setup Times: " << endl;
+   for (int i = 0; i< amgfsetuptimes.size(); i++)
+   {
+      for (int j = 0; j < amgfsetuptimes[i].Size(); j++)
+      {
+         outputfile << amgfsetuptimes[i][j] ;
+         if (j < amgfsetuptimes[i].Size()-1)
+         {
+            outputfile << ", ";
+         }
+      }
+      outputfile << endl;
+   }
+
+   outputfile << "\nAMG setup Times: " << endl;
+   for (int i = 0; i< amgsetuptimes.size(); i++)
+   {
+      for (int j = 0; j < amgsetuptimes[i].Size(); j++)
+      {
+         outputfile << amgsetuptimes[i][j] ;
+         if (j < amgsetuptimes[i].Size()-1)
+         {
+            outputfile << ", ";
+         }
+      }
+      outputfile << endl;
+   }
+
+   outputfile << "\nAMGF Coarse setup Times: " << endl;
+   for (int i = 0; i< coarsesetuptimes.size(); i++)
+   {
+      for (int j = 0; j < coarsesetuptimes[i].Size(); j++)
+      {
+         outputfile << coarsesetuptimes[i][j] ;
+         if (j < coarsesetuptimes[i].Size()-1)
+         {
+            outputfile << ", ";
+         }
+      }
+      outputfile << endl;
+   }
+
+   outputfile << "\nAMGF operator complexities: " << endl;
+   for (int i = 0; i< OCs.size(); i++)
+   {
+      for (int j = 0; j < OCs[i].Size(); j++)
+      {
+         outputfile << OCs[i][j] ;
+         if (j < OCs[i].Size()-1)
+         {
+            outputfile << ", ";
+         }
+      }
+      outputfile << endl;
+   }
+
    outputfile << "\nTotal constraints: " << endl;
    for (int j = 0; j < total_constraints.Size(); j++)
    {
@@ -258,6 +372,8 @@ void OutputFinalData(ostringstream & file_name, int dofs,
    }
 
    outputfile << endl;
+
+
    outputfile.close();   
    std::cout << " Data has been written to " << file_name.str().c_str() << endl;
 }
@@ -541,7 +657,6 @@ int main(int argc, char *argv[])
       // nu[1] = 0.499;  nu[0] = 0.0;
    }
 
-
    ElasticityOperator prob(pmesh, ess_bdr_attr,ess_bdr_attr_comp, E,nu,nonlinear);
 
    int dim = pmesh->Dimension();
@@ -713,6 +828,13 @@ int main(int argc, char *argv[])
    std::vector<Array<int>> CGiter;
    std::vector<Array<int>> AMGCGiter;
    std::vector<Array<int>> NoContactCGiterations;
+   std::vector<Array<double>> CGtime;
+   std::vector<Array<double>> AMGCGtime;
+   std::vector<Array<double>> AMGFcoarsetime;
+   std::vector<Array<double>> AMGFsetuptime;
+   std::vector<Array<double>> AMGsetuptime;
+   std::vector<Array<double>> AMGFcoarsesetuptime;
+   std::vector<Array<double>> AMGFOC;
    int total_steps = nsteps + msteps;
 
    if (testNo == 6)
@@ -860,6 +982,7 @@ int main(int argc, char *argv[])
          }
       }
 
+
       bool compute_dof_projections = (linsolver == 3 || linsolver == 6 || linsolver == 7) ? true : false;
 
       int gncols = (compute_dof_projections) ? contact.GetRestrictionToContactDofs()->GetGlobalNumCols() : -1;
@@ -908,10 +1031,24 @@ int main(int argc, char *argv[])
       Array<int> & CGiterations = optimizer.GetCGIterNumbers();
       Array<int> & AMGCGiterations = optimizer.GetAMGIterNumbers();
       Array<int> & NoContactAMGCGiterations = optimizer.GetCGNoContactIterNumbers();
+      Array<double> & CGtimes = optimizer.GetCGTimes();
+      Array<double> & AMGCGtimes = optimizer.GetAMGTimes();
+      Array<double> & AMGFcoarsetimes = optimizer.GetCoarseTimes();
+      Array<double> & AMGFsetuptimes = optimizer.GetAMGFSetupTimes();
+      Array<double> & AMGsetuptimes = optimizer.GetAMGSetupTimes();
+      Array<double> & AMGFcoarsesetuptimes = optimizer.GetCoarseSetupTimes();
+      Array<double> & AMGFOCs = optimizer.GetOCs();
       Array<double> & DMaxMinRatios  = optimizer.GetDMaxMinRatios();
       CGiter.push_back(CGiterations);
       AMGCGiter.push_back(AMGCGiterations);
       NoContactCGiterations.push_back(NoContactAMGCGiterations);
+      CGtime.push_back(CGtimes);
+      AMGCGtime.push_back(AMGCGtimes);
+      AMGFcoarsetime.push_back(AMGFcoarsetimes);
+      AMGFsetuptime.push_back(AMGFsetuptimes);
+      AMGsetuptime.push_back(AMGsetuptimes);
+      AMGFcoarsesetuptime.push_back(AMGFcoarsesetuptimes);
+      AMGFOC.push_back(AMGFOCs);
       int gndofs = prob.GetGlobalNumDofs();
 
       int activenumconstr = optimizer.GetNumActiveConstraints();
@@ -955,6 +1092,48 @@ int main(int argc, char *argv[])
                std::cout << " " << std::setw(7) << AMGCGiterations[i] << " |";
             }
             std::cout << std::endl;
+            mfem::out << " CG times            = " ;
+            for (int i = 0; i < CGtimes.Size(); ++i)
+            {
+               std::cout << " " << std::setw(7) << CGtimes[i] << " |";
+            }
+            std::cout << std::endl;
+            mfem::out << " AMG CG times        = " ;
+            for (int i = 0; i < AMGCGtimes.Size(); ++i)
+            {
+               std::cout << " " << std::setw(7) << AMGCGtimes[i] << " |";
+            }
+            std::cout << std::endl;
+            mfem::out << " AMGF coarse times        = " ;
+            for (int i = 0; i < AMGFcoarsetimes.Size(); ++i)
+            {
+               std::cout << " " << std::setw(7) << AMGFcoarsetimes[i] << " |";
+            }
+            std::cout << std::endl;
+            mfem::out << " AMGF setup times            = " ;
+            for (int i = 0; i < AMGFsetuptimes.Size(); ++i)
+            {
+               std::cout << " " << std::setw(7) << AMGFsetuptimes[i] << " |";
+            }
+            std::cout << std::endl;
+            mfem::out << " AMG setup times        = " ;
+            for (int i = 0; i < AMGsetuptimes.Size(); ++i)
+            {
+               std::cout << " " << std::setw(7) << AMGsetuptimes[i] << " |";
+            }
+            std::cout << std::endl;
+            mfem::out << " AMGF coarse setup times        = " ;
+            for (int i = 0; i < AMGFcoarsesetuptimes.Size(); ++i)
+            {
+               std::cout << " " << std::setw(7) << AMGFcoarsesetuptimes[i] << " |";
+            }
+            std::cout << std::endl;
+            mfem::out << " AMGF operator complexities        = " ;
+            for (int i = 0; i < AMGFOCs.Size(); ++i)
+            {
+               std::cout << " " << std::setw(7) << AMGFOCs[i] << " |";
+            }
+            std::cout << std::endl;
 
             mfem::out << " D Max / Min Ratios              = " ;
             std::ios oldState(nullptr);
@@ -982,12 +1161,14 @@ int main(int argc, char *argv[])
             ostringstream file_name;
 	         file_name << output_dir<< "/solver-"<<linsolver<<"-nsteps-" << nsteps << "-msteps-" << msteps << "-step-" << i;
             OutputData(file_name, Einitial, Efinal, gndofs,gncols,numconstr, activenumconstr, optimizer.GetNumIterations(), 
-            CGiterations, AMGCGiterations, NoContactAMGCGiterations, DMaxMinRatios);
+                       CGiterations, AMGCGiterations, NoContactAMGCGiterations, DMaxMinRatios, CGtimes,
+                       AMGCGtimes, AMGFcoarsetimes, AMGFsetuptimes, AMGsetuptimes, AMGFcoarsesetuptimes, AMGFOCs);
             if (i == total_steps-1)
             {
                ostringstream final_file_name;
                final_file_name << output_dir << "/solver-"<<linsolver<<"-nsteps-" << nsteps << "-msteps-" << msteps << "-final";
-               OutputFinalData(final_file_name, gndofs, ContactDofs, TotalConstraints, ActiveConstraints, CGiter, AMGCGiter, NoContactCGiterations);
+               OutputFinalData(final_file_name, gndofs, ContactDofs, TotalConstraints, ActiveConstraints, CGiter, AMGCGiter, NoContactCGiterations,
+                               CGtime, AMGCGtime, AMGFcoarsetime, AMGFsetuptime, AMGsetuptime, AMGFcoarsesetuptime, AMGFOC);
             }
          }
       }

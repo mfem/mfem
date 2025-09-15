@@ -25,6 +25,9 @@ private:
     Solver * Mcoarse = nullptr; // previously a mumps solver
     bool additive = false;
     int relax_type = 88;
+    mutable StopWatch chrono;
+    double coarse_setup_time = 0.0;
+    double operator_complexity = 0.0;
     void Init(MPI_Comm comm_);
     void InitAMG();
     void InitCoarseSolver();
@@ -37,6 +40,9 @@ public:
     void EnableAdditiveCoupling() { additive = true; }
     void EnableMultiplicativeCoupling() { additive = false; }
     void SetAMGRelaxType(int relax_type_) { relax_type = relax_type_;  }
+    double GetCoarseSetupTime() const { return coarse_setup_time; }
+    double GetCoarseSolveTime() const { return chrono.RealTime(); }
+    double GetOperatorComplexity() const { return operator_complexity; }
 
     virtual void Mult(const Vector & y, Vector & x) const; 
 
