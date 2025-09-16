@@ -22,7 +22,7 @@ include:
 # the "needs" keyword and express the DAG of jobs for more efficiency.
 # - We use setup and setup_baseline phases to download content outside of mfem
 #   directory.
-# - Allocate/Release is where ruby resource are allocated/released once for all.
+# - Allocate/Release is where Dane resource are allocated/released once for all.
 # - Build and Test is where we build and MFEM for multiple toolchains.
 # - Baseline_checks gathers baseline-type test suites execution
 # - Baseline_publish, only available on master, allows to update baseline
@@ -53,7 +53,7 @@ variables:
   AUTOTEST_COMMIT: "YES"
 
 # Trigger subpipelines:
-ruby-build-and-test:
+dane-build-and-test:
   stage: sub-pipelines
   variables:
     # Explicitly pass down values that we want to be able to set when triggering
@@ -61,10 +61,10 @@ ruby-build-and-test:
     AUTOTEST: "${AUTOTEST}"
     AUTOTEST_COMMIT: "${AUTOTEST_COMMIT}"
   trigger:
-    include: .gitlab/ruby-build-and-test.yml
+    include: .gitlab/dane-build-and-test.yml
     strategy: depend
 
-ruby-baseline:
+dane-baseline:
   stage: sub-pipelines
   variables:
     # Explicitly pass down values that we want to be able to set when triggering
@@ -73,7 +73,7 @@ ruby-baseline:
     AUTOTEST: "${AUTOTEST}"
     AUTOTEST_COMMIT: "${AUTOTEST_COMMIT}"
   trigger:
-    include: .gitlab/ruby-baseline.yml
+    include: .gitlab/dane-baseline.yml
     strategy: depend
 
 lassen-build-and-test:

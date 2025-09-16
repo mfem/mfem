@@ -86,6 +86,12 @@ public:
        date. */
    void Refine(const Array<Refinement> &refinements) override;
 
+   /** See Mesh::AnisotropicConflict. The return value is globally MPI-reduced,
+       whereas @a conflicts contains local indices of conflicting entries of
+       @a refinements. */
+   bool AnisotropicConflict(const Array<Refinement> &refinements,
+                            std::set<int> &conflicts);
+
    /// Parallel version of NCMesh::LimitNCLevel.
    void LimitNCLevel(int max_nc_level) override;
 
@@ -211,7 +217,11 @@ public:
 
    // utility
 
+   /// Return the MPI rank for this process.
    int GetMyRank() const { return MyRank; }
+
+   /// Return true if using more than one MPI process.
+   bool IsParallel() const override { return NRanks > 1; }
 
    /// Use the communication pattern from last Rebalance() to send element DOFs.
    void SendRebalanceDofs(int old_ndofs, const Table &old_element_dofs,
@@ -586,6 +596,44 @@ protected: // implementation
 
    std::size_t GroupsMemoryUsage() const;
 
+   // The following functions help with checking for anisotropic refinements in
+   // different directions on a face shared by two hexahedral elements.
+
+   /** For the face with ordered vertices vn* and neighboring element @a elem,
+       check whether the other neighboring element (if it exists) is marked for
+       a horizontal refinement conflicting with a vertical split. */
+   void CheckRefAnisoFace(int elem, int vn1, int vn2, int vn3, int vn4,
+                          const Array<Refinement> &refinements,
+                          const std::map<int, int> &elemToRef,
+                          std::set<int> &conflicts);
+
+   /** For the face with ordered vertices vn*, edge midpoints en*, and
+       neighboring element @a elem, check whether the other neighboring element
+       (if it exists) is marked for a refinement conflicting with an isotropic
+       refinement of the face. */
+   void CheckRefIsoFace(int elem, int vn1, int vn2, int vn3, int vn4,
+                        int en1, int en2, int en3, int en4,
+                        const Array<Refinement> &refinements,
+                        const std::map<int, int> &elemToRef,
+                        std::set<int> &conflicts);
+
+   /// Check whether any master face is marked for a conflicting refinement.
+   void CheckRefinementMaster(const Array<Refinement> &refinements,
+                              const std::map<int, int> &elemToRef,
+                              std::set<int> &conflicts);
+
+   /** Check whether the refinement of the element with index @a elem and type
+       @a ref_type would cause a conflict. */
+   void CheckRefinement(int elem, char ref_type,
+                        const Array<Refinement> &refinements,
+                        const std::map<int, int> &elemToRef,
+                        std::set<int> &conflicts);
+
+   /** For a vertical split of the master face with ordered vertices
+       (vn1, vn2, vn3, vn4), check whether there is a horizontal split among the
+       slave faces. */
+   bool CheckRefAnisoFaceSplits(int vn1, int vn2, int vn3, int vn4,
+                                int level = 0);
    friend class NeighborRowMessage;
    friend class NeighborOrderMessage;
 };
