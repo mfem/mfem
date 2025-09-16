@@ -263,6 +263,9 @@ private:
       AllocatorAdaptor<std::pair<ptrdiff_t, ptrdiff_t>>>
       &copy_segs);
 
+   /// Forcibly deletes all allocations and removes all nodes
+   void clear();
+
 public:
    ResourceManager(const ResourceManager &) = delete;
 
@@ -274,9 +277,6 @@ public:
               ResourceLocation hostpinned_loc = DEFAULT,
               ResourceLocation managed_loc = DEFAULT,
               ResourceLocation device_loc = DEFAULT);
-
-   /// forcibly deletes all allocations and removes all nodes
-   void clear();
 
    /// How much resource is allocated of each resource type. Order:
    /// - HOST, HOSTPINNED, MANAGED, DEVICE, TEMP HOST, TEMP HOSTPINNED, TEMP

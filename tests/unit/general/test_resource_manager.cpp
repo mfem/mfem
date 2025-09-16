@@ -8,39 +8,38 @@ using namespace mfem;
 TEST_CASE("Resource Creation", "[Resource Manager]")
 {
    auto &inst = ResourceManager::instance();
-   auto usage = inst.usage();
-   std::array<size_t, 8> expected = {0};
-   REQUIRE(usage == expected);
+   auto init_usage = inst.usage();
+   std::array<size_t, 8> expected = init_usage;
    SECTION("Non-Temporary Host")
    {
       Resource<int> tmp(10, ResourceManager::HOST, false);
-      usage = inst.usage();
-      expected[0] = 10 * sizeof(int);
+      auto usage = inst.usage();
+      expected[0] += 10 * sizeof(int);
       REQUIRE(usage == expected);
       tmp.Write(ResourceManager::ANY_DEVICE);
       usage = inst.usage();
-      expected[3] = expected[0];
+      expected[3] += expected[0];
       REQUIRE(usage == expected);
       tmp = Resource<int>();
       usage = inst.usage();
-      expected[0] = 0;
-      expected[3] = 0;
+      expected[0] = init_usage[0];
+      expected[3] = init_usage[3];
       REQUIRE(usage == expected);
    }
    SECTION("Temporary Host")
    {
       Resource<int> tmp(10, ResourceManager::HOST, true);
-      usage = inst.usage();
-      expected[4] = 10 * sizeof(int);
+      auto usage = inst.usage();
+      expected[4] += 10 * sizeof(int);
       REQUIRE(usage == expected);
       tmp.Write(ResourceManager::ANY_DEVICE);
       usage = inst.usage();
-      expected[4 + 3] = 10 * sizeof(int);
+      expected[4 + 3] += 10 * sizeof(int);
       REQUIRE(usage == expected);
       tmp = Resource<int>();
       usage = inst.usage();
-      expected[4] = 0;
-      expected[4 + 3] = 0;
+      expected[4] = init_usage[4];
+      expected[4 + 3] = init_usage[4 + 3];
       REQUIRE(usage == expected);
    }
 }
@@ -48,10 +47,6 @@ TEST_CASE("Resource Creation", "[Resource Manager]")
 TEST_CASE("Resource Aliasing", "[Resource Manager][GPU]")
 {
    auto &inst = ResourceManager::instance();
-   auto usage = inst.usage();
-   std::array<size_t, 8> expected = {0};
-
-   REQUIRE(usage == expected);
    {
       Resource<int> tmp(100, ResourceManager::HOST, false);
       auto hptr = tmp.Write(ResourceManager::HOST);
