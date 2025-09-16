@@ -126,13 +126,15 @@ private:
       using RBTree<RBase>::visit;
       using RBTree<RBase>::successor;
 
+      size_t seg_offset = 1;
+
       Node &get_node(size_t curr) { return nodes[curr - 1]; }
       const Node &get_node(size_t curr) const { return nodes[curr - 1]; }
 
-      Segment &get_segment(size_t curr) { return segments[curr - 1]; }
+      Segment &get_segment(size_t curr) { return segments[curr - seg_offset]; }
       const Segment &get_segment(size_t curr) const
       {
-         return segments[curr - 1];
+         return segments[curr - seg_offset];
       }
 
       void post_left_rotate(size_t) {}
@@ -188,6 +190,8 @@ private:
    std::array<ResourceLocation, 4> allocator_locs = {DEFAULT, DEFAULT, DEFAULT,
                                                      DEFAULT
                                                     };
+
+   bool valid_segment(size_t seg) const { return seg >= storage.seg_offset; }
 
    size_t insert(char *lower, char *upper, ResourceLocation loc,
                  RBase::Segment::Flags init_flag);
@@ -263,13 +267,13 @@ private:
       AllocatorAdaptor<std::pair<ptrdiff_t, ptrdiff_t>>>
       &copy_segs);
 
-   /// Forcibly deletes all allocations and removes all nodes
-   void clear();
-
 public:
    ResourceManager(const ResourceManager &) = delete;
 
    ~ResourceManager();
+
+   /// Forcibly deletes all allocations and removes all nodes
+   void clear();
 
    static ResourceManager &instance();
 
@@ -420,11 +424,11 @@ public:
 
    void SetDeviceMemoryType(ResourceManager::ResourceLocation loc)
    {
-      if (segment)
+      auto &inst = ResourceManager::instance();
+      if (inst.valid_segment(segment))
       {
-         auto &inst = ResourceManager::instance();
          auto &seg = inst.storage.get_segment(segment);
-         if (seg.other)
+         if (inst.valid_segment(seg.other))
          {
             auto &oseg = inst.storage.get_segment(seg.other);
             if (oseg.loc == loc)
@@ -517,11 +521,11 @@ public:
 
    void DeleteDevice(bool copy_to_host = true)
    {
-      if (segment)
+      auto &inst = ResourceManager::instance();
+      if (inst.valid_segment(segment))
       {
-         auto &inst = ResourceManager::instance();
          auto &seg = inst.storage.get_segment(segment);
-         if (seg.other)
+         if (inst.valid_segment(seg.other))
          {
             if (copy_to_host)
             {
@@ -559,9 +563,9 @@ public:
 
    ResourceManager::ResourceLocation GetHostMemoryType() const
    {
-      if (segment)
+      auto &inst = ResourceManager::instance();
+      if (inst.valid_segment(segment))
       {
-         auto &inst = ResourceManager::instance();
          // TODO: edge case if seg.loc is device, then the other is the host
          return inst.storage.get_segment(segment).loc;
       }
@@ -570,11 +574,11 @@ public:
 
    ResourceManager::ResourceLocation GetDeviceMemoryType() const
    {
-      if (segment)
+      auto &inst = ResourceManager::instance();
+      if (inst.valid_segment(segment))
       {
-         auto &inst = ResourceManager::instance();
          auto &seg = inst.storage.get_segment(segment);
-         if (seg.other)
+         if (inst.valid_segment(seg.other))
          {
             // TODO: edge case if seg.loc is device, then the other is the host
             return inst.storage.get_segment(seg.other).loc;
@@ -650,12 +654,12 @@ template <class T>
 Resource<T>::Resource(const Resource &r)
    : lower(r.lower), upper(r.upper), segment(r.segment)
 {
-   if (segment)
+   auto &inst = ResourceManager::instance();
+   if (inst.valid_segment(segment))
    {
-      auto &inst = ResourceManager::instance();
       auto &seg = inst.storage.get_segment(segment);
       ++seg.ref_count;
-      if (seg.other)
+      if (inst.valid_segment(seg.other))
       {
          auto &oseg = inst.storage.get_segment(seg.other);
          ++oseg.ref_count;
@@ -677,19 +681,18 @@ template <class T> Resource<T> &Resource<T>::operator=(const Resource &r)
    if (&r != this)
    {
       auto &inst = ResourceManager::instance();
-      if (segment)
+      if (inst.valid_segment(segment))
       {
          inst.erase(segment, true);
       }
       lower = r.lower;
       upper = r.upper;
       segment = r.segment;
-      if (segment)
+      if (inst.valid_segment(segment))
       {
-         auto &inst = ResourceManager::instance();
          auto &seg = inst.storage.get_segment(segment);
          ++seg.ref_count;
-         if (seg.other)
+         if (inst.valid_segment(seg.other))
          {
             auto &oseg = inst.storage.get_segment(seg.other);
             ++oseg.ref_count;
@@ -704,7 +707,7 @@ template <class T> Resource<T> &Resource<T>::operator=(Resource &&r) noexcept
    if (&r != this)
    {
       auto &inst = ResourceManager::instance();
-      if (segment)
+      if (inst.valid_segment(segment))
       {
          inst.erase(segment, true);
       }
@@ -721,8 +724,9 @@ template <class T> Resource<T> &Resource<T>::operator=(Resource &&r) noexcept
 template <class T>
 Resource<T> Resource<T>::create_alias(size_t offset, size_t count) const
 {
+   auto &inst = ResourceManager::instance();
    Resource<T> res = *this;
-   if (segment)
+   if (inst.valid_segment(segment))
    {
       res.lower += offset;
       res.upper = res.lower + count;
@@ -732,8 +736,9 @@ Resource<T> Resource<T>::create_alias(size_t offset, size_t count) const
 
 template <class T> Resource<T> Resource<T>::create_alias(size_t offset) const
 {
+   auto &inst = ResourceManager::instance();
    Resource<T> res = *this;
-   if (segment)
+   if (inst.valid_segment(segment))
    {
       res.lower += offset;
    }
@@ -808,9 +813,9 @@ template <class T> const T &Resource<T>::operator[](size_t idx) const
 
 template <class T> Resource<T>::~Resource()
 {
-   if (segment)
+   auto &inst = ResourceManager::instance();
+   if (inst.valid_segment(segment))
    {
-      auto &inst = ResourceManager::instance();
       inst.erase(segment, true);
    }
 }

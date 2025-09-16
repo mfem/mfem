@@ -310,37 +310,6 @@ ResourceManager &ResourceManager::instance()
 ResourceManager::ResourceManager()
 {
    Setup();
-#if 0
-   // host
-   allocs[0].reset(new StdAllocator);
-   // host-pinned
-   allocs[1].reset(new HostPinnedAllocator);
-   // managed
-   allocs[2].reset(new ManagedAllocator);
-   // device
-   allocs[3].reset(new DeviceAllocator);
-   // host32 and host64
-   allocs[4].reset(new StdAlignedAllocator);
-   // host debug
-   allocs[5].reset(new StdAllocator);
-   // device debug
-   allocs[6].reset(new StdAllocator);
-
-   // host
-   allocs[7].reset(new TempAllocator<StdAllocator>);
-   // host-pinned
-   allocs[8].reset(new TempAllocator<HostPinnedAllocator>);
-   // managed
-   allocs[9].reset(new TempAllocator<ManagedAllocator>);
-   // device
-   allocs[10].reset(new TempAllocator<DeviceAllocator>);
-   // host32 and host64
-   allocs[11].reset(new TempAllocator<StdAlignedAllocator>);
-   // host debug
-   allocs[12].reset(new TempAllocator<StdAlignedAllocator>);
-   // device debug
-   allocs[13].reset(new TempAllocator<StdAlignedAllocator>);
-#endif
 }
 
 static Allocator *CreateAllocator(ResourceManager::ResourceLocation loc)
@@ -486,6 +455,7 @@ void ResourceManager::clear()
       }
    }
    storage.nodes.clear();
+   storage.seg_offset += storage.segments.size();
    storage.segments.clear();
    for (int i = 0; i < allocs.size(); ++i)
    {
@@ -639,22 +609,22 @@ void ResourceManager::clear_segment(size_t segment)
 
 void ResourceManager::erase(size_t segment, bool linked)
 {
-   if (segment)
+   if (valid_segment(segment))
    {
-      auto &seg = storage.segments[segment - 1];
+      auto &seg = storage.get_segment(segment);
       if (seg.ref_count)
       {
          if (!--seg.ref_count)
          {
             // deallocate
-            if (seg.other)
+            if (valid_segment(seg.other))
             {
                // unlink
-               storage.segments[seg.other - 1].other = 0;
+               storage.get_segment(seg.other).other = 0;
                if (linked)
                {
                   // erase other
-                  erase(storage.segments[segment - 1].other, false);
+                  erase(storage.get_segment(segment).other, false);
                }
             }
             if (seg.flag & RBase::Segment::OWN)
@@ -670,7 +640,7 @@ void ResourceManager::erase(size_t segment, bool linked)
             if (linked)
             {
                // erase other
-               erase(storage.segments[segment - 1].other, false);
+               erase(storage.get_segment(segment).other, false);
             }
          }
       }
@@ -692,7 +662,7 @@ size_t ResourceManager::insert(char *lower, char *upper, ResourceLocation loc,
 void ResourceManager::ensure_other(size_t segment, ResourceLocation loc)
 {
    auto seg = &storage.get_segment(segment);
-   if (!seg->other)
+   if (!valid_segment(seg->other))
    {
       bool temporary = seg->flag & RBase::Segment::Flags::TEMPORARY;
       switch (loc)
@@ -1135,7 +1105,7 @@ ResourceManager::ResourceLocation
 ResourceManager::where_valid(size_t segment, char *lower, char *upper)
 {
    ResourceLocation loc = INDETERMINATE;
-   if (segment)
+   if (valid_segment(segment))
    {
       auto &seg = storage.get_segment(segment);
       bool any_invalid = false;
@@ -1153,7 +1123,7 @@ ResourceManager::where_valid(size_t segment, char *lower, char *upper)
       {
          loc = seg.loc;
       }
-      if (seg.other)
+      if (valid_segment(seg.other))
       {
          bool any_invalid = false;
          check_valid(seg.other, lower - seg.lower, upper - seg.upper,
@@ -1179,7 +1149,7 @@ ResourceManager::where_valid(size_t segment, char *lower, char *upper)
 bool ResourceManager::is_valid(size_t segment, char *lower, char *upper,
                                ResourceLocation loc)
 {
-   if (segment)
+   if (valid_segment(segment))
    {
       auto &seg = storage.get_segment(segment);
       if (seg.loc & loc)
@@ -1199,7 +1169,7 @@ bool ResourceManager::is_valid(size_t segment, char *lower, char *upper,
       }
       else
       {
-         if (seg.other)
+         if (valid_segment(seg.other))
          {
             auto &oseg = storage.get_segment(seg.other);
             if (seg.other & loc)
@@ -1233,7 +1203,7 @@ char *ResourceManager::write(size_t segment, char *lower, char *upper,
       auto stop = upper - seg->lower;
       mark_valid(segment, start, stop, [&](auto start, auto stop) {});
 
-      if (seg->other)
+      if (valid_segment(seg->other))
       {
          // mark other invalid
          mark_invalid(seg->other, start, stop, [&](auto start, auto stop) {});
@@ -1376,7 +1346,7 @@ char *ResourceManager::read_write(size_t segment, char *lower, char *upper,
       { copy_segs.emplace_back(start, stop); });
       if (copy_segs.size())
       {
-         if (!seg->other)
+         if (!valid_segment(seg->other))
          {
             throw std::runtime_error("no other to read from");
          }
@@ -1384,7 +1354,7 @@ char *ResourceManager::read_write(size_t segment, char *lower, char *upper,
          BatchMemCopy(seg->lower, os.lower, seg->loc, os.loc, copy_segs);
       }
 
-      if (seg->other)
+      if (valid_segment(seg->other))
       {
          // mark other invalid
          mark_invalid(seg->other, start, stop, [&](auto start, auto stop) {});
@@ -1429,7 +1399,7 @@ const char *ResourceManager::read(size_t segment, char *lower, char *upper,
 
       if (copy_segs.size())
       {
-         if (!seg->other)
+         if (!valid_segment(seg->other))
          {
             throw std::runtime_error("no other to read from");
          }
@@ -1461,7 +1431,7 @@ const char *ResourceManager::fast_read(size_t segment, char *lower, char *upper,
 
 bool ResourceManager::owns_host_ptr(size_t segment)
 {
-   if (segment)
+   if (valid_segment(segment))
    {
       auto &seg = storage.get_segment(segment);
       return seg.flag & RBase::Segment::OWN;
@@ -1471,7 +1441,7 @@ bool ResourceManager::owns_host_ptr(size_t segment)
 
 void ResourceManager::set_owns_host_ptr(size_t segment, bool own)
 {
-   if (segment)
+   if (valid_segment(segment))
    {
       auto &seg = storage.get_segment(segment);
       seg.set_owns(own);
@@ -1480,10 +1450,10 @@ void ResourceManager::set_owns_host_ptr(size_t segment, bool own)
 
 bool ResourceManager::owns_device_ptr(size_t segment)
 {
-   if (segment)
+   if (valid_segment(segment))
    {
       auto &seg = storage.get_segment(segment);
-      if (seg.other)
+      if (valid_segment(seg.other))
       {
          auto &oseg = storage.get_segment(seg.other);
          return oseg.flag & RBase::Segment::OWN;
@@ -1494,10 +1464,10 @@ bool ResourceManager::owns_device_ptr(size_t segment)
 
 void ResourceManager::set_owns_device_ptr(size_t segment, bool own)
 {
-   if (segment)
+   if (valid_segment(segment))
    {
       auto &seg = storage.get_segment(segment);
-      if (seg.other)
+      if (valid_segment(seg.other))
       {
          auto &oseg = storage.get_segment(seg.other);
          oseg.set_owns(own);
@@ -1513,10 +1483,10 @@ void ResourceManager::clear_owner_flags(size_t segment)
 
 int ResourceManager::compare_other(size_t segment, char *lower, char *upper)
 {
-   if (segment)
+   if (valid_segment(segment))
    {
       auto &seg = storage.get_segment(segment);
-      if (seg.other)
+      if (valid_segment(seg.other))
       {
          auto &oseg = storage.get_segment(seg.other);
          auto start = lower - seg.lower;
@@ -1565,7 +1535,7 @@ void ResourceManager::CopyImpl(size_t dst_seg, size_t src_seg, ptrdiff_t nbytes,
 
    bool prefer_sseg = true;
    RBase::Segment *soseg = nullptr;
-   if (sseg.other)
+   if (valid_segment(sseg.other))
    {
       soseg = &storage.get_segment(sseg.other);
       // figure out where to prefer copying from
@@ -1597,14 +1567,14 @@ void ResourceManager::Copy(size_t dst_seg, size_t src_seg, char *dst_lower,
    auto src_offset = src_lower - sseg.lower;
    size_t smarker = find_marker(src_seg, sseg.lower + src_offset);
    size_t somarker = 0;
-   if (sseg.other)
+   if (valid_segment(sseg.other))
    {
       auto& soseg = storage.get_segment(sseg.other);
       somarker = find_marker(sseg.other, soseg.lower + src_offset);
    }
    CopyImpl(dst_seg, src_seg, nbytes, dst_offset, src_offset, smarker,
             somarker);
-   if (dseg.other)
+   if (valid_segment(dseg.other))
    {
       auto &doseg = storage.get_segment(dseg.other);
       CopyImpl(dseg.other, src_seg, nbytes, dst_offset, src_offset, smarker,
