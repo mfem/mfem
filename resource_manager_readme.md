@@ -162,6 +162,8 @@ Existing supported features:
 
 - ResourceManager tracks which Device backends are enabled (or not enabled) so common code can be written which supports CPU-only runs or mixed CPU/Device runs.
 
+See `tests/unit/general/test_resource_manager.cpp` for additional usage features/examples.
+
 # Implementation Details
 
 The `ResourceManager` keeps an internal list of "segments" representing regions of memory. Each segment can contain one reference to another segment which potentially belongs to another memory space. The validity of these two segments will be managed simultaneously by `ResourceManager`.
@@ -187,4 +189,6 @@ auto ptr0 = res0.Write(ResourceManager::ANY_DEVICE);
 auto ptr1 = res1.Write(ResourceManager::ANY_DEVICE);
 // ptr0 != ptr1, there will be two device allocations
 ```
+- Documentation
+- Test renaming `Resource`->`Memory` and `ResourceManager`->`MemoryManager` and other API updates/cleanups to test compatibility.
 - Anything else?
