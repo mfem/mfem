@@ -191,4 +191,5 @@ auto ptr1 = res1.Write(ResourceManager::ANY_DEVICE);
 ```
 - Documentation
 - Test renaming `Resource`->`Memory` and `ResourceManager`->`MemoryManager` and other API updates/cleanups to test compatibility.
+- Performance testing
 - Anything else?
