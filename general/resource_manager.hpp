@@ -226,6 +226,14 @@ private:
    const char *read(size_t segment, char *lower, char *upper,
                     ResourceLocation loc);
 
+   void CopyImpl(size_t dst_seg, size_t src_seg, ptrdiff_t nbytes,
+                 ptrdiff_t dst_offset, ptrdiff_t src_offset, size_t smarker,
+                 size_t somarker);
+
+   /// copies to the part of dst_seg which is valid
+   void Copy(size_t dst_seg, size_t src_seg, char *dst_lower,
+             const char *src_lower, ptrdiff_t nbytes);
+
    void CopyFromHost(size_t segment, char *lower, char *upper, const char *src,
                      size_t size);
 
@@ -348,7 +356,7 @@ template <class T> class Resource
    T *lower;
    T *upper;
    size_t segment;
-   bool use_device = false;
+   mutable bool use_device = false;
 
    friend class ResourceManager;
 
@@ -590,9 +598,16 @@ public:
       auto &inst = ResourceManager::instance();
       return inst.is_valid(segment, lower, upper, ResourceManager::ANY_DEVICE);
    }
+   /// Pre-conditions:
+   /// - size <= src.Capacity() and size <= this->Capacity()
+   /// This is copied to everywhere this is valid! This means if this is valid
+   /// on both host and device data is copied twice, and conversely if neither
+   /// is valid then no data is copied. Use this->Write/ReadWrite prior to
+   /// CopyFrom to specify which buffer to copy into.
    void CopyFrom(const Resource &src, int size);
    void CopyFromHost(const T *src, int size);
 
+   /// Equivalent to dst.CopyFrom(*this, size)
    void CopyTo(Resource &dst, int size) const;
    void CopyToHost(T *dst, int size) const;
 
@@ -802,7 +817,8 @@ template <class T> Resource<T>::~Resource()
 
 template <class T> void Resource<T>::CopyFrom(const Resource &src, int size)
 {
-   // TODO
+   auto &inst = ResourceManager::instance();
+   inst.Copy(segment, src.segment, lower, src.lower, sizeof(T) * size);
 }
 
 template <class T> void Resource<T>::CopyFromHost(const T *src, int size)

@@ -2,9 +2,9 @@
 
 #include "globals.hpp"
 
-#include "forall.hpp"
 #include "cuda.hpp"
 #include "device.hpp"
+#include "forall.hpp"
 #include "hip.hpp"
 
 #include <cstdlib>
@@ -1552,6 +1552,64 @@ void ResourceManager::CopyToHost(size_t segment, const char *lower,
                                  const char *upper, char *dst, size_t size)
 {
    // TODO
+}
+
+void ResourceManager::CopyImpl(size_t dst_seg, size_t src_seg, ptrdiff_t nbytes,
+                               ptrdiff_t dst_offset, ptrdiff_t src_offset,
+                               size_t smarker, size_t somarker)
+{
+   constexpr int ndebug_mask = ~(1 << 5);
+   auto &dseg = storage.get_segment(dst_seg);
+   auto &sseg = storage.get_segment(src_seg);
+   size_t dmarker = find_marker(dst_seg, dseg.lower + dst_offset);
+
+   bool prefer_sseg = true;
+   RBase::Segment *soseg = nullptr;
+   if (sseg.other)
+   {
+      soseg = &storage.get_segment(sseg.other);
+      // figure out where to prefer copying from
+      if (!((sseg.loc & ndebug_mask) & dseg.loc) &&
+          ((soseg->loc & ndebug_mask) & dseg.loc))
+      {
+         // sseg and dseg have different resource location, and soseg and dseg
+         // have the same resource location
+         prefer_sseg = false;
+      }
+   }
+   ptrdiff_t pos = 0;
+   auto calc_pos = [&](size_t marker, auto &seg)
+   { return marker ? storage.get_node(marker).point - seg.lower : seg.upper; };
+   while (pos < nbytes)
+   {
+      // TODO figure out if we should copy from sseg or soseg
+      break;
+   }
+}
+
+void ResourceManager::Copy(size_t dst_seg, size_t src_seg, char *dst_lower,
+                           const char *src_lower, ptrdiff_t nbytes)
+{
+   // TODO: maybe it's better to do dseg and dseg.other separately
+   auto &dseg = storage.get_segment(dst_seg);
+   auto &sseg = storage.get_segment(src_seg);
+   auto dst_offset = dst_lower - dseg.lower;
+   auto src_offset = src_lower - sseg.lower;
+   size_t smarker = find_marker(src_seg, sseg.lower + src_offset);
+   size_t somarker = 0;
+   if (sseg.other)
+   {
+      auto& soseg = storage.get_segment(sseg.other);
+      somarker = find_marker(sseg.other, soseg.lower + src_offset);
+   }
+   CopyImpl(dst_seg, src_seg, nbytes, dst_offset, src_offset, smarker,
+            somarker);
+   if (dseg.other)
+   {
+      auto &doseg = storage.get_segment(dseg.other);
+      CopyImpl(dseg.other, src_seg, nbytes, dst_offset, src_offset, smarker,
+               somarker);
+   }
 }
 
 } // namespace mfem
