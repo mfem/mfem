@@ -1652,7 +1652,7 @@ real_t ComputeElementLpDistance(real_t p, int i,
                                 GridFunction& gf1, GridFunction& gf2);
 
 
-/// Class used for extruding scalar GridFunctions
+/// Class used for extruding a scalar coefficient
 class ExtrudeCoefficient : public Coefficient
 {
 private:
@@ -1660,13 +1660,22 @@ private:
    Mesh *mesh_in;
    Coefficient &sol_in;
 public:
+   /// Constructs an instance of VectorExtrudeCoefficient
+   /**
+    * @param m      1D mesh
+    * @param s      1D vector coefficient
+    * @param n_     number of traverse elements of the extruded mesh
+    */
    ExtrudeCoefficient(Mesh *m, Coefficient &s, int n_)
-      : n(n_), mesh_in(m), sol_in(s) { }
+      : n(n_), mesh_in(m), sol_in(s)
+   { MFEM_VERIFY(n > 0, "Number of traverse elements must be positive!"); }
+
    real_t Eval(ElementTransformation &T, const IntegrationPoint &ip) override;
+
    virtual ~ExtrudeCoefficient() { }
 };
 
-/// Class used for extruding vector GridFunctions
+/// Class used for extruding a vector coefficient
 class VectorExtrudeCoefficient : public VectorCoefficient
 {
 private:
@@ -1674,14 +1683,29 @@ private:
    Mesh *mesh_in;
    VectorCoefficient &sol_in;
 public:
+   /// Constructs an instance of VectorExtrudeCoefficient
+   /**
+    * @param m      1D mesh
+    * @param s      1D vector coefficient
+    * @param n_     number of traverse elements of the extruded mesh
+    */
    VectorExtrudeCoefficient(Mesh *m, VectorCoefficient &s, int n_)
-      : VectorCoefficient(s.GetVDim()), n(n_), mesh_in(m), sol_in(s) { }
+      : VectorCoefficient(s.GetVDim()), n(n_), mesh_in(m), sol_in(s)
+   { MFEM_VERIFY(n > 0, "Number of traverse elements must be positive!"); }
+
    void Eval(Vector &v, ElementTransformation &T,
              const IntegrationPoint &ip) override;
+
    virtual ~VectorExtrudeCoefficient() { }
 };
 
-/// Extrude a scalar 1D GridFunction, after extruding the mesh with Extrude1D.
+/// Extrude a 1D GridFunction, after extruding the mesh with Extrude1D()
+/**
+ * @param mesh      1D mesh
+ * @param mesh2d    extruded mesh
+ * @param sol       grid function
+ * @param ny        number of traverse elements of the extruded mesh
+ */
 GridFunction *Extrude1DGridFunction(Mesh *mesh, Mesh *mesh2d,
                                     GridFunction *sol, const int ny);
 

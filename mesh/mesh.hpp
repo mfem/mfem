@@ -3056,10 +3056,22 @@ public:
 
 
 /// Extrude a 1D mesh
+/**
+ * @param mesh      1D mesh
+ * @param ny        number of traverse elements of the extruded mesh
+ * @param sy        physical size in the direction of extrusion
+ * @param closed    if false, only the original boundaries are extruded,
+ *                  otherwise boundaries are generated all around the domain
+ */
 Mesh *Extrude1D(Mesh *mesh, const int ny, const real_t sy,
                 const bool closed = false);
 
 /// Extrude a 2D mesh
+/**
+ * @param mesh      2D mesh
+ * @param nz        number of traverse elements of the extruded mesh
+ * @param sz        physical size in the direction of extrusion
+ */
 Mesh *Extrude2D(Mesh *mesh, const int nz, const real_t sz);
 
 // shift cyclically 3 integers left-to-right
