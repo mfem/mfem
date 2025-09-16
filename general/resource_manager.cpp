@@ -7,6 +7,7 @@
 #include "forall.hpp"
 #include "hip.hpp"
 
+#include <algorithm>
 #include <cstdlib>
 #include <tuple>
 
