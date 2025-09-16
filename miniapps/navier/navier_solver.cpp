@@ -1031,6 +1031,8 @@ void NavierSolver::AddVelDirichletBC(VecFuncT *f, Array<int> &attr)
 void NavierSolver::AddVelDirichletBC(Coefficient *coeff, Array<int> &attr,
                                      int component)
 {
+   MFEM_VERIFY(component >= 0 && component < vfes->GetVDim(),
+               "Invalid velocity component.");
    vel_comp_dbcs.emplace_back(attr, coeff, component);
 
    if (verbose && pmesh->GetMyRank() == 0)
