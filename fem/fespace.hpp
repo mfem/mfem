@@ -1445,7 +1445,9 @@ public:
    /** @brief Compute edge orientations for loop traversal.
        Here, a "loop" refers to a connected sequence of boundary edges that together
        form a closed or open path along the boundary of a surface.
-       Serial version that determines edge orientations relative to a loop normal. */
+       This is the serial version that determines edge orientations relative to a
+       loop normal and is intended for 3D meshes only.
+        */
    virtual void ComputeLoopEdgeOrientations(
       const std::unordered_map<int, int>& dof_to_edge,
       const std::unordered_map<int, int>& dof_to_boundary_element,

@@ -450,9 +450,12 @@ public:
    void GetExteriorTrueDofs(Array<int> &ext_tdof_list,
                             int component = -1) const override;
 
-   /** Get a list of edge degrees of freedom on the boundary with the specified
+   /** @brief Get a list of edge degrees of freedom on the boundary with the specified
        attributes. This function handles parallel meshes by removing
-       artificial boundary edges that appear at processor boundaries.
+       artificial boundary edges that appear at processor boundaries.       
+       Requirements:
+       - Mesh must be conforming (no hanging nodes)
+       - Mesh dimension must be >= 2
        @param[in] boundary_element_indices Array of boundary element indices
        @param[out] ess_tdof_list Array of essential true DOF indices
        @param[out] ldof_marker Array marking which local DOFs are boundary edge DOFs
@@ -470,7 +473,7 @@ public:
                                 std::unordered_map<int, int> *dof_to_boundary_element_out = nullptr,
                                 Array<int> *ess_edge_list = nullptr);
 
-   /** Find the boundary elements marked with specified boundary attributes
+   /** @brief Find the boundary elements marked with specified boundary attributes
         @param[in] bdr_attrs list of boundary attributes to search for
         @param[out] attr_to_elements map from boundary attribute to the list of
                                      boundary elements with that attribute */

@@ -4523,7 +4523,7 @@ void FiniteElementSpace::GetBoundaryLoopEdgeDofs(
       Array<int> edges, edge_orientations;
       for (int i = 0; i < boundary_element_indices.Size(); ++i)
       {
-         int boundary_element_idx = boundary_element_indices[i];
+         const int boundary_element_idx = boundary_element_indices[i];
          int face_index, face_orientation;
          mesh->GetBdrElementFace(boundary_element_idx, &face_index, &face_orientation);
          mesh->GetFaceEdges(face_index, edges, edge_orientations);
@@ -4533,7 +4533,7 @@ void FiniteElementSpace::GetBoundaryLoopEdgeDofs(
             GetEdgeDofs(edges[j], edge_dofs);
             for (int k = 0; k < edge_dofs.Size(); ++k)
             {
-               int dof = edge_dofs[k];
+               const int dof = edge_dofs[k];
                if (!boundary_edge_dofs.count(dof))
                {
                   boundary_edge_dofs.insert(dof);
@@ -4560,7 +4560,7 @@ void FiniteElementSpace::GetBoundaryLoopEdgeDofs(
       Array<int> edges, edge_orientations;
       for (int i = 0; i < boundary_element_indices.Size(); ++i)
       {
-         int boundary_element_idx = boundary_element_indices[i];
+         const int boundary_element_idx = boundary_element_indices[i];
          mesh->GetBdrElementEdges(boundary_element_idx, edges, edge_orientations);
          
          // In 2D, each boundary element should have exactly one edge
@@ -4573,7 +4573,7 @@ void FiniteElementSpace::GetBoundaryLoopEdgeDofs(
          GetEdgeDofs(edge_index, edge_dofs);
          for (int k = 0; k < edge_dofs.Size(); ++k)
          {
-            int dof = edge_dofs[k];
+            const int dof = edge_dofs[k];
             if (!boundary_edge_dofs.count(dof))
             {
                boundary_edge_dofs.insert(dof);
@@ -4594,7 +4594,9 @@ void FiniteElementSpace::GetBoundaryLoopEdgeDofs(
    }
 }
 
-void FiniteElementSpace::GetBoundaryElementsByAttribute(
+// Helper functions for boundary element attribute lookup
+void GetBoundaryElementsByAttributeImpl(
+   const Mesh *mesh,
    const Array<int> &bdr_attrs,
    std::unordered_map<int, Array<int>> &attr_to_elements)
 {
@@ -4616,8 +4618,10 @@ void FiniteElementSpace::GetBoundaryElementsByAttribute(
    }
 }
 
-void FiniteElementSpace::GetBoundaryElementsByAttribute(int bdr_attr,
-                                                        Array<int> &boundary_elements)
+void GetBoundaryElementsByAttributeImpl(
+   const Mesh *mesh,
+   int bdr_attr,
+   Array<int> &boundary_elements)
 {
    boundary_elements.SetSize(0);
 
@@ -4630,7 +4634,21 @@ void FiniteElementSpace::GetBoundaryElementsByAttribute(int bdr_attr,
    }
 }
 
-void FiniteElementSpace::ComputeLoopEdgeOrientations(
+void FiniteElementSpace::GetBoundaryElementsByAttribute(
+   const Array<int> &bdr_attrs,
+   std::unordered_map<int, Array<int>> &attr_to_elements)
+{
+   GetBoundaryElementsByAttributeImpl(mesh, bdr_attrs, attr_to_elements);
+}
+
+void FiniteElementSpace::GetBoundaryElementsByAttribute(int bdr_attr,
+                                                        Array<int> &boundary_elements)
+{
+   GetBoundaryElementsByAttributeImpl(mesh, bdr_attr, boundary_elements);
+}
+
+void ComputeLoopEdgeOrientationsImpl(
+   const Mesh* mesh,
    const std::unordered_map<int, int>& dof_to_edge,
    const std::unordered_map<int, int>& dof_to_boundary_element,
    const Vector& loop_normal,
@@ -4687,14 +4705,22 @@ void FiniteElementSpace::ComputeLoopEdgeOrientations(
       }
 
       // Cross product: to_edge × edge
-      cross_product[0] = to_edge_vec[1] * edge_vec[2] - to_edge_vec[2] * edge_vec[1];
-      cross_product[1] = to_edge_vec[2] * edge_vec[0] - to_edge_vec[0] * edge_vec[2];
-      cross_product[2] = to_edge_vec[0] * edge_vec[1] - to_edge_vec[1] * edge_vec[0];
+      to_edge_vec.cross3D(edge_vec, cross_product);
 
       // Check alignment with loop normal
       real_t dot_product = cross_product * loop_normal;
       edge_loop_orientations[edge_id] = (dot_product > 0) ? 1 : -1;
    }
+}
+
+void FiniteElementSpace::ComputeLoopEdgeOrientations(
+   const std::unordered_map<int, int>& dof_to_edge,
+   const std::unordered_map<int, int>& dof_to_boundary_element,
+   const Vector& loop_normal,
+   std::unordered_map<int, int>& edge_loop_orientations)
+{
+   ComputeLoopEdgeOrientationsImpl(mesh, dof_to_edge, dof_to_boundary_element,
+                                   loop_normal, edge_loop_orientations);
 }
 
 FiniteElementCollection *FiniteElementSpace::Load(Mesh *m, std::istream &input)
