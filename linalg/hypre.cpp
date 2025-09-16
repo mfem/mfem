@@ -526,7 +526,7 @@ real_t ParNormlp(const Vector &vec, real_t p, MPI_Comm comm)
     this function. In particular, @a dst should be empty or deleted before
     calling this function. */
 template <typename T>
-void CopyMemory(const Memory<T> &src, Memory<T> &dst, MemoryClass dst_mc,
+void CopyMemory(Memory<T> &src, Memory<T> &dst, MemoryClass dst_mc,
                 bool dst_owner)
 {
    if (CanShallowCopy(src, dst_mc))
@@ -707,7 +707,7 @@ void HypreParMatrix::WrapHypreParCSRMatrix(hypre_ParCSRMatrix *a, bool owner)
    HypreRead();
 }
 
-signed char HypreParMatrix::CopyCSR(const SparseMatrix *csr,
+signed char HypreParMatrix::CopyCSR(SparseMatrix *csr,
                                     MemoryIJData &mem_csr,
                                     hypre_CSRMatrix *hypre_csr,
                                     bool mem_owner)
@@ -736,7 +736,7 @@ signed char HypreParMatrix::CopyCSR(const SparseMatrix *csr,
           (mem_csr.data.OwnsHostPtr() ? 2 : 0);
 }
 
-signed char HypreParMatrix::CopyBoolCSR(const Table *bool_csr,
+signed char HypreParMatrix::CopyBoolCSR(Table *bool_csr,
                                         MemoryIJData &mem_csr,
                                         hypre_CSRMatrix *hypre_csr)
 {
@@ -1146,7 +1146,7 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm,
 
    hypre_CSRMatrixSetDataOwner(csr_a,0);
    MemoryIJData mem_a;
-   CopyCSR(sm_a, mem_a, csr_a, false);
+   CopyCSR(const_cast<SparseMatrix*>(sm_a), mem_a, csr_a, false);
    hypre_CSRMatrixSetRownnz(csr_a);
 
    // NOTE: this call creates a matrix on host even when device support is

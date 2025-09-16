@@ -457,7 +457,7 @@ private:
    // hypre_csr. Shallow copy the data. Return the appropriate ownership flag.
    // The CSR arrays are wrapped in the mem_csr struct which is used to move
    // these arrays to device, if necessary.
-   static signed char CopyCSR(const SparseMatrix *csr,
+   static signed char CopyCSR(SparseMatrix *csr,
                               MemoryIJData &mem_csr,
                               hypre_CSRMatrix *hypre_csr,
                               bool mem_owner);
@@ -465,7 +465,7 @@ private:
    // bool_csr to hypre_csr. Allocate the data array and set it to all ones.
    // Return the appropriate ownership flag. The CSR arrays are wrapped in the
    // mem_csr struct which is used to move these arrays to device, if necessary.
-   static signed char CopyBoolCSR(const Table *bool_csr,
+   static signed char CopyBoolCSR(Table *bool_csr,
                                   MemoryIJData &mem_csr,
                                   hypre_CSRMatrix *hypre_csr);
 
