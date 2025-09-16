@@ -324,11 +324,10 @@ int main(int argc, char *argv[])
          VectorGridFunctionCoefficient u_coeff(u_gf);
          Vector test_normal_y({0.0, 1.0, 0.0});  // y-direction
          VectorConstantCoefficient n_coeff_y(test_normal_y);
-         InnerProductCoefficient un_coeff_y(u_coeff, n_coeff_y);
 
          LinearForm lform_y(u_gf->ParFESpace());
          lform_y.AddBoundaryIntegrator(
-            new BoundaryLFIntegrator(un_coeff_y), attr_fb_walls);
+            new VectorBoundaryLFIntegrator(n_coeff_y), attr_fb_walls);
          lform_y.Assemble();
 
          double local_val_y = lform_y * (*u_gf);
@@ -343,11 +342,10 @@ int main(int argc, char *argv[])
 
          Vector test_normal_z({0.0, 0.0, 1.0});  // z-direction
          VectorConstantCoefficient n_coeff_z(test_normal_z);
-         InnerProductCoefficient un_coeff_z(u_coeff, n_coeff_z);
 
          LinearForm lform_z(u_gf->ParFESpace());
          lform_z.AddBoundaryIntegrator(
-            new BoundaryLFIntegrator(un_coeff_z), attr_top_wall);
+            new VectorBoundaryLFIntegrator(n_coeff_z), attr_top_wall);
          lform_z.Assemble();
 
          double local_val_z = lform_z * (*u_gf);
