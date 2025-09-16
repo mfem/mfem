@@ -330,10 +330,10 @@ int main(int argc, char *argv[])
             new VectorBoundaryLFIntegrator(n_coeff_y), attr_fb_walls);
          lform_y.Assemble();
 
-         double local_val_y = lform_y * (*u_gf);
-         double global_val_y = 0.0;
-         MPI_Allreduce(&local_val_y, &global_val_y, 1, MPI_DOUBLE, MPI_SUM,
-                       pmesh->GetComm());
+         real_t local_val_y = lform_y * (*u_gf);
+         real_t global_val_y = 0.0;
+         MPI_Allreduce(&local_val_y, &global_val_y, 1, MPITypeMap<real_t>::mpi_type,
+                       MPI_SUM, pmesh->GetComm());
 
          // Test z-penetration on top wall
          Array<int> attr_top_wall(pmesh->bdr_attributes.Max());
@@ -348,10 +348,10 @@ int main(int argc, char *argv[])
             new VectorBoundaryLFIntegrator(n_coeff_z), attr_top_wall);
          lform_z.Assemble();
 
-         double local_val_z = lform_z * (*u_gf);
-         double global_val_z = 0.0;
-         MPI_Allreduce(&local_val_z, &global_val_z, 1, MPI_DOUBLE, MPI_SUM,
-                       pmesh->GetComm());
+         real_t local_val_z = lform_z * (*u_gf);
+         real_t global_val_z = 0.0;
+         MPI_Allreduce(&local_val_z, &global_val_z, 1, MPITypeMap<real_t>::mpi_type,
+                       MPI_SUM, pmesh->GetComm());
 
          if (Mpi::Root())
          {
