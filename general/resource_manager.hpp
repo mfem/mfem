@@ -585,7 +585,8 @@ public:
          }
          else
          {
-            return seg.loc & ResourceManager::ANY_DEVICE;
+            return static_cast<ResourceManager::ResourceLocation>(
+                      seg.loc & ResourceManager::ANY_DEVICE);
          }
       }
       return ResourceManager::INDETERMINATE;
