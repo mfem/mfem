@@ -73,7 +73,7 @@ public:
    /** When set to true and the ParBilinearForm has interior face integrators,
        the local SparseMatrix will include the rows (in addition to the columns)
        corresponding to face-neighbor dofs. The default behavior is to disregard
-       those rows. Must be called before the first Assemble call. */
+       those rows. Must be called before the first Assemble() call. */
    void KeepNbrBlock(bool knb = true) { keep_nbr_block = knb; }
 
    /** @brief Set the operator type id for the parallel matrix/operator when
@@ -343,10 +343,11 @@ public:
       keep_nbr_block = false;
    }
 
-   /** When set to true and the ParBilinearForm has interior face integrators,
-       the local SparseMatrix will include the rows (in addition to the columns)
-       corresponding to face-neighbor dofs. The default behavior is to disregard
-       those rows. Must be called before the first Assemble call. */
+   /** When set to true and the ParMixedBilinearForm has interior face
+       integrators, the local SparseMatrix will include the rows (in addition
+       to the columns) corresponding to face-neighbor dofs. The default
+       behavior is to disregard those rows. Must be called before the first
+       Assemble() call. */
    void KeepNbrBlock(bool knb = true) { keep_nbr_block = knb; }
 
    /// Assemble the local matrix
