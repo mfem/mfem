@@ -243,8 +243,7 @@ public:
    FaceType GetFaceType() const { return face_type; }
 
    /// Returns the face transformation of face @a idx.
-   ElementTransformation *GetTransformation(int idx) override
-   { return mesh.GetFaceTransformation(face_indices[idx]); }
+   ElementTransformation *GetTransformation(int idx) override;
 
    /// Returns the geometry type of face @a idx.
    Geometry::Type GetGeometry(int idx) const override
