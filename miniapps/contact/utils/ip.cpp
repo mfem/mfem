@@ -406,19 +406,9 @@ void IPSolver::FormIPNewtonMat(BlockVector & x, Vector & l,
    Jm = problem->Dmc(x); JmT = Jm->Transpose();
 
    Vector DiagLogBar(dimM); DiagLogBar = 0.0;
-   if (useMassWeights)
+   for (int i = 0; i < dimM; i++)
    {
-      for (int i = 0; i < dimM; i++)
-      {
-         DiagLogBar(i) = (Mlump(i) * zl(i)) / (x(i + dimU) - ml(i)) + delta * Mlump(i);
-      }
-   }
-   else
-   {
-      for (int i = 0; i < dimM; i++)
-      {
-         DiagLogBar(i) = zl(i) / (x(i+dimU) - ml(i)) + delta;
-      }
+      DiagLogBar(i) = (Mlump(i) * zl(i)) / (x(i + dimU) - ml(i)) + delta * Mlump(i);
    }
 
    delete Wmm;
@@ -443,10 +433,8 @@ void IPSolver::FormIPNewtonMat(BlockVector & x, Vector & l,
 
    Vector deltaDiagVec(dimU);
    deltaDiagVec = delta;
-   if (useMassWeights)
-   {
-      deltaDiagVec *= Mvlump;
-   }
+   deltaDiagVec *= Mvlump;
+   
    delete Wuu;
    if (Huu)
    {
@@ -796,22 +784,14 @@ real_t IPSolver::OptimalityError(const BlockVector &x, const Vector &l,
       comp(i) = abs((x(dimU + i) - ml(i)) * zl(i) - mu);
    }
 
-   if (!useMassWeights)
-   {
-      stationarityError = GlobalLpNorm(infinity(), gradL.Normlinf(), comm);
-      feasibilityError = GlobalLpNorm(infinity(), cx.Normlinf(), comm);
-      complementarityError = GlobalLpNorm(infinity(), comp.Normlinf(), comm);
-   }
-   else
-   {
-      BlockVector MxinvgradL(block_offsetsx); MxinvgradL = 0.0;
-      MxinvgradL.Set(1.0, gradL);
-      MxinvgradL.GetBlock(0) /= Mvlump;
-      MxinvgradL.GetBlock(1) /= Mlump;
-      stationarityError = sqrt(InnerProduct(comm, gradL, MxinvgradL));
-      feasibilityError = GlobalLpNorm(infinity(), cx.Normlinf(), comm);
-      complementarityError = GlobalLpNorm(infinity(), comp.Normlinf(), comm);
-   }
+   BlockVector MxinvgradL(block_offsetsx); MxinvgradL = 0.0;
+   MxinvgradL.Set(1.0, gradL);
+   MxinvgradL.GetBlock(0) /= Mvlump;
+   MxinvgradL.GetBlock(1) /= Mlump;
+   stationarityError = sqrt(InnerProduct(comm, gradL, MxinvgradL));
+   feasibilityError = GlobalLpNorm(infinity(), cx.Normlinf(), comm);
+   complementarityError = GlobalLpNorm(infinity(), comp.Normlinf(), comm);
+   
 
    optimalityError = max(max(stationarityError, feasibilityError), complementarityError);
 
@@ -830,17 +810,10 @@ real_t IPSolver::GetTheta(const BlockVector &x)
 {
    Vector cx(dimC);
    problem->c(x, cx);
-   if (useMassWeights)
-   {
-      Vector Mcx(dimC); 
-      Mcx.Set(1.0, cx);
-      Mcx *= Mlump;
-      return sqrt(InnerProduct(comm, Mcx, cx));
-   }
-   else
-   {
-      return sqrt(InnerProduct(comm, cx, cx));
-   }
+   Vector Mcx(dimC); 
+   Mcx.Set(1.0, cx);
+   Mcx *= Mlump;
+   return sqrt(InnerProduct(comm, Mcx, cx));
 }
 
 // log-barrier objective
@@ -849,19 +822,9 @@ real_t IPSolver::GetPhi(const BlockVector &x, real_t mu,
 {
    real_t fx = problem->CalcObjective(x, eval_err);
    real_t logBarrierLoc = 0.0;
-   if (useMassWeights)
+   for (int i = 0; i < dimM; i++)
    {
-      for (int i = 0; i < dimM; i++)
-      {
-         logBarrierLoc += Mlump(i) * log(x(dimU + i) - ml(i));
-      }
-   }
-   else
-   {
-      for (int i = 0; i < dimM; i++)
-      {
-         logBarrierLoc += log(x(dimU+i)-ml(i));
-      }
+      logBarrierLoc += Mlump(i) * log(x(dimU + i) - ml(i));
    }
    real_t logBarrierGlb;
    MPI_Allreduce(&logBarrierLoc, &logBarrierGlb, 1, MPITypeMap<real_t>::mpi_type,
@@ -879,10 +842,7 @@ void IPSolver::GetDxphi(const BlockVector &x, real_t mu,
    {
       ytemp(i) = 1. / (x(dimU + i) - ml(i));
    }
-   if (useMassWeights)
-   {
-      ytemp *= Mlump;
-   }
+   ytemp *= Mlump;
    y.GetBlock(1).Add(-mu, ytemp);
 }
 
@@ -897,10 +857,7 @@ real_t IPSolver::EvalLangrangian(const BlockVector &x, const Vector &l,
    Vector temp(dimM); temp = 0.0;
    temp.Set(1.0, x.GetBlock(1));
    temp.Add(-1.0, ml);
-   if ( useMassWeights)
-   {
-      temp *= Mlump;
-   }
+   temp *= Mlump;
    return (fx + InnerProduct(comm, cx, l) - InnerProduct(comm, temp, zl));
 }
 
@@ -930,10 +887,7 @@ void IPSolver::EvalLagrangianGradient(const BlockVector &x, const Vector &l,
 
    Vector temp(dimM); temp = 0.0;
    temp.Set(1.0, zl);
-   if (useMassWeights)
-   {
-      temp *= Mlump;
-   }
+   temp *= Mlump;
    (y.GetBlock(1)).Add(-1.0, temp);
 }
 
@@ -950,11 +904,6 @@ void IPSolver::SetTol(real_t Tol)
 void IPSolver::SetMaxIter(int max_it)
 {
    max_iter = max_it;
-}
-
-void IPSolver::SetUsingMassWeights(bool useMassWeights_)
-{
-   useMassWeights = useMassWeights_;
 }
 
 IPSolver::~IPSolver()

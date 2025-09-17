@@ -359,7 +359,6 @@ int main(int argc, char *argv[])
       optimizer.SetTol(1e-6);
       optimizer.SetMaxIter(100);
       optimizer.SetLinearSolver(&cgsolver);
-      optimizer.SetUsingMassWeights(true);
       optimizer.SetPrintLevel(0);
 
       x_gf.SetTrueVector();
@@ -399,7 +398,6 @@ int main(int argc, char *argv[])
          }
          mfem::out << "\n";
       }
-
       x_gf.SetFromTrueDofs(xf);
       add(ref_coords,x_gf,new_coords);
       pmesh_copy.SetNodes(new_coords);
