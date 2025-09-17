@@ -209,8 +209,9 @@ public:
    int FindId(int p1, int p2) const;
 
    /** @brief Find the "id" of an item, this "id" corresponding to the index of
-       the item in the underlying BlockArray<T> object. Default construct an
-       item and id if no value corresponds to the requested key.
+       the item in the underlying BlockArray<T> object. Return -1 if it does not
+       exist. Default construct an item and "id" if no value corresponds to the
+       requested key.
 
        @param[in] p1 First part of the key.
        @param[in] p2 Second part of the key.
