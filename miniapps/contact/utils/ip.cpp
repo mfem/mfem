@@ -100,12 +100,14 @@ IPSolver::IPSolver(OptContactProblem * problem_)
    block_offsetsumlz[4] = dimM; // zl
    block_offsetsumlz.PartialSum();
 
+   Mlump.SetSize(dimM); Mlump = 0.0;
    if (dimM < dimU)
    {
       dimG = dimM;
       constraint_offsets.SetSize(2);
       constraint_offsets[0] = 0;
       constraint_offsets[1] = dimM;
+      Mlump.Set(1.0, Mcslump);
    }
    else
    {
@@ -115,8 +117,13 @@ IPSolver::IPSolver(OptContactProblem * problem_)
       constraint_offsets[1] = dimG;
       constraint_offsets[2] = dimU;
       constraint_offsets[3] = dimU;
+      constraint_offsets.PartialSum();
+      BlockVector Mlumpblock(constraint_offsets); Mlumpblock = 0.0;
+      Mlumpblock.GetBlock(0).Set(1.0, Mcslump);
+      Mlumpblock.GetBlock(1).Set(1.0, Mvlump);
+      Mlumpblock.GetBlock(2).Set(1.0, Mvlump);
+      Mlump.Set(1.0, Mlumpblock);
    }
-   constraint_offsets.PartialSum();
 
 
    for (int i = 0; i < block_offsetsuml.Size(); i++)
@@ -401,31 +408,9 @@ void IPSolver::FormIPNewtonMat(BlockVector & x, Vector & l,
    Vector DiagLogBar(dimM); DiagLogBar = 0.0;
    if (useMassWeights)
    {
-      if (constraint_offsets.Size() == 2)
+      for (int i = 0; i < dimM; i++)
       {
-         for (int i = 0; i < dimM; i++)
-         {
-            DiagLogBar(i) = (Mcslump(i) * zl(i)) / (x(i+dimU) - ml(
-                                                       i)) + delta * Mcslump(i);
-         }
-      }
-      else if (constraint_offsets.Size() == 4)
-      {
-         for (int i = 0; i < dimG; i++)
-         {
-            DiagLogBar(i) = (Mcslump(i) * zl(i)) / (x(i+dimU) - ml(
-                                                       i)) + delta * Mcslump(i);
-         }
-         for (int i = dimG; i < dimG + dimU; i++)
-         {
-            DiagLogBar(i) = (Mvlump(i - dimG) * zl(i)) / (x(i+dimU) - ml(
-                                                             i)) + delta * Mvlump(i-dimG);
-         }
-         for (int i = dimG + dimU; i < dimM; i++)
-         {
-            DiagLogBar(i) = (Mvlump(i - dimG - dimU) * zl(i)) / (x(i+dimU) - ml(
-                                                                    i)) + delta * Mvlump(i - dimG - dimU);
-         }
+         DiagLogBar(i) = (Mlump(i) * zl(i)) / (x(i + dimU) - ml(i)) + delta * Mlump(i);
       }
    }
    else

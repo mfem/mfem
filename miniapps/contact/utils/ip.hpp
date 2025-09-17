@@ -56,6 +56,7 @@ protected:
 
    Vector Mcslump;
    Vector Mvlump;
+   Vector Mlump;
 
    real_t alphaCurvatureTest;
    real_t deltaRegLast;
