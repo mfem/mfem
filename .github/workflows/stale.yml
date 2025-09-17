@@ -51,3 +51,25 @@ jobs:
         days-before-issue-close: -1
         stale-pr-label: 'stale'
         operations-per-run: 500
+
+  # Stale action for PRs with "WIP" label.
+  stale-in-review-pr:
+
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      pull-requests: write
+      actions: write
+
+    steps:
+    - uses: actions/stale@v9
+      with:
+        repo-token: ${{ secrets.GITHUB_TOKEN }}
+        stale-pr-message: ':warning: This PR has been automatically marked as stale because it has not had any activity in the last 300 days. *If no activity occurs in the next 30 days, it will be automatically closed.* Thank you for your contributions.'
+        only-pr-labels: "WIP"
+        days-before-pr-stale: 300
+        days-before-pr-close: 30
+        days-before-issue-stale: -1
+        days-before-issue-close: -1
+        stale-pr-label: 'stale'
+        operations-per-run: 500
