@@ -129,10 +129,10 @@ void DGTraceIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type)
    // Assumes tensor-product elements
    Mesh *mesh = fes.GetMesh();
    const FiniteElement &el = *fes.GetTypicalTraceElement();
-   const IntegrationRule *ir =
-      IntRule ? IntRule
-      : &GetRule(el.GetGeomType(), el.GetOrder(),
-                 *mesh->GetTypicalElementTransformation());
+   const IntegrationRule *ir = IntRule?
+                               IntRule:
+                               &GetRule(el.GetGeomType(), el.GetOrder(),
+                                        *mesh->GetTypicalElementTransformation());
 
    FaceQuadratureSpace qs(*mesh, *ir, type);
    nf = qs.GetNumFaces();
