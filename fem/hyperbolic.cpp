@@ -1668,7 +1668,8 @@ real_t EulerFlux::ComputeFlux(const Vector &U,
    const real_t density = U(0);                  // ρ
    const Vector momentum(U.GetData() + 1, dim);  // ρu
    const real_t energy = U(1 + dim);             // E, internal energy ρe
-   const real_t kinetic_energy = 0.5 * (momentum*momentum) / density;
+   const real_t kinetic_energy = (density > 0.)?(0.5 * (momentum*momentum) /
+                                                 density):(0.);
    // pressure, p = (γ-1)*(E - ½ρ|u|^2)
    const real_t pressure = (specific_heat_ratio - 1.0) *
                            (energy - kinetic_energy);
@@ -1677,6 +1678,13 @@ real_t EulerFlux::ComputeFlux(const Vector &U,
    MFEM_ASSERT(density >= 0, "Negative Density");
    MFEM_ASSERT(pressure >= 0, "Negative Pressure");
    MFEM_ASSERT(energy >= 0, "Negative Energy");
+
+   // Detect vacuum state
+   if (density == 0.)
+   {
+      FU = 0.;
+      return 0.;
+   }
 
    // 2. Compute Flux
    for (int d = 0; d < dim; d++)
@@ -1718,7 +1726,8 @@ real_t EulerFlux::ComputeFluxDotN(const Vector &x,
    const real_t density = x(0);                  // ρ
    const Vector momentum(x.GetData() + 1, dim);  // ρu
    const real_t energy = x(1 + dim);             // E, internal energy ρe
-   const real_t kinetic_energy = 0.5 * (momentum*momentum) / density;
+   const real_t kinetic_energy = (density > 0.)?(0.5 * (momentum*momentum) /
+                                                 density):(0.);
    // pressure, p = (γ-1)*(E - ½ρ|u|^2)
    const real_t pressure = (specific_heat_ratio - 1.0) *
                            (energy - kinetic_energy);
@@ -1727,6 +1736,13 @@ real_t EulerFlux::ComputeFluxDotN(const Vector &x,
    MFEM_ASSERT(density >= 0, "Negative Density");
    MFEM_ASSERT(pressure >= 0, "Negative Pressure");
    MFEM_ASSERT(energy >= 0, "Negative Energy");
+
+   // Detect vacuum state
+   if (density == 0.)
+   {
+      FUdotN = 0.;
+      return 0.;
+   }
 
    // 2. Compute normal flux
 
@@ -1758,7 +1774,8 @@ void EulerFlux::ComputeFluxJacobian(const Vector &U, ElementTransformation &Tr,
    const real_t density = U(0);                  // ρ
    const Vector momentum(U.GetData() + 1, dim);  // ρu
    const real_t energy = U(1 + dim);             // E, internal energy ρe
-   const real_t kinetic_energy = 0.5 * (momentum*momentum) / density;
+   const real_t kinetic_energy = (density > 0.)?(0.5 * (momentum*momentum) /
+                                                 density):(0.);
    // pressure, p = (γ-1)*(E - ½ρ|u|^2)
    const real_t pressure = (specific_heat_ratio - 1.0) *
                            (energy - kinetic_energy);
@@ -1767,6 +1784,13 @@ void EulerFlux::ComputeFluxJacobian(const Vector &U, ElementTransformation &Tr,
    MFEM_ASSERT(density >= 0, "Negative Density");
    MFEM_ASSERT(pressure >= 0, "Negative Pressure");
    MFEM_ASSERT(energy >= 0, "Negative Energy");
+
+   // Detect vacuum state
+   if (density == 0.)
+   {
+      JU = 0.;
+      return;
+   }
 
    // 2. Compute Jacobian
    JU = 0.;
