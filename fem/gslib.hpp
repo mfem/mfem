@@ -13,7 +13,11 @@
 #define MFEM_GSLIB
 
 #include "../config/config.hpp"
+#ifdef MFEM_USE_MPI
+#include "pgridfunc.hpp"
+#else
 #include "gridfunc.hpp"
+#endif
 
 #ifdef MFEM_USE_GSLIB
 
@@ -30,7 +34,9 @@ namespace mfem
 {
 
 /** \brief FindPointsGSLIB can robustly evaluate a GridFunction on an arbitrary
- *  collection of points.
+ *  collection of points. See Mittal et al., "General Field Evaluation in
+ *  High-Order Meshes on GPUs". (2025). Computers & Fluids. for technical
+ *  details.
  *
  *  There are three key functions in FindPointsGSLIB:
  *
@@ -129,6 +135,10 @@ protected:
                                                  IntegrationRule *irule,
                                                  int order);
 
+   /// Helper function that calls \ref SetupSplitMeshes and
+   /// \ref SetupIntegrationRuleForSplitMesh.
+   virtual void SetupSplitMeshesAndIntegrationRules(const int order);
+
    /// Get GridFunction value at the points expected by GSLIB.
    virtual void GetNodalValues(const GridFunction *gf_in, Vector &node_vals);
 
@@ -188,14 +198,23 @@ protected:
    void InterpolateOnDevice(const Vector &field_in_evec, Vector &field_out,
                             const int nel, const int ncomp,
                             const int dof1dsol, const int ordering);
+
 public:
    FindPointsGSLIB();
+   FindPointsGSLIB(Mesh &mesh_in, const double bb_t = 0.1,
+                   const double newt_tol = 1.0e-12,
+                   const int npt_max = 256);
 
 #ifdef MFEM_USE_MPI
    FindPointsGSLIB(MPI_Comm comm_);
+   FindPointsGSLIB(ParMesh &mesh_in, const double bb_t = 0.1,
+                   const double newt_tol = 1.0e-12,
+                   const int npt_max = 256);
 #endif
 
    virtual ~FindPointsGSLIB();
+   FindPointsGSLIB(const FindPointsGSLIB&) = delete;
+   FindPointsGSLIB& operator=(const FindPointsGSLIB&) = delete;
 
    /** Initializes the internal mesh in gslib, by sending the positions of the
        Gauss-Lobatto nodes of the input Mesh object \p m.
@@ -210,8 +229,8 @@ public:
        @param[in] npt_max   (Optional) Number of points for simultaneous
                             iteration. This alters performance and
                             memory footprint.*/
-   void Setup(Mesh &m, const double bb_t = 0.1,
-              const double newt_tol = 1.0e-12,
+
+   void Setup(Mesh &m, const double bb_t = 0.1, const double newt_tol = 1.0e-12,
               const int npt_max = 256);
    /** Searches positions given in physical space by \p point_pos.
        These positions can be ordered byNodes: (XXX...,YYY...,ZZZ) or
@@ -287,7 +306,12 @@ public:
 
    /** Cleans up memory allocated internally by gslib.
        Note that in parallel, this must be called before MPI_Finalize(), as it
-       calls MPI_Comm_free() for internal gslib communicators. */
+       calls MPI_Comm_free() for internal gslib communicators. FreeData is
+       also called by the class destructor and there are no memory leaks if the
+       destructor is called before MPI_Finalize(). If the destructor is called
+       after MPI_Finalize(), there will be an error because gslib will try to
+       invoke some MPI functions.
+   */
    virtual void FreeData();
 
    /// Return code for each point searched by FindPoints: inside element (0), on
@@ -309,6 +333,9 @@ public:
    /// Return reference coordinates in [-1,1] (internal range in GSLIB) for each
    /// point found by FindPoints.
    virtual const Vector &GetGSLIBReferencePosition() const { return gsl_ref; }
+
+   /// Get array of indices of not-found points.
+   Array<unsigned int> GetPointsNotFoundIndices() const;
 
    /** @name Methods to support a custom interpolation procedure.
        \brief The physical-space point that the user seeks to interpolate at

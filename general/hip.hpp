@@ -18,7 +18,7 @@
 // HIP block size used by MFEM.
 #define MFEM_HIP_BLOCKS 256
 
-#ifdef MFEM_USE_HIP
+#if defined(MFEM_USE_HIP) && defined(__HIP__)
 #define MFEM_USE_CUDA_OR_HIP
 #define MFEM_DEVICE __device__
 #define MFEM_HOST __host__
@@ -37,18 +37,20 @@
                              __FILE__, __LINE__);                              \
     }                                                                          \
   } while (0)
-#endif // MFEM_USE_HIP
 
 // Define the MFEM inner threading macros
-#if defined(MFEM_USE_HIP) && defined(__HIP_DEVICE_COMPILE__)
+#if defined(__HIP_DEVICE_COMPILE__)
 #define MFEM_SHARED __shared__
 #define MFEM_SYNC_THREAD __syncthreads()
 #define MFEM_BLOCK_ID(k) hipBlockIdx_ ##k
 #define MFEM_THREAD_ID(k) hipThreadIdx_ ##k
 #define MFEM_THREAD_SIZE(k) hipBlockDim_ ##k
 #define MFEM_FOREACH_THREAD(i,k,N) \
-    for(int i=hipThreadIdx_ ##k; i<N; i+=hipBlockDim_ ##k)
-#endif
+   for(int i=hipThreadIdx_ ##k; i<N; i+=hipBlockDim_ ##k)
+#define MFEM_FOREACH_THREAD_DIRECT(i,k,N) \
+   if(const int i=hipThreadIdx_ ##k; i<N)
+#endif // defined(__HIP_DEVICE_COMPILE__)
+#endif // defined(MFEM_USE_HIP) && defined(__HIP__)
 
 namespace mfem
 {

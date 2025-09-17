@@ -23,6 +23,8 @@
 
 namespace mfem
 {
+class QuadratureSpace;
+class FaceQuadratureSpace;
 
 /// Abstract base class BilinearFormIntegrator
 class BilinearFormIntegrator : public NonlinearFormIntegrator
@@ -78,6 +80,8 @@ public:
        called. */
    void AddMultPA(const Vector &x, Vector &y) const override;
 
+   virtual void AddAbsMultPA(const Vector &x, Vector &y) const;
+
    /// Method for partially assembled action on NURBS patches.
    virtual void AddMultNURBSPA(const Vector&x, Vector&y) const;
 
@@ -89,6 +93,8 @@ public:
        This method can be called only after the method AssemblePA() has been
        called. */
    virtual void AddMultTransposePA(const Vector &x, Vector &y) const;
+
+   virtual void AddAbsMultTransposePA(const Vector &x, Vector &y) const;
 
    /// Method defining element assembly.
    /** The result of the element assembly is added to the @a emat Vector if
@@ -496,7 +502,11 @@ public:
 
    void AddMultTransposePA(const Vector &x, Vector &y) const override;
 
+   void AddAbsMultTransposePA(const Vector &x, Vector &y) const override;
+
    void AddMultPA(const Vector& x, Vector& y) const override;
+
+   void AddAbsMultPA(const Vector& x, Vector& y) const override;
 
    void AssembleMF(const FiniteElementSpace &fes) override;
 
@@ -804,7 +814,7 @@ protected:
       const FiniteElement & test_fe) const
    {
       return (trial_fe.GetDim() == 1 && test_fe.GetDim() == 1 &&
-              trial_fe.GetDerivType() == mfem::FiniteElement::GRAD  &&
+              trial_fe.GetDerivType() == mfem::FiniteElement::GRAD &&
               test_fe.GetRangeType()  == mfem::FiniteElement::SCALAR );
    }
 
@@ -876,7 +886,7 @@ protected:
       const FiniteElement & trial_fe,
       const FiniteElement & test_fe) const
    {
-      return (trial_fe.GetDerivType() == mfem::FiniteElement::DIV  &&
+      return (trial_fe.GetDerivType() == mfem::FiniteElement::DIV &&
               test_fe.GetRangeType()  == mfem::FiniteElement::SCALAR );
    }
 
@@ -911,7 +921,7 @@ protected:
       const FiniteElement & trial_fe,
       const FiniteElement & test_fe) const
    {
-      return (trial_fe.GetDerivType() == mfem::FiniteElement::DIV  &&
+      return (trial_fe.GetDerivType() == mfem::FiniteElement::DIV &&
               test_fe.GetRangeType()  == mfem::FiniteElement::VECTOR );
    }
 
@@ -1592,7 +1602,7 @@ public:
    {
       return (trial_fe.GetCurlDim() == 3 && test_fe.GetRangeDim() == 3 &&
               trial_fe.GetRangeType() == mfem::FiniteElement::VECTOR &&
-              trial_fe.GetDerivType() == mfem::FiniteElement::CURL   &&
+              trial_fe.GetDerivType() == mfem::FiniteElement::CURL  &&
               test_fe.GetRangeType()  == mfem::FiniteElement::VECTOR );
    }
 
@@ -1627,7 +1637,7 @@ public:
    {
       return (trial_fe.GetDim() == 2 && test_fe.GetDim() == 2 &&
               trial_fe.GetRangeType() == mfem::FiniteElement::VECTOR &&
-              trial_fe.GetDerivType() == mfem::FiniteElement::CURL   &&
+              trial_fe.GetDerivType() == mfem::FiniteElement::CURL  &&
               test_fe.GetRangeType()  == mfem::FiniteElement::VECTOR );
    }
 
@@ -1661,7 +1671,7 @@ public:
    {
       return (trial_fe.GetDim() == 2 && test_fe.GetDim() == 2 &&
               trial_fe.GetRangeType() == mfem::FiniteElement::SCALAR &&
-              trial_fe.GetDerivType() == mfem::FiniteElement::GRAD   &&
+              trial_fe.GetDerivType() == mfem::FiniteElement::GRAD  &&
               test_fe.GetRangeType()  == mfem::FiniteElement::SCALAR );
    }
 
@@ -1752,7 +1762,7 @@ public:
       const FiniteElement & test_fe) const
    {
       return (trial_fe.GetRangeType() == mfem::FiniteElement::SCALAR &&
-              trial_fe.GetDerivType() == mfem::FiniteElement::GRAD   &&
+              trial_fe.GetDerivType() == mfem::FiniteElement::GRAD  &&
               test_fe.GetRangeType()  == mfem::FiniteElement::SCALAR );
    }
 
@@ -1785,7 +1795,7 @@ public:
       const FiniteElement & test_fe) const
    {
       return (trial_fe.GetRangeType() == mfem::FiniteElement::SCALAR &&
-              trial_fe.GetDerivType() == mfem::FiniteElement::GRAD   &&
+              trial_fe.GetDerivType() == mfem::FiniteElement::GRAD  &&
               test_fe.GetRangeType()  == mfem::FiniteElement::VECTOR &&
               test_fe.GetDerivType()  == mfem::FiniteElement::DIV   );
    }
@@ -1824,7 +1834,7 @@ public:
       const FiniteElement & test_fe) const
    {
       return (trial_fe.GetRangeType() == mfem::FiniteElement::VECTOR &&
-              trial_fe.GetDerivType() == mfem::FiniteElement::DIV    &&
+              trial_fe.GetDerivType() == mfem::FiniteElement::DIV   &&
               test_fe.GetRangeType()  == mfem::FiniteElement::SCALAR &&
               test_fe.GetDerivType()  == mfem::FiniteElement::GRAD
              );
@@ -1965,7 +1975,7 @@ protected:
       const FiniteElement & test_fe) const override
    {
       return (trial_fe.GetCurlDim() == 3 && test_fe.GetRangeDim() == 3 &&
-              trial_fe.GetDerivType() == mfem::FiniteElement::CURL  &&
+              trial_fe.GetDerivType() == mfem::FiniteElement::CURL &&
               test_fe.GetRangeType()  == mfem::FiniteElement::VECTOR );
    }
 
@@ -2320,7 +2330,11 @@ public:
 
    void AddMultPA(const Vector&, Vector&) const override;
 
+   void AddAbsMultPA(const Vector&, Vector&) const override;
+
    void AddMultTransposePA(const Vector&, Vector&) const override;
+
+   void AddAbsMultTransposePA(const Vector&, Vector&) const override;
 
    void AddMultNURBSPA(const Vector&, Vector&) const override;
 
@@ -2419,7 +2433,11 @@ public:
 
    void AddMultPA(const Vector&, Vector&) const override;
 
+   void AddAbsMultPA(const Vector&, Vector&) const override;
+
    void AddMultTransposePA(const Vector&, Vector&) const override;
+
+   void AddAbsMultTransposePA(const Vector&, Vector&) const override;
 
    static const IntegrationRule &GetRule(const FiniteElement &trial_fe,
                                          const FiniteElement &test_fe,
@@ -2816,6 +2834,7 @@ public:
    using BilinearFormIntegrator::AssemblePA;
    void AssemblePA(const FiniteElementSpace &fes) override;
    void AddMultPA(const Vector &x, Vector &y) const override;
+   void AddAbsMultPA(const Vector &x, Vector &y) const override;
    void AssembleDiagonalPA(Vector& diag) override;
 
    const Coefficient *GetCoefficient() const { return Q; }
@@ -2933,6 +2952,7 @@ public:
    void AssemblePA(const FiniteElementSpace &trial_fes,
                    const FiniteElementSpace &test_fes) override;
    void AddMultPA(const Vector &x, Vector &y) const override;
+   void AddAbsMultPA(const Vector &x, Vector &y) const override;
    void AddMultTransposePA(const Vector &x, Vector &y) const override;
    void AssembleDiagonalPA(Vector& diag) override;
    void AssembleEA(const FiniteElementSpace &fes, Vector &emat,

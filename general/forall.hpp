@@ -23,9 +23,6 @@
 #include <_hypre_utilities.h>
 #endif
 
-#include "array.hpp"
-#include "reducers.hpp"
-
 namespace mfem
 {
 
@@ -161,8 +158,8 @@ private:
 #define MFEM_PRAGMA(X) _Pragma(#X)
 
 // MFEM_UNROLL pragma macro that can be used inside MFEM_FORALL macros.
-#if defined(MFEM_USE_CUDA) && defined(__CUDA_ARCH__)
-#ifdef __NVCC__
+#if defined(MFEM_USE_CUDA) && defined(__CUDA_ARCH__) // Clang cuda or nvcc
+#ifdef __NVCC__ // nvcc specifically
 #define MFEM_UNROLL(N) MFEM_PRAGMA(unroll(N))
 #else // Assuming Clang CUDA
 #define MFEM_UNROLL(N) MFEM_PRAGMA(unroll N)
@@ -172,12 +169,12 @@ private:
 #endif
 
 // MFEM_GPU_FORALL: "parallel for" executed with CUDA or HIP based on the MFEM
-// build-time configuration (MFEM_USE_CUDA or MFEM_USE_HIP). If neither CUDA nor
-// HIP is enabled, this macro is a no-op.
-#if defined(MFEM_USE_CUDA)
+// build-time configuration (MFEM_USE_CUDA or MFEM_USE_HIP), and if compiling
+// with CUDA/HIP language. Otherwise, this macro is a no-op.
+#if defined(MFEM_USE_CUDA) && defined(__CUDACC__)
 #define MFEM_GPU_FORALL(i, N,...) CuWrap1D(N, [=] MFEM_DEVICE      \
                                        (int i) {__VA_ARGS__})
-#elif defined(MFEM_USE_HIP)
+#elif defined(MFEM_USE_HIP) && defined(__HIP__)
 #define MFEM_GPU_FORALL(i, N,...) HipWrap1D(N, [=] MFEM_DEVICE     \
                                         (int i) {__VA_ARGS__})
 #else
@@ -223,6 +220,52 @@ void OmpWrap(const int N, HBODY &&h_body)
    }
 #else
    MFEM_CONTRACT_VAR(N);
+   MFEM_CONTRACT_VAR(h_body);
+   MFEM_ABORT("OpenMP requested for MFEM but OpenMP is not enabled!");
+#endif
+}
+
+template <typename HBODY>
+void OmpWrap2D(const int Nx, const int Ny, HBODY &&h_body)
+{
+#ifdef MFEM_USE_OPENMP
+   // requires OpenMP 3.1
+   #pragma omp parallel for collapse(2)
+   for (int j = 0; j < Ny; j++)
+   {
+      for (int i = 0; i < Nx; i++)
+      {
+         h_body(i, j);
+      }
+   }
+#else
+   MFEM_CONTRACT_VAR(Nx);
+   MFEM_CONTRACT_VAR(Ny);
+   MFEM_CONTRACT_VAR(h_body);
+   MFEM_ABORT("OpenMP requested for MFEM but OpenMP is not enabled!");
+#endif
+}
+
+template <typename HBODY>
+void OmpWrap3D(const int Nx, const int Ny, const int Nz, HBODY &&h_body)
+{
+#ifdef MFEM_USE_OPENMP
+   // requires OpenMP 3.1
+   #pragma omp parallel for collapse(3)
+   for (int k = 0; k < Nz; k++)
+   {
+      for (int j = 0; j < Ny; j++)
+      {
+         for (int i = 0; i < Nx; i++)
+         {
+            h_body(i, j, k);
+         }
+      }
+   }
+#else
+   MFEM_CONTRACT_VAR(Nx);
+   MFEM_CONTRACT_VAR(Ny);
+   MFEM_CONTRACT_VAR(Nz);
    MFEM_CONTRACT_VAR(h_body);
    MFEM_ABORT("OpenMP requested for MFEM but OpenMP is not enabled!");
 #endif
@@ -457,6 +500,42 @@ void RajaOmpWrap(const int N, HBODY &&h_body)
    RAJA::forall<RAJA::omp_parallel_for_exec>(RAJA::RangeSegment(0,N), h_body);
 }
 
+template <typename HBODY>
+void RajaOmpWrap2D(const int Nx, const int Ny, HBODY &&h_body)
+{
+   using omp_launch_policy = RAJA::LaunchPolicy<RAJA::omp_launch_t>;
+   using global_thread_xy = RAJA::LoopPolicy<RAJA::omp_for_exec>;
+   RAJA::RangeSegment xrange(0, Nx);
+   RAJA::RangeSegment yrange(0, Ny);
+   RAJA::launch<omp_launch_policy>(RAJA::ExecPlace::HOST, RAJA::LaunchParams(),
+                                   [=](RAJA::LaunchContext ctx)
+   {
+      // contiguous in x
+      RAJA::expt::loop<global_thread_xy>(ctx, xrange, yrange, [&](int i, int j)
+      {
+         h_body(i, j);
+      });
+   });
+}
+
+template <typename HBODY>
+void RajaOmpWrap3D(const int Nx, const int Ny, const int Nz, HBODY &&h_body)
+{
+   using omp_launch_policy = RAJA::LaunchPolicy<RAJA::omp_launch_t>;
+   using global_thread_xyz = RAJA::LoopPolicy<RAJA::omp_for_exec>;
+   RAJA::RangeSegment xrange(0, Nx);
+   RAJA::RangeSegment yrange(0, Ny);
+   RAJA::RangeSegment zrange(0, Nz);
+   RAJA::launch<omp_launch_policy>(RAJA::ExecPlace::HOST, RAJA::LaunchParams(),
+                                   [=](RAJA::LaunchContext ctx)
+   {
+      // contiguous in x
+      RAJA::expt::loop<global_thread_xyz>(ctx, xrange, yrange, zrange,
+                                          [&](int i, int j, int k)
+      { h_body(i, j, k); });
+   });
+}
+
 #endif
 
 
@@ -484,7 +563,7 @@ void RajaSeqWrap(const int N, HBODY &&h_body)
 
 
 /// CUDA backend
-#ifdef MFEM_USE_CUDA
+#if defined(MFEM_USE_CUDA) && defined(__CUDACC__)
 
 template <typename BODY> __global__ static
 void CuKernel1D(const int N, BODY body)
@@ -576,11 +655,11 @@ struct CuWrap<3>
    }
 };
 
-#endif // MFEM_USE_CUDA
+#endif // defined(MFEM_USE_CUDA) && defined(__CUDACC__)
 
 
 /// HIP backend
-#ifdef MFEM_USE_HIP
+#if defined(MFEM_USE_HIP) && defined(__HIP__)
 
 template <typename BODY> __global__ static
 void HipKernel1D(const int N, BODY body)
@@ -671,7 +750,7 @@ struct HipWrap<3>
    }
 };
 
-#endif // MFEM_USE_HIP
+#endif // defined(MFEM_USE_HIP) && defined(__HIP__)
 
 
 /// The forall kernel body wrapper
@@ -704,7 +783,7 @@ inline void ForallWrap(const bool use_dev, const int N,
    }
 #endif
 
-#ifdef MFEM_USE_CUDA
+#if defined(MFEM_USE_CUDA) && defined(__CUDACC__)
    // If Backend::CUDA is allowed, use it
    if (Device::Allows(Backend::CUDA))
    {
@@ -712,7 +791,7 @@ inline void ForallWrap(const bool use_dev, const int N,
    }
 #endif
 
-#ifdef MFEM_USE_HIP
+#if defined(MFEM_USE_HIP) && defined(__HIP__)
    // If Backend::HIP is allowed, use it
    if (Device::Allows(Backend::HIP))
    {
@@ -755,6 +834,83 @@ inline void ForallWrap(const bool use_dev, const int N, lambda &&body,
 
 template<typename lambda>
 inline void forall(int N, lambda &&body) { ForallWrap<1>(true, N, body); }
+
+template<typename lambda>
+inline void forall(int Nx, int Ny, lambda &&body)
+{
+   if (Device::Allows(Backend::DEVICE_MASK))
+   {
+      forall(Nx * Ny, [=] MFEM_HOST_DEVICE(int idx)
+      {
+         int j = idx / Nx;
+         int i = idx % Nx;
+         body(i, j);
+      });
+   }
+#if defined(MFEM_USE_RAJA) && defined(RAJA_ENABLE_OPENMP)
+   else if (Device::Allows(Backend::RAJA_OMP))
+   {
+      return RajaOmpWrap2D(Nx, Ny, body);
+   }
+#endif
+#ifdef MFEM_USE_OPENMP
+   else if (Device::Allows(Backend::OMP))
+   {
+      return OmpWrap2D(Nx, Ny, body);
+   }
+#endif
+   else
+   {
+      for (int j = 0; j < Ny; ++j)
+      {
+         for (int i = 0; i < Nx; ++i)
+         {
+            body(i, j);
+         }
+      }
+   }
+}
+
+template<typename lambda>
+inline void forall(int Nx, int Ny, int Nz, lambda &&body)
+{
+   if (Device::Allows(Backend::DEVICE_MASK))
+   {
+      forall(Nx * Ny * Nz, [=] MFEM_HOST_DEVICE(int idx)
+      {
+         int i = idx % Nx;
+         int j = idx / Nx;
+         int k = j / Ny;
+         j = j % Ny;
+         body(i, j, k);
+      });
+   }
+#if defined(MFEM_USE_RAJA) && defined(RAJA_ENABLE_OPENMP)
+   else if (Device::Allows(Backend::RAJA_OMP))
+   {
+      return RajaOmpWrap3D(Nx, Ny, Nz, body);
+   }
+#endif
+#ifdef MFEM_USE_OPENMP
+   else if (Device::Allows(Backend::OMP))
+   {
+      return OmpWrap3D(Nx, Ny, Nz, body);
+   }
+#endif
+   else
+   {
+      for (int k = 0; k < Nz; ++k)
+      {
+         for (int j = 0; j < Ny; ++j)
+         {
+            for (int i = 0; i < Nx; ++i)
+            {
+               body(i, j, k);
+            }
+         }
+      }
+   }
+}
 
 template<typename lambda>
 inline void forall_switch(bool use_dev, int N, lambda &&body)
@@ -852,159 +1008,6 @@ inline MemoryClass GetHypreForallMemoryClass()
 }
 
 #endif // MFEM_USE_MPI
-
-namespace internal
-{
-/**
- @brief Device portion of a reduction over a 1D sequence [0, N)
- @tparam B Reduction body. Must be callable with the signature void(int i, value_type&
- v), where i is the index to evaluate and v is the value to update.
- @tparam R Reducer capable of combining values of type value_type. See reducers.hpp for
- pre-defined reducers.
- */
-template<class B, class R> struct reduction_kernel
-{
-   /// value type body and reducer operate on.
-   using value_type = typename R::value_type;
-   /// workspace for the intermediate reduction results
-   mutable value_type *work;
-   B body;
-   R reducer;
-   /// Length of sequence to reduce over.
-   int N;
-   /// How many items is each thread responsible for during the serial phase
-   int items_per_thread;
-
-   constexpr static MFEM_HOST_DEVICE int max_blocksize() { return 256; }
-
-   /// helper for computing the reduction block size
-   static int block_log2(unsigned N)
-   {
-#if defined(__GNUC__) || defined(__clang__)
-      return N ? (sizeof(unsigned) * 8 - __builtin_clz(N)) : 0;
-#elif defined(_MSC_VER)
-      return sizeof(unsigned) * 8 - __lzclz(N);
-#else
-      int res = 0;
-      while (N)
-      {
-         N >>= 1;
-         ++res;
-      }
-      return res;
-#endif
-   }
-
-   MFEM_HOST_DEVICE void operator()(int work_idx) const
-   {
-      MFEM_SHARED value_type buffer[max_blocksize()];
-      reducer.SetInitialValue(buffer[MFEM_THREAD_ID(x)]);
-      // serial part
-      for (int idx = 0; idx < items_per_thread; ++idx)
-      {
-         int i = MFEM_THREAD_ID(x) +
-                 (idx + work_idx * items_per_thread) * MFEM_THREAD_SIZE(x);
-         if (i < N)
-         {
-            body(i, buffer[MFEM_THREAD_ID(x)]);
-         }
-         else
-         {
-            break;
-         }
-      }
-      // binary tree reduction
-      for (int i = (MFEM_THREAD_SIZE(x) >> 1); i > 0; i >>= 1)
-      {
-         MFEM_SYNC_THREAD;
-         if (MFEM_THREAD_ID(x) < i)
-         {
-            reducer.Join(buffer[MFEM_THREAD_ID(x)], buffer[MFEM_THREAD_ID(x) + i]);
-         }
-      }
-      if (MFEM_THREAD_ID(x) == 0)
-      {
-         work[work_idx] = buffer[0];
-      }
-   }
-};
-}
-
-/**
- @brief Performs a 1D reduction on the range [0,N).
- @a res initial value and where the result will be written.
- @a body reduction function body.
- @a reducer helper for joining two reduced values.
- @a use_dev true to perform the reduction on the device, if possible.
- @a workspace temporary workspace used for device reductions. May be resized to
- a larger capacity as needed. Preferably should have MemoryType::MANAGED or
- MemoryType::HOST_PINNED. TODO: replace with internal temporary workspace
- vectors once that's added to the memory manager.
- @tparam T value_type to operate on
- */
-template <class T, class B, class R>
-void reduce(int N, T &res, B &&body, const R &reducer, bool use_dev,
-            Array<T> &workspace)
-{
-   if (N == 0)
-   {
-      return;
-   }
-
-#if defined(MFEM_USE_HIP) || defined(MFEM_USE_CUDA)
-   if (use_dev &&
-       mfem::Device::Allows(Backend::CUDA | Backend::HIP | Backend::RAJA_CUDA |
-                            Backend::RAJA_HIP))
-   {
-      using red_type = internal::reduction_kernel<typename std::decay<B>::type,
-            typename std::decay<R>::type>;
-      // max block size is 256, but can be smaller
-      int block_size = std::min<int>(red_type::max_blocksize(),
-                                     1ll << red_type::block_log2(N));
-
-      int num_mp = Device::NumMultiprocessors(Device::GetId());
-#if defined(MFEM_USE_CUDA)
-      // good value of mp_sat found experimentally on Lassen
-      constexpr int mp_sat = 8;
-#elif defined(MFEM_USE_HIP)
-      // good value of mp_sat found experimentally on Tuolumne
-      constexpr int mp_sat = 4;
-#else
-      num_mp = 1;
-      constexpr int mp_sat = 1;
-#endif
-      // determine how many items each thread should sum during the serial
-      // portion
-      int nblocks = std::min(mp_sat * num_mp, (N + block_size - 1) / block_size);
-      int items_per_thread =
-         (N + block_size * nblocks - 1) / (block_size * nblocks);
-
-      red_type red{nullptr, std::forward<B>(body), reducer, N, items_per_thread};
-      // allocate res to fit block_size entries
-      auto mt = workspace.GetMemory().GetMemoryType();
-      if (mt != MemoryType::HOST_PINNED && mt != MemoryType::MANAGED)
-      {
-         mt = MemoryType::HOST_PINNED;
-      }
-      workspace.SetSize(nblocks, mt);
-      auto work = workspace.HostWrite();
-      red.work = work;
-      forall_2D(nblocks, block_size, 1, std::move(red));
-      // wait for results
-      MFEM_DEVICE_SYNC;
-      for (int i = 0; i < nblocks; ++i)
-      {
-         reducer.Join(res, work[i]);
-      }
-      return;
-   }
-#endif
-
-   for (int i = 0; i < N; ++i)
-   {
-      body(i, res);
-   }
-}
 
 } // namespace mfem
 
