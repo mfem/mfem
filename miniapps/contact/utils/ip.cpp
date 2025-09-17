@@ -807,15 +807,7 @@ real_t IPSolver::OptimalityError(const BlockVector &x, const Vector &l,
       BlockVector MxinvgradL(block_offsetsx); MxinvgradL = 0.0;
       MxinvgradL.Set(1.0, gradL);
       MxinvgradL.GetBlock(0) /= Mvlump;
-      BlockVector gradsL(constraint_offsets); gradsL = 0.0;
-      gradsL.Set(1.0, MxinvgradL.GetBlock(1));
-      gradsL.GetBlock(0) /= Mcslump;
-      if (constraint_offsets.Size() == 4)
-      {
-         gradsL.GetBlock(1) /= Mvlump;
-         gradsL.GetBlock(2) /= Mvlump;
-      }
-      MxinvgradL.GetBlock(1).Set(1.0, gradsL);
+      MxinvgradL.GetBlock(1) /= Mlump;
       stationarityError = sqrt(InnerProduct(comm, gradL, MxinvgradL));
       feasibilityError = GlobalLpNorm(infinity(), cx.Normlinf(), comm);
       complementarityError = GlobalLpNorm(infinity(), comp.Normlinf(), comm);
@@ -840,22 +832,10 @@ real_t IPSolver::GetTheta(const BlockVector &x)
    problem->c(x, cx);
    if (useMassWeights)
    {
-      if (constraint_offsets.Size() == 2)
-      {
-         Vector Mcx(dimC);
-         Mcx.Set(1.0, cx);
-         Mcx *= Mcslump;
-         return sqrt(InnerProduct(comm, Mcx, cx));
-      }
-      else
-      {
-         BlockVector Mcx(constraint_offsets);
-         Mcx.Set(1.0, cx);
-         Mcx.GetBlock(0) *= Mcslump;
-         Mcx.GetBlock(1) *= Mvlump;
-         Mcx.GetBlock(2) *= Mvlump;
-         return sqrt(InnerProduct(comm, Mcx, cx));
-      }
+      Vector Mcx(dimC); 
+      Mcx.Set(1.0, cx);
+      Mcx *= Mlump;
+      return sqrt(InnerProduct(comm, Mcx, cx));
    }
    else
    {
@@ -871,20 +851,9 @@ real_t IPSolver::GetPhi(const BlockVector &x, real_t mu,
    real_t logBarrierLoc = 0.0;
    if (useMassWeights)
    {
-      for (int i = 0; i < dimG; i++)
+      for (int i = 0; i < dimM; i++)
       {
-         logBarrierLoc += Mcslump(i) * log(x(dimU+i)-ml(i));
-      }
-      if (dimM != dimG)
-      {
-         for (int i = dimG; i < dimU + dimG; i++)
-         {
-            logBarrierLoc += Mvlump(i - dimG) * log(x(dimU+i)-ml(i));
-         }
-         for (int i = dimG + dimU; i < dimM; i++)
-         {
-            logBarrierLoc += Mvlump(i - dimG - dimU) * log(x(dimU+i)-ml(i));
-         }
+         logBarrierLoc += Mlump(i) * log(x(dimU + i) - ml(i));
       }
    }
    else
@@ -905,20 +874,14 @@ void IPSolver::GetDxphi(const BlockVector &x, real_t mu,
                         BlockVector &y)
 {
    problem->CalcObjectiveGrad(x, y);
-   BlockVector ytemp(constraint_offsets); ytemp = 0.0;
+   Vector ytemp(dimM); ytemp = 0.0;
    for (int i = 0; i < dimM; i++)
    {
       ytemp(i) = 1. / (x(dimU + i) - ml(i));
    }
-
    if (useMassWeights)
    {
-      ytemp.GetBlock(0) *= Mcslump;
-      if (constraint_offsets.Size() == 4)
-      {
-         ytemp.GetBlock(1) *= Mvlump;
-         ytemp.GetBlock(2) *= Mvlump;
-      }
+      ytemp *= Mlump;
    }
    y.GetBlock(1).Add(-mu, ytemp);
 }
@@ -931,17 +894,12 @@ real_t IPSolver::EvalLangrangian(const BlockVector &x, const Vector &l,
    int eval_err = 0;
    real_t fx = problem->CalcObjective(x, eval_err);
    Vector cx(dimC); problem->c(x, cx);
-   BlockVector temp(constraint_offsets); temp = 0.0;
+   Vector temp(dimM); temp = 0.0;
    temp.Set(1.0, x.GetBlock(1));
    temp.Add(-1.0, ml);
    if ( useMassWeights)
    {
-      temp.GetBlock(0) *= Mcslump;
-      if (constraint_offsets.Size() == 4)
-      {
-         temp.GetBlock(1) *= Mvlump;
-         temp.GetBlock(2) *= Mvlump;
-      }
+      temp *= Mlump;
    }
    return (fx + InnerProduct(comm, cx, l) - InnerProduct(comm, temp, zl));
 }
@@ -970,17 +928,11 @@ void IPSolver::EvalLagrangianGradient(const BlockVector &x, const Vector &l,
 
    y.Add(1.0, gradxf);
 
-   //Vector temp(dimM); temp = 0.0;
-   BlockVector temp(constraint_offsets); temp = 0.0;
+   Vector temp(dimM); temp = 0.0;
    temp.Set(1.0, zl);
    if (useMassWeights)
    {
-      temp.GetBlock(0) *= Mcslump;
-      if (constraint_offsets.Size() == 4)
-      {
-         temp.GetBlock(1) *= Mvlump;
-         temp.GetBlock(2) *= Mvlump;
-      }
+      temp *= Mlump;
    }
    (y.GetBlock(1)).Add(-1.0, temp);
 }
