@@ -257,7 +257,7 @@ class VectorBlockDiagonalIntegrator : public BilinearFormIntegrator
       FType f, const FiniteElement &trace_el, const FiniteElement &fe1,
       const FiniteElement &fe2, DenseMatrix &elmat, Args&&... args)
    {
-      AssembleMat<FType, 3, 3, Args...>(f, {&trace_el, &fe1, &fe2}, {&trace_el, &fe1, &fe2},
+      AssembleMat<FType, 3, 3, Args...>(f, {&fe1, &fe2, &trace_el}, {&fe1, &fe2, &trace_el},
                                         elmat, args...);
    }
 
@@ -366,7 +366,7 @@ public:
                               const FiniteElement &el1,
                               const FiniteElement &el2,
                               FaceElementTransformations &Trans,
-                              DenseMatrix &elmat)
+                              DenseMatrix &elmat) override
    {
       using face_fx = void (BilinearFormIntegrator::*)(
                          const FiniteElement &,
