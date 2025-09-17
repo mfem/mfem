@@ -78,6 +78,7 @@ int main(int argc, char *argv[])
    real_t k = 1.;
    real_t td = 0.5;
    bool reduction = false;
+   bool hybridization = false;
    bool visualization = true;
    bool preassembleWeakDiv = true;
    int vis_steps = 50;
@@ -112,6 +113,8 @@ int main(int argc, char *argv[])
                   "Diffusion stabilization factor (1/2=default)");
    args.AddOption(&reduction, "-rd", "--reduction", "-no-rd",
                   "--no-reduction", "Enable reduction.");
+   args.AddOption(&hybridization, "-hb", "--hybridization", "-no-hb",
+                  "--no-hybridization", "Enable hybridization.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -178,42 +181,7 @@ int main(int argc, char *argv[])
 
    cout << "Number of unknowns: " << vfes.GetVSize() << endl;
 
-   // 5. Define the initial conditions, save the corresponding mesh and grid
-   //    functions to files. These can be opened with GLVis using:
-   //    "glvis -m euler-mesh.mesh -g euler-1-init.gf" (for x-momentum).
-
-   // Initialize the state.
-   VectorFunctionCoefficient u0 = EulerInitialCondition(problem,
-                                                        specific_heat_ratio,
-                                                        gas_constant);
-
-   BlockVector x(darcy.GetOffsets());
-   x = 0.;
-   GridFunction sol(&vfes, x.GetBlock(1), 0);
-   sol.ProjectCoefficient(u0);
-   GridFunction den(&fes, sol, 0);
-   GridFunction mom(&dfes, sol, fes.GetNDofs());
-
-   // Output the initial solution.
-   /*{
-      ostringstream mesh_name;
-      mesh_name << "euler-mesh.mesh";
-      ofstream mesh_ofs(mesh_name.str().c_str());
-      mesh_ofs.precision(precision);
-      mesh_ofs << mesh;
-
-      for (int k = 0; k < num_equations; k++)
-      {
-         GridFunction uk(&fes, sol.GetData() + k * fes.GetNDofs());
-         ostringstream sol_name;
-         sol_name << "euler-" << k << "-init.gf";
-         ofstream sol_ofs(sol_name.str().c_str());
-         sol_ofs.precision(precision);
-         sol_ofs << uk;
-      }
-   }*/
-
-   // 6. Set up the nonlinear form with euler flux and numerical flux
+   // 5. Set up the nonlinear form with euler flux and numerical flux
 
    BilinearForm *Mq = darcy.GetFluxMassForm();
    MixedBilinearForm *B = darcy.GetFluxDivForm();
@@ -268,10 +236,26 @@ int main(int argc, char *argv[])
       new HyperbolicFormIntegrator(numericalFlux, 0, -1.));
    Mtnl->AddDomainIntegrator(hyperbolicIntegrator.get());
    Mtnl->AddInteriorFaceIntegrator(hyperbolicIntegrator.get());
+   Mtnl->UseExternalIntegrators();
 
    //set hybridization / reduction
 
-   if (reduction)
+   Array<int> ess_flux_tdofs_list;
+
+   unique_ptr<FiniteElementCollection> trace_coll;
+   unique_ptr<FiniteElementSpace> trace_space;
+   if (hybridization)
+   {
+      trace_coll.reset(new DG_Interface_FECollection(order, dim));
+      trace_space.reset(new FiniteElementSpace(&mesh, trace_coll.get(),
+                                               num_equations));
+      darcy.EnableHybridization(trace_space.get(),
+                                new VectorBlockDiagonalIntegrator(
+                                   num_equations, new NormalTraceJumpIntegrator()),
+                                ess_flux_tdofs_list);
+
+   }
+   else if (reduction)
    {
       if (dg || brt)
       {
@@ -284,7 +268,42 @@ int main(int argc, char *argv[])
       }
    }
 
-   Array<int> ess_flux_tdofs_list;
+   // 6. Define the initial conditions, save the corresponding mesh and grid
+   //    functions to files. These can be opened with GLVis using:
+   //    "glvis -m euler-mesh.mesh -g euler-1-init.gf" (for x-momentum).
+
+   // Initialize the state.
+   VectorFunctionCoefficient u0 = EulerInitialCondition(problem,
+                                                        specific_heat_ratio,
+                                                        gas_constant);
+
+   const Array<int> block_offsets(DarcyOperator::ConstructOffsets(darcy));
+   BlockVector x(block_offsets);
+   x = 0.;
+   GridFunction sol(&vfes, x.GetBlock(1), 0);
+   sol.ProjectCoefficient(u0);
+   GridFunction den(&fes, sol, 0);
+   GridFunction mom(&dfes, sol, fes.GetNDofs());
+
+   // Output the initial solution.
+   /*{
+      ostringstream mesh_name;
+      mesh_name << "euler-mesh.mesh";
+      ofstream mesh_ofs(mesh_name.str().c_str());
+      mesh_ofs.precision(precision);
+      mesh_ofs << mesh;
+
+      for (int k = 0; k < num_equations; k++)
+      {
+         GridFunction uk(&fes, sol.GetData() + k * fes.GetNDofs());
+         ostringstream sol_name;
+         sol_name << "euler-" << k << "-init.gf";
+         ofstream sol_ofs(sol_name.str().c_str());
+         sol_ofs.precision(precision);
+         sol_ofs << uk;
+      }
+   }*/
+
    Array<Coefficient*> coeffs;
    DarcyOperator op(ess_flux_tdofs_list, &darcy, NULL, NULL, NULL, coeffs,
                     DarcyOperator::SolverType::Newton, false, true);
