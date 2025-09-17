@@ -1694,7 +1694,7 @@ void CPDOutputVis::RegisterVisItFields(VisItDataCollection & visit_dc)
 }
 
 void CPDOutputVis::PrepareVisFields(const ParComplexGridFunction & e,
-                                    const ParComplexGridFunction & d)
+                                    const ParComplexGridFunction & /*d*/)
 {
    if (CheckVisFlag(ENERGY_DENSITY))
    {
@@ -1826,35 +1826,25 @@ CPDSolverEB::CPDSolverEB(ParMesh & pmesh, int order,
      solOpts_(sOpts),
      prec_(prec),
      conv_(conv),
-     stixParams_(stixParams),
      cyl_(cyl),
      omega_(stixParams.omega),
      pmesh_(&pmesh),
-     L2FESpace_(std::make_shared<L2_ParFESpace>(pmesh_, order-1,
-                                                pmesh_->Dimension())),
-     L2FESpace2p_(std::make_shared<L2_ParFESpace>(pmesh_,2*order-1,
-                                                  pmesh_->Dimension())),
-     L2VSFESpace_(new L2_ParFESpace(pmesh_,order,pmesh_->Dimension(),
-                                    pmesh_->SpaceDimension())),
-     L2VSFESpace2p_(new L2_ParFESpace(pmesh_,2*order-1,pmesh_->Dimension(),
-                                      pmesh_->SpaceDimension())),
-     L2V3FESpace_(NULL),
+     L2FESpace_(make_shared<L2_ParFESpace>(pmesh_, order-1,
+                                           pmesh_->Dimension())),
+     L2FESpace2p_(make_shared<L2_ParFESpace>(pmesh_,2*order-1,
+                                             pmesh_->Dimension())),
      L2VFESpace_(make_shared<L2_ParFESpace>(pmesh_, order_,
                                             pmesh_->Dimension(), 3)),
      HCurlFESpace_(MakeHCurlParFESpace(pmesh, order)),
      HDivFESpace_(MakeHDivParFESpace(pmesh, order)),
      b1_(NULL),
-     e_(HCurlFESpace_),
-     e_v_(NULL),
-     e_t_(NULL),
-     e_b_(NULL),
+     e_(HCurlFESpace_.get()),
      inputVis_(stixParams, L2FESpace_, L2VFESpace_),
      fieldVis_(stixParams, L2FESpace_, L2VFESpace_, "E", "B"),
      outputVis_(stixParams, L2FESpace2p_, L2VFESpace_, omega_, cyl_),
      fieldAnim_(stixParams, L2FESpace_, L2VFESpace_, "E", "B"),
      db_v_("DivB", L2FESpace_, cyl_, true),
      dd_v_("DivD", L2FESpace_, cyl_, true),
-     b_hat_(NULL),
      epsReCoef_(stixParams, StixCoef::REAL_PART),
      epsImCoef_(stixParams, StixCoef::IMAG_PART),
      epsAbsCoef_(stixParams),
@@ -1864,22 +1854,18 @@ CPDSolverEB::CPDSolverEB(ParMesh & pmesh, int order,
      omegaCoef_(new ConstantCoefficient(omega_)),
      negOmegaCoef_(new ConstantCoefficient(-omega_)),
      omega2Coef_(new ConstantCoefficient(pow(omega_, 2))),
-     negOmega2Coef_(new ConstantCoefficient(-pow(omega_, 2))),
      abcReCoef_(NULL),
      abcImCoef_(NULL),
-     sinkx_(NULL),
-     coskx_(NULL),
-     negsinkx_(NULL),
      posMassCoef_(NULL),
      dbcs_(stixBCs.GetDirichletBCs()),
-     nbcs_(stixBCs.GetNeumannBCs()),
      abcs_(stixBCs.GetSommerfeldBCs()),
      axis_(stixBCs.GetCylindricalAxis()),
      maxwell_(*HCurlFESpace_, omega_, conv,
               epsReCoef_, epsImCoef_, muInvCoef_,
               betaReCoef, betaImCoef),
      current_(*HCurlFESpace_, *HDivFESpace_, omega_, conv,
-              stixBCs.GetCurrentSrcs(), nbcs_, betaReCoef, betaImCoef),
+              stixBCs.GetCurrentSrcs(), stixBCs.GetNeumannBCs(),
+              betaReCoef, betaImCoef),
      faraday_(e_, *HDivFESpace_, omega_, betaReCoef, betaImCoef),
      divB_(faraday_.GetMagneticFlux(), *L2FESpace_, betaReCoef, betaImCoef),
      displacement_(e_, *HDivFESpace_, epsReCoef_, epsImCoef_),
@@ -1897,17 +1883,6 @@ CPDSolverEB::CPDSolverEB(ParMesh & pmesh, int order,
 
    tic_toc.Clear();
    tic_toc.Start();
-
-   if (betaReCoef_ || betaImCoef_)
-   {
-      e_v_ = new ParComplexGridFunction(L2VSFESpace_);
-      e_t_ = new ParGridFunction(L2VSFESpace_);
-   }
-   else
-   {
-      e_v_ = new ParComplexGridFunction(HCurlFESpace_);
-      e_t_ = new ParGridFunction(HCurlFESpace_);
-   }
 
    blockTrueOffsets_.SetSize(3);
    blockTrueOffsets_[0] = 0;
@@ -2042,7 +2017,7 @@ CPDSolverEB::CPDSolverEB(ParMesh & pmesh, int order,
                                      abc_bdr_marker_);
    }
 
-   b1_ = new ParBilinearForm(HCurlFESpace_);
+   b1_ = new ParBilinearForm(HCurlFESpace_.get());
    b1_->AddDomainIntegrator(new CurlCurlIntegrator(muInvCoef_));
    b1_->AddDomainIntegrator(new VectorFEMassIntegrator(*posMassCoef_));
 
@@ -2059,39 +2034,14 @@ CPDSolverEB::CPDSolverEB(ParMesh & pmesh, int order,
 
 CPDSolverEB::~CPDSolverEB()
 {
-   for (int i=0; i<vCoefs_.Size(); i++)
-   {
-      delete vCoefs_[i];
-   }
-
-   delete negsinkx_;
-   delete coskx_;
-   delete sinkx_;
    delete posMassCoef_;
    delete abcReCoef_;
    delete abcImCoef_;
    delete omegaCoef_;
    delete negOmegaCoef_;
    delete omega2Coef_;
-   delete negOmega2Coef_;
-   delete e_b_;
-   delete b_hat_;
-   delete e_v_;
-   delete e_t_;
 
    delete b1_;
-
-   delete L2VSFESpace_;
-   delete L2VSFESpace2p_;
-   delete L2V3FESpace_;
-   delete HCurlFESpace_;
-   delete HDivFESpace_;
-
-   map<string,socketstream*>::iterator mit;
-   for (mit=socks_.begin(); mit!=socks_.end(); mit++)
-   {
-      delete mit->second;
-   }
 }
 
 HYPRE_Int
@@ -2152,9 +2102,6 @@ CPDSolverEB::Update()
    // so we pass 'false' to skip creation of any transformation matrices.
    if (L2FESpace_) { L2FESpace_->Update(); }
    if (L2FESpace2p_) { L2FESpace2p_->Update(); }
-   if (L2VSFESpace_) { L2VSFESpace_->Update(); }
-   if (L2VSFESpace2p_) { L2VSFESpace2p_->Update(); }
-   if (L2V3FESpace_) { L2V3FESpace_->Update(); }
    HCurlFESpace_->Update();
    HDivFESpace_->Update();
 
@@ -2212,15 +2159,12 @@ CPDSolverEB::Update()
       delete tv;
    }
 
-   if (e_t_) { e_t_->Update(); }
-   if (e_b_) { e_b_->Update(); }
    inputVis_.Update();
    fieldVis_.Update();
    outputVis_.Update();
    fieldAnim_.Update();
    db_v_.Update();
    dd_v_.Update();
-   if (b_hat_) { b_hat_->Update(); }
 
    // Inform the bilinear forms that the space has changed.
    b1_->Update();
@@ -2353,7 +2297,7 @@ CPDSolverEB::Solve()
                cout << "AMS Preconditioner Requested" << endl;
             }
             pcr = new HypreAMS(dynamic_cast<HypreParMatrix&>(*PCOp.Ptr()),
-                               HCurlFESpace_);
+                               HCurlFESpace_.get());
             break;
          default:
             MFEM_ABORT("Requested preconditioner is not available.");
@@ -2588,12 +2532,6 @@ void
 CPDSolverEB::RegisterVisItFields(VisItDataCollection & visit_dc)
 {
    visit_dc_ = &visit_dc;
-
-   if (L2VSFESpace_ == NULL)
-   {
-      L2VSFESpace_ = new L2_ParFESpace(pmesh_,order_,pmesh_->Dimension(),
-                                       pmesh_->SpaceDimension());
-   }
 
    inputVis_.RegisterVisItFields(visit_dc);
    fieldVis_.RegisterVisItFields(visit_dc);

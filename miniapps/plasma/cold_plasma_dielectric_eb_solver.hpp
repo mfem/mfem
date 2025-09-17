@@ -1429,12 +1429,6 @@ public:
 
 private:
 
-   void computeH(const ParComplexGridFunction & b,
-                 ParComplexGridFunction & h);
-
-   void computeD(const ParComplexGridFunction & e,
-                 ParComplexGridFunction & d);
-
    void prepareVisFields();
 
    int myid_;
@@ -1448,8 +1442,6 @@ private:
 
    ComplexOperator::Convention conv_;
 
-   StixParams &stixParams_;
-
    bool cyl_;
 
    real_t omega_;
@@ -1458,36 +1450,27 @@ private:
 
    std::shared_ptr<L2_ParFESpace> L2FESpace_;
    std::shared_ptr<L2_ParFESpace> L2FESpace2p_;
-   L2_ParFESpace * L2VSFESpace_;
-   L2_ParFESpace * L2VSFESpace2p_;
-   L2_ParFESpace * L2V3FESpace_;
    std::shared_ptr<L2_ParFESpace> L2VFESpace_;
-   ParFiniteElementSpace * HCurlFESpace_;
-   ParFiniteElementSpace * HDivFESpace_;
+   std::shared_ptr<ParFiniteElementSpace> HCurlFESpace_;
+   std::shared_ptr<ParFiniteElementSpace> HDivFESpace_;
 
    Array<HYPRE_Int> blockTrueOffsets_;
 
    ParBilinearForm * b1_;
 
    ParComplexGridFunction   e_;   // Complex electric field (HCurl)
-   ParComplexGridFunction * e_v_; // Complex electric field (HCurl)
-   ParGridFunction        * e_t_; // Time dependent Electric field
-   ParComplexGridFunction * e_b_; // Complex parallel electric field (L2)
 
    CPDInputVis   inputVis_;
    CPDFieldVis   fieldVis_;
    CPDOutputVis outputVis_;
    CPDFieldAnim fieldAnim_;
 
-   ComplexScalarFieldVisObject db_v_; // Complex divergence of magnetic flux (L2)
-   ComplexScalarFieldVisObject dd_v_; // Complex divergence of electric flux (L2)
+   ComplexScalarFieldVisObject db_v_; // Divergence of magnetic flux (L2)
+   ComplexScalarFieldVisObject dd_v_; // Divergence of electric flux (L2)
 
-   ParGridFunction        * b_hat_; // Unit vector along B (HDiv)
-   GridFunction           * b_hat_v_; // Unit vector along B (L2^d)
-
-   DielectricTensor epsReCoef_;     // Dielectric Material Coefficient
-   DielectricTensor epsImCoef_;     // Dielectric Material Coefficient
-   SPDDielectricTensor epsAbsCoef_;
+   DielectricTensor    epsReCoef_;    // Dielectric Material Coefficient
+   DielectricTensor    epsImCoef_;    // Dielectric Material Coefficient
+   SPDDielectricTensor epsAbsCoef_;   // Used in preconditioner
    ConstantCoefficient muInvCoef_;    // Dia/Paramagnetic Material Coefficient
    PWCoefficient       etaInvReCoef_; // Admittance Coefficient
    PWCoefficient       etaInvImCoef_; // Admittance Coefficient
@@ -1497,14 +1480,8 @@ private:
    Coefficient * omegaCoef_;     // omega expressed as a Coefficient
    Coefficient * negOmegaCoef_;  // -omega expressed as a Coefficient
    Coefficient * omega2Coef_;    // omega^2 expressed as a Coefficient
-   Coefficient * negOmega2Coef_; // -omega^2 expressed as a Coefficient
    Coefficient * abcReCoef_;     // -omega Re(eta^{-1})
    Coefficient * abcImCoef_;     // -omega Im(eta^{-1})
-   Coefficient * sbcReCoef_;     //  omega Im(eta^{-1})
-   Coefficient * sbcImCoef_;     // -omega Re(eta^{-1})
-   Coefficient * sinkx_;         // sin(ky * y + kz * z)
-   Coefficient * coskx_;         // cos(ky * y + kz * z)
-   Coefficient * negsinkx_;      // -sin(ky * y + kz * z)
 
    MatrixCoefficient * posMassCoef_; // omega^2 Abs(epsilon)
 
@@ -1514,10 +1491,6 @@ private:
    const Array<ComplexVectorCoefficientByAttr*> & dbcs_;
    Array<int> ess_bdr_;
    Array<int> ess_bdr_tdofs_;
-   Array<int> non_k_bdr_;
-
-   const Array<ComplexVectorCoefficientByAttr*> & nbcs_; // Surface current BCs
-   Array<ComplexVectorCoefficientByAttr*> nkbcs_; // Neumann BCs (-i*omega*K)
 
    const Array<ComplexCoefficientByAttr*> & abcs_; // Sommerfeld (absorbing) BCs
 
@@ -1531,11 +1504,7 @@ private:
    Displacement    displacement_;
    GausssLaw       divD_;
 
-   Array<VectorCoefficient*> vCoefs_;
-
    VisItDataCollection * visit_dc_;
-
-   std::map<std::string,socketstream*> socks_;
 };
 
 } // namespace plasma
