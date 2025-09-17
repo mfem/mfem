@@ -1314,6 +1314,18 @@ type TMOP_Metric_055::EvalW_AD_impl(const std::vector<type> &T,
    return mu55_ad(T, W);
 }
 
+AD1Type TMOP_Metric_055::EvalW_AD1(const std::vector<AD1Type> &T,
+                                   const std::vector<AD1Type> &W) const
+{
+   return EvalW_AD_impl<AD1Type>(T,W);
+}
+
+AD2Type TMOP_Metric_055::EvalW_AD2(const std::vector<AD2Type> &T,
+                                   const std::vector<AD2Type> &W) const
+{
+   return EvalW_AD_impl<AD2Type>(T,W);
+}
+
 real_t TMOP_Metric_056::EvalWMatrixForm(const DenseMatrix &Jpt) const
 {
    // mu_56 = 0.5 (det(J) + 1 / det(J)) - 1.
