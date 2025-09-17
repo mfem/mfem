@@ -316,8 +316,10 @@ DarcyOperator::DarcyOperator(const Array<int> &ess_flux_tdofs_list_,
       {
          //hybridization must be reconstructed, since the non-linear
          //potential mass must be passed to it
+         const int c_vdim = trace_space->GetVDim();
          darcy->EnableHybridization(trace_space,
-                                    new NormalTraceJumpIntegrator(),
+                                    new VectorBlockDiagonalIntegrator(
+                                       c_vdim, new NormalTraceJumpIntegrator()),
                                     ess_flux_tdofs_list);
       }
 
@@ -353,8 +355,10 @@ DarcyOperator::DarcyOperator(const Array<int> &ess_flux_tdofs_list_,
       {
          //hybridization must be reconstructed, since the non-linear
          //potential mass must be passed to it
+         const int c_vdim = trace_space->GetVDim();
          darcy->EnableHybridization(trace_space,
-                                    new NormalTraceJumpIntegrator(),
+                                    new VectorBlockDiagonalIntegrator(
+                                       c_vdim, new NormalTraceJumpIntegrator()),
                                     ess_flux_tdofs_list);
       }
 
