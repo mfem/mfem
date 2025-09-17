@@ -224,7 +224,7 @@ void DarcyHybridization::Init(const Array<int> &ess_flux_tdof_list)
    for (int i = 0; i < NE; i++)
    {
       int f_size = Af_f_offsets[i+1] - Af_f_offsets[i];
-      int d_size = fes_p.GetFE(i)->GetDof();
+      int d_size = fes_p.GetFE(i)->GetDof() * fes_p.GetVDim();
       Bf_offsets[i+1] = Bf_offsets[i] + f_size*d_size;
       Df_offsets[i+1] = Df_offsets[i] + d_size*d_size;
       Df_f_offsets[i+1] = Df_f_offsets[i] + d_size;
@@ -347,14 +347,14 @@ void DarcyHybridization::ComputeAndAssemblePotFaceMatrix(
    bool save2 = false;
 
    tr_fe = c_fes.GetFaceElement(face);
-   c_fes.GetFaceDofs(face, c_dofs);
+   c_fes.GetFaceVDofs(face, c_dofs);
    const int c_dof = c_dofs.Size();
 
    int el1, el2;
    mesh->GetFaceElements(face, &el1, &el2);
    fes_p.GetElementVDofs(el1, vdofs1);
    fe1 = fes_p.GetFE(el1);
-   ndof1 = fe1->GetDof();
+   ndof1 = fe1->GetDof() * fes_p.GetVDim();
    fe2 = NULL;
    FaceElementTransformations *ftr;
 
@@ -391,7 +391,7 @@ void DarcyHybridization::ComputeAndAssemblePotFaceMatrix(
 
    if (fe2)
    {
-      ndof2 = fe2->GetDof();
+      ndof2 = fe2->GetDof() * fes_p.GetVDim();
    }
    else
    {
@@ -465,13 +465,13 @@ void DarcyHybridization::ComputeAndAssemblePotBdrFaceMatrix(
 
    const int face = mesh->GetBdrElementFaceIndex(bface);
    tr_fe = c_fes.GetFaceElement(face);
-   c_fes.GetFaceDofs(face, c_dofs);
+   c_fes.GetFaceVDofs(face, c_dofs);
    const int c_dof = c_dofs.Size();
 
    FaceElementTransformations *ftr = mesh->GetFaceElementTransformations(face);
    fes_p.GetElementVDofs(ftr->Elem1No, vdofs);
    fe = fes_p.GetFE(ftr->Elem1No);
-   const int ndof = fe->GetDof();
+   const int ndof = fe->GetDof() * fes_p.GetVDim();
 
    MFEM_ASSERT(boundary_constraint_pot_integs.size() > 0,
                "No boundary constraint integrators");
@@ -1340,7 +1340,7 @@ void DarcyHybridization::MultNL(MultNlMode mode, const Vector &bu,
          GetFDofs(el, u_vdofs);
          bu.GetSubVector(u_vdofs, bu_l);
 
-         fes_p.GetElementDofs(el, p_dofs);
+         fes_p.GetElementVDofs(el, p_dofs);
          bp.GetSubVector(p_dofs, bp_l);
          if (bsym)
          {
@@ -1826,7 +1826,7 @@ void DarcyHybridization::EliminateVDofsInRHS(const Array<int> &vdofs_flux,
          bp_e.Neg();
       }
 
-      fes_p.GetElementDofs(el, p_dofs);
+      fes_p.GetElementVDofs(el, p_dofs);
       bp.AddElementVector(p_dofs, bp_e);
    }
 
@@ -1917,7 +1917,7 @@ void DarcyHybridization::ParallelEliminateTDofsInRHS(
          bp_e.Neg();
       }
 
-      fes_p.GetElementDofs(el, p_dofs);
+      fes_p.GetElementVDofs(el, p_dofs);
       bp.AddElementVector(p_dofs, bp_e);
    }
 
@@ -2491,7 +2491,7 @@ void DarcyHybridization::ReduceRHS(const BlockVector &b_t, Vector &b_tr) const
       GetFDofs(el, u_vdofs);
       bu.GetSubVector(u_vdofs, bu_l);
 
-      fes_p.GetElementDofs(el, p_dofs);
+      fes_p.GetElementVDofs(el, p_dofs);
       bp.GetSubVector(p_dofs, bp_l);
       if (bsym)
       {
@@ -2668,7 +2668,7 @@ void DarcyHybridization::ComputeSolution(const BlockVector &b_t,
       GetFDofs(el, u_vdofs);
       bu.GetSubVector(u_vdofs, bu_l);
 
-      fes_p.GetElementDofs(el, p_dofs);
+      fes_p.GetElementVDofs(el, p_dofs);
       bp.GetSubVector(p_dofs, bp_l);
       if (bsym)
       {
@@ -2860,7 +2860,7 @@ void DarcyHybridization::ReconstructTotalFlux(
       if ((c_bfi_p || c_nlfi_p) && ftr->Elem2No >= 0)
       {
          // first side
-         fes_p.GetElementDofs(ftr->Elem1No, dofs1);
+         fes_p.GetElementVDofs(ftr->Elem1No, dofs1);
          p.GetSubVector(dofs1, p1);
          c_fes.GetFaceVDofs(f, vdofs_xf);
          x.GetSubVector(vdofs_xf, xf);
@@ -2894,7 +2894,7 @@ void DarcyHybridization::ReconstructTotalFlux(
          else
 #endif
          {
-            fes_p.GetElementDofs(ftr->Elem2No, dofs2);
+            fes_p.GetElementVDofs(ftr->Elem2No, dofs2);
             p.GetSubVector(dofs2, p2);
             fe2_p = fes_p.GetFE(ftr->Elem2No);
          }
@@ -2921,7 +2921,7 @@ void DarcyHybridization::ReconstructTotalFlux(
          const FiniteElement *fe_p = fes_p.GetFE(ftr->Elem1No);
          const FiniteElement *face_fe = c_fes.GetFaceElement(f);
 
-         fes_p.GetElementDofs(ftr->Elem1No, dofs1);
+         fes_p.GetElementVDofs(ftr->Elem1No, dofs1);
          p.GetSubVector(dofs1, p1);
          c_fes.GetFaceVDofs(f, vdofs_xf);
          x.GetSubVector(vdofs_xf, xf);
@@ -2993,7 +2993,7 @@ void DarcyHybridization::ReconstructTotalFlux(
       fes.GetElementVDofs(z, vdofs);
       u.GetSubVector(vdofs, u_z);
 
-      fes_p.GetElementDofs(z, dofs);
+      fes_p.GetElementVDofs(z, dofs);
       p.GetSubVector(dofs, p_z);
 
       fes_ut.GetElementVDofs(z, vdofs_ut);
