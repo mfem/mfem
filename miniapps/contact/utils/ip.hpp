@@ -84,7 +84,6 @@ public:
    void Mult(const Vector&, Vector &);
    void SetTol(real_t);
    void SetMaxIter(int);
-   void SetBarrierParameter(real_t);
    void SetUsingMassWeights(bool);
    void SetLinearSolver(Solver * solver_) { solver = solver_; };
    void SetPrintLevel(int print_level_) { print_level = print_level_; };

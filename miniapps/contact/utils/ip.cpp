@@ -10,8 +10,15 @@ using namespace mfem;
 /* This solver is intended to solve problems of the form
  *
  * \min_(u, m) f(u, m)
- * s.t. c(u, m) = 0
- *           m >= ml
+ *        s.t. c(u, m) = 0
+ *                  m >= ml
+ *
+ * In the context of frictionless quasi-static
+ * contact mechanics for the displacement variable d
+ * and slack variable s we have
+ * \min_(d, s) E(d, s) 
+ *        s.t. g(u) - s = 0
+ *                   s >= 0
  */
 IPSolver::IPSolver(OptContactProblem * problem_)
    : problem(problem_)
@@ -571,12 +578,14 @@ void IPSolver::IPNewtonSolve(BlockVector &x, Vector &l,
    }
 }
 
-// here Xhat, X will be BlockVectors w.r.t. the 4 partitioning X = (u, m, l, zl)
+/* line-search from X0 along direction Xhat for the log-barrier 
+ * subproblem with barrier parameter \mu
+ */
 void IPSolver::LineSearch(BlockVector& X0, BlockVector& Xhat,
                           real_t mu)
 {
-   real_t tau  = max(tauMin, 1.0 - mu);
    int eval_err = 0;
+   real_t tau  = max(tauMin, 1.0 - mu);
    Vector u0   = X0.GetBlock(0);
    Vector m0   = X0.GetBlock(1);
    Vector l0   = X0.GetBlock(2);
@@ -601,13 +610,6 @@ void IPSolver::LineSearch(BlockVector& X0, BlockVector& Xhat,
    BlockVector Dxphi0(block_offsetsx); Dxphi0 = 0.0;
    int maxBacktrack = 20;
    alpha = alphaMax;
-
-   Vector ck0(dimC); ck0 = 0.0;
-   Vector zhatsoc(dimM); zhatsoc = 0.0;
-   BlockVector Xhatumlsoc(block_offsetsuml); Xhatumlsoc = 0.0;
-   BlockVector xhatsoc(block_offsetsx); xhatsoc = 0.0;
-   Vector uhatsoc(dimU); uhatsoc = 0.0;
-   Vector mhatsoc(dimM); mhatsoc = 0.0;
 
    GetDxphi(x0, mu, Dxphi0);
 
@@ -635,11 +637,10 @@ void IPSolver::LineSearch(BlockVector& X0, BlockVector& Xhat,
       {
          cout << "\n--------- alpha = " << alpha << " ---------\n";
       }
-      // ----- A-5.2. Compute trial point: xtrial = x0 + alpha_i xhat
+      // ----- Compute trial point: xtrial = x0 + alpha * xhat
       xtrial.Set(1.0, x0);
       xtrial.Add(alpha, xhat);
 
-      // ------ A-5.3. if not in filter region go to A.5.4 otherwise go to A-5.5.
       thxtrial = GetTheta(xtrial);
       phxtrial = GetPhi(xtrial, mu, eval_err);
       if (eval_err == 1)
@@ -651,6 +652,7 @@ void IPSolver::LineSearch(BlockVector& X0, BlockVector& Xhat,
          alpha *= 0.5;
          continue;
       }
+      
       FilterCheck(thxtrial, phxtrial);
       if (!inFilterRegion)
       {
@@ -676,7 +678,6 @@ void IPSolver::LineSearch(BlockVector& X0, BlockVector& Xhat,
             cout << "phi(xtrial) = "   << phxtrial << ", phi(x0) - gPhi *theta(x0) = " <<
                  phx0 - gPhi * thx0   << endl;
          }
-         // Case I
          if (thx0 <= thetaMin && switchCondition)
          {
             sufficientDecrease = (phxtrial <= phx0 + eta * alpha * Dxphi0_xhat) ? true :
@@ -719,13 +720,13 @@ void IPSolver::LineSearch(BlockVector& X0, BlockVector& Xhat,
 
 void IPSolver::ProjectZ(const Vector &x, Vector &z, real_t mu)
 {
-   real_t zi;
-   real_t mudivmml;
+   real_t zdual_i;
+   real_t zprimal_i;
    for (int i = 0; i < dimM; i++)
    {
-      zi = z(i);
-      mudivmml = mu / (x(i + dimU) - ml(i));
-      z(i) = max(min(zi, kSig * mudivmml), mudivmml / kSig);
+      zdual_i = z(i);
+      zprimal_i = mu / (x(i + dimU) - ml(i));
+      z(i) = max(min(zdual_i, kSig * zprimal_i), zprimal_i / kSig);
    }
 }
 
@@ -790,7 +791,7 @@ real_t IPSolver::OptimalityError(const BlockVector &x, const Vector &l,
                                  const Vector &zl, real_t mu)
 {
    /* stationarity, feasibility, and complementarity errors */
-   real_t E1, E2, E3;
+   real_t stationarityError, feasibilityError, complementarityError;
    real_t optimalityError;
 
    /* gradient of Lagrangian */
@@ -812,9 +813,9 @@ real_t IPSolver::OptimalityError(const BlockVector &x, const Vector &l,
 
    if (!useMassWeights)
    {
-      E1 = GlobalLpNorm(infinity(), gradL.Normlinf(), comm);
-      E2 = GlobalLpNorm(infinity(), cx.Normlinf(), comm);
-      E3 = GlobalLpNorm(infinity(), comp.Normlinf(), comm);
+      stationarityError = GlobalLpNorm(infinity(), gradL.Normlinf(), comm);
+      feasibilityError = GlobalLpNorm(infinity(), cx.Normlinf(), comm);
+      complementarityError = GlobalLpNorm(infinity(), comp.Normlinf(), comm);
    }
    else
    {
@@ -830,19 +831,19 @@ real_t IPSolver::OptimalityError(const BlockVector &x, const Vector &l,
          gradsL.GetBlock(2) /= Mvlump;
       }
       MxinvgradL.GetBlock(1).Set(1.0, gradsL);
-      E1 = sqrt(InnerProduct(comm, gradL, MxinvgradL));
-      E2 = GlobalLpNorm(infinity(), cx.Normlinf(), comm);
-      E3 = GlobalLpNorm(infinity(), comp.Normlinf(), comm);
+      stationarityError = sqrt(InnerProduct(comm, gradL, MxinvgradL));
+      feasibilityError = GlobalLpNorm(infinity(), cx.Normlinf(), comm);
+      complementarityError = GlobalLpNorm(infinity(), comp.Normlinf(), comm);
    }
 
-   optimalityError = max(max(E1, E2), E3);
+   optimalityError = max(max(stationarityError, feasibilityError), complementarityError);
 
    if (myid == 0 && print_level > 0)
    {
       cout << "evaluating optimality error for mu = " << mu << endl;
-      cout << "stationarity measure = " << E1 << endl;
-      cout << "feasibility measure  = "    << E2      << endl;
-      cout << "complimentarity measure = " << E3 << endl;
+      cout << "stationarity error = " << stationarityError << endl;
+      cout << "feasibility error  = "    << feasibilityError << endl;
+      cout << "complimentarity error = " << complementarityError << endl;
       cout << "optimality error = " << optimalityError << endl;
    }
    return optimalityError;
@@ -960,6 +961,9 @@ real_t IPSolver::EvalLangrangian(const BlockVector &x, const Vector &l,
    return (fx + InnerProduct(comm, cx, l) - InnerProduct(comm, temp, zl));
 }
 
+// Gradient of the Lagrangian
+// \nabla_x L = [ \nabla_u f + (\partial c / \partial u)^T l]
+//              [ \nabla_m f + (\partial c / \partial m)^T l - zl]
 void IPSolver::EvalLagrangianGradient(const BlockVector &x, const Vector &l,
                                       const Vector &zl, BlockVector &y)
 {
@@ -1009,11 +1013,6 @@ void IPSolver::SetTol(real_t Tol)
 void IPSolver::SetMaxIter(int max_it)
 {
    max_iter = max_it;
-}
-
-void IPSolver::SetBarrierParameter(real_t mu_0)
-{
-   mu_k = mu_0;
 }
 
 void IPSolver::SetUsingMassWeights(bool useMassWeights_)
