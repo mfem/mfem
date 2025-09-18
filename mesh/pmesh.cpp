@@ -4601,6 +4601,14 @@ void ParMesh::NURBSUniformRefinement(const Array<int> &rf, real_t tol)
    }
 }
 
+void ParMesh::RefineNURBSWithKVFactors(int rf, const std::string &kvf)
+{
+   if (MyRank == 0)
+   {
+      mfem::out << "\nRefineNURBSWithKVFactors : Not supported yet!\n";
+   }
+}
+
 void ParMesh::PrintXG(std::ostream &os) const
 {
    MFEM_ASSERT(Dim == spaceDim, "2D manifolds not supported");
