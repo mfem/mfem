@@ -7,11 +7,11 @@
 //              mpirun -np 4 ex41p -m ../data/periodic-hexagon.mesh -p 0 -dt 0.005 -tf 10
 //              mpirun -np 4 ex41p -m ../data/periodic-square.mesh -p 1 -dt 0.005 -tf 9
 //              mpirun -np 4 ex41p -m ../data/periodic-hexagon.mesh -p 1  -dt 0.005 -tf 9
-//              mpirun -np 4 ex41p -m ../data/star-q3.mesh -p 1 -rp 1 -dt 0.001 -tf 9  
-//              mpirun -np 4 ex41p -m ../data/disc-nurbs.mesh -p 1 -rp 1 -dt 0.005 -tf 9 
-//              mpirun -np 4 ex41p -m ../data/disc-nurbs.mesh -p 2 -rp 1 -dt 0.005 -tf 9 
-//              mpirun -np 4 ex41p -m ../data/periodic-square.mesh -rp 2 -dt 0.0025 -tf 9 -vs 20 
-//              mpirun -np 4 ex41p -m ../data/periodic-cube.mesh -p 0 -rs 2 -o 2 -dt 0.01 -tf 8 
+//              mpirun -np 4 ex41p -m ../data/star-q3.mesh -p 1 -rp 1 -dt 0.001 -tf 9
+//              mpirun -np 4 ex41p -m ../data/disc-nurbs.mesh -p 1 -rp 1 -dt 0.005 -tf 9
+//              mpirun -np 4 ex41p -m ../data/disc-nurbs.mesh -p 2 -rp 1 -dt 0.005 -tf 9
+//              mpirun -np 4 ex41p -m ../data/periodic-square.mesh -rp 2 -dt 0.0025 -tf 9 -vs 20
+//              mpirun -np 4 ex41p -m ../data/periodic-cube.mesh -p 0 -rs 2 -o 2 -dt 0.01 -tf 8
 //
 // Device sample runs:
 //
@@ -259,9 +259,9 @@ int main(int argc, char *argv[])
    bool fa = false;
    const char *device_config = "cpu";
    int ode_solver_type = 58; //55 - Forward Backward Euler
-                             //56 - IMEXRK2(2,2,2)
-                             //57 - IMEXRK2(2,3,2)
-                             //58 - IMEXRK3(3,4,3)
+   //56 - IMEXRK2(2,2,2)
+   //57 - IMEXRK2(2,3,2)
+   //58 - IMEXRK3(3,4,3)
    real_t t_final = 10.0;
    real_t dt = 0.001;
    bool paraview = false;
@@ -384,14 +384,17 @@ int main(int argc, char *argv[])
    //    DG discretization. The DGTraceIntegrator involves integrals over mesh
    //    interior faces.
    std::unique_ptr<VectorFunctionCoefficient> velocity;
-   if(0==problem){
-       velocity.reset(new VectorFunctionCoefficient(dim, velocity_function<0>));
-   }else
-   if(1==problem){
-       velocity.reset(new VectorFunctionCoefficient(dim, velocity_function<1>));
-   }else
-   if(2==problem){
-       velocity.reset(new VectorFunctionCoefficient(dim, velocity_function<2>));
+   if (0==problem)
+   {
+      velocity.reset(new VectorFunctionCoefficient(dim, velocity_function<0>));
+   }
+   else if (1==problem)
+   {
+      velocity.reset(new VectorFunctionCoefficient(dim, velocity_function<1>));
+   }
+   else if (2==problem)
+   {
+      velocity.reset(new VectorFunctionCoefficient(dim, velocity_function<2>));
    }
    ConstantCoefficient diff_coeff(diffusion_term);
    ConstantCoefficient dt_diff_coeff(dt*diffusion_term);

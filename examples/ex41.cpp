@@ -227,9 +227,9 @@ int main(int argc, char *argv[])
    int order = 3;
    const char *device_config = "cpu";
    int ode_solver_type = 58; //55 - Forward Backward Euler
-                             //56 - IMEXRK2(2,2,2)
-                             //57 - IMEXRK2(2,3,2)
-                             //58 - IMEXRK3(3,4,3)
+   //56 - IMEXRK2(2,2,2)
+   //57 - IMEXRK2(2,3,2)
+   //58 - IMEXRK3(3,4,3)
    real_t t_final = 10.0;
    real_t dt = 0.001;
    bool paraview = false;
@@ -310,14 +310,17 @@ int main(int argc, char *argv[])
    //    DG discretization. The DGTraceIntegrator involves integrals over mesh
    //    interior faces.
    std::unique_ptr<VectorFunctionCoefficient> velocity;
-   if(0==problem){
-       velocity.reset(new VectorFunctionCoefficient(dim, velocity_function<0>));
-   }else
-   if(1==problem){
-       velocity.reset(new VectorFunctionCoefficient(dim, velocity_function<1>));
-   }else
-   if(2==problem){
-       velocity.reset(new VectorFunctionCoefficient(dim, velocity_function<2>));
+   if (0==problem)
+   {
+      velocity.reset(new VectorFunctionCoefficient(dim, velocity_function<0>));
+   }
+   else if (1==problem)
+   {
+      velocity.reset(new VectorFunctionCoefficient(dim, velocity_function<1>));
+   }
+   else if (2==problem)
+   {
+      velocity.reset(new VectorFunctionCoefficient(dim, velocity_function<2>));
    }
 
    ConstantCoefficient diff_coeff(diffusion_term);
@@ -354,14 +357,17 @@ int main(int argc, char *argv[])
 
    // 7. Define the initial conditions.
    std::unique_ptr<FunctionCoefficient> u0;
-   if(0==problem){
-       u0.reset(new FunctionCoefficient(u0_function<0>));
-   }else
-   if(1==problem){
-       u0.reset(new FunctionCoefficient(u0_function<1>));
-   }else
-   if(2==problem){
-       u0.reset(new FunctionCoefficient(u0_function<2>));
+   if (0==problem)
+   {
+      u0.reset(new FunctionCoefficient(u0_function<0>));
+   }
+   else if (1==problem)
+   {
+      u0.reset(new FunctionCoefficient(u0_function<1>));
+   }
+   else if (2==problem)
+   {
+      u0.reset(new FunctionCoefficient(u0_function<2>));
    }
 
    GridFunction u(&fes);
