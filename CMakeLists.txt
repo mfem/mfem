@@ -278,6 +278,11 @@ if (MFEM_USE_OPENMP OR MFEM_USE_LEGACY_OPENMP)
   endif()
 endif()
 
+# Umpire (must be included before hypre, so hypre can use it if needed)
+if (MFEM_USE_UMPIRE)
+   find_package(UMPIRE REQUIRED)
+endif()
+
 # MPI -> hypre; PETSc (optional)
 if (MFEM_USE_MPI)
   find_package(MPI REQUIRED)
@@ -496,11 +501,6 @@ endif()
 # RAJA
 if (MFEM_USE_RAJA)
    find_package(RAJA REQUIRED)
-endif()
-
-# UMPIRE
-if (MFEM_USE_UMPIRE)
-   find_package(UMPIRE REQUIRED)
 endif()
 
 # GOOGLE-BENCHMARK
