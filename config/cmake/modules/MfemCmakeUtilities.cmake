@@ -718,7 +718,7 @@ function(mfem_get_target_options Target CompileOptsVar LinkOptsVar)
   get_target_property(IsImported ${tgt} IMPORTED)
   # message(STATUS "${tgt}[IMPORTED]: ${IsImported}")
   # Generally, the possible target types are: STATIC_LIBRARY, MODULE_LIBRARY,
-  # SHARED_LIBRARY, INTERFACE_LIBRARY, EXECUTABLE.
+  # SHARED_LIBRARY, INTERFACE_LIBRARY, UNKNOWN_LIBRARY, EXECUTABLE.
   get_target_property(type ${tgt} TYPE)
   # message(STATUS "${tgt}[TYPE]: ${type}")
   unset(ImportConfig)
@@ -766,7 +766,7 @@ function(mfem_get_target_options Target CompileOptsVar LinkOptsVar)
     else()
       message(STATUS " *** Warning: [${tgt}] LOCATION not defined!")
     endif()
-  elseif ("${type}" STREQUAL "SHARED_LIBRARY")
+  elseif ("${type}" STREQUAL "SHARED_LIBRARY" OR "${type}" STREQUAL "UNKNOWN_LIBRARY")
     get_target_property(Location ${tgt} LOCATION)
     if (Location)
       get_filename_component(Dir ${Location} DIRECTORY)
