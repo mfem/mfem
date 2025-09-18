@@ -7,11 +7,11 @@
 //              mpirun -np 4 ex41p -m ../data/periodic-hexagon.mesh -p 0 -dt 0.005 -tf 10
 //              mpirun -np 4 ex41p -m ../data/periodic-square.mesh -p 1 -dt 0.005 -tf 9
 //              mpirun -np 4 ex41p -m ../data/periodic-hexagon.mesh -p 1  -dt 0.005 -tf 9
-//              mpirun -np 4 ex41p -m ../data/star-q3.mesh -p 1 -rp 1 -dt 0.001 -tf 9
-//              mpirun -np 4 ex41p -m ../data/disc-nurbs.mesh -p 1 -rp 1 -dt 0.005 -tf 9
-//              mpirun -np 4 ex41p -m ../data/disc-nurbs.mesh -p 2 -rp 1 -dt 0.005 -tf 9
-//              mpirun -np 4 ex41p -m ../data/periodic-square.mesh -rp 2 -dt 0.0025 -tf 9 -vs 20
-//              mpirun -np 4 ex41p -m ../data/periodic-cube.mesh -p 0 -rs 2 -o 2 -dt 0.01 -tf 8
+//              mpirun -np 4 ex41p -m ../data/star-q3.mesh -p 1 -rp 1 -dt 0.001 -tf 9  
+//              mpirun -np 4 ex41p -m ../data/disc-nurbs.mesh -p 1 -rp 1 -dt 0.005 -tf 9 
+//              mpirun -np 4 ex41p -m ../data/disc-nurbs.mesh -p 2 -rp 1 -dt 0.005 -tf 9 
+//              mpirun -np 4 ex41p -m ../data/periodic-square.mesh -rp 2 -dt 0.0025 -tf 9 -vs 20 
+//              mpirun -np 4 ex41p -m ../data/periodic-cube.mesh -p 0 -rs 2 -o 2 -dt 0.01 -tf 8 
 //
 // Device sample runs:
 //
@@ -28,21 +28,120 @@
 using namespace std;
 using namespace mfem;
 
-// Choice for the problem setup. The fluid velocity, initial condition and
-// inflow boundary condition are chosen based on this parameter.
-int problem;
-
-// Velocity coefficient
-void velocity_function(const Vector &x, Vector &v);
-
-// Initial condition
-real_t u0_function(const Vector &x);
-
-// Inflow boundary condition
-real_t inflow_function(const Vector &x);
-
 // Mesh bounding box
 Vector bb_min, bb_max;
+
+// Velocity coefficient
+template<int problem=0>
+void velocity_function(const Vector &x, Vector &v)
+{
+   int dim = x.Size();
+
+   // map to the reference [-1,1] domain
+   Vector X(dim);
+   for (int i = 0; i < dim; i++)
+   {
+      real_t center = (bb_min[i] + bb_max[i]) * 0.5;
+      X(i) = 2 * (x(i) - center) / (bb_max[i] - bb_min[i]);
+   }
+   switch (problem)
+   {
+      case 0:
+      {
+         // Translations in 1D, 2D, and 3D
+         switch (dim)
+         {
+            case 1: v(0) = 1.0; break;
+            case 2: v(0) = sqrt(2./3.); v(1) = sqrt(1./3.); break;
+            case 3: v(0) = sqrt(3./6.); v(1) = sqrt(2./6.); v(2) = sqrt(1./6.);
+               break;
+         }
+         break;
+      }
+      case 1:
+      case 2:
+      {
+         // Clockwise rotation in 2D around the origin
+         const real_t w = M_PI/2;
+         switch (dim)
+         {
+            case 1: v(0) = 1.0; break;
+            case 2: v(0) = w*X(1); v(1) = -w*X(0); break;
+            case 3: v(0) = w*X(1); v(1) = -w*X(0); v(2) = 0.0; break;
+         }
+         break;
+      }
+      case 3:
+      {
+         // Clockwise twisting rotation in 2D around the origin
+         const real_t w = M_PI/2;
+         real_t d = max((X(0)+1.)*(1.-X(0)),0.) * max((X(1)+1.)*(1.-X(1)),0.);
+         d = d*d;
+         switch (dim)
+         {
+            case 1: v(0) = 1.0; break;
+            case 2: v(0) = d*w*X(1); v(1) = -d*w*X(0); break;
+            case 3: v(0) = d*w*X(1); v(1) = -d*w*X(0); v(2) = 0.0; break;
+         }
+         break;
+      }
+   }
+}
+
+
+// Initial condition
+template<int problem=0>
+real_t u0_function(const Vector &x)
+{
+   int dim = x.Size();
+
+   // map to the reference [-1,1] domain
+   Vector X(dim);
+   for (int i = 0; i < dim; i++)
+   {
+      real_t center = (bb_min[i] + bb_max[i]) * 0.5;
+      X(i) = 2 * (x(i) - center) / (bb_max[i] - bb_min[i]);
+   }
+
+   switch (problem)
+   {
+      case 0:
+      case 1:
+      {
+         switch (dim)
+         {
+            case 1:
+               return exp(-40.*pow(X(0)-0.5,2));
+            case 2:
+            case 3:
+            {
+               real_t rx = 0.45, ry = 0.25, cx = 0., cy = -0.2, w = 10.;
+               if (dim == 3)
+               {
+                  const real_t s = (1. + 0.25*cos(2*M_PI*X(2)));
+                  rx *= s;
+                  ry *= s;
+               }
+               return ( std::erfc(w*(X(0)-cx-rx))*std::erfc(-w*(X(0)-cx+rx)) *
+                        std::erfc(w*(X(1)-cy-ry))*std::erfc(-w*(X(1)-cy+ry)) )/16;
+            }
+         }
+      }
+      case 2:
+      {
+         real_t x_ = X(0), y_ = X(1), rho, phi;
+         rho = std::hypot(x_, y_);
+         phi = atan2(y_, x_);
+         return pow(sin(M_PI*rho),2)*sin(3*phi);
+      }
+      case 3:
+      {
+         const real_t f = M_PI;
+         return sin(f*X(0))*sin(f*X(1));
+      }
+   }
+   return 0.0;
+}
 
 
 class DG_Solver : public Solver
@@ -150,7 +249,7 @@ int main(int argc, char *argv[])
    Hypre::Init();
 
    // 2. Parse command-line options.
-   problem = 0;
+   int problem = 0;
    const char *mesh_file = "../data/periodic-square.mesh";
    int ser_ref_levels = 2;
    int par_ref_levels = 0;
@@ -159,7 +258,10 @@ int main(int argc, char *argv[])
    bool ea = false;
    bool fa = false;
    const char *device_config = "cpu";
-   int ode_solver_type = 58;
+   int ode_solver_type = 58; //55 - Forward Backward Euler
+                             //56 - IMEXRK2(2,2,2)
+                             //57 - IMEXRK2(2,3,2)
+                             //58 - IMEXRK3(3,4,3)
    real_t t_final = 10.0;
    real_t dt = 0.001;
    bool paraview = false;
@@ -171,11 +273,6 @@ int main(int argc, char *argv[])
    real_t sigma = -1.0;
    bool visualization = false;
    bool visit = false;
-   //    #if MFEM_HYPRE_VERSION >= 21800
-   //    PrecType prec_type = PrecType::AIR;
-   // #else
-   //    PrecType prec_type = PrecType::ILU;
-   // #endif
    int precision = 16;
    cout.precision(precision);
 
@@ -286,8 +383,16 @@ int main(int argc, char *argv[])
    // 8. Set up and assemble the bilinear and linear forms corresponding to the
    //    DG discretization. The DGTraceIntegrator involves integrals over mesh
    //    interior faces.
-   VectorFunctionCoefficient velocity(dim, velocity_function);
-   FunctionCoefficient inflow(inflow_function);
+   std::unique_ptr<VectorFunctionCoefficient> velocity;
+   if(0==problem){
+       velocity.reset(new VectorFunctionCoefficient(dim, velocity_function<0>));
+   }else
+   if(1==problem){
+       velocity.reset(new VectorFunctionCoefficient(dim, velocity_function<1>));
+   }else
+   if(2==problem){
+       velocity.reset(new VectorFunctionCoefficient(dim, velocity_function<2>));
+   }
    ConstantCoefficient diff_coeff(diffusion_term);
    ConstantCoefficient dt_diff_coeff(dt*diffusion_term);
 
@@ -317,18 +422,15 @@ int main(int argc, char *argv[])
    m->AddDomainIntegrator(new MassIntegrator);
 
    constexpr real_t alpha = -1.0;
-   k->AddDomainIntegrator(new ConvectionIntegrator(velocity, alpha));
-   k->AddInteriorFaceIntegrator(new NonconservativeDGTraceIntegrator(velocity,
+   k->AddDomainIntegrator(new ConvectionIntegrator(*velocity, alpha));
+   k->AddInteriorFaceIntegrator(new NonconservativeDGTraceIntegrator(*velocity,
                                                                      alpha));
-   k->AddBdrFaceIntegrator(new NonconservativeDGTraceIntegrator(velocity, alpha));
+   k->AddBdrFaceIntegrator(new NonconservativeDGTraceIntegrator(*velocity, alpha));
 
    s->AddDomainIntegrator(new DiffusionIntegrator(diff_coeff));
    s->AddInteriorFaceIntegrator(new DGDiffusionIntegrator(diff_coeff, sigma,
                                                           kappa));
    s->AddBdrFaceIntegrator(new DGDiffusionIntegrator(diff_coeff, sigma, kappa));
-
-   ParLinearForm *b = new ParLinearForm(fes);
-   b->AddBdrFaceIntegrator(new BoundaryFlowIntegrator(inflow, velocity, alpha));
 
    //For the preconditioner - create billinear form corresponding to operator (M + dt S)
    ParBilinearForm *a = new ParBilinearForm(fes);
@@ -343,13 +445,13 @@ int main(int argc, char *argv[])
    k->Assemble(skip_zeros);
    s->Assemble(skip_zeros);
    a->Assemble();
-   b->Assemble();
 
    m->Finalize(skip_zeros);
    k->Finalize(skip_zeros);
    s->Finalize(skip_zeros);
    a->Finalize(skip_zeros);
-   HypreParVector *B = b->ParallelAssemble();
+   HypreParVector b(fes);
+   b = 0.0;
 
    // 9. Define the initial conditions. Set up visualization (if desired).
    FunctionCoefficient u0(u0_function);
@@ -460,7 +562,7 @@ int main(int argc, char *argv[])
    // 10. Define the time-dependent evolution operator describing the ODE
    //    right-hand side, and perform time-integration (looping over the time
    //    iterations, ti, with a time-step dt).
-   IMEX_Evolution adv(*m, *k, *s, *B, *a);
+   IMEX_Evolution adv(*m, *k, *s, b, *a);
 
    real_t t = 0.0;
    adv.SetTime(t);
@@ -518,9 +620,8 @@ int main(int argc, char *argv[])
    // 11. Free the used memory.
    delete U;
    delete u;
-   delete B;
    delete a;
-   delete b;
+   //delete &b;
    delete s;
    delete k;
    delete m;
@@ -598,127 +699,4 @@ void IMEX_Evolution::ImplicitSolve2(const real_t dt, const Vector &x, Vector &k)
    z*= -1.0;
    dg_solver->SetTimeStep(dt);
    dg_solver->Mult(z, k);
-}
-
-// Velocity coefficient
-void velocity_function(const Vector &x, Vector &v)
-{
-   int dim = x.Size();
-
-   // map to the reference [-1,1] domain
-   Vector X(dim);
-   for (int i = 0; i < dim; i++)
-   {
-      real_t center = (bb_min[i] + bb_max[i]) * 0.5;
-      X(i) = 2 * (x(i) - center) / (bb_max[i] - bb_min[i]);
-   }
-
-   switch (problem)
-   {
-      case 0:
-      {
-         // Translations in 1D, 2D, and 3D
-         switch (dim)
-         {
-            case 1: v(0) = 1.0; break;
-            case 2: v(0) = sqrt(2./3.); v(1) = sqrt(1./3.); break;
-            case 3: v(0) = sqrt(3./6.); v(1) = sqrt(2./6.); v(2) = sqrt(1./6.);
-               break;
-         }
-         break;
-      }
-      case 1:
-      case 2:
-      {
-         // Clockwise rotation in 2D around the origin
-         const real_t w = M_PI/2;
-         switch (dim)
-         {
-            case 1: v(0) = 1.0; break;
-            case 2: v(0) = w*X(1); v(1) = -w*X(0); break;
-            case 3: v(0) = w*X(1); v(1) = -w*X(0); v(2) = 0.0; break;
-         }
-         break;
-      }
-      case 3:
-      {
-         // Clockwise twisting rotation in 2D around the origin
-         const real_t w = M_PI/2;
-         real_t d = max((X(0)+1.)*(1.-X(0)),0.) * max((X(1)+1.)*(1.-X(1)),0.);
-         d = d*d;
-         switch (dim)
-         {
-            case 1: v(0) = 1.0; break;
-            case 2: v(0) = d*w*X(1); v(1) = -d*w*X(0); break;
-            case 3: v(0) = d*w*X(1); v(1) = -d*w*X(0); v(2) = 0.0; break;
-         }
-         break;
-      }
-   }
-}
-
-// Initial condition
-real_t u0_function(const Vector &x)
-{
-   int dim = x.Size();
-
-   // map to the reference [-1,1] domain
-   Vector X(dim);
-   for (int i = 0; i < dim; i++)
-   {
-      real_t center = (bb_min[i] + bb_max[i]) * 0.5;
-      X(i) = 2 * (x(i) - center) / (bb_max[i] - bb_min[i]);
-   }
-
-   switch (problem)
-   {
-      case 0:
-      case 1:
-      {
-         switch (dim)
-         {
-            case 1:
-               return exp(-40.*pow(X(0)-0.5,2));
-            case 2:
-            case 3:
-            {
-               real_t rx = 0.45, ry = 0.25, cx = 0., cy = -0.2, w = 10.;
-               if (dim == 3)
-               {
-                  const real_t s = (1. + 0.25*cos(2*M_PI*X(2)));
-                  rx *= s;
-                  ry *= s;
-               }
-               return ( std::erfc(w*(X(0)-cx-rx))*std::erfc(-w*(X(0)-cx+rx)) *
-                        std::erfc(w*(X(1)-cy-ry))*std::erfc(-w*(X(1)-cy+ry)) )/16;
-            }
-         }
-      }
-      case 2:
-      {
-         real_t x_ = X(0), y_ = X(1), rho, phi;
-         rho = std::hypot(x_, y_);
-         phi = atan2(y_, x_);
-         return pow(sin(M_PI*rho),2)*sin(3*phi);
-      }
-      case 3:
-      {
-         const real_t f = M_PI;
-         return sin(f*X(0))*sin(f*X(1));
-      }
-   }
-   return 0.0;
-}
-
-// Inflow boundary condition (zero for the problems considered in this example)
-real_t inflow_function(const Vector &x)
-{
-   switch (problem)
-   {
-      case 0:
-      case 1:
-      case 2:
-      case 3: return 0.0;
-   }
-   return 0.0;
 }
