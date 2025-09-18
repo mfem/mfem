@@ -132,6 +132,9 @@ public:
    /// Evaluate the coefficient.
    real_t Eval(ElementTransformation &T,
                const IntegrationPoint &ip) override;
+
+   /// Fill the QuadratureFunction @a qf with the piecewise constant values.
+   void Project(QuadratureFunction &qf) override;
 };
 
 /** @brief A piecewise coefficient with the pieces keyed off the element
