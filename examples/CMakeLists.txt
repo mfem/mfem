@@ -205,6 +205,15 @@ if (MFEM_ENABLE_TESTING)
       $<TARGET_FILE:ex25p> "-no-vis" "--mumps-solver"
       ${MPIEXEC_POSTFLAGS})
   endif()
+
+  # Parallel libCEED example
+  if (MFEM_USE_CEED AND MFEM_USE_MPI)
+    add_test(NAME ex1p_ceed_np=${MFEM_MPI_NP}
+      COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
+      ${MPIEXEC_PREFLAGS}
+      $<TARGET_FILE:ex1p> "-no-vis" "-d ceed-cpu" "-pa" "-a"
+      ${MPIEXEC_POSTFLAGS})
+  endif()
 endif()
 
 # Include the examples/amgx directory if AmgX is enabled
