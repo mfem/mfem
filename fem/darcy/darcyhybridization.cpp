@@ -2425,6 +2425,12 @@ void DarcyHybridization::ReduceRHS(const BlockVector &b_t, Vector &b_tr) const
          darcy_rhs.Update(darcy_toffsets);
       }
       darcy_rhs = b_t;
+
+      if (b_tr.Size() != c_fes.GetVSize())
+      {
+         b_tr.SetSize(c_fes.GetVSize());
+         b_tr = 0.;
+      }
       return;
    }
 
