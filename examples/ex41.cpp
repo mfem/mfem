@@ -30,21 +30,119 @@
 using namespace std;
 using namespace mfem;
 
-// Choice for the problem setup. The fluid velocity, initial condition and
-// inflow boundary condition are chosen based on this parameter.
-int problem;
-
-// Velocity coefficient
-void velocity_function(const Vector &x, Vector &v);
-
-// Initial condition
-real_t u0_function(const Vector &x);
-
-// Inflow boundary condition - 0 for this example
-real_t inflow_function(const Vector &x);
-
 // Mesh bounding box
 Vector bb_min, bb_max;
+
+// Velocity coefficient
+template<int problem=0>
+void velocity_function(const Vector &x, Vector &v)
+{
+   int dim = x.Size();
+
+   // map to the reference [-1,1] domain
+   Vector X(dim);
+   for (int i = 0; i < dim; i++)
+   {
+      real_t center = (bb_min[i] + bb_max[i]) * 0.5;
+      X(i) = 2 * (x(i) - center) / (bb_max[i] - bb_min[i]);
+   }
+   switch (problem)
+   {
+      case 0:
+      {
+         // Translations in 1D, 2D, and 3D
+         switch (dim)
+         {
+            case 1: v(0) = 1.0; break;
+            case 2: v(0) = sqrt(2./3.); v(1) = sqrt(1./3.); break;
+            case 3: v(0) = sqrt(3./6.); v(1) = sqrt(2./6.); v(2) = sqrt(1./6.);
+               break;
+         }
+         break;
+      }
+      case 1:
+      case 2:
+      {
+         // Clockwise rotation in 2D around the origin
+         const real_t w = M_PI/2;
+         switch (dim)
+         {
+            case 1: v(0) = 1.0; break;
+            case 2: v(0) = w*X(1); v(1) = -w*X(0); break;
+            case 3: v(0) = w*X(1); v(1) = -w*X(0); v(2) = 0.0; break;
+         }
+         break;
+      }
+      case 3:
+      {
+         // Clockwise twisting rotation in 2D around the origin
+         const real_t w = M_PI/2;
+         real_t d = max((X(0)+1.)*(1.-X(0)),0.) * max((X(1)+1.)*(1.-X(1)),0.);
+         d = d*d;
+         switch (dim)
+         {
+            case 1: v(0) = 1.0; break;
+            case 2: v(0) = d*w*X(1); v(1) = -d*w*X(0); break;
+            case 3: v(0) = d*w*X(1); v(1) = -d*w*X(0); v(2) = 0.0; break;
+         }
+         break;
+      }
+   }
+}
+
+// Initial condition
+template<int problem=0>
+real_t u0_function(const Vector &x)
+{
+   int dim = x.Size();
+
+   // map to the reference [-1,1] domain
+   Vector X(dim);
+   for (int i = 0; i < dim; i++)
+   {
+      real_t center = (bb_min[i] + bb_max[i]) * 0.5;
+      X(i) = 2 * (x(i) - center) / (bb_max[i] - bb_min[i]);
+   }
+
+   switch (problem)
+   {
+      case 0:
+      case 1:
+      {
+         switch (dim)
+         {
+            case 1:
+               return exp(-40.*pow(X(0)-0.5,2));
+            case 2:
+            case 3:
+            {
+               real_t rx = 0.45, ry = 0.25, cx = 0., cy = -0.2, w = 10.;
+               if (dim == 3)
+               {
+                  const real_t s = (1. + 0.25*cos(2*M_PI*X(2)));
+                  rx *= s;
+                  ry *= s;
+               }
+               return ( std::erfc(w*(X(0)-cx-rx))*std::erfc(-w*(X(0)-cx+rx)) *
+                        std::erfc(w*(X(1)-cy-ry))*std::erfc(-w*(X(1)-cy+ry)) )/16;
+            }
+         }
+      }
+      case 2:
+      {
+         real_t x_ = X(0), y_ = X(1), rho, phi;
+         rho = std::hypot(x_, y_);
+         phi = atan2(y_, x_);
+         return pow(sin(M_PI*rho),2)*sin(3*phi);
+      }
+      case 3:
+      {
+         const real_t f = M_PI;
+         return sin(f*X(0))*sin(f*X(1));
+      }
+   }
+   return 0.0;
+}
 
 class DG_Solver : public Solver
 {
@@ -123,12 +221,15 @@ public:
 int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
-   problem = 0;
+   int problem = 0;
    const char *mesh_file = "../data/periodic-square.mesh";
    int ref_levels = 2;
    int order = 3;
    const char *device_config = "cpu";
-   int ode_solver_type = 58;
+   int ode_solver_type = 58; //55 - Forward Backward Euler
+                             //56 - IMEXRK2(2,2,2)
+                             //57 - IMEXRK2(2,3,2)
+                             //58 - IMEXRK3(3,4,3)
    real_t t_final = 10.0;
    real_t dt = 0.001;
    bool paraview = false;
@@ -208,35 +309,44 @@ int main(int argc, char *argv[])
    // 6. Set up and assemble the bilinear and linear forms corresponding to the
    //    DG discretization. The DGTraceIntegrator involves integrals over mesh
    //    interior faces.
-   VectorFunctionCoefficient velocity(dim, velocity_function);
-   FunctionCoefficient inflow(inflow_function); //Zero for now
+   std::unique_ptr<VectorFunctionCoefficient> velocity;
+   if(0==problem){
+       velocity.reset(new VectorFunctionCoefficient(dim, velocity_function<0>));
+   }else
+   if(1==problem){
+       velocity.reset(new VectorFunctionCoefficient(dim, velocity_function<1>));
+   }else
+   if(1==problem){
+       velocity.reset(new VectorFunctionCoefficient(dim, velocity_function<2>));
+   }
+
    ConstantCoefficient diff_coeff(diffusion_term);
 
    BilinearForm m(&fes);
    BilinearForm k(&fes);
    BilinearForm s(&fes);
 
+   Vector b(fes.GetTrueVSize());
+   b=0.0; //The inflow on the boundaries is set to zero.
+
    m.AddDomainIntegrator(new MassIntegrator);
 
    constexpr real_t alpha = -1.0;
-   k.AddDomainIntegrator(new ConvectionIntegrator(velocity, alpha));
-   k.AddInteriorFaceIntegrator(new NonconservativeDGTraceIntegrator(velocity,
+   k.AddDomainIntegrator(new ConvectionIntegrator(*velocity, alpha));
+   k.AddInteriorFaceIntegrator(new NonconservativeDGTraceIntegrator(*velocity,
                                                                     alpha));
-   k.AddBdrFaceIntegrator(new NonconservativeDGTraceIntegrator(velocity, alpha));
+   k.AddBdrFaceIntegrator(new NonconservativeDGTraceIntegrator(*velocity, alpha));
 
    s.AddDomainIntegrator(new DiffusionIntegrator(diff_coeff));
    s.AddInteriorFaceIntegrator(new DGDiffusionIntegrator(diff_coeff, sigma,
                                                          kappa));
    s.AddBdrFaceIntegrator(new DGDiffusionIntegrator(diff_coeff, sigma, kappa));
 
-   LinearForm b(&fes);
-   b.AddBdrFaceIntegrator(new BoundaryFlowIntegrator(inflow, velocity, alpha));
 
    int skip_zeros = 0;
    m.Assemble(skip_zeros);
    k.Assemble(skip_zeros);
    s.Assemble(skip_zeros);
-   b.Assemble();
 
    m.Finalize(skip_zeros);
    k.Finalize(skip_zeros);
@@ -407,126 +517,4 @@ void IMEX_Evolution::ImplicitSolve2(const real_t dt, const Vector &x, Vector &k)
    z*= -1.0;
    dg_solver->SetTimeStep(dt);
    dg_solver->Mult(z, k);
-}
-
-// Velocity coefficient
-void velocity_function(const Vector &x, Vector &v)
-{
-   int dim = x.Size();
-
-   // map to the reference [-1,1] domain
-   Vector X(dim);
-   for (int i = 0; i < dim; i++)
-   {
-      real_t center = (bb_min[i] + bb_max[i]) * 0.5;
-      X(i) = 2 * (x(i) - center) / (bb_max[i] - bb_min[i]);
-   }
-   switch (problem)
-   {
-      case 0:
-      {
-         // Translations in 1D, 2D, and 3D
-         switch (dim)
-         {
-            case 1: v(0) = 1.0; break;
-            case 2: v(0) = sqrt(2./3.); v(1) = sqrt(1./3.); break;
-            case 3: v(0) = sqrt(3./6.); v(1) = sqrt(2./6.); v(2) = sqrt(1./6.);
-               break;
-         }
-         break;
-      }
-      case 1:
-      case 2:
-      {
-         // Clockwise rotation in 2D around the origin
-         const real_t w = M_PI/2;
-         switch (dim)
-         {
-            case 1: v(0) = 1.0; break;
-            case 2: v(0) = w*X(1); v(1) = -w*X(0); break;
-            case 3: v(0) = w*X(1); v(1) = -w*X(0); v(2) = 0.0; break;
-         }
-         break;
-      }
-      case 3:
-      {
-         // Clockwise twisting rotation in 2D around the origin
-         const real_t w = M_PI/2;
-         real_t d = max((X(0)+1.)*(1.-X(0)),0.) * max((X(1)+1.)*(1.-X(1)),0.);
-         d = d*d;
-         switch (dim)
-         {
-            case 1: v(0) = 1.0; break;
-            case 2: v(0) = d*w*X(1); v(1) = -d*w*X(0); break;
-            case 3: v(0) = d*w*X(1); v(1) = -d*w*X(0); v(2) = 0.0; break;
-         }
-         break;
-      }
-   }
-}
-
-// Initial condition
-real_t u0_function(const Vector &x)
-{
-   int dim = x.Size();
-
-   // map to the reference [-1,1] domain
-   Vector X(dim);
-   for (int i = 0; i < dim; i++)
-   {
-      real_t center = (bb_min[i] + bb_max[i]) * 0.5;
-      X(i) = 2 * (x(i) - center) / (bb_max[i] - bb_min[i]);
-   }
-
-   switch (problem)
-   {
-      case 0:
-      case 1:
-      {
-         switch (dim)
-         {
-            case 1:
-               return exp(-40.*pow(X(0)-0.5,2));
-            case 2:
-            case 3:
-            {
-               real_t rx = 0.45, ry = 0.25, cx = 0., cy = -0.2, w = 10.;
-               if (dim == 3)
-               {
-                  const real_t s = (1. + 0.25*cos(2*M_PI*X(2)));
-                  rx *= s;
-                  ry *= s;
-               }
-               return ( std::erfc(w*(X(0)-cx-rx))*std::erfc(-w*(X(0)-cx+rx)) *
-                        std::erfc(w*(X(1)-cy-ry))*std::erfc(-w*(X(1)-cy+ry)) )/16;
-            }
-         }
-      }
-      case 2:
-      {
-         real_t x_ = X(0), y_ = X(1), rho, phi;
-         rho = std::hypot(x_, y_);
-         phi = atan2(y_, x_);
-         return pow(sin(M_PI*rho),2)*sin(3*phi);
-      }
-      case 3:
-      {
-         const real_t f = M_PI;
-         return sin(f*X(0))*sin(f*X(1));
-      }
-   }
-   return 0.0;
-}
-
-// Inflow boundary condition (zero for the problems considered in this example)
-real_t inflow_function(const Vector &x)
-{
-   switch (problem)
-   {
-      case 0:
-      case 1:
-      case 2:
-      case 3: return 0.0;
-   }
-   return 0.0;
 }
