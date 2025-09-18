@@ -316,7 +316,7 @@ int main(int argc, char *argv[])
    if(1==problem){
        velocity.reset(new VectorFunctionCoefficient(dim, velocity_function<1>));
    }else
-   if(1==problem){
+   if(2==problem){
        velocity.reset(new VectorFunctionCoefficient(dim, velocity_function<2>));
    }
 
@@ -353,9 +353,19 @@ int main(int argc, char *argv[])
    s.Finalize(skip_zeros);
 
    // 7. Define the initial conditions.
-   FunctionCoefficient u0(u0_function);
+   std::unique_ptr<FunctionCoefficient> u0;
+   if(0==problem){
+       u0.reset(new FunctionCoefficient(u0_function<0>));
+   }else
+   if(1==problem){
+       u0.reset(new FunctionCoefficient(u0_function<1>));
+   }else
+   if(2==problem){
+       u0.reset(new FunctionCoefficient(u0_function<2>));
+   }
+
    GridFunction u(&fes);
-   u.ProjectCoefficient(u0);
+   u.ProjectCoefficient(*u0);
 
    // Create data collection for solution output: either VisItDataCollection for
    // ascii data files, or SidreDataCollection for binary data files.
