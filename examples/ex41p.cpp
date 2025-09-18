@@ -52,7 +52,7 @@ class C0InteriorPenaltyIntegrator : public BilinearFormIntegrator
    const real_t eta;
 
    // AssembleBlock Helpers:
-   mutable Vector n_b, dnshape_a, dnshape_b, nd2nshape_b, nv;
+   mutable Vector dnshape_a, dnshape_b, nd2nshape_b, nv;
 
    // AssembleFaceMatrix Helpers:
    mutable Vector normal_1, normal_2;
@@ -194,8 +194,6 @@ void BiharmonicIntegrator::AssembleElementMatrix(const FiniteElement &el,
    int dim = el.GetDim();
 
    MFEM_ASSERT(dim == 2, "Dimension must be 2.");
-
-   real_t c, w;
 
    hessian.SetSize(ndof, dim * (dim + 1) / 2);
    elmat.SetSize(ndof);
