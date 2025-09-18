@@ -49,7 +49,7 @@ public:
 
 class C0InteriorPenaltyIntegrator : public BilinearFormIntegrator
 {
-   const double eta;
+   const real_t eta;
 
    // AssembleBlock Helpers:
    mutable Vector n_b, dnshape_a, dnshape_b, nd2nshape_b, nv;
@@ -60,10 +60,10 @@ class C0InteriorPenaltyIntegrator : public BilinearFormIntegrator
            block21, block22, elmat_p;
 
 public:
-   C0InteriorPenaltyIntegrator(double eta_) : eta(eta_) {};
+   C0InteriorPenaltyIntegrator(real_t eta_) : eta(eta_) {};
 
    void AssembleBlock(const DenseMatrix &dshape_a, const DenseMatrix &dshape_b,
-                      const DenseMatrix &hessian_b, const Vector &n_a, const Vector &n_b, double h_e,
+                      const DenseMatrix &hessian_b, const Vector &n_a, const Vector &n_b, real_t h_e,
                       DenseMatrix &elmat_ab);
 
    void AssembleFaceMatrix(const FiniteElement &el1, const FiniteElement &el2,
@@ -195,7 +195,7 @@ void BiharmonicIntegrator::AssembleElementMatrix(const FiniteElement &el,
 
    MFEM_ASSERT(dim == 2, "Dimension must be 2.");
 
-   double c, w;
+   real_t c, w;
 
    hessian.SetSize(ndof, dim * (dim + 1) / 2);
    elmat.SetSize(ndof);
@@ -236,7 +236,7 @@ void BiharmonicIntegrator::AssembleElementMatrix(const FiniteElement &el,
 */
 void C0InteriorPenaltyIntegrator::AssembleBlock(const DenseMatrix &dshape_a,
                                                 const DenseMatrix &dshape_b, const DenseMatrix &hessian_b, const Vector &n_a,
-                                                const Vector &n_b, double h_e, DenseMatrix &elmat_ab)
+                                                const Vector &n_b, real_t h_e, DenseMatrix &elmat_ab)
 {
    elmat_ab = 0.0;
 
@@ -305,7 +305,7 @@ void C0InteriorPenaltyIntegrator::AssembleFaceMatrix(const FiniteElement &el1,
 
 
    // Compute edge length
-   double h_e  = 0.0;
+   real_t h_e  = 0.0;
    for (int p = 0; p < ir->GetNPoints(); p++)
    {
       const IntegrationPoint &ip = ir->IntPoint(p);
