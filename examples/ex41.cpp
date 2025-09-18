@@ -1,4 +1,4 @@
-//                                MFEM Example 40
+//                                MFEM Example 41
 //
 // Compile with: make ex41p
 //
