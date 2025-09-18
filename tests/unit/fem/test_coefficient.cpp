@@ -391,3 +391,42 @@ TEST_CASE("Symmetric Matrix Coefficient", "[Coefficient]")
    // Require equality
    REQUIRE(qf.DistanceTo(values) == MFEM_Approx(0.0));
 }
+
+TEST_CASE("Piecewise Constant Coefficient", "[Coefficient]")
+{
+   Mesh mesh("../../data/beam-quad.mesh");
+
+   QuadratureSpace qs(&mesh, 2);
+   FaceQuadratureSpace qs_f(mesh, 2, FaceType::Boundary);
+   QuadratureFunction qf(qs);
+   QuadratureFunction qf_f(qs_f);
+
+   Vector values({1.0, 2.0, 3.0});
+   PWConstCoefficient coeff(values);
+
+   coeff.Project(qf);
+   for (int e = 0; e < mesh.GetNE(); ++e)
+   {
+      Vector vals;
+      qf.GetValues(e, vals);
+      const int a = mesh.GetAttribute(e);
+      for (const real_t val : vals)
+      {
+         REQUIRE(val == a);
+      }
+   }
+
+   coeff.Project(qf_f);
+   for (int be = 0; be < mesh.GetNBE(); ++be)
+   {
+      const int f = mesh.GetBdrElementFaceIndex(be);
+      const int bf = mesh.GetInvFaceIndices(FaceType::Boundary).at(f);
+      Vector vals;
+      qf_f.GetValues(bf, vals);
+      const int a = mesh.GetBdrAttribute(be);
+      for (const real_t val : vals)
+      {
+         REQUIRE(val == a);
+      }
+   }
+}
