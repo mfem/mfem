@@ -27,8 +27,8 @@ using ScalarFuncT = real_t(const Vector &x, real_t t);
 class VelDirichletBC_T
 {
 public:
-   VelDirichletBC_T(Array<int> attr, VectorCoefficient *coeff)
-      : attr(attr), coeff(coeff)
+   VelDirichletBC_T(Array<int> attr, VectorCoefficient *coeff, bool own=true)
+      : attr(attr), coeff(coeff), own(own)
    {}
 
    VelDirichletBC_T(VelDirichletBC_T &&obj)
@@ -38,21 +38,23 @@ public:
 
       // Move the coefficient pointer
       this->coeff = obj.coeff;
+      this->own = obj.own;
       obj.coeff = nullptr;
    }
 
-   ~VelDirichletBC_T() { delete coeff; }
+   ~VelDirichletBC_T() { if (own) delete coeff; }
 
    Array<int> attr;
    VectorCoefficient *coeff;
+   bool own;
 };
 
 /// Container for a Dirichlet boundary condition of the pressure field.
 class PresDirichletBC_T
 {
 public:
-   PresDirichletBC_T(Array<int> attr, Coefficient *coeff)
-      : attr(attr), coeff(coeff)
+   PresDirichletBC_T(Array<int> attr, Coefficient *coeff, bool own=true)
+      : attr(attr), coeff(coeff), own(own)
    {}
 
    PresDirichletBC_T(PresDirichletBC_T &&obj)
@@ -62,13 +64,15 @@ public:
 
       // Move the coefficient pointer
       this->coeff = obj.coeff;
+      this->own = obj.own;
       obj.coeff = nullptr;
    }
 
-   ~PresDirichletBC_T() { delete coeff; }
+   ~PresDirichletBC_T() { if (own) delete coeff; }
 
    Array<int> attr;
    Coefficient *coeff;
+   bool own;
 };
 
 /// Container for an acceleration term.
@@ -182,6 +186,8 @@ public:
     */
    void Step(real_t &time, real_t dt, int cur_step, bool provisional = false);
 
+   void Step(Vector &up, real_t &t, real_t &dt);
+
    /// Return a pointer to the provisional velocity ParGridFunction.
    ParGridFunction *GetProvisionalVelocity() { return &un_next_gf; }
 
@@ -192,12 +198,13 @@ public:
    ParGridFunction *GetCurrentPressure() { return &pn_gf; }
 
    /// Add a Dirichlet boundary condition to the velocity field.
-   void AddVelDirichletBC(VectorCoefficient *coeff, Array<int> &attr);
+   void AddVelDirichletBC(VectorCoefficient *coeff, Array<int> &attr,
+                          bool own = true);
 
    void AddVelDirichletBC(VecFuncT *f, Array<int> &attr);
 
    /// Add a Dirichlet boundary condition to the pressure field.
-   void AddPresDirichletBC(Coefficient *coeff, Array<int> &attr);
+   void AddPresDirichletBC(Coefficient *coeff, Array<int> &attr, bool own = true);
 
    void AddPresDirichletBC(ScalarFuncT *f, Array<int> &attr);
 
