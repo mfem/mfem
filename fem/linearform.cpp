@@ -161,6 +161,7 @@ bool LinearForm::SupportsDevice() const
 
 void LinearForm::UseFastAssembly(bool use_fa)
 {
+   MFEM_PERF_FUNCTION;
    fast_assembly = use_fa;
 
    if (fast_assembly && SupportsDevice() && !ext)
@@ -171,6 +172,8 @@ void LinearForm::UseFastAssembly(bool use_fa)
 
 void LinearForm::Assemble()
 {
+   MFEM_PERF_FUNCTION;
+
    Array<int> vdofs;
    ElementTransformation *eltrans;
    Vector elemvect;
