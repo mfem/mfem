@@ -24,7 +24,7 @@
 //
 //              [1] Brenner, Susanne & Sung, Li-yeng. (2005). C0 Interior Penalty Methods
 //                  for Fourth Order Elliptic Boundary Value Problems on Polygonal Domains.
-//                  Journal of Scientific Computing. 22-23. 83-118. 10.1007/s10915-004-4135-7..
+//                  Journal of Scientific Computing. 22-23. 83-118. 10.1007/s10915-004-4135-7.
 
 #include <mfem.hpp>
 
