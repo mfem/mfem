@@ -475,9 +475,21 @@ int main(int argc, char *argv[])
    b = 0.0;
 
    // 9. Define the initial conditions. Set up visualization (if desired).
-   FunctionCoefficient u0(u0_function);
+   std::unique_ptr<FunctionCoefficient> u0;
+   if (0==problem)
+   {
+      u0.reset(new FunctionCoefficient(u0_function<0>));
+   }
+   else if (1==problem)
+   {
+      u0.reset(new FunctionCoefficient(u0_function<1>));
+   }
+   else if (2==problem)
+   {
+      u0.reset(new FunctionCoefficient(u0_function<2>));
+   }
    ParGridFunction *u = new ParGridFunction(fes);
-   u->ProjectCoefficient(u0);
+   u->ProjectCoefficient(*u0);
    HypreParVector *U = u->GetTrueDofs();
    {
       ostringstream mesh_name, sol_name;
