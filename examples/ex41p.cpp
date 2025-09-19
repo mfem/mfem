@@ -491,17 +491,7 @@ int main(int argc, char *argv[])
    ParGridFunction *u = new ParGridFunction(fes);
    u->ProjectCoefficient(*u0);
    HypreParVector *U = u->GetTrueDofs();
-   {
-      ostringstream mesh_name, sol_name;
-      mesh_name << "ex41-mesh." << setfill('0') << setw(6) << myid;
-      sol_name << "ex41-init." << setfill('0') << setw(6) << myid;
-      ofstream omesh(mesh_name.str().c_str());
-      omesh.precision(precision);
-      pmesh->Print(omesh);
-      ofstream osol(sol_name.str().c_str());
-      osol.precision(precision);
-      u->Save(osol);
-   }
+
    DataCollection *dc = NULL;
    if (visit)
    {
@@ -641,26 +631,18 @@ int main(int argc, char *argv[])
       }
    }
 
-   {
-      *u = *U;
-      ostringstream sol_name;
-      sol_name << "ex41-final." << setfill('0') << setw(6) << myid;
-      ofstream osol(sol_name.str().c_str());
-      osol.precision(precision);
-      u->Save(osol);
-   }
-
    // 11. Free the used memory.
    delete U;
    delete u;
    delete a;
-   //delete &b;
+   //delete b;
    delete s;
    delete k;
    delete m;
    delete fes;
    delete pmesh;
    delete dc;
+   delete fec;
 
    return 0;
 }

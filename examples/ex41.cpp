@@ -494,12 +494,7 @@ int main(int argc, char *argv[])
       }
    }
 
-   {
-      ofstream osol("ex41-final.gf");
-      osol.precision(precision);
-      u.Save(osol);
-   }
-
+   delete fec;
    return 0;
 }
 
