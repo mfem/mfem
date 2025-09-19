@@ -1,0 +1,330 @@
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
+//
+// This file is part of the MFEM library. For more information and source code
+// availability visit https://mfem.org.
+//
+// MFEM is free software; you can redistribute it and/or modify it under the
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
+#pragma once
+
+#include "util.hpp"
+
+namespace mfem::future
+{
+
+template <typename input_fop_ts, size_t num_inputs, typename output_fop_t>
+MFEM_HOST_DEVICE void assemble_element_mat_t3d(
+   const DeviceTensor<4, real_t>& A,
+   const DeviceTensor<3, real_t>& fhat,
+   const DeviceTensor<5, real_t>& qpdc,
+   const DeviceTensor<1, real_t>& itod,
+   const input_fop_ts& inputs,
+   const output_fop_t& output,
+   const std::array<DofToQuadMap,
+   num_inputs>& input_dtqmaps,
+   const DofToQuadMap& output_dtqmap,
+   std::array<DeviceTensor<1>, 6>& scratch_shmem,
+   const int& q1d,
+   const int& td1d)
+{
+   constexpr int dimension = 3;
+
+   // [test_vdim, test_op_dim, trial_vdim, total_trial_op_dim, num_qp]
+   const int test_vdim = qpdc.GetShape()[0];
+   const int test_op_dim = qpdc.GetShape()[1];
+   const int trial_vdim = qpdc.GetShape()[2];
+   const int num_qp = qpdc.GetShape()[4];
+
+   // [num_test_dof, ...]
+   const auto num_test_dof = A.GetShape()[0];
+
+   for (int Jx = 0; Jx < td1d; Jx++)
+   {
+      for (int Jy = 0; Jy < td1d; Jy++)
+      {
+         for (int Jz = 0; Jz < td1d; Jz++)
+         {
+            const int J = Jx + td1d * (Jy + td1d * Jz);
+
+            for (int j = 0; j < trial_vdim; j++)
+            {
+               for (int tv = 0; tv < test_vdim; tv++)
+               {
+                  for (int tod = 0; tod < test_op_dim; tod++)
+                  {
+                     for (int qp = 0; qp < num_qp; qp++)
+                     {
+                        fhat(tv, tod, qp) = 0.0;
+                     }
+                  }
+               }
+
+               // MSVC lambda capture workaround
+               const auto& inputs_ref = inputs;
+
+               int m_offset = 0;
+               for_constexpr<num_inputs>([&](auto s)
+               {
+                  using fop_t = std::decay_t<decltype(get<s>(inputs_ref))>;
+
+                  const int trial_op_dim = itod(static_cast<int>(s));
+                  if (trial_op_dim == 0)
+                  {
+                     // This is inside a lambda so we have to return
+                     // instead of idiomatic 'continue'.
+                     return;
+                  }
+
+                  auto& B = input_dtqmaps[s].B;
+                  auto& G = input_dtqmaps[s].G;
+
+                  if constexpr (is_value_fop<fop_t>::value)
+                  {
+                     for (int qx = 0; qx < q1d; qx++)
+                     {
+                        for (int qy = 0; qy < q1d; qy++)
+                        {
+                           for (int qz = 0; qz < q1d; qz++)
+                           {
+                              const int q = qx + q1d * (qy + q1d * qz);
+
+                              for (int m = 0; m < trial_op_dim; m++)
+                              {
+                                 for (int i = 0; i < test_vdim; i++)
+                                 {
+                                    for (int k = 0; k < test_op_dim; k++)
+                                    {
+                                       const real_t f = qpdc(i, k, j, m + m_offset, q);
+                                       fhat(i, k, q) += f * B(qx, 0, Jx) * B(qy, 0, Jy) * B(qz, 0, Jz);
+                                    }
+                                 }
+                              }
+                           }
+                        }
+                     }
+                  }
+                  else if constexpr (is_gradient_fop<fop_t>::value)
+                  {
+                     for (int qx = 0; qx < q1d; qx++)
+                     {
+                        for (int qy = 0; qy < q1d; qy++)
+                        {
+                           for (int qz = 0; qz < q1d; qz++)
+                           {
+                              const int q = qx + q1d * (qy + q1d * qz);
+                              for (int m = 0; m < trial_op_dim; m++)
+                              {
+                                 for (int i = 0; i < test_vdim; i++)
+                                 {
+                                    for (int k = 0; k < test_op_dim; k++)
+                                    {
+                                       const real_t f = qpdc(i, k, j, m + m_offset, q);
+                                       if (m == 0)
+                                       {
+                                          fhat(i, k, q) += f * G(qx, 0, Jx) * B(qy, 0, Jy) * B(qz, 0, Jz);
+                                       }
+                                       else if (m == 1)
+                                       {
+                                          fhat(i, k, q) += f * B(qx, 0, Jx) * G(qy, 0, Jy) * B(qz, 0, Jz);
+                                       }
+                                       else if (m == 2)
+                                       {
+                                          fhat(i, k, q) += f * B(qx, 0, Jx) * B(qy, 0, Jy) * G(qz, 0, Jz);
+                                       }
+                                    }
+                                 }
+                              }
+                           }
+                        }
+                     }
+                  }
+                  else
+                  {
+                     MFEM_ABORT("sum factorized sparse matrix assemble routine "
+                                "not implemented for field operator");
+                  }
+                  m_offset += trial_op_dim;
+               });
+
+               auto bvtfhat = Reshape(&A(0, 0, J, j), num_test_dof, test_vdim);
+               map_quadrature_data_to_fields(bvtfhat, fhat, output, output_dtqmap,
+                                             scratch_shmem, dimension, true);
+            }
+         }
+      }
+   }
+}
+
+template <typename input_fop_ts, size_t num_inputs, typename output_fop_t>
+MFEM_HOST_DEVICE void assemble_element_mat_t2d(
+   const DeviceTensor<4, real_t>& A,
+   const DeviceTensor<3, real_t>& fhat,
+   const DeviceTensor<5, real_t>& qpdc,
+   const DeviceTensor<1, real_t>& itod,
+   const input_fop_ts& inputs,
+   const output_fop_t& output,
+   const std::array<DofToQuadMap, num_inputs>& input_dtqmaps,
+   const DofToQuadMap& output_dtqmap,
+   std::array<DeviceTensor<1>, 6>& scratch_shmem,
+   const int& q1d,
+   const int& td1d)
+{
+   constexpr int dimension = 2;
+
+   // [test_vdim, test_op_dim, trial_vdim, total_trial_op_dim, num_qp]
+   const int test_vdim = qpdc.GetShape()[0];
+   const int test_op_dim = qpdc.GetShape()[1];
+   const int trial_vdim = qpdc.GetShape()[2];
+   const int num_qp = qpdc.GetShape()[4];
+
+   // [num_test_dof, ...]
+   const auto num_test_dof = A.GetShape()[0];
+
+   for (int Jx = 0; Jx < td1d; Jx++)
+   {
+      for (int Jy = 0; Jy < td1d; Jy++)
+      {
+         const int J = Jy + Jx * td1d;
+
+         for (int j = 0; j < trial_vdim; j++)
+         {
+            for (int tv = 0; tv < test_vdim; tv++)
+            {
+               for (int tod = 0; tod < test_op_dim; tod++)
+               {
+                  for (int qp = 0; qp < num_qp; qp++)
+                  {
+                     fhat(tv, tod, qp) = 0.0;
+                  }
+               }
+            }
+
+            // MSVC lambda capture workaround
+            const auto& inputs_ref = inputs;
+
+            int m_offset = 0;
+            for_constexpr<num_inputs>([&](auto s)
+            {
+               using fop_t = std::decay_t<decltype(get<s>(inputs_ref))>;
+
+               const int trial_op_dim = itod(static_cast<int>(s));
+               if (trial_op_dim == 0)
+               {
+                  // This is inside a lambda so we have to return
+                  // instead of idiomatic 'continue'.
+                  return;
+               }
+
+               auto& B = input_dtqmaps[s].B;
+               auto& G = input_dtqmaps[s].G;
+
+               if constexpr (is_value_fop<fop_t>::value)
+               {
+                  for (int qx = 0; qx < q1d; qx++)
+                  {
+                     for (int qy = 0; qy < q1d; qy++)
+                     {
+                        const int q = qy + qx * q1d;
+                        for (int m = 0; m < trial_op_dim; m++)
+                        {
+                           for (int i = 0; i < test_vdim; i++)
+                           {
+                              for (int k = 0; k < test_op_dim; k++)
+                              {
+                                 const real_t f = qpdc(i, k, j, m + m_offset, q);
+                                 fhat(i, k, q) += f * B(qx, 0, Jx) * B(qy, 0, Jy);
+                              }
+                           }
+                        }
+                     }
+                  }
+               }
+               else if constexpr (is_gradient_fop<fop_t>::value)
+               {
+                  for (int qx = 0; qx < q1d; qx++)
+                  {
+                     for (int qy = 0; qy < q1d; qy++)
+                     {
+                        const int q = qy + qx * q1d;
+                        for (int m = 0; m < trial_op_dim; m++)
+                        {
+                           for (int i = 0; i < test_vdim; i++)
+                           {
+                              for (int k = 0; k < test_op_dim; k++)
+                              {
+                                 const real_t f = qpdc(i, k, j, m + m_offset, q);
+                                 if (m == 0)
+                                 {
+                                    fhat(i, k, q) += f * B(qx, 0, Jx) * G(qy, 0, Jy);
+                                 }
+                                 else
+                                 {
+                                    fhat(i, k, q) += f * G(qx, 0, Jx) * B(qy, 0, Jy);
+                                 }
+                              }
+                           }
+                        }
+                     }
+                  }
+               }
+               else
+               {
+                  MFEM_ABORT("sum factorized sparse matrix assemble routine "
+                             "not implemented for field operator");
+               }
+               m_offset += trial_op_dim;
+            });
+
+            auto bvtfhat = Reshape(&A(0, 0, J, j), num_test_dof, test_vdim);
+            map_quadrature_data_to_fields(bvtfhat, fhat, output, output_dtqmap,
+                                          scratch_shmem, dimension, true);
+         }
+      }
+   }
+}
+
+template <typename input_fop_ts, size_t num_inputs, typename output_fop_t>
+MFEM_HOST_DEVICE void assemble_element_mat_naive(
+   const DeviceTensor<4, real_t>& A,
+   const DeviceTensor<3, real_t>& f,
+   const DeviceTensor<5, real_t>& qpdc,
+   const DeviceTensor<1, real_t>& itod,
+   const input_fop_ts& inputs,
+   const output_fop_t& output,
+   const std::array<DofToQuadMap, num_inputs>& input_dtqmaps,
+   const DofToQuadMap& output_dtqmap,
+   std::array<DeviceTensor<1>, 6>& scratch_shmem,
+   const int& dimension,
+   const int& q1d,
+   const int& td1d,
+   const bool& use_sum_factorization)
+{
+   if (use_sum_factorization)
+   {
+      if (dimension == 2)
+      {
+         assemble_element_mat_t2d(A, f, qpdc, itod, inputs, output,
+                                  input_dtqmaps, output_dtqmap, scratch_shmem, q1d, td1d);
+      }
+      else if (dimension == 3)
+      {
+         assemble_element_mat_t3d(A, f, qpdc, itod, inputs, output,
+                                  input_dtqmaps, output_dtqmap, scratch_shmem, q1d, td1d);
+      }
+      else
+      {
+         MFEM_ABORT("element matrix assemble not implemented for dimension " <<
+                    dimension);
+      }
+   }
+   else
+   {
+      MFEM_ABORT("element matrix assemble not implemented for non tensor "
+                 "product basis");
+   }
+}
+
+} // namespace mfem::future
