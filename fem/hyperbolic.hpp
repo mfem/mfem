@@ -1142,6 +1142,38 @@ public:
    void ComputeFluxJacobian(const Vector &state,
                             ElementTransformation &Tr,
                             DenseTensor &J) const override;
+
+class CompoundFlux : public FluxFunction
+{
+   const FluxFunction &flux;
+
+public:
+   CompoundFlux(int vdim, const FluxFunction &flux_)
+      : FluxFunction(vdim, flux_.dim), flux(flux_) { }
+
+   real_t ComputeFlux(const Vector &state, ElementTransformation &Tr,
+                      DenseMatrix &flux) const override;
+
+   real_t ComputeFluxDotN(const Vector &state, const Vector &normal,
+                          FaceElementTransformations &Tr,
+                          Vector &fluxN) const override;
+
+   real_t ComputeAvgFlux(const Vector &state1, const Vector &state2,
+                         ElementTransformation &Tr,
+                         DenseMatrix &flux) const override;
+
+   real_t ComputeAvgFluxDotN(const Vector &state1, const Vector &state2,
+                             const Vector &normal, FaceElementTransformations &Tr,
+                             Vector &fluxN) const override;
+
+   void ComputeFluxJacobian(const Vector &state,
+                            ElementTransformation &Tr,
+                            DenseTensor &J) const override;
+
+   void ComputeFluxJacobianDotN(const Vector &state,
+                                const Vector &normal,
+                                ElementTransformation &Tr,
+                                DenseMatrix &JDotN) const override;
 };
 
 } // namespace mfem

@@ -1837,4 +1837,100 @@ void EulerFlux::ComputeFluxJacobian(const Vector &U, ElementTransformation &Tr,
       JU(1 + dim, 1 + dim, d) = specific_heat_ratio * velocity_d;
    }
 }
+
+real_t CompoundFlux::ComputeFlux(const Vector &Uv, ElementTransformation &Tr,
+                                 DenseMatrix &Fv) const
+{
+   Vector U(1);
+   DenseMatrix F(1, dim);
+   real_t max_char_speed = 0.;
+   for (int i = 0; i < num_equations; i++)
+   {
+      U(0) = Uv(i);
+      const real_t speed = flux.ComputeFlux(U, Tr, F);
+      max_char_speed = std::max(speed, max_char_speed);
+      Fv.SetRow(i, F.GetData());
+   }
+   return max_char_speed;
+}
+
+real_t CompoundFlux::ComputeFluxDotN(const Vector &Uv, const Vector &normal,
+                                     FaceElementTransformations &Tr, Vector &FvDotN) const
+{
+   Vector U(1);
+   Vector FDotN(1);
+   real_t max_char_speed = 0.;
+   for (int i = 0; i < num_equations; i++)
+   {
+      U(0) = Uv(i);
+      const real_t speed = flux.ComputeFluxDotN(U, normal, Tr, FDotN);
+      max_char_speed = std::max(speed, max_char_speed);
+      FvDotN(i) = FDotN(0);
+   }
+   return max_char_speed;
+}
+
+real_t CompoundFlux::ComputeAvgFlux(const Vector &Uv1, const Vector &Uv2,
+                                    ElementTransformation &Tr, DenseMatrix &Fv) const
+{
+   Vector U1(1), U2(1);
+   DenseMatrix F(1, dim);
+   real_t max_char_speed = 0.;
+   for (int i = 0; i < num_equations; i++)
+   {
+      U1(0) = Uv1(i);
+      U2(0) = Uv2(i);
+      const real_t speed = flux.ComputeAvgFlux(U1, U2, Tr, F);
+      max_char_speed = std::max(speed, max_char_speed);
+      Fv.SetRow(i, F.GetData());
+   }
+   return max_char_speed;
+}
+
+real_t CompoundFlux::ComputeAvgFluxDotN(const Vector &Uv1, const Vector &Uv2,
+                                        const Vector &normal, FaceElementTransformations &Tr, Vector &FvDotN) const
+{
+   Vector U1(1), U2(1);
+   Vector FDotN(1);
+   real_t max_char_speed = 0.;
+   for (int i = 0; i < num_equations; i++)
+   {
+      U1(0) = Uv1(i);
+      U2(0) = Uv2(i);
+      const real_t speed = flux.ComputeAvgFluxDotN(U1, U2, normal, Tr, FDotN);
+      max_char_speed = std::max(speed, max_char_speed);
+      FvDotN(i) = FDotN(0);
+   }
+   return max_char_speed;
+}
+
+void CompoundFlux::ComputeFluxJacobian(const Vector &Uv,
+                                       ElementTransformation &Tr, DenseTensor &Jv) const
+{
+   Vector U(1);
+   DenseTensor J(1, 1, dim);
+   for (int i = 0; i < num_equations; i++)
+   {
+      U(0) = Uv(i);
+      flux.ComputeFluxJacobian(U, Tr, J);
+      for (int d = 0; d < dim; d++)
+      {
+         Jv(i, i, d) = J(0, 0, d);
+      }
+   }
+}
+
+void CompoundFlux::ComputeFluxJacobianDotN(const Vector &Uv,
+                                           const Vector &normal, ElementTransformation &Tr, DenseMatrix &JvDotN) const
+{
+   Vector U(1);
+   DenseMatrix JDotN(1, 1);
+   for (int i = 0; i < num_equations; i++)
+   {
+      U(0) = Uv(i);
+      flux.ComputeFluxJacobianDotN(U, normal, Tr, JDotN);
+      JvDotN(i, i) = JDotN(0, 0);
+   }
+}
+
 } // namespace mfem
