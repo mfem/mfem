@@ -7258,10 +7258,12 @@ int Mesh::CheckBdrElementOrientation(bool fix_it)
       }
       for (int i = 0; i < NumOfBdrElements; i++)
       {
-         if (faces_info[be_to_face[i]].Elem2No < 0) // boundary face
+         const int btf = be_to_face[i];
+         //MFEM_VERIFY(btf > 0,"INTERNAL ERROR GetElementToEdgeTable");
+         if (faces_info[btf].Elem2No < 0) // boundary face
          {
             int *bv = boundary[i]->GetVertices();
-            int *fv = faces[be_to_face[i]]->GetVertices();
+            int *fv = faces[btf]->GetVertices();
             if (bv[0] != fv[0])
             {
                if (fix_it)
@@ -7983,7 +7985,8 @@ int Mesh::GetElementToEdgeTable(Table &e_to_f)
       for (i = 0; i < NumOfBdrElements; i++)
       {
          const int *v = boundary[i]->GetVertices();
-         be_to_face[i] = v_to_v(v[0], v[1]);
+         const int vtov = v_to_v(v[0], v[1]);
+         be_to_face[i] =  vtov;
       }
    }
    else if (Dim == 3)
@@ -11921,7 +11924,7 @@ void Mesh::Printer(std::ostream &os, std::string section_delimiter,
      bdr_attribute_sets.SetsExist();
    os << (!set_names && section_delimiter.empty()
           ? "MFEM mesh v1.0\n" :
-	  (!set_names ? "MFEM mesh v1.2\n" : "MFEM mesh v1.3\n"));
+          (!set_names ? "MFEM mesh v1.2\n" : "MFEM mesh v1.3\n"));
 
    if (set_names && section_delimiter.empty())
    {
@@ -11998,7 +12001,7 @@ void Mesh::Printer(std::ostream &os, std::string section_delimiter,
 }
 
 void Mesh::PrintTopo(std::ostream &os, const Array<int> &e_to_k,
-		     const int version, const std::string &comments) const
+                     const int version, const std::string &comments) const
 {
   MFEM_VERIFY(version == 10 || version == 11, "Invalid NURBS mesh version");
 
@@ -13567,13 +13570,15 @@ void Mesh::RemoveUnusedVertices()
 void Mesh::RemoveInternalBoundaries()
 {
    if (NURBSext || ncmesh) { return; }
+   if (be_to_face.Size() == 0) { return; }
 
    int num_bdr_elem = 0;
    int new_bel_to_edge_nnz = 0;
+
    for (int i = 0; i < GetNBE(); i++)
    {
       if (FaceIsInterior(GetBdrElementFaceIndex(i)))
-      {
+      { 
          FreeElement(boundary[i]);
       }
       else
