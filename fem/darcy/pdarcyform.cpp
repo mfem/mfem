@@ -289,12 +289,20 @@ void ParDarcyForm::FormLinearSystem(
       {
          hybridization->ReduceRHS(true_B, B_);
       }
-      else if (reduction)
+      else
       {
          reduction->ReduceRHS(true_B, B_);
       }
-      X_.SetSize(B_.Size());
-      X_ = 0.0;
+
+      if (X_.Size() != B_.Size())
+      {
+         X_.SetSize(B_.Size());
+         X_ = 0.0;
+      }
+      else if (!copy_interior)
+      {
+         X_ = 0.0;
+      }
    }
    else
    {

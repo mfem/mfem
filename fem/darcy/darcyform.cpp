@@ -643,21 +643,28 @@ void DarcyForm::FormLinearSystem(const Array<int> &ess_flux_tdof_list,
 
    //conforming
 
-   if (hybridization)
+   if (hybridization || reduction)
    {
-      // Reduction to the Lagrange multipliers system
+      // Reduction to the single equation system
       EliminateVDofsInRHS(ess_flux_tdof_list, x, b);
-      hybridization->ReduceRHS(b, B_);
-      X_.SetSize(B_.Size());
-      X_ = 0.0;
-   }
-   else if (reduction)
-   {
-      // Reduction to the Lagrange multipliers system
-      EliminateVDofsInRHS(ess_flux_tdof_list, x, b);
-      reduction->ReduceRHS(b, B_);
-      X_.SetSize(B_.Size());
-      X_ = 0.0;
+      if (hybridization)
+      {
+         hybridization->ReduceRHS(b, B_);
+      }
+      else
+      {
+         reduction->ReduceRHS(b, B_);
+      }
+
+      if (X_.Size() != B_.Size())
+      {
+         X_.SetSize(B_.Size());
+         X_ = 0.0;
+      }
+      else if (!copy_interior)
+      {
+         X_ = 0.0;
+      }
    }
    else
    {
