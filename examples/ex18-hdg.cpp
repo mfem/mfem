@@ -389,6 +389,7 @@ int main(int argc, char *argv[])
       dt = cfl * hmin / max_char_speed / (2 * order + 1);
    }
 #endif
+   cout << "initial dt: " << dt << endl;
 
    // Start the timer.
    tic_toc.Clear();
@@ -420,7 +421,7 @@ int main(int argc, char *argv[])
       done = (t >= t_final - 1e-8 * dt);
       if (done || ti % vis_steps == 0)
       {
-         cout << "time step: " << ti << ", time: " << t << endl;
+         cout << "time step: " << ti << ", time: " << t << ", dt: " << dt << endl;
          if (visualization)
          {
             sout << "window_title 'momentum, t = " << t << "'\n";
