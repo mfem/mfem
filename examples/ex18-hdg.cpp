@@ -55,6 +55,10 @@
 #include "ex18.hpp"
 #include "darcyop.hpp"
 
+#define EX18_NONLINEAR
+#define EX18_ADAPTIVE_DT
+#define EX18_EULER
+
 using namespace std;
 using namespace mfem;
 
@@ -185,7 +189,11 @@ int main(int argc, char *argv[])
 
    BilinearForm *Mq = darcy.GetFluxMassForm();
    MixedBilinearForm *B = darcy.GetFluxDivForm();
+#ifdef EX18_NONLINEAR
    NonlinearForm *Mtnl = darcy.GetPotentialMassNonlinearForm();
+#else
+   BilinearForm *Mt = darcy.GetPotentialMassForm();
+#endif
 
    //linear diffusion
    ConstantCoefficient kcoeff(k);
@@ -204,8 +212,13 @@ int main(int argc, char *argv[])
 
    if (dg && td > 0.)
    {
+#ifdef EX18_NONLINEAR
       Mtnl->AddInteriorFaceIntegrator(new VectorBlockDiagonalIntegrator(num_equations,
                                                                         new HDGDiffusionIntegrator(kcoeff, td)));
+#else
+      Mt->AddInteriorFaceIntegrator(new VectorBlockDiagonalIntegrator(num_equations,
+                                                                      new HDGDiffusionIntegrator(kcoeff, td)));
+#endif
    }
 
    //divergence/weak gradient
@@ -228,8 +241,15 @@ int main(int argc, char *argv[])
    }
 
    //nonlinear convection
-
+#ifdef EX18_NONLINEAR
+#ifdef EX18_EULER
    EulerFlux flux(dim, specific_heat_ratio);
+#else
+   Vector c {1., 0.};
+   VectorConstantCoefficient ccoeff(c);
+   AdvectionFlux flux1D(ccoeff);
+   CompoundFlux flux(num_equations, flux1D);
+#endif
    RusanovFlux numericalFlux(flux);
 
    unique_ptr<HyperbolicFormIntegrator> hyperbolicIntegrator(
@@ -237,6 +257,14 @@ int main(int argc, char *argv[])
    Mtnl->AddDomainIntegrator(hyperbolicIntegrator.get());
    Mtnl->AddInteriorFaceIntegrator(hyperbolicIntegrator.get());
    Mtnl->UseExternalIntegrators();
+#else
+   Vector c {1., 0.};
+   VectorConstantCoefficient ccoeff(c);
+   Mt->AddDomainIntegrator(new VectorBlockDiagonalIntegrator(num_equations,
+                                                             new ConservativeConvectionIntegrator(ccoeff)));
+   Mt->AddInteriorFaceIntegrator(new VectorBlockDiagonalIntegrator(num_equations,
+                                                                   new HDGConvectionCenteredIntegrator(ccoeff)));
+#endif
 
    //set hybridization / reduction
 
@@ -342,6 +370,7 @@ int main(int argc, char *argv[])
 
    // When dt is not specified, use CFL condition.
    // Compute h_min and initial maximum characteristic speed
+#if defined(EX18_NONLINEAR) && defined(EX18_ADAPTIVE_DT)
    real_t hmin = infinity();
    if (cfl > 0)
    {
@@ -359,6 +388,7 @@ int main(int argc, char *argv[])
       real_t max_char_speed = hyperbolicIntegrator->GetMaxCharSpeed();
       dt = cfl * hmin / max_char_speed / (2 * order + 1);
    }
+#endif
 
    // Start the timer.
    tic_toc.Clear();
@@ -374,14 +404,17 @@ int main(int argc, char *argv[])
    for (int ti = 0; !done;)
    {
       real_t dt_real = min(dt, t_final - t);
-
+#if defined(EX18_NONLINEAR) && defined(EX18_ADAPTIVE_DT)
       hyperbolicIntegrator->ResetMaxCharSpeed();
+#endif
       ode_solver->Step(x, t, dt_real);
+#if defined(EX18_NONLINEAR) && defined(EX18_ADAPTIVE_DT)
       if (cfl > 0) // update time step size with CFL
       {
          real_t max_char_speed = hyperbolicIntegrator->GetMaxCharSpeed();
          dt = cfl * hmin / max_char_speed / (2 * order + 1);
       }
+#endif
       ti++;
 
       done = (t >= t_final - 1e-8 * dt);
