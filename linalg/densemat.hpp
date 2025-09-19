@@ -153,6 +153,9 @@ public:
    /// Matrix vector multiplication.
    void Mult(const Vector &x, Vector &y) const override;
 
+   /// Absolute-value matrix vector multiplication.
+   void AbsMult(const Vector &x, Vector &y) const override;
+
    /// Multiply a vector with the transpose matrix.
    void MultTranspose(const real_t *x, real_t *y) const;
 
@@ -164,6 +167,9 @@ public:
 
    /// Multiply a vector with the transpose matrix.
    void MultTranspose(const Vector &x, Vector &y) const override;
+
+   /// Multiply a vector with the absolute-value transpose matrix.
+   void AbsMultTranspose(const Vector &x, Vector &y) const override;
 
    using Operator::Mult;
    using Operator::MultTranspose;
@@ -1322,6 +1328,13 @@ void BatchLUFactor(DenseTensor &Mlu, Array<int> &P, const real_t TOL = 0.0);
     @param [in, out] X vector storing right-hand side and then solution -
     dimension m x n. */
 void BatchLUSolve(const DenseTensor &Mlu, const Array<int> &P, Vector &X);
+
+#ifdef MFEM_USE_LAPACK
+void BandedSolve(int KL, int KU, DenseMatrix &AB, DenseMatrix &B,
+                 Array<int> &ipiv);
+void BandedFactorizedSolve(int KL, int KU, DenseMatrix &AB, DenseMatrix &B,
+                           bool transpose, Array<int> &ipiv);
+#endif
 
 // Inline methods
 

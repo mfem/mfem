@@ -61,10 +61,10 @@
 //    lor_solvers -m ../../data/star-surf.mesh -fe r
 //
 // Device sample runs:
-//    lor_solvers -fe h -d cuda
-//    lor_solvers -fe n -d cuda
-//    lor_solvers -fe r -d cuda
-//    lor_solvers -fe l -d cuda
+//  * lor_solvers -fe h -d cuda
+//  * lor_solvers -fe n -d cuda
+//  * lor_solvers -fe r -d cuda
+//  * lor_solvers -fe l -d cuda
 
 #include "mfem.hpp"
 #include <fstream>
