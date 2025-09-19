@@ -4,6 +4,7 @@
 //
 // Sample runs: mpirun -np 4 ex41p
 //              mpirun -np 4 ex41p -p 0 -dt 0.01 -tf 10
+//              mpirun -np 4 ex41p -p 0 -dt 0.01 -tf 10 -cg
 //              mpirun -np 4 ex41p -m ../data/periodic-hexagon.mesh -p 0 -dt 0.005 -tf 10
 //              mpirun -np 4 ex41p -m ../data/periodic-square.mesh -p 1 -dt 0.005 -tf 9
 //              mpirun -np 4 ex41p -m ../data/periodic-hexagon.mesh -p 1  -dt 0.005 -tf 9
@@ -22,6 +23,8 @@
 //
 //               The example demonstrates the use of Discontinuous Galerkin (DG)
 //               bilinear forms in MFEM (face integrators), DG-LOR Preconditioning and the use of IMEX ODE time integrators.
+//
+//               The Option to use Continuous Finite Elements is available too.
 
 #include "mfem.hpp"
 
@@ -144,7 +147,7 @@ real_t u0_function(const Vector &x)
 }
 
 
-class DG_Solver : public Solver
+class Implicit_Solver : public Solver
 {
 private:
    HypreParMatrix &M, &S;
@@ -153,8 +156,8 @@ private:
    real_t dt;
    SparseMatrix M_diag;
 public:
-   DG_Solver(HypreParMatrix &M_, HypreParMatrix &S_,
-             const FiniteElementSpace &fes)
+   Implicit_Solver(HypreParMatrix &M_, HypreParMatrix &S_,
+                   const FiniteElementSpace &fes)
       : M(M_),
         S(S_),
         A(nullptr),
@@ -197,7 +200,7 @@ public:
       linear_solver.SetPreconditioner(precond);
    }
 
-   ~DG_Solver() override
+   ~Implicit_Solver() override
    {
       delete A;
    }
@@ -214,7 +217,7 @@ private:
    const Vector &b;
    Solver *M_prec;
    CGSolver M_solver;
-   DG_Solver *dg_solver;
+   Implicit_Solver *implicit_solver;
    LORSolver<HypreBoomerAMG>* lor_solver;
 
    mutable Vector z;
@@ -227,7 +230,7 @@ public:
    virtual
    ~IMEX_Evolution()
    {
-      delete dg_solver;
+      delete implicit_solver;
       delete lor_solver;
       delete M_prec;
    }
@@ -265,6 +268,7 @@ int main(int argc, char *argv[])
    real_t t_final = 10.0;
    real_t dt = 0.001;
    bool paraview = false;
+   bool cg = false;
    int vis_steps = 50;
    bool adios2 = false;
    bool binary = false;
@@ -318,6 +322,9 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&cg, "-cg", "--continuous-galerkin", "-dg",
+                  "--discontinuous-galerkin",
+                  "Use Continuous-Galerkin Finite elements (Default is DG)");
    args.Parse();
    if (!args.Good())
    {
@@ -371,8 +378,16 @@ int main(int argc, char *argv[])
 
    // 7. Define the discontinuous DG finite element space of the given
    //    polynomial order on the refined mesh.
-   DG_FECollection fec(order, dim, BasisType::GaussLobatto);
-   ParFiniteElementSpace *fes = new ParFiniteElementSpace(pmesh, &fec);
+   FiniteElementCollection *fec = NULL;
+   if (cg)
+   {
+      fec = new H1_FECollection(order, dim);
+   }
+   else
+   {
+      fec = new DG_FECollection(order, dim, BasisType::GaussLobatto);
+   }
+   ParFiniteElementSpace *fes = new ParFiniteElementSpace(pmesh, fec);
 
    HYPRE_BigInt global_vSize = fes->GlobalTrueVSize();
    if (Mpi::Root())
@@ -426,22 +441,25 @@ int main(int argc, char *argv[])
 
    constexpr real_t alpha = -1.0;
    k->AddDomainIntegrator(new ConvectionIntegrator(*velocity, alpha));
-   k->AddInteriorFaceIntegrator(new NonconservativeDGTraceIntegrator(*velocity,
-                                                                     alpha));
-   k->AddBdrFaceIntegrator(new NonconservativeDGTraceIntegrator(*velocity, alpha));
 
    s->AddDomainIntegrator(new DiffusionIntegrator(diff_coeff));
-   s->AddInteriorFaceIntegrator(new DGDiffusionIntegrator(diff_coeff, sigma,
-                                                          kappa));
-   s->AddBdrFaceIntegrator(new DGDiffusionIntegrator(diff_coeff, sigma, kappa));
 
    //For the preconditioner - create billinear form corresponding to operator (M + dt S)
    ParBilinearForm *a = new ParBilinearForm(fes);
    a->AddDomainIntegrator(new MassIntegrator);
    a->AddDomainIntegrator(new DiffusionIntegrator(dt_diff_coeff));
-   a->AddInteriorFaceIntegrator(new DGDiffusionIntegrator(dt_diff_coeff, sigma,
-                                                          kappa));
-   a->AddBdrFaceIntegrator(new DGDiffusionIntegrator(dt_diff_coeff, sigma, kappa));
+   if (!cg)
+   {
+      k->AddInteriorFaceIntegrator(new NonconservativeDGTraceIntegrator(*velocity,
+                                                                        alpha));
+      k->AddBdrFaceIntegrator(new NonconservativeDGTraceIntegrator(*velocity, alpha));
+      s->AddInteriorFaceIntegrator(new DGDiffusionIntegrator(diff_coeff, sigma,
+                                                             kappa));
+      s->AddBdrFaceIntegrator(new DGDiffusionIntegrator(diff_coeff, sigma, kappa));
+      a->AddInteriorFaceIntegrator(new DGDiffusionIntegrator(dt_diff_coeff, sigma,
+                                                             kappa));
+      a->AddBdrFaceIntegrator(new DGDiffusionIntegrator(dt_diff_coeff, sigma, kappa));
+   }
 
    int skip_zeros = 0;
    m->Assemble(skip_zeros);
@@ -665,15 +683,15 @@ IMEX_Evolution::IMEX_Evolution(ParBilinearForm &M_, ParBilinearForm &K_,
       HypreSmoother *hypre_prec = new HypreSmoother(M_mat, HypreSmoother::Jacobi);
       M_prec = hypre_prec;
 
-      dg_solver = new DG_Solver(M_mat, S_mat, *M_.FESpace());
+      implicit_solver = new Implicit_Solver(M_mat, S_mat, *M_.FESpace());
       lor_solver = new LORSolver<HypreBoomerAMG>(A_, ess_tdof_list);
       lor_solver->GetSolver().SetSystemsOptions(A_.ParFESpace()->GetVDim(), true);
-      dg_solver -> SetPreconditioner(*lor_solver);
+      implicit_solver -> SetPreconditioner(*lor_solver);
    }
    else
    {
       M_prec = new OperatorJacobiSmoother(M_, ess_tdof_list);
-      dg_solver = NULL;
+      implicit_solver = NULL;
    }
    M_solver.SetPreconditioner(*M_prec);
    M_solver.iterative_mode = false;
@@ -696,10 +714,10 @@ void IMEX_Evolution::ImplicitSolve2(const real_t dt, const Vector &x, Vector &k)
 {
    // Perform the implicit step
    // solve for k, k = -(M+dt S)^{-1} S x
-   MFEM_VERIFY(dg_solver != NULL,
+   MFEM_VERIFY(implicit_solver != NULL,
                "Implicit time integration is not supported with partial assembly");
    S->Mult(x, z);
    z*= -1.0;
-   dg_solver->SetTimeStep(dt);
-   dg_solver->Mult(z, k);
+   implicit_solver->SetTimeStep(dt);
+   implicit_solver->Mult(z, k);
 }

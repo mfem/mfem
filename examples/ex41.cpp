@@ -4,6 +4,7 @@
 //
 // Sample runs: ex41
 //              ex41 -p 0 -r 2 -dt 0.01 -tf 10
+//              ex41 -p 0 -r 2 -dt 0.01 -tf 10 -cg
 //              ex41 -m ../data/periodic-hexagon.mesh -p 0 -r 2 -dt 0.005 -tf 10
 //              ex41 -m ../data/periodic-square.mesh -p 1 -r 2 -dt 0.005 -tf 9
 //              ex41 -m ../data/periodic-hexagon.mesh -p 1 -r 2 -dt 0.005 -tf 9
@@ -24,6 +25,8 @@
 //
 //               The example demonstrates the use of Discontinuous Galerkin (DG)
 //               bilinear forms in MFEM (face integrators), and the use of IMEX ODE time integrators.
+//
+//               The Option to use Continuous Finite Elements is available too.
 
 #include "mfem.hpp"
 
@@ -144,7 +147,7 @@ real_t u0_function(const Vector &x)
    return 0.0;
 }
 
-class DG_Solver : public Solver
+class Implicit_Solver : public Solver
 {
 private:
    SparseMatrix &M, &S, A;
@@ -152,8 +155,8 @@ private:
    BlockILU prec;
    real_t dt;
 public:
-   DG_Solver(SparseMatrix &M_, SparseMatrix &S_,
-             const FiniteElementSpace &fes)
+   Implicit_Solver(SparseMatrix &M_, SparseMatrix &S_,
+                   const FiniteElementSpace &fes)
       : M(M_),
         S(S_),
         prec(fes.GetTypicalFE()->GetDof(),
@@ -194,7 +197,7 @@ public:
    }
 };
 
-/** A time-dependent operator for the right-hand side of the ODE. The DG weak
+/** A time-dependent operator for the right-hand side of the ODE. The weak
     form of the advection-diffusion equation is (M + dt S) du/dt = Su - K u + b, where M and K are the mass
     and advection matrices, and b describes the flow on the boundary. In the case of IMEX evolution, the diffusion term is treated
     implicitly, and the advection term is treated explicitly.  */
@@ -205,7 +208,7 @@ private:
    const Vector &b;
    unique_ptr<Solver> M_prec;
    CGSolver M_solver;
-   unique_ptr<DG_Solver> dg_solver;
+   unique_ptr<Implicit_Solver> implicit_solver;
 
    mutable Vector z;
 
@@ -233,6 +236,7 @@ int main(int argc, char *argv[])
    real_t t_final = 10.0;
    real_t dt = 0.001;
    bool paraview = false;
+   bool cg = false;
    int vis_steps = 50;
    real_t diffusion_term = 0.01;
    real_t kappa = -1.0;
@@ -268,6 +272,9 @@ int main(int argc, char *argv[])
    args.AddOption(&visit, "-visit", "--visit-datafiles", "-no-visit",
                   "--no-visit-datafiles",
                   "Save data files for VisIt (visit.llnl.gov) visualization.");
+   args.AddOption(&cg, "-cg", "--continuous-galerkin", "-dg",
+                  "--discontinuous-galerkin",
+                  "Use Continuous-Galerkin Finite elements (Default is DG)");
    args.Parse();
    if (!args.Good())
    {
@@ -301,8 +308,16 @@ int main(int argc, char *argv[])
 
    // 5. Define the discontinuous DG finite element space of the given
    //    polynomial order on the refined mesh.
-   DG_FECollection fec(order, dim, BasisType::GaussLobatto);
-   FiniteElementSpace fes(&mesh, &fec);
+   FiniteElementCollection *fec = NULL;
+   if (cg)
+   {
+      fec = new H1_FECollection(order, dim);
+   }
+   else
+   {
+      fec = new DG_FECollection(order, dim, BasisType::GaussLobatto);
+   }
+   FiniteElementSpace fes(&mesh, fec);
 
    cout << "Number of unknowns: " << fes.GetVSize() << endl;
 
@@ -336,14 +351,17 @@ int main(int argc, char *argv[])
 
    constexpr real_t alpha = -1.0;
    k.AddDomainIntegrator(new ConvectionIntegrator(*velocity, alpha));
-   k.AddInteriorFaceIntegrator(new NonconservativeDGTraceIntegrator(*velocity,
-                                                                    alpha));
-   k.AddBdrFaceIntegrator(new NonconservativeDGTraceIntegrator(*velocity, alpha));
 
    s.AddDomainIntegrator(new DiffusionIntegrator(diff_coeff));
-   s.AddInteriorFaceIntegrator(new DGDiffusionIntegrator(diff_coeff, sigma,
-                                                         kappa));
-   s.AddBdrFaceIntegrator(new DGDiffusionIntegrator(diff_coeff, sigma, kappa));
+   if (!cg)
+   {
+      k.AddInteriorFaceIntegrator(new NonconservativeDGTraceIntegrator(*velocity,
+                                                                       alpha));
+      k.AddBdrFaceIntegrator(new NonconservativeDGTraceIntegrator(*velocity, alpha));
+      s.AddInteriorFaceIntegrator(new DGDiffusionIntegrator(diff_coeff, sigma,
+                                                            kappa));
+      s.AddBdrFaceIntegrator(new DGDiffusionIntegrator(diff_coeff, sigma, kappa));
+   }
 
 
    int skip_zeros = 0;
@@ -497,14 +515,14 @@ IMEX_Evolution::IMEX_Evolution(BilinearForm &M_, BilinearForm &K_,
    {
       M_prec = make_unique<DSmoother>(M.SpMat());
       M_solver.SetOperator(M.SpMat());
-      dg_solver = make_unique<DG_Solver>(M.SpMat(), S.SpMat(),
-                                         *M.FESpace());
+      implicit_solver = make_unique<Implicit_Solver>(M.SpMat(), S.SpMat(),
+                                                     *M.FESpace());
    }
    else
    {
       M_prec = make_unique<OperatorJacobiSmoother>(M, ess_tdof_list);
       M_solver.SetOperator(M);
-      dg_solver = NULL;
+      implicit_solver = NULL;
    }
    M_solver.SetPreconditioner(*M_prec);
    M_solver.iterative_mode = false;
@@ -527,10 +545,10 @@ void IMEX_Evolution::ImplicitSolve2(const real_t dt, const Vector &x, Vector &k)
 {
    // Perform the implicit step
    // solve for k, k = -(M+dt S)^{-1} S x
-   MFEM_VERIFY(dg_solver != NULL,
+   MFEM_VERIFY(implicit_solver != NULL,
                "Implicit time integration is not supported with partial assembly");
    S.Mult(x, z);
    z*= -1.0;
-   dg_solver->SetTimeStep(dt);
-   dg_solver->Mult(z, k);
+   implicit_solver->SetTimeStep(dt);
+   implicit_solver->Mult(z, k);
 }
