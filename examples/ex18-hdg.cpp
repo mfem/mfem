@@ -62,6 +62,9 @@
 using namespace std;
 using namespace mfem;
 
+bool VisualizeField(socketstream &sout, const GridFunction &gf,
+                    const char *name, real_t t = 0.);
+
 int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
@@ -86,9 +89,6 @@ int main(int argc, char *argv[])
    bool visualization = true;
    bool preassembleWeakDiv = true;
    int vis_steps = 50;
-
-   int precision = 8;
-   cout.precision(precision);
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -312,6 +312,7 @@ int main(int argc, char *argv[])
    sol.ProjectCoefficient(u0);
    GridFunction den(&fes, sol, 0);
    GridFunction mom(&dfes, sol, fes.GetNDofs());
+   GridFunction ene(&fes, sol, (1 + dim) * fes.GetNDofs());
 
    // Output the initial solution.
    /*{
@@ -336,35 +337,11 @@ int main(int argc, char *argv[])
    DarcyOperator op(ess_flux_tdofs_list, &darcy, NULL, NULL, NULL, coeffs,
                     DarcyOperator::SolverType::Newton, false, true);
 
-   // 7. Visualize momentum with its magnitude
-   socketstream sout;
-   if (visualization)
-   {
-      char vishost[] = "localhost";
-      int visport = 19916;
-
-      sout.open(vishost, visport);
-      if (!sout)
-      {
-         visualization = false;
-         cout << "Unable to connect to GLVis server at " << vishost << ':'
-              << visport << endl;
-         cout << "GLVis visualization disabled.\n";
-      }
-      else
-      {
-         sout.precision(precision);
-         // Plot magnitude of vector-valued momentum
-         sout << "solution\n" << mesh << mom;
-         sout << "window_title 'momentum, t = 0'\n";
-         sout << "view 0 0\n";  // view from top
-         sout << "keys jlm\n";  // turn off perspective and light, show mesh
-         //sout << "pause\n";
-         sout << flush;
-         cout << "GLVis visualization paused."
-              << " Press space (in the GLVis window) to resume it.\n";
-      }
-   }
+   // 7. Visualize state
+   socketstream sden, smom, sene;
+   if (visualization && !VisualizeField(sden, den, "density")) { visualization = false; }
+   if (visualization && !VisualizeField(smom, mom, "momentum")) { visualization = false; }
+   if (visualization && !VisualizeField(sene, ene, "energy")) { visualization = false; }
 
    // 8. Time integration
 
@@ -424,8 +401,9 @@ int main(int argc, char *argv[])
          cout << "time step: " << ti << ", time: " << t << ", dt: " << dt << endl;
          if (visualization)
          {
-            sout << "window_title 'momentum, t = " << t << "'\n";
-            sout << "solution\n" << mesh << mom << flush;
+            VisualizeField(sden, den, "density", t);
+            VisualizeField(smom, mom, "momentum", t);
+            VisualizeField(sene, ene, "energy", t);
          }
       }
    }
@@ -458,4 +436,44 @@ int main(int argc, char *argv[])
    cout << "Solution error: " << error << endl;
 
    return 0;
+}
+
+bool VisualizeField(socketstream &sout, const GridFunction &gf,
+                    const char *name, real_t t)
+{
+   const char vishost[] = "localhost";
+   const int visport = 19916;
+   if (!sout.is_open())
+   {
+      sout.open(vishost, visport);
+   }
+   if (!sout)
+   {
+      cout << "Unable to connect to GLVis server at " << vishost << ':'
+           << visport << endl;
+      cout << "GLVis visualization disabled.\n";
+      return false;
+   }
+   else
+   {
+      constexpr int precision = 8;
+      sout.precision(precision);
+      // Plot magnitude of vector-valued momentum
+      sout << "solution\n" << *gf.FESpace()->GetMesh() << gf;
+      if (t == 0.)
+      {
+         sout << "window_title '" << name << ", t = 0'\n";
+         sout << "view 0 0\n";  // view from top
+         sout << "keys jlm\n";  // turn off perspective and light, show mesh
+      }
+      else
+      {
+         sout << "window_title '" << name << ", t = " << t << "'\n";
+      }
+      //sout << "pause\n";
+      sout << flush;
+      //cout << "GLVis visualization paused."
+      //      << " Press space (in the GLVis window) to resume it.\n";
+   }
+   return true;
 }
