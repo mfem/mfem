@@ -1133,6 +1133,33 @@ public:
                           Vector &fluxN) const override;
 
    /**
+    * @brief Compute F̄(ρ1, ρu1, E1, ρ2, ρu2, E2)
+    *
+    * @param state1 first state (ρ1, ρu1, E1) at current integration point
+    * @param state2 first state (ρ2, ρu2, E2) at current integration point
+    * @param Tr current element transformation with the integration point
+    * @param flux F̄(ρ1, ρu1, E1, ρ2, ρu2, E2)
+    * @return real_t maximum characteristic speed, |u| + √(γp/ρ)
+    */
+   real_t ComputeAvgFlux(const Vector &state1, const Vector &state2,
+                         ElementTransformation &Tr,
+                         DenseMatrix &flux) const override;
+
+   /**
+    * @brief Compute F̄(ρ1, ρu1, E1, ρ2, ρu2, E2)n
+    *
+    * @param state1 first state (ρ1, ρu1, E1) at current integration point
+    * @param state2 first state (ρ2, ρu2, E2) at current integration point
+    * @param normal normal vector, usually not a unit vector
+    * @param Tr current element transformation with the integration point
+    * @param flux F̄(ρ1, ρu1, E1, ρ2, ρu2, E2)n
+    * @return real_t maximum characteristic speed, |u| + √(γp/ρ)
+    */
+   real_t ComputeAvgFluxDotN(const Vector &state1, const Vector &state2,
+                             const Vector &normal, FaceElementTransformations &Tr,
+                             Vector &fluxN) const override;
+
+   /**
     * @brief Compute J(ρ, ρu, E)
     *
     * @param state state (ρ, ρu, E) at current integration point
