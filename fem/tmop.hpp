@@ -14,9 +14,13 @@
 
 #include "../linalg/invariants.hpp"
 #include "nonlininteg.hpp"
+#include "../linalg/dual.hpp"
 
 namespace mfem
 {
+
+using AD1Type = future::dual<real_t, real_t>;
+using AD2Type = future::dual<AD1Type, AD1Type>;
 
 /** @brief Abstract class for local mesh quality metrics in the target-matrix
     optimization paradigm (TMOP) by P. Knupp et al. */
@@ -68,6 +72,22 @@ public:
    /** Compute dmu/dW */
    virtual void EvalPW(const DenseMatrix &Jpt, DenseMatrix &PW) const
    { PW = 0.0;}
+
+   /// @brief First-derivative hook for AD-based computations.
+   /// @warning Not for public use. Internal use for AD-based computations.
+   virtual AD1Type EvalW_AD1(const std::vector<AD1Type> &T,
+                             const std::vector<AD1Type> &W) const
+   {
+      MFEM_ABORT("EvalW_AD1 not implemented for this metric");
+   }
+
+   /// @brief Second-derivative hook for AD-based computations.
+   /// @warning Not for public use. Internal use for AD-based computations.
+   virtual AD2Type EvalW_AD2(const std::vector<AD2Type> &T,
+                             const std::vector<AD2Type> &W) const
+   {
+      MFEM_ABORT("EvalW_AD2 not implemented for this metric");
+   }
 
    /** @brief Evaluate the derivative of the 1st Piola-Kirchhoff stress tensor
        and assemble its contribution to the local gradient matrix 'A'.
@@ -123,6 +143,12 @@ public:
 
    void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                   const real_t weight, DenseMatrix &A) const override;
+
+   AD1Type EvalW_AD1(const std::vector<AD1Type> &T,
+                     const std::vector<AD1Type> &W) const override;
+
+   AD2Type EvalW_AD2(const std::vector<AD2Type> &T,
+                     const std::vector<AD2Type> &W) const override;
 
    /// Computes the averages of all metrics (integral of metric / volume).
    /// Works in parallel when called with a ParGridFunction.
@@ -221,12 +247,16 @@ public:
 
    real_t EvalW(const DenseMatrix &Jpt) const override;
 
-   void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const override
-   { MFEM_ABORT("Not implemented"); }
+   AD1Type EvalW_AD1(const std::vector<AD1Type> &T,
+                     const std::vector<AD1Type> &W) const override;
+
+   AD2Type EvalW_AD2(const std::vector<AD2Type> &T,
+                     const std::vector<AD2Type> &W) const override;
+
+   void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const override;
 
    void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
-                  const real_t weight, DenseMatrix &A) const override
-   { MFEM_ABORT("Not implemented"); }
+                  const real_t weight, DenseMatrix &A) const override;
 
    // Compute mu_hat.
    real_t EvalWBarrier(const DenseMatrix &Jpt) const;
@@ -368,6 +398,10 @@ class TMOP_Metric_004 : public TMOP_QualityMetric
 protected:
    mutable InvariantsEvaluator2D<real_t> ie;
 
+   template<typename type>
+   type EvalW_AD_impl(const std::vector<type> &T,
+                      const std::vector<type> &W) const;
+
 public:
    // W = |J|^2 - 2*det(J)
    real_t EvalW(const DenseMatrix &Jpt) const override;
@@ -376,6 +410,12 @@ public:
 
    void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                   const real_t weight, DenseMatrix &A) const override;
+
+   AD1Type EvalW_AD1(const std::vector<AD1Type> &T,
+                     const std::vector<AD1Type> &W) const override;
+
+   AD2Type EvalW_AD2(const std::vector<AD2Type> &T,
+                     const std::vector<AD2Type> &W) const override;
 
    int Id() const override { return 4; }
 };
@@ -420,6 +460,10 @@ class TMOP_Metric_014 : public TMOP_QualityMetric
 protected:
    mutable InvariantsEvaluator2D<real_t> ie;
 
+   template <typename type>
+   type EvalW_AD_impl(const std::vector<type> &T,
+                      const std::vector<type> &W) const;
+
 public:
    // W = |J - I|^2.
    real_t EvalWMatrixForm(const DenseMatrix &Jpt) const override;
@@ -431,6 +475,14 @@ public:
 
    void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                   const real_t weight, DenseMatrix &A) const override;
+
+   AD1Type EvalW_AD1(const std::vector<AD1Type> &T,
+                     const std::vector<AD1Type> &W) const override;
+
+   AD2Type EvalW_AD2(const std::vector<AD2Type> &T,
+                     const std::vector<AD2Type> &W) const override;
+
+   int Id() const override { return 14; }
 };
 
 /// 2D Shifted barrier form of shape metric (mu_2).
@@ -479,6 +531,10 @@ class TMOP_Metric_055 : public TMOP_QualityMetric
 protected:
    mutable InvariantsEvaluator2D<real_t> ie;
 
+   template<typename type>
+   type EvalW_AD_impl(const std::vector<type> &T,
+                      const std::vector<type> &W) const;
+
 public:
    // W = (det(J) - 1)^2.
    real_t EvalW(const DenseMatrix &Jpt) const override;
@@ -487,6 +543,14 @@ public:
 
    void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                   const real_t weight, DenseMatrix &A) const override;
+
+   AD1Type EvalW_AD1(const std::vector<AD1Type> &T,
+                     const std::vector<AD1Type> &W) const override;
+
+   AD2Type EvalW_AD2(const std::vector<AD2Type> &T,
+                     const std::vector<AD2Type> &W) const override;
+
+   int Id() const override { return 55; }
 
 };
 
@@ -2038,8 +2102,7 @@ protected:
    } PA;
 
    void ComputeNormalizationEnergies(const GridFunction &x,
-                                     real_t &metric_energy, real_t &lim_energy,
-                                     real_t &surf_fit_gf_energy);
+                                     real_t &metric_energy, real_t &lim_energy);
 
    void AssembleElementVectorExact(const FiniteElement &el,
                                    ElementTransformation &T,
