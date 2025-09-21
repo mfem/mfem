@@ -63,6 +63,7 @@ MFEM_REGISTER_TMOP_KERNELS(bool, TC_IDEAL_SHAPE_GIVEN_SIZE_3D_KERNEL,
 {
    constexpr int DIM = 3;
 
+   w_.HostRead(); // DenseMatrix::Det requires matrix on host.
    const real_t detW = w_.Det();
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -128,7 +129,11 @@ TargetConstructor::ComputeAllElementTargets<3>(const FiniteElementSpace &fes,
    MFEM_VERIFY(!fes.IsVariableOrder(), "variable orders are not supported");
    const FiniteElement &fe = *fes.GetTypicalFE();
    MFEM_VERIFY(fe.GetGeomType() == Geometry::CUBE, "");
-   const DenseMatrix &W = Geometries.GetGeomToPerfGeomJac(Geometry::CUBE);
+   if (current_W_type != Geometry::CUBE)
+   {
+      current_W_type = Geometry::CUBE;
+      current_W = Geometries.GetGeomToPerfGeomJac(current_W_type);
+   }
    const DofToQuad::Mode mode = DofToQuad::TENSOR;
    const DofToQuad &maps = fe.GetDofToQuad(ir, mode);
    const Array<real_t> &B = maps.B;
@@ -142,7 +147,7 @@ TargetConstructor::ComputeAllElementTargets<3>(const FiniteElementSpace &fes,
       case IDEAL_SHAPE_UNIT_SIZE: // Jtr(i) = Wideal;
       {
          MFEM_LAUNCH_TMOP_KERNEL(TC_IDEAL_SHAPE_UNIT_SIZE_3D_KERNEL,
-                                 id,NE,W,Jtr);
+                                 id,NE,current_W,Jtr);
       }
       case IDEAL_SHAPE_EQUAL_SIZE: return false;
       case IDEAL_SHAPE_GIVEN_SIZE:
@@ -155,7 +160,7 @@ TargetConstructor::ComputeAllElementTargets<3>(const FiniteElementSpace &fes,
          R->Mult(*nodes, X);
          MFEM_ASSERT(nodes->FESpace()->GetVDim() == 3, "");
          MFEM_LAUNCH_TMOP_KERNEL(TC_IDEAL_SHAPE_GIVEN_SIZE_3D_KERNEL,
-                                 id,NE,B,G,W,X,Jtr);
+                                 id,NE,B,G,current_W,X,Jtr);
       }
       case GIVEN_SHAPE_AND_SIZE: return false;
       default: return false;
