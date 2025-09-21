@@ -278,6 +278,13 @@ protected:
 
    // used during NC mesh initialization only
    Array<Triple<int, int, int> > tmp_vertex_parents;
+   /// cache for FaceIndices(ftype)
+   mutable Array<int> face_indices[2];
+   /// cache for FaceIndices(ftype)
+   mutable std::unordered_map<int, int> inv_face_indices[2];
+
+   /// compute face_indices[ftype] and inv_face_indices[type]
+   void ComputeFaceInfo(FaceType ftype) const;
 
 public:
    typedef Geometry::Constants<Geometry::SEGMENT>     seg_t;
@@ -311,6 +318,11 @@ public:
    // vertices performed when reading a mesh in MFEM format. The default value
    // (true) is set in mesh_readers.cpp.
    static bool remove_unused_vertices;
+
+   /// Map from boundary or interior face indices to mesh face indices.
+   const Array<int>& GetFaceIndices(FaceType ftype) const;
+   /// Inverse of the map FaceIndices(ftype)
+   const std::unordered_map<int, int>& GetInvFaceIndices(FaceType ftype) const;
 
 protected:
    Operation last_operation;
