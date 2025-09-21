@@ -25,8 +25,6 @@
 #define HYPRE_TIMING
 
 // hypre header files
-#include <seq_mv.h>
-#include <temp_multivector.h>
 #include <_hypre_parcsr_mv.h>
 #include <_hypre_parcsr_ls.h>
 
