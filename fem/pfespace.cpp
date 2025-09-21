@@ -27,8 +27,6 @@
 #include <limits>
 #include <list>
 
-#include "/Users/camierjs/home/mfem/stash/debug/nvtx.hpp"
-
 namespace mfem
 {
 ParFiniteElementSpace::ParFiniteElementSpace(
