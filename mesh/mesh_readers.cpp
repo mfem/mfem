@@ -10,6 +10,7 @@
 // CONTRIBUTING.md for details.
 
 #include "mesh_headers.hpp"
+#include "ncnurbs.hpp"
 #include "../fem/fem.hpp"
 #include "../general/binaryio.hpp"
 #include "../general/text.hpp"
@@ -1309,9 +1310,10 @@ void Mesh::ReadVTKMesh(std::istream &input, int &curved, int &read_gf,
 } // end ReadVTKMesh
 
 void Mesh::ReadNURBSMesh(std::istream &input, int &curved, int &read_gf,
-                         bool spacing)
+                         bool spacing, bool nc)
 {
-   NURBSext = new NURBSExtension(input, spacing);
+   NURBSext = nc ? new NCNURBSExtension(input, spacing):
+              new NURBSExtension(input, spacing);
 
    Dim              = NURBSext->Dimension();
    NumOfVertices    = NURBSext->GetNV();
