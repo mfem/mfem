@@ -3206,13 +3206,11 @@ public:
    void AddMultMF(const Vector &x, Vector &y) const override;
    bool SupportsCeed() const override { return DeviceCanUseCeed(); }
 
-   /// arguments: ne, B, G, Bt, Gt, pa_data, x, y, d1d, q1d, vdim
-   using ApplyKernelType = void (*)(const int, const Array<real_t> &,
-                                    const Array<real_t> &,
-                                    const Array<real_t> &,
-                                    const Array<real_t> &, const Vector &,
-                                    const Vector &, Vector &, const int,
-                                    const int, const int);
+   /// arguments: ne, coeff_vdim, B, G, pa_data, x, y, d1d, q1d, vdim
+   using ApplyKernelType = void (*)(const int, const int,
+                                    const Array<real_t> &, const Array<real_t> &,
+                                    const Vector &, const Vector &, Vector &,
+                                    const int, const int, const int);
 
    /// arguments: dim, vdim, d1d, q1d
    MFEM_REGISTER_KERNELS(ApplyPAKernels, ApplyKernelType, (int, int, int, int));
@@ -3223,10 +3221,7 @@ public:
       ApplyPAKernels::Specialization<DIM, VDIM, D1D, Q1D>::Add();
    }
 
-   struct Kernels
-   {
-      Kernels();
-   };
+   // struct Kernels { Kernels(); };
 };
 
 /** Integrator for the linear elasticity form:

@@ -170,8 +170,8 @@ void SmemPAVectorDiffusionApply3D(const int NE,
 } // namespace internal
 
 template<int DIM, int T_SDIM, int T_D1D, int T_Q1D>
-VectorDiffusionIntegrator::VectorDiffusionAddMultPAType
-VectorDiffusionIntegrator::VectorDiffusionAddMultPA::Kernel()
+VectorDiffusionIntegrator::ApplyKernelType
+VectorDiffusionIntegrator::ApplyPAKernels::Kernel()
 {
    if (DIM == 2)
    {
@@ -185,9 +185,9 @@ VectorDiffusionIntegrator::VectorDiffusionAddMultPA::Kernel()
 }
 
 inline
-VectorDiffusionIntegrator::VectorDiffusionAddMultPAType
-VectorDiffusionIntegrator::VectorDiffusionAddMultPA::Fallback(int dim, int sdim,
-                                                              int d1d, int q1d)
+VectorDiffusionIntegrator::ApplyKernelType
+VectorDiffusionIntegrator::ApplyPAKernels::Fallback(int dim, int sdim,
+                                                    int d1d, int q1d)
 {
    if (dim == 2)
    {

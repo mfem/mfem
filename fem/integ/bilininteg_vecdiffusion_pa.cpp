@@ -23,7 +23,8 @@
 #define dbg(...)
 #endif
 
-#include "bilininteg_vecdiffusion_kernels.hpp"
+// #include "bilininteg_vecdiffusion_kernels.hpp"
+#include "bilininteg_vecdiffusion_pa.hpp"
 
 namespace mfem
 {
@@ -31,7 +32,7 @@ namespace mfem
 VectorDiffusionIntegrator::VectorDiffusionIntegrator(const IntegrationRule *ir)
    : BilinearFormIntegrator(ir)
 {
-   static Kernels kernels;
+   // static Kernels kernels;
 }
 
 VectorDiffusionIntegrator::VectorDiffusionIntegrator(Coefficient &q)
@@ -305,36 +306,36 @@ void VectorDiffusionIntegrator::AddMultPA(const Vector &x, Vector &y) const
    static const auto vector_diffusion_kernel_specializations =
       (
          // 2D, SDIM = 2
-         VectorDiffusionIntegrator::VectorDiffusionAddMultPA::Specialization<2,2, 2,2>::Add(),
-         VectorDiffusionIntegrator::VectorDiffusionAddMultPA::Specialization<2,2, 3,3>::Add(),
-         VectorDiffusionIntegrator::VectorDiffusionAddMultPA::Specialization<2,2, 4,4>::Add(),
-         VectorDiffusionIntegrator::VectorDiffusionAddMultPA::Specialization<2,2, 5,5>::Add(),
-         VectorDiffusionIntegrator::VectorDiffusionAddMultPA::Specialization<2,2, 6,6>::Add(),
-         VectorDiffusionIntegrator::VectorDiffusionAddMultPA::Specialization<2,2, 7,7>::Add(),
-         VectorDiffusionIntegrator::VectorDiffusionAddMultPA::Specialization<2,2, 8,8>::Add(),
-         VectorDiffusionIntegrator::VectorDiffusionAddMultPA::Specialization<2,2, 9,9>::Add(),
+         VectorDiffusionIntegrator::ApplyPAKernels::Specialization<2,2, 2,2>::Add(),
+         VectorDiffusionIntegrator::ApplyPAKernels::Specialization<2,2, 3,3>::Add(),
+         VectorDiffusionIntegrator::ApplyPAKernels::Specialization<2,2, 4,4>::Add(),
+         VectorDiffusionIntegrator::ApplyPAKernels::Specialization<2,2, 5,5>::Add(),
+         VectorDiffusionIntegrator::ApplyPAKernels::Specialization<2,2, 6,6>::Add(),
+         VectorDiffusionIntegrator::ApplyPAKernels::Specialization<2,2, 7,7>::Add(),
+         VectorDiffusionIntegrator::ApplyPAKernels::Specialization<2,2, 8,8>::Add(),
+         VectorDiffusionIntegrator::ApplyPAKernels::Specialization<2,2, 9,9>::Add(),
          // 2D, SDIM = 3
-         VectorDiffusionIntegrator::VectorDiffusionAddMultPA::Specialization<2,3, 2,2>::Add(),
-         VectorDiffusionIntegrator::VectorDiffusionAddMultPA::Specialization<2,3, 3,3>::Add(),
-         VectorDiffusionIntegrator::VectorDiffusionAddMultPA::Specialization<2,3, 4,4>::Add(),
-         VectorDiffusionIntegrator::VectorDiffusionAddMultPA::Specialization<2,3, 5,5>::Add(),
+         VectorDiffusionIntegrator::ApplyPAKernels::Specialization<2,3, 2,2>::Add(),
+         VectorDiffusionIntegrator::ApplyPAKernels::Specialization<2,3, 3,3>::Add(),
+         VectorDiffusionIntegrator::ApplyPAKernels::Specialization<2,3, 4,4>::Add(),
+         VectorDiffusionIntegrator::ApplyPAKernels::Specialization<2,3, 5,5>::Add(),
          // 3D, SDIM = 3
-         VectorDiffusionIntegrator::VectorDiffusionAddMultPA::Specialization<3,3, 2,2>::Add(),
-         VectorDiffusionIntegrator::VectorDiffusionAddMultPA::Specialization<3,3, 2,3>::Add(),
-         VectorDiffusionIntegrator::VectorDiffusionAddMultPA::Specialization<3,3, 3,4>::Add(),
-         VectorDiffusionIntegrator::VectorDiffusionAddMultPA::Specialization<3,3, 4,5>::Add(),
-         VectorDiffusionIntegrator::VectorDiffusionAddMultPA::Specialization<3,3, 4,6>::Add(),
-         VectorDiffusionIntegrator::VectorDiffusionAddMultPA::Specialization<3,3, 5,6>::Add(),
-         VectorDiffusionIntegrator::VectorDiffusionAddMultPA::Specialization<3,3, 5,8>::Add(),
-         VectorDiffusionIntegrator::VectorDiffusionAddMultPA::Specialization<3,3, 6,7>::Add(),
-         VectorDiffusionIntegrator::VectorDiffusionAddMultPA::Specialization<3,3, 7,8>::Add(),
-         VectorDiffusionIntegrator::VectorDiffusionAddMultPA::Specialization<3,3, 8,9>::Add(),
+         VectorDiffusionIntegrator::ApplyPAKernels::Specialization<3,3, 2,2>::Add(),
+         VectorDiffusionIntegrator::ApplyPAKernels::Specialization<3,3, 2,3>::Add(),
+         VectorDiffusionIntegrator::ApplyPAKernels::Specialization<3,3, 3,4>::Add(),
+         VectorDiffusionIntegrator::ApplyPAKernels::Specialization<3,3, 4,5>::Add(),
+         VectorDiffusionIntegrator::ApplyPAKernels::Specialization<3,3, 4,6>::Add(),
+         VectorDiffusionIntegrator::ApplyPAKernels::Specialization<3,3, 5,6>::Add(),
+         VectorDiffusionIntegrator::ApplyPAKernels::Specialization<3,3, 5,8>::Add(),
+         VectorDiffusionIntegrator::ApplyPAKernels::Specialization<3,3, 6,7>::Add(),
+         VectorDiffusionIntegrator::ApplyPAKernels::Specialization<3,3, 7,8>::Add(),
+         VectorDiffusionIntegrator::ApplyPAKernels::Specialization<3,3, 8,9>::Add(),
          true);
    MFEM_CONTRACT_VAR(vector_diffusion_kernel_specializations);
 
-   VectorDiffusionAddMultPA::Run(dim, sdim, dofs1D, quad1D,
-                                 ne, coeff_vdim, maps->B, maps->G, pa_data, x, y,
-                                 sdim, dofs1D, quad1D);
+   ApplyPAKernels::Run(dim, sdim, dofs1D, quad1D,
+                       ne, coeff_vdim, maps->B, maps->G, pa_data, x, y,
+                       sdim, dofs1D, quad1D);
 
 }
 
@@ -547,6 +548,7 @@ void VectorDiffusionIntegrator::AssembleDiagonalPA(Vector &diag)
    }
 }
 
+/*
 // PA Diffusion Apply kernel
 void VectorDiffusionIntegrator::AddMultPA(const Vector &x, Vector &y) const
 {
@@ -584,7 +586,7 @@ VectorDiffusionIntegrator::Kernels::Kernels()
    VectorDiffusionIntegrator::AddSpecialization<2, 3, 3, 3>();
    VectorDiffusionIntegrator::AddSpecialization<2, 3, 4, 4>();
    VectorDiffusionIntegrator::AddSpecialization<2, 3, 5, 5>();
-}
+}*/
 
 /// \endcond DO_NOT_DOCUMENT
 
