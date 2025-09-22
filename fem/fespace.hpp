@@ -683,8 +683,12 @@ public:
    NURBSExtension *GetNURBSext() { return NURBSext; }
    NURBSExtension *StealNURBSext();
 
-   bool Conforming() const { return mesh->Conforming() && cP == NULL; }
-   bool Nonconforming() const { return mesh->Nonconforming() || cP != NULL; }
+   bool Conforming() const
+   {
+      return NURBSext != NULL ||
+             (mesh->Conforming() && cP == NULL);
+   }
+   bool Nonconforming() const { return !Conforming(); }
 
    /** Set the prolongation operator of the space to an arbitrary sparse matrix,
        creating a copy of the argument. */
