@@ -8,40 +8,35 @@
 // MFEM is free software; you can redistribute it and/or modify it under the
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
-//
 
 // Navier Wind Tunnel
 //
-// The problem domain is set up like this (flow in +x direction):
+// This example constructs a numerical wind tunnel with flow in the +x direction.
+// The inlet profile is specified by the user using the -profile option. Note that
+// some of the profiles may require additional parameters to be set.
 //
-//    Back (y=max)        Front (y=0)
-//     +--------+        +--------+
-//    /|       /|       /|       /|
-//   / |      / |      / |      / |
-//  +--------+  |     +--------+  |
-//  |  |     |  |     |  |     |  |
-//  |  +-----|--+     |  +-----|--+
-//  | /      | /      | /      | /
-//  |/       |/       |/       |/
-//  +--------+        +--------+
-// Left     Right    Left     Right
-// (x=0)   (x=max)  (x=0)   (x=max)
+// Domain: [0, 3] × [0, 1] × [0, 0.5] (Length × Width × Height)
 //
-//        Bottom (z=0)    Top (z=max)
-//
-// Boundary conditions (MFEM attribute assignment):
+// Boundary conditions:
 // - Left (attr 5, x=0): Inlet - Prescribed velocity Dirichlet BC
 // - Bottom (attr 1, z=0): Ground - No-slip BC (all velocity components = 0)
 // - Front (attr 2, y=0): Front wall - No-penetration BC (zero y-velocity component)
-// - Right (attr 3, x=max): Outlet - Do nothing (no BC)
-// - Back (attr 4, y=max): Back wall - No-penetration BC (zero y-velocity component)
-// - Top (attr 6, z=max): Top wall - No-penetration BC (zero z-velocity component)
+// - Right (attr 3, x=3): Outlet - Do nothing (no BC)
+// - Back (attr 4, y=1): Back wall - No-penetration BC (zero y-velocity component)
+// - Top (attr 6, z=0.5): Top wall - No-penetration BC (zero z-velocity component)
 
 #include "navier_solver.hpp"
 #include <fstream>
 
 using namespace mfem;
 using namespace navier;
+
+constexpr real_t DOMAIN_LENGTH = 3.0;
+constexpr real_t DOMAIN_WIDTH = 1.0;
+constexpr real_t DOMAIN_HEIGHT = 0.5;
+constexpr int INITIAL_NX = 6;
+constexpr int INITIAL_NY = 2;
+constexpr int INITIAL_NZ = 2;
 
 struct s_NavierContext
 {
@@ -54,7 +49,6 @@ struct s_NavierContext
    bool pa = true;
    bool ni = false;
    bool visualization = false;
-   bool checkres = false;
 
    // Inlet profile selection
    int inlet_profile_type = 0;
@@ -71,9 +65,6 @@ struct s_NavierContext
    real_t z0 = 0.001;            // Roughness length
    real_t kappa = 0.4;           // von Karman constant
    real_t f = 0.0001;            // Coriolis parameter
-
-   // Exponential parameters
-   real_t exp_decay = 2.0; // Decay rate
 } ctx;
 
 namespace InletProfile
@@ -115,7 +106,7 @@ void logarithmic(const Vector &x, real_t t, Vector &u)
    u(1) = 0.0;
    u(2) = 0.0;
 }
-}
+} // END OF INLET PROFILE NAMESPACE
 
 // Profile selection function
 void (*get_inlet_profile())(const Vector &, real_t, Vector &)
@@ -178,6 +169,17 @@ int main(int argc, char *argv[])
    args.AddOption(&ctx.u_star, "-ustar", "--friction-velocity",
                   "Friction velocity for log profile");
    args.Parse();
+
+   // Specific comparison checks on parameters
+   if (ctx.inlet_profile_type < 0 || ctx.inlet_profile_type > 2) {
+      MFEM_WARNING("Inlet profile should be 0, 1, or 2. Using default profile (Constant).");
+   }
+   if (ctx.power_alpha < 0.1 || ctx.power_alpha > 0.4) {
+      MFEM_WARNING("Power law exponent outside of (0.1, 0.4).");
+   }
+
+
+
    if (!args.Good())
    {
       if (Mpi::Root())
@@ -191,9 +193,8 @@ int main(int argc, char *argv[])
       args.PrintOptions(mfem::out);
    }
 
-   // Domain: [0, 3] x [0, 1] x [0, 1] (Length x Width x Height)
-   Mesh mesh = Mesh::MakeCartesian3D(6, 2, 2, Element::HEXAHEDRON,
-                                     3.0, 1.0, 0.5);
+   Mesh mesh = Mesh::MakeCartesian3D(INITIAL_NX, INITIAL_NY, INITIAL_NZ, Element::HEXAHEDRON,
+                                     DOMAIN_LENGTH, DOMAIN_WIDTH, DOMAIN_HEIGHT);
 
    for (int i = 0; i < ctx.ser_ref_levels; ++i)
    {
@@ -311,55 +312,6 @@ int main(int argc, char *argv[])
          printf("%5d %8.3f %8.2E %8.2E %11.4E\n",
                 step, t, dt, cfl, max_vel);
          fflush(stdout);
-      }
-
-      // Check no-penetration conditions every 50 steps
-      if (step % 50 == 0)
-      {
-         // Test y-penetration on front/back walls
-         Array<int> attr_fb_walls(pmesh->bdr_attributes.Max());
-         attr_fb_walls = 0;
-         attr_fb_walls[1] = attr_fb_walls[3] = 1;  // Front and back walls
-
-         VectorGridFunctionCoefficient u_coeff(u_gf);
-         Vector test_normal_y({0.0, 1.0, 0.0});  // y-direction
-         VectorConstantCoefficient n_coeff_y(test_normal_y);
-
-         LinearForm lform_y(u_gf->ParFESpace());
-         lform_y.AddBoundaryIntegrator(
-            new VectorBoundaryLFIntegrator(n_coeff_y), attr_fb_walls);
-         lform_y.Assemble();
-
-         real_t local_val_y = lform_y * (*u_gf);
-         real_t global_val_y = 0.0;
-         MPI_Allreduce(&local_val_y, &global_val_y, 1, MPITypeMap<real_t>::mpi_type,
-                       MPI_SUM, pmesh->GetComm());
-
-         // Test z-penetration on top wall
-         Array<int> attr_top_wall(pmesh->bdr_attributes.Max());
-         attr_top_wall = 0;
-         attr_top_wall[5] = 1;  // Top wall
-
-         Vector test_normal_z({0.0, 0.0, 1.0});  // z-direction
-         VectorConstantCoefficient n_coeff_z(test_normal_z);
-
-         LinearForm lform_z(u_gf->ParFESpace());
-         lform_z.AddBoundaryIntegrator(
-            new VectorBoundaryLFIntegrator(n_coeff_z), attr_top_wall);
-         lform_z.Assemble();
-
-         real_t local_val_z = lform_z * (*u_gf);
-         real_t global_val_z = 0.0;
-         MPI_Allreduce(&local_val_z, &global_val_z, 1, MPITypeMap<real_t>::mpi_type,
-                       MPI_SUM, pmesh->GetComm());
-
-         if (Mpi::Root())
-         {
-            mfem::out << "Step " << step << ": y-penetration on F/B walls: "
-                      << abs(global_val_y) << std::endl;
-            mfem::out << "Step " << step << ": z-penetration on top wall: "
-                      << abs(global_val_z) << std::endl;
-         }
       }
    }
 

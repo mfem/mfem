@@ -581,7 +581,8 @@ void NavierSolver::Step(real_t &time, real_t dt, int current_step,
 
    for (auto &vel_comp_dbc : vel_comp_dbcs)
    {
-      Coefficient* coeff_array[3] = {nullptr, nullptr, nullptr};
+      int dim = vfes->GetVDim();
+      Coefficient** coeff_array = new Coefficient*[dim]();
       coeff_array[vel_comp_dbc.comp] = vel_comp_dbc.coeff;
 
       un_next_gf.ProjectBdrCoefficient(coeff_array, vel_comp_dbc.attr);
@@ -1047,6 +1048,16 @@ void NavierSolver::AddVelDirichletBC(Coefficient *coeff, Array<int> &attr,
          }
       }
       mfem::out << std::endl;
+   }
+
+   for (int i = 0; i < attr.Size(); ++i)
+   {
+      MFEM_ASSERT((vel_ess_attr[i] && attr[i]) == 0,
+                  "Duplicate boundary definition detected.");
+      if (attr[i] == 1)
+      {
+         vel_ess_attr[i] = 1;
+      }
    }
 }
 
