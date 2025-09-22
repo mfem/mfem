@@ -171,10 +171,12 @@ int main(int argc, char *argv[])
    args.Parse();
 
    // Specific comparison checks on parameters
-   if (ctx.inlet_profile_type < 0 || ctx.inlet_profile_type > 2) {
+   if (ctx.inlet_profile_type < 0 || ctx.inlet_profile_type > 2)
+   {
       MFEM_WARNING("Inlet profile should be 0, 1, or 2. Using default profile (Constant).");
    }
-   if (ctx.power_alpha < 0.1 || ctx.power_alpha > 0.4) {
+   if (ctx.power_alpha < 0.1 || ctx.power_alpha > 0.4)
+   {
       MFEM_WARNING("Power law exponent outside of (0.1, 0.4).");
    }
 
@@ -193,7 +195,8 @@ int main(int argc, char *argv[])
       args.PrintOptions(mfem::out);
    }
 
-   Mesh mesh = Mesh::MakeCartesian3D(INITIAL_NX, INITIAL_NY, INITIAL_NZ, Element::HEXAHEDRON,
+   Mesh mesh = Mesh::MakeCartesian3D(INITIAL_NX, INITIAL_NY, INITIAL_NZ,
+                                     Element::HEXAHEDRON,
                                      DOMAIN_LENGTH, DOMAIN_WIDTH, DOMAIN_HEIGHT);
 
    for (int i = 0; i < ctx.ser_ref_levels; ++i)
