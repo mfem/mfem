@@ -143,8 +143,10 @@ MFEM_HOST_DEVICE void assemble_element_mat_t3d(
                   }
                   else
                   {
+#if !(defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))
                      MFEM_ABORT("sum factorized sparse matrix assemble routine "
                                 "not implemented for field operator");
+#endif
                   }
                   m_offset += trial_op_dim;
                });
@@ -272,8 +274,10 @@ MFEM_HOST_DEVICE void assemble_element_mat_t2d(
                }
                else
                {
+#if !(defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))
                   MFEM_ABORT("sum factorized sparse matrix assemble routine "
                              "not implemented for field operator");
+#endif
                }
                m_offset += trial_op_dim;
             });
@@ -314,16 +318,13 @@ MFEM_HOST_DEVICE void assemble_element_mat_naive(
          assemble_element_mat_t3d(A, f, qpdc, itod, inputs, output,
                                   input_dtqmaps, output_dtqmap, scratch_shmem, q1d, td1d);
       }
-      else
-      {
-         MFEM_ABORT("element matrix assemble not implemented for dimension " <<
-                    dimension);
-      }
    }
    else
    {
+#if !(defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))
       MFEM_ABORT("element matrix assemble not implemented for non tensor "
                  "product basis");
+#endif
    }
 }
 

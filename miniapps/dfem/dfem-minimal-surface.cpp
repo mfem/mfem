@@ -150,7 +150,6 @@ public:
       }
    };
 
-private:
    // This class implements the Jacobian of the minimal surface operator. It
    // mostly acts as a wrapper to retrieve the Jacobian and apply essential
    // boundary conditions appropriately.
