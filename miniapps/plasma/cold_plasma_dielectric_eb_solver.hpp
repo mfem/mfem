@@ -687,8 +687,8 @@ class GausssLaw
 {
 private:
 
-   const ParComplexGridFunction &  f_; // Complex pseudovector field (HDiv)
-   ParComplexGridFunction         df_; // Complex divergence (L2)
+   ParFiniteElementSpace & HDivFESpace_; // Space for source field
+   ParComplexGridFunction           df_; // Complex divergence (L2)
 
    ParDiscreteDivOperator div_;
 
@@ -698,7 +698,7 @@ private:
    bool assembled_;
 
 public:
-   GausssLaw(const ParComplexGridFunction &f,
+   GausssLaw(ParFiniteElementSpace & HDivFESpace,
              ParFiniteElementSpace & L2FESpace,
              VectorCoefficient * kReCoef,
              VectorCoefficient * kImCoef);
@@ -707,7 +707,9 @@ public:
 
    void Update();
    void Assemble();
-   void ComputeDiv();
+   void ComputeDiv(const ParComplexGridFunction &f) { ComputeDiv(f, df_); }
+   void ComputeDiv(const ParComplexGridFunction &f,
+                   ParComplexGridFunction &df);
 };
 
 class ComplexMatrixVectorProductCoef : public VectorCoefficient
@@ -986,6 +988,10 @@ public:
 
    inline unsigned int FlipVisFlag(unsigned int flag)
    { return vis_mask_ ^= 1 << flag; }
+
+   virtual bool RequireMagneticFlux() const { return false; }
+   virtual bool RequireElectricFlux() const { return false; }
+   virtual bool RequireDivergence() const { return false; }
 };
 
 class CPDInputVis : public CPDVisBase
@@ -1137,6 +1143,9 @@ class CPDFieldVis : public CPDVisBase
 public:
    enum VisField {ELECTRIC_FIELD = 0,
                   MAGNETIC_FLUX,
+                  ELECTRIC_FLUX,
+                  DIV_MAGNETIC_FLUX,
+                  DIV_ELECTRIC_FLUX,
                   NUM_VIS_FIELDS
                  };
 
@@ -1172,6 +1181,18 @@ public:
    }
    static void AddOptions(OptionsParser &args, Array<bool> &opts);
 
+   bool RequireMagneticFlux() const override
+   { return CheckVisFlag(MAGNETIC_FLUX) || CheckVisFlag(DIV_MAGNETIC_FLUX); }
+
+   bool RequireElectricFlux() const override
+   { return CheckVisFlag(ELECTRIC_FLUX) || CheckVisFlag(DIV_ELECTRIC_FLUX); }
+
+   bool RequireDivergence() const override
+   {
+      return CheckVisFlag(DIV_MAGNETIC_FLUX) ||
+             CheckVisFlag(DIV_ELECTRIC_FLUX);
+   }
+
    std::shared_ptr<L2_ParFESpace> GetScalarFES() const { return sfes_; }
    std::shared_ptr<L2_ParFESpace> GetVectorFES() const { return vfes_; }
 
@@ -1179,6 +1200,8 @@ public:
 
    void PrepareVisFields(const ParComplexGridFunction & e,
                          const ParComplexGridFunction & b,
+                         const ParComplexGridFunction & db,
+                         const ParComplexGridFunction & dd,
                          VectorCoefficient * kReCoef,
                          VectorCoefficient * kImCoef);
 
@@ -1193,6 +1216,8 @@ private:
 
    ComplexVectorFieldVisObject HCurlField_;
    ComplexVectorFieldVisObject HDivField_;
+   ComplexScalarFieldVisObject DivBField_;
+   ComplexScalarFieldVisObject DivDField_;
 };
 
 class CPDOutputVis : public CPDVisBase
@@ -1244,8 +1269,7 @@ public:
 
    void RegisterVisItFields(VisItDataCollection & visit_dc);
 
-   void PrepareVisFields(const ParComplexGridFunction & e,
-                         const ParComplexGridFunction & d);
+   void PrepareVisFields(const ParComplexGridFunction & e);
 
    void DisplayToGLVis();
 
@@ -1313,6 +1337,9 @@ public:
       return flags;
    }
    static void AddOptions(OptionsParser &args, Array<bool> &opts);
+
+   bool RequireMagneticFlux() const override
+   { return CheckVisFlag(MAGNETIC_FLUX_ANIM); }
 
    std::shared_ptr<L2_ParFESpace> GetScalarFES() const { return sfes_; }
    std::shared_ptr<L2_ParFESpace> GetVectorFES() const { return vfes_; }
@@ -1395,14 +1422,38 @@ public:
 
    void Solve();
 
+   bool RequireMagneticFlux() const
+   {
+      return
+         inputVis_.RequireMagneticFlux() ||
+         fieldVis_.RequireMagneticFlux() ||
+         outputVis_.RequireMagneticFlux() ||
+         fieldAnim_.RequireMagneticFlux();
+   }
+
+   bool RequireElectricFlux() const
+   {
+      return
+         inputVis_.RequireElectricFlux() ||
+         fieldVis_.RequireElectricFlux() ||
+         outputVis_.RequireElectricFlux() ||
+         fieldAnim_.RequireElectricFlux();
+   }
+
+   bool RequireDivergence() const
+   {
+      return
+         inputVis_.RequireDivergence() ||
+         fieldVis_.RequireDivergence() ||
+         outputVis_.RequireDivergence() ||
+         fieldAnim_.RequireDivergence();
+   }
+
    real_t GetEFieldError(const VectorCoefficient & EReCoef,
                          const VectorCoefficient & EImCoef) const;
 
    real_t GetBFieldError(const VectorCoefficient & BReCoef,
-                         const VectorCoefficient & BImCoef) const
-   {
-      return faraday_.GetBFieldError(BReCoef, BImCoef);
-   }
+                         const VectorCoefficient & BImCoef) const;
 
    void GetErrorEstimates(Vector & errors);
 
@@ -1458,15 +1509,14 @@ private:
 
    ParBilinearForm * b1_;
 
-   ParComplexGridFunction   e_;   // Complex electric field (HCurl)
+   ParComplexGridFunction    e_;  // Complex electric field (HCurl)
+   ParComplexGridFunction   db_;  // Complex divergence of magnetic flux (L2)
+   ParComplexGridFunction   dd_;  // Complex divergence of electric flux (L2)
 
    CPDInputVis   inputVis_;
    CPDFieldVis   fieldVis_;
    CPDOutputVis outputVis_;
    CPDFieldAnim fieldAnim_;
-
-   ComplexScalarFieldVisObject db_v_; // Divergence of magnetic flux (L2)
-   ComplexScalarFieldVisObject dd_v_; // Divergence of electric flux (L2)
 
    DielectricTensor    epsReCoef_;    // Dielectric Material Coefficient
    DielectricTensor    epsImCoef_;    // Dielectric Material Coefficient
@@ -1500,9 +1550,8 @@ private:
    Maxwell2ndE     maxwell_;
    CurrentSourceE  current_;
    FaradaysLaw     faraday_;
-   GausssLaw       divB_;
    Displacement    displacement_;
-   GausssLaw       divD_;
+   GausssLaw       gauss_;
 
    VisItDataCollection * visit_dc_;
 };

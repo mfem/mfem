@@ -454,29 +454,26 @@ FaradaysLaw::GetBFieldError(const VectorCoefficient & BReCoef,
    return (solNorm > 0.0) ? solErr / solNorm : solErr;
 }
 
-GausssLaw::GausssLaw(const ParComplexGridFunction &f,
+GausssLaw::GausssLaw(ParFiniteElementSpace & HDivFESpace,
                      ParFiniteElementSpace & L2FESpace,
                      VectorCoefficient * kReCoef,
                      VectorCoefficient * kImCoef)
-   : f_(f),
+   : HDivFESpace_(HDivFESpace),
      df_(&L2FESpace),
-     div_(const_cast<ParFiniteElementSpace*>(f.ParFESpace()), &L2FESpace),
+     div_(&HDivFESpace_, &L2FESpace),
      kReDot_(NULL),
      kImDot_(NULL),
      assembled_(false)
 {
-   ParFiniteElementSpace & HDivFESpace =
-      const_cast<ParFiniteElementSpace&>(*f_.ParFESpace());
-
    if (kReCoef)
    {
-      kReDot_ = new ParDiscreteLinearOperator(&HDivFESpace, &L2FESpace);
+      kReDot_ = new ParDiscreteLinearOperator(&HDivFESpace_, &L2FESpace);
       kReDot_->AddDomainInterpolator(
          new VectorInnerProductInterpolator(*kReCoef));
    }
    if (kImCoef)
    {
-      kImDot_ = new ParDiscreteLinearOperator(&HDivFESpace, &L2FESpace);
+      kImDot_ = new ParDiscreteLinearOperator(&HDivFESpace_, &L2FESpace);
       kImDot_->AddDomainInterpolator(
          new VectorInnerProductInterpolator(*kImCoef));
    }
@@ -512,25 +509,32 @@ void GausssLaw::Assemble()
    assembled_ = true;
 }
 
-void GausssLaw::ComputeDiv()
+void GausssLaw::ComputeDiv(const ParComplexGridFunction &f,
+                           ParComplexGridFunction &df)
 {
    if (!assembled_) { this->Assemble(); }
 
+   real_t nrm_r = f.real().Norml2();
+   real_t nrm_i = f.imag().Norml2();
+
    // df = Div(f)
-   div_.Mult(f_.real(), df_.real());
-   div_.Mult(f_.imag(), df_.imag());
+   div_.Mult(f.real(), df.real());
+   div_.Mult(f.imag(), df.imag());
+
+   real_t dnrm_r = df.real().Norml2();
+   real_t dnrm_i = df.imag().Norml2();
 
    if (kReDot_)
    {
       // df += i Re(k) . f
-      kReDot_->AddMult(f_.real(), df_.imag(),  1.0);
-      kReDot_->AddMult(f_.imag(), df_.real(), -1.0);
+      kReDot_->AddMult(f.real(), df.imag(),  1.0);
+      kReDot_->AddMult(f.imag(), df.real(), -1.0);
    }
    if (kImDot_)
    {
       // df -= Im(k) . f
-      kImDot_->AddMult(f_.real(), df_.real(), -1.0);
-      kImDot_->AddMult(f_.imag(), df_.imag(), -1.0);
+      kImDot_->AddMult(f.real(), df.real(), -1.0);
+      kImDot_->AddMult(f.imag(), df.imag(), -1.0);
    }
 }
 
@@ -1549,7 +1553,10 @@ void CPDInputVis::Update()
 const string CPDFieldVis::opt_str_[] =
 {
    "ef", "e-field", "electric field",
-   "bf", "b-flux", "magnetic flux"
+   "bf", "b-flux", "magnetic flux",
+   "df", "d-flux", "electric flux",
+   "dbf", "div-b-flux", "divergence of magnetic flux",
+   "ddf", "div-d-flux", "divergence of electric flux"
 };
 
 std::array<std::string, CPDFieldVis::NUM_VIS_FIELDS> CPDFieldVis::optt_;
@@ -1584,7 +1591,9 @@ CPDFieldVis::CPDFieldVis(StixParams &stixParams,
      sfes_(l2_sfes),
      vfes_(l2_vfes),
      HCurlField_(hcurl_field_name, l2_vfes),
-     HDivField_(hdiv_field_name, l2_vfes)
+     HDivField_(hdiv_field_name, l2_vfes),
+     DivBField_("DivB", l2_sfes, false, true),
+     DivDField_("DivD", l2_sfes, false, true)
 {
 }
 
@@ -1594,10 +1603,16 @@ void CPDFieldVis::RegisterVisItFields(VisItDataCollection & visit_dc)
    { HCurlField_.RegisterVisItFields(visit_dc); }
    if (CheckVisFlag(MAGNETIC_FLUX))
    { HDivField_.RegisterVisItFields(visit_dc); }
+   if (CheckVisFlag(DIV_MAGNETIC_FLUX))
+   { DivBField_.RegisterVisItFields(visit_dc); }
+   if (CheckVisFlag(DIV_ELECTRIC_FLUX))
+   { DivDField_.RegisterVisItFields(visit_dc); }
 }
 
 void CPDFieldVis::PrepareVisFields(const ParComplexGridFunction & e,
                                    const ParComplexGridFunction & b,
+                                   const ParComplexGridFunction & db,
+                                   const ParComplexGridFunction & dd,
                                    VectorCoefficient * kReCoef,
                                    VectorCoefficient * kImCoef)
 {
@@ -1605,12 +1620,18 @@ void CPDFieldVis::PrepareVisFields(const ParComplexGridFunction & e,
    { HCurlField_.PrepareVisField(e, kReCoef, kImCoef); }
    if (CheckVisFlag(MAGNETIC_FLUX))
    { HDivField_.PrepareVisField(b, kReCoef, kImCoef); }
+   if (CheckVisFlag(DIV_MAGNETIC_FLUX))
+   { DivBField_.PrepareVisField(db, kReCoef, kImCoef); }
+   if (CheckVisFlag(DIV_ELECTRIC_FLUX))
+   { DivDField_.PrepareVisField(dd, kReCoef, kImCoef); }
 }
 
 void CPDFieldVis::DisplayToGLVis()
 {
    if (CheckVisFlag(ELECTRIC_FIELD)) { HCurlField_.DisplayToGLVis(); }
    if (CheckVisFlag(MAGNETIC_FLUX)) { HDivField_.DisplayToGLVis(); }
+   if (CheckVisFlag(DIV_MAGNETIC_FLUX)) { DivBField_.DisplayToGLVis(); }
+   if (CheckVisFlag(DIV_ELECTRIC_FLUX)) { DivDField_.DisplayToGLVis(); }
 }
 
 void CPDFieldVis::Update()
@@ -1620,6 +1641,8 @@ void CPDFieldVis::Update()
 
    HCurlField_.Update();
    HDivField_.Update();
+   DivBField_.Update();
+   DivDField_.Update();
 }
 
 const string CPDOutputVis::opt_str_[] =
@@ -1693,8 +1716,7 @@ void CPDOutputVis::RegisterVisItFields(VisItDataCollection & visit_dc)
    { ealongb_.RegisterVisItFields(visit_dc); }
 }
 
-void CPDOutputVis::PrepareVisFields(const ParComplexGridFunction & e,
-                                    const ParComplexGridFunction & /*d*/)
+void CPDOutputVis::PrepareVisFields(const ParComplexGridFunction & e)
 {
    if (CheckVisFlag(ENERGY_DENSITY))
    {
@@ -1839,12 +1861,12 @@ CPDSolverEB::CPDSolverEB(ParMesh & pmesh, int order,
      HDivFESpace_(MakeHDivParFESpace(pmesh, order)),
      b1_(NULL),
      e_(HCurlFESpace_.get()),
+     db_(L2FESpace_.get()),
+     dd_(L2FESpace_.get()),
      inputVis_(stixParams, L2FESpace_, L2VFESpace_),
      fieldVis_(stixParams, L2FESpace_, L2VFESpace_, "E", "B"),
      outputVis_(stixParams, L2FESpace2p_, L2VFESpace_, omega_, cyl_),
      fieldAnim_(stixParams, L2FESpace_, L2VFESpace_, "E", "B"),
-     db_v_("DivB", L2FESpace_, cyl_, true),
-     dd_v_("DivD", L2FESpace_, cyl_, true),
      epsReCoef_(stixParams, StixCoef::REAL_PART),
      epsImCoef_(stixParams, StixCoef::IMAG_PART),
      epsAbsCoef_(stixParams),
@@ -1867,9 +1889,8 @@ CPDSolverEB::CPDSolverEB(ParMesh & pmesh, int order,
               stixBCs.GetCurrentSrcs(), stixBCs.GetNeumannBCs(),
               betaReCoef, betaImCoef),
      faraday_(e_, *HDivFESpace_, omega_, betaReCoef, betaImCoef),
-     divB_(faraday_.GetMagneticFlux(), *L2FESpace_, betaReCoef, betaImCoef),
      displacement_(e_, *HDivFESpace_, epsReCoef_, epsImCoef_),
-     divD_(displacement_.GetDisplacement(), *L2FESpace_, betaReCoef, betaImCoef),
+     gauss_(*HDivFESpace_, *L2FESpace_, betaReCoef, betaImCoef),
      visit_dc_(NULL)
 {
    // Initialize MPI variables
@@ -2075,11 +2096,19 @@ CPDSolverEB::Assemble()
 
    maxwell_.Assemble();
    current_.Assemble();
-   faraday_.Assemble();
-   displacement_.Assemble();
 
-   divB_.Assemble();
-   divD_.Assemble();
+   if ( RequireMagneticFlux() )
+   {
+      faraday_.Assemble();
+   }
+   if ( RequireElectricFlux() )
+   {
+      displacement_.Assemble();
+   }
+   if ( RequireDivergence() )
+   {
+      gauss_.Assemble();
+   }
 
    tic_toc.Stop();
 
@@ -2117,6 +2146,8 @@ CPDSolverEB::Update()
 
    // Inform the grid functions that the space has changed.
    e_.Update();
+   db_.Update();
+   dd_.Update();
 
    if (axis_.Size() > 0)
    {
@@ -2163,8 +2194,8 @@ CPDSolverEB::Update()
    fieldVis_.Update();
    outputVis_.Update();
    fieldAnim_.Update();
-   db_v_.Update();
-   dd_v_.Update();
+   // db_v_.Update();
+   // dd_v_.Update();
 
    // Inform the bilinear forms that the space has changed.
    b1_->Update();
@@ -2174,8 +2205,7 @@ CPDSolverEB::Update()
    current_.Update();
    faraday_.Update();
    displacement_.Update();
-   divB_.Update();
-   divD_.Update();
+   gauss_.Update();
 
    tic_toc.Stop();
 
@@ -2443,8 +2473,22 @@ CPDSolverEB::Solve()
 
    e_.Distribute(E);
 
-   faraday_.ComputeB();
-   displacement_.ComputeD();
+   if ( RequireMagneticFlux() )
+   {
+      faraday_.ComputeB();
+      if ( RequireDivergence() )
+      {
+         gauss_.ComputeDiv(faraday_.GetMagneticFlux(), db_);
+      }
+   }
+   if ( RequireElectricFlux() )
+   {
+      displacement_.ComputeD();
+      if ( RequireDivergence() )
+      {
+         gauss_.ComputeDiv(displacement_.GetDisplacement(), dd_);
+      }
+   }
 
    delete BDP;
    if (pci != pcr) { delete pci; }
@@ -2473,6 +2517,16 @@ CPDSolverEB::GetEFieldError(const VectorCoefficient & EReCoef,
                                      const_cast<VectorCoefficient&>(EImCoef));
 
    return (solNorm > 0.0) ? solErr / solNorm : solErr;
+}
+
+real_t CPDSolverEB::GetBFieldError(const VectorCoefficient & BReCoef,
+                                   const VectorCoefficient & BImCoef) const
+{
+   if (!RequireMagneticFlux())
+   {
+      const_cast<FaradaysLaw&>(faraday_).ComputeB();
+   }
+   return faraday_.GetBFieldError(BReCoef, BImCoef);
 }
 
 void
@@ -2522,8 +2576,9 @@ void CPDSolverEB::prepareVisFields()
    inputVis_.PrepareVisFields(current_.GetVolumeCurrentDensity(),
                               betaReCoef_, betaImCoef_);
    fieldVis_.PrepareVisFields(e_, faraday_.GetMagneticFlux(),
+                              db_, dd_,
                               betaReCoef_, betaImCoef_);
-   outputVis_.PrepareVisFields(e_, displacement_.GetDisplacement());
+   outputVis_.PrepareVisFields(e_);
    fieldAnim_.PrepareVisFields(e_, faraday_.GetMagneticFlux(),
                                betaReCoef_, betaImCoef_);
 }
