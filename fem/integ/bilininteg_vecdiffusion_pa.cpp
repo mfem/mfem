@@ -586,8 +586,9 @@ VectorDiffusionIntegrator::Kernels::Kernels()
    VectorDiffusionIntegrator::AddSpecialization<2, 3, 3, 3>();
    VectorDiffusionIntegrator::AddSpecialization<2, 3, 4, 4>();
    VectorDiffusionIntegrator::AddSpecialization<2, 3, 5, 5>();
-}*/
+}
 
 /// \endcond DO_NOT_DOCUMENT
+*/
 
 } // namespace mfem
