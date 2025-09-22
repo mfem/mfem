@@ -18,6 +18,7 @@
 // Sample runs:  mpirun -np 4 dfem-minimal-surface -der 0
 //               mpirun -np 4 dfem-minimal-surface -der 0 -o 2
 //               mpirun -np 4 dfem-minimal-surface -der 0 -r 1
+//               mpirun -np 4 dfem-minimal-surface -der 0 -o 2 -r 4 -pcamg
 //               mpirun -np 4 dfem-minimal-surface -der 1
 //               mpirun -np 4 dfem-minimal-surface -der 2
 //
@@ -47,6 +48,7 @@
 //               visualization.
 
 #include "mfem.hpp"
+#include "../../general/forall.hpp"
 
 using namespace mfem;
 
@@ -179,12 +181,13 @@ private:
 
          dres_du->Mult(z, y);
 
-         auto d_y = y.HostReadWrite();
-         const auto d_x = x.HostRead();
-         for (int i = 0; i < minsurface->ess_tdofs.Size(); i++)
+         auto d_y = y.ReadWrite();
+         const auto d_x = x.Read();
+         const auto d_dofs = minsurface->ess_tdofs.Read();
+         mfem::forall(minsurface->ess_tdofs.Size(), [=] MFEM_HOST_DEVICE (int i)
          {
-            d_y[minsurface->ess_tdofs[i]] = d_x[minsurface->ess_tdofs[i]];
-         }
+            d_y[d_dofs[i]] = d_x[d_dofs[i]];
+         });
       }
 
       // Pointer to the wrapped MinimalSurface operator
@@ -396,6 +399,16 @@ public:
       }
    }
 
+   std::shared_ptr<MinimalSurfaceJacobian> GetJacobian()
+   {
+      return dres_du;
+   }
+
+   const Array<int>& GetEssentialTrueDofs() const
+   {
+      return ess_tdofs;
+   }
+
 private:
    ParFiniteElementSpace &H1;
    const IntegrationRule &ir;
@@ -409,6 +422,40 @@ private:
    mutable std::shared_ptr<MinimalSurfaceHandcodedJacobian> man_dres_du;
    mutable std::shared_ptr<FDJacobian> fd_jac;
    int derivative_type;
+};
+
+template <typename dscalar_t, int dim = 2>
+class AMGPC : public Solver
+{
+public:
+   AMGPC(Operator &op) :
+      Solver(op.Height()),
+      op(op)
+   {}
+
+   void SetOperator(const Operator &) override
+   {
+      auto minsurface = static_cast<MinimalSurface<dscalar_t, dim>&>(op);
+      delete A;
+
+      // We leverage dFEM to assemble the Jacobian of the minimal surface
+      // operator into a HypreParMatrix.
+      minsurface.GetJacobian()->dres_du->Assemble(A);
+      auto Ae = A->EliminateRowsCols(minsurface.GetEssentialTrueDofs());
+      delete Ae;
+      amg.SetPrintLevel(0);
+      amg.SetOperator(*A);
+   }
+
+   void Mult(const Vector &x, Vector &y) const override
+   {
+      amg.Mult(x, y);
+   }
+
+private:
+   Operator &op;
+   HypreParMatrix *A = nullptr;
+   HypreBoomerAMG amg;
 };
 
 // Boundary function for the minimal surface problem described by the Scherk
@@ -438,6 +485,7 @@ int main(int argc, char *argv[])
    bool visualization = true;
    int refinements = 0;
    int derivative_type = AUTODIFF;
+   bool enable_pcamg = false;
 
    OptionsParser args(argc, argv);
    args.AddOption(&order, "-o", "--order",
@@ -451,7 +499,8 @@ int main(int argc, char *argv[])
    args.AddOption(&derivative_type, "-der", "--derivative-type",
                   "Derivative computation type: 0=AutomaticDifferentiation,"
                   " 1=HandCoded, 2=FiniteDifference");
-
+   args.AddOption(&enable_pcamg, "-pcamg", "--pcamg", "-no-pcamg", "--no-pcamg",
+                  "Enable AMG as a preconditioner when using automatic differentiation.");
    args.ParseCheck();
 
    // 3. Enable hardware devices such as GPUs, and programming models such as
@@ -526,6 +575,20 @@ int main(int argc, char *argv[])
    krylov.SetRelTol(1e-4);
    krylov.SetMaxIter(500);
    krylov.SetPrintLevel(2);
+
+   std::shared_ptr<AMGPC<real_t>> amgpc;
+   if (enable_pcamg)
+   {
+      if (derivative_type == AUTODIFF)
+      {
+         amgpc.reset(new AMGPC<real_t>(*minsurface));
+         krylov.SetPreconditioner(*amgpc);
+      }
+      else
+      {
+         MFEM_ABORT("AMG only available for the AUTODIFF derivative type");
+      }
+   }
 
    // 13. Set up the nonlinear solver (Newton) for the minimal surface equation
    NewtonSolver newton(MPI_COMM_WORLD);
