@@ -25,6 +25,17 @@
 using real_t = mfem::real_t;
 
 ///////////////////////////////////////////////////////////////////////////////
+constexpr auto Lambda = [](const real_t E, const real_t ν)
+{
+   return E * ν / (1.0 + ν) / (1.0 - 2.0 * ν);
+};
+
+constexpr auto Schear = [](const real_t E, const real_t ν)
+{
+   return E / (2.0 * (1.0 + ν));
+};
+
+///////////////////////////////////////////////////////////////////////////////
 class IsoElasticyLambdaCoeff : public mfem::Coefficient
 {
    mfem::Coefficient *E, *nu;
@@ -37,15 +48,9 @@ public:
    real_t Eval(mfem::ElementTransformation &T,
                const mfem::IntegrationPoint &ip) override
    {
-      real_t rez = 0.0;
-
-      real_t EE = E->Eval(T, ip);
-      real_t nn = nu->Eval(T, ip);
-
-      rez = EE * nn / (1.0 + nn);
-      rez = rez / (1.0 - 2.0 * nn);
-
-      return rez;
+      const real_t EE = E->Eval(T, ip);
+      const real_t nn = nu->Eval(T, ip);
+      return Lambda(EE, nn);
    }
 };
 
@@ -63,15 +68,9 @@ public:
    real_t Eval(mfem::ElementTransformation &T,
                const mfem::IntegrationPoint &ip) override
    {
-      real_t rez = 0.0;
-
-      real_t EE = E->Eval(T, ip);
-      real_t nn = nu->Eval(T, ip);
-
-      rez = EE / (1.0 + nn);
-      rez = rez / 2.0;
-
-      return rez;
+      const real_t EE = E->Eval(T, ip);
+      const real_t nn = nu->Eval(T, ip);
+      return Schear(EE, nn);
    }
 };
 
@@ -196,7 +195,7 @@ public:
       dbg("new bf ParBilinearForm");
       bf = new mfem::ParBilinearForm(vfes);
 
-      if (dfem) { AddDFemDomainIntegrator(*lambda, *mu); }
+      if (dfem) { AddDFemDomainIntegrator(); }
       else
       {
          bf->AddDomainIntegrator(new mfem::ElasticityIntegrator(*lambda, *mu));
@@ -291,14 +290,17 @@ private:
    std::unique_ptr<mfem::OperatorHandle> Kh;
    std::unique_ptr<mfem::HypreParMatrix> K, Ke;
 
-   static constexpr int U = 0, Coords = 1;
+   static constexpr int U = 0, Coords = 1, ECoeff = 2, NuCoeff = 3;
    const mfem::FiniteElement *fe;
    mfem::ParGridFunction *nodes;
    mfem::ParFiniteElementSpace *mfes;
    mfem::Array<int> domain_attributes;
    const mfem::IntegrationRule &ir;
+   mfem::QuadratureSpace qs;
+   mfem::future::UniformParameterSpace E_ps, nu_ps;
+   std::unique_ptr<mfem::CoefficientVector> E_cv, nu_cv;
    mfem::future::DifferentiableOperator dop;
-   void AddDFemDomainIntegrator(mfem::Coefficient &l, mfem::Coefficient &m);
+   void AddDFemDomainIntegrator();
 
    mfem::ParLinearForm *lf;
 
