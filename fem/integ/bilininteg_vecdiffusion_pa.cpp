@@ -23,8 +23,57 @@
 #define dbg(...)
 #endif
 
+#include "bilininteg_vecdiffusion_kernels.hpp"
+
 namespace mfem
 {
+
+VectorDiffusionIntegrator::VectorDiffusionIntegrator(const IntegrationRule *ir)
+   : BilinearFormIntegrator(ir)
+{
+   static Kernels kernels;
+}
+
+VectorDiffusionIntegrator::VectorDiffusionIntegrator(Coefficient &q)
+   : VectorDiffusionIntegrator()
+{
+   Q = &q;
+}
+
+VectorDiffusionIntegrator::VectorDiffusionIntegrator(int vector_dimension)
+   : VectorDiffusionIntegrator()
+{
+   vdim = vector_dimension;
+}
+
+VectorDiffusionIntegrator::VectorDiffusionIntegrator(Coefficient &q,
+                                                     const IntegrationRule *ir)
+   : VectorDiffusionIntegrator(ir)
+{
+   Q = &q;
+}
+
+VectorDiffusionIntegrator::VectorDiffusionIntegrator(Coefficient &q,
+                                                     int vector_dimension)
+   : VectorDiffusionIntegrator()
+{
+   Q = &q;
+   vdim = vector_dimension;
+}
+
+VectorDiffusionIntegrator::VectorDiffusionIntegrator(VectorCoefficient &vq)
+   : VectorDiffusionIntegrator()
+{
+   VQ = &vq;
+   vdim = vq.GetVDim();
+}
+
+VectorDiffusionIntegrator::VectorDiffusionIntegrator(MatrixCoefficient &mq)
+   : VectorDiffusionIntegrator()
+{
+   MQ = &mq;
+   vdim = mq.GetVDim();
+}
 
 void VectorDiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
 {
@@ -497,5 +546,46 @@ void VectorDiffusionIntegrator::AssembleDiagonalPA(Vector &diag)
                                         pa_data, diag);
    }
 }
+
+// PA Diffusion Apply kernel
+void VectorDiffusionIntegrator::AddMultPA(const Vector &x, Vector &y) const
+{
+   if (DeviceCanUseCeed())
+   {
+      ceedOp->AddMult(x, y);
+   }
+   else
+   {
+      const int D1D = dofs1D;
+      const int Q1D = quad1D;
+      const Array<real_t> &B = maps->B;
+      const Array<real_t> &G = maps->G;
+      const Array<real_t> &Bt = maps->Bt;
+      const Array<real_t> &Gt = maps->Gt;
+      const Vector &D = pa_data;
+      ApplyPAKernels::Run(dim, sdim, D1D, Q1D, ne, B, G, Bt, Gt, D, x, y, D1D,
+                          Q1D, sdim);
+   }
+}
+
+/// \cond DO_NOT_DOCUMENT
+
+VectorDiffusionIntegrator::ApplyKernelType
+VectorDiffusionIntegrator::ApplyPAKernels::Fallback(int DIM, int, int, int)
+{
+   if (DIM == 2) { return internal::PAVectorDiffusionApply2D; }
+   else if (DIM == 3) { return internal::PAVectorDiffusionApply3D; }
+   else { MFEM_ABORT(""); }
+}
+
+VectorDiffusionIntegrator::Kernels::Kernels()
+{
+   VectorDiffusionIntegrator::AddSpecialization<2, 3, 2, 2>();
+   VectorDiffusionIntegrator::AddSpecialization<2, 3, 3, 3>();
+   VectorDiffusionIntegrator::AddSpecialization<2, 3, 4, 4>();
+   VectorDiffusionIntegrator::AddSpecialization<2, 3, 5, 5>();
+}
+
+/// \endcond DO_NOT_DOCUMENT
 
 } // namespace mfem
