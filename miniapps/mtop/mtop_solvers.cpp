@@ -31,6 +31,7 @@ using mfem::future::Weight;
 using mfem::future::Gradient;
 using mfem::future::Identity;
 
+///////////////////////////////////////////////////////////////////////////////
 template <int DIM> struct QFunction
 {
    using matd_t = tensor<real_t, DIM, DIM>;
@@ -38,26 +39,14 @@ template <int DIM> struct QFunction
    struct Elasticity
    {
       MFEM_HOST_DEVICE inline auto operator()(const matd_t &dudxi,
-                                              //  const real_t &iE, const real_t &iν,
+                                              const real_t &E, const real_t &ν,
                                               const matd_t &J,
                                               const real_t &w) const
       {
-         constexpr real_t E(1.0), ν(0.2);
-         dbg("E={}, ν={}", E, ν);
-         constexpr auto I = mfem::future::IsotropicIdentity<DIM>();
-
-         constexpr auto λ = [&]() { return E * ν / (1.0 + ν) / (1.0 - 2.0 * ν); };
-         constexpr auto μ = [&]() { return E / (2.0 * (1.0 + ν)); };
-
-         constexpr auto lambda = λ(), mu = μ();
-
-
-         // const auto lambda = Lambda(E, ν), mu = Schear(E, ν);
-         // const auto lambda = E, mu = ν;
-         const auto eps = mfem::future::sym(dudxi * mfem::future::inv(J));
          const matd_t JxW = transpose(inv(J)) * det(J) * w;
-
-         return tuple{(lambda * tr(eps) * I + 2.0 * mu * eps) * JxW};
+         constexpr auto I = mfem::future::IsotropicIdentity<DIM>();
+         const auto eps = mfem::future::sym(dudxi * mfem::future::inv(J));
+         return tuple{(E * tr(eps) * I + 2.0 * ν * eps) * JxW};
       }
    };
 };
@@ -65,16 +54,17 @@ template <int DIM> struct QFunction
 void IsoLinElasticSolver::AddDFemDomainIntegrator()
 {
    dbg("\x1b[36m dfem elasticity operator");
+   assert(lambda && mu);
 
    E_cv = std::make_unique<CoefficientVector>(*lambda, qs);
    nu_cv = std::make_unique<CoefficientVector>(*mu, qs);
-   // dop.SetParameters({ E_cv.get(), nu_cv.get(), nodes });
-   dop.SetParameters({ nodes });
+
+   dop.SetParameters({ E_cv.get(), nu_cv.get(), nodes });
 
    typename QFunction<2>::Elasticity e2qf;
    dop.AddDomainIntegrator(e2qf,
                            mfem::future::tuple{ Gradient<U>{},
-                                                // Identity<ECoeff>{}, Identity<NuCoeff>{},
+                                                Identity<ECoeff>{}, Identity<NuCoeff>{},
                                                 Gradient<Coords>{},
                                                 Weight{} },
                            mfem::future::tuple{ Gradient<U>{} },
@@ -116,10 +106,12 @@ IsoLinElasticSolver::IsoLinElasticSolver(ParMesh *mesh, int vorder,
    qs(*pmesh, ir),
    E_ps(*pmesh, ir, 1),
    nu_ps(*pmesh, ir, 1),
-   dop({{ U, vfes }}, { /*{ECoeff, &E_ps}, { NuCoeff, &nu_ps},*/ { Coords, mfes }},
+   dop({{ U, vfes }}, { {ECoeff, &E_ps}, { NuCoeff, &nu_ps}, { Coords, mfes }},
 *pmesh), lf(nullptr)
 {
-   dbg("sol size:{}", sol.Size());
+   MFEM_VERIFY(qs.GetSize() == E_ps.GetTrueVSize(),
+               "QuadratureSpace and ParameterSpace size mismatch");
+
    sol = 0.0;
    rhs = 0.0;
    adj = 0.0;

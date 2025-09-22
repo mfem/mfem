@@ -55,6 +55,7 @@ int main(int argc, char *argv[])
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
    args.ParseCheck();
+   MFEM_VERIFY(!(pa && dfem), "pa and dfem cannot be both set");
 
    // 3. Enable hardware devices such as GPUs, and programming models such as
    //    CUDA, OCCA, RAJA and OpenMP based on command line options.

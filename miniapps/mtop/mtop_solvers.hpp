@@ -25,17 +25,6 @@
 using real_t = mfem::real_t;
 
 ///////////////////////////////////////////////////////////////////////////////
-constexpr auto Lambda = [](const real_t E, const real_t ν)
-{
-   return E * ν / (1.0 + ν) / (1.0 - 2.0 * ν);
-};
-
-constexpr auto Schear = [](const real_t E, const real_t ν)
-{
-   return E / (2.0 * (1.0 + ν));
-};
-
-///////////////////////////////////////////////////////////////////////////////
 class IsoElasticyLambdaCoeff : public mfem::Coefficient
 {
    mfem::Coefficient *E, *nu;
@@ -50,6 +39,10 @@ public:
    {
       const real_t EE = E->Eval(T, ip);
       const real_t nn = nu->Eval(T, ip);
+      constexpr auto Lambda = [](const real_t E, const real_t ν)
+      {
+         return E * ν / (1.0 + ν) / (1.0 - 2.0 * ν);
+      };
       return Lambda(EE, nn);
    }
 };
@@ -61,15 +54,17 @@ class IsoElasticySchearCoeff : public mfem::Coefficient
 
 public:
    IsoElasticySchearCoeff(mfem::Coefficient *E_, mfem::Coefficient *nu_):
-      E(E_), nu(nu_)
-   {
-   }
+      E(E_), nu(nu_) { }
 
    real_t Eval(mfem::ElementTransformation &T,
                const mfem::IntegrationPoint &ip) override
    {
       const real_t EE = E->Eval(T, ip);
       const real_t nn = nu->Eval(T, ip);
+      constexpr auto Schear = [](const real_t E, const real_t ν)
+      {
+         return E / (2.0 * (1.0 + ν));
+      };
       return Schear(EE, nn);
    }
 };
@@ -203,6 +198,19 @@ public:
       }
    }
 
+   class NonTensorUniformParameterSpace : public
+      mfem::future::UniformParameterSpace
+   {
+   public:
+      NonTensorUniformParameterSpace(mfem::ParMesh &mesh,
+                                     const mfem::IntegrationRule &ir,
+                                     int vdim) :
+         mfem::future::UniformParameterSpace(mesh, ir, vdim, false)
+      {
+         dtq.nqpt = ir.GetNPoints();
+      }
+   };
+
 private:
    mfem::ParMesh *pmesh;
    const bool pa, dfem; // partial assembly, dFEM operator
@@ -297,7 +305,7 @@ private:
    mfem::Array<int> domain_attributes;
    const mfem::IntegrationRule &ir;
    mfem::QuadratureSpace qs;
-   mfem::future::UniformParameterSpace E_ps, nu_ps;
+   NonTensorUniformParameterSpace E_ps, nu_ps;
    std::unique_ptr<mfem::CoefficientVector> E_cv, nu_cv;
    mfem::future::DifferentiableOperator dop;
    void AddDFemDomainIntegrator();
