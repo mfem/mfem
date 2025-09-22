@@ -110,11 +110,13 @@ private:
                                BlockVector &);
    bool CurvatureTest(const BlockOperator & A, const BlockVector & Xhat,
                       const Vector &l, const BlockVector & b, const real_t & delta);
-   void Clear()
+   void UpdateBarrierSubProblem()
    {
+      // reduced barrier parameter
+      mu_k = max(abs_tol / 10., min(kMu * mu_k, pow(mu_k, thetaMu)));
+      // clear subproblem filter
       F1.DeleteAll();
       F2.DeleteAll();
-      mu_k = 1.0;
    };
 };
 

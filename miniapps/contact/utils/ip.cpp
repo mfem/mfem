@@ -223,9 +223,9 @@ void IPSolver::Mult(const BlockVector &x0, BlockVector &xf)
    thetaMin = 1.e-4 * max(1.0, theta0);
    thetaMax = 1.e8  * thetaMin;
 
-   real_t Eeval, Eeval0, maxBarrierSolves, Eevalmu0;
+   real_t OptErrSubproblem, OptErr;
 
-   maxBarrierSolves = 10;
+   int maxBarrierSolves = 10;
    for (int j = 0; j < max_iter; j++)
    {
       if (myid == 0 && print_level > 0)
@@ -234,8 +234,8 @@ void IPSolver::Mult(const BlockVector &x0, BlockVector &xf)
          cout << "interior-point solve step # " << j << endl;
       }
       // Check convergence of optimization problem
-      Eevalmu0 = OptimalityError(xk, lk, zlk);
-      if (Eevalmu0 < abs_tol)
+      OptErr = OptimalityError(xk, lk, zlk);
+      if (OptErr < abs_tol)
       {
          converged = true;
          if (myid == 0 && print_level > 0)
@@ -246,26 +246,17 @@ void IPSolver::Mult(const BlockVector &x0, BlockVector &xf)
       }
 
       if (j > 0) { maxBarrierSolves = 1; }
-      real_t Eeval_mu_0;
       for (int i = 0; i < maxBarrierSolves; i++)
       {
          // Check convergence of the barrier subproblem
-         Eeval = OptimalityError(xk, lk, zlk, mu_k);
-         if (i == 0)
-         {
-            Eeval_mu_0 = Eeval;
-         }
-         if (Eeval < kEps * mu_k)
+         OptErrSubproblem = OptimalityError(xk, lk, zlk, mu_k);
+         if (OptErrSubproblem < kEps * mu_k)
          {
             if (myid == 0 && print_level > 0)
             {
                cout << "solved mu = " << mu_k << " barrier subproblem\n";
             }
-            // Reduction of the barrier parameter
-            mu_k  = max(abs_tol / 10., min(kMu * mu_k, pow(mu_k, thetaMu)));
-            // Re-initialize the filter for new barrier subproblem
-            F1.DeleteAll();
-            F2.DeleteAll();
+	    UpdateBarrierSubProblem();
          }
          else
          {
@@ -273,21 +264,21 @@ void IPSolver::Mult(const BlockVector &x0, BlockVector &xf)
          }
       }
 
-      // A-4. Compute the search direction
+      // Compute the search direction
       // solve for (uhat, mhat, lhat)
       zlhat = 0.0; Xhatuml = 0.0;
 
 
-      bool passedCTest = false;
-      IPNewtonSolve(xk, lk, zlk, zlhat, Xhatuml, passedCTest, mu_k);
-      if (!passedCTest)
+      bool passedCurvatureTest = false;
+      IPNewtonSolve(xk, lk, zlk, zlhat, Xhatuml, passedCurvatureTest, mu_k);
+      if (!passedCurvatureTest)
       {
          if (myid == 0 && print_level > 0)
          {
             cout << "curvature test failed\n";
          }
          real_t deltaReg = 0.0;
-         int maxCTests = 30;
+         int maxCurvatureTests = 30;
 
          // inertia regularization initialization
          if (deltaRegLast < deltaRegMin)
@@ -301,15 +292,15 @@ void IPSolver::Mult(const BlockVector &x0, BlockVector &xf)
 
          // solve regularized IP-Newton linear system
          zlhat = 0.0; Xhatuml = 0.0;
-         IPNewtonSolve(xk, lk, zlk, zlhat, Xhatuml, passedCTest, mu_k, deltaReg);
+         IPNewtonSolve(xk, lk, zlk, zlhat, Xhatuml, passedCurvatureTest, mu_k, deltaReg);
 
-         for (int numCTests = 0; numCTests < maxCTests; numCTests++)
+         for (int numCurvatureTests = 0; numCurvatureTests < maxCurvatureTests; numCurvatureTests++)
          {
             if (myid == 0 && print_level > 0)
             {
                cout << "deltaReg = " << deltaReg << endl;
             }
-            if (passedCTest)
+            if (passedCurvatureTest)
             {
                deltaRegLast = deltaReg;
                break;
@@ -331,7 +322,7 @@ void IPSolver::Mult(const BlockVector &x0, BlockVector &xf)
             }
             // solve with regularization
             zlhat = 0.0; Xhatuml = 0.0;
-            IPNewtonSolve(xk, lk, zlk, zlhat, Xhatuml, passedCTest, mu_k, deltaReg);
+            IPNewtonSolve(xk, lk, zlk, zlhat, Xhatuml, passedCurvatureTest, mu_k, deltaReg);
          }
       }
 
@@ -476,7 +467,7 @@ void IPSolver::FormIPNewtonMat(BlockVector & x, Vector & l,
 // perturbed KKT system solve
 // determine the search direction
 void IPSolver::IPNewtonSolve(BlockVector &x, Vector &l,
-                             Vector &zl, Vector &zlhat, BlockVector &Xhat, bool & passedCTest, real_t mu,
+                             Vector &zl, Vector &zlhat, BlockVector &Xhat, bool & passedCurvatureTest, real_t mu,
                              real_t delta)
 {
    iter++;
@@ -541,7 +532,7 @@ void IPSolver::IPNewtonSolve(BlockVector &x, Vector &l,
    delete JuTDJu;
    delete Areduced;
 
-   passedCTest = CurvatureTest(A, Xhat, l, b, delta);
+   passedCurvatureTest = CurvatureTest(A, Xhat, l, b, delta);
 
    /* backsolve to determine zlhat */
    for (int i = 0; i < dimM; i++)
@@ -653,6 +644,7 @@ void IPSolver::LineSearch(BlockVector& X0, BlockVector& Xhat,
          }
          if (thx0 <= thetaMin && switchCondition)
          {
+            // sufficient decrease of the log-barrier objective
             sufficientDecrease = (phxtrial <= phx0 + eta * alpha * Dxphi0_xhat) ? true :
                                  false;
             if (sufficientDecrease)
