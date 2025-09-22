@@ -21,7 +21,7 @@
 // hypre header files
 #include <_hypre_parcsr_mv.h>
 
-#if MFEM_HYPRE_VERSION < 23300 // TODO: change to 30000
+#if MFEM_HYPRE_VERSION < 30000
 #define hypre_GenerateDiagAndOffd GenerateDiagAndOffd
 #endif
 
