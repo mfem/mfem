@@ -770,7 +770,7 @@ void DifferentiableOperator::AddDomainIntegrator(
          Vector inputs_trial_op_dim(num_inputs);
          int total_trial_op_dim = 0;
          {
-            auto itod = Reshape(inputs_trial_op_dim.ReadWrite(), num_inputs);
+            auto itod = Reshape(inputs_trial_op_dim.HostReadWrite(), num_inputs);
             int idx = 0;
             for_constexpr<num_inputs>([&](auto s)
             {
