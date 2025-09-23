@@ -14,23 +14,23 @@
 //                 -------------------------------------
 //
 // This miniapp introduces the Incompressible Schrödinger Flow (ISF) method,
-// a novel approach for simulating inviscid fluid dynamics by solving the
-// linear Schrödinger equation, leveraging the hydrodynamical analogy to
-// quantum mechanics proposed by Madelung in 1926. ISF offers a simple and
-// efficient framework, particularly effective for capturing vortex dynamics.
+// an approach for simulating inviscid fluid dynamics by solving the linear
+// Schrödinger equation, leveraging the hydrodynamical analogy to quantum
+// mechanics proposed by Madelung in 1926. ISF offers a simple and efficient
+// framework, particularly effective for capturing vortex dynamics.
 //
 // Compile with: make pschrodinger_flow
 //
 // Sample runs:
-//  * mpirun -np 4 pschrodinger_flow --leapfrog
-//  * mpirun -np 4 pschrodinger_flow --leapfrog -nx 128 -ny 128 -hbar 5e-2
-//  * mpirun -np 4 pschrodinger_flow --leapfrog -o 2 -nx 32 -ny 32
-//  * mpirun -np 4 pschrodinger_flow --leapfrog -o 3 -nx 32 -ny 32
-//  * mpirun -np 4 pschrodinger_flow --leapfrog -o 4 -nx 16 -ny 16
-//  * mpirun -np 4 pschrodinger_flow --jet -vd 0 -nx 128 -ny 128 -hbar 5e-2
+//    mpirun -np 4 pschrodinger_flow --leapfrog
+//    mpirun -np 4 pschrodinger_flow --leapfrog -nx 128 -ny 128 -hbar 5e-2
+//    mpirun -np 4 pschrodinger_flow --leapfrog -o 2 -nx 32 -ny 32 -sx 8 -sy 8
+//    mpirun -np 4 pschrodinger_flow --leapfrog -o 3 -nx 32 -ny 32
+//    mpirun -np 4 pschrodinger_flow --leapfrog -o 4 -nx 16 -ny 16 -lr1 0.32 -lr2 0.16 -dt 0.1
+//    mpirun -np 4 pschrodinger_flow --jet -vd 0 -hbar 5e-2
 //
 // Device sample runs:
-//  * mpirun -np 4 pschrodinger_flow -d debug --leapfrog
+//    mpirun -np 4 pschrodinger_flow -d debug --leapfrog
 
 #include "schrodinger_flow.hpp"
 
@@ -53,10 +53,10 @@ using CrankNicolsonSolver = CrankNicolsonBaseSolver<
                             ParSesquilinearForm,
                             ParComplexGridFunction>;
 
-// Factory functions for parallel mesh and solvers
-static auto SetParMesh = [](Mesh &mesh) { return ParMesh(MPI_COMM_WORLD, mesh);};
+// Parallel mesh and solvers functions
+static auto SetParMesh = [](Mesh &mesh) { return ParMesh(MPI_COMM_WORLD, mesh); };
 static auto SetOrthoSolver = []() { return OrthoSolver(MPI_COMM_WORLD); };
-static auto SetCGSolver = []() { return CGSolver(MPI_COMM_WORLD);};
+static auto SetCGSolver = []() { return CGSolver(MPI_COMM_WORLD); };
 static auto SetGMRESSolver = []() { return GMRESSolver(MPI_COMM_WORLD); };
 
 // Main solver class for Schrödinger flow
@@ -94,35 +94,36 @@ public:
    {
       B.UseDevice(true);
       serial_mesh.Clear();
-      nodes.SetTrueVector(), nodes.SetFromTrueVector();
+      nodes.SetTrueVector();
+      nodes.SetFromTrueVector();
    }
 
    void Step() { cn1.Mult(psi1), cn2.Mult(psi2); }
 
    void GradPsi()
    {
-      auto Grad_nd = [&](ParGridFunction &in_h1, ParGridFunction &out_nd)
+      const auto Grad_nd = [&](ParGridFunction &in_h1, ParGridFunction &out_nd)
       {
          in_h1.SetTrueVector(), in_h1.SetFromTrueVector();
          grad_nd_op->Mult(in_h1.GetTrueVector(), nd.GetTrueVector());
          Mm1_nd.Mult(nd.GetTrueVector(), out_nd.GetTrueVector());
          out_nd.SetFromTrueVector();
       };
-      auto x_dot_Mm1 = [&](ParGridFunction &x, ParGridFunction &y)
+      const auto x_dot_Mm1 = [&](ParGridFunction &x, ParGridFunction &y)
       {
          x.SetTrueVector(), x.SetFromTrueVector();
          nd_dot_x_h1_op->Mult(x.GetTrueVector(), h1.GetTrueVector());
          Mm1_h1.Mult(h1.GetTrueVector(), y.GetTrueVector());
          y.SetFromTrueVector();
       };
-      auto y_dot_Mm1 = [&](ParGridFunction &x, ParGridFunction &y)
+      const auto y_dot_Mm1 = [&](ParGridFunction &x, ParGridFunction &y)
       {
          x.SetTrueVector(), x.SetFromTrueVector();
          nd_dot_y_h1_op->Mult(x.GetTrueVector(), h1.GetTrueVector());
          Mm1_h1.Mult(h1.GetTrueVector(), y.GetTrueVector());
          y.SetFromTrueVector();
       };
-      auto z_dot_Mm1 = [&](ParGridFunction &x, ParGridFunction &y)
+      const auto z_dot_Mm1 = [&](ParGridFunction &x, ParGridFunction &y)
       {
          x.SetTrueVector(), x.SetFromTrueVector();
          nd_dot_z_h1_op->Mult(x.GetTrueVector(), h1.GetTrueVector());
@@ -135,12 +136,13 @@ public:
    void VelocityOneForm(ParGridFunction &ux, ParGridFunction &uy,
                         ParGridFunction &uz)
    {
-      GradPsi(), GradPsiVelocity(hbar, ux, uy, uz);
+      GradPsi();
+      GradPsiVelocity(hbar, ux, uy, uz);
    }
 
    void ComputeDivU()
    {
-      auto diff_Mm1 = [&](ParGridFunction &x, ParGridFunction &y)
+      const auto diff_Mm1 = [&](ParGridFunction &x, ParGridFunction &y)
       {
          x.SetTrueVector(), x.SetFromTrueVector();
          diff_h1_op->Mult(x.GetTrueVector(), h1.GetTrueVector());
@@ -156,13 +158,14 @@ public:
 
    void PoissonSolve()
    {
-      rhs.Assemble(), rhs.ParallelAssemble(B);
+      rhs.Assemble();
+      rhs.ParallelAssemble(B);
       Km1_h1.Mult(B, q.GetTrueVector());
       q.SetFromTrueVector();
       MFEM_VERIFY(Km1_h1.GetConverged(), "Km1_h1 solver did not converge");
    }
 
-   void PressureProject() { ComputeDivU(), PoissonSolve(), GaugeTransform(); }
+   void PressureProject() { ComputeDivU(); PoissonSolve(); GaugeTransform(); }
 };
 
 using IncompressibleFlow =
@@ -184,7 +187,7 @@ int main(int argc, char *argv[])
 
    SchrodingerSolver schrodinger(opt);
    IncompressibleFlow flow(opt, schrodinger);
-   auto glvis_prefix = []()
+   const auto glvis_prefix = []()
    {
       std::ostringstream os;
       os << "parallel " << Mpi::WorldSize() << " " << Mpi::WorldRank() << "\n";
@@ -198,7 +201,7 @@ int main(int argc, char *argv[])
       const bool vis_steps = (ti % opt.vis_steps) == 0;
       if (Mpi::Root() && vis_steps) { mfem::out << "#" << ti << std::endl; }
       flow.Step(t);
-      if (opt.visualization && vis_steps) { vis.GLVis(), vis.Save(ti, t); }
+      if (opt.visualization && vis_steps) { vis.GLVis(); vis.Save(ti, t); }
    }
 
    return EXIT_SUCCESS;

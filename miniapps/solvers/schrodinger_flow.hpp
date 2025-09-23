@@ -30,7 +30,7 @@ struct Options: public OptionsParser
    // Simulation setup
    real_t dt = 0.0;
    real_t hbar = 1e-1;
-   int max_steps = 128;
+   int max_steps = 256;
    // Mesh setup
    int dim = 2;
    int nx = 64, ny = 64, nz = 64;
@@ -65,7 +65,7 @@ struct Options: public OptionsParser
       AddOption(&device, "-d", "--device",
                 "Device configuration string, see Device::Configure().");
       AddOption(&order, "-o", "--order", "Finite element order");
-      // AddOption(&dt, "-dt", "--dt", "Timestep size");
+      AddOption(&dt, "-dt", "--dt", "Timestep size");
       AddOption(&hbar, "-hbar", "--hbar", "Planck constant");
       AddOption(&max_steps, "-ms", "--max-steps", "Maximum steps");
       AddOption(&dim, "-dim", "--dim", "Dimension of the problem (2 or 3)");
@@ -104,12 +104,14 @@ struct Options: public OptionsParser
       AddOption(&vis_data, "-vd", "--vis-data",
                 "Velocity: 0: Vorticity: 1 (leapfrog only)");
       ParseCheck();
-      MFEM_VERIFY(jet ^ leapfrog, "At least 'jet' or 'leapfrog' must be set");
+      MFEM_VERIFY(jet ^ leapfrog, "'jet' or 'leapfrog' option must be set");
       MFEM_VERIFY(vis_data < static_cast<int>(VisData::Unknown),
                   "Invalid visualization data option.");
-      MFEM_VERIFY(dt == 0.0, "");
-      const auto dx = sx / static_cast<real_t>(order * nx);
-      dt = (dx*dx) / hbar;
+      if (dt == 0.0)
+      {
+         const auto dx = sx / static_cast<real_t>(order * nx);
+         dt = (dx*dx) / hbar;
+      }
    }
 };
 

@@ -14,22 +14,21 @@
 //             ---------------------------------------------
 //
 // This miniapp introduces the Incompressible Schrödinger Flow (ISF) method,
-// a novel approach for simulating inviscid fluid dynamics by solving the
-// linear Schrödinger equation, leveraging the hydrodynamical analogy to
-// quantum mechanics proposed by Madelung in 1926. ISF offers a simple and
-// efficient framework, particularly effective for capturing vortex dynamics.
+// an approach for simulating inviscid fluid dynamics by solving the linear
+// Schrödinger equation, leveraging the hydrodynamical analogy to quantum
+// mechanics proposed by Madelung in 1926. ISF offers a simple and efficient
+// framework, particularly effective for capturing vortex dynamics.
 //
 // Compile with: make schrodinger_flow
 //
 // Sample runs:
-//  * schrodinger_flow --leapfrog
-//  * schrodinger_flow --leapfrog -o 4 -nx 10 -ny 10 -lr1 0.36 -lr2 0.26
-//  * schrodinger_flow --leapfrog -o 4 -nx 10 -ny 10 -lr1 0.3 -lr2 0.2
-//  * schrodinger_flow --leapfrog -o 4 -nx 10 -ny 10 -lr1 0.24 -lr2 0.12 -ms 256
-//  * schrodinger_flow --jet -vd 0 -hbar 5e-2
+//    schrodinger_flow --leapfrog
+//    schrodinger_flow --leapfrog -o 2 -nx 16 -ny 16 -sx 8 -sy 8
+//    schrodinger_flow --leapfrog -o 4 -nx 10 -ny 10 -lr1 0.24 -lr2 0.12
+//    schrodinger_flow --jet -vd 0 -hbar 5e-2
 //
 // Device sample runs:
-//  * schrodinger_flow -d hip --leapfrog -nx 128 -ny 128 -hbar 5e-2
+//    schrodinger_flow -d hip --leapfrog -nx 128 -ny 128 -hbar 5e-2
 
 #include "schrodinger_flow.hpp"
 
@@ -52,10 +51,10 @@ using CrankNicolsonSolver = CrankNicolsonBaseSolver<
                             SesquilinearForm,
                             ComplexGridFunction>;
 
-// Factory functions for serial mesh and solvers
-static auto SetMesh = [](Mesh &mesh) { return Mesh(mesh);};
+// Serial mesh and solvers functions
+static auto SetMesh = [](Mesh &mesh) { return Mesh(mesh); };
 static auto SetOrthoSolver = []() { return OrthoSolver(); };
-static auto SetCGSolver = []() { return CGSolver();};
+static auto SetCGSolver = []() { return CGSolver(); };
 static auto SetGMRESSolver = []() { return GMRESSolver(); };
 
 // Main solver class for Schrödinger flow
@@ -111,7 +110,8 @@ public:
 
    void VelocityOneForm(GridFunction &ux, GridFunction &uy, GridFunction &uz)
    {
-      GradPsi(), GradPsiVelocity(hbar, ux, uy, uz);
+      GradPsi();
+      GradPsiVelocity(hbar, ux, uy, uz);
    }
 
    void ComputeDivU()
@@ -130,7 +130,7 @@ public:
       MFEM_VERIFY(Km1_h1.GetConverged(), "Km1_h1 solver did not converge");
    }
 
-   void PressureProject() { ComputeDivU(), PoissonSolve(), GaugeTransform(); }
+   void PressureProject() { ComputeDivU(); PoissonSolve(); GaugeTransform(); }
 };
 
 using IncompressibleFlow =
@@ -157,7 +157,7 @@ int main(int argc, char *argv[])
       const bool vis_steps = (ti % opt.vis_steps) == 0;
       if (vis_steps) { mfem::out << "#" << ti << std::endl; }
       flow.Step(t);
-      if (opt.visualization && vis_steps) { vis.GLVis(), vis.Save(ti, t); }
+      if (opt.visualization && vis_steps) { vis.GLVis(); vis.Save(ti, t); }
    }
 
    return EXIT_SUCCESS;
