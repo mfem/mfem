@@ -132,6 +132,8 @@ IsoLinElasticSolver::IsoLinElasticSolver(ParMesh *mesh, int vorder,
       domain_attributes.SetSize(pmesh->attributes.Max());
       domain_attributes = 1;
    }
+
+   SetLinearSolver(1e-8,1e-12,200);
 }
 
 IsoLinElasticSolver::~IsoLinElasticSolver()

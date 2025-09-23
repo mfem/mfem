@@ -119,6 +119,8 @@ int main(int argc, char *argv[])
    // set surface load
    elsolver.AddSurfLoad(1, 0.0, 1.0);
 
+   elsolver.SetLinearSolver(1e-8,1e-12,100);
+
    // solve the discrete system
    dbg("Assembling the system");
    elsolver.Assemble();
