@@ -189,6 +189,22 @@ auto ptr0 = res0.Write(ResourceManager::ANY_DEVICE);
 auto ptr1 = res1.Write(ResourceManager::ANY_DEVICE);
 // ptr0 != ptr1, there will be two device allocations
 ```
+- How to handle implicit synchronization of zero-copy memory spaces (host-pinned and managed)?
+```c++
+Resource<int> res(10, ResourceManager::HOST_PINNED);
+{
+  auto ptr = res.Write(ResourceManager::ANY_DEVICE);
+  // ... use ptr in GPU kernel
+}
+{
+  auto ptr = res.Read(ResourceManager::ANY_HOST);
+  // ... use ptr in host, need implicit sync on Read
+}
+{
+  auto ptr = res.Read(ResourceManager::ANY_HOST);
+  // ... use ptr in host, ideally would like to skip another device sync if it's expensive
+}
+```
 - Documentation
 - Test renaming `Resource`->`Memory` and `ResourceManager`->`MemoryManager` and other API updates/cleanups to test compatibility.
 - Performance testing
