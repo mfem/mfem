@@ -188,6 +188,24 @@ real_t FunctionCoefficient::Eval(ElementTransformation & T,
    }
 }
 
+/*real_t ADFunctionCoefficient::Eval(ElementTransformation & T,
+                                 const IntegrationPoint & ip)
+{
+   real_t x[3];
+   Vector transip(x, 3);
+
+   T.Transform(ip, transip);
+
+   if (Function)
+   {
+      return Function(transip);
+   }
+   else
+   {
+      return TDFunction(transip, GetTime());
+   }
+}*/
+
 real_t CartesianCoefficient::Eval(ElementTransformation & T,
                                   const IntegrationPoint & ip)
 {
@@ -1621,6 +1639,54 @@ real_t LpNormLoop(real_t p, VectorCoefficient &coeff, Mesh &mesh,
    return norm;
 }
 
+real_t LpNormLoop(real_t p, MatrixCoefficient &coeff, Mesh &mesh,
+                  const IntegrationRule *irs[])
+{
+   real_t norm = 0.0;
+   ElementTransformation *tr;
+   int vdim = coeff.GetVDim();
+   DenseMatrix vval(vdim);
+   real_t val;
+
+   for (int i = 0; i < mesh.GetNE(); i++)
+   {
+      tr = mesh.GetElementTransformation(i);
+      const IntegrationRule &ir = *irs[mesh.GetElementType(i)];
+      for (int j = 0; j < ir.GetNPoints(); j++)
+      {
+         const IntegrationPoint &ip = ir.IntPoint(j);
+         tr->SetIntPoint(&ip);
+         coeff.Eval(vval, *tr, ip);
+         if (p < infinity())
+         {
+            for (int idim(0); idim < vdim; ++idim)
+            {
+               for (int jdim(0); jdim < vdim; ++jdim)
+               {
+                  norm += ip.weight * tr->Weight() * pow(fabs( vval(idim,jdim) ), p);
+               }
+            }
+         }
+         else
+         {
+            for (int idim(0); idim < vdim; ++idim)
+            {
+               for (int jdim(0); jdim < vdim; ++jdim)
+               {
+                  val = fabs(vval(idim, jdim));
+                  if (norm < val)
+                  {
+                     norm = val;
+                  }
+               }
+            }
+         }
+      }
+   }
+
+   return norm;
+}
+
 real_t ComputeLpNorm(real_t p, Coefficient &coeff, Mesh &mesh,
                      const IntegrationRule *irs[])
 {
@@ -1643,6 +1709,27 @@ real_t ComputeLpNorm(real_t p, Coefficient &coeff, Mesh &mesh,
 }
 
 real_t ComputeLpNorm(real_t p, VectorCoefficient &coeff, Mesh &mesh,
+                     const IntegrationRule *irs[])
+{
+   real_t norm = LpNormLoop(p, coeff, mesh, irs);
+
+   if (p < infinity())
+   {
+      // negative quadrature weights may cause norm to be negative
+      if (norm < 0.0)
+      {
+         norm = -pow(-norm, 1.0/p);
+      }
+      else
+      {
+         norm = pow(norm, 1.0/p);
+      }
+   }
+
+   return norm;
+}
+
+real_t ComputeLpNorm(real_t p, MatrixCoefficient &coeff, Mesh &mesh,
                      const IntegrationRule *irs[])
 {
    real_t norm = LpNormLoop(p, coeff, mesh, irs);
@@ -1697,6 +1784,38 @@ real_t ComputeGlobalLpNorm(real_t p, Coefficient &coeff, ParMesh &pmesh,
 }
 
 real_t ComputeGlobalLpNorm(real_t p, VectorCoefficient &coeff, ParMesh &pmesh,
+                           const IntegrationRule *irs[])
+{
+   real_t loc_norm = LpNormLoop(p, coeff, pmesh, irs);
+   real_t glob_norm = 0;
+
+   MPI_Comm comm = pmesh.GetComm();
+
+   if (p < infinity())
+   {
+      MPI_Allreduce(&loc_norm, &glob_norm, 1, MPITypeMap<real_t>::mpi_type, MPI_SUM,
+                    comm);
+
+      // negative quadrature weights may cause norm to be negative
+      if (glob_norm < 0.0)
+      {
+         glob_norm = -pow(-glob_norm, 1.0/p);
+      }
+      else
+      {
+         glob_norm = pow(glob_norm, 1.0/p);
+      }
+   }
+   else
+   {
+      MPI_Allreduce(&loc_norm, &glob_norm, 1, MPITypeMap<real_t>::mpi_type, MPI_MAX,
+                    comm);
+   }
+
+   return glob_norm;
+}
+
+real_t ComputeGlobalLpNorm(real_t p, MatrixCoefficient &coeff, ParMesh &pmesh,
                            const IntegrationRule *irs[])
 {
    real_t loc_norm = LpNormLoop(p, coeff, pmesh, irs);

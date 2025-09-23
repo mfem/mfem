@@ -18,6 +18,7 @@
 #include "../linalg/linalg.hpp"
 #include "intrules.hpp"
 #include "eltrans.hpp"
+#include "autodiff.hpp"
 
 namespace mfem
 {
@@ -2424,6 +2425,9 @@ inline int operator&(CoefficientStorage a, CoefficientStorage b)
 }
 
 
+
+
+
 /// @brief Class to represent a coefficient evaluated at quadrature points.
 ///
 /// In the general case, a CoefficientVector is the same as a QuadratureFunction
@@ -2524,6 +2528,11 @@ real_t ComputeLpNorm(real_t p, Coefficient &coeff, Mesh &mesh,
 /** @brief Compute the Lp norm of a vector function f = {f_i}_i=1...N.
     $ \| f \|_{Lp} = ( \sum_i \| f_i \|_{Lp}^p )^{1/p} $ */
 real_t ComputeLpNorm(real_t p, VectorCoefficient &coeff, Mesh &mesh,
+                     const IntegrationRule *irs[]);
+
+/** @brief Compute the Lp norm of a matrix function f = {f_ij}_i,j=1...N.
+    $ \| f \|_{Lp} = ( \sum_{ij} \| f_{ij} \|_{Lp}^p )^{1/p} $ */
+real_t ComputeLpNorm(real_t p, MatrixCoefficient &coeff, Mesh &mesh,
                      const IntegrationRule *irs[]);
 
 #ifdef MFEM_USE_MPI

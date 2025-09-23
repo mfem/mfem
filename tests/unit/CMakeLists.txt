@@ -80,6 +80,7 @@ set(UNIT_TESTS_SRCS
   fem/test_calcshape.cpp
   fem/test_calcvshape.cpp
   fem/test_coefficient.cpp
+  fem/test_autodiff.cpp
   fem/test_datacollection.cpp
   fem/test_derefine.cpp
   fem/test_dgmassinv.cpp
