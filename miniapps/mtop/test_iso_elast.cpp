@@ -14,23 +14,15 @@
 using namespace std;
 using namespace mfem;
 
-#if defined(__has_include) && __has_include("general/nvtx.hpp") && !defined(_WIN32)
-#undef NVTX_COLOR
-#define NVTX_COLOR ::nvtx::kGold
-#include "general/nvtx.hpp"
-#else
-#define dbg(...)
-#endif
-
 int main(int argc, char *argv[])
 {
-   dbg();
    // 1. Initialize MPI and HYPRE.
    Mpi::Init();
    Hypre::Init();
 
    // 2. Parse command-line options.
-   const char *mesh_file = MFEM_SOURCE_DIR "/miniapps/mtop/canti_2D_6_tri.msh";
+   const char *mesh_file =
+      MFEM_SOURCE_DIR "/miniapps/mtop/data/canti_2D_6_tri.msh";
    const char *device_config = "cpu";
    int order = 2;
    bool pa = false;
@@ -74,11 +66,7 @@ int main(int argc, char *argv[])
    //    more than 10,000 elements.
    {
       const int ref_levels =
-#ifdef MFEM_DEBUG
-         (int)floor(log(10. / mesh.GetNE()) / log(2.) / dim);
-#else
          (int)floor(log(1000. / mesh.GetNE()) / log(2.) / dim);
-#endif
       for (int l = 0; l < ref_levels; l++) { mesh.UniformRefinement(); }
    }
 
@@ -87,14 +75,11 @@ int main(int argc, char *argv[])
    //    parallel mesh is defined, the serial mesh can be deleted.
    ParMesh pmesh(MPI_COMM_WORLD, mesh);
    mesh.Clear();
-#ifndef MFEM_DEBUG
    {
       const int par_ref_levels = 1;
       for (int l = 0; l < par_ref_levels; l++) { pmesh.UniformRefinement(); }
    }
-#endif
 
-   dbg("Creating IsoLinElasticSolver");
    IsoLinElasticSolver elsolver(&pmesh, order, pa, dfem);
 
    // set BC
@@ -122,15 +107,12 @@ int main(int argc, char *argv[])
    elsolver.SetLinearSolver(1e-8,1e-12,100);
 
    // solve the discrete system
-   dbg("Assembling the system");
    elsolver.Assemble();
 
-   dbg("Solving the system");
    elsolver.FSolve();
 
    // extract the solution
    ParGridFunction &sol = elsolver.GetDisplacements();
-   dbg("sol size:{}", sol.Size());
 
    if (paraview)
    {

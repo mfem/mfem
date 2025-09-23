@@ -14,14 +14,6 @@
 
 #include "mfem.hpp"
 
-#if defined(__has_include) && __has_include("general/nvtx.hpp") && !defined(_WIN32)
-#undef NVTX_COLOR
-#define NVTX_COLOR ::nvtx::kChartreuse
-#include "general/nvtx.hpp"
-#else
-#define dbg(...)
-#endif
-
 using real_t = mfem::real_t;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -176,7 +168,6 @@ public:
    /// Set material
    void SetMaterial(mfem::Coefficient &E_, mfem::Coefficient &nu_)
    {
-      dbg();
       E = &E_;
       nu = &nu_;
 
@@ -284,7 +275,6 @@ private:
 
    mfem::Coefficient *lambda;
    mfem::Coefficient *mu;
-   mfem::Coefficient *rho; // density
 
    mfem::ParBilinearForm *bf;
    mfem::ConstrainedOperator *Kc;
