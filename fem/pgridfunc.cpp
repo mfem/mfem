@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -55,22 +55,16 @@ ParGridFunction::ParGridFunction(ParMesh *pmesh, const GridFunction *gf,
       int element_counter = 0;
       const int MyRank = pfes->GetMyRank();
       const int glob_ne = glob_fes->GetNE();
+      DofTransformation ltrans, gtrans;
       for (int i = 0; i < glob_ne; i++)
       {
          if (partitioning[i] == MyRank)
          {
-            const DofTransformation* const ltrans = pfes->GetElementVDofs(element_counter,
-                                                                          lvdofs);
-            const DofTransformation* const gtrans = glob_fes->GetElementVDofs(i, gvdofs);
+            pfes->GetElementVDofs(element_counter, lvdofs, ltrans);
+            glob_fes->GetElementVDofs(i, gvdofs, gtrans);
             gf->GetSubVector(gvdofs, lnodes);
-            if (gtrans)
-            {
-               gtrans->InvTransformPrimal(lnodes);
-            }
-            if (ltrans)
-            {
-               ltrans->TransformPrimal(lnodes);
-            }
+            gtrans.InvTransformPrimal(lnodes);
+            ltrans.TransformPrimal(lnodes);
             SetSubVector(lvdofs, lnodes);
             element_counter++;
          }
@@ -232,7 +226,7 @@ void ParGridFunction::ExchangeFaceNbrData()
    int *recv_offset = pfes->face_nbr_ldof.GetI();
    MPI_Comm MyComm = pfes->GetComm();
 
-   int num_face_nbrs = pmesh->GetNFaceNeighbors();
+   const int num_face_nbrs = pmesh->GetNFaceNeighbors();
    MPI_Request *requests = new MPI_Request[2*num_face_nbrs];
    MPI_Request *send_requests = requests;
    MPI_Request *recv_requests = requests + num_face_nbrs;
@@ -246,7 +240,7 @@ void ParGridFunction::ExchangeFaceNbrData()
       d_send_data[i] = d_data[ldof >= 0 ? ldof : -1-ldof];
    });
 
-   bool mpi_gpu_aware = Device::GetGPUAwareMPI();
+   const bool mpi_gpu_aware = Device::GetGPUAwareMPI();
    auto send_data_ptr = mpi_gpu_aware ? send_data.Read() : send_data.HostRead();
    auto face_nbr_data_ptr = mpi_gpu_aware ? face_nbr_data.Write() :
                             face_nbr_data.HostWrite();
@@ -278,13 +272,17 @@ const
 {
    Array<int> dofs;
    Vector DofVal, LocVec;
-   int nbr_el_no = i - pfes->GetParMesh()->GetNE();
+   const int nbr_el_no = i - pfes->GetParMesh()->GetNE();
+   DofTransformation doftrans;
    if (nbr_el_no >= 0)
    {
       int fes_vdim = pfes->GetVDim();
-      const DofTransformation* const doftrans = pfes->GetFaceNbrElementVDofs(
-                                                   nbr_el_no, dofs);
-      const FiniteElement *fe = pfes->GetFaceNbrFE(nbr_el_no);
+      pfes->GetFaceNbrElementVDofs(nbr_el_no, dofs, doftrans);
+      // Choose fe to be of the order whose number of DOFs matches dofs.Size(),
+      // in the variable order case.
+      const int ndofs = pfes->IsVariableOrder() ? dofs.Size() : 0;
+      const FiniteElement *fe = pfes->GetFaceNbrFE(nbr_el_no, fes_vdim * ndofs);
+
       if (fes_vdim > 1)
       {
          int s = dofs.Size()/fes_vdim;
@@ -298,10 +296,7 @@ const
          face_nbr_data.GetSubVector(dofs, LocVec);
          DofVal.SetSize(dofs.Size());
       }
-      if (doftrans)
-      {
-         doftrans->InvTransformPrimal(LocVec);
-      }
+      doftrans.InvTransformPrimal(LocVec);
 
       if (fe->GetMapType() == FiniteElement::VALUE)
       {
@@ -317,7 +312,7 @@ const
    }
    else
    {
-      const DofTransformation* const doftrans = fes->GetElementDofs(i, dofs);
+      fes->GetElementDofs(i, dofs, doftrans);
       fes->DofsToVDofs(vdim-1, dofs);
       DofVal.SetSize(dofs.Size());
       const FiniteElement *fe = fes->GetFE(i);
@@ -332,10 +327,7 @@ const
          fe->CalcPhysShape(*Tr, DofVal);
       }
       GetSubVector(dofs, LocVec);
-      if (doftrans)
-      {
-         doftrans->InvTransformPrimal(LocVec);
-      }
+      doftrans.InvTransformPrimal(LocVec);
    }
 
    return (DofVal * LocVec);
@@ -344,19 +336,15 @@ const
 void ParGridFunction::GetVectorValue(int i, const IntegrationPoint &ip,
                                      Vector &val) const
 {
-   int nbr_el_no = i - pfes->GetParMesh()->GetNE();
+   const int nbr_el_no = i - pfes->GetParMesh()->GetNE();
    if (nbr_el_no >= 0)
    {
       Array<int> dofs;
-      const DofTransformation* const doftrans = pfes->GetFaceNbrElementVDofs(
-                                                   nbr_el_no,
-                                                   dofs);
+      DofTransformation doftrans;
+      pfes->GetFaceNbrElementVDofs(nbr_el_no, dofs, doftrans);
       Vector loc_data;
       face_nbr_data.GetSubVector(dofs, loc_data);
-      if (doftrans)
-      {
-         doftrans->InvTransformPrimal(loc_data);
-      }
+      doftrans.InvTransformPrimal(loc_data);
       const FiniteElement *FElem = pfes->GetFaceNbrFE(nbr_el_no);
       int dof = FElem->GetDof();
       if (FElem->GetRangeType() == FiniteElement::SCALAR)
@@ -409,7 +397,7 @@ real_t ParGridFunction::GetValue(ElementTransformation &T,
    }
 
    // Check for evaluation in a local element
-   int nbr_el_no = T.ElementNo - pfes->GetParMesh()->GetNE();
+   const int nbr_el_no = T.ElementNo - pfes->GetParMesh()->GetNE();
    if (nbr_el_no < 0)
    {
       return GridFunction::GetValue(T, ip, comp, tr);
@@ -424,8 +412,8 @@ real_t ParGridFunction::GetValue(ElementTransformation &T,
 
    Array<int> dofs;
    const FiniteElement * fe = pfes->GetFaceNbrFE(nbr_el_no);
-   const DofTransformation* const doftrans = pfes->GetFaceNbrElementVDofs(
-                                                nbr_el_no, dofs);
+   DofTransformation doftrans;
+   pfes->GetFaceNbrElementVDofs(nbr_el_no, dofs, doftrans);
 
    pfes->DofsToVDofs(comp-1, dofs);
    Vector DofVal(dofs.Size()), LocVec;
@@ -438,10 +426,7 @@ real_t ParGridFunction::GetValue(ElementTransformation &T,
       fe->CalcPhysShape(T, DofVal);
    }
    face_nbr_data.GetSubVector(dofs, LocVec);
-   if (doftrans)
-   {
-      doftrans->InvTransformPrimal(LocVec);
-   }
+   doftrans.InvTransformPrimal(LocVec);
 
 
    return (DofVal * LocVec);
@@ -458,7 +443,7 @@ void ParGridFunction::GetVectorValue(ElementTransformation &T,
    }
 
    // Check for evaluation in a local element
-   int nbr_el_no = T.ElementNo - pfes->GetParMesh()->GetNE();
+   const int nbr_el_no = T.ElementNo - pfes->GetParMesh()->GetNE();
    if (nbr_el_no < 0)
    {
       return GridFunction::GetVectorValue(T, ip, val, tr);
@@ -472,13 +457,11 @@ void ParGridFunction::GetVectorValue(ElementTransformation &T,
    }
 
    Array<int> vdofs;
-   DofTransformation * doftrans = pfes->GetFaceNbrElementVDofs(nbr_el_no, vdofs);
+   DofTransformation doftrans;
+   pfes->GetFaceNbrElementVDofs(nbr_el_no, vdofs, doftrans);
    Vector loc_data;
    face_nbr_data.GetSubVector(vdofs, loc_data);
-   if (doftrans)
-   {
-      doftrans->InvTransformPrimal(loc_data);
-   }
+   doftrans.InvTransformPrimal(loc_data);
 
    const FiniteElement *fe = pfes->GetFaceNbrFE(nbr_el_no);
    const int dof = fe->GetDof();
@@ -1293,6 +1276,29 @@ void ParGridFunction::ComputeFlux(
    }
 }
 
+std::unique_ptr<ParGridFunction> ParGridFunction::ProlongateToMaxOrder() const
+{
+   ParMesh *mesh = pfes->GetParMesh();
+   const FiniteElementCollection *pfesc = pfes->FEColl();
+   const int vdim = pfes->GetVDim();
+
+   // Find the max order in the space
+   const int maxOrder = pfes->GetMaxElementOrder();
+
+   // Create a visualization space of max order for all elements
+   FiniteElementCollection *fecMax = pfesc->Clone(maxOrder);
+   ParFiniteElementSpace *pfesMax = new ParFiniteElementSpace(mesh, fecMax, vdim,
+                                                              pfes->GetOrdering());
+
+   ParGridFunction *xMax = new ParGridFunction(pfesMax);
+
+   // Interpolate in the maximum-order space
+   PRefinementTransferOperator P(*pfes, *pfesMax);
+   P.Mult(*this, *xMax);
+
+   xMax->MakeOwner(fecMax);
+   return std::unique_ptr<ParGridFunction>(xMax);
+}
 
 real_t L2ZZErrorEstimator(BilinearFormIntegrator &flux_integrator,
                           const ParGridFunction &x,
@@ -1308,25 +1314,20 @@ real_t L2ZZErrorEstimator(BilinearFormIntegrator &flux_integrator,
    ParFiniteElementSpace *xfes = x.ParFESpace();
    Array<int> xdofs, fdofs;
    Vector el_x, el_f;
+   DofTransformation xtrans, ftrans;
 
    for (int i = 0; i < xfes->GetNE(); i++)
    {
-      const DofTransformation* const xtrans = xfes->GetElementVDofs(i, xdofs);
+      xfes->GetElementVDofs(i, xdofs, xtrans);
       x.GetSubVector(xdofs, el_x);
-      if (xtrans)
-      {
-         xtrans->InvTransformPrimal(el_x);
-      }
+      xtrans.InvTransformPrimal(el_x);
 
       ElementTransformation *Transf = xfes->GetElementTransformation(i);
       flux_integrator.ComputeElementFlux(*xfes->GetFE(i), *Transf, el_x,
                                          *flux_fes.GetFE(i), el_f, false);
 
-      const DofTransformation* const ftrans = flux_fes.GetElementVDofs(i, fdofs);
-      if (ftrans)
-      {
-         ftrans->TransformPrimal(el_f);
-      }
+      flux_fes.GetElementVDofs(i, fdofs, ftrans);
+      ftrans.TransformPrimal(el_f);
       flux.SetSubVector(fdofs, el_f);
    }
 
@@ -1403,6 +1404,18 @@ real_t L2ZZErrorEstimator(BilinearFormIntegrator &flux_integrator,
                  xfes->GetComm());
 
    return pow(glob_error, 1.0/norm_p);
+}
+
+PLBound ParGridFunction::GetBounds(Vector &lower, Vector &upper,
+                                   const int ref_factor, const int vdim)
+{
+   PLBound plb = GridFunction::GetBounds(lower, upper, ref_factor, vdim);
+   int siz = vdim > 0 ? 1 : fes->GetVDim();
+   MPI_Allreduce(MPI_IN_PLACE, lower.HostReadWrite(), siz,
+                 MFEM_MPI_REAL_T, MPI_MIN, pfes->GetComm());
+   MPI_Allreduce(MPI_IN_PLACE, upper.HostReadWrite(), siz,
+                 MFEM_MPI_REAL_T, MPI_MAX, pfes->GetComm());
+   return plb;
 }
 
 } // namespace mfem

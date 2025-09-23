@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -9,20 +9,29 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
+#define CATCH_CONFIG_NOSTDOUT
 #define CATCH_CONFIG_RUNNER
 #include "mfem.hpp"
 #include "run_unit_tests.hpp"
 
+#ifndef MFEM_USE_MPI
+#error "This test should be disabled without MFEM_USE_MPI!"
+#endif
+
 int main(int argc, char *argv[])
 {
 #ifdef MFEM_USE_SINGLE
-   std::cout << "\nThe serial CUDA unit tests are not supported in single"
+   std::cout << "\nThe parallel GPU unit tests are not supported in single"
              " precision.\n\n";
    return MFEM_SKIP_RETURN_VALUE;
 #endif
 
-   mfem::Device device("cuda");
+#ifdef MFEM_USE_MPI
+   mfem::Mpi::Init();
+   mfem::Hypre::Init();
+#endif
+   mfem::Device device("gpu");
 
-   // Include only tests labeled with CUDA. Exclude parallel tests.
-   return RunCatchSession(argc, argv, {"[CUDA]", "~[Parallel]"});
+   // Include only tests that are labeled with both CUDA and Parallel.
+   return RunCatchSession(argc, argv, {"[GPU]","[Parallel]"}, Root());
 }

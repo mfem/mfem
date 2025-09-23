@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -249,7 +249,7 @@ void DPGWeakForm::Assemble(int skip_zeros)
    ElementTransformation *eltrans;
    Array<int> faces, ori;
 
-   DofTransformation * doftrans_i, *doftrans_j;
+   DofTransformation doftrans_i, doftrans_j;
    if (mat == NULL)
    {
       AllocMat();
@@ -412,7 +412,7 @@ void DPGWeakForm::Assemble(int skip_zeros)
          for (int i = 0; i<trial_fes.Size(); i++)
          {
             Array<int> vdofs_i;
-            doftrans_i = nullptr;
+            doftrans_i.SetDofTransformation(nullptr);
             if (IsTraceFes[i])
             {
                Array<int> face_vdofs;
@@ -425,12 +425,12 @@ void DPGWeakForm::Assemble(int skip_zeros)
             }
             else
             {
-               doftrans_i = trial_fes[i]->GetElementVDofs(iel, vdofs_i);
+               trial_fes[i]->GetElementVDofs(iel, vdofs_i, doftrans_i);
             }
             for (int j = 0; j<trial_fes.Size(); j++)
             {
                Array<int> vdofs_j;
-               doftrans_j = nullptr;
+               doftrans_j.SetDofTransformation(nullptr);
 
                if (IsTraceFes[j])
                {
@@ -444,16 +444,13 @@ void DPGWeakForm::Assemble(int skip_zeros)
                }
                else
                {
-                  doftrans_j = trial_fes[j]->GetElementVDofs(iel, vdofs_j);
+                  trial_fes[j]->GetElementVDofs(iel, vdofs_j, doftrans_j);
                }
 
                DenseMatrix Ae;
                A.GetSubMatrix(trial_offs[i],trial_offs[i+1],
                               trial_offs[j],trial_offs[j+1], Ae);
-               if (doftrans_i || doftrans_j)
-               {
-                  TransformDual(doftrans_i, doftrans_j, Ae);
-               }
+               TransformDual(doftrans_i, doftrans_j, Ae);
                mat->GetBlock(i,j).AddSubMatrix(vdofs_i,vdofs_j, Ae);
             }
 
@@ -463,10 +460,7 @@ void DPGWeakForm::Assemble(int skip_zeros)
             // ref subvector
             vec1.SetDataAndSize(&data[trial_offs[i]],
                                 trial_offs[i+1]-trial_offs[i]);
-            if (doftrans_i)
-            {
-               doftrans_i->TransformDual(vec1);
-            }
+            doftrans_i.TransformDual(vec1);
             y->GetBlock(i).AddElementVector(vdofs_i,vec1);
          }
       }
@@ -771,11 +765,11 @@ Vector & DPGWeakForm::ComputeResidual(const BlockVector & x)
 
       u.SetSize(trial_offs.Last());
       real_t * data = u.GetData();
-      DofTransformation * doftrans = nullptr;
+      DofTransformation doftrans;
       for (int i = 0; i<trial_fes.Size(); i++)
       {
          vdofs.SetSize(0);
-         doftrans = nullptr;
+         doftrans.SetDofTransformation(nullptr);
          if (IsTraceFes[i])
          {
             Array<int> face_vdofs;
@@ -788,16 +782,13 @@ Vector & DPGWeakForm::ComputeResidual(const BlockVector & x)
          }
          else
          {
-            doftrans = trial_fes[i]->GetElementVDofs(iel, vdofs);
+            trial_fes[i]->GetElementVDofs(iel, vdofs, doftrans);
          }
          Vector vec1;
          vec1.SetDataAndSize(&data[trial_offs[i]],
                              trial_offs[i+1]-trial_offs[i]);
          x.GetBlock(i).GetSubVector(vdofs,vec1);
-         if (doftrans)
-         {
-            doftrans->InvTransformPrimal(vec1);
-         }
+         doftrans.InvTransformPrimal(vec1);
       } // end of loop through trial spaces
 
       Vector v(Bmat[iel]->Height());

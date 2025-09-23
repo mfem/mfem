@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -68,7 +68,7 @@ void MagmaBatchedLinAlg::AddMult(const DenseTensor &A, const Vector &x,
    auto d_x = x.Read(); // Shape (n, k, n_mat);
    auto d_y = beta == 0.0 ? y.Write() : y.ReadWrite(); // Shape (m, k, n_mat);
 
-   magma_trans_t magma_op = tr ? MagmaNoTrans : MagmaTrans;
+   magma_trans_t magma_op = tr ? MagmaTrans : MagmaNoTrans;
 
    MFEM_MAGMABLAS_PREFIX(gemm_batched_strided)(
       magma_op, MagmaNoTrans, m, k, n, alpha, d_A, m, m*n, d_x, n, n*k,

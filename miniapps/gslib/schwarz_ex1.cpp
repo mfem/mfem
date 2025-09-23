@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -325,9 +325,6 @@ int main(int argc, char *argv[])
       }
    }
 
-   // Free the used memory.
-   finder1.FreeData();
-   finder2.FreeData();
    for (int i = 0; i < nmeshes; i++)
    {
       delete a_ar[i];

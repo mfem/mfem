@@ -42,10 +42,10 @@ namespace mfem {
  * - mfem::forall functions in forall.hpp
  *
  * <H3>Example codes</H3>
- * - <a class="el" href="ex0_8cpp_source.html">Example 0</a>: simplest example, nodal H1 FEM for the Laplace problem
- * - <a class="el" href="ex0p_8cpp_source.html">Example 0p</a>: simplest parallel example, nodal H1 FEM for the Laplace problem
- * - <a class="el" href="examples_2ex1_8cpp_source.html">Example 1</a>: nodal H1 FEM for the Laplace problem (same discretization as ex0 but with more sophisticated options)
- * - <a class="el" href="examples_2ex1p_8cpp_source.html">Example 1p</a>: parallel nodal H1 FEM for the Laplace problem (same discretization as ex0p but with more sophisticated options)
+ * - <a class="el" href="ex0_8cpp_source.html">Example 0</a>: simplest example, nodal H1 FEM for the Poisson problem
+ * - <a class="el" href="ex0p_8cpp_source.html">Example 0p</a>: simplest parallel example, nodal H1 FEM for the Poisson problem
+ * - <a class="el" href="examples_2ex1_8cpp_source.html">Example 1</a>: nodal H1 FEM for the Poisson problem (same discretization as ex0 but with more sophisticated options)
+ * - <a class="el" href="examples_2ex1p_8cpp_source.html">Example 1p</a>: parallel nodal H1 FEM for the Poisson problem (same discretization as ex0p but with more sophisticated options)
  * - <a class="el" href="ex2_8cpp_source.html">Example 2</a>: vector FEM for linear elasticity
  * - <a class="el" href="ex2p_8cpp_source.html">Example 2p</a>: parallel vector FEM for linear elasticity
  * - <a class="el" href="ex3_8cpp_source.html">Example 3</a>: Nedelec H(curl) FEM for the definite Maxwell problem
@@ -54,12 +54,12 @@ namespace mfem {
  * - <a class="el" href="ex4p_8cpp_source.html">Example 4p</a>: parallel Raviart-Thomas H(div) FEM for the grad-div problem
  * - <a class="el" href="ex5_8cpp_source.html">Example 5</a>: mixed pressure-velocity FEM for the Darcy problem
  * - <a class="el" href="ex5p_8cpp_source.html">Example 5p</a>: parallel mixed pressure-velocity FEM for the Darcy problem
- * - <a class="el" href="ex6_8cpp_source.html">Example 6</a>: non-conforming adaptive mesh refinement for the Laplace problem
- * - <a class="el" href="ex6p_8cpp_source.html">Example 6p</a>: parallel non-conforming adaptive mesh refinement for the Laplace problem
- * - <a class="el" href="ex7_8cpp_source.html">Example 7</a>: Laplace problem on a surface (the unit sphere)
- * - <a class="el" href="ex7p_8cpp_source.html">Example 7p</a>: parallel Laplace problem on a surface (the unit sphere)
- * - <a class="el" href="ex8_8cpp_source.html">Example 8</a>: Discontinuous Petrov-Galerkin (DPG) for the Laplace problem
- * - <a class="el" href="ex8p_8cpp_source.html">Example 8p</a>: parallel Discontinuous Petrov-Galerkin (DPG) for the Laplace problem
+ * - <a class="el" href="ex6_8cpp_source.html">Example 6</a>: non-conforming adaptive mesh refinement for the Poisson problem
+ * - <a class="el" href="ex6p_8cpp_source.html">Example 6p</a>: parallel non-conforming adaptive mesh refinement for the Poisson problem
+ * - <a class="el" href="ex7_8cpp_source.html">Example 7</a>: screened Poisson problem on a surface (the unit sphere)
+ * - <a class="el" href="ex7p_8cpp_source.html">Example 7p</a>: parallel screened Poisson problem on a surface (the unit sphere)
+ * - <a class="el" href="ex8_8cpp_source.html">Example 8</a>: Discontinuous Petrov-Galerkin (DPG) for the Poisson problem
+ * - <a class="el" href="ex8p_8cpp_source.html">Example 8p</a>: parallel Discontinuous Petrov-Galerkin (DPG) for the Poisson problem
  * - <a class="el" href="ex9_8cpp_source.html">Example 9</a>: Discontinuous Galerkin (DG) time-dependent advection
  * - <a class="el" href="ex9p_8cpp_source.html">Example 9p</a>: parallel Discontinuous Galerkin (DG) time-dependent advection
  * - <a class="el" href="ex10_8cpp_source.html">Example 10</a>: time-dependent implicit nonlinear elasticity
@@ -67,8 +67,8 @@ namespace mfem {
  * - <a class="el" href="ex11p_8cpp_source.html">Example 11p</a>: parallel Laplace eigensolver
  * - <a class="el" href="ex12p_8cpp_source.html">Example 12p</a>: parallel linear elasticity eigensolver
  * - <a class="el" href="ex13p_8cpp_source.html">Example 13p</a>: parallel Maxwell eigensolver
- * - <a class="el" href="ex14_8cpp_source.html">Example 14</a>: Discontinuous Galerkin (DG) for the Laplace problem
- * - <a class="el" href="ex14p_8cpp_source.html">Example 14p</a>: parallel Discontinuous Galerkin (DG) for the Laplace problem
+ * - <a class="el" href="ex14_8cpp_source.html">Example 14</a>: Discontinuous Galerkin (DG) for the Poisson problem
+ * - <a class="el" href="ex14p_8cpp_source.html">Example 14p</a>: parallel Discontinuous Galerkin (DG) for the Poisson problem
  * - <a class="el" href="ex15_8cpp_source.html">Example 15</a>: dynamic AMR for Laplace with prescribed time-dependent source
  * - <a class="el" href="ex15p_8cpp_source.html">Example 15p</a>: parallel dynamic AMR for Laplace with prescribed time-dependent source
  * - <a class="el" href="ex16_8cpp_source.html">Example 16</a>: time-dependent nonlinear heat equation
@@ -90,8 +90,8 @@ namespace mfem {
  * - <a class="el" href="ex24p_8cpp_source.html">Example 24p</a>: parallel mixed finite element spaces and interpolators
  * - <a class="el" href="ex25_8cpp_source.html">Example 25</a>: simulation of electromagnetic wave propagation using a Perfectly Matched Layer (PML)
  * - <a class="el" href="ex25p_8cpp_source.html">Example 25p</a>: parallel simulation of electromagnetic wave propagation using a Perfectly Matched Layer (PML)
- * - <a class="el" href="ex26_8cpp_source.html">Example 26</a>: multigrid preconditioner for the Laplace problem using nodal H1 FEM
- * - <a class="el" href="ex26p_8cpp_source.html">Example 26p</a>: parallel multigrid preconditioner for the Laplace problem using nodal H1 FEM
+ * - <a class="el" href="ex26_8cpp_source.html">Example 26</a>: multigrid preconditioner for the Poisson problem using nodal H1 FEM
+ * - <a class="el" href="ex26p_8cpp_source.html">Example 26p</a>: parallel multigrid preconditioner for the Poisson problem using nodal H1 FEM
  * - <a class="el" href="ex27_8cpp_source.html">Example 27</a>: boundary conditions for the Laplace problem
  * - <a class="el" href="ex27p_8cpp_source.html">Example 27p</a>: parallel boundary conditions for the Laplace problem
  * - <a class="el" href="ex28_8cpp_source.html">Example 28</a>: sliding contact in elasticity
@@ -230,8 +230,8 @@ namespace mfem {
  * - <a class="el" href="parheat_8cpp_source.html">Optimization gradients</a>: Gradients of PDE-constrained function
  * - <a class="el" href="par__example_8cpp_source.html">Parallel AD</a>: Parallel p-Laplacian example
  * - <a class="el" href="seq__example_8cpp_source.html">Serial AD</a>: Serial p-Laplacian example
- * - <a class="el" href="miniapps_2performance_2ex1_8cpp_source.html">HPC Example 1</a>: high-performance nodal H1 FEM for the Laplace problem
- * - <a class="el" href="miniapps_2performance_2ex1p_8cpp_source.html">HPC Example 1p</a>: high-performance parallel nodal H1 FEM for the Laplace problem
+ * - <a class="el" href="miniapps_2performance_2ex1_8cpp_source.html">HPC Example 1</a>: high-performance nodal H1 FEM for the Poisson problem
+ * - <a class="el" href="miniapps_2performance_2ex1p_8cpp_source.html">HPC Example 1p</a>: high-performance parallel nodal H1 FEM for the Poisson problem
  * - <a class="el" href="generate__random__field_8cpp_source.html">SPDE Solvers</a>: SPDE solver random field generation
  * - <a class="el" href="contact-patch-test_8cpp_source.html">Contact</a>: mortar contact patch test for elasticity
  * - <a class="el" href="multidomain_8cpp_source.html">Multidomain miniapp</a>: Multidomain and Submesh demonstration miniapp
