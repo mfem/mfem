@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -132,6 +132,9 @@ public:
    /// Evaluate the coefficient.
    real_t Eval(ElementTransformation &T,
                const IntegrationPoint &ip) override;
+
+   /// Fill the QuadratureFunction @a qf with the piecewise constant values.
+   void Project(QuadratureFunction &qf) override;
 };
 
 /** @brief A piecewise coefficient with the pieces keyed off the element
@@ -240,7 +243,9 @@ public:
        Vector argument instead of Vector. */
    MFEM_DEPRECATED FunctionCoefficient(real_t (*f)(Vector &))
    {
-      Function = reinterpret_cast<real_t(*)(const Vector&)>(f);
+      // Cast first to (void*) to suppress a warning from newer version of
+      // Clang when using -Wextra.
+      Function = reinterpret_cast<real_t(*)(const Vector&)>((void*)f);
       TDFunction = NULL;
    }
 
@@ -250,7 +255,10 @@ public:
    MFEM_DEPRECATED FunctionCoefficient(real_t (*tdf)(Vector &, real_t))
    {
       Function = NULL;
-      TDFunction = reinterpret_cast<real_t(*)(const Vector&,real_t)>(tdf);
+      // Cast first to (void*) to suppress a warning from newer version of
+      // Clang when using -Wextra.
+      TDFunction =
+         reinterpret_cast<real_t(*)(const Vector&,real_t)>((void*)tdf);
    }
 
    /// Evaluate the coefficient at @a ip.
@@ -888,6 +896,9 @@ public:
        M. */
    void Eval(DenseMatrix &M, ElementTransformation &T,
              const IntegrationRule &ir) override;
+
+   /// @copydoc VectorCoefficient::Project(QuadratureFunction &)
+   void Project(QuadratureFunction &qf) override;
 
    virtual ~GradientGridFunctionCoefficient() { }
 };
@@ -1766,6 +1777,9 @@ public:
    /// Evaluate the coefficient at @a ip.
    real_t Eval(ElementTransformation &T,
                const IntegrationPoint &ip) override;
+
+   /// @copydoc Coefficient::Project(QuadratureFunction &)
+   void Project(QuadratureFunction &qf) override;
 };
 
 /// Scalar coefficient defined as a cross product of two vectors in the xy-plane.

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -235,7 +235,7 @@ TEST_CASE("Vector Tests", "[Vector]")
    }
 }
 
-TEST_CASE("Vector Sum", "[Vector],[CUDA]")
+TEST_CASE("Vector Sum", "[Vector],[GPU]")
 {
    Vector x(1024);
    x.Randomize(1);

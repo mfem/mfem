@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -180,7 +180,7 @@ bool HasAttribute(const T &el, const Array<int> &attributes)
 }
 
 /**
- * @brief Forwarding dispatch to HasAttribute for backwards compatability
+ * @brief Forwarding dispatch to HasAttribute for backwards compatibility
  *
  * @param el Instance of T, requires method `GetAttribute()`
  * @param attributes Set of attributes to match against

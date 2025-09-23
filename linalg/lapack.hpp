@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -41,6 +41,13 @@ MFEM_LAPACK_PREFIX(getrs_)(char *, int *, int *, real_t *, int *, int *,
 extern "C" void
 MFEM_LAPACK_PREFIX(getri_)(int *N, real_t *A, int *LDA, int *IPIV, real_t *WORK,
                            int *LWORK, int *INFO);
+extern "C" void
+MFEM_LAPACK_PREFIX(gbsv_)(int *, int *, int *, int *, real_t *, int *, int *,
+                          real_t *, int *, int *);
+extern "C" void
+MFEM_LAPACK_PREFIX(gbtrs_)(char *, int *, int *, int *, int *, real_t *, int *,
+                           int *, real_t *, int *, int *);
+
 extern "C" void
 MFEM_LAPACK_PREFIX(syevr_)(char *JOBZ, char *RANGE, char *UPLO, int *N,
                            real_t *A, int *LDA, real_t *VL, real_t *VU, int *IL,

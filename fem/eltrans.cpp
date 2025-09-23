@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -11,6 +11,8 @@
 
 #include "../mesh/mesh_headers.hpp"
 #include "fem.hpp"
+#include "eltrans/eltrans_basis.hpp"
+
 #include <cmath>
 
 namespace mfem
@@ -65,7 +67,6 @@ const DenseMatrix &ElementTransformation::EvalInverseJ()
    EvalState |= INVERSE_MASK;
    return invJ;
 }
-
 
 int InverseElementTransformation::FindClosestPhysPoint(
    const Vector& pt, const IntegrationRule &ir)
@@ -180,12 +181,13 @@ int InverseElementTransformation::NewtonSolve(const Vector &pt,
    const int dim = T->GetDimension();
    const int sdim = T->GetSpaceDim();
    IntegrationPoint xip, prev_xip;
-   real_t xd[3], yd[3], dxd[3], dx_norm = -1.0, err_phys, real_dx_norm = -1.0;
-   Vector x(xd, dim), y(yd, sdim), dx(dxd, dim);
+   real_t xd[3], yd[3], dxd[3], dxpd[3], dx_norm = -1.0, err_phys,
+                                         real_dx_norm = -1.0;
+   Vector x(xd, dim), y(yd, sdim), dx(dxd, dim), dx_prev(dxpd, dim);
    bool hit_bdr = false, prev_hit_bdr = false;
 
    // Use ip0 as initial guess:
-   xip = *ip0;
+   xip = ip0;
    xip.Get(xd, dim); // xip -> x
    if (print_level >= 3)
    {
@@ -342,16 +344,18 @@ int InverseElementTransformation::Transform(const Vector &pt,
    switch (init_guess_type)
    {
       case Center:
-         ip0 = &Geometries.GetCenter(T->GetGeometryType());
+         ip0 = Geometries.GetCenter(T->GetGeometryType());
          break;
 
       case ClosestPhysNode:
       case ClosestRefNode:
       {
-         const int order = std::max(T->Order()+rel_qpts_order, 0);
+         const int order = qpts_order >= 0
+                           ? qpts_order
+                           : std::max(T->Order() + rel_qpts_order, 0);
          if (order == 0)
          {
-            ip0 = &Geometries.GetCenter(T->GetGeometryType());
+            ip0 = Geometries.GetCenter(T->GetGeometryType());
          }
          else
          {
@@ -359,11 +363,45 @@ int InverseElementTransformation::Transform(const Vector &pt,
             int closest_idx = (init_guess_type == ClosestPhysNode) ?
                               FindClosestPhysPoint(pt, RefG.RefPts) :
                               FindClosestRefPoint(pt, RefG.RefPts);
-            ip0 = &RefG.RefPts.IntPoint(closest_idx);
+            ip0 = RefG.RefPts.IntPoint(closest_idx);
          }
          break;
       }
-
+      case EdgeScan:
+      {
+         const int order = qpts_order >= 0
+                           ? qpts_order
+                           : std::max(T->Order() + rel_qpts_order, 0);
+         if (order == 0)
+         {
+            ip0 = Geometries.GetCenter(T->GetGeometryType());
+         }
+         else
+         {
+            auto &ir = *refiner.EdgeScan(T->GetGeometryType(), order + 1);
+            int res = Outside;
+            int npts = ir.GetNPoints();
+            // will return Inside if any test point reports Inside, Outside if
+            // all points report Outside, else Unknown
+            for (int i = 0; i < npts; ++i)
+            {
+               ip0 = ir.IntPoint(i);
+               int tmp_res = NewtonSolve(pt, ip);
+               switch (tmp_res)
+               {
+                  case Inside:
+                     return Inside;
+                  case Outside:
+                     break;
+                  case Unknown:
+                     res = Unknown;
+                     break;
+               }
+            }
+            return res;
+         }
+         break;
+      }
       case GivenPoint:
          break;
 
@@ -444,6 +482,8 @@ int IsoparametricTransformation::OrderJ() const
          return (FElem->GetOrder()-1);
       case FunctionSpace::Qk:
          return (FElem->GetOrder());
+      case FunctionSpace::Uk:
+         return (FElem->GetOrder());
       default:
          MFEM_ABORT("unsupported finite element");
    }
@@ -457,6 +497,8 @@ int IsoparametricTransformation::OrderW() const
       case FunctionSpace::Pk:
          return (FElem->GetOrder() - 1) * FElem->GetDim();
       case FunctionSpace::Qk:
+         return (FElem->GetOrder() * FElem->GetDim() - 1);
+      case FunctionSpace::Uk:
          return (FElem->GetOrder() * FElem->GetDim() - 1);
       default:
          MFEM_ABORT("unsupported finite element");
@@ -476,6 +518,8 @@ int IsoparametricTransformation::OrderGrad(const FiniteElement *fe) const
          case FunctionSpace::Pk:
             return ((k-1)*(d-1)+(l-1));
          case FunctionSpace::Qk:
+            return (k*(d-1)+(l-1));
+         case FunctionSpace::Uk:
             return (k*(d-1)+(l-1));
          default:
             MFEM_ABORT("unsupported finite element");
@@ -712,5 +756,4 @@ real_t FaceElementTransformations::CheckConsistency(int print_level,
 
    return max_dist;
 }
-
 }

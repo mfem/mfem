@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -33,14 +33,27 @@ class ParTransferMap
 public:
    /**
     * @brief Construct a new ParTransferMap object which transfers degrees of
+    * freedom from the source ParFiniteElementSpace to the destination
+    * ParFiniteElementSpace.
+    *
+    * @param src The source ParFiniteElementSpace
+    * @param dst The destination ParFiniteElementSpace
+    */
+   ParTransferMap(const ParFiniteElementSpace &src,
+                  const ParFiniteElementSpace &dst);
+
+   /**
+    * @brief Construct a new ParTransferMap object which transfers degrees of
     * freedom from the source ParGridFunction to the destination
     * ParGridFunction.
+    *
+    * Equivalent to creating the ParTransferMap using the spaces on which the
+    * ParGridFunction%s are defined.
     *
     * @param src The source ParGridFunction
     * @param dst The destination ParGridFunction
     */
-   ParTransferMap(const ParGridFunction &src,
-                  const ParGridFunction &dst);
+   ParTransferMap(const ParGridFunction &src, const ParGridFunction &dst);
 
    /**
     * @brief Transfer the source ParGridFunction to the destination
@@ -84,12 +97,7 @@ private:
 
    /// Mapping of the ParGridFunction defined on the SubMesh to the
    /// ParGridFunction of its parent ParMesh.
-   Array<int> sub1_to_parent_map_;
-
-   /// Mapping of the ParGridFunction defined on the second SubMesh to the
-   /// ParGridFunction of its parent ParMesh. This is only used if this
-   /// ParTransferMap represents a ParSubMesh to ParSubMesh transfer.
-   Array<int> sub2_to_parent_map_;
+   Array<int> sub_to_parent_map_;
 
    /// Set of indices in the dof map that are set by the local rank.
    Array<int> indices_set_local_;
@@ -98,10 +106,16 @@ private:
    /// accumulated by summation.
    Array<int> indices_set_global_;
 
+   /// Pointer to the finite element space defined on the SubMesh.
+   const ParFiniteElementSpace *sub_fes_ = nullptr;
+
+   /// @name Needed for ParSubMesh-to-ParSubMesh transfer
+   ///@{
+
    /// Pointer to the supplemental ParFiniteElementSpace on the common root
    /// parent ParMesh. This is only used if this ParTransferMap represents a
    /// ParSubMesh to ParSubMesh transfer.
-   std::unique_ptr<const ParFiniteElementSpace> root_fes_;
+   std::unique_ptr<ParFiniteElementSpace> root_fes_;
 
    /// Pointer to the supplemental FiniteElementCollection used with root_fes_.
    /// This is only used if this TransferMap represents a SubMesh to SubMesh
@@ -112,8 +126,23 @@ private:
 
    const GroupCommunicator *root_gc_ = nullptr;
 
+   /// Transfer mapping from the source to the parent (root).
+   std::unique_ptr<ParTransferMap> src_to_parent;
+
+   /// @brief Transfer mapping from the destination to the parent (root).
+   ///
+   /// ParSubMesh-to-ParSubMesh transfer works by bringing both the source and
+   /// destination data to their common parent, and then transferring back to
+   /// the destination.
+   std::unique_ptr<ParTransferMap> dst_to_parent;
+
+   /// Transfer mapping from the parent to the destination.
+   std::unique_ptr<ParTransferMap> parent_to_dst;
+
+   ///@}
+
    /// Temporary vector
-   mutable Vector z_;
+   mutable ParGridFunction z_;
 };
 
 } // namespace mfem

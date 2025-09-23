@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -408,13 +408,8 @@ const
 {
    // Add the logger object. See the different masks available in Ginkgo's
    // documentation
-#if MFEM_GINKGO_VERSION < 10500
-   convergence_logger = gko::log::Convergence<>::create(
-                           executor, gko::log::Logger::criterion_check_completed_mask);
-#else
    convergence_logger = gko::log::Convergence<>::create(
                            gko::log::Logger::criterion_check_completed_mask);
-#endif
    residual_logger = std::make_shared<ResidualLogger<>>(executor,
                                                         system_oper.get(),b);
 
@@ -571,11 +566,7 @@ GinkgoIterativeSolver::Mult(const Vector &x, Vector &y) const
    combined_factory->add_logger(convergence_logger);
 
    // Finally, apply the solver to x and get the solution in y.
-#if MFEM_GINKGO_VERSION < 10600
-   solver->apply(gko::lend(gko_x), gko::lend(gko_y));
-#else
    solver->apply(gko_x, gko_y);
-#endif
 
    // Get the number of iterations taken to converge to the solution.
    final_iter = convergence_logger->get_num_iterations();
@@ -1113,11 +1104,7 @@ GinkgoPreconditioner::Mult(const Vector &x, Vector &y) const
                             gko_array<real_t>::view(executor,
                                                     y.Size(),
                                                     y.ReadWrite(on_device)), 1);
-#if MFEM_GINKGO_VERSION < 10600
-   generated_precond.get()->apply(gko::lend(gko_x), gko::lend(gko_y));
-#else
    generated_precond.get()->apply(gko_x, gko_y);
-#endif
 }
 
 void GinkgoPreconditioner::SetOperator(const Operator &op)
@@ -1211,11 +1198,7 @@ IluPreconditioner::IluPreconditioner(
          .with_skip_sorting(skip_sort)
          .on(executor);
       precond_gen = gko::preconditioner::Ilu<>::build()
-#if MFEM_GINKGO_VERSION < 10700
-                    .with_factorization_factory(fact_factory)
-#else
                     .with_factorization(fact_factory)
-#endif
                     .on(executor);
    }
    else
@@ -1227,11 +1210,7 @@ IluPreconditioner::IluPreconditioner(
          .with_skip_sorting(skip_sort)
          .on(executor);
       precond_gen = gko::preconditioner::Ilu<>::build()
-#if MFEM_GINKGO_VERSION < 10700
-                    .with_factorization_factory(fact_factory)
-#else
                     .with_factorization(fact_factory)
-#endif
                     .on(executor);
    }
 
@@ -1269,15 +1248,9 @@ IluIsaiPreconditioner::IluIsaiPreconditioner(
          .on(executor);
       precond_gen = gko::preconditioner::Ilu<l_solver_type,
       u_solver_type>::build()
-#if MFEM_GINKGO_VERSION < 10700
-      .with_factorization_factory(fact_factory)
-      .with_l_solver_factory(l_solver_factory)
-      .with_u_solver_factory(u_solver_factory)
-#else
       .with_factorization(fact_factory)
       .with_l_solver(l_solver_factory)
       .with_u_solver(u_solver_factory)
-#endif
       .on(executor);
 
    }
@@ -1291,15 +1264,9 @@ IluIsaiPreconditioner::IluIsaiPreconditioner(
          .on(executor);
       precond_gen = gko::preconditioner::Ilu<l_solver_type,
       u_solver_type>::build()
-#if MFEM_GINKGO_VERSION < 10700
-      .with_factorization_factory(fact_factory)
-      .with_l_solver_factory(l_solver_factory)
-      .with_u_solver_factory(u_solver_factory)
-#else
       .with_factorization(fact_factory)
       .with_l_solver(l_solver_factory)
       .with_u_solver(u_solver_factory)
-#endif
       .on(executor);
    }
 }
@@ -1324,11 +1291,7 @@ IcPreconditioner::IcPreconditioner(
          .with_skip_sorting(skip_sort)
          .on(executor);
       precond_gen = gko::preconditioner::Ic<>::build()
-#if MFEM_GINKGO_VERSION < 10700
-                    .with_factorization_factory(fact_factory)
-#else
                     .with_factorization(fact_factory)
-#endif
                     .on(executor);
    }
    else
@@ -1341,11 +1304,7 @@ IcPreconditioner::IcPreconditioner(
          .with_skip_sorting(skip_sort)
          .on(executor);
       precond_gen = gko::preconditioner::Ic<>::build()
-#if MFEM_GINKGO_VERSION < 10700
-                    .with_factorization_factory(fact_factory)
-#else
                     .with_factorization(fact_factory)
-#endif
                     .on(executor);
    }
 }
@@ -1374,13 +1333,8 @@ IcIsaiPreconditioner::IcIsaiPreconditioner(
          .with_skip_sorting(skip_sort)
          .on(executor);
       precond_gen = gko::preconditioner::Ic<l_solver_type>::build()
-#if MFEM_GINKGO_VERSION < 10700
-                    .with_factorization_factory(fact_factory)
-                    .with_l_solver_factory(l_solver_factory)
-#else
                     .with_factorization(fact_factory)
                     .with_l_solver(l_solver_factory)
-#endif
                     .on(executor);
    }
    else
@@ -1393,13 +1347,8 @@ IcIsaiPreconditioner::IcIsaiPreconditioner(
          .with_skip_sorting(skip_sort)
          .on(executor);
       precond_gen = gko::preconditioner::Ic<l_solver_type>::build()
-#if MFEM_GINKGO_VERSION < 10700
-                    .with_factorization_factory(fact_factory)
-                    .with_l_solver_factory(l_solver_factory)
-#else
                     .with_factorization(fact_factory)
                     .with_l_solver(l_solver_factory)
-#endif
                     .on(executor);
    }
 }
