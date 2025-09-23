@@ -165,8 +165,10 @@ template <int DIM> void mass_mat_mixed(const char* filename, int p)
 
       HypreParMatrix *Adfem;
       ddopdu->Assemble(Adfem);
-
       auto C = Add(1.0, *Amfem, -1.0, *Adfem);
+
+      // Computing the norm in hypre memory space on GPU triggers a segfault somehow
+      C->HostRead();
       real_t norm_g, norm_l = C->FNorm();
       MPI_Allreduce(&norm_l, &norm_g, 1, MPI_DOUBLE, MPI_MAX, pmesh.GetComm());
       REQUIRE(norm_g == MFEM_Approx(0.0));
