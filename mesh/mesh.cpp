@@ -979,6 +979,46 @@ const Array<int>& Mesh::GetElementAttributes() const
    return elem_attrs_cache;
 }
 
+void Mesh::ComputeFaceInfo(FaceType ftype) const
+{
+   auto &fidcs = face_indices[static_cast<int>(ftype)];
+   auto &ifidcs = inv_face_indices[static_cast<int>(ftype)];
+   fidcs.SetSize(GetNFbyType(ftype));
+   fidcs.HostWrite();
+   ifidcs.reserve(fidcs.Size());
+   int f_idx = 0;
+   for (int i = 0; i < GetNumFacesWithGhost(); ++i)
+   {
+      const FaceInformation face = GetFaceInformation(i);
+      if (face.IsNonconformingCoarse() || !face.IsOfFaceType(ftype))
+      {
+         continue;
+      }
+      fidcs[f_idx] = i;
+      ifidcs[i] = f_idx;
+      ++f_idx;
+   }
+}
+
+const Array<int> &Mesh::GetFaceIndices(FaceType ftype) const
+{
+   if (face_indices[static_cast<int>(ftype)].Size() == 0)
+   {
+      ComputeFaceInfo(ftype);
+   }
+   return face_indices[static_cast<int>(ftype)];
+}
+
+const std::unordered_map<int, int> &
+Mesh::GetInvFaceIndices(FaceType ftype) const
+{
+   if (inv_face_indices[static_cast<int>(ftype)].empty())
+   {
+      ComputeFaceInfo(ftype);
+   }
+   return inv_face_indices[static_cast<int>(ftype)];
+}
+
 void Mesh::DeleteGeometricFactors()
 {
    for (int i = 0; i < geom_factors.Size(); i++)
@@ -1866,6 +1906,13 @@ void Mesh::Destroy()
    bdr_face_attrs_cache.DeleteAll();
    attributes.DeleteAll();
    bdr_attributes.DeleteAll();
+
+   face_indices[0].DeleteAll();
+   face_indices[1].DeleteAll();
+   // force de-allocation so after this mesh has the smallest memory footprint
+   // possible
+   inv_face_indices[0] = std::unordered_map<int, int>();
+   inv_face_indices[1] = std::unordered_map<int, int>();
 }
 
 void Mesh::ResetLazyData()
@@ -1880,6 +1927,11 @@ void Mesh::ResetLazyData()
    // set size to 0 so re-computations can potentially avoid a new allocation
    bdr_face_attrs_cache.SetSize(0);
    elem_attrs_cache.SetSize(0);
+
+   face_indices[0].SetSize(0);
+   face_indices[1].SetSize(0);
+   inv_face_indices[0].clear();
+   inv_face_indices[1].clear();
 }
 
 void Mesh::SetAttributes(bool elem_attrs_changed, bool bdr_face_attrs_changed)
@@ -3444,7 +3496,6 @@ void Mesh::FinalizeHexMesh(int generate_edges, int refine, bool fix_orientation)
 void Mesh::FinalizeMesh(int refine, bool fix_orientation)
 {
    FinalizeTopology();
-
    Finalize(refine, fix_orientation);
 }
 
@@ -4998,6 +5049,10 @@ void Mesh::Loader(std::istream &input, int generate_edges,
    {
       ReadNURBSMesh(input, curved, read_gf);
    }
+   else if (mesh_type == "MFEM NURBS NC-patch mesh v1.0")
+   {
+     ReadNURBSMesh(input, curved, read_gf, true, true);  // Spacing is required
+   }
    else if (mesh_type == "MFEM NURBS mesh v1.1")
    {
      ReadNURBSMesh(input, curved, read_gf, true);
@@ -5107,6 +5162,19 @@ void Mesh::Loader(std::istream &input, int generate_edges,
       MFEM_VERIFY(ident == "mfem_mesh_end",
                   "invalid mesh: end of file tag not found");
    }
+
+   if (NURBSext && NURBSext->NonconformingPatches())
+     {
+       string ident;
+       skip_comment_lines(input, '#');
+       // Check for the optional section "patch_cp"
+       if (input.peek() == 'p')
+	 {
+	   input >> ident;
+	   MFEM_VERIFY(ident == "patch_cp", "Invalid mesh format");
+	   NURBSext->ReadCoarsePatchCP(input);
+	 }
+     }
 
    // Finalize(...) should be called after this, if needed.
 }
@@ -6235,6 +6303,11 @@ void Mesh::KnotRemove(Array<Vector *> &kv)
    UpdateNURBS();
 }
 
+void Mesh::RefineNURBSWithKVFactors(int rf, const std::string &kvf)
+{
+   RefineNURBS(true, 0.0, Array<int>(&rf, 1), kvf);
+}
+
 void Mesh::NURBSUniformRefinement(int rf, real_t tol)
 {
    Array<int> rf_array(Dim);
@@ -6245,10 +6318,15 @@ void Mesh::NURBSUniformRefinement(int rf, real_t tol)
 void Mesh::NURBSUniformRefinement(Array<int> const& rf, real_t tol)
 {
    MFEM_VERIFY(rf.Size() == Dim,
-               "Refinement factors must be defined for each dimension");
+	       "Refinement factors must be defined for each dimension");
 
-   MFEM_VERIFY(NURBSext, "NURBSUniformRefinement is only for NURBS meshes");
+   RefineNURBS(false, tol, rf, "");
+}
 
+void Mesh::RefineNURBS(bool usingKVF, real_t tol, const Array<int> &rf,
+		       const std::string &kvf)
+{
+   MFEM_VERIFY(NURBSext, "This type of refinement is only for NURBS meshes");
    NURBSext->ConvertToPatches(*Nodes);
 
    Array<int> cf;
@@ -6256,27 +6334,37 @@ void Mesh::NURBSUniformRefinement(Array<int> const& rf, real_t tol)
 
    bool cf1 = true;
    for (auto f : cf)
-   {
-      cf1 = (cf1 && f == 1);
-   }
+     {
+       cf1 = (cf1 && f == 1);
+     }
 
-   if (cf1)
-   {
-      NURBSext->UniformRefinement(rf);
-   }
-   else
-   {
-      NURBSext->Coarsen(cf, tol);
+   if (!cf1 && NURBSext->NonconformingPatches())
+     {
+       NURBSext->FullyCoarsen();
+       last_operation = Mesh::NONE; // FiniteElementSpace::Update is not supported
+     }
+   else if (!cf1 && !NURBSext->NonconformingPatches())
+     {
+       MFEM_VERIFY(!usingKVF, "This refinement type is not supported for this"
+		   " NURBS mesh type");
+       NURBSext->Coarsen(cf, tol);
 
-      last_operation = Mesh::NONE; // FiniteElementSpace::Update is not supported
-      sequence++;
+       last_operation = Mesh::NONE; // FiniteElementSpace::Update is not supported
+       sequence++;
+       UpdateNURBS();
 
-      UpdateNURBS();
+       NURBSext->ConvertToPatches(*Nodes);
+       for (int i=0; i<cf.Size(); ++i) { cf[i] *= rf[i]; }
+       NURBSext->UniformRefinement(cf);
+     }
 
-      NURBSext->ConvertToPatches(*Nodes);
-      for (int i=0; i<cf.Size(); ++i) { cf[i] *= rf[i]; }
-      NURBSext->UniformRefinement(cf);
-   }
+   if (cf1 || NURBSext->NonconformingPatches())
+     {
+       if (usingKVF || NURBSext->NonconformingPatches())
+	 NURBSext->RefineWithKVFactors(rf[0], kvf, !cf1);
+       else
+	 NURBSext->UniformRefinement(rf);
+     }
 
    last_operation = Mesh::NONE; // FiniteElementSpace::Update is not supported
    sequence++;
@@ -6552,6 +6640,52 @@ void Mesh::GetEdgeToUniqueKnotvector(Array<int> &edge_to_ukv,
       const int ukv = rpkv_to_ukv[rpkv];
       edge_to_ukv[i] = (edge_to_pkv[i] < 0) ? sign(ukv) : ukv;
    }
+}
+
+void Mesh::LoadNonconformingPatchTopo(std::istream &input,
+                                      Array<int> &edge_to_ukv)
+{
+   SetEmpty();
+
+   // Read MFEM NURBS NC-patch mesh v1.0 format
+   int curved = 0;
+   int is_nc = 1;
+
+   ncmesh = new NCMesh(input, 10, curved, is_nc);
+
+   InitFromNCMesh(*ncmesh);
+
+   skip_comment_lines(input, '#');
+
+   string ident;
+   int inputNumOfEdges = -1;
+
+   input >> ident; // 'edges'
+   input >> inputNumOfEdges;
+
+   MFEM_VERIFY(NumOfEdges == inputNumOfEdges, "");
+
+   edge_to_ukv.SetSize(NumOfEdges);
+   for (int j = 0; j < NumOfEdges; j++)
+   {
+      int v[2]; // Vertex indices
+      int ukv; // Unique KnotVector index
+      input >> ukv >> v[0] >> v[1];
+
+      for (int i=0; i<2; ++i)
+      {
+         v[i] = ncmesh->vertex_nodeId[v[i]];
+      }
+
+      if (v[0] > v[1])
+      {
+         ukv = -1 - ukv;
+      }
+      edge_to_ukv[j] = ukv;
+   }
+
+   FinalizeTopology();
+   CheckBdrElementOrientation(); // check and fix boundary element orientation
 }
 
 void XYZ_VectorFunction(const Vector &p, Vector &v)
@@ -8136,6 +8270,12 @@ void Mesh::GenerateFaces()
    {
       FreeElement(f);
    }
+
+   // delete caches
+   face_indices[0].SetSize(0);
+   face_indices[1].SetSize(0);
+   inv_face_indices[0].clear();
+   inv_face_indices[1].clear();
 
    // (re)generate the interior faces and the info for them
    faces.SetSize(nfaces);
@@ -10936,6 +11076,11 @@ void Mesh::Swap(Mesh& other, bool non_geometry)
    // copy attribute caches
    mfem::Swap(elem_attrs_cache, other.elem_attrs_cache);
    mfem::Swap(bdr_face_attrs_cache, other.bdr_face_attrs_cache);
+
+   mfem::Swap(face_indices[0], other.face_indices[0]);
+   mfem::Swap(face_indices[1], other.face_indices[1]);
+   inv_face_indices[0].swap(other.inv_face_indices[0]);
+   inv_face_indices[1].swap(other.inv_face_indices[1]);
 }
 
 void Mesh::GetElementData(const Array<Element*> &elem_array, int geom,
@@ -11821,6 +11966,7 @@ void Mesh::Printer(std::ostream &os, std::string section_delimiter,
       os << '\n';
       Nodes->Save(os);
 
+      NURBSext->PrintCoarsePatches(os);
       // patch-wise format
       // NURBSext->ConvertToPatches(*Nodes);
       // NURBSext->Print(os);
@@ -11967,8 +12113,16 @@ void Mesh::PrintTopo(std::ostream &os, const Array<int> &e_to_k,
       PrintElement(boundary[i], os);
    }
 
+   PrintTopoEdges(os, e_to_k);
+}
+
+void Mesh::PrintTopoEdges(std::ostream &os, const Array<int> &e_to_k,
+                          bool vmap) const
+{
+   Array<int> vert;
+
    os << "\nedges\n" << NumOfEdges << '\n';
-   for (i = 0; i < NumOfEdges; i++)
+   for (int i = 0; i < NumOfEdges; i++)
    {
       edge_vertex->GetRow(i, vert);
       int ki = e_to_k[i];
@@ -11976,9 +12130,30 @@ void Mesh::PrintTopo(std::ostream &os, const Array<int> &e_to_k,
       {
          ki = -1 - ki;
       }
+
+      if (vmap)
+      {
+         for (int j=0; j<2; ++j)
+         {
+            vert[j] = ncmesh->vertex_nodeId[vert[j]];
+         }
+
+         if (e_to_k[i] < 0)
+         {
+            // Swap the entries of vert
+            const int s = vert[0];
+            vert[0] = vert[1];
+            vert[1] = s;
+         }
+      }
+
       os << ki << ' ' << vert[0] << ' ' << vert[1] << '\n';
    }
-   os << "\nvertices\n" << NumOfVertices << '\n';
+
+   if (!vmap)
+   {
+      os << "\nvertices\n" << NumOfVertices << '\n';
+   }
 }
 
 void Mesh::Save(const std::string &fname, int precision) const
@@ -15256,6 +15431,20 @@ Mesh *Extrude2D(Mesh *mesh, const int nz, const real_t sz)
       }
    }
    return mesh3d;
+}
+
+bool Mesh::Conforming() const
+{
+   if (NURBSext)
+   {
+      // NURBS meshes are always conforming (element-wise). NURBS patch
+      // conformity is indicated by NURBSExtension::NonconformingPatches.
+      return true;
+   }
+   else
+   {
+      return ncmesh == NULL;
+   }
 }
 
 #ifdef MFEM_DEBUG
