@@ -2591,6 +2591,45 @@ void DarcyHybridization::ReduceRHS(const BlockVector &b_t, Vector &b_tr) const
    }
 }
 
+void DarcyHybridization::ProjectSolution(const BlockVector &sol,
+                                         Vector &sol_r) const
+{
+   Mesh *mesh = c_fes.GetMesh();
+   const int nfaces = mesh->GetNumFaces();
+
+   const GridFunction p(&fes_p, const_cast<Vector&>(sol.GetBlock(1)), 0);
+
+   DenseMatrix val_tr;
+   Vector val1, val2;
+   Array<int> c_vdofs;
+
+   for (int f = 0; f < nfaces; f++)
+   {
+      FaceElementTransformations *ftr = mesh->GetFaceElementTransformations(f);
+      const FiniteElement *c_fe = c_fes.GetFaceElement(f);
+      const IntegrationRule &nodes = c_fe->GetNodes();
+      c_fes.GetFaceVDofs(f, c_vdofs);
+      val_tr.SetSize(nodes.Size(), fes_p.GetVDim());
+      MFEM_ASSERT(c_vdofs.Size() == nodes.Size() * fes_p.GetVDim(), "Internal error");
+
+      for (int n = 0; n < nodes.Size(); n++)
+      {
+         const IntegrationPoint &ip = nodes[n];
+         ftr->SetIntPoint(&ip);
+         p.GetVectorValue(*ftr->Elem1, ftr->GetElement1IntPoint(), val1);
+         if (ftr->Elem2No >= 0)
+         {
+            p.GetVectorValue(*ftr->Elem2, ftr->GetElement2IntPoint(), val2);
+            val1 += val2;
+            val1 *= 0.5;
+         }
+         val_tr.SetRow(n, val1);
+      }
+
+      sol_r.SetSubVector(c_vdofs, val_tr.GetData());
+   }
+}
+
 void DarcyHybridization::ComputeSolution(const BlockVector &b_t,
                                          const Vector &sol_tr, BlockVector &sol_t) const
 {

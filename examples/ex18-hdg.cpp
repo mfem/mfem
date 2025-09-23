@@ -314,6 +314,11 @@ int main(int argc, char *argv[])
    GridFunction mom(&dfes, sol, fes.GetNDofs());
    GridFunction ene(&fes, sol, (1 + dim) * fes.GetNDofs());
 
+   if (hybridization)
+   {
+      darcy.GetHybridization()->ProjectSolution(x, x.GetBlock(2));
+   }
+
    // Output the initial solution.
    /*{
       ostringstream mesh_name;

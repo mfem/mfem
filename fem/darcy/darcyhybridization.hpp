@@ -516,6 +516,9 @@ public:
        b_r, for the hybridized system. */
    void ReduceRHS(const BlockVector &b, Vector &b_r) const;
 
+   /// Projects trace of the solution onto the trace variable
+   void ProjectSolution(const BlockVector &sol, Vector &sol_r) const;
+
    void ComputeSolution(const Vector &b, const Vector &sol_r,
                         Vector &sol) const override
    { MFEM_ABORT("Use BlockVector version instead"); }
