@@ -235,6 +235,14 @@ void SetInitialPosition(VisItDataCollection *E_dc,
                         VisItDataCollection *B_dc,
                         Vector &x_init);
 
+// Build a quadrilateral mesh approximating the trajectory as a
+// ribbon. One edge of the ribbon follows the trajectory of the
+// particle. The opposite edge is offset by the acceleration vector
+// (scaled by a constant called the r_factor).
+Mesh MakeTrajectoryMesh(int step, real_t m, real_t dt, real_t r_factor,
+                        const DenseMatrix &pos_data,
+                        const DenseMatrix &mom_data);
+
 // Prints the program's logo to the given output stream
 void display_banner(ostream & os);
 
@@ -408,33 +416,8 @@ int main(int argc, char *argv[])
 
    if (Mpi::Root() && (visit || visualization))
    {
-      Mesh trajectory(2, 2 * (step + 1), step, 0, 3);
-
-      for (int i=0; i<=step; i++)
-      {
-         trajectory.AddVertex(pos_data(0,i), pos_data(1,i), pos_data(2,i));
-
-         real_t dpx = (mom_data(0, i + 1) - mom_data(0, i)) / (m * dt);
-         real_t dpy = (mom_data(1, i + 1) - mom_data(1, i)) / (m * dt);
-         real_t dpz = (mom_data(2, i + 1) - mom_data(2, i)) / (m * dt);
-
-         trajectory.AddVertex(pos_data(0,i) + r_factor * dpx,
-                              pos_data(1,i) + r_factor * dpy,
-                              pos_data(2,i) + r_factor * dpz);
-      }
-
-      int v[4];
-      for (int i=0; i<step; i++)
-      {
-         v[0] = 2 * i;
-         v[1] = 2 * (i + 1);
-         v[2] = 2 * (i + 1) + 1;
-         v[3] = 2 * i + 1;
-
-         trajectory.AddQuad(v);
-      }
-
-      trajectory.FinalizeQuadMesh(1);
+      Mesh trajectory = MakeTrajectoryMesh(step, m, dt, r_factor,
+                                           pos_data, mom_data);
 
       L2_FECollection    fec_l2(0, 2);
       FiniteElementSpace fes_l2(&trajectory, &fec_l2);
@@ -556,4 +539,39 @@ void SetInitialPosition(VisItDataCollection *E_dc,
          x_init[d] = 0.5 * (p_min + p_max);
       }
    }
+}
+
+Mesh MakeTrajectoryMesh(int step, real_t m, real_t dt, real_t r_factor,
+                        const DenseMatrix &pos_data,
+                        const DenseMatrix &mom_data)
+{
+   Mesh trajectory(2, 2 * (step + 1), step, 0, 3);
+
+   for (int i=0; i<=step; i++)
+   {
+      trajectory.AddVertex(pos_data(0,i), pos_data(1,i), pos_data(2,i));
+
+      real_t dpx = (mom_data(0, i + 1) - mom_data(0, i)) / (m * dt);
+      real_t dpy = (mom_data(1, i + 1) - mom_data(1, i)) / (m * dt);
+      real_t dpz = (mom_data(2, i + 1) - mom_data(2, i)) / (m * dt);
+
+      trajectory.AddVertex(pos_data(0,i) + r_factor * dpx,
+                           pos_data(1,i) + r_factor * dpy,
+                           pos_data(2,i) + r_factor * dpz);
+   }
+
+   int v[4];
+   for (int i=0; i<step; i++)
+   {
+      v[0] = 2 * i;
+      v[1] = 2 * (i + 1);
+      v[2] = 2 * (i + 1) + 1;
+      v[3] = 2 * i + 1;
+
+      trajectory.AddQuad(v);
+   }
+
+   trajectory.FinalizeQuadMesh(1);
+
+   return trajectory;
 }
