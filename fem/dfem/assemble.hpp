@@ -63,7 +63,7 @@ MFEM_HOST_DEVICE void assemble_element_mat_t3d(
                }
 
                // MSVC lambda capture workaround
-               const auto& inputs_ref = inputs;
+               [[maybe_unused]] const auto& inputs_ref = inputs;
 
                int m_offset = 0;
                for_constexpr<num_inputs>([&](auto s)
@@ -205,7 +205,7 @@ MFEM_HOST_DEVICE void assemble_element_mat_t2d(
             }
 
             // MSVC lambda capture workaround
-            const auto& inputs_ref = inputs;
+            [[maybe_unused]] const auto& inputs_ref = inputs;
 
             int m_offset = 0;
             for_constexpr<num_inputs>([&](auto s)
