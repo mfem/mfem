@@ -42,22 +42,16 @@
 //
 //   Particle accelerating in a constant electric field
 //      mpirun -np 4 volta -m ../../data/inline-hex.mesh -dbcs '1 6' -dbcv '0 1'
-//      mpirun -np 4 lorentz -er Volta-AMR-Parallel -x0 '0.5 0.5 0.9'
-//                           -p0 '1 0 0'
+//      mpirun -np 4 lorentz -er Volta-AMR-Parallel -x0 '0.5 0.5 0.9' -p0 '1 0 0'
 //
 //   Particle accelerating in a constant magnetic field
 //      mpirun -np 4 tesla -m ../../data/inline-hex.mesh -ubbc '0 0 1'
-//      mpirun -np 4 lorentz -br Tesla-AMR-Parallel -x0 '0.1 0.5 0.1'
-//                           -p0 '0 0.4 0.1' -tf 9
+//      mpirun -np 4 lorentz -br Tesla-AMR-Parallel -x0 '0.1 0.5 0.1' -p0 '0 0.4 0.1' -tf 9
 //
 //   Magnetic mirror effect near a charged sphere and a bar magnet
-//      mpirun -np 4 volta -m ../../data/ball-nurbs.mesh -dbcs 1
-//                         -cs '0 0 0 0.1 2e-11' -rs 2 -maxit 4
-//      mpirun -np 4 tesla -m ../../data/fichera.mesh -maxit 4 -rs 3
-//                         -bm '-0.1 -0.1 -0.1 0.1 0.1 0.1 0.1 -1e10'
-//      mpirun -np 4 lorentz -er Volta-AMR-Parallel -ec 4
-//                           -br Tesla-AMR-Parallel -bc 4 -x0 '0.8 0 0'
-//                           -p0 '-8 -4 4' -q -10 -tf 0.2 -dt 1e-3 -rf 1e-6
+//      mpirun -np 4 volta -m ../../data/ball-nurbs.mesh -dbcs 1 -cs '0 0 0 0.1 2e-11' -rs 2 -maxit 4
+//      mpirun -np 4 tesla -m ../../data/fichera.mesh -maxit 4 -rs 3 -bm '-0.1 -0.1 -0.1 0.1 0.1 0.1 0.1 -1e10'
+//      mpirun -np 4 lorentz -er Volta-AMR-Parallel -ec 4 -br Tesla-AMR-Parallel -bc 4 -x0 '0.8 0 0' -p0 '-8 -4 4' -q -10 -tf 0.2 -dt 1e-3 -rf 1e-6
 //
 // This miniapp demonstrates the use of the ParMesh::FindPoints functionality
 // to evaluate field data from stored DataCollection objects.  While this
