@@ -187,15 +187,8 @@ public:
       lambda = new IsoElasticyLambdaCoeff(E, nu);
       mu = new IsoElasticySchearCoeff(E, nu);
 
-      dbg("new bf ParBilinearForm");
-      bf = new mfem::ParBilinearForm(vfes);
-
-      if (dfem) { AddDFemDomainIntegrator(); }
-      else
-      {
-         bf->AddDomainIntegrator(new mfem::ElasticityIntegrator(*lambda, *mu));
-         if (pa) { bf->SetAssemblyLevel(mfem::AssemblyLevel::PARTIAL); }
-      }
+      delete bf; bf=nullptr;
+      dop.release();
    }
 
    class NonTensorUniformParameterSpace : public
@@ -298,17 +291,21 @@ private:
    std::unique_ptr<mfem::OperatorHandle> Kh;
    std::unique_ptr<mfem::HypreParMatrix> K, Ke;
 
-   static constexpr int U = 0, Coords = 1, ECoeff = 2, NuCoeff = 3;
+   // begining of dFEM defintions
+   // U - displacements, Coords - nodal coordinates
+   // E modulud sampled on integration points
+   // Nu Poisson's ration samples on integration points
+   static constexpr int U = 0, Coords = 1, LCoeff = 2, MuCoeff = 3;
    const mfem::FiniteElement *fe;
    mfem::ParGridFunction *nodes;
    mfem::ParFiniteElementSpace *mfes;
    mfem::Array<int> domain_attributes;
    const mfem::IntegrationRule &ir;
    mfem::QuadratureSpace qs;
-   NonTensorUniformParameterSpace E_ps, nu_ps;
-   std::unique_ptr<mfem::CoefficientVector> E_cv, nu_cv;
-   mfem::future::DifferentiableOperator dop;
-   void AddDFemDomainIntegrator();
+   NonTensorUniformParameterSpace Lambda_ps, Mu_ps;
+   std::unique_ptr<mfem::CoefficientVector> Lambda_cv, Mu_cv;
+   std::unique_ptr<mfem::future::DifferentiableOperator> dop;
+   // end of dFEM definitions
 
    mfem::ParLinearForm *lf;
 

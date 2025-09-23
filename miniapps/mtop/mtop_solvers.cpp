@@ -32,6 +32,8 @@ using mfem::future::Gradient;
 using mfem::future::Identity;
 
 ///////////////////////////////////////////////////////////////////////////////
+/// \brief The QFunction struct defining the linear elasticity operator at
+/// integration points which is valid in 2D and 3D
 template <int DIM> struct QFunction
 {
    using matd_t = tensor<real_t, DIM, DIM>;
@@ -39,37 +41,17 @@ template <int DIM> struct QFunction
    struct Elasticity
    {
       MFEM_HOST_DEVICE inline auto operator()(const matd_t &dudxi,
-                                              const real_t &E, const real_t &ν,
+                                              const real_t &L, const real_t &M,
                                               const matd_t &J,
                                               const real_t &w) const
       {
          const matd_t JxW = transpose(inv(J)) * det(J) * w;
          constexpr auto I = mfem::future::IsotropicIdentity<DIM>();
          const auto eps = mfem::future::sym(dudxi * mfem::future::inv(J));
-         return tuple{(E * tr(eps) * I + 2.0 * ν * eps) * JxW};
+         return tuple{(L * tr(eps) * I + 2.0 * M * eps) * JxW};
       }
    };
 };
-
-void IsoLinElasticSolver::AddDFemDomainIntegrator()
-{
-   dbg("\x1b[36m dfem elasticity operator");
-   assert(lambda && mu);
-
-   E_cv = std::make_unique<CoefficientVector>(*lambda, qs);
-   nu_cv = std::make_unique<CoefficientVector>(*mu, qs);
-
-   dop.SetParameters({ E_cv.get(), nu_cv.get(), nodes });
-
-   typename QFunction<2>::Elasticity e2qf;
-   dop.AddDomainIntegrator(e2qf,
-                           mfem::future::tuple{ Gradient<U>{},
-                                                Identity<ECoeff>{}, Identity<NuCoeff>{},
-                                                Gradient<Coords>{},
-                                                Weight{} },
-                           mfem::future::tuple{ Gradient<U>{} },
-                           ir, domain_attributes);
-}
 
 IsoLinElasticSolver::IsoLinElasticSolver(ParMesh *mesh, int vorder,
                                          bool pa, bool dfem):
@@ -99,17 +81,18 @@ IsoLinElasticSolver::IsoLinElasticSolver(ParMesh *mesh, int vorder,
    mu(nullptr),
    bf(nullptr),
    fe(vfes->GetFE(0)),
-   nodes(static_cast<ParGridFunction *>(pmesh->GetNodes())),
+   nodes((pmesh->EnsureNodes(), static_cast<ParGridFunction *>(pmesh->GetNodes()))),
    mfes(nodes->ParFESpace()),
    ir(IntRules.Get(fe->GetGeomType(),
                    fe->GetOrder() + fe->GetOrder() + fe->GetDim() - 1)),
    qs(*pmesh, ir),
-   E_ps(*pmesh, ir, 1),
-   nu_ps(*pmesh, ir, 1),
-   dop({{ U, vfes }}, { {ECoeff, &E_ps}, { NuCoeff, &nu_ps}, { Coords, mfes }},
-*pmesh), lf(nullptr)
+   Lambda_ps(*pmesh, ir, 1),
+   Mu_ps(*pmesh, ir, 1),
+   //dop({{ U, vfes }}, { {LCoeff, &Lambda_ps}, { MuCoeff, &Mu_ps}, { Coords, mfes }},*pmesh),
+   lf(nullptr)
 {
-   MFEM_VERIFY(qs.GetSize() == E_ps.GetTrueVSize(),
+
+   MFEM_VERIFY(qs.GetSize() == Lambda_ps.GetTrueVSize(),
                "QuadratureSpace and ParameterSpace size mismatch");
 
    sol = 0.0;
@@ -132,13 +115,10 @@ IsoLinElasticSolver::IsoLinElasticSolver(ParMesh *mesh, int vorder,
       domain_attributes.SetSize(pmesh->attributes.Max());
       domain_attributes = 1;
    }
-
-   SetLinearSolver(1e-8,1e-12,200);
 }
 
 IsoLinElasticSolver::~IsoLinElasticSolver()
 {
-   dbg();
    delete prec;
    delete ls;
 
@@ -392,15 +372,55 @@ void IsoLinElasticSolver::MultTranspose(const Vector &x,
 
 void IsoLinElasticSolver::Assemble()
 {
-   dbg();
-   if (bf == nullptr) { return; }
+   delete bf; bf=nullptr;
+
+   if(dfem) {
+       // define the differentiable operator
+       dop = std::make_unique<mfem::future::DifferentiableOperator>(
+                   std::vector<mfem::future::FieldDescriptor> {{ U, vfes }},
+                   std::vector<mfem::future::FieldDescriptor> {{ LCoeff, &Lambda_ps},
+                                                               { MuCoeff, &Mu_ps},
+                                                               { Coords, mfes }},
+                   *pmesh);
+
+       // sample lambda on the integration points
+       Lambda_cv = std::make_unique<CoefficientVector>(*lambda, qs);
+       // sample mu on the integration points
+       Mu_cv = std::make_unique<CoefficientVector>(*mu, qs);
+       // set the parameters of the differentiable operator
+       dop->SetParameters({ Lambda_cv.get(), Mu_cv.get(), nodes });
+
+       //define the q-function for dimensions 2 and 3
+       typename QFunction<2>::Elasticity e2qf;
+       typename QFunction<3>::Elasticity e3qf;
+       if(2==spaceDim){
+           dop->AddDomainIntegrator(e2qf,
+                               mfem::future::tuple{ Gradient<U>{},
+                                                    Identity<LCoeff>{}, Identity<MuCoeff>{},
+                                                    Gradient<Coords>{},
+                                                    Weight{} },
+                               mfem::future::tuple{ Gradient<U>{} },
+                               ir, domain_attributes);
+       }else{
+           dop->AddDomainIntegrator(e3qf,
+                               mfem::future::tuple{ Gradient<U>{},
+                                                    Identity<LCoeff>{}, Identity<MuCoeff>{},
+                                                    Gradient<Coords>{},
+                                                    Weight{} },
+                               mfem::future::tuple{ Gradient<U>{} },
+                               ir, domain_attributes);
+       }
+
+   }else{
+       //define standard bilinear form
+       bf = new mfem::ParBilinearForm(vfes);
+       bf->AddDomainIntegrator(new mfem::ElasticityIntegrator(*lambda, *mu));
+       if (pa) { bf->SetAssemblyLevel(mfem::AssemblyLevel::PARTIAL); }
+   }
 
    // set BC
    sol = real_t(0.0);
    SetEssTDofs(sol, ess_tdofv);
-
-   real_t nr = ParNormlp(sol, 2, pmesh->GetComm());
-   if (pmesh->GetMyRank() == 0) { mfem::out << "sol=" << nr << std::endl; }
 
    if (pa)
    {
@@ -497,10 +517,6 @@ void IsoLinElasticSolver::Assemble()
    {
       ls->SetOperator((pa||dfem) ? *Kh->Ptr() : *K);
    }
-
-   mfem::out << pmesh->GetMyRank() << " LSW=" << ls->Width()
-             << " LSH=" << ls->Height() << " KFW=" << ((pa||dfem) ? Kc->Width():K->Width())
-             << " KFH=" << ((pa||dfem)?Kc->Height():K->Height()) << std::endl;
 }
 
 void IsoLinElasticSolver::FSolve()
