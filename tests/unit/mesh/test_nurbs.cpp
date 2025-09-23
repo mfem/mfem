@@ -304,5 +304,34 @@ TEST_CASE("Greville, Botella and Demko points", "[NURBS]")
 
    mfem::out<<"Chebyshev spline \n";
    kv.PrintFunction(mfem::out, a, 21);
+}
 
+TEST_CASE("NURBS NC-patch mesh loading", "[NURBS]")
+{
+   auto mesh_fname = GENERATE("../../data/nc3-nurbs.mesh",
+                              "../../data/nc-nurbs3d.mesh");
+
+   Mesh mesh(mesh_fname, 1, 1);
+   const int dim = mesh.Dimension();
+   const int ne = dim == 2 ? 6 : 24;
+   REQUIRE(mesh.GetNE() == ne);
+
+   mesh.NURBSUniformRefinement();
+   REQUIRE(mesh.GetNE() == ne * std::pow(2, dim));
+}
+
+TEST_CASE("NURBS NC-patch large meshes", "[MFEMData][NURBS]")
+{
+   auto mesh_fname = GENERATE("bricks2D.mesh",
+                              "schwarz2D.mesh",
+                              "schwarz3D.mesh");
+
+   const std::string & fpath = (mfem_data_dir + "/nurbs/nc_patch/");
+
+   Mesh mesh(fpath + mesh_fname, 1, 1);
+   const int dim = mesh.Dimension();
+   const int ne = mesh.GetNE();
+
+   mesh.NURBSUniformRefinement();
+   REQUIRE(mesh.GetNE() == ne * std::pow(2, dim));
 }
