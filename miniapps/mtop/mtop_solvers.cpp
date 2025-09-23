@@ -81,17 +81,16 @@ IsoLinElasticSolver::IsoLinElasticSolver(ParMesh *mesh, int vorder,
    mu(nullptr),
    bf(nullptr),
    fe(vfes->GetFE(0)),
-   nodes((pmesh->EnsureNodes(), static_cast<ParGridFunction *>(pmesh->GetNodes()))),
+   nodes((pmesh->EnsureNodes(),
+          static_cast<ParGridFunction *>(pmesh->GetNodes()))),
    mfes(nodes->ParFESpace()),
    ir(IntRules.Get(fe->GetGeomType(),
                    fe->GetOrder() + fe->GetOrder() + fe->GetDim() - 1)),
    qs(*pmesh, ir),
    Lambda_ps(*pmesh, ir, 1),
    Mu_ps(*pmesh, ir, 1),
-   //dop({{ U, vfes }}, { {LCoeff, &Lambda_ps}, { MuCoeff, &Mu_ps}, { Coords, mfes }},*pmesh),
    lf(nullptr)
 {
-
    MFEM_VERIFY(qs.GetSize() == Lambda_ps.GetTrueVSize(),
                "QuadratureSpace and ParameterSpace size mismatch");
 
@@ -374,48 +373,53 @@ void IsoLinElasticSolver::Assemble()
 {
    delete bf; bf=nullptr;
 
-   if(dfem) {
-       // define the differentiable operator
-       dop = std::make_unique<mfem::future::DifferentiableOperator>(
-                   std::vector<mfem::future::FieldDescriptor> {{ U, vfes }},
-                   std::vector<mfem::future::FieldDescriptor> {{ LCoeff, &Lambda_ps},
-                                                               { MuCoeff, &Mu_ps},
-                                                               { Coords, mfes }},
-                   *pmesh);
+   if (dfem)
+   {
+      // define the differentiable operator
+      dop = std::make_unique<mfem::future::DifferentiableOperator>(
+      std::vector<mfem::future::FieldDescriptor> {{ U, vfes }},
+      std::vector<mfem::future::FieldDescriptor>
+      {
+         { LCoeff, &Lambda_ps},
+         { MuCoeff, &Mu_ps},
+         { Coords, mfes }
+      },
+      *pmesh);
 
-       // sample lambda on the integration points
-       Lambda_cv = std::make_unique<CoefficientVector>(*lambda, qs);
-       // sample mu on the integration points
-       Mu_cv = std::make_unique<CoefficientVector>(*mu, qs);
-       // set the parameters of the differentiable operator
-       dop->SetParameters({ Lambda_cv.get(), Mu_cv.get(), nodes });
+      // sample lambda on the integration points
+      Lambda_cv = std::make_unique<CoefficientVector>(*lambda, qs);
 
-       //define the q-function for dimensions 2 and 3
-       typename QFunction<2>::Elasticity e2qf;
-       typename QFunction<3>::Elasticity e3qf;
-       if(2==spaceDim){
-           dop->AddDomainIntegrator(e2qf,
-                               mfem::future::tuple{ Gradient<U>{},
-                                                    Identity<LCoeff>{}, Identity<MuCoeff>{},
-                                                    Gradient<Coords>{},
-                                                    Weight{} },
-                               mfem::future::tuple{ Gradient<U>{} },
-                               ir, domain_attributes);
-       }else{
-           dop->AddDomainIntegrator(e3qf,
-                               mfem::future::tuple{ Gradient<U>{},
-                                                    Identity<LCoeff>{}, Identity<MuCoeff>{},
-                                                    Gradient<Coords>{},
-                                                    Weight{} },
-                               mfem::future::tuple{ Gradient<U>{} },
-                               ir, domain_attributes);
-       }
+      // sample mu on the integration points
+      Mu_cv = std::make_unique<CoefficientVector>(*mu, qs);
 
-   }else{
-       //define standard bilinear form
-       bf = new mfem::ParBilinearForm(vfes);
-       bf->AddDomainIntegrator(new mfem::ElasticityIntegrator(*lambda, *mu));
-       if (pa) { bf->SetAssemblyLevel(mfem::AssemblyLevel::PARTIAL); }
+      // set the parameters of the differentiable operator
+      dop->SetParameters({ Lambda_cv.get(), Mu_cv.get(), nodes });
+
+      // define the q-function for dimensions 2 and 3
+      const auto inputs =
+         mfem::future::tuple{ Gradient<U>{},
+                              Identity<LCoeff>{}, Identity<MuCoeff>{},
+                              Gradient<Coords>{},
+                              Weight{} };
+      const auto output = mfem::future::tuple{ Gradient<U>{} };
+      if (2 == spaceDim)
+      {
+         typename QFunction<2>::Elasticity e2qf;
+         dop->AddDomainIntegrator(e2qf, inputs, output, ir, domain_attributes);
+      }
+      else if (3 == spaceDim)
+      {
+         typename QFunction<3>::Elasticity e3qf;
+         dop->AddDomainIntegrator(e3qf, inputs, output, ir, domain_attributes);
+      }
+      else { MFEM_ABORT("Space dimension not supported"); }
+   }
+   else
+   {
+      // define standard bilinear form
+      bf = new mfem::ParBilinearForm(vfes);
+      bf->AddDomainIntegrator(new mfem::ElasticityIntegrator(*lambda, *mu));
+      if (pa) { bf->SetAssemblyLevel(mfem::AssemblyLevel::PARTIAL); }
    }
 
    // set BC
@@ -435,7 +439,7 @@ void IsoLinElasticSolver::Assemble()
    {
       dbg("\x1b[36m dfem FormSystemOperator: Kh, Kc");
       Operator *Kop;
-      dop.FormSystemOperator(ess_tdofv, Kop);
+      dop->FormSystemOperator(ess_tdofv, Kop);
       Kh = std::make_unique<OperatorHandle>(Kop);
       Kc = dynamic_cast<mfem::ConstrainedOperator*>(Kop);
    }

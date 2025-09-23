@@ -30,7 +30,7 @@ int main(int argc, char *argv[])
    Hypre::Init();
 
    // 2. Parse command-line options.
-   const char *mesh_file = MFEM_SOURCE_DIR "/miniapps/mtop/canti_2D_6.msh";
+   const char *mesh_file = MFEM_SOURCE_DIR "/miniapps/mtop/canti_2D_6_tri.msh";
    const char *device_config = "cpu";
    int order = 2;
    bool pa = false;
