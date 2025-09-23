@@ -182,13 +182,13 @@ public:
       dop.release();
    }
 
-   class NonTensorUniformParameterSpace : public
+   class NqptUniformParameterSpace : public
       mfem::future::UniformParameterSpace
    {
    public:
-      NonTensorUniformParameterSpace(mfem::ParMesh &mesh,
-                                     const mfem::IntegrationRule &ir,
-                                     int vdim) :
+      NqptUniformParameterSpace(mfem::ParMesh &mesh,
+                                const mfem::IntegrationRule &ir,
+                                int vdim) :
          mfem::future::UniformParameterSpace(mesh, ir, vdim, false)
       {
          dtq.nqpt = ir.GetNPoints();
@@ -270,11 +270,9 @@ private:
    void SetEssTDofs(const int j, mfem::ParFiniteElementSpace& scalar_space,
                     mfem::Array<int> &ess_dofs);
 
-   mfem::Coefficient *E;
-   mfem::Coefficient *nu;
+   mfem::Coefficient *E, *nu;
 
-   mfem::Coefficient *lambda;
-   mfem::Coefficient *mu;
+   mfem::Coefficient *lambda, *mu;
 
    mfem::ParBilinearForm *bf;
    mfem::ConstrainedOperator *Kc;
@@ -292,7 +290,7 @@ private:
    mfem::Array<int> domain_attributes;
    const mfem::IntegrationRule &ir;
    mfem::QuadratureSpace qs;
-   NonTensorUniformParameterSpace Lambda_ps, Mu_ps;
+   NqptUniformParameterSpace Lambda_ps, Mu_ps;
    std::unique_ptr<mfem::CoefficientVector> Lambda_cv, Mu_cv;
    std::unique_ptr<mfem::future::DifferentiableOperator> dop;
    // end of dFEM definitions
