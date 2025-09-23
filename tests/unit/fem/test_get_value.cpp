@@ -398,7 +398,7 @@ TEST_CASE("1D GetValue",
 }
 
 #ifdef MFEM_USE_MPI
-#
+
 TEST_CASE("1D GetValue in Parallel",
           "[ParGridFunction]"
           "[GridFunctionCoefficient]"
@@ -869,7 +869,7 @@ TEST_CASE("2D GetValue",
 }
 
 #ifdef MFEM_USE_MPI
-#
+
 TEST_CASE("2D GetValue in Parallel",
           "[ParGridFunction]"
           "[GridFunctionCoefficient]"
@@ -1375,7 +1375,7 @@ TEST_CASE("3D GetValue",
 }
 
 #ifdef MFEM_USE_MPI
-#
+
 TEST_CASE("3D GetValue in Parallel",
           "[ParGridFunction]"
           "[GridFunctionCoefficient]"
@@ -2074,7 +2074,7 @@ TEST_CASE("2D GetVectorValue",
 }
 
 #ifdef MFEM_USE_MPI
-#
+
 TEST_CASE("2D GetVectorValue in Parallel",
           "[ParGridFunction]"
           "[VectorGridFunctionCoefficient]"
@@ -3033,7 +3033,7 @@ TEST_CASE("3D GetVectorValue",
 }
 
 #ifdef MFEM_USE_MPI
-#
+
 TEST_CASE("3D GetVectorValue in Parallel",
           "[ParGridFunction]"
           "[VectorGridFunctionCoefficient]"
