@@ -20,6 +20,7 @@ set(SRCS
   mesh_operators.cpp
   mesh_readers.cpp
   ncmesh.cpp
+  ncnurbs.cpp
   nurbs.cpp
   point.cpp
   pyramid.cpp
@@ -48,6 +49,7 @@ set(HDRS
   mesh_headers.hpp
   mesh_operators.hpp
   ncmesh.hpp
+  ncnurbs.hpp
   nurbs.hpp
   point.hpp
   pyramid.hpp
