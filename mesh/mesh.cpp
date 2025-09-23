@@ -4158,6 +4158,8 @@ void Mesh::Make3D24TetsFromHex(int nx, int ny, int nz,
             ind[5] = VertexIndex(x+1, y  , z+1);
             ind[6] = VertexIndex(x+1, y+1, z+1);
             ind[7] = VertexIndex(  x, y+1, z+1);
+            // *INDENT-ON*
+
             AddHexAs24TetsWithPoints(ind, hex_face_verts, 1);
          }
       }
