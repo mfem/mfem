@@ -1767,6 +1767,93 @@ real_t EulerFlux::ComputeFluxDotN(const Vector &x,
    return speed + sound;
 }
 
+real_t EulerFlux::CalcAvgKineticEnergy(real_t density1, real_t density2,
+                                       const Vector &momentum1, const Vector &momentum2)
+{
+   real_t kinetic_energy = 0.;
+
+   const real_t density = 0.5 * (density1 + density2);
+   const real_t dden = (density2 - density1) / density;
+   constexpr real_t den_tol = 5e-6;
+   const int dim = momentum1.Size();
+
+   if (fabs(dden) > den_tol)
+   {
+      const real_t dlnden = (-log(1. - dden/2.) + log(1. + dden/2.)) / dden;
+      for (int d = 0; d < dim; d++)
+      {
+         const real_t &mom1 = momentum1(d);
+         const real_t &mom2 = momentum2(d);
+         const real_t dmom = mom1 - mom2;
+         const real_t amom = 0.5 * (mom1 + mom2);
+         kinetic_energy += 0.5 * ((dlnden - 1.) / (dden*dden) * dmom *
+                                  (dmom + amom * 2. * dden)
+                                  + amom*amom * dlnden) / density;
+      }
+   }
+   else
+   {
+      for (int d = 0; d < dim; d++)
+      {
+         const real_t &mom1 = momentum1(d);
+         const real_t &mom2 = momentum2(d);
+         const real_t dmom = mom1 - mom2;
+         const real_t amom = 0.5 * (mom1 + mom2);
+         kinetic_energy += (mom1*mom1 + mom1*mom2 + mom2*mom2 + amom * dmom * dden /
+                            2.) / (6. * density);
+      }
+   }
+
+   return kinetic_energy;
+}
+
+void EulerFlux::CalcAvgFlux(real_t density1, real_t density2,
+                            const Vector &momentum1, const Vector &momentum2, real_t vel1, real_t vel2,
+                            Vector &flux)
+{
+   const real_t density = 0.5 * (density1 + density2);
+   const real_t dden = (density2 - density1) / density;
+   constexpr real_t den_tol = 5e-6;
+   const int dim = momentum1.Size();
+   const real_t avel = 0.5 * (vel1 + vel2);
+   const real_t dvel = vel1 - vel2;
+
+   if (fabs(dden) > den_tol)
+   {
+      const real_t dlnden = (-log(1. - dden/2.) + log(1. + dden/2.)) / dden;
+      for (int d = 0; d < dim; d++)
+      {
+         const real_t &mom1 = momentum1(d);
+         const real_t &mom2 = momentum2(d);
+         const real_t dmom = mom1 - mom2;
+         const real_t amom = 0.5 * (mom1 + mom2);
+         flux(d) = (dlnden - 1.) / (dden*dden) *
+                   (dmom * dvel + (dmom * avel + amom * dvel) * dden)
+                   + amom*avel * dlnden;
+      }
+   }
+   else
+   {
+      for (int d = 0; d < dim; d++)
+      {
+         const real_t &mom1 = momentum1(d);
+         const real_t &mom2 = momentum2(d);
+         const real_t dmom = mom1 - mom2;
+         const real_t amom = 0.5 * (mom1 + mom2);
+         flux(d) = (2.*mom1*vel1 + mom1*vel2 + mom2*vel1 + 2.*mom2*vel2) / 6. +
+                   (amom * dvel + dmom * avel) * dden / 12.;
+      }
+   }
+}
+
+real_t EulerFlux::CalcAvgFlux(real_t den1, real_t den2, real_t mom1,
+                              real_t mom2, real_t vel1, real_t vel2)
+{
+   Vector vmom1{mom1}, vmom2{mom2}, flux(1);
+   CalcAvgFlux(den1, den2, vmom1, vmom2, vel1, vel2, flux);
+   return flux(0);
+}
+
 real_t EulerFlux::ComputeAvgFlux(const Vector &U1, const Vector &U2,
                                  ElementTransformation &Tr, DenseMatrix &FAvgU) const
 {
@@ -1809,30 +1896,9 @@ real_t EulerFlux::ComputeAvgFlux(const Vector &U1, const Vector &U2,
    const real_t energy = 0.5 * (energy1 + energy2);
 
    // kinetic energy, ½ρ|u|^2
-   real_t kinetic_energy = 0.;
-   const real_t dden = density1 - density2;
-   if (dden != 0.)
-   {
-      for (int d = 0; d < dim; d++)
-      {
-         const real_t &mom1 = momentum1(d);
-         const real_t &mom2 = momentum2(d);
-         const real_t momden = mom1*density2 - mom2*density1;
-         kinetic_energy += 0.5 * (
-                              - density * (mom1*mom1 - 2.*mom1*mom2 + mom2*mom2) / (dden*dden)
-                              + (mom1*mom1 - mom2*mom2) / dden
-                              + momden*momden * (log(density1) - log(density2)) / (dden*dden*dden));
-      }
-   }
-   else
-   {
-      for (int d = 0; d < dim; d++)
-      {
-         const real_t &mom1 = momentum1(d);
-         const real_t &mom2 = momentum2(d);
-         kinetic_energy += (mom1*mom1 + mom1*mom2 + mom2*mom2) / (6. * density);
-      }
-   }
+   const real_t kinetic_energy = CalcAvgKineticEnergy(density1, density2,
+                                                      momentum1, momentum2);
+
    // pressure, p = (γ-1)*(E - ½ρ|u|^2)
    const real_t pressure = (specific_heat_ratio - 1.0) * (energy - kinetic_energy);
    MFEM_ASSERT(pressure >= 0, "Negative Pressure");
@@ -1843,33 +1909,13 @@ real_t EulerFlux::ComputeAvgFlux(const Vector &U1, const Vector &U2,
       const real_t &mom1_d = momentum1(d);
       const real_t &mom2_d = momentum2(d);
       FAvgU(0, d) = 0.5 * (mom1_d + mom2_d); // ρu
-      if (dden != 0.)
-      {
-         const real_t dlnden = (log(density1) - log(density2)) / dden;
-         for (int i = 0; i < dim; i++)
-         {
-            const real_t &mom1_i = momentum1(i);
-            const real_t &mom2_i = momentum2(i);
-            // ρuuᵀ
-            FAvgU(1 + i, d) =
-               - density * (mom1_i*mom1_d - mom1_i*mom2_d - mom2_i*mom1_d + mom2_i*mom2_d) /
-               (dden*dden)
-               + (mom1_i*mom1_d - mom2_i*mom2_d) / dden
-               + (mom1_i*density2 - mom2_i*density1) * (mom1_d*density2 - mom2_d*density1) *
-               dlnden / (dden*dden);
-         }
-      }
-      else
-      {
-         for (int i = 0; i < dim; i++)
-         {
-            const real_t &mom1_i = momentum1(i);
-            const real_t &mom2_i = momentum2(i);
-            // ρuuᵀ
-            FAvgU(1 + i, d) = (2.*mom1_i*mom1_d + mom1_i*mom2_d + mom2_i*mom1_d +
-                               2.*mom2_i*mom2_d) / (6. * density);
-         }
-      }
+
+      // ρuuᵀ
+      Vector FAvgU_mom(FAvgU.GetData() + 1 + d*(2+dim), dim);
+      const real_t vel1_d = mom1_d / density;
+      const real_t vel2_d = mom2_d / density;
+      CalcAvgFlux(density1, density2, momentum1, momentum2, vel1_d, vel2_d,
+                  FAvgU_mom);
       // (ρuuᵀ) + p
       FAvgU(1 + d, d) += pressure;
    }
@@ -1877,36 +1923,12 @@ real_t EulerFlux::ComputeAvgFlux(const Vector &U1, const Vector &U2,
    // note we take Hρ = E + p as a primary variable and average it, neglecting
    // higher order terms in averaging of the kinetic energy in the definition
    // of pressure
-   if (dden != 0.)
-   {
-      const real_t dH1 = (energy1 + pressure1) / dden;
-      const real_t dH2 = (energy2 + pressure2) / dden;
-      const real_t dlnden = (log(density1) - log(density2)) / dden;
-      for (int d = 0; d < dim; d++)
-      {
-         const real_t &mom1_d = momentum1(d);
-         const real_t &mom2_d = momentum2(d);
-         // u(E+p) = ρu*(E + p)/ρ = ρu*H
-         FAvgU(1 + dim, d) = - density * (dH1*mom1_d - dH1*mom2_d -
-                                          dH2*mom1_d + dH2*mom2_d) / dden
-                             + (dH1*mom1_d - dH2*mom2_d)
-                             + (dH1*density2 - dH2*density1) * (mom1_d*density2 - mom2_d*density1) *
-                             dlnden / dden;
-      }
-   }
-   else
-   {
-      const real_t H1 = (energy1 + pressure1) / density;
-      const real_t H2 = (energy2 + pressure2) / density;
-      for (int d = 0; d < dim; d++)
-      {
-         const real_t &mom1_d = momentum1(d);
-         const real_t &mom2_d = momentum2(d);
-         // u(E+p) = ρu*(E + p)/ρ = ρu*H
-         FAvgU(1 + dim, d) = (2.*H1*mom1_d + H1*mom2_d + H2*mom1_d + 2.*H2*mom2_d) / 6.;
-      }
-
-   }
+   // u(E+p) = ρu*(E + p)/ρ = ρu*H
+   const real_t H1 = (energy1 + pressure1) / density;
+   const real_t H2 = (energy2 + pressure2) / density;
+   Vector FAvgU_en(dim);
+   CalcAvgFlux(density1, density2, momentum1, momentum2, H1, H2, FAvgU_en);
+   FAvgU.SetRow(1 + dim, FAvgU_en);
 
    // 3. Compute maximum characteristic speed
 
@@ -1961,30 +1983,9 @@ real_t EulerFlux::ComputeAvgFluxDotN(const Vector &U1, const Vector &U2,
    const real_t energy = 0.5 * (energy1 + energy2);
 
    // kinetic energy, ½ρ|u|^2
-   real_t kinetic_energy = 0.;
-   const real_t dden = density1 - density2;
-   if (dden != 0.)
-   {
-      for (int d = 0; d < dim; d++)
-      {
-         const real_t &mom1 = momentum1(d);
-         const real_t &mom2 = momentum2(d);
-         const real_t momden = mom1*density2 - mom2*density1;
-         kinetic_energy += 0.5 * (
-                              - density * (mom1*mom1 - 2.*mom1*mom2 + mom2*mom2) / (dden*dden)
-                              + (mom1*mom1 - mom2*mom2) / dden
-                              + momden*momden * (log(density1) - log(density2)) / (dden*dden*dden));
-      }
-   }
-   else
-   {
-      for (int d = 0; d < dim; d++)
-      {
-         const real_t &mom1 = momentum1(d);
-         const real_t &mom2 = momentum2(d);
-         kinetic_energy += (mom1*mom1 + mom1*mom2 + mom2*mom2) / (6. * density);
-      }
-   }
+   const real_t kinetic_energy = CalcAvgKineticEnergy(density1, density2,
+                                                      momentum1, momentum2);
+
    // pressure, p = (γ-1)*(E - ½ρ|u|^2)
    const real_t pressure = (specific_heat_ratio - 1.0) * (energy - kinetic_energy);
    MFEM_ASSERT(pressure >= 0, "Negative Pressure");
@@ -1992,64 +1993,24 @@ real_t EulerFlux::ComputeAvgFluxDotN(const Vector &U1, const Vector &U2,
    // 2. Compute normal flux
 
    FAvgUDotN(0) = 0.5 * (momentum1 * normal + momentum2 * normal); // ρu⋅n
-   if (dden != 0.)
-   {
-      const real_t dvel1 = (momentum1 * normal) / dden;
-      const real_t dvel2 = (momentum2 * normal) / dden;
-      const real_t dlnden = (log(density1) - log(density2)) / dden;
-      for (int d = 0; d < dim; d++)
-      {
-         const real_t &mom1_d = momentum1(d);
-         const real_t &mom2_d = momentum2(d);
-         // ρuu⋅n + pn
-         FAvgUDotN(1 + d) =
-            - density * (mom1_d*dvel1 - mom1_d*dvel2 - mom2_d*dvel1 + mom2_d*dvel2) / dden
-            + (mom1_d*dvel1 - mom2_d*dvel2)
-            + (mom1_d*density2 - mom2_d*density1) * (dvel1*density2 - dvel2*density1) *
-            dlnden / dden
-            + pressure * normal(d);
-      }
-   }
-   else
-   {
-      const real_t nvel1 = (momentum1 * normal) / density;
-      const real_t nvel2 = (momentum2 * normal) / density;
-      for (int d = 0; d < dim; d++)
-      {
-         const real_t &mom1_d = momentum1(d);
-         const real_t &mom2_d = momentum2(d);
-         // ρuu⋅n + pn
-         FAvgUDotN(1 + d) = (2.*mom1_d*nvel1 + mom1_d*nvel2 + mom2_d*nvel1 +
-                             2.*mom2_d*nvel2) / 6.
-                            + pressure * normal(d);
-      }
-   }
+
+   // ρuu⋅n + pn
+   Vector FAvgUDotN_mom(FAvgUDotN, 1, dim);
+   const real_t nvel1 = momentum1 * normal / density;
+   const real_t nvel2 = momentum2 * normal / density;
+   CalcAvgFlux(density1, density2, momentum1, momentum2, nvel1, nvel2,
+               FAvgUDotN_mom);
+   FAvgUDotN_mom.Add(pressure, normal);
+
    // enthalpy H = e + p/ρ = (E + p)/ρ
    // note we take Hρ = E + p as a primary variable and average it, neglecting
    // higher order terms in averaging of the kinetic energy in the definition
    // of pressure
    const real_t Hrho1 = energy1 + pressure1;
    const real_t Hrho2 = energy2 + pressure2;
-   if (dden != 0.)
-   {
-      const real_t dvel1 = (momentum1 * normal) / dden;
-      const real_t dvel2 = (momentum2 * normal) / dden;
-      const real_t dlnden = (log(density1) - log(density2)) / dden;
-      // u⋅n(E+p) = ρu⋅n*(E + p)/ρ = ρu⋅n*H
-      FAvgUDotN(1 + dim) = - density * (Hrho1*dvel1 - Hrho1*dvel2 -
-                                        Hrho2*dvel1 + Hrho2*dvel2) / dden
-                           + (Hrho1*dvel1 - Hrho2*dvel2)
-                           + (Hrho1*density2 - Hrho2*density1) * (dvel1*density2 - dvel2*density1) *
-                           dlnden / dden;
-   }
-   else
-   {
-      const real_t nvel1 = (momentum1 * normal) / density;
-      const real_t nvel2 = (momentum2 * normal) / density;
-      // u⋅n(E+p) = ρu⋅n*(E + p)/ρ = ρu⋅n*H
-      FAvgUDotN(1 + dim) = (2.*Hrho1*nvel1 + Hrho1*nvel2 + Hrho2*nvel1 +
-                            2.*Hrho2*nvel2) / 6.;
-   }
+   // u⋅n(E+p) = ρu⋅n*(E + p)/ρ = ρu⋅n*H
+   FAvgUDotN(1 + dim) = CalcAvgFlux(density1, density2, Hrho1, Hrho2, nvel1,
+                                    nvel2);
 
    // 3. Compute maximum characteristic speed
 

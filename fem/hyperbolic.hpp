@@ -1096,6 +1096,13 @@ private:
    const real_t specific_heat_ratio;  // specific heat ratio, γ
    // const real_t gas_constant;         // gas constant
 
+   static real_t CalcAvgKineticEnergy(real_t den1, real_t den2, const Vector &mom1,
+                                      const Vector &mom2);
+   static void CalcAvgFlux(real_t den1, real_t den2, const Vector &mom1,
+                           const Vector &mom2, real_t vel1, real_t vel2, Vector &flux);
+   static real_t CalcAvgFlux(real_t den1, real_t den2, real_t mom1, real_t mom2,
+                             real_t vel1, real_t vel2);
+
 public:
    /**
     * @brief Construct a new EulerFlux FluxFunction with given spatial
