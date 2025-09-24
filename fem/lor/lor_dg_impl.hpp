@@ -9,11 +9,12 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#include "lor_util.hpp"
+#pragma once
+
+#include "lor_dg.hpp"
+#include "../fe/face_map_utils.hpp"
 #include "../../linalg/dtensor.hpp"
 #include "../../general/forall.hpp"
-#include "../../mesh/face_nbr_geom.hpp"
-#include "lor_dg.hpp"
 
 namespace mfem
 {
