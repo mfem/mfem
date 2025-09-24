@@ -255,7 +255,7 @@ public:
 
    void AssembleElementMatrix(const FiniteElement &el,
                               ElementTransformation &Tr,
-                              DenseMatrix &elmat)
+                              DenseMatrix &elmat) override
    {
       const CoarseFineTransformations &cftr = mesh_lor.GetRefinementTransforms();
       const int parent_el = cftr.embeddings[Tr.ElementNo].parent;
