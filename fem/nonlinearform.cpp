@@ -788,7 +788,7 @@ BlockNonlinearForm::BlockNonlinearForm(Array<FiniteElementSpace *> &f) :
 }
 
 void BlockNonlinearForm::SetEssentialBC(
-   const Array<Array<int> *> &bdr_attr_is_ess, Array<Vector *> &rhs)
+   const Array<Array<int>*> &bdr_attr_is_ess, Array<Vector*> &rhs)
 {
    for (int s = 0; s < fes.Size(); ++s)
    {
@@ -802,7 +802,7 @@ void BlockNonlinearForm::SetEssentialBC(
 }
 
 void BlockNonlinearForm::SetEssentialTrueDofs(
-   const Array<Array<int> *> &ess_tdof_list, Array<Vector *> &rhs)
+   const Array<Array<int>*> &ess_tdof_list, Array<Vector*> &rhs)
 {
    for (int s = 0; s < fes.Size(); ++s)
    {
