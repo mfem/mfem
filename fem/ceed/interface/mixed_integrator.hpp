@@ -83,7 +83,7 @@ public:
       }
 
       // Create composite CeedOperator
-      CeedCompositeOperatorCreate(internal::ceed, &oper);
+      CeedOperatorCreateComposite(internal::ceed, &oper);
 
       // Create each sub-CeedOperator
       sub_ops.reserve(element_indices.size());
@@ -101,7 +101,7 @@ public:
          int nelem = *count[value.first];
          sub_op->Assemble(info, fes, ir, nelem, indices, Q);
          sub_ops.push_back(sub_op);
-         CeedCompositeOperatorAddSub(oper, sub_op->GetCeedOperator());
+         CeedOperatorCompositeAddSub(oper, sub_op->GetCeedOperator());
       }
 
       const int ndofs = fes.GetVDim() * fes.GetNDofs();
