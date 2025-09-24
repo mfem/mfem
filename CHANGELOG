@@ -52,6 +52,11 @@ GPU computing
   `FiniteElementSpace::Update` and `ParFiniteElementSpace::Update`.
   The operator requires `FiniteElementSpace::Nonconforming() == true`.
 
+Linear and nonlinear solvers
+----------------------------
+- Added `FilteredSolver`: a base class for solvers with filtering. It handles cases where a solver performs well except in small subspaces, by adding a filtering step formulated as a subspace correction.
+- Added `AMGFSolver`: a derived class of `FilteredSolver`, specialized for AMG with Filtering (AMGF), providing robust preconditioning for linear systems arising in constrained optimization problems such as frictionless contact.
+
 New and updated examples and miniapps
 -------------------------------------
 - Added miniapps to demonstrate an implementation of the absolute-value
