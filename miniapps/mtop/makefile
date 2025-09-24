@@ -29,7 +29,7 @@ MTOP_COMMON_SRC = mtop_solvers.cpp
 MTOP_COMMON_OBJ = $(MTOP_COMMON_SRC:.cpp=.o)
 
 SEQ_MINIAPPS =
-PAR_MINIAPPS = test_iso_elast test_grad test_filter
+PAR_MINIAPPS = test_iso_elast 
 ifeq ($(MFEM_USE_MPI),NO)
 #   MINIAPPS = $(SEQ_MINIAPPS)
 else
