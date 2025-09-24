@@ -13,6 +13,7 @@
 #define MFEM_TEST_SAME_MATRICES_HPP
 
 #include "mfem.hpp"
+#include "unit_tests.hpp"
 
 namespace mfem
 {
