@@ -66,11 +66,7 @@ int main(int argc, char *argv[])
    //    more than 10,000 elements.
    {
       const int ref_levels =
-#ifdef MFEM_DEBUG
-         (int)floor(log(10. / mesh.GetNE()) / log(2.) / dim);
-#else
          (int)floor(log(1000. / mesh.GetNE()) / log(2.) / dim);
-#endif
       for (int l = 0; l < ref_levels; l++) { mesh.UniformRefinement(); }
    }
 
@@ -79,12 +75,10 @@ int main(int argc, char *argv[])
    //    parallel mesh is defined, the serial mesh can be deleted.
    ParMesh pmesh(MPI_COMM_WORLD, mesh);
    mesh.Clear();
-#ifndef MFEM_DEBUG
    {
       const int par_ref_levels = 1;
       for (int l = 0; l < par_ref_levels; l++) { pmesh.UniformRefinement(); }
    }
-#endif
 
    // Create the solver
    IsoLinElasticSolver elsolver(&pmesh, order, pa, dfem);
