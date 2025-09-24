@@ -369,7 +369,7 @@ public:
        This method calls `FiniteElementSpace::GetEssentialTrueDofs()` for each
        space and stores ess_tdof_lists internally.
     
-       If `rhs` vectors are `NULL`, the entries corresponding to these
+       If `rhs` vectors are not `NULL`, the entries corresponding to these
        essential DoFs are set to zero. This ensures compatibility with the
        output of the `Mult()` method, which also zeroes out these entries.
     
@@ -386,7 +386,7 @@ public:
       
        This method stores a copy of the provided essential true dof lists.
       
-       If `rhs` vectors are `NULL`, the entries corresponding to these
+       If `rhs` vectors are not `NULL`, the entries corresponding to these
        essential DoFs are set to zero. This ensures compatibility with the
        output of the `Mult()` method, which also zeroes out these entries.
       
