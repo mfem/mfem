@@ -13,13 +13,6 @@
 
 #include "mtop_solvers.hpp"
 
-#if defined(__has_include) && __has_include("general/nvtx.hpp") && !defined(_WIN32)
-#undef NVTX_COLOR
-#define NVTX_COLOR ::nvtx::kNvidia
-#include "general/nvtx.hpp"
-#else
-#define dbg(...)
-#endif
 
 using namespace mfem;
 
@@ -88,7 +81,6 @@ IsoLinElasticSolver::IsoLinElasticSolver(ParMesh *mesh, int vorder,
    qs(*pmesh, ir),
    Lambda_ps(*pmesh, ir, 1),
    Mu_ps(*pmesh, ir, 1),
-   //dop({{ U, vfes }}, { {LCoeff, &Lambda_ps}, { MuCoeff, &Mu_ps}, { Coords, mfes }},*pmesh),
    lf(nullptr)
 {
 
@@ -139,17 +131,17 @@ IsoLinElasticSolver::~IsoLinElasticSolver()
    delete mu;
 }
 
-void IsoLinElasticSolver::SetLinearSolver(const real_t rtol,
-                                          const real_t atol,
-                                          const int miter)
+void IsoLinElasticSolver::SetLinearSolver(real_t rtol,
+                                          real_t atol,
+                                          int miter)
 {
    linear_rtol = rtol;
    linear_atol = atol;
    linear_iter = miter;
 }
 
-void IsoLinElasticSolver::AddDispBC(const int id, const int dir,
-                                    const real_t val)
+void IsoLinElasticSolver::AddDispBC(int id, int dir,
+                                     real_t val)
 {
    if (dir == 0)
    {
@@ -249,7 +241,6 @@ void IsoLinElasticSolver::SetEssTDofs(Vector &bsol, Array<int> &ess_dofs)
 
    Array<int> ess_tdofx, ess_tdofy, ess_tdofz;
 
-   dbg("X direction");
    for (auto it = bccx.begin(); it != bccx.end(); it++)
    {
       Array<int> ess_bdr(pmesh->bdr_attributes.Max());
@@ -279,7 +270,6 @@ void IsoLinElasticSolver::SetEssTDofs(Vector &bsol, Array<int> &ess_dofs)
    ess_dofs.Append(ess_tdofx);
    ess_tdofx.DeleteAll();
 
-   dbg("Y direction");
    for (auto it = bccy.begin(); it != bccy.end(); it++)
    {
       Array<int> ess_bdr(pmesh->bdr_attributes.Max());
@@ -311,7 +301,6 @@ void IsoLinElasticSolver::SetEssTDofs(Vector &bsol, Array<int> &ess_dofs)
 
    if (dim == 3)
    {
-      dbg("Z direction");
       for (auto it = bccz.begin(); it != bccz.end(); it++)
       {
          Array<int> ess_bdr(pmesh->bdr_attributes.Max());
@@ -341,8 +330,7 @@ void IsoLinElasticSolver::SetEssTDofs(Vector &bsol, Array<int> &ess_dofs)
 
 void IsoLinElasticSolver::Mult(const Vector &x, Vector &y) const
 {
-   dbg();
-   // the rhs x is assumed to have the contribution of the BC sar_iter);et in advance
+   // the rhs x is assumed to have the contribution of the BC sar_iter)set in advance
    // the BC values are not modified here
    ls->Mult(x, y);
 
@@ -356,7 +344,6 @@ void IsoLinElasticSolver::Mult(const Vector &x, Vector &y) const
 void IsoLinElasticSolver::MultTranspose(const Vector &x,
                                         Vector &y) const
 {
-   dbg();
    // the adjoint rhs is assumed to be corrected for the BC
    // K is symmetric
    ls->Mult(x, y);
@@ -424,7 +411,6 @@ void IsoLinElasticSolver::Assemble()
 
    if (pa)
    {
-      dbg("Assemble/OperatorHandle/EliminateRowsCols");
       bf->Assemble();
       Operator *Kop;
       bf->FormSystemOperator(ess_tdofv, Kop);
@@ -433,15 +419,13 @@ void IsoLinElasticSolver::Assemble()
    }
    else if (dfem)
    {
-      dbg("\x1b[36m dfem FormSystemOperator: Kh, Kc");
       Operator *Kop;
-      dop.FormSystemOperator(ess_tdofv, Kop);
+      dop->FormSystemOperator(ess_tdofv, Kop);
       Kh = std::make_unique<OperatorHandle>(Kop);
       Kc = dynamic_cast<mfem::ConstrainedOperator*>(Kop);
    }
    else
    {
-      dbg("Assemble/Finalize/ParallelAssemble/EliminateRowsCols");
       bf->Assemble(0);
       bf->Finalize();
       K.reset(bf->ParallelAssemble());
@@ -450,15 +434,10 @@ void IsoLinElasticSolver::Assemble()
 
    if (ls == nullptr)
    {
-      dbg("new CGSolver/HypreBoomerAMG");
       ls = new CGSolver(pmesh->GetComm());
-      ls->SetAbsTol(linear_atol);
-      ls->SetRelTol(linear_rtol);
-      ls->SetMaxIter(linear_iter);
       if (pa || dfem)
       {
          // PA LOR lor_disc & scalar_lor_fespace setup
-         dbg("new ParLORDiscretization");
          lor_disc = std::make_unique<ParLORDiscretization>(*vfes);
          ParFiniteElementSpace &lor_space = lor_disc->GetParFESpace();
          const FiniteElementCollection &lor_fec = *lor_space.FEColl();
@@ -503,11 +482,9 @@ void IsoLinElasticSolver::Assemble()
       }
       else
       {
-         dbg("HypreBoomerAMG preconditioner");
          prec = new HypreBoomerAMG();
          // set the rigid body modes
          prec->SetElasticityOptions(vfes);
-         prec->SetPrintLevel(1);
          ls->SetPreconditioner(*prec);
       }
       ls->SetOperator(((pa||dfem) ? *Kh->Ptr() : *K));
@@ -521,7 +498,10 @@ void IsoLinElasticSolver::Assemble()
 
 void IsoLinElasticSolver::FSolve()
 {
-   dbg();
+   ls->SetAbsTol(linear_atol);
+   ls->SetRelTol(linear_rtol);
+   ls->SetMaxIter(linear_iter);
+
    if (lf == nullptr)
    {
       lf = new ParLinearForm(vfes);
@@ -543,11 +523,6 @@ void IsoLinElasticSolver::FSolve()
    else
    {
       K->EliminateBC(*Ke, ess_tdofv, sol, rhs);
-   }
-
-   {
-      real_t nr = ParNormlp(rhs, 2, pmesh->GetComm());
-      if (Mpi::Root()) { mfem::out << "rhs=" << nr << std::endl; }
    }
 
    ls->Mult(rhs, sol);

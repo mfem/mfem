@@ -14,23 +14,15 @@
 using namespace std;
 using namespace mfem;
 
-#if defined(__has_include) && __has_include("general/nvtx.hpp") && !defined(_WIN32)
-#undef NVTX_COLOR
-#define NVTX_COLOR ::nvtx::kGold
-#include "general/nvtx.hpp"
-#else
-#define dbg(...)
-#endif
 
 int main(int argc, char *argv[])
 {
-   dbg();
-   // 1. Initialize MPI and HYPRE.
+   // Initialize MPI and HYPRE.
    Mpi::Init();
    Hypre::Init();
 
-   // 2. Parse command-line options.
-   const char *mesh_file = MFEM_SOURCE_DIR "/miniapps/mtop/canti_2D_6.msh";
+   // Parse command-line options.
+   const char *mesh_file = MFEM_SOURCE_DIR "/miniapps/mtop/canti_2D_6_hex.msh";
    const char *device_config = "cpu";
    int order = 2;
    bool pa = false;
@@ -57,18 +49,18 @@ int main(int argc, char *argv[])
    args.ParseCheck();
    MFEM_VERIFY(!(pa && dfem), "pa and dfem cannot be both set");
 
-   // 3. Enable hardware devices such as GPUs, and programming models such as
+   //    Enable hardware devices such as GPUs, and programming models such as
    //    CUDA, OCCA, RAJA and OpenMP based on command line options.
    Device device(device_config);
    if (Mpi::Root()) { device.Print(); }
 
-   // 4. Read the (serial) mesh from the given mesh file on all processors.  We
+   //    Read the (serial) mesh from the given mesh file on all processors.  We
    //    can handle triangular, quadrilateral, tetrahedral, hexahedral, surface
    //    and volume meshes with the same code.
    Mesh mesh(mesh_file, 1, 1);
    const int dim = mesh.Dimension();
 
-   // 5. Refine the serial mesh on all processors to increase the resolution. In
+   //    Refine the serial mesh on all processors to increase the resolution. In
    //    this example we do 'ref_levels' of uniform refinement. We choose
    //    'ref_levels' to be the largest number that gives a final mesh with no
    //    more than 10,000 elements.
@@ -82,7 +74,7 @@ int main(int argc, char *argv[])
       for (int l = 0; l < ref_levels; l++) { mesh.UniformRefinement(); }
    }
 
-   // 6. Define a parallel mesh by a partitioning of the serial mesh. Refine
+   //    Define a parallel mesh by a partitioning of the serial mesh. Refine
    //    this mesh further in parallel to increase the resolution. Once the
    //    parallel mesh is defined, the serial mesh can be deleted.
    ParMesh pmesh(MPI_COMM_WORLD, mesh);
@@ -94,13 +86,10 @@ int main(int argc, char *argv[])
    }
 #endif
 
-   dbg("Creating IsoLinElasticSolver");
+   // Create the solver
    IsoLinElasticSolver elsolver(&pmesh, order, pa, dfem);
 
    // set BC
-   // elsolver.AddDispBC(2,4,0.0);
-   // elsolver.AddDispBC(2,0,0.0);
-   // elsolver.AddDispBC(2,1,0.0);
    elsolver.AddDispBC(3, 4, 0.0);
    elsolver.AddDispBC(4, 4, 0.0);
    elsolver.AddDispBC(5, 4, 0.0);
@@ -108,7 +97,9 @@ int main(int argc, char *argv[])
    elsolver.AddDispBC(7, 0, -0.3);
    elsolver.AddDispBC(7, 1, 0.0);
 
+   // delete all BC
    elsolver.DelDispBC();
+   // set some of them again
    elsolver.AddDispBC(2, 4, 0.0);
    elsolver.AddDispBC(5, 4, 0.0);
 
@@ -119,18 +110,17 @@ int main(int argc, char *argv[])
    // set surface load
    elsolver.AddSurfLoad(1, 0.0, 1.0);
 
-   elsolver.SetLinearSolver(1e-8,1e-12,100);
+   // set convergence tolerances and max iterations
+   elsolver.SetLinearSolver(1e-6,1e-8,100);
 
-   // solve the discrete system
-   dbg("Assembling the system");
+   // assemble the discrete system
    elsolver.Assemble();
 
-   dbg("Solving the system");
+   // solve the system
    elsolver.FSolve();
 
    // extract the solution
    ParGridFunction &sol = elsolver.GetDisplacements();
-   dbg("sol size:{}", sol.Size());
 
    if (paraview)
    {
