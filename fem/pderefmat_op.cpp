@@ -332,7 +332,7 @@ ParDerefineMatrixOp::ParDerefineMatrixOp(ParFiniteElementSpace &fespace_,
    pack_col_idcs.SetSize(send_len);
    // memory manager doesn't appear to have a graceful fallback for
    // HOST_PINNED if not built with CUDA or HIP
-#if defined(MFEM_USE_CUDA) or defined(MFEM_USE_HIP)
+#if defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP)
    xghost_send.SetSize(send_len * fespace->GetVDim(),
                        Device::GetGPUAwareMPI() ? MemoryType::DEFAULT
                        : MemoryType::HOST_PINNED);
