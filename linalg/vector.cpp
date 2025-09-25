@@ -1271,9 +1271,9 @@ void Vector::DeleteAt(const Array<int> &indices)
 
    Array<int> out_idx(size);
    auto d_out_idx = out_idx.Write(use_dev);
-   Array<char> workspace;
+
    // Perform inclusive scan so that the last entry is the new size.
-   InclusiveScan(use_dev, d_flag, d_out_idx, size, workspace);
+   InclusiveScan(use_dev, d_flag, d_out_idx, size);
 
    Vector copy(*this);
    auto d_in = copy.Read(use_dev);
