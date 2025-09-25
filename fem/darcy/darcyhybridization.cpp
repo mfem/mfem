@@ -2007,23 +2007,30 @@ void DarcyHybridization::MultInvNL(int el, const Vector &bu_l,
          MFEM_ABORT("Unknown local solver");
    }
 
-   IterativeSolver *prec = NULL;
+   Solver *prec = NULL;
    if (use_prec)
    {
+      IterativeSolver *iter_prec = NULL;
       switch (lsolve.prec.type)
       {
          case LPrecType::GMRES:
-            prec = new GMRESSolver();
+            prec = iter_prec = new GMRESSolver();
+            break;
+         case LPrecType::LU:
+            prec = new DenseMatrixLUSolver();
             break;
          default:
             MFEM_ABORT("Unknown local preconditioner");
       }
 
-      prec->SetMaxIter(lsolve.prec.iters);
-      prec->SetRelTol((lsolve.prec.rtol >= 0)?
-                      (lsolve.prec.rtol):(lsolve.rtol));
-      prec->SetAbsTol((lsolve.prec.atol >= 0)?
-                      (lsolve.prec.atol):(lsolve.atol));
+      if (iter_prec)
+      {
+         iter_prec->SetMaxIter(lsolve.prec.iters);
+         iter_prec->SetRelTol((lsolve.prec.rtol >= 0)?
+                              (lsolve.prec.rtol):(lsolve.rtol));
+         iter_prec->SetAbsTol((lsolve.prec.atol >= 0)?
+                              (lsolve.prec.atol):(lsolve.atol));
+      }
    }
 
    lsolver->SetOperator(*lop);

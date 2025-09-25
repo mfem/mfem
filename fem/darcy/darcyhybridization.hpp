@@ -39,6 +39,7 @@ public:
    enum class LPrecType
    {
       GMRES,
+      LU,
    };
 
 private:
@@ -230,6 +231,29 @@ private:
       void SolveU(const Vector &p_l, Vector &u_l) const;
       void Mult(const Vector &x, Vector &y) const override;
       Operator &GetGradient(const Vector &x) const override;
+   };
+
+   class DenseMatrixLUSolver : public Solver
+   {
+      const DenseMatrix *mat;
+      DenseMatrixInverse inv;
+   public:
+      DenseMatrixLUSolver() { }
+
+      void SetOperator(const Operator &op) override
+      {
+         mat = dynamic_cast<const DenseMatrix*>(&op);
+         MFEM_VERIFY(mat, "Not a DenseMatrix operator!");
+         height = mat->Height();
+         width = mat->Width();
+         MFEM_ASSERT(height == width, "Not a square matrix!");
+         inv.Factor(*mat);
+      }
+
+      void Mult(const Vector &x, Vector &y) const
+      {
+         inv.Mult(x, y);
+      }
    };
 
    bool IsNonlinear() const { return c_nlfi || c_nlfi_p || m_nlfi || m_nlfi_u || m_nlfi_p; }
