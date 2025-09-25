@@ -3539,6 +3539,8 @@ public:
 
    const IntegrationRule &GetRule(int order, Geometry::Type geom);
 
+   real_t GetPenaltyParameter() const { return kappa; }
+
    /// arguments: nf, B, Bt, G, Gt, sigma, pa_data, x, dxdn, y, dydn, dofs1D,
    /// quad1D
    using ApplyKernelType = void (*)(const int, const Array<real_t> &,
