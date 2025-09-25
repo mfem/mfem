@@ -1176,6 +1176,7 @@ public:
    void ComputeFluxJacobian(const Vector &state,
                             ElementTransformation &Tr,
                             DenseTensor &J) const override;
+};
 
 class CompoundFlux : public FluxFunction
 {
