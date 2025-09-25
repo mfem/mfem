@@ -173,6 +173,12 @@ ex11p-test-cpardiso: ex11p
 	@$(call mfem-test,$<, $(RUN_MPI), MKL_CPARDISO example,--cpardiso)
 test-par-YES: ex11p-test-cpardiso
 endif
+ifeq ($(MFEM_USE_CEED),YES)
+ex1p-test-ceed: ex1p
+	@$(call mfem-test,$<, $(RUN_MPI),\
+	   Parallel libCEED example,-d ceed-cpu -pa -a)
+test-par-YES: ex1p-test-ceed
+endif
 
 # Testing: "test" target and mfem-test* variables are defined in config/test.mk
 
