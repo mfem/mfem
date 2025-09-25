@@ -102,9 +102,10 @@ private:
 * AMGFSolver is a convenience wrapper that fixes the base solver @a M of a
 * FilteredSolver to HypreBoomerAMG.
 * AMGF is particularly effective for constrained optimization
-* problems such as frictionless contact.
+* problems such as frictionless contact. For more details, see:
+* [AMG with Filtering: An Efficient Preconditioner for Interior Point Methods in Large-Scale Contact Mechanics Optimization](https://arxiv.org/abs/2505.18576)
 *
-* The internal BoomerAMG instance can be accessed and configured via AMG().
+* The internal HypreBoomerAMG instance can be accessed and configured via AMG().
 */
 class AMGFSolver : public FilteredSolver
 {
