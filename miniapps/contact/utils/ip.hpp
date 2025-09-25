@@ -34,7 +34,7 @@ protected:
    bool switchCondition = false;
    bool sufficientDecrease = false;
    bool lineSearchSuccess = false;
-   bool inFilterRegion = false;
+   //bool inFilterRegion = false;
 
    int dimU, dimM, dimC;
    int dimG; // num of gap constraints
@@ -99,7 +99,7 @@ private:
                       bool &, real_t, real_t delta = 0.0);
    void LineSearch(BlockVector&, BlockVector&, real_t);
    void ProjectZ(const Vector &, Vector &, real_t);
-   void FilterCheck(real_t, real_t);
+   bool FilterCheck(real_t, real_t);
    real_t OptimalityError(const BlockVector &, const Vector &, const Vector &,
                           real_t mu = 0.0);
    real_t GetTheta(const BlockVector &);

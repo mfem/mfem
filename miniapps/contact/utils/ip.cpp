@@ -18,7 +18,7 @@ using namespace mfem;
  * and slack variable s we have
  * \min_(d, s) E(d, s) 
  *        s.t. g(u) - s = 0
- *                   s >= 0
+ *                    s>= 0
  */
 IPSolver::IPSolver(OptContactProblem * problem_)
    : problem(problem_)
@@ -447,13 +447,13 @@ void IPSolver::FormIPNewtonMat(BlockVector & x, Vector & l,
    }
 
    //         IP-Newton system matrix
-   //    Ak = [[H_(u,u)  H_(u,m)   J_u^T]
+   //    Ak = [[W_(u,u)  H_(u,m)   J_u^T]
    //          [H_(m,u)  W_(m,m)   J_m^T]
    //          [ J_u      J_m       0  ]]
 
-   //    Ak = [[K+d  0     Jᵀ ]   [u]    [bᵤ]
-   //          [0    D+d    -I]   [m]  = [bₘ]
-   //          [J   -I     0  ]]  [λ]  = [bₗ ]
+   //    Ak = [[K+Dreg  0      Jᵀ ]   [u]    [bᵤ]
+   //          [0      D+Dreg  -I ]   [m]  = [bₘ]
+   //          [J      -I      0  ]]  [λ]  = [bₗ ]
    Ak.SetBlock(0, 0, Wuu);                         Ak.SetBlock(0, 2, JuT);
    Ak.SetBlock(1, 1, Wmm); Ak.SetBlock(1, 2, JmT);
    Ak.SetBlock(2, 0,  Ju); Ak.SetBlock(2, 1,  Jm);
@@ -617,7 +617,7 @@ void IPSolver::LineSearch(BlockVector& X0, BlockVector& Xhat,
          continue;
       }
       
-      FilterCheck(thxtrial, phxtrial);
+      auto inFilterRegion = FilterCheck(thxtrial, phxtrial);
       if (!inFilterRegion)
       {
          if (myid == 0 && print_level > 0)
@@ -695,10 +695,10 @@ void IPSolver::ProjectZ(const Vector &x, Vector &z, real_t mu)
    }
 }
 
-void IPSolver::FilterCheck(real_t th, real_t ph)
+bool IPSolver::FilterCheck(real_t thetax, real_t phix)
 {
-   inFilterRegion = false;
-   if (th > thetaMax)
+   bool inFilterRegion = false;
+   if (thetax > thetaMax)
    {
       inFilterRegion = true;
    }
@@ -706,13 +706,14 @@ void IPSolver::FilterCheck(real_t th, real_t ph)
    {
       for (int i = 0; i < F1.Size(); i++)
       {
-         if (th >= F1[i] && ph >= F2[i])
+         if (thetax >= F1[i] && phix >= F2[i])
          {
             inFilterRegion = true;
             break;
          }
       }
    }
+   return inFilterRegion;
 }
 
 // curvature test
