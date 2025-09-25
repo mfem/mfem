@@ -308,10 +308,7 @@ ResourceManager &ResourceManager::instance()
    return inst;
 }
 
-ResourceManager::ResourceManager()
-{
-   Setup();
-}
+ResourceManager::ResourceManager() { Setup(); }
 
 static Allocator *CreateAllocator(ResourceManager::ResourceLocation loc)
 {
@@ -660,6 +657,27 @@ size_t ResourceManager::insert(char *lower, char *upper, ResourceLocation loc,
    return storage.segments.size();
 }
 
+bool ResourceManager::ZeroCopy(ResourceLocation loc) const
+{
+   if (loc == HOSTPINNED || loc == MANAGED)
+   {
+      return true;
+   }
+   else if (loc == HOST && (allocator_locs[0] & (HOSTPINNED | MANAGED)))
+   {
+      return true;
+   }
+   else if (loc == DEVICE && (allocator_locs[3] & (HOSTPINNED | MANAGED)))
+   {
+      return true;
+   }
+   else if (allocator_locs[0] == allocator_locs[3])
+   {
+      return true;
+   }
+   return false;
+}
+
 void ResourceManager::ensure_other(size_t segment, ResourceLocation loc)
 {
    auto seg = &storage.get_segment(segment);
@@ -683,8 +701,19 @@ void ResourceManager::ensure_other(size_t segment, ResourceLocation loc)
             throw std::runtime_error("invalid memory location");
       }
       size_t nbytes = seg->upper - seg->lower;
-      char *ptr = alloc(nbytes, loc, temporary);
-      size_t oseg = insert(ptr, ptr + nbytes, loc, true, temporary);
+      char *ptr;
+      size_t oseg;
+      bool zero_copy = ZeroCopy(loc);
+      if (zero_copy)
+      {
+         ptr = seg->lower;
+         oseg = insert(ptr, ptr + nbytes, loc, false, false);
+      }
+      else
+      {
+         ptr = alloc(nbytes, loc, temporary);
+         oseg = insert(ptr, ptr + nbytes, loc, true, temporary);
+      }
 
       seg = &storage.get_segment(segment);
       seg->other = oseg;
@@ -1195,6 +1224,24 @@ bool ResourceManager::is_valid(size_t segment, char *lower, char *upper,
 }
 
 char *ResourceManager::write(size_t segment, char *lower, char *upper,
+                             bool on_device)
+{
+   return write(segment, lower, upper, on_device ? ANY_DEVICE : ANY_HOST);
+}
+
+char *ResourceManager::read_write(size_t segment, char *lower, char *upper,
+                                  bool on_device)
+{
+   return read_write(segment, lower, upper, on_device ? ANY_DEVICE : ANY_HOST);
+}
+
+const char *ResourceManager::read(size_t segment, char *lower, char *upper,
+                                  bool on_device)
+{
+   return read(segment, lower, upper, on_device ? ANY_DEVICE : ANY_HOST);
+}
+
+char *ResourceManager::write(size_t segment, char *lower, char *upper,
                              ResourceLocation loc)
 {
    auto seg = &storage.get_segment(segment);
@@ -1341,10 +1388,19 @@ char *ResourceManager::read_write(size_t segment, char *lower, char *upper,
    auto seg = &storage.get_segment(segment);
    if (seg->loc & loc)
    {
+      bool need_sync = false;
       auto start = lower - seg->lower;
       auto stop = upper - seg->lower;
-      mark_valid(segment, start, stop, [&](auto start, auto stop)
-      { copy_segs.emplace_back(start, stop); });
+      if (ZeroCopy(loc))
+      {
+         mark_valid(segment, start, stop,
+         [&](auto start, auto stop) { need_sync = true; });
+      }
+      else
+      {
+         mark_valid(segment, start, stop, [&](auto start, auto stop)
+         { copy_segs.emplace_back(start, stop); });
+      }
       if (copy_segs.size())
       {
          if (!valid_segment(seg->other))
@@ -1359,6 +1415,12 @@ char *ResourceManager::read_write(size_t segment, char *lower, char *upper,
       {
          // mark other invalid
          mark_invalid(seg->other, start, stop, [&](auto start, auto stop) {});
+      }
+
+      if (loc == ANY_HOST && need_sync)
+      {
+         // TODO: stream or device sync?
+         MFEM_DEVICE_SYNC;
       }
 
       return lower;
@@ -1393,10 +1455,19 @@ const char *ResourceManager::read(size_t segment, char *lower, char *upper,
    auto seg = &storage.get_segment(segment);
    if (seg->loc & loc)
    {
+      bool need_sync = false;
       auto start = lower - seg->lower;
       auto stop = upper - seg->lower;
-      mark_valid(segment, start, stop, [&](auto start, auto stop)
-      { copy_segs.emplace_back(start, stop); });
+      if (ZeroCopy(loc))
+      {
+         mark_valid(segment, start, stop,
+         [&](auto start, auto stop) { need_sync = true; });
+      }
+      else
+      {
+         mark_valid(segment, start, stop, [&](auto start, auto stop)
+         { copy_segs.emplace_back(start, stop); });
+      }
 
       if (copy_segs.size())
       {
@@ -1406,6 +1477,12 @@ const char *ResourceManager::read(size_t segment, char *lower, char *upper,
          }
          auto &os = storage.get_segment(seg->other);
          BatchMemCopy(seg->lower, os.lower, seg->loc, os.loc, copy_segs);
+      }
+
+      if (loc == ANY_HOST && need_sync)
+      {
+         // TODO: stream or device sync?
+         MFEM_DEVICE_SYNC;
       }
 
       return lower;
@@ -1570,7 +1647,7 @@ void ResourceManager::Copy(size_t dst_seg, size_t src_seg, char *dst_lower,
    size_t somarker = 0;
    if (valid_segment(sseg.other))
    {
-      auto& soseg = storage.get_segment(sseg.other);
+      auto &soseg = storage.get_segment(sseg.other);
       somarker = find_marker(sseg.other, soseg.lower + src_offset);
    }
    CopyImpl(dst_seg, src_seg, nbytes, dst_offset, src_offset, smarker,

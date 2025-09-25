@@ -92,6 +92,7 @@ private:
          char *lower;
          char *upper;
          size_t root = 0;
+         /// only one of HOST, HOSTPINNED, MANAGED, or DEVICE
          ResourceLocation loc;
          size_t ref_count = 1;
          /// only supports one other mirror
@@ -230,6 +231,11 @@ private:
    const char *read(size_t segment, char *lower, char *upper,
                     ResourceLocation loc);
 
+   char *write(size_t segment, char *lower, char *upper, bool on_device);
+   char *read_write(size_t segment, char *lower, char *upper, bool on_device);
+
+   const char *read(size_t segment, char *lower, char *upper, bool on_device);
+
    void CopyImpl(size_t dst_seg, size_t src_seg, ptrdiff_t nbytes,
                  ptrdiff_t dst_offset, ptrdiff_t src_offset, size_t smarker,
                  size_t somarker);
@@ -276,6 +282,10 @@ public:
    void clear();
 
    static ResourceManager &instance();
+
+   /// @return true if a given memory @a loc is zero copy or not
+   /// @a loc must be one of HOST, HOSTPINNED, MANAGED, or DEVICE
+   bool ZeroCopy(ResourceLocation loc) const;
 
    void Setup(ResourceLocation host_loc = DEFAULT,
               ResourceLocation hostpinned_loc = DEFAULT,
@@ -366,7 +376,9 @@ template <class T> class Resource
 
 public:
    Resource() : lower(nullptr), upper(nullptr), segment(0) {}
+   /// @a loc only one of HOST, HOSTPINNED, MANAGED, or DEVICE
    Resource(T *ptr, size_t count, ResourceManager::ResourceLocation loc);
+   /// @a loc only one of HOST, HOSTPINNED, MANAGED, or DEVICE
    Resource(size_t count, ResourceManager::ResourceLocation loc,
             bool temporary = false);
 
@@ -422,6 +434,7 @@ public:
       *this = base.create_alias(offset, size);
    }
 
+   /// @a loc only one of HOST, HOSTPINNED, MANAGED, or DEVICE
    void SetDeviceMemoryType(ResourceManager::ResourceLocation loc)
    {
       auto &inst = ResourceManager::instance();
@@ -451,12 +464,15 @@ public:
       *this = Resource(size, ResourceManager::HOST, temporary);
    }
 
+   /// @a loc only one of HOST, HOSTPINNED, MANAGED, or DEVICE
    void New(size_t size, ResourceManager::ResourceLocation loc,
             bool temporary = false)
    {
       *this = Resource(size, loc, temporary);
    }
 
+   /// @a loc_a only one of HOST, HOSTPINNED, MANAGED, or DEVICE
+   /// @a loc_b only one of HOST, HOSTPINNED, MANAGED, or DEVICE
    void New(size_t size, ResourceManager::ResourceLocation loc_a,
             ResourceManager::ResourceLocation loc_b, bool temporary = false)
    {
@@ -473,6 +489,7 @@ public:
       SetHostPtrOwner(own);
    }
 
+   /// @a loc_a only one of HOST, HOSTPINNED, MANAGED, or DEVICE
    void Wrap(T *ptr, size_t size, ResourceManager::ResourceLocation loc,
              bool own)
    {
@@ -480,6 +497,8 @@ public:
       SetHostPtrOwner(own);
    }
 
+   /// @a hloc only one of HOST, HOSTPINNED, MANAGED, or DEVICE
+   /// @a dloc only one of HOST, HOSTPINNED, MANAGED, or DEVICE
    void Wrap(T *h_ptr, T *d_ptr, size_t size,
              ResourceManager::ResourceLocation hloc,
              ResourceManager::ResourceLocation dloc, bool own,
@@ -505,12 +524,13 @@ public:
       }
    }
 
-   Resource mirror(ResourceManager::ResourceLocation mirror_loc =
-                      ResourceManager::ResourceLocation::ANY_HOST) const;
+   T *Write(bool on_device = true);
+   T *ReadWrite(bool on_device = true);
+   const T *Read(bool on_device = true) const;
 
-   T *Write(ResourceManager::ResourceLocation loc);
-   T *ReadWrite(ResourceManager::ResourceLocation loc);
-   const T *Read(ResourceManager::ResourceLocation loc) const;
+   T *HostWrite() { return Write(false); }
+   T *HostReadWrite() { return ReadWrite(false); }
+   const T *HostRead() const { return Read(false); }
 
    /// note: these do not check or update validity flags! Allows read/write on
    /// ANY_HOST. Assumes that segment is a host-accessible segment.
@@ -529,7 +549,7 @@ public:
          {
             if (copy_to_host)
             {
-               Read(ResourceManager::ANY_HOST);
+               Read(false);
             }
             inst.erase(seg.other, false);
             seg.other = 0;
@@ -746,52 +766,30 @@ template <class T> Resource<T> Resource<T>::create_alias(size_t offset) const
    return res;
 }
 
-template <class T>
-Resource<T> Resource<T>::mirror(ResourceManager::ResourceLocation loc) const
-{
-   auto &inst = ResourceManager::instance();
-   if (inst.storage.get_segment(segment).loc & loc)
-   {
-      return *this;
-   }
-   inst.ensure_other(segment, loc);
-   Resource res;
-   auto &seg = inst.storage.get_segment(segment);
-   auto &oseg = inst.storage.get_segment(seg.other);
-   ++seg.ref_count;
-   ++oseg.ref_count;
-   res.segment = seg.other;
-   res.lower = reinterpret_cast<T *>(
-                  oseg.lower + (reinterpret_cast<char *>(lower) - seg.lower));
-   res.upper = reinterpret_cast<T *>(
-                  oseg.lower + (reinterpret_cast<char *>(upper) - seg.lower));
-   return res;
-}
-
-template <class T> T *Resource<T>::Write(ResourceManager::ResourceLocation loc)
+template <class T> T *Resource<T>::Write(bool on_device)
 {
    auto &inst = ResourceManager::instance();
    return reinterpret_cast<T *>(
              inst.write(segment, reinterpret_cast<char *>(lower),
-                        reinterpret_cast<char *>(upper), loc));
+                        reinterpret_cast<char *>(upper), on_device));
 }
 
 template <class T>
-T *Resource<T>::ReadWrite(ResourceManager::ResourceLocation loc)
+T *Resource<T>::ReadWrite(bool on_device)
 {
    auto &inst = ResourceManager::instance();
    return reinterpret_cast<T *>(
              inst.read_write(segment, reinterpret_cast<char *>(lower),
-                             reinterpret_cast<char *>(upper), loc));
+                             reinterpret_cast<char *>(upper), on_device));
 }
 
 template <class T>
-const T *Resource<T>::Read(ResourceManager::ResourceLocation loc) const
+const T *Resource<T>::Read(bool on_device) const
 {
    auto &inst = ResourceManager::instance();
    return reinterpret_cast<const T *>(
              inst.read(segment, reinterpret_cast<char *>(lower),
-                       reinterpret_cast<char *>(upper), loc));
+                       reinterpret_cast<char *>(upper), on_device));
 }
 
 template <class T> T &Resource<T>::operator[](size_t idx)

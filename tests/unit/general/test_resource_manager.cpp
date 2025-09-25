@@ -16,9 +16,12 @@ TEST_CASE("Resource Creation", "[Resource Manager]")
       auto usage = inst.usage();
       expected[0] += 10 * sizeof(int);
       REQUIRE(usage == expected);
-      tmp.Write(ResourceManager::ANY_DEVICE);
+      tmp.Write(true);
       usage = inst.usage();
-      expected[3] += expected[0];
+      if (!inst.ZeroCopy(ResourceManager::HOST))
+      {
+         expected[3] += expected[0];
+      }
       REQUIRE(usage == expected);
       tmp = Resource<int>();
       usage = inst.usage();
@@ -32,9 +35,12 @@ TEST_CASE("Resource Creation", "[Resource Manager]")
       auto usage = inst.usage();
       expected[4] += 10 * sizeof(int);
       REQUIRE(usage == expected);
-      tmp.Write(ResourceManager::ANY_DEVICE);
+      tmp.Write(true);
       usage = inst.usage();
-      expected[4 + 3] += 10 * sizeof(int);
+      if (!inst.ZeroCopy(ResourceManager::HOST))
+      {
+         expected[4 + 3] += 10 * sizeof(int);
+      }
       REQUIRE(usage == expected);
       tmp = Resource<int>();
       usage = inst.usage();
@@ -49,7 +55,7 @@ TEST_CASE("Resource Aliasing", "[Resource Manager][GPU]")
    auto &inst = ResourceManager::instance();
    {
       Resource<int> tmp(100, ResourceManager::HOST, false);
-      auto hptr = tmp.Write(ResourceManager::HOST);
+      auto hptr = tmp.HostWrite();
       for (int i = 0; i < 100; ++i)
       {
          tmp[i] = i;
@@ -61,22 +67,22 @@ TEST_CASE("Resource Aliasing", "[Resource Manager][GPU]")
       // [50, 55)
       Resource<int> alias2 = tmp.create_alias(50, 5);
       {
-         auto ptr = alias0.Write(ResourceManager::DEVICE);
+         auto ptr = alias0.Write(true);
          REQUIRE(ptr != hptr);
          forall(5, [=] MFEM_HOST_DEVICE(int i) { ptr[i] = 0; });
       }
       {
-         auto ptr = alias1.Write(ResourceManager::DEVICE);
+         auto ptr = alias1.Write(true);
          REQUIRE(ptr != hptr);
          forall(11, [=] MFEM_HOST_DEVICE(int i) { ptr[i] = 1; });
       }
       {
-         auto ptr = alias2.Write(ResourceManager::DEVICE);
+         auto ptr = alias2.Write(true);
          REQUIRE(ptr != hptr);
          forall(5, [=] MFEM_HOST_DEVICE(int i) { ptr[i] = 2; });
       }
       {
-         tmp.Read(ResourceManager::HOST);
+         tmp.HostRead();
          for (int i = 0; i < 100; ++i)
          {
             if (i >= 5 && i < 8)
