@@ -510,16 +510,16 @@ void SetInitialPosition(VisItDataCollection *E_dc,
 
    if (E_dc != NULL || B_dc != NULL)
    {
-      Vector E_p_min(3); E_p_min = std::numeric_limits<real_t>::lowest();
-      Vector E_p_max(3); E_p_max = std::numeric_limits<real_t>::max();
+      Vector E_p_min(3); E_p_min = -infinity();
+      Vector E_p_max(3); E_p_max = infinity();
       if (E_dc != NULL)
       {
          ParMesh * E_pmesh = dynamic_cast<ParMesh*>(E_dc->GetMesh());
          E_pmesh->GetBoundingBox(E_p_min, E_p_max);
       }
 
-      Vector B_p_min(3); B_p_min = std::numeric_limits<real_t>::lowest();
-      Vector B_p_max(3); B_p_max = std::numeric_limits<real_t>::max();
+      Vector B_p_min(3); B_p_min = -infinity();
+      Vector B_p_max(3); B_p_max = infinity();
       if (B_dc != NULL)
       {
          ParMesh *B_pmesh = dynamic_cast<ParMesh*>(B_dc->GetMesh());
