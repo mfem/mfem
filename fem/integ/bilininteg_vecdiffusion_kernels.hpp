@@ -335,7 +335,7 @@ PAVectorDiffusionApply3D(const int NE, const Array<real_t> &b,
 }
 } // namespace internal
 
-template <int DIM, int VDIM, int T_D1D, int T_Q1D>
+/*template <int DIM, int VDIM, int T_D1D, int T_Q1D>
 VectorDiffusionIntegrator::ApplyKernelType
 VectorDiffusionIntegrator::ApplyPAKernels::Kernel()
 {
@@ -348,7 +348,7 @@ VectorDiffusionIntegrator::ApplyPAKernels::Kernel()
       return internal::PAVectorDiffusionApply3D;
    }
    MFEM_ABORT("");
-}
+}*/
 
 } // namespace mfem
 /// \endcond DO_NOT_DOCUMENT
