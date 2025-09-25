@@ -45,6 +45,8 @@ void ParLinearForm::MakeRef(ParFiniteElementSpace *pf, Vector &v, int v_offset)
 
 void ParLinearForm::Assemble()
 {
+   MFEM_PERF_FUNCTION;
+
    LinearForm::Assemble();
 
    if (interior_face_integs.Size())
