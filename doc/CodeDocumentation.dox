@@ -202,6 +202,7 @@ namespace mfem {
  * - <a class="el" href="tesla_8cpp_source.html">Tesla</a>: simple magnetostatics simulation code
  * - <a class="el" href="maxwell_8cpp_source.html">Maxwell</a>: simple transient full-wave electromagnetics simulation code
  * - <a class="el" href="joule_8cpp_source.html">Joule</a>: transient magnetics and Joule heating miniapp
+ * - <a class="el" href="lorentz_8cpp_source.html">Lorentz</a>: simple particle tracking code based on the Lorentz force
  * - <a class="el" href="classmfem_1_1navier_1_1NavierSolver.html">Navier</a>: solve the transient incompressible Navier-Stokes equations
  * - <a class="el" href="mobius-strip_8cpp_source.html">Mobius Strip</a>: generate various Mobius strip-like meshes
  * - <a class="el" href="klein-bottle_8cpp_source.html">Klein Bottle</a>: generate three types of Klein bottle surfaces
