@@ -4570,8 +4570,9 @@ Mesh::Mesh(const Mesh &mesh, bool copy_nodes)
       FiniteElementSpace *fes_copy =
          new FiniteElementSpace(*fes, this, fec_copy);
       Nodes = new GridFunction(fes_copy);
-      Nodes->MakeOwner(fec_copy);
-      *Nodes = *mesh.Nodes;
+      Nodes->MakeOwner();
+      // only copy underlying Vector data
+      *Nodes = static_cast<Vector &>(*mesh.Nodes);
       own_nodes = 1;
    }
    else
@@ -4794,7 +4795,7 @@ Mesh::Mesh( const NURBSExtension& ext )
       FiniteElementSpace *fes = new FiniteElementSpace(this, fec, Dim,
                                                        Ordering::byVDIM);
       Nodes = new GridFunction(fes);
-      Nodes->MakeOwner(fec);
+      Nodes->MakeOwner();
       NURBSext->SetCoordsFromPatches(*Nodes);
       own_nodes = 1;
       spaceDim = Nodes->VectorDim();
@@ -6820,7 +6821,7 @@ void Mesh::SetCurvature(int order, bool discont, int space_dim, int ordering)
 
    const int old_space_dim = spaceDim;
    SetNodalFESpace(nfes);
-   Nodes->MakeOwner(nfec);
+   Nodes->MakeOwner();
 
    if (spaceDim != old_space_dim)
    {
@@ -15199,7 +15200,7 @@ Mesh *Extrude1D(Mesh *mesh, const int ny, const real_t sy, const bool closed)
       fes2d = new FiniteElementSpace(mesh2d, fec2d, 2);
       mesh2d->SetNodalFESpace(fes2d);
       GridFunction *nodes2d = mesh2d->GetNodes();
-      nodes2d->MakeOwner(fec2d);
+      nodes2d->MakeOwner();
 
       NodeExtrudeCoefficient ecoeff(2, ny, sy);
       Vector lnodes;
@@ -15425,7 +15426,7 @@ Mesh *Extrude2D(Mesh *mesh, const int nz, const real_t sz)
       fes3d = new FiniteElementSpace(mesh3d, fec3d, 3);
       mesh3d->SetNodalFESpace(fes3d);
       GridFunction *nodes3d = mesh3d->GetNodes();
-      nodes3d->MakeOwner(fec3d);
+      nodes3d->MakeOwner();
 
       NodeExtrudeCoefficient ecoeff(3, nz, sz);
       Vector lnodes;
