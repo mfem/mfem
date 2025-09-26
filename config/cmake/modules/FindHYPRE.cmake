@@ -44,7 +44,6 @@ if (HYPRE_FETCH OR FETCH_TPLS)
   foreach(var ${all_vars})
     if(var MATCHES "^HYPRE_ENABLE")
       list(APPEND HYPRE_CMAKE_OPTIONS "-D${var}:BOOL=${${var}}")
-      message("Appended ${var}")
     endif()
   endforeach()
 
