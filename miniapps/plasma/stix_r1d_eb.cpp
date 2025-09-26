@@ -44,7 +44,10 @@
 //
 //   For a magnetic field aligned with the z-axis the dielectric
 //   tensor has the form:
-//      | S -iD 0 | epsilon = |iD S 0 | | 0 0 P |
+//
+//                | S -iD 0 |
+//      epsilon = |iD  S  0 |
+//                | 0  0  P |
 //
 //   In this example we will use only the simplest coefficients;
 //   constants or linear functions of position.
