@@ -24,12 +24,12 @@ include $(DEFAULTS_MK)
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-MTOP_COMMON_SRC = mtop_integrators.cpp paramnonlinearform.cpp pparamnonlinearform.cpp
+MTOP_COMMON_SRC = mtop_solvers.cpp
 
 MTOP_COMMON_OBJ = $(MTOP_COMMON_SRC:.cpp=.o)
 
-SEQ_MINIAPPS = seqheat
-PAR_MINIAPPS = parheat
+SEQ_MINIAPPS =
+PAR_MINIAPPS = test_stokes
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
 else
