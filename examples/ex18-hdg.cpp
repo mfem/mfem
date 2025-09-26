@@ -338,9 +338,18 @@ int main(int argc, char *argv[])
       }
    }*/
 
+   // Setup the system operator
+
    Array<Coefficient*> coeffs;
    DarcyOperator op(ess_flux_tdofs_list, &darcy, NULL, NULL, NULL, coeffs,
                     DarcyOperator::SolverType::Newton, false, true);
+
+   constexpr real_t rtol = 1e-6;
+   constexpr real_t atol = 0.;
+   constexpr int max_iter = 1000;
+
+   op.SetTolerance(rtol, atol);
+   op.SetMaxIters(max_iter);
 
    // 7. Visualize state
    socketstream sden, smom, sene;
