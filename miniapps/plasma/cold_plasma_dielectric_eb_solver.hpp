@@ -1422,6 +1422,10 @@ public:
 
    void Solve();
 
+   ParComplexGridFunction & GetElectricField() { return e_; }
+   ParComplexGridFunction & GetMagneticFlux()
+   { return faraday_.GetMagneticFlux(); }
+
    bool RequireMagneticFlux() const
    {
       return
