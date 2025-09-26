@@ -10,6 +10,7 @@
 // CONTRIBUTING.md for details.
 
 #include "mesh_headers.hpp"
+#include "ncnurbs.hpp"
 #include "../fem/fem.hpp"
 #include "../general/binaryio.hpp"
 #include "../general/text.hpp"
@@ -802,21 +803,11 @@ struct BufferReader : BufferReaderBase
       {
          // Each "data block" is preceded by a header that is either UInt32 or
          // UInt64. The rest of the data follows.
-         uint64_t data_size;
-         if (header_type == UINT32_HEADER)
-         {
-            uint32_t *data_size_32 = (uint32_t *)header_buf;
-            data_size = *data_size_32;
-         }
-         else
-         {
-            uint64_t *data_size_64 = (uint64_t *)header_buf;
-            data_size = *data_size_64;
-         }
-         MFEM_VERIFY(sizeof(F)*n == data_size, "AppendedData: wrong data size");
+         MFEM_VERIFY(sizeof(F)*n == ReadHeaderEntry(header_buf),
+                     "AppendedData: wrong data size");
       }
 
-      if (std::is_same<T, F>::value)
+      if (std::is_same_v<T, F>)
       {
          // Special case: no type conversions necessary, so can just memcpy
          memcpy(dest, buf, sizeof(T)*n);
@@ -1319,9 +1310,10 @@ void Mesh::ReadVTKMesh(std::istream &input, int &curved, int &read_gf,
 } // end ReadVTKMesh
 
 void Mesh::ReadNURBSMesh(std::istream &input, int &curved, int &read_gf,
-                         bool spacing)
+                         bool spacing, bool nc)
 {
-   NURBSext = new NURBSExtension(input, spacing);
+   NURBSext = nc ? new NCNURBSExtension(input, spacing):
+              new NURBSExtension(input, spacing);
 
    Dim              = NURBSext->Dimension();
    NumOfVertices    = NURBSext->GetNV();

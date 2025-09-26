@@ -54,16 +54,15 @@
 //    mpirun -np 4 plor_solvers -m ../../data/fichera.mesh -fe r
 //    mpirun -np 4 plor_solvers -m ../../data/fichera.mesh -fe l
 //    mpirun -np 4 plor_solvers -m ../../data/amr-hex.mesh -fe h -rs 0 -o 2
-//    mpirun -np 4 plor_solvers -m ../../data/amr-hex.mesh -fe l -rs 0 -o 2
 //    mpirun -np 4 plor_solvers -m ../../data/star-surf.mesh -fe h
 //    mpirun -np 4 plor_solvers -m ../../data/star-surf.mesh -fe n
 //    mpirun -np 4 plor_solvers -m ../../data/star-surf.mesh -fe r
 //
 // Device sample runs:
-//    mpirun -np 4 plor_solvers -m ../../data/fichera.mesh -fe h -d cuda
-//    mpirun -np 4 plor_solvers -m ../../data/fichera.mesh -fe n -d cuda
-//    mpirun -np 4 plor_solvers -m ../../data/fichera.mesh -fe r -d cuda
-//    mpirun -np 4 plor_solvers -m ../../data/fichera.mesh -fe l -d cuda
+//  * mpirun -np 4 plor_solvers -m ../../data/fichera.mesh -fe h -d cuda
+//  * mpirun -np 4 plor_solvers -m ../../data/fichera.mesh -fe n -d cuda
+//  * mpirun -np 4 plor_solvers -m ../../data/fichera.mesh -fe r -d cuda
+//  * mpirun -np 4 plor_solvers -m ../../data/fichera.mesh -fe l -d cuda
 
 #include "mfem.hpp"
 #include <fstream>
