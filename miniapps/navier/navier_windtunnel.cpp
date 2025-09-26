@@ -293,7 +293,7 @@ int main(int argc, char *argv[])
    pvdc.SetTime(t);
    pvdc.RegisterField("velocity", u_gf);
    pvdc.RegisterField("pressure", p_gf);
-   
+
    for (int step = 0; !last_step; ++step)
    {
       if (t + dt >= t_final - dt / 2)
