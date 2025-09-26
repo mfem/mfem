@@ -58,9 +58,81 @@
 #define EX18_NONLINEAR
 #define EX18_ADAPTIVE_DT
 #define EX18_EULER
+#define EX18_IMEX
 
 using namespace std;
 using namespace mfem;
+
+// Convection-diffusion operator
+class ConvectionDiffusionOp : public TimeDependentOperator
+{
+   const FiniteElementSpace &fes_p;
+   DarcyOperator &darcy_op;
+   Operator &conv_op;
+
+   unique_ptr<DGMassInverse> Minv;
+   mutable Vector bp;
+
+public:
+   ConvectionDiffusionOp(const FiniteElementSpace &fes_p_,
+                         DarcyOperator &darcy_op_, Operator &conv_op_)
+      : TimeDependentOperator(darcy_op_.Width(), 0., IMPLICIT),
+        fes_p(fes_p_), darcy_op(darcy_op_), conv_op(conv_op_)
+   {
+      const FiniteElementSpace *vfes_p = darcy_op.GetDarcyForm().PotentialFESpace();
+      Minv.reset(new DGMassInverse(const_cast<FiniteElementSpace&>(fes_p)));
+      bp.SetSize(vfes_p->GetVSize());
+   }
+
+   void AddMult(const Vector &x, Vector &y, real_t a = 1.) const override
+   {
+      if (eval_mode == EvalMode::ADDITIVE_TERM_1) { return; }
+
+      const Array<int> &offsets = darcy_op.GetOffsets();
+      const BlockVector bx(const_cast<Vector&>(x), offsets);
+      BlockVector by(y, offsets);
+
+      conv_op.Mult(bx.GetBlock(1), bp);
+
+      const FiniteElementSpace *vfes_p = darcy_op.GetDarcyForm().PotentialFESpace();
+      const int ndofs = vfes_p->GetNDofs();
+      const int vdim = vfes_p->GetVDim();
+      for (int d = 0; d < vdim; d++)
+      {
+         const Vector bp_d(bp, d*ndofs, ndofs);
+         Vector dp_d(by.GetBlock(1), d*ndofs, ndofs);
+         Minv->AddMult(bp_d, dp_d, a);
+      }
+   }
+
+   void ImplicitSolve(const real_t dt, const Vector &x, Vector &y) override
+   {
+      if (eval_mode == EvalMode::NORMAL || eval_mode == EvalMode::ADDITIVE_TERM_1)
+      {
+         darcy_op.ImplicitSolve(dt, x, y);
+      }
+
+      if (eval_mode == EvalMode::NORMAL || eval_mode == EvalMode::ADDITIVE_TERM_2)
+      {
+         AddMult(x, y, -1.);
+      }
+   }
+
+   void SetTime(real_t t) override { darcy_op.SetTime(t); }
+
+   void SetTolerance(real_t rtol, real_t atol)
+   {
+      darcy_op.SetTolerance(rtol, atol);
+      Minv->SetRelTol(rtol);
+      Minv->SetAbsTol(atol);
+   }
+
+   void SetMaxIters(int iters)
+   {
+      darcy_op.SetMaxIters(iters);
+      Minv->SetMaxIter(iters);
+   }
+};
 
 bool VisualizeField(socketstream &sout, const GridFunction &gf,
                     const char *name, real_t t = 0.);
@@ -189,11 +261,11 @@ int main(int argc, char *argv[])
 
    BilinearForm *Mq = darcy.GetFluxMassForm();
    MixedBilinearForm *B = darcy.GetFluxDivForm();
-#ifdef EX18_NONLINEAR
+#if defined(EX18_NONLINEAR) && !defined(EX18_IMEX)
    NonlinearForm *Mtnl = darcy.GetPotentialMassNonlinearForm();
-#else
+#else // EX18_NONLINEAR && !EX18_IMEX
    BilinearForm *Mt = darcy.GetPotentialMassForm();
-#endif
+#endif // EX18_NONLINEAR && !EX18_IMEX
 
    //linear diffusion
    ConstantCoefficient kcoeff(k);
@@ -212,7 +284,7 @@ int main(int argc, char *argv[])
 
    if (dg && td > 0.)
    {
-#ifdef EX18_NONLINEAR
+#if defined(EX18_NONLINEAR) && !defined(EX18_IMEX)
       Mtnl->AddInteriorFaceIntegrator(new VectorBlockDiagonalIntegrator(num_equations,
                                                                         new HDGDiffusionIntegrator(kcoeff, td)));
 #else
@@ -244,27 +316,34 @@ int main(int argc, char *argv[])
 #ifdef EX18_NONLINEAR
 #ifdef EX18_EULER
    EulerFlux flux(dim, specific_heat_ratio);
-#else
+#else //EX18_EULER
    Vector c {1., 0.};
    VectorConstantCoefficient ccoeff(c);
    AdvectionFlux flux1D(ccoeff);
    CompoundFlux flux(num_equations, flux1D);
-#endif
+#endif //EX18_EULER
    RusanovFlux numericalFlux(flux);
 
    unique_ptr<HyperbolicFormIntegrator> hyperbolicIntegrator(
       new HyperbolicFormIntegrator(numericalFlux, 0, -1.));
+#ifdef EX18_IMEX
+   std::unique_ptr<NonlinearForm> Mt_ex(new NonlinearForm(&vfes));
+   Mt_ex->AddDomainIntegrator(hyperbolicIntegrator.get());
+   Mt_ex->AddInteriorFaceIntegrator(hyperbolicIntegrator.get());
+   Mt_ex->UseExternalIntegrators();
+#else //EX18_IMEX
    Mtnl->AddDomainIntegrator(hyperbolicIntegrator.get());
    Mtnl->AddInteriorFaceIntegrator(hyperbolicIntegrator.get());
    Mtnl->UseExternalIntegrators();
-#else
+#endif //EX18_IMEX
+#else //EX18_NONLINEAR
    Vector c {1., 0.};
    VectorConstantCoefficient ccoeff(c);
    Mt->AddDomainIntegrator(new VectorBlockDiagonalIntegrator(num_equations,
                                                              new ConservativeConvectionIntegrator(ccoeff)));
    Mt->AddInteriorFaceIntegrator(new VectorBlockDiagonalIntegrator(num_equations,
                                                                    new HDGConvectionCenteredIntegrator(ccoeff)));
-#endif
+#endif //EX18_NONLINEAR
 
    //set hybridization / reduction
 
@@ -341,8 +420,15 @@ int main(int argc, char *argv[])
    // Setup the system operator
 
    Array<Coefficient*> coeffs;
-   DarcyOperator op(ess_flux_tdofs_list, &darcy, NULL, NULL, NULL, coeffs,
-                    DarcyOperator::SolverType::Newton, false, true);
+   DarcyOperator darcy_op(ess_flux_tdofs_list, &darcy, NULL, NULL, NULL, coeffs,
+                          DarcyOperator::SolverType::Newton, false, true);
+
+#ifdef EX18_IMEX
+   Mt_ex->Setup();
+   ConvectionDiffusionOp op(fes, darcy_op, *Mt_ex);
+#else //EX18_IMEX
+   DarcyOperator &op = darcy_op;
+#endif //EX18_IMEX
 
    constexpr real_t rtol = 1e-6;
    constexpr real_t atol = 0.;
@@ -398,8 +484,10 @@ int main(int argc, char *argv[])
       real_t dt_real = min(dt, t_final - t);
 #if defined(EX18_NONLINEAR) && defined(EX18_ADAPTIVE_DT)
       hyperbolicIntegrator->ResetMaxCharSpeed();
-#endif
+#endif //EX18_NONLINEAR && EX18_ADAPTIVE_DT
+
       ode_solver->Step(x, t, dt_real);
+
 #if defined(EX18_NONLINEAR) && defined(EX18_ADAPTIVE_DT)
       if (cfl > 0) // update time step size with CFL
       {

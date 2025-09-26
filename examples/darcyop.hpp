@@ -216,6 +216,7 @@ public:
 
    static Array<int> ConstructOffsets(const DarcyForm &darcy);
    inline const Array<int>& GetOffsets() const { return offsets; }
+   inline const DarcyForm& GetDarcyForm() const { return *darcy; }
 
    void ImplicitSolve(const real_t dt, const Vector &x, Vector &k) override;
 };
