@@ -77,8 +77,8 @@ int main(int argc, char *argv[])
    
    // 1. make the linear form
    LinearForm b(&fespace);
-   CurlPsiVectorGridFunctionCoefficient neg_curl_psi_coef(&psi, true);
-   b.AddDomainIntegrator(new VectorDomainLFIntegrator(neg_curl_psi_coef));
+   CurlPsiVectorGridFunctionCoefficient curl_psi_coef(&psi, false);
+   b.AddDomainIntegrator(new VectorDomainLFIntegrator(curl_psi_coef));
    b.Assemble();
 
    // 2. make the bilinear form

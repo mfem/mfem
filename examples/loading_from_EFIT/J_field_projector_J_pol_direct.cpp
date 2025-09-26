@@ -70,7 +70,6 @@ int main(int argc, char *argv[])
       gg = temp_gg;
    }
 
-   
    GridFunction J_pol(&fespace);
    cout << J_pol.FESpace()->GetTrueVSize() << endl;
    J_pol = 0.0;
@@ -82,12 +81,13 @@ int main(int argc, char *argv[])
 
    // 1.a make the RHS bilinear form
    MixedBilinearForm b_bi(gg.FESpace(), &fespace);
-   DenseMatrix perp_rotation(dim);
-   perp_rotation(0, 0) = 0.0;
-   perp_rotation(0, 1) = -1.0;
-   perp_rotation(1, 0) = 1.0;
-   perp_rotation(1, 1) = 0.0;
-   MatrixConstantCoefficient perp_rot_coef(perp_rotation);
+   DenseMatrix neg_perp_rotation(dim);
+   neg_perp_rotation(0, 0) = 0.0;
+   neg_perp_rotation(0, 1) = 1.0;
+   neg_perp_rotation(1, 0) = -1.0;
+   neg_perp_rotation(1, 1) = 0.0;
+   MatrixConstantCoefficient perp_rot_coef(neg_perp_rotation);
+
    b_bi.AddDomainIntegrator(new MixedVectorGradientIntegrator(perp_rot_coef));
    b_bi.Assemble();
 

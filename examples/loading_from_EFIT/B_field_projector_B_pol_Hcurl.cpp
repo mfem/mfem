@@ -38,11 +38,11 @@ int main(int argc, char *argv[])
       
 
       // 1. make the linear form
-      PsiVectorGridFunctionCoefficient psi_coef(&psi, false);
-      b.AddDomainIntegrator(new VectorFEDomainLFCurlIntegrator(psi_coef));
-
       PsiVectorGridFunctionCoefficient neg_psi_coef(&psi, true);
-      b.AddBoundaryIntegrator(new VectorFEDomainLFIntegrator(neg_psi_coef));
+      b.AddDomainIntegrator(new VectorFEDomainLFCurlIntegrator(neg_psi_coef));
+
+      PsiVectorGridFunctionCoefficient psi_coef(&psi, false);
+      b.AddBoundaryIntegrator(new VectorFEDomainLFIntegrator(psi_coef));
       b.Assemble();
    }
    else
@@ -55,15 +55,15 @@ int main(int argc, char *argv[])
       // Assert that the two spaces are on the same mesh
       MFEM_ASSERT(psi.FESpace()->GetMesh()->GetNE() == fespace.GetMesh()->GetNE(), "The two spaces are not on the same mesh");
       MixedBilinearForm b_bi(psi.FESpace(), &fespace);
-      ConstantCoefficient one(1.0);
-      b_bi.AddDomainIntegrator(new MixedScalarWeakCurlIntegrator(one));
+      ConstantCoefficient neg_one(-1.0);
+      b_bi.AddDomainIntegrator(new MixedScalarWeakCurlIntegrator(neg_one));
       b_bi.Assemble();
 
       // 1.b form linear form from bilinear form
       LinearForm b_li(&fespace);
       b_bi.Mult(psi, b_li);
-      PsiVectorGridFunctionCoefficient neg_psi_coef(&psi, true);
-      b.AddBoundaryIntegrator(new VectorFEDomainLFIntegrator(neg_psi_coef));
+      PsiVectorGridFunctionCoefficient psi_coef(&psi, false);
+      b.AddBoundaryIntegrator(new VectorFEDomainLFIntegrator(psi_coef));
       b.Assemble();
       b += b_li;
    }
