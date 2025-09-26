@@ -138,21 +138,21 @@ int main(int argc, char *argv[])
 
    //dump the solution
    {
-       ParGridFunction& vel=solver->GetVelocity();
-       ParGridFunction& pre=solver->GetPressure();
+      ParGridFunction& vel=solver->GetVelocity();
+      ParGridFunction& pre=solver->GetPressure();
 
-       ParaViewDataCollection paraview_dc("stokes_flow", &pmesh);
-       paraview_dc.SetPrefixPath("ParaView");
-       paraview_dc.SetLevelsOfDetail(order);
-       paraview_dc.SetDataFormat(VTKFormat::BINARY);
-       paraview_dc.SetHighOrderOutput(true);
-       paraview_dc.SetCycle(0);
-       paraview_dc.SetTime(0.0);
-       paraview_dc.RegisterField("vel",&vel);
-       paraview_dc.RegisterField("pres",&pre);
-       paraview_dc.RegisterField("pg",&pg);
-       paraview_dc.RegisterField("ng",&ng);
-       paraview_dc.Save();
+      ParaViewDataCollection paraview_dc("stokes_flow", &pmesh);
+      paraview_dc.SetPrefixPath("ParaView");
+      paraview_dc.SetLevelsOfDetail(order);
+      paraview_dc.SetDataFormat(VTKFormat::BINARY);
+      paraview_dc.SetHighOrderOutput(true);
+      paraview_dc.SetCycle(0);
+      paraview_dc.SetTime(0.0);
+      paraview_dc.RegisterField("vel",&vel);
+      paraview_dc.RegisterField("pres",&pre);
+      paraview_dc.RegisterField("pg",&pg);
+      paraview_dc.RegisterField("ng",&ng);
+      paraview_dc.Save();
    }
 
    delete solver;
