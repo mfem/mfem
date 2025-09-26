@@ -276,8 +276,8 @@ int main(int argc, char *argv[])
 
    flowsolver.Setup(dt);
 
-   ParGridFunction *u_gf = nullptr;
-   ParGridFunction *p_gf = nullptr;
+   ParGridFunction *u_gf = flowsolver.GetCurrentVelocity();;
+   ParGridFunction *p_gf = flowsolver.GetCurrentPressure();;
 
    if (Mpi::Root())
    {
@@ -285,6 +285,15 @@ int main(int argc, char *argv[])
              "Step", "Time", "dt", "CFL", "||u||_max");
    }
 
+   ParaViewDataCollection pvdc("navier_windtunnel_output", pmesh);
+   pvdc.SetDataFormat(VTKFormat::BINARY32);
+   pvdc.SetHighOrderOutput(true);
+   pvdc.SetLevelsOfDetail(ctx.order);
+   pvdc.SetCycle(0);
+   pvdc.SetTime(t);
+   pvdc.RegisterField("velocity", u_gf);
+   pvdc.RegisterField("pressure", p_gf);
+   
    for (int step = 0; !last_step; ++step)
    {
       if (t + dt >= t_final - dt / 2)
@@ -294,17 +303,8 @@ int main(int argc, char *argv[])
 
       flowsolver.Step(t, dt, step);
 
-      u_gf = flowsolver.GetCurrentVelocity();
-      p_gf = flowsolver.GetCurrentPressure();
-
-      ParaViewDataCollection pvdc("navier_windtunnel_output", pmesh);
-      pvdc.SetDataFormat(VTKFormat::BINARY32);
-      pvdc.SetHighOrderOutput(true);
-      pvdc.SetLevelsOfDetail(ctx.order);
       pvdc.SetCycle(step);
       pvdc.SetTime(t);
-      pvdc.RegisterField("velocity", u_gf);
-      pvdc.RegisterField("pressure", p_gf);
       pvdc.Save();
 
       real_t cfl = flowsolver.ComputeCFL(*u_gf, dt);
