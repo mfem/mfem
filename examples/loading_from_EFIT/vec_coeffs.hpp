@@ -392,6 +392,32 @@ public:
    }
 };
 
+/// @brief Input $\Psi$ and return $grad \Psi$
+class GradPsiVectorGridFunctionCoefficient : public VectorCoefficient
+{
+private:
+   const bool flip_sign;
+   GradientGridFunctionCoefficient grad_psi_coef;
+
+public:
+   int counter = 0;
+
+   GradPsiVectorGridFunctionCoefficient() = delete;
+
+   GradPsiVectorGridFunctionCoefficient(const GridFunction *gf, bool flip_sign = false)
+       : VectorCoefficient(2), flip_sign(flip_sign), grad_psi_coef(gf)
+   {
+   }
+
+   void Eval(Vector &V, ElementTransformation &T,
+             const IntegrationPoint &ip) override
+   {
+      // get r, z coordinates
+      grad_psi_coef.Eval(V, T, ip);
+      V *= (flip_sign ? -1 : 1);
+   }
+};
+
 /// @brief Input $\Psi$ and return $curl \Psi$
 class CurlPsiVectorGridFunctionCoefficient : public VectorCoefficient
 {
