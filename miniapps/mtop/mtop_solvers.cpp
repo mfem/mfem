@@ -140,7 +140,7 @@ void IsoLinElasticSolver::SetLinearSolver(real_t rtol,
 }
 
 void IsoLinElasticSolver::AddDispBC(int id, int dir,
-                                     real_t val)
+                                    real_t val)
 {
    if (dir == 0)
    {
