@@ -20,9 +20,7 @@
 #include "../fem/fem.hpp"
 
 #include "petsc.h"
-#if defined(PETSC_HAVE_HYPRE)
 #include "petscmathypre.h"
-#endif
 
 // Backward compatibility
 #if PETSC_VERSION_LT(3,11,0)
@@ -93,14 +91,6 @@ static PetscErrorCode Convert_Vmarks_IS(MPI_Comm,mfem::Array<Mat>&,
 static PetscErrorCode MakeShellPC(PC,mfem::Solver&,bool);
 static PetscErrorCode MakeShellPCWithFactory(PC,
                                              mfem::PetscPreconditionerFactory*);
-
-// Equivalent functions are present in PETSc source code
-// if PETSc has been compiled with hypre support
-// We provide them here in case PETSC_HAVE_HYPRE is not defined
-#if !defined(PETSC_HAVE_HYPRE)
-static PetscErrorCode MatConvert_hypreParCSR_AIJ(hypre_ParCSRMatrix*,Mat*);
-static PetscErrorCode MatConvert_hypreParCSR_IS(hypre_ParCSRMatrix*,Mat*);
-#endif
 
 #if PETSC_VERSION_GE(3,15,0) && defined(PETSC_HAVE_DEVICE)
 #if defined(MFEM_USE_CUDA) && defined(PETSC_HAVE_CUDA)
@@ -1138,11 +1128,10 @@ PetscParMatrix& PetscParMatrix::operator=(const HypreParMatrix& B)
    }
    height = B.Height();
    width  = B.Width();
-#if defined(PETSC_HAVE_HYPRE)
+
    ierr = MatCreateFromParCSR(B,MATAIJ,PETSC_USE_POINTER,&A);
-#else
-   ierr = MatConvert_hypreParCSR_AIJ(B,&A); CCHKERRQ(B.GetComm(),ierr);
-#endif
+   CCHKERRQ(B.GetComm(),ierr);
+
    SetUpForDevice();
    return *this;
 }
@@ -1508,7 +1497,6 @@ void PetscParMatrix::ConvertOperator(MPI_Comm comm, const Operator &op, Mat* A,
       }
       else if (tid == PETSC_MATHYPRE)
       {
-#if defined(PETSC_HAVE_HYPRE)
          if (istrans)
          {
             Mat B;
@@ -1520,9 +1508,6 @@ void PetscParMatrix::ConvertOperator(MPI_Comm comm, const Operator &op, Mat* A,
          {
             ierr = MatConvert(pA->A,MATHYPRE,MAT_INITIAL_MATRIX,A); PCHKERRQ(pA->A,ierr);
          }
-#else
-         MFEM_ABORT("Reconfigure PETSc with --download-hypre or --with-hypre")
-#endif
       }
       else if (tid == PETSC_MATSHELL)
       {
@@ -1537,33 +1522,21 @@ void PetscParMatrix::ConvertOperator(MPI_Comm comm, const Operator &op, Mat* A,
    {
       if (tid == PETSC_MATAIJ)
       {
-#if defined(PETSC_HAVE_HYPRE)
          ierr = MatCreateFromParCSR(const_cast<HypreParMatrix&>(*pH),MATAIJ,
                                     PETSC_USE_POINTER,A);
-#else
-         ierr = MatConvert_hypreParCSR_AIJ(const_cast<HypreParMatrix&>(*pH),A);
-#endif
          CCHKERRQ(pH->GetComm(),ierr);
       }
       else if (tid == PETSC_MATIS)
       {
-#if defined(PETSC_HAVE_HYPRE)
          ierr = MatCreateFromParCSR(const_cast<HypreParMatrix&>(*pH),MATIS,
                                     PETSC_USE_POINTER,A);
-#else
-         ierr = MatConvert_hypreParCSR_IS(const_cast<HypreParMatrix&>(*pH),A);
-#endif
          CCHKERRQ(pH->GetComm(),ierr);
       }
       else if (tid == PETSC_MATHYPRE || tid == ANY_TYPE)
       {
-#if defined(PETSC_HAVE_HYPRE)
          ierr = MatCreateFromParCSR(const_cast<HypreParMatrix&>(*pH),MATHYPRE,
                                     PETSC_USE_POINTER,A);
          CCHKERRQ(pH->GetComm(),ierr);
-#else
-         MFEM_ABORT("Reconfigure PETSc with --download-hypre or --with-hypre")
-#endif
       }
       else if (tid == PETSC_MATSHELL)
       {
@@ -2229,11 +2202,7 @@ PetscParMatrix * RAP(PetscParMatrix *A, PetscParMatrix *P)
 PetscParMatrix * RAP(HypreParMatrix *hA, PetscParMatrix *P)
 {
    PetscParMatrix *out,*A;
-#if defined(PETSC_HAVE_HYPRE)
    A = new PetscParMatrix(hA,Operator::PETSC_MATHYPRE);
-#else
-   A = new PetscParMatrix(hA);
-#endif
    out = RAP(P,A,P);
    delete A;
    return out;
@@ -2340,10 +2309,8 @@ Operator::Type PetscParMatrix::GetType() const
    if (ok == PETSC_TRUE) { return PETSC_MATSHELL; }
    ierr = PetscObjectTypeCompare(oA, MATNEST, &ok); PCHKERRQ(A,ierr);
    if (ok == PETSC_TRUE) { return PETSC_MATNEST; }
-#if defined(PETSC_HAVE_HYPRE)
    ierr = PetscObjectTypeCompare(oA, MATHYPRE, &ok); PCHKERRQ(A,ierr);
    if (ok == PETSC_TRUE) { return PETSC_MATHYPRE; }
-#endif
    return PETSC_MATGENERIC;
 }
 
@@ -5514,215 +5481,6 @@ static PetscErrorCode Convert_Vmarks_IS(MPI_Comm comm,
    }
    PetscFunctionReturn(PETSC_SUCCESS);
 }
-
-#if !defined(PETSC_HAVE_HYPRE)
-
-#if defined(HYPRE_MIXEDINT)
-#error "HYPRE_MIXEDINT not supported"
-#endif
-
-#include "_hypre_parcsr_mv.h"
-static PetscErrorCode MatConvert_hypreParCSR_AIJ(hypre_ParCSRMatrix* hA,Mat* pA)
-{
-   MPI_Comm        comm = hypre_ParCSRMatrixComm(hA);
-   hypre_CSRMatrix *hdiag,*hoffd;
-   PetscScalar     *da,*oa,*aptr;
-   PetscInt        *dii,*djj,*oii,*ojj,*iptr;
-   PetscInt        i,dnnz,onnz,m,n;
-   PetscMPIInt     size;
-   PetscErrorCode  ierr;
-
-   PetscFunctionBeginUser;
-   hdiag = hypre_ParCSRMatrixDiag(hA);
-   hoffd = hypre_ParCSRMatrixOffd(hA);
-   m     = hypre_CSRMatrixNumRows(hdiag);
-   n     = hypre_CSRMatrixNumCols(hdiag);
-   dnnz  = hypre_CSRMatrixNumNonzeros(hdiag);
-   onnz  = hypre_CSRMatrixNumNonzeros(hoffd);
-   ierr  = PetscMalloc1(m+1,&dii); CHKERRQ(ierr);
-   ierr  = PetscMalloc1(dnnz,&djj); CHKERRQ(ierr);
-   ierr  = PetscMalloc1(dnnz,&da); CHKERRQ(ierr);
-   ierr  = PetscMemcpy(dii,hypre_CSRMatrixI(hdiag),(m+1)*sizeof(PetscInt));
-   CHKERRQ(ierr);
-   ierr  = PetscMemcpy(djj,hypre_CSRMatrixJ(hdiag),dnnz*sizeof(PetscInt));
-   CHKERRQ(ierr);
-   ierr  = PetscMemcpy(da,hypre_CSRMatrixData(hdiag),dnnz*sizeof(PetscScalar));
-   CHKERRQ(ierr);
-   iptr  = djj;
-   aptr  = da;
-   for (i=0; i<m; i++)
-   {
-      PetscInt nc = dii[i+1]-dii[i];
-      ierr = PetscSortIntWithScalarArray(nc,iptr,aptr); CHKERRQ(ierr);
-      iptr += nc;
-      aptr += nc;
-   }
-   ierr = MPI_Comm_size(comm,&size); CHKERRQ(ierr);
-   if (size > 1)
-   {
-      PetscInt *offdj,*coffd;
-
-      ierr  = PetscMalloc1(m+1,&oii); CHKERRQ(ierr);
-      ierr  = PetscMalloc1(onnz,&ojj); CHKERRQ(ierr);
-      ierr  = PetscMalloc1(onnz,&oa); CHKERRQ(ierr);
-      ierr  = PetscMemcpy(oii,hypre_CSRMatrixI(hoffd),(m+1)*sizeof(PetscInt));
-      CHKERRQ(ierr);
-      offdj = hypre_CSRMatrixJ(hoffd);
-      coffd = hypre_ParCSRMatrixColMapOffd(hA);
-      for (i=0; i<onnz; i++) { ojj[i] = coffd[offdj[i]]; }
-      ierr  = PetscMemcpy(oa,hypre_CSRMatrixData(hoffd),onnz*sizeof(PetscScalar));
-      CHKERRQ(ierr);
-      iptr  = ojj;
-      aptr  = oa;
-      for (i=0; i<m; i++)
-      {
-         PetscInt nc = oii[i+1]-oii[i];
-         ierr = PetscSortIntWithScalarArray(nc,iptr,aptr); CHKERRQ(ierr);
-         iptr += nc;
-         aptr += nc;
-      }
-      ierr = MatCreateMPIAIJWithSplitArrays(comm,m,n,PETSC_DECIDE,PETSC_DECIDE,dii,
-                                            djj,da,oii,ojj,oa,pA); CHKERRQ(ierr);
-   }
-   else
-   {
-      oii = ojj = NULL;
-      oa = NULL;
-      ierr = MatCreateSeqAIJWithArrays(comm,m,n,dii,djj,da,pA); CHKERRQ(ierr);
-   }
-   /* We are responsible to free the CSR arrays.  However, since we can take
-      references of a PetscParMatrix but we cannot take reference of PETSc
-      arrays, we need to create a PetscContainer object to take reference of
-      these arrays in reference objects */
-   void *ptrs[6] = {dii,djj,da,oii,ojj,oa};
-   const char *names[6] = {"_mfem_csr_dii",
-                           "_mfem_csr_djj",
-                           "_mfem_csr_da",
-                           "_mfem_csr_oii",
-                           "_mfem_csr_ojj",
-                           "_mfem_csr_oa"
-                          };
-   for (i=0; i<6; i++)
-   {
-      PetscContainer c;
-
-      ierr = PetscContainerCreate(comm,&c); CHKERRQ(ierr);
-      ierr = PetscContainerSetPointer(c,ptrs[i]); CHKERRQ(ierr);
-#if PETSC_VERSION_LT(3,23,0)
-      ierr = PetscContainerSetUserDestroy(c,__mfem_array_container_destroy);
-#else
-      ierr = PetscContainerSetCtxDestroy(c,__mfem_array_container_destroy);
-#endif
-      CHKERRQ(ierr);
-      ierr = PetscObjectCompose((PetscObject)(*pA),names[i],(PetscObject)c);
-      CHKERRQ(ierr);
-      ierr = PetscContainerDestroy(&c); CHKERRQ(ierr);
-   }
-   PetscFunctionReturn(PETSC_SUCCESS);
-}
-
-static PetscErrorCode MatConvert_hypreParCSR_IS(hypre_ParCSRMatrix* hA,Mat* pA)
-{
-   Mat                    lA;
-   ISLocalToGlobalMapping rl2g,cl2g;
-   IS                     is;
-   hypre_CSRMatrix        *hdiag,*hoffd;
-   MPI_Comm               comm = hypre_ParCSRMatrixComm(hA);
-   void                   *ptrs[2];
-   const char             *names[2] = {"_mfem_csr_aux",
-                                       "_mfem_csr_data"
-                                      };
-   PetscScalar            *hdd,*hod,*aa,*data;
-   PetscInt               *col_map_offd,*hdi,*hdj,*hoi,*hoj;
-   PetscInt               *aux,*ii,*jj;
-   PetscInt               cum,dr,dc,oc,str,stc,nnz,i,jd,jo;
-   PetscErrorCode         ierr;
-
-   PetscFunctionBeginUser;
-   /* access relevant information in ParCSR */
-   str   = hypre_ParCSRMatrixFirstRowIndex(hA);
-   stc   = hypre_ParCSRMatrixFirstColDiag(hA);
-   hdiag = hypre_ParCSRMatrixDiag(hA);
-   hoffd = hypre_ParCSRMatrixOffd(hA);
-   dr    = hypre_CSRMatrixNumRows(hdiag);
-   dc    = hypre_CSRMatrixNumCols(hdiag);
-   nnz   = hypre_CSRMatrixNumNonzeros(hdiag);
-   hdi   = hypre_CSRMatrixI(hdiag);
-   hdj   = hypre_CSRMatrixJ(hdiag);
-   hdd   = hypre_CSRMatrixData(hdiag);
-   oc    = hypre_CSRMatrixNumCols(hoffd);
-   nnz  += hypre_CSRMatrixNumNonzeros(hoffd);
-   hoi   = hypre_CSRMatrixI(hoffd);
-   hoj   = hypre_CSRMatrixJ(hoffd);
-   hod   = hypre_CSRMatrixData(hoffd);
-
-   /* generate l2g maps for rows and cols */
-   ierr = ISCreateStride(comm,dr,str,1,&is); CHKERRQ(ierr);
-   ierr = ISLocalToGlobalMappingCreateIS(is,&rl2g); CHKERRQ(ierr);
-   ierr = ISDestroy(&is); CHKERRQ(ierr);
-   col_map_offd = hypre_ParCSRMatrixColMapOffd(hA);
-   ierr = PetscMalloc1(dc+oc,&aux); CHKERRQ(ierr);
-   for (i=0; i<dc; i++) { aux[i]    = i+stc; }
-   for (i=0; i<oc; i++) { aux[i+dc] = col_map_offd[i]; }
-   ierr = ISCreateGeneral(comm,dc+oc,aux,PETSC_OWN_POINTER,&is); CHKERRQ(ierr);
-   ierr = ISLocalToGlobalMappingCreateIS(is,&cl2g); CHKERRQ(ierr);
-   ierr = ISDestroy(&is); CHKERRQ(ierr);
-
-   /* create MATIS object */
-   ierr = MatCreate(comm,pA); CHKERRQ(ierr);
-   ierr = MatSetSizes(*pA,dr,dc,PETSC_DECIDE,PETSC_DECIDE); CHKERRQ(ierr);
-   ierr = MatSetType(*pA,MATIS); CHKERRQ(ierr);
-   ierr = MatSetLocalToGlobalMapping(*pA,rl2g,cl2g); CHKERRQ(ierr);
-   ierr = ISLocalToGlobalMappingDestroy(&rl2g); CHKERRQ(ierr);
-   ierr = ISLocalToGlobalMappingDestroy(&cl2g); CHKERRQ(ierr);
-
-   /* merge local matrices */
-   ierr = PetscMalloc1(nnz+dr+1,&aux); CHKERRQ(ierr);
-   ierr = PetscMalloc1(nnz,&data); CHKERRQ(ierr);
-   ii   = aux;
-   jj   = aux+dr+1;
-   aa   = data;
-   *ii  = *(hdi++) + *(hoi++);
-   for (jd=0,jo=0,cum=0; *ii<nnz; cum++)
-   {
-      PetscScalar *aold = aa;
-      PetscInt    *jold = jj,nc = jd+jo;
-      for (; jd<*hdi; jd++) { *jj++ = *hdj++;      *aa++ = *hdd++; }
-      for (; jo<*hoi; jo++) { *jj++ = *hoj++ + dc; *aa++ = *hod++; }
-      *(++ii) = *(hdi++) + *(hoi++);
-      ierr = PetscSortIntWithScalarArray(jd+jo-nc,jold,aold); CHKERRQ(ierr);
-   }
-   for (; cum<dr; cum++) { *(++ii) = nnz; }
-   ii   = aux;
-   jj   = aux+dr+1;
-   aa   = data;
-   ierr = MatCreateSeqAIJWithArrays(PETSC_COMM_SELF,dr,dc+oc,ii,jj,aa,&lA);
-   CHKERRQ(ierr);
-   ptrs[0] = aux;
-   ptrs[1] = data;
-   for (i=0; i<2; i++)
-   {
-      PetscContainer c;
-
-      ierr = PetscContainerCreate(PETSC_COMM_SELF,&c); CHKERRQ(ierr);
-      ierr = PetscContainerSetPointer(c,ptrs[i]); CHKERRQ(ierr);
-#if PETSC_VERSION_LT(3,23,0)
-      ierr = PetscContainerSetUserDestroy(c,__mfem_array_container_destroy);
-#else
-      ierr = PetscContainerSetCtxDestroy(c,__mfem_array_container_destroy);
-#endif
-      CHKERRQ(ierr);
-      ierr = PetscObjectCompose((PetscObject)lA,names[i],(PetscObject)c);
-      CHKERRQ(ierr);
-      ierr = PetscContainerDestroy(&c); CHKERRQ(ierr);
-   }
-   ierr = MatISSetLocalMat(*pA,lA); CHKERRQ(ierr);
-   ierr = MatDestroy(&lA); CHKERRQ(ierr);
-   ierr = MatAssemblyBegin(*pA,MAT_FINAL_ASSEMBLY); CHKERRQ(ierr);
-   ierr = MatAssemblyEnd(*pA,MAT_FINAL_ASSEMBLY); CHKERRQ(ierr);
-   PetscFunctionReturn(PETSC_SUCCESS);
-}
-#endif
 
 #include <petsc/private/matimpl.h>
 
