@@ -27,6 +27,12 @@ Discretization improvements
 - In the ParMoonolith integration, added support for variational resampling of
   H1 vector fields.
 
+- Added support for boundary integration to the hyperbolic framework. In this
+  regard, new classes `BdrHyperbolicDirichletIntegrator` and
+  `BoundaryHyperbolicFlowIntegrator` have been introduced for implementation
+  of weak Dirichlet boundary conditions with a general flux or for the linear
+  case respectively.
+
 - Added method to compute piecewise linear bounds on high-order functions on
   tensor-product elements.
 
@@ -36,6 +42,11 @@ Discretization improvements
 
 Meshing improvements
 --------------------
+
+- Introduced NC-patch NURBS meshes, which are conforming element-wise but allow
+  for nonconforming patch topology. This new mesh format supports element
+  spacing formulas for refinement, as well as local refinement factors for a
+  subset of knot vectors.
 
 - Added support for higher order meshes in Mesh::MakeSimplicial and
   ParMesh::MakeSimplicial.
@@ -60,6 +71,10 @@ GPU computing
   spaces, and is the default derefinement operator constructed by
   `FiniteElementSpace::Update` and `ParFiniteElementSpace::Update`.
   The operator requires `FiniteElementSpace::Nonconforming() == true`.
+- Added new method: GridFunction::GetGradients, with GPU support, for computing
+  the gradients of a GridFunction on all elements.
+- Added GPU support in GradientGridFunctionCoefficient and
+  InnerProductCoefficient by implementing their Project methods.
 
 New and updated examples and miniapps
 -------------------------------------
