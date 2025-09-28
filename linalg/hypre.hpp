@@ -25,6 +25,13 @@
 #define HYPRE_TIMING
 
 // hypre header files
+#if MFEM_HYPRE_VERSION < 30000
+#include <seq_mv.h>
+#include <temp_multivector.h>
+#else
+#include <_hypre_seq_mv.h>
+#include <_hypre_lobpcg_temp_multivector.h>
+#endif
 #include <_hypre_parcsr_mv.h>
 #include <_hypre_parcsr_ls.h>
 
