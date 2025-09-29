@@ -3,42 +3,41 @@
 namespace mfem
 {
 
-CoupledApplication::~CoupledApplication()
+
+OperatorCoupler* OperatorCoupler::Select(CoupledOperator *op, 
+                                         Scheme scheme)
+{
+    switch (scheme)
+    {
+        case Scheme::MONOLITHIC:
+        {
+            real_t fd_eps = 1e-6;
+            return new JacobianFreeFullCoupler(op, fd_eps);
+        }
+        case Scheme::ADDITIVE_SCHWARZ:
+            return new AdditiveSchwarzCoupler(op);
+        case Scheme::ALTERNATING_SCHWARZ:
+            return new AlternatingSchwarzCoupler(op);
+        default:
+            MFEM_ABORT("Unknown coupling scheme: " << static_cast<int>(scheme));
+    }
+}
+
+CoupledOperator::~CoupledOperator()
 {
     if(solver && own_solver) delete solver;
-    if(coupling_op && own_coupling_op) delete coupling_op;        
+    if(op_coupler && own_op_coupler) delete op_coupler;        
 }
 
-void CoupledApplication::SetCouplingOperator(CouplingOperator* op, bool own){
-    if(coupling_op && own_coupling_op) delete coupling_op;
-    coupling_op = op;
-    own_coupling_op = own;
+void CoupledOperator::SetOperatorCoupler(OperatorCoupler* op, bool own)
+{
+    if(op_coupler && own_op_coupler) delete op_coupler;
+    op_coupler = op;
+    own_op_coupler = own;
+    coupler_type = op_coupler->GetType();
 }
 
-CouplingOperator *CoupledApplication::BuildCouplingOperator(){
-
-    if (coupling_op){
-        delete coupling_op;
-        coupling_op = nullptr;
-    }
-
-    if (scheme == Scheme::MONOLITHIC)
-    {
-        coupling_op = new MonolithicOperator(this, 1e-6); // eps = 1e-6
-    }
-    else if (scheme == Scheme::ADDITIVE_SCHWARZ)
-    {
-        coupling_op = new AdditiveSchwarzOperator(this);
-    }
-    else if (scheme == Scheme::ALTERNATING_SCHWARZ)
-    {
-        coupling_op = new AlternatingSchwarzOperator(this);
-    }
-
-    return coupling_op;
-}
-
-void CoupledApplication::Initialize(bool do_ops)
+void CoupledOperator::Initialize(bool do_ops)
 {
     if (do_ops)
     {
@@ -49,7 +48,7 @@ void CoupledApplication::Initialize(bool do_ops)
     }
 }
 
-void CoupledApplication::Assemble(bool do_ops)
+void CoupledOperator::Assemble(bool do_ops)
 {
     if (do_ops)
     {
@@ -59,11 +58,12 @@ void CoupledApplication::Assemble(bool do_ops)
         }
     }
 
-    BuildCouplingOperator();                
-    if(coupling_op && solver) solver->SetOperator(*coupling_op);
+    if(op_coupler && own_op_coupler) delete op_coupler;
+    op_coupler = OperatorCoupler::Select(this, coupler_type);
+    if(solver) solver->SetOperator(*op_coupler);
 }
 
-void CoupledApplication::Finalize(bool do_ops)
+void CoupledOperator::Finalize(bool do_ops)
 {
     if (do_ops)
     {
@@ -71,20 +71,10 @@ void CoupledApplication::Finalize(bool do_ops)
         {
             op->Finalize();
         }
-    }
-    
-    if (coupling_op)
-    {
-        MFEM_VERIFY(solver,"Solver to be used for coupling not defined; set solver using SetSolver(Solver*)");
-        if(coupling_op->IsLinear())
-        {  // Use b to store the rhs for the linear implicit solve.
-            // b=0 (or unused) for nonlinear Newton solves
-            b.SetSize(Width());
-        }
-    }
+    }    
 }
 
-void CoupledApplication::PreProcess(Vector &x, bool do_ops) 
+void CoupledOperator::PreProcess(Vector &x, bool do_ops) 
 {
     if (do_ops)
     {
@@ -92,13 +82,12 @@ void CoupledApplication::PreProcess(Vector &x, bool do_ops)
         for (int i=0; i < nops; i++)
         {
             Vector &xi = xb.GetBlock(i);
-            operators[i]->SetOperationID(OperationID::NONE);
             operators[i]->PreProcess(xi);
         }
     }
 }
 
-void CoupledApplication::PostProcess(Vector &x, bool do_ops) 
+void CoupledOperator::PostProcess(Vector &x, bool do_ops) 
 {
     if (do_ops)
     {
@@ -106,13 +95,34 @@ void CoupledApplication::PostProcess(Vector &x, bool do_ops)
         for (int i=0; i < nops; i++)
         {
             Vector &xi = xb.GetBlock(i);
-            operators[i]->SetOperationID(OperationID::NONE);
             operators[i]->PostProcess(xi);
         }
     }
 }    
 
-void CoupledApplication::Transfer(const Vector &x)
+void CoupledOperator::SetOperationID(OperationID id, bool do_ops)
+{
+    Application::SetOperationID(id);
+    if (do_ops)
+    {
+        for (auto &op : operators)
+        {
+            op->SetOperationID(id);
+        }
+    }
+}
+
+void CoupledOperator::SetTime(const real_t t_) 
+{
+    TimeDependentOperator::SetTime(t_);
+    if(op_coupler) op_coupler->SetTime(t_);
+    for (auto &op : operators)
+    {
+        op->SetTime(t_);
+    }
+}
+
+void CoupledOperator::Transfer(const Vector &x)
 {
     BlockVector xb(x.GetData(), offsets);
     for (int i=0; i < nops; i++)
@@ -121,7 +131,7 @@ void CoupledApplication::Transfer(const Vector &x)
     }
 }
 
-void CoupledApplication::Transfer(const Vector &u, const Vector &k, real_t dt)
+void CoupledOperator::Transfer(const Vector &u, const Vector &k, real_t dt)
 {
     BlockVector ub(u.GetData(), offsets);
     BlockVector kb(k.GetData(), offsets);
@@ -131,12 +141,18 @@ void CoupledApplication::Transfer(const Vector &u, const Vector &k, real_t dt)
     }
 }
 
-void CoupledApplication::Mult(const Vector &x, Vector &y) const
+void CoupledOperator::Mult(const Vector &x, Vector &y) const
 {
-    if(coupling_op && scheme != Scheme::NONE)
-    {
-        coupling_op->SetOperationID(OperationID::MULT);
-        coupling_op->Mult(x,y);
+    if(op_coupler && coupler_type != Scheme::NONE)
+    {        
+        if(solver) {
+            op_coupler->SetOperationID(OperationID::MULT);
+            op_coupler->SetInput(&x);
+            solver->Mult(b,y);
+        }
+        else {
+            op_coupler->Mult(x,y);
+        }        
     }
     else
     {
@@ -151,14 +167,19 @@ void CoupledApplication::Mult(const Vector &x, Vector &y) const
     }
 }
 
-void CoupledApplication::ImplicitSolve(const real_t dt, const Vector &x, Vector &k ){
+void CoupledOperator::ImplicitSolve(const real_t dt, const Vector &x, Vector &k ){
 
-    if(coupling_op && scheme != Scheme::NONE)
-    {
-        coupling_op->SetOperationID(OperationID::IMPLICIT_SOLVE);        
-        coupling_op->SetTimeStep(dt); ///< Set the time step for the implicit operator
-        coupling_op->SetState(&x); ///< Set the input vector for the implicit operator
-        solver->Mult(b,k); ///< Solve the implicit system using the solver (b is unused for FPISolver)
+    if(op_coupler && coupler_type != Scheme::NONE)
+    {        
+        if(solver) {
+            op_coupler->SetOperationID(OperationID::IMPLICIT_SOLVE); ///< OperatorCoupler::Mult() -> OperatorCoupler::ImplicitSolve() 
+            op_coupler->SetTimeStep(dt);
+            op_coupler->SetInput(&x);
+            solver->Mult(b,k);
+        }
+        else {
+            op_coupler->ImplicitSolve(dt,x,k);
+        }                
     }
     else
     {
@@ -175,42 +196,20 @@ void CoupledApplication::ImplicitSolve(const real_t dt, const Vector &x, Vector 
     }
 }
 
-void CoupledApplication::ImplicitMult(const Vector &u, const Vector &k, Vector &v) const 
+void CoupledOperator::Step(Vector &x, real_t &t, real_t &dt)
 {
-    BlockVector ub(u.GetData(), offsets);
-    BlockVector kb(k.GetData(), offsets);
-    BlockVector vb(v.GetData(), offsets);
-
-    for (int i=0; i < nops; i++)
+    if(op_coupler && coupler_type != Scheme::NONE)
     {
-        Vector &ui = ub.GetBlock(i);
-        Vector &ki = kb.GetBlock(i);
-        Vector &vi = vb.GetBlock(i);
-        operators[i]->SetOperationID(OperationID::IMPLICIT_MULT);
-        operators[i]->ImplicitMult(ui,ki,vi); ///< Solve the implicit system for the application
-    }
-}
-
-void CoupledApplication::ExplicitMult(const Vector &u, Vector &v) const
-{
-    BlockVector ub(u.GetData(), offsets);
-    BlockVector vb(v.GetData(), offsets);
-
-    for (int i=0; i < nops; i++)
-    {
-        Vector &ui = ub.GetBlock(i);
-        Vector &vi = vb.GetBlock(i);
-        operators[i]->SetOperationID(OperationID::EXPLICIT_MULT);
-        operators[i]->ExplicitMult(ui,vi); ///< Solve the implicit system for the application
-    }
-}
-
-void CoupledApplication::Step(Vector &x, real_t &t, real_t &dt)
-{
-    if(coupling_op && scheme != Scheme::NONE)
-    {
-        coupling_op->SetOperationID(OperationID::STEP);
-        coupling_op->Step(x,t,dt);
+        if(solver) {
+            op_coupler->SetOperationID(OperationID::STEP); ///< OperatorCoupler::Mult() -> OperatorCoupler::Mult() 
+            op_coupler->SetTimeStep(dt); ///< Set the time step for the ODE Solver
+            op_coupler->SetTime(t);
+            op_coupler->SetInput(&x);
+            solver->Mult(b,x);
+        }
+        else {
+            op_coupler->Step(x,t,dt);
+        }                
     }
     else
     {
@@ -228,35 +227,77 @@ void CoupledApplication::Step(Vector &x, real_t &t, real_t &dt)
     }
 }
 
-void AdditiveSchwarzOperator::Mult(const Vector &x, Vector &y) const
+void CoupledOperator::ImplicitMult(const Vector &u, const Vector &k, Vector &v) const 
 {
+    BlockVector ub(u.GetData(), offsets);
+    BlockVector kb(k.GetData(), offsets);
+    BlockVector vb(v.GetData(), offsets);
+
+    for (int i=0; i < nops; i++)
+    {
+        Vector &ui = ub.GetBlock(i);
+        Vector &ki = kb.GetBlock(i);
+        Vector &vi = vb.GetBlock(i);
+        operators[i]->SetOperationID(OperationID::IMPLICIT_MULT);
+        operators[i]->ImplicitMult(ui,ki,vi); ///< Solve the implicit system for the application
+    }
+}
+
+void CoupledOperator::ExplicitMult(const Vector &u, Vector &v) const
+{
+    BlockVector ub(u.GetData(), offsets);
+    BlockVector vb(v.GetData(), offsets);
+
+    for (int i=0; i < nops; i++)
+    {
+        Vector &ui = ub.GetBlock(i);
+        Vector &vi = vb.GetBlock(i);
+        operators[i]->SetOperationID(OperationID::EXPLICIT_MULT);
+        operators[i]->ExplicitMult(ui,vi); ///< Solve the implicit system for the application
+    }
+}
+
+
+
+
+// AdditiveSchwarzCoupler methods
+void AdditiveSchwarzCoupler::Mult(const Vector &x, Vector &y) const
+{
+    /// This is use to call either ImplicitSolve or Step when Solver::Mult()
+    /// calls Solver.Operator::Mult()
     if(GetOperationID() == OperationID::IMPLICIT_SOLVE)
-    {// if the operation is an implicit solve (set by CoupledApplication::ImplicitSolve), 
-     // then Mult was called by the Solver
+    {
         y=x; // input vector passed as initial guess for k in ImpliicitSolve
-        const_cast<AdditiveSchwarzOperator*>(this)->ImplicitSolve(dt,*u,y);
+        ImplicitSolve(timestep,*input,y);
         return;
     }
+    else if(GetOperationID() == OperationID::STEP)
+    {
+        y=x; // input vector passed as initial condition in Step
+        real_t t_ = t, dt = timestep; 
+        Step(y,t_,dt);
+        return;
+    }    
 
-    int nops = coupled_operator->Size();
-    const Array<int> offsets = coupled_operator->GetOffsets();
+    int nops = coupled_op->Size();
+    const Array<int> offsets = coupled_op->GetBlockOffsets();
 
     BlockVector xb(x.GetData(), offsets);
     BlockVector yb(y.GetData(), offsets);
 
-    // Transfer data.
     for (int i=0; i < nops; i++)
     {
         Vector &xi = xb.GetBlock(i);
-        auto op = coupled_operator->GetOperator(i);
-        op->Transfer(xi);
+        Vector &yi = yb.GetBlock(i);
+        auto op = coupled_op->GetOperator(i);
+        op->Transfer(xi,yi,0.0);
     }
 
     for (int i=0; i < nops; i++)
     {
         Vector &xi = xb.GetBlock(i);
         Vector &yi = yb.GetBlock(i);
-        auto op = coupled_operator->GetOperator(i);
+        auto op = coupled_op->GetOperator(i);
         op->SetOperationID(OperationID::MULT);
         
         op->PreProcess(xi); ///< Postprocess the data for the application
@@ -265,10 +306,10 @@ void AdditiveSchwarzOperator::Mult(const Vector &x, Vector &y) const
     }
 }
 
-void AdditiveSchwarzOperator::ImplicitSolve(const real_t dt, const Vector &x, Vector &k )
+void AdditiveSchwarzCoupler::ImplicitSolve(const real_t dt, const Vector &x, Vector &k ) const
 {
-    int nops = coupled_operator->Size();
-    const Array<int> offsets = coupled_operator->GetOffsets();
+    int nops = coupled_op->Size();
+    const Array<int> offsets = coupled_op->GetBlockOffsets();
 
     BlockVector xb(x.GetData(), offsets);
     BlockVector kb(k.GetData(), offsets);
@@ -277,9 +318,8 @@ void AdditiveSchwarzOperator::ImplicitSolve(const real_t dt, const Vector &x, Ve
     {
         Vector &xi = xb.GetBlock(i);
         Vector &ki = kb.GetBlock(i);
-        int nxi    = xi.Size();
-        auto op = coupled_operator->GetOperator(i);
-        op->Transfer(xi,ki,dt);     ///< Transfer the data to all applications
+        auto op = coupled_op->GetOperator(i);
+        op->Transfer(xi,ki,dt);
     }
 
     for (int i=0; i < nops; i++)
@@ -287,64 +327,72 @@ void AdditiveSchwarzOperator::ImplicitSolve(const real_t dt, const Vector &x, Ve
         Vector &xi = xb.GetBlock(i);
         Vector &ki = kb.GetBlock(i);
 
-        auto op = coupled_operator->GetOperator(i);
+        auto op = coupled_op->GetOperator(i);
         op->SetOperationID(OperationID::IMPLICIT_SOLVE);
 
-        op->PreProcess(xi); ///< Postprocess the data for the application
-        op->ImplicitSolve(dt,xi,ki); ///< Solve the implicit system for the application
-        op->PostProcess(ki); ///< Postprocess the data for the application        
+        op->PreProcess(xi);
+        op->ImplicitSolve(dt,xi,ki);
+        op->PostProcess(ki);
     }
 }
 
-void AdditiveSchwarzOperator::Step(Vector &x, real_t &t_, real_t &dt_)
+void AdditiveSchwarzCoupler::Step(Vector &x, real_t &t_, real_t &dt) const
 {
-    int nops = coupled_operator->Size();
-    const Array<int> offsets = coupled_operator->GetOffsets();
+    int nops = coupled_op->Size();
+    const Array<int> offsets = coupled_op->GetBlockOffsets();
     
     BlockVector xb(x.GetData(), offsets);
-
-    // Transfer the data before all applications have been stepped forward
+    
     for (int i=0; i < nops; i++)
     {
         Vector &xi = xb.GetBlock(i);
-        auto op = coupled_operator->GetOperator(i);
+        auto op = coupled_op->GetOperator(i);
         op->Transfer(xi);
     }
 
-
-    // Step forward all operators
     // TODO: Add time-interpolation to enable different time step for each operator; 
     //       currently, all operators are stepped forward with the same time step
     for (int i=0; i < nops; i++)
     {
-        real_t t0 = t_;   ///< Store the current time
-        real_t dt0 = dt_; ///< Store the current time step
+        real_t ti = t_;  ///< Store the current time
+        real_t dti = dt; ///< Store the current time step
 
         Vector &xi = xb.GetBlock(i);
-        auto op = coupled_operator->GetOperator(i);
+        auto op = coupled_op->GetOperator(i);
         op->SetOperationID(OperationID::STEP);
         
-        op->PreProcess(xi); ///< Preprocess the data for the application
-        op->Step(xi,t0,dt0); ///< Advance the time step for application
-        op->PostProcess(xi); ///< Postprocess the data for the application
+        op->PreProcess(xi);
+        op->Step(xi,ti,dti);
+        op->PostProcess(xi);
     }
 
-    t_ += dt_; ///< Update the time after all applications have been stepped forward
+    t_ += dt; ///< Update the time after all applications have been stepped forward
                ///< NOTE: does not work for adaptive time-stepping
 }
 
-void AlternatingSchwarzOperator::Mult(const Vector &x, Vector &y) const
+
+// AlternatingSchwarzCoupler methods
+void AlternatingSchwarzCoupler::Mult(const Vector &x, Vector &y) const
 {
+    /// This is use to call either ImplicitSolve or Step when Solver::Mult()
+    /// calls Solver.Operator::Mult()
     if(GetOperationID() == OperationID::IMPLICIT_SOLVE)
-    {// if the operation is an implicit solve (set by CoupledApplication::ImplicitSolve), 
-     // then Mult was called by the Solver
+    {
         y=x; // input vector passed as initial guess for k in ImpliicitSolve
-        const_cast<AlternatingSchwarzOperator*>(this)->ImplicitSolve(dt,*u,y);
+        ImplicitSolve(timestep,*input,y);
         return;
     }
+    else if(GetOperationID() == OperationID::STEP)
+    {
+        y=x; // input vector passed as initial condition in Step
+        real_t t_ = t, dt = timestep; 
+        Step(y,t_,dt);
+        return;
+    }    
 
-    int nops = coupled_operator->Size();
-    const Array<int> offsets = coupled_operator->GetOffsets();
+
+    int nops = coupled_op->Size();
+    const Array<int> offsets = coupled_op->GetBlockOffsets();
 
     BlockVector xb(x.GetData(), offsets);
     BlockVector yb(y.GetData(), offsets);
@@ -353,20 +401,20 @@ void AlternatingSchwarzOperator::Mult(const Vector &x, Vector &y) const
     {
         Vector &xi = xb.GetBlock(i);
         Vector &yi = yb.GetBlock(i);
-        auto op = coupled_operator->GetOperator(i);
+        auto op = coupled_op->GetOperator(i);
         op->SetOperationID(OperationID::MULT);
 
         op->PreProcess(xi);
         op->Mult(xi,yi);
-        op->PostProcess(yi); ///< Postprocess the data for the application
-        op->Transfer(yi);  ///< Transfer the data to all applications
+        op->PostProcess(yi);
+        op->Transfer(xi,yi,0.0);
     }
 }
 
-void AlternatingSchwarzOperator::ImplicitSolve(const real_t dt, const Vector &x, Vector &k )
+void AlternatingSchwarzCoupler::ImplicitSolve(const real_t dt, const Vector &x, Vector &k ) const
 {
-    int nops = coupled_operator->Size();
-    const Array<int> offsets = coupled_operator->GetOffsets();
+    int nops = coupled_op->Size();
+    const Array<int> offsets = coupled_op->GetBlockOffsets();
 
     BlockVector xb(x.GetData(), offsets);
     BlockVector kb(k.GetData(), offsets);
@@ -375,53 +423,59 @@ void AlternatingSchwarzOperator::ImplicitSolve(const real_t dt, const Vector &x,
     {
         Vector &xi = xb.GetBlock(i);
         Vector &ki = kb.GetBlock(i);
-        int nxi    = xi.Size();
 
-        auto op = coupled_operator->GetOperator(i);
+        auto op = coupled_op->GetOperator(i);
         op->SetOperationID(OperationID::IMPLICIT_SOLVE);
 
-        op->PreProcess(xi); ///< Preprocess the data for the application
-        op->ImplicitSolve(dt,xi,ki); ///< Solve the implicit system for the application
-        op->PostProcess(ki); ///< Postprocess the data for the application
-        op->Transfer(xi,ki,dt);     ///< Transfer the data to all applications
+        op->PreProcess(xi);
+        op->ImplicitSolve(dt,xi,ki);
+        op->PostProcess(ki);
+        op->Transfer(xi,ki,dt);
     }
 }
 
-void AlternatingSchwarzOperator::Step(Vector &x, real_t &t_, real_t &dt_)
+void AlternatingSchwarzCoupler::Step(Vector &x, real_t &t_, real_t &dt) const
 {
-    int nops = coupled_operator->Size();
-    const Array<int> offsets = coupled_operator->GetOffsets();
+    int nops = coupled_op->Size();
+    const Array<int> offsets = coupled_op->GetBlockOffsets();
 
     BlockVector xb(x.GetData(), offsets);
 
     for (int i=0; i < nops; i++)
     {
-        real_t t0 = t_;   ///< Store the current time
-        real_t dt0 = dt_; ///< Store the current time step
+        real_t ti = t_;   ///< Store the current time
+        real_t dti = dt;  ///< Store the current time step
 
         Vector &xi = xb.GetBlock(i);
-        auto op = coupled_operator->GetOperator(i);
+        auto op = coupled_op->GetOperator(i);
         op->SetOperationID(OperationID::STEP);
 
-        op->PreProcess(xi); ///< Preprocess the data for the application
-        op->Step(xi,t0,dt0); ///< Advance the time step for application
-        op->PostProcess(xi); ///< Postprocess the data for the application
-        op->Transfer(xi);    ///< Transfer the data to all applications
+        op->PreProcess(xi);
+        op->Step(xi,ti,dti);
+        op->PostProcess(xi);
+        op->Transfer(xi);
     }
 
-    t_ += dt_; ///< Update the time after all applications have been stepped forward
+    t_ += dt; ///< Update the time after all applications have been stepped forward
                ///< NOTE: does not work for adaptive time-stepping
 }
 
-void MonolithicOperator::Mult(const Vector &k, Vector &y) const {
-    add(du,*u,dt,k,upk); // upk = u + dt*k
-    coupled_operator->Transfer(upk);
-    coupled_operator->ImplicitMult(upk,k,y); //y = f(upk,k,t)
+
+
+// JacobianFreeFullCoupler methods
+void JacobianFreeFullCoupler::Mult(const Vector &k, Vector &y) const
+{
+    add(1.0,*input,timestep,k,u); // u = u + dt*k
+    coupled_op->Transfer(u);
+    coupled_op->ImplicitMult(u,k,y); //compute residual y = f(u,k,t)
 }
 
-Operator& MonolithicOperator::GetGradient(const Vector &k) const {
+Operator& JacobianFreeFullCoupler::GetGradient(const Vector &k) const
+{
     grad.Update(k);
     return const_cast<future::FDJacobian&>(grad);
 }
+
+
 
 }
