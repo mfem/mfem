@@ -389,8 +389,6 @@ void IPSolver::FormIPNewtonMat(BlockVector & x, Vector & l,
                                BlockOperator &Ak, real_t delta)
 {
    Huu = problem->Duuf(x);
-   Hum = problem->Dumf(x);
-   Hmu = problem->Dmuf(x);
    Hmm = problem->Dmmf(x);
 
    delete JuT;
@@ -459,11 +457,6 @@ void IPSolver::FormIPNewtonMat(BlockVector & x, Vector & l,
    Ak.SetBlock(0, 0, Wuu);                         Ak.SetBlock(0, 2, JuT);
    Ak.SetBlock(1, 1, Wmm); Ak.SetBlock(1, 2, JmT);
    Ak.SetBlock(2, 0,  Ju); Ak.SetBlock(2, 1,  Jm);
-   if (Hum)
-   {
-      Ak.SetBlock(0, 1, Hum);
-      Ak.SetBlock(1, 0, Hmu);
-   }
 }
 
 // perturbed KKT system solve
@@ -608,8 +601,8 @@ void IPSolver::LineSearch(BlockVector& X0, BlockVector& Xhat,
       xtrial.Set(1.0, x0);
       xtrial.Add(alpha, xhat);
 
-      thxtrial = GetTheta(xtrial);
-      phxtrial = GetPhi(xtrial, mu, eval_err);
+      real_t thxtrial = GetTheta(xtrial);
+      real_t phxtrial = GetPhi(xtrial, mu, eval_err);
       if (eval_err == 1)
       {
          if (myid == 0 && print_level > 0)

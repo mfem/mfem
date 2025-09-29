@@ -71,6 +71,9 @@ public:
 protected:
    /// OptContactProblem (not owned).
    OptContactProblem* problem = nullptr;
+   
+   /// Linear solver (not owned)
+   Solver * solver = nullptr;
 
    real_t abs_tol;
    int  max_iter;
@@ -86,8 +89,8 @@ protected:
 
    // quantities computed in lineSearch
    real_t alpha, alphaz;
-   real_t thx0, thxtrial;
-   real_t phx0, phxtrial;
+   real_t thx0;
+   real_t phx0;
    bool descentDirection = false;
    bool switchCondition = false;
    bool sufficientDecrease = false;
@@ -100,8 +103,6 @@ protected:
    Vector ml; // can this be removed?
 
    HypreParMatrix * Huu = nullptr;
-   HypreParMatrix * Hum = nullptr;
-   HypreParMatrix * Hmu = nullptr;
    HypreParMatrix * Hmm = nullptr;
    HypreParMatrix * Wuu = nullptr;
    HypreParMatrix * Wmm = nullptr;
@@ -125,8 +126,6 @@ protected:
    real_t kRegPlus;
 
    Array<int> num_krylov_iterations;
-   Solver * solver = nullptr;
-   ParFiniteElementSpace *pfes = nullptr;
 
    bool converged = false;
 
