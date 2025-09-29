@@ -16,7 +16,7 @@ using namespace mfem;
  * In the context of frictionless quasi-static
  * contact mechanics for the displacement variable d
  * and slack variable s we have
- * \min_(d, s) E(d, s) 
+ * \min_(d, s) E(d, s)
  *        s.t. g(u) - s = 0
  *                    s>= 0
  */
@@ -256,7 +256,7 @@ void IPSolver::Mult(const BlockVector &x0, BlockVector &xf)
             {
                cout << "solved mu = " << mu_k << " barrier subproblem\n";
             }
-	    UpdateBarrierSubProblem();
+            UpdateBarrierSubProblem();
          }
          else
          {
@@ -294,7 +294,8 @@ void IPSolver::Mult(const BlockVector &x0, BlockVector &xf)
          zlhat = 0.0; Xhatuml = 0.0;
          IPNewtonSolve(xk, lk, zlk, zlhat, Xhatuml, passedCurvatureTest, mu_k, deltaReg);
 
-         for (int numCurvatureTests = 0; numCurvatureTests < maxCurvatureTests; numCurvatureTests++)
+         for (int numCurvatureTests = 0; numCurvatureTests < maxCurvatureTests;
+              numCurvatureTests++)
          {
             if (myid == 0 && print_level > 0)
             {
@@ -425,7 +426,7 @@ void IPSolver::FormIPNewtonMat(BlockVector & x, Vector & l,
    Vector deltaDiagVec(dimU);
    deltaDiagVec = delta;
    deltaDiagVec *= Mvlump;
-   
+
    delete Wuu;
    if (Huu)
    {
@@ -467,7 +468,8 @@ void IPSolver::FormIPNewtonMat(BlockVector & x, Vector & l,
 // perturbed KKT system solve
 // determine the search direction
 void IPSolver::IPNewtonSolve(BlockVector &x, Vector &l,
-                             Vector &zl, Vector &zlhat, BlockVector &Xhat, bool & passedCurvatureTest, real_t mu,
+                             Vector &zl, Vector &zlhat, BlockVector &Xhat, bool & passedCurvatureTest,
+                             real_t mu,
                              real_t delta)
 {
    iter++;
@@ -542,7 +544,7 @@ void IPSolver::IPNewtonSolve(BlockVector &x, Vector &l,
    }
 }
 
-/* line-search from X0 along direction Xhat for the log-barrier 
+/* line-search from X0 along direction Xhat for the log-barrier
  * subproblem with barrier parameter \mu
  */
 void IPSolver::LineSearch(BlockVector& X0, BlockVector& Xhat,
@@ -616,7 +618,7 @@ void IPSolver::LineSearch(BlockVector& X0, BlockVector& Xhat,
          alpha *= 0.5;
          continue;
       }
-      
+
       auto inFilterRegion = FilterCheck(thxtrial, phxtrial);
       if (!inFilterRegion)
       {
@@ -784,9 +786,10 @@ real_t IPSolver::OptimalityError(const BlockVector &x, const Vector &l,
    stationarityError = sqrt(InnerProduct(comm, gradL, MxinvgradL));
    feasibilityError = GlobalLpNorm(infinity(), cx.Normlinf(), comm);
    complementarityError = GlobalLpNorm(infinity(), comp.Normlinf(), comm);
-   
 
-   optimalityError = max(max(stationarityError, feasibilityError), complementarityError);
+
+   optimalityError = max(max(stationarityError, feasibilityError),
+                         complementarityError);
 
    if (myid == 0 && print_level > 0)
    {
@@ -803,7 +806,7 @@ real_t IPSolver::GetTheta(const BlockVector &x)
 {
    Vector cx(dimC);
    problem->c(x, cx);
-   Vector Mcx(dimC); 
+   Vector Mcx(dimC);
    Mcx.Set(1.0, cx);
    Mcx *= Mlump;
    return sqrt(InnerProduct(comm, Mcx, cx));

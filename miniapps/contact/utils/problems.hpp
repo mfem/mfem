@@ -1,15 +1,10 @@
 #include "mfem.hpp"
-
+#include "axom/slic.hpp"
+#include "tribol/interface/tribol.hpp"
+#include "tribol/interface/mfem_tribol.hpp"
 
 using namespace std;
 using namespace mfem;
-
-#include "axom/slic.hpp"
-
-#include "tribol/interface/tribol.hpp"
-#include "tribol/interface/mfem_tribol.hpp"
-// #include "tribol/mesh/CouplingScheme.hpp"
-
 
 class ElasticityOperator
 {
@@ -18,9 +13,9 @@ private:
    bool nonlinear = false;
    bool formsystem = false;
    ParMesh * pmesh = nullptr;
-   Array<int> ess_bdr_attr, ess_bdr_attr_comp;
-   Array<int> ess_bdr, ess_tdof_list;
-   int order=1, ndofs, ntdofs, gndofs;
+   Array<int> ess_bdr, ess_bdr_attr;
+   Array<int> ess_tdof_list, ess_bdr_attr_comp;
+   int order=1, globalntdofs;
    FiniteElementCollection * fec = nullptr;
    ParFiniteElementSpace * fes = nullptr;
    Operator * op = nullptr; // Bilinear or Nonlinear form
@@ -33,16 +28,14 @@ private:
    // linear elasticity:
    // c1 = λ (1ˢᵗ Lame parameter), c2 = μ (2ⁿᵈ Lame parameter or shear modulus)
    // non linear elasticity:
-   // c1 = G (shear modulus μ ), c2 = K (bulk modulus)
+   // c1 = G (shear modulus μ), c2 = K (bulk modulus)
    Vector c1, c2;
    PWConstCoefficient c1_cf, c2_cf;
    NeoHookeanModel * material_model = nullptr;
 
-
    Vector xref;
    Vector eps;
    real_t eps_min = 1.e-4;
-   int bound_constraint_step = 3;
    void Init();
    void SetEssentialBC();
    void SetUpOperator();
@@ -54,30 +47,16 @@ public:
    void SetParameters(const Vector & E, const Vector & nu);
    void SetNeumanPressureData(ConstantCoefficient &f, Array<int> & bdr_marker);
    void SetDisplacementDirichletData(const Vector & delta, Array<int> essbdr);
-   void SetTimeStepDisplacement(int i, const Vector & dx);
-   void ResetDisplacementDirichletData();
-   void UpdateEssentialBC(Array<int> & ess_bdr_attr_,
-                          Array<int> & ess_bdr_attr_comp_);
    void FormLinearSystem();
-   void UpdateLinearSystem();
    void UpdateRHS();
 
    ParMesh * GetMesh() const { return pmesh; };
    MPI_Comm GetComm() const { return comm; };
 
    ParFiniteElementSpace * GetFESpace() const { return fes; };
-   const FiniteElementCollection * GetFECol() const { return fec; };
-   int GetNumDofs() const { return ndofs; };
-   int GetNumTDofs() const { return ntdofs; };
-   int GetGlobalNumDofs() const { return gndofs; };
-   const HypreParMatrix * GetOperator() const { return K; };
-   const Vector & GetRHS() const { return B; };
-
-   const ParGridFunction & GetDisplacementGridFunction() const { return x; };
+   int GetGlobalNumDofs() const { return globalntdofs; };
    const Array<int> & GetEssentialDofs() const { return ess_tdof_list; };
    void Getxrefbc(Vector & xrefbc_) const;
-   void Geteps(Vector & eps_) const;
-   int GetBoundConstraintStep() const { return bound_constraint_step; };
    real_t GetEnergy(const Vector & u) const;
    void GetGradient(const Vector & u, Vector & gradE) const;
    HypreParMatrix * GetHessian(const Vector & u);
@@ -140,11 +119,11 @@ private:
    Vector dl;
    Vector eps;
    real_t eps_min = 1.e-4; // > 0
-   int bound_constraint_step = 3;
    Array<int> block_offsetsg;
-   bool bound_constraints;
-   bool enable_bound_constraints = false;
    real_t tribol_ratio;
+   bool bound_constraints;
+   bool bound_constraints_activated = false;
+
 public:
    OptContactProblem(ElasticityOperator * problem_,
                      const std::set<int> & mortar_attrs_,
@@ -185,8 +164,7 @@ public:
    void DdE(const Vector & d, Vector & gradE);
    HypreParMatrix * DddE(const Vector & d);
 
-   void SetTimeStepDisplacement(int i, const Vector & dx);
-   // void SetBoundConstraints(const Vector & dl_, const Vector & eps_);
+   void SetDisplacement(const Vector & dx);
    void ActivateBoundConstraints();
    HypreParMatrix *  SetupTribol(ParMesh * pmesh, ParGridFunction * coords,
                                  const Array<int> & ess_tdofs,

@@ -24,7 +24,7 @@ void ElasticityOperator::SetParameters(const Vector & E, const Vector & nu)
       for (int i = 0; i<n; i++)
       {
          c1(i) = 0.5*E(i) / (1+nu(i));
-         c2(i) = E(i)/(1-2*nu(i))/3;
+         c2(i) = E(i)/(1.0-2.0*nu(i))/3.0;
       }
    }
    else
@@ -45,16 +45,14 @@ void ElasticityOperator::Init()
    int dim = pmesh->Dimension();
    fec = new H1_FECollection(order,dim);
    fes = new ParFiniteElementSpace(pmesh,fec,dim,Ordering::byVDIM);
-   ndofs = fes->GetVSize();
-   ntdofs = fes->GetTrueVSize();
-   gndofs = fes->GlobalTrueVSize();
+   globalntdofs = fes->GlobalTrueVSize();
    pmesh->SetNodalFESpace(fes);
 
    auto ref_func = [](const Vector & x, Vector & y) { y = x; };
    VectorFunctionCoefficient ref_cf(dim,ref_func);
    ParGridFunction xr(fes); xr.ProjectCoefficient(ref_cf);
    xr.GetTrueDofs(xref);
-   eps.SetSize(ntdofs); eps = eps_min;
+   eps.SetSize(fes->GetTrueVSize()); eps = eps_min;
    SetEssentialBC();
    SetUpOperator();
 }
@@ -106,7 +104,7 @@ void ElasticityOperator::FormLinearSystem()
    {
       formsystem = true;
       b->Assemble();
-      B.SetSize(ntdofs);
+      B.SetSize(fes->GetTrueVSize());
       b->ParallelAssemble(B);
       B.SetSubVector(ess_tdof_list, 0.0);
       if (!nonlinear)
@@ -140,48 +138,10 @@ void ElasticityOperator::SetDisplacementDirichletData(const Vector & delta,
    x.ProjectBdrCoefficient(delta_cf,essbdr);
 }
 
-void ElasticityOperator::SetTimeStepDisplacement(int i, const Vector & dx)
-{
-   if (i >= bound_constraint_step)
-   {
-      eps_min = max(eps_min, GlobalLpNorm(infinity(), eps.Normlinf(), comm));
-      for (int j = 0; j < ntdofs; j++)
-      {
-         eps(j) = max(eps_min, eps(j));
-      }
-   }
-   else
-   {
-      for (int j = 0; j < ntdofs; j++)
-      {
-         eps(j) = max(eps(j), abs(dx(j)));
-      }
-   }
-   // update eps
-}
-
-
-void ElasticityOperator::ResetDisplacementDirichletData() { x = 0.0; }
-
-void ElasticityOperator::UpdateEssentialBC(Array<int> & ess_bdr_attr_,
-                                           Array<int> & ess_bdr_attr_comp_)
-{
-   ess_bdr_attr = ess_bdr_attr_;
-   ess_bdr_attr_comp = ess_bdr_attr_comp_;
-   SetEssentialBC();
-}
-
 void ElasticityOperator::Getxrefbc(Vector & xrefbc) const
 {
    x.GetTrueDofs(xrefbc);
 }
-
-void ElasticityOperator::Geteps(Vector & eps_) const
-{
-   eps_.SetSize(ntdofs);
-   eps_.Set(1.0, eps);
-}
-
 
 real_t ElasticityOperator::GetEnergy(const Vector & u) const
 {
@@ -252,12 +212,13 @@ OptContactProblem::OptContactProblem(ElasticityOperator * problem_,
    : problem(problem_), mortar_attrs(mortar_attrs_),
      nonmortar_attrs(nonmortar_attrs_),
      tribol_ratio(tribol_ratio_),
-     bound_constraints(bound_constraints_), block_offsetsg(4)
+     bound_constraints(bound_constraints_)
 {
    comm = problem->GetComm();
    pmesh = problem->GetMesh();
    vfes = problem->GetFESpace();
    dim = pmesh->Dimension();
+   block_offsetsg.SetSize(4);
 }
 
 void OptContactProblem::ReleaseMemory()
@@ -276,14 +237,6 @@ void OptContactProblem::ReleaseMemory()
       dcdu = nullptr;
    }
 }
-
-// void OptContactProblem::UpdateContactSystem(ParGridFunction * coords_, const Vector & xref_)
-// {
-//    ReleaseMemory();
-//    FormContactSystem(coords_, xref_);
-// }
-
-
 
 void OptContactProblem::FormContactSystem(ParGridFunction * coords_,
                                           const Vector & xref_)
@@ -361,9 +314,9 @@ void OptContactProblem::FormContactSystem(ParGridFunction * coords_,
    }
 }
 
-void OptContactProblem::SetTimeStepDisplacement(int i, const Vector & dx)
+void OptContactProblem::SetDisplacement(const Vector & dx)
 {
-   if (i >= bound_constraint_step)
+   if (bound_constraints_activated)
    {
       eps_min = max(eps_min, GlobalLpNorm(infinity(), eps.Normlinf(), comm));
       for (int j = 0; j < dimU; j++)
@@ -395,7 +348,7 @@ void OptContactProblem::ComputeGapJacobian()
    dof_starts[1] = J->ColPart()[1];
 
    constraints_starts.SetSize(2);
-   if (enable_bound_constraints)
+   if (bound_constraints_activated)
    {
       constraints_starts[0] = J->RowPart()[0] + 2 * J->ColPart()[0];
       constraints_starts[1] = J->RowPart()[1] + 2 * J->ColPart()[1];
@@ -430,7 +383,7 @@ HypreParMatrix * OptContactProblem::Dmmf(const BlockVector & x)
 
 HypreParMatrix * OptContactProblem::Duc(const BlockVector & x)
 {
-   if (enable_bound_constraints)
+   if (bound_constraints_activated)
    {
       Array2D<const HypreParMatrix *> dcduBlockMatrix(3, 1);
       dcduBlockMatrix(0, 0) = J;
@@ -545,7 +498,7 @@ void OptContactProblem::c(const BlockVector & x, Vector & y)
    const Vector disp  = x.GetBlock(0);
    const Vector slack = x.GetBlock(1);
 
-   if (enable_bound_constraints)
+   if (bound_constraints_activated)
    {
       BlockVector yblock(block_offsetsg); yblock = 0.0;
 
@@ -650,7 +603,7 @@ HypreParMatrix * OptContactProblem::DddE(const Vector & d)
 void OptContactProblem::ActivateBoundConstraints()
 {
    dl.Set(1.0, xrefbc);
-   enable_bound_constraints = true;
+   bound_constraints_activated = true;
    constraints_starts[0] = J->RowPart()[0] + 2 * J->ColPart()[0];
    constraints_starts[1] = J->RowPart()[1] + 2 * J->ColPart()[1];
    num_constraints = J->GetGlobalNumRows() + 2 * J->GetGlobalNumCols();

@@ -137,7 +137,6 @@ int main(int argc, char *argv[])
       pmesh.UniformRefinement();
    }
 
-
    Vector E(pmesh.attributes.Max());
    Vector nu(pmesh.attributes.Max());
 
@@ -316,7 +315,6 @@ int main(int argc, char *argv[])
       contact.FormContactSystem(&new_coords, xref);
       if (bound_constraints && i>3) { contact.ActivateBoundConstraints(); }
 
-
       Solver * prec = nullptr;
       Solver * subspacesolver = nullptr;
       if (amgf)
@@ -374,7 +372,7 @@ int main(int argc, char *argv[])
       Vector dx(ndofs); dx = 0.0;
       dx.Set(1.0, xf);
       dx.Add(-1.0, x0);
-      contact.SetTimeStepDisplacement(i, dx);
+      contact.SetDisplacement(dx);
 
       int eval_err;
       real_t Einitial = contact.E(x0, eval_err);
