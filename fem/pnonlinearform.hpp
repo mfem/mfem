@@ -29,6 +29,8 @@ protected:
    mutable ParGridFunction X, Y;
    mutable OperatorHandle pGrad;
 
+   void AssembleGradientOnSharedFaces(int skip_zeros = 1) const;
+
 public:
    ParNonlinearForm(ParFiniteElementSpace *pf);
 
