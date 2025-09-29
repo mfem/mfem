@@ -29,10 +29,9 @@ namespace mfem
 using namespace std;
 
 /**
- * @brief A class to handle fixed point iteration relaxation methods
- *
- * This class provides a base for implementing various relaxation strategies
- * for fixed point iteration solvers.
+   @brief A class to handle fixed point iteration relaxation methods.
+   This class provides a base for implementing various relaxation strategies
+   for fixed point iteration solvers.
  */
 class FPIRelaxation
 {
@@ -42,7 +41,7 @@ private:
 #endif 
 
 protected:
-   const Operator *op = nullptr; ///< Operator being solved
+   const Operator *op = nullptr;
    real_t minf = numeric_limits<real_t>::lowest();
    real_t maxf = numeric_limits<real_t>::max();
 
@@ -57,19 +56,22 @@ public:
     /// @brief Set the operator for the relaxation method.
     virtual void Init(const Operator &op_){op = &op_;}
 
-    void SetMin(real_t minf_){ minf = minf_; }
-    void SetMax(real_t maxf_){ maxf = maxf_; }
-    void SetMinAndMax(real_t minf_, real_t maxf_){ minf = minf_; maxf = maxf_;}
+    virtual void SetLowerBound(real_t minf_){ minf = minf_; }
+    virtual void SetUpperBound(real_t maxf_){ maxf = maxf_; }
+    virtual void SetBounds(real_t minf_, real_t maxf_){ minf = minf_; maxf = maxf_;}
 
     /// @brief Clamp the relaxation factor to the specified range.
-    real_t Clamp(real_t factor) const { return std::max(std::min(factor, maxf), minf);}
+    virtual real_t Clamp(real_t factor) const { return std::max(std::min(factor, maxf), minf);}
 
-    /// @brief Compute the relaxation factor for Fixed Point Iteration.
-    /// @param state Current state vector
-    /// @param residual Current residual vector
-    /// @param res_norm Norm of the current residual vector
-    /// @param rfactor Current relaxation factor
-    /// @return The computed relaxation factor
+    /**
+       @brief Compute the relaxation factor for Fixed Point Iteration.
+       
+       @param state Current state vector
+       @param residual Current residual vector
+       @param res_norm Norm of the current residual vector
+       @param rfactor Current relaxation factor
+       @return real_t The computed relaxation factor
+     */
     virtual real_t Eval(const Vector &state, const Vector &residual, real_t res_norm, real_t rfactor)
     {
         return rfactor; // Default implementation returns the fixed factor
@@ -97,14 +99,14 @@ public:
 };
 
 /**
- * @brief A class to implement Aitken relaxation for Fixed Point Iteration
- * to accelerate the convergence of fixed point iterations.
+   @brief A class to implement Aitken relaxation for Fixed Point Iteration
+   to accelerate the convergence of fixed point iterations.
  */
 class AitkenRelaxation : public FPIRelaxation
 {
 protected:
     Vector rold; // Old residual vector
-    real_t rold_norm = 0.0; ///< Norm of the old residual vector
+    real_t rold_norm = 0.0;
     
 public:
     AitkenRelaxation() = default;
@@ -117,26 +119,29 @@ public:
     void Init(const Operator &op_) override
     {
         FPIRelaxation::Init(op_);
-        rold.SetSize(op->Width()); // Initialize the old residual vector size
-        rold = 0.0;      // Initialize the old residual vector to zero
-        rold_norm = 0.0; // Initialize the old residual norm to zero
+        rold.SetSize(op->Width());
+        rold = 0.0;
+        rold_norm = 0.0;
     }
 
-    /// @brief Compute the Aitken relaxation factor for Fixed Point Iteration.
-    /// @param state Current state vector
-    /// @param residual Current residual vector
-    /// @param res_norm Norm of the current residual vector
-    /// @param rfactor Current relaxation factor
-    /// @return The computed relaxation factor
+    /**
+       @brief Compute the Aitken relaxation factor for Fixed Point Iteration.
+       
+       @param state Current state vector
+       @param residual Current residual vector
+       @param res_norm Norm of the current residual vector
+       @param rfactor Current relaxation factor
+       @return The computed relaxation factor
+     */
     real_t Eval(const Vector &state, const Vector &residual, real_t res_norm, real_t rfactor) override
     {
         real_t num   = Dot(rold, residual) - (rold_norm * rold_norm);
         real_t denom = NormSquared(rold, residual);
         real_t ratio = num / denom;
 
-        if(ratio == 0.0) ratio = -1.0; // Avoid num = 0.0 at first call
-        rold_norm = res_norm*res_norm; // Update the old residual norm
-        rold      = residual;          // Update the old residual vector
+        if(num == 0.0) ratio = -1.0; // Avoid num = 0.0 at first call
+        rold_norm = res_norm;
+        rold      = residual;
 
         return Clamp(-rfactor * ratio); // Clamp the relaxation factor
     };
@@ -148,8 +153,8 @@ public:
 };
 
 /**
- * @brief A class to implement steepest descent relaxation for Fixed Point Iteration
- * to accelerate the convergence of fixed point iterations.
+   @brief A class to implement steepest descent relaxation for Fixed Point Iteration
+   to accelerate the convergence of fixed point iterations.
  */
 class SteepestDescentRelaxation : public FPIRelaxation
 {
@@ -167,16 +172,19 @@ public:
     void Init(const Operator &op_) override
     {
         FPIRelaxation::Init(op_);
-        z.SetSize(op->Width()); // Initialize the old residual vector size
-        z = 0.0;      // Initialize the old residual vector to zero
+        z.SetSize(op->Width());
+        z = 0.0;
     }
 
-    /// @brief Compute the steepest descent relaxation factor for Fixed Point Iteration.
-    /// @param state Current state vector
-    /// @param residual Current residual vector
-    /// @param res_norm Norm of the current residual vector
-    /// @param rfactor Current relaxation factor
-    /// @return The computed relaxation factor
+    /**
+       @brief Compute the steepest descent relaxation factor for Fixed Point Iteration.
+
+       @param state Current state vector
+       @param residual Current residual vector
+       @param res_norm Norm of the current residual vector
+       @param rfactor Current relaxation factor
+       @return The computed relaxation factor
+     */
     real_t Eval(const Vector &state, const Vector &residual, real_t res_norm, real_t rfactor) override
     {
         MFEM_VERIFY(op,"Operator not set; set using Init(Operator&)")
@@ -200,11 +208,11 @@ public:
 class FPISolver : public IterativeSolver
 {
 protected:
-   mutable Vector r, z;
    mutable real_t rfactor = 1.0;
-
    FPIRelaxation *relax_method = nullptr; ///< Relaxation strategy for FPI
-   bool relaxation_owned = false;
+   bool relax_owned = false;
+
+   mutable Vector r, z;
  
    void UpdateVectors()
    {
@@ -226,24 +234,19 @@ public:
         if(!relax_method)
         {
             relax_method = new FPIRelaxation(); // Default relaxation strategy
-            relaxation_owned = true;
+            relax_owned = true;
         }
         relax_method->Init(*oper); 
    }
 
-   void SetRelaxation(real_t r, FPIRelaxation *relaxation = nullptr)
+   void SetRelaxation(real_t r, FPIRelaxation *relaxation = nullptr, bool own = false)
    {
         rfactor = r;
-
-        if (relaxation_owned && relaxation)
+        if (relaxation)
         {
-            delete relax_method; // Delete the previous relaxation strategy
-            relax_method = relaxation; // Set the new relaxation strategy
-            relaxation_owned = false;
-        }
-        else if (relaxation)
-        {
+            if(relax_method && relax_owned) delete relax_method;
             relax_method = relaxation;
+            relax_owned  = own;
         }
 #ifdef MFEM_USE_MPI    
         if(relax_method) relax_method->SetComm(this->GetComm());
