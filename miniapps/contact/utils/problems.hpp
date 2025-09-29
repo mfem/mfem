@@ -34,8 +34,6 @@ private:
    NeoHookeanModel * material_model = nullptr;
 
    Vector xref;
-   Vector eps;
-   real_t eps_min = 1.e-4;
    void Init();
    void SetEssentialBC();
    void SetUpOperator();
@@ -129,9 +127,8 @@ public:
                      const std::set<int> & mortar_attrs_,
                      const std::set<int> & nonmortar_attrs_,
                      real_t tribol_ratio_,
-                     bool bound_constraints_=true);
+                     bool bound_constraints_);
    void FormContactSystem(ParGridFunction * coords_, const Vector & xref);
-   void UpdateContactSystem(ParGridFunction * coords_, const Vector & xref);
    int GetDimU() {return dimU;}
    int GetDimM() {return dimM;}
    int GetDimC() {return dimC;}

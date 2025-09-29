@@ -52,7 +52,6 @@ void ElasticityOperator::Init()
    VectorFunctionCoefficient ref_cf(dim,ref_func);
    ParGridFunction xr(fes); xr.ProjectCoefficient(ref_cf);
    xr.GetTrueDofs(xref);
-   eps.SetSize(fes->GetTrueVSize()); eps = eps_min;
    SetEssentialBC();
    SetUpOperator();
 }
@@ -207,7 +206,7 @@ ElasticityOperator::~ElasticityOperator()
 OptContactProblem::OptContactProblem(ElasticityOperator * problem_,
                                      const std::set<int> & mortar_attrs_,
                                      const std::set<int> & nonmortar_attrs_,
-                                     double tribol_ratio_,
+                                     real_t tribol_ratio_,
                                      bool bound_constraints_)
    : problem(problem_), mortar_attrs(mortar_attrs_),
      nonmortar_attrs(nonmortar_attrs_),
@@ -288,7 +287,6 @@ void OptContactProblem::FormContactSystem(ParGridFunction * coords_,
    HypreStealOwnership(*negIu, *tempSparse);
    delete tempSparse;
 
-
    dimM = dimG;
    dimC = dimM;
 
@@ -310,7 +308,10 @@ void OptContactProblem::FormContactSystem(ParGridFunction * coords_,
    if (!dl.Size())
    {
       dl.SetSize(dimU); dl = 0.0;
-      eps.SetSize(dimU); eps = 0.0; // minimum size of eps controlled by eps_min
+      if (bound_constraints)
+      {
+         eps.SetSize(dimU); eps = 0.0; // minimum size of eps controlled by eps_min
+      }
    }
 }
 
@@ -331,10 +332,7 @@ void OptContactProblem::SetDisplacement(const Vector & dx)
          eps(j) = max(eps(j), abs(dx(j)));
       }
    }
-   // update eps
 }
-
-
 
 void OptContactProblem::ComputeGapJacobian()
 {
@@ -487,12 +485,9 @@ void OptContactProblem::g(const Vector & d, Vector & gd)
    gd.Add(1.0, gapv);
 }
 
-
 //           [     g1(d)      ]
 // c(d, s) = [ eps + (d - dl) ] - s
 //           [ eps - (d - dl) ]
-
-
 void OptContactProblem::c(const BlockVector & x, Vector & y)
 {
    const Vector disp  = x.GetBlock(0);
@@ -611,17 +606,6 @@ void OptContactProblem::ActivateBoundConstraints()
    dimC = dimM;
    ml.SetSize(dimM); ml = 0.0;
 }
-
-// void OptContactProblem::SetBoundConstraints(const Vector & dl_,
-//                                             const Vector & eps_)
-// {
-//    MFEM_VERIFY(dl_.Size() == dimU,
-//                "constraint vector dl is not of the correct size");
-//    MFEM_VERIFY(eps_.Size() == dimU,
-//                "constraint vector eps is not the correct size");
-//    dl.Set(1.0, dl_);
-//    eps.Set(1.0, eps_);
-// }
 
 OptContactProblem::~OptContactProblem()
 {
