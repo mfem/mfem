@@ -102,6 +102,7 @@ protected:
    Array<int> block_offsetsumlz, block_offsetsuml, block_offsetsx;
    Vector ml; // can this be removed?
 
+   // Operators (not owned)
    HypreParMatrix * Huu = nullptr;
    HypreParMatrix * Hmm = nullptr;
    HypreParMatrix * Wuu = nullptr;
@@ -134,25 +135,40 @@ protected:
    int print_level = 0;
    MPI_Comm comm;
 private:
-   real_t GetMaxStepSize(Vector&, Vector&, Vector&, real_t);
-   real_t GetMaxStepSize(Vector&, Vector&, real_t);
+   /// Form (regularized) IP-Newton linear system matrix 
    void FormIPNewtonMat(BlockVector&, Vector&, Vector&, BlockOperator &,
                         real_t delta = 0.0);
+   /// Solve the (regularized) IP-Newton linear system
    void IPNewtonSolve(BlockVector&, Vector&, Vector&, Vector&, BlockVector&,
                       bool &, real_t, real_t delta = 0.0);
+   /// Max step length that satisfies fraction-to-boundary rule
+   real_t GetMaxStepSize(Vector&, Vector&, Vector&, real_t);
+   /// Max step length that satisfies fraction-to-boundary rule
+   real_t GetMaxStepSize(Vector&, Vector&, real_t);
+   /// Globalizing line search
    void LineSearch(BlockVector&, BlockVector&, real_t);
-   void ProjectZ(const Vector &, Vector &, real_t);
+   /// check if a point is acceptable to the filter
    bool FilterCheck(real_t, real_t);
-   real_t OptimalityError(const BlockVector &, const Vector &, const Vector &,
-                          real_t mu = 0.0);
+   /// Project inequality constraint multiplier
+   void ProjectZ(const Vector &, Vector &, real_t);
+   /// Evaluate theta (equality constraint violation measure)
    real_t GetTheta(const BlockVector &);
+   /// Evaluate log-barrier objective phi
    real_t GetPhi(const BlockVector &, real_t, int eval_err = 0);
+   /// Gradient of log-barrier objective w.r.t. primal variables
    void GetDxphi(const BlockVector &, real_t, BlockVector &);
+   /// Evaluate the primal-dual Lagrangian
    real_t EvalLangrangian(const BlockVector &, const Vector &, const Vector &);
+   /// Gradient of the primal-dual Lagrangian w.r.t. primal variables
    void EvalLagrangianGradient(const BlockVector &, const Vector &, const Vector &,
                                BlockVector &);
+   /// curvature test to detect negative-curvature
    bool CurvatureTest(const BlockOperator & A, const BlockVector & Xhat,
                       const Vector &l, const BlockVector & b, const real_t & delta);
+   /// Compute the optimality error
+   real_t OptimalityError(const BlockVector &, const Vector &, const Vector &,
+                          real_t mu = 0.0);
+   /// Update the barrier parameter
    void UpdateBarrierSubProblem()
    {
       // reduced barrier parameter
