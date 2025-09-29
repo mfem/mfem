@@ -101,6 +101,7 @@ IPSolver::IPSolver(OptContactProblem * problem_)
    block_offsetsumlz.PartialSum();
 
    Mlump.SetSize(dimM); Mlump = 0.0;
+   int dimG = 0; // number of gap constraints
    if (dimM < dimU)
    {
       dimG = dimM;
@@ -520,7 +521,7 @@ void IPSolver::IPNewtonSolve(BlockVector &x, Vector &l,
    solver->Mult(breduced, Xhat.GetBlock(0));
    auto itsolver = dynamic_cast<IterativeSolver *>(solver);
    int numit = (itsolver) ? itsolver->GetNumIterations() : -1;
-   cgnum_iterations.Append(numit);
+   num_krylov_iterations.Append(numit);
 
    // now propagate solved uhat to obtain mhat and lhat
    // xm = Ju xu - bl
