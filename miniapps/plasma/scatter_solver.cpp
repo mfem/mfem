@@ -9,9 +9,11 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#include "coupledop.hpp"
+#include "scatter_solver.hpp"
 
 namespace mfem
+{
+namespace plasma
 {
 CoupledOperator::CoupledOperator(const Array<int> &bdr_u_is_ess,
                                  const Array<int> &bdr_E_is_ess, Coefficient *sigma_,
@@ -791,4 +793,5 @@ Operator &CoupledOperator::ReducedOperator::GetGradient(const Vector &x) const
 
    return *grad;
 }
-}
+} // namespace plasma
+} // namespace mfem

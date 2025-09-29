@@ -96,9 +96,9 @@ for i, filename in enumerate(filenames):
 
 	# Construct the command line
 	if parallel:
-		command_line = "mpirun -np 2 ./ex5p-nguyen -no-vis"
+		command_line = "mpirun -np 2 ./pnguyen -no-vis"
 	else:
-		command_line = "./ex5-nguyen -no-vis"
+		command_line = "./nguyen -no-vis"
 
 	command_line += f" -nx {nx}"
 	command_line += f" -ny {ny}"

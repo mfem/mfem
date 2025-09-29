@@ -98,13 +98,7 @@ $(SUBDIRS_TPRINT):
 	@$(MAKE) -C $(@D) $(@F)
 
 # Additional dependencies
-ex5-nguyen: darcyop.o
-ex5p-nguyen: darcyop.o
-ex5-plasma: darcyop.o
-ex5-aniso: darcyop.o
-ex5-scatter: coupledop.o
 ex18: $(SRC)ex18.hpp
-ex18-hdg: $(SRC)ex18.hpp darcyop.o
 ex33: $(SRC)ex33.hpp
 ex37: $(SRC)ex37.hpp
 

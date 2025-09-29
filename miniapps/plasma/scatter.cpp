@@ -52,13 +52,14 @@
 //               We recommend viewing examples 1-4 before viewing this example.
 
 #include "mfem.hpp"
-#include "coupledop.hpp"
+#include "scatter_solver.hpp"
 #include <fstream>
 #include <iostream>
 #include <algorithm>
 
 using namespace std;
 using namespace mfem;
+using namespace mfem::plasma;
 
 // Define the analytical solution and forcing terms / boundary conditions
 typedef std::function<real_t(const Vector &, real_t)> TFunc;

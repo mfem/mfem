@@ -74,6 +74,7 @@
 
 using namespace std;
 using namespace mfem;
+using namespace mfem::hdg;
 
 // Define the analytical solution and forcing terms / boundary conditions
 typedef std::function<real_t(const Vector &, real_t)> TFunc;

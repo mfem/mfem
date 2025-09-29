@@ -9,12 +9,14 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#ifndef MFEM_COUPLEDOP
-#define MFEM_COUPLEDOP
+#ifndef MFEM_SCATTER_SOLVER
+#define MFEM_SCATTER_SOLVER
 
 #include "mfem.hpp"
 
 namespace mfem
+{
+namespace plasma
 {
 class CoupledOperator : public TimeDependentOperator
 {
@@ -74,6 +76,8 @@ public:
 
    void ImplicitSolve(const double dt, const Vector &x, Vector &y) override;
 };
-}
 
-#endif
+} // namespace plasma
+} // namespace mfem
+
+#endif // MFEM_SCATTER_SOLVER

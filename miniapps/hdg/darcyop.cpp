@@ -10,7 +10,7 @@
 // CONTRIBUTING.md for details.
 
 #include "darcyop.hpp"
-#include "../general/tic_toc.hpp"
+#include "../../general/tic_toc.hpp"
 #include <fstream>
 
 //#define USE_DIRECT_SOLVER_HYBRIDIZATION
@@ -19,9 +19,10 @@
 
 namespace mfem
 {
+namespace hdg
+{
 
-void mfem::DarcyOperator::SetupNonlinearSolver(real_t rtol, real_t atol,
-                                               int iters)
+void DarcyOperator::SetupNonlinearSolver(real_t rtol, real_t atol, int iters)
 {
    IterativeSolver *lin_solver = NULL;
    switch (solver_type)
@@ -1301,4 +1302,6 @@ void RandomizeMesh(Mesh &mesh, real_t dr)
       mesh.NodesUpdated();
    }
 }
-}
+
+} // namespace hdg
+} // namespace mfem

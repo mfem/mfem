@@ -9,16 +9,17 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#ifndef MFEM_DARCYOP
-#define MFEM_DARCYOP
+#ifndef MFEM_HDG_DARCYOP
+#define MFEM_HDG_DARCYOP
 
 #include "mfem.hpp"
-#include "../general/socketstream.hpp"
+#include "../../general/socketstream.hpp"
 #include <array>
 
 namespace mfem
 {
-
+namespace hdg
+{
 class DarcyOperator : public TimeDependentOperator
 {
 public:
@@ -505,6 +506,7 @@ void VectorBlockDiagonalIntegrator::AssembleMat(
    }
 }
 
-}
+} // namespace hdg
+} // namespace mfem
 
-#endif
+#endif // MFEM_HDG_DARCYOP
