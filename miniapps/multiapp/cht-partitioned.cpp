@@ -1,0 +1,598 @@
+#include "mfem.hpp"
+#include "multiapp.hpp"
+
+#include <string>
+#include <fstream>
+#include <iostream>
+#include <math.h>
+
+using namespace mfem;
+
+double Tinit(const Vector& x)
+{
+    return std::pow(2000*sin(x[0]) + 1000* sin(x[1]) + 3000* sin(x[2]),2);
+}
+
+// Prescribed velocity profile for the convection-diffusion equation inside the
+// cylinder. The profile is constructed s.t. it approximates a no-slip (v=0)
+// directly at the cylinder wall boundary.
+void velocity_profile(const Vector &c, Vector &q)
+{
+   real_t A = 1.0;
+   real_t x = c(0);
+   real_t y = c(1);
+   real_t r = sqrt(pow(x, 2.0) + pow(y, 2.0));
+
+   q(0) = 0.0;
+   q(1) = 0.0;
+
+   if (std::abs(r) >= 0.25 - 1e-8)
+   {
+      q(2) = 0.0;
+   }
+   else
+   {
+      q(2) = A * exp(-(pow(x, 2.0) / 2.0 + pow(y, 2.0) / 2.0));
+   }
+}
+
+/**
+ * @brief Convection-diffusion time dependent operator
+ *
+ *              dT/dt = κΔT - α∇•(b T)
+ *
+ * Can also be used to create a diffusion or convection only operator by setting
+ * α or κ to zero.
+ */
+class ConvectionDiffusion : public Application
+{
+public:
+   /**
+    * @brief Construct a new convection-diffusion time dependent operator.
+    *
+    * @param fes The ParFiniteElementSpace the solution is defined on
+    * @param ess_tdofs All essential true dofs (relevant if fes is using H1
+    * finite elements)
+    * @param alpha The convection coefficient
+    * @param kappa The diffusion coefficient
+    */
+   ConvectionDiffusion(ParFiniteElementSpace &fes,
+                        Array<int> ess_tdofs,
+                        Array<int> nat_tdofs,
+                        real_t alpha_ = 1.0,
+                        real_t kappa_ = 1.0e-1,
+                        bool use_heat_flux = false)
+                        : Application(fes.GetTrueVSize()),
+                        kappa(kappa_), alpha(alpha_),
+                        temperature_gf(ParGridFunction(&fes)),
+                        heat_flux_gf(ParGridFunction(&fes)),
+                        gradT_gf(GradientGridFunctionCoefficient(&temperature_gf)),
+                        heat_flux_gfc(GridFunctionCoefficient(&heat_flux_gf)),
+                        Mform(&fes),
+                        Kform(&fes),
+                        bform(&fes),
+                        ess_tdofs_(ess_tdofs),
+                        nat_tdofs_(nat_tdofs),
+                        z(height), t1(height), t2(height),
+                        M_solver(fes.GetComm()),
+                        linear_solver(fes.GetComm())
+   {
+
+      d = new ConstantCoefficient(-kappa);
+      q = new VectorFunctionCoefficient(fes.GetParMesh()->Dimension(),
+                                        velocity_profile);
+
+      Mform.AddDomainIntegrator(new MassIntegrator);
+      Mform.Assemble(0);
+      Mform.Finalize();
+
+      // temperature_gf = 0.0;
+      // heat_flux_gf = 0.0;
+
+      if (fes.IsDGSpace())
+      {
+         M.Reset(Mform.ParallelAssemble(), true);
+
+         inflow = new ConstantCoefficient(0.0);
+         bform.AddBdrFaceIntegrator(new BoundaryFlowIntegrator(*inflow, *q, alpha));
+      }
+      else
+      {
+         Kform.AddDomainIntegrator(new ConvectionIntegrator(*q, -alpha));
+         Kform.AddDomainIntegrator(new DiffusionIntegrator(*d));
+         Kform.Assemble(0);
+         Kform.Finalize();
+
+         if(use_heat_flux){
+            bform.AddBoundaryIntegrator(new BoundaryLFIntegrator(heat_flux_gfc));
+         }
+
+         bform.Assemble();
+         b = bform.ParallelAssemble();
+
+         Array<int> empty;
+         
+         temperature_gf.GetTrueDofs(u_bc);
+         Mform.FormSystemMatrix(ess_tdofs_, Mmat);
+         // Kform.FormSystemMatrix(empty, Kmat);
+         Kform.FormLinearSystem(ess_tdofs_, temperature_gf, bform, Kmat, z, u_bc);
+      }
+
+      M_solver.iterative_mode = false;
+      M_solver.SetRelTol(1e-8);
+      M_solver.SetAbsTol(0.0);
+      M_solver.SetMaxIter(100);
+      M_solver.SetPrintLevel(0);
+      M_prec.SetType(HypreSmoother::Jacobi);
+      M_solver.SetPreconditioner(M_prec);
+      M_solver.SetOperator(Mmat);
+
+
+      linear_solver.iterative_mode = false;
+      linear_solver.SetRelTol(1e-8);
+      linear_solver.SetAbsTol(0.0);
+      linear_solver.SetMaxIter(100);
+      linear_solver.SetPrintLevel(0);
+      linear_solver.SetPreconditioner(T_prec);
+
+
+   }
+
+   void Update() override {
+      Reassemble();
+   }
+
+   void Reassemble() const {
+      Kform.FormLinearSystem(ess_tdofs_, temperature_gf, bform, Kmat, z, u_bc);
+   }
+
+   void Mult(const Vector &u, Vector &du_dt) const override
+   {      
+      Kmat.Mult(u, z);
+      z.Add(-1.0, u_bc);
+      M_solver.Mult(z, du_dt);
+      du_dt.SetSubVector(ess_tdofs_, 0.0);
+   }
+
+   void ImplicitMult(const Vector &u, const Vector &k, Vector &v ) const override {
+
+      Reassemble();
+
+      Kmat.Mult(u, v); // v = K*u
+      v.Add(-1.0, u_bc);
+
+      Mmat.AddMult(k, v, -1.0); // v - M*k
+      v.Neg(); // v = M*k - K*u
+      v.SetSubVector(ess_tdofs_, 0.0);
+   }
+
+   void ExplicitMult(const Vector &u, Vector &v) const override {
+
+      Reassemble();
+      Kmat.Mult(u, v); // v = K*u
+      v.Add(-1.0, u_bc);
+      v.SetSubVector(ess_tdofs_, 0.0);
+   }   
+
+   void ImplicitSolve(const real_t dt, const Vector &u, Vector &du_dt)
+   {
+   
+      Reassemble();
+      if(current_dt != dt){
+         if (T) delete T;
+
+         T = Add(1.0, Mmat, -dt, Kmat);
+         current_dt = dt;
+         linear_solver.SetOperator(*T);
+      }
+      
+      Kmat.Mult(u, z);
+      z.Add(-1.0, u_bc);
+      linear_solver.Mult(z, du_dt);
+      du_dt.SetSubVector(ess_tdofs_, 0.0);
+   }
+
+
+   void Transfer(const Vector &x) override {
+
+      temperature_gf.SetFromTrueDofs(x);
+      heat_flux_gf.ProjectBdrCoefficientNormal(gradT_gf,nat_tdofs_);
+      heat_flux_gf *= kappa;
+
+      Application::Transfer();
+   }   
+
+   ~ConvectionDiffusion() override
+   {
+      delete q;
+      delete d;
+      delete b;
+   }
+
+   /// Mass form
+   mutable ParBilinearForm Mform;
+
+   /// Stiffness form. Might include diffusion, convection or both.
+   mutable ParBilinearForm Kform;
+
+   /// Mass opeperator
+   OperatorHandle M;
+   HypreParMatrix Mmat;
+
+   /// Stiffness opeperator. Might include diffusion, convection or both.
+   OperatorHandle K;
+   mutable HypreParMatrix Kmat;
+
+
+   /// RHS form
+   mutable ParLinearForm bform;
+
+   /// RHS vector
+   Vector *b = nullptr;
+
+   /// Velocity coefficient
+   VectorCoefficient *q = nullptr;
+
+   /// Diffusion coefficient
+   Coefficient *d = nullptr;
+
+   /// Inflow coefficient
+   Coefficient *inflow = nullptr;
+
+   /// Essential true dof array. Relevant for eliminating boundary conditions
+   /// when using an H1 space.
+   Array<int> ess_tdofs_;
+   Array<int> nat_tdofs_;
+   mutable ParGridFunction temperature_gf;
+   mutable ParGridFunction heat_flux_gf;
+   mutable GradientGridFunctionCoefficient gradT_gf;
+   mutable GridFunctionCoefficient heat_flux_gfc;
+
+   real_t current_dt = -1.0;
+
+   /// Mass matrix solver
+   CGSolver M_solver;
+   GMRESSolver linear_solver;
+   HypreParMatrix *T = nullptr; // T = M + dt K
+
+
+   /// Mass matrix preconditioner
+   HypreSmoother M_prec;
+   HypreSmoother T_prec;  // Preconditioner for the implicit solver
+
+   real_t kappa; ///< Diffusion coefficient
+   real_t alpha; ///< Convection coefficient
+
+   /// Auxiliary vectors
+   mutable Vector t1, t2;
+   mutable Vector u_bc;
+   mutable Vector z; // auxiliary vector
+};
+
+int main(int argc, char *argv[])
+{
+   Mpi::Init();
+   Hypre::Init();
+   int num_procs = Mpi::WorldSize();
+   int myid = Mpi::WorldRank();
+
+   int order = 2;
+   real_t t_final = .005;
+   real_t dt = 1.0e-5;
+   bool visualization = true;
+   int visport = 19916;
+   int vis_steps = 10;
+   int ode_solver_type = 34;  // (34) SDIRK34Solver, (21) BackwardEulerSolver, (23) SDIRK33Solver, (3) RK3SSPSolver
+
+
+   OptionsParser args(argc, argv);
+   args.AddOption(&order, "-o", "--order",
+                  "Finite element order (polynomial degree).");
+   args.AddOption(&t_final, "-tf", "--t-final",
+                  "Final time; start time is 0.");
+   args.AddOption(&dt, "-dt", "--time-step",
+                  "Time step.");
+   args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
+                  "--no-visualization",
+                  "Enable or disable GLVis visualization.");
+   args.AddOption(&vis_steps, "-vs", "--visualization-steps",
+                  "Visualize every n-th timestep.");
+   args.AddOption(&ode_solver_type, "-ode", "--ode-solver-type",
+                  "ODESolver id.");                  
+   args.ParseCheck();
+
+   Mesh *serial_mesh = new Mesh("multidomain-hex.mesh");
+   ParMesh parent_mesh = ParMesh(MPI_COMM_WORLD, *serial_mesh);
+   delete serial_mesh;
+
+   parent_mesh.UniformRefinement();
+
+   H1_FECollection fec(order, parent_mesh.Dimension());
+
+   // Create the sub-domains and accompanying Finite Element spaces from
+   // corresponding attributes. This specific mesh has two domain attributes and
+   // 9 boundary attributes.
+   Array<int> cylinder_domain_attributes(1);
+   cylinder_domain_attributes[0] = 1;
+
+   auto cylinder_submesh = ParSubMesh::CreateFromDomain(parent_mesh, cylinder_domain_attributes);
+
+   ParFiniteElementSpace fes_cylinder(&cylinder_submesh, &fec);
+
+   Array<int> inflow_attributes(cylinder_submesh.bdr_attributes.Max());
+   inflow_attributes = 0;
+   inflow_attributes[7] = 1;
+
+   Array<int> inner_cylinder_wall_attributes( cylinder_submesh.bdr_attributes.Max());
+   inner_cylinder_wall_attributes = 0;
+   inner_cylinder_wall_attributes[8] = 1;
+
+   // For the convection-diffusion equation inside the cylinder domain, the
+   // inflow surface and outer wall are treated as Dirichlet boundary
+   // conditions.
+   Array<int> inflow_tdofs, interface_tdofs, ess_tdofs;
+   fes_cylinder.GetEssentialTrueDofs(inflow_attributes, inflow_tdofs);
+   fes_cylinder.GetEssentialTrueDofs(inner_cylinder_wall_attributes,interface_tdofs);
+
+   ess_tdofs.Append(inflow_tdofs);
+   ess_tdofs.Append(interface_tdofs);
+   ess_tdofs.Sort();
+   ess_tdofs.Unique();
+
+   
+   // ConvectionDiffusion cd_cylinder(fes_cylinder, inflow_tdofs, interface_tdofs);
+   ConvectionDiffusion cd_cylinder(fes_cylinder, ess_tdofs, inner_cylinder_wall_attributes,1.0, 1.0e-1, false);
+
+   ParGridFunction &temperature_cylinder_gf = cd_cylinder.temperature_gf;   
+   ParGridFunction &qflux_cylinder_gf       = cd_cylinder.heat_flux_gf;      
+
+   temperature_cylinder_gf = 0.0;
+   qflux_cylinder_gf       = 0.0;
+
+
+   // FunctionCoefficient Tinit_coeff(Tinit); 
+   ConstantCoefficient Tinit_coeff(0.0); // Initial temperature inside the cylinder
+   ConstantCoefficient Tintflow(1.0); // Initial temperature inside the cylinder
+   temperature_cylinder_gf.ProjectCoefficient(Tinit_coeff);
+   temperature_cylinder_gf.ProjectBdrCoefficient(Tintflow, inflow_attributes);
+   temperature_cylinder_gf.ProjectBdrCoefficient(Tinit_coeff, inner_cylinder_wall_attributes);
+
+
+   GradientGridFunctionCoefficient gradT_cylinder_gf(&temperature_cylinder_gf);
+   qflux_cylinder_gf.ProjectBdrCoefficientNormal(gradT_cylinder_gf,inner_cylinder_wall_attributes);
+
+   Vector temperature_cylinder;
+   temperature_cylinder_gf.GetTrueDofs(temperature_cylinder);
+
+
+
+
+   // Set up the diffusion equation inside the solid block
+   Array<int> outer_domain_attributes(1);
+   outer_domain_attributes[0] = 2;
+
+   auto block_submesh = ParSubMesh::CreateFromDomain(parent_mesh,outer_domain_attributes);
+
+   ParFiniteElementSpace fes_block(&block_submesh, &fec);
+
+   Array<int> block_wall_attributes(block_submesh.bdr_attributes.Max());
+   block_wall_attributes = 0;
+   block_wall_attributes[0] = 1;
+   block_wall_attributes[1] = 1;
+   block_wall_attributes[2] = 1;
+   block_wall_attributes[3] = 1;
+
+   Array<int> outer_cylinder_wall_attributes(block_submesh.bdr_attributes.Max());
+   outer_cylinder_wall_attributes = 0;
+   outer_cylinder_wall_attributes[8] = 1;
+
+   fes_block.GetEssentialTrueDofs(block_wall_attributes, ess_tdofs);
+   fes_block.GetEssentialTrueDofs(outer_cylinder_wall_attributes, interface_tdofs);
+   
+
+   ConvectionDiffusion diff_block(fes_block, ess_tdofs,outer_cylinder_wall_attributes, 0.0, 1.0, false);
+
+   ParGridFunction &temperature_block_gf = diff_block.temperature_gf;
+   ParGridFunction &qflux_block_gf       = diff_block.heat_flux_gf;
+
+   temperature_block_gf = 0.0;
+   qflux_block_gf       = 0.0;
+
+   ConstantCoefficient Touter_block(10.0); // Outer temperature of the block
+   temperature_block_gf.ProjectCoefficient(Tinit_coeff);
+   temperature_block_gf.ProjectBdrCoefficient(Touter_block, block_wall_attributes);
+
+   Vector temperature_block;
+   temperature_block_gf.GetTrueDofs(temperature_block);
+
+
+   // GradientGridFunctionCoefficient gradT_block_gf(&temperature_block_gf);   
+   // qflux_block_gf.ProjectBdrCoefficientNormal(gradT_block_gf,outer_cylinder_wall_attributes);
+   // GridFunctionCoefficient qflux_block_coeff(&qflux_block_gf);
+   
+   // ParTransferMap qflux_transfermap = ParTransferMap(qflux_cylinder_gf, qflux_block_gf);
+   // qflux_transfermap.Transfer(qflux_cylinder_gf,qflux_block_gf);
+
+   // diff_block.bform.AddBoundaryIntegrator(new BoundaryNormalLFIntegrator(qflux_block_coeff), outer_cylinder_wall_attributes);
+   // diff_block.bform.AddBoundaryIntegrator(new BoundaryLFIntegrator(qflux_block_coeff));
+   // GridFunctionCoefficient temperature_block_gfc(&temperature_block_gf);
+   // diff_block.bform.AddBoundaryIntegrator(new BoundaryLFIntegrator(temperature_block_gfc));
+
+
+   Array<int> offsets({0,temperature_block.Size(), temperature_cylinder.Size()});
+   offsets.PartialSum();   
+   BlockVector temperature(offsets);
+
+   temperature_block_gf.GetTrueDofs(temperature.GetBlock(0));
+   temperature_cylinder_gf.GetTrueDofs(temperature.GetBlock(1));
+
+   CoupledApplication physics(2); // A total of two couple physics
+ 
+
+   LinkedFields lf_solid_to_fluid(temperature_block_gf, temperature_cylinder_gf);
+   LinkedFields lf_fluid_to_solid(qflux_cylinder_gf, qflux_block_gf);
+   // LinkedFields lf_fluid_to_solid(temperature_cylinder_gf, temperature_block_gf);
+   
+
+
+   std::unique_ptr<ODESolver> cylinder_ode_solver = ODESolver::Select(ode_solver_type);
+   std::unique_ptr<ODESolver> block_ode_solver    = ODESolver::Select(ode_solver_type);
+
+   diff_block.Reassemble();
+   cd_cylinder.Reassemble();
+
+   cylinder_ode_solver->Init(cd_cylinder);
+   block_ode_solver->Init(diff_block);
+
+   // physics.SetCouplingScheme(CoupledApplication::Scheme::MONOLITHIC);
+   physics.SetCouplingScheme(CoupledApplication::Scheme::ALTERNATING_SCHWARZ);
+   // physics.SetCouplingType(CoupledApplication::CouplingType::PARTITIONED);
+
+
+   // std::string coupling_type_str = "partioned";
+   // std::string coupling_type_str = "one-way";
+   std::string coupling_type_str = "cht-monolithic-linear";
+
+   Application* app1 = physics.AddOperator(block_ode_solver.get());
+   Application* app2 = physics.AddOperator(cylinder_ode_solver.get());
+
+   // Application* app1 = physics.AddOperator(&diff_block);
+   // Application* app2 = physics.AddOperator(&cd_cylinder);
+
+   app1->AddLinkedFields(&lf_solid_to_fluid);
+   // app2->AddLinkedFields(&lf_fluid_to_solid);
+
+   // diff_block.AddLinkedFields(&lf_solid_to_fluid);
+   // cd_cylinder.AddLinkedFields(&lf_fluid_to_solid);
+
+   // physics.SetOffsets(offsets);
+   FPISolver fp_solver(MPI_COMM_WORLD);
+   AitkenRelaxation fp_relax;
+   fp_solver.iterative_mode = false;
+   fp_solver.SetRelTol(1e-8);
+   fp_solver.SetAbsTol(0.0);
+   fp_solver.SetMaxIter(100);
+   fp_solver.SetPrintLevel(0);
+   fp_solver.SetRelaxation(1.0, &fp_relax);
+
+
+   GMRESSolver gmres_solver(MPI_COMM_WORLD);
+   gmres_solver.iterative_mode = false;
+   gmres_solver.SetRelTol(1e-6);
+   gmres_solver.SetAbsTol(0.0);
+   gmres_solver.SetMaxIter(100);
+   gmres_solver.SetPrintLevel(1);
+
+
+   NewtonSolver newton_solver(MPI_COMM_WORLD);
+   newton_solver.iterative_mode = false;
+   newton_solver.SetRelTol(1e-5);
+   newton_solver.SetAbsTol(0.0);
+   newton_solver.SetMaxIter(100);
+   newton_solver.SetPrintLevel(1);
+   newton_solver.SetSolver(gmres_solver);
+
+   // physics.SetSolver(&fp_solver);   
+   physics.SetSolver(&newton_solver);
+   // physics.SetSolver(&gmres_solver);
+   if(myid==0) std::cout << "Assembling..." << std::endl;
+
+   physics.Assemble();
+   physics.GetCouplingOperator()->SetLinearity(false);
+   if(myid==0) std::cout << "Finalizing..." << std::endl;
+   physics.Finalize();
+
+   if(myid==0) std::cout << "Physics Width: " << physics.Width() << std::endl;
+   
+
+   std::unique_ptr<ODESolver> coupled_ode_solver = ODESolver::Select(ode_solver_type);   
+   coupled_ode_solver->Init(physics);
+
+
+   ParaViewDataCollection solid_pv(coupling_type_str+"-solid-"+std::to_string(ode_solver_type), &block_submesh);
+   ParaViewDataCollection fluid_pv(coupling_type_str+"-fluid-"+std::to_string(ode_solver_type), &cylinder_submesh);
+
+   solid_pv.SetLevelsOfDetail(order);
+   solid_pv.SetDataFormat(VTKFormat::BINARY);
+   solid_pv.SetHighOrderOutput(true);
+   solid_pv.RegisterField("temperature",&temperature_block_gf);
+   solid_pv.RegisterField("flux",&qflux_block_gf);
+
+   fluid_pv.SetLevelsOfDetail(order);
+   fluid_pv.SetDataFormat(VTKFormat::BINARY);
+   fluid_pv.SetHighOrderOutput(true);
+   fluid_pv.RegisterField("temperature",&temperature_cylinder_gf);
+   fluid_pv.RegisterField("flux",&qflux_cylinder_gf);
+   
+
+   auto save_callback = [&](int cycle, double t)
+   {
+      solid_pv.SetCycle(cycle);
+      solid_pv.SetTime(t);
+
+      fluid_pv.SetCycle(cycle);
+      fluid_pv.SetTime(t);
+
+      solid_pv.Save();
+      fluid_pv.Save();
+   };
+
+   StopWatch timer;
+   timer.Start();
+
+   if(myid==0) std::cout << "Starting time integration..." << std::endl;
+   real_t t = 0.0;
+   bool last_step = false;
+   save_callback(0, t);
+
+   for (int ti = 1; !last_step; ti++)
+   {
+      if (t + dt >= t_final - dt/2)
+      {
+         last_step = true;
+      }
+
+
+      // if(physics.GetCouplingType() == CoupledApplication::CouplingType::ONE_WAY)
+      // {         
+      //    diff_block.Reassemble();
+      //    block_ode_solver->Step(temperature.GetBlock(0), t, dt);
+      //    diff_block.Transfer(temperature.GetBlock(0));
+      //    t -= dt;
+
+      //    cd_cylinder.Reassemble();
+      //    cylinder_ode_solver->Step(temperature.GetBlock(1), t, dt);
+      //    cd_cylinder.Transfer(temperature.GetBlock(1));
+      // }
+      // else if(physics.GetCouplingType() == CoupledApplication::CouplingType::PARTITIONED)
+      // {
+         // coupled_ode_solver->Step(temperature,t,dt);   
+         physics.Step(temperature, t, dt);
+      // }
+
+      temperature_block_gf.SetFromTrueDofs(temperature.GetBlock(0));      
+      temperature_cylinder_gf.SetFromTrueDofs(temperature.GetBlock(1));
+
+      // coupled_ode_solver->Step(temperature,t,dt);
+      // physics.Step(temperature, t, dt);
+      // t += dt;
+
+
+      if (last_step || (ti % vis_steps) == 0)
+      {
+         if (myid == 0)
+         {
+            out << "step " << ti << ", t = " << t << std::endl;
+         }
+
+         save_callback(ti, t);
+      }
+   }
+
+   timer.Stop();
+   if (myid == 0){
+      out << "Total time: " << timer.RealTime() << " seconds." << std::endl;
+   }
+
+   return 0;
+}
