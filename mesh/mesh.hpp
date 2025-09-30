@@ -2491,7 +2491,7 @@ public:
    void EnsureNCMesh(bool simplices_nonconforming = false);
 
    /// Return a bool indicating whether this mesh is conforming.
-   bool Conforming() const { return ncmesh == NULL; }
+   bool Conforming() const;
    /// Return a bool indicating whether this mesh is nonconforming.
    bool Nonconforming() const { return !Conforming(); }
    /// Is this a NURBS mesh?
