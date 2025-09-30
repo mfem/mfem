@@ -9,12 +9,22 @@
 # terms of the BSD-3 license. We welcome feedback and contributions, see file
 # CONTRIBUTING.md for details.
 
-list(APPEND SEQADIFF_COMMON_SOURCES)
+list(APPEND SEQADIFF_COMMON_SOURCES
+  ad_native.cpp
+  logger.cpp
+  pg.cpp
+)
 
 list(APPEND SEQADIFF_COMMON_HEADERS
 	tadvector.hpp
 	taddensemat.hpp
-	admfem.hpp)
+	admfem.hpp
+  ad_intg.hpp
+  ad_native.hpp
+  logger.hpp
+  pg.hpp
+  tools.hpp
+)
 
 convert_filenames_to_full_paths(SEQADIFF_COMMON_SOURCES)
 convert_filenames_to_full_paths(SEQADIFF_COMMON_HEADERS)
@@ -23,34 +33,15 @@ set(SEQADIFF_COMMON_FILES
 	EXTRA_SOURCES ${SEQADIFF_COMMON_SOURCES}
 	EXTRA_HEADERS ${SEQADIFF_COMMON_HEADERS})
 
-add_mfem_miniapp(seqadiff
-	MAIN seq_example.cpp
-	${SEQADIFF_COMMON_FILES}
-	LIBRARIES mfem)
-
-add_mfem_miniapp(seqtest
-	MAIN seq_test.cpp
-	${SEQADIFF_COMMON_FILES}
-        LIBRARIES mfem)
-
-if(MFEM_USE_MPI)
-
-list(APPEND PARADIFF_COMMON_SOURCES)
-list(APPEND PARADIFF_COMMON_HEADERS)
-
-convert_filenames_to_full_paths(PARADIFF_COMMON_SOURCES)
-convert_filenames_to_full_paths(PARADIFF_COMMON_HEADERS)
-
-set(PARADIFF_COMMON_FILES
-	EXTRA_SOURCES ${PARADIFF_COMMON_SOURCES} ${SEQADIFF_COMMON_SOURCES}
-	EXTRA_HEADERS ${PARADIFF_COMMON_HEADERS} ${SEQADIFF_COMMON_HEADERS})
-
-# message(STATUS "PARADIFF_COMMON_FILES: ${PARADIFF_COMMON_FILES}")
-# message(STATUS "SEQADIFF_COMMON_FILES: ${SEQADIFF_COMMON_FILES}")
-
-add_mfem_miniapp(paradiff
-     MAIN par_example.cpp
-     ${PARADIFF_COMMON_FILES}
-     LIBRARIES mfem)
-
+add_mfem_miniapp(ad_ex0 MAIN ad_ex0.cpp ${SEQADIFF_COMMON_FILES} LIBRARIES mfem)
+add_mfem_miniapp(ad_ex1 MAIN ad_ex1.cpp ${SEQADIFF_COMMON_FILES} LIBRARIES mfem)
+add_mfem_miniapp(ad_ex2 MAIN ad_ex2.cpp ${SEQADIFF_COMMON_FILES} LIBRARIES mfem)
+add_mfem_miniapp(ad_ex3 MAIN ad_ex3.cpp ${SEQADIFF_COMMON_FILES} LIBRARIES mfem)
+if (MFEM_USE_MUMPS)
+  add_mfem_miniapp(ad_ex4 MAIN ad_ex4.cpp ${SEQADIFF_COMMON_FILES} LIBRARIES mfem)
+  add_mfem_miniapp(ad_ex5 MAIN ad_ex5.cpp ${SEQADIFF_COMMON_FILES} LIBRARIES mfem)
 endif ()
+if (MFEM_USE_MPI)
+  add_mfem_miniapp(ad_ex6 MAIN ad_ex6.cpp ${SEQADIFF_COMMON_FILES} LIBRARIES mfem)
+endif ()
+

@@ -13,7 +13,7 @@
 MFEM_DIR ?= ../..
 MFEM_BUILD_DIR ?= ../..
 MFEM_INSTALL_DIR ?= ../../mfem
-SRC = $(if $(MFEM_DIR:../..=),$(MFEM_DIR)/miniapps/autodiff/,)
+SRC = $(if $(MFEM_DIR:../..=),$(MFEM_DIR)/miniapps/electromagnetics/,)
 CONFIG_MK = $(or $(wildcard $(MFEM_BUILD_DIR)/config/config.mk),\
    $(wildcard $(MFEM_INSTALL_DIR)/share/mfem/config.mk))
 
@@ -21,48 +21,40 @@ CONFIG_MK = $(or $(wildcard $(MFEM_BUILD_DIR)/config/config.mk),\
 DEFAULTS_MK = $(MFEM_DIR)/config/defaults.mk
 include $(DEFAULTS_MK)
 
+AD_COMMON_SRC = logger.cpp ad_native.cpp pg.cpp
+AD_COMMON_OBJ = $(AD_COMMON_SRC:.cpp=.o)
+
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-ADIFF_COMMON_SRC =
-ADIFF_COMMON_OBJ = $(ADIFF_COMMON_SRC:.cpp=.o)
+SEQ_MINIAPPS = ad_ex0 ad_ex1 ad_ex2 ad_ex3
+PAR_MINIAPPS = ad_ex6
+ifeq ($(MFEM_USE_PETSC),YES)
+		PAR_MINIAPPS += ad_ex4 ad_ex5
+endif
 
-SEQ_MINIAPPS = seq_example seq_test
-PAR_MINIAPPS = par_example
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
 else
-   MINIAPPS = $(PAR_MINIAPPS) $(SEQ_MINIAPPS)
+   MINIAPPS = $(SEQ_MINIAPPS) $(PAR_MINIAPPS)
 endif
 
 .SUFFIXES:
 .SUFFIXES: .o .cpp .mk
 .PHONY: all clean clean-build clean-exec
+.PRECIOUS: %.o
+
 
 # Remove built-in rules
 %: %.cpp
 %.o: %.cpp
 
-%: %.o $(ADIFF_COMMON_OBJ)
+%: %.o $(AD_COMMON_OBJ)
 	$(MFEM_CXX) $(MFEM_LINK_FLAGS) $^ -o $@ $(MFEM_LIBS)
-
 %.o: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
-	$(MFEM_CXX) $(MFEM_FLAGS) -c $< -o $@
+	$(MFEM_CXX) $(MFEM_FLAGS) -I$(MFEM_DIR)/miniapps/autodiff -c $< -o $@
 
 all: $(MINIAPPS)
-
-MFEM_TESTS = MINIAPPS
-include $(MFEM_TEST_MK)
-
-# Testing: Parallel vs. serial runs
-RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
-TEST_NAME := ADIFF miniapp
-%-test-par: %
-	@$(call mfem-test,$<, $(RUN_MPI), $(TEST_NAME))
-%-test-seq: %
-	@$(call mfem-test,$<,, $(TEST_NAME))
-
-# Testing: "test" target and mfem-test* variables are defined in config/test.mk
 
 # Generate an error message if the MFEM library is not built and exit
 $(MFEM_LIB_FILE):
@@ -72,7 +64,5 @@ clean: clean-build clean-exec
 
 clean-build:
 	rm -f *.o *~ $(SEQ_MINIAPPS) $(PAR_MINIAPPS)
+	rm -rf ParaView
 	rm -rf *.dSYM *.TVD.*breakpoints
-
-clean-exec:
-	@rm -rf Example* 
