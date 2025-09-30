@@ -11,7 +11,7 @@ using namespace mfem;
  *
  * \min_(u, m) f(u, m)
  *        s.t. c(u, m) = 0
- *                  m >= ml
+ *                  m >= 0
  *
  * In the context of frictionless quasi-static
  * contact mechanics for the displacement variable d
@@ -83,10 +83,6 @@ IPSolver::IPSolver(OptContactProblem * problem_)
    comm = problem->GetComm();
    problem->GetLumpedMassWeights(Mcslump, Mvlump);
 
-   MPI_Allreduce(&dimU,&gdimU,1,MPI_INT,MPI_SUM,comm);
-   MPI_Allreduce(&dimM,&gdimM,1,MPI_INT,MPI_SUM,comm);
-   MPI_Allreduce(&dimC,&gdimC,1,MPI_INT,MPI_SUM,comm);
-
    block_offsetsumlz.SetSize(5);
    block_offsetsuml.SetSize(4);
    block_offsetsx.SetSize(3);
@@ -133,8 +129,6 @@ IPSolver::IPSolver(OptContactProblem * problem_)
       block_offsetsx[i] = block_offsetsuml[i] ;
    }
 
-   ml = problem->Getml();
-
    lk.SetSize(dimC);  lk  = 0.0;
    zlk.SetSize(dimM); zlk = 0.0;
 
@@ -146,7 +140,6 @@ void IPSolver::Mult(const Vector &x0, Vector &xf)
    BlockVector x0block(block_offsetsx); x0block = 0.0;
    x0block.GetBlock(0).Set(1.0, x0);
    x0block.GetBlock(1) = 1.0;
-   x0block.GetBlock(1).Add(1.0, ml);
    BlockVector xfblock(block_offsetsx); xfblock = 0.0;
    Mult(x0block, xfblock);
    xf.Set(1.0, xfblock.GetBlock(0));
@@ -169,7 +162,7 @@ void IPSolver::Mult(const BlockVector &x0, BlockVector &xf)
 
    for (int i = 0; i < dimM; i++)
    {
-      zlk(i) = 1.e1 * mu_k / (xk(i+dimU) - ml(i));
+      zlk(i) = 1.e1 * mu_k / xk(i+dimU);
    }
 
    Xk.GetBlock(0).Set(1.0, xk.GetBlock(0));
@@ -367,7 +360,7 @@ void IPSolver::FormIPNewtonMat(BlockVector & x, Vector & l,
    Vector DiagLogBar(dimM); DiagLogBar = 0.0;
    for (int i = 0; i < dimM; i++)
    {
-      DiagLogBar(i) = (Mlump(i) * zl(i)) / (x(i + dimU) - ml(i)) + delta * Mlump(i);
+      DiagLogBar(i) = (Mlump(i) * zl(i)) / x(i + dimU) + delta * Mlump(i);
    }
 
    delete Wmm;
@@ -501,9 +494,9 @@ void IPSolver::IPNewtonSolve(BlockVector &x, Vector &l,
    /* backsolve to determine zlhat */
    for (int i = 0; i < dimM; i++)
    {
-      zlhat(i) = -1.*(zl(i) + (zl(i) * Xhat(i + dimU) - mu) / (x(i + dimU) - ml(
-                                                                  i)) );
+      zlhat(i) = zl(i) + (zl(i) * Xhat(i + dimU) - mu) / x(i + dimU);
    }
+   zlhat *= -1.;
 }
 
 real_t IPSolver::GetMaxStepSize(Vector &x, Vector &xhat, real_t tau)
@@ -548,7 +541,7 @@ void IPSolver::LineSearch(BlockVector& X0, BlockVector& Xhat,
    Vector mhat = Xhat.GetBlock(1);
    Vector lhat = Xhat.GetBlock(2);
    Vector zhat = Xhat.GetBlock(3);
-   real_t alphaMax  = GetMaxStepSize(m0, ml, mhat, tau);
+   real_t alphaMax  = GetMaxStepSize(m0, mhat, tau);
    real_t alphaMaxz = GetMaxStepSize(z0, zhat, tau);
    alphaz = alphaMaxz;
 
@@ -701,7 +694,7 @@ void IPSolver::ProjectZ(const Vector &x, Vector &z, real_t mu)
    for (int i = 0; i < dimM; i++)
    {
       zdual_i = z(i);
-      zprimal_i = mu / (x(i + dimU) - ml(i));
+      zprimal_i = mu / x(i + dimU);
       z(i) = max(min(zdual_i, kSig * zprimal_i), zprimal_i / kSig);
    }
 }
@@ -724,7 +717,7 @@ real_t IPSolver::GetPhi(const BlockVector &x, real_t mu,
    real_t logBarrierLoc = 0.0;
    for (int i = 0; i < dimM; i++)
    {
-      logBarrierLoc += Mlump(i) * log(x(dimU + i) - ml(i));
+      logBarrierLoc += Mlump(i) * log(x(dimU + i));
    }
    real_t logBarrierGlb;
    MPI_Allreduce(&logBarrierLoc, &logBarrierGlb, 1, MPITypeMap<real_t>::mpi_type,
@@ -740,7 +733,7 @@ void IPSolver::GetDxphi(const BlockVector &x, real_t mu,
    Vector ytemp(dimM); ytemp = 0.0;
    for (int i = 0; i < dimM; i++)
    {
-      ytemp(i) = 1. / (x(dimU + i) - ml(i));
+      ytemp(i) = 1. / x(dimU + i);
    }
    ytemp *= Mlump;
    y.GetBlock(1).Add(-mu, ytemp);
@@ -756,7 +749,6 @@ real_t IPSolver::EvalLangrangian(const BlockVector &x, const Vector &l,
    Vector cx(dimC); problem->c(x, cx);
    Vector temp(dimM); temp = 0.0;
    temp.Set(1.0, x.GetBlock(1));
-   temp.Add(-1.0, ml);
    temp *= Mlump;
    return (fx + InnerProduct(comm, cx, l) - InnerProduct(comm, temp, zl));
 }
@@ -846,11 +838,11 @@ real_t IPSolver::OptimalityError(const BlockVector &x, const Vector &l,
    problem->c(x, cx);
 
    /* regularized complementarity
-    * |z_i * (m - ml)_i - mu| */
-   Vector comp(dimM); comp = 0.0; // complementarity Z (m - ml) - mu 1
+    * |z_i * m_i - mu| */
+   Vector comp(dimM); comp = 0.0; // complementarity Z m - mu 1
    for (int i = 0; i < dimM; i++)
    {
-      comp(i) = abs((x(dimU + i) - ml(i)) * zl(i) - mu);
+      comp(i) = abs(x(dimU + i) * zl(i) - mu);
    }
 
    BlockVector MxinvgradL(block_offsetsx); MxinvgradL = 0.0;

@@ -304,8 +304,6 @@ void OptContactProblem::FormContactSystem(ParGridFunction * coords_,
    dimM = dimG;
    dimC = dimM;
 
-   ml.SetSize(dimM); ml = 0.0;
-
    ParBilinearForm MassForm(vfes);
    MassForm.AddDomainIntegrator(new VectorMassIntegrator);
    MassForm.Assemble();
@@ -554,7 +552,6 @@ void OptContactProblem::ActivateBoundConstraints()
    num_constraints = J->GetGlobalNumRows() + 2 * J->GetGlobalNumCols();
    dimM = dimG + 2 * dimU;
    dimC = dimM;
-   ml.SetSize(dimM); ml = 0.0;
 }
 
 HypreParMatrix * OptContactProblem::SetupTribol(ParMesh * pmesh,

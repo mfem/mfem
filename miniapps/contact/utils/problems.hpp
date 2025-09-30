@@ -291,10 +291,7 @@ public:
 
    /// Return constraint space dimension.
    int GetDimC() {return dimC;}
-
-   /// Access Lagrange multiplier vector.
-   Vector & Getml() {return ml;}
-
+   
    /// Get MPI communicator.
    MPI_Comm GetComm() {return comm ;}
 
