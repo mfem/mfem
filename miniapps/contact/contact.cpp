@@ -387,7 +387,7 @@ int main(int argc, char *argv[])
       int eval_err;
       real_t Einitial = contact.E(x0, eval_err);
       real_t Efinal = contact.E(xf, eval_err);
-      Array<int> & CGiterations = optimizer.GetNumKrylovIterations();
+      Array<int> & CGiterations = optimizer.GetLinearSolverIterations();
       CGiter.push_back(CGiterations);
       int gndofs = prob.GetGlobalNumDofs();
 
