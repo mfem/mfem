@@ -499,13 +499,7 @@ void IPSolver::IPNewtonSolve(BlockVector &x, Vector &l,
    zlhat *= -1.;
 }
 
-real_t IPSolver::GetMaxStepSize(Vector &x, Vector &xhat, real_t tau)
-{
-   Vector zero(x.Size()); zero = 0.0;
-   return GetMaxStepSize(x, zero, xhat, tau);
-}
-
-real_t IPSolver::GetMaxStepSize(Vector &x, Vector &xl, Vector &xhat,
+real_t IPSolver::GetMaxStepSize(Vector &x, Vector &xhat,
                                 real_t tau)
 {
    real_t alphaMaxloc = 1.0;
@@ -514,7 +508,7 @@ real_t IPSolver::GetMaxStepSize(Vector &x, Vector &xl, Vector &xhat,
    {
       if ( xhat(i) < 0. )
       {
-         alphaTmp = -1. * tau * (x(i) - xl(i)) / xhat(i);
+         alphaTmp = -1. * tau * x(i) / xhat(i);
          alphaMaxloc = min(alphaMaxloc, alphaTmp);
       }
    }
@@ -561,7 +555,7 @@ void IPSolver::LineSearch(BlockVector& X0, BlockVector& Xhat,
    GetDxphi(x0, mu, Dxphi0);
 
    real_t Dxphi0_xhat = InnerProduct(comm, Dxphi0, xhat);
-   descentDirection = Dxphi0_xhat < 0. ? true : false;
+   bool descentDirection = (Dxphi0_xhat < 0.);
 
 
    if (myid == 0 && print_level > 0)

@@ -77,6 +77,7 @@ protected:
    real_t mu_k;
    Vector lk, zlk;
 
+   /// interior-point algorithm parameters
    real_t kSig, tauMin, eta, thetaMin, delta, sTheta, sPhi, kMu, thetaMu;
    real_t thetaMax, gTheta, gPhi, kEps;
 
@@ -87,7 +88,6 @@ protected:
    real_t alpha, alphaz;
    real_t thx0;
    real_t phx0;
-   bool descentDirection = false;
    bool switchCondition = false;
    bool sufficientDecrease = false;
    bool lineSearchSuccess = false;
@@ -118,6 +118,7 @@ protected:
    real_t deltaRegMax;
    real_t deltaReg0;
 
+   /// inertia-regularization rate parameters
    real_t kRegMinus;
    real_t kRegBarPlus;
    real_t kRegPlus;
@@ -128,6 +129,7 @@ protected:
 
    int myid = -1;
 
+   /// print level, 0: no printing, > 0 various solver progress output is shown
    int print_level = 0;
    MPI_Comm comm;
 private:
@@ -138,9 +140,6 @@ private:
    /// Solve the (regularized) IP-Newton linear system
    void IPNewtonSolve(BlockVector&, Vector&, Vector&, Vector&, BlockVector&,
                       bool &, real_t, real_t delta = 0.0);
-
-   /// Max step length that satisfies fraction-to-boundary rule
-   real_t GetMaxStepSize(Vector&, Vector&, Vector&, real_t);
 
    /// Max step length that satisfies fraction-to-boundary rule
    real_t GetMaxStepSize(Vector&, Vector&, real_t);
