@@ -81,6 +81,29 @@ enum class Problem
    SineWave,
 };
 
+enum Quantity
+{
+   Density,
+   Momentum,
+   Energy,
+};
+
+struct QuantityMap
+{
+   int dim;
+   QuantityMap(int dim_) : dim(dim_) { }
+
+   Quantity operator()(int i) const
+   {
+      if (i == 0) { return Quantity::Density; }
+      else if (i > 0 && i <= dim) { return Quantity::Momentum; }
+      else if (i == dim + 1) { return Quantity::Energy; }
+      else { MFEM_ABORT("Unknown index"); }
+   }
+
+   inline int size() const { return dim + 2; }
+};
+
 struct ProblemParams
 {
    Problem prob;
@@ -97,7 +120,7 @@ typedef std::function<void(const Vector &, Vector &)> VecFunc;
 typedef std::function<void(const Vector &, real_t, Vector &)> VecTFunc;
 typedef std::function<void(const Vector &, DenseMatrix &)> MatFunc;
 
-MatFunc GetKFun(const ProblemParams &params);
+MatFunc GetKFun(const ProblemParams &params, Quantity q);
 VecFunc GetU0Fun(const ProblemParams &params);
 
 bool VisualizeField(socketstream &sout, const GridFunction &gf,
@@ -185,7 +208,8 @@ int main(int argc, char *argv[])
    }
 
    const int dim = mesh.Dimension();
-   const int num_equations = dim + 2;
+   QuantityMap qmap(dim);
+   const int num_equations = qmap.size();
 
    // Refine the mesh to increase the resolution. In this example we do
    // 'ref_levels' of uniform refinement, where 'ref_levels' is a command-line
@@ -246,29 +270,55 @@ int main(int argc, char *argv[])
 #endif // BRAGINSKII_IMEX
 
    //linear diffusion
-   auto kFun = GetKFun(pars);
-   MatrixFunctionCoefficient kcoeff(dim, kFun); //tensor diffusivity
-   InverseMatrixCoefficient ikcoeff(kcoeff); //inverse tensor diffusivity
+   MatFunc kFun[] = { GetKFun(pars, Quantity::Density),
+                      GetKFun(pars, Quantity::Momentum),
+                      GetKFun(pars, Quantity::Energy)
+                    };
+   MatrixFunctionCoefficient kcoeff[] =
+   {
+      MatrixFunctionCoefficient(dim, kFun[Quantity::Density]),
+      MatrixFunctionCoefficient(dim, kFun[Quantity::Momentum]),
+      MatrixFunctionCoefficient(dim, kFun[Quantity::Energy])
+   }; //tensor diffusivity
+   InverseMatrixCoefficient ikcoeff[] =
+   {
+      InverseMatrixCoefficient(kcoeff[Quantity::Density]),
+      InverseMatrixCoefficient(kcoeff[Quantity::Momentum]),
+      InverseMatrixCoefficient(kcoeff[Quantity::Energy]),
+   }; //inverse tensor diffusivity
 
    if (dg)
    {
-      Mq->AddDomainIntegrator(new VectorBlockDiagonalIntegrator(num_equations,
-                                                                new VectorMassIntegrator(ikcoeff)));
+      std::vector<BilinearFormIntegrator*> bfis(num_equations);
+      for (int i = 0; i < num_equations; i++)
+      {
+         bfis[i] = new VectorMassIntegrator(ikcoeff[qmap(i)]);
+      }
+
+      Mq->AddDomainIntegrator(new VectorBlockDiagonalIntegrator(bfis));
    }
    else
    {
-      Mq->AddDomainIntegrator(new VectorBlockDiagonalIntegrator(num_equations,
-                                                                new VectorFEMassIntegrator(ikcoeff)));
+      std::vector<BilinearFormIntegrator*> bfis(num_equations);
+      for (int i = 0; i < num_equations; i++)
+      {
+         bfis[i] = new VectorFEMassIntegrator(ikcoeff[qmap(i)]);
+      }
+
+      Mq->AddDomainIntegrator(new VectorBlockDiagonalIntegrator(bfis));
    }
 
    if (dg && td > 0.)
    {
+      std::vector<BilinearFormIntegrator*> bfis(num_equations);
+      for (int i = 0; i < num_equations; i++)
+      {
+         bfis[i] = new HDGDiffusionIntegrator(kcoeff[qmap(i)], td);
+      }
 #ifndef BRAGINSKII_IMEX
-      Mtnl->AddInteriorFaceIntegrator(new VectorBlockDiagonalIntegrator(num_equations,
-                                                                        new HDGDiffusionIntegrator(kcoeff, td)));
+      Mtnl->AddInteriorFaceIntegrator(new VectorBlockDiagonalIntegrator(bfis));
 #else
-      Mt->AddInteriorFaceIntegrator(new VectorBlockDiagonalIntegrator(num_equations,
-                                                                      new HDGDiffusionIntegrator(kcoeff, td)));
+      Mt->AddInteriorFaceIntegrator(new VectorBlockDiagonalIntegrator(bfis));
 #endif
    }
 
@@ -503,7 +553,7 @@ int main(int argc, char *argv[])
    return 0;
 }
 
-MatFunc GetKFun(const ProblemParams &params)
+MatFunc GetKFun(const ProblemParams &params, Quantity q)
 {
    const real_t &k = params.k;
    const real_t &ks = params.ks;
