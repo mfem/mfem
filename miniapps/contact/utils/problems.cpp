@@ -1,45 +1,5 @@
 #include "problems.hpp"
 
-
-ElasticityOperator::ElasticityOperator(ParMesh * pmesh_,
-                                       Array<int> & ess_bdr_attr_, Array<int> & ess_bdr_attr_comp_,
-                                       const Vector & E, const Vector & nu, bool nonlinear_)
-   : nonlinear(nonlinear_), pmesh(pmesh_), ess_bdr_attr(ess_bdr_attr_),
-     ess_bdr_attr_comp(ess_bdr_attr_comp_)
-{
-   comm = pmesh->GetComm();
-   SetParameters(E,nu);
-   Init();
-}
-
-void ElasticityOperator::SetParameters(const Vector & E, const Vector & nu)
-{
-   int n = (pmesh->attributes.Size()) ?  pmesh->attributes.Max() : 0;
-   MFEM_VERIFY(E.Size() == n, "Incorrect parameter size E");
-   MFEM_VERIFY(nu.Size() == n, "Incorrect parameter size nu");
-   c1.SetSize(n);
-   c2.SetSize(n);
-   if (nonlinear)
-   {
-      for (int i = 0; i<n; i++)
-      {
-         c1(i) = 0.5*E(i) / (1+nu(i));
-         c2(i) = E(i)/(1.0-2.0*nu(i))/3.0;
-      }
-   }
-   else
-   {
-      for (int i = 0; i<n; i++)
-      {
-         c1(i) = E(i) * nu(i) / ( (1+nu(i)) * (1-2*nu(i)) );
-         c2(i) = 0.5 * E(i)/(1+nu(i));
-      }
-   }
-   c1_cf.UpdateConstants(c1);
-   c2_cf.UpdateConstants(c2);
-}
-
-
 void ElasticityOperator::Init()
 {
    int dim = pmesh->Dimension();
@@ -52,7 +12,6 @@ void ElasticityOperator::Init()
    VectorFunctionCoefficient ref_cf(dim,ref_func);
    ParGridFunction xr(fes); xr.ProjectCoefficient(ref_cf);
    xr.GetTrueDofs(xref);
-   eps.SetSize(fes->GetTrueVSize()); eps = eps_min;
    SetEssentialBC();
    SetUpOperator();
 }
@@ -98,6 +57,59 @@ void ElasticityOperator::SetUpOperator()
    }
 }
 
+ElasticityOperator::ElasticityOperator(ParMesh * pmesh_,
+                                       Array<int> & ess_bdr_attr_, Array<int> & ess_bdr_attr_comp_,
+                                       const Vector & E, const Vector & nu, bool nonlinear_)
+   : nonlinear(nonlinear_), pmesh(pmesh_), ess_bdr_attr(ess_bdr_attr_),
+     ess_bdr_attr_comp(ess_bdr_attr_comp_)
+{
+   comm = pmesh->GetComm();
+   SetParameters(E,nu);
+   Init();
+}
+
+void ElasticityOperator::SetParameters(const Vector & E, const Vector & nu)
+{
+   int n = (pmesh->attributes.Size()) ?  pmesh->attributes.Max() : 0;
+   MFEM_VERIFY(E.Size() == n, "Incorrect parameter size E");
+   MFEM_VERIFY(nu.Size() == n, "Incorrect parameter size nu");
+   c1.SetSize(n);
+   c2.SetSize(n);
+   if (nonlinear)
+   {
+      for (int i = 0; i<n; i++)
+      {
+         c1(i) = 0.5*E(i) / (1+nu(i));
+         c2(i) = E(i)/(1.0-2.0*nu(i))/3.0;
+      }
+   }
+   else
+   {
+      for (int i = 0; i<n; i++)
+      {
+         c1(i) = E(i) * nu(i) / ( (1+nu(i)) * (1-2*nu(i)) );
+         c2(i) = 0.5 * E(i)/(1+nu(i));
+      }
+   }
+   c1_cf.UpdateConstants(c1);
+   c2_cf.UpdateConstants(c2);
+}
+
+void ElasticityOperator::SetNeumanPressureData(ConstantCoefficient &f,
+                                               Array<int> & bdr_marker)
+{
+   pressure_cf.constant = f.constant;
+   b->AddBoundaryIntegrator(new VectorBoundaryFluxLFIntegrator(pressure_cf),
+                            bdr_marker);
+}
+
+void ElasticityOperator::SetDisplacementDirichletData(const Vector & delta,
+                                                      Array<int> essbdr)
+{
+   VectorConstantCoefficient delta_cf(delta);
+   x.ProjectBdrCoefficient(delta_cf,essbdr);
+}
+
 void ElasticityOperator::FormLinearSystem()
 {
    if (!formsystem)
@@ -121,26 +133,6 @@ void ElasticityOperator::UpdateRHS()
    delete b;
    b = new ParLinearForm(fes);
    x = 0.0;
-}
-
-void ElasticityOperator::SetNeumanPressureData(ConstantCoefficient &f,
-                                               Array<int> & bdr_marker)
-{
-   pressure_cf.constant = f.constant;
-   b->AddBoundaryIntegrator(new VectorBoundaryFluxLFIntegrator(pressure_cf),
-                            bdr_marker);
-}
-
-void ElasticityOperator::SetDisplacementDirichletData(const Vector & delta,
-                                                      Array<int> essbdr)
-{
-   VectorConstantCoefficient delta_cf(delta);
-   x.ProjectBdrCoefficient(delta_cf,essbdr);
-}
-
-void ElasticityOperator::Getxrefbc(Vector & xrefbc) const
-{
-   x.GetTrueDofs(xrefbc);
 }
 
 real_t ElasticityOperator::GetEnergy(const Vector & u) const
@@ -203,24 +195,6 @@ ElasticityOperator::~ElasticityOperator()
    if (material_model) { delete material_model; }
 }
 
-
-OptContactProblem::OptContactProblem(ElasticityOperator * problem_,
-                                     const std::set<int> & mortar_attrs_,
-                                     const std::set<int> & nonmortar_attrs_,
-                                     double tribol_ratio_,
-                                     bool bound_constraints_)
-   : problem(problem_), mortar_attrs(mortar_attrs_),
-     nonmortar_attrs(nonmortar_attrs_),
-     tribol_ratio(tribol_ratio_),
-     bound_constraints(bound_constraints_)
-{
-   comm = problem->GetComm();
-   pmesh = problem->GetMesh();
-   vfes = problem->GetFESpace();
-   dim = pmesh->Dimension();
-   block_offsetsg.SetSize(4);
-}
-
 void OptContactProblem::ReleaseMemory()
 {
    delete J; J = nullptr;
@@ -236,6 +210,45 @@ void OptContactProblem::ReleaseMemory()
       delete dcdu;
       dcdu = nullptr;
    }
+}
+
+void OptContactProblem::ComputeGapJacobian()
+{
+   if (J) { delete J; }
+   J = const_cast<HypreParMatrix *>(SetupTribol(problem->GetMesh(),coords,
+                                                problem->GetEssentialDofs(),
+                                                mortar_attrs, nonmortar_attrs,gapv, tribol_ratio));
+
+   dof_starts.SetSize(2);
+   dof_starts[0] = J->ColPart()[0];
+   dof_starts[1] = J->ColPart()[1];
+
+   constraints_starts.SetSize(2);
+   if (bound_constraints_activated)
+   {
+      constraints_starts[0] = J->RowPart()[0] + 2 * J->ColPart()[0];
+      constraints_starts[1] = J->RowPart()[1] + 2 * J->ColPart()[1];
+   }
+   else
+   {
+      constraints_starts[0] = J->RowPart()[0];
+      constraints_starts[1] = J->RowPart()[1];
+   }
+}
+
+OptContactProblem::OptContactProblem(ElasticityOperator * problem_,
+                                     const std::set<int> & mortar_attrs_,
+                                     const std::set<int> & nonmortar_attrs_,
+                                     real_t tribol_ratio_,
+                                     bool bound_constraints_)
+   : problem(problem_), mortar_attrs(mortar_attrs_),
+     nonmortar_attrs(nonmortar_attrs_),
+     tribol_ratio(tribol_ratio_),
+     bound_constraints(bound_constraints_)
+{
+   comm = problem->GetComm();
+   vfes = problem->GetFESpace();
+   block_offsetsg.SetSize(4);
 }
 
 void OptContactProblem::FormContactSystem(ParGridFunction * coords_,
@@ -288,11 +301,9 @@ void OptContactProblem::FormContactSystem(ParGridFunction * coords_,
    HypreStealOwnership(*negIu, *tempSparse);
    delete tempSparse;
 
-
    dimM = dimG;
    dimC = dimM;
 
-   MFEM_VERIFY(vfes, "space is null");
    ParBilinearForm MassForm(vfes);
    MassForm.AddDomainIntegrator(new VectorMassIntegrator);
    MassForm.Assemble();
@@ -308,75 +319,11 @@ void OptContactProblem::FormContactSystem(ParGridFunction * coords_,
    if (!dl.Size())
    {
       dl.SetSize(dimU); dl = 0.0;
-      eps.SetSize(dimU); eps = 0.0; // minimum size of eps controlled by eps_min
-   }
-}
-
-void OptContactProblem::SetDisplacement(const Vector & dx)
-{
-   if (bound_constraints_activated)
-   {
-      eps_min = max(eps_min, GlobalLpNorm(infinity(), eps.Normlinf(), comm));
-      for (int j = 0; j < dimU; j++)
+      if (bound_constraints)
       {
-         eps(j) = max(eps_min, eps(j));
+         eps.SetSize(dimU); eps = 0.0; // minimum size of eps controlled by eps_min
       }
    }
-   else
-   {
-      for (int j = 0; j < dimU; j++)
-      {
-         eps(j) = max(eps(j), abs(dx(j)));
-      }
-   }
-   // update eps
-}
-
-
-
-void OptContactProblem::ComputeGapJacobian()
-{
-   if (J) { delete J; }
-   J = const_cast<HypreParMatrix *>(SetupTribol(pmesh,coords,
-                                                problem->GetEssentialDofs(),
-                                                mortar_attrs, nonmortar_attrs,gapv, tribol_ratio));
-
-   dof_starts.SetSize(2);
-   dof_starts[0] = J->ColPart()[0];
-   dof_starts[1] = J->ColPart()[1];
-
-   constraints_starts.SetSize(2);
-   if (bound_constraints_activated)
-   {
-      constraints_starts[0] = J->RowPart()[0] + 2 * J->ColPart()[0];
-      constraints_starts[1] = J->RowPart()[1] + 2 * J->ColPart()[1];
-   }
-   else
-   {
-      constraints_starts[0] = J->RowPart()[0];
-      constraints_starts[1] = J->RowPart()[1];
-   }
-}
-
-
-HypreParMatrix * OptContactProblem::Duuf(const BlockVector & x)
-{
-   return DddE(x.GetBlock(0));
-}
-
-HypreParMatrix * OptContactProblem::Dumf(const BlockVector & x)
-{
-   return nullptr;
-}
-
-HypreParMatrix * OptContactProblem::Dmuf(const BlockVector & x)
-{
-   return nullptr;
-}
-
-HypreParMatrix * OptContactProblem::Dmmf(const BlockVector & x)
-{
-   return nullptr;
 }
 
 HypreParMatrix * OptContactProblem::Duc(const BlockVector & x)
@@ -387,10 +334,7 @@ HypreParMatrix * OptContactProblem::Duc(const BlockVector & x)
       dcduBlockMatrix(0, 0) = J;
       dcduBlockMatrix(1, 0) = Iu;
       dcduBlockMatrix(2, 0) = negIu;
-      if (dcdu)
-      {
-         delete dcdu;
-      }
+      if (dcdu) { delete dcdu; }
       dcdu = HypreParMatrixFromBlocks(dcduBlockMatrix);
       return dcdu;
    }
@@ -411,11 +355,6 @@ HypreParMatrix * OptContactProblem::Dmc(const BlockVector &)
       HypreStealOwnership(*NegId, diag);
    }
    return NegId;
-}
-
-HypreParMatrix * OptContactProblem::lDuuc(const BlockVector &, const Vector &)
-{
-   return nullptr;
 }
 
 HypreParMatrix * OptContactProblem::GetContactSubspaceTransferOperator()
@@ -472,7 +411,6 @@ HypreParMatrix * OptContactProblem::GetContactSubspaceTransferOperator()
       Pc = P_ct->Transpose();
       delete P_ct;
    }
-
    return Pc;
 }
 
@@ -485,12 +423,9 @@ void OptContactProblem::g(const Vector & d, Vector & gd)
    gd.Add(1.0, gapv);
 }
 
-
 //           [     g1(d)      ]
 // c(d, s) = [ eps + (d - dl) ] - s
 //           [ eps - (d - dl) ]
-
-
 void OptContactProblem::c(const BlockVector & x, Vector & y)
 {
    const Vector disp  = x.GetBlock(0);
@@ -533,7 +468,7 @@ real_t OptContactProblem::E(const Vector & d, int & eval_err)
    if (problem->IsNonlinear())
    {
       // (d - xref)^T [ 1/2 K * (d - xref) + gradEQP] + EQP
-      double energy = 0.0;
+      real_t energy = 0.0;
       Vector dx(dimU); dx = 0.0;
       Vector temp(dimU); temp = 0.0;
       dx.Set(1.0, d);
@@ -548,7 +483,7 @@ real_t OptContactProblem::E(const Vector & d, int & eval_err)
    }
    else
    {
-      double energy = problem->GetEnergy(d);
+      real_t energy = problem->GetEnergy(d);
       if (IsFinite(energy))
       {
          eval_err = 0;
@@ -565,9 +500,6 @@ real_t OptContactProblem::E(const Vector & d, int & eval_err)
       return energy;
    }
 }
-
-
-
 
 void OptContactProblem::DdE(const Vector & d, Vector & gradE)
 {
@@ -588,13 +520,26 @@ void OptContactProblem::DdE(const Vector & d, Vector & gradE)
 
 HypreParMatrix * OptContactProblem::DddE(const Vector & d)
 {
-   if (problem->IsNonlinear())
+   return (problem->IsNonlinear()) ? Kref : problem->GetHessian(d);
+}
+
+void OptContactProblem::SetDisplacement(const Vector & dx,
+                                        bool activate_constraints)
+{
+   if (activate_constraints)
    {
-      return Kref;
+      eps_min = max(eps_min, GlobalLpNorm(infinity(), eps.Normlinf(), comm));
+      for (int j = 0; j < dimU; j++)
+      {
+         eps(j) = max(eps_min, eps(j));
+      }
    }
    else
    {
-      return problem->GetHessian(d);
+      for (int j = 0; j < dimU; j++)
+      {
+         eps(j) = max(eps(j), abs(dx(j)));
+      }
    }
 }
 
@@ -609,27 +554,11 @@ void OptContactProblem::ActivateBoundConstraints()
    dimC = dimM;
 }
 
-// void OptContactProblem::SetBoundConstraints(const Vector & dl_,
-//                                             const Vector & eps_)
-// {
-//    MFEM_VERIFY(dl_.Size() == dimU,
-//                "constraint vector dl is not of the correct size");
-//    MFEM_VERIFY(eps_.Size() == dimU,
-//                "constraint vector eps is not the correct size");
-//    dl.Set(1.0, dl_);
-//    eps.Set(1.0, eps_);
-// }
-
-OptContactProblem::~OptContactProblem()
-{
-   ReleaseMemory();
-}
-
 HypreParMatrix * OptContactProblem::SetupTribol(ParMesh * pmesh,
                                                 ParGridFunction * coords,
                                                 const Array<int> & ess_tdofs, const std::set<int> & mortar_attrs,
                                                 const std::set<int> & non_mortar_attrs,
-                                                Vector &gap, double ratio)
+                                                Vector &gap, real_t ratio)
 {
    axom::slic::SimpleLogger logger;
    axom::slic::setIsRoot(mfem::Mpi::Root());
@@ -682,8 +611,8 @@ HypreParMatrix * OptContactProblem::SetupTribol(ParMesh * pmesh,
 
    // Update contact gaps, forces, and tangent stiffness
    int cycle = 1;   // pseudo cycle
-   double t = 1.0;  // pseudo time
-   double dt = 1.0; // pseudo dt
+   real_t t = 1.0;  // pseudo time
+   real_t dt = 1.0; // pseudo dt
    tribol::update(cycle, t, dt);
 
    // Return contact contribution to the tangent stiffness matrix
@@ -699,8 +628,8 @@ HypreParMatrix * OptContactProblem::SetupTribol(ParMesh * pmesh,
    Mfull->MergeDiagAndOffd(merged);
    Array<int> nonzero_rows;
 
-   double max_l1_row_norm = 0.0;
-   double rel_row_norm_threshold = 1.e-5;
+   real_t max_l1_row_norm = 0.0;
+   real_t rel_row_norm_threshold = 1.e-5;
    for (int i = 0; i < h; i++)
    {
       if (!merged.RowIsEmpty(i))
@@ -747,7 +676,6 @@ HypreParMatrix * OptContactProblem::SetupTribol(ParMesh * pmesh,
    int glob_nrows;
    MPI_Allreduce(&nrows, &glob_nrows,1,MPI_INT,MPI_SUM,Mfull->GetComm());
 
-
    int glob_ncols = reduced_merged->Width();
    HypreParMatrix * M = new HypreParMatrix(Mfull->GetComm(), nrows, glob_nrows,
                                            glob_ncols, reduced_merged->GetI(), reduced_merged->GetJ(),
@@ -760,7 +688,6 @@ HypreParMatrix * OptContactProblem::SetupTribol(ParMesh * pmesh,
 
    auto& P_submesh = *pressure.ParFESpace()->GetProlongationMatrix();
    Vector gap_true(P_submesh.Width());
-
 
    P_submesh.MultTranspose(gap_full,gap_true);
    gap.SetSize(nrows);

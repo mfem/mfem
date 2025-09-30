@@ -27,7 +27,6 @@ IPSolver::IPSolver(OptContactProblem * problem_)
    max_iter = 20;   // Maximum iterations
    mu_k     = 1.0;  // Log-barrier penalty parameter
 
-
    /* The following constants follow that of
     * Wächter, Andreas, and Lorenz T. Biegler.
     * "On the implementation of an interior-point filter line-search algorithm for large-scale nonlinear programming."
@@ -55,7 +54,6 @@ IPSolver::IPSolver(OptContactProblem * problem_)
    kEps   = 1.e1; // constant that determines when the log-barrier parameter is decreased
 
    kSig     = 1.e10; // primal-dual Hessian deviation constant
-
 
    /* The following constants follow that of
     * Chiang, Nai-Yuan, and Victor M. Zavala.
@@ -122,7 +120,6 @@ IPSolver::IPSolver(OptContactProblem * problem_)
       Mlump.Set(1.0, Mlumpblock);
    }
 
-
    for (int i = 0; i < block_offsetsuml.Size(); i++)
    {
       block_offsetsuml[i] = block_offsetsumlz[i];
@@ -138,33 +135,6 @@ IPSolver::IPSolver(OptContactProblem * problem_)
    MPI_Comm_rank(comm, &myid);
 }
 
-real_t IPSolver::GetMaxStepSize(Vector &x, Vector &xl, Vector &xhat,
-                                real_t tau)
-{
-   real_t alphaMaxloc = 1.0;
-   real_t alphaTmp;
-   for (int i = 0; i < x.Size(); i++)
-   {
-      if ( xhat(i) < 0. )
-      {
-         alphaTmp = -1. * tau * (x(i) - xl(i)) / xhat(i);
-         alphaMaxloc = min(alphaMaxloc, alphaTmp);
-      }
-   }
-
-   real_t alphaMaxglb;
-   MPI_Allreduce(&alphaMaxloc, &alphaMaxglb, 1, MPITypeMap<real_t>::mpi_type,
-                 MPI_MIN, comm);
-   return alphaMaxglb;
-}
-
-real_t IPSolver::GetMaxStepSize(Vector &x, Vector &xhat, real_t tau)
-{
-   Vector zero(x.Size()); zero = 0.0;
-   return GetMaxStepSize(x, zero, xhat, tau);
-}
-
-
 void IPSolver::Mult(const Vector &x0, Vector &xf)
 {
    BlockVector x0block(block_offsetsx); x0block = 0.0;
@@ -174,7 +144,6 @@ void IPSolver::Mult(const Vector &x0, Vector &xf)
    Mult(x0block, xfblock);
    xf.Set(1.0, xfblock.GetBlock(0));
 }
-
 
 void IPSolver::Mult(const BlockVector &x0, BlockVector &xf)
 {
@@ -261,7 +230,6 @@ void IPSolver::Mult(const BlockVector &x0, BlockVector &xf)
       // Compute the search direction
       // solve for (uhat, mhat, lhat)
       zlhat = 0.0; Xhatuml = 0.0;
-
 
       bool passedCurvatureTest = false;
       IPNewtonSolve(xk, lk, zlk, zlhat, Xhatuml, passedCurvatureTest, mu_k);
@@ -507,7 +475,7 @@ void IPSolver::IPNewtonSolve(BlockVector &x, Vector &l,
    solver->Mult(breduced, Xhat.GetBlock(0));
    auto itsolver = dynamic_cast<IterativeSolver *>(solver);
    int numit = (itsolver) ? itsolver->GetNumIterations() : -1;
-   num_krylov_iterations.Append(numit);
+   lin_solver_iterations.Append(numit);
 
    // now propagate solved uhat to obtain mhat and lhat
    // xm = Ju xu - bl
@@ -529,6 +497,32 @@ void IPSolver::IPNewtonSolve(BlockVector &x, Vector &l,
       zlhat(i) = zl(i) + (zl(i) * Xhat(i + dimU) - mu) / x(i + dimU);
    }
    zlhat *= -1.;
+}
+
+real_t IPSolver::GetMaxStepSize(Vector &x, Vector &xhat, real_t tau)
+{
+   Vector zero(x.Size()); zero = 0.0;
+   return GetMaxStepSize(x, zero, xhat, tau);
+}
+
+real_t IPSolver::GetMaxStepSize(Vector &x, Vector &xl, Vector &xhat,
+                                real_t tau)
+{
+   real_t alphaMaxloc = 1.0;
+   real_t alphaTmp;
+   for (int i = 0; i < x.Size(); i++)
+   {
+      if ( xhat(i) < 0. )
+      {
+         alphaTmp = -1. * tau * (x(i) - xl(i)) / xhat(i);
+         alphaMaxloc = min(alphaMaxloc, alphaTmp);
+      }
+   }
+
+   real_t alphaMaxglb;
+   MPI_Allreduce(&alphaMaxloc, &alphaMaxglb, 1, MPITypeMap<real_t>::mpi_type,
+                 MPI_MIN, comm);
+   return alphaMaxglb;
 }
 
 /* line-search from X0 along direction Xhat for the log-barrier
@@ -672,18 +666,6 @@ void IPSolver::LineSearch(BlockVector& X0, BlockVector& Xhat,
    }
 }
 
-void IPSolver::ProjectZ(const Vector &x, Vector &z, real_t mu)
-{
-   real_t zdual_i;
-   real_t zprimal_i;
-   for (int i = 0; i < dimM; i++)
-   {
-      zdual_i = z(i);
-      zprimal_i = mu / x(i + dimU);
-      z(i) = max(min(zdual_i, kSig * zprimal_i), zprimal_i / kSig);
-   }
-}
-
 bool IPSolver::FilterCheck(real_t thetax, real_t phix)
 {
    bool inFilterRegion = false;
@@ -705,88 +687,16 @@ bool IPSolver::FilterCheck(real_t thetax, real_t phix)
    return inFilterRegion;
 }
 
-// curvature test
-// dk^T Wk dk + max{ -(lk + lhat)^T ck, 0.0} >= alpha * dk^T dk
-// see "An Inertia-Free Filter Line-search Algorithm for
-// Large-scale Nonlinear Programming" by Nai-Yuan Chiang and
-// Victor M Zavala, Computational Optimization and Applications (2016)
-bool IPSolver::CurvatureTest(const BlockOperator & A,
-                             const BlockVector & Xhat, const Vector & l, const BlockVector & b,
-                             const real_t & delta)
+void IPSolver::ProjectZ(const Vector &x, Vector &z, real_t mu)
 {
-   Vector lplus(l.Size());
-   lplus.Set(1.0, l);
-   lplus.Add(1.0, Xhat.GetBlock(2));
-
-
-   real_t dWd = 0.0;
-   real_t dd = 0.0;
-   for (int i = 0; i < 2; i++)
-   {
-      for (int j = 0; j < 2; j++)
-      {
-         if (!A.IsZeroBlock(i, j))
-         {
-            Vector temp(A.GetBlock(i, j).Height()); temp = 0.0;
-            A.GetBlock(i, j).Mult(Xhat.GetBlock(j), temp);
-            dWd += InnerProduct(comm, Xhat.GetBlock(i), temp);
-         }
-      }
-      dd += InnerProduct(comm, Xhat.GetBlock(i), Xhat.GetBlock(i));
-   }
-   real_t lplusTck = -1.0 * InnerProduct(comm, lplus, b.GetBlock(2));
-
-   bool passed = (dWd + fmax(-lplusTck,
-                             0.0) >= alphaCurvatureTest * dd) ? true : false;
-   return passed;
-}
-
-
-real_t IPSolver::OptimalityError(const BlockVector &x, const Vector &l,
-                                 const Vector &zl, real_t mu)
-{
-   /* stationarity, feasibility, and complementarity errors */
-   real_t stationarityError, feasibilityError, complementarityError;
-   real_t optimalityError;
-
-   /* gradient of Lagrangian */
-   BlockVector gradL(block_offsetsx);
-   gradL = 0.0;
-   EvalLagrangianGradient(x, l, zl, gradL);
-
-   /* constraint function c(u, m) = 0 */
-   Vector cx(dimC); cx = 0.0;
-   problem->c(x, cx);
-
-   /* regularized complementarity
-    * |z_i * m_i - mu| */
-   Vector comp(dimM); comp = 0.0; // complementarity Z m - mu 1
+   real_t zdual_i;
+   real_t zprimal_i;
    for (int i = 0; i < dimM; i++)
    {
-      comp(i) = abs(x(dimU + i) * zl(i) - mu);
+      zdual_i = z(i);
+      zprimal_i = mu / x(i + dimU);
+      z(i) = max(min(zdual_i, kSig * zprimal_i), zprimal_i / kSig);
    }
-
-   BlockVector MxinvgradL(block_offsetsx); MxinvgradL = 0.0;
-   MxinvgradL.Set(1.0, gradL);
-   MxinvgradL.GetBlock(0) /= Mvlump;
-   MxinvgradL.GetBlock(1) /= Mlump;
-   stationarityError = sqrt(InnerProduct(comm, gradL, MxinvgradL));
-   feasibilityError = GlobalLpNorm(infinity(), cx.Normlinf(), comm);
-   complementarityError = GlobalLpNorm(infinity(), comp.Normlinf(), comm);
-
-
-   optimalityError = max(max(stationarityError, feasibilityError),
-                         complementarityError);
-
-   if (myid == 0 && print_level > 0)
-   {
-      cout << "evaluating optimality error for mu = " << mu << endl;
-      cout << "stationarity error = " << stationarityError << endl;
-      cout << "feasibility error  = "    << feasibilityError << endl;
-      cout << "complimentarity error = " << complementarityError << endl;
-      cout << "optimality error = " << optimalityError << endl;
-   }
-   return optimalityError;
 }
 
 real_t IPSolver::GetTheta(const BlockVector &x)
@@ -873,19 +783,89 @@ void IPSolver::EvalLagrangianGradient(const BlockVector &x, const Vector &l,
    (y.GetBlock(1)).Add(-1.0, temp);
 }
 
-bool IPSolver::GetConverged() const
+
+// curvature test
+// dk^T Wk dk + max{ -(lk + lhat)^T ck, 0.0} >= alpha * dk^T dk
+// see "An Inertia-Free Filter Line-search Algorithm for
+// Large-scale Nonlinear Programming" by Nai-Yuan Chiang and
+// Victor M Zavala, Computational Optimization and Applications (2016)
+bool IPSolver::CurvatureTest(const BlockOperator & A,
+                             const BlockVector & Xhat, const Vector & l, const BlockVector & b,
+                             const real_t & delta)
 {
-   return converged;
+   Vector lplus(l.Size());
+   lplus.Set(1.0, l);
+   lplus.Add(1.0, Xhat.GetBlock(2));
+
+
+   real_t dWd = 0.0;
+   real_t dd = 0.0;
+   for (int i = 0; i < 2; i++)
+   {
+      for (int j = 0; j < 2; j++)
+      {
+         if (!A.IsZeroBlock(i, j))
+         {
+            Vector temp(A.GetBlock(i, j).Height()); temp = 0.0;
+            A.GetBlock(i, j).Mult(Xhat.GetBlock(j), temp);
+            dWd += InnerProduct(comm, Xhat.GetBlock(i), temp);
+         }
+      }
+      dd += InnerProduct(comm, Xhat.GetBlock(i), Xhat.GetBlock(i));
+   }
+   real_t lplusTck = -1.0 * InnerProduct(comm, lplus, b.GetBlock(2));
+
+   bool passed = (dWd + fmax(-lplusTck,
+                             0.0) >= alphaCurvatureTest * dd) ? true : false;
+   return passed;
 }
 
-void IPSolver::SetTol(real_t Tol)
-{
-   abs_tol = Tol;
-}
 
-void IPSolver::SetMaxIter(int max_it)
+real_t IPSolver::OptimalityError(const BlockVector &x, const Vector &l,
+                                 const Vector &zl, real_t mu)
 {
-   max_iter = max_it;
+   /* stationarity, feasibility, and complementarity errors */
+   real_t stationarityError, feasibilityError, complementarityError;
+   real_t optimalityError;
+
+   /* gradient of Lagrangian */
+   BlockVector gradL(block_offsetsx);
+   gradL = 0.0;
+   EvalLagrangianGradient(x, l, zl, gradL);
+
+   /* constraint function c(u, m) = 0 */
+   Vector cx(dimC); cx = 0.0;
+   problem->c(x, cx);
+
+   /* regularized complementarity
+    * |z_i * m_i - mu| */
+   Vector comp(dimM); comp = 0.0; // complementarity Z m - mu 1
+   for (int i = 0; i < dimM; i++)
+   {
+      comp(i) = abs(x(dimU + i) * zl(i) - mu);
+   }
+
+   BlockVector MxinvgradL(block_offsetsx); MxinvgradL = 0.0;
+   MxinvgradL.Set(1.0, gradL);
+   MxinvgradL.GetBlock(0) /= Mvlump;
+   MxinvgradL.GetBlock(1) /= Mlump;
+   stationarityError = sqrt(InnerProduct(comm, gradL, MxinvgradL));
+   feasibilityError = GlobalLpNorm(infinity(), cx.Normlinf(), comm);
+   complementarityError = GlobalLpNorm(infinity(), comp.Normlinf(), comm);
+
+
+   optimalityError = max(max(stationarityError, feasibilityError),
+                         complementarityError);
+
+   if (myid == 0 && print_level > 0)
+   {
+      cout << "evaluating optimality error for mu = " << mu << endl;
+      cout << "stationarity error = " << stationarityError << endl;
+      cout << "feasibility error  = "    << feasibilityError << endl;
+      cout << "complimentarity error = " << complementarityError << endl;
+      cout << "optimality error = " << optimalityError << endl;
+   }
+   return optimalityError;
 }
 
 IPSolver::~IPSolver()

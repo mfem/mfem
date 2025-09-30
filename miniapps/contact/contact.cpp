@@ -118,6 +118,7 @@ int main(int argc, char *argv[])
          break;
       case beamsphere:
          mesh_file = "meshes/beam-sphere.mesh";
+         // mesh_file = "rotated.mesh";
          break;
       default:
          MFEM_ABORT("Should be unreachable");
@@ -125,10 +126,12 @@ int main(int argc, char *argv[])
    }
 
    Mesh mesh(mesh_file,1);
+   // Mesh mesh(mesh_file,1);
    for (int i = 0; i<sref; i++)
    {
       mesh.UniformRefinement();
    }
+
 
    ParMesh pmesh(MPI_COMM_WORLD,mesh);
    mesh.Clear();
@@ -157,9 +160,9 @@ int main(int argc, char *argv[])
          nu[0] = 0.499;  nu[1] = 0.0;
          break;
       case beamsphere:
-         ess_bdr_attr.Append(1); ess_bdr_attr_comp.Append(1);
-         ess_bdr_attr.Append(2); ess_bdr_attr_comp.Append(2);
-         ess_bdr_attr.Append(4); ess_bdr_attr_comp.Append(0);
+         ess_bdr_attr.Append(1); ess_bdr_attr_comp.Append(0);
+         ess_bdr_attr.Append(2); ess_bdr_attr_comp.Append(1);
+         ess_bdr_attr.Append(4); ess_bdr_attr_comp.Append(2);
          ess_bdr_attr.Append(5); ess_bdr_attr_comp.Append(-1);
          E = 1.e3;
          nu = 0.4;
@@ -313,7 +316,11 @@ int main(int argc, char *argv[])
       x_gf.GetTrueDofs(xref);
 
       contact.FormContactSystem(&new_coords, xref);
-      if (bound_constraints && i>3) { contact.ActivateBoundConstraints(); }
+      int activation_step = 3;
+      if (bound_constraints && i>activation_step)
+      {
+         contact.ActivateBoundConstraints();
+      }
 
       Solver * prec = nullptr;
       Solver * subspacesolver = nullptr;
@@ -372,12 +379,15 @@ int main(int argc, char *argv[])
       Vector dx(ndofs); dx = 0.0;
       dx.Set(1.0, xf);
       dx.Add(-1.0, x0);
-      contact.SetDisplacement(dx);
+      if (bound_constraints)
+      {
+         contact.SetDisplacement(dx, (i>=activation_step));
+      }
 
       int eval_err;
       real_t Einitial = contact.E(x0, eval_err);
       real_t Efinal = contact.E(xf, eval_err);
-      Array<int> & CGiterations = optimizer.GetNumKrylovIterations();
+      Array<int> & CGiterations = optimizer.GetLinearSolverIterations();
       CGiter.push_back(CGiterations);
       int gndofs = prob.GetGlobalNumDofs();
 
