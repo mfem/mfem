@@ -316,7 +316,11 @@ int main(int argc, char *argv[])
       x_gf.GetTrueDofs(xref);
 
       contact.FormContactSystem(&new_coords, xref);
-      if (bound_constraints && i>3) { contact.ActivateBoundConstraints(); }
+      int activation_step = 3;
+      if (bound_constraints && i>activation_step)
+      {
+         contact.ActivateBoundConstraints();
+      }
 
       Solver * prec = nullptr;
       Solver * subspacesolver = nullptr;
@@ -375,7 +379,10 @@ int main(int argc, char *argv[])
       Vector dx(ndofs); dx = 0.0;
       dx.Set(1.0, xf);
       dx.Add(-1.0, x0);
-      contact.SetDisplacement(dx);
+      if (bound_constraints)
+      {
+         contact.SetDisplacement(dx, (i>=activation_step));
+      }
 
       int eval_err;
       real_t Einitial = contact.E(x0, eval_err);
