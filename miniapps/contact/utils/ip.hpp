@@ -98,11 +98,9 @@ protected:
 
    int dimU, dimM, dimC;
    Array<int> constraint_offsets;
-   int gdimU, gdimM, gdimC;
    Array<int> block_offsetsumlz, block_offsetsuml, block_offsetsx;
-   Vector ml; // can this be removed?
 
-   // Operators (not owned)
+   /// Operators (not owned)
    HypreParMatrix * Huu = nullptr;
    HypreParMatrix * Hmm = nullptr;
    HypreParMatrix * Wuu = nullptr;
@@ -112,10 +110,12 @@ protected:
    HypreParMatrix * JuT = nullptr;
    HypreParMatrix * JmT = nullptr;
 
+   /// Lumped masses
    Vector Mcslump;
    Vector Mvlump;
    Vector Mlump;
 
+   /// inertia-regularization parameters
    real_t alphaCurvatureTest;
    real_t deltaRegLast;
    real_t deltaRegMin;

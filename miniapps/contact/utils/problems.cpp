@@ -292,8 +292,6 @@ void OptContactProblem::FormContactSystem(ParGridFunction * coords_,
    dimM = dimG;
    dimC = dimM;
 
-   ml.SetSize(dimM); ml = 0.0;
-
    MFEM_VERIFY(vfes, "space is null");
    ParBilinearForm MassForm(vfes);
    MassForm.AddDomainIntegrator(new VectorMassIntegrator);
@@ -609,7 +607,6 @@ void OptContactProblem::ActivateBoundConstraints()
    num_constraints = J->GetGlobalNumRows() + 2 * J->GetGlobalNumCols();
    dimM = dimG + 2 * dimU;
    dimC = dimM;
-   ml.SetSize(dimM); ml = 0.0;
 }
 
 // void OptContactProblem::SetBoundConstraints(const Vector & dl_,

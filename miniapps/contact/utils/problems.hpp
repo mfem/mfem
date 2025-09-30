@@ -75,7 +75,7 @@ private:
    int dim, dimU, dimM, dimC, dimG;
    int num_constraints;
    real_t energy_ref;
-   Vector ml, grad_ref, xref, xrefbc, gapv;
+   Vector grad_ref, xref, xrefbc, gapv;
    std::set<int> mortar_attrs;
    std::set<int> nonmortar_attrs;
 
@@ -135,7 +135,6 @@ public:
    int GetDimU() {return dimU;}
    int GetDimM() {return dimM;}
    int GetDimC() {return dimC;}
-   Vector & Getml() {return ml;}
    MPI_Comm GetComm() {return comm ;}
    HYPRE_BigInt * GetConstraintsStarts() {return constraints_starts.GetData();}
    HYPRE_BigInt GetGlobalNumConstraints() { return num_constraints; }
