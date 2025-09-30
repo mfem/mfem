@@ -15,6 +15,7 @@
 #include "mfem.hpp"
 #include "../../general/socketstream.hpp"
 #include <array>
+#include <vector>
 
 namespace mfem
 {
@@ -274,6 +275,39 @@ public:
    VectorBlockDiagonalIntegrator(int n, BilinearFormIntegrator *integ_)
       : numIntegs(n) { integs.push_back(integ_); }
 
+   VectorBlockDiagonalIntegrator(const std::vector<BilinearFormIntegrator*>
+                                 &integs_)
+      : numIntegs(integs_.size())
+   {
+      integs.reserve(numIntegs);
+      for (BilinearFormIntegrator *bfi : integs_)
+      {
+         integs.push_back(bfi);
+      }
+   }
+
+   template<int N>
+   VectorBlockDiagonalIntegrator(BilinearFormIntegrator *integs_[N])
+      : numIntegs(N)
+   {
+      integs.reserve(numIntegs);
+      for (BilinearFormIntegrator *bfi : integs_)
+      {
+         integs.push_back(bfi);
+      }
+   }
+
+   VectorBlockDiagonalIntegrator(
+      std::initializer_list<BilinearFormIntegrator*> integs_)
+      : numIntegs(integs_.size())
+   {
+      integs.reserve(numIntegs);
+      for (BilinearFormIntegrator *bfi : integs_)
+      {
+         integs.push_back(bfi);
+      }
+   }
+
    ~VectorBlockDiagonalIntegrator()
    {
       if (own_integs)
@@ -479,8 +513,8 @@ void VectorBlockDiagonalIntegrator::AssembleMat(
       elmat.SetSize(tot_h, tot_w);
       elmat = 0.0;
 
-      std::array<int, N> off_js{};
-      std::array<int, M> off_is{};
+      std::array<int, NN> off_js{};
+      std::array<int, MM> off_is{};
       for (int i = 0; i < numIntegs; i++)
       {
          const int w = elmats[i].Width();
