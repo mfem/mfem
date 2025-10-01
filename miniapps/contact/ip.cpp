@@ -444,37 +444,28 @@ void IPSolver::IPNewtonSolve(BlockVector &x, Vector &l,
    // b = - [grad_m phi + Jm^T l]
    //       [          c        ]
    BlockVector gradphi(block_offsetsx); gradphi = 0.0;
-   BlockVector JTl(block_offsetsx); JTl = 0.0;
    GetDxphi(x, mu, gradphi);
-
-   (A.GetBlock(0,2)).Mult(l, JTl.GetBlock(0));
-   (A.GetBlock(1,2)).Mult(l, JTl.GetBlock(1));
 
    for (int i = 0; i < 2; i++)
    {
       b.GetBlock(i).Set(1.0, gradphi.GetBlock(i));
-      b.GetBlock(i).Add(1.0, JTl.GetBlock(i));
+      A.GetBlock(i, 2).AddMult(l, b.GetBlock(i));
    }
    problem->c(x, b.GetBlock(2));
    b *= -1.0;
    Xhat = 0.0;
 
    // form A = Huu + Ju^T D Ju, Wmm = D for contact
-   HypreParMatrix * Wmmloc = dynamic_cast<HypreParMatrix *>(&(A.GetBlock(1, 1)));
-   HypreParMatrix * Huuloc = dynamic_cast<HypreParMatrix *>(&(A.GetBlock(0, 0)));
-   HypreParMatrix * Juloc  = dynamic_cast<HypreParMatrix *>(&(A.GetBlock(2, 0)));
-
-   HypreParMatrix * JuTloc = dynamic_cast<HypreParMatrix *>(&(A.GetBlock(0, 2)));
-   HypreParMatrix *JuTDJu   = RAP(Wmmloc, Juloc);     // Ju^T D Ju
-   HypreParMatrix *Areduced = ParAdd(Huuloc, JuTDJu);  // Huu + Ju^T D Ju
+   HypreParMatrix *JuTDJu   = RAP(Wmm, Ju);     // Ju^T D Ju
+   HypreParMatrix *Areduced = ParAdd(Huu, JuTDJu);  // Huu + Ju^T D Ju
 
    /* compute the reduced rhs */
    // breduced = bu + Ju^T (bm + Wmm bl)
    Vector breduced(dimU); breduced = 0.0;
    Vector tempVec(dimM); tempVec = 0.0;
-   Wmmloc->Mult(b.GetBlock(2), tempVec);
+   Wmm->Mult(b.GetBlock(2), tempVec);
    tempVec.Add(1.0, b.GetBlock(1));
-   JuTloc->Mult(tempVec, breduced);
+   JuT->Mult(tempVec, breduced);
    breduced.Add(1.0, b.GetBlock(0));
 
    // Solver the system with the given solver
@@ -486,11 +477,11 @@ void IPSolver::IPNewtonSolve(BlockVector &x, Vector &l,
 
    // now propagate solved uhat to obtain mhat and lhat
    // xm = Ju xu - bl
-   Juloc->Mult(Xhat.GetBlock(0), Xhat.GetBlock(1));
+   Ju->Mult(Xhat.GetBlock(0), Xhat.GetBlock(1));
    Xhat.GetBlock(1).Add(-1.0, b.GetBlock(2));
 
    // xl = Wmm xm - bm
-   Wmmloc->Mult(Xhat.GetBlock(1), Xhat.GetBlock(2));
+   Wmm->Mult(Xhat.GetBlock(1), Xhat.GetBlock(2));
    Xhat.GetBlock(2).Add(-1.0, b.GetBlock(1));
 
    delete JuTDJu;
@@ -615,7 +606,7 @@ void IPSolver::LineSearch(BlockVector& X0, BlockVector& Xhat,
          else
          {
             switchCondition = (alpha * pow(abs(Dxphi0_xhat), sPhi) > delta * pow(thx0,
-                                                                                 sTheta)) ? true : false;
+                                                                                 sTheta));
          }
          if (myid == 0 && print_level > 0)
          {
@@ -632,8 +623,7 @@ void IPSolver::LineSearch(BlockVector& X0, BlockVector& Xhat,
          if (thx0 <= thetaMin && switchCondition)
          {
             // sufficient decrease of the log-barrier objective
-            sufficientDecrease = (phxtrial <= phx0 + eta * alpha * Dxphi0_xhat) ? true :
-                                 false;
+            sufficientDecrease = (phxtrial <= phx0 + eta * alpha * Dxphi0_xhat);
             if (sufficientDecrease)
             {
                if (myid == 0 && print_level > 0)
@@ -736,11 +726,8 @@ void IPSolver::GetDxphi(const BlockVector &x, real_t mu,
                         BlockVector &y)
 {
    problem->CalcObjectiveGrad(x, y);
-   Vector ytemp(dimM); ytemp = 0.0;
-   for (int i = 0; i < dimM; i++)
-   {
-      ytemp(i) = 1. / x(dimU + i);
-   }
+   Vector ytemp(dimM); ytemp = 1.0;
+   ytemp /= x.GetBlock(1);
    ytemp *= Mlump;
    y.GetBlock(1).Add(-mu, ytemp);
 }
@@ -766,27 +753,15 @@ void IPSolver::EvalLagrangianGradient(const BlockVector &x, const Vector &l,
                                       const Vector &zl, BlockVector &y)
 {
    // evaluate the gradient of the objective with respect to the primal variables x = (u, m)
+   y.GetBlock(1).Set(-1.0, zl);
+   y.GetBlock(1) *= Mlump;
+	
+   problem->Duc(x)->MultTranspose(l, y.GetBlock(0));
+   problem->Dmc(x)->AddMultTranspose(l, y.GetBlock(1));   
+
    BlockVector gradxf(block_offsetsx); gradxf = 0.0;
    problem->CalcObjectiveGrad(x, gradxf);
-
-   HypreParMatrix *Jacu, *Jacm, *JacuT, *JacmT;
-   Jacu = problem->Duc(x);
-   Jacm = problem->Dmc(x);
-   JacuT = Jacu->Transpose();
-   JacmT = Jacm->Transpose();
-
-   JacuT->Mult(l, y.GetBlock(0));
-   JacmT->Mult(l, y.GetBlock(1));
-
-   delete JacuT;
-   delete JacmT;
-
    y.Add(1.0, gradxf);
-
-   Vector temp(dimM); temp = 0.0;
-   temp.Set(1.0, zl);
-   temp *= Mlump;
-   (y.GetBlock(1)).Add(-1.0, temp);
 }
 
 
@@ -822,7 +797,7 @@ bool IPSolver::CurvatureTest(const BlockOperator & A,
    real_t lplusTck = -1.0 * InnerProduct(comm, lplus, b.GetBlock(2));
 
    bool passed = (dWd + fmax(-lplusTck,
-                             0.0) >= alphaCurvatureTest * dd) ? true : false;
+                             0.0) >= alphaCurvatureTest * dd);
    return passed;
 }
 
