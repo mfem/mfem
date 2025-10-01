@@ -267,7 +267,7 @@ int main(int argc, char *argv[])
    }
    else if (pmesh->NURBSext && (order[0] > 0) )  // Subparametric NURBS
    {
-      fec = new NURBSFECollection(order[0]);
+      fec = new H1_FECollection(order[0], dim);
       own_fec = 1;
       int nkv = pmesh->NURBSext->GetNKV();
 
@@ -290,7 +290,7 @@ int main(int argc, char *argv[])
             cout<<" - slave  : "; slave.Print();
          }
 
-         NURBSext->ConnectBoundaries(master,slave);
+         pmesh->NURBSext->ConnectBoundaries(master,slave);
       }
    }
    else
@@ -299,7 +299,7 @@ int main(int argc, char *argv[])
       fec = new H1_FECollection(abs(order[0]), dim);
       own_fec = 1;
    }
-   ParFiniteElementSpace *fespace = new ParFiniteElementSpace(pmesh,NURBSext,fec);
+   ParFiniteElementSpace *fespace = new ParFiniteElementSpace(pmesh,fec);
    HYPRE_BigInt size = fespace->GlobalTrueVSize();
    if (myid == 0)
    {
