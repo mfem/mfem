@@ -115,10 +115,35 @@ struct ProblemParams
    real_t gas_constant;
 };
 
+class AnisotropicMatrixFunctionCoefficient : public MatrixCoefficient
+{
+public:
+   using AnisoMatFunc =
+      std::function<void(const Vector &, const Vector&, DenseMatrix &)>;
+
+   AnisotropicMatrixFunctionCoefficient(int dim, AnisoMatFunc F_,
+                                        VectorCoefficient &B_)
+      : MatrixCoefficient(dim), F(std::move(F_)), B(B_) { }
+
+   void Eval(DenseMatrix &K, ElementTransformation &T,
+             const IntegrationPoint &ip) override
+   {
+      K.SetSize(height, width);
+      Vector x, vB;
+      B.Eval(vB, T, ip);
+      T.Transform(ip, x);
+      F(x, vB, K);
+   }
+
+private:
+   AnisoMatFunc F;
+   VectorCoefficient &B;
+};
+
 // Define the analytical solution and forcing terms / boundary conditions
 typedef std::function<void(const Vector &, Vector &)> VecFunc;
 typedef std::function<void(const Vector &, real_t, Vector &)> VecTFunc;
-typedef std::function<void(const Vector &, DenseMatrix &)> MatFunc;
+typedef AnisotropicMatrixFunctionCoefficient::AnisoMatFunc MatFunc;
 
 MatFunc GetKFun(const ProblemParams &params, Quantity q);
 VecFunc GetU0Fun(const ProblemParams &params);
@@ -216,6 +241,18 @@ int main(int argc, char *argv[])
       mesh.UniformRefinement();
    }
 
+   // Read the magnetic field grid function from the given VisIt data
+   // collection or otherwise align anisotropy with the axes
+   std::unique_ptr<VectorCoefficient> B_coeff;
+   Vector B_vec;
+
+   {
+      B_vec.SetSize(dim);
+      B_vec = 0.;
+      B_vec[0] = 1.;
+      B_coeff.reset(new VectorConstantCoefficient(B_vec));
+   }
+
    // 3. Define the ODE solver used for time integration. Several explicit
    //    Runge-Kutta methods are available.
    unique_ptr<ODESolver> ode_solver = ODESolver::SelectImplicit(ode_solver_type);
@@ -271,11 +308,11 @@ int main(int argc, char *argv[])
                       GetKFun(pars, Quantity::Momentum),
                       GetKFun(pars, Quantity::Energy)
                     };
-   MatrixFunctionCoefficient kcoeff[] =
+   AnisotropicMatrixFunctionCoefficient kcoeff[] =
    {
-      MatrixFunctionCoefficient(dim, kFun[Quantity::Density]),
-      MatrixFunctionCoefficient(dim, kFun[Quantity::Momentum]),
-      MatrixFunctionCoefficient(dim, kFun[Quantity::Energy])
+      AnisotropicMatrixFunctionCoefficient(dim, kFun[Quantity::Density], *B_coeff),
+      AnisotropicMatrixFunctionCoefficient(dim, kFun[Quantity::Momentum], *B_coeff),
+      AnisotropicMatrixFunctionCoefficient(dim, kFun[Quantity::Energy], *B_coeff)
    }; //tensor diffusivity
    InverseMatrixCoefficient ikcoeff[] =
    {
@@ -549,17 +586,15 @@ MatFunc GetKFun(const ProblemParams &params, Quantity q)
       case Problem::FastVortex:
       case Problem::SlowVortex:
       case Problem::SineWave:
-         return [=](const Vector &x, DenseMatrix &kappa)
+         return [=](const Vector &x, const Vector &B, DenseMatrix &kappa)
          {
             const int ndim = x.Size();
-            kappa.Diag(k, ndim);
-            kappa(0,0) *= ks;
-            kappa(0,1) = +ka * k;
-            kappa(1,0) = -ka * k;
-            if (ndim > 2)
+            Vector b(B);
+            b /= b.Norml2();
+            kappa.Diag(ks * k, ndim);
+            if (ks != 1.)
             {
-               kappa(0,2) = +ka * k;
-               kappa(2,0) = -ka * k;
+               AddMult_a_VVt((1. - ks) * k, b, kappa);
             }
          };
    }
