@@ -24,12 +24,12 @@ if (MFEM_USE_TRIBOL AND MFEM_USE_MPI)
 
   set(CONTACT_COMMON_FILES
       EXTRA_SOURCES ${CONTACT_SOURCES}
-      EXTRA_HEADERS ${CONTACT_HEADERS} ${MFEM_MINIAPPS_COMMON_HEADERS})
+      EXTRA_HEADERS ${CONTACT_HEADERS})
 
   add_mfem_miniapp(contact
     MAIN contact.cpp
     ${CONTACT_COMMON_FILES}
-    LIBRARIES mfem-common)
+    LIBRARIES mfem)
 
 # The way the libraries are included, by default, in the command line is based
 # on the idea that MFEM depends on the other libraries. Here, the setting is

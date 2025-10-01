@@ -33,7 +33,7 @@ else
    CONTACT_SRC = 
    .PHONY: contact
    contact:
-	@echo "Rebuild MFEM with MFEM_USE_TRIBOL=YES and MFEM_USE_MPI=YES to enable."
+	@echo "Rebuild MFEM with MFEM_USE_TRIBOL=YES and MFEM_USE_MPI=YES to build the contact miniapp."
 endif
 
 CONTACT_OBJ = $(CONTACT_SRC:.cpp=.o)
@@ -59,7 +59,6 @@ all: $(MINIAPPS)
 MFEM_TESTS = MINIAPPS
 include $(MFEM_TEST_MK)
 
-# Testing: Parallel vs. serial runs
 RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
 TEST_NAME := Contact miniapp
 %-test-par: %
@@ -67,15 +66,16 @@ TEST_NAME := Contact miniapp
 %-test-seq: %
 	@$(call mfem-test,$<,, $(TEST_NAME))
 
-# Generate an error message if the MFEM library is not built and exit
-$(MFEM_LIB_FILE):
-	$(error The MFEM library is not built)
-
 clean: clean-build clean-exec
 
 clean-build:
-	rm -f $(CONTACT_OBJS) *~ $(MINIAPPS)
+	rm -f $(CONTACT_OBJ) *~ $(MINIAPPS)
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:
 	@rm -rf ParaView 
+
+# Generate an error message if the MFEM library is not built and exit
+$(MFEM_LIB_FILE):
+	$(error The MFEM library is not built)
+	
