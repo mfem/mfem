@@ -311,14 +311,14 @@ int main(int argc, char *argv[])
       {
          cout << "No integration by parts requires a NURBS mesh, with only 1 patch."<<
               endl;
-         cout << "A C_1 discretisation is required."<< endl;
+         cout << "A C_1 discretization is required."<< endl;
          cout << "Currently only C_0 multipatch coupling implemented."<< endl;
          return 3;
       }
       if (order[0]<2)
       {
          cout << "No integration by parts requires at least quadratic NURBS."<< endl;
-         cout << "A C_1 discretisation is required."<< endl;
+         cout << "A C_1 discretization is required."<< endl;
          return 4;
       }
    }
