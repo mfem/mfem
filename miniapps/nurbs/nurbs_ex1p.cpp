@@ -146,8 +146,7 @@ int main(int argc, char *argv[])
    // 2. Parse command-line options.
    const char *mesh_file = "../../data/star.mesh";
    int ref_levels = -1;
-   Array<int> order(1);
-   order[0] = 1;
+   int order = 1;
    bool static_cond = false;
    bool visualization = 1;
    bool ibp = 1;
@@ -192,10 +191,6 @@ int main(int argc, char *argv[])
          args.PrintUsage(cout);
       }
       return 1;
-   }
-   if (!strongBC & (kappa < 0))
-   {
-      kappa = 4*(order.Max()+1)*(order.Max()+1);
    }
    if (myid == 0)
    {
@@ -247,10 +242,9 @@ int main(int argc, char *argv[])
    //    use continuous Lagrange finite elements of the specified order. If
    //    order < 1, we instead use an isoparametric/isogeometric space.
    FiniteElementCollection *fec;
-   NURBSExtension *NURBSext = NULL;
    int own_fec = 0;
 
-   if (order[0] == -1) // Isoparametric
+   if (order < 0) // Isoparametric
    {
       if (pmesh->GetNodes())
       {
@@ -265,20 +259,11 @@ int main(int argc, char *argv[])
          own_fec = 1;
       }
    }
-   else if (pmesh->NURBSext && (order[0] > 0) )  // Subparametric NURBS
+   else if (pmesh->NURBSext && (order > 0) )  // Subparametric NURBS
    {
-      fec = new H1_FECollection(order[0], dim);
+      fec = new H1_FECollection(order, dim);
       own_fec = 1;
       int nkv = pmesh->NURBSext->GetNKV();
-
-      if (order.Size() == 1)
-      {
-         int tmp = order[0];
-         order.SetSize(nkv);
-         order = tmp;
-      }
-      if (order.Size() != nkv ) { mfem_error("Wrong number of orders set."); }
-      NURBSext = new NURBSExtension(pmesh->NURBSext, order);
 
       // Enforce periodic BC's
       if (master.Size() > 0)
@@ -295,8 +280,11 @@ int main(int argc, char *argv[])
    }
    else
    {
-      if (order.Size() > 1) { cout <<"Wrong number of orders set, needs one.\n"; }
-      fec = new H1_FECollection(abs(order[0]), dim);
+      if (myid == 0)
+      {
+         cout << "Invalid order, setting to one." << endl;
+      }
+      fec = new H1_FECollection(1, dim);
       own_fec = 1;
    }
    ParFiniteElementSpace *fespace = new ParFiniteElementSpace(pmesh,fec);
@@ -321,7 +309,7 @@ int main(int argc, char *argv[])
          cout << "Currently only C_0 multipatch coupling implemented."<< endl;
          return 3;
       }
-      if (order[0]<2)
+      if (order<2)
       {
          cout << "No integration by parts requires at least quadratic NURBS."<< endl;
          cout << "A C_1 discretisation is required."<< endl;
@@ -366,6 +354,13 @@ int main(int argc, char *argv[])
    b->AddDomainIntegrator(new DomainLFIntegrator(one));
 
    if (!strongBC)
+      // Set kappa if needed using fec order
+      if (kappa < 0)
+      {
+         const int p = fec->GetOrder();
+         kappa = 4*(p+1)*(p+1);
+      }
+      if (myid == 0) { cout << "Enforcing BC weakly, kappa = " << kappa << endl; }
       b->AddBdrFaceIntegrator(
          new DGDirichletLFIntegrator(zero, one, -1.0, kappa));
    b->Assemble();
