@@ -19,7 +19,7 @@ using real_t = mfem::real_t;
 class StokesSolver:public mfem::Operator
 {
 public:
-   StokesSolver(mfem::ParMesh* mesh, int order_, bool dfem_=false);
+   StokesSolver(mfem::ParMesh* mesh, int order_, bool zero_mean_press_=false);
 
    virtual
    ~StokesSolver();
@@ -27,7 +27,7 @@ public:
    /// Set the Linear Solver
    void SetLinearSolver(const real_t rtol = 1e-8,
                         const real_t atol = 1e-12,
-                        const int miter = 4000)
+                        const int miter = 200)
    {
       linear_atol=atol;
       linear_rtol=rtol;
@@ -37,6 +37,16 @@ public:
    /// Sets BC dofs, bilinear form, preconditioner and solver.
    /// Should be called before calling Mult of MultTranspose
    virtual void Assemble();
+
+   /// Sets Brinkman coefficient
+   void SetBrink(std::shared_ptr<mfem::Coefficient> br_){
+       brink=br_;
+   }
+
+   /// Sets viscosity
+   void SetVisc(std::shared_ptr<mfem::Coefficient> vs_){
+       visc=vs_;
+   }
 
    /// Solves the forward problem.
    void FSolve();
@@ -72,11 +82,11 @@ public:
    void SetEssTDofsV(mfem::Vector& v) const;
 
    /// Forward solve with given RHS. x is the RHS vector.
-   /// The BC are set to the specified BC.
+   /// The BC are set in the Mult operation.
    void Mult(const mfem::Vector &x, mfem::Vector &y) const override;
 
    /// Adjoint solve with given RHS. x is the RHS vector.
-   /// The BC are set to zero.
+   /// The BC are set to zero in the MultTranspose operator.
    void MultTranspose(const mfem::Vector &x, mfem::Vector &y) const override;
 
    /// Return velocity grid function
@@ -119,8 +129,10 @@ public:
 
 
 private:
+
+   int myrank;
+
    bool zero_mean_press;
-   bool dfem;
 
    /// The parallel mesh.
    mfem::ParMesh *pmesh = nullptr;
@@ -132,6 +144,7 @@ private:
    real_t linear_atol;
    real_t linear_rtol;
    int  linear_iter;
+   int dim;
 
    std::shared_ptr<mfem::Coefficient> visc; //viscosity
    std::shared_ptr<mfem::Coefficient> brink; //Brinkman penalization
@@ -184,7 +197,6 @@ private:
    mutable mfem::BlockVector adj;
 
    mfem::Vector V; //used for removing the mean pressure
-
 };
 
 class LSCStokesPrec:public mfem::IterativeSolver
@@ -210,6 +222,7 @@ public:
       std::unique_ptr<mfem::ParBilinearForm>
       b11(new mfem::ParBilinearForm(&vlor));
       b11->AddDomainIntegrator(new mfem::ElasticityIntegrator(lambda,*visc_));
+      //b11->AddDomainIntegrator(new mfem::VectorDiffusionIntegrator(*visc_));
       if (nullptr!=brink_.get())
       {
          b11->AddDomainIntegrator(new mfem::VectorMassIntegrator(*brink_));
@@ -244,7 +257,8 @@ public:
          q11(new mfem::ParBilinearForm(vfes_));
          q11->AddDomainIntegrator(
             new mfem::LumpedIntegrator(
-               new mfem::VectorMassIntegrator(*brink_)));
+               //new mfem::VectorMassIntegrator(*brink_)));
+               new mfem::VectorMassIntegrator()));
          q11->Assemble(0);
          q11->Finalize(0);
          Qv.reset(q11->ParallelAssemble());
@@ -317,7 +331,7 @@ public:
 
       cga->SetPreconditioner(*amga);
       cga->SetPrintLevel(0);
-      cga->SetMaxIter(10);
+      cga->SetMaxIter(20);
       cga->SetRelTol(1e-12);
       cga->SetAbsTol(1e-12);
 
@@ -329,11 +343,18 @@ public:
       block_true_offsets[1] = siz_u;
       block_true_offsets[2] = siz_p;
       block_true_offsets.PartialSum();
+      //set the width and the height of the operator
+      this->width=  block_true_offsets[2];
+      this->height= block_true_offsets[2];
 
       v1.SetSize(siz_p); v1=0.0;
       v2.SetSize(siz_u); v2=0.0;
       v3.SetSize(siz_u); v3=0.0;
       v4.SetSize(siz_p); v4=0.0;
+
+      myrank=vfes_->GetMyRank();
+
+
    }
 
    /// Operator application
@@ -345,17 +366,18 @@ public:
       cga->SetMaxIter(mfem::IterativeSolver::max_iter);
       cga->SetAbsTol(IterativeSolver::abs_tol);
       cga->SetRelTol(IterativeSolver::rel_tol);
-      cga->iterative_mode=true;
+      //cga->iterative_mode=true;
 
       cg11->SetMaxIter(mfem::IterativeSolver::max_iter);
       cg11->SetAbsTol(IterativeSolver::abs_tol);
       cg11->SetRelTol(IterativeSolver::rel_tol);
-      cg11->iterative_mode=true;
+      //cg11->iterative_mode=true;
 
 
       xb.Update(const_cast<mfem::Vector&>(x), block_true_offsets);
       yb.Update(y, block_true_offsets);
 
+      if(0==myrank){std::cout<<"Schur complement solve";}
       cga->Mult(xb.GetBlock(1),v1);
       O12->Mult(v1,v2);
       amgv->Mult(v2,v3);
@@ -370,6 +392,7 @@ public:
       add(xb.GetBlock(0), -1, v2, v3);
 
       //multiply the upper block
+      if(0==myrank){std::cout<<"Upper block solve";}
       cg11->Mult(v3,yb.GetBlock(0));
    }
 
@@ -402,4 +425,5 @@ private:
    std::unique_ptr<mfem::HypreBoomerAMG> amgv;
 
    bool zero_mean_press;
+   int myrank;
 };
