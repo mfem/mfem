@@ -89,7 +89,8 @@ GridFunction::GridFunction(Mesh *m, GridFunction *gf_array[], int num_pieces)
    vdim = fes->GetVDim();
    ordering = fes->GetOrdering();
    NURBSExtension *NURBSext = NULL;
-   if (dynamic_cast<NURBSFECollection *>(fec_owned))
+   bool NURBSfec = (dynamic_cast<NURBSFECollection *>(fec_owned)!= nullptr);
+   if (NURBSfec)
    {
       if (m->NURBSext)
       {
@@ -97,13 +98,13 @@ GridFunction::GridFunction(Mesh *m, GridFunction *gf_array[], int num_pieces)
       }
       else
       {
-         mfem_error ("NURBS Solution required a NURBS mesh!");
+         mfem_error ("NURBS solution requires a NURBS mesh!");
       }
    }
    fes = new FiniteElementSpace(m, NURBSext, fec_owned, vdim, ordering);
    SetSize(fes->GetVSize());
 
-   if (m->NURBSext)
+   if (NURBSfec)
    {
       NURBSExtension::MergeGridFunctions(gf_array, num_pieces, *this);
       return;
