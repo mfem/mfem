@@ -360,9 +360,9 @@ int main(int argc, char *argv[])
          const int p = fec->GetOrder();
          kappa = 4*(p+1)*(p+1);
       }
-      if (myid == 0) { cout << "Enforcing BC weakly, kappa = " << kappa << endl; }
-      b->AddBdrFaceIntegrator(
-         new DGDirichletLFIntegrator(zero, one, -1.0, kappa));
+   if (myid == 0) { cout << "Enforcing BC weakly, kappa = " << kappa << endl; }
+   b->AddBdrFaceIntegrator(
+      new DGDirichletLFIntegrator(zero, one, -1.0, kappa));
    b->Assemble();
 
    // 9. Define the solution vector x as a parallel finite element grid function
