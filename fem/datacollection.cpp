@@ -772,7 +772,7 @@ ParaViewDataCollectionBase::ParaViewDataCollectionBase(
 
 void ParaViewDataCollectionBase::SetLevelsOfDetail(int levels_of_detail_)
 {
-   levels_of_detail = levels_of_detail_;
+   levels_of_detail = std::max(levels_of_detail_, 1);
 }
 
 void ParaViewDataCollectionBase::SetHighOrderOutput(bool high_order_output_)
