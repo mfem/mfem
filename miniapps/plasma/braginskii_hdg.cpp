@@ -140,6 +140,9 @@ private:
    VectorCoefficient &B;
 };
 
+// Prints the program's logo to the given output stream
+void display_banner(ostream & os);
+
 // Define the analytical solution and forcing terms / boundary conditions
 typedef std::function<void(const Vector &, Vector &)> VecFunc;
 typedef std::function<void(const Vector &, real_t, Vector &)> VecTFunc;
@@ -153,6 +156,8 @@ bool VisualizeField(socketstream &sout, const GridFunction &gf,
 
 int main(int argc, char *argv[])
 {
+   display_banner(cout);
+
    // 1. Parse command-line options.
    string mesh_file = "";
    int problem = 1;
@@ -573,6 +578,20 @@ int main(int argc, char *argv[])
    cout << "Solution error: " << error << endl;
 
    return 0;
+}
+
+void display_banner(ostream & os)
+{
+   os << "__________                        __               __    __ __ " << endl
+      << "\\______   \\____________     ____ |__| ____   _____|  | _|__|__|" << endl
+      << " |    |  _/\\_  __ \\__  \\   / ___\\|  |/    \\ /  ___/  |/ /  |  |" <<
+      endl
+      << " |    |   \\ |  | \\// __ \\_/ /_/  >  |   |  \\\\___ \\|    <|  |  |" <<
+      endl
+      << " |______  / |__|  (____  /\\___  /|__|___|  /____  >__|_ \\__|__|" << endl
+      << "        \\/             \\//_____/         \\/     \\/     \\/      " <<
+      endl
+      << endl<< endl << flush;
 }
 
 MatFunc GetKFun(const ProblemParams &params, Quantity q)
