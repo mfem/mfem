@@ -89,7 +89,7 @@
 //   Problem 4: level set: Union of doughnut and swiss cheese shapes
 //     mpirun -np 4 distance -m ../../data/inline-hex.mesh -rs 3 -o 2 -t 1.0 -p 4
 //   Problem 5: point source in mfem mesh.
-//     mpirun -np 4 distance -m ../../data/mfem.mesh -p 5 -rs 3 -t 200.0
+//     mpirun -np 4 distance -m ../../data/mfem.mesh -p 5 -rs 3 -t 300.0
 
 #include <fstream>
 #include <iostream>
