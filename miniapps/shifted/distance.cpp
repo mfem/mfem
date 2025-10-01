@@ -70,7 +70,6 @@
 //
 //   Problem 0: point source.
 //     mpirun -np 4 distance -m ./corners.mesh -p 0 -rs 3 -t 200.0
-//     mpirun -np 4 distance -m ../../data/mfem.mesh -p 5 -rs 3 -t 200.0
 //
 //   Problem 1: zero level set: ball at the center of the domain - the exact
 // + distance is known, the code computes global and local errors.
