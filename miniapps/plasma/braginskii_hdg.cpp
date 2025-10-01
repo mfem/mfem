@@ -148,7 +148,6 @@ int main(int argc, char *argv[])
    real_t dt = -0.01;
    real_t cfl = 0.3;
    real_t td = 0.5;
-   bool reduction = false;
    bool hybridization = false;
    bool visualization = true;
    int vis_steps = 50;
@@ -182,8 +181,6 @@ int main(int argc, char *argv[])
                   "Antisymmetric anisotropy of the diffusivity tensor");
    args.AddOption(&td, "-td", "--stab_diff",
                   "Diffusion stabilization factor (1/2=default)");
-   args.AddOption(&reduction, "-rd", "--reduction", "-no-rd",
-                  "--no-reduction", "Enable reduction.");
    args.AddOption(&hybridization, "-hb", "--hybridization", "-no-hb",
                   "--no-hybridization", "Enable hybridization.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
@@ -375,18 +372,6 @@ int main(int argc, char *argv[])
                                    num_equations, new NormalTraceJumpIntegrator()),
                                 ess_flux_tdofs_list);
 
-   }
-   else if (reduction)
-   {
-      if (dg || brt)
-      {
-         darcy.EnableFluxReduction();
-      }
-      else
-      {
-         std::cerr << "No possible reduction!" << std::endl;
-         return 1;
-      }
    }
 
    // 6. Define the initial conditions, save the corresponding mesh and grid
