@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -30,12 +30,11 @@
 //
 // Compile with: make convert-dc
 //
-// Serial sample runs:
-//    convert-dc -s ../../examples/Example5 -st visit -o Example5_Conduit -ot json
+// Serial sample run (requires MFEM_USE_CONDUIT=YES):
+//  > convert-dc -s ../../examples/Example5 -st visit -o Example5_Conduit -ot json
 //
-// Parallel sample runs:
-//    mpirun -np 4 convert-dc -s ../../examples/Example5-Parallel -st visit
-//                            -o Example5-Parallel_Conduit -ot json
+// Parallel sample run (requires MFEM_USE_CONDUIT=YES):
+//  > mpirun -np 4 convert-dc -s ../../examples/Example5-Parallel -st visit -o Example5-Parallel_Conduit -ot json
 
 #include "mfem.hpp"
 
@@ -107,16 +106,21 @@ DataCollection *create_data_collection(const std::string &dc_name,
 int main(int argc, char *argv[])
 {
 #ifdef MFEM_USE_MPI
-   MPI_Session mpi;
-   if (!mpi.Root()) { mfem::out.Disable(); mfem::err.Disable(); }
+   Mpi::Init();
+   if (!Mpi::Root()) { mfem::out.Disable(); mfem::err.Disable(); }
+   Hypre::Init();
 #endif
 
    // Parse command-line options.
    const char *src_coll_name = NULL;
    const char *src_coll_type = "visit";
    int src_cycle = 0;
+   int src_pad_digits_cycle = 6;
+   int src_pad_digits_rank = 6;
    const char *out_coll_name = NULL;
    const char *out_coll_type = "visit";
+   int out_pad_digits_cycle = -1;
+   int out_pad_digits_rank = -1;
 
    OptionsParser args(argc, argv);
    args.AddOption(&src_coll_name, "-s", "--source-root-prefix",
@@ -125,6 +129,14 @@ int main(int argc, char *argv[])
                   "Set the source data collection root file prefix.", true);
    args.AddOption(&src_cycle, "-c", "--cycle",
                   "Set the source cycle index to read.");
+   args.AddOption(&src_pad_digits_cycle, "-pdc", "--pad-digits-cycle",
+                  "Number of digits in source cycle.");
+   args.AddOption(&out_pad_digits_cycle, "-opdc", "--out-pad-digits-cycle",
+                  "Number of digits in output cycle.");
+   args.AddOption(&src_pad_digits_rank, "-pdr", "--pad-digits-rank",
+                  "Number of digits in source MPI rank.");
+   args.AddOption(&out_pad_digits_rank, "-opdr", "--out-pad-digits-rank",
+                  "Number of digits in output MPI rank.");
    args.AddOption(&src_coll_type, "-st", "--source-type",
                   "Set the source data collection type. Options:\n"
                   "\t   visit:                VisItDataCollection (default)\n"
@@ -155,17 +167,29 @@ int main(int argc, char *argv[])
       args.PrintUsage(mfem::out);
       return 1;
    }
+   if (out_pad_digits_cycle < 0)
+   {
+      out_pad_digits_cycle = src_pad_digits_cycle;
+   }
+   if (out_pad_digits_rank < 0)
+   {
+      out_pad_digits_rank = src_pad_digits_rank;
+   }
    args.PrintOptions(mfem::out);
 
-   DataCollection *src = create_data_collection(std::string(src_coll_name),
-                                                std::string(src_coll_type));
+   DataCollection *src_dc = create_data_collection(std::string(src_coll_name),
+                                                   std::string(src_coll_type));
 
-   DataCollection *out = create_data_collection(std::string(out_coll_name),
-                                                std::string(out_coll_type));
+   DataCollection *out_dc = create_data_collection(std::string(out_coll_name),
+                                                   std::string(out_coll_type));
 
-   src->Load(src_cycle);
+   out_dc->SetPadDigitsCycle(out_pad_digits_cycle);
+   out_dc->SetPadDigitsRank(out_pad_digits_rank);
+   src_dc->SetPadDigitsCycle(src_pad_digits_cycle);
+   src_dc->SetPadDigitsRank(src_pad_digits_rank);
+   src_dc->Load(src_cycle);
 
-   if (src->Error() != DataCollection::NO_ERROR)
+   if (src_dc->Error() != DataCollection::No_Error)
    {
       mfem::out << "Error loading data collection: "
                 << src_coll_name
@@ -176,33 +200,33 @@ int main(int argc, char *argv[])
       return 1;
    }
 
-   out->SetOwnData(false);
+   out_dc->SetOwnData(false);
 
    // add mesh from source dc to output dc
 #ifdef MFEM_USE_MPI
-   out->SetMesh(MPI_COMM_WORLD,src->GetMesh());
+   out_dc->SetMesh(MPI_COMM_WORLD,src_dc->GetMesh());
 #else
-   out->SetMesh(src->GetMesh());
+   out_dc->SetMesh(src_dc->GetMesh());
 #endif
 
    // propagate the basics
-   out->SetCycle(src->GetCycle());
-   out->SetTime(src->GetTime());
-   out->SetTimeStep(src->GetTimeStep());
+   out_dc->SetCycle(src_dc->GetCycle());
+   out_dc->SetTime(src_dc->GetTime());
+   out_dc->SetTimeStep(src_dc->GetTimeStep());
 
    // loop over all fields in the source dc, and add them to the output dc
-   const DataCollection::FieldMapType &src_fields = src->GetFieldMap();
+   const DataCollection::FieldMapType &src_fields = src_dc->GetFieldMap();
 
    for (DataCollection::FieldMapType::const_iterator it = src_fields.begin();
         it != src_fields.end();
         ++it)
    {
-      out->RegisterField(it->first,it->second);
+      out_dc->RegisterField(it->first,it->second);
    }
 
-   out->Save();
+   out_dc->Save();
 
-   if (out->Error() != DataCollection::NO_ERROR)
+   if (out_dc->Error() != DataCollection::No_Error)
    {
       mfem::out << "Error saving data collection: "
                 << out_coll_name
@@ -214,8 +238,8 @@ int main(int argc, char *argv[])
    }
 
    // cleanup
-   delete src;
-   delete out;
+   delete src_dc;
+   delete out_dc;
 
    return 0;
 }

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -13,9 +13,11 @@
 #define MFEM_FEM_HPP
 
 #include "intrules.hpp"
+#include "intrules_cut.hpp"
 #include "geom.hpp"
 #include "fe.hpp"
 #include "fe_coll.hpp"
+#include "doftrans.hpp"
 #include "eltrans.hpp"
 #include "coefficient.hpp"
 #include "complex_fem.hpp"
@@ -25,6 +27,7 @@
 #include "bilininteg.hpp"
 #include "fespace.hpp"
 #include "gridfunc.hpp"
+#include "kdtree.hpp"
 #include "linearform.hpp"
 #include "nonlinearform.hpp"
 #include "bilinearform.hpp"
@@ -42,8 +45,13 @@
 #include "transfer.hpp"
 #include "fespacehierarchy.hpp"
 #include "multigrid.hpp"
-#include "ceed/algebraic.hpp"
-#include "lor.hpp"
+#include "ceed/solvers/algebraic.hpp"
+#include "lor/lor.hpp"
+#include "dgmassinv.hpp"
+#include "hyperbolic.hpp"
+#include "bounds.hpp"
+
+#include "dfem/doperator.hpp"
 
 #ifdef MFEM_USE_MPI
 #include "pfespace.hpp"

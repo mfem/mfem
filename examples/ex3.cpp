@@ -16,6 +16,8 @@
 //               ex3 -m ../data/beam-hex-nurbs.mesh
 //               ex3 -m ../data/amr-hex.mesh
 //               ex3 -m ../data/fichera-amr.mesh
+//               ex3 -m ../data/ref-prism.mesh -o 1
+//               ex3 -m ../data/octahedron.mesh -o 1
 //               ex3 -m ../data/star-surf.mesh -o 1
 //               ex3 -m ../data/mobius-strip.mesh -f 0.1
 //               ex3 -m ../data/klein-bottle.mesh -f 0.1
@@ -51,7 +53,7 @@ using namespace mfem;
 // Exact solution, E, and r.h.s., f. See below for implementation.
 void E_exact(const Vector &, Vector &);
 void f_exact(const Vector &, Vector &);
-double freq = 1.0, kappa;
+real_t freq = 1.0, kappa;
 int dim;
 
 int main(int argc, char *argv[])
@@ -61,6 +63,7 @@ int main(int argc, char *argv[])
    int order = 1;
    bool static_cond = false;
    bool pa = false;
+   bool nc = false;
    const char *device_config = "cpu";
    bool visualization = 1;
 
@@ -75,6 +78,9 @@ int main(int argc, char *argv[])
                   "--no-static-condensation", "Enable static condensation.");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
                   "--no-partial-assembly", "Enable Partial Assembly.");
+   args.AddOption(&nc, "-nc", "--non-conforming", "-c",
+                  "--conforming",
+                  "Mark the mesh as nonconforming before partitioning.");
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
@@ -100,6 +106,11 @@ int main(int argc, char *argv[])
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
    dim = mesh->Dimension();
    int sdim = mesh->SpaceDimension();
+   if (nc)
+   {
+      // Can set to false to use conformal refinement for simplices.
+      mesh->EnsureNCMesh(true);
+   }
 
    // 4. Refine the mesh to increase the resolution. In this example we do
    //    'ref_levels' of uniform refinement. We choose 'ref_levels' to be the
@@ -113,7 +124,6 @@ int main(int argc, char *argv[])
          mesh->UniformRefinement();
       }
    }
-   mesh->ReorientTetMesh();
 
    // 5. Define a finite element space on the mesh. Here we use the Nedelec
    //    finite elements of the specified order.

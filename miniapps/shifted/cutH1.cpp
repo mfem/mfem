@@ -7,9 +7,11 @@
 //
 
 #include "mfem.hpp"
+#include "../common/mfem-common.hpp"
 
 using namespace std;
 using namespace mfem;
+using namespace common;
 
 // Used for debugging the elem-to-dof tables when the elements' attributes
 // are associated with materials. Options for lvl:
@@ -73,9 +75,8 @@ void PrintDofElemTable(const Table &elem_dof, const ParMesh &pmesh,
 
 void VisualizeL2(ParGridFunction &gf, int size, int x, int y)
 {
-   int num_procs, myid;
-   MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
-   MPI_Comm_rank(MPI_COMM_WORLD, &myid);
+   int myid = Mpi::WorldRank();
+   int num_procs = Mpi::WorldSize();
 
    ParMesh *pmesh = gf.ParFESpace()->GetParMesh();
    const int order = gf.ParFESpace()->GetOrder(0);
@@ -249,10 +250,10 @@ void cutH1Space(ParFiniteElementSpace &pfes, bool vis, bool print)
 int main(int argc, char *argv[])
 {
    // 1. Initialize MPI.
-   int num_procs, myid;
-   MPI_Init(&argc, &argv);
-   MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
-   MPI_Comm_rank(MPI_COMM_WORLD, &myid);
+   Mpi::Init(argc, argv);
+   int myid = Mpi::WorldRank();
+   int num_procs = Mpi::WorldSize();
+   Hypre::Init();
 
    // 2. Parse command-line options.
    const char *mesh_file = "../../data/inline-quad.mesh";
@@ -281,7 +282,6 @@ int main(int argc, char *argv[])
       {
          args.PrintUsage(cout);
       }
-      MPI_Finalize();
       return 1;
    }
    if (myid == 0) { args.PrintOptions(cout); }
@@ -372,7 +372,5 @@ int main(int argc, char *argv[])
 
    const double norm = u.Norml2();
    std::cout << "Norm: " << norm << std::endl;
-
-   MPI_Finalize();
    return 0;
 }

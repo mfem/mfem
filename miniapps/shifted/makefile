@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -12,11 +12,10 @@
 # Use the MFEM build directory
 MFEM_DIR ?= ../..
 MFEM_BUILD_DIR ?= ../..
+MFEM_INSTALL_DIR ?= ../../mfem
 SRC = $(if $(MFEM_DIR:../..=),$(MFEM_DIR)/miniapps/shifted/,)
-CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
-# Use the MFEM install directory
-# MFEM_INSTALL_DIR = ../../mfem
-# CONFIG_MK = $(MFEM_INSTALL_DIR)/share/mfem/config.mk
+CONFIG_MK = $(or $(wildcard $(MFEM_BUILD_DIR)/config/config.mk),\
+   $(wildcard $(MFEM_INSTALL_DIR)/share/mfem/config.mk))
 
 # Include defaults.mk to get XLINKER
 DEFAULTS_MK = $(MFEM_DIR)/config/defaults.mk
@@ -25,15 +24,24 @@ include $(DEFAULTS_MK)
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-SHIFTED_COMMON_SRC = dist_solver.cpp sbm_solver.cpp marking.cpp
-SHIFTED_COMMON_OBJ = $(SHIFTED_COMMON_SRC:.cpp=.o)
+DIFFUSION_SRC = diffusion.cpp sbm_solver.cpp marking.cpp
+DIFFUSION_OBJ = $(DIFFUSION_SRC:.cpp=.o)
+DISTANCE_SRC = distance.cpp
+DISTANCE_OBJ = $(DISTANCE_SRC:.cpp=.o)
+EXTRAPOLATE_SRC = extrapolate.cpp extrapolator.cpp marking.cpp
+EXTRAPOLATE_OBJ = $(EXTRAPOLATE_SRC:.cpp=.o)
+ALGOIM_SRC =  lsf_integral.cpp
+ALGOIM_OBJ = $(ALGOIM_SRC:.cpp=.o)
+CUTH1_SRC  = cutH1.cpp
+CUTH1_OBJ = $(CUTH1_SRC:.cpp=.o)
 
-PAR_MINIAPPS = distance diffusion cutH1
+SEQ_MINIAPPS = lsf_integral
+PAR_MINIAPPS = distance diffusion extrapolate cutH1
 
 ifeq ($(MFEM_USE_MPI),NO)
-   MINIAPPS =
+   MINIAPPS = $(SEQ_MINIAPPS)
 else
-   MINIAPPS = $(PAR_MINIAPPS)
+   MINIAPPS = $(PAR_MINIAPPS) $(SEQ_MINIAPPS)
 endif
 
 COMMON_LIB = -L$(MFEM_BUILD_DIR)/miniapps/common -lmfem-common
@@ -51,13 +59,26 @@ COMMON_LIB += $(if $(MFEM_SHARED:YES=),,\
 %: %.cpp
 %.o: %.cpp
 
-%.o: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK) | lib-common
+%.o: $(SRC)%.cpp $(SRC)sbm_aux.hpp $(wildcard $(SRC)%.hpp) $(MFEM_LIB_FILE)\
+ $(CONFIG_MK) | lib-common
 	$(MFEM_CXX) $(MFEM_FLAGS) -c $< -o $@
 
-%: %.o $(SHIFTED_COMMON_OBJ)
-	$(MFEM_CXX) $(MFEM_LINK_FLAGS) $^ -o $@ $(COMMON_LIB) $(MFEM_LIBS)
-
 all: $(MINIAPPS)
+
+lsf_integral: $(ALGOIM_OBJ)
+	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $(ALGOIM_OBJ) $(COMMON_LIB) $(MFEM_LIBS)
+
+distance: $(DISTANCE_OBJ)
+	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $(DISTANCE_OBJ) $(COMMON_LIB) $(MFEM_LIBS)
+
+diffusion: $(DIFFUSION_OBJ)
+	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $(DIFFUSION_OBJ) $(COMMON_LIB) $(MFEM_LIBS)
+
+extrapolate: $(EXTRAPOLATE_OBJ)
+	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $(EXTRAPOLATE_OBJ) $(COMMON_LIB) $(MFEM_LIBS)
+
+cutH1: $(CUTH1_OBJ)
+	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $(CUTH1_OBJ) $(COMMON_LIB) $(MFEM_LIBS)
 
 # Rule for building lib-common
 lib-common:
@@ -83,9 +104,9 @@ $(MFEM_LIB_FILE):
 clean: clean-build clean-exec
 
 clean-build:
-	rm -f *.o *~ distance diffusion cutH1
+	rm -f *.o *~ distance diffusion extrapolate lsf_integral cutH1
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:
 	@rm -f diffusion.mesh diffusion.gf
-	@rm -rf ParaViewDistance ParaViewDiffusion
+	@rm -rf ParaViewDistance ParaViewDiffusion ParaViewExtrapolate ParaViewLSF

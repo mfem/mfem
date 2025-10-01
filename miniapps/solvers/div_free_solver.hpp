@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -12,23 +12,11 @@
 #ifndef MFEM_DIVFREE_SOLVER_HPP
 #define MFEM_DIVFREE_SOLVER_HPP
 
-#include "mfem.hpp"
+#include "darcy_solver.hpp"
 #include <memory>
-#include <vector>
 
-namespace mfem
+namespace mfem::blocksolvers
 {
-namespace blocksolvers
-{
-
-/// Parameters for iterative solver
-struct IterSolveParameters
-{
-   int print_level = 0;
-   int max_iter = 500;
-   double abs_tol = 1e-12;
-   double rel_tol = 1e-9;
-};
 
 /// Parameters for the divergence free solver
 struct DFSParameters : IterSolveParameters
@@ -47,18 +35,22 @@ struct DFSParameters : IterSolveParameters
 /// Data for the divergence free solver
 struct DFSData
 {
-   std::vector<OperatorPtr> agg_hdivdof;  // agglomerates to H(div) dofs table
-   std::vector<OperatorPtr> agg_l2dof;    // agglomerates to L2 dofs table
-   std::vector<OperatorPtr> P_hdiv;   // Interpolation matrix for H(div) space
-   std::vector<OperatorPtr> P_l2;     // Interpolation matrix for L2 space
-   std::vector<OperatorPtr> P_hcurl;  // Interpolation for kernel space of div
-   std::vector<OperatorPtr> Q_l2;     // Q_l2[l] = (W_{l+1})^{-1} P_l2[l]^T W_l
-   Array<int> coarsest_ess_hdivdofs;  // coarsest level essential H(div) dofs
-   std::vector<OperatorPtr> C;        // discrete curl: ND -> RT, map to Null(B)
+   using UniqueOperatorPtr = std::unique_ptr<OperatorPtr>;
+   using UniqueHypreParMatrix = std::unique_ptr<HypreParMatrix>;
+
+   std::vector<OperatorPtr> agg_hdivdof; // agglomerates to H(div) dofs table
+   std::vector<OperatorPtr> agg_l2dof; // agglomerates to L2 dofs table
+   std::vector<UniqueOperatorPtr> P_hdiv; // Interpolation matrix for H(div) space
+   std::vector<UniqueOperatorPtr> P_l2; // Interpolation matrix for L2 space
+   std::vector<UniqueOperatorPtr> P_hcurl; // Interpolation for kernel space of div
+   std::vector<OperatorPtr> Q_l2; // Q_l2[l] = (W_{l+1})^{-1} P_l2[l]^T W_l
+   Array<int> coarsest_ess_hdivdofs; // coarsest level essential H(div) dofs
+   std::vector<OperatorPtr> C; // discrete curl: ND -> RT, map to Null(B)
+   std::vector<UniqueHypreParMatrix> Ae;
    DFSParameters param;
 };
 
-/// Finite element spaces concerning divergence free solver.
+/// Finite element spaces concerning divergence free solvers
 /// The main usage of this class is to collect data needed for the solver.
 class DFSSpaces
 {
@@ -99,28 +91,17 @@ public:
    ParFiniteElementSpace* GetL2FES() const { return l2_fes_.get(); }
 };
 
-/// Abstract solver class for Darcy's flow
-class DarcySolver : public Solver
-{
-protected:
-   Array<int> offsets_;
-public:
-   DarcySolver(int size0, int size1) : Solver(size0 + size1), offsets_(3)
-   { offsets_[0] = 0; offsets_[1] = size0; offsets_[2] = height; }
-   virtual int GetNumIterations() const = 0;
-};
-
+/// Solvers for DFS
 /// Solver for B * B^T
 /// Compute the product B * B^T and solve it with CG preconditioned by BoomerAMG
 class BBTSolver : public Solver
 {
-   OperatorPtr BBT_;
-   OperatorPtr BBT_prec_;
+   OperatorPtr BBT_, BBT_prec_;
    CGSolver BBT_solver_;
 public:
    BBTSolver(const HypreParMatrix &B, IterSolveParameters param);
-   virtual void Mult(const Vector &x, Vector &y) const { BBT_solver_.Mult(x, y); }
-   virtual void SetOperator(const Operator &op) { }
+   void Mult(const Vector &x, Vector &y) const override { BBT_solver_.Mult(x, y); }
+   void SetOperator(const Operator &op) override { }
 };
 
 /// Block diagonal solver for symmetric A, each block is inverted by direct solver
@@ -129,7 +110,7 @@ class SymDirectSubBlockSolver : public DirectSubBlockSolver
 public:
    SymDirectSubBlockSolver(const SparseMatrix& A, const SparseMatrix& block_dof)
       : DirectSubBlockSolver(A, block_dof) { }
-   virtual void MultTranspose(const Vector &x, Vector &y) const { Mult(x, y); }
+   void MultTranspose(const Vector &x, Vector &y) const override { Mult(x, y); }
 };
 
 /// non-overlapping additive Schwarz smoother for saddle point systems
@@ -137,14 +118,11 @@ public:
 ///                      [ B   0  ]
 class SaddleSchwarzSmoother : public Solver
 {
-   const SparseMatrix& agg_hdivdof_;
-   const SparseMatrix& agg_l2dof_;
+   const SparseMatrix &agg_hdivdof_, &agg_l2dof_;
    OperatorPtr coarse_l2_projector_;
 
    Array<int> offsets_;
-   mutable Array<int> offsets_loc_;
-   mutable Array<int> hdivdofs_loc_;
-   mutable Array<int> l2dofs_loc_;
+   mutable Array<int> offsets_loc_, hdivdofs_loc_, l2dofs_loc_;
    std::vector<OperatorPtr> solvers_loc_;
 public:
    /** SaddleSchwarzSmoother solves local saddle point problems defined on a
@@ -162,10 +140,10 @@ public:
                          const SparseMatrix& agg_hdivdof,
                          const SparseMatrix& agg_l2dof,
                          const HypreParMatrix& P_l2,
-                         const HypreParMatrix& Q_l2);
-   virtual void Mult(const Vector &x, Vector &y) const;
-   virtual void MultTranspose(const Vector &x, Vector &y) const { Mult(x, y); }
-   virtual void SetOperator(const Operator &op) { }
+                         const ProductOperator& Q_l2);
+   void Mult(const Vector &x, Vector &y) const override;
+   void MultTranspose(const Vector &x, Vector &y) const override { Mult(x, y); }
+   void SetOperator(const Operator &op) override { }
 };
 
 /// Solver for local problems in SaddleSchwarzSmoother
@@ -176,28 +154,11 @@ class LocalSolver : public Solver
    const int offset_;
 public:
    LocalSolver(const DenseMatrix &M, const DenseMatrix &B);
-   virtual void Mult(const Vector &x, Vector &y) const;
-   virtual void SetOperator(const Operator &op) { }
+   void Mult(const Vector &x, Vector &y) const override;
+   void SetOperator(const Operator &op) override { }
 };
 
-/// Wrapper for the block-diagonal-preconditioned MINRES defined in ex5p.cpp
-class BDPMinresSolver : public DarcySolver
-{
-   BlockOperator op_;
-   BlockDiagonalPreconditioner prec_;
-   OperatorPtr BT_;
-   OperatorPtr S_;   // S_ = B diag(M)^{-1} B^T
-   MINRESSolver solver_;
-   Array<int> ess_zero_dofs_;
-public:
-   BDPMinresSolver(HypreParMatrix& M, HypreParMatrix& B,
-                   IterSolveParameters param);
-   virtual void Mult(const Vector & x, Vector & y) const;
-   virtual void SetOperator(const Operator &op) { }
-   void SetEssZeroDofs(const Array<int>& dofs) { dofs.Copy(ess_zero_dofs_); }
-   virtual int GetNumIterations() const { return solver_.GetNumIterations(); }
-};
-
+/// Divergence free solver.
 /** Divergence free solver.
     The basic idea of the solver is to exploit a multilevel decomposition of
     Raviart-Thomas space to find a particular solution satisfying the divergence
@@ -217,11 +178,10 @@ class DivFreeSolver : public DarcySolver
    OperatorPtr BT_;
    BBTSolver BBT_solver_;
    std::vector<Array<int>> ops_offsets_;
-   Array<BlockOperator*> ops_;
-   Array<BlockOperator*> blk_Ps_;
-   Array<Solver*> smoothers_;
-   OperatorPtr prec_;
-   OperatorPtr solver_;
+   std::vector<std::unique_ptr<BlockOperator>> ops_;
+   std::vector<std::unique_ptr<BlockOperator>> blk_Ps_;
+   std::vector<std::unique_ptr<Solver>> smoothers_;
+   OperatorPtr prec_, solver_;
 
    void SolveParticular(const Vector& rhs, Vector& sol) const;
    void SolveDivFree(const Vector& rhs, Vector& sol) const;
@@ -229,14 +189,11 @@ class DivFreeSolver : public DarcySolver
 public:
    DivFreeSolver(const HypreParMatrix& M, const HypreParMatrix &B,
                  const DFSData& data);
-   ~DivFreeSolver();
-   virtual void Mult(const Vector &x, Vector &y) const;
-   virtual void SetOperator(const Operator &op) { }
-   virtual int GetNumIterations() const;
+   void Mult(const Vector &x, Vector &y) const override;
+   void SetOperator(const Operator &op) override { }
+   int GetNumIterations() const override;
 };
 
-} // namespace blocksolvers
-
-} // namespace mfem
+} // namespace mfem::blocksolvers
 
 #endif // MFEM_DIVFREE_SOLVER_HPP

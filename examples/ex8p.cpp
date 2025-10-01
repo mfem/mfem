@@ -14,7 +14,7 @@
 //
 // Description:  This example code demonstrates the use of the Discontinuous
 //               Petrov-Galerkin (DPG) method in its primal 2x2 block form as a
-//               simple finite element discretization of the Laplace problem
+//               simple finite element discretization of the Poisson problem
 //               -Delta u = f with homogeneous Dirichlet boundary conditions. We
 //               use high-order continuous trial space, a high-order interfacial
 //               (trace) space, and a high-order discontinuous test space
@@ -41,11 +41,11 @@ using namespace mfem;
 
 int main(int argc, char *argv[])
 {
-   // 1. Initialize MPI.
-   int num_procs, myid;
-   MPI_Init(&argc, &argv);
-   MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
-   MPI_Comm_rank(MPI_COMM_WORLD, &myid);
+   // 1. Initialize MPI and HYPRE.
+   Mpi::Init(argc, argv);
+   int num_procs = Mpi::WorldSize();
+   int myid = Mpi::WorldRank();
+   Hypre::Init();
 
    // 2. Parse command-line options.
    const char *mesh_file = "../data/star.mesh";
@@ -67,7 +67,6 @@ int main(int argc, char *argv[])
       {
          args.PrintUsage(cout);
       }
-      MPI_Finalize();
       return 1;
    }
    if (myid == 0)
@@ -106,7 +105,6 @@ int main(int argc, char *argv[])
          pmesh->UniformRefinement();
       }
    }
-   pmesh->ReorientTetMesh();
 
    // 6. Define the trial, interfacial (trace) and test DPG spaces:
    //    - The trial space, x0_space, contains the non-interfacial unknowns and
@@ -285,7 +283,7 @@ int main(int argc, char *argv[])
       B.Mult(x, LSres);
       LSres -= *trueF;
       matSinv->Mult(LSres, tmp);
-      double res = sqrt(InnerProduct(LSres, tmp));
+      real_t res = sqrt(InnerProduct(LSres, tmp));
       if (myid == 0)
       {
          cout << "\n|| B0*x0 + Bhat*xhat - F ||_{S^-1} = " << res << endl;
@@ -339,8 +337,6 @@ int main(int argc, char *argv[])
    delete xhat_fec;
    delete x0_fec;
    delete pmesh;
-
-   MPI_Finalize();
 
    return 0;
 }

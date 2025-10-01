@@ -5,6 +5,7 @@
 // Sample runs:  mpirun -np 4 ex3p -m ../data/star.mesh
 //               mpirun -np 4 ex3p -m ../data/square-disc.mesh -o 2
 //               mpirun -np 4 ex3p -m ../data/beam-tet.mesh
+//               mpirun -np 4 ex3p -m ../data/beam-tet.mesh -nc -o 2
 //               mpirun -np 4 ex3p -m ../data/beam-hex.mesh
 //               mpirun -np 4 ex3p -m ../data/beam-hex.mesh -o 2 -pa
 //               mpirun -np 4 ex3p -m ../data/escher.mesh
@@ -16,6 +17,8 @@
 //               mpirun -np 4 ex3p -m ../data/beam-hex-nurbs.mesh
 //               mpirun -np 4 ex3p -m ../data/amr-quad.mesh -o 2
 //               mpirun -np 4 ex3p -m ../data/amr-hex.mesh
+//               mpirun -np 4 ex3p -m ../data/ref-prism.mesh -o 1
+//               mpirun -np 4 ex3p -m ../data/octahedron.mesh -o 1
 //               mpirun -np 4 ex3p -m ../data/star-surf.mesh -o 2
 //               mpirun -np 4 ex3p -m ../data/mobius-strip.mesh -o 2 -f 0.1
 //               mpirun -np 4 ex3p -m ../data/klein-bottle.mesh -o 2 -f 0.1
@@ -52,22 +55,23 @@ using namespace mfem;
 // Exact solution, E, and r.h.s., f. See below for implementation.
 void E_exact(const Vector &, Vector &);
 void f_exact(const Vector &, Vector &);
-double freq = 1.0, kappa;
+real_t freq = 1.0, kappa;
 int dim;
 
 int main(int argc, char *argv[])
 {
-   // 1. Initialize MPI.
-   int num_procs, myid;
-   MPI_Init(&argc, &argv);
-   MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
-   MPI_Comm_rank(MPI_COMM_WORLD, &myid);
+   // 1. Initialize MPI and HYPRE.
+   Mpi::Init(argc, argv);
+   int num_procs = Mpi::WorldSize();
+   int myid = Mpi::WorldRank();
+   Hypre::Init();
 
    // 2. Parse command-line options.
    const char *mesh_file = "../data/beam-tet.mesh";
    int order = 1;
    bool static_cond = false;
    bool pa = false;
+   bool nc = false;
    const char *device_config = "cpu";
    bool visualization = true;
 #ifdef MFEM_USE_AMGX
@@ -85,6 +89,9 @@ int main(int argc, char *argv[])
                   "--no-static-condensation", "Enable static condensation.");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
                   "--no-partial-assembly", "Enable Partial Assembly.");
+   args.AddOption(&nc, "-nc", "--non-conforming", "-c",
+                  "--conforming",
+                  "Mark the mesh as nonconforming before partitioning.");
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
@@ -103,8 +110,6 @@ int main(int argc, char *argv[])
       {
          args.PrintUsage(cout);
       }
-      // HYPRE_Finalize();
-      MPI_Finalize();
       return 1;
    }
    if (myid == 0)
@@ -124,6 +129,11 @@ int main(int argc, char *argv[])
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
    dim = mesh->Dimension();
    int sdim = mesh->SpaceDimension();
+   if (nc)
+   {
+      // Can set to false to use conformal refinement for simplices.
+      mesh->EnsureNCMesh(true);
+   }
 
    // 5. Refine the serial mesh on all processors to increase the resolution. In
    //    this example we do 'ref_levels' of uniform refinement. We choose
@@ -139,9 +149,7 @@ int main(int argc, char *argv[])
 
    // 6. Define a parallel mesh by a partitioning of the serial mesh. Refine
    //    this mesh further in parallel to increase the resolution. Once the
-   //    parallel mesh is defined, the serial mesh can be deleted. Tetrahedral
-   //    meshes need to be reoriented before we can define high-order Nedelec
-   //    spaces on them.
+   //    parallel mesh is defined, the serial mesh can be deleted.
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
    delete mesh;
    {
@@ -151,7 +159,6 @@ int main(int argc, char *argv[])
          pmesh->UniformRefinement();
       }
    }
-   pmesh->ReorientTetMesh();
 
    // 7. Define a parallel finite element space on the parallel mesh. Here we
    //    use the Nedelec finite elements of the specified order.
@@ -256,10 +263,10 @@ int main(int argc, char *argv[])
 
    // 15. Compute and print the L^2 norm of the error.
    {
-      double err = x.ComputeL2Error(E);
+      real_t error = x.ComputeL2Error(E);
       if (myid == 0)
       {
-         cout << "\n|| E_h - E ||_{L^2} = " << err << '\n' << endl;
+         cout << "\n|| E_h - E ||_{L^2} = " << error << '\n' << endl;
       }
    }
 
@@ -298,8 +305,6 @@ int main(int argc, char *argv[])
    delete fespace;
    delete fec;
    delete pmesh;
-
-   MPI_Finalize();
 
    return 0;
 }

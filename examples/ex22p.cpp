@@ -13,6 +13,8 @@
 //               mpirun -np 4 ex22p -m ../data/inline-hex.mesh -o 2 -p 1
 //               mpirun -np 4 ex22p -m ../data/inline-hex.mesh -o 2 -p 2
 //               mpirun -np 4 ex22p -m ../data/inline-hex.mesh -o 1 -p 2 -pa
+//               mpirun -np 4 ex22p -m ../data/inline-wedge.mesh -o 1
+//               mpirun -np 4 ex22p -m ../data/inline-pyramid.mesh -o 1
 //               mpirun -np 4 ex22p -m ../data/star.mesh -o 2 -sigma 10.0
 //
 // Device sample runs:
@@ -55,13 +57,13 @@
 using namespace std;
 using namespace mfem;
 
-static double mu_ = 1.0;
-static double epsilon_ = 1.0;
-static double sigma_ = 20.0;
-static double omega_ = 10.0;
+static real_t mu_ = 1.0;
+static real_t epsilon_ = 1.0;
+static real_t sigma_ = 20.0;
+static real_t omega_ = 10.0;
 
-double u0_real_exact(const Vector &);
-double u0_imag_exact(const Vector &);
+real_t u0_real_exact(const Vector &);
+real_t u0_imag_exact(const Vector &);
 
 void u1_real_exact(const Vector &, Vector &);
 void u1_imag_exact(const Vector &, Vector &);
@@ -73,11 +75,11 @@ bool check_for_inline_mesh(const char * mesh_file);
 
 int main(int argc, char *argv[])
 {
-   // 1. Initialize MPI.
-   int num_procs, myid;
-   MPI_Init(&argc, &argv);
-   MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
-   MPI_Comm_rank(MPI_COMM_WORLD, &myid);
+   // 1. Initialize MPI and HYPRE.
+   Mpi::Init(argc, argv);
+   int num_procs = Mpi::WorldSize();
+   int myid = Mpi::WorldRank();
+   Hypre::Init();
 
    // 2. Parse command-line options.
    const char *mesh_file = "../data/inline-quad.mesh";
@@ -85,8 +87,8 @@ int main(int argc, char *argv[])
    int par_ref_levels = 1;
    int order = 1;
    int prob = 0;
-   double freq = -1.0;
-   double a_coef = 0.0;
+   real_t freq = -1.0;
+   real_t a_coef = 0.0;
    bool visualization = 1;
    bool herm_conv = true;
    bool exact_sol = true;
@@ -135,7 +137,6 @@ int main(int argc, char *argv[])
       {
          args.PrintUsage(cout);
       }
-      MPI_Finalize();
       return 1;
    }
    if (myid == 0)
@@ -234,7 +235,7 @@ int main(int argc, char *argv[])
    // 9. Set up the parallel linear form b(.) which corresponds to the
    //    right-hand side of the FEM linear system.
    ParComplexLinearForm b(fespace, conv);
-   b.Vector::operator=(0.0);
+   b = 0.0;
 
    // 10. Define the solution vector u as a parallel complex finite element grid
    //     function corresponding to fespace. Initialize u with initial guess of
@@ -474,8 +475,8 @@ int main(int argc, char *argv[])
 
    if (exact_sol)
    {
-      double err_r = -1.0;
-      double err_i = -1.0;
+      real_t err_r = -1.0;
+      real_t err_i = -1.0;
 
       switch (prob)
       {
@@ -575,7 +576,7 @@ int main(int argc, char *argv[])
       int i = 0;
       while (sol_sock)
       {
-         double t = (double)(i % num_frames) / num_frames;
+         real_t t = (real_t)(i % num_frames) / num_frames;
          ostringstream oss;
          oss << "Harmonic Solution (t = " << t << " T)";
 
@@ -596,8 +597,6 @@ int main(int argc, char *argv[])
    delete fec;
    delete pmesh;
 
-   MPI_Finalize();
-
    return 0;
 }
 
@@ -609,21 +608,21 @@ bool check_for_inline_mesh(const char * mesh_file)
    return s0 == "inline-";
 }
 
-complex<double> u0_exact(const Vector &x)
+complex<real_t> u0_exact(const Vector &x)
 {
    int dim = x.Size();
-   complex<double> i(0.0, 1.0);
-   complex<double> alpha = (epsilon_ * omega_ - i * sigma_);
-   complex<double> kappa = std::sqrt(mu_ * omega_* alpha);
+   complex<real_t> i(0.0, 1.0);
+   complex<real_t> alpha = (epsilon_ * omega_ - i * sigma_);
+   complex<real_t> kappa = std::sqrt(mu_ * omega_* alpha);
    return std::exp(-i * kappa * x[dim - 1]);
 }
 
-double u0_real_exact(const Vector &x)
+real_t u0_real_exact(const Vector &x)
 {
    return u0_exact(x).real();
 }
 
-double u0_imag_exact(const Vector &x)
+real_t u0_imag_exact(const Vector &x)
 {
    return u0_exact(x).imag();
 }

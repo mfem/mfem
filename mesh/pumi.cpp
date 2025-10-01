@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -129,10 +129,10 @@ static bool same(int n,
 
 static void rotateSimplex(int type,
                           int r,
-                          apf::MeshEntity** in,
-                          apf::MeshEntity** out)
+                          apf::MeshEntity** simplex_in,
+                          apf::MeshEntity** simplex_out)
 {
-   int n;
+   int n = -1;
    if (type == apf::Mesh::TRIANGLE) // triangles
    {
       MFEM_ASSERT(r>=0 && r<6, "incorrect rotation");
@@ -151,11 +151,11 @@ static void rotateSimplex(int type,
    for (int i = 0; i < n; i++)
       if (n == 3)
       {
-         out[i] = in[tri_rotation[r][i]];
+         simplex_out[i] = simplex_in[tri_rotation[r][i]];
       }
       else
       {
-         out[i] = in[tet_rotation[r][i]];
+         simplex_out[i] = simplex_in[tet_rotation[r][i]];
       }
 }
 
@@ -165,7 +165,7 @@ static int findSimplexRotation(apf::Mesh2* apf_mesh,
                                apf::MeshEntity** vs)
 {
    int type = apf_mesh->getType(simplex);
-   int dim;
+   int dim = 0;
    if (type == apf::Mesh::TET)
    {
       dim = 3;
@@ -360,6 +360,10 @@ void PumiMesh::ReadSCORECMesh(apf::Mesh2* apf_mesh, apf::Numbering* v_num_loc,
    NumOfElements = countOwned(apf_mesh,Dim);
    elements.SetSize(NumOfElements);
 
+   // Look for the gmsh physical entity tag
+   const char* gmshTagName = "gmsh_physical_entity";
+   apf::MeshTag* gmshPhysEnt = apf_mesh->findTag(gmshTagName);
+
    // Read elements from SCOREC Mesh
    itr = apf_mesh->begin(Dim);
    unsigned int j=0;
@@ -368,8 +372,12 @@ void PumiMesh::ReadSCORECMesh(apf::Mesh2* apf_mesh, apf::Numbering* v_num_loc,
       // Get vertices
       apf::Downward verts;
       apf_mesh->getDownward(ent,0,verts); // num_vert
-      // Get attribute Tag vs Geometry
+      // Get attribute Tag from gmsh if it exists
       int attr = 1;
+      if ( gmshPhysEnt )
+      {
+         apf_mesh->getIntTag(ent,gmshPhysEnt,&attr);
+      }
 
       int geom_type = apf_mesh->getType(ent);
       elements[j] = NewElement(geom_type);
@@ -411,7 +419,7 @@ void PumiMesh::ReadSCORECMesh(apf::Mesh2* apf_mesh, apf::Numbering* v_num_loc,
 
    if (!curved)
    {
-      apf::MeshIterator* itr = apf_mesh->begin(0);
+      itr = apf_mesh->begin(0);
       spaceDim = Dim;
 
       while ((ent = apf_mesh->iterate(itr)))
@@ -511,6 +519,10 @@ ParPumiMesh::ParPumiMesh(MPI_Comm comm, apf::Mesh2* apf_mesh,
    NumOfElements = countOwned(apf_mesh,Dim);
    elements.SetSize(NumOfElements);
 
+   // Look for the gmsh physical entity tag
+   const char* gmshTagName = "gmsh_physical_entity";
+   apf::MeshTag* gmshPhysEnt = apf_mesh->findTag(gmshTagName);
+
    // Read elements from SCOREC Mesh
    itr = apf_mesh->begin(Dim);
    for (int j = 0; (ent = apf_mesh->iterate(itr)); j++)
@@ -518,9 +530,14 @@ ParPumiMesh::ParPumiMesh(MPI_Comm comm, apf::Mesh2* apf_mesh,
       // Get vertices
       apf::Downward verts;
       apf_mesh->getDownward(ent,0,verts);
+      // Get attribute Tag from gmsh if it exists
+      int attr = 1;
+      if ( gmshPhysEnt )
+      {
+         apf_mesh->getIntTag(ent,gmshPhysEnt,&attr);
+      }
 
       // Get attribute Tag vs Geometry
-      int attr = 1;
       int geom_type = apf_mesh->getType(ent);
       elements[j] = NewElement(geom_type);
       ReadPumiElement(ent, verts, attr, v_num_loc, elements[j]);
@@ -621,10 +638,10 @@ ParPumiMesh::ParPumiMesh(MPI_Comm comm, apf::Mesh2* apf_mesh,
          apf::Parts res;
          apf_mesh->getResidence(ent, res);
          int kk = 0;
-         for (std::set<int>::iterator itr = res.begin();
-              itr != res.end(); ++itr)
+         for (std::set<int>::iterator res_itr = res.begin();
+              res_itr != res.end(); ++res_itr)
          {
-            eleRanks[kk++] = *itr;
+            eleRanks[kk++] = *res_itr;
          }
 
          group.Recreate(2, eleRanks);
@@ -673,10 +690,10 @@ ParPumiMesh::ParPumiMesh(MPI_Comm comm, apf::Mesh2* apf_mesh,
 
          // Get the IDs
          int kk = 0;
-         for (std::set<int>::iterator itr = res.begin();
-              itr != res.end(); itr++)
+         for (std::set<int>::iterator res_itr = res.begin();
+              res_itr != res.end(); res_itr++)
          {
-            eleRanks[kk++] = *itr;
+            eleRanks[kk++] = *res_itr;
          }
 
          // Generate the group
@@ -716,10 +733,10 @@ ParPumiMesh::ParPumiMesh(MPI_Comm comm, apf::Mesh2* apf_mesh,
 
          // Get the IDs
          int kk = 0;
-         for (std::set<int>::iterator itr = res.begin();
-              itr != res.end(); itr++)
+         for (std::set<int>::iterator res_itr = res.begin();
+              res_itr != res.end(); res_itr++)
          {
-            eleRanks[kk++] = *itr;
+            eleRanks[kk++] = *res_itr;
          }
 
          group.Recreate(eleRanks.Size(), eleRanks);
@@ -802,7 +819,7 @@ ParPumiMesh::ParPumiMesh(MPI_Comm comm, apf::Mesh2* apf_mesh,
          apf::Downward verts;
          apf_mesh->getDownward(ent,0,verts);
 
-         int *v, nv = 0;
+         int *v = nullptr, nv = 0;
          apf::Mesh::Type ftype = apf_mesh->getType(ent);
          if (ftype == apf::Mesh::TRIANGLE)
          {
@@ -873,9 +890,9 @@ GridFunctionPumi::GridFunctionPumi(Mesh* m, apf::Mesh2* PumiM,
 {
    int spDim = m->SpaceDimension();
    // Note: default BasisType for 'fec' is GaussLobatto.
-   fec = new H1_FECollection(mesh_order, m->Dimension());
+   fec_owned = new H1_FECollection(mesh_order, m->Dimension());
    int ordering = Ordering::byVDIM; // x1y1z1/x2y2z2/...
-   fes = new FiniteElementSpace(m, fec, spDim, ordering);
+   fes = new FiniteElementSpace(m, fec_owned, spDim, ordering);
    int data_size = fes->GetVSize();
 
    // Read PUMI mesh data
@@ -886,7 +903,7 @@ GridFunctionPumi::GridFunctionPumi(Mesh* m, apf::Mesh2* PumiM,
    apf::MeshIterator* itr;
 
    // Assume all element type are the same i.e. tetrahedral
-   const FiniteElement* H1_elem = fes->GetFE(0);
+   const FiniteElement* H1_elem = fes->GetTypicalFE();
    const IntegrationRule &All_nodes = H1_elem->GetNodes();
    int nnodes = All_nodes.Size();
 
@@ -1011,9 +1028,6 @@ void ParPumiMesh::UpdateMesh(const ParMesh* AdaptedpMesh)
    bel_to_edge = (AdaptedpMesh->bel_to_edge) ?
                  new Table(*(AdaptedpMesh->bel_to_edge)) : NULL;
 
-   // Copy the boudary-to-edge Array, be_to_edge (2D)
-   AdaptedpMesh->be_to_edge.Copy(be_to_edge);
-
    // Duplicate the faces and faces_info.
    faces.SetSize(AdaptedpMesh->faces.Size());
    for (int i = 0; i < faces.Size(); i++)
@@ -1101,6 +1115,7 @@ int ParPumiMesh::RotationPUMItoMFEM(apf::Mesh2* apf_mesh,
                                     int elemId)
 {
    int type = apf_mesh->getType(ent);
+   MFEM_CONTRACT_VAR(type);
    MFEM_ASSERT(apf::isSimplex(type),
                "only implemented for simplex entity types");
    // get downward vertices of PUMI element

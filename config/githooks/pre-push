@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -21,6 +21,7 @@ if [[ "${option}" == "--help" ]]; then
   echo "  --copyright"
   echo "  --license"
   echo "  --release"
+  echo "  --math"
   echo "  --style"
   echo "  --history"
   echo ""
@@ -35,8 +36,8 @@ cd $(git rev-parse --show-toplevel)
 # copyright check
 copyright=true
 if [[ "${option}" == "--copyright" || "${option}" == "" ]]; then
-  if git grep -l "^\(#\|//\).*\(\-2020\|\ 2010,\)" > matches.txt; then
-    echo "Please update the following files to Copyright (c) 2010-2021:"
+  if git grep -n "^\(#\|//\).*Copyright.*2010-20\(2[^5]\|[^2].\)" > matches.txt; then
+    echo "Please update the following files to Copyright (c) 2010-2025:"
     cat matches.txt
     copyright=false
   fi
@@ -63,6 +64,18 @@ if [[ "${option}" == "--release" || "${option}" == "" ]]; then
   fi
 fi
 
+# math in doxygen check
+math=true
+if [[ "${option}" == "--math" || "${option}" == "" ]]; then
+  if grep '\\f' -R doc/CodeDocumentation.dox mfem.hpp config general linalg mesh fem examples miniapps | grep -v '\\frac' | grep -v fem/picojson.h | grep -v config/githooks/pre-push > matches.txt
+  then
+    echo "Please use $..$ and \$\$..\$\$ for LaTeX formulas in the following"
+    echo "comments instead of the Doxygen style \f$..\f$, \f[..\f], etc."
+    cat matches.txt
+    math=false
+  fi
+fi
+
 # wrap-up
 code=0
 if ! $copyright ; then
@@ -77,6 +90,10 @@ if ! $release ; then
   echo "release check failed, unroll log for details"
   code=1
 fi
+if ! $math ; then
+  echo "math in doxygen check failed, unroll log for details"
+  code=1
+fi
 
 # `code-style` is not just a check, it will actually reformat the code if
 # necessary. This means that if one pushes while the repo is in dirty state
@@ -87,12 +104,12 @@ fi
 ## style check
 #if [[ "${option}" == "--style" || "${option}" == "" ]]; then
 if [[ "${option}" == "--style" ]]; then
-  if which astyle && [[ "$(astyle --version)" == "Artistic Style Version 2.05.1" ]]; then
+  if which astyle && [[ "$(astyle --version)" == "Artistic Style Version 3.1" ]]; then
     cd tests/scripts
     if ! ./runtest code-style; then code=1; fi
     cd -
   else
-    echo "Warning: astyle not found or version is not 2.05.1"
+    echo "Warning: astyle not found or version is not 3.1"
   fi
 fi
 

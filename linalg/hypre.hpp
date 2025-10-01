@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -16,34 +16,126 @@
 
 #ifdef MFEM_USE_MPI
 
+#include "../general/globals.hpp"
+#include "sparsemat.hpp"
+#include "hypre_parcsr.hpp"
 #include <mpi.h>
 
 // Enable internal hypre timing routines
 #define HYPRE_TIMING
 
 // hypre header files
-#include "seq_mv.h"
-#include "_hypre_parcsr_mv.h"
-#include "_hypre_parcsr_ls.h"
-#include "temp_multivector.h"
-#include "../general/globals.hpp"
+#include <seq_mv.h>
+#include <temp_multivector.h>
+#include <_hypre_parcsr_mv.h>
+#include <_hypre_parcsr_ls.h>
 
 #ifdef HYPRE_COMPLEX
 #error "MFEM does not work with HYPRE's complex numbers support"
 #endif
 
+#if defined(MFEM_USE_DOUBLE) && defined(HYPRE_SINGLE)
+#error "MFEM_USE_DOUBLE=YES requires HYPRE build WITHOUT --enable-single!"
+#elif defined(MFEM_USE_DOUBLE) && defined(HYPRE_LONG_DOUBLE)
+#error "MFEM_USE_DOUBLE=YES requires HYPRE build WITHOUT --enable-longdouble!"
+#elif defined(MFEM_USE_SINGLE) && !defined(HYPRE_SINGLE)
+#error "MFEM_USE_SINGLE=YES requires HYPRE build with --enable-single!"
+#endif
+
+#if defined(HYPRE_USING_GPU) && \
+    !(defined(HYPRE_USING_CUDA) || defined(HYPRE_USING_HIP))
+#error "Unsupported GPU build of HYPRE! Only CUDA and HIP builds are supported."
+#endif
 #if defined(HYPRE_USING_CUDA) && !defined(MFEM_USE_CUDA)
 #error "MFEM_USE_CUDA=YES is required when HYPRE is built with CUDA!"
 #endif
-
-#include "sparsemat.hpp"
-#include "hypre_parcsr.hpp"
+#if defined(HYPRE_USING_HIP) && !defined(MFEM_USE_HIP)
+#error "MFEM_USE_HIP=YES is required when HYPRE is built with HIP!"
+#endif
 
 namespace mfem
 {
 
 class ParFiniteElementSpace;
 class HypreParMatrix;
+
+
+/// @brief A simple singleton class for hypre's global settings, that 1) calls
+/// HYPRE_Init() and sets some GPU-relevant options at construction and 2) calls
+/// HYPRE_Finalize() at destruction.
+class Hypre
+{
+public:
+   /// @brief Initialize hypre by calling HYPRE_Init() and set default options.
+   /// After calling Hypre::Init(), hypre will be finalized automatically at
+   /// program exit. May be re-initialized after finalize.
+   ///
+   /// Calling HYPRE_Init() or HYPRE_Finalize() manually is only supported for
+   /// HYPRE 2.29.0+
+   static void Init();
+
+   /// @brief Configure HYPRE's compute and memory policy.
+   ///
+   /// By default HYPRE will be configured with the same policy as MFEM unless
+   /// `Hypre::configure_runtime_policy_from_mfem` is false, in which case
+   /// HYPRE's default will be used; if HYPRE is built for the GPU and the
+   /// aforementioned variable is false then HYPRE will use the GPU even if MFEM
+   /// is not.
+   ///
+   /// This function is no-op if HYPRE is built without GPU support or the HYPRE
+   /// version is less than 2.31.0.
+   ///
+   /// In addition to being called by Init(), this function is also called by
+   /// Device::Configure() (when MFEM_USE_MPI=YES) after the MFEM device
+   /// configuration is complete, configuring HYPRE for device.
+   static void InitDevice();
+
+   /// @brief Finalize hypre (called automatically at program exit if
+   /// Hypre::Init() has been called).
+   ///
+   /// Multiple calls to Hypre::Finalize() have no effect. This function can be
+   /// called manually to more precisely control when hypre is finalized.
+   ///
+   /// Calling HYPRE_Init() or HYPRE_Finalize() manually is only supported for
+   /// HYPRE 2.29.0+
+   static void Finalize();
+
+   /// @brief Use MFEM's device policy to configure HYPRE's device policy, true
+   /// by default. This variable is used by InitDevice().
+   ///
+   /// This value is not used if HYPRE is build without GPU support or the HYPRE
+   /// version is less than 2.31.0.
+   static bool configure_runtime_policy_from_mfem;
+
+private:
+   /// Default constructor. Singleton object; private.
+   Hypre() = default;
+
+   /// Copy constructor. Deleted.
+   Hypre(Hypre&) = delete;
+
+   /// Move constructor. Deleted.
+   Hypre(Hypre&&) = delete;
+
+   /// The singleton destructor (called at program exit) finalizes hypre.
+   ~Hypre() { Finalize(); }
+
+   /// Set the default hypre global options (mostly GPU-relevant).
+   static void SetDefaultOptions();
+
+   /// Create and return the Hypre singleton object.
+   static Hypre &Instance()
+   {
+      static Hypre hypre;
+      return hypre;
+   }
+
+   enum class State { UNINITIALIZED, INITIALIZED };
+
+   /// Tracks whether Hypre was initialized or finalized by this class.
+   static State state;
+};
+
 
 namespace internal
 {
@@ -72,28 +164,55 @@ inline int to_int(HYPRE_Int i)
 
 
 /// The MemoryClass used by Hypre objects.
-inline constexpr MemoryClass GetHypreMemoryClass()
+inline MemoryClass GetHypreMemoryClass()
 {
-#ifndef HYPRE_USING_CUDA
+#if !defined(HYPRE_USING_GPU)
    return MemoryClass::HOST;
-#elif defined(HYPRE_USING_UNIFIED_MEMORY)
+#elif MFEM_HYPRE_VERSION < 23100
+#if defined(HYPRE_USING_UNIFIED_MEMORY)
    return MemoryClass::MANAGED;
 #else
    return MemoryClass::DEVICE;
+#endif
+#else // HYPRE_USING_GPU is defined and MFEM_HYPRE_VERSION >= 23100
+   if (GetHypreMemoryLocation() == HYPRE_MEMORY_HOST)
+   {
+      return MemoryClass::HOST;
+   }
+   // Return the actual memory location, see hypre_GetActualMemLocation():
+#if defined(HYPRE_USING_UNIFIED_MEMORY)
+   return MemoryClass::MANAGED;
+#else
+   return MemoryClass::DEVICE;
+#endif
 #endif
 }
 
 /// The MemoryType used by MFEM when allocating arrays for Hypre objects.
 inline MemoryType GetHypreMemoryType()
 {
-#ifndef HYPRE_USING_CUDA
+#if !defined(HYPRE_USING_GPU)
    return Device::GetHostMemoryType();
-#elif defined(HYPRE_USING_UNIFIED_MEMORY)
+#elif MFEM_HYPRE_VERSION < 23100
+#if defined(HYPRE_USING_UNIFIED_MEMORY)
    return MemoryType::MANAGED;
 #else
    return MemoryType::DEVICE;
 #endif
+#else // HYPRE_USING_GPU is defined and MFEM_HYPRE_VERSION >= 23100
+   if (GetHypreMemoryLocation() == HYPRE_MEMORY_HOST)
+   {
+      return Device::GetHostMemoryType();
+   }
+   // Return the actual memory location, see hypre_GetActualMemLocation():
+#if defined(HYPRE_USING_UNIFIED_MEMORY)
+   return MemoryType::MANAGED;
+#else
+   return MemoryType::DEVICE;
+#endif
+#endif
 }
+
 
 /// Wrapper for hypre's parallel vector class
 class HypreParVector : public Vector
@@ -139,16 +258,28 @@ public:
 
        If @a is_device_ptr is true, the pointer @a data_ is assumed to be
        allocated in the memory location HYPRE_MEMORY_DEVICE. */
-   HypreParVector(MPI_Comm comm, HYPRE_BigInt glob_size, double *data_,
+   HypreParVector(MPI_Comm comm, HYPRE_BigInt glob_size, real_t *data_,
                   HYPRE_BigInt *col, bool is_device_ptr = false);
-   /// Creates vector compatible with y
+   /** @brief Creates a vector that uses the data of the Vector @a base,
+       starting at the given @a offset. */
+   /** The @a base Vector must have memory types compatible with the MemoryClass
+       returned by GetHypreMemoryClass(). */
+   HypreParVector(MPI_Comm comm, HYPRE_BigInt glob_size, Vector &base,
+                  int offset, HYPRE_BigInt *col);
+   /// Creates a deep copy of @a y
    HypreParVector(const HypreParVector &y);
+   /// Move constructor for HypreParVector. "Steals" data from its argument.
+   HypreParVector(HypreParVector&& other);
    /// Creates vector compatible with (i.e. in the domain of) A or A^T
    explicit HypreParVector(const HypreParMatrix &A, int transpose = 0);
    /// Creates vector wrapping y
    explicit HypreParVector(HYPRE_ParVector y);
    /// Create a true dof parallel vector on a given ParFiniteElementSpace
    explicit HypreParVector(ParFiniteElementSpace *pfes);
+
+   /// \brief Constructs a  @p HypreParVector *compatible* with the calling vector
+   /// - meaning that it will be the same size and have the same partitioning.
+   HypreParVector CreateCompatibleVector() const;
 
    /// MPI communicator
    MPI_Comm GetComm() const { return x->comm; }
@@ -189,17 +320,20 @@ public:
    Vector* GlobalVector() const;
 
    /// Set constant values
-   HypreParVector& operator= (double d);
+   HypreParVector& operator= (real_t d);
    /// Define '=' for hypre vectors.
    HypreParVector& operator= (const HypreParVector &y);
+   /// Move assignment
+   HypreParVector& operator= (HypreParVector &&y);
 
    using Vector::Read;
 
    /// Sets the data of the Vector and the hypre_ParVector to @a data_.
    /** Must be used only for HypreParVector%s that do not own the data,
        e.g. created with the constructor:
-       HypreParVector(MPI_Comm, HYPRE_BigInt, double *, HYPRE_BigInt *). */
-   void SetData(double *data_);
+       HypreParVector(MPI_Comm, HYPRE_BigInt, real_t *, HYPRE_BigInt *, bool).
+   */
+   void SetData(real_t *data_);
 
    /** @brief Prepare the HypreParVector for read access in hypre's device
        memory space, HYPRE_MEMORY_DEVICE. */
@@ -218,59 +352,55 @@ public:
        HYPRE_MEMORY_DEVICE. */
    /** This method must be used with HypreParVector%s that do not own the data,
        e.g. created with the constructor:
-       HypreParVector(MPI_Comm, HYPRE_BigInt, double *, HYPRE_BigInt *).
+       HypreParVector(MPI_Comm, HYPRE_BigInt, real_t *, HYPRE_BigInt *, bool).
 
        The Memory @a mem must be accessible with the hypre MemoryClass defined
        by GetHypreMemoryClass(). */
-   void WrapMemoryRead(const Memory<double> &mem);
+   void WrapMemoryRead(const Memory<real_t> &mem);
 
    /** @brief Replace the HypreParVector's data with the given Memory, @a mem,
        and prepare the vector for read and write access in hypre's device memory
        space, HYPRE_MEMORY_DEVICE. */
    /** This method must be used with HypreParVector%s that do not own the data,
        e.g. created with the constructor:
-       HypreParVector(MPI_Comm, HYPRE_BigInt, double *, HYPRE_BigInt *).
+       HypreParVector(MPI_Comm, HYPRE_BigInt, real_t *, HYPRE_BigInt *, bool).
 
        The Memory @a mem must be accessible with the hypre MemoryClass defined
        by GetHypreMemoryClass(). */
-   void WrapMemoryReadWrite(Memory<double> &mem);
+   void WrapMemoryReadWrite(Memory<real_t> &mem);
 
    /** @brief Replace the HypreParVector's data with the given Memory, @a mem,
        and prepare the vector for write access in hypre's device memory space,
        HYPRE_MEMORY_DEVICE. */
    /** This method must be used with HypreParVector%s that do not own the data,
        e.g. created with the constructor:
-       HypreParVector(MPI_Comm, HYPRE_BigInt, double *, HYPRE_BigInt *).
+       HypreParVector(MPI_Comm, HYPRE_BigInt, real_t *, HYPRE_BigInt *, bool).
 
        The Memory @a mem must be accessible with the hypre MemoryClass defined
        by GetHypreMemoryClass(). */
-   void WrapMemoryWrite(Memory<double> &mem);
+   void WrapMemoryWrite(Memory<real_t> &mem);
 
    /// Set random values
    HYPRE_Int Randomize(HYPRE_Int seed);
 
    /// Prints the locally owned rows in parallel
-   void Print(const char *fname) const;
+   void Print(const std::string &fname) const;
+
+   /// Reads a HypreParVector from files saved with HypreParVector::Print
+   void Read(MPI_Comm comm, const std::string &fname);
 
    /// Calls hypre's destroy function
    ~HypreParVector();
-
-#ifdef MFEM_USE_SUNDIALS
-   /// (DEPRECATED) Return a new wrapper SUNDIALS N_Vector of type SUNDIALS_NVEC_PARALLEL.
-   /** @deprecated The returned N_Vector must be destroyed by the caller. */
-   MFEM_DEPRECATED virtual N_Vector ToNVector();
-   using Vector::ToNVector;
-#endif
 };
 
 /// Returns the inner product of x and y
-double InnerProduct(HypreParVector &x, HypreParVector &y);
-double InnerProduct(HypreParVector *x, HypreParVector *y);
+real_t InnerProduct(HypreParVector &x, HypreParVector &y);
+real_t InnerProduct(HypreParVector *x, HypreParVector *y);
 
 
 /** @brief Compute the l_p norm of the Vector which is split without overlap
     across the given communicator. */
-double ParNormlp(const Vector &vec, double p, MPI_Comm comm);
+real_t ParNormlp(const Vector &vec, real_t p, MPI_Comm comm);
 
 
 /// Wrapper for hypre's ParCSR matrix class
@@ -283,9 +413,9 @@ private:
    /// Auxiliary vectors for typecasting
    mutable HypreParVector *X, *Y;
    /** @brief Auxiliary buffers for the case when the input or output arrays in
-       methods like Mult(double, const Vector &, double, Vector &) need to be
+       methods like Mult(real_t, const Vector &, real_t, Vector &) need to be
        deep copied in order to be used by hypre. */
-   mutable Memory<double> auxX, auxY;
+   mutable Memory<real_t> auxX, auxY;
 
    // Flags indicating ownership of A->diag->{i,j,data}, A->offd->{i,j,data},
    // and A->col_map_offd.
@@ -338,10 +468,6 @@ private:
    static signed char CopyBoolCSR(Table *bool_csr,
                                   MemoryIJData &mem_csr,
                                   hypre_CSRMatrix *hypre_csr);
-
-   // Copy the j array of a hypre_CSRMatrix to the given J array, converting
-   // the indices from HYPRE_Int/HYPRE_BigInt to int.
-   static void CopyCSR_J(hypre_CSRMatrix *hypre_csr, int *J);
 
    // Wrap the data from h_mat into mem with the given ownership flag.
    // If the new Memory arrays in mem are not suitable to be accessed via
@@ -417,8 +543,8 @@ public:
    HypreParMatrix(MPI_Comm comm,
                   HYPRE_BigInt global_num_rows, HYPRE_BigInt global_num_cols,
                   HYPRE_BigInt *row_starts, HYPRE_BigInt *col_starts,
-                  HYPRE_Int *diag_i, HYPRE_Int *diag_j, double *diag_data,
-                  HYPRE_Int *offd_i, HYPRE_Int *offd_j, double *offd_data,
+                  HYPRE_Int *diag_i, HYPRE_Int *diag_j, real_t *diag_data,
+                  HYPRE_Int *offd_i, HYPRE_Int *offd_j, real_t *offd_data,
                   HYPRE_Int offd_num_cols,
                   HYPRE_BigInt *offd_col_map,
                   bool hypre_arrays = false); // constructor with 13+1 arguments
@@ -458,7 +584,7 @@ public:
        for a description of the partitioning arrays @a rows and @a cols. */
    HypreParMatrix(MPI_Comm comm, int nrows, HYPRE_BigInt glob_nrows,
                   HYPRE_BigInt glob_ncols, int *I, HYPRE_BigInt *J,
-                  double *data, HYPRE_BigInt *rows,
+                  real_t *data, HYPRE_BigInt *rows,
                   HYPRE_BigInt *cols); // constructor with 9 arguments
 
    /** @brief Copy constructor for a ParCSR matrix which creates a deep copy of
@@ -537,7 +663,7 @@ public:
    void MergeDiagAndOffd(SparseMatrix &merged);
 
    /// Return the diagonal of the matrix (Operator interface).
-   virtual void AssembleDiagonal(Vector &diag) const { GetDiag(diag); }
+   void AssembleDiagonal(Vector &diag) const override { GetDiag(diag); }
 
    /** Split the matrix into M x N equally sized blocks of parallel matrices.
        The size of 'blocks' must already be set to M x N. */
@@ -552,7 +678,7 @@ public:
        with relative size > @a threshold in *this. */
 #if MFEM_HYPRE_VERSION >= 21800
    HypreParMatrix *ExtractSubmatrix(const Array<int> &indices,
-                                    double threshold=0.0) const;
+                                    real_t threshold=0.0) const;
 #endif
 
    /// Returns the number of rows in the diagonal block of the ParCSRMatrix
@@ -587,33 +713,83 @@ public:
        partitioning array. */
    HYPRE_BigInt *GetColStarts() const { return hypre_ParCSRMatrixColStarts(A); }
 
-   virtual MemoryClass GetMemoryClass() const { return GetHypreMemoryClass(); }
+   MemoryClass GetMemoryClass() const override { return GetHypreMemoryClass(); }
+
+   /// Ensure the action of the transpose is performed fast.
+   /** When HYPRE is built for GPUs, this method will construct and store the
+       transposes of the 'diag' and 'offd' CSR matrices. When HYPRE is not built
+       for GPUs, this method is a no-op.
+
+       This method is automatically called by MultTranspose().
+
+       If the matrix is modified the old transpose blocks can be deleted by
+       calling ResetTranspose(). */
+   void EnsureMultTranspose() const;
+
+   /** @brief Reset (destroy) the internal transpose matrix that is created by
+       EnsureMultTranspose() and MultTranspose().
+
+       If the matrix is modified, this method should be called to delete the
+       out-of-date transpose that is stored internally. */
+   void ResetTranspose() const;
 
    /// Computes y = alpha * A * x + beta * y
    HYPRE_Int Mult(HypreParVector &x, HypreParVector &y,
-                  double alpha = 1.0, double beta = 0.0) const;
+                  real_t alpha = 1.0, real_t beta = 0.0) const;
    /// Computes y = alpha * A * x + beta * y
    HYPRE_Int Mult(HYPRE_ParVector x, HYPRE_ParVector y,
-                  double alpha = 1.0, double beta = 0.0) const;
+                  real_t alpha = 1.0, real_t beta = 0.0) const;
+
    /// Computes y = alpha * A^t * x + beta * y
+   /** If the matrix is modified, call ResetTranspose() and optionally
+       EnsureMultTranspose() to make sure this method uses the correct updated
+       transpose. */
    HYPRE_Int MultTranspose(HypreParVector &x, HypreParVector &y,
-                           double alpha = 1.0, double beta = 0.0) const;
+                           real_t alpha = 1.0, real_t beta = 0.0) const;
 
-   void Mult(double a, const Vector &x, double b, Vector &y) const;
-   void MultTranspose(double a, const Vector &x, double b, Vector &y) const;
+   void Mult(real_t a, const Vector &x, real_t b, Vector &y) const;
 
-   virtual void Mult(const Vector &x, Vector &y) const
+   /// Computes y = alpha * A^t * x + beta * y
+   /** If the matrix is modified, call ResetTranspose() and optionally
+       EnsureMultTranspose() to make sure this method uses the correct updated
+       transpose. */
+   void MultTranspose(real_t a, const Vector &x, real_t b, Vector &y) const;
+
+   void Mult(const Vector &x, Vector &y) const override
    { Mult(1.0, x, 0.0, y); }
-   virtual void MultTranspose(const Vector &x, Vector &y) const
+
+   /// Computes y = A^t * x
+   /** If the matrix is modified, call ResetTranspose() and optionally
+       EnsureMultTranspose() to make sure this method uses the correct updated
+       transpose. */
+   void MultTranspose(const Vector &x, Vector &y) const override
    { MultTranspose(1.0, x, 0.0, y); }
+
+   void AddMult(const Vector &x, Vector &y, const real_t a = 1.0) const override
+   { Mult(a, x, 1.0, y); }
+   void AddMultTranspose(const Vector &x, Vector &y,
+                         const real_t a = 1.0) const override
+   { MultTranspose(a, x, 1.0, y); }
+
+   using Operator::Mult;
+   using Operator::MultTranspose;
 
    /** @brief Computes y = a * |A| * x + b * y, using entry-wise absolute values
        of the matrix A. */
-   void AbsMult(double a, const Vector &x, double b, Vector &y) const;
+   void AbsMult(real_t a, const Vector &x, real_t b, Vector &y) const;
+
+   /// @brief Computes y = |A| * x, using entry-wise absolute values of the matrix A.
+   void AbsMult(const Vector &x, Vector &y) const override
+   { AbsMult(1.0, x, 0.0, y); }
 
    /** @brief Computes y = a * |At| * x + b * y, using entry-wise absolute
        values of the transpose of the matrix A. */
-   void AbsMultTranspose(double a, const Vector &x, double b, Vector &y) const;
+   void AbsMultTranspose(real_t a, const Vector &x, real_t b, Vector &y) const;
+
+   /** @brief Computes y = |At| * x, using entry-wise absolute values of the
+       matrix A. */
+   void AbsMultTranspose(const Vector &x, Vector &y) const override
+   { AbsMultTranspose(1.0, x, 0.0, y); }
 
    /** @brief The "Boolean" analog of y = alpha * A * x + beta * y, where
        elements in the sparsity pattern of the matrix are treated as "true". */
@@ -636,7 +812,7 @@ public:
    }
 
    /// Initialize all entries with value.
-   HypreParMatrix &operator=(double value)
+   HypreParMatrix &operator=(real_t value)
    {
 #if MFEM_HYPRE_VERSION < 22200
       internal::hypre_ParCSRMatrixSetConstantValues(A, value);
@@ -657,7 +833,7 @@ public:
        B has an empty off-diagonal block. We also assume that the sparsity
        pattern of `*this` contains that of `B`. For a more general case consider
        the stand-alone function ParAdd described below. */
-   HypreParMatrix &Add(const double beta, const HypreParMatrix &B)
+   HypreParMatrix &Add(const real_t beta, const HypreParMatrix &B)
    {
       MFEM_VERIFY(internal::hypre_ParCSRMatrixSum(A, beta, B.A) == 0,
                   "error in hypre_ParCSRMatrixSum");
@@ -680,17 +856,17 @@ public:
    /// Scale the local row i by 1./s(i)
    void InvScaleRows(const Vector & s);
    /// Scale all entries by s: A_scaled = s*A.
-   void operator*=(double s);
+   void operator*=(real_t s);
 
    /// Remove values smaller in absolute value than some threshold
-   void Threshold(double threshold = 0.0);
+   void Threshold(real_t threshold = 0.0);
 
    /** @brief Wrapper for hypre_ParCSRMatrixDropSmallEntries in different
        versions of hypre. Drop off-diagonal entries that are smaller than
        tol * l2 norm of its row */
    /** For HYPRE versions < 2.14, this method just calls Threshold() with
        threshold = tol * max(l2 row norm). */
-   void DropSmallEntries(double tol);
+   void DropSmallEntries(real_t tol);
 
    /// If a row contains only zeros, set its diagonal to 1.
    void EliminateZeroRows() { hypre_ParCSRMatrixFixZeroRows(A); }
@@ -719,6 +895,14 @@ public:
        (A+Ae) is the original (Neumann) matrix before elimination. */
    void EliminateBC(const HypreParMatrix &Ae, const Array<int> &ess_dof_list,
                     const Vector &X, Vector &B) const;
+
+   /** @brief Eliminate essential (Dirichlet) boundary conditions.
+
+       @param[in] ess_dofs indices of the degrees of freedom belonging to the
+                           essential boundary conditions.
+       @param[in] diag_policy policy for diagonal entries. */
+   void EliminateBC(const Array<int> &ess_dofs,
+                    DiagonalPolicy diag_policy);
 
    /// Update the internal hypre_ParCSRMatrix object, A, to be on host.
    /** After this call A's diagonal and off-diagonal should not be modified
@@ -756,12 +940,22 @@ public:
        current data. */
    void HypreWrite() { Write(GetHypreMemoryClass()); }
 
-   /// Prints the locally owned rows in parallel
-   void Print(const char *fname, HYPRE_Int offi = 0, HYPRE_Int offj = 0) const;
+   Memory<HYPRE_Int> &GetDiagMemoryI() { return mem_diag.I; }
+   Memory<HYPRE_Int> &GetDiagMemoryJ() { return mem_diag.J; }
+   Memory<real_t> &GetDiagMemoryData() { return mem_diag.data; }
+
+   const Memory<HYPRE_Int> &GetDiagMemoryI() const { return mem_diag.I; }
+   const Memory<HYPRE_Int> &GetDiagMemoryJ() const { return mem_diag.J; }
+   const Memory<real_t> &GetDiagMemoryData() const { return mem_diag.data; }
+
+   /// @brief Prints the locally owned rows in parallel. The resulting files can
+   /// be read with Read_IJMatrix().
+   void Print(const std::string &fname, HYPRE_Int offi = 0,
+              HYPRE_Int offj = 0) const;
    /// Reads the matrix from a file
-   void Read(MPI_Comm comm, const char *fname);
+   void Read(MPI_Comm comm, const std::string &fname);
    /// Read a matrix saved as a HYPRE_IJMatrix
-   void Read_IJMatrix(MPI_Comm comm, const char *fname);
+   void Read_IJMatrix(MPI_Comm comm, const std::string &fname);
 
    /// Print information about the hypre_ParCSRCommPkg of the HypreParMatrix.
    void PrintCommPkg(std::ostream &out = mfem::out) const;
@@ -773,11 +967,27 @@ public:
        without the need to save the whole matrix. */
    void PrintHash(std::ostream &out) const;
 
+   /// @brief Return the Frobenius norm of the matrix (or 0 if the underlying
+   /// hypre matrix is NULL)
+   real_t FNorm() const;
+
    /// Calls hypre's destroy function
    virtual ~HypreParMatrix() { Destroy(); }
 
    Type GetType() const { return Hypre_ParCSR; }
 };
+
+/// @brief Make @a A_hyp steal ownership of its diagonal part @a A_diag.
+///
+/// If @a A_hyp does not own I and J, then they are aliases pointing to the I
+/// and J arrays in @a A_diag. In that case, this function swaps the memory
+/// objects. Similarly for the data array.
+///
+/// After this function is called, @a A_hyp will own all of the arrays of its
+/// diagonal part.
+///
+/// @note I and J can only be aliases when HYPRE_BIGINT is disabled.
+void HypreStealOwnership(HypreParMatrix &A_hyp, SparseMatrix &A_diag);
 
 #if MFEM_HYPRE_VERSION >= 21800
 
@@ -799,8 +1009,8 @@ void BlockInverseScale(const HypreParMatrix *A, HypreParMatrix *C,
 /** @brief Return a new matrix `C = alpha*A + beta*B`, assuming that both `A`
     and `B` use the same row and column partitions and the same `col_map_offd`
     arrays. */
-HypreParMatrix *Add(double alpha, const HypreParMatrix &A,
-                    double beta,  const HypreParMatrix &B);
+HypreParMatrix *Add(real_t alpha, const HypreParMatrix &A,
+                    real_t beta,  const HypreParMatrix &B);
 
 /** Returns the matrix @a A * @a B. Returned matrix does not necessarily own
     row or column starts unless the bool @a own_matrix is set to true. */
@@ -825,8 +1035,12 @@ HypreParMatrix * RAP(const HypreParMatrix * Rt, const HypreParMatrix *A,
     be NULL. Each block and the entire system can be rectangular. Scalability to
     extremely large processor counts is limited by global MPI communication, see
     GatherBlockOffsetData() in hypre.cpp. */
-HypreParMatrix * HypreParMatrixFromBlocks(Array2D<HypreParMatrix*> &blocks,
-                                          Array2D<double> *blockCoeff=NULL);
+HypreParMatrix *HypreParMatrixFromBlocks(Array2D<const HypreParMatrix*> &blocks,
+                                         Array2D<real_t> *blockCoeff=NULL);
+/// @overload
+MFEM_DEPRECATED HypreParMatrix *HypreParMatrixFromBlocks(
+   Array2D<HypreParMatrix*> &blocks,
+   Array2D<real_t> *blockCoeff=NULL);
 
 /** @brief Eliminate essential BC specified by @a ess_dof_list from the solution
     @a X to the r.h.s. @a B. */
@@ -847,7 +1061,7 @@ protected:
    /** @brief Auxiliary buffers for the case when the input or output arrays in
        methods like Mult(const Vector &, Vector &) need to be deep copied in
        order to be used by hypre. */
-   mutable Memory<double> auxB, auxX;
+   mutable Memory<real_t> auxB, auxX;
    /// Temporary vectors
    mutable HypreParVector *V, *Z;
    /// FIR Filter Temporary Vectors
@@ -859,86 +1073,97 @@ protected:
    /// Number of relaxation sweeps
    int relax_times;
    /// Damping coefficient (usually <= 1)
-   double relax_weight;
+   real_t relax_weight;
    /// SOR parameter (usually in (0,2))
-   double omega;
+   real_t omega;
    /// Order of the smoothing polynomial
    int poly_order;
    /// Fraction of spectrum to smooth for polynomial relaxation
-   double poly_fraction;
+   real_t poly_fraction;
    /// Apply the polynomial smoother to A or D^{-1/2} A D^{-1/2}
    int poly_scale;
 
    /// Taubin's lambda-mu method parameters
-   double lambda;
-   double mu;
+   real_t lambda;
+   real_t mu;
    int taubin_iter;
 
    /// l1 norms of the rows of A
-   double *l1_norms;
+   real_t *l1_norms;
    /// If set, take absolute values of the computed l1_norms
    bool pos_l1_norms;
    /// Number of CG iterations to determine eigenvalue estimates
    int eig_est_cg_iter;
    /// Maximal eigenvalue estimate for polynomial smoothing
-   double max_eig_est;
+   real_t max_eig_est;
    /// Minimal eigenvalue estimate for polynomial smoothing
-   double min_eig_est;
+   real_t min_eig_est;
    /// Parameters for windowing function of FIR filter
-   double window_params[3];
+   real_t window_params[3];
 
    /// Combined coefficients for windowing and Chebyshev polynomials.
-   double* fir_coeffs;
+   real_t* fir_coeffs;
 
    /// A flag that indicates whether the linear system matrix A is symmetric
    bool A_is_symmetric;
 
 public:
-   /** Hypre smoother types:
-       0    = Jacobi
-       1    = l1-scaled Jacobi
-       2    = l1-scaled block Gauss-Seidel/SSOR
-       4    = truncated l1-scaled block Gauss-Seidel/SSOR
-       5    = lumped Jacobi
-       6    = Gauss-Seidel
-       10   = On-processor forward solve for matrix w/ triangular structure
-       16   = Chebyshev
-       1001 = Taubin polynomial smoother
-       1002 = FIR polynomial smoother. */
-   enum Type { Jacobi = 0, l1Jacobi = 1, l1GS = 2, l1GStr = 4, lumpedJacobi = 5,
-               GS = 6, OPFS = 10, Chebyshev = 16, Taubin = 1001, FIR = 1002
-             };
-#ifndef HYPRE_USING_CUDA
-   static constexpr Type default_type = l1GS;
+   /// HYPRE smoother types
+   enum Type
+   {
+      Jacobi = 0,       ///< Jacobi
+      l1Jacobi = 1,     ///< l1-scaled Jacobi
+      l1GS = 2,         ///< l1-scaled block Gauss-Seidel/SSOR
+      l1GStr = 4,       ///< truncated l1-scaled block Gauss-Seidel/SSOR
+      lumpedJacobi = 5, ///< lumped Jacobi
+      GS = 6,           ///< Gauss-Seidel
+      OPFS = 10,        /**< On-processor forward solve for matrix w/ triangular
+                             structure */
+      Chebyshev = 16,   ///< Chebyshev
+      Taubin = 1001,    ///< Taubin polynomial smoother
+      FIR = 1002        ///< FIR polynomial smoother
+   };
+
+   /// @deprecated Use DefaultType() instead
+#if !defined(HYPRE_USING_GPU)
+   MFEM_DEPRECATED static constexpr Type default_type = l1GS;
 #else
-   static constexpr Type default_type = l1Jacobi;
+   MFEM_DEPRECATED static constexpr Type default_type = l1Jacobi;
 #endif
+
+   /** @brief Default value for the smoother type used by the constructors:
+       Type::l1GS when HYPRE is running on CPU and Type::l1Jacobi when HYPRE is
+       running on GPU. */
+   static Type DefaultType()
+   {
+      return HypreUsingGPU() ? l1Jacobi : l1GS;
+   }
 
    HypreSmoother();
 
-   HypreSmoother(const HypreParMatrix &A_, int type = default_type,
-                 int relax_times = 1, double relax_weight = 1.0,
-                 double omega = 1.0, int poly_order = 2,
-                 double poly_fraction = .3, int eig_est_cg_iter = 10);
+   HypreSmoother(const HypreParMatrix &A_, int type = DefaultType(),
+                 int relax_times = 1, real_t relax_weight = 1.0,
+                 real_t omega = 1.0, int poly_order = 2,
+                 real_t poly_fraction = .3, int eig_est_cg_iter = 10);
 
    /// Set the relaxation type and number of sweeps
    void SetType(HypreSmoother::Type type, int relax_times = 1);
    /// Set SOR-related parameters
-   void SetSOROptions(double relax_weight, double omega);
+   void SetSOROptions(real_t relax_weight, real_t omega);
    /// Set parameters for polynomial smoothing
    /** By default, 10 iterations of CG are used to estimate the eigenvalues.
        Setting eig_est_cg_iter = 0 uses hypre's hypre_ParCSRMaxEigEstimate() instead. */
-   void SetPolyOptions(int poly_order, double poly_fraction,
+   void SetPolyOptions(int poly_order, real_t poly_fraction,
                        int eig_est_cg_iter = 10);
    /// Set parameters for Taubin's lambda-mu method
-   void SetTaubinOptions(double lambda, double mu, int iter);
+   void SetTaubinOptions(real_t lambda, real_t mu, int iter);
 
    /// Convenience function for setting canonical windowing parameters
    void SetWindowByName(const char* window_name);
    /// Set parameters for windowing function for FIR smoother.
-   void SetWindowParameters(double a, double b, double c);
+   void SetWindowParameters(real_t a, real_t b, real_t c);
    /// Compute window and Chebyshev coefficients for given polynomial order.
-   void SetFIRCoefficients(double max_eig);
+   void SetFIRCoefficients(real_t max_eig);
 
    /// After computing l1-norms, replace them with their absolute values.
    /** By default, the l1-norms take their sign from the corresponding diagonal
@@ -953,14 +1178,15 @@ public:
 
    /** Set/update the associated operator. Must be called after setting the
        HypreSmoother type and options. */
-   virtual void SetOperator(const Operator &op);
+   void SetOperator(const Operator &op) override;
 
    /// Relax the linear system Ax=b
    virtual void Mult(const HypreParVector &b, HypreParVector &x) const;
-   virtual void Mult(const Vector &b, Vector &x) const;
+   void Mult(const Vector &b, Vector &x) const override;
+   using Operator::Mult;
 
    /// Apply transpose of the smoother to relax the linear system Ax=b
-   virtual void MultTranspose(const Vector &b, Vector &x) const;
+   void MultTranspose(const Vector &b, Vector &x) const override;
 
    virtual ~HypreSmoother();
 };
@@ -985,13 +1211,19 @@ protected:
    /// Right-hand side and solution vector
    mutable HypreParVector *B, *X;
 
-   mutable Memory<double> auxB, auxX;
+   mutable Memory<real_t> auxB, auxX;
 
    /// Was hypre's Setup function called already?
    mutable int setup_called;
 
    /// How to treat hypre errors.
    mutable ErrorMode error_mode;
+
+   /// @brief Makes the internal HypreParVector%s @a B and @a X wrap the input
+   /// vectors @a b and @a x.
+   ///
+   /// Returns true if @a x can be shallow-copied, false otherwise.
+   bool WrapVectors(const Vector &b, Vector &x) const;
 
 public:
    HypreSolver();
@@ -1006,14 +1238,31 @@ public:
    /// hypre's internal Solve function
    virtual HYPRE_PtrToParSolverFcn SolveFcn() const = 0;
 
-   virtual void SetOperator(const Operator &op)
+   ///@{
+
+   /// @brief Set up the solver (if not set up already, also called
+   /// automatically by HypreSolver::Mult).
+   virtual void Setup(const HypreParVector &b, HypreParVector &x) const;
+   /// @brief Set up the solver (if not set up already, also called
+   /// automatically by HypreSolver::Mult).
+   virtual void Setup(const Vector &b, Vector &x) const;
+
+   ///@}
+
+   void SetOperator(const Operator &op) override
    { mfem_error("HypreSolvers do not support SetOperator!"); }
 
-   virtual MemoryClass GetMemoryClass() const { return GetHypreMemoryClass(); }
+   MemoryClass GetMemoryClass() const override { return GetHypreMemoryClass(); }
+
+   ///@{
 
    /// Solve the linear system Ax=b
    virtual void Mult(const HypreParVector &b, HypreParVector &x) const;
-   virtual void Mult(const Vector &b, Vector &x) const;
+   /// Solve the linear system Ax=b
+   void Mult(const Vector &b, Vector &x) const override;
+   using Operator::Mult;
+
+   ///@}
 
    /** @brief Set the behavior for treating hypre errors, see the ErrorMode
        enum. The default mode in the base class is ABORT_HYPRE_ERRORS. */
@@ -1039,11 +1288,11 @@ class HypreTriSolve : public HypreSolver
 public:
    HypreTriSolve() : HypreSolver() { }
    explicit HypreTriSolve(const HypreParMatrix &A) : HypreSolver(&A) { }
-   virtual operator HYPRE_Solver() const { return NULL; }
+   operator HYPRE_Solver() const override { return NULL; }
 
-   virtual HYPRE_PtrToParSolverFcn SetupFcn() const
+   HYPRE_PtrToParSolverFcn SetupFcn() const override
    { return (HYPRE_PtrToParSolverFcn) HYPRE_ParCSROnProcTriSetup; }
-   virtual HYPRE_PtrToParSolverFcn SolveFcn() const
+   HYPRE_PtrToParSolverFcn SolveFcn() const override
    { return (HYPRE_PtrToParSolverFcn) HYPRE_ParCSROnProcTriSolve; }
 
    const HypreParMatrix* GetData() const { return A; }
@@ -1069,10 +1318,10 @@ public:
 
    HyprePCG(const HypreParMatrix &A_);
 
-   virtual void SetOperator(const Operator &op);
+   void SetOperator(const Operator &op) override;
 
-   void SetTol(double tol);
-   void SetAbsTol(double atol);
+   void SetTol(real_t tol);
+   void SetAbsTol(real_t atol);
    void SetMaxIter(int max_iter);
    void SetLogging(int logging);
    void SetPrintLevel(int print_lvl);
@@ -1083,7 +1332,7 @@ public:
    /** Use the L2 norm of the residual for measuring PCG convergence, plus
        (optionally) 1) periodically recompute true residuals from scratch; and
        2) enable residual-based stopping criteria. */
-   void SetResidualConvergenceOptions(int res_frequency=-1, double rtol=0.0);
+   void SetResidualConvergenceOptions(int res_frequency=-1, real_t rtol=0.0);
 
    /// deprecated: use SetZeroInitialIterate()
    MFEM_DEPRECATED void SetZeroInintialIterate() { iterative_mode = false; }
@@ -1098,18 +1347,24 @@ public:
       num_iterations = internal::to_int(num_it);
    }
 
+   void GetFinalResidualNorm(real_t &final_res_norm) const
+   {
+      HYPRE_ParCSRPCGGetFinalRelativeResidualNorm(pcg_solver,
+                                                  &final_res_norm);
+   }
+
    /// The typecast to HYPRE_Solver returns the internal pcg_solver
-   virtual operator HYPRE_Solver() const { return pcg_solver; }
+   operator HYPRE_Solver() const override { return pcg_solver; }
 
    /// PCG Setup function
-   virtual HYPRE_PtrToParSolverFcn SetupFcn() const
+   HYPRE_PtrToParSolverFcn SetupFcn() const override
    { return (HYPRE_PtrToParSolverFcn) HYPRE_ParCSRPCGSetup; }
    /// PCG Solve function
-   virtual HYPRE_PtrToParSolverFcn SolveFcn() const
+   HYPRE_PtrToParSolverFcn SolveFcn() const override
    { return (HYPRE_PtrToParSolverFcn) HYPRE_ParCSRPCGSolve; }
 
    /// Solve Ax=b with hypre's PCG
-   virtual void Mult(const HypreParVector &b, HypreParVector &x) const;
+   void Mult(const HypreParVector &b, HypreParVector &x) const override;
    using HypreSolver::Mult;
 
    virtual ~HyprePCG();
@@ -1131,10 +1386,10 @@ public:
 
    HypreGMRES(const HypreParMatrix &A_);
 
-   virtual void SetOperator(const Operator &op);
+   void SetOperator(const Operator &op) override;
 
-   void SetTol(double tol);
-   void SetAbsTol(double tol);
+   void SetTol(real_t tol);
+   void SetAbsTol(real_t tol);
    void SetMaxIter(int max_iter);
    void SetKDim(int dim);
    void SetLogging(int logging);
@@ -1149,18 +1404,31 @@ public:
    /// non-hypre setting
    void SetZeroInitialIterate() { iterative_mode = false; }
 
+   void GetNumIterations(int &num_iterations) const
+   {
+      HYPRE_Int num_it;
+      HYPRE_ParCSRGMRESGetNumIterations(gmres_solver, &num_it);
+      num_iterations = internal::to_int(num_it);
+   }
+
+   void GetFinalResidualNorm(real_t &final_res_norm) const
+   {
+      HYPRE_ParCSRGMRESGetFinalRelativeResidualNorm(gmres_solver,
+                                                    &final_res_norm);
+   }
+
    /// The typecast to HYPRE_Solver returns the internal gmres_solver
-   virtual operator HYPRE_Solver() const  { return gmres_solver; }
+   operator HYPRE_Solver() const override { return gmres_solver; }
 
    /// GMRES Setup function
-   virtual HYPRE_PtrToParSolverFcn SetupFcn() const
+   HYPRE_PtrToParSolverFcn SetupFcn() const override
    { return (HYPRE_PtrToParSolverFcn) HYPRE_ParCSRGMRESSetup; }
    /// GMRES Solve function
-   virtual HYPRE_PtrToParSolverFcn SolveFcn() const
+   HYPRE_PtrToParSolverFcn SolveFcn() const override
    { return (HYPRE_PtrToParSolverFcn) HYPRE_ParCSRGMRESSolve; }
 
    /// Solve Ax=b with hypre's GMRES
-   virtual void Mult (const HypreParVector &b, HypreParVector &x) const;
+   void Mult(const HypreParVector &b, HypreParVector &x) const override;
    using HypreSolver::Mult;
 
    virtual ~HypreGMRES();
@@ -1182,9 +1450,9 @@ public:
 
    HypreFGMRES(const HypreParMatrix &A_);
 
-   virtual void SetOperator(const Operator &op);
+   void SetOperator(const Operator &op) override;
 
-   void SetTol(double tol);
+   void SetTol(real_t tol);
    void SetMaxIter(int max_iter);
    void SetKDim(int dim);
    void SetLogging(int logging);
@@ -1199,18 +1467,31 @@ public:
    /// non-hypre setting
    void SetZeroInitialIterate() { iterative_mode = false; }
 
+   void GetNumIterations(int &num_iterations) const
+   {
+      HYPRE_Int num_it;
+      HYPRE_ParCSRFlexGMRESGetNumIterations(fgmres_solver, &num_it);
+      num_iterations = internal::to_int(num_it);
+   }
+
+   void GetFinalResidualNorm(real_t &final_res_norm) const
+   {
+      HYPRE_ParCSRFlexGMRESGetFinalRelativeResidualNorm(fgmres_solver,
+                                                        &final_res_norm);
+   }
+
    /// The typecast to HYPRE_Solver returns the internal fgmres_solver
-   virtual operator HYPRE_Solver() const  { return fgmres_solver; }
+   operator HYPRE_Solver() const override { return fgmres_solver; }
 
    /// FGMRES Setup function
-   virtual HYPRE_PtrToParSolverFcn SetupFcn() const
+   HYPRE_PtrToParSolverFcn SetupFcn() const override
    { return (HYPRE_PtrToParSolverFcn) HYPRE_ParCSRFlexGMRESSetup; }
    /// FGMRES Solve function
-   virtual HYPRE_PtrToParSolverFcn SolveFcn() const
+   HYPRE_PtrToParSolverFcn SolveFcn() const override
    { return (HYPRE_PtrToParSolverFcn) HYPRE_ParCSRFlexGMRESSolve; }
 
    /// Solve Ax=b with hypre's FGMRES
-   virtual void Mult (const HypreParVector &b, HypreParVector &x) const;
+   void Mult(const HypreParVector &b, HypreParVector &x) const override;
    using HypreSolver::Mult;
 
    virtual ~HypreFGMRES();
@@ -1220,11 +1501,11 @@ public:
 class HypreIdentity : public HypreSolver
 {
 public:
-   virtual operator HYPRE_Solver() const { return NULL; }
+   operator HYPRE_Solver() const override { return NULL; }
 
-   virtual HYPRE_PtrToParSolverFcn SetupFcn() const
+   HYPRE_PtrToParSolverFcn SetupFcn() const override
    { return (HYPRE_PtrToParSolverFcn) hypre_ParKrylovIdentitySetup; }
-   virtual HYPRE_PtrToParSolverFcn SolveFcn() const
+   HYPRE_PtrToParSolverFcn SolveFcn() const override
    { return (HYPRE_PtrToParSolverFcn) hypre_ParKrylovIdentity; }
 
    virtual ~HypreIdentity() { }
@@ -1236,13 +1517,13 @@ class HypreDiagScale : public HypreSolver
 public:
    HypreDiagScale() : HypreSolver() { }
    explicit HypreDiagScale(const HypreParMatrix &A) : HypreSolver(&A) { }
-   virtual operator HYPRE_Solver() const { return NULL; }
+   operator HYPRE_Solver() const override { return NULL; }
 
-   virtual void SetOperator(const Operator &op);
+   void SetOperator(const Operator &op) override;
 
-   virtual HYPRE_PtrToParSolverFcn SetupFcn() const
+   HYPRE_PtrToParSolverFcn SetupFcn() const override
    { return (HYPRE_PtrToParSolverFcn) HYPRE_ParCSRDiagScaleSetup; }
-   virtual HYPRE_PtrToParSolverFcn SolveFcn() const
+   HYPRE_PtrToParSolverFcn SolveFcn() const override
    { return (HYPRE_PtrToParSolverFcn) HYPRE_ParCSRDiagScale; }
 
    const HypreParMatrix* GetData() const { return A; }
@@ -1273,16 +1554,62 @@ public:
 
    HypreParaSails(const HypreParMatrix &A);
 
-   virtual void SetOperator(const Operator &op);
+   void SetOperator(const Operator &op) override;
 
+   /// Set the threshold and levels parameters
+   /** The accuracy and cost of ParaSails are parametrized by the real
+    * @a thresh and integer @a nlevels parameters (0<=thresh<=1,  0<=nlevels).
+    * Lower values of @a thresh and higher values of @a nlevels lead to
+    * more accurate, but more expensive preconditioners. More accurate
+    * preconditioners are also more expensive per iteration. The default
+    * values are @a thresh = 0.1 and @a nlevels = 1.
+    */
+   void SetParams(real_t thresh, int nlevels);
+
+   /// Set the filter parameter
+   /** The filter parameter is used to drop small nonzeros in the preconditioner,
+    * to reduce the cost of applying the preconditioner. Values from 0.055
+    * to 0.1 are recommended. The default value is 0.1.
+    */
+   void SetFilter(real_t filter);
+
+   /// Set symmetry parameter
+   /** The recognized options are:
+    *  0 = nonsymmetric and/or indefinite problem, and nonsymmetric preconditioner
+    *  1 = SPD problem, and SPD (factored) preconditioner
+    *  2 = nonsymmetric, definite problem, and SPD (factored) preconditioner
+    */
    void SetSymmetry(int sym);
 
-   /// The typecast to HYPRE_Solver returns the internal sai_precond
-   virtual operator HYPRE_Solver() const { return sai_precond; }
+   /// Set the load balance parameter
+   /** A zero value indicates that no load balance is attempted; a value
+    * of unity indicates that perfect load balance will be attempted. The
+    * recommended value is 0.9 to balance the overhead of data exchanges
+    * for load balancing. No load balancing is needed if the preconditioner
+    * is very sparse and fast to construct. The default value is 0.
+    */
+   void SetLoadBal(real_t loadbal);
 
-   virtual HYPRE_PtrToParSolverFcn SetupFcn() const
+   /// Set the pattern reuse parameter
+   /** A nonzero value indicates that the pattern of the preconditioner
+    * should be reused for subsequent constructions of the proconditioner.
+    * A zero value inicates that the peconditioner should be constructed
+    * from scratch. The default value is 0.
+    */
+   void SetReuse(int reuse);
+
+   /// Set the logging parameter
+   /** A nonzero value prints statistics of the setup procedure to stdout.
+    * The default value of this parameter is 1.
+    */
+   void SetLogging(int logging);
+
+   /// The typecast to HYPRE_Solver returns the internal sai_precond
+   operator HYPRE_Solver() const override { return sai_precond; }
+
+   HYPRE_PtrToParSolverFcn SetupFcn() const override
    { return (HYPRE_PtrToParSolverFcn) HYPRE_ParaSailsSetup; }
-   virtual HYPRE_PtrToParSolverFcn SolveFcn() const
+   HYPRE_PtrToParSolverFcn SolveFcn() const override
    { return (HYPRE_PtrToParSolverFcn) HYPRE_ParaSailsSolve; }
 
    virtual ~HypreParaSails();
@@ -1314,14 +1641,20 @@ public:
 
    HypreEuclid(const HypreParMatrix &A);
 
-   virtual void SetOperator(const Operator &op);
+   void SetLevel(int level);
+   void SetStats(int stats);
+   void SetMemory(int mem);
+   void SetBJ(int bj);
+   void SetRowScale(int row_scale);
+
+   void SetOperator(const Operator &op) override;
 
    /// The typecast to HYPRE_Solver returns the internal euc_precond
-   virtual operator HYPRE_Solver() const { return euc_precond; }
+   operator HYPRE_Solver() const override { return euc_precond; }
 
-   virtual HYPRE_PtrToParSolverFcn SetupFcn() const
+   HYPRE_PtrToParSolverFcn SetupFcn() const override
    { return (HYPRE_PtrToParSolverFcn) HYPRE_EuclidSetup; }
-   virtual HYPRE_PtrToParSolverFcn SolveFcn() const
+   HYPRE_PtrToParSolverFcn SolveFcn() const override
    { return (HYPRE_PtrToParSolverFcn) HYPRE_EuclidSolve; }
 
    virtual ~HypreEuclid();
@@ -1365,20 +1698,25 @@ public:
    /// Set the fill level for ILU(k); the default is k=1.
    void SetLevelOfFill(HYPRE_Int lev_fill);
 
+   void SetType(HYPRE_Int ilu_type);
+   void SetMaxIter(HYPRE_Int max_iter);
+   void SetTol(HYPRE_Real tol);
+   void SetLocalReordering(HYPRE_Int reorder_type);
+
    /// Set the print level: 0 = none, 1 = setup, 2 = solve, 3 = setup+solve
    void SetPrintLevel(HYPRE_Int print_level);
 
    /// The typecast to HYPRE_Solver returns the internal ilu_precond
-   virtual operator HYPRE_Solver() const { return ilu_precond; }
+   operator HYPRE_Solver() const override { return ilu_precond; }
 
-   virtual void SetOperator(const Operator &op);
+   void SetOperator(const Operator &op) override;
 
    /// ILU Setup function
-   virtual HYPRE_PtrToParSolverFcn SetupFcn() const
+   HYPRE_PtrToParSolverFcn SetupFcn() const override
    { return (HYPRE_PtrToParSolverFcn) HYPRE_ILUSetup; }
 
    /// ILU Solve function
-   virtual HYPRE_PtrToParSolverFcn SolveFcn() const
+   HYPRE_PtrToParSolverFcn SolveFcn() const override
    { return (HYPRE_PtrToParSolverFcn) HYPRE_ILUSolve; }
 };
 #endif
@@ -1411,7 +1749,7 @@ public:
 
    HypreBoomerAMG(const HypreParMatrix &A);
 
-   virtual void SetOperator(const Operator &op);
+   void SetOperator(const Operator &op) override;
 
    /** More robust options for systems, such as elasticity. */
    void SetSystemsOptions(int dim, bool order_bynodes=false);
@@ -1420,9 +1758,10 @@ public:
        geometric rigid body modes and could perform better on some problems, see
        "Improving algebraic multigrid interpolation operators for linear
        elasticity problems", Baker, Kolev, Yang, NLAA 2009, DOI:10.1002/nla.688.
-       This solver assumes Ordering::byVDIM in the FiniteElementSpace used to
-       construct A. */
-   void SetElasticityOptions(ParFiniteElementSpace *fespace);
+       The optional argument @ interp_refine is used to enable/disable pre-processing
+       of the interpolation matrix through iterative weight refinement */
+   void SetElasticityOptions(ParFiniteElementSpace *fespace,
+                             bool interp_refine = true);
 
 #if MFEM_HYPRE_VERSION >= 21800
    /** Hypre parameters to use AIR AMG solve for advection-dominated problems.
@@ -1437,11 +1776,11 @@ public:
                             const std::string &postrelax="FFC");
 
    /// Expert option - consult hypre documentation/team
-   void SetStrongThresholdR(double strengthR)
+   void SetStrongThresholdR(real_t strengthR)
    { HYPRE_BoomerAMGSetStrongThresholdR(amg_precond, strengthR); }
 
    /// Expert option - consult hypre documentation/team
-   void SetFilterThresholdR(double filterR)
+   void SetFilterThresholdR(real_t filterR)
    { HYPRE_BoomerAMGSetFilterThresholdR(amg_precond, filterR); }
 
    /// Expert option - consult hypre documentation/team
@@ -1475,11 +1814,11 @@ public:
    { HYPRE_BoomerAMGSetMaxLevels(amg_precond, max_levels); }
 
    /// Expert option - consult hypre documentation/team
-   void SetTol(double tol)
+   void SetTol(real_t tol)
    { HYPRE_BoomerAMGSetTol(amg_precond, tol); }
 
    /// Expert option - consult hypre documentation/team
-   void SetStrengthThresh(double strength)
+   void SetStrengthThresh(real_t strength)
    { HYPRE_BoomerAMGSetStrongThreshold(amg_precond, strength); }
 
    /// Expert option - consult hypre documentation/team
@@ -1517,11 +1856,11 @@ public:
    { HYPRE_BoomerAMGSetAggNumLevels(amg_precond, num_levels); }
 
    /// The typecast to HYPRE_Solver returns the internal amg_precond
-   virtual operator HYPRE_Solver() const { return amg_precond; }
+   operator HYPRE_Solver() const override { return amg_precond; }
 
-   virtual HYPRE_PtrToParSolverFcn SetupFcn() const
+   HYPRE_PtrToParSolverFcn SetupFcn() const override
    { return (HYPRE_PtrToParSolverFcn) HYPRE_BoomerAMGSetup; }
-   virtual HYPRE_PtrToParSolverFcn SolveFcn() const
+   HYPRE_PtrToParSolverFcn SolveFcn() const override
    { return (HYPRE_PtrToParSolverFcn) HYPRE_BoomerAMGSolve; }
 
    using HypreSolver::Mult;
@@ -1540,11 +1879,24 @@ HypreParMatrix* DiscreteCurl(ParFiniteElementSpace *face_fespace,
 class HypreAMS : public HypreSolver
 {
 private:
-   /// Constuct AMS solver from finite element space
+   /// Construct AMS solver from finite element space
    void Init(ParFiniteElementSpace *edge_space);
 
-   HYPRE_Solver ams;
+   /// Create the hypre solver object and set the default options, given the
+   /// space dimension @a sdim and cycle type @a cycle_type.
+   void MakeSolver(int sdim, int cycle_type);
 
+   /// Construct the gradient and interpolation matrices associated with
+   /// @a edge_fespace, and add them to the solver.
+   void MakeGradientAndInterpolation(ParFiniteElementSpace *edge_fespace,
+                                     int cycle_type);
+
+   // Recreates another AMS solver with the same options when SetOperator is
+   // called multiple times.
+   void ResetAMSPrecond();
+
+   /// The underlying hypre solver object
+   HYPRE_Solver ams;
    /// Vertex coordinates
    HypreParVector *x, *y, *z;
    /// Discrete gradient matrix
@@ -1552,24 +1904,49 @@ private:
    /// Nedelec interpolation matrix and its components
    HypreParMatrix *Pi, *Pix, *Piy, *Piz;
 
+   /// AMS cycle type
+   int ams_cycle_type = 0;
+   /// Spatial dimension of the underlying mesh
+   int space_dim = 0;
+   /// Flag set if `SetSingularProblem` is called, needed in `ResetAMSPrecond`
+   bool singular = false;
+   /// Flag set if `SetPrintLevel` is called, needed in `ResetAMSPrecond`
+   int print_level = 1;
+
 public:
+   /// @brief Construct the AMS solver on the given edge finite element space.
+   ///
+   /// HypreAMS::SetOperator must be called to set the system matrix.
    HypreAMS(ParFiniteElementSpace *edge_fespace);
 
+   /// Construct the AMS solver using the given matrix and finite element space.
    HypreAMS(const HypreParMatrix &A, ParFiniteElementSpace *edge_fespace);
 
-   virtual void SetOperator(const Operator &op);
+   /// @brief Construct the AMS solver using the provided discrete gradient
+   /// matrix @a G_ and the vertex coordinate vectors @a x_, @a y_, and @a z_.
+   ///
+   /// For 2D problems, @a z_ may be NULL. All other parameters must be
+   /// non-NULL. The solver assumes ownership of G_, x_, y_, and z_.
+   HypreAMS(const HypreParMatrix &A, HypreParMatrix *G_, HypreParVector *x_,
+            HypreParVector *y_, HypreParVector *z_=NULL);
+
+   void SetOperator(const Operator &op) override;
 
    void SetPrintLevel(int print_lvl);
 
    /// Set this option when solving a curl-curl problem with zero mass term
-   void SetSingularProblem() { HYPRE_AMSSetBetaPoissonMatrix(ams, NULL); }
+   void SetSingularProblem()
+   {
+      HYPRE_AMSSetBetaPoissonMatrix(ams, NULL);
+      singular = true;
+   }
 
    /// The typecast to HYPRE_Solver returns the internal ams object
-   virtual operator HYPRE_Solver() const { return ams; }
+   operator HYPRE_Solver() const override { return ams; }
 
-   virtual HYPRE_PtrToParSolverFcn SetupFcn() const
+   HYPRE_PtrToParSolverFcn SetupFcn() const override
    { return (HYPRE_PtrToParSolverFcn) HYPRE_AMSSetup; }
-   virtual HYPRE_PtrToParSolverFcn SolveFcn() const
+   HYPRE_PtrToParSolverFcn SolveFcn() const override
    { return (HYPRE_PtrToParSolverFcn) HYPRE_AMSSolve; }
 
    virtual ~HypreAMS();
@@ -1579,8 +1956,16 @@ public:
 class HypreADS : public HypreSolver
 {
 private:
-   /// Constuct ADS solver from finite element space
+   /// Construct ADS solver from finite element space
    void Init(ParFiniteElementSpace *face_fespace);
+
+   /// Create the hypre solver object and set the default options, using the
+   /// cycle type cycle_type and AMS cycle type ams_cycle_type data members.
+   void MakeSolver();
+
+   /// Construct the discrete curl, gradient and interpolation matrices
+   /// associated with @a face_fespace, and add them to the solver.
+   void MakeDiscreteMatrices(ParFiniteElementSpace *face_fespace);
 
    HYPRE_Solver ads;
 
@@ -1595,21 +1980,40 @@ private:
    /// Raviart-Thomas interpolation matrix and its components
    HypreParMatrix *RT_Pi, *RT_Pix, *RT_Piy, *RT_Piz;
 
+   /// ADS cycle type
+   const int cycle_type = 11;
+   /// AMS cycle type
+   const int ams_cycle_type = 14;
+   /// ADS print level
+   int print_level = 1;
+
+   // Recreates another ADS solver with the same options when SetOperator is
+   // called multiple times.
+   void ResetADSPrecond();
 public:
    HypreADS(ParFiniteElementSpace *face_fespace);
 
    HypreADS(const HypreParMatrix &A, ParFiniteElementSpace *face_fespace);
 
-   virtual void SetOperator(const Operator &op);
+   /// @brief Construct the ADS solver using the provided discrete curl matrix
+   /// @a C, discrete gradient matrix @a G_ and vertex coordinate vectors @a x_,
+   /// @a y_, and @a z_.
+   ///
+   /// None of the inputs may be NULL. The solver assumes ownership of C_, G_,
+   /// x_, y_, and z_.
+   HypreADS(const HypreParMatrix &A, HypreParMatrix *C_, HypreParMatrix *G_,
+            HypreParVector *x_, HypreParVector *y_, HypreParVector *z_);
+
+   void SetOperator(const Operator &op) override;
 
    void SetPrintLevel(int print_lvl);
 
    /// The typecast to HYPRE_Solver returns the internal ads object
-   virtual operator HYPRE_Solver() const { return ads; }
+   operator HYPRE_Solver() const override { return ads; }
 
-   virtual HYPRE_PtrToParSolverFcn SetupFcn() const
+   HYPRE_PtrToParSolverFcn SetupFcn() const override
    { return (HYPRE_PtrToParSolverFcn) HYPRE_ADSSetup; }
-   virtual HYPRE_PtrToParSolverFcn SolveFcn() const
+   HYPRE_PtrToParSolverFcn SolveFcn() const override
    { return (HYPRE_PtrToParSolverFcn) HYPRE_ADSSolve; }
 
    virtual ~HypreADS();
@@ -1659,7 +2063,7 @@ private:
    HYPRE_MatvecFunctions matvec_fn;
 
    // Eigenvalues
-   Array<double> eigenvalues;
+   Array<real_t> eigenvalues;
 
    // Forward declaration
    class HypreMultiVector;
@@ -1727,8 +2131,8 @@ public:
    HypreLOBPCG(MPI_Comm comm);
    ~HypreLOBPCG();
 
-   void SetTol(double tol);
-   void SetRelTol(double rel_tol);
+   void SetTol(real_t tol);
+   void SetRelTol(real_t rel_tol);
    void SetMaxIter(int max_iter);
    void SetPrintLevel(int logging);
    void SetNumModes(int num_eigs) { nev = num_eigs; }
@@ -1746,7 +2150,7 @@ public:
    void Solve();
 
    /// Collect the converged eigenvalues
-   void GetEigenvalues(Array<double> & eigenvalues) const;
+   void GetEigenvalues(Array<real_t> & eigenvalues) const;
 
    /// Extract a single eigenvector
    const HypreParVector & GetEigenvector(unsigned int i) const;
@@ -1806,8 +2210,8 @@ public:
    HypreAME(MPI_Comm comm);
    ~HypreAME();
 
-   void SetTol(double tol);
-   void SetRelTol(double rel_tol);
+   void SetTol(real_t tol);
+   void SetRelTol(real_t rel_tol);
    void SetMaxIter(int max_iter);
    void SetPrintLevel(int logging);
    void SetNumModes(int num_eigs);
@@ -1821,7 +2225,7 @@ public:
    void Solve();
 
    /// Collect the converged eigenvalues
-   void GetEigenvalues(Array<double> & eigenvalues) const;
+   void GetEigenvalues(Array<real_t> & eigenvalues) const;
 
    /// Extract a single eigenvector
    const HypreParVector & GetEigenvector(unsigned int i) const;
