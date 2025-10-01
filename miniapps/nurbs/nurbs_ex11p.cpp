@@ -174,7 +174,6 @@ int main(int argc, char *argv[])
    {
       fec = new H1_FECollection(order, dim);
       own_fec = 1;
-      int nkv = pmesh->NURBSext->GetNKV();
    }
    else
    {

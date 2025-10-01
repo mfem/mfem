@@ -263,7 +263,6 @@ int main(int argc, char *argv[])
    {
       fec = new H1_FECollection(order, dim);
       own_fec = 1;
-      int nkv = pmesh->NURBSext->GetNKV();
 
       // Enforce periodic BC's
       if (master.Size() > 0)
@@ -354,15 +353,17 @@ int main(int argc, char *argv[])
    b->AddDomainIntegrator(new DomainLFIntegrator(one));
 
    if (!strongBC)
+   {
       // Set kappa if needed using fec order
       if (kappa < 0)
       {
          const int p = fec->GetOrder();
          kappa = 4*(p+1)*(p+1);
       }
-   if (myid == 0) { cout << "Enforcing BC weakly, kappa = " << kappa << endl; }
-   b->AddBdrFaceIntegrator(
-      new DGDirichletLFIntegrator(zero, one, -1.0, kappa));
+      if (myid == 0) { cout << "Enforcing BC weakly, kappa = " << kappa << endl; }
+      b->AddBdrFaceIntegrator(
+         new DGDirichletLFIntegrator(zero, one, -1.0, kappa));
+   }
    b->Assemble();
 
    // 9. Define the solution vector x as a parallel finite element grid function
