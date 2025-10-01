@@ -1,11 +1,18 @@
-#include "mfem.hpp"
-#include "ip.hpp"
-#include <fstream>
-#include <iostream>
-#include <cstdlib>
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
+//
+// This file is part of the MFEM library. For more information and source code
+// availability visit https://mfem.org.
+//
+// MFEM is free software; you can redistribute it and/or modify it under the
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
-using namespace std;
-using namespace mfem;
+#include "ip.hpp"
+
+namespace mfem
+{
 
 /* This solver is intended to solve problems of the form
  *
@@ -183,7 +190,7 @@ void IPSolver::Mult(const BlockVector &x0, BlockVector &xf)
     * is larger than that of thetaMax
     */
    real_t theta0 = GetTheta(xk);
-   thetaMin = 1.e-4 * max(1.0, theta0);
+   thetaMin = 1.e-4 * std::max(1.0, theta0);
    thetaMax = 1.e8  * thetaMin;
 
    real_t OptErrSubproblem, OptErr;
@@ -193,8 +200,8 @@ void IPSolver::Mult(const BlockVector &x0, BlockVector &xf)
    {
       if (myid == 0 && print_level > 0)
       {
-         cout << "\n" << std::string(50,'-') << endl;
-         cout << "interior-point solve step # " << j << endl;
+         mfem::out << "\n" << std::string(50,'-') << std::endl;
+         mfem::out << "interior-point solve step # " << j << std::endl;
       }
       // Check convergence of optimization problem
       OptErr = OptimalityError(xk, lk, zlk);
@@ -203,7 +210,7 @@ void IPSolver::Mult(const BlockVector &x0, BlockVector &xf)
          converged = true;
          if (myid == 0 && print_level > 0)
          {
-            cout << "solved optimization problem\n";
+            mfem::out << "solved optimization problem\n";
          }
          break;
       }
@@ -217,7 +224,7 @@ void IPSolver::Mult(const BlockVector &x0, BlockVector &xf)
          {
             if (myid == 0 && print_level > 0)
             {
-               cout << "solved mu = " << mu_k << " barrier subproblem\n";
+               mfem::out << "solved mu = " << mu_k << " barrier subproblem\n";
             }
             UpdateBarrierSubProblem();
          }
@@ -237,7 +244,7 @@ void IPSolver::Mult(const BlockVector &x0, BlockVector &xf)
       {
          if (myid == 0 && print_level > 0)
          {
-            cout << "curvature test failed\n";
+            mfem::out << "curvature test failed\n";
          }
          real_t deltaReg = 0.0;
          int maxCurvatureTests = 30;
@@ -261,7 +268,7 @@ void IPSolver::Mult(const BlockVector &x0, BlockVector &xf)
          {
             if (myid == 0 && print_level > 0)
             {
-               cout << "deltaReg = " << deltaReg << endl;
+               mfem::out << "deltaReg = " << deltaReg << std::endl;
             }
             if (passedCurvatureTest)
             {
@@ -274,7 +281,7 @@ void IPSolver::Mult(const BlockVector &x0, BlockVector &xf)
                {
                   if (myid == 0 && print_level > 0)
                   {
-                     cout << "delta *= " << kRegBarPlus << "\n";
+                     mfem::out << "delta *= " << kRegBarPlus << "\n";
                   }
                   deltaReg *= kRegBarPlus;
                }
@@ -304,7 +311,7 @@ void IPSolver::Mult(const BlockVector &x0, BlockVector &xf)
 
       if (myid == 0 && print_level > 0)
       {
-         cout << "mu = " << mu_k << endl;
+         mfem::out << "mu = " << mu_k << std::endl;
       }
       LineSearch(Xk, Xhat, mu_k);
 
@@ -312,7 +319,7 @@ void IPSolver::Mult(const BlockVector &x0, BlockVector &xf)
       {
          if (myid == 0 && print_level > 0)
          {
-            cout << "lineSearch successful\n";
+            mfem::out << "lineSearch successful\n";
          }
          if (!switchCondition || !sufficientDecrease)
          {
@@ -330,14 +337,14 @@ void IPSolver::Mult(const BlockVector &x0, BlockVector &xf)
       {
          if (myid == 0 && print_level > 0)
          {
-            cout << "lineSearch not successful\n";
+            mfem::out << "lineSearch not successful\n";
          }
          converged = false;
          break;
       }
       if (j + 1 == max_iter && myid == 0 && print_level > 0)
       {
-         cout << "maximum optimization iterations\n";
+         mfem::out << "maximum optimization iterations\n";
       }
    }
    xf = 0.0;
@@ -509,7 +516,7 @@ real_t IPSolver::GetMaxStepSize(Vector &x, Vector &xhat,
       if ( xhat(i) < 0. )
       {
          alphaTmp = -1. * tau * x(i) / xhat(i);
-         alphaMaxloc = min(alphaMaxloc, alphaTmp);
+         alphaMaxloc = std::min(alphaMaxloc, alphaTmp);
       }
    }
 
@@ -526,7 +533,7 @@ void IPSolver::LineSearch(BlockVector& X0, BlockVector& Xhat,
                           real_t mu)
 {
    int eval_err = 0;
-   real_t tau  = max(tauMin, 1.0 - mu);
+   real_t tau  = std::max(tauMin, 1.0 - mu);
    Vector u0   = X0.GetBlock(0);
    Vector m0   = X0.GetBlock(1);
    Vector l0   = X0.GetBlock(2);
@@ -560,12 +567,12 @@ void IPSolver::LineSearch(BlockVector& X0, BlockVector& Xhat,
 
    if (myid == 0 && print_level > 0)
    {
-      cout << "is";
+      mfem::out << "is";
       if (!descentDirection)
       {
-         cout << " not";
+         mfem::out << " not";
       }
-      cout << " a descent direction for the log-barrier objective\n";
+      mfem::out << " a descent direction for the log-barrier objective\n";
    }
 
    thx0 = GetTheta(x0);
@@ -576,7 +583,7 @@ void IPSolver::LineSearch(BlockVector& X0, BlockVector& Xhat,
    {
       if (myid == 0 && print_level > 0)
       {
-         cout << "\n--------- alpha = " << alpha << " ---------\n";
+         mfem::out << "\n--------- alpha = " << alpha << " ---------\n";
       }
       // ----- Compute trial point: xtrial = x0 + alpha * xhat
       xtrial.Set(1.0, x0);
@@ -588,7 +595,7 @@ void IPSolver::LineSearch(BlockVector& X0, BlockVector& Xhat,
       {
          if (myid == 0 && print_level > 0)
          {
-            cout << "bad log-barrier objective eval, reducing step length\n";
+            mfem::out << "bad log-barrier objective eval, reducing step length\n";
          }
          alpha *= 0.5;
          continue;
@@ -599,7 +606,7 @@ void IPSolver::LineSearch(BlockVector& X0, BlockVector& Xhat,
       {
          if (myid == 0 && print_level > 0)
          {
-            cout << "not in filter region\n";
+            mfem::out << "not in filter region\n";
          }
          if (!descentDirection)
          {
@@ -612,12 +619,15 @@ void IPSolver::LineSearch(BlockVector& X0, BlockVector& Xhat,
          }
          if (myid == 0 && print_level > 0)
          {
-            cout << "theta(x0) = "     << thx0     << ", thetaMin = "                  <<
-                 thetaMin             << endl;
-            cout << "theta(xtrial) = " << thxtrial << ", (1-gTheta) *theta(x0) = "     <<
-                 (1. - gTheta) * thx0 << endl;
-            cout << "phi(xtrial) = "   << phxtrial << ", phi(x0) - gPhi *theta(x0) = " <<
-                 phx0 - gPhi * thx0   << endl;
+            mfem::out << "theta(x0) = "     << thx0     << ", thetaMin = "
+                      <<
+                      thetaMin             << std::endl;
+            mfem::out << "theta(xtrial) = " << thxtrial << ", (1-gTheta) *theta(x0) = "
+                      <<
+                      (1. - gTheta) * thx0 << std::endl;
+            mfem::out << "phi(xtrial) = "   << phxtrial << ", phi(x0) - gPhi *theta(x0) = "
+                      <<
+                      phx0 - gPhi * thx0   << std::endl;
          }
          if (thx0 <= thetaMin && switchCondition)
          {
@@ -628,7 +638,8 @@ void IPSolver::LineSearch(BlockVector& X0, BlockVector& Xhat,
             {
                if (myid == 0 && print_level > 0)
                {
-                  cout << "Line search successful: sufficient decrease in log-barrier objective.\n";
+                  mfem::out <<
+                            "Line search successful: sufficient decrease in log-barrier objective.\n";
                }
                // accept the trial step
                lineSearchSuccess = true;
@@ -641,7 +652,8 @@ void IPSolver::LineSearch(BlockVector& X0, BlockVector& Xhat,
             {
                if (myid == 0 && print_level > 0)
                {
-                  cout << "Line search successful: infeasibility or log-barrier objective decreased.\n";
+                  mfem::out <<
+                            "Line search successful: infeasibility or log-barrier objective decreased.\n";
                }
                // accept the trial step
                lineSearchSuccess = true;
@@ -653,7 +665,7 @@ void IPSolver::LineSearch(BlockVector& X0, BlockVector& Xhat,
       {
          if (myid == 0 && print_level > 0)
          {
-            cout << "in filter region\n";
+            mfem::out << "in filter region\n";
          }
       }
       alpha *= 0.5;
@@ -689,7 +701,7 @@ void IPSolver::ProjectZ(const Vector &x, Vector &z, real_t mu)
    {
       zdual_i = z(i);
       zprimal_i = mu / x(i + dimU);
-      z(i) = max(min(zdual_i, kSig * zprimal_i), zprimal_i / kSig);
+      z(i) = std::max(std::min(zdual_i, kSig * zprimal_i), zprimal_i / kSig);
    }
 }
 
@@ -848,16 +860,16 @@ real_t IPSolver::OptimalityError(const BlockVector &x, const Vector &l,
    complementarityError = GlobalLpNorm(infinity(), comp.Normlinf(), comm);
 
 
-   optimalityError = max(max(stationarityError, feasibilityError),
-                         complementarityError);
+   optimalityError = std::max(std::max(stationarityError, feasibilityError),
+                              complementarityError);
 
    if (myid == 0 && print_level > 0)
    {
-      cout << "evaluating optimality error for mu = " << mu << endl;
-      cout << "stationarity error = " << stationarityError << endl;
-      cout << "feasibility error  = "    << feasibilityError << endl;
-      cout << "complimentarity error = " << complementarityError << endl;
-      cout << "optimality error = " << optimalityError << endl;
+      mfem::out << "evaluating optimality error for mu = " << mu << std::endl;
+      mfem::out << "stationarity error = " << stationarityError << std::endl;
+      mfem::out << "feasibility error  = "    << feasibilityError << std::endl;
+      mfem::out << "complimentarity error = " << complementarityError << std::endl;
+      mfem::out << "optimality error = " << optimalityError << std::endl;
    }
    return optimalityError;
 }
@@ -871,4 +883,6 @@ IPSolver::~IPSolver()
       delete Wuu;
       delete Wmm;
    }
+}
+
 }

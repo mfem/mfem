@@ -11,11 +11,13 @@
 
 if (MFEM_USE_TRIBOL AND MFEM_USE_MPI)
   list(APPEND CONTACT_SOURCES
-  utils/ip.cpp
-  utils/problems.cpp)
+  ip.cpp
+  optcontactproblem.cpp
+  elastoperator.cpp)
   list(APPEND CONTACT_HEADERS
-  utils/ip.hpp
-  utils/problems.hpp)
+  ip.hpp
+  optcontactproblem.hpp
+  elastoperator.hpp)
 
   convert_filenames_to_full_paths(CONTACT_SOURCES)
   convert_filenames_to_full_paths(CONTACT_HEADERS)

@@ -1,5 +1,13 @@
-# Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC.
-# See LICENSE and NOTICE for details. LLNL-CODE-806117.
+# Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+# at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+# LICENSE and NOTICE for details. LLNL-CODE-806117.
+#
+# This file is part of the MFEM library. For more information and source code
+# availability visit https://mfem.org.
+#
+# MFEM is free software; you can redistribute it and/or modify it under the
+# terms of the BSD-3 license. We welcome feedback and contributions, see file
+# CONTRIBUTING.md for details.
 
 # Use the MFEM build directory
 MFEM_DIR ?= ../..
@@ -19,7 +27,7 @@ MFEM_LIB_FILE = mfem_is_not_built
 
 ifeq ($(MFEM_USE_TRIBOL)$(MFEM_USE_MPI),YESYES)
    MINIAPPS = contact
-   CONTACT_SRC = utils/ip.cpp utils/problems.cpp
+   CONTACT_SRC =  elastoperator.cpp optcontactproblem.cpp ip.cpp 
 else
    MINIAPPS = 
    CONTACT_SRC = 
