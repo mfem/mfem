@@ -3897,6 +3897,13 @@ void ParMesh::LocalRefinement(const Array<int> &marked_el, int type)
 #endif
 }
 
+bool ParMesh::AnisotropicConflict(const Array<Refinement> &refinements,
+                                  std::set<int> &conflicts) const
+{
+   MFEM_VERIFY(pncmesh, "AnisotropicConflict should be called only for NCMesh");
+   return pncmesh->AnisotropicConflict(refinements, conflicts);
+}
+
 void ParMesh::NonconformingRefinement(const Array<Refinement> &refinements,
                                       int nc_limit)
 {
@@ -4591,6 +4598,14 @@ void ParMesh::NURBSUniformRefinement(const Array<int> &rf, real_t tol)
    if (MyRank == 0)
    {
       mfem::out << "\nParMesh::NURBSUniformRefinement : Not supported yet!\n";
+   }
+}
+
+void ParMesh::RefineNURBSWithKVFactors(int rf, const std::string &kvf)
+{
+   if (MyRank == 0)
+   {
+      mfem::out << "\nRefineNURBSWithKVFactors : Not supported yet!\n";
    }
 }
 

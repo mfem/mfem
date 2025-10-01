@@ -120,7 +120,11 @@ int CeedATPMGElemRestriction(int order,
    }
    ierr = CeedVectorRestoreArray(in_lvec, &lvec_data); PCeedChk(ierr);
    CeedInt in_layout[3];
+#if CEED_VERSION_GE(0, 13, 0)
+   ierr = CeedElemRestrictionGetELayout(er_in, in_layout); PCeedChk(ierr);
+#else
    ierr = CeedElemRestrictionGetELayout(er_in, &in_layout); PCeedChk(ierr);
+#endif
    if (in_layout[0] == 0 && in_layout[1] == 0 && in_layout[2] == 0)
    {
       return CeedError(ceed, 1, "Cannot interpret e-vector ordering of given"
@@ -664,7 +668,11 @@ int CeedATPMGOperator(CeedOperator oper, int order_reduction,
 
    for (int i = 0; i < numinputfields; ++i)
    {
+#if CEED_VERSION_GE(0, 13, 0)
+      const char * fieldname;
+#else
       char * fieldname;
+#endif
       ierr = CeedQFunctionFieldGetName(inputqfields[i], &fieldname); PCeedChk(ierr);
       if (if_vector[i] == CEED_VECTOR_ACTIVE)
       {
@@ -676,10 +684,19 @@ int CeedATPMGOperator(CeedOperator oper, int order_reduction,
          ierr = CeedOperatorSetField(coper, fieldname, er_input[i], basis_input[i],
                                      if_vector[i]); PCeedChk(ierr);
       }
+#if CEED_VERSION_GE(0, 13, 0)
+      ierr = CeedVectorDestroy(&if_vector[i]); PCeedChk(ierr);
+      ierr = CeedElemRestrictionDestroy(&er_input[i]); PCeedChk(ierr);
+      ierr = CeedBasisDestroy(&basis_input[i]); PCeedChk(ierr);
+#endif
    }
    for (int i = 0; i < numoutputfields; ++i)
    {
+#if CEED_VERSION_GE(0, 13, 0)
+      const char * fieldname;
+#else
       char * fieldname;
+#endif
       ierr = CeedQFunctionFieldGetName(outputqfields[i], &fieldname); PCeedChk(ierr);
       if (of_vector[i] == CEED_VECTOR_ACTIVE)
       {
@@ -691,6 +708,11 @@ int CeedATPMGOperator(CeedOperator oper, int order_reduction,
          ierr = CeedOperatorSetField(coper, fieldname, er_output[i], basis_output[i],
                                      of_vector[i]); PCeedChk(ierr);
       }
+#if CEED_VERSION_GE(0, 13, 0)
+      ierr = CeedVectorDestroy(&of_vector[i]); PCeedChk(ierr);
+      ierr = CeedElemRestrictionDestroy(&er_output[i]); PCeedChk(ierr);
+      ierr = CeedBasisDestroy(&basis_output[i]); PCeedChk(ierr);
+#endif
    }
    delete [] er_input;
    delete [] er_output;
@@ -741,7 +763,9 @@ int CeedOperatorGetOrder(CeedOperator oper, CeedInt * order)
    int P1d;
    ierr = CeedBasisGetNumNodes1D(basis, &P1d); PCeedChk(ierr);
    *order = P1d - 1;
-
+#if CEED_VERSION_GE(0, 13, 0)
+   ierr = CeedBasisDestroy(&basis); PCeedChk(ierr);
+#endif
    return 0;
 }
 

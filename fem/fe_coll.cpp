@@ -401,9 +401,6 @@ FiniteElementCollection *FiniteElementCollection::New(const char *name)
    {
       MFEM_ABORT("unknown FiniteElementCollection: " << name);
    }
-   MFEM_VERIFY(!strcmp(fec->Name(), name), "input name: \"" << name
-               << "\" does not match the created collection name: \""
-               << fec->Name() << '"');
 
    return fec;
 }
@@ -2518,6 +2515,7 @@ RT_FECollection::RT_FECollection(const int p, const int dim,
                                  const int map_type, const bool signs,
                                  const int ob_type)
    : FiniteElementCollection(p + 1)
+   , dim(dim)
    , ob_type(ob_type)
 {
    if (Quadrature1D::CheckOpen(BasisType::GetQuadrature1D(ob_type)) ==

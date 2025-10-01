@@ -153,7 +153,8 @@ public:
    /// Shortcut for calling SetFromTrueDofs() with GetTrueVector() as argument.
    void SetFromTrueVector() { SetFromTrueDofs(GetTrueVector()); }
 
-   /// Returns the values in the vertices of i'th element for dimension vdim.
+   /** @brief Returns the values at the vertices of element @a i for the 1-based
+       dimension vdim. */
    void GetNodalValues(int i, Array<real_t> &nval, int vdim = 1) const;
 
    /** @name Element index Get Value Methods
@@ -308,7 +309,8 @@ public:
    /// For a vector grid function, makes sure that the ordering is byNODES.
    void ReorderByNodes();
 
-   /// Return the values as a vector on mesh vertices for dimension vdim.
+   /** @brief Returns the values as a vector at mesh vertices, for the 1-based
+       dimension vdim. */
    void GetNodalValues(Vector &nval, int vdim = 1) const;
 
    void GetVectorFieldNodalValues(Vector &val, int comp) const;
@@ -358,6 +360,33 @@ public:
    /** @brief Compute the vector gradient with respect to the reference element
        variable. */
    void GetVectorGradientHat(ElementTransformation &T, DenseMatrix &gh) const;
+
+   /** @brief Evaluate the gradients of the GridFunction at the given quadrature
+       points, @a ir, in all mesh elements. */
+   /** This method assumes that all mesh elements are the same type and that the
+       IntegrationRule @a ir is consistent with that type of element.
+
+       @param[in] ir     Quadrature points at which the gradients are to be
+                         evaluated.
+       @param[out] grad  Output vector of size `SDIM*VDIM*NQ*NE` where `SDIM` is
+                         the spatial dimention of the mesh, `VDIM` is the vector
+                         dimension of the GridFunction, `NQ` is the number of
+                         quadrature points in @a ir, and `NE` is the number of
+                         elements in the mesh. The layout of @a grad is
+                         determined by the parameter @a ql: when @a ql is
+                         QVectorLayout::byNODES, the layout is
+                         `NQ x VDIM x SDIM x NE`; when @a ql is
+                         QVectorLayout::byVDIM, the layout is
+                         `VDIM x SDIM x NQ x NE`.
+       @param[in] ql     Determines the layout of the output vector @a grad; see
+                         the description of @a grad for details.
+       @param[in] d_mt   MemoryType to use for allocating the output vector
+                         @a grad, as well the GeometricFactors and temporary
+                         vector used by the method. By default, the current
+                         device memory type is used. */
+   void GetGradients(const IntegrationRule &ir, Vector &grad,
+                     QVectorLayout ql = QVectorLayout::byNODES,
+                     MemoryType d_mt = MemoryType::DEFAULT) const;
 
    /** Compute $ (\int_{\Omega} (*this) \psi_i)/(\int_{\Omega} \psi_i) $,
        where $ \psi_i $ are the basis functions for the FE space of avgs.

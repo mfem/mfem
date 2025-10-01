@@ -19,6 +19,7 @@
 #include "../../linalg/vector.hpp"
 #include "../bilininteg.hpp"
 
+/// \cond DO_NOT_DOCUMENT
 namespace mfem
 {
 
@@ -818,5 +819,7 @@ inline void PAHcurlHdivApplyTranspose3D(const int d1d,
 } // namespace internal
 
 } // namespace mfem
+
+/// \endcond DO_NOT_DOCUMENT
 
 #endif
