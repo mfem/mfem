@@ -791,8 +791,8 @@ public:
 
    /** @brief Set the DOFs of @a merged to values from active elements in
        @a num_pieces of Gridfunctions @a gf_array. */
-   void MergeGridFunctions(GridFunction *gf_array[], int num_pieces,
-                           GridFunction &merged);
+   static void MergeGridFunctions(GridFunction *gf_array[], int num_pieces,
+                                  GridFunction &merged);
 
    /// Destroy a NURBSExtension.
    virtual ~NURBSExtension();
