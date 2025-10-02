@@ -142,8 +142,7 @@ int main(int argc, char *argv[])
    }
    patch.KnotInsert(0, *kv);
 
-   // We locate the control points at the location of the maxima of the
-   // shapefunctions defined by the knot vectors -- the Botella points.
+   // We locate the control points at the demko points.
    Vector u(ncp),x(ncp),interp(ncp);
    kv->GetDemko(u);
 

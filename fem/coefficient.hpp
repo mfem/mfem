@@ -1862,17 +1862,17 @@ public:
 class VectorComponentCoefficient : public Coefficient
 {
 private:
-   VectorCoefficient *a;// = nullptr;
+   VectorCoefficient *a = nullptr;
 
    mutable Vector va;
-   int i;
+   int component;
 
 public:
    /// Construct with a vector coefficient.
    VectorComponentCoefficient(VectorCoefficient &A)
-      : a(&A), va(A.GetVDim()), i(0) {};
+      : a(&A), va(A.GetVDim()), component(0) {};
 
-   VectorComponentCoefficient(VectorCoefficient &A, int I);
+   VectorComponentCoefficient(VectorCoefficient &A, int c);
 
    /// Set the time for internally stored coefficients
    void SetTime(real_t t) override;
@@ -1883,11 +1883,11 @@ public:
    /// Return the vector coefficient
    VectorCoefficient * GetACoef() const { return a; }
 
-   /// Reset the index
-   void SetIndex(int I);
+   /// Set the component
+   void SetComponent(int c);
 
-   /// Return the index
-   int GetIndex() const { return i; }
+   /// Return the component
+   int GetComponent() const { return component; }
 
    /// Evaluate the trace coefficient at @a ip.
    real_t Eval(ElementTransformation &T,
@@ -1901,14 +1901,14 @@ private:
    MatrixCoefficient *a = nullptr;
 
    mutable DenseMatrix ma;
-   int i,j;
+   int row_idx,col_idx;
 
 public:
    MatrixComponentCoefficient(MatrixCoefficient &A)
-      : a(&A), ma(A.GetHeight(), A.GetWidth()), i(0), j(0) {};
+      : a(&A), ma(A.GetHeight(), A.GetWidth()), row_idx(0), col_idx(0) {};
 
    /// Construct with the matrix coefficient.
-   MatrixComponentCoefficient(MatrixCoefficient &A, int I, int J);
+   MatrixComponentCoefficient(MatrixCoefficient &A, int ri, int ci);
 
    /// Set the time for internally stored coefficients
    void SetTime(real_t t) override;
@@ -1920,16 +1920,16 @@ public:
    MatrixCoefficient * GetACoef() const { return a; }
 
    /// Reset the index
-   void SetRowIndex(int I);
+   void SetRowIndex(int ri);
 
    /// Return the index
-   int GetRowIndex() const { return i; }
+   int GetRowIndex() const { return row_idx; }
 
    /// Reset the index
-   void SetColumnIndex(int J);
+   void SetColumnIndex(int ci);
 
    /// Return the index
-   int GetColumnIndex() const { return j; }
+   int GetColumnIndex() const { return col_idx; }
 
 
    /// Evaluate the trace coefficient at @a ip.

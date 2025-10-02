@@ -697,7 +697,7 @@ void ParGridFunction::ProjectCoefficientElementL2(VectorCoefficient &vcoeff)
       gVa = 0.0;
       for (int v = 0; v < VectorDim(); v++)
       {
-         coeff.SetIndex(v);
+         coeff.SetComponent(v);
          ProjectCoefficientElementL2_(coeff, x, Va);
          fes->GetVDofs(v, vdofs);
          SetSubVector(vdofs, x);

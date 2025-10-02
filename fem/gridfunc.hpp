@@ -411,7 +411,7 @@ public:
        Note 2: For NURBS elements the ELEMENT projection gives results without
        over and undershoots. However, the gradient near the boundary does not
        converge.*/
-   enum ProjType { DEFAULT, ELEMENT, GLOBALL2, ELEMENTL2 };
+   enum class ProjType { DEFAULT, ELEMENT, GLOBALL2, ELEMENTL2 };
 
    /** @brief Project @a coeff Coefficient to @a this GridFunction. The
        projection computation depends on the choice of the FiniteElementSpace
@@ -423,7 +423,8 @@ public:
        If that is the case it is defined on another rank, and the issue is
        rectified with the appropriate communication, see in ParGridFunction.
        */
-   virtual void ProjectCoefficient(Coefficient &coeff, ProjType type = DEFAULT);
+   virtual void ProjectCoefficient(Coefficient &coeff,
+                                   ProjType type = ProjType::DEFAULT);
 
    /** @brief Project @a coeff Coefficient to @a this GridFunction. The
        projection is a global L2 projection. This routine can be used a
@@ -455,7 +456,7 @@ public:
        If that is the case it is defined on another rank, and the issue is
        rectified with the appropriate communication, see in ParGridFunction.*/
    virtual void ProjectCoefficient(VectorCoefficient &vcoeff,
-                                   ProjType type = DEFAULT);
+                                   ProjType type = ProjType::DEFAULT);
 
    /** @brief Project @a coeff Coefficient to @a this GridFunction. The
        projection is a global L2 projection. This routine can be used a

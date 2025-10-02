@@ -281,16 +281,16 @@ void KnotVector::GetDemko(Vector &xi) const
 
 void KnotVector::ComputeDemko() const
 {
-   const int itermax1 = 50;
-   const int itermax2 = 50;
+   constexpr int itermax1 = 50;
+   constexpr int itermax2 = 50;
 
-   const real_t tol1 = 1e-10;
-   const real_t tol2 = 1e-8;
+   constexpr real_t tol1 = 1e-10;
+   constexpr real_t tol2 = 1e-8;
 
    Vector x(GetNCP());
    for ( int i = 0; i <x.Size(); i++)
    {
-      x[i] = std::pow(-1.0, i);
+      x[i] = i % 2 == 0 ? 1.0 : -1.0;
    }
 
    demko.SetSize(GetNCP());
@@ -301,8 +301,8 @@ void KnotVector::ComputeDemko() const
 
    // Remez iteration
    //  - Find interpolant, given by a, through given points, given by demko
-   //  - Find extrema of this polynom and update demko points
-   //  - Repeat untill converged
+   //  - Find extrema of this polynomial and update demko points
+   //  - Repeat until converged
    Vector a(GetNCP()),anew(GetNCP());
    Vector sh(Order+1);
    Vector shgrad(Order+1);
@@ -357,13 +357,6 @@ void KnotVector::ComputeDemko() const
                u -= (grad/hess)*(knot(ks+1) - knot(ks));
             }
          }
-         // Check convergence
-         /*if ((itermax2 > 1) &&
-             (itermax2 == iter2))
-         {
-            mfem::out<<"Demko: Iteration to find extremum not converged"<<endl;
-            mfem::out<<"|grad| = "<<fabs(grad)<<endl;
-         }*/
 
          // Update
          demko[i] = u;

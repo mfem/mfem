@@ -1176,19 +1176,19 @@ real_t TraceCoefficient::Eval(ElementTransformation &T,
 }
 
 VectorComponentCoefficient::VectorComponentCoefficient(VectorCoefficient &A,
-                                                       int I)
+                                                       int c)
    : a(&A), va(A.GetVDim())
 {
-   SetIndex(I);
+   SetComponent(c);
 }
 
-void VectorComponentCoefficient::SetIndex(int I)
+void VectorComponentCoefficient::SetComponent(int c)
 {
-   MFEM_ASSERT(I < a->GetVDim() && I >= 0,
+   MFEM_ASSERT(c < a->GetVDim() && c >= 0,
                "VectorComponentCoefficient:  "
                "Index not in range.");
 
-   i = I;
+   component = c;
 }
 
 void VectorComponentCoefficient::SetTime(real_t t)
@@ -1201,32 +1201,32 @@ real_t VectorComponentCoefficient::Eval(ElementTransformation &T,
                                         const IntegrationPoint &ip)
 {
    a->Eval(va, T, ip);
-   return va[i];
+   return va[component];
 }
 
 MatrixComponentCoefficient::MatrixComponentCoefficient(MatrixCoefficient &A,
-                                                       int I, int J)
+                                                       int ri, int ci)
    : a(&A), ma(A.GetHeight(), A.GetWidth())
 {
-   SetRowIndex(I);
-   SetColumnIndex(J);
+   SetRowIndex(ri);
+   SetColumnIndex(ci);
 }
 
-void MatrixComponentCoefficient::SetRowIndex(int I)
+void MatrixComponentCoefficient::SetRowIndex(int ri)
 {
-   MFEM_ASSERT(I < a->GetHeight() && I >= 0,
+   MFEM_ASSERT(ri < a->GetHeight() && ri >= 0,
                "MatrixComponentCoefficient:  "
                "Row index not in range.");
 
-   i = I;
+   row_idx = ri;
 }
 
-void MatrixComponentCoefficient::SetColumnIndex(int J)
+void MatrixComponentCoefficient::SetColumnIndex(int ci)
 {
-   MFEM_ASSERT(J < a->GetWidth() && J >= 0,
+   MFEM_ASSERT(ci < a->GetWidth() && ci >= 0,
                "MatrixComponentCoefficient:  "
                "Column index not in range.");
-   j = J;
+   col_idx = ci;
 }
 
 void MatrixComponentCoefficient::SetTime(real_t t)
@@ -1239,7 +1239,7 @@ real_t MatrixComponentCoefficient::Eval(ElementTransformation &T,
                                         const IntegrationPoint &ip)
 {
    a->Eval(ma, T, ip);
-   return ma(i,j);
+   return ma(row_idx,col_idx);
 }
 
 VectorSumCoefficient::VectorSumCoefficient(int dim)

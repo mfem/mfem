@@ -79,10 +79,11 @@ public:
    KnotVector(int order, int NCP);
 
    /** @brief Create a KnotVector with order @a order and knots @a knot.
-       If @a k has repeated knots, this constructor will copy the knots
-       exactly as they are provided. Otherwise, end knots will be repeated
-       (order + 1) times (C^{-1}) while internal knots will retain a
-       multiplicity of 1. */
+       If @a k has the correct number of repeated knots at the begin and end,
+       then this constructor will copy the knots as provided.
+       Otherwise, the knot vector will be extended by repeating the end knots
+       (order + 1) times. Internal knots will retain the multiplicity as given
+       in the input. */
    KnotVector(int order, const Vector &k);
 
    /** @brief Create a KnotVector by passing in a degree, a Vector of interval
@@ -154,11 +155,7 @@ public:
    MFEM_DEPRECATED int findKnotSpan(real_t u) const;  // Use GetSpan instead
 
    /** Gives the @a i average knot location. Average is taken over @a Order
-       number of nodes. For background see:
-
-       G. Farin,
-       Curves and Surfaces for Computer Aided Geometric Design, fourth ed.
-       Academic Press, San Diego, CA, 1997*/
+       number of knots.*/
    real_t GetGreville(int i) const;
 
    void GetGreville(Vector &xi) const;
@@ -167,7 +164,7 @@ public:
        Reverts to the Greville point if knot is repeated @a Order +1 times.
        For background see:
 
-       Botella, Olivier, and Karim Shariff.
+       Olivier Botella and Karim Shariff.
        "B-spline methods in fluid dynamics."
        International Journal of Computational Fluid Dynamics 17.2 (2003): 133-149.
 
@@ -186,8 +183,8 @@ public:
 
        Points are found using Remez iteration:
         - Find interpolant, given by a, through given points, given by Demko
-        - Find extrema of this polynom and update Demko points
-        - Repeat untill converged
+        - Find extrema of this polynomial and update Demko points
+        - Repeat until converged
         - Use the Greville point as starting point */
    real_t GetDemko(int i) const;
 

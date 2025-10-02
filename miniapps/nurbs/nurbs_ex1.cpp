@@ -438,7 +438,7 @@ int main(int argc, char *argv[])
    else
    {
       FunctionCoefficient sol_cf(sol);
-      x.ProjectCoefficient(sol_cf, GridFunction::ELEMENT);
+      x.ProjectCoefficient(sol_cf, GridFunction::ProjType::ELEMENT);
    }
 
    // 8. Set up the bilinear form a(.,.) on the finite element space

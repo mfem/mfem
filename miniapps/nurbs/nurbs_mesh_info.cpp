@@ -1,18 +1,14 @@
-
-//
 //                          MFEM Print info of NURBS mesh
-//
 //
 // Compile with: make nurbs_mesh_info
 //
 // Sample runs:
 //    nurbs_mesh_info -m ../../data/cube-nurbs.mesh -o 0 -r 2
-
+//
 // Description:  This code prints detailed mesh information such as:
 //                - Print separate patch info
 //                - 1D shape functions associated knot vectors
 //                - Give Greville, Botella and Demko points of the knot vectors
-//
 
 #include <iostream>
 #include "mfem.hpp"
