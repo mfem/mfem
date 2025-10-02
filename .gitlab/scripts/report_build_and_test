@@ -1,0 +1,110 @@
+#!/bin/bash
+
+# Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+# at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+# LICENSE and NOTICE for details. LLNL-CODE-806117.
+#
+# This file is part of the MFEM library. For more information and source code
+# availability visit https://mfem.org.
+#
+# MFEM is free software; you can redistribute it and/or modify it under the
+# terms of the BSD-3 license. We welcome feedback and contributions, see file
+# CONTRIBUTING.md for details.
+
+function info_msg ()
+{
+  echo "[Information:] ${1}"
+}
+
+function error_msg ()
+{
+  echo "[Error:] ${1}"
+}
+
+# Perform a report while holding a lock file to prevent concurrency on
+# the destination.
+# Usage:
+# locked_clone <report_function> <lock_name>
+function locked_report ()
+{
+  if ! command -v flock
+  then
+    error_msg "Required command 'flock' not found"
+    exit 1
+  fi
+
+  info_msg "Will report ${1} while holding a lock in ${2}"
+
+  ( date; info_msg "Waiting to acquire lock on '${PWD}/${2}.lock' ..."
+    # try to get an exclusive lock on fd 9 (mfem-data.lock) repeating the
+    # try every 5 seconds; we may want to add a counter for the number of
+    # retries to interrupt a potential infinite loop
+    while ! flock -n 9; do sleep 5; done
+    date; info_msg "Acquired lock on '${PWD}/${2}.lock'"
+
+    report ${1}
+    err=$?
+
+    # sleep for a period to allow NFS to propagate the above changes;
+    # clearly, there is no guarantee that other NFS clients will see the
+    # changes even after the timeout
+    sleep 10
+    exit $err
+  ) 9> ${2}.lock
+}
+
+function report ()
+{
+  if [[ "${1}" == "SUCCESS" ]]
+  then
+    info_msg "All the ${MACHINE_NAME} jobs passed"
+    status_msg = "The 'build-and-test' jobs on ${MACHINE_NAME} were SUCCESSFUL."
+  elif [[ "${1}" == "FAILURE" ]]
+  then
+    info_msg "At least one failure on ${MACHINE_NAME}"
+    status_msg = "Some 'build-and-test' jobs on ${MACHINE_NAME} FAILED."
+  else
+    error_msg "Unknown status: ${1} ... aborting"
+    exit 1
+  fi
+
+  cd ${AUTOTEST_ROOT}/autotest || \
+    { error_msg "Invalid 'autotest' dir: ${AUTOTEST_ROOT}/autotest"; exit 1; }
+  mkdir -p ${MACHINE_NAME}
+
+  rundir="${MACHINE_NAME}/$(date +%Y-%m-%d)-gitlab-ci-${CI_COMMIT_REF_SLUG}"
+  rundir=$(${CI_PROJECT_DIR}/.gitlab/scripts/safe_create_rundir $rundir)
+
+  printf "%s\n" "${status_msg}" \
+    "Pipeline URL:" "$CI_PIPELINE_URL" > ${rundir}/gitlab.err
+
+  msg="GitLab CI log for build-and-test on ${MACHINE_NAME} ($(date +%Y-%m-%d))"
+
+  if [[ "${1}" == "FAILURE" ]]
+  then
+    # Create 'autotest-email.html' to indicate failure:
+    cp ${rundir}/gitlab.err ${rundir}/autotest-email.html
+  fi
+
+  if [[ "$AUTOTEST_COMMIT" != "OFF" ]]; then
+    git pull && \
+    git add ${rundir} && \
+    git commit -m "${msg}" && \
+    ${CI_PROJECT_DIR}/.gitlab/scripts/git_try_to_push
+  else
+    for file in ${rundir}/*; do
+      echo "------------------------------"
+      echo "Content of '$file'"
+      echo "******************************"
+      cat $file
+      echo "******************************"
+    done
+    rm -rf ${rundir} || true
+  fi
+}
+
+export MACHINE_NAME=${CI_MACHINE}
+info_msg "MACHINE_NAME is ${MACHINE_NAME}"
+info_msg "AUTOTEST_ROOT is ${AUTOTEST_ROOT}"
+
+cd ${AUTOTEST_ROOT} && locked_report ${1} autotest

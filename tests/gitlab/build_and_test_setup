@@ -1,0 +1,72 @@
+#!/bin/bash
+
+# Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+# at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+# LICENSE and NOTICE for details. LLNL-CODE-806117.
+#
+# This file is part of the MFEM library. For more information and source code
+# availability visit https://mfem.org.
+#
+# MFEM is free software; you can redistribute it and/or modify it under the
+# terms of the BSD-3 license. We welcome feedback and contributions, see file
+# CONTRIBUTING.md for details.
+
+function info_msg ()
+{
+  echo "[Information:] ${1}"
+}
+
+function error_msg ()
+{
+  echo "[Error:] ${1}"
+}
+
+# Perform a clone while holding a lock file to prevent concurrency on
+# the destination.
+# Usage:
+# locked_clone <repository_url> <destination_dir>
+function locked_clone ()
+{
+  if ! command -v flock
+  then
+    error_msg "Required command 'flock' not found"
+    exit 1
+  fi
+
+  info_msg "Will clone ${1} into ${2}"
+
+  ( date; info_msg "Waiting to acquire lock on '${PWD}/${2}.lock' ..."
+    # try to get an exclusive lock on fd 9 (mfem-data.lock) repeating the
+    # try every 5 seconds; we may want to add a counter for the number of
+    # retries to interrupt a potential infinite loop
+    while ! flock -n 9; do sleep 5; done
+    date; info_msg "Acquired lock on '${PWD}/${2}.lock'"
+    # clone/update the autotest repo while holding the file lock on
+    # 'autotest.lock'
+    err=0
+    if [[ ! -d "${2}" ]]; then
+      git clone ${1} ${2}
+    else
+      cd ${2} && git pull && cd ..
+    fi || err=1
+    # sleep for a period to allow NFS to propagate the above changes;
+    # clearly, there is no guarantee that other NFS clients will see the
+    # changes even after the timeout
+    sleep 10
+    exit $err
+  ) 9> ${2}.lock
+}
+
+# Setup MFEM_DATA_DIR=${SHARED_REPOS_DIR}/mfem-data, see '.gitlab-ci.yml'
+info_msg "MFEM_DATA_REPO is ${MFEM_DATA_REPO}"
+info_msg "SHARED_REPOS_DIR is ${SHARED_REPOS_DIR}"
+
+mkdir -p ${SHARED_REPOS_DIR} && cd ${SHARED_REPOS_DIR}
+locked_clone ${MFEM_DATA_REPO} mfem-data
+
+# Setup ${AUTOTEST_ROOT}/autotest:
+info_msg "AUTOTEST_REPO is ${AUTOTEST_REPO}"
+info_msg "AUTOTEST_ROOT is ${AUTOTEST_ROOT}"
+
+mkdir -p ${AUTOTEST_ROOT} && cd ${AUTOTEST_ROOT}
+locked_clone ${AUTOTEST_REPO} autotest
