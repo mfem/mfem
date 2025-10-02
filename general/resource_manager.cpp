@@ -496,6 +496,10 @@ void ResourceManager::Dealloc(char *ptr, ResourceLocation loc, bool temporary)
 
 std::array<size_t, 8> ResourceManager::Usage() const
 {
+   MFEM_ASSERT(static_cast<int>(RBase::Segment::Flags::OWN_HOST) == (1 << 0),
+               "unexpected value for Segment::Flags::OWN_HOST");
+   MFEM_ASSERT(static_cast<int>(RBase::Segment::Flags::OWN_DEVICE) == (1 << 1),
+               "unexpected value for Segment::Flags::OWN_DEVICE");
    std::array<size_t, 8> res = {0};
    for (auto &seg : storage.segments)
    {
@@ -504,25 +508,22 @@ std::array<size_t, 8> ResourceManager::Usage() const
          size_t offset = (seg.flag & RBase::Segment::Flags::TEMPORARY) ? 4 : 0;
          for (int i = 0; i < 2; ++i)
          {
-            // expects:
-            // Segment::Flags::OWN_HOST == 1 << 0
-            // Segment::Flags::OWN_DEVICE == 1 << 1
             if (seg.flag & (1 << i))
             {
                switch (seg.locs[i])
                {
                   case ResourceLocation::HOST:
                      // count all host allocations the same
-                     res[offset] += seg.size;
+                     res[offset] += seg.nbytes;
                      break;
                   case ResourceLocation::HOSTPINNED:
-                     res[offset + 1] += seg.size;
+                     res[offset + 1] += seg.nbytes;
                      break;
                   case ResourceLocation::MANAGED:
-                     res[offset + 2] += seg.size;
+                     res[offset + 2] += seg.nbytes;
                      break;
                   case ResourceLocation::DEVICE:
-                     res[offset + 3] += seg.size;
+                     res[offset + 3] += seg.nbytes;
                      break;
                   default:
                      throw std::runtime_error("Invalid location");
@@ -532,25 +533,6 @@ std::array<size_t, 8> ResourceManager::Usage() const
       }
    }
    return res;
-}
-
-#if 0
-
-size_t ResourceManager::insert(char *lower, char *upper, ResourceLocation loc,
-                               bool own, bool temporary)
-{
-   RBase::Segment::Flags flags = RBase::Segment::Flags::NONE;
-   if (own)
-   {
-      flags =
-         static_cast<RBase::Segment::Flags>(flags | RBase::Segment::Flags::OWN);
-   }
-   if (temporary)
-   {
-      flags = static_cast<RBase::Segment::Flags>(
-                 flags | RBase::Segment::Flags::TEMPORARY);
-   }
-   return insert(lower, upper, loc, flags);
 }
 
 char *ResourceManager::Alloc(size_t nbytes, ResourceLocation loc,
@@ -606,20 +588,370 @@ void ResourceManager::RBase::cleanup_segments()
    }
 }
 
+template <class F>
+void ResourceManager::mark_valid(size_t segment, bool on_device,
+                                 ptrdiff_t start, ptrdiff_t stop, F &&func)
+{
+   auto &seg = storage.get_segment(segment);
+   size_t curr = find_marker(segment, start, on_device);
+   if (!curr)
+   {
+      return;
+   }
+   auto pos = std::max(start, storage.get_node(curr).offset);
+   while (pos < stop)
+   {
+      auto &n = storage.get_node(curr);
+      size_t next = storage.successor(curr);
+      // n.offset <= pos < next point
+      if (!n.is_valid())
+      {
+         if (next)
+         {
+            // pn is always valid
+            auto &pn = storage.get_node(next);
+            if (stop >= pn.offset)
+            {
+               func(pos, pn.offset);
+               if (pos == n.offset)
+               {
+                  // entire span is validated
+                  n.set_unused();
+                  pn.set_unused();
+                  storage.erase(seg.roots[on_device], curr);
+                  curr = storage.successor(next);
+                  storage.erase(seg.roots[on_device], next);
+                  storage.cleanup_nodes();
+                  if (curr)
+                  {
+                     pos = storage.get_node(curr).offset;
+                  }
+                  else
+                  {
+                     break;
+                  }
+                  continue;
+               }
+               else
+               {
+                  pn.offset = pos;
+               }
+            }
+            else
+            {
+               func(pos, stop);
+               if (pos == n.offset)
+               {
+                  n.offset = stop;
+               }
+               else
+               {
+                  storage.insert(
+                     segment,
+                     storage.insert(segment, curr, pos, on_device, true), stop,
+                     on_device, false);
+               }
+               break;
+            }
+         }
+         else
+         {
+            func(pos, stop);
+            if (pos == n.offset)
+            {
+               if (stop < seg.nbytes)
+               {
+                  n.offset = stop;
+               }
+               else
+               {
+                  n.set_unused();
+                  storage.erase(seg.roots[on_device], curr);
+                  storage.cleanup_nodes();
+               }
+            }
+            else
+            {
+               auto tmp = storage.insert(segment, curr, pos, on_device, true);
+               if (stop < seg.nbytes)
+               {
+                  storage.insert(segment, tmp, stop, on_device, false);
+               }
+            }
+            break;
+         }
+      }
+      if (next)
+      {
+         pos = storage.get_node(next).offset;
+      }
+      else
+      {
+         pos = seg.nbytes;
+      }
+      curr = next;
+   }
+}
+
+bool ResourceManager::ZeroCopy(size_t segment)
+{
+   if (valid_segment(segment))
+   {
+      auto &seg = storage.get_segment(segment);
+      return seg.lowers[0] == seg.lowers[1];
+   }
+   return true;
+}
+
+template <class F>
+void ResourceManager::mark_invalid(size_t segment, bool on_device,
+                                   ptrdiff_t start, ptrdiff_t stop, F &&func)
+{
+   auto &seg = storage.get_segment(segment);
+   size_t curr = find_marker(segment, start, on_device);
+   if (!curr)
+   {
+      func(start, stop);
+      storage.insert(segment, start, on_device, false);
+      if (stop < seg.nbytes)
+      {
+         storage.insert(segment, stop, on_device, true);
+      }
+      return;
+   }
+   auto pos = start;
+   {
+      auto &n = storage.get_node(curr);
+      if (pos < n.offset)
+      {
+         // should be no prev node
+         // n must be invalid
+         if (stop >= n.offset)
+         {
+            // can just move curr
+            func(start, n.offset);
+            n.offset = pos;
+            curr = storage.successor(curr);
+            if (curr)
+            {
+               pos = storage.get_node(curr).offset;
+            }
+            else
+            {
+               pos = seg.nbytes;
+            }
+         }
+         else
+         {
+            func(start, stop);
+            // need new start and stop markers
+            storage.insert(
+               segment, storage.insert(segment, curr, start, on_device, false),
+               stop, on_device, true);
+            return;
+         }
+      }
+   }
+   while (pos < stop)
+   {
+      auto &n = storage.get_node(curr);
+      size_t next = storage.successor(curr);
+      // n.offset <= pos < next point
+      if (n.is_valid())
+      {
+         if (next)
+         {
+            // pn is always invalid
+            auto &pn = storage.get_node(next);
+            if (stop >= pn.offset)
+            {
+               func(pos, pn.offset);
+               if (pos == n.offset)
+               {
+                  // entire span is invalidated
+                  n.set_unused();
+                  pn.set_unused();
+                  storage.erase(seg.roots[on_device], curr);
+                  curr = storage.successor(next);
+                  storage.erase(seg.roots[on_device], next);
+                  storage.cleanup_nodes();
+
+                  if (curr)
+                  {
+                     pos = storage.get_node(curr).offset;
+                  }
+                  else
+                  {
+                     break;
+                  }
+                  continue;
+               }
+               else
+               {
+                  pn.offset = pos;
+               }
+            }
+            else
+            {
+               func(pos, stop);
+               if (pos == n.offset)
+               {
+                  n.offset = stop;
+               }
+               else
+               {
+                  storage.insert(
+                     segment,
+                     storage.insert(segment, curr, pos, on_device, false), stop,
+                     on_device, true);
+               }
+               break;
+            }
+         }
+         else
+         {
+            func(pos, stop);
+            if (pos == n.offset)
+            {
+               if (stop < seg.nbytes)
+               {
+                  n.offset = stop;
+               }
+               else
+               {
+                  n.set_unused();
+                  storage.erase(seg.roots[on_device], curr);
+                  storage.cleanup_nodes();
+               }
+            }
+            else
+            {
+               auto tmp = storage.insert(segment, curr, pos, on_device, false);
+               if (stop < seg.nbytes)
+               {
+                  storage.insert(segment, tmp, stop, on_device, true);
+               }
+            }
+            break;
+         }
+      }
+      if (next)
+      {
+         pos = storage.get_node(next).offset;
+      }
+      else
+      {
+         pos = seg.nbytes;
+      }
+      curr = next;
+   }
+}
+
+size_t ResourceManager::insert(char *hptr, size_t nbytes, ResourceLocation loc,
+                               bool own, bool temporary)
+{
+   char *dptr = nullptr;
+   ResourceLocation dloc = DEFAULT;
+   switch (loc)
+   {
+      case DEVICE:
+         // actually given a device ptr
+         std::swap(hptr, dptr);
+         std::swap(dloc, loc);
+         [[fallthrough]];
+      case DEFAULT:
+         [[fallthrough]];
+      case HOST:
+         if (allocator_types[0] == allocator_types[3])
+         {
+            // host and device memory space are the same, treat as a zero-copy
+            // segment
+            dptr = hptr;
+            dloc = loc;
+         }
+         break;
+      case HOSTPINNED:
+         [[fallthrough]];
+      case MANAGED:
+         dptr = hptr;
+         dloc = loc;
+         break;
+   }
+   return insert(hptr, dptr, nbytes, loc, dloc, own, false, temporary);
+}
+
+size_t ResourceManager::insert(char *hptr, char *dptr, size_t nbytes,
+                               ResourceLocation hloc, ResourceLocation dloc,
+                               bool own_host, bool own_device, bool temporary)
+{
+   storage.segments.emplace_back();
+   auto &seg = storage.segments.back();
+   seg.lowers[0] = hptr;
+   seg.lowers[1] = dptr;
+   seg.nbytes = nbytes;
+   seg.locs[0] = hloc;
+   seg.locs[1] = dloc;
+   if (hptr && own_host)
+   {
+      seg.flag = static_cast<RBase::Segment::Flags>(
+                    seg.flag | RBase::Segment::Flags::OWN_HOST);
+   }
+   if (dptr && own_device)
+   {
+      seg.flag = static_cast<RBase::Segment::Flags>(
+                    seg.flag | RBase::Segment::Flags::OWN_DEVICE);
+   }
+   if (temporary)
+   {
+      seg.flag = static_cast<RBase::Segment::Flags>(
+                    seg.flag | RBase::Segment::Flags::TEMPORARY);
+   }
+   // initial validity marking
+   // - host is valid
+   // - device is valid if dptr == hptr, otherwise invalid
+   if (hptr)
+   {
+      if (dptr && dptr != hptr)
+      {
+         // mark device initially invalid
+         mark_invalid(storage.segments.size(), false, 0, nbytes,
+         [](auto start, auto stop) {});
+      }
+   }
+   return storage.segments.size();
+}
+
 void ResourceManager::clear_segment(size_t segment)
 {
    auto &seg = storage.get_segment(segment);
    // cleanup nodes
-   storage.visit(seg.root, [](size_t) { return true; },
+   for (int i = 0; i < 2; ++i)
+   {
+      storage.visit(seg.roots[i], [](size_t) { return true; },
+      [](size_t) { return true; }, [&](size_t idx)
+      {
+         storage.get_node(idx).flag = static_cast<RBase::Node::Flags>(0);
+         return false;
+      });
+   }
+   storage.cleanup_nodes();
+}
+
+void ResourceManager::clear_segment(size_t segment, bool on_device)
+{
+   auto &seg = storage.get_segment(segment);
+   // cleanup nodes
+   storage.visit(seg.roots[on_device], [](size_t) { return true; },
    [](size_t) { return true; }, [&](size_t idx)
    {
       storage.get_node(idx).flag = static_cast<RBase::Node::Flags>(0);
       return false;
    });
    storage.cleanup_nodes();
+   seg.roots[on_device] = 0;
 }
 
-void ResourceManager::erase(size_t segment, bool linked)
+void ResourceManager::erase(size_t segment)
 {
    if (valid_segment(segment))
    {
@@ -629,72 +961,56 @@ void ResourceManager::erase(size_t segment, bool linked)
          if (!--seg.ref_count)
          {
             // deallocate
-            if (valid_segment(seg.other))
+            if (seg.lowers[1])
             {
-               // unlink
-               storage.get_segment(seg.other).other = 0;
-               if (linked)
+               if ((seg.flag & RBase::Segment::OWN_DEVICE) &&
+                   seg.lowers[1] != seg.lowers[0])
                {
-                  // erase other
-                  erase(storage.get_segment(segment).other, false);
+                  Dealloc(seg.lowers[1], seg.locs[1],
+                          seg.flag & RBase::Segment::TEMPORARY);
                }
             }
-            if (seg.flag & RBase::Segment::OWN)
+            if (seg.lowers[0])
             {
-               Dealloc(seg.lower, seg.loc,
-                       seg.flag & RBase::Segment::TEMPORARY);
+               if (seg.flag & RBase::Segment::OWN_HOST)
+               {
+                  Dealloc(seg.lowers[0], seg.locs[0],
+                          seg.flag & RBase::Segment::TEMPORARY);
+               }
             }
+
             clear_segment(segment);
             storage.cleanup_segments();
-         }
-         else
-         {
-            if (linked)
-            {
-               // erase other
-               erase(storage.get_segment(segment).other, false);
-            }
          }
       }
    }
 }
 
-size_t ResourceManager::insert(char *lower, char *upper, ResourceLocation loc,
-                               RBase::Segment::Flags init_flag)
+size_t ResourceManager::find_marker(size_t segment, size_t offset,
+                                    bool on_device)
 {
-   storage.segments.emplace_back();
-   auto &seg = storage.segments.back();
-   seg.lower = lower;
-   seg.upper = upper;
-   seg.loc = loc;
-   seg.flag = init_flag;
-   return storage.segments.size();
-}
-
-size_t ResourceManager::find_marker(size_t segment, char *lower, bool host)
-{
-   auto seg = &storage.get_segment(segment);
+   auto &seg = storage.get_segment(segment);
 
    // mark valid
-   size_t start = seg->roots[host];
-   storage.visit(seg->roots[host],
+   size_t start = seg.roots[on_device];
+   storage.visit(seg.roots[on_device],
                  [&](size_t idx)
    {
       // if idx <= lower, then everything to the left is too small
-      return storage.get_node(idx).point > lower;
+      return storage.get_node(idx).offset > offset;
    },
    [&](size_t idx)
    {
       // if idx >= lower, then everything to the right is too large
-      return storage.get_node(idx).point < lower;
+      return storage.get_node(idx).offset < offset;
    }, [&](size_t idx)
    {
-      if (storage.get_node(start).point < lower)
+      if (storage.get_node(start).offset < offset)
       {
          // look for point larger than start
-         if (storage.get_node(idx).point <= lower)
+         if (storage.get_node(idx).offset <= offset)
          {
-            if (storage.get_node(start).point < storage.get_node(idx).point)
+            if (storage.get_node(start).offset < storage.get_node(idx).offset)
             {
                start = idx;
             }
@@ -703,12 +1019,12 @@ size_t ResourceManager::find_marker(size_t segment, char *lower, bool host)
       else
       {
          // look for point smaller than curr
-         if (storage.get_node(idx).point < storage.get_node(start).point)
+         if (storage.get_node(idx).offset < storage.get_node(start).offset)
          {
             start = idx;
          }
       }
-      return storage.get_node(start).point == lower;
+      return storage.get_node(start).offset == offset;
    });
    return start;
 }
@@ -730,11 +1046,11 @@ void ResourceManager::print_segment(size_t segment)
          }
          mfem::out << " seg " << segment << ", " << seg.locs[i] << ": "
                    << (uint64_t)seg.lowers[i] << ", "
-                   << (uint64_t)seg.lowers[i] + seg.size << std::endl;
+                   << (uint64_t)seg.lowers[i] + seg.nbytes << std::endl;
          auto curr = storage.first(seg.roots[i]);
          while (curr)
          {
-            mfem::out << storage.get_node(curr).point - seg.lowers[i];
+            mfem::out << storage.get_node(curr).offset;
             if (storage.get_node(curr).is_valid())
             {
                mfem::out << "(v), ";
@@ -751,30 +1067,30 @@ void ResourceManager::print_segment(size_t segment)
 }
 
 template <class F>
-void ResourceManager::check_valid(size_t segment, ptrdiff_t start,
-                                  ptrdiff_t stop, F &&func)
+void ResourceManager::check_valid(size_t segment, bool on_device,
+                                  ptrdiff_t start, ptrdiff_t stop, F &&func)
 {
    auto &seg = storage.get_segment(segment);
-   size_t curr = find_marker(segment, seg.lower + start);
+   size_t curr = find_marker(segment, start, on_device);
    if (!curr)
    {
       return;
    }
-   auto pos = std::max(start, storage.get_node(curr).point - seg.lower);
+   auto pos = std::max(start, storage.get_node(curr).offset);
    while (pos < stop)
    {
       auto &n = storage.get_node(curr);
       size_t next = storage.successor(curr);
-      // n.point <= pos < next point
+      // n.offset <= pos < next point
       if (!n.is_valid())
       {
          if (next)
          {
             // pn is always valid
             auto &pn = storage.get_node(next);
-            if (seg.lower + stop >= pn.point)
+            if (stop >= pn.offset)
             {
-               if (func(pos, pn.point - seg.lower, false))
+               if (func(pos, pn.offset, false))
                {
                   return;
                }
@@ -803,9 +1119,9 @@ void ResourceManager::check_valid(size_t segment, ptrdiff_t start,
          {
             // pn is always valid
             auto &pn = storage.get_node(next);
-            if (seg.lower + stop >= pn.point)
+            if (stop >= pn.offset)
             {
-               if (func(pos, pn.point - seg.lower, true))
+               if (func(pos, pn.offset, true))
                {
                   return;
                }
@@ -830,288 +1146,28 @@ void ResourceManager::check_valid(size_t segment, ptrdiff_t start,
       }
       if (next)
       {
-         pos = storage.get_node(next).point - seg.lower;
+         pos = storage.get_node(next).offset;
       }
       else
       {
-         pos = seg.upper - seg.lower;
-      }
-      curr = next;
-   }
-}
-
-template <class F>
-void ResourceManager::mark_valid(size_t segment, ptrdiff_t start,
-                                 ptrdiff_t stop, F &&func)
-{
-   auto &seg = storage.get_segment(segment);
-   size_t curr = find_marker(segment, seg.lower + start);
-   if (!curr)
-   {
-      return;
-   }
-   auto pos = std::max(start, storage.get_node(curr).point - seg.lower);
-   while (pos < stop)
-   {
-      auto &n = storage.get_node(curr);
-      size_t next = storage.successor(curr);
-      // n.point <= pos < next point
-      if (!n.is_valid())
-      {
-         if (next)
-         {
-            // pn is always valid
-            auto &pn = storage.get_node(next);
-            if (seg.lower + stop >= pn.point)
-            {
-               func(pos, pn.point - seg.lower);
-               if (seg.lower + pos == n.point)
-               {
-                  // entire span is validated
-                  n.set_unused();
-                  pn.set_unused();
-                  storage.erase(seg.root, curr);
-                  curr = storage.successor(next);
-                  storage.erase(seg.root, next);
-                  storage.cleanup_nodes();
-                  if (curr)
-                  {
-                     pos = storage.get_node(curr).point - seg.lower;
-                  }
-                  else
-                  {
-                     break;
-                  }
-                  continue;
-               }
-               else
-               {
-                  pn.point = seg.lower + pos;
-               }
-            }
-            else
-            {
-               func(pos, stop);
-               if (seg.lower + pos == n.point)
-               {
-                  n.point = seg.lower + stop;
-               }
-               else
-               {
-                  storage.insert(segment,
-                                 storage.insert(segment, curr, pos, true), stop,
-                                 false);
-               }
-               break;
-            }
-         }
-         else
-         {
-            func(pos, stop);
-            if (seg.lower + pos == n.point)
-            {
-               if (seg.lower + stop < seg.upper)
-               {
-                  n.point = seg.lower + stop;
-               }
-               else
-               {
-                  n.set_unused();
-                  storage.erase(seg.root, curr);
-                  storage.cleanup_nodes();
-               }
-            }
-            else
-            {
-               auto tmp = storage.insert(segment, curr, pos, true);
-               if (seg.lower + stop < seg.upper)
-               {
-                  storage.insert(segment, tmp, stop, false);
-               }
-            }
-            break;
-         }
-      }
-      if (next)
-      {
-         pos = storage.get_node(next).point - seg.lower;
-      }
-      else
-      {
-         pos = seg.upper - seg.lower;
-      }
-      curr = next;
-   }
-}
-
-template <class F>
-void ResourceManager::mark_invalid(size_t segment, ptrdiff_t start,
-                                   ptrdiff_t stop, F &&func)
-{
-   auto &seg = storage.get_segment(segment);
-   size_t curr = find_marker(segment, seg.lower + start);
-   if (!curr)
-   {
-      func(start, stop);
-      storage.insert(segment, start, false);
-      if (seg.lower + stop < seg.upper)
-      {
-         storage.insert(segment, stop, true);
-      }
-      return;
-   }
-   auto pos = start;
-   {
-      auto &n = storage.get_node(curr);
-      if (seg.lower + pos < n.point)
-      {
-         // should be no prev node
-         // n must be invalid
-         if (seg.lower + stop >= n.point)
-         {
-            // can just move curr
-            func(start, n.point - seg.lower);
-            n.point = seg.lower + pos;
-            curr = storage.successor(curr);
-            if (curr)
-            {
-               pos = storage.get_node(curr).point - seg.lower;
-            }
-            else
-            {
-               pos = seg.upper - seg.lower;
-            }
-         }
-         else
-         {
-            func(start, stop);
-            // need new start and stop markers
-            storage.insert(segment, storage.insert(segment, curr, start, false),
-                           stop, true);
-            return;
-         }
-      }
-   }
-   while (pos < stop)
-   {
-      auto &n = storage.get_node(curr);
-      size_t next = storage.successor(curr);
-      // n.point <= pos < next point
-      if (n.is_valid())
-      {
-         if (next)
-         {
-            // pn is always invalid
-            auto &pn = storage.get_node(next);
-            if (seg.lower + stop >= pn.point)
-            {
-               func(pos, pn.point - seg.lower);
-               if (seg.lower + pos == n.point)
-               {
-                  // entire span is invalidated
-                  n.set_unused();
-                  pn.set_unused();
-                  storage.erase(seg.root, curr);
-                  curr = storage.successor(next);
-                  storage.erase(seg.root, next);
-                  storage.cleanup_nodes();
-
-                  if (curr)
-                  {
-                     pos = storage.get_node(curr).point - seg.lower;
-                  }
-                  else
-                  {
-                     break;
-                  }
-                  continue;
-               }
-               else
-               {
-                  pn.point = seg.lower + pos;
-               }
-            }
-            else
-            {
-               func(pos, stop);
-               if (seg.lower + pos == n.point)
-               {
-                  n.point = seg.lower + stop;
-               }
-               else
-               {
-                  storage.insert(segment,
-                                 storage.insert(segment, curr, pos, false),
-                                 stop, true);
-               }
-               break;
-            }
-         }
-         else
-         {
-            func(pos, stop);
-            if (seg.lower + pos == n.point)
-            {
-               if (seg.lower + stop < seg.upper)
-               {
-                  n.point = seg.lower + stop;
-               }
-               else
-               {
-                  n.set_unused();
-                  storage.erase(seg.root, curr);
-                  storage.cleanup_nodes();
-               }
-            }
-            else
-            {
-               auto tmp = storage.insert(segment, curr, pos, false);
-               if (seg.lower + stop < seg.upper)
-               {
-                  storage.insert(segment, tmp, stop, true);
-               }
-            }
-            break;
-         }
-      }
-      if (next)
-      {
-         pos = storage.get_node(next).point - seg.lower;
-      }
-      else
-      {
-         pos = seg.upper - seg.lower;
+         pos = seg.nbytes;
       }
       curr = next;
    }
 }
 
 ResourceManager::ResourceLocation
-ResourceManager::where_valid(size_t segment, char *lower, char *upper)
+ResourceManager::where_valid(size_t segment, size_t offset, size_t nbytes)
 {
+   MFEM_ASSERT(static_cast<int>(INDETERMINATE) == 0, "INDETERMINATE != 0");
    ResourceLocation loc = INDETERMINATE;
    if (valid_segment(segment))
    {
       auto &seg = storage.get_segment(segment);
-      bool any_invalid = false;
-      check_valid(segment, lower - seg.lower, upper - seg.upper,
-                  [&](auto, auto, bool valid)
-      {
-         if (valid)
-         {
-            return false;
-         }
-         any_invalid = true;
-         return true;
-      });
-      if (!any_invalid)
-      {
-         loc = seg.loc;
-      }
-      if (valid_segment(seg.other))
+      if (seg.lowers[0])
       {
          bool any_invalid = false;
-         check_valid(seg.other, lower - seg.lower, upper - seg.upper,
+         check_valid(segment, false, offset, offset + nbytes,
                      [&](auto, auto, bool valid)
          {
             if (valid)
@@ -1123,24 +1179,41 @@ ResourceManager::where_valid(size_t segment, char *lower, char *upper)
          });
          if (!any_invalid)
          {
-            loc = static_cast<ResourceLocation>(
-                     loc | storage.get_segment(seg.other).loc);
+            loc = seg.locs[0];
+         }
+      }
+      if (seg.lowers[1])
+      {
+         bool any_invalid = false;
+         check_valid(segment, true, offset, offset + nbytes,
+                     [&](auto, auto, bool valid)
+         {
+            if (valid)
+            {
+               return false;
+            }
+            any_invalid = true;
+            return true;
+         });
+         if (!any_invalid)
+         {
+            loc = static_cast<ResourceLocation>(loc | seg.locs[1]);
          }
       }
    }
    return loc;
 }
 
-bool ResourceManager::is_valid(size_t segment, char *lower, char *upper,
-                               ResourceLocation loc)
+bool ResourceManager::is_valid(size_t segment, size_t offset, size_t nbytes,
+                               bool on_device)
 {
    if (valid_segment(segment))
    {
       auto &seg = storage.get_segment(segment);
-      if (seg.loc & loc)
+      if (seg.lowers[on_device])
       {
          bool all_valid = true;
-         check_valid(segment, lower - seg.lower, upper - seg.upper,
+         check_valid(segment, on_device, offset, offset + nbytes,
                      [&](auto, auto, bool valid)
          {
             if (valid)
@@ -1152,76 +1225,34 @@ bool ResourceManager::is_valid(size_t segment, char *lower, char *upper,
          });
          return all_valid;
       }
-      else
-      {
-         if (valid_segment(seg.other))
-         {
-            auto &oseg = storage.get_segment(seg.other);
-            if (seg.other & loc)
-            {
-               bool all_valid = true;
-               check_valid(seg.other, lower - seg.lower, upper - seg.upper,
-                           [&](auto, auto, bool valid)
-               {
-                  if (valid)
-                  {
-                     return false;
-                  }
-                  all_valid = false;
-                  return true;
-               });
-               return all_valid;
-            }
-         }
-      }
    }
    return false;
 }
 
-char *ResourceManager::write(size_t segment, char *lower, char *upper,
+char *ResourceManager::write(size_t segment, size_t offset, size_t nbytes,
                              bool on_device)
 {
-   return write(segment, lower, upper, on_device ? ANY_DEVICE : ANY_HOST);
-}
-
-char *ResourceManager::read_write(size_t segment, char *lower, char *upper,
-                                  bool on_device)
-{
-   return read_write(segment, lower, upper, on_device ? ANY_DEVICE : ANY_HOST);
-}
-
-const char *ResourceManager::read(size_t segment, char *lower, char *upper,
-                                  bool on_device)
-{
-   return read(segment, lower, upper, on_device ? ANY_DEVICE : ANY_HOST);
-}
-
-char *ResourceManager::write(size_t segment, char *lower, char *upper,
-                             ResourceLocation loc)
-{
-   auto seg = &storage.get_segment(segment);
-   if (seg->loc & loc)
+   if (valid_segment(segment))
    {
-      auto start = lower - seg->lower;
-      auto stop = upper - seg->lower;
-      mark_valid(segment, start, stop, [&](auto start, auto stop) {});
-
-      if (valid_segment(seg->other))
+      auto &seg = storage.get_segment(segment);
+      if (!seg.lowers[on_device])
       {
-         // mark other invalid
-         mark_invalid(seg->other, start, stop, [&](auto start, auto stop) {});
+         // need to allocate
+         if (seg.locs[on_device] == DEFAULT)
+         {
+            seg.locs[on_device] = on_device ? DEVICE : HOST;
+         }
+         seg.lowers[on_device] =
+            Alloc(seg.nbytes, seg.locs[on_device], seg.is_temporary());
       }
-      return lower;
-   }
-   else
-   {
-      ensure_other(segment, loc);
-      seg = &storage.get_segment(segment);
-
-      auto &os = storage.get_segment(seg->other);
-      auto stop = upper - seg->lower;
-      auto offset = lower - seg->lower;
-      return write(seg->other, os.lower + offset, os.lower + stop, loc);
+      mark_valid(segment, on_device, offset, offset + nbytes,
+      [&](auto, auto) {});
+      if (seg.lowers[!on_device])
+      {
+         mark_invalid(segment, !on_device, offset, offset + nbytes,
+         [&](auto, auto) {});
+      }
+      return seg.lowers[on_device] + offset;
    }
    return nullptr;
 }
@@ -1333,133 +1364,131 @@ void ResourceManager::BatchMemCopy(
    }
 }
 
-char *ResourceManager::read_write(size_t segment, char *lower, char *upper,
-                                  ResourceLocation loc)
+char *ResourceManager::read_write(size_t segment, size_t offset, size_t nbytes,
+                                  bool on_device)
 {
-   std::vector<std::pair<ptrdiff_t, ptrdiff_t>,
-       AllocatorAdaptor<std::pair<ptrdiff_t, ptrdiff_t>>>
-       copy_segs(
-          AllocatorAdaptor<std::pair<ptrdiff_t, ptrdiff_t>>(MANAGED, true));
-   auto seg = &storage.get_segment(segment);
-   if (seg->loc & loc)
+   if (valid_segment(segment))
    {
-      bool need_sync = false;
-      auto start = lower - seg->lower;
-      auto stop = upper - seg->lower;
-      if (ZeroCopy(loc))
+      std::vector<std::pair<ptrdiff_t, ptrdiff_t>,
+          AllocatorAdaptor<std::pair<ptrdiff_t, ptrdiff_t>>>
+          copy_segs(
+             AllocatorAdaptor<std::pair<ptrdiff_t, ptrdiff_t>>(MANAGED, true));
+
+      auto &seg = storage.get_segment(segment);
+      if (!seg.lowers[on_device])
       {
-         mark_valid(segment, start, stop,
-         [&](auto start, auto stop) { need_sync = true; });
+         // need to allocate
+         if (seg.locs[on_device] == DEFAULT)
+         {
+            seg.locs[on_device] = on_device ? DEVICE : HOST;
+         }
+         seg.lowers[on_device] =
+            Alloc(seg.nbytes, seg.locs[on_device], seg.is_temporary());
+      }
+
+      bool need_sync = false;
+      if (seg.lowers[0] == seg.lowers[1])
+      {
+         mark_valid(segment, on_device, offset, offset + nbytes,
+         [&](auto, auto) { need_sync = true; });
       }
       else
       {
-         mark_valid(segment, start, stop, [&](auto start, auto stop)
+         mark_valid(segment, on_device, offset, offset + nbytes,
+                    [&](auto start, auto stop)
          { copy_segs.emplace_back(start, stop); });
       }
       if (copy_segs.size())
       {
-         if (!valid_segment(seg->other))
+         if (!seg.lowers[!on_device])
          {
             throw std::runtime_error("no other to read from");
          }
-         auto &os = storage.get_segment(seg->other);
-         BatchMemCopy(seg->lower, os.lower, seg->loc, os.loc, copy_segs);
+         BatchMemCopy(seg.lowers[on_device], seg.lowers[!on_device],
+                      seg.locs[on_device], seg.locs[!on_device], copy_segs);
       }
 
-      if (valid_segment(seg->other))
+      if (seg.lowers[!on_device])
       {
-         // mark other invalid
-         mark_invalid(seg->other, start, stop, [&](auto start, auto stop) {});
+         mark_invalid(segment, !on_device, offset, offset + nbytes,
+         [&](auto, auto) {});
       }
-
-      if (loc == ANY_HOST && need_sync)
+      if (need_sync)
       {
          // TODO: stream or device sync?
          MFEM_DEVICE_SYNC;
       }
-
-      return lower;
-   }
-   else
-   {
-      ensure_other(segment, loc);
-      seg = &storage.get_segment(segment);
-
-      auto &os = storage.get_segment(seg->other);
-      auto stop = upper - seg->lower;
-      auto offset = lower - seg->lower;
-      return read_write(seg->other, os.lower + offset, os.lower + stop, loc);
+      return seg.lowers[on_device] + offset;
    }
    return nullptr;
 }
 
-char *ResourceManager::fast_read_write(size_t segment, char *lower, char *upper,
-                                       ResourceLocation loc)
+char *ResourceManager::fast_read_write(size_t segment, size_t offset,
+                                       size_t nbytes, bool on_device)
 {
-   // TODO: validate in debug builds
-   return lower;
+   // TODO: validate in debug builds?
+   return storage.get_segment(segment).lowers[on_device] + offset;
 }
 
-const char *ResourceManager::read(size_t segment, char *lower, char *upper,
-                                  ResourceLocation loc)
+const char *ResourceManager::fast_read(size_t segment, size_t offset,
+                                       size_t nbytes, bool on_device)
 {
-   std::vector<std::pair<ptrdiff_t, ptrdiff_t>,
-       AllocatorAdaptor<std::pair<ptrdiff_t, ptrdiff_t>>>
-       copy_segs(
-          AllocatorAdaptor<std::pair<ptrdiff_t, ptrdiff_t>>(MANAGED, true));
-   auto seg = &storage.get_segment(segment);
-   if (seg->loc & loc)
+   // TODO: validate in debug builds?
+   return storage.get_segment(segment).lowers[on_device] + offset;
+}
+
+const char *ResourceManager::read(size_t segment, size_t offset, size_t nbytes,
+                                  bool on_device)
+{
+   if (valid_segment(segment))
    {
-      bool need_sync = false;
-      auto start = lower - seg->lower;
-      auto stop = upper - seg->lower;
-      if (ZeroCopy(loc))
+      std::vector<std::pair<ptrdiff_t, ptrdiff_t>,
+          AllocatorAdaptor<std::pair<ptrdiff_t, ptrdiff_t>>>
+          copy_segs(
+             AllocatorAdaptor<std::pair<ptrdiff_t, ptrdiff_t>>(MANAGED, true));
+
+      auto &seg = storage.get_segment(segment);
+      if (!seg.lowers[on_device])
       {
-         mark_valid(segment, start, stop,
-         [&](auto start, auto stop) { need_sync = true; });
+         // need to allocate
+         if (seg.locs[on_device] == DEFAULT)
+         {
+            seg.locs[on_device] = on_device ? DEVICE : HOST;
+         }
+         seg.lowers[on_device] =
+            Alloc(seg.nbytes, seg.locs[on_device], seg.is_temporary());
+      }
+
+      bool need_sync = false;
+      if (seg.lowers[0] == seg.lowers[1])
+      {
+         mark_valid(segment, on_device, offset, offset + nbytes,
+         [&](auto, auto) { need_sync = true; });
       }
       else
       {
-         mark_valid(segment, start, stop, [&](auto start, auto stop)
+         mark_valid(segment, on_device, offset, offset + nbytes,
+                    [&](auto start, auto stop)
          { copy_segs.emplace_back(start, stop); });
       }
-
       if (copy_segs.size())
       {
-         if (!valid_segment(seg->other))
+         if (!seg.lowers[!on_device])
          {
             throw std::runtime_error("no other to read from");
          }
-         auto &os = storage.get_segment(seg->other);
-         BatchMemCopy(seg->lower, os.lower, seg->loc, os.loc, copy_segs);
+         BatchMemCopy(seg.lowers[on_device], seg.lowers[!on_device],
+                      seg.locs[on_device], seg.locs[!on_device], copy_segs);
       }
 
-      if (loc == ANY_HOST && need_sync)
+      if (need_sync)
       {
          // TODO: stream or device sync?
          MFEM_DEVICE_SYNC;
       }
-
-      return lower;
-   }
-   else
-   {
-      ensure_other(segment, loc);
-      seg = &storage.get_segment(segment);
-
-      auto &os = storage.get_segment(seg->other);
-      auto stop = upper - seg->lower;
-      auto offset = lower - seg->lower;
-      return read(seg->other, os.lower + offset, os.lower + stop, loc);
+      return seg.lowers[on_device] + offset;
    }
    return nullptr;
-}
-
-const char *ResourceManager::fast_read(size_t segment, char *lower, char *upper,
-                                       ResourceLocation loc)
-{
-   // TODO: validate in debug builds
-   return lower;
 }
 
 bool ResourceManager::owns_host_ptr(size_t segment)
@@ -1505,6 +1534,8 @@ void ResourceManager::clear_owner_flags(size_t segment)
    set_owns_host_ptr(segment, false);
    set_owns_device_ptr(segment, false);
 }
+
+#if 0
 
 int ResourceManager::compare_other(size_t segment, char *lower, char *upper)
 {

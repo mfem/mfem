@@ -42,7 +42,6 @@ enum class AllocatorType
    DEVICE_UMPIRE_2,
    // used for querying where a Resource object is currently valid
    INDETERMINATE,
-   PRESERVE, // TODO: need to handle
    DEFAULT,
 };
 
@@ -81,7 +80,7 @@ private:
          // 0 is null, i>0 refers to nodes[i-1]
          size_t parent = 0;
          size_t child[2] = {0, 0};
-         char *point;
+         ptrdiff_t offset;
          Flags flag = static_cast<Flags>(Flags::USED);
 
          bool is_valid() const { return flag & VALID; }
@@ -101,7 +100,7 @@ private:
       struct Segment
       {
          char *lowers[2] = {nullptr, nullptr};
-         size_t size = 0;
+         size_t nbytes = 0;
          size_t roots[2] = {0, 0};
          ResourceLocation locs[2] = {HOST, DEFAULT};
          size_t ref_count = 1;
@@ -168,8 +167,7 @@ private:
       {
          auto &na = get_node(a);
          auto &nb = get_node(b);
-         return static_cast<const char *>(nb.point) -
-                static_cast<const char *>(na.point);
+         return nb.offset - na.offset;
       }
 
       void insert_duplicate(size_t curr) { nodes.pop_back(); }
@@ -178,29 +176,31 @@ private:
       void cleanup_segments();
 
       /// Insert a validity transition marker for a given @a segment
-      size_t insert(size_t segment, ptrdiff_t offset, bool host, bool valid)
-      {
-         nodes.emplace_back();
-         nodes.back().point = get_segment(segment).lowers[host] + offset;
-         if (valid)
-         {
-            nodes.back().set_valid();
-         }
-         return insert(get_segment(segment).roots[host], nodes.size());
-      }
-
-      /// Insert a validity transition marker for a given @a segment
-      size_t insert(size_t segment, size_t node, ptrdiff_t offset, bool host,
+      size_t insert(size_t segment, ptrdiff_t offset, bool on_device,
                     bool valid)
       {
          nodes.emplace_back();
-         nodes.back().point = get_segment(segment).lowers[host] + offset;
+         nodes.back().offset = offset;
+         if (valid)
+         {
+            nodes.back().set_valid();
+         }
+         return insert(get_segment(segment).roots[on_device], nodes.size());
+      }
+
+      /// Insert a validity transition marker for a given @a segment
+      size_t insert(size_t segment, size_t node, ptrdiff_t offset,
+                    bool on_device, bool valid)
+      {
+         nodes.emplace_back();
+         nodes.back().offset = offset;
 
          if (valid)
          {
             nodes.back().set_valid();
          }
-         return insert(get_segment(segment).roots[host], node, nodes.size());
+         return insert(get_segment(segment).roots[on_device], node,
+                       nodes.size());
       }
    };
 
@@ -220,20 +220,28 @@ private:
       AllocatorType::DEFAULT
    };
 
+   bool ZeroCopy(size_t segment);
+
    bool valid_segment(size_t seg) const { return seg >= storage.seg_offset; }
 
+   /// remove all validity markers for a segment
    void clear_segment(size_t segment);
 
-   size_t find_marker(size_t segment, char *lower, bool host);
+   void clear_segment(size_t segment, bool on_device);
+
+   size_t find_marker(size_t segment, size_t offset, bool on_device);
 
    template <class F>
-   void check_valid(size_t segment, ptrdiff_t start, ptrdiff_t stop, F &&func);
+   void check_valid(size_t segment, bool on_device, ptrdiff_t start,
+                    ptrdiff_t stop, F &&func);
 
    template <class F>
-   void mark_valid(size_t segment, ptrdiff_t start, ptrdiff_t stop, F &&func);
+   void mark_valid(size_t segment, bool on_device, ptrdiff_t start,
+                   ptrdiff_t stop, F &&func);
 
    template <class F>
-   void mark_invalid(size_t segment, ptrdiff_t start, ptrdiff_t stop, F &&func);
+   void mark_invalid(size_t segment, bool on_device, ptrdiff_t start,
+                     ptrdiff_t stop, F &&func);
 
    size_t insert(char *hptr, size_t nbytes, ResourceLocation loc, bool own,
                  bool temporary);
@@ -247,8 +255,7 @@ private:
 
    ResourceLocation where_valid(size_t segment, size_t offset, size_t nbytes);
 
-   bool is_valid(size_t segment, size_t offset, size_t nbytes,
-                 ResourceLocation loc);
+   bool is_valid(size_t segment, size_t offset, size_t nbytes, bool on_device);
 
    char *write(size_t segment, size_t offset, size_t nbytes, bool on_device);
    char *read_write(size_t segment, size_t offset, size_t nbytes,
@@ -431,6 +438,12 @@ public:
       return inst.owns_device_ptr(segment);
    }
 
+   bool ZeroCopy() const
+   {
+      auto &inst = ResourceManager::instance();
+      return inst.ZeroCopy(segment);
+   }
+
    void SetDevicePtrOwner(bool own) const
    {
       auto &inst = ResourceManager::instance();
@@ -550,10 +563,10 @@ public:
    const T *HostRead() const { return Read(false); }
 
    /// note: these do not check or update validity flags! Allows read/write on
-   /// ANY_HOST. Assumes that segment is a host-accessible segment.
+   /// ANY_HOST.
    T &operator[](size_t idx);
    /// note: these do not check or update validity flags! Allows read on
-   /// ANY_HOST. Assumes that segment is a host-accessible segment.
+   /// ANY_HOST.
    const T &operator[](size_t idx) const;
 
    void DeleteDevice(bool copy_to_host = true)
@@ -572,6 +585,7 @@ public:
             {
                inst.Dealloc(seg.lowers[1], seg.locs[1], seg.is_temporary());
             }
+            inst.clear_segment(segment, true);
             seg.lowers[1] = nullptr;
             seg.locs[1] = ResourceManager::DEFAULT;
          }
@@ -626,14 +640,13 @@ public:
    {
       auto &inst = ResourceManager::instance();
       return inst.is_valid(segment, offset * sizeof(T), size * sizeof(T),
-                           ResourceManager::ANY_HOST);
+                           false);
    }
 
    bool DeviceIsValid() const
    {
       auto &inst = ResourceManager::instance();
-      return inst.is_valid(segment, offset * sizeof(T), size * sizeof(T),
-                           ResourceManager::ANY_DEVICE);
+      return inst.is_valid(segment, offset * sizeof(T), size * sizeof(T), true);
    }
    /// Pre-conditions:
    /// - size <= src.Capacity() and size <= this->Capacity()
@@ -793,17 +806,15 @@ template <class T> const T *Resource<T>::Read(bool on_device) const
 template <class T> T &Resource<T>::operator[](size_t idx)
 {
    auto &inst = ResourceManager::instance();
-   return *reinterpret_cast<T *>(
-             inst.fast_read_write(segment, (offset + idx) * sizeof(T), sizeof(T),
-                                  ResourceManager::ResourceLocation::ANY_HOST));
+   return *reinterpret_cast<T *>(inst.fast_read_write(
+                                    segment, (offset + idx) * sizeof(T), sizeof(T), false));
 }
 
 template <class T> const T &Resource<T>::operator[](size_t idx) const
 {
    auto &inst = ResourceManager::instance();
    return *reinterpret_cast<const T *>(
-             inst.fast_read(segment, (offset + idx) * sizeof(T), sizeof(T),
-                            ResourceManager::ResourceLocation::ANY_HOST));
+             inst.fast_read(segment, (offset + idx) * sizeof(T), sizeof(T), false));
 }
 
 template <class T> Resource<T>::~Resource()
