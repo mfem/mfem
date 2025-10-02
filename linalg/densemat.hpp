@@ -1228,6 +1228,16 @@ public:
       return Mk;
    }
 
+   void GetDenseMatrix(DenseMatrix &Mi_jk)
+   {
+      Mi_jk.UseExternalData(Data(), SizeI(), SizeJ()*SizeK());
+   }
+
+   void GetDenseMatrix2(DenseMatrix &Mij_k)
+   {
+      Mij_k.UseExternalData(Data(), SizeI()*SizeJ(),SizeK());
+   }
+
    real_t &operator()(int i, int j, int k)
    {
       MFEM_ASSERT_INDEX_IN_RANGE(i, 0, SizeI());
@@ -1242,6 +1252,20 @@ public:
       MFEM_ASSERT_INDEX_IN_RANGE(j, 0, SizeJ());
       MFEM_ASSERT_INDEX_IN_RANGE(k, 0, SizeK());
       return tdata[i+SizeI()*(j+SizeJ()*k)];
+   }
+
+   real_t *GetData(int j, int k)
+   {
+      MFEM_ASSERT_INDEX_IN_RANGE(k, 0, SizeK());
+      MFEM_ASSERT_INDEX_IN_RANGE(j, 0, SizeJ());
+      return tdata+k*Mk.Height()*Mk.Width() + j*Mk.Height();
+   }
+
+   const real_t *GetData(int j,int k) const
+   {
+      MFEM_ASSERT_INDEX_IN_RANGE(k, 0, SizeK());
+      MFEM_ASSERT_INDEX_IN_RANGE(j, 0, SizeJ());
+      return tdata+k*Mk.Height()*Mk.Width() + j*Mk.Height();;
    }
 
    real_t *GetData(int k)
@@ -1302,6 +1326,9 @@ public:
       mfem::Swap(nk, t.nk);
       Mk.Swap(t.Mk);
    }
+
+   /// Prints tensor to stream @out
+   void Print(std::ostream &out = mfem::out, int width_ = 4) const;
 
    ~DenseTensor() { tdata.Delete(); }
 };
