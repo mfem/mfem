@@ -755,9 +755,9 @@ void IPSolver::EvalLagrangianGradient(const BlockVector &x, const Vector &l,
    // evaluate the gradient of the objective with respect to the primal variables x = (u, m)
    y.GetBlock(1).Set(-1.0, zl);
    y.GetBlock(1) *= Mlump;
-	
+
    problem->Duc(x)->MultTranspose(l, y.GetBlock(0));
-   problem->Dmc(x)->AddMultTranspose(l, y.GetBlock(1));   
+   problem->Dmc(x)->AddMultTranspose(l, y.GetBlock(1));
 
    BlockVector gradxf(block_offsetsx); gradxf = 0.0;
    problem->CalcObjectiveGrad(x, gradxf);
