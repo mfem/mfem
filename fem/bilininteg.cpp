@@ -2869,6 +2869,162 @@ void VectorFEMassIntegrator::AssembleElementMatrix2(
    }
 }
 
+
+void VectorFEDiffusionIntegrator::AssembleElementMatrix(
+   const FiniteElement &el,
+   ElementTransformation &Trans,
+   DenseMatrix &elmat)
+{
+   int dof = el.GetDof();
+   int spaceDim = Trans.GetSpaceDim();
+   int vdim = std::max(spaceDim, el.GetRangeDim());
+
+   real_t w;
+
+#ifdef MFEM_THREAD_SAFE
+   DenseTensor trial_dvshape(dof, vdim, spaceDim);
+   Vector D(DQ ? DQ->GetVDim() : 0);
+   DenseMatrix K(MQ ? MQ->GetVDim() : 0, MQ ? MQ->GetVDim() : 0);
+#else
+   trial_dvshape.SetSize(dof, vdim, spaceDim);
+   D.SetSize(DQ ? DQ->GetVDim() : 0);
+   K.SetSize(MQ ? MQ->GetVDim() : 0, MQ ? MQ->GetVDim() : 0);
+#endif
+
+   DenseMatrix flat_dvs;
+   trial_dvshape.GetDenseMatrix(flat_dvs);
+   DenseMatrix tmp(flat_dvs.Height(), flat_dvs .Width());
+
+   elmat.SetSize(dof);
+   elmat = 0.0;
+
+   const IntegrationRule *ir = IntRule;
+   if (ir == NULL)
+   {
+      // int order = 2 * el.GetOrder();
+      int order = Trans.OrderW() + 2 * el.GetOrder() - 2;
+      ir = &IntRules.Get(el.GetGeomType(), order);
+   }
+
+   for (int i = 0; i < ir->GetNPoints(); i++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(i);
+
+      Trans.SetIntPoint (&ip);
+
+      el.CalcPhysDVShape(Trans, trial_dvshape);
+
+      w = ip.weight * Trans.Weight();
+      if (MQ)
+      {
+         // flat_dvs has interlaced vector component and derivative direction in 2nd index
+         // Matrix needs to be (dim*dim) X (dim*dim)
+         // indexing: 2nd index = dif_dir + comp_dir*dim
+         // u_x, v_x, u_y, v_y
+         // u_x, v_x, w_x, u_y, v_y, w_y, u_z, v_z, w_z
+         MQ->Eval(K, Trans, ip);
+         K *= w;
+         Mult(flat_dvs,K,tmp);
+         AddMultABt(tmp,flat_dvs,elmat);
+      }
+      else if (DQ)
+      {
+         // Vector needs to be (dim*dim), see comment for MQ case
+         DQ->Eval(D, Trans, ip);
+         D *= w;
+         AddMultADAt(flat_dvs, D, elmat);
+      }
+      else
+      {
+         if (Q)
+         {
+            w *= Q -> Eval (Trans, ip);
+         }
+         AddMult_a_AAt (w, flat_dvs, elmat);
+      }
+   }
+}
+
+void VectorFEDiffusionIntegrator::AssembleElementMatrix2(
+   const FiniteElement &trial_fe, const FiniteElement &test_fe,
+   ElementTransformation &Trans, DenseMatrix &elmat)
+{
+   // assume both test_fe and trial_fe are vector FE
+   int spaceDim = Trans.GetSpaceDim();
+   int trial_vdim = std::max(spaceDim, trial_fe.GetRangeDim());
+   int test_vdim = std::max(spaceDim, test_fe.GetRangeDim());
+   int trial_dof = trial_fe.GetDof();
+   int test_dof = test_fe.GetDof();
+   real_t w;
+
+#ifdef MFEM_THREAD_SAFE
+   DenseTensor trial_dvshape(trial_dof, trial_vdim, spaceDim);
+   DenseTensor test_dvshape(test_dof, test_vdim, spaceDim);
+   Vector D(DQ ? DQ->GetVDim() : 0);
+   DenseMatrix K(MQ ? MQ->GetVDim() : 0, MQ ? MQ->GetVDim() : 0);
+#else
+   trial_dvshape.SetSize(trial_dof, trial_vdim, spaceDim);
+   test_dvshape.SetSize(test_dof, test_vdim, spaceDim);
+   D.SetSize(DQ ? DQ->GetVDim() : 0);
+   K.SetSize(MQ ? MQ->GetVDim() : 0, MQ ? MQ->GetVDim() : 0);
+#endif
+   DenseMatrix trial_fdvs,test_fdvs;
+   trial_dvshape.GetDenseMatrix(trial_fdvs);
+   test_dvshape.GetDenseMatrix(test_fdvs);
+
+   DenseMatrix tmp(test_fdvs.Height(), K.Width());
+
+   elmat.SetSize (test_dof, trial_dof);
+
+   const IntegrationRule *ir = IntRule;
+   if (ir == NULL)
+   {
+      int order = (Trans.OrderW() + test_fe.GetOrder() + trial_fe.GetOrder() - 2);
+      ir = &IntRules.Get(test_fe.GetGeomType(), order);
+   }
+
+   elmat = 0.0;
+   for (int i = 0; i < ir->GetNPoints(); i++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(i);
+
+      Trans.SetIntPoint (&ip);
+
+      trial_fe.CalcPhysDVShape(Trans, trial_dvshape);
+      test_fe.CalcPhysDVShape(Trans, test_dvshape);
+
+      w = ip.weight * Trans.Weight();
+      if (MQ)
+      {
+         // flat_dvs has interlaced vector component and derivative direction in 2nd index
+         // Matrix needs to be (dim*dim) X (dim*dim)
+         // indexing: 2nd index = dif_dir + comp_dir*dim
+         // u_x, v_x, u_y, v_y
+         // u_x, v_x, w_x, u_y, v_y, w_y, u_z, v_z, w_z
+         MQ->Eval(K, Trans, ip);
+         K *= w;
+         Mult(test_fdvs,K,tmp);
+         AddMultABt(tmp,trial_fdvs,elmat);
+      }
+      else if (DQ)
+      {
+         // Vector needs to be (dim*dim), see comment for MQ case
+         DQ->Eval(D, Trans, ip);
+         D *= w;
+         AddMultADBt(test_fdvs,D,trial_fdvs,elmat);
+      }
+      else
+      {
+         if (Q)
+         {
+            w *= Q -> Eval (Trans, ip);
+         }
+         AddMult_a_ABt(w,test_fdvs,trial_fdvs,elmat);
+      }
+   }
+}
+
+
 void VectorDivergenceIntegrator::AssembleElementMatrix2(
    const FiniteElement &trial_fe,
    const FiniteElement &test_fe,

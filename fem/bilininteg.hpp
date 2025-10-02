@@ -3008,6 +3008,68 @@ public:
    const Coefficient *GetCoefficient() const { return Q; }
 };
 
+/** Integrator for $(Q u, v)$, where $Q$ is an optional coefficient (of type scalar,
+    vector (diagonal matrix), or matrix), trial function $u$ is in $H(curl$ or
+    $H(div)$, and test function $v$ is in $H(curl$, $H(div)$, or $v=(v_1,\dots,v_n)$, where
+    $v_i$ are in $H^1$. */
+class VectorFEDiffusionIntegrator: public BilinearFormIntegrator
+{
+private:
+   void Init(Coefficient *q, DiagonalMatrixCoefficient *dq, MatrixCoefficient *mq)
+   { Q = q; DQ = dq; MQ = mq; }
+
+#ifndef MFEM_THREAD_SAFE
+   // Vector shape;
+   Vector D;
+   DenseMatrix K;
+   // DenseMatrix partelmat;
+   DenseTensor test_dvshape;
+   DenseTensor trial_dvshape;
+#endif
+
+protected:
+   Coefficient *Q;
+   DiagonalMatrixCoefficient *DQ;
+   MatrixCoefficient *MQ;
+
+   // PA extension
+   //  Vector pa_data;
+   //  const DofToQuad *mapsO;         ///< Not owned. DOF-to-quad map, open.
+   //  const DofToQuad *mapsC;         ///< Not owned. DOF-to-quad map, closed.
+   //  const DofToQuad *mapsOtest;     ///< Not owned. DOF-to-quad map, open.
+   //  const DofToQuad *mapsCtest;     ///< Not owned. DOF-to-quad map, closed.
+   // const GeometricFactors *geom;   ///< Not owned
+   // int dim, ne, nq, dofs1D, dofs1Dtest, quad1D, trial_fetype, test_fetype;
+   // bool symmetric = true; ///< False if using a nonsymmetric matrix coefficient
+
+public:
+   VectorFEDiffusionIntegrator() { Init(NULL, NULL, NULL); }
+   VectorFEDiffusionIntegrator(Coefficient *q_) { Init(q_, NULL, NULL); }
+   VectorFEDiffusionIntegrator(Coefficient &q) { Init(&q, NULL, NULL); }
+   VectorFEDiffusionIntegrator(DiagonalMatrixCoefficient *dq_) { Init(NULL, dq_, NULL); }
+   VectorFEDiffusionIntegrator(DiagonalMatrixCoefficient &dq) { Init(NULL, &dq, NULL); }
+   VectorFEDiffusionIntegrator(MatrixCoefficient *mq_) { Init(NULL, NULL, mq_); }
+   VectorFEDiffusionIntegrator(MatrixCoefficient &mq) { Init(NULL, NULL, &mq); }
+
+   virtual void AssembleElementMatrix(const FiniteElement &el,
+                                      ElementTransformation &Trans,
+                                      DenseMatrix &elmat);
+   virtual void AssembleElementMatrix2(const FiniteElement &trial_fe,
+                                       const FiniteElement &test_fe,
+                                       ElementTransformation &Trans,
+                                       DenseMatrix &elmat);
+
+   // virtual void AssemblePA(const FiniteElementSpace &fes);
+   // virtual void AssemblePA(const FiniteElementSpace &trial_fes,
+   //                         const FiniteElementSpace &test_fes);
+   // virtual void AddMultPA(const Vector &x, Vector &y) const;
+   // virtual void AddMultTransposePA(const Vector &x, Vector &y) const;
+   // virtual void AssembleDiagonalPA(Vector& diag);
+
+   const Coefficient *GetCoefficient() const { return Q; }
+};
+
+
 /** Integrator for $(Q \nabla \cdot u, v)$ where $u=(u_1,\cdots,u_n)$ and all $u_i$ are in the same
     scalar FE space; $v$ is also in a (different) scalar FE space.  */
 class VectorDivergenceIntegrator : public BilinearFormIntegrator
