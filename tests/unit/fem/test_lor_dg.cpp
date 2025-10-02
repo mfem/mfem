@@ -116,7 +116,7 @@ public:
    virtual void AssembleFaceMatrix(const FiniteElement &el1,
                                    const FiniteElement &el2,
                                    FaceElementTransformations &Trans,
-                                   DenseMatrix &elmat)
+                                   DenseMatrix &elmat) override
    {
       int dim, ndof1, ndof2, ndofs;
       double w, wq = 0.0;
@@ -255,7 +255,7 @@ public:
 
    void AssembleElementMatrix(const FiniteElement &el,
                               ElementTransformation &Tr,
-                              DenseMatrix &elmat)
+                              DenseMatrix &elmat) override
    {
       const CoarseFineTransformations &cftr = mesh_lor.GetRefinementTransforms();
       const int parent_el = cftr.embeddings[Tr.ElementNo].parent;
