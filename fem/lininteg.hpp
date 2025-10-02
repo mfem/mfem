@@ -417,19 +417,24 @@ public:
 };
 
 /** $ (f, v \cdot n)_{\partial\Omega} $ for vector test function
-    $v=(v_1,\dots,v_n)$ where all vi are in the same scalar FE space and $f$ is a
-    scalar function. */
+    $v=(v_1,\dots,v_n)$ where all vi are in the same scalar FE space and $f$ is
+    a scalar or vector function. */
 class VectorBoundaryFluxLFIntegrator : public LinearFormIntegrator
 {
 private:
    real_t Sign;
    Coefficient *F;
-   Vector shape, nor;
+   VectorCoefficient *VF;
+   Vector shape, nor, vf;
 
 public:
    VectorBoundaryFluxLFIntegrator(Coefficient &f, real_t s = 1.0,
                                   const IntegrationRule *ir = NULL)
-      : LinearFormIntegrator(ir), Sign(s), F(&f) { }
+      : LinearFormIntegrator(ir), Sign(s), F(&f), VF(NULL) { }
+
+   VectorBoundaryFluxLFIntegrator(VectorCoefficient &f, real_t s = 1.0,
+                                  const IntegrationRule *ir = NULL)
+      : LinearFormIntegrator(ir), Sign(s), F(NULL), VF(&f) { }
 
    void AssembleRHSElementVect(const FiniteElement &el,
                                ElementTransformation &Tr,
@@ -442,22 +447,27 @@ public:
    using LinearFormIntegrator::AssembleRHSElementVect;
 };
 
-/** Class for boundary integration of $ (f, v \cdot n) $ for scalar coefficient $f$ and
-    RT vector test function $v$. This integrator works with RT spaces defined
-    using the RT_FECollection class. */
+/** Class for boundary integration of $ (f, v \cdot n) $ for a scalar or vector
+    coefficient $f$ and RT vector test function $v$. This integrator works with
+    RT spaces defined using the RT_FECollection class. */
 class VectorFEBoundaryFluxLFIntegrator : public LinearFormIntegrator
 {
 private:
    Coefficient *F;
+   VectorCoefficient *VF;
    DenseMatrix vshape;
-   Vector shape, nor, nor_xt;
+   Vector shape, nor, nor_xt, vf;
    int oa, ob; // these control the quadrature order, see DomainLFIntegrator
 
 public:
    VectorFEBoundaryFluxLFIntegrator(int a = 1, int b = -1)
-      : F(NULL), oa(a), ob(b) { }
+      : F(NULL), VF(NULL), oa(a), ob(b) { }
+
    VectorFEBoundaryFluxLFIntegrator(Coefficient &f, int a = 2, int b = 0)
-      : F(&f), oa(a), ob(b) { }
+      : F(&f), VF(NULL), oa(a), ob(b) { }
+
+   VectorFEBoundaryFluxLFIntegrator(VectorCoefficient &f, int a = 2, int b = 0)
+      : F(NULL), VF(&f), oa(a), ob(b) { }
 
    void AssembleRHSElementVect(const FiniteElement &el,
                                ElementTransformation &Tr,
