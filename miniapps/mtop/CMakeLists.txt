@@ -13,10 +13,10 @@ if(MFEM_USE_MPI)
 
 list(APPEND PARMTOP_COMMON_SOURCES
         mtop_solvers.cpp
-        ascii.cpp)
+        grain_reader.cpp)
 list(APPEND PARMTOP_COMMON_HEADERS
         mtop_solvers.hpp
-        ascii.hpp)
+        grain_reader.hpp)
 
 convert_filenames_to_full_paths(PARMTOP_COMMON_SOURCES)
 convert_filenames_to_full_paths(PARMTOP_COMMON_HEADERS)

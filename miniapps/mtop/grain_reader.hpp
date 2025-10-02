@@ -17,7 +17,8 @@
 #include <iostream>
 #include <sstream>
 
-
+#include <fstream>
+#include "mfem.hpp"
 
 namespace mfem
 {
@@ -142,6 +143,57 @@ namespace mfem
             out << std::setprecision(14) << std::scientific << aValue;
             return out.str();
         }
+
+
+class GrainReader
+{
+private:
+   mfem::ParMesh * mesh_;
+   std::string name_;
+   int dim;
+
+   double xMax = DBL_MIN;
+   double yMax = DBL_MIN;
+   double zMax = DBL_MIN;
+   double xMin = DBL_MAX;
+   double yMin = DBL_MAX;
+   double zMin = DBL_MAX;
+
+   double Lx, Ly, Lz;
+
+   std::vector<int> particalType; 
+   std::vector<real_t> xPos;
+   std::vector<real_t> yPos;
+   std::vector<real_t> zPos;
+   std::vector<real_t> rad;
+
+   ::mfem::ParGridFunction grainLSField;
+   ::mfem::QuadratureFunction grainQFField;
+
+   int numParticles;
+
+public:
+   GrainReader( mfem::ParMesh * mesh, std::string & name );
+
+   ~GrainReader(){}
+
+   void readGrainFile();
+
+   void computeGridFunction( ::mfem::ParFiniteElementSpace& feSpace);
+
+   void computeQuadratureFunction( QuadratureSpaceBase &qspace)
+   {
+      ::mfem::mfem_error("not implemented yet");
+      grainQFField.SetSpace(&qspace);
+   }
+
+   const ::mfem::ParGridFunction & getGrainGridFunction() const
+   { return grainLSField; }
+
+   const ::mfem::QuadratureFunction & getGrainQuadratureFunction() const
+   { return grainQFField; }
+};
+
 }
 
 #endif /* PROJECTS_ASCII_HPP_ */

@@ -3,7 +3,7 @@
 #include <iostream>
 
 #include "mtop_solvers.hpp"
-#include "ascii.hpp"
+#include "grain_reader.hpp"
 
 using namespace mfem;
 
@@ -126,145 +126,13 @@ int main(int argc, char *argv[])
    }
 
    std::cout<<"My rank="<<pmesh.GetMyRank()<<std::endl;
-
    std::string tStringWeight = "./singleparticlesdiameter.txt";
-   mfem::Ascii tAsciiReader( tStringWeight, FileMode::OPEN_RDONLY );
-
-   int tNumLines = tAsciiReader.length();
-
-   std::vector<int> particalType;  particalType.reserve(9*tNumLines);
-   std::vector<real_t> xPos;       xPos.reserve(9*tNumLines);
-   std::vector<real_t> yPos;       yPos.reserve(9*tNumLines);
-   std::vector<real_t> zPos;       zPos.reserve(9*tNumLines);
-   std::vector<real_t> rad;        rad.reserve(9*tNumLines);
-
-   real_t maxRad = 0.0;
-
-   for( int Ik = 0; Ik < tNumLines; Ik++ )
-   {
-      const std::string & tFileLine = tAsciiReader.line( Ik );
-
-      std::vector<std::string> ListOfStrings = split_string( tFileLine, " " );
-
-      particalType.push_back(std::stod( ListOfStrings[1] ));
-      xPos        .push_back(std::stod( ListOfStrings[2] ));
-      yPos        .push_back(std::stod( ListOfStrings[3] ));
-      zPos        .push_back(std::stod( ListOfStrings[4] ));
-      rad         .push_back(std::stod( ListOfStrings[5] ) / 2.0);
-
-      maxRad = std::max( rad[Ik], maxRad );
-   }
-
-   maxRad += 1e-6;
-
-   for( int Ik = 0; Ik < tNumLines; Ik++ )
-   {
-      int pType = particalType[Ik];
-      real_t xCopy = xPos[Ik];
-      real_t yCopy = yPos[Ik];
-      real_t zCopy = zPos[Ik];
-      real_t radCopy = rad[Ik];
-
-      real_t xC;
-      real_t yC;
-
-      bool isCopyX = false;
-      bool isCopyY = false;
-      bool isCopyCorner = false;
-
-      if(xPos[Ik]  < (meshOffsetX + maxRad)){ 
-         xC = xCopy + Lx; 
-         isCopyX = true; }
-      else if(xPos[Ik]  > (meshOffsetX + Lx - maxRad)) { 
-         xC = xCopy - Lx; 
-         isCopyX = true; }
-
-      if(isCopyX)
-      {
-         particalType.push_back(pType);
-         xPos        .push_back(xC);
-         yPos        .push_back(yCopy);
-         zPos        .push_back(zCopy);
-         rad         .push_back(radCopy);
-      }
-
-      if(yPos[Ik] < (meshOffsetY + maxRad))      { 
-         yC = yCopy + Ly;
-         isCopyY = true; }
-      else if(yPos[Ik]  > (meshOffsetY + Ly - maxRad)) {
-         yC = yCopy - Ly;
-         isCopyY = true; }
-
-      if(isCopyY)
-      {
-         particalType.push_back(pType);
-         xPos        .push_back(xCopy);
-         yPos        .push_back(yC);
-         zPos        .push_back(zCopy);
-         rad         .push_back(radCopy);
-      }
-
-      if(xPos[Ik]  < (meshOffsetX + maxRad) && yPos[Ik]  < (meshOffsetY + maxRad))     { 
-         xC = xCopy + Lx;  
-         yC = yCopy + Ly;
-         isCopyCorner = true; }
-      else if(xPos[Ik]  < (meshOffsetX + maxRad) && yPos[Ik]  > (meshOffsetY + Ly - maxRad)) { 
-         xC = xCopy + Lx;    
-         yC = yCopy - Ly;
-         isCopyCorner = true; }
-
-      else if(xPos[Ik]  > (meshOffsetX + Lx - maxRad) && yPos[Ik]  < (meshOffsetY + maxRad))     { 
-         xC = xCopy - Lx;  
-         yC = yCopy + Ly;
-         isCopyCorner = true; }
-      else if(xPos[Ik]  > (meshOffsetX + Lx - maxRad) && yPos[Ik]  > (meshOffsetY + Ly - maxRad)) { 
-         xC = xCopy - Lx;  
-         yC = yCopy - Ly;
-         isCopyCorner = true; }
-
-      if(isCopyCorner)
-      {
-         particalType.push_back(pType);
-         xPos        .push_back(xC);
-         yPos        .push_back(yC);
-         zPos        .push_back(zCopy);
-         rad         .push_back(radCopy);
-      }
-   }
-
-   particalType.shrink_to_fit();
-   xPos        .shrink_to_fit();
-   yPos        .shrink_to_fit();
-   zPos        .shrink_to_fit();
-   rad         .shrink_to_fit();
-
-   int numParticles = particalType.size();
-
    ::mfem::H1_FECollection FECol_H1(order, dim);
    ::mfem::ParFiniteElementSpace FESpace_H1(&pmesh, &FECol_H1, 1, mfem::Ordering::byNODES);
 
-   ::mfem::ParGridFunction grainLSField(&FESpace_H1);
-
-   int numNodes   = grainLSField.Size();
-   mfem::Vector locationVector(dim);
-
-   for ( int Ik = 0; Ik<numNodes; Ik++)
-   {
-      pmesh.GetNode(Ik, &locationVector[0]);
-      const double * pCoords(locationVector.GetData());
-
-      double LSVal = -1000.0;
-      for (int ii = 0; ii < numParticles; ii++)
-      {
-         double val = rad[ii] - pow(pow(std::abs(pCoords[0] - xPos[ii]), 2) 
-              + pow(std::abs(pCoords[1] - yPos[ii]), 2) + pow(std::abs(pCoords[2] - zPos[ii]), 2), 0.5);
-
-         LSVal = std::max(val, LSVal);
-      }
-      grainLSField[Ik]= LSVal;
-
-
-   }
+   GrainReader grain( &pmesh, tStringWeight );
+   grain.computeGridFunction( FESpace_H1);
+   ::mfem::ParGridFunction grainLSField =  grain.getGrainGridFunction();
 
    //dump the solution
    {
