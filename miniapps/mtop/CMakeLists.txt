@@ -9,26 +9,22 @@
 # terms of the BSD-3 license. We welcome feedback and contributions, see file
 # CONTRIBUTING.md for details.
 
-if(MFEM_USE_MPI)
+# Skip dFEM qfunction with floats
+if(MFEM_USE_MPI AND MFEM_USE_DOUBLE)
 
-list(APPEND PARMTOP_COMMON_SOURCES
-	mtop_solvers.cpp)
-list(APPEND PARMTOP_COMMON_HEADERS
-	mtop_solvers.hpp)
+	list(APPEND PAR_MTOP_SOURCES mtop_solvers.cpp)
+	list(APPEND PAR_MTOP_HEADERS mtop_solvers.hpp)
 
-convert_filenames_to_full_paths(PARMTOP_COMMON_SOURCES)
-convert_filenames_to_full_paths(PARMTOP_COMMON_HEADERS)
+	convert_filenames_to_full_paths(PAR_MTOP_SOURCES)
+	convert_filenames_to_full_paths(PAR_MTOP_HEADERS)
 
-set(PARMTOP_COMMON_FILES
-	EXTRA_SOURCES ${PARMTOP_COMMON_SOURCES} ${SEQMTOP_COMMON_SOURCES}
-	EXTRA_HEADERS ${PARMTOP_COMMON_HEADERS} ${SEQMTOP_COMMON_HEADERS})
+	set(PAR_MTOP_COMMON_FILES
+		EXTRA_SOURCES ${PAR_MTOP_SOURCES}
+		EXTRA_HEADERS ${PAR_MTOP_HEADERS})
 
-# message(STATUS "PARMTOP_COMMON_FILES: ${PARMTOP_COMMON_FILES}")
-# message(STATUS "SEQMTOP_COMMON_FILES: ${SEQMTOP_COMMON_FILES}")
+	add_mfem_miniapp(mtop_test_iso_elasticity
+					 MAIN mtop_test_iso_elasticity.cpp
+					 ${PAR_MTOP_COMMON_FILES}
+					 LIBRARIES mfem)
 
-add_mfem_miniapp(test_isoel
-     MAIN test_iso_elast.cpp
-     ${PARMTOP_COMMON_FILES}
-     LIBRARIES mfem)
-
-endif ()
+endif (MFEM_USE_MPI AND MFEM_USE_DOUBLE)

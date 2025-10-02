@@ -14,7 +14,6 @@
 using namespace std;
 using namespace mfem;
 
-
 int main(int argc, char *argv[])
 {
    // Initialize MPI and HYPRE.
@@ -28,7 +27,7 @@ int main(int argc, char *argv[])
    int order = 2;
    bool pa = false;
    bool dfem = false;
-   bool paraview = true;
+   bool paraview = false;
    bool visualization = true;
 
    OptionsParser args(argc, argv);
@@ -50,30 +49,30 @@ int main(int argc, char *argv[])
    args.ParseCheck();
    MFEM_VERIFY(!(pa && dfem), "pa and dfem cannot be both set");
 
-   //    Enable hardware devices such as GPUs, and programming models such as
-   //    CUDA, OCCA, RAJA and OpenMP based on command line options.
+   // Enable hardware devices such as GPUs, and programming models such as
+   // CUDA, OCCA, RAJA and OpenMP based on command line options.
    Device device(device_config);
    if (Mpi::Root()) { device.Print(); }
 
-   //    Read the (serial) mesh from the given mesh file on all processors.  We
-   //    can handle triangular, quadrilateral, tetrahedral, hexahedral, surface
-   //    and volume meshes with the same code.
+   // Read the (serial) mesh from the given mesh file on all processors.  We
+   // can handle triangular, quadrilateral, tetrahedral, hexahedral, surface
+   // and volume meshes with the same code.
    Mesh mesh(mesh_file, 1, 1);
    const int dim = mesh.Dimension();
 
-   //    Refine the serial mesh on all processors to increase the resolution. In
-   //    this example we do 'ref_levels' of uniform refinement. We choose
-   //    'ref_levels' to be the largest number that gives a final mesh with no
-   //    more than 10,000 elements.
+   // Refine the serial mesh on all processors to increase the resolution. In
+   // this example we do 'ref_levels' of uniform refinement. We choose
+   // 'ref_levels' to be the largest number that gives a final mesh with no
+   // more than 10,000 elements.
    {
       const int ref_levels =
          (int)floor(log(1000. / mesh.GetNE()) / log(2.) / dim);
       for (int l = 0; l < ref_levels; l++) { mesh.UniformRefinement(); }
    }
 
-   //    Define a parallel mesh by a partitioning of the serial mesh. Refine
-   //    this mesh further in parallel to increase the resolution. Once the
-   //    parallel mesh is defined, the serial mesh can be deleted.
+   // Define a parallel mesh by a partitioning of the serial mesh. Refine
+   // this mesh further in parallel to increase the resolution. Once the
+   // parallel mesh is defined, the serial mesh can be deleted.
    ParMesh pmesh(MPI_COMM_WORLD, mesh);
    mesh.Clear();
    {
