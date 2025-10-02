@@ -49,8 +49,8 @@ baselinecheck_mfem_intel_dane:
   script:
     - echo ${BUILD_ROOT}
     - echo ${TPLS_DIR}
-    # Used by the tests in MFEM/tests:
-    - export MFEM_TEST_NP=48
+    # Used by the tests in MFEM/tests, dane has 224 threads/node:
+    - export MFEM_TEST_NP=192
     # The next script uses the following environment variables:
     # * BASELINE_TEST, SYS_TYPE, CI_PROJECT_DIR, ARTIFACTS_DIR,
     # * BUILD_ROOT, TPLS_DIR, MACHINE_NAME

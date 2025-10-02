@@ -48,7 +48,8 @@ setup:
   extends: .job_on_dane
   stage: jobs-stage-2
   variables:
-    THREADS: 16
+    # Dane has 224 threads/node and we run 7 separate jobs: 224=7*32
+    THREADS: 28
 
 debug_ser_gcc_10:
   extends: .mfem_job_on_dane

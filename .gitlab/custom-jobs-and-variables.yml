@@ -51,7 +51,7 @@ variables:
 
 # Dane
 # Arguments for top level allocation
-  DANE_SHARED_ALLOC: "--exclusive --reservation=ci --time=40 --nodes=1"
+  DANE_SHARED_ALLOC: "--exclusive --reservation=ci --time=60 --nodes=1"
 # Arguments for job level allocation
 # Note: We repeat the reservation, necessary when jobs are manually re-triggered.
   DANE_JOB_ALLOC: "--reservation=ci --overlap --nodes=1"

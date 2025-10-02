@@ -466,7 +466,7 @@ template<class B, class R> struct reduction_kernel
    /// helper for computing the reduction block size
    static int block_log2(unsigned N)
    {
-#if defined(__GNUC__) or defined(__clang__)
+#if defined(__GNUC__) || defined(__clang__)
       return N ? (sizeof(unsigned) * 8 - __builtin_clz(N)) : 0;
 #elif defined(_MSC_VER)
       return sizeof(unsigned) * 8 - __lzclz(N);
@@ -537,7 +537,7 @@ void reduce(int N, T &res, B &&body, const R &reducer, bool use_dev,
       return;
    }
 
-#if defined(MFEM_USE_HIP) || defined(MFEM_USE_CUDA)
+#if defined(MFEM_USE_CUDA_OR_HIP)
    if (use_dev &&
        mfem::Device::Allows(Backend::CUDA | Backend::HIP | Backend::RAJA_CUDA |
                             Backend::RAJA_HIP))

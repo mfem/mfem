@@ -121,6 +121,11 @@ Parallel build:
    make -j 4
 (For METIS 5, see https://mfem.org/building/#parallel-build-using-metis-5)
 
+Parallel build with fetching of hypre and METIS:
+   mkdir <mfem-buil-dir> ; cd <mfem-build-dir>
+   cmake <mfem-source-dir> -DMFEM_USE_MPI=YES -DFETCH_TPLS=YES
+   make -j 4
+
 CUDA build:
    (this build requires CMake 3.17 or newer)
    mkdir <mfem-build-dir> ; cd <mfem-build-dir>
@@ -663,6 +668,7 @@ The specific libraries and their options are:
 - OpenMP (optional), usually part of compiler, used when either MFEM_USE_OPENMP
   or MFEM_USE_LEGACY_OPENMP is set to YES.
   Options: OPENMP_OPT, OPENMP_LIB.
+  Versions: OpenMP >= 3.1 when MFEM_USE_OPENMP=YES.
 
 - High-resolution POSIX clocks: when using MFEM_TIMER_TYPE = 2, it may be
   necessary to link with a system library (e.g. librt.so).
@@ -842,6 +848,7 @@ The specific libraries and their options are:
 - HIP (optional), used when MFEM_USE_HIP = YES.
   URL: https://rocmdocs.amd.com
   Options: HIP_CXX, HIP_ARCH, HIP_OPT, HIP_LIB.
+  Versions: ROCm >= 5.6.1.
 
 - OCCA (optional), used when MFEM_USE_OCCA = YES.
   URL: https://libocca.org
@@ -852,7 +859,7 @@ The specific libraries and their options are:
   URL: https://github.com/CEED/libCEED
        https://ceed.exascaleproject.org/libceed
   Options: CEED_DIR, CEED_OPT, CEED_LIB.
-  Versions: libCEED >= 0.12.
+  Versions: libCEED >= 0.12.0.
 
 - RAJA (optional), used when MFEM_USE_RAJA = YES.
   Beginning with MFEM v4.5.1, only RAJA v2022.10.3+ is supported.
@@ -1074,6 +1081,9 @@ The following options are CMake specific:
 MFEM_ENABLE_TESTING  - Enable the ctest framework for testing.
 MFEM_ENABLE_EXAMPLES - Build all of the examples by default.
 MFEM_ENABLE_MINIAPPS - Build all of the miniapps by default.
+FETCH_TPLS           - Enable fetching of all supported third-party libraries.
+HYPRE_FETCH          - Enable fetching of hypre.
+METIS_FETCH          - Enable fetching of metis.
 
 External libraries (CMake):
 ---------------------------
@@ -1135,6 +1145,12 @@ The following built-in CMake packages are also used:
       set the <LIBNAME>_LIBRARIES option directly; the configuration option
       <LIBNAME>_DIR is not supported.
 
+The MFEM CMake build system also provides fetching (automated building) for the
+packages/libraries listed below. Note that when fetching is enabled, any related
+auto-detection functionality is disabled.
+
+ - HYPRE
+ - METIS
 
 Building without GNU make or CMake
 ==================================

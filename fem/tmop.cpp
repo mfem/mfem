@@ -140,6 +140,36 @@ void add_3D(const scalartype &scalar, const std::vector<type> &u,
 
 /* Metric definitions */
 
+// W = ||T||^2 - 2*det(T).
+template <typename type>
+type mu4_ad(const std::vector<type> &T, const std::vector<type> &W)
+{
+   auto fnorm2 = fnorm2_2D(T);
+   auto det = det_2D(T);
+   return fnorm2 - 2*det;
+};
+
+// W = ||T-I||^2.
+template <typename type>
+type mu14_ad(const std::vector<type> &T, const std::vector<type> &W)
+{
+   DenseMatrix Id(2,2); Id = 0.0;
+   Id(0,0) = 1; Id(1,1) = 1;
+
+   std::vector<type> Mat;
+   add_2D(real_t{-1.0}, T, &Id, Mat);
+
+   return fnorm2_2D(Mat);
+};
+
+// W = (det(T)-1)^2.
+template <typename type>
+type mu55_ad(const std::vector<type> &T, const std::vector<type> &W)
+{
+   auto det = det_2D(T);
+   return pow(det-1.0, 2.0);
+};
+
 // W = |T-T'|^2, where T'= |T|*I/sqrt(2).
 template <typename type>
 type mu85_ad(const std::vector<type> &T, const std::vector<type> &W)
@@ -162,6 +192,63 @@ type mu98_ad(const std::vector<type> &T, const std::vector<type> &W)
 
    return fnorm2_2D(Mat)/det_2D(T);
 };
+
+template <typename type>
+type make_one_type()
+{
+   return 1.0;
+}
+// add specialization for AD1Type
+template <>
+AD1Type make_one_type<AD1Type>()
+{
+   return AD1Type{1.0, 0.0};
+}
+// add specialization for AD2Type
+template <>
+AD2Type make_one_type<AD2Type>()
+{
+   return AD2Type{AD1Type{1.0, 0.0}, AD1Type{0.0, 0.0}};
+}
+
+using TWCUO = TMOP_WorstCaseUntangleOptimizer_Metric;
+template <typename type>
+type wcuo_ad(type mu,
+             const std::vector<type> &T, const std::vector<type> &W,
+             real_t alpha, real_t min_detT, real_t detT_ep,
+             int exponent, real_t max_muT, real_t muT_ep,
+             TWCUO::BarrierType bt,
+             TWCUO::WorstCaseType wct)
+{
+   type one = make_one_type<type>();
+   type zero = 0.0*one;
+   type denom = one;
+   if (bt == TWCUO::BarrierType::Shifted)
+   {
+      auto val1 = alpha*min_detT-detT_ep < 0.0 ?
+                  (alpha*min_detT-detT_ep)*one :
+                  zero;
+      denom = 2.0*(det_2D(T)-val1);
+   }
+   else if (bt == TWCUO::BarrierType::Pseudo)
+   {
+      auto detT = det_2D(T);
+      denom = detT + sqrt(detT*detT + detT_ep*detT_ep);
+   }
+   mu = mu/denom;
+
+   if (wct == TWCUO::WorstCaseType::PMean)
+   {
+      auto exp = exponent*one;
+      mu = pow(mu, exp);
+   }
+   else if (wct == TWCUO::WorstCaseType::Beta)
+   {
+      auto beta = (max_muT+muT_ep)*one;
+      mu = mu/(beta-mu);
+   }
+   return mu;
+}
 
 // W = 1/(tau^0.5) |T-I|^2.
 template <typename type>
@@ -421,7 +508,7 @@ void TMOP_QualityMetric::DefaultAssembleH(const DenseTensor &H,
          {
             for (int cc = 0; cc < dim; cc++)
             {
-               const double entry_rr_cc = Hrc(rr, cc);
+               const real_t entry_rr_cc = Hrc(rr, cc);
 
                for (int i = 0; i < dof; i++)
                {
@@ -479,6 +566,30 @@ void TMOP_Combo_QualityMetric::EvalPW(const DenseMatrix &Jpt,
       tmop_q_arr[i]->EvalPW(Jpt, Pt);
       PW.Add(wt_arr[i], Pt);
    }
+}
+
+AD1Type TMOP_Combo_QualityMetric::EvalW_AD1(const std::vector<AD1Type> &T,
+                                            const std::vector<AD1Type> &W)
+const
+{
+   AD1Type metric = {0., 0.};
+   for (int i = 0; i < tmop_q_arr.Size(); i++)
+   {
+      metric += wt_arr[i]*tmop_q_arr[i]->EvalW_AD1(T, W);
+   }
+   return metric;
+}
+
+AD2Type TMOP_Combo_QualityMetric::EvalW_AD2(const std::vector<AD2Type> &T,
+                                            const std::vector<AD2Type> &W)
+const
+{
+   AD2Type metric = {{0., 0.},{0., 0.}};
+   for (int i = 0; i < tmop_q_arr.Size(); i++)
+   {
+      metric += wt_arr[i]*tmop_q_arr[i]->EvalW_AD2(T, W);
+   }
+   return metric;
 }
 
 void TMOP_Combo_QualityMetric::AssembleH(const DenseMatrix &Jpt,
@@ -643,6 +754,64 @@ real_t TMOP_WorstCaseUntangleOptimizer_Metric::EvalWBarrier(
       denominator = detT + std::sqrt(detT*detT + detT_ep*detT_ep);
    }
    return tmop_metric.EvalW(Jpt)/denominator;
+}
+
+AD1Type TMOP_WorstCaseUntangleOptimizer_Metric::EvalW_AD1(
+   const std::vector<AD1Type> &T,
+   const std::vector<AD1Type> &W) const
+{
+   return wcuo_ad(tmop_metric.EvalW_AD1(T,W), T, W, alpha, min_detT, detT_ep,
+                  exponent, max_muT, muT_ep, btype, wctype);
+}
+
+AD2Type TMOP_WorstCaseUntangleOptimizer_Metric::EvalW_AD2(
+   const std::vector<AD2Type> &T,
+   const std::vector<AD2Type> &W) const
+{
+   return wcuo_ad(tmop_metric.EvalW_AD2(T,W), T, W, alpha, min_detT, detT_ep,
+                  exponent, max_muT, muT_ep, btype, wctype);
+}
+
+void TMOP_WorstCaseUntangleOptimizer_Metric::EvalP(const DenseMatrix &Jpt,
+                                                   DenseMatrix &P) const
+{
+   auto mu_ad_fn = [this](std::vector<AD1Type> &T, std::vector<AD1Type> &W)
+   {
+      return EvalW_AD1(T,W);
+   };
+   if (tmop_metric.Id() == 4 || tmop_metric.Id() == 14 ||
+       tmop_metric.Id() == 66)
+   {
+      ADGrad(mu_ad_fn, P, Jpt);
+      return;
+   }
+   MFEM_ABORT("EvalW_AD1 not implemented with this metric for "
+              "TMOP_WorstCaseUntangleOptimizer_Metric. "
+              "Please use metric 4/14/66.");
+}
+
+void TMOP_WorstCaseUntangleOptimizer_Metric::AssembleH(
+   const DenseMatrix &Jpt,
+   const DenseMatrix &DS,
+   const real_t weight,
+   DenseMatrix &A) const
+{
+   DenseTensor H(Jpt.Height(), Jpt.Height(), Jpt.TotalSize());
+   H = 0.0;
+   auto mu_ad_fn = [this](std::vector<AD2Type> &T, std::vector<AD2Type> &W)
+   {
+      return EvalW_AD2(T,W);
+   };
+   if (tmop_metric.Id() == 4 || tmop_metric.Id() == 14 ||
+       tmop_metric.Id() == 66)
+   {
+      ADHessian(mu_ad_fn, H, Jpt);
+      this->DefaultAssembleH(H,DS,weight,A);
+      return;
+   }
+   MFEM_ABORT("EvalW_AD1 not implemented with this metric for "
+              "TMOP_WorstCaseUntangleOptimizer_Metric. "
+              "Please use metric 4/14/66.");
 }
 
 real_t TMOP_Metric_001::EvalW(const DenseMatrix &Jpt) const
@@ -850,6 +1019,25 @@ void TMOP_Metric_004::AssembleH(const DenseMatrix &Jpt,
    ie.Assemble_ddI2b(-2.0*weight, A.GetData());
 }
 
+template <typename type>
+type TMOP_Metric_004::EvalW_AD_impl(const std::vector<type> &T,
+                                    const std::vector<type> &W) const
+{
+   return mu4_ad(T, W);
+}
+
+AD1Type TMOP_Metric_004::EvalW_AD1(const std::vector<AD1Type> &T,
+                                   const std::vector<AD1Type> &W) const
+{
+   return EvalW_AD_impl<AD1Type>(T,W);
+}
+
+AD2Type TMOP_Metric_004::EvalW_AD2(const std::vector<AD2Type> &T,
+                                   const std::vector<AD2Type> &W) const
+{
+   return EvalW_AD_impl<AD2Type>(T,W);
+}
+
 real_t TMOP_Metric_007::EvalW(const DenseMatrix &Jpt) const
 {
    // mu_7 = |J-J^{-t}|^2 = |J|^2 + |J^{-1}|^2 - 4
@@ -969,6 +1157,25 @@ void TMOP_Metric_014::AssembleH(const DenseMatrix &Jpt,
    ie.SetJacobian(JptMinusId.GetData());
    ie.SetDerivativeMatrix(DS.Height(), DS.GetData());
    ie.Assemble_ddI1(weight, A.GetData());
+}
+
+template <typename type>
+type TMOP_Metric_014::EvalW_AD_impl(const std::vector<type> &T,
+                                    const std::vector<type> &W) const
+{
+   return mu14_ad(T, W);
+}
+
+AD1Type TMOP_Metric_014::EvalW_AD1(const std::vector<AD1Type> &T,
+                                   const std::vector<AD1Type> &W) const
+{
+   return EvalW_AD_impl<AD1Type>(T,W);
+}
+
+AD2Type TMOP_Metric_014::EvalW_AD2(const std::vector<AD2Type> &T,
+                                   const std::vector<AD2Type> &W) const
+{
+   return EvalW_AD_impl<AD2Type>(T,W);
 }
 
 real_t TMOP_Metric_022::EvalW(const DenseMatrix &Jpt) const
@@ -1098,6 +1305,25 @@ void TMOP_Metric_055::AssembleH(const DenseMatrix &Jpt,
    ie.SetDerivativeMatrix(DS.Height(), DS.GetData());
    ie.Assemble_TProd(2*weight, ie.Get_dI2b(), A.GetData());
    ie.Assemble_ddI2b(2*weight*(ie.Get_I2b() - 1.0), A.GetData());
+}
+
+template <typename type>
+type TMOP_Metric_055::EvalW_AD_impl(const std::vector<type> &T,
+                                    const std::vector<type> &W) const
+{
+   return mu55_ad(T, W);
+}
+
+AD1Type TMOP_Metric_055::EvalW_AD1(const std::vector<AD1Type> &T,
+                                   const std::vector<AD1Type> &W) const
+{
+   return EvalW_AD_impl<AD1Type>(T,W);
+}
+
+AD2Type TMOP_Metric_055::EvalW_AD2(const std::vector<AD2Type> &T,
+                                   const std::vector<AD2Type> &W) const
+{
+   return EvalW_AD_impl<AD2Type>(T,W);
 }
 
 real_t TMOP_Metric_056::EvalWMatrixForm(const DenseMatrix &Jpt) const
@@ -4096,7 +4322,7 @@ real_t TMOP_Integrator::GetElementEnergy(const FiniteElement &el,
 
          const IntegrationPoint &ip_s = ir_s->IntPoint(s);
          Tpr->SetIntPoint(&ip_s);
-         double w = surf_fit_coeff->Eval(*Tpr, ip_s) * surf_fit_normal *
+         real_t w = surf_fit_coeff->Eval(*Tpr, ip_s) * surf_fit_normal *
                     1.0 / surf_fit_dof_count[scalar_dof_id];
 
          if (surf_fit_gf)
@@ -5122,33 +5348,32 @@ real_t TMOP_Integrator::GetSurfaceFittingWeight()
 
 void TMOP_Integrator::EnableNormalization(const GridFunction &x)
 {
-   ComputeNormalizationEnergies(x, metric_normal, lim_normal, surf_fit_normal);
+   ComputeNormalizationEnergies(x, metric_normal, lim_normal);
    metric_normal = 1.0 / metric_normal;
    lim_normal = 1.0 / lim_normal;
-   //if (surf_fit_gf) { surf_fit_normal = 1.0 / surf_fit_normal; }
    if (surf_fit_gf || surf_fit_pos) { surf_fit_normal = lim_normal; }
 }
 
 #ifdef MFEM_USE_MPI
 void TMOP_Integrator::ParEnableNormalization(const ParGridFunction &x)
 {
-   real_t loc[3];
-   ComputeNormalizationEnergies(x, loc[0], loc[1], loc[2]);
-   real_t rdc[3];
-   MPI_Allreduce(loc, rdc, 3, MPITypeMap<real_t>::mpi_type, MPI_SUM,
+   real_t loc[2];
+   ComputeNormalizationEnergies(x, loc[0], loc[1]);
+   real_t rdc[2];
+   MPI_Allreduce(loc, rdc, 2, MPITypeMap<real_t>::mpi_type, MPI_SUM,
                  x.ParFESpace()->GetComm());
    metric_normal = 1.0 / rdc[0];
    lim_normal    = 1.0 / rdc[1];
-   // if (surf_fit_gf) { surf_fit_normal = 1.0 / rdc[2]; }
    if (surf_fit_gf || surf_fit_pos) { surf_fit_normal = lim_normal; }
 }
 #endif
 
 void TMOP_Integrator::ComputeNormalizationEnergies(const GridFunction &x,
                                                    real_t &metric_energy,
-                                                   real_t &lim_energy,
-                                                   real_t &surf_fit_gf_energy)
+                                                   real_t &lim_energy)
 {
+   metric_energy = 0.0;
+   lim_energy = 0.0;
    if (PA.enabled)
    {
       MFEM_VERIFY(PA.E.Size() > 0, "Must be called after AssemblePA!");
@@ -5191,9 +5416,6 @@ void TMOP_Integrator::ComputeNormalizationEnergies(const GridFunction &x,
    Jpr.SetSize(dim);
    Jpt.SetSize(dim);
 
-   metric_energy = 0.0;
-   lim_energy = 0.0;
-   surf_fit_gf_energy = 0.0;
    for (int i = 0; i < fes->GetNE(); i++)
    {
       const FiniteElement *fe = fes->GetFE(i);
@@ -5225,21 +5447,7 @@ void TMOP_Integrator::ComputeNormalizationEnergies(const GridFunction &x,
          lim_energy += weight;
       }
 
-      // Normalization of the surface fitting term.
-      if (surf_fit_gf)
-      {
-         Array<int> dofs;
-         Vector sigma_e;
-         surf_fit_gf->FESpace()->GetElementDofs(i, dofs);
-         surf_fit_gf->GetSubVector(dofs, sigma_e);
-         for (int s = 0; s < dofs.Size(); s++)
-         {
-            if ((*surf_fit_marker)[dofs[s]] == true)
-            {
-               surf_fit_gf_energy += sigma_e(s) * sigma_e(s);
-            }
-         }
-      }
+      // TODO: Normalization of the surface fitting term.
    }
 
    // Cases when integration is not over the target element, or when the

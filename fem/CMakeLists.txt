@@ -82,6 +82,8 @@ set(SRCS
   fe/fe_ser.cpp
   fe_coll.cpp
   fespace.cpp
+  derefmat_op.cpp
+  pderefmat_op.cpp
   geom.cpp
   gridfunc.cpp
   hybridization.cpp
@@ -169,6 +171,11 @@ set(HDRS
   bilinearform.hpp
   bilinearform_ext.hpp
   bilininteg.hpp
+  integ/lininteg_domain_kernels.hpp
+  integ/bilininteg_dgdiffusion_kernels.hpp
+  integ/bilininteg_dgtrace_kernels.hpp
+  integ/bilininteg_vecdiffusion_kernels.hpp
+  integ/bilininteg_convection_kernels.hpp
   integ/bilininteg_diffusion_kernels.hpp
   integ/bilininteg_elasticity_kernels.hpp
   integ/bilininteg_hcurl_kernels.hpp
@@ -239,8 +246,13 @@ set(HDRS
   lor/lor_ams.hpp
   lor/lor_batched.hpp
   lor/lor_h1.hpp
+  lor/lor_dg.hpp
   lor/lor_nd.hpp
   lor/lor_rt.hpp
+  lor/lor_h1_impl.hpp
+  lor/lor_dg_impl.hpp
+  lor/lor_nd_impl.hpp
+  lor/lor_rt_impl.hpp
   lor/lor_util.hpp
   multigrid.hpp
   nonlinearform.hpp

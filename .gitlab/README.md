@@ -100,7 +100,7 @@ with a spack spec of MFEM, within the limits permitted by the MFEM spack
 package.
 
 In any build-and-test sub-pipeline a job basically consists in defining the
-spack spec to use. Adding a job on dane for example resumes to:
+spack spec to use. Adding a job on Dane for example resumes to:
 
 ```yaml
 <job_name>:
