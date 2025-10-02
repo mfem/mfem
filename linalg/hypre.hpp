@@ -25,10 +25,17 @@
 #define HYPRE_TIMING
 
 // hypre header files
+#if MFEM_HYPRE_VERSION < 30000
 #include <seq_mv.h>
 #include <temp_multivector.h>
+#else
+#include <_hypre_seq_mv.h>
+#include <_hypre_lobpcg_temp_multivector.h>
+#endif
 #include <_hypre_parcsr_mv.h>
 #include <_hypre_parcsr_ls.h>
+
+#include <HYPRE_parcsr_ls.h>
 
 #ifdef HYPRE_COMPLEX
 #error "MFEM does not work with HYPRE's complex numbers support"
@@ -51,6 +58,10 @@
 #endif
 #if defined(HYPRE_USING_HIP) && !defined(MFEM_USE_HIP)
 #error "MFEM_USE_HIP=YES is required when HYPRE is built with HIP!"
+#endif
+
+#if MFEM_HYPRE_VERSION > 21500
+#define HYPRE_AssumedPartitionCheck() 1
 #endif
 
 namespace mfem
