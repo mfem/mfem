@@ -1355,6 +1355,20 @@ void NURBS_HCurl3DFiniteElement::CalcDVShape(const IntegrationPoint &ip,
    }
 }
 
+void NURBS_HCurl3DFiniteElement::CalcPhysDVShape(ElementTransformation &Trans,
+                                                 DenseTensor &dvsthape) const
+{
+   /*   MFEM_ASSERT(map_type == VALUE, "");
+   #ifdef MFEM_THREAD_SAFE
+      DenseTensor tshape(dof, dim, dim);
+   #endif
+      CalcDVShape(Trans.GetIntPoint(), tshape);
+      Mult(tshape, Trans.InverseJacobian(), dvshape);
+   }*/
+
+   MFEM_ABORT("method is not implemented for this class");
+}
+
 NURBS_HCurl3DFiniteElement::~NURBS_HCurl3DFiniteElement()
 {
    if (kv1[0]) { delete kv1[0]; }
