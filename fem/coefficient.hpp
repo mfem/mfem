@@ -418,41 +418,6 @@ public:
    void Project(QuadratureFunction &qf) override;
 };
 
-/// VectorCoefficient defined by a GridFunction. This coefficient is mesh dependent.
-class GridFunctionVectorCoefficient : public VectorCoefficient
-{
-private:
-   const GridFunction *GridF;
-   int Component;
-
-public:
-   GridFunctionVectorCoefficient()
-      :  VectorCoefficient(1)
-   { GridF = NULL; Component = 1; }
-   /** Construct GridFunctionCoefficient from a given GridFunction, and
-       optionally specify a component to use if it is a vector GridFunction. */
-   GridFunctionVectorCoefficient(const GridFunction *gf, int comp = 1)
-      : VectorCoefficient(comp)
-   { GridF = gf; Component = comp; }
-
-   /// Set the internal GridFunction
-   void SetGridFunction(const GridFunction *gf) { GridF = gf; }
-
-   /// Get the internal GridFunction
-   const GridFunction * GetGridFunction() const { return GridF; }
-
-   /// Evaluate the coefficient at @a ip.
-   virtual void Eval(Vector &V, ElementTransformation &T,
-                     const IntegrationPoint &ip);
-
-   /// @brief Fill the QuadratureFunction @a qf by evaluating the coefficient at
-   /// the quadrature points.
-   ///
-   /// This function uses the efficient QuadratureFunction::ProjectGridFunction
-   /// to fill the QuadratureFunction.
-   virtual void Project(QuadratureFunction &qf);
-};
-
 /** @brief A coefficient that depends on 1 or 2 parent coefficients and a
     transformation rule represented by a C-function.
 
@@ -758,6 +723,41 @@ public:
    void Eval(Vector &V, ElementTransformation &T,
              const IntegrationPoint &ip) override;
    using VectorCoefficient::Eval;
+};
+
+/// VectorCoefficient defined by a GridFunction. This coefficient is mesh dependent.
+class GridFunctionVectorCoefficient : public VectorCoefficient
+{
+private:
+   const GridFunction *GridF;
+   int Component;
+
+public:
+   GridFunctionVectorCoefficient()
+      :  VectorCoefficient(1)
+   { GridF = NULL; Component = 1; }
+   /** Construct GridFunctionCoefficient from a given GridFunction, and
+       optionally specify a component to use if it is a vector GridFunction. */
+   GridFunctionVectorCoefficient(const GridFunction *gf, int comp = 1)
+      : VectorCoefficient(comp)
+   { GridF = gf; Component = comp; }
+
+   /// Set the internal GridFunction
+   void SetGridFunction(const GridFunction *gf) { GridF = gf; }
+
+   /// Get the internal GridFunction
+   const GridFunction * GetGridFunction() const { return GridF; }
+
+   /// Evaluate the coefficient at @a ip.
+   virtual void Eval(Vector &V, ElementTransformation &T,
+                     const IntegrationPoint &ip);
+
+   /// @brief Fill the QuadratureFunction @a qf by evaluating the coefficient at
+   /// the quadrature points.
+   ///
+   /// This function uses the efficient QuadratureFunction::ProjectGridFunction
+   /// to fill the QuadratureFunction.
+   virtual void Project(QuadratureFunction &qf);
 };
 
 /// A vector coefficient which returns the physical location of the
