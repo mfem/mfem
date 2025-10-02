@@ -79,6 +79,7 @@ enum class Problem
    FastVortex = 1,
    SlowVortex,
    SineWave,
+   Inflow,
 };
 
 enum Quantity
@@ -107,12 +108,20 @@ struct QuantityMap
 struct ProblemParams
 {
    Problem prob;
-   //int nx, ny;
-   //real_t x0, y0, sx, sy;
-   int order;
-   real_t k, ks, ka;
-   real_t specific_heat_ratio;
-   real_t gas_constant;
+   real_t k{1.}, ks{1.}, ka{0.};
+   real_t specific_heat_ratio{1.4};
+   real_t gas_constant{1.};
+   struct
+   {
+      real_t den_inf{1.};
+      real_t ene_inf{1.};
+      real_t den_cen{2.};
+      Vector vel_cen{1.};
+      real_t ene_cen{2.};
+      Vector x_cen{0.5};
+      real_t dx_cen{0.2};
+      real_t dt_cen{0.2};
+   } inflow;
 };
 
 class AnisotropicMatrixFunctionCoefficient : public MatrixCoefficient
@@ -150,6 +159,7 @@ typedef AnisotropicMatrixFunctionCoefficient::AnisoMatFunc MatFunc;
 
 MatFunc GetKFun(const ProblemParams &params, Quantity q);
 VecFunc GetU0Fun(const ProblemParams &params);
+VecTFunc GetBCFun(const ProblemParams &params);
 
 // Open the named VisItDataCollection and read the named field.
 // Returns pointers to the two new objects.
@@ -170,18 +180,12 @@ int main(int argc, char *argv[])
    int problem = 1;
    int IntOrderOffset = 1;
    int ref_levels = 1;
+   int order = 3;
    bool dg = false;
    bool brt = false;
    int ode_solver_type = 4;
    ProblemParams pars;
-   pars.order = 3;
-   int &order = pars.order;
-   pars.k = 1.;
-   pars.ks = 1.;
-   pars.ka = 0.;
-   pars.specific_heat_ratio = 1.4;
-   pars.gas_constant = 1.;
-   real_t t_final = 2.0;
+   real_t t_final = 1.0;
    real_t dt = -0.01;
    real_t cfl = 0.3;
    real_t td = 0.5;
@@ -203,12 +207,14 @@ int main(int argc, char *argv[])
                   "Problem setup to use. See EulerInitialCondition().");
    args.AddOption(&ref_levels, "-r", "--refine",
                   "Number of times to refine the mesh uniformly.");
-   args.AddOption(&pars.order, "-o", "--order",
+   args.AddOption(&order, "-o", "--order",
                   "Order (degree) of the finite elements.");
    args.AddOption(&dg, "-dg", "--discontinuous", "-no-dg",
                   "--no-discontinuous", "Enable DG elements for fluxes.");
    args.AddOption(&brt, "-brt", "--broken-RT", "-no-brt",
                   "--no-broken-RT", "Enable broken RT elements for fluxes.");
+   args.AddOption(&td, "-td", "--stab_diff",
+                  "Diffusion stabilization factor (1/2=default)");
    args.AddOption(&ode_solver_type, "-s", "--ode-solver",
                   ODESolver::ImplicitTypes.c_str());
    args.AddOption(&t_final, "-tf", "--t-final", "Final time; start time is 0.");
@@ -222,8 +228,24 @@ int main(int argc, char *argv[])
                   "Symmetric anisotropy of the diffusivity tensor");
    args.AddOption(&pars.ka, "-ka", "--kappa_anti",
                   "Antisymmetric anisotropy of the diffusivity tensor");
-   args.AddOption(&td, "-td", "--stab_diff",
-                  "Diffusion stabilization factor (1/2=default)");
+   //inflow
+   args.AddOption(&pars.inflow.den_inf, "-dinf", "--densitiy-infinity",
+                  "Density at infinity");
+   args.AddOption(&pars.inflow.ene_inf, "-einf", "--energy-infinity",
+                  "Internal energy at infinity");
+   args.AddOption(&pars.inflow.den_cen, "-dcen", "--densitiy-center",
+                  "Density at the center of the source");
+   args.AddOption(&pars.inflow.vel_cen, "-vcen", "--velocity-center",
+                  "Velocity at the center of the source");
+   args.AddOption(&pars.inflow.ene_cen, "-ecen", "--energy-center",
+                  "Internal energy at the center of the source");
+   args.AddOption(&pars.inflow.x_cen, "-xcen", "--x-center",
+                  "Location of the source");
+   args.AddOption(&pars.inflow.dx_cen, "-dxcen", "--width-center",
+                  "Width of the source");
+   args.AddOption(&pars.inflow.dt_cen, "-dtcen", "--time-center",
+                  "Ramp-up time of the source");
+
    args.AddOption(&B_coll_name, "-bdc", "--b-data-collection",
                   "Set the VisIt data collection B field root file prefix.");
    args.AddOption(&B_field_name, "-bf", "--b-field-name",
@@ -252,7 +274,17 @@ int main(int argc, char *argv[])
    }
    else
    {
-      mesh = std::move(Mesh("../../data/periodic-square.mesh"));
+      switch (pars.prob)
+      {
+         case Problem::FastVortex:
+         case Problem::SlowVortex:
+         case Problem::SineWave:
+            mesh = std::move(Mesh("../../data/periodic-square.mesh"));
+            break;
+         default:
+            mesh = std::move(Mesh("../../data/inline-quad.mesh"));
+            break;
+      }
    }
 
    const int dim = mesh.Dimension();
@@ -265,6 +297,37 @@ int main(int argc, char *argv[])
    for (int lev = 0; lev < ref_levels; lev++)
    {
       mesh.UniformRefinement();
+   }
+
+   // Set boundary conditions
+
+   bool bc_dirichlet = false;
+
+   switch (pars.prob)
+   {
+      case Problem::FastVortex:
+      case Problem::SlowVortex:
+      case Problem::SineWave:
+         break;
+      case Problem::Inflow:
+         bc_dirichlet = true;
+         break;
+      default:
+         cerr << "Unknown problem" << std::endl;
+         return 1;
+   }
+
+   Array<int> bdr_dirichlet_marker(mesh.bdr_attributes.Size()?(
+                                      mesh.bdr_attributes.Max()):(0));
+   Array<int> bdr_free_marker(mesh.bdr_attributes.Size()?(
+                                 mesh.bdr_attributes.Max()):(0));
+
+   if (bc_dirichlet)
+   {
+      bdr_dirichlet_marker = 0;
+      bdr_dirichlet_marker[0] = -1;
+      bdr_free_marker = -1;
+      bdr_free_marker[0] = 0;
    }
 
    // Read the magnetic field grid function from the given VisIt data
@@ -413,6 +476,9 @@ int main(int argc, char *argv[])
    {
       B->AddInteriorFaceIntegrator(new VectorBlockDiagonalIntegrator(
                                       num_equations, new TransposeIntegrator(new DGNormalTraceIntegrator(-1.))));
+      B->AddBdrFaceIntegrator(new VectorBlockDiagonalIntegrator(
+                                 num_equations, new TransposeIntegrator(new DGNormalTraceIntegrator(-1.))),
+                              bdr_free_marker);
    }
 
    //nonlinear convection
@@ -430,12 +496,61 @@ int main(int argc, char *argv[])
 #else //BRAGINSKII_IMEX
    Mtnl->AddDomainIntegrator(hyperbolicIntegrator.get());
    Mtnl->AddInteriorFaceIntegrator(hyperbolicIntegrator.get());
-   Mtnl->UseExternalIntegrators();
+   Mtnl->UseExternalIntegrators();//not handled by DarcyOperator!!
 #endif //BRAGINSKII_IMEX
+
+   // diffusion Dirichlet boundary condition
+
+   auto bc_fun = GetBCFun(pars);
+   VectorFunctionCoefficient bc_coeff(num_equations, bc_fun);
+   ScalarVectorProductCoefficient negbc_coeff(-1., bc_coeff);
+
+   if (bc_dirichlet)
+   {
+      LinearForm *bq = darcy.GetFluxRHS();
+
+      if (dg)
+      {
+         bq->AddBdrFaceIntegrator(new VectorBoundaryFluxLFIntegrator(negbc_coeff),
+                                  bdr_dirichlet_marker);
+      }
+      else if (brt)
+      {
+         bq->AddBdrFaceIntegrator(new VectorFEBoundaryFluxLFIntegrator(negbc_coeff),
+                                  bdr_dirichlet_marker);
+      }
+      else
+      {
+         bq->AddBoundaryIntegrator(new VectorFEBoundaryFluxLFIntegrator(negbc_coeff),
+                                   bdr_dirichlet_marker);
+      }
+   }
+
+   // convection Dirichlet boundary condition
+
+   unique_ptr<BdrHyperbolicFormIntegrator> hyperbolicIntegrator_bc;
+
+
+
+   if (bc_dirichlet)
+   {
+      hyperbolicIntegrator_bc.reset(new BdrHyperbolicFormIntegrator(
+                                       numericalFlux, bc_coeff, IntOrderOffset, -1.));
+
+      Mt_ex->AddBdrFaceIntegrator(hyperbolicIntegrator_bc.get(),
+                                  bdr_dirichlet_marker);
+      Mt_ex->AddBdrFaceIntegrator(hyperbolicIntegrator.get(),
+                                  bdr_free_marker);
+   }
 
    //set hybridization / reduction
 
    Array<int> ess_flux_tdofs_list;
+
+   if (!dg)
+   {
+      qvfes.GetEssentialTrueDofs(bdr_free_marker, ess_flux_tdofs_list);
+   }
 
    unique_ptr<FiniteElementCollection> trace_coll;
    unique_ptr<FiniteElementSpace> trace_space;
@@ -561,6 +676,8 @@ int main(int argc, char *argv[])
       hyperbolicIntegrator->ResetMaxCharSpeed();
 #endif // BRAGINSKII_ADAPTIVE_DT
 
+      bc_coeff.SetTime(t);
+
       ode_solver->Step(x, t, dt_real);
 
 #ifdef BRAGINSKII_ADAPTIVE_DT
@@ -640,6 +757,7 @@ MatFunc GetKFun(const ProblemParams &params, Quantity q)
       case Problem::FastVortex:
       case Problem::SlowVortex:
       case Problem::SineWave:
+      case Problem::Inflow:
          return [=](const Vector &x, const Vector &B, DenseMatrix &kappa)
          {
             const int ndim = x.Size();
@@ -683,9 +801,73 @@ VecFunc GetU0Fun(const ProblemParams &params)
             y(2) = density * velocity_y;
             y(3) = energy;
          };
+      case Problem::Inflow:
+         return [&params](const Vector &x, Vector &y)
+         {
+            const int dim = x.Size();
+
+            const real_t &den_inf = params.inflow.den_inf;
+            const real_t &ene_inf = params.inflow.ene_inf;
+
+            y(0) = den_inf;
+            for (int d = 0; d < dim; d++)
+            {
+               y(d+1) = 0.;
+            }
+            y(dim+1) = den_inf * ene_inf;
+         };
    }
 
    return VecFunc();
+}
+
+VecTFunc GetBCFun(const ProblemParams &params)
+{
+   switch (params.prob)
+   {
+      case Problem::FastVortex:
+      case Problem::SlowVortex:
+      case Problem::SineWave:
+         break;
+      case Problem::Inflow:
+         return [&params](const Vector &x, real_t t, Vector &y)
+         {
+            const int dim = x.Size();
+
+            const real_t &den_inf = params.inflow.den_inf;
+            const real_t &ene_inf = params.inflow.ene_inf;
+            const real_t &den_c = params.inflow.den_cen;
+            const Vector &vel_c = params.inflow.vel_cen;
+            const real_t &ene_c = params.inflow.ene_cen;
+            const Vector &x_c = params.inflow.x_cen;
+            const real_t &dx_c = params.inflow.dx_cen;
+            const real_t &dt_c = params.inflow.dt_cen;
+
+            Vector dx(dim);
+            for (int d = 0; d < dim; d++)
+            {
+               const real_t x_cd = (x_c.Size() > d)?(x_c(d)):(0.);
+               dx(d) = (x(d) - x_cd) / dx_c;
+            }
+            const real_t exp_dx = exp(-(dx*dx));
+            const real_t dt = t / dt_c;
+            const real_t exp_dt = 1. - exp(-dt*dt);
+            const real_t exp_dxt = exp_dx * exp_dt;
+
+            const real_t den = den_inf + (den_c - den_inf) * exp_dxt;
+            const real_t ene = ene_inf + (ene_c - ene_inf) * exp_dxt;
+
+            y(0) = den;
+            for (int d = 0; d < dim; d++)
+            {
+               const real_t v_c = (vel_c.Size() > d)?(vel_c(d)):(0.);
+               y(d+1) = den * v_c * exp_dxt;
+            }
+            y(dim+1) = den * ene;
+         };
+   }
+
+   return VecTFunc();
 }
 
 int ReadGridFunction(const char * coll_name, const char * field_name,
