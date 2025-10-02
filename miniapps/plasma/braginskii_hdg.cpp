@@ -151,6 +151,13 @@ typedef AnisotropicMatrixFunctionCoefficient::AnisoMatFunc MatFunc;
 MatFunc GetKFun(const ProblemParams &params, Quantity q);
 VecFunc GetU0Fun(const ProblemParams &params);
 
+// Open the named VisItDataCollection and read the named field.
+// Returns pointers to the two new objects.
+int ReadGridFunction(const char * coll_name, const char * field_name,
+                     int pad_digits_cycle, int cycle,
+                     std::unique_ptr<VisItDataCollection> &dc,
+                     GridFunction* &gf);
+
 bool VisualizeField(socketstream &sout, const GridFunction &gf,
                     const char *name, real_t t = 0.);
 
@@ -178,6 +185,12 @@ int main(int argc, char *argv[])
    real_t dt = -0.01;
    real_t cfl = 0.3;
    real_t td = 0.5;
+
+   const char *B_coll_name = "";
+   const char *B_field_name = "B";
+   int B_cycle = 10;
+   int B_pad_digits_cycle = 6;
+
    bool hybridization = false;
    bool visualization = true;
    int vis_steps = 50;
@@ -211,6 +224,14 @@ int main(int argc, char *argv[])
                   "Antisymmetric anisotropy of the diffusivity tensor");
    args.AddOption(&td, "-td", "--stab_diff",
                   "Diffusion stabilization factor (1/2=default)");
+   args.AddOption(&B_coll_name, "-bdc", "--b-data-collection",
+                  "Set the VisIt data collection B field root file prefix.");
+   args.AddOption(&B_field_name, "-bf", "--b-field-name",
+                  "Set the VisIt data collection B field name");
+   args.AddOption(&B_cycle, "-bcyc", "--b-cycle",
+                  "Set the B field cycle index to read.");
+   args.AddOption(&B_pad_digits_cycle, "-bpdc", "--b-pad-digits-cycle",
+                  "Number of digits in B field cycle.");
    args.AddOption(&hybridization, "-hb", "--hybridization", "-no-hb",
                   "--no-hybridization", "Enable hybridization.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
@@ -248,9 +269,23 @@ int main(int argc, char *argv[])
 
    // Read the magnetic field grid function from the given VisIt data
    // collection or otherwise align anisotropy with the axes
+   std::unique_ptr<VisItDataCollection> B_dc;
+   GridFunction *B_gf;
    std::unique_ptr<VectorCoefficient> B_coeff;
    Vector B_vec;
 
+   if (strlen(B_coll_name) > 0)
+   {
+      if (ReadGridFunction(B_coll_name, B_field_name, B_pad_digits_cycle,
+                           B_cycle, B_dc, B_gf))
+      {
+         mfem::out << "Error loading B field" << endl;
+         return 1;
+      }
+
+      B_coeff.reset(new VectorGridFunctionCoefficient(B_gf));
+   }
+   else
    {
       B_vec.SetSize(dim);
       B_vec = 0.;
@@ -651,6 +686,30 @@ VecFunc GetU0Fun(const ProblemParams &params)
    }
 
    return VecFunc();
+}
+
+int ReadGridFunction(const char * coll_name, const char * field_name,
+                     int pad_digits_cycle, int cycle,
+                     std::unique_ptr<VisItDataCollection> &dc,
+                     GridFunction* &gf)
+{
+   dc.reset(new VisItDataCollection(coll_name));
+   dc->SetPadDigitsCycle(pad_digits_cycle);
+   dc->Load(cycle);
+
+   if (dc->Error() != DataCollection::No_Error)
+   {
+      mfem::out << "Error loading VisIt data collection: "
+                << coll_name << endl;
+      return 1;
+   }
+
+   if (dc->HasField(field_name))
+   {
+      gf = dc->GetField(field_name);
+   }
+
+   return 0;
 }
 
 bool VisualizeField(socketstream &sout, const GridFunction &gf,
