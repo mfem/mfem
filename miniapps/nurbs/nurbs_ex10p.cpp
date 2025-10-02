@@ -177,8 +177,8 @@ int main(int argc, char *argv[])
    int par_ref_levels = 0;
    int order = 2;
    int ode_solver_type = 23;
-   real_t t_final = 300.0;
-   real_t dt = 3.0;
+   real_t t_final = 1.0;
+   real_t dt = 0.1;
    real_t visc = 1e-2;
    real_t mu = 0.25;
    real_t K = 5.0;

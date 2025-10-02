@@ -163,11 +163,11 @@ int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
    const char *mesh_file = "../../data/beam-quad-nurbs.mesh";
-   int ref_levels = 2;
+   int ref_levels = 1;
    int order = 2;
    int ode_solver_type = 23;
-   real_t t_final = 300.0;
-   real_t dt = 1.0;
+   real_t t_final = 0.5;
+   real_t dt = 0.1;
    real_t visc = 1e-2;
    real_t mu = 0.25;
    real_t K = 5.0;
