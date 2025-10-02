@@ -515,6 +515,14 @@ void VectorBlockDiagonalIntegrator::AssembleMat(
 
       std::array<int, NN> off_js{};
       std::array<int, MM> off_is{};
+      for (int j = 0; j < NN-1; j++)
+      {
+         off_js[j+1] = off_js[j] + ws[j];
+      }
+      for (int i = 0; i < MM-1; i++)
+      {
+         off_is[i+1] = off_is[i] + hs[i];
+      }
       for (int i = 0; i < numIntegs; i++)
       {
          const int w = elmats[i].Width();
@@ -531,7 +539,10 @@ void VectorBlockDiagonalIntegrator::AssembleMat(
                const int h_m = (M > 0)?(test_fes[m]->GetDof() * te_vdim):(h);
                elmat.CopyMN(elmats[i], h_m, w_n, off_m, off_n, off_is[m], off_js[n]);
                off_m += h_m;
-               off_is[m] += h_m;
+               if (n == NN-1)
+               {
+                  off_is[m] += h_m;
+               }
             }
             off_n += w_n;
             off_js[n] += w_n;
