@@ -947,6 +947,7 @@ int Quadrature1D::CheckOpen(int type)
       case OpenUniform:
       case ClosedUniform:
       case OpenHalfUniform:
+      case ClosedGL:
          return type; // all types can work as open
       default:
          return Invalid;
