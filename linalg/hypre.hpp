@@ -29,7 +29,8 @@
 #include <seq_mv.h>
 #include <temp_multivector.h>
 #else
-#include <HYPRE_seq_mv.h>
+#include <_hypre_seq_mv.h>
+#include <_hypre_lobpcg_temp_multivector.h>
 #endif
 #include <_hypre_parcsr_mv.h>
 #include <_hypre_parcsr_ls.h>
@@ -55,6 +56,10 @@
 #endif
 #if defined(HYPRE_USING_HIP) && !defined(MFEM_USE_HIP)
 #error "MFEM_USE_HIP=YES is required when HYPRE is built with HIP!"
+#endif
+
+#if MFEM_HYPRE_VERSION > 21500
+inline HYPRE_Int HYPRE_AssumedPartitionCheck(void) { return 1; }
 #endif
 
 namespace mfem
