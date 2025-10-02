@@ -310,146 +310,153 @@ ResourceManager &ResourceManager::instance()
 
 ResourceManager::ResourceManager() { Setup(); }
 
-static Allocator *CreateAllocator(ResourceManager::ResourceLocation loc)
+static Allocator *CreateAllocator(AllocatorType loc)
 {
    switch (loc)
    {
-      case ResourceManager::HOST:
-      case ResourceManager::HOST_DEBUG:
-      // case ResourceManager::HOST_UMPIRE:
-      // case ResourceManager::HOST_32:
-      case ResourceManager::DEVICE_DEBUG:
+      case AllocatorType::HOST:
+      case AllocatorType::HOST_DEBUG:
+      // case AllocatorType::HOST_UMPIRE:
+      // case AllocatorType::HOST_32:
+      case AllocatorType::DEVICE_DEBUG:
          return new StdAllocator;
-      case ResourceManager::HOST_64:
+      case AllocatorType::HOST_64:
          return new StdAlignedAllocator;
-      case ResourceManager::HOSTPINNED:
+      case AllocatorType::HOSTPINNED:
          return new HostPinnedAllocator;
-      case ResourceManager::MANAGED:
+      case AllocatorType::MANAGED:
          return new ManagedAllocator;
-      case ResourceManager::DEVICE:
-         // case ResourceManager::DEVICE_UMPIRE:
-         // case ResourceManager::DEVICE_UMPIRE_2:
+      case AllocatorType::DEVICE:
+         // case AllocatorType::DEVICE_UMPIRE:
+         // case AllocatorType::DEVICE_UMPIRE_2:
          return new DeviceAllocator;
       default:
          throw std::runtime_error("Invalid allocator location");
    }
 }
 
-static Allocator *CreateTempAllocator(ResourceManager::ResourceLocation loc)
+static Allocator *CreateTempAllocator(AllocatorType loc)
 {
    switch (loc)
    {
-      case ResourceManager::HOST:
-      case ResourceManager::HOST_DEBUG:
-      // case ResourceManager::HOST_UMPIRE:
-      case ResourceManager::DEVICE_DEBUG:
+      case AllocatorType::HOST:
+      case AllocatorType::HOST_DEBUG:
+      // case AllocatorType::HOST_UMPIRE:
+      case AllocatorType::DEVICE_DEBUG:
          return new TempAllocator<StdAllocator>;
-      // case ResourceManager::HOST_32:
-      case ResourceManager::HOST_64:
+      // case AllocatorType::HOST_32:
+      case AllocatorType::HOST_64:
          return new TempAllocator<StdAlignedAllocator>;
-      case ResourceManager::HOSTPINNED:
+      case AllocatorType::HOSTPINNED:
          return new TempAllocator<HostPinnedAllocator>;
-      case ResourceManager::MANAGED:
+      case AllocatorType::MANAGED:
          return new TempAllocator<ManagedAllocator>;
-      case ResourceManager::DEVICE:
-         // case ResourceManager::DEVICE_UMPIRE:
-         // case ResourceManager::DEVICE_UMPIRE_2:
+      case AllocatorType::DEVICE:
+         // case AllocatorType::DEVICE_UMPIRE:
+         // case AllocatorType::DEVICE_UMPIRE_2:
          return new TempAllocator<DeviceAllocator>;
       default:
          throw std::runtime_error("Invalid temp allocator location");
    }
 }
 
-void ResourceManager::Setup(ResourceLocation host_loc,
-                            ResourceLocation hostpinned_loc,
-                            ResourceLocation managed_loc,
-                            ResourceLocation device_loc)
+void ResourceManager::Setup(AllocatorType host_loc,
+                            AllocatorType hostpinned_loc,
+                            AllocatorType managed_loc, AllocatorType device_loc)
 {
-   if (host_loc == DEFAULT)
+   if (host_loc == AllocatorType::DEFAULT)
    {
       if (Device::Allows(Backend::DEBUG_DEVICE))
       {
-         host_loc = HOST_DEBUG;
+         host_loc = AllocatorType::HOST_DEBUG;
       }
       else
       {
-         host_loc = HOST;
+         host_loc = AllocatorType::HOST;
       }
    }
-   if (hostpinned_loc == DEFAULT)
+   if (hostpinned_loc == AllocatorType::DEFAULT)
    {
       if (Device::Allows(Backend::CUDA_MASK | Backend::HIP_MASK))
       {
-         hostpinned_loc = HOSTPINNED;
+         hostpinned_loc = AllocatorType::HOSTPINNED;
       }
       else
       {
-         hostpinned_loc = HOST;
+         hostpinned_loc = AllocatorType::HOST;
       }
    }
-   if (managed_loc == DEFAULT)
+   if (managed_loc == AllocatorType::DEFAULT)
    {
       if (Device::Allows(Backend::CUDA_MASK | Backend::HIP_MASK))
       {
-         managed_loc = MANAGED;
+         managed_loc = AllocatorType::MANAGED;
       }
       else
       {
-         managed_loc = HOST;
+         managed_loc = AllocatorType::HOST;
       }
    }
 
-   if (device_loc == DEFAULT)
+   if (device_loc == AllocatorType::DEFAULT)
    {
       if (Device::Allows(Backend::DEBUG_DEVICE))
       {
-         device_loc = DEVICE_DEBUG;
+         device_loc = AllocatorType::DEVICE_DEBUG;
       }
       else if (Device::Allows(Backend::CUDA_MASK | Backend::HIP_MASK))
       {
-         device_loc = DEVICE;
+         device_loc = AllocatorType::DEVICE;
       }
       else
       {
-         device_loc = HOST;
+         device_loc = AllocatorType::HOST;
       }
    }
-   if (allocator_locs[0] != host_loc)
+   if (allocator_types[0] != host_loc)
    {
       allocs[0].reset(CreateAllocator(host_loc));
       allocs[4].reset(CreateTempAllocator(host_loc));
-      allocator_locs[0] = host_loc;
+      allocator_types[0] = host_loc;
    }
-   if (allocator_locs[1] != hostpinned_loc)
+   if (allocator_types[1] != hostpinned_loc)
    {
       allocs[1].reset(CreateAllocator(hostpinned_loc));
       allocs[5].reset(CreateTempAllocator(hostpinned_loc));
-      allocator_locs[1] = hostpinned_loc;
+      allocator_types[1] = hostpinned_loc;
    }
-   if (allocator_locs[2] != managed_loc)
+   if (allocator_types[2] != managed_loc)
    {
       allocs[2].reset(CreateAllocator(managed_loc));
       allocs[6].reset(CreateTempAllocator(managed_loc));
-      allocator_locs[2] = managed_loc;
+      allocator_types[2] = managed_loc;
    }
-   if (allocator_locs[3] != device_loc)
+   if (allocator_types[3] != device_loc)
    {
       allocs[3].reset(CreateAllocator(device_loc));
       allocs[7].reset(CreateTempAllocator(device_loc));
-      allocator_locs[3] = device_loc;
+      allocator_types[3] = device_loc;
    }
 }
 
-ResourceManager::~ResourceManager() { clear(); }
+ResourceManager::~ResourceManager() { Clear(); }
 
-void ResourceManager::clear()
+void ResourceManager::Clear()
 {
    for (auto &seg : storage.segments)
    {
-      if (seg.ref_count && seg.flag & RBase::Segment::Flags::OWN)
+      if (seg.ref_count)
       {
-         dealloc(seg.lower, seg.loc,
-                 seg.flag & RBase::Segment::Flags::TEMPORARY);
+         if (seg.flag & RBase::Segment::Flags::OWN_HOST)
+         {
+            Dealloc(seg.lowers[0], seg.locs[0],
+                    seg.flag & RBase::Segment::Flags::TEMPORARY);
+         }
+         if (seg.flag & RBase::Segment::Flags::OWN_DEVICE)
+         {
+            Dealloc(seg.lowers[1], seg.locs[1],
+                    seg.flag & RBase::Segment::Flags::TEMPORARY);
+         }
       }
    }
    storage.nodes.clear();
@@ -461,7 +468,7 @@ void ResourceManager::clear()
    }
 }
 
-void ResourceManager::dealloc(char *ptr, ResourceLocation loc, bool temporary)
+void ResourceManager::Dealloc(char *ptr, ResourceLocation loc, bool temporary)
 {
    size_t offset = 0;
    if (temporary)
@@ -487,40 +494,47 @@ void ResourceManager::dealloc(char *ptr, ResourceLocation loc, bool temporary)
    }
 }
 
-std::array<size_t, 8> ResourceManager::usage() const
+std::array<size_t, 8> ResourceManager::Usage() const
 {
    std::array<size_t, 8> res = {0};
    for (auto &seg : storage.segments)
    {
-      if (seg.ref_count && seg.flag & RBase::Segment::Flags::OWN)
+      if (seg.ref_count)
       {
-         auto nbytes = seg.upper - seg.lower;
          size_t offset = (seg.flag & RBase::Segment::Flags::TEMPORARY) ? 4 : 0;
-         switch (seg.loc)
+         for (int i = 0; i < 2; ++i)
          {
-            case ResourceLocation::HOST:
-            case ResourceLocation::HOST_64:
-            case ResourceLocation::HOST_DEBUG:
-               // count all host allocations the same
-               res[offset] += nbytes;
-               break;
-            case ResourceLocation::HOSTPINNED:
-               res[offset + 1] += nbytes;
-               break;
-            case ResourceLocation::MANAGED:
-               res[offset + 2] += nbytes;
-               break;
-            case ResourceLocation::DEVICE:
-            case ResourceLocation::DEVICE_DEBUG:
-               res[offset + 3] += nbytes;
-               break;
-            default:
-               throw std::runtime_error("Invalid location");
+            // expects:
+            // Segment::Flags::OWN_HOST == 1 << 0
+            // Segment::Flags::OWN_DEVICE == 1 << 1
+            if (seg.flag & (1 << i))
+            {
+               switch (seg.locs[i])
+               {
+                  case ResourceLocation::HOST:
+                     // count all host allocations the same
+                     res[offset] += seg.size;
+                     break;
+                  case ResourceLocation::HOSTPINNED:
+                     res[offset + 1] += seg.size;
+                     break;
+                  case ResourceLocation::MANAGED:
+                     res[offset + 2] += seg.size;
+                     break;
+                  case ResourceLocation::DEVICE:
+                     res[offset + 3] += seg.size;
+                     break;
+                  default:
+                     throw std::runtime_error("Invalid location");
+               }
+            }
          }
       }
    }
    return res;
 }
+
+#if 0
 
 size_t ResourceManager::insert(char *lower, char *upper, ResourceLocation loc,
                                bool own, bool temporary)
@@ -539,7 +553,7 @@ size_t ResourceManager::insert(char *lower, char *upper, ResourceLocation loc,
    return insert(lower, upper, loc, flags);
 }
 
-char *ResourceManager::alloc(size_t nbytes, ResourceLocation loc,
+char *ResourceManager::Alloc(size_t nbytes, ResourceLocation loc,
                              bool temporary)
 {
    size_t offset = 0;
@@ -627,7 +641,7 @@ void ResourceManager::erase(size_t segment, bool linked)
             }
             if (seg.flag & RBase::Segment::OWN)
             {
-               dealloc(seg.lower, seg.loc,
+               Dealloc(seg.lower, seg.loc,
                        seg.flag & RBase::Segment::TEMPORARY);
             }
             clear_segment(segment);
@@ -657,87 +671,13 @@ size_t ResourceManager::insert(char *lower, char *upper, ResourceLocation loc,
    return storage.segments.size();
 }
 
-bool ResourceManager::ZeroCopy(ResourceLocation loc) const
-{
-   if (loc == HOSTPINNED || loc == MANAGED)
-   {
-      return true;
-   }
-   else if (loc == HOST && (allocator_locs[0] & (HOSTPINNED | MANAGED)))
-   {
-      return true;
-   }
-   else if (loc == DEVICE && (allocator_locs[3] & (HOSTPINNED | MANAGED)))
-   {
-      return true;
-   }
-   else if (allocator_locs[0] == allocator_locs[3])
-   {
-      return true;
-   }
-   return false;
-}
-
-void ResourceManager::ensure_other(size_t segment, ResourceLocation loc)
-{
-   auto seg = &storage.get_segment(segment);
-   if (!valid_segment(seg->other))
-   {
-      bool temporary = seg->flag & RBase::Segment::Flags::TEMPORARY;
-      switch (loc)
-      {
-         case HOST:
-         case HOSTPINNED:
-         case MANAGED:
-         case DEVICE:
-            break;
-         case ANY_HOST:
-            loc = ResourceLocation::HOST;
-            break;
-         case ANY_DEVICE:
-            loc = ResourceLocation::DEVICE;
-            break;
-         default:
-            throw std::runtime_error("invalid memory location");
-      }
-      size_t nbytes = seg->upper - seg->lower;
-      char *ptr;
-      size_t oseg;
-      bool zero_copy = ZeroCopy(loc);
-      if (zero_copy)
-      {
-         ptr = seg->lower;
-         oseg = insert(ptr, ptr + nbytes, loc, false, false);
-      }
-      else
-      {
-         ptr = alloc(nbytes, loc, temporary);
-         oseg = insert(ptr, ptr + nbytes, loc, true, temporary);
-      }
-
-      seg = &storage.get_segment(segment);
-      seg->other = oseg;
-      storage.get_segment(seg->other).other = segment;
-      auto &os = storage.get_segment(seg->other);
-      // mark as initially all invalid
-      mark_invalid(oseg, 0, nbytes, [](size_t, size_t) {});
-   }
-   else
-   {
-      if (!(storage.get_segment(seg->other).loc & loc))
-      {
-         throw std::runtime_error("invalid memory location");
-      }
-   }
-}
-
-size_t ResourceManager::find_marker(size_t segment, char *lower)
+size_t ResourceManager::find_marker(size_t segment, char *lower, bool host)
 {
    auto seg = &storage.get_segment(segment);
 
    // mark valid
-   size_t start = seg->root;
-   storage.visit(seg->root,
+   size_t start = seg->roots[host];
+   storage.visit(seg->roots[host],
                  [&](size_t idx)
    {
       // if idx <= lower, then everything to the left is too small
@@ -776,23 +716,38 @@ size_t ResourceManager::find_marker(size_t segment, char *lower)
 void ResourceManager::print_segment(size_t segment)
 {
    auto &seg = storage.get_segment(segment);
-   mfem::out << "seg " << segment << ", " << seg.loc << ": "
-             << (uint64_t)seg.lower << ", " << (uint64_t)seg.upper << std::endl;
-   auto curr = storage.first(seg.root);
-   while (curr)
+   for (int i = 0; i < 2; ++i)
    {
-      mfem::out << storage.get_node(curr).point - seg.lower;
-      if (storage.get_node(curr).is_valid())
+      if (seg.lowers[i])
       {
-         mfem::out << "(v), ";
+         if (i == 0)
+         {
+            mfem::out << "host";
+         }
+         else
+         {
+            mfem::out << "device";
+         }
+         mfem::out << " seg " << segment << ", " << seg.locs[i] << ": "
+                   << (uint64_t)seg.lowers[i] << ", "
+                   << (uint64_t)seg.lowers[i] + seg.size << std::endl;
+         auto curr = storage.first(seg.roots[i]);
+         while (curr)
+         {
+            mfem::out << storage.get_node(curr).point - seg.lowers[i];
+            if (storage.get_node(curr).is_valid())
+            {
+               mfem::out << "(v), ";
+            }
+            else
+            {
+               mfem::out << "(i), ";
+            }
+            curr = storage.successor(curr);
+         }
+         mfem::out << std::endl;
       }
-      else
-      {
-         mfem::out << "(i), ";
-      }
-      curr = storage.successor(curr);
    }
-   mfem::out << std::endl;
 }
 
 template <class F>
@@ -1512,7 +1467,7 @@ bool ResourceManager::owns_host_ptr(size_t segment)
    if (valid_segment(segment))
    {
       auto &seg = storage.get_segment(segment);
-      return seg.flag & RBase::Segment::OWN;
+      return seg.flag & RBase::Segment::OWN_HOST;
    }
    return false;
 }
@@ -1522,7 +1477,7 @@ void ResourceManager::set_owns_host_ptr(size_t segment, bool own)
    if (valid_segment(segment))
    {
       auto &seg = storage.get_segment(segment);
-      seg.set_owns(own);
+      seg.set_owns_host(own);
    }
 }
 
@@ -1531,11 +1486,7 @@ bool ResourceManager::owns_device_ptr(size_t segment)
    if (valid_segment(segment))
    {
       auto &seg = storage.get_segment(segment);
-      if (valid_segment(seg.other))
-      {
-         auto &oseg = storage.get_segment(seg.other);
-         return oseg.flag & RBase::Segment::OWN;
-      }
+      return seg.flag & RBase::Segment::OWN_DEVICE;
    }
    return false;
 }
@@ -1545,11 +1496,7 @@ void ResourceManager::set_owns_device_ptr(size_t segment, bool own)
    if (valid_segment(segment))
    {
       auto &seg = storage.get_segment(segment);
-      if (valid_segment(seg.other))
-      {
-         auto &oseg = storage.get_segment(seg.other);
-         oseg.set_owns(own);
-      }
+      seg.set_owns_device(own);
    }
 }
 
@@ -1659,5 +1606,5 @@ void ResourceManager::Copy(size_t dst_seg, size_t src_seg, char *dst_lower,
                somarker);
    }
 }
-
+#endif
 } // namespace mfem
