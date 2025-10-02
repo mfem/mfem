@@ -33,7 +33,7 @@ function locked_report ()
     exit 1
   fi
 
-  info_msg "Will report ${1} while holding an lock in ${2}"
+  info_msg "Will report ${1} while holding a lock in ${2}"
 
   ( date; info_msg "Waiting to acquire lock on '${PWD}/${2}.lock' ..."
     # try to get an exclusive lock on fd 9 (mfem-data.lock) repeating the
@@ -104,7 +104,7 @@ function report ()
 }
 
 export MACHINE_NAME=${CI_MACHINE}
-info_msg "MACHINE_NAME is${MACHINE_NAME}"
+info_msg "MACHINE_NAME is ${MACHINE_NAME}"
 info_msg "AUTOTEST_ROOT is ${AUTOTEST_ROOT}"
 
 cd ${AUTOTEST_ROOT} && locked_report ${1} autotest

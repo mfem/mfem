@@ -7,6 +7,8 @@
 
                                https://mfem.org
 
+FIXME: this file needs to be updated
+
 This directory contains utility scripts related to GitLab testing at LLNL.
 
 * `build_and_test_setup` is used in CI to setup certain directories before
