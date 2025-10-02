@@ -48,6 +48,8 @@ static void DLFEvalAssemble(const FiniteElementSpace &fes,
 void DomainLFIntegrator::AssembleDevice(const FiniteElementSpace &fes,
                                         const Array<int> &markers, Vector &b)
 {
+   MFEM_PERF_FUNCTION;
+
    const FiniteElement &fe = *fes.GetTypicalFE();
    const int qorder = oa * fe.GetOrder() + ob;
    const Geometry::Type gtype = fe.GetGeomType();

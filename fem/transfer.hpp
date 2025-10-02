@@ -621,9 +621,6 @@ public:
       const FiniteElementSpace& lFESpace_,
       const FiniteElementSpace& hFESpace_);
 
-   /// Destructor
-   virtual ~TensorProductPRefinementTransferOperator() { }
-
    /// @brief Interpolation or prolongation of a vector \p x corresponding to
    /// the coarse space to the vector \p y corresponding to the fine space.
    void Mult(const Vector& x, Vector& y) const override;
@@ -642,7 +639,7 @@ private:
    const FiniteElementSpace& lFESpace;
    const FiniteElementSpace& hFESpace;
    const Operator * P = nullptr;
-   const SparseMatrix * R = nullptr;
+   const Operator * R = nullptr;
    TransferOperator* localTransferOperator;
    mutable Vector tmpL;
    mutable Vector tmpH;
