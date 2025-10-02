@@ -362,6 +362,7 @@ void IsoLinElasticSolver::Assemble()
 
    if (dfem)
    {
+#ifdef MFEM_USE_DOUBLE
       // define the differentiable operator
       dop = std::make_unique<mfem::future::DifferentiableOperator>(
       std::vector<mfem::future::FieldDescriptor> {{ U, vfes }},
@@ -400,6 +401,9 @@ void IsoLinElasticSolver::Assemble()
          dop->AddDomainIntegrator(e3qf, inputs, output, ir, domain_attributes);
       }
       else { MFEM_ABORT("Space dimension not supported"); }
+#else
+      MFEM_ABORT("Differentiable operator is only supported in double precision");
+#endif
    }
    else
    {
