@@ -66,7 +66,6 @@
 #include "../../examples/ex18.hpp"
 #include "braginskii_hdg_solver.hpp"
 
-#define BRAGINSKII_ADAPTIVE_DT
 #define BRAGINSKII_IMEX
 
 using namespace std;
@@ -637,7 +636,6 @@ int main(int argc, char *argv[])
 
    // When dt is not specified, use CFL condition.
    // Compute h_min and initial maximum characteristic speed
-#ifdef BRAGINSKII_ADAPTIVE_DT
    real_t hmin = infinity();
    if (cfl > 0)
    {
@@ -655,7 +653,6 @@ int main(int argc, char *argv[])
       real_t max_char_speed = hyperbolicIntegrator->GetMaxCharSpeed();
       dt = cfl * hmin / max_char_speed / (2 * order + 1);
    }
-#endif // BRAGINSKII_ADAPTIVE_DT
    cout << "initial dt: " << dt << endl;
 
    // Start the timer.
@@ -672,21 +669,17 @@ int main(int argc, char *argv[])
    for (int ti = 0; !done;)
    {
       real_t dt_real = min(dt, t_final - t);
-#ifdef BRAGINSKII_ADAPTIVE_DT
       hyperbolicIntegrator->ResetMaxCharSpeed();
-#endif // BRAGINSKII_ADAPTIVE_DT
 
       bc_coeff.SetTime(t);
 
       ode_solver->Step(x, t, dt_real);
 
-#ifdef BRAGINSKII_ADAPTIVE_DT
       if (cfl > 0) // update time step size with CFL
       {
          real_t max_char_speed = hyperbolicIntegrator->GetMaxCharSpeed();
          dt = cfl * hmin / max_char_speed / (2 * order + 1);
       }
-#endif // BRAGINSKII_ADAPTIVE_DT
       ti++;
 
       done = (t >= t_final - 1e-8 * dt);
