@@ -788,14 +788,25 @@ BlockNonlinearForm::BlockNonlinearForm(Array<FiniteElementSpace *> &f) :
 }
 
 void BlockNonlinearForm::SetEssentialBC(
-   const Array<Array<int> *> &bdr_attr_is_ess, Array<Vector *> &rhs)
+   const Array<Array<int>*> &bdr_attr_is_ess, Array<Vector*> &rhs)
 {
    for (int s = 0; s < fes.Size(); ++s)
    {
-      ess_tdofs[s]->SetSize(ess_tdofs.Size());
-
       fes[s]->GetEssentialTrueDofs(*bdr_attr_is_ess[s], *ess_tdofs[s]);
 
+      if (rhs[s])
+      {
+         rhs[s]->SetSubVector(*ess_tdofs[s], 0.0);
+      }
+   }
+}
+
+void BlockNonlinearForm::SetEssentialTrueDofs(
+   const Array<Array<int>*> &ess_tdof_list, Array<Vector*> &rhs)
+{
+   for (int s = 0; s < fes.Size(); ++s)
+   {
+      *ess_tdofs[s] = *ess_tdof_list[s];
       if (rhs[s])
       {
          rhs[s]->SetSubVector(*ess_tdofs[s], 0.0);

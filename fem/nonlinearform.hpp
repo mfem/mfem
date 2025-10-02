@@ -363,8 +363,39 @@ public:
                              Array<int> &bdr_marker)
    { bfnfi.Append(nlfi); bfnfi_marker.Append(&bdr_marker); }
 
-   virtual void SetEssentialBC(const Array<Array<int> *>&bdr_attr_is_ess,
-                               Array<Vector *> &rhs);
+   /** @brief Set essential boundary conditions to each finite element space
+       using boundary attribute markers.
+
+       This method calls `FiniteElementSpace::GetEssentialTrueDofs()` for each
+       space and stores ess_tdof_lists internally.
+
+       If `rhs` vectors are non-null, the entries corresponding to these
+       essential DoFs are set to zero. This ensures compatibility with the
+       output of the `Mult()` method, which also zeroes out these entries.
+
+       @param[in] bdr_attr_is_ess A list of boundary attribute markers for each
+       space.
+       @param[in,out] rhs         An array of optional right-hand side vectors.
+       If a vector at `rhs[i]` is non-null, its essential DoFs will be set
+       to zero. */
+   virtual void SetEssentialBC(const Array<Array<int>*> &bdr_attr_is_ess,
+                               Array<Vector*> &rhs);
+
+   /** @brief Set essential boundary conditions to each finite element space
+       using essential true dof lists.
+
+       This method stores a copy of the provided essential true dof lists.
+
+       If `rhs` vectors are non-null, the entries corresponding to these
+       essential DoFs are set to zero. This ensures compatibility with the
+       output of the `Mult()` method, which also zeroes out these entries.
+
+       @param[in] ess_tdof_list A list of essential true dofs for each space.
+       @param[in,out] rhs       An array of optional right-hand side vectors.
+       If a vector at `rhs[i]` is non-null, its essential DoFs will be set
+       to zero. */
+   virtual void SetEssentialTrueDofs(const Array<Array<int>*> &ess_tdof_list,
+                                     Array<Vector*> &rhs);
 
    virtual real_t GetEnergy(const Vector &x) const;
 
