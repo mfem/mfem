@@ -10,7 +10,7 @@
 # CONTRIBUTING.md for details.
 
 # Override reproducer section to define MFEM specific variables.
-.ruby_reproducer_vars:
+.dane_reproducer_vars:
   script:
     - !reference [.reproducer_vars, script]
 
@@ -22,7 +22,7 @@
 # directory. Unit tests that depend on the mfem/data repo will then detect that
 # this directory is present and be enabled.
 setup:
-  extends: .on_ruby
+  extends: .on_dane
   stage: jobs-stage-1
   script:
     - ./tests/gitlab/build_and_test_setup
@@ -44,43 +44,43 @@ setup:
 # ${PROJECT_<MACHINE>_DEPS} in the extra jobs. There is not reason not to fully
 # describe the spec here.
 
-.mfem_job_on_ruby:
-  extends: .job_on_ruby
+.mfem_job_on_dane:
+  extends: .job_on_dane
   stage: jobs-stage-2
   variables:
     THREADS: 16
 
 debug_ser_gcc_10:
-  extends: .mfem_job_on_ruby
+  extends: .mfem_job_on_dane
   variables:
     SPEC: "%gcc@10.3.1 +debug~mpi"
 
 debug_par_gcc_10:
-  extends: .mfem_job_on_ruby
+  extends: .mfem_job_on_dane
   variables:
     SPEC: "%gcc@10.3.1 +debug+mpi"
 
 opt_ser_gcc_10:
-  extends: .mfem_job_on_ruby
+  extends: .mfem_job_on_dane
   variables:
     SPEC: "%gcc@10.3.1 ~mpi"
 
 opt_par_gcc_10:
-  extends: .mfem_job_on_ruby
+  extends: .mfem_job_on_dane
   variables:
     SPEC: "%gcc@10.3.1"
 
 opt_par_gcc_10_sundials:
-  extends: .mfem_job_on_ruby
+  extends: .mfem_job_on_dane
   variables:
     SPEC: "%gcc@10.3.1 +sundials"
 
 opt_par_gcc_10_petsc:
-  extends: .mfem_job_on_ruby
+  extends: .mfem_job_on_dane
   variables:
     SPEC: "%gcc@10.3.1 +petsc ^petsc+mumps~superlu-dist"
 
 opt_par_gcc_10_pumi:
-  extends: .mfem_job_on_ruby
+  extends: .mfem_job_on_dane
   variables:
     SPEC: "%gcc@10.3.1 +pumi"

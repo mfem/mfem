@@ -56,13 +56,13 @@
 #  │    │    ├── .lassen_reproducer_job   [job]
 #  │    │    ├── .lassen_job_command      [job]
 #  │    │    └── .job_on_lassen           [job]
-#  │    ├── <radiuss-shared-ci>/pipelines/ruby.yml  [conditional]
-#  │    │    ├── .on_ruby               [job]
-#  │    │    ├── .ruby_reproducer_init  [job]
-#  │    │    ├── .ruby_reproducer_vars  [job]
-#  │    │    ├── .ruby_reproducer_job   [job]
-#  │    │    ├── .ruby_job_command      [job]
-#  │    │    ├── .job_on_ruby           [job]
+#  │    ├── <radiuss-shared-ci>/pipelines/dane.yml  [conditional]
+#  │    │    ├── .on_dane               [job]
+#  │    │    ├── .dane_reproducer_init  [job]
+#  │    │    ├── .dane_reproducer_vars  [job]
+#  │    │    ├── .dane_reproducer_job   [job]
+#  │    │    ├── .dane_job_command      [job]
+#  │    │    ├── .job_on_dane           [job]
 #  │    │    ├── allocate_resources     [job]
 #  │    │    └── release_resources      [job]
 #  │    ├── <radiuss-shared-ci>/pipelines/tioga.yml  [conditional]
@@ -84,9 +84,9 @@
 #  │    │    └── .gitlab/jobs/lassen-reports.yml  [used conditionally]
 #  │    │         ├── report_job_success
 #  │    │         └── report_job_failure
-#  │    ├── <artifact>/ruby-jobs.yml    [conditional, from 'generate-job-lists']
-#  │    │    ├── .gitlab/jobs/ruby.yml
-#  │    │    │    ├── .ruby_reproducer_vars    [job]
+#  │    ├── <artifact>/dane-jobs.yml    [conditional, from 'generate-job-lists']
+#  │    │    ├── .gitlab/jobs/dane.yml
+#  │    │    │    ├── .dane_reproducer_vars    [job]
 #  │    │    │    ├── setup                    [job]
 #  │    │    │    │    └── ./tests/gitlab/build_and_test_setup  [script]
 #  │    │    │    ├── debug_ser_gcc_10         [job]
@@ -96,7 +96,7 @@
 #  │    │    │    ├── opt_par_gcc_10_sundials  [job]
 #  │    │    │    ├── opt_par_gcc_10_petsc     [job]
 #  │    │    │    └── opt_par_gcc_10_pumi      [job]
-#  │    │    └── .gitlab/jobs/ruby-reports.yml    [used conditionally]
+#  │    │    └── .gitlab/jobs/dane-reports.yml    [used conditionally]
 #  │    │         ├── report_job_success
 #  │    │         └── report_job_failure
 #  │    └── <artifact>/tioga-jobs.yml   [conditional, from 'generate-job-lists']
@@ -111,18 +111,18 @@
 #  └── .gitlab/subscribed-pipelines.yml
 #       ├── .machine-check         [job]
 #       ├── generate-job-lists     [job]
-#       ├── ruby-up-check          [job]
-#       ├── ruby-build-and-test    [job]
-#       ├── ruby-baseline          [job]
-#       │    └── .gitlab/ruby-baseline.yml
-#       │         ├── .on_ruby                       [job]
-#       │         ├── baselinecheck_mfem_intel_ruby  [job]
+#       ├── dane-up-check          [job]
+#       ├── dane-build-and-test    [job]
+#       ├── dane-baseline          [job]
+#       │    └── .gitlab/dane-baseline.yml
+#       │         ├── .on_dane                       [job]
+#       │         ├── baselinecheck_mfem_intel_dane  [job]
 #       │         │    └── .gitlab/scripts/baseline            [script]
 #       │         ├── cleanup                        [job]
 #       │         ├── report_baseline                [job]
 #       │         │    ├── .gitlab/scripts/safe_create_rundir  [script]
 #       │         │    └── .gitlab/scripts/git_try_to_push     [script]
-#       │         ├── baselinepublish_mfem_ruby      [job]
+#       │         ├── baselinepublish_mfem_dane      [job]
 #       │         │    └── .gitlab/scripts/rebaseline          [script]
 #       │         ├── .gitlab/custom-jobs-and-variables.yml
 #       │         │    └── <same as above: see .gitlab-ci.yml/.build-and-test>
@@ -202,17 +202,17 @@
 #  │    │    │    │    └── tests/gitlab/build_and_test_setup  [by "setup"]
 #  │    │    │    └── <defined variables>
 #  │    │    │         └── SPEC
-#  │    │    ├── ruby-reports.yml
+#  │    │    ├── dane-reports.yml
 #  │    │    │    ├── <jobs>
 #  │    │    │    │    ├── report_job_success
 #  │    │    │    │    └── report_job_failure
 #  │    │    │    └── <used jobs>
-#  │    │    │         ├── .on_ruby
+#  │    │    │         ├── .on_dane
 #  │    │    │         ├── .report_job_success
 #  │    │    │         └── .report_job_failure
-#  │    │    ├── ruby.yml
+#  │    │    ├── dane.yml
 #  │    │    │    ├── <jobs>
-#  │    │    │    │    ├── .ruby_reproducer_vars
+#  │    │    │    │    ├── .dane_reproducer_vars
 #  │    │    │    │    ├── setup
 #  │    │    │    │    ├── debug_ser_gcc_10
 #  │    │    │    │    ├── debug_par_gcc_10
@@ -223,8 +223,8 @@
 #  │    │    │    │    └── opt_par_gcc_10_pumi
 #  │    │    │    ├── <used jobs>
 #  │    │    │    │    ├── .reproducer_vars
-#  │    │    │    │    ├── .on_ruby
-#  │    │    │    │    └── .job_on_ruby
+#  │    │    │    │    ├── .on_dane
+#  │    │    │    │    └── .job_on_dane
 #  │    │    │    ├── <included and used files>
 #  │    │    │    │    └── tests/gitlab/build_and_test_setup  [by "setup"]
 #  │    │    │    └── <defined variables>
@@ -302,8 +302,8 @@
 #  │    │    │    ├── MFEM_DATA_REPO
 #  │    │    │    ├── ARTIFACTS_DIR: artifacts
 #  │    │    │    ├── SLURM_OVERLAP: 1
-#  │    │    │    ├── RUBY_SHARED_ALLOC
-#  │    │    │    ├── RUBY_JOB_ALLOC
+#  │    │    │    ├── DANE_SHARED_ALLOC
+#  │    │    │    ├── DANE_JOB_ALLOC
 #  │    │    │    ├── TIOGA_SHARED_ALLOC
 #  │    │    │    ├── TIOGA_JOB_ALLOC
 #  │    │    │    └── LASSEN_JOB_ALLOC
@@ -311,13 +311,13 @@
 #  │    │         ├── SPEC
 #  │    │         ├── BUILD_ROOT
 #  │    │         └── ...
-#  │    ├── ruby-baseline.yml
+#  │    ├── dane-baseline.yml
 #  │    │    ├── <jobs>
-#  │    │    │    ├── .on_ruby
-#  │    │    │    ├── baselinecheck_mfem_intel_ruby
+#  │    │    │    ├── .on_dane
+#  │    │    │    ├── baselinecheck_mfem_intel_dane
 #  │    │    │    ├── cleanup
 #  │    │    │    ├── report_baseline
-#  │    │    │    └── baselinepublish_mfem_ruby
+#  │    │    │    └── baselinepublish_mfem_dane
 #  │    │    ├── <included and used files>
 #  │    │    │    ├── .gitlab/custom-jobs-and-variables.yml
 #  │    │    │    ├── .gitlab/configs/setup-baseline.yml
@@ -326,11 +326,11 @@
 #  │    │    │    └── .gitlab/scripts/git_try_to_push
 #  │    │    ├── <defined variables>
 #  │    │    │    ├── BASELINE_TEST: baseline
-#  │    │    │    ├── MACHINE_NAME: ruby
+#  │    │    │    ├── MACHINE_NAME: dane
 #  │    │    │    ├── TPLS_DIR
 #  │    │    │    └── export MFEM_TEST_NP
 #  │    │    └── <used variables>
-#  │    │         ├── ON_RUBY
+#  │    │         ├── ON_DANE
 #  │    │         ├── AUTOTEST       [defined by .gitlab-ci.yml]
 #  │    │         ├── BUILD_ROOT     [defined by custom-jobs-and-variables.yml]
 #  │    │         ├── TPLS_DIR       [defined by this file]
@@ -344,9 +344,9 @@
 #  │         ├── <jobs>
 #  │         │    ├── .machine-check
 #  │         │    ├── generate-job-lists
-#  │         │    ├── ruby-up-check
-#  │         │    ├── ruby-build-and-test
-#  │         │    ├── ruby-baseline
+#  │         │    ├── dane-up-check
+#  │         │    ├── dane-build-and-test
+#  │         │    ├── dane-baseline
 #  │         │    ├── tioga-up-check
 #  │         │    ├── tioga-build-and-test
 #  │         │    ├── lassen-up-check
@@ -354,7 +354,7 @@
 #  │         ├── <used jobs>
 #  │         │    └── .build-and-test  [from ".gitlab-ci.yml"]
 #  │         ├── <included files>
-#  │         │    └── .gitlab/ruby-baseline.yml  [by "ruby-baseline"]
+#  │         │    └── .gitlab/dane-baseline.yml  [by "dane-baseline"]
 #  │         └── <used variables>
 #  │              ├── GITHUB_PROJECT_ORG
 #  │              ├── GITHUB_PROJECT_NAME
@@ -417,14 +417,14 @@
 #       │         ├── GITHUB_PROJECT_ORG
 #       │         ├── LASSEN_JOB_ALLOC
 #       │         └── JOB_CMD
-#       ├── ruby.yml
+#       ├── dane.yml
 #       │    ├── <jobs>
-#       │    │    ├── .on_ruby
-#       │    │    ├── .ruby_reproducer_init
-#       │    │    ├── .ruby_reproducer_vars
-#       │    │    ├── .ruby_reproducer_job
-#       │    │    ├── .ruby_job_command
-#       │    │    ├── .job_on_ruby
+#       │    │    ├── .on_dane
+#       │    │    ├── .dane_reproducer_init
+#       │    │    ├── .dane_reproducer_vars
+#       │    │    ├── .dane_reproducer_job
+#       │    │    ├── .dane_job_command
+#       │    │    ├── .job_on_dane
 #       │    │    ├── allocate_resources
 #       │    │    └── release_resources
 #       │    ├── <used jobs>
@@ -432,7 +432,7 @@
 #       │    ├── <defined variables>
 #       │    │    └── export JOBID
 #       │    └── <used variables>
-#       │         ├── ON_RUBY
+#       │         ├── ON_DANE
 #       │         ├── ADVANCED_JOB
 #       │         ├── ALL_TARGETS
 #       │         ├── SYS_TYPE
@@ -440,11 +440,11 @@
 #       │         ├── USER
 #       │         ├── GITHUB_PROJECT_NAME
 #       │         ├── GITHUB_PROJECT_ORG
-#       │         ├── RUBY_JOB_ALLOC
+#       │         ├── DANE_JOB_ALLOC
 #       │         ├── JOB_CMD
 #       │         ├── JOBID
 #       │         ├── ALLOC_NAME
-#       │         └── RUBY_SHARED_ALLOC
+#       │         └── DANE_SHARED_ALLOC
 #       └── tioga.yml
 #            ├── <jobs>
 #            │    ├── .on_tioga

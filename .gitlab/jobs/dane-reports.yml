@@ -11,9 +11,9 @@
 
 # Jobs report
 report_job_success:
-  extends: [.on_ruby, .report_job_success]
+  extends: [.on_dane, .report_job_success]
   stage: jobs-stage-3
 
 report_job_failure:
-  extends: [.on_ruby, .report_job_failure]
+  extends: [.on_dane, .report_job_failure]
   stage: jobs-stage-3

@@ -26,7 +26,7 @@ and `test type`.
 
 Machines typically include:
 
-* Ruby: 2nd Gen Intel Xeon (Cascade Lake)
+* Dane: Intel Sapphire Rapids
 * Lassen: Power9 + Nvidia GPU
 * Tioga: AMD GPU
 
@@ -65,7 +65,7 @@ generation.
 ### baseline
 
 Baseline sub-pipelines are described by files with names reflecting the
-machine it runs on, e.g. `ruby-baseline`.
+machine it runs on, e.g. `dane-baseline`.
 
 Those files define the *stages* and the *jobs* for the sub-pipeline. They
 also contain any configuration that cannot be shared. For the most part
@@ -100,13 +100,13 @@ with a spack spec of MFEM, within the limits permitted by the MFEM spack
 package.
 
 In any build-and-test sub-pipeline a job basically consists in defining the
-spack spec to use. Adding a job on ruby for example resumes to:
+spack spec to use. Adding a job on dane for example resumes to:
 
 ```yaml
 <job_name>:
   variables:
     SPEC: "<spack_spec>"
-  extends: .job_on_ruby
+  extends: .job_on_dane
 ```
 
 The remaining and non trivial work is to make sure this spec is working. To

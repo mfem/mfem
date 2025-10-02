@@ -11,7 +11,7 @@
 
 variables:
   BASELINE_TEST: baseline
-  MACHINE_NAME: ruby
+  MACHINE_NAME: dane
 
 stages:
   - setup
@@ -20,13 +20,13 @@ stages:
   - cleanup
   - baseline_publish
 
-.on_ruby:
+.on_dane:
   tags:
     - shell
-    - ruby
+    - dane
   rules:
-    # Don't run ruby jobs if...
-    - if: '$ON_RUBY == "OFF"'
+    # Don't run dane jobs if...
+    - if: '$ON_DANE == "OFF"'
       when: never
     # Don't run autotest update if...
     - if: '$CI_JOB_NAME =~ /report/ && $AUTOTEST != "ON"'
@@ -37,8 +37,8 @@ stages:
     # Default is to run if previous stage succeeded
     - when: on_success
 
-baselinecheck_mfem_intel_ruby:
-  extends: [.on_ruby]
+baselinecheck_mfem_intel_dane:
+  extends: [.on_dane]
   stage: baseline_check
   variables:
     # TPLS_DIR is used in .gitlab/scripts/baseline to provide the tpls location
@@ -62,7 +62,7 @@ baselinecheck_mfem_intel_ruby:
   allow_failure: true
 
 cleanup:
-  extends: .on_ruby
+  extends: .on_dane
   stage: cleanup
   variables:
     GIT_STRATEGY: none
@@ -71,7 +71,7 @@ cleanup:
     - rm -rf "${BUILD_ROOT}" || true
 
 report_baseline:
-  extends: [.on_ruby]
+  extends: [.on_dane]
   stage: baseline_report
   script:
     - echo ${MACHINE_NAME}
@@ -131,8 +131,8 @@ report_baseline:
         exit $err
       ) 9> autotest.lock
 
-baselinepublish_mfem_ruby:
-  extends: [.on_ruby]
+baselinepublish_mfem_dane:
+  extends: [.on_dane]
   stage: baseline_publish
   rules:
     # - if: '$CI_COMMIT_BRANCH == "master" || $REBASELINE == "ON"'

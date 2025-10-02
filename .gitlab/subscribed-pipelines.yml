@@ -42,10 +42,10 @@ generate-job-lists:
     LOCAL_JOBS_PATH: ".gitlab/jobs"
   script:
     - |
-      cat ${LOCAL_JOBS_PATH}/ruby.yml > ruby-jobs.yml
+      cat ${LOCAL_JOBS_PATH}/dane.yml > dane-jobs.yml
       if [[ ${AUTOTEST} == "ON" ]]
       then
-          cat ${LOCAL_JOBS_PATH}/ruby-reports.yml >> ruby-jobs.yml
+          cat ${LOCAL_JOBS_PATH}/dane-reports.yml >> dane-jobs.yml
       fi
     - |
       cat ${LOCAL_JOBS_PATH}/lassen.yml > lassen-jobs.yml
@@ -61,29 +61,29 @@ generate-job-lists:
       fi
   artifacts:
     paths:
-      - ruby-jobs.yml
+      - dane-jobs.yml
       - lassen-jobs.yml
       - tioga-jobs.yml
 
 
-# RUBY
-ruby-up-check:
+# DANE
+dane-up-check:
   variables:
-    CI_MACHINE: "ruby"
+    CI_MACHINE: "dane"
   extends: [.machine-check]
 
-ruby-build-and-test:
+dane-build-and-test:
   variables:
-    CI_MACHINE: "ruby"
+    CI_MACHINE: "dane"
     # Explicitly pass down values that we want to be able to set when triggering
     # pipelines manually or using scheduling
     AUTOTEST: "${AUTOTEST}"
     AUTOTEST_COMMIT: "${AUTOTEST_COMMIT}"
-  needs: [ruby-up-check, generate-job-lists]
+  needs: [dane-up-check, generate-job-lists]
   extends: [.build-and-test]
 
-# RUBY, MFEM Specific
-ruby-baseline:
+# DANE, MFEM Specific
+dane-baseline:
   stage: test-pipelines
   variables:
     # Explicitly pass down values that we want to be able to set when triggering
@@ -92,9 +92,9 @@ ruby-baseline:
     AUTOTEST: "${AUTOTEST}"
     AUTOTEST_COMMIT: "${AUTOTEST_COMMIT}"
   trigger:
-    include: .gitlab/ruby-baseline.yml
+    include: .gitlab/dane-baseline.yml
     strategy: depend
-  needs: [ruby-up-check]
+  needs: [dane-up-check]
 
 
 # TIOGA
