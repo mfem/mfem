@@ -9,17 +9,17 @@
 # terms of the BSD-3 license. We welcome feedback and contributions, see file
 # CONTRIBUTING.md for details.
 
-# GitLab pipelines configurations for the Ruby machine at LLNL
+# GitLab pipelines configurations for the Dane machine at LLNL
 variables:
-  MACHINE_NAME: ruby
+  MACHINE_NAME: dane
 
-.on_ruby:
+.on_dane:
   tags:
     - shell
-    - ruby
+    - dane
   rules:
-    # Don't run ruby jobs if...
-    - if: '$CI_COMMIT_BRANCH =~ /_qnone/ || $ON_RUBY == "OFF"'
+    # Don't run dane jobs if...
+    - if: '$CI_COMMIT_BRANCH =~ /_qnone/ || $ON_DANE == "OFF"'
       when: never
     # Don't run autotest update if...
     - if: '$CI_JOB_NAME =~ /report/ && $AUTOTEST != "YES"'
@@ -40,16 +40,17 @@ variables:
     - when: on_success
 
 # Spack helped builds
-# Generic ruby build job, extending build script
-.build_and_test_on_ruby:
-  extends: [.on_ruby]
+# Generic dane build job, extending build script
+.build_and_test_on_dane:
+  extends: [.on_dane]
   stage: build_and_test
   script:
     # THREADS is used by 'tests/gitlab/build_and_test', run below
-    - export THREADS=16
+    # Dane has 224 threads/node and we run 7 separate jobs: 224=7*32
+    - export THREADS=28
     - echo ${ALLOC_NAME}
     - export JOBID=$(squeue -h --name=${ALLOC_NAME} --format=%A)
     - echo ${JOBID}
     - echo ${MFEM_DATA_DIR}
     - echo ${SPEC}
-    - srun $( [[ -n "${JOBID}" ]] && echo "--jobid=${JOBID}" ) --reservation=ci -t 45 -N 1 tests/gitlab/build_and_test --spec "${SPEC}" --data-dir "${MFEM_DATA_DIR}" --data
+    - srun $( [[ -n "${JOBID}" ]] && echo "--jobid=${JOBID}" ) --reservation=ci -t 60 -N 1 tests/gitlab/build_and_test --spec "${SPEC}" --data-dir "${MFEM_DATA_DIR}" --data
