@@ -326,6 +326,9 @@ miniapps/nurbs/k*_*.dat
 miniapps/nurbs/*-Surface.mesh
 miniapps/nurbs/*.mesh
 miniapps/nurbs/*.sol
+miniapps/nurbs/deformed.*
+miniapps/nurbs/elastic_energy.*
+miniapps/nurbs/velocity.*
 
 miniapps/performance/ex1
 miniapps/performance/ex1p
