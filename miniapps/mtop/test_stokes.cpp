@@ -6,6 +6,37 @@
 
 using namespace mfem;
 
+class BrinkCoeff :public Coefficient
+{
+public:
+    BrinkCoeff(real_t penal_=10.0):penalty(penal_)
+    {
+    }
+
+    virtual real_t Eval(ElementTransformation &T,
+                        const IntegrationPoint &ip) override
+    {
+        real_t x[3];
+        Vector transip(x, 3);
+        T.Transform(ip, transip);
+
+        real_t c[3]={0.2,0.2,0.0};
+        real_t r=0.0;
+        real_t d;
+        for(int i=0;i<3;i++){
+            d=x[i]-c[i];
+            r=r+d*d;
+        }
+
+        r=sqrt(r);
+        if(r>0.05){return 0.0;}
+        else{ return penalty;}
+    }
+
+private:
+    real_t penalty;
+};
+
 int main(int argc, char *argv[])
 {
    // 1. Initialize MPI and HYPRE.
@@ -14,7 +45,7 @@ int main(int argc, char *argv[])
    mfem::Hypre::Init();
 
    // Parse command-line options.
-   const char *mesh_file = "./mini_flow2d_ball.msh";
+   const char *mesh_file = "./dfg_bench_flow_tri.msh";
    int order = 1;
    bool static_cond = false;
    int ser_ref_levels = 1;
@@ -109,6 +140,7 @@ int main(int argc, char *argv[])
 
    StokesSolver* solver=new StokesSolver(&pmesh,2);
 
+
    mfem::Vector bci(dim); bci=1.0; bci(1)=0.0;
    mfem::Vector zvi(dim); zvi=0.0;
    std::shared_ptr<VectorCoefficient> cvci;
@@ -118,8 +150,14 @@ int main(int argc, char *argv[])
 
    solver->AddVelocityBC(1,cvci);
    solver->AddVelocityBC(2,cvci);
-   //solver->AddVelocityBC(3,cvci);
-   solver->AddVelocityBC(4,zvci);
+   solver->AddVelocityBC(3,cvci);
+   //solver->AddVelocityBC(4,cvci);
+   //solver->AddVelocityBC(5,zvci);
+
+   std::shared_ptr<Coefficient> brink;
+   brink.reset(new BrinkCoeff(1000.0));
+
+   solver->SetBrink(brink);
 
    ParGridFunction pg(solver->GetVelocitySpace()); pg=0.0;
    ParGridFunction ng(solver->GetVelocitySpace()); ng=0.0;
@@ -131,7 +169,8 @@ int main(int argc, char *argv[])
 
    ng.SetFromTrueDofs(pgv);
 
-   solver->SetZeroMeanPressure(true);
+   //solver->SetZeroMeanPressure(true);
+   solver->SetLinearSolver(1e-8,1e-12,50);
 
    solver->Assemble();
    solver->FSolve();

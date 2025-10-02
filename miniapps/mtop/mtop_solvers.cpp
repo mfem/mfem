@@ -15,18 +15,11 @@
 
 using namespace mfem;
 
-using mfem::future::dual;
-using mfem::future::tuple;
-using mfem::future::tensor;
-
-using mfem::future::Weight;
-using mfem::future::Gradient;
-using mfem::future::Identity;
-
-StokesSolver::StokesSolver(ParMesh* mesh, int order_, bool dfem_):
-   dfem(dfem_),
+StokesSolver::StokesSolver(ParMesh* mesh, int order_, bool zero_mean_press_):
    pmesh(mesh),
-   order(order_)
+   order(order_),
+   dim(mesh->SpaceDimension()),
+   zero_mean_press(zero_mean_press_)
 {
    if (order_<2) { order=2;}
 
@@ -55,6 +48,10 @@ StokesSolver::StokesSolver(ParMesh* mesh, int order_, bool dfem_):
    block_true_offsets[1] = siz_u;
    block_true_offsets[2] = siz_p;
    block_true_offsets.PartialSum();
+   //set the width and the height of the operator
+   this->width=  block_true_offsets[2];
+   this->height= block_true_offsets[2];
+
 
    sol.Update(block_true_offsets); sol=0.0;
    rhs.Update(block_true_offsets); rhs=0.0;
@@ -62,15 +59,9 @@ StokesSolver::StokesSolver(ParMesh* mesh, int order_, bool dfem_):
 
    ess_tdofv.SetSize(0);
 
-   //set the width and the height of the operator
-   Operator::width=  block_true_offsets[2];
-   Operator::height= block_true_offsets[2];
-
    bf11.reset();
    bf12.reset();
    bf21.reset();
-
-   zero_mean_press=false;
 
    SetLinearSolver();
 }
@@ -186,15 +177,17 @@ void StokesSolver::Assemble()
    //assemble block 12
    bf12.reset(new ParMixedBilinearForm(pfes, vfes));
    //bf12->AddDomainIntegrator(new GradientIntegrator());
-   bf12->AddDomainIntegrator(new TransposeIntegrator(new
-                                                     VectorDivergenceIntegrator()));
+   bf12->AddDomainIntegrator(
+               new TransposeIntegrator(
+                   new VectorDivergenceIntegrator()));
    bf12->Assemble(0);
    bf12->Finalize(0);
    A12.reset(bf12->ParallelAssemble());
 
    //assemble block 21
    bf21.reset(new ParMixedBilinearForm(vfes, pfes));
-   bf21->AddDomainIntegrator(new VectorDivergenceIntegrator());
+   bf21->AddDomainIntegrator(
+               new VectorDivergenceIntegrator());
    bf21->Assemble(0);
    bf21->Finalize(0);
    A21.reset(bf21->ParallelAssemble());
@@ -210,13 +203,22 @@ void StokesSolver::Assemble()
    bop->SetBlock(0,1,A12.get());
    bop->SetBlock(1,0,A21.get());
 
+   if (zero_mean_press)
+   {
+      V.SetSize(pfes->GetTrueVSize()); V=0.0;
+      ParLinearForm lf(pfes);
+      lf.AddDomainIntegrator(new DomainLFIntegrator(onecoeff));
+      lf.Assemble();
+      lf.ParallelAssemble(V);
+   }
+
    //set the solver to GMRES
    {
       //GMRESSolver* gmres=new GMRESSolver(pmesh->GetComm());
 
       //MINRESSolver* gmres=new MINRESSolver(pmesh->GetComm());
       FGMRESSolver* gmres=new FGMRESSolver(pmesh->GetComm());
-      gmres->SetKDim(30);
+      gmres->SetKDim(100);
       gmres->SetRelTol(linear_rtol);
       gmres->SetAbsTol(linear_atol);
       gmres->SetMaxIter(linear_iter);
@@ -229,21 +231,14 @@ void StokesSolver::Assemble()
                                            A11.get(),A12.get(),A21.get(),zero_mean_press);
 
       prec.reset(lsc);
-      prec->SetMaxIter(15);
+      prec->SetMaxIter(205);
       prec->SetAbsTol(1e-12);
       prec->SetRelTol(1e-5);
       gmres->SetPreconditioner(*prec);
+
       ls.reset(gmres);
    }
 
-   if (zero_mean_press)
-   {
-      V.SetSize(pfes->GetTrueVSize()); V=0.0;
-      ParLinearForm lf(pfes);
-      lf.AddDomainIntegrator(new DomainLFIntegrator(onecoeff));
-      lf.Assemble();
-      lf.ParallelAssemble(V);
-   }
 }
 
 void StokesSolver::FSolve()
@@ -255,17 +250,13 @@ void StokesSolver::FSolve()
    Vector& prhs=rhs.GetBlock(1);
 
    //assemble the RHS
-   prhs=0.0;
+   rhs=0.0;
    if (nullptr!=vol_force.get())
    {
       ParLinearForm lf(vfes);
       lf.AddDomainIntegrator(new VectorDomainLFIntegrator(*vol_force));
       lf.Assemble();
       lf.ParallelAssemble(vrhs);
-   }
-   else
-   {
-      vrhs=0.0;
    }
 
    //set the velocity BCs
@@ -278,6 +269,7 @@ void StokesSolver::FSolve()
 
    //solve the linear system
    ls->Mult(rhs,sol);
+
 }
 
 void StokesSolver::ASolve(mfem::Vector &rhs)
