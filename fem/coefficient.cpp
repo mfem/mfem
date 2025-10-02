@@ -252,6 +252,28 @@ void GridFunctionCoefficient::Project(QuadratureFunction &qf)
    qf.ProjectGridFunction(*GridF);
 }
 
+void GridFunctionVectorCoefficient::Eval (Vector &vec,
+                                          ElementTransformation &T,
+                                          const IntegrationPoint &ip)
+{
+   Mesh *gf_mesh = GridF->FESpace()->GetMesh();
+   if (T.mesh->GetNE() == gf_mesh->GetNE())
+   {
+      GridF->GetVectorValue(T, ip, vec);
+   }
+   else
+   {
+      IntegrationPoint coarse_ip;
+      ElementTransformation *coarse_T = RefinedToCoarse(*gf_mesh, T, ip, coarse_ip);
+      GridF->GetVectorValue(*coarse_T, coarse_ip, vec);
+   }
+}
+
+void GridFunctionVectorCoefficient::Project(QuadratureFunction &qf)
+{
+   qf.ProjectGridFunction(*GridF);
+}
+
 void TransformedCoefficient::SetTime(real_t t)
 {
    if (Q1) { Q1->SetTime(t); }
