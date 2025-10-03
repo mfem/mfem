@@ -512,7 +512,7 @@ int main(int argc, char *argv[])
    {
       cout<<"Strong Dirichlet BC\n";
    }
-
+   std::cout<<518<<std::endl;
    chrono.Clear();
    chrono.Start();
    BilinearForm kVarf(&u_space);
