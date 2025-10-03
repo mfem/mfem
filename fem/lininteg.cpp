@@ -239,6 +239,45 @@ void BoundaryNormalLFIntegrator::AssembleRHSElementVect(
    }
 }
 
+void BoundaryNormalLFIntegrator::AssembleRHSElementVect(
+   const FiniteElement &el, FaceElementTransformations &Tr, Vector &elvect)
+{
+   int dim = el.GetDim();
+   int dof = el.GetDof();
+   Vector nor(dim), Qvec;
+
+   shape.SetSize(dof);
+   elvect.SetSize(dof);
+   elvect = 0.0;
+
+   const IntegrationRule *ir = IntRule;
+   if (ir == NULL)
+   {
+      int intorder = oa * el.GetOrder() + ob;  // <----------
+      ir = &IntRules.Get(el.GetGeomType(), intorder);
+   }
+
+   for (int i = 0; i < ir->GetNPoints(); i++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(i);
+
+      Tr.SetAllIntPoints(&ip);
+      if (dim > 1)
+      {
+         CalcOrtho(Tr.Jacobian(), nor);
+      }
+      else
+      {
+         nor[0] = 1.0;
+      }
+      Q.Eval(Qvec, *Tr.Elem1, ip);
+
+      el.CalcShape(ip, shape);
+
+      elvect.Add(ip.weight*(Qvec*nor), shape);
+   }
+}
+
 void BoundaryTangentialLFIntegrator::AssembleRHSElementVect(
    const FiniteElement &el, ElementTransformation &Tr, Vector &elvect)
 {
