@@ -179,12 +179,19 @@ MatFunc GetKFun(const ProblemParams &params, Quantity q);
 VecFunc GetU0Fun(const ProblemParams &params);
 VecTFunc GetBCFun(const ProblemParams &params);
 
+// Open the named VisItDataCollection and read the mesh.
+// Returns pointers to the two new objects.
+int ReadVisItMesh(const char * coll_name,
+                  int pad_digits_cycle, int cycle,
+                  std::unique_ptr<VisItDataCollection> &dc,
+                  Mesh* &mesh);
+
 // Open the named VisItDataCollection and read the named field.
 // Returns pointers to the two new objects.
-int ReadGridFunction(const char * coll_name, const char * field_name,
-                     int pad_digits_cycle, int cycle,
-                     std::unique_ptr<VisItDataCollection> &dc,
-                     GridFunction* &gf);
+int ReadVisItGF(const char * coll_name, const char * field_name,
+                int pad_digits_cycle, int cycle,
+                std::unique_ptr<VisItDataCollection> &dc,
+                GridFunction* &gf);
 
 bool VisualizeField(socketstream &sout, const GridFunction &gf,
                     const char *name, real_t t = 0.);
@@ -296,10 +303,24 @@ int main(int argc, char *argv[])
 
    // 2. Read the mesh from the given mesh file. When the user does not provide
    //    mesh file, use the default mesh file for the problem.
+   std::unique_ptr<VisItDataCollection> B_dc;
    Mesh mesh;
    if (!mesh_file.empty())
    {
       mesh = std::move(Mesh(mesh_file));
+   }
+   else if (strlen(Bpars.external.coll_name) > 0)
+   {
+      Mesh *B_mesh{};
+      if (ReadVisItMesh(Bpars.external.coll_name,
+                        Bpars.external.pad_digits_cycle, Bpars.external.cycle,
+                        B_dc, B_mesh))
+      {
+         cerr << "Error loading B mesh" << endl;
+         return 1;
+      }
+
+      mesh = std::move(Mesh(*B_mesh));
    }
    else
    {
@@ -361,17 +382,16 @@ int main(int argc, char *argv[])
 
    // Read the magnetic field grid function from the given VisIt data
    // collection or otherwise align anisotropy with the axes
-   std::unique_ptr<VisItDataCollection> B_dc;
    std::unique_ptr<VectorCoefficient> B_coeff;
 
    if (strlen(Bpars.external.coll_name) > 0)
    {
       GridFunction *B_gf;
-      if (ReadGridFunction(Bpars.external.coll_name, Bpars.external.field_name,
-                           Bpars.external.pad_digits_cycle, Bpars.external.cycle,
-                           B_dc, B_gf))
+      if (ReadVisItGF(Bpars.external.coll_name, Bpars.external.field_name,
+                      Bpars.external.pad_digits_cycle, Bpars.external.cycle,
+                      B_dc, B_gf))
       {
-         mfem::out << "Error loading B field" << endl;
+         cerr << "Error loading B field" << endl;
          return 1;
       }
 
@@ -985,25 +1005,59 @@ VecTFunc GetBCFun(const ProblemParams &params)
    return VecTFunc();
 }
 
-int ReadGridFunction(const char * coll_name, const char * field_name,
-                     int pad_digits_cycle, int cycle,
-                     std::unique_ptr<VisItDataCollection> &dc,
-                     GridFunction* &gf)
+int LoadVisItDC(const char * coll_name, int pad_digits_cycle, int cycle,
+                std::unique_ptr<VisItDataCollection> &dc)
 {
-   dc.reset(new VisItDataCollection(coll_name));
+   if (!dc)
+   {
+      dc.reset(new VisItDataCollection(coll_name));
+   }
    dc->SetPadDigitsCycle(pad_digits_cycle);
-   dc->Load(cycle);
+   if (dc->GetCycle() != cycle)
+   {
+      dc->Load(cycle);
+   }
 
    if (dc->Error() != DataCollection::No_Error)
    {
-      mfem::out << "Error loading VisIt data collection: "
-                << coll_name << endl;
+      cerr << "Error loading VisIt data collection: "
+           << coll_name << endl;
       return 1;
    }
+
+   return 0;
+}
+
+int ReadVisItMesh(const char * coll_name,
+                  int pad_digits_cycle, int cycle,
+                  std::unique_ptr<VisItDataCollection> &dc,
+                  Mesh* &mesh)
+{
+   int err = LoadVisItDC(coll_name, pad_digits_cycle, cycle, dc);
+   if (err) { return err; }
+
+   mesh = dc->GetMesh();
+
+   return 0;
+}
+
+int ReadVisItGF(const char * coll_name, const char * field_name,
+                int pad_digits_cycle, int cycle,
+                std::unique_ptr<VisItDataCollection> &dc,
+                GridFunction* &gf)
+{
+   int err = LoadVisItDC(coll_name, pad_digits_cycle, cycle, dc);
+   if (err) { return err; }
 
    if (dc->HasField(field_name))
    {
       gf = dc->GetField(field_name);
+   }
+   else
+   {
+      cerr << "The field \"" << field_name << "\" does not exist the collection" <<
+           endl;
+      return 1;
    }
 
    return 0;
