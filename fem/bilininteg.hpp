@@ -3070,6 +3070,25 @@ public:
    const Coefficient *GetCoefficient() const { return Q; }
 };
 
+/// $\alpha (Q \cdot \nabla u, v)$ using the "group" FE discretization
+class VectorFEConvectionIntegrator : public BilinearFormIntegrator
+{
+protected:
+   VectorCoefficient *Q;
+   real_t alpha;
+
+private:
+   DenseMatrix vshape, Qip;
+   DenseTensor dvshape;
+
+public:
+   VectorFEConvectionIntegrator(VectorCoefficient &q, real_t a = 1.0)
+      : Q(&q) { alpha = a; }
+   void AssembleElementMatrix(const FiniteElement &,
+                              ElementTransformation &,
+                              DenseMatrix &) override;
+};
+
 
 /** Integrator for $(Q \nabla \cdot u, v)$ where $u=(u_1,\cdots,u_n)$ and all $u_i$ are in the same
     scalar FE space; $v$ is also in a (different) scalar FE space.  */

@@ -3024,6 +3024,54 @@ void VectorFEDiffusionIntegrator::AssembleElementMatrix2(
    }
 }
 
+void VectorFEConvectionIntegrator::AssembleElementMatrix(
+   const FiniteElement &el, ElementTransformation &Trans, DenseMatrix &elmat)
+{
+   int nd = el.GetDof();
+   int dim = el.GetDim();
+
+   elmat.SetSize(nd);
+   dvshape.SetSize(nd,dim,dim);
+   vshape.SetSize(nd,dim);
+
+   const IntegrationRule *ir = GetIntegrationRule(el, Trans);
+   if (ir == NULL)
+   {
+      int order = Trans.OrderGrad(&el) + el.GetOrder();
+      ir = &IntRules.Get(el.GetGeomType(), order);
+   }
+
+   Q->Eval(Qip, Trans, *ir); // sets the size of Q_nodal
+
+   elmat = 0.0;
+   for (int i = 0; i < ir->GetNPoints(); i++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(i);
+      el.CalcPhysDVShape(Trans, dvshape);
+      el.CalcVShape(Trans, vshape);
+
+      Trans.SetIntPoint(&ip);
+      real_t w = alpha * ip.weight * Trans.Weight();
+
+      // elmat(k,l) += \sum_s w*vshape(k,r)*Qip(i,s)*dvshape(l,r,s)
+      for (int k = 0; k < nd; k++)
+      {
+         for (int r = 0; r < dim; r++)
+         {
+            real_t wsk = w*vshape(k,r);
+            for (int l = 0; l < nd; l++)
+            {
+               real_t a = 0.0;
+               for (int s = 0; s < dim; s++)
+               {
+                  a += Qip(i,s)*dvshape(l,r,s);
+               }
+               elmat(k,l) += wsk*a;
+            }
+         }
+      }
+   }
+}
 
 void VectorDivergenceIntegrator::AssembleElementMatrix2(
    const FiniteElement &trial_fe,
