@@ -98,12 +98,12 @@ void u_fun(const Vector & x, Vector & u)
    u[0] = sin(M_PI*x[0])*x[1];
    u[1] = 0;
 
-  /* u = 0.0;
+   /* u = 0.0;
 
-   if (fabs(x[0] - 0.5) < 0.4999999) 
-   {
-      u[0] = x[1];
-   }*/
+    if (fabs(x[0] - 0.5) < 0.4999999)
+    {
+       u[0] = x[1];
+    }*/
 }
 
 void f_fun(const Vector & x, Vector & f)
@@ -509,8 +509,9 @@ int main(int argc, char *argv[])
    u_gf.MakeRef(&u_space, x.GetBlock(0), 0);
    p_gf.MakeRef(&p_space, x.GetBlock(1), 0);
 
-  // u_gf.ProjectCoefficient(*u_cf,GridFunction::ProjType::ELEMENT); // use when PR #4326 is accepted
-   ProjectCoefficientGlobalL2(*u_cf, 1e-10, 250, u_gf); //remove when PR #4326 is accepted
+   // u_gf.ProjectCoefficient(*u_cf,GridFunction::ProjType::ELEMENT); // use when PR #4326 is accepted
+   ProjectCoefficientGlobalL2(*u_cf, 1e-10, 250,
+                              u_gf); //remove when PR #4326 is accepted
    p_gf = 0.0;
 
    GridFunctionVectorCoefficient uh_cf(&u_gf, dim);
