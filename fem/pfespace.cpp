@@ -5220,10 +5220,10 @@ void ConformingProlongationOperator::Mult(const Vector &x, Vector &y) const
    for (int i = 0; i < m; i++)
    {
       const int end = external_ldofs[i];
-      std::copy(xdata+j-i, xdata+end-i, ydata+j);
+      if (end > j) { std::copy(xdata+j-i, xdata+end-i, ydata+j); }
       j = end+1;
    }
-   std::copy(xdata+j-m, xdata+Width(), ydata+j);
+   if (Width() > (j-m)) { std::copy(xdata+j-m, xdata+Width(), ydata+j); }
 
    const int out_layout = 0; // 0 - output is ldofs array
    if (!local)
@@ -5251,10 +5251,10 @@ void ConformingProlongationOperator::MultTranspose(
    for (int i = 0; i < m; i++)
    {
       const int end = external_ldofs[i];
-      std::copy(xdata+j, xdata+end, ydata+j-i);
+      if (end > j) { std::copy(xdata+j, xdata+end, ydata+j-i); }
       j = end+1;
    }
-   std::copy(xdata+j, xdata+Height(), ydata+j-m);
+   if (Height() > j) { std::copy(xdata+j, xdata+Height(), ydata+j-m); }
 
    const int out_layout = 2; // 2 - output is an array on all ltdofs
    if (!local)
