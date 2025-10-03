@@ -123,6 +123,24 @@ struct ProblemParams
    } inflow;
 };
 
+struct MagneticParams
+{
+   struct
+   {
+      real_t B_c{1.};
+      Vector x_c;
+      Vector dir;
+      real_t r{0.};
+   } wire;
+   struct
+   {
+      const char *coll_name = "";
+      const char *field_name = "B";
+      int cycle = 10;
+      int pad_digits_cycle = 6;
+   } external;
+};
+
 class AnisotropicMatrixFunctionCoefficient : public MatrixCoefficient
 {
 public:
@@ -156,6 +174,7 @@ typedef std::function<void(const Vector &, Vector &)> VecFunc;
 typedef std::function<void(const Vector &, real_t, Vector &)> VecTFunc;
 typedef AnisotropicMatrixFunctionCoefficient::AnisoMatFunc MatFunc;
 
+VecFunc GetBFun(const MagneticParams &params);
 MatFunc GetKFun(const ProblemParams &params, Quantity q);
 VecFunc GetU0Fun(const ProblemParams &params);
 VecTFunc GetBCFun(const ProblemParams &params);
@@ -182,19 +201,16 @@ int main(int argc, char *argv[])
    int order = 3;
    bool dg = false;
    bool brt = false;
+   real_t td = 0.5;
+   bool hybridization = false;
    int ode_solver_type = 4;
-   ProblemParams pars;
    real_t t_final = 1.0;
    real_t dt = -0.01;
    real_t cfl = 0.3;
-   real_t td = 0.5;
 
-   const char *B_coll_name = "";
-   const char *B_field_name = "B";
-   int B_cycle = 10;
-   int B_pad_digits_cycle = 6;
+   ProblemParams pars;
+   MagneticParams Bpars;
 
-   bool hybridization = false;
    bool visualization = true;
    int vis_steps = 50;
 
@@ -214,6 +230,8 @@ int main(int argc, char *argv[])
                   "--no-broken-RT", "Enable broken RT elements for fluxes.");
    args.AddOption(&td, "-td", "--stab_diff",
                   "Diffusion stabilization factor (1/2=default)");
+   args.AddOption(&hybridization, "-hb", "--hybridization", "-no-hb",
+                  "--no-hybridization", "Enable hybridization.");
    args.AddOption(&ode_solver_type, "-s", "--ode-solver",
                   ODESolver::ImplicitTypes.c_str());
    args.AddOption(&t_final, "-tf", "--t-final", "Final time; start time is 0.");
@@ -246,16 +264,27 @@ int main(int argc, char *argv[])
    args.AddOption(&pars.inflow.dt_cen, "-indt", "--inflow-ramp-time",
                   "Inflow ramp-up time of the source");
 
-   args.AddOption(&B_coll_name, "-bdc", "--b-data-collection",
-                  "Set the VisIt data collection B field root file prefix.");
-   args.AddOption(&B_field_name, "-bf", "--b-field-name",
-                  "Set the VisIt data collection B field name");
-   args.AddOption(&B_cycle, "-bcyc", "--b-cycle",
-                  "Set the B field cycle index to read.");
-   args.AddOption(&B_pad_digits_cycle, "-bpdc", "--b-pad-digits-cycle",
+   // wire
+   args.AddOption(&Bpars.wire.B_c, "-wireb", "--wire-magfield",
+                  "Wire magnetic field at unit distance");
+   args.AddOption(&Bpars.wire.x_c, "-wirex", "--wire-location",
+                  "Wire location");
+   args.AddOption(&Bpars.wire.dir, "-wired", "--wire-direction",
+                  "Wire direction");
+   args.AddOption(&Bpars.wire.r, "-wirer", "--wire-radius",
+                  "Wire radius");
+
+   // external magnetic field
+   args.AddOption(&Bpars.external.coll_name, "-bdc", "--b-data-collection",
+                  "B field VisIt data collection root file prefix.");
+   args.AddOption(&Bpars.external.field_name, "-bf", "--b-field-name",
+                  "B field VisIt data collection B field name");
+   args.AddOption(&Bpars.external.cycle, "-bcyc", "--b-cycle",
+                  "B field B field cycle index to read.");
+   args.AddOption(&Bpars.external.pad_digits_cycle, "-bpdc",
+                  "--b-pad-digits-cycle",
                   "Number of digits in B field cycle.");
-   args.AddOption(&hybridization, "-hb", "--hybridization", "-no-hb",
-                  "--no-hybridization", "Enable hybridization.");
+
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -333,14 +362,14 @@ int main(int argc, char *argv[])
    // Read the magnetic field grid function from the given VisIt data
    // collection or otherwise align anisotropy with the axes
    std::unique_ptr<VisItDataCollection> B_dc;
-   GridFunction *B_gf;
    std::unique_ptr<VectorCoefficient> B_coeff;
-   Vector B_vec;
 
-   if (strlen(B_coll_name) > 0)
+   if (strlen(Bpars.external.coll_name) > 0)
    {
-      if (ReadGridFunction(B_coll_name, B_field_name, B_pad_digits_cycle,
-                           B_cycle, B_dc, B_gf))
+      GridFunction *B_gf;
+      if (ReadGridFunction(Bpars.external.coll_name, Bpars.external.field_name,
+                           Bpars.external.pad_digits_cycle, Bpars.external.cycle,
+                           B_dc, B_gf))
       {
          mfem::out << "Error loading B field" << endl;
          return 1;
@@ -350,10 +379,7 @@ int main(int argc, char *argv[])
    }
    else
    {
-      B_vec.SetSize(dim);
-      B_vec = 0.;
-      B_vec[0] = 1.;
-      B_coeff.reset(new VectorConstantCoefficient(B_vec));
+      B_coeff.reset(new VectorFunctionCoefficient(3, GetBFun(Bpars)));
    }
 
    // 3. Define the ODE solver used for time integration. Several explicit
@@ -738,6 +764,79 @@ void display_banner(ostream & os)
       << "        \\/             \\//_____/         \\/     \\/     \\/      " <<
       endl
       << endl<< endl << flush;
+}
+
+VecFunc GetBFun(const MagneticParams &params)
+{
+   if (params.wire.dir.Size() > 0)
+   {
+      return [&params](const Vector &x, Vector &B)
+      {
+         const real_t &B_c = params.wire.B_c;
+         const Vector &x_c = params.wire.x_c;
+         const Vector &dir = params.wire.dir;
+         const real_t &r_c = params.wire.r;
+
+         const int dim = max(x.Size(), dir.Size());
+
+         Vector dx(dim), ndir(dim);
+         const real_t dir_norm = dir.Norml2();
+         for (int d = 0; d < dir.Size(); d++)
+         {
+            const real_t x_d = (x.Size() > d)?(x(d)):(0.);
+            const real_t x_cd = (x_c.Size() > d)?(x_c(d)):(0.);
+            dx(d) = x_d - x_cd;
+
+            const real_t d_d = (dir.Size() > d)?(dir(d)):(0.);
+            ndir(d) = d_d / dir_norm;
+         }
+
+         const real_t dx_n = dx*ndir;
+         const real_t r2 = dx*dx - dx_n*dx_n;
+         const real_t r = (r2 > 0.)?(sqrt(r2)):(0.);
+         real_t B_r;
+         if (r_c > 0.)
+         {
+            // finite thickness
+            const real_t rr = r / r_c;
+            B_r = (rr > 1.)?(B_c / r):(B_c / r_c * rr);
+         }
+         else
+         {
+            // infinitly thin
+            B_r = (r > 0.)?(B_c / r):(0.);
+         }
+
+         if (dim == 3)
+         {
+            ndir.cross3D(dx, B);
+            const real_t B_norm = B.Norml2();
+            if (B_norm > 0.)
+            {
+               B *= B_r / B_norm;
+            }
+         }
+         else
+         {
+            B(0) = B(1) = 0.;
+            B(2) = ndir(0) * dx(1) - ndir(1) * dx(0);
+            if (B(2) != 0.)
+            {
+               B(2) *= B_r / fabs(B(2));
+            }
+         }
+      };
+   }
+   else
+   {
+      return [](const Vector &x, Vector &B)
+      {
+         B = 0.;
+         B(0) = 1.;
+      };
+   }
+
+   return VecFunc();
 }
 
 MatFunc GetKFun(const ProblemParams &params, Quantity q)
