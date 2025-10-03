@@ -574,6 +574,7 @@ class DGDirichletLFIntegrator : public LinearFormIntegrator
 {
 protected:
    Coefficient *uD, *Q;
+   VectorCoefficient *vD;
    MatrixCoefficient *MQ;
    real_t sigma, kappa;
 
@@ -581,15 +582,29 @@ protected:
    Vector shape, dshape_dn, nor, nh, ni;
    DenseMatrix dshape, mq, adjJ;
 
+   DenseMatrix vshape, dvshape_dn;
+   DenseTensor dvshape;
+   DenseMatrix dvshape_flat;
+   Vector dvshape_dn_flat, vshape_flat;
+
 public:
    DGDirichletLFIntegrator(Coefficient &u, const real_t s, const real_t k)
-      : uD(&u), Q(NULL), MQ(NULL), sigma(s), kappa(k) { }
+      : uD(&u), Q(NULL), vD(NULL), MQ(NULL), sigma(s), kappa(k) { }
    DGDirichletLFIntegrator(Coefficient &u, Coefficient &q,
                            const real_t s, const real_t k)
-      : uD(&u), Q(&q), MQ(NULL), sigma(s), kappa(k) { }
+      : uD(&u), Q(&q), vD(NULL), MQ(NULL), sigma(s), kappa(k) { }
    DGDirichletLFIntegrator(Coefficient &u, MatrixCoefficient &q,
                            const real_t s, const real_t k)
-      : uD(&u), Q(NULL), MQ(&q), sigma(s), kappa(k) { }
+      : uD(&u), Q(NULL), vD(NULL), MQ(&q), sigma(s), kappa(k) { }
+
+   DGDirichletLFIntegrator(VectorCoefficient &v, const real_t s, const real_t k)
+      : uD(NULL), Q(NULL), vD(&v),  MQ(NULL), sigma(s), kappa(k) { }
+   DGDirichletLFIntegrator(VectorCoefficient &v, Coefficient &q,
+                           const real_t s, const real_t k)
+      : uD(NULL), Q(&q), vD(&v), MQ(NULL), sigma(s), kappa(k) { }
+   DGDirichletLFIntegrator(VectorCoefficient &v, MatrixCoefficient &q,
+                           const real_t s, const real_t k)
+      : uD(NULL),Q(NULL), vD(&v), MQ(&q), sigma(s), kappa(k) { }
 
    void AssembleRHSElementVect(const FiniteElement &el,
                                ElementTransformation &Tr,
