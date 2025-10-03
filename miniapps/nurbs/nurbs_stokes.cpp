@@ -532,9 +532,9 @@ int main(int argc, char *argv[])
    if (weakBC)
    {
       MixedBilinearForm gVarf(&p_space, &u_space);
-      //     gVarf.AddDomainIntegrator(new TransposeIntegrator(
-      //                                  new VectorFEDivergenceIntegrator(-1.0)));
-      //      gVarf.AddBdrTraceFaceIntegrator(new NormalTraceIntegrator(1.0));
+      gVarf.AddDomainIntegrator(new TransposeIntegrator(new
+                                                        VectorFEDivergenceIntegrator(-1.0)));
+      gVarf.AddBdrTraceFaceIntegrator(new NormalTraceIntegrator(1.0));
       gVarf.Assemble();
       gVarf.Finalize();
       G = new SparseMatrix(gVarf.SpMat());
@@ -543,9 +543,9 @@ int main(int argc, char *argv[])
    else
    {
       MixedBilinearForm dVarf(&u_space, &p_space);
-      //      dVarf.AddDomainIntegrator(new VectorFEDivergenceIntegrator(-1.0));
+      dVarf.AddDomainIntegrator(new VectorFEDivergenceIntegrator(-1.0));
       dVarf.Assemble();
-      dVarf.EliminateTrialDofs(ess_bdr, u_gf, *gform); // DEPRECATED
+      dVarf.EliminateTrialEssentialBC(ess_bdr, u_gf, *gform);
       dVarf.Finalize();
       D = new SparseMatrix(dVarf.SpMat());
       G = new TransposeOperator(D);
