@@ -217,7 +217,7 @@ int main(int argc, char *argv[])
    LinearForm *fform(new LinearForm);
    fform->Update(&space, rhs, 0);
    fform->AddDomainIntegrator(new VectorFEDomainLFIntegrator(fcoeff));
-   if (weakBC) { fform->AddBdrFaceIntegrator(new DGDirichletLFIntegrator(ucoeff, k_c, -1.0, penalty)); }
+   // if (weakBC) { fform->AddBdrFaceIntegrator(new DGDirichletLFIntegrator(ucoeff, k_c, -1.0, penalty)); }
    fform->Assemble();
    fform->SyncAliasMemory(rhs);
 
