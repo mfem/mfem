@@ -697,6 +697,27 @@ Resource<T>::Resource(size_t count, ResourceManager::ResourceLocation loc,
 }
 
 template <class T>
+Resource<T>::Resource(size_t count, ResourceManager::ResourceLocation hloc,
+                      ResourceManager::ResourceLocation dloc, bool temporary)
+{
+   auto &inst = ResourceManager::instance();
+   offset = 0;
+   size = count;
+   if (hloc == dloc)
+   {
+      segment = inst.insert(inst.Alloc(count * sizeof(T), hloc, temporary),
+                            count * sizeof(T), hloc, true, temporary);
+   }
+   else
+   {
+      segment =
+         inst.insert(inst.Alloc(count * sizeof(T), hloc, temporary),
+                     inst.Alloc(count * sizeof(T), dloc, temporary),
+                     count * sizeof(T), hloc, dloc, true, true, temporary);
+   }
+}
+
+template <class T>
 Resource<T>::Resource(const Resource &r)
    : offset(r.offset), size(r.size), segment(r.segment)
 {

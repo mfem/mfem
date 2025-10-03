@@ -1535,107 +1535,47 @@ void ResourceManager::clear_owner_flags(size_t segment)
    set_owns_device_ptr(segment, false);
 }
 
-#if 0
-
-int ResourceManager::compare_other(size_t segment, char *lower, char *upper)
+int ResourceManager::compare_host_device(size_t segment, size_t offset,
+                                         size_t nbytes)
 {
    if (valid_segment(segment))
    {
       auto &seg = storage.get_segment(segment);
-      if (valid_segment(seg.other))
+      if (seg.lowers[0] && seg.lowers[1] && seg.lowers[0] != seg.lowers[1])
       {
-         auto &oseg = storage.get_segment(seg.other);
-         auto start = lower - seg.lower;
-         auto stop = upper - seg.lower;
-         Resource<char> tmp0, tmp1; //(stop - start, HOST, true);
-         char *ptr0 = lower;
-         char *ptr1 = oseg.lower + start;
-         if (seg.loc & DEVICE)
+         Resource<char> tmp;
+         MFEM_ASSERT(seg.locs[0] != DEVICE,
+                     "host memory space cannot be DEVICE");
+         char *ptr0 = seg.lowers[0] + offset;
+         char *ptr1 = seg.lowers[1] + offset;
+         if (seg.locs[1] == DEVICE)
          {
-            tmp0 = Resource<char>(stop - start, HOST, true);
-            ptr0 = tmp0.lower;
-            MemCopy(ptr0, lower, stop - start, HOST, seg.loc);
+            tmp = Resource<char>(nbytes, HOST, true);
+            ptr1 = tmp.HostWrite();
+            MemCopy(ptr1, seg.lowers[1] + offset, nbytes, HOST, seg.locs[1]);
          }
-         if (oseg.loc & DEVICE)
-         {
-            tmp1 = Resource<char>(stop - start, HOST, true);
-            ptr1 = tmp1.lower;
-            MemCopy(ptr1, oseg.lower + start, stop - start, HOST, oseg.loc);
-         }
-         return std::memcmp(ptr0, ptr1, stop - start);
+         return std::memcmp(ptr0, ptr1, nbytes);
       }
    }
    return 0;
 }
 
-void ResourceManager::CopyFromHost(size_t segment, char *lower, char *upper,
-                                   const char *src, size_t size)
+void ResourceManager::Copy(size_t dst_seg, size_t src_seg, size_t dst_offset,
+                           size_t src_offset, size_t nbytes)
 {
    // TODO
 }
 
-void ResourceManager::CopyToHost(size_t segment, const char *lower,
-                                 const char *upper, char *dst, size_t size)
+void ResourceManager::CopyFromHost(size_t segment, size_t offset,
+                                   const char *src, size_t nbytes)
 {
    // TODO
 }
 
-void ResourceManager::CopyImpl(size_t dst_seg, size_t src_seg, ptrdiff_t nbytes,
-                               ptrdiff_t dst_offset, ptrdiff_t src_offset,
-                               size_t smarker, size_t somarker)
+void ResourceManager::CopyToHost(size_t segment, size_t offset, char *dst,
+                                 size_t nbytes)
 {
-   constexpr int ndebug_mask = ~(1 << 5);
-   auto &dseg = storage.get_segment(dst_seg);
-   auto &sseg = storage.get_segment(src_seg);
-   size_t dmarker = find_marker(dst_seg, dseg.lower + dst_offset);
-
-   bool prefer_sseg = true;
-   RBase::Segment *soseg = nullptr;
-   if (valid_segment(sseg.other))
-   {
-      soseg = &storage.get_segment(sseg.other);
-      // figure out where to prefer copying from
-      if (!((sseg.loc & ndebug_mask) & dseg.loc) &&
-          ((soseg->loc & ndebug_mask) & dseg.loc))
-      {
-         // sseg and dseg have different resource location, and soseg and dseg
-         // have the same resource location
-         prefer_sseg = false;
-      }
-   }
-   ptrdiff_t pos = 0;
-   auto calc_pos = [&](size_t marker, auto &seg)
-   { return marker ? storage.get_node(marker).point - seg.lower : seg.upper; };
-   while (pos < nbytes)
-   {
-      // TODO figure out if we should copy from sseg or soseg
-      break;
-   }
+   // TODO
 }
 
-void ResourceManager::Copy(size_t dst_seg, size_t src_seg, char *dst_lower,
-                           const char *src_lower, ptrdiff_t nbytes)
-{
-   // TODO: maybe it's better to do dseg and dseg.other separately
-   auto &dseg = storage.get_segment(dst_seg);
-   auto &sseg = storage.get_segment(src_seg);
-   auto dst_offset = dst_lower - dseg.lower;
-   auto src_offset = src_lower - sseg.lower;
-   size_t smarker = find_marker(src_seg, sseg.lower + src_offset);
-   size_t somarker = 0;
-   if (valid_segment(sseg.other))
-   {
-      auto &soseg = storage.get_segment(sseg.other);
-      somarker = find_marker(sseg.other, soseg.lower + src_offset);
-   }
-   CopyImpl(dst_seg, src_seg, nbytes, dst_offset, src_offset, smarker,
-            somarker);
-   if (valid_segment(dseg.other))
-   {
-      auto &doseg = storage.get_segment(dseg.other);
-      CopyImpl(dseg.other, src_seg, nbytes, dst_offset, src_offset, smarker,
-               somarker);
-   }
-}
-#endif
 } // namespace mfem

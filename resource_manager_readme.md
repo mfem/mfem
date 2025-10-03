@@ -60,14 +60,14 @@ The goal of this PR is to remove the need to ever call `Sync` or `SyncAlias`, an
     // alias1 points to [5, 10)
     Resource<int> alias1(base, 5, 5);
     {
-      auto ptr = alias1.Write(ResourceManager::ANY_HOST);
+      auto ptr = alias1.HostWrite();
       for (int i = 0; i < alias1.Size(); ++i)
       {
         ptr[i] = i;
       }
     }
     {
-      auto ptr = alias0.Write(ResourceManager::ANY_DEVICE);
+      auto ptr = alias0.Write();
       forall(alias0.Size(), [=] MFEM_HOST_DEVICE(int i) { ptr[i] = i + 10; });
     }
     // actual valid on device: [0, 5)
@@ -75,7 +75,7 @@ The goal of this PR is to remove the need to ever call `Sync` or `SyncAlias`, an
 
     {
       // [0, 5) is copied from device to host
-      auto ptr = base.ReadWrite(ResourceManager::ANY_HOST);
+      auto ptr = base.HostReadWrite();
       for (int i = 0; i < base.Size(); ++i)
       {
         ptr[i] *= 2;
@@ -84,8 +84,8 @@ The goal of this PR is to remove the need to ever call `Sync` or `SyncAlias`, an
 
     // alias0 and alias1 both are valid on host, no copies are required
     {
-      auto ptr0 = alias0.ReadWrite(ResourceManager::ANY_HOST);
-      auto ptr1 = alias1.Read(ResourceManager::ANY_HOST);
+      auto ptr0 = alias0.HostReadWrite();
+      auto ptr1 = alias1.HostRead();
       for (int i = 0; i < alias0.Size(); ++i)
       {
         ptr0[i] += ptr1[i];
@@ -120,7 +120,7 @@ Existing supported features:
   // HOSTPINNED and MANAGED memory spaces can also be used for temporary pools
   Resource<int> res(10, ResourceManager::HOSTPINNED);
   {
-    auto ptr = res.Write(ResourceManager::ANY_HOST);
+    auto ptr = res.HostWrite();
     for (int i = 0; i < res.Size(); ++i)
     {
       ptr[i] = i;
@@ -128,7 +128,7 @@ Existing supported features:
   }
   {
     // no extra allocation/copies performed
-    auto ptr = res.ReadWrite(ResourceManager::ANY_DEVICE);
+    auto ptr = res.ReadWrite();
     forall(res.Size(), [=] MFEM_HOST_DEVICE (int i) { ptr[i] += 1; });
   }
 ```
@@ -142,16 +142,16 @@ Existing supported features:
   // res1 is an alias of res0
   Resource<int> res1 = res0;
   {
-    auto ptr = res0.Write(ResourceManager::ANY_HOST);
+    auto ptr = res0.HostWrite();
     for (int i = 0; i < res.Size(); ++i)
     {
       ptr[i] = i;
     }
   }
-  // res0 allocates a new resource, res1 is still vallid to use
+  // res0 allocates a new resource, res1 is still valid to use
   res0 = Resource<int>(5, ResourceManager::MANAGED);
   {
-    auto ptr1 = res1.Read(ResourceManager::ANY_DEVICE);
+    auto ptr1 = res1.Read();
     // res1 = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
     forall(ptr1.Size(), [=] MFEM_HOST_DEVICE(int i)
       {
@@ -166,9 +166,9 @@ See `tests/unit/general/test_resource_manager.cpp` for additional usage features
 
 # Implementation Details
 
-The `ResourceManager` keeps an internal list of "segments" representing regions of memory. Each segment can contain one reference to another segment which potentially belongs to another memory space. The validity of these two segments will be managed simultaneously by `ResourceManager`.
+The `ResourceManager` keeps an internal list of "segments" representing a coupled region of memory. If the coupled regions point to the same memory addresses the segment operates under "zero-copy" rules, useful for avoiding double allocations on host-only runs, or host-pinned/managed buffers.
 
-Validity tracking is performed at the byte level. Each segment uses a red-black tree to mark where where the segment changes from valid to invalid (and vice versa). There is an implicit marker at the start that the segment is valid. Marking a region as valid or invalid is `O(log(M) + K)`, where `M` is the total number of valid/invalid transitions in the segment and `K` is the number of `valid/invalid` transitions within the region being marked.
+Validity tracking is performed at the byte level. Each segment uses two red-black tree to mark where where the regions changes from valid to invalid (and vice versa). There is an implicit valid marker at the start of each region. Marking a region as valid or invalid is `O(log(M) + K)`, where `M` is the total number of valid/invalid transitions in the segment and `K` is the number of `valid/invalid` transitions within the region being marked.
 
 # TODO
 
@@ -177,7 +177,7 @@ Validity tracking is performed at the byte level. Each segment uses a red-black 
 - General API and code cleanup/matching Memory/MemoryManager API:
   - `ResourceManager::ResourceLocation` -> `MemoryType`
   - What to do with `MemoryClass`? `ResourceManager::ResourceLocation` currently merges the use of `MemoryType` and `MemoryClass`
-  - It might be possible to replace `RBase`/`RBTree` with `std::map`? At the very least `RBase` and `RBTree` can be cleaned up.
+  - `RBase` and `RBTree` can be cleaned up. I don't think `std::map` can be used here efficiently as the validity tracking process directly modifies the "key" in some situations in such a way that the red-black tree still remains valid; this would otherwise necessitate a `std::map::erase`/`std::map::insert` pair.
 - Using `Resource` in a multi-thread context is basically impossible. Right now the only supported model is getting a raw pointer from `Read`/`ReadWrite`/`Write` on the main thread and passing the pointer to worker threads. What multi-threading model do we want to support?
 - How to handle passing a duplicate pointer when requesting a new Resource/segment? Right now this will create a new unassociated segment.
 ```c++
@@ -185,25 +185,9 @@ int buffer[3];
 Resource<int> res0(buffer, 3, ResourceManager::HOST);
 Resource<int> res1(buffer, 3, ResourceManager::HOST);
 // res0 and res1 will have distinct tracking of validity flags, with no easy way to synchronize the two.
-auto ptr0 = res0.Write(ResourceManager::ANY_DEVICE);
-auto ptr1 = res1.Write(ResourceManager::ANY_DEVICE);
+auto ptr0 = res0.Write();
+auto ptr1 = res1.Write();
 // ptr0 != ptr1, there will be two device allocations
-```
-- How to handle implicit synchronization of zero-copy memory spaces (host-pinned and managed)?
-```c++
-Resource<int> res(10, ResourceManager::HOST_PINNED);
-{
-  auto ptr = res.Write(ResourceManager::ANY_DEVICE);
-  // ... use ptr in GPU kernel
-}
-{
-  auto ptr = res.Read(ResourceManager::ANY_HOST);
-  // ... use ptr in host, need implicit sync on Read
-}
-{
-  auto ptr = res.Read(ResourceManager::ANY_HOST);
-  // ... use ptr in host, ideally would like to skip another device sync if it's expensive
-}
 ```
 - Documentation
 - Test renaming `Resource`->`Memory` and `ResourceManager`->`MemoryManager` and other API updates/cleanups to test compatibility.
