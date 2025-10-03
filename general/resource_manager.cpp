@@ -1413,7 +1413,7 @@ char *ResourceManager::read_write(size_t segment, size_t offset, size_t nbytes,
          mark_invalid(segment, !on_device, offset, offset + nbytes,
          [&](auto, auto) {});
       }
-      if (need_sync)
+      if (!on_device && need_sync)
       {
          // TODO: stream or device sync?
          MFEM_DEVICE_SYNC;
@@ -1481,7 +1481,7 @@ const char *ResourceManager::read(size_t segment, size_t offset, size_t nbytes,
                       seg.locs[on_device], seg.locs[!on_device], copy_segs);
       }
 
-      if (need_sync)
+      if (!on_device && need_sync)
       {
          // TODO: stream or device sync?
          MFEM_DEVICE_SYNC;
