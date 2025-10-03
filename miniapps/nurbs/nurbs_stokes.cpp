@@ -514,7 +514,7 @@ int main(int argc, char *argv[])
                               u_gf); //remove when PR #4326 is accepted
    p_gf = 0.0;
 
-   GridFunctionVectorCoefficient uh_cf(&u_gf, dim);
+   VectorGridFunctionCoefficient uh_cf(&u_gf);
 
    VisItDataCollection visit_dc0("Stokes_ic", mesh);
    visit_dc0.RegisterField("velocity", &u_gf);
