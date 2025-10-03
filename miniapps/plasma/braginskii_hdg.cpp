@@ -755,8 +755,12 @@ MatFunc GetKFun(const ProblemParams &params, Quantity q)
          return [=](const Vector &x, const Vector &B, DenseMatrix &kappa)
          {
             const int ndim = x.Size();
-            Vector b(B);
-            b /= b.Norml2();
+            Vector b(ndim);
+            const real_t B_norm = B.Norml2();
+            for (int d = 0; d < ndim; d++)
+            {
+               b(d) = B(d) / B_norm;
+            }
             kappa.Diag(ks * k, ndim);
             if (ks != 1.)
             {
