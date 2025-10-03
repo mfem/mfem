@@ -1820,7 +1820,7 @@ void VectorFEDivergenceIntegrator::AssembleElementMatrix2(
       trial_fe.CalcDivShape(ip, divshape);
       Trans.SetIntPoint(&ip);
       test_fe.CalcPhysShape(Trans, shape);
-      real_t w = ip.weight;
+      real_t w = alpha*ip.weight;
       if (Q)
       {
          Trans.SetIntPoint(&ip);

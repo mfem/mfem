@@ -2665,6 +2665,7 @@ class VectorFEDivergenceIntegrator : public BilinearFormIntegrator
 {
 protected:
    Coefficient *Q;
+   real_t alpha;
 
    using BilinearFormIntegrator::AssemblePA;
    void AssemblePA(const FiniteElementSpace &trial_fes,
@@ -2686,8 +2687,8 @@ private:
    int dim, ne, dofs1D, L2dofs1D, quad1D;
 
 public:
-   VectorFEDivergenceIntegrator() { Q = NULL; }
-   VectorFEDivergenceIntegrator(Coefficient &q) { Q = &q; }
+   VectorFEDivergenceIntegrator(real_t a = 1.0) { alpha = a; Q = NULL; }
+   VectorFEDivergenceIntegrator(Coefficient &q, real_t a = 1.0) { alpha = a;  Q = &q; }
    void AssembleElementMatrix(const FiniteElement &el,
                               ElementTransformation &Trans,
                               DenseMatrix &elmat) override { }
