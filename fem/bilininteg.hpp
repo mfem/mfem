@@ -3571,6 +3571,9 @@ protected:
    Vector shape1, shape2, dshape1dn, dshape2dn, nor, nh, ni;
    DenseMatrix jmat, dshape1, dshape2, mq, adjJ;
 
+   // these are not thread-safe!
+   DenseMatrix vshape1, vshape2, dvshape1dn, dvshape2dn;
+   DenseTensor dvshape1, dvshape2;
 
    // PA extension
    Vector pa_data; // (Q, h, dot(n,J)|el0, dot(n,J)|el1)
@@ -3834,6 +3837,15 @@ public:
                            FaceElementTransformations &Trans,
                            DenseMatrix &elmat) override;
 
+   void AssembleTraceFaceMatrix(int ielem,
+                                const FiniteElement &trial_face_fe,
+                                const FiniteElement &test_fe,
+                                FaceElementTransformations &Trans,
+                                DenseMatrix &elmat) override
+   {
+      AssembleFaceMatrix(trial_face_fe, test_fe, test_fe, Trans, elmat);
+   } ;
+
    using BilinearFormIntegrator::AssembleEAInteriorFaces;
    void AssembleEAInteriorFaces(const FiniteElementSpace &trial_fes,
                                 const FiniteElementSpace &test_fes,
@@ -3875,6 +3887,16 @@ public:
                                 const FiniteElement &test_fe,
                                 FaceElementTransformations &Trans,
                                 DenseMatrix &elmat) override;
+
+   void AssembleFaceMatrix(const FiniteElement &trial_face_fe,
+                           const FiniteElement &test_fe1,
+                           const FiniteElement &test_fe2,
+                           FaceElementTransformations &Trans,
+                           DenseMatrix &elmat) override
+   {
+      AssembleTraceFaceMatrix(Trans.Elem1->ElementNo,
+                              trial_face_fe, test_fe1, Trans,elmat);
+   }
 };
 
 
