@@ -3020,10 +3020,8 @@ private:
    { Q = q; DQ = dq; MQ = mq; }
 
 #ifndef MFEM_THREAD_SAFE
-   // Vector shape;
    Vector D;
    DenseMatrix K;
-   // DenseMatrix partelmat;
    DenseTensor test_dvshape;
    DenseTensor trial_dvshape;
 #endif
@@ -3032,16 +3030,6 @@ protected:
    Coefficient *Q;
    DiagonalMatrixCoefficient *DQ;
    MatrixCoefficient *MQ;
-
-   // PA extension
-   //  Vector pa_data;
-   //  const DofToQuad *mapsO;         ///< Not owned. DOF-to-quad map, open.
-   //  const DofToQuad *mapsC;         ///< Not owned. DOF-to-quad map, closed.
-   //  const DofToQuad *mapsOtest;     ///< Not owned. DOF-to-quad map, open.
-   //  const DofToQuad *mapsCtest;     ///< Not owned. DOF-to-quad map, closed.
-   // const GeometricFactors *geom;   ///< Not owned
-   // int dim, ne, nq, dofs1D, dofs1Dtest, quad1D, trial_fetype, test_fetype;
-   // bool symmetric = true; ///< False if using a nonsymmetric matrix coefficient
 
 public:
    VectorFEDiffusionIntegrator() { Init(NULL, NULL, NULL); }
@@ -3059,13 +3047,6 @@ public:
                                        const FiniteElement &test_fe,
                                        ElementTransformation &Trans,
                                        DenseMatrix &elmat);
-
-   // virtual void AssemblePA(const FiniteElementSpace &fes);
-   // virtual void AssemblePA(const FiniteElementSpace &trial_fes,
-   //                         const FiniteElementSpace &test_fes);
-   // virtual void AddMultPA(const Vector &x, Vector &y) const;
-   // virtual void AddMultTransposePA(const Vector &x, Vector &y) const;
-   // virtual void AssembleDiagonalPA(Vector& diag);
 
    const Coefficient *GetCoefficient() const { return Q; }
 };
