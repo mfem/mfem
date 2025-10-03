@@ -659,6 +659,24 @@ int main(int argc, char *argv[])
    if (visualization && !VisualizeField(smom, mom, "momentum")) { visualization = false; }
    if (visualization && !VisualizeField(sene, ene, "energy")) { visualization = false; }
 
+   //visualize magnetic field
+
+   unique_ptr<FiniteElementCollection> B_fec;
+   if (dim < B_coeff->GetVDim())
+   {
+      B_fec.reset(new RT_R2D_FECollection(order, dim));
+   }
+   else
+   {
+      B_fec.reset(new RT_FECollection(order, dim));
+   }
+   FiniteElementSpace B_fes(&mesh, B_fec.get());
+   GridFunction B_gf(&B_fes);
+   B_gf.ProjectCoefficient(*B_coeff);
+
+   socketstream smag;
+   if (visualization && !VisualizeField(smag, B_gf, "magnetic field")) { visualization = false; }
+
    // 8. Time integration
 
    // When dt is not specified, use CFL condition.
