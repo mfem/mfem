@@ -4648,8 +4648,8 @@ void NormalTraceIntegrator::AssembleTraceFaceMatrix(int elem,
       MFEM_VERIFY(elem == Trans.Elem2->ElementNo, "Elem != Trans.Elem2->ElementNo");
    }
 
-   real_t scale = 1.0;
-   if (iel != elem) { scale = -1.; }
+   real_t scale = alpha;
+   if (iel != elem) { scale *= -1.0; }
 
    for (int p = 0; p < ir->GetNPoints(); p++)
    {

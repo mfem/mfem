@@ -3866,9 +3866,10 @@ class NormalTraceIntegrator : public BilinearFormIntegrator
 private:
    Vector face_shape, normal, shape_n;
    DenseMatrix shape;
+   real_t alpha;
 
 public:
-   NormalTraceIntegrator() { }
+   NormalTraceIntegrator(real_t a = 1.0) : alpha(a) { }
    void AssembleTraceFaceMatrix(int ielem,
                                 const FiniteElement &trial_face_fe,
                                 const FiniteElement &test_fe,
