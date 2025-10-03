@@ -1327,7 +1327,7 @@ public:
       Mk.Swap(t.Mk);
    }
 
-   /// Prints tensor to stream @out
+   /// Prints tensor to stream
    void Print(std::ostream &out = mfem::out, int width_ = 4) const;
 
    ~DenseTensor() { tdata.Delete(); }
