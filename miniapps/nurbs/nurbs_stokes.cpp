@@ -49,6 +49,43 @@
 using namespace std;
 using namespace mfem;
 
+// Placeholder till can be removed it PR #4326 is accepted
+void ProjectCoefficientGlobalL2(VectorCoefficient &vcoeff,
+                                real_t rtol, int iter, GridFunction &gf)
+{
+   // Define and assemble linear form
+   LinearForm b(gf.FESpace());
+   BilinearForm a(gf.FESpace());
+
+   if (gf.FESpace()->GetTypicalFE()->GetRangeType() == mfem::FiniteElement::VECTOR)
+   {
+      b.AddDomainIntegrator(new VectorFEDomainLFIntegrator(vcoeff));
+      a.AddDomainIntegrator(new VectorFEMassIntegrator());
+   }
+   else
+   {
+      b.AddDomainIntegrator(new VectorDomainLFIntegrator(vcoeff));
+      a.AddDomainIntegrator(new VectorMassIntegrator());
+   }
+   a.Assemble();
+   b.Assemble();
+
+   // Set solver and preconditioner
+   SparseMatrix A(a.SpMat());
+   GSSmoother  prec(A);
+   CGSolver cg;
+   cg.SetOperator(A);
+   cg.SetPreconditioner(prec);
+   cg.SetRelTol(rtol);
+   cg.SetMaxIter(iter);
+   cg.SetPrintLevel(0);
+
+   // Solve and get solution
+   gf = 0.0;
+   cg.Mult(b,gf);
+}
+
+
 // Define the analytical solution and forcing terms / boundary conditions
 // Functions that define the problem for a lid driven cavity
 // No forcing, homogenous BC troughout, except the top.
@@ -57,13 +94,16 @@ namespace lidDrivenCavity
 
 void u_fun(const Vector & x, Vector & u)
 {
-   u = 0.0;
+   // Placeholder smooth function, sharp solution can be used when PR #4326 is accepted
+   u[0] = sin(M_PI*x[0])*x[1];
+   u[1] = 0;
 
-   if ((x[1] - 0.9999999 > 0.0) &&
-       (fabs(x[0] - 0.5) < 0.4999999) )
+  /* u = 0.0;
+
+   if (fabs(x[0] - 0.5) < 0.4999999) 
    {
-      u[0] = 1.0;
-   }
+      u[0] = x[1];
+   }*/
 }
 
 void f_fun(const Vector & x, Vector & f)
@@ -469,7 +509,8 @@ int main(int argc, char *argv[])
    u_gf.MakeRef(&u_space, x.GetBlock(0), 0);
    p_gf.MakeRef(&p_space, x.GetBlock(1), 0);
 
-   u_gf.ProjectCoefficient(*u_cf);
+  // u_gf.ProjectCoefficient(*u_cf,GridFunction::ProjType::ELEMENT); // use when PR #4326 is accepted
+   ProjectCoefficientGlobalL2(*u_cf, 1e-10, 250, u_gf); //remove when PR #4326 is accepted
    p_gf = 0.0;
 
    GridFunctionVectorCoefficient uh_cf(&u_gf, dim);
@@ -512,7 +553,7 @@ int main(int argc, char *argv[])
    {
       cout<<"Strong Dirichlet BC\n";
    }
-   std::cout<<518<<std::endl;
+
    chrono.Clear();
    chrono.Start();
    BilinearForm kVarf(&u_space);
