@@ -3631,6 +3631,56 @@ private:
    void SetupPA(const FiniteElementSpace &fes, FaceType type);
 };
 
+/** Integrator for the DG form:
+    $$
+        - \langle \{(Q \nabla u) \cdot n\}, [v] \rangle + \sigma \langle [u], \{(Q \nabla v) \cdot n \} \rangle
+        + \kappa \langle \{h^{-1} Q\} [u], [v] \rangle
+    $$
+    where $Q$ is a scalar or matrix diffusion coefficient and $u$, $v$ are the trial
+    and test spaces, respectively. The parameters $\sigma$ and $\kappa$ determine the
+    DG method to be used (when this integrator is added to the "broken"
+    DiffusionIntegrator):
+    - $\sigma = -1$, $\kappa \geq \kappa_0$: symm. interior penalty (IP or SIPG) method,
+    - $\sigma = +1$, $\kappa > 0$: non-symmetric interior penalty (NIPG) method,
+    - $\sigma = +1$, $\kappa = 0$: the method of Baumann and Oden.
+
+    \todo Clarify used notation. */
+class VectorFEDGDiffusionIntegrator : public BilinearFormIntegrator
+{
+protected:
+   Coefficient *Q = nullptr;
+   MatrixCoefficient *MQ = nullptr;
+   real_t sigma, kappa;
+   int dim;
+
+   // these are not thread-safe!
+   Vector shape1, shape2, dshape1dn, dshape2dn, nor, nh, ni;
+   DenseMatrix jmat, dshape1, dshape2, mq, adjJ;
+
+   // these are not thread-safe!
+   DenseMatrix vshape1, vshape2, dvshape1dn, dvshape2dn;
+   DenseTensor dvshape1, dvshape2;
+
+public:
+   VectorFEDGDiffusionIntegrator(const real_t s, const real_t k);
+   VectorFEDGDiffusionIntegrator(Coefficient &q, const real_t s, const real_t k);
+   VectorFEDGDiffusionIntegrator(MatrixCoefficient &q, const real_t s,
+                                 const real_t k);
+   using BilinearFormIntegrator::AssembleFaceMatrix;
+   void AssembleFaceMatrix(const FiniteElement &el1, const FiniteElement &el2,
+                           FaceElementTransformations &Trans,
+                           DenseMatrix &elmat) override;
+
+   bool RequiresFaceNormalDerivatives() const override { return true; }
+
+   const IntegrationRule &GetRule(int order, FaceElementTransformations &T);
+
+   const IntegrationRule &GetRule(int order, Geometry::Type geom);
+
+   real_t GetPenaltyParameter() const { return kappa; }
+};
+
+
 /** Integrator for the "BR2" diffusion stabilization term
     $$
       \sum_e \eta (r_e([u]), r_e([v]))

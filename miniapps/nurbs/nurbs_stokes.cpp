@@ -526,7 +526,7 @@ int main(int argc, char *argv[])
    LinearForm *fform(new LinearForm);
    fform->Update(&u_space, rhs.GetBlock(0), 0);
    fform->AddDomainIntegrator(new VectorFEDomainLFIntegrator(*f_cf));
-   if (weakBC) { fform->AddBdrFaceIntegrator(new DGDirichletLFIntegrator(uh_cf, mu_cf, -1.0, penalty)); }
+   if (weakBC) { fform->AddBdrFaceIntegrator(new VectorFEDGDirichletLFIntegrator(uh_cf, mu_cf, -1.0, penalty)); }
    fform->Assemble();
    fform->SyncAliasMemory(rhs);
 
@@ -559,7 +559,7 @@ int main(int argc, char *argv[])
    chrono.Start();
    BilinearForm kVarf(&u_space);
    kVarf.AddDomainIntegrator(new VectorFEDiffusionIntegrator(mu_cf));
-   if (weakBC) { kVarf.AddBdrFaceIntegrator(new DGDiffusionIntegrator(mu_cf, -1.0, penalty)); }
+   if (weakBC) { kVarf.AddBdrFaceIntegrator(new VectorFEDGDiffusionIntegrator(mu_cf, -1.0, penalty)); }
    kVarf.Assemble();
    if (!weakBC) { kVarf.EliminateEssentialBC(ess_bdr, u_gf, *fform); }
    kVarf.Finalize();
