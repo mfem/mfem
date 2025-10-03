@@ -24,8 +24,8 @@ void TMOP_Integrator::GetLocalStateEnergyPA_3D(const Vector &X,
 
    Vector L(PA.E.Size(), Device::GetMemoryType()); L.UseDevice(true);
 
+   // Calls TMOPEnergyPA3D::Mult for the given mid.
    TMOPEnergyPA3D ker(this, X, L, use_detA);
-
    if (mid == 302) { tmop::Kernel<302>(ker); }
    else if (mid == 303) { tmop::Kernel<303>(ker); }
    else if (mid == 315) { tmop::Kernel<315>(ker); }
@@ -51,8 +51,8 @@ void TMOP_Integrator::GetLocalNormalizationEnergiesPA_3D(const Vector &X,
    const real_t mn = 1.0;
    Vector mc(1); mc = 1.0;
 
+   // Calls TMOPEnergyPA3D::Mult for the given mid.
    TMOPEnergyPA3D ker(this, X, L, mn, mc, use_detA);
-
    if (mid == 302) { tmop::Kernel<302>(ker); }
    else if (mid == 303) { tmop::Kernel<303>(ker); }
    else if (mid == 315) { tmop::Kernel<315>(ker); }
@@ -99,8 +99,8 @@ void TMOP_Combo_QualityMetric::GetLocalEnergyPA_3D(const GridFunction &nodes,
    DenseTensor Jtr(3, 3, N * ir.GetNPoints(), Device::GetDeviceMemoryType());
    tc.ComputeAllElementTargets(*fes, ir, X, Jtr);
 
+   // Calls TMOPEnergyPA3D::Mult for the given mid.
    TMOPEnergyPA3D ker(X, E, L, O, true, d, q, mn, N, metric, B, G, Jtr, ir, MC);
-
    if (mid == 302) { tmop::Kernel<302>(ker); }
    else if (mid == 303) { tmop::Kernel<303>(ker); }
    else if (mid == 315) { tmop::Kernel<315>(ker); }

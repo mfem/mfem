@@ -19,8 +19,8 @@ void TMOP_Integrator::AssembleGradPA_3D(const Vector &x) const
 {
    const int mid = metric->Id();
 
+   // Calls TMOPAssembleGradPA3D::Mult for the given mid.
    TMOPAssembleGradPA3D ker(this, x);
-
    if (mid == 302) { return tmop::Kernel<302>(ker); }
    if (mid == 303) { return tmop::Kernel<303>(ker); }
    if (mid == 315) { return tmop::Kernel<315>(ker); }

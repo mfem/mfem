@@ -68,7 +68,10 @@ using TMOPFunction = void (*)(T &);
 template <int Metric, typename Ker>
 void Kernel(Ker &);
 
-// Max & two templated arguments: MD1, MQ1, T_D1D, T_Q1D
+// Register TMOP kernels using max values and two templated parameters (MDQ).
+// MD1, MQ1 = max D1D/Q1D sizes; T_D1D, T_Q1D = the templated D1D/Q1D variants.
+// The Fallback version uses max values.
+// These kernels are independent of the metric id.
 #define MFEM_TMOP_MDQ_REGISTER(Name, Ker)             \
    using Ker##_t = decltype(&Ker<1,1,1,1>);           \
    MFEM_REGISTER_KERNELS(Name, Ker##_t, (int, int));  \
@@ -77,7 +80,7 @@ void Kernel(Ker &);
    Ker##_t Name::Fallback(int, int) {                 \
       return Ker<DofQuadLimits::MAX_D1D,              \
                  DofQuadLimits::MAX_Q1D>; }
-
+// MDQ kernel specializations (fallback versions used otherwise).
 template <typename Kernel>
 int KernelSpecializationsMDQ()
 {
@@ -107,17 +110,16 @@ int KernelSpecializationsMDQ()
    static bool k##Name{ (tmop::KernelSpecializationsMDQ<Name>(), true) }; \
    }
 
-// Two templated arguments: T_D1D, T_Q1D
+// Register TMOP kernels using two templated parameters (D1D, Q1D).
+// The Fallback version uses no arguments (default values).
+// These kernels are independent of the metric id.
 #define MFEM_TMOP_REGISTER_KERNELS(Name, Ker)         \
    using Ker##_t = decltype(&Ker<>);                  \
    MFEM_REGISTER_KERNELS(Name, Ker##_t, (int, int));  \
    template <int D, int Q>                            \
-   Ker##_t Name::Kernel()                             \
-   {                                                  \
-      return Ker<D, Q>;                               \
-   }                                                  \
+   Ker##_t Name::Kernel() { return Ker<D, Q>; }       \
    Ker##_t Name::Fallback(int, int) { return Ker<>; }
-
+// Kernel specializations for the above (fallback versions used otherwise).
 template <typename Kernel>
 int KernelSpecializations()
 {
@@ -141,24 +143,22 @@ int KernelSpecializations()
    Kernel::template Specialization<6, 6>::Add();
    return 0;
 }
-
 #define MFEM_TMOP_ADD_SPECIALIZED_KERNELS(Name)                        \
    namespace                                                           \
    {                                                                   \
    static bool k##Name{ (tmop::KernelSpecializations<Name>(), true) }; \
    }
 
-// A single templated argument: T_Q1D
+// Register TMOP kernels using a single templated parameter (Q1D).
+// The Fallback version uses no arguments (default values).
+// These kernels are independent of the metric id.
 #define MFEM_TMOP_REGISTER_KERNELS_1(Name, Ker)  \
    using Ker##_t = decltype(&Ker<>);             \
    MFEM_REGISTER_KERNELS(Name, Ker##_t, (int));  \
    template <int Q>                              \
-   Ker##_t Name::Kernel()                        \
-   {                                             \
-      return Ker<Q>;                             \
-   }                                             \
+   Ker##_t Name::Kernel() { return Ker<Q>; }     \
    Ker##_t Name::Fallback(int) { return Ker<>; }
-
+// Kernel specializations for the above (fallback versions used otherwise).
 template <typename Kernel>
 int KernelSpecializations1()
 {
@@ -169,14 +169,17 @@ int KernelSpecializations1()
    Kernel::template Specialization<6>::Add();
    return 0;
 }
-
 #define MFEM_TMOP_ADD_SPECIALIZED_KERNELS_1(Name)                       \
    namespace                                                            \
    {                                                                    \
    static bool k##Name{ (tmop::KernelSpecializations1<Name>(), true) }; \
    }
 
-// Register kernel instances for a given metric, assemble, energy, and mult
+// Register TMOP kernels for a templated metric id.
+// These are used to call Mult functions of the assemble/energy/mult classes.
+// The kernels use the metric, max values and two templated parameters (MDQ).
+// MD1, MQ1 = max D1D/Q1D sizes; T_D1D, T_Q1D = the templated D1D/Q1D variants.
+// The Fallback version uses max values.
 #define MFEM_TMOP_REGISTER_METRIC_INSTANCE(i, Metric, Name)               \
    using Name##_t = tmop::TMOPFunction<Name>;                             \
    MFEM_REGISTER_KERNELS(Name##_##i, Name##_t, (int, int));               \
@@ -194,7 +197,7 @@ int KernelSpecializations1()
    {                                                                      \
       Name##_##i::Run(ker.Ndof(), ker.Nqpt(), ker);                       \
    }
-
+// Register all Mult kernels for a templated metric id.
 #define MFEM_TMOP_REGISTER_METRIC(metric, assemble, energy, mult, i) \
    MFEM_TMOP_REGISTER_METRIC_INSTANCE(i, metric, assemble)           \
    MFEM_TMOP_REGISTER_METRIC_INSTANCE(i, metric, energy)             \
