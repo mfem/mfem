@@ -2327,15 +2327,8 @@ void HypreParMatrix::Threshold(real_t threshold)
    /* TODO: GenerateDiagAndOffd() uses an int array of size equal to the number
       of columns in csr_A_wo_z which is the global number of columns in A. This
       does not scale well. */
-   ierr +=
-#if MFEM_HYPRE_VERSION < 30000
-      GenerateDiagAndOffd
-#else
-
-      hypre_GenerateDiagAndOffd
-#endif
-      (csr_A_wo_z,parcsr_A_ptr,
-       col_start,col_end);
+   ierr += hypre_GenerateDiagAndOffd(csr_A_wo_z,parcsr_A_ptr,
+                                     col_start,col_end);
 
    ierr += hypre_CSRMatrixDestroy(csr_A_wo_z);
 

@@ -932,12 +932,14 @@ function(mfem_export_mk_files)
   endif()
   set(MFEM_BUILD_TAG "${CMAKE_SYSTEM}")
   set(MFEM_PREFIX "${CMAKE_INSTALL_PREFIX}")
-  # For the next 4 variable, these are the values for the build-tree version of
+  # For the next 4 variables, these are the values for the build-tree version of
   # 'config.mk'
   set(MFEM_INC_DIR "${PROJECT_BINARY_DIR}")
   set(MFEM_LIB_DIR "${PROJECT_BINARY_DIR}")
   set(MFEM_TEST_MK "${PROJECT_SOURCE_DIR}/config/test.mk")
   set(MFEM_CONFIG_EXTRA "MFEM_BUILD_DIR ?= ${PROJECT_BINARY_DIR}")
+  # TODO: CUDA/HIP support:
+  set(MFEM_XLINKER "${CMAKE_CXX_LINKER_WRAPPER_FLAG}")
   set(MFEM_MPIEXEC ${MPIEXEC})
   if (NOT MFEM_MPIEXEC)
     set(MFEM_MPIEXEC "mpirun")
