@@ -129,13 +129,13 @@ set(SRCS
   staticcond.cpp
   tmop.cpp
   tmop/pa.cpp
-  tmop/assemble/diag2_coef.cpp
+  tmop/assemble/diag2_limit.cpp
   tmop/assemble/diag2.cpp
-  tmop/assemble/grad2_coef.cpp
+  tmop/assemble/grad2_limit.cpp
   tmop/assemble/grad2.cpp
-  tmop/assemble/diag3_coef.cpp  
+  tmop/assemble/diag3_limit.cpp  
   tmop/assemble/diag3.cpp
-  tmop/assemble/grad3_coef.cpp
+  tmop/assemble/grad3_limit.cpp
   tmop/assemble/grad3.cpp
   tmop/metrics/001.cpp
   tmop/metrics/002.cpp
@@ -151,20 +151,20 @@ set(SRCS
   tmop/metrics/321.cpp
   tmop/metrics/332.cpp
   tmop/metrics/338.cpp
-  tmop/mult/grad2_coef.cpp
+  tmop/mult/grad2_limit.cpp
   tmop/mult/grad2.cpp
-  tmop/mult/mult2_coef.cpp
+  tmop/mult/mult2_limit.cpp
   tmop/mult/mult2.cpp
-  tmop/mult/grad3_coef.cpp
+  tmop/mult/grad3_limit.cpp
   tmop/mult/grad3.cpp
-  tmop/mult/mult3_coef.cpp
+  tmop/mult/mult3_limit.cpp
   tmop/mult/mult3.cpp
   tmop/tools/det2_jpr.cpp
   tmop/tools/det3_jpr.cpp
   tmop/tools/discrete.cpp
-  tmop/tools/energy2_coef.cpp
+  tmop/tools/energy2_limit.cpp
   tmop/tools/energy2.cpp
-  tmop/tools/energy3_coef.cpp
+  tmop/tools/energy3_limit.cpp
   tmop/tools/energy3.cpp
   tmop/tools/target2.cpp
   tmop/tools/target3.cpp
