@@ -3571,10 +3571,6 @@ protected:
    Vector shape1, shape2, dshape1dn, dshape2dn, nor, nh, ni;
    DenseMatrix jmat, dshape1, dshape2, mq, adjJ;
 
-   // these are not thread-safe!
-   DenseMatrix vshape1, vshape2, dvshape1dn, dvshape2dn;
-   DenseTensor dvshape1, dvshape2;
-
    // PA extension
    Vector pa_data; // (Q, h, dot(n,J)|el0, dot(n,J)|el1)
    const DofToQuad *maps; ///< Not owned
@@ -3654,8 +3650,8 @@ protected:
    int dim;
 
    // these are not thread-safe!
-   Vector shape1, shape2, dshape1dn, dshape2dn, nor, nh, ni;
-   DenseMatrix jmat, dshape1, dshape2, mq, adjJ;
+   Vector nor, nh, ni;
+   DenseMatrix jmat, mq;
 
    // these are not thread-safe!
    DenseMatrix vshape1, vshape2, dvshape1dn, dvshape2dn;

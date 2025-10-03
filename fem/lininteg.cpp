@@ -977,7 +977,7 @@ void VectorFEDGDirichletLFIntegrator::AssembleRHSElementVect(
    nor.SetSize(dim);
    nh.SetSize(dim);
    ni.SetSize(dim);
-   adjJ.SetSize(dim);
+
    if (MQ)
    {
       mq.SetSize(dim);

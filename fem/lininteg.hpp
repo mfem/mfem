@@ -625,8 +625,8 @@ protected:
    real_t sigma, kappa;
 
    // these are not thread-safe!
-   Vector shape, dshape_dn, nor, nh, ni;
-   DenseMatrix dshape, mq, adjJ;
+   Vector nor, nh, ni;
+   DenseMatrix mq;
 
    DenseMatrix vshape, dvshape_dn;
    DenseTensor dvshape;
