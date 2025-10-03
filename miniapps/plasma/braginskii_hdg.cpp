@@ -227,23 +227,24 @@ int main(int argc, char *argv[])
                   "Symmetric anisotropy of the diffusivity tensor");
    args.AddOption(&pars.ka, "-ka", "--kappa_anti",
                   "Antisymmetric anisotropy of the diffusivity tensor");
-   //inflow
-   args.AddOption(&pars.inflow.den_inf, "-dinf", "--densitiy-infinity",
-                  "Density at infinity");
-   args.AddOption(&pars.inflow.ene_inf, "-einf", "--energy-infinity",
-                  "Internal energy at infinity");
-   args.AddOption(&pars.inflow.den_cen, "-dcen", "--densitiy-center",
-                  "Density at the center of the source");
-   args.AddOption(&pars.inflow.vel_cen, "-vcen", "--velocity-center",
-                  "Velocity at the center of the source");
-   args.AddOption(&pars.inflow.ene_cen, "-ecen", "--energy-center",
-                  "Internal energy at the center of the source");
-   args.AddOption(&pars.inflow.x_cen, "-xcen", "--x-center",
-                  "Location of the source");
-   args.AddOption(&pars.inflow.dx_cen, "-dxcen", "--width-center",
-                  "Width of the source");
-   args.AddOption(&pars.inflow.dt_cen, "-dtcen", "--time-center",
-                  "Ramp-up time of the source");
+
+   // inflow
+   args.AddOption(&pars.inflow.den_inf, "-indeninf", "--inflow-densitiy-infinity",
+                  "Inflow density at infinity");
+   args.AddOption(&pars.inflow.ene_inf, "-ineninf", "--inflow-energy-infinity",
+                  "Inflow internal energy at infinity");
+   args.AddOption(&pars.inflow.den_cen, "-inden", "--inflow-densitiy",
+                  "Inflow density at the center of the source");
+   args.AddOption(&pars.inflow.vel_cen, "-inv", "--inflow-velocity",
+                  "Inflow velocity at the center of the source");
+   args.AddOption(&pars.inflow.ene_cen, "-inen", "--inflow-energy",
+                  "Inflow internal energy at the center of the source");
+   args.AddOption(&pars.inflow.x_cen, "-inxc", "--inflow-location",
+                  "Inflow location of the source");
+   args.AddOption(&pars.inflow.dx_cen, "-indx", "--inflow-width",
+                  "Inflow width of the source");
+   args.AddOption(&pars.inflow.dt_cen, "-indt", "--inflow-ramp-time",
+                  "Inflow ramp-up time of the source");
 
    args.AddOption(&B_coll_name, "-bdc", "--b-data-collection",
                   "Set the VisIt data collection B field root file prefix.");
