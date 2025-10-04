@@ -58,8 +58,8 @@ HDG_MINIAPPS = braginskii_hdg
 	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $@.o $@_solver.o $(COMMON_LIB) \
 	  $(MFEM_LIBS)
 
-$(HDG_MINIAPPS): $(HDG_MINIAPPS).o $(HDG_MINIAPPS)_solver.o $(HDG_DEPS).o $(MFEM_LIB_FILE) $(CONFIG_MK) | lib-common
-	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $@.o $@_solver.o $(HDG_DEPS).o $(COMMON_LIB) \
+$(HDG_MINIAPPS): $(HDG_MINIAPPS).o $(HDG_MINIAPPS)_solver.o $(HDG_DEPS).o $(MFEM_LIB_FILE) $(CONFIG_MK)
+	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $@.o $@_solver.o $(HDG_DEPS).o \
 	  $(MFEM_LIBS)
 
 %.o: $(SRC)%.cpp $(CONFIG_MK)
