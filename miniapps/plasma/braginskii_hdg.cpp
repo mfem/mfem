@@ -903,6 +903,29 @@ MatFunc GetKFun(const ProblemParams &params, Quantity q)
             {
                AddMult_a_VVt((1. - ks) * k, b, kappa);
             }
+            if (ka != 0.)
+            {
+               if (ndim == 3)
+               {
+                  real_t kb[3];
+                  kb[0] = +k * ka * b(2);
+                  kb[1] = -k * ka * b(1);
+                  kb[2] = +k * ka * b(0);
+                  kappa(0, 1) -= kb[0];
+                  kappa(0, 2) -= kb[1];
+                  kappa(1, 2) -= kb[2];
+                  kappa(1, 0) += kb[0];
+                  kappa(2, 0) += kb[1];
+                  kappa(2, 1) += kb[2];
+               }
+               else if (B.Size() == 3)
+               {
+                  const real_t bz = B(2) / B_norm;
+                  const real_t kbz = k * ka * bz;
+                  kappa(0, 1) -= kbz;
+                  kappa(1, 0) += kbz;
+               }
+            }
          };
    }
 
