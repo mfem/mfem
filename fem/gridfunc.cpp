@@ -4545,6 +4545,14 @@ real_t ExtrudeCoefficient::Eval(ElementTransformation &T,
    return sol_in.Eval(*T_in, ip);
 }
 
+void VectorExtrudeCoefficient::Eval(Vector &v, ElementTransformation &T,
+                                    const IntegrationPoint &ip)
+{
+   ElementTransformation *T_in =
+      mesh_in->GetElementTransformation(T.ElementNo / n);
+   T_in->SetIntPoint(&ip);
+   sol_in.Eval(v, *T_in, ip);
+}
 
 GridFunction *Extrude1DGridFunction(Mesh *mesh, Mesh *mesh2d,
                                     GridFunction *sol, const int ny)
@@ -4595,10 +4603,17 @@ GridFunction *Extrude1DGridFunction(Mesh *mesh, Mesh *mesh2d,
       return NULL;
    }
    FiniteElementSpace *solfes2d;
-   // assuming sol is scalar
-   solfes2d = new FiniteElementSpace(mesh2d, solfec2d);
+   const int vdim = sol->FESpace()->GetVDim();
+   solfes2d = new FiniteElementSpace(mesh2d, solfec2d, vdim);
    sol2d = new GridFunction(solfes2d);
    sol2d->MakeOwner(solfec2d);
+   if (vdim > 1)
+   {
+      VectorGridFunctionCoefficient vcsol(sol);
+      VectorExtrudeCoefficient vc2d(mesh, vcsol, ny);
+      sol2d->ProjectCoefficient(vc2d);
+   }
+   else
    {
       GridFunctionCoefficient csol(sol);
       ExtrudeCoefficient c2d(mesh, csol, ny);
