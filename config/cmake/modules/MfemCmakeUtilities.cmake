@@ -718,7 +718,7 @@ function(mfem_get_target_options Target CompileOptsVar LinkOptsVar)
   get_target_property(IsImported ${tgt} IMPORTED)
   # message(STATUS "${tgt}[IMPORTED]: ${IsImported}")
   # Generally, the possible target types are: STATIC_LIBRARY, MODULE_LIBRARY,
-  # SHARED_LIBRARY, INTERFACE_LIBRARY, EXECUTABLE.
+  # SHARED_LIBRARY, INTERFACE_LIBRARY, UNKNOWN_LIBRARY, EXECUTABLE.
   get_target_property(type ${tgt} TYPE)
   # message(STATUS "${tgt}[TYPE]: ${type}")
   unset(ImportConfig)
@@ -766,7 +766,7 @@ function(mfem_get_target_options Target CompileOptsVar LinkOptsVar)
     else()
       message(STATUS " *** Warning: [${tgt}] LOCATION not defined!")
     endif()
-  elseif ("${type}" STREQUAL "SHARED_LIBRARY")
+  elseif ("${type}" STREQUAL "SHARED_LIBRARY" OR "${type}" STREQUAL "UNKNOWN_LIBRARY")
     get_target_property(Location ${tgt} LOCATION)
     if (Location)
       get_filename_component(Dir ${Location} DIRECTORY)
@@ -932,12 +932,14 @@ function(mfem_export_mk_files)
   endif()
   set(MFEM_BUILD_TAG "${CMAKE_SYSTEM}")
   set(MFEM_PREFIX "${CMAKE_INSTALL_PREFIX}")
-  # For the next 4 variable, these are the values for the build-tree version of
+  # For the next 4 variables, these are the values for the build-tree version of
   # 'config.mk'
   set(MFEM_INC_DIR "${PROJECT_BINARY_DIR}")
   set(MFEM_LIB_DIR "${PROJECT_BINARY_DIR}")
   set(MFEM_TEST_MK "${PROJECT_SOURCE_DIR}/config/test.mk")
   set(MFEM_CONFIG_EXTRA "MFEM_BUILD_DIR ?= ${PROJECT_BINARY_DIR}")
+  # TODO: CUDA/HIP support:
+  set(MFEM_XLINKER "${CMAKE_CXX_LINKER_WRAPPER_FLAG}")
   set(MFEM_MPIEXEC ${MPIEXEC})
   if (NOT MFEM_MPIEXEC)
     set(MFEM_MPIEXEC "mpirun")
