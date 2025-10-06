@@ -8,8 +8,8 @@
                                https://mfem.org
 
 
-Version 4.8.1 (development)
-===========================
+Version 4.9, released on Nov XX, 2025
+=====================================
 
 Starting with this version, MFEM requires a C++17 compiler.
 
