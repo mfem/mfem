@@ -112,7 +112,8 @@ struct DeviceAllocator : public Allocator
    virtual ~DeviceAllocator() = default;
 };
 
-template <class BaseAlloc> struct TempAllocator : public Allocator
+template <class BaseAlloc, bool NeedsWait = false>
+struct TempAllocator : public Allocator
 {
 private:
    using block = std::tuple<char *, char *, size_t>;
@@ -124,6 +125,10 @@ private:
    char *curr_end = nullptr;
    /// total number of allocations in all blocks
    size_t total_allocs = 0;
+
+   /// for temporary host-pinned and managed allocators, in some situations
+   /// needs to wait for kernels to complete before next allocation can begin.
+   bool wait_next_alloc = false;
 
    /// helper for finding the next address starting from p aligned to alignment
    char *get_aligned(char *p) const noexcept;
@@ -146,8 +151,8 @@ public:
    virtual ~TempAllocator() { Clear(); }
 };
 
-template <class BaseAlloc>
-char *TempAllocator<BaseAlloc>::get_aligned(char *p) const noexcept
+template <class BaseAlloc, bool NeedsWait>
+char *TempAllocator<BaseAlloc, NeedsWait>::get_aligned(char *p) const noexcept
 {
    auto offset = reinterpret_cast<uintptr_t>(p) % alignment;
    if (offset)
@@ -157,8 +162,8 @@ char *TempAllocator<BaseAlloc>::get_aligned(char *p) const noexcept
    return p;
 }
 
-template <class BaseAlloc>
-void *TempAllocator<BaseAlloc>::AllocBlock(size_t size)
+template <class BaseAlloc, bool NeedsWait>
+void *TempAllocator<BaseAlloc, NeedsWait>::AllocBlock(size_t size)
 {
    // need a new block
    auto rec_size = size + alignment - 1;
@@ -177,7 +182,8 @@ void *TempAllocator<BaseAlloc>::AllocBlock(size_t size)
    return res;
 }
 
-template <class BaseAlloc> void TempAllocator<BaseAlloc>::Clear()
+template <class BaseAlloc, bool NeedsWait>
+void TempAllocator<BaseAlloc, NeedsWait>::Clear()
 {
    for (auto &b : blocks)
    {
@@ -187,7 +193,8 @@ template <class BaseAlloc> void TempAllocator<BaseAlloc>::Clear()
    total_allocs = 0;
 }
 
-template <class BaseAlloc> void TempAllocator<BaseAlloc>::Coalesce()
+template <class BaseAlloc, bool NeedsWait>
+void TempAllocator<BaseAlloc, NeedsWait>::Coalesce()
 {
    // move all blocks with allocations to the front
    // has to be stable so we know that mid - 1 has curr_end in it
@@ -219,11 +226,15 @@ template <class BaseAlloc> void TempAllocator<BaseAlloc>::Coalesce()
    {
       // last block completely free'd
       curr_end = std::get<0>(*mid);
+      if constexpr (NeedsWait)
+      {
+         wait_next_alloc = true;
+      }
    }
 }
 
-template <class BaseAlloc>
-void TempAllocator<BaseAlloc>::Alloc(void **ptr, size_t nbytes)
+template <class BaseAlloc, bool NeedsWait>
+void TempAllocator<BaseAlloc, NeedsWait>::Alloc(void **ptr, size_t nbytes)
 {
    if (blocks.size())
    {
@@ -235,7 +246,14 @@ void TempAllocator<BaseAlloc>::Alloc(void **ptr, size_t nbytes)
          ++std::get<2>(blocks.back());
          ++total_allocs;
          *ptr = res;
-         return;
+         if constexpr(NeedsWait)
+         {
+            if (wait_next_alloc)
+            {
+               // TODO: can this be stream sync?
+               MFEM_DEVICE_SYNC;
+            }
+         }
       }
       else if (std::get<2>(blocks.back()) == 0)
       {
@@ -243,22 +261,24 @@ void TempAllocator<BaseAlloc>::Alloc(void **ptr, size_t nbytes)
          alloc_.Dealloc(std::get<0>(blocks.back()));
          blocks.pop_back();
          *ptr = AllocBlock(nbytes);
-         return;
       }
       else
       {
          *ptr = AllocBlock(nbytes);
-         return;
       }
    }
    else
    {
       *ptr = AllocBlock(nbytes);
-      return;
+   }
+   if constexpr (NeedsWait)
+   {
+      wait_next_alloc = false;
    }
 }
 
-template <class BaseAlloc> void TempAllocator<BaseAlloc>::Dealloc(void *ptr)
+template <class BaseAlloc, bool NeedsWait>
+void TempAllocator<BaseAlloc, NeedsWait>::Dealloc(void *ptr)
 {
    if (ptr != nullptr)
    {
@@ -348,9 +368,9 @@ static Allocator *CreateTempAllocator(AllocatorType loc)
       case AllocatorType::HOST_64:
          return new TempAllocator<StdAlignedAllocator>;
       case AllocatorType::HOSTPINNED:
-         return new TempAllocator<HostPinnedAllocator>;
+         return new TempAllocator<HostPinnedAllocator, true>;
       case AllocatorType::MANAGED:
-         return new TempAllocator<ManagedAllocator>;
+         return new TempAllocator<ManagedAllocator, true>;
       case AllocatorType::DEVICE:
          // case AllocatorType::DEVICE_UMPIRE:
          // case AllocatorType::DEVICE_UMPIRE_2:
@@ -1560,22 +1580,90 @@ int ResourceManager::compare_host_device(size_t segment, size_t offset,
    return 0;
 }
 
+void ResourceManager::CopyImpl(char *dst, ResourceLocation dloc,
+                               size_t dst_offset, size_t marker, size_t nbytes,
+                               const char *hsrc, const char *dsrc,
+                               ResourceLocation shloc, ResourceLocation sdloc,
+                               size_t src_offset, size_t hmarker,
+                               size_t dmarker)
+{
+   // TODO
+}
+
 void ResourceManager::Copy(size_t dst_seg, size_t src_seg, size_t dst_offset,
                            size_t src_offset, size_t nbytes)
 {
-   // TODO
+   auto &dseg = storage.get_segment(dst_seg);
+   auto &sseg = storage.get_segment(src_seg);
+   size_t sh_curr = 0;
+   size_t sd_curr = 0;
+   if (sseg.lowers[0])
+   {
+      sh_curr = find_marker(src_seg, src_offset, false);
+   }
+   if (sseg.lowers[1])
+   {
+      sd_curr = find_marker(src_seg, src_offset, true);
+   }
+
+   for (int i = 0; i < 2; ++i)
+   {
+      if (dseg.lowers[i])
+      {
+         size_t curr = find_marker(dst_seg, dst_offset, i);
+         CopyImpl(dseg.lowers[i], dseg.locs[i], dst_offset, curr, nbytes,
+                  sseg.lowers[0], sseg.lowers[1], sseg.locs[0], sseg.locs[1],
+                  src_offset, sh_curr, sd_curr);
+      }
+   }
 }
 
 void ResourceManager::CopyFromHost(size_t segment, size_t offset,
                                    const char *src, size_t nbytes)
 {
-   // TODO
+   auto &dseg = storage.get_segment(segment);
+
+   for (int i = 0; i < 2; ++i)
+   {
+      if (dseg.lowers[i])
+      {
+         std::vector<std::pair<ptrdiff_t, ptrdiff_t>,
+             AllocatorAdaptor<std::pair<ptrdiff_t, ptrdiff_t>>>
+             copy_segs(AllocatorAdaptor<std::pair<ptrdiff_t, ptrdiff_t>>(MANAGED,
+                                                                         true));
+         check_valid(segment, i, offset, offset + nbytes,
+                     [&](auto start, auto stop, bool valid)
+         {
+            if (valid)
+            {
+               copy_segs.emplace_back(start, stop);
+            }
+            return false;
+         });
+         BatchMemCopy(dseg.lowers[i], src - offset, dseg.locs[i], HOST,
+                      copy_segs);
+      }
+   }
 }
 
 void ResourceManager::CopyToHost(size_t segment, size_t offset, char *dst,
                                  size_t nbytes)
 {
-   // TODO
+   auto &sseg = storage.get_segment(segment);
+   size_t sh_curr = 0;
+   size_t sd_curr = 0;
+   if (sseg.lowers[0])
+   {
+      sh_curr = find_marker(segment, offset, false);
+   }
+   if (sseg.lowers[1])
+   {
+      sd_curr = find_marker(segment, offset, true);
+   }
+
+   size_t curr = 0;
+   CopyImpl(dst, HOST, 0, curr, nbytes, sseg.lowers[0], sseg.lowers[1],
+            sseg.locs[0], sseg.locs[1], offset, sh_curr, sd_curr);
 }
 
 } // namespace mfem

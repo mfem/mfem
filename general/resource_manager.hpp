@@ -264,9 +264,11 @@ private:
    const char *read(size_t segment, size_t offset, size_t nbytes,
                     bool on_device);
 
-   void CopyImpl(size_t dst_seg, size_t src_seg, ptrdiff_t nbytes,
-                 ptrdiff_t dst_offset, ptrdiff_t src_offset, size_t smarker,
-                 size_t somarker);
+   void CopyImpl(char *dst, ResourceLocation dloc, size_t dst_offset,
+                 size_t marker, size_t nbytes, const char *hsrc,
+                 const char *dsrc, ResourceLocation shloc,
+                 ResourceLocation sdloc, size_t src_offset, size_t hmarker,
+                 size_t dmarker);
 
    /// copies to the part of dst_seg which is valid
    void Copy(size_t dst_seg, size_t src_seg, size_t dst_offset,
