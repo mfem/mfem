@@ -469,25 +469,25 @@ TEST_CASE("Batched Linear Algebra",
    // Test batched matrix inverse
    BatchedLinAlg::Get(backend).Invert(A_inv_batch);
    A_inv_batch.HostReadWrite();
-   Vector out(n);
+   Vector output_col(n);
    Vector col;
    for (int i = 0; i < n_mat; ++i)
    {
       DenseMatrix Ai_inv(A_inv_batch(i));
       for (int j = 0; j < n; ++j)
       {
-         out = 0.0;
+         output_col = 0.0;
          As[i].GetColumnReference(j, col);
-         Ai_inv.Mult(col, out);
+         Ai_inv.Mult(col, output_col);
          for (int k = 0; k < n; ++k)
          {
             if (j == k)
             {
-               REQUIRE(out(k) == MFEM_Approx(1.0));
+               REQUIRE(output_col(k) == MFEM_Approx(1.0));
             }
             else
             {
-               REQUIRE(out(k) == MFEM_Approx(0.0));
+               REQUIRE(output_col(k) == MFEM_Approx(0.0));
             }
          }
       }
