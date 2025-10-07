@@ -127,6 +127,38 @@ FiniteElementSpace::FiniteElementSpace(Mesh *mesh,
    }
 }
 
+FiniteElementSpace::FiniteElementSpace(Mesh *mesh,
+                                       Array<int> masterBdr, Array<int> slaveBdr,
+                                       const FiniteElementCollection *fec,
+                                       int vdim, int ordering)
+{
+   if (masterBdr.Size() != slaveBdr.Size())
+   {
+      mfem_error("FiniteElementSpace::FiniteElementSpace\n"
+                 "number of master and slave boundaries do not match!");
+   }
+   const NURBSFECollection *nurbs_fec =
+      dynamic_cast<const NURBSFECollection *>(fec);
+   if (!nurbs_fec)
+   {
+      mfem_warning("FiniteElementSpace::FiniteElementSpace\n"
+                   "master and slave boundaries ignored for non NURBS spaces");
+      Constructor(mesh, NULL, fec, vdim, ordering);
+   }
+   else if (mesh->NURBSext)
+   {
+      NURBSExtension *ext = new NURBSExtension(mesh->NURBSext, fec->GetOrder());
+      ext->ConnectBoundaries(masterBdr, slaveBdr);
+      Constructor(mesh, ext, fec, vdim, ordering);
+   }
+   else
+   {
+      MFEM_ABORT("NURBSFECollection requires a NURBS-based mesh.");
+   }
+}
+
+
+
 FiniteElementSpace::FiniteElementSpace(Mesh *mesh, NURBSExtension *ext,
                                        const FiniteElementCollection *fec,
                                        int vdim, int ordering)

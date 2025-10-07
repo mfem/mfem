@@ -167,8 +167,8 @@ int main(int argc, char *argv[])
       }
    }
 
-   FiniteElementSpace trial_fes(mesh, NURBSext, trial_fec);
-   FiniteElementSpace test_fes(mesh,trial_fes.StealNURBSext(), test_fec);
+   FiniteElementSpace trial_fes(mesh, trial_fec);
+   FiniteElementSpace test_fes(mesh, test_fec);
 
    int trial_size = trial_fes.GetTrueVSize();
    int test_size = test_fes.GetTrueVSize();

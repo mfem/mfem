@@ -665,6 +665,10 @@ public:
                       const FiniteElementCollection *fec,
                       int vdim = 1, int ordering = Ordering::byNODES);
 
+   FiniteElementSpace(Mesh *mesh, Array<int> masterBdr, Array<int> slaveBdr,
+                      const FiniteElementCollection *fec,
+                      int vdim = 1, int ordering = Ordering::byNODES);
+
    /// Construct a NURBS FE space based on the given NURBSExtension, @a ext.
    /** @note If the pointer @a ext is NULL, this constructor is equivalent to
        the standard constructor with the same arguments minus the
@@ -682,13 +686,13 @@ public:
    /// Checks if the fespace is a NURBS fespace
    bool IsNURBS() const { return NURBSext != NULL; }
 
-   /// Returns the NURBSextension
+   /// Returns the NURBSExtension
    const NURBSExtension *GetNURBSext() const { return NURBSext; }
 
-   /// Returns the NURBSextension
+   /// Returns the NURBSExtension
    NURBSExtension *GetNURBSext() { return NURBSext; }
 
-   /** Returns the owned NURBSextension, and disowns NURBSextension.
+   /** Returns the owned NURBSExtension, and disowns NURBSExtension.
        Throws an error if NURBSextenion is not owned.*/
    NURBSExtension *StealNURBSext();
 

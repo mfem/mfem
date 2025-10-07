@@ -111,12 +111,11 @@ int main(int argc, char *argv[])
    // 5. Define a finite element space on the mesh. Here we use the
    //    Raviart-Thomas finite elements of the specified order.
    FiniteElementCollection *fec = nullptr;
-   NURBSExtension *NURBSext = nullptr;
+  // NURBSExtension *NURBSext = nullptr;
 
    if (mesh->NURBSext && NURBS)
    {
       fec = new NURBS_HCurlFECollection(order,dim);
-      NURBSext  = new NURBSExtension(mesh->NURBSext, order);
       mfem::out<<"Create NURBS fec and ext"<<std::endl;
    }
    else
@@ -126,7 +125,7 @@ int main(int argc, char *argv[])
       mfem::out<<"Create Normal fec"<<std::endl;
    }
 
-   FiniteElementSpace *fespace = new FiniteElementSpace(mesh, NURBSext, fec);
+   FiniteElementSpace *fespace = new FiniteElementSpace(mesh, fec);
    cout << "Number of finite element unknowns: "
         << fespace->GetTrueVSize() << endl;
 

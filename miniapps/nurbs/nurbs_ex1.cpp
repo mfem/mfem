@@ -156,8 +156,9 @@ int main(int argc, char *argv[])
    bool strongBC = 1;
    real_t kappa = -1;
    Array<int> order(1);
+   order[0] = 0;
    int visport = 19916;
-   order[0] = 1;
+
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -236,45 +237,33 @@ int main(int argc, char *argv[])
       mesh->PrintInfo();
    }
 
+   // Read periodic BCs from file
+   std::ifstream in;
+   in.open(per_file, std::ifstream::in);
+   if (in.is_open())
+   {
+      int psize;
+      in >> psize;
+      master.SetSize(psize);
+      slave.SetSize(psize);
+      master.Load(in, psize);
+      slave.Load(in, psize);
+      in.close();
+   }
+
    // 4. Define a finite element space on the mesh. Here we use continuous
    //    Lagrange finite elements of the specified order. If order < 1, we
    //    instead use an isoparametric/isogeometric space.
    FiniteElementCollection *fec;
-   NURBSExtension *NURBSext = NULL;
+   NURBSExtension *NURBSext = nullptr;
+   FiniteElementSpace *fespace = nullptr;
    int own_fec = 0;
 
-   if (mesh->NURBSext)
+   if (order.Size() == 0)
    {
-      fec = new NURBSFECollection(order[0]);
-      own_fec = 1;
-
-      int nkv = mesh->NURBSext->GetNKV();
-      if (order.Size() == 1)
-      {
-         int tmp = order[0];
-         order.SetSize(nkv);
-         order = tmp;
-      }
-
-      if (order.Size() != nkv ) { mfem_error("Wrong number of orders set."); }
-      NURBSext = new NURBSExtension(mesh->NURBSext, order);
-
-      // Read periodic BCs from file
-      std::ifstream in;
-      in.open(per_file, std::ifstream::in);
-      if (in.is_open())
-      {
-         int psize;
-         in >> psize;
-         master.SetSize(psize);
-         slave.SetSize(psize);
-         master.Load(in, psize);
-         slave.Load(in, psize);
-         in.close();
-      }
-      NURBSext->ConnectBoundaries(master,slave);
+       mfem_error("Order has size 0");
    }
-   else if (order[0] == -1) // Isoparametric
+   else if (order[0] == 0) // Isoparametric
    {
       if (mesh->GetNodes())
       {
@@ -288,15 +277,33 @@ int main(int argc, char *argv[])
          fec = new H1_FECollection(1, dim);
          own_fec = 1;
       }
+      fespace = new FiniteElementSpace(mesh, NURBSext, fec);
+   }
+   else if (mesh->NURBSext && (order[0] > 0))
+   {
+      if (order.Size() == 1)
+      {
+         fec = new NURBSFECollection(order[0]);
+         own_fec = 1;
+         fespace = new FiniteElementSpace(mesh,master,slave,fec);
+      }
+      else
+      {
+         fec = new NURBSFECollection(-1);
+         own_fec = 1;
+         NURBSext = new NURBSExtension(mesh->NURBSext, order);
+         NURBSext->ConnectBoundaries(master,slave);
+         fespace = new FiniteElementSpace(mesh,NURBSext,fec);
+      }
    }
    else
    {
       if (order.Size() > 1) { cout <<"Wrong number of orders set, needs one.\n"; }
       fec = new H1_FECollection(abs(order[0]), dim);
       own_fec = 1;
+      fespace = new FiniteElementSpace(mesh, fec);
    }
 
-   FiniteElementSpace *fespace = new FiniteElementSpace(mesh, NURBSext, fec);
    cout << "Number of finite element unknowns: "
         << fespace->GetTrueVSize() << endl;
 
