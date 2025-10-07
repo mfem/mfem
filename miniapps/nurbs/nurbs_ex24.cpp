@@ -127,10 +127,9 @@ int main(int argc, char *argv[])
    //    Raviart-Thomas finite elements of the specified order.
    FiniteElementCollection *trial_fec = nullptr;
    FiniteElementCollection *test_fec = nullptr;
-   NURBSExtension *NURBSext = nullptr;
+
    if (mesh->NURBSext && NURBS)
    {
-      NURBSext  = new NURBSExtension(mesh->NURBSext, order);
       if (prob == 0)
       {
          trial_fec  = new NURBSFECollection(order);
