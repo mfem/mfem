@@ -744,6 +744,8 @@ void ParFiniteElementSpace::Build_Dof_TrueDof_Matrix() const // matrix P
       // Safe to assume 1-1 correspondence between shared dofs
       int ldof  = GetVSize();
       int ltdof = TrueVSize();
+      std::cout << MyRank << " (ldof, ltdof) = ("
+                << ldof << "," << ltdof << ")" << std::endl;
 
       HYPRE_Int *i_diag = Memory<HYPRE_Int>(ldof+1);
       HYPRE_Int *j_diag = Memory<HYPRE_Int>(ltdof);
@@ -756,7 +758,11 @@ void ParFiniteElementSpace::Build_Dof_TrueDof_Matrix() const // matrix P
       HYPRE_BigInt *cmap   = Memory<HYPRE_BigInt>(ldof-ltdof);
 
       HYPRE_BigInt *col_starts = GetTrueDofOffsets();
+      std::cout << MyRank << " col_starts: [" << col_starts[0]
+                << "," << col_starts[1] << "]" << std::endl;
       HYPRE_BigInt *row_starts = GetDofOffsets();
+      std::cout << MyRank << " row_starts: [" << row_starts[0]
+                << "," << row_starts[1] << "]" << std::endl;
 
       Array<Pair<HYPRE_BigInt, int> > cmap_j_offd(ldof-ltdof);
 
@@ -778,6 +784,18 @@ void ParFiniteElementSpace::Build_Dof_TrueDof_Matrix() const // matrix P
          i_diag[i+1] = diag_counter;
          i_offd[i+1] = offd_counter;
       }
+      std::cout << MyRank << " i_diag: ";
+      for (int i = 0; i < ldof+1; ++i)
+      {
+         std::cout << i_diag[i] << " ";
+      }
+      std::cout << std::endl;
+      std::cout << MyRank << " j_diag: ";
+      for (int i = 0; i < ltdof; ++i)
+      {
+         std::cout << j_diag[i] << " ";
+      }
+      std::cout << std::endl;
 
       SortPairs<HYPRE_BigInt, int>(cmap_j_offd, offd_counter);
 
@@ -786,6 +804,24 @@ void ParFiniteElementSpace::Build_Dof_TrueDof_Matrix() const // matrix P
          cmap[i] = cmap_j_offd[i].one;
          j_offd[cmap_j_offd[i].two] = i;
       }
+      std::cout << MyRank << " i_offd: ";
+      for (int i = 0; i < ldof+1; ++i)
+      {
+         std::cout << i_offd[i] << " ";
+      }
+      std::cout << std::endl;
+      std::cout << MyRank << " j_offd: ";
+      for (int i = 0; i < ldof-ltdof; ++i)
+      {
+         std::cout << j_offd[i] << " ";
+      }
+      std::cout << std::endl;
+      std::cout << MyRank << " cmap: ";
+      for (int i = 0; i < ldof-ltdof; ++i)
+      {
+         std::cout << cmap[i] << " ";
+      }
+      std::cout << std::endl;
 
       P = new HypreParMatrix(MyComm, MyRank, NRanks, row_starts, col_starts,
                              i_diag, j_diag, i_offd, j_offd,
