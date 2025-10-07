@@ -255,8 +255,8 @@ void DFemDiffusion(const char *filename, int p, const int r)
          DOperator dop_mf(vsol, {{Coords, mfes}}, pmesh);
          const auto mf_vector_diffusion_qf =
             [] MFEM_HOST_DEVICE (const tensor<dscalar_t, DIM, DIM> &dudxi,
-               const tensor<real_t, DIM, DIM> &J,
-               const real_t &w)
+                                 const tensor<real_t, DIM, DIM> &J,
+                                 const real_t &w)
          {
             const auto invJ = inv(J), TinJ = transpose(invJ);
             return tuple{ (dudxi * invJ) * TinJ * det(J) * w };
