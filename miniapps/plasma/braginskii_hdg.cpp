@@ -193,6 +193,13 @@ int ReadVisItGF(const char * coll_name, const char * field_name,
                 std::unique_ptr<VisItDataCollection> &dc,
                 GridFunction* &gf);
 
+// Save the mesh in the native MFEM format
+void SaveMFEMMesh(const Mesh &mesh, int ti);
+
+// Save the grid function in the native MFEM format
+void SaveMFEMField(const GridFunction &gf, const char *base_name, int ti);
+
+// Visualize the grid function in GLVis
 bool VisualizeField(socketstream &sout, const GridFunction &gf,
                     const char *name, real_t t = 0.);
 
@@ -218,6 +225,9 @@ int main(int argc, char *argv[])
    ProblemParams pars;
    MagneticParams Bpars;
 
+   bool mfem = false;
+   bool visit = false;
+   bool paraview = false;
    bool visualization = true;
    int vis_steps = 50;
 
@@ -292,6 +302,15 @@ int main(int argc, char *argv[])
                   "--b-pad-digits-cycle",
                   "Number of digits in B field cycle.");
 
+   args.AddOption(&mfem, "-mfem", "--mfem", "-no-mfem",
+                  "--no-mfem",
+                  "Enable or disable MFEM output.");
+   args.AddOption(&visit, "-visit", "--visit", "-no-visit",
+                  "--no-visit",
+                  "Enable or disable Visit output.");
+   args.AddOption(&paraview, "-paraview", "--paraview", "-no-paraview",
+                  "--no-paraview",
+                  "Enable or disable ParaView output.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -673,7 +692,50 @@ int main(int argc, char *argv[])
    op.SetTolerance(rtol, atol);
    op.SetMaxIters(max_iter);
 
-   // 7. Visualize state
+   // 7. Visualize/save state
+
+   // visualize/save state
+
+   // MFEM native format
+   if (mfem)
+   {
+      SaveMFEMMesh(mesh, 0);
+      SaveMFEMField(den, "density", 0);
+      SaveMFEMField(mom, "momentum", 0);
+      SaveMFEMField(ene, "energy", 0);
+   }
+
+   // VisIt
+   unique_ptr<VisItDataCollection> visit_dc;
+   if (visit)
+   {
+      visit_dc.reset(new VisItDataCollection("Braginskii-HDG", &mesh));
+      visit_dc->RegisterField("density", &den);
+      visit_dc->RegisterField("momentum", &mom);
+      visit_dc->RegisterField("energy", &ene);
+      visit_dc->SetCycle(0);
+      visit_dc->SetTime(0.);
+      visit_dc->Save();
+   }
+
+   // ParaView
+   unique_ptr<ParaViewDataCollection> paraview_dc;
+   if (paraview)
+   {
+      paraview_dc.reset(new ParaViewDataCollection("Braginskii-HDG", &mesh));
+      paraview_dc->SetPrefixPath("ParaView");
+      paraview_dc->SetLevelsOfDetail(order);
+      paraview_dc->SetDataFormat(VTKFormat::BINARY);
+      paraview_dc->SetHighOrderOutput(true);
+      paraview_dc->RegisterField("density", &den);
+      paraview_dc->RegisterField("momentum", &mom);
+      paraview_dc->RegisterField("energy", &ene);
+      paraview_dc->SetCycle(0);
+      paraview_dc->SetTime(0.);
+      paraview_dc->Save();
+   }
+
+   // GLVis
    socketstream sden, smom, sene;
    if (visualization && !VisualizeField(sden, den, "density")) { visualization = false; }
    if (visualization && !VisualizeField(smom, mom, "momentum")) { visualization = false; }
@@ -751,6 +813,29 @@ int main(int argc, char *argv[])
       if (done || ti % vis_steps == 0)
       {
          cout << "time step: " << ti << ", time: " << t << ", dt: " << dt << endl;
+
+         if (mfem)
+         {
+            SaveMFEMMesh(mesh, ti);
+            SaveMFEMField(den, "density", ti);
+            SaveMFEMField(mom, "momentum", ti);
+            SaveMFEMField(ene, "energy", ti);
+         }
+
+         if (visit)
+         {
+            visit_dc->SetCycle(ti);
+            visit_dc->SetTime(t);
+            visit_dc->Save();
+         }
+
+         if (paraview)
+         {
+            paraview_dc->SetCycle(ti);
+            paraview_dc->SetTime(t);
+            paraview_dc->Save();
+         }
+
          if (visualization)
          {
             VisualizeField(sden, den, "density", t);
@@ -1084,6 +1169,30 @@ int ReadVisItGF(const char * coll_name, const char * field_name,
    }
 
    return 0;
+}
+
+void SaveMFEMMesh(const Mesh &mesh, int ti)
+{
+   stringstream ss;
+   ss.str("");
+   ss << "Braginskii-HDG";
+   ss << "_" << ti;
+   ss << ".mesh";
+   ofstream mesh_ofs(ss.str());
+   mesh_ofs.precision(8);
+   mesh.Print(mesh_ofs);
+}
+
+void SaveMFEMField(const GridFunction &gf, const char *base_name, int ti)
+{
+   stringstream ss;
+   ss.str("");
+   ss << base_name;
+   ss << "_" << ti;
+   ss << ".gf";
+   ofstream gf_ofs(ss.str());
+   gf_ofs.precision(8);
+   gf.Save(gf_ofs);
 }
 
 bool VisualizeField(socketstream &sout, const GridFunction &gf,
