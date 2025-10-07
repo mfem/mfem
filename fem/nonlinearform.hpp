@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -204,7 +204,7 @@ public:
 
        Both the input and the output vectors, @a x and @a y, must be true-dof
        vectors, i.e. their size must be fes->GetTrueVSize(). */
-   virtual void Mult(const Vector &x, Vector &y) const;
+   void Mult(const Vector &x, Vector &y) const override;
 
    /** @brief Compute the gradient Operator of the NonlinearForm corresponding
        to the state @a x. */
@@ -217,7 +217,7 @@ public:
        In general, @a x may have non-homogeneous essential boundary values.
 
        The state @a x must be a true-dof vector. */
-   virtual Operator &GetGradient(const Vector &x) const;
+   Operator &GetGradient(const Vector &x) const override;
 
    /// Update the NonlinearForm to propagate updates of the associated FE space.
    /** After calling this method, the essential boundary conditions need to be
@@ -233,9 +233,9 @@ public:
    virtual void Setup();
 
    /// Get the finite element space prolongation matrix
-   virtual const Operator *GetProlongation() const { return P; }
+   const Operator *GetProlongation() const override { return P; }
    /// Get the finite element space restriction matrix
-   virtual const Operator *GetRestriction() const
+   const Operator *GetRestriction() const override
    { return fes->GetRestrictionMatrix(); }
 
    /// Indicate that integrators are not owned by the NonlinearForm
@@ -363,18 +363,49 @@ public:
                              Array<int> &bdr_marker)
    { bfnfi.Append(nlfi); bfnfi_marker.Append(&bdr_marker); }
 
-   virtual void SetEssentialBC(const Array<Array<int> *>&bdr_attr_is_ess,
-                               Array<Vector *> &rhs);
+   /** @brief Set essential boundary conditions to each finite element space
+       using boundary attribute markers.
+
+       This method calls `FiniteElementSpace::GetEssentialTrueDofs()` for each
+       space and stores ess_tdof_lists internally.
+
+       If `rhs` vectors are non-null, the entries corresponding to these
+       essential DoFs are set to zero. This ensures compatibility with the
+       output of the `Mult()` method, which also zeroes out these entries.
+
+       @param[in] bdr_attr_is_ess A list of boundary attribute markers for each
+       space.
+       @param[in,out] rhs         An array of optional right-hand side vectors.
+       If a vector at `rhs[i]` is non-null, its essential DoFs will be set
+       to zero. */
+   virtual void SetEssentialBC(const Array<Array<int>*> &bdr_attr_is_ess,
+                               Array<Vector*> &rhs);
+
+   /** @brief Set essential boundary conditions to each finite element space
+       using essential true dof lists.
+
+       This method stores a copy of the provided essential true dof lists.
+
+       If `rhs` vectors are non-null, the entries corresponding to these
+       essential DoFs are set to zero. This ensures compatibility with the
+       output of the `Mult()` method, which also zeroes out these entries.
+
+       @param[in] ess_tdof_list A list of essential true dofs for each space.
+       @param[in,out] rhs       An array of optional right-hand side vectors.
+       If a vector at `rhs[i]` is non-null, its essential DoFs will be set
+       to zero. */
+   virtual void SetEssentialTrueDofs(const Array<Array<int>*> &ess_tdof_list,
+                                     Array<Vector*> &rhs);
 
    virtual real_t GetEnergy(const Vector &x) const;
 
    /// Method is only called in serial, the parallel version calls MultBlocked
    /// directly.
-   virtual void Mult(const Vector &x, Vector &y) const;
+   void Mult(const Vector &x, Vector &y) const override;
 
    /// Method is only called in serial, the parallel version calls
    /// GetGradientBlocked directly.
-   virtual Operator &GetGradient(const Vector &x) const;
+   Operator &GetGradient(const Vector &x) const override;
 
    /// Destructor.
    virtual ~BlockNonlinearForm();

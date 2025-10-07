@@ -4,9 +4,9 @@
 //
 // Sample runs:  nurbs_ex24 -m ../../data/pipe-nurbs-2d.mesh -o 2
 //               nurbs_ex24 -m ../../data/pipe-nurbs-2d.mesh -p 2
-//               nurbs_ex24 -m ../../data/cube-nurbs.mesh -o 2
-//               nurbs_ex24 -m ../../data/cube-nurbs.mesh -o 2 -p 1
-//               nurbs_ex24 -m ../../data/cube-nurbs.mesh -o 2 -p 2
+//               nurbs_ex24 -m ../../data/cube-nurbs.mesh -o 2 -r 3
+//               nurbs_ex24 -m ../../data/cube-nurbs.mesh -o 2 -p 1 -r 3
+//               nurbs_ex24 -m ../../data/cube-nurbs.mesh -o 2 -p 2 -r 3
 //               nurbs_ex24 -m ../../data/escher.mesh
 //               nurbs_ex24 -m ../../data/escher.mesh -o 2
 //               nurbs_ex24 -m ../../data/fichera.mesh
@@ -14,11 +14,6 @@
 //               nurbs_ex24 -m ../../data/fichera-q3.mesh
 //               nurbs_ex24 -m ../../data/amr-quad.mesh -o 2
 //               nurbs_ex24 -m ../../data/amr-hex.mesh
-//
-// Device sample runs -- do not work for NURBS:
-//               nurbs_ex24 -m ../../data/escher.mesh -pa -d cuda
-//               nurbs_ex24 -m ../../data/escher.mesh -pa -d raja-cuda
-//               nurbs_ex24 -m ../../data/escher.mesh -pa -d raja-omp
 //
 // Description:  This example code illustrates usage of mixed finite element
 //               spaces, with three variants:
@@ -63,6 +58,7 @@ int main(int argc, char *argv[])
    bool static_cond = false;
    bool pa = false;
    const char *device_config = "cpu";
+   int visport = 19916;
    bool visualization = 1;
 
    OptionsParser args(argc, argv);
@@ -86,6 +82,7 @@ int main(int argc, char *argv[])
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
 
+   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.Parse();
    if (!args.Good())
    {
@@ -370,7 +367,6 @@ int main(int argc, char *argv[])
    if (visualization)
    {
       char vishost[] = "localhost";
-      int  visport   = 19916;
       socketstream sol_sock(vishost, visport);
       sol_sock.precision(8);
       sol_sock << "solution\n" << *mesh << x << flush;

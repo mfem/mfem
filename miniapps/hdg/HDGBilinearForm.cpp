@@ -877,7 +877,8 @@ HypreParMatrix *HDGBilinearForm::ParallelAssemble(int i, SparseMatrix *m)
    return Mh.As<HypreParMatrix>();
 }
 
-void HDGBilinearForm::ParallelAssemble(int i, OperatorHandle &A, SparseMatrix *m)
+void HDGBilinearForm::ParallelAssemble(int i, OperatorHandle &A,
+                                       SparseMatrix *m)
 {
    A.Clear();
 
@@ -901,32 +902,34 @@ void HDGBilinearForm::ParallelAssemble(int i, OperatorHandle &A, SparseMatrix *m
       int *J = m->GetJ();
       for (int ii = 0; ii < glob_J.Size(); ii++)
       {
-            if (J[ii] < lvsize)
-            {
-               glob_J[ii] = J[ii] + ldof_offset;
-            }
-            else
-            {
-               glob_J[ii] = face_nbr_glob_ldof[J[ii] - lvsize];
-            }
+         if (J[ii] < lvsize)
+         {
+            glob_J[ii] = J[ii] + ldof_offset;
+         }
+         else
+         {
+            glob_J[ii] = face_nbr_glob_ldof[J[ii] - lvsize];
+         }
       }
 
       // TODO - construct dA directly in the A format
       hdA.Reset(
-            new HypreParMatrix(pfes->GetComm(), lvsize,
-                             pfes->GlobalVSize(),
-                             pfes->GlobalVSize(), m->GetI(), glob_J,
-                             m->GetData(), pfes->GetDofOffsets(),
-                             pfes->GetDofOffsets()));
+         new HypreParMatrix(pfes->GetComm(), lvsize,
+                            pfes->GlobalVSize(),
+                            pfes->GlobalVSize(), m->GetI(), glob_J,
+                            m->GetData(), pfes->GetDofOffsets(),
+                            pfes->GetDofOffsets()));
 
       // - hdA owns the new HypreParMatrix
       // - the above constructor copies all input arrays
       glob_J.DeleteAll();
 
-      cout << "HDGBilinearForm::ParallelAssemble before dA.ConvertFrom(hdA);" << endl << flush;
+      cout << "HDGBilinearForm::ParallelAssemble before dA.ConvertFrom(hdA);" << endl
+           << flush;
       // this line fails
       dA.ConvertFrom(hdA);
-      cout << "HDGBilinearForm::ParallelAssemble after da.ConvertFrom(hdA);" << endl << flush;
+      cout << "HDGBilinearForm::ParallelAssemble after da.ConvertFrom(hdA);" << endl
+           << flush;
 
       Ph.ConvertFrom(pfes->Dof_TrueDof_Matrix());
 
@@ -943,11 +946,11 @@ void HDGBilinearForm::ParallelAssemble(int i, OperatorHandle &A, SparseMatrix *m
 
       OperatorHandle dA(A.Type());
       dA.MakeRectangularBlockDiag(pfes2->GetComm(),
-                             pfes->GlobalVSize(),
-                             pfes2->GlobalVSize(),
-                             pfes->GetDofOffsets(),
-                             pfes2->GetDofOffsets(),
-                             m);
+                                  pfes->GlobalVSize(),
+                                  pfes2->GlobalVSize(),
+                                  pfes->GetDofOffsets(),
+                                  pfes2->GetDofOffsets(),
+                                  m);
 
       OperatorHandle P_test(A.Type()), P_trial(A.Type());
 

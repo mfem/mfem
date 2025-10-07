@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -37,6 +37,13 @@ void DGMassApply(const int e,
    constexpr bool use_smem = (D1D > 0 && Q1D > 0);
    constexpr bool ACCUM = false;
    constexpr int NBZ = 1;
+
+   if (DIM == 1)
+   {
+      PAMassApply1D_Element<ACCUM>(e, NE, B, Bt, pa_data, x, y, d1d, q1d);
+      return;
+   }
+
    if (use_smem)
    {
       // cannot specialize functions below with D1D or Q1D equal to zero
@@ -174,6 +181,43 @@ real_t DGMassDot(const int e,
 
 template<int T_D1D = 0>
 MFEM_HOST_DEVICE inline
+void DGMassBasis1D(const int e,
+                   const int NE,
+                   const real_t *b_,
+                   const real_t *x_,
+                   real_t *y_,
+                   const int d1d = 0)
+{
+   const int D1D = T_D1D ? T_D1D : d1d;
+
+   const auto b = Reshape(b_, D1D, D1D);
+   const auto x = Reshape(x_, D1D, NE);
+   auto y = Reshape(y_, D1D, NE);
+
+   constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
+   real_t Y[MD1];
+
+   MFEM_FOREACH_THREAD(i,x,D1D)
+   {
+      real_t val = 0.0;
+      for (int j = 0; j < D1D; ++j)
+      {
+         val += b(i,j)*x(j,e);
+      }
+      Y[i] = val;
+   }
+   MFEM_SYNC_THREAD;
+   if (MFEM_THREAD_ID(y) == 0)
+   {
+      MFEM_FOREACH_THREAD(i,x,D1D)
+      {
+         y(i,e) = Y[i];
+      }
+   }
+}
+
+template<int T_D1D = 0>
+MFEM_HOST_DEVICE inline
 void DGMassBasis2D(const int e,
                    const int NE,
                    const real_t *b_,
@@ -269,7 +313,11 @@ void DGMassBasis(const int e,
                  real_t *y_,
                  const int d1d = 0)
 {
-   if (DIM == 2)
+   if (DIM == 1)
+   {
+      DGMassBasis1D<T_D1D>(e, NE, b_, x_, y_, d1d);
+   }
+   else if (DIM == 2)
    {
       DGMassBasis2D<T_D1D>(e, NE, b_, x_, y_, d1d);
    }

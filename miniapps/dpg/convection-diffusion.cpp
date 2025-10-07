@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -68,7 +68,7 @@
 #include <fstream>
 #include <iostream>
 
-using namespace std;
+
 using namespace mfem;
 using namespace mfem::common;
 
@@ -79,7 +79,7 @@ enum prob_type
 };
 
 prob_type prob;
-Vector beta;
+Vector beta_;
 real_t epsilon;
 
 real_t exact_u(const Vector & X);
@@ -102,6 +102,7 @@ int main(int argc, char *argv[])
    int iprob = 0;
    real_t theta = 0.0;
    bool static_cond = false;
+   int visport = 19916;
    epsilon = 1e0;
 
    OptionsParser args(argc, argv);
@@ -119,17 +120,18 @@ int main(int argc, char *argv[])
                   "Theta parameter for AMR");
    args.AddOption(&iprob, "-prob", "--problem", "Problem case"
                   " 0: manufactured, 1: Erickson-Johnson ");
-   args.AddOption(&beta, "-beta", "--beta",
+   args.AddOption(&beta_, "-beta", "--beta",
                   "Vector Coefficient beta");
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
                   "--no-static-condensation", "Enable static condensation.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.Parse();
    if (!args.Good())
    {
-      args.PrintUsage(cout);
+      args.PrintUsage(std::cout);
       return 1;
    }
 
@@ -145,14 +147,14 @@ int main(int argc, char *argv[])
    int dim = mesh.Dimension();
    MFEM_VERIFY(dim > 1, "Dimension = 1 is not supported in this example");
 
-   if (beta.Size() == 0)
+   if (beta_.Size() == 0)
    {
-      beta.SetSize(dim);
-      beta = 0.0;
-      beta[0] = 1.;
+      beta_.SetSize(dim);
+      beta_ = 0.0;
+      beta_[0] = 1.;
    }
 
-   args.PrintOptions(cout);
+   args.PrintOptions(std::cout);
 
    // Define spaces
    enum TrialSpace
@@ -197,10 +199,10 @@ int main(int argc, char *argv[])
    ConstantCoefficient eps2(1/(epsilon*epsilon));
 
    ConstantCoefficient negeps(-epsilon);
-   VectorConstantCoefficient betacoeff(beta);
-   Vector negbeta = beta; negbeta.Neg();
-   DenseMatrix bbt(beta.Size());
-   MultVVt(beta, bbt);
+   VectorConstantCoefficient betacoeff(beta_);
+   Vector negbeta = beta_; negbeta.Neg();
+   DenseMatrix bbt(beta_.Size());
+   MultVVt(beta_, bbt);
    MatrixConstantCoefficient bbtcoeff(bbt);
    VectorConstantCoefficient negbetacoeff(negbeta);
 
@@ -290,8 +292,8 @@ int main(int argc, char *argv[])
              << "  L2 Error  |"
              << "  Rate  |"
              << "  Residual  |"
-             << "  Rate  |" << endl;
-   std::cout << std::string(64,'-') << endl;
+             << "  Rate  |" << std::endl;
+   std::cout << std::string(64,'-') << std::endl;
 
    if (static_cond) { a->EnableStaticCondensation(); }
    for (int it = 0; it<=ref; it++)
@@ -412,7 +414,6 @@ int main(int argc, char *argv[])
       {
          const char * keys = (it == 0 && dim == 2) ? "jRcm\n" : nullptr;
          char vishost[] = "localhost";
-         int  visport   = 19916;
          VisualizeField(u_out,vishost, visport, u_gf,
                         "Numerical u", 0,0, 500, 500, keys);
          VisualizeField(sigma_out,vishost, visport, sigma_gf,
@@ -597,7 +598,7 @@ void exact_hatf(const Vector & X, Vector & hatf)
    hatf.SetSize(X.Size());
    for (int i = 0; i<hatf.Size(); i++)
    {
-      hatf[i] = beta[i] * u - sigma[i];
+      hatf[i] = beta_[i] * u - sigma[i];
    }
 }
 
@@ -611,7 +612,7 @@ real_t f_exact(const Vector & X)
    real_t s = 0;
    for (int i = 0; i<du.Size(); i++)
    {
-      s += beta[i] * du[i];
+      s += beta_[i] * du[i];
    }
    return -epsilon * d2u + s;
 }
@@ -624,10 +625,10 @@ void setup_test_norm_coeffs(GridFunction & c1_gf, GridFunction & c2_gf)
    for (int i = 0; i < mesh->GetNE(); i++)
    {
       real_t volume = mesh->GetElementVolume(i);
-      real_t c1 = min(epsilon/volume, (real_t) 1.);
-      real_t c2 = min(1./epsilon, 1./volume);
+      real_t c1 = std::min(epsilon/volume, (real_t) 1.);
+      real_t c2 = std::min(1./epsilon, 1./volume);
       fes->GetElementDofs(i,vdofs);
-      c1_gf.SetSubVector(vdofs,c1);
-      c2_gf.SetSubVector(vdofs,c2);
+      c1_gf.SetSubVectorHost(vdofs,c1);
+      c2_gf.SetSubVectorHost(vdofs,c2);
    }
 }

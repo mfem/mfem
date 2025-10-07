@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -121,13 +121,22 @@ void CPardisoSolver::SetOperator(const Operator &op)
 
    hypre_CSRMatrixDestroy(csr_op);
 
-   // The number of row in global matrix, rhs element and solution vector that
+   // iparm[40], the number of row in global matrix, rhs element and solution vector that
    // begins the input domain belonging to this MPI process
-   iparm[40] = first_row;
 
-   // The number of row in global matrix, rhs element and solution vector that
+   // iparm[41], the number of row in global matrix, rhs element and solution vector that
    // ends the input domain belonging to this MPI process
-   iparm[41] = first_row + m_loc - 1;
+   if (m_loc == 0 && first_row == 0)
+   {
+      // Workaround for the issue https://github.com/mfem/mfem/issues/4634
+      iparm[40] = 1;
+      iparm[41] = first_row;
+   }
+   else
+   {
+      iparm[40] = first_row;
+      iparm[41] = first_row + m_loc - 1;
+   }
 
    // Analyze inputs
    phase = 11;

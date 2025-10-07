@@ -17,7 +17,7 @@
 //               ex26 -m ../data/beam-hex.mesh -d cuda
 //
 // Description:  This example code demonstrates the use of MFEM to define a
-//               simple finite element discretization of the Laplace problem
+//               simple finite element discretization of the Poisson problem
 //               -Delta u = 1 with homogeneous Dirichlet boundary conditions
 //               as in Example 1.
 //

@@ -93,10 +93,10 @@ int main(int argc, char *argv[])
    StopWatch chrono;
 
    // 1. Initialize MPI.
-   int num_procs, myid;
-   MPI_Init(&argc, &argv);
-   MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
-   MPI_Comm_rank(MPI_COMM_WORLD, &myid);
+   Mpi::Init(argc, argv);
+   int num_procs = Mpi::WorldSize();
+   int myid = Mpi::WorldRank();
+   Hypre::Init();
 
    real_t assemblyTime, solveTime, reconstructTime, pprocessTime;
    real_t GassemblyTime, GsolveTime, GreconstructTime, GpprocessTime;
@@ -330,18 +330,6 @@ int main(int argc, char *argv[])
 
       assemblyTime = chrono.RealTime();
       HypreParMatrix *SC = AVarf->ParallelAssembleSC();
-
-      // 2025 Hypre -> PETSc issue testing starts
-      // if you comment all of this out, the error message comes later, at
-      // petsc_precon = new PetscPreconditioner(MPI_COMM_WORLD,*SC,"solver_");
-      Operator::Type tid = Operator::PETSC_MATAIJ;
-      PetscParMatrix *pSC = NULL;
-
-      OperatorHandle hSC(tid);
-      AVarf->ParallelAssemble(hSC);
-      if (!petsc) { hSC.Get(pSC); }
-      // 2025 Hypre -> PETSc issue testing ends
-
 
       HypreParVector *rhs_SC = AVarf->ParallelVectorSC();
       // AVarf->ParallelVectorSC() provides -C*A^{-1} RF, the RHS for the

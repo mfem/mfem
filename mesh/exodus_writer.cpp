@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -11,6 +11,7 @@
 
 #include "mesh_headers.hpp"
 #include <unordered_set>
+#include <cstdarg>
 
 #ifdef MFEM_USE_NETCDF
 #include "netcdf.h"
@@ -24,6 +25,12 @@
       MFEM_ABORT("NetCDF error: " << nc_strerror((return_code)));\
    }\
 }
+
+#if defined(MFEM_USE_DOUBLE)
+#define MFEM_NETCDF_REAL_T NC_DOUBLE
+#elif defined(MFEM_USE_SINGLE)
+#define MFEM_NETCDF_REAL_T NC_FLOAT
+#endif
 
 namespace mfem
 {
@@ -134,18 +141,18 @@ public:
    /// @brief Writes the mesh to an ExodusII file.
    /// @param fpath The path to the file.
    /// @param flags NC_CLOBBER will overwrite existing file.
-   void PrintExodusII(std::string fpath, int flags = NC_CLOBBER);
+   void PrintExodusII(const std::string &fpath, int flags = NC_CLOBBER);
 
    /// @brief Static method for writing a mesh to an ExodusII file.
    /// @param mesh The mesh to write to the file.
    /// @param fpath The path to the file.
    /// @param flags NetCDF file flags.
-   static void PrintExodusII(Mesh & mesh, std::string fpath,
+   static void PrintExodusII(Mesh & mesh, const std::string &fpath,
                              int flags = NC_CLOBBER);
 
 protected:
    /// @brief Closes any open file and creates a NetCDF file using selected flags.
-   void OpenExodusII(std::string fpath, int flags);
+   void OpenExodusII(const std::string &fpath, int flags);
 
    /// @brief Closes any open file.
    void CloseExodusII();
@@ -166,9 +173,9 @@ protected:
    std::unordered_set<int> GenerateUniqueNodeIDs();
 
    /// @brief Populates vectors with x, y, z coordinates from mesh.
-   void ExtractVertexCoordinates(std::vector<double> & coordx,
-                                 std::vector<double> & coordy,
-                                 std::vector<double> & coordz);
+   void ExtractVertexCoordinates(std::vector<real_t> &coordx,
+                                 std::vector<real_t> &coordy,
+                                 std::vector<real_t> &coordz);
 
    /// @brief Writes node connectivity for a particular block.
    /// @param block_id The block to write to the file.
@@ -186,7 +193,7 @@ protected:
    /// @brief Writes the number of elements in the mesh.
    void WriteNumOfElements();
 
-   /// @brief Writes the floating-point word size (4 == float; 8 == double).
+   /// @brief Writes the floating-point word size (sizeof(real_t)).
    void WriteFloatingPointWordSize();
 
    /// @brief Writes the API version.
@@ -290,7 +297,7 @@ private:
    std::map<int, std::vector<int>> exodusII_side_ids_for_boundary_id;
 };
 
-void Mesh::PrintExodusII(const std::string fpath)
+void Mesh::PrintExodusII(const std::string &fpath)
 {
    ExodusIIWriter::PrintExodusII(*this, fpath);
 }
@@ -361,7 +368,7 @@ void ExodusIIWriter::WriteExodusIIMeshInformation()
    WriteNodeSets();
 }
 
-void ExodusIIWriter::PrintExodusII(std::string fpath, int flags)
+void ExodusIIWriter::PrintExodusII(const std::string &fpath, int flags)
 {
    OpenExodusII(fpath, flags);
 
@@ -373,7 +380,7 @@ void ExodusIIWriter::PrintExodusII(std::string fpath, int flags)
    mfem::out << "Mesh successfully written to Exodus II file" << std::endl;
 }
 
-void ExodusIIWriter::PrintExodusII(Mesh & mesh, std::string fpath,
+void ExodusIIWriter::PrintExodusII(Mesh &mesh, const std::string &fpath,
                                    int flags)
 {
    ExodusIIWriter writer(mesh);
@@ -381,7 +388,7 @@ void ExodusIIWriter::PrintExodusII(Mesh & mesh, std::string fpath,
    writer.PrintExodusII(fpath, flags);
 }
 
-void ExodusIIWriter::OpenExodusII(std::string fpath, int flags)
+void ExodusIIWriter::OpenExodusII(const std::string &fpath, int flags)
 {
    CloseExodusII();  // Close any open files.
 
@@ -421,7 +428,7 @@ void ExodusIIWriter::WriteNumOfElements()
 
 void ExodusIIWriter::WriteFloatingPointWordSize()
 {
-   const int word_size = 8;
+   const int word_size = sizeof(real_t);
    PutAtt(NC_GLOBAL, ExodusIILabels::EXODUS_FLOATING_POINT_WORD_SIZE_LABEL,
           NC_INT, 1,
           &word_size);
@@ -429,13 +436,15 @@ void ExodusIIWriter::WriteFloatingPointWordSize()
 
 void ExodusIIWriter::WriteAPIVersion()
 {
-   PutAtt(NC_GLOBAL, ExodusIILabels::EXODUS_API_VERSION_LABEL, NC_FLOAT, 1,
+   PutAtt(NC_GLOBAL, ExodusIILabels::EXODUS_API_VERSION_LABEL, MFEM_NETCDF_REAL_T,
+          1,
           &ExodusIILabels::EXODUS_API_VERSION);
 }
 
 void ExodusIIWriter::WriteDatabaseVersion()
 {
-   PutAtt(NC_GLOBAL, ExodusIILabels::EXODUS_DATABASE_VERSION_LABEL, NC_FLOAT, 1,
+   PutAtt(NC_GLOBAL, ExodusIILabels::EXODUS_DATABASE_VERSION_LABEL,
+          MFEM_NETCDF_REAL_T, 1,
           &ExodusIILabels::EXODUS_DATABASE_VERSION);
 }
 
@@ -558,20 +567,27 @@ void ExodusIIWriter::WriteElementBlockParameters(int block_id)
    // 6. Define the element type.
    std::string element_type;
 
-   bool higher_order = (mesh.GetNodes() != nullptr);
+   const FiniteElementSpace * fespace = mesh.GetNodalFESpace();
+
+   // Safety check: assume that the elements are of the same order.
+   MFEM_ASSERT((!fespace || (fespace &&
+                             !fespace->IsVariableOrder())),
+               "Spaces with varying element orders are not supported.");
+
+   bool higher_order = (fespace && fespace->GetMaxElementOrder() > 1);
 
    switch (front_element->GetType())
    {
-      case Geometry::Type::CUBE:
+      case Element::HEXAHEDRON:
          element_type = higher_order ? "HEX27" : "Hex8";
          break;
-      case Geometry::Type::TETRAHEDRON:
+      case Element::TETRAHEDRON:
          element_type = higher_order ? "TETRA10" : "TETRA4";
          break;
-      case Geometry::Type::PRISM:
+      case Element::WEDGE:
          element_type = higher_order ? "WEDGE18" : "WEDGE6";
          break;
-      case Geometry::Type::PYRAMID:
+      case Element::PYRAMID:
          element_type = higher_order ? "PYRAMID14" : "PYRAMID5";
          break;
       default:
@@ -599,25 +615,25 @@ void ExodusIIWriter::WriteNodalCoordinates()
    DefineDimension("num_nodes", num_nodes, &num_nodes_id);
 
    // 3. Extract the nodal coordinates.
-   // NB: assume doubles (could be floats!); ndims = 1 (vector).
+   // NB: writes in format real_t (double or float); ndims = 1 (vector).
    // https://docs.unidata.ucar.edu/netcdf-c/current/group__variables.html#gac7e8662c51f3bb07d1fc6d6c6d9052c8
-   std::vector<double> coordx(num_nodes);
-   std::vector<double> coordy(num_nodes);
-   std::vector<double> coordz(mesh.Dimension() == 3 ? num_nodes : 0);
+   std::vector<real_t> coordx(num_nodes);
+   std::vector<real_t> coordy(num_nodes);
+   std::vector<real_t> coordz(mesh.Dimension() == 3 ? num_nodes : 0);
 
    ExtractVertexCoordinates(coordx, coordy, coordz);
 
    // 4. Define and put the nodal coordinates.
-   DefineAndPutVar(ExodusIILabels::EXODUS_COORDX_LABEL, NC_DOUBLE, 1,
+   DefineAndPutVar(ExodusIILabels::EXODUS_COORDX_LABEL, MFEM_NETCDF_REAL_T, 1,
                    &num_nodes_id,
                    coordx.data());
-   DefineAndPutVar(ExodusIILabels::EXODUS_COORDY_LABEL, NC_DOUBLE, 1,
+   DefineAndPutVar(ExodusIILabels::EXODUS_COORDY_LABEL, MFEM_NETCDF_REAL_T, 1,
                    &num_nodes_id,
                    coordy.data());
 
    if (mesh.Dimension() == 3)
    {
-      DefineAndPutVar(ExodusIILabels::EXODUS_COORDZ_LABEL, NC_DOUBLE, 1,
+      DefineAndPutVar(ExodusIILabels::EXODUS_COORDZ_LABEL, MFEM_NETCDF_REAL_T, 1,
                       &num_nodes_id,
                       coordz.data());
    }
@@ -762,9 +778,9 @@ void ExodusIIWriter::WriteNodeConnectivityForBlock(const int block_id)
 }
 
 
-void ExodusIIWriter::ExtractVertexCoordinates(std::vector<double> & coordx,
-                                              std::vector<double> & coordy,
-                                              std::vector<double> & coordz)
+void ExodusIIWriter::ExtractVertexCoordinates(std::vector<real_t> & coordx,
+                                              std::vector<real_t> & coordy,
+                                              std::vector<real_t> & coordz)
 {
    if (mesh.GetNodes()) // Higher-order.
    {
@@ -774,7 +790,7 @@ void ExodusIIWriter::ExtractVertexCoordinates(std::vector<double> & coordx,
       sorted_node_ids.assign(unordered_node_ids.begin(), unordered_node_ids.end());
       std::sort(sorted_node_ids.begin(), sorted_node_ids.end());
 
-      double coordinates[3];
+      real_t coordinates[3];
       for (size_t i = 0; i < sorted_node_ids.size(); i++)
       {
          int node_id = sorted_node_ids[i];
@@ -794,7 +810,7 @@ void ExodusIIWriter::ExtractVertexCoordinates(std::vector<double> & coordx,
    {
       for (int ivertex = 0; ivertex < mesh.GetNV(); ivertex++)
       {
-         double * coordinates = mesh.GetVertex(ivertex);
+         real_t *coordinates = mesh.GetVertex(ivertex);
 
          coordx[ivertex] = coordinates[0];
          coordy[ivertex] = coordinates[1];
