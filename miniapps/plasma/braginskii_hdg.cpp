@@ -127,6 +127,10 @@ struct MagneticParams
 {
    struct
    {
+      Vector B{1.};
+   } uniform;
+   struct
+   {
       real_t B_c{1.};
       Vector x_c;
       Vector dir;
@@ -281,7 +285,11 @@ int main(int argc, char *argv[])
    args.AddOption(&pars.inflow.dt_cen, "-indt", "--inflow-ramp-time",
                   "Inflow ramp-up time of the source");
 
-   // wire
+   // uniform magnetic field
+   args.AddOption(&Bpars.uniform.B, "-b", "--uniform-magfield",
+                  "Uniform magnetic field");
+
+   // wire magnetic field
    args.AddOption(&Bpars.wire.B_c, "-wireb", "--wire-magfield",
                   "Wire magnetic field at unit distance");
    args.AddOption(&Bpars.wire.x_c, "-wirex", "--wire-location",
@@ -952,10 +960,14 @@ VecFunc GetBFun(const MagneticParams &params)
    }
    else
    {
-      return [](const Vector &x, Vector &B)
+      return [&params](const Vector &x, Vector &B)
       {
-         B = 0.;
-         B(0) = 1.;
+         const Vector &Bc = params.uniform.B;
+
+         for (int d = 0; d < B.Size(); d++)
+         {
+            B(d) = (Bc.Size() > d)?(Bc(d)):(0.);
+         }
       };
    }
 
