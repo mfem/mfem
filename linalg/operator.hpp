@@ -13,6 +13,7 @@
 #define MFEM_OPERATOR
 
 #include "vector.hpp"
+#include "../general/annotation.hpp"
 
 namespace mfem
 {
@@ -23,6 +24,13 @@ class RectangularConstrainedOperator;
 /// Abstract operator
 class Operator
 {
+private:
+   /// Auxiliary Vector used by the methods AddMult() and AddMultTranspose().
+   /** @note This Vector is private to prevent derived classes from accidentaly
+       using it in their implementation of Mult() or MultTranspose() which may
+       lead to hard-to-find bugs. */
+   mutable Vector z_am;
+
 protected:
    int height; ///< Dimension of the output / number of rows in the matrix.
    int width;  ///< Dimension of the input / number of columns in the matrix.
@@ -818,10 +826,12 @@ public:
    explicit IdentityOperator(int n) : Operator(n) { }
 
    /// Operator application
-   void Mult(const Vector &x, Vector &y) const override { y = x; }
+   void Mult(const Vector &x, Vector &y) const override
+   { MFEM_PERF_FUNCTION; y = x; }
 
    /// Application of the transpose
-   void MultTranspose(const Vector &x, Vector &y) const override { y = x; }
+   void MultTranspose(const Vector &x, Vector &y) const override
+   { MFEM_PERF_FUNCTION; y = x; }
 };
 
 /// Returns true if P is the identity prolongation, i.e. if it is either NULL or
