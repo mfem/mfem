@@ -5622,7 +5622,7 @@ Array<int> Mesh::MakeSimplicial_(const Mesh &orig_mesh, int *vglobal)
    NumOfVertices = nv;
    for (int i=0; i<nv; ++i)
    {
-      vertices[i].SetCoords(dim, orig_mesh.vertices[i]());
+      vertices[i].SetCoords(sdim, orig_mesh.vertices[i]());
    }
 
    // We need a global vertex numbering to identify which diagonals to split
