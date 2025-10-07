@@ -27,6 +27,7 @@
 //               ex1 -m ../data/fichera-amr.mesh
 //               ex1 -m ../data/mobius-strip.mesh
 //               ex1 -m ../data/mobius-strip.mesh -o -1 -sc
+//               ex1 -m ../data/nc3-nurbs.mesh -o -1
 //
 // Device sample runs:
 //               ex1 -pa -d cuda
@@ -143,16 +144,7 @@ int main(int argc, char *argv[])
    bool delete_fec;
    if (order > 0)
    {
-      if (mesh.NURBSext)
-      {
-         fec = new NURBSFECollection(order);
-         cout << "Using NURBS FEs: " << fec->Name() << endl;
-      }
-      else
-      {
-         fec = new H1_FECollection(order, dim);
-         cout << "Using H1 FEs: " << fec->Name() << endl;
-      }
+      fec = new H1_FECollection(order, dim);
       delete_fec = true;
    }
    else if (mesh.GetNodes())
@@ -165,7 +157,6 @@ int main(int argc, char *argv[])
    {
       fec = new H1_FECollection(order = 1, dim);
       delete_fec = true;
-      cout << "Using Linear H1 FEs: " << fec->Name() << endl;
    }
    FiniteElementSpace fespace(&mesh, fec);
    cout << "Number of finite element unknowns: "
