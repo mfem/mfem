@@ -111,8 +111,6 @@ int main(int argc, char *argv[])
    // 5. Define a finite element space on the mesh. Here we use the
    //    Raviart-Thomas finite elements of the specified order.
    FiniteElementCollection *fec = nullptr;
-  // NURBSExtension *NURBSext = nullptr;
-
    if (mesh->NURBSext && NURBS)
    {
       fec = new NURBS_HCurlFECollection(order,dim);

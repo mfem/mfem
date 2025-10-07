@@ -261,7 +261,7 @@ int main(int argc, char *argv[])
 
    if (order.Size() == 0)
    {
-       mfem_error("Order has size 0");
+      mfem_error("Order has size 0");
    }
    else if (order[0] == 0) // Isoparametric
    {
