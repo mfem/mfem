@@ -32,7 +32,9 @@ void DarcyForm::UpdateOffsetsAndSize()
 
    width = height = offsets.Last();
 
-   if (block_b) { block_b->Update(offsets); }
+   block_op.reset();
+   block_grad.reset();
+   if (block_b) { block_b->Update(offsets); *block_b = 0.; }
 }
 
 BilinearForm* DarcyForm::GetFluxMassForm()
@@ -79,7 +81,7 @@ LinearForm *DarcyForm::GetFluxRHS()
 {
    if (!b_u)
    {
-      if (!block_b) { block_b.reset(new BlockVector(offsets)); }
+      AllocRHS();
       b_u.reset(new LinearForm());
       b_u->MakeRef(fes_u, block_b->GetBlock(0), 0);
    }
@@ -90,7 +92,7 @@ LinearForm *DarcyForm::GetPotentialRHS()
 {
    if (!b_p)
    {
-      if (!block_b) { block_b.reset(new BlockVector(offsets)); }
+      AllocRHS();
       b_p.reset(new LinearForm());
       b_p->MakeRef(fes_p, block_b->GetBlock(1), 0);
    }
@@ -684,7 +686,7 @@ void DarcyForm::FormLinearSystem(const Array<int> &ess_flux_tdof_list,
                                  BlockVector &x, OperatorHandle &A,
                                  Vector &X, Vector &B, int copy_interior)
 {
-   if (!block_b) { block_b.reset(new BlockVector(offsets)); *block_b = 0.; }
+   AllocRHS();
 
    FormLinearSystem(ess_flux_tdof_list, x, *block_b, A, X, B, copy_interior);
 }
@@ -1774,6 +1776,13 @@ void DarcyForm::AllocBlockOp()
    {
       block_op.reset(new BlockOperator(offsets));
    }
+}
+
+void DarcyForm::AllocRHS()
+{
+   if (block_b) { return; }
+   block_b.reset(new BlockVector(offsets));
+   *block_b = 0.;
 }
 
 const Operator *DarcyForm::ConstructBT(const MixedBilinearForm *B) const

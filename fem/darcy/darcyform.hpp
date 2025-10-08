@@ -72,6 +72,7 @@ protected:
    void AssemblePotHDGFaces(int skip_zeros);
 
    void AllocBlockOp();
+   void AllocRHS();
    const Operator* ConstructBT(const MixedBilinearForm *B) const;
    const Operator* ConstructBT(const OperatorHandle &B) const;
 
