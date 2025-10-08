@@ -96,6 +96,7 @@ int main(int argc, char *argv[])
    const char *mesh_file = "";
    int nx = 0;
    int ny = 0;
+   int ref_levels = -1;
    real_t sx = 1.;
    real_t sy = 1.;
    real_t dr = 0.;
@@ -140,6 +141,8 @@ int main(int argc, char *argv[])
                   "Size along x axis.");
    args.AddOption(&sy, "-sy", "--size-y",
                   "Size along y axis.");
+   args.AddOption(&ref_levels, "-r", "--ref-levels",
+                  "Number of refinement levels (automatic to 10000 elements by default)");
    args.AddOption(&dr, "-dr", "--delta-random",
                   "Relative random displacement of the mesh nodes.");
    args.AddOption(&order, "-o", "--order",
@@ -354,9 +357,9 @@ int main(int argc, char *argv[])
    //    elements.
    if (strlen(mesh_file) > 0)
    {
-      int ref_levels =
-         (int)floor(log(10000./mesh->GetNE())/log(2.)/dim);
-      for (int l = 0; l < ref_levels; l++)
+      int ref = (ref_levels >= 0)?(ref_levels):
+                (int)floor(log(10000./mesh->GetNE())/log(2.)/dim);
+      for (int l = 0; l < ref; l++)
       {
          mesh->UniformRefinement();
       }

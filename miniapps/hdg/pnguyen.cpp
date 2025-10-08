@@ -103,6 +103,8 @@ int main(int argc, char *argv[])
    const char *mesh_file = "";
    int nx = 0;
    int ny = 0;
+   int serial_ref_levels = -1;
+   int parallel_ref_levels = 0;
    real_t sx = 1.;
    real_t sy = 1.;
    int order = 1;
@@ -147,6 +149,10 @@ int main(int argc, char *argv[])
                   "Size along x axis.");
    args.AddOption(&sy, "-sy", "--size-y",
                   "Size along y axis.");
+   args.AddOption(&serial_ref_levels, "-rs", "--serial-ref-levels",
+                  "Number of serial refinement levels (automatic to 10000 elements by default)");
+   args.AddOption(&parallel_ref_levels, "-rp", "--parallel-ref-levels",
+                  "Number of parallel refinement levels (default 0)");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree).");
    args.AddOption(&dg, "-dg", "--discontinuous", "-no-dg",
@@ -366,8 +372,8 @@ int main(int argc, char *argv[])
    //    elements.
    if (strlen(mesh_file) > 0)
    {
-      int ref_levels =
-         (int)floor(log(10000./mesh->GetNE())/log(2.)/dim);
+      int ref_levels = (serial_ref_levels >= 0)?(serial_ref_levels):
+                       (int)floor(log(10000./mesh->GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
       {
          mesh->UniformRefinement();
@@ -379,13 +385,12 @@ int main(int argc, char *argv[])
    //    parallel mesh is defined, the serial mesh can be deleted.
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
    delete mesh;
-   /*{
-      int par_ref_levels = 2;
-      for (int l = 0; l < par_ref_levels; l++)
+   {
+      for (int l = 0; l < parallel_ref_levels; l++)
       {
          pmesh->UniformRefinement();
       }
-   }*/
+   }
 
    // 7. Define a finite element space on the mesh. Here we use the
    //    Raviart-Thomas finite elements of the specified order.
