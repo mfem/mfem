@@ -546,9 +546,10 @@ int main(int argc, char *argv[])
    u_gf.MakeRef(&u_space, x.GetBlock(0), 0);
    p_gf.MakeRef(&p_space, x.GetBlock(1), 0);
 
-   u_gf.ProjectCoefficient(*u_cf);//,GridFunction::ProjType::ELEMENT); // use when PR #4326 is accepted
+   u_gf.ProjectCoefficient(
+      *u_cf);//,GridFunction::ProjType::ELEMENT); // use when PR #4326 is accepted
    //ProjectCoefficientGlobalL2(*u_cf, 1e-10, 250,
-    //                          u_gf); //remove when PR #4326 is accepted
+   //                          u_gf); //remove when PR #4326 is accepted
    p_gf = 0.0;
 
    VectorGridFunctionCoefficient uh_cf(&u_gf);
@@ -694,14 +695,14 @@ int main(int argc, char *argv[])
    invS.SetRelTol(schur_rtol);
    invS.SetMaxIter(schur_maxiter);
    invS.SetKDim(schur_maxiter+1); // restart!!!
-  // if (weakBC)
-  // {
-      invS.SetOperator(S);
-  // }
-  // else
-  // {
-  //    invS.SetOperator(Sp);
-  // }
+   // if (weakBC)
+   // {
+   invS.SetOperator(S);
+   // }
+   // else
+   // {
+   //    invS.SetOperator(Sp);
+   // }
    invS.SetPreconditioner(*invSp);
    //invS.SetPrintLevel(IterativeSolver::PrintLevel().FirstAndLast());
    invS.SetPrintLevel(0);

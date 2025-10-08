@@ -193,30 +193,30 @@ int main(int argc, char *argv[])
    VectorFunctionCoefficient *fcoeff = nullptr;
    VectorFunctionCoefficient *ucoeff = nullptr;
 
-   switch(2*hdiv + H1BC)
+   switch (2*hdiv + H1BC)
    {
       case 0:
-           vfe_coll = new NURBS_HCurlFECollection(order,dim);
-           fcoeff = new VectorFunctionCoefficient(dim, fFun_hcurl);
-           ucoeff = new VectorFunctionCoefficient(dim, uFun_hcurl_ex);
-           break;
+         vfe_coll = new NURBS_HCurlFECollection(order,dim);
+         fcoeff = new VectorFunctionCoefficient(dim, fFun_hcurl);
+         ucoeff = new VectorFunctionCoefficient(dim, uFun_hcurl_ex);
+         break;
       case 1:
-           vfe_coll = new NURBS_HCurlH1FECollection(order,dim);
-           fcoeff = new VectorFunctionCoefficient(dim, fFun_h1);
-           ucoeff = new VectorFunctionCoefficient(dim, uFun_h1_ex);
-            mfem::out<<"Homogeneous BCs!!"<<std::endl;
-           break;
+         vfe_coll = new NURBS_HCurlH1FECollection(order,dim);
+         fcoeff = new VectorFunctionCoefficient(dim, fFun_h1);
+         ucoeff = new VectorFunctionCoefficient(dim, uFun_h1_ex);
+         mfem::out<<"Homogeneous BCs!!"<<std::endl;
+         break;
       case 2:
-           vfe_coll = new NURBS_HDivFECollection(order,dim);
-           fcoeff = new VectorFunctionCoefficient(dim, fFun_hdiv);
-           ucoeff = new VectorFunctionCoefficient(dim, uFun_hdiv_ex);
-           break;
+         vfe_coll = new NURBS_HDivFECollection(order,dim);
+         fcoeff = new VectorFunctionCoefficient(dim, fFun_hdiv);
+         ucoeff = new VectorFunctionCoefficient(dim, uFun_hdiv_ex);
+         break;
       case 3:
-           vfe_coll = new NURBS_HDivH1FECollection(order,dim);
-           fcoeff = new VectorFunctionCoefficient(dim, fFun_h1);
-           ucoeff = new VectorFunctionCoefficient(dim, uFun_h1_ex);
-           mfem::out<<"Homogeneous BCs!!"<<std::endl;
-           break;
+         vfe_coll = new NURBS_HDivH1FECollection(order,dim);
+         fcoeff = new VectorFunctionCoefficient(dim, fFun_h1);
+         ucoeff = new VectorFunctionCoefficient(dim, uFun_h1_ex);
+         mfem::out<<"Homogeneous BCs!!"<<std::endl;
+         break;
    }
    NURBSExtension *NURBSext  = new NURBSExtension(mesh->NURBSext, order);
    mfem::out<<"Create NURBS fecollection "<<vfe_coll->Name()<<std::endl;
@@ -239,7 +239,7 @@ int main(int argc, char *argv[])
    GridFunction u;
    u.MakeRef(&space, x, 0);
    u.ProjectCoefficient(*ucoeff);
-   if (H1BC) u.SetSubVector(ess_tdof_list, 0.0);
+   if (H1BC) { u.SetSubVector(ess_tdof_list, 0.0); }
 
    int order_quad = max(2, 2*order+1);
    const IntegrationRule *irs[Geometry::NumGeom];
@@ -340,7 +340,7 @@ int main(int argc, char *argv[])
    }
 
    // 12. Save data in the VisIt format
-   //     Define a traditional NURBS space as long as ViSit does not read to new Vector FEs  
+   //     Define a traditional NURBS space as long as ViSit does not read to new Vector FEs
    FiniteElementCollection *l2_coll = new H1_FECollection(order+1);
    FiniteElementSpace ui_space(mesh, space.StealNURBSext(), l2_coll, dim);
    VectorGridFunctionCoefficient uh_cf(&u);

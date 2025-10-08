@@ -541,7 +541,7 @@ void NURBS_HDiv2DFiniteElement::CalcDVShape(const IntegrationPoint &ip,
 void NURBS_HDiv2DFiniteElement::CalcPhysDVShape(ElementTransformation &Trans,
                                                 DenseTensor &dvshape) const
 {
- #ifdef MFEM_THREAD_SAFE
+#ifdef MFEM_THREAD_SAFE
    DenseTensor tshape(dof, dim, dim);
 #else
    tshape.SetSize(dof, dim, dim);
@@ -561,7 +561,9 @@ void NURBS_HDiv2DFiniteElement::CalcPhysDVShape(ElementTransformation &Trans,
             {
                real_t JijJIlk = J(i,j)*Jinv(l,k);
                for (int d=0; d<dof; d++)
+               {
                   dvshape(d,i,k) += tshape(d,j,l)*JijJIlk ;
+               }
             }
       }
 }
@@ -828,7 +830,9 @@ void NURBS_HDiv3DFiniteElement::CalcPhysDVShape(ElementTransformation &Trans,
             {
                real_t JijJIlk = J(i,j)*Jinv(l,k);
                for (int d=0; d<dof; d++)
+               {
                   dvshape(d,i,k) += tshape(d,j,l)*JijJIlk ;
+               }
             }
       }
 }
@@ -1260,17 +1264,26 @@ void NURBS_HCurl3DFiniteElement::CalcPhysDVShape(ElementTransformation &Trans,
    const DenseMatrix &JI = Trans.InverseJacobian();
    for (int i=0; i<dof; i++)
    {
-      real_t sxx = tshape(i, 0, 0) * JI(0, 0) + tshape(i, 1, 0) * JI(0, 1) + tshape(i, 2, 0) * JI(0, 2);
-      real_t syx = tshape(i, 0, 0) * JI(1, 0) + tshape(i, 1, 0) * JI(1, 1) + tshape(i, 2, 0) * JI(1, 2);
-      real_t szx = tshape(i, 0, 0) * JI(2, 0) + tshape(i, 1, 0) * JI(2, 1) + tshape(i, 2, 0) * JI(2, 2);
+      real_t sxx = tshape(i, 0, 0) * JI(0, 0) + tshape(i, 1, 0) * JI(0, 1) + tshape(i,
+                                                                                    2, 0) * JI(0, 2);
+      real_t syx = tshape(i, 0, 0) * JI(1, 0) + tshape(i, 1, 0) * JI(1, 1) + tshape(i,
+                                                                                    2, 0) * JI(1, 2);
+      real_t szx = tshape(i, 0, 0) * JI(2, 0) + tshape(i, 1, 0) * JI(2, 1) + tshape(i,
+                                                                                    2, 0) * JI(2, 2);
 
-      real_t sxy = tshape(i, 0, 1) * JI(0, 0) + tshape(i, 1, 1) * JI(0, 1) + tshape(i, 2, 1) * JI(0, 2);
-      real_t syy = tshape(i, 0, 1) * JI(1, 0) + tshape(i, 1, 1) * JI(1, 1) + tshape(i, 2, 1) * JI(1, 2);
-      real_t szy = tshape(i, 0, 1) * JI(2, 0) + tshape(i, 1, 1) * JI(2, 1) + tshape(i, 2, 1) * JI(2, 2);
+      real_t sxy = tshape(i, 0, 1) * JI(0, 0) + tshape(i, 1, 1) * JI(0, 1) + tshape(i,
+                                                                                    2, 1) * JI(0, 2);
+      real_t syy = tshape(i, 0, 1) * JI(1, 0) + tshape(i, 1, 1) * JI(1, 1) + tshape(i,
+                                                                                    2, 1) * JI(1, 2);
+      real_t szy = tshape(i, 0, 1) * JI(2, 0) + tshape(i, 1, 1) * JI(2, 1) + tshape(i,
+                                                                                    2, 1) * JI(2, 2);
 
-      real_t sxz = tshape(i, 0, 0) * JI(0, 0) + tshape(i, 1, 0) * JI(0, 1) + tshape(i, 2, 0) * JI(0, 2);
-      real_t syz = tshape(i, 0, 0) * JI(1, 0) + tshape(i, 1, 0) * JI(1, 1) + tshape(i, 2, 0) * JI(1, 2);
-      real_t szz = tshape(i, 0, 0) * JI(2, 0) + tshape(i, 1, 0) * JI(2, 1) + tshape(i, 2, 0) * JI(2, 2);
+      real_t sxz = tshape(i, 0, 0) * JI(0, 0) + tshape(i, 1, 0) * JI(0, 1) + tshape(i,
+                                                                                    2, 0) * JI(0, 2);
+      real_t syz = tshape(i, 0, 0) * JI(1, 0) + tshape(i, 1, 0) * JI(1, 1) + tshape(i,
+                                                                                    2, 0) * JI(1, 2);
+      real_t szz = tshape(i, 0, 0) * JI(2, 0) + tshape(i, 1, 0) * JI(2, 1) + tshape(i,
+                                                                                    2, 0) * JI(2, 2);
 
       dvshape(i, 0, 0) = sxx * JI(0, 0) + sxy * JI(0, 1) + sxz * JI(0, 2);
       dvshape(i, 0, 1) = sxx * JI(1, 0) + sxy * JI(1, 1) + sxz * JI(1, 2);
