@@ -2582,7 +2582,8 @@ void GridFunction::ProjectCoefficient(
    }
 }
 
-void GridFunction::ProjectCoefficient(VectorCoefficient &vcoeff, ProjectType type)
+void GridFunction::ProjectCoefficient(VectorCoefficient &vcoeff,
+                                      ProjectType type)
 {
    Array<int> vdofs;
    Vector vals;
