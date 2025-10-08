@@ -27,6 +27,11 @@ if (MFEM_USE_MPI)
     EXTRA_HEADERS block_fespace_operator.hpp
     LIBRARIES mfem)
 
+  add_mfem_miniapp(pschrodinger_flow
+    MAIN pschrodinger_flow.cpp
+    EXTRA_HEADERS schrodinger_flow.hpp
+    LIBRARIES mfem)
+
   # Add the corresponding tests to the "test" target
   if (MFEM_ENABLE_TESTING)
     if (NOT (HYPRE_USING_CUDA OR HYPRE_USING_HIP))
@@ -67,6 +72,12 @@ if (MFEM_USE_MPI)
       $<TARGET_FILE:lor_elast> -l 1 -pa -o 2
       -m ../../data/beam-hex.mesh
       ${MPIEXEC_POSTFLAGS})
+
+    add_test(NAME pschrodinger_flow_np${MFEM_MPI_NP}
+      COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
+      ${MPIEXEC_PREFLAGS}
+      $<TARGET_FILE:pschrodinger_flow> -lf -nx 8 -ny 8 -ms 32
+      ${MPIEXEC_POSTFLAGS})
   endif()
 endif()
 
@@ -80,11 +91,7 @@ add_mfem_miniapp(schrodinger_flow
   EXTRA_HEADERS schrodinger_flow.hpp
   LIBRARIES mfem)
 
-add_mfem_miniapp(pschrodinger_flow 
-  MAIN pschrodinger_flow.cpp 
-  EXTRA_HEADERS schrodinger_flow.hpp
-  LIBRARIES mfem)
-
 if (MFEM_ENABLE_TESTING)
   add_test(NAME lor_solvers_ser COMMAND lor_solvers -fe n -no-vis)
+  add_test(NAME schrodinger_flow_ser COMMAND schrodinger_flow -lf -nx 8 -ny 8 -ms 32)
 endif()

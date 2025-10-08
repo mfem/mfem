@@ -26,9 +26,6 @@ BLOCK_SOLVERS_OBJ = $(BLOCK_SOLVERS_SRC:.cpp=.o)
 LOR_ELAST_SRC = block_fespace_operator.cpp lor_elast.cpp
 LOR_ELAST_OBJ = $(LOR_ELAST_SRC:.cpp=.o)
 
-ISF_SRC = schrodinger_flow.cpp
-ISF_OBJ = $(ISF_SRC:.cpp=.o)
-
 SEQ_MINIAPPS = lor_solvers schrodinger_flow
 PAR_MINIAPPS = block-solvers plor_solvers lor_elast pschrodinger_flow
 
