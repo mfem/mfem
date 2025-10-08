@@ -124,16 +124,26 @@ struct Options: public OptionsParser
 #include <utility>
 using complex_t = std::complex<real_t>;
 #else // CUDA or HIP
-#if defined(MFEM_USE_CUDA)
-#include <cuComplex.h>
-using DoubleComplex_t = cuDoubleComplex;
-#endif
 
-#if defined(MFEM_USE_HIP)
+#ifdef MFEM_USE_CUDA
+#include <cuComplex.h>
+#ifdef MFEM_USE_SINGLE
+using RealComplex_t = cuFloatComplex;
+#else
+using RealComplex_t = cuDoubleComplex;
+#endif // MFEM_USE_SINGLE
+#endif // MFEM_USE_CUDA
+
+#ifdef MFEM_USE_HIP
 #include <hip/hip_complex.h>
-using DoubleComplex_t = hipDoubleComplex;
-#endif
-struct Complex : public DoubleComplex_t
+#ifdef MFEM_USE_SINGLE
+using RealComplex_t = hipFloatComplex;
+#else
+using RealComplex_t = hipDoubleComplex;
+#endif // MFEM_USE_SINGLE
+#endif // MFEM_USE_HIP
+
+struct Complex : public RealComplex_t
 {
    MFEM_HOST_DEVICE Complex() = default;
    MFEM_HOST_DEVICE Complex(real_t r) { x = r, y = 0.0; }
@@ -255,8 +265,8 @@ struct SchrodingerBaseKernels: public Options
       Mesh xy = Mesh::MakeCartesian2D(nx, ny, type, false, sx, sy, false);
       xy.SetCurvature(order);
       if (!periodic) { return xy; }
-      std::vector<Vector> Tr2 = { Vector({ sx, 0.0 }),
-                                  Vector({ 0.0, sy })
+      std::vector<Vector> Tr2 = { Vector({ sx, 0.0_r }),
+                                  Vector({ 0.0_r, sy })
                                 };
       return Mesh::MakePeriodic(xy, xy.CreatePeriodicVertexMapping(Tr2));
    }),
@@ -266,9 +276,9 @@ struct SchrodingerBaseKernels: public Options
       Mesh xyz = Mesh::MakeCartesian3D(nx, ny, nz, type, sx, sy, sz, false);
       xyz.SetCurvature(order);
       if (!periodic) { return xyz; }
-      std::vector<Vector> Tr3 = { Vector({ sx, 0.0, 0.0 }),
-                                  Vector({ 0.0, sy, 0.0 }),
-                                  Vector({ 0.0, 0.0, sz })
+      std::vector<Vector> Tr3 = { Vector({ sx, 0.0_r, 0.0_r }),
+                                  Vector({ 0.0_r, sy, 0.0_r }),
+                                  Vector({ 0.0_r, 0.0_r, sz })
                                 };
       return Mesh::MakePeriodic(xyz, xyz.CreatePeriodicVertexMapping(Tr3));
    }),
@@ -733,7 +743,7 @@ public:
          const real_t zh = sx / 2.0, yh = sy / 2.0;
          const real_t z2 = zh * zh, y2 = yh * yh, r = sqrt(z2 + y2);
          const real3_t n = { -1.0, 0.0, 0.0 },
-                       o = { sx / 2.0, sy / 2.0, DIM == 3 ? sz / 2.0 : 0.0};
+                       o = { sx / 2.0_r, sy / 2.0_r, DIM == 3 ? sz / 2.0_r : 0.0_r };
          solver.AddCircularVortex(o, n, r * leapfrog_r1, leapfrog_sw);
          solver.AddCircularVortex(o, n, r * leapfrog_r2, leapfrog_sw);
          solver.Normalize(), solver.PressureProject();
