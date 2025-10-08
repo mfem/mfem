@@ -119,11 +119,9 @@ struct Options: public OptionsParser
 
 /// @brief Complex number type for device.
 #if !(defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))
+#include <cmath>
 #include <complex>
 #include <utility>
-#define zAbs std::abs
-#define zExp std::exp
-#define zNorm std::norm
 using complex_t = std::complex<real_t>;
 #else // CUDA or HIP
 #if defined(MFEM_USE_CUDA)
@@ -135,7 +133,6 @@ using DoubleComplex_t = cuDoubleComplex;
 #include <hip/hip_complex.h>
 using DoubleComplex_t = hipDoubleComplex;
 #endif
-q
 struct Complex : public DoubleComplex_t
 {
    MFEM_HOST_DEVICE Complex() = default;
@@ -149,13 +146,13 @@ struct Complex : public DoubleComplex_t
    template <typename U>
    MFEM_HOST_DEVICE inline Complex &operator*=(const U &z)
    {
-      return *this = *this * z, *this;
+      return (*this = *this * z, *this);
    }
 
    template <typename U>
    MFEM_HOST_DEVICE inline Complex &operator/=(const U &z)
    {
-      return *this = *this / z, *this;
+      return (*this = *this / z, *this);
    }
 };
 
@@ -185,21 +182,19 @@ MFEM_HOST_DEVICE inline Complex operator/(const Complex &z, const real_t &d)
    return Complex(z.real() / d, z.imag() / d);
 }
 
-MFEM_HOST_DEVICE inline real_t zAbs(const Complex &z)
+MFEM_HOST_DEVICE inline real_t abs(const Complex &z)
 {
    return std::hypot(z.real(), z.imag());
 }
 
-MFEM_HOST_DEVICE inline Complex zExp(const Complex &q)
+MFEM_HOST_DEVICE inline Complex exp(const Complex &q)
 {
-   Complex z;
    real_t s, c, e = std::exp(q.real());
    sincos(q.imag(), &s, &c);
-   z.real(c * e), z.imag(s * e);
-   return z;
+   return Complex(c * e, s * e);
 }
 
-MFEM_HOST_DEVICE inline real_t zNorm(const Complex &z)
+MFEM_HOST_DEVICE inline real_t norm(const Complex &z)
 {
    return z.real() * z.real() + z.imag() * z.imag();
 }
@@ -416,8 +411,8 @@ struct SchrodingerBaseKernels: public Options
          mfem::forall(ndofs, [=] MFEM_HOST_DEVICE(int n)
          {
             const complex_t eps = 0.01, i_phase(0, phase[n]);
-            const complex_t z1 = zExp(i_phase);
-            const complex_t z2 = eps * zExp(i_phase);
+            const complex_t z1 = exp(i_phase);
+            const complex_t z2 = eps * exp(i_phase);
             𝝭1_r(n) = z1.real(), 𝝭1_i(n) = z1.imag();
             𝝭2_r(n) = z2.real(), 𝝭2_i(n) = z2.imag();
          });
@@ -435,10 +430,10 @@ struct SchrodingerBaseKernels: public Options
       mfem::forall(ndofs, [=] MFEM_HOST_DEVICE(int n)
       {
          complex_t 𝝭1(𝝭1_r(n), 𝝭1_i(n)), 𝝭2(𝝭2_r(n), 𝝭2_i(n));
-         const real_t norm = std::sqrt(zNorm(𝝭1) + zNorm(𝝭2));
-         if (fabs(norm) < 1e-16) { return; }
-         𝝭1_r(n) /= norm, 𝝭1_i(n) /= norm;
-         𝝭2_r(n) /= norm, 𝝭2_i(n) /= norm;
+         const real_t 𝝭_norm = std::sqrt(norm(𝝭1) + norm(𝝭2));
+         if (fabs(𝝭_norm) < 1e-16) { return; }
+         𝝭1_r(n) /= 𝝭_norm, 𝝭1_i(n) /= 𝝭_norm;
+         𝝭2_r(n) /= 𝝭_norm, 𝝭2_i(n) /= 𝝭_norm;
       });
    }
 
@@ -458,9 +453,9 @@ struct SchrodingerBaseKernels: public Options
          if (isJet[n] == 0) { return; }
          const complex_t i_pn_omega_t(0.0, phase[n] - omega * t);
          complex_t 𝝭1(𝝭1_r(n), 𝝭1_i(n)), 𝝭2(𝝭2_r(n), 𝝭2_i(n));
-         const real_t amp1 = zAbs(𝝭1), amp2 = zAbs(𝝭2);
-         𝝭1 = amp1 * zExp(i_pn_omega_t);
-         𝝭2 = amp2 * zExp(i_pn_omega_t);
+         const real_t amp1 = abs(𝝭1), amp2 = abs(𝝭2);
+         𝝭1 = amp1 * exp(i_pn_omega_t);
+         𝝭2 = amp2 * exp(i_pn_omega_t);
          𝝭1_r(n) = 𝝭1.real(), 𝝭1_i(n) = 𝝭1.imag();
          𝝭2_r(n) = 𝝭2.real(), 𝝭2_i(n) = 𝝭2.imag();
       });
@@ -568,7 +563,7 @@ struct SchrodingerBaseKernels: public Options
       mfem::forall(ndofs, [=] MFEM_HOST_DEVICE(int n)
       {
          const complex_t minus_i(0, -1.0);
-         const complex_t eiq = zExp(minus_i * q_r(n));
+         const complex_t eiq = exp(minus_i * q_r(n));
          complex_t 𝝭1(𝝭1_r(n), 𝝭1_i(n)), 𝝭2(𝝭2_r(n), 𝝭2_i(n));
          𝝭1 *= eiq, 𝝭2 *= eiq;
          𝝭1_r(n) = 𝝭1.real(), 𝝭1_i(n) = 𝝭1.imag();
@@ -605,7 +600,7 @@ struct SchrodingerBaseKernels: public Options
          if (inLayerM) { alpha = -M_PI * (2.0 * z / swirling + 1.0); }
          complex_t 𝝭1(𝝭1_r(n), 𝝭1_i(n));
          const complex_t alpha_i(0, alpha);
-         𝝭1 *= zExp(alpha_i);
+         𝝭1 *= exp(alpha_i);
          𝝭1_r(n) = 𝝭1.real(), 𝝭1_i(n) = 𝝭1.imag();
       });
    }
