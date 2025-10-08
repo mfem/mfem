@@ -1765,7 +1765,7 @@ inline void LSolve(const real_t *data, const int m, const int *ipiv, real_t *x)
    // X <- P X
    for (int i = 0; i < m; i++)
    {
-      internal::Swap<real_t>(x[i], x[ipiv[i]]);
+      internal::Swap<real_t>(x[i], x[ipiv[i] - 1]);
    }
    // X <- L^{-1} X
    for (int j = 0; j < m; j++)
@@ -1904,7 +1904,7 @@ inline bool LUFactor(real_t *A, const int m, int *ipiv, const real_t tol=0.0)
                piv = j;
             }
          }
-         ipiv[i] = piv;
+         ipiv[i] = piv + 1;
          if (piv != i)
          {
             // swap rows i and piv in both L and U parts
