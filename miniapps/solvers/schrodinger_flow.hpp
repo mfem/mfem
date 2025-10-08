@@ -418,17 +418,17 @@ struct SchrodingerBaseKernels: public Options
       if (leapfrog && phase_r.Size() > 0)
       {
          const auto phase = phase_r.Read();
-         auto 𝝭1_r = Reshape(psi1.real().ReadWrite(), ndofs);
-         auto 𝝭1_i = Reshape(psi1.imag().ReadWrite(), ndofs);
-         auto 𝝭2_r = Reshape(psi2.real().ReadWrite(), ndofs);
-         auto 𝝭2_i = Reshape(psi2.imag().ReadWrite(), ndofs);
+         auto psi1_r = Reshape(psi1.real().ReadWrite(), ndofs);
+         auto psi1_i = Reshape(psi1.imag().ReadWrite(), ndofs);
+         auto psi2_r = Reshape(psi2.real().ReadWrite(), ndofs);
+         auto psi2_i = Reshape(psi2.imag().ReadWrite(), ndofs);
          mfem::forall(ndofs, [=] MFEM_HOST_DEVICE(int n)
          {
             const complex_t eps = 0.01, i_phase(0, phase[n]);
             const complex_t z1 = exp(i_phase);
             const complex_t z2 = eps * exp(i_phase);
-            𝝭1_r(n) = z1.real(), 𝝭1_i(n) = z1.imag();
-            𝝭2_r(n) = z2.real(), 𝝭2_i(n) = z2.imag();
+            psi1_r(n) = z1.real(), psi1_i(n) = z1.imag();
+            psi2_r(n) = z2.real(), psi2_i(n) = z2.imag();
          });
       }
       if (jet) { psi1.real() = 1.0, psi2.real() = 0.0; }
@@ -437,17 +437,17 @@ struct SchrodingerBaseKernels: public Options
    /// @brief Normalize the wavefunctions psi1 and psi2.
    void Normalize()
    {
-      auto 𝝭1_r = Reshape(psi1.real().ReadWrite(), ndofs);
-      auto 𝝭1_i = Reshape(psi1.imag().ReadWrite(), ndofs);
-      auto 𝝭2_r = Reshape(psi2.real().ReadWrite(), ndofs);
-      auto 𝝭2_i = Reshape(psi2.imag().ReadWrite(), ndofs);
+      auto psi1_r = Reshape(psi1.real().ReadWrite(), ndofs);
+      auto psi1_i = Reshape(psi1.imag().ReadWrite(), ndofs);
+      auto psi2_r = Reshape(psi2.real().ReadWrite(), ndofs);
+      auto psi2_i = Reshape(psi2.imag().ReadWrite(), ndofs);
       mfem::forall(ndofs, [=] MFEM_HOST_DEVICE(int n)
       {
-         complex_t 𝝭1(𝝭1_r(n), 𝝭1_i(n)), 𝝭2(𝝭2_r(n), 𝝭2_i(n));
-         const real_t 𝝭_norm = std::sqrt(norm(𝝭1) + norm(𝝭2));
-         if (fabs(𝝭_norm) < 1e-16) { return; }
-         𝝭1_r(n) /= 𝝭_norm, 𝝭1_i(n) /= 𝝭_norm;
-         𝝭2_r(n) /= 𝝭_norm, 𝝭2_i(n) /= 𝝭_norm;
+         complex_t psi1(psi1_r(n), psi1_i(n)), psi2(psi2_r(n), psi2_i(n));
+         const real_t psi_norm = std::sqrt(norm(psi1) + norm(psi2));
+         if (fabs(psi_norm) < 1e-16) { return; }
+         psi1_r(n) /= psi_norm, psi1_i(n) /= psi_norm;
+         psi2_r(n) /= psi_norm, psi2_i(n) /= psi_norm;
       });
    }
 
@@ -458,20 +458,20 @@ struct SchrodingerBaseKernels: public Options
       MFEM_VERIFY(jet, "Jet must be enabled use restrict.");
       const auto isJet = isJet_in.Read();
       const auto phase = phase_in.Read();
-      auto 𝝭1_r = Reshape(psi1.real().ReadWrite(), ndofs);
-      auto 𝝭1_i = Reshape(psi1.imag().ReadWrite(), ndofs);
-      auto 𝝭2_r = Reshape(psi2.real().ReadWrite(), ndofs);
-      auto 𝝭2_i = Reshape(psi2.imag().ReadWrite(), ndofs);
+      auto psi1_r = Reshape(psi1.real().ReadWrite(), ndofs);
+      auto psi1_i = Reshape(psi1.imag().ReadWrite(), ndofs);
+      auto psi2_r = Reshape(psi2.real().ReadWrite(), ndofs);
+      auto psi2_i = Reshape(psi2.imag().ReadWrite(), ndofs);
       mfem::forall(ndofs, [=] MFEM_HOST_DEVICE(int n)
       {
          if (isJet[n] == 0) { return; }
          const complex_t i_pn_omega_t(0.0, phase[n] - omega * t);
-         complex_t 𝝭1(𝝭1_r(n), 𝝭1_i(n)), 𝝭2(𝝭2_r(n), 𝝭2_i(n));
-         const real_t amp1 = abs(𝝭1), amp2 = abs(𝝭2);
-         𝝭1 = amp1 * exp(i_pn_omega_t);
-         𝝭2 = amp2 * exp(i_pn_omega_t);
-         𝝭1_r(n) = 𝝭1.real(), 𝝭1_i(n) = 𝝭1.imag();
-         𝝭2_r(n) = 𝝭2.real(), 𝝭2_i(n) = 𝝭2.imag();
+         complex_t psi1(psi1_r(n), psi1_i(n)), psi2(psi2_r(n), psi2_i(n));
+         const real_t amp1 = abs(psi1), amp2 = abs(psi2);
+         psi1 = amp1 * exp(i_pn_omega_t);
+         psi2 = amp2 * exp(i_pn_omega_t);
+         psi1_r(n) = psi1.real(), psi1_i(n) = psi1.imag();
+         psi2_r(n) = psi2.real(), psi2_i(n) = psi2.imag();
       });
    }
 
@@ -506,24 +506,24 @@ struct SchrodingerBaseKernels: public Options
    void GradPsiVelocity(const real_t hbar, TGridFunction &ux,
                         TGridFunction &uy, TGridFunction &uz)
    {
-      const auto 𝝭1r = Reshape(psi1.real().Read(), ndofs);
-      const auto 𝝭1i = Reshape(psi1.imag().Read(), ndofs);
-      const auto 𝝭2r = Reshape(psi2.real().Read(), ndofs);
-      const auto 𝝭2i = Reshape(psi2.imag().Read(), ndofs);
+      const auto psi1r = Reshape(psi1.real().Read(), ndofs);
+      const auto psi1i = Reshape(psi1.imag().Read(), ndofs);
+      const auto psi2r = Reshape(psi2.real().Read(), ndofs);
+      const auto psi2i = Reshape(psi2.imag().Read(), ndofs);
 
-      const auto G𝝭1rx = Reshape(gpsi1_x.real().Read(), ndofs);
-      const auto G𝝭1ix = Reshape(gpsi1_x.imag().Read(), ndofs);
-      const auto G𝝭1ry = Reshape(gpsi1_y.real().Read(), ndofs);
-      const auto G𝝭1iy = Reshape(gpsi1_y.imag().Read(), ndofs);
-      const auto G𝝭1rz = Reshape(gpsi1_z.real().Read(), ndofs);
-      const auto G𝝭1iz = Reshape(gpsi1_z.imag().Read(), ndofs);
+      const auto Gpsi1rx = Reshape(gpsi1_x.real().Read(), ndofs);
+      const auto Gpsi1ix = Reshape(gpsi1_x.imag().Read(), ndofs);
+      const auto Gpsi1ry = Reshape(gpsi1_y.real().Read(), ndofs);
+      const auto Gpsi1iy = Reshape(gpsi1_y.imag().Read(), ndofs);
+      const auto Gpsi1rz = Reshape(gpsi1_z.real().Read(), ndofs);
+      const auto Gpsi1iz = Reshape(gpsi1_z.imag().Read(), ndofs);
 
-      const auto G𝝭2rx = Reshape(gpsi2_x.real().Read(), ndofs);
-      const auto G𝝭2ix = Reshape(gpsi2_x.imag().Read(), ndofs);
-      const auto G𝝭2ry = Reshape(gpsi2_y.real().Read(), ndofs);
-      const auto G𝝭2iy = Reshape(gpsi2_y.imag().Read(), ndofs);
-      const auto G𝝭2rz = Reshape(gpsi2_z.real().Read(), ndofs);
-      const auto G𝝭2iz = Reshape(gpsi2_z.imag().Read(), ndofs);
+      const auto Gpsi2rx = Reshape(gpsi2_x.real().Read(), ndofs);
+      const auto Gpsi2ix = Reshape(gpsi2_x.imag().Read(), ndofs);
+      const auto Gpsi2ry = Reshape(gpsi2_y.real().Read(), ndofs);
+      const auto Gpsi2iy = Reshape(gpsi2_y.imag().Read(), ndofs);
+      const auto Gpsi2rz = Reshape(gpsi2_z.real().Read(), ndofs);
+      const auto Gpsi2iz = Reshape(gpsi2_z.imag().Read(), ndofs);
 
       auto vx = Reshape(ux.Write(), ndofs);
       auto vy = Reshape(uy.Write(), ndofs);
@@ -533,15 +533,15 @@ struct SchrodingerBaseKernels: public Options
 
       mfem::forall(ndofs, [=] MFEM_HOST_DEVICE(int n)
       {
-         vx(n) = +𝝭1r(n) * G𝝭1ix(n) - 𝝭1i(n) * G𝝭1rx(n);
-         vx(n) += 𝝭2r(n) * G𝝭2ix(n) - 𝝭2i(n) * G𝝭2rx(n);
+         vx(n) = +psi1r(n) * Gpsi1ix(n) - psi1i(n) * Gpsi1rx(n);
+         vx(n) += psi2r(n) * Gpsi2ix(n) - psi2i(n) * Gpsi2rx(n);
          vx(n) *= (fabs(vx(n)) < FTZ) ? 0.0 : hbar;
-         vy(n) = +𝝭1r(n) * G𝝭1iy(n) - 𝝭1i(n) * G𝝭1ry(n);
-         vy(n) += 𝝭2r(n) * G𝝭2iy(n) - 𝝭2i(n) * G𝝭2ry(n);
+         vy(n) = +psi1r(n) * Gpsi1iy(n) - psi1i(n) * Gpsi1ry(n);
+         vy(n) += psi2r(n) * Gpsi2iy(n) - psi2i(n) * Gpsi2ry(n);
          vy(n) *= (fabs(vy(n)) < FTZ) ? 0.0 : hbar;
          if (DIM == 2) { return; }
-         vz(n) = +𝝭1r(n) * G𝝭1iz(n) - 𝝭1i(n) * G𝝭1rz(n);
-         vz(n) += 𝝭2r(n) * G𝝭2iz(n) - 𝝭2i(n) * G𝝭2rz(n);
+         vz(n) = +psi1r(n) * Gpsi1iz(n) - psi1i(n) * Gpsi1rz(n);
+         vz(n) += psi2r(n) * Gpsi2iz(n) - psi2i(n) * Gpsi2rz(n);
          vz(n) *= (fabs(vz(n)) < FTZ) ? 0.0 : hbar;
       });
    }
@@ -549,19 +549,19 @@ struct SchrodingerBaseKernels: public Options
    // ∇∙u = -ℏ.Re{𝝭ᵀ·𝑖∆𝝭} = -ℏ[𝝭1i.∆𝝭1r - 𝝭1r.∆𝝭1i + 𝝭2i.∆𝝭2r - 𝝭2r.∆𝝭2i]
    void ComputeDivU()
    {
-      const auto 𝝭1r = Reshape(psi1.real().Read(), ndofs);
-      const auto 𝝭1i = Reshape(psi1.imag().Read(), ndofs);
-      const auto 𝝭2r = Reshape(psi2.real().Read(), ndofs);
-      const auto 𝝭2i = Reshape(psi2.imag().Read(), ndofs);
-      const auto Δ𝝭1r = Reshape(delta_psi1.real().Read(), ndofs);
-      const auto Δ𝝭1i = Reshape(delta_psi1.imag().Read(), ndofs);
-      const auto Δ𝝭2r = Reshape(delta_psi2.real().Read(), ndofs);
-      const auto Δ𝝭2i = Reshape(delta_psi2.imag().Read(), ndofs);
+      const auto psi1r = Reshape(psi1.real().Read(), ndofs);
+      const auto psi1i = Reshape(psi1.imag().Read(), ndofs);
+      const auto psi2r = Reshape(psi2.real().Read(), ndofs);
+      const auto psi2i = Reshape(psi2.imag().Read(), ndofs);
+      const auto Dpsi1r = Reshape(delta_psi1.real().Read(), ndofs);
+      const auto Dpsi1i = Reshape(delta_psi1.imag().Read(), ndofs);
+      const auto Dpsi2r = Reshape(delta_psi2.real().Read(), ndofs);
+      const auto Dpsi2i = Reshape(delta_psi2.imag().Read(), ndofs);
       auto div_u_w = Reshape(div_u.Write(), ndofs);
       mfem::forall(ndofs, [=] MFEM_HOST_DEVICE(int n)
       {
-         div_u_w(n) = +𝝭1i(n) * Δ𝝭1r(n) - 𝝭1r(n) * Δ𝝭1i(n);
-         div_u_w(n) += 𝝭2i(n) * Δ𝝭2r(n) - 𝝭2r(n) * Δ𝝭2i(n);
+         div_u_w(n) = +psi1i(n) * Dpsi1r(n) - psi1r(n) * Dpsi1i(n);
+         div_u_w(n) += psi2i(n) * Dpsi2r(n) - psi2r(n) * Dpsi2i(n);
          div_u_w(n) *= -1.0;
       });
    }
@@ -570,18 +570,18 @@ struct SchrodingerBaseKernels: public Options
    void GaugeTransform()
    {
       const auto q_r = Reshape(q.Read(), ndofs);
-      auto 𝝭1_r = Reshape(psi1.real().ReadWrite(), ndofs);
-      auto 𝝭1_i = Reshape(psi1.imag().ReadWrite(), ndofs);
-      auto 𝝭2_r = Reshape(psi2.real().ReadWrite(), ndofs);
-      auto 𝝭2_i = Reshape(psi2.imag().ReadWrite(), ndofs);
+      auto psi1_r = Reshape(psi1.real().ReadWrite(), ndofs);
+      auto psi1_i = Reshape(psi1.imag().ReadWrite(), ndofs);
+      auto psi2_r = Reshape(psi2.real().ReadWrite(), ndofs);
+      auto psi2_i = Reshape(psi2.imag().ReadWrite(), ndofs);
       mfem::forall(ndofs, [=] MFEM_HOST_DEVICE(int n)
       {
          const complex_t minus_i(0, -1.0);
          const complex_t eiq = exp(minus_i * q_r(n));
-         complex_t 𝝭1(𝝭1_r(n), 𝝭1_i(n)), 𝝭2(𝝭2_r(n), 𝝭2_i(n));
-         𝝭1 *= eiq, 𝝭2 *= eiq;
-         𝝭1_r(n) = 𝝭1.real(), 𝝭1_i(n) = 𝝭1.imag();
-         𝝭2_r(n) = 𝝭2.real(), 𝝭2_i(n) = 𝝭2.imag();
+         complex_t psi1(psi1_r(n), psi1_i(n)), psi2(psi2_r(n), psi2_i(n));
+         psi1 *= eiq, psi2 *= eiq;
+         psi1_r(n) = psi1.real(), psi1_i(n) = psi1.imag();
+         psi2_r(n) = psi2.real(), psi2_i(n) = psi2.imag();
       });
    }
 
@@ -598,8 +598,8 @@ struct SchrodingerBaseKernels: public Options
       const real_t n0 = normal[0] / norm2, n1 = normal[1] / norm2,
                    n2 = normal[2] / norm2;
       const auto &X = Reshape(nodes.Read(), dim, ndofs);
-      auto 𝝭1_r = Reshape(psi1.real().ReadWrite(), ndofs);
-      auto 𝝭1_i = Reshape(psi1.imag().ReadWrite(), ndofs);
+      auto psi1_r = Reshape(psi1.real().ReadWrite(), ndofs);
+      auto psi1_i = Reshape(psi1.imag().ReadWrite(), ndofs);
       mfem::forall(ndofs, [=] MFEM_HOST_DEVICE(int n)
       {
          const real_t px = X(0, n), py = X(1, n),
@@ -612,10 +612,10 @@ struct SchrodingerBaseKernels: public Options
          real_t alpha = 0.0;
          if (inLayerP) { alpha = -M_PI * (2.0 * z / swirling - 1.0); }
          if (inLayerM) { alpha = -M_PI * (2.0 * z / swirling + 1.0); }
-         complex_t 𝝭1(𝝭1_r(n), 𝝭1_i(n));
+         complex_t psi1(psi1_r(n), psi1_i(n));
          const complex_t alpha_i(0, alpha);
-         𝝭1 *= exp(alpha_i);
-         𝝭1_r(n) = 𝝭1.real(), 𝝭1_i(n) = 𝝭1.imag();
+         psi1 *= exp(alpha_i);
+         psi1_r(n) = psi1.real(), psi1_i(n) = psi1.imag();
       });
    }
 };
@@ -873,16 +873,16 @@ struct VisualizerBase : private Options
       {
          vis_fn = [&]()
          {
-            const auto 𝝭1_r = solver.psi1.real().Read();
-            const auto 𝝭1_i = solver.psi1.imag().Read();
-            const auto 𝝭2_r = solver.psi2.real().Read();
-            const auto 𝝭2_i = solver.psi2.imag().Read();
+            const auto psi1_r = solver.psi1.real().Read();
+            const auto psi1_i = solver.psi1.imag().Read();
+            const auto psi2_r = solver.psi2.real().Read();
+            const auto psi2_i = solver.psi2.imag().Read();
             auto viz_h1_w = vis_gf.Write();
             mfem::forall(ndofs, [=] MFEM_HOST_DEVICE(int i)
             {
-               const auto 𝝭1 = 𝝭1_r[i] * 𝝭1_r[i] + 𝝭1_i[i] * 𝝭1_i[i];
-               const auto 𝝭2 = 𝝭2_r[i] * 𝝭2_r[i] + 𝝭2_i[i] * 𝝭2_i[i];
-               viz_h1_w[i] = 𝝭1 * 𝝭1 + 𝝭2 * 𝝭2;
+               const auto psi1 = psi1_r[i] * psi1_r[i] + psi1_i[i] * psi1_i[i];
+               const auto psi2 = psi2_r[i] * psi2_r[i] + psi2_i[i] * psi2_i[i];
+               viz_h1_w[i] = psi1 * psi1 + psi2 * psi2;
             });
             vis_gf.HostRead();
          };
