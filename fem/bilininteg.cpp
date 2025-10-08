@@ -220,6 +220,76 @@ void BilinearFormIntegrator::AssembleFaceMatrix(
               " Integrator class.");
 }
 
+/* HDG optimized integrators starts */
+void BilinearFormIntegrator::AssembleElementMatrix2FES(const FiniteElement
+                                                       &fe_q,
+                                                       const FiniteElement &fe_u,
+                                                       ElementTransformation &Trans,
+                                                       DenseMatrix &elmat1)
+{
+   MFEM_ABORT("AssembleElementMatrix2FES is not implemented for this"
+              " Integrator class.");
+}
+
+void BilinearFormIntegrator::AssembleFaceMatrixOneElement1and1FES(
+   const FiniteElement &fe_u,
+   const FiniteElement &face_fe,
+   FaceElementTransformations &Trans,
+   const int elem1or2,
+   const bool onlyB,
+   DenseMatrix &elmat1,
+   DenseMatrix &elmat2,
+   DenseMatrix &elmat3,
+   DenseMatrix &elmat4)
+{
+   MFEM_ABORT("AssembleFaceMatrixOneElement1and1FES is not implemented for this"
+              " Integrator class.");
+}
+
+void BilinearFormIntegrator::AssembleFaceMatrixOneElement2and1FES(
+   const FiniteElement &fe_q,
+   const FiniteElement &fe_u,
+   const FiniteElement &face_fe,
+   FaceElementTransformations &Trans,
+   const int elem1or2,
+   const bool onlyB,
+   DenseMatrix &elmat1,
+   DenseMatrix &elmat2,
+   DenseMatrix &elmat3,
+   DenseMatrix &elmat4)
+{
+   MFEM_ABORT("AssembleFaceMatrixOneElement2and1FES is not implemented for this"
+              " Integrator class.");
+}
+
+void BilinearFormIntegrator::AssembleFaceMatrixOneElement2and2FES(
+   const FiniteElement &fe_q,
+   const FiniteElement &fe_u,
+   const FiniteElement &face_fe,
+   const FiniteElement &face_fe2,
+   FaceElementTransformations &Trans,
+   const int elem1or2,
+   const bool onlyB,
+   DenseMatrix &elmat1,
+   DenseMatrix &elmat2,
+   DenseMatrix &elmat3,
+   DenseMatrix &elmat4)
+{
+   MFEM_ABORT("AssembleFaceMatrixOneElement2and2FES is not implemented for this"
+              " Integrator class.");
+}
+/* HDG optimized integrators ends */
+
+/* HDG */
+void BilinearFormIntegrator::AssembleFaceMatrix(const FiniteElement &face_fe,
+                                                FaceElementTransformations &Trans,
+                                                DenseMatrix &elmat)
+{
+   MFEM_ABORT("AssembleFaceMatrix(const FiniteElement &face_fe,"
+              " FaceElementTransformations &Trans,"
+              " DenseMatrix &elmat) is not implemented for this");
+}
+
 void BilinearFormIntegrator::AssembleTraceFaceMatrix (int elem,
                                                       const FiniteElement &trial_face_fe,
                                                       const FiniteElement &test_fe1,

@@ -1616,7 +1616,7 @@ Element::Type Mesh::GetFaceElementType(int Face) const
 
 Array<int> Mesh::GetFaceToBdrElMap() const
 {
-   Array<int> face_to_be(Dim == 2 ? NumOfEdges : NumOfFaces);
+   Array<int> face_to_be(GetNumFaces());
    face_to_be = -1;
    for (int i = 0; i < NumOfBdrElements; i++)
    {

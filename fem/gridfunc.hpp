@@ -23,6 +23,8 @@
 #include <limits>
 #include <ostream>
 #include <string>
+/* HDG */
+//#include "lininteg.hpp"
 
 namespace mfem
 {
@@ -286,6 +288,12 @@ public:
                            DenseMatrix &vals, DenseMatrix &tr) const;
    ///@}
 
+   /* HDG */
+   double GetValueFacet(FaceElementTransformations &T,
+                        const IntegrationPoint &ip,
+                        int vdim = 1,
+                        Vector *tr = NULL) const;
+
    void GetLaplacians(int i, const IntegrationRule &ir, Vector &laps,
                       int vdim = 1) const;
 
@@ -417,6 +425,14 @@ public:
        projection matrix. */
    void ProjectGridFunction(const GridFunction &src);
 
+   /* HDG */
+   void ProjectCoefficientSkeleton(Coefficient &coeff);
+   void ProjectCoefficientSkeleton(VectorCoefficient &vcoeff);
+   //   void ProjectCoefficientSkeletonBdr(Coefficient &coeff,
+   //       Array<int> &bdr_attr_marker);
+   void ProjectCoefficientSkeletonBdr(Coefficient &coeff);
+   void ProjectCoefficientSkeletonBdr(VectorCoefficient &vcoeff);
+
    /** @brief Project @a coeff Coefficient to @a this GridFunction. The
        projection computation depends on the choice of the FiniteElementSpace
        #fes. Note that this is usually interpolation at the degrees of freedom
@@ -492,6 +508,10 @@ protected:
    void AccumulateAndCountBdrTangentValues(VectorCoefficient &vcoeff,
                                            const Array<int> &bdr_attr,
                                            Array<int> &values_counter);
+
+   /* HDG */
+   /* Compute the mean of a GridFunction */
+   double ComputeMean(const IntegrationRule *irs[]) const;
 
    // Complete the computation of averages; called e.g. after
    // AccumulateAndCountZones().
@@ -671,6 +691,7 @@ public:
    ///       function uses the absolute values of the element-wise integrals.
    ///       This may lead to results which are not entirely consistent with
    ///       such integration rules.
+
    virtual real_t ComputeGradError(VectorCoefficient *exgrad,
                                    const IntegrationRule *irs[] = NULL) const;
 
@@ -1137,6 +1158,7 @@ public:
    ///       function uses the absolute values of the element-wise integrals.
    ///       This may lead to results which are not entirely consistent with
    ///       such integration rules.
+
    virtual real_t ComputeLpError(const real_t p, Coefficient &exsol,
                                  Coefficient *weight = NULL,
                                  const IntegrationRule *irs[] = NULL,
@@ -1491,6 +1513,12 @@ public:
                                         const IntegrationRule *irs[] = NULL
                                        ) const
    { ComputeElementLpErrors(infinity(), exsol, error, NULL, NULL, irs); }
+
+   /* HDG */
+   double ComputeMeanLpError(const double p, Coefficient &exsol,
+                             const IntegrationRule *irs[] = NULL) const;
+
+
 
    virtual void ComputeFlux(BilinearFormIntegrator &blfi,
                             GridFunction &flux,

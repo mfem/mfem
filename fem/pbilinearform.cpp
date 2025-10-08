@@ -262,9 +262,39 @@ void ParBilinearForm::AssembleSharedFaces(int skip_zeros)
    }
 }
 
+/* HDG */
+void ParBilinearForm::AssembleSharedHDGFaces(int skip_zeros)
+{
+   ParMesh *pmesh = pfes->GetParMesh();
+   FaceElementTransformations *ftr;
+   const FiniteElement *face_fe;
+   Array<int> vdofs;
+   DenseMatrix elemmat;
+
+   int nfaces = pmesh->GetNSharedFaces();
+   for (int i = 0; i < nfaces; i++)
+   {
+      int FaceNo = pmesh->GetSharedFace(i);
+      ftr = pmesh->GetSharedFaceTransformations(i);
+      pfes->GetFaceVDofs(FaceNo, vdofs);
+      face_fe = pfes->GetFaceElement(FaceNo);
+      //face_fe = pfes->GetFaceNbrFaceFE(FaceNo);
+      if (ftr != NULL)
+      {
+         for (int k = 0; k < hdgintbfi.Size(); k++)
+         {
+            hdgintbfi[k]->AssembleFaceMatrix(*face_fe, *ftr, elemmat);
+            elemmat *= 0.5;
+            mat->AddSubMatrix(vdofs, vdofs, elemmat, skip_zeros);
+         }
+      }
+   }
+}
+
 void ParBilinearForm::Assemble(int skip_zeros)
 {
-   if (interior_face_integs.Size())
+   /* HDG */
+   if (interior_face_integs.Size() || hdgintbfi.Size())
    {
       pfes->ExchangeFaceNbrData();
       if (!ext && mat == NULL)
@@ -279,6 +309,13 @@ void ParBilinearForm::Assemble(int skip_zeros)
    {
       AssembleSharedFaces(skip_zeros);
    }
+
+   /* HDG */
+   if (!ext && hdgintbfi.Size() > 0)
+   {
+      AssembleSharedHDGFaces(skip_zeros);
+   }
+
 }
 
 void ParBilinearForm::AssembleDiagonal(Vector &diag) const
