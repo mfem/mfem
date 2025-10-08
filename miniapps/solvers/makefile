@@ -26,6 +26,9 @@ BLOCK_SOLVERS_OBJ = $(BLOCK_SOLVERS_SRC:.cpp=.o)
 LOR_ELAST_SRC = block_fespace_operator.cpp lor_elast.cpp
 LOR_ELAST_OBJ = $(LOR_ELAST_SRC:.cpp=.o)
 
+ISF_SRC = schrodinger_flow.cpp
+ISF_OBJ = $(ISF_SRC:.cpp=.o)
+
 SEQ_MINIAPPS = lor_solvers schrodinger_flow
 PAR_MINIAPPS = block-solvers plor_solvers lor_elast pschrodinger_flow
 
@@ -49,6 +52,9 @@ all: $(MINIAPPS)
 lor_solvers.o: $(SRC)lor_mms.hpp
 plor_solvers.o: $(SRC)lor_mms.hpp
 
+schrodinger_flow.o: $(SRC)schrodinger_flow.hpp
+pschrodinger_flow.o: $(SRC)schrodinger_flow.hpp
+
 %: %.o
 	$(MFEM_CXX) $(MFEM_LINK_FLAGS) $< -o $@ $(MFEM_LIBS)
 
@@ -66,6 +72,8 @@ include $(MFEM_TEST_MK)
 
 # Testing: Specific execution options
 RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
+
+# Block solvers miniapp tests
 block-solvers-test-par: block-solvers-constant block-solvers-anisotropic
 block-solvers-constant: block-solvers
 	@$(call mfem-test,$<, $(RUN_MPI), BlockSolver miniapp,-rs 1 -rp 1)
@@ -73,11 +81,15 @@ block-solvers-anisotropic: block-solvers
 	@$(call mfem-test,$<, $(RUN_MPI), BlockSolver miniapp,-rs 1 -rp 1\
 	  -m $(SRC)anisotropic.mesh -c $(SRC)anisotropic.coeff\
 	  -eb $(SRC)anisotropic.bdr)
+
+# LOR solvers miniapp tests
 lor_solvers-test-seq: lor_solvers
 	@$(call mfem-test,$<,, LOR solvers miniapp,-fe n)
 plor_solvers-test-par: plor_solvers
 	@$(call mfem-test,$<, $(RUN_MPI), Parallel LOR solvers miniapp,-fe n\
 	  -m ../../data/fichera.mesh)
+
+# LOR elasticity miniapp tests
 lor_elast-test-par: lor_elast-tri lor_elast-hex
 lor_elast-tri: lor_elast
 	@$(call mfem-test,$<, $(RUN_MPI), Elasticity LOR miniapp,-l 2 -ca -pa -ss\
@@ -85,6 +97,12 @@ lor_elast-tri: lor_elast
 lor_elast-hex: lor_elast
 	@$(call mfem-test,$<, $(RUN_MPI), Elasticity LOR miniapp,-l 1 -pa -o 2\
 	  -m ../../data/beam-hex.mesh)
+
+# Incompressible Schrödinger Flow miniapp tests
+schrodinger_flow-test-seq: schrodinger_flow
+	@$(call mfem-test,$<,, ISF miniapp,-lf -nx 8 -ny 8 -ms 32)
+pschrodinger_flow-test-par: pschrodinger_flow
+	@$(call mfem-test,$<, $(RUN_MPI), Parallel ISF miniapp,-lf -nx 8 -ny 8 -ms 32)
 
 # Generate an error message if the MFEM library is not built and exit
 $(MFEM_LIB_FILE):
