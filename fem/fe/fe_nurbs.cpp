@@ -554,8 +554,6 @@ void NURBS_HDiv2DFiniteElement::CalcPhysDVShape(ElementTransformation &Trans,
    dvshape = 0.0;
    for (int i=0; i<2; i++)
       for (int j=0; j<2; j++)
-      {
-         real_t Jij = J(i,j);
          for (int k=0; k<2; k++)
             for (int l=0; l<2; l++)
             {
@@ -565,7 +563,6 @@ void NURBS_HDiv2DFiniteElement::CalcPhysDVShape(ElementTransformation &Trans,
                   dvshape(d,i,k) += tshape(d,j,l)*JijJIlk ;
                }
             }
-      }
 }
 
 NURBS_HDiv2DFiniteElement::~NURBS_HDiv2DFiniteElement()
@@ -823,8 +820,6 @@ void NURBS_HDiv3DFiniteElement::CalcPhysDVShape(ElementTransformation &Trans,
    dvshape = 0.0;
    for (int i=0; i<3; i++)
       for (int j=0; j<3; j++)
-      {
-         real_t Jij = J(i,j);
          for (int k=0; k<3; k++)
             for (int l=0; l<3; l++)
             {
@@ -834,7 +829,6 @@ void NURBS_HDiv3DFiniteElement::CalcPhysDVShape(ElementTransformation &Trans,
                   dvshape(d,i,k) += tshape(d,j,l)*JijJIlk ;
                }
             }
-      }
 }
 
 NURBS_HDiv3DFiniteElement::~NURBS_HDiv3DFiniteElement()
