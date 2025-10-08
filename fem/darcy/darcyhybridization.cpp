@@ -2410,6 +2410,8 @@ void DarcyHybridization::AssembleHDGGrad(
 
 void DarcyHybridization::ReduceRHS(const BlockVector &b_t, Vector &b_tr) const
 {
+   const Operator *tr_cP;
+
    if (IsNonlinear())
    {
       //store RHS for Mult
@@ -2433,10 +2435,31 @@ void DarcyHybridization::ReduceRHS(const BlockVector &b_t, Vector &b_tr) const
       }
       darcy_rhs = b_t;
 
-      if (b_tr.Size() != c_fes.GetVSize())
+      //initialize reduced rhs
+      if (ParallelC())
       {
-         b_tr.SetSize(c_fes.GetVSize());
-         b_tr = 0.;
+         const Operator *tr_P = c_fes.GetProlongationMatrix();
+         if (b_tr.Size() != tr_P->Width())
+         {
+            b_tr.SetSize(tr_P->Width());
+            b_tr = 0.;
+         }
+      }
+      else if (tr_cP = c_fes.GetConformingProlongation())
+      {
+         if (b_tr.Size() != tr_cP->Width())
+         {
+            b_tr.SetSize(tr_cP->Width());
+            b_tr = 0.;
+         }
+      }
+      else
+      {
+         if (b_tr.Size() != c_fes.GetVSize())
+         {
+            b_tr.SetSize(c_fes.GetVSize());
+            b_tr = 0.;
+         }
       }
       return;
    }
@@ -2466,7 +2489,6 @@ void DarcyHybridization::ReduceRHS(const BlockVector &b_t, Vector &b_tr) const
    const Vector &bp = b_t.GetBlock(1);
 
    Vector b_r;
-   const Operator *tr_cP;
 
    if (!ParallelC() && !(tr_cP = c_fes.GetConformingProlongation()))
    {
