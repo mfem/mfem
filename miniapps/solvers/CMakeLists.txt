@@ -76,7 +76,7 @@ if (MFEM_USE_MPI)
     add_test(NAME pschrodinger_flow_np${MFEM_MPI_NP}
       COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
       ${MPIEXEC_PREFLAGS}
-      $<TARGET_FILE:pschrodinger_flow> -lf -nx 8 -ny 8 -ms 32
+      $<TARGET_FILE:pschrodinger_flow> -lf -nx 8 -ny 8 -ms 32 -no-vis
       ${MPIEXEC_POSTFLAGS})
   endif()
 endif()
@@ -93,5 +93,5 @@ add_mfem_miniapp(schrodinger_flow
 
 if (MFEM_ENABLE_TESTING)
   add_test(NAME lor_solvers_ser COMMAND lor_solvers -fe n -no-vis)
-  add_test(NAME schrodinger_flow_ser COMMAND schrodinger_flow -lf -nx 8 -ny 8 -ms 32)
+  add_test(NAME schrodinger_flow_ser COMMAND schrodinger_flow -lf -nx 8 -ny 8 -ms 32 -no-vis)
 endif()
