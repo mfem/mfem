@@ -37,7 +37,6 @@
 
 using namespace std;
 using namespace mfem;
-typedef GridFunction::ProjType ProjType;
 
 real_t p_exact(const Vector &x);
 void gradp_exact(const Vector &, Vector &);
@@ -100,7 +99,7 @@ int main(int argc, char *argv[])
       return 1;
    }
    args.PrintOptions(mfem::out);
-   ProjType proj_type = static_cast<ProjType>(proj_type_int);
+   ProjectType proj_type = static_cast<ProjectType>(proj_type_int);
    kappa = freq * M_PI;
 
    // 2. Enable hardware devices such as GPUs, and programming models such as
