@@ -27,6 +27,7 @@ if (HYPRE_FOUND OR TARGET HYPRE)
   if (HYPRE_USING_HIP)
     find_package(rocsparse REQUIRED)
     find_package(rocrand REQUIRED)
+    find_package(rocsolver REQUIRED)
   endif()
   if (HYPRE_LIBRARIES AND HYPRE_INCLUDE_DIRS AND HYPRE_VERSION)
     find_package_handle_standard_args(HYPRE
@@ -37,51 +38,91 @@ if (HYPRE_FOUND OR TARGET HYPRE)
 endif()
 
 if (HYPRE_FETCH OR FETCH_TPLS)
+  # Collect all HYPRE_ENABLE variables and pass them to hypre, assuming they are BOOL.
+  set(HYPRE_CMAKE_OPTIONS "")
+  get_cmake_property(all_vars VARIABLES)
+  foreach(var ${all_vars})
+    if(var MATCHES "^HYPRE_ENABLE")
+      list(APPEND HYPRE_CMAKE_OPTIONS "-D${var}:BOOL=${${var}}")
+    endif()
+  endforeach()
+
   set(HYPRE_FETCH_VERSION 2.33.0)
+  set(HYPRE_FETCH_TAG "v${HYPRE_FETCH_VERSION}" CACHE STRING "Tag, branch, or commit for HYPRE")
   add_library(HYPRE STATIC IMPORTED)
   # set options and associated dependencies
-  set(CMAKE_OPTIONS)
-  list(APPEND CMAKE_OPTIONS -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE})
+  list(APPEND HYPRE_CMAKE_OPTIONS -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE})
   if (MFEM_USE_CUDA)
-    list(APPEND CMAKE_OPTIONS -DHYPRE_WITH_CUDA:BOOL=ON)
+    list(APPEND HYPRE_CMAKE_OPTIONS -DHYPRE_ENABLE_CUDA:BOOL=ON -DCMAKE_CUDA_ARCHITECTURES:STRING=${CMAKE_CUDA_ARCHITECTURES})
     find_package(CUDAToolkit REQUIRED)
     target_link_libraries(HYPRE INTERFACE CUDA::cusparse CUDA::curand CUDA::cublas)
   elseif (MFEM_USE_HIP)
-    list(APPEND CMAKE_OPTIONS -DHYPRE_WITH_HIP:BOOL=ON)
+    list(APPEND HYPRE_CMAKE_OPTIONS -DHYPRE_ENABLE_HIP:BOOL=ON)
     find_package(rocsparse REQUIRED)
     find_package(rocrand REQUIRED)
     target_link_libraries(HYPRE INTERFACE rocsparse rocrand)
   endif()
+  if (MFEM_USE_CUDA OR MFEM_USE_HIP)
+    if (MFEM_USE_UMPIRE)
+      if (EXISTS ${umpire_DIR})
+        list(APPEND HYPRE_CMAKE_OPTIONS -DHYPRE_ENABLE_UMPIRE:BOOL=ON -Dumpire_DIR:PATH=${umpire_DIR})
+      else()
+        message(FATAL_ERROR "MFEM_USE_UMPIRE=ON, however umpire_DIR isn't visible to HYPRE")
+      endif()
+    else()
+      list(APPEND HYPRE_CMAKE_OPTIONS -DHYPRE_ENABLE_UMPIRE:BOOL=OFF)
+      message(WARNING
+"================================================================================
+ Umpire is disabled while building HYPRE with GPU support.
+ This is not recommended for performance reasons!
+ Consider enabling Umpire with -DMFEM_USE_UMPIRE=ON and providing -DUMPIRE_DIR.
+================================================================================")
+    endif()
+  endif()
   if (MFEM_USE_SINGLE)
-    list(APPEND CMAKE_OPTIONS -DHYPRE_ENABLE_SINGLE:BOOL=ON)
+    list(APPEND HYPRE_CMAKE_OPTIONS -DHYPRE_ENABLE_SINGLE:BOOL=ON)
   endif()
   # define external project and create future include directory so it is present
   # to pass CMake checks at end of MFEM configuration step
-  message(STATUS "Will fetch HYPRE ${HYPRE_FETCH_VERSION} to be built with ${CMAKE_OPTIONS}")
-  set(PREFIX ${CMAKE_BINARY_DIR}/fetch/hypre)
+  message(STATUS "Will fetch HYPRE ${HYPRE_FETCH_TAG} to be built with ${HYPRE_CMAKE_OPTIONS}")
+  set(HYPRE_INSTALL ${CMAKE_BINARY_DIR}/fetch/hypre)
   include(ExternalProject)
   ExternalProject_Add(hypre
     GIT_REPOSITORY https://github.com/hypre-space/hypre.git
-    GIT_TAG v${HYPRE_FETCH_VERSION}
+    GIT_TAG ${HYPRE_FETCH_TAG}
     GIT_SHALLOW TRUE
+    GIT_PROGRESS TRUE
     UPDATE_DISCONNECTED TRUE
     SOURCE_SUBDIR src
-    PREFIX ${PREFIX}
-    CMAKE_CACHE_ARGS -DCMAKE_INSTALL_PREFIX:PATH=${PREFIX} -DCMAKE_INSTALL_LIBDIR:PATH=lib ${CMAKE_OPTIONS})
-  file(MAKE_DIRECTORY ${PREFIX}/include)
+    PREFIX ${HYPRE_INSTALL}
+    BUILD_COMMAND ${CMAKE_COMMAND} --build . -- -j${CMAKE_BUILD_PARALLEL_LEVEL}
+    CMAKE_CACHE_ARGS -DCMAKE_INSTALL_PREFIX:PATH=${HYPRE_INSTALL} -DCMAKE_INSTALL_LIBDIR:PATH=lib ${HYPRE_CMAKE_OPTIONS})
+  file(MAKE_DIRECTORY ${HYPRE_INSTALL}/include)
   # set imported library target properties
   add_dependencies(HYPRE hypre)
   set_target_properties(HYPRE PROPERTIES
-    IMPORTED_LOCATION ${PREFIX}/lib/libHYPRE.a
-    INTERFACE_INCLUDE_DIRECTORIES ${PREFIX}/include)
+    IMPORTED_LOCATION ${HYPRE_INSTALL}/lib/libHYPRE.a
+    INTERFACE_INCLUDE_DIRECTORIES ${HYPRE_INSTALL}/include)
   # convert HYPRE version to integer
-  string(REGEX MATCHALL "[0-9]+" HYPRE_SPLIT_VERSION ${HYPRE_FETCH_VERSION})
-  list(GET HYPRE_SPLIT_VERSION 0 HYPRE_MAJOR_VERSION)
-  list(GET HYPRE_SPLIT_VERSION 1 HYPRE_MINOR_VERSION)
-  list(GET HYPRE_SPLIT_VERSION 2 HYPRE_PATCH_VERSION)
-  math(EXPR HYPRE_VERSION "10000*${HYPRE_MAJOR_VERSION} + 100*${HYPRE_MINOR_VERSION} + ${HYPRE_PATCH_VERSION}")
-  # set cache variables that would otherwise be set after mfem_find_package call
-  set(HYPRE_VERSION ${HYPRE_VERSION} CACHE STRING "HYPRE version." FORCE)
+  if (HYPRE_FETCH_TAG MATCHES "^v?([0-9]+)\\.([0-9]+)\\.([0-9]+)$")
+    # Exact release tag X.Y.Z
+    string(REGEX MATCHALL "[0-9]+" HYPRE_SPLIT_VERSION "${HYPRE_FETCH_TAG}")
+  elseif (HYPRE_FETCH_VERSION MATCHES "([0-9]+)\\.([0-9]+)(\\.([0-9]+))?")
+    string(REGEX MATCHALL "[0-9]+" HYPRE_SPLIT_VERSION "${HYPRE_FETCH_VERSION}")
+  else (NOT DEFINED HYPRE_VERSION)
+    message(FATAL_ERROR "Unable to find HYPRE release version. Please provide it via -DHYPRE_VERSION")
+  endif()
+  if (HYPRE_SPLIT_VERSION AND NOT DEFINED HYPRE_VERSION)
+    list(GET HYPRE_SPLIT_VERSION 0 HYPRE_MAJOR_VERSION)
+    list(GET HYPRE_SPLIT_VERSION 1 HYPRE_MINOR_VERSION)
+    if (HYPRE_SPLIT_VERSION GREATER 2)
+      list(GET HYPRE_SPLIT_VERSION 2 HYPRE_PATCH_VERSION)
+    else()
+      set(HYPRE_PATCH_VERSION 0)
+    endif()
+    math(EXPR HYPRE_VERSION "10000*${HYPRE_MAJOR_VERSION} + 100*${HYPRE_MINOR_VERSION} + ${HYPRE_PATCH_VERSION}")
+    set(HYPRE_VERSION ${HYPRE_VERSION} CACHE STRING "HYPRE version." FORCE)
+  endif()
   return()
 endif()
 
@@ -149,10 +190,21 @@ endif()
 if (HYPRE_FOUND AND HYPRE_USING_HIP)
   find_package(rocsparse REQUIRED)
   find_package(rocrand REQUIRED)
-  list(APPEND HYPRE_LIBRARIES ${rocsparse_LIBRARIES} ${rocrand_LIBRARIES})
+  find_package(rocsolver REQUIRED)
+  list(APPEND HYPRE_LIBRARIES ${rocsparse_LIBRARIES} ${rocrand_LIBRARIES} roc::rocsolver roc::rocblas)
   set(HYPRE_LIBRARIES ${HYPRE_LIBRARIES} CACHE STRING
       "HYPRE libraries + dependencies." FORCE)
   message(STATUS "Updated HYPRE_LIBRARIES: ${HYPRE_LIBRARIES}")
+endif()
+
+# Hypre+Umpire check
+if (HYPRE_FOUND AND (HYPRE_USING_CUDA OR HYPRE_USING_HIP) AND NOT MFEM_USE_UMPIRE)
+  message(WARNING
+"===============================================================
+ Detected GPU-enabled HYPRE build without Umpire support.
+ This is not recommended for performance reasons!
+ Consider rebuilding HYPRE with Umpire support.
+===============================================================")
 endif()
 
 find_package_handle_standard_args(HYPRE
