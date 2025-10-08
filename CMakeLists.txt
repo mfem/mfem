@@ -298,9 +298,9 @@ endif()
 # Umpire (must be included before hypre, so hypre can use it if needed)
 if (MFEM_USE_UMPIRE)
    # # umpire uses FindCUDA, which needs CMP0146=OLD in CMake >= 3.27
-   # if(CMAKE_VERSION VERSION_GREATER_EQUAL 3.27.0)
-   #    cmake_policy(SET CMP0146 OLD)
-   # endif()
+   if(CMAKE_VERSION VERSION_GREATER_EQUAL 3.27.0)
+      cmake_policy(SET CMP0146 OLD)
+   endif()
    find_package(UMPIRE REQUIRED)
 endif()
 
