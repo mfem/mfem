@@ -27,6 +27,24 @@
 namespace mfem
 {
 
+/** This enumerated type describes the three main projection types:
+    - ELEMENT, assigns the degree of freedom per element, as specified in the
+      specific element
+    - GLOBAL_L2, solves a global L2 projection
+    - ELEMENT_L2, solves a element level L2 projection. Inter element
+      connectivity is dealt with similar as in:
+      Bezier-Projection : A unified approach for local projection and
+      quadrature-free refinement and coarsening of NURBS and T-splines with
+      particular application to isogeometric design and analysis
+      [CMAME (284) 2015 pg 55-105]
+    - DEFAULT, for NURBS spaces this is ELEMENT_L2, while for all other spaces
+      this ELEMENT.
+   Note 1: ELEMENT_L2 also works for non NURBS elements
+   Note 2: For NURBS elements the ELEMENT projection gives results without
+   over and undershoots. However, the gradient near the boundary does not
+   converge.*/
+enum class ProjectType { DEFAULT, ELEMENT, GLOBAL_L2, ELEMENT_L2 };
+
 /// Class for grid function - Vector with associated FE space.
 class GridFunction : public Vector
 {
@@ -394,25 +412,6 @@ public:
        projection matrix. */
    void ProjectGridFunction(const GridFunction &src);
 
-
-   /** This enumerated type describes the three main projection types:
-       - ELEMENT, assigns the degree of freedom per element, as specified in the
-         specific element
-       - GLOBALL2, solves a global L2 projection
-       - ELEMENTL2, solves a element level L2 projection. Inter element
-         connectivity is dealt with similar as in:
-         Bezier-Projection : A unified approach for local projection and
-         quadrature-free refinement and coarsening of NURBS and T-splines with
-         particular application to isogeometric design and analysis
-         [CMAME (284) 2015 pg 55-105]
-       - DEFAULT, for NURBS spaces this is ELEMENTL2, while for all other spaces
-         this ELEMENT.
-       Note 1: ELEMENTL2 also works for non NURBS elements
-       Note 2: For NURBS elements the ELEMENT projection gives results without
-       over and undershoots. However, the gradient near the boundary does not
-       converge.*/
-   enum class ProjType { DEFAULT, ELEMENT, GLOBALL2, ELEMENTL2 };
-
    /** @brief Project @a coeff Coefficient to @a this GridFunction. The
        projection computation depends on the choice of the FiniteElementSpace
        #fes. Note that this is usually interpolation at the degrees of freedom
@@ -424,7 +423,7 @@ public:
        rectified with the appropriate communication, see in ParGridFunction.
        */
    virtual void ProjectCoefficient(Coefficient &coeff,
-                                   ProjType type = ProjType::DEFAULT);
+                                   ProjectType type = ProjectType::DEFAULT);
 
    /** @brief Project @a coeff Coefficient to @a this GridFunction. The
        projection is a global L2 projection. This routine can be used a
@@ -456,7 +455,7 @@ public:
        If that is the case it is defined on another rank, and the issue is
        rectified with the appropriate communication, see in ParGridFunction.*/
    virtual void ProjectCoefficient(VectorCoefficient &vcoeff,
-                                   ProjType type = ProjType::DEFAULT);
+                                   ProjectType type = ProjectType::DEFAULT);
 
    /** @brief Project @a coeff Coefficient to @a this GridFunction. The
        projection is a global L2 projection. This routine can be used a

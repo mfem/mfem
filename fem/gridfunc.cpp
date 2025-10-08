@@ -2308,7 +2308,7 @@ void GridFunction::ProjectDeltaCoefficient(DeltaCoefficient &delta_coeff,
    }
 }
 
-void GridFunction::ProjectCoefficient(Coefficient &coeff, ProjType type)
+void GridFunction::ProjectCoefficient(Coefficient &coeff, ProjectType type)
 {
    DeltaCoefficient *delta_c = dynamic_cast<DeltaCoefficient *>(&coeff);
    DofTransformation doftrans;
@@ -2321,10 +2321,10 @@ void GridFunction::ProjectCoefficient(Coefficient &coeff, ProjType type)
       {
          switch (type)
          {
-            case ProjType::ELEMENTL2:
+            case ProjectType::ELEMENT_L2:
                ProjectCoefficientElementL2(coeff);
                return;
-            case ProjType::GLOBALL2:
+            case ProjectType::GLOBAL_L2:
                ProjectCoefficientGlobalL2(coeff);
                return;
             default:
@@ -2342,14 +2342,14 @@ void GridFunction::ProjectCoefficient(Coefficient &coeff, ProjType type)
       {
          switch (type)
          {
-            case ProjType::DEFAULT:
-            case ProjType::ELEMENTL2:
+            case ProjectType::DEFAULT:
+            case ProjectType::ELEMENT_L2:
                ProjectCoefficientElementL2(coeff);
                return;
-            case ProjType::GLOBALL2:
+            case ProjectType::GLOBAL_L2:
                ProjectCoefficientGlobalL2(coeff);
                return;
-            case ProjType::ELEMENT:
+            case ProjectType::ELEMENT:
                constexpr real_t signal = std::numeric_limits<real_t>::min();
 
                for (int i = 0; i < fes->GetNE(); i++)
@@ -2582,7 +2582,7 @@ void GridFunction::ProjectCoefficient(
    }
 }
 
-void GridFunction::ProjectCoefficient(VectorCoefficient &vcoeff, ProjType type)
+void GridFunction::ProjectCoefficient(VectorCoefficient &vcoeff, ProjectType type)
 {
    Array<int> vdofs;
    Vector vals;
@@ -2592,10 +2592,10 @@ void GridFunction::ProjectCoefficient(VectorCoefficient &vcoeff, ProjType type)
    {
       switch (type)
       {
-         case ProjType::ELEMENTL2:
+         case ProjectType::ELEMENT_L2:
             ProjectCoefficientElementL2(vcoeff);
             return;
-         case ProjType::GLOBALL2:
+         case ProjectType::GLOBAL_L2:
             ProjectCoefficientGlobalL2(vcoeff);
             return;
          default:
@@ -2613,14 +2613,14 @@ void GridFunction::ProjectCoefficient(VectorCoefficient &vcoeff, ProjType type)
    {
       switch (type)
       {
-         case ProjType::DEFAULT:
-         case ProjType::ELEMENTL2:
+         case ProjectType::DEFAULT:
+         case ProjectType::ELEMENT_L2:
             ProjectCoefficientElementL2(vcoeff);
             return;
-         case ProjType::GLOBALL2:
+         case ProjectType::GLOBAL_L2:
             ProjectCoefficientGlobalL2(vcoeff);
             return;
-         case ProjType::ELEMENT:
+         case ProjectType::ELEMENT:
             constexpr real_t signal = std::numeric_limits<real_t>::min();
             for (int i = 0; i < fes->GetNE(); i++)
             {
