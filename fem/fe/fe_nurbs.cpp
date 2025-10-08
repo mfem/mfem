@@ -470,24 +470,6 @@ void NURBS_HDiv2DFiniteElement::CalcVShape(const IntegrationPoint &ip,
    }
 }
 
-void NURBS_HDiv2DFiniteElement::CalcVShape(ElementTransformation &Trans,
-                                           DenseMatrix &shape) const
-{
-   CalcVShape(Trans.GetIntPoint(), shape);
-   const DenseMatrix & J = Trans.Jacobian();
-   MFEM_ASSERT(J.Width() == 2 && J.Height() == 2,
-               "NURBS_HDiv2DFiniteElement cannot be embedded in "
-               "3 dimensional spaces");
-   for (int i=0; i<dof; i++)
-   {
-      real_t sx = shape(i, 0);
-      real_t sy = shape(i, 1);
-      shape(i, 0) = sx * J(0, 0) + sy * J(0, 1);
-      shape(i, 1) = sx * J(1, 0) + sy * J(1, 1);
-   }
-   shape *= (1.0 / Trans.Weight());
-}
-
 void NURBS_HDiv2DFiniteElement::CalcDivShape(const IntegrationPoint &ip,
                                              Vector &divshape) const
 {
@@ -559,8 +541,7 @@ void NURBS_HDiv2DFiniteElement::CalcDVShape(const IntegrationPoint &ip,
 void NURBS_HDiv2DFiniteElement::CalcPhysDVShape(ElementTransformation &Trans,
                                                 DenseTensor &dvshape) const
 {
-   // MFEM_ASSERT(map_type == VALUE, ""); // ???
-#ifdef MFEM_THREAD_SAFE
+ #ifdef MFEM_THREAD_SAFE
    DenseTensor tshape(dof, dim, dim);
 #else
    tshape.SetSize(dof, dim, dim);
@@ -569,28 +550,20 @@ void NURBS_HDiv2DFiniteElement::CalcPhysDVShape(ElementTransformation &Trans,
    const DenseMatrix & J = Trans.Jacobian();
    DenseMatrix Jinv = Trans.InverseJacobian();
    Jinv *= (1.0 / Trans.Weight());
-   MFEM_ASSERT(J.Width() == 2 && J.Height() == 2,
-               "NURBS_HDiv2DFiniteElement cannot be embedded in "
-               "3 dimensional spaces");
 
-   for (int i=0; i<dof; i++)
-   {
-      // Map vector component
-      real_t sx = tshape(i, 0, 0) * J(0, 0) + tshape(i, 1, 0) * J(0, 1);
-      real_t sy = tshape(i, 0, 1) * J(0, 0) + tshape(i, 1, 1) * J(0, 1);
-
-      // Map derivative direction
-      dvshape(i, 0, 0) = sx * Jinv(0, 0) + sy * Jinv(1, 0);  // (0,1) flip??
-      dvshape(i, 0, 1) = sx * Jinv(0, 1) + sy * Jinv(1, 1);  // (1,0) flip??
-
-      // Map vector component
-      sx = tshape(i, 1, 0) * J(1, 0) + tshape(i, 1, 0) * J(1, 1);
-      sy = tshape(i, 1, 1) * J(1, 0) + tshape(i, 1, 1) * J(1, 1);
-
-      // Map derivative component
-      dvshape(i, 1, 0) = sx * Jinv(0, 0) + sy * Jinv(1, 0); // (0,1) flip??
-      dvshape(i, 1, 1) = sx * Jinv(0, 1) + sy * Jinv(1, 1); // (1,0) flip??
-   }
+   dvshape = 0.0;
+   for (int i=0; i<2; i++)
+      for (int j=0; j<2; j++)
+      {
+         real_t Jij = J(i,j);
+         for (int k=0; k<2; k++)
+            for (int l=0; l<2; l++)
+            {
+               real_t JijJIlk = J(i,j)*Jinv(l,k);
+               for (int d=0; d<dof; d++)
+                  dvshape(d,i,k) += tshape(d,j,l)*JijJIlk ;
+            }
+      }
 }
 
 NURBS_HDiv2DFiniteElement::~NURBS_HDiv2DFiniteElement()
@@ -698,26 +671,6 @@ void NURBS_HDiv3DFiniteElement::CalcVShape(const IntegrationPoint &ip,
          }
       }
    }
-}
-
-void NURBS_HDiv3DFiniteElement::CalcVShape(ElementTransformation &Trans,
-                                           DenseMatrix &shape) const
-{
-   CalcVShape(Trans.GetIntPoint(), shape);
-   const DenseMatrix & J = Trans.Jacobian();
-   MFEM_ASSERT(J.Width() == 3 && J.Height() == 3,
-               "RT_R2D_FiniteElement cannot be embedded in "
-               "3 dimensional spaces");
-   for (int i=0; i<dof; i++)
-   {
-      real_t sx = shape(i, 0);
-      real_t sy = shape(i, 1);
-      real_t sz = shape(i, 2);
-      shape(i, 0) = sx * J(0, 0) + sy * J(0, 1) + sz * J(0, 2);
-      shape(i, 1) = sx * J(1, 0) + sy * J(1, 1) + sz * J(1, 2);
-      shape(i, 2) = sx * J(2, 0) + sy * J(2, 1) + sz * J(2, 2);
-   }
-   shape *= (1.0 / Trans.Weight());
 }
 
 void NURBS_HDiv3DFiniteElement::CalcDivShape(const IntegrationPoint &ip,
@@ -854,61 +807,30 @@ void NURBS_HDiv3DFiniteElement::CalcDVShape(const IntegrationPoint &ip,
 void NURBS_HDiv3DFiniteElement::CalcPhysDVShape(ElementTransformation &Trans,
                                                 DenseTensor &dvshape) const
 {
-   //  MFEM_ASSERT(map_type == VALUE, ""); // ???
+
 #ifdef MFEM_THREAD_SAFE
    DenseTensor tshape(dof, dim, dim);
+#else
+   tshape.SetSize(dof, dim, dim);
 #endif
    CalcDVShape(Trans.GetIntPoint(), tshape);
    const DenseMatrix & J = Trans.Jacobian();
    DenseMatrix Jinv = Trans.InverseJacobian();
    Jinv *= (1.0 / Trans.Weight());
-   MFEM_ASSERT(J.Width() == 3 && J.Height() == 3,
-               "NURBS_HDiv3DFiniteElement cannot be embedded in "
-               "4 dimensional spaces");
-   for (int i=0; i<dof; i++)
-   {
-      // Map vector component
-      int sx = tshape(i, 0, 0) * J(0, 0) + tshape(i, 1, 0) * J(0, 1) + tshape(i, 2,
-                                                                              0) * J(0, 2);
-      int sy = tshape(i, 0, 1) * J(0, 0) + tshape(i, 1, 1) * J(0, 1) + tshape(i, 2,
-                                                                              1) * J(0, 2);
-      int sz = tshape(i, 0, 2) * J(0, 0) + tshape(i, 1, 2) * J(0, 1) + tshape(i, 2,
-                                                                              2) * J(0, 2);
 
-      // Map derivative direction
-      dvshape(i, 0, 0) = sx * Jinv(0, 0) + sy * Jinv(0, 1) + sz * Jinv(0,
-                                                                       2); // Transpose?
-      dvshape(i, 0, 1) = sx * Jinv(1, 0) + sy * Jinv(1, 1) + sz * Jinv(1, 2);
-      dvshape(i, 0, 2) = sx * Jinv(2, 0) + sy * Jinv(2, 1) + sz * Jinv(2, 2);
-
-      // Map vector component
-      sx = tshape(i, 1, 0) * J(1, 0) + tshape(i, 1, 0) * J(1, 1) + tshape(i, 2,
-                                                                          0) * J(1, 2);
-      sy = tshape(i, 1, 1) * J(1, 0) + tshape(i, 1, 1) * J(1, 1) + tshape(i, 2,
-                                                                          1) * J(1, 2);
-      sy = tshape(i, 1, 2) * J(1, 0) + tshape(i, 1, 2) * J(1, 1) + tshape(i, 2,
-                                                                          2) * J(1, 2);
-
-      // Map derivative component
-      dvshape(i, 1, 0) = sx * Jinv(0, 0) + sy * Jinv(0, 1) + sz * Jinv(0,
-                                                                       2); // Transpose?
-      dvshape(i, 1, 1) = sx * Jinv(1, 0) + sy * Jinv(1, 1) + sz * Jinv(1, 2);
-      dvshape(i, 1, 2) = sx * Jinv(1, 0) + sy * Jinv(1, 1) + sz * Jinv(2, 2);
-
-      // Map vector component
-      sx = tshape(i, 2, 0) * J(1, 0) + tshape(i, 2, 0) * J(1, 1) + tshape(i, 2,
-                                                                          0) * J(2, 2);
-      sy = tshape(i, 2, 1) * J(1, 0) + tshape(i, 2, 1) * J(1, 1) + tshape(i, 2,
-                                                                          1) * J(2, 2);
-      sy = tshape(i, 2, 2) * J(1, 0) + tshape(i, 2, 2) * J(1, 1) + tshape(i, 2,
-                                                                          2) * J(2, 2);
-
-      // Map derivative component
-      dvshape(i, 2, 0) = sx * Jinv(0, 0) + sy * Jinv(0, 1) + sz * Jinv(0,
-                                                                       2); // Transpose?
-      dvshape(i, 2, 1) = sx * Jinv(1, 0) + sy * Jinv(1, 1) + sz * Jinv(1, 2);
-      dvshape(i, 2, 2) = sx * Jinv(1, 0) + sy * Jinv(1, 1) + sz * Jinv(2, 2);
-   }
+   dvshape = 0.0;
+   for (int i=0; i<3; i++)
+      for (int j=0; j<3; j++)
+      {
+         real_t Jij = J(i,j);
+         for (int k=0; k<3; k++)
+            for (int l=0; l<3; l++)
+            {
+               real_t JijJIlk = J(i,j)*Jinv(l,k);
+               for (int d=0; d<dof; d++)
+                  dvshape(d,i,k) += tshape(d,j,l)*JijJIlk ;
+            }
+      }
 }
 
 NURBS_HDiv3DFiniteElement::~NURBS_HDiv3DFiniteElement()
@@ -986,23 +908,6 @@ void NURBS_HCurl2DFiniteElement::CalcVShape(const IntegrationPoint &ip,
    }
 }
 
-void NURBS_HCurl2DFiniteElement::CalcVShape(ElementTransformation &Trans,
-                                            DenseMatrix &shape) const
-{
-   CalcVShape(Trans.GetIntPoint(), shape);
-   const DenseMatrix & JI = Trans.InverseJacobian();
-   MFEM_ASSERT(JI.Width() == 2 && JI.Height() == 2,
-               "NURBS_HCurl2DFiniteElement cannot be embedded in "
-               "3 dimensional spaces");
-   for (int i=0; i<dof; i++)
-   {
-      real_t sx = shape(i, 0);
-      real_t sy = shape(i, 1);
-      shape(i, 0) = sx * JI(0, 0) + sy * JI(1, 0);
-      shape(i, 1) = sx * JI(0, 1) + sy * JI(1, 1);
-   }
-}
-
 void NURBS_HCurl2DFiniteElement::CalcCurlShape(const IntegrationPoint &ip,
                                                DenseMatrix &curl_shape) const
 {
@@ -1074,18 +979,27 @@ void NURBS_HCurl2DFiniteElement::CalcDVShape(const IntegrationPoint &ip,
 }
 
 void NURBS_HCurl2DFiniteElement::CalcPhysDVShape(ElementTransformation &Trans,
-                                                 DenseTensor &dvsthape) const
+                                                 DenseTensor &dvshape) const
 {
-   /*   MFEM_ASSERT(map_type == VALUE, "");
-   #ifdef MFEM_THREAD_SAFE
-      DenseTensor tshape(dof, dim, dim);
-   #endif
-      CalcDVShape(Trans.GetIntPoint(), tshape);
-      Mult(tshape, Trans.InverseJacobian(), dvshape);
-   }*/
+   MFEM_ASSERT(map_type == H_CURL, "");
+   DenseTensor tshape(dof, dim, dim);
+   CalcDVShape(Trans.GetIntPoint(), tshape);
 
-   MFEM_ABORT("method is not implemented for this class");
+   const DenseMatrix &JI = Trans.InverseJacobian();
+   for (int i=0; i<dof; i++)
+   {
+      real_t sxx = tshape(i, 0, 0) * JI(0, 0) + tshape(i, 1, 0) * JI(0, 1);
+      real_t syx = tshape(i, 0, 0) * JI(1, 0) + tshape(i, 1, 0) * JI(1, 1);
+      real_t sxy = tshape(i, 0, 1) * JI(0, 0) + tshape(i, 1, 1) * JI(0, 1);
+      real_t syy = tshape(i, 0, 1) * JI(1, 0) + tshape(i, 1, 1) * JI(1, 1);
+
+      dvshape(i, 0, 0) = sxx * JI(0, 0) + sxy * JI(0, 1);
+      dvshape(i, 0, 1) = sxx * JI(1, 0) + sxy * JI(1, 1);
+      dvshape(i, 1, 0) = syx * JI(0, 0) + syy * JI(0, 1);
+      dvshape(i, 1, 1) = syx * JI(1, 0) + syy * JI(1, 1);
+   }
 }
+
 
 NURBS_HCurl2DFiniteElement::~NURBS_HCurl2DFiniteElement()
 {
@@ -1191,25 +1105,6 @@ void NURBS_HCurl3DFiniteElement::CalcVShape(const IntegrationPoint &ip,
             shape(o,2) = shape1_x(i)*sy1_sz;
          }
       }
-   }
-}
-
-void NURBS_HCurl3DFiniteElement::CalcVShape(ElementTransformation &Trans,
-                                            DenseMatrix &shape) const
-{
-   CalcVShape(Trans.GetIntPoint(), shape);
-   const DenseMatrix & JI = Trans.InverseJacobian();
-   MFEM_ASSERT(JI.Width() == 3 && JI.Height() == 3,
-               "NURBS_HCurl3DFiniteElement must be in a"
-               "3 dimensional spaces");
-   for (int i=0; i<dof; i++)
-   {
-      real_t sx = shape(i, 0);
-      real_t sy = shape(i, 1);
-      real_t sz = shape(i, 2);
-      shape(i, 0) = sx * JI(0, 0) + sy * JI(1, 0) + sz * JI(2, 0);
-      shape(i, 1) = sx * JI(0, 1) + sy * JI(1, 1) + sz * JI(2, 1);
-      shape(i, 2) = sx * JI(0, 2) + sy * JI(1, 2) + sz * JI(2, 2);
    }
 }
 
@@ -1356,17 +1251,39 @@ void NURBS_HCurl3DFiniteElement::CalcDVShape(const IntegrationPoint &ip,
 }
 
 void NURBS_HCurl3DFiniteElement::CalcPhysDVShape(ElementTransformation &Trans,
-                                                 DenseTensor &dvsthape) const
+                                                 DenseTensor &dvshape) const
 {
-   /*   MFEM_ASSERT(map_type == VALUE, "");
-   #ifdef MFEM_THREAD_SAFE
-      DenseTensor tshape(dof, dim, dim);
-   #endif
-      CalcDVShape(Trans.GetIntPoint(), tshape);
-      Mult(tshape, Trans.InverseJacobian(), dvshape);
-   }*/
+   MFEM_ASSERT(map_type == H_CURL, "");
+   DenseTensor tshape(dof, dim, dim);
+   CalcDVShape(Trans.GetIntPoint(), tshape);
 
-   MFEM_ABORT("method is not implemented for this class");
+   const DenseMatrix &JI = Trans.InverseJacobian();
+   for (int i=0; i<dof; i++)
+   {
+      real_t sxx = tshape(i, 0, 0) * JI(0, 0) + tshape(i, 1, 0) * JI(0, 1) + tshape(i, 2, 0) * JI(0, 2);
+      real_t syx = tshape(i, 0, 0) * JI(1, 0) + tshape(i, 1, 0) * JI(1, 1) + tshape(i, 2, 0) * JI(1, 2);
+      real_t szx = tshape(i, 0, 0) * JI(2, 0) + tshape(i, 1, 0) * JI(2, 1) + tshape(i, 2, 0) * JI(2, 2);
+
+      real_t sxy = tshape(i, 0, 1) * JI(0, 0) + tshape(i, 1, 1) * JI(0, 1) + tshape(i, 2, 1) * JI(0, 2);
+      real_t syy = tshape(i, 0, 1) * JI(1, 0) + tshape(i, 1, 1) * JI(1, 1) + tshape(i, 2, 1) * JI(1, 2);
+      real_t szy = tshape(i, 0, 1) * JI(2, 0) + tshape(i, 1, 1) * JI(2, 1) + tshape(i, 2, 1) * JI(2, 2);
+
+      real_t sxz = tshape(i, 0, 0) * JI(0, 0) + tshape(i, 1, 0) * JI(0, 1) + tshape(i, 2, 0) * JI(0, 2);
+      real_t syz = tshape(i, 0, 0) * JI(1, 0) + tshape(i, 1, 0) * JI(1, 1) + tshape(i, 2, 0) * JI(1, 2);
+      real_t szz = tshape(i, 0, 0) * JI(2, 0) + tshape(i, 1, 0) * JI(2, 1) + tshape(i, 2, 0) * JI(2, 2);
+
+      dvshape(i, 0, 0) = sxx * JI(0, 0) + sxy * JI(0, 1) + sxz * JI(0, 2);
+      dvshape(i, 0, 1) = sxx * JI(1, 0) + sxy * JI(1, 1) + sxz * JI(1, 2);
+      dvshape(i, 0, 2) = sxx * JI(2, 0) + sxy * JI(2, 1) + sxz * JI(2, 2);
+
+      dvshape(i, 1, 0) = syx * JI(0, 0) + syy * JI(0, 1) + syz * JI(0, 2);
+      dvshape(i, 1, 1) = syx * JI(1, 0) + syy * JI(1, 1) + syz * JI(1, 2);
+      dvshape(i, 1, 2) = syx * JI(2, 0) + syy * JI(2, 1) + syz * JI(2, 2);
+
+      dvshape(i, 2, 0) = szx * JI(0, 0) + szy * JI(0, 1) + szz * JI(0, 2);
+      dvshape(i, 2, 1) = szx * JI(1, 0) + szy * JI(1, 1) + szz * JI(1, 2);
+      dvshape(i, 2, 2) = szx * JI(2, 0) + szy * JI(2, 1) + szz * JI(2, 2);
+   }
 }
 
 NURBS_HCurl3DFiniteElement::~NURBS_HCurl3DFiniteElement()

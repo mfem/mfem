@@ -233,8 +233,8 @@ public:
        in advance, where SDim >= #dim is the physical space dimension as
        described by @a Trans. */
    void CalcVShape(ElementTransformation &Trans,
-                   DenseMatrix &shape) const override;
-
+                   DenseMatrix &shape) const override
+   { CalcVShape_RT(Trans, shape); }
    /** @brief Evaluate the divergence of all shape functions of a *vector*
        finite element in reference space at the given point @a ip. */
    /** The size (#dof) of the result Vector @a divshape must be set in advance.
@@ -347,8 +347,8 @@ public:
        in advance, where SDim >= #dim is the physical space dimension as
        described by @a Trans. */
    void CalcVShape(ElementTransformation &Trans,
-                   DenseMatrix &shape) const override;
-
+                   DenseMatrix &shape) const override
+   { CalcVShape_RT(Trans, shape); }
    /** @brief Evaluate the divergence of all shape functions of a *vector*
        finite element in reference space at the given point @a ip. */
    /** The size (#dof) of the result Vector @a divshape must be set in advance.
@@ -444,7 +444,8 @@ public:
        in advance, where SDim >= #dim is the physical space dimension as
        described by @a Trans. */
    void CalcVShape(ElementTransformation &Trans,
-                   DenseMatrix &shape) const override;
+                   DenseMatrix &shape) const override
+   { CalcVShape_ND(Trans, shape); }
 
    /** @brief Evaluate the curl of all shape functions of a *vector* finite
        element in reference space at the given point @a ip. */
@@ -555,7 +556,8 @@ public:
        in advance, where SDim >= #dim is the physical space dimension as
        described by @a Trans. */
    void CalcVShape(ElementTransformation &Trans,
-                   DenseMatrix &shape) const override;
+                   DenseMatrix &shape) const override
+   { CalcVShape_ND(Trans, shape); }
 
    /** @brief Evaluate the curl of all shape functions of a *vector* finite
        element in reference space at the given point @a ip. */
