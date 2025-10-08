@@ -258,10 +258,10 @@ public:
 
    using GridFunction::ProjectCoefficient;
    void ProjectCoefficient(Coefficient &coeff,
-                           ProjType type = ProjType::DEFAULT) override;
+                           ProjectType type = ProjectType::DEFAULT) override;
 
    void ProjectCoefficient(VectorCoefficient &vcoeff,
-                           ProjType type = ProjType::DEFAULT) override;
+                           ProjectType type = ProjectType::DEFAULT) override;
 
    using GridFunction::ProjectDiscCoefficient;
    /** @brief Project a discontinuous vector coefficient as a grid function on

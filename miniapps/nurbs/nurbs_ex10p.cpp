@@ -46,8 +46,6 @@ using namespace mfem;
 
 class ReducedSystemOperator;
 
-typedef GridFunction::ProjType ProjType;
-
 /** After spatial discretization, the hyperelastic model can be written as a
  *  system of ODEs:
  *     dv/dt = -M^{-1}*(H(x) + S*v)
@@ -101,7 +99,7 @@ public:
    real_t KineticEnergy(const ParGridFunction &v) const;
    void GetElasticEnergyDensity(const ParGridFunction &x,
                                 ParGridFunction &w,
-                                ProjType proj_type) const;
+                                ProjectType proj_type) const;
 
    ~HyperelasticOperator() override;
 };
@@ -235,7 +233,7 @@ int main(int argc, char *argv[])
    {
       args.PrintOptions(cout);
    }
-   ProjType proj_type = static_cast<ProjType>(proj_type_int);
+   ProjectType proj_type = static_cast<ProjectType>(proj_type_int);
 
    // 3. Read the serial mesh from the given mesh file on all processors. We can
    //    handle triangular, quadrilateral, tetrahedral and hexahedral meshes
@@ -647,7 +645,7 @@ real_t HyperelasticOperator::KineticEnergy(const ParGridFunction &v) const
 }
 
 void HyperelasticOperator::GetElasticEnergyDensity(
-   const ParGridFunction &x, ParGridFunction &w, ProjType  proj_type) const
+   const ParGridFunction &x, ParGridFunction &w, ProjectType  proj_type) const
 {
    ElasticEnergyCoefficient w_coeff(*model, x);
    w.ProjectCoefficient(w_coeff, proj_type);

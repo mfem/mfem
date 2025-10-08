@@ -543,7 +543,7 @@ void ParGridFunction::GetElementDofValues(int el, Vector &dof_vals) const
    }
 }
 
-void ParGridFunction::ProjectCoefficient(Coefficient &coeff, ProjType type)
+void ParGridFunction::ProjectCoefficient(Coefficient &coeff, ProjectType type)
 {
    DeltaCoefficient *delta_c = dynamic_cast<DeltaCoefficient *>(&coeff);
 
@@ -575,7 +575,7 @@ void ParGridFunction::ProjectCoefficient(Coefficient &coeff, ProjType type)
 }
 
 void ParGridFunction::ProjectCoefficient(VectorCoefficient &vcoeff,
-                                         ProjType type)
+                                         ProjectType type)
 {
    GridFunction::ProjectCoefficient(vcoeff, type);
 
