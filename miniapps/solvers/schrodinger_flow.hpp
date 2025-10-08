@@ -200,7 +200,11 @@ MFEM_HOST_DEVICE inline real_t abs(const Complex &z)
 MFEM_HOST_DEVICE inline Complex exp(const Complex &q)
 {
    real_t s, c, e = std::exp(q.real());
+#ifdef MFEM_USE_SINGLE
+   sincosf(q.imag(), &s, &c);
+#else
    sincos(q.imag(), &s, &c);
+#endif
    return Complex(c * e, s * e);
 }
 
