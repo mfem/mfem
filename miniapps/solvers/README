@@ -130,7 +130,18 @@ This miniapp allows timing comparisons with the LEGACY assembly approach.
     preconditioning for 3D stress analysis problems", Numerical Linear
     Algebra with Applications, 2002.
 
-# Incompressible Schrödinger equation
+# Incompressible Schrödinger Flow
 
-- Linear Schrödinger equation
-- Two examples: leapfrogging vortex rings and jet
+This miniapp introduces incompressible Schrödinger flow (ISF), a ℂ²-valued
+Schrödinger equation that incorporates an incompressibility constraint to
+model classical incompressible fluids. Drawing from Madelung's quantum
+hydrodynamics, this approach provides straightforward implementation
+and exhibits strong performance in capturing thin vortex behaviors.
+
+For more details see:
+
+[1] Albert Chern. Fluid Dynamics with Incompressible Schrödinger Flow.
+    Doctoral Dissertation, California Institute of Technology, 2017.
+
+[2] Chern, Knöppel, Pinkall, Schröder and Weißmann. Schrödinger’s Smoke.
+    ACM Trans. Graph., 2016.
