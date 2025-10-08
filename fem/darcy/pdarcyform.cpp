@@ -370,7 +370,7 @@ void ParDarcyForm::FormSystemMatrix(const Array<int> &ess_flux_tdof_list,
       {
          pB->FormRectangularSystemMatrix(ess_flux_tdof_list, ess_pot_tdof_list, opB);
 
-         ConstructBT(opB.Ptr());
+         ConstructBT(opB);
 
          block_op->SetBlock(0, 1, opBt.Ptr(), (bsym)?(-1.):(+1.));
          block_op->SetBlock(1, 0, opB.Ptr(), (bsym)?(-1.):(+1.));
@@ -591,7 +591,7 @@ Operator &ParDarcyForm::ParOperator::GetGradient(const Vector &x) const
          {
             HypreParMatrix *hB = darcy.pB->ParallelAssembleInternal();
             darcy.opB.Reset(hB, false);
-            darcy.ConstructBT(hB);
+            darcy.ConstructBT(darcy.opB);
          }
          block_grad->SetBlock(0, 1, darcy.opBt.Ptr(), (darcy.bsym)?(-1.):(+1.));
          block_grad->SetBlock(1, 0, darcy.opB.Ptr(), (darcy.bsym)?(-1.):(+1.));
@@ -802,12 +802,6 @@ void ParDarcyForm::AssemblePotHDGSharedFaces(int skip_zeros)
                                                         vdofs2, skip_zeros);
       }
    }
-}
-
-const Operator *ParDarcyForm::ConstructBT(const HypreParMatrix *opB) const
-{
-   opBt.Reset(opB->Transpose());
-   return opBt.Ptr();
 }
 }
 

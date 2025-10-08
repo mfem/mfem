@@ -618,7 +618,7 @@ void DarcyForm::FormLinearSystem(const Array<int> &ess_flux_tdof_list,
                                            x.GetBlock(0), b.GetBlock(1), opB, X_, B_);
          }
 
-         ConstructBT(opB.Ptr());
+         ConstructBT(opB);
 
          block_op->SetBlock(0, 1, opBt.Ptr(), (bsym)?(-1.):(+1.));
          block_op->SetBlock(1, 0, opB.Ptr(), (bsym)?(-1.):(+1.));
@@ -731,7 +731,7 @@ void DarcyForm::FormSystemMatrix(const Array<int> &ess_flux_tdof_list,
       {
          B->FormRectangularSystemMatrix(ess_flux_tdof_list, ess_pot_tdof_list, opB);
 
-         ConstructBT(opB.Ptr());
+         ConstructBT(opB);
 
          block_op->SetBlock(0, 1, opBt.Ptr(), (bsym)?(-1.):(+1.));
          block_op->SetBlock(1, 0, opB.Ptr(), (bsym)?(-1.):(+1.));
@@ -1782,9 +1782,22 @@ const Operator *DarcyForm::ConstructBT(const MixedBilinearForm *B) const
    return opBt.Ptr();
 }
 
-const Operator* DarcyForm::ConstructBT(const Operator *opB) const
+const Operator* DarcyForm::ConstructBT(const OperatorHandle &B) const
 {
-   opBt.Reset(new TransposeOperator(opB));
+   if (B.Type() == Operator::Type::MFEM_SPARSEMAT)
+   {
+      opBt.Reset(Transpose(*B.As<SparseMatrix>()));
+   }
+#ifdef MFEM_USE_MPI
+   else if (B.Type() == Operator::Type::Hypre_ParCSR)
+   {
+      opBt.Reset(B.As<HypreParMatrix>()->Transpose());
+   }
+#endif //MFEM_USE_MPI
+   else
+   {
+      opBt.Reset(new TransposeOperator(B.Ptr()));
+   }
    return opBt.Ptr();
 }
 

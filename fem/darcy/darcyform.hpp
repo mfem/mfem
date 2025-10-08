@@ -73,7 +73,7 @@ protected:
 
    void AllocBlockOp();
    const Operator* ConstructBT(const MixedBilinearForm *B) const;
-   const Operator* ConstructBT(const Operator *opB) const;
+   const Operator* ConstructBT(const OperatorHandle &B) const;
 
    void ReconstructFluxAndPot(const DarcyHybridization &h, const GridFunction &pc,
                               const GridFunction &ut, GridFunction &u, GridFunction &p,
