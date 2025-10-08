@@ -483,8 +483,8 @@ void SparseMatrix::SortColumnIndices()
       // Get size of temporary buffer needed to sort the column indices,
       // allocate the temporary buffer.
       size_t pBufferSizeInBytes;
-      MFEM_cu_or_hip(sparseXcsrsort_bufferSizeExt)(
-         handle, m, n, nnzA, d_ia, d_ja, &pBufferSizeInBytes);
+      MFEM_cu_or_hip(sparseXcsrsort_bufferSizeExt)(handle, m, n, nnzA, d_ia,
+                                                   d_ja, &pBufferSizeInBytes);
       void *pBuffer = MFEM_Cu_or_Hip(MemAlloc)(&pBuffer, pBufferSizeInBytes);
 
       // Create matrix descriptor, will have default values
@@ -504,8 +504,8 @@ void SparseMatrix::SortColumnIndices()
 
       // Create a copy of the unsorted matrix values.
       real_t *d_a = ReadWriteData();
-      void *d_a_unsorted = MFEM_Cu_or_Hip(MemAlloc)(
-                              &d_a_unsorted, nnzA * sizeof(real_t));
+      void *d_a_unsorted = MFEM_Cu_or_Hip(MemAlloc)(&d_a_unsorted,
+                                                    nnzA * sizeof(real_t));
       MFEM_Cu_or_Hip(MemcpyDtoD)(d_a_unsorted, d_a, nnzA * sizeof(real_t));
 
       // Create the (input) dense vector with the unsorted values.
