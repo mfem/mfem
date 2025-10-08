@@ -263,9 +263,9 @@ int main(int argc, char *argv[])
    bool fa = false;
    const char *device_config = "cpu";
    int ode_solver_type = 58; //55 - Forward Backward Euler
-                             //56 - IMEXRK2(2,2,2)
-                             //57 - IMEXRK2(2,3,2)
-                             //58 - IMEXRK3(3,4,3)
+   //56 - IMEXRK2(2,2,2)
+   //57 - IMEXRK2(2,3,2)
+   //58 - IMEXRK3(3,4,3)
    real_t t_final = 10.0;
    real_t dt = 0.001;
    bool paraview = false;
