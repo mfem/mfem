@@ -23,57 +23,97 @@ using namespace std;
 using namespace mfem;
 
 // Define the analytical solution and forcing terms / boundary conditions
-void uFun_ex(const Vector & x, Vector & u)
+void uFun_h1_ex(const Vector & x, Vector & u)
 {
-   real_t xi(x(0));
-   real_t yi(x(1));
-   real_t zi(0.0);
-   if (x.Size() == 3)
-   {
-      zi = x(2);
-   }
-
-   u(0) = sin(M_PI*xi);
-   u(1) = sin(M_PI*yi);
+   u[0] = sin(M_PI*x[0])*sin(M_PI*x[1]);
+   u[1] = 2*u[0];
 
    if (x.Size() == 3)
    {
-      u(2) = sin(M_PI*zi);
+      u[0] *= sin(M_PI*x[2]);
+      u[1] *= sin(M_PI*x[2]);
+      u[2] = 2*u[1];
    }
 }
 
-void fFun(const Vector & x, Vector & f)
+void fFun_h1(const Vector & x, Vector & f)
 {
-
-   real_t xi(x(0));
-   real_t yi(x(1));
-   real_t zi(0.0);
+   f[0] = M_PI*M_PI*sin(M_PI*x[0])*sin(M_PI*x[1]);
+   f[1] = 2*f[0];
    if (x.Size() == 3)
    {
-      zi = x(2);
+      f[0] *= sin(M_PI*x[2]);
+      f[1] *= sin(M_PI*x[2]);
+      f[2] = 2*f[1];
    }
+   f *= x.Size();
+}
 
-   f(0) = M_PI*M_PI*sin(M_PI*xi);
-   f(1) = M_PI*M_PI*sin(M_PI*yi);
+void uFun_hdiv_ex(const Vector & x, Vector & u)
+{
+   u[0] = sin(M_PI*x[0]);
+   u[1] = sin(M_PI*x[1]);
+
    if (x.Size() == 3)
    {
-      f(2) = M_PI*M_PI*sin(M_PI*zi);
+      u[2] = sin(M_PI*x[2]);
    }
+}
+
+void fFun_hdiv(const Vector & x, Vector & f)
+{
+   f[0] = M_PI*M_PI*sin(M_PI*x[0]);
+   f[1] = M_PI*M_PI*sin(M_PI*x[1]);
+   if (x.Size() == 3)
+   {
+      f[2] = M_PI*M_PI*sin(M_PI*x[2]);
+   }
+}
+
+
+void uFun_hcurl_ex(const Vector & x, Vector & u)
+{
+   u[0] = sin(M_PI*x[1]);
+   u[1] = sin(M_PI*x[0]);
+
+   if (x.Size() == 3)
+   {
+      u[0] *= sin(M_PI*x[2]);
+      u[1] *= sin(M_PI*x[2]);
+      u[2] = sin(M_PI*x[0])*sin(M_PI*x[1]);
+   }
+}
+
+void fFun_hcurl(const Vector & x, Vector & f)
+{
+   f[0] = M_PI*M_PI*sin(M_PI*x[1]);
+   f[1] = M_PI*M_PI*sin(M_PI*x[0]);
+   if (x.Size() == 3)
+   {
+      f[0] *= sin(M_PI*x[2]);
+      f[1] *= sin(M_PI*x[2]);
+      f[2] = M_PI*M_PI*sin(M_PI*x[0])*sin(M_PI*x[1]);
+   }
+   f *= (x.Size()-1);
 }
 
 int main(int argc, char *argv[])
 {
    StopWatch chrono;
+   Device device("cpu");
+   device.Print();
 
    // 1. Parse command-line options.
    const char *mesh_file = "../../data/square-nurbs.mesh";
    int ref_levels = -1;
    int order = 1;
-   bool weakBC = true;
    bool hdiv = true;
-   const char *device_config = "cpu";
+   bool H1BC = false;
+   bool weakBC = true;
    bool visualization = 1;
    real_t penalty = -1.0;
+   int maxiter = 200;
+   real_t rtol = 1.e-6;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -84,12 +124,19 @@ int main(int argc, char *argv[])
                   "Finite element order (polynomial degree).");
    args.AddOption(&hdiv, "-div", "--hdiv", "-curl", "--hcurl",
                   "Select which vector FE to use.");
+   args.AddOption(&H1BC, "-h1-bc", "--H1-bc", "-conf-bc", "--conforming-bc",
+                  "Use Full H1 BCs or the conforming BCs:\n"
+                  " - Normal for Div conforming elements\n"
+                  " - Tangential for Curl conforming elements).");
    args.AddOption(&weakBC, "-w", "--wbc", "-s", "--sbc",
                   "Weak boundary conditions.");
    args.AddOption(&penalty, "-p", "--lambda",
                   "Penalty parameter for enforcing weak Dirichlet boundary conditions.");
-   args.AddOption(&device_config, "-d", "--device",
-                  "Device configuration string, see Device::Configure().");
+   args.AddOption(&rtol, "-lt", "--linear-tolerance",
+                  "Relative tolerance for the GMRES solver.");
+   args.AddOption(&maxiter, "-li", "--linear-itermax",
+                  "Maximum iteration count for the GMRES solver.");
+
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -104,21 +151,20 @@ int main(int argc, char *argv[])
 
    if (penalty < 0)
    {
-      penalty = (order+2)*(order+2);
+      penalty = 10*(order+1)*(order+1);
    }
 
-   // 2. Enable hardware devices such as GPUs, and programming models such as
-   //    CUDA, OCCA, RAJA and OpenMP based on command line options.
-   Device device(device_config);
-   device.Print();
-
-   // 3. Read the mesh from the given mesh file. We can handle triangular,
+   // 2. Read the mesh from the given mesh file. We can handle triangular,
    //    quadrilateral, tetrahedral, hexahedral, surface and volume meshes with
    //    the same code.
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
+   if (!mesh->NURBSext)
+   {
+      mfem_error("Gradient of vector shape functions only defined for NURBS elements.");
+   }
    int dim = mesh->Dimension();
 
-   // 4. Refine the mesh to increase the resolution. In this example we do
+   // 3. Refine the mesh to increase the resolution. In this example we do
    //    'ref_levels' of uniform refinement. We choose 'ref_levels' to be the
    //    largest number that gives a final mesh with no more than 10,000
    //    elements.
@@ -141,39 +187,39 @@ int main(int argc, char *argv[])
       ess_bdr = 1;
    }
 
-   // 5. Define a finite element space on the mesh. Here we use the
+   // 4. Define a finite element space on the mesh. Here we use the
    //    Raviart-Thomas finite elements of the specified order.
    FiniteElementCollection *vfe_coll = nullptr;
-   NURBSExtension *NURBSext = nullptr;
+   VectorFunctionCoefficient *fcoeff = nullptr;
+   VectorFunctionCoefficient *ucoeff = nullptr;
 
-   if (mesh->NURBSext)
+   switch(2*hdiv + H1BC)
    {
-      if (hdiv)
-      {
-         vfe_coll = new NURBS_HDivH1FECollection(order,dim);
-      }
-      else
-      {
-         vfe_coll = new NURBS_HCurlH1FECollection(order,dim);
-      }
-
-      NURBSext  = new NURBSExtension(mesh->NURBSext, order);
-      mfem::out<<"Create NURBS fec and ext"<<std::endl;
+      case 0:
+           vfe_coll = new NURBS_HCurlFECollection(order,dim);
+           fcoeff = new VectorFunctionCoefficient(dim, fFun_hcurl);
+           ucoeff = new VectorFunctionCoefficient(dim, uFun_hcurl_ex);
+           break;
+      case 1:
+           vfe_coll = new NURBS_HCurlH1FECollection(order,dim);
+           fcoeff = new VectorFunctionCoefficient(dim, fFun_h1);
+           ucoeff = new VectorFunctionCoefficient(dim, uFun_h1_ex);
+            mfem::out<<"Homogeneous BCs!!"<<std::endl;
+           break;
+      case 2:
+           vfe_coll = new NURBS_HDivFECollection(order,dim);
+           fcoeff = new VectorFunctionCoefficient(dim, fFun_hdiv);
+           ucoeff = new VectorFunctionCoefficient(dim, uFun_hdiv_ex);
+           break;
+      case 3:
+           vfe_coll = new NURBS_HDivH1FECollection(order,dim);
+           fcoeff = new VectorFunctionCoefficient(dim, fFun_h1);
+           ucoeff = new VectorFunctionCoefficient(dim, uFun_h1_ex);
+           mfem::out<<"Homogeneous BCs!!"<<std::endl;
+           break;
    }
-   else
-   {
-      mfem_error("Gradient of vector shape functions only defined for NURBS elements.");
-      if (hdiv)
-      {
-         vfe_coll = new RT_FECollection(order, dim);
-      }
-      else
-      {
-         vfe_coll = new ND_FECollection(order, dim);
-      }
-
-      mfem::out<<"Create Normal fec"<<std::endl;
-   }
+   NURBSExtension *NURBSext  = new NURBSExtension(mesh->NURBSext, order);
+   mfem::out<<"Create NURBS fecollection "<<vfe_coll->Name()<<std::endl;
 
    FiniteElementSpace space(mesh, NURBSext, vfe_coll);
    Array<int> ess_tdof_list;
@@ -184,18 +230,16 @@ int main(int argc, char *argv[])
    std::cout << "Number boundary dofs = " << ess_tdof_list.Size() << endl;
    std::cout << "***********************************************************\n";
 
-   // 7. Define the coefficients, analytical solution.
+   // 5. Define the coefficients, analytical solution.
    ConstantCoefficient k_c(1.0);
-
-   VectorFunctionCoefficient fcoeff(dim, fFun);
-   VectorFunctionCoefficient ucoeff(dim, uFun_ex);
 
    MemoryType mt = device.GetMemoryType();
    Vector x(space.GetVSize(),mt);
 
    GridFunction u;
    u.MakeRef(&space, x, 0);
-   u.ProjectCoefficient(ucoeff);
+   u.ProjectCoefficient(*ucoeff);
+   if (H1BC) u.SetSubVector(ess_tdof_list, 0.0);
 
    int order_quad = max(2, 2*order+1);
    const IntegrationRule *irs[Geometry::NumGeom];
@@ -204,10 +248,10 @@ int main(int argc, char *argv[])
       irs[i] = &(IntRules.Get(i, order_quad));
    }
 
-   real_t err_u  = u.ComputeL2Error(ucoeff, irs);
-   real_t norm_u = ComputeLpNorm(2., ucoeff, *mesh, irs);
+   real_t err_u  = u.ComputeL2Error(*ucoeff, irs);
+   real_t norm_u = ComputeLpNorm(2., *ucoeff, *mesh, irs);
 
-   // 8. Allocate memory (x, rhs) for the analytical solution and the right hand
+   // 6. Allocate memory (x, rhs) for the analytical solution and the right hand
    //    side.  Define the GridFunction u,p for the finite element solution and
    //    linear forms fform and gform for the right hand side.  The data
    //    allocated by x and rhs are passed as a reference to the grid functions
@@ -216,36 +260,31 @@ int main(int argc, char *argv[])
 
    LinearForm *fform(new LinearForm);
    fform->Update(&space, rhs, 0);
-   fform->AddDomainIntegrator(new VectorFEDomainLFIntegrator(fcoeff));
-   // if (weakBC) { fform->AddBdrFaceIntegrator(new DGDirichletLFIntegrator(ucoeff, k_c, -1.0, penalty)); }
+   fform->AddDomainIntegrator(new VectorFEDomainLFIntegrator(*fcoeff));
+   if (weakBC) { fform->AddBdrFaceIntegrator(new VectorFEDGDirichletLFIntegrator(*ucoeff, k_c, -1.0, penalty)); }
    fform->Assemble();
    fform->SyncAliasMemory(rhs);
 
-   // 9. Assemble the finite element matrix for the diffusion operator
+   // 7. Assemble the finite element matrix for the diffusion operator
    BilinearForm *kVarf(new BilinearForm(&space));
    kVarf->AddDomainIntegrator(new VectorFEDiffusionIntegrator(k_c));
-   if (weakBC) { kVarf->AddBdrFaceIntegrator(new DGDiffusionIntegrator(k_c, -1.0, penalty)); }
+   if (weakBC) { kVarf->AddBdrFaceIntegrator(new VectorFEDGDiffusionIntegrator(k_c, -1.0, penalty)); }
    kVarf->Assemble();
    if (!weakBC) { kVarf->EliminateEssentialBC(ess_bdr, u, *fform); }
    kVarf->Finalize();
 
-   // 10. Construct the preconditioner
+   // 8. Construct the preconditioner
    SparseMatrix &K(kVarf->SpMat());
    DSmoother  invK(K);
    invK.iterative_mode = false;
 
-   // 11. Solve the linear system with MINRES.
-   //     Check the norm of the unpreconditioned residual.
-   int maxIter(10000);
-   real_t rtol(1.e-10);
-   real_t atol(1.e-10);
-
+   // 9. Solve the linear system with MINRES.
+   //    Check the norm of the unpreconditioned residual.
    chrono.Clear();
    chrono.Start();
    MINRESSolver solver;
-   solver.SetAbsTol(atol);
    solver.SetRelTol(rtol);
-   solver.SetMaxIter(maxIter);
+   solver.SetMaxIter(maxiter);
    solver.SetOperator(K);
    solver.SetPreconditioner(invK);
    solver.SetPrintLevel(1);
@@ -269,25 +308,25 @@ int main(int argc, char *argv[])
    }
    std::cout << "MINRES solver took " << chrono.RealTime() << "s.\n";
 
-   // 12.  Print the previously computer interpolation errors.
+   // 10.  Print the previously computer interpolation errors.
    //      Compute and print the L2 error norms of the numerical solution.
+   std::cout << "Projection error:\n";
+   std::cout << "|| u_h - u_ex || / || u_ex || = " << err_u / norm_u << "\n";
+
+   err_u  = u.ComputeL2Error(*ucoeff, irs);
+   norm_u = ComputeLpNorm(2., *ucoeff, *mesh, irs);
+
    if (weakBC)
    {
-      std::cout << "Weak boundary conditions.\n";
+      std::cout << "Error when solving with weak boundary conditions:\n";
    }
    else
    {
-      std::cout << "Strong boundary conditions.\n";
+      std::cout << "Error when solving with strong boundary conditions:\n";
    }
-
    std::cout << "|| u_h - u_ex || / || u_ex || = " << err_u / norm_u << "\n";
 
-   err_u  = u.ComputeL2Error(ucoeff, irs);
-   norm_u = ComputeLpNorm(2., ucoeff, *mesh, irs);
-
-   std::cout << "|| u_h - u_ex || / || u_ex || = " << err_u / norm_u << "\n";
-
-   // 13. Save the mesh and the solution. This output can be viewed later using
+   // 11. Save the mesh and the solution. This output can be viewed later using
    //     GLVis: "glvis -m ex5.mesh -g sol_u.gf" or "glvis -m ex5.mesh -g
    //     sol_p.gf".
    {
@@ -300,12 +339,19 @@ int main(int argc, char *argv[])
       u.Save(u_ofs);
    }
 
-   // 14. Save data in the VisIt format
+   // 12. Save data in the VisIt format
+   //     Define a traditional NURBS space as long as ViSit does not read to new Vector FEs  
+   FiniteElementCollection *l2_coll = new H1_FECollection(order+1);
+   FiniteElementSpace ui_space(mesh, space.StealNURBSext(), l2_coll, dim);
+   VectorGridFunctionCoefficient uh_cf(&u);
+   GridFunction ui_gf(&ui_space);
+   ui_gf.ProjectCoefficient(uh_cf);
+
    VisItDataCollection visit_dc("VectorDiffusion", mesh);
-   visit_dc.RegisterField("solution", &u);
+   visit_dc.RegisterField("solution", &ui_gf);
    visit_dc.Save();
 
-   // 16. Send the solution by socket to a GLVis server.
+   // 13. Send the solution by socket to a GLVis server.
    if (visualization)
    {
       char vishost[] = "localhost";
@@ -315,12 +361,15 @@ int main(int argc, char *argv[])
       u_sock << "solution\n" << *mesh << u << "window_title 'Velocity'" << endl;
    }
 
-   // 17. Free the used memory.
+   // 14. Free the used memory.
    delete fform;
    delete kVarf;
    delete vfe_coll;
+   delete l2_coll;
    delete mesh;
-
+   delete fcoeff;
+   delete ucoeff;
+   delete NURBSext;
    return 0;
 }
 

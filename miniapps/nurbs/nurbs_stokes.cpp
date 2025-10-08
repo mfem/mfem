@@ -230,7 +230,7 @@ void MeanZero(GridFunction &p_gf)
  *
  */
 
-/** Construct an exact LU decomposition of the ubiquitous sadle point problem
+/** Construct an exact LU decomposition
 *
 *       P = [ K   0        ] [ I   K^-1 G ]
 *           [ D  -D K^-1 G ] [ 0   I      ]
@@ -346,6 +346,11 @@ int main(int argc, char *argv[])
    real_t mu = 1.0;
    real_t penalty = -1.0;
    int problem = 0;
+   int maxiter = 200;
+   real_t rtol = 1.e-6;
+   bool schur_complement = true;
+   int schur_maxiter = 10000;
+   real_t schur_rtol = 1.e-8;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -354,7 +359,7 @@ int main(int argc, char *argv[])
                   "Number of times to refine the mesh uniformly, -1 for auto.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree).");
-   args.AddOption(&weakBC, "-w", "--wbc", "-s", "--sbc",
+   args.AddOption(&weakBC, "-wbc", "--weak-bc", "-sbc", "--strong-bc",
                   "Weak boundary conditions.");
    args.AddOption(&penalty, "-p", "--lambda",
                   "Penalty parameter for enforcing weak Dirichlet boundary conditions.");
@@ -370,6 +375,21 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+
+   // Solver parameters
+   args.AddOption(&rtol, "-lt", "--linear-tolerance",
+                  "Relative tolerance for the GMRES solver.");
+   args.AddOption(&maxiter, "-li", "--linear-itermax",
+                  "Maximum iteration count for the GMRES solver.");
+
+   // Schur_complement  parameters
+   args.AddOption(&schur_complement, "-sc", "--schur", "-nsc", "--no-schur",
+                  "Use a schur-complement or not.");
+   args.AddOption(&schur_rtol, "-slt", "--schur_linear-tolerance",
+                  "Relative tolerance for the Schur complement GMRES solver.");
+   args.AddOption(&schur_maxiter, "-sli", "--schur_linear-itermax",
+                  "Maximum iteration count for the Schur complement GMRES solver.");
+
 #ifdef MFEM_USE_SUITESPARSE
    bool UMFPack = true;
    args.AddOption(&UMFPack, "-umf", "--direct", "-gs", "--gssmoother",
@@ -384,9 +404,26 @@ int main(int argc, char *argv[])
    }
    args.PrintOptions(cout);
 
+   if (schur_complement)
+   {
+#ifdef MFEM_USE_SUITESPARSE
+      if (UMFPack)
+      {
+         std::cout<<"Schur complement is exact"<<std::endl;
+      }
+      else
+      {
+         std::cout<<"Schur complement is approximate!!"<<std::endl;
+      }
+#else
+      std::cout<<"Schur complement is approximate"<<std::endl;
+      std::cout<<" - Compile with SuiteSparse to have an exact Schur complement"<<std::endl;
+#endif
+   }
+
    if (penalty < 0)
    {
-      penalty = (order+2)*(order+2);
+      penalty = 10*(order+1)*(order+1);
    }
 
    // Enable hardware devices such as GPUs, and programming models such as
@@ -509,9 +546,9 @@ int main(int argc, char *argv[])
    u_gf.MakeRef(&u_space, x.GetBlock(0), 0);
    p_gf.MakeRef(&p_space, x.GetBlock(1), 0);
 
-   // u_gf.ProjectCoefficient(*u_cf,GridFunction::ProjType::ELEMENT); // use when PR #4326 is accepted
-   ProjectCoefficientGlobalL2(*u_cf, 1e-10, 250,
-                              u_gf); //remove when PR #4326 is accepted
+   u_gf.ProjectCoefficient(*u_cf);//,GridFunction::ProjType::ELEMENT); // use when PR #4326 is accepted
+   //ProjectCoefficientGlobalL2(*u_cf, 1e-10, 250,
+    //                          u_gf); //remove when PR #4326 is accepted
    p_gf = 0.0;
 
    VectorGridFunctionCoefficient uh_cf(&u_gf);
@@ -559,7 +596,7 @@ int main(int argc, char *argv[])
    chrono.Start();
    BilinearForm kVarf(&u_space);
    kVarf.AddDomainIntegrator(new VectorFEDiffusionIntegrator(mu_cf));
-   if (weakBC) { kVarf.AddBdrFaceIntegrator(new VectorFEDGDiffusionIntegrator(mu_cf, -1.0, penalty)); }
+   if (weakBC) { kVarf.AddBdrFaceIntegrator(new DGDiffusionIntegrator(mu_cf, -1.0, penalty)); }
    kVarf.Assemble();
    if (!weakBC) { kVarf.EliminateEssentialBC(ess_bdr, u_gf, *fform); }
    kVarf.Finalize();
@@ -593,14 +630,14 @@ int main(int argc, char *argv[])
       G = new TransposeOperator(D);
    }
    chrono.Stop();
-   std::cout<<" Assembly of grad & div matrices took"<<chrono.RealTime()<<"s\n";
+   std::cout<<" Assembly of grad & div matrices took "<<chrono.RealTime()<<"s\n";
 
    BlockOperator stokesOp(bOffsets);
    stokesOp.SetBlock(0,0, &K);
    stokesOp.SetBlock(0,1, G);
    stokesOp.SetBlock(1,0, D);
 
-   // Construct the Schur Complement
+   // Construct the momentum-velocity block preconditioner
    Solver *invK;
 #ifdef MFEM_USE_SUITESPARSE
    if (UMFPack)
@@ -615,13 +652,13 @@ int main(int argc, char *argv[])
    invK = new GSSmoother(K);
 #endif
    invK->iterative_mode = false;
-   ProductOperator KiG(invK, G, false, false);
-   ProductOperator S(D, &KiG, false, false);
 
-   // Construct an approximate Schur Complement
-   real_t h = 1.0/sqrt(real_t(mesh->GetNE()));
+   // Construct an approximate Schur complement operator
+   // This is the continuity-pressure PSPG matrix
+   real_t h = std::pow(real_t(mesh->GetNE()),-1.0/real_t(mesh->Dimension()));
    cout<<"h = "<<h<<endl;
-   ConstantCoefficient tau_c(h*h/mu);
+   double Cinv = 1.0;
+   ConstantCoefficient tau_c(Cinv*h*h/mu);
    BilinearForm pVarf(&p_space);
 
    pVarf.AddDomainIntegrator(new DiffusionIntegrator(tau_c));
@@ -630,7 +667,8 @@ int main(int argc, char *argv[])
 
    SparseMatrix &Sp(pVarf.SpMat());
 
-   // Construct an approximate Schur Complement inverse
+   // Construct an Schur complement preconditioner
+   // This uses the approximate Schur complement operator
    Solver *invSp;
 #ifdef MFEM_USE_SUITESPARSE
    if (UMFPack)
@@ -646,24 +684,26 @@ int main(int argc, char *argv[])
 #endif
 
    invSp->iterative_mode = false;
-   int smaxIter(10000);
-   real_t srtol(1.e-16);
-   real_t satol(1.e-16);
 
-   FGMRESSolver invS;
-   invS.SetAbsTol(satol);
-   invS.SetRelTol(srtol);
-   invS.SetMaxIter(smaxIter);
-   invS.SetKDim(smaxIter+1); // restart!!!
-   if (weakBC)
-   {
+   // Construct the Schur complement operator
+   ProductOperator KiG(invK, G, false, false);
+   ProductOperator S(D, &KiG, false, false);
+
+   // Construct the exact Schur complement inverse operator
+   GMRESSolver invS;
+   invS.SetRelTol(schur_rtol);
+   invS.SetMaxIter(schur_maxiter);
+   invS.SetKDim(schur_maxiter+1); // restart!!!
+  // if (weakBC)
+  // {
       invS.SetOperator(S);
-   }
-   else
-   {
-      invS.SetOperator(Sp);
-   }
+  // }
+  // else
+  // {
+  //    invS.SetOperator(Sp);
+  // }
    invS.SetPreconditioner(*invSp);
+   //invS.SetPrintLevel(IterativeSolver::PrintLevel().FirstAndLast());
    invS.SetPrintLevel(0);
    invS.iterative_mode = false;
 
@@ -677,22 +717,24 @@ int main(int argc, char *argv[])
    stokesPrec.SetBlock(0,0, invK);
    stokesPrec.SetBlock(0,1, G);
 
-   stokesPrec.SetBlock(1,1, &invS);
+   if (schur_complement)
+   {
+      stokesPrec.SetBlock(1,1, &invS);
+   }
+   else
+   {
+      stokesPrec.SetBlock(1,1, invSp);
+   }
    stokesPrec.SetBlock(1,0, D);
 
-   // 11. Solve the linear system with a Krylov.
-   //     Check the norm of the unpreconditioned residual.
-   int maxIter(20);
-   real_t rtol(1.e-14);
-   real_t atol(1.e-14);
-
+   // Solve the linear system with a Krylov solver.
+   // Check the norm of the unpreconditioned residual.
    chrono.Clear();
    chrono.Start();
    FGMRESSolver solver;
-   solver.SetAbsTol(atol);
    solver.SetRelTol(rtol);
-   solver.SetMaxIter(maxIter);
-   solver.SetKDim(maxIter+1); // restart!!!
+   solver.SetMaxIter(maxiter);
+   solver.SetKDim(maxiter+1); // restart!!!
    solver.SetOperator(stokesOp);
    solver.SetPreconditioner(stokesPrec);
    solver.SetPrintLevel(1);
@@ -717,11 +759,11 @@ int main(int argc, char *argv[])
    }
    std::cout << " Solver took " << chrono.RealTime() << "s.\n";
 
-   // 13. Save the mesh and the solution. This output can be viewed later using
-   //     GLVis: "glvis -m ex5.mesh -g sol_u.gf" or "glvis -m ex5.mesh -g
-   //     sol_p.gf".
+   // Save the mesh and the solution. This output can be viewed later using
+   // GLVis: "glvis -m stokes.mesh -g sol_u.gf" or "glvis -m stokes.mesh -g
+   // sol_p.gf".
    {
-      ofstream mesh_ofs("ex5.mesh");
+      ofstream mesh_ofs("stokes.mesh");
       mesh_ofs.precision(8);
       mesh->Print(mesh_ofs);
 
@@ -734,15 +776,28 @@ int main(int argc, char *argv[])
       p_gf.Save(p_ofs);
    }
 
-   // 14. Save data in the VisIt format
-   VisItDataCollection visit_dc("Stokes", mesh);
-   visit_dc.RegisterField("velocity", &u_gf);
-   visit_dc.RegisterField("pressure", &p_gf);
-   visit_dc.Save();
-
-   // 15. Save data in the ParaView format
+   // Save data in the VisIt format
    if (false)
    {
+      // Define a traditional NURBS space as long as ViSit does not read to new Vector FEs
+      FiniteElementSpace ui_space(mesh, p_space.StealNURBSext(), l2_coll, dim);
+      GridFunction ui_gf(&ui_space);
+      ui_gf.ProjectCoefficient(uh_cf);
+
+      VisItDataCollection visit_dc("Stokes", mesh);
+      visit_dc.RegisterField("velocity", &ui_gf);
+      visit_dc.RegisterField("pressure", &p_gf);
+      visit_dc.Save();
+   }
+
+   // Save data in the ParaView format
+   if (false)
+   {
+      // Define a traditional NURBS space as long as Paraview does not read to new Vector FEs
+      FiniteElementSpace ui_space(mesh, p_space.StealNURBSext(), l2_coll, dim);
+      GridFunction ui_gf(&ui_space);
+      ui_gf.ProjectCoefficient(uh_cf);
+
       ParaViewDataCollection paraview_dc("Stokes", mesh);
       paraview_dc.SetPrefixPath("ParaView");
       paraview_dc.SetLevelsOfDetail(order);
@@ -754,7 +809,8 @@ int main(int argc, char *argv[])
       paraview_dc.RegisterField("pressure",&p_gf);
       paraview_dc.Save();
    }
-   // 16. Send the solution by socket to a GLVis server.
+
+   // Send the solution by socket to a GLVis server.
    if (visualization)
    {
       char vishost[] = "localhost";
