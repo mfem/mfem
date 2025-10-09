@@ -24,7 +24,7 @@ namespace mfem
 class DarcyForm : public Operator
 {
 protected:
-   Array<int> offsets;
+   Array<int> offsets, toffsets;
 
    FiniteElementSpace *fes_u, *fes_p;
 
@@ -64,6 +64,7 @@ protected:
    };
 
    void UpdateOffsetsAndSize();
+   void UpdateTOffsetsAndSize();
    void EnableReduction(const Array<int> &ess_flux_tdof_list,
                         DarcyReduction *reduction);
 
@@ -71,7 +72,7 @@ protected:
    void AssemblePotLDGFaces(int skip_zeros);
    void AssemblePotHDGFaces(int skip_zeros);
 
-   void AllocBlockOp();
+   void AllocBlockOp(bool nonconforming = false);
    void AllocRHS();
    const Operator* ConstructBT(const MixedBilinearForm *B) const;
    const Operator* ConstructBT(const OperatorHandle &B) const;
@@ -85,6 +86,7 @@ public:
              bool bsymmetrize = true);
 
    inline const Array<int>& GetOffsets() const { return offsets; }
+   inline const Array<int>& GetTrueOffsets() const { return toffsets; }
 
    BilinearForm *GetFluxMassForm();
    const BilinearForm *GetFluxMassForm() const { return M_u.get(); }

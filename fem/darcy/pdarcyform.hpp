@@ -26,8 +26,6 @@ namespace mfem
 class ParDarcyForm : public DarcyForm
 {
 protected:
-   Array<int> toffsets;
-
    ParFiniteElementSpace &pfes_u, &pfes_p;
 
    ParBilinearForm *pM_u{}, *pM_p{};
@@ -79,8 +77,6 @@ public:
 
    ParDarcyForm(ParFiniteElementSpace *fes_u, ParFiniteElementSpace *fes_p,
                 bool bsymmetrize = true);
-
-   inline const Array<int>& GetTrueOffsets() const { return toffsets; }
 
    using DarcyForm::GetFluxMassForm;
    BilinearForm *GetFluxMassForm();

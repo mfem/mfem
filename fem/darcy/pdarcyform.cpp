@@ -26,6 +26,7 @@ ParDarcyForm::ParDarcyForm(ParFiniteElementSpace *fes_u,
 
 void ParDarcyForm::UpdateTOffsets()
 {
+   if (!toffsets.OwnsData()) { toffsets.DeleteAll(); }
    toffsets.SetSize(3);
    toffsets[0] = 0;
    toffsets[1] = pfes_u.GetTrueVSize();
@@ -686,9 +687,8 @@ const BlockOperator& ParDarcyForm::ParGradient::BlockMatrices() const
 
 void ParDarcyForm::Update()
 {
-   UpdateTOffsets();
-
    DarcyForm::Update();
+   UpdateTOffsets();
 }
 
 ParDarcyForm::~ParDarcyForm()

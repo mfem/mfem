@@ -30,11 +30,28 @@ void DarcyForm::UpdateOffsetsAndSize()
    offsets[2] = fes_p->GetVSize();
    offsets.PartialSum();
 
+   toffsets.MakeRef(offsets);
+
    width = height = offsets.Last();
 
    block_op.reset();
    block_grad.reset();
    if (block_b) { block_b->Update(offsets); *block_b = 0.; }
+}
+
+void DarcyForm::UpdateTOffsetsAndSize()
+{
+   if (!toffsets.OwnsData()) { toffsets.DeleteAll(); }
+   toffsets.SetSize(3);
+   toffsets[0] = 0;
+   toffsets[1] = fes_u->GetTrueVSize();
+   toffsets[2] = fes_p->GetVSize();
+   toffsets.PartialSum();
+
+   width = height = toffsets.Last();
+
+   block_op.reset();
+   block_grad.reset();
 }
 
 BilinearForm* DarcyForm::GetFluxMassForm()
@@ -564,23 +581,38 @@ void DarcyForm::FormLinearSystem(const Array<int> &ess_flux_tdof_list,
                                  BlockVector &x, BlockVector &b, OperatorHandle &A, Vector &X_, Vector &B_,
                                  int copy_interior)
 {
+   const SparseMatrix *P = fes_u->GetConformingProlongation();
+
    if (assembly != AssemblyLevel::LEGACY)
    {
-      Array<int> ess_pot_tdof_list;//empty for discontinuous potentials
+      AllocBlockOp(true);
 
-      //conforming
+      if (!P)
+      {
+         X_.MakeRef(x, 0, x.Size());
+         B_.MakeRef(b, 0, b.Size());
+      }
+      else
+      {
+         X_.SetSize(toffsets.Last());
+         B_.SetSize(toffsets.Last());
+      }
+
+      BlockVector X_b(X_, toffsets), B_b(B_, toffsets);
+
+      Array<int> ess_pot_tdof_list;//empty for discontinuous potentials
 
       if (M_u)
       {
          M_u->FormLinearSystem(ess_flux_tdof_list, x.GetBlock(0), b.GetBlock(0), opM_u,
-                               X_, B_, copy_interior);
+                               X_b.GetBlock(0), B_b.GetBlock(0), copy_interior);
          block_op->SetDiagonalBlock(0, opM_u.Ptr());
       }
       else if (Mnl_u)
       {
          Operator *oper_M;
          Mnl_u->FormLinearSystem(ess_flux_tdof_list, x.GetBlock(0), b.GetBlock(0),
-                                 oper_M, X_, B_, copy_interior);
+                                 oper_M, X_b.GetBlock(0), B_b.GetBlock(0), copy_interior);
          opM_u.Reset(oper_M);
          block_op->SetDiagonalBlock(0, opM_u.Ptr());
       }
@@ -590,34 +622,64 @@ void DarcyForm::FormLinearSystem(const Array<int> &ess_flux_tdof_list,
          Mnl->FormLinearSystem(ess_flux_tdof_list, x, b, oper_M, X_, B_, copy_interior);
          opM.Reset(oper_M);
       }
+      else
+      {
+         if (P)
+         {
+            P->MultTranspose(b.GetBlock(0), B_b.GetBlock(0));
+            const Operator *R = fes_u->GetRestrictionOperator();
+            R->Mult(x.GetBlock(0), X_b.GetBlock(0));
+         }
+
+         if (!copy_interior)
+         {
+            X_b.GetBlock(0).SetSubVectorComplement(ess_flux_tdof_list, 0.0);
+         }
+      }
 
       if (M_p)
       {
          M_p->FormLinearSystem(ess_pot_tdof_list, x.GetBlock(1), b.GetBlock(1), opM_p,
-                               X_,
-                               B_, copy_interior);
+                               X_b.GetBlock(1), B_b.GetBlock(1), copy_interior);
          block_op->SetDiagonalBlock(1, opM_p.Ptr(), (bsym)?(-1.):(+1.));
       }
       else if (Mnl_p)
       {
          block_op->SetDiagonalBlock(1, Mnl_p.get(), (bsym)?(-1.):(+1.));
       }
-
-      if (B)
+      else
       {
-         if (bsym)
+         if (P)
          {
-            //In the case of the symmetrized system, the sign is oppposite!
-            Vector b_(fes_p->GetVSize());
-            b_ = 0.;
-            B->FormRectangularLinearSystem(ess_flux_tdof_list, ess_pot_tdof_list,
-                                           x.GetBlock(0), b_, opB, X_, B_);
-            b.GetBlock(1) -= b_;
+            B_b.GetBlock(1) = b.GetBlock(1);
+         }
+
+         if (copy_interior && P)
+         {
+            X_b.GetBlock(1) = x.GetBlock(1);
          }
          else
          {
-            B->FormRectangularLinearSystem(ess_flux_tdof_list, ess_pot_tdof_list,
-                                           x.GetBlock(0), b.GetBlock(1), opB, X_, B_);
+            X_b.GetBlock(1) = 0.;
+         }
+      }
+
+      if (B)
+      {
+         Vector bp(fes_p->GetVSize()), Bp;
+         bp = 0.;
+
+         B->FormRectangularLinearSystem(ess_flux_tdof_list, ess_pot_tdof_list,
+                                        x.GetBlock(0), bp, opB, X_b.GetBlock(0), Bp);
+
+         if (bsym)
+         {
+            //In the case of the symmetrized system, the sign is oppposite!
+            B_b.GetBlock(1) -= Bp;
+         }
+         else
+         {
+            B_b.GetBlock(1) += Bp;
          }
 
          ConstructBT(opB);
@@ -635,49 +697,101 @@ void DarcyForm::FormLinearSystem(const Array<int> &ess_flux_tdof_list,
          A.Reset(block_op.get(), false);
       }
 
-      X_.MakeRef(x, 0, x.Size());
-      B_.MakeRef(b, 0, b.Size());
-
       return;
    }
 
    FormSystemMatrix(ess_flux_tdof_list, A);
 
-   //conforming
-
-   if (hybridization || reduction)
+   if (!P) // conforming space
    {
-      // Reduction to the single equation system
-      EliminateVDofsInRHS(ess_flux_tdof_list, x, b);
-      if (hybridization)
+      if (hybridization || reduction)
       {
-         hybridization->ReduceRHS(b, B_);
+         // Reduction to the single equation system
+         EliminateVDofsInRHS(ess_flux_tdof_list, x, b);
+         if (hybridization)
+         {
+            hybridization->ReduceRHS(b, B_);
+         }
+         else
+         {
+            reduction->ReduceRHS(b, B_);
+         }
+
+         if (X_.Size() != B_.Size())
+         {
+            X_.SetSize(B_.Size());
+            X_ = 0.0;
+         }
+         else if (!copy_interior)
+         {
+            X_ = 0.0;
+         }
       }
       else
       {
-         reduction->ReduceRHS(b, B_);
-      }
-
-      if (X_.Size() != B_.Size())
-      {
-         X_.SetSize(B_.Size());
-         X_ = 0.0;
-      }
-      else if (!copy_interior)
-      {
-         X_ = 0.0;
+         // A, X and B point to the same data as mat, x and b
+         EliminateVDofsInRHS(ess_flux_tdof_list, x, b);
+         X_.MakeRef(x, 0, x.Size());
+         B_.MakeRef(b, 0, b.Size());
+         if (!copy_interior)
+         {
+            x.GetBlock(0).SetSubVectorComplement(ess_flux_tdof_list, 0.0);
+            x.GetBlock(1) = 0.;
+         }
       }
    }
-   else
+   else // non-conforming space
    {
-      // A, X and B point to the same data as mat, x and b
-      EliminateVDofsInRHS(ess_flux_tdof_list, x, b);
-      X_.MakeRef(x, 0, x.Size());
-      B_.MakeRef(b, 0, b.Size());
-      if (!copy_interior)
+      if (hybridization || reduction)
       {
-         x.GetBlock(0).SetSubVectorComplement(ess_flux_tdof_list, 0.0);
-         x.GetBlock(1) = 0.;
+         // Reduction to the Lagrange multipliers system
+         const SparseMatrix *R = fes_u->GetConformingRestriction();
+         BlockVector conf_b(toffsets), conf_x(toffsets);
+         P->MultTranspose(b.GetBlock(0), conf_b.GetBlock(0));
+         conf_b.GetBlock(1) = b.GetBlock(1);
+         R->Mult(x.GetBlock(0), conf_x.GetBlock(0));
+         conf_x.GetBlock(1) = x.GetBlock(1);
+         EliminateVDofsInRHS(ess_flux_tdof_list, conf_x, conf_b);
+         R->MultTranspose(conf_b.GetBlock(0),
+                          b.GetBlock(0)); // store eliminated rhs in b
+         b.GetBlock(1) = conf_b.GetBlock(1);
+         if (hybridization)
+         {
+            hybridization->ReduceRHS(conf_b, B_);
+         }
+         else
+         {
+            reduction->ReduceRHS(conf_b, B_);
+         }
+
+         if (X_.Size() != B_.Size())
+         {
+            X_.SetSize(B_.Size());
+            X_ = 0.0;
+         }
+         else if (!copy_interior)
+         {
+            X_ = 0.0;
+         }
+      }
+      else
+      {
+         // Variational restriction with P
+         const SparseMatrix *R = fes_u->GetConformingRestriction();
+         B_.SetSize(toffsets.Last());
+         BlockVector block_B(B_, toffsets);
+         P->MultTranspose(b.GetBlock(0), block_B.GetBlock(0));
+         block_B.GetBlock(1) = b.GetBlock(1);
+         X_.SetSize(toffsets.Last());
+         BlockVector block_X(X_, toffsets);
+         R->Mult(x.GetBlock(0), block_X.GetBlock(0));
+         block_X.GetBlock(1) = x.GetBlock(1);
+         EliminateVDofsInRHS(ess_flux_tdof_list, block_X, block_B);
+         if (!copy_interior)
+         {
+            block_X.GetBlock(0).SetSubVectorComplement(ess_flux_tdof_list, 0.0);
+            block_X.GetBlock(1) = 0.;
+         }
       }
    }
 }
@@ -694,7 +808,7 @@ void DarcyForm::FormLinearSystem(const Array<int> &ess_flux_tdof_list,
 void DarcyForm::FormSystemMatrix(const Array<int> &ess_flux_tdof_list,
                                  OperatorHandle &A)
 {
-   AllocBlockOp();
+   AllocBlockOp(true);
 
    if (block_op)
    {
@@ -773,26 +887,60 @@ void DarcyForm::FormSystemMatrix(const Array<int> &ess_flux_tdof_list,
 void DarcyForm::RecoverFEMSolution(const Vector &X, const BlockVector &b,
                                    BlockVector &x)
 {
-   if (hybridization)
+   const SparseMatrix *P = fes_u->GetConformingProlongation();
+   if (!P) // conforming space
    {
-      //conforming
-      hybridization->ComputeSolution(b, X, x);
-   }
-   else if (reduction)
-   {
-      //conforming
-      reduction->ComputeSolution(b, X, x);
-   }
-   else
-   {
-      BlockVector X_b(const_cast<Vector&>(X), offsets);
-      if (M_u)
+      if (hybridization)
       {
-         M_u->RecoverFEMSolution(X_b.GetBlock(0), b.GetBlock(0), x.GetBlock(0));
+         hybridization->ComputeSolution(b, X, x);
       }
-      if (M_p)
+      else if (reduction)
       {
-         M_p->RecoverFEMSolution(X_b.GetBlock(1), b.GetBlock(1), x.GetBlock(1));
+         reduction->ComputeSolution(b, X, x);
+      }
+      else
+      {
+         BlockVector X_b(const_cast<Vector&>(X), offsets);
+         if (M_u)
+         {
+            M_u->RecoverFEMSolution(X_b.GetBlock(0), b.GetBlock(0), x.GetBlock(0));
+         }
+         if (M_p)
+         {
+            M_p->RecoverFEMSolution(X_b.GetBlock(1), b.GetBlock(1), x.GetBlock(1));
+         }
+      }
+   }
+   else // non-conforming space
+   {
+      if (hybridization || reduction)
+      {
+         // Primal unknowns recovery
+         const SparseMatrix *R = fes_u->GetConformingRestriction();
+         BlockVector conf_b(toffsets), conf_x(toffsets);
+         P->MultTranspose(b.GetBlock(0), conf_b.GetBlock(0));
+         conf_b.GetBlock(1) = b.GetBlock(1);
+         R->Mult(x.GetBlock(0), conf_x.GetBlock(0));
+         conf_x.GetBlock(1) = x.GetBlock(1);
+
+         if (hybridization)
+         {
+            hybridization->ComputeSolution(conf_b, X, conf_x);
+         }
+         else
+         {
+            reduction->ComputeSolution(conf_b, X, conf_x);
+         }
+
+         P->Mult(conf_x.GetBlock(0), x.GetBlock(0));
+         x.GetBlock(1) = conf_x.GetBlock(1);
+      }
+      else
+      {
+         // Apply conforming prolongation
+         BlockVector X_b(const_cast<Vector&>(X), toffsets);
+         P->Mult(X_b.GetBlock(0), x.GetBlock(0));
+         x.GetBlock(1) = X_b.GetBlock(1);
       }
    }
 }
@@ -1349,7 +1497,7 @@ void DarcyForm::Mult(const Vector &x, Vector &y) const
    {
       if (bsym)
       {
-         BlockVector ynl(offsets);
+         BlockVector ynl(toffsets);
          opM->Mult(x, ynl);
          ynl.GetBlock(1).Neg();
          y += ynl;
@@ -1363,7 +1511,7 @@ void DarcyForm::Mult(const Vector &x, Vector &y) const
 
 Operator &DarcyForm::GetGradient(const Vector &x) const
 {
-   const BlockVector bx(const_cast<Vector&>(x), offsets);
+   const BlockVector bx(const_cast<Vector&>(x), toffsets);
 
    if (!Mnl && !Mnl_u && !Mnl_p) { return *block_op; }
 
@@ -1371,7 +1519,7 @@ Operator &DarcyForm::GetGradient(const Vector &x) const
    {
       if (!block_grad)
       {
-         block_grad.reset(new BlockOperator(offsets));
+         block_grad.reset(new BlockOperator(toffsets));
       }
 
       if (opM_u.Ptr())
@@ -1432,7 +1580,7 @@ void DarcyForm::Gradient::Mult(const Vector &x, Vector &y) const
 
    if (p.bsym)
    {
-      BlockVector ynl(p.offsets);
+      BlockVector ynl(p.toffsets);
       G.Mult(x, ynl);
       ynl.GetBlock(1).Neg();
       y += ynl;
@@ -1762,8 +1910,10 @@ void DarcyForm::AssemblePotHDGFaces(int skip_zeros)
    }
 }
 
-void DarcyForm::AllocBlockOp()
+void DarcyForm::AllocBlockOp(bool nonconforming)
 {
+   if (nonconforming) { UpdateTOffsetsAndSize(); }
+
    bool noblock = false;
 #ifdef MFEM_DARCY_REDUCTION_ELIM_BCS
    noblock = noblock || reduction;
@@ -1774,7 +1924,7 @@ void DarcyForm::AllocBlockOp()
 
    if (!noblock)
    {
-      block_op.reset(new BlockOperator(offsets));
+      block_op.reset(new BlockOperator(toffsets));
    }
 }
 
