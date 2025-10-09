@@ -2445,7 +2445,7 @@ void DarcyHybridization::ReduceRHS(const BlockVector &b_t, Vector &b_tr) const
             b_tr = 0.;
          }
       }
-      else if (tr_cP = c_fes.GetConformingProlongation())
+      else if ((tr_cP = c_fes.GetConformingProlongation()))
       {
          if (b_tr.Size() != tr_cP->Width())
          {
