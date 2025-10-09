@@ -1591,6 +1591,56 @@ void DarcyForm::Gradient::Mult(const Vector &x, Vector &y) const
    }
 }
 
+const BlockOperator &DarcyForm::Gradient::BlockMatrices() const
+{
+   if (block_grad) { return *block_grad.get(); }
+
+   block_grad.reset(new BlockOperator(p.toffsets));
+
+   const BlockOperator *bop = (p.block_grad)?(p.block_grad.get()):
+                              (p.block_op.get());
+   const BlockOperator *bgrad = static_cast<const BlockOperator*>(&G);
+
+   for (int i = 0; i < 2; i++)
+      for (int j = 0; j < 2; j++)
+      {
+         //off-diagonals of bgrad are expected to be zero
+         if (i == j && !bop->IsZeroBlock(i,j) && !bgrad->IsZeroBlock(i,j))
+         {
+            const SparseMatrix *sop = dynamic_cast<const SparseMatrix*>(
+                                         &(bop->GetBlock(i,j)));
+            const SparseMatrix *sgrad = dynamic_cast<const SparseMatrix*>(
+                                           &(bgrad->GetBlock(i,j)));
+
+            MFEM_ASSERT(sop && sgrad, "Not a SparseMatrix!");
+
+            smats[i][j].reset(mfem::Add(*sop, *sgrad));
+            block_grad->SetBlock(i, j, smats[i][j].get(), bop->GetBlockCoef(i,j));
+         }
+         else
+         {
+            const Operator *op;
+            real_t c;
+            if (!bop->IsZeroBlock(i,j))
+            {
+               op = &(bop->GetBlock(i,j));
+               c = bop->GetBlockCoef(i,j);
+            }
+            else
+            {
+               op = &(bgrad->GetBlock(i,j));
+               c = (i != 0 && p.bsym)?(-1):(+1.);
+            }
+            // transpose operator is passed as is
+            MFEM_ASSERT((i == 0 && j == 1) ||
+                        dynamic_cast<const SparseMatrix*>(op), "Not a SparseMatrix!");
+            block_grad->SetBlock(i, j, const_cast<Operator*>(op), c);
+         }
+      }
+
+   return *block_grad;
+}
+
 void DarcyForm::Update()
 {
    UpdateOffsetsAndSize();

@@ -766,12 +766,12 @@ void DarcyOperator::SchurPreconditioner::Construct(const Vector &x_v) const
       if (nonlinear)
       {
          bop = dynamic_cast<const BlockOperator*>(op);
-         /*if (!bop)
+         if (!bop)
          {
             auto *grad = dynamic_cast<const DarcyForm::Gradient*>(op);
             MFEM_ASSERT(grad, "Unknown gradient operator!");
             bop = &grad->BlockMatrices();
-         }*/
+         }
       }
 
       // get diagonal

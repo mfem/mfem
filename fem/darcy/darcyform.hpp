@@ -51,18 +51,6 @@ protected:
    mutable std::unique_ptr<DarcyForm> reconstruction;
    mutable std::unique_ptr<MixedBilinearForm> M_p_src;
 
-   friend class Gradient;
-   class Gradient : public Operator
-   {
-      const DarcyForm &p;
-      const Operator &G;
-   public:
-      Gradient(const DarcyForm &p, const Vector &x)
-         : Operator(p.Width()), p(p), G(p.Mnl->GetGradient(x)) { }
-
-      void Mult(const Vector &x, Vector &y) const override;
-   };
-
    void UpdateOffsetsAndSize();
    void UpdateTOffsetsAndSize();
    void EnableReduction(const Array<int> &ess_flux_tdof_list,
@@ -82,6 +70,22 @@ protected:
                               GridFunction &tr, MixedBilinearForm *D = NULL) const;
 
 public:
+   friend class Gradient;
+   class Gradient : public Operator
+   {
+      const DarcyForm &p;
+      const Operator &G;
+      mutable std::unique_ptr<BlockOperator> block_grad;
+      mutable std::array<std::array<std::unique_ptr<SparseMatrix>,2>,2> smats;
+
+   public:
+      Gradient(const DarcyForm &p, const Vector &x)
+         : Operator(p.Width()), p(p), G(p.Mnl->GetGradient(x)) { }
+
+      void Mult(const Vector &x, Vector &y) const override;
+      const BlockOperator& BlockMatrices() const;
+   };
+
    DarcyForm(FiniteElementSpace *fes_u, FiniteElementSpace *fes_p,
              bool bsymmetrize = true);
 
