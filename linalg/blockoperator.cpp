@@ -148,11 +148,10 @@ BlockDiagonalPreconditioner::BlockDiagonalPreconditioner(
    Solver(offsets_.Last()),
    owns_blocks(0),
    nBlocks(offsets_.Size() - 1),
-   offsets(0),
+   offsets(offsets_),
    ops(nBlocks)
 {
    ops = nullptr;
-   offsets.MakeRef(offsets_);
 }
 
 void BlockDiagonalPreconditioner::SetDiagonalBlock(int iblock, Operator *op)
@@ -247,11 +246,10 @@ BlockLowerTriangularPreconditioner::BlockLowerTriangularPreconditioner(
    : Solver(offsets_.Last()),
      owns_blocks(0),
      nBlocks(offsets_.Size() - 1),
-     offsets(0),
+     offsets(offsets_),
      ops(nBlocks, nBlocks)
 {
    ops = nullptr;
-   offsets.MakeRef(offsets_);
 }
 
 void BlockLowerTriangularPreconditioner::SetDiagonalBlock(int iblock,
