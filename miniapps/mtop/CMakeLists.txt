@@ -12,11 +12,9 @@
 if(MFEM_USE_MPI)
 
 list(APPEND PARMTOP_COMMON_SOURCES
-        mtop_solvers.cpp
-        grain_reader.cpp)
+        mtop_solvers.cpp)
 list(APPEND PARMTOP_COMMON_HEADERS
-        mtop_solvers.hpp
-        grain_reader.hpp)
+        mtop_solvers.hpp)
 
 convert_filenames_to_full_paths(PARMTOP_COMMON_SOURCES)
 convert_filenames_to_full_paths(PARMTOP_COMMON_HEADERS)
@@ -28,11 +26,6 @@ set(PARMTOP_COMMON_FILES
 
 add_mfem_miniapp(test_stokes
        MAIN test_stokes.cpp
-       ${PARMTOP_COMMON_FILES}
-       LIBRARIES mfem)
-
-add_mfem_miniapp(test_grain
-       MAIN test_grain.cpp
        ${PARMTOP_COMMON_FILES}
        LIBRARIES mfem)
 
