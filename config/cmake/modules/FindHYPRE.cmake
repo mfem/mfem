@@ -16,6 +16,7 @@
 #   - HYPRE_VERSION
 #   - HYPRE_USING_CUDA (internal)
 #   - HYPRE_USING_HIP (internal)
+#   - HYPRE_USING_UMPIRE (internal)
 # otherwise, the following are defined:
 #   - HYPRE (imported library target)
 #   - HYPRE_VERSION (cache variable)
@@ -156,6 +157,20 @@ int main()
 {
    return 0;
 }
+"
+  CHECK_BUILD HYPRE_USING_UMPIRE FALSE
+  "
+#undef HYPRE_USING_UMPIRE
+#include <HYPRE_config.h>
+
+#ifndef HYPRE_USING_UMPIRE
+#error HYPRE is built without Umpire.
+#endif
+
+int main()
+{
+   return 0;
+}
 ")
 
 if (HYPRE_FOUND AND (NOT HYPRE_VERSION))
@@ -198,7 +213,7 @@ if (HYPRE_FOUND AND HYPRE_USING_HIP)
 endif()
 
 # Hypre+Umpire check
-if (HYPRE_FOUND AND (HYPRE_USING_CUDA OR HYPRE_USING_HIP) AND NOT MFEM_USE_UMPIRE)
+if (HYPRE_FOUND AND (HYPRE_USING_CUDA OR HYPRE_USING_HIP) AND NOT HYPRE_USING_UMPIRE)
   message(WARNING
 "===============================================================
  Detected GPU-enabled HYPRE build without Umpire support.
