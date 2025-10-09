@@ -269,10 +269,8 @@ miniapps/meshing/refined.mesh
 miniapps/meshing/bounding-box*
 miniapps/meshing/jacobian-determinant*
 
-miniapps/mtop/parheat
-miniapps/mtop/ParHeat/*
-miniapps/mtop/seqheat
-miniapps/mtop/SeqHeat/*
+miniapps/mtop/ParaView/
+miniapps/mtop/mtop_test_iso_elasticity
 
 miniapps/autodiff/paradiff
 miniapps/autodiff/seqadiff
