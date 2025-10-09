@@ -16,7 +16,6 @@
 #   - HYPRE_VERSION
 #   - HYPRE_USING_CUDA (internal)
 #   - HYPRE_USING_HIP (internal)
-#   - HYPRE_USING_UMPIRE (internal)
 # otherwise, the following are defined:
 #   - HYPRE (imported library target)
 #   - HYPRE_VERSION (cache variable)
@@ -151,20 +150,6 @@ int main()
 
 #ifndef HYPRE_USING_HIP
 #error HYPRE is built without HIP.
-#endif
-
-int main()
-{
-   return 0;
-}
-"
-  CHECK_BUILD HYPRE_USING_UMPIRE FALSE
-  "
-#undef HYPRE_USING_UMPIRE
-#include <HYPRE_config.h>
-
-#ifndef HYPRE_USING_UMPIRE
-#error HYPRE is built without Umpire.
 #endif
 
 int main()
