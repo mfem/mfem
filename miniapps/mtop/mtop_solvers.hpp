@@ -220,7 +220,8 @@ public:
       lor_discr(new mfem::ParLORDiscretization(*vfes_));
       mfem::ParFiniteElementSpace& vlor=lor_discr->GetParFESpace();
       std::unique_ptr<mfem::ParBilinearForm>
-      b11(new mfem::ParBilinearForm(&vlor));
+                             b11(new mfem::ParBilinearForm(&vlor));
+                             //b11(new mfem::ParBilinearForm(vfes_));
       b11->AddDomainIntegrator(new mfem::ElasticityIntegrator(lambda,*visc_));
       //b11->AddDomainIntegrator(new mfem::VectorDiffusionIntegrator(*visc_));
       if (nullptr!=brink_.get())
@@ -240,6 +241,7 @@ public:
       {
          int dim=vlor.GetParMesh()->Dimension();
          amg11->SetSystemsOptions(dim,true);
+         //amg11->SetElasticityOptions(&vlor);
       }
       amg11->SetOperator(*A11);
 
@@ -394,6 +396,7 @@ public:
       //multiply the upper block
       if(0==myrank){std::cout<<"Upper block solve";}
       cg11->Mult(v3,yb.GetBlock(0));
+      //amg11->Mult(v3,yb.GetBlock(0));
    }
 
 private:

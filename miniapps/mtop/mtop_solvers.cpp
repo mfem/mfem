@@ -231,7 +231,7 @@ void StokesSolver::Assemble()
                                            A11.get(),A12.get(),A21.get(),zero_mean_press);
 
       prec.reset(lsc);
-      prec->SetMaxIter(205);
+      prec->SetMaxIter(100);
       prec->SetAbsTol(1e-12);
       prec->SetRelTol(1e-5);
       gmres->SetPreconditioner(*prec);

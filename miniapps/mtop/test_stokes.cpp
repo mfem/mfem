@@ -170,7 +170,7 @@ int main(int argc, char *argv[])
    ng.SetFromTrueDofs(pgv);
 
    //solver->SetZeroMeanPressure(true);
-   solver->SetLinearSolver(1e-8,1e-12,50);
+   solver->SetLinearSolver(1e-8,1e-12,550);
 
    solver->Assemble();
    solver->FSolve();
