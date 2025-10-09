@@ -197,16 +197,6 @@ if (HYPRE_FOUND AND HYPRE_USING_HIP)
   message(STATUS "Updated HYPRE_LIBRARIES: ${HYPRE_LIBRARIES}")
 endif()
 
-# Hypre+Umpire check
-if (HYPRE_FOUND AND (HYPRE_USING_CUDA OR HYPRE_USING_HIP) AND NOT MFEM_USE_UMPIRE)
-  message(WARNING
-"===============================================================
- Detected GPU-enabled HYPRE build without Umpire support.
- This is not recommended for performance reasons!
- Consider rebuilding HYPRE with Umpire support.
-===============================================================")
-endif()
-
 find_package_handle_standard_args(HYPRE
   REQUIRED_VARS HYPRE_LIBRARIES HYPRE_INCLUDE_DIRS HYPRE_VERSION
 )
