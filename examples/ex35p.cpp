@@ -220,7 +220,7 @@ int main(int argc, char *argv[])
       prob = 0;
    }
 
-   FiniteElementCollection *fec = NULL;
+   const FiniteElementCollection *fec = NULL;
    switch (prob)
    {
       case 0:  fec = new H1_FECollection(order, dim);      break;
@@ -238,7 +238,7 @@ int main(int argc, char *argv[])
    // 7b. Define a parallel finite element space on the sub-mesh. Here we
    //    use continuous Lagrange, Nedelec, or L2 finite elements of
    //    the specified order.
-   FiniteElementCollection *fec_port = NULL;
+   const FiniteElementCollection *fec_port = NULL;
    switch (prob)
    {
       case 0:  fec_port = new H1_FECollection(order, dim-1);      break;

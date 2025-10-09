@@ -100,7 +100,7 @@ int main(int argc, char *argv[])
       cerr << "Warning, test space not enriched enough to handle primal"
            << " trial space\n";
 
-   FiniteElementCollection *x0_fec, *xhat_fec, *test_fec;
+   const FiniteElementCollection *x0_fec, *xhat_fec, *test_fec;
 
    x0_fec   = new H1_FECollection(trial_order, dim);
    xhat_fec = new RT_Trace_FECollection(trace_order, dim);

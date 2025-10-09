@@ -108,7 +108,7 @@ int main(int argc, char *argv[])
    //    dimension is specified by the last argument of the FiniteElementSpace
    //    constructor. For NURBS meshes, we use the (degree elevated) NURBS space
    //    associated with the mesh nodes.
-   FiniteElementCollection *fec;
+   const FiniteElementCollection *fec;
    FiniteElementSpace *fespace;
    if (mesh->NURBSext)
    {

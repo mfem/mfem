@@ -170,25 +170,27 @@ int main(int argc, char *argv[])
       tau_space = 1
    };
    // L2 space for u
-   FiniteElementCollection *u_fec = new L2_FECollection(order-1,dim);
+   const FiniteElementCollection *u_fec = new L2_FECollection(order-1,dim);
    FiniteElementSpace *u_fes = new FiniteElementSpace(&mesh,u_fec);
 
    // Vector L2 space for σ
-   FiniteElementCollection *sigma_fec = new L2_FECollection(order-1,dim);
+   const FiniteElementCollection *sigma_fec = new L2_FECollection(order-1,dim);
    FiniteElementSpace *sigma_fes = new FiniteElementSpace(&mesh,sigma_fec, dim);
 
    // H^1/2 space for û
-   FiniteElementCollection * hatu_fec = new H1_Trace_FECollection(order,dim);
+   const FiniteElementCollection * hatu_fec = new H1_Trace_FECollection(order,dim);
    FiniteElementSpace *hatu_fes = new FiniteElementSpace(&mesh,hatu_fec);
 
    // H^-1/2 space for σ̂
-   FiniteElementCollection * hatf_fec = new RT_Trace_FECollection(order-1,dim);
+   const FiniteElementCollection * hatf_fec = new RT_Trace_FECollection(order-1,
+                                                                        dim);
    FiniteElementSpace *hatf_fes = new FiniteElementSpace(&mesh,hatf_fec);
 
    // testspace fe collections
    int test_order = order+delta_order;
-   FiniteElementCollection * v_fec = new H1_FECollection(test_order, dim);
-   FiniteElementCollection * tau_fec = new RT_FECollection(test_order-1, dim);
+   const FiniteElementCollection * v_fec = new H1_FECollection(test_order, dim);
+   const FiniteElementCollection * tau_fec = new RT_FECollection(test_order-1,
+                                                                 dim);
 
    // Coefficients
    ConstantCoefficient one(1.0);
@@ -207,7 +209,7 @@ int main(int argc, char *argv[])
    VectorConstantCoefficient negbetacoeff(negbeta);
 
    Array<FiniteElementSpace * > trial_fes;
-   Array<FiniteElementCollection * > test_fec;
+   Array<const FiniteElementCollection * > test_fec;
 
    trial_fes.Append(u_fes);
    trial_fes.Append(sigma_fes);
@@ -216,7 +218,7 @@ int main(int argc, char *argv[])
    test_fec.Append(v_fec);
    test_fec.Append(tau_fec);
 
-   FiniteElementCollection *coeff_fec = new L2_FECollection(0,dim);
+   const FiniteElementCollection *coeff_fec = new L2_FECollection(0,dim);
    FiniteElementSpace *coeff_fes = new FiniteElementSpace(&mesh,coeff_fec);
    GridFunction c1_gf, c2_gf;
    GridFunctionCoefficient c1_coeff(&c1_gf);

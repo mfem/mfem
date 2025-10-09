@@ -188,17 +188,17 @@ int main(int argc, char *argv[])
       G_space = 1
    };
    // L2 space for E
-   FiniteElementCollection *E_fec = new L2_FECollection(order-1,dim);
+   const FiniteElementCollection *E_fec = new L2_FECollection(order-1,dim);
    FiniteElementSpace *E_fes = new FiniteElementSpace(&mesh,E_fec,dim);
 
    // Vector L2 space for H
-   FiniteElementCollection *H_fec = new L2_FECollection(order-1,dim);
+   const FiniteElementCollection *H_fec = new L2_FECollection(order-1,dim);
    FiniteElementSpace *H_fes = new FiniteElementSpace(&mesh,H_fec, dimc);
 
    // H^-1/2 (curl) space for Ê
-   FiniteElementCollection * hatE_fec = nullptr;
-   FiniteElementCollection * hatH_fec = nullptr;
-   FiniteElementCollection * F_fec = nullptr;
+   const FiniteElementCollection * hatE_fec = nullptr;
+   const FiniteElementCollection * hatH_fec = nullptr;
+   const FiniteElementCollection * F_fec = nullptr;
    if (dim == 3)
    {
       hatE_fec = new ND_Trace_FECollection(order,dim);
@@ -213,7 +213,7 @@ int main(int argc, char *argv[])
    }
    FiniteElementSpace *hatE_fes = new FiniteElementSpace(&mesh,hatE_fec);
    FiniteElementSpace *hatH_fes = new FiniteElementSpace(&mesh,hatH_fec);
-   FiniteElementCollection * G_fec = new ND_FECollection(test_order, dim);
+   const FiniteElementCollection * G_fec = new ND_FECollection(test_order, dim);
 
    // Coefficients
    ConstantCoefficient one(1.0);
@@ -232,7 +232,7 @@ int main(int argc, char *argv[])
    ScalarMatrixProductCoefficient negepsrot(negepsomeg,rot);
 
    Array<FiniteElementSpace * > trial_fes;
-   Array<FiniteElementCollection * > test_fec;
+   Array<const FiniteElementCollection * > test_fec;
 
    trial_fes.Append(E_fes);
    trial_fes.Append(H_fes);

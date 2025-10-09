@@ -298,7 +298,7 @@ public:
    ~Spaces()
    {
       Mesh *m = nullptr;
-      FiniteElementCollection *fec = nullptr;
+      const FiniteElementCollection *fec = nullptr;
 
       for (int i = 0; i < spaces_.size(); ++i)
       {

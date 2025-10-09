@@ -226,26 +226,28 @@ int main(int argc, char *argv[])
       tau_space = 1
    };
    // L2 space for u
-   FiniteElementCollection *u_fec = new L2_FECollection(order-1,dim);
+   const FiniteElementCollection *u_fec = new L2_FECollection(order-1,dim);
    ParFiniteElementSpace *u_fes = new ParFiniteElementSpace(&pmesh,u_fec);
 
    // Vector L2 space for σ
-   FiniteElementCollection *sigma_fec = new L2_FECollection(order-1,dim);
+   const FiniteElementCollection *sigma_fec = new L2_FECollection(order-1,dim);
    ParFiniteElementSpace *sigma_fes = new ParFiniteElementSpace(&pmesh,sigma_fec,
                                                                 dim);
 
    // H^1/2 space for û
-   FiniteElementCollection * hatu_fec = new H1_Trace_FECollection(order,dim);
+   const FiniteElementCollection * hatu_fec = new H1_Trace_FECollection(order,dim);
    ParFiniteElementSpace *hatu_fes = new ParFiniteElementSpace(&pmesh,hatu_fec);
 
    // H^-1/2 space for σ̂
-   FiniteElementCollection * hatf_fec = new RT_Trace_FECollection(order-1,dim);
+   const FiniteElementCollection * hatf_fec = new RT_Trace_FECollection(order-1,
+                                                                        dim);
    ParFiniteElementSpace *hatf_fes = new ParFiniteElementSpace(&pmesh,hatf_fec);
 
    // testspace fe collections
    int test_order = order+delta_order;
-   FiniteElementCollection * v_fec = new H1_FECollection(test_order, dim);
-   FiniteElementCollection * tau_fec = new RT_FECollection(test_order-1, dim);
+   const FiniteElementCollection * v_fec = new H1_FECollection(test_order, dim);
+   const FiniteElementCollection * tau_fec = new RT_FECollection(test_order-1,
+                                                                 dim);
 
    // Coefficients
    ConstantCoefficient one(1.0);
@@ -262,7 +264,7 @@ int main(int argc, char *argv[])
 
    // Normal equation weak formulation
    Array<ParFiniteElementSpace * > trial_fes;
-   Array<FiniteElementCollection * > test_fec;
+   Array<const FiniteElementCollection * > test_fec;
 
    trial_fes.Append(u_fes);
    trial_fes.Append(sigma_fes);
@@ -299,7 +301,7 @@ int main(int argc, char *argv[])
                          TrialSpace::hatf_space, TestSpace::v_space);
 
 
-   FiniteElementCollection *coeff_fec = new L2_FECollection(0,dim);
+   const FiniteElementCollection *coeff_fec = new L2_FECollection(0,dim);
    ParFiniteElementSpace *coeff_fes = new ParFiniteElementSpace(&pmesh,coeff_fec);
    ParGridFunction c1_gf, c2_gf;
    GridFunctionCoefficient c1_coeff(&c1_gf);

@@ -150,7 +150,7 @@ int main(int argc, char *argv[])
 
    // 6. Define a parallel finite element space on the parallel mesh. Here we
    //    use the Raviart-Thomas finite elements of the specified order.
-   FiniteElementCollection *fec = new RT_FECollection(order-1, dim);
+   const FiniteElementCollection *fec = new RT_FECollection(order-1, dim);
    ParFiniteElementSpace *fespace = new ParFiniteElementSpace(pmesh, fec);
    HYPRE_BigInt size = fespace->GlobalTrueVSize();
    if (myid == 0)
@@ -202,7 +202,7 @@ int main(int argc, char *argv[])
    //     assembly, eliminating boundary conditions, applying conforming
    //     constraints for non-conforming AMR, static condensation,
    //     hybridization, etc.
-   FiniteElementCollection *hfec = NULL;
+   const FiniteElementCollection *hfec = NULL;
    ParFiniteElementSpace *hfes = NULL;
    if (static_cond)
    {

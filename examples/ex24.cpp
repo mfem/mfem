@@ -116,8 +116,8 @@ int main(int argc, char *argv[])
 
    // 5. Define a finite element space on the mesh. Here we use Nedelec or
    //    Raviart-Thomas finite elements of the specified order.
-   FiniteElementCollection *trial_fec = NULL;
-   FiniteElementCollection *test_fec = NULL;
+   const FiniteElementCollection *trial_fec = NULL;
+   const FiniteElementCollection *test_fec = NULL;
 
    if (prob == 0)
    {

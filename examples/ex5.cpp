@@ -107,8 +107,8 @@ int main(int argc, char *argv[])
 
    // 5. Define a finite element space on the mesh. Here we use the
    //    Raviart-Thomas finite elements of the specified order.
-   FiniteElementCollection *hdiv_coll(new RT_FECollection(order, dim));
-   FiniteElementCollection *l2_coll(new L2_FECollection(order, dim));
+   const FiniteElementCollection *hdiv_coll(new RT_FECollection(order, dim));
+   const FiniteElementCollection *l2_coll(new L2_FECollection(order, dim));
 
    FiniteElementSpace *R_space = new FiniteElementSpace(mesh, hdiv_coll);
    FiniteElementSpace *W_space = new FiniteElementSpace(mesh, l2_coll);

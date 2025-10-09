@@ -63,7 +63,7 @@ protected:
    Array<int> IsTraceFes;
 
    /// Test FE Collections (Broken)
-   Array<FiniteElementCollection *> test_fecols;
+   Array<const FiniteElementCollection *> test_fecols;
    Array<int> test_fecols_vdims;
 
    /// Set of Trial Integrators to be applied for matrix B.
@@ -112,7 +112,7 @@ public:
 
    /// Creates bilinear form associated with FE spaces @a fes_.
    DPGWeakForm(Array<FiniteElementSpace* > & fes_,
-               Array<FiniteElementCollection *> & fecol_)
+               Array<const FiniteElementCollection *> & fecol_)
    {
       SetSpaces(fes_,fecol_);
    }
@@ -123,7 +123,7 @@ public:
    }
 
    void SetSpaces(Array<FiniteElementSpace* > & fes_,
-                  Array<FiniteElementCollection *> & fecol_)
+                  Array<const FiniteElementCollection *> & fecol_)
    {
       trial_fes = fes_;
       test_fecols = fecol_;

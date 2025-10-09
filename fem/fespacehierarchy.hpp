@@ -67,7 +67,8 @@ public:
 
    /// @brief Adds one level to the hierarchy by using a different finite element
    /// order defined through FiniteElementCollection
-   virtual void AddOrderRefinedLevel(FiniteElementCollection* fec, int dim = 1,
+   virtual void AddOrderRefinedLevel(const FiniteElementCollection* fec,
+                                     int dim = 1,
                                      int ordering = Ordering::byVDIM);
 
    /// Returns the finite element space at the given level
@@ -107,7 +108,7 @@ public:
 
    /// @brief Adds one level to the hierarchy by using a different finite element
    /// order defined through FiniteElementCollection
-   void AddOrderRefinedLevel(FiniteElementCollection* fec, int dim = 1,
+   void AddOrderRefinedLevel(const FiniteElementCollection* fec, int dim = 1,
                              int ordering = Ordering::byVDIM) override;
 
    /// Returns the finite element space at the given level

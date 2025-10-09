@@ -192,7 +192,7 @@ FmsFieldToGridFunction(FmsMesh fms_mesh, FmsField f, Mesh *mesh,
       // We could assemble a name based on fe_coll.hpp rules and pass to
       // FiniteElementCollection::New()
 
-      mfem::FiniteElementCollection *fec = nullptr;
+      const mfem::FiniteElementCollection *fec = nullptr;
       switch (f_field_type)
       {
          case FMS_DISCONTINUOUS:

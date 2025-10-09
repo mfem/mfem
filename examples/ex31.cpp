@@ -82,7 +82,7 @@ int main(int argc, char *argv[])
    // 4. Define a finite element space on the mesh. Here we use the Nedelec
    //    finite elements of the specified order restricted to 1D, 2D, or 3D
    //    depending on the dimension of the given mesh file.
-   FiniteElementCollection *fec = NULL;
+   const FiniteElementCollection *fec = NULL;
    if (dim == 1)
    {
       fec = new ND_R1D_FECollection(order, dim);

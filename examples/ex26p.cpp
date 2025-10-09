@@ -202,10 +202,10 @@ int main(int argc, char *argv[])
    //    on the coarse level and geometrically refine the spaces by the specified
    //    amount. Afterwards, we increase the order of the finite elements by a
    //    factor of 2 for each additional level.
-   FiniteElementCollection *fec = new H1_FECollection(1, dim);
+   const FiniteElementCollection *fec = new H1_FECollection(1, dim);
    ParFiniteElementSpace *coarse_fespace = new ParFiniteElementSpace(pmesh, fec);
 
-   Array<FiniteElementCollection*> collections;
+   Array<const FiniteElementCollection*> collections;
    collections.Append(fec);
    ParFiniteElementSpaceHierarchy* fespaces = new ParFiniteElementSpaceHierarchy(
       pmesh, coarse_fespace, true, true);

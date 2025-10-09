@@ -160,7 +160,7 @@ int main(int argc, char *argv[])
    // 7. Define a parallel finite element space on the parallel mesh. Here we
    //    use continuous Lagrange finite elements of the specified order. If
    //    order < 1, we instead use an isoparametric/isogeometric space.
-   FiniteElementCollection *fec;
+   const FiniteElementCollection *fec;
    bool delete_fec;
    if (order > 0)
    {

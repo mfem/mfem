@@ -132,7 +132,7 @@ int main (int argc, char *argv[])
         << mesh_2.GetNodes()->OwnFEC()->Name() << endl;
 
    int src_vdim = src_ncomp;
-   FiniteElementCollection *src_fec = NULL;
+   const FiniteElementCollection *src_fec = NULL;
    FiniteElementSpace *src_fes = NULL;
    GridFunction *func_source = NULL;
    if (src_fieldtype < 0) // use src_sltn_file
@@ -227,7 +227,7 @@ int main (int argc, char *argv[])
    if (fieldtype < 0) { fieldtype = src_fieldtype; }
 
    // Setup the FiniteElementSpace and GridFunction on the target mesh.
-   FiniteElementCollection *tar_fec = NULL;
+   const FiniteElementCollection *tar_fec = NULL;
    FiniteElementSpace *tar_fes = NULL;
 
    int tar_vdim = src_vdim;
