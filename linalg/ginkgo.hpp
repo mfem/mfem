@@ -28,6 +28,7 @@
 #include <vector>
 #include <fstream>
 #include <iostream>
+#include <type_traits>
 
 #define MFEM_GINKGO_VERSION \
    ((GKO_VERSION_MAJOR*100 + GKO_VERSION_MINOR)*100 + GKO_VERSION_PATCH)
@@ -38,6 +39,17 @@ namespace Ginkgo
 {
 
 template <typename T> using gko_array = gko::array<T>;
+// for inter-operability with hypre integer types
+using gko_hypre_int =
+   std::conditional_t<sizeof(HYPRE_Int) == sizeof(std::int32_t), std::int32_t,
+   std::conditional_t<sizeof(HYPRE_Int) == sizeof(std::int64_t), std::int64_t, void>>;
+using gko_hypre_bigint =
+   std::conditional_t<sizeof(HYPRE_BigInt) == sizeof(std::int32_t), std::int32_t,
+   std::conditional_t<sizeof(HYPRE_BigInt) == sizeof(std::int64_t), std::int64_t, void>>;
+static_assert(!std::is_void_v<gko_hypre_int>,
+              "HYPRE_Int type is incompatible with Ginkgo");
+static_assert(!std::is_void_v<gko_hypre_bigint>,
+              "HYPRE_BigInt type is incompatible with Ginkgo");
 
 /**
 * Helper class for a case where a wrapped MFEM Vector
@@ -1310,7 +1322,7 @@ protected:
       auto current_params = gko::as<typename SolverType::Factory>
                             (solver_gen)->get_parameters();
       using schwarz =
-         gko::experimental::distributed::preconditioner::Schwarz<real_t, int, HYPRE_BigInt>;
+         gko::experimental::distributed::preconditioner::Schwarz<real_t, int, gko_hypre_bigint>;
       auto schwarz_factory = gko::as<typename schwarz::Factory>
                              (current_params.preconditioner);
       if (schwarz_factory != NULL)

@@ -771,7 +771,7 @@ GinkgoIterativeSolver::Mult(const Vector &x, Vector &y) const
 }
 
 #if defined(MFEM_USE_MPI) && GINKGO_BUILD_MPI
-std::unique_ptr<gko::experimental::distributed::Matrix<real_t, HYPRE_Int, HYPRE_BigInt>>
+std::unique_ptr<gko::experimental::distributed::Matrix<real_t, gko_hypre_int, gko_hypre_bigint>>
       GinkgoWrapHypreParMatrix(HypreParMatrix *par_mat,
                                std::shared_ptr<gko::Executor> executor,
                                std::shared_ptr<gko::experimental::mpi::communicator> gko_comm, bool sort_diag)
@@ -786,18 +786,18 @@ std::unique_ptr<gko::experimental::distributed::Matrix<real_t, HYPRE_Int, HYPRE_
       mc = MemoryClass::DEVICE;
    }
 
-   using local_mtx = gko::matrix::Csr<real_t, HYPRE_Int>;
+   using local_mtx = gko::matrix::Csr<real_t, gko_hypre_int>;
    using global_mtx =
-      gko::experimental::distributed::Matrix<real_t, HYPRE_Int, HYPRE_BigInt>;
+      gko::experimental::distributed::Matrix<real_t, gko_hypre_int, gko_hypre_bigint>;
    using gko_partition =
-      gko::experimental::distributed::Partition<HYPRE_Int, HYPRE_BigInt>;
+      gko::experimental::distributed::Partition<gko_hypre_int, gko_hypre_bigint>;
    using idx_map =
-      gko::experimental::distributed::index_map<HYPRE_Int, HYPRE_BigInt>;
+      gko::experimental::distributed::index_map<gko_hypre_int, gko_hypre_bigint>;
    // Create Ginkgo column partition from Hypre col_starts information
    // Collect the col_starts on every rank, via host memory
    auto mpi_exec = executor->get_master();
-   gko::array<HYPRE_BigInt> col_ranges(mpi_exec, gko_comm->size() + 1);
-   col_ranges.fill(gko::zero<HYPRE_BigInt>());
+   gko::array<gko_hypre_bigint> col_ranges(mpi_exec, gko_comm->size() + 1);
+   col_ranges.fill(gko::zero<gko_hypre_bigint>());
    // Gather the "ends" of the ranges such that col_ranges[i] contains the starting index for the
    // ith part of the partition
    gko_comm->all_gather(mpi_exec, par_mat->GetColStarts() + 1, 1,
@@ -811,8 +811,9 @@ std::unique_ptr<gko::experimental::distributed::Matrix<real_t, HYPRE_Int, HYPRE_
    HYPRE_Int num_offd_cols;
    HYPRE_BigInt *cmap;
    par_mat->GetOffdColMap(cmap, num_offd_cols);
-   gko_array<HYPRE_BigInt> recv_indices = gko_array<HYPRE_BigInt>::view(mpi_exec,
-                                                                        num_offd_cols, cmap);
+   gko_array<gko_hypre_bigint> recv_indices = gko_array<gko_hypre_bigint>::view(
+                                                 mpi_exec,
+                                                 num_offd_cols, reinterpret_cast<gko_hypre_bigint*>(cmap));
    // Move to device, if necessary
    recv_indices.set_executor(executor);
    idx_map imap(executor, col_part, gko_comm->rank(), recv_indices);
@@ -823,10 +824,12 @@ std::unique_ptr<gko::experimental::distributed::Matrix<real_t, HYPRE_Int, HYPRE_
                                             executor, gko::dim<2>(par_mat->GetNumRows(), par_mat->GetNumCols()),
                                             gko_array<real_t>::view(executor, local_diag_nnz,
                                                                     par_mat->GetDiagMemoryData().ReadWrite(mc, local_diag_nnz)),
-                                            gko_array<HYPRE_Int>::view(executor, local_diag_nnz,
-                                                                       par_mat->GetDiagMemoryJ().ReadWrite(mc, local_diag_nnz)),
-                                            gko_array<HYPRE_Int>::view(executor, par_mat->GetNumRows() + 1,
-                                                                       par_mat->GetDiagMemoryI().ReadWrite(mc, par_mat->GetNumRows() + 1))
+                                            gko_array<gko_hypre_int>::view(executor, local_diag_nnz,
+                                                                           reinterpret_cast<gko_hypre_int*>(par_mat->GetDiagMemoryJ().ReadWrite(mc,
+                                                                                 local_diag_nnz))),
+                                            gko_array<gko_hypre_int>::view(executor, par_mat->GetNumRows() + 1,
+                                                                           reinterpret_cast<gko_hypre_int*>(par_mat->GetDiagMemoryI().ReadWrite(mc,
+                                                                                 par_mat->GetNumRows() + 1)))
                                          );
    if (sort_diag == true)
    {
@@ -837,10 +840,12 @@ std::unique_ptr<gko::experimental::distributed::Matrix<real_t, HYPRE_Int, HYPRE_
                                                 executor, gko::dim<2>(par_mat->GetNumRows(), num_offd_cols),
                                                 gko_array<real_t>::view(executor, local_offd_nnz,
                                                                         par_mat->GetOffdMemoryData().ReadWrite(mc, local_offd_nnz)),
-                                                gko_array<HYPRE_Int>::view(executor, local_offd_nnz,
-                                                                           par_mat->GetOffdMemoryJ().ReadWrite(mc, local_offd_nnz)),
-                                                gko_array<HYPRE_Int>::view(executor, par_mat->GetNumRows() + 1,
-                                                                           par_mat->GetOffdMemoryI().ReadWrite(mc, par_mat->GetNumRows() + 1))
+                                                gko_array<gko_hypre_int>::view(executor, local_offd_nnz,
+                                                                               reinterpret_cast<gko_hypre_int*>(par_mat->GetOffdMemoryJ().ReadWrite(mc,
+                                                                                     local_offd_nnz))),
+                                                gko_array<gko_hypre_int>::view(executor, par_mat->GetNumRows() + 1,
+                                                                               reinterpret_cast<gko_hypre_int*>(par_mat->GetOffdMemoryI().ReadWrite(mc,
+                                                                                     par_mat->GetNumRows() + 1)))
                                              );
    // Finally, create Ginkgo distributed matrix point to Hypre data
    return global_mtx::create(executor, *(gko_comm.get()), imap, diag_mat,
@@ -1916,7 +1921,7 @@ SchwarzPreconditioner::SchwarzPreconditioner(
    : GinkgoPreconditioner(exec, comm)
 {
    using schwarz =
-      gko::experimental::distributed::preconditioner::Schwarz<real_t, int, HYPRE_BigInt>;
+      gko::experimental::distributed::preconditioner::Schwarz<real_t, int, gko_hypre_bigint>;
    GinkgoIterativeSolver *local_gko_solver = dynamic_cast<GinkgoIterativeSolver*>
                                              (&local_solver);
    if (local_gko_solver != NULL)
@@ -1987,7 +1992,7 @@ void SchwarzPreconditioner::SetOperator(const Operator &op)
                "System matrix is not square");
 
    using schwarz =
-      gko::experimental::distributed::preconditioner::Schwarz<real_t, int, HYPRE_BigInt>;
+      gko::experimental::distributed::preconditioner::Schwarz<real_t, int, gko_hypre_bigint>;
    auto factory_params = gko::as<typename schwarz::Factory>
                          (precond_gen)->get_parameters();
    bool sort_diag = false;
