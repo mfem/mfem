@@ -91,6 +91,10 @@ New and updated examples and miniapps
 - Added a new miniapp (tools/gridfunction-bounds) to compute piecewise linear
   bounds on a given high-order grid function.
 
+- Added a new miniapp (electromagnetics/lorentz) which computes the trajectory
+  of a charged particle, subject to Lorentz forces, in electrostatic and/or
+  magnetostatic fields as computed by the volta or tesla miniapps.
+
 API changes:
 -----------
 - mfem::internal::tensor and mfem::internal::dual have been moved to
