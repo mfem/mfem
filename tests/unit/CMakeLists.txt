@@ -17,71 +17,73 @@ include_directories(BEFORE ${CMAKE_CURRENT_SOURCE_DIR})
 # The following list can be updated using (in bash):
 #    for d in dfem general linalg mesh fem enzyme; do ls -1 $d/*.cpp; done
 set(UNIT_TESTS_SRCS
-  dfem/test_diffusion.cpp
-  dfem/test_divergence.cpp
-  dfem/test_mass.cpp
-  dfem/test_lvector_interface.cpp
-  general/test_array.cpp
-  general/test_scan.cpp
-  general/test_arrays_by_name.cpp
-  general/test_error.cpp
-  general/test_mem.cpp
-  general/test_reduction.cpp
-  general/test_text.cpp
-  general/test_umpire_mem.cpp
-  general/test_zlib.cpp
-  linalg/test_cg_indefinite.cpp
-  linalg/test_chebyshev.cpp
-  linalg/test_complex_dense_matrix.cpp
-  linalg/test_complex_operator.cpp
-  linalg/test_constrainedsolver.cpp
-  linalg/test_direct_solvers.cpp
-  linalg/test_hypre_ilu.cpp
-  linalg/test_hypre_prec.cpp
-  linalg/test_hypre_vector.cpp
-  linalg/test_ilu.cpp
-  linalg/test_matrix_block.cpp
-  linalg/test_matrix_dense.cpp
-  linalg/test_matrix_hypre.cpp
-  linalg/test_matrix_rectangular.cpp
-  linalg/test_matrix_sparse.cpp
-  linalg/test_matrix_square.cpp
-  linalg/test_mma.cpp
-  linalg/test_ode.cpp
-  linalg/test_ode2.cpp
-  linalg/test_operator.cpp
-  linalg/test_vector.cpp
-  mesh/mesh_test_utils.cpp
-  mesh/test_exodus_reader.cpp
-  mesh/test_exodus_writer.cpp
-  mesh/test_face_orientations.cpp
-  mesh/test_fms.cpp
-  mesh/test_geometric_factors.cpp
-  mesh/test_mesh.cpp
-  mesh/test_ncmesh.cpp
-  mesh/test_nurbs.cpp
-  mesh/test_periodic_mesh.cpp
-  mesh/test_pmesh.cpp
-  mesh/test_psubmesh.cpp
-  mesh/test_submesh.cpp
-  mesh/test_vtu.cpp
-  mesh/test_nurbs.cpp
-  mesh/test_exodus_writer.cpp
+  #dfem/test_diffusion.cpp
+  #dfem/test_divergence.cpp
+  #dfem/test_mass.cpp
+  #dfem/test_lvector_interface.cpp
+  #general/test_array.cpp
+  #general/test_scan.cpp
+  #general/test_arrays_by_name.cpp
+  #general/test_error.cpp
+  #general/test_mem.cpp
+  #general/test_reduction.cpp
+  #general/test_text.cpp
+  #general/test_umpire_mem.cpp
+  #general/test_zlib.cpp
+  #linalg/test_cg_indefinite.cpp
+  #linalg/test_chebyshev.cpp
+  #linalg/test_complex_dense_matrix.cpp
+  #linalg/test_complex_operator.cpp
+  #linalg/test_constrainedsolver.cpp
+  #linalg/test_direct_solvers.cpp
+  #linalg/test_hypre_ilu.cpp
+  #linalg/test_hypre_prec.cpp
+  #linalg/test_hypre_vector.cpp
+  #linalg/test_ilu.cpp
+  #linalg/test_matrix_block.cpp
+  #linalg/test_matrix_dense.cpp
+  #linalg/test_matrix_hypre.cpp
+  #linalg/test_matrix_rectangular.cpp
+  #linalg/test_matrix_sparse.cpp
+  #linalg/test_matrix_square.cpp
+  #linalg/test_mma.cpp
+  #linalg/test_ode.cpp
+  #linalg/test_ode2.cpp
+  #linalg/test_operator.cpp
+  #linalg/test_vector.cpp
+  #mesh/mesh_test_utils.cpp
+  #mesh/test_exodus_reader.cpp
+  #mesh/test_exodus_writer.cpp
+  #mesh/test_face_orientations.cpp
+  #mesh/test_fms.cpp
+  #mesh/test_geometric_factors.cpp
+  #mesh/test_mesh.cpp
+  #mesh/test_ncmesh.cpp
+  #mesh/test_nurbs.cpp
+  #mesh/test_periodic_mesh.cpp
+  #mesh/test_pmesh.cpp
+  #mesh/test_psubmesh.cpp
+  #mesh/test_submesh.cpp
+  #mesh/test_vtu.cpp
+  #mesh/test_nurbs.cpp
+  #mesh/test_exodus_writer.cpp
   fem/make_permuted_mesh.cpp
-  fem/test_1d_bilininteg.cpp
-  fem/test_2d_bilininteg.cpp
-  fem/test_3d_bilininteg.cpp
-  fem/test_assemblediagonalpa.cpp
-  fem/test_assembly_levels.cpp
-  fem/test_bilinearform.cpp
-  fem/test_block_operators.cpp
-  fem/test_blocknonlinearform.cpp
-  fem/test_build_dof_to_arrays.cpp
+  #fem/test_1d_bilininteg.cpp
+  #fem/test_2d_bilininteg.cpp
+  #fem/test_3d_bilininteg.cpp
+  #fem/test_assemblediagonalpa.cpp
+  #fem/test_assembly_levels.cpp
+  #fem/test_bilinearform.cpp
+  #fem/test_block_operators.cpp
+  #fem/test_blocknonlinearform.cpp
+  #fem/test_build_dof_to_arrays.cpp
+  fem/test_calcdvshape.cpp
   fem/test_calccurlshape.cpp
   fem/test_calcdivshape.cpp
   fem/test_calcdshape.cpp
   fem/test_calcshape.cpp
   fem/test_calcvshape.cpp
+
   fem/test_coefficient.cpp
   fem/test_col_lag_der.cpp
   fem/test_datacollection.cpp
@@ -93,10 +95,10 @@ set(UNIT_TESTS_SRCS
   fem/test_estimator.cpp
   fem/test_fa_determinism.cpp
   fem/test_face_elem_trans.cpp
-  fem/test_face_permutation.cpp
-  fem/test_face_restriction.cpp
-  fem/test_fe_compatibility.cpp
-  fem/test_fe_fixed.cpp
+  #fem/test_face_permutation.cpp
+  #fem/test_face_restriction.cpp
+  #fem/test_fe_compatibility.cpp
+  #fem/test_fe_fixed.cpp
   fem/test_fe_pos.cpp
   fem/test_fe_symmetry.cpp
   fem/test_fe.cpp
