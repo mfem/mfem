@@ -397,12 +397,12 @@ protected:
    /** Also, initializes #mesh_geoms. */
    void SetMeshGen();
 
-   /// Return the length of the segment from node i to node j.
-   real_t GetLength(int i, int j) const;
+   /** Computes the squared edge lengths for all edges in the mesh. @a v_to_v
+       is the vertex connectivity constructed by GetVertexToVertexTable(). */
+   void GetEdgeLengths2(const DSTable &v_to_v, Array<real_t> &lengths) const;
 
    void MarkForRefinement();
-   void MarkTriMeshForRefinement();
-   void GetEdgeOrdering(const DSTable &v_to_v, Array<int> &order);
+   void MarkTriMeshForRefinement(const DSTable &v_to_v);
    virtual void MarkTetMeshForRefinement(const DSTable &v_to_v);
 
    // Methods used to prepare and apply permutation of the mesh nodes assuming
