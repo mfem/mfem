@@ -108,9 +108,10 @@ int main(int argc, char *argv[])
    int ref_levels = -1;
    int order = 1;
    bool hdiv = true;
-   bool H1BC = false;
+   bool h1BC = false;
    bool weakBC = true;
-   bool visualization = 1;
+   bool visualization = true;
+   bool visit = false;
    real_t penalty = -1.0;
    int maxiter = 200;
    real_t rtol = 1.e-6;
@@ -124,7 +125,7 @@ int main(int argc, char *argv[])
                   "Finite element order (polynomial degree).");
    args.AddOption(&hdiv, "-div", "--hdiv", "-curl", "--hcurl",
                   "Select which vector FE to use.");
-   args.AddOption(&H1BC, "-h1-bc", "--H1-bc", "-conf-bc", "--conforming-bc",
+   args.AddOption(&h1BC, "-h1-bc", "--H1-bc", "-conf-bc", "--conforming-bc",
                   "Use Full H1 BCs or the conforming BCs:\n"
                   " - Normal for Div conforming elements\n"
                   " - Tangential for Curl conforming elements).");
@@ -136,10 +137,13 @@ int main(int argc, char *argv[])
                   "Relative tolerance for the GMRES solver.");
    args.AddOption(&maxiter, "-li", "--linear-itermax",
                   "Maximum iteration count for the GMRES solver.");
-
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&visit, "-visit", "--visit-datafiles", "-no-visit",
+                  "--no-visit-datafiles",
+                  "Save data files for VisIt (visit.llnl.gov) visualization.");
+
    args.Parse();
    if (!args.Good())
    {
@@ -147,7 +151,6 @@ int main(int argc, char *argv[])
       return 1;
    }
    args.PrintOptions(cout);
-
 
    if (penalty < 0)
    {
@@ -193,7 +196,7 @@ int main(int argc, char *argv[])
    VectorFunctionCoefficient *fcoeff = nullptr;
    VectorFunctionCoefficient *ucoeff = nullptr;
 
-   switch (2*hdiv + H1BC)
+   switch (2*hdiv + h1BC)
    {
       case 0:
          vfe_coll = new NURBS_HCurlFECollection(order,dim);
@@ -239,7 +242,7 @@ int main(int argc, char *argv[])
    GridFunction u;
    u.MakeRef(&space, x, 0);
    u.ProjectCoefficient(*ucoeff);
-   if (H1BC) { u.SetSubVector(ess_tdof_list, 0.0); }
+   if (h1BC) { u.SetSubVector(ess_tdof_list, 0.0); }
 
    int order_quad = max(2, 2*order+1);
    const IntegrationRule *irs[Geometry::NumGeom];
@@ -288,14 +291,13 @@ int main(int argc, char *argv[])
    solver.SetOperator(K);
    solver.SetPreconditioner(invK);
    solver.SetPrintLevel(1);
-   x = 0.0;
+
    solver.Mult(rhs, x);
    if (device.IsEnabled()) { x.HostRead(); }
    chrono.Stop();
 
    if (solver.GetConverged())
    {
-
       std::cout << "MINRES converged in " << solver.GetNumIterations()
                 << " iterations with a residual norm of "
                 << solver.GetFinalNorm() << ".\n";
@@ -310,6 +312,22 @@ int main(int argc, char *argv[])
 
    // 10.  Print the previously computer interpolation errors.
    //      Compute and print the L2 error norms of the numerical solution.
+   std::cout << "Projection error:\n";
+   std::cout << "|| u_h - u_ex || / || u_ex || = " << err_u / norm_u << "\n";
+
+   err_u  = u.ComputeL2Error(*ucoeff, irs);
+   norm_u = ComputeLpNorm(2., *ucoeff, *mesh, irs);
+
+   if (weakBC)
+   {
+      std::cout << "Error when solving with weak boundary conditions:\n";
+   }
+   else
+   {
+      std::cout << "Error when solving with strong boundary conditions:\n";
+   }
+   std::cout << "|| u_h - u_ex || / || u_ex || = " << err_u / norm_u << "\n";
+
    std::cout << "Projection error:\n";
    std::cout << "|| u_h - u_ex || / || u_ex || = " << err_u / norm_u << "\n";
 
@@ -341,15 +359,18 @@ int main(int argc, char *argv[])
 
    // 12. Save data in the VisIt format
    //     Define a traditional NURBS space as long as ViSit does not read to new Vector FEs
-   FiniteElementCollection *l2_coll = new H1_FECollection(order+1);
-   FiniteElementSpace ui_space(mesh, space.StealNURBSext(), l2_coll, dim);
-   VectorGridFunctionCoefficient uh_cf(&u);
-   GridFunction ui_gf(&ui_space);
-   ui_gf.ProjectCoefficient(uh_cf);
+   if (visit)
+   {
+      H1_FECollection h1_coll(order+1);
+      FiniteElementSpace ui_space(mesh, space.StealNURBSext(), &h1_coll, dim);
+      VectorGridFunctionCoefficient uh_cf(&u);
+      GridFunction ui_gf(&ui_space);
+      ui_gf.ProjectCoefficient(uh_cf);
 
-   VisItDataCollection visit_dc("VectorDiffusion", mesh);
-   visit_dc.RegisterField("solution", &ui_gf);
-   visit_dc.Save();
+      VisItDataCollection visit_dc("VectorDiffusion", mesh);
+      visit_dc.RegisterField("solution", &ui_gf);
+      visit_dc.Save();
+   }
 
    // 13. Send the solution by socket to a GLVis server.
    if (visualization)
@@ -365,11 +386,9 @@ int main(int argc, char *argv[])
    delete fform;
    delete kVarf;
    delete vfe_coll;
-   delete l2_coll;
    delete mesh;
    delete fcoeff;
    delete ucoeff;
-   delete NURBSext;
    return 0;
 }
 
