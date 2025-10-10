@@ -541,10 +541,6 @@ void DarcyForm::Finalize(int skip_zeros)
       {
          block_op->SetDiagonalBlock(0, Mnl_u.get());
       }
-      else if (Mnl)
-      {
-         opM.Reset(Mnl.get(), false);
-      }
 
       if (M_p)
       {
@@ -600,6 +596,8 @@ void DarcyForm::FormLinearSystem(const Array<int> &ess_flux_tdof_list,
 
       BlockVector X_b(X_, toffsets), B_b(B_, toffsets);
 
+      Array<int> ess_pot_tdof_list;//empty for discontinuous potentials
+
       // flux
       if (M_u)
       {
@@ -607,18 +605,23 @@ void DarcyForm::FormLinearSystem(const Array<int> &ess_flux_tdof_list,
                                X_b.GetBlock(0), B_b.GetBlock(0), copy_interior);
          block_op->SetDiagonalBlock(0, opM_u.Ptr());
       }
-      else if (Mnl)
-      {
-         Operator *oper_M;
-         Mnl->FormLinearSystem(ess_flux_tdof_list, x, b, oper_M, X_, B_, copy_interior);
-         opM.Reset(oper_M);
-      }
       else
       {
          if (Mnl_u)
          {
             Mnl_u->SetEssentialTrueDofs(ess_flux_tdof_list);
+            B_b.GetBlock(0).SetSubVector(ess_flux_tdof_list, 0.);
             block_op->SetDiagonalBlock(0, Mnl_u.get());
+         }
+         else if (Mnl)
+         {
+            Array<Array<int>*> ess_tdof_lists
+            {
+               const_cast<Array<int>*>(&ess_flux_tdof_list),
+               const_cast<Array<int>*>(&ess_pot_tdof_list)
+            };
+            Mnl->SetEssentialTrueDofs(ess_tdof_lists);
+            B_b.GetBlock(0).SetSubVector(ess_flux_tdof_list, 0.);
          }
 
          if (P)
@@ -635,7 +638,6 @@ void DarcyForm::FormLinearSystem(const Array<int> &ess_flux_tdof_list,
       }
 
       // potential
-      Array<int> ess_pot_tdof_list;//empty for discontinuous potentials
       if (M_p)
       {
          Operator *oper_M;
@@ -687,7 +689,7 @@ void DarcyForm::FormLinearSystem(const Array<int> &ess_flux_tdof_list,
          block_op->SetBlock(1, 0, opB.Ptr(), (bsym)?(-1.):(+1.));
       }
 
-      if (Mnl && opM.Ptr())
+      if (Mnl)
       {
          A.Reset(this, false);
       }
@@ -825,9 +827,12 @@ void DarcyForm::FormSystemMatrix(const Array<int> &ess_flux_tdof_list,
       }
       else if (Mnl)
       {
-         Operator *oper_M;
-         Mnl->FormSystemOperator(ess_flux_tdof_list, oper_M);
-         opM.Reset(oper_M);
+         Array<Array<int>*> ess_tdof_lists
+         {
+            const_cast<Array<int>*>(&ess_flux_tdof_list),
+            const_cast<Array<int>*>(&ess_pot_tdof_list)
+         };
+         Mnl->SetEssentialTrueDofs(ess_tdof_lists);
       }
 
       if (M_p)
@@ -1477,31 +1482,27 @@ void DarcyForm::EliminateVDofsInRHS(const Array<int> &vdofs_flux,
    {
       M_u->EliminateVDofsInRHS(vdofs_flux, x.GetBlock(0), b.GetBlock(0));
    }
-   else if (Mnl_u && opM_u.Ptr())
+   else if (Mnl_u || Mnl)
    {
-      opM_u.As<ConstrainedOperator>()->EliminateRHS(x.GetBlock(0), b.GetBlock(0));
-   }
-   else if (Mnl && opM.Ptr())
-   {
-      opM.As<ConstrainedOperator>()->EliminateRHS(x, b);
+      b.GetBlock(0).SetSubVector(vdofs_flux, 0.);
    }
 }
 
 void DarcyForm::Mult(const Vector &x, Vector &y) const
 {
    block_op->Mult(x, y);
-   if (opM.Ptr())
+   if (Mnl)
    {
       if (bsym)
       {
          BlockVector ynl(toffsets);
-         opM->Mult(x, ynl);
+         Mnl->Mult(x, ynl);
          ynl.GetBlock(1).Neg();
          y += ynl;
       }
       else
       {
-         opM->AddMult(x, y);
+         Mnl->AddMult(x, y);
       }
    }
 }

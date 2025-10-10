@@ -218,10 +218,6 @@ void ParDarcyForm::Finalize(int skip_zeros)
       {
          M_u->Finalize(skip_zeros);
       }
-      else if (Mnl)
-      {
-         opM.Reset(Mnl.get(), false);
-      }
 
       if (M_p)
       {
@@ -352,9 +348,12 @@ void ParDarcyForm::FormSystemMatrix(const Array<int> &ess_flux_tdof_list,
       }
       else if (Mnl)
       {
-         Operator *oper_M;
-         pMnl->FormSystemOperator(ess_flux_tdof_list, oper_M);
-         opM.Reset(oper_M);
+         Array<Array<int>*> ess_tdof_lists
+         {
+            const_cast<Array<int>*>(&ess_flux_tdof_list),
+            const_cast<Array<int>*>(&ess_pot_tdof_list)
+         };
+         pMnl->SetEssentialTrueDofs(ess_tdof_lists);
       }
 
       if (pM_p)
@@ -494,13 +493,9 @@ void ParDarcyForm::ParallelEliminateTDofsInRHS(const Array<int> &tdofs_flux,
    {
       pM_u->ParallelEliminateTDofsInRHS(tdofs_flux, x.GetBlock(0), b.GetBlock(0));
    }
-   else if (Mnl_u && opM_u.Ptr())
+   else if (pMnl_u || pMnl)
    {
-      opM_u.As<ConstrainedOperator>()->EliminateRHS(x.GetBlock(0), b.GetBlock(0));
-   }
-   else if (Mnl && opM.Ptr())
-   {
-      opM.As<ConstrainedOperator>()->EliminateRHS(x, b);
+      b.GetBlock(0).SetSubVector(tdofs_flux, 0.);
    }
 }
 
@@ -529,18 +524,18 @@ void ParDarcyForm::Mult(const Vector &x, Vector &y) const
 void ParDarcyForm::ParOperator::Mult(const Vector &x, Vector &y) const
 {
    darcy.block_op->Mult(x, y);
-   if (darcy.opM.Ptr())
+   if (darcy.pMnl)
    {
       if (darcy.bsym)
       {
          BlockVector ynl(darcy.toffsets);
-         darcy.opM->Mult(x, ynl);
+         darcy.pMnl->Mult(x, ynl);
          ynl.GetBlock(1).Neg();
          y += ynl;
       }
       else
       {
-         darcy.opM->AddMult(x, y);
+         darcy.pMnl->AddMult(x, y);
       }
    }
 }

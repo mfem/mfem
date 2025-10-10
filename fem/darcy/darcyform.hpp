@@ -36,7 +36,7 @@ protected:
    std::unique_ptr<BlockNonlinearForm> Mnl;
    std::unique_ptr<LinearForm> b_u, b_p;
 
-   mutable OperatorHandle opM_u, opM_p, opB, opBt, opM, opG;
+   mutable OperatorHandle opM_u, opM_p, opB, opBt, opG;
 
    /// The assembly level of the form (full, partial, etc.)
    AssemblyLevel assembly{AssemblyLevel::LEGACY};
