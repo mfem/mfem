@@ -600,8 +600,7 @@ void DarcyForm::FormLinearSystem(const Array<int> &ess_flux_tdof_list,
 
       BlockVector X_b(X_, toffsets), B_b(B_, toffsets);
 
-      Array<int> ess_pot_tdof_list;//empty for discontinuous potentials
-
+      // flux
       if (M_u)
       {
          M_u->FormLinearSystem(ess_flux_tdof_list, x.GetBlock(0), b.GetBlock(0), opM_u,
@@ -637,33 +636,35 @@ void DarcyForm::FormLinearSystem(const Array<int> &ess_flux_tdof_list,
          }
       }
 
+      // potential
+      Array<int> ess_pot_tdof_list;//empty for discontinuous potentials
       if (M_p)
       {
-         M_p->FormLinearSystem(ess_pot_tdof_list, x.GetBlock(1), b.GetBlock(1), opM_p,
-                               X_b.GetBlock(1), B_b.GetBlock(1), copy_interior);
+         Operator *oper_M;
+         M_p->FormSystemOperator(ess_pot_tdof_list, oper_M);
+         opM_p.Reset(oper_M);
          block_op->SetDiagonalBlock(1, opM_p.Ptr(), (bsym)?(-1.):(+1.));
       }
       else if (Mnl_p)
       {
          block_op->SetDiagonalBlock(1, Mnl_p.get(), (bsym)?(-1.):(+1.));
       }
-      else
+      
+      if (P)
       {
-         if (P)
-         {
-            B_b.GetBlock(1) = b.GetBlock(1);
-         }
-
-         if (copy_interior && P)
-         {
-            X_b.GetBlock(1) = x.GetBlock(1);
-         }
-         else
-         {
-            X_b.GetBlock(1) = 0.;
-         }
+         B_b.GetBlock(1) = b.GetBlock(1);
       }
 
+      if (copy_interior && P)
+      {
+         X_b.GetBlock(1) = x.GetBlock(1);
+      }
+      else
+      {
+         X_b.GetBlock(1) = 0.;
+      }
+
+      // divergence
       if (B)
       {
          Vector bp(fes_p->GetVSize()), Bp;
