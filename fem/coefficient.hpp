@@ -1332,8 +1332,8 @@ public:
    /// Get the coefficient located at (i,j) in the matrix.
    Coefficient* GetCoeff (int i, int j) { return Coeff[i*width+j]; }
 
-   /** @brief Set the coefficient located at (i,j) in the matrix.  By default by
-       default this will take ownership of the Coefficient passed in, but this
+   /** @brief Set the coefficient located at (i,j) in the matrix.  By default
+       this will take ownership of the Coefficient passed in, but this
        can be overridden with the @a own parameter. */
    void Set(int i, int j, Coefficient * c, bool own=true);
 
