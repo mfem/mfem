@@ -25,7 +25,10 @@ void FillWithRandomNumbers(Vector &x, real_t a, real_t b)
    std::random_device rd;
    std::mt19937 gen(rd());
    std::uniform_real_distribution<> dis(a, b);
-   for (double &v :x) { v = dis(gen); };
+   for (int i = 0; i < x.Size(); i++)
+   {
+      x[i] = dis(gen);
+   }
 }
 
 void TestDivShape(Mesh *mesh, int order)
