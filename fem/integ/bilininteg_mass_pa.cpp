@@ -88,9 +88,10 @@ void MassIntegrator::AssemblePABoundary(const FiniteElementSpace &fes)
    Mesh *mesh = fes.GetMesh();
    ne = mesh->GetNFbyType(FaceType::Boundary);
    if (ne == 0) { return; }
-   const FiniteElement &el = *fes.GetBE(0);
-   ElementTransformation *T0 = mesh->GetBdrElementTransformation(0);
-   const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, el, *T0);
+   const FiniteElement &el = *fes.GetTypicalTraceElement();
+   ElementTransformation *T0 = mesh->GetFaceTransformation(0);
+   const IntegrationRule *ir =
+      IntRule ? IntRule : GetDefaultIntegrationRule(el, el, *T0);
 
    int map_type = el.GetMapType();
    dim = el.GetDim(); // Dimension of the boundary element, *not* the mesh
@@ -199,6 +200,58 @@ void MassIntegrator::AddAbsMultTransposePA(const Vector &x, Vector &y) const
 {
    // Mass integrator is symmetric
    AddAbsMultPA(x, y);
+}
+
+void BoundaryMassIntegrator::AssemblePABoundaryFaces(const FiniteElementSpace
+                                                     &fes)
+{
+   AssemblePABoundary(fes);
+}
+
+void BoundaryMassIntegrator::AssembleDiagonalPA(Vector &diag)
+{
+   const int ndof = internal::ipow(dofs1D, dim);
+   z1.SetSize(ne * ndof);
+   MassIntegrator::AssembleDiagonalPA(z1);
+
+   const auto d_z = Reshape(z1.Read(), ndof, ne);
+   auto d_diag = Reshape(diag.Write(), ndof, 2, ne);
+
+   mfem::forall(ne * ndof, [=] MFEM_HOST_DEVICE (int ii)
+   {
+      const int i = ii % ndof;
+      const int e = ii / ndof;
+      d_diag(i, 0, e) = d_z(i, e);
+   });
+}
+
+void BoundaryMassIntegrator::AddMultPA(const Vector &x, Vector &y) const
+{
+   const int ndof = internal::ipow(dofs1D, dim);
+   z1.SetSize(ne * ndof);
+   z2.SetSize(ne * ndof);
+
+   const auto d_x = Reshape(x.Read(), ndof, 2, ne);
+   auto d_z1 = Reshape(z1.Write(), ndof, ne);
+   auto d_z2 = Reshape(z2.Write(), ndof, ne);
+   mfem::forall(ne * ndof, [=] MFEM_HOST_DEVICE (int ii)
+   {
+      const int i = ii % ndof;
+      const int e = ii / ndof;
+      d_z1(i, e) = d_x(i, 0, e);
+      d_z2(i, e) = 0.0;
+   });
+
+   MassIntegrator::AddMultPA(z1, z2);
+
+   z2.Read(); // Ensure d_z2 (from before) is up to date.
+   auto d_y = Reshape(y.ReadWrite(), ndof, 2, ne);
+   mfem::forall(ne * ndof, [=] MFEM_HOST_DEVICE (int ii)
+   {
+      const int i = ii % ndof;
+      const int e = ii / ndof;
+      d_y(i, 0, e) += d_z2(i, e);
+   });
 }
 
 } // namespace mfem

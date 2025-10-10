@@ -1461,6 +1461,12 @@ const IntegrationRule &MassIntegrator::GetRule(const FiniteElement &trial_fe,
    return IntRules.Get(trial_fe.GetGeomType(), order);
 }
 
+const IntegrationRule &BoundaryMassIntegrator::GetRule(
+   const FiniteElement& el, const ElementTransformation &T)
+{
+   const int order = 2 * el.GetOrder();
+   return IntRules.Get(T.GetGeometryType(), order);
+}
 
 void BoundaryMassIntegrator::AssembleFaceMatrix(
    const FiniteElement &el1, const FiniteElement &el2,
@@ -1479,12 +1485,7 @@ void BoundaryMassIntegrator::AssembleFaceMatrix(
    shape.SetSize(nd1);
 
    const IntegrationRule *ir = IntRule;
-   if (ir == NULL)
-   {
-      int order = 2 * el1.GetOrder();
-
-      ir = &IntRules.Get(Trans.GetGeometryType(), order);
-   }
+   if (ir == NULL) { ir = &GetRule(el1, Trans); }
 
    elmat = 0.0;
    for (int i = 0; i < ir->GetNPoints(); i++)
