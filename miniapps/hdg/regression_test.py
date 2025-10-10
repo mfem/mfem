@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
-# This is the regression testing script for ex5-nguygen
-# The reference cases are stored in the regress_test folder
+# This is the regression testing script for (p)nguyen
+# The reference cases are stored in the regress_test(_par) folder
 
 import os
 import sys
@@ -78,6 +78,8 @@ for i, filename in enumerate(filenames):
 	order = int(get_ref_param(filename, '--order'))
 	nx = int(get_ref_param(filename, '--ncells-x'))
 	ny = int(get_ref_param(filename, '--ncells-y'))
+	mesh = str(get_ref_param(filename, '--mesh'))
+	ref = int(get_ref_param(filename, "--ref-levels", "-1"))
 	kappa = float(get_ref_param(filename, '--kappa', "1"))
 	hdg = int(get_ref_param(filename, '--hdg_scheme', "1"))
 	nls = int(get_ref_param(filename, '--nonlinear-solver', "0"))
@@ -100,8 +102,12 @@ for i, filename in enumerate(filenames):
 	else:
 		command_line = "./nguyen -no-vis"
 
-	command_line += f" -nx {nx}"
-	command_line += f" -ny {ny}"
+	if nx > 0:
+		command_line += f" -nx {nx}"
+		command_line += f" -ny {ny}"
+	else:
+		command_line += f" -m {mesh}"
+		command_line += f" -r {ref}"
 	command_line += f" -p {problem}"
 	command_line += f" -o {order}"
 	if dg:
