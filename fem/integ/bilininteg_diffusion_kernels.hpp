@@ -108,7 +108,7 @@ inline void PADiffusionDiagonal2D(const int NE,
    // store necessary entries
    auto D = Reshape(d.Read(), Q1D*Q1D, symmetric ? 3 : 4, NE);
    auto Y = Reshape(y.ReadWrite(), D1D, D1D, NE);
-   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
+   mfem::forall(NE, [=, symmetric = proteus::jit_variable(symmetric)] MFEM_HOST_DEVICE (int e)
    {
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -191,7 +191,7 @@ inline void SmemPADiffusionDiagonal2D(const int NE,
    auto g = Reshape(g_.Read(), Q1D, D1D);
    auto D = Reshape(d_.Read(), Q1D*Q1D, symmetric ? 3 : 4, NE);
    auto Y = Reshape(y_.ReadWrite(), D1D, D1D, NE);
-   mfem::forall_2D_batch(NE, Q1D, Q1D, NBZ, [=] MFEM_HOST_DEVICE (int e)
+   mfem::forall_2D_batch(NE, Q1D, Q1D, NBZ, [=, symmetric = proteus::jit_variable(symmetric)] MFEM_HOST_DEVICE (int e)
    {
       const int tidz = MFEM_THREAD_ID(z);
       const int D1D = T_D1D ? T_D1D : d1d;
@@ -285,7 +285,7 @@ inline void PADiffusionDiagonal3D(const int NE,
    auto G = Reshape(g.Read(), Q1D, D1D);
    auto Q = Reshape(d.Read(), Q1D*Q1D*Q1D, symmetric ? 6 : 9, NE);
    auto Y = Reshape(y.ReadWrite(), D1D, D1D, D1D, NE);
-   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
+   mfem::forall(NE, [=, symmetric = proteus::jit_variable(symmetric)] MFEM_HOST_DEVICE (int e)
    {
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -386,7 +386,7 @@ inline void SmemPADiffusionDiagonal3D(const int NE,
    auto g = Reshape(g_.Read(), Q1D, D1D);
    auto D = Reshape(d_.Read(), Q1D*Q1D*Q1D, symmetric ? 6 : 9, NE);
    auto Y = Reshape(y_.ReadWrite(), D1D, D1D, D1D, NE);
-   mfem::forall_3D(NE, Q1D, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int e)
+   mfem::forall_3D(NE, Q1D, Q1D, Q1D, [=, symmetric = proteus::jit_variable(symmetric)] MFEM_HOST_DEVICE (int e)
    {
       const int tidz = MFEM_THREAD_ID(z);
       const int D1D = T_D1D ? T_D1D : d1d;
@@ -534,7 +534,7 @@ inline void PADiffusionApply2D(const int NE,
    auto D = Reshape(d_.Read(), Q1D*Q1D, symmetric ? 3 : 4, NE);
    auto X = Reshape(x_.Read(), D1D, D1D, NE);
    auto Y = Reshape(y_.ReadWrite(), D1D, D1D, NE);
-   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
+   mfem::forall(NE, [=, symmetric = proteus::jit_variable(symmetric)] MFEM_HOST_DEVICE (int e)
    {
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -658,7 +658,7 @@ inline void SmemPADiffusionApply2D(const int NE,
    auto D = Reshape(d_.Read(), Q1D*Q1D, symmetric ? 3 : 4, NE);
    auto x = Reshape(x_.Read(), D1D, D1D, NE);
    auto Y = Reshape(y_.ReadWrite(), D1D, D1D, NE);
-   mfem::forall_2D_batch(NE, Q1D, Q1D, NBZ, [=] MFEM_HOST_DEVICE(int e)
+   mfem::forall_2D_batch(NE, Q1D, Q1D, NBZ, [=, symmetric = proteus::jit_variable(symmetric)] MFEM_HOST_DEVICE(int e)
    {
       const int tidz = MFEM_THREAD_ID(z);
       const int D1D = T_D1D ? T_D1D : d1d;
@@ -815,7 +815,7 @@ inline void PADiffusionApply3D(const int NE,
    auto D = Reshape(d_.Read(), Q1D*Q1D*Q1D, symmetric ? 6 : 9, NE);
    auto X = Reshape(x_.Read(), D1D, D1D, D1D, NE);
    auto Y = Reshape(y_.ReadWrite(), D1D, D1D, D1D, NE);
-   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
+   mfem::forall(NE, [=, symmetric = proteus::jit_variable(symmetric)] MFEM_HOST_DEVICE (int e)
    {
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -1010,7 +1010,7 @@ inline void SmemPADiffusionApply3D(const int NE,
    auto x = Reshape(x_.Read(), D1D, D1D, D1D, NE);
    auto y = Reshape(y_.ReadWrite(), D1D, D1D, D1D, NE);
    MFEM_VERIFY(D1D <= Q1D, "THREAD_DIRECT requires D1D <= Q1D");
-   mfem::forall_3D(NE, Q1D, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int e)
+   mfem::forall_3D(NE, Q1D, Q1D, Q1D, [=, symmetric = proteus::jit_variable(symmetric)] MFEM_HOST_DEVICE (int e)
    {
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;

@@ -132,19 +132,19 @@ struct Problem : public BakeOff<VDIM, GLL>
 
 /// Bake-off Problems (BPs)
 #define BakeOff_Problem(i, Kernel, VDIM, p_eq_q)                     \
-   static void BP##i(bm::State &state)                               \
+   static void BP##i##Kernel(bm::State &state)                               \
    {                                                                 \
       Problem<Kernel##Integrator, VDIM, p_eq_q> ker(state.range(0)); \
       while (state.KeepRunning()) { ker.benchmark(); }               \
       state.counters["MDof/s"] =                                     \
          bm::Counter(ker.SumMdofs(), bm::Counter::kIsRate);          \
    }                                                                 \
-   BENCHMARK(BP##i)->DenseRange(1, 6)->Unit(bm::kMillisecond);
+   BENCHMARK(BP##i##Kernel)->DenseRange(1, 8)->Unit(bm::kMillisecond);
 
-/// BP1: scalar PCG with mass matrix, q=p+2
+// BP1: scalar PCG with mass matrix, q=p+2
 BakeOff_Problem(1, Mass, 1, false)
 
-/// BP2: vector PCG with mass matrix, q=p+2
+// /// BP2: vector PCG with mass matrix, q=p+2
 BakeOff_Problem(2, VectorMass, 3, false)
 
 /// BP3: scalar PCG with stiffness matrix, q=p+2
@@ -191,14 +191,14 @@ struct Kernel : public BakeOff<VDIM, GLL>
 
 /// Generic CEED BKi
 #define BakeOff_Kernel(i, KER, VDIM, GLL)                      \
-   static void BK##i(bm::State &state)                         \
+   static void BK##i##KER(bm::State &state)                         \
    {                                                           \
       Kernel<KER##Integrator, VDIM, GLL> ker(state.range(0));  \
       while (state.KeepRunning()) { ker.benchmark(); }         \
       state.counters["MDof/s"] =                               \
          bm::Counter(ker.SumMdofs(), bm::Counter::kIsRate);    \
    }                                                           \
-   BENCHMARK(BK##i)->DenseRange(1, 6)->Unit(bm::kMillisecond);
+   BENCHMARK(BK##i##KER)->DenseRange(1, 8)->Unit(bm::kMillisecond);
 
 /// BK1: scalar E-vector-to-E-vector evaluation of mass matrix, q=p+2
 BakeOff_Kernel(1, Mass, 1, false)
