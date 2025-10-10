@@ -806,6 +806,15 @@ void BlockNonlinearForm::SetEssentialBC(
    }
 }
 
+void BlockNonlinearForm::SetEssentialTrueDofs(const Array<Array<int> *>
+                                              &ess_tdof_lists)
+{
+   for (int s = 0; s < fes.Size(); ++s)
+   {
+      *ess_tdofs[s] = *ess_tdof_lists[s];
+   }
+}
+
 real_t BlockNonlinearForm::GetEnergyBlocked(const BlockVector &bx) const
 {
    Array<Array<int> *> vdofs(fes.Size());

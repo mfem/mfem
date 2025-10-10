@@ -418,6 +418,8 @@ public:
    virtual void SetEssentialBC(const Array<Array<int> *>&bdr_attr_is_ess,
                                Array<Vector *> &rhs);
 
+   void SetEssentialTrueDofs(const Array<Array<int>*> &ess_tdof_lists);
+
    virtual real_t GetEnergy(const Vector &x) const;
 
    /// Method is only called in serial, the parallel version calls MultBlocked
