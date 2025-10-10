@@ -342,7 +342,9 @@ int main(int argc, char *argv[])
    bool weakBC = true;
    bool pa = false;
    const char *device_config = "cpu";
-   bool visualization = 1;
+   bool visualization = true;
+   bool visit = false;
+   bool paraview = false;
    real_t mu = 1.0;
    real_t penalty = -1.0;
    int problem = 0;
@@ -375,6 +377,12 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&visit, "-visit", "--visit-datafiles", "-no-visit",
+                  "--no-visit-datafiles",
+                  "Save data files for VisIt (visit.llnl.gov) visualization.");
+   args.AddOption(&paraview, "-paraview", "--paraview-datafiles", "-no-paraview",
+                  "--no-paraview-datafiles",
+                  "Save data files for ParaView (paraview.org) visualization.");
 
    // Solver parameters
    args.AddOption(&rtol, "-lt", "--linear-tolerance",
@@ -597,7 +605,7 @@ int main(int argc, char *argv[])
    chrono.Start();
    BilinearForm kVarf(&u_space);
    kVarf.AddDomainIntegrator(new VectorFEDiffusionIntegrator(mu_cf));
-   if (weakBC) { kVarf.AddBdrFaceIntegrator(new DGDiffusionIntegrator(mu_cf, -1.0, penalty)); }
+   if (weakBC) { kVarf.AddBdrFaceIntegrator(new VectorFEDGDiffusionIntegrator(mu_cf, -1.0, penalty)); }
    kVarf.Assemble();
    if (!weakBC) { kVarf.EliminateEssentialBC(ess_bdr, u_gf, *fform); }
    kVarf.Finalize();
@@ -778,12 +786,14 @@ int main(int argc, char *argv[])
    }
 
    // Save data in the VisIt format
-   if (false)
+   if (visit)
    {
       // Define a traditional NURBS space as long as ViSit does not read to new Vector FEs
-      FiniteElementSpace ui_space(mesh, p_space.StealNURBSext(), l2_coll, dim);
+      FiniteElementSpace ui_space(mesh,
+                                  new NURBSExtension(mesh->NURBSext, order),
+                                  l2_coll, dim);
       GridFunction ui_gf(&ui_space);
-      ui_gf.ProjectCoefficient(uh_cf);
+     // ui_gf.ProjectCoefficient(uh_cf); Only works after PR #4326 is accepted
 
       VisItDataCollection visit_dc("Stokes", mesh);
       visit_dc.RegisterField("velocity", &ui_gf);
@@ -792,12 +802,14 @@ int main(int argc, char *argv[])
    }
 
    // Save data in the ParaView format
-   if (false)
+   if (paraview)
    {
       // Define a traditional NURBS space as long as Paraview does not read to new Vector FEs
-      FiniteElementSpace ui_space(mesh, p_space.StealNURBSext(), l2_coll, dim);
+      FiniteElementSpace ui_space(mesh,
+                                  new NURBSExtension(mesh->NURBSext, order),
+                                  l2_coll, dim);
       GridFunction ui_gf(&ui_space);
-      ui_gf.ProjectCoefficient(uh_cf);
+     // ui_gf.ProjectCoefficient(uh_cf); Only works after PR #4326 is accepted
 
       ParaViewDataCollection paraview_dc("Stokes", mesh);
       paraview_dc.SetPrefixPath("ParaView");
