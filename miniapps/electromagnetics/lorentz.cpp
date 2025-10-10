@@ -128,11 +128,13 @@ protected:
 
    mutable Vector pxB_, pm_, pp_;
 
-   static void GetValues(const MultiVector &coords, FindPointsGSLIB &finder, GridFunction &gf, MultiVector &pv);
+   static void GetValues(const MultiVector &coords, FindPointsGSLIB &finder,
+                         GridFunction &gf, MultiVector &pv);
    void ParticleStep(Particle &part, real_t &dt);
 public:
 
-   Boris(MPI_Comm comm, GridFunction *E_gf_, GridFunction *B_gf_, int num_particles, Ordering::Type pdata_ordering);
+   Boris(MPI_Comm comm, GridFunction *E_gf_, GridFunction *B_gf_,
+         int num_particles, Ordering::Type pdata_ordering);
    void InterpolateEB();
    void Step(real_t &t, real_t &dt);
    void RemoveLostParticles();
@@ -151,7 +153,9 @@ int ReadGridFunction(std::string coll_name, std::string field_name,
                      std::unique_ptr<VisItDataCollection> &dc, ParGridFunction *&gf);
 
 // Initialize particles from user input.
-void InitializeChargedParticles(ParticleSet &particles, const Vector &pos_min, const Vector &pos_max, const Vector &x_init, const Vector &p_init, real_t m, real_t q);
+void InitializeChargedParticles(ParticleSet &particles, const Vector &pos_min,
+                                const Vector &pos_max, const Vector &x_init, const Vector &p_init, real_t m,
+                                real_t q);
 
 int main(int argc, char *argv[])
 {
@@ -183,23 +187,35 @@ int main(int argc, char *argv[])
                   "Number of digits in B field cycle.");
    args.AddOption(&ctx.B.pad_digits_rank, "-bpdr", "--b-pad-digits-rank",
                   "Number of digits in B field MPI rank.");
-   args.AddOption(&ctx.redist_freq, "-rdf", "--redist-freq", "Redistribution frequency.");
-   args.AddOption(&ctx.redist_mesh, "-rdm", "--redistribution-mesh", "Particle domain mesh for redistribution. 0 for E field mesh. 1 for B field mesh.");
-   args.AddOption(&ctx.rm_lost_freq, "-rmf", "--remove-lost-freq", "Remove lost particles frequency.");
-   args.AddOption(&ctx.ordering, "-o", "--ordering", "Ordering of particle data. 0 = byNODES, 1 = byVDIM.");
-   args.AddOption(&ctx.npt, "-npt", "--num-particles", "Total number of particles.");
+   args.AddOption(&ctx.redist_freq, "-rdf", "--redist-freq",
+                  "Redistribution frequency.");
+   args.AddOption(&ctx.redist_mesh, "-rdm", "--redistribution-mesh",
+                  "Particle domain mesh for redistribution. 0 for E field mesh. 1 for B field mesh.");
+   args.AddOption(&ctx.rm_lost_freq, "-rmf", "--remove-lost-freq",
+                  "Remove lost particles frequency.");
+   args.AddOption(&ctx.ordering, "-o", "--ordering",
+                  "Ordering of particle data. 0 = byNODES, 1 = byVDIM.");
+   args.AddOption(&ctx.npt, "-npt", "--num-particles",
+                  "Total number of particles.");
    args.AddOption(&ctx.m, "-m", "--mass", "Particles' mass.");
    args.AddOption(&ctx.q, "-q", "--charge", "Particles' charge.");
-   args.AddOption(&ctx.x_min, "-xmin", "--x-min", "Minimum initial particle location.");
-   args.AddOption(&ctx.x_max, "-xmax", "--x-max", "Maximum initial particle location.");
-   args.AddOption(&ctx.p_min, "-pmin", "--p-min", "Minimum initial particle momentum.");
-   args.AddOption(&ctx.p_max, "-pmax", "--p-max", "Maximum initial particle momentum.");
+   args.AddOption(&ctx.x_min, "-xmin", "--x-min",
+                  "Minimum initial particle location.");
+   args.AddOption(&ctx.x_max, "-xmax", "--x-max",
+                  "Maximum initial particle location.");
+   args.AddOption(&ctx.p_min, "-pmin", "--p-min",
+                  "Minimum initial particle momentum.");
+   args.AddOption(&ctx.p_max, "-pmax", "--p-max",
+                  "Maximum initial particle momentum.");
    args.AddOption(&ctx.dt, "-dt", "--time-step", "Time Step.");
    args.AddOption(&ctx.t0, "-t0", "--initial-time", "Initial Time.");
    args.AddOption(&ctx.nt, "-nt", "--num-timesteps", "Number of timesteps.");
-   args.AddOption(&ctx.visualization, "-vis", "--visualization", "-no-vis", "--no-visualization", "Enable or disable GLVis visualization.");
-   args.AddOption(&ctx.vis_tail_size, "-vt", "--vis-tail-size", "GLVis visualization trajectory truncation tail size.");
-   args.AddOption(&ctx.vis_freq, "-vf", "--vis-freq", "GLVis visualization frequency.");
+   args.AddOption(&ctx.visualization, "-vis", "--visualization", "-no-vis",
+                  "--no-visualization", "Enable or disable GLVis visualization.");
+   args.AddOption(&ctx.vis_tail_size, "-vt", "--vis-tail-size",
+                  "GLVis visualization trajectory truncation tail size.");
+   args.AddOption(&ctx.vis_freq, "-vf", "--vis-freq",
+                  "GLVis visualization frequency.");
    args.AddOption(&ctx.visport, "-p", "--send-port", "Socket for GLVis.");
 
    args.Parse();
@@ -240,12 +256,14 @@ int main(int argc, char *argv[])
       }
    }
 
-   Ordering::Type ordering_type = ctx.ordering == 0 ? Ordering::byNODES : Ordering::byVDIM;
+   Ordering::Type ordering_type = ctx.ordering == 0 ? Ordering::byNODES :
+                                  Ordering::byVDIM;
 
    // Initialize Boris
    int num_particles = ctx.npt/size + (rank < (ctx.npt % size) ? 1 : 0);
    Boris boris(MPI_COMM_WORLD, E_gf, B_gf, num_particles, ordering_type);
-   InitializeChargedParticles(boris.GetParticles(), ctx.x_min, ctx.x_max, ctx.p_min, ctx.p_max, ctx.m, ctx.q);
+   InitializeChargedParticles(boris.GetParticles(), ctx.x_min, ctx.x_max,
+                              ctx.p_min, ctx.p_max, ctx.m, ctx.q);
    boris.InterpolateEB(); // Interpolate E and B field onto updated particle positions
 
    real_t t = ctx.t0;
@@ -257,7 +275,9 @@ int main(int argc, char *argv[])
    std::unique_ptr<ParticleTrajectories> traj_vis;
    if (ctx.visualization)
    {
-      traj_vis = std::make_unique<ParticleTrajectories>(boris.GetParticles(), ctx.vis_tail_size, vishost, ctx.visport, "Particle Trajectories", 0, 0, 800, 800, "ba");
+      traj_vis = std::make_unique<ParticleTrajectories>(boris.GetParticles(),
+                                                        ctx.vis_tail_size, vishost, ctx.visport, "Particle Trajectories", 0, 0, 800,
+                                                        800, "ba");
    }
 
    for (int step = 1; step <= ctx.nt; step++)
@@ -270,7 +290,7 @@ int main(int argc, char *argv[])
       }
 
       // Visualize trajectories
-      if(ctx.visualization && step % ctx.vis_freq == 0)
+      if (ctx.visualization && step % ctx.vis_freq == 0)
       {
          traj_vis->Visualize();
       }
@@ -286,14 +306,17 @@ int main(int argc, char *argv[])
       }
 
       // Redistribute
-      if (ctx.redist_freq > 0 && step % ctx.redist_freq == 0 && boris.GetParticles().GetGlobalNP() > 0)
+      if (ctx.redist_freq > 0 && step % ctx.redist_freq == 0 &&
+          boris.GetParticles().GetGlobalNP() > 0)
       {
          // Visualize particles pre-redistribute
          if (ctx.visualization)
          {
             Vector rank_vector(boris.GetParticles().GetNP());
             rank_vector = Mpi::WorldRank();
-            VisualizeParticles(pre_redist_sock, vishost, ctx.visport, boris.GetParticles(), rank_vector, 1e-2, "Particle Owning Rank (Pre-Redistribute)", 410, 0, 400, 400, "bca");
+            VisualizeParticles(pre_redist_sock, vishost, ctx.visport, boris.GetParticles(),
+                               rank_vector, 1e-2, "Particle Owning Rank (Pre-Redistribute)", 410, 0, 400, 400,
+                               "bca");
             char c;
             if (Mpi::Root())
             {
@@ -311,7 +334,9 @@ int main(int argc, char *argv[])
          {
             Vector rank_vector(boris.GetParticles().GetNP());
             rank_vector = Mpi::WorldRank();
-            VisualizeParticles(post_redist_sock, vishost, ctx.visport, boris.GetParticles(), rank_vector, 1e-2, "Particle Owning Rank (Post-Redistribute)", 820, 0, 400, 400, "bca");
+            VisualizeParticles(post_redist_sock, vishost, ctx.visport, boris.GetParticles(),
+                               rank_vector, 1e-2, "Particle Owning Rank (Post-Redistribute)", 820, 0, 400, 400,
+                               "bca");
             char c;
             if (Mpi::Root())
             {
@@ -328,13 +353,15 @@ int main(int argc, char *argv[])
    }
 }
 
-void Boris::GetValues(const MultiVector &coords, FindPointsGSLIB &finder, GridFunction &gf, MultiVector &pv)
+void Boris::GetValues(const MultiVector &coords, FindPointsGSLIB &finder,
+                      GridFunction &gf, MultiVector &pv)
 {
    Mesh &mesh = *gf.FESpace()->GetMesh();
    mesh.EnsureNodes();
    finder.FindPoints(mesh, coords, coords.GetOrdering());
    finder.Interpolate(gf, pv);
-   Ordering::Reorder(pv, pv.GetVDim(), gf.FESpace()->GetOrdering(), pv.GetOrdering());
+   Ordering::Reorder(pv, pv.GetVDim(), gf.FESpace()->GetOrdering(),
+                     pv.GetOrdering());
 }
 
 void Boris::ParticleStep(Particle &part, real_t &dt)
@@ -379,11 +406,12 @@ void Boris::ParticleStep(Particle &part, real_t &dt)
 }
 
 
-Boris::Boris(MPI_Comm comm, GridFunction *E_gf_, GridFunction *B_gf_, int num_particles, Ordering::Type pdata_ordering)
-: E_gf(E_gf_),
-  B_gf(B_gf_),
-  E_finder(comm),
-  B_finder(comm)
+Boris::Boris(MPI_Comm comm, GridFunction *E_gf_, GridFunction *B_gf_,
+             int num_particles, Ordering::Type pdata_ordering)
+   : E_gf(E_gf_),
+     B_gf(B_gf_),
+     E_finder(comm),
+     B_finder(comm)
 {
    MFEM_VERIFY(E_gf || B_gf, "Must pass an E field or B field to Boris.");
 
@@ -393,7 +421,8 @@ Boris::Boris(MPI_Comm comm, GridFunction *E_gf_, GridFunction *B_gf_, int num_pa
    {
       int E_dim = E_mesh->SpaceDimension();
       int B_dim = B_mesh->SpaceDimension();
-      MFEM_VERIFY(E_dim == B_dim, "E mesh and B mesh must have the same spatial dimension.");
+      MFEM_VERIFY(E_dim == B_dim,
+                  "E mesh and B mesh must have the same spatial dimension.");
    }
    if (E_gf)
    {
@@ -412,7 +441,8 @@ Boris::Boris(MPI_Comm comm, GridFunction *E_gf_, GridFunction *B_gf_, int num_pa
 
    // Create particle set: 2 scalars of mass and charge, 3 vectors of size space dim for momentum, e field, and b field
    Array<int> field_vdims({1, 1, dim, dim, dim});
-   charged_particles = std::make_unique<ParticleSet>(comm, ctx.npt, dim, field_vdims, pdata_ordering);
+   charged_particles = std::make_unique<ParticleSet>(comm, ctx.npt, dim,
+                                                     field_vdims, pdata_ordering);
 }
 
 void Boris::InterpolateEB()
@@ -476,7 +506,7 @@ void Boris::RemoveLostParticles()
 
    for (const int &elem : E_lost)
    {
-         lost_idxs.Union(elem);
+      lost_idxs.Union(elem);
    }
 
    for (const int &elem : B_lost)
@@ -539,7 +569,9 @@ int ReadGridFunction(std::string coll_name, std::string field_name,
    return 0;
 }
 
-void InitializeChargedParticles(ParticleSet &charged_particles, const Vector &x_min, const Vector &x_max, const Vector &p_min, const Vector &p_max, real_t m, real_t q)
+void InitializeChargedParticles(ParticleSet &charged_particles,
+                                const Vector &x_min, const Vector &x_max, const Vector &p_min,
+                                const Vector &p_max, real_t m, real_t q)
 {
    int rank;
    MPI_Comm_rank(charged_particles.GetComm(), &rank);
