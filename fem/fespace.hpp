@@ -24,29 +24,6 @@
 namespace mfem
 {
 
-/** @brief The ordering method used when the number of unknowns per mesh node
-    (vector dimension) is bigger than 1. */
-class Ordering
-{
-public:
-   /// %Ordering methods:
-   enum Type
-   {
-      byNODES, /**< loop first over the nodes (inner loop) then over the vector
-                    dimension (outer loop); symbolically it can be represented
-                    as: XXX...,YYY...,ZZZ... */
-      byVDIM   /**< loop first over the vector dimension (inner loop) then over
-                    the nodes (outer loop); symbolically it can be represented
-                    as: XYZ,XYZ,XYZ,... */
-   };
-
-   template <Type Ord>
-   static inline int Map(int ndofs, int vdim, int dof, int vd);
-
-   template <Type Ord>
-   static void DofsToVDofs(int ndofs, int vdim, Array<int> &dofs);
-};
-
 /// @brief Type describing possible layouts for Q-vectors.
 /// @sa QuadratureInterpolator and FaceQuadratureInterpolator.
 enum class QVectorLayout
@@ -63,20 +40,6 @@ enum class QVectorLayout
        - vector RT/ND spaces, values: SDIM x NQPT x NE (vdim = 1). */
    byVDIM
 };
-
-template <> inline int
-Ordering::Map<Ordering::byNODES>(int ndofs, int vdim, int dof, int vd)
-{
-   MFEM_ASSERT(dof < ndofs && -1-dof < ndofs && 0 <= vd && vd < vdim, "");
-   return (dof >= 0) ? dof+ndofs*vd : dof-ndofs*vd;
-}
-
-template <> inline int
-Ordering::Map<Ordering::byVDIM>(int ndofs, int vdim, int dof, int vd)
-{
-   MFEM_ASSERT(dof < ndofs && -1-dof < ndofs && 0 <= vd && vd < vdim, "");
-   return (dof >= 0) ? vd+vdim*dof : -1-(vd+vdim*(-1-dof));
-}
 
 /// Constants describing the possible orderings of the DOFs in one element.
 enum class ElementDofOrdering

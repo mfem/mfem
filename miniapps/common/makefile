@@ -41,7 +41,7 @@ ifneq (clean,$(MAKECMDGOALS))
    override shared = $(if $(MFEM_SHARED:YES=),,YES)
 endif
 
-SEQ_MINIOBJS = mesh_extras.o fem_extras.o
+SEQ_MINIOBJS = mesh_extras.o fem_extras.o particles_extras.o
 ifeq ($(MFEM_USE_MPI),NO)
    MINIOBJS = $(SEQ_MINIOBJS)
 else
