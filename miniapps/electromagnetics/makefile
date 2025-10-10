@@ -21,7 +21,10 @@ MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
 SEQ_MINIAPPS =
-PAR_MINIAPPS = volta tesla maxwell joule lorentz
+PAR_MINIAPPS = volta tesla maxwell joule
+ifeq ($(MFEM_USE_GSLIB), YES)
+   PAR_MINIAPPS += lorentz
+endif
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
 else
