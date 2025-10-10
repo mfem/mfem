@@ -2720,8 +2720,9 @@ void FiniteElementSpace::BuildNURBSFaceToDofTable() const
    {
       int b = face_to_be[f];
       if (b == -1) { continue; }
-      // FIXME: this assumes that the boundary element and the face element have
-      //        the same orientation.
+
+      // Check if the boundary element and the face element have
+      // the same vertices.
       if (dim > 1)
       {
          const Element *fe = mesh->GetFace(f);
@@ -2731,7 +2732,16 @@ void FiniteElementSpace::BuildNURBSFaceToDofTable() const
          const int *bv = be->GetVertices();
          for (int i = 0; i < nv; i++)
          {
-            MFEM_VERIFY(fv[i] == bv[i],
+            bool found = false;
+            for (int j = 0; j < nv; j++)
+            {
+                if (fv[i] == bv[j])
+                {
+                  found = true;
+                  break;
+                }
+            }
+            MFEM_VERIFY(found,
                         "non-matching face and boundary elements detected!");
          }
       }
