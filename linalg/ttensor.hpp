@@ -78,6 +78,24 @@ struct TensorOps<1> // rank = 1
          mfem::Assign<Op>(A_data[A_layout.ind(i1)], B_data[B_layout.ind(i1)]);
       }
    }
+
+   // Assign: A {=,+=,*=} B
+   template <AssignOp::Type Op,
+             typename A_layout_t, typename A_data_t,
+             typename B_layout_t, typename B_data_t>
+   MFEM_HOST_DEVICE
+   static void AssignHD(const A_layout_t &A_layout, A_data_t &A_data,
+                        const B_layout_t &B_layout, const B_data_t &B_data)
+   {
+      MFEM_STATIC_ASSERT(A_layout_t::rank == 1 && B_layout_t::rank == 1,
+                         "invalid ranks");
+      MFEM_STATIC_ASSERT(A_layout_t::dim_1 == B_layout_t::dim_1,
+                         "invalid dimensions");
+      for (int i1 = 0; i1 < A_layout_t::dim_1; i1++)
+      {
+         mfem::AssignHD<Op>(A_data[A_layout.ind(i1)], B_data[B_layout.ind(i1)]);
+      }
+   }
 };
 
 template <>
@@ -281,6 +299,19 @@ inline void TAssign(const A_layout_t &A_layout, A_data_t &A_data,
    template Assign<Op>(A_layout, A_data, B_layout, B_data);
 }
 
+// Tensor assign function: A {=,+=,*=} B that allows different input and output
+// layouts. With suitable layouts this function can be used to permute
+// (transpose) tensors, extract sub-tensors, etc.
+template <AssignOp::Type Op,
+          typename A_layout_t, typename A_data_t,
+          typename B_layout_t, typename B_data_t>
+MFEM_HOST_DEVICE
+inline void TAssignHD(const A_layout_t &A_layout, A_data_t &A_data,
+                      const B_layout_t &B_layout, const B_data_t &B_data)
+{
+   internal::TensorOps<A_layout_t::rank>::
+   template AssignHD<Op>(A_layout, A_data, B_layout, B_data);
+}
 
 // classes TVector, TMatrix, TTensor3, TTensor4
 
