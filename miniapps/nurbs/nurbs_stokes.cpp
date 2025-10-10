@@ -604,7 +604,7 @@ int main(int argc, char *argv[])
    ConstantCoefficient minus(-1.0);
    MixedBilinearForm gVarf(&p_space, &u_space);
    gVarf.AddDomainIntegrator(new TransposeIntegrator(new
-                                                        VectorFEDivergenceIntegrator(-1.0)));
+                                                     VectorFEDivergenceIntegrator(-1.0)));
    gVarf.AddBdrTraceFaceIntegrator(new NormalTraceIntegrator(1.0));
    gVarf.Assemble();
    if (boundary_conditions != BC::WEAK) {gVarf.EliminateTestEssentialBC(ess_bdr);}
@@ -758,7 +758,7 @@ int main(int argc, char *argv[])
                                   new NURBSExtension(mesh->NURBSext, order),
                                   l2_coll, dim);
       GridFunction ui_gf(&ui_space);
-     // ui_gf.ProjectCoefficient(uh_cf); Only works after PR #4326 is accepted
+      // ui_gf.ProjectCoefficient(uh_cf); Only works after PR #4326 is accepted
 
       VisItDataCollection visit_dc("Stokes", mesh);
       visit_dc.RegisterField("velocity", &ui_gf);
@@ -774,7 +774,7 @@ int main(int argc, char *argv[])
                                   new NURBSExtension(mesh->NURBSext, order),
                                   l2_coll, dim);
       GridFunction ui_gf(&ui_space);
-     // ui_gf.ProjectCoefficient(uh_cf); Only works after PR #4326 is accepted
+      // ui_gf.ProjectCoefficient(uh_cf); Only works after PR #4326 is accepted
 
       ParaViewDataCollection paraview_dc("Stokes", mesh);
       paraview_dc.SetPrefixPath("ParaView");

@@ -62,9 +62,9 @@ void TestDivShape(Mesh *mesh, int order)
          for (int d=0; d<dof; d++)
          {
             double div = 0;
-            for (int i=0; i<dim; i++)
+            for (int j=0; j<dim; j++)
             {
-               div += dvshape(d,i,i);
+               div += dvshape(d,j,j);
             }
             REQUIRE(fabs(div - div_shape[d]) < 1e-10);
          }
