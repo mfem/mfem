@@ -607,14 +607,6 @@ void DarcyForm::FormLinearSystem(const Array<int> &ess_flux_tdof_list,
                                X_b.GetBlock(0), B_b.GetBlock(0), copy_interior);
          block_op->SetDiagonalBlock(0, opM_u.Ptr());
       }
-      else if (Mnl_u)
-      {
-         Operator *oper_M;
-         Mnl_u->FormLinearSystem(ess_flux_tdof_list, x.GetBlock(0), b.GetBlock(0),
-                                 oper_M, X_b.GetBlock(0), B_b.GetBlock(0), copy_interior);
-         opM_u.Reset(oper_M);
-         block_op->SetDiagonalBlock(0, opM_u.Ptr());
-      }
       else if (Mnl)
       {
          Operator *oper_M;
@@ -623,6 +615,12 @@ void DarcyForm::FormLinearSystem(const Array<int> &ess_flux_tdof_list,
       }
       else
       {
+         if (Mnl_u)
+         {
+            Mnl_u->SetEssentialTrueDofs(ess_flux_tdof_list);
+            block_op->SetDiagonalBlock(0, Mnl_u.get());
+         }
+
          if (P)
          {
             P->MultTranspose(b.GetBlock(0), B_b.GetBlock(0));
@@ -649,7 +647,7 @@ void DarcyForm::FormLinearSystem(const Array<int> &ess_flux_tdof_list,
       {
          block_op->SetDiagonalBlock(1, Mnl_p.get(), (bsym)?(-1.):(+1.));
       }
-      
+
       if (P)
       {
          B_b.GetBlock(1) = b.GetBlock(1);
@@ -822,10 +820,8 @@ void DarcyForm::FormSystemMatrix(const Array<int> &ess_flux_tdof_list,
       }
       else if (Mnl_u)
       {
-         Operator *oper_M;
-         Mnl_u->FormSystemOperator(ess_flux_tdof_list, oper_M);
-         opM_u.Reset(oper_M);
-         block_op->SetDiagonalBlock(0, opM_u.Ptr());
+         Mnl_u->SetEssentialTrueDofs(ess_flux_tdof_list);
+         block_op->SetDiagonalBlock(0, Mnl_u.get());
       }
       else if (Mnl)
       {
