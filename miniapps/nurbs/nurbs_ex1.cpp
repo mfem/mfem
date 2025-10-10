@@ -210,8 +210,8 @@ int main(int argc, char *argv[])
    // 2. Read the mesh from the given mesh file. We can handle triangular,
    //    quadrilateral, tetrahedral, hexahedral, surface and volume meshes with
    //    the same code.
-   Mesh *mesh = new Mesh(mesh_file, 1, 1);
-   int dim = mesh->Dimension();
+   Mesh mesh(mesh_file, 1, 1);
+   int dim = mesh.Dimension();
 
    // 3. Refine the mesh to increase the resolution. In this example we do
    //    'ref_levels' of uniform refinement and knot insertion of knots defined
@@ -219,22 +219,22 @@ int main(int argc, char *argv[])
    //    that gives a final mesh with no more than 50,000 elements.
    {
       // Mesh refinement as defined in refinement file
-      if (mesh->NURBSext && (strlen(ref_file) != 0))
+      if (mesh.NURBSext && (strlen(ref_file) != 0))
       {
-         mesh->RefineNURBSFromFile(ref_file);
+         mesh.RefineNURBSFromFile(ref_file);
       }
 
       if (ref_levels < 0)
       {
          ref_levels =
-            (int)floor(log(5000./mesh->GetNE())/log(2.)/dim);
+            (int)floor(log(5000./mesh.GetNE())/log(2.)/dim);
       }
 
       for (int l = 0; l < ref_levels; l++)
       {
-         mesh->UniformRefinement();
+         mesh.UniformRefinement();
       }
-      mesh->PrintInfo();
+      mesh.PrintInfo();
    }
 
    // Read periodic BCs from file
@@ -254,67 +254,76 @@ int main(int argc, char *argv[])
    // 4. Define a finite element space on the mesh. Here we use continuous
    //    Lagrange finite elements of the specified order. If order < 1, we
    //    instead use an isoparametric/isogeometric space.
-   FiniteElementCollection *fec;
-   NURBSExtension *NURBSext = nullptr;
-   FiniteElementSpace *fespace = nullptr;
-   int own_fec = 0;
+   unique_ptr<FiniteElementCollection> fec;
+   // unique_ptr<NURBSExtension> NURBSext;
+   NURBSExtension* NURBSext;
+   bool isogeometric = false;
+   // unique_ptr<FiniteElementSpace> fespace;
 
    if (order.Size() == 0)
    {
       mfem_error("Order has size 0");
    }
-   else if (order[0] == 0) // Isoparametric
+   else if (order[0] == 0) // Isogeometric
    {
-      if (mesh->GetNodes())
+      if (mesh.GetNodes())
       {
-         fec = mesh->GetNodes()->OwnFEC();
-         own_fec = 0;
-         cout << "Using isoparametric FEs: " << fec->Name() << endl;
+         isogeometric = true;
+         cout << "Using isogeometric FEs: " << mesh.GetNodes()->OwnFEC()->Name() << endl;
+         // fespace.reset(new FiniteElementSpace(&mesh, NURBSext.get(), mesh_fec));
       }
       else
       {
          cout <<"Mesh does not have FEs --> Assume order 1.\n";
-         fec = new H1_FECollection(1, dim);
-         own_fec = 1;
+         fec.reset(new H1_FECollection(1, dim));
+         // fespace.reset(new FiniteElementSpace(&mesh, NURBSext.get(), fec.get()));
       }
-      fespace = new FiniteElementSpace(mesh, NURBSext, fec);
    }
-   else if (mesh->NURBSext && (order[0] > 0))
+   else if (mesh.NURBSext && (order[0] > 0))
    {
       if (order.Size() == 1)
       {
-         fec = new NURBSFECollection(order[0]);
-         own_fec = 1;
-         fespace = new FiniteElementSpace(mesh,master,slave,fec);
+         fec.reset(new NURBSFECollection(order[0]));
+         // NURBSext.reset(new NURBSExtension(mesh.NURBSext, order[0]));
+         // NURBSext.reset(new NURBSExtension(mesh.NURBSext, fec->GetOrder()));
+         NURBSext = new NURBSExtension(mesh.NURBSext, fec->GetOrder());
+         // fespace = new FiniteElementSpace(&mesh,master,slave,fec.get());
       }
       else
       {
-         fec = new NURBSFECollection(-1);
-         own_fec = 1;
-         NURBSext = new NURBSExtension(mesh->NURBSext, order);
-         NURBSext->ConnectBoundaries(master,slave);
-         fespace = new FiniteElementSpace(mesh,NURBSext,fec);
+         fec.reset(new NURBSFECollection(-1));
+         // NURBSext.reset(new NURBSExtension(mesh.NURBSext, order));
+         NURBSext = new NURBSExtension(mesh.NURBSext, order);
+         // fespace = new FiniteElementSpace(&mesh,NURBSext.get(),fec.get());
       }
+      NURBSext->ConnectBoundaries(master,slave);
    }
    else
    {
       if (order.Size() > 1) { cout <<"Wrong number of orders set, needs one.\n"; }
-      fec = new H1_FECollection(abs(order[0]), dim);
-      own_fec = 1;
-      fespace = new FiniteElementSpace(mesh, fec);
+      fec.reset(new H1_FECollection(abs(order[0]), dim));
+      // fespace = new FiniteElementSpace(&mesh, fec.get());
    }
 
+   // FiniteElementCollection *fec_ = (isogeometric) ? mesh_fec : fec.get();
+   // FiniteElementSpace fespace(&mesh, NURBSext.get(), fec_);
+
+   FiniteElementSpace fespace = (isogeometric)
+      ? FiniteElementSpace::IsogeometricConstructor(&mesh)
+      : FiniteElementSpace(&mesh, NURBSext, fec.get());
+   // fespace.reset(new FiniteElementSpace.IsogeometricConstructor(&mesh));
+
    cout << "Number of finite element unknowns: "
-        << fespace->GetTrueVSize() << endl;
+        << fespace.GetTrueVSize() << endl;
 
    if (!ibp)
    {
-      if (!mesh->NURBSext)
+      if (!mesh.NURBSext)
       {
          cout << "No integration by parts requires a NURBS mesh."<< endl;
          return 2;
       }
-      if (mesh->NURBSext->GetNP()>1)
+      if (mesh.NURBSext->GetNP()>1)
       {
          cout << "No integration by parts requires a NURBS mesh, with only 1 patch."<<
               endl;
@@ -337,11 +346,11 @@ int main(int argc, char *argv[])
    Array<int> ess_bdr(0);
    Array<int> neu_bdr(0);
    Array<int> per_bdr(0);
-   if (mesh->bdr_attributes.Size())
+   if (mesh.bdr_attributes.Size())
    {
-      ess_bdr.SetSize(mesh->bdr_attributes.Max());
-      neu_bdr.SetSize(mesh->bdr_attributes.Max());
-      per_bdr.SetSize(mesh->bdr_attributes.Max());
+      ess_bdr.SetSize(mesh.bdr_attributes.Max());
+      neu_bdr.SetSize(mesh.bdr_attributes.Max());
+      per_bdr.SetSize(mesh.bdr_attributes.Max());
 
       ess_bdr = 1;
       neu_bdr = 0;
@@ -351,7 +360,7 @@ int main(int argc, char *argv[])
       for (int i = 0; i < neu.Size(); i++)
       {
          if ( neu[i]-1 >= 0 &&
-              neu[i]-1 < mesh->bdr_attributes.Max())
+              neu[i]-1 < mesh.bdr_attributes.Max())
          {
             ess_bdr[neu[i]-1] = 0;
             neu_bdr[neu[i]-1] = 1;
@@ -366,7 +375,7 @@ int main(int argc, char *argv[])
       for (int i = 0; i < master.Size(); i++)
       {
          if ( master[i]-1 >= 0 &&
-              master[i]-1 < mesh->bdr_attributes.Max())
+              master[i]-1 < mesh.bdr_attributes.Max())
          {
             ess_bdr[master[i]-1] = 0;
             neu_bdr[master[i]-1] = 0;
@@ -380,7 +389,7 @@ int main(int argc, char *argv[])
       for (int i = 0; i < slave.Size(); i++)
       {
          if ( slave[i]-1 >= 0 &&
-              slave[i]-1 < mesh->bdr_attributes.Max())
+              slave[i]-1 < mesh.bdr_attributes.Max())
          {
             ess_bdr[slave[i]-1] = 0;
             neu_bdr[slave[i]-1] = 0;
@@ -405,55 +414,55 @@ int main(int argc, char *argv[])
    ConstantCoefficient mone(-1.0);
    ConstantCoefficient zero(0.0);
 
-   LinearForm *b = new LinearForm(fespace);
-   b->AddDomainIntegrator(new DomainLFIntegrator(one));
-   b->AddBoundaryIntegrator( new BoundaryLFIntegrator(one),neu_bdr);
+   LinearForm b(&fespace);
+   b.AddDomainIntegrator(new DomainLFIntegrator(one));
+   b.AddBoundaryIntegrator( new BoundaryLFIntegrator(one),neu_bdr);
    if (!strongBC)
-      b->AddBdrFaceIntegrator(
+      b.AddBdrFaceIntegrator(
          new DGDirichletLFIntegrator(zero, one, -1.0, kappa), ess_bdr);
 
-   b->Assemble();
+   b.Assemble();
 
    // 7. Define the solution vector x as a finite element grid function
    //    corresponding to fespace. Initialize x with initial guess of zero,
    //    which satisfies the boundary conditions.
-   GridFunction x(fespace);
+   GridFunction x(&fespace);
    x = 0.0;
 
    // 8. Set up the bilinear form a(.,.) on the finite element space
    //    corresponding to the Laplacian operator -Delta, by adding the Diffusion
    //    domain integrator.
-   BilinearForm *a = new BilinearForm(fespace);
+   BilinearForm a(&fespace);
    if (ibp)
    {
-      a->AddDomainIntegrator(new DiffusionIntegrator(one));
+      a.AddDomainIntegrator(new DiffusionIntegrator(one));
    }
    else
    {
-      a->AddDomainIntegrator(new Diffusion2Integrator(one));
-      a->AddBdrFaceIntegrator(new DGDiffusionIntegrator(mone, 0.0, 0.0), neu_bdr);
+      a.AddDomainIntegrator(new Diffusion2Integrator(one));
+      a.AddBdrFaceIntegrator(new DGDiffusionIntegrator(mone, 0.0, 0.0), neu_bdr);
    }
 
    if (!strongBC)
    {
-      a->AddBdrFaceIntegrator(new DGDiffusionIntegrator(one, -1.0, kappa), ess_bdr);
+      a.AddBdrFaceIntegrator(new DGDiffusionIntegrator(one, -1.0, kappa), ess_bdr);
    }
 
    // 9. Assemble the bilinear form and the corresponding linear system,
    //    applying any necessary transformations such as: eliminating boundary
    //    conditions, applying conforming constraints for non-conforming AMR,
    //    static condensation, etc.
-   if (static_cond) { a->EnableStaticCondensation(); }
-   a->Assemble();
+   if (static_cond) { a.EnableStaticCondensation(); }
+   a.Assemble();
 
    SparseMatrix A;
    Vector B, X;
    Array<int> ess_tdof_list(0);
    if (strongBC)
    {
-      fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+      fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
    }
-   a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
+   a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
 
    cout << "Size of linear system: " << A.Height() << endl;
 
@@ -471,14 +480,14 @@ int main(int argc, char *argv[])
 #endif
 
    // 11. Recover the solution as a finite element grid function.
-   a->RecoverFEMSolution(X, *b, x);
+   a.RecoverFEMSolution(X, b, x);
 
    // 12. Save the refined mesh and the solution. This output can be viewed later
    //     using GLVis: "glvis -m refined.mesh -g sol.gf".
    {
       ofstream mesh_ofs("refined.mesh");
       mesh_ofs.precision(8);
-      mesh->Print(mesh_ofs);
+      mesh.Print(mesh_ofs);
       ofstream sol_ofs("sol.gf");
       sol_ofs.precision(8);
       x.Save(sol_ofs);
@@ -491,24 +500,24 @@ int main(int argc, char *argv[])
       char vishost[] = "localhost";
       socketstream sol_sock(vishost, visport);
       sol_sock.precision(8);
-      sol_sock << "solution\n" << *mesh << x << flush;
+      sol_sock << "solution\n" << mesh << x << flush;
    }
 
-   if (mesh->Dimension() == 1 && lod > 0)
+   if (mesh.Dimension() == 1 && lod > 0)
    {
       std::list<Data> sol;
 
       Vector      vals,coords;
-      GridFunction *nodes = mesh->GetNodes();
+      GridFunction *nodes = mesh.GetNodes();
       if (!nodes)
       {
-         nodes = new GridFunction(fespace);
-         mesh->GetNodes(*nodes);
+         nodes = new GridFunction(&fespace);
+         mesh.GetNodes(*nodes);
       }
 
-      for (int i = 0; i <  mesh->GetNE(); i++)
+      for (int i = 0; i <  mesh.GetNE(); i++)
       {
-         int geom       = mesh->GetElementBaseGeometry(i);
+         int geom       = mesh.GetElementBaseGeometry(i);
          RefinedGeometry *refined_geo = GlobGeometryRefiner.Refine(( Geometry::Type)geom,
                                                                    lod, 1);
 
@@ -532,16 +541,9 @@ int main(int argc, char *argv[])
    }
 
    // 14. Save data in the VisIt format
-   VisItDataCollection visit_dc("Example1", mesh);
+   VisItDataCollection visit_dc("Example1", &mesh);
    visit_dc.RegisterField("solution", &x);
    visit_dc.Save();
-
-   // 15. Free the used memory.
-   delete a;
-   delete b;
-   delete fespace;
-   if (own_fec) { delete fec; }
-   delete mesh;
 
    return 0;
 }
