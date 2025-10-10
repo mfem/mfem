@@ -26,16 +26,14 @@ void FillWithRandomNumbers(Vector &x, real_t a, real_t b)
    std::mt19937 gen(rd());
    std::uniform_real_distribution<> dis(a, b);
    for (double &v :x) { v = dis(gen); };
-   
-   
- //  for (int i = 0; double &v :x) { v = i*b/x.Size(); };
 }
 
 void TestDivShape(Mesh *mesh, int order)
 {
    const int dim = mesh->Dimension();
    NURBS_HDivFECollection vfe_coll(order,dim);
-   FiniteElementSpace fes(mesh, new NURBSExtension(mesh->NURBSext, order), &vfe_coll);
+   FiniteElementSpace fes(mesh, new NURBSExtension(mesh->NURBSext, order),
+                          &vfe_coll);
 
    Vector div_shape;
    DenseTensor dvshape;
@@ -80,7 +78,8 @@ void TestCurlShape(Mesh *mesh, int order)
 {
    const int dim = mesh->Dimension();
    NURBS_HCurlFECollection vfe_coll(order,dim);
-   FiniteElementSpace fes(mesh, new NURBSExtension(mesh->NURBSext, order), &vfe_coll);
+   FiniteElementSpace fes(mesh, new NURBSExtension(mesh->NURBSext, order),
+                          &vfe_coll);
 
    DenseMatrix curl_shape;
    DenseTensor dvshape;
