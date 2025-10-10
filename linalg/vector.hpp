@@ -756,7 +756,30 @@ inline real_t InnerProduct(MPI_Comm comm, const Vector &x, const Vector &y)
    MPI_Allreduce(&loc_prod, &glb_prod, 1, MFEM_MPI_REAL_T, MPI_SUM, comm);
    return glb_prod;
 }
+
+/// Returns the square of the Euclidean distance between two vectors in parallel
+/** In parallel this computes the square of the Euclidean distance of the local
+    vectors, producing identical results on each MPI rank.*/
+inline real_t DistanceSquared(MPI_Comm comm, const real_t *x, const real_t *y,
+                              const int n)
+{
+   real_t d = DistanceSquared(x, y, n);
+   real_t glb_d;
+   MPI_Allreduce(&d, &glb_d, 1, MFEM_MPI_REAL_T, MPI_SUM, comm);
+   return glb_d;
+}
+
+inline real_t DistanceSquared(MPI_Comm comm, const Vector &x, const Vector &y)
+{
+   MFEM_ASSERT(x.Size() == y.Size(), "Incompatible vector sizes.");
+   real_t d = x.DistanceSquaredTo(y);
+   real_t glb_d;
+   MPI_Allreduce(&d, &glb_d, 1, MFEM_MPI_REAL_T, MPI_SUM, comm);
+   return glb_d;
+}
 #endif
+
+
 
 } // namespace mfem
 
