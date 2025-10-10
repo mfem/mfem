@@ -2735,11 +2735,11 @@ void FiniteElementSpace::BuildNURBSFaceToDofTable() const
             bool found = false;
             for (int j = 0; j < nv; j++)
             {
-                if (fv[i] == bv[j])
-                {
+               if (fv[i] == bv[j])
+               {
                   found = true;
                   break;
-                }
+               }
             }
             MFEM_VERIFY(found,
                         "non-matching face and boundary elements detected!");
