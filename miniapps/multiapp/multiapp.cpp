@@ -4,6 +4,21 @@ namespace mfem
 {
 
 
+FieldTransfer* FieldTransfer::Select(ParFiniteElementSpace *src,
+                                     ParFiniteElementSpace *tar, 
+                                     Type type)
+{
+    switch (type)
+    {
+        case Type::NATIVE:
+            return new NativeTransfer(src, tar);
+        case Type::GSLIB:
+            return new GSLibTransfer(src, tar);
+        default:
+            MFEM_ABORT("Unknown FieldTransfer scheme: " << static_cast<int>(type));
+    }
+}    
+
 OperatorCoupler* OperatorCoupler::Select(CoupledOperator *op, 
                                          Scheme scheme)
 {

@@ -59,6 +59,10 @@ public:
 
     virtual void Transfer(const ParGridFunction &src, ParGridFunction &tar) = 0;
     virtual ~FieldTransfer() {}
+
+    static MFEM_EXPORT FieldTransfer* Select(ParFiniteElementSpace *src,
+                                             ParFiniteElementSpace *tar,
+                                             Type type);    
 };
 
 /**
@@ -280,6 +284,70 @@ public:
     }
 };
 
+/// @brief Base class for storing fields (GridFunctions) and distinguishing
+/// between types of fields (e.g., source vs target).
+class Field
+{
+private:
+#ifdef MFEM_USE_MPI    
+   MPI_Comm comm = MPI_COMM_NULL;
+#endif 
+    bool is_source = false;
+    bool is_target = false;
+
+protected:
+    ParGridFunction *gf = nullptr;
+
+public:
+    Field(ParGridFunction *gf_, bool is_src, bool is_tar) : 
+          is_source(is_src), is_target(is_tar), gf(gf_)
+    {
+#ifdef MFEM_USE_MPI    
+            comm = gf->ParFESpace()->GetComm();
+#endif 
+    }
+
+    ///@brief Get the stored ParGridFunction
+    virtual ParGridFunction* GetGridFunction() { return gf; }
+
+    ///@brief Set the internal ParGridFunction
+    virtual void SetGridFunction(ParGridFunction *gf_) { gf = gf_; }
+
+    virtual bool IsSource() const { return is_source; }
+    virtual bool IsTarget() const { return is_target; }
+    virtual ~Field() {}
+};
+
+/// @brief Class for storing a ParGridFunction acting as a source field
+class SourceField : public Field
+{
+public:
+    SourceField(ParGridFunction *gf_) : Field(gf_, true, false){}
+    ~SourceField() {}
+};
+
+/// @brief Class for storing a ParGridFunction acting as a target field
+class TargetField : public Field
+{
+protected:
+    FieldTransfer *transfer_map = nullptr;
+    bool own_map = false;
+
+public:
+    TargetField(ParGridFunction *gf_, FieldTransfer *map, bool own=false) :
+                Field(gf_, false, true), transfer_map(map), own_map(own) {}
+
+    TargetField(ParGridFunction *gf_) : TargetField(gf_, nullptr, false) {}
+
+    ///@brief Get the FieldTransfer associated with this target field
+    virtual FieldTransfer* GetTransferMap() const { return transfer_map; }
+    
+    ~TargetField()
+    {
+        if(own_map && transfer_map) delete transfer_map;
+    }
+};
+
 
 /**
    @brief A class to handle variables and transfers between sources and multiple
@@ -287,86 +355,98 @@ public:
  */
 class LinkedFields 
 {
-protected:
+public:
     using Type = FieldTransfer::Type;
-    using Pair = std::tuple<ParGridFunction*, FieldTransfer*, bool>;
+    using Pair = std::pair<TargetField*, bool>;
+    Type default_transfer_type = Type::NATIVE;
+
+protected:
+
+    SourceField *source = nullptr;
+    ParGridFunction *src_gf = nullptr;
+    bool own_source = false;
 
     std::vector<Pair> targets;
-    ParGridFunction *source = nullptr;
-    int ndest;
+    int ndest = 0;
 
 public:
+
+    LinkedFields() = default;
 
     /**
        @brief Constructor given a source @a ParGridFunction.
 
        @param src Source @a ParGridFunction
      */
-    LinkedFields(ParGridFunction *src = nullptr) : source(src), ndest(0) {}
-    LinkedFields(ParGridFunction &src) : source(&src), ndest(0) {}
+    LinkedFields(ParGridFunction *src) : src_gf(src)
+    {
+        source = new SourceField(src_gf);
+        own_source = true;
+    }
 
     /**
-       @brief Constructor given a source and target @a ParGridFunction.
-
-       @param src Source @a ParGridFunction
-       @param tar Target @a ParGridFunction
+     * @brief Construct a new LinkedFields with only a source and empty target
      */
-    LinkedFields(ParGridFunction *src, ParGridFunction *tar) : source(src)
+    LinkedFields(SourceField *src, bool own=false) : source(src)
     {
-        AddTarget(tar);
+        src_gf = source->GetGridFunction();
+        own_source = own;
     }
 
-    LinkedFields(ParGridFunction &src, ParGridFunction &tar) : source(&src)
-    {
-        AddTarget(&tar);
-    }
 
     /**
        @brief Constructor given a source and target @a ParGridFunction.
 
        @param src Source  @a ParGridFunction
        @param tar Target  @a ParGridFunction
-       @param transfer_map  @a FieldTransfer from src to tar
+       @param transfer_map  @a FieldTransfer from src to tar (not owned)
      */
-    LinkedFields(ParGridFunction *src, ParGridFunction *tar, FieldTransfer *transfer_map) : source(src)
+    LinkedFields(ParGridFunction *src, ParGridFunction *tar, 
+                 FieldTransfer *transfer_map = nullptr) : LinkedFields(src)
     {
         AddTarget(tar, transfer_map);
     }
-    LinkedFields(ParGridFunction &src, ParGridFunction &tar, FieldTransfer &transfer_map) : source(&src)
-    {
-        AddTarget(&tar, &transfer_map);
-    }
 
     /**
-       @brief Set the source @a ParGridFunction.
+       @brief Set the source @a SourceField.
 
-       @param src Source  @a ParGridFunction
+       @param src Source  @a SourceField
      */
-    void SetSource(ParGridFunction *src) { source = src; }
+    void SetSource(SourceField *src, bool own=false)
+    {
+        if(own_source && source) delete source;
+        source = src;
+        own_source = own;
+    }
+
+    ///@brief Set the source @a ParGridFunction (does not own).
+    void SetSource(ParGridFunction *src)
+    {
+        if(own_source && source) delete source;
+        source = new SourceField(src);
+        own_source = true;
+    }
+
+    ///@brief Get the source @a ParGridFunction
+    ParGridFunction *GetSource() const { return src_gf;}
     
-    /**
-       @brief Adds the @a ParGridFunction, @a tar, to the list of targets.
-     */
-    void AddTarget(ParGridFunction *tar, Type transfer_type = Type::NATIVE)
-    {
-        if(transfer_type == Type::NATIVE)
-        {
-            targets.push_back(std::make_tuple(tar, new NativeTransfer(source, tar), true));
-        }
-        else if(transfer_type == Type::GSLIB)
-        {
-            targets.push_back(std::make_tuple(tar, new GSLibTransfer(source, tar), true));
-        }        
-        ndest++;
-    }
-
     /**
        @brief Adds the @a ParGridFunction, @a tar, with a specified 
        FieldTransfer operator, @a transfer_map, to the list of targets
      */
-    void AddTarget(ParGridFunction *tar, FieldTransfer *transfer_map)
+    void AddTarget(ParGridFunction *tar, FieldTransfer *transfer_map = nullptr)
     {
-        targets.push_back(std::make_tuple(tar, transfer_map, false));
+        FieldTransfer *map = transfer_map;
+        if(!map) map = FieldTransfer::Select( src_gf->ParFESpace(), tar->ParFESpace(),
+                                              default_transfer_type);
+        TargetField *target = new TargetField(tar, map, true);
+        AddTarget(target, true);
+    }
+
+    ///@brief Adds the @a TargetField, @a tar, to the list of targets
+    void AddTarget(TargetField *tar, bool own=false)
+    {
+        targets.push_back(std::make_pair(tar, own));
         ndest++;
     }
 
@@ -381,9 +461,9 @@ public:
      */
     virtual void Transfer(const Vector &vsrc, const int idest=-1)
     {
-        if(vsrc.Size() == source->ParFESpace()->GetVSize() )
+        if(vsrc.Size() == src_gf->ParFESpace()->GetVSize() )
         {   // Set GridFunction if the source vector is the same size.
-            source->SetFromTrueDofs(vsrc);
+            src_gf->SetFromTrueDofs(vsrc);
         }        
         Transfer(idest);
     }
@@ -396,14 +476,18 @@ public:
     {
         if(idest >= 0)
         {
-            auto [target, transfer_map, owned] = targets[idest];
-            transfer_map->Transfer(*source,*target);
+            auto [target, owned] = targets[idest];
+            FieldTransfer *transfer_map = target->GetTransferMap();
+            ParGridFunction *tar_gf = target->GetGridFunction();
+            transfer_map->Transfer(*src_gf,*tar_gf);
         }
         else
         {
             for (auto &destination : targets) {
-                auto [target, transfer_map, owned] = destination;
-                transfer_map->Transfer(*source,*target);
+                auto [target, owned] = destination;
+                FieldTransfer *transfer_map = target->GetTransferMap();
+                ParGridFunction *tar_gf = target->GetGridFunction();
+                transfer_map->Transfer(*src_gf,*tar_gf);
             }
         }
     }
@@ -411,10 +495,190 @@ public:
     virtual ~LinkedFields()
     {
         for (auto &dest : targets) {
-            auto [target, transfer_map, owned] = dest;
-            if(owned) delete transfer_map; // Delete the transfer map
+            auto [target, owned] = dest;
+            if(owned) delete target;
         }
     }
+};
+
+/// @brief A collection of LinkedFields, each identified by a name
+class LinkedFieldsCollection
+{
+private:    
+#ifdef MFEM_USE_MPI    
+   MPI_Comm comm = MPI_COMM_NULL;
+#endif 
+
+    std::string name; /// Name of the collection
+    Application *src_op = nullptr; /// Source Application (not owned)
+
+    /// Fields for source Application. Contains all source fields and fields that
+    /// may be targets of other applications.
+    NamedFieldsMap<ParGridFunction> fields;
+
+    /// LinkedFields for source Application.
+    NamedFieldsMap<LinkedFields> linked_fields;
+
+public:
+#ifdef MFEM_USE_MPI
+    LinkedFieldsCollection(MPI_Comm comm_, std::string collection_name = "",
+                           Application *src = nullptr) : name(collection_name),
+                           src_op(src) {comm = comm_;}
+#endif
+
+    LinkedFieldsCollection() = default;
+
+    /// @brief Constructor with collection name and optional source Application
+    LinkedFieldsCollection(std::string collection_name,
+                           Application *op = nullptr):
+                           name(collection_name), 
+                           src_op(op){}
+
+    /// @brief Constructor with source Application
+    LinkedFieldsCollection(Application *src):src_op(src){}
+
+    /// @brief Get the number of linked fields in the collection
+    int Size() const { return linked_fields.NumFields(); }
+
+    /// @brief Set the name of the collection
+    void SetName(const std::string &collection_name){ name = collection_name;}
+
+    /// @brief Get the name of the collection
+    std::string GetName() const { return name; }
+
+    /// @brief Set the source Application
+    void SetSource(Application *src){ src_op = src; }
+
+    /// @brief Get the source Application
+    const Application* GetSource() const { return src_op; }
+
+    /// @brief Get the ParGridFunction for a given source name
+    ParGridFunction *GetSourceField(const std::string &src_name) const
+    {
+        LinkedFields *lf = linked_fields.Get(src_name);
+        if(!lf)
+        {
+            // MFEM_WARNING("LinkedFieldsCollection::GetSourceField: Source field "
+            //              + src_name + " not found!");
+            return nullptr;
+        }
+        return lf->GetSource();
+    }
+
+    /// @brief Get the ParGridFunction for a given field name
+    ParGridFunction* GetField(const std::string &field_name) const
+    {
+        return fields.Get(field_name);
+    }
+
+    /// @brief Add a ParGridFunction as a field (does not specify source or target)
+    void AddField(const std::string &field_name,
+                  ParGridFunction *field_gf)
+    {
+        fields.Register(field_name, field_gf, false);
+    }
+
+    /// @brief Add a LinkedFields to the collection with name src_name
+    void AddLinkedFields(const std::string &src_name,
+                         LinkedFields *lf, bool own = false)
+    {
+        linked_fields.Register(src_name, lf, own);
+        fields.Register(src_name, lf->GetSource(), false);
+    }
+
+    /// @brief Add a source ParGridFunction to the collection. If src_name does not
+    /// exist, a new LinkedFields is created and owned.
+    void AddSourceField(const std::string &src_name, ParGridFunction *src_gf)
+    {
+        fields.Register(src_name, src_gf, false);        
+        LinkedFields *lf = linked_fields.Get(src_name);
+        if(!lf)
+        {
+            // MFEM_WARNING("LinkedFieldsCollection::AddSourceField: Source field "
+            //              + src_name + " not found!; Creating & owning "
+            //              "new LinkedField with src_gf.");
+            LinkedFields *lf = new LinkedFields(src_gf);
+            linked_fields.Register(src_name, lf, true);
+            return;
+        }
+        lf->SetSource(src_gf);        
+    }
+
+    /// @brief Add a target ParGridFunction (with an optional FieldTransfer) 
+    /// to the source named src_name. If src_name does not exist, a new 
+    /// LinkedFields is created and owned.
+    void AddTargetField(const std::string &src_name,
+                        ParGridFunction *tar_gf,
+                        FieldTransfer *transfer_map = nullptr)
+    {
+        LinkedFields *lf = linked_fields.Get(src_name);
+        if(!lf)
+        {
+            // MFEM_WARNING("LinkedFieldsCollection::AddTargetField: Source field "
+            //              + src_name + " not found!; Creating new field with "
+            //              " target only and empty source. Call AddSourceField "
+            //              "to set source.");
+            lf = new LinkedFields();
+            linked_fields.Register(src_name, lf, true);
+        }
+        lf->AddTarget(tar_gf, transfer_map);
+    }
+
+    /// @brief Transfer from source named src_nameto target named tar_name. The source 
+    /// GridFunction is set from vsrc. If src_name is empty and there is only one
+    /// source in the collection, it is used.
+    void Transfer(const std::string &src_name, const Vector &vsrc,
+                  const std::string &tar_name = "")
+    {
+        std::string sname = src_name;
+        if(sname.empty() && Size()>1)
+        {
+            MFEM_ABORT("LinkedFieldsCollection::Transfer: Source name is empty "
+                       "and there are multiple source fields! Specify source name.");
+        }
+        else if(sname.empty() && Size()==1)
+        {
+            sname = linked_fields.begin()->first;
+        }
+
+        LinkedFields *lf = linked_fields.Get(sname);
+        if(!lf)
+        {
+            MFEM_ABORT("LinkedFieldsCollection::Transfer: Source field "
+                         + sname + " not found!");
+        }
+        lf->Transfer(vsrc);
+    }
+
+    /// @brief Transfer from source named src_name to target named tar_name. If
+    /// src_name is empty, transfer from all sources, with internally stored 
+    /// GridFunctions, to all targets.
+    void Transfer(const std::string &src_name = "",
+                  const std::string &tar_name = "")
+    {
+        if(src_name.empty())
+        {
+            for (auto &field : linked_fields)
+            {
+                auto [name, lf] = field;
+                lf->Transfer();
+            }
+        }
+        else
+        {
+            LinkedFields *lf = linked_fields.Get(src_name);
+            if(!lf)
+            {
+                MFEM_ABORT("LinkedFieldsCollection::Transfer: Source field "
+                            + src_name + " not found!");
+            }
+            // lf->Transfer(tar_name=="" ? -1 : linked_fields.GetIndex(tar_name));
+            lf->Transfer();
+        }
+    }
+
+    ~LinkedFieldsCollection(){}
+
 };
 
 
@@ -452,13 +716,14 @@ protected:
 
     std::string name;
     int oper_index = numeric_limits<int>::max();
-    std::vector<LinkedFields*> linked_fields;            ///< List of linked fields
     OperatorType operator_type = OperatorType::ANY_TYPE; ///< Type of the operator
     OperationID operation_id = OperationID::NONE;        ///< Current operation ID
     bool is_coupled = false;
 
     std::function<void (Vector&)> pre_process_func; ///< Pre-process function
     std::function<void (Vector&)> post_process_func; ///< Post-process function
+
+    LinkedFieldsCollection field_collection; ///< Collection of linked fields
 
 public:
     /**
@@ -623,14 +888,19 @@ public:
     }
 
     /**
+       @brief Get the LinkedFieldsCollection for this Application.
+     */
+    LinkedFieldsCollection& Fields() { return field_collection; }
+
+    /**
        @brief Add a LinkedField @a field to the operator.
 
        @note The source field in the @a LinkedField should
        be from the current operator.
      */
-    virtual void AddLinkedFields(LinkedFields *field)
+    virtual void AddLinkedFields(const std::string &src_name, LinkedFields *field)
     {
-        linked_fields.push_back(field);
+        field_collection.AddLinkedFields(src_name, field);
     }
 
     /**
@@ -649,20 +919,28 @@ public:
     }
 
     /**
+       @brief Transfer the internally stored data defined in the LinkedFields
+       for current operator.
+     */
+    virtual void Transfer()
+    {
+        field_collection.Transfer();
+    }
+
+    /**
        @brief Transfer the data defined in the LinkedFields for current operator.
 
        @param x Information to transfer, e.g., current solution vector, stage update, etc.
      */
     virtual void Transfer(const Vector &x)
     {
-        int n = linked_fields.size();
-        if (n == 1)
+        if(field_collection.Size() == 1)
         {
-            linked_fields[0]->Transfer(x);
+            field_collection.Transfer("", x);
         }
         else
         {
-            Transfer();
+            Application::Transfer();
         }
     }
 
@@ -674,19 +952,6 @@ public:
     virtual void Transfer(const Vector &u, const Vector &k, real_t dt = 0.0)
     {
         Application::Transfer(u);
-    }
-
-    /**
-       @brief Transfer the internally stored data defined in the LinkedFields
-       for current operator.
-     */
-    virtual void Transfer()
-    {
-        int n = linked_fields.size();
-        for (int i = 0; i < n; i++)
-        {
-            linked_fields[i]->Transfer();
-        }
     }
 };
 
@@ -872,7 +1137,7 @@ public:
      */
     void Transfer(const Vector &x) override
     {
-        if (nested_op && (linked_fields.size() == 0)) 
+        if (nested_op && (field_collection.Size() == 0))
         {   // If this app does not have it's own linked_fields
             // call the nested_op's transfer
             nested_op->Transfer(x);
@@ -889,7 +1154,7 @@ public:
      */
     void Transfer(const Vector &u, const Vector &k, real_t dt = 0.0) override
     {
-        if (nested_op && (linked_fields.size() == 0)) 
+        if (nested_op && (field_collection.Size() == 0)) 
         {   // If this app does not have it's own linked_fields
             // call the nested_op's transfer
             nested_op->Transfer(u,k,dt);
@@ -902,7 +1167,7 @@ public:
 
     void Transfer() override
     {
-        if (nested_op && (linked_fields.size() == 0)) 
+        if (nested_op && (field_collection.Size() == 0)) 
         {   // If this app does not have it's own linked_fields
             // call the nested_op's transfer
             nested_op->Transfer();
@@ -1071,9 +1336,9 @@ public:
                                                );
         if(!consistent)
         {
-            MFEM_WARNING("Inconsistent block offsets provided "
-                         "to CoupledOperator::SetBlockOffsets(). "
-                         "Using default offsets.");
+            // MFEM_WARNING("Inconsistent block offsets provided "
+            //              "to CoupledOperator::SetBlockOffsets(). "
+            //              "Using default offsets.");
             return;
         }
         this->offsets = off_sets;
