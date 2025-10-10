@@ -2419,6 +2419,8 @@ public:
 
    void AssemblePABoundary(const FiniteElementSpace &fes) override;
 
+   void AssemblePABoundaryFaces(const FiniteElementSpace &fes) override;
+
    void AssembleEA(const FiniteElementSpace &fes, Vector &emat,
                    const bool add) override;
 

@@ -88,8 +88,8 @@ void MassIntegrator::AssemblePABoundary(const FiniteElementSpace &fes)
    Mesh *mesh = fes.GetMesh();
    ne = mesh->GetNFbyType(FaceType::Boundary);
    if (ne == 0) { return; }
-   const FiniteElement &el = *fes.GetBE(0);
-   ElementTransformation *T0 = mesh->GetBdrElementTransformation(0);
+   const FiniteElement &el = *fes.GetTypicalTraceElement();
+   ElementTransformation *T0 = mesh->GetFaceTransformation(0);
    const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, el, *T0);
 
    int map_type = el.GetMapType();
@@ -122,6 +122,11 @@ void MassIntegrator::AssemblePABoundary(const FiniteElementSpace &fes)
          v(q, e) = W(q) * coeff * (by_val ? detJ : 1.0 / detJ);
       });
    }
+}
+
+void MassIntegrator::AssemblePABoundaryFaces(const FiniteElementSpace &fes)
+{
+   AssemblePABoundary(fes);
 }
 
 void MassIntegrator::AssembleDiagonalPA(Vector &diag)
