@@ -563,23 +563,6 @@ void NURBS_HDiv2DFiniteElement::CalcPhysDVShape(ElementTransformation &Trans,
                   dvshape(d,i,k) += tshape(d,j,l)*JijJIlk ;
                }
             }
-
-   Vector div_shape(dof);
-   CalcPhysDivShape(Trans, div_shape);
-
-   for (int d=0; d<dof; d++)
-   {
-      double tmp = 0;
-      for (int i=0; i<dim; i++)
-      {
-         tmp += dvshape(d,i,i);
-      }
-      if (fabs(tmp - div_shape[d]) > 1e-10)
-      {
-         MFEM_ABORT("DIV ERROR");
-      }
-      // std::cout<<tmp - div_shape[d]<<std::endl;
-   }
 }
 
 NURBS_HDiv2DFiniteElement::~NURBS_HDiv2DFiniteElement()
@@ -781,7 +764,6 @@ void NURBS_HDiv3DFiniteElement::CalcDVShape(const IntegrationPoint &ip,
       }
    }
 
-
    for (int  k = 0; k <= orders[2]; k++)
    {
       const real_t sz = shape_z(k);
@@ -846,22 +828,6 @@ void NURBS_HDiv3DFiniteElement::CalcPhysDVShape(ElementTransformation &Trans,
                   dvshape(d,i,k) += tshape(d,j,l)*JijJIlk ;
                }
             }
-
-   Vector div_shape(dof);
-   CalcPhysDivShape(Trans,div_shape);
-   for (int d=0; d<dof; d++)
-   {
-      double tmp = 0;
-      for (int i=0; i<dim; i++)
-      {
-         tmp += dvshape(d,i,i);
-      }
-      if (fabs(tmp - div_shape[d]) > 1e-10)
-      {
-         MFEM_ABORT("DIV ERROR");
-      }
-      //std::cout<<tmp - div_shape[d]<<std::endl;
-   }
 }
 
 NURBS_HDiv3DFiniteElement::~NURBS_HDiv3DFiniteElement()
@@ -1015,25 +981,7 @@ void NURBS_HCurl2DFiniteElement::CalcPhysDVShape(ElementTransformation &Trans,
    MFEM_ASSERT(map_type == H_CURL, "");
    DenseTensor tshape(dof, dim, dim);
    CalcDVShape(Trans.GetIntPoint(), tshape);
-
    const DenseMatrix &JI = Trans.InverseJacobian();
-  /* for (int i=0; i<dof; i++)
-   {
-      real_t sxx = tshape(i, 0, 0) * JI(0, 0) + tshape(i, 1, 0) * JI(1, 0);
-      real_t syx = tshape(i, 0, 0) * JI(0, 1) + tshape(i, 1, 0) * JI(1, 1);
-      real_t sxy = tshape(i, 0, 1) * JI(0, 0) + tshape(i, 1, 1) * JI(1, 0);
-      real_t syy = tshape(i, 0, 1) * JI(0, 1) + tshape(i, 1, 1) * JI(1, 1);
-
-      dvshape(i, 0, 0) = sxx * JI(0, 0) + sxy * JI(0, 1);
-      dvshape(i, 0, 1) = sxx * JI(1, 0) + sxy * JI(1, 1);
-      dvshape(i, 1, 0) = syx * JI(0, 0) + syy * JI(0, 1);
-      dvshape(i, 1, 1) = syx * JI(1, 0) + syy * JI(1, 1);
-   }*/
-
-
-
-
-
 
    dvshape = 0.0;
    for (int i=0; i<2; i++)
@@ -1047,46 +995,7 @@ void NURBS_HCurl2DFiniteElement::CalcPhysDVShape(ElementTransformation &Trans,
                   dvshape(d,i,k) += tshape(d,j,l)*JijJIlk ;
                }
             }
-
-
-
-
-
-
-
-
-
-
-/*
-   DenseMatrix curl_shape(dof, dim);
-   CalcPhysCurlShape(Trans,curl_shape);
-   for (int d=0; d<dof; d++)
-   {
-      std::cout<<d<<std::endl;
-      double tmp;
-
-
-      std::cout << "0 0 "<< dvshape(d, 0, 0)<<std::endl;
-      std::cout << "0 1 "<< dvshape(d, 0, 1)<<std::endl;
-      std::cout << "1 0 "<< dvshape(d, 1, 0)<<std::endl;
-      std::cout << "1 1 "<< dvshape(d, 1, 1)<<std::endl;
-
-      tmp =  -dvshape(d, 0, 1)+dvshape(d, 1, 0);
-
-
-      std::cout << " --> 0 "<< curl_shape(d,0)<<" "<<tmp<<std::endl;
-
-
-      if (fabs(tmp - curl_shape(d,0)) > 1e-10)
-      {
-         MFEM_ABORT("CURL ERROR");
-      }
-
-
-   }*/
-
 }
-
 
 NURBS_HCurl2DFiniteElement::~NURBS_HCurl2DFiniteElement()
 {
@@ -1343,50 +1252,8 @@ void NURBS_HCurl3DFiniteElement::CalcPhysDVShape(ElementTransformation &Trans,
    MFEM_ASSERT(map_type == H_CURL, "");
    DenseTensor tshape(dof, dim, dim);
    CalcDVShape(Trans.GetIntPoint(), tshape);
+   const DenseMatrix &JI = Trans.InverseJacobian();
 
-   DenseMatrix JI = Trans.InverseJacobian();
-   // JI*=(Trans.Weight());
-
-   //std::cout << "wgt "<< Trans.Weight()<<std::endl;
-
-
- /*  for (int i=0; i<dof; i++)
-   {
-      real_t sxx = tshape(i, 0, 0) * JI(0, 0) + tshape(i, 1, 0) * JI(0, 1) + tshape(i,
-                                                                                    2, 0) * JI(0, 2);
-      real_t syx = tshape(i, 0, 0) * JI(1, 0) + tshape(i, 1, 0) * JI(1, 1) + tshape(i,
-                                                                                    2, 0) * JI(1, 2);
-      real_t szx = tshape(i, 0, 0) * JI(2, 0) + tshape(i, 1, 0) * JI(2, 1) + tshape(i,
-                                                                                    2, 0) * JI(2, 2);
-
-      real_t sxy = tshape(i, 0, 1) * JI(0, 0) + tshape(i, 1, 1) * JI(0, 1) + tshape(i,
-                                                                                    2, 1) * JI(0, 2);
-      real_t syy = tshape(i, 0, 1) * JI(1, 0) + tshape(i, 1, 1) * JI(1, 1) + tshape(i,
-                                                                                    2, 1) * JI(1, 2);
-      real_t szy = tshape(i, 0, 1) * JI(2, 0) + tshape(i, 1, 1) * JI(2, 1) + tshape(i,
-                                                                                    2, 1) * JI(2, 2);
-
-      real_t sxz = tshape(i, 0, 2) * JI(0, 0) + tshape(i, 1, 2) * JI(0, 1) + tshape(i,
-                                                                                    2, 2) * JI(0, 2);
-      real_t syz = tshape(i, 0, 2) * JI(1, 0) + tshape(i, 1, 2) * JI(1, 1) + tshape(i,
-                                                                                    2, 2) * JI(1, 2);
-      real_t szz = tshape(i, 0, 2) * JI(2, 0) + tshape(i, 1, 2) * JI(2, 1) + tshape(i,
-                                                                                    2, 2) * JI(2, 2);
-
-      dvshape(i, 0, 0) = sxx * JI(0, 0) + sxy * JI(0, 1) + sxz * JI(0, 2);
-      dvshape(i, 0, 1) = sxx * JI(1, 0) + sxy * JI(1, 1) + sxz * JI(1, 2);
-      dvshape(i, 0, 2) = sxx * JI(2, 0) + sxy * JI(2, 1) + sxz * JI(2, 2);
-
-      dvshape(i, 1, 0) = syx * JI(0, 0) + syy * JI(0, 1) + syz * JI(0, 2);
-      dvshape(i, 1, 1) = syx * JI(1, 0) + syy * JI(1, 1) + syz * JI(1, 2);
-      dvshape(i, 1, 2) = syx * JI(2, 0) + syy * JI(2, 1) + syz * JI(2, 2);
-
-      dvshape(i, 2, 0) = szx * JI(0, 0) + szy * JI(0, 1) + szz * JI(0, 2);
-      dvshape(i, 2, 1) = szx * JI(1, 0) + szy * JI(1, 1) + szz * JI(1, 2);
-      dvshape(i, 2, 2) = szx * JI(2, 0) + szy * JI(2, 1) + szz * JI(2, 2);
-   }*/
-   
-   
    dvshape = 0.0;
    for (int i=0; i<3; i++)
       for (int j=0; j<3; j++)
@@ -1399,52 +1266,6 @@ void NURBS_HCurl3DFiniteElement::CalcPhysDVShape(ElementTransformation &Trans,
                   dvshape(d,i,k) += tshape(d,j,l)*JijJIlk ;
                }
             }
-   
-/*
-   DenseMatrix curl_shape(dof, dim);
-   CalcPhysCurlShape(Trans,curl_shape);
-   for (int d=0; d<dof; d++)
-   {
-      Vector tmp(dim);
-
-
-      std::cout << "0 0 "<< dvshape(d, 0, 0)<<std::endl;
-      std::cout << "0 1 "<< dvshape(d, 0, 1)<<std::endl;
-      std::cout << "0 2 "<< dvshape(d, 0, 2)<<std::endl;
-
-      std::cout << "1 0 "<< dvshape(d, 1, 0)<<std::endl;
-      std::cout << "1 1 "<< dvshape(d, 1, 1)<<std::endl;
-      std::cout << "1 2 "<< dvshape(d, 1, 2)<<std::endl;
-
-      std::cout << "2 0 "<< dvshape(d, 2, 0)<<std::endl;
-      std::cout << "2 1 "<< dvshape(d, 2, 1)<<std::endl;
-      std::cout << "2 2 "<< dvshape(d, 2, 2)<<std::endl;
-
-      tmp[0] = dvshape(d, 2, 1) - dvshape(d, 1, 2);
-      tmp[1] = dvshape(d, 0, 2) - dvshape(d, 2, 0);
-      tmp[2] = dvshape(d, 1, 0) - dvshape(d, 0, 1);
-
-      std::cout << "0 "<< curl_shape(d,0)<<" "<<tmp[0]<<std::endl;
-      std::cout << "1 "<< curl_shape(d,1)<<" "<<tmp[1]<<std::endl;
-      std::cout << "2 "<< curl_shape(d,2)<<" "<<tmp[2]<<std::endl;
-
-      if (fabs(tmp[0] - curl_shape(d,0)) > 1e-10)
-      {
-         MFEM_ABORT("CURL ERROR");
-      }
-
-      if (fabs(tmp[1] - curl_shape(d,1)) > 1e-10)
-      {
-         MFEM_ABORT("CURL ERROR");
-      }
-
-      if (fabs(tmp[2] - curl_shape(d,2)) > 1e-10)
-      {
-         MFEM_ABORT("CURL ERROR");
-      }
-
-   }*/
-
 }
 
 NURBS_HCurl3DFiniteElement::~NURBS_HCurl3DFiniteElement()
