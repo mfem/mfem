@@ -668,11 +668,20 @@ DarcyOperator::SchurPreconditioner::SchurPreconditioner(const DarcyForm *darcy_,
       Construct(x);
    }
 
+   const bool pa = (darcy->GetAssemblyLevel() != AssemblyLevel::LEGACY);
+
+   if (pa)
+   {
+      prec_str = "OperJacobi";
+   }
+   else
+   {
 #if !defined(MFEM_USE_SUITESPARSE) or !defined(USE_DIRECT_SOLVER_SCHUR)
-   prec_str = "GS";
+      prec_str = "GS";
 #else
-   prec_str = "UMFPack";
+      prec_str = "UMFPack";
 #endif
+   }
 }
 
 #ifdef MFEM_USE_MPI

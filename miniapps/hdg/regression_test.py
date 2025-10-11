@@ -60,6 +60,7 @@ for i, filename in enumerate(filenames):
 	bcn = get_ref_option(filename, '--bc-neumann')
 	rd = get_ref_option(filename, '--reduction')
 	hb = get_ref_option(filename, '--hybridization')
+	pa = get_ref_option(filename, '--partial-assembly')
 	upwind = get_ref_option(filename, '--upwinded')
 	nonlin = get_ref_option(filename, '--nonlinear')
 	nonlin_flux = get_ref_option(filename, '--nonlinear-flux')
@@ -118,6 +119,8 @@ for i, filename in enumerate(filenames):
 		command_line += ' -rd'
 	if hb:
 		command_line += ' -hb'
+	if pa:
+		command_line += ' -pa'
 	if upwind:
 		command_line += ' -up'
 	if nonlin:
