@@ -275,8 +275,12 @@ then
         config/defaults.mk.new
     mv -f config/defaults.mk.new config/defaults.mk
 
-    # Suppress CUSPARSE deprecation warnings:
-    export CXXFLAGS="-DDISABLE_CUSPARSE_DEPRECATED"
+    if [[  "$CI_MACHINE" == "" || "$CI_MACHINE" == "matrix" ]]; then
+        # FIXME: temporarily suppress CUSPARSE deprecation warnings:
+        sed -e 's/^# \(CPPFLAGS =\)$/\1 -DDISABLE_CUSPARSE_DEPRECATED/g' \
+            config/defaults.mk > config/defaults.mk.new
+        mv -f config/defaults.mk.new config/defaults.mk
+    fi
 
     # generate cmake cache file with uberenv and radiuss spack package
     timed_message "Spack setup and environment"
