@@ -64,10 +64,10 @@ variables:
 
 # Matrix
 # Arguments for top level allocation
-  MATRIX_SHARED_ALLOC: "--exclusive --reservation=ci --time=60 --nodes=1 -G 4"
+  MATRIX_SHARED_ALLOC: "--exclusive --time=60 --nodes=1 -G 4"
 # Arguments for job level allocation
 # Note: We repeat the reservation, necessary when jobs are manually re-triggered.
-  MATRIX_JOB_ALLOC: "--reservation=ci --overlap --nodes=1"
+  MATRIX_JOB_ALLOC: "--overlap --nodes=1"
 
 # Configuration shared by build and test jobs specific to this project.
 # Not all configuration can be shared. Here projects can fine tune the
