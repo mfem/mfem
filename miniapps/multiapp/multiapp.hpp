@@ -17,10 +17,10 @@
 #include "fpi_solver.hpp"
 
 
+#ifdef MFEM_USE_MPI
+
 namespace mfem
 {
-
-using namespace std;
 
 /// Forward declarations needed below
 class FieldTransfer;
@@ -290,9 +290,8 @@ public:
 class Field
 {
 private:
-#ifdef MFEM_USE_MPI    
-   MPI_Comm comm = MPI_COMM_NULL;
-#endif 
+    MPI_Comm comm = MPI_COMM_NULL;
+
     bool is_source = false;
     bool is_target = false;
 
@@ -303,9 +302,7 @@ public:
     Field(ParGridFunction *gf_, bool is_src, bool is_tar) : 
           is_source(is_src), is_target(is_tar), gf(gf_)
     {
-#ifdef MFEM_USE_MPI    
-            comm = gf->ParFESpace()->GetComm();
-#endif 
+        comm = gf->ParFESpace()->GetComm();
     }
 
     ///@brief Get the stored ParGridFunction
@@ -509,9 +506,7 @@ public:
 class LinkedFieldsCollection
 {
 private:    
-#ifdef MFEM_USE_MPI    
    MPI_Comm comm = MPI_COMM_NULL;
-#endif 
 
     std::string name; /// Name of the collection
     Application *src_op = nullptr; /// Source Application (not owned)
@@ -524,11 +519,9 @@ private:
     NamedFieldsMap<LinkedFields> linked_fields;
 
 public:
-#ifdef MFEM_USE_MPI
     LinkedFieldsCollection(MPI_Comm comm_, std::string collection_name = "",
                            Application *src = nullptr) : name(collection_name),
                            src_op(src) {comm = comm_;}
-#endif
 
     LinkedFieldsCollection() = default;
 
@@ -1709,5 +1702,6 @@ public:
 
 } //mfem namespace
 
+#endif // MFEM_USE_MPI
 
 #endif
