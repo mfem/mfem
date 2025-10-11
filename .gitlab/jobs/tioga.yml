@@ -56,7 +56,8 @@ setup:
   extends: .job_on_tioga
   stage: jobs-stage-2
   variables:
-    THREADS: 12
+    # We run 1 job on 1 node that has 64 threads
+    THREADS: 64
 
 opt_mpi_rocm_hypre_rocm:
   extends: .mfem_job_on_tioga

@@ -275,7 +275,7 @@ then
         config/defaults.mk.new
     mv -f config/defaults.mk.new config/defaults.mk
 
-    if [[  "$CI_MACHINE" == "" || "$CI_MACHINE" == "matrix" ]]; then
+    if [[ "$CI_MACHINE" == "matrix" ]]; then
         # FIXME: temporarily suppress CUSPARSE deprecation warnings:
         sed -e 's/^# \(CPPFLAGS =\)$/\1 -DDISABLE_CUSPARSE_DEPRECATED/g' \
             config/defaults.mk > config/defaults.mk.new

@@ -42,14 +42,21 @@ setup:
 # ${PROJECT_<MACHINE>_DEPS} in the extra jobs. There is not reason not to fully
 # describe the spec here.
 
-opt_mpi_cuda_gcc:
+.mfem_job_on_matrix:
   extends: .job_on_matrix
   stage: jobs-stage-2
+  variables:
+    # We run 2 jobs on 1 node that has 112 threads
+    THREADS: 48
+    # These modules need to be consistent with the uberenv configurations:
+    MODULE_LIST: "gcc/10.3.1-magic cuda/12.9.1"
+
+opt_mpi_cuda_gcc:
+  extends: .mfem_job_on_matrix
   variables:
     SPEC: "%gcc@10.3.1 +mpi +cuda cuda_arch=90"
 
 opt_mpi_cuda_hypre_cuda_gcc:
-  extends: .job_on_matrix
-  stage: jobs-stage-2
+  extends: .mfem_job_on_matrix
   variables:
     SPEC: "%gcc@10.3.1 +mpi +cuda cuda_arch=90 ^hypre+cuda"
