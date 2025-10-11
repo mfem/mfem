@@ -1,0 +1,113 @@
+# Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+# at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+# LICENSE and NOTICE for details. LLNL-CODE-806117.
+#
+# This file is part of the MFEM library. For more information and source code
+# availability visit https://mfem.org.
+#
+# MFEM is free software; you can redistribute it and/or modify it under the
+# terms of the BSD-3 license. We welcome feedback and contributions, see file
+# CONTRIBUTING.md for details.
+
+include:
+  - project: 'lc-templates/id_tokens'
+    file: 'id_tokens.yml'
+
+# We define the following GitLab pipeline variables:
+variables:
+# Set the build-and-test command.
+# Nested variables are allowed and useful to customize the job command. We
+# protect variables with quotes so that their value may remain a string even if
+# they contain whitespaces.
+  JOB_CMD:
+    value: tests/gitlab/build_and_test --spec \"${SPEC}\" --data-dir ${MFEM_DATA_DIR} --data
+# The path to the shared resource between all jobs in the 'dane-baseline'
+# pipeline. For example, external repositories like 'tests' and 'tpls' are
+# cloned here. Also, 'tpls' is built once for all targets, so that build happens
+# here. The BUILD_ROOT is unique to the pipeline, preventing any form of
+# concurrency with other pipelines. This directory is removed by the 'cleanup'
+# stage in the 'dane-baseline' pipeline.
+  BUILD_ROOT: ${USER_CI_TOP_DIR}/${CI_PROJECT_NAME}-${CI_MACHINE}-pipeline-${CI_PIPELINE_ID}
+
+# On LLNL's dane and tioga, the 'build-and-test' pipelines creates only one
+# allocation shared among jobs in the pipeline in order to save time and
+# resources. This allocation has to be uniquely named so that we are sure to
+# retrieve it and avoid collisions.
+  ALLOC_NAME: ${CI_PROJECT_NAME}_ci_${CI_PIPELINE_ID}
+
+# Git repositories used in the pipelines:
+# - TPLS_REPO and TESTS_REPO are used only by the 'dane-baseline' pipeline
+# - AUTOTEST_REPO is used by all pipelines
+# - MFEM_DATA_REPO is used only by the 'build-and-test' pipelines
+  TPLS_REPO: ssh://git@mybitbucket.llnl.gov:7999/mfem/tpls.git
+  TESTS_REPO: ssh://git@mybitbucket.llnl.gov:7999/mfem/tests.git
+  AUTOTEST_REPO: ssh://git@mybitbucket.llnl.gov:7999/mfem/autotest.git
+  MFEM_DATA_REPO: https://github.com/mfem/data.git
+
+# Directory used to place artifacts:
+# - ARTIFACTS_DIR is only used by the 'dane-baseline' pipeline
+  ARTIFACTS_DIR: artifacts
+  SLURM_OVERLAP: 1
+
+# Dane
+# Arguments for top level allocation
+  DANE_SHARED_ALLOC: "--exclusive --reservation=ci --time=60 --nodes=1"
+# Arguments for job level allocation
+# Note: We repeat the reservation, necessary when jobs are manually re-triggered.
+  DANE_JOB_ALLOC: "--reservation=ci --overlap --nodes=1"
+
+# Tioga
+# Arguments for top level allocation
+  TIOGA_SHARED_ALLOC: "--queue=pci --exclusive --time-limit=45m --nodes=1"
+# Arguments for job level allocation
+  TIOGA_JOB_ALLOC: "--nodes=1 --begin-time=+5s"
+
+# Matrix
+# Arguments for top level allocation
+  MATRIX_SHARED_ALLOC: "--exclusive --time=60 --nodes=1 -G 4"
+# Arguments for job level allocation
+# Note: We repeat the reservation, necessary when jobs are manually re-triggered.
+  MATRIX_JOB_ALLOC: "--overlap --nodes=1"
+
+# Configuration shared by build and test jobs specific to this project.
+# Not all configuration can be shared. Here projects can fine tune the
+# CI behavior.
+# See Umpire for an example (export junit test reports).
+.custom_job:
+  artifacts:
+    reports:
+
+# Note: this part is not used by the 'dane-baseline' pipeline.
+# FIXME: BUILD_ROOT, TPLS_REPO, TESTS_REPO are not needed here.
+#        Also, the definition of SHARED_REPOS_DIR is wrong.
+.reproducer_vars:
+  script:
+    - |
+      echo -e "
+      # Variables \n
+      export SPEC=\"${SPEC//\"/\\\"}\" \n
+      # Directories \n
+      export BUILD_ROOT=\"\${working_dir}\" \n
+      export SHARED_REPOS_DIR=\"\${BUILD_ROOT}/..\" \n
+      export MFEM_DATA_DIR=\"\${SHARED_REPOS_DIR}/mfem-data\" \n
+      # Repositories \n
+      export TPLS_REPO=\"${TPLS_REPO//\"/\\\"}\" \n
+      export TESTS_REPO=\"${TESTS_REPO//\"/\\\"}\" \n
+      export AUTOTEST_REPO=\"${AUTOTEST_REPO//\"/\\\"}\" \n
+      export MFEM_DATA_REPO=\"${MFEM_DATA_REPO//\"/\\\"}\" \n
+      # Setup directories \n
+      ./tests/gitlab/build_and_test_setup \n
+      # Using the CI build cache is optional and requires a token. Set it like so: \n
+      # export REGISTRY_TOKEN=\"<your token here>\" \n"
+      #
+
+# Jobs report
+.report_job_success:
+  script:
+    - ${CI_PROJECT_DIR}/.gitlab/scripts/report_build_and_test SUCCESS
+  when: on_success
+
+.report_job_failure:
+  script:
+    - ${CI_PROJECT_DIR}/.gitlab/scripts/report_build_and_test FAILURE
+  when: on_failure
