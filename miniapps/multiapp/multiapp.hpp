@@ -418,6 +418,7 @@ public:
         if(own_source && source) delete source;
         source = src;
         own_source = own;
+        src_gf = source->GetGridFunction();
     }
 
     ///@brief Set the source @a ParGridFunction (does not own).
@@ -426,6 +427,7 @@ public:
         if(own_source && source) delete source;
         source = new SourceField(src);
         own_source = true;
+        src_gf = source->GetGridFunction();
     }
 
     ///@brief Get the source @a ParGridFunction
@@ -499,6 +501,7 @@ public:
             auto [target, owned] = dest;
             if(owned) delete target;
         }
+        if(own_source && source) delete source;
     }
 };
 
