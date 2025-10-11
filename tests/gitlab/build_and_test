@@ -275,6 +275,9 @@ then
         config/defaults.mk.new
     mv -f config/defaults.mk.new config/defaults.mk
 
+    # Suppress CUSPARSE deprecation warnings:
+    export CXXFLAGS="-DDISABLE_CUSPARSE_DEPRECATED"
+
     # generate cmake cache file with uberenv and radiuss spack package
     timed_message "Spack setup and environment"
     ${uberenv_cmd} --setup-and-env-only --spec="${spec}" ${prefix_opt}
