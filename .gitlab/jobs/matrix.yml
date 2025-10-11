@@ -10,7 +10,7 @@
 # CONTRIBUTING.md for details.
 
 # Override reproducer section to define UMPIRE specific variables.
-.lassen_reproducer_vars:
+.matrix_reproducer_vars:
   script:
     - !reference [.reproducer_vars, script]
 
@@ -21,7 +21,7 @@
 # directory. Unit tests that depend on the mfem/data repo will then detect that
 # this directory is present and be enabled.
 setup:
-  extends: .on_lassen
+  extends: .on_matrix
   stage: jobs-stage-1
   script:
     - ./tests/gitlab/build_and_test_setup
@@ -43,13 +43,13 @@ setup:
 # describe the spec here.
 
 opt_mpi_cuda_gcc:
-  extends: .job_on_lassen
+  extends: .job_on_matrix
   stage: jobs-stage-2
   variables:
-    SPEC: "%gcc@8.3.1 +mpi +cuda cuda_arch=70"
+    SPEC: "%gcc@10.3.1 +mpi +cuda cuda_arch=90"
 
 opt_mpi_cuda_hypre_cuda_gcc:
-  extends: .job_on_lassen
+  extends: .job_on_matrix
   stage: jobs-stage-2
   variables:
-    SPEC: "%gcc@8.3.1 +mpi +cuda cuda_arch=70 ^hypre+cuda~shared cuda_arch=70"
+    SPEC: "%gcc@10.3.1 +mpi +cuda cuda_arch=90 ^hypre+cuda"

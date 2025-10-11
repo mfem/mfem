@@ -62,10 +62,12 @@ variables:
 # Arguments for job level allocation
   TIOGA_JOB_ALLOC: "--nodes=1 --begin-time=+5s"
 
-# Lassen and Butte use a different job scheduler (spectrum lsf) that does not
-# allow pre-allocation the same way slurm does.
+# Matrix
+# Arguments for top level allocation
+  MATRIX_SHARED_ALLOC: "--exclusive --reservation=ci --time=60 --nodes=1 -G 4"
 # Arguments for job level allocation
-  LASSEN_JOB_ALLOC: "1 -W 45 -q pci --atsdisable"
+# Note: We repeat the reservation, necessary when jobs are manually re-triggered.
+  MATRIX_JOB_ALLOC: "--reservation=ci --overlap --nodes=1"
 
 # Configuration shared by build and test jobs specific to this project.
 # Not all configuration can be shared. Here projects can fine tune the

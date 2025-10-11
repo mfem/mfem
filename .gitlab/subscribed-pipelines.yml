@@ -48,10 +48,10 @@ generate-job-lists:
           cat ${LOCAL_JOBS_PATH}/dane-reports.yml >> dane-jobs.yml
       fi
     - |
-      cat ${LOCAL_JOBS_PATH}/lassen.yml > lassen-jobs.yml
+      cat ${LOCAL_JOBS_PATH}/matrix.yml > matrix-jobs.yml
       if [[ ${AUTOTEST} == "ON" ]]
       then
-          cat ${LOCAL_JOBS_PATH}/lassen-reports.yml >> lassen-jobs.yml
+          cat ${LOCAL_JOBS_PATH}/matrix-reports.yml >> matrix-jobs.yml
       fi
     - |
       cat ${LOCAL_JOBS_PATH}/tioga.yml > tioga-jobs.yml
@@ -62,7 +62,7 @@ generate-job-lists:
   artifacts:
     paths:
       - dane-jobs.yml
-      - lassen-jobs.yml
+      - matrix-jobs.yml
       - tioga-jobs.yml
 
 
@@ -114,18 +114,18 @@ tioga-build-and-test:
   extends: [.build-and-test]
 
 
-# LASSEN
-lassen-up-check:
+# Matrix
+matrix-up-check:
   variables:
-    CI_MACHINE: "lassen"
+    CI_MACHINE: "matrix"
   extends: [.machine-check]
 
-lassen-build-and-test:
+matrix-build-and-test:
   variables:
-    CI_MACHINE: "lassen"
+    CI_MACHINE: "matrix"
     # Explicitly pass down values that we want to be able to set when triggering
     # pipelines manually or using scheduling
     AUTOTEST: "${AUTOTEST}"
     AUTOTEST_COMMIT: "${AUTOTEST_COMMIT}"
-  needs: [lassen-up-check, generate-job-lists]
+  needs: [matrix-up-check, generate-job-lists]
   extends: [.build-and-test]

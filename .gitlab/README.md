@@ -27,8 +27,8 @@ and `test type`.
 Machines typically include:
 
 * Dane: Intel Sapphire Rapids
-* Lassen: Power9 + Nvidia GPU
-* Tioga: AMD GPU
+* Matrix: Intel Sapphire Rapids + Nvidia H100 GPU
+* Tioga: AMD MI250X GPU
 
 Test types include:
 

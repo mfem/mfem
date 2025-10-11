@@ -49,13 +49,13 @@
 #  │    │    └── JOB_CMD              [var]
 #  │    │         └── tests/gitlab/build_and_test            [script]
 #  │    │              └── tests/gitlab/get_mfem_uberenv     [script]
-#  │    ├── <radiuss-shared-ci>/pipelines/lassen.yml  [conditional]
-#  │    │    ├── .on_lassen               [job]
-#  │    │    ├── .lassen_reproducer_init  [job]
-#  │    │    ├── .lassen_reproducer_vars  [job]
-#  │    │    ├── .lassen_reproducer_job   [job]
-#  │    │    ├── .lassen_job_command      [job]
-#  │    │    └── .job_on_lassen           [job]
+#  │    ├── <radiuss-shared-ci>/pipelines/matrix.yml  [conditional]
+#  │    │    ├── .on_matrix               [job]
+#  │    │    ├── .matrix_reproducer_init  [job]
+#  │    │    ├── .matrix_reproducer_vars  [job]
+#  │    │    ├── .matrix_reproducer_job   [job]
+#  │    │    ├── .matrix_job_command      [job]
+#  │    │    └── .job_on_matrix           [job]
 #  │    ├── <radiuss-shared-ci>/pipelines/dane.yml  [conditional]
 #  │    │    ├── .on_dane               [job]
 #  │    │    ├── .dane_reproducer_init  [job]
@@ -74,14 +74,14 @@
 #  │    │    ├── .job_on_tioga           [job]
 #  │    │    ├── allocate_resources      [job]
 #  │    │    └── release_resources       [job]
-#  │    ├── <artifact>/lassen-jobs.yml  [conditional, from 'generate-job-lists']
-#  │    │    ├── .gitlab/jobs/lassen.yml
-#  │    │    │    ├── .lassen_reproducer_vars      [job]
+#  │    ├── <artifact>/matrix-jobs.yml  [conditional, from 'generate-job-lists']
+#  │    │    ├── .gitlab/jobs/matrix.yml
+#  │    │    │    ├── .matrix_reproducer_vars      [job]
 #  │    │    │    ├── setup                        [job]
 #  │    │    │    │    └── ./tests/gitlab/build_and_test_setup  [script]
 #  │    │    │    ├── opt_mpi_cuda_gcc             [job]
 #  │    │    │    └── opt_mpi_cuda_hypre_cuda_gcc  [job]
-#  │    │    └── .gitlab/jobs/lassen-reports.yml  [used conditionally]
+#  │    │    └── .gitlab/jobs/matrix-reports.yml  [used conditionally]
 #  │    │         ├── report_job_success
 #  │    │         └── report_job_failure
 #  │    ├── <artifact>/dane-jobs.yml    [conditional, from 'generate-job-lists']
@@ -130,8 +130,8 @@
 #       │              └── setup_baseline            [job]
 #       ├── tioga-up-check         [job]
 #       ├── tioga-build-and-test   [job]
-#       ├── lassen-up-check        [job]
-#       └── lassen-build-and-test  [job]
+#       ├── matrix-up-check        [job]
+#       └── matrix-build-and-test  [job]
 #
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # File tree hierarchy with file contents highlights
@@ -151,7 +151,7 @@
 #  │    │    │    └── job:      'generate-job-lists'
 #  │    │    └── <external>  [by ".build-and-test"]
 #  │    │         ├── project: 'radiuss/radiuss-shared-ci'
-#  │    │         ├── ref:     'woptim/improve-job-cmd-handling'
+#  │    │         ├── ref:     'main'
 #  │    │         └── file:    'pipelines/${CI_MACHINE}.yml'
 #  │    └── <defined variables>
 #  │         ├── CUSTOM_CI_BUILDS_DIR
@@ -180,24 +180,24 @@
 #  │    │              ├── AUTOTEST_ROOT
 #  │    │              └── AUTOTEST_REPO
 #  │    ├── jobs
-#  │    │    ├── lassen-reports.yml
+#  │    │    ├── matrix-reports.yml
 #  │    │    │    ├── <jobs>
 #  │    │    │    │    ├── report_job_success
 #  │    │    │    │    └── report_job_failure
 #  │    │    │    └── <used jobs>
-#  │    │    │         ├── .on_lassen
+#  │    │    │         ├── .on_matrix
 #  │    │    │         ├── .report_job_success
 #  │    │    │         └── .report_job_failure
-#  │    │    ├── lassen.yml
+#  │    │    ├── matrix.yml
 #  │    │    │    ├── <jobs>
-#  │    │    │    │    ├── .lassen_reproducer_vars
+#  │    │    │    │    ├── .matrix_reproducer_vars
 #  │    │    │    │    ├── setup
 #  │    │    │    │    ├── opt_mpi_cuda_gcc
 #  │    │    │    │    └── opt_mpi_cuda_hypre_cuda_gcc
 #  │    │    │    ├── <used jobs>
 #  │    │    │    │    ├── .reproducer_vars
-#  │    │    │    │    ├── .on_lassen
-#  │    │    │    │    └── .job_on_lassen
+#  │    │    │    │    ├── .on_matrix
+#  │    │    │    │    └── .job_on_matrix
 #  │    │    │    ├── <included and used files>
 #  │    │    │    │    └── tests/gitlab/build_and_test_setup  [by "setup"]
 #  │    │    │    └── <defined variables>
@@ -306,7 +306,7 @@
 #  │    │    │    ├── DANE_JOB_ALLOC
 #  │    │    │    ├── TIOGA_SHARED_ALLOC
 #  │    │    │    ├── TIOGA_JOB_ALLOC
-#  │    │    │    └── LASSEN_JOB_ALLOC
+#  │    │    │    └── MATRIX_JOB_ALLOC
 #  │    │    └── <used variables>
 #  │    │         ├── SPEC
 #  │    │         ├── BUILD_ROOT
@@ -349,8 +349,8 @@
 #  │         │    ├── dane-baseline
 #  │         │    ├── tioga-up-check
 #  │         │    ├── tioga-build-and-test
-#  │         │    ├── lassen-up-check
-#  │         │    └── lassen-build-and-test
+#  │         │    ├── matrix-up-check
+#  │         │    └── matrix-build-and-test
 #  │         ├── <used jobs>
 #  │         │    └── .build-and-test  [from ".gitlab-ci.yml"]
 #  │         ├── <included files>
@@ -394,20 +394,20 @@
 #       └── uberenv  [cloned by tests/gitlab/get_mfem_uberenv]
 #            └── uberenv.py
 #
-# <root of radiuss/radiuss-shared-ci, ref: 'woptim/improve-job-cmd-handling'>
+# <root of radiuss/radiuss-shared-ci, ref: 'main'>
 #  └── pipelines
-#       ├── lassen.yml
+#       ├── matrix.yml
 #       │    ├── <jobs>
-#       │    │    ├── .on_lassen
-#       │    │    ├── .lassen_reproducer_init
-#       │    │    ├── .lassen_reproducer_vars
-#       │    │    ├── .lassen_reproducer_job
-#       │    │    ├── .lassen_job_command
-#       │    │    └── .job_on_lassen
+#       │    │    ├── .on_matrix
+#       │    │    ├── .matrix_reproducer_init
+#       │    │    ├── .matrix_reproducer_vars
+#       │    │    ├── .matrix_reproducer_job
+#       │    │    ├── .matrix_job_command
+#       │    │    └── .job_on_matrix
 #       │    ├── <used jobs>
 #       │    │    └── .custom_job  [from .gitlab/custom-jobs-and-variables.yml]
 #       │    └── <used variables>
-#       │         ├── ON_LASSEN
+#       │         ├── ON_MATRIX
 #       │         ├── ADVANCED_JOB
 #       │         ├── ALL_TARGETS
 #       │         ├── SYS_TYPE
@@ -415,7 +415,7 @@
 #       │         ├── USER
 #       │         ├── GITHUB_PROJECT_NAME
 #       │         ├── GITHUB_PROJECT_ORG
-#       │         ├── LASSEN_JOB_ALLOC
+#       │         ├── MATRIX_JOB_ALLOC
 #       │         └── JOB_CMD
 #       ├── dane.yml
 #       │    ├── <jobs>
@@ -523,7 +523,7 @@ stages:
     include:
       - local: '.gitlab/custom-jobs-and-variables.yml'
       - project: 'radiuss/radiuss-shared-ci'
-        ref: 'woptim/improve-job-cmd-handling'
+        ref: 'main'
         file: 'pipelines/${CI_MACHINE}.yml'
       - artifact: '${CI_MACHINE}-jobs.yml'
         job: 'generate-job-lists'
@@ -538,7 +538,7 @@ include:
     file: 'id_tokens.yml'
   # [Optional] checks preliminary to running the actual CI test
   #- project: 'radiuss/radiuss-shared-ci'
-  #  ref: 'woptim/improve-job-cmd-handling'
+  #  ref: 'main'
   #  file: 'preliminary-ignore-draft-pr.yml'
   # pipelines subscribed by the project
   - local: '.gitlab/subscribed-pipelines.yml'

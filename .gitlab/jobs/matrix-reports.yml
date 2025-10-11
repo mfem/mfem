@@ -11,9 +11,9 @@
 
 # Jobs report
 report_job_success:
-  extends: [.on_lassen, .report_job_success]
+  extends: [.on_matrix, .report_job_success]
   stage: jobs-stage-3
 
 report_job_failure:
-  extends: [.on_lassen, .report_job_failure]
+  extends: [.on_matrix, .report_job_failure]
   stage: jobs-stage-3
