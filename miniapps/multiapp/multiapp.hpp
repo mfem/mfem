@@ -16,6 +16,7 @@
 #include "mfem.hpp"
 #include "fpi_solver.hpp"
 
+
 namespace mfem
 {
 
@@ -1203,9 +1204,10 @@ public:
 
 protected:
     std::vector<Application*> operators;  ///< List of individual operators
-    mfem::Array<int> offsets;   // Block offsets for each operator
-    int max_op_size=0;          // Largest operator size
-    int nops = 0; ///< The number of applications
+    Array<bool> operators_owned; ///< Whether the operators are owned
+    Array<int> offsets;  ///< Block offsets for each operator
+    int max_op_size=0;   ///< Largest operator size
+    int nops = 0;        ///< The number of applications
 
     /// Operator for coupling type
     Scheme coupler_type = Scheme::NONE; ///< Current coupling type
@@ -1222,20 +1224,6 @@ protected:
 public:
     /**
        @brief Construct a new CoupledOperator object.
-
-       @param nop Total number of operators to couple
-     */
-    template<typename... Args>
-    CoupledOperator(const int nop, Args... args) : Application(args...)
-    {
-        operators.reserve(nop);
-        offsets.Reserve(nop+1);
-        offsets.Prepend(0);
-    }
-
-    /**
-       @brief Construct a new CoupledOperator object.
-       
        @param nop Total number of operators to couple
      */
     CoupledOperator(const int nop) : Application()
@@ -1243,6 +1231,7 @@ public:
         operators.reserve(nop);
         offsets.Reserve(nop+1);
         offsets.Prepend(0);
+        operators_owned.Reserve(nop);
     }
 
     /**
@@ -1250,14 +1239,14 @@ public:
        abstract non/mfem operator.
      */
     template <class OpType>
-    CoupledOperator(const OpType &op) : Application()
+    CoupledOperator(const OpType &op) : CoupledOperator(1)
     {
         AddOperator(op);
     }
 
     /**
        @brief Add an operator to the list of coupled operator and
-       return pointer to it.
+       return pointer to it. Not owned unless it's not derived from Application.
      */
     template <class OpType>
     Application* AddOperator(OpType *op_, int h, int w)
@@ -1266,10 +1255,12 @@ public:
         if constexpr(std::is_base_of<Application, OpType>::value)
         {
             operators.push_back(op_);
+            operators_owned.Append(false);
         } 
         else
         {
             operators.push_back(new AbstractOperator<OpType>(op_,h,w));
+            operators_owned.Append(true);
         }
         nops++;
 
@@ -1288,37 +1279,36 @@ public:
         return op;
     }
 
-    /**
-       @brief Add an operator to the list of coupled operator and return pointer to it.
-     */
+    /// @brief Add an operator to the list of coupled operator and return pointer to it.     
     template <class OpType>
     Application* AddOperator(OpType *op_, int s = 0) { return AddOperator(op_,s,s);}
 
-    /**
-       @brief Get the number of coupled operators
-     */
+    /// @brief Get the number of coupled operators
     int Size(){return nops;}
 
-    /**
-       @brief Get the size of the largest operator
-     */
+    /// @brief Get the size of the largest operator
     int Max(){return max_op_size;}
 
-    /**
-       @brief Get the operator at index @a i
-     */
+    
+    /// @brief Get the operator at index @a i
     Application* GetOperator(const int i) { return operators[i]; }
+
+    /// @brief Specify whether the operator at index @a i is owned.
+    void OwnOperator(const int i, bool own = true)
+    {
+        MFEM_ASSERT(i >= 0 && i < nops,
+               "index [" << i << "] is out of range [0," << nops << ")");
+        operators_owned[i] = own;
+    }
 
     /**
        @brief Set the operator coupling type.
-
        @note Currently supported options are provided in enum Scheme
      */
     virtual void SetCouplingScheme(Scheme type_) { coupler_type = type_; }
 
-    /**
-       @brief Get the current operator coupling type.
-     */
+
+    /// @brief Get the current operator coupling type.
     Scheme GetCouplingScheme() const { return coupler_type; }
 
     /**
@@ -1344,9 +1334,7 @@ public:
         this->offsets = off_sets;
     }
 
-    /**
-       @brief Return the offset used by BlockVector for the coupled operator.
-     */
+    /// @brief Return the offset used by BlockVector for the coupled operator.
     const Array<int> GetBlockOffsets(){ return offsets; }
 
     /**
@@ -1361,9 +1349,7 @@ public:
         solver = s; own_solver = own;
     }
 
-    /**
-       @brief Get the current OperatorCoupler.
-     */
+    /// @brief Get the current OperatorCoupler.
     const OperatorCoupler* GetOperatorCoupler(){ return op_coupler; }
 
     /**
@@ -1384,7 +1370,7 @@ public:
 
     /**
        @brief Assemble the CoupledOperator.
-       
+
        @param do_ops If 'true', call Assemble on all operator
      */
     virtual void Assemble(bool do_ops);
@@ -1420,15 +1406,11 @@ public:
     virtual void PostProcess(Vector &x, bool do_ops);
     void PostProcess(Vector &x) override { PostProcess(x, true); }
     
-    /**
-       @brief Set the OperationID 
-     */
+    /// @brief Set the OperationID 
     virtual void SetOperationID(OperationID id, bool do_ops);
     void SetOperationID(OperationID id) override { SetOperationID(id, true); }
     
-    /**
-       @brief Transfer Vector @a x to operators via LinkedFields
-     */
+    /// @brief Transfer Vector @a x to operators via LinkedFields    
     virtual void Transfer(const Vector &x) override;
 
     /**
@@ -1437,9 +1419,7 @@ public:
      */
     virtual void Transfer(const Vector &u, const Vector &k, real_t dt = 0.0) override;
 
-    /**
-       @brief Set the time for each operator.
-     */
+    /// @brief Set the time for each operator.
     void SetTime(const real_t t_) override;
 
     /**
@@ -1485,9 +1465,8 @@ public:
      */
     void ExplicitMult(const Vector &u, Vector &v) const override;
     
-    /**
-       @brief Destroy the Coupled Application object
-     */
+    
+    /// @brief Destroy the Coupled Application object
     ~CoupledOperator();
 };
 
@@ -1545,7 +1524,7 @@ public:
        @brief Implements the coupling scheme for function Application::Mult()
      */
     virtual void Mult(const Vector &x, Vector &y) const override {
-        mfem_error("OperatorCoupler::Mult() const is not overridden!"
+        MFEM_ABORT("OperatorCoupler::Mult() const is not overridden!"
                    "Scheme may not be supported for this operation.");
     }
 
@@ -1561,7 +1540,7 @@ public:
        @brief Implements the coupling scheme for function Application::ImplicitSolve()
      */
     virtual void ImplicitSolve(const real_t dt, const Vector &x, Vector &k ) const {
-        mfem_error("OperatorCoupler::ImplicitSolve() const is not overridden!"
+        MFEM_ABORT("OperatorCoupler::ImplicitSolve() const is not overridden!"
                    "Scheme may not be supported for this operation.");
     }
 
@@ -1571,14 +1550,14 @@ public:
        const-correctness when the function is called from Mult() const.
      */
     virtual void ImplicitSolve(const real_t dt, const Vector &x, Vector &k ) override {
-        ImplicitSolve(dt,x,k);
+        std::as_const(*this).ImplicitSolve(dt,x,k);
     }
 
     /**
        @brief Implements the coupling scheme for function Application::Step()
      */
     virtual void Step(Vector &x, real_t &t, real_t &dt) const {
-        mfem_error("OperatorCoupler::Step() const is not overridden!"
+        MFEM_ABORT("OperatorCoupler::Step() const is not overridden!"
                    "Scheme may not be supported for this operation.");
     }
 
@@ -1588,7 +1567,7 @@ public:
        preserves const-correctness when the function is called from Mult() const.
      */
     virtual void Step(Vector &x, real_t &t, real_t &dt){
-        Step(x,t,dt);
+        std::as_const(*this).Step(x,t,dt);
     }
 
     virtual Scheme GetType() const { return type_; }

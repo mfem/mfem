@@ -41,7 +41,12 @@ OperatorCoupler* OperatorCoupler::Select(CoupledOperator *op,
 CoupledOperator::~CoupledOperator()
 {
     if(solver && own_solver) delete solver;
-    if(op_coupler && own_op_coupler) delete op_coupler;        
+    if(op_coupler && own_op_coupler) delete op_coupler;
+    
+    for(int i=0; i < nops; i++)
+    {
+        if(operators_owned[i] && operators[i]) delete operators[i];
+    }
 }
 
 void CoupledOperator::SetOperatorCoupler(OperatorCoupler* op, bool own)
@@ -71,6 +76,30 @@ void CoupledOperator::Assemble(bool do_ops)
         {
             op->Assemble();
         }
+    }
+
+    // Check block offsets against operator size
+    Array<int> true_offsets(Size()+1);
+    bool offset_consistent = true;
+    true_offsets = 0;
+    int max_size = 0;
+
+    for (int i=0; i < nops; i++)
+    {
+        auto op = GetOperator(i);
+        int block_size = offsets[i+1]-offsets[i];
+        true_offsets[i+1] = true_offsets[i] + op->Width();
+        if (block_size != op->Width())
+        {
+            offset_consistent = false;
+        }
+    }
+    if (!offset_consistent)
+    {
+        MFEM_WARNING("Block offsets inconsistent with operator sizes."
+                        "Using default offsets.");
+        offsets = true_offsets;
+        max_op_size = max_size;
     }
 
     if(op_coupler && own_op_coupler) delete op_coupler;
