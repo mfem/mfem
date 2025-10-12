@@ -1,598 +1,960 @@
+/**
+ * Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+ * at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+ * LICENSE and NOTICE for details. LLNL-CODE-806117.
+ * 
+ * This file is part of the MFEM library. For more information and source code
+ * availability visit https://mfem.org.
+ * 
+ * MFEM is free software; you can redistribute it and/or modify it under the
+ * terms of the BSD-3 license. We welcome feedback and contributions, see file
+ * CONTRIBUTING.md for details.
+ * 
+ *            --------------------------------------------------
+ *                      Conjugate heat transfer miniapp
+ *            --------------------------------------------------
+ * 
+ * This is a miniapp demonstrates conjugate heat transfer by coupling different
+ * physics in different domains:
+ *    1) Incompressible Navier-Stokes equations in a fluid domain
+ *    2) Heat equation in fluid 
+ *    3) Heat equation solid domains
+ * 
+ * The test case is a benchmark Backward Facing Step (BFS) with a heated base.
+ * The following boundary conditions are applied:
+ *   1) Fluid inlet (attribute 1): parabolic velocity profile, T = 0.0
+ *   2) Fluid outlet (attribute 2): zero-pressure, -kappa grad(T)•n = 0.0
+ *   3) Fluid walls (attribute 3 & 4): no-slip, -kappa grad(T)•n = 0.0
+ *   4) Solid base (attribute 6): T = 1.0
+ *   5) Solid walls (attribute 5): -kappa grad(T)•n = 0.0
+ * 
+ *                                  4
+ *     -----------------------------------------------------------------
+ *   1 |                          fluid                                | 2
+ *   4 |                                                               | 2
+ *     ---------------------------- 3 ----------------------------------
+ *   5 |                                                               | 5
+ *   5 |                          solid                                | 5
+ *     -----------------------------------------------------------------
+ *                                  6
+ * 
+ * This example demonstrates nested coupling with the fluid flow and heat
+ * transfer solvers coupling where the heat transfer solver is itself a 
+ * coupled solver with the fluid and solid heat transfer solvers.
+ * 
+ * The fluid flow and heat transfer solvers are flow maps (i.e ODE Solvers) and 
+ * coupled with one-way, serial or parallel, coupling. The fluid and solid heat 
+ * transfer solvers can be partitioned-coupled or monolithically-coupled. 
+ * 
+ * For partitioned-coupling, the following boundary conditions are applied 
+ * at the fluid-solid interface:
+ *  1) Dirichlet: T = T_f  on attr 3 in solid domain
+ *  2) Neumann:   Q = -kappa grad(T_s)•n on attr 3 in fluid domain
+ * 
+ * For monolithic-coupling, the following conditions are imposed at the
+ * fluid-solid interface:
+ * 1) Continuity of temperature: T_f = T_s
+ * 2) Continuity of heat flux: -k_f grad(T_f)•n = k_s grad(T_s)•n
+ * 
+ * Sample run:
+ *    mpirun -np 6 cht-BFS -vs 500 -dt 1e-3 -tf 1000 -rs 2 -o 3 -ode 21 -scheme -1 -cht
+ */
+
 #include "mfem.hpp"
 #include "multiapp.hpp"
+#include "../navier/navier_solver.hpp"
 
-#include <string>
-#include <fstream>
-#include <iostream>
-#include <math.h>
 
 using namespace mfem;
+using namespace navier;
+using namespace std;
 
-double Tinit(const Vector& x)
+struct BFSContext
 {
-    return std::pow(2000*sin(x[0]) + 1000* sin(x[1]) + 3000* sin(x[2]),2);
+   int ser_ref = 1;         // Serial mesh refinement
+   int order = 3;           // Finite element order
+   int ode_solver = 21;     // ODE solver
+   real_t dt = 1e-2;        // Time step size
+   real_t t_final = 3.0;    // Final time
+   int vis_steps = 100;     // Visualization steps
+   int couple_scheme = -1;  // Coupling scheme
+                            // -1: Monolithic, 0: Alternating Schwarz,
+                            // >0: Additive Schwarz with number of iterations
+   bool ht_only = false;     // Conjugate heat transfer on/off
+   bool visualization = true;// Visualization on/off
+
+   real_t Re = 800.0;         // Reynolds number
+   real_t Pr = 0.71;          // Prandtl number
+   real_t density = 1.0;      // Density
+   real_t kappa_ratio = 1e2;  // Conductivity ratio solid/fluid
+   bool checkres = false;     // Check results
+
+#if defined(MFEM_USE_DOUBLE)
+   real_t tol_T = 1e-4;
+   real_t tol_Q = 1e-4;
+#elif defined(MFEM_USE_SINGLE)
+   real_t tol_T = 1e-3;
+   real_t tol_Q = 1e-3;
+#else
+#error "Only single and double precision are supported!"
+   real_t tol_T = 0;
+   real_t tol_Q = 0;
+#endif   
+} ctx;
+
+/// Temperature profile 
+double temp_profile(const Vector& x)
+{
+    return x(1) == 0.0 ? 1.0 : 0.0;
 }
 
-// Prescribed velocity profile for the convection-diffusion equation inside the
-// cylinder. The profile is constructed s.t. it approximates a no-slip (v=0)
-// directly at the cylinder wall boundary.
-void velocity_profile(const Vector &c, Vector &q)
+/// Parabolic velocity profile for channel inlet
+void velocity_profile(const Vector &x, Vector &u)
 {
-   real_t A = 1.0;
-   real_t x = c(0);
-   real_t y = c(1);
-   real_t r = sqrt(pow(x, 2.0) + pow(y, 2.0));
-
-   q(0) = 0.0;
-   q(1) = 0.0;
-
-   if (std::abs(r) >= 0.25 - 1e-8)
-   {
-      q(2) = 0.0;
-   }
-   else
-   {
-      q(2) = A * exp(-(pow(x, 2.0) / 2.0 + pow(y, 2.0) / 2.0));
-   }
+   double xi = x(0), yi = x(1) - 2.5;
+   u = 0.0;
+   u(0) = 24.0*yi*(0.5-yi);
 }
+
+/**
+ * @brief Coefficient to compute normal heat flux Q = -kappa grad(T) • n
+ */
+class HeatFluxCoefficient : public Coefficient
+{
+protected:
+   ParGridFunction *T_gf = nullptr;
+   Coefficient *conductivity = nullptr;
+   Vector grad_T, normal;
+
+public:
+   HeatFluxCoefficient(ParGridFunction *T_gf_,
+                       Coefficient *conductivity_) : 
+                       Coefficient(), T_gf(T_gf_), 
+                       conductivity(conductivity_)
+                       {
+                        int dim = T_gf->FESpace()->GetMesh()->Dimension();
+                        grad_T.SetSize(dim);
+                        normal.SetSize(dim);
+                       }
+
+    real_t Eval(ElementTransformation &T,
+              const IntegrationPoint &ip) override
+    {
+        const DenseMatrix &jacobian = T.Jacobian();
+        
+        MFEM_ASSERT( (jacobian.Height() - 1 == jacobian.Width()), 
+                     "Incorrect Jacobian dimension. Coefficient only "
+                     "supported for boundary elements.");
+
+        CalcOrtho(jacobian, normal);
+        const double scale = normal.Norml2();
+        normal /= scale;
+
+        real_t kappa = conductivity ? conductivity->Eval(T, ip) : 1.0;
+        T_gf->GetGradient(T,grad_T);
+        real_t flux = -kappa*(grad_T * normal);
+        
+        return flux;
+    }                       
+};
 
 /**
  * @brief Convection-diffusion time dependent operator
  *
- *              dT/dt = κΔT - α∇•(b T)
+ *              dT/dt = κΔT - α∇T•u
  *
- * Can also be used to create a diffusion or convection only operator by setting
- * α or κ to zero.
+ * Can also be used to create a diffusion or convection 
+ * only operator by setting α or κ to zero.
  */
 class ConvectionDiffusion : public Application
 {
 public:
-   /**
-    * @brief Construct a new convection-diffusion time dependent operator.
-    *
-    * @param fes The ParFiniteElementSpace the solution is defined on
-    * @param ess_tdofs All essential true dofs (relevant if fes is using H1
-    * finite elements)
-    * @param alpha The convection coefficient
-    * @param kappa The diffusion coefficient
-    */
-   ConvectionDiffusion(ParFiniteElementSpace &fes,
-                        Array<int> ess_tdofs,
-                        Array<int> nat_tdofs,
-                        real_t alpha_ = 1.0,
-                        real_t kappa_ = 1.0e-1,
-                        bool use_heat_flux = false)
-                        : Application(fes.GetTrueVSize()),
-                        kappa(kappa_), alpha(alpha_),
-                        temperature_gf(ParGridFunction(&fes)),
-                        heat_flux_gf(ParGridFunction(&fes)),
-                        gradT_gf(GradientGridFunctionCoefficient(&temperature_gf)),
-                        heat_flux_gfc(GridFunctionCoefficient(&heat_flux_gf)),
-                        Mform(&fes),
-                        Kform(&fes),
+
+   // Mesh and finite element space
+   ParMesh &mesh;
+   ParFiniteElementSpace &fes;
+
+   /// Essential and natural dof array.
+   Array<int> ess_attr, nat_attr;
+   Array<int> ess_tdofs, nat_tdofs;
+
+   /// Material properties
+   ConstantCoefficient diffusivity, kappa, alpha;
+
+   /// Grid functions for the temperature and heat flux
+   mutable ParGridFunction T_gf, Q_gf;
+
+   /// Used to store boundary condition data
+   mutable ParGridFunction T_gf_bc, Q_gf_bc; 
+   mutable GridFunctionCoefficient Q_fgc;
+   mutable HeatFluxCoefficient Q_coeff;
+
+   /// Mass form and Stiffness form. Might include 
+   /// diffusion, convection or both.
+   mutable ParBilinearForm Mform, Kform, Mform_e, Kform_e;
+
+   /// RHS form
+   mutable ParLinearForm bform;
+   mutable Vector b;
+
+   /// Mass and Stiffness operators
+   mutable HypreParMatrix Mmat, Kmat, Kmat_e, Mmat_e;
+
+   /// Mass matrix solver
+   CGSolver M_solver;
+   GMRESSolver implicit_solver;
+   HypreParMatrix *T = nullptr; // T = M + dt K
+
+   /// Preconditioners
+   HypreSmoother M_prec, T_prec;
+
+   /// Velocity coefficient
+   VectorCoefficient *velocity_coeff = nullptr;
+
+   /// Auxiliary variables
+   real_t current_dt = -1.0;
+   bool updated = false;
+   mutable Vector z, q;
+
+public:
+
+   ConvectionDiffusion(ParFiniteElementSpace &fes_,
+                        Array<int> ess_attr_,
+                        Array<int> nat_attr_,
+                        real_t diffusivity_ = 1.0,
+                        real_t kappa_ = 1.0,
+                        VectorCoefficient *velocity_coeff_ = nullptr,
+                        real_t alpha_ = 1.0)
+                        : Application(fes_.GetTrueVSize()),
+                        mesh(*fes_.GetParMesh()),
+                        fes(fes_),
+                        ess_attr(ess_attr_),
+                        nat_attr(nat_attr_),
+                        diffusivity(diffusivity_), 
+                        kappa(kappa_), alpha(-alpha_),
+                        T_gf(&fes), Q_gf(&fes),
+                        T_gf_bc(&fes), Q_gf_bc(&fes),
+                        Q_fgc(&Q_gf_bc), Q_coeff(&T_gf,&kappa),
+                        Mform(&fes), Kform(&fes),
+                        Mform_e(&fes), Kform_e(&fes),
                         bform(&fes),
-                        ess_tdofs_(ess_tdofs),
-                        nat_tdofs_(nat_tdofs),
-                        z(height), t1(height), t2(height),
-                        M_solver(fes.GetComm()),
-                        linear_solver(fes.GetComm())
+                        M_solver(mesh.GetComm()),
+                        implicit_solver(mesh.GetComm()),
+                        velocity_coeff(velocity_coeff_)
    {
 
-      d = new ConstantCoefficient(-kappa);
-      q = new VectorFunctionCoefficient(fes.GetParMesh()->Dimension(),
-                                        velocity_profile);
+      fes.GetEssentialTrueDofs(ess_attr, ess_tdofs);
+      fes.GetEssentialTrueDofs(nat_attr, nat_tdofs);
+      
+      T_gf = 0.0;
+      Q_gf = 0.0;
+      T_gf_bc = 0.0;
+      Q_gf_bc = 0.0;
+
+      field_collection.AddSourceField("Temperature",&T_gf);
+      field_collection.AddSourceField("Flux",&Q_gf);
+      field_collection.AddField("Temperature_BC",&T_gf_bc);
+      field_collection.AddField("Flux_BC",&Q_gf_bc);
 
       Mform.AddDomainIntegrator(new MassIntegrator);
-      Mform.Assemble(0);
-      Mform.Finalize();
+      Mform_e.AddDomainIntegrator(new MassIntegrator);
 
-      // temperature_gf = 0.0;
-      // heat_flux_gf = 0.0;
+      Kform.AddDomainIntegrator(new DiffusionIntegrator(diffusivity));
+      Kform_e.AddDomainIntegrator(new DiffusionIntegrator(diffusivity));
 
-      if (fes.IsDGSpace())
+      if(velocity_coeff)
       {
-         M.Reset(Mform.ParallelAssemble(), true);
-
-         inflow = new ConstantCoefficient(0.0);
-         bform.AddBdrFaceIntegrator(new BoundaryFlowIntegrator(*inflow, *q, alpha));
-      }
-      else
-      {
-         Kform.AddDomainIntegrator(new ConvectionIntegrator(*q, -alpha));
-         Kform.AddDomainIntegrator(new DiffusionIntegrator(*d));
-         Kform.Assemble(0);
-         Kform.Finalize();
-
-         if(use_heat_flux){
-            bform.AddBoundaryIntegrator(new BoundaryLFIntegrator(heat_flux_gfc));
-         }
-
-         bform.Assemble();
-         b = bform.ParallelAssemble();
-
-         Array<int> empty;
-         
-         temperature_gf.GetTrueDofs(u_bc);
-         Mform.FormSystemMatrix(ess_tdofs_, Mmat);
-         // Kform.FormSystemMatrix(empty, Kmat);
-         Kform.FormLinearSystem(ess_tdofs_, temperature_gf, bform, Kmat, z, u_bc);
+         Kform.AddDomainIntegrator(new ConvectionIntegrator(*velocity_coeff, alpha.constant));
+         Kform_e.AddDomainIntegrator(new ConvectionIntegrator(*velocity_coeff, alpha.constant));
       }
 
+      if(nat_attr.Max() > 0)
+      {
+         bform.AddBoundaryIntegrator(new BoundaryLFIntegrator(Q_fgc),nat_attr);
+      }
+      
+      z.SetSize(fes.GetTrueVSize());
+      q.SetSize(fes.GetTrueVSize());
+      Assemble();   
+      BuildSolvers();
+   }
+
+   /// Assemble linear and bilinear forms; called if mesh is updated
+   void Assemble()
+   {
+      AssembleLinearForms();
+      AssembleBilinearForms();
+   }
+
+   void AssembleBilinearForms()
+   {
+      Mform.Assemble();
+      Kform.Assemble();
+      Mform_e.Assemble();
+      Kform_e.Assemble();
+
+      Array<int> empty;      
+      Mform.FormSystemMatrix(ess_tdofs, Mmat);
+      Kform.FormSystemMatrix(ess_tdofs, Kmat);
+      Mform_e.FormSystemMatrix(empty, Mmat_e);
+      Kform_e.FormSystemMatrix(empty, Kmat_e);
+   }
+
+   void AssembleLinearForms()
+   {
+      b.SetSize(fes.GetTrueVSize());
+      b = 0.0;
+      bform.Assemble();
+      bform.ParallelAssemble(b);
+   }
+
+   /// Update finite element space and re-assemble forms
+   /// if the mesh has changed
+   void Update() override 
+   {
+        fes.Update();
+
+        T_gf.Update();
+        T_gf_bc.Update();
+        Q_gf.Update();
+        Q_gf_bc.Update();
+    
+        Mform.Update();
+        Kform.Update();
+        Mform_e.Update();
+        Kform_e.Update();
+        bform.Update();
+
+        Assemble();
+        updated = true;
+   }
+
+   void BuildSolvers()
+   {
       M_solver.iterative_mode = false;
       M_solver.SetRelTol(1e-8);
       M_solver.SetAbsTol(0.0);
-      M_solver.SetMaxIter(100);
+      M_solver.SetMaxIter(1000);
       M_solver.SetPrintLevel(0);
       M_prec.SetType(HypreSmoother::Jacobi);
       M_solver.SetPreconditioner(M_prec);
       M_solver.SetOperator(Mmat);
 
-
-      linear_solver.iterative_mode = false;
-      linear_solver.SetRelTol(1e-8);
-      linear_solver.SetAbsTol(0.0);
-      linear_solver.SetMaxIter(100);
-      linear_solver.SetPrintLevel(0);
-      linear_solver.SetPreconditioner(T_prec);
-
-
+      implicit_solver.iterative_mode = false;
+      implicit_solver.SetRelTol(1e-8);
+      implicit_solver.SetAbsTol(0.0);
+      implicit_solver.SetMaxIter(500);
+      implicit_solver.SetPrintLevel(0);
+      T_prec.SetType(HypreSmoother::Jacobi);
+      implicit_solver.SetPreconditioner(T_prec);
    }
 
-   void Update() override {
-      Reassemble();
-   }
-
-   void Reassemble() const {
-      Kform.FormLinearSystem(ess_tdofs_, temperature_gf, bform, Kmat, z, u_bc);
-   }
-
-   void Mult(const Vector &u, Vector &du_dt) const override
+   /// For explict time integration: k = M^{-1} ( -K u + b )
+   /// Used for partitioned coupling of explicit methods
+   void Mult(const Vector &u, Vector &k) const override
    {      
       Kmat.Mult(u, z);
-      z.Add(-1.0, u_bc);
-      M_solver.Mult(z, du_dt);
-      du_dt.SetSubVector(ess_tdofs_, 0.0);
+      z.Neg();
+      z.Add(1.0, b);
+      M_solver.Mult(z, k);
+      k.SetSubVector(ess_tdofs, 0.0);
    }
 
-   void ImplicitMult(const Vector &u, const Vector &k, Vector &v ) const override {
+   /// For implicit time integration: k solves (M + dt K) k = -K u + b
+   /// Used for partitioned coupling of implicit methods
+   void ImplicitSolve(const real_t dt, const Vector &u, Vector &k)
+   {   
+      AssembleLinearForms();
+      if((current_dt != dt) || updated)
+      {
+         if (T) delete T;
+         T = Add(1.0, Mmat, dt, Kmat);
+         implicit_solver.SetOperator(*T);
+         updated = false;
+         current_dt = dt;
+      }
 
-      Reassemble();
+      Kmat_e.Mult(u, z);
+      z.Neg();
+      z.Add(1.0, b);
+      implicit_solver.Mult(z, k);
 
-      Kmat.Mult(u, v); // v = K*u
-      v.Add(-1.0, u_bc);
-
-      Mmat.AddMult(k, v, -1.0); // v - M*k
-      v.Neg(); // v = M*k - K*u
-      v.SetSubVector(ess_tdofs_, 0.0);
+      if(IsCoupled() && nat_attr.Max() == 0)
+      {  // Apply interface conditions on temperature 
+         // Condition imposed by prescribing k = dT/dt
+         // T_gf_bc contains dT/dt from other domain
+         T_gf_bc.GetTrueDofs(z);
+         for (int i = 0; i < ess_tdofs.Size(); i++)
+         {
+            int idx = ess_tdofs[i];
+            k(idx) = z(idx);
+         }
+      }
+      else
+      {  // if uncoupled, apply standard essential BCs
+         k.SetSubVector(ess_tdofs, 0.0);
+      }
    }
 
-   void ExplicitMult(const Vector &u, Vector &v) const override {
+   /// Computes the residual v = M k + K u - b + (Tf - Ts)_int + (Qf + Qs)_int
+   /// where ()_int represents the temperature and flux interface conditions
+   /// Used for monolithic coupling
+   void ImplicitMult(const Vector &u, const Vector &k, Vector &v ) const override
+   {
+      // v = M*k + K*u
+      Mmat_e.Mult(k, v);
+      Kmat_e.AddMult(u, v);
 
-      Reassemble();
-      Kmat.Mult(u, v); // v = K*u
-      v.Add(-1.0, u_bc);
-      v.SetSubVector(ess_tdofs_, 0.0);
+      bform.Assemble();
+      bform.ParallelAssemble(b);
+      v.Add(-1.0,b); // v -= b
+
+      v.SetSubVector(ess_tdofs, 0.0); // Residual at uncoupled dofs is zero
+      
+      if(IsCoupled()) // Residual from interface conditions
+      {  // nat_dofs represent the coupled dofs
+         T_gf_bc.GetTrueDofs(z); // T from other domain
+         for (int i = 0; i < nat_tdofs.Size(); i++)
+         {
+               int idx = nat_tdofs[i];
+               v(idx) += (u(idx) - z(idx)); // T_f = T_s
+         }
+
+         Q_gf.GetTrueDofs(q); // Flux from T in this domain
+         Q_gf_bc.GetTrueDofs(z); // Flux from the other domain
+         for (int i = 0; i < nat_tdofs.Size(); i++)
+         {
+               int idx = nat_tdofs[i];
+               v(idx) += (q(idx) + z(idx)); // Q_f = -Q_s
+         }
+      }
+   }
+
+   /// Transfer temperature and flux boundary data
+   /// Called if application is monolithically coupled
+   void Transfer(const Vector &x) override
+   {
+      T_gf.SetFromTrueDofs(x);
+      Q_gf.ProjectBdrCoefficient(Q_coeff,ess_attr);
+      Q_gf.ProjectBdrCoefficient(Q_coeff,nat_attr);
+
+      Application::Transfer(); // Transfer all source fields
    }   
 
-   void ImplicitSolve(const real_t dt, const Vector &u, Vector &du_dt)
+   /// Transfer temperature and flux boundary data
+   /// Called if application is partitioned coupled
+   void Transfer(const Vector &x, const Vector &k, real_t dt = 0.0) override
    {
-   
-      Reassemble();
-      if(current_dt != dt){
-         if (T) delete T;
-
-         T = Add(1.0, Mmat, -dt, Kmat);
-         current_dt = dt;
-         linear_solver.SetOperator(*T);
+      if(nat_attr.Max() == 0)
+      {  // This domain sends flux
+         add(1.0,x,dt,k,z); 
+         T_gf.SetFromTrueDofs(z);
+         Q_gf.ProjectBdrCoefficient(Q_coeff,ess_attr);
+         field_collection.Transfer("Flux"); // Only transfer flux
       }
-      
-      Kmat.Mult(u, z);
-      z.Add(-1.0, u_bc);
-      linear_solver.Mult(z, du_dt);
-      du_dt.SetSubVector(ess_tdofs_, 0.0);
-   }
-
-
-   void Transfer(const Vector &x) override {
-
-      temperature_gf.SetFromTrueDofs(x);
-      heat_flux_gf.ProjectBdrCoefficientNormal(gradT_gf,nat_tdofs_);
-      heat_flux_gf *= kappa;
-
-      Application::Transfer();
+      else
+      { // This domain is sending temperature
+         T_gf.SetFromTrueDofs(k);
+         field_collection.Transfer("Temperature"); // Only transfer temperature
+      }      
    }   
 
    ~ConvectionDiffusion() override
    {
-      delete q;
-      delete d;
-      delete b;
+      if(T) delete T;
    }
-
-   /// Mass form
-   mutable ParBilinearForm Mform;
-
-   /// Stiffness form. Might include diffusion, convection or both.
-   mutable ParBilinearForm Kform;
-
-   /// Mass opeperator
-   OperatorHandle M;
-   HypreParMatrix Mmat;
-
-   /// Stiffness opeperator. Might include diffusion, convection or both.
-   OperatorHandle K;
-   mutable HypreParMatrix Kmat;
-
-
-   /// RHS form
-   mutable ParLinearForm bform;
-
-   /// RHS vector
-   Vector *b = nullptr;
-
-   /// Velocity coefficient
-   VectorCoefficient *q = nullptr;
-
-   /// Diffusion coefficient
-   Coefficient *d = nullptr;
-
-   /// Inflow coefficient
-   Coefficient *inflow = nullptr;
-
-   /// Essential true dof array. Relevant for eliminating boundary conditions
-   /// when using an H1 space.
-   Array<int> ess_tdofs_;
-   Array<int> nat_tdofs_;
-   mutable ParGridFunction temperature_gf;
-   mutable ParGridFunction heat_flux_gf;
-   mutable GradientGridFunctionCoefficient gradT_gf;
-   mutable GridFunctionCoefficient heat_flux_gfc;
-
-   real_t current_dt = -1.0;
-
-   /// Mass matrix solver
-   CGSolver M_solver;
-   GMRESSolver linear_solver;
-   HypreParMatrix *T = nullptr; // T = M + dt K
-
-
-   /// Mass matrix preconditioner
-   HypreSmoother M_prec;
-   HypreSmoother T_prec;  // Preconditioner for the implicit solver
-
-   real_t kappa; ///< Diffusion coefficient
-   real_t alpha; ///< Convection coefficient
-
-   /// Auxiliary vectors
-   mutable Vector t1, t2;
-   mutable Vector u_bc;
-   mutable Vector z; // auxiliary vector
 };
+
 
 int main(int argc, char *argv[])
 {
    Mpi::Init();
    Hypre::Init();
-   int num_procs = Mpi::WorldSize();
-   int myid = Mpi::WorldRank();
-
-   int order = 2;
-   real_t t_final = .005;
-   real_t dt = 1.0e-5;
-   bool visualization = true;
-   int visport = 19916;
-   int vis_steps = 10;
-   int ode_solver_type = 34;  // (34) SDIRK34Solver, (21) BackwardEulerSolver, (23) SDIRK33Solver, (3) RK3SSPSolver
-
 
    OptionsParser args(argc, argv);
-   args.AddOption(&order, "-o", "--order",
+   args.AddOption(&ctx.order, "-o", "--order",
                   "Finite element order (polynomial degree).");
-   args.AddOption(&t_final, "-tf", "--t-final",
+   args.AddOption(&ctx.t_final, "-tf", "--t-final",
                   "Final time; start time is 0.");
-   args.AddOption(&dt, "-dt", "--time-step",
+   args.AddOption(&ctx.dt, "-dt", "--time-step",
                   "Time step.");
-   args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
+   args.AddOption(&ctx.visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
-   args.AddOption(&vis_steps, "-vs", "--visualization-steps",
+   args.AddOption(&ctx.vis_steps, "-vs", "--visualization-steps",
                   "Visualize every n-th timestep.");
-   args.AddOption(&ode_solver_type, "-ode", "--ode-solver-type",
-                  "ODESolver id.");                  
+   args.AddOption(&ctx.ode_solver, "-ode", "--ode-solver-type",
+                  "ODESolver id.");
+   args.AddOption(&ctx.ser_ref, "-rs", "--serial-refine",
+                  "Number of times to refine the mesh in serial.");                
+   args.AddOption(&ctx.ht_only, "-ht-only", "--heat-transfer-only",
+                  "-cht", "--conjugate-heat-transfer",
+                  "Conjugate heat transfer or heat transfer only.");
+   args.AddOption(&ctx.couple_scheme, "-scheme", "--coupling-scheme", 
+                 "Coupling scheme: -1 = Monolithic; 0 = Alt. Schw.; >0 = Add. Schw.");
+   args.AddOption(&ctx.checkres, "-cr", "--checkresult", "-no-cr", "--no-checkresult",
+                 "Enable or disable checking of the result. Returns -1 on failure.");
    args.ParseCheck();
 
-   Mesh *serial_mesh = new Mesh("multidomain-hex.mesh");
+
+   int order = ctx.order;
+   int ode_solver = ctx.ode_solver;
+
+   Mesh *serial_mesh = new Mesh("backward-facing-step.msh");
+   int dim = serial_mesh->Dimension();
+
+   for (int i = 0; i < ctx.ser_ref; ++i) { serial_mesh->UniformRefinement(); }
+   serial_mesh->SetCurvature(order, false, dim, Ordering::byNODES);
+
    ParMesh parent_mesh = ParMesh(MPI_COMM_WORLD, *serial_mesh);
    delete serial_mesh;
-
    parent_mesh.UniformRefinement();
+   
+   
+   // Create the sub-domains and accompanying Finite Element spaces 
+   Array<int> domain_attributes(1);
+   domain_attributes[0] = 1;
+   auto fluid_mesh = ParSubMesh::CreateFromDomain(parent_mesh, domain_attributes);
+   fluid_mesh.SetAttributes();
+   fluid_mesh.EnsureNodes();
+   fluid_mesh.Finalize();
 
-   H1_FECollection fec(order, parent_mesh.Dimension());
+   domain_attributes[0] = 2;
+   auto solid_mesh = ParSubMesh::CreateFromDomain(parent_mesh,domain_attributes);
+   solid_mesh.SetAttributes();
+   solid_mesh.EnsureNodes();
+   solid_mesh.Finalize();
 
-   // Create the sub-domains and accompanying Finite Element spaces from
-   // corresponding attributes. This specific mesh has two domain attributes and
-   // 9 boundary attributes.
-   Array<int> cylinder_domain_attributes(1);
-   cylinder_domain_attributes[0] = 1;
+   // Set essential and natural boundary conditions attributes
+   Array<int> u_ess_attr, p_ess_attr, noslip_ess_attr;
+   Array<int> Ts_ess_attr, Ts_nat_attr;
+   Array<int> Tf_ess_attr, Tf_nat_attr;
 
-   auto cylinder_submesh = ParSubMesh::CreateFromDomain(parent_mesh, cylinder_domain_attributes);
+   if (solid_mesh.bdr_attributes.Size() > 0)
+   {
+      Ts_ess_attr.SetSize(solid_mesh.bdr_attributes.Max());
+      Ts_ess_attr = 0; 
+      Ts_ess_attr[2] = 1; // fluid-solid interface (T_fluid -> T_solid)
+      Ts_ess_attr[5] = 1; // bottom wall
 
-   ParFiniteElementSpace fes_cylinder(&cylinder_submesh, &fec);
+      Ts_nat_attr.SetSize(solid_mesh.bdr_attributes.Max());      
+      Ts_nat_attr = 0;
+      if(ctx.couple_scheme < 0)
+      { // If fully coupled, set nat. bc on interface for equality condition
+         Ts_nat_attr[2] = 1;
+      }
+   }
+   
+   if (fluid_mesh.bdr_attributes.Size() > 0)
+   {
+      u_ess_attr.SetSize(fluid_mesh.bdr_attributes.Max());
+      u_ess_attr = 0;
+      u_ess_attr[0] = 1; // inlet
 
-   Array<int> inflow_attributes(cylinder_submesh.bdr_attributes.Max());
-   inflow_attributes = 0;
-   inflow_attributes[7] = 1;
+      p_ess_attr.SetSize(fluid_mesh.bdr_attributes.Max());
+      p_ess_attr = 0;
+      p_ess_attr[1] = 1; // outlet
 
-   Array<int> inner_cylinder_wall_attributes( cylinder_submesh.bdr_attributes.Max());
-   inner_cylinder_wall_attributes = 0;
-   inner_cylinder_wall_attributes[8] = 1;
+      noslip_ess_attr.SetSize(fluid_mesh.bdr_attributes.Max());
+      noslip_ess_attr = 1;
+      noslip_ess_attr[0] = 0; // inlet
+      noslip_ess_attr[1] = 0; // outlet
 
-   // For the convection-diffusion equation inside the cylinder domain, the
-   // inflow surface and outer wall are treated as Dirichlet boundary
-   // conditions.
-   Array<int> inflow_tdofs, interface_tdofs, ess_tdofs;
-   fes_cylinder.GetEssentialTrueDofs(inflow_attributes, inflow_tdofs);
-   fes_cylinder.GetEssentialTrueDofs(inner_cylinder_wall_attributes,interface_tdofs);
+      Tf_ess_attr.SetSize(fluid_mesh.bdr_attributes.Max());
+      Tf_ess_attr = 0;
+      Tf_ess_attr[0] = 1; // inlet
 
-   ess_tdofs.Append(inflow_tdofs);
-   ess_tdofs.Append(interface_tdofs);
-   ess_tdofs.Sort();
-   ess_tdofs.Unique();
+      Tf_nat_attr.SetSize(fluid_mesh.bdr_attributes.Max());
+      Tf_nat_attr = 0;
+      Tf_nat_attr[2] = 1; // fluid-solid interface (Qs -> Qf)
+   }
+
+
+   // Finite element spaces for solid and fluid domains   
+   H1_FECollection ufec(order, dim);   // Velocity field (fluid domain)
+   H1_FECollection pfec(order-1, dim); // Pressure field (fluid domain)
+   H1_FECollection Tfec(order, dim);
+
+   ParFiniteElementSpace u_fes(&fluid_mesh, &ufec, dim, Ordering::byNODES);
+   ParFiniteElementSpace p_fes(&fluid_mesh, &pfec);   
+   ParFiniteElementSpace Tf_fes(&fluid_mesh, &Tfec);
+   ParFiniteElementSpace Tuf_fes(&fluid_mesh, &Tfec, dim, Ordering::byNODES);
+   ParFiniteElementSpace Ts_fes(&solid_mesh, &Tfec);   
+
+   // Set material properties
+   // From Backward Facing Step (BFS) Benchmark
+   real_t Re = ctx.Re;
+   real_t fluid_density = ctx.density;
+   real_t viscosity = fluid_density/Re;
+   real_t Pr = ctx.Pr ;
+   real_t fluid_alpha = 1.0;
+   real_t fluid_diffusivity = 1/(Re*Pr);
+   real_t fluid_kappa = fluid_diffusivity;
+   real_t solid_alpha = 0.0e0;
+   real_t kappa_ratio = ctx.kappa_ratio;
+   real_t solid_diffusivity = kappa_ratio*fluid_diffusivity;
+   real_t solid_kappa = fluid_kappa*kappa_ratio;
+
+   if(Mpi::Root())
+   {
+      std::cout << "Fluid Density: " << fluid_density << std::endl;
+      std::cout << "Viscosity: " << viscosity << std::endl;
+      std::cout << "Prandtl Number: " << Pr << std::endl;
+      std::cout << "Reynolds Number: " << Re << std::endl;
+      std::cout << "Solid Conductivity: " << solid_kappa << std::endl;
+      std::cout << "Fluid Diffusivity: " << fluid_diffusivity << std::endl;
+   }   
 
    
-   // ConvectionDiffusion cd_cylinder(fes_cylinder, inflow_tdofs, interface_tdofs);
-   ConvectionDiffusion cd_cylinder(fes_cylinder, ess_tdofs, inner_cylinder_wall_attributes,1.0, 1.0e-1, false);
+   // Navier miniapp
+   NavierSolver nse_miniapp(&fluid_mesh, order, viscosity);  
 
-   ParGridFunction &temperature_cylinder_gf = cd_cylinder.temperature_gf;   
-   ParGridFunction &qflux_cylinder_gf       = cd_cylinder.heat_flux_gf;      
+   int max_bdf_order = 3;
+   nse_miniapp.EnablePA(true); 
+   nse_miniapp.SetMaxBDFOrder(max_bdf_order);
 
-   temperature_cylinder_gf = 0.0;
-   qflux_cylinder_gf       = 0.0;
-
-
-   // FunctionCoefficient Tinit_coeff(Tinit); 
-   ConstantCoefficient Tinit_coeff(0.0); // Initial temperature inside the cylinder
-   ConstantCoefficient Tintflow(1.0); // Initial temperature inside the cylinder
-   temperature_cylinder_gf.ProjectCoefficient(Tinit_coeff);
-   temperature_cylinder_gf.ProjectBdrCoefficient(Tintflow, inflow_attributes);
-   temperature_cylinder_gf.ProjectBdrCoefficient(Tinit_coeff, inner_cylinder_wall_attributes);
-
-
-   GradientGridFunctionCoefficient gradT_cylinder_gf(&temperature_cylinder_gf);
-   qflux_cylinder_gf.ProjectBdrCoefficientNormal(gradT_cylinder_gf,inner_cylinder_wall_attributes);
-
-   Vector temperature_cylinder;
-   temperature_cylinder_gf.GetTrueDofs(temperature_cylinder);
-
-
-
-
-   // Set up the diffusion equation inside the solid block
-   Array<int> outer_domain_attributes(1);
-   outer_domain_attributes[0] = 2;
-
-   auto block_submesh = ParSubMesh::CreateFromDomain(parent_mesh,outer_domain_attributes);
-
-   ParFiniteElementSpace fes_block(&block_submesh, &fec);
-
-   Array<int> block_wall_attributes(block_submesh.bdr_attributes.Max());
-   block_wall_attributes = 0;
-   block_wall_attributes[0] = 1;
-   block_wall_attributes[1] = 1;
-   block_wall_attributes[2] = 1;
-   block_wall_attributes[3] = 1;
-
-   Array<int> outer_cylinder_wall_attributes(block_submesh.bdr_attributes.Max());
-   outer_cylinder_wall_attributes = 0;
-   outer_cylinder_wall_attributes[8] = 1;
-
-   fes_block.GetEssentialTrueDofs(block_wall_attributes, ess_tdofs);
-   fes_block.GetEssentialTrueDofs(outer_cylinder_wall_attributes, interface_tdofs);
+   ParGridFunction &uf_gf = *nse_miniapp.GetCurrentVelocity();
+   ParGridFunction &p_gf = *nse_miniapp.GetCurrentPressure(); 
    
+   Vector vzero(dim); vzero = 0.0;
+   ConstantCoefficient one_coeff(1.0);
+   Coefficient *zero_coeff = new ConstantCoefficient(0.0);   
+   VectorCoefficient *zerovec = new VectorConstantCoefficient(vzero);
+   VectorCoefficient *u_coeff = new VectorFunctionCoefficient(dim, velocity_profile);
 
-   ConvectionDiffusion diff_block(fes_block, ess_tdofs,outer_cylinder_wall_attributes, 0.0, 1.0, false);
+   // Set initial conditions in fluid    
+   p_gf.ProjectCoefficient(*zero_coeff);
+   uf_gf.ProjectCoefficient(*zerovec);
+   uf_gf.ProjectBdrCoefficient(*u_coeff,u_ess_attr);
 
-   ParGridFunction &temperature_block_gf = diff_block.temperature_gf;
-   ParGridFunction &qflux_block_gf       = diff_block.heat_flux_gf;
+   nse_miniapp.AddVelDirichletBC(u_coeff, u_ess_attr);
+   nse_miniapp.AddVelDirichletBC(zerovec, noslip_ess_attr);
+   nse_miniapp.AddPresDirichletBC(zero_coeff, p_ess_attr);
+   nse_miniapp.Setup(ctx.dt);
 
-   temperature_block_gf = 0.0;
-   qflux_block_gf       = 0.0;
+   /// Create navier block vector
+   Array<int> nse_offsets({0,uf_gf.ParFESpace()->GetTrueVSize(), p_gf.ParFESpace()->GetTrueVSize()});
+   nse_offsets.PartialSum();   
+   BlockVector up(nse_offsets);
 
-   ConstantCoefficient Touter_block(10.0); // Outer temperature of the block
-   temperature_block_gf.ProjectCoefficient(Tinit_coeff);
-   temperature_block_gf.ProjectBdrCoefficient(Touter_block, block_wall_attributes);
-
-   Vector temperature_block;
-   temperature_block_gf.GetTrueDofs(temperature_block);
+   uf_gf.GetTrueDofs(up.GetBlock(0));
+   p_gf.GetTrueDofs(up.GetBlock(1));
 
 
-   // GradientGridFunctionCoefficient gradT_block_gf(&temperature_block_gf);   
-   // qflux_block_gf.ProjectBdrCoefficientNormal(gradT_block_gf,outer_cylinder_wall_attributes);
-   // GridFunctionCoefficient qflux_block_coeff(&qflux_block_gf);
+   // Fluid Heat Transfer
+   ParGridFunction Tuf_gf(&Tuf_fes);  Tuf_gf = 0.0;
+   VectorGridFunctionCoefficient fluid_velocity(&Tuf_gf);
+   ConvectionDiffusion fluid_ht(Tf_fes, Tf_ess_attr, Tf_nat_attr, fluid_diffusivity, 
+                                fluid_kappa, &fluid_velocity, fluid_alpha);
    
-   // ParTransferMap qflux_transfermap = ParTransferMap(qflux_cylinder_gf, qflux_block_gf);
-   // qflux_transfermap.Transfer(qflux_cylinder_gf,qflux_block_gf);
+   std::unique_ptr<ODESolver> Tf_odesolver = ODESolver::Select(ode_solver);
+   Tf_odesolver->Init(fluid_ht);
 
-   // diff_block.bform.AddBoundaryIntegrator(new BoundaryNormalLFIntegrator(qflux_block_coeff), outer_cylinder_wall_attributes);
-   // diff_block.bform.AddBoundaryIntegrator(new BoundaryLFIntegrator(qflux_block_coeff));
-   // GridFunctionCoefficient temperature_block_gfc(&temperature_block_gf);
-   // diff_block.bform.AddBoundaryIntegrator(new BoundaryLFIntegrator(temperature_block_gfc));
+   ParGridFunction &Tf_gf = *fluid_ht.Fields().GetField("Temperature");
+   ParGridFunction &Qf_gf = *fluid_ht.Fields().GetField("Flux");
+   ParGridFunction &Tf_gf_bc = *fluid_ht.Fields().GetField("Temperature_BC");
+   ParGridFunction &Qf_gf_bc = *fluid_ht.Fields().GetField("Flux_BC");
+
+   // Set initial conditions in fluid
+   Tf_gf.ProjectCoefficient(*zero_coeff);
+   Tf_gf.ProjectBdrCoefficient(*zero_coeff,Tf_ess_attr);
+
+   // Solid Heat Transfer
+   ConvectionDiffusion solid_ht(Ts_fes, Ts_ess_attr, Ts_nat_attr, solid_diffusivity, 
+                                solid_kappa, nullptr, solid_alpha);
+
+   std::unique_ptr<ODESolver> Ts_odesolver = ODESolver::Select(ode_solver);
+   Ts_odesolver->Init(solid_ht);
+
+   ParGridFunction &Ts_gf = *solid_ht.Fields().GetField("Temperature");
+   ParGridFunction &Qs_gf = *solid_ht.Fields().GetField("Flux");
+   ParGridFunction &Ts_gf_bc = *solid_ht.Fields().GetField("Temperature_BC");
+   ParGridFunction &Qs_gf_bc = *solid_ht.Fields().GetField("Flux_BC");
+
+   // Set initial conditions in solid
+   FunctionCoefficient temp_coeff(temp_profile);
+   Ts_gf.ProjectCoefficient(temp_coeff);
 
 
-   Array<int> offsets({0,temperature_block.Size(), temperature_cylinder.Size()});
-   offsets.PartialSum();   
-   BlockVector temperature(offsets);
+   // Set up the coupled heat transfer multiapp
+   CoupledOperator ht_operator(2); // two coupled applications: fluid and solid heat transfer
 
-   temperature_block_gf.GetTrueDofs(temperature.GetBlock(0));
-   temperature_cylinder_gf.GetTrueDofs(temperature.GetBlock(1));
+   Application* fl_ht_app = ht_operator.AddOperator(&fluid_ht);
+   Application* sl_ht_app = ht_operator.AddOperator(&solid_ht);
 
-   CoupledApplication physics(2); // A total of two couple physics
- 
+   fl_ht_app->SetCoupled(true);
+   sl_ht_app->SetCoupled(true);
 
-   LinkedFields lf_solid_to_fluid(temperature_block_gf, temperature_cylinder_gf);
-   LinkedFields lf_fluid_to_solid(qflux_cylinder_gf, qflux_block_gf);
-   // LinkedFields lf_fluid_to_solid(temperature_cylinder_gf, temperature_block_gf);
+   // ODE solver for the coupled operator   
+   std::unique_ptr<ODESolver> ht_odesolver = ODESolver::Select(ode_solver);
+   ht_odesolver->Init(ht_operator);
+
+   Array<int> ht_offsets({0,Tf_fes.GetTrueVSize(), Ts_fes.GetTrueVSize()});
+   ht_offsets.PartialSum();   
+   BlockVector Tfsv(ht_offsets);
+
+   Tf_gf.GetTrueDofs(Tfsv.GetBlock( fl_ht_app->GetOperatorIndex() ));
+   Ts_gf.GetTrueDofs(Tfsv.GetBlock( sl_ht_app->GetOperatorIndex() ));
    
+   // Set up conjugate heat transfer app
+   CoupledOperator cht_app(2); // two coupled applications: navier, fluid-solid heat transfer
+
+   Application* nse_app = cht_app.AddOperator(&nse_miniapp,up.Size());  // (type-erased) Navier miniapp
+   Application* ht_app  = cht_app.AddOperator(ht_odesolver.get()); // Coupled fluid-solid heat transfer ODESolver;
 
 
-   std::unique_ptr<ODESolver> cylinder_ode_solver = ODESolver::Select(ode_solver_type);
-   std::unique_ptr<ODESolver> block_ode_solver    = ODESolver::Select(ode_solver_type);
+   // Set up field transfers
+   NativeTransfer Tf_Ts_map(Tf_fes, Ts_fes); // default map if none provided
+   // GSLibTransfer Tf_Ts_map(Tf_fes, Ts_fes);
 
-   diff_block.Reassemble();
-   cd_cylinder.Reassemble();
+   /// Create link between fields in different apps
+   LinkedFields uf_to_Tuf_lf(&uf_gf, &Tuf_gf); // Navier velocity to fluid-heat convection velocity
+   LinkedFields Tf_to_Ts_lf(&Tf_gf, &Ts_gf_bc, &Tf_Ts_map);  // Fluid temperature to solid temperature
+   LinkedFields Qs_to_Qf_lf(&Qs_gf, &Qf_gf_bc);  // Solid heat flux to fluid heat flux
 
-   cylinder_ode_solver->Init(cd_cylinder);
-   block_ode_solver->Init(diff_block);
+   /// Different methods for adding the linked field to their source apps
+   nse_app->AddLinkedFields("Velocity",&uf_to_Tuf_lf);
+   fl_ht_app->AddLinkedFields("Temperature", &Tf_to_Ts_lf);
+   fl_ht_app->Fields().AddTargetField("Flux", &Qs_gf_bc, &Tf_Ts_map);
+   sl_ht_app->Fields().AddLinkedFields("Flux", &Qs_to_Qf_lf);
+   sl_ht_app->Fields().AddTargetField("Temperature", &Tf_gf_bc);
 
-   // physics.SetCouplingScheme(CoupledApplication::Scheme::MONOLITHIC);
-   physics.SetCouplingScheme(CoupledApplication::Scheme::ALTERNATING_SCHWARZ);
-   // physics.SetCouplingType(CoupledApplication::CouplingType::PARTITIONED);
-
-
-   // std::string coupling_type_str = "partioned";
-   // std::string coupling_type_str = "one-way";
-   std::string coupling_type_str = "cht-monolithic-linear";
-
-   Application* app1 = physics.AddOperator(block_ode_solver.get());
-   Application* app2 = physics.AddOperator(cylinder_ode_solver.get());
-
-   // Application* app1 = physics.AddOperator(&diff_block);
-   // Application* app2 = physics.AddOperator(&cd_cylinder);
-
-   app1->AddLinkedFields(&lf_solid_to_fluid);
-   // app2->AddLinkedFields(&lf_fluid_to_solid);
-
-   // diff_block.AddLinkedFields(&lf_solid_to_fluid);
-   // cd_cylinder.AddLinkedFields(&lf_fluid_to_solid);
-
-   // physics.SetOffsets(offsets);
-   FPISolver fp_solver(MPI_COMM_WORLD);
+   // Solvers
+   // Select solver for partitioned coupling
+   FPISolver fp_solver(MPI_COMM_WORLD); // For partitioned solves
    AitkenRelaxation fp_relax;
+   fp_relax.SetBounds(0.0,1.0e-1);
    fp_solver.iterative_mode = false;
-   fp_solver.SetRelTol(1e-8);
-   fp_solver.SetAbsTol(0.0);
-   fp_solver.SetMaxIter(100);
-   fp_solver.SetPrintLevel(0);
-   fp_solver.SetRelaxation(1.0, &fp_relax);
+   fp_solver.SetRelTol(0e-5);
+   fp_solver.SetAbsTol(5e-4);
+   fp_solver.SetMaxIter(500);
+   fp_solver.SetPrintLevel(1);
+   fp_solver.SetRelaxation(5e-1, nullptr); // Use default relaxation method
+   // fp_solver.SetRelaxation(1e-1, &fp_relax);
 
+   // Select solver for monolithic/full coupling
+   NewtonSolver newton_solver(MPI_COMM_WORLD);  
+   GMRESSolver gmres_solver(MPI_COMM_WORLD); 
 
-   GMRESSolver gmres_solver(MPI_COMM_WORLD);
    gmres_solver.iterative_mode = false;
-   gmres_solver.SetRelTol(1e-6);
-   gmres_solver.SetAbsTol(0.0);
-   gmres_solver.SetMaxIter(100);
-   gmres_solver.SetPrintLevel(1);
-
-
-   NewtonSolver newton_solver(MPI_COMM_WORLD);
+   gmres_solver.SetRelTol(1e-7);
+   gmres_solver.SetAbsTol(1e-7);
+   gmres_solver.SetMaxIter(500);
+   gmres_solver.SetKDim(300);
+   gmres_solver.SetPrintLevel(0);
+   
    newton_solver.iterative_mode = false;
-   newton_solver.SetRelTol(1e-5);
-   newton_solver.SetAbsTol(0.0);
+   newton_solver.SetRelTol(0.0);
+   newton_solver.SetAbsTol(1e-7);
    newton_solver.SetMaxIter(100);
-   newton_solver.SetPrintLevel(1);
+   newton_solver.SetPrintLevel(0);
    newton_solver.SetSolver(gmres_solver);
 
-   // physics.SetSolver(&fp_solver);   
-   physics.SetSolver(&newton_solver);
-   // physics.SetSolver(&gmres_solver);
-   if(myid==0) std::cout << "Assembling..." << std::endl;
+   /// Set coupling scheme and corresponding solvers   
+   /// The Navier miniapp and coupled heat transfer ODESolver (both flow maps) are coupled 
+   /// can be coupled in parallel (Additive Schwarz) or serial (Alternating Schwarz) but not
+   /// monolithically. The fluid and solid heat transfer Applications in the coupled heat 
+   /// transfer ODESolver can also be coupled monolithically.
+   if(ctx.couple_scheme == -1)
+   {
+      cht_app.SetCouplingScheme(CoupledOperator::Scheme::ALTERNATING_SCHWARZ);
+      ht_operator.SetCouplingScheme(CoupledOperator::Scheme::MONOLITHIC);
+      ht_operator.SetSolver(&newton_solver);
+   }
+   else if(ctx.couple_scheme == 0)
+   {
+      cht_app.SetCouplingScheme(CoupledOperator::Scheme::ALTERNATING_SCHWARZ);
+      ht_operator.SetCouplingScheme(CoupledOperator::Scheme::ALTERNATING_SCHWARZ);
+      ht_operator.SetSolver(&fp_solver);
+   }
+   else
+   {
+      cht_app.SetCouplingScheme(CoupledOperator::Scheme::ADDITIVE_SCHWARZ);
+      ht_operator.SetCouplingScheme(CoupledOperator::Scheme::ADDITIVE_SCHWARZ);
+      ht_operator.SetSolver(&fp_solver);
+   }
 
-   physics.Assemble();
-   physics.GetCouplingOperator()->SetLinearity(false);
-   if(myid==0) std::cout << "Finalizing..." << std::endl;
-   physics.Finalize();
+   ht_operator.Assemble(false);
+   cht_app.Assemble(false);
 
-   if(myid==0) std::cout << "Physics Width: " << physics.Width() << std::endl;
+
+   auto nse_preprocess  = [&nse_offsets, &uf_gf, &p_gf](Vector &x) mutable { 
+         BlockVector up(x.GetData(), nse_offsets);
+         uf_gf.GetTrueDofs(up.GetBlock(0));
+         p_gf.GetTrueDofs(up.GetBlock(1));
+   };
+   auto nse_postprocess = [&nse_offsets, &uf_gf, &p_gf](Vector &x) mutable { 
+         BlockVector up(x.GetData(), nse_offsets);
+         uf_gf.SetFromTrueDofs(up.GetBlock(0));
+         p_gf.SetFromTrueDofs(up.GetBlock(1));
+   };
+
+   auto ht_preprocess = [&ht_offsets, &Tf_gf, &Ts_gf](Vector &x) mutable { 
+         BlockVector Tb(x.GetData(), ht_offsets);
+         Tf_gf.GetTrueDofs(Tb.GetBlock(0));
+         Ts_gf.GetTrueDofs(Tb.GetBlock(1));
+   };
+   auto ht_postprocess = [&ht_offsets, &Tf_gf, &Ts_gf](Vector &x) mutable { 
+         BlockVector Tb(x.GetData(), ht_offsets);
+         Tf_gf.SetFromTrueDofs(Tb.GetBlock(0));
+         Ts_gf.SetFromTrueDofs(Tb.GetBlock(1));
+   };
+
+   /// Set pre/post processing lambdas to corresponding apps
+   ht_app->SetPreProcessFunction(ht_preprocess);
+   ht_app->SetPostProcessFunction(ht_postprocess);
+
+   /// Not strictly necessary since Navier owns and updates GridFunctions 
+   /// internally but included here for completeness
+   nse_app->SetPreProcessFunction(nse_preprocess);
+   nse_app->SetPostProcessFunction(nse_postprocess);
+
+
+   // Set up the initial conditions in block vector for the
+   // coupled application in the correct order
+   int fl_id = nse_app->GetOperatorIndex();
+   int ht_id = ht_app->GetOperatorIndex();
+
+   BlockVector xb(cht_app.GetBlockOffsets());
+   xb.GetBlock(fl_id) = up;  // Fluid velocity and pressure    
+   xb.GetBlock(ht_id) = Tfsv;
+
    
+   // Set up visualization 
+   ParaViewDataCollection *fluid_pv = nullptr;
+   ParaViewDataCollection *solid_pv = nullptr;
 
-   std::unique_ptr<ODESolver> coupled_ode_solver = ODESolver::Select(ode_solver_type);   
-   coupled_ode_solver->Init(physics);
+   if(ctx.visualization)
+   {
+      fluid_pv = new ParaViewDataCollection("cht-BFS-fluid", &fluid_mesh);
+      solid_pv = new ParaViewDataCollection("cht-BFS-solid", &solid_mesh);
 
-
-   ParaViewDataCollection solid_pv(coupling_type_str+"-solid-"+std::to_string(ode_solver_type), &block_submesh);
-   ParaViewDataCollection fluid_pv(coupling_type_str+"-fluid-"+std::to_string(ode_solver_type), &cylinder_submesh);
-
-   solid_pv.SetLevelsOfDetail(order);
-   solid_pv.SetDataFormat(VTKFormat::BINARY);
-   solid_pv.SetHighOrderOutput(true);
-   solid_pv.RegisterField("temperature",&temperature_block_gf);
-   solid_pv.RegisterField("flux",&qflux_block_gf);
-
-   fluid_pv.SetLevelsOfDetail(order);
-   fluid_pv.SetDataFormat(VTKFormat::BINARY);
-   fluid_pv.SetHighOrderOutput(true);
-   fluid_pv.RegisterField("temperature",&temperature_cylinder_gf);
-   fluid_pv.RegisterField("flux",&qflux_cylinder_gf);
-   
-
+      fluid_pv->SetLevelsOfDetail(order);
+      fluid_pv->SetDataFormat(VTKFormat::BINARY);
+      fluid_pv->SetHighOrderOutput(true);
+      fluid_pv->RegisterField("pressure",&p_gf);
+      fluid_pv->RegisterField("velocity",&uf_gf);
+      fluid_pv->RegisterField("convection",&Tuf_gf);
+      fluid_pv->RegisterField("Temperature",&Tf_gf);
+      fluid_pv->RegisterField("Flux",&Qf_gf);
+      
+      solid_pv->SetLevelsOfDetail(order);
+      solid_pv->SetDataFormat(VTKFormat::BINARY);
+      solid_pv->SetHighOrderOutput(true);
+      solid_pv->RegisterField("Temperature",&Ts_gf);
+      solid_pv->RegisterField("Flux",&Qs_gf);      
+   }
+      
    auto save_callback = [&](int cycle, double t)
    {
-      solid_pv.SetCycle(cycle);
-      solid_pv.SetTime(t);
+      if(fluid_pv)
+      {
+         fluid_pv->SetCycle(cycle);
+         fluid_pv->SetTime(t);
+         fluid_pv->Save();
+      }
 
-      fluid_pv.SetCycle(cycle);
-      fluid_pv.SetTime(t);
-
-      solid_pv.Save();
-      fluid_pv.Save();
+      if(solid_pv)
+      {
+         solid_pv->SetCycle(cycle);
+         solid_pv->SetTime(t);
+         solid_pv->Save();
+      }
    };
+   
+
+   if (Mpi::Root()) { 
+      out << "Starting time integration..." << std::endl; 
+   }
 
    StopWatch timer;
    timer.Start();
 
-   if(myid==0) std::cout << "Starting time integration..." << std::endl;
    real_t t = 0.0;
    bool last_step = false;
+   int tindex = 1;
    save_callback(0, t);
 
-   for (int ti = 1; !last_step; ti++)
+   last_step = false;
+   for (; !last_step; tindex++)
    {
-      if (t + dt >= t_final - dt/2)
+      if (t + ctx.dt >= ctx.t_final - ctx.dt/2){ last_step = true; }
+
+      if(ctx.ht_only)
       {
-         last_step = true;
+         ht_odesolver->Step(Tfsv,t,ctx.dt);
+         Tf_gf.SetFromTrueDofs(Tfsv.GetBlock(0));
+         Ts_gf.SetFromTrueDofs(Tfsv.GetBlock(1));
+      }
+      else
+      {
+         cht_app.Step(xb, t, ctx.dt);
       }
 
-
-      // if(physics.GetCouplingType() == CoupledApplication::CouplingType::ONE_WAY)
-      // {         
-      //    diff_block.Reassemble();
-      //    block_ode_solver->Step(temperature.GetBlock(0), t, dt);
-      //    diff_block.Transfer(temperature.GetBlock(0));
-      //    t -= dt;
-
-      //    cd_cylinder.Reassemble();
-      //    cylinder_ode_solver->Step(temperature.GetBlock(1), t, dt);
-      //    cd_cylinder.Transfer(temperature.GetBlock(1));
-      // }
-      // else if(physics.GetCouplingType() == CoupledApplication::CouplingType::PARTITIONED)
-      // {
-         // coupled_ode_solver->Step(temperature,t,dt);   
-         physics.Step(temperature, t, dt);
-      // }
-
-      temperature_block_gf.SetFromTrueDofs(temperature.GetBlock(0));      
-      temperature_cylinder_gf.SetFromTrueDofs(temperature.GetBlock(1));
-
-      // coupled_ode_solver->Step(temperature,t,dt);
-      // physics.Step(temperature, t, dt);
-      // t += dt;
-
-
-      if (last_step || (ti % vis_steps) == 0)
-      {
-         if (myid == 0)
-         {
-            out << "step " << ti << ", t = " << t << std::endl;
-         }
-
-         save_callback(ti, t);
+      if (last_step || (tindex % ctx.vis_steps) == 0){
+         if (Mpi::Root()) { out << "step " << tindex << ", t = " << t << std::endl;}
+         save_callback(tindex, t);
       }
    }
 
    timer.Stop();
-   if (myid == 0){
+   if (Mpi::Root()){
       out << "Total time: " << timer.RealTime() << " seconds." << std::endl;
    }
+
+   /// Compute interface error
+   if(ctx.checkres)
+   {
+      Array<int> fl_int_attr(fluid_mesh.bdr_attributes.Max());
+      fl_int_attr[2] = 1; // fluid-solid interface
+      
+      /// Create submesh and FE space for the interface
+      ParSubMesh int_mesh = ParSubMesh::CreateFromBoundary(fluid_mesh, fl_int_attr);
+      ParFiniteElementSpace int_fes(&int_mesh, &Tfec);
+
+      /// Receiving grid functions on the interface
+      ParGridFunction fl_int_gf(&int_fes);
+      ParGridFunction sl_int_gf(&int_fes);
+
+      /// Maps and linked fields to transfer domain grid functions to the interface
+      NativeTransfer fl_to_int_submesh(Tf_fes, int_fes);
+      LinkedFields TQf_to_Tint_lf(&Tf_gf, &fl_int_gf, &fl_to_int_submesh);
+      LinkedFields TQs_to_Tint_lf(&Tf_gf_bc, &sl_int_gf, &fl_to_int_submesh);
+
+      cht_app.Transfer(xb); // Transfer all fields *_gf to their target fields *_gf_bc
+      
+      fl_int_gf = 0.0; sl_int_gf = 0.0;
+      TQf_to_Tint_lf.Transfer(); // Transfer Tf to interface
+      TQs_to_Tint_lf.Transfer(); // Transfer Ts (in Tf_gf_bc) to interface
+      real_t err_T = sqrt(DistanceSquared(int_mesh.GetComm(), fl_int_gf, sl_int_gf));
+
+      // Update sources in existing linked fields (can also create new ones)
+      TQf_to_Tint_lf.SetSource(&Qf_gf);
+      TQs_to_Tint_lf.SetSource(&Qf_gf_bc);
+
+      fl_int_gf = 0.0; sl_int_gf = 0.0;
+      TQf_to_Tint_lf.Transfer(); // Transfer Qf to interface
+      TQs_to_Tint_lf.Transfer(); // Transfer Qs (in Qf_gf_bc) to interface
+      real_t err_Q = sqrt(DistanceSquared(int_mesh.GetComm(), fl_int_gf, sl_int_gf));
+
+      if (sqrt(err_T) > ctx.tol_T || sqrt(err_Q) > ctx.tol_Q)
+      {
+         if (Mpi::Root())
+         {
+            mfem::out << "Result has a larger error than expected."
+                      << "T Error = " << sqrt(err_T)
+                      << ", Q Error = " << sqrt(err_Q)
+                      << std::endl;
+         }
+         return -1;
+      }
+   }
+
+   if(fluid_pv) delete fluid_pv;
+   if(solid_pv) delete solid_pv;
+   delete zero_coeff;
+   delete zerovec;
+   delete u_coeff;
 
    return 0;
 }

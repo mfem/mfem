@@ -10,7 +10,7 @@
 # CONTRIBUTING.md for details.
 
 set(MESH_FILES
-  multidomain-hex.mesh
+  backward-facing-step.msh
 )
 
 # Add a target to copy the mesh files from the source directory; used by sample
@@ -39,35 +39,29 @@ set(MULTIAPP_COMMON_FILES
 
 # Parallel apps.
 if (MFEM_USE_MPI)
-  # add_mfem_miniapp(cht
-  #   MAIN cht.cpp
-  #   ${MFEM_MINIAPPS_COMMON_HEADERS}
+  add_mfem_miniapp(cht-BFS
+    MAIN cht-BFS.cpp
+    ${MFEM_MINIAPPS_COMMON_HEADERS} ${MULTIAPP_COMMON_FILES} ../navier/navier_solver.hpp ../navier/navier_solver.cpp
+    LIBRARIES mfem-common)
+  add_dependencies(cht-BFS copy_miniapps_multiapp_data)
+
+  # add_mfem_miniapp(navier-stokes
+  #   MAIN navier-stokes.cpp
+  #   ${MFEM_MINIAPPS_COMMON_HEADERS} ${MULTIAPP_COMMON_FILES}
   #   LIBRARIES mfem-common)
-  # add_dependencies(cht copy_miniapps_multiapp_data)
+  # add_dependencies(navier-stokes copy_miniapps_multiapp_data)
 
-  add_mfem_miniapp(cht-partitioned
-    MAIN cht-partitioned.cpp
-    ${MFEM_MINIAPPS_COMMON_HEADERS} ${MULTIAPP_COMMON_FILES}
-    LIBRARIES mfem-common)
-  add_dependencies(cht-partitioned copy_miniapps_multiapp_data)
+  # add_mfem_miniapp(elasticity
+  #   MAIN elasticity.cpp
+  #   ${MFEM_MINIAPPS_COMMON_HEADERS} ${MULTIAPP_COMMON_FILES}
+  #   LIBRARIES mfem-common)
+  # add_dependencies(elasticity copy_miniapps_multiapp_data)
 
-  add_mfem_miniapp(navier-stokes
-    MAIN navier-stokes.cpp
-    ${MFEM_MINIAPPS_COMMON_HEADERS} ${MULTIAPP_COMMON_FILES}
-    LIBRARIES mfem-common)
-  add_dependencies(navier-stokes copy_miniapps_multiapp_data)
-
-  add_mfem_miniapp(elasticity
-    MAIN elasticity.cpp
-    ${MFEM_MINIAPPS_COMMON_HEADERS} ${MULTIAPP_COMMON_FILES}
-    LIBRARIES mfem-common)
-  add_dependencies(elasticity copy_miniapps_multiapp_data)
-
-  add_mfem_miniapp(fsi
-    MAIN fsi.cpp
-    ${MFEM_MINIAPPS_COMMON_HEADERS} ${MULTIAPP_COMMON_FILES}
-    LIBRARIES mfem-common)
-  add_dependencies(fsi copy_miniapps_multiapp_data)
+  # add_mfem_miniapp(fsi
+  #   MAIN fsi.cpp
+  #   ${MFEM_MINIAPPS_COMMON_HEADERS} ${MULTIAPP_COMMON_FILES}
+  #   LIBRARIES mfem-common)
+  # add_dependencies(fsi copy_miniapps_multiapp_data)
 
 # Add parallel tests.
   # if (MFEM_ENABLE_TESTING)
