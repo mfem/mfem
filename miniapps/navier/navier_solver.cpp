@@ -366,8 +366,8 @@ void NavierSolver::UpdateTimestepHistory(real_t dt)
 
 void NavierSolver::Step(Vector &up, real_t &t, real_t &dt)
 {
-   Array<int> offsets({0, vfes->GetTrueVSize(), pfes->GetTrueVSize()});
-   offsets.PartialSum();
+   int us = vfes->GetVSize(), ps = pfes->GetVSize();
+   Array<int> offsets({0, us, us + ps});
    BlockVector upb(up.GetData(), offsets);
 
    un_gf.SetFromTrueDofs(upb.GetBlock(0));
@@ -987,10 +987,9 @@ real_t NavierSolver::ComputeCFL(ParGridFunction &u, real_t dt)
    return cflmax_global;
 }
 
-void NavierSolver::AddVelDirichletBC(VectorCoefficient *coeff, Array<int> &attr,
-                                     bool own)
+void NavierSolver::AddVelDirichletBC(VectorCoefficient *coeff, Array<int> &attr)
 {
-   vel_dbcs.emplace_back(attr, coeff, own);
+   vel_dbcs.emplace_back(attr, coeff);
 
    if (verbose && pmesh->GetMyRank() == 0)
    {
@@ -1021,10 +1020,9 @@ void NavierSolver::AddVelDirichletBC(VecFuncT *f, Array<int> &attr)
    AddVelDirichletBC(new VectorFunctionCoefficient(pmesh->Dimension(), f), attr);
 }
 
-void NavierSolver::AddPresDirichletBC(Coefficient *coeff, Array<int> &attr,
-                                      bool own)
+void NavierSolver::AddPresDirichletBC(Coefficient *coeff, Array<int> &attr)
 {
-   pres_dbcs.emplace_back(attr, coeff, own);
+   pres_dbcs.emplace_back(attr, coeff);
 
    if (verbose && pmesh->GetMyRank() == 0)
    {
