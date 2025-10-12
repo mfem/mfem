@@ -710,7 +710,7 @@ public:
 protected:
 
     std::string name;
-    int oper_index = numeric_limits<int>::max();
+    int oper_index = std::numeric_limits<int>::max();
     OperatorType operator_type = OperatorType::ANY_TYPE; ///< Type of the operator
     OperationID operation_id = OperationID::NONE;        ///< Current operation ID
     bool is_coupled = false;
