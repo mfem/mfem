@@ -544,6 +544,208 @@ void SLI(const Operator &A, Solver &B, const Vector &b, Vector &x,
          real_t RTOLERANCE = 1e-12, real_t ATOLERANCE = 1e-24);
 
 
+
+/**
+   @brief A class to handle fixed point iteration relaxation methods.
+   This class provides a base for implementing various relaxation strategies
+   for fixed point iteration solvers.
+ */
+class FPIRelaxation
+{
+#ifdef MFEM_USE_MPI
+private:
+   MPI_Comm comm = MPI_COMM_NULL;
+#endif
+
+protected:
+   const Operator *op = nullptr;
+   real_t minf = std::numeric_limits<real_t>::lowest();
+   real_t maxf = std::numeric_limits<real_t>::max();
+
+public:
+   FPIRelaxation() = default;
+
+#ifdef MFEM_USE_MPI
+   FPIRelaxation(MPI_Comm comm_){comm = comm_;}
+   void SetComm(MPI_Comm comm_) {comm = comm_;}
+#endif
+
+   /// @brief Set the operator for the relaxation method.
+   virtual void Init(const Operator &op_){op = &op_;}
+
+   virtual void SetLowerBound(real_t minf_){ minf = minf_; }
+   virtual void SetUpperBound(real_t maxf_){ maxf = maxf_; }
+   virtual void SetBounds(real_t minf_, real_t maxf_)
+   { minf = minf_; maxf = maxf_;}
+
+   /// @brief Clamp the relaxation factor to the specified range.
+   virtual real_t Clamp(real_t factor) const
+   { return std::max(std::min(factor, maxf), minf);}
+
+   /**
+    @brief Compute the relaxation factor for Fixed Point Iteration.
+
+      @param state Current state vector
+      @param residual Current residual vector
+      @param res_norm Norm of the current residual vector
+      @param rfactor Current relaxation factor
+      @return real_t The computed relaxation factor
+   */
+   virtual real_t Eval(const Vector &state, const Vector &residual,
+                       real_t res_norm, real_t rfactor)
+   {
+      return rfactor; // Default implementation returns the fixed factor
+   };
+
+   real_t Dot(const Vector &x, const Vector &y) const
+   {
+#ifndef MFEM_USE_MPI
+      return (x * y);
+#else
+      return InnerProduct(comm, x, y);
+#endif
+   }
+
+   real_t NormSquared(const Vector &x, const Vector &y) const
+   {
+#ifndef MFEM_USE_MPI
+      return x.DistanceSquaredTo(y);
+#else
+      return DistanceSquared(comm, x, y);
+#endif
+   }
+
+   virtual ~FPIRelaxation(){}
+};
+
+/**
+   @brief A class to implement Aitken relaxation for Fixed Point Iteration
+   to accelerate the convergence of fixed point iterations.
+ */
+class AitkenRelaxation : public FPIRelaxation
+{
+protected:
+   Vector rold; // Old residual vector
+   real_t rold_norm = 0.0;
+
+public:
+   AitkenRelaxation() = default;
+
+#ifdef MFEM_USE_MPI
+    AitkenRelaxation(MPI_Comm comm_) : FPIRelaxation(comm_){}
+#endif
+
+   /// @brief Set the operator for the relaxation method.
+   void Init(const Operator &op_) override
+   {
+      FPIRelaxation::Init(op_);
+      rold.SetSize(op->Width());
+      rold = 0.0;
+      rold_norm = 0.0;
+   }
+
+   /**
+    @brief Compute the Aitken relaxation factor for Fixed Point Iteration.
+
+      @param state Current state vector
+      @param residual Current residual vector
+      @param res_norm Norm of the current residual vector
+      @param rfactor Current relaxation factor
+      @return The computed relaxation factor
+   */
+   real_t Eval(const Vector &state, const Vector &residual, real_t res_norm, real_t rfactor) override
+   {
+      real_t num   = Dot(rold, residual) - (rold_norm * rold_norm);
+      real_t denom = NormSquared(rold, residual);
+      real_t ratio = num / denom;
+
+      if(num == 0.0) ratio = -1.0; // Avoid num = 0.0 at first call
+      rold_norm = res_norm;
+      rold      = residual;
+
+      return Clamp(-rfactor * ratio); // Clamp the relaxation factor
+   };
+};
+
+/**
+   @brief A class to implement steepest descent relaxation for Fixed Point Iteration
+   to accelerate the convergence of fixed point iterations.
+ */
+class SteepestDescentRelaxation : public FPIRelaxation
+{
+protected:
+    Vector z;
+
+public:
+    SteepestDescentRelaxation() = default;
+
+#ifdef MFEM_USE_MPI
+    SteepestDescentRelaxation(MPI_Comm comm_) : FPIRelaxation(comm_){}
+#endif
+
+    /// @brief Set the operator for the relaxation method.
+    void Init(const Operator &op_) override
+    {
+        FPIRelaxation::Init(op_);
+        z.SetSize(op->Width());
+        z = 0.0;
+    }
+
+    /**
+       @brief Compute the steepest descent relaxation factor for Fixed Point Iteration.
+
+       @param state Current state vector
+       @param residual Current residual vector
+       @param res_norm Norm of the current residual vector
+       @param rfactor Current relaxation factor
+       @return The computed relaxation factor
+     */
+    real_t Eval(const Vector &state, const Vector &residual, real_t res_norm, real_t rfactor) override
+    {
+        MFEM_VERIFY(op,"Operator not set; set using Init(Operator&)")
+
+        Operator *J = &op->GetGradient(state);
+        real_t num = res_norm * res_norm;
+        J->Mult(residual, z); // rold = F'(x) * rnew;
+        real_t denom = Dot(z, residual);
+        return Clamp(num/denom); // Clamp the relaxation factor
+    }
+};
+
+/// Fixed point iteration solver: x <- f(x)
+class FPISolver : public IterativeSolver
+{
+protected:
+   FPIRelaxation *relax_method = nullptr; ///< Relaxation strategy for FPI
+   bool relax_owned = false;
+   mutable real_t relax_factor = 1.0;
+   mutable Vector r, z;
+
+   void UpdateVectors();
+
+public:
+   FPISolver() { }
+
+#ifdef MFEM_USE_MPI
+   FPISolver(MPI_Comm comm_) : IterativeSolver(comm_) { }
+#endif
+
+   virtual void SetOperator(const Operator &op) override;
+
+   void SetRelaxation(real_t r, FPIRelaxation *relaxation = nullptr,
+                      bool own = false);
+
+   /// Iterative solution of the (non)linear system using Fixed Point Iteration
+   /// b is not used
+   void Mult(const Vector &b, Vector &x) const override;
+};
+
+/// Fixed point iteration. (tolerances are squared)
+void FPI(const Operator &A, const Vector &b, Vector &x,
+         int print_iter = 0, int max_num_iter = 1000,
+         real_t RTOLERANCE = 1e-12, real_t ATOLERANCE = 1e-24,
+         real_t relax_factor = 1.0, FPIRelaxation *relax_method = nullptr);
+
 /// Conjugate gradient method
 class CGSolver : public IterativeSolver
 {

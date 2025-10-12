@@ -14,8 +14,6 @@
 #define MFEM_MULTIAPP_HPP
 
 #include "mfem.hpp"
-#include "fpi_solver.hpp"
-
 
 #ifdef MFEM_USE_MPI
 

@@ -734,6 +734,172 @@ void SLI(const Operator &A, Solver &B, const Vector &b, Vector &x,
    sli.Mult(b, x);
 }
 
+/// Fixed point iteration solver: x <- f(x)
+void FPISolver::UpdateVectors()
+{
+   r.SetSize(width);
+   z.SetSize(width);
+}
+
+void FPISolver::SetOperator(const Operator &op)
+{
+   IterativeSolver::SetOperator(op);
+   UpdateVectors();
+   if(!relax_method)
+   {
+      relax_method = new FPIRelaxation(); // Default relaxation strategy
+      relax_owned = true;
+   }
+   relax_method->Init(*oper);
+}
+
+void FPISolver::SetRelaxation(real_t r, FPIRelaxation *relaxation, bool own)
+{
+   relax_factor = r;
+   if (relaxation)
+   {
+      if(relax_method && relax_owned) delete relax_method;
+      relax_method = relaxation;
+      relax_owned  = own;
+   }
+#ifdef MFEM_USE_MPI
+   if(relax_method) relax_method->SetComm(this->GetComm());
+#endif
+}
+
+/// Iterative solution of the (non)linear system using Fixed Point Iteration
+void FPISolver::Mult(const Vector &b, Vector &x) const
+{
+   int i;
+   real_t factor = relax_factor;
+
+   // FPI with fixed number of iterations and given
+   // initial guess
+   if (rel_tol == 0.0 && iterative_mode)
+   {
+      if (factor == 1.0)
+      {
+         for (i = 0; i < max_iter; i++)
+         {
+            oper->Mult(x, z);  // z = F(x)
+            x = z;
+         }
+      }
+      else
+      {
+         for (i = 0; i < max_iter; i++)
+         {
+            oper->Mult(x, z);  // z = F(x)
+            subtract(z, x, r); // r = z - x
+            x.Add(factor, r);  // x = x + factor * r
+         }
+      }
+      converged = true;
+      final_iter = i;
+      return;
+   }
+
+   real_t r0, nom, nom0, nomold = 1, cf, fac_old = factor;
+
+   if (iterative_mode)
+   {
+      oper->Mult(x, z);  // z = F(x)
+      subtract(z, x, r); // r = z - x
+   }
+   else
+   {
+      x = 0.0;
+      oper->Mult(x, r);  // r = F(x)
+   }
+
+   nom0 = nom = sqrt(Dot(r, r));
+   initial_norm = nom0;
+
+   if (print_options.iterations | print_options.first_and_last)
+   {
+      mfem::out << "   Iteration : " << setw(3) << right << 0 << "  ||Br|| = "
+                  << nom << (print_options.first_and_last ? " ..." : "") << '\n';
+   }
+
+   r0 = std::max(nom*rel_tol, abs_tol);
+   if (nom <= r0)
+   {
+      converged = true;
+      final_iter = 0;
+      final_norm = nom;
+      return;
+   }
+
+   // start iteration
+   converged = false;
+   final_iter = max_iter;
+   for (i = 1; true; )
+   {
+      factor = relax_method->Eval(x,r,nom,fac_old);
+      x.Add(factor, r); // x = x + factor * r
+
+      oper->Mult(x, z);  // z = F(x)
+      subtract(z, x, r); // r = z - x
+      nom = sqrt(Dot(r, r));
+
+      cf = nom/nomold;
+      nomold = nom;
+      fac_old = factor;
+
+      bool done = false;
+      if (nom < r0)
+      {
+            converged = true;
+            final_iter = i;
+            done = true;
+      }
+
+      if (++i > max_iter)
+      {
+            done = true;
+      }
+
+      if (print_options.iterations || (done && print_options.first_and_last))
+      {
+            mfem::out << "   Iteration : " << setw(3) << right << (i-1)
+                  << "  ||r|| = " << setw(11) << left << nom
+                  << "\tConv. rate: " << cf << '\n';
+      }
+
+      if (done) { break; }
+   }
+
+   if (print_options.summary || (print_options.warnings && !converged))
+   {
+      const auto rf = pow (nom/nom0, 1.0/final_iter);
+      mfem::out << "FPI: Number of iterations: " << final_iter << '\n'
+                  << "Conv. rate: " << cf << '\n'
+                  << "Average reduction factor: "<< rf << '\n';
+   }
+   if (print_options.warnings && !converged)
+   {
+      mfem::out << "FPI: No convergence!" << '\n';
+   }
+
+   final_norm = nom;
+}
+
+void FPI(const Operator &A, const Vector &b, Vector &x,
+         int print_iter, int max_num_iter,
+         real_t RTOLERANCE, real_t ATOLERANCE,
+         real_t relax_factor, FPIRelaxation *relax_method)
+{
+   MFEM_PERF_FUNCTION;
+
+   FPISolver fpi;
+   fpi.SetPrintLevel(print_iter);
+   fpi.SetMaxIter(max_num_iter);
+   fpi.SetRelTol(sqrt(RTOLERANCE));
+   fpi.SetAbsTol(sqrt(ATOLERANCE));
+   fpi.SetOperator(A);
+   fpi.SetRelaxation(relax_factor,relax_method,false);
+   fpi.Mult(b, x);
+}
 
 void CGSolver::UpdateVectors()
 {
