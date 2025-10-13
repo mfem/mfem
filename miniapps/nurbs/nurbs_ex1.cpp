@@ -156,7 +156,7 @@ int main(int argc, char *argv[])
    bool strongBC = 1;
    real_t kappa = -1;
    Array<int> order(1);
-   order[0] = 0;
+   order[0] = -1;
    int visport = 19916;
 
 
