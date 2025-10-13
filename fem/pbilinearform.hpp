@@ -102,8 +102,12 @@ public:
    void AssembleDiagonal(Vector &diag) const override;
 
    /// Returns the matrix assembled on the true dofs, i.e. P^t A P.
-   /** The returned matrix is owned by the form. */
-   HypreParMatrix *ParallelAssembleInternal();
+   /** The returned matrix is the internal one, owned by the form. It is not
+       reassembled if it has been already constructed. If FormSystemMatrix()
+       has been called before, it is the system matrix with eliminated
+       essential DOFs, otherwise the parallel matrix is assembled here without
+       the elimination process. */
+   HypreParMatrix *ParallelAssembleInternalMatrix();
 
    /// Returns the matrix assembled on the true dofs, i.e. P^t A P.
    /** The returned matrix has to be deleted by the caller. */
@@ -354,8 +358,12 @@ public:
    void Assemble(int skip_zeros = 1);
 
    /// Returns the matrix assembled on the true dofs, i.e. P_test^t A P_trial.
-   /** The returned matrix is owned by the form. */
-   HypreParMatrix *ParallelAssembleInternal();
+   /** The returned matrix is the internal one, owned by the form. It is not
+       reassembled if it has been already constructed. If
+       FormRectangularSystemMatrix() has been called before, it is the system
+       matrix with eliminated essential DOFs, otherwise the parallel matrix is
+       assembled here without the elimination process. */
+   HypreParMatrix *ParallelAssembleInternalMatrix();
 
    /// Returns the matrix assembled on the true dofs, i.e. P_test^t A P_trial.
    /** The returned matrix has to be deleted by the caller. */
