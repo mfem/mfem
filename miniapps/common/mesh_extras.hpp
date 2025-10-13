@@ -35,7 +35,9 @@ void MergeMeshNodes(Mesh * mesh, int logging);
     and ones. Ones indicate which attribute numbers are present in the attrs
     array. In the special case when attrs has a single entry equal to -1 the
     marker array will contain all ones. */
-void AttrToMarker(int max_attr, const Array<int> &attrs, Array<int> &marker);
+inline
+void AttrToMarker(int max_attr, const Array<int> &attrs, Array<int> &marker)
+{ marker = AttributeSets::AttrToMarker(max_attr, attrs); }
 
 /// Transform a mesh according to an arbitrary affine transformation
 ///    y = A x + b

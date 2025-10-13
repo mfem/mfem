@@ -116,11 +116,18 @@ Array<int> AttributeSets::AttrToMarker(int max_attr, const Array<int> &attrs)
    MFEM_ASSERT(attrs.Max() <= max_attr, "Invalid attribute number present.");
 
    Array<int> marker(max_attr);
-   marker = 0;
-   for (auto const &attr : attrs)
+   if (attrs.Size() == 1 && attrs[0] == -1)
    {
-      MFEM_VERIFY(attr > 0, "Attribute number less than one!");
-      marker[attr-1] = 1;
+      marker = 1;
+   }
+   else
+   {
+      marker = 0;
+      for (auto const &attr : attrs)
+      {
+         MFEM_VERIFY(attr > 0, "Attribute number less than one!");
+         marker[attr-1] = 1;
+      }
    }
    return marker;
 }
