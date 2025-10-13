@@ -69,6 +69,24 @@ real_t taylor_source(const Vector &x)
                                cos(M_PI*x(0))     * cos(3.0*M_PI*x(1)) );
 };
 
+MFEM_HOST_DEVICE inline
+real_t smoothmin(real_t a, real_t b, real_t k = 1e6)
+{
+   return -1.0 / k * log(exp(-k * a) + exp(-k * b));
+}
+
+MFEM_HOST_DEVICE inline
+real_t smoothmax(real_t a, real_t b, real_t k = 1e-6)
+{
+   return 0.5 * (a + b + sqrt((a-b)*(a-b) + k*k));
+}
+
+MFEM_HOST_DEVICE inline
+real_t smoothabs(real_t x, real_t k = 1e-6)
+{
+   return sqrt(x * x + k);
+}
+
 template <typename T, int n>
 MFEM_HOST_DEVICE inline
 tensor<T, n> shift(const tensor<T, n> &v, T s)
@@ -85,7 +103,7 @@ template <typename T, int n>
 MFEM_HOST_DEVICE inline
 T min(const tensor<T, n> &v)
 {
-   T min = std::numeric_limits<T>::max();
+   T min = std::numeric_limits<T>::min();
    for (int i = 0; i < n; i++)
    {
       if (v(i) < min)
@@ -215,7 +233,7 @@ matd qdata_setup(
    const matd invJ = inv(J);
    matd stress{{{0.0}}};
    const real_t rho = rho0 * det(J0) / detJ;
-   const real_t Ez = fmax(0.0, E);
+   const real_t Ez = smoothmax(0.0, E);
    real_t dt_visc_coeff = 0.0;
 
    ComputeMaterialProperties(gamma, rho, Ez, p, cs);
@@ -254,7 +272,7 @@ matd qdata_setup(
          auto ph_dir = (J * inv(J0)) * compr_dir;
          const real_t h = h0 * norm(ph_dir) / norm(compr_dir);
          // Measure of maximal compression.
-         auto visc_coeff = 2.0 * rho * h * h * fabs(mu);
+         auto visc_coeff = 2.0 * rho * h * h * smoothabs(mu);
          visc_coeff += 0.5 * rho * h * cs * vorticity_coeff *
                        (1.0 - smooth_step_01(mu - 2.0 * eps, eps));
          stress += visc_coeff * symdvdx;
@@ -294,11 +312,17 @@ matd qdata_setup(
       }
       else
       {
-         exit(0);
+         exit(1);
       }
    }
 
-   if (detJ < 0.0)
+   // if (rho < 0.0)
+   // {
+   //    MFEM_ABORT_KERNEL("negative density on quadrature point");
+   //    exit(1);
+   // }
+
+   if (detJ < 0.0 || rho < 0.0)
    {
       // MFEM_ABORT("inverted element detected in qdata_setup");
       // This will force repetition of the step with smaller dt.
@@ -770,7 +794,7 @@ public:
          dRedx->Mult(wx, ze);
          if (problem == 0)
          {
-            // dTaylorSourcedx->AddMult(we, ze);
+            dTaylorSourcedx->AddMult(we, ze);
          }
          ze *= -h;
          ye = ze;
@@ -920,9 +944,9 @@ public:
 
             if (problem == 0)
             {
-               // HypreParMatrix dTaylorSourcedx_mat;
-               // jacobian->dTaylorSourcedx->Assemble(dTaylorSourcedx_mat);
-               // dRedx_mat.Add(1.0, dTaylorSourcedx_mat);
+               HypreParMatrix dTaylorSourcedx_mat;
+               jacobian->dTaylorSourcedx->Assemble(dTaylorSourcedx_mat);
+               dRedx_mat.Add(1.0, dTaylorSourcedx_mat);
             }
 
             dRedx_mat *= -h;
@@ -998,7 +1022,7 @@ public:
    {
    public:
       LagrangianHydroResidualOperator(LagrangianHydroOperator &hydro,
-                                      const Vector &x, bool fd_gradient) :
+                                      const Vector &x, bool fd_gradient, int dump_jacobians) :
          Operator(2*hydro.H1.GetTrueVSize()+hydro.L2.GetTrueVSize()),
          hydro(hydro),
          H1tsize(hydro.H1.GetTrueVSize()),
@@ -1009,7 +1033,8 @@ public:
          u(x.Size()),
          u_l(2*H1vsize + L2vsize),
          e_source_t(hydro.L2.GetTrueVSize()),
-         fd_gradient(fd_gradient) {}
+         fd_gradient(fd_gradient),
+         dump_jacobians(dump_jacobians) {}
 
       void SetTimeStep(const real_t &time_step) { this->dt = time_step; }
 
@@ -1147,23 +1172,33 @@ public:
             jacobian = std::make_shared<LagrangianHydroJacobianOperator>(
                           hydro, dRvdx, dRvdv, dRvde, dRedx, dRedv, dRede, dTaylorSourcedx, dt);
 
-            // {
-            //    std::ofstream jvpmat("jvpmat.m");
-            //    jacobian->PrintMatlab(jvpmat);
-            //    jvpmat.close();
+            if (dump_jacobians > 0)
+            {
+               auto ess_tdof_backup(hydro.ess_tdof);
+               hydro.ess_tdof.SetSize(0);
 
-            //    fd_jacobian = std::make_shared<FDJacobian>(*this, k, 1e-8);
-            //    std::ofstream fdjacmat("fdjacmat.m");
-            //    fd_jacobian->PrintMatlab(fdjacmat);
-            //    fdjacmat.close();
+               out << "\ndumping jacobians\n";
+               std::ofstream jvpmat("jvpmat.m");
+               jacobian->PrintMatlab(jvpmat);
+               jvpmat.close();
 
-            //    hydro.preconditioner->SetOperator(*jacobian);
-            //    std::ofstream jprecmat("jprecmat.m");
-            //    hydro.preconditioner->block_hypre->PrintMatlab(jprecmat);
-            //    jprecmat.close();
+               fd_jacobian = std::make_shared<FDJacobian>(*this, k, 1e-8);
+               std::ofstream fdjacmat("fdjacmat.m");
+               fd_jacobian->PrintMatlab(fdjacmat);
+               fdjacmat.close();
 
-            //    exit(0);
-            // }
+               // hydro.preconditioner->SetOperator(*jacobian);
+               // std::ofstream jprecmat("jprecmat.m");
+               // hydro.preconditioner->block_hypre->PrintMatlab(jprecmat);
+               // jprecmat.close();
+
+               if (dump_jacobians == 1)
+               {
+                  exit(0);
+               }
+
+               hydro.ess_tdof = ess_tdof_backup;
+            }
 
             return *jacobian;
          }
@@ -1180,12 +1215,13 @@ public:
       mutable std::shared_ptr<FDJacobian> fd_jacobian;
       mutable std::shared_ptr<LagrangianHydroJacobianOperator> jacobian;
       bool fd_gradient;
+      int dump_jacobians;
    };
 
    LagrangianHydroOperator(
       ParFiniteElementSpace &H1,
       ParFiniteElementSpace &L2,
-      const Array<int> &ess_tdof,
+      Array<int> &ess_tdof,
       const IntegrationRule &ir,
       FunctionCoefficient &rho0_coeff,
       ParGridFunction &x0_gf,
@@ -1203,6 +1239,7 @@ public:
       std::shared_ptr<DifferentiableOperator> taylor_source_mf,
       std::shared_ptr<QuadratureData> qdata,
       const bool &fd_gradient,
+      const int &dump_jacobians,
       const int &nonlinear_maximum_iterations,
       const real_t &nonlinear_relative_tolerance,
       const int &krylov_maximum_iterations,
@@ -1247,6 +1284,7 @@ public:
       rhse(L2.GetVSize()),
       nl2dofs(L2.GetFE(0)->GetDof()),
       fd_gradient(fd_gradient),
+      dump_jacobians(dump_jacobians),
       nonlinear_maximum_iterations(nonlinear_maximum_iterations),
       nonlinear_relative_tolerance(nonlinear_relative_tolerance),
       krylov_maximum_iterations(krylov_maximum_iterations),
@@ -1285,7 +1323,8 @@ public:
       Me_blf.Assemble();
       Me_blf.FormSystemMatrix(mfem::Array<int>(), Me_mat);
 
-      residual.reset(new LagrangianHydroResidualOperator(*this, X, fd_gradient));
+      residual.reset(new LagrangianHydroResidualOperator(*this, X, fd_gradient,
+                                                         dump_jacobians));
       preconditioner.reset(new Preconditioner(*this));
 
       auto gmres = new GMRESSolver(MPI_COMM_WORLD);
@@ -1298,14 +1337,14 @@ public:
       gmres->SetPreconditioner(*preconditioner);
       krylov.reset(gmres);
 
-      newton.reset(new LineSearchNewtonSolver(MPI_COMM_WORLD));
+      newton.reset(new NewtonSolver(MPI_COMM_WORLD));
       newton->SetPrintLevel(IterativeSolver::PrintLevel().None());
       newton->SetOperator(*residual);
       newton->SetSolver(*krylov);
       newton->SetMaxIter(nonlinear_maximum_iterations);
       newton->SetRelTol(nonlinear_relative_tolerance);
       newton->SetAbsTol(0.0);
-      // newton->SetAdaptiveLinRtol();
+      newton->SetAdaptiveLinRtol();
    }
 
    void Mult(const Vector &S, Vector &dSdt) const override
@@ -1635,7 +1674,7 @@ public:
    ParFiniteElementSpace &H1;
    ParFiniteElementSpace &L2;
    mutable ParFiniteElementSpace H1c;
-   const Array<int> &ess_tdof;
+   Array<int> &ess_tdof;
    mutable Array<int> c_tdofs[3];
    const IntegrationRule &ir;
    ParGridFunction &x0;
@@ -1669,6 +1708,7 @@ public:
    mutable Vector RHSv, rhsv, X, Xx, Xv, Xvc, Xe, K, Kx, Kv, Ke, B, RHSe, rhse;
    const int nl2dofs;
    bool fd_gradient;
+   int dump_jacobians;
    const int nonlinear_maximum_iterations;
    const real_t nonlinear_relative_tolerance;
    const int krylov_maximum_iterations;
@@ -1682,7 +1722,7 @@ public:
 static auto CreateLagrangianHydroOperator(
    ParFiniteElementSpace &H1,
    ParFiniteElementSpace &L2,
-   const Array<int> &ess_tdof,
+   Array<int> &ess_tdof,
    FunctionCoefficient &rho0_coeff,
    ParGridFunction &x0_gf,
    ParGridFunction &rho0_gf,
@@ -1690,6 +1730,7 @@ static auto CreateLagrangianHydroOperator(
    Vector &external_data,
    const IntegrationRule &ir,
    const bool &fd_gradient,
+   const int &dump_jacobians,
    const int &nonlinear_maximum_iterations,
    const real_t &nonlinear_relative_tolerance,
    const int &krylov_maximum_iterations,
@@ -2094,6 +2135,7 @@ static auto CreateLagrangianHydroOperator(
              taylor_source_mf,
              qdata,
              fd_gradient,
+             dump_jacobians,
              nonlinear_maximum_iterations,
              nonlinear_relative_tolerance,
              krylov_maximum_iterations,
@@ -2133,6 +2175,8 @@ int main(int argc, char *argv[])
    int viscosity_type = 2;
    int preconditioner_type =
       PRECONDITIONER_TYPE::BLOCK_DIAGONAL_AMG;
+   int dump_jacobians = 0;
+   int nretry = 10;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -2168,6 +2212,8 @@ int main(int argc, char *argv[])
    args.AddOption(&vis_steps, "-vis-steps", "--vis-steps",
                   "Number of visualization steps.");
    args.AddOption(&viscosity_type, "-av-type", "--av-type", "");
+   args.AddOption(&dump_jacobians, "-dump-jacobians", "--dump-jacobians", "");
+   args.AddOption(&nretry, "-nretry", "--nretry", "");
    args.ParseCheck();
 
    Device device(device_config);
@@ -2408,6 +2454,7 @@ int main(int argc, char *argv[])
                                               external_data,
                                               ir,
                                               fd_gradient,
+                                              dump_jacobians,
                                               nonlinear_maximum_iterations,
                                               nonlinear_relative_tolerance,
                                               krylov_maximum_iterations,
@@ -2468,22 +2515,44 @@ int main(int argc, char *argv[])
       verr_gf(i) = abs(verr_gf(i) - std::as_const(v_gf)(i));
    }
 
-   ParaViewDataCollection paraview_dc("dfem", &mesh);
-   paraview_dc.SetPrefixPath("ParaView");
-   paraview_dc.SetLevelsOfDetail(order_v);
-   paraview_dc.SetDataFormat(VTKFormat::BINARY);
-   paraview_dc.SetHighOrderOutput(true);
-   paraview_dc.SetCycle(0);
-   paraview_dc.SetTime(0.0);
-   paraview_dc.RegisterField("velocity", &v_gf);
-   paraview_dc.RegisterField("density", &rho_gf);
-   paraview_dc.RegisterField("specific_internal_energy", &e_gf);
-   paraview_dc.RegisterField("material", &material_gf);
-   // paraview_dc.RegisterField("velocity_error", &verr_gf);
+   QuadratureSpace qs(mesh, ir);
 
-   paraview_dc.SetCycle(0);
-   paraview_dc.SetTime(0);
-   paraview_dc.Save();
+   QuadratureFunction vqf(&qs, v_gf.VectorDim());
+   vqf.ProjectGridFunction(v_gf);
+
+   QuadratureFunction rqf(&qs, rho_gf.VectorDim());
+   rqf.ProjectGridFunction(rho_gf);
+
+   QuadratureFunction eqf(&qs, e_gf.VectorDim());
+   eqf.ProjectGridFunction(e_gf);
+
+   ParaViewDataCollection dc("dfem", &mesh);
+   dc.SetLevelsOfDetail(order_v);
+   dc.SetDataFormat(VTKFormat::BINARY);
+   dc.SetHighOrderOutput(true);
+   dc.SetCycle(0);
+   dc.SetTime(0.0);
+   dc.RegisterField("velocity", &v_gf);
+   dc.RegisterField("density", &rho_gf);
+   dc.RegisterField("specific_internal_energy", &e_gf);
+   dc.RegisterField("material", &material_gf);
+   dc.RegisterQField("velocity_qf", &rqf);
+   dc.RegisterQField("density_qf", &rqf);
+   dc.RegisterQField("specific_internal_energy_qf", &eqf);
+
+   dc.SetCycle(0);
+   dc.SetTime(0);
+   dc.Save();
+
+   auto vizcb = [&](const int &ti, const real_t &t)
+   {
+      hydro->ComputeDensity(rho_gf);
+      vqf.ProjectGridFunction(v_gf);
+      rqf.ProjectGridFunction(rho_gf);
+      dc.SetCycle(ti);
+      dc.SetTime(t);
+      dc.Save();
+   };
 
    for (int ti = 1; !last_step; ti++)
    {
@@ -2492,6 +2561,12 @@ int main(int argc, char *argv[])
          dt = t_final - t;
          last_step = true;
       }
+
+      if (last_step)
+      {
+         // hydro->residual->dump_jacobians = 1;
+      }
+
       S_old = S;
       t_old = t;
       hydro->ResetTimeStepEstimate();
@@ -2512,6 +2587,16 @@ int main(int argc, char *argv[])
       {
          if (dt_est < dt || !hydro->newton_converged)
          {
+            if (!hydro->newton_converged)
+            {
+               if (Mpi::Root())
+               {
+                  out << "writing viz for non converged newton step " << ti << " at time=" << t <<
+                      "\n";
+               }
+               // vizcb(ti+100, t+100.0);
+            }
+
             dt *= 0.85;
             t = t_old;
             S = S_old;
@@ -2524,7 +2609,7 @@ int main(int argc, char *argv[])
                if (!hydro->newton_converged)
                {
                   out << "Newton did not converge in " << nonlinear_maximum_iterations <<
-                      " iterations.";
+                      " iterations. ";
                }
                else
                {
@@ -2532,6 +2617,24 @@ int main(int argc, char *argv[])
                }
                out << std::endl;
             }
+
+            if (!hydro->newton_converged)
+            {
+               if (nretry == 1)
+               {
+                  hydro->residual->dump_jacobians = 1;
+               }
+               else if (nretry == 0)
+               {
+                  if (Mpi::Root())
+                  {
+                     out << "no retry planned, exit\n";
+                  }
+                  exit(1);
+               }
+               nretry--;
+            }
+
             ti--; continue;
          }
          else if (dt_est > 1.25 * dt) { dt *= 1.15; }
@@ -2580,11 +2683,7 @@ int main(int argc, char *argv[])
 
       if (ti % vis_steps == 0 || last_step)
       {
-         hydro->ComputeDensity(rho_gf);
-
-         paraview_dc.SetCycle(ti);
-         paraview_dc.SetTime(t);
-         paraview_dc.Save();
+         vizcb(ti, t);
       }
    }
 
@@ -2597,7 +2696,7 @@ int main(int argc, char *argv[])
           << "Energy diff: " << fabs(energy_init - energy_final) << std::endl;
    }
 
-   if (problem == 1)
+   if (problem == 0)
    {
       const real_t v_err_max = v_gf.ComputeMaxError(v_coeff);
       const real_t v_err_l1 = v_gf.ComputeL1Error(v_coeff);
