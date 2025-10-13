@@ -161,8 +161,7 @@ public:
 
        The returned marker array will be of size @a max_attr and it will contain
        only zeroes and ones. Ones indicate which attribute numbers are present
-       in the @a attrs array. In the special case when @a attrs has a single
-       entry equal to -1 the @a marker array will contain all ones.
+       in the @a attrs array.
     */
    static Array<int> AttrToMarker(int max_attr, const Array<int> &attrs);
 };

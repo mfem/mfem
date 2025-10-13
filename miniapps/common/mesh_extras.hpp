@@ -33,11 +33,14 @@ void MergeMeshNodes(Mesh * mesh, int logging);
 /// Convert a set of attribute numbers to a marker array
 /** The marker array will be of size max_attr and it will contain only zeroes
     and ones. Ones indicate which attribute numbers are present in the attrs
-    array. In the special case when attrs has a single entry equal to -1 the
-    marker array will contain all ones. */
+    array. In the special case when attrs has an entry equal to -1 the marker
+    array will contain all ones. */
 inline
 void AttrToMarker(int max_attr, const Array<int> &attrs, Array<int> &marker)
-{ marker = AttributeSets::AttrToMarker(max_attr, attrs); }
+{
+   if (attrs.Find(-1) != -1) { (marker = Array<int>(max_attr)) = 1; }
+   else { marker = AttributeSets::AttrToMarker(max_attr, attrs); }
+}
 
 /// Transform a mesh according to an arbitrary affine transformation
 ///    y = A x + b
