@@ -173,6 +173,21 @@ void call_qfunction_derivative_action(
             }
          }
       }
+      else
+      {
+         MFEM_FOREACH_THREAD(q, x, q1d)
+         {
+            auto r = Reshape(&residual_shmem(0, q), das_qp);
+            auto qf_args = decay_tuple<qf_param_ts> {};
+#ifdef MFEM_USE_ENZYME
+            auto qf_shadow_args = decay_tuple<qf_param_ts> {};
+            apply_kernel_fwddiff_enzyme(r, qfunc, qf_args, qf_shadow_args, input_shmem,
+                                        shadow_shmem, q);
+#else
+            apply_kernel_native_dual(r, qfunc, qf_args, input_shmem, shadow_shmem, q);
+#endif
+         }
+      }
       MFEM_SYNC_THREAD;
    }
    else

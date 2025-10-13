@@ -98,7 +98,7 @@ void DFemMass(const char *filename, int p, const int r)
    // Test boundary
    // This ensures that we're not trying to test on fully periodic meshes
    if (!((std::string("../../data/periodic-square.mesh").compare(filename) == 0) ||
-       (std::string("../../data/periodic-cube.mesh").compare(filename) == 0)))
+         (std::string("../../data/periodic-cube.mesh").compare(filename) == 0)))
    {
       SECTION("boundary")
       {
@@ -122,11 +122,6 @@ void DFemMass(const char *filename, int p, const int r)
          const auto sol = std::vector{FieldDescriptor{U, &fes}};
          DifferentiableOperator dop(sol, {{Coords, nodes->ParFESpace()}}, pmesh);
 
-         #ifdef MFEM_USE_ENZYME
-     		std::cerr << "USING ENZYME\n";
-         #else
-         #endif
-
          const auto mf_mass_qf =
             [] MFEM_HOST_DEVICE(const dscalar_t &u,
                                 const tensor<real_t, DIM, BDIM> &J,
@@ -135,7 +130,7 @@ void DFemMass(const char *filename, int p, const int r)
             return tuple{u * weight(J) * w};
          };
 
-		 auto derivatives = std::integer_sequence<size_t, U> {};
+         auto derivatives = std::integer_sequence<size_t, U> {};
          dop.AddBoundaryIntegrator(mf_mass_qf,
                                    tuple{ Value<U>{}, Gradient<Coords>{}, Weight{} },
                                    tuple{ Value<U>{} },
@@ -145,8 +140,6 @@ void DFemMass(const char *filename, int p, const int r)
          fes.GetRestrictionMatrix()->Mult(x, X);
          dop.Mult(X, Z);
 
-         Z.Print(std::cerr, Z.Size());
-
          Y -= Z;
          real_t norm_g, norm_l = Y.Normlinf();
          MPI_Allreduce(&norm_l, &norm_g, 1, MPI_DOUBLE, MPI_MAX, pmesh.GetComm());
@@ -155,9 +148,6 @@ void DFemMass(const char *filename, int p, const int r)
          auto dRdU = dop.GetDerivative(U, {&x}, {nodes});
          dRdU->Mult(X, Z);
 
-         Z.Print(std::cerr, Z.Size());
-
-         blf.Mult(x, y);
          fes.GetProlongationMatrix()->MultTranspose(y, Y);
          Y -= Z;
          norm_l = Y.Normlinf();
