@@ -111,32 +111,32 @@ public:
    | :------: | :---: | :---: | :-------: | :-----: | :---: |
    | H1_[DIM]_[ORDER] | H1 | * | 1 | VALUE | H1 nodal elements |
    | H1@[BTYPE]_[DIM]_[ORDER] | H1 | * | * | VALUE | H1 nodal elements |
-   | H1Pos_[DIM]_[ORDER] | H1 | * | 1 | VALUE | H1 nodal elements |
+   | H1Pos_[DIM]_[ORDER] | H1 | * | 2 | VALUE | H1 nodal elements |
    | H1Pos_Trace_[DIM]_[ORDER] | H^{1/2} | * | 2 | VALUE | H^{1/2}-conforming trace elements for H1 defined on the interface between mesh elements (faces,edges,vertices) |
    | H1_Trace_[DIM]_[ORDER] | H^{1/2} | * | 1 | VALUE | H^{1/2}-conforming trace elements for H1 defined on the interface between mesh elements (faces,edges,vertices) |
-   | H1_Trace@[BTYPE]_[DIM]_[ORDER] | H^{1/2} | * | 1 | VALUE | H^{1/2}-conforming trace elements for H1 defined on the interface between mesh elements (faces,edges,vertices) |
+   | H1_Trace@[BTYPE]_[DIM]_[ORDER] | H^{1/2} | * | * | VALUE | H^{1/2}-conforming trace elements for H1 defined on the interface between mesh elements (faces,edges,vertices) |
    | ND_[DIM]_[ORDER] | H(curl) | * | 1 / 0 | H_CURL | Nedelec vector elements |
    | ND@[CBTYPE][OBTYPE]_[DIM]_[ORDER] | H(curl) | * | * / * | H_CURL | Nedelec vector elements |
-   | ND_Trace_[DIM]_[ORDER] | H^{1/2} | * | 1 / 0  | H_CURL | H^{1/2}-conforming trace elements for H(curl) defined on the interface between mesh elements (faces) |
-   | ND_Trace@[CBTYPE][OBTYPE]_[DIM]_[ORDER] | H^{1/2} | * | 1 / 0 | H_CURL | H^{1/2}-conforming trace elements for H(curl) defined on the interface between mesh elements (faces) |
+   | ND_Trace_[DIM]_[ORDER] | H^{1/2} | * | 1 / 0  | H_CURL | H^{1/2}-conforming trace elements for H(curl) defined on the interface between mesh elements (faces,edges) |
+   | ND_Trace@[CBTYPE][OBTYPE]_[DIM]_[ORDER] | H^{1/2} | * | * / * | H_CURL | H^{1/2}-conforming trace elements for H(curl) defined on the interface between mesh elements (faces,edges) |
    | ND_R1D_[DIM]_[ORDER] | H(curl) | * | 1 / 0 | H_CURL | 3D H(curl)-conforming Nedelec vector elements in 1D. |
    | ND_R2D_[DIM]_[ORDER] | H(curl) | * | 1 / 0 | H_CURL | 3D H(curl)-conforming Nedelec vector elements in 2D. |
    | RT_[DIM]_[ORDER] | H(div) | * | 1 / 0 | H_DIV | Raviart-Thomas vector elements |
    | RT@[CBTYPE][OBTYPE]_[DIM]_[ORDER] | H(div) | * | * / * | H_DIV | Raviart-Thomas vector elements |
-   | RT_Trace_[DIM]_[ORDER] | H^{1/2} | * | 1 / 0 | INTEGRAL | H^{1/2}-conforming trace elements for H(div) defined on the interface between mesh elements (faces) |
-   | RT_ValTrace_[DIM]_[ORDER] | H^{1/2} | * | 1 / 0 | VALUE | H^{1/2}-conforming trace elements for H(div) defined on the interface between mesh elements (faces) |
-   | RT_Trace@[BTYPE]_[DIM]_[ORDER] | H^{1/2} | * | 1 / 0 | INTEGRAL | H^{1/2}-conforming trace elements for H(div) defined on the interface between mesh elements (faces) |
-   | RT_ValTrace@[BTYPE]_[DIM]_[ORDER] |  H^{1/2} | * | 1 / 0 | VALUE | H^{1/2}-conforming trace elements for H(div) defined on the interface between mesh elements (faces) |
+   | RT_Trace_[DIM]_[ORDER] | H^{1/2} | * | 0 | INTEGRAL | H^{1/2}-conforming trace elements for H(div) defined on the interface between mesh elements (faces) |
+   | RT_ValTrace_[DIM]_[ORDER] | H^{1/2} | * | 0 | VALUE | H^{1/2}-conforming trace elements for H(div) defined on the interface between mesh elements (faces) |
+   | RT_Trace@[BTYPE]_[DIM]_[ORDER] | H^{1/2} | * | * | INTEGRAL | H^{1/2}-conforming trace elements for H(div) defined on the interface between mesh elements (faces) |
+   | RT_ValTrace@[BTYPE]_[DIM]_[ORDER] |  H^{1/2} | * | * | VALUE | H^{1/2}-conforming trace elements for H(div) defined on the interface between mesh elements (faces) |
    | RT_R1D_[DIM]_[ORDER] | H(div) | * | 1 / 0 | H_DIV | 3D H(div)-conforming Raviart-Thomas vector elements in 1D. |
    | RT_R2D_[DIM]_[ORDER] | H(div) | * | 1 / 0 | H_DIV | 3D H(div)-conforming Raviart-Thomas vector elements in 2D. |
    | L2_[DIM]_[ORDER] | L2 | * | 0 | VALUE | Discontinuous L2 elements |
-   | L2_T[BTYPE]_[DIM]_[ORDER] | L2 | * | 0 | VALUE | Discontinuous L2 elements |
+   | L2_T[BTYPE]_[DIM]_[ORDER] | L2 | * | * | VALUE | Discontinuous L2 elements |
    | L2Int_[DIM]_[ORDER] | L2 | * | 0 | INTEGRAL | Discontinuous L2 elements |
-   | L2Int_T[BTYPE]_[DIM]_[ORDER] | L2 | * | 0 | INTEGRAL | Discontinuous L2 elements |
+   | L2Int_T[BTYPE]_[DIM]_[ORDER] | L2 | * | * | INTEGRAL | Discontinuous L2 elements |
    | DG_Iface_[DIM]_[ORDER] | - | * | 0 | VALUE | Discontinuous elements on the interface between mesh elements (faces) |
-   | DG_Iface@[BTYPE]_[DIM]_[ORDER] | - | * | 0 | VALUE | Discontinuous elements on the interface between mesh elements (faces) |
+   | DG_Iface@[BTYPE]_[DIM]_[ORDER] | - | * | * | VALUE | Discontinuous elements on the interface between mesh elements (faces) |
    | DG_IntIface_[DIM]_[ORDER] | - | * | 0 | INTEGRAL | Discontinuous elements on the interface between mesh elements (faces) |
-   | DG_IntIface@[BTYPE]_[DIM]_[ORDER] | - | * | 0 | INTEGRAL | Discontinuous elements on the interface between mesh elements (faces) |
+   | DG_IntIface@[BTYPE]_[DIM]_[ORDER] | - | * | * | INTEGRAL | Discontinuous elements on the interface between mesh elements (faces) |
    | NURBS[ORDER] | - | * | - | VALUE | Non-Uniform Rational B-Splines (NURBS) elements |
    | LinearNonConf3D | - | 1 | 1 | VALUE | Piecewise-linear nonconforming finite elements in 3D |
    | CrouzeixRaviart | - | - | - | - | Crouzeix-Raviart nonconforming elements in 2D |
@@ -168,7 +168,7 @@ public:
    | :------: | :--------: |
    | [DIM]    | Dimension of the elements (1D, 2D, 3D) |
    | [ORDER]  | Approximation order of the elements (P0, P1, P2, ...) |
-   | [BTYPE]  | BasisType of the element (0-GaussLegendre, 1 - GaussLobatto, 2-Bernstein, 3-OpenUniform, 4-CloseUniform, 5-OpenHalfUniform) |
+   | [BTYPE]  | BasisType of the element (0-GaussLegendre, 1-GaussLobatto, 2-Bernstein, 3-OpenUniform, 4-CloseUniform, 5-OpenHalfUniform 6-Serendipity 7-ClosedGL 8-IntegratedGLL) |
    | [OBTYPE] | Open BasisType of the element for elements which have both types |
    | [CBTYPE] | Closed BasisType of the element for elements which have both types |
 
