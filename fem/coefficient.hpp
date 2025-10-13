@@ -114,11 +114,10 @@ public:
    /// Construct the constant coefficient using a vector of constants.
    /** @a c should be a vector defined by attributes, so for region with
        attribute @a i @a c[i-1] is the coefficient in that region */
-   PWConstCoefficient(Vector &c)
-   { constants.SetSize(c.Size()); constants=c; }
+   PWConstCoefficient(const Vector &c) { UpdateConstants(c); }
 
    /// Update the constants with vector @a c.
-   void UpdateConstants(Vector &c) { constants.SetSize(c.Size()); constants=c; }
+   void UpdateConstants(const Vector &c) { constants = c; }
 
    /// Return a reference to the i-th constant
    real_t &operator()(int i) { return constants(i-1); }
