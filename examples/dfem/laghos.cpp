@@ -288,7 +288,7 @@ matd qdata_setup(
          auto ph_dir = (J * inv(J0)) * compr_dir;
          const real_t h = h0 * norm(ph_dir) / norm(compr_dir);
          // Measure of maximal compression.
-         auto visc_coeff = 2.0 * rho * h * h * fabs(mu);
+         auto visc_coeff = 2.0 * rho * h * h * smoothabs(mu);
          visc_coeff += 0.5 * rho * h * cs * vorticity_coeff *
                        (1.0 - smooth_step_01(mu - 2.0 * eps, eps));
          stress += visc_coeff * symdvdx;
@@ -303,12 +303,35 @@ matd qdata_setup(
          {
             const auto ph_dir = (J * inv(J0)) * s(k);
             const real_t h = h0 * norm(ph_dir) / norm(s(k));
-            auto visc_coeff = 2.0 * rho * h * h * fabs(lam(k));
+            auto visc_coeff = 2.0 * rho * h * h * smoothabs(lam(k));
             visc_coeff += 0.5 * rho * h * cs * vorticity_coeff *
                           (1.0 - smooth_step_01(lam(k) - 2.0 * eps, eps));
             stress += visc_coeff * symdvdx;
             dt_visc_coeff += visc_coeff;
          }
+      }
+      else if (viscosity_type == 666)
+      {
+         auto softstep = [](const real_t &eps, const real_t x)
+         {
+            return 1.0 / (1.0 + exp(-x / (eps + 1e-3)));
+         };
+
+         auto softabs = [=](const real_t &eps, const real_t x)
+         {
+            return x * (softstep(eps, x) - softstep(eps, -x));
+         };
+
+         const auto delta = 0.2 * cs;
+         const auto dvdx = dvdxi * inv(J);
+         const auto h = h0 * pow(det(J), 1.0 / DIMENSION);
+         const auto delta_v = h * tr(dvdx);
+         const auto psi1 = softstep(delta, -delta_v);
+         const auto q1 = 5.0;
+         const auto q2 = 5.0;
+         const auto mu = 3.0 / 4.0 * rho * h * psi1 * (q2 * softabs(delta,
+                                                                    delta_v) + q1 * cs);
+         stress += 2.0 * mu * sym(dvdx);
       }
       else
       {
@@ -316,13 +339,14 @@ matd qdata_setup(
       }
    }
 
-   // if (rho < 0.0)
-   // {
-   //    MFEM_ABORT_KERNEL("negative density on quadrature point");
-   //    exit(1);
-   // }
+   if (rho < 0.0)
+   {
 
-   if (detJ < 0.0 || rho < 0.0)
+      MFEM_ABORT("negative density on quadrature point \n" "detJ = " << detJ);
+      exit(1);
+   }
+
+   if (detJ < 0.0)
    {
       // MFEM_ABORT("inverted element detected in qdata_setup");
       // This will force repetition of the step with smaller dt.
@@ -588,9 +612,10 @@ protected:
 
          const real_t new_norm = Norm(r_new);
 
-         if (new_norm <= initial_norm - alpha * lambda * grad_norm)
+         if (new_norm <= (initial_norm - alpha * lambda * grad_norm) * 1.2)
          {
             // Found acceptable step
+            std::cout << "linesearch lambda: " << lambda << "\n";
             return lambda;
          }
 
@@ -757,9 +782,11 @@ public:
          // velocity
          // wv.SetSubVector(hydro.ess_tdof, 0.0);
          dRvdx->Mult(wx, zv);
+         MFEM_VERIFY(zv.CheckFinite() == 0, "err");
          zv *= h;
          yv = zv;
          dRvdv->Mult(wv, zv);
+         MFEM_VERIFY(zv.CheckFinite() == 0, "err");
          zv *= h;
          yv += zv;
          // hydro.Mv.TrueAddMult(wv, yv);
@@ -774,6 +801,7 @@ public:
          yv.SyncAliasMemory(y);
 
          dRvde->Mult(we, zv);
+         MFEM_VERIFY(zv.CheckFinite() == 0, "err");
          zv *= h;
          yv += zv;
          yv.SetSubVector(hydro.ess_tdof, 0.0);
@@ -792,21 +820,26 @@ public:
          //
 
          dRedx->Mult(wx, ze);
+         MFEM_VERIFY(ze.CheckFinite() == 0, "err");
          if (problem == 0)
          {
-            dTaylorSourcedx->AddMult(we, ze);
+            // dTaylorSourcedx->AddMult(we, ze);
+            MFEM_VERIFY(ze.CheckFinite() == 0, "err");
          }
          ze *= -h;
          ye = ze;
 
          dRedv->Mult(wv, ze);
+         MFEM_VERIFY(ze.CheckFinite() == 0, "err");
          ze *= -h;
          ye += ze;
 
          dRede->Mult(we, ze);
+         MFEM_VERIFY(ze.CheckFinite() == 0, "err");
          ze *= -h;
          // OLD hydro.Me.TrueAddMult(we, ze);
          hydro.Me->FullAddMult(we, ze);
+         MFEM_VERIFY(ze.CheckFinite() == 0, "err");
 
          ye += ze;
 
@@ -1328,7 +1361,7 @@ public:
       preconditioner.reset(new Preconditioner(*this));
 
       auto gmres = new GMRESSolver(MPI_COMM_WORLD);
-      gmres->SetMaxIter(500);
+      // gmres->SetMaxIter(500);
       gmres->SetKDim(500);
       gmres->SetMaxIter(krylov_maximum_iterations);
       gmres->SetRelTol(1e-12);
@@ -1337,14 +1370,14 @@ public:
       gmres->SetPreconditioner(*preconditioner);
       krylov.reset(gmres);
 
-      newton.reset(new NewtonSolver(MPI_COMM_WORLD));
-      newton->SetPrintLevel(IterativeSolver::PrintLevel().None());
+      newton.reset(new LineSearchNewtonSolver(MPI_COMM_WORLD));
+      newton->SetPrintLevel(IterativeSolver::PrintLevel().Summary());
       newton->SetOperator(*residual);
       newton->SetSolver(*krylov);
       newton->SetMaxIter(nonlinear_maximum_iterations);
       newton->SetRelTol(nonlinear_relative_tolerance);
       newton->SetAbsTol(0.0);
-      newton->SetAdaptiveLinRtol();
+      // newton->SetAdaptiveLinRtol();
    }
 
    void Mult(const Vector &S, Vector &dSdt) const override
