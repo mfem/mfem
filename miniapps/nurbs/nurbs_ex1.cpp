@@ -263,7 +263,11 @@ int main(int argc, char *argv[])
    {
       mfem_error("Order has size 0");
    }
-   else if (order[0] == 0) // Isoparametric
+   else if (order[0] == 0)
+   {
+      mfem_error("Order 0 is not a valid option");
+   }
+   else if (order[0] == -1) // Isoparametric
    {
       if (mesh->GetNodes())
       {

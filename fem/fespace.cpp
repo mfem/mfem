@@ -128,7 +128,7 @@ FiniteElementSpace::FiniteElementSpace(Mesh *mesh,
 }
 
 FiniteElementSpace::FiniteElementSpace(Mesh *mesh,
-                                       Array<int> masterBdr, Array<int> slaveBdr,
+                                       Array<int> &masterBdr, Array<int> &slaveBdr,
                                        const FiniteElementCollection *fec,
                                        int vdim, int ordering)
 {
