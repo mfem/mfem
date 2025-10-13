@@ -746,7 +746,7 @@ void DifferentiableOperator::AddIntegrator(
          test_vdim,             // int (= output_fop.vdim)
          test_op_dim,           // int (derived from output_fop)
          inputs,                // mfem::future::tuple
-         domain_attributes = attributes,     // Array<int>
+         attributes,     // Array<int>
          ir_weights,            // DeviceTensor
          use_sum_factorization, // bool
          input_dtq_maps,        // std::array<DofToQuadMap, num_fields>
@@ -779,13 +779,13 @@ void DifferentiableOperator::AddIntegrator(
                                           action_shmem_info.field_sizes,
                                           num_entities);
 
-      const bool has_attr = domain_attributes.Size() > 0;
-      const auto d_domain_attr = domain_attributes.Read();
+      const bool has_attr = attributes.Size() > 0;
+      const auto d_attr = attributes.Read();
       const auto d_elem_attr = elem_attributes.Read();
 
       forall([=] MFEM_HOST_DEVICE (int e, void *shmem)
       {
-         if (has_attr && !d_domain_attr[d_elem_attr[e] - 1]) { return; }
+         if (has_attr && !d_attr[d_elem_attr[e] - 1]) { return; }
 
          auto [input_dtq_shmem, output_dtq_shmem, fields_shmem, input_shmem,
                                 residual_shmem, scratch_shmem] =
@@ -855,7 +855,7 @@ void DifferentiableOperator::AddIntegrator(
                test_vdim,             // int (= output_fop.vdim)
                test_op_dim,           // int (derived from output_fop)
                inputs,                // mfem::future::tuple
-               domain_attributes = attributes,     // Array<int>
+               attributes,     // Array<int>
                ir_weights,            // DeviceTensor
                use_sum_factorization, // bool
                input_dtq_maps,        // std::array<DofToQuadMap, num_fields>
@@ -893,14 +893,14 @@ void DifferentiableOperator::AddIntegrator(
                                                shmem_info.direction_size,
                                                num_entities);
 
+            const bool has_attr = attributes.Size() > 0;
+            const auto d_attr = attributes.Read();
             const auto d_elem_attr = elem_attributes.Read();
-            const bool has_attr = domain_attributes.Size() > 0;
-            const auto d_domain_attr = domain_attributes.Read();
 
             derivative_action_e = 0.0;
             forall([=] MFEM_HOST_DEVICE (int e, real_t *shmem)
             {
-               if (has_attr && !d_domain_attr[d_elem_attr[e] - 1]) { return; }
+               if (has_attr && !d_attr[d_elem_attr[e] - 1]) { return; }
 
                auto [input_dtq_shmem, output_dtq_shmem, fields_shmem,
                                       direction_shmem, input_shmem,

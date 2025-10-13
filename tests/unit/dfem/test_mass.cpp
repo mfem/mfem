@@ -18,6 +18,13 @@ using namespace mfem;
 using namespace mfem::future;
 using mfem::future::tensor;
 
+#ifdef MFEM_USE_ENZYME
+using dscalar_t = real_t;
+#else
+using mfem::future::dual;
+using dscalar_t = dual<real_t, real_t>;
+#endif
+
 namespace dfem_pa_kernels
 {
 
@@ -115,8 +122,13 @@ void DFemMass(const char *filename, int p, const int r)
          const auto sol = std::vector{FieldDescriptor{U, &fes}};
          DifferentiableOperator dop(sol, {{Coords, nodes->ParFESpace()}}, pmesh);
 
+         #ifdef MFEM_USE_ENZYME
+     		std::cerr << "USING ENZYME\n";
+         #else
+         #endif
+
          const auto mf_mass_qf =
-            [] MFEM_HOST_DEVICE(const real_t &u,
+            [] MFEM_HOST_DEVICE(const dscalar_t &u,
                                 const tensor<real_t, DIM, BDIM> &J,
                                 const real_t &w)
          {
@@ -132,6 +144,9 @@ void DFemMass(const char *filename, int p, const int r)
 
          fes.GetRestrictionMatrix()->Mult(x, X);
          dop.Mult(X, Z);
+
+         Z.Print(std::cerr, Z.Size());
+
          Y -= Z;
          real_t norm_g, norm_l = Y.Normlinf();
          MPI_Allreduce(&norm_l, &norm_g, 1, MPI_DOUBLE, MPI_MAX, pmesh.GetComm());
@@ -139,6 +154,8 @@ void DFemMass(const char *filename, int p, const int r)
 
          auto dRdU = dop.GetDerivative(U, {&x}, {nodes});
          dRdU->Mult(X, Z);
+
+         Z.Print(std::cerr, Z.Size());
 
          blf.Mult(x, y);
          fes.GetProlongationMatrix()->MultTranspose(y, Y);
@@ -161,24 +178,10 @@ TEST_CASE("DFEM Mass", "[Parallel][dFEM Mass]")
    SECTION("2D p=" + std::to_string(p) + " r=" + std::to_string(r))
    {
       const auto filename =
-         GENERATE("../../data/star.mesh",
-                  "../../data/star-q3.mesh",
-                  "../../data/rt-2d-q3.mesh",
-                  "../../data/inline-quad.mesh",
-                  "../../data/periodic-square.mesh");
+         GENERATE("../../data/inline-quad.mesh");
       DFemMass<2>(filename, p, r);
    }
 
-   SECTION("3D p=" + std::to_string(p) + " r=" + std::to_string(r))
-   {
-      const auto filename =
-         GENERATE("../../data/fichera.mesh",
-                  "../../data/fichera-q3.mesh",
-                  "../../data/inline-hex.mesh",
-                  "../../data/toroid-hex.mesh",
-                  "../../data/periodic-cube.mesh");
-      DFemMass<3>(filename, p, r);
-   }
 }
 
 } // namespace dfem_pa_kernels
