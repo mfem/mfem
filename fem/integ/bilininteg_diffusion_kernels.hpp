@@ -632,10 +632,7 @@ inline void PADiffusionApply2D(const int NE,
 }
 
 // Shared memory PA Diffusion Apply 2D kernel
-// Use proteus to remove the template parameters, remove code bloat and
-// compilation time.
 template<int T_D1D = 0, int T_Q1D = 0>
-__attribute__((used))
 inline void SmemPADiffusionApply2D(const int NE,
                                    const bool symmetric,
                                    const Array<real_t> &b_,
@@ -791,7 +788,7 @@ inline void SmemPADiffusionApply2D(const int NE,
             Y(dx,dy,e) += (u + v);
          }
       }
-   }));
+   });
 }
 
 // PA Diffusion Apply 3D kernel
