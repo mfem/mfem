@@ -753,9 +753,9 @@ void FPISolver::SetOperator(const Operator &op)
    relax_method->Init(*oper);
 }
 
-void FPISolver::SetRelaxation(real_t r, FPIRelaxation *relaxation, bool own)
+void FPISolver::SetRelaxation(real_t rfactor, FPIRelaxation *relaxation, bool own)
 {
-   relax_factor = r;
+   relax_factor = rfactor;
    if (relaxation)
    {
       if (relax_method && relax_owned) { delete relax_method; }

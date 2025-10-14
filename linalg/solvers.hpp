@@ -734,7 +734,7 @@ public:
 
    virtual void SetOperator(const Operator &op) override;
 
-   void SetRelaxation(real_t r, FPIRelaxation *relaxation = nullptr,
+   void SetRelaxation(real_t rfactor, FPIRelaxation *relaxation = nullptr,
                       bool own = false);
 
    /// Iterative solution of the (non)linear system using Fixed Point Iteration
