@@ -17,6 +17,8 @@ namespace mfem
 MassIntegrator::Kernels::Kernels()
 {
    // 2D
+   // Q=P+1
+   MassIntegrator::AddSpecialization<2,1,1>();
    MassIntegrator::AddSpecialization<2,2,2>();
    MassIntegrator::AddSpecialization<2,3,3>();
    MassIntegrator::AddSpecialization<2,4,4>();
@@ -25,17 +27,45 @@ MassIntegrator::Kernels::Kernels()
    MassIntegrator::AddSpecialization<2,7,7>();
    MassIntegrator::AddSpecialization<2,8,8>();
    MassIntegrator::AddSpecialization<2,9,9>();
+   // Q=P+2
+   MassIntegrator::AddSpecialization<2,1,2>();
+   MassIntegrator::AddSpecialization<2,2,3>();
+   MassIntegrator::AddSpecialization<2,3,4>();
+   MassIntegrator::AddSpecialization<2,4,5>();
+   MassIntegrator::AddSpecialization<2,5,6>();
+   MassIntegrator::AddSpecialization<2,6,7>();
+   MassIntegrator::AddSpecialization<2,7,8>();
+   MassIntegrator::AddSpecialization<2,8,9>();
+   MassIntegrator::AddSpecialization<2,9,10>();
+   // others
+   MassIntegrator::AddSpecialization<2,2,4>();
+   MassIntegrator::AddSpecialization<2,3,6>();
+   MassIntegrator::AddSpecialization<2,4,6>();
    // 3D
+   // Q=P+1
+   MassIntegrator::AddSpecialization<3,1,1>();
    MassIntegrator::AddSpecialization<3,2,2>();
+   MassIntegrator::AddSpecialization<3,3,3>();
+   MassIntegrator::AddSpecialization<3,4,4>();
+   MassIntegrator::AddSpecialization<3,5,5>();
+   MassIntegrator::AddSpecialization<3,6,6>();
+   MassIntegrator::AddSpecialization<3,7,7>();
+   MassIntegrator::AddSpecialization<3,8,8>();
+   MassIntegrator::AddSpecialization<3,9,9>();
+   // Q=P+2
+   MassIntegrator::AddSpecialization<3,1,2>();
    MassIntegrator::AddSpecialization<3,2,3>();
    MassIntegrator::AddSpecialization<3,3,4>();
+   MassIntegrator::AddSpecialization<3,3,6>();
    MassIntegrator::AddSpecialization<3,4,5>();
-   MassIntegrator::AddSpecialization<3,4,6>();
    MassIntegrator::AddSpecialization<3,5,6>();
-   MassIntegrator::AddSpecialization<3,5,8>();
    MassIntegrator::AddSpecialization<3,6,7>();
    MassIntegrator::AddSpecialization<3,7,8>();
    MassIntegrator::AddSpecialization<3,8,9>();
+   // others
+   MassIntegrator::AddSpecialization<3,2,4>();
+   MassIntegrator::AddSpecialization<3,4,6>();
+   MassIntegrator::AddSpecialization<3,5,8>();
 }
 
 namespace internal

@@ -15,17 +15,18 @@ project(mfem-unit-tests NONE)
 include_directories(BEFORE ${CMAKE_CURRENT_SOURCE_DIR})
 
 # The following list can be updated using (in bash):
-#    for d in general linalg mesh fem enzyme; do ls -1 $d/*.cpp; done
+#    for d in dfem general linalg mesh fem enzyme; do ls -1 $d/*.cpp; done
 set(UNIT_TESTS_SRCS
   dfem/test_diffusion.cpp
   dfem/test_divergence.cpp
   dfem/test_mass.cpp
   dfem/test_lvector_interface.cpp
   general/test_array.cpp
-  general/test_reduction.cpp
+  general/test_scan.cpp
   general/test_arrays_by_name.cpp
   general/test_error.cpp
   general/test_mem.cpp
+  general/test_reduction.cpp
   general/test_text.cpp
   general/test_umpire_mem.cpp
   general/test_zlib.cpp
@@ -50,13 +51,15 @@ set(UNIT_TESTS_SRCS
   linalg/test_ode2.cpp
   linalg/test_operator.cpp
   linalg/test_vector.cpp
-  mesh/test_face_orientations.cpp
-  mesh/test_geometric_factors.cpp
   mesh/mesh_test_utils.cpp
   mesh/test_exodus_reader.cpp
+  mesh/test_exodus_writer.cpp
+  mesh/test_face_orientations.cpp
   mesh/test_fms.cpp
+  mesh/test_geometric_factors.cpp
   mesh/test_mesh.cpp
   mesh/test_ncmesh.cpp
+  mesh/test_nurbs.cpp
   mesh/test_periodic_mesh.cpp
   mesh/test_pmesh.cpp
   mesh/test_psubmesh.cpp
@@ -64,6 +67,7 @@ set(UNIT_TESTS_SRCS
   mesh/test_vtu.cpp
   mesh/test_nurbs.cpp
   mesh/test_exodus_writer.cpp
+  fem/make_permuted_mesh.cpp
   fem/test_1d_bilininteg.cpp
   fem/test_2d_bilininteg.cpp
   fem/test_3d_bilininteg.cpp
@@ -79,6 +83,7 @@ set(UNIT_TESTS_SRCS
   fem/test_calcshape.cpp
   fem/test_calcvshape.cpp
   fem/test_coefficient.cpp
+  fem/test_col_lag_der.cpp
   fem/test_datacollection.cpp
   fem/test_derefine.cpp
   fem/test_dgmassinv.cpp
@@ -90,15 +95,17 @@ set(UNIT_TESTS_SRCS
   fem/test_face_elem_trans.cpp
   fem/test_face_permutation.cpp
   fem/test_face_restriction.cpp
-  fem/test_fe.cpp
   fem/test_fe_compatibility.cpp
   fem/test_fe_fixed.cpp
   fem/test_fe_pos.cpp
   fem/test_fe_symmetry.cpp
+  fem/test_fe.cpp
   fem/test_get_value.cpp
   fem/test_getderivative.cpp
   fem/test_getgradient.cpp
+  fem/test_getgradients.cpp
   fem/test_gslib.cpp
+  fem/test_hp_transfer.cpp
   fem/test_intrules.cpp
   fem/test_intruletypes.cpp
   fem/test_inversetransform.cpp
@@ -106,8 +113,9 @@ set(UNIT_TESTS_SRCS
   fem/test_lin_interp.cpp
   fem/test_linear_fes.cpp
   fem/test_linearform_ext.cpp
-  fem/test_lor.cpp
   fem/test_lor_batched.cpp
+  fem/test_lor_dg.cpp
+  fem/test_lor.cpp
   fem/test_nonlinearform.cpp
   fem/test_operatorjacobismoother.cpp
   fem/test_oscillation.cpp
@@ -116,8 +124,9 @@ set(UNIT_TESTS_SRCS
   fem/test_pa_idinterp.cpp
   fem/test_pa_kernels.cpp
   fem/test_pgridfunc_save_serial.cpp
-  fem/test_project_bdr.cpp
+  fem/test_poly1d.cpp
   fem/test_project_bdr_par.cpp
+  fem/test_project_bdr.cpp
   fem/test_quadf_coef.cpp
   fem/test_quadinterpolator.cpp
   fem/test_quadraturefunc.cpp
