@@ -96,9 +96,9 @@ public:
        @param src Source @a ParGridFunction
        @param tar Target @a ParGridFunction
      */
-    NativeTransfer(ParGridFunction *src, ParGridFunction *tar) : 
+    NativeTransfer(ParGridFunction *src, ParGridFunction *tar) :
                    NativeTransfer(src->ParFESpace(), tar->ParFESpace()){}
-    NativeTransfer(ParGridFunction &src, ParGridFunction &tar) : 
+    NativeTransfer(ParGridFunction &src, ParGridFunction &tar) :
                    NativeTransfer(src.ParFESpace(), tar.ParFESpace()){}
 
     /**
@@ -117,12 +117,13 @@ public:
  */
 class GSLibTransfer : public FieldTransfer
 {
+#ifdef MFEM_USE_GSLIB    
 protected:
     ParMesh *src_mesh = nullptr; /// Source mesh (does not own)
     FindPointsGSLIB finder;      /// FindPointsGSLIB object
     Array<int> attr;             /// Attributes (optional) mesh markers for transfer
-    Array<int> dofs;            
-    Array<int> tar_dofs;        
+    Array<int> dofs;
+    Array<int> tar_dofs;
     Vector coords;              /// Coordinates where the values are to be interpolated
     Vector interp_vals;         /// Interpolated values from the source mesh
 
@@ -132,7 +133,7 @@ public:
        @param src Source mesh (does not own)
        @param coordinates Coordinates where the values are to be interpolated
      */
-    GSLibTransfer(ParMesh *src, Vector &coordinates) : 
+    GSLibTransfer(ParMesh *src, Vector &coordinates) :
                  src_mesh(src), finder(src_mesh->GetComm())
                  {
                     SetCoordinates(coordinates);
@@ -149,7 +150,7 @@ public:
      */
     GSLibTransfer(ParFiniteElementSpace *src, ParFiniteElementSpace *tar,
                   Array<int> attr = Array<int>() ) : FieldTransfer(src, tar),
-                  src_mesh(src_fes->GetParMesh()), finder(src_fes->GetComm()), 
+                  src_mesh(src_fes->GetParMesh()), finder(src_fes->GetComm()),
                   attr(attr)
                   {
                     ComputeCoordinates();
@@ -157,7 +158,7 @@ public:
                     Update();
                   }
     GSLibTransfer(ParFiniteElementSpace &src, ParFiniteElementSpace &tar,
-                  Array<int> attr = Array<int>() ) : 
+                  Array<int> attr = Array<int>() ) :
                   GSLibTransfer(&src, &tar,attr){}
 
     /**
@@ -254,7 +255,7 @@ public:
        @param tar Target @a ParGridFunction
      */
     virtual void Transfer(const ParGridFunction &src, ParGridFunction &tar) override
-    {        
+    {
         finder.Interpolate(src,interp_vals);
 
         int dim = tar_fes->GetVDim();
@@ -265,7 +266,7 @@ public:
 
         if(src_fes->GetOrdering() == Ordering::byVDIM){ src_nstep = 0; src_vstep = 1; }        
         if(tar_fes->GetOrdering() == Ordering::byVDIM){ tar_nstep = 0; tar_vstep = 1; }
-       
+
         for (int i = 0; i < tar_dofs.Size(); i++)
         {
             int idof = tar_dofs[i];
@@ -281,6 +282,33 @@ public:
     virtual ~GSLibTransfer(){ 
         finder.FreeData();
     }
+#else
+public:
+    GSLibTransfer(ParMesh *src, Vector &coordinates)
+    {
+        MFEM_ABORT("MFEM is not built with GSLIB support.");
+    }
+    GSLibTransfer(ParFiniteElementSpace *src, ParFiniteElementSpace *tar,
+                  Array<int> attr = Array<int>() )
+    {
+        MFEM_ABORT("MFEM is not built with GSLIB support.");
+    }
+    GSLibTransfer(ParFiniteElementSpace &src, ParFiniteElementSpace &tar,
+                  Array<int> attr = Array<int>() )
+    {
+        MFEM_ABORT("MFEM is not built with GSLIB support.");
+    }
+    GSLibTransfer(ParGridFunction *src_gf, ParGridFunction *tar_gf,
+                  Array<int> attr = Array<int>())
+    {
+        MFEM_ABORT("MFEM is not built with GSLIB support.");
+    }
+    GSLibTransfer(ParGridFunction &src_gf, ParGridFunction &tar_gf,
+                  Array<int> attr = Array<int>())
+    {
+        MFEM_ABORT("MFEM is not built with GSLIB support.");
+    }
+#endif // MFEM_USE_GSLIB
 };
 
 /// @brief Base class for storing fields (GridFunctions) and distinguishing
@@ -337,7 +365,7 @@ public:
 
     ///@brief Get the FieldTransfer associated with this target field
     virtual FieldTransfer* GetTransferMap() const { return transfer_map; }
-    
+
     ~TargetField()
     {
         if(own_map && transfer_map) delete transfer_map;
@@ -427,7 +455,7 @@ public:
 
     ///@brief Get the source @a ParGridFunction
     ParGridFunction *GetSource() const { return src_gf;}
-    
+
     /**
        @brief Adds the @a ParGridFunction, @a tar, with a specified 
        FieldTransfer operator, @a transfer_map, to the list of targets
@@ -448,10 +476,13 @@ public:
         ndest++;
     }
 
+    ///@brief Get all target fields
+    const std::vector<Pair>& GetTargets() const { return targets; }
+
     /**
        @brief Transfer from source to all the @a idest destination. 
        If the source vector is the same size.
-       
+
        @param vsrc the source vector to transfer from; if the size 
        matches the source ParGridFunction, it is used to set the GridFunction.
        @param idest the index of the destination to transfer to;
@@ -459,10 +490,10 @@ public:
      */
     virtual void Transfer(const Vector &vsrc, const int idest=-1)
     {
-        if(vsrc.Size() == src_gf->ParFESpace()->GetVSize() )
+        if(vsrc.Size() == src_gf->ParFESpace()->GetTrueVSize() )
         {   // Set GridFunction if the source vector is the same size.
             src_gf->SetFromTrueDofs(vsrc);
-        }        
+        }
         Transfer(idest);
     }
 
@@ -472,6 +503,9 @@ public:
      */
     virtual void Transfer(const int idest = -1)
     {
+        MFEM_VERIFY(idest < ndest, "Invalid destination index " 
+                    << idest << " >= " << ndest);
+
         if(idest >= 0)
         {
             auto [target, owned] = targets[idest];
@@ -481,7 +515,8 @@ public:
         }
         else
         {
-            for (auto &destination : targets) {
+            for (auto &destination : targets)
+            {
                 auto [target, owned] = destination;
                 FieldTransfer *transfer_map = target->GetTransferMap();
                 ParGridFunction *tar_gf = target->GetGridFunction();
@@ -492,7 +527,8 @@ public:
 
     virtual ~LinkedFields()
     {
-        for (auto &dest : targets) {
+        for (auto &dest : targets)
+        {
             auto [target, owned] = dest;
             if(owned) delete target;
         }
@@ -503,7 +539,7 @@ public:
 /// @brief A collection of LinkedFields, each identified by a name
 class LinkedFieldsCollection
 {
-private:    
+private:
    MPI_Comm comm = MPI_COMM_NULL;
 
     std::string name; /// Name of the collection
@@ -577,6 +613,15 @@ public:
     void AddLinkedFields(const std::string &src_name,
                          LinkedFields *lf, bool own = false)
     {
+        LinkedFields *lf_exist = linked_fields.Get(src_name);
+        if(lf_exist)
+        {
+            for (auto &dest : lf->GetTargets()) {
+                auto [target, owned] = dest;
+                lf_exist->AddTarget(target, owned);
+            }
+            return;
+        }
         linked_fields.Register(src_name, lf, own);
         fields.Register(src_name, lf->GetSource(), false);
     }
@@ -589,9 +634,6 @@ public:
         LinkedFields *lf = linked_fields.Get(src_name);
         if(!lf)
         {
-            // MFEM_WARNING("LinkedFieldsCollection::AddSourceField: Source field "
-            //              + src_name + " not found!; Creating & owning "
-            //              "new LinkedField with src_gf.");
             LinkedFields *lf = new LinkedFields(src_gf);
             linked_fields.Register(src_name, lf, true);
             return;
@@ -609,10 +651,6 @@ public:
         LinkedFields *lf = linked_fields.Get(src_name);
         if(!lf)
         {
-            // MFEM_WARNING("LinkedFieldsCollection::AddTargetField: Source field "
-            //              + src_name + " not found!; Creating new field with "
-            //              " target only and empty source. Call AddSourceField "
-            //              "to set source.");
             lf = new LinkedFields();
             linked_fields.Register(src_name, lf, true);
         }
@@ -640,7 +678,7 @@ public:
         if(!lf)
         {
             MFEM_ABORT("LinkedFieldsCollection::Transfer: Source field "
-                         + sname + " not found!");
+                         + sname + " in collection " + name + " not found!");
         }
         lf->Transfer(vsrc);
     }
@@ -665,7 +703,7 @@ public:
             if(!lf)
             {
                 MFEM_ABORT("LinkedFieldsCollection::Transfer: Source field "
-                            + src_name + " not found!");
+                            + src_name + " in collection " + name + " not found!");
             }
             // lf->Transfer(tar_name=="" ? -1 : linked_fields.GetIndex(tar_name));
             lf->Transfer();
@@ -965,7 +1003,7 @@ protected:
     /// Define a template class 'check' to test for the existence of member functions
     template <typename C>
     class CheckMember{
-        private:        
+        private:
 
         /// @brief A type trait to check if the erased class has the functions Step, Mult, and ImplicitSolve
         /// with the needed signatures.
@@ -1006,7 +1044,7 @@ protected:
         
         template <typename T, template<typename> typename Func, typename R>
         static constexpr auto Check(T*) -> typename std::is_same< Func<T>, R>::type;
-        
+
         template <typename, template<typename> typename, typename >
         static constexpr std::false_type Check(...);
 
@@ -1039,7 +1077,7 @@ public:
 
     /// @brief Constructor for the type-erased AbstractOperator class
     AbstractOperator(OpType *op_, int h, int w) : Application(h,w), op(op_)
-    {    
+    {
         // If the operator is an ODESolver, we need access to its time-dependent operator 
         if constexpr (std::is_base_of<ODESolver, OpType>::value)
         {
@@ -1092,7 +1130,7 @@ public:
             MFEM_ABORT("The AbstractOperator does not have the function, "
                        "Step(Vector&, real_t&, real_t&) or "
                        "Step(int, double*, double&, double&).");
-        }        
+        }
     }
 
     /**
@@ -1113,8 +1151,8 @@ public:
             MFEM_ABORT("The AbstractOperator does not have the function, "
                        "ImplicitSolve(const real_t , const Vector&, Vector&) or "
                        "ImplicitSolve(const real_t , int, double*, int, double*).");
-        }        
-    }    
+        }
+    }
 
     /**
        @brief Set the Operation ID to call the appropriate operation.
@@ -1171,7 +1209,7 @@ public:
         {
             Application::Transfer();
         }
-    }    
+    }
 };
 
 
@@ -1214,7 +1252,7 @@ protected:
     bool own_solver = false;
 
     mutable Vector b;
-    
+
 public:
     /**
        @brief Construct a new CoupledOperator object.
@@ -1273,7 +1311,7 @@ public:
         return op;
     }
 
-    /// @brief Add an operator to the list of coupled operator and return pointer to it.     
+    /// @brief Add an operator to the list of coupled operator and return pointer to it.
     template <class OpType>
     Application* AddOperator(OpType *op_, int s = 0) { return AddOperator(op_,s,s);}
 
@@ -1283,7 +1321,6 @@ public:
     /// @brief Get the size of the largest operator
     int Max(){return max_op_size;}
 
-    
     /// @brief Get the operator at index @a i
     Application* GetOperator(const int i) { return operators[i]; }
 
@@ -1399,11 +1436,11 @@ public:
      */
     virtual void PostProcess(Vector &x, bool do_ops);
     void PostProcess(Vector &x) override { PostProcess(x, true); }
-    
+
     /// @brief Set the OperationID 
     virtual void SetOperationID(OperationID id, bool do_ops);
     void SetOperationID(OperationID id) override { SetOperationID(id, true); }
-    
+
     /// @brief Transfer Vector @a x to operators via LinkedFields    
     virtual void Transfer(const Vector &x) override;
 
@@ -1687,13 +1724,13 @@ public:
               For fully implicit, monolithic solver, we take F(u+dt*k,k,t) = M*k - g(u+dt*k,t)
      */
     void Mult(const Vector &x, Vector &y) const override;
-    
+
     /**
        @brief Update the current state/point of linearization for the nonlinear operator. For
               Jacobian-free methods, i.e. J(k)*v = (F(k+eps*v) - F(k))/eps, this sets the F(k)
      */
     Operator& GetGradient(const Vector &k) const override;
-    
+
     Scheme GetType() const override { return type_; }
 };
 

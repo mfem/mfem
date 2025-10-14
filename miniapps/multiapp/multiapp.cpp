@@ -1,8 +1,9 @@
 #include "multiapp.hpp"
 
+#ifdef MFEM_USE_MPI
+
 namespace mfem
 {
-
 
 FieldTransfer* FieldTransfer::Select(ParFiniteElementSpace *src,
                                      ParFiniteElementSpace *tar, 
@@ -17,7 +18,7 @@ FieldTransfer* FieldTransfer::Select(ParFiniteElementSpace *src,
         default:
             MFEM_ABORT("Unknown FieldTransfer scheme: " << static_cast<int>(type));
     }
-}    
+}
 
 OperatorCoupler* OperatorCoupler::Select(CoupledOperator *op, 
                                          Scheme scheme)
@@ -42,7 +43,7 @@ CoupledOperator::~CoupledOperator()
 {
     if(solver && own_solver) delete solver;
     if(op_coupler && own_op_coupler) delete op_coupler;
-    
+
     for(int i=0; i < nops; i++)
     {
         if(operators_owned[i] && operators[i]) delete operators[i];
@@ -115,7 +116,7 @@ void CoupledOperator::Finalize(bool do_ops)
         {
             op->Finalize();
         }
-    }    
+    }
 }
 
 void CoupledOperator::PreProcess(Vector &x, bool do_ops) 
@@ -142,7 +143,7 @@ void CoupledOperator::PostProcess(Vector &x, bool do_ops)
             operators[i]->PostProcess(xi);
         }
     }
-}    
+}
 
 void CoupledOperator::SetOperationID(OperationID id, bool do_ops)
 {
@@ -188,7 +189,7 @@ void CoupledOperator::Transfer(const Vector &u, const Vector &k, real_t dt)
 void CoupledOperator::Mult(const Vector &x, Vector &y) const
 {
     if(op_coupler && coupler_type != Scheme::NONE)
-    {        
+    {
         if(solver) {
             op_coupler->SetOperationID(OperationID::MULT);
             op_coupler->SetInput(&x);
@@ -196,7 +197,7 @@ void CoupledOperator::Mult(const Vector &x, Vector &y) const
         }
         else {
             op_coupler->Mult(x,y);
-        }        
+        }
     }
     else
     {
@@ -214,7 +215,7 @@ void CoupledOperator::Mult(const Vector &x, Vector &y) const
 void CoupledOperator::ImplicitSolve(const real_t dt, const Vector &x, Vector &k ){
 
     if(op_coupler && coupler_type != Scheme::NONE)
-    {        
+    {
         if(solver) {
             op_coupler->SetOperationID(OperationID::IMPLICIT_SOLVE); ///< OperatorCoupler::Mult() -> OperatorCoupler::ImplicitSolve() 
             op_coupler->SetTimeStep(dt);
@@ -384,9 +385,9 @@ void AdditiveSchwarzCoupler::Step(Vector &x, real_t &t_, real_t &dt) const
 {
     int nops = coupled_op->Size();
     const Array<int> offsets = coupled_op->GetBlockOffsets();
-    
+
     BlockVector xb(x.GetData(), offsets);
-    
+
     for (int i=0; i < nops; i++)
     {
         Vector &xi = xb.GetBlock(i);
@@ -462,7 +463,7 @@ void AlternatingSchwarzCoupler::ImplicitSolve(const real_t dt, const Vector &x, 
 
     BlockVector xb(x.GetData(), offsets);
     BlockVector kb(k.GetData(), offsets);
-    
+
     for (int i=0; i < nops; i++)
     {
         Vector &xi = xb.GetBlock(i);
@@ -520,6 +521,6 @@ Operator& JacobianFreeFullCoupler::GetGradient(const Vector &k) const
     return const_cast<future::FDJacobian&>(grad);
 }
 
-
-
 }
+
+#endif // MFEM_USE_MPI
