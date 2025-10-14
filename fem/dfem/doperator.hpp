@@ -481,6 +481,11 @@ void DifferentiableOperator::AddBoundaryIntegrator(
    const Array<int> &boundary_attributes,
    derivative_ids_t derivative_ids)
 {
+
+   if (mesh.GetNFbyType(FaceType::Boundary) != mesh.GetNBE())
+   {
+      MFEM_ABORT("AddBoundaryIntegrator on meshes with interior boundaries is not supported.");
+   }
    AddIntegrator<Entity::BoundaryElement>(
       qfunc, inputs, outputs, integration_rule, boundary_attributes, derivative_ids);
 }
@@ -558,22 +563,14 @@ void DifferentiableOperator::AddIntegrator(
    auto output_to_field =
       create_descriptors_to_fields_map<entity_t>(fields, outputs);
 
-   // Factor out
-   Array<int> elem_attributes;
-   elem_attributes.SetSize(GetNumEntities<entity_t>(mesh));
+   const Array<int> *elem_attributes = nullptr;
    if constexpr (std::is_same_v<entity_t, Entity::Element>)
    {
-      for (int i = 0; i < mesh.GetNE(); ++i)
-      {
-         elem_attributes[i] = mesh.GetAttribute(i);
-      }
+      elem_attributes = &mesh.GetElementAttributes();
    }
    else if constexpr (std::is_same_v<entity_t, Entity::BoundaryElement>)
    {
-      for (int i = 0; i < mesh.GetNBE(); ++i)
-      {
-         elem_attributes[i] = mesh.GetBdrAttribute(i);
-      }
+      elem_attributes = &mesh.GetBdrFaceAttributes();
    }
 
    const auto output_fop = get<0>(outputs);
@@ -781,7 +778,7 @@ void DifferentiableOperator::AddIntegrator(
 
       const bool has_attr = attributes.Size() > 0;
       const auto d_attr = attributes.Read();
-      const auto d_elem_attr = elem_attributes.Read();
+      const auto d_elem_attr = elem_attributes->Read();
 
       forall([=] MFEM_HOST_DEVICE (int e, void *shmem)
       {
@@ -895,7 +892,7 @@ void DifferentiableOperator::AddIntegrator(
 
             const bool has_attr = attributes.Size() > 0;
             const auto d_attr = attributes.Read();
-            const auto d_elem_attr = elem_attributes.Read();
+            const auto d_elem_attr = elem_attributes->Read();
 
             derivative_action_e = 0.0;
             forall([=] MFEM_HOST_DEVICE (int e, real_t *shmem)

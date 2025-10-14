@@ -29,7 +29,7 @@ namespace dfem_pa_kernels
 {
 
 template <int DIM>
-void DFemMass(const char *filename, int p, const int r)
+void dfem_mass(const char *filename, int p, const int r)
 {
    constexpr int BDIM = DIM - 1;
    CAPTURE(filename, DIM, p, r);
@@ -168,10 +168,24 @@ TEST_CASE("DFEM Mass", "[Parallel][dFEM Mass]")
    SECTION("2D p=" + std::to_string(p) + " r=" + std::to_string(r))
    {
       const auto filename =
-         GENERATE("../../data/inline-quad.mesh");
-      DFemMass<2>(filename, p, r);
+         GENERATE("../../data/star.mesh",
+                  "../../data/star-q3.mesh",
+                  "../../data/rt-2d-q3.mesh",
+                  "../../data/inline-quad.mesh",
+                  "../../data/periodic-square.mesh");
+      dfem_mass<2>(filename, p, r);
    }
 
+   SECTION("3D p=" + std::to_string(p) + " r=" + std::to_string(r))
+   {
+      const auto filename =
+         GENERATE("../../data/fichera.mesh",
+                  "../../data/fichera-q3.mesh",
+                  "../../data/inline-hex.mesh",
+                  "../../data/toroid-hex.mesh",
+                  "../../data/periodic-cube.mesh");
+      dfem_mass<3>(filename, p, r);
+   }
 }
 
 } // namespace dfem_pa_kernels
