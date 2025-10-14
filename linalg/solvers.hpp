@@ -566,15 +566,15 @@ public:
    FPIRelaxation() = default;
 
 #ifdef MFEM_USE_MPI
-   FPIRelaxation(MPI_Comm comm_){comm = comm_;}
+   FPIRelaxation(MPI_Comm comm_) {comm = comm_;}
    void SetComm(MPI_Comm comm_) {comm = comm_;}
 #endif
 
    /// @brief Set the operator for the relaxation method.
-   virtual void Init(const Operator &op_){op = &op_;}
+   virtual void Init(const Operator &op_) {op = &op_;}
 
-   virtual void SetLowerBound(real_t minf_){ minf = minf_; }
-   virtual void SetUpperBound(real_t maxf_){ maxf = maxf_; }
+   virtual void SetLowerBound(real_t minf_) { minf = minf_; }
+   virtual void SetUpperBound(real_t maxf_) { maxf = maxf_; }
    virtual void SetBounds(real_t minf_, real_t maxf_)
    { minf = minf_; maxf = maxf_;}
 
@@ -615,7 +615,7 @@ public:
 #endif
    }
 
-   virtual ~FPIRelaxation(){}
+   virtual ~FPIRelaxation() {}
 };
 
 /**
@@ -632,7 +632,7 @@ public:
    AitkenRelaxation() = default;
 
 #ifdef MFEM_USE_MPI
-    AitkenRelaxation(MPI_Comm comm_) : FPIRelaxation(comm_){}
+   AitkenRelaxation(MPI_Comm comm_) : FPIRelaxation(comm_) {}
 #endif
 
    /// @brief Set the operator for the relaxation method.
@@ -653,13 +653,14 @@ public:
       @param rfactor Current relaxation factor
       @return The computed relaxation factor
    */
-   real_t Eval(const Vector &state, const Vector &residual, real_t res_norm, real_t rfactor) override
+   real_t Eval(const Vector &state, const Vector &residual, real_t res_norm,
+               real_t rfactor) override
    {
       real_t num   = Dot(rold, residual) - (rold_norm * rold_norm);
       real_t denom = NormSquared(rold, residual);
       real_t ratio = num / denom;
 
-      if(num == 0.0) ratio = -1.0; // Avoid num = 0.0 at first call
+      if (num == 0.0) { ratio = -1.0; } // Avoid num = 0.0 at first call
       rold_norm = res_norm;
       rold      = residual;
 
@@ -674,42 +675,43 @@ public:
 class SteepestDescentRelaxation : public FPIRelaxation
 {
 protected:
-    Vector z;
+   Vector z;
 
 public:
-    SteepestDescentRelaxation() = default;
+   SteepestDescentRelaxation() = default;
 
 #ifdef MFEM_USE_MPI
-    SteepestDescentRelaxation(MPI_Comm comm_) : FPIRelaxation(comm_){}
+   SteepestDescentRelaxation(MPI_Comm comm_) : FPIRelaxation(comm_) {}
 #endif
 
-    /// @brief Set the operator for the relaxation method.
-    void Init(const Operator &op_) override
-    {
-        FPIRelaxation::Init(op_);
-        z.SetSize(op->Width());
-        z = 0.0;
-    }
+   /// @brief Set the operator for the relaxation method.
+   void Init(const Operator &op_) override
+   {
+      FPIRelaxation::Init(op_);
+      z.SetSize(op->Width());
+      z = 0.0;
+   }
 
-    /**
-       @brief Compute the steepest descent relaxation factor for Fixed Point Iteration.
+   /**
+      @brief Compute the steepest descent relaxation factor for Fixed Point Iteration.
 
-       @param state Current state vector
-       @param residual Current residual vector
-       @param res_norm Norm of the current residual vector
-       @param rfactor Current relaxation factor
-       @return The computed relaxation factor
-     */
-    real_t Eval(const Vector &state, const Vector &residual, real_t res_norm, real_t rfactor) override
-    {
-        MFEM_VERIFY(op,"Operator not set; set using Init(Operator&)")
+      @param state Current state vector
+      @param residual Current residual vector
+      @param res_norm Norm of the current residual vector
+      @param rfactor Current relaxation factor
+      @return The computed relaxation factor
+    */
+   real_t Eval(const Vector &state, const Vector &residual, real_t res_norm,
+               real_t rfactor) override
+   {
+      MFEM_VERIFY(op,"Operator not set; set using Init(Operator&)")
 
-        Operator *J = &op->GetGradient(state);
-        real_t num = res_norm * res_norm;
-        J->Mult(residual, z); // rold = F'(x) * rnew;
-        real_t denom = Dot(z, residual);
-        return Clamp(num/denom); // Clamp the relaxation factor
-    }
+      Operator *J = &op->GetGradient(state);
+      real_t num = res_norm * res_norm;
+      J->Mult(residual, z); // rold = F'(x) * rnew;
+      real_t denom = Dot(z, residual);
+      return Clamp(num/denom); // Clamp the relaxation factor
+   }
 };
 
 /// Fixed point iteration solver: x <- f(x)

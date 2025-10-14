@@ -745,7 +745,7 @@ void FPISolver::SetOperator(const Operator &op)
 {
    IterativeSolver::SetOperator(op);
    UpdateVectors();
-   if(!relax_method)
+   if (!relax_method)
    {
       relax_method = new FPIRelaxation(); // Default relaxation strategy
       relax_owned = true;
@@ -758,12 +758,12 @@ void FPISolver::SetRelaxation(real_t r, FPIRelaxation *relaxation, bool own)
    relax_factor = r;
    if (relaxation)
    {
-      if(relax_method && relax_owned) delete relax_method;
+      if (relax_method && relax_owned) { delete relax_method; }
       relax_method = relaxation;
       relax_owned  = own;
    }
 #ifdef MFEM_USE_MPI
-   if(relax_method) relax_method->SetComm(this->GetComm());
+   if (relax_method) { relax_method->SetComm(this->GetComm()); }
 #endif
 }
 
@@ -818,7 +818,7 @@ void FPISolver::Mult(const Vector &b, Vector &x) const
    if (print_options.iterations | print_options.first_and_last)
    {
       mfem::out << "   Iteration : " << setw(3) << right << 0 << "  ||Br|| = "
-                  << nom << (print_options.first_and_last ? " ..." : "") << '\n';
+                << nom << (print_options.first_and_last ? " ..." : "") << '\n';
    }
 
    r0 = std::max(nom*rel_tol, abs_tol);
@@ -849,21 +849,21 @@ void FPISolver::Mult(const Vector &b, Vector &x) const
       bool done = false;
       if (nom < r0)
       {
-            converged = true;
-            final_iter = i;
-            done = true;
+         converged = true;
+         final_iter = i;
+         done = true;
       }
 
       if (++i > max_iter)
       {
-            done = true;
+         done = true;
       }
 
       if (print_options.iterations || (done && print_options.first_and_last))
       {
-            mfem::out << "   Iteration : " << setw(3) << right << (i-1)
-                  << "  ||r|| = " << setw(11) << left << nom
-                  << "\tConv. rate: " << cf << '\n';
+         mfem::out << "   Iteration : " << setw(3) << right << (i-1)
+                   << "  ||r|| = " << setw(11) << left << nom
+                   << "\tConv. rate: " << cf << '\n';
       }
 
       if (done) { break; }
@@ -873,8 +873,8 @@ void FPISolver::Mult(const Vector &b, Vector &x) const
    {
       const auto rf = pow (nom/nom0, 1.0/final_iter);
       mfem::out << "FPI: Number of iterations: " << final_iter << '\n'
-                  << "Conv. rate: " << cf << '\n'
-                  << "Average reduction factor: "<< rf << '\n';
+                << "Conv. rate: " << cf << '\n'
+                << "Average reduction factor: "<< rf << '\n';
    }
    if (print_options.warnings && !converged)
    {
