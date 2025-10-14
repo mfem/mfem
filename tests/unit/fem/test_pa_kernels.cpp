@@ -649,22 +649,37 @@ TEST_CASE("PA Markers", "[PartialAssembly], [GPU]")
    Vector vel_vec(dim);
    vel_vec.Randomize(1);
    VectorConstantCoefficient vel(vel_vec);
+   ConstantCoefficient one(1.0);
 
    GridFunction x(&fes), y_fa(&fes), y_pa(&fes);
    x.Randomize(1);
 
    BilinearForm blf_fa(&fes);
    blf_fa.AddDomainIntegrator(new MassIntegrator, marker);
-   if (dg) { blf_fa.AddBdrFaceIntegrator(new DGTraceIntegrator(vel, 1.0)); }
-   else { blf_fa.AddBoundaryIntegrator(new MassIntegrator, marker); }
+   if (dg)
+   {
+      blf_fa.AddBdrFaceIntegrator(new DGTraceIntegrator(vel, 1.0));
+      blf_fa.AddBdrFaceIntegrator(new BoundaryMassIntegrator(one), marker);
+   }
+   else
+   {
+      blf_fa.AddBoundaryIntegrator(new MassIntegrator, marker);
+   }
    blf_fa.Assemble();
    blf_fa.Finalize();
 
    BilinearForm blf_pa(&fes);
    blf_pa.SetAssemblyLevel(AssemblyLevel::PARTIAL);
    blf_pa.AddDomainIntegrator(new MassIntegrator, marker);
-   if (dg) { blf_pa.AddBdrFaceIntegrator(new DGTraceIntegrator(vel, 1.0)); }
-   else { blf_pa.AddBoundaryIntegrator(new MassIntegrator, marker); }
+   if (dg)
+   {
+      blf_pa.AddBdrFaceIntegrator(new DGTraceIntegrator(vel, 1.0));
+      blf_pa.AddBdrFaceIntegrator(new BoundaryMassIntegrator(one), marker);
+   }
+   else
+   {
+      blf_pa.AddBoundaryIntegrator(new MassIntegrator, marker);
+   }
    blf_pa.Assemble();
 
    blf_fa.Mult(x, y_fa);
@@ -751,6 +766,7 @@ void test_dg_diffusion(FES &fes)
    BLF_t blf_fa(&fes);
    blf_fa.AddInteriorFaceIntegrator(new DGDiffusionIntegrator(pi, sigma, kappa));
    blf_fa.AddBdrFaceIntegrator(new DGDiffusionIntegrator(pi, sigma, kappa));
+   blf_fa.AddBdrFaceIntegrator(new BoundaryMassIntegrator(pi));
    (*blf_fa.GetFBFI())[0]->SetIntegrationRule(ir);
    (*blf_fa.GetBFBFI())[0]->SetIntegrationRule(ir);
    blf_fa.Assemble();
@@ -764,6 +780,7 @@ void test_dg_diffusion(FES &fes)
    blf_pa.SetAssemblyLevel(AssemblyLevel::PARTIAL);
    blf_pa.AddInteriorFaceIntegrator(new DGDiffusionIntegrator(pi, sigma, kappa));
    blf_pa.AddBdrFaceIntegrator(new DGDiffusionIntegrator(pi, sigma, kappa));
+   blf_pa.AddBdrFaceIntegrator(new BoundaryMassIntegrator(pi));
    (*blf_pa.GetFBFI())[0]->SetIntegrationRule(ir);
    (*blf_pa.GetBFBFI())[0]->SetIntegrationRule(ir);
    blf_pa.Assemble();
