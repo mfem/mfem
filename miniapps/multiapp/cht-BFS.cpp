@@ -102,6 +102,9 @@ struct BFSContext
 #endif   
 } ctx;
 
+void SetSolverParameters(IterativeSolver *solver, real_t rtol, real_t atol , int max_it, 
+                         int print_level, bool iterative_mode);
+
 /// Temperature profile 
 double temp_profile(const Vector& x)
 {
@@ -487,7 +490,7 @@ int main(int argc, char *argv[])
                   "ODESolver id.");
    args.AddOption(&ctx.ser_ref, "-rs", "--serial-refine",
                   "Number of times to refine the mesh in serial.");                
-   args.AddOption(&ctx.ht_only, "-ht-only", "--heat-transfer-only",
+   args.AddOption(&ctx.ht_only, "-ht", "--heat-transfer-only",
                   "-cht", "--conjugate-heat-transfer",
                   "Conjugate heat transfer or heat transfer only.");
    args.AddOption(&ctx.couple_scheme, "-scheme", "--coupling-scheme", 
@@ -723,31 +726,18 @@ int main(int argc, char *argv[])
    // Select solver for partitioned coupling
    FPISolver fp_solver(MPI_COMM_WORLD); // For partitioned solves
    AitkenRelaxation fp_relax;
+   SetSolverParameters(&fp_solver, 0.0, 5e-4, 500, 1, false);
    fp_relax.SetBounds(0.0,1.0e-1);
-   fp_solver.iterative_mode = false;
-   fp_solver.SetRelTol(0e-5);
-   fp_solver.SetAbsTol(5e-4);
-   fp_solver.SetMaxIter(500);
-   fp_solver.SetPrintLevel(1);
    fp_solver.SetRelaxation(5e-1, nullptr); // Use default relaxation method
    // fp_solver.SetRelaxation(1e-1, &fp_relax);
 
    // Select solver for monolithic/full coupling
-   NewtonSolver newton_solver(MPI_COMM_WORLD);  
    GMRESSolver gmres_solver(MPI_COMM_WORLD); 
-
-   gmres_solver.iterative_mode = false;
-   gmres_solver.SetRelTol(1e-7);
-   gmres_solver.SetAbsTol(1e-7);
-   gmres_solver.SetMaxIter(500);
+   SetSolverParameters(&gmres_solver, 1e-7, 1e-7, 500, 0, false);
    gmres_solver.SetKDim(300);
-   gmres_solver.SetPrintLevel(0);
    
-   newton_solver.iterative_mode = false;
-   newton_solver.SetRelTol(0.0);
-   newton_solver.SetAbsTol(1e-7);
-   newton_solver.SetMaxIter(100);
-   newton_solver.SetPrintLevel(0);
+   NewtonSolver newton_solver(MPI_COMM_WORLD);  
+   SetSolverParameters(&newton_solver, 0.0, 1e-7, 100, 0, false);
    newton_solver.SetSolver(gmres_solver);
 
    /// Set coupling scheme and corresponding solvers   
@@ -957,4 +947,14 @@ int main(int argc, char *argv[])
    delete u_coeff;
 
    return 0;
+}
+
+void SetSolverParameters(IterativeSolver *solver, real_t rtol, real_t atol , int max_it, 
+                         int print_level, bool iterative_mode)
+{
+    solver->SetRelTol(rtol);
+    solver->SetAbsTol(atol);
+    solver->SetMaxIter(max_it);
+    solver->SetPrintLevel(print_level);
+    solver->iterative_mode = iterative_mode;
 }
