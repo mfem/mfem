@@ -62,9 +62,9 @@ void SmemPAVectorMassApply2D(const int NE,
       kernels::internal::LoadDofs2d(e, D1D, X, r0);
       kernels::internal::Eval2d(D1D, Q1D, smem, sB, r0, r1);
 
-      MFEM_FOREACH_THREAD(qy, y, Q1D)
+      MFEM_FOREACH_THREAD_DIRECT(qy, y, Q1D)
       {
-         MFEM_FOREACH_THREAD(qx, x, Q1D)
+         MFEM_FOREACH_THREAD_DIRECT(qx, x, Q1D)
          {
             const real_t Qx = r1[0][qy][qx];
             const real_t Qy = r1[1][qy][qx];
@@ -97,14 +97,14 @@ void SmemPAVectorMassApply2D(const int NE,
 }
 
 template <int T_D1D = 0, int T_Q1D = 0>
-static void SmemPAVectorMassApply3D(const int NE,
-                                    const int coeff_vdim,
-                                    const Array<real_t> &b,
-                                    const Vector &d,
-                                    const Vector &x,
-                                    Vector &y,
-                                    const int d1d = 0,
-                                    const int q1d = 0)
+void SmemPAVectorMassApply3D(const int NE,
+                             const int coeff_vdim,
+                             const Array<real_t> &b,
+                             const Vector &d,
+                             const Vector &x,
+                             Vector &y,
+                             const int d1d = 0,
+                             const int q1d = 0)
 {
    static constexpr int VDIM = 3;
    const int D1D = T_D1D ? T_D1D : d1d;
@@ -132,9 +132,9 @@ static void SmemPAVectorMassApply3D(const int NE,
 
       for (int qz = 0; qz < Q1D; qz++)
       {
-         MFEM_FOREACH_THREAD(qy, y, Q1D)
+         MFEM_FOREACH_THREAD_DIRECT(qy, y, Q1D)
          {
-            MFEM_FOREACH_THREAD(qx, x, Q1D)
+            MFEM_FOREACH_THREAD_DIRECT(qx, x, Q1D)
             {
                const real_t Qx = r1[0][qz][qy][qx];
                const real_t Qy = r1[1][qz][qy][qx];
@@ -194,7 +194,7 @@ VectorMassIntegrator::VectorMassAddMultPA::Kernel()
 }
 
 inline VectorMassIntegrator::VectorMassAddMultPAType
-VectorMassIntegrator::VectorMassAddMultPA::Fallback(int dim, int, int)
+VectorMassIntegrator::VectorMassAddMultPA::Fallback(int dim, int d1d, int q1d)
 {
    if (dim == 2)
    {

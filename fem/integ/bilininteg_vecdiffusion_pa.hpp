@@ -28,7 +28,6 @@ namespace mfem
 namespace internal
 {
 
-// Smem PA Diffusion Apply 2D kernel
 template<int T_SDIM = 0, int T_D1D = 0, int T_Q1D = 0>
 void SmemPAVectorDiffusionApply2D(const int NE,
                                   const int coeff_vdim,
@@ -71,9 +70,9 @@ void SmemPAVectorDiffusionApply2D(const int NE,
          {
             kernels::internal::LoadDofs2d(e, D1D, i, XE, r0);
             kernels::internal::Grad2d(D1D, Q1D, smem, sB, sG, r0, r1, i);
-            MFEM_FOREACH_THREAD(qy, y, Q1D)
+            MFEM_FOREACH_THREAD_DIRECT(qy, y, Q1D)
             {
-               MFEM_FOREACH_THREAD(qx, x, Q1D)
+               MFEM_FOREACH_THREAD_DIRECT(qx, x, Q1D)
                {
                   const real_t gradX = r1[i][0][qy][qx];
                   const real_t gradY = r1[i][1][qy][qx];
@@ -93,7 +92,6 @@ void SmemPAVectorDiffusionApply2D(const int NE,
    });
 }
 
-// Smem PA Diffusion Apply 3D kernel
 template<int T_SDIM = 0, int T_D1D = 0, int T_Q1D = 0>
 void SmemPAVectorDiffusionApply3D(const int NE,
                                   const int coeff_vdim,
@@ -140,9 +138,9 @@ void SmemPAVectorDiffusionApply3D(const int NE,
             kernels::internal::Grad3d(D1D, Q1D, smem, sB, sG, r0, r1, i);
             for (int qz = 0; qz < Q1D; qz++)
             {
-               MFEM_FOREACH_THREAD(qy, y, Q1D)
+               MFEM_FOREACH_THREAD_DIRECT(qy, y, Q1D)
                {
-                  MFEM_FOREACH_THREAD(qx, x, Q1D)
+                  MFEM_FOREACH_THREAD_DIRECT(qx, x, Q1D)
                   {
                      const real_t gradX = r1[i][0][qz][qy][qx];
                      const real_t gradY = r1[i][1][qz][qy][qx];
@@ -184,8 +182,7 @@ VectorDiffusionIntegrator::ApplyPAKernels::Kernel()
    else { MFEM_ABORT("Unsupported kernel"); }
 }
 
-inline
-VectorDiffusionIntegrator::ApplyKernelType
+inline VectorDiffusionIntegrator::ApplyKernelType
 VectorDiffusionIntegrator::ApplyPAKernels::Fallback(int dim, int sdim,
                                                     int d1d, int q1d)
 {

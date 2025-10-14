@@ -15,16 +15,8 @@
 
 #include "./bilininteg_vecdiffusion_pa.hpp" // IWYU pragma: keep
 
-#if defined(__has_include) && __has_include("general/nvtx.hpp") && !defined(_WIN32)
-#undef NVTX_COLOR
-#define NVTX_COLOR ::nvtx::kNvidia
-#include "general/nvtx.hpp"
-#else
-#define dbg(...)
-#endif
-
 // #include "bilininteg_vecdiffusion_kernels.hpp"
-#include "bilininteg_vecdiffusion_pa.hpp"
+// #include "bilininteg_vecdiffusion_pa.hpp"
 
 namespace mfem
 {
@@ -112,8 +104,6 @@ void VectorDiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
 
    if (!(dim == 2 || dim == 3)) { MFEM_ABORT("Dimension not supported."); }
 
-   dbg("dim:{} sdim:{} vdim:{}", dim, sdim, vdim);
-
    QuadratureSpace qs(*mesh, *ir);
    CoefficientVector coeff(qs, CoefficientStorage::FULL);
 
@@ -140,12 +130,8 @@ void VectorDiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    const bool matrix_coeff = coeff_vdim == vdim * vdim;
    MFEM_VERIFY(scalar_coeff + vector_coeff + matrix_coeff == 1, "");
 
-   dbg("\x1b[33m[coeff] size:{} vdim:{}", coeff.Size(), coeff.GetVDim());
-
    const int pa_size = dim * dim;
    pa_data.SetSize(nq * pa_size * vdim * (matrix_coeff ? dim : 1) * ne, mt);
-   dbg("pa_data size:{} = (vdim:{})x(pa_size:{}*(matrix_coeff:{}){})x{}x{}",
-       pa_data.Size(), vdim, pa_size, matrix_coeff, matrix_coeff ? dim : 1, nq, ne);
 
    if (dim == 2 && sdim == 3)
    {

@@ -15,14 +15,6 @@
 
 #include "./bilininteg_vecmass_pa.hpp" // IWYU pragma: keep
 
-#if defined(__has_include) && __has_include("general/nvtx.hpp") && !defined(_WIN32)
-#undef NVTX_COLOR
-#define NVTX_COLOR ::nvtx::kNvidia
-#include "general/nvtx.hpp"
-#else
-#define dbg(...)
-#endif
-
 namespace mfem
 {
 
@@ -89,8 +81,6 @@ void VectorMassIntegrator::AssemblePA(const FiniteElementSpace &fes)
    const bool vector_coeff = coeff_vdim == vdim;
    const bool matrix_coeff = coeff_vdim == vdim * vdim;
    MFEM_VERIFY(const_coeff + vector_coeff + matrix_coeff == 1, "");
-
-   dbg("\x1b[33m[coeff] size:{} vdim:{}", coeff.Size(), coeff.GetVDim());
 
    pa_data.SetSize(coeff_vdim * nq * ne, mt);
 
