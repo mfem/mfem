@@ -366,8 +366,8 @@ void NavierSolver::UpdateTimestepHistory(real_t dt)
 
 void NavierSolver::Step(Vector &up, real_t &t, real_t &dt)
 {
-   int us = vfes->GetVSize(), ps = pfes->GetVSize();
-   Array<int> offsets({0, us, us + ps});
+   Array<int> offsets({0, vfes->GetTrueVSize(), pfes->GetTrueVSize()});
+   offsets.PartialSum();
    BlockVector upb(up.GetData(), offsets);
 
    un_gf.SetFromTrueDofs(upb.GetBlock(0));
