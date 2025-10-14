@@ -289,15 +289,15 @@ int main(int argc, char *argv[])
       {
          fec = new NURBSFECollection(order[0]);
          own_fec = 1;
-         fespace = new FiniteElementSpace(mesh,master,slave,fec);
+         fespace = new FiniteElementSpace(mesh, master, slave, fec);
       }
       else
       {
          fec = new NURBSFECollection(-1);
          own_fec = 1;
          NURBSext = new NURBSExtension(mesh->NURBSext, order);
-         NURBSext->ConnectBoundaries(master,slave);
-         fespace = new FiniteElementSpace(mesh,NURBSext,fec);
+         NURBSext->ConnectBoundaries(master, slave);
+         fespace = new FiniteElementSpace(mesh, NURBSext, fec);
       }
    }
    else

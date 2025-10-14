@@ -703,7 +703,7 @@ public:
    NURBSExtension *GetNURBSext() { return NURBSext; }
 
    /** Returns the owned NURBSExtension, and disowns NURBSExtension.
-       Throws an error if NURBSExtenion is not owned.*/
+       Throws an error if NURBSExtension is not owned.*/
    NURBSExtension *StealNURBSext();
 
    bool Conforming() const
