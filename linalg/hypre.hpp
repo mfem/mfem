@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -25,10 +25,17 @@
 #define HYPRE_TIMING
 
 // hypre header files
+#if MFEM_HYPRE_VERSION < 30000
 #include <seq_mv.h>
 #include <temp_multivector.h>
+#else
+#include <_hypre_seq_mv.h>
+#include <_hypre_lobpcg_temp_multivector.h>
+#endif
 #include <_hypre_parcsr_mv.h>
 #include <_hypre_parcsr_ls.h>
+
+#include <HYPRE_parcsr_ls.h>
 
 #ifdef HYPRE_COMPLEX
 #error "MFEM does not work with HYPRE's complex numbers support"
@@ -51,6 +58,10 @@
 #endif
 #if defined(HYPRE_USING_HIP) && !defined(MFEM_USE_HIP)
 #error "MFEM_USE_HIP=YES is required when HYPRE is built with HIP!"
+#endif
+
+#if MFEM_HYPRE_VERSION > 21500
+#define HYPRE_AssumedPartitionCheck() 1
 #endif
 
 namespace mfem
@@ -85,9 +96,9 @@ public:
    /// This function is no-op if HYPRE is built without GPU support or the HYPRE
    /// version is less than 2.31.0.
    ///
-   /// This function is NOT called by Init(). Instead it is called by
+   /// In addition to being called by Init(), this function is also called by
    /// Device::Configure() (when MFEM_USE_MPI=YES) after the MFEM device
-   /// configuration is complete.
+   /// configuration is complete, configuring HYPRE for device.
    static void InitDevice();
 
    /// @brief Finalize hypre (called automatically at program exit if
@@ -778,9 +789,18 @@ public:
        of the matrix A. */
    void AbsMult(real_t a, const Vector &x, real_t b, Vector &y) const;
 
+   /// @brief Computes y = |A| * x, using entry-wise absolute values of the matrix A.
+   void AbsMult(const Vector &x, Vector &y) const override
+   { AbsMult(1.0, x, 0.0, y); }
+
    /** @brief Computes y = a * |At| * x + b * y, using entry-wise absolute
        values of the transpose of the matrix A. */
    void AbsMultTranspose(real_t a, const Vector &x, real_t b, Vector &y) const;
+
+   /** @brief Computes y = |At| * x, using entry-wise absolute values of the
+       matrix A. */
+   void AbsMultTranspose(const Vector &x, Vector &y) const override
+   { AbsMultTranspose(1.0, x, 0.0, y); }
 
    /** @brief The "Boolean" analog of y = alpha * A * x + beta * y, where
        elements in the sparsity pattern of the matrix are treated as "true". */

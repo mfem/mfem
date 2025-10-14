@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -32,6 +32,7 @@ TEST_CASE("Geometric factor Jacobians", "[Mesh]")
    const int order = 3;
    const auto &ir = IntRules.Get(mesh.GetTypicalElementGeometry(), order);
    auto *geom = mesh.GetGeometricFactors(ir, GeometricFactors::DETERMINANTS);
+   geom->detJ.HostRead();
 
    const int nq = ir.Size();
    for (int i = 0; i < mesh.GetNE(); ++i)

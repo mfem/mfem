@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -190,6 +190,8 @@ protected:
        @param[in] tol NURBS geometry deviation tolerance. */
    void NURBSUniformRefinement(int rf = 2, real_t tol=1.0e-12) override;
    void NURBSUniformRefinement(const Array<int> &rf, real_t tol=1.e-12) override;
+
+   void RefineNURBSWithKVFactors(int rf, const std::string &kvf) override;
 
    /// This function is not public anymore. Use GeneralRefinement instead.
    void LocalRefinement(const Array<int> &marked_el, int type = 3) override;
@@ -394,7 +396,8 @@ public:
 
    void Finalize(bool refine = false, bool fix_orientation = false) override;
 
-   void SetAttributes() override;
+   void SetAttributes(bool elem_attrs_changed = true,
+                      bool bdr_attrs_changed = true) override;
 
    /// Checks if any rank in the mesh has boundary elements
    bool HasBoundaryElements() const override;
@@ -630,9 +633,9 @@ public:
                                       int mask = 31) const override;
 
    /// @brief Get the FaceElementTransformations for the given shared face (edge
-   /// 2D) using the shared face index @a sf. @a fill2 specify if the
-   /// information for elem2 of the face should be computed or not. In the
-   /// returned object, 1 and 2 refer to the local and the neighbor elements,
+   /// 2D) using the shared face index @a sf. @a fill2 specifies whether
+   /// information for elem2 of the face should be computed. In the returned
+   /// object, 1 and 2 refer to the local and the neighbor elements,
    /// respectively.
    ///
    /// @note The returned object is owned by the class and is shared, i.e.,
@@ -650,9 +653,10 @@ public:
                                      bool fill2 = true) const;
 
    /// @brief Get the FaceElementTransformations for the given shared face (edge
-   /// 2D) using the face index @a FaceNo. @a fill2 specify if the information
-   /// for elem2 of the face should be computed or not. In the returned object,
-   /// 1 and 2 refer to the local and the neighbor elements, respectively.
+   /// 2D) using the face index @a FaceNo. @a fill2 specifies whether
+   /// information for elem2 of the face should be computed. In the returned
+   /// object, 1 and 2 refer to the local and the neighbor elements,
+   /// respectively.
    ///
    /// @note The returned object is owned by the class and is shared, i.e.,
    /// calling this function resets pointers obtained from previous calls. Also,
@@ -812,6 +816,22 @@ public:
 
    /// Debugging method
    void PrintSharedEntities(const std::string &fname_prefix) const;
+
+   /** @brief Return true if the input array of refinements to be performed would
+       result in conflicting anisotropic directions on a face. Indices of
+       @a refinements entries are contained in @a conflicts, for marked elements
+       neighboring a face with a conflict.
+
+       The return value is globally MPI-reduced (true if any MPI process has a
+       conflict), whereas @a conflicts contains local indices of conflicting
+       entries of @a refinements. Conflicts are defined as anisotropic
+       refinements in different directions on a face shared by two elements.
+       Conflicts are checked for the mesh that would result from the input
+       refinements. If there are no conflicts, then the refinements can be
+       performed without forced refinements. This function is supported only for
+       3D meshes with all hexahedral elements. */
+   bool AnisotropicConflict(const Array<Refinement> &refinements,
+                            std::set<int> &conflicts) const;
 
    virtual ~ParMesh();
 };

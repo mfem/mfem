@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -1172,6 +1172,7 @@ void NewmarkSolver::Step(Vector &x, Vector &dxdt, real_t &t, real_t &dt)
       {
          f->Mult(x, dxdt, state[0]);
       }
+      state.Increment();
    }
    f->SetTime(t + dt);
 

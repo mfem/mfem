@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -10,6 +10,7 @@
 // CONTRIBUTING.md for details.
 
 /**
+ * @file
  * @brief Header for small strain, isotropic, linear elasticity kernels.
  *
  *        Strong form:    -div(sigma(u))
@@ -146,6 +147,11 @@ void ElasticityAddMultPA_(const int nDofs, const FiniteElementSpace &fespace,
                           const GeometricFactors &geom, const DofToQuad &maps, const Vector &x,
                           QuadratureFunction &QVec, Vector &y)
 {
+   using future::tensor;
+   using future::make_tensor;
+   using future::det;
+   using future::inv;
+
    static_assert((i_block < 0) == (j_block < 0),
                  "i_block and j_block must both be non-negative or strictly negative.");
    static constexpr int d = dim;
@@ -206,7 +212,7 @@ void ElasticityAddMultPA_(const int nDofs, const FiniteElementSpace &fespace,
             const int iIndex = isComponent ? 0 : i;
             div += gradx(iIndex,i);
          }
-         const real_t w = ipWeights[p] /det(invJ);
+         const real_t w = ipWeights[p]/det(invJ);
          for (int m = 0; m < d; m++)
          {
             for (int q = qLower; q < qUpper; q++)
@@ -220,8 +226,8 @@ void ElasticityAddMultPA_(const int nDofs, const FiniteElementSpace &fespace,
                {
                   for (int a = 0; a < d; a++)
                   {
-                     contraction += 2*((a == q)*invJ(m,j_block) + (j_block==q)*invJ(m,a))*(gradx(0,
-                                                                                                 a));
+                     contraction += 2*((a == q)*invJ(m,j_block)
+                                       + (j_block==q)*invJ(m,a))*(gradx(0, a));
                   }
                }
                else
@@ -230,7 +236,7 @@ void ElasticityAddMultPA_(const int nDofs, const FiniteElementSpace &fespace,
                   {
                      for (int b = 0; b < d; b++)
                      {
-                        contraction += ((a == q)*invJ(m,b) + (b==q)*invJ(m,a))
+                        contraction += ((a == q)*invJ(m,b) + (b == q)*invJ(m,a))
                                        *(gradx(a,b) + gradx(b, a));
                      }
                   }
@@ -238,7 +244,8 @@ void ElasticityAddMultPA_(const int nDofs, const FiniteElementSpace &fespace,
                // lambda*div(u)*div(v) + 2*mu*sym(grad(u))*sym(grad(v))
                // contraction = 4*sym(grad(u))sym(grad(v))
                const int qIndex = isComponent ? 0 : q;
-               Q(p,m,qIndex,e) = w*(lamDev(p, e)*invJ(m,q)*div + 0.5*muDev(p, e)*contraction);
+               Q(p,m,qIndex,e) = w*(lamDev(p, e)*invJ(m,q)*div
+                                    + 0.5*muDev(p, e)*contraction);
             }
          }
       }
@@ -276,6 +283,11 @@ void ElasticityAssembleDiagonalPA_(const int nDofs,
                                    const CoefficientVector &mu, const GeometricFactors &geom,
                                    const DofToQuad &maps, QuadratureFunction &QVec, Vector &diag)
 {
+   using future::tensor;
+   using future::make_tensor;
+   using future::det;
+   using future::inv;
+
    // Assuming all elements are the same
    const auto &ir = QVec.GetIntRule(0);
    static constexpr int d = dim;
@@ -360,6 +372,11 @@ void ElasticityAssembleEA_(const int i_block,
                            const DofToQuad &maps,
                            Vector &emat)
 {
+   using future::tensor;
+   using future::make_tensor;
+   using future::det;
+   using future::inv;
+
    // Assuming all elements are the same
    static constexpr int d = dim;
    const int numPoints = ir.GetNPoints();

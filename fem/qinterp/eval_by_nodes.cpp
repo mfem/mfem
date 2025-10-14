@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -28,6 +28,7 @@ void InitEvalByNodesKernels()
    k::Specialization<2,QVectorLayout::byNODES,1,2,4>::Opt<1>::Add();
    k::Specialization<2,QVectorLayout::byNODES,1,3,2>::Opt<1>::Add();
    k::Specialization<2,QVectorLayout::byNODES,1,3,4>::Opt<1>::Add();
+   k::Specialization<2,QVectorLayout::byNODES,1,3,6>::Opt<1>::Add();
    k::Specialization<2,QVectorLayout::byNODES,1,4,3>::Opt<1>::Add();
    k::Specialization<2,QVectorLayout::byNODES,1,4,4>::Opt<1>::Add();
 

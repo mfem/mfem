@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -14,7 +14,7 @@
 //             -----------------------------------------------
 //
 // Model of an interesting fidget spiral cone toy. The toy is made out of two
-// parts which can (surprising) pass through each other regardless of their
+// parts which can (surprisingly) pass through each other regardless of their
 // orientation.
 //
 // - STL model by Per Lundberg from https://www.thingiverse.com/thing:6682243
