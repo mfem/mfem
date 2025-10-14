@@ -204,7 +204,7 @@ public:
 private:
    /// Returns a reference to the singleton instance of the class.
    static Sundials &Instance();
-   
+
    /// Constructor called by Sundials::Instance (does nothing for version < 6)
    Sundials();
 
