@@ -134,7 +134,9 @@ static void Eval1D(const int NE,
               Reshape(q_der.Write(), nq, vdim, NE):
               Reshape(q_der.Write(), vdim, nq, NE);
    auto det = Reshape(q_det.Write(), nq, NE);
-   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
+   mfem::forall(NE, [=,
+      eval_flags = proteus::jit_variable(eval_flags),
+      q_layout = proteus::jit_variable(q_layout)] MFEM_HOST_DEVICE (int e)
    {
       for (int q = 0; q < nq; ++q)
       {
@@ -223,10 +225,14 @@ static void Eval2D(const int NE,
               Reshape(q_der.Write(), NQ, VDIM, 2, NE):
               Reshape(q_der.Write(), VDIM, 2, NQ, NE);
    auto det = Reshape(q_det.Write(), NQ, NE);
-   mfem::forall_2D(NE, NMAX, 1, [=] MFEM_HOST_DEVICE (int e)
+   mfem::forall_2D(NE, NMAX, 1, [=,
+      eval_flags = proteus::jit_variable(eval_flags),
+      q_layout = proteus::jit_variable(q_layout),
+      NQ = proteus::jit_variable(NQ),
+      ND = proteus::jit_variable(ND)] MFEM_HOST_DEVICE (int e)
    {
-      const int ND = T_ND ? T_ND : nd;
-      const int NQ = T_NQ ? T_NQ : nq;
+      // const int ND = T_ND ? T_ND : nd;
+      // const int NQ = T_NQ ? T_NQ : nq;
       const int VDIM = T_VDIM ? T_VDIM : vdim;
       constexpr int max_ND = T_ND ? T_ND : QI::MAX_ND2D;
       constexpr int max_VDIM = T_VDIM ? T_VDIM : QI::MAX_VDIM2D;
@@ -377,10 +383,15 @@ static void Eval3D(const int NE,
               Reshape(q_der.Write(), NQ, VDIM, 3, NE):
               Reshape(q_der.Write(), VDIM, 3, NQ, NE);
    auto det = Reshape(q_det.Write(), NQ, NE);
-   mfem::forall_2D(NE, NMAX, 1, [=] MFEM_HOST_DEVICE (int e)
+   mfem::forall_2D(NE, NMAX, 1, [=,
+      eval_flags = proteus::jit_variable(eval_flags),
+      q_layout = proteus::jit_variable(q_layout),
+      NQ = proteus::jit_variable(NQ),
+      ND = proteus::jit_variable(ND)]
+   MFEM_HOST_DEVICE (int e)
    {
-      const int ND = T_ND ? T_ND : nd;
-      const int NQ = T_NQ ? T_NQ : nq;
+      // const int ND = T_ND ? T_ND : nd;
+      // const int NQ = T_NQ ? T_NQ : nq;
       const int VDIM = T_VDIM ? T_VDIM : vdim;
       constexpr int max_ND = T_ND ? T_ND : QI::MAX_ND3D;
       constexpr int max_VDIM = T_VDIM ? T_VDIM : QI::MAX_VDIM3D;
