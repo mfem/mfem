@@ -182,9 +182,18 @@ public:
    /// Disable copy assignment
    void operator=(const Sundials &other) = delete;
 
-   /// Initializes SUNContext and SundialsMemHelper objects. Should be called at
+   /// @brief Initializes SUNContext and SundialsMemHelper objects. Should be called at
    /// the beginning of the calling program (after Mpi::Init if applicable)
+   ///
+   /// Multiple calls to Sundials::Init() have no effect.
    static void Init();
+
+   /// @brief Finalize sundials (called automatically at program exit if
+   /// Sundials::Init() has been called).
+   ///
+   /// Multiple calls to Sundials::Finalize() have no effect. This function can be
+   /// called manually to more precisely control when sundials is finalized.
+   static void Finalize();
 
    /// Provides access to the SUNContext object
    static SUNContext &GetContext();
@@ -195,13 +204,14 @@ public:
 private:
    /// Returns a reference to the singleton instance of the class.
    static Sundials &Instance();
-
+   
    /// Constructor called by Sundials::Instance (does nothing for version < 6)
    Sundials();
 
    /// Destructor called at end of calling program (does nothing for version < 6)
    ~Sundials();
 
+   bool isInitialized;
    SUNContext context;
    SundialsMemHelper memHelper;
 };
