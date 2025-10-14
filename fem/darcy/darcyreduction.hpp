@@ -140,7 +140,7 @@ public:
 class DarcyFluxReduction : public DarcyReduction
 {
    Array<int> Af_ipiv;
-
+   std::unique_ptr<SparseMatrix> sBt, sAiBt;
 #ifdef MFEM_USE_MPI
    std::unique_ptr<HypreParMatrix> hB;
 
@@ -152,8 +152,6 @@ class DarcyFluxReduction : public DarcyReduction
 #else
    bool Parallel() const { return false; }
 #endif
-   int GetInteriorFaceNbr(int f, int el, int &ori, Array<int> &vdofs,
-                          bool adjust_vdofs = true) const;
    void ComputeS() override;
 
 public:

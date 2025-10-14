@@ -517,41 +517,6 @@ int DarcyFluxReduction::GetFaceNbrVDofs(int el, Array<int> &vdofs,
 }
 #endif // MFEM_USE_MPI
 
-int DarcyFluxReduction::GetInteriorFaceNbr(int f, int el, int &ori,
-                                           Array<int> &vdofs, bool adjust_vdofs) const
-{
-   int el1, el2, el_f;
-   fes_p.GetMesh()->GetFaceElements(f, &el1, &el2);
-   ori = 0;
-   if (Parallel())
-   {
-#ifdef MFEM_USE_MPI
-      if (!pfes_p->GetParMesh()->FaceIsTrueInterior(f)) { return el2; }
-      if (el2 < 0)
-      {
-         return GetFaceNbrVDofs(el2, vdofs, adjust_vdofs);
-      }
-#endif
-   }
-
-   if (el1 != el)
-   {
-      el_f = el1;
-      ori = 1;
-   }
-   else
-   {
-      el_f = el2;
-   }
-
-   if (el_f >= 0)
-   {
-      fes_p.GetElementVDofs(el_f, vdofs);
-   }
-
-   return el_f;
-}
-
 void DarcyFluxReduction::ComputeS()
 {
    MFEM_ASSERT(!m_nlfi_u && !m_nlfi_p,
@@ -560,15 +525,16 @@ void DarcyFluxReduction::ComputeS()
    const int skip_zeros = 1;
    Mesh *mesh = fes_u.GetMesh();
    const int NE = mesh->GetNE();
-   const int dim = mesh->Dimension();
 
-   std::unique_ptr<SparseMatrix> sBt, sAiBt;
    const int num_face_dofs = fes_p.GetVSize();
 #ifdef MFEM_USE_MPI
    const int num_nbr_face_dofs = (Parallel() && (Bf_face_data.Size() ||
                                                  D_face_data.Size()))?
                                  (pfes_p->GetFaceNbrVSize()):(0);
-   if (Parallel() && Bf_face_data.Size())
+#else
+   const int num_nbr_face_dofs = 0;
+#endif
+   if (Bf_face_data.Size())
    {
       sBt.reset(new SparseMatrix(fes_u.GetVSize(),
                                  num_face_dofs + num_nbr_face_dofs));
@@ -576,13 +542,9 @@ void DarcyFluxReduction::ComputeS()
                                    num_face_dofs + num_nbr_face_dofs));
    }
    if (!S) { S.reset(new SparseMatrix(num_face_dofs, num_face_dofs + num_nbr_face_dofs)); }
-#else
-   if (!S) { S.reset(new SparseMatrix(num_face_dofs)); }
-#endif
 
-   DenseMatrix AiBt, AiBt1, S1, S1t, S12;
-   Array<int> p_dofs, p_dofs_1, p_dofs_2, u_vdofs;
-   Array<int> faces, oris;
+   DenseMatrix AiBt;
+   Array<int> p_dofs, p_dofs_1, p_dofs_2, u_vdofs, u_vdofs_1, u_vdofs_2;
 
    for (int el = 0; el < NE; el++)
    {
@@ -624,123 +586,26 @@ void DarcyFluxReduction::ComputeS()
          mfem::AddMult(B, AiBt, D);
       }
       S->AddSubMatrix(p_dofs, p_dofs, D, skip_zeros);
-
-      // Face contributions
-
-      if (Bf_face_data.Size())
-      {
-         switch (dim)
-         {
-            case 1:
-               mesh->GetElementVertices(el, faces);
-               break;
-            case 2:
-               mesh->GetElementEdges(el, faces, oris);
-               break;
-            case 3:
-               mesh->GetElementFaces(el, faces, oris);
-               break;
-         }
-
-         for (int f1 : faces)
-         {
-            int ori1;
-            const int el1 = GetInteriorFaceNbr(f1, el, ori1, p_dofs_1);
-            if (el1 < 0) { continue; }
-
-            const int d_dofs_size_1 = p_dofs_1.Size();
-
-            int B1_off = 0;
-            if (el1 < NE && !ori1)
-            {
-               const int a_dofs_size_1 = Af_f_offsets[el1+1] - Af_f_offsets[el1];
-               B1_off = a_dofs_size_1 * d_dofs_size;
-            }
-
-            const DenseMatrix B1(&Bf_face_data[Bf_face_offsets[f1] + B1_off],
-                                 d_dofs_size_1, a_dofs_size);
-
-            //B_1^T
-            AiBt1.Transpose(B1);
-            if (sBt)
-            {
-               sBt->AddSubMatrix(u_vdofs, p_dofs_1, AiBt1, skip_zeros);
-            }
-
-            //A^-1 B_1^T
-            if (!bsym) { AiBt1.Neg(); }
-            LU_A.Solve(AiBt1.Height(), AiBt1.Width(), AiBt1.GetData());
-            if (sAiBt)
-            {
-               sAiBt->AddSubMatrix(u_vdofs, p_dofs_1, AiBt1, skip_zeros);
-               continue;
-            }
-
-            //B A^-1 B_1^T
-            S1t.SetSize(d_dofs_size, d_dofs_size_1);
-            mfem::Mult(B, AiBt1, S1t);
-
-            S->AddSubMatrix(p_dofs, p_dofs_1, S1t, skip_zeros);
-
-            //B_1 A^-1 B^T
-            S1.SetSize(d_dofs_size_1, d_dofs_size);
-            mfem::Mult(B1, AiBt, S1);
-
-            S->AddSubMatrix(p_dofs_1, p_dofs, S1, skip_zeros);
-
-            //B_1 A^-1 B_1^T
-            S12.SetSize(d_dofs_size_1, d_dofs_size_1);
-            mfem::Mult(B1, AiBt1, S12);
-
-            S->AddSubMatrix(p_dofs_1, p_dofs_1, S12, skip_zeros);
-
-            for (int f2 : faces)
-            {
-               if (f1 == f2) { continue; }
-
-               int ori2;
-               const int el2 = GetInteriorFaceNbr(f2, el, ori2, p_dofs_2);
-               if (el2 < 0) { continue; }
-
-               const int d_dofs_size_2 = p_dofs_2.Size();
-
-               int B2_off = 0;
-               if (el2 < NE && !ori2)
-               {
-                  const int a_dofs_size_2 = Af_f_offsets[el2+1] - Af_f_offsets[el2];
-                  B2_off = a_dofs_size_2 * d_dofs_size;
-               }
-
-               const DenseMatrix B2(&Bf_face_data[Bf_face_offsets[f2] + B2_off],
-                                    d_dofs_size_2, a_dofs_size);
-
-               //B_2 A^-1 B_1^T
-               S12.SetSize(d_dofs_size_2, d_dofs_size_1);
-               mfem::Mult(B2, AiBt1, S12);
-
-               S->AddSubMatrix(p_dofs_2, p_dofs_1, S12, skip_zeros);
-            }
-         }
-      }
    }
 
-   // D face contributions
+   // Face contributions
 
-   if (D_face_data.Size())
+   if (Bf_face_data.Size() || D_face_data.Size())
    {
       const int nfaces = mesh->GetNumFaces();
       Array<int> p_dofs_1, p_dofs_2;
 
       for (int f = 0; f < nfaces; f++)
       {
-         int el1, el2;
+         int el1, el2, inf1, inf2;
          mesh->GetFaceElements(f, &el1, &el2);
+         mesh->GetFaceInfos(f, &inf1, &inf2);
          if (Parallel())
          {
 #ifdef MFEM_USE_MPI
-            if (!pfes_p->GetParMesh()->FaceIsTrueInterior(f)) { continue; }
             if (el2 < 0)
             {
+               if (inf2 < 0) { continue; }
                GetFaceNbrVDofs(el2, p_dofs_2);
             }
 #endif
@@ -752,19 +617,65 @@ void DarcyFluxReduction::ComputeS()
          {
             fes_p.GetElementVDofs(el2, p_dofs_2);
          }
+
          const int d_dofs_size_1 = p_dofs_1.Size();
          const int d_dofs_size_2 = p_dofs_2.Size();
 
-         const DenseMatrix D_12(&D_face_data[D_face_offsets[f]],
-                                d_dofs_size_1, d_dofs_size_2);
-         S->AddSubMatrix(p_dofs_1, p_dofs_2, D_12, skip_zeros);
-
-         if (el2 >= 0)
+         if (Bf_face_data.Size())
          {
-            const DenseMatrix D_21(&D_face_data[D_face_offsets[f]
-                                                + d_dofs_size_1 * d_dofs_size_2],
-                                   d_dofs_size_2, d_dofs_size_1);
-            S->AddSubMatrix(p_dofs_2, p_dofs_1, D_21, skip_zeros);
+            fes_u.GetElementVDofs(el1, u_vdofs_1);
+
+            int B_off = 0;
+            if (el2 >= 0)
+            {
+               fes_u.GetElementVDofs(el2, u_vdofs_2);
+
+               const int a_dofs_size_2 = Af_f_offsets[el2+1] - Af_f_offsets[el2];
+               B_off = d_dofs_size_1 * a_dofs_size_2;
+               const DenseMatrix B1(&Bf_face_data[Bf_face_offsets[f]],
+                                    d_dofs_size_1, a_dofs_size_2);
+
+               LUFactors LU_A2(&Af_data[Af_offsets[el2]], &Af_ipiv[Af_f_offsets[el2]]);
+
+               //B_1^T
+               AiBt.Transpose(B1);
+               sBt->AddSubMatrix(u_vdofs_2, p_dofs_1, AiBt, skip_zeros);
+
+               //A_2^-1 B_1^T
+               if (!bsym) { AiBt.Neg(); }
+               LU_A2.Solve(AiBt.Height(), AiBt.Width(), AiBt.GetData());
+               sAiBt->AddSubMatrix(u_vdofs_2, p_dofs_1, AiBt, skip_zeros);
+            }
+
+            const int a_dofs_size_1 = Af_f_offsets[el1+1] - Af_f_offsets[el1];
+            const DenseMatrix B2(&Bf_face_data[Bf_face_offsets[f] + B_off],
+                                 d_dofs_size_2, a_dofs_size_1);
+
+            LUFactors LU_A1(&Af_data[Af_offsets[el1]], &Af_ipiv[Af_f_offsets[el1]]);
+
+            //B_2^T
+            AiBt.Transpose(B2);
+            sBt->AddSubMatrix(u_vdofs_1, p_dofs_2, AiBt, skip_zeros);
+
+            //A_1^-1 B_2^T
+            if (!bsym) { AiBt.Neg(); }
+            LU_A1.Solve(AiBt.Height(), AiBt.Width(), AiBt.GetData());
+            sAiBt->AddSubMatrix(u_vdofs_1, p_dofs_2, AiBt, skip_zeros);
+         }
+
+         if (D_face_data.Size())
+         {
+            const DenseMatrix D_12(&D_face_data[D_face_offsets[f]],
+                                   d_dofs_size_1, d_dofs_size_2);
+            S->AddSubMatrix(p_dofs_1, p_dofs_2, D_12, skip_zeros);
+
+            if (el2 >= 0)
+            {
+               const DenseMatrix D_21(&D_face_data[D_face_offsets[f]
+                                                   + d_dofs_size_1 * d_dofs_size_2],
+                                      d_dofs_size_2, d_dofs_size_1);
+               S->AddSubMatrix(p_dofs_2, p_dofs_1, D_21, skip_zeros);
+            }
          }
       }
    }
@@ -773,13 +684,20 @@ void DarcyFluxReduction::ComputeS()
 
    if (!Parallel())
    {
+      if (Bf_face_data.Size())
+      {
+         sBt->Finalize(skip_zeros);
+         sAiBt->Finalize(skip_zeros);
+         SparseMatrix *sBAiBt = TransposeMult(*sBt, *sAiBt);
+         sAiBt.reset();// not needed anymore
+         S.reset(Add(*S, *sBAiBt));
+         delete sBAiBt;
+      }
+
       const SparseMatrix *cP = fes_p.GetConformingProlongation();
       if (cP)
       {
-         if (S->Height() != cP->Width())
-         {
-            S.reset(mfem::RAP(*cP, *S, *cP));
-         }
+         S.reset(mfem::RAP(*cP, *S, *cP));
       }
    }
    else // parallel
@@ -845,10 +763,8 @@ void DarcyFluxReduction::ReduceRHS(const BlockVector &b, Vector &b_tr) const
 {
    Mesh *mesh = fes_u.GetMesh();
    const int NE = mesh->GetNE();
-   const int dim = mesh->Dimension();
-   Vector bu_l, bp_l, bp_f;
-   Array<int> u_vdofs, p_dofs, p_dofs_f;
-   Array<int> faces, oris;
+   Vector bu_l, bp_l;
+   Array<int> u_vdofs, p_dofs;
 
    const Vector &bu = b.GetBlock(0);
    const Vector &bp = b.GetBlock(1);
@@ -876,12 +792,10 @@ void DarcyFluxReduction::ReduceRHS(const BlockVector &b, Vector &b_tr) const
    }
 
    Vector Aibu;
-#ifdef MFEM_USE_MPI
-   if (hB)
+   if (Bf_face_data.Size())
    {
       Aibu.SetSize(fes_u.GetVSize());
    }
-#endif
 
    for (int el = 0; el < NE; el++)
    {
@@ -917,54 +831,16 @@ void DarcyFluxReduction::ReduceRHS(const BlockVector &b, Vector &b_tr) const
       B.Mult(bu_l, bp_l);
 
       b_r.AddElementVector(p_dofs, bp_l);
-
-      // Face contributions
-
-      if (Bf_face_data.Size())
-      {
-         switch (dim)
-         {
-            case 1:
-               mesh->GetElementVertices(el, faces);
-               break;
-            case 2:
-               mesh->GetElementEdges(el, faces, oris);
-               break;
-            case 3:
-               mesh->GetElementFaces(el, faces, oris);
-               break;
-         }
-
-         for (int f : faces)
-         {
-            int ori;
-            const int el_f = GetInteriorFaceNbr(f, el, ori, p_dofs_f);
-            if (el_f < 0) { continue; }
-
-            const int d_dofs_size_f = p_dofs_f.Size();
-
-            int B_off = 0;
-            if (el_f < NE && !ori)
-            {
-               const int a_dofs_size_f = Af_f_offsets[el_f+1] - Af_f_offsets[el_f];
-               B_off = a_dofs_size_f * d_dofs_size;
-            }
-            const DenseMatrix B_f(const_cast<real_t*>(&Bf_face_data[
-                                                         Bf_face_offsets[f] + B_off]),
-                                  d_dofs_size_f, a_dofs_size);
-
-            // -B_f A^-1 bu
-
-            bp_f.SetSize(d_dofs_size_f);
-            B_f.Mult(bu_l, bp_f);
-
-            b_r.AddElementVector(p_dofs_f, bp_f);
-         }
-      }
    }
 
    if (!Parallel())
    {
+      if (Bf_face_data.Size())
+      {
+         MFEM_ASSERT(sBt, "Global B matrix is not assembled");
+         sBt->AddMultTranspose(Aibu, b_r);
+      }
+
       if (tr_cP)
       {
          b_tr.SetSize(tr_cP->Width());
@@ -973,6 +849,7 @@ void DarcyFluxReduction::ReduceRHS(const BlockVector &b, Vector &b_tr) const
    }
    else
    {
+      MFEM_ASSERT(hB, "Parallel B matrix is not assembled");
 #ifdef MFEM_USE_MPI
       if (hB)
       {
@@ -991,12 +868,9 @@ void DarcyFluxReduction::ComputeSolution(const BlockVector &b,
 {
    Mesh *mesh = fes_u.GetMesh();
    const int NE = mesh->GetNE();
-   const int dim = mesh->Dimension();
    Vector bu_l, p_l, p_f;
-   Array<int> u_vdofs, p_dofs, p_dofs_f;
-   Array<int> faces, oris;
+   Array<int> u_vdofs, p_dofs;
 
-   const Vector &bu = b.GetBlock(0);
    //const Vector &bp = b.GetBlock(1);
    Vector &u = sol.GetBlock(0);
    Vector &p = sol.GetBlock(1);
@@ -1023,14 +897,30 @@ void DarcyFluxReduction::ComputeSolution(const BlockVector &b,
 
    p = sol_r;
 
-#ifdef MFEM_USE_MPI
-   ParGridFunction pgf_p;
-   if (Parallel())
+   Vector bu;
+   if (Bf_face_data.Size())
    {
-      pgf_p.MakeRef(pfes_p, p, 0);
-      pgf_p.ExchangeFaceNbrData();
-   }
+      bu = b.GetBlock(0);
+      if (Parallel())
+      {
+#ifdef MFEM_USE_MPI
+         MFEM_ASSERT(hB, "Parallel B matrix is not assembled");
+         const Operator *R = pfes_p->GetRestrictionOperator();
+         Vector tp(R->Height());
+         R->Mult(p, tp);
+         hB->AddMultTranspose(tp, bu, (bsym)?(+1.):(-1.));
 #endif
+      }
+      else
+      {
+         MFEM_ASSERT(sBt, "Global B matrix is not assembled");
+         sBt->AddMult(p, bu, (bsym)?(+1.):(-1.));
+      }
+   }
+   else
+   {
+      bu.MakeRef(const_cast<Vector&>(b.GetBlock(0)), 0, fes_u.GetVSize());
+   }
 
    for (int el = 0; el < NE; el++)
    {
@@ -1039,75 +929,27 @@ void DarcyFluxReduction::ComputeSolution(const BlockVector &b,
       fes_u.GetElementVDofs(el, u_vdofs);
       bu.GetSubVector(u_vdofs, bu_l);
 
-      fes_p.GetElementVDofs(el, p_dofs);
-      p.GetSubVector(p_dofs, p_l);
-
-      // bu = R - B^T p
-
-      int a_dofs_size = Af_f_offsets[el+1] - Af_f_offsets[el];
-      int d_dofs_size = D_f_offsets[el+1] - D_f_offsets[el];
-      const DenseMatrix B(const_cast<real_t*>(&Bf_data[Bf_offsets[el]]), d_dofs_size,
-                          a_dofs_size);
-      const LUFactors LU_A(const_cast<real_t*>(&Af_data[Af_offsets[el]]),
-                           const_cast<int*>(&Af_ipiv[Af_f_offsets[el]]));
-
-      B.AddMultTranspose(p_l, bu_l, (bsym)?(+1.):(-1.));
-
-      // Face contributions
-
-      if (Bf_face_data.Size())
+      if (!Bf_face_data.Size())
       {
-         switch (dim)
-         {
-            case 1:
-               mesh->GetElementVertices(el, faces);
-               break;
-            case 2:
-               mesh->GetElementEdges(el, faces, oris);
-               break;
-            case 3:
-               mesh->GetElementFaces(el, faces, oris);
-               break;
-         }
+         fes_p.GetElementVDofs(el, p_dofs);
+         p.GetSubVector(p_dofs, p_l);
 
-         for (int f : faces)
-         {
-            int ori;
-            const int el_f = GetInteriorFaceNbr(f, el, ori, p_dofs_f, false);
-            if (el_f < 0) { continue; }
+         // bu = R - B^T p
 
-            const int d_dofs_size_f = p_dofs_f.Size();
+         int a_dofs_size = Af_f_offsets[el+1] - Af_f_offsets[el];
+         int d_dofs_size = D_f_offsets[el+1] - D_f_offsets[el];
+         const DenseMatrix B(const_cast<real_t*>(&Bf_data[Bf_offsets[el]]), d_dofs_size,
+                             a_dofs_size);
 
-            int B_off = 0;
-            if (el_f < NE && !ori)
-            {
-               const int a_dofs_size_f = Af_f_offsets[el_f+1] - Af_f_offsets[el_f];
-               B_off = a_dofs_size_f * d_dofs_size;
-            }
-            const DenseMatrix B_f(const_cast<real_t*>(&Bf_face_data[
-                                                         Bf_face_offsets[f] + B_off]),
-                                  d_dofs_size_f, a_dofs_size);
-
-            // bu -= B_f^T p
-
-            if (el_f < NE)
-            {
-               p.GetSubVector(p_dofs_f, p_f);
-            }
-            else
-            {
-#ifdef MFEM_USE_MPI
-               pgf_p.FaceNbrData().GetSubVector(p_dofs_f, p_f);
-#endif
-            }
-
-            B_f.AddMultTranspose(p_f, bu_l, (bsym)?(+1.):(-1.));
-         }
+         B.AddMultTranspose(p_l, bu_l, (bsym)?(+1.):(-1.));
       }
 
       // u = A^-1 bu
 
-      LU_A.Solve(a_dofs_size, 1, bu_l.GetData());
+      const LUFactors LU_A(const_cast<real_t*>(&Af_data[Af_offsets[el]]),
+                           const_cast<int*>(&Af_ipiv[Af_f_offsets[el]]));
+
+      LU_A.Solve(u_vdofs.Size(), 1, bu_l.GetData());
       u.SetSubVector(u_vdofs, bu_l);
    }
 }
