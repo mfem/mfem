@@ -2419,15 +2419,13 @@ public:
 
    void AssemblePABoundary(const FiniteElementSpace &fes) override;
 
-   void AssemblePABoundaryFaces(const FiniteElementSpace &fes) override;
-
    void AssembleEA(const FiniteElementSpace &fes, Vector &emat,
                    const bool add) override;
 
-   virtual void AssembleEABoundary(const FiniteElementSpace &fes, Vector &emat,
-                                   const bool add) override;
+   void AssembleEABoundary(const FiniteElementSpace &fes, Vector &emat,
+                           const bool add) override;
 
-   virtual void AssembleDiagonalPA(Vector &diag) override;
+   void AssembleDiagonalPA(Vector &diag) override;
 
    void AssembleDiagonalMF(Vector &diag) override;
 
@@ -2469,6 +2467,7 @@ protected:
 /** Mass integrator $(u, v)$ restricted to the boundary of a domain */
 class BoundaryMassIntegrator : public MassIntegrator
 {
+   mutable Vector z1, z2; ///< Temporary workspace vector.
 public:
    BoundaryMassIntegrator(Coefficient &q) : MassIntegrator(q) { }
 
@@ -2477,6 +2476,23 @@ public:
                            const FiniteElement &el2,
                            FaceElementTransformations &Trans,
                            DenseMatrix &elmat) override;
+
+   void AssemblePABoundaryFaces(const FiniteElementSpace &fes) override;
+
+   void AssembleDiagonalPA(Vector &diag) override;
+
+   void AddMultPA(const Vector&, Vector&) const override;
+
+   static const IntegrationRule &GetRule(const FiniteElement &el,
+                                         const ElementTransformation &T);
+protected:
+   const IntegrationRule* GetDefaultIntegrationRule(
+      const FiniteElement& trial_fe,
+      const FiniteElement& test_fe,
+      const ElementTransformation& trans) const override
+   {
+      return &GetRule(trial_fe, trans);
+   }
 };
 
 /// $\alpha (Q \cdot \nabla u, v)$
