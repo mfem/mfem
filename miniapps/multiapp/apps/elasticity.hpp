@@ -22,10 +22,11 @@ using namespace mfem;
 /**
  * @brief Elasticity time dependent operator
  *
- *              ρ•dU/dt = (-∇•σ + f)
- *              dX/dt = U
+ *              ρ•dv/dt = (-∇•σ + f)
+ *              du/dt = v
  *
- * where σ is the stress tensor, f is the body force, and ρ is the density.
+ * where σ is the stress tensor, f is the body force,
+ * and ρ is the density.
  */
 class Elasticity : public Application
 {
@@ -36,9 +37,9 @@ public:
    ParFiniteElementSpace &fes;
    Array<int> offsets;
 
-   /// Essential true dof array. Relevant for eliminating boundary conditions
+   /// Essential and natural dof array.
    Array<int> ess_attr, nat_attr;
-   Array<int> ess_tdofs;
+   Array<int> ess_tdofs, nat_tdofs;
 
    /// Material properties
    ConstantCoefficient density, mu, lambda;
@@ -46,19 +47,17 @@ public:
    /// Grid functions for the displacement, velocity, and traction
    mutable ParGridFunction x_gf; ///< displacement
    mutable ParGridFunction u_gf; ///< velocity (dx/dt)
-   mutable ParGridFunction x_gf_trans; ///< velocity (dx/dt) for transfer
-   mutable ParGridFunction u_gf_trans; ///< velocity (dx/dt) for transfer
    mutable ParGridFunction stress_gf; ///< traction
-
+   mutable ParGridFunction bc_send_gf; ///< Grid functions for transfering BCs
+   
    /// Mass and Stiffness forms
-   mutable ParBilinearForm Mform, Mrho_form, Kform, Kform_e;
+   mutable ParBilinearForm Mform, Kform, Kform_e;
 
    /// RHS form
    mutable ParLinearForm bform;
    mutable Vector b;
 
    /// Mass and Stiffness operators
-//    mutable OperatorHandle Mmat, Kmat, Kmat_e, Mrhomat;
    mutable HypreParMatrix Mmat, Kmat, Kmat_e, Mrhomat, Mmat_e;
    mutable HypreParMatrix *T = nullptr;
      
@@ -75,11 +74,8 @@ public:
    mutable HypreBoomerAMG *amg = nullptr;
    mutable Solver *pc = nullptr;
 
-    /// Auxiliary vectors for the implicit solve
+    /// Auxiliary variables
    mutable Vector z;
-
-   ConstantCoefficient zero, one, negative_one;
-
    real_t current_dt = -1.0;
    bool updated = false;
 
@@ -91,67 +87,106 @@ public:
               real_t mu_ = 1.0,
               real_t lambda_ = 1.0) :
               Application(2*fes_.GetTrueVSize()),
-              mesh(*fes_.GetParMesh()),              
+              mesh(*fes_.GetParMesh()),
               fes(fes_),
               ess_attr(ess_attr_),
               nat_attr(nat_attr_),
-              density(density_),              
+              density(density_),
               mu(mu_),
               lambda(lambda_),
-              x_gf(ParGridFunction(&fes)),
-              u_gf(ParGridFunction(&fes)),
-              x_gf_trans(ParGridFunction(&fes)),
-              u_gf_trans(ParGridFunction(&fes)),
-              stress_gf(ParGridFunction(&fes)),
-              Mform(&fes), Mrho_form(&fes),
-              Kform(&fes), Kform_e(&fes),
-              bform(&fes),
-              fcoeff(VectorGridFunctionCoefficient(&stress_gf)),
-              scaled_fcoeff(-1.0, fcoeff),
-              implicit_solver(MPI_COMM_WORLD),              
-              M_solver(MPI_COMM_WORLD),
-              zero(0.0), one(1.0), negative_one(-1.0)
+              x_gf(&fes), u_gf(&fes), stress_gf(&fes),
+              bc_send_gf(&fes),
+              Mform(&fes), Kform(&fes),
+              Kform_e(&fes), bform(&fes),
+              fcoeff(&stress_gf), scaled_fcoeff(-1.0, fcoeff),
+              implicit_solver(mesh.GetComm()),
+              M_solver(mesh.GetComm())
    {
-
         fes.GetEssentialTrueDofs(ess_attr, ess_tdofs);
+        fes.GetEssentialTrueDofs(nat_attr, nat_tdofs);
+
+        x_gf = 0.0;
+        u_gf = 0.0;
+        stress_gf = 0.0;
+        bc_send_gf = 0.0;
+
+        // Setup field collection for output and transfer
+        field_collection.SetName("Elasticity");
+        field_collection.AddField("Displacement", &x_gf);
+        field_collection.AddField("Velocity", &u_gf);
+        field_collection.AddField("Traction", &stress_gf);
+        field_collection.AddSourceField("Displacement_BC", &bc_send_gf);
+        field_collection.AddSourceField("Velocity_BC", &bc_send_gf);
 
         offsets = Array<int>({0, fes.GetTrueVSize(), fes.GetTrueVSize()});
         offsets.PartialSum();
 
-        b.SetSize(fes.GetTrueVSize());
-        z.SetSize(fes.GetTrueVSize());
-
-     //    Mform.SetAssemblyLevel(AssemblyLevel::PARTIAL);
-     //    Mrho_form.SetAssemblyLevel(AssemblyLevel::PARTIAL);
-     //    Kform.SetAssemblyLevel(AssemblyLevel::PARTIAL);
-     //    Kform_e.SetAssemblyLevel(AssemblyLevel::PARTIAL);
-
-        Mform.AddDomainIntegrator(new VectorMassIntegrator);
-        Mrho_form.AddDomainIntegrator(new VectorMassIntegrator(density));
+        Mform.AddDomainIntegrator(new VectorMassIntegrator(density));
         Kform.AddDomainIntegrator(new ElasticityIntegrator(lambda, mu));
         Kform_e.AddDomainIntegrator(new ElasticityIntegrator(lambda, mu));
-
-        Mform.Assemble();
-        Mrho_form.Assemble();
-        Kform.Assemble();
-        Kform_e.Assemble();
-
-        Array<int> empty;
-        Mform.FormSystemMatrix(ess_tdofs, Mmat);
-        Mrho_form.FormSystemMatrix(ess_tdofs, Mrhomat);
-        Kform_e.FormSystemMatrix(empty, Kmat_e);
-        Kform.FormSystemMatrix(empty, Kmat);
-     //    Kform.FormSystemMatrix(ess_tdofs, Kmat_e);
 
         if(nat_attr.Size() > 0)
         {
             bform.AddBoundaryIntegrator(new VectorBoundaryLFIntegrator(scaled_fcoeff), nat_attr);
-          //   bform.AddDomainIntegrator(new VectorDomainLFIntegrator(scaled_fcoeff));
         }
 
+        b.SetSize(fes.GetTrueVSize());
+        z.SetSize(fes.GetTrueVSize());
+        Assemble();
+        BuildSolvers();
+   }
+
+   /// Assemble linear and bilinear forms; called if mesh is updated
+   void Assemble() override 
+   {
+        AssembleLinearForms();
+        AssembleBilinearForms();
+   }
+
+   /// Assemble linear forms for traction
+   void AssembleLinearForms()
+   {
         bform.Assemble();
+        b.SetSize(fes.GetTrueVSize());
         bform.ParallelAssemble(b);
-        
+   }
+
+   /// Assemble bilinear forms for mass and stiffness
+   void AssembleBilinearForms()
+   {
+        Mform.Assemble();
+        Kform.Assemble();
+        Kform_e.Assemble();
+
+        Array<int> empty;
+        Mform.FormSystemMatrix(ess_tdofs, Mrhomat);
+        Kform_e.FormSystemMatrix(ess_tdofs, Kmat_e);
+        Kform.FormSystemMatrix(empty, Kmat);
+   }
+
+   /// Update finite element space and re-assemble forms
+   /// if the mesh has changed
+   void Update() override
+   {
+        fes.Update();
+
+        u_gf.Update();
+        x_gf.Update();
+        stress_gf.Update();
+        bc_send_gf.Update();
+    
+        Mform.Update();
+        Kform.Update();
+        Kform_e.Update();
+        bform.Update();
+
+        Assemble();
+        updated = true;
+   }
+
+   /// Build implicit solver and AMG preconditioner
+   void BuildSolvers()
+   {
         M_solver.iterative_mode = false;
         M_solver.SetRelTol(1e-8);
         M_solver.SetAbsTol(1e-8);
@@ -169,7 +204,7 @@ public:
         amg->SetSystemsOptions(2, true);
         amg->SetElasticityOptions(&fes);
         amg->SetPrintLevel(0);
-        pc = amg;    
+        pc = amg;
 
         implicit_solver.iterative_mode = false;
         implicit_solver.SetRelTol(1e-4);
@@ -180,9 +215,9 @@ public:
         implicit_solver.SetPreconditioner(*pc);
    }
 
-
+   /// Apply operator
    void Mult(const Vector &u, Vector &k) const override
-   {  
+   {
         BlockVector ub(u.GetData(), offsets);
         BlockVector kb(k.GetData(), offsets);
 
@@ -196,13 +231,14 @@ public:
         z.Neg();
         z.Add(1.0, b);
 
-        kx = vel; // dx/dt = u        
+        kx = vel; // dx/dt = u
         M_solver.Mult(z, ku);
 
-        ku.SetSubVector(ess_tdofs, 0.0);        
+        ku.SetSubVector(ess_tdofs, 0.0);
         kx.SetSubVector(ess_tdofs, 0.0);
    }
 
+   /// Solve implicit system in Schur complement form
    void ImplicitSolve(const real_t dt, const Vector &u, Vector &k)
    {
         BlockVector ub(u.GetData(), offsets);
@@ -212,22 +248,22 @@ public:
         Vector &pos = ub.GetBlock(1);
 
         Vector &ku = kb.GetBlock(0);
-        Vector &kx = kb.GetBlock(1);        
+        Vector &kx = kb.GetBlock(1);
 
+        AssembleLinearForms();
         Kmat.Mult(pos,z);
         z.Neg();
         z.Add(1.0, b);
-
         Kmat.AddMult(vel,z,-dt); // z = z  - dt*K*vel
 
         if((current_dt != dt) || updated)
         {
             if (T) { delete T; }
             current_dt = dt;
-            Assemble();
             T = Add(1.0, Mrhomat, dt*dt, Kmat_e);
             implicit_solver.SetOperator(*T);
             amg->SetOperator(*T);
+            updated = false;
         }
 
         implicit_solver.Mult(z, ku);
@@ -237,82 +273,42 @@ public:
         kx.SetSubVector(ess_tdofs, 0.0);
    }
 
-   void Assemble() override
+   /// Computes residual of the elasticity equations
+   void ImplicitMult(const Vector &x, const Vector &k, Vector &v ) const override
    {
-     //    Kform_e.Assemble();
-     //    Kform_e.FormSystemMatrix(ess_tdofs, Kmat_e);
+        BlockVector xb(x.GetData(), offsets);
+        BlockVector kb(k.GetData(), offsets);
+        BlockVector vb(v.GetData(), offsets);
+
+        // Apply the implicit operator
+        Mrhomat.Mult(kb.GetBlock(0), vb.GetBlock(0)); // v = A(x) + M*k
+        vb.GetBlock(0).Add(-1.0, b);
+        Kmat.AddMult(xb.GetBlock(1), vb.GetBlock(0), 1.0); // v = K*x
+
+        vb.GetBlock(1) = kb.GetBlock(1); // v = u
+        vb.GetBlock(1) -= xb.GetBlock(0); // v = k
+
+        vb.GetBlock(0).SetSubVector(ess_tdofs, 0.0);
+        vb.GetBlock(1).SetSubVector(ess_tdofs, 0.0);
    }
 
-   void Update() override
-   {
-        fes.Update();
-        u_gf.Update();
-        x_gf.Update();
-        u_gf_trans.Update();
-        x_gf_trans.Update();
-    
-        Kform_e.Update();
-        Mform.Update();
-        Mrho_form.Update();
-        Kform.Update();
-        Kform_e.Update();
+    void PreProcess(Vector &x) override {}
 
-        Kform_e.Assemble();
-        Mform.Assemble();
-        Mrho_form.Assemble();
-        Kform.Assemble();
-        Kform_e.Assemble();
-
-        Array<int> empty;
-        Mform.FormSystemMatrix(empty, Mmat);
-        Mrho_form.FormSystemMatrix(ess_tdofs, Mrhomat);
-        Kform_e.FormSystemMatrix(ess_tdofs, Kmat_e);
-        Kform.FormSystemMatrix(empty, Kmat);
-
-        bform.Update();
-        bform.Assemble();
-        bform.ParallelAssemble(b);
-
-        updated = true;
-   }
-
-    void PreProcess(Vector &x) override
-    {
-        Update();
-    }
-
-    void PostProcess(Vector &x) override
-    {
-        if(operation_id == OperationID::NONE || operation_id == OperationID::STEP)
-        {   // Only do this pre-processing for operations that are not for multi-stage 
-            // time stepping
-          BlockVector xb(x.GetData(), offsets);
-          u_gf.SetFromTrueDofs(xb.GetBlock(0));
-          x_gf.SetFromTrueDofs(xb.GetBlock(1));
-          u_gf_trans.SetFromTrueDofs(xb.GetBlock(0));
-          x_gf_trans.SetFromTrueDofs(xb.GetBlock(1));
-        }
-    }
+    void PostProcess(Vector &x) override {}
 
 
    void Transfer(const Vector &x) override
    {
         BlockVector xb(x.GetData(), offsets);
-        u_gf_trans.SetFromTrueDofs(xb.GetBlock(0));
-        x_gf_trans.SetFromTrueDofs(xb.GetBlock(1));
-        Application::Transfer();
+        field_collection.Transfer("Velocity_BC", xb.GetBlock(0));
+        field_collection.Transfer("Displacement_BC", xb.GetBlock(1));
    }
-   
+
    void Transfer(const Vector &u, const Vector &k, real_t dt = 0.0) override
    {
-        BlockVector ub(u.GetData(), offsets);
-        BlockVector kb(k.GetData(), offsets);
-
-        add(1.0, ub.GetBlock(0), dt, kb.GetBlock(0), z); // z = u + dt*k
-        u_gf_trans.SetFromTrueDofs(z);
-        add(1.0, ub.GetBlock(1), dt, kb.GetBlock(1), z); // z = u + dt*k
-        x_gf_trans.SetFromTrueDofs(z);
-        Application::Transfer();
+        BlockVector kb(k.GetData(), offsets);        
+        field_collection.Transfer("Velocity_BC", kb.GetBlock(0));
+        field_collection.Transfer("Displacement_BC", kb.GetBlock(1));
    }
 
    ~Elasticity() override

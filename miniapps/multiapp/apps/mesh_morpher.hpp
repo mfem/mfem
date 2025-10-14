@@ -34,24 +34,20 @@ public:
    // Mesh and finite element space
    ParMesh &mesh;
    ParFiniteElementSpace &fes;
-   Array<int> offsets; ///< Offsets for the velocity and displacement
 
-   /// Essential true dof array. Relevant for eliminating boundary conditions
-   /// when using an H1 space.
+   /// Essential true dof array.
    Array<int> ess_attr, ess_tdofs;
 
    /// Diffusion coefficient
    ConstantCoefficient kappa;
 
-    /// Grid function for the mesh displacement variable
-   mutable ParGridFunction x_gf; ///< Grid function for the mesh displacement variable x
-   mutable ParGridFunction u_gf; ///< Grid function for the time derivative of x (velocity)
+   /// Grid function for the mesh displacement variable
+   mutable ParGridFunction x_gf; 
+   mutable ParGridFunction x_gf_bc;
+   mutable ParGridFunction bc_send_gf; ///< Grid functions for transfering BCs
 
    /// Mass and Stiffness forms
    mutable ParBilinearForm Mform, Kform,  Kform_e;
-
-   /// RHS form
-   mutable ParLinearForm bform;
 
    /// Mass and Stiffness operators
    OperatorHandle M, K;
@@ -64,58 +60,81 @@ public:
 
    /// Mass matrix preconditioner
    HypreSmoother M_prec;
-   HypreSmoother T_prec;  // Preconditioner for the implicit solver
+   HypreSmoother T_prec;
 
    real_t current_dt = -1.0; 
 
    /// Auxiliary vectors
-   mutable Vector x_bc;
-   mutable Vector b, z;
-   bool diffuse_velocity = false;
+   mutable Vector z;
+   bool updated = false;
 
 public:
 
      MeshDiffusion(ParFiniteElementSpace &fes_,
-               Array<int> ess_attr_,
-               real_t kappa_ = 1.0e0,
-               bool diffuse_velocity_ = false) : 
-               Application(2*fes_.GetTrueVSize()),
-               mesh(*fes_.GetParMesh()),
-               fes(fes_),
-               ess_attr(ess_attr_),
-               kappa(kappa_),
-               x_gf(ParGridFunction(&fes)),
-               u_gf(ParGridFunction(&fes)),
-               Mform(&fes),
-               Kform(&fes),Kform_e(&fes),
-               bform(&fes),
-               M_solver(fes.GetComm()),
-               implicit_solver(fes.GetComm()),
-               b(fes_.GetTrueVSize()), z(fes_.GetTrueVSize()),
-               diffuse_velocity(diffuse_velocity_)
+                   Array<int> ess_attr_,
+                   real_t kappa_ = 1.0e0) : 
+                   Application(fes_.GetTrueVSize()),
+                   mesh(*fes_.GetParMesh()),
+                   fes(fes_),
+                   ess_attr(ess_attr_),
+                   kappa(kappa_),
+                   x_gf(&fes),
+                   x_gf_bc(&fes),
+                   bc_send_gf(&fes),
+                   Mform(&fes), Kform(&fes),Kform_e(&fes),
+                   M_solver(mesh.GetComm()),
+                   implicit_solver(mesh.GetComm()),
+                   z(fes_.GetTrueVSize())
      {
-
           fes.GetEssentialTrueDofs(ess_attr, ess_tdofs);
 
-          offsets = Array<int>({0, fes.GetTrueVSize(), fes.GetTrueVSize()});
-          offsets.PartialSum();
+          x_gf = 0.0;
+          x_gf_bc = 0.0;
+          bc_send_gf = 0.0;
+
+          // Setup field collection for output and transfer
+          field_collection.SetName("Mesh-Diffusion");
+          field_collection.AddField("Displacement", &x_gf);
+          field_collection.AddSourceField("Displacement_BC", &x_gf_bc);
+          field_collection.AddSourceField("dxdt", &bc_send_gf);
 
           Mform.AddDomainIntegrator(new VectorMassIntegrator);
           Kform.AddDomainIntegrator(new VectorDiffusionIntegrator(kappa));
           Kform_e.AddDomainIntegrator(new VectorDiffusionIntegrator(kappa));
 
+          Assemble();
+          BuildSolvers();
+     }
+
+     void Assemble() override 
+     {
           Mform.Assemble();
           Kform.Assemble();
           Kform_e.Assemble();
 
-          bform.Assemble();
-          
           Array<int> empty;
           Mform.FormSystemMatrix(ess_tdofs, Mmat_e);
           Kform_e.FormSystemMatrix(ess_tdofs, Kmat_e);
           Kform.FormSystemMatrix(empty, Kmat);
-          
-          
+     }
+
+     void Update() override
+     {
+          fes.Update();
+          x_gf.Update();
+          x_gf_bc.Update();
+          bc_send_gf.Update();
+
+          Mform.Update();
+          Kform.Update();
+          Kform_e.Update();
+
+          Assemble();
+          updated = true;
+     }
+
+     void BuildSolvers()
+     {
           M_solver.iterative_mode = false;
           M_solver.SetRelTol(1e-8);
           M_solver.SetAbsTol(0.0);
@@ -124,7 +143,6 @@ public:
           M_solver.SetOperator(Mmat_e);
           M_prec.SetType(HypreSmoother::Jacobi);
           M_solver.SetPreconditioner(M_prec);
-
 
           implicit_solver.iterative_mode = false;
           implicit_solver.SetRelTol(1e-8);
@@ -137,126 +155,66 @@ public:
 
      void Mult(const Vector &x, Vector &k) const override
      {
-          BlockVector xb(x.GetData(), offsets);
-          BlockVector kb(k.GetData(), offsets);
-
-          int id = 1; // Diffuse displacement
-          if(diffuse_velocity) id = 0; // Diffuse velocity
-          
-          Kmat.Mult(xb.GetBlock(id), z);
-          M_solver.Mult(z, kb.GetBlock(id));
-
-          if(diffuse_velocity)
-          {   // compute kx = u0
-               kb.GetBlock(1) = xb.GetBlock(0);
-          } 
-          else
-          {   // compute ku = dudt = d²x/dt² = K²x
-               Kmat.Mult(z, kb.GetBlock(0));
-          }
-
-          kb.GetBlock(0).SetSubVector(ess_tdofs, 0.0);
-          kb.GetBlock(1).SetSubVector(ess_tdofs, 0.0);
+          Kmat.Mult(x, z);
+          z.Neg();
+          M_solver.Mult(z, k);
+          k.SetSubVector(ess_tdofs, 0.0);
      }
 
      void ImplicitSolve(const real_t dt, const Vector &x, Vector &k)
      {
-          BlockVector xb(x.GetData(), offsets);
-          BlockVector kb(k.GetData(), offsets);
-
-          if(current_dt != dt)
+          if((current_dt != dt) || updated)
           {
                if (T) delete T;
                T = Add(1.0, Mmat_e, dt, Kmat_e);
                implicit_solver.SetOperator(*T);
                current_dt = dt;
+               updated = false;
           }
 
-          int id = 1; // Diffuse displacement
-          if(diffuse_velocity) id = 0; // Diffuse velocity
-
-          Kmat.Mult(xb.GetBlock(id), z);
+          Kmat.Mult(x, z);
           z.Neg();
-          implicit_solver.Mult(z, kb.GetBlock(id));
+          implicit_solver.Mult(z, k);
 
-          if(diffuse_velocity)
-          {   // compute kx = u0 + dt*ku
-               kb.GetBlock(1) = xb.GetBlock(0);
-               kb.GetBlock(1).Add(dt, kb.GetBlock(0));
-          } 
-          else
-          {   // compute ku = dudt = d²x/dt² = d/dt(Kx) = K*kx
-               Kmat_e.Mult(kb.GetBlock(1), kb.GetBlock(0));
+          if(IsCoupled())
+          {
+               x_gf_bc.GetTrueDofs(z); // contains the BC in terms of kx (dx/dt)
+               for (int i = 0; i < ess_tdofs.Size(); i++)
+               {
+                    int idx = ess_tdofs[i];
+                    k(idx) = z(idx);
+               }
           }
-          
-          kb.GetBlock(0).SetSubVector(ess_tdofs, 0.0);
-          kb.GetBlock(1).SetSubVector(ess_tdofs, 0.0);
+          else
+          {
+               k.SetSubVector(ess_tdofs, 0.0);
+          }
      }
 
-     void Solve(const Vector &x, Vector &y) const override {}
+     void ImplicitMult(const Vector &x, const Vector &k, Vector &v ) const override
+     {}
 
-     void Assemble() override {}
-
-
-     void Update() override
-     {
-          fes.Update();
-          x_gf.Update();
-          u_gf.Update();
-
-          Mform.Update();
-          Kform.Update();
-          Kform_e.Update();
-
-          Mform.Assemble();
-          Kform.Assemble();
-          Kform_e.Assemble();
-          bform.Assemble();
-          
-          Array<int> empty;
-          Mform.FormSystemMatrix(ess_tdofs, Mmat_e);
-          Kform_e.FormSystemMatrix(ess_tdofs, Kmat_e);
-          Kform.FormSystemMatrix(empty, Kmat);
-     }
 
      void PreProcess(Vector &x) override
-     {
-          Update();
-          if(operation_id == OperationID::NONE || operation_id == OperationID::STEP)
-          {   // Only do this pre-processing for operations that are not for multi-stage 
-               // time stepping
-               BlockVector xb(x.GetData(), offsets);               
-               u_gf.GetTrueDofs(xb.GetBlock(0));
-               x_gf.GetTrueDofs(xb.GetBlock(1));
-          }
-     }
+     {}
 
-     void PostProcess(Vector &x) override
-     {
-          if(operation_id == OperationID::NONE || operation_id == OperationID::STEP)
-          {   // Only do this pre-processing for operations that are not for multi-stage 
-               // time stepping
-               BlockVector xb(x.GetData(), offsets);
-               u_gf.SetFromTrueDofs(xb.GetBlock(0));
-               x_gf.SetFromTrueDofs(xb.GetBlock(1));
-          }
-     }
-
+     void PostProcess(Vector &x) override {}
 
      void Transfer(const Vector &x) override
      {
-          Application::Transfer();
-     }   
+          field_collection.Transfer("Displacement_BC", x);
+     }
+
+     void Transfer(const Vector &u, const Vector &k, real_t dt = 0.0) override
+     {
+          field_collection.Transfer("dxdt", k);
+     }
 
      ~MeshDiffusion() override
      {
           if (T) delete T;
      }
 };
-
-
-
-
 
 
 #endif

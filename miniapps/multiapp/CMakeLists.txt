@@ -11,6 +11,7 @@
 
 set(MESH_FILES
   backward-facing-step.msh
+  channel-cylinder.msh
 )
 
 # Add a target to copy the mesh files from the source directory; used by sample
@@ -45,39 +46,13 @@ if (MFEM_USE_MPI)
     LIBRARIES mfem-common)
   add_dependencies(cht-BFS copy_miniapps_multiapp_data)
 
-  # add_mfem_miniapp(navier-stokes
-  #   MAIN navier-stokes.cpp
-  #   ${MFEM_MINIAPPS_COMMON_HEADERS} ${MULTIAPP_COMMON_FILES}
-  #   LIBRARIES mfem-common)
-  # add_dependencies(navier-stokes copy_miniapps_multiapp_data)
-
-  # add_mfem_miniapp(elasticity
-  #   MAIN elasticity.cpp
-  #   ${MFEM_MINIAPPS_COMMON_HEADERS} ${MULTIAPP_COMMON_FILES}
-  #   LIBRARIES mfem-common)
-  # add_dependencies(elasticity copy_miniapps_multiapp_data)
-
-  # add_mfem_miniapp(fsi
-  #   MAIN fsi.cpp
-  #   ${MFEM_MINIAPPS_COMMON_HEADERS} ${MULTIAPP_COMMON_FILES}
-  #   LIBRARIES mfem-common)
-  # add_dependencies(fsi copy_miniapps_multiapp_data)
+  add_mfem_miniapp(fsi
+    MAIN fsi.cpp
+    ${MFEM_MINIAPPS_COMMON_HEADERS} ${MULTIAPP_COMMON_FILES}
+    LIBRARIES mfem-common)
+  add_dependencies(fsi copy_miniapps_multiapp_data)
 
 # Add parallel tests.
   # if (MFEM_ENABLE_TESTING)
-  #   add_test(NAME multidomain_np${MFEM_MPI_NP}
-  #     COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
-  #     ${MPIEXEC_PREFLAGS} $<TARGET_FILE:multidomain> -no-vis -tf 0.001
-  #     ${MPIEXEC_POSTFLAGS})
-
-  #   add_test(NAME multidomain_nd_np${MFEM_MPI_NP}
-  #     COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
-  #     ${MPIEXEC_PREFLAGS} $<TARGET_FILE:multidomain_nd> -no-vis -tf 0.001
-  #     ${MPIEXEC_POSTFLAGS})
-
-  #   add_test(NAME multidomain_rt_np${MFEM_MPI_NP}
-  #     COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
-  #     ${MPIEXEC_PREFLAGS} $<TARGET_FILE:multidomain_rt> -no-vis -tf 0.001
-  #     ${MPIEXEC_POSTFLAGS})
   # endif()
 endif()
