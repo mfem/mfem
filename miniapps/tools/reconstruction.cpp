@@ -10,12 +10,339 @@
 // CONTRIBUTING.md for details.
 
 #include "mfem.hpp"
-#include <fstream>
 #include <string>
-#include <iomanip>
+#include <map>
 
-namespace mfem::reconstruction
+using namespace mfem;
+
+void reconstructField(const ParGridFunction& src, ParGridFunction& dst);
+
+void L2Reconstruction(const ParGridFunction& src, ParGridFunction& dst);
+
+int main(int argc, char* argv[])
 {
+   Mpi::Init(argc, argv);
+
+   // Default command-line options
+   int refinement_levels = 0;
+
+   int order_representation = 3;
+   int order_reconstruction = 1;
+
+   int field_profile = 0;
+   real_t field_kx = 2.0;
+   real_t field_ky = 4.0;
+
+   bool visualization = true;
+   int visport = 19916;
+
+   // example field profiles
+   using profile_t = std::function<real_t(const Vector&,const Vector&)>;
+   std::vector<std::pair<std::string, profile_t>> field_profiles;
+   // plane profile
+   field_profiles.push_back(std::make_pair(
+      "1 + kx x + ky y",
+      [](const Vector &x, const Vector &k)
+      {
+         return 1.0 + x*k;
+      }));
+   // sinusoidal profile
+   field_profiles.push_back(std::make_pair(
+      "sin(2pi kx x) sin(2pi ky y)",
+      [](const Vector &x, const Vector &k)
+      {
+         real_t result = 1.0;
+         for(int i=0; i < x.Size(); i++) result *= std::sin(2.0*M_PI*k(i)*x(i));
+         return result;
+      }));
+   // exponential-sinusoidal profile
+   field_profiles.push_back(std::make_pair(
+      "exp(r) cos(kx x) sin(ky y)",
+      [](const Vector &x, const Vector &k)
+      {
+         real_t result = 1.0;
+         for(int i=0; i < x.Size(); i++)
+            result *= std::exp(x.Norml2()) * std::sin(2.0*M_PI*k(i)*x(i));
+         return result;
+      }));
+   // create CLI help string for profiles
+   std::string field_profiles_help = "Profile of field to be reconstructed:";
+   for (int i=0; i < field_profiles.size(); i++)
+      field_profiles_help += "\n\t" + std::to_string(i) + ": " + field_profiles[i].first;
+
+   // Parse options
+   OptionsParser args(argc, argv);
+   args.AddOption(&refinement_levels, "-r", "--refine",
+                  "Number of times to refine the mesh uniformly.");
+   args.AddOption(&order_representation, "-orep", "--order-representation",
+                  "Order of the finite element space to represent the field.");
+   args.AddOption(&order_reconstruction, "-orec", "--order-reconstruction",
+                  "Order of the finite element space to reconstruct the field.");
+   args.AddOption(&field_profile, "-f", "--field-profile", field_profiles_help.c_str());
+   args.AddOption(&field_kx, "-fx", "--field-kx",
+                  "Value of kx in field profile");
+   args.AddOption(&field_ky, "-fy", "--field-ky",
+                  "Value of ky in field profile.");
+   args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
+                  "--no-visualization", "Enable or disable GLVis visualization.");
+   args.AddOption(&visport, "-visp", "--visualization-port",
+                  "Use custom port number for GLVis.");
+   args.ParseCheck();
+
+   // define u(x,y) to be represented
+   profile_t u_function = field_profiles[field_profile].second;
+   const Vector k({field_kx, field_ky});
+   std::function<real_t(const Vector&)> u_function_wrapper =
+      [&](const Vector &x) { return u_function(x, k); };
+   FunctionCoefficient u_coefficient(u_function_wrapper);
+
+   // create simple 2D mesh
+   const int num_x = 2;
+   const int num_y = 2;
+   Mesh serial_mesh = Mesh::MakeCartesian2D(num_x, num_y, Element::QUADRILATERAL);
+   for (int i = 0; i < refinement_levels; i++)
+   { serial_mesh.UniformRefinement(); }
+   serial_mesh.EnsureNCMesh();
+   ParMesh mesh(MPI_COMM_WORLD, serial_mesh);
+   serial_mesh.Clear();
+
+   // create FEM things
+   L2_FECollection fe_collection_averages(0, mesh.Dimension());
+   ParFiniteElementSpace fe_space_averages(&mesh, &fe_collection_averages);
+   ParGridFunction u_averages(&fe_space_averages);
+
+   L2_FECollection fe_collection_representation(order_representation, mesh.Dimension());
+   ParFiniteElementSpace fe_space_representation(&mesh, &fe_collection_representation);
+   ParGridFunction u(&fe_space_representation);
+
+   L2_FECollection fe_collection_reconstruction(order_reconstruction, mesh.Dimension());
+   ParFiniteElementSpace fe_space_reconstruction(&mesh, &fe_collection_reconstruction);
+   ParGridFunction u_reconstruction(&fe_space_reconstruction);
+   ParGridFunction u_reconstruction_averages(&fe_space_averages);
+
+   // compute element averages
+   u.ProjectCoefficient(u_coefficient);
+   u.GetElementAverages(u_averages);
+
+   // compute reconstruction
+   L2Reconstruction(u_averages, u_reconstruction);
+
+   // evaluate reconstruction
+   u_reconstruction.GetElementAverages(u_reconstruction_averages);
+   char vishost[] = "localhost";
+   socketstream glvis_original(vishost, visport);
+   socketstream glvis_averages(vishost, visport);
+   socketstream glvis_reconstruction_averages(vishost, visport);
+   socketstream glvis_reconstruction(vishost, visport);
+   if (glvis_original &&
+       glvis_averages &&
+       glvis_reconstruction_averages &&
+       glvis_reconstruction &&
+       visualization)
+   {
+      glvis_original.precision(8);
+      glvis_original << "solution\n" << mesh << u
+         << "window_title 'original'\n" << std::flush;
+      glvis_averages.precision(8);
+      glvis_averages << "solution\n" << mesh << u_averages
+         << "window_title 'averages'\n" << std::flush;
+      glvis_reconstruction.precision(8);
+      glvis_reconstruction << "solution\n" << mesh << u_reconstruction
+         << "window_title 'reconstruction'\n" << std::flush;
+      glvis_reconstruction.precision(8);
+      glvis_reconstruction_averages << "solution\n" << mesh << u_reconstruction_averages
+         << "window_title 'rec average'\n" << std::flush;
+   }
+
+   real_t error = u_reconstruction.ComputeL2Error(u_coefficient);
+   //subtract(u_reconstruction_averages, u_averages, diff);
+   ConstantCoefficient zeros(0.0);
+   real_t error_avg = 0.0;//diff.ComputeL2Error(zeros);
+
+   Vector el_error(mesh.GetNE());
+   ConstantCoefficient ones(1.0);
+   GridFunction zero(&fe_space_reconstruction);
+   zero = 0.0;
+   zero.ComputeElementLpErrors(2.0, ones, el_error);
+   real_t hmax = el_error.Max();
+
+   if (Mpi::Root())
+   {
+      mfem::out << "\n|| Avg(Rec(u_h)) - u_h ||_{L^2} = " << error_avg
+                << std::endl;
+      mfem::out << "|| u_h - u ||_{L^2} = \n" << error << std::endl;
+   }
+
+   Mpi::Finalize();
+
+   return 0;
+}
+
+
+/// @brief Saturates a neighborhood with hopes to well-pose the least squares problem.
+/// @todo Make friends with @a MCMesh
+void SaturateNeighborhood(NCMesh& mesh, const int element_idx,
+                          const int target_ndofs, const int contributed_ndofs,
+                          Array<int>& neighbors)
+{
+   Array<int> temp;
+   mesh.FindNeighbors(element_idx, neighbors);
+   neighbors.Append(element_idx);
+   MFEM_VERIFY(mesh.GetNumElements() * contributed_ndofs >= target_ndofs,
+               "Mesh too small!");
+   while (neighbors.Size() * contributed_ndofs < target_ndofs)
+   {
+      mesh.NeighborExpand(neighbors, temp);
+      neighbors = temp;
+   }
+   neighbors.Unique();
+}
+
+void L2Reconstruction(const ParGridFunction& src, ParGridFunction& dst)
+{
+   const real_t RTOL = 1.0e-5;
+
+   Mesh *mesh = dst.FESpace()->GetMesh();
+   FiniteElementSpace *fes = dst.FESpace();
+   NCMesh *ncmesh = fes->GetMesh()->ncmesh;
+
+   for (int element_idx = 0; element_idx < fes->GetNE(); element_idx++)
+   {
+      const FiniteElement* element = fes->GetFE(element_idx);
+      Array<int> element_dofs;
+      fes->GetElementDofs(element_idx, element_dofs);
+      const int N = element_dofs.Size();
+      IsoparametricTransformation trans;
+      fes->GetElementTransformation(element_idx, &trans);
+
+      DenseMatrix A(N+1,N+1);
+      A = 0.0;
+      Vector b(N+1);
+      b = 0.0;
+      IntegrationPoint int_point_average;
+      int_point_average.Set2(0.5, 0.5); // TODO: generalize to 3D
+      const real_t element_average = src.GetValue(element_idx, int_point_average);
+      b(N) = element_average;
+
+      IsoparametricTransformation neighbor_trans;
+      Array<int> neighbor_element_idxs;
+      ncmesh->FindNeighbors(element_idx, neighbor_element_idxs);
+      for (int i=0; i < element->GetOrder(); i++)
+      {
+         Array<int> temp;;
+         ncmesh->NeighborExpand(neighbor_element_idxs, temp);
+         neighbor_element_idxs = temp;
+      }
+      // DEBUG
+      std::vector<Vector> alphas;
+      std::vector<Vector> centers;
+      for (const int neighbor_element_idx : neighbor_element_idxs)
+      {
+         const FiniteElement* neighbor_element = fes->GetFE(neighbor_element_idx);
+         fes->GetElementTransformation(neighbor_element_idx, &neighbor_trans);
+         const real_t neighbor_average = src.GetValue(neighbor_element_idx, int_point_average);
+
+         // compute average of u over neighbor element (denoted alpha)
+         Vector alpha(N);
+         real_t volume = 0.0;
+         alpha = 0.0;
+         const int int_order = neighbor_element->GetOrder() + neighbor_trans.OrderW();
+         const IntegrationRule& int_rule =
+            IntRules.Get(neighbor_element->GetGeomType(), int_order);
+         for (int k=0; k < int_rule.GetNPoints(); k++)
+         {
+            IntegrationPoint int_point = int_rule.IntPoint(k);
+            if (element_idx != neighbor_element_idx)
+            {
+               Vector physical_point;
+               neighbor_trans.Transform(int_point, physical_point);
+               InverseElementTransformation inv_trans(&trans);
+               inv_trans.SetSolverType(inv_trans.Newton);
+               inv_trans.SetInitialGuessType(inv_trans.Center);
+               inv_trans.SetPhysicalRelTol(1e-12);
+               IntegrationPoint inv_int_point;
+               const int result = inv_trans.Transform(physical_point, inv_int_point);
+               MFEM_VERIFY(result != inv_trans.Unknown, "InverseTransform failed.");
+               int_point.Set2(inv_int_point.x, inv_int_point.y); // TODO: generalize to 3D
+            }
+            Vector shape(N);
+            element->CalcShape(int_point, shape);
+            trans.SetIntPoint(&int_point);
+            const real_t detJ = trans.Weight();
+            alpha.Add(int_point.weight * detJ, shape);
+            volume += int_point.weight * detJ;
+         }
+         alpha *= 1.0/volume;
+         // DEBUG
+         Vector tmp(2);
+         neighbor_trans.Transform(int_point_average, tmp);
+         centers.push_back(tmp);
+         alphas.push_back(alpha);
+
+         // update Q block (of A) with Q_neighbor = alpha \otimes alpha
+         DenseMatrix Q_neighbor(N,N);
+         MultVVt(alpha, Q_neighbor);
+         A.AddSubMatrix(0, Q_neighbor);
+         // update c block (of b) with c_neighbor = neighbor_average * alpha
+         Vector c_neighbor = alpha;
+         c_neighbor *= neighbor_average;
+         b.AddSubVector(c_neighbor, 0);
+         // for the original element, set e blocks (of A) with e = alpha
+         if (element_idx == neighbor_element_idx)
+         {
+            for (int k=0; k < N; k++)
+            {
+               A(k,N) = -alpha(k);
+               A(N,k) = alpha(k);
+            }
+         }
+      }
+
+      Vector y(N+1);
+      DenseMatrixInverse A_inverse(A);
+      A_inverse.Factor();
+      A_inverse.Mult(b, y);
+      // DEBUG
+      if (std::abs(y(N)) > 1e-8 && false)
+      {
+         mfem::out << "\nnumber of neighbors: " << neighbor_element_idxs.Size() << std::endl;
+         mfem::out << "y: ";
+         y.Print();
+         DenseMatrix Q(N,N);
+         A.GetSubMatrix(0, N, Q);
+         const Vector x(y, 0, N);
+         const Vector c(b, 0, N);
+         Vector e(N);
+         for (int i=0; i < N; i++)
+         {
+            e(i) = A(N,i);
+         }
+         Vector Qx(N);
+         Q.Mult(x,Qx);
+         mfem::out << "f(x) = " << Qx*x*0.5 - c*x << "\t eTx = " << e*x << std::endl;
+         Vector tmp(2);
+         trans.Transform(int_point_average, tmp);
+         mfem::out << "Current element: ";
+         tmp.Print();
+         for (int i=0; i < alphas.size(); i++)
+         {
+            mfem::out << "Neighbor element: ";
+            centers[i].Print();
+            alphas[i].Print();
+            mfem::out << "alpha*x: " << alphas[i]*x << std::endl;
+         }
+         Vector x2(N);
+         x2 = element_average;
+         Q.Mult(x2, Qx);
+         mfem::out << "f(1) = " << Qx*x2*0.5 - c*x2 << "\t eTx = " << e*x2 << std::endl;
+         mfem::out << "A: ";
+         mfem::out << "average: " << element_average << std::endl;
+      }
+      const Vector x(y, 0, N);
+      dst.SetSubVector(element_dofs, x);
+   }
+}
+
 
 // Special integrator for the second derivative
 class MixedBidirectionalHessianIntegrator : public MixedScalarIntegrator
@@ -178,185 +505,3 @@ void reconstructField(const ParGridFunction& src, ParGridFunction& dst)
    dst.ExchangeFaceNbrData();
 }
 
-}  // end namespace mfem::reconstruction
-
-using namespace mfem;
-using namespace reconstruction;
-
-int main(int argc, char* argv[])
-{
-   Mpi::Init(argc, argv);
-
-   // Default command-line options
-   int ser_ref_levels = 0;
-   int par_ref_levels = 0;
-
-   int order_original = 3;
-   int order_averages = 0;
-   int order_reconstruction = 1;
-
-   bool save_to_file = true;
-
-   bool visualization = true;
-   int visport = 19916;
-
-   // Parse options
-   OptionsParser args(argc, argv);
-   args.AddOption(&ser_ref_levels, "-rs", "--refine",
-                  "Number of serial refinement steps.");
-   args.AddOption(&par_ref_levels, "-rp", "--refine",
-                  "Number of parallel refinement steps.");
-
-   args.AddOption(&order_original, "-O", "--order-original",
-                  "Order original broken space.");
-   // TODO(Gabriel): Not implemented yet
-   // args.AddOption(&order_averages, "-A", "--order-averages",
-   //                "Order averaged broken space.");
-   args.AddOption(&order_reconstruction, "-R", "--order-reconstruction",
-                  "Order of reconstruction broken space.");
-
-   args.AddOption(&save_to_file, "-s", "--save", "-no-s",
-                  "--no-save", "Show or not show approximation error.");
-
-   args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
-                  "--no-visualization", "Enable or disable GLVis visualization.");
-   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
-
-   args.ParseCheck();
-   MFEM_VERIFY((ser_ref_levels >= 0) && (par_ref_levels >= 0), "")
-
-   if (Mpi::Root())
-   {
-      mfem::out << "Number of serial refs.:  " << ser_ref_levels << "\n";
-      mfem::out << "Number of parallel refs: " << par_ref_levels << "\n";
-      mfem::out << "Original order:          " << order_original << "\n";
-      mfem::out << "Original averages:       " << order_averages << "\n";
-      mfem::out << "Original reconstruction: " << order_reconstruction << "\n";
-   }
-
-   // define u(x,y) to be represented
-   const int k_x = 1;
-   const int k_y = 2;
-   std::function<real_t(const Vector &)> u_function =
-      [=](const Vector& x)
-   {
-      return std::cos(2*M_PI*k_x * x(0)) * std::sin(2*M_PI*k_y * x(1));
-   };
-   FunctionCoefficient u_coefficient(u_function);
-
-   // create simple 2D mesh
-   const int num_x = 2;
-   const int num_y = 2;
-   Mesh serial_mesh = Mesh::MakeCartesian2D(num_x, num_y,
-                                            Element::QUADRILATERAL);
-   for (int i = 0; i < ser_ref_levels; ++i) { serial_mesh.UniformRefinement(); }
-   ParMesh mesh(MPI_COMM_WORLD, serial_mesh);
-   for (int i = 0; i < par_ref_levels; ++i) { mesh.UniformRefinement(); }
-
-   // compute finite element representation of u(x,y)
-   L2_FECollection fe_collection_original(order_original, mesh.Dimension());
-   L2_FECollection fe_collection_averages(order_averages, mesh.Dimension());
-   L2_FECollection fe_collection_reconstruction(order_reconstruction,
-                                                mesh.Dimension());
-
-   ParFiniteElementSpace fe_space_original(&mesh, &fe_collection_original);
-   ParFiniteElementSpace fe_space_averages(&mesh, &fe_collection_averages);
-   ParFiniteElementSpace fe_space_reconstruction(&mesh,
-                                                 &fe_collection_reconstruction);
-
-   ParGridFunction u_original(&fe_space_original);
-   ParGridFunction u_averages(&fe_space_averages);
-   ParGridFunction u_rec_avg(&fe_space_averages);
-   ParGridFunction diff(&fe_space_averages);
-   ParGridFunction u_reconstruction(&fe_space_reconstruction);
-
-   // compute element averages
-   u_original.ProjectCoefficient(u_coefficient);
-   u_original.GetElementAverages(u_averages);
-
-   // compute reconstruction
-   reconstructField(u_averages, u_reconstruction);
-
-   u_reconstruction.GetElementAverages(u_rec_avg);
-
-   // evaluate reconstruction
-   char vishost[] = "localhost";
-   socketstream glvis_original(vishost, visport);
-   socketstream glvis_averages(vishost, visport);
-   socketstream glvis_rec_avg(vishost, visport);
-   socketstream glvis_reconstruction(vishost, visport);
-
-   if (glvis_original &&
-       glvis_averages &&
-       glvis_rec_avg &&
-       glvis_reconstruction &&
-       visualization)
-   {
-      //glvis_original.precision(8);
-      glvis_original << "parallel " << mesh.GetNRanks()
-                     << " " << mesh.GetMyRank() << "\n"
-                     << "solution\n" << mesh << u_original
-                     << "window_title 'original'\n" << std::flush;
-      MPI_Barrier(mesh.GetComm());
-      //glvis_averages.precision(8);
-      glvis_averages << "parallel " << mesh.GetNRanks()
-                     << " " << mesh.GetMyRank() << "\n"
-                     << "solution\n" << mesh << u_averages
-                     << "window_title 'averages'\n" << std::flush;
-      MPI_Barrier(mesh.GetComm());
-      //glvis_reconstruction.precision(8);
-      glvis_reconstruction << "parallel " << mesh.GetNRanks()
-                           << " " << mesh.GetMyRank() << "\n"
-                           << "solution\n" << mesh << u_reconstruction
-                           << "window_title 'reconstruction'\n" << std::flush;
-      //glvis_reconstruction.precision(8);
-      glvis_rec_avg << "parallel " << mesh.GetNRanks()
-                    << " " << mesh.GetMyRank() << "\n"
-                    << "solution\n" << mesh << u_rec_avg
-                    << "window_title 'rec average'\n" << std::flush;
-   }
-   else if (visualization)
-   {
-      MFEM_WARNING("Cannot connect to glvis server, disabling visualization.")
-   }
-
-   real_t error = u_reconstruction.ComputeL2Error(u_coefficient);
-   subtract(u_rec_avg, u_averages, diff);
-   ConstantCoefficient zeros(0.0);
-   real_t error_avg = diff.ComputeL2Error(zeros);
-
-   Vector el_error(mesh.GetNE());
-   ConstantCoefficient ones(1.0);
-   ParGridFunction zero(&fe_space_reconstruction);
-   zero = 0.0;
-   zero.ComputeElementLpErrors(2.0, ones, el_error);
-   real_t hmax = el_error.Max();
-
-   if (Mpi::Root())
-   {
-      mfem::out << "\n|| u_h - u ||_{L^2} = " << error << "\n" << std::endl;
-      mfem::out << "\n|| Avg(Rec(u_h)) - u_h ||_{L^2} = " << error_avg << "\n" <<
-                std::endl;
-   }
-
-   if (save_to_file && Mpi::Root())
-   {
-      std::ofstream file;
-      file.open("convergence.csv", std::ios::out | std::ios::app);
-      if (!file.is_open())
-      {
-         mfem_error("Failed to open");
-      }
-      file << std::scientific << std::setprecision(16);
-      file << error
-           << "," << fe_space_averages.GetNConformingDofs()
-           << "," << fe_space_reconstruction.GetNConformingDofs()
-           << "," << hmax
-           << "," << mesh.GetNE() << std::endl;
-      file.close();
-   }
-
-   Mpi::Finalize();
-
-   return 0;
-}
