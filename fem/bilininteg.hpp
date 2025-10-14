@@ -4116,5 +4116,12 @@ protected:
    VectorCoefficient *VQ;
 };
 
+namespace internal
+{
+
+constexpr int ipow(int x, int p) { return p == 0 ? 1 : x*ipow(x, p-1); }
+
+}
+
 }
 #endif
