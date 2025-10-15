@@ -44,7 +44,7 @@ void process_qf_arg(
    {
       for (int j = 0; j < n; j++)
       {
-         arg(j, i).value = u((i * m) + j);
+         arg(j, i).value = u((i * n) + j);
       }
    }
 }
@@ -94,8 +94,8 @@ void process_qf_arg(
    {
       for (int j = 0; j < n; j++)
       {
-         arg(j, i).value = u((i * m) + j);
-         arg(j, i).gradient = v((i * m) + j);
+         arg(j, i).value = u((i * n) + j);
+         arg(j, i).gradient = v((i * n) + j);
       }
    }
 }
@@ -338,7 +338,7 @@ void process_qf_arg(
    {
       for (int j = 0; j < n; j++)
       {
-         arg(j, i) = u((i * m) + j);
+         arg(j, i) = u((i * n) + j);
       }
    }
 }
