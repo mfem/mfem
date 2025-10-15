@@ -38,13 +38,13 @@ if (MFEM_USE_MPI)
     ${MFEM_MINIAPPS_COMMON_HEADERS}
     LIBRARIES mfem mfem-common)
   add_dependencies(multidomain_nd copy_miniapps_multidomain_data)
-  
+
   add_mfem_miniapp(multidomain_rt
     MAIN multidomain_rt.cpp
     ${MFEM_MINIAPPS_COMMON_HEADERS}
     LIBRARIES mfem mfem-common)
   add_dependencies(multidomain_rt copy_miniapps_multidomain_data)
-  
+
 # Add parallel tests.
   if (MFEM_ENABLE_TESTING)
     add_test(NAME multidomain_np${MFEM_MPI_NP}

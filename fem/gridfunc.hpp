@@ -16,6 +16,7 @@
 #include "fespace.hpp"
 #include "coefficient.hpp"
 #include "bilininteg.hpp"
+#include "bounds.hpp"
 #ifdef MFEM_USE_ADIOS2
 #include "../general/adios2stream.hpp"
 #endif
@@ -152,7 +153,8 @@ public:
    /// Shortcut for calling SetFromTrueDofs() with GetTrueVector() as argument.
    void SetFromTrueVector() { SetFromTrueDofs(GetTrueVector()); }
 
-   /// Returns the values in the vertices of i'th element for dimension vdim.
+   /** @brief Returns the values at the vertices of element @a i for the 1-based
+       dimension vdim. */
    void GetNodalValues(int i, Array<real_t> &nval, int vdim = 1) const;
 
    /** @name Element index Get Value Methods
@@ -307,7 +309,8 @@ public:
    /// For a vector grid function, makes sure that the ordering is byNODES.
    void ReorderByNodes();
 
-   /// Return the values as a vector on mesh vertices for dimension vdim.
+   /** @brief Returns the values as a vector at mesh vertices, for the 1-based
+       dimension vdim. */
    void GetNodalValues(Vector &nval, int vdim = 1) const;
 
    void GetVectorFieldNodalValues(Vector &val, int comp) const;
@@ -357,6 +360,33 @@ public:
    /** @brief Compute the vector gradient with respect to the reference element
        variable. */
    void GetVectorGradientHat(ElementTransformation &T, DenseMatrix &gh) const;
+
+   /** @brief Evaluate the gradients of the GridFunction at the given quadrature
+       points, @a ir, in all mesh elements. */
+   /** This method assumes that all mesh elements are the same type and that the
+       IntegrationRule @a ir is consistent with that type of element.
+
+       @param[in] ir     Quadrature points at which the gradients are to be
+                         evaluated.
+       @param[out] grad  Output vector of size `SDIM*VDIM*NQ*NE` where `SDIM` is
+                         the spatial dimention of the mesh, `VDIM` is the vector
+                         dimension of the GridFunction, `NQ` is the number of
+                         quadrature points in @a ir, and `NE` is the number of
+                         elements in the mesh. The layout of @a grad is
+                         determined by the parameter @a ql: when @a ql is
+                         QVectorLayout::byNODES, the layout is
+                         `NQ x VDIM x SDIM x NE`; when @a ql is
+                         QVectorLayout::byVDIM, the layout is
+                         `VDIM x SDIM x NQ x NE`.
+       @param[in] ql     Determines the layout of the output vector @a grad; see
+                         the description of @a grad for details.
+       @param[in] d_mt   MemoryType to use for allocating the output vector
+                         @a grad, as well the GeometricFactors and temporary
+                         vector used by the method. By default, the current
+                         device memory type is used. */
+   void GetGradients(const IntegrationRule &ir, Vector &grad,
+                     QVectorLayout ql = QVectorLayout::byNODES,
+                     MemoryType d_mt = MemoryType::DEFAULT) const;
 
    /** Compute $ (\int_{\Omega} (*this) \psi_i)/(\int_{\Omega} \psi_i) $,
        where $ \psi_i $ are the basis functions for the FE space of avgs.
@@ -1561,10 +1591,55 @@ public:
        must be 2 and that quad elements will be broken into two triangles.*/
    void SaveSTL(std::ostream &out, int TimesToRefine = 1);
 
+   /** @name Methods to compute bounds on the grid function
+       \brief See bounds.hpp for \ref PLBound that constructs piecewise linear
+       bounds for a given set of bases. These piecewise bounds can be used to compute bounds on a grid function. Currently tensor-product elements are
+       supported with Lagrange interpolants on Gauss Legendre nodes and Gauss Lobatto Legendre nodes, and Bernstein bases.
+    */
+   ///@{
+   /// Computes the \ref PLBound for the gridfunction with number of control
+   /// points based on @a ref_factor, and returns the overall bounds for each
+   /// vdim (across all elements) in @b lower and @b upper. We also return the
+   /// PLBound object used to compute the bounds.
+   /// We compute the bounds for each vdim if @a vdim < 1.
+   /// Note: For most cases, this method/interface will be sufficient.
+   virtual PLBound GetBounds(Vector &lower, Vector &upper,
+                             const int ref_factor=1, const int vdim=-1);
+
+   /// Computes the \ref PLBound for the gridfunction with number of control
+   /// points based on @a ref_factor, and returns the bounds for each element
+   /// ordered byVDim:
+   /// lower_{0,0}, lower_{1,0}, ..., lower_{ne-1,0},
+   /// lower_{0,1}, ..., lower_{ne-1,vdim-1}. We also return the
+   /// PLBound object used to compute the bounds.
+   /// We compute the bounds for each vdim if @a vdim < 1.
+   PLBound GetElementBounds(Vector &lower, Vector &upper,
+                            const int ref_factor=1, const int vdim=-1);
+
+   /// Compute piecewise linear bounds on the given element at the grid of
+   /// [plb.ncp x plb.ncp x plb.ncp] control points for each of the vdim
+   /// components of the gridfunction.
+   void GetElementBoundsAtControlPoints(const int elem, const PLBound &plb,
+                                        Vector &lower, Vector &upper,
+                                        const int vdim = -1);
+
+   /// Compute bounds on the grid function for the given element.
+   /// The bounds are stored in @b lower and @b upper.
+   void GetElementBounds(const int elem, const PLBound &plb,
+                         Vector &lower, Vector &upper,
+                         const int vdim = -1);
+
+   /// Compute bounds on the grid function for all the elements. The bounds
+   /// are returned in @b lower and @b upper, ordered byVDim:
+   /// lower_{0,0}, lower_{1,0}, ..., lower_{ne-1,0},
+   /// lower_{0,1}, ..., lower_{ne-1,vdim-1}
+   void GetElementBounds(const PLBound &plb, Vector &lower, Vector &upper,
+                         const int vdim=-1);
+   ///@}
+
    /// Destroys grid function.
    virtual ~GridFunction() { Destroy(); }
 };
-
 
 /** Overload operator<< for std::ostream and GridFunction; valid also for the
     derived class ParGridFunction */

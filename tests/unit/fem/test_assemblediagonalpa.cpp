@@ -185,7 +185,7 @@ TEST_CASE("Diffusion Diagonal PA", "[PartialAssembly][AssembleDiagonal]")
    {
       for (int ne = 1; ne < 3; ++ne)
       {
-         const int n_elements = pow(ne, dimension);
+         const int n_elements = static_cast<int>(pow(ne, dimension));
          CAPTURE(dimension, n_elements);
 
          for (int order = 1; order < 5; ++order)
@@ -359,7 +359,7 @@ TEST_CASE("Vector Diffusion Diagonal PA",
 }
 
 TEST_CASE("Hcurl/Hdiv diagonal PA",
-          "[CUDA][PartialAssembly][AssembleDiagonal]")
+          "[GPU][PartialAssembly][AssembleDiagonal]")
 {
    for (int dimension = 2; dimension < 4; ++dimension)
    {
@@ -404,7 +404,7 @@ TEST_CASE("Hcurl/Hdiv diagonal PA",
             {
                for (int ne = 1; ne < 3; ++ne)
                {
-                  const int n_elements = std::pow(ne, dimension);
+                  const int n_elements = static_cast<int>(std::pow(ne, dimension));
                   CAPTURE(dimension, spaceType, integrator, coeffType, n_elements);
 
                   int max_order = (dimension == 3) ? 2 : 3;

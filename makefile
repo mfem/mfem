@@ -124,12 +124,12 @@ EXAMPLE_DIRS := examples $(addprefix examples/,$(EXAMPLE_SUBDIRS))
 EXAMPLE_TEST_DIRS := examples
 
 MINIAPP_SUBDIRS = common electromagnetics meshing navier performance tools \
- toys nurbs gslib adjoint solvers shifted mtop parelag tribol autodiff hooke \
- multidomain dpg hdiv-linear-solver spde
+ toys nurbs gslib adjoint solvers shifted mtop parelag tribol autodiff dfem \
+ hooke multidomain dpg hdiv-linear-solver spde diag-smoothers
 MINIAPP_DIRS := $(addprefix miniapps/,$(MINIAPP_SUBDIRS))
 MINIAPP_TEST_DIRS := $(filter-out %/common,$(MINIAPP_DIRS))
 MINIAPP_USE_COMMON := $(addprefix miniapps/,electromagnetics meshing tools \
- toys shifted dpg)
+ toys shifted dpg diag-smoothers)
 
 EM_DIRS = $(EXAMPLE_DIRS) $(MINIAPP_DIRS)
 
@@ -243,10 +243,23 @@ endif
 
 ifeq ($(MFEM_USE_CUDA),YES)
    MFEM_CXX ?= $(CUDA_CXX)
-   MFEM_HOST_CXX ?= $(HOST_CXX)
-   CXXFLAGS += $(CUDA_FLAGS) -ccbin $(MFEM_HOST_CXX)
-   XCOMPILER = $(CUDA_XCOMPILER)
-   XLINKER   = $(CUDA_XLINKER)
+   ifeq ($(shell $(MFEM_CXX) --version 2>&1 | grep "NVIDIA"),)
+      # assume clang
+      MFEM_HOST_CXX ?= $(MFEM_CXX)
+      CXXFLAGS += $(CLANG_CUDA_FLAGS)
+      XCOMPILER = $(CXX_XCOMPILER)
+      XLINKER   = $(CXX_XLINKER)
+      CUDA_LIB := $(CLANG_CUDA_LIB) $(CUDA_LIB)
+   else
+      ifeq ($(MFEM_USE_ENZYME),YES)
+         $(error Cannot use nvcc with Enzyme! Set CUDA_CXX to CUDA-enabled \
+                 clang++ or an MPI wrapper of that)
+      endif
+      MFEM_HOST_CXX ?= $(HOST_CXX)
+      CXXFLAGS += $(NVCC_FLAGS) -ccbin $(MFEM_HOST_CXX)
+      XCOMPILER = $(CUDA_XCOMPILER)
+      XLINKER   = $(CUDA_XLINKER)
+   endif
    # CUDA_OPT and CUDA_LIB are added below
    # Compatibility test against MFEM_USE_HIP
    ifeq ($(MFEM_USE_HIP),YES)
@@ -285,7 +298,7 @@ ifeq ($(MFEM_USE_LEGACY_OPENMP),YES)
 endif
 
 # List of MFEM dependencies, that require the *_LIB variable to be non-empty
-MFEM_REQ_LIB_DEPS = ENZYME SUPERLU MUMPS METIS FMS CONDUIT SIDRE LAPACK SUNDIALS\
+MFEM_REQ_LIB_DEPS = SUPERLU MUMPS METIS FMS CONDUIT SIDRE LAPACK SUNDIALS\
  SUITESPARSE STRUMPACK GINKGO GNUTLS HDF5 NETCDF SLEPC PETSC MPFR PUMI HIOP\
  GSLIB OCCA CEED RAJA UMPIRE MKL_CPARDISO MKL_PARDISO AMGX MAGMA CALIPER PARELAG\
  TRIBOL BENCHMARK MOONOLITH ALGOIM
@@ -307,7 +320,7 @@ ifeq ($(MAKECMDGOALS),config)
 endif
 
 # List of MFEM dependencies, processed below
-MFEM_DEPENDENCIES = $(MFEM_REQ_LIB_DEPS) LIBUNWIND OPENMP CUDA HIP
+MFEM_DEPENDENCIES = ENZYME $(MFEM_REQ_LIB_DEPS) LIBUNWIND OPENMP CUDA HIP
 
 # List of deprecated MFEM dependencies, processed below
 MFEM_LEGACY_DEPENDENCIES = OPENMP
@@ -364,7 +377,7 @@ MFEM_CONFIG_VARS = MFEM_CXX MFEM_HOST_CXX MFEM_CPPFLAGS MFEM_CXXFLAGS\
  MFEM_INC_DIR MFEM_TPLFLAGS MFEM_INCFLAGS MFEM_PICFLAG MFEM_FLAGS MFEM_LIB_DIR\
  MFEM_EXT_LIBS MFEM_LIBS MFEM_LIB_FILE MFEM_STATIC MFEM_SHARED MFEM_BUILD_TAG\
  MFEM_PREFIX MFEM_CONFIG_EXTRA MFEM_MPIEXEC MFEM_MPIEXEC_NP MFEM_MPI_NP\
- MFEM_TEST_MK
+ MFEM_TEST_MK MFEM_XLINKER
 
 # Config vars: values of the form @VAL@ are replaced by $(VAL) in config.mk
 MFEM_CPPFLAGS  ?= $(CPPFLAGS)
@@ -381,6 +394,7 @@ MFEM_BUILD_TAG ?= $(shell uname -snm)
 MFEM_PREFIX    ?= $(PREFIX)
 MFEM_INC_DIR   ?= $(if $(CONFIG_FILE_DEF),@MFEM_BUILD_DIR@,@MFEM_DIR@)
 MFEM_LIB_DIR   ?= $(if $(CONFIG_FILE_DEF),@MFEM_BUILD_DIR@,@MFEM_DIR@)
+MFEM_XLINKER   ?= $(XLINKER)
 MFEM_TEST_MK   ?= @MFEM_DIR@/config/test.mk
 # Use "\n" (interpreted by sed) to add a newline.
 MFEM_CONFIG_EXTRA ?= $(if $(CONFIG_FILE_DEF),MFEM_BUILD_DIR ?= @MFEM_DIR@,)
@@ -429,7 +443,7 @@ DIRS = general linalg linalg/batched linalg/simd mesh mesh/submesh fem \
        fem/ceed/integrators/mass fem/ceed/integrators/convection \
        fem/ceed/integrators/diffusion fem/ceed/integrators/nlconvection \
        fem/ceed/interface fem/ceed/solvers fem/eltrans fem/fe fem/gslib \
-       fem/integ fem/lor fem/moonolith fem/qinterp fem/tmop
+       fem/integ fem/lor fem/moonolith fem/qinterp fem/tmop fem/dfem
 
 ifeq ($(MFEM_USE_MOONOLITH),YES)
    MFEM_CXXFLAGS += $(MOONOLITH_CXX_FLAGS)
