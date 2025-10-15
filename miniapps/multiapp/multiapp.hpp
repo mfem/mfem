@@ -59,6 +59,9 @@ public:
     virtual void Transfer(const ParGridFunction &src, ParGridFunction &tar) = 0;
     virtual ~FieldTransfer() {}
 
+    /// Function for selecting the desired FieldTransfer scheme
+    /// Returns a pointer to the selected FieldTransfer object
+    /// Caller gets ownership is responsible for its deletion
     static MFEM_EXPORT FieldTransfer* Select(ParFiniteElementSpace *src,
                                              ParFiniteElementSpace *tar,
                                              Type type);    
@@ -305,6 +308,10 @@ public:
     }
     GSLibTransfer(ParGridFunction &src_gf, ParGridFunction &tar_gf,
                   Array<int> attr = Array<int>())
+    {
+        MFEM_ABORT("MFEM is not built with GSLIB support.");
+    }
+    void Transfer(const ParGridFunction &src, ParGridFunction &tar) override
     {
         MFEM_ABORT("MFEM is not built with GSLIB support.");
     }
@@ -1605,6 +1612,8 @@ public:
     
     /**
      * @brief Function for selecting the desired OperatorCoupler for coupling @a op
+     * based on the specified coupling @a type. The called gets ownership of the
+     * returned pointer and is responsible for deleting it.
      */
     static MFEM_EXPORT OperatorCoupler* Select(CoupledOperator *op, Scheme type);
 
