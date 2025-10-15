@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -104,6 +104,9 @@ public:
    /// For backward compatibility define Size to be synonym of Width()
    int Size() const { return Width(); }
 
+   // Total size = width*height
+   int TotalSize() const { return width*height; }
+
    /// Change the size of the DenseMatrix to s x s.
    void SetSize(int s) { SetSize(s, s); }
 
@@ -153,6 +156,9 @@ public:
    /// Matrix vector multiplication.
    void Mult(const Vector &x, Vector &y) const override;
 
+   /// Absolute-value matrix vector multiplication.
+   void AbsMult(const Vector &x, Vector &y) const override;
+
    /// Multiply a vector with the transpose matrix.
    void MultTranspose(const real_t *x, real_t *y) const;
 
@@ -164,6 +170,9 @@ public:
 
    /// Multiply a vector with the transpose matrix.
    void MultTranspose(const Vector &x, Vector &y) const override;
+
+   /// Multiply a vector with the absolute-value transpose matrix.
+   void AbsMultTranspose(const Vector &x, Vector &y) const override;
 
    using Operator::Mult;
    using Operator::MultTranspose;
@@ -1177,6 +1186,31 @@ public:
       tdata.Wrap(ext_data, i*j*k, false);
    }
 
+   /// @brief Reset the DenseTensor to use the given external Memory @a mem and
+   /// dimensions @a i, @a j, and @a k.
+   ///
+   /// If @a own_mem is false, the DenseTensor will not own any of the pointers
+   /// of @a mem.
+   ///
+   /// Note that when @a own_mem is true, the @a mem object can be destroyed
+   /// immediately by the caller but `mem.Delete()` should NOT be called since
+   /// the DenseTensor object takes ownership of all pointers owned by @a mem.
+   void NewMemoryAndSize(const Memory<real_t> &mem, int i, int j, int k,
+                         bool own_mem)
+   {
+      tdata.Delete();
+      Mk.UseExternalData(NULL, i, j);
+      nk = k;
+      if (own_mem)
+      {
+         tdata = mem;
+      }
+      else
+      {
+         tdata.MakeAlias(mem, 0, i*j*k);
+      }
+   }
+
    /// Sets the tensor elements equal to constant c
    DenseTensor &operator=(real_t c);
 
@@ -1298,6 +1332,12 @@ void BatchLUFactor(DenseTensor &Mlu, Array<int> &P, const real_t TOL = 0.0);
     dimension m x n. */
 void BatchLUSolve(const DenseTensor &Mlu, const Array<int> &P, Vector &X);
 
+#ifdef MFEM_USE_LAPACK
+void BandedSolve(int KL, int KU, DenseMatrix &AB, DenseMatrix &B,
+                 Array<int> &ipiv);
+void BandedFactorizedSolve(int KL, int KU, DenseMatrix &AB, DenseMatrix &B,
+                           bool transpose, Array<int> &ipiv);
+#endif
 
 // Inline methods
 

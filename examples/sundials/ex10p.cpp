@@ -541,7 +541,11 @@ int main(int argc, char *argv[])
          arkode = new ARKStepSolver(MPI_COMM_WORLD, ARKStepSolver::IMPLICIT);
          arkode->Init(*oper);
          arkode->SetSStolerances(reltol, abstol);
+#if MFEM_SUNDIALS_VERSION < 70100
          ARKStepSetNonlinConvCoef(arkode->GetMem(), arkode_eps_nonlin);
+#else
+         ARKodeSetNonlinConvCoef(arkode->GetMem(), arkode_eps_nonlin);
+#endif
          arkode->SetMaxStep(dt);
          if (ode_solver_type == 15)
          {

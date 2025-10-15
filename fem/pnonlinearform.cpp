@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -199,14 +199,30 @@ const ParFiniteElementSpace *ParBlockNonlinearForm::ParFESpace(int k) const
 }
 
 // Here, rhs is a true dof vector
-void ParBlockNonlinearForm::SetEssentialBC(const
-                                           Array<Array<int> *>&bdr_attr_is_ess,
-                                           Array<Vector *> &rhs)
+void ParBlockNonlinearForm::SetEssentialBC(
+   const Array<Array<int>*> &bdr_attr_is_ess, Array<Vector*> &rhs)
 {
    Array<Vector *> nullarray(fes.Size());
    nullarray = NULL;
 
    BlockNonlinearForm::SetEssentialBC(bdr_attr_is_ess, nullarray);
+
+   for (int s = 0; s < fes.Size(); ++s)
+   {
+      if (rhs[s])
+      {
+         rhs[s]->SetSubVector(*ess_tdofs[s], 0.0);
+      }
+   }
+}
+
+void ParBlockNonlinearForm::SetEssentialTrueDofs(
+   const Array<Array<int>*> &ess_tdof_list, Array<Vector*> &rhs)
+{
+   Array<Vector *> nullarray(fes.Size());
+   nullarray = nullptr;
+
+   BlockNonlinearForm::SetEssentialTrueDofs(ess_tdof_list, nullarray);
 
    for (int s = 0; s < fes.Size(); ++s)
    {

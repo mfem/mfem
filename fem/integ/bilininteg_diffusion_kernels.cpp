@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -16,10 +16,11 @@ namespace mfem
 
 // PA Diffusion Integrator
 
-DiffusionIntegrator::Kernels DiffusionIntegrator::kernels;
 DiffusionIntegrator::Kernels::Kernels()
 {
    // 2D
+   // Q = P+1
+   DiffusionIntegrator::AddSpecialization<2,1,1>();
    DiffusionIntegrator::AddSpecialization<2,2,2>();
    DiffusionIntegrator::AddSpecialization<2,3,3>();
    DiffusionIntegrator::AddSpecialization<2,4,4>();
@@ -28,17 +29,39 @@ DiffusionIntegrator::Kernels::Kernels()
    DiffusionIntegrator::AddSpecialization<2,7,7>();
    DiffusionIntegrator::AddSpecialization<2,8,8>();
    DiffusionIntegrator::AddSpecialization<2,9,9>();
+   // Q = P+2
+   DiffusionIntegrator::AddSpecialization<2,1,2>();
+   DiffusionIntegrator::AddSpecialization<2,2,3>();
+   DiffusionIntegrator::AddSpecialization<2,3,4>();
+   DiffusionIntegrator::AddSpecialization<2,4,5>();
+   DiffusionIntegrator::AddSpecialization<2,5,6>();
+   DiffusionIntegrator::AddSpecialization<2,6,7>();
+   DiffusionIntegrator::AddSpecialization<2,7,8>();
+   DiffusionIntegrator::AddSpecialization<2,8,9>();
+   DiffusionIntegrator::AddSpecialization<2,9,10>();
+   // others
    // 3D
+   // Q = P+1
+   DiffusionIntegrator::AddSpecialization<3,1,1>();
    DiffusionIntegrator::AddSpecialization<3,2,2>();
+   DiffusionIntegrator::AddSpecialization<3,3,3>();
+   DiffusionIntegrator::AddSpecialization<3,4,4>();
+   DiffusionIntegrator::AddSpecialization<3,5,5>();
+   DiffusionIntegrator::AddSpecialization<3,6,6>();
+   DiffusionIntegrator::AddSpecialization<3,7,7>();
+   DiffusionIntegrator::AddSpecialization<3,8,8>();
+   // Q = P+2
+   DiffusionIntegrator::AddSpecialization<3,1,2>();
    DiffusionIntegrator::AddSpecialization<3,2,3>();
    DiffusionIntegrator::AddSpecialization<3,3,4>();
    DiffusionIntegrator::AddSpecialization<3,4,5>();
-   DiffusionIntegrator::AddSpecialization<3,4,6>();
    DiffusionIntegrator::AddSpecialization<3,5,6>();
-   DiffusionIntegrator::AddSpecialization<3,5,8>();
    DiffusionIntegrator::AddSpecialization<3,6,7>();
    DiffusionIntegrator::AddSpecialization<3,7,8>();
    DiffusionIntegrator::AddSpecialization<3,8,9>();
+   // others
+   DiffusionIntegrator::AddSpecialization<3,4,6>();
+   DiffusionIntegrator::AddSpecialization<3,5,8>();
 }
 
 namespace internal
@@ -201,7 +224,7 @@ void PADiffusionSetup2D<3>(const int Q1D,
             const real_t E = J11*J11 + J21*J21 + J31*J31;
             const real_t G = J12*J12 + J22*J22 + J32*J32;
             const real_t F = J11*J12 + J21*J22 + J31*J32;
-            const real_t iw = 1.0 / sqrt(E*G - F*F);
+            const real_t iw = 1.0 / std::sqrt(E*G - F*F);
             const real_t coeff = const_c ? C(0,0,0) : C(qx,qy,e);
             const real_t alpha = wq * coeff * iw;
             D(qx,qy,0,e) =  alpha * G; // 1,1
