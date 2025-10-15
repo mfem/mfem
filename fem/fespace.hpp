@@ -113,7 +113,7 @@ class QuadratureSpace;
 class QuadratureInterpolator;
 class FaceQuadratureInterpolator;
 class PRefinementTransferOperator;
-
+struct DerefineMatrixOp;
 
 /** @brief Class FiniteElementSpace - responsible for providing FEM view of the
     mesh, mainly managing the set of degrees of freedom.
@@ -246,6 +246,7 @@ class FiniteElementSpace
    friend class PRefinementTransferOperator;
    friend void Mesh::Swap(Mesh &, bool);
    friend class LORBase;
+   friend struct DerefineMatrixOp;
 
 protected:
    /// The mesh that FE space lives on (not owned).
@@ -682,8 +683,12 @@ public:
    NURBSExtension *GetNURBSext() { return NURBSext; }
    NURBSExtension *StealNURBSext();
 
-   bool Conforming() const { return mesh->Conforming() && cP == NULL; }
-   bool Nonconforming() const { return mesh->Nonconforming() || cP != NULL; }
+   bool Conforming() const
+   {
+      return NURBSext != NULL ||
+             (mesh->Conforming() && cP == NULL);
+   }
+   bool Nonconforming() const { return !Conforming(); }
 
    /** Set the prolongation operator of the space to an arbitrary sparse matrix,
        creating a copy of the argument. */
@@ -921,6 +926,9 @@ public:
    { return mesh->GetBdrElementType(i); }
 
    /// Returns ElementTransformation for the @a i-th element.
+   /// @note The returned pointer references an object owned by the associated
+   /// @a Mesh that will be modified by other calls to `GetElementTransformation`.
+   /// As such, this pointer should @b not be deleted by the caller.
    ElementTransformation *GetElementTransformation(int i) const
    { return mesh->GetElementTransformation(i); }
 

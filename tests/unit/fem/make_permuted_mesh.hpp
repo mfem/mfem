@@ -9,20 +9,17 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#define CATCH_CONFIG_RUNNER
+#ifndef MFEM_MAKE_PERMUTED_MESH_HPP
+#define MFEM_MAKE_PERMUTED_MESH_HPP
+
 #include "mfem.hpp"
-#include "run_unit_tests.hpp"
+#include "unit_tests.hpp"
 
-int main(int argc, char *argv[])
+namespace mfem
 {
-#ifdef MFEM_USE_SINGLE
-   std::cout << "\nThe serial CUDA unit tests are not supported in single"
-             " precision.\n\n";
-   return MFEM_SKIP_RETURN_VALUE;
-#endif
 
-   mfem::Device device("cuda");
+Mesh MeshOrientation(int dim, int o1, int o2);
 
-   // Include only tests labeled with CUDA. Exclude parallel tests.
-   return RunCatchSession(argc, argv, {"[CUDA]", "~[Parallel]"});
 }
+
+#endif
