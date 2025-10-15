@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -14,9 +14,21 @@
 #   - HDF5_LIBRARIES - The HDF5 libraries
 #   - HDF5_INCLUDE_DIRS - The HDF5 include directories
 
+# NOTE: Using this FindHDF5.cmake instead of the CMake provided version may lead
+#       to issues with some TPL libraries that depend (or may depend) on HDF5.
+#       For this reason, we should consider removing this file, or at least
+#       making it use the CMake provided version by default and apply the logic
+#       below only when specifically requested by a user.  -V. Dobrev
+
 # First Check for HDF5_DIR
 if(NOT HDF5_DIR)
-    MESSAGE(FATAL_ERROR "Could not find HDF5. HDF5 support needs explicit HDF5_DIR")
+  message(FATAL_ERROR
+    "Could not find HDF5. HDF5 support needs explicit HDF5_DIR")
+endif()
+
+if (NOT HDF5_FIND_QUIETLY)
+  message(STATUS "Looking for HDF5 ...")
+  message(STATUS "   in HDF5_DIR = ${HDF5_DIR}")
 endif()
 
 # Find includes
@@ -50,8 +62,9 @@ include(FindPackageHandleStandardArgs)
 
 # Handle the QUIETLY and REQUIRED arguments and set HDF5_FOUND to TRUE if all
 # listed variables are TRUE
-find_package_handle_standard_args(HDF5  DEFAULT_MSG
+find_package_handle_standard_args(HDF5
+                                  " *** HDF5 not found. Please set HDF5_DIR."
+                                  HDF5_LIBRARIES
                                   HDF5_INCLUDE_DIRS
                                   __HDF5_LIBRARY
-                                  __HDF5_HL_LIBRARY
-                                  HDF5_LIBRARIES )
+                                  __HDF5_HL_LIBRARY)

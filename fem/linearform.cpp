@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -19,22 +19,27 @@ namespace mfem
 LinearForm::LinearForm(FiniteElementSpace *f, LinearForm *lf)
    : Vector(f->GetVSize())
 {
+   ext = nullptr;
+   extern_lfs = 1;
+   fast_assembly = false;
+   fes = f;
+
    // Linear forms are stored on the device
    UseDevice(true);
 
-   fes = f;
-   ext = nullptr;
-   extern_lfs = 1;
-
-   // Copy the pointers to the integrators
+   // Copy the pointers to the integrators and the corresponding marker arrays
    domain_integs = lf->domain_integs;
+   domain_integs_marker = lf->domain_integs_marker;
 
    domain_delta_integs = lf->domain_delta_integs;
 
    boundary_integs = lf->boundary_integs;
+   boundary_integs_marker = lf->boundary_integs_marker;
 
    boundary_face_integs = lf->boundary_face_integs;
    boundary_face_integs_marker = lf->boundary_face_integs_marker;
+
+   interior_face_integs = lf->interior_face_integs;
 }
 
 void LinearForm::AddDomainIntegrator(LinearFormIntegrator *lfi)
@@ -100,11 +105,12 @@ void LinearForm::AddInteriorFaceIntegrator(LinearFormIntegrator *lfi)
    interior_face_integs.Append(lfi);
 }
 
-bool LinearForm::SupportsDevice()
+bool LinearForm::SupportsDevice() const
 {
-   // return false for NURBS meshs, so we don’t convert it to non-NURBS
+   // return false for NURBS meshes, so we don’t convert it to non-NURBS
    // through Assemble, AssembleDevice, GetGeometricFactors and EnsureNodes
-   if (fes->GetMesh()->NURBSext != nullptr) { return false; }
+   const Mesh &mesh = *fes->GetMesh();
+   if (mesh.NURBSext != nullptr) { return false; }
 
    // scan integrators to verify that all can use device assembly
    auto IntegratorsSupportDevice = [](const Array<LinearFormIntegrator*> &integ)
@@ -123,24 +129,22 @@ bool LinearForm::SupportsDevice()
 
    if (boundary_integs.Size() > 0)
    {
-      // Make sure every boundary element corresponds to a boundary face
-      for (int be = 0; be < fes->GetNBE(); ++be)
-      {
-         const int f = fes->GetMesh()->GetBdrElementEdgeIndex(be);
-         const auto face_info = fes->GetMesh()->GetFaceInformation(f);
-         if (!face_info.IsBoundary())
-         {
-            return false;
-         }
-      }
       // Make sure there are no boundary faces that are not boundary elements
       if (fes->GetNFbyType(FaceType::Boundary) != fes->GetNBE())
       {
          return false;
       }
+      // Make sure every boundary element corresponds to a boundary face
+      for (int be = 0; be < fes->GetNBE(); ++be)
+      {
+         const int f = mesh.GetBdrElementFaceIndex(be);
+         const auto face_info = mesh.GetFaceInformation(f);
+         if (!face_info.IsBoundary())
+         {
+            return false;
+         }
+      }
    }
-
-   const Mesh &mesh = *fes->GetMesh();
 
    // no support for elements with varying polynomial orders
    if (fes->IsVariableOrder()) { return false; }
@@ -155,17 +159,21 @@ bool LinearForm::SupportsDevice()
    return true;
 }
 
-void LinearForm::Assemble(bool use_device)
+void LinearForm::UseFastAssembly(bool use_fa)
 {
-   Array<int> vdofs;
-   ElementTransformation *eltrans;
-   DofTransformation *doftrans;
-   Vector elemvect;
+   fast_assembly = use_fa;
 
-   if (!ext && use_device && SupportsDevice())
+   if (fast_assembly && SupportsDevice() && !ext)
    {
       ext = new LinearFormExtension(this);
    }
+}
+
+void LinearForm::Assemble()
+{
+   Array<int> vdofs;
+   ElementTransformation *eltrans;
+   Vector elemvect;
 
    Vector::operator=(0.0);
 
@@ -173,7 +181,7 @@ void LinearForm::Assemble(bool use_device)
    // The first use of AddElementVector() below will move it back to host
    // because both 'vdofs' and 'elemvect' are on host.
 
-   if (ext) { return ext->Assemble(); }
+   if (fast_assembly && ext) { return ext->Assemble(); }
 
    if (domain_integs.Size())
    {
@@ -189,22 +197,21 @@ void LinearForm::Assemble(bool use_device)
          }
       }
 
+      DofTransformation doftrans;
       for (int i = 0; i < fes -> GetNE(); i++)
       {
          int elem_attr = fes->GetMesh()->GetAttribute(i);
          for (int k = 0; k < domain_integs.Size(); k++)
          {
             const Array<int> * const markers = domain_integs_marker[k];
+            if (markers) { markers->HostRead(); }
             if ( markers == NULL || (*markers)[elem_attr-1] == 1 )
             {
-               doftrans = fes -> GetElementVDofs (i, vdofs);
+               fes -> GetElementVDofs (i, vdofs, doftrans);
                eltrans = fes -> GetElementTransformation (i);
                domain_integs[k]->AssembleRHSElementVect(*fes->GetFE(i),
                                                         *eltrans, elemvect);
-               if (doftrans)
-               {
-                  doftrans->TransformDual(elemvect);
-               }
+               doftrans.TransformDual(elemvect);
                AddElementVector (vdofs, elemvect);
             }
          }
@@ -237,11 +244,12 @@ void LinearForm::Assemble(bool use_device)
          }
       }
 
+      DofTransformation doftrans;
       for (int i = 0; i < fes -> GetNBE(); i++)
       {
          const int bdr_attr = mesh->GetBdrAttribute(i);
          if (bdr_attr_marker[bdr_attr-1] == 0) { continue; }
-         doftrans = fes -> GetBdrElementVDofs (i, vdofs);
+         fes -> GetBdrElementVDofs (i, vdofs, doftrans);
          eltrans = fes -> GetBdrElementTransformation (i);
          for (int k=0; k < boundary_integs.Size(); k++)
          {
@@ -250,11 +258,7 @@ void LinearForm::Assemble(bool use_device)
 
             boundary_integs[k]->AssembleRHSElementVect(*fes->GetBE(i),
                                                        *eltrans, elemvect);
-
-            if (doftrans)
-            {
-               doftrans->TransformDual(elemvect);
-            }
+            doftrans.TransformDual(elemvect);
             AddElementVector (vdofs, elemvect);
          }
       }
@@ -398,7 +402,7 @@ void LinearForm::AssembleDelta()
    }
 }
 
-LinearForm & LinearForm::operator=(double value)
+LinearForm & LinearForm::operator=(real_t value)
 {
    Vector::operator=(value);
    return *this;

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -44,18 +44,18 @@ int material(Vector &p, Vector &pmin, Vector &pmax)
       p(i) = (p(i)-pmin(i))/(pmax(i)-pmin(i));
    }
    p(0) -= 0.1;
-   double col = p(0), row = p(1);
+   real_t col = p(0), row = p(1);
    {
       int width = 1080, height = 1080;
       col *= width;
       row *= height;
-      double c_re = (col - width/2)*4.0/width;
-      double c_im = (row - height/2)*4.0/width;
-      double x = 0, y = 0;
+      real_t c_re = (col - width/2)*4.0/width;
+      real_t c_im = (row - height/2)*4.0/width;
+      real_t x = 0, y = 0;
       int iteration = 0, maxit = 10000;
       while (x*x+y*y <= 4 && iteration < maxit)
       {
-         double x_new = x*x - y*y + c_re;
+         real_t x_new = x*x - y*y + c_re;
          y = 2*x*y + c_im;
          x = x_new;
          iteration++;
@@ -78,6 +78,7 @@ int main(int argc, char *argv[])
    int nclimit = 1;
    bool aniso = false;
    bool visualization = 1;
+   int visport = 19916;
 
    // Parse command line
    OptionsParser args(argc, argv);
@@ -92,6 +93,7 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.Parse();
    if (!args.Good()) { args.PrintUsage(cout); return 1; }
    args.PrintOptions(cout);
@@ -122,7 +124,6 @@ int main(int argc, char *argv[])
    if (visualization)
    {
       char vishost[] = "localhost";
-      int  visport   = 19916;
       sol_sock.open(vishost, visport);
       sol_sock.precision(8);
    }
@@ -146,7 +147,7 @@ int main(int argc, char *argv[])
          // sophisticated logic can be implemented here -- e.g. don't refine
          // the interfaces between certain materials.
          Array<int> mat(ir.GetNPoints());
-         double matsum = 0.0;
+         real_t matsum = 0.0;
          for (int j = 0; j < ir.GetNPoints(); j++)
          {
             T->Transform(ir.IntPoint(j), pt);

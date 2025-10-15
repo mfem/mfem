@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -25,7 +25,8 @@ class LinearForm;
 class LinearFormExtension
 {
    /// Attributes of all mesh elements.
-   Array<int> attributes, bdr_attributes;
+   const Array<int> *attributes; // Not owned
+   const Array<int> *bdr_face_attributes; // Not owned
 
    /// Temporary markers for device kernels.
    Array<int> markers, bdr_markers;

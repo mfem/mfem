@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -22,8 +22,8 @@ mfem_find_package(SUNDIALS SUNDIALS SUNDIALS_DIR
     "include" nvector/nvector_serial.h "lib" sundials_nvecserial
   ADD_COMPONENT NVector_Cuda
     "include" nvector/nvector_cuda.h "lib" sundials_nveccuda
-  ADD_COMPONENT NVector_ParHyp
-    "include" nvector/nvector_parhyp.h "lib" sundials_nvecparhyp
+  ADD_COMPONENT NVector_Hip
+    "include" nvector/nvector_hip.h "lib" sundials_nvechip
   ADD_COMPONENT NVector_Parallel
     "include" nvector/nvector_parallel.h "lib" sundials_nvecparallel
   ADD_COMPONENT NVector_MPIPlusX
@@ -31,4 +31,5 @@ mfem_find_package(SUNDIALS SUNDIALS SUNDIALS_DIR
   ADD_COMPONENT CVODE "include" cvode/cvode.h "lib" sundials_cvode
   ADD_COMPONENT CVODES "include" cvodes/cvodes.h "lib" sundials_cvodes
   ADD_COMPONENT ARKODE "include" arkode/arkode.h "lib" sundials_arkode
-  ADD_COMPONENT KINSOL "include" kinsol/kinsol.h "lib" sundials_kinsol)
+  ADD_COMPONENT KINSOL "include" kinsol/kinsol.h "lib" sundials_kinsol
+  ADD_COMPONENT Core "include" sundials/sundials_core.h "lib" sundials_core)

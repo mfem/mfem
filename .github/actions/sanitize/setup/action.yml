@@ -1,0 +1,64 @@
+# Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+# at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+# LICENSE and NOTICE for details. LLNL-CODE-806117.
+#
+# This file is part of the MFEM library. For more information and source code
+# availability visit https://mfem.org.
+#
+# MFEM is free software; you can redistribute it and/or modify it under the
+# terms of the BSD-3 license. We welcome feedback and contributions, see file
+# CONTRIBUTING.md for details.
+---
+name: 'Setup state'
+description: 'Sets up the state to be able to run build & run'
+
+inputs:
+  par:
+    description: 'Whether to build for parallel (true/false)'
+    default: false
+  sanitizer:
+    description: 'Sanitizer to use (asan, msan, ubsan)'
+    default: asan
+
+runs:
+  using: 'composite'
+  steps:
+    - uses: actions/cache/restore@v4  # Cache for LLVM libcxx
+      with:
+        path: ${{env.LLVM_DIR}}
+        fail-on-cache-miss: true
+        key: build-libcxx-${{env.LLVM_VER}}-${{inputs.sanitizer}}
+
+    - uses: ./.github/actions/sanitize/mpi
+      if: ${{inputs.par == 'true'}}
+
+    - uses: actions/cache/restore@v4  # Cache for Hypre
+      if: ${{inputs.par == 'true'}}
+      with:
+        path: ${{env.HYPRE_DIR}}
+        fail-on-cache-miss: true
+        key: ${{runner.os}}-ompi-build-${{env.HYPRE_DIR}}-int32-fp64-v2.5
+
+    - uses: actions/cache/restore@v4  # Cache for Metis
+      if: ${{inputs.par == 'true'}}
+      with:
+        path: ${{env.METIS_DIR}}
+        fail-on-cache-miss: true
+        key: ${{runner.os}}-build-${{env.METIS_DIR}}-v2.5
+
+    - name: Hypre/Metis links
+      if: ${{inputs.par == 'true'}}
+      run: ln -s -f ${{env.HYPRE_DIR}} hypre && ln -s -f ${{env.METIS_DIR}} metis-4.0
+      shell: bash
+
+    - uses: actions/cache/restore@v4  # Cache for LSAN suppression file
+      with:
+        path: ${{env.LSAN_DIR}}
+        fail-on-cache-miss: true
+        key: build-lsan-suppression-file
+
+    - uses: actions/checkout@v4  # Checkout the repository
+      with:
+        path: mfem
+        # ref: ${{env.BRANCH}}
+        # repository: ${{env.REPOSITORY}}
