@@ -300,3 +300,50 @@ TEST_CASE("Face Quadrature Function Coefficients", "[Coefficient]")
       }
    }
 }
+
+TEST_CASE("QuadratureFunction::ProjectGridFunction",
+          "[Coefficient][QuadratureFunction]")
+{
+   auto ftype = GENERATE(FaceType::Interior, FaceType::Boundary);
+   const int order = GENERATE(1, 2);
+   const int int_order = order + 1;
+   const auto mesh_fname = GENERATE(
+                              "../../data/star.mesh",
+                              "../../data/star-mixed.mesh",
+                              "../../data/fichera.mesh",
+                              "../../data/fichera-mixed.mesh",
+                              "../../data/inline-tri.mesh",
+                              "../../data/inline-tet.mesh",
+                              "../../data/inline-wedge.mesh",
+                              "../../data/inline-pyramid.mesh"
+                           );
+   CAPTURE(ftype, order, mesh_fname);
+
+   Mesh mesh(mesh_fname);
+
+   H1_FECollection fec(order, mesh.Dimension());
+   FiniteElementSpace fes(&mesh, &fec);
+
+   GridFunction gf(&fes);
+   gf.Randomize(1);
+   GridFunctionCoefficient coeff(&gf);
+
+   FaceQuadratureSpace qs(mesh, int_order, ftype);
+   QuadratureFunction qf(qs);
+
+   coeff.Project(qf);
+
+   for (int i = 0; i < qs.GetNE(); ++i)
+   {
+      const IntegrationRule &ir = qs.GetIntRule(i);
+      ElementTransformation &T = *qs.GetTransformation(i);
+      Vector values;
+      qf.GetValues(i, values);
+      for (int iq = 0; iq < ir.Size(); ++iq)
+      {
+         const int iq_p = qs.GetPermutedIndex(i, iq);
+         const IntegrationPoint &ip = ir[iq];
+         REQUIRE(coeff.Eval(T, ip) == MFEM_Approx(values[iq_p]));
+      }
+   }
+}
