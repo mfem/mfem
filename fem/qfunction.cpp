@@ -82,20 +82,22 @@ void QuadratureFunction::ProjectGridFunction(const GridFunction &gf)
                                           ElementDofOrdering::LEXICOGRAPHIC :
                                           ElementDofOrdering::NATIVE;
 
-      // Use element restriction to go from L-vector to E-vector
-      const Operator *R = gf_fes.GetElementRestriction(ordering);
-      Vector e_vec(R->Height());
-      R->Mult(gf, e_vec);
-
       // Use quadrature interpolator to go from E-vector to Q-vector
       const QuadratureInterpolator *qi =
          gf_fes.GetQuadratureInterpolator(*qs_elem);
 
+      // If quadrature interpolator doesn't support this space, then fallback
+      // on slower (non-device) version, and return early.
       if (!qi)
       {
          ProjectGridFunctionFallback(gf);
          return;
       }
+
+      // Use element restriction to go from L-vector to E-vector
+      const Operator *R = gf_fes.GetElementRestriction(ordering);
+      Vector e_vec(R->Height());
+      R->Mult(gf, e_vec);
 
       qi->SetOutputLayout(QVectorLayout::byVDIM);
       qi->DisableTensorProducts(!use_tensor_products);
@@ -104,28 +106,31 @@ void QuadratureFunction::ProjectGridFunction(const GridFunction &gf)
    else if (auto *qs_face = dynamic_cast<FaceQuadratureSpace*>(qspace))
    {
       const FiniteElementSpace &gf_fes = *gf.FESpace();
+      const FaceType face_type = qs_face->GetFaceType();
       const bool use_tensor_products = UsesTensorBasis(gf_fes);
       const ElementDofOrdering ordering = use_tensor_products ?
                                           ElementDofOrdering::LEXICOGRAPHIC :
                                           ElementDofOrdering::NATIVE;
 
-      const FaceType face_type = qs_face->GetFaceType();
+      // Use quadrature interpolator to go from E-vector to Q-vector
+      const FaceQuadratureInterpolator *qi =
+         gf_fes.GetFaceQuadratureInterpolator(qspace->GetIntRule(0), face_type);
+
+      // If quadrature interpolator doesn't support this space, then fallback
+      // on slower (non-device) version, and return early. Also, currently,
+      // ElementDofOrdering::NATIVE in FaceRestriction, so fall back in that
+      // case too.
+      if (qi == nullptr || ordering == ElementDofOrdering::NATIVE)
+      {
+         ProjectGridFunctionFallback(gf);
+         return;
+      }
 
       // Use element restriction to go from L-vector to E-vector
       const Operator *R = gf_fes.GetFaceRestriction(
                              ordering, face_type, L2FaceValues::SingleValued);
       Vector e_vec(R->Height());
       R->Mult(gf, e_vec);
-
-      // Use quadrature interpolator to go from E-vector to Q-vector
-      const FaceQuadratureInterpolator *qi =
-         gf_fes.GetFaceQuadratureInterpolator(qspace->GetIntRule(0), face_type);
-
-      if (!qi)
-      {
-         ProjectGridFunctionFallback(gf);
-         return;
-      }
 
       qi->SetOutputLayout(QVectorLayout::byVDIM);
       qi->DisableTensorProducts(!use_tensor_products);
