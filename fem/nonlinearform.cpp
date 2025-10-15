@@ -1205,7 +1205,14 @@ const BlockVector &BlockNonlinearForm::Prolongate(const BlockVector &bx) const
       aux1.Update(block_offsets);
       for (int s = 0; s < fes.Size(); s++)
       {
-         P[s]->Mult(bx.GetBlock(s), aux1.GetBlock(s));
+         if (P[s])
+         {
+            P[s]->Mult(bx.GetBlock(s), aux1.GetBlock(s));
+         }
+         else
+         {
+            aux1.GetBlock(s) = bx.GetBlock(s);
+         }
       }
       return aux1;
    }
@@ -1233,6 +1240,10 @@ void BlockNonlinearForm::Mult(const Vector &x, Vector &y) const
       if (cP[s])
       {
          cP[s]->MultTranspose(pby.GetBlock(s), by.GetBlock(s));
+      }
+      else if (needs_prolongation)
+      {
+         by.GetBlock(s) = pby.GetBlock(s);
       }
       by.GetBlock(s).SetSubVector(*ess_tdofs[s], 0.0);
    }
@@ -1532,7 +1543,23 @@ Operator &BlockNonlinearForm::GetGradient(const Vector &x) const
          for (int s2 = 0; s2 < fes.Size(); ++s2)
          {
             delete cGrads(s1, s2);
-            cGrads(s1, s2) = RAP(*cP[s1], *Grads(s1, s2), *cP[s2]);
+            if (cP[s1] && cP[s2])
+            {
+               cGrads(s1, s2) = RAP(*cP[s1], *Grads(s1, s2), *cP[s2]);
+            }
+            else if (cP[s1])
+            {
+               cGrads(s1, s2) = TransposeMult(*cP[s1], *Grads(s1, s2));
+            }
+            else if (cP[s2])
+            {
+               cGrads(s1, s2) = mfem::Mult(*Grads(s1, s2), *cP[s2]);
+            }
+            else
+            {
+               cGrads(s1, s2) = NULL;
+               continue;
+            }
             mGrads(s1, s2) = cGrads(s1, s2);
          }
       }
