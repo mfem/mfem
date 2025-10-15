@@ -1590,21 +1590,27 @@ void ParMesh::DistributeAttributes(Array<int> &attr)
    delete [] glb_attr_marker;
 }
 
-void ParMesh::SetAttributes()
+void ParMesh::SetAttributes(bool elem_attrs_changed, bool bdr_attrs_changed)
 {
    // Determine the attributes occurring in local interior and boundary elements
-   Mesh::SetAttributes();
+   Mesh::SetAttributes(elem_attrs_changed, bdr_attrs_changed);
 
-   DistributeAttributes(bdr_attributes);
-   if (bdr_attributes.Size() > 0 && bdr_attributes[0] <= 0)
+   if (bdr_attrs_changed)
    {
-      MFEM_WARNING("Non-positive boundary element attributes found!");
+      DistributeAttributes(bdr_attributes);
+      if (bdr_attributes.Size() > 0 && bdr_attributes[0] <= 0)
+      {
+         MFEM_WARNING("Non-positive boundary element attributes found!");
+      }
    }
 
-   DistributeAttributes(attributes);
-   if (attributes.Size() > 0 && attributes[0] <= 0)
+   if (elem_attrs_changed)
    {
-      MFEM_WARNING("Non-positive element attributes found!");
+      DistributeAttributes(attributes);
+      if (attributes.Size() > 0 && attributes[0] <= 0)
+      {
+         MFEM_WARNING("Non-positive element attributes found!");
+      }
    }
 }
 
@@ -3132,11 +3138,12 @@ void ParMesh::GetFaceNbrElementTransformation(
          pNodes->ParFESpace()->GetFaceNbrElementVDofs(FaceNo, vdofs);
          int n = vdofs.Size()/spaceDim;
          pointmat.SetSize(spaceDim, n);
+         pNodes->FaceNbrData().HostRead();
          for (int k = 0; k < spaceDim; k++)
          {
             for (int j = 0; j < n; j++)
             {
-               pointmat(k,j) = (pNodes->FaceNbrData())(vdofs[n*k+j]);
+               pointmat(k,j) = AsConst(pNodes->FaceNbrData())(vdofs[n*k+j]);
             }
          }
 
@@ -3890,6 +3897,13 @@ void ParMesh::LocalRefinement(const Array<int> &marked_el, int type)
 #endif
 }
 
+bool ParMesh::AnisotropicConflict(const Array<Refinement> &refinements,
+                                  std::set<int> &conflicts) const
+{
+   MFEM_VERIFY(pncmesh, "AnisotropicConflict should be called only for NCMesh");
+   return pncmesh->AnisotropicConflict(refinements, conflicts);
+}
+
 void ParMesh::NonconformingRefinement(const Array<Refinement> &refinements,
                                       int nc_limit)
 {
@@ -4584,6 +4598,14 @@ void ParMesh::NURBSUniformRefinement(const Array<int> &rf, real_t tol)
    if (MyRank == 0)
    {
       mfem::out << "\nParMesh::NURBSUniformRefinement : Not supported yet!\n";
+   }
+}
+
+void ParMesh::RefineNURBSWithKVFactors(int rf, const std::string &kvf)
+{
+   if (MyRank == 0)
+   {
+      mfem::out << "\nRefineNURBSWithKVFactors : Not supported yet!\n";
    }
 }
 

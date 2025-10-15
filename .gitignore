@@ -208,10 +208,13 @@ miniapps/electromagnetics/volta
 miniapps/electromagnetics/tesla
 miniapps/electromagnetics/maxwell
 miniapps/electromagnetics/joule
+miniapps/electromagnetics/lorentz
 miniapps/electromagnetics/Volta-AMR*
 miniapps/electromagnetics/Tesla-AMR*
 miniapps/electromagnetics/Maxwell-Parallel*
-miniapps/electromagnetics/Joule_*
+miniapps/electromagnetics/Joule_[0-9]*
+miniapps/electromagnetics/Lorentz_[0-9]*
+miniapps/electromagnetics/Lorentz.dat
 
 miniapps/gslib/field-diff
 miniapps/gslib/field-interp
@@ -267,9 +270,9 @@ miniapps/meshing/bounding-box*
 miniapps/meshing/jacobian-determinant*
 
 miniapps/mtop/parheat
-miniapps/mtop/ParHeat*
+miniapps/mtop/ParHeat/*
 miniapps/mtop/seqheat
-miniapps/mtop/SeqHeat*
+miniapps/mtop/SeqHeat/*
 
 miniapps/autodiff/paradiff
 miniapps/autodiff/seqadiff
@@ -277,7 +280,7 @@ miniapps/autodiff/seqtest
 miniapps/autodiff/par_example
 miniapps/autodiff/seq_example
 miniapps/autodiff/seq_test
-miniapps/autodiff/Exampl*
+miniapps/autodiff/Example/*
 
 miniapps/navier/navier_mms
 miniapps/navier/navier_kovasznay
@@ -300,6 +303,7 @@ miniapps/nurbs/nurbs_solenoidal
 miniapps/nurbs/nurbs_printfunc
 miniapps/nurbs/nurbs_patch_ex1
 miniapps/nurbs/nurbs_curveint
+miniapps/nurbs/nurbs_surface
 miniapps/nurbs/refined.mesh
 miniapps/nurbs/mesh.*
 miniapps/nurbs/sol_?.gf
@@ -318,6 +322,7 @@ miniapps/nurbs/nurbs_naca_cmesh
 miniapps/nurbs/naca-cmesh.mesh
 miniapps/nurbs/glvis_naca-cmesh.mesh
 miniapps/nurbs/Naca_cmesh
+miniapps/nurbs/*-Surface.mesh
 
 miniapps/performance/ex1
 miniapps/performance/ex1p
@@ -413,8 +418,8 @@ miniapps/diag-smoothers/mg-abs-l1-jacobi
 tests/unit/output_meshes
 tests/unit/unit_tests
 tests/unit/punit_tests
-tests/unit/cunit_tests
-tests/unit/pcunit_tests
+tests/unit/gpu_unit_tests
+tests/unit/pgpu_unit_tests
 tests/unit/sedov_tests_*
 tests/unit/psedov_tests_*
 tests/unit/tmop_pa_tests_*

@@ -217,7 +217,7 @@ public:
    /// Reduces the capacity of the array to exactly match the current size.
    inline void ShrinkToFit();
 
-   ///  Create a copy of the internal array to the provided @a copy.
+   /// Create a copy of the internal array to the provided @a copy.
    inline void Copy(Array &copy) const;
 
    /// Make this Array a reference to a pointer.
@@ -302,6 +302,9 @@ public:
    /// Does the Array have Size zero.
    bool IsEmpty() const { return Size() == 0; }
 
+   /// Return true if all entries of the array are the same.
+   bool IsConstant() const;
+
    /// Fill the entries of the array with the cumulative sum of the entries.
    void PartialSum();
 
@@ -326,7 +329,11 @@ public:
        the Size to match this Capacity after this.*/
    template <typename U>
    inline void CopyFrom(const U *src)
-   { std::memcpy(begin(), src, MemoryUsage()); }
+   {
+      if (!begin() || size == 0) { return; }
+      MFEM_ASSERT(begin() && src, "Error in Array::CopyFrom");
+      std::memcpy(begin(), src, MemoryUsage());
+   }
 
    /// STL-like begin.  Returns pointer to the first element of the array.
    inline T* begin() { return data; }
@@ -408,10 +415,13 @@ private:
 
 public:
    Array2D() { M = N = 0; }
+
+   /// Construct an m x n 2D array.
    Array2D(int m, int n) : array1d(m*n) { M = m; N = n; }
 
    Array2D(const Array2D &) = default;
 
+   /// Set the 2D array size to m x n.
    void SetSize(int m, int n) { array1d.SetSize(m*n); M = m; N = n; }
 
    int NumRows() const { return M; }
@@ -468,9 +478,11 @@ public:
    void Load(int new_size0,int new_size1, std::istream &in)
    { SetSize(new_size0,new_size1); Load(in, 1); }
 
+   /// Create a copy of the internal array to the provided @a copy.
    void Copy(Array2D &copy) const
    { copy.M = M; copy.N = N; array1d.Copy(copy.array1d); }
 
+   /// Set all entries of the array to the provided constant.
    inline void operator=(const T &a)
    { array1d = a; }
 
@@ -485,6 +497,14 @@ public:
 
    /// Prints array to stream with width elements per row
    void Print(std::ostream &out = mfem::out, int width = 4);
+
+   /** @brief Find the maximal element in the array, using the comparison
+        operator `<` for class T. */
+   T Max() const { return array1d.Max(); }
+
+   /** @brief Find the minimal element in the array, using the comparison
+       operator `<` for class T. */
+   T Min() const { return array1d.Min(); }
 };
 
 
@@ -497,15 +517,32 @@ private:
 
 public:
    Array3D() { N2 = N3 = 0; }
+
+   /// Construct a 3D array of size n1 x n2 x n3.
    Array3D(int n1, int n2, int n3)
       : array1d(n1*n2*n3) { N2 = n2; N3 = n3; }
 
+   /// Set the 3D array size to n1 x n2 x n3.
    void SetSize(int n1, int n2, int n3)
    { array1d.SetSize(n1*n2*n3); N2 = n2; N3 = n3; }
+
+   /// Get the 3D array size in the first dimension.
+   int GetSize1() const
+   {
+      const int size = array1d.Size();
+      return size == 0 ? 0 : size / (N2 * N3);
+   }
+
+   /// Get the 3D array size in the second dimension.
+   int GetSize2() const { return N2; }
+
+   /// Get the 3D array size in the third dimension.
+   int GetSize3() const { return N3; }
 
    inline const T &operator()(int i, int j, int k) const;
    inline       T &operator()(int i, int j, int k);
 
+   /// Set all entries of the array to the provided constant.
    inline void operator=(const T &a)
    { array1d = a; }
 };
