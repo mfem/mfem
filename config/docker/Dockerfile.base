@@ -35,13 +35,13 @@ RUN cd /opt/mfem-env && \
     spack env activate . && \
     spack develop --path /code mfem@main+examples+miniapps && \
     spack add mfem@main+examples+miniapps # && \
-#    spack install
+    spack install
 
 # ensure mfem always on various paths
-#RUN cd /opt/mfem-env && \
-#    spack env activate --sh -d . >> /etc/profile.d/z10_spack_environment.sh
+RUN cd /opt/mfem-env && \
+    spack env activate --sh -d . >> /etc/profile.d/z10_spack_environment.sh
 
 # Present the software install when we shell in
 # The view is at /opt/mfem-env/.spack-env/view
-#WORKDIR /opt/software
-#ENTRYPOINT ["/bin/bash", "--rcfile", "/etc/profile", "-l", "-c"]
+WORKDIR /opt/software
+ENTRYPOINT ["/bin/bash", "--rcfile", "/etc/profile", "-l", "-c"]

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -54,11 +54,12 @@ void ParLinearForm::Assemble()
    }
 }
 
-bool ParLinearForm::SupportsDevice()
+bool ParLinearForm::SupportsDevice() const
 {
    bool parallel;
    bool local = LinearForm::SupportsDevice();
-   MPI_Allreduce(&local, &parallel, 1, MPI_C_BOOL, MPI_LAND, pfes->GetComm());
+   MPI_Allreduce(&local, &parallel, 1, MFEM_MPI_CXX_BOOL, MPI_LAND,
+                 pfes->GetComm());
    return parallel;
 }
 

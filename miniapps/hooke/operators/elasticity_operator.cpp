@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -38,7 +38,7 @@ ElasticityOperator::ElasticityOperator(ParMesh &mesh, const int order)
 
    geometric_factors_ = h1_fes_.GetParMesh()->GetGeometricFactors(
                            *ir_, GeometricFactors::JACOBIANS | GeometricFactors::DETERMINANTS);
-   maps_ = &h1_fes_.GetFE(0)->GetDofToQuad(*ir_, DofToQuad::TENSOR);
+   maps_ = &h1_fes_.GetTypicalFE()->GetDofToQuad(*ir_, DofToQuad::TENSOR);
    d1d_ = maps_->ndof;
    q1d_ = maps_->nqpt;
 
@@ -138,8 +138,10 @@ void ElasticityOperator::GradientMult(const Vector &dX, Vector &Y) const
       const auto d_dX = dX.Read();
       auto d_Y = Y.ReadWrite();
       const auto d_ess_tdof_list = ess_tdof_list_.Read();
-      MFEM_FORALL(i, ess_tdof_list_.Size(),
-                  d_Y[d_ess_tdof_list[i]] = d_dX[d_ess_tdof_list[i]];);
+      mfem::forall(ess_tdof_list_.Size(), [=] MFEM_HOST_DEVICE (int i)
+      {
+         d_Y[d_ess_tdof_list[i]] = d_dX[d_ess_tdof_list[i]];
+      });
    }
 
    recompute_cache_ = false;

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -19,77 +19,114 @@
 
 using namespace mfem;
 
-ParTransferMap::ParTransferMap(const ParGridFunction &src,
-                               const ParGridFunction &dst)
+ParTransferMap::ParTransferMap(const ParFiniteElementSpace &src,
+                               const ParFiniteElementSpace &dst)
 {
-   const ParFiniteElementSpace *parentfes = nullptr, *subfes1 = nullptr,
-                                *subfes2 = nullptr;
-
-   if (ParSubMesh::IsParSubMesh(src.ParFESpace()->GetParMesh()) &&
-       ParSubMesh::IsParSubMesh(dst.ParFESpace()->GetParMesh()))
+   if (ParSubMesh::IsParSubMesh(src.GetParMesh()) &&
+       ParSubMesh::IsParSubMesh(dst.GetParMesh()))
    {
-      ParSubMesh* src_sm = static_cast<ParSubMesh*>(src.ParFESpace()->GetParMesh());
-      ParSubMesh* dst_sm = static_cast<ParSubMesh*>(dst.ParFESpace()->GetParMesh());
+      ParSubMesh* src_sm = static_cast<ParSubMesh*>(src.GetParMesh());
+      ParSubMesh* dst_sm = static_cast<ParSubMesh*>(dst.GetParMesh());
 
       // There is no immediate relation and both src and dst come from a
       // SubMesh, check if they have an equivalent root parent.
-      if (SubMeshUtils::GetRootParent<ParSubMesh, ParMesh>(*src_sm) !=
-          SubMeshUtils::GetRootParent<ParSubMesh, ParMesh>(*dst_sm))
+      if (SubMeshUtils::GetRootParent(*src_sm) !=
+          SubMeshUtils::GetRootParent(*dst_sm))
       {
          MFEM_ABORT("Can't find a relation between the two GridFunctions");
       }
 
       category_ = TransferCategory::SubMeshToSubMesh;
 
-      root_fes_ = new ParFiniteElementSpace(*src.ParFESpace(),
-                                            *const_cast<ParMesh *>(SubMeshUtils::GetRootParent<ParSubMesh, ParMesh>
-                                                                   (*src_sm)));
-      subfes1 = src.ParFESpace();
-      subfes2 = dst.ParFESpace();
+      {
+         ParMesh * parent_mesh =
+            const_cast<ParMesh *>(SubMeshUtils::GetRootParent(*src_sm));
 
-      SubMeshUtils::BuildVdofToVdofMap(*subfes1,
-                                       *root_fes_,
-                                       src_sm->GetFrom(),
-                                       src_sm->GetParentElementIDMap(),
-                                       sub1_to_parent_map_);
+         int parent_dim = parent_mesh->Dimension();
+         int src_sm_dim = src_sm->Dimension();
+         int dst_sm_dim = dst_sm->Dimension();
 
-      SubMeshUtils::BuildVdofToVdofMap(*subfes2,
-                                       *root_fes_,
-                                       dst_sm->GetFrom(),
-                                       dst_sm->GetParentElementIDMap(),
-                                       sub2_to_parent_map_);
+         bool root_fes_reset = false;
+         if (src_sm_dim == parent_dim - 1 && dst_sm_dim == parent_dim - 1)
+         {
+            const FiniteElementCollection *src_fec = src.FEColl();
+            const FiniteElementCollection *dst_fec = dst.FEColl();
 
-      root_gc_ = &root_fes_->GroupComm();
-      CommunicateIndicesSet(sub1_to_parent_map_, root_fes_->GetVSize());
+            const L2_FECollection *src_l2_fec =
+               dynamic_cast<const L2_FECollection*>(src_fec);
+            const L2_FECollection *dst_l2_fec =
+               dynamic_cast<const L2_FECollection*>(dst_fec);
 
-      z_.SetSize(root_fes_->GetVSize());
+            if (src_l2_fec != NULL && dst_l2_fec != NULL)
+            {
+               // Source and destination are both lower dimension L2 spaces.
+               // Transfer them as the trace of an RT space if possible.
+
+               int src_mt = src_fec->GetMapType(src_sm_dim);
+               int dst_mt = dst_fec->GetMapType(dst_sm_dim);
+
+               int src_bt = src_l2_fec->GetBasisType();
+               int dst_bt = dst_l2_fec->GetBasisType();
+
+               int src_p = src_fec->GetOrder();
+               int dst_p = dst_fec->GetOrder();
+
+               if (src_mt == FiniteElement::INTEGRAL &&
+                   dst_mt == FiniteElement::INTEGRAL &&
+                   src_bt == BasisType::GaussLegendre &&
+                   dst_bt == BasisType::GaussLegendre &&
+                   src_p == dst_p)
+               {
+                  // The subspaces are consistent with the trace of an RT space
+                  root_fec_.reset(new RT_FECollection(src_p, parent_dim));
+                  root_fes_.reset(new ParFiniteElementSpace(
+                                     const_cast<ParMesh *>(
+                                        SubMeshUtils::GetRootParent(*src_sm)),
+                                     root_fec_.get()));
+                  root_fes_reset = true;
+               }
+            }
+         }
+
+         if (!root_fes_reset)
+         {
+            root_fes_.reset(new ParFiniteElementSpace(
+                               src,
+                               const_cast<ParMesh *>(
+                                  SubMeshUtils::GetRootParent(*src_sm))));
+         }
+      }
+
+      src_to_parent.reset(new ParTransferMap(src, *root_fes_));
+      dst_to_parent.reset(new ParTransferMap(dst, *root_fes_));
+      parent_to_dst.reset(new ParTransferMap(*root_fes_, dst));
+
+      z_.SetSpace(root_fes_.get());
    }
-   else if (ParSubMesh::IsParSubMesh(src.ParFESpace()->GetParMesh()))
+   else if (ParSubMesh::IsParSubMesh(src.GetParMesh()))
    {
       category_ = TransferCategory::SubMeshToParent;
-      ParSubMesh* src_sm = static_cast<ParSubMesh*>(src.ParFESpace()->GetParMesh());
-      subfes1 = src.ParFESpace();
-      parentfes = dst.ParFESpace();
-      SubMeshUtils::BuildVdofToVdofMap(*subfes1,
-                                       *parentfes,
+      ParSubMesh* src_sm = static_cast<ParSubMesh*>(src.GetParMesh());
+      SubMeshUtils::BuildVdofToVdofMap(src,
+                                       dst,
                                        src_sm->GetFrom(),
                                        src_sm->GetParentElementIDMap(),
-                                       sub1_to_parent_map_);
+                                       sub_to_parent_map_);
 
-      root_gc_ = &parentfes->GroupComm();
-      CommunicateIndicesSet(sub1_to_parent_map_, dst.Size());
+      root_gc_ = &dst.GroupComm();
+      CommunicateIndicesSet(sub_to_parent_map_, dst.GetVSize());
+      sub_fes_ = &src;
    }
-   else if (ParSubMesh::IsParSubMesh(dst.ParFESpace()->GetParMesh()))
+   else if (ParSubMesh::IsParSubMesh(dst.GetParMesh()))
    {
       category_ = TransferCategory::ParentToSubMesh;
-      ParSubMesh* dst_sm = static_cast<ParSubMesh*>(dst.ParFESpace()->GetParMesh());
-      subfes1 = dst.ParFESpace();
-      parentfes = src.ParFESpace();
-      SubMeshUtils::BuildVdofToVdofMap(*subfes1,
-                                       *parentfes,
+      ParSubMesh* dst_sm = static_cast<ParSubMesh*>(dst.GetParMesh());
+      SubMeshUtils::BuildVdofToVdofMap(dst,
+                                       src,
                                        dst_sm->GetFrom(),
                                        dst_sm->GetParentElementIDMap(),
-                                       sub1_to_parent_map_);
+                                       sub_to_parent_map_);
+      sub_fes_ = &dst;
    }
    else
    {
@@ -97,16 +134,27 @@ ParTransferMap::ParTransferMap(const ParGridFunction &src,
    }
 }
 
+ParTransferMap::ParTransferMap(const ParGridFunction &src,
+                               const ParGridFunction &dst)
+   : ParTransferMap(*src.ParFESpace(), *dst.ParFESpace())
+{ }
+
 void ParTransferMap::Transfer(const ParGridFunction &src,
                               ParGridFunction &dst) const
 {
    if (category_ == TransferCategory::ParentToSubMesh)
    {
       // dst = S1^T src
-      for (int i = 0; i < sub1_to_parent_map_.Size(); i++)
+      src.HostRead();
+      dst.HostWrite(); // dst is fully overwritten
+      for (int i = 0; i < sub_to_parent_map_.Size(); i++)
       {
-         dst(i) = src(sub1_to_parent_map_[i]);
+         real_t s = 1.0;
+         int j = FiniteElementSpace::DecodeDof(sub_to_parent_map_[i], s);
+         dst(i) = s * src(j);
       }
+
+      CorrectFaceOrientations(*sub_fes_, src, dst);
    }
    else if (category_ == TransferCategory::SubMeshToParent)
    {
@@ -115,37 +163,25 @@ void ParTransferMap::Transfer(const ParGridFunction &src,
       //
       // G is identity if the partitioning matches
 
-      for (int i = 0; i < sub1_to_parent_map_.Size(); i++)
+      src.HostRead();
+      dst.HostReadWrite(); // dst is only partially overwritten
+      for (int i = 0; i < sub_to_parent_map_.Size(); i++)
       {
-         dst(sub1_to_parent_map_[i]) = src(i);
+         real_t s = 1.0;
+         int j = FiniteElementSpace::DecodeDof(sub_to_parent_map_[i], s);
+         dst(j) = s * src(i);
       }
+
+      CorrectFaceOrientations(*sub_fes_, src, dst,
+                              &sub_to_parent_map_);
 
       CommunicateSharedVdofs(dst);
    }
    else if (category_ == TransferCategory::SubMeshToSubMesh)
    {
-      // dst = S2^T G (S1 src (*) S2 dst)
-      //
-      // G is identity if the partitioning matches
-
-      z_ = 0.0;
-
-      for (int i = 0; i < sub2_to_parent_map_.Size(); i++)
-      {
-         z_(sub2_to_parent_map_[i]) = dst(i);
-      }
-
-      for (int i = 0; i < sub1_to_parent_map_.Size(); i++)
-      {
-         z_(sub1_to_parent_map_[i]) = src(i);
-      }
-
-      CommunicateSharedVdofs(z_);
-
-      for (int i = 0; i < sub2_to_parent_map_.Size(); i++)
-      {
-         dst(i) = z_(sub2_to_parent_map_[i]);
-      }
+      dst_to_parent->Transfer(dst, z_);
+      src_to_parent->Transfer(src, z_);
+      parent_to_dst->Transfer(z_, dst);
    }
    else
    {
@@ -159,7 +195,7 @@ void ParTransferMap::CommunicateIndicesSet(Array<int> &map, int dst_sz)
    indices_set_local_ = 0;
    for (int i = 0; i < map.Size(); i++)
    {
-      indices_set_local_[map[i]] = 1;
+      indices_set_local_[(map[i]>=0)?map[i]:(-map[i]-1)] = 1;
    }
    indices_set_global_ = indices_set_local_;
    root_gc_->Reduce(indices_set_global_, GroupCommunicator::Sum);
@@ -183,7 +219,7 @@ void ParTransferMap::CommunicateSharedVdofs(Vector &f) const
    }
 
    // TODO: do the reduce only on dofs of interest
-   root_gc_->Reduce<double>(f.HostReadWrite(), GroupCommunicator::Sum);
+   root_gc_->Reduce<real_t>(f.HostReadWrite(), GroupCommunicator::Sum);
 
    // Indices that were set from this rank or other ranks have been summed up
    // and therefore need to be "averaged". Note that this results in the exact
@@ -211,12 +247,82 @@ void ParTransferMap::CommunicateSharedVdofs(Vector &f) const
       }
    }
 
-   root_gc_->Bcast<double>(f.HostReadWrite());
+   root_gc_->Bcast<real_t>(f.HostReadWrite());
 }
 
-ParTransferMap::~ParTransferMap()
+void
+ParTransferMap::CorrectFaceOrientations(const ParFiniteElementSpace &fes,
+                                        const Vector &src,
+                                        Vector &dst,
+                                        const Array<int> *sub_to_parent_map)
 {
-   delete root_fes_;
+   const FiniteElementCollection * fec = fes.FEColl();
+
+   ParSubMesh * mesh = dynamic_cast<ParSubMesh*>(fes.GetParMesh());
+
+   const Array<int>& parent_face_ori = mesh->GetParentFaceOrientations();
+
+   if (parent_face_ori.Size() == 0) { return; }
+
+   DofTransformation doftrans(fes.GetVDim(), fes.GetOrdering());
+
+   int dim = mesh->Dimension();
+   bool face = (dim == 3);
+
+   Array<int> vdofs;
+   Array<int> Fo(1);
+   Vector face_vector;
+
+   for (int i = 0; i < (face ? mesh->GetNumFaces() : mesh->GetNE()); i++)
+   {
+      if (parent_face_ori[i] == 0) { continue; }
+
+      Geometry::Type geom = face ? mesh->GetFaceGeometry(i) :
+                            mesh->GetElementGeometry(i);
+
+      if (!fec->DofTransformationForGeometry(geom)) { continue; }
+      doftrans.SetDofTransformation(*fec->DofTransformationForGeometry(geom));
+
+      Fo[0] = parent_face_ori[i];
+      doftrans.SetFaceOrientations(Fo);
+
+      if (face)
+      {
+         fes.GetFaceVDofs(i, vdofs);
+      }
+      else
+      {
+         fes.GetElementVDofs(i, vdofs);
+      }
+
+      if (sub_to_parent_map)
+      {
+         src.GetSubVector(vdofs, face_vector);
+         doftrans.TransformPrimal(face_vector);
+      }
+      else
+      {
+         dst.GetSubVector(vdofs, face_vector);
+         doftrans.InvTransformPrimal(face_vector);
+      }
+
+      for (int j = 0; j < vdofs.Size(); j++)
+      {
+         real_t s = 1.0;
+         int k = FiniteElementSpace::DecodeDof(vdofs[j], s);
+
+         if (sub_to_parent_map)
+         {
+            real_t sps = 1.0;
+            int spk = FiniteElementSpace::DecodeDof((*sub_to_parent_map)[k],
+                                                    sps);
+            s *= sps;
+            k = spk;
+         }
+
+         dst[k] = s * face_vector[j];
+      }
+   }
 }
 
 #endif // MFEM_USE_MPI

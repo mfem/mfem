@@ -21,6 +21,8 @@ must not be misrepresented as being the original software.
 distribution.
 */
 
+// This file was modified by the MFEM team.
+
 #include "tinyxml2.h"
 
 #include <new>		// yes, this one new style header, is in the Android SDK.
@@ -106,7 +108,7 @@ distribution.
 #elif defined(__APPLE__) || (__FreeBSD__)
 	#define TIXML_FSEEK fseeko
 	#define TIXML_FTELL ftello
-#elif defined(__unix__) && defined(__x86_64__)
+#elif defined(__unix__) && defined(__x86_64__) && !defined(__CYGWIN__)
 	#define TIXML_FSEEK fseeko64
 	#define TIXML_FTELL ftello64
 #else

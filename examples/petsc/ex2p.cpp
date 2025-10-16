@@ -58,6 +58,8 @@ int main(int argc, char *argv[])
 
    // 2. Parse command-line options.
    const char *mesh_file = "../../data/beam-tri.mesh";
+   int ser_ref_levels = -1;
+   int par_ref_levels = 1;
    int order = 1;
    bool static_cond = false;
    bool visualization = 1;
@@ -65,7 +67,7 @@ int main(int argc, char *argv[])
    bool use_petsc = true;
    const char *petscrc_file = "";
    bool use_nonoverlapping = false;
-   int ser_ref_levels = -1, par_ref_levels = 1;
+   const char *device_config = "cpu";
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -94,6 +96,8 @@ int main(int argc, char *argv[])
                   "-no-nonoverlapping", "--no-nonoverlapping",
                   "Use or not the block diagonal PETSc's matrix format "
                   "for non-overlapping domain decomposition.");
+   args.AddOption(&device_config, "-d", "--device",
+                  "Device configuration string, see Device::Configure().");
    args.Parse();
    if (!args.Good())
    {
@@ -108,7 +112,12 @@ int main(int argc, char *argv[])
       args.PrintOptions(cout);
    }
 
-   // 2b. We initialize PETSc
+   // 2b. Enable hardware devices such as GPUs, and programming models such as
+   //    CUDA, OCCA, RAJA and OpenMP based on command line options.
+   Device device(device_config);
+   if (myid == 0) { device.Print(); }
+
+   // 2c. We initialize PETSc
    if (use_petsc) { MFEMInitializePetsc(NULL,NULL,petscrc_file,NULL); }
 
    // 3. Read the (serial) mesh from the given mesh file on all processors.  We
