@@ -86,7 +86,9 @@ static void PAVectorDiffusionSetup2D(const int Q1D,
                   Reshape(c.Read(), NQ, NE);
 
 
-   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
+   mfem::forall(NE, [=,
+      const_c = proteus::jit_variable(const_c),
+      NQ = proteus::jit_variable(NQ)] MFEM_HOST_DEVICE (int e)
    {
       for (int q = 0; q < NQ; ++q)
       {
@@ -122,7 +124,9 @@ static void PAVectorDiffusionSetup3D(const int Q1D,
                   Reshape(c.Read(), NQ,NE);
 
 
-   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
+   mfem::forall(NE, [=,
+      const_c = proteus::jit_variable(const_c),
+      NQ = proteus::jit_variable(NQ)] MFEM_HOST_DEVICE (int e)
    {
       for (int q = 0; q < NQ; ++q)
       {
@@ -242,7 +246,7 @@ void VectorDiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
       const auto C = const_c ? Reshape(coeff.Read(), 1,1) :
                      Reshape(coeff.Read(), NQ,ne);
 
-      mfem::forall(ne, [=] MFEM_HOST_DEVICE (int e)
+      mfem::forall(ne, [=, const_c = proteus::jit_variable(const_c)] MFEM_HOST_DEVICE (int e)
       {
          for (int q = 0; q < NQ; ++q)
          {

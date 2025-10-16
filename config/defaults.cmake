@@ -20,6 +20,7 @@ endif()
 
 # MFEM options. Set to mimic the default "defaults.mk" file.
 option(BUILD_SHARED_LIBS "Enable shared library build of MFEM" OFF)
+option(ENABLE_JIT "Enable JIT compilation via proteus via either submodule or install" On)
 option(MFEM_USE_MPI "Enable MPI parallel build" OFF)
 option(MFEM_USE_METIS "Enable METIS usage" ${MFEM_USE_MPI})
 set(MFEM_PRECISION "double" CACHE STRING
