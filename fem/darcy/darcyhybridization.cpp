@@ -354,53 +354,39 @@ void DarcyHybridization::ComputeAndAssemblePotFaceMatrix(
    mesh->GetFaceElements(face, &el1, &el2);
    fes_p.GetElementVDofs(el1, vdofs1);
    fe1 = fes_p.GetFE(el1);
-   ndof1 = fe1->GetDof() * fes_p.GetVDim();
-   fe2 = NULL;
-   FaceElementTransformations *ftr;
+   ndof1 = vdofs1.Size();
+   FaceElementTransformations *ftr = NULL;
 
    if (el2 >= 0)
    {
       ftr = mesh->GetFaceElementTransformations(face);
-      fes_p.GetElementVDofs(ftr->Elem2No, vdofs2);
-      fe2 = fes_p.GetFE(ftr->Elem2No);
       save2 = true;
    }
 #ifdef MFEM_USE_MPI
-   else if (ParallelP())
-   {
-      ParMesh *pmesh = pfes_p->GetParMesh();
-      if (pmesh->FaceIsTrueInterior(face))
-      {
-         ftr = pmesh->GetSharedFaceTransformationsByLocalIndex(face);
-         const int el2nbr = ftr->Elem2No - mesh->GetNE();
-         pfes_p->GetFaceNbrElementVDofs(el2nbr, vdofs2);
-         fe2 = pfes_p->GetFaceNbrFE(el2nbr);
-      }
-   }
    else if (ParallelC())
    {
       ParMesh *pmesh = c_pfes->GetParMesh();
       if (pmesh->FaceIsTrueInterior(face))
       {
          ftr = pmesh->GetSharedFaceTransformationsByLocalIndex(face);
-         vdofs2.SetSize(0);
-         fe2 = fe1;
       }
    }
 #endif
 
-   if (fe2)
+   if (save2)
    {
-      ndof2 = fe2->GetDof() * fes_p.GetVDim();
+      fes_p.GetElementVDofs(ftr->Elem2No, vdofs2);
+      fe2 = fes_p.GetFE(ftr->Elem2No);
+      ndof2 = vdofs2.Size();
+      c_bfi_p->AssembleHDGFaceMatrix(*tr_fe, *fe1, *fe2, *ftr, elmat);
    }
    else
    {
+      if (!ftr) { ftr = mesh->GetFaceElementTransformations(face); }
       vdofs2.SetSize(0);
-      fe2 = fe1;
       ndof2 = 0;
+      c_bfi_p->AssembleHDGFaceMatrix(0, *tr_fe, *fe1, *ftr, elmat);
    }
-
-   c_bfi_p->AssembleHDGFaceMatrix(*tr_fe, *fe1, *fe2, *ftr, elmat);
 
    MFEM_ASSERT(elmat.Width() == ndof1+ndof2+c_dof &&
                elmat.Height() == ndof1+ndof2+c_dof,
@@ -438,19 +424,11 @@ void DarcyHybridization::ComputeAndAssemblePotFaceMatrix(
    {
       DenseMatrix H_f(&H_data[H_offsets[face]], c_dof, c_dof);
       H_f.CopyMN(elmat, c_dof, c_dof, ndof1+ndof2, ndof1+ndof2);
-#ifdef MFEM_USE_MPI
-      // prevent double integration on shared faces
-      if (ftr->Elem2No >= 0 && !save2) { H_f *= 0.5; }
-#endif
    }
    else
    {
       if (!H) { H.reset(new SparseMatrix(c_fes.GetVSize())); }
       h_elmat.CopyMN(elmat, c_dof, c_dof, ndof1+ndof2, ndof1+ndof2);
-#ifdef MFEM_USE_MPI
-      // prevent double integration on shared faces
-      if (ftr->Elem2No >= 0 && !save2) { h_elmat *= 0.5; }
-#endif
       H->AddSubMatrix(c_dofs, c_dofs, h_elmat, skip_zeros);
    }
 }
