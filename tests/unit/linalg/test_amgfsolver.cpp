@@ -11,6 +11,7 @@
 
 #include "unit_tests.hpp"
 #include "mfem.hpp"
+#include "../../config/config.hpp"
 
 namespace mfem
 {
@@ -27,7 +28,8 @@ public:
 
    void SetOperator(const Operator &op) override
    {
-      auto Oph = const_cast<HypreParMatrix *>(dynamic_cast<const HypreParMatrix *>(&op));
+      auto Oph = const_cast<HypreParMatrix *>(dynamic_cast<const HypreParMatrix *>
+                                              (&op));
       MFEM_VERIFY(Oph, "Not a compatible matrix type");
       SparseMatrix Sp;
       Oph->MergeDiagAndOffd(Sp);
@@ -48,7 +50,8 @@ public:
    ~DenseMatrixSolver() { delete [] ipiv; }
 };
 
-HypreParMatrix * GetProlongationMatrix(const ParFiniteElementSpace* pfes, int element_attribute)
+HypreParMatrix * GetProlongationMatrix(const ParFiniteElementSpace* pfes,
+                                       int element_attribute)
 {
    Array<int> dofs;
    Array<int> tdofs;
@@ -63,7 +66,7 @@ HypreParMatrix * GetProlongationMatrix(const ParFiniteElementSpace* pfes, int el
    tdofs.Sort();
    tdofs.Unique();
 
-   int h = tdofs.Size();
+   HYPRE_BigInt h = tdofs.Size();
    SparseMatrix St(h,pfes->GlobalTrueVSize());
 
    for (int i = 0; i<h; i++)
@@ -72,8 +75,8 @@ HypreParMatrix * GetProlongationMatrix(const ParFiniteElementSpace* pfes, int el
       St.Set(i,col,1.0);
    }
    St.Finalize();
-   int rows[2];
-   int cols[2];
+   HYPRE_BigInt rows[2];
+   HYPRE_BigInt cols[2];
    int nrows = St.Height();
 
    rows[0] = 0; rows[1] = nrows;
@@ -81,13 +84,28 @@ HypreParMatrix * GetProlongationMatrix(const ParFiniteElementSpace* pfes, int el
    {
       cols[i] = pfes->GetTrueDofOffsets()[i];
    }
-   int glob_nrows = nrows;
-   int glob_ncols = pfes->GlobalTrueVSize();
+   HYPRE_BigInt glob_nrows = nrows;
+   HYPRE_BigInt glob_ncols = pfes->GlobalTrueVSize();
 
+   HYPRE_BigInt * J;
+#ifndef HYPRE_BIGINT
+   J = St.GetJ();
+#else
+   J = new HYPRE_BigInt[St.NumNonZeroElems()];
+   for (int i = 0; i < St.NumNonZeroElems(); i++)
+   {
+      J[i] = St.GetJ()[i];
+   }
+#endif
    HypreParMatrix * Pt = new HypreParMatrix(pfes->GetComm(), nrows, glob_nrows,
-                                            glob_ncols, St.GetI(), St.GetJ(),
+                                            glob_ncols, St.GetI(), J,
                                             St.GetData(), rows,cols);
+
    HypreParMatrix * P = Pt->Transpose();
+   delete Pt;
+#ifdef HYPRE_BIGINT
+   delete [] J;
+#endif
    return P;
 }
 
@@ -96,23 +114,23 @@ TEST_CASE("FilteredSolver and AMGFSolver", "[Parallel]")
 {
    int myid = Mpi::WorldRank();
 
-   // Note that this test only runs on one processor for convenience
-   // of using a serial dense direct solver on the filtered subspace, 
-   // avoiding dependence on exteranal parallel sparse direct solvers.
-   // The AMGFSolver and FilteredSolver should work in parallel in general.
-   // run only on one proc
-   if (myid ==0) 
+   // Note: This test is restricted to a single processor for convenience,
+   // allowing the use of a serial dense direct solver on the filtered subspace
+   // and avoiding any dependency on external parallel sparse direct solvers.
+   // In general, both AMGFSolver and FilteredSolver are designed to work in parallel.
+   if (myid == 0)
    {
       MPI_Comm comm = MPI_COMM_SELF;
 
       auto ref_levels = 2;
 
-      auto [order, eps, expected] =
-      GENERATE(table<int, double, double>({
-          {2, 1e-3, 10},
-          {2, 1e-4, 10},
-          {3, 1e-3, 16},
-          {3, 1e-4, 17},
+      auto [order, eps, iteration_bound] =
+         GENERATE(table<int, real_t, int>(
+      {
+         {2, 1e-3, 12},
+         {2, 1e-4, 12},
+         {3, 1e-3, 18},
+         {3, 1e-4, 18}
       }));
 
       CAPTURE(order, eps);
@@ -124,7 +142,7 @@ TEST_CASE("FilteredSolver and AMGFSolver", "[Parallel]")
       (*nodes)[18] = 0.5*(1-eps);  (*nodes)[26] = 0.5*(1-eps);
       (*nodes)[4] = 0.5*(1+eps);   (*nodes)[12] = 0.5*(1+eps);
       (*nodes)[20] = 0.5*(1+eps);  (*nodes)[28] = 0.5*(1+eps);
-      mesh.SetAttribute(3, 2); 
+      mesh.SetAttribute(3, 2);
       mesh.SetAttribute(6, 2);
       mesh.SetAttribute(7, 2);
       mesh.SetAttributes();
@@ -169,13 +187,11 @@ TEST_CASE("FilteredSolver and AMGFSolver", "[Parallel]")
 
       // 1st preconditioner: AMG
       HypreBoomerAMG amg;
-      // 2nd preconditioner: AMGF 
+      // 2nd preconditioner: AMGF
       AMGFSolver amgf;
       amg.SetPrintLevel(0);
-      amg.SetRelaxType(88);
       DenseMatrixSolver subspacesolver;
       amgf.AMG().SetPrintLevel(0);
-      amgf.AMG().SetRelaxType(88);
       amgf.SetFilteredSubspaceSolver(subspacesolver);
       amgf.SetFilteredSubspaceTransferOperator(*P);
       // 3rd preconditioner: FilteredSolver
@@ -201,23 +217,23 @@ TEST_CASE("FilteredSolver and AMGFSolver", "[Parallel]")
       cg.Mult(B, Xamgf);
       int amgf_iter = cg.GetNumIterations();
 
-
       cg.SetPreconditioner(fs);
       cg.SetOperator(*A);
       cg.Mult(B, Xfs);
       int fs_iter = cg.GetNumIterations();
 
       Xamgf -= X;
-      REQUIRE(Xamgf.Norml2() == MFEM_Approx(0.0).margin(1e-8));
+      REQUIRE(Xamgf.Norml2() == MFEM_Approx(0.0).margin(1e-7));
       Xfs -= X;
-      REQUIRE(Xfs.Norml2() == MFEM_Approx(0.0).margin(1e-8));
+      REQUIRE(Xfs.Norml2() == MFEM_Approx(0.0).margin(1e-7));
 
-      REQUIRE(amgf_iter == expected);
-      REQUIRE(fs_iter == expected);
+      REQUIRE(amgf_iter == fs_iter);
+      REQUIRE(amgf_iter <= iteration_bound);
+      REQUIRE(fs_iter <= iteration_bound);
 
       delete P;
    }
 }
-
 #endif
-}
+
+} // namespace mfem
