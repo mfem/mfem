@@ -71,6 +71,10 @@ GPU computing
   spaces, and is the default derefinement operator constructed by
   `FiniteElementSpace::Update` and `ParFiniteElementSpace::Update`.
   The operator requires `FiniteElementSpace::Nonconforming() == true`.
+- Added new method: GridFunction::GetGradients, with GPU support, for computing
+  the gradients of a GridFunction on all elements.
+- Added GPU support in GradientGridFunctionCoefficient and
+  InnerProductCoefficient by implementing their Project methods.
 
 New and updated examples and miniapps
 -------------------------------------
@@ -86,6 +90,10 @@ New and updated examples and miniapps
 
 - Added a new miniapp (tools/gridfunction-bounds) to compute piecewise linear
   bounds on a given high-order grid function.
+
+- Added a new miniapp (electromagnetics/lorentz) which computes the trajectory
+  of a charged particle, subject to Lorentz forces, in electrostatic and/or
+  magnetostatic fields as computed by the volta or tesla miniapps.
 
 API changes:
 -----------

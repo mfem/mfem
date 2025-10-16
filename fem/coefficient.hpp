@@ -897,6 +897,9 @@ public:
    void Eval(DenseMatrix &M, ElementTransformation &T,
              const IntegrationRule &ir) override;
 
+   /// @copydoc VectorCoefficient::Project(QuadratureFunction &)
+   void Project(QuadratureFunction &qf) override;
+
    virtual ~GradientGridFunctionCoefficient() { }
 };
 
@@ -1774,6 +1777,9 @@ public:
    /// Evaluate the coefficient at @a ip.
    real_t Eval(ElementTransformation &T,
                const IntegrationPoint &ip) override;
+
+   /// @copydoc Coefficient::Project(QuadratureFunction &)
+   void Project(QuadratureFunction &qf) override;
 };
 
 /// Scalar coefficient defined as a cross product of two vectors in the xy-plane.
