@@ -644,7 +644,11 @@ Operator &NonlinearForm::GetGradient(const Vector &x) const
       }
    }
 
-   if (!Grad->Finalized())
+   // Only finalize if serial because, in the parallel case, Grad->Finalize()
+   // will be called by ParNonlinearForm::GetGradient.  This is necessary to
+   // allow the shared face contribution to be added if a face integrator is
+   // present.
+   if (Serial() && !Grad->Finalized())
    {
       Grad->Finalize(skip_zeros);
    }
