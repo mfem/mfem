@@ -47,6 +47,9 @@ baselinecheck_mfem_intel_dane:
     #       .gitlab/configs/setup-baseline.yml.
     TPLS_DIR: ${BUILD_ROOT}/tpls
   script:
+    - echo "AUTOTEST=$AUTOTEST"
+    - echo "AUTOTEST_COMMIT=$AUTOTEST_COMMIT"
+    - echo "AUTOTEST_ROOT=$AUTOTEST_ROOT"
     - echo ${BUILD_ROOT}
     - echo ${TPLS_DIR}
     # Used by the tests in MFEM/tests, dane has 224 threads/node:

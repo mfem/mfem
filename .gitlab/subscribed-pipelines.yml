@@ -42,6 +42,9 @@ generate-job-lists:
     LOCAL_JOBS_PATH: ".gitlab/jobs"
   script:
     - |
+      echo "AUTOTEST=$AUTOTEST"
+      echo "AUTOTEST_COMMIT=$AUTOTEST_COMMIT"
+      echo "AUTOTEST_ROOT=$AUTOTEST_ROOT"
       cat ${LOCAL_JOBS_PATH}/dane.yml > dane-jobs.yml
       if [[ ${AUTOTEST} == "ON" ]]
       then
