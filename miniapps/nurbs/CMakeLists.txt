@@ -84,6 +84,14 @@ add_mfem_miniapp(nurbs_surface
   MAIN nurbs_surface.cpp
   LIBRARIES mfem)
 
+add_mfem_miniapp(nurbs_vector_diffusion
+  MAIN nurbs_vector_diffusion.cpp
+  LIBRARIES mfem)
+
+add_mfem_miniapp(nurbs_stokes
+  MAIN nurbs_stokes.cpp
+  LIBRARIES mfem)
+
 if (MFEM_ENABLE_TESTING)
   add_test(NAME nurbs_ex1_1d_r1_o2_ser
     COMMAND $<TARGET_FILE:nurbs_ex1> -no-vis

@@ -819,6 +819,20 @@ public:
    virtual ~NURBS_HDivFECollection();
 };
 
+/// Arbitrary order H(div) U H1  NURBS finite elements.
+/// This class is identical to NURBS_HDivFECollection.
+/// However fespace will behave slightly different for this FECollection,
+/// the boundary dofs will also include the tangential components.
+/// This will allow enforcing essential BC for a diffusion problem,
+/// which requires H1 conformity.
+class NURBS_HDivH1FECollection : public NURBS_HDivFECollection
+{
+public:
+   explicit NURBS_HDivH1FECollection(int Order = VariableOrder,
+                                     const int vdim = -1)
+      : NURBS_HDivFECollection(Order, vdim) {};
+};
+
 /// Arbitrary order H(curl) NURBS finite elements.
 class NURBS_HCurlFECollection : public NURBSFECollection
 {
@@ -868,6 +882,20 @@ public:
    FiniteElementCollection *GetTraceCollection() const override;
 
    virtual ~NURBS_HCurlFECollection();
+};
+
+/// Arbitrary order H(curl) U H1  NURBS finite elements.
+/// This class is identical to NURBS_HCurlFECollection.
+/// However fespace will behave slightly different for this FECollection,
+/// the boundary dofs will also include the normal component.
+/// This will allow enforcing essential BC for a diffusion problem,
+/// which requires H1 conformity.
+class NURBS_HCurlH1FECollection : public NURBS_HCurlFECollection
+{
+public:
+   explicit NURBS_HCurlH1FECollection(int Order = VariableOrder,
+                                      const int vdim = -1)
+      : NURBS_HCurlFECollection(Order, vdim) {};
 };
 
 /// Piecewise-(bi/tri)linear continuous finite elements.
