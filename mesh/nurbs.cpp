@@ -2614,9 +2614,11 @@ NURBSExtension::NURBSExtension(NURBSExtension *parent,
 NURBSExtension::NURBSExtension(const NURBSExtension &parent, int newOrder)
    : NURBSExtension(parent)
 {
-   Array<int> orders(GetNKV());
-   orders = newOrder;
-   DegreeElevate(orders);
+   mfem::out << "deep copy nurbsext constructor" << std::endl;
+   // Array<int> orders(GetNKV());
+   // orders = newOrder;
+   // DegreeElevate(orders);
+   DegreeElevate(0, newOrder);
 }
 
 
@@ -2624,6 +2626,7 @@ NURBSExtension::NURBSExtension(const NURBSExtension &parent,
                                const Array<int> &newOrders, Mode mode)
    : NURBSExtension(parent)
 {
+   mfem::out << "deep copy nurbsext constructor" << std::endl;
    mode = mode;
    DegreeElevate(newOrders);
 }
@@ -4757,20 +4760,28 @@ void NURBSExtension::DegreeElevate(const Array<int> &degrees)
    MFEM_VERIFY(degrees.Size() == GetNKV(),
                "Size of degrees must be equal to number of knotvectors");
 
+   Array<int> edge_to_ukv_;
    Array<int> ukv_to_rpkv;
-   patchTopo->GetEdgeToUniqueKnotvector(edge_to_ukv, ukv_to_rpkv);
+   patchTopo->GetEdgeToUniqueKnotvector(edge_to_ukv_, ukv_to_rpkv);
+
+   // Array<NURBSPatch*> patches;
+   // Mesh
+   mfem::out << "np = " << patches.Size() << std::endl;
 
    // Elevate degrees
    for (int i = 0; i < GetNKV(); i++)
    {
       const int pkv = ukv_to_rpkv[i];
       const int p = pkv / Dimension();
+      mfem::out << "pkv = " << pkv << std::endl;
+      mfem::out << "p = " << p << std::endl;
       const int d = pkv % Dimension();
       const int oldd = patches[p]->GetKV(d)->GetOrder();
       const int newd = degrees[i];
+      mfem::out << "oldd,newd = " << oldd << ", " << newd << std::endl;
       if (newd > oldd)
       {
-         patches[p]->DegreeElevate(d, degrees[i]);
+         patches[p]->DegreeElevate(d, newd - oldd);
       }
    }
 }

@@ -269,7 +269,19 @@ FiniteElementSpace::NURBSConstructor(Mesh* mesh,
    {
       // We heap allocate this NURBSExtension but its lifetime will be managed by
       // the returned FiniteElementSpace
-      NURBSExtension *ext = new NURBSExtension(*mesh->NURBSext, *orders);
+
+
+      // deep-copy version
+      // NURBSExtension *ext = (orders->Size() == 1)
+      //    ? new NURBSExtension(*mesh->NURBSext, fixed_order)
+      //    : new NURBSExtension(*mesh->NURBSext, *orders);
+
+      // original version
+      NURBSExtension *ext = (orders->Size() == 1)
+         ? new NURBSExtension(mesh->NURBSext, fixed_order)
+         : new NURBSExtension(mesh->NURBSext, *orders);
+
+
       // fespace does not own fec, so we return it
       auto fec = std::make_unique<NURBSFECollection>(fixed_order);
       // fec = std::make_unique<NURBSFECollection>(fixed_order);

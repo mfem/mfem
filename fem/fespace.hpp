@@ -687,7 +687,7 @@ public:
        FiniteElementCollection is related to mesh.GetNodes()->OwnFEC()
        but with different order(s). Creates a NURBSExtension object that
        is owned by the returned FiniteElementSpace. */
-   static //FiniteElementSpace // std::pair<FiniteElementSpace, NURBSFECollection>
+   static
    std::pair<FiniteElementSpace, std::unique_ptr<NURBSFECollection>>
    NURBSConstructor(Mesh* mesh,
                     Array<int>* orders,
