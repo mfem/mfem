@@ -825,14 +825,46 @@ void BilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list, Vector &x,
                                     Vector &b, OperatorHandle &A, Vector &X,
                                     Vector &B, int copy_interior)
 {
+   const SparseMatrix *P = fes->GetConformingProlongation();
+   const SparseMatrix *R = fes->GetConformingRestriction();
    if (ext)
    {
       if (hybridization)
       {
          FormSystemMatrix(ess_tdof_list, A);
-         ConstrainedOperator A_constrained(this, ess_tdof_list);
-         A_constrained.EliminateRHS(x, b);
-         hybridization->ReduceRHS(b, B);
+
+         std::unique_ptr<ConstrainedOperator> A_constrained([&]()
+         {
+            Operator *op;
+            Operator::FormSystemOperator(ess_tdof_list, op);
+            return dynamic_cast<ConstrainedOperator*>(op);
+         }());
+         MFEM_ASSERT(A_constrained != nullptr, "");
+
+         Vector conf_b, conf_x;
+         if (P)
+         {
+            // Nonconforming
+            conf_b.SetSize(P->Width());
+            conf_x.SetSize(P->Width());
+            P->MultTranspose(b, conf_b);
+            R->Mult(x, conf_x);
+         }
+         else
+         {
+            // Conforming
+            conf_b.MakeRef(b, 0, b.Size());
+            conf_x.MakeRef(x, 0, x.Size());
+         }
+
+         A_constrained->EliminateRHS(conf_x, conf_b);
+
+         if (P)
+         {
+            R->MultTranspose(conf_b, b); // store eliminated rhs in b
+         }
+
+         hybridization->ReduceRHS(conf_b, B);
          X.SetSize(B.Size());
          X = 0.0;
       }
@@ -842,7 +874,6 @@ void BilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list, Vector &x,
       }
       return;
    }
-   const SparseMatrix *P = fes->GetConformingProlongation();
    FormSystemMatrix(ess_tdof_list, A);
 
    // Transform the system and perform the elimination in B, based on the
@@ -878,7 +909,6 @@ void BilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list, Vector &x,
       if (hybridization)
       {
          // Reduction to the Lagrange multipliers system
-         const SparseMatrix *R = fes->GetConformingRestriction();
          Vector conf_b(P->Width()), conf_x(P->Width());
          P->MultTranspose(b, conf_b);
          R->Mult(x, conf_x);
@@ -891,7 +921,6 @@ void BilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list, Vector &x,
       else
       {
          // Variational restriction with P
-         const SparseMatrix *R = fes->GetConformingRestriction();
          B.SetSize(P->Width());
          P->MultTranspose(b, B);
          X.SetSize(R->Height());
