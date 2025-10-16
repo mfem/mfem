@@ -222,14 +222,17 @@ FiniteElementSpace::IsogeometricConstructor(Mesh* mesh, int vdim, int ordering)
    return FiniteElementSpace(mesh, nullptr, fec, vdim, ordering);
 }
 
-std::pair<const NURBSFECollection, FiniteElementSpace>
-FiniteElementSpace::NURBSConstructor(Mesh* mesh, int order, int vdim,
+// FiniteElementSpace
+std::pair<FiniteElementSpace, std::unique_ptr<NURBSFECollection>>
+FiniteElementSpace::NURBSConstructor(Mesh* mesh,
+                                     Array<int>* orders,
+                                     int vdim,
                                      int ordering,
                                      Array<int>* master_boundary,
                                      Array<int>* slave_boundary)
 {
-   // Check that inputs are valid
-   MFEM_VERIFY(!(mesh->NURBSext),
+   // Verify inputs
+   MFEM_VERIFY(mesh->IsNURBS(),
                "FiniteElementSpace::NURBSConstructor requires a NURBS mesh.");
 
    bool connect_boundaries = false;
@@ -245,20 +248,45 @@ FiniteElementSpace::NURBSConstructor(Mesh* mesh, int order, int vdim,
          connect_boundaries = true;
       }
    }
+   MFEM_VERIFY(orders->Size() > 0,
+               "FiniteElementSpace::NURBSConstructor\n"
+               "orders cannot be empty.");
 
-   // Constant order NURBSFECollection
-   const NURBSFECollection fec(order);
-   // We heap allocate this NURBSExtension but its lifetime will be managed by
-   // the returned FiniteElementSpace
-   NURBSExtension *ext = new NURBSExtension(mesh->NURBSext, order);
-   // Connect master/slave boundaries if provided
-   if (connect_boundaries)
+   // Is order constant? (conventions: variable order == -1, iga == 0)
+   int fixed_order = (orders->Size() == 1) ? *orders[0] : -1;
+   MFEM_VERIFY(fixed_order >= -1, "Invalid order");
+
+   // Case 1 - Isogeometric
+   if (fixed_order == 0)
    {
-      ext->ConnectBoundaries(*master_boundary, *slave_boundary);
+      FiniteElementSpace fespace = IsogeometricConstructor(mesh, vdim, ordering);
+      // Make a copy of fec
+      // NURBSFECollection fec(fespace.FEColl()->GetOrder());
+      return std::make_pair(std::move(fespace), nullptr);
    }
-   FiniteElementSpace fespace(mesh, ext, &fec, vdim, ordering);
-   // FiniteElementSpace fespace(mesh, ext, static_cast<const FiniteElementCollection*>(&fec), vdim, ordering);
-   return std::pair<const NURBSFECollection, FiniteElementSpace>(fec, fespace);
+   // Case 2/3 - Variable/Fixed order
+   else
+   {
+      // We heap allocate this NURBSExtension but its lifetime will be managed by
+      // the returned FiniteElementSpace
+      NURBSExtension *ext = new NURBSExtension(*mesh->NURBSext, *orders);
+      // fespace does not own fec, so we return it
+      auto fec = std::make_unique<NURBSFECollection>(fixed_order);
+      // fec = std::make_unique<NURBSFECollection>(fixed_order);
+      // NURBSFECollection fec(fixed_order);
+
+      // Connect master/slave boundaries if provided
+      if (connect_boundaries)
+      {
+         ext->ConnectBoundaries(*master_boundary, *slave_boundary);
+      }
+      // const FiniteElementCollection* fec_ptr = static_cast<const FiniteElementCollection*>(fec.get());
+      // FiniteElementSpace fespace(mesh, ext, fec_ptr, vdim, ordering);
+      FiniteElementSpace fespace(mesh, ext, fec.get(), vdim, ordering);
+      // FiniteElementSpace fespace(mesh, ext, &fec, vdim, ordering);
+      // FiniteElementSpace fespace(mesh, ext, static_cast<const FiniteElementCollection*>(&fec), vdim, ordering);
+      return std::make_pair(std::move(fespace), std::move(fec));
+   }
 }
 
 void FiniteElementSpace::SetProlongation(const SparseMatrix& p)

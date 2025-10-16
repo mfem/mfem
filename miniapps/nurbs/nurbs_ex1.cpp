@@ -213,13 +213,17 @@ int main(int argc, char *argv[])
    Mesh mesh(mesh_file, 1, 1);
    int dim = mesh.Dimension();
 
+   // Verify inputs
+   MFEM_VERIFY(order.Size() > 0, "Must provide at least one order");
+   MFEM_VERIFY(mesh.IsNURBS(), "Mesh must be nurbs");
+
    // 3. Refine the mesh to increase the resolution. In this example we do
    //    'ref_levels' of uniform refinement and knot insertion of knots defined
    //    in a refinement file. We choose 'ref_levels' to be the largest number
    //    that gives a final mesh with no more than 50,000 elements.
    {
       // Mesh refinement as defined in refinement file
-      if (mesh.NURBSext && (strlen(ref_file) != 0))
+      if (strlen(ref_file) != 0)
       {
          mesh.RefineNURBSFromFile(ref_file);
       }
@@ -254,63 +258,20 @@ int main(int argc, char *argv[])
    // 4. Define a finite element space on the mesh. Here we use continuous
    //    Lagrange finite elements of the specified order. If order < 1, we
    //    instead use an isoparametric/isogeometric space.
-   unique_ptr<FiniteElementCollection> fec;
-   // unique_ptr<NURBSExtension> NURBSext;
-   NURBSExtension* NURBSext;
-   bool isogeometric = false;
+   // unique_ptr<FiniteElementCollection> fec;
+   // NURBSExtension* NURBSext;
+   // bool isogeometric = false;
    // unique_ptr<FiniteElementSpace> fespace;
 
-   if (order.Size() == 0)
-   {
-      mfem_error("Order has size 0");
-   }
-   else if (order[0] == 0) // Isogeometric
-   {
-      if (mesh.GetNodes())
-      {
-         isogeometric = true;
-         cout << "Using isogeometric FEs: " << mesh.GetNodes()->OwnFEC()->Name() << endl;
-         // fespace.reset(new FiniteElementSpace(&mesh, NURBSext.get(), mesh_fec));
-      }
-      else
-      {
-         cout <<"Mesh does not have FEs --> Assume order 1.\n";
-         fec.reset(new H1_FECollection(1, dim));
-         // fespace.reset(new FiniteElementSpace(&mesh, NURBSext.get(), fec.get()));
-      }
-   }
-   else if (mesh.NURBSext && (order[0] > 0))
-   {
-      if (order.Size() == 1)
-      {
-         fec.reset(new NURBSFECollection(order[0]));
-         // NURBSext.reset(new NURBSExtension(mesh.NURBSext, order[0]));
-         // NURBSext.reset(new NURBSExtension(mesh.NURBSext, fec->GetOrder()));
-         NURBSext = new NURBSExtension(mesh.NURBSext, fec->GetOrder());
-         // fespace = new FiniteElementSpace(&mesh,master,slave,fec.get());
-      }
-      else
-      {
-         fec.reset(new NURBSFECollection(-1));
-         // NURBSext.reset(new NURBSExtension(mesh.NURBSext, order));
-         NURBSext = new NURBSExtension(mesh.NURBSext, order);
-         // fespace = new FiniteElementSpace(&mesh,NURBSext.get(),fec.get());
-      }
-      NURBSext->ConnectBoundaries(master,slave);
-   }
-   else
-   {
-      if (order.Size() > 1) { cout <<"Wrong number of orders set, needs one.\n"; }
-      fec.reset(new H1_FECollection(abs(order[0]), dim));
-      // fespace = new FiniteElementSpace(&mesh, fec.get());
-   }
+   auto [fespace, fec] = FiniteElementSpace::NURBSConstructor(&mesh, &order);
+
 
    // FiniteElementCollection *fec_ = (isogeometric) ? mesh_fec : fec.get();
    // FiniteElementSpace fespace(&mesh, NURBSext.get(), fec_);
 
-   FiniteElementSpace fespace = (isogeometric)
-      ? FiniteElementSpace::IsogeometricConstructor(&mesh)
-      : FiniteElementSpace(&mesh, NURBSext, fec.get());
+   // FiniteElementSpace fespace = (isogeometric)
+   //                              ? FiniteElementSpace::IsogeometricConstructor(&mesh)
+   //                              : FiniteElementSpace(&mesh, NURBSext, fec.get());
    // fespace.reset(new FiniteElementSpace.IsogeometricConstructor(&mesh));
 
    cout << "Number of finite element unknowns: "
