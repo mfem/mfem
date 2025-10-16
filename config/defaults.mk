@@ -472,7 +472,7 @@ FMS_LIB = -Wl,-rpath,$(FMS_DIR)/lib -L$(FMS_DIR)/lib -lfms
 
 # Conduit and required libraries configuration
 CONDUIT_DIR = @MFEM_DIR@/../conduit
-CONDUIT_OPT = -I$(CONDUIT_DIR)/include/conduit
+CONDUIT_OPT = -I$(CONDUIT_DIR)/include
 CONDUIT_LIB = \
    $(XLINKER)-rpath,$(CONDUIT_DIR)/lib -L$(CONDUIT_DIR)/lib \
    -lconduit -lconduit_relay -lconduit_blueprint  -ldl
@@ -489,8 +489,10 @@ endif
 # Sidre and required libraries configuration
 # Be sure to check the HDF5_DIR (set above) is correct
 SIDRE_DIR = @MFEM_DIR@/../axom
-SIDRE_OPT = -I$(SIDRE_DIR)/include -I$(CONDUIT_DIR)/include/conduit\
- -I$(HDF5_DIR)/include
+# Sidre requires the compiler include paths to include the inner include/conduit
+# sub-directory.
+SIDRE_OPT = -I$(SIDRE_DIR)/include -I$(CONDUIT_DIR)/include \
+            -I$(CONDUIT_DIR)/include/conduit -I$(HDF5_DIR)/include
 SIDRE_LIB = \
    $(XLINKER)-rpath,$(SIDRE_DIR)/lib -L$(SIDRE_DIR)/lib \
    $(XLINKER)-rpath,$(CONDUIT_DIR)/lib -L$(CONDUIT_DIR)/lib \
