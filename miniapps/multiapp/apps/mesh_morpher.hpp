@@ -44,6 +44,7 @@ public:
    /// Grid function for the mesh displacement variable
    mutable ParGridFunction x_gf; 
    mutable ParGridFunction x_gf_bc;
+   mutable ParGridFunction u_gf_bc;
    mutable ParGridFunction bc_send_gf; ///< Grid functions for transfering BCs
 
    /// Mass and Stiffness forms
@@ -65,7 +66,7 @@ public:
    real_t current_dt = -1.0; 
 
    /// Auxiliary vectors
-   mutable Vector z;
+   mutable Vector z, zv;
    bool updated = false;
 
 public:
@@ -79,7 +80,7 @@ public:
                    ess_attr(ess_attr_),
                    kappa(kappa_),
                    x_gf(&fes),
-                   x_gf_bc(&fes),
+                   x_gf_bc(&fes), u_gf_bc(&fes),
                    bc_send_gf(&fes),
                    Mform(&fes), Kform(&fes),Kform_e(&fes),
                    M_solver(mesh.GetComm()),
@@ -90,13 +91,15 @@ public:
 
           x_gf = 0.0;
           x_gf_bc = 0.0;
+          u_gf_bc = 0.0;
           bc_send_gf = 0.0;
 
           // Setup field collection for output and transfer
           field_collection.SetName("Mesh-Diffusion");
-          field_collection.AddField("Displacement", &x_gf);
-          field_collection.AddSourceField("Displacement_BC", &x_gf_bc);
+          field_collection.AddSourceField("Displacement", &x_gf);
           field_collection.AddSourceField("dxdt", &bc_send_gf);
+          field_collection.AddField("Displacement_BC", &x_gf_bc);
+          field_collection.AddField("Velocity_BC", &u_gf_bc);
 
           Mform.AddDomainIntegrator(new VectorMassIntegrator);
           Kform.AddDomainIntegrator(new VectorDiffusionIntegrator(kappa));
@@ -123,6 +126,7 @@ public:
           fes.Update();
           x_gf.Update();
           x_gf_bc.Update();
+          u_gf_bc.Update();
           bc_send_gf.Update();
 
           Mform.Update();
@@ -202,7 +206,18 @@ public:
 
      void Transfer(const Vector &x) override
      {
-          field_collection.Transfer("Displacement_BC", x);
+          field_collection.Transfer("Displacement", x);
+
+          zv.SetSize(fes.GetTrueVSize());
+          u_gf_bc.GetTrueDofs(zv);
+          Kmat.Mult(x, z);
+          z.Neg();
+          for (int i = 0; i < ess_tdofs.Size(); i++)
+          {
+               int idx = ess_tdofs[i];
+               z(idx) = zv(idx);
+          }
+          field_collection.Transfer("dxdt", z);
      }
 
      void Transfer(const Vector &u, const Vector &k, real_t dt = 0.0) override
