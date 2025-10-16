@@ -18,7 +18,7 @@
 setup_baseline:
   tags:
     - shell
-    - ruby
+    - dane
   stage: setup
   variables:
     GIT_STRATEGY: none

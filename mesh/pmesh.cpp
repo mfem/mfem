@@ -222,7 +222,7 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, const int *partitioning_,
          }
       }
 
-      ListOfIntegerSets  groups;
+      ListOfIntegerSets groups;
       {
          // the first group is the local one
          IntegerSet group;
@@ -1400,7 +1400,7 @@ ParMesh ParMesh::MakeSimplicial(ParMesh &orig_mesh)
    {
       vglobal[iv] = fes.GetGlobalTDofNumber(iv);
    }
-   mesh.MakeSimplicial_(orig_mesh, vglobal);
+   auto parent_elements = mesh.MakeSimplicial_(orig_mesh, vglobal);
 
    // count the number of entries in each row of group_s{vert,edge,face}
    mesh.group_svert.MakeI(mesh.GetNGroups()-1); // exclude the local group 0
@@ -1517,6 +1517,11 @@ ParMesh ParMesh::MakeSimplicial(ParMesh &orig_mesh)
 
    mesh.FinalizeParTopo();
 
+   if (orig_mesh.GetNodes() != nullptr)
+   {
+      mesh.MakeHigherOrderSimplicial_(orig_mesh, parent_elements);
+   }
+
    return mesh;
 }
 
@@ -1569,7 +1574,7 @@ void ParMesh::DistributeAttributes(Array<int> &attr)
       attr_marker[attr[i] - 1] = true;
    }
    MPI_Allreduce(attr_marker, glb_attr_marker, glb_max_attr,
-                 MPI_C_BOOL, MPI_LOR, MyComm);
+                 MFEM_MPI_CXX_BOOL, MPI_LOR, MyComm);
    delete [] attr_marker;
 
    // Translate from the marker array to a unique, sorted list of attributes
@@ -1585,21 +1590,27 @@ void ParMesh::DistributeAttributes(Array<int> &attr)
    delete [] glb_attr_marker;
 }
 
-void ParMesh::SetAttributes()
+void ParMesh::SetAttributes(bool elem_attrs_changed, bool bdr_attrs_changed)
 {
    // Determine the attributes occurring in local interior and boundary elements
-   Mesh::SetAttributes();
+   Mesh::SetAttributes(elem_attrs_changed, bdr_attrs_changed);
 
-   DistributeAttributes(bdr_attributes);
-   if (bdr_attributes.Size() > 0 && bdr_attributes[0] <= 0)
+   if (bdr_attrs_changed)
    {
-      MFEM_WARNING("Non-positive boundary element attributes found!");
+      DistributeAttributes(bdr_attributes);
+      if (bdr_attributes.Size() > 0 && bdr_attributes[0] <= 0)
+      {
+         MFEM_WARNING("Non-positive boundary element attributes found!");
+      }
    }
 
-   DistributeAttributes(attributes);
-   if (attributes.Size() > 0 && attributes[0] <= 0)
+   if (elem_attrs_changed)
    {
-      MFEM_WARNING("Non-positive element attributes found!");
+      DistributeAttributes(attributes);
+      if (attributes.Size() > 0 && attributes[0] <= 0)
+      {
+         MFEM_WARNING("Non-positive element attributes found!");
+      }
    }
 }
 
@@ -3127,11 +3138,12 @@ void ParMesh::GetFaceNbrElementTransformation(
          pNodes->ParFESpace()->GetFaceNbrElementVDofs(FaceNo, vdofs);
          int n = vdofs.Size()/spaceDim;
          pointmat.SetSize(spaceDim, n);
+         pNodes->FaceNbrData().HostRead();
          for (int k = 0; k < spaceDim; k++)
          {
             for (int j = 0; j < n; j++)
             {
-               pointmat(k,j) = (pNodes->FaceNbrData())(vdofs[n*k+j]);
+               pointmat(k,j) = AsConst(pNodes->FaceNbrData())(vdofs[n*k+j]);
             }
          }
 
@@ -3885,6 +3897,13 @@ void ParMesh::LocalRefinement(const Array<int> &marked_el, int type)
 #endif
 }
 
+bool ParMesh::AnisotropicConflict(const Array<Refinement> &refinements,
+                                  std::set<int> &conflicts) const
+{
+   MFEM_VERIFY(pncmesh, "AnisotropicConflict should be called only for NCMesh");
+   return pncmesh->AnisotropicConflict(refinements, conflicts);
+}
+
 void ParMesh::NonconformingRefinement(const Array<Refinement> &refinements,
                                       int nc_limit)
 {
@@ -4579,6 +4598,14 @@ void ParMesh::NURBSUniformRefinement(const Array<int> &rf, real_t tol)
    if (MyRank == 0)
    {
       mfem::out << "\nParMesh::NURBSUniformRefinement : Not supported yet!\n";
+   }
+}
+
+void ParMesh::RefineNURBSWithKVFactors(int rf, const std::string &kvf)
+{
+   if (MyRank == 0)
+   {
+      mfem::out << "\nRefineNURBSWithKVFactors : Not supported yet!\n";
    }
 }
 
@@ -6417,7 +6444,7 @@ void ParMesh::PrintVTU(std::string pathname,
 
       os << "<?xml version=\"1.0\"?>\n";
       os << "<VTKFile type=\"PUnstructuredGrid\"";
-      os << " version =\"0.1\" byte_order=\"" << VTKByteOrder() << "\">\n";
+      os << " version =\"2.2\" byte_order=\"" << VTKByteOrder() << "\">\n";
       os << "<PUnstructuredGrid GhostLevel=\"0\">\n";
 
       os << "<PPoints>\n";
@@ -6723,9 +6750,9 @@ void ParMesh::UnmarkInternalBoundaries(Array<int> &bdr_marker, bool excl) const
    Array<bool> glb_exterior_bdr(bdr_attributes.Max()); glb_exterior_bdr = false;
 
    MPI_Allreduce(&interior_bdr[0], &glb_interior_bdr[0], bdr_attributes.Max(),
-                 MPI_C_BOOL, MPI_LOR, MyComm);
+                 MFEM_MPI_CXX_BOOL, MPI_LOR, MyComm);
    MPI_Allreduce(&exterior_bdr[0], &glb_exterior_bdr[0], bdr_attributes.Max(),
-                 MPI_C_BOOL, MPI_LOR, MyComm);
+                 MFEM_MPI_CXX_BOOL, MPI_LOR, MyComm);
 
    // Unmark attributes which are currently marked, contain interior faces,
    // and satisfy the appropriate exclusivity requirement.
@@ -6776,9 +6803,9 @@ void ParMesh::MarkExternalBoundaries(Array<int> &bdr_marker, bool excl) const
    Array<bool> glb_exterior_bdr(bdr_attributes.Max()); glb_exterior_bdr = false;
 
    MPI_Allreduce(&interior_bdr[0], &glb_interior_bdr[0], bdr_attributes.Max(),
-                 MPI_C_BOOL, MPI_LOR, MyComm);
+                 MFEM_MPI_CXX_BOOL, MPI_LOR, MyComm);
    MPI_Allreduce(&exterior_bdr[0], &glb_exterior_bdr[0], bdr_attributes.Max(),
-                 MPI_C_BOOL, MPI_LOR, MyComm);
+                 MFEM_MPI_CXX_BOOL, MPI_LOR, MyComm);
 
    // Mark the attributes which are currently unmarked, containing exterior
    // faces, and satisfying the necessary exclusivity requirements.

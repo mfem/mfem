@@ -103,7 +103,7 @@ int main (int argc, char *argv[])
    }
    args.PrintOptions(cout);
 
-   // If a gridfunction is specified, set src_fieldtype to -1
+   // If a grid function is specified, set src_fieldtype to -1
    if (strcmp(src_sltn_file, "must_be_provided_by_the_user.gf") != 0)
    {
       src_fieldtype = -1;
@@ -305,8 +305,7 @@ int main (int argc, char *argv[])
 
    // Evaluate source grid function.
    Vector interp_vals(nodes_cnt*tar_ncomp);
-   FindPointsGSLIB finder;
-   finder.Setup(mesh_1);
+   FindPointsGSLIB finder(mesh_1);
    finder.Interpolate(vxyz, *func_source, interp_vals, point_ordering);
 
    // Project the interpolated values to the target FiniteElementSpace.
@@ -397,9 +396,6 @@ int main (int argc, char *argv[])
    rho_ofs.precision(8);
    func_target.Save(rho_ofs);
    rho_ofs.close();
-
-   // Free the internal gslib data.
-   finder.FreeData();
 
    // Delete remaining memory.
    if (func_source->OwnFEC())
