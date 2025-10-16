@@ -118,13 +118,11 @@ int main(int argc, char *argv[])
    //    Raviart-Thomas finite elements of the specified order.
    FiniteElementCollection *hdiv_coll = nullptr;
    FiniteElementCollection *l2_coll = nullptr;
-   NURBSExtension *NURBSext = nullptr;
 
    if (mesh->NURBSext && !pa)
    {
       hdiv_coll = new NURBS_HDivFECollection(order,dim);
       l2_coll   = new NURBSFECollection(order);
-      NURBSext  = new NURBSExtension(mesh->NURBSext, order);
       mfem::out<<"Create NURBS fec and ext"<<std::endl;
    }
    else
@@ -134,10 +132,8 @@ int main(int argc, char *argv[])
       mfem::out<<"Create Normal fec"<<std::endl;
    }
    pa = false;
-   FiniteElementSpace *W_space = new FiniteElementSpace(mesh, NURBSext, l2_coll);
-   FiniteElementSpace *R_space = new FiniteElementSpace(mesh,
-                                                        W_space->StealNURBSext(),
-                                                        hdiv_coll);
+   FiniteElementSpace *W_space = new FiniteElementSpace(mesh, l2_coll);
+   FiniteElementSpace *R_space = new FiniteElementSpace(mesh, hdiv_coll);
 
    // 6. Define the BlockStructure of the problem, i.e. define the array of
    //    offsets for each variable. The last component of the Array is the sum

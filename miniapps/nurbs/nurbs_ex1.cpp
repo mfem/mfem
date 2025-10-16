@@ -46,14 +46,14 @@ using namespace mfem;
 class Data
 {
 public:
-   real_t x,val;
+   real_t x, val;
    Data(real_t x_, real_t val_) {x=x_; val=val_;};
 };
 
-inline bool operator==(const Data& d1,const Data& d2) { return (d1.x == d2.x); }
-inline bool operator <(const Data& d1,const Data& d2) { return (d1.x  < d2.x); }
+inline bool operator==(const Data& d1, const Data& d2) { return (d1.x == d2.x); }
+inline bool operator <(const Data& d1, const Data& d2) { return (d1.x  < d2.x); }
 
-/** Class for integrating the bilinear form a(u,v) := (Q Laplace u, v) where Q
+/** Class for integrating the bilinear form a(u, v) := (Q Laplace u, v) where Q
     can be a scalar coefficient. */
 class Diffusion2Integrator: public BilinearFormIntegrator
 {
@@ -104,11 +104,11 @@ public:
 
          if (el.Space() == FunctionSpace::rQk)
          {
-            ir = &RefinedIntRules.Get(el.GetGeomType(),order);
+            ir = &RefinedIntRules.Get(el.GetGeomType(), order);
          }
          else
          {
-            ir = &IntRules.Get(el.GetGeomType(),order);
+            ir = &IntRules.Get(el.GetGeomType(), order);
          }
       }
 
@@ -156,8 +156,9 @@ int main(int argc, char *argv[])
    bool strongBC = 1;
    real_t kappa = -1;
    Array<int> order(1);
+   order[0] = -1;
    int visport = 19916;
-   order[0] = 1;
+
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -236,43 +237,35 @@ int main(int argc, char *argv[])
       mesh->PrintInfo();
    }
 
+   // Read periodic BCs from file
+   std::ifstream in;
+   in.open(per_file, std::ifstream::in);
+   if (in.is_open())
+   {
+      int psize;
+      in >> psize;
+      master.SetSize(psize);
+      slave.SetSize(psize);
+      master.Load(in, psize);
+      slave.Load(in, psize);
+      in.close();
+   }
+
    // 4. Define a finite element space on the mesh. Here we use continuous
    //    Lagrange finite elements of the specified order. If order < 1, we
    //    instead use an isoparametric/isogeometric space.
    FiniteElementCollection *fec;
-   NURBSExtension *NURBSext = NULL;
+   NURBSExtension *NURBSext = nullptr;
+   FiniteElementSpace *fespace = nullptr;
    int own_fec = 0;
 
-   if (mesh->NURBSext)
+   if (order.Size() == 0)
    {
-      fec = new NURBSFECollection(order[0]);
-      own_fec = 1;
-
-      int nkv = mesh->NURBSext->GetNKV();
-      if (order.Size() == 1)
-      {
-         int tmp = order[0];
-         order.SetSize(nkv);
-         order = tmp;
-      }
-
-      if (order.Size() != nkv ) { mfem_error("Wrong number of orders set."); }
-      NURBSext = new NURBSExtension(mesh->NURBSext, order);
-
-      // Read periodic BCs from file
-      std::ifstream in;
-      in.open(per_file, std::ifstream::in);
-      if (in.is_open())
-      {
-         int psize;
-         in >> psize;
-         master.SetSize(psize);
-         slave.SetSize(psize);
-         master.Load(in, psize);
-         slave.Load(in, psize);
-         in.close();
-      }
-      NURBSext->ConnectBoundaries(master,slave);
+      mfem_error("Order has size 0");
+   }
+   else if (order[0] == 0)
+   {
+      mfem_error("Order 0 is not a valid option");
    }
    else if (order[0] == -1) // Isoparametric
    {
@@ -288,15 +281,33 @@ int main(int argc, char *argv[])
          fec = new H1_FECollection(1, dim);
          own_fec = 1;
       }
+      fespace = new FiniteElementSpace(mesh, NURBSext, fec);
+   }
+   else if (mesh->NURBSext && (order[0] > 0))
+   {
+      if (order.Size() == 1)
+      {
+         fec = new NURBSFECollection(order[0]);
+         own_fec = 1;
+         fespace = new FiniteElementSpace(mesh, master, slave, fec);
+      }
+      else
+      {
+         fec = new NURBSFECollection(-1);
+         own_fec = 1;
+         NURBSext = new NURBSExtension(mesh->NURBSext, order);
+         NURBSext->ConnectBoundaries(master, slave);
+         fespace = new FiniteElementSpace(mesh, NURBSext, fec);
+      }
    }
    else
    {
       if (order.Size() > 1) { cout <<"Wrong number of orders set, needs one.\n"; }
       fec = new H1_FECollection(abs(order[0]), dim);
       own_fec = 1;
+      fespace = new FiniteElementSpace(mesh, fec);
    }
 
-   FiniteElementSpace *fespace = new FiniteElementSpace(mesh, NURBSext, fec);
    cout << "Number of finite element unknowns: "
         << fespace->GetTrueVSize() << endl;
 
@@ -400,7 +411,7 @@ int main(int argc, char *argv[])
 
    LinearForm *b = new LinearForm(fespace);
    b->AddDomainIntegrator(new DomainLFIntegrator(one));
-   b->AddBoundaryIntegrator( new BoundaryLFIntegrator(one),neu_bdr);
+   b->AddBoundaryIntegrator( new BoundaryLFIntegrator(one), neu_bdr);
    if (!strongBC)
       b->AddBdrFaceIntegrator(
          new DGDirichletLFIntegrator(zero, one, -1.0, kappa), ess_bdr);
@@ -491,7 +502,7 @@ int main(int argc, char *argv[])
    {
       std::list<Data> sol;
 
-      Vector      vals,coords;
+      Vector vals, coords;
       GridFunction *nodes = mesh->GetNodes();
       if (!nodes)
       {
@@ -510,7 +521,7 @@ int main(int argc, char *argv[])
 
          for (int j = 0; j < vals.Size(); j++)
          {
-            sol.push_back(Data(coords[j],vals[j]));
+            sol.push_back(Data(coords[j], vals[j]));
          }
       }
       sol.sort();
