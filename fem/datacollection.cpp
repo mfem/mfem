@@ -430,7 +430,10 @@ void VisItDataCollection::RegisterField(const std::string& name,
    }
 
    DataCollection::RegisterField(name, gf);
-   field_info_map[name] = VisItFieldInfo("nodes", gf->VectorDim(), LOD);
+   field_info_map[name] = VisItFieldInfo("nodes", 
+                                         gf->FESpace()->FEColl()->Name(),
+                                         gf->VectorDim(),
+                                         LOD);
    visit_levels_of_detail = std::max(visit_levels_of_detail, LOD);
 }
 
@@ -449,7 +452,8 @@ void VisItDataCollection::RegisterQField(const std::string& name,
    }
 
    DataCollection::RegisterQField(name, qf);
-   field_info_map[name] = VisItFieldInfo("elements", 1, LOD);
+   // TODO ask mfem folks what the right path forward is for quadrature functions
+   field_info_map[name] = VisItFieldInfo("elements", "", 1, LOD);
    visit_levels_of_detail = std::max(visit_levels_of_detail, LOD);
 }
 
@@ -674,6 +678,7 @@ std::string VisItDataCollection::GetVisItRootString()
         it != field_info_map.end(); ++it)
    {
       ftags["assoc"] = picojson::value((it->second).association);
+      ftags["basis"] = picojson::value((it->second).basis);
       ftags["comps"] = picojson::value(to_string((it->second).num_components));
       ftags["lod"] = picojson::value(to_string((it->second).lod));
       field["path"] = picojson::value(path_str + it->first + file_ext_format);
@@ -754,6 +759,7 @@ void VisItDataCollection::ParseVisItRootString(const std::string& json)
          picojson::value tags = it->second.get("tags");
          field_info_map[it->first] =
             VisItFieldInfo(tags.get("assoc").get<std::string>(),
+                           tags.get("basis").get<std::string>(),
                            to_int(tags.get("comps").get<std::string>()));
       }
    }
