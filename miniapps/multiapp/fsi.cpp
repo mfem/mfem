@@ -77,6 +77,7 @@ int main(int argc, char *argv[])
     real_t t_dev = 2.0;
     real_t t_final = 1.0;
     real_t dt = 1.0e-3;
+    real_t relax_factor = 1.0;
     int couple_scheme = 1;
     bool init = false;
     bool lsave = false;
@@ -105,6 +106,8 @@ int main(int argc, char *argv[])
     args.AddOption(&t_dev, "-t_dev", "--transistion", "Developed flow transition time.");
     args.AddOption(&couple_scheme, "-cs", "--coupling-scheme", 
                     "Coupling scheme: -1 = Monolithic; 0 = Add. Schw.; >0 = Alt. Schw.");
+    args.AddOption(&relax_factor, "-rf", "--relaxation-factor",
+                    "Initial relaxation factor for the FPI solver.");    
     args.AddOption(&init_dir, "-idir", "--init-directory", 
                     "Directory containing intialization files. If doesn't exist, used to write init files.");
     args.AddOption(&lsave, "-save", "--save-init", "-no-save",
@@ -245,6 +248,7 @@ int main(int argc, char *argv[])
     ParGridFunction &xf_gf  = *morpher.Fields().GetField("Displacement");
     ParGridFunction &dxf_gf = *morpher.Fields().GetField("dxdt");
     ParGridFunction &xf_gf_bc = *morpher.Fields().GetField("Displacement_BC");
+    ParGridFunction &dxf_gf_bc = *morpher.Fields().GetField("Velocity_BC");
 
     /// Morphing solution
     Vector xf(xf_fes.GetTrueVSize());
@@ -309,7 +313,7 @@ int main(int argc, char *argv[])
             init = false;
         }
         
-        if(file_error) MPI_Bcast(&file_error, 1, MPI_CXX_BOOL, myid, MPI_COMM_WORLD);
+        if(file_error) MPI_Bcast(&file_error, 1, MFEM_MPI_CXX_BOOL, myid, MPI_COMM_WORLD);
 
         if(!file_error)
         {
@@ -352,15 +356,17 @@ int main(int argc, char *argv[])
     nse_app->Fields().AddTargetField("Stress", &stress_gf);
     elasticity_app->Fields().AddTargetField("Velocity_BC", &uf_gf_bc);
     elasticity_app->Fields().AddTargetField("Displacement_BC", &xf_gf_bc);
+    elasticity_app->Fields().AddTargetField("Velocity_BC", &dxf_gf_bc);
+
 
 
     // Set up coupling parameters (schemes and solvers)
     FPISolver fp_solver(MPI_COMM_WORLD); // For partitioned solves
     AitkenRelaxation fp_relax;
     SetSolverParameters(&fp_solver, 0.0, 5e-4, 100, 1, false);
-    fp_relax.SetBounds(-1.0e1,1.0e1);
-    fp_solver.SetRelaxation(1e0, nullptr); // Use default relaxation method
-    // fp_solver.SetRelaxation(1e0, &fp_relax);
+    // fp_solver.SetRelaxation(relax_factor, &fp_relax);
+    fp_solver.SetRelaxation(relax_factor, nullptr); // Use default relaxation method
+    // fp_relax.SetBounds(-1.0e0,1.0e0);
 
     NewtonSolver newton_solver(MPI_COMM_WORLD); // For fully coupled
     GMRESSolver gmres_solver(MPI_COMM_WORLD); // For fully coupled
@@ -511,7 +517,7 @@ int main(int argc, char *argv[])
         {
             std::filesystem::path dir_path = init_dir;
             dir_created = std::filesystem::create_directory(dir_path);
-            if(!dir_created) MPI_Bcast(&dir_created, 1, MPI_CXX_BOOL, myid, MPI_COMM_WORLD);
+            if(!dir_created) MPI_Bcast(&dir_created, 1, MFEM_MPI_CXX_BOOL, myid, MPI_COMM_WORLD);
         }
         if(lsave && dir_created){
             p_gf.Save((init_dir+"/p-init.gf").c_str());
