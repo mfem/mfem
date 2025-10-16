@@ -89,7 +89,7 @@ The currently available test scripts are:
 - gitignore: Checks for compliance with MFEM's .gitignore rules
 
 - branch-history: Checks if the current branch history (the commits that will be
-  merged in master) contains unusually large files, unusually large number of
+  merged in main) contains unusually large files, unusually large number of
   changes in a commit, unusually large number of commits, etc.
 
 Adding new test scripts is easy and we welcome contributions from users and
