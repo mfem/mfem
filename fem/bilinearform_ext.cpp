@@ -255,6 +255,8 @@ PABilinearFormExtension::PABilinearFormExtension(BilinearForm *form)
 
 void PABilinearFormExtension::SetupRestrictionOperators(const L2FaceValues m)
 {
+   MFEM_PERF_FUNCTION;
+
    if ( Device::Allows(Backend::CEED_MASK) ) { return; }
    ElementDofOrdering ordering = GetEVectorOrdering(*a->FESpace());
    elem_restrict = trial_fes->GetElementRestriction(ordering);
@@ -331,6 +333,8 @@ void PABilinearFormExtension::SetupRestrictionOperators(const L2FaceValues m)
 
 void PABilinearFormExtension::Assemble()
 {
+   MFEM_PERF_FUNCTION;
+
    SetupRestrictionOperators(L2FaceValues::DoubleValued);
 
    Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
@@ -487,6 +491,8 @@ void PABilinearFormExtension::FormLinearSystem(const Array<int> &ess_tdof_list,
 void PABilinearFormExtension::MultInternal(const Vector &x, Vector &y,
                                            const bool useAbs) const
 {
+   MFEM_PERF_FUNCTION;
+
    Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
 
    const int iSz = integrators.Size();
@@ -859,6 +865,7 @@ EABilinearFormExtension::EABilinearFormExtension(BilinearForm *form)
 
 void EABilinearFormExtension::Assemble()
 {
+   MFEM_PERF_FUNCTION;
    SetupRestrictionOperators(L2FaceValues::SingleValued);
 
    ne = trial_fes->GetMesh()->GetNE();
@@ -1407,6 +1414,7 @@ FABilinearFormExtension::FABilinearFormExtension(BilinearForm *form)
 
 void FABilinearFormExtension::Assemble()
 {
+   MFEM_PERF_FUNCTION;
    EABilinearFormExtension::Assemble();
    FiniteElementSpace &fes = *a->FESpace();
    int width = fes.GetVSize();

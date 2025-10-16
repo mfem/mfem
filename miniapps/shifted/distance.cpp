@@ -392,8 +392,10 @@ int main(int argc, char *argv[])
    dacol.Save();
 
    ConstantCoefficient zero(0.0);
+   Vector zero_vec(dim); zero_vec = 0_r;
+   VectorConstantCoefficient vzero(zero_vec);
    const real_t s_norm  = distance_s.ComputeL2Error(zero),
-                v_norm  = distance_v.ComputeL2Error(zero);
+                v_norm  = distance_v.ComputeL2Error(vzero);
    if (myid == 0)
    {
       cout << fixed << setprecision(10) << "Norms: "
