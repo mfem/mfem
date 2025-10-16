@@ -29,7 +29,7 @@ stages:
     - if: '$ON_DANE == "OFF"'
       when: never
     # Don't run autotest update if...
-    - if: '$CI_JOB_NAME =~ /report/ && $AUTOTEST != "ON"'
+    - if: '$CI_JOB_NAME =~ /report/ && $AUTOTEST != "ON" && $AUTOTEST != "YES"'
       when: never
     # Always cleanup
     - if: '$CI_JOB_NAME =~ /cleanup/'

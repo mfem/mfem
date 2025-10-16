@@ -45,20 +45,21 @@ generate-job-lists:
       echo "AUTOTEST=$AUTOTEST"
       echo "AUTOTEST_COMMIT=$AUTOTEST_COMMIT"
       echo "AUTOTEST_ROOT=$AUTOTEST_ROOT"
+    - |
       cat ${LOCAL_JOBS_PATH}/dane.yml > dane-jobs.yml
-      if [[ ${AUTOTEST} == "ON" ]]
+      if [[ ${AUTOTEST} == "ON" || ${AUTOTEST} == "YES" ]]
       then
           cat ${LOCAL_JOBS_PATH}/dane-reports.yml >> dane-jobs.yml
       fi
     - |
       cat ${LOCAL_JOBS_PATH}/matrix.yml > matrix-jobs.yml
-      if [[ ${AUTOTEST} == "ON" ]]
+      if [[ ${AUTOTEST} == "ON" || ${AUTOTEST} == "YES" ]]
       then
           cat ${LOCAL_JOBS_PATH}/matrix-reports.yml >> matrix-jobs.yml
       fi
     - |
       cat ${LOCAL_JOBS_PATH}/tioga.yml > tioga-jobs.yml
-      if [[ ${AUTOTEST} == "ON" ]]
+      if [[ ${AUTOTEST} == "ON" || ${AUTOTEST} == "YES" ]]
       then
           cat ${LOCAL_JOBS_PATH}/tioga-reports.yml >> tioga-jobs.yml
       fi
