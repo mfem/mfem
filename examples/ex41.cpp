@@ -103,7 +103,6 @@ int main(int argc, char *argv[])
    {
       mesh.UniformRefinement();
    }
-   if (ref_levels > 0)
    mesh.PrintCharacteristics();
 
    // 4. Define and finite element space on the mesh. Here we use discontinuous
@@ -151,7 +150,7 @@ int main(int argc, char *argv[])
    VectorFunctionCoefficient momentum_source(vdim,f_source);
    VectorFunctionCoefficient velocity_dbc(vdim,u_exact);
    f.AddBdrFaceIntegrator(new VectorDGDirichletLFIntegrator(velocity_dbc,sigma,
-                                                             kappa,vdim));
+                                                            kappa,vdim));
    f.AddDomainIntegrator(new VectorDomainLFIntegrator(momentum_source));
    f.Assemble();
 

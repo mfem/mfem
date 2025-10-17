@@ -28,9 +28,9 @@ public:
       vdim(vdim_) { }
 
    void AssembleFaceMatrix( const FiniteElement &el1,
-                                    const FiniteElement &el2,
-                                    FaceElementTransformations &Trans,
-                                    DenseMatrix &full_elmat) override;
+                            const FiniteElement &el2,
+                            FaceElementTransformations &Trans,
+                            DenseMatrix &full_elmat) override;
 };
 
 void VectorDGDiffusionIntegrator::AssembleFaceMatrix(
@@ -327,11 +327,11 @@ public:
       : uD(&u), Q(NULL), MQ(&q), sigma(s), kappa(k), vdim(vdim_) { }
 
    void AssembleRHSElementVect(const FiniteElement &el,
-                                       ElementTransformation &Tr,
-                                       Vector &elvect) override;
+                               ElementTransformation &Tr,
+                               Vector &elvect) override;
    void AssembleRHSElementVect(const FiniteElement &el,
-                                       FaceElementTransformations &Tr,
-                                       Vector &full_elvect) override;
+                               FaceElementTransformations &Tr,
+                               Vector &full_elvect) override;
 };
 
 void VectorDGDirichletLFIntegrator::AssembleRHSElementVect(
@@ -478,12 +478,13 @@ public:
                            DenseMatrix &elmat) override;
 };
 
-void DGAvgNormalJumpIntegrator::AssembleFaceMatrix(const FiniteElement &trial_fe1,
-                           const FiniteElement &test_fe1,
-                           const FiniteElement &trial_fe2,
-                           const FiniteElement &test_fe2,
-                           FaceElementTransformations &Trans,
-                           DenseMatrix &elmat)
+void DGAvgNormalJumpIntegrator::AssembleFaceMatrix(const FiniteElement
+                                                   &trial_fe1,
+                                                   const FiniteElement &test_fe1,
+                                                   const FiniteElement &trial_fe2,
+                                                   const FiniteElement &test_fe2,
+                                                   FaceElementTransformations &Trans,
+                                                   DenseMatrix &elmat)
 {
    // test space here is the velocity (vector space), trial space is pressure (scalar space)
    int dim = trial_fe1.GetDim();
@@ -524,8 +525,9 @@ void DGAvgNormalJumpIntegrator::AssembleFaceMatrix(const FiniteElement &trial_fe
       int order;
       if (tr_ndof2)
       {
-         order = 2*(max(trial_fe1.GetOrder(), trial_fe2.GetOrder()) + max(test_fe1.GetOrder(),
-                                                                    test_fe2.GetOrder())) + 2;
+         order = 2*(max(trial_fe1.GetOrder(),
+                        trial_fe2.GetOrder()) + max(test_fe1.GetOrder(),
+                                                    test_fe2.GetOrder())) + 2;
       }
       else
       {

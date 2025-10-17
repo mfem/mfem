@@ -181,7 +181,7 @@ int main(int argc, char *argv[])
    VectorFunctionCoefficient momentum_source(vdim,f_source);
    VectorFunctionCoefficient velocity_dbc(vdim,u_exact);
    f.AddBdrFaceIntegrator(new VectorDGDirichletLFIntegrator(velocity_dbc,sigma,
-                                                             kappa,vdim));
+                                                            kappa,vdim));
    f.AddDomainIntegrator(new VectorDomainLFIntegrator(momentum_source));
    f.Assemble();
    f.SyncAliasMemory(rhs);
