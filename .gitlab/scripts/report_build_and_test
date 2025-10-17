@@ -58,11 +58,11 @@ function report ()
   if [[ "${1}" == "SUCCESS" ]]
   then
     info_msg "All the ${MACHINE_NAME} jobs passed"
-    status_msg = "The 'build-and-test' jobs on ${MACHINE_NAME} were SUCCESSFUL."
+    status_msg="The 'build-and-test' jobs on ${MACHINE_NAME} were SUCCESSFUL."
   elif [[ "${1}" == "FAILURE" ]]
   then
     info_msg "At least one failure on ${MACHINE_NAME}"
-    status_msg = "Some 'build-and-test' jobs on ${MACHINE_NAME} FAILED."
+    status_msg="Some 'build-and-test' jobs on ${MACHINE_NAME} FAILED."
   else
     error_msg "Unknown status: ${1} ... aborting"
     exit 1
@@ -86,7 +86,7 @@ function report ()
     cp ${rundir}/gitlab.err ${rundir}/autotest-email.html
   fi
 
-  if [[ "$AUTOTEST_COMMIT" != "OFF" ]]; then
+  if [[ "$AUTOTEST_COMMIT" == "ON" || "$AUTOTEST_COMMIT" == "YES" ]]; then
     git pull && \
     git add ${rundir} && \
     git commit -m "${msg}" && \
