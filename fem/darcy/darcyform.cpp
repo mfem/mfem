@@ -1892,24 +1892,27 @@ void DarcyForm::AssemblePotLDGFaces(int skip_zeros)
 void DarcyForm::AssemblePotHDGFaces(int skip_zeros)
 {
    Mesh *mesh = fes_p->GetMesh();
-   FaceElementTransformations *tr;
    DenseMatrix elmat1, elmat2;
    Array<int> vdofs1, vdofs2;
 
    if (hybridization->GetPotConstraintIntegrator())
    {
       int nfaces = mesh->GetNumFaces();
-      for (int i = 0; i < nfaces; i++)
+      for (int f = 0; f < nfaces; f++)
       {
-         tr = mesh -> GetInteriorFaceTransformations (i);
-         if (tr == NULL) { continue; }
+         if (!mesh->FaceIsInterior(f)) { continue; }
 
-         hybridization->ComputeAndAssemblePotFaceMatrix(i, elmat1, elmat2, vdofs1,
+         hybridization->ComputeAndAssemblePotFaceMatrix(f, elmat1, elmat2, vdofs1,
                                                         vdofs2);
 #ifndef MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
          M_p->SpMat().AddSubMatrix(vdofs1, vdofs1, elmat1, skip_zeros);
          M_p->SpMat().AddSubMatrix(vdofs2, vdofs2, elmat2, skip_zeros);
 #endif //MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
+      }
+
+      if (mesh->Nonconforming())
+      {
+         hybridization->AssembleNCMasterFaceMatrices();
       }
    }
 
@@ -1941,19 +1944,15 @@ void DarcyForm::AssemblePotHDGFaces(int skip_zeros)
          }
       }
 
-      for (int i = 0; i < fes_p -> GetNBE(); i++)
+      for (int f = 0; f < fes_p->GetNBE(); f++)
       {
-         const int bdr_attr = mesh->GetBdrAttribute(i);
+         const int bdr_attr = mesh->GetBdrAttribute(f);
          if (bdr_attr_marker[bdr_attr-1] == 0) { continue; }
 
-         tr = mesh -> GetBdrFaceTransformations (i);
-         if (tr != NULL)
-         {
-            hybridization->ComputeAndAssemblePotBdrFaceMatrix(i, elmat1, vdofs1);
+         hybridization->ComputeAndAssemblePotBdrFaceMatrix(f, elmat1, vdofs1);
 #ifndef MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
-            M_p->SpMat().AddSubMatrix(vdofs1, vdofs1, elmat1, skip_zeros);
+         M_p->SpMat().AddSubMatrix(vdofs1, vdofs1, elmat1, skip_zeros);
 #endif //MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
-         }
       }
    }
 }

@@ -501,6 +501,51 @@ void DarcyHybridization::ComputeAndAssemblePotBdrFaceMatrix(
    }
 }
 
+void DarcyHybridization::AssembleNCMasterFaceMatrices()
+{
+   const Mesh *mesh = fes.GetMesh();
+   if (!mesh->Nonconforming() || !c_bfi_p) { return; }
+
+   DenseMatrix E_master, G_master, E_slave, G_slave, cP_slave;
+   auto &nclist = mesh->ncmesh->GetNCList(mesh->Dimension()-1);
+   const SparseMatrix * cP = c_fes.GetConformingProlongation();
+   MFEM_ASSERT(cP, "No prolongation matrix!");
+   Array<int> vdofs, tdofs;
+   for (const auto &master : nclist.masters)
+   {
+      // get master VDOFs/TDOFs
+      c_fes.GetFaceVDofs(master.index, vdofs);
+      tdofs.SetSize(vdofs.Size());
+      for (int i = 0; i < vdofs.Size(); i++)
+      {
+         const int vdof = vdofs[i];
+         MFEM_ASSERT(cP->RowSize(vdof) == 1 &&
+                     *cP->GetRowEntries(vdof) == 1., "Not a single TDOF!");
+         tdofs[i] = *cP->GetRowColumns(vdof);
+      }
+
+      // compound the master matrix from the slave ones
+      GetEFaceMatrix(master.index, 0, E_master);
+      GetGFaceMatrix(master.index, 0, G_master);
+      E_master = 0.;
+      G_master = 0.;
+
+      for (int s = master.slaves_begin; s < master.slaves_end; s++)
+      {
+         int islave = nclist.slaves[s].index;
+         // master is always on side 1
+         GetEFaceMatrix(islave, 1, E_slave);
+         GetGFaceMatrix(islave, 1, G_slave);
+         // get master/slave prolongation
+         c_fes.GetFaceVDofs(islave, vdofs);
+         cP_slave.SetSize(vdofs.Size(), tdofs.Size());
+         cP->GetSubMatrix(vdofs, tdofs, cP_slave);
+         mfem::AddMult(E_slave, cP_slave, E_master);
+         mfem::AddMultAtB(cP_slave, G_slave, G_master);
+      }
+   }
+}
+
 void DarcyHybridization::GetFDofs(int el, Array<int> &fdofs) const
 {
    const int o = hat_offsets[el];
@@ -671,6 +716,44 @@ void DarcyHybridization::ConstructC()
 
          // assemble the matrix
          AssembleCtFaceMatrix(f, FTr->Elem1No, FTr->Elem2No, elmat);
+      }
+
+      if (mesh->Nonconforming())
+      {
+         DenseMatrix Ct_master, Ct_slave, cP_slave;
+         auto &nclist = mesh->ncmesh->GetNCList(mesh->Dimension()-1);
+         const SparseMatrix * cP = c_fes.GetConformingProlongation();
+         MFEM_ASSERT(cP, "No prolongation matrix!");
+         Array<int> vdofs, tdofs;
+         for (const auto &master : nclist.masters)
+         {
+            // get master VDOFs/TDOFs
+            c_fes.GetFaceVDofs(master.index, vdofs);
+            tdofs.SetSize(vdofs.Size());
+            for (int i = 0; i < vdofs.Size(); i++)
+            {
+               const int vdof = vdofs[i];
+               MFEM_ASSERT(cP->RowSize(vdof) == 1 &&
+                           *cP->GetRowEntries(vdof) == 1., "Not a single TDOF!");
+               tdofs[i] = *cP->GetRowColumns(vdof);
+            }
+
+            // compound the master matrix from the slave ones
+            GetCtFaceMatrix(master.index, 0, Ct_master);
+            Ct_master = 0.;
+
+            for (int s = master.slaves_begin; s < master.slaves_end; s++)
+            {
+               int islave = nclist.slaves[s].index;
+               // master is always on side 1
+               GetCtFaceMatrix(islave, 1, Ct_slave);
+               // get master/slave prolongation
+               c_fes.GetFaceVDofs(islave, vdofs);
+               cP_slave.SetSize(vdofs.Size(), tdofs.Size());
+               cP->GetSubMatrix(vdofs, tdofs, cP_slave);
+               mfem::AddMult(Ct_slave, cP_slave, Ct_master);
+            }
+         }
       }
 
 #ifdef MFEM_USE_MPI
