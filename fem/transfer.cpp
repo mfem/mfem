@@ -138,6 +138,29 @@ const Operator &GridTransfer::MakeTrueOperator(
    return *t_oper.Ptr();
 }
 
+const Operator &GenericGridTransfer::ForwardOperator()
+{
+   if (F.Ptr())
+   {
+      return *F.Ptr();
+   }
+
+   F.Reset(new GenericTransferOperator(ran_fes, dom_fes));
+   return *F.Ptr();
+}
+
+const Operator &GenericGridTransfer::BackwardOperator()
+{
+   if (B.Ptr())
+   {
+      return *B.Ptr();
+   }
+
+   B.Reset(new GenericTransferOperator(dom_fes, ran_fes));
+   return *B.Ptr();
+}
+
+
 
 InterpolationGridTransfer::~InterpolationGridTransfer()
 {
@@ -2030,6 +2053,75 @@ void L2ProjectionGridTransfer::BuildF()
 bool L2ProjectionGridTransfer::SupportsBackwardsOperator() const
 {
    return ran_fes.GetTrueVSize() >= dom_fes.GetTrueVSize();
+}
+
+GenericTransferOperator::GenericTransferOperator(FiniteElementSpace& dom_fes,
+                                                 FiniteElementSpace& ran_fes)
+   : Operator(ran_fes.GetVSize(), dom_fes.GetVSize()),
+     dom_gf(new GridFunction(&dom_fes)),
+     ran_gf(new GridFunction(&ran_fes))
+{
+   MFEM_VERIFY(dom_fes.GetVectorDim() == ran_fes.GetVectorDim(),
+               "GenericTransferOperator: domainn and range VectorDim do not match");
+
+   if (dom_fes.GetVectorDim() == 1)
+   {
+      dom_cf = new GridFunctionCoefficient(dom_gf);
+      ran_cf = new GridFunctionCoefficient(ran_gf);
+   }
+   else
+   {
+      dom_vcf = new VectorGridFunctionCoefficient(dom_gf);
+      ran_vcf = new VectorGridFunctionCoefficient(ran_gf);
+   }
+}
+
+GenericTransferOperator::~GenericTransferOperator()
+{
+   delete dom_gf;
+   delete ran_gf;
+   if (dom_cf) delete dom_cf;
+   if (ran_cf) delete ran_cf;
+   if (dom_vcf) delete dom_vcf;
+   if (ran_vcf) delete ran_vcf;
+}
+
+void GenericTransferOperator::Mult(const Vector& x, Vector& y) const
+{
+   dom_gf->SetFromTrueDofs(x);
+   if (dom_cf)
+   {
+      ran_gf->ProjectCoefficient(*dom_cf);
+   }
+   else if (dom_vcf)
+   {
+      ran_gf->ProjectCoefficient(*dom_vcf);
+   }
+   else
+   {
+      mfem_error("GenericTransferOperator::Mult\n"
+                 " coefficient not defined");
+   }
+   ran_gf->GetTrueDofs(y);
+}
+
+void GenericTransferOperator::MultTranspose(const Vector& x, Vector& y) const
+{
+   ran_gf->SetFromTrueDofs(x);
+   if (ran_cf)
+   {
+      dom_gf->ProjectCoefficient(*ran_cf);
+   }
+   else if (ran_vcf)
+   {
+      dom_gf->ProjectCoefficient(*ran_vcf);
+   }
+   else
+   {
+      mfem_error("GenericTransferOperator::MultTranspose\n"
+                 " coefficient not defined");
+   }
+   dom_gf->GetTrueDofs(y);
 }
 
 

@@ -116,6 +116,31 @@ public:
 };
 
 
+/** @brief Transfer data between a two generic FiniteElementSpace%s. */
+/** Bla
+
+*/
+class GenericGridTransfer : public GridTransfer
+{
+protected:
+   OperatorHandle F; ///< Forward, coarse-to-fine, operator
+   OperatorHandle B; ///< Backward, fine-to-coarse, operator
+
+public:
+  GenericGridTransfer(FiniteElementSpace &dom_fes,
+                      FiniteElementSpace &ran_fes)
+      : GridTransfer(dom_fes, ran_fes)
+   { }
+
+   virtual ~GenericGridTransfer() {}
+
+   const Operator &ForwardOperator() override;
+
+   const Operator &BackwardOperator() override;
+};
+
+
+
 /** @brief Transfer data between a coarse mesh and an embedded refined mesh
     using interpolation. */
 /** The forward, coarse-to-fine, transfer uses nodal interpolation. The
@@ -531,6 +556,42 @@ private:
    void BuildF();
 };
 
+
+/// Matrix-free transfer operator between finite element spaces
+class GenericTransferOperator : public Operator
+{
+private:
+   GridFunction*  dom_gf = nullptr;
+   GridFunction*  ran_gf = nullptr;
+
+   Coefficient*  dom_cf = nullptr;
+   Coefficient*  ran_cf = nullptr;
+
+   VectorCoefficient*  dom_vcf = nullptr;
+   VectorCoefficient*  ran_vcf = nullptr;
+public:
+   /// Constructs a transfer operator from \p dom_fes to \p ran_fes.
+   /** No matrices are assembled, only the action to a vector is being computed.
+       The assumption is that grid%s are related. Meaning they are either equal
+       or refined. This class leverages GridFunctionCoefficient or
+       GridFunctionCoefficient. Both use RefinedToCoarse to establish a
+       connection between the meshes.*/
+   GenericTransferOperator(FiniteElementSpace& dom_fes,
+                           FiniteElementSpace& ran_fes);
+
+   /// Destructor
+   virtual ~GenericTransferOperator();
+
+   /// @brief Interpolation or prolongation of a vector \p x corresponding to
+   /// the coarse space to the vector \p y corresponding to the fine space.
+   void Mult(const Vector& x, Vector& y) const override;
+
+   /// Restriction by applying the transpose of the Mult method.
+   /** The vector \p x corresponding to the fine space is restricted to the
+       vector \p y corresponding to the coarse space. */
+   void MultTranspose(const Vector& x, Vector& y) const override;
+};
+
 /// Matrix-free transfer operator between finite element spaces
 class TransferOperator : public Operator
 {
@@ -561,6 +622,7 @@ public:
        vector \p y corresponding to the coarse space. */
    void MultTranspose(const Vector& x, Vector& y) const override;
 };
+
 
 /// Matrix-free transfer operator between finite element spaces on the same mesh
 class PRefinementTransferOperator : public Operator
