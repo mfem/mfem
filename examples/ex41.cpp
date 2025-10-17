@@ -3,6 +3,7 @@
 // Compile with: make ex41
 //
 // Sample run:   ex41 -m ../data/ref-square.mesh -r 2 -o 2 -vis
+//               ex41 -m ../data/square-mixed.mesh -r 0 -o 2 -vis
 //
 // Description:   This example code solves 2D Stokes equation over the square [-1,1]x[-1,1]
 //
@@ -82,7 +83,6 @@ int main(int argc, char *argv[])
    args.PrintOptions(cout);
 
    Device device(device_config);
-   MemoryType mt = device.GetMemoryType();
    device.Print();
 
    // 2. Read in mesh from the given mesh file and print out its

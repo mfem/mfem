@@ -3,6 +3,7 @@
 // Compile with: make ex41p
 //
 // Sample run: mpirun -np 4 ex41p -m ../data/ref-square.mesh -r 2 -o 2 -vis
+//             mpirun -np 4 ex41p -m ../data/square-mixed.mesh -r 0 -o 2 -vis
 //
 // Description:   This example code solves 2D Stokes equation over the square [-1,1]x[-1,1]
 //
