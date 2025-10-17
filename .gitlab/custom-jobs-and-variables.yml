@@ -105,9 +105,11 @@ variables:
 .report_job_success:
   script:
     - ${CI_PROJECT_DIR}/.gitlab/scripts/report_build_and_test SUCCESS
-  when: on_success
+  rules:
+    - when: on_success
 
 .report_job_failure:
   script:
     - ${CI_PROJECT_DIR}/.gitlab/scripts/report_build_and_test FAILURE
-  when: on_failure
+  rules:
+    - when: on_failure

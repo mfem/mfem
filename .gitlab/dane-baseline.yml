@@ -110,7 +110,7 @@ report_baseline:
           cp ${rundir}/pipeline.txt ${rundir}/autotest-email.html
         fi
         msg="GitLab CI log for ${BASELINE_TEST} on ${MACHINE_NAME} ($(date +%Y-%m-%d))"
-        if [[ "$AUTOTEST_COMMIT" != "OFF" ]]; then
+        if [[ "$AUTOTEST_COMMIT" == "ON" || "$AUTOTEST_COMMIT" == "YES" ]]; then
           git pull && \
           git add ${rundir} && \
           git commit -m "${msg}" && \
