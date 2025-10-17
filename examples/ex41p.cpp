@@ -370,7 +370,6 @@ int main(int argc, char *argv[])
 double p_exact(const Vector &xvec)
 {
    double x = xvec(0);
-   double y = xvec(1);
 
    return x;
 }
