@@ -4899,8 +4899,6 @@ void Mesh::SetMeshGen()
             mesh_geoms |= (1 << Geometry::TETRAHEDRON);
          case Element::TRIANGLE:
             mesh_geoms |= (1 << Geometry::TRIANGLE);
-         case Element::SEGMENT:
-            mesh_geoms |= (1 << Geometry::SEGMENT);
          case Element::POINT:
             mesh_geoms |= (1 << Geometry::POINT);
             meshgen |= 1;
@@ -4912,6 +4910,8 @@ void Mesh::SetMeshGen()
             mesh_geoms |= (1 << Geometry::SQUARE);
             mesh_geoms |= (1 << Geometry::SEGMENT);
             mesh_geoms |= (1 << Geometry::POINT);
+         case Element::SEGMENT:
+            mesh_geoms |= (1 << Geometry::SEGMENT);
             meshgen |= 2;
             break;
 
