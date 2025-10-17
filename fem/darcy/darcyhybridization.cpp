@@ -861,6 +861,31 @@ void DarcyHybridization::InvertD()
    }
 }
 
+void DarcyHybridization::GetElementFaces(int el, Array<int> &faces) const
+{
+   const Mesh *mesh = fes.GetMesh();
+   const int dim = mesh->Dimension();
+
+#ifdef MFEM_THREAD_SAFE
+   Array<int> oris;
+#else
+   static Array<int> oris;
+#endif
+
+   switch (dim)
+   {
+      case 1:
+         mesh->GetElementVertices(el, faces);
+         break;
+      case 2:
+         mesh->GetElementEdges(el, faces, oris);
+         break;
+      case 3:
+         mesh->GetElementFaces(el, faces, oris);
+         break;
+   }
+}
+
 void DarcyHybridization::ComputeH(ComputeHMode mode,
                                   std::unique_ptr<SparseMatrix> &H) const
 {
@@ -872,10 +897,9 @@ void DarcyHybridization::ComputeH(ComputeHMode mode,
    DenseMatrix S;
    Array<int> S_ipiv;
 #ifdef MFEM_DARCY_HYBRIDIZATION_CT_BLOCK
-   const int dim = fes.GetMesh()->Dimension();
    DenseMatrix AiBt, AiCt, BAiCt, CAiBt, H_l;
    Array<int> c_dofs_1, c_dofs_2;
-   Array<int> faces, oris;
+   Array<int> faces;
    if (!H) { H.reset(new SparseMatrix(c_fes.GetVSize())); }
 #else //MFEM_DARCY_HYBRIDIZATION_CT_BLOCK
    MFEM_ASSERT(!c_bfi_p,
@@ -932,22 +956,13 @@ void DarcyHybridization::ComputeH(ComputeHMode mode,
       }
 
 #ifdef MFEM_DARCY_HYBRIDIZATION_CT_BLOCK
-      switch (dim)
-      {
-         case 1:
-            fes.GetMesh()->GetElementVertices(el, faces);
-            break;
-         case 2:
-            fes.GetMesh()->GetElementEdges(el, faces, oris);
-            break;
-         case 3:
-            fes.GetMesh()->GetElementFaces(el, faces, oris);
-            break;
-      }
+      GetElementFaces(el, faces);
 
       // Mult C^T
       for (int f1 = 0; f1 < faces.Size(); f1++)
       {
+         c_fes.GetFaceVDofs(faces[f1], c_dofs_1);
+
          int el1_1, el1_2;
          fes.GetMesh()->GetFaceElements(faces[f1], &el1_1, &el1_2);
          DenseMatrix Ct1;
@@ -998,7 +1013,6 @@ void DarcyHybridization::ComputeH(ComputeHMode mode,
 
             mfem::AddMult(CAiBt, BAiCt, H_l);
 
-            c_fes.GetFaceVDofs(faces[f1], c_dofs_1);
             if (f1 == f2)
             {
                //integrate the face contrbution only on one (first) side
@@ -2485,10 +2499,9 @@ void DarcyHybridization::ReduceRHS(const BlockVector &b_t, Vector &b_tr) const
 
    const int NE = fes.GetNE();
 #ifdef MFEM_DARCY_HYBRIDIZATION_CT_BLOCK
-   const int dim = fes.GetMesh()->Dimension();
    Vector b_rl;
    Array<int> c_dofs;
-   Array<int> faces, oris;
+   Array<int> faces;
 #else //MFEM_DARCY_HYBRIDIZATION_CT_BLOCK
    MFEM_ASSERT(!c_bfi_p,
                "Potential constraint is not supported in non-block assembly!");
@@ -2518,18 +2531,7 @@ void DarcyHybridization::ReduceRHS(const BlockVector &b_t, Vector &b_tr) const
       p_l.Neg();
 
 #ifdef MFEM_DARCY_HYBRIDIZATION_CT_BLOCK
-      switch (dim)
-      {
-         case 1:
-            fes.GetMesh()->GetElementVertices(el, faces);
-            break;
-         case 2:
-            fes.GetMesh()->GetElementEdges(el, faces, oris);
-            break;
-         case 3:
-            fes.GetMesh()->GetElementFaces(el, faces, oris);
-            break;
-      }
+      GetElementFaces(el, faces);
 
       // Mult C u + G p
       for (int f = 0; f < faces.Size(); f++)
@@ -2697,10 +2699,9 @@ void DarcyHybridization::ComputeSolution(const BlockVector &b_t,
 
    const int NE = fes.GetNE();
 #ifdef MFEM_DARCY_HYBRIDIZATION_CT_BLOCK
-   const int dim = fes.GetMesh()->Dimension();
    Vector sol_rl;
    Array<int> c_dofs;
-   Array<int> faces, oris;
+   Array<int> faces;
 #else //MFEM_DARCY_HYBRIDIZATION_CT_BLOCK
    MFEM_ASSERT(!c_bfi_p,
                "Potential constraint is not supported in non-block assembly!");
@@ -2729,18 +2730,7 @@ void DarcyHybridization::ComputeSolution(const BlockVector &b_t,
       }
 
 #ifdef MFEM_DARCY_HYBRIDIZATION_CT_BLOCK
-      switch (dim)
-      {
-         case 1:
-            fes.GetMesh()->GetElementVertices(el, faces);
-            break;
-         case 2:
-            fes.GetMesh()->GetElementEdges(el, faces, oris);
-            break;
-         case 3:
-            fes.GetMesh()->GetElementFaces(el, faces, oris);
-            break;
-      }
+      GetElementFaces(el, faces);
 
       // bu - C^T sol
       for (int f = 0; f < faces.Size(); f++)

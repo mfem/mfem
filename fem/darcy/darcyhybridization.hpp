@@ -287,6 +287,7 @@ private:
                   Vector &y) const;
    void InvertA();
    void InvertD();
+   void GetElementFaces(int el, Array<int> &faces) const;
    enum class ComputeHMode { Linear, Gradient };
    void ComputeH(ComputeHMode mode, std::unique_ptr<SparseMatrix> &H) const;
 #ifdef MFEM_USE_MPI
