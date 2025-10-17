@@ -710,6 +710,7 @@ TEST_CASE("1D Bilinear Diffusion Integrator",
          VectorDiffusionIntegrator vdi(v_coeff_2);
          const FiniteElement &fe = *fespace_h1_2.GetFE(0);
          Vector res(b.Size());
+         f_2.HostRead();
          vdi.AssembleElementVector(fe, *mesh.GetElementTransformation(0),
                                    f_2, res);
          res -= tmp;

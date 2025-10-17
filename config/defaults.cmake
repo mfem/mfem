@@ -43,6 +43,7 @@ option(MFEM_USE_AMGX "Enable AmgX usage" OFF)
 option(MFEM_USE_MAGMA "Enable MAGMA usage" OFF)
 option(MFEM_USE_GNUTLS "Enable GNUTLS usage" OFF)
 option(MFEM_USE_GSLIB "Enable GSLIB usage" OFF)
+option(MFEM_USE_HDF5 "Enable HDF5 usage" OFF)
 option(MFEM_USE_NETCDF "Enable NETCDF usage" OFF)
 option(MFEM_USE_PETSC "Enable PETSc support." OFF)
 option(MFEM_USE_SLEPC "Enable SLEPc support." OFF)
@@ -86,7 +87,13 @@ set(MFEM_MPI_NP 4 CACHE STRING "Number of processes used for MPI tests")
 option(MFEM_ENABLE_TESTING "Enable the ctest framework for testing" ON)
 option(MFEM_ENABLE_EXAMPLES "Build all of the examples" OFF)
 option(MFEM_ENABLE_MINIAPPS "Build all of the miniapps" OFF)
-option(MFEM_ENABLE_GOOGLE_BENCHMARKS "Build all of the Google benchmarks" OFF)
+option(MFEM_ENABLE_BENCHMARKS "Build all of the benchmarks" OFF)
+
+# Allow a user to specify fetching of certain third-party libraries instead of
+# searching for existing installations.
+option(FETCH_TPLS "Enable fetching of all supported third-party libraries" OFF)
+option(HYPRE_FETCH "Enable fetching of hypre" OFF)
+option(METIS_FETCH "Enable fetching of METIS" OFF)
 
 # Setting CXX/MPICXX on the command line or in user.cmake will overwrite the
 # autodetected C++ compiler.
@@ -266,6 +273,8 @@ set(PARELAG_LIBRARIES "${PARELAG_DIR}/build/src/libParELAG.a" CACHE STRING
 set(TRIBOL_DIR "${MFEM_DIR}/../tribol" CACHE PATH "Path to Tribol")
 set(Tribol_REQUIRED_PACKAGES "Axom/core/mint/slam/slic" CACHE STRING
     "Additional packages required by Tribol")
+
+set(ENZYME_DIR "${MFEM_DIR}/../enzyme" CACHE PATH "Path to Enzyme")
 
 set(BLAS_INCLUDE_DIRS "" CACHE STRING "Path to BLAS headers.")
 set(BLAS_LIBRARIES "" CACHE STRING "The BLAS library.")

@@ -32,6 +32,7 @@ TEST_CASE("Geometric factor Jacobians", "[Mesh]")
    const int order = 3;
    const auto &ir = IntRules.Get(mesh.GetTypicalElementGeometry(), order);
    auto *geom = mesh.GetGeometricFactors(ir, GeometricFactors::DETERMINANTS);
+   geom->detJ.HostRead();
 
    const int nq = ir.Size();
    for (int i = 0; i < mesh.GetNE(); ++i)

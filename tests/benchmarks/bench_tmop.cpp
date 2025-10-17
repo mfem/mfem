@@ -125,11 +125,11 @@ struct Kernel: public bm::Fixture
    ~Kernel() { assert(ker == nullptr); }
 
    using bm::Fixture::SetUp;
-   void SetUp(const bm::State& state) BENCHMARK_OVERRIDE
+   void SetUp(const bm::State& state) override
    { ker.reset(new TMOP(state.range(1), state.range(0))); }
 
    using bm::Fixture::TearDown;
-   void TearDown(const bm::State &) BENCHMARK_OVERRIDE { ker.reset(); }
+   void TearDown(const bm::State &) override { ker.reset(); }
 };
 
 /**
@@ -176,10 +176,11 @@ int main(int argc, char *argv[])
 
    // Device setup, cpu by default
    std::string device_config = "cpu";
-   if (bmi::global_context != nullptr)
+   auto global_context = bmi::GetGlobalContext();
+   if (bmi::GetGlobalContext() != nullptr)
    {
-      const auto device = bmi::global_context->find("device");
-      if (device != bmi::global_context->end())
+      const auto device = global_context->find("device");
+      if (device != global_context->end())
       {
          mfem::out << device->first << " : " << device->second << std::endl;
          device_config = device->second;

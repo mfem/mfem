@@ -92,6 +92,7 @@ TEST_CASE("WhiteGaussianNoiseDomainLFIntegrator on 2D NCMesh")
          {
             B.SetDataAndSize(b.GetData(),ndofs);
          }
+         B.HostRead();
          AddMultVVt(B, C);
       }
       C *= 1.0/(double)N;

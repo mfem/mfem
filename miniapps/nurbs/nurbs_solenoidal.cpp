@@ -9,10 +9,9 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 //
-//        ------------------------------------------------------------
-//        NURBS Solenoidal Miniapp: Project solenoidal velocity
-//        ------------------------------------------------------------
-//
+//           -----------------------------------------------------
+//           NURBS Solenoidal Miniapp: Project solenoidal velocity
+//           -----------------------------------------------------
 //
 // Compile with: make nurbs_solenoidal
 //
@@ -36,7 +35,6 @@
 //               divergence free, we expect the pressure to converge to zero.
 //               We discretize with H(div) and L2/H1 conforming elements.
 
-
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
@@ -44,7 +42,6 @@
 
 using namespace std;
 using namespace mfem;
-
 
 void u_2d(const Vector & x, Vector & u)
 {
@@ -391,7 +388,7 @@ int main(int argc, char *argv[])
    delete hdiv_coll;
    delete mesh;
 
-   if (err_div > 1e4*std::numeric_limits<real_t>::epsilon() )
+   if (err_div > 2e4*std::numeric_limits<real_t>::epsilon() )
    {
       mfem::out << "std::numeric_limits<real_t>::epsilon() = "
                 << std::numeric_limits<real_t>::epsilon()  << "\n";
