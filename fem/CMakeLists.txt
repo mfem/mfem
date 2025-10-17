@@ -165,6 +165,7 @@ set(SRCS
   hyperbolic.cpp
   integrator.cpp
   bounds.cpp
+  particleset.cpp
   )
 
 set(HDRS
@@ -287,6 +288,7 @@ set(HDRS
   hyperbolic.hpp
   integrator.hpp
   bounds.hpp
+  particleset.hpp
   )
 
 if (MFEM_USE_SIDRE)
