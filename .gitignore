@@ -115,6 +115,7 @@ examples/ex25-*.gf
 examples/ex25p-*.*
 examples/ex28_*
 examples/ex28p_*
+examples/ex41_*
 examples/flux.*
 examples/dsol.*
 examples/cond.*

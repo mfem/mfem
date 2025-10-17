@@ -1331,6 +1331,10 @@ MixedBilinearForm::MixedBilinearForm (FiniteElementSpace *tr_fes,
    boundary_integs = mbf->boundary_integs;
    boundary_integs_marker = mbf->boundary_integs_marker;
 
+   interior_face_integs = mbf->interior_face_integs;
+
+   boundary_face_integs_marker = mbf->boundary_face_integs_marker;
+
    trace_face_integs = mbf->trace_face_integs;
 
    boundary_trace_face_integs = mbf->boundary_trace_face_integs;
