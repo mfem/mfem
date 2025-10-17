@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -14,9 +14,16 @@
 
 #include "../config/config.hpp"
 #include "fespace.hpp"
+#include <unordered_map>
 
 namespace mfem
 {
+
+enum class QSpaceOffsetStorage
+{
+   FULL,
+   COMPRESSED
+};
 
 /// Abstract base class for QuadratureSpace and FaceQuadratureSpace.
 /** This class represents the storage layout for QuadratureFunction%s, that may
@@ -29,12 +36,28 @@ protected:
    Mesh &mesh; ///< The underlying mesh.
    int order; ///< The order of integration rule.
    int size; ///< Total number of quadrature points.
+   int ne; ///< Number of entities
+   mutable Vector weights; ///< Integration weights.
+   mutable long nodes_sequence = 0; ///< Nodes counter for cache invalidation.
 
-   /// @brief Entity quadrature point offset array, of size num_entities + 1.
+   /// @brief Entity quadrature point offset array.
    ///
-   /// The quadrature point values for entity i are stored in the indices between
-   /// offsets[i] and offsets[i+1].
+   /// Supports a constant compression scheme for meshes which have a single
+   /// geometry type. When compressed, will have a single value. The true offset
+   /// can be computed as i * offsets[0], where i is the entity index. Otherwise
+   /// has size num_entities + 1.
+   ///
+   /// In the non-compressed case, the quadrature point values for entity i are
+   /// stored in the indices between offsets[i] and offsets[i+1].
    Array<int> offsets;
+
+   /// @brief Cached version of the "full" offsets, returned by Offsets() when
+   /// QSpaceOffsetStorage::FULL is provided.
+   ///
+   /// The quadrature point values for entity i are stored in the indices
+   /// between offsets[i] and offsets[i+1].
+   mutable Array<int> full_offset_cache;
+
    /// The quadrature rules used for each geometry type.
    const IntegrationRule *int_rule[Geometry::NumGeom];
 
@@ -49,7 +72,37 @@ protected:
    /// Fill the @ref int_rule array for each geometry type using @ref order.
    void ConstructIntRules(int dim);
 
+   /// Compute the det(J) (volume or faces, depending on the type).
+   virtual const Vector &GetGeometricFactorWeights() const = 0;
+
+   /// Compute the integration weights.
+   void ConstructWeights() const;
+
 public:
+   /// @brief Gets the offset for a given entity @a idx.
+   ///
+   /// The quadrature point values for entity i are stored in the indices
+   /// between Offset(i) and Offset(i+1)
+   int Offset(int idx) const
+   {
+      return (offsets.Size() == 1) ? (idx * offsets[0]) : offsets[idx];
+   }
+
+   /// @brief Entity quadrature point offset array.
+   ///
+   /// If @a storage is QSpaceOffsetStorage::COMPRESSED, then the returned array
+   /// supports a constant compression scheme for meshes which have a single
+   /// geometry type. When compressed, will have a single value. The true offset
+   /// can be computed as i * offsets[0], where i is the entity index. Otherwise
+   /// has size num_entities + 1.
+   ///
+   /// If @a storage is QSpaceOffsetStorage::FULL, then the array will never be
+   /// compressed.
+   ///
+   /// In the non-compressed case, the quadrature point values for entity i are
+   /// stored in the indices between offsets[i] and offsets[i+1].
+   const Array<int> &Offsets(QSpaceOffsetStorage storage) const;
+
    /// Return the total number of quadrature points.
    int GetSize() const { return size; }
 
@@ -57,7 +110,7 @@ public:
    int GetOrder() const { return order; }
 
    /// Return the number of entities.
-   int GetNE() const { return offsets.Size() - 1; }
+   int GetNE() const { return ne; }
 
    /// Returns the mesh.
    inline Mesh *GetMesh() const { return &mesh; }
@@ -81,8 +134,26 @@ public:
    /// returns @a iq.
    virtual int GetPermutedIndex(int idx, int iq) const = 0;
 
+   /// @brief Returns the index in the quadrature space of the entity associated
+   /// with the transformation @a T.
+   ///
+   /// For a QuadratureSpace defined on elements, this just returns the element
+   /// index. For FaceQuadratureSpace, the returned index depends on the chosen
+   /// FaceType. If the entity is not found (for example, if @a T represents an
+   /// interior face, and the space has FaceType::Boundary) then -1 is returned.
+   virtual int GetEntityIndex(const ElementTransformation &T) const = 0;
+
    /// Write the QuadratureSpace to the stream @a out.
    virtual void Save(std::ostream &out) const = 0;
+
+   /// Return the integration weights (including geometric factors).
+   const Vector &GetWeights() const;
+
+   /// Return the integral of the scalar Coefficient @a coeff.
+   real_t Integrate(Coefficient &coeff) const;
+
+   /// Return the integral of the VectorCoefficient @a coeff in @a integrals.
+   void Integrate(VectorCoefficient &coeff, Vector &integrals) const;
 
    virtual ~QuadratureSpaceBase() { }
 };
@@ -92,6 +163,7 @@ public:
 class QuadratureSpace : public QuadratureSpaceBase
 {
 protected:
+   const Vector &GetGeometricFactorWeights() const override;
    void ConstructOffsets();
    void Construct();
 public:
@@ -128,6 +200,9 @@ public:
    /// iq, the permutation is only nontrivial for FaceQuadratureSpace.
    int GetPermutedIndex(int idx, int iq) const override { return iq; }
 
+   /// Returns the element index of @a T.
+   int GetEntityIndex(const ElementTransformation &T) const override { return T.ElementNo; }
+
    /// Write the QuadratureSpace to the stream @a out.
    void Save(std::ostream &out) const override;
 };
@@ -138,11 +213,14 @@ public:
 class FaceQuadratureSpace : public QuadratureSpaceBase
 {
    FaceType face_type; ///< Is the space defined on interior or boundary faces?
-   const int num_faces; ///< Number of faces.
 
    /// Map from boundary or interior face indices to mesh face indices.
-   Array<int> face_indices;
+   const Array<int> &face_indices;
 
+   /// Inverse of the map @a face_indices.
+   const std::unordered_map<int,int> &face_indices_inv;
+
+   const Vector &GetGeometricFactorWeights() const override;
    void ConstructOffsets();
    void Construct();
 
@@ -156,14 +234,13 @@ public:
                        FaceType face_type_);
 
    /// Returns number of faces in the mesh.
-   inline int GetNumFaces() const { return num_faces; }
+   inline int GetNumFaces() const { return face_indices.Size(); }
 
    /// Returns the face type (boundary or interior).
    FaceType GetFaceType() const { return face_type; }
 
    /// Returns the face transformation of face @a idx.
-   ElementTransformation *GetTransformation(int idx) override
-   { return mesh.GetFaceTransformation(face_indices[idx]); }
+   ElementTransformation *GetTransformation(int idx) override;
 
    /// Returns the geometry type of face @a idx.
    Geometry::Type GetGeometry(int idx) const override
@@ -179,6 +256,16 @@ public:
    /// For tensor-product faces, returns the lexicographic index of the
    /// quadrature point, oriented relative to "element 1".
    int GetPermutedIndex(int idx, int iq) const override;
+
+   /// @brief Get the face index (in the standard Mesh numbering) associated
+   /// with face @a idx in the FaceQuadratureSpace.
+   int GetMeshFaceIndex(int idx) const { return face_indices[idx]; }
+
+   /// @brief Returns the index associated with the face described by @a T.
+   ///
+   /// The index may differ from the mesh face or boundary element index
+   /// depending on the FaceType used to construct the FaceQuadratureSpace.
+   int GetEntityIndex(const ElementTransformation &T) const override;
 
    /// Write the FaceQuadratureSpace to the stream @a out.
    void Save(std::ostream &out) const override;

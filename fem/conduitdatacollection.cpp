@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -719,7 +719,7 @@ ConduitDataCollection::MeshToBlueprintMesh(Mesh *mesh,
    // copy out. Some other cases (sidre) may actually have contig
    // allocation but I am  not sure how to detect this case from mfem
    int num_ele = mesh->GetNE();
-   int geom = mesh->GetElementBaseGeometry(0);
+   int geom = mesh->GetTypicalElementGeometry();
    int idxs_per_ele = Geometry::NumVerts[geom];
    int num_conn_idxs =  num_ele * idxs_per_ele;
 
@@ -912,7 +912,7 @@ ConduitDataCollection::GridFunctionToBlueprintField(mfem::GridFunction *gf,
 
    if (vdim == 1) // scalar case
    {
-      n_field["values"].set_external(gf->GetData(),
+      n_field["values"].set_external(const_cast<real_t *>(gf->HostRead()),
                                      ndofs);
    }
    else // vector case
@@ -925,18 +925,18 @@ ConduitDataCollection::GridFunctionToBlueprintField(mfem::GridFunction *gf,
       int vdim_stride  = (ordering == Ordering::byNODES ? ndofs : 1);
 
       index_t offset = 0;
-      index_t stride = sizeof(double) * entry_stride;
+      index_t stride = sizeof(real_t) * entry_stride;
 
       for (int d = 0;  d < vdim; d++)
       {
          std::ostringstream oss;
          oss << "v" << d;
          std::string comp_name = oss.str();
-         n_field["values"][comp_name].set_external(gf->GetData(),
+         n_field["values"][comp_name].set_external(const_cast<real_t *>(gf->HostRead()),
                                                    ndofs,
                                                    offset,
                                                    stride);
-         offset +=  sizeof(double) * vdim_stride;
+         offset +=  sizeof(real_t) * vdim_stride;
       }
    }
 
@@ -997,8 +997,7 @@ std::string
 ConduitDataCollection::MeshFilePattern(const std::string &relay_protocol)
 {
    std::ostringstream oss;
-   oss << prefix_path
-       << name
+   oss << name
        << "_"
        << to_padded_string(cycle, pad_digits_cycle)
        << "/domain_%0"

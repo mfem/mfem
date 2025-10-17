@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -14,6 +14,8 @@
 
 #include "../linalg/operator.hpp"
 #include "fespace.hpp"
+#include "kernel_dispatch.hpp"
+#include <memory>
 
 namespace mfem
 {
@@ -30,13 +32,13 @@ protected:
    DG_FECollection fec; ///< FE collection in requested basis.
    FiniteElementSpace fes; ///< FE space in requested basis.
    const DofToQuad *d2q; ///< Change of basis. Not owned.
-   Array<double> B_; ///< Inverse of change of basis.
-   Array<double> Bt_; ///< Inverse of change of basis, transposed.
-   class BilinearForm *M; ///< Mass bilinear form, owned.
+   Array<real_t> B_; ///< Inverse of change of basis.
+   Array<real_t> Bt_; ///< Inverse of change of basis, transposed.
+   std::unique_ptr<class BilinearForm> M; ///< Mass bilinear form.
    class MassIntegrator *m; ///< Mass integrator, owned by the form @ref M.
    Vector diag_inv; ///< Jacobi preconditioner.
-   double rel_tol = 1e-12; ///< Relative CG tolerance.
-   double abs_tol = 1e-12; ///< Absolute CG tolerance.
+   real_t rel_tol = 1e-12; ///< Relative CG tolerance.
+   real_t abs_tol = 1e-12; ///< Absolute CG tolerance.
    int max_iter = 100; ///< Maximum number of CG iterations;
 
    /// @name Intermediate vectors needed for CG three-term recurrence.
@@ -48,7 +50,7 @@ protected:
    ///
    /// Custom coefficient and integration rule are used if @a coeff and @a ir
    /// are non-NULL.
-   DGMassInverse(FiniteElementSpace &fes_, Coefficient *coeff,
+   DGMassInverse(const FiniteElementSpace &fes_, Coefficient *coeff,
                  const IntegrationRule *ir, int btype);
 public:
    /// @brief Construct the DG inverse mass operator for @a fes_.
@@ -61,42 +63,43 @@ public:
    /// The solution and right-hand side used for the solver are not affected by
    /// this basis (they correspond to the basis of @a fes_). @a btype is only
    /// used internally, and only has an effect on the convergence rate.
-   DGMassInverse(FiniteElementSpace &fes_, int btype=BasisType::GaussLegendre);
+   DGMassInverse(const FiniteElementSpace &fes_,
+                 int btype=BasisType::GaussLegendre);
    /// @brief Construct the DG inverse mass operator for @a fes_ with
    /// Coefficient @a coeff.
    ///
    /// @sa DGMassInverse(FiniteElementSpace&, int) for information about @a
    /// btype.
-   DGMassInverse(FiniteElementSpace &fes_, Coefficient &coeff,
+   DGMassInverse(const FiniteElementSpace &fes_, Coefficient &coeff,
                  int btype=BasisType::GaussLegendre);
    /// @brief Construct the DG inverse mass operator for @a fes_ with
    /// Coefficient @a coeff and IntegrationRule @a ir.
    ///
    /// @sa DGMassInverse(FiniteElementSpace&, int) for information about @a
    /// btype.
-   DGMassInverse(FiniteElementSpace &fes_, Coefficient &coeff,
+   DGMassInverse(const FiniteElementSpace &fes_, Coefficient &coeff,
                  const IntegrationRule &ir, int btype=BasisType::GaussLegendre);
    /// @brief Construct the DG inverse mass operator for @a fes_ with
    /// IntegrationRule @a ir.
    ///
    /// @sa DGMassInverse(FiniteElementSpace&, int) for information about @a
    /// btype.
-   DGMassInverse(FiniteElementSpace &fes_, const IntegrationRule &ir,
+   DGMassInverse(const FiniteElementSpace &fes_, const IntegrationRule &ir,
                  int btype=BasisType::GaussLegendre);
    /// @brief Solve the system M b = u.
    ///
    /// If @ref iterative_mode is @a true, @a u is used as an initial guess.
-   void Mult(const Vector &b, Vector &u) const;
+   void Mult(const Vector &b, Vector &u) const override;
    /// Same as Mult() since the mass matrix is symmetric.
-   void MultTranspose(const Vector &b, Vector &u) const { Mult(b, u); }
+   void MultTranspose(const Vector &b, Vector &u) const override { Mult(b, u); }
    /// Not implemented. Aborts.
-   void SetOperator(const Operator &op);
+   void SetOperator(const Operator &op) override;
    /// Set the relative tolerance.
-   void SetRelTol(const double rel_tol_);
+   void SetRelTol(const real_t rel_tol_);
    /// Set the absolute tolerance.
-   void SetAbsTol(const double abs_tol_);
+   void SetAbsTol(const real_t abs_tol_);
    /// Set the maximum number of iterations.
-   void SetMaxIter(const double max_iter_);
+   void SetMaxIter(const int max_iter_);
    /// Recompute operator and preconditioner (when coefficient or mesh changes).
    void Update();
 
@@ -107,6 +110,9 @@ public:
    /// extended lambda used in an mfem::forall kernel (nvcc limitation)
    template<int DIM, int D1D = 0, int Q1D = 0>
    void DGMassCGIteration(const Vector &b_, Vector &u_) const;
+
+   using CGKernelType = void(DGMassInverse::*)(const Vector &b_, Vector &u) const;
+   MFEM_REGISTER_KERNELS(CGKernels, CGKernelType, (int, int, int));
 };
 
 } // namespace mfem

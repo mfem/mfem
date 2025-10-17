@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -14,222 +14,158 @@
 namespace mfem
 {
 
-void DofTransformation::TransformPrimal(Vector &v) const
+void DofTransformation::TransformPrimal(real_t *v) const
 {
-   TransformPrimal(v.GetData());
-}
+   if (IsIdentity()) { return; }
+   int size = dof_trans_->Size();
 
-void DofTransformation::TransformPrimalCols(DenseMatrix &V) const
-{
-   for (int c=0; c<V.Width(); c++)
+   if (vdim_ == 1 || (Ordering::Type)ordering_ == Ordering::byNODES)
    {
-      TransformPrimal(V.GetColumn(c));
+      for (int i=0; i<vdim_; i++)
+      {
+         dof_trans_->TransformPrimal(Fo_, &v[i*size]);
+      }
+   }
+   else
+   {
+      Vector vec(size);
+      for (int i=0; i<vdim_; i++)
+      {
+         for (int j=0; j<size; j++)
+         {
+            vec(j) = v[j*vdim_+i];
+         }
+         dof_trans_->TransformPrimal(Fo_, vec);
+         for (int j=0; j<size; j++)
+         {
+            v[j*vdim_+i] = vec(j);
+         }
+      }
    }
 }
 
-void DofTransformation::TransformDual(Vector &v) const
+void DofTransformation::InvTransformPrimal(real_t *v) const
 {
-   TransformDual(v.GetData());
-}
+   if (IsIdentity()) { return; }
+   int size = dof_trans_->Height();
 
-void DofTransformation::TransformDual(DenseMatrix &V) const
-{
-   TransformDualCols(V);
-   TransformDualRows(V);
-}
-
-void DofTransformation::TransformDualRows(DenseMatrix &V) const
-{
-   Vector row;
-   for (int r=0; r<V.Height(); r++)
+   if (vdim_ == 1 || (Ordering::Type)ordering_ == Ordering::byNODES)
    {
-      V.GetRow(r, row);
-      TransformDual(row);
-      V.SetRow(r, row);
+      for (int i=0; i<vdim_; i++)
+      {
+         dof_trans_->InvTransformPrimal(Fo_, &v[i*size]);
+      }
+   }
+   else
+   {
+      Vector vec(size);
+      for (int i=0; i<vdim_; i++)
+      {
+         for (int j=0; j<size; j++)
+         {
+            vec(j) = v[j*vdim_+i];
+         }
+         dof_trans_->InvTransformPrimal(Fo_, vec);
+         for (int j=0; j<size; j++)
+         {
+            v[j*vdim_+i] = vec(j);
+         }
+      }
    }
 }
 
-void DofTransformation::TransformDualCols(DenseMatrix &V) const
+void DofTransformation::TransformDual(real_t *v) const
 {
-   for (int c=0; c<V.Width(); c++)
+   if (IsIdentity()) { return; }
+   int size = dof_trans_->Size();
+
+   if (vdim_ == 1 || (Ordering::Type)ordering_ == Ordering::byNODES)
    {
-      TransformDual(V.GetColumn(c));
+      for (int i=0; i<vdim_; i++)
+      {
+         dof_trans_->TransformDual(Fo_, &v[i*size]);
+      }
+   }
+   else
+   {
+      Vector vec(size);
+      for (int i=0; i<vdim_; i++)
+      {
+         for (int j=0; j<size; j++)
+         {
+            vec(j) = v[j*vdim_+i];
+         }
+         dof_trans_->TransformDual(Fo_, vec);
+         for (int j=0; j<size; j++)
+         {
+            v[j*vdim_+i] = vec(j);
+         }
+      }
    }
 }
 
-void DofTransformation::InvTransformPrimal(Vector &v) const
+void DofTransformation::InvTransformDual(real_t *v) const
 {
-   InvTransformPrimal(v.GetData());
+   if (IsIdentity()) { return; }
+   int size = dof_trans_->Size();
+
+   if (vdim_ == 1 || (Ordering::Type)ordering_ == Ordering::byNODES)
+   {
+      for (int i=0; i<vdim_; i++)
+      {
+         dof_trans_->InvTransformDual(Fo_, &v[i*size]);
+      }
+   }
+   else
+   {
+      Vector vec(size);
+      for (int i=0; i<vdim_; i++)
+      {
+         for (int j=0; j<size; j++)
+         {
+            vec(j) = v[j*vdim_+i];
+         }
+         dof_trans_->InvTransformDual(Fo_, vec);
+         for (int j=0; j<size; j++)
+         {
+            v[j*vdim_+i] = vec(j);
+         }
+      }
+   }
 }
 
-void TransformPrimal(const DofTransformation *ran_dof_trans,
-                     const DofTransformation *dom_dof_trans,
+void TransformPrimal(const DofTransformation &ran_dof_trans,
+                     const DofTransformation &dom_dof_trans,
                      DenseMatrix &elmat)
 {
-   if (ran_dof_trans && dom_dof_trans)
+   // No action if both transformations are NULL
+   if (!ran_dof_trans.IsIdentity())
    {
-      ran_dof_trans->TransformPrimalCols(elmat);
-      dom_dof_trans->TransformDualRows(elmat);
+      ran_dof_trans.TransformPrimalCols(elmat);
    }
-   else if (ran_dof_trans)
+   if (!dom_dof_trans.IsIdentity())
    {
-      ran_dof_trans->TransformPrimalCols(elmat);
-   }
-   else if (dom_dof_trans)
-   {
-      dom_dof_trans->TransformDualRows(elmat);
-   }
-   else
-   {
-      // If both transformations are NULL this function should not be called
+      dom_dof_trans.TransformDualRows(elmat);
    }
 }
 
-void DofTransformation::InvTransformDual(Vector &v) const
-{
-   InvTransformDual(v.GetData());
-}
-
-void TransformDual(const DofTransformation *ran_dof_trans,
-                   const DofTransformation *dom_dof_trans,
+void TransformDual(const DofTransformation &ran_dof_trans,
+                   const DofTransformation &dom_dof_trans,
                    DenseMatrix &elmat)
 {
-   if (ran_dof_trans && dom_dof_trans)
+   // No action if both transformations are NULL
+   if (!ran_dof_trans.IsIdentity())
    {
-      ran_dof_trans->TransformDualCols(elmat);
-      dom_dof_trans->TransformDualRows(elmat);
+      ran_dof_trans.TransformDualCols(elmat);
    }
-   else if (ran_dof_trans)
+   if (!dom_dof_trans.IsIdentity())
    {
-      ran_dof_trans->TransformDualCols(elmat);
-   }
-   else if (dom_dof_trans)
-   {
-      dom_dof_trans->TransformDualRows(elmat);
-   }
-   else
-   {
-      // If both transformations are NULL this function should not be called
+      dom_dof_trans.TransformDualRows(elmat);
    }
 }
 
-void VDofTransformation::TransformPrimal(double *v) const
-{
-   int size = doftrans_->Size();
-
-   if ((Ordering::Type)ordering_ == Ordering::byNODES || vdim_ == 1)
-   {
-      for (int i=0; i<vdim_; i++)
-      {
-         doftrans_->TransformPrimal(&v[i*size]);
-      }
-   }
-   else
-   {
-      Vector vec(size);
-      for (int i=0; i<vdim_; i++)
-      {
-         for (int j=0; j<size; j++)
-         {
-            vec(j) = v[j*vdim_+i];
-         }
-         doftrans_->TransformPrimal(vec);
-         for (int j=0; j<size; j++)
-         {
-            v[j*vdim_+i] = vec(j);
-         }
-      }
-   }
-}
-
-void VDofTransformation::InvTransformPrimal(double *v) const
-{
-   int size = doftrans_->Height();
-
-   if ((Ordering::Type)ordering_ == Ordering::byNODES)
-   {
-      for (int i=0; i<vdim_; i++)
-      {
-         doftrans_->InvTransformPrimal(&v[i*size]);
-      }
-   }
-   else
-   {
-      Vector vec(size);
-      for (int i=0; i<vdim_; i++)
-      {
-         for (int j=0; j<size; j++)
-         {
-            vec(j) = v[j*vdim_+i];
-         }
-         doftrans_->InvTransformPrimal(vec);
-         for (int j=0; j<size; j++)
-         {
-            v[j*vdim_+i] = vec(j);
-         }
-      }
-   }
-}
-
-void VDofTransformation::TransformDual(double *v) const
-{
-   int size = doftrans_->Size();
-
-   if ((Ordering::Type)ordering_ == Ordering::byNODES)
-   {
-      for (int i=0; i<vdim_; i++)
-      {
-         doftrans_->TransformDual(&v[i*size]);
-      }
-   }
-   else
-   {
-      Vector vec(size);
-      for (int i=0; i<vdim_; i++)
-      {
-         for (int j=0; j<size; j++)
-         {
-            vec(j) = v[j*vdim_+i];
-         }
-         doftrans_->TransformDual(vec);
-         for (int j=0; j<size; j++)
-         {
-            v[j*vdim_+i] = vec(j);
-         }
-      }
-   }
-}
-
-void VDofTransformation::InvTransformDual(double *v) const
-{
-   int size = doftrans_->Size();
-
-   if ((Ordering::Type)ordering_ == Ordering::byNODES)
-   {
-      for (int i=0; i<vdim_; i++)
-      {
-         doftrans_->InvTransformDual(&v[i*size]);
-      }
-   }
-   else
-   {
-      Vector vec(size);
-      for (int i=0; i<vdim_; i++)
-      {
-         for (int j=0; j<size; j++)
-         {
-            vec(j) = v[j*vdim_+i];
-         }
-         doftrans_->InvTransformDual(vec);
-         for (int j=0; j<size; j++)
-         {
-            v[j*vdim_+i] = vec(j);
-         }
-      }
-   }
-}
-
-const double ND_DofTransformation::T_data[24] =
+// ordering (i0j0, i1j0, i0j1, i1j1), each row is a column major matrix
+const real_t ND_DofTransformation::T_data[24] =
 {
    1.0,  0.0,  0.0,  1.0,
    -1.0, -1.0,  0.0,  1.0,
@@ -240,9 +176,10 @@ const double ND_DofTransformation::T_data[24] =
 };
 
 const DenseTensor ND_DofTransformation
-::T(const_cast<double*>(ND_DofTransformation::T_data), 2, 2, 6);
+::T(const_cast<real_t *>(ND_DofTransformation::T_data), 2, 2, 6);
 
-const double ND_DofTransformation::TInv_data[24] =
+// ordering (i0j0, i1j0, i0j1, i1j1), each row is a column major matrix
+const real_t ND_DofTransformation::TInv_data[24] =
 {
    1.0,  0.0,  0.0,  1.0,
    -1.0, -1.0,  0.0,  1.0,
@@ -253,300 +190,158 @@ const double ND_DofTransformation::TInv_data[24] =
 };
 
 const DenseTensor ND_DofTransformation
-::TInv(const_cast<double*>(TInv_data), 2, 2, 6);
+::TInv(const_cast<real_t *>(TInv_data), 2, 2, 6);
 
-ND_DofTransformation::ND_DofTransformation(int size, int p)
-   : DofTransformation(size)
+ND_DofTransformation::ND_DofTransformation(int size, int p, int num_edges,
+                                           int num_faces,
+                                           int face_types[])
+   : StatelessDofTransformation(size)
    , order(p)
    , nedofs(p)
-   , nfdofs(p*(p-1))
+   , ntdofs(p*(p-1))
+   , nqdofs(2*p*(p-1))
+   , nedges(num_edges)
+   , nfaces(num_faces)
+   , ftypes(face_types)
 {
 }
 
-ND_TriDofTransformation::ND_TriDofTransformation(int p)
-   : ND_DofTransformation(p*(p + 2), p)
-{
-}
-
-void ND_TriDofTransformation::TransformPrimal(double *v) const
+void ND_DofTransformation::TransformPrimal(const Array<int> & Fo,
+                                           real_t *v) const
 {
    // Return immediately when no face DoFs are present
-   if (nfdofs < 2) { return; }
+   if (IsIdentity()) { return; }
 
-   MFEM_VERIFY(Fo.Size() >= 1,
-               "Face orientations are unset in ND_TriDofTransformation");
+   MFEM_VERIFY(Fo.Size() >= nfaces,
+               "Face orientation array is shorter than the number of faces in "
+               "ND_DofTransformation");
 
-   double data[2];
+   int of = 0;
+   real_t data[2];
    Vector v2(data, 2);
+   DenseMatrix T2;
 
    // Transform face DoFs
-   for (int f=0; f<1; f++)
+   for (int f=0; f<nfaces; f++)
    {
-      for (int i=0; i<nfdofs/2; i++)
+      if (ftypes[f] == Geometry::TRIANGLE)
       {
-         v2 = &v[3*nedofs + f*nfdofs + 2*i];
-         T(Fo[f]).Mult(v2, &v[3*nedofs + f*nfdofs + 2*i]);
+         for (int i=0; i<ntdofs/2; i++)
+         {
+            v2 = &v[nedges*nedofs + of + 2*i];
+            T2.UseExternalData(const_cast<real_t *>(T.GetData(Fo[f])), 2, 2);
+            T2.Mult(v2, &v[nedges*nedofs + of + 2*i]);
+         }
+         of += ntdofs;
+      }
+      else
+      {
+         of += nqdofs;
       }
    }
 }
 
-void
-ND_TriDofTransformation::InvTransformPrimal(double *v) const
+void ND_DofTransformation::InvTransformPrimal(const Array<int> & Fo,
+                                              real_t *v) const
 {
    // Return immediately when no face DoFs are present
-   if (nfdofs < 2) { return; }
+   if (IsIdentity()) { return; }
 
-   MFEM_VERIFY(Fo.Size() >= 1,
-               "Face orientations are unset in ND_TriDofTransformation");
+   MFEM_VERIFY(Fo.Size() >= nfaces,
+               "Face orientation array is shorter than the number of faces in "
+               "ND_DofTransformation");
 
-   double data[2];
+   int of = 0;
+   real_t data[2];
    Vector v2(data, 2);
+   DenseMatrix T2Inv;
 
    // Transform face DoFs
-   for (int f=0; f<1; f++)
+   for (int f=0; f<nfaces; f++)
    {
-      for (int i=0; i<nfdofs/2; i++)
+      if (ftypes[f] == Geometry::TRIANGLE)
       {
-         v2 = &v[3*nedofs + f*nfdofs + 2*i];
-         TInv(Fo[f]).Mult(v2, &v[3*nedofs + f*nfdofs + 2*i]);
+         for (int i=0; i<ntdofs/2; i++)
+         {
+            v2 = &v[nedges*nedofs + of + 2*i];
+            T2Inv.UseExternalData(const_cast<real_t *>(TInv.GetData(Fo[f])), 2, 2);
+            T2Inv.Mult(v2, &v[nedges*nedofs + of + 2*i]);
+         }
+         of += ntdofs;
+      }
+      else
+      {
+         of += nqdofs;
       }
    }
 }
 
-void
-ND_TriDofTransformation::TransformDual(double *v) const
+void ND_DofTransformation::TransformDual(const Array<int> & Fo, real_t *v) const
 {
    // Return immediately when no face DoFs are present
-   if (nfdofs < 2) { return; }
+   if (IsIdentity()) { return; }
 
-   MFEM_VERIFY(Fo.Size() >= 1,
-               "Face orientations are unset in ND_TriDofTransformation");
+   MFEM_VERIFY(Fo.Size() >= nfaces,
+               "Face orientation array is shorter than the number of faces in "
+               "ND_DofTransformation");
 
-   double data[2];
+   int of = 0;
+   real_t data[2];
    Vector v2(data, 2);
+   DenseMatrix T2Inv;
 
    // Transform face DoFs
-   for (int f=0; f<1; f++)
+   for (int f=0; f<nfaces; f++)
    {
-      for (int i=0; i<nfdofs/2; i++)
+      if (ftypes[f] == Geometry::TRIANGLE)
       {
-         v2 = &v[3*nedofs + f*nfdofs + 2*i];
-         TInv(Fo[f]).MultTranspose(v2, &v[3*nedofs + f*nfdofs + 2*i]);
+         for (int i=0; i<ntdofs/2; i++)
+         {
+            v2 = &v[nedges*nedofs + of + 2*i];
+            T2Inv.UseExternalData(const_cast<real_t *>(TInv.GetData(Fo[f])), 2, 2);
+            T2Inv.MultTranspose(v2, &v[nedges*nedofs + of + 2*i]);
+         }
+         of += ntdofs;
       }
+      else
+      {
+         of += nqdofs;
+      }
+
    }
 }
 
-void
-ND_TriDofTransformation::InvTransformDual(double *v) const
+void ND_DofTransformation::InvTransformDual(const Array<int> & Fo,
+                                            real_t *v) const
 {
    // Return immediately when no face DoFs are present
-   if (nfdofs < 2) { return; }
+   if (IsIdentity()) { return; }
 
-   MFEM_VERIFY(Fo.Size() >= 1,
-               "Face orientations are unset in ND_TriDofTransformation");
+   MFEM_VERIFY(Fo.Size() >= nfaces,
+               "Face orientation array is shorter than the number of faces in "
+               "ND_DofTransformation");
 
-   double data[2];
+   int of = 0;
+   real_t data[2];
    Vector v2(data, 2);
+   DenseMatrix T2;
 
    // Transform face DoFs
-   for (int f=0; f<1; f++)
+   for (int f=0; f<nfaces; f++)
    {
-      for (int i=0; i<nfdofs/2; i++)
+      if (ftypes[f] == Geometry::TRIANGLE)
       {
-         v2 = &v[3*nedofs + f*nfdofs + 2*i];
-         T(Fo[f]).MultTranspose(v2, &v[3*nedofs + f*nfdofs + 2*i]);
+         for (int i=0; i<ntdofs/2; i++)
+         {
+            v2 = &v[nedges*nedofs + of + 2*i];
+            T2.UseExternalData(const_cast<real_t *>(T.GetData(Fo[f])), 2, 2);
+            T2.MultTranspose(v2, &v[nedges*nedofs + of + 2*i]);
+         }
+         of += ntdofs;
       }
-   }
-}
-
-ND_TetDofTransformation::ND_TetDofTransformation(int p)
-   : ND_DofTransformation(p*(p + 2)*(p + 3)/2, p)
-{
-}
-
-void ND_TetDofTransformation::TransformPrimal(double *v) const
-{
-   // Return immediately when no face DoFs are present
-   if (nfdofs < 2) { return; }
-
-   MFEM_VERIFY(Fo.Size() >= 4,
-               "Face orientations are unset in ND_TetDofTransformation");
-
-   double data[2];
-   Vector v2(data, 2);
-
-   // Transform face DoFs
-   for (int f=0; f<4; f++)
-   {
-      for (int i=0; i<nfdofs/2; i++)
+      else
       {
-         v2 = &v[6*nedofs + f*nfdofs + 2*i];
-         T(Fo[f]).Mult(v2, &v[6*nedofs + f*nfdofs + 2*i]);
-      }
-   }
-}
-
-void
-ND_TetDofTransformation::InvTransformPrimal(double *v) const
-{
-   // Return immediately when no face DoFs are present
-   if (nfdofs < 2) { return; }
-
-   MFEM_VERIFY(Fo.Size() >= 4,
-               "Face orientations are unset in ND_TetDofTransformation");
-
-   double data[2];
-   Vector v2(data, 2);
-
-   // Transform face DoFs
-   for (int f=0; f<4; f++)
-   {
-      for (int i=0; i<nfdofs/2; i++)
-      {
-         v2 = &v[6*nedofs + f*nfdofs + 2*i];
-         TInv(Fo[f]).Mult(v2, &v[6*nedofs + f*nfdofs + 2*i]);
-      }
-   }
-}
-
-void
-ND_TetDofTransformation::TransformDual(double *v) const
-{
-   // Return immediately when no face DoFs are present
-   if (nfdofs < 2) { return; }
-
-   MFEM_VERIFY(Fo.Size() >= 4,
-               "Face orientations are unset in ND_TetDofTransformation");
-
-   double data[2];
-   Vector v2(data, 2);
-
-   // Transform face DoFs
-   for (int f=0; f<4; f++)
-   {
-      for (int i=0; i<nfdofs/2; i++)
-      {
-         v2 = &v[6*nedofs + f*nfdofs + 2*i];
-         TInv(Fo[f]).MultTranspose(v2, &v[6*nedofs + f*nfdofs + 2*i]);
-      }
-   }
-}
-
-void
-ND_TetDofTransformation::InvTransformDual(double *v) const
-{
-   // Return immediately when no face DoFs are present
-   if (nfdofs < 2) { return; }
-
-   MFEM_VERIFY(Fo.Size() >= 4,
-               "Face orientations are unset in ND_TetDofTransformation");
-
-   double data[2];
-   Vector v2(data, 2);
-
-   // Transform face DoFs
-   for (int f=0; f<4; f++)
-   {
-      for (int i=0; i<nfdofs/2; i++)
-      {
-         v2 = &v[6*nedofs + f*nfdofs + 2*i];
-         T(Fo[f]).MultTranspose(v2, &v[6*nedofs + f*nfdofs + 2*i]);
-      }
-   }
-}
-
-ND_WedgeDofTransformation::ND_WedgeDofTransformation(int p)
-   : ND_DofTransformation(3 * p * ((p + 1) * (p + 2))/2, p)
-{
-}
-
-void ND_WedgeDofTransformation::TransformPrimal(double *v) const
-{
-   // Return immediately when no face DoFs are present
-   if (nfdofs < 2) { return; }
-
-   MFEM_VERIFY(Fo.Size() >= 2,
-               "Face orientations are unset in ND_WedgeDofTransformation");
-
-   double data[2];
-   Vector v2(data, 2);
-
-   // Transform triangular face DoFs
-   for (int f=0; f<2; f++)
-   {
-      for (int i=0; i<nfdofs/2; i++)
-      {
-         v2 = &v[9*nedofs + f*nfdofs + 2*i];
-         T(Fo[f]).Mult(v2, &v[9*nedofs + f*nfdofs + 2*i]);
-      }
-   }
-}
-
-void
-ND_WedgeDofTransformation::InvTransformPrimal(double *v) const
-{
-   // Return immediately when no face DoFs are present
-   if (nfdofs < 2) { return; }
-
-   MFEM_VERIFY(Fo.Size() >= 2,
-               "Face orientations are unset in ND_WedgeDofTransformation");
-
-   double data[2];
-   Vector v2(data, 2);
-
-   // Transform triangular face DoFs
-   for (int f=0; f<2; f++)
-   {
-      for (int i=0; i<nfdofs/2; i++)
-      {
-         v2 = &v[9*nedofs + f*nfdofs + 2*i];
-         TInv(Fo[f]).Mult(v2, &v[9*nedofs + f*nfdofs + 2*i]);
-      }
-   }
-}
-
-void
-ND_WedgeDofTransformation::TransformDual(double *v) const
-{
-   // Return immediately when no face DoFs are present
-   if (nfdofs < 2) { return; }
-
-   MFEM_VERIFY(Fo.Size() >= 2,
-               "Face orientations are unset in ND_WedgeDofTransformation");
-
-   double data[2];
-   Vector v2(data, 2);
-
-   // Transform triangular face DoFs
-   for (int f=0; f<2; f++)
-   {
-      for (int i=0; i<nfdofs/2; i++)
-      {
-         v2 = &v[9*nedofs + f*nfdofs + 2*i];
-         TInv(Fo[f]).MultTranspose(v2, &v[9*nedofs + f*nfdofs + 2*i]);
-      }
-   }
-}
-
-void
-ND_WedgeDofTransformation::InvTransformDual(double *v) const
-{
-   // Return immediately when no face DoFs are present
-   if (nfdofs < 2) { return; }
-
-   MFEM_VERIFY(Fo.Size() >= 2,
-               "Face orientations are unset in ND_WedgeDofTransformation");
-
-   double data[2];
-   Vector v2(data, 2);
-
-   // Transform triangular face DoFs
-   for (int f=0; f<2; f++)
-   {
-      for (int i=0; i<nfdofs/2; i++)
-      {
-         v2 = &v[9*nedofs + f*nfdofs + 2*i];
-         T(Fo[f]).MultTranspose(v2, &v[9*nedofs + f*nfdofs + 2*i]);
+         of += nqdofs;
       }
    }
 }

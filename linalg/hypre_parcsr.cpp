@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -1916,9 +1916,9 @@ hypre_ParCSRMatrixAdd(hypre_ParCSRMatrix *A,
       /* FIXME: GenerateDiagAndOffd() uses an int array of size equal to the
          number of columns in csr_C_temp which is the global number of columns
          in A and B. This does not scale well. */
-      ierr += GenerateDiagAndOffd(csr_C_temp, C,
-                                  hypre_ParCSRMatrixFirstColDiag(A),
-                                  hypre_ParCSRMatrixLastColDiag(A));
+      ierr += hypre_GenerateDiagAndOffd(csr_C_temp, C,
+                                        hypre_ParCSRMatrixFirstColDiag(A),
+                                        hypre_ParCSRMatrixLastColDiag(A));
 
       /* delete CSR version of C */
       ierr += hypre_CSRMatrixDestroy(csr_C_temp);

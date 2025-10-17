@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -85,8 +85,8 @@ static int nstep_ = 6;
 static int count_ = 0;
 static int logging_ = 0;
 
-static double cosa_ = cos(0.5 * M_PI / nstep_);
-static double sina_ = sin(0.5 * M_PI / nstep_);
+static real_t cosa_ = cos(0.5 * M_PI / nstep_);
+static real_t sina_ = sin(0.5 * M_PI / nstep_);
 
 struct RubikState
 {
@@ -187,6 +187,7 @@ void solve(Mesh & mesh, GridFunction & color, socketstream & sock);
 int main(int argc, char *argv[])
 {
    bool anim = true;
+   int visport = 19916;
    bool visualization = true;
 
    OptionsParser args(argc, argv);
@@ -198,6 +199,7 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.Parse();
    if (!args.Good())
    {
@@ -223,7 +225,7 @@ int main(int argc, char *argv[])
    color = 0.0;
 
    PWConstCoefficient pwCoef(7);
-   for (int i=1; i<=7; i++) { pwCoef(i) = (double)(i-1)/6.0; }
+   for (int i=1; i<=7; i++) { pwCoef(i) = (real_t)(i-1)/6.0; }
    color.ProjectCoefficient(pwCoef);
 
    // Output the initial mesh to a file
@@ -240,7 +242,6 @@ int main(int argc, char *argv[])
    if (visualization)
    {
       char vishost[] = "localhost";
-      int  visport   = 19916;
       socketstream sock(vishost, visport);
       sock.precision(8);
       sock << "solution\n" << mesh << color << "keys Amaa\n"
@@ -406,7 +407,7 @@ void
 init_hex_mesh(Mesh & mesh)
 {
    // Add vertices and hexahedra for 27 cubes
-   double c[3];
+   real_t c[3];
    int v[16];
    int vh[8];
    int l = 0;
@@ -901,10 +902,10 @@ print_state(ostream & out_stream)
 
 void repaint_cube(Mesh & mesh, GridFunction & color, socketstream & sock)
 {
-   double xData[3];
+   real_t xData[3];
    Vector x(xData,3);
 
-   double eps = 0.1;
+   real_t eps = 0.1;
 
    Array<int> v;
    for (int i=0; i<mesh.GetNBE(); i++)
@@ -1000,11 +1001,11 @@ bool validate_corners(const int min_ind, const int max_ind)
 }
 
 void
-rotate_step(char axis, int incr, double * x)
+rotate_step(char axis, int incr, real_t * x)
 {
    if (incr == 0) { return; }
 
-   double y[3];
+   real_t y[3];
    Vector xVec(x,3);
    Vector yVec(y,3);
 
@@ -1103,7 +1104,7 @@ anim_step(char axis, int incr, Mesh & mesh)
 
 void mark_elements(Mesh & mesh, char axis, int tier)
 {
-   double xData[3];
+   real_t xData[3];
    Vector x(xData,3);
 
    Array<int> v;
@@ -1172,7 +1173,7 @@ void determine_random_moves(Array<Move> & moves)
 {
    for (int i=0; i<moves.Size(); i++)
    {
-      double ran = double(rand()) / RAND_MAX;
+      real_t ran = real_t(rand()) / real_t(RAND_MAX);
       int  ir   = (int)(26 * ran);
       int  incr = (ir % 3) + 1; ir /= 3;
       int  tier = (ir % 3) + 1; ir /= 3;

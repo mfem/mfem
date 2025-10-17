@@ -49,10 +49,10 @@ int problem;
 void velocity_function(const Vector &x, Vector &v);
 
 // Initial condition
-double u0_function(const Vector &x);
+real_t u0_function(const Vector &x);
 
 // Inflow boundary condition
-double inflow_function(const Vector &x);
+real_t inflow_function(const Vector &x);
 
 // Mesh bounding box
 Vector bb_min, bb_max;
@@ -87,7 +87,7 @@ public:
    virtual void Mult(const Vector &x, Vector &y) const;
    virtual Operator& GetExplicitGradient(const Vector &x) const;
    virtual Operator& GetImplicitGradient(const Vector &x, const Vector &xp,
-                                         double shift) const;
+                                         real_t shift) const;
    virtual ~FE_Evolution() { delete iJacobian; delete rJacobian; }
 };
 
@@ -153,8 +153,8 @@ int main(int argc, char *argv[])
    bool fa = false;
    const char *device_config = "cpu";
    int ode_solver_type = 4;
-   double t_final = 10.0;
-   double dt = 0.01;
+   real_t t_final = 10.0;
+   real_t dt = 0.01;
    bool visualization = true;
    bool visit = false;
    bool binary = false;
@@ -431,7 +431,7 @@ int main(int argc, char *argv[])
    // 10. Define the time-dependent evolution operator describing the ODE
    FE_Evolution *adv = new FE_Evolution(*m, *k, *B, implicit);
 
-   double t = 0.0;
+   real_t t = 0.0;
    adv->SetTime(t);
    if (use_petsc)
    {
@@ -451,7 +451,7 @@ int main(int argc, char *argv[])
       {
          // We cannot match exactly the time history of the Run method
          // since we are explicitly telling PETSc to use a time step
-         double dt_real = min(dt, t_final - t);
+         real_t dt_real = min(dt, t_final - t);
          ode_solver->Step(*U, t, dt_real);
          ti++;
 
@@ -520,10 +520,10 @@ int main(int argc, char *argv[])
 // Implementation of class FE_Evolution
 FE_Evolution::FE_Evolution(ParBilinearForm &M_, ParBilinearForm &K_,
                            const Vector &b_,bool M_in_lhs)
-   : TimeDependentOperator(M_.Height(), 0.0,
+   : TimeDependentOperator(M_.ParFESpace()->GetTrueVSize(), 0.0,
                            M_in_lhs ? TimeDependentOperator::IMPLICIT
                            : TimeDependentOperator::EXPLICIT),
-     b(b_), comm(M_.ParFESpace()->GetComm()), M_solver(comm), z(M_.Height()),
+     b(b_), comm(M_.ParFESpace()->GetComm()), M_solver(comm), z(height),
      iJacobian(NULL), rJacobian(NULL)
 {
    MAlev = M_.GetAssemblyLevel();
@@ -621,7 +621,7 @@ Operator& FE_Evolution::GetExplicitGradient(const Vector &x) const
 
 // LHS Jacobian, evaluated as shift*F_du/dt + F_u
 Operator& FE_Evolution::GetImplicitGradient(const Vector &x, const Vector &xp,
-                                            double shift) const
+                                            real_t shift) const
 {
    Operator::Type otype = (MAlev == AssemblyLevel::LEGACY ?
                            Operator::PETSC_MATAIJ : Operator::ANY_TYPE);
@@ -648,7 +648,7 @@ void velocity_function(const Vector &x, Vector &v)
    Vector X(dim);
    for (int i = 0; i < dim; i++)
    {
-      double center = (bb_min[i] + bb_max[i]) * 0.5;
+      real_t center = (bb_min[i] + bb_max[i]) * 0.5;
       X(i) = 2 * (x(i) - center) / (bb_max[i] - bb_min[i]);
    }
 
@@ -670,7 +670,7 @@ void velocity_function(const Vector &x, Vector &v)
       case 2:
       {
          // Clockwise rotation in 2D around the origin
-         const double w = M_PI/2;
+         const real_t w = M_PI/2;
          switch (dim)
          {
             case 1: v(0) = 1.0; break;
@@ -682,8 +682,8 @@ void velocity_function(const Vector &x, Vector &v)
       case 3:
       {
          // Clockwise twisting rotation in 2D around the origin
-         const double w = M_PI/2;
-         double d = max((X(0)+1.)*(1.-X(0)),0.) * max((X(1)+1.)*(1.-X(1)),0.);
+         const real_t w = M_PI/2;
+         real_t d = max((X(0)+1.)*(1.-X(0)),0.) * max((X(1)+1.)*(1.-X(1)),0.);
          d = d*d;
          switch (dim)
          {
@@ -697,7 +697,7 @@ void velocity_function(const Vector &x, Vector &v)
 }
 
 // Initial condition
-double u0_function(const Vector &x)
+real_t u0_function(const Vector &x)
 {
    int dim = x.Size();
 
@@ -705,7 +705,7 @@ double u0_function(const Vector &x)
    Vector X(dim);
    for (int i = 0; i < dim; i++)
    {
-      double center = (bb_min[i] + bb_max[i]) * 0.5;
+      real_t center = (bb_min[i] + bb_max[i]) * 0.5;
       X(i) = 2 * (x(i) - center) / (bb_max[i] - bb_min[i]);
    }
 
@@ -721,10 +721,10 @@ double u0_function(const Vector &x)
             case 2:
             case 3:
             {
-               double rx = 0.45, ry = 0.25, cx = 0., cy = -0.2, w = 10.;
+               real_t rx = 0.45, ry = 0.25, cx = 0., cy = -0.2, w = 10.;
                if (dim == 3)
                {
-                  const double s = (1. + 0.25*cos(2*M_PI*X(2)));
+                  const real_t s = (1. + 0.25*cos(2*M_PI*X(2)));
                   rx *= s;
                   ry *= s;
                }
@@ -735,14 +735,14 @@ double u0_function(const Vector &x)
       }
       case 2:
       {
-         double x_ = X(0), y_ = X(1), rho, phi;
+         real_t x_ = X(0), y_ = X(1), rho, phi;
          rho = hypot(x_, y_);
          phi = atan2(y_, x_);
          return pow(sin(M_PI*rho),2)*sin(3*phi);
       }
       case 3:
       {
-         const double f = M_PI;
+         const real_t f = M_PI;
          return sin(f*X(0))*sin(f*X(1));
       }
    }
@@ -750,7 +750,7 @@ double u0_function(const Vector &x)
 }
 
 // Inflow boundary condition (zero for the problems considered in this example)
-double inflow_function(const Vector &x)
+real_t inflow_function(const Vector &x)
 {
    switch (problem)
    {

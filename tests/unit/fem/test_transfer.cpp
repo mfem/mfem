@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -144,12 +144,12 @@ TEST_CASE("Transfer", "[Transfer]")
       fineMesh.UniformRefinement();
    }
 
-   int spaceDimension = (vectorspace == VecSpace::VectorH1) ? dimension : 1;
+   const int vdim = (vectorspace == VecSpace::VectorH1) ? dimension : 1;
 
    FiniteElementSpace *c_fespace =
-      new FiniteElementSpace(&mesh, c_fec, spaceDimension);
+      new FiniteElementSpace(&mesh, c_fec, vdim);
    FiniteElementSpace *f_fespace =
-      new FiniteElementSpace(&fineMesh, f_fec,spaceDimension);
+      new FiniteElementSpace(&fineMesh, f_fec, vdim);
 
    Operator* referenceOperator = nullptr;
 
@@ -261,12 +261,12 @@ TEST_CASE("Variable Order Transfer", "[Transfer][VariableOrder]")
    mesh.EnsureNCMesh();
    mesh.RandomRefinement(0.5);
 
-   int spaceDimension = (vectorspace == VecSpace::VectorH1) ? dimension : 1;
+   const int vdim = (vectorspace == VecSpace::VectorH1) ? dimension : 1;
 
    FiniteElementSpace *c_fespace =
-      new FiniteElementSpace(&mesh, c_fec, spaceDimension);
+      new FiniteElementSpace(&mesh, c_fec, vdim);
    FiniteElementSpace *f_fespace =
-      new FiniteElementSpace(&mesh, f_fec,spaceDimension);
+      new FiniteElementSpace(&mesh, f_fec, vdim);
 
    RandomPRefinement(*f_fespace);
 
@@ -348,12 +348,12 @@ TEST_CASE("Variable Order True Transfer", "[Transfer][VariableOrder]")
    f_fec = new H1_FECollection(order, dimension);
    mesh.EnsureNCMesh();
    mesh.RandomRefinement(0.5);
-   int spaceDimension = (vectorspace == VecSpace::VectorH1) ? dimension : 1;
+   const int vdim = (vectorspace == VecSpace::VectorH1) ? dimension : 1;
 
    FiniteElementSpace *c_fespace =
-      new FiniteElementSpace(&mesh, c_fec, spaceDimension);
+      new FiniteElementSpace(&mesh, c_fec, vdim);
    FiniteElementSpace *f_fespace =
-      new FiniteElementSpace(&mesh, f_fec,spaceDimension);
+      new FiniteElementSpace(&mesh, f_fec, vdim);
 
    RandomPRefinement(*f_fespace);
 
@@ -425,6 +425,41 @@ TEST_CASE("Variable Order True Transfer", "[Transfer][VariableOrder]")
    delete c_fec;
 }
 
+TEST_CASE("Restriction Transpose Operator")
+{
+   int order = GENERATE(1, 2);
+   auto mesh_fname = GENERATE("../../data/amr-quad.mesh",
+                              "../../data/fichera-amr.mesh");
+
+   Mesh mesh = Mesh::LoadFromFile(mesh_fname);
+   H1_FECollection fec(order, mesh.Dimension());
+   FiniteElementSpace fes(&mesh, &fec);
+
+   BilinearForm a(&fes);
+
+   const Operator *R = fes.GetRestrictionOperator();
+   const Operator *Rt = fes.GetRestrictionTransposeOperator();
+   const Operator *Rt_2 = a.GetOutputRestrictionTranspose();
+
+   REQUIRE(R);
+   REQUIRE(Rt);
+   REQUIRE(Rt_2);
+
+   Vector x(R->Height()), y1(R->Width()), y2(Rt->Height()), y3(Rt_2->Height());
+
+   x.Randomize(1);
+
+   R->MultTranspose(x, y1);
+   Rt->Mult(x, y2);
+   Rt_2->Mult(x, y3);
+
+   y2 -= y1;
+   REQUIRE(y2.Normlinf() == MFEM_Approx(0.0));
+
+   y3 -= y1;
+   REQUIRE(y3.Normlinf() == MFEM_Approx(0.0));
+}
+
 #ifdef MFEM_USE_MPI
 
 TEST_CASE("Parallel Transfer", "[Transfer][Parallel]")
@@ -476,16 +511,16 @@ TEST_CASE("Parallel Transfer", "[Transfer][Parallel]")
    FiniteElementCollection *f_h1_fec = geometric ? c_h1_fec : new
                                        H1_FECollection(fineOrder, dimension);
 
-   int spaceDimension = 1;
+   constexpr int vdim = 1;
 
    double referenceRestrictionValue = 0.0;
 
    // Compute reference values in serial
    {
       FiniteElementSpace* c_h1_fespace = new FiniteElementSpace(&mesh, c_h1_fec,
-                                                                spaceDimension);
-      FiniteElementSpace* f_h1_fespace = new FiniteElementSpace(&fineMesh, f_h1_fec,
-                                                                spaceDimension);
+                                                                vdim);
+      FiniteElementSpace* f_h1_fespace = new FiniteElementSpace(&fineMesh,
+                                                                f_h1_fec, vdim);
 
       Operator* transferOperator = new TransferOperator(*c_h1_fespace,
                                                         *f_h1_fespace);
@@ -505,11 +540,12 @@ TEST_CASE("Parallel Transfer", "[Transfer][Parallel]")
       delete c_h1_fespace;
    }
 
-   ParFiniteElementSpace* c_h1_fespace = new ParFiniteElementSpace(pmesh, c_h1_fec,
-                                                                   spaceDimension);
+   ParFiniteElementSpace* c_h1_fespace = new ParFiniteElementSpace(pmesh,
+                                                                   c_h1_fec,
+                                                                   vdim);
    ParFiniteElementSpace* f_h1_fespace = new ParFiniteElementSpace(&pfineMesh,
                                                                    f_h1_fec,
-                                                                   spaceDimension);
+                                                                   vdim);
 
    Operator* transferOperator = new TrueTransferOperator(*c_h1_fespace,
                                                          *f_h1_fespace);

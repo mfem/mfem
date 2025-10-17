@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -43,6 +43,7 @@ int main(int argc, char *argv[])
    int cycle = 0;
    int pad_digits_cycle = 6;
    int pad_digits_rank = 6;
+   int visport = 19916;
    bool visualization = true;
 
    OptionsParser args(argc, argv);
@@ -56,6 +57,7 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.Parse();
    if (!args.Good())
    {
@@ -93,7 +95,6 @@ int main(int argc, char *argv[])
    if (!visualization) { return 0; }
 
    char vishost[] = "localhost";
-   int  visport   = 19916;
 
    // Visualize all fields. If there are no fields, visualize the mesh.
    for (fields_t::const_iterator it = fields.begin();
@@ -104,7 +105,7 @@ int main(int argc, char *argv[])
 #ifdef MFEM_USE_MPI
       bool all_succeeded;
       MPI_Allreduce(&succeeded, &all_succeeded, 1,
-                    MPI_C_BOOL, MPI_LAND, MPI_COMM_WORLD);
+                    MFEM_MPI_CXX_BOOL, MPI_LAND, MPI_COMM_WORLD);
       succeeded = all_succeeded;
 #endif
       if (!succeeded)

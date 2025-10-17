@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -72,7 +72,7 @@
 //     mpirun -np 4 distance -m ./corners.mesh -p 0 -rs 3 -t 200.0
 //
 //   Problem 1: zero level set: ball at the center of the domain - the exact
-//   distance is known, the code computes global and local errors.
+// + distance is known, the code computes global and local errors.
 //     mpirun -np 4 distance -m ../../data/inline-segment.mesh -rs 3 -o 2 -t 1.0 -p 1
 //     mpirun -np 4 distance -m ../../data/inline-quad.mesh   -rs 3 -o 2 -t 1.0 -p 1
 //     mpirun -np 4 distance -m ../../data/inline-hex.mesh -rs 1 -o 2 -p 1 -s 1
@@ -82,11 +82,13 @@
 //     mpirun -np 4 distance -m ../../data/amr-quad.mesh    -rs 3 -o 2 -t 1.0 -p 2
 //
 //   Problem 3: level set: Gyroid
-//      mpirun -np 4 distance -m ../../data/periodic-square.mesh -rs 5 -o 2 -t 1.0 -p 3
-//      mpirun -np 4 distance -m ../../data/periodic-cube.mesh   -rs 3 -o 2 -t 1.0 -p 3 -s 2
+//     mpirun -np 4 distance -m ../../data/periodic-square.mesh -rs 5 -o 2 -t 1.0 -p 3
+//     mpirun -np 4 distance -m ../../data/periodic-cube.mesh   -rs 3 -o 2 -t 1.0 -p 3 -s 2
 //
 //   Problem 4: level set: Union of doughnut and swiss cheese shapes
-//      mpirun -np 4 distance -m ../../data/inline-hex.mesh -rs 3 -o 2 -t 1.0 -p 4
+//     mpirun -np 4 distance -m ../../data/inline-hex.mesh -rs 3 -o 2 -t 1.0 -p 4
+//   Problem 5: point source in mfem mesh.
+//     mpirun -np 4 distance -m ../../data/mfem.mesh -p 5 -rs 3 -t 300.0
 
 #include <fstream>
 #include <iostream>
@@ -97,33 +99,33 @@ using namespace std;
 using namespace mfem;
 using namespace common;
 
-double sine_ls(const Vector &x)
+real_t sine_ls(const Vector &x)
 {
-   const double sine = 0.25 * std::sin(4 * M_PI * x(0)) +
+   const real_t sine = 0.25 * std::sin(4 * M_PI * x(0)) +
                        0.05 * std::sin(16 * M_PI * x(0));
    return (x(1) >= sine + 0.5) ? -1.0 : 1.0;
 }
 
-const double radius = 0.4;
+const real_t radius = 0.4;
 
-double sphere_ls(const Vector &x)
+real_t sphere_ls(const Vector &x)
 {
    const int dim = x.Size();
-   const double xc = x(0) - 0.5;
-   const double yc = (dim > 1) ? x(1) - 0.5 : 0.0;
-   const double zc = (dim > 2) ? x(2) - 0.5 : 0.0;
-   const double r = sqrt(xc*xc + yc*yc + zc*zc);
+   const real_t xc = x(0) - 0.5;
+   const real_t yc = (dim > 1) ? x(1) - 0.5 : 0.0;
+   const real_t zc = (dim > 2) ? x(2) - 0.5 : 0.0;
+   const real_t r = sqrt(xc*xc + yc*yc + zc*zc);
 
    return (r >= radius) ? -1.0 : 1.0;
 }
 
-double exact_dist_sphere(const Vector &x)
+real_t exact_dist_sphere(const Vector &x)
 {
    const int dim = x.Size();
-   const double xc = x(0) - 0.5;
-   const double yc = (dim > 1) ? x(1) - 0.5 : 0.0;
-   const double zc = (dim > 2) ? x(2) - 0.5 : 0.0;
-   const double r = sqrt(xc*xc + yc*yc + zc*zc);
+   const real_t xc = x(0) - 0.5;
+   const real_t yc = (dim > 1) ? x(1) - 0.5 : 0.0;
+   const real_t zc = (dim > 2) ? x(2) - 0.5 : 0.0;
+   const real_t r = sqrt(xc*xc + yc*yc + zc*zc);
 
    return fabs(r - radius);
 }
@@ -132,18 +134,18 @@ class ExactDistSphereLoc : public Coefficient
 {
 private:
    ParGridFunction &dist;
-   const double dx;
+   const real_t dx;
 
 public:
    ExactDistSphereLoc(ParGridFunction &d)
       : dist(d), dx(dist.ParFESpace()->GetParMesh()->GetElementSize(0)) { }
 
-   virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip)
+   real_t Eval(ElementTransformation &T, const IntegrationPoint &ip) override
    {
       Vector pos(T.GetDimension());
       T.Transform(ip, pos);
       pos -= 0.5;
-      const double r = sqrt(pos * pos);
+      const real_t r = sqrt(pos * pos);
 
       // One zone length in every direction.
       if (fabs(r - radius) < dx) { return fabs(r - radius); }
@@ -152,21 +154,21 @@ public:
 };
 
 
-double Gyroid(const Vector &xx)
+real_t Gyroid(const Vector &xx)
 {
-   const double period = 2.0 * M_PI;
-   double x = xx[0]*period;
-   double y = xx[1]*period;
-   double z = (xx.Size()==3) ? xx[2]*period : 0.0;
+   const real_t period = 2.0 * M_PI;
+   real_t x = xx[0]*period;
+   real_t y = xx[1]*period;
+   real_t z = (xx.Size()==3) ? xx[2]*period : 0.0;
 
    return std::sin(x)*std::cos(y) +
           std::sin(y)*std::cos(z) +
           std::sin(z)*std::cos(x);
 }
 
-double Sph(const mfem::Vector &xx)
+real_t Sph(const mfem::Vector &xx)
 {
-   double R=0.4;
+   real_t R=0.4;
    mfem::Vector lvec(3);
    lvec=0.0;
    for (int i=0; i<xx.Size(); i++)
@@ -182,7 +184,7 @@ void DGyroid(const mfem::Vector &xx, mfem::Vector &vals)
    vals.SetSize(xx.Size());
    vals=0.0;
 
-   double pp=4*M_PI;
+   real_t pp=4*M_PI;
 
    mfem::Vector lvec(3);
    lvec=0.0;
@@ -214,8 +216,9 @@ int main(int argc, char *argv[])
    int problem = 1;
    int rs_levels = 2;
    int order = 2;
-   double t_param = 1.0;
+   real_t t_param = 1.0;
    const char *device_config = "cpu";
+   int visport = 19916;
    bool visualization = true;
 
    OptionsParser args(argc, argv);
@@ -232,7 +235,8 @@ int main(int argc, char *argv[])
                   "1: Circle / sphere level set in 2D / 3D\n\t"
                   "2: 2D sine-looking level set\n\t"
                   "3: Gyroid level set in 2D or 3D\n\t"
-                  "4: Combo of a doughnut and swiss cheese shapes in 3D.");
+                  "4: Combo of a doughnut and swiss cheese shapes in 3D.\n\t"
+                  "5: Point source in MFEM mesh.");
    args.AddOption(&rs_levels, "-rs", "--refine-serial",
                   "Number of times to refine the mesh uniformly in serial.");
    args.AddOption(&order, "-o", "--order",
@@ -245,6 +249,7 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.Parse();
    if (!args.Good())
    {
@@ -297,14 +302,19 @@ int main(int argc, char *argv[])
       ls_coeff = new FunctionCoefficient(doughnut_cheese);
       smooth_steps = 0;
    }
+   else if (problem == 5)
+   {
+      ls_coeff = new DeltaCoefficient(0.0, 0.0, 1000.0);
+      smooth_steps = 0;
+   }
    else { MFEM_ABORT("Unrecognized -problem option."); }
 
-   const double dx = AvgElementSize(pmesh);
+   const real_t dx = AvgElementSize(pmesh);
    DistanceSolver *dist_solver = NULL;
    if (solver_type == 0)
    {
       auto ds = new HeatDistanceSolver(t_param * dx * dx);
-      if (problem == 0)
+      if (problem == 0 || problem == 5)
       {
          ds->transform = false;
       }
@@ -332,9 +342,9 @@ int main(int argc, char *argv[])
    // Smooth-out Gibbs oscillations from the input level set. The smoothing
    // parameter here is specified to be mesh dependent with length scale dx.
    ParGridFunction filt_gf(&pfes_s);
-   if (problem != 0)
+   if (problem != 0 && problem != 5)
    {
-      double filter_weight = dx;
+      real_t filter_weight = dx;
       // The normalization-based solver needs a more diffused input.
       if (solver_type == 2) { filter_weight *= 4.0; }
       PDEFilter filter(pmesh, filter_weight);
@@ -352,7 +362,6 @@ int main(int argc, char *argv[])
    {
       int size = 500;
       char vishost[] = "localhost";
-      int  visport   = 19916;
 
       socketstream sol_sock_w;
       common::VisualizeField(sol_sock_w, vishost, visport, filt_gf,
@@ -383,7 +392,7 @@ int main(int argc, char *argv[])
    dacol.Save();
 
    ConstantCoefficient zero(0.0);
-   const double s_norm  = distance_s.ComputeL2Error(zero),
+   const real_t s_norm  = distance_s.ComputeL2Error(zero),
                 v_norm  = distance_v.ComputeL2Error(zero);
    if (myid == 0)
    {
@@ -394,7 +403,7 @@ int main(int argc, char *argv[])
    if (problem == 1)
    {
       FunctionCoefficient exact_dist_coeff(exact_dist_sphere);
-      const double error_l1 = distance_s.ComputeL1Error(exact_dist_coeff),
+      const real_t error_l1 = distance_s.ComputeL1Error(exact_dist_coeff),
                    error_li = distance_s.ComputeMaxError(exact_dist_coeff);
       if (myid == 0)
       {
@@ -403,7 +412,7 @@ int main(int argc, char *argv[])
       }
 
       ExactDistSphereLoc exact_dist_coeff_loc(distance_s);
-      const double error_l1_loc = distance_s.ComputeL1Error(exact_dist_coeff_loc),
+      const real_t error_l1_loc = distance_s.ComputeL1Error(exact_dist_coeff_loc),
                    error_li_loc = distance_s.ComputeMaxError(exact_dist_coeff_loc);
       if (myid == 0)
       {

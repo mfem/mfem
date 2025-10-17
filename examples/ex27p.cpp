@@ -63,7 +63,7 @@
 using namespace std;
 using namespace mfem;
 
-static double a_ = 0.2;
+static real_t a_ = 0.2;
 
 // Normal to hole with boundary attribute 4
 void n4Vec(const Vector &x, Vector &n) { n = x; n[0] -= 0.5; n /= -n.Norml2(); }
@@ -73,9 +73,9 @@ Mesh * GenerateSerialMesh(int ref);
 // Compute the average value of alpha*n.Grad(sol) + beta*sol over the boundary
 // attributes marked in bdr_marker. Also computes the L2 norm of
 // alpha*n.Grad(sol) + beta*sol - gamma over the same boundary.
-double IntegrateBC(const ParGridFunction &sol, const Array<int> &bdr_marker,
-                   double alpha, double beta, double gamma,
-                   double &error);
+real_t IntegrateBC(const ParGridFunction &sol, const Array<int> &bdr_marker,
+                   real_t alpha, real_t beta, real_t gamma,
+                   real_t &error);
 
 int main(int argc, char *argv[])
 {
@@ -88,16 +88,16 @@ int main(int argc, char *argv[])
    int ser_ref_levels = 2;
    int par_ref_levels = 1;
    int order = 1;
-   double sigma = -1.0;
-   double kappa = -1.0;
+   real_t sigma = -1.0;
+   real_t kappa = -1.0;
    bool h1 = true;
    bool visualization = true;
 
-   double mat_val = 1.0;
-   double dbc_val = 0.0;
-   double nbc_val = 1.0;
-   double rbc_a_val = 1.0; // du/dn + a * u = b
-   double rbc_b_val = 1.0;
+   real_t mat_val = 1.0;
+   real_t dbc_val = 0.0;
+   real_t nbc_val = 1.0;
+   real_t rbc_a_val = 1.0; // du/dn + a * u = b
+   real_t rbc_b_val = 1.0;
 
    OptionsParser args(argc, argv);
    args.AddOption(&h1, "-h1", "--continuous", "-dg", "--discontinuous",
@@ -322,7 +322,7 @@ int main(int argc, char *argv[])
    {
       // Integrate the solution on the Dirichlet boundary and compare to the
       // expected value.
-      double error, avg = IntegrateBC(u, dbc_bdr, 0.0, 1.0, dbc_val, error);
+      real_t error, avg = IntegrateBC(u, dbc_bdr, 0.0, 1.0, dbc_val, error);
 
       bool hom_dbc = (dbc_val == 0.0);
       error /=  hom_dbc ? 1.0 : fabs(dbc_val);
@@ -334,7 +334,7 @@ int main(int argc, char *argv[])
    {
       // Integrate n.Grad(u) on the inhomogeneous Neumann boundary and compare
       // to the expected value.
-      double error, avg = IntegrateBC(u, nbc_bdr, 1.0, 0.0, nbc_val, error);
+      real_t error, avg = IntegrateBC(u, nbc_bdr, 1.0, 0.0, nbc_val, error);
 
       bool hom_nbc = (nbc_val == 0.0);
       error /=  hom_nbc ? 1.0 : fabs(nbc_val);
@@ -350,7 +350,7 @@ int main(int argc, char *argv[])
       nbc0_bdr = 0;
       nbc0_bdr[3] = 1;
 
-      double error, avg = IntegrateBC(u, nbc0_bdr, 1.0, 0.0, 0.0, error);
+      real_t error, avg = IntegrateBC(u, nbc0_bdr, 1.0, 0.0, 0.0, error);
 
       bool hom_nbc = true;
       mfem::out << "Average of n.Grad(u) on Gamma_nbc0:\t"
@@ -361,7 +361,7 @@ int main(int argc, char *argv[])
    {
       // Integrate n.Grad(u) + a * u on the Robin boundary and compare to the
       // expected value.
-      double error, avg = IntegrateBC(u, rbc_bdr, 1.0, rbc_a_val, rbc_b_val,
+      real_t error, avg = IntegrateBC(u, rbc_bdr, 1.0, rbc_a_val, rbc_b_val,
                                       error);
 
       bool hom_rbc = (rbc_b_val == 0.0);
@@ -409,22 +409,22 @@ int main(int argc, char *argv[])
    return 0;
 }
 
-void quad_trans(double u, double v, double &x, double &y, bool log = false)
+void quad_trans(real_t u, real_t v, real_t &x, real_t &y, bool log = false)
 {
-   double a = a_; // Radius of disc
+   real_t a = a_; // Radius of disc
 
-   double d = 4.0 * a * (M_SQRT2 - 2.0 * a) * (1.0 - 2.0 * v);
+   real_t d = 4.0 * a * (M_SQRT2 - 2.0 * a) * (1.0 - 2.0 * v);
 
-   double v0 = (1.0 + M_SQRT2) * (M_SQRT2 * a - 2.0 * v) *
+   real_t v0 = (1.0 + M_SQRT2) * (M_SQRT2 * a - 2.0 * v) *
                ((4.0 - 3 * M_SQRT2) * a +
                 (8.0 * (M_SQRT2 - 1.0) * a - 2.0) * v) / d;
 
-   double r = 2.0 * ((M_SQRT2 - 1.0) * a * a * (1.0 - 4.0 *v) +
+   real_t r = 2.0 * ((M_SQRT2 - 1.0) * a * a * (1.0 - 4.0 *v) +
                      2.0 * (1.0 + M_SQRT2 *
                             (1.0 + 2.0 * (2.0 * a - M_SQRT2 - 1.0) * a)) * v * v
                     ) / d;
 
-   double t = asin(v / r) * u / v;
+   real_t t = asin(v / r) * u / v;
    if (log)
    {
       mfem::out << "u, v, r, v0, t "
@@ -437,7 +437,7 @@ void quad_trans(double u, double v, double &x, double &y, bool log = false)
 
 void trans(const Vector &u, Vector &x)
 {
-   double tol = 1e-4;
+   real_t tol = 1e-4;
 
    if (u[1] > 0.5 - tol || u[1] < -0.5 + tol)
    {
@@ -568,8 +568,8 @@ Mesh * GenerateSerialMesh(int ref)
       vi[0] = o +  3; vi[1] = o +  4; mesh->AddBdrSegment(vi, 3 + i);
    }
 
-   double d[2];
-   double a = a_ / M_SQRT2;
+   real_t d[2];
+   real_t a = a_ / M_SQRT2;
 
    d[0] = -1.0; d[1] = -0.5; mesh->AddVertex(d);
    d[0] = -1.0; d[1] =  0.0; mesh->AddVertex(d);
@@ -662,14 +662,14 @@ Mesh * GenerateSerialMesh(int ref)
    return mesh;
 }
 
-double IntegrateBC(const ParGridFunction &x, const Array<int> &bdr,
-                   double alpha, double beta, double gamma,
-                   double &glb_err)
+real_t IntegrateBC(const ParGridFunction &x, const Array<int> &bdr,
+                   real_t alpha, real_t beta, real_t gamma,
+                   real_t &glb_err)
 {
-   double loc_vals[3];
-   double &nrm = loc_vals[0];
-   double &avg = loc_vals[1];
-   double &error = loc_vals[2];
+   real_t loc_vals[3];
+   real_t &nrm = loc_vals[0];
+   real_t &avg = loc_vals[1];
+   real_t &error = loc_vals[2];
 
    nrm = 0.0;
    avg = 0.0;
@@ -714,8 +714,8 @@ double IntegrateBC(const ParGridFunction &x, const Array<int> &bdr,
          IntegrationPoint eip;
          FTr->Loc1.Transform(ip, eip);
          FTr->Face->SetIntPoint(&ip);
-         double face_weight = FTr->Face->Weight();
-         double val = 0.0;
+         real_t face_weight = FTr->Face->Weight();
+         real_t val = 0.0;
          if (!a_is_zero)
          {
             FTr->Elem1->SetIntPoint(&eip);
@@ -741,11 +741,12 @@ double IntegrateBC(const ParGridFunction &x, const Array<int> &bdr,
       }
    }
 
-   double glb_vals[3];
-   MPI_Allreduce(loc_vals, glb_vals, 3, MPI_DOUBLE, MPI_SUM, fes.GetComm());
+   real_t glb_vals[3];
+   MPI_Allreduce(loc_vals, glb_vals, 3, MPITypeMap<real_t>::mpi_type,
+                 MPI_SUM, fes.GetComm());
 
-   double glb_nrm = glb_vals[0];
-   double glb_avg = glb_vals[1];
+   real_t glb_nrm = glb_vals[0];
+   real_t glb_avg = glb_vals[1];
    glb_err = glb_vals[2];
 
    // Normalize by the length of the boundary
