@@ -27,11 +27,10 @@ public:
                                const double k, const int vdim_) : Q(NULL), MQ(&q), sigma(s), kappa(k),
       vdim(vdim_) { }
 
-   using BilinearFormIntegrator::AssembleFaceMatrix;
-   virtual void AssembleFaceMatrix( const FiniteElement &el1,
+   void AssembleFaceMatrix( const FiniteElement &el1,
                                     const FiniteElement &el2,
                                     FaceElementTransformations &Trans,
-                                    DenseMatrix &full_elmat);
+                                    DenseMatrix &full_elmat) override;
 };
 
 void VectorDGDiffusionIntegrator::AssembleFaceMatrix(
@@ -327,14 +326,12 @@ public:
                                  const double s, const double k, const int vdim_)
       : uD(&u), Q(NULL), MQ(&q), sigma(s), kappa(k), vdim(vdim_) { }
 
-   virtual void AssembleRHSElementVect(const FiniteElement &el,
+   void AssembleRHSElementVect(const FiniteElement &el,
                                        ElementTransformation &Tr,
-                                       Vector &elvect);
-   virtual void AssembleRHSElementVect(const FiniteElement &el,
+                                       Vector &elvect) override;
+   void AssembleRHSElementVect(const FiniteElement &el,
                                        FaceElementTransformations &Tr,
-                                       Vector &full_elvect);
-
-   using LinearFormIntegrator::AssembleRHSElementVect;
+                                       Vector &full_elvect) override;
 };
 
 void VectorDGDirichletLFIntegrator::AssembleRHSElementVect(
@@ -473,13 +470,6 @@ private:
 public:
    DGAvgNormalJumpIntegrator(const int& vdim_) : vdim(vdim_) {};
 
-   // void AssembleFaceMatrix(const FiniteElement &trial_fe1,
-   //                         const FiniteElement &trial_fe2,
-   //                         const FiniteElement &test_fe1,
-   //                         const FiniteElement &test_fe2,
-   //                         FaceElementTransformations &T,
-   //                         DenseMatrix &elmat);
-
    void AssembleFaceMatrix(const FiniteElement &trial_fe1,
                            const FiniteElement &test_fe1,
                            const FiniteElement &trial_fe2,
@@ -487,13 +477,6 @@ public:
                            FaceElementTransformations &Trans,
                            DenseMatrix &elmat) override;
 };
-
-// void DGAvgNormalJumpIntegrator::AssembleFaceMatrix(const FiniteElement &trial_fe1,
-//                                                    const FiniteElement &trial_fe2,
-//                                                    const FiniteElement &test_fe1,
-//                                                    const FiniteElement &test_fe2,
-//                                                    FaceElementTransformations &T,
-//                                                    DenseMatrix &elmat)
 
 void DGAvgNormalJumpIntegrator::AssembleFaceMatrix(const FiniteElement &trial_fe1,
                            const FiniteElement &test_fe1,
