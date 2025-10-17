@@ -355,7 +355,9 @@ int main(int argc, char *argv[])
     bool algebraic_ceed = false;
     real_t filter_radius = real_t(0.03);
 
-    real_t gamma = 0.001;
+    const real_t starting_gamma = 0.001;
+    real_t gamma = starting_gamma;
+
     real_t vol_fraction = 0.3;
     int max_it = 100;
     real_t itol = 1e-1;
@@ -374,7 +376,21 @@ int main(int argc, char *argv[])
 
     const real_t cvar_alpha = 0.05;
     const int outer_loop_iterations = 150;
+
+    // "const" or "gradient"
+    const std::string inner_loop_termination_mode = "const";
     const int inner_loop_iterations = 2;
+    const float inner_loop_gradient_epsilon = 0.001;
+
+    // "lockstep" or "restart"
+    const std::string inner_loop_gamma_choice = "restart";
+
+    if (inner_loop_termination_mode != "const" && inner_loop_termination_mode != "gradient") {
+        throw std::runtime_error("Invalid inner_loop_termination_mode");
+    }
+    if (inner_loop_gamma_choice != "lockstep" && inner_loop_gamma_choice != "restart") {
+        throw std::runtime_error("Invalid inner_loop_gamma_choice");
+    }
 
     std::vector<std::pair<std::bitset<N>, real_t>> probability_space = getProbabilitySpace(p1, p2, p3, p4);
 
@@ -476,6 +492,9 @@ int main(int argc, char *argv[])
     // define the filtered field
     ParGridFunction fdens(filt->GetFilterFES());
 
+    // hold the gradient of the functoinal
+    ParGridFunction odens_gradient_holder(filt->GetDesignFES());
+
     // set the elasticity solver
     IsoLinElasticSolver *elsolver = new IsoLinElasticSolver(&pmesh, order);
     // set up variables
@@ -517,6 +536,8 @@ int main(int argc, char *argv[])
     odens_latent = inv_sigmoid(vol_fraction); //@Will is that stable? What is inv_sigmoid
     odens_latent.SetTrueVector();
     odens_latent.GetTrueDofs(odens_latent_vector);
+
+    odens_gradient_holder = 0.0;
 
     // Vector odens_vector(filt->GetDesignFES()->TrueVSize());
     // The primal design density filed
@@ -600,7 +621,8 @@ int main(int argc, char *argv[])
     {
         if (k > 1)
         {
-            gamma *= ((real_t)k) / ((real_t)k - 1);
+            // maybe this needs to escalate faster? write a better stepsize finder. Also maybe different gamma for inner and outer loops
+            gamma *= ((real_t)k) / ((real_t)k - 1); 
         }
         if (myid == 0)
         {
@@ -617,8 +639,23 @@ int main(int argc, char *argv[])
         }
 
         // first we calculate and find the new latent probabilities.
-        for (int inner = 1; inner <= inner_loop_iterations; inner++)
+        real_t inner_loop_gamma;
+        if (inner_loop_gamma_choice == "restart") {
+            inner_loop_gamma = starting_gamma;
+        } else if (inner_loop_gamma_choice == "lockstep") {
+            inner_loop_gamma = gamma;
+        } else {
+            throw std::runtime_error("Invalid gamma");
+        }
+
+
+        int inner = 1;
+        while (true)
         {
+            if (inner_loop_gamma_choice == "restart" && inner > 1) {
+                inner_loop_gamma = inner_loop_gamma * (inner / (inner - 1));
+            } 
+
             latent_probabilities_unnormalized.clear();
             latent_probabilities.clear(); // fresh start in inner loop
 
@@ -702,6 +739,11 @@ int main(int argc, char *argv[])
 
 
             // iterate through the probability space
+            // TODO: Store the solutions to avoid recompute
+            bool compute_gradient = inner_loop_termination_mode == "gradient";
+            if (compute_gradient) {
+                odens_gradient_holder = 0.0;
+            }
             for (auto &[bits, original_probability, latent_probability] : latent_probabilities)
             {
                 if (0 == myid)
@@ -744,7 +786,10 @@ int main(int argc, char *argv[])
 
                 // #Will the ogf in the update below is not scaled with M^{-1}
                 real_t new_weight = sigmoid(latent_probability) * original_probability / (1 - cvar_alpha);
-                odens_latent.Add(-gamma * new_weight, odens_gradient_single);
+                odens_latent.Add(-inner_loop_gamma * new_weight, odens_gradient_single);
+                if (compute_gradient) {
+                    odens_gradient_holder.Add(new_weight, odens_gradient_single);
+                }
             }
 
             real_t material_volume = proj(odens_latent, target_volume, domain_volume, 1e-12, 25); // last two are tol and max its
@@ -765,6 +810,19 @@ int main(int argc, char *argv[])
                 paraview_dc.SetCycle(k);
                 paraview_dc.SetTime((real_t)k);
                 paraview_dc.Save();
+            }
+
+            if (inner_loop_termination_mode == "const") {
+                if (inner > inner_loop_iterations) {
+                    break;
+                };
+            } else if (inner_loop_termination_mode == "gradient") {
+                real_t gradientl2 = odens_gradient_holder.ComputeL2Error(zero);
+                if (gradientl2 < inner_loop_gradient_epsilon) {
+                    break;
+                }
+            } else {
+                throw std::runtime_error("Invalid inner loop termination mode " + inner_loop_termination_mode);
             }
         }
         latent_probabilities_old = latent_probabilities;
