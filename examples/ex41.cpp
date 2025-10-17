@@ -2,7 +2,7 @@
 //
 // Compile with: make ex41
 //
-// Sample run:   ex41
+// Sample run:   ex41 -m ../data/ref-square.mesh -r 2 -o 2 -vis
 //
 // Description:   This example code solves 2D Stokes equation over the square [-1,1]x[-1,1]
 //
@@ -33,7 +33,7 @@
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
-#include "ex34.hpp"
+#include "ex41.hpp"
 
 using namespace std;
 using namespace mfem;
@@ -52,23 +52,49 @@ void MeanZero(GridFunction &v);
 int main(int argc, char *argv[])
 {
 
-   // 1. Specify options
-   // const char *mesh_file = "../data/square.mesh";
-   // int ref_levels = 2;
-   const char *mesh_file = "../data/StokesMixedMesh.msh";
-   int ref_levels = 0;
+   // 1. Parse command-line options.
+   const char *mesh_file = "../data/ref-square.mesh";
+   int ref_levels = 2;
    int order = 2;
-
+   const char *device_config = "cpu";
    bool visualization = true;
    int vdim = 2;
    int precision = 12;
    cout.precision(precision);
 
+   OptionsParser args(argc, argv);
+   args.AddOption(&mesh_file, "-m", "--mesh",
+                  "Mesh file to use.");
+   args.AddOption(&order, "-o", "--order",
+                  "Finite element order (polynomial degree) or -1 for"
+                  " isoparametric space.");
+   args.AddOption(&ref_levels, "-r", "--refine",
+                  "Number of times to refine the mesh uniformly.");
+   args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
+                  "--no-visualization",
+                  "Enable or disable GLVis visualization.");
+   args.Parse();
+   if (!args.Good())
+   {
+      args.PrintUsage(cout);
+      return 1;
+   }
+   args.PrintOptions(cout);
+
+   Device device(device_config);
+   MemoryType mt = device.GetMemoryType();
+   device.Print();
+
    // 2. Read in mesh from the given mesh file and print out its
    //    characteristics
    Mesh mesh(mesh_file,1,1);
    int dim = mesh.Dimension();
-   mesh.PrintCharacteristics();
+   // Shift the mesh to [-1,1]x[-1,1]
+   mesh.EnsureNodes();
+   auto Nodes = mesh.GetNodes();
+   (*Nodes) *= 2.0;
+   (*Nodes) -= 1.0;
+   mesh.NodesUpdated();
 
    // 3. Perform any uniform mesh refinement, with the number of
    //    uniform refinements given by 'ref_levels' and print out
@@ -78,11 +104,7 @@ int main(int argc, char *argv[])
       mesh.UniformRefinement();
    }
    if (ref_levels > 0)
-   {
-      cout << "After " << ref_levels << " of uniform refinement:\n"
-           << endl;
-      mesh.PrintCharacteristics();
-   }
+   mesh.PrintCharacteristics();
 
    // 4. Define and finite element space on the mesh. Here we use discontinuous
    //    DG finite element space of specified order for velocity and one order less
@@ -91,8 +113,6 @@ int main(int argc, char *argv[])
    DG_FECollection pfec(order-1, dim, BasisType::GaussLobatto);
    FiniteElementSpace ufes(&mesh, &ufec, vdim, Ordering::byNODES);
    FiniteElementSpace pfes(&mesh, &pfec);
-
-   cout << "Number of unknowns: " << ufes.GetVSize() + pfes.GetVSize() << endl;
 
    // 6. Setup the BlockStructure of the problem, i.e. define the array of
    //    offsets for each variable. The last component of the Array is the sum
@@ -103,11 +123,9 @@ int main(int argc, char *argv[])
    block_offsets[2] = pfes.GetVSize();
    block_offsets.PartialSum();
 
-   std::cout << "***********************************************************\n";
-   std::cout << "dim(u) = " << block_offsets[1] - block_offsets[0] << "\n";
-   std::cout << "dim(p) = " << block_offsets[2] - block_offsets[1] << "\n";
-   std::cout << "dim(u+p) = " << block_offsets.Last() << "\n";
-   std::cout << "***********************************************************\n";
+   std::cout << "Velocity #DOFs: " << block_offsets[1] - block_offsets[0] << "\n";
+   std::cout << "Pressure #DOFs: " << block_offsets[2] - block_offsets[1] << "\n";
+   std::cout << "Total #DOFs: " << block_offsets[2] << "\n";
 
    BlockVector x(block_offsets), rhs(block_offsets);
    /*
@@ -128,14 +146,14 @@ int main(int argc, char *argv[])
    a.Finalize();
 
    // rhs of momentum equation
-   LinearForm *f(new LinearForm);
-   f->Update(&ufes, rhs.GetBlock(0),0);
+   LinearForm f(&ufes);
+   f.Update(&ufes, rhs.GetBlock(0),0);
    VectorFunctionCoefficient momentum_source(vdim,f_source);
    VectorFunctionCoefficient velocity_dbc(vdim,u_exact);
-   f->AddBdrFaceIntegrator(new VectorDGDirichletLFIntegrator(velocity_dbc,sigma,
+   f.AddBdrFaceIntegrator(new VectorDGDirichletLFIntegrator(velocity_dbc,sigma,
                                                              kappa,vdim));
-   f->AddDomainIntegrator(new VectorDomainLFIntegrator(momentum_source));
-   f->Assemble();
+   f.AddDomainIntegrator(new VectorDomainLFIntegrator(momentum_source));
+   f.Assemble();
 
    // grad pressure term
    MixedBilinearForm b(&pfes,&ufes); // (trial,test)
@@ -148,12 +166,12 @@ int main(int argc, char *argv[])
    b.Finalize();
 
    // rhs for continuity equation
-   LinearForm *g(new LinearForm);
-   g->Update(&pfes, rhs.GetBlock(1), 0);
+   LinearForm g(&pfes);
+   g.Update(&pfes, rhs.GetBlock(1), 0);
    FunctionCoefficient mass_source(g_source);
-   g->AddBdrFaceIntegrator(new DG_BoundaryNormalLFIntegrator(velocity_dbc));
-   g->AddDomainIntegrator(new DomainLFIntegrator(mass_source));
-   g->Assemble();
+   g.AddBdrFaceIntegrator(new DG_BoundaryNormalLFIntegrator(velocity_dbc));
+   g.AddDomainIntegrator(new DomainLFIntegrator(mass_source));
+   g.Assemble();
 
    // 8. Setup a block matrix for the Stokes operator
    /*
@@ -200,7 +218,6 @@ int main(int argc, char *argv[])
 
    StopWatch chrono;
    chrono.Clear();
-   chrono.Start();
 
    MINRESSolver solver;
    solver.SetAbsTol(atol);
@@ -208,7 +225,7 @@ int main(int argc, char *argv[])
    solver.SetMaxIter(maxIter);
    solver.SetPreconditioner(stokesPrec_wrap);
    solver.SetOperator(stokesOp);
-   solver.SetPrintLevel(1);
+   solver.SetPrintLevel(2);
 
    // Wrapper to ensure mean of pressure is zero after each iteration of MINRES
    BlockOrthoSolver solver_wrap(block_offsets);
@@ -216,6 +233,7 @@ int main(int argc, char *argv[])
 
    // Solver the system
    x = 0.0; // initial guess of 0
+   chrono.Start();
    solver_wrap.Mult(rhs, x);
    chrono.Stop();
 
@@ -231,7 +249,7 @@ int main(int argc, char *argv[])
                 << " iterations. Residual norm is " << solver.GetFinalNorm()
                 << ".\n";
    }
-   std::cout << "Solver solver took " << chrono.RealTime() << "s.\n";
+   std::cout << "Solver took " << chrono.RealTime() << "s.\n";
 
    // 11. Create the grid functions u and p. Compute the L2 error norms.
    GridFunction u, p;
@@ -276,15 +294,15 @@ int main(int argc, char *argv[])
    //     GLVis: "glvis -m Stokes.mesh -g sol_u.gf" or "glvis -m Stokes.mesh -g
    //     sol_p.gf".
    {
-      ofstream mesh_ofs("ex34_Stokes.mesh");
+      ofstream mesh_ofs("ex41_Stokes.mesh");
       mesh_ofs.precision(8);
       mesh.Print(mesh_ofs);
 
-      ofstream u_ofs("ex34_sol_u.gf");
+      ofstream u_ofs("ex41_sol_u.gf");
       u_ofs.precision(8);
       u.Save(u_ofs);
 
-      ofstream p_ofs("ex34_sol_p.gf");
+      ofstream p_ofs("ex41_sol_p.gf");
       p_ofs.precision(8);
       p.Save(p_ofs);
    }
@@ -303,8 +321,6 @@ int main(int argc, char *argv[])
    }
 
    // 14. Free the used memory.
-   delete f;
-   delete g;
    delete invM;
 
    return 0;

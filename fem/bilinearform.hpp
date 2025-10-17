@@ -938,19 +938,6 @@ public:
    void AddBdrTraceFaceIntegrator(BilinearFormIntegrator * bfi,
                                   Array<int> &bdr_marker);
 
-   /// Adds new interior Face Integrator. Assumes ownership of @a bfi.
-   void AddInteriorFaceIntegrator(BilinearFormIntegrator *bfi);
-
-   /// Adds new boundary Face Integrator. Assumes ownership of @a bfi.
-   void AddBdrFaceIntegrator(BilinearFormIntegrator *bfi);
-
-   /** @brief Adds new boundary Face Integrator, restricted to specific boundary
-       attributes.
-       Assumes ownership of @a bfi. The array @a bdr_marker is stored internally
-       as a pointer to the given Array<int> object. */
-   void AddBdrFaceIntegrator(BilinearFormIntegrator *bfi,
-                             Array<int> &bdr_marker);
-
    /// Access all integrators added with AddDomainIntegrator().
    Array<BilinearFormIntegrator*> *GetDBFI() { return &domain_integs; }
    /** @brief Access all domain markers added with AddDomainIntegrator().

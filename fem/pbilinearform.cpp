@@ -678,8 +678,8 @@ void ParMixedBilinearForm::AssembleSharedFaces(int skip_zeros)
       for (int k = 0; k < interior_face_integs.Size(); k++)
       {
          interior_face_integs[k]->AssembleFaceMatrix(*trial_pfes->GetFE(T->Elem1No),
-                                                     *trial_pfes->GetFE(Elem2NbrNo),
                                                      *test_pfes->GetFE(T->Elem1No),
+                                                     *trial_pfes->GetFE(Elem2NbrNo),
                                                      *test_pfes->GetFE(Elem2NbrNo),
                                                      *T, elemmat);
 

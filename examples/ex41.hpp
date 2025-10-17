@@ -473,31 +473,45 @@ private:
 public:
    DGAvgNormalJumpIntegrator(const int& vdim_) : vdim(vdim_) {};
 
-   void AssembleFaceMatrix(const FiniteElement &tr_fe1,
-                           const FiniteElement &tr_fe2,
-                           const FiniteElement &te_fe1,
-                           const FiniteElement &te_fe2,
-                           FaceElementTransformations &T,
-                           DenseMatrix &elmat);
+   // void AssembleFaceMatrix(const FiniteElement &trial_fe1,
+   //                         const FiniteElement &trial_fe2,
+   //                         const FiniteElement &test_fe1,
+   //                         const FiniteElement &test_fe2,
+   //                         FaceElementTransformations &T,
+   //                         DenseMatrix &elmat);
+
+   void AssembleFaceMatrix(const FiniteElement &trial_fe1,
+                           const FiniteElement &test_fe1,
+                           const FiniteElement &trial_fe2,
+                           const FiniteElement &test_fe2,
+                           FaceElementTransformations &Trans,
+                           DenseMatrix &elmat) override;
 };
 
-void DGAvgNormalJumpIntegrator::AssembleFaceMatrix(const FiniteElement &tr_fe1,
-                                                   const FiniteElement &tr_fe2,
-                                                   const FiniteElement &te_fe1,
-                                                   const FiniteElement &te_fe2,
-                                                   FaceElementTransformations &T,
-                                                   DenseMatrix &elmat)
+// void DGAvgNormalJumpIntegrator::AssembleFaceMatrix(const FiniteElement &trial_fe1,
+//                                                    const FiniteElement &trial_fe2,
+//                                                    const FiniteElement &test_fe1,
+//                                                    const FiniteElement &test_fe2,
+//                                                    FaceElementTransformations &T,
+//                                                    DenseMatrix &elmat)
+
+void DGAvgNormalJumpIntegrator::AssembleFaceMatrix(const FiniteElement &trial_fe1,
+                           const FiniteElement &test_fe1,
+                           const FiniteElement &trial_fe2,
+                           const FiniteElement &test_fe2,
+                           FaceElementTransformations &Trans,
+                           DenseMatrix &elmat)
 {
    // test space here is the velocity (vector space), trial space is pressure (scalar space)
-   int dim = tr_fe1.GetDim();
+   int dim = trial_fe1.GetDim();
    int tr_ndof1, te_ndof1, tr_ndof2, te_ndof2, tr_ndofs, te_ndofs;
-   tr_ndof1 = tr_fe1.GetDof();
-   te_ndof1 = te_fe1.GetDof();
+   tr_ndof1 = trial_fe1.GetDof();
+   te_ndof1 = test_fe1.GetDof();
 
-   if (T.Elem2No >= 0)
+   if (Trans.Elem2No >= 0)
    {
-      tr_ndof2 = tr_fe2.GetDof();
-      te_ndof2 = te_fe2.GetDof();
+      tr_ndof2 = trial_fe2.GetDof();
+      te_ndof2 = test_fe2.GetDof();
    }
    else
    {
@@ -527,14 +541,14 @@ void DGAvgNormalJumpIntegrator::AssembleFaceMatrix(const FiniteElement &tr_fe1,
       int order;
       if (tr_ndof2)
       {
-         order = 2*(max(tr_fe1.GetOrder(), tr_fe2.GetOrder()) + max(te_fe1.GetOrder(),
-                                                                    te_fe2.GetOrder())) + 2;
+         order = 2*(max(trial_fe1.GetOrder(), trial_fe2.GetOrder()) + max(test_fe1.GetOrder(),
+                                                                    test_fe2.GetOrder())) + 2;
       }
       else
       {
-         order = 2*(tr_fe1.GetOrder() + te_fe1.GetOrder()) + 2;
+         order = 2*(trial_fe1.GetOrder() + test_fe1.GetOrder()) + 2;
       }
-      ir = &IntRules.Get(T.GetGeometryType(), order);
+      ir = &IntRules.Get(Trans.GetGeometryType(), order);
    }
 
    // elmat = [ A11   A12 ]
@@ -555,9 +569,9 @@ void DGAvgNormalJumpIntegrator::AssembleFaceMatrix(const FiniteElement &tr_fe1,
    for (int n=0; n<ir->GetNPoints(); n++)
    {
       const IntegrationPoint &ip = ir->IntPoint(n);
-      T.SetAllIntPoints(&ip);
-      const IntegrationPoint &eip1 = T.GetElement1IntPoint();
-      const IntegrationPoint &eip2 = T.GetElement2IntPoint();
+      Trans.SetAllIntPoints(&ip);
+      const IntegrationPoint &eip1 = Trans.GetElement1IntPoint();
+      const IntegrationPoint &eip2 = Trans.GetElement2IntPoint();
 
       // normal
       if (dim == 1)
@@ -566,7 +580,7 @@ void DGAvgNormalJumpIntegrator::AssembleFaceMatrix(const FiniteElement &tr_fe1,
       }
       else
       {
-         CalcOrtho(T.Jacobian(), nor);
+         CalcOrtho(Trans.Jacobian(), nor);
       }
 
       // normalize nor, see example 18 in general it is not a unit normal
@@ -579,7 +593,7 @@ void DGAvgNormalJumpIntegrator::AssembleFaceMatrix(const FiniteElement &tr_fe1,
       nor *= 1/normag;
 
       // below if statement needed so on the boundary {p} = p (definition of {} operator)
-      if (T.Elem2No >= 0)
+      if (Trans.Elem2No >= 0)
       {
          w = ip.weight;
       }
@@ -587,11 +601,11 @@ void DGAvgNormalJumpIntegrator::AssembleFaceMatrix(const FiniteElement &tr_fe1,
       {
          w = ip.weight*2;
       }
-      detJ = T.Weight();
+      detJ = Trans.Weight();
 
       // calc shape functions in element 1 at current integration point
-      tr_fe1.CalcShape(eip1, tr_s1);
-      te_fe1.CalcShape(eip1, te_s1);
+      trial_fe1.CalcShape(eip1, tr_s1);
+      test_fe1.CalcShape(eip1, te_s1);
 
       // form A11
       for (int d = 0; d<vdim; d++)
@@ -609,8 +623,8 @@ void DGAvgNormalJumpIntegrator::AssembleFaceMatrix(const FiniteElement &tr_fe1,
       if (tr_ndof2)
       {
          // calc shape functions in element 2 at current integration point
-         tr_fe2.CalcShape(eip2, tr_s2);
-         te_fe2.CalcShape(eip2, te_s2);
+         trial_fe2.CalcShape(eip2, tr_s2);
+         test_fe2.CalcShape(eip2, te_s2);
 
          // form A12
          for (int d = 0; d<vdim; d++)

@@ -2,7 +2,7 @@
 //
 // Compile with: make ex41p
 //
-// Sample run: mpirun -np 4 ex41
+// Sample run: mpirun -np 4 ex41p -m ../data/ref-square.mesh -r 2 -o 2 -vis
 //
 // Description:   This example code solves 2D Stokes equation over the square [-1,1]x[-1,1]
 //
@@ -33,7 +33,7 @@
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
-#include "ex34.hpp"
+#include "ex41.hpp"
 
 using namespace std;
 using namespace mfem;
@@ -51,56 +51,78 @@ void MeanZero(ParGridFunction &v);
 
 int main(int argc, char *argv[])
 {
-
-   // 1. Specify options
+   // 1. Initialize MPI and HYPRE.
    Mpi::Init(argc, argv);
    Hypre::Init();
-   // const char *mesh_file = "../data/square.mesh";
-   // int ref_levels = 2;
-   const char *mesh_file = "../data/StokesMixedMesh.msh";
-   int ref_levels = 0;
-   int order = 2;
 
+   // 2. Parse command-line options.
+   const char *mesh_file = "../data/ref-square.mesh";
+   int ref_levels = 2;
+   int order = 2;
+   const char *device_config = "cpu";
    bool visualization = true;
    int vdim = 2;
    int precision = 12;
    cout.precision(precision);
 
-   // 2. Read in mesh from the given mesh file and print out its
+   OptionsParser args(argc, argv);
+   args.AddOption(&mesh_file, "-m", "--mesh",
+                  "Mesh file to use.");
+   args.AddOption(&order, "-o", "--order",
+                  "Finite element order (polynomial degree) or -1 for"
+                  " isoparametric space.");
+   args.AddOption(&ref_levels, "-r", "--refine",
+                  "Number of times to refine the mesh uniformly.");
+   args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
+                  "--no-visualization",
+                  "Enable or disable GLVis visualization.");
+   args.Parse();
+   if (!args.Good())
+   {
+      if (Mpi::Root())
+      {
+         args.PrintUsage(cout);
+      }
+      return 1;
+   }
+   if (Mpi::Root())
+   {
+      args.PrintOptions(cout);
+   }
+
+   Device device(device_config);
+   MemoryType mt = device.GetMemoryType();
+   if (Mpi::Root()) { device.Print(); }
+
+   // 3. Read in mesh from the given mesh file and print out its
    //    characteristics
    Mesh mesh(mesh_file,1,1);
    int dim = mesh.Dimension();
-   mesh.PrintCharacteristics();
+   // Shift the mesh to [-1,1]x[-1,1]
+   mesh.EnsureNodes();
+   auto Nodes = mesh.GetNodes();
+   (*Nodes) *= 2.0;
+   (*Nodes) -= 1.0;
+   mesh.NodesUpdated();
 
-   // 3. Perform any uniform mesh refinement, with the number of
+   // 4. Perform any uniform mesh refinement, with the number of
    //    uniform refinements given by 'ref_levels' and print out
    //    the characteristics of the refined mesh. Also form parallel mesh
    for (int lev = 0; lev < ref_levels; lev++)
    {
       mesh.UniformRefinement();
    }
-   if (ref_levels > 0)
-   {
-      cout << "After " << ref_levels << " of uniform refinement:\n"
-           << endl;
-      mesh.PrintCharacteristics();
-   }
+   if (Mpi::Root()) { mesh.PrintCharacteristics(); }
    auto *pmesh = new ParMesh(MPI_COMM_WORLD, mesh);
    mesh.Clear();
 
-   // 4. Define and finite element space on the mesh. Here we use discontinuous
+   // 5. Define and finite element space on the mesh. Here we use discontinuous
    //    DG finite element space of specified order for velocity and one order less
    //    for pressure on the refined mesh.
    DG_FECollection ufec(order, dim, BasisType::GaussLobatto);
    DG_FECollection pfec(order-1, dim, BasisType::GaussLobatto);
    ParFiniteElementSpace ufes(pmesh, &ufec, vdim, Ordering::byNODES);
    ParFiniteElementSpace pfes(pmesh, &pfec);
-
-   if (Mpi::Root())
-   {
-      cout << "Number of unknowns: " << ufes.GlobalTrueVSize() +
-           pfes.GlobalTrueVSize() << endl;
-   }
 
    // 6. Setup the BlockStructure of the problem, i.e. define the array of
    //    offsets for each variable. The last component of the Array is the sum
@@ -122,16 +144,10 @@ int main(int argc, char *argv[])
 
    if (Mpi::Root())
    {
-      std::cout << "***********************************************************\n";
-      std::cout << "dim(u) = " << dimU << "\n";
-      std::cout << "dim(p) = " << dimP << "\n";
-      std::cout << "dim(u+p) = " << dimU + dimP << "\n";
-      std::cout << "***********************************************************\n";
+      std::cout << "Velocity #DOFs: " << dimU << "\n";
+      std::cout << "Pressure #DOFs: " << dimP << "\n";
+      std::cout << "Total #DOFs: " << dimU + dimP << "\n";
    }
-
-   const char *device_config = "cpu";
-   Device device(device_config);
-   MemoryType mt = device.GetMemoryType();
 
    BlockVector x(block_offsets, mt);
    BlockVector rhs(block_offsets, mt);
@@ -160,16 +176,16 @@ int main(int argc, char *argv[])
    a.Finalize();
 
    // rhs of momentum equation
-   ParLinearForm *f(new ParLinearForm);
-   f->Update(&ufes, rhs.GetBlock(0),0);
+   ParLinearForm f(&ufes);
+   f.Update(&ufes, rhs.GetBlock(0),0);
    VectorFunctionCoefficient momentum_source(vdim,f_source);
    VectorFunctionCoefficient velocity_dbc(vdim,u_exact);
-   f->AddBdrFaceIntegrator(new VectorDGDirichletLFIntegrator(velocity_dbc,sigma,
+   f.AddBdrFaceIntegrator(new VectorDGDirichletLFIntegrator(velocity_dbc,sigma,
                                                              kappa,vdim));
-   f->AddDomainIntegrator(new VectorDomainLFIntegrator(momentum_source));
-   f->Assemble();
-   f->SyncAliasMemory(rhs);
-   f->ParallelAssemble(truerhs.GetBlock(0));
+   f.AddDomainIntegrator(new VectorDomainLFIntegrator(momentum_source));
+   f.Assemble();
+   f.SyncAliasMemory(rhs);
+   f.ParallelAssemble(truerhs.GetBlock(0));
    truerhs.GetBlock(0).SyncAliasMemory(truerhs);
 
    // grad pressure term
@@ -183,14 +199,14 @@ int main(int argc, char *argv[])
    b.Finalize();
 
    // rhs for continuity equation
-   ParLinearForm *g(new ParLinearForm);
-   g->Update(&pfes, rhs.GetBlock(1), 0);
+   ParLinearForm g(&pfes);
+   g.Update(&pfes, rhs.GetBlock(1), 0);
    FunctionCoefficient mass_source(g_source);
-   g->AddBdrFaceIntegrator(new DG_BoundaryNormalLFIntegrator(velocity_dbc));
-   g->AddDomainIntegrator(new DomainLFIntegrator(mass_source));
-   g->Assemble();
-   g->SyncAliasMemory(rhs);
-   g->ParallelAssemble(truerhs.GetBlock(1));
+   g.AddBdrFaceIntegrator(new DG_BoundaryNormalLFIntegrator(velocity_dbc));
+   g.AddDomainIntegrator(new DomainLFIntegrator(mass_source));
+   g.Assemble();
+   g.SyncAliasMemory(rhs);
+   g.ParallelAssemble(truerhs.GetBlock(1));
    truerhs.GetBlock(1).SyncAliasMemory(truerhs);
 
    // 8. Setup a block matrix for the Stokes operator
@@ -237,7 +253,6 @@ int main(int argc, char *argv[])
 
    StopWatch chrono;
    chrono.Clear();
-   chrono.Start();
 
    MINRESSolver solver(MPI_COMM_WORLD);
    solver.SetAbsTol(atol);
@@ -245,7 +260,7 @@ int main(int argc, char *argv[])
    solver.SetMaxIter(maxIter);
    solver.SetPreconditioner(stokesPrec_wrap);
    solver.SetOperator(stokesOp);
-   solver.SetPrintLevel(1);
+   solver.SetPrintLevel(2);
 
    // Wrapper to ensure mean of pressure is zero after each iteration of MINRES
    BlockOrthoSolver solver_wrap(block_offsets, MPI_COMM_WORLD);
@@ -253,6 +268,7 @@ int main(int argc, char *argv[])
 
    // Solver the system
    x = 0.0; // initial guess of 0
+   chrono.Start();
    solver_wrap.Mult(rhs, x);
    chrono.Stop();
 
@@ -270,7 +286,7 @@ int main(int argc, char *argv[])
                    << " iterations. Residual norm is " << solver.GetFinalNorm()
                    << ".\n";
       }
-      std::cout << "Solver solver took " << chrono.RealTime() << "s.\n";
+      std::cout << "Solver took " << chrono.RealTime() << "s.\n";
    }
 
    // 11. Create the grid functions u and p. Compute the L2 error norms.
@@ -312,15 +328,15 @@ int main(int argc, char *argv[])
    //     GLVis: "glvis -m Stokes.mesh -g sol_u.gf" or "glvis -m Stokes.mesh -g
    //     sol_p.gf".
    {
-      ofstream mesh_ofs("ex34p_Stokes.mesh");
+      ofstream mesh_ofs("ex41p_Stokes.mesh");
       mesh_ofs.precision(8);
       pmesh->Print(mesh_ofs);
 
-      ofstream u_ofs("ex34p_sol_u.gf");
+      ofstream u_ofs("ex41p_sol_u.gf");
       u_ofs.precision(8);
       u.Save(u_ofs);
 
-      ofstream p_ofs("ex34p_sol_p.gf");
+      ofstream p_ofs("ex41p_sol_p.gf");
       p_ofs.precision(8);
       p.Save(p_ofs);
    }
@@ -346,8 +362,6 @@ int main(int argc, char *argv[])
    }
 
    // 14. Free the used memory.
-   delete f;
-   delete g;
    delete invM;
 
    return 0;
