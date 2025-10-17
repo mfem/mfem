@@ -773,33 +773,6 @@ void FPISolver::Mult(const Vector &b, Vector &x) const
 {
    int i;
    real_t factor = relax_factor;
-
-   // FPI with fixed number of iterations and given
-   // initial guess
-   if (rel_tol == 0.0 && iterative_mode)
-   {
-      if (factor == 1.0)
-      {
-         for (i = 0; i < max_iter; i++)
-         {
-            oper->Mult(x, z);  // z = F(x)
-            x = z;
-         }
-      }
-      else
-      {
-         for (i = 0; i < max_iter; i++)
-         {
-            oper->Mult(x, z);  // z = F(x)
-            subtract(z, x, r); // r = z - x
-            x.Add(factor, r);  // x = x + factor * r
-         }
-      }
-      converged = true;
-      final_iter = i;
-      return;
-   }
-
    real_t r0, nom, nom0, nomold = 1, cf, fac_old = factor;
 
    if (iterative_mode)
@@ -834,6 +807,7 @@ void FPISolver::Mult(const Vector &b, Vector &x) const
    // start iteration
    converged = false;
    final_iter = max_iter;
+   relax_method->Init(*oper);
    for (i = 1; true; )
    {
       factor = relax_method->Eval(x,r,nom,fac_old);
