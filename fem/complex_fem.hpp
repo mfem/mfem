@@ -44,6 +44,10 @@ public:
 
    void Update();
 
+   /// Associate a new FiniteElementSpace with the ComplexGridFunction.
+   /** The ComplexGridFunction is resized using the SetSize() method. */
+   virtual void SetSpace(FiniteElementSpace *f);
+
    /// Assign constant values to the ComplexGridFunction data.
    ComplexGridFunction &operator=(const std::complex<real_t> & value)
    { *gfr = value.real(); *gfi = value.imag(); return *this; }
@@ -359,6 +363,14 @@ public:
    ParComplexGridFunction(ParFiniteElementSpace *pf);
 
    void Update();
+
+   /// Associate a new FiniteElementSpace with the ParComplexGridFunction.
+   /** The ParComplexGridFunction is resized using the SetSize() method. The
+       new space @a f is expected to be a ParFiniteElementSpace. */
+   void SetSpace(FiniteElementSpace *f);
+
+   /// Associate a new parallel space with the ParComplexGridFunction.
+   void SetSpace(ParFiniteElementSpace *f);
 
    /// Assign constant values to the ParComplexGridFunction data.
    ParComplexGridFunction &operator=(const std::complex<real_t> & value)
