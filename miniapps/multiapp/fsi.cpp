@@ -60,6 +60,9 @@ using namespace std;
 void SetSolverParameters(IterativeSolver *solver, real_t rtol, real_t atol , int max_it, 
                          int print_level, bool iterative_mode);
 
+bool ReadGridFunctionFromFile(const string &dirname, const string &gf_name,
+                              ParMesh &mesh, ParGridFunction &gf);
+
 int main(int argc, char *argv[])
 {
     Mpi::Init();
@@ -302,33 +305,10 @@ int main(int argc, char *argv[])
 
     if(init) // Initialize from file
     {
-        std::string mpirank = std::to_string(myid);
-        bool file_error = false;
-        std::string pfilename = init_dir+"/p-init.gf."+mpirank.insert(0,6-mpirank.length(),'0');
-        std::string ufilename = init_dir+"/u-init.gf."+mpirank.insert(0,6-mpirank.length(),'0');
-        if (!std::filesystem::exists(pfilename) ||
-            !std::filesystem::exists(ufilename))
-        {
-            file_error = true;
-            init = false;
-        }
-        
-        if(file_error) MPI_Bcast(&file_error, 1, MFEM_MPI_CXX_BOOL, myid, MPI_COMM_WORLD);
-
-        if(!file_error)
-        {
-            istream *pfile, *ufile;
-            pfile = new ifstream(pfilename);
-            ufile = new ifstream(ufilename);
-
-            nse.p_gf = ParGridFunction(&fluid_mesh,*pfile);
-            nse.u_gf = ParGridFunction(&fluid_mesh,*ufile);
-            delete pfile;
-            delete ufile;
-
-            u_coeff.SetTime(t_dev+2.0); // time beyond ramp-up
-            uf_gf.ProjectBdrCoefficient(u_coeff,u_ess_attr);
-        }
+        ReadGridFunctionFromFile(init_dir, "p-init.gf", fluid_mesh, p_gf);
+        ReadGridFunctionFromFile(init_dir, "u-init.gf", fluid_mesh, uf_gf);
+        u_coeff.SetTime(t_dev+2.0); // time beyond ramp-up
+        uf_gf.ProjectBdrCoefficient(u_coeff,u_ess_attr);
     }
     tau_gf.ProjectBdrCoefficient(nse.stress_coeff,u_ess_attr);
 
@@ -512,14 +492,12 @@ int main(int argc, char *argv[])
             }
         }
 
-        bool dir_created = true;
         if ((myid==0) && lsave)
         {
             std::filesystem::path dir_path = init_dir;
-            dir_created = std::filesystem::create_directory(dir_path);
-            if(!dir_created) MPI_Bcast(&dir_created, 1, MFEM_MPI_CXX_BOOL, myid, MPI_COMM_WORLD);
+            if(!std::filesystem::is_directory(dir_path)) std::filesystem::create_directory(dir_path);
         }
-        if(lsave && dir_created){
+        if(lsave){
             p_gf.Save((init_dir+"/p-init.gf").c_str());
             uf_gf.Save((init_dir+"/u-init.gf").c_str());
         }
@@ -583,4 +561,23 @@ void SetSolverParameters(IterativeSolver *solver, real_t rtol, real_t atol , int
     solver->SetMaxIter(max_it);
     solver->SetPrintLevel(print_level);
     solver->iterative_mode = iterative_mode;
+}
+
+bool ReadGridFunctionFromFile(const string &dirname, const string &gf_name,
+                              ParMesh &mesh, ParGridFunction &gf)
+{
+    int myid = Mpi::WorldRank();
+    std::string mpirank = std::to_string(myid);
+    std::string filename = dirname+"/"+gf_name+"."+mpirank.insert(0,6-mpirank.length(),'0');
+    bool sucess = false;
+    if (std::filesystem::exists(filename))
+    {
+        istream *ifile;
+        ifile = new ifstream(filename);
+        gf = ParGridFunction(&mesh,*ifile);
+        delete ifile;
+        sucess = true;
+    }
+
+    return sucess;
 }
