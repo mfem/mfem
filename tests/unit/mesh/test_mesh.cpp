@@ -149,6 +149,7 @@ TEST_CASE("Gecko integration in MFEM", "[Mesh]")
 TEST_CASE("MakeSimplicial", "[Mesh]")
 {
    auto mesh_fname = GENERATE("../../data/star.mesh",
+                              "../../data/star-surf.mesh",
                               "../../data/inline-quad.mesh",
                               "../../data/inline-hex.mesh",
                               "../../data/inline-wedge.mesh",
@@ -181,21 +182,10 @@ TEST_CASE("MakeSimplicial", "[Mesh]")
    REQUIRE(simplex_mesh.GetNE() == orig_mesh.GetNE()*factor);
 }
 
-TEST_CASE("MakeSimplicialSurfaceIn3D", "[Mesh]")
+TEST_CASE("MakeSimplicial Surface Mesh", "[Mesh]")
 {
-   // Note: create a 2D surface mesh surface in 3D space dimension composed of a
-   // single quad. The quad is offset in Z, and check that the vertices of the
-   // simplicial mesh are identical.
-   Mesh orig_mesh(2, 3, 1, 0, 3);
-   orig_mesh.AddVertex(Vector({1.0, 1.0, 1.0}));
-   orig_mesh.AddVertex(Vector({2.0, 1.0, 1.0}));
-   orig_mesh.AddVertex(Vector({2.0, 2.0, 1.0}));
-   orig_mesh.AddVertex(Vector({1.0, 2.0, 1.0}));
-   orig_mesh.AddQuad(0, 1, 2, 3);
-   orig_mesh.Finalize();
+   Mesh orig_mesh("../../data/star-surf.mesh");
    Mesh simplex_mesh = Mesh::MakeSimplicial(orig_mesh);
-   REQUIRE(simplex_mesh.GetNE() == orig_mesh.GetNE()*2);
-   REQUIRE(simplex_mesh.GetNV() == orig_mesh.GetNV());
    for (int i = 0; i < orig_mesh.GetNV(); ++i)
    {
       for (int j = 0; j < 3; ++j)
