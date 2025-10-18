@@ -15,24 +15,24 @@
 
 // Sample runs
 // Problem 0: two-block (linear elasticity)
-// mpirun -np 4 ./contact -prob 0 -sr 1 -pr 0 -tr 2 -nsteps 4  -msteps 0 -amgf
-// mpirun -np 4 ./contact -prob 0 -sr 1 -pr 0 -tr 2 -nsteps 4  -msteps 0 -no-amgf
+// mpirun -np 4 ./contact -prob 0 -sr 0 -pr 0 -tr 2 -nsteps 4  -msteps 0 -amgf
+// mpirun -np 4 ./contact -prob 0 -sr 0 -pr 0 -tr 2 -nsteps 4  -msteps 0 -no-amgf
 
 // Problem 1: ironing (linear elasticity)
 // mpirun -np 4 ./contact -prob 1 -sr 0 -pr 0 -tr 2 -nsteps 4  -msteps 6 -amgf
 // mpirun -np 4 ./contact -prob 1 -sr 0 -pr 0 -tr 2 -nsteps 4  -msteps 6 -no-amgf
 
 // Problem 2: beam–sphere (linear or non-linear elasticity)
-// mpirun -np 4 ./contact -prob 2 -sr 0 -pr 0 -tr 2 -nsteps 8 -msteps 0 -lin -amgf
-// mpirun -np 4 ./contact -prob 2 -sr 0 -pr 0 -tr 2 -nsteps 8 -msteps 0 -lin -no-amgf
-// mpirun -np 4 ./contact -prob 2 -sr 0 -pr 0 -tr 2 -nsteps 8 -msteps 0 -nonlin -amgf
-// mpirun -np 4 ./contact -prob 2 -sr 0 -pr 0 -tr 2 -nsteps 8 -msteps 0 -nonlin -no-amgf
+// mpirun -np 4 ./contact -prob 2 -sr 0 -pr 0 -tr 2 -nsteps 6 -msteps 0 -lin -amgf
+// mpirun -np 4 ./contact -prob 2 -sr 0 -pr 0 -tr 2 -nsteps 6 -msteps 0 -lin -no-amgf
+// mpirun -np 4 ./contact -prob 2 -sr 0 -pr 0 -tr 2 -nsteps 6 -msteps 0 -nonlin -amgf
+// mpirun -np 4 ./contact -prob 2 -sr 0 -pr 0 -tr 2 -nsteps 6 -msteps 0 -nonlin -no-amgf
 
 // Description:
 // This miniapp solves benchmark frictionless contact problems using a
 // self-contained Interior Point (IP) optimizer. Contact constraints
 // are supplied by Tribol. The linear systems inside the IP iterations
-// are solved with PCG, preconditioned by // either standard HypreBoomerAMG
+// are solved with PCG, preconditioned by either standard HypreBoomerAMG
 // or AMG with Filtering (AMGF). AMGF enhances AMG by applying an additional
 // subspace-correction step on a small subspace associated with the contact interface.
 
@@ -40,7 +40,7 @@
 //  1. Non-linear elasticity is supported only for -prob 2. If -nonlin is
 //     requested for -prob 0/1, the app falls back to the linear model.
 //  2. The required meshes for -prob 0,1 are generated on the fly. For -prob 2,
-//     the mesh is constructed from the files ./meshes/beam-sphere.mesh.
+//     the mesh is constructed from the file ./meshes/beam-sphere.mesh.
 //  3. AMGF requires a parallel direct solver for the filtered subspace; build
 //     MFEM with MUMPS or MKL CPardiso. If unavailable, requesting -amgf aborts
 //     with an error.
@@ -306,9 +306,6 @@ int main(int argc, char *argv[])
    real_t p = 40.0;
    ConstantCoefficient f(p);
 
-   // CG iteration counts per IP linear solve.
-   std::vector<Array<int>> CGiter;
-
    // 8. Construct the contact optimization problem wrapper. It sets up the
    // contact system using Tribol and provides operators for objective evaluation,
    // gradients, Hessians, and constraints. It also provides the filtered subspace
@@ -331,7 +328,10 @@ int main(int argc, char *argv[])
    {
       if (Mpi::Root())
       {
-         mfem::out << "\n Solving optimization problem for time step: " << i << endl;
+         std::ostringstream oss;
+         oss << "\n Solving optimization problem for time step: " << i;
+         mfem::out << oss.str() << endl;
+         mfem::out << " " <<std::string(oss.str().size()-2, '-') << endl;
       }
       ess_values = 0.0;
       // 9(a). Apply problem-specific boundary conditions / loads for this step.
@@ -456,8 +456,7 @@ int main(int argc, char *argv[])
       int eval_err;
       real_t Einitial = contact.E(x0, eval_err);
       real_t Efinal = contact.E(xf, eval_err);
-      Array<int> & CGiterations = optimizer.GetLinearSolverIterations();
-      CGiter.push_back(CGiterations);
+      Array<int> & PCGiterations = optimizer.GetLinearSolverIterations();
 
       if (Mpi::Root())
       {
@@ -465,10 +464,10 @@ int main(int argc, char *argv[])
          mfem::out << " Final Energy objective          = " << Efinal << endl;
          mfem::out << " Optimizer number of iterations  = " <<
                    optimizer.GetNumIterations() << endl;
-         mfem::out << " CG iteration numbers            = " ;
-         for (int i = 0; i < CGiterations.Size(); ++i)
+         mfem::out << " PCG number of iterations        = " ;
+         for (int i = 0; i < PCGiterations.Size(); ++i)
          {
-            std::cout << CGiterations[i] << " ";
+            std::cout << PCGiterations[i] << " ";
          }
          mfem::out << "\n";
       }
