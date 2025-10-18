@@ -1,0 +1,51 @@
+Options used:
+   --mesh ../../data/amr-quad.mesh
+   --ncells-x 0
+   --ncells-y 0
+   --size-x 1
+   --size-y 1
+   --ref-levels 1
+   --delta-random 0
+   --order 3
+   --discontinuous
+   --no-broken-RT
+   --upwinded
+   --problem 2
+   --time-final 1
+   --ntimesteps 0
+   --ode-solver 1
+   --kappa 1
+   --velocity 1
+   --stab_diff 0.5
+   --no-bc-neumann
+   --reduction
+   --no-hybridization
+   --no-nonlinear
+   --no-nonlinear-flux
+   --no-nonlinear-pot
+   --no-nonlinear-convection
+   --no-nonlinear-diffusion
+   --hdg_scheme 1
+   --nonlinear-solver 0
+   --no-partial-assembly
+   --device cpu
+   --no-reconstruct
+   --no-mfem
+   --no-visit
+   --no-paraview
+   --no-visualization
+   --no-analytic
+Device configuration: cpu
+Memory configuration: host-std
+Reduction init took 0.00106888s.
+***********************************************************
+dim(W) = 1792
+***********************************************************
+Assembly took 0.211508s.
+Preconditioner took 0.0117714s.
+   Pass :  1   Iteration :   0  ||B r|| = 2.84277
+   Pass :  1   Iteration :   1  ||B r|| = 9.40538e-15
+GMRES+UMFPack converged in 1 iterations with a residual norm of 9.40538e-15.
+solver took 0.00212987s.
+|| q_h - q_ex || / || q_ex || = 3.48538e-06
+|| t_h - t_ex || / || t_ex || = 1.32625e-06
