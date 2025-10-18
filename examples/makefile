@@ -98,6 +98,8 @@ $(SUBDIRS_TPRINT):
 	@$(MAKE) -C $(@D) $(@F)
 
 # Additional dependencies
+ex5-hdg: $(SRC)../miniapps/hdg/darcyop.o $(SRC)../miniapps/hdg/darcyop.hpp
+ex5p-hdg: $(SRC)../miniapps/hdg/darcyop.o $(SRC)../miniapps/hdg/darcyop.hpp
 ex18: $(SRC)ex18.hpp
 ex33: $(SRC)ex33.hpp
 ex37: $(SRC)ex37.hpp

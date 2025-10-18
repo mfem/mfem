@@ -38,12 +38,14 @@
 //               We recommend viewing examples 1-4 before viewing this example.
 
 #include "mfem.hpp"
+#include "../miniapps/hdg/darcyop.hpp"
 #include <fstream>
 #include <iostream>
 #include <algorithm>
 
 using namespace std;
 using namespace mfem;
+using namespace mfem::hdg;
 
 // Define the analytical solution and forcing terms / boundary conditions
 void uFun_ex(const Vector & x, Vector & u);
@@ -66,6 +68,7 @@ int main(int argc, char *argv[])
    real_t td = 0.5;
    bool hybridization = false;
    bool reduction = false;
+   int isol_ctrl = (int)DarcyOperator::SolutionController::Type::Native;
    bool pa = false;
    const char *device_config = "cpu";
    bool visualization = 1;
@@ -89,6 +92,8 @@ int main(int argc, char *argv[])
                   "--no-hybridization", "Enable hybridization.");
    args.AddOption(&reduction, "-rd", "--reduction", "-no-rd",
                   "--no-reduction", "Enable reduction of DG flux.");
+   args.AddOption(&isol_ctrl, "-sn", "--solution-norm",
+                  "Solution norm (0=native, 1=flux, 2=potential).");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
                   "--no-partial-assembly", "Enable Partial Assembly.");
    args.AddOption(&device_config, "-d", "--device",
@@ -319,6 +324,18 @@ int main(int argc, char *argv[])
       solver.SetOperator(*pDarcyOp);
       solver.SetPreconditioner(prec);
       solver.SetPrintLevel(1);
+
+      DarcyOperator::SolutionController ctrl(
+         *darcy, x, rhs,
+         (DarcyOperator::SolutionController::Type)isol_ctrl,
+         rtol);
+
+      if (isol_ctrl != (int)DarcyOperator::SolutionController::Type::Native)
+      {
+         solver.SetController(ctrl);
+         solver.SetAbsTol(0.);//let the controller decide about convergence
+         solver.SetRelTol(0.);//let the controller decide about convergence
+      }
 
       solver.Mult(B, X);
       darcy->RecoverFEMSolution(X, rhs, x);
