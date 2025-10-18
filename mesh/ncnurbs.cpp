@@ -1014,7 +1014,7 @@ void NCNURBSExtension::GetMasterFaceDofs(bool dof, int mf,
       std::array<int, 4> orderedVertices;
       std::array<bool, 4> edgeBdry;
       std::set<int> vbdry;
-      int nf1, nf2;
+      int nf1 = 0, nf2 = 0;
       auto SetEdgeEntries = [&](int eidx, int edge, const Array<int> &evert,
                                 int &vstart)
       {

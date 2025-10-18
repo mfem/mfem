@@ -1,0 +1,62 @@
+# Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+# at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+# LICENSE and NOTICE for details. LLNL-CODE-806117.
+#
+# This file is part of the MFEM library. For more information and source code
+# availability visit https://mfem.org.
+#
+# MFEM is free software; you can redistribute it and/or modify it under the
+# terms of the BSD-3 license. We welcome feedback and contributions, see file
+# CONTRIBUTING.md for details.
+
+# Override reproducer section to define UMPIRE specific variables.
+.matrix_reproducer_vars:
+  script:
+    - !reference [.reproducer_vars, script]
+
+#TODO: Setup script should be defined as a bash script (but then GIT_STRATEGY cannot be "none" anymore).
+
+# Setup clones the mfem/data repo in ${SHARED_REPOS_DIR}. The build_and_test
+# script then symlinks the repo to the parent directory of the MFEM source
+# directory. Unit tests that depend on the mfem/data repo will then detect that
+# this directory is present and be enabled.
+setup:
+  extends: .on_matrix
+  stage: jobs-stage-1
+  script:
+    - ./tests/gitlab/build_and_test_setup
+
+
+########################
+# Overridden shared jobs
+########################
+# When using shared jobs , we can duplicate them here to override description and add necessary changes.
+# We keep ${PROJECT_<MACHINE>_VARIANTS} and ${PROJECT_<MACHINE>_DEPS} So that
+# the comparison with the original job is easier.
+
+
+############
+# Extra jobs
+############
+# We do not recommend using ${PROJECT_<MACHINE>_VARIANTS} and
+# ${PROJECT_<MACHINE>_DEPS} in the extra jobs. There is not reason not to fully
+# describe the spec here.
+
+.mfem_job_on_matrix:
+  extends: .job_on_matrix
+  stage: jobs-stage-2
+  variables:
+    # We run 2 jobs on 1 node that has 112 threads
+    THREADS: 48
+    # These modules need to be consistent with the uberenv configurations:
+    MODULE_LIST: "gcc/10.3.1-magic cuda/12.9.1"
+
+opt_mpi_cuda_gcc:
+  extends: .mfem_job_on_matrix
+  variables:
+    SPEC: "%gcc@10.3.1 +mpi +cuda cuda_arch=90"
+
+opt_mpi_cuda_hypre_cuda_gcc:
+  extends: .mfem_job_on_matrix
+  variables:
+    SPEC: "%gcc@10.3.1 +mpi +cuda cuda_arch=90 ^hypre+cuda"

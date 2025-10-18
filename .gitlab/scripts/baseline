@@ -35,8 +35,6 @@ if [[ "${MACHINE_NAME}" == "dane" ]]; then
   salloc --nodes=1 --exclusive --reservation=ci ../runtest ../../mfem "${BASELINE_TEST} ${TPLS_DIR}"
 elif [[ ${MACHINE_NAME} == "corona" ]]; then
   salloc --nodes=1 -t 60 -p pbatch ../runtest ../../mfem "${BASELINE_TEST} ${TPLS_DIR}"
-elif [[ ${MACHINE_NAME} == "lassen" ]]; then
-  lalloc 1 -q pci ../runtest ../../mfem "${BASELINE_TEST} ${TPLS_DIR}"
 else
   echo "Unknown machine: MACHINE_NAME=$MACHINE_NAME"
   exit 1
