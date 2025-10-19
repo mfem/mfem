@@ -21,7 +21,7 @@ int main(int argc, char *argv[])
    Hypre::Init();
 
    // Parse command-line options.
-   const char *mesh_file = "../../data/sq_2D_9_tri.msh";
+   const char *mesh_file = MFEM_SOURCE_DIR "/miniapps/mtop/sq_2D_9_quad.mesh";
    const char *device_config = "cpu";
    int order = 2;
    bool pa = false;
@@ -62,11 +62,15 @@ int main(int argc, char *argv[])
    // Refine the serial mesh on all processors to increase the resolution. In
    // this example we do 'ref_levels' of uniform refinement. We choose
    // 'ref_levels' to be the largest number that gives a final mesh with no
-   // more than 10,000 elements.
+   // more than 1000 elements.
    {
       const int ref_levels =
          (int)floor(log(1000. / mesh.GetNE()) / log(2.) / dim);
       for (int l = 0; l < ref_levels; l++) { mesh.UniformRefinement(); }
+   }
+   if (Mpi::Root())
+   {
+      std::cout << "Number of elements: " << mesh.GetNE() << std::endl;
    }
 
    // Define a parallel mesh by a partitioning of the serial mesh. Refine
@@ -81,6 +85,10 @@ int main(int argc, char *argv[])
 
    // Create the solver
    IsoLinElasticSolver elsolver(&pmesh, order, pa, dfem);
+   if (Mpi::Root())
+   {
+      std::cout << "Number of unknowns: " << elsolver.GetSol().Size() << std::endl;
+   }
 
    // set BC
    elsolver.AddDispBC(3, 4, 0.0);
