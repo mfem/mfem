@@ -217,7 +217,12 @@ public:
        In general, @a x may have non-homogeneous essential boundary values.
 
        The state @a x must be a true-dof vector. */
-   Operator &GetGradient(const Vector &x) const override;
+   Operator &GetGradient(const Vector &x) const override { return GetGradient(x, true); }
+
+   /** @brief Compute the gradient Operator of the NonlinearForm corresponding
+       to the state @a x with optional finalization and elimintaion. */
+   /** @see GetGradient(const Vector &) */
+   Operator &GetGradient(const Vector &x, bool finalize) const;
 
    /// Update the NonlinearForm to propagate updates of the associated FE space.
    /** After calling this method, the essential boundary conditions need to be
@@ -308,7 +313,7 @@ protected:
    void MultBlocked(const BlockVector &bx, BlockVector &by) const;
 
    /// Specialized version of GetGradient() for BlockVector
-   void ComputeGradientBlocked(const BlockVector &bx) const;
+   void ComputeGradientBlocked(const BlockVector &bx, bool finalize = true) const;
 
 public:
    /// Construct an empty BlockNonlinearForm. Initialize with SetSpaces().
