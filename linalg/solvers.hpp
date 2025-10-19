@@ -340,6 +340,74 @@ public:
 };
 
 
+/** @brief Inner product operator constrained to a list of indices/dofs.
+    The method Eval() computes the inner product of two vectors
+    only on the constrained entries specified in the constraint list.
+*/
+class ConstrainedInnerProduct : public InnerProductOperator
+{
+protected:
+   Array<int> constraint_list; /// List of constrained indices
+   mutable Vector xr, yr; /// Restricted vectors
+
+public:
+#ifdef MFEM_USE_MPI
+   /// @brief Constructor from MPI communicator and a list of constraint indices.
+   ConstrainedInnerProduct(MPI_Comm comm_, const Array<int> &list)
+      : InnerProductOperator(comm_) { SetIndices(list); }
+   /// @brief Constructor from MPI communicator.
+   ConstrainedInnerProduct(MPI_Comm comm_) : InnerProductOperator(comm_) {}
+#endif
+
+   /** @brief Constructor from a list of constraint indices/dofs.
+       Specify a @a list of indices to constrain, i.e. each entry
+       @a list[i] represents an element of the inner product. */
+   ConstrainedInnerProduct(const Array<int> &list) : InnerProductOperator()
+   { SetIndices(list); }
+
+   /// @brief Set/update the list of constraint indices.
+   void SetIndices(const Array<int> &list);
+
+   /** @brief Compute the inner product (x,y) of vectors x and y,
+              only on the constrained entries. */
+   virtual real_t Eval(const Vector &x, const Vector &y) override;
+
+   /// @brief Apply the constraint to vector @a x and return in @a y.
+   virtual void Mult(const Vector &x, Vector &y) const override;
+};
+
+class WeightedInnerProduct : public InnerProductOperator
+{
+protected:
+   Operator *oper = nullptr; /// Weighting operator
+   bool make_symmetric = true; /// Flag to symmetrize the operator
+   mutable Vector wx,wy; /// Weighted vectors
+   MemoryClass mem_class;
+
+public:
+#ifdef MFEM_USE_MPI
+   /// @brief Constructor from MPI communicator.
+   WeightedInnerProduct(MPI_Comm comm_) : InnerProductOperator(comm_) {}
+#endif
+   /// @brief Constructor from weighting operator.
+   WeightedInnerProduct(Operator *op, bool make_sym = true)
+      : InnerProductOperator() { SetOperator(op, make_sym); }
+
+   /** @brief Set/update the weighting operator (not owned) and.
+              the flag to symmetrize the operator. */
+   void SetOperator(Operator *op, bool make_sym = true);
+
+   /** @brief Compute the inner product (x,A(y)) of vectors x and y,
+              weighted by the operator @a A. If @a make_symmetric = true,
+              inner product is defined as (A(x),A(y)).
+   */
+   virtual real_t Eval(const Vector &x, const Vector &y) override;
+
+   /// @brief Apply the weighting operator to vector @a x and return in @a y=A(x).
+   virtual void Mult(const Vector &x, Vector &y) const override;
+};
+
+
 /// Jacobi smoothing for a given bilinear form (no matrix necessary).
 /** Useful with tensorized, partially assembled operators. Can also be defined
     by given diagonal vector. This is basic Jacobi iteration; for tolerances,
