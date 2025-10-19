@@ -178,6 +178,13 @@ public:
       while (t < tf) { Step(x, t, dt); }
    }
 
+   /** @brief Compute the finite-difference stage slope, @a k=dudt, from the previous
+    * stage, @a u_0, and current stage, @a u_i, stored in @a k, with @a k = du/dt = (u_i - u_0)/gamma
+    * @note This function is called when the ImplicitSolve() returns the stage value, u_i,
+    * instead of the stage slope, k=du/dt, and is used to toggle between the two representations. */
+   virtual void ComputeSlopeFromState(const real_t gamma, const Vector &u,
+                                      Vector &k);
+
    /// Returns how many State vectors the ODE requires
    virtual int GetStateSize() { return 0; };
 

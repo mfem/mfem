@@ -386,6 +386,9 @@ protected:
    Type type; /**< @brief Describes the form of the TimeDependentOperator, see
                    the documentation of #Type. */
    EvalMode eval_mode; ///< Current evaluation mode.
+   bool implicit_solves_state = false; /**< @brief If true, the ImplicitSolve()
+                                             returns stage value, u, otherwise
+                                             it returns stage slope, k.*/
 
 public:
    /** @brief Construct a "square" TimeDependentOperator (u,t) -> k(u,t), where
@@ -428,6 +431,14 @@ public:
        mode will depend on the used time-stepping method. */
    virtual void SetEvalMode(const EvalMode new_eval_mode)
    { eval_mode = new_eval_mode; }
+
+   /** @brief If state = true, the ImplicitSolve(dt,u,k) returns stage value,
+    * @a k = u_{i+1}, otherwise, it returns stage slope, @a k = du/dt. */
+   virtual void SetImplicitSolveVariable(const bool state)
+   { implicit_solves_state = state; }
+
+   virtual bool ImplicitSolvesState() const
+   { return implicit_solves_state; }
 
    /** @brief Perform the action of the explicit part of the operator, G:
        @a v = G(@a u, t) where t is the current time.
