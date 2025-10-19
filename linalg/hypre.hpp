@@ -565,7 +565,7 @@ public:
        partitioning arrays @a row_starts and @a col_starts. */
    HypreParMatrix(MPI_Comm comm, HYPRE_BigInt *row_starts,
                   HYPRE_BigInt *col_starts,
-                  SparseMatrix *a); // constructor with 4 arguments, v2
+                  const SparseMatrix *a); // constructor with 4 arguments, v2
 
    /// Creates boolean block-diagonal rectangular parallel matrix.
    /** The new HypreParMatrix does not take ownership of any of the input
@@ -594,9 +594,9 @@ public:
        arrays (so they can be deleted). See @ref hypre_partitioning_descr "here"
        for a description of the partitioning arrays @a rows and @a cols. */
    HypreParMatrix(MPI_Comm comm, int nrows, HYPRE_BigInt glob_nrows,
-                  HYPRE_BigInt glob_ncols, int *I, HYPRE_BigInt *J,
-                  real_t *data, HYPRE_BigInt *rows,
-                  HYPRE_BigInt *cols); // constructor with 9 arguments
+                  HYPRE_BigInt glob_ncols, const int *I, const HYPRE_BigInt *J,
+                  const real_t *data, const HYPRE_BigInt *rows,
+                  const HYPRE_BigInt *cols); // constructor with 9 arguments
 
    /** @brief Copy constructor for a ParCSR matrix which creates a deep copy of
        structure and data from @a P. */
