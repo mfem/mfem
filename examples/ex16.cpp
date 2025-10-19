@@ -105,6 +105,7 @@ int main(int argc, char *argv[])
    bool visualization = true;
    bool visit = false;
    int vis_steps = 5;
+   bool solve_implicit_state = false;
 
    int precision = 8;
    cout.precision(precision);
@@ -126,6 +127,9 @@ int main(int argc, char *argv[])
                   "Alpha coefficient.");
    args.AddOption(&kappa, "-k", "--kappa",
                   "Kappa coefficient offset.");
+   args.AddOption(&solve_implicit_state, "-imp-state", "--implicit-state",
+                  "-imp-slope", "--implicit-slope",
+                  "Implicitly solve for stage state or slope.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -179,6 +183,7 @@ int main(int argc, char *argv[])
 
    // 7. Initialize the conduction operator and the visualization.
    ConductionOperator oper(fespace, alpha, kappa, u);
+   oper.SetImplicitSolveVariable(solve_implicit_state);
 
    u_gf.SetFromTrueDofs(u);
    {
@@ -328,8 +333,19 @@ void ConductionOperator::ImplicitSolve(const real_t dt,
       T_solver.SetOperator(*T);
    }
    MFEM_VERIFY(dt == current_dt, ""); // SDIRK methods use the same dt
-   Kmat.Mult(u, z);
-   z.Neg();
+
+   // Construct current right-hand side for stage state vs. slope solve
+   if (ImplicitSolvesState())
+   {
+      // du_dt, on return, is the stage value u
+      Mmat.Mult(u, z);
+   }
+   else
+   {
+      // du_dt, on return, is the stage slope du/dt
+      Kmat.Mult(u, z);
+      z.Neg();
+   }
    T_solver.Mult(z, du_dt);
 }
 

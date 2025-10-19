@@ -257,6 +257,7 @@ int main(int argc, char *argv[])
    bool adios2 = false;
    bool binary = false;
    int vis_steps = 5;
+   bool solve_implicit_state = false;
 #if MFEM_HYPRE_VERSION >= 21800
    PrecType prec_type = PrecType::AIR;
 #else
@@ -290,6 +291,9 @@ int main(int argc, char *argv[])
                   "Final time; start time is 0.");
    args.AddOption(&dt, "-dt", "--time-step",
                   "Time step.");
+   args.AddOption(&solve_implicit_state, "-imp-state", "--implicit-state",
+                  "-imp-slope", "--implicit-slope",
+                  "Implicitly solve for stage state or slope.");
    args.AddOption((int *)&prec_type, "-pt", "--prec-type", "Preconditioner for "
                   "implicit solves. 0 for ILU, 1 for pAIR-AMG.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
@@ -536,6 +540,7 @@ int main(int argc, char *argv[])
    //     right-hand side, and perform time-integration (looping over the time
    //     iterations, ti, with a time-step dt).
    FE_Evolution adv(*m, *k, *B, prec_type);
+   adv.SetImplicitSolveVariable(solve_implicit_state);
 
    real_t t = 0.0;
    adv.SetTime(t);
@@ -676,7 +681,17 @@ FE_Evolution::FE_Evolution(ParBilinearForm &M_, ParBilinearForm &K_,
 //    (M - dt*K) d = K*u + b
 void FE_Evolution::ImplicitSolve(const real_t dt, const Vector &x, Vector &k)
 {
-   K->Mult(x, z);
+   // Construct current right-hand side for stage state vs. slope solve
+   if (ImplicitSolvesState())
+   {
+      // k, on return, is the stage value u
+      M->Mult(x, z);
+   }
+   else
+   {
+      // k, on return, is the stage slope du/dt
+      K->Mult(x, z);
+   }
    z += b;
    dg_solver->SetTimeStep(dt);
    dg_solver->Mult(z, k);

@@ -160,6 +160,7 @@ int main(int argc, char *argv[])
    bool paraview = false;
    bool binary = false;
    int vis_steps = 5;
+   bool solve_implicit_state = false;
 
    int precision = 8;
    cout.precision(precision);
@@ -187,6 +188,9 @@ int main(int argc, char *argv[])
                   "Final time; start time is 0.");
    args.AddOption(&dt, "-dt", "--time-step",
                   "Time step.");
+   args.AddOption(&solve_implicit_state, "-imp-state", "--implicit-state",
+                  "-imp-slope", "--implicit-slope",
+                  "Implicitly solve for stage state or slope.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -366,6 +370,7 @@ int main(int argc, char *argv[])
    //    right-hand side, and perform time-integration (looping over the time
    //    iterations, ti, with a time-step dt).
    FE_Evolution adv(m, k, b);
+   adv.SetImplicitSolveVariable(solve_implicit_state);
 
    real_t t = 0.0;
    adv.SetTime(t);
@@ -459,7 +464,17 @@ void FE_Evolution::ImplicitSolve(const real_t dt, const Vector &x, Vector &k)
 {
    MFEM_VERIFY(dg_solver != NULL,
                "Implicit time integration is not supported with partial assembly");
-   K.Mult(x, z);
+   // Construct current right-hand side for stage state vs. slope solve
+   if (ImplicitSolvesState())
+   {
+      // k, on return, is the stage value u
+      M.Mult(x, z);
+   }
+   else
+   {
+      // k, on return, is the stage slope du/dt
+      K.Mult(x, z);
+   }
    z += b;
    dg_solver->SetTimeStep(dt);
    dg_solver->Mult(z, k);
