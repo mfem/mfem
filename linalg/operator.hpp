@@ -1141,6 +1141,74 @@ public:
    virtual ~RectangularConstrainedOperator() { if (own_A) { delete A; } }
 };
 
+/** @brief Abstract class for defining inner products. The method Eval()
+    must be implemented in derived classes to compute the inner product
+    of two vectors according to a specific inner product definition.
+*/
+class InnerProductOperator : public Operator
+{
+#ifdef MFEM_USE_MPI
+private:
+   MPI_Comm comm = MPI_COMM_NULL;
+   int dot_prod_type = 0; // 0: local, 1: global
+
+public:
+   InnerProductOperator(MPI_Comm comm_) : Operator(1)
+   { comm = comm_; dot_prod_type = 1; }
+#endif
+protected:
+   /// @brief Standard global/local l2 inner product.
+   real_t Dot(const Vector &x, const Vector &y) const;
+
+public:
+   /// Create an operator of size 1 (scalar).
+   InnerProductOperator() : Operator(1) {}
+
+   /// Operator application - not implemented/used but added
+   /// to satisfy the abstract base class interface.
+   virtual void Mult(const Vector &x, Vector &y) const override
+   {
+      MFEM_ABORT("InnerProductOperator::Mult is not implemented.");
+   }
+
+   /** @brief Compute the inner product of vectors x and y.
+              This is an abstract method that must be
+              implemented in derived classes. */
+   virtual real_t Eval(const Vector &x, const Vector &y) = 0;
+};
+
+/** @brief Inner product operator constrained to a list of indices/dofs.
+    The method Eval() computes the inner product of two vectors
+    only on the constrained entries specified in the constraint list.
+*/
+class ConstrainedInnerProduct : public InnerProductOperator
+{
+private:
+   Array<int> constraint_list; /// List of constrained indices
+   mutable Vector xr, yr; /// Restricted vectors
+
+public:
+#ifdef MFEM_USE_MPI
+   /// @brief Constructor from MPI communicator and a list of constraint indices.
+   ConstrainedInnerProduct(MPI_Comm comm_, const Array<int> &list)
+      : InnerProductOperator(comm_) { SetIndices(list); }
+   /// @brief Constructor from MPI communicator.
+   ConstrainedInnerProduct(MPI_Comm comm_) : InnerProductOperator(comm_) {}
+#endif
+
+   /** @brief Constructor from a list of constraint indices/dofs.
+       Specify a @a list of indices to constrain, i.e. each entry
+       @a list[i] represents an element of the inner product. */
+   ConstrainedInnerProduct(const Array<int> &list) { SetIndices(list); }
+
+   /// @brief Set/update the list of constraint indices.
+   void SetIndices(const Array<int> &list);
+
+   /** @brief Compute the inner product of vectors x and y,
+              only on the constrained entries. */
+   virtual real_t Eval(const Vector &x, const Vector &y) override;
+};
+
 /** @brief PowerMethod helper class to estimate the largest eigenvalue of an
            operator using the iterative power method. */
 class PowerMethod

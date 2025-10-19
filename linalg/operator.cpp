@@ -852,6 +852,50 @@ void RectangularConstrainedOperator::MultTranspose(const Vector &x,
    }
 }
 
+real_t InnerProductOperator::Dot(const Vector &x, const Vector &y) const
+{
+#ifndef MFEM_USE_MPI
+   return (x * y);
+#else
+   if (dot_prod_type == 0)
+   {
+      return (x * y);
+   }
+   else
+   {
+      return InnerProduct(comm, x, y);
+   }
+#endif
+}
+
+void ConstrainedInnerProduct::SetIndices(const Array<int> &list)
+{
+   list.Read(); // TODO: just ensure 'list' is registered, no need to copy it
+   constraint_list.MakeRef(list);
+   const int csz = constraint_list.Size();
+   xr.SetSize(csz); xr.UseDevice(true);
+   yr.SetSize(csz); yr.UseDevice(true);
+}
+
+real_t ConstrainedInnerProduct::Eval(const Vector &x, const Vector &y)
+{
+   const int csz = constraint_list.Size();
+
+   auto idx = constraint_list.Read();
+   auto d_y = y.Read();
+   auto d_x = x.Read();
+   auto d_xr = xr.ReadWrite();
+   auto d_yr = yr.ReadWrite();
+
+   mfem::forall(csz, [=] MFEM_HOST_DEVICE (int i)
+   {
+      d_xr[i] = d_x[idx[i]];
+      d_yr[i] = d_y[idx[i]];
+   });
+
+   return Dot(xr, yr);
+}
+
 real_t PowerMethod::EstimateLargestEigenvalue(Operator& opr, Vector& v0,
                                               int numSteps, real_t tolerance,
                                               int seed)

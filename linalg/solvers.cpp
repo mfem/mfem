@@ -31,6 +31,7 @@ IterativeSolver::IterativeSolver()
 {
    oper = NULL;
    prec = NULL;
+   dot_oper = NULL;
    max_iter = 10;
    rel_tol = abs_tol = 0.0;
 #ifdef MFEM_USE_MPI
@@ -45,6 +46,7 @@ IterativeSolver::IterativeSolver(MPI_Comm comm_)
 {
    oper = NULL;
    prec = NULL;
+   dot_oper = NULL;
    max_iter = 10;
    rel_tol = abs_tol = 0.0;
    dot_prod_type = 1;
@@ -55,6 +57,8 @@ IterativeSolver::IterativeSolver(MPI_Comm comm_)
 
 real_t IterativeSolver::Dot(const Vector &x, const Vector &y) const
 {
+   if (dot_oper) { return dot_oper->Eval(x,y); } // Use custom inner product (if provided)
+
 #ifndef MFEM_USE_MPI
    return (x * y);
 #else

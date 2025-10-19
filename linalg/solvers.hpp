@@ -145,6 +145,7 @@ protected:
    const Operator *oper;
    Solver *prec;
    IterativeSolverController *controller = nullptr;
+   InnerProductOperator *dot_oper = nullptr;
 
    /// @name Reporting (protected attributes and member functions)
    ///@{
@@ -326,6 +327,9 @@ public:
 
    /// An alias of SetController() for backward compatibility
    void SetMonitor(IterativeSolverMonitor &m) { SetController(m); }
+
+   /// Set a user-defined inner product operator (not owned)
+   void SetInnerProduct(InnerProductOperator *ipo) { dot_oper = ipo; }
 
 #ifdef MFEM_USE_MPI
    /** @brief Return the associated MPI communicator, or MPI_COMM_NULL if no
