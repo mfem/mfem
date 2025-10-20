@@ -51,6 +51,9 @@ setup:
     # These modules need to be consistent with the uberenv configurations:
     MODULE_LIST: "gcc/10.3.1-magic cuda/12.9.1"
 
+allocate_resources:
+  timeout: 4h
+
 opt_mpi_cuda_gcc:
   extends: .mfem_job_on_matrix
   variables:
