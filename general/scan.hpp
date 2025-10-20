@@ -28,8 +28,7 @@
 
 namespace mfem
 {
-/// Equivalent to InclusiveScan(use_dev, d_in, d_out, num_items, workspace,
-/// std::plus<>{})
+/// Equivalent to InclusiveScan(use_dev, d_in, d_out, num_items, std::plus<>{})
 template <class InputIt, class OutputIt>
 void InclusiveScan(bool use_dev, InputIt d_in, OutputIt d_out, size_t num_items)
 {
@@ -213,7 +212,7 @@ void ExclusiveScan(bool use_dev, InputIt d_in, OutputIt d_out, size_t num_items,
 }
 
 /// Equivalent to ExclusiveScan(use_dev, d_in, d_out, num_items, init_value,
-/// workspace, std::plus<>{})
+/// std::plus<>{})
 template <class InputIt, class OutputIt, class T>
 void ExclusiveScan(bool use_dev, InputIt d_in, OutputIt d_out, size_t num_items,
                    T init_value)
