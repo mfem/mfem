@@ -1065,7 +1065,7 @@ function(mfem_export_mk_files)
       # Removing duplicates may lead to issues:
       # list(REMOVE_DUPLICATES CompileOpts)
       # list(REMOVE_DUPLICATES LinkOpts)
-      message(WARNING "${lib}[LinkOpts]: ${LinkOpts}")      
+      # message(WARNING "${lib}[LinkOpts]: ${LinkOpts}")      
       foreach(LOpt IN LISTS LinkOpts)
         set(MFEM_EXT_LIBS "${MFEM_EXT_LIBS} ${LOpt}")
       endforeach()
