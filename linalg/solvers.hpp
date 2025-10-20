@@ -1333,7 +1333,7 @@ private:
 
    mutable Vector temp, vec, vec_ortho;
 
-   void SetOrthogonalizationBlock(Array<int> &bOffsets);
+   void SetOrthogonalizationBlock();
 
    void Orthogonalize(const Vector &v, Vector &v_ortho) const;
 };

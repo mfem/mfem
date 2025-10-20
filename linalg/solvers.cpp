@@ -3666,7 +3666,7 @@ BlockOrthoSolver::BlockOrthoSolver(Array<int> &bOffsets_)
 #endif
    , bOffsets(bOffsets_)
 {
-   SetOrthogonalizationBlock(bOffsets);
+   SetOrthogonalizationBlock();
 }
 
 #ifdef MFEM_USE_MPI
@@ -3674,11 +3674,11 @@ BlockOrthoSolver::BlockOrthoSolver(Array<int> &bOffsets_, MPI_Comm mycomm_)
    : Solver(0, false), mycomm(mycomm_), global_size(-1), parallel(true),
      bOffsets(bOffsets_)
 {
-   SetOrthogonalizationBlock(bOffsets);
+   SetOrthogonalizationBlock();
 }
 #endif
 
-void BlockOrthoSolver::SetOrthogonalizationBlock(Array<int> &bOffsets)
+void BlockOrthoSolver::SetOrthogonalizationBlock()
 {
    // form index array corresponding to the part of the block vector
    // to be orthogonalized. Default is to orthogonalize the final block.
