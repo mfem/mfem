@@ -52,6 +52,7 @@ if (MFEM_USE_MPI)
   list(APPEND ALL_EXE_SRCS
     ex0p.cpp
     ex1p.cpp
+    ex1p-orth.cpp
     ex2p.cpp
     ex3p.cpp
     ex4p.cpp
@@ -62,8 +63,11 @@ if (MFEM_USE_MPI)
     ex9p.cpp
     ex10p.cpp
     ex11p.cpp
+    ex11p-cyl.cpp
     ex12p.cpp
     ex13p.cpp
+    ex13p-cyl.cpp
+    ex13p-cyl-3d.cpp
     ex14p.cpp
     ex15p.cpp
     ex16p.cpp
