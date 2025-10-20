@@ -22,7 +22,6 @@ using namespace mfem;
 
 TEST_CASE("Reduce Sum", "[Reduction],[GPU]")
 {
-   Array<int> workspace;
    Array<int> a(1000);
    a.HostReadWrite();
    for (int i = 0; i < a.Size(); ++i)
@@ -36,7 +35,7 @@ TEST_CASE("Reduce Sum", "[Reduction],[GPU]")
       int res = 0;
       mfem::reduce(
       a.Size(), res, [=] MFEM_HOST_DEVICE(int i, int &r) { r += dptr[i]; },
-      SumReducer<int> {}, use_dev, workspace);
+      SumReducer<int> {}, use_dev);
       // correct for even-length summations
       int expected = (AsConst(a)[0] + AsConst(a)[a.Size() - 1]) * a.Size() / 2;
       CAPTURE(use_dev);
@@ -46,7 +45,6 @@ TEST_CASE("Reduce Sum", "[Reduction],[GPU]")
 
 TEST_CASE("Reduce Mult", "[Reduction],[GPU]")
 {
-   Array<long long> workspace;
    Array<long long> a(64);
    a.HostReadWrite();
    for (int i = 0; i < a.Size(); ++i)
@@ -64,7 +62,7 @@ TEST_CASE("Reduce Mult", "[Reduction],[GPU]")
          mfem::reduce(
             a.Size(), res,
          [=] MFEM_HOST_DEVICE(int i, long long &r) { r *= dptr[i]; },
-         MultReducer<long long> {}, use_dev, workspace);
+         MultReducer<long long> {}, use_dev);
          long long expected = 0;
          CAPTURE(use_dev);
          REQUIRE(res == expected);
@@ -76,7 +74,7 @@ TEST_CASE("Reduce Mult", "[Reduction],[GPU]")
          mfem::reduce(
             a.Size(), res,
          [=] MFEM_HOST_DEVICE(int i, long long &r) { r *= dptr[i]; },
-         MultReducer<long long> {}, use_dev, workspace);
+         MultReducer<long long> {}, use_dev);
          long long expected = 21936950640377856;
          CAPTURE(use_dev);
          REQUIRE(res == expected);
@@ -86,7 +84,6 @@ TEST_CASE("Reduce Mult", "[Reduction],[GPU]")
 
 TEST_CASE("Reduce BAnd", "[Reduction],[GPU]")
 {
-   Array<unsigned> workspace;
    Array<unsigned> a(10);
    SECTION("{ Bit unset }")
    {
@@ -108,7 +105,7 @@ TEST_CASE("Reduce BAnd", "[Reduction],[GPU]")
          mfem::reduce(
             a.Size(), res,
          [=] MFEM_HOST_DEVICE(int i, unsigned &r) { r &= dptr[i]; },
-         BAndReducer<unsigned> {}, use_dev, workspace);
+         BAndReducer<unsigned> {}, use_dev);
          CAPTURE(use_dev);
          REQUIRE(res == ((~1u) & ~(1u << unset_bit)));
          REQUIRE((res & (1u << unset_bit)) == 0);
@@ -132,7 +129,7 @@ TEST_CASE("Reduce BAnd", "[Reduction],[GPU]")
          mfem::reduce(
             a.Size(), res,
          [=] MFEM_HOST_DEVICE(int i, unsigned &r) { r &= dptr[i]; },
-         BAndReducer<unsigned> {}, use_dev, workspace);
+         BAndReducer<unsigned> {}, use_dev);
          CAPTURE(use_dev);
          REQUIRE(res == (1u << set_bit));
       }
@@ -141,7 +138,6 @@ TEST_CASE("Reduce BAnd", "[Reduction],[GPU]")
 
 TEST_CASE("Reduce BOr", "[Reduction],[GPU]")
 {
-   Array<unsigned> workspace;
    Array<unsigned> a(0x210);
    a.HostReadWrite();
    for (int i = 0; i < a.Size(); ++i)
@@ -157,7 +153,7 @@ TEST_CASE("Reduce BOr", "[Reduction],[GPU]")
       mfem::reduce(
          a.Size(), res,
       [=] MFEM_HOST_DEVICE(int i, unsigned &r) { r |= dptr[i]; },
-      BOrReducer<unsigned> {}, use_dev, workspace);
+      BOrReducer<unsigned> {}, use_dev);
       CAPTURE(use_dev);
       REQUIRE(res == 0x3ffu);
    }
@@ -165,7 +161,6 @@ TEST_CASE("Reduce BOr", "[Reduction],[GPU]")
 
 TEST_CASE("Reduce Min", "[Reduction],[GPU]")
 {
-   Array<int> workspace;
    Array<int> a(1000);
    auto hptr = a.HostReadWrite();
    for (int i = 0; i < a.Size(); ++i)
@@ -190,7 +185,7 @@ TEST_CASE("Reduce Min", "[Reduction],[GPU]")
             r = dptr[i];
          }
       },
-      MinReducer<int> {}, use_dev, workspace);
+      MinReducer<int> {}, use_dev);
       CAPTURE(use_dev);
       REQUIRE(res == -10);
    }
@@ -198,7 +193,6 @@ TEST_CASE("Reduce Min", "[Reduction],[GPU]")
 
 TEST_CASE("Reduce Max", "[Reduction],[GPU]")
 {
-   Array<int> workspace;
    Array<int> a(1000);
    auto hptr = a.HostReadWrite();
    for (int i = 0; i < a.Size(); ++i)
@@ -223,7 +217,7 @@ TEST_CASE("Reduce Max", "[Reduction],[GPU]")
             r = dptr[i];
          }
       },
-      MaxReducer<int> {}, use_dev, workspace);
+      MaxReducer<int> {}, use_dev);
       CAPTURE(use_dev);
       REQUIRE(res == 999 - 10);
    }
@@ -231,7 +225,6 @@ TEST_CASE("Reduce Max", "[Reduction],[GPU]")
 
 TEST_CASE("Reduce MinMax", "[Reduction],[GPU]")
 {
-   Array<DevicePair<int, int>> workspace;
    Array<int> a(1000);
    auto hptr = a.HostReadWrite();
    for (int i = 0; i < a.Size(); ++i)
@@ -262,7 +255,7 @@ TEST_CASE("Reduce MinMax", "[Reduction],[GPU]")
             r.second = dptr[i];
          }
       },
-      MinMaxReducer<int> {}, use_dev, workspace);
+      MinMaxReducer<int> {}, use_dev);
       CAPTURE(use_dev);
       REQUIRE(res.first == -10);
       REQUIRE(res.second == a.Size() - 11);
@@ -271,7 +264,6 @@ TEST_CASE("Reduce MinMax", "[Reduction],[GPU]")
 
 TEST_CASE("Reduce ArgMin", "[Reduction],[GPU]")
 {
-   Array<DevicePair<double, int>> workspace;
    Array<double> a(1000);
    auto hptr = a.HostReadWrite();
    for (int i = 0; i < a.Size(); ++i)
@@ -297,7 +289,7 @@ TEST_CASE("Reduce ArgMin", "[Reduction],[GPU]")
             r.second = i;
          }
       },
-      ArgMinReducer<double, int> {}, use_dev, workspace);
+      ArgMinReducer<double, int> {}, use_dev);
       CAPTURE(use_dev);
       REQUIRE(res.first == -10);
       REQUIRE(res.second >= 0);
@@ -308,7 +300,6 @@ TEST_CASE("Reduce ArgMin", "[Reduction],[GPU]")
 
 TEST_CASE("Reduce ArgMax", "[Reduction],[GPU]")
 {
-   Array<DevicePair<double, int>> workspace;
    Array<double> a(1000);
 
    auto hptr = a.HostReadWrite();
@@ -337,7 +328,7 @@ TEST_CASE("Reduce ArgMax", "[Reduction],[GPU]")
             r.second = i;
          }
       },
-      ArgMaxReducer<double, int> {}, use_dev, workspace);
+      ArgMaxReducer<double, int> {}, use_dev);
       CAPTURE(use_dev);
       REQUIRE(res.first == a.Size() - 11);
       REQUIRE(res.second >= 0);
@@ -348,7 +339,6 @@ TEST_CASE("Reduce ArgMax", "[Reduction],[GPU]")
 
 TEST_CASE("Reduce ArgMinMax", "[Reduction],[GPU]")
 {
-   Array<MinMaxLocScalar<double, int>> workspace;
    Array<double> a(1000);
    auto hptr = a.HostReadWrite();
    for (int i = 0; i < a.Size(); ++i)
@@ -383,7 +373,7 @@ TEST_CASE("Reduce ArgMinMax", "[Reduction],[GPU]")
             r.max_loc = i;
          }
       },
-      ArgMinMaxReducer<double, int> {}, use_dev, workspace);
+      ArgMinMaxReducer<double, int> {}, use_dev);
       CAPTURE(use_dev);
       REQUIRE(res.min_val == -10);
       REQUIRE(res.min_loc >= 0);

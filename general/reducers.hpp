@@ -12,7 +12,6 @@
 #ifndef MFEM_REDUCERS_HPP
 #define MFEM_REDUCERS_HPP
 
-#include "array.hpp"
 #include "forall.hpp"
 
 #include <cmath>
@@ -514,6 +513,33 @@ template<class B, class R> struct reduction_kernel
       }
    }
 };
+
+template <class T>
+class ReductionWorkspace
+{
+   Memory<T> workspace;
+
+   static ReductionWorkspace &Instance()
+   {
+      static ReductionWorkspace instance;
+      return instance;
+   }
+
+   ~ReductionWorkspace() { workspace.Delete(); }
+
+public:
+   static T *Get(int num_blocks)
+   {
+      ReductionWorkspace &instance = Instance();
+      if (instance.workspace.Capacity() < num_blocks)
+      {
+         instance.workspace.Delete();
+         instance.workspace.New(num_blocks, MemoryType::HOST_PINNED);
+      }
+      return instance.workspace;
+   }
+};
+
 }
 
 /**
@@ -529,8 +555,7 @@ template<class B, class R> struct reduction_kernel
  @tparam T value_type to operate on
  */
 template <class T, class B, class R>
-void reduce(int N, T &res, B &&body, const R &reducer, bool use_dev,
-            Array<T> &workspace)
+void reduce(int N, T &res, B &&body, const R &reducer, bool use_dev)
 {
    if (N == 0)
    {
@@ -567,13 +592,7 @@ void reduce(int N, T &res, B &&body, const R &reducer, bool use_dev,
 
       red_type red{nullptr, std::forward<B>(body), reducer, N, items_per_thread};
       // allocate res to fit block_size entries
-      auto mt = workspace.GetMemory().GetMemoryType();
-      if (mt != MemoryType::HOST_PINNED && mt != MemoryType::MANAGED)
-      {
-         mt = MemoryType::HOST_PINNED;
-      }
-      workspace.SetSize(nblocks, mt);
-      auto work = workspace.HostWrite();
+      auto work = internal::ReductionWorkspace<T>::Get(nblocks);
       red.work = work;
       forall_2D(nblocks, block_size, 1, std::move(red));
       // wait for results

@@ -92,18 +92,6 @@ struct LpReducer
    }
 };
 
-static Array<real_t>& vector_workspace()
-{
-   static Array<real_t> instance;
-   return instance;
-}
-
-static Array<DevicePair<real_t, real_t>> &Lpvector_workspace()
-{
-   static Array<DevicePair<real_t, real_t>> instance;
-   return instance;
-}
-
 Vector::Vector(const Vector &v)
 {
    const int s = v.Size();
@@ -991,7 +979,7 @@ real_t Vector::Norml2() const
          }
       }
    },
-   L2Reducer{}, UseDevice(), Lpvector_workspace());
+   L2Reducer{}, UseDevice());
    // final answer
    return res.second * sqrt(res.first);
 }
@@ -1006,7 +994,7 @@ real_t Vector::Normlinf() const
    {
       r = fmax(r, fabs(m_data[i]));
    },
-   MaxReducer<real_t> {}, UseDevice(), vector_workspace());
+   MaxReducer<real_t> {}, UseDevice());
    return res;
 }
 
@@ -1020,7 +1008,7 @@ real_t Vector::Norml1() const
    {
       r += fabs(m_data[i]);
    },
-   SumReducer<real_t> {}, UseDevice(), vector_workspace());
+   SumReducer<real_t> {}, UseDevice());
    return res;
 }
 
@@ -1063,7 +1051,7 @@ real_t Vector::Normlp(real_t p) const
             }
          }
       },
-      LpReducer{p}, UseDevice(), Lpvector_workspace());
+      LpReducer{p}, UseDevice());
       // final answer
       return res.second * pow(res.first, 1.0 / p);
    } // end if p < infinity()
@@ -1096,7 +1084,7 @@ real_t Vector::operator*(const Vector &v) const
       {
          r += m_data[i] * v_data[i];
       },
-      SumReducer<real_t> {}, use_dev, vector_workspace());
+      SumReducer<real_t> {}, use_dev);
       return res;
    };
 
@@ -1167,7 +1155,7 @@ real_t Vector::Min() const
       {
          r = fmin(r, m_data[i]);
       },
-      MinReducer<real_t> {}, use_dev, vector_workspace());
+      MinReducer<real_t> {}, use_dev);
       return res;
    };
 
@@ -1213,7 +1201,7 @@ real_t Vector::Max() const
       {
          r = fmax(r, m_data[i]);
       },
-      MaxReducer<real_t> {}, use_dev, vector_workspace());
+      MaxReducer<real_t> {}, use_dev);
       return res;
    };
 
@@ -1248,7 +1236,7 @@ real_t Vector::Sum() const
    {
       r += m_data[i];
    },
-   SumReducer<real_t> {}, UseDevice(), vector_workspace());
+   SumReducer<real_t> {}, UseDevice());
    return res;
 }
 
