@@ -367,6 +367,7 @@ int main(int argc, char *argv[])
    delete B;
    delete Bt;
    delete invM;
+   delete pmesh;
 
    return 0;
 }
