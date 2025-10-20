@@ -1300,9 +1300,9 @@ private:
  * before passing it to the Mult() method of the Solver. This is a convenience
  * implementation to handle e.g. a Stokes flow problem with pure dirichlet boundary
  * conditions.
- * 
+ *
  * By default, this class orthogonalizes the final block of the input BlockVector.
- * 
+ *
  */
 class BlockOrthoSolver : public Solver
 {

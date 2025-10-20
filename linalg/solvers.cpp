@@ -3683,7 +3683,8 @@ void BlockOrthoSolver::SetOrthogonalizationBlock(Array<int> &bOffsets)
    // form index array corresponding to the part of the block vector
    // to be orthogonalized. Default is to orthogonalize the final block.
    int size = bOffsets.Size() - 1;
-   MFEM_VERIFY(size >= 1,"BlockOrthoSolver: bOffsets must have at least 2 entries.");
+   MFEM_VERIFY(size >= 1,
+               "BlockOrthoSolver: bOffsets must have at least 2 entries.");
 
    int start_ind = bOffsets[size-1];
    int block_size = bOffsets[size] - bOffsets[size-1];
