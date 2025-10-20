@@ -4316,15 +4316,15 @@ void NitscheElasticityIntegrator::AssembleBlock(
    {
       for (int jdof = 0; jdof < col_ndofs; ++jdof, ++j)
       {
-         const real_t t2 = col_dshape_dnM(jdof) * col_w(jm);
+         const real_t t2 = col_dshape_dnM(jdof);
          for (int im = 0, i = row_offset; im < dim; ++im)
          {
-            const real_t t1 = col_dshape(jdof, jm) * col_nL(im) * col_w(im);
-            const real_t t3 = col_dshape(jdof, im) * col_nM(jm) * col_w(jm);
-            const real_t tt = t1 + ((im == jm) ? t2 : 0.0) + t3;
+            const real_t t1 = col_dshape(jdof, jm) * col_nL(im);
+            const real_t t3 = col_dshape(jdof, im) * col_nM(jm);
+            const real_t tt = (t1 + ((im == jm) ? t2 : 0.0) + t3) * row_w(im);
             for (int idof = 0; idof < row_ndofs; ++idof, ++i)
             {
-               elmat(i, j) += row_shape(idof) * tt * row_w(im);
+               elmat(i, j) += tt * row_shape(idof) * row_w(im);
             }
          }
       }
