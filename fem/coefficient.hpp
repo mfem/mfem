@@ -132,6 +132,9 @@ public:
    /// Evaluate the coefficient.
    real_t Eval(ElementTransformation &T,
                const IntegrationPoint &ip) override;
+
+   /// Fill the QuadratureFunction @a qf with the piecewise constant values.
+   void Project(QuadratureFunction &qf) override;
 };
 
 /** @brief A piecewise coefficient with the pieces keyed off the element
@@ -912,6 +915,9 @@ public:
        M. */
    void Eval(DenseMatrix &M, ElementTransformation &T,
              const IntegrationRule &ir) override;
+
+   /// @copydoc VectorCoefficient::Project(QuadratureFunction &)
+   void Project(QuadratureFunction &qf) override;
 
    virtual ~GradientGridFunctionCoefficient() { }
 };
@@ -1790,6 +1796,9 @@ public:
    /// Evaluate the coefficient at @a ip.
    real_t Eval(ElementTransformation &T,
                const IntegrationPoint &ip) override;
+
+   /// @copydoc Coefficient::Project(QuadratureFunction &)
+   void Project(QuadratureFunction &qf) override;
 };
 
 /// Scalar coefficient defined as a cross product of two vectors in the xy-plane.
