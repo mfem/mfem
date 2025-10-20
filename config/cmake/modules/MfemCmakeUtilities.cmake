@@ -955,8 +955,9 @@ function(mfem_export_mk_files)
       endif()
     endif()
   elseif (MFEM_USE_HIP)
+    set(MFEM_CXXFLAGS "${MFEM_CXXFLAGS} -xhip")
     foreach(ENTRY IN LISTS CMAKE_HIP_ARCHITECTURES)
-      set(MFEM_CXXFLAGS "--offload-arch=${ENTRY} ${MFEM_CXXFLAGS} ${MFEM_CXXFLAGS}")
+      set(MFEM_CXXFLAGS "--offload-arch=${ENTRY} ${MFEM_CXXFLAGS}")
     endforeach()
   endif()
   set(MFEM_TPLFLAGS "")
@@ -1061,11 +1062,15 @@ function(mfem_export_mk_files)
     # handle interfaces (e.g., SCOREC::apf)
     if ("${lib}" MATCHES "SCOREC::.*" OR "${lib}" MATCHES "Ginkgo::.*" OR "${lib}" MATCHES "ParMoonolith::.*")
     elseif (TARGET "${lib}")
-      mfem_get_target_options(${lib} CompileOpts LinkOpts)
+      mfem_get_target_options(${lib} CompileOpts2 LinkOpts2)
+      # remove generator expressions
+      string(GENEX_STRIP "${CompileOpts2}" CompileOpts)
+      string(GENEX_STRIP "${LinkOpts2}" LinkOpts)
       # Removing duplicates may lead to issues:
       # list(REMOVE_DUPLICATES CompileOpts)
       # list(REMOVE_DUPLICATES LinkOpts)
       # message(WARNING "${lib}[LinkOpts]: ${LinkOpts}")      
+      # message(WARNING "${lib}[CompileOpts]: ${CompileOpts}")
       foreach(LOpt IN LISTS LinkOpts)
         set(MFEM_EXT_LIBS "${MFEM_EXT_LIBS} ${LOpt}")
       endforeach()
@@ -1091,6 +1096,7 @@ function(mfem_export_mk_files)
   endforeach()
 
   # Create the build-tree version of 'config.mk'
+  set(MFEM_SOURCE_DIR_INSTALLED "${MFEM_SOURCE_DIR}")
   configure_file(
     "${PROJECT_SOURCE_DIR}/config/config.mk.in"
     "${PROJECT_BINARY_DIR}/config/config.mk" @ONLY)
@@ -1109,6 +1115,7 @@ function(mfem_export_mk_files)
   set(MFEM_CONFIG_EXTRA "")
 
   # Create the install-tree version of 'config.mk'
+  set(MFEM_SOURCE_DIR_INSTALLED "${MFEM_INSTALL_DIR}")
   configure_file(
     "${PROJECT_SOURCE_DIR}/config/config.mk.in"
     "${PROJECT_BINARY_DIR}/config/config-install.mk" @ONLY)
