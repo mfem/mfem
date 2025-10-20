@@ -514,15 +514,9 @@ void GausssLaw::ComputeDiv(const ParComplexGridFunction &f,
 {
    if (!assembled_) { this->Assemble(); }
 
-   real_t nrm_r = f.real().Norml2();
-   real_t nrm_i = f.imag().Norml2();
-
    // df = Div(f)
    div_.Mult(f.real(), df.real());
    div_.Mult(f.imag(), df.imag());
-
-   real_t dnrm_r = df.real().Norml2();
-   real_t dnrm_i = df.imag().Norml2();
 
    if (kReDot_)
    {

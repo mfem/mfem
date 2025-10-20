@@ -125,7 +125,7 @@ EXAMPLE_TEST_DIRS := examples
 
 MINIAPP_SUBDIRS = common electromagnetics meshing navier performance tools \
  toys nurbs gslib adjoint solvers shifted mtop parelag tribol autodiff dfem \
- hooke multidomain dpg hdiv-linear-solver spde diag-smoothers
+ hooke multidomain dpg hdiv-linear-solver spde diag-smoothers plasma
 MINIAPP_DIRS := $(addprefix miniapps/,$(MINIAPP_SUBDIRS))
 MINIAPP_TEST_DIRS := $(filter-out %/common,$(MINIAPP_DIRS))
 MINIAPP_USE_COMMON := $(addprefix miniapps/,electromagnetics meshing tools \
@@ -797,7 +797,7 @@ ASTYLE_VER = "Artistic Style Version 3.1"
 FORMAT_FILES = $(foreach dir,$(DIRS) $(EM_DIRS) config,$(dir)/*.?pp)
 TESTS_SUBDIRS = unit benchmarks convergence mem_manager par-mesh-format
 UNIT_TESTS_SUBDIRS = general linalg mesh fem miniapps ceed enzyme
-MINIAPPS_SUBDIRS = dpg/util hooke/operators hooke/preconditioners hooke/materials hooke/kernels plasma
+MINIAPPS_SUBDIRS = dpg/util hooke/operators hooke/preconditioners hooke/materials hooke/kernels
 FORMAT_FILES += $(foreach dir,$(TESTS_SUBDIRS),tests/$(dir)/*.?pp)
 FORMAT_FILES += $(foreach dir,$(UNIT_TESTS_SUBDIRS),tests/unit/$(dir)/*.?pp)
 FORMAT_FILES += $(foreach dir,$(MINIAPPS_SUBDIRS),miniapps/$(dir)/*.?pp)

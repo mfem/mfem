@@ -528,7 +528,8 @@ public:
     force refinement in the neighborhood of small features before switching to a
     more traditional error estimator.
 
-    The ComplexLpErrorEstimator supports either complex-valued scalar or vector\    coefficients and works both in serial and in parallel.
+    The ComplexLpErrorEstimator supports either complex-valued scalar or vector
+    coefficients and works both in serial and in parallel.
 */
 class ComplexLpErrorEstimator : public ErrorEstimator
 {
