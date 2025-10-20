@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -21,117 +21,558 @@
 #include <iomanip>
 #include <algorithm>
 #include <cmath>
+#include <cstring>
 
 namespace mfem
 {
 
-namespace GinkgoWrappers
+namespace Ginkgo
 {
 
-GinkgoIterativeSolverBase::GinkgoIterativeSolverBase(
-   const std::string &exec_type, int print_iter, int max_num_iter,
-   double RTOLERANCE, double ATOLERANCE)
-   : exec_type(exec_type),
-     print_lvl(print_iter),
-     max_iter(max_num_iter),
-     rel_tol(sqrt(RTOLERANCE)),
-     abs_tol(sqrt(ATOLERANCE))
+// Create a GinkgoExecutor of type exec_type.
+GinkgoExecutor::GinkgoExecutor(ExecType exec_type)
 {
-   if (exec_type == "reference")
+#if defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP)
+   gko::version_info gko_version = gko::version_info::get();
+   bool gko_with_omp_support = (strcmp(gko_version.omp_version.tag,
+                                       "not compiled") != 0);
+#endif
+   switch (exec_type)
    {
-      executor = gko::ReferenceExecutor::create();
+      case GinkgoExecutor::REFERENCE:
+      {
+         executor = gko::ReferenceExecutor::create();
+         break;
+      }
+      case GinkgoExecutor::OMP:
+      {
+         executor = gko::OmpExecutor::create();
+         break;
+      }
+      case GinkgoExecutor::CUDA:
+      {
+         if (gko::CudaExecutor::get_num_devices() > 0)
+         {
+#ifdef MFEM_USE_CUDA
+            int current_device = 0;
+            MFEM_GPU_CHECK(cudaGetDevice(&current_device));
+            if (gko_with_omp_support)
+            {
+               executor = gko::CudaExecutor::create(current_device,
+                                                    gko::OmpExecutor::create());
+            }
+            else
+            {
+               executor = gko::CudaExecutor::create(current_device,
+                                                    gko::ReferenceExecutor::create());
+            }
+#endif
+         }
+         else
+         {
+            MFEM_ABORT("gko::CudaExecutor::get_num_devices() did not report "
+                       "any valid devices.");
+         }
+         break;
+      }
+      case GinkgoExecutor::HIP:
+      {
+         if (gko::HipExecutor::get_num_devices() > 0)
+         {
+#ifdef MFEM_USE_HIP
+            int current_device = 0;
+            MFEM_GPU_CHECK(hipGetDevice(&current_device));
+            if (gko_with_omp_support)
+            {
+               executor = gko::HipExecutor::create(current_device,
+                                                   gko::OmpExecutor::create());
+            }
+            else
+            {
+               executor = gko::HipExecutor::create(current_device,
+                                                   gko::ReferenceExecutor::create());
+            }
+#endif
+         }
+         else
+         {
+            MFEM_ABORT("gko::HipExecutor::get_num_devices() did not report "
+                       "any valid devices.");
+         }
+         break;
+      }
+      default:
+         MFEM_ABORT("Invalid ExecType specified");
    }
-   else if (exec_type == "omp")
+}
+
+// Create a GinkgoExecutor of type exec_type, with host_exec_type for the
+// related CPU Executor (only applicable to GPU backends).
+GinkgoExecutor::GinkgoExecutor(ExecType exec_type, ExecType host_exec_type)
+{
+   switch (exec_type)
    {
-      executor = gko::OmpExecutor::create();
+      case GinkgoExecutor::REFERENCE:
+      {
+         MFEM_WARNING("Parameter host_exec_type ignored for CPU GinkgoExecutor.");
+         executor = gko::ReferenceExecutor::create();
+         break;
+      }
+      case GinkgoExecutor::OMP:
+      {
+         MFEM_WARNING("Parameter host_exec_type ignored for CPU GinkgoExecutor.");
+         executor = gko::OmpExecutor::create();
+         break;
+      }
+      case GinkgoExecutor::CUDA:
+      {
+         if (gko::CudaExecutor::get_num_devices() > 0)
+         {
+#ifdef MFEM_USE_CUDA
+            int current_device = 0;
+            MFEM_GPU_CHECK(cudaGetDevice(&current_device));
+            if (host_exec_type == GinkgoExecutor::OMP)
+            {
+               executor = gko::CudaExecutor::create(current_device,
+                                                    gko::OmpExecutor::create());
+            }
+            else
+            {
+               executor = gko::CudaExecutor::create(current_device,
+                                                    gko::ReferenceExecutor::create());
+            }
+#endif
+         }
+         else
+         {
+            MFEM_ABORT("gko::CudaExecutor::get_num_devices() did not report "
+                       "any valid devices.");
+         }
+         break;
+      }
+      case GinkgoExecutor::HIP:
+      {
+         if (gko::HipExecutor::get_num_devices() > 0)
+         {
+#ifdef MFEM_USE_HIP
+            int current_device = 0;
+            MFEM_GPU_CHECK(hipGetDevice(&current_device));
+            if (host_exec_type == GinkgoExecutor::OMP)
+            {
+               executor = gko::HipExecutor::create(current_device,
+                                                   gko::OmpExecutor::create());
+            }
+            else
+            {
+               executor = gko::HipExecutor::create(current_device,
+                                                   gko::ReferenceExecutor::create());
+            }
+#endif
+         }
+         else
+         {
+            MFEM_ABORT("gko::HipExecutor::get_num_devices() did not report "
+                       "any valid devices.");
+         }
+         break;
+      }
+      default:
+         MFEM_ABORT("Invalid ExecType specified");
    }
-   else if (exec_type == "cuda" && gko::CudaExecutor::get_num_devices() > 0)
+}
+
+// Create a GinkgoExecutor to match MFEM's device configuration.
+GinkgoExecutor::GinkgoExecutor(Device &mfem_device)
+{
+   gko::version_info gko_version = gko::version_info::get();
+   bool gko_with_omp_support = (strcmp(gko_version.omp_version.tag,
+                                       "not compiled") != 0);
+   if (mfem_device.Allows(Backend::CUDA_MASK))
    {
-      executor = gko::CudaExecutor::create(0, gko::OmpExecutor::create());
+      if (gko::CudaExecutor::get_num_devices() > 0)
+      {
+#ifdef MFEM_USE_CUDA
+         int current_device = 0;
+         MFEM_GPU_CHECK(cudaGetDevice(&current_device));
+         if (gko_with_omp_support)
+         {
+            executor = gko::CudaExecutor::create(current_device,
+                                                 gko::OmpExecutor::create());
+         }
+         else
+         {
+            executor = gko::CudaExecutor::create(current_device,
+                                                 gko::ReferenceExecutor::create());
+         }
+#endif
+      }
+      else
+      {
+         MFEM_ABORT("gko::CudaExecutor::get_num_devices() did not report "
+                    "any valid devices.");
+      }
+   }
+   else if (mfem_device.Allows(Backend::HIP_MASK))
+   {
+      if (gko::HipExecutor::get_num_devices() > 0)
+      {
+#ifdef MFEM_USE_HIP
+         int current_device = 0;
+         MFEM_GPU_CHECK(hipGetDevice(&current_device));
+         if (gko_with_omp_support)
+         {
+            executor = gko::HipExecutor::create(current_device,
+                                                gko::OmpExecutor::create());
+         }
+         else
+         {
+            executor = gko::HipExecutor::create(current_device,
+                                                gko::ReferenceExecutor::create());
+         }
+#endif
+      }
+      else
+      {
+         MFEM_ABORT("gko::HipExecutor::get_num_devices() did not report "
+                    "any valid devices.");
+      }
    }
    else
    {
-      mfem::err <<
-                " exec_type needs to be one of the three strings: \"reference\", \"cuda\" or \"omp\" "
-                << std::endl;
+      if (mfem_device.Allows(Backend::OMP_MASK))
+      {
+         // Also use OpenMP for Ginkgo, if Ginkgo supports it
+         if (gko_with_omp_support)
+         {
+            executor = gko::OmpExecutor::create();
+         }
+         else
+         {
+            executor = gko::ReferenceExecutor::create();
+         }
+      }
+      else
+      {
+         executor = gko::ReferenceExecutor::create();
+      }
    }
-   using ResidualCriterionFactory = gko::stop::ResidualNormReduction<>;
-   residual_criterion             = ResidualCriterionFactory::build()
-                                    .with_reduction_factor(rel_tol)
-                                    .on(executor);
+}
 
-   combined_factory =
-      gko::stop::Combined::build()
-      .with_criteria(residual_criterion,
-                     gko::stop::Iteration::build()
-                     .with_max_iters(max_iter)
-                     .on(executor))
-      .on(executor);
+// Create a GinkgoExecutor to match MFEM's device configuration, with
+// a specific host_exec_type for the associated CPU Executor (only
+// applicable to GPU backends).
+GinkgoExecutor::GinkgoExecutor(Device &mfem_device, ExecType host_exec_type)
+{
+
+   if (mfem_device.Allows(Backend::CUDA_MASK))
+   {
+      if (gko::CudaExecutor::get_num_devices() > 0)
+      {
+#ifdef MFEM_USE_CUDA
+         int current_device = 0;
+         MFEM_GPU_CHECK(cudaGetDevice(&current_device));
+         if (host_exec_type == GinkgoExecutor::OMP)
+         {
+            executor = gko::CudaExecutor::create(current_device,
+                                                 gko::OmpExecutor::create());
+         }
+         else
+         {
+            executor = gko::CudaExecutor::create(current_device,
+                                                 gko::ReferenceExecutor::create());
+         }
+#endif
+      }
+      else
+      {
+         MFEM_ABORT("gko::CudaExecutor::get_num_devices() did not report "
+                    "any valid devices.");
+      }
+   }
+   else if (mfem_device.Allows(Backend::HIP_MASK))
+   {
+      if (gko::HipExecutor::get_num_devices() > 0)
+      {
+#ifdef MFEM_USE_HIP
+         int current_device = 0;
+         MFEM_GPU_CHECK(hipGetDevice(&current_device));
+         if (host_exec_type == GinkgoExecutor::OMP)
+         {
+            executor = gko::HipExecutor::create(current_device,
+                                                gko::OmpExecutor::create());
+         }
+         else
+         {
+            executor = gko::HipExecutor::create(current_device,
+                                                gko::ReferenceExecutor::create());
+         }
+#endif
+      }
+      else
+      {
+         MFEM_ABORT("gko::HipExecutor::get_num_devices() did not report "
+                    "any valid devices.");
+      }
+   }
+   else
+   {
+      MFEM_WARNING("Parameter host_exec_type ignored for CPU GinkgoExecutor.");
+      if (mfem_device.Allows(Backend::OMP_MASK))
+      {
+         // Also use OpenMP for Ginkgo, if Ginkgo supports it
+         gko::version_info gko_version = gko::version_info::get();
+         bool gko_with_omp_support = (strcmp(gko_version.omp_version.tag,
+                                             "not compiled") != 0);
+         if (gko_with_omp_support)
+         {
+            executor = gko::OmpExecutor::create();
+         }
+         else
+         {
+            executor = gko::ReferenceExecutor::create();
+         }
+      }
+      else
+      {
+         executor = gko::ReferenceExecutor::create();
+      }
+   }
+}
+
+GinkgoIterativeSolver::GinkgoIterativeSolver(GinkgoExecutor &exec,
+                                             bool use_implicit_res_norm)
+   : Solver(),
+     use_implicit_res_norm(use_implicit_res_norm)
+{
+   executor = exec.GetExecutor();
+   print_level = -1;
+
+   // Build default stopping criterion factory
+   max_iter = 10;
+   rel_tol = 0.0;
+   abs_tol = 0.0;
+   this->update_stop_factory();
+
+   needs_wrapped_vecs = false;
+   sub_op_needs_wrapped_vecs = false;
+}
+
+void GinkgoIterativeSolver::update_stop_factory()
+{
+   using ResidualCriterionFactory = gko::stop::ResidualNorm<>;
+   using ImplicitResidualCriterionFactory = gko::stop::ImplicitResidualNorm<>;
+
+   if (use_implicit_res_norm)
+   {
+      imp_rel_criterion  = ImplicitResidualCriterionFactory::build()
+                           .with_reduction_factor(sqrt(rel_tol))
+                           .with_baseline(gko::stop::mode::initial_resnorm)
+                           .on(executor);
+      imp_abs_criterion  = ImplicitResidualCriterionFactory::build()
+                           .with_reduction_factor(sqrt(abs_tol))
+                           .with_baseline(gko::stop::mode::absolute)
+                           .on(executor);
+      combined_factory =
+         gko::stop::Combined::build()
+         .with_criteria(imp_rel_criterion,
+                        imp_abs_criterion,
+                        gko::stop::Iteration::build()
+                        .with_max_iters(static_cast<unsigned long>(max_iter))
+                        .on(executor))
+         .on(executor);
+   }
+   else
+   {
+      rel_criterion  = ResidualCriterionFactory::build()
+                       .with_reduction_factor(rel_tol)
+                       .with_baseline(gko::stop::mode::initial_resnorm)
+                       .on(executor);
+      abs_criterion  = ResidualCriterionFactory::build()
+                       .with_reduction_factor(abs_tol)
+                       .with_baseline(gko::stop::mode::absolute)
+                       .on(executor);
+      combined_factory =
+         gko::stop::Combined::build()
+         .with_criteria(rel_criterion,
+                        abs_criterion,
+                        gko::stop::Iteration::build()
+                        .with_max_iters(static_cast<unsigned long>(max_iter))
+                        .on(executor))
+         .on(executor);
+   }
 }
 
 void
-GinkgoIterativeSolverBase::initialize_ginkgo_log(gko::matrix::Dense<double>* b)
+GinkgoIterativeSolver::initialize_ginkgo_log(gko::matrix::Dense<real_t>* b)
+const
 {
    // Add the logger object. See the different masks available in Ginkgo's
    // documentation
    convergence_logger = gko::log::Convergence<>::create(
-                           executor, gko::log::Logger::criterion_check_completed_mask);
+                           gko::log::Logger::criterion_check_completed_mask);
    residual_logger = std::make_shared<ResidualLogger<>>(executor,
-                                                        gko::lend(system_matrix),b);
+                                                        system_oper.get(),b);
 
 }
 
-void
-GinkgoIterativeSolverBase::apply(Vector &solution,
-                                 const Vector &rhs)
+void OperatorWrapper::apply_impl(const gko::LinOp *b, gko::LinOp *x) const
 {
-   // some shortcuts.
-   using val_array = gko::Array<double>;
-   using vec       = gko::matrix::Dense<double>;
 
-   MFEM_VERIFY(system_matrix, "System matrix not initialized");
+   // Cast to VectorWrapper; only accept this type for this impl
+   const VectorWrapper *mfem_b = gko::as<const VectorWrapper>(b);
+   VectorWrapper *mfem_x = gko::as<VectorWrapper>(x);
+
+   this->wrapped_oper->Mult(mfem_b->get_mfem_vec_const_ref(),
+                            mfem_x->get_mfem_vec_ref());
+}
+void OperatorWrapper::apply_impl(const gko::LinOp *alpha,
+                                 const gko::LinOp *b,
+                                 const gko::LinOp *beta,
+                                 gko::LinOp *x) const
+{
+   // x = alpha * op (b) + beta * x
+   // Cast to VectorWrapper; only accept this type for this impl
+   const VectorWrapper *mfem_b = gko::as<const VectorWrapper>(b);
+   VectorWrapper *mfem_x = gko::as<VectorWrapper>(x);
+
+   // Check that alpha and beta are Dense<real_t> of size (1,1):
+   if (alpha->get_size()[0] > 1 || alpha->get_size()[1] > 1)
+   {
+      throw gko::BadDimension(
+         __FILE__, __LINE__, __func__, "alpha", alpha->get_size()[0],
+         alpha->get_size()[1],
+         "Expected an object of size [1 x 1] for scaling "
+         " in this operator's apply_impl");
+   }
+   if (beta->get_size()[0] > 1 || beta->get_size()[1] > 1)
+   {
+      throw gko::BadDimension(
+         __FILE__, __LINE__, __func__, "beta", beta->get_size()[0],
+         beta->get_size()[1],
+         "Expected an object of size [1 x 1] for scaling "
+         " in this operator's apply_impl");
+   }
+   real_t alpha_f;
+   real_t beta_f;
+
+   if (alpha->get_executor() == alpha->get_executor()->get_master())
+   {
+      // Access value directly
+      alpha_f = gko::as<gko::matrix::Dense<real_t>>(alpha)->at(0, 0);
+   }
+   else
+   {
+      // Copy from device to host
+      this->get_executor()->get_master().get()->copy_from(
+         this->get_executor().get(),
+         1, gko::as<gko::matrix::Dense<real_t>>(alpha)->get_const_values(),
+         &alpha_f);
+   }
+   if (beta->get_executor() == beta->get_executor()->get_master())
+   {
+      // Access value directly
+      beta_f = gko::as<gko::matrix::Dense<real_t>>(beta)->at(0, 0);
+   }
+   else
+   {
+      // Copy from device to host
+      this->get_executor()->get_master().get()->copy_from(
+         this->get_executor().get(),
+         1, gko::as<gko::matrix::Dense<real_t>>(beta)->get_const_values(),
+         &beta_f);
+   }
+   // Scale x by beta
+   mfem_x->get_mfem_vec_ref() *= beta_f;
+   // Multiply operator with b and store in tmp
+   mfem::Vector mfem_tmp =
+      mfem::Vector(mfem_x->get_size()[0],
+                   mfem_x->get_mfem_vec_ref().GetMemory().GetMemoryType());
+   // Set UseDevice flag to match mfem_x (not automatically done through
+   //  MemoryType)
+   mfem_tmp.UseDevice(mfem_x->get_mfem_vec_ref().UseDevice());
+
+   // Apply the operator
+   this->wrapped_oper->Mult(mfem_b->get_mfem_vec_const_ref(), mfem_tmp);
+   // Scale tmp by alpha and add
+   mfem_x->get_mfem_vec_ref().Add(alpha_f, mfem_tmp);
+
+   mfem_tmp.Destroy();
+}
+
+void
+GinkgoIterativeSolver::Mult(const Vector &x, Vector &y) const
+{
+
+   MFEM_VERIFY(system_oper, "System matrix or operator not initialized");
    MFEM_VERIFY(executor, "executor is not initialized");
-   MFEM_VERIFY(rhs.Size() == solution.Size(),
+   MFEM_VERIFY(y.Size() == x.Size(),
                "Mismatching sizes for rhs and solution");
-   // Create the rhs vector in Ginkgo's format.
-   std::vector<double> f(rhs.Size());
-   std::copy(rhs.GetData(), rhs.GetData() + rhs.Size(), f.begin());
-   auto b =
-      vec::create(executor,
-                  gko::dim<2>(rhs.Size(), 1),
-                  val_array::view(executor->get_master(), rhs.Size(), f.data()),
-                  1);
 
-   // Create the solution vector in Ginkgo's format.
-   std::vector<double> u(solution.Size());
-   std::copy(solution.GetData(), solution.GetData() + solution.Size(), u.begin());
-   auto x = vec::create(executor,
-                        gko::dim<2>(solution.Size(), 1),
-                        val_array::view(executor->get_master(),
-                                        solution.Size(),
-                                        u.data()),
-                        1);
+   using vec       = gko::matrix::Dense<real_t>;
+   if (!iterative_mode)
+   {
+      y = 0.0;
+   }
+
+   // Create x and y vectors in Ginkgo's format. Wrap MFEM's data directly,
+   // on CPU or GPU.
+   bool on_device = false;
+   if (executor != executor->get_master())
+   {
+      on_device = true;
+   }
+   std::unique_ptr<vec> gko_x;
+   std::unique_ptr<vec> gko_y;
+
+   // If we do not have an OperatorWrapper for the system operator or
+   // preconditioner, or have an inner solver using VectorWrappers (as
+   // for IR), then directly create Ginkgo vectors from MFEM's data.
+   if (!needs_wrapped_vecs)
+   {
+      gko_x = vec::create(executor, gko::dim<2>(x.Size(), 1),
+                          gko_array<real_t>::view(executor,
+                                                  x.Size(), const_cast<real_t *>(
+                                                     x.Read(on_device))), 1);
+      gko_y = vec::create(executor, gko::dim<2>(y.Size(), 1),
+                          gko_array<real_t>::view(executor,
+                                                  y.Size(),
+                                                  y.ReadWrite(on_device)), 1);
+   }
+   else // We have at least one wrapped MFEM operator; need wrapped vectors
+   {
+      gko_x = std::unique_ptr<vec>(
+                 new VectorWrapper(executor, x.Size(),
+                                   const_cast<Vector *>(&x), false));
+      gko_y = std::unique_ptr<vec>(
+                 new VectorWrapper(executor, y.Size(), &y,
+                                   false));
+   }
 
    // Create the logger object to log some data from the solvers to confirm
    // convergence.
-   initialize_ginkgo_log(gko::lend(b));
+   initialize_ginkgo_log(gko_x.get());
 
    MFEM_VERIFY(convergence_logger, "convergence logger not initialized" );
-   if (print_lvl==1)
+   if (print_level==1)
    {
       MFEM_VERIFY(residual_logger, "residual logger not initialized" );
-      solver_gen->add_logger(residual_logger);
+      solver->clear_loggers(); // Clear any loggers from previous Mult() calls
+      solver->add_logger(residual_logger);
    }
-
-   // Generate the solver from the solver using the system matrix.
-   auto solver = solver_gen->generate(system_matrix);
 
    // Add the convergence logger object to the combined factory to retrieve the
    // solver and other data
+   combined_factory->clear_loggers();
    combined_factory->add_logger(convergence_logger);
 
-   // Finally, apply the solver to b and get the solution in x.
-   solver->apply(gko::lend(b), gko::lend(x));
+   // Finally, apply the solver to x and get the solution in y.
+   solver->apply(gko_x, gko_y);
+
+   // Get the number of iterations taken to converge to the solution.
+   final_iter = convergence_logger->get_num_iterations();
+
+   // Some residual norm and convergence print outs.
+   real_t final_res_norm = 0.0;
 
    // The convergence_logger object contains the residual vector after the
    // solver has returned. use this vector to compute the residual norm of the
@@ -140,345 +581,792 @@ GinkgoIterativeSolverBase::apply(Vector &solution,
    // Additionally, if the logger is logging on the gpu, it is necessary to copy
    // the data to the host and hence the `residual_norm_d_master`
    auto residual_norm = convergence_logger->get_residual_norm();
-   auto residual_norm_d =
-      gko::as<gko::matrix::Dense<double>>(residual_norm);
-   auto residual_norm_d_master =
-      gko::matrix::Dense<double>::create(executor->get_master(),
-                                         gko::dim<2> {1, 1});
-   residual_norm_d_master->copy_from(residual_norm_d);
+   auto imp_residual_norm = convergence_logger->get_implicit_sq_resnorm();
 
-   // Get the number of iterations taken to converge to the solution.
-   auto num_iteration = convergence_logger->get_num_iterations();
-
-   // Ginkgo works with a relative residual norm through its
-   // ResidualNormReduction criterion. Therefore, to get the normalized
-   // residual, we divide by the norm of the rhs.
-   auto b_norm = gko::matrix::Dense<double>::create(executor->get_master(),
-                                                    gko::dim<2> {1, 1});
-   if (executor != executor->get_master())
+   if (use_implicit_res_norm)
    {
-      auto b_master = vec::create(executor->get_master(),
-                                  gko::dim<2>(rhs.Size(), 1),
-                                  val_array::view(executor->get_master(),
-                                                  rhs.Size(),
-                                                  f.data()),
-                                  1);
-      b_master->compute_norm2(b_norm.get());
+      auto imp_residual_norm_d =
+         gko::as<gko::matrix::Dense<real_t>>(imp_residual_norm);
+      auto imp_residual_norm_d_master =
+         gko::matrix::Dense<real_t>::create(executor->get_master(),
+                                            gko::dim<2> {1, 1});
+      imp_residual_norm_d_master->copy_from(imp_residual_norm_d);
+
+      final_res_norm = imp_residual_norm_d_master->at(0,0);
    }
    else
    {
-      b->compute_norm2(b_norm.get());
+      auto residual_norm_d =
+         gko::as<gko::matrix::Dense<real_t>>(residual_norm);
+      auto residual_norm_d_master =
+         gko::matrix::Dense<real_t>::create(executor->get_master(),
+                                            gko::dim<2> {1, 1});
+      residual_norm_d_master->copy_from(residual_norm_d);
+
+      final_res_norm = residual_norm_d_master->at(0,0);
    }
 
-   MFEM_VERIFY(b_norm.get()->at(0, 0) != 0.0, " rhs norm is zero");
-   // Some residual norm and convergence print outs. As both
-   // `residual_norm_d_master` and `b_norm` are seen as Dense matrices, we use
-   // the `at` function to get the first value here. In case of multiple right
-   // hand sides, this will need to be modified.
-   auto fin_res_norm = std::pow(residual_norm_d_master->at(0,0) / b_norm->at(0,0),
-                                2);
-   if (num_iteration==max_iter &&
-       fin_res_norm > rel_tol )
+   converged = 0;
+   if (convergence_logger->has_converged())
    {
       converged = 1;
    }
-   if (fin_res_norm < rel_tol)
-   {
-      converged =0;
-   }
-   if (print_lvl ==1)
+
+   if (print_level == 1)
    {
       residual_logger->write();
    }
-   if (converged!=0)
+   if (converged == 0)
    {
       mfem::err << "No convergence!" << '\n';
-      mfem::out << "(B r_N, r_N) = " << fin_res_norm << '\n'
-                << "Number of iterations: " << num_iteration << '\n';
    }
-   if (print_lvl >=2 && converged==0 )
+   if (print_level >=2 && converged==1 )
    {
-      mfem::out << "Converged in " << num_iteration <<
+      mfem::out << "Converged in " << final_iter <<
                 " iterations with final residual norm "
-                << fin_res_norm << '\n';
+                << final_res_norm << '\n';
    }
-
-   // Check if the solution is on a CUDA device, if so, copy it over to the
-   // host.
-   if (executor != executor->get_master())
-   {
-      auto x_master = vec::create(executor->get_master(),
-                                  gko::dim<2>(solution.Size(), 1),
-                                  val_array::view(executor,
-                                                  solution.Size(),
-                                                  x->get_values()),
-                                  1);
-      x.reset(x_master.release());
-   }
-   // Finally copy over the solution vector to mfem's solution vector.
-   std::copy(x->get_values(),
-             x->get_values() + solution.Size(),
-             solution.GetData());
 }
 
-void
-GinkgoIterativeSolverBase::initialize(
-   const SparseMatrix *matrix)
+void GinkgoIterativeSolver::SetOperator(const Operator &op)
 {
-   // Needs to be a square matrix
-   MFEM_VERIFY(matrix->Height() == matrix->Width(), "System matrix is not square");
 
-   const int N = matrix->Size();
-   using mtx = gko::matrix::Csr<double, int>;
-   std::shared_ptr<mtx> system_matrix_compute;
-   system_matrix_compute   = mtx::create(executor->get_master(),
-                                         gko::dim<2>(N),
-                                         matrix->NumNonZeroElems());
-   double *mat_values   = system_matrix_compute->get_values();
-   int *mat_row_ptrs = system_matrix_compute->get_row_ptrs();
-   int *mat_col_idxs = system_matrix_compute->get_col_idxs();
-   mat_row_ptrs[0] =0;
-   for (int r=0; r< N; ++r)
+   if (system_oper)
    {
-      const int* col = matrix->GetRowColumns(r);
-      const double * val = matrix->GetRowEntries(r);
-      mat_row_ptrs[r+1] = mat_row_ptrs[r] + matrix->RowSize(r);
-      for (int cj=0; cj < matrix->RowSize(r); cj++ )
+      // If the solver currently needs VectorWrappers, but not due to a
+      // "sub-operator" (preconditioner or inner solver), then it's
+      // because the current system_oper needs them.  Reset the property
+      // to false in case the new op is a SparseMatrix.
+      if (needs_wrapped_vecs == true && sub_op_needs_wrapped_vecs == false)
       {
-         mat_values[mat_row_ptrs[r]+cj] = val[cj];
-         mat_col_idxs[mat_row_ptrs[r]+cj] = col[cj];
+         needs_wrapped_vecs = false;
       }
+      // Reset the pointer
+      system_oper.reset();
+      // Reset the solver generated for the previous operator
+      solver.reset();
    }
-   system_matrix =
-      mtx::create(executor, gko::dim<2>(N), matrix->NumNonZeroElems());
-   system_matrix->copy_from(system_matrix_compute.get());
-}
 
-void
-GinkgoIterativeSolverBase::solve(const SparseMatrix *matrix,
-                                 Vector &solution,
-                                 const Vector &rhs)
-{
-   initialize(matrix);
-   apply(solution, rhs);
-}
+   // Check for SparseMatrix:
+   SparseMatrix *op_mat = const_cast<SparseMatrix*>(
+                             dynamic_cast<const SparseMatrix*>(&op));
+   if (op_mat != NULL)
+   {
+      // Needs to be a square matrix
+      MFEM_VERIFY(op_mat->Height() == op_mat->Width(),
+                  "System matrix is not square");
 
+      bool on_device = false;
+      if (executor != executor->get_master())
+      {
+         on_device = true;
+      }
+
+      using mtx = gko::matrix::Csr<real_t, int>;
+      const int nnz =  op_mat->GetMemoryData().Capacity();
+      system_oper = mtx::create(
+                       executor, gko::dim<2>(op_mat->Height(), op_mat->Width()),
+                       gko_array<real_t>::view(executor,
+                                               nnz,
+                                               op_mat->ReadWriteData(on_device)),
+                       gko_array<int>::view(executor,
+                                            nnz,
+                                            op_mat->ReadWriteJ(on_device)),
+                       gko_array<int>::view(executor, op_mat->Height() + 1,
+                                            op_mat->ReadWriteI(on_device)));
+
+   }
+   else
+   {
+      needs_wrapped_vecs = true;
+      system_oper = std::shared_ptr<OperatorWrapper>(
+                       new OperatorWrapper(executor, op.Height(), &op));
+   }
+
+   // Set MFEM Solver size values
+   height = op.Height();
+   width = op.Width();
+
+   // Generate the solver from the solver using the system matrix or operator.
+   solver = solver_gen->generate(system_oper);
+}
 
 /* ---------------------- CGSolver ------------------------ */
-CGSolver::CGSolver(
-   const std::string &exec_type,
-   int print_iter,
-   int max_num_iter,
-   double RTOLERANCE,
-   double ATOLERANCE
-)
-   : GinkgoIterativeSolverBase(exec_type, print_iter, max_num_iter, RTOLERANCE,
-                               ATOLERANCE)
+CGSolver::CGSolver(GinkgoExecutor &exec)
+   : EnableGinkgoSolver(exec, true)
 {
-   using cg = gko::solver::Cg<double>;
+   using cg = gko::solver::Cg<real_t>;
    this->solver_gen =
       cg::build().with_criteria(this->combined_factory).on(this->executor);
 }
 
-CGSolver::CGSolver(
-   const std::string &exec_type,
-   int print_iter,
-   int max_num_iter,
-   double RTOLERANCE,
-   double ATOLERANCE,
-   const gko::LinOpFactory* preconditioner
-)
-   : GinkgoIterativeSolverBase(exec_type, print_iter, max_num_iter, RTOLERANCE,
-                               ATOLERANCE)
+CGSolver::CGSolver(GinkgoExecutor &exec,
+                   const GinkgoPreconditioner &preconditioner)
+   : EnableGinkgoSolver(exec, true)
 {
-   using cg         = gko::solver::Cg<double>;
-   this->solver_gen = cg::build()
-                      .with_criteria(this->combined_factory)
-                      .with_preconditioner(preconditioner)
-                      .on(this->executor);
+   using cg         = gko::solver::Cg<real_t>;
+   // Check for a previously-generated preconditioner (for a specific matrix)
+   if (preconditioner.HasGeneratedPreconditioner())
+   {
+      this->solver_gen = cg::build()
+                         .with_criteria(this->combined_factory)
+                         .with_generated_preconditioner(
+                            preconditioner.GetGeneratedPreconditioner())
+                         .on(this->executor);
+      if (dynamic_cast<const OperatorWrapper*>(preconditioner.
+                                               GetGeneratedPreconditioner().get()))
+      {
+         this->sub_op_needs_wrapped_vecs = true;
+         this->needs_wrapped_vecs = true;
+      }
+   }
+   else // Pass a preconditioner factory (will use same matrix as the solver)
+   {
+      this->solver_gen = cg::build()
+                         .with_criteria(this->combined_factory)
+                         .with_preconditioner(preconditioner.GetFactory())
+                         .on(this->executor);
+   }
 }
 
 
 /* ---------------------- BICGSTABSolver ------------------------ */
-BICGSTABSolver::BICGSTABSolver(
-   const std::string &exec_type,
-   int print_iter,
-   int max_num_iter,
-   double RTOLERANCE,
-   double ATOLERANCE
-)
-   : GinkgoIterativeSolverBase(exec_type, print_iter, max_num_iter, RTOLERANCE,
-                               ATOLERANCE)
+BICGSTABSolver::BICGSTABSolver(GinkgoExecutor &exec)
+   : EnableGinkgoSolver(exec, true)
 {
-   using bicgstab   = gko::solver::Bicgstab<double>;
+   using bicgstab   = gko::solver::Bicgstab<real_t>;
    this->solver_gen = bicgstab::build()
                       .with_criteria(this->combined_factory)
                       .on(this->executor);
 }
 
-BICGSTABSolver::BICGSTABSolver(
-   const std::string &exec_type,
-   int print_iter,
-   int max_num_iter,
-   double RTOLERANCE,
-   double ATOLERANCE,
-   const gko::LinOpFactory* preconditioner
-)
-   : GinkgoIterativeSolverBase(exec_type, print_iter, max_num_iter, RTOLERANCE,
-                               ATOLERANCE)
+BICGSTABSolver::BICGSTABSolver(GinkgoExecutor &exec,
+                               const GinkgoPreconditioner &preconditioner)
+   : EnableGinkgoSolver(exec, true)
 {
-   using bicgstab   = gko::solver::Bicgstab<double>;
-   this->solver_gen = bicgstab::build()
-                      .with_criteria(this->combined_factory)
-                      .with_preconditioner(preconditioner)
-                      .on(this->executor);
+   using bicgstab   = gko::solver::Bicgstab<real_t>;
+   if (preconditioner.HasGeneratedPreconditioner())
+   {
+      this->solver_gen = bicgstab::build()
+                         .with_criteria(this->combined_factory)
+                         .with_generated_preconditioner(
+                            preconditioner.GetGeneratedPreconditioner())
+                         .on(this->executor);
+      if (dynamic_cast<const OperatorWrapper*>(preconditioner.
+                                               GetGeneratedPreconditioner().get()))
+      {
+         this->sub_op_needs_wrapped_vecs = true;
+         this->needs_wrapped_vecs = true;
+      }
+   }
+   else
+   {
+      this->solver_gen = bicgstab::build()
+                         .with_criteria(this->combined_factory)
+                         .with_preconditioner(preconditioner.GetFactory())
+                         .on(this->executor);
+   }
 }
 
 
 /* ---------------------- CGSSolver ------------------------ */
-CGSSolver::CGSSolver(
-   const std::string &exec_type,
-   int print_iter,
-   int max_num_iter,
-   double RTOLERANCE,
-   double ATOLERANCE
-)
-   : GinkgoIterativeSolverBase(exec_type, print_iter, max_num_iter, RTOLERANCE,
-                               ATOLERANCE)
+CGSSolver::CGSSolver(GinkgoExecutor &exec)
+   : EnableGinkgoSolver(exec, true)
 {
-   using cgs = gko::solver::Cgs<double>;
+   using cgs = gko::solver::Cgs<real_t>;
    this->solver_gen =
       cgs::build().with_criteria(this->combined_factory).on(this->executor);
 }
 
-CGSSolver::CGSSolver(
-   const std::string &exec_type,
-   int print_iter,
-   int max_num_iter,
-   double RTOLERANCE,
-   double ATOLERANCE,
-   const gko::LinOpFactory* preconditioner
-)
-   : GinkgoIterativeSolverBase(exec_type, print_iter, max_num_iter, RTOLERANCE,
-                               ATOLERANCE)
+CGSSolver::CGSSolver(GinkgoExecutor &exec,
+                     const GinkgoPreconditioner &preconditioner)
+   : EnableGinkgoSolver(exec, true)
 {
-   using cgs        = gko::solver::Cgs<double>;
-   this->solver_gen = cgs::build()
-                      .with_criteria(this->combined_factory)
-                      .with_preconditioner(preconditioner)
-                      .on(this->executor);
+   using cgs        = gko::solver::Cgs<real_t>;
+   if (preconditioner.HasGeneratedPreconditioner())
+   {
+      this->solver_gen = cgs::build()
+                         .with_criteria(this->combined_factory)
+                         .with_generated_preconditioner(
+                            preconditioner.GetGeneratedPreconditioner())
+                         .on(this->executor);
+      if (dynamic_cast<const OperatorWrapper*>(preconditioner.
+                                               GetGeneratedPreconditioner().get()))
+      {
+         this->sub_op_needs_wrapped_vecs = true;
+         this->needs_wrapped_vecs = true;
+      }
+   }
+   else
+   {
+      this->solver_gen = cgs::build()
+                         .with_criteria(this->combined_factory)
+                         .with_preconditioner(preconditioner.GetFactory())
+                         .on(this->executor);
+   }
 }
 
 
 /* ---------------------- FCGSolver ------------------------ */
-FCGSolver::FCGSolver(
-   const std::string &exec_type,
-   int print_iter,
-   int max_num_iter,
-   double RTOLERANCE,
-   double ATOLERANCE
-)
-   : GinkgoIterativeSolverBase(exec_type, print_iter, max_num_iter, RTOLERANCE,
-                               ATOLERANCE)
+FCGSolver::FCGSolver(GinkgoExecutor &exec)
+   : EnableGinkgoSolver(exec, true)
 {
-   using fcg = gko::solver::Fcg<double>;
+   using fcg = gko::solver::Fcg<real_t>;
    this->solver_gen =
       fcg::build().with_criteria(this->combined_factory).on(this->executor);
 }
 
-FCGSolver::FCGSolver(
-   const std::string &exec_type,
-   int print_iter,
-   int max_num_iter,
-   double RTOLERANCE,
-   double ATOLERANCE,
-   const gko::LinOpFactory* preconditioner
-)
-   : GinkgoIterativeSolverBase(exec_type, print_iter, max_num_iter, RTOLERANCE,
-                               ATOLERANCE)
+FCGSolver::FCGSolver(GinkgoExecutor &exec,
+                     const GinkgoPreconditioner &preconditioner)
+   : EnableGinkgoSolver(exec, true)
 {
-   using fcg        = gko::solver::Fcg<double>;
-   this->solver_gen = fcg::build()
-                      .with_criteria(this->combined_factory)
-                      .with_preconditioner(preconditioner)
-                      .on(this->executor);
+   using fcg        = gko::solver::Fcg<real_t>;
+   if (preconditioner.HasGeneratedPreconditioner())
+   {
+      this->solver_gen = fcg::build()
+                         .with_criteria(this->combined_factory)
+                         .with_generated_preconditioner(
+                            preconditioner.GetGeneratedPreconditioner())
+                         .on(this->executor);
+      if (dynamic_cast<const OperatorWrapper*>(preconditioner.
+                                               GetGeneratedPreconditioner().get()))
+      {
+         this->sub_op_needs_wrapped_vecs = true;
+         this->needs_wrapped_vecs = true;
+      }
+   }
+   else
+   {
+      this->solver_gen = fcg::build()
+                         .with_criteria(this->combined_factory)
+                         .with_preconditioner(preconditioner.GetFactory())
+                         .on(this->executor);
+   }
 }
 
 
 /* ---------------------- GMRESSolver ------------------------ */
-GMRESSolver::GMRESSolver(
-   const std::string &exec_type,
-   int print_iter,
-   int max_num_iter,
-   double RTOLERANCE,
-   double ATOLERANCE
-)
-   : GinkgoIterativeSolverBase(exec_type, print_iter, max_num_iter, RTOLERANCE,
-                               ATOLERANCE)
+GMRESSolver::GMRESSolver(GinkgoExecutor &exec, int dim)
+   : EnableGinkgoSolver(exec, false),
+     m{dim}
 {
-   using gmres      = gko::solver::Gmres<double>;
-   this->solver_gen = gmres::build()
-                      .with_krylov_dim(m)
-                      .with_criteria(this->combined_factory)
-                      .on(this->executor);
+   using gmres      = gko::solver::Gmres<real_t>;
+   if (this->m == 0) // Don't set a dimension, but let Ginkgo use its default
+   {
+      this->solver_gen = gmres::build()
+                         .with_criteria(this->combined_factory)
+                         .on(this->executor);
+   }
+   else
+   {
+      this->solver_gen = gmres::build()
+                         .with_krylov_dim(static_cast<unsigned long>(m))
+                         .with_criteria(this->combined_factory)
+                         .on(this->executor);
+   }
 }
 
-GMRESSolver::GMRESSolver(
-   const std::string &exec_type,
-   int print_iter,
-   int max_num_iter,
-   double RTOLERANCE,
-   double ATOLERANCE,
-   const gko::LinOpFactory* preconditioner
-)
-   : GinkgoIterativeSolverBase(exec_type, print_iter, max_num_iter, RTOLERANCE,
-                               ATOLERANCE)
+GMRESSolver::GMRESSolver(GinkgoExecutor &exec,
+                         const GinkgoPreconditioner &preconditioner, int dim)
+   : EnableGinkgoSolver(exec, false),
+     m{dim}
 {
-   using gmres      = gko::solver::Gmres<double>;
-   this->solver_gen = gmres::build()
-                      .with_krylov_dim(m)
-                      .with_criteria(this->combined_factory)
-                      .with_preconditioner(preconditioner)
-                      .on(this->executor);
+   using gmres      = gko::solver::Gmres<real_t>;
+   // Check for a previously-generated preconditioner (for a specific matrix)
+   if (this->m == 0) // Don't set a dimension, but let Ginkgo use its default
+   {
+      if (preconditioner.HasGeneratedPreconditioner())
+      {
+         this->solver_gen = gmres::build()
+                            .with_criteria(this->combined_factory)
+                            .with_generated_preconditioner(
+                               preconditioner.GetGeneratedPreconditioner())
+                            .on(this->executor);
+         if (dynamic_cast<const OperatorWrapper*>(preconditioner.
+                                                  GetGeneratedPreconditioner().get()))
+         {
+            this->sub_op_needs_wrapped_vecs = true;
+            this->needs_wrapped_vecs = true;
+         }
+      }
+      else
+      {
+         this->solver_gen = gmres::build()
+                            .with_criteria(this->combined_factory)
+                            .with_preconditioner(preconditioner.GetFactory())
+                            .on(this->executor);
+      }
+   }
+   else
+   {
+      if (preconditioner.HasGeneratedPreconditioner())
+      {
+         this->solver_gen = gmres::build()
+                            .with_krylov_dim(static_cast<unsigned long>(m))
+                            .with_criteria(this->combined_factory)
+                            .with_generated_preconditioner(
+                               preconditioner.GetGeneratedPreconditioner())
+                            .on(this->executor);
+         if (dynamic_cast<const OperatorWrapper*>(preconditioner.
+                                                  GetGeneratedPreconditioner().get()))
+         {
+            this->sub_op_needs_wrapped_vecs = true;
+            this->needs_wrapped_vecs = true;
+         }
+      }
+      else
+      {
+         this->solver_gen = gmres::build()
+                            .with_krylov_dim(static_cast<unsigned long>(m))
+                            .with_criteria(this->combined_factory)
+                            .with_preconditioner(preconditioner.GetFactory())
+                            .on(this->executor);
+      }
+   }
 }
 
+void GMRESSolver::SetKDim(int dim)
+{
+   m = dim;
+   using gmres = gko::solver::Gmres<real_t>;
+   // Create new solver factory with other parameters the same, but new value for krylov_dim
+   auto current_params = gko::as<gmres::Factory>(solver_gen)->get_parameters();
+   this->solver_gen = current_params.with_krylov_dim(static_cast<unsigned long>(m))
+                      .on(this->executor);
+   if (solver)
+   {
+      gko::as<gmres>(solver)->set_krylov_dim(static_cast<unsigned long>(m));
+   }
+}
+
+/* ---------------------- CBGMRESSolver ------------------------ */
+CBGMRESSolver::CBGMRESSolver(GinkgoExecutor &exec, int dim,
+                             storage_precision prec)
+   : EnableGinkgoSolver(exec, false),
+     m{dim}
+{
+   using gmres      = gko::solver::CbGmres<real_t>;
+   if (this->m == 0) // Don't set a dimension, but let Ginkgo use its default
+   {
+      this->solver_gen = gmres::build()
+                         .with_criteria(this->combined_factory)
+                         .with_storage_precision(prec)
+                         .on(this->executor);
+   }
+   else
+   {
+      this->solver_gen = gmres::build()
+                         .with_krylov_dim(static_cast<unsigned long>(m))
+                         .with_criteria(this->combined_factory)
+                         .with_storage_precision(prec)
+                         .on(this->executor);
+   }
+}
+
+CBGMRESSolver::CBGMRESSolver(GinkgoExecutor &exec,
+                             const GinkgoPreconditioner &preconditioner,
+                             int dim, storage_precision prec)
+   : EnableGinkgoSolver(exec, false),
+     m{dim}
+{
+   using gmres      = gko::solver::CbGmres<real_t>;
+   // Check for a previously-generated preconditioner (for a specific matrix)
+   if (this->m == 0) // Don't set a dimension, but let Ginkgo use its default
+   {
+      if (preconditioner.HasGeneratedPreconditioner())
+      {
+         this->solver_gen = gmres::build()
+                            .with_criteria(this->combined_factory)
+                            .with_storage_precision(prec)
+                            .with_generated_preconditioner(
+                               preconditioner.GetGeneratedPreconditioner())
+                            .on(this->executor);
+         if (dynamic_cast<const OperatorWrapper*>(preconditioner.
+                                                  GetGeneratedPreconditioner().get()))
+         {
+            this->sub_op_needs_wrapped_vecs = true;
+            this->needs_wrapped_vecs = true;
+         }
+      }
+      else
+      {
+         this->solver_gen = gmres::build()
+                            .with_criteria(this->combined_factory)
+                            .with_storage_precision(prec)
+                            .with_preconditioner(preconditioner.GetFactory())
+                            .on(this->executor);
+      }
+   }
+   else
+   {
+      if (preconditioner.HasGeneratedPreconditioner())
+      {
+         this->solver_gen = gmres::build()
+                            .with_krylov_dim(static_cast<unsigned long>(m))
+                            .with_criteria(this->combined_factory)
+                            .with_storage_precision(prec)
+                            .with_generated_preconditioner(
+                               preconditioner.GetGeneratedPreconditioner())
+                            .on(this->executor);
+         if (dynamic_cast<const OperatorWrapper*>(preconditioner.
+                                                  GetGeneratedPreconditioner().get()))
+         {
+            this->sub_op_needs_wrapped_vecs = true;
+            this->needs_wrapped_vecs = true;
+         }
+      }
+      else
+      {
+         this->solver_gen = gmres::build()
+                            .with_krylov_dim(static_cast<unsigned long>(m))
+                            .with_criteria(this->combined_factory)
+                            .with_storage_precision(prec)
+                            .with_preconditioner(preconditioner.GetFactory())
+                            .on(this->executor);
+      }
+   }
+}
+
+void CBGMRESSolver::SetKDim(int dim)
+{
+   m = dim;
+   using gmres = gko::solver::CbGmres<real_t>;
+   // Create new solver factory with other parameters the same, but new value for krylov_dim
+   auto current_params = gko::as<gmres::Factory>(solver_gen)->get_parameters();
+   this->solver_gen = current_params.with_krylov_dim(static_cast<unsigned long>(m))
+                      .on(this->executor);
+   if (solver)
+   {
+      gko::as<gmres>(solver)->set_krylov_dim(static_cast<unsigned long>(m));
+   }
+}
 
 /* ---------------------- IRSolver ------------------------ */
-IRSolver::IRSolver(
-   const std::string &   exec_type,
-   int print_iter,
-   int max_num_iter,
-   double RTOLERANCE,
-   double ATOLERANCE
-)
-   : GinkgoIterativeSolverBase(exec_type, print_iter, max_num_iter, RTOLERANCE,
-                               ATOLERANCE)
+IRSolver::IRSolver(GinkgoExecutor &exec)
+   : EnableGinkgoSolver(exec, false)
 {
-   using ir = gko::solver::Ir<double>;
+   using ir = gko::solver::Ir<real_t>;
    this->solver_gen =
       ir::build().with_criteria(this->combined_factory).on(this->executor);
 }
 
-IRSolver::IRSolver(
-   const std::string &exec_type,
-   int print_iter,
-   int max_num_iter,
-   double RTOLERANCE,
-   double ATOLERANCE,
-   const gko::LinOpFactory* inner_solver
-)
-   : GinkgoIterativeSolverBase(exec_type, print_iter, max_num_iter, RTOLERANCE,
-                               ATOLERANCE)
+IRSolver::IRSolver(GinkgoExecutor &exec,
+                   const GinkgoIterativeSolver &inner_solver)
+   : EnableGinkgoSolver(exec, false)
 {
-   using ir         = gko::solver::Ir<double>;
+   using ir         = gko::solver::Ir<real_t>;
    this->solver_gen = ir::build()
                       .with_criteria(this->combined_factory)
-                      .with_solver(inner_solver)
+                      .with_solver(inner_solver.GetFactory())
                       .on(this->executor);
+   if (inner_solver.UsesVectorWrappers())
+   {
+      this->sub_op_needs_wrapped_vecs = true;
+      this->needs_wrapped_vecs = true;
+   }
+}
+
+/* --------------------------------------------------------------- */
+/* ---------------------- Preconditioners ------------------------ */
+GinkgoPreconditioner::GinkgoPreconditioner(
+   GinkgoExecutor &exec)
+   : Solver()
+{
+   has_generated_precond = false;
+   executor = exec.GetExecutor();
+}
+
+void
+GinkgoPreconditioner::Mult(const Vector &x, Vector &y) const
+{
+
+   MFEM_VERIFY(generated_precond, "Preconditioner not initialized");
+   MFEM_VERIFY(executor, "executor is not initialized");
+
+   using vec       = gko::matrix::Dense<real_t>;
+   if (!iterative_mode)
+   {
+      y = 0.0;
+   }
+
+   // Create x and y vectors in Ginkgo's format. Wrap MFEM's data directly,
+   // on CPU or GPU.
+   bool on_device = false;
+   if (executor != executor->get_master())
+   {
+      on_device = true;
+   }
+   auto gko_x = vec::create(executor, gko::dim<2>(x.Size(), 1),
+                            gko_array<real_t>::view(executor,
+                                                    x.Size(), const_cast<real_t *>(
+                                                       x.Read(on_device))), 1);
+   auto gko_y = vec::create(executor, gko::dim<2>(y.Size(), 1),
+                            gko_array<real_t>::view(executor,
+                                                    y.Size(),
+                                                    y.ReadWrite(on_device)), 1);
+   generated_precond.get()->apply(gko_x, gko_y);
+}
+
+void GinkgoPreconditioner::SetOperator(const Operator &op)
+{
+
+   if (has_generated_precond)
+   {
+      generated_precond.reset();
+      has_generated_precond = false;
+   }
+
+   // Only accept SparseMatrix for this type.
+   SparseMatrix *op_mat = const_cast<SparseMatrix*>(
+                             dynamic_cast<const SparseMatrix*>(&op));
+   MFEM_VERIFY(op_mat != NULL,
+               "GinkgoPreconditioner::SetOperator : not a SparseMatrix!");
+
+   bool on_device = false;
+   if (executor != executor->get_master())
+   {
+      on_device = true;
+   }
+
+   using mtx = gko::matrix::Csr<real_t, int>;
+   const int nnz =  op_mat->GetMemoryData().Capacity();
+   auto gko_matrix = mtx::create(
+                        executor, gko::dim<2>(op_mat->Height(), op_mat->Width()),
+                        gko_array<real_t>::view(executor,
+                                                nnz,
+                                                op_mat->ReadWriteData(on_device)),
+                        gko_array<int>::view(executor,
+                                             nnz,
+                                             op_mat->ReadWriteJ(on_device)),
+                        gko_array<int>::view(executor, op_mat->Height() + 1,
+                                             op_mat->ReadWriteI(on_device)));
+
+   generated_precond = precond_gen->generate(gko::give(gko_matrix));
+   has_generated_precond = true;
+
+   // Set MFEM Solver size values
+   height = op.Height();
+   width = op.Width();
 }
 
 
-} // namespace GinkgoWrappers
+/* ---------------------- JacobiPreconditioner  ------------------------ */
+JacobiPreconditioner::JacobiPreconditioner(
+   GinkgoExecutor &exec,
+   const std::string &storage_opt,
+   const real_t accuracy,
+   const int max_block_size
+)
+   : GinkgoPreconditioner(exec)
+{
+
+   if (storage_opt == "auto")
+   {
+      precond_gen = gko::preconditioner::Jacobi<real_t, int>::build()
+                    .with_storage_optimization(
+                       gko::precision_reduction::autodetect())
+                    .with_accuracy(accuracy)
+                    .with_max_block_size(static_cast<unsigned int>(max_block_size))
+                    .on(executor);
+   }
+   else
+   {
+      precond_gen = gko::preconditioner::Jacobi<real_t, int>::build()
+                    .with_storage_optimization(
+                       gko::precision_reduction(0, 0))
+                    .with_accuracy(accuracy)
+                    .with_max_block_size(static_cast<unsigned int>(max_block_size))
+                    .on(executor);
+   }
+
+}
+
+/* ---------------------- Ilu/IluIsaiPreconditioner  ------------------------ */
+IluPreconditioner::IluPreconditioner(
+   GinkgoExecutor &exec,
+   const std::string &factorization_type,
+   const int sweeps,
+   const bool skip_sort
+)
+   : GinkgoPreconditioner(exec)
+{
+   if (factorization_type == "exact")
+   {
+      using ilu_fact_type = gko::factorization::Ilu<real_t, int>;
+      std::shared_ptr<ilu_fact_type::Factory> fact_factory =
+         ilu_fact_type::build()
+         .with_skip_sorting(skip_sort)
+         .on(executor);
+      precond_gen = gko::preconditioner::Ilu<>::build()
+                    .with_factorization(fact_factory)
+                    .on(executor);
+   }
+   else
+   {
+      using ilu_fact_type = gko::factorization::ParIlu<real_t, int>;
+      std::shared_ptr<ilu_fact_type::Factory> fact_factory =
+         ilu_fact_type::build()
+         .with_iterations(static_cast<unsigned long>(sweeps))
+         .with_skip_sorting(skip_sort)
+         .on(executor);
+      precond_gen = gko::preconditioner::Ilu<>::build()
+                    .with_factorization(fact_factory)
+                    .on(executor);
+   }
+
+}
+
+IluIsaiPreconditioner::IluIsaiPreconditioner(
+   GinkgoExecutor &exec,
+   const std::string &factorization_type,
+   const int sweeps,
+   const int sparsity_power,
+   const bool skip_sort
+)
+   : GinkgoPreconditioner(exec)
+{
+   using l_solver_type = gko::preconditioner::LowerIsai<>;
+   using u_solver_type = gko::preconditioner::UpperIsai<>;
+
+   std::shared_ptr<l_solver_type::Factory> l_solver_factory =
+      l_solver_type::build()
+      .with_sparsity_power(sparsity_power)
+      .on(executor);
+   std::shared_ptr<u_solver_type::Factory> u_solver_factory =
+      u_solver_type::build()
+      .with_sparsity_power(sparsity_power)
+      .on(executor);
+
+
+
+   if (factorization_type == "exact")
+   {
+      using ilu_fact_type = gko::factorization::Ilu<real_t, int>;
+      std::shared_ptr<ilu_fact_type::Factory> fact_factory =
+         ilu_fact_type::build()
+         .with_skip_sorting(skip_sort)
+         .on(executor);
+      precond_gen = gko::preconditioner::Ilu<l_solver_type,
+      u_solver_type>::build()
+      .with_factorization(fact_factory)
+      .with_l_solver(l_solver_factory)
+      .with_u_solver(u_solver_factory)
+      .on(executor);
+
+   }
+   else
+   {
+      using ilu_fact_type = gko::factorization::ParIlu<real_t, int>;
+      std::shared_ptr<ilu_fact_type::Factory> fact_factory =
+         ilu_fact_type::build()
+         .with_iterations(static_cast<unsigned long>(sweeps))
+         .with_skip_sorting(skip_sort)
+         .on(executor);
+      precond_gen = gko::preconditioner::Ilu<l_solver_type,
+      u_solver_type>::build()
+      .with_factorization(fact_factory)
+      .with_l_solver(l_solver_factory)
+      .with_u_solver(u_solver_factory)
+      .on(executor);
+   }
+}
+
+
+/* ---------------------- Ic/IcIsaiPreconditioner  ------------------------ */
+IcPreconditioner::IcPreconditioner(
+   GinkgoExecutor &exec,
+   const std::string &factorization_type,
+   const int sweeps,
+   const bool skip_sort
+)
+   : GinkgoPreconditioner(exec)
+{
+
+   if (factorization_type == "exact")
+   {
+      using ic_fact_type = gko::factorization::Ic<real_t, int>;
+      std::shared_ptr<ic_fact_type::Factory> fact_factory =
+         ic_fact_type::build()
+         .with_both_factors(false)
+         .with_skip_sorting(skip_sort)
+         .on(executor);
+      precond_gen = gko::preconditioner::Ic<>::build()
+                    .with_factorization(fact_factory)
+                    .on(executor);
+   }
+   else
+   {
+      using ic_fact_type = gko::factorization::ParIc<real_t, int>;
+      std::shared_ptr<ic_fact_type::Factory> fact_factory =
+         ic_fact_type::build()
+         .with_both_factors(false)
+         .with_iterations(static_cast<unsigned long>(sweeps))
+         .with_skip_sorting(skip_sort)
+         .on(executor);
+      precond_gen = gko::preconditioner::Ic<>::build()
+                    .with_factorization(fact_factory)
+                    .on(executor);
+   }
+}
+
+IcIsaiPreconditioner::IcIsaiPreconditioner(
+   GinkgoExecutor &exec,
+   const std::string &factorization_type,
+   const int sweeps,
+   const int sparsity_power,
+   const bool skip_sort
+)
+   : GinkgoPreconditioner(exec)
+{
+
+   using l_solver_type = gko::preconditioner::LowerIsai<>;
+   std::shared_ptr<l_solver_type::Factory> l_solver_factory =
+      l_solver_type::build()
+      .with_sparsity_power(sparsity_power)
+      .on(executor);
+   if (factorization_type == "exact")
+   {
+      using ic_fact_type = gko::factorization::Ic<real_t, int>;
+      std::shared_ptr<ic_fact_type::Factory> fact_factory =
+         ic_fact_type::build()
+         .with_both_factors(false)
+         .with_skip_sorting(skip_sort)
+         .on(executor);
+      precond_gen = gko::preconditioner::Ic<l_solver_type>::build()
+                    .with_factorization(fact_factory)
+                    .with_l_solver(l_solver_factory)
+                    .on(executor);
+   }
+   else
+   {
+      using ic_fact_type = gko::factorization::ParIc<real_t, int>;
+      std::shared_ptr<ic_fact_type::Factory> fact_factory =
+         ic_fact_type::build()
+         .with_both_factors(false)
+         .with_iterations(static_cast<unsigned long>(sweeps))
+         .with_skip_sorting(skip_sort)
+         .on(executor);
+      precond_gen = gko::preconditioner::Ic<l_solver_type>::build()
+                    .with_factorization(fact_factory)
+                    .with_l_solver(l_solver_factory)
+                    .on(executor);
+   }
+}
+
+/* ---------------------- MFEMPreconditioner  ------------------------ */
+MFEMPreconditioner::MFEMPreconditioner(
+   GinkgoExecutor &exec,
+   const Solver &mfem_precond
+)
+   : GinkgoPreconditioner(exec)
+{
+   generated_precond = std::shared_ptr<OperatorWrapper>(
+                          new OperatorWrapper(executor,
+                                              mfem_precond.Height(), &mfem_precond));
+   has_generated_precond = true;
+}
+
+} // namespace Ginkgo
 
 } // namespace mfem
 

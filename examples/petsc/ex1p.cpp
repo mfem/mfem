@@ -7,10 +7,10 @@
 //               mpirun -np 4 ex1p -m ../../data/amr-quad.mesh --petscopts rc_ex1p
 //
 // Device sample runs:
-//               mpirun -np 4 ex1p -pa -d cuda --petscopts rc_ex1p_cuda
+//               mpirun -np 4 ex1p -pa -d cuda --petscopts rc_ex1p_device
 //
 // Description:  This example code demonstrates the use of MFEM to define a
-//               simple finite element discretization of the Laplace problem
+//               simple finite element discretization of the Poisson problem
 //               -Delta u = 1 with homogeneous Dirichlet boundary conditions.
 //               Specifically, we discretize using a FE space of the specified
 //               order, or if order < 1 using an isoparametric/isogeometric
@@ -43,21 +43,21 @@ using namespace mfem;
 class UserMonitor : public PetscSolverMonitor
 {
 private:
-   ParBilinearForm *_a;
-   ParLinearForm *_b;
+   ParBilinearForm *a;
+   ParLinearForm *b;
 
 public:
-   UserMonitor(ParBilinearForm *a, ParLinearForm *b)
-      : PetscSolverMonitor(true,false), _a(a), _b(b) {}
+   UserMonitor(ParBilinearForm *a_, ParLinearForm *b_)
+      : PetscSolverMonitor(true,false), a(a_), b(b_) {}
 
    void MonitorSolution(PetscInt it, PetscReal norm, const Vector &X)
    {
       // we plot the first 5 iterates
       if (!it || it > 5) { return; }
-      ParFiniteElementSpace *fespace = _a->ParFESpace();
+      ParFiniteElementSpace *fespace = a->ParFESpace();
       ParMesh *mesh = fespace->GetParMesh();
-      ParGridFunction _x(fespace);
-      _a->RecoverFEMSolution(X, *_b, _x);
+      ParGridFunction x(fespace);
+      a->RecoverFEMSolution(X, *b, x);
 
       char vishost[] = "localhost";
       int  visport   = 19916;
@@ -68,18 +68,18 @@ public:
       socketstream sol_sock(vishost, visport);
       sol_sock << "parallel " << num_procs << " " << myid << "\n";
       sol_sock.precision(8);
-      sol_sock << "solution\n" << *mesh << _x
+      sol_sock << "solution\n" << *mesh << x
                << "window_title 'Iteration no " << it << "'" << flush;
    }
 };
 
 int main(int argc, char *argv[])
 {
-   // 1. Initialize MPI.
-   int num_procs, myid;
-   MPI_Init(&argc, &argv);
-   MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
-   MPI_Comm_rank(MPI_COMM_WORLD, &myid);
+   // 1. Initialize MPI and HYPRE.
+   Mpi::Init(argc, argv);
+   int num_procs = Mpi::WorldSize();
+   int myid = Mpi::WorldRank();
+   Hypre::Init();
 
    // 2. Parse command-line options.
    const char *mesh_file = "../../data/star.mesh";
@@ -130,7 +130,6 @@ int main(int argc, char *argv[])
       {
          args.PrintUsage(cout);
       }
-      MPI_Finalize();
       return 1;
    }
    if (myid == 0)
@@ -203,7 +202,7 @@ int main(int argc, char *argv[])
       delete_fec = true;
    }
    ParFiniteElementSpace *fespace = new ParFiniteElementSpace(pmesh, fec);
-   HYPRE_Int size = fespace->GlobalTrueVSize();
+   HYPRE_BigInt size = fespace->GlobalTrueVSize();
    if (myid == 0)
    {
       cout << "Number of finite element unknowns: " << size << endl;
@@ -379,8 +378,6 @@ int main(int argc, char *argv[])
 
    // We finalize PETSc
    MFEMFinalizePetsc();
-
-   MPI_Finalize();
 
    return 0;
 }

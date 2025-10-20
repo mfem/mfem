@@ -10,7 +10,7 @@
 //               mpirun -np 4 ex1p --amgx-file amg_pcg.json
 //
 // Description:  This example code demonstrates the use of MFEM to define a
-//               simple finite element discretization of the Laplace problem
+//               simple finite element discretization of the Poisson problem
 //               -Delta u = 1 with homogeneous Dirichlet boundary conditions.
 //               Specifically, we discretize using a FE space of the specified
 //               order, or if order < 1 using an isoparametric/isogeometric
@@ -37,11 +37,11 @@ using namespace mfem;
 
 int main(int argc, char *argv[])
 {
-   // 1. Initialize MPI.
-   int num_procs, myid;
-   MPI_Init(&argc, &argv);
-   MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
-   MPI_Comm_rank(MPI_COMM_WORLD, &myid);
+   // 1. Initialize MPI and HYPRE.
+   Mpi::Init(argc, argv);
+   int num_procs = Mpi::WorldSize();
+   int myid = Mpi::WorldRank();
+   Hypre::Init();
 
    // 2. Parse command-line options.
    const char *mesh_file = "../../data/star.mesh";
@@ -87,7 +87,6 @@ int main(int argc, char *argv[])
       {
          args.PrintUsage(cout);
       }
-      MPI_Finalize();
       return 1;
    }
    if (myid == 0)
@@ -157,7 +156,7 @@ int main(int argc, char *argv[])
       delete_fec = true;
    }
    ParFiniteElementSpace fespace(&pmesh, fec);
-   HYPRE_Int size = fespace.GlobalTrueVSize();
+   HYPRE_BigInt size = fespace.GlobalTrueVSize();
    if (myid == 0)
    {
       cout << "Number of finite element unknowns: " << size << endl;
@@ -320,7 +319,6 @@ int main(int argc, char *argv[])
    {
       delete fec;
    }
-   MPI_Finalize();
 
    return 0;
 }

@@ -49,10 +49,10 @@ int problem;
 void velocity_function(const Vector &x, Vector &v);
 
 // Initial condition
-double u0_function(const Vector &x);
+real_t u0_function(const Vector &x);
 
 // Inflow boundary condition
-double inflow_function(const Vector &x);
+real_t inflow_function(const Vector &x);
 
 // Mesh bounding box
 Vector bb_min, bb_max;
@@ -79,7 +79,7 @@ private:
    mutable PetscParMatrix* rJacobian;
 
 public:
-   FE_Evolution(ParBilinearForm &_M, ParBilinearForm &_K, const Vector &_b,
+   FE_Evolution(ParBilinearForm &M_, ParBilinearForm &K_, const Vector &b_,
                 bool implicit);
 
    virtual void ExplicitMult(const Vector &x, Vector &y) const;
@@ -87,7 +87,7 @@ public:
    virtual void Mult(const Vector &x, Vector &y) const;
    virtual Operator& GetExplicitGradient(const Vector &x) const;
    virtual Operator& GetImplicitGradient(const Vector &x, const Vector &xp,
-                                         double shift) const;
+                                         real_t shift) const;
    virtual ~FE_Evolution() { delete iJacobian; delete rJacobian; }
 };
 
@@ -103,8 +103,8 @@ private:
    bool             pause;
 
 public:
-   UserMonitor(socketstream& _s, ParMesh* _m, ParGridFunction* _u, int _vt) :
-      PetscSolverMonitor(true,false), sout(_s), pmesh(_m), u(_u), vt(_vt),
+   UserMonitor(socketstream& s_, ParMesh* m_, ParGridFunction* u_, int vt_) :
+      PetscSolverMonitor(true,false), sout(s_), pmesh(m_), u(u_), vt(vt_),
       pause(true) {}
 
    void MonitorSolution(PetscInt step, PetscReal norm, const Vector &X)
@@ -136,11 +136,11 @@ public:
 
 int main(int argc, char *argv[])
 {
-   // 1. Initialize MPI.
-   int num_procs, myid;
-   MPI_Init(&argc, &argv);
-   MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
-   MPI_Comm_rank(MPI_COMM_WORLD, &myid);
+   // 1. Initialize MPI and HYPRE.
+   Mpi::Init(argc, argv);
+   int num_procs = Mpi::WorldSize();
+   int myid = Mpi::WorldRank();
+   Hypre::Init();
 
    // 2. Parse command-line options.
    problem = 0;
@@ -153,8 +153,8 @@ int main(int argc, char *argv[])
    bool fa = false;
    const char *device_config = "cpu";
    int ode_solver_type = 4;
-   double t_final = 10.0;
-   double dt = 0.01;
+   real_t t_final = 10.0;
+   real_t dt = 0.01;
    bool visualization = true;
    bool visit = false;
    bool binary = false;
@@ -222,7 +222,6 @@ int main(int argc, char *argv[])
       {
          args.PrintUsage(cout);
       }
-      MPI_Finalize();
       return 1;
    }
    if (myid == 0)
@@ -257,7 +256,6 @@ int main(int argc, char *argv[])
             {
                cout << "Unknown ODE solver type: " << ode_solver_type << '\n';
             }
-            MPI_Finalize();
             return 3;
       }
    }
@@ -298,7 +296,7 @@ int main(int argc, char *argv[])
    DG_FECollection fec(order, dim, BasisType::GaussLobatto);
    ParFiniteElementSpace *fes = new ParFiniteElementSpace(pmesh, &fec);
 
-   HYPRE_Int global_vSize = fes->GlobalTrueVSize();
+   HYPRE_BigInt global_vSize = fes->GlobalTrueVSize();
    if (myid == 0)
    {
       cout << "Number of unknowns: " << global_vSize << endl;
@@ -433,7 +431,7 @@ int main(int argc, char *argv[])
    // 10. Define the time-dependent evolution operator describing the ODE
    FE_Evolution *adv = new FE_Evolution(*m, *k, *B, implicit);
 
-   double t = 0.0;
+   real_t t = 0.0;
    adv->SetTime(t);
    if (use_petsc)
    {
@@ -452,8 +450,8 @@ int main(int argc, char *argv[])
       for (int ti = 0; !done; )
       {
          // We cannot match exactly the time history of the Run method
-         // since we are explictly telling PETSc to use a time step
-         double dt_real = min(dt, t_final - t);
+         // since we are explicitly telling PETSc to use a time step
+         real_t dt_real = min(dt, t_final - t);
          ode_solver->Step(*U, t, dt_real);
          ti++;
 
@@ -515,37 +513,36 @@ int main(int argc, char *argv[])
    // We finalize PETSc
    if (use_petsc) { MFEMFinalizePetsc(); }
 
-   MPI_Finalize();
    return 0;
 }
 
 
 // Implementation of class FE_Evolution
-FE_Evolution::FE_Evolution(ParBilinearForm &_M, ParBilinearForm &_K,
-                           const Vector &_b,bool M_in_lhs)
-   : TimeDependentOperator(_M.Height(), 0.0,
+FE_Evolution::FE_Evolution(ParBilinearForm &M_, ParBilinearForm &K_,
+                           const Vector &b_,bool M_in_lhs)
+   : TimeDependentOperator(M_.ParFESpace()->GetTrueVSize(), 0.0,
                            M_in_lhs ? TimeDependentOperator::IMPLICIT
                            : TimeDependentOperator::EXPLICIT),
-     b(_b), comm(_M.ParFESpace()->GetComm()), M_solver(comm), z(_M.Height()),
+     b(b_), comm(M_.ParFESpace()->GetComm()), M_solver(comm), z(height),
      iJacobian(NULL), rJacobian(NULL)
 {
-   MAlev = _M.GetAssemblyLevel();
-   KAlev = _K.GetAssemblyLevel();
-   if (_M.GetAssemblyLevel()==AssemblyLevel::LEGACYFULL)
+   MAlev = M_.GetAssemblyLevel();
+   KAlev = K_.GetAssemblyLevel();
+   if (M_.GetAssemblyLevel()==AssemblyLevel::LEGACY)
    {
-      M.Reset(_M.ParallelAssemble(), true);
-      K.Reset(_K.ParallelAssemble(), true);
+      M.Reset(M_.ParallelAssemble(), true);
+      K.Reset(K_.ParallelAssemble(), true);
    }
    else
    {
-      M.Reset(&_M, false);
-      K.Reset(&_K, false);
+      M.Reset(&M_, false);
+      K.Reset(&K_, false);
    }
 
    M_solver.SetOperator(*M);
 
    Array<int> ess_tdof_list;
-   if (_M.GetAssemblyLevel()==AssemblyLevel::LEGACYFULL)
+   if (M_.GetAssemblyLevel()==AssemblyLevel::LEGACY)
    {
       HypreParMatrix &M_mat = *M.As<HypreParMatrix>();
 
@@ -554,7 +551,7 @@ FE_Evolution::FE_Evolution(ParBilinearForm &_M, ParBilinearForm &_K,
    }
    else
    {
-      M_prec = new OperatorJacobiSmoother(_M, ess_tdof_list);
+      M_prec = new OperatorJacobiSmoother(M_, ess_tdof_list);
    }
 
    M_solver.SetPreconditioner(*M_prec);
@@ -609,7 +606,7 @@ void FE_Evolution::Mult(const Vector &x, Vector &y) const
 Operator& FE_Evolution::GetExplicitGradient(const Vector &x) const
 {
    delete rJacobian;
-   Operator::Type otype = (KAlev == AssemblyLevel::LEGACYFULL ?
+   Operator::Type otype = (KAlev == AssemblyLevel::LEGACY ?
                            Operator::PETSC_MATAIJ : Operator::ANY_TYPE);
    if (isImplicit())
    {
@@ -624,9 +621,9 @@ Operator& FE_Evolution::GetExplicitGradient(const Vector &x) const
 
 // LHS Jacobian, evaluated as shift*F_du/dt + F_u
 Operator& FE_Evolution::GetImplicitGradient(const Vector &x, const Vector &xp,
-                                            double shift) const
+                                            real_t shift) const
 {
-   Operator::Type otype = (MAlev == AssemblyLevel::LEGACYFULL ?
+   Operator::Type otype = (MAlev == AssemblyLevel::LEGACY ?
                            Operator::PETSC_MATAIJ : Operator::ANY_TYPE);
    delete iJacobian;
    if (isImplicit())
@@ -651,7 +648,7 @@ void velocity_function(const Vector &x, Vector &v)
    Vector X(dim);
    for (int i = 0; i < dim; i++)
    {
-      double center = (bb_min[i] + bb_max[i]) * 0.5;
+      real_t center = (bb_min[i] + bb_max[i]) * 0.5;
       X(i) = 2 * (x(i) - center) / (bb_max[i] - bb_min[i]);
    }
 
@@ -673,7 +670,7 @@ void velocity_function(const Vector &x, Vector &v)
       case 2:
       {
          // Clockwise rotation in 2D around the origin
-         const double w = M_PI/2;
+         const real_t w = M_PI/2;
          switch (dim)
          {
             case 1: v(0) = 1.0; break;
@@ -685,8 +682,8 @@ void velocity_function(const Vector &x, Vector &v)
       case 3:
       {
          // Clockwise twisting rotation in 2D around the origin
-         const double w = M_PI/2;
-         double d = max((X(0)+1.)*(1.-X(0)),0.) * max((X(1)+1.)*(1.-X(1)),0.);
+         const real_t w = M_PI/2;
+         real_t d = max((X(0)+1.)*(1.-X(0)),0.) * max((X(1)+1.)*(1.-X(1)),0.);
          d = d*d;
          switch (dim)
          {
@@ -700,7 +697,7 @@ void velocity_function(const Vector &x, Vector &v)
 }
 
 // Initial condition
-double u0_function(const Vector &x)
+real_t u0_function(const Vector &x)
 {
    int dim = x.Size();
 
@@ -708,7 +705,7 @@ double u0_function(const Vector &x)
    Vector X(dim);
    for (int i = 0; i < dim; i++)
    {
-      double center = (bb_min[i] + bb_max[i]) * 0.5;
+      real_t center = (bb_min[i] + bb_max[i]) * 0.5;
       X(i) = 2 * (x(i) - center) / (bb_max[i] - bb_min[i]);
    }
 
@@ -724,10 +721,10 @@ double u0_function(const Vector &x)
             case 2:
             case 3:
             {
-               double rx = 0.45, ry = 0.25, cx = 0., cy = -0.2, w = 10.;
+               real_t rx = 0.45, ry = 0.25, cx = 0., cy = -0.2, w = 10.;
                if (dim == 3)
                {
-                  const double s = (1. + 0.25*cos(2*M_PI*X(2)));
+                  const real_t s = (1. + 0.25*cos(2*M_PI*X(2)));
                   rx *= s;
                   ry *= s;
                }
@@ -738,14 +735,14 @@ double u0_function(const Vector &x)
       }
       case 2:
       {
-         double x_ = X(0), y_ = X(1), rho, phi;
+         real_t x_ = X(0), y_ = X(1), rho, phi;
          rho = hypot(x_, y_);
          phi = atan2(y_, x_);
          return pow(sin(M_PI*rho),2)*sin(3*phi);
       }
       case 3:
       {
-         const double f = M_PI;
+         const real_t f = M_PI;
          return sin(f*X(0))*sin(f*X(1));
       }
    }
@@ -753,7 +750,7 @@ double u0_function(const Vector &x)
 }
 
 // Inflow boundary condition (zero for the problems considered in this example)
-double inflow_function(const Vector &x)
+real_t inflow_function(const Vector &x)
 {
    switch (problem)
    {

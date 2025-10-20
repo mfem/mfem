@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -17,10 +17,7 @@
 namespace mfem
 {
 
-DenseSymmetricMatrix::DenseSymmetricMatrix() : Matrix(0)
-{
-   data.Reset();
-}
+DenseSymmetricMatrix::DenseSymmetricMatrix() : Matrix(0) { }
 
 DenseSymmetricMatrix::DenseSymmetricMatrix(int s) : Matrix(s)
 {
@@ -29,10 +26,6 @@ DenseSymmetricMatrix::DenseSymmetricMatrix(int s) : Matrix(s)
    {
       data.New((s*(s+1))/2);
       *this = 0.0; // init with zeroes
-   }
-   else
-   {
-      data.Reset();
    }
 }
 
@@ -55,7 +48,7 @@ void DenseSymmetricMatrix::SetSize(int s)
    }
 }
 
-DenseSymmetricMatrix &DenseSymmetricMatrix::operator=(double c)
+DenseSymmetricMatrix &DenseSymmetricMatrix::operator=(real_t c)
 {
    const int s = (Height()*(Height()+1))/2;
    for (int i = 0; i < s; i++)
@@ -65,19 +58,33 @@ DenseSymmetricMatrix &DenseSymmetricMatrix::operator=(double c)
    return *this;
 }
 
-double &DenseSymmetricMatrix::Elem(int i, int j)
+DenseSymmetricMatrix &DenseSymmetricMatrix::operator=(const DenseSymmetricMatrix
+                                                      &m)
+{
+   SetSize(m.height);
+
+   const int hw = m.GetStoredSize();
+   for (int i = 0; i < hw; i++)
+   {
+      data[i] = m.data[i];
+   }
+
+   return *this;
+}
+
+real_t &DenseSymmetricMatrix::Elem(int i, int j)
 {
    return (*this)(i,j);
 }
 
-const double &DenseSymmetricMatrix::Elem(int i, int j) const
+const real_t &DenseSymmetricMatrix::Elem(int i, int j) const
 {
    return (*this)(i,j);
 }
 
-DenseSymmetricMatrix &DenseSymmetricMatrix::operator*=(double c)
+DenseSymmetricMatrix &DenseSymmetricMatrix::operator*=(real_t c)
 {
-   int s = Height()*(Height()+1)/2;
+   int s = GetStoredSize();
    for (int i = 0; i < s; i++)
    {
       data[i] *= c;
@@ -94,11 +101,6 @@ MatrixInverse *DenseSymmetricMatrix::Inverse() const
 {
    mfem_error("DenseSymmetricMatrix::Inverse() not implemented!");
    return nullptr;
-}
-
-void DenseSymmetricMatrix::Print (std::ostream & out, int width_) const
-{
-   mfem_error("DenseSymmetricMatrix::Print() not implemented!");
 }
 
 DenseSymmetricMatrix::~DenseSymmetricMatrix()

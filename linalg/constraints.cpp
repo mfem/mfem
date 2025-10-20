@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -48,31 +48,32 @@ Eliminator::Eliminator(const SparseMatrix& B, const Array<int>& lagrange_tdofs_,
    BsTinverse.Factor(Bs.Height());
 }
 
-void Eliminator::Eliminate(const Vector& in, Vector& out) const
+void Eliminator::Eliminate(const Vector& vin, Vector& vout) const
 {
-   Bp.Mult(in, out);
-   Bsinverse.Solve(Bs.Height(), 1, out);
-   out *= -1.0;
+   Bp.Mult(vin, vout);
+   Bsinverse.Solve(Bs.Height(), 1, vout.GetData());
+   vout *= -1.0;
 }
 
-void Eliminator::EliminateTranspose(const Vector& in, Vector& out) const
+void Eliminator::EliminateTranspose(const Vector& vin, Vector& vout) const
 {
-   Vector work(in);
-   BsTinverse.Solve(Bs.Height(), 1, work);
-   Bp.MultTranspose(work, out);
-   out *= -1.0;
+   Vector work(vin);
+   BsTinverse.Solve(Bs.Height(), 1, work.GetData());
+   Bp.MultTranspose(work, vout);
+   vout *= -1.0;
 }
 
-void Eliminator::LagrangeSecondary(const Vector& in, Vector& out) const
+void Eliminator::LagrangeSecondary(const Vector& vin, Vector& vout) const
 {
-   out = in;
-   Bsinverse.Solve(Bs.Height(), 1, out);
+   vout = vin;
+   Bsinverse.Solve(Bs.Height(), 1, vout.GetData());
 }
 
-void Eliminator::LagrangeSecondaryTranspose(const Vector& in, Vector& out) const
+void Eliminator::LagrangeSecondaryTranspose(const Vector& vin,
+                                            Vector& vout) const
 {
-   out = in;
-   BsTinverse.Solve(Bs.Height(), 1, out);
+   vout = vin;
+   BsTinverse.Solve(Bs.Height(), 1, vout.GetData());
 }
 
 void Eliminator::ExplicitAssembly(DenseMatrix& mat) const
@@ -92,71 +93,71 @@ EliminationProjection::EliminationProjection(const Operator& A,
 {
 }
 
-void EliminationProjection::Mult(const Vector& in, Vector& out) const
+void EliminationProjection::Mult(const Vector& vin, Vector& vout) const
 {
-   MFEM_ASSERT(in.Size() == width, "Wrong vector size!");
-   MFEM_ASSERT(out.Size() == height, "Wrong vector size!");
+   MFEM_ASSERT(vin.Size() == width, "Wrong vector size!");
+   MFEM_ASSERT(vout.Size() == height, "Wrong vector size!");
 
-   out = in;
+   vout = vin;
 
    for (int k = 0; k < eliminators.Size(); ++k)
    {
       Eliminator* elim = eliminators[k];
       Vector subvec_in;
       Vector subvec_out(elim->SecondaryDofs().Size());
-      in.GetSubVector(elim->PrimaryDofs(), subvec_in);
+      vin.GetSubVector(elim->PrimaryDofs(), subvec_in);
       elim->Eliminate(subvec_in, subvec_out);
-      out.SetSubVector(elim->SecondaryDofs(), subvec_out);
+      vout.SetSubVector(elim->SecondaryDofs(), subvec_out);
    }
 }
 
-void EliminationProjection::MultTranspose(const Vector& in, Vector& out) const
+void EliminationProjection::MultTranspose(const Vector& vin, Vector& vout) const
 {
-   MFEM_ASSERT(in.Size() == height, "Wrong vector size!");
-   MFEM_ASSERT(out.Size() == width, "Wrong vector size!");
+   MFEM_ASSERT(vin.Size() == height, "Wrong vector size!");
+   MFEM_ASSERT(vout.Size() == width, "Wrong vector size!");
 
-   out = in;
+   vout = vin;
 
    for (int k = 0; k < eliminators.Size(); ++k)
    {
       Eliminator* elim = eliminators[k];
       Vector subvec_in;
       Vector subvec_out(elim->PrimaryDofs().Size());
-      in.GetSubVector(elim->SecondaryDofs(), subvec_in);
+      vin.GetSubVector(elim->SecondaryDofs(), subvec_in);
       elim->EliminateTranspose(subvec_in, subvec_out);
-      out.AddElementVector(elim->PrimaryDofs(), subvec_out);
-      out.SetSubVector(elim->SecondaryDofs(), 0.0);
+      vout.AddElementVector(elim->PrimaryDofs(), subvec_out);
+      vout.SetSubVector(elim->SecondaryDofs(), 0.0);
    }
 }
 
 SparseMatrix * EliminationProjection::AssembleExact() const
 {
-   SparseMatrix * out = new SparseMatrix(height, width);
+   SparseMatrix * mat = new SparseMatrix(height, width);
 
    for (int i = 0; i < height; ++i)
    {
-      out->Add(i, i, 1.0);
+      mat->Add(i, i, 1.0);
    }
 
    for (int k = 0; k < eliminators.Size(); ++k)
    {
       Eliminator* elim = eliminators[k];
-      DenseMatrix mat;
-      elim->ExplicitAssembly(mat);
+      DenseMatrix mat_k;
+      elim->ExplicitAssembly(mat_k);
       for (int iz = 0; iz < elim->SecondaryDofs().Size(); ++iz)
       {
          int i = elim->SecondaryDofs()[iz];
          for (int jz = 0; jz < elim->PrimaryDofs().Size(); ++jz)
          {
             int j = elim->PrimaryDofs()[jz];
-            out->Add(i, j, mat(iz, jz));
+            mat->Add(i, j, mat_k(iz, jz));
          }
-         out->Set(i, i, 0.0);
+         mat->Set(i, i, 0.0);
       }
    }
 
-   out->Finalize();
-   return out;
+   mat->Finalize();
+   return mat;
 }
 
 void EliminationProjection::BuildGTilde(const Vector& r, Vector& rtilde) const
@@ -263,7 +264,7 @@ EliminationSolver::EliminationSolver(HypreParMatrix& A, SparseMatrix& B,
    {
       int * I = B.GetI();
       int * J = B.GetJ();
-      double * data = B.GetData();
+      real_t * data = B.GetData();
 
       for (int k = 0; k < constraint_rowstarts.Size() - 1; ++k)
       {
@@ -280,7 +281,7 @@ EliminationSolver::EliminationSolver(HypreParMatrix& A, SparseMatrix& B,
             for (int jptr = I[i]; jptr < I[i + 1]; ++jptr)
             {
                int j = J[jptr];
-               double val = data[jptr];
+               real_t val = data[jptr];
                if (std::abs(val) > 1.e-12 && secondary_dofs.Find(j) == -1)
                {
                   secondary_dofs[i - constraint_rowstarts[k]] = j;
@@ -318,6 +319,10 @@ void EliminationSolver::Mult(const Vector& rhs, Vector& sol) const
    {
       prec = BuildPreconditioner();
    }
+   else
+   {
+      prec->SetOperator(*h_explicit_operator);
+   }
    if (!krylov)
    {
       krylov = BuildKrylov();
@@ -327,7 +332,7 @@ void EliminationSolver::Mult(const Vector& rhs, Vector& sol) const
    krylov->SetMaxIter(max_iter);
    krylov->SetRelTol(rel_tol);
    krylov->SetAbsTol(abs_tol);
-   krylov->SetPrintLevel(print_level);
+   krylov->SetPrintLevel(print_options);
 
    Vector rtilde(rhs.Size());
    if (constraint_rhs.Size() > 0)
@@ -347,6 +352,7 @@ void EliminationSolver::Mult(const Vector& rhs, Vector& sol) const
    reducedsol = 0.0;
    krylov->Mult(reducedrhs, reducedsol);
    final_iter = krylov->GetNumIterations();
+   initial_norm = krylov->GetInitialNorm();
    final_norm = krylov->GetFinalNorm();
    converged = krylov->GetConverged();
 
@@ -355,23 +361,21 @@ void EliminationSolver::Mult(const Vector& rhs, Vector& sol) const
    sol += rtilde;
 }
 
-void PenaltyConstrainedSolver::Initialize(HypreParMatrix& A, HypreParMatrix& B)
+void PenaltyConstrainedSolver::Initialize(HypreParMatrix& A, HypreParMatrix& B,
+                                          HypreParMatrix& D)
 {
-   HypreParMatrix * hBT = B.Transpose();
-   HypreParMatrix * hBTB = ParMult(hBT, &B, true);
+   HypreParMatrix * hBTB = RAP(&D, &B);
    // this matrix doesn't get cleanly deleted?
    // (hypre comm pkg)
-   (*hBTB) *= penalty;
    penalized_mat = ParAdd(&A, hBTB);
    delete hBTB;
-   delete hBT;
 }
 
 PenaltyConstrainedSolver::PenaltyConstrainedSolver(
-   HypreParMatrix& A, SparseMatrix& B, double penalty_)
+   HypreParMatrix& A, SparseMatrix& B, real_t penalty_)
    :
    ConstrainedSolver(A.GetComm(), A, B),
-   penalty(penalty_),
+   penalty(B.Height()),
    constraintB(B),
    krylov(nullptr),
    prec(nullptr)
@@ -388,21 +392,43 @@ PenaltyConstrainedSolver::PenaltyConstrainedSolver(
    if (rank == size - 1) { global_constraints = constraint_running_total; }
    MPI_Bcast(&global_constraints, 1, MPI_INT, size - 1, A.GetComm());
 
-   HYPRE_Int glob_num_rows = global_constraints;
-   HYPRE_Int glob_num_cols = A.N();
-   HYPRE_Int row_starts[2] = {constraint_running_total - local_constraints,
-                              constraint_running_total
-                             };
-   HYPRE_Int col_starts[2] = {A.ColPart()[0], A.ColPart()[1]};
+   HYPRE_BigInt glob_num_rows = global_constraints;
+   HYPRE_BigInt glob_num_cols = A.N();
+   HYPRE_BigInt row_starts[2] = { constraint_running_total - local_constraints,
+                                  constraint_running_total
+                                };
+   HYPRE_BigInt col_starts[2] = { A.ColPart()[0], A.ColPart()[1] };
    HypreParMatrix hB(A.GetComm(), glob_num_rows, glob_num_cols,
                      row_starts, col_starts, &B);
    hB.CopyRowStarts();
    hB.CopyColStarts();
-   Initialize(A, hB);
+   penalty=penalty_;
+   SparseMatrix D(penalty);
+   HypreParMatrix hD(hB.GetComm(), hB.M(), hB.RowPart(), &D);
+   hD.CopyRowStarts();
+   hD.CopyColStarts();
+   Initialize(A, hB, hD);
 }
 
 PenaltyConstrainedSolver::PenaltyConstrainedSolver(
-   HypreParMatrix& A, HypreParMatrix& B, double penalty_)
+   HypreParMatrix& A, HypreParMatrix& B, real_t penalty_)
+   :
+   ConstrainedSolver(A.GetComm(), A, B),
+   penalty(B.Height()),
+   constraintB(B),
+   krylov(nullptr),
+   prec(nullptr)
+{
+   penalty=penalty_;
+   SparseMatrix D(penalty);
+   HypreParMatrix hD(B.GetComm(), B.M(), B.RowPart(), &D);
+   hD.CopyRowStarts();
+   hD.CopyColStarts();
+   Initialize(A, B, hD);
+}
+
+PenaltyConstrainedSolver::PenaltyConstrainedSolver(
+   HypreParMatrix& A, HypreParMatrix& B, Vector& penalty_)
    :
    ConstrainedSolver(A.GetComm(), A, B),
    penalty(penalty_),
@@ -410,7 +436,11 @@ PenaltyConstrainedSolver::PenaltyConstrainedSolver(
    krylov(nullptr),
    prec(nullptr)
 {
-   Initialize(A, B);
+   SparseMatrix D(penalty_);
+   HypreParMatrix hD(B.GetComm(), B.M(), B.RowPart(), &D);
+   hD.CopyRowStarts();
+   hD.CopyColStarts();
+   Initialize(A, B, hD);
 }
 
 PenaltyConstrainedSolver::~PenaltyConstrainedSolver()
@@ -426,6 +456,10 @@ void PenaltyConstrainedSolver::Mult(const Vector& b, Vector& x) const
    {
       prec = BuildPreconditioner();
    }
+   else
+   {
+      prec->SetOperator(*penalized_mat);
+   }
    if (!krylov)
    {
       krylov = BuildKrylov();
@@ -437,9 +471,11 @@ void PenaltyConstrainedSolver::Mult(const Vector& b, Vector& x) const
    Vector penalized_rhs(b);
    if (constraint_rhs.Size() > 0)
    {
+      Vector temp_rhs(constraint_rhs.Size());
+      SparseMatrix D(penalty);
+      D.Mult(constraint_rhs, temp_rhs);
       Vector temp(x.Size());
-      constraintB.MultTranspose(constraint_rhs, temp);
-      temp *= penalty;
+      constraintB.MultTranspose(temp_rhs, temp);
       penalized_rhs += temp;
    }
 
@@ -447,9 +483,10 @@ void PenaltyConstrainedSolver::Mult(const Vector& b, Vector& x) const
    krylov->SetRelTol(rel_tol);
    krylov->SetAbsTol(abs_tol);
    krylov->SetMaxIter(max_iter);
-   krylov->SetPrintLevel(print_level);
+   krylov->SetPrintLevel(print_options);
    krylov->Mult(penalized_rhs, x);
    final_iter = krylov->GetNumIterations();
+   initial_norm = krylov->GetInitialNorm();
    final_norm = krylov->GetFinalNorm();
    converged = krylov->GetConverged();
 
@@ -468,8 +505,8 @@ class IdentitySolver : public Solver
 {
 public:
    IdentitySolver(int size) : Solver(size) { }
-   void Mult(const Vector& x, Vector& y) const { y = x; }
-   void SetOperator(const Operator& op) { }
+   void Mult(const Vector& x, Vector& y) const override { y = x; }
+   void SetOperator(const Operator& op) override { }
 };
 
 void SchurConstrainedSolver::Initialize()
@@ -574,12 +611,15 @@ void SchurConstrainedSolver::LagrangeSystemMult(const Vector& x,
    gmres->SetRelTol(rel_tol);
    gmres->SetAbsTol(abs_tol);
    gmres->SetMaxIter(max_iter);
-   gmres->SetPrintLevel(print_level);
+   gmres->SetPrintLevel(print_options);
    gmres->SetPreconditioner(
       const_cast<BlockDiagonalPreconditioner&>(*block_pc));
 
    gmres->Mult(x, y);
    final_iter = gmres->GetNumIterations();
+   converged = gmres->GetConverged();
+   initial_norm = gmres->GetInitialNorm();
+   final_norm = gmres->GetFinalNorm();
    delete gmres;
 }
 
@@ -587,6 +627,7 @@ void SchurConstrainedSolver::LagrangeSystemMult(const Vector& x,
 SchurConstrainedHypreSolver::SchurConstrainedHypreSolver(MPI_Comm comm,
                                                          HypreParMatrix& hA_,
                                                          HypreParMatrix& hB_,
+                                                         Solver * prec,
                                                          int dimension,
                                                          bool reorder)
    :
@@ -594,13 +635,20 @@ SchurConstrainedHypreSolver::SchurConstrainedHypreSolver(MPI_Comm comm,
    hA(hA_),
    hB(hB_)
 {
-   auto h_primal_pc = new HypreBoomerAMG(hA);
-   h_primal_pc->SetPrintLevel(0);
-   if (dimension > 0)
+   if (prec == nullptr)
    {
-      h_primal_pc->SetSystemsOptions(dimension, reorder);
+      auto h_primal_pc = new HypreBoomerAMG(hA);
+      h_primal_pc->SetPrintLevel(0);
+      if (dimension > 0)
+      {
+         h_primal_pc->SetSystemsOptions(dimension, reorder);
+      }
+      primal_pc = h_primal_pc;
    }
-   primal_pc = h_primal_pc;
+   else
+   {
+      primal_pc = prec;
+   }
 
    HypreParMatrix * scaledB = new HypreParMatrix(hB);
    Vector diagA;
@@ -822,7 +870,7 @@ SparseMatrix * BuildNormalConstraints(FiniteElementSpace& fespace,
       }
    }
 
-   SparseMatrix * out = new SparseMatrix(n_rows, fespace.GetTrueVSize());
+   SparseMatrix * mout = new SparseMatrix(n_rows, fespace.GetTrueVSize());
 
    // fill in constraint matrix with normal vector information
    Vector nor(dim);
@@ -871,18 +919,18 @@ SparseMatrix * BuildNormalConstraints(FiniteElementSpace& fespace,
                                                         parallel, d);
                   if (visits == 1)
                   {
-                     out->Add(row, inner_truek, nor[d]);
+                     mout->Add(row, inner_truek, nor[d]);
                   }
                   else
                   {
-                     out->SetColPtr(row);
-                     const double pv = out->SearchRow(inner_truek);
-                     const double scaling = ((double) (visits - 1)) /
-                                            ((double) visits);
+                     mout->SetColPtr(row);
+                     const real_t pv = mout->SearchRow(inner_truek);
+                     const real_t scaling = ((real_t) (visits - 1)) /
+                                            ((real_t) visits);
                      // incremental average, based on how many times
                      // this node has been visited
-                     out->Set(row, inner_truek,
-                              scaling * pv + (1.0 / visits) * nor[d]);
+                     mout->Set(row, inner_truek,
+                               scaling * pv + (1.0 / visits) * nor[d]);
                   }
 
                }
@@ -890,9 +938,9 @@ SparseMatrix * BuildNormalConstraints(FiniteElementSpace& fespace,
          }
       }
    }
-   out->Finalize();
+   mout->Finalize();
 
-   return out;
+   return mout;
 }
 
 #ifdef MFEM_USE_MPI

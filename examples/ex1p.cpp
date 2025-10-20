@@ -9,6 +9,7 @@
 //               mpirun -np 4 ex1p -m ../data/fichera.mesh
 //               mpirun -np 4 ex1p -m ../data/fichera-mixed.mesh
 //               mpirun -np 4 ex1p -m ../data/toroid-wedge.mesh
+//               mpirun -np 4 ex1p -m ../data/octahedron.mesh -o 1
 //               mpirun -np 4 ex1p -m ../data/periodic-annulus-sector.msh
 //               mpirun -np 4 ex1p -m ../data/periodic-torus-sector.msh
 //               mpirun -np 4 ex1p -m ../data/square-disc-p2.vtk -o 2
@@ -29,17 +30,22 @@
 //
 // Device sample runs:
 //               mpirun -np 4 ex1p -pa -d cuda
+//               mpirun -np 4 ex1p -fa -d cuda
 //               mpirun -np 4 ex1p -pa -d occa-cuda
 //               mpirun -np 4 ex1p -pa -d raja-omp
 //               mpirun -np 4 ex1p -pa -d ceed-cpu
 //               mpirun -np 4 ex1p -pa -d ceed-cpu -o 4 -a
+//               mpirun -np 4 ex1p -pa -d ceed-cpu -m ../data/square-mixed.mesh
+//               mpirun -np 4 ex1p -pa -d ceed-cpu -m ../data/fichera-mixed.mesh
 //             * mpirun -np 4 ex1p -pa -d ceed-cuda
 //             * mpirun -np 4 ex1p -pa -d ceed-hip
 //               mpirun -np 4 ex1p -pa -d ceed-cuda:/gpu/cuda/shared
+//               mpirun -np 4 ex1p -pa -d ceed-cuda:/gpu/cuda/shared -m ../data/square-mixed.mesh
+//               mpirun -np 4 ex1p -pa -d ceed-cuda:/gpu/cuda/shared -m ../data/fichera-mixed.mesh
 //               mpirun -np 4 ex1p -m ../data/beam-tet.mesh -pa -d ceed-cpu
 //
 // Description:  This example code demonstrates the use of MFEM to define a
-//               simple finite element discretization of the Laplace problem
+//               simple finite element discretization of the Poisson problem
 //               -Delta u = 1 with homogeneous Dirichlet boundary conditions.
 //               Specifically, we discretize using a FE space of the specified
 //               order, or if order < 1 using an isoparametric/isogeometric
@@ -62,16 +68,18 @@ using namespace mfem;
 
 int main(int argc, char *argv[])
 {
-   // 1. Initialize MPI.
-   MPI_Session mpi;
-   int num_procs = mpi.WorldSize();
-   int myid = mpi.WorldRank();
+   // 1. Initialize MPI and HYPRE.
+   Mpi::Init();
+   int num_procs = Mpi::WorldSize();
+   int myid = Mpi::WorldRank();
+   Hypre::Init();
 
    // 2. Parse command-line options.
    const char *mesh_file = "../data/star.mesh";
    int order = 1;
    bool static_cond = false;
    bool pa = false;
+   bool fa = false;
    const char *device_config = "cpu";
    bool visualization = true;
    bool algebraic_ceed = false;
@@ -86,10 +94,13 @@ int main(int argc, char *argv[])
                   "--no-static-condensation", "Enable static condensation.");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
                   "--no-partial-assembly", "Enable Partial Assembly.");
+   args.AddOption(&fa, "-fa", "--full-assembly", "-no-fa",
+                  "--no-full-assembly", "Enable Full Assembly.");
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
 #ifdef MFEM_USE_CEED
-   args.AddOption(&algebraic_ceed, "-a", "--algebraic", "-no-a", "--no-algebraic",
+   args.AddOption(&algebraic_ceed, "-a", "--algebraic",
+                  "-no-a", "--no-algebraic",
                   "Use algebraic Ceed solver");
 #endif
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
@@ -171,7 +182,7 @@ int main(int argc, char *argv[])
       delete_fec = true;
    }
    ParFiniteElementSpace fespace(&pmesh, fec);
-   HYPRE_Int size = fespace.GlobalTrueVSize();
+   HYPRE_BigInt size = fespace.GlobalTrueVSize();
    if (myid == 0)
    {
       cout << "Number of finite element unknowns: " << size << endl;
@@ -179,13 +190,18 @@ int main(int argc, char *argv[])
 
    // 8. Determine the list of true (i.e. parallel conforming) essential
    //    boundary dofs. In this example, the boundary conditions are defined
-   //    by marking all the boundary attributes from the mesh as essential
-   //    (Dirichlet) and converting them to a list of true dofs.
+   //    by marking all the external boundary attributes from the mesh as
+   //    essential (Dirichlet) and converting them to a list of true dofs.
    Array<int> ess_tdof_list;
    if (pmesh.bdr_attributes.Size())
    {
       Array<int> ess_bdr(pmesh.bdr_attributes.Max());
-      ess_bdr = 1;
+      ess_bdr = 0;
+      // Apply boundary conditions on all external boundaries:
+      pmesh.MarkExternalBoundaries(ess_bdr);
+      // Boundary conditions can also be applied based on named attributes:
+      // pmesh.MarkNamedBoundaries(set_name, ess_bdr)
+
       fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
    }
 
@@ -197,17 +213,25 @@ int main(int argc, char *argv[])
    b.AddDomainIntegrator(new DomainLFIntegrator(one));
    b.Assemble();
 
-   // 10. Define the solution vector x as a parallel finite element grid function
-   //     corresponding to fespace. Initialize x with initial guess of zero,
-   //     which satisfies the boundary conditions.
+   // 10. Define the solution vector x as a parallel finite element grid
+   //     function corresponding to fespace. Initialize x with initial guess of
+   //     zero, which satisfies the boundary conditions.
    ParGridFunction x(&fespace);
    x = 0.0;
 
    // 11. Set up the parallel bilinear form a(.,.) on the finite element space
-   //     corresponding to the Laplacian operator -Delta, by adding the Diffusion
-   //     domain integrator.
+   //     corresponding to the Laplacian operator -Delta, by adding the
+   //     Diffusion domain integrator.
    ParBilinearForm a(&fespace);
    if (pa) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
+   if (fa)
+   {
+      a.SetAssemblyLevel(AssemblyLevel::FULL);
+      // Sort the matrix column indices when running on GPU or with OpenMP (i.e.
+      // when Device::IsEnabled() returns true). This makes the results
+      // bit-for-bit deterministic at the cost of somewhat longer run time.
+      a.EnableSparseMatrixSorting(Device::IsEnabled());
+   }
    a.AddDomainIntegrator(new DiffusionIntegrator(one));
 
    // 12. Assemble the parallel bilinear form and the corresponding linear

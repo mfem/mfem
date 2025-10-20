@@ -44,22 +44,22 @@
 using namespace std;
 using namespace mfem;
 
-double p_exact(const Vector &x);
+real_t p_exact(const Vector &x);
 void gradp_exact(const Vector &, Vector &);
-double div_gradp_exact(const Vector &x);
+real_t div_gradp_exact(const Vector &x);
 void v_exact(const Vector &x, Vector &v);
 void curlv_exact(const Vector &x, Vector &cv);
 
 int dim;
-double freq = 1.0, kappa;
+real_t freq = 1.0, kappa;
 
 int main(int argc, char *argv[])
 {
-   // 1. Initialize MPI.
-   int num_procs, myid;
-   MPI_Init(&argc, &argv);
-   MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
-   MPI_Comm_rank(MPI_COMM_WORLD, &myid);
+   // 1. Initialize MPI and HYPRE.
+   Mpi::Init(argc, argv);
+   int num_procs = Mpi::WorldSize();
+   int myid = Mpi::WorldRank();
+   Hypre::Init();
 
    // 2. Parse command-line options.
    const char *mesh_file = "../data/beam-hex.mesh";
@@ -94,7 +94,6 @@ int main(int argc, char *argv[])
       {
          args.PrintUsage(cout);
       }
-      MPI_Finalize();
       return 1;
    }
    if (myid == 0)
@@ -141,7 +140,6 @@ int main(int argc, char *argv[])
          pmesh->UniformRefinement();
       }
    }
-   pmesh->ReorientTetMesh();
 
    // 7. Define a parallel finite element space on the parallel mesh. Here we
    //    use Nedelec or Raviart-Thomas finite elements of the specified order.
@@ -167,8 +165,8 @@ int main(int argc, char *argv[])
    ParFiniteElementSpace trial_fes(pmesh, trial_fec);
    ParFiniteElementSpace test_fes(pmesh, test_fec);
 
-   HYPRE_Int trial_size = trial_fes.GlobalTrueVSize();
-   HYPRE_Int test_size = test_fes.GlobalTrueVSize();
+   HYPRE_BigInt trial_size = trial_fes.GlobalTrueVSize();
+   HYPRE_BigInt test_size = test_fes.GlobalTrueVSize();
 
    if (myid == 0)
    {
@@ -354,9 +352,9 @@ int main(int argc, char *argv[])
    // 14. Compute and print the L_2 norm of the error.
    if (prob == 0)
    {
-      double errSol = x.ComputeL2Error(gradp_coef);
-      double errInterp = discreteInterpolant.ComputeL2Error(gradp_coef);
-      double errProj = exact_proj.ComputeL2Error(gradp_coef);
+      real_t errSol = x.ComputeL2Error(gradp_coef);
+      real_t errInterp = discreteInterpolant.ComputeL2Error(gradp_coef);
+      real_t errProj = exact_proj.ComputeL2Error(gradp_coef);
 
       if (myid == 0)
       {
@@ -370,9 +368,9 @@ int main(int argc, char *argv[])
    }
    else if (prob == 1)
    {
-      double errSol = x.ComputeL2Error(curlv_coef);
-      double errInterp = discreteInterpolant.ComputeL2Error(curlv_coef);
-      double errProj = exact_proj.ComputeL2Error(curlv_coef);
+      real_t errSol = x.ComputeL2Error(curlv_coef);
+      real_t errInterp = discreteInterpolant.ComputeL2Error(curlv_coef);
+      real_t errProj = exact_proj.ComputeL2Error(curlv_coef);
 
       if (myid == 0)
       {
@@ -393,9 +391,9 @@ int main(int argc, char *argv[])
          irs[i] = &(IntRules.Get(i, order_quad));
       }
 
-      double errSol = x.ComputeL2Error(divgradp_coef, irs);
-      double errInterp = discreteInterpolant.ComputeL2Error(divgradp_coef, irs);
-      double errProj = exact_proj.ComputeL2Error(divgradp_coef, irs);
+      real_t errSol = x.ComputeL2Error(divgradp_coef, irs);
+      real_t errInterp = discreteInterpolant.ComputeL2Error(divgradp_coef, irs);
+      real_t errProj = exact_proj.ComputeL2Error(divgradp_coef, irs);
 
       if (myid == 0)
       {
@@ -440,12 +438,10 @@ int main(int argc, char *argv[])
    delete test_fec;
    delete pmesh;
 
-   MPI_Finalize();
-
    return 0;
 }
 
-double p_exact(const Vector &x)
+real_t p_exact(const Vector &x)
 {
    if (dim == 3)
    {
@@ -475,7 +471,7 @@ void gradp_exact(const Vector &x, Vector &f)
    }
 }
 
-double div_gradp_exact(const Vector &x)
+real_t div_gradp_exact(const Vector &x)
 {
    if (dim == 3)
    {

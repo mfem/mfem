@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -130,7 +130,7 @@ public:
    // compute the Nedelec DoFs of the irrotational portion, 'y', of
    // this vector field.  The resulting GridFunction will satisfy Curl y = 0
    // to machine precision.
-   virtual void Mult(const Vector &x, Vector &y) const;
+   void Mult(const Vector &x, Vector &y) const override;
 
    void Update();
 
@@ -179,7 +179,7 @@ public:
    // compute the Nedelec DoFs of the divergence free portion, 'y', of
    // this vector field.  The resulting vector will satisfy Div y = 0
    // in a weak sense.
-   virtual void Mult(const Vector &x, Vector &y) const;
+   void Mult(const Vector &x, Vector &y) const override;
 
    void Update();
 };
@@ -197,7 +197,7 @@ void VisualizeMesh(socketstream &sock, const char *vishost, int visport,
 /// specified host and port. Set the visualization window title, and optionally,
 /// its geometry.
 void VisualizeField(socketstream &sock, const char *vishost, int visport,
-                    ParGridFunction &gf, const char *title,
+                    const ParGridFunction &gf, const char *title,
                     int x = 0, int y = 0, int w = 400, int h = 400,
                     const char *keys = NULL, bool vec = false);
 

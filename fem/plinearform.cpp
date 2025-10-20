@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -41,6 +41,56 @@ void ParLinearForm::MakeRef(ParFiniteElementSpace *pf, Vector &v, int v_offset)
 {
    LinearForm::MakeRef(pf, v, v_offset);
    pfes = pf;
+}
+
+void ParLinearForm::Assemble()
+{
+   LinearForm::Assemble();
+
+   if (interior_face_integs.Size())
+   {
+      pfes->ExchangeFaceNbrData();
+      AssembleSharedFaces();
+   }
+}
+
+bool ParLinearForm::SupportsDevice() const
+{
+   bool parallel;
+   bool local = LinearForm::SupportsDevice();
+   MPI_Allreduce(&local, &parallel, 1, MFEM_MPI_CXX_BOOL, MPI_LAND,
+                 pfes->GetComm());
+   return parallel;
+}
+
+void ParLinearForm::AssembleSharedFaces()
+{
+   Array<int> vdofs;
+   Vector elemvect;
+
+   if (interior_face_integs.Size())
+   {
+      ParMesh *pmesh = pfes->GetParMesh();
+      for (int k = 0; k < interior_face_integs.Size(); k++)
+      {
+         for (int i = 0; i < pmesh->GetNSharedFaces(); i++)
+         {
+            FaceElementTransformations *tr = NULL;
+            tr = pmesh->GetSharedFaceTransformations(i);
+
+            if (tr != NULL)
+            {
+               int Elem2Nbr = tr->Elem2No - pmesh->GetNE();
+               fes -> GetElementVDofs (tr -> Elem1No, vdofs);
+               interior_face_integs[k]->
+               AssembleRHSElementVect(*fes->GetFE(tr->Elem1No),
+                                      *pfes->GetFaceNbrFE(Elem2Nbr),
+                                      *tr, elemvect);
+               AddElementVector (vdofs, elemvect);
+            }
+         }
+      }
+   }
 }
 
 void ParLinearForm::ParallelAssemble(Vector &tv)
