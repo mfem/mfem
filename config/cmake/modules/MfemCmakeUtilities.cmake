@@ -888,9 +888,13 @@ function(mfem_export_mk_files)
       set(${var} NO)
     endif()
   endforeach()
-  # TODO: Add support for MFEM_USE_CUDA=YES
-  set(MFEM_CXX ${CMAKE_CXX_COMPILER})
-  set(MFEM_HOST_CXX ${MFEM_CXX})
+  if (MFEM_USE_CUDA)
+    set(MFEM_CXX ${CMAKE_CUDA_COMPILER})
+  else()
+    # mfem doesn't use enable_language(HIP)
+    set(MFEM_CXX ${CMAKE_CXX_COMPILER})
+  endif()
+  set(MFEM_HOST_CXX ${CMAKE_CXX_COMPILER})
   set(MFEM_CPPFLAGS "")
   get_target_property(cxx_std mfem CXX_STANDARD)
   # For now, we ignore the setting of the CXX_EXTENSIONS property. If this
@@ -900,6 +904,10 @@ function(mfem_export_mk_files)
   string(STRIP
          "${cxx_std_flag} ${CMAKE_CXX_FLAGS_${BUILD_TYPE}} ${CMAKE_CXX_FLAGS}"
          MFEM_CXXFLAGS)
+  # TODO: CUDA/HIP compiler flags
+  if (MFEM_USE_CUDA)
+  elseif (MFEM_USE_HIP)
+  endif()
   set(MFEM_TPLFLAGS "")
   foreach(dir ${TPL_INCLUDE_DIRS})
     set(MFEM_TPLFLAGS "${MFEM_TPLFLAGS} -I${dir}")
@@ -929,6 +937,9 @@ function(mfem_export_mk_files)
     set(MFEM_LIB_FILE "\$(MFEM_LIB_DIR)/libmfem.a")
     set(MFEM_SHARED NO)
     set(MFEM_STATIC YES)
+  endif()
+  if (MFEM_USE_CUDA)
+    set(MFEM_LIBS "${MFEM_LIBS} -lcudart")
   endif()
   set(MFEM_BUILD_TAG "${CMAKE_SYSTEM}")
   set(MFEM_PREFIX "${CMAKE_INSTALL_PREFIX}")
@@ -1013,7 +1024,7 @@ function(mfem_export_mk_files)
   # Create the build-tree version of 'config.mk'
   configure_file(
     "${PROJECT_SOURCE_DIR}/config/config.mk.in"
-    "${PROJECT_BINARY_DIR}/config/config.mk")
+    "${PROJECT_BINARY_DIR}/config/config.mk" @ONLY)
   # Copy 'test.mk' from the source-tree to the build-tree
   configure_file(
     "${PROJECT_SOURCE_DIR}/config/test.mk"
@@ -1031,7 +1042,7 @@ function(mfem_export_mk_files)
   # Create the install-tree version of 'config.mk'
   configure_file(
     "${PROJECT_SOURCE_DIR}/config/config.mk.in"
-    "${PROJECT_BINARY_DIR}/config/config-install.mk")
+    "${PROJECT_BINARY_DIR}/config/config-install.mk" @ONLY)
 
   # Install rules for 'config.mk' and 'test.mk'
   install(FILES ${PROJECT_SOURCE_DIR}/config/test.mk
