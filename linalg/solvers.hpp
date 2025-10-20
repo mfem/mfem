@@ -1300,6 +1300,9 @@ private:
  * before passing it to the Mult() method of the Solver. This is a convenience
  * implementation to handle e.g. a Stokes flow problem with pure dirichlet boundary
  * conditions.
+ * 
+ * By default, this class orthogonalizes the final block of the input BlockVector.
+ * 
  */
 class BlockOrthoSolver : public Solver
 {
@@ -1311,7 +1314,7 @@ private:
 #else
    mutable int global_size;
 #endif
-   Array<int> bOffsets, vblock, pblock;
+   Array<int> bOffsets, ortho_indices;
 
 public:
    BlockOrthoSolver(Array<int> &bOffsets_);
@@ -1328,7 +1331,9 @@ public:
 private:
    Solver *solver = nullptr;
 
-   mutable Vector b_ortho, p_ortho, p_vec, temp;
+   mutable Vector temp, vec, vec_ortho;
+
+   void SetOrthogonalizationBlock(Array<int> &bOffsets);
 
    void Orthogonalize(const Vector &v, Vector &v_ortho) const;
 };

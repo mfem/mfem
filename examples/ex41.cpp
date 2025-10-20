@@ -168,7 +168,7 @@ int main(int argc, char *argv[])
    LinearForm g(&pfes);
    g.Update(&pfes, rhs.GetBlock(1), 0);
    FunctionCoefficient mass_source(g_source);
-   g.AddBdrFaceIntegrator(new DG_BoundaryNormalLFIntegrator(velocity_dbc));
+   g.AddBdrFaceIntegrator(new DGBoundaryNormalLFIntegrator(velocity_dbc));
    g.AddDomainIntegrator(new DomainLFIntegrator(mass_source));
    g.Assemble();
 

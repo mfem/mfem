@@ -3666,27 +3666,7 @@ BlockOrthoSolver::BlockOrthoSolver(Array<int> &bOffsets_)
 #endif
    , bOffsets(bOffsets_)
 {
-   // form index array corresponding to velocity block
-   int start_ind = bOffsets[0];
-   int vblock_size = bOffsets[1] - bOffsets[0];
-   vblock.SetSize(vblock_size);
-   for (int i=0; i < vblock_size; i++)
-   {
-      vblock[i] = start_ind + i;
-   }
-
-   // form index array corresponding to pressure block
-   start_ind = bOffsets[1];
-   int pblock_size = bOffsets[2] - bOffsets[1];
-   pblock.SetSize(pblock_size);
-   for (int i=0; i < pblock_size; i++)
-   {
-      pblock[i] = start_ind + i;
-   }
-
-   p_vec.SetSize(pblock.Size());
-   p_vec = 0.0;
-   p_ortho = p_vec;
+   SetOrthogonalizationBlock(bOffsets);
 }
 
 #ifdef MFEM_USE_MPI
@@ -3694,29 +3674,29 @@ BlockOrthoSolver::BlockOrthoSolver(Array<int> &bOffsets_, MPI_Comm mycomm_)
    : Solver(0, false), mycomm(mycomm_), global_size(-1), parallel(true),
      bOffsets(bOffsets_)
 {
-   // form index array corresponding to velocity block
-   int start_ind = bOffsets[0];
-   int vblock_size = bOffsets[1] - bOffsets[0];
-   vblock.SetSize(vblock_size);
-   for (int i=0; i < vblock_size; i++)
-   {
-      vblock[i] = start_ind + i;
-   }
-
-   // form index array corresponding to pressure block
-   start_ind = bOffsets[1];
-   int pblock_size = bOffsets[2] - bOffsets[1];
-   pblock.SetSize(pblock_size);
-   for (int i=0; i < pblock_size; i++)
-   {
-      pblock[i] = start_ind + i;
-   }
-
-   p_vec.SetSize(pblock.Size());
-   p_vec = 0.0;
-   p_ortho = p_vec;
+   SetOrthogonalizationBlock(bOffsets);
 }
 #endif
+
+void BlockOrthoSolver::SetOrthogonalizationBlock(Array<int> &bOffsets)
+{
+   // form index array corresponding to the part of the block vector
+   // to be orthogonalized. Default is to orthogonalize the final block.
+   int size = bOffsets.Size() - 1;
+   MFEM_VERIFY(size >= 1,"BlockOrthoSolver: bOffsets must have at least 2 entries.");
+
+   int start_ind = bOffsets[size-1];
+   int block_size = bOffsets[size] - bOffsets[size-1];
+   ortho_indices.SetSize(block_size);
+   for (int i=0; i < block_size; i++)
+   {
+      ortho_indices[i] = start_ind + i;
+   }
+
+   vec.SetSize(ortho_indices.Size());
+   vec = 0.0;
+   vec_ortho = vec;
+}
 
 void BlockOrthoSolver::SetSolver(Solver &s)
 {
@@ -3745,12 +3725,12 @@ void BlockOrthoSolver::Mult(const Vector &b, Vector &x) const
    MFEM_VERIFY(height == b.Size(), "incompatible input Vector size!");
    MFEM_VERIFY(height == x.Size(), "incompatible output Vector size!");
 
-   // Orthogonalize input pressure block
-   b.GetSubVector(pblock,p_vec);
-   Orthogonalize(p_vec, p_ortho);
+   // Orthogonalize input block
+   b.GetSubVector(ortho_indices,vec);
+   Orthogonalize(vec, vec_ortho);
 
    temp = b;
-   temp.SetSubVector(pblock,p_ortho); // update pressure block
+   temp.SetSubVector(ortho_indices,vec_ortho);
 
    // Propagate iterative_mode to the solver:
    solver->iterative_mode = iterative_mode;
@@ -3759,10 +3739,10 @@ void BlockOrthoSolver::Mult(const Vector &b, Vector &x) const
    solver->Mult(temp, x);
 
    // Orthogonalize output
-   x.GetSubVector(pblock,p_vec);
-   Orthogonalize(p_vec,p_ortho);
+   x.GetSubVector(ortho_indices,vec);
+   Orthogonalize(vec,vec_ortho);
 
-   x.SetSubVector(pblock,p_ortho);
+   x.SetSubVector(ortho_indices,vec_ortho);
 }
 
 void BlockOrthoSolver::Orthogonalize(const Vector &v, Vector &v_ortho) const
@@ -3781,16 +3761,17 @@ void BlockOrthoSolver::Orthogonalize(const Vector &v, Vector &v_ortho) const
 
    // TODO: GPU/device implementation
 
-   double global_sum = v.Sum();
+   real_t global_sum = v.Sum();
 
 #ifdef MFEM_USE_MPI
    if (parallel)
    {
-      MPI_Allreduce(MPI_IN_PLACE, &global_sum, 1, MPI_DOUBLE, MPI_SUM, mycomm);
+      MPI_Allreduce(MPI_IN_PLACE, &global_sum, 1, MPITypeMap<real_t>::mpi_type,
+                    MPI_SUM, mycomm);
    }
 #endif
 
-   double ratio = global_sum / static_cast<double>(global_size);
+   real_t ratio = global_sum / static_cast<real_t>(global_size);
    v_ortho.SetSize(v.Size());
    v.HostRead();
    v_ortho.HostWrite();

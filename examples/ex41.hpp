@@ -92,7 +92,6 @@ void VectorDGDiffusionIntegrator::AssembleFaceMatrix(
    const IntegrationRule *ir = IntRule;
    if (ir == NULL)
    {
-      // a simple choice for the integration order
       int order;
       if (ndof2)
       {
@@ -385,7 +384,6 @@ void VectorDGDirichletLFIntegrator::AssembleRHSElementVect(
    const IntegrationRule *ir = IntRule;
    if (ir == NULL)
    {
-      // a simple choice for the integration order; is this OK?
       int order = 2*el.GetOrder() + 2;
       ir = &IntRules.Get(Tr.GetGeometryType(), order);
    }
@@ -660,14 +658,14 @@ void DGAvgNormalJumpIntegrator::AssembleFaceMatrix(const FiniteElement
 }
 
 // Class for boundary integration of the linear form g = < q, v_dirichlet \cdot n_e >
-class DG_BoundaryNormalLFIntegrator : public LinearFormIntegrator
+class DGBoundaryNormalLFIntegrator : public LinearFormIntegrator
 {
 private:
    Vector shape;
    VectorCoefficient &Q;
 public:
    /// Constructs a boundary integrator with a given Coefficient QG
-   DG_BoundaryNormalLFIntegrator(VectorCoefficient &QG)
+   DGBoundaryNormalLFIntegrator(VectorCoefficient &QG)
       : Q(QG) { }
 
    virtual void AssembleRHSElementVect(const FiniteElement &el,
@@ -681,13 +679,13 @@ public:
    using LinearFormIntegrator::AssembleRHSElementVect;
 };
 
-void DG_BoundaryNormalLFIntegrator::AssembleRHSElementVect(
+void DGBoundaryNormalLFIntegrator::AssembleRHSElementVect(
    const FiniteElement &el, ElementTransformation &Tr, Vector &elvect)
 {
    cout << "Not Implemented" << endl;
 }
 
-void DG_BoundaryNormalLFIntegrator::AssembleRHSElementVect(
+void DGBoundaryNormalLFIntegrator::AssembleRHSElementVect(
    const FiniteElement &el, FaceElementTransformations &Tr, Vector &elvect)
 {
    int dim = el.GetDim();
@@ -704,7 +702,6 @@ void DG_BoundaryNormalLFIntegrator::AssembleRHSElementVect(
    const IntegrationRule *ir = IntRule;
    if (ir == NULL)
    {
-      // a simple choice for the integration order;
       int order = 2*el.GetOrder() + 2;
       ir = &IntRules.Get(Tr.GetGeometryType(), order);
    }
