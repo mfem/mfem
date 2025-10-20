@@ -18,6 +18,7 @@
 #include "error.hpp"
 #include "forall.hpp"
 #include "globals.hpp"
+#include "reducers.hpp"
 
 #include <iostream>
 #include <fstream>
@@ -136,6 +137,8 @@ public:
 
    /// Return the device flag of the Memory object used by the Array
    bool UseDevice() const { return data.UseDevice(); }
+
+   void UseDevice(bool use_dev) { data.UseDevice(use_dev); }
 
    /// Return true if the data will be deleted by the Array
    inline bool OwnsData() const { return data.OwnsHostPtr(); }
@@ -799,8 +802,14 @@ template <typename T> template <typename CT>
 inline Array<T> &Array<T>::operator=(const Array<CT> &src)
 {
    SetSize(src.Size());
-   for (int i = 0; i < size; i++) { (*this)[i] = T(src[i]); }
-   return *this;
+
+   const bool use_dev = UseDevice() || src.UseDevice();
+   const auto x = src.Read(use_dev);
+   auto y = Write(use_dev);
+   mfem::forall_switch(use_dev, size, [=] MFEM_HOST_DEVICE (int i)
+   {
+      y[i] = x[i];
+   });
 }
 
 template <class T>
@@ -1016,19 +1025,24 @@ template <class T>
 inline void Array<T>::GetSubArray(int offset, int sa_size, Array<T> &sa) const
 {
    sa.SetSize(sa_size);
-   for (int i = 0; i < sa_size; i++)
+   const bool use_dev = UseDevice() || sa.UseDevice();
+   const auto x = Read(use_dev);
+   auto y = sa.Write(use_dev);
+   mfem::forall_switch(use_dev, sa_size, [=] MFEM_HOST_DEVICE (int i)
    {
-      sa[i] = (*this)[offset+i];
-   }
+      y[i] = x[offset + i];
+   });
 }
 
 template <class T>
 inline void Array<T>::operator=(const T &a)
 {
-   for (int i = 0; i < size; i++)
+   const bool use_dev = UseDevice();
+   auto x = Write(use_dev);
+   mfem::forall_switch(use_dev, size, [=] MFEM_HOST_DEVICE (int i)
    {
-      data[i] = a;
-   }
+      x[i] = a;
+   });
 }
 
 template <class T>
@@ -1038,7 +1052,7 @@ inline void Array<T>::Assign(const T *p)
 }
 
 template <class T>
-void Array<T>::Print(std::ostream &os, int width) const
+inline void Array<T>::Print(std::ostream &os, int width) const
 {
    for (int i = 0; i < size; i++)
    {
@@ -1055,7 +1069,7 @@ void Array<T>::Print(std::ostream &os, int width) const
 }
 
 template <class T>
-void Array<T>::Save(std::ostream &os, int fmt) const
+inline void Array<T>::Save(std::ostream &os, int fmt) const
 {
    if (fmt == 0)
    {
@@ -1068,7 +1082,7 @@ void Array<T>::Save(std::ostream &os, int fmt) const
 }
 
 template <class T>
-Array<T>::Load(std::istream &in, int fmt)
+void Array<T>::Load(std::istream &in, int fmt)
 {
    if (fmt == 0)
    {
@@ -1146,11 +1160,12 @@ template <class T>
 inline T Array<T>::Sum() const
 {
    T sum = static_cast<T>(0);
-   for (int i = 0; i < size; i++)
+   if (size > 0)
    {
-      sum+=operator[](i);
+      const auto m_data = Read(UseDevice());
+      reduce(size, sum, [=] MFEM_HOST_DEVICE(int i, T &r) { r += m_data[i]; },
+      /*  */ SumReducer<T> {}, UseDevice());
    }
-
    return sum;
 }
 
