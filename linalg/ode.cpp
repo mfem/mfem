@@ -1186,6 +1186,8 @@ SecondOrderODESolver* SecondOrderODESolver::Select(int ode_solver_type)
 void SecondOrderODESolver::EulerStep(Vector &x, Vector &dxdt, real_t &t,
                                      real_t &dt)
 {
+   MFEM_VERIFY(!f->ImplicitSolvesState(),
+               "Only supported for ImplicitSolve for stage-slope, k=d2x/dt2");
    x.Add(dt, dxdt);
 
    f->SetTime(t + dt);
@@ -1200,6 +1202,8 @@ void SecondOrderODESolver::EulerStep(Vector &x, Vector &dxdt, real_t &t,
 void SecondOrderODESolver::MidPointStep(Vector &x, Vector &dxdt, real_t &t,
                                         real_t &dt)
 {
+   MFEM_VERIFY(!f->ImplicitSolvesState(),
+               "Only supported for ImplicitSolve for stage-slope, k=d2x/dt2");
    x.Add(0.5*dt, dxdt);
 
    f->SetTime(t + dt);
@@ -1250,6 +1254,8 @@ void NewmarkSolver::PrintProperties(std::ostream &os)
 // In this routine state[0] represents d2xdt2
 void NewmarkSolver::Step(Vector &x, Vector &dxdt, real_t &t, real_t &dt)
 {
+   MFEM_VERIFY(!f->ImplicitSolvesState(),
+               "Only supported for ImplicitSolve for stage-slope, k=d2x/dt2");
    real_t fac0 = 0.5 - beta;
    real_t fac2 = 1.0 - gamma;
    real_t fac3 = beta;
@@ -1324,6 +1330,8 @@ void GeneralizedAlpha2Solver::PrintProperties(std::ostream &os)
 void GeneralizedAlpha2Solver::Step(Vector &x, Vector &dxdt,
                                    real_t &t, real_t &dt)
 {
+   MFEM_VERIFY(!f->ImplicitSolvesState(),
+               "Only supported for ImplicitSolve for stage-slope, k=d2x/dt2");
    real_t fac0 = (0.5 - (beta/alpha_m));
    real_t fac1 = alpha_f;
    real_t fac2 = alpha_f*(1.0 - (gamma/alpha_m));
