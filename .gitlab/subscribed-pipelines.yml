@@ -133,4 +133,3 @@ matrix-build-and-test:
     AUTOTEST_COMMIT: "${AUTOTEST_COMMIT}"
   needs: [matrix-up-check, generate-job-lists]
   extends: [.build-and-test]
-  timeout: 4h
