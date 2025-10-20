@@ -93,7 +93,7 @@ public:
        the same.
 
        The data size is updated by calling Vector::SetSize(). */
-   inline void SetSpace(QuadratureSpaceBase *qspace_, int vdim_ = -1);
+   inline virtual void SetSpace(QuadratureSpaceBase *qspace_, int vdim_ = -1);
 
    /** @brief Change the QuadratureSpaceBase, the data array, and optionally the
        vector dimension. */
@@ -105,7 +105,7 @@ public:
        the same.
 
        The data array is replaced by calling Vector::NewDataAndSize(). */
-   inline void SetSpace(QuadratureSpaceBase *qspace_, real_t *qf_data,
+   inline virtual void SetSpace(QuadratureSpaceBase *qspace_, real_t *qf_data,
                         int vdim_ = -1);
 
    /// Get the QuadratureSpaceBase ownership flag.
@@ -115,16 +115,16 @@ public:
    void SetOwnsSpace(bool own) { own_qspace = own; }
 
    /// Set this equal to a constant value.
-   QuadratureFunction &operator=(real_t value);
+   virtual QuadratureFunction &operator=(real_t value);
 
    /// Copy the data from @a v.
    /** The size of @a v must be equal to the size of the associated
        QuadratureSpaceBase #qspace times the QuadratureFunction vector
        dimension i.e. QuadratureFunction::Size(). */
-   QuadratureFunction &operator=(const Vector &v);
+   virtual QuadratureFunction &operator=(const Vector &v);
 
    /// Evaluate a grid function at each quadrature point.
-   void ProjectGridFunction(const GridFunction &gf);
+   virtual void ProjectGridFunction(const GridFunction &gf);
 
    /// Return all values associated with mesh element @a idx in a Vector.
    /** The result is stored in the Vector @a values as a reference to the
@@ -133,7 +133,7 @@ public:
        Inside the Vector @a values, the index `i+vdim*j` corresponds to the
        `i`-th vector component at the `j`-th quadrature point.
     */
-   inline void GetValues(int idx, Vector &values);
+   inline virtual void GetValues(int idx, Vector &values);
 
    /// Return all values associated with mesh element @a idx in a Vector.
    /** The result is stored in the Vector @a values as a copy of the
@@ -142,17 +142,17 @@ public:
        Inside the Vector @a values, the index `i+vdim*j` corresponds to the
        `i`-th vector component at the `j`-th quadrature point.
     */
-   inline void GetValues(int idx, Vector &values) const;
+   inline virtual void GetValues(int idx, Vector &values) const;
 
    /// Return the quadrature function values at an integration point.
    /** The result is stored in the Vector @a values as a reference to the
        global values. */
-   inline void GetValues(int idx, const int ip_num, Vector &values);
+   inline virtual void GetValues(int idx, const int ip_num, Vector &values);
 
    /// Return the quadrature function values at an integration point.
    /** The result is stored in the Vector @a values as a copy to the
        global values. */
-   inline void GetValues(int idx, const int ip_num, Vector &values) const;
+   inline virtual void GetValues(int idx, const int ip_num, Vector &values) const;
 
    /// Return all values associated with mesh element @a idx in a DenseMatrix.
    /** The result is stored in the DenseMatrix @a values as a reference to the
@@ -161,7 +161,7 @@ public:
        Inside the DenseMatrix @a values, the `(i,j)` entry corresponds to the
        `i`-th vector component at the `j`-th quadrature point.
     */
-   inline void GetValues(int idx, DenseMatrix &values);
+   inline virtual void GetValues(int idx, DenseMatrix &values);
 
    /// Return all values associated with mesh element @a idx in a const DenseMatrix.
    /** The result is stored in the DenseMatrix @a values as a copy of the
@@ -170,21 +170,21 @@ public:
        Inside the DenseMatrix @a values, the `(i,j)` entry corresponds to the
        `i`-th vector component at the `j`-th quadrature point.
     */
-   inline void GetValues(int idx, DenseMatrix &values) const;
+   inline virtual void GetValues(int idx, DenseMatrix &values) const;
 
    /// Get the IntegrationRule associated with entity (element or face) @a idx.
-   const IntegrationRule &GetIntRule(int idx) const
+   virtual const IntegrationRule &GetIntRule(int idx) const
    { return GetSpace()->GetIntRule(idx); }
 
    /// Write the QuadratureFunction to the stream @a out.
-   void Save(std::ostream &out) const;
+   virtual void Save(std::ostream &out) const;
 
    /// @brief Write the QuadratureFunction to @a out in VTU (ParaView) format.
    ///
    /// The data will be uncompressed if @a compression_level is zero, or if the
    /// format is VTKFormat::ASCII. Otherwise, zlib compression will be used for
    /// binary data.
-   void SaveVTU(std::ostream &out, VTKFormat format=VTKFormat::ASCII,
+   virtual void SaveVTU(std::ostream &out, VTKFormat format=VTKFormat::ASCII,
                 int compression_level=0, const std::string &field_name="u") const;
 
    /// @brief Save the QuadratureFunction to a VTU (ParaView) file.
@@ -192,16 +192,16 @@ public:
    /// The extension ".vtu" will be appended to @a filename.
    /// @sa SaveVTU(std::ostream &out, VTKFormat format=VTKFormat::ASCII,
    ///             int compression_level=0)
-   void SaveVTU(const std::string &filename, VTKFormat format=VTKFormat::ASCII,
+   virtual void SaveVTU(const std::string &filename, VTKFormat format=VTKFormat::ASCII,
                 int compression_level=0, const std::string &field_name="u") const;
 
 
    /// Return the integral of the quadrature function (vdim = 1 only).
-   real_t Integrate() const;
+   virtual real_t Integrate() const;
 
    /// @brief Integrate the (potentially vector-valued) quadrature function,
    /// storing the results in @a integrals (length @a vdim).
-   void Integrate(Vector &integrals) const;
+   virtual void Integrate(Vector &integrals) const;
 
    virtual ~QuadratureFunction()
    {
