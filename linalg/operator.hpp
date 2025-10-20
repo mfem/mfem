@@ -1162,7 +1162,12 @@ protected:
 
 public:
    /// Create an operator of size 1 (scalar).
-   InnerProductOperator() : Operator(1) { dot_prod_type = 0; }
+   InnerProductOperator() : Operator(1)
+   {
+#ifdef MFEM_USE_MPI
+      dot_prod_type = 0;
+#endif
+   }
 
    /// Operator application - not implemented/used but added
    /// to satisfy the abstract base class interface.
