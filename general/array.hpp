@@ -19,6 +19,7 @@
 #include "forall.hpp"
 #include "globals.hpp"
 #include "reducers.hpp"
+#include "scan.hpp"
 
 #include <iostream>
 #include <fstream>
@@ -1134,12 +1135,8 @@ inline T Array<T>::Min() const
 template <class T>
 inline void Array<T>::PartialSum()
 {
-   T sum = static_cast<T>(0);
-   for (int i = 0; i < size; i++)
-   {
-      sum+=operator[](i);
-      operator[](i) = sum;
-   }
+   auto data_ptr = ReadWrite(UseDevice());
+   InclusiveScan(UseDevice(), data_ptr, data_ptr, size);
 }
 
 template <class T>

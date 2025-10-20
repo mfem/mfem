@@ -28,6 +28,36 @@
 
 namespace mfem
 {
+
+namespace internal
+{
+class ScanWorkspace
+{
+   Memory<std::byte> workspace;
+   static ScanWorkspace &Instance()
+   {
+      static ScanWorkspace instance;
+      return instance;
+   }
+   ~ScanWorkspace() { workspace.Delete(); }
+public:
+   static std::byte *Get(int num_bytes)
+   {
+      ScanWorkspace &instance = Instance();
+      if (Size() < num_bytes)
+      {
+         instance.workspace.Delete();
+         instance.workspace.New(num_bytes);
+      }
+      return instance.workspace.Write(MemoryClass::DEVICE, Size());
+   }
+   static int Size()
+   {
+      return Instance().workspace.Capacity();
+   }
+};
+}
+
 /// Equivalent to InclusiveScan(use_dev, d_in, d_out, num_items, std::plus<>{})
 template <class InputIt, class OutputIt>
 void InclusiveScan(bool use_dev, InputIt d_in, OutputIt d_out, size_t num_items)
@@ -36,12 +66,12 @@ void InclusiveScan(bool use_dev, InputIt d_in, OutputIt d_out, size_t num_items)
 #if defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP)
    if (use_dev && mfem::Device::Allows(Backend::CUDA_MASK | Backend::HIP_MASK))
    {
-      static Array<std::byte> workspace;
-      size_t bytes = workspace.Size();
-      if (bytes)
+      using internal::ScanWorkspace;
+      size_t bytes = ScanWorkspace::Size();
+      if (bytes > 0)
       {
          auto err = MFEM_CUB_NAMESPACE::DeviceScan::InclusiveSum(
-                       workspace.Write(), bytes, d_in, d_out, num_items);
+                       ScanWorkspace::Get(bytes), bytes, d_in, d_out, num_items);
 #if defined(MFEM_USE_CUDA)
          if (err == cudaSuccess)
          {
@@ -56,11 +86,12 @@ void InclusiveScan(bool use_dev, InputIt d_in, OutputIt d_out, size_t num_items)
       }
       // try allocating a larger buffer
       bytes = 0;
+      // get size of buffer
       MFEM_GPU_CHECK(MFEM_CUB_NAMESPACE::DeviceScan::InclusiveSum(
                         nullptr, bytes, d_in, d_out, num_items));
-      workspace.SetSize(bytes);
+      // resize buffer (in ScanWorkspace::Get) and try again
       MFEM_GPU_CHECK(MFEM_CUB_NAMESPACE::DeviceScan::InclusiveSum(
-                        workspace.Write(), bytes, d_in, d_out, num_items));
+                        ScanWorkspace::Get(bytes), bytes, d_in, d_out, num_items));
       return;
    }
 #endif
@@ -100,12 +131,13 @@ void InclusiveScan(bool use_dev, InputIt d_in, OutputIt d_out, size_t num_items,
 #if defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP)
    if (use_dev && mfem::Device::Allows(Backend::CUDA_MASK | Backend::HIP_MASK))
    {
-      static Array<std::byte> workspace;
-      size_t bytes = workspace.Size();
-      if (bytes)
+      using internal::ScanWorkspace;
+      size_t bytes = ScanWorkspace::Size();
+      if (bytes > 0)
       {
          auto err = MFEM_CUB_NAMESPACE::DeviceScan::InclusiveScan(
-                       workspace.Write(), bytes, d_in, d_out, scan_op, num_items);
+                       ScanWorkspace::Get(bytes), bytes, d_in, d_out, scan_op,
+                       num_items);
 #if defined(MFEM_USE_CUDA)
          if (err == cudaSuccess)
          {
@@ -122,9 +154,9 @@ void InclusiveScan(bool use_dev, InputIt d_in, OutputIt d_out, size_t num_items,
       bytes = 0;
       MFEM_GPU_CHECK(MFEM_CUB_NAMESPACE::DeviceScan::InclusiveScan(
                         nullptr, bytes, d_in, d_out, scan_op, num_items));
-      workspace.SetSize(bytes);
       MFEM_GPU_CHECK(MFEM_CUB_NAMESPACE::DeviceScan::InclusiveScan(
-                        workspace.Write(), bytes, d_in, d_out, scan_op, num_items));
+                        ScanWorkspace::Get(bytes), bytes, d_in, d_out, scan_op,
+                        num_items));
       return;
    }
 #endif
@@ -163,13 +195,13 @@ void ExclusiveScan(bool use_dev, InputIt d_in, OutputIt d_out, size_t num_items,
 #if defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP)
    if (use_dev && mfem::Device::Allows(Backend::CUDA_MASK | Backend::HIP_MASK))
    {
-      static Array<std::byte> workspace;
-      size_t bytes = workspace.Size();
+      using internal::ScanWorkspace;
+      size_t bytes = ScanWorkspace::Size();
       if (bytes)
       {
          auto err = MFEM_CUB_NAMESPACE::DeviceScan::ExclusiveScan(
-                       workspace.Write(), bytes, d_in, d_out, scan_op, init_value,
-                       num_items);
+                       ScanWorkspace::Get(bytes), bytes, d_in, d_out, scan_op,
+                       init_value, num_items);
 #if defined(MFEM_USE_CUDA)
          if (err == cudaSuccess)
          {
@@ -186,10 +218,9 @@ void ExclusiveScan(bool use_dev, InputIt d_in, OutputIt d_out, size_t num_items,
       bytes = 0;
       MFEM_GPU_CHECK(MFEM_CUB_NAMESPACE::DeviceScan::ExclusiveScan(
                         nullptr, bytes, d_in, d_out, scan_op, init_value, num_items));
-      workspace.SetSize(bytes);
       MFEM_GPU_CHECK(MFEM_CUB_NAMESPACE::DeviceScan::ExclusiveScan(
-                        workspace.Write(), bytes, d_in, d_out, scan_op, init_value,
-                        num_items));
+                        ScanWorkspace::Get(bytes), bytes, d_in, d_out, scan_op,
+                        init_value, num_items));
       return;
    }
 #endif
