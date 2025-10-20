@@ -16,9 +16,11 @@
 #include "mem_manager.hpp"
 #include "device.hpp"
 #include "error.hpp"
+#include "forall.hpp"
 #include "globals.hpp"
 
 #include <iostream>
+#include <fstream>
 #include <cstdlib>
 #include <cstring>
 #include <algorithm>
@@ -275,11 +277,11 @@ public:
 
    /** @brief Find the maximal element in the array, using the comparison
        operator `<` for class T. */
-   T Max() const;
+   inline T Max() const;
 
    /** @brief Find the minimal element in the array, using the comparison
        operator `<` for class T. */
-   T Min() const;
+   inline T Min() const;
 
    /// Sorts the array in ascending order. This requires operator< to be defined for T.
    void Sort() { std::sort((T*)data, data + size); }
@@ -297,22 +299,22 @@ public:
    }
 
    /// Return 1 if the array is sorted from lowest to highest.  Otherwise return 0.
-   int IsSorted() const;
+   inline int IsSorted() const;
 
    /// Does the Array have Size zero.
    bool IsEmpty() const { return Size() == 0; }
 
    /// Return true if all entries of the array are the same.
-   bool IsConstant() const;
+   inline bool IsConstant() const;
 
    /// Fill the entries of the array with the cumulative sum of the entries.
-   void PartialSum();
+   inline void PartialSum();
 
    /// Replace each entry of the array with its absolute value.
-   void Abs();
+   inline void Abs();
 
    /// Return the sum of all the array entries using the '+'' operator for class 'T'.
-   T Sum() const;
+   inline T Sum() const;
 
    /// Set all entries of the array to the provided constant.
    inline void operator=(const T &a);
@@ -1035,6 +1037,156 @@ inline void Array<T>::Assign(const T *p)
    data.CopyFromHost(p, Size());
 }
 
+template <class T>
+void Array<T>::Print(std::ostream &os, int width) const
+{
+   for (int i = 0; i < size; i++)
+   {
+      os << data[i];
+      if ( !((i+1) % width) || i+1 == size )
+      {
+         os << '\n';
+      }
+      else
+      {
+         os << " ";
+      }
+   }
+}
+
+template <class T>
+void Array<T>::Save(std::ostream &os, int fmt) const
+{
+   if (fmt == 0)
+   {
+      os << size << '\n';
+   }
+   for (int i = 0; i < size; i++)
+   {
+      os << operator[](i) << '\n';
+   }
+}
+
+template <class T>
+Array<T>::Load(std::istream &in, int fmt)
+{
+   if (fmt == 0)
+   {
+      int new_size;
+      in >> new_size;
+      SetSize(new_size);
+   }
+   for (int i = 0; i < size; i++)
+   {
+      in >> operator[](i);
+   }
+}
+
+template <class T>
+inline T Array<T>::Max() const
+{
+   MFEM_ASSERT(size > 0, "Array is empty with size " << size);
+
+   T max = operator[](0);
+   for (int i = 1; i < size; i++)
+   {
+      if (max < operator[](i))
+      {
+         max = operator[](i);
+      }
+   }
+
+   return max;
+}
+
+template <class T>
+inline T Array<T>::Min() const
+{
+   MFEM_ASSERT(size > 0, "Array is empty with size " << size);
+
+   T min = operator[](0);
+   for (int i = 1; i < size; i++)
+   {
+      if (operator[](i) < min)
+      {
+         min = operator[](i);
+      }
+   }
+
+   return min;
+}
+
+// Partial Sum
+template <class T>
+inline void Array<T>::PartialSum()
+{
+   T sum = static_cast<T>(0);
+   for (int i = 0; i < size; i++)
+   {
+      sum+=operator[](i);
+      operator[](i) = sum;
+   }
+}
+
+template <class T>
+inline void Array<T>::Abs()
+{
+   static_assert(std::is_arithmetic<T>::value, "Use with arithmetic types!");
+   const bool useDevice = UseDevice();
+   const int N = size;
+   auto y = ReadWrite(useDevice);
+   mfem::forall_switch(useDevice, N, [=] MFEM_HOST_DEVICE (int i)
+   {
+      y[i] = std::abs(y[i]);
+   });
+}
+
+// Sum
+template <class T>
+inline T Array<T>::Sum() const
+{
+   T sum = static_cast<T>(0);
+   for (int i = 0; i < size; i++)
+   {
+      sum+=operator[](i);
+   }
+
+   return sum;
+}
+
+template <class T>
+inline int Array<T>::IsSorted() const
+{
+   T val_prev = operator[](0), val;
+   for (int i = 1; i < size; i++)
+   {
+      val=operator[](i);
+      if (val < val_prev)
+      {
+         return 0;
+      }
+      val_prev = val;
+   }
+
+   return 1;
+}
+
+template <class T>
+inline bool Array<T>::IsConstant() const
+{
+   if (size < 2) { return true; }
+   const T v0 = data[0];
+   for (int i = 1; i < size; i++)
+   {
+      if (data[i] != v0)
+      {
+         return false;
+      }
+   }
+
+   return true;
+}
+
 
 template <class T>
 inline const T &Array2D<T>::operator()(int i, int j) const
@@ -1072,6 +1224,40 @@ inline T *Array2D<T>::operator[](int i)
                 "Array2D: invalid access of row " << i << " in array with "
                 << array1d.Size()/N << " rows.");
    return &array1d[i*N];
+}
+
+template <class T>
+void Array2D<T>::Load(const char *filename, int fmt)
+{
+   std::ifstream in;
+   in.open(filename, std::ifstream::in);
+   MFEM_VERIFY(in.is_open(), "File " << filename << " does not exist.");
+   Load(in, fmt);
+   in.close();
+}
+
+template <class T>
+void Array2D<T>::Print(std::ostream &os, int width_)
+{
+   int height = this->NumRows();
+   int width  = this->NumCols();
+
+   for (int i = 0; i < height; i++)
+   {
+      os << "[row " << i << "]\n";
+      for (int j = 0; j < width; j++)
+      {
+         os << (*this)(i,j);
+         if ( (j+1) == width_ || (j+1) % width_ == 0 )
+         {
+            os << '\n';
+         }
+         else
+         {
+            os << ' ';
+         }
+      }
+   }
 }
 
 
