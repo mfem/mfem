@@ -292,6 +292,9 @@ public:
       ReconstructFluxAndPot(sol, ut, u, p, tr);
    }
 
+   void EliminateTrueDofsInRHS(const Array<int> &tdofs_flux,
+                               const BlockVector &x, BlockVector &b);
+
    /** @brief Use the stored eliminated part of the matrix (see
        EliminateVDofs(const Array<int> &, DiagonalPolicy)) to modify the r.h.s.
        @a b; @a vdofs_flux is a list of DOFs (non-directional, i.e. >= 0). */

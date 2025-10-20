@@ -462,15 +462,17 @@ void ParDarcyForm::RecoverFEMSolution(const Vector &X_, const BlockVector &b,
 void ParDarcyForm::ParallelEliminateTDofsInRHS(const Array<int> &tdofs_flux,
                                                const BlockVector &x, BlockVector &b)
 {
-#ifdef MFEM_DARCY_REDUCTION_ELIM_BCS
+#ifdef MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
    if (hybridization)
    {
-      hybridization->ParallelEliminateTDofsInRHS(tdofs_flux, x, b);
+      hybridization->EliminateTrueDofsInRHS(tdofs_flux, x, b);
       return;
    }
-   else if (reduction)
+#endif //MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
+#ifdef MFEM_DARCY_REDUCTION_ELIM_BCS
+   if (reduction)
    {
-      reduction->ParallelEliminateTDofsInRHS(tdofs_flux, x, b);
+      reduction->EliminateTrueDofsInRHS(tdofs_flux, x, b);
       return;
    }
 #endif //MFEM_DARCY_REDUCTION_ELIM_BCS

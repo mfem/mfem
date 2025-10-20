@@ -1863,6 +1863,11 @@ void DarcyHybridization::EliminateVDofsInRHS(const Array<int> &vdofs_flux,
       darcy_p = x.GetBlock(1);
    }
 
+   MFEM_ASSERT(x.Size() == fes.GetVSize() + fes_p.GetVSize(),
+               "Wrong size of the solution vector!");
+   MFEM_ASSERT(b.Size() == fes.GetVSize() + fes_p.GetVSize(),
+               "Wrong size of the rhs vector!");
+
    const int NE = fes.GetNE();
    Vector u_e, bu_e, bp_e;
    Array<int> u_vdofs, p_dofs, edofs;
@@ -1911,8 +1916,7 @@ void DarcyHybridization::EliminateVDofsInRHS(const Array<int> &vdofs_flux,
    }
 }
 
-#ifdef MFEM_USE_MPI
-void DarcyHybridization::ParallelEliminateTDofsInRHS(
+void DarcyHybridization::EliminateTrueDofsInRHS(
    const Array<int> &tdofs_flux, const BlockVector &x_t, BlockVector &b_t)
 {
    Vector xu, bu;
@@ -2014,7 +2018,6 @@ void DarcyHybridization::ParallelEliminateTDofsInRHS(
       b_t(tdof) = x_t(tdof);//<--can be arbitrary as it is ignored
    }
 }
-#endif //MFEM_USE_MPI
 
 void DarcyHybridization::MultInvNL(int el, const Vector &bu_l,
                                    const Vector &bp_l, const BlockVector &x_l,

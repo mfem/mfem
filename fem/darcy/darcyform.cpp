@@ -752,7 +752,7 @@ void DarcyForm::FormLinearSystem(const Array<int> &ess_flux_tdof_list,
          conf_b.GetBlock(1) = b.GetBlock(1);
          R->Mult(x.GetBlock(0), conf_x.GetBlock(0));
          conf_x.GetBlock(1) = x.GetBlock(1);
-         EliminateVDofsInRHS(ess_flux_tdof_list, conf_x, conf_b);
+         EliminateTrueDofsInRHS(ess_flux_tdof_list, conf_x, conf_b);
          R->MultTranspose(conf_b.GetBlock(0),
                           b.GetBlock(0)); // store eliminated rhs in b
          b.GetBlock(1) = conf_b.GetBlock(1);
@@ -787,7 +787,7 @@ void DarcyForm::FormLinearSystem(const Array<int> &ess_flux_tdof_list,
          BlockVector block_X(X_, toffsets);
          R->Mult(x.GetBlock(0), block_X.GetBlock(0));
          block_X.GetBlock(1) = x.GetBlock(1);
-         EliminateVDofsInRHS(ess_flux_tdof_list, block_X, block_B);
+         EliminateTrueDofsInRHS(ess_flux_tdof_list, block_X, block_B);
          if (!copy_interior)
          {
             block_X.GetBlock(0).SetSubVectorComplement(ess_flux_tdof_list, 0.0);
@@ -1444,6 +1444,26 @@ void DarcyForm::ReconstructFluxAndPot(const DarcyHybridization &h,
          off_tr += vdofs_tr.Size();
       }
    }
+}
+
+void DarcyForm::EliminateTrueDofsInRHS(const Array<int> &tdofs_flux,
+                                       const BlockVector &x, BlockVector &b)
+{
+#ifdef MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
+   if (hybridization)
+   {
+      hybridization->EliminateTrueDofsInRHS(tdofs_flux, x, b);
+      return;
+   }
+#endif //MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
+#ifdef MFEM_DARCY_REDUCTION_ELIM_BCS
+   if (reduction)
+   {
+      reduction->EliminateTrueDofsInRHS(tdofs_flux, x, b);
+      return;
+   }
+#endif //MFEM_DARCY_REDUCTION_ELIM_BCS
+   EliminateVDofsInRHS(tdofs_flux, x, b);
 }
 
 void DarcyForm::EliminateVDofsInRHS(const Array<int> &vdofs_flux,

@@ -525,15 +525,15 @@ public:
    void EliminateVDofsInRHS(const Array<int> &vdofs_flux,
                             const BlockVector &x, BlockVector &b);
 
-#ifdef MFEM_USE_MPI
-   /// Return the parallel hybridized operator.
-   void GetParallelOperator(OperatorHandle &H_h) const { H_h = pOp; }
-
    /** @brief Use the stored eliminated part of the matrix to modify the r.h.s.
        @a b; @a tdofs_flux is a list of true DOFs (non-directional, i.e. >= 0).
        */
-   virtual void ParallelEliminateTDofsInRHS(const Array<int> &tdofs_flux,
-                                            const BlockVector &X, BlockVector &B);
+   virtual void EliminateTrueDofsInRHS(const Array<int> &tdofs_flux,
+                                       const BlockVector &X, BlockVector &B);
+
+#ifdef MFEM_USE_MPI
+   /// Return the parallel hybridized operator.
+   void GetParallelOperator(OperatorHandle &H_h) const { H_h = pOp; }
 #endif //MFEM_USE_MPI
 
    void ReduceRHS(const Vector &b, Vector &b_r) const override

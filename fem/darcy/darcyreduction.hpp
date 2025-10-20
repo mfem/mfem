@@ -101,6 +101,13 @@ public:
                                     const BlockVector &x, BlockVector &b)
    { MFEM_ABORT("Not implemented"); }
 
+   /** @brief Use the stored eliminated part of the matrix to modify the r.h.s.
+       @a b; @a tdofs_flux is a list of true DOFs (non-directional, i.e. >= 0).
+       */
+   virtual void EliminateTrueDofsInRHS(const Array<int> &tdofs_flux,
+                                       const BlockVector &X, BlockVector &B)
+   { MFEM_ABORT("Not implemented"); }
+
    /// Operator application: `y=A(x)`.
    void Mult(const Vector &x, Vector &y) const override;
 
@@ -120,13 +127,6 @@ public:
 
    /// Set the operator type id for the parallel reduced matrix/operator.
    void SetOperatorType(Operator::Type tid) { pS.SetType(tid); }
-
-   /** @brief Use the stored eliminated part of the matrix to modify the r.h.s.
-       @a b; @a tdofs_flux is a list of true DOFs (non-directional, i.e. >= 0).
-       */
-   virtual void ParallelEliminateTDofsInRHS(const Array<int> &tdofs_flux,
-                                            const BlockVector &X, BlockVector &B)
-   { MFEM_ABORT("Not implemented"); }
 #endif
 
    virtual void ReduceRHS(const BlockVector &b, Vector &b_r) const = 0;
@@ -172,11 +172,9 @@ public:
                             const BlockVector &x, BlockVector &b) override
    { MFEM_ASSERT(vdofs_flux.Size() == 0, "Essential VDOFs are not supported"); }
 
-#ifdef MFEM_USE_MPI
-   void ParallelEliminateTDofsInRHS(const Array<int> &tdofs_flux,
-                                    const BlockVector &x, BlockVector &b) override
+   void EliminateTrueDofsInRHS(const Array<int> &tdofs_flux,
+                               const BlockVector &x, BlockVector &b) override
    { MFEM_ASSERT(tdofs_flux.Size() == 0, "Essential TDOFs are not supported"); }
-#endif
 
    void ReduceRHS(const BlockVector &b, Vector &b_r) const override;
 
@@ -234,10 +232,8 @@ public:
    void EliminateVDofsInRHS(const Array<int> &vdofs_flux,
                             const BlockVector &x, BlockVector &b) override;
 
-#ifdef MFEM_USE_MPI
-   void ParallelEliminateTDofsInRHS(const Array<int> &tdofs_flux,
-                                    const BlockVector &x, BlockVector &b) override;
-#endif
+   void EliminateTrueDofsInRHS(const Array<int> &tdofs_flux,
+                               const BlockVector &x, BlockVector &b) override;
 
    void ReduceRHS(const BlockVector &b, Vector &b_r) const override;
 

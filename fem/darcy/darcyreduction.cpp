@@ -1264,6 +1264,11 @@ void DarcyPotentialReduction::AssembleDivMatrix(int el, const DenseMatrix &B)
 void DarcyPotentialReduction::EliminateVDofsInRHS(const Array<int> &vdofs_flux,
                                                   const BlockVector &x, BlockVector &b)
 {
+   MFEM_ASSERT(x.Size() == fes_u.GetVSize() + fes_p.GetVSize(),
+               "Wrong size of the solution vector!");
+   MFEM_ASSERT(b.Size() == fes_u.GetVSize() + fes_p.GetVSize(),
+               "Wrong size of the rhs vector!");
+
    const int NE = fes_u.GetNE();
    Vector u_e, bu_e, bp_e;
    Array<int> u_vdofs, p_dofs, edofs;
@@ -1311,8 +1316,7 @@ void DarcyPotentialReduction::EliminateVDofsInRHS(const Array<int> &vdofs_flux,
    }
 }
 
-#ifdef MFEM_USE_MPI
-void DarcyPotentialReduction::ParallelEliminateTDofsInRHS(
+void DarcyPotentialReduction::EliminateTrueDofsInRHS(
    const Array<int> &tdofs_flux, const BlockVector &x, BlockVector &b)
 {
    const int NE = fes_u.GetNE();
@@ -1398,7 +1402,6 @@ void DarcyPotentialReduction::ParallelEliminateTDofsInRHS(
       bu_t(tdof) = xu_t(tdof);//<--can be arbitrary as it is ignored
    }
 }
-#endif //MFEM_USE_MPI
 
 void DarcyPotentialReduction::ReduceRHS(const BlockVector &b,
                                         Vector &b_tr) const
