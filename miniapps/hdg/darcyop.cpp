@@ -530,8 +530,17 @@ void DarcyOperator::ImplicitSolve(const real_t dt, const Vector &x_v,
       else
 #endif
       {
-         X.MakeRef(dx_v, offsets[2], trace_space->GetVSize());
-         if (h) { RHS.MakeRef(*h, 0, trace_space->GetVSize()); }
+         if (trace_space->GetMesh()->Nonconforming())
+         {
+            auto *cP = trace_space->GetConformingProlongation();
+            RHS.SetSize(cP->Width());
+            cP->MultTranspose(*h, RHS);
+         }
+         else
+         {
+            X.MakeRef(dx_v, offsets[2], trace_space->GetVSize());
+            if (h) { RHS.MakeRef(*h, 0, trace_space->GetVSize()); }
+         }
       }
    }
 
@@ -621,13 +630,23 @@ void DarcyOperator::ImplicitSolve(const real_t dt, const Vector &x_v,
 
    darcy->RecoverFEMSolution(X, rhs, x);
 
-#ifdef MFEM_USE_MPI
-   if (pdarcy && trace_space)
+   if (trace_space)
    {
-      Vector x_r(dx_v, offsets[2], trace_space->GetVSize());
-      trace_space->GetProlongationMatrix()->Mult(X, x_r);
-   }
+#ifdef MFEM_USE_MPI
+      if (pdarcy)
+      {
+         Vector x_r(dx_v, offsets[2], trace_space->GetVSize());
+         trace_space->GetProlongationMatrix()->Mult(X, x_r);
+      }
+      else
 #endif
+         if (trace_space->GetMesh()->Nonconforming())
+         {
+            Vector x_r(dx_v, offsets[2], trace_space->GetVSize());
+            auto *cP = trace_space->GetConformingProlongation();
+            cP->Mult(X, x_r);
+         }
+   }
 
    chrono.Stop();
 
