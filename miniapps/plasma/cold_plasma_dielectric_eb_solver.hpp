@@ -392,13 +392,13 @@ private:
       bool realPart_;
       real_t a_;
 
-      mutable Vector kr;
-      mutable Vector ki;
+      mutable Vector kr_;
+      mutable Vector ki_;
       mutable DenseMatrix M_;
 
-      void kmk(real_t a,
-               const Vector & kl, real_t m, const Vector &kr,
-               DenseMatrix & M)
+      static void kmk(real_t a,
+                      const Vector & kl, real_t m, const Vector &kr,
+                      DenseMatrix & M)
       {
          real_t kk = kl * kr;
          for (int i=0; i<3; i++)
@@ -411,9 +411,9 @@ private:
          }
       }
 
-      void kmk(real_t a,
-               const Vector & kl, DenseMatrix & m, const Vector &kr,
-               DenseMatrix & M)
+      static void kmk(real_t a,
+                      const Vector & kl, DenseMatrix & m, const Vector &kr,
+                      DenseMatrix & M)
       {
          for (int i=0; i<3; i++)
          {
@@ -440,8 +440,8 @@ private:
            mCoef_(mCoef),
            MCoef_(NULL),
            realPart_(realPart),
-           a_(a), kr(3), ki(3)
-      { kr = 0.0; ki = 0.0; }
+           a_(a), kr_(3), ki_(3)
+      { kr_ = 0.0; ki_ = 0.0; }
 
       kmkCoefficient(VectorCoefficient *krCoef, VectorCoefficient *kiCoef,
                      MatrixCoefficient *MCoef,
@@ -451,8 +451,8 @@ private:
            mCoef_(NULL),
            MCoef_(MCoef),
            realPart_(realPart),
-           a_(a), kr(3), ki(3), M_(3)
-      { kr = 0.0; ki = 0.0; M_ = 0.0; }
+           a_(a), kr_(3), ki_(3), M_(3)
+      { kr_ = 0.0; ki_ = 0.0; M_ = 0.0; }
 
       void Eval(DenseMatrix &M, ElementTransformation &T,
                 const IntegrationPoint &ip)
@@ -465,8 +465,8 @@ private:
             return;
          }
          real_t m = 0.0;
-         if (krCoef_) { krCoef_->Eval(kr, T, ip); }
-         if (kiCoef_) { kiCoef_->Eval(ki, T, ip); }
+         if (krCoef_) { krCoef_->Eval(kr_, T, ip); }
+         if (kiCoef_) { kiCoef_->Eval(ki_, T, ip); }
          if (mCoef_) { m = mCoef_->Eval(T, ip); }
          if (MCoef_) { MCoef_->Eval(M_, T, ip); }
 
@@ -474,26 +474,26 @@ private:
          {
             if (!MCoef_)
             {
-               if (krCoef_) { kmk(1.0, kr, m, kr, M); }
-               if (kiCoef_) { kmk(-1.0, ki, m, ki, M); }
+               if (krCoef_) { kmk(1.0, kr_, m, kr_, M); }
+               if (kiCoef_) { kmk(-1.0, ki_, m, ki_, M); }
             }
             else
             {
-               if (krCoef_) { kmk(1.0, kr, M_, kr, M); }
-               if (kiCoef_) { kmk(-1.0, ki, M_, ki, M); }
+               if (krCoef_) { kmk(1.0, kr_, M_, kr_, M); }
+               if (kiCoef_) { kmk(-1.0, ki_, M_, ki_, M); }
             }
          }
          else
          {
             if (!MCoef_)
             {
-               if (krCoef_ && kiCoef_) { kmk(1.0, kr, m, ki, M); }
-               if (kiCoef_ && krCoef_) { kmk(1.0, ki, m, kr, M); }
+               if (krCoef_ && kiCoef_) { kmk(1.0, kr_, m, ki_, M); }
+               if (kiCoef_ && krCoef_) { kmk(1.0, ki_, m, kr_, M); }
             }
             else
             {
-               if (krCoef_ && kiCoef_) { kmk(1.0, kr, M_, ki, M); }
-               if (kiCoef_ && krCoef_) { kmk(1.0, ki, M_, kr, M); }
+               if (krCoef_ && kiCoef_) { kmk(1.0, kr_, M_, ki_, M); }
+               if (kiCoef_ && krCoef_) { kmk(1.0, ki_, M_, kr_, M); }
             }
          }
          if (a_ != 1.0) { M *= a_; }
@@ -511,7 +511,7 @@ private:
 
       bool km_;
 
-      mutable Vector k;
+      mutable Vector k_;
       mutable DenseMatrix M_;
 
    public:
@@ -522,8 +522,8 @@ private:
            kCoef_(kCoef),
            mCoef_(mCoef),
            MCoef_(NULL),
-           a_(a), km_(true), k(3)
-      { k = 0.0; }
+           a_(a), km_(true), k_(3)
+      { k_ = 0.0; }
 
       CrossCoefficient(VectorCoefficient *kCoef,
                        MatrixCoefficient *MCoef,
@@ -532,8 +532,8 @@ private:
            kCoef_(kCoef),
            mCoef_(NULL),
            MCoef_(MCoef),
-           a_(a), km_(true), k(3), M_(3)
-      { k = 0.0; M_ = 0.0; }
+           a_(a), km_(true), k_(3), M_(3)
+      { k_ = 0.0; M_ = 0.0; }
 
       CrossCoefficient(MatrixCoefficient *MCoef,
                        VectorCoefficient *kCoef,
@@ -542,8 +542,8 @@ private:
            kCoef_(kCoef),
            mCoef_(NULL),
            MCoef_(MCoef),
-           a_(a), km_(false), k(3), M_(3)
-      { k = 0.0; M_ = 0.0; }
+           a_(a), km_(false), k_(3), M_(3)
+      { k_ = 0.0; M_ = 0.0; }
 
       void Eval(DenseMatrix &M, ElementTransformation &T,
                 const IntegrationPoint &ip)
@@ -552,15 +552,15 @@ private:
          M = 0.0;
 
          real_t m = 0.0;
-         if (kCoef_) { kCoef_->Eval(k, T, ip); }
+         if (kCoef_) { kCoef_->Eval(k_, T, ip); }
          if (mCoef_) { m = mCoef_->Eval(T, ip); }
          if (MCoef_) { MCoef_->Eval(M_, T, ip); }
 
          if (MCoef_ == NULL)
          {
-            M(2,1) = a_ * m * k(0);
-            M(0,2) = a_ * m * k(1);
-            M(1,0) = a_ * m * k(2);
+            M(2,1) = a_ * m * k_(0);
+            M(0,2) = a_ * m * k_(1);
+            M(1,0) = a_ * m * k_(2);
 
             M(1,2) = -M(2,1);
             M(2,0) = -M(0,2);
@@ -576,8 +576,8 @@ private:
                   int i2 = (i + 2) % 3;
                   for (int j=0; j<3; j++)
                   {
-                     M(i,j) += a_ * k(i1) * M_(i2,j);
-                     M(i,j) -= a_ * k(i2) * M_(i1,j);
+                     M(i,j) += a_ * k_(i1) * M_(i2,j);
+                     M(i,j) -= a_ * k_(i2) * M_(i1,j);
                   }
                }
             }
@@ -589,8 +589,8 @@ private:
                   {
                      int j1 = (j + 1) % 3;
                      int j2 = (j + 2) % 3;
-                     M(i,j) += a_ * M_(i,j1) * k(j2);
-                     M(i,j) -= a_ * M_(i,j2) * k(j1);
+                     M(i,j) += a_ * M_(i,j1) * k_(j2);
+                     M(i,j) -= a_ * M_(i,j2) * k_(j1);
                   }
                }
             }
