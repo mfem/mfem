@@ -14,7 +14,6 @@
 
 #include "../common/pfem_extras.hpp"
 #include "plasma.hpp"
-#include "g_eqdsk_data.hpp"
 #include <complex>
 
 #ifdef MFEM_USE_MPI
