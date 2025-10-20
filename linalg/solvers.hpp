@@ -558,9 +558,10 @@ private:
 #endif
 
 protected:
-   const Operator *op = nullptr;
-   real_t minf = std::numeric_limits<real_t>::lowest();
-   real_t maxf = std::numeric_limits<real_t>::max();
+   const Operator *oper = nullptr;
+   real_t lbnd = std::numeric_limits<real_t>::lowest();
+   real_t ubnd = std::numeric_limits<real_t>::max();
+   real_t abs_lbnd = 0.0;
 
 public:
    FPIRelaxation() = default;
@@ -571,16 +572,32 @@ public:
 #endif
 
    /// @brief Set the operator for the relaxation method.
-   virtual void Init(const Operator &op_) {op = &op_;}
+   virtual void SetOperator(const Operator &op) {oper = &op;}
 
-   virtual void SetLowerBound(real_t minf_) { minf = minf_; }
-   virtual void SetUpperBound(real_t maxf_) { maxf = maxf_; }
-   virtual void SetBounds(real_t minf_, real_t maxf_)
-   { minf = minf_; maxf = maxf_;}
+   /// @brief Initialize the relaxation method.
+   virtual void Init() {}
+
+   /// @brief Set the lower bound for the relaxation factor.
+   virtual void SetLowerBound(real_t lb) { lbnd = lb; }
+
+   /// @brief Set the upper bound for the relaxation factor.
+   virtual void SetUpperBound(real_t ub) { ubnd = ub; }
+
+   /// @brief Set both lower and upper bounds for the relaxation factor.
+   virtual void SetBounds(real_t lb, real_t ub)
+   { lbnd = lb; ubnd = ub;}
+
+   /// @brief Set the absolute bound for the relaxation factor.
+   virtual void SetAbsoluteLowerBound(real_t abs_lb)
+   { abs_lbnd = std::abs(abs_lb); }
 
    /// @brief Clamp the relaxation factor to the specified range.
    virtual real_t Clamp(real_t factor) const
-   { return std::max(std::min(factor, maxf), minf);}
+   {
+      real_t afac = (abs_lbnd == 0.0) ? factor :
+                    std::copysign(std::max(std::abs(factor), abs_lbnd), factor);
+      return std::max(std::min(afac, ubnd), lbnd);
+   }
 
    /**
     @brief Compute the relaxation factor for Fixed Point Iteration.
@@ -597,23 +614,9 @@ public:
       return rfactor; // Default implementation returns the fixed factor
    };
 
-   real_t Dot(const Vector &x, const Vector &y) const
-   {
-#ifndef MFEM_USE_MPI
-      return (x * y);
-#else
-      return InnerProduct(comm, x, y);
-#endif
-   }
+   real_t Dot(const Vector &x, const Vector &y) const;
 
-   real_t NormSquared(const Vector &x, const Vector &y) const
-   {
-#ifndef MFEM_USE_MPI
-      return x.DistanceSquaredTo(y);
-#else
-      return DistanceSquared(comm, x, y);
-#endif
-   }
+   real_t SquaredDistance(const Vector &x, const Vector &y) const;
 
    virtual ~FPIRelaxation() {}
 };
@@ -626,7 +629,7 @@ class AitkenRelaxation : public FPIRelaxation
 {
 protected:
    Vector rold; // Old residual vector
-   real_t rold_norm = 0.0;
+   real_t rold_nsq = 0.0;
 
 public:
    AitkenRelaxation() = default;
@@ -635,14 +638,7 @@ public:
    AitkenRelaxation(MPI_Comm comm_) : FPIRelaxation(comm_) {}
 #endif
 
-   /// @brief Set the operator for the relaxation method.
-   void Init(const Operator &op_) override
-   {
-      FPIRelaxation::Init(op_);
-      rold.SetSize(op->Width());
-      rold = 0.0;
-      rold_norm = 0.0;
-   }
+   void Init() override;
 
    /**
     @brief Compute the Aitken relaxation factor for Fixed Point Iteration.
@@ -654,18 +650,7 @@ public:
       @return The computed relaxation factor
    */
    real_t Eval(const Vector &state, const Vector &residual, real_t res_norm,
-               real_t rfactor) override
-   {
-      real_t num   = Dot(rold, residual) - (rold_norm * rold_norm);
-      real_t denom = NormSquared(rold, residual);
-      real_t ratio = num / denom;
-
-      if (num == 0.0) { ratio = -1.0; } // Avoid num = 0.0 at first call
-      rold_norm = res_norm;
-      rold      = residual;
-
-      return Clamp(-rfactor * ratio); // Clamp the relaxation factor
-   };
+               real_t rfactor) override;
 };
 
 /**
@@ -684,13 +669,7 @@ public:
    SteepestDescentRelaxation(MPI_Comm comm_) : FPIRelaxation(comm_) {}
 #endif
 
-   /// @brief Set the operator for the relaxation method.
-   void Init(const Operator &op_) override
-   {
-      FPIRelaxation::Init(op_);
-      z.SetSize(op->Width());
-      z = 0.0;
-   }
+   void Init() override;
 
    /**
       @brief Compute the steepest descent relaxation factor for Fixed Point Iteration.
@@ -702,16 +681,7 @@ public:
       @return The computed relaxation factor
     */
    real_t Eval(const Vector &state, const Vector &residual, real_t res_norm,
-               real_t rfactor) override
-   {
-      MFEM_VERIFY(op,"Operator not set; set using Init(Operator&)")
-
-      Operator *J = &op->GetGradient(state);
-      real_t num = res_norm * res_norm;
-      J->Mult(residual, z); // rold = F'(x) * rnew;
-      real_t denom = Dot(z, residual);
-      return Clamp(num/denom); // Clamp the relaxation factor
-   }
+               real_t rfactor) override;
 };
 
 /// Fixed point iteration solver: x <- f(x)

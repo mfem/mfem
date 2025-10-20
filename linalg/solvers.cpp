@@ -734,11 +734,79 @@ void SLI(const Operator &A, Solver &B, const Vector &b, Vector &x,
    sli.Mult(b, x);
 }
 
+real_t FPIRelaxation::Dot(const Vector &x, const Vector &y) const
+{
+#ifndef MFEM_USE_MPI
+   return (x * y);
+#else
+   return InnerProduct(comm, x, y);
+#endif
+}
+
+real_t FPIRelaxation::SquaredDistance(const Vector &x, const Vector &y) const
+{
+#ifndef MFEM_USE_MPI
+   return x.DistanceSquaredTo(y);
+#else
+   return DistanceSquared(comm, x, y);
+#endif
+}
+
+void AitkenRelaxation::Init()
+{
+   FPIRelaxation::Init();
+   MemoryType mt = GetMemoryType(oper->GetMemoryClass());
+   rold.SetSize(oper->Width(), mt);
+   rold.UseDevice(true);
+   rold = 0.0;
+   rold_nsq = 0.0;
+}
+
+real_t AitkenRelaxation::Eval(const Vector &state, const Vector &residual,
+                              real_t res_norm, real_t rfactor)
+{
+   real_t rdot  = Dot(rold, residual);
+   real_t rnsq  = res_norm * res_norm;
+   real_t denom = rnsq - 2.0*rdot + rold_nsq; // ||rold - residual||^2
+   real_t ratio = (rdot - rold_nsq) / denom;
+
+   rold_nsq = rnsq;
+   rold     = residual;
+   if (ratio == 0.0) { return rfactor; } // Avoid factor = 0.0 at first call
+   return Clamp(-rfactor * ratio);
+}
+
+void SteepestDescentRelaxation::Init()
+{
+   FPIRelaxation::Init();
+   MemoryType mt = GetMemoryType(oper->GetMemoryClass());
+   z.SetSize(oper->Width(), mt);
+   z.UseDevice(true);
+}
+
+real_t SteepestDescentRelaxation::Eval(const Vector &state,
+                                       const Vector &residual,
+                                       real_t res_norm, real_t rfactor)
+{
+   MFEM_VERIFY(oper,"Operator not set; set using SetOperator(Operator&)")
+
+   Operator *J = &oper->GetGradient(state);
+   real_t num = res_norm * res_norm;
+   J->Mult(residual, z); // rold = F'(x) * rnew;
+   real_t denom = Dot(z, residual);
+   return Clamp(num/denom);
+}
+
 /// Fixed point iteration solver: x <- f(x)
 void FPISolver::UpdateVectors()
 {
-   r.SetSize(width);
-   z.SetSize(width);
+   MemoryType mt = GetMemoryType(oper->GetMemoryClass());
+
+   r.SetSize(width, mt);
+   r.UseDevice(true);
+
+   z.SetSize(width, mt);
+   z.UseDevice(true);
 }
 
 void FPISolver::SetOperator(const Operator &op)
@@ -750,7 +818,7 @@ void FPISolver::SetOperator(const Operator &op)
       relax_method = new FPIRelaxation(); // Default relaxation strategy
       relax_owned = true;
    }
-   relax_method->Init(*oper);
+   relax_method->SetOperator(*oper);
 }
 
 void FPISolver::SetRelaxation(real_t rfactor, FPIRelaxation *relaxation,
@@ -807,7 +875,7 @@ void FPISolver::Mult(const Vector &b, Vector &x) const
    // start iteration
    converged = false;
    final_iter = max_iter;
-   relax_method->Init(*oper);
+   relax_method->Init();
    for (i = 1; true; )
    {
       factor = relax_method->Eval(x,r,nom,fac_old);
@@ -838,7 +906,7 @@ void FPISolver::Mult(const Vector &b, Vector &x) const
       {
          mfem::out << "   Iteration : " << setw(3) << right << (i-1)
                    << "  ||r|| = " << setw(11) << left << nom
-                   << "\tConv. rate: " << cf << '\n';
+                   << "\trlx. fac.: " << fac_old << '\n';
       }
 
       if (done) { break; }
