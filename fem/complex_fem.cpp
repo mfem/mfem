@@ -1429,4 +1429,193 @@ ParSesquilinearForm::Update(FiniteElementSpace *nfes)
 
 #endif // MFEM_USE_MPI
 
+ComplexPhaseCoefficient::ComplexPhaseCoefficient(
+   VectorCoefficient *kRe,
+   VectorCoefficient *kIm,
+   Coefficient *vRe,
+   Coefficient *vIm,
+   bool realPart, bool neg_k)
+   : kReCoef_(kRe), kImCoef_(kIm), vReCoef_(vRe), vImCoef_(vIm),
+     realPart_(realPart), neg_k_(neg_k),
+     kdim_(kRe ? kRe->GetVDim() :(kIm ? kIm->GetVDim() : 0)),
+     xk_(kdim_), kRe_(kdim_), kIm_(kdim_)
+{
+   if ( kRe && kIm )
+   {
+      MFEM_ASSERT(kRe->GetVDim() == kIm->GetVDim(),
+                  "Wave vector dimension mismatch in "
+                  "ComplexPhaseCoefficient");
+   }
+
+   xk_  = 0.0;
+   kRe_ = 0.0;
+   kIm_ = 0.0;
+}
+
+real_t ComplexPhaseCoefficient::Eval(ElementTransformation &T,
+                                     const IntegrationPoint &ip)
+{
+   T.Transform(ip, xk_);
+
+   real_t sinkx = 0.0;
+   real_t coskx = 1.0;
+
+   if (kReCoef_)
+   {
+      kReCoef_->Eval(kRe_, T, ip);
+      real_t phase = kRe_ * xk_;
+
+      sinkx = sin(phase) * (neg_k_ ? -1.0 : 1.0);
+      coskx = cos(phase);
+   }
+   if (kImCoef_)
+   {
+      kImCoef_->Eval(kIm_, T, ip);
+      real_t phase = kIm_ * xk_;
+      real_t expkx = exp((neg_k_ ? -1.0 : 1.0) * phase);
+
+      sinkx *= expkx;
+      coskx *= expkx;
+   }
+
+   real_t vRe = 0.0;
+   real_t vIm = 0.0;
+
+   if (vReCoef_)
+   {
+      vRe = vReCoef_->Eval(T, ip);
+   }
+   if (vImCoef_)
+   {
+      vIm = vImCoef_->Eval(T, ip);
+   }
+
+   real_t v = 0.0;
+   if (realPart_)
+   {
+      v = coskx * vRe - sinkx * vIm;
+   }
+   else
+   {
+      v = sinkx * vRe + coskx * vIm;
+   }
+   return v;
+}
+
+ComplexPhaseVectorCoefficient::ComplexPhaseVectorCoefficient(
+   VectorCoefficient *kRe,
+   VectorCoefficient *kIm,
+   VectorCoefficient *vRe,
+   VectorCoefficient *vIm,
+   bool realPart, bool neg_k)
+   : VectorCoefficient(vRe ? vRe->GetVDim() :(vIm ? vIm->GetVDim() : 0)),
+     kReCoef_(kRe), kImCoef_(kIm), vReCoef_(vRe), vImCoef_(vIm),
+     realPart_(realPart), neg_k_(neg_k),
+     kdim_(kRe ? kRe->GetVDim() :(kIm ? kIm->GetVDim() : 0)),
+     xk_(kdim_), kRe_(kdim_), kIm_(kdim_), vRe_(vdim), vIm_(vdim)
+{
+   if ( vRe && vIm )
+   {
+      MFEM_ASSERT(vRe->GetVDim() == vIm->GetVDim(),
+                  "Vector dimension mismatch in "
+                  "ComplexPhaseVectorCoefficient");
+   }
+   if ( kRe && kIm )
+   {
+      MFEM_ASSERT(kRe->GetVDim() == kIm->GetVDim(),
+                  "Wave vector dimension mismatch in "
+                  "ComplexPhaseVectorCoefficient");
+   }
+
+   xk_  = 0.0;
+   kRe_ = 0.0;
+   kIm_ = 0.0;
+   vRe_ = 0.0;
+   vIm_ = 0.0;
+}
+
+void ComplexPhaseVectorCoefficient::Eval(Vector &V, ElementTransformation &T,
+                                         const IntegrationPoint &ip)
+{
+   T.Transform(ip, xk_);
+
+   real_t sinkx = 0.0;
+   real_t coskx = 1.0;
+
+   if (kReCoef_)
+   {
+      kReCoef_->Eval(kRe_, T, ip);
+      real_t phase = kRe_ * xk_;
+
+      sinkx = sin(phase) * (neg_k_ ? -1.0 : 1.0);
+      coskx = cos(phase);
+   }
+   if (kImCoef_)
+   {
+      kImCoef_->Eval(kIm_, T, ip);
+      real_t phase = kIm_ * xk_;
+      real_t expkx = exp((neg_k_ ? -1.0 : 1.0) * phase);
+
+      sinkx *= expkx;
+      coskx *= expkx;
+   }
+
+   if (vReCoef_)
+   {
+      vReCoef_->Eval(vRe_, T, ip);
+   }
+   if (vImCoef_)
+   {
+      vImCoef_->Eval(vIm_, T, ip);
+   }
+
+   V.SetSize(vdim);
+   if (realPart_)
+   {
+      add(coskx, vRe_, -sinkx, vIm_, V);
+   }
+   else
+   {
+      add(sinkx, vRe_, coskx, vIm_, V);
+   }
+}
+
+ComplexMatrixVectorProductCoef::ComplexMatrixVectorProductCoef(
+   MatrixCoefficient *MRe,
+   MatrixCoefficient *MIm,
+   const GridFunction *vRe,
+   const GridFunction *vIm)
+   : VectorCoefficient((MRe) ? MRe->GetHeight() : MIm->GetHeight()),
+     vRe_gf_(vRe),
+     vIm_gf_(vIm),
+     mReCoef_(MRe),
+     mImCoef_(MIm)
+{
+   vRe_.SetSize(vdim); vRe_ = 0.0;
+   vIm_.SetSize(vdim); vIm_ = 0.0;
+   mRe_.SetSize(vdim); mRe_ = 0.0;
+   mIm_.SetSize(vdim); mIm_ = 0.0;
+}
+
+void ComplexMatrixVectorProductCoef::evaluateCoefs(ElementTransformation &T,
+                                                   const IntegrationPoint &ip)
+{
+   if (vRe_gf_)
+   {
+      vRe_gf_->GetVectorValue(T, ip, vRe_);
+   }
+   if (vIm_gf_)
+   {
+      vIm_gf_->GetVectorValue(T, ip, vIm_);
+   }
+   if (mReCoef_)
+   {
+      mReCoef_->Eval(mRe_, T, ip);
+   }
+   if (mImCoef_)
+   {
+      mImCoef_->Eval(mIm_, T, ip);
+   }
+}
+
 }

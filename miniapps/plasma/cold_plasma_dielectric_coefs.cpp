@@ -1152,187 +1152,19 @@ void BFieldProfile::Eval(Vector &V, ElementTransformation &T,
    switch (type_)
    {
       case CONSTANT:
-         if (unit_)
-         {
-            real_t bmag = pow( pow(p_[0], 2) + pow(p_[1], 2) + pow(p_[2], 2), 0.5);
-            V[0] = p_[0] / bmag;
-            V[1] = p_[1] / bmag;
-            V[2] = p_[2] / bmag;
-         }
-         else
-         {
-            V[0] = p_[0];
-            V[1] = p_[1];
-            V[2] = p_[2];
-         }
+         V[0] = p_[0];
+         V[1] = p_[1];
+         V[2] = p_[2];
          break;
       default:
-         if (unit_)
-         {
-            V[0] = 0.0;
-            V[1] = 0.0;
-            V[2] = 1.0;
-         }
-         else
-         {
-            V[0] = 0.0;
-            V[1] = 0.0;
-            V[2] = 5.4;
-         }
+         V[0] = 0.0;
+         V[1] = 0.0;
+         V[2] = 5.4;
+         break;
    }
-}
-
-ComplexPhaseCoefficient::ComplexPhaseCoefficient(
-   VectorCoefficient *kRe,
-   VectorCoefficient *kIm,
-   Coefficient *vRe,
-   Coefficient *vIm,
-   bool realPart, bool inv_k)
-   : kReCoef_(kRe), kImCoef_(kIm), vReCoef_(vRe), vImCoef_(vIm),
-     realPart_(realPart), inv_k_(inv_k),
-     kdim_(kRe ? kRe->GetVDim() :(kIm ? kIm->GetVDim() : 0)),
-     xk_(kdim_), xs_(xk_.GetData(), kdim_),
-     kRe_(kdim_), kIm_(kdim_)
-{
-   if ( kRe && kIm )
+   if (unit_)
    {
-      MFEM_ASSERT(kRe->GetVDim() == kIm->GetVDim(),
-                  "Wave vector dimension mismatch in "
-                  "ComplexPhaseCoefficient");
-   }
-
-   xk_  = 0.0;
-   kRe_ = 0.0;
-   kIm_ = 0.0;
-}
-
-real_t ComplexPhaseCoefficient::Eval(ElementTransformation &T,
-                                     const IntegrationPoint &ip)
-{
-   T.Transform(ip, xs_);
-
-   real_t sinkx = 0.0;
-   real_t coskx = 1.0;
-
-   if (kReCoef_)
-   {
-      kReCoef_->Eval(kRe_, T, ip);
-      real_t phase = kRe_ * xk_;
-
-      sinkx = sin(phase) * (inv_k_ ? -1.0 : 1.0);
-      coskx = cos(phase);
-   }
-   if (kImCoef_)
-   {
-      kImCoef_->Eval(kIm_, T, ip);
-      real_t phase = kIm_ * xk_;
-      real_t expkx = exp((inv_k_ ? -1.0 : 1.0) * phase);
-
-      sinkx *= expkx;
-      coskx *= expkx;
-   }
-
-   real_t vRe = 0.0;
-   real_t vIm = 0.0;
-
-   if (vReCoef_)
-   {
-      vRe = vReCoef_->Eval(T, ip);
-   }
-   if (vImCoef_)
-   {
-      vIm = vImCoef_->Eval(T, ip);
-   }
-
-   real_t v = 0.0;
-   if (realPart_)
-   {
-      v = coskx * vRe - sinkx * vIm;
-   }
-   else
-   {
-      v = sinkx * vRe + coskx * vIm;
-   }
-   return v;
-}
-
-ComplexPhaseVectorCoefficient::ComplexPhaseVectorCoefficient(
-   VectorCoefficient *kRe,
-   VectorCoefficient *kIm,
-   VectorCoefficient *vRe,
-   VectorCoefficient *vIm,
-   bool realPart, bool inv_k)
-   : VectorCoefficient(vRe ? vRe->GetVDim() :(vIm ? vIm->GetVDim() : 0)),
-     kReCoef_(kRe), kImCoef_(kIm), vReCoef_(vRe), vImCoef_(vIm),
-     realPart_(realPart), inv_k_(inv_k),
-     kdim_(kRe ? kRe->GetVDim() :(kIm ? kIm->GetVDim() : 0)),
-     xk_(kdim_), xs_(xk_.GetData(), kdim_),
-     kRe_(kdim_), kIm_(kdim_),
-     vRe_(vdim), vIm_(vdim)
-{
-   if ( vRe && vIm )
-   {
-      MFEM_ASSERT(vRe->GetVDim() == vIm->GetVDim(),
-                  "Vector dimension mismatch in "
-                  "ComplexPhaseVectorCoefficient");
-   }
-   if ( kRe && kIm )
-   {
-      MFEM_ASSERT(kRe->GetVDim() == kIm->GetVDim(),
-                  "Wave vector dimension mismatch in "
-                  "ComplexPhaseVectorCoefficient");
-   }
-
-   xk_  = 0.0;
-   kRe_ = 0.0;
-   kIm_ = 0.0;
-   vRe_ = 0.0;
-   vIm_ = 0.0;
-}
-
-void ComplexPhaseVectorCoefficient::Eval(Vector &V, ElementTransformation &T,
-                                         const IntegrationPoint &ip)
-{
-   T.Transform(ip, xs_);
-
-   real_t sinkx = 0.0;
-   real_t coskx = 1.0;
-
-   if (kReCoef_)
-   {
-      kReCoef_->Eval(kRe_, T, ip);
-      real_t phase = kRe_ * xk_;
-
-      sinkx = sin(phase) * (inv_k_ ? -1.0 : 1.0);
-      coskx = cos(phase);
-   }
-   if (kImCoef_)
-   {
-      kImCoef_->Eval(kIm_, T, ip);
-      real_t phase = kIm_ * xk_;
-      real_t expkx = exp((inv_k_ ? -1.0 : 1.0) * phase);
-
-      sinkx *= expkx;
-      coskx *= expkx;
-   }
-
-   if (vReCoef_)
-   {
-      vReCoef_->Eval(vRe_, T, ip);
-   }
-   if (vImCoef_)
-   {
-      vImCoef_->Eval(vIm_, T, ip);
-   }
-
-   V.SetSize(vdim);
-   if (realPart_)
-   {
-      add(coskx, vRe_, -sinkx, vIm_, V);
-   }
-   else
-   {
-      add(sinkx, vRe_, coskx, vIm_, V);
+      V /= V.Norml2();
    }
 }
 
