@@ -1955,7 +1955,7 @@ void CoefficientVector::Project(MatrixCoefficient &coeff, bool transpose)
 {
    if (auto *const_coeff = dynamic_cast<MatrixConstantCoefficient*>(&coeff))
    {
-      SetConstant(const_coeff->GetMatrix());
+      SetConstant(const_coeff->GetMatrix(), transpose);
    }
    else if (auto *const_sym_coeff =
                dynamic_cast<SymmetricMatrixConstantCoefficient*>(&coeff))
@@ -2016,7 +2016,7 @@ void CoefficientVector::SetConstant(const Vector &constant)
    }
 }
 
-void CoefficientVector::SetConstant(const DenseMatrix &constant)
+void CoefficientVector::SetConstant(const DenseMatrix &constant, bool transpose)
 {
    const int nq = (storage & CoefficientStorage::CONSTANTS) ? 1 : qs.GetSize();
    const int width = constant.Width();
@@ -2029,7 +2029,8 @@ void CoefficientVector::SetConstant(const DenseMatrix &constant)
       {
          for (int i = 0; i < height; ++i)
          {
-            (*this)[i + j*height + iq*vdim] = constant(i, j);
+            const real_t val = transpose ? constant(j,i) : constant(i,j);
+            (*this)[i + j*height + iq*vdim] = val;
          }
       }
    }
