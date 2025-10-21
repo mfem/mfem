@@ -687,6 +687,33 @@ public:
                       const FiniteElementCollection *fec,
                       int vdim = 1, int ordering = Ordering::byNODES);
 
+   /** Constructor for an Isogeometric FiniteElementSpace. The
+       FiniteElementCollection is equal to mesh.GetNodes()->OwnFEC(). */
+   static FiniteElementSpace
+   IsogeometricConstructor(Mesh* mesh, int vdim = 1,
+                           int ordering = Ordering::byNODES);
+
+   /** Dispatch constructor for NURBS FiniteElementSpace. The
+       FiniteElementCollection is related to mesh.GetNodes()->OwnFEC()
+       but with different order(s). Creates a NURBSExtension object that
+       is owned by the returned FiniteElementSpace. */
+   using NURBSSpace =
+      std::pair<FiniteElementSpace, std::unique_ptr<NURBSFECollection>>;
+   static NURBSSpace NURBSConstructor(Mesh* mesh,
+                                      Array<int>* orders,
+                                      int vdim = 1,
+                                      int ordering = Ordering::byNODES,
+                                      Array<int>* master_boundary = nullptr,
+                                      Array<int>* slave_boundary = nullptr);
+
+   /** Fixed order NURBS constructor */
+   static NURBSSpace NURBSConstructor(Mesh* mesh,
+                                      int order,
+                                      int vdim = 1,
+                                      int ordering = Ordering::byNODES,
+                                      Array<int>* master_boundary = nullptr,
+                                      Array<int>* slave_boundary = nullptr);
+
    /// Copy assignment not supported
    FiniteElementSpace& operator=(const FiniteElementSpace&) = delete;
 
