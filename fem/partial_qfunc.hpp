@@ -38,7 +38,7 @@ private:
    PartialQuadratureSpace *part_quad_space;
    
    /// Default value for elements not in the partial set.
-   double default_value;
+   real_t default_value;
 
 public:
    /// Create a PartialQuadratureFunction.
@@ -46,7 +46,7 @@ public:
        @param[in] vdim_ Vector dimension (number of components per quadrature point).
        @param[in] default_val Default value for elements not in the partial set. */
    PartialQuadratureFunction(PartialQuadratureSpace *qspace_, int vdim_ = 1,
-                             double default_val = -1.0)
+                             real_t default_val = -1.0)
       : QuadratureFunction(qspace_, vdim_), part_quad_space(qspace_),
         default_value(default_val) { }
 
@@ -55,9 +55,9 @@ public:
        PartialQuadratureSpace or the external data.
        @warning @a qspace_ may not be NULL.
        @note @a qf_data must be a valid **host** pointer (see the constructor
-       Vector::Vector(double *, int)). */
+       Vector::Vector(real_t *, int)). */
    PartialQuadratureFunction(PartialQuadratureSpace *qspace_, real_t *qf_data,
-                             int vdim_ = 1, double default_val = -1.0)
+                             int vdim_ = 1, real_t default_val = -1.0)
       : QuadratureFunction(qspace_, qf_data, vdim_), part_quad_space(qspace_),
         default_value(default_val) { }
 
@@ -65,7 +65,7 @@ public:
    PartialQuadratureSpace *GetPartialSpace() const { return part_quad_space; }
 
    /// Set this equal to a constant value.
-   PartialQuadratureFunction &operator=(double value) override
+   PartialQuadratureFunction &operator=(real_t value) override
    {
       QuadratureFunction::operator=(value);
       return *this;
@@ -135,24 +135,24 @@ public:
    using QuadratureFunction::GetIntRule;
 
    /// Write the PartialQuadratureFunction to a stream.
-   virtual void Save(std::ostream &out) const override
+   virtual void Save(std::ostream &os) const override
    {
       if (part_quad_space->global_offsets.Size() == 1)
       {
-         QuadratureFunction::Save(out);
+         QuadratureFunction::Save(os);
          return;
       }
       MFEM_ABORT("Currently not supported for PartialQuadratureFunctions");
    }
 
    /// Write the PartialQuadratureFunction to an output stream in VTU format.
-   virtual void SaveVTU(std::ostream &out, VTKFormat format = VTKFormat::ASCII,
+   virtual void SaveVTU(std::ostream &os, VTKFormat format = VTKFormat::ASCII,
                         int compression_level = 0,
                         const std::string &field_name = "u") const override
    {
       if (part_quad_space->global_offsets.Size() == 1)
       {
-         QuadratureFunction::SaveVTU(out, format, compression_level, field_name);
+         QuadratureFunction::SaveVTU(os, format, compression_level, field_name);
          return;
       }
       MFEM_ABORT("Currently not supported for PartialQuadratureFunctions");
@@ -250,7 +250,7 @@ public:
                 Insufficient space results in undefined behavior. */
    inline PartialQuadratureFunction Create(PartialQuadratureSpace *qspace,
                                            int vdim = 1,
-                                           double default_val = -1.0);
+                                           real_t default_val = -1.0);
 
    /// Get the current memory offset into the pool.
    /** @return Number of real_t elements currently allocated from the pool. */
@@ -470,7 +470,7 @@ inline void PartialQuadratureFunction::GetValues(int idx,
 inline PartialQuadratureFunction
 PartialQuadratureFunctionFactory::Create(PartialQuadratureSpace *qspace,
                                          int vdim,
-                                         double default_val)
+                                         real_t default_val)
 {
    MFEM_VERIFY(qspace != nullptr, "PartialQuadratureSpace cannot be NULL");
    MFEM_VERIFY(vdim >= 1, "Vector dimension must be >= 1");

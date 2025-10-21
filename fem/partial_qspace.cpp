@@ -239,19 +239,19 @@ PartialQuadratureSpace::PartialQuadratureSpace(mfem::Mesh *mesh_,
    Construct();
 }
 
-void PartialQuadratureSpace::Save(std::ostream &out) const
+void PartialQuadratureSpace::Save(std::ostream &os) const
 {
-   out << "PartialQuadratureSpace\n"
+   os << "PartialQuadratureSpace\n"
        << "Type: default_quadrature\n"
        << "Order: " << order << '\n';
    
    // Save the partial space mapping information
-   out << "PartialIndices: " << local2global.Size() << '\n';
+   os << "PartialIndices: " << local2global.Size() << '\n';
    for (int i = 0; i < local2global.Size(); i++)
    {
-      out << local2global[i] << " ";
+      os << local2global[i] << " ";
    }
-   out << "\n";
+   os << "\n";
 }
 
 } // namespace mfem
