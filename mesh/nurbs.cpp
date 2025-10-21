@@ -4744,21 +4744,14 @@ void NURBSExtension::DegreeElevate(const Array<int> &degrees)
    Array<int> ukv_to_rpkv;
    patchTopo->GetEdgeToUniqueKnotvector(edge_to_ukv_, ukv_to_rpkv);
 
-   // Array<NURBSPatch*> patches;
-   // Mesh
-   mfem::out << "np = " << patches.Size() << std::endl;
-
    // Elevate degrees
    for (int i = 0; i < GetNKV(); i++)
    {
       const int pkv = ukv_to_rpkv[i];
       const int p = pkv / Dimension();
-      mfem::out << "pkv = " << pkv << std::endl;
-      mfem::out << "p = " << p << std::endl;
       const int d = pkv % Dimension();
       const int oldd = patches[p]->GetKV(d)->GetOrder();
       const int newd = degrees[i];
-      mfem::out << "oldd,newd = " << oldd << ", " << newd << std::endl;
       if (newd > oldd)
       {
          patches[p]->DegreeElevate(d, newd - oldd);
