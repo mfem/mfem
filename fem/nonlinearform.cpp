@@ -436,7 +436,7 @@ void NonlinearForm::Mult(const Vector &x, Vector &y) const
    // In parallel, the result is in 'py' which is an alias for 'aux2'.
 }
 
-Operator &NonlinearForm::GetGradient(const Vector &x) const
+Operator &NonlinearForm::GetGradient(const Vector &x, bool finalize) const
 {
    if (ext)
    {
@@ -644,6 +644,8 @@ Operator &NonlinearForm::GetGradient(const Vector &x) const
       }
    }
 
+   if (!finalize) { return *Grad; }
+
    if (!Grad->Finalized())
    {
       Grad->Finalize(skip_zeros);
@@ -788,14 +790,25 @@ BlockNonlinearForm::BlockNonlinearForm(Array<FiniteElementSpace *> &f) :
 }
 
 void BlockNonlinearForm::SetEssentialBC(
-   const Array<Array<int> *> &bdr_attr_is_ess, Array<Vector *> &rhs)
+   const Array<Array<int>*> &bdr_attr_is_ess, Array<Vector*> &rhs)
 {
    for (int s = 0; s < fes.Size(); ++s)
    {
-      ess_tdofs[s]->SetSize(ess_tdofs.Size());
-
       fes[s]->GetEssentialTrueDofs(*bdr_attr_is_ess[s], *ess_tdofs[s]);
 
+      if (rhs[s])
+      {
+         rhs[s]->SetSubVector(*ess_tdofs[s], 0.0);
+      }
+   }
+}
+
+void BlockNonlinearForm::SetEssentialTrueDofs(
+   const Array<Array<int>*> &ess_tdof_list, Array<Vector*> &rhs)
+{
+   for (int s = 0; s < fes.Size(); ++s)
+   {
+      *ess_tdofs[s] = *ess_tdof_list[s];
       if (rhs[s])
       {
          rhs[s]->SetSubVector(*ess_tdofs[s], 0.0);
@@ -1192,7 +1205,14 @@ const BlockVector &BlockNonlinearForm::Prolongate(const BlockVector &bx) const
       aux1.Update(block_offsets);
       for (int s = 0; s < fes.Size(); s++)
       {
-         P[s]->Mult(bx.GetBlock(s), aux1.GetBlock(s));
+         if (P[s])
+         {
+            P[s]->Mult(bx.GetBlock(s), aux1.GetBlock(s));
+         }
+         else
+         {
+            aux1.GetBlock(s) = bx.GetBlock(s);
+         }
       }
       return aux1;
    }
@@ -1221,11 +1241,16 @@ void BlockNonlinearForm::Mult(const Vector &x, Vector &y) const
       {
          cP[s]->MultTranspose(pby.GetBlock(s), by.GetBlock(s));
       }
+      else if (needs_prolongation)
+      {
+         by.GetBlock(s) = pby.GetBlock(s);
+      }
       by.GetBlock(s).SetSubVector(*ess_tdofs[s], 0.0);
    }
 }
 
-void BlockNonlinearForm::ComputeGradientBlocked(const BlockVector &bx) const
+void BlockNonlinearForm::ComputeGradientBlocked(const BlockVector &bx,
+                                                bool finalize) const
 {
    const int skip_zeros = 0;
    Array<Array<int> *> vdofs(fes.Size());
@@ -1479,7 +1504,7 @@ void BlockNonlinearForm::ComputeGradientBlocked(const BlockVector &bx) const
       }
    }
 
-   if (!Grads(0,0)->Finalized())
+   if (finalize && !Grads(0,0)->Finalized())
    {
       for (int i=0; i<fes.Size(); ++i)
       {
@@ -1518,7 +1543,23 @@ Operator &BlockNonlinearForm::GetGradient(const Vector &x) const
          for (int s2 = 0; s2 < fes.Size(); ++s2)
          {
             delete cGrads(s1, s2);
-            cGrads(s1, s2) = RAP(*cP[s1], *Grads(s1, s2), *cP[s2]);
+            if (cP[s1] && cP[s2])
+            {
+               cGrads(s1, s2) = RAP(*cP[s1], *Grads(s1, s2), *cP[s2]);
+            }
+            else if (cP[s1])
+            {
+               cGrads(s1, s2) = TransposeMult(*cP[s1], *Grads(s1, s2));
+            }
+            else if (cP[s2])
+            {
+               cGrads(s1, s2) = mfem::Mult(*Grads(s1, s2), *cP[s2]);
+            }
+            else
+            {
+               cGrads(s1, s2) = NULL;
+               continue;
+            }
             mGrads(s1, s2) = cGrads(s1, s2);
          }
       }

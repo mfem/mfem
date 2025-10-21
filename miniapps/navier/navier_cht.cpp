@@ -461,7 +461,7 @@ void ConductionOperator::Mult(const Vector &u, Vector &du_dt) const
 
    Kmat.Mult(u, z);
    z.Neg(); // z = -z
-   K->EliminateVDofsInRHS(ess_tdof_list, u, z);
+   K->ParallelEliminateTDofsInRHS(ess_tdof_list, u, z);
 
    M_solver.Mult(z, du_dt);
    du_dt.Print();
@@ -483,7 +483,7 @@ void ConductionOperator::ImplicitSolve(const real_t dt,
    MFEM_VERIFY(dt == current_dt, ""); // SDIRK methods use the same dt
    Kmat.Mult(u, z);
    z.Neg();
-   K->EliminateVDofsInRHS(ess_tdof_list, u, z);
+   K->ParallelEliminateTDofsInRHS(ess_tdof_list, u, z);
 
    T_solver.Mult(z, du_dt);
    du_dt.SetSubVector(ess_tdof_list, 0.0);
