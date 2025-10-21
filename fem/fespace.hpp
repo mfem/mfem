@@ -1378,7 +1378,8 @@ public:
        For spaces with 'vdim' > 1, the 'component' parameter can be used
        to restricts the marked vDOFs to the specified component.
        If overwrite is set to false then values in ess_vdofs are preserved
-       and not reset. However, the assumption here is that ess_vdofs is set to
+       and not reset which allows the accumulation of multiple DOFs into a single array.
+       However, the assumption here is that ess_vdofs is set to
        the correct size already.*/
    virtual void GetEssentialVDofs(const Array<int> &bdr_attr_is_ess,
                                   Array<int> &ess_vdofs,
