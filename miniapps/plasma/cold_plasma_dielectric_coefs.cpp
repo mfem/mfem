@@ -43,9 +43,9 @@ complex_t R_cold_plasma(real_t omega,
 
    for (int i=0; i<number.Size(); i++)
    {
-      real_t n = number[i];
-      real_t q = charge[i];
-      real_t m = mass[i];
+      n = number[i];
+      q = charge[i];
+      m = mass[i];
       complex_t m_eff = m;
       if (i == 0) { m_eff = m * collision_correction; }
       if (i == 1) { nui_res = nui; }
@@ -82,9 +82,9 @@ complex_t L_cold_plasma(real_t omega,
 
    for (int i=0; i<number.Size(); i++)
    {
-      real_t n = number[i];
-      real_t q = charge[i];
-      real_t m = mass[i];
+      n = number[i];
+      q = charge[i];
+      m = mass[i];
       complex_t m_eff = m;
       if (i == 0) { m_eff = m * collision_correction; }
       if (i == 1) { nui_res = nui; }
@@ -126,9 +126,9 @@ complex_t S_cold_plasma(real_t omega,
 
    for (int i=0; i<number.Size(); i++)
    {
-      real_t n = number[i];
-      real_t q = charge[i];
-      real_t m = mass[i];
+      n = number[i];
+      q = charge[i];
+      m = mass[i];
       complex_t m_eff = m;
       if (i == 0) { m_eff = m * collision_correction; }
       if (i == 1) { nui_res = nui; }
@@ -174,9 +174,9 @@ complex_t D_cold_plasma(real_t omega,
 
    for (int i=0; i<number.Size(); i++)
    {
-      real_t n = number[i];
-      real_t q = charge[i];
-      real_t m = mass[i];
+      n = number[i];
+      q = charge[i];
+      m = mass[i];
       complex_t m_eff = m;
       if (i == 0) { m_eff = m*collision_correction; }
       if (i == 1) { nui_res = nui; }
@@ -217,9 +217,9 @@ complex_t P_cold_plasma(real_t omega,
 
    for (int i=0; i<number.Size(); i++)
    {
-      real_t n = number[i];
-      real_t q = charge[i];
-      real_t m = mass[i];
+      n = number[i];
+      q = charge[i];
+      m = mass[i];
       complex_t m_eff = m;
       if (i == 0) { m_eff = m*collision_correction; }
       complex_t w_p = omega_p(n, q, m_eff);
