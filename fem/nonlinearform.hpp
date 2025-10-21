@@ -165,14 +165,14 @@ public:
    const Array<NonlinearFormIntegrator*> &GetBdrFaceIntegrators() const
    { return bfnfi; }
 
-   /** @brief Specify essential boundary conditions. 
+   /** @brief Specify essential boundary conditions.
 
        This method calls FiniteElementSpace::GetEssentialTrueDofs() and stores
        the result internally for use by other methods. If the @a rhs pointer is
        not NULL, its essential true dofs will be set to zero. This makes it
        "compatible" with the output vectors from the Mult() method which also
        have zero entries at the essential true dofs.
-       
+
        @note The values in the essential vdofs have to come from the initial guess.
        */
    void SetEssentialBC(const Array<int> &bdr_attr_is_ess, Vector *rhs = NULL);
@@ -191,7 +191,7 @@ public:
        not NULL, its essential true dofs will be set to zero. This makes it
        "compatible" with the output vectors from the Mult() method which also
        have zero entries at the essential true dofs.
-       
+
        @note The values in the essential vdofs have to come from the initial guess.
        */
    void SetEssentialBC(const Array<int> &bdr_attr_is_ess,

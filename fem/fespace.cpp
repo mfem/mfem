@@ -711,24 +711,21 @@ void FiniteElementSpace::GetEssentialTrueDofs(const Array<int> &bdr_attr_is_ess,
    MarkerToList(ess_tdofs, ess_tdof_list);
 }
 
-void FiniteElementSpace::GetEssentialTrueDofs(const Array<int> &bdr_attr_is_ess,
-                                              Array<int> &ess_tdof_list,
-                                              const Array2D<bool> &component)
+void FiniteElementSpace::GetEssentialVDofsFromComponent(const Array<int> &bdr_attr_is_ess,
+                                                        const Array2D<bool> &component,
+                                                        Array<int> &ess_vdofs) const
 {
    MFEM_ASSERT(component.NumCols() == vdim,
                "Number of columns of component was not equal to FESpace vdim");
    MFEM_ASSERT(component.NumRows() == bdr_attr_is_ess.Size(),
                "Number of rows of component was not equal to bdr_attr_is_ess.Size()");
 
-   Array<int> ess_vdofs, ess_tdofs, bdr_attr_is_ess_single_comp;
+   Array<int> bdr_attr_is_ess_single_comp;
    bdr_attr_is_ess_single_comp.SetSize(bdr_attr_is_ess.Size());
 
    for (int i = 0; i < vdim; i++)
    {
-      // Only overwrite ess_vdofs on first iteration
-      // all other iterations we want to preserve values of
-      // ess_vdofs.
-      const bool overwrite = (i == 0) ? true : false;
+      const bool overwrite = (i == 0);
       bdr_attr_is_ess_single_comp = 0;
       for (int j = 0; j < bdr_attr_is_ess.Size(); j++)
       {
@@ -739,6 +736,15 @@ void FiniteElementSpace::GetEssentialTrueDofs(const Array<int> &bdr_attr_is_ess,
       }
       GetEssentialVDofs(bdr_attr_is_ess_single_comp, ess_vdofs, i, overwrite);
    }
+}
+
+void FiniteElementSpace::GetEssentialTrueDofs(const Array<int> &bdr_attr_is_ess,
+                                              Array<int> &ess_tdof_list,
+                                              const Array2D<bool> &component)
+{
+   Array<int> ess_vdofs, ess_tdofs;
+
+   GetEssentialVDofsFromComponent(bdr_attr_is_ess, component, ess_vdofs);
 
    const SparseMatrix *R = GetConformingRestriction();
    if (!R)

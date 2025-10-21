@@ -637,6 +637,29 @@ protected:
    virtual void CopyProlongationAndRestriction(const FiniteElementSpace &fes,
                                                const Array<int> *perm);
 
+   /** @brief Helper function to mark essential VDofs based on a component
+       matrix specifying which vector components are essential on each boundary
+       attribute.
+
+       This method loops over all vector dimensions (vdim) and calls
+       GetEssentialVDofs() for each component where the corresponding entry
+       in the @a component matrix is true.
+
+       @param[in] bdr_attr_is_ess Array marking which boundary attributes are
+                                  essential (1 for essential, 0 otherwise).
+       @param[in] component 2D boolean array of size (num_bdr_attributes x vdim)
+                           indicating which vector components are essential for
+                           each boundary attribute. component(j,i) == true means
+                           component i is essential on boundary attribute j.
+       @param[out] ess_vdofs Marker array for essential VDofs. On exit,
+                            ess_vdofs[i] != 0 if VDof i is essential.
+
+       @note This is a helper method used by GetEssentialTrueDofs() when
+             component-wise boundary conditions are specified. */
+   void GetEssentialVDofsFromComponent(const Array<int> &bdr_attr_is_ess,
+                                       const Array2D<bool> &component,
+                                       Array<int> &ess_vdofs) const;
+
 public:
 
 
