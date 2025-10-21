@@ -506,8 +506,6 @@ public:
    void ComputeAndAssemblePotBdrFaceMatrix(int bface, DenseMatrix & elmat,
                                            Array<int>& vdofs, int skip_zeros = 1);
 
-   void AssembleNCMasterFaceMatrices();
-
    /// Assemble the boundary element matrix A into the hybridized system matrix.
    //void AssembleBdrMatrix(int bdr_el, const DenseMatrix &A);
 
