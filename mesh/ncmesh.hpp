@@ -121,6 +121,11 @@ struct MatrixMap; // for internal use
 class VertexToKnotSpan
 {
 public:
+   /// Deep copy of another instance.
+   VertexToKnotSpan(const VertexToKnotSpan &other);
+
+   VertexToKnotSpan() = default;
+
    /// Set the spatial dimension and number of vertices.
    void SetSize(int dimension, int numVertices);
 
@@ -401,6 +406,19 @@ public:
    const VertexToKnotSpan& GetVertexToKnotSpan() const
    {
       return vertex_to_knotspan;
+   }
+
+   /// Set the dimension and number of vertices for the VertexToKnotSpan.
+   void VertexToKnotSpanSetSize(int dim, int numVertices)
+   {
+      vertex_to_knotspan.SetSize(dim, numVertices);
+   }
+
+   /// Add a vertex to the 3D VertexToKnotSpan.
+   void AddVertexToKnotSpan3D(int index, int v, const std::array<int, 2> &ks,
+                              const std::array<int, 4> &pv)
+   {
+      vertex_to_knotspan.SetVertex3D(index, v, ks, pv);
    }
 
    /// Remap knot-span indices @a vertex_to_knotspan after refinement.

@@ -65,7 +65,7 @@ set(UNIT_TESTS_SRCS
   mesh/test_psubmesh.cpp
   mesh/test_submesh.cpp
   mesh/test_vtu.cpp
-  mesh/test_nurbs.cpp
+  mesh/test_ncp_nurbs.cpp
   mesh/test_exodus_writer.cpp
   fem/make_permuted_mesh.cpp
   fem/test_1d_bilininteg.cpp

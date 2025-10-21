@@ -3241,6 +3241,11 @@ std::pair<int, int> QuadrupleToPair(const std::array<int, 4> &q)
    return std::pair<int, int>(q[idmin], q[(idmin + 2) % 4]);
 }
 
+VertexToKnotSpan::VertexToKnotSpan(const VertexToKnotSpan &other) :
+   dim(other.dim),
+   data(other.data)
+{ }
+
 void VertexToKnotSpan::SetSize(int dimension, int numVertices)
 {
    dim = dimension;

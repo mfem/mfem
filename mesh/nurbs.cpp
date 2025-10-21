@@ -4588,6 +4588,8 @@ void NURBSExtension::ConvertToPatches(const Vector &Nodes)
 {
    delete el_dof;
    delete bel_dof;
+   el_dof = nullptr;
+   bel_dof = nullptr;
 
    if (patches.Size() == 0)
    {
@@ -5427,6 +5429,44 @@ NURBSPatch::NURBSPatch(Array<const KnotVector *> &kv_,  int dim_,
    }
    init(dim_);
    memcpy(data, control_points, sizeof(real_t)*n);
+}
+
+void NURBSPatch::SetControlPoints(const NURBSPatch &p)
+{
+   MFEM_ASSERT(p.Dim == Dim, "");
+
+   // Set weights and weighted control points
+   if (Dim == 4) // 3D case
+   {
+      MFEM_ASSERT(p.ni == ni && p.nj == nj && p.nk == nk, "");
+      for (int i=0; i<ni; ++i)
+         for (int j=0; j<nj; ++j)
+            for (int k=0; k<nk; ++k)
+            {
+               (*this)(i,j,k,Dim-1) = p(i,j,k,Dim-1); // Weight
+               for (int l=0; l<3; ++l) // Weighted control point
+               {
+                  (*this)(i,j,k,l) = p(i,j,k,l) * (*this)(i,j,k,Dim-1);
+               }
+            }
+   }
+   else if (Dim == 3) // 2D case
+   {
+      MFEM_ASSERT(p.ni == ni && p.nj == nj, "");
+      for (int i=0; i<ni; ++i)
+         for (int j=0; j<nj; ++j)
+         {
+            (*this)(i,j,Dim-1) = p(i,j,Dim-1); // Weight
+            for (int k=0; k<2; ++k) // Weighted control point
+            {
+               (*this)(i,j,k) = p(i,j,k) * (*this)(i,j,Dim-1);
+            }
+         }
+   }
+   else
+   {
+      MFEM_ABORT("This dimension is not supported.");
+   }
 }
 
 #ifdef MFEM_USE_MPI

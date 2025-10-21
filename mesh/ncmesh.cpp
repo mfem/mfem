@@ -251,6 +251,7 @@ NCMesh::NCMesh(const NCMesh &other)
    , boundary_faces(other.boundary_faces)
    , face_geom(other.face_geom)
    , element_vertex(other.element_vertex)
+   , vertex_to_knotspan(other.vertex_to_knotspan)
    , shadow(1024, 2048)
 {
    Update();
