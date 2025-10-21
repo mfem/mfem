@@ -130,7 +130,7 @@ TEST_CASE("H1 PA Coefficient", "[PartialAssembly][Coefficient]")
 {
    for (dimension = 2; dimension < 4; ++dimension)
    {
-      for (int coeffType = 0; coeffType < 6; ++coeffType)
+      for (int coeffType = 0; coeffType < 7; ++coeffType)
       {
          for (int integrator = 0; integrator < 2; ++integrator)
          {
@@ -179,6 +179,16 @@ TEST_CASE("H1 PA Coefficient", "[PartialAssembly][Coefficient]")
                {
                   mcoeff = new MatrixFunctionCoefficient(dimension,
                                                          &asymmetricMatrixCoeffFunction);
+               }
+               else if (coeffType == 6)
+               {
+                  DenseMatrix mat(dimension, dimension);
+                  for (int i = 0; i < dimension*dimension; ++i)
+                  {
+                     mat.GetData()[i] = rand_real();
+                  }
+                  for (int i = 0; i < dimension; ++i) { mat(i,i) += 2.0; }
+                  mcoeff = new MatrixConstantCoefficient(mat);
                }
 
                paform.SetAssemblyLevel(AssemblyLevel::PARTIAL);
