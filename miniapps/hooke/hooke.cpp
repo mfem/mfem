@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -49,7 +49,7 @@ void display_banner(ostream& os)
    os << R"(
          ___ ___ ________   ________   ____  __.___________
         /   |   \\_____  \  \_____  \ |    |/ _|\_   _____/
-       /    ~    \/   |   \  /   |   \|      <   |    __)_ 
+       /    ~    \/   |   \  /   |   \|      <   |    __)_
        \    Y    /    |    \/    |    \    |  \  |        \
         \___|_  /\_______  /\_______  /____|__ \/_______  /
               \/         \/         \/        \/        \/ 
@@ -69,6 +69,7 @@ int main(int argc, char *argv[])
    int serial_refinement_levels = 0;
    bool visualization = true;
    bool paraview = false;
+   int visport = 19916;
 
    if (Mpi::Root())
    {
@@ -176,7 +177,13 @@ int main(int argc, char *argv[])
    NewtonSolver newton(MPI_COMM_WORLD);
    newton.SetSolver(cg);
    newton.SetOperator(elasticity_op);
+#ifdef MFEM_USE_SINGLE
+   newton.SetRelTol(1e-4);
+#elif defined MFEM_USE_DOUBLE
    newton.SetRelTol(1e-6);
+#else
+   MFEM_ABORT("Floating point type undefined");
+#endif
    newton.SetMaxIter(10);
    newton.SetPrintLevel(1);
 
@@ -188,7 +195,6 @@ int main(int argc, char *argv[])
    if (visualization)
    {
       char vishost[] = "localhost";
-      int  visport   = 19916;
       socketstream sol_sock(vishost, visport);
       sol_sock << "parallel " << num_procs << " " << myid << "\n";
       sol_sock.precision(8);

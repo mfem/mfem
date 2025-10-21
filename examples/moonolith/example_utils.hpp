@@ -1,3 +1,14 @@
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
+//
+// This file is part of the MFEM library. For more information and source code
+// availability visit https://mfem.org.
+//
+// MFEM is free software; you can redistribute it and/or modify it under the
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
+
 #include <algorithm>
 #include <assert.h>
 #include <cstdlib>
@@ -73,7 +84,8 @@ void vector_fun(const mfem::Vector &x, mfem::Vector &f)
    f = n;
 }
 
-inline void plot(mfem::Mesh &mesh, mfem::GridFunction &x, std::string title)
+inline void plot(mfem::Mesh &mesh, mfem::GridFunction &x, std::string title,
+                 const int plot_number = 0)
 {
    using namespace std;
    using namespace mfem;
@@ -92,5 +104,18 @@ inline void plot(mfem::Mesh &mesh, mfem::GridFunction &x, std::string title)
    sol_sock.precision(8);
    sol_sock << "solution\n" << mesh << x
             << "window_title '"<< title << "'\n" << flush;
+
+   sol_sock << "window_geometry ";
+   sol_sock << (plot_number * 600)  << " " << 0 << " " << 600 << " " << 600 <<
+            "\n";
+
+   if (mesh.Dimension() == 2)
+   {
+      sol_sock  << "keys jRmclA\n";
+   }
+   else
+   {
+      sol_sock  << "keys rmclAa\n";
+   }
    sol_sock << flush;
 }

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -17,16 +17,21 @@
 namespace mfem
 {
 
-DGMassInverse::DGMassInverse(FiniteElementSpace &fes_orig, Coefficient *coeff,
+struct DGMassInvKernels { DGMassInvKernels(); };
+
+DGMassInverse::DGMassInverse(const FiniteElementSpace &fes_orig,
+                             Coefficient *coeff,
                              const IntegrationRule *ir,
                              int btype)
    : Solver(fes_orig.GetTrueVSize()),
      fec(fes_orig.GetMaxElementOrder(),
          fes_orig.GetMesh()->Dimension(),
          btype,
-         fes_orig.GetFE(0)->GetMapType()),
+         fes_orig.GetTypicalFE()->GetMapType()),
      fes(fes_orig.GetMesh(), &fec)
 {
+   static DGMassInvKernels kernels;
+
    MFEM_VERIFY(fes.IsDGSpace(), "Space must be DG.");
    MFEM_VERIFY(!fes.IsVariableOrder(), "Variable orders not supported.");
 
@@ -42,10 +47,12 @@ DGMassInverse::DGMassInverse(FiniteElementSpace &fes_orig, Coefficient *coeff,
    {
       // original basis to solver basis
       const auto mode = DofToQuad::TENSOR;
-      d2q = &fes_orig.GetFE(0)->GetDofToQuad(fes.GetFE(0)->GetNodes(), mode);
+      const FiniteElement &fe_orig = *fes_orig.GetTypicalFE();
+      const FiniteElement &fe = *fes.GetTypicalFE();
+      d2q = &fe_orig.GetDofToQuad(fe.GetNodes(), mode);
 
-      int n = d2q->ndof;
-      Array<double> B_inv = d2q->B; // deep copy
+      const int n = d2q->ndof;
+      Array<real_t> B_inv = d2q->B; // deep copy
       Array<int> ipiv(n);
       // solver basis to original
       LUFactors lu(B_inv.HostReadWrite(), ipiv.HostWrite());
@@ -69,7 +76,7 @@ DGMassInverse::DGMassInverse(FiniteElementSpace &fes_orig, Coefficient *coeff,
    // Only need transformed RHS if basis is different
    if (btype_orig != btype) { b2_.SetSize(height); }
 
-   M = new BilinearForm(&fes);
+   M.reset(new BilinearForm(&fes));
    M->AddDomainIntegrator(m); // M assumes ownership of m
    M->SetAssemblyLevel(AssemblyLevel::PARTIAL);
 
@@ -77,19 +84,19 @@ DGMassInverse::DGMassInverse(FiniteElementSpace &fes_orig, Coefficient *coeff,
    Update();
 }
 
-DGMassInverse::DGMassInverse(FiniteElementSpace &fes_, Coefficient &coeff,
+DGMassInverse::DGMassInverse(const FiniteElementSpace &fes_, Coefficient &coeff,
                              int btype)
    : DGMassInverse(fes_, &coeff, nullptr, btype) { }
 
-DGMassInverse::DGMassInverse(FiniteElementSpace &fes_, Coefficient &coeff,
+DGMassInverse::DGMassInverse(const FiniteElementSpace &fes_, Coefficient &coeff,
                              const IntegrationRule &ir, int btype)
    : DGMassInverse(fes_, &coeff, &ir, btype) { }
 
-DGMassInverse::DGMassInverse(FiniteElementSpace &fes_,
+DGMassInverse::DGMassInverse(const FiniteElementSpace &fes_,
                              const IntegrationRule &ir, int btype)
    : DGMassInverse(fes_, nullptr, &ir, btype) { }
 
-DGMassInverse::DGMassInverse(FiniteElementSpace &fes_, int btype)
+DGMassInverse::DGMassInverse(const FiniteElementSpace &fes_, int btype)
    : DGMassInverse(fes_, nullptr, nullptr, btype) { }
 
 void DGMassInverse::SetOperator(const Operator &op)
@@ -97,23 +104,20 @@ void DGMassInverse::SetOperator(const Operator &op)
    MFEM_ABORT("SetOperator not supported with DGMassInverse.")
 }
 
-void DGMassInverse::SetRelTol(const double rel_tol_) { rel_tol = rel_tol_; }
+void DGMassInverse::SetRelTol(const real_t rel_tol_) { rel_tol = rel_tol_; }
 
-void DGMassInverse::SetAbsTol(const double abs_tol_) { abs_tol = abs_tol_; }
+void DGMassInverse::SetAbsTol(const real_t abs_tol_) { abs_tol = abs_tol_; }
 
-void DGMassInverse::SetMaxIter(const double max_iter_) { max_iter = max_iter_; }
+void DGMassInverse::SetMaxIter(const int max_iter_) { max_iter = max_iter_; }
 
 void DGMassInverse::Update()
 {
    M->Assemble();
    M->AssembleDiagonal(diag_inv);
-   internal::MakeReciprocal(diag_inv.Size(), diag_inv.ReadWrite());
+   diag_inv.Reciprocal();
 }
 
-DGMassInverse::~DGMassInverse()
-{
-   delete M;
-}
+DGMassInverse::~DGMassInverse() = default;
 
 template<int DIM, int D1D, int Q1D>
 void DGMassInverse::DGMassCGIteration(const Vector &b_, Vector &u_) const
@@ -135,22 +139,22 @@ void DGMassInverse::DGMassCGIteration(const Vector &b_, Vector &u_) const
    auto z = z_.Write();
    auto u = u_.ReadWrite();
 
-   const double RELTOL = rel_tol;
-   const double ABSTOL = abs_tol;
-   const double MAXIT = max_iter;
+   const real_t RELTOL = rel_tol;
+   const real_t ABSTOL = abs_tol;
+   const int MAXIT = max_iter;
    const bool IT_MODE = iterative_mode;
    const bool CHANGE_BASIS = (d2q != nullptr);
 
    // b is the right-hand side (if no change of basis, this just points to the
    // incoming RHS vector, if we have to change basis, this points to the
    // internal b2 vector where we put the transformed RHS)
-   const double *b;
+   const real_t *b;
    // the following are non-null if we have to change basis
-   double *b2 = nullptr; // non-const access to b2
-   const double *b_orig = nullptr; // RHS vector in "original" basis
-   const double *d2q_B = nullptr; // matrix to transform initial guess
-   const double *q2d_B = nullptr; // matrix to transform solution
-   const double *q2d_Bt = nullptr; // matrix to transform RHS
+   real_t *b2 = nullptr; // non-const access to b2
+   const real_t *b_orig = nullptr; // RHS vector in "original" basis
+   const real_t *d2q_B = nullptr; // matrix to transform initial guess
+   const real_t *q2d_B = nullptr; // matrix to transform solution
+   const real_t *q2d_Bt = nullptr; // matrix to transform RHS
    if (CHANGE_BASIS)
    {
       d2q_B = d2q->B.Read();
@@ -166,21 +170,19 @@ void DGMassInverse::DGMassCGIteration(const Vector &b_, Vector &u_) const
       b = b_.Read();
    }
 
-   constexpr int NB = Q1D ? Q1D : 1; // block size
+   static constexpr int NB = Q1D ? Q1D : 1; // block size
 
-   MFEM_FORALL_2D(e, NE, NB, NB, 1,
+   mfem::forall_2D(NE, NB, NB, [=] MFEM_HOST_DEVICE (int e)
    {
-      constexpr int NB = Q1D ? Q1D : 1; // redefine here for some compilers
-
       // Perform change of basis if needed
       if (CHANGE_BASIS)
       {
          // Transform RHS
-         DGMassBasis<DIM,D1D,MAX_D1D>(e, NE, q2d_Bt, b_orig, b2, d1d);
+         DGMassBasis<DIM,D1D>(e, NE, q2d_Bt, b_orig, b2, d1d);
          if (IT_MODE)
          {
             // Transform initial guess
-            DGMassBasis<DIM,D1D,MAX_D1D>(e, NE, d2q_B, u, u, d1d);
+            DGMassBasis<DIM,D1D>(e, NE, d2q_B, u, u, d1d);
          }
       }
 
@@ -212,13 +214,13 @@ void DGMassInverse::DGMassCGIteration(const Vector &b_, Vector &u_) const
       DGMassPreconditioner(e, NE, ND, dinv, r, z);
       DGMassAxpy(e, NE, ND, 1.0, z, 0.0, z, d); // d = z
 
-      double nom = DGMassDot<NB>(e, NE, ND, d, r);
+      real_t nom = DGMassDot<NB>(e, NE, ND, d, r);
       if (nom < 0.0) { return; /* Not positive definite */ }
-      double r0 = fmax(nom*RELTOL*RELTOL, ABSTOL*ABSTOL);
+      real_t r0 = fmax(nom*RELTOL*RELTOL, ABSTOL*ABSTOL);
       if (nom <= r0) { return; /* Converged */ }
 
       DGMassApply<DIM,D1D,Q1D>(e, NE, B, Bt, pa_data, d, z, d1d, q1d);
-      double den = DGMassDot<NB>(e, NE, ND, z, d);
+      real_t den = DGMassDot<NB>(e, NE, ND, z, d);
       if (den <= 0.0)
       {
          DGMassDot<NB>(e, NE, ND, d, d);
@@ -230,19 +232,19 @@ void DGMassInverse::DGMassCGIteration(const Vector &b_, Vector &u_) const
       int i = 1;
       while (true)
       {
-         const double alpha = nom/den;
+         const real_t alpha = nom/den;
          DGMassAxpy(e, NE, ND, 1.0, u, alpha, d, u); // u = u + alpha*d
          DGMassAxpy(e, NE, ND, 1.0, r, -alpha, z, r); // r = r - alpha*A*d
 
          DGMassPreconditioner(e, NE, ND, dinv, r, z);
 
-         double betanom = DGMassDot<NB>(e, NE, ND, r, z);
+         real_t betanom = DGMassDot<NB>(e, NE, ND, r, z);
          if (betanom < 0.0) { return; /* Not positive definite */ }
          if (betanom <= r0) { break; /* Converged */ }
 
          if (++i > MAXIT) { break; }
 
-         const double beta = betanom/nom;
+         const real_t beta = betanom/nom;
          DGMassAxpy(e, NE, ND, 1.0, z, beta, d, d); // d = z + beta*d
          DGMassApply<DIM,D1D,Q1D>(e, NE, B, Bt, pa_data, d, z, d1d, q1d); // z = A d
          den = DGMassDot<NB>(e, NE, ND, d, z);
@@ -257,7 +259,7 @@ void DGMassInverse::DGMassCGIteration(const Vector &b_, Vector &u_) const
 
       if (CHANGE_BASIS)
       {
-         DGMassBasis<DIM,D1D,MAX_D1D>(e, NE, q2d_B, u, u, d1d);
+         DGMassBasis<DIM,D1D>(e, NE, q2d_B, u, u, d1d);
       }
    });
 }
@@ -269,47 +271,58 @@ void DGMassInverse::Mult(const Vector &Mu, Vector &u) const
    const int d1d = m->dofs1D;
    const int q1d = m->quad1D;
 
-   const int id = (d1d << 4) | q1d;
-
-   if (dim == 2)
-   {
-      switch (id)
-      {
-         case 0x11: return DGMassCGIteration<2,1,1>(Mu, u);
-         case 0x22: return DGMassCGIteration<2,2,2>(Mu, u);
-         case 0x33: return DGMassCGIteration<2,3,3>(Mu, u);
-         case 0x35: return DGMassCGIteration<2,3,5>(Mu, u);
-         case 0x44: return DGMassCGIteration<2,4,4>(Mu, u);
-         case 0x46: return DGMassCGIteration<2,4,6>(Mu, u);
-         case 0x55: return DGMassCGIteration<2,5,5>(Mu, u);
-         case 0x57: return DGMassCGIteration<2,5,7>(Mu, u);
-         case 0x66: return DGMassCGIteration<2,6,6>(Mu, u);
-         case 0x68: return DGMassCGIteration<2,6,8>(Mu, u);
-         default: return DGMassCGIteration<2>(Mu, u); // Fallback
-      }
-   }
-   else if (dim == 3)
-   {
-      switch (id)
-      {
-         case 0x22: return DGMassCGIteration<3,2,2>(Mu, u);
-         case 0x23: return DGMassCGIteration<3,2,3>(Mu, u);
-         case 0x33: return DGMassCGIteration<3,3,3>(Mu, u);
-         case 0x34: return DGMassCGIteration<3,3,4>(Mu, u);
-         case 0x35: return DGMassCGIteration<3,3,5>(Mu, u);
-         case 0x44: return DGMassCGIteration<3,4,4>(Mu, u);
-         case 0x45: return DGMassCGIteration<3,4,5>(Mu, u);
-         case 0x46: return DGMassCGIteration<3,4,6>(Mu, u);
-         case 0x48: return DGMassCGIteration<3,4,8>(Mu, u);
-         case 0x55: return DGMassCGIteration<3,5,5>(Mu, u);
-         case 0x56: return DGMassCGIteration<3,5,6>(Mu, u);
-         case 0x57: return DGMassCGIteration<3,5,7>(Mu, u);
-         case 0x58: return DGMassCGIteration<3,5,8>(Mu, u);
-         case 0x66: return DGMassCGIteration<3,6,6>(Mu, u);
-         case 0x67: return DGMassCGIteration<3,6,7>(Mu, u);
-         default: return DGMassCGIteration<3>(Mu, u); // Fallback
-      }
-   }
+   CGKernels::Run(dim, d1d, q1d, *this, Mu, u);
 }
+
+DGMassInvKernels::DGMassInvKernels()
+{
+   using k = DGMassInverse::CGKernels;
+   // 2D
+   k::Specialization<2,1,1>::Add();
+   k::Specialization<2,2,2>::Add();
+   k::Specialization<2,3,3>::Add();
+   k::Specialization<2,3,5>::Add();
+   k::Specialization<2,4,4>::Add();
+   k::Specialization<2,4,6>::Add();
+   k::Specialization<2,5,5>::Add();
+   k::Specialization<2,5,7>::Add();
+   k::Specialization<2,6,6>::Add();
+   k::Specialization<2,6,8>::Add();
+   // 3D
+   k::Specialization<3,2,2>::Add();
+   k::Specialization<3,2,3>::Add();
+   k::Specialization<3,3,3>::Add();
+   k::Specialization<3,3,4>::Add();
+   k::Specialization<3,3,5>::Add();
+   k::Specialization<3,4,4>::Add();
+   k::Specialization<3,4,5>::Add();
+   k::Specialization<3,4,6>::Add();
+   k::Specialization<3,4,8>::Add();
+   k::Specialization<3,5,5>::Add();
+   k::Specialization<3,5,6>::Add();
+   k::Specialization<3,5,7>::Add();
+   k::Specialization<3,5,8>::Add();
+   k::Specialization<3,6,6>::Add();
+   k::Specialization<3,6,7>::Add();
+}
+
+/// @cond Suppress_Doxygen_warnings
+
+template <int DIM, int D1D, int Q1D>
+DGMassInverse::CGKernelType DGMassInverse::CGKernels::Kernel()
+{
+   return &DGMassInverse::DGMassCGIteration<DIM,D1D,Q1D>;
+}
+
+DGMassInverse::CGKernelType DGMassInverse::CGKernels::Fallback(
+   int dim, int, int)
+{
+   if (dim == 1) { return &DGMassInverse::DGMassCGIteration<1>; }
+   else if (dim == 2) { return &DGMassInverse::DGMassCGIteration<2>; }
+   else if (dim == 3) { return &DGMassInverse::DGMassCGIteration<3>; }
+   else { MFEM_ABORT("Unsupported dimension."); }
+}
+
+/// @endcond
 
 } // namespace mfem
