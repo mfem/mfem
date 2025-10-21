@@ -467,7 +467,7 @@ public:
        The component has dimensions number of boundary attributes x vdim. */
    virtual void GetEssentialTrueDofs(const Array<int> &bdr_attr_is_ess,
                                      Array<int> &ess_tdof_list,
-                                     const Array2D<bool> &component);
+                                     const Array2D<bool> &component) override;
 
    /** If the given ldof is owned by the current processor, return its local
        tdof number, otherwise return -1 */
