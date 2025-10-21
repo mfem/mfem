@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -8,6 +8,7 @@
 // MFEM is free software; you can redistribute it and/or modify it under the
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
+#include <ceed/types.h>
 
 /// A structure used to pass additional data to f_build_conv and f_apply_conv
 struct NLConvectionContext { CeedInt dim, space_dim, vdim; CeedScalar coeff; };
@@ -87,7 +88,7 @@ CEED_QFUNCTION(f_build_conv_const)(void *ctx, CeedInt Q,
          }
          break;
    }
-   return 0;
+   return CEED_ERROR_SUCCESS;
 }
 
 /// libCEED Q-function for building quadrature data for a convection operator
@@ -167,7 +168,7 @@ CEED_QFUNCTION(f_build_conv_quad)(void *ctx, CeedInt Q,
          }
          break;
    }
-   return 0;
+   return CEED_ERROR_SUCCESS;
 }
 
 /// libCEED Q-function for applying a conv operator
@@ -247,7 +248,7 @@ CEED_QFUNCTION(f_apply_conv)(void *ctx, CeedInt Q,
          }
          break;
    }
-   return 0;
+   return CEED_ERROR_SUCCESS;
 }
 
 /// libCEED Q-function for applying a conv operator
@@ -327,13 +328,13 @@ CEED_QFUNCTION(f_apply_conv_mf_const)(void *ctx, CeedInt Q,
             const CeedScalar A33 = J11 * J22 - J12 * J21;
             const CeedScalar w = qw[i] * coeff;
             const CeedScalar qd00 = w * A11;
-            const CeedScalar qd01 = w * A21;
-            const CeedScalar qd02 = w * A31;
-            const CeedScalar qd10 = w * A12;
+            const CeedScalar qd10 = w * A21;
+            const CeedScalar qd20 = w * A31;
+            const CeedScalar qd01 = w * A12;
             const CeedScalar qd11 = w * A22;
-            const CeedScalar qd12 = w * A32;
-            const CeedScalar qd20 = w * A13;
-            const CeedScalar qd21 = w * A23;
+            const CeedScalar qd21 = w * A32;
+            const CeedScalar qd02 = w * A13;
+            const CeedScalar qd12 = w * A23;
             const CeedScalar qd22 = w * A33;
             const CeedScalar u0   = u[i + Q * 0];
             const CeedScalar u1   = u[i + Q * 1];
@@ -362,7 +363,7 @@ CEED_QFUNCTION(f_apply_conv_mf_const)(void *ctx, CeedInt Q,
          }
          break;
    }
-   return 0;
+   return CEED_ERROR_SUCCESS;
 }
 
 CEED_QFUNCTION(f_apply_conv_mf_quad)(void *ctx, CeedInt Q,
@@ -440,13 +441,13 @@ CEED_QFUNCTION(f_apply_conv_mf_quad)(void *ctx, CeedInt Q,
             const CeedScalar A33 = J11 * J22 - J12 * J21;
             const CeedScalar w = qw[i] * c[i];
             const CeedScalar qd00 = w * A11;
-            const CeedScalar qd01 = w * A21;
-            const CeedScalar qd02 = w * A31;
-            const CeedScalar qd10 = w * A12;
+            const CeedScalar qd10 = w * A21;
+            const CeedScalar qd20 = w * A31;
+            const CeedScalar qd01 = w * A12;
             const CeedScalar qd11 = w * A22;
-            const CeedScalar qd12 = w * A32;
-            const CeedScalar qd20 = w * A13;
-            const CeedScalar qd21 = w * A23;
+            const CeedScalar qd21 = w * A32;
+            const CeedScalar qd02 = w * A13;
+            const CeedScalar qd12 = w * A23;
             const CeedScalar qd22 = w * A33;
             const CeedScalar u0   = u[i + Q * 0];
             const CeedScalar u1   = u[i + Q * 1];
@@ -475,5 +476,5 @@ CEED_QFUNCTION(f_apply_conv_mf_quad)(void *ctx, CeedInt Q,
          }
          break;
    }
-   return 0;
+   return CEED_ERROR_SUCCESS;
 }

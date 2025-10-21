@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -15,7 +15,7 @@
 namespace mfem
 {
 
-constexpr double EPS = 1.e-12;
+constexpr real_t EPS = 1.e-12;
 
 TEST_CASE("FormLinearSystem", "[FormLinearSystem]")
 {
@@ -23,8 +23,8 @@ TEST_CASE("FormLinearSystem", "[FormLinearSystem]")
    {
       for (int ne = 1; ne <= 4; ++ne)
       {
-         std::cout << "Testing " << dim << "D partial assembly: "
-                   << std::pow(ne, dim) << " elements." << std::endl;
+         const int n_elements = static_cast<int>(std::pow(ne, dim));
+         CAPTURE(dim, n_elements);
          for (int order = 1; order <= 3; ++order)
          {
             Mesh mesh;
@@ -73,8 +73,8 @@ TEST_CASE("FormLinearSystem", "[FormLinearSystem]")
             fa.RecoverFEMSolution(X[1], b, x1);
 
             x0 -= x1;
-            double error = x0.Norml2();
-            std::cout << "    order: " << order << ", error norm: " << error << std::endl;
+            real_t error = x0.Norml2();
+            CAPTURE(error, order);
             REQUIRE(x0.Norml2() == MFEM_Approx(0.0, 1e2*EPS));
 
             delete fec;
@@ -91,8 +91,8 @@ TEST_CASE("ParallelFormLinearSystem", "[Parallel], [ParallelFormLinearSystem]")
    {
       for (int ne = 4; ne <= 5; ++ne)
       {
-         std::cout << "Testing " << dim << "D partial assembly: "
-                   << std::pow(ne, dim) << " elements." << std::endl;
+         const int n_elements = static_cast<int>(std::pow(ne, dim));
+         CAPTURE(dim, n_elements);
          for (int order = 1; order <= 3; ++order)
          {
             Mesh mesh;
@@ -158,8 +158,8 @@ TEST_CASE("ParallelFormLinearSystem", "[Parallel], [ParallelFormLinearSystem]")
             fa.RecoverFEMSolution(X[1], b, x1);
 
             x0 -= x1;
-            double error = x0.Norml2();
-            std::cout << "    order: " << order << ", error norm: " << error << std::endl;
+            real_t error = x0.Norml2();
+            CAPTURE(order, error);
             REQUIRE(x0.Norml2() == MFEM_Approx(0.0, 2e2*EPS));
 
             delete pmesh;
@@ -233,14 +233,14 @@ TEST_CASE("HypreParMatrixBlocksSquare",
       blockOper.SetBlock(1, 0, B);
       blockOper.SetBlock(1, 1, MW, 3.14);
 
-      Array2D<HypreParMatrix*> hBlocks(2,2);
+      Array2D<const HypreParMatrix*> hBlocks(2,2);
       hBlocks = NULL;
       hBlocks(0, 0) = MR;
       hBlocks(0, 1) = BT;
       hBlocks(1, 0) = B;
       hBlocks(1, 1) = MW;
 
-      Array2D<double> blockCoeff(2,2);
+      Array2D<real_t> blockCoeff(2,2);
       blockCoeff = 1.0;
       blockCoeff(1, 1) = 3.14;
       HypreParMatrix *H = HypreParMatrixFromBlocks(hBlocks, &blockCoeff);
@@ -254,13 +254,15 @@ TEST_CASE("HypreParMatrixBlocksSquare",
       yH = 0.0;
 
       MR->GetDiag(yBR);
+      yBR.SyncAliasMemory(yB);
       MW->GetDiag(yBW);
       yBW *= 3.14;
+      yBW.SyncAliasMemory(yB);
       H->GetDiag(yH);
 
       yH -= yB;
-      double error = yH.Norml2();
-      std::cout << "  order: " << order
+      real_t error = yH.Norml2();
+      mfem::out << "  order: " << order
                 << ", block matrix error norm on rank " << rank << ": " << error << std::endl;
       REQUIRE(error < EPS);
 

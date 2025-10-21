@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -13,6 +13,7 @@
 #define MFEM_LOR_BATCHED
 
 #include "lor.hpp"
+#include "../qspace.hpp"
 
 namespace mfem
 {
@@ -24,6 +25,7 @@ namespace mfem
 /// supported, currently:
 ///
 ///  - H1 diffusion + mass
+///  - DG diffusion + mass (in progress)
 ///  - ND curl-curl + mass
 ///  - RT div-div + mass
 ///
@@ -72,6 +74,9 @@ public:
    /// Return the vertices of the LOR mesh in E-vector format
    const Vector &GetLORVertexCoordinates() { return X_vert; }
 
+   /// Specialized implementation of SparseIJToCSR for DG spaces.
+   void SparseIJToCSR_DG(OperatorHandle &A) const;
+
 protected:
    /// After assembling the "sparse IJ" format, convert it to CSR.
    void SparseIJToCSR(OperatorHandle &A) const;
@@ -88,7 +93,7 @@ protected:
 public:
    /// @name GPU kernel functions
    /// These functions should be considered protected, but they contain
-   /// MFEM_FORALL kernels, and so they must be public (this is a compiler
+   /// mfem::forall kernels, and so they must be public (this is a compiler
    /// limitation).
    ///@{
 
@@ -104,6 +109,9 @@ public:
    void FillJAndData(SparseMatrix &A) const;
 
 #ifdef MFEM_USE_MPI
+   /// Assemble the parallel DG matrix (with shared faces).
+   void ParAssemble_DG(SparseMatrix &A_local, OperatorHandle &A);
+
    /// Assemble the system in parallel and place the result in @a A.
    void ParAssemble(BilinearForm &a, const Array<int> &ess_dofs,
                     OperatorHandle &A);
@@ -127,9 +135,8 @@ void EnsureCapacity(Memory<T> &mem, int capacity)
 
 /// Return the first domain integrator in the form @a i of type @a T.
 template <typename T>
-static T *GetIntegrator(BilinearForm &a)
+static T *GetIntegrator(Array<BilinearFormIntegrator*> *integs)
 {
-   Array<BilinearFormIntegrator*> *integs = a.GetDBFI();
    if (integs != NULL)
    {
       for (auto *i : *integs)
@@ -143,21 +150,48 @@ static T *GetIntegrator(BilinearForm &a)
    return nullptr;
 }
 
-#ifdef MFEM_USE_MPI
+template <typename T>
+static T *GetIntegrator(BilinearForm &a)
+{
+   return GetIntegrator<T>(a.GetDBFI());
+}
 
-/// @brief Make @a A_hyp steal ownership of its diagonal part @a A_diag.
-///
-/// If @a A_hyp does not own I and J, then they are aliases pointing to the I
-/// and J arrays in @a A_diag. In that case, this function swaps the memory
-/// objects. Similarly for the data array.
-///
-/// After this function is called, @a A_hyp will own all of the arrays of its
-/// diagonal part.
-///
-/// @note I and J can only be aliases when HYPRE_BIGINT is disabled.
-void HypreStealOwnership(HypreParMatrix &A_hyp, SparseMatrix &A_diag);
+template <typename T>
+static T *GetInteriorFaceIntegrator(BilinearForm &a)
+{
+   return GetIntegrator<T>(a.GetFBFI());
+}
 
-#endif
+/// @brief Return the Gauss-Lobatto rule for geometry @a geom with @a nd1d
+/// points per dimension.
+IntegrationRule GetLobattoIntRule(Geometry::Type geom, int nd1d);
+
+/// @brief Return the Gauss-Lobatto rule collocated with the element nodes.
+///
+/// Assumes @a fes uses Gauss-Lobatto basis.
+IntegrationRule GetCollocatedIntRule(FiniteElementSpace &fes);
+
+/// @brief Return the Gauss-Lobatto rule collocated with face nodes.
+///
+/// Assumes @a fes uses Gauss-Lobatto basis.
+IntegrationRule GetCollocatedFaceIntRule(FiniteElementSpace &fes);
+
+template <typename INTEGRATOR>
+void ProjectLORCoefficient(BilinearForm &a, CoefficientVector &coeff_vector)
+{
+   INTEGRATOR *i = GetIntegrator<INTEGRATOR>(a);
+   if (i)
+   {
+      // const_cast since Coefficient::Eval is not const...
+      auto *coeff = const_cast<Coefficient*>(i->GetCoefficient());
+      if (coeff) { coeff_vector.Project(*coeff); }
+      else { coeff_vector.SetConstant(1.0); }
+   }
+   else
+   {
+      coeff_vector.SetConstant(0.0);
+   }
+}
 
 /// Abstract base class for the batched LOR assembly kernels.
 class BatchedLORKernel
@@ -167,12 +201,18 @@ protected:
    Vector &X_vert; ///< Mesh coordinate vector.
    Vector &sparse_ij; ///< Local element sparsity matrix data.
    Array<int> &sparse_mapping; ///< Local element sparsity pattern.
+   IntegrationRule ir; ///< Collocated integration rule.
+   QuadratureSpace qs; ///< Quadrature space for coefficients.
+   CoefficientVector c1; ///< Coefficient of first integrator.
+   CoefficientVector c2; ///< Coefficient of second integrator.
    BatchedLORKernel(FiniteElementSpace &fes_ho_,
                     Vector &X_vert_,
                     Vector &sparse_ij_,
                     Array<int> &sparse_mapping_)
       : fes_ho(fes_ho_), X_vert(X_vert_), sparse_ij(sparse_ij_),
-        sparse_mapping(sparse_mapping_)
+        sparse_mapping(sparse_mapping_), ir(GetCollocatedIntRule(fes_ho)),
+        qs(*fes_ho.GetMesh(), ir), c1(qs, CoefficientStorage::COMPRESSED),
+        c2(qs, CoefficientStorage::COMPRESSED)
    { }
 };
 

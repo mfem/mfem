@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -59,6 +59,30 @@ PAMassIntegrator::PAMassIntegrator(const mfem::FiniteElementSpace &fes,
 #endif
 }
 
+MixedPAMassIntegrator::MixedPAMassIntegrator(const MassIntegrator &integ,
+                                             const mfem::FiniteElementSpace &fes,
+                                             mfem::Coefficient *Q)
+{
+#ifdef MFEM_USE_CEED
+   MassOperatorInfo info;
+   Assemble(integ, info, fes, Q);
+#else
+   MFEM_ABORT("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
+#endif
+}
+
+MixedPAMassIntegrator::MixedPAMassIntegrator(const VectorMassIntegrator &integ,
+                                             const mfem::FiniteElementSpace &fes,
+                                             mfem::Coefficient *Q)
+{
+#ifdef MFEM_USE_CEED
+   MassOperatorInfo info;
+   Assemble(integ, info, fes, Q);
+#else
+   MFEM_ABORT("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
+#endif
+}
+
 MFMassIntegrator::MFMassIntegrator(const mfem::FiniteElementSpace &fes,
                                    const mfem::IntegrationRule &irm,
                                    mfem::Coefficient *Q)
@@ -67,6 +91,30 @@ MFMassIntegrator::MFMassIntegrator(const mfem::FiniteElementSpace &fes,
 #ifdef MFEM_USE_CEED
    MassOperatorInfo info;
    Assemble(info, fes, irm, Q);
+#else
+   MFEM_ABORT("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
+#endif
+}
+
+MixedMFMassIntegrator::MixedMFMassIntegrator(const MassIntegrator &integ,
+                                             const mfem::FiniteElementSpace &fes,
+                                             mfem::Coefficient *Q)
+{
+#ifdef MFEM_USE_CEED
+   MassOperatorInfo info;
+   Assemble(integ, info, fes, Q);
+#else
+   MFEM_ABORT("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
+#endif
+}
+
+MixedMFMassIntegrator::MixedMFMassIntegrator(const VectorMassIntegrator &integ,
+                                             const mfem::FiniteElementSpace &fes,
+                                             mfem::Coefficient *Q)
+{
+#ifdef MFEM_USE_CEED
+   MassOperatorInfo info;
+   Assemble(integ, info, fes, Q);
 #else
    MFEM_ABORT("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
 #endif

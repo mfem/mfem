@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -106,9 +106,9 @@ int VTKGeometry::GetOrder(int vtk_geom, int npoints)
          case LAGRANGE_SEGMENT:
             return npoints - 1;
          case LAGRANGE_TRIANGLE:
-            return (std::sqrt(8*npoints + 1) - 3)/2;
+            return static_cast<int>(std::sqrt(8*npoints + 1) - 3)/2;
          case LAGRANGE_SQUARE:
-            return std::round(std::sqrt(npoints)) - 1;
+            return static_cast<int>(std::round(std::sqrt(npoints))) - 1;
          case LAGRANGE_TETRAHEDRON:
             switch (npoints)
             {
@@ -138,7 +138,7 @@ int VTKGeometry::GetOrder(int vtk_geom, int npoints)
                }
             }
          case LAGRANGE_CUBE:
-            return std::round(std::cbrt(npoints)) - 1;
+            return static_cast<int>(std::round(std::cbrt(npoints))) - 1;
          case LAGRANGE_PRISM:
          {
             const double n = npoints;
@@ -148,7 +148,7 @@ int VTKGeometry::GetOrder(int vtk_geom, int npoints)
             const double term =
                std::cbrt(third*sqrt(third)*sqrt((27.0*n - 2.0)*n) + n
                          - twentyseventh);
-            return std::round(term + ninth / term - 4*third);
+            return static_cast<int>(std::round(term + ninth / term - 4*third));
          }
          case LAGRANGE_PYRAMID:
             MFEM_ABORT("Lagrange pyramids not currently supported in VTK.");
@@ -285,7 +285,7 @@ int VTKTriangleDOFOffset(int ref, int i, int j)
 
 int CartesianToVTKPrism(int i, int j, int k, int ref)
 {
-   // Cf. https://git.io/JvW0M
+   // Cf. https://t.ly/3Yl9m
    int om1 = ref - 1;
    int ibdr = (i == 0);
    int jbdr = (j == 0);
@@ -364,10 +364,10 @@ int CartesianToVTKPrism(int i, int j, int k, int ref)
       offset += nqfdof; // Skip i-normal face
       if (ijbdr) // on ij-normal face
       {
-         return offset + (ref - i - 1) + om1*(k - 1);
+         return offset + (j - 1) + om1*(k - 1);
       }
       offset += nqfdof; // Skip ij-normal face
-      return offset + j - 1 + om1*(k - 1);
+      return offset + (ref - j - 1) + om1*(k - 1);
    }
 
    // Skip all face DOF
@@ -420,7 +420,7 @@ int CartesianToVTKTensor(int idx_in, int ref, Geometry::Type geom)
       }
       case Geometry::CUBE:
       {
-         // Cf: https://git.io/JvZLe
+         // Cf: https://t.ly/HEGbX
          int i = idx_in % n;
          int j = (idx_in / n) % n;
          int k = idx_in / (n*n);
@@ -456,7 +456,7 @@ int CartesianToVTKTensor(int idx_in, int ref, Geometry::Type geom)
             }
             // !kbdr, On k axis
             offset += 4*(ref - 1) + 4*(ref - 1);
-            return (k - 1) + (ref - 1)*(i ? (j ? 3 : 1) : (j ? 2 : 0))
+            return (k - 1) + (ref - 1)*(i ? (j ? 2 : 1) : (j ? 3 : 0))
                    + offset;
          }
 
@@ -657,6 +657,24 @@ void WriteBase64WithSizeAndClear(std::ostream &os, std::vector<char> &buf,
    WriteVTKEncodedCompressed(os, buf.data(), buf.size(), compression_level);
    os << '\n';
    buf.clear();
+}
+
+std::string VTKComponentLabels(int vdim)
+{
+   if (vdim == 1)
+   {
+      return "";
+   }
+   else
+   {
+      std::stringstream s;
+      for (int i = 0; i < vdim; ++i)
+      {
+         s << "ComponentName" << i << "=\"" << i << "\"";
+         if (i < vdim - 1) { s << " "; }
+      }
+      return s.str();
+   }
 }
 
 } // namespace mfem

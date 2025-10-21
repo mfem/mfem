@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -13,6 +13,7 @@
 #define MFEM_LIBCEED_CONV_HPP
 
 #include "../../interface/integrator.hpp"
+#include "../../interface/mixed_integrator.hpp"
 #include "../../../fespace.hpp"
 
 namespace mfem
@@ -26,9 +27,18 @@ class PAConvectionIntegrator : public PAIntegrator
 {
 public:
    PAConvectionIntegrator(const mfem::FiniteElementSpace &fes,
-                          const mfem::IntegrationRule &irm,
+                          const mfem::IntegrationRule &ir,
                           mfem::VectorCoefficient *Q,
                           const double alpha);
+};
+
+class MixedPAConvectionIntegrator : public MixedIntegrator<PAIntegrator>
+{
+public:
+   MixedPAConvectionIntegrator(const ConvectionIntegrator &integ,
+                               const mfem::FiniteElementSpace &fes,
+                               mfem::VectorCoefficient *Q,
+                               const double alpha);
 };
 
 /// Represent a ConvectionIntegrator with AssemblyLevel::None using libCEED.
@@ -36,9 +46,18 @@ class MFConvectionIntegrator : public MFIntegrator
 {
 public:
    MFConvectionIntegrator(const mfem::FiniteElementSpace &fes,
-                          const mfem::IntegrationRule &irm,
+                          const mfem::IntegrationRule &ir,
                           mfem::VectorCoefficient *Q,
                           const double alpha);
+};
+
+class MixedMFConvectionIntegrator : public MixedIntegrator<MFIntegrator>
+{
+public:
+   MixedMFConvectionIntegrator(const ConvectionIntegrator &integ,
+                               const mfem::FiniteElementSpace &fes,
+                               mfem::VectorCoefficient *Q,
+                               const double alpha);
 };
 
 }

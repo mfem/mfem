@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -13,6 +13,7 @@
 #define MFEM_LIBCEED_DIFF_HPP
 
 #include "../../interface/integrator.hpp"
+#include "../../interface/mixed_integrator.hpp"
 #include "../../../fespace.hpp"
 
 namespace mfem
@@ -26,8 +27,20 @@ class PADiffusionIntegrator : public PAIntegrator
 {
 public:
    PADiffusionIntegrator(const mfem::FiniteElementSpace &fes,
-                         const mfem::IntegrationRule &irm,
+                         const mfem::IntegrationRule &ir,
                          mfem::Coefficient *Q);
+};
+
+class MixedPADiffusionIntegrator : public MixedIntegrator<PAIntegrator>
+{
+public:
+   MixedPADiffusionIntegrator(const DiffusionIntegrator &integ,
+                              const mfem::FiniteElementSpace &fes,
+                              mfem::Coefficient *Q);
+
+   MixedPADiffusionIntegrator(const VectorDiffusionIntegrator &integ,
+                              const mfem::FiniteElementSpace &fes,
+                              mfem::Coefficient *Q);
 };
 
 /// Represent a DiffusionIntegrator with AssemblyLevel::None using libCEED.
@@ -35,8 +48,20 @@ class MFDiffusionIntegrator : public MFIntegrator
 {
 public:
    MFDiffusionIntegrator(const mfem::FiniteElementSpace &fes,
-                         const mfem::IntegrationRule &irm,
+                         const mfem::IntegrationRule &ir,
                          mfem::Coefficient *Q);
+};
+
+class MixedMFDiffusionIntegrator : public MixedIntegrator<MFIntegrator>
+{
+public:
+   MixedMFDiffusionIntegrator(const DiffusionIntegrator &integ,
+                              const mfem::FiniteElementSpace &fes,
+                              mfem::Coefficient *Q);
+
+   MixedMFDiffusionIntegrator(const VectorDiffusionIntegrator &integ,
+                              const mfem::FiniteElementSpace &fes,
+                              mfem::Coefficient *Q);
 };
 
 }

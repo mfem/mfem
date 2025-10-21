@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -60,6 +60,32 @@ PADiffusionIntegrator::PADiffusionIntegrator(
 #endif
 }
 
+MixedPADiffusionIntegrator::MixedPADiffusionIntegrator(
+   const DiffusionIntegrator &integ,
+   const mfem::FiniteElementSpace &fes,
+   mfem::Coefficient *Q)
+{
+#ifdef MFEM_USE_CEED
+   DiffusionOperatorInfo info(fes.GetMesh()->Dimension());
+   Assemble(integ, info, fes, Q);
+#else
+   MFEM_ABORT("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
+#endif
+}
+
+MixedPADiffusionIntegrator::MixedPADiffusionIntegrator(
+   const VectorDiffusionIntegrator &integ,
+   const mfem::FiniteElementSpace &fes,
+   mfem::Coefficient *Q)
+{
+#ifdef MFEM_USE_CEED
+   DiffusionOperatorInfo info(fes.GetMesh()->Dimension());
+   Assemble(integ, info, fes, Q);
+#else
+   MFEM_ABORT("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
+#endif
+}
+
 MFDiffusionIntegrator::MFDiffusionIntegrator(
    const mfem::FiniteElementSpace &fes,
    const mfem::IntegrationRule &irm,
@@ -69,6 +95,32 @@ MFDiffusionIntegrator::MFDiffusionIntegrator(
 #ifdef MFEM_USE_CEED
    DiffusionOperatorInfo info(fes.GetMesh()->Dimension());
    Assemble(info, fes, irm, Q);
+#else
+   MFEM_ABORT("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
+#endif
+}
+
+MixedMFDiffusionIntegrator::MixedMFDiffusionIntegrator(
+   const DiffusionIntegrator &integ,
+   const mfem::FiniteElementSpace &fes,
+   mfem::Coefficient *Q)
+{
+#ifdef MFEM_USE_CEED
+   DiffusionOperatorInfo info(fes.GetMesh()->Dimension());
+   Assemble(integ, info, fes, Q);
+#else
+   MFEM_ABORT("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
+#endif
+}
+
+MixedMFDiffusionIntegrator::MixedMFDiffusionIntegrator(
+   const VectorDiffusionIntegrator &integ,
+   const mfem::FiniteElementSpace &fes,
+   mfem::Coefficient *Q)
+{
+#ifdef MFEM_USE_CEED
+   DiffusionOperatorInfo info(fes.GetMesh()->Dimension());
+   Assemble(integ, info, fes, Q);
 #else
    MFEM_ABORT("MFEM must be built with MFEM_USE_CEED=YES to use libCEED.");
 #endif

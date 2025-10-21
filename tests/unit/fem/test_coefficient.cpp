@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -14,8 +14,7 @@
 
 using namespace mfem;
 
-TEST_CASE("Piecewise Coefficient",
-          "[PWCoefficient]")
+TEST_CASE("Piecewise Coefficient", "[Coefficient]")
 {
    ConstantCoefficient oneCoef(1.0);
    ConstantCoefficient twoCoef(2.0);
@@ -95,8 +94,7 @@ TEST_CASE("Piecewise Coefficient",
    }
 }
 
-TEST_CASE("Piecewise Vector Coefficient",
-          "[PWVectorCoefficient]")
+TEST_CASE("Piecewise Vector Coefficient", "[Coefficient]")
 {
    int d = 3;
 
@@ -201,8 +199,7 @@ TEST_CASE("Piecewise Vector Coefficient",
    }
 }
 
-TEST_CASE("Piecewise Matrix Coefficient",
-          "[PWMatrixCoefficient]")
+TEST_CASE("Piecewise Matrix Coefficient", "[Coefficient]")
 {
    int d = 3;
 
@@ -304,5 +301,132 @@ TEST_CASE("Piecewise Matrix Coefficient",
       T.Attribute = 2;
       pw.Eval(m, T, ip);
       REQUIRE(m.FNorm() == MFEM_Approx(twoNorm));
+   }
+}
+
+TEST_CASE("MatrixArrayVectorCoefficient", "[Coefficient]")
+{
+   Vector V1(2), V2(2);
+   V1(0) = 0.0; V1(1) = 1.0;
+   V2(0) = 2.0; V2(1) = 3.0;
+   VectorConstantCoefficient Coef1(V1), Coef2(V2);
+
+   IsoparametricTransformation T;
+   IntegrationPoint ip;
+
+   MatrixArrayVectorCoefficient mavc(2);
+   Vector V(2);
+
+   // Verify zeros for unset rows
+   int row = 0;
+   mavc.Eval(row, V, T, ip);
+   REQUIRE(V(0) == MFEM_Approx(0.0));
+   REQUIRE(V(1) == MFEM_Approx(0.0));
+
+   row = 1;
+   mavc.Eval(row, V, T, ip);
+   REQUIRE(V(0) == MFEM_Approx(0.0));
+   REQUIRE(V(1) == MFEM_Approx(0.0));
+
+   DenseMatrix K(2);
+   mavc.Eval(K, T, ip);
+   REQUIRE(K(0,0) == MFEM_Approx(0.0));
+   REQUIRE(K(0,1) == MFEM_Approx(0.0));
+   REQUIRE(K(1,0) == MFEM_Approx(0.0));
+   REQUIRE(K(1,1) == MFEM_Approx(0.0));
+
+   // Test setting individual rows
+   row = 0;
+   mavc.Set(row, &Coef1, false);
+   mavc.Eval(row, V, T, ip);
+   REQUIRE(V(0) == MFEM_Approx(0.0));
+   REQUIRE(V(1) == MFEM_Approx(1.0));
+   row = 1;
+   mavc.Eval(row, V, T, ip);
+   REQUIRE(V(0) == MFEM_Approx(0.0));
+   REQUIRE(V(1) == MFEM_Approx(0.0));
+
+   mavc.Set(row, &Coef2, false);
+   row = 0;
+   mavc.Eval(row, V, T, ip);
+   REQUIRE(V(0) == MFEM_Approx(0.0));
+   REQUIRE(V(1) == MFEM_Approx(1.0));
+   row = 1;
+   mavc.Eval(row, V, T, ip);
+   REQUIRE(V(0) == MFEM_Approx(2.0));
+   REQUIRE(V(1) == MFEM_Approx(3.0));
+
+   mavc.Eval(K, T, ip);
+   REQUIRE(K(0,0) == MFEM_Approx(0.0));
+   REQUIRE(K(0,1) == MFEM_Approx(1.0));
+   REQUIRE(K(1,0) == MFEM_Approx(2.0));
+   REQUIRE(K(1,1) == MFEM_Approx(3.0));
+
+}
+
+TEST_CASE("Symmetric Matrix Coefficient", "[Coefficient]")
+{
+   int d = 3;
+   int qfdim = d*(d+1)/2;
+
+   Vector values(qfdim);
+   values.Randomize();
+
+   // Create symmetric matrix initialized w/ values
+   DenseSymmetricMatrix symMat(values.GetData(), d);
+
+   SymmetricMatrixConstantCoefficient symCoeff(symMat);
+
+   // Make mesh of size 1
+   Mesh m = Mesh::MakeCartesian1D(1);
+
+   // Define qspace on mesh w/ 1 integration point
+   QuadratureSpace qspace(&m, 1);
+
+   // Define qf
+   QuadratureFunction qf(qspace, qfdim);
+
+   symCoeff.ProjectSymmetric(qf);
+
+   // Require equality
+   REQUIRE(qf.DistanceTo(values) == MFEM_Approx(0.0));
+}
+
+TEST_CASE("Piecewise Constant Coefficient", "[Coefficient]")
+{
+   Mesh mesh("../../data/beam-quad.mesh");
+
+   QuadratureSpace qs(&mesh, 2);
+   FaceQuadratureSpace qs_f(mesh, 2, FaceType::Boundary);
+   QuadratureFunction qf(qs);
+   QuadratureFunction qf_f(qs_f);
+
+   Vector values({1.0, 2.0, 3.0});
+   PWConstCoefficient coeff(values);
+
+   coeff.Project(qf);
+   for (int e = 0; e < mesh.GetNE(); ++e)
+   {
+      Vector vals;
+      qf.GetValues(e, vals);
+      const int a = mesh.GetAttribute(e);
+      for (const real_t val : vals)
+      {
+         REQUIRE(val == a);
+      }
+   }
+
+   coeff.Project(qf_f);
+   for (int be = 0; be < mesh.GetNBE(); ++be)
+   {
+      const int f = mesh.GetBdrElementFaceIndex(be);
+      const int bf = mesh.GetInvFaceIndices(FaceType::Boundary).at(f);
+      Vector vals;
+      qf_f.GetValues(bf, vals);
+      const int a = mesh.GetBdrAttribute(be);
+      for (const real_t val : vals)
+      {
+         REQUIRE(val == a);
+      }
    }
 }
