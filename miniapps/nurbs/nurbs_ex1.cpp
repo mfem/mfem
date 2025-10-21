@@ -46,14 +46,14 @@ using namespace mfem;
 class Data
 {
 public:
-   real_t x,val;
+   real_t x, val;
    Data(real_t x_, real_t val_) {x=x_; val=val_;};
 };
 
-inline bool operator==(const Data& d1,const Data& d2) { return (d1.x == d2.x); }
-inline bool operator <(const Data& d1,const Data& d2) { return (d1.x  < d2.x); }
+inline bool operator==(const Data& d1, const Data& d2) { return (d1.x == d2.x); }
+inline bool operator <(const Data& d1, const Data& d2) { return (d1.x  < d2.x); }
 
-/** Class for integrating the bilinear form a(u,v) := (Q Laplace u, v) where Q
+/** Class for integrating the bilinear form a(u, v) := (Q Laplace u, v) where Q
     can be a scalar coefficient. */
 class Diffusion2Integrator: public BilinearFormIntegrator
 {
@@ -104,11 +104,11 @@ public:
 
          if (el.Space() == FunctionSpace::rQk)
          {
-            ir = &RefinedIntRules.Get(el.GetGeomType(),order);
+            ir = &RefinedIntRules.Get(el.GetGeomType(), order);
          }
          else
          {
-            ir = &IntRules.Get(el.GetGeomType(),order);
+            ir = &IntRules.Get(el.GetGeomType(), order);
          }
       }
 
@@ -156,7 +156,7 @@ int main(int argc, char *argv[])
    bool strongBC = 1;
    real_t kappa = -1;
    Array<int> order(1);
-   order[0] = 0;
+   order[0] = -1;
    int visport = 19916;
 
 
@@ -458,7 +458,7 @@ int main(int argc, char *argv[])
    {
       std::list<Data> sol;
 
-      Vector      vals,coords;
+      Vector vals, coords;
       GridFunction *nodes = mesh.GetNodes();
       if (!nodes)
       {
@@ -477,7 +477,7 @@ int main(int argc, char *argv[])
 
          for (int j = 0; j < vals.Size(); j++)
          {
-            sol.push_back(Data(coords[j],vals[j]));
+            sol.push_back(Data(coords[j], vals[j]));
          }
       }
       sol.sort();
