@@ -2611,26 +2611,6 @@ NURBSExtension::NURBSExtension(NURBSExtension *parent,
    ConnectBoundaries();
 }
 
-NURBSExtension::NURBSExtension(const NURBSExtension &parent, int newOrder)
-   : NURBSExtension(parent)
-{
-   mfem::out << "deep copy nurbsext constructor" << std::endl;
-   // Array<int> orders(GetNKV());
-   // orders = newOrder;
-   // DegreeElevate(orders);
-   DegreeElevate(0, newOrder);
-}
-
-
-NURBSExtension::NURBSExtension(const NURBSExtension &parent,
-                               const Array<int> &newOrders, Mode mode)
-   : NURBSExtension(parent)
-{
-   mfem::out << "deep copy nurbsext constructor" << std::endl;
-   mode = mode;
-   DegreeElevate(newOrders);
-}
-
 NURBSExtension::NURBSExtension(Mesh *mesh_array[], int num_pieces)
 {
    NURBSExtension *parent = mesh_array[0]->NURBSext;

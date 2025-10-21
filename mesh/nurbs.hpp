@@ -773,16 +773,6 @@ public:
    NURBSExtension(NURBSExtension *parent, const Array<int> &newOrders,
                   Mode mode = Mode::H_1);
 
-
-   /** @brief Deep-copy version of:
-       NURBSExtension(NURBSExtension *parent, int newOrder); */
-   NURBSExtension(const NURBSExtension &parent, int newOrder);
-   /** @brief Deep-copy version of:
-       NURBSExtension(NURBSExtension *parent, const Array<int> &newOrders,
-                      Mode mode = Mode::H_1); */
-   NURBSExtension(const NURBSExtension &parent, const Array<int> &newOrders,
-                  Mode mode = Mode::H_1);
-
    /// Construct a NURBSExtension by merging a partitioned NURBS mesh.
    NURBSExtension(Mesh *mesh_array[], int num_pieces);
 

@@ -142,7 +142,7 @@ public:
 int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
-   const char *mesh_file = "../../data/star.mesh";
+   const char *mesh_file = "../../data/beam-hex-nurbs.mesh";
    const char *per_file  = "none";
    const char *ref_file  = "";
    int ref_levels = -1;
@@ -258,22 +258,12 @@ int main(int argc, char *argv[])
    // 4. Define a finite element space on the mesh. Here we use continuous
    //    Lagrange finite elements of the specified order. If order < 1, we
    //    instead use an isoparametric/isogeometric space.
-   // unique_ptr<FiniteElementCollection> fec;
-   // NURBSExtension* NURBSext;
-   // bool isogeometric = false;
-   // unique_ptr<FiniteElementSpace> fespace;
+   auto [fespace, fec_] = FiniteElementSpace::NURBSConstructor(&mesh, &order);
 
-   auto [fespace, fec] = FiniteElementSpace::NURBSConstructor(&mesh, &order);
-
-
-   // FiniteElementCollection *fec_ = (isogeometric) ? mesh_fec : fec.get();
-   // FiniteElementSpace fespace(&mesh, NURBSext.get(), fec_);
-
-   // FiniteElementSpace fespace = (isogeometric)
-   //                              ? FiniteElementSpace::IsogeometricConstructor(&mesh)
-   //                              : FiniteElementSpace(&mesh, NURBSext, fec.get());
-   // fespace.reset(new FiniteElementSpace.IsogeometricConstructor(&mesh));
-
+   // If isogeometric, get fec from mesh
+   FiniteElementCollection* fec = !fec_.get() ? mesh.GetNodes()->OwnFEC() :
+                                  fec_.get();
+   cout << "Finite element collection: " << fec->Name() << endl;
    cout << "Number of finite element unknowns: "
         << fespace.GetTrueVSize() << endl;
 
