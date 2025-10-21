@@ -37,7 +37,7 @@ inline complex_t omega_p(real_t number /* particles / m^3 */,
                          real_t charge /* electron charge */,
                          complex_t mass /* AMU */)
 {
-   return fabs(charge * q_) * 1.0 * sqrt(number / (epsilon0_ * mass * amu_));
+   return abs(charge * q_) * sqrt(number / (epsilon0_ * mass * amu_));
 }
 
 // Coulomb logarithm
