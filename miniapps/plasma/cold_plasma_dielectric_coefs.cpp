@@ -471,8 +471,8 @@ real_t StixInvSPCoef::Eval(ElementTransformation &T,
    complex_t SP = S * P;
    real_t absSP = std::abs(SP);
    real_t argSP = std::arg(SP);
-   complex_t InvSP = (absSP > 1e-4) ? 1.0 / (S * P) :
-                     std::polar(1e4, -argSP);
+   complex_t InvSP = (absSP > real_t(1e-4)) ? real_t(1.0) / (S * P) :
+                     std::polar(real_t(1e4), -argSP);
 
    // Return the selected component
    if (re_im_part_ == REAL_PART)
@@ -534,13 +534,13 @@ real_t StixWaveLengthCoef::Eval(ElementTransformation &T,
    if (re_im_part_ == REAL_PART)
    {
       // Compute the wave length of the oscillatory factor
-      real_t lambda = fabs(2.0 * M_PI / kappa.real());
+      real_t lambda = fabs(real_t(2.0 * M_PI) / kappa.real());
       return lambda;
    }
    else
    {
       // Compute the skin depth of the decaying factor
-      real_t delta = fabs(1.0 / kappa.imag());
+      real_t delta = fabs(real_t(1.0) / kappa.imag());
       return delta;
    }
 }
@@ -728,9 +728,9 @@ void InverseDielectricTensor::Eval(DenseMatrix &epsilonInv,
                                temperature_vals_, nuprof_, res_lim_);
 
    complex_t Q = S * S - D * D;
-   complex_t QInv = 1.0 / Q;
+   complex_t QInv = real_t(1.0) / Q;
    complex_t SInv = S * QInv;
-   complex_t PInv = 1.0 / P;
+   complex_t PInv = real_t(1.0) / P;
    complex_t DInv = D * QInv;
 
    if (re_im_part_ == REAL_PART)
@@ -746,7 +746,7 @@ void InverseDielectricTensor::Eval(DenseMatrix &epsilonInv,
       this->addPerpSkewComp(-DInv.real(), epsilonInv);
    }
 
-   epsilonInv *= 1.0 / epsilon0_;
+   epsilonInv *= real_t(1.0) / epsilon0_;
 }
 
 SPDDielectricTensor::SPDDielectricTensor(StixParams &stix_params)
@@ -1450,50 +1450,53 @@ void ColdPlasmaCenterFeedE::Eval(Vector &V, ElementTransformation &T,
    }
    phase = exp(-i * kx);
 
-   real_t ks = 2.0 * M_PI / j_dx_;
+   real_t ks = real_t(2.0 * M_PI) / j_dx_;
 
    if (x[0] < j_pos_ - 0.5 * j_dx_)
    {
       e_mag = i / kappa_ / kappa_;
       if (j_prof_ == 0)
       {
-         e_mag *= sin(0.5 * kappa_ * j_dx_);
+         e_mag *= sin(real_t(0.5) * kappa_ * j_dx_);
       }
       else
       {
-         e_mag *= 0.5 * M_PI * sinc(M_PI * (1.0 - kappa_ / ks))
-                  / (1.0 + kappa_ / ks);
+         e_mag *= real_t(0.5 * M_PI)
+                  * sinc(real_t(M_PI) * (real_t(1.0) - kappa_ / ks))
+                  / (real_t(1.0) + kappa_ / ks);
       }
       phase *= exp(i * (-kappa_ * (x[0] - j_pos_) - omega_ * time));
       e_mag *= phase;
    }
    else if (x[0] < j_pos_ + 0.5 * j_dx_)
    {
-      e_mag = 1.0 / kappa_ / kappa_;
+      e_mag = real_t(1.0) / kappa_ / kappa_;
 
       complex_t coskx = cos(kappa_ * (x[0] - j_pos_));
       if (j_prof_ == 0)
       {
-         e_mag *= coskx * exp(0.5 * i * kappa_ * j_dx_) - 1.0;
+         e_mag *= coskx * exp(real_t(0.5) * i * kappa_ * j_dx_) - real_t(1.0);
       }
       else
       {
-         complex_t kx = kappa_ * (x[0] - j_pos_);
+         kx = kappa_ * (x[0] - j_pos_);
          complex_t sinkx = sin(kx);
          complex_t kd = ks - kappa_;
-         complex_t kdn = 1.0 - kappa_ / ks;
+         complex_t kdn = real_t(1.0) - kappa_ / ks;
          complex_t kdx = kd * (x[0] - j_pos_);
          complex_t sinckdx = sinc(kdx);
-         complex_t sinckdx2 = sinc(kdx / 2.0);
-         complex_t sinckdn = sinc(M_PI * kdn);
-         complex_t sinckdn2 = sinc(M_PI * kdn / 2.0);
-         e_mag *= 0.5 * (coskx *
-                         (0.5 * kd *
-                          (pow(M_PI * sinckdn2, 2) - pow(kx * sinckdx2, 2))
-                          - ks - kappa_ + i * M_PI * ks * sinckdn
-                         )
-                         - kappa_ * kx * sinkx * sinckdx - ks - kappa_
-                        ) / (kappa_ + ks);
+         complex_t sinckdx2 = sinc(real_t(0.5) * kdx);
+         complex_t sinckdn = sinc(real_t(M_PI) * kdn);
+         complex_t sinckdn2 = sinc(real_t(M_PI / 2.0) * kdn);
+         e_mag *= real_t(0.5) * (coskx *
+                                 (real_t(0.5) * kd *
+                                  (pow(real_t(M_PI) * sinckdn2, real_t(2))
+                                   - pow(kx * sinckdx2, real_t(2)))
+                                  - ks - kappa_
+                                  + i * real_t(M_PI) * ks * sinckdn
+                                 )
+                                 - kappa_ * kx * sinkx * sinckdx - ks - kappa_
+                                ) / (kappa_ + ks);
       }
       phase *= exp(-i * omega_ * time);
       e_mag *= phase;
@@ -1503,12 +1506,13 @@ void ColdPlasmaCenterFeedE::Eval(Vector &V, ElementTransformation &T,
       e_mag = i / kappa_ / kappa_;
       if (j_prof_ == 0)
       {
-         e_mag *= sin(0.5 * kappa_ * j_dx_);
+         e_mag *= sin(real_t(0.5) * kappa_ * j_dx_);
       }
       else
       {
-         e_mag *= 0.5 * M_PI * sinc(M_PI * (1.0 - kappa_ / ks))
-                  / (1.0 + kappa_ / ks);
+         e_mag *= real_t(0.5 * M_PI)
+                  * sinc(real_t(M_PI) * (real_t(1.0) - kappa_ / ks))
+                  / (real_t(1.0) + kappa_ / ks);
       }
       phase *= exp(i * (kappa_ * (x[0] - j_pos_) - omega_ * time));
       e_mag *= phase;
@@ -1569,12 +1573,13 @@ void ColdPlasmaCenterFeedH::Eval(Vector &V, ElementTransformation &T,
       h_mag = -i / kappa_ / kappa_;
       if (j_prof_ == 0)
       {
-         h_mag *= sin(0.5 * kappa_ * j_dx_);
+         h_mag *= sin(real_t(0.5) * kappa_ * j_dx_);
       }
       else
       {
-         h_mag *= 0.5 * M_PI * sinc(M_PI * (1.0 - kappa_ / ks))
-                  / (1.0 + kappa_ / ks);
+         h_mag *= real_t(0.5 * M_PI)
+                  * sinc(real_t(M_PI) * (real_t(1.0) - kappa_ / ks))
+                  / (real_t(1.0) + kappa_ / ks);
       }
       phase *= exp(i * (-kappa_ * (x[0] - j_pos_) - omega_ * time));
       h_mag *= phase;
@@ -1585,13 +1590,13 @@ void ColdPlasmaCenterFeedH::Eval(Vector &V, ElementTransformation &T,
       if (j_prof_ == 0)
       {
          h_mag *= sin(kappa_ * (x[0] - j_pos_));
-         h_mag *= exp(i * 0.5 * kappa_ * j_dx_);
+         h_mag *= exp(i * real_t(0.5) * kappa_ * j_dx_);
       }
       else
       {
-         h_mag *= 0.5 / (1.0 - pow(kappa_ / ks, 2.0));
+         h_mag *= real_t(0.5) / (real_t(1.0) - pow(kappa_ / ks, real_t(2.0)));
          h_mag *= sin(kappa_ * (x[0] - j_pos_)) *
-                  exp(0.5 * i * kappa_ * j_dx_)
+                  exp(real_t(0.5) * i * kappa_ * j_dx_)
                   + sin(ks * (x[0] - j_pos_)) * kappa_ / ks;
       }
       phase *= exp(-i * omega_ * time);
@@ -1602,12 +1607,13 @@ void ColdPlasmaCenterFeedH::Eval(Vector &V, ElementTransformation &T,
       h_mag = i / kappa_ / kappa_;
       if (j_prof_ == 0)
       {
-         h_mag *= sin(0.5 * kappa_ * j_dx_);
+         h_mag *= sin(real_t(0.5) * kappa_ * j_dx_);
       }
       else
       {
-         h_mag *= 0.5 * M_PI * sinc(M_PI * (1.0 - kappa_ / ks))
-                  / (1.0 + kappa_ / ks);
+         h_mag *= real_t(0.5 * M_PI)
+                  * sinc(real_t(M_PI) * (real_t(1.0) - kappa_ / ks))
+                  / (real_t(1.0) + kappa_ / ks);
       }
       phase *= exp(i * (kappa_ * (x[0] - j_pos_) - omega_ * time));
       h_mag *= phase;
@@ -1682,7 +1688,7 @@ void ColdPlasmaCenterFeedJ::Eval(Vector &V, ElementTransformation &T,
       }
       this->ComputePolarizationVectorJ();
 
-      complex_t j_mag = 1.0 / kappa_ / kappa_;
+      complex_t j_mag = real_t(1.0) / kappa_ / kappa_;
       if (j_prof_ == 1)
       {
          j_mag *= pow(cos(M_PI * (x[0] - j_pos_) / j_dx_), 2.0);
