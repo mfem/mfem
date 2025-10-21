@@ -711,9 +711,10 @@ void FiniteElementSpace::GetEssentialTrueDofs(const Array<int> &bdr_attr_is_ess,
    MarkerToList(ess_tdofs, ess_tdof_list);
 }
 
-void FiniteElementSpace::GetEssentialVDofsFromComponent(const Array<int> &bdr_attr_is_ess,
-                                                        const Array2D<bool> &component,
-                                                        Array<int> &ess_vdofs) const
+void FiniteElementSpace::GetEssentialVDofsFromComponent(
+   const Array<int> &bdr_attr_is_ess,
+   const Array2D<bool> &component,
+   Array<int> &ess_vdofs) const
 {
    MFEM_ASSERT(component.NumCols() == vdim,
                "Number of columns of component was not equal to FESpace vdim");
