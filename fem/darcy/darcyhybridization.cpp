@@ -1087,7 +1087,21 @@ void DarcyHybridization::ComputeH(ComputeHMode mode,
    }
 
 #ifdef MFEM_DARCY_HYBRIDIZATION_CT_BLOCK
-   H->Finalize(skip_zeros);
+
+   if (diag_policy == DIAG_ONE || diag_policy == DIAG_ZERO)
+   {
+      // put zeroes on the diagonal
+      for (int i = 0; i < H->Height(); i++)
+      {
+         H->SetColPtr(i);
+         H->SearchRow(i);
+      }
+      H->Finalize(0);
+   }
+   else
+   {
+      H->Finalize(skip_zeros);
+   }
 #else //MFEM_DARCY_HYBRIDIZATION_CT_BLOCK
    Hb->Finalize(skip_zeros);
    if (H)
@@ -1114,57 +1128,12 @@ void DarcyHybridization::ComputeH(ComputeHMode mode,
             H.reset(cH);
          }
       }
-   }
 
-   // ensure diagonal is non-zero
-   if (diag_policy == DIAG_ONE && !ParallelC())
-   {
-      int num_zero_rows = 0;
-      for (int i = 0; i < H->Height(); i++)
+      // ensure diagonal is non-zero
+      if (diag_policy == DIAG_ONE)
       {
-         if (H->RowIsEmpty(i)) { num_zero_rows++; }
+         H->SetDiagIdentity();
       }
-
-      if (num_zero_rows == 0) { return; }
-
-      Memory<int> &J = H->GetMemoryJ();
-      Memory<real_t> &D = H->GetMemoryData();
-      const int nnz = H->NumNonZeroElems();
-      Memory<int> J_new(nnz + num_zero_rows, J.GetMemoryType());
-      Memory<real_t> D_new(nnz + num_zero_rows, D.GetMemoryType());
-
-      int *dI = H->HostReadWriteI();
-      const int *dJ = H->HostReadJ();
-      const real_t *dD = H->HostReadData();
-      const int h = H->Height();
-      int *dJ_new = Write(J_new, nnz + num_zero_rows, false);
-      real_t *dD_new = Write(D_new, nnz + num_zero_rows, false);
-      int idx = 0;
-      int idx_new = 0;
-
-      for (int i = 0; i < h; i++)
-      {
-         if (dI[i+1] == idx)
-         {
-            dI[i+1] = idx_new+1;
-            dJ_new[idx_new] = i;
-            dD_new[idx_new] = 1.;
-            idx_new++;
-            continue;
-         }
-         const int I_next = dI[i+1];
-         for (; idx < I_next; idx++, idx_new++)
-         {
-            dJ_new[idx_new] = dJ[idx];
-            dD_new[idx_new] = dD[idx];
-         }
-         dI[i+1] = idx_new;
-      }
-
-      J.Delete();
-      D.Delete();
-      J = std::move(J_new);
-      D = std::move(D_new);
    }
 }
 
