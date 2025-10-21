@@ -1024,7 +1024,9 @@ MultiSpeciesPlasmaProfiles::MultiSpeciesPlasmaProfiles(
      electron_profile_type_(PlasmaProfile::AVERAGE),
      ion_spec_coefs_(types.Size() - 1)
 {
-   const int num_ion_spec = types.Size() - 1;
+   MFEM_VERIFY(types.Size() > 0,
+               "types Array must contain at least one profile type.");
+   const unsigned int num_ion_spec = types.Size() - 1;
    ion_spec_coefs_ = 1.0 / num_ion_spec;
 
    int o = 0;
@@ -1068,7 +1070,9 @@ MultiSpeciesPlasmaProfiles::MultiSpeciesPlasmaProfiles(
      electron_profile_type_(PlasmaProfile::NEUTRALITY),
      ion_spec_coefs_(types.Size() - 1)
 {
-   const int num_ion_spec = types.Size() - 1;
+   MFEM_VERIFY(types.Size() > 0,
+               "types Array must contain at least one profile type.");
+   const unsigned int num_ion_spec = types.Size() - 1;
 
    int o = 0;
    unsigned int t = 0;

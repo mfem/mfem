@@ -1203,7 +1203,7 @@ void CPDVisBase::set_bool_flags(unsigned int num_flags,
                                 Array<bool> &flags)
 {
    flags.SetSize(num_flags);
-   for (int i=0; i<num_flags; i++)
+   for (unsigned int i=0; i<num_flags; i++)
    {
       flags[i] = active_flags_mask >> i & 1;
    }
