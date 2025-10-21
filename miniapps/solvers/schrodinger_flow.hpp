@@ -59,6 +59,7 @@ struct Options: public OptionsParser
    bool visualization = true, paraview = false;
    int vis_steps = 1, vis_width = 1024, vis_height = 1024;
    int vis_data = static_cast<int>(VisData::Vorticity);
+   const char *vis_keys = "cgjR";
 
    Options(int argc, char *argv[]): OptionsParser(argc, argv)
    {
@@ -103,6 +104,7 @@ struct Options: public OptionsParser
       AddOption(&vis_height, "-vh", "--vis-height", "vis height");
       AddOption(&vis_data, "-vd", "--vis-data",
                 "Velocity: 0: Vorticity: 1 (leapfrog only)");
+      AddOption(&vis_keys, "-vk", "--vis-keys", "Visualization keys, default: cgjR");
       ParseCheck();
       MFEM_VERIFY(jet ^ leapfrog, "'jet' or 'leapfrog' option must be set");
       MFEM_VERIFY(vis_data < static_cast<int>(VisData::Unknown),
@@ -897,7 +899,7 @@ struct VisualizerBase : private Options
             glvis << vis_prefix().c_str();
             glvis << "solution\n" << mesh << *(this->operator()())
                   << "window_geometry 0 0 " << vis_width << " " << vis_height << "\n"
-                  << "keys cgjR\n" << std::flush;
+                  << "keys " << vis_keys << "\n" << std::flush;
          }
       }
 
