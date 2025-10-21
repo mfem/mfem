@@ -141,7 +141,7 @@ TEST_CASE("CopyFlagged", "[Scan],[GPU]")
    }
 }
 
-TEST_CASE("CopyIf", "[Scan],[GPU]")
+TEST_CASE("CopyIf", "[Scan][GPU]")
 {
    Array<int> a(10);
    Array<int> res(a.Size());
