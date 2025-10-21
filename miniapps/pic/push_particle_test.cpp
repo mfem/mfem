@@ -40,19 +40,6 @@
 //
 // Sample runs:
 //
-//   Particles accelerating in a constant electric field
-//      mpirun -np 4 volta -m ../../data/inline-hex.mesh -dbcs '1 6' -dbcv '0 1'
-//      mpirun -np 4 lorentz -er Volta-AMR-Parallel -npt 100 -xmin '0.0 0.0 0.0' -xmax '1.0 1.0 1.0' -pmin '1 0 0' -pmax '1 0 0' -rdf 0 -vt 0 -nt 100
-//
-//   Particles accelerating in a constant magnetic field
-//      mpirun -np 4 tesla -m ../../data/inline-hex.mesh -ubbc '0 0 1'
-//      mpirun -np 4 lorentz -br Tesla-AMR-Parallel -npt 10 -xmin '0.0 0.0 0.0' -xmax '1.0 1.0 1.0' -pmin '0 0.1 0.05' -pmax '0 0.4 0.1' -nt 1000 -rdf 0 -vt 0
-//
-//   Magnetic mirror effect near a charged sphere and a bar magnet
-//      mpirun -np 4 volta -m ../../data/ball-nurbs.mesh -dbcs 1 -cs '0 0 0 0.1 2e-11' -rs 2 -maxit 4
-//      mpirun -np 4 tesla -m ../../data/fichera.mesh -maxit 4 -rs 3 -bm '-0.1 -0.1 -0.1 0.1 0.1 0.1 0.1 -1e10'
-//      mpirun -np 4 lorentz -er Volta-AMR-Parallel -ec 4 -br Tesla-AMR-Parallel -bc 4 -q -10 -dt 1e-3 -nt 1000 -npt 500 -vt 5 -rdf 500 -rdm 1 -vf 5 -pmin '-8 -4 4' -pmax '-8 -4 4' -xmin '-1 -1 -1' -xmax '1 1 1'
-
 
 #include "mfem.hpp"
 #include "../common/particles_extras.hpp"
@@ -167,26 +154,6 @@ int main(int argc, char *argv[])
    if ( Mpi::Root() ) { display_banner(cout); }
 
    OptionsParser args(argc, argv);
-   args.AddOption(&ctx.E.coll_name, "-er", "--e-root-file",
-                  "Set the VisIt data collection E field root file prefix.");
-   args.AddOption(&ctx.E.field_name, "-ef", "--e-field-name",
-                  "Set the VisIt data collection E field name");
-   args.AddOption(&ctx.E.cycle, "-ec", "--e-cycle",
-                  "Set the E field cycle index to read.");
-   args.AddOption(&ctx.E.pad_digits_cycle, "-epdc", "--e-pad-digits-cycle",
-                  "Number of digits in E field cycle.");
-   args.AddOption(&ctx.E.pad_digits_rank, "-epdr", "--e-pad-digits-rank",
-                  "Number of digits in E field MPI rank.");
-   args.AddOption(&ctx.B.coll_name, "-br", "--b-root-file",
-                  "Set the VisIt data collection B field root file prefix.");
-   args.AddOption(&ctx.B.field_name, "-bf", "--b-field-name",
-                  "Set the VisIt data collection B field name");
-   args.AddOption(&ctx.B.cycle, "-bc", "--b-cycle",
-                  "Set the B field cycle index to read.");
-   args.AddOption(&ctx.B.pad_digits_cycle, "-bpdc", "--b-pad-digits-cycle",
-                  "Number of digits in B field cycle.");
-   args.AddOption(&ctx.B.pad_digits_rank, "-bpdr", "--b-pad-digits-rank",
-                  "Number of digits in B field MPI rank.");
    args.AddOption(&ctx.redist_freq, "-rdf", "--redist-freq",
                   "Redistribution frequency.");
    args.AddOption(&ctx.redist_mesh, "-rdm", "--redistribution-mesh",
@@ -236,25 +203,22 @@ int main(int argc, char *argv[])
    std::unique_ptr<VisItDataCollection> E_dc, B_dc;
    ParGridFunction *E_gf = nullptr, *B_gf = nullptr;
 
-   if (ctx.E.coll_name != "")
-   {
-      if (ReadGridFunction(ctx.E.coll_name, ctx.E.field_name, ctx.E.pad_digits_cycle,
-                           ctx.E.pad_digits_rank, ctx.E.cycle, E_dc, E_gf))
-      {
-         mfem::err << "Error loading E field" << endl;
-         return 1;
-      }
-   }
+   // build up E_gf, B_gf can remain nullptr
+   // 1. make a 2D Cartesian Mesh, 100x100
+   int dim = 2;
+   int nx = 100, ny = 100;
+   double xmax = 1.0, ymax = 1.0;
+   Mesh *serial_mesh = new Mesh(Mesh::MakeCartesian2D(nx, ny, Element::QUADRILATERAL, false, xmax, ymax));
+   // 2. parallelize the mesh
+   ParMesh *parallel_mesh = new ParMesh(MPI_COMM_WORLD, *serial_mesh);
+   serial_mesh->Clear(); // the serial mesh is no longer needed
+   delete serial_mesh; serial_mesh = nullptr;
+   // 3. Define a finite element space on the parallel mesh
 
-   if (ctx.B.coll_name != "")
-   {
-      if (ReadGridFunction(ctx.B.coll_name, ctx.B.field_name, ctx.B.pad_digits_cycle,
-                           ctx.B.pad_digits_rank, ctx.B.cycle, B_dc, B_gf))
-      {
-         mfem::err << "Error loading B field" << endl;
-         return 1;
-      }
-   }
+   // TODO: first make H1 space for V, then make H(curl) space for E, where E = \grad V
+   FiniteElementCollection *fec = new H1_FECollection(0, dim);
+   ParFiniteElementSpace *fespace = new ParFiniteElementSpace(parallel_mesh, fec);
+
 
    Ordering::Type ordering_type = ctx.ordering == 0 ? Ordering::byNODES :
                                   Ordering::byVDIM;
