@@ -87,6 +87,8 @@
 //
 //   Problem 4: level set: Union of doughnut and swiss cheese shapes
 //     mpirun -np 4 distance -m ../../data/inline-hex.mesh -rs 3 -o 2 -t 1.0 -p 4
+//   Problem 5: point source in mfem mesh.
+//     mpirun -np 4 distance -m ../../data/mfem.mesh -p 5 -rs 3 -t 300.0
 
 #include <fstream>
 #include <iostream>
@@ -233,7 +235,8 @@ int main(int argc, char *argv[])
                   "1: Circle / sphere level set in 2D / 3D\n\t"
                   "2: 2D sine-looking level set\n\t"
                   "3: Gyroid level set in 2D or 3D\n\t"
-                  "4: Combo of a doughnut and swiss cheese shapes in 3D.");
+                  "4: Combo of a doughnut and swiss cheese shapes in 3D.\n\t"
+                  "5: Point source in MFEM mesh.");
    args.AddOption(&rs_levels, "-rs", "--refine-serial",
                   "Number of times to refine the mesh uniformly in serial.");
    args.AddOption(&order, "-o", "--order",
@@ -299,6 +302,11 @@ int main(int argc, char *argv[])
       ls_coeff = new FunctionCoefficient(doughnut_cheese);
       smooth_steps = 0;
    }
+   else if (problem == 5)
+   {
+      ls_coeff = new DeltaCoefficient(0.0, 0.0, 1000.0);
+      smooth_steps = 0;
+   }
    else { MFEM_ABORT("Unrecognized -problem option."); }
 
    const real_t dx = AvgElementSize(pmesh);
@@ -306,7 +314,7 @@ int main(int argc, char *argv[])
    if (solver_type == 0)
    {
       auto ds = new HeatDistanceSolver(t_param * dx * dx);
-      if (problem == 0)
+      if (problem == 0 || problem == 5)
       {
          ds->transform = false;
       }
@@ -334,7 +342,7 @@ int main(int argc, char *argv[])
    // Smooth-out Gibbs oscillations from the input level set. The smoothing
    // parameter here is specified to be mesh dependent with length scale dx.
    ParGridFunction filt_gf(&pfes_s);
-   if (problem != 0)
+   if (problem != 0 && problem != 5)
    {
       real_t filter_weight = dx;
       // The normalization-based solver needs a more diffused input.
