@@ -1193,6 +1193,9 @@ void ParFiniteElementSpace::GetEssentialTrueDofs(const Array<int>
                "Number of columns of component was not equal to ParFESpace vdim");
    MFEM_ASSERT(component.NumRows() == bdr_attr_is_ess.Size(),
                "Number of rows of component was not equal to bdr_attr_is_ess.Size()");
+   MFEM_VERIFY(!IsVariableOrderH1(),
+               "Variable order H1 spaces are currently not supported with this feature");
+
 
    Array<int> ess_dofs, true_ess_dofs, bdr_attr_is_ess_single_comp;
    bdr_attr_is_ess_single_comp.SetSize(bdr_attr_is_ess.Size());
