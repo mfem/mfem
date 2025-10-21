@@ -379,9 +379,9 @@ public:
 class WeightedInnerProduct : public InnerProductOperator
 {
 protected:
-   Operator *oper = nullptr; /// Weighting operator
-   bool make_symmetric = true; /// Flag to symmetrize the operator
-   mutable Vector wx,wy; /// Weighted vectors
+   Operator *operX = nullptr; /// Weighting operator for x
+   Operator *operY = nullptr; /// Weighting operator for y
+   mutable Vector wx, wy; /// Weighted vectors
    MemoryClass mem_class;
 
 public:
@@ -389,21 +389,22 @@ public:
    /// @brief Constructor from MPI communicator.
    WeightedInnerProduct(MPI_Comm comm_) : InnerProductOperator(comm_) {}
 #endif
-   /// @brief Constructor from weighting operator.
-   WeightedInnerProduct(Operator *op, bool make_sym = true)
-      : InnerProductOperator() { SetOperator(op, make_sym); }
+   /// @brief Constructor from weighting operators.
+   WeightedInnerProduct(Operator *X, Operator *Y)
+      : InnerProductOperator() { SetOperator(X, Y); }
 
-   /** @brief Set/update the weighting operator (not owned) and.
-              the flag to symmetrize the operator. */
-   void SetOperator(Operator *op, bool make_sym = true);
+   /** @brief Set/update the weighting operators (not owned) for each term. */
+   void SetOperator(Operator *X, Operator *Y);
 
-   /** @brief Compute the inner product (x,A(y)) of vectors x and y,
-              weighted by the operator @a A. If @a make_symmetric = true,
-              inner product is defined as (A(x),A(y)).
+   /// @brief Set/update the same weighting operator (not owned) for both terms.
+   void SetOperator(Operator *X) { SetOperator(X, X); }
+
+   /** @brief Compute the inner product (Y(y),X(x)) of vectors x and y,
+              weighted by the operator @a A.
    */
    virtual real_t Eval(const Vector &x, const Vector &y) override;
 
-   /// @brief Apply the weighting operator to vector @a x and return in @a y=A(x).
+   /// @brief Apply the weighting operator to vector @a x and return in @a y=Y(X(x)).
    virtual void Mult(const Vector &x, Vector &y) const override;
 };
 

@@ -251,42 +251,74 @@ void ConstrainedInnerProduct::Mult(const Vector &x, Vector &y) const
    });
 }
 
-void WeightedInnerProduct::SetOperator(Operator *op, bool make_sym)
+void WeightedInnerProduct::SetOperator(Operator *X, Operator *Y)
 {
-   oper = op;
-   make_symmetric = make_sym;
-
-   mem_class = oper->GetMemoryClass()*Device::GetMemoryClass();
-   MemoryType mem_type = GetMemoryType(mem_class);
-
-   const int ht = oper->Height();
-   wy.SetSize(ht, mem_type);
-   wy.UseDevice(true);
-   if (make_symmetric)
+   if (X && Y)
    {
+      MFEM_VERIFY(X->Height() == Y->Height(),
+                  "Incompatible operator heights in WeightedInnerProduct");
+   }
+
+   operX = X;
+   operY = Y;
+   if (operX)
+   {
+      mem_class = operX->GetMemoryClass()*Device::GetMemoryClass();
+      MemoryType mem_type = GetMemoryType(mem_class);
+      const int ht = operX->Height();
       wx.SetSize(ht, mem_type);
       wx.UseDevice(true);
+   }
+
+   if (operY)
+   {
+      mem_class = operY->GetMemoryClass()*Device::GetMemoryClass();
+      MemoryType mem_type = GetMemoryType(mem_class);
+      const int ht = operY->Height();
+      wy.SetSize(ht, mem_type);
+      wy.UseDevice(true);
    }
 }
 
 real_t WeightedInnerProduct::Eval(const Vector &x, const Vector &y)
 {
-   MFEM_VERIFY(oper,"Weighting operator not set; set using ::SetOperator")
+   MFEM_VERIFY((operX || operY),
+               "Weighting operator not set; set using ::SetOperator")
 
-   oper->Mult(y, wy);
-   if (make_symmetric)
+   if (operY && operX)
    {
-      oper->Mult(x, wx);
-      return Dot(wx, wy);
+      operX->Mult(x, wx);
+      operY->Mult(y, wy);
+      return Dot(wy,wx);
    }
-   return Dot(x, wy);
+   else if (operY)
+   {
+      operY->Mult(y, wy);
+      return Dot(wy,x);
+   }
+   // if(operX)
+   operX->Mult(x, wx);
+   return Dot(y,wx);
 }
 
 void WeightedInnerProduct::Mult(const Vector &x, Vector &y) const
 {
-   MFEM_VERIFY(oper,"Weighting operator not set; set using ::SetOperator")
+   MFEM_VERIFY((operX || operY),
+               "Weighting operator not set; set using ::SetOperator")
 
-   oper->Mult(x, y);
+   if (operY && operX)
+   {
+      operX->Mult(x, wx);
+      operY->Mult(wx, y);
+      return;
+   }
+   else if (operY)
+   {
+      operY->Mult(x, y);
+      return;
+   }
+   // if(operX)
+   operX->Mult(x, y);
 }
 
 OperatorJacobiSmoother::OperatorJacobiSmoother(const real_t dmpng)
