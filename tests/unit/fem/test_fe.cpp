@@ -281,8 +281,10 @@ TEST_CASE("Nedelec Segment Finite Element",
             REQUIRE( fe.GetRangeType()      == (int) FiniteElement::VECTOR  );
             REQUIRE( fe.GetMapType()        == (int) FiniteElement::H_CURL  );
             REQUIRE( fe.GetDerivType()      == (int) FiniteElement::NONE    );
-            REQUIRE( fe.GetDerivRangeType() == (int) FiniteElement::SCALAR  );
-            REQUIRE( fe.GetDerivMapType()   == (int) FiniteElement::INTEGRAL);
+            REQUIRE( fe.GetDerivRangeType() ==
+                     (int) FiniteElement::UNKNOWN_RANGE_TYPE);
+            REQUIRE( fe.GetDerivMapType()   ==
+                     (int) FiniteElement::UNKNOWN_MAP_TYPE);
          }
       }
       SECTION("Sizes for p = " + std::to_string(p))
