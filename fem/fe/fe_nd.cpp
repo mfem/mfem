@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -12,6 +12,7 @@
 // Nedelec Finite Element classes
 
 #include "fe_nd.hpp"
+#include "face_map_utils.hpp"
 #include "../coefficient.hpp"
 
 namespace mfem
@@ -19,7 +20,7 @@ namespace mfem
 
 using namespace std;
 
-const double ND_HexahedronElement::tk[18] =
+const real_t ND_HexahedronElement::tk[18] =
 { 1.,0.,0.,  0.,1.,0.,  0.,0.,1., -1.,0.,0.,  0.,-1.,0.,  0.,0.,-1. };
 
 ND_HexahedronElement::ND_HexahedronElement(const int p,
@@ -32,7 +33,7 @@ ND_HexahedronElement::ND_HexahedronElement(const int p,
 
    dof_map.SetSize(dof);
 
-   const double *op = poly1d.OpenPoints(p - 1, ob_type);
+   const real_t *op = poly1d.OpenPoints(p - 1, ob_type);
    const int dof3 = dof/3;
 
 #ifndef MFEM_THREAD_SAFE
@@ -246,7 +247,7 @@ void ND_HexahedronElement::ProjectIntegrated(VectorCoefficient &vc,
                                              Vector &dofs) const
 {
    MFEM_ASSERT(obasis1d.IsIntegratedType(), "Not integrated type");
-   double vk[Geometry::MaxDim];
+   real_t vk[Geometry::MaxDim];
    Vector xk(vk, vc.GetVDim());
 
    const IntegrationRule &ir = IntRules.Get(Geometry::SEGMENT, order);
@@ -272,9 +273,9 @@ void ND_HexahedronElement::ProjectIntegrated(VectorCoefficient &vc,
                }
 
                const int id1 = c == 0 ? i : (c == 1 ? j : k);
-               const double h = cp[id1+1] - cp[id1];
+               const real_t h = cp[id1+1] - cp[id1];
 
-               double val = 0.0;
+               real_t val = 0.0;
 
                for (int q = 0; q < nqpt; q++)
                {
@@ -297,7 +298,7 @@ void ND_HexahedronElement::ProjectIntegrated(VectorCoefficient &vc,
                   vc.Eval(xk, Trans, ip3d);
 
                   // xk^t J tk
-                  const double ipval = Trans.Jacobian().InnerProduct(tk + dof2tk[idx]*dim, vk);
+                  const real_t ipval = Trans.Jacobian().InnerProduct(tk + dof2tk[idx]*dim, vk);
                   val += ip1d.weight * ipval;
                }
 
@@ -314,23 +315,26 @@ void ND_HexahedronElement::CalcVShape(const IntegrationPoint &ip,
 #ifdef MFEM_THREAD_SAFE
    Vector shape_cx(p + 1), shape_ox(p), shape_cy(p + 1), shape_oy(p);
    Vector shape_cz(p + 1), shape_oz(p);
-   Vector dshape_cx, dshape_cy, dshape_cz;
 #endif
 
    if (obasis1d.IsIntegratedType())
    {
-      cbasis1d.Eval(ip.x, shape_cx, dshape_cx);
-      cbasis1d.Eval(ip.y, shape_cy, dshape_cy);
-      cbasis1d.Eval(ip.z, shape_cz, dshape_cz);
+#ifdef MFEM_THREAD_SAFE
+      Vector dshape_cx(p + 1), dshape_cy(p + 1), dshape_cz(p + 1);
+#endif
+      basis1d.Eval(ip.x, shape_cx, dshape_cx);
+      basis1d.Eval(ip.y, shape_cy, dshape_cy);
+      basis1d.Eval(ip.z, shape_cz, dshape_cz);
+      obasis1d.ScaleIntegrated(false);
       obasis1d.EvalIntegrated(dshape_cx, shape_ox);
       obasis1d.EvalIntegrated(dshape_cy, shape_oy);
       obasis1d.EvalIntegrated(dshape_cz, shape_oz);
    }
    else
    {
-      cbasis1d.Eval(ip.x, shape_cx);
-      cbasis1d.Eval(ip.y, shape_cy);
-      cbasis1d.Eval(ip.z, shape_cz);
+      basis1d.Eval(ip.x, shape_cx);
+      basis1d.Eval(ip.y, shape_cy);
+      basis1d.Eval(ip.z, shape_cz);
       obasis1d.Eval(ip.x, shape_ox);
       obasis1d.Eval(ip.y, shape_oy);
       obasis1d.Eval(ip.z, shape_oz);
@@ -404,11 +408,12 @@ void ND_HexahedronElement::CalcCurlShape(const IntegrationPoint &ip,
    Vector dshape_cx(p + 1), dshape_cy(p + 1), dshape_cz(p + 1);
 #endif
 
-   cbasis1d.Eval(ip.x, shape_cx, dshape_cx);
-   cbasis1d.Eval(ip.y, shape_cy, dshape_cy);
-   cbasis1d.Eval(ip.z, shape_cz, dshape_cz);
+   basis1d.Eval(ip.x, shape_cx, dshape_cx);
+   basis1d.Eval(ip.y, shape_cy, dshape_cy);
+   basis1d.Eval(ip.z, shape_cz, dshape_cz);
    if (obasis1d.IsIntegratedType())
    {
+      obasis1d.ScaleIntegrated(false);
       obasis1d.EvalIntegrated(dshape_cx, shape_ox);
       obasis1d.EvalIntegrated(dshape_cy, shape_oy);
       obasis1d.EvalIntegrated(dshape_cz, shape_oz);
@@ -477,7 +482,52 @@ void ND_HexahedronElement::CalcCurlShape(const IntegrationPoint &ip,
          }
 }
 
-const double ND_QuadrilateralElement::tk[8] =
+void ND_HexahedronElement::GetFaceMap(const int face_id,
+                                      Array<int> &face_map) const
+{
+   const int p = order;
+   const int pp1 = p + 1;
+   const int n_face_dofs_per_component = p*pp1;
+   const int n_dof_per_dim = p*pp1*pp1;
+
+   std::vector<int> n_dofs = {p, pp1, pp1, p};
+   std::vector<int> offsets, strides;
+
+   const auto f = internal::GetFaceNormal3D(face_id);
+   const int face_normal = f.first, level = f.second;
+   if (face_normal == 0) // x-normal
+   {
+      offsets =
+      {
+         n_dof_per_dim + (level ? pp1 - 1 : 0),
+         2*n_dof_per_dim + (level ? pp1 - 1 : 0)
+      };
+      strides = {pp1, p*pp1, pp1, pp1*pp1};
+   }
+   else if (face_normal == 1) // y-normal
+   {
+      offsets =
+      {
+         level ? p*(pp1 - 1) : 0,
+         2*n_dof_per_dim + (level ? pp1*(pp1 - 1) : 0)
+      };
+      strides = {1, p*pp1, 1, pp1*pp1};
+   }
+   else if (face_normal == 2) // z-normal
+   {
+      offsets =
+      {
+         level ? p*pp1*(pp1 - 1) : 0,
+         n_dof_per_dim + (level ? p*pp1*(pp1 - 1) : 0)
+      };
+      strides = {1, p, 1, pp1};
+   }
+
+   internal::FillFaceMap(n_face_dofs_per_component, offsets, strides, n_dofs,
+                         face_map);
+}
+
+const real_t ND_QuadrilateralElement::tk[8] =
 { 1.,0.,  0.,1., -1.,0., 0.,-1. };
 
 ND_QuadrilateralElement::ND_QuadrilateralElement(const int p,
@@ -492,7 +542,7 @@ ND_QuadrilateralElement::ND_QuadrilateralElement(const int p,
 
    dof_map.SetSize(dof);
 
-   const double *op = poly1d.OpenPoints(p - 1, ob_type);
+   const real_t *op = poly1d.OpenPoints(p - 1, ob_type);
    const int dof2 = dof/2;
 
 #ifndef MFEM_THREAD_SAFE
@@ -576,7 +626,7 @@ void ND_QuadrilateralElement::ProjectIntegrated(VectorCoefficient &vc,
                                                 Vector &dofs) const
 {
    MFEM_ASSERT(obasis1d.IsIntegratedType(), "Not integrated type");
-   double vk[Geometry::MaxDim];
+   real_t vk[Geometry::MaxDim];
    Vector xk(vk, vc.GetVDim());
 
    const IntegrationRule &ir = IntRules.Get(Geometry::SEGMENT, order);
@@ -595,9 +645,9 @@ void ND_QuadrilateralElement::ProjectIntegrated(VectorCoefficient &vc,
             idx = -1 - idx;
          }
 
-         const double h = cp[i+1] - cp[i];
+         const real_t h = cp[i+1] - cp[i];
 
-         double val = 0.0;
+         real_t val = 0.0;
 
          for (int k = 0; k < nqpt; k++)
          {
@@ -609,7 +659,7 @@ void ND_QuadrilateralElement::ProjectIntegrated(VectorCoefficient &vc,
             vc.Eval(xk, Trans, ip2d);
 
             // xk^t J tk
-            const double ipval = Trans.Jacobian().InnerProduct(tk + dof2tk[idx]*dim, vk);
+            const real_t ipval = Trans.Jacobian().InnerProduct(tk + dof2tk[idx]*dim, vk);
             val += ip1d.weight * ipval;
          }
 
@@ -625,9 +675,9 @@ void ND_QuadrilateralElement::ProjectIntegrated(VectorCoefficient &vc,
             idx = -1 - idx;
          }
 
-         const double h = cp[j+1] - cp[j];
+         const real_t h = cp[j+1] - cp[j];
 
-         double val = 0.0;
+         real_t val = 0.0;
 
          for (int k = 0; k < nqpt; k++)
          {
@@ -639,7 +689,7 @@ void ND_QuadrilateralElement::ProjectIntegrated(VectorCoefficient &vc,
             vc.Eval(xk, Trans, ip2d);
 
             // xk^t J tk
-            const double ipval = Trans.Jacobian().InnerProduct(tk + dof2tk[idx]*dim, vk);
+            const real_t ipval = Trans.Jacobian().InnerProduct(tk + dof2tk[idx]*dim, vk);
             val += ip1d.weight * ipval;
          }
 
@@ -654,20 +704,23 @@ void ND_QuadrilateralElement::CalcVShape(const IntegrationPoint &ip,
 
 #ifdef MFEM_THREAD_SAFE
    Vector shape_cx(p + 1), shape_ox(p), shape_cy(p + 1), shape_oy(p);
-   Vector dshape_cx, dshape_cy;
 #endif
 
    if (obasis1d.IsIntegratedType())
    {
-      cbasis1d.Eval(ip.x, shape_cx, dshape_cx);
-      cbasis1d.Eval(ip.y, shape_cy, dshape_cy);
+#ifdef MFEM_THREAD_SAFE
+      Vector dshape_cx(p + 1), dshape_cy(p + 1);
+#endif
+      basis1d.Eval(ip.x, shape_cx, dshape_cx);
+      basis1d.Eval(ip.y, shape_cy, dshape_cy);
+      obasis1d.ScaleIntegrated(false);
       obasis1d.EvalIntegrated(dshape_cx, shape_ox);
       obasis1d.EvalIntegrated(dshape_cy, shape_oy);
    }
    else
    {
-      cbasis1d.Eval(ip.x, shape_cx);
-      cbasis1d.Eval(ip.y, shape_cy);
+      basis1d.Eval(ip.x, shape_cx);
+      basis1d.Eval(ip.y, shape_cy);
       obasis1d.Eval(ip.x, shape_ox);
       obasis1d.Eval(ip.y, shape_oy);
    }
@@ -717,10 +770,11 @@ void ND_QuadrilateralElement::CalcCurlShape(const IntegrationPoint &ip,
    Vector dshape_cx(p + 1), dshape_cy(p + 1);
 #endif
 
-   cbasis1d.Eval(ip.x, shape_cx, dshape_cx);
-   cbasis1d.Eval(ip.y, shape_cy, dshape_cy);
+   basis1d.Eval(ip.x, shape_cx, dshape_cx);
+   basis1d.Eval(ip.y, shape_cy, dshape_cy);
    if (obasis1d.IsIntegratedType())
    {
+      obasis1d.ScaleIntegrated(false);
       obasis1d.EvalIntegrated(dshape_cx, shape_ox);
       obasis1d.EvalIntegrated(dshape_cy, shape_oy);
    }
@@ -763,19 +817,39 @@ void ND_QuadrilateralElement::CalcCurlShape(const IntegrationPoint &ip,
       }
 }
 
+void ND_QuadrilateralElement::GetFaceMap(const int face_id,
+                                         Array<int> &face_map) const
+{
+   const int p = order;
+   const int pp1 = order + 1;
+   const int n_face_dofs_per_component = p;
+   std::vector<int> strides = {(face_id == 0 || face_id == 2) ? 1 : pp1};
+   std::vector<int> n_dofs = {p};
+   std::vector<int> offsets;
+   switch (face_id)
+   {
+      case 0: offsets = {0}; break; // y = 0
+      case 1: offsets = {p*pp1 + pp1 - 1}; break; // x = 1
+      case 2: offsets = {p*(pp1 - 1)}; break; // y = 1
+      case 3: offsets = {p*pp1}; break; // x = 0
+   }
+   internal::FillFaceMap(n_face_dofs_per_component, offsets, strides, n_dofs,
+                         face_map);
+}
 
-const double ND_TetrahedronElement::tk[18] =
+
+const real_t ND_TetrahedronElement::tk[18] =
 { 1.,0.,0.,  0.,1.,0.,  0.,0.,1.,  -1.,1.,0.,  -1.,0.,1.,  0.,-1.,1. };
 
-const double ND_TetrahedronElement::c = 1./4.;
+const real_t ND_TetrahedronElement::c = 1./4.;
 
 ND_TetrahedronElement::ND_TetrahedronElement(const int p)
    : VectorFiniteElement(3, Geometry::TETRAHEDRON, p*(p + 2)*(p + 3)/2, p,
-                         H_CURL, FunctionSpace::Pk), dof2tk(dof)
+                         H_CURL, FunctionSpace::Pk), dof2tk(dof), doftrans(p)
 {
-   const double *eop = poly1d.OpenPoints(p - 1);
-   const double *fop = (p > 1) ? poly1d.OpenPoints(p - 2) : NULL;
-   const double *iop = (p > 2) ? poly1d.OpenPoints(p - 3) : NULL;
+   const real_t *eop = poly1d.OpenPoints(p - 1);
+   const real_t *fop = (p > 1) ? poly1d.OpenPoints(p - 2) : NULL;
+   const real_t *iop = (p > 2) ? poly1d.OpenPoints(p - 3) : NULL;
 
    const int pm1 = p - 1, pm2 = p - 2, pm3 = p - 3;
 
@@ -830,7 +904,7 @@ ND_TetrahedronElement::ND_TetrahedronElement(const int p)
    for (int j = 0; j <= pm2; j++)  // (1,2,3)
       for (int i = 0; i + j <= pm2; i++)
       {
-         double w = fop[i] + fop[j] + fop[pm2-i-j];
+         real_t w = fop[i] + fop[j] + fop[pm2-i-j];
          Nodes.IntPoint(o).Set3(fop[pm2-i-j]/w, fop[i]/w, fop[j]/w);
          dof2tk[o++] = 3;
          Nodes.IntPoint(o).Set3(fop[pm2-i-j]/w, fop[i]/w, fop[j]/w);
@@ -839,7 +913,7 @@ ND_TetrahedronElement::ND_TetrahedronElement(const int p)
    for (int j = 0; j <= pm2; j++)  // (0,3,2)
       for (int i = 0; i + j <= pm2; i++)
       {
-         double w = fop[i] + fop[j] + fop[pm2-i-j];
+         real_t w = fop[i] + fop[j] + fop[pm2-i-j];
          Nodes.IntPoint(o).Set3(0., fop[j]/w, fop[i]/w);
          dof2tk[o++] = 2;
          Nodes.IntPoint(o).Set3(0., fop[j]/w, fop[i]/w);
@@ -848,7 +922,7 @@ ND_TetrahedronElement::ND_TetrahedronElement(const int p)
    for (int j = 0; j <= pm2; j++)  // (0,1,3)
       for (int i = 0; i + j <= pm2; i++)
       {
-         double w = fop[i] + fop[j] + fop[pm2-i-j];
+         real_t w = fop[i] + fop[j] + fop[pm2-i-j];
          Nodes.IntPoint(o).Set3(fop[i]/w, 0., fop[j]/w);
          dof2tk[o++] = 0;
          Nodes.IntPoint(o).Set3(fop[i]/w, 0., fop[j]/w);
@@ -857,7 +931,7 @@ ND_TetrahedronElement::ND_TetrahedronElement(const int p)
    for (int j = 0; j <= pm2; j++)  // (0,2,1)
       for (int i = 0; i + j <= pm2; i++)
       {
-         double w = fop[i] + fop[j] + fop[pm2-i-j];
+         real_t w = fop[i] + fop[j] + fop[pm2-i-j];
          Nodes.IntPoint(o).Set3(fop[j]/w, fop[i]/w, 0.);
          dof2tk[o++] = 1;
          Nodes.IntPoint(o).Set3(fop[j]/w, fop[i]/w, 0.);
@@ -869,7 +943,7 @@ ND_TetrahedronElement::ND_TetrahedronElement(const int p)
       for (int j = 0; j + k <= pm3; j++)
          for (int i = 0; i + j + k <= pm3; i++)
          {
-            double w = iop[i] + iop[j] + iop[k] + iop[pm3-i-j-k];
+            real_t w = iop[i] + iop[j] + iop[k] + iop[pm3-i-j-k];
             Nodes.IntPoint(o).Set3(iop[i]/w, iop[j]/w, iop[k]/w);
             dof2tk[o++] = 0;
             Nodes.IntPoint(o).Set3(iop[i]/w, iop[j]/w, iop[k]/w);
@@ -882,7 +956,7 @@ ND_TetrahedronElement::ND_TetrahedronElement(const int p)
    for (int m = 0; m < dof; m++)
    {
       const IntegrationPoint &ip = Nodes.IntPoint(m);
-      const double *tm = tk + 3*dof2tk[m];
+      const real_t *tm = tk + 3*dof2tk[m];
       o = 0;
 
       poly1d.CalcBasis(pm1, ip.x, shape_x);
@@ -894,7 +968,7 @@ ND_TetrahedronElement::ND_TetrahedronElement(const int p)
          for (int j = 0; j + k <= pm1; j++)
             for (int i = 0; i + j + k <= pm1; i++)
             {
-               double s = shape_x(i)*shape_y(j)*shape_z(k)*shape_l(pm1-i-j-k);
+               real_t s = shape_x(i)*shape_y(j)*shape_z(k)*shape_l(pm1-i-j-k);
                T(o++, m) = s * tm[0];
                T(o++, m) = s * tm[1];
                T(o++, m) = s * tm[2];
@@ -902,7 +976,7 @@ ND_TetrahedronElement::ND_TetrahedronElement(const int p)
       for (int k = 0; k <= pm1; k++)
          for (int j = 0; j + k <= pm1; j++)
          {
-            double s = shape_x(pm1-j-k)*shape_y(j)*shape_z(k);
+            real_t s = shape_x(pm1-j-k)*shape_y(j)*shape_z(k);
             T(o++, m) = s*((ip.y - c)*tm[0] - (ip.x - c)*tm[1]);
             T(o++, m) = s*((ip.z - c)*tm[0] - (ip.x - c)*tm[2]);
          }
@@ -938,7 +1012,7 @@ void ND_TetrahedronElement::CalcVShape(const IntegrationPoint &ip,
       for (int j = 0; j + k <= pm1; j++)
          for (int i = 0; i + j + k <= pm1; i++)
          {
-            double s = shape_x(i)*shape_y(j)*shape_z(k)*shape_l(pm1-i-j-k);
+            real_t s = shape_x(i)*shape_y(j)*shape_z(k)*shape_l(pm1-i-j-k);
             u(n,0) =  s;  u(n,1) = 0.;  u(n,2) = 0.;  n++;
             u(n,0) = 0.;  u(n,1) =  s;  u(n,2) = 0.;  n++;
             u(n,0) = 0.;  u(n,1) = 0.;  u(n,2) =  s;  n++;
@@ -946,13 +1020,13 @@ void ND_TetrahedronElement::CalcVShape(const IntegrationPoint &ip,
    for (int k = 0; k <= pm1; k++)
       for (int j = 0; j + k <= pm1; j++)
       {
-         double s = shape_x(pm1-j-k)*shape_y(j)*shape_z(k);
+         real_t s = shape_x(pm1-j-k)*shape_y(j)*shape_z(k);
          u(n,0) = s*(ip.y - c);  u(n,1) = -s*(ip.x - c);  u(n,2) =  0.;  n++;
          u(n,0) = s*(ip.z - c);  u(n,1) =  0.;  u(n,2) = -s*(ip.x - c);  n++;
       }
    for (int k = 0; k <= pm1; k++)
    {
-      double s = shape_y(pm1-k)*shape_z(k);
+      real_t s = shape_y(pm1-k)*shape_z(k);
       u(n,0) = 0.;  u(n,1) = s*(ip.z - c);  u(n,2) = -s*(ip.y - c);  n++;
    }
 
@@ -982,11 +1056,11 @@ void ND_TetrahedronElement::CalcCurlShape(const IntegrationPoint &ip,
          for (int i = 0; i + j + k <= pm1; i++)
          {
             int l = pm1-i-j-k;
-            const double dx = (dshape_x(i)*shape_l(l) -
+            const real_t dx = (dshape_x(i)*shape_l(l) -
                                shape_x(i)*dshape_l(l))*shape_y(j)*shape_z(k);
-            const double dy = (dshape_y(j)*shape_l(l) -
+            const real_t dy = (dshape_y(j)*shape_l(l) -
                                shape_y(j)*dshape_l(l))*shape_x(i)*shape_z(k);
-            const double dz = (dshape_z(k)*shape_l(l) -
+            const real_t dz = (dshape_z(k)*shape_l(l) -
                                shape_z(k)*dshape_l(l))*shape_x(i)*shape_y(j);
 
             u(n,0) =  0.;  u(n,1) =  dz;  u(n,2) = -dy;  n++;
@@ -1026,18 +1100,18 @@ void ND_TetrahedronElement::CalcCurlShape(const IntegrationPoint &ip,
 }
 
 
-const double ND_TriangleElement::tk[8] =
+const real_t ND_TriangleElement::tk[8] =
 { 1.,0.,  -1.,1.,  0.,-1.,  0.,1. };
 
-const double ND_TriangleElement::c = 1./3.;
+const real_t ND_TriangleElement::c = 1./3.;
 
 ND_TriangleElement::ND_TriangleElement(const int p)
    : VectorFiniteElement(2, Geometry::TRIANGLE, p*(p + 2), p,
                          H_CURL, FunctionSpace::Pk),
-     dof2tk(dof)
+     dof2tk(dof), doftrans(p)
 {
-   const double *eop = poly1d.OpenPoints(p - 1);
-   const double *iop = (p > 1) ? poly1d.OpenPoints(p - 2) : NULL;
+   const real_t *eop = poly1d.OpenPoints(p - 1);
+   const real_t *iop = (p > 1) ? poly1d.OpenPoints(p - 2) : NULL;
 
    const int pm1 = p - 1, pm2 = p - 2;
 
@@ -1076,7 +1150,7 @@ ND_TriangleElement::ND_TriangleElement(const int p)
    for (int j = 0; j <= pm2; j++)
       for (int i = 0; i + j <= pm2; i++)
       {
-         double w = iop[i] + iop[j] + iop[pm2-i-j];
+         real_t w = iop[i] + iop[j] + iop[pm2-i-j];
          Nodes.IntPoint(n).Set2(iop[i]/w, iop[j]/w);
          dof2tk[n++] = 0;
          Nodes.IntPoint(n).Set2(iop[i]/w, iop[j]/w);
@@ -1087,7 +1161,7 @@ ND_TriangleElement::ND_TriangleElement(const int p)
    for (int m = 0; m < dof; m++)
    {
       const IntegrationPoint &ip = Nodes.IntPoint(m);
-      const double *tm = tk + 2*dof2tk[m];
+      const real_t *tm = tk + 2*dof2tk[m];
       n = 0;
 
       poly1d.CalcBasis(pm1, ip.x, shape_x);
@@ -1097,7 +1171,7 @@ ND_TriangleElement::ND_TriangleElement(const int p)
       for (int j = 0; j <= pm1; j++)
          for (int i = 0; i + j <= pm1; i++)
          {
-            double s = shape_x(i)*shape_y(j)*shape_l(pm1-i-j);
+            real_t s = shape_x(i)*shape_y(j)*shape_l(pm1-i-j);
             T(n++, m) = s * tm[0];
             T(n++, m) = s * tm[1];
          }
@@ -1131,13 +1205,13 @@ void ND_TriangleElement::CalcVShape(const IntegrationPoint &ip,
    for (int j = 0; j <= pm1; j++)
       for (int i = 0; i + j <= pm1; i++)
       {
-         double s = shape_x(i)*shape_y(j)*shape_l(pm1-i-j);
+         real_t s = shape_x(i)*shape_y(j)*shape_l(pm1-i-j);
          u(n,0) = s;  u(n,1) = 0;  n++;
          u(n,0) = 0;  u(n,1) = s;  n++;
       }
    for (int j = 0; j <= pm1; j++)
    {
-      double s = shape_x(pm1-j)*shape_y(j);
+      real_t s = shape_x(pm1-j)*shape_y(j);
       u(n,0) =  s*(ip.y - c);
       u(n,1) = -s*(ip.x - c);
       n++;
@@ -1167,9 +1241,9 @@ void ND_TriangleElement::CalcCurlShape(const IntegrationPoint &ip,
       for (int i = 0; i + j <= pm1; i++)
       {
          int l = pm1-i-j;
-         const double dx = (dshape_x(i)*shape_l(l) -
+         const real_t dx = (dshape_x(i)*shape_l(l) -
                             shape_x(i)*dshape_l(l)) * shape_y(j);
-         const double dy = (dshape_y(j)*shape_l(l) -
+         const real_t dy = (dshape_y(j)*shape_l(l) -
                             shape_y(j)*dshape_l(l)) * shape_x(i);
 
          curlu(n++) = -dy;
@@ -1189,7 +1263,7 @@ void ND_TriangleElement::CalcCurlShape(const IntegrationPoint &ip,
 }
 
 
-const double ND_SegmentElement::tk[1] = { 1. };
+const real_t ND_SegmentElement::tk[1] = { 1. };
 
 ND_SegmentElement::ND_SegmentElement(const int p, const int ob_type)
    : VectorTensorFiniteElement(1, p, p - 1, ob_type, H_CURL,
@@ -1198,7 +1272,7 @@ ND_SegmentElement::ND_SegmentElement(const int p, const int ob_type)
 {
    if (obasis1d.IsIntegratedType()) { is_nodal = false; }
 
-   const double *op = poly1d.OpenPoints(p - 1, ob_type);
+   const real_t *op = poly1d.OpenPoints(p - 1, ob_type);
 
    // set dof2tk and Nodes
    for (int i = 0; i < p; i++)
@@ -1216,7 +1290,7 @@ void ND_SegmentElement::CalcVShape(const IntegrationPoint &ip,
    obasis1d.Eval(ip.x, vshape);
 }
 
-const double ND_WedgeElement::tk[15] =
+const real_t ND_WedgeElement::tk[15] =
 { 1.,0.,0., -1.,1.,0., 0.,-1.,0., 0.,0.,1., 0.,1.,0. };
 
 ND_WedgeElement::ND_WedgeElement(const int p,
@@ -1228,6 +1302,7 @@ ND_WedgeElement::ND_WedgeElement(const int p,
      dof2tk(dof),
      t_dof(dof),
      s_dof(dof),
+     doftrans(p),
      H1TriangleFE(p, cb_type),
      NDTriangleFE(p),
      H1SegmentFE(p, cb_type),
@@ -1506,6 +1581,954 @@ void ND_WedgeElement::CalcCurlShape(const IntegrationPoint &ip,
    }
 }
 
+const real_t ND_FuentesPyramidElement::tk[27] =
+{
+   1., 0., 0.,   0., 1., 0.,  0., 0., 1.,
+   -1., 0., 1.,  -1.,-1., 1.,  0.,-1., 1.,
+   -1., 0., 0.,   0.,-1., 0., -M_SQRT1_2,-M_SQRT1_2,M_SQRT2
+};
+
+ND_FuentesPyramidElement::ND_FuentesPyramidElement(const int p,
+                                                   const int cb_type,
+                                                   const int ob_type)
+   : VectorFiniteElement(3, Geometry::PYRAMID, p * (3 * p * p + 5), p,
+                         H_CURL, FunctionSpace::Uk),
+     dof2tk(dof), doftrans(p)
+{
+   zmax = 0.0;
+
+   const real_t *eop = poly1d.OpenPoints(p - 1);
+   const real_t *top = (p > 1) ? poly1d.OpenPoints(p - 2) : NULL;
+   const real_t *qop = poly1d.OpenPoints(p - 1, ob_type);
+   const real_t *qcp = poly1d.ClosedPoints(p, cb_type);
+
+   const int pm2 = p - 2;
+
+#ifndef MFEM_THREAD_SAFE
+   tmp_E_E_ij.SetSize(p, dim);
+   tmp_dE_E_ij.SetSize(p, dim);
+   tmp_E_Q1_ijk.SetSize(p, p + 1, dim);
+   tmp_dE_Q1_ijk.SetSize(p, p + 1, dim);
+   tmp_E_Q2_ijk.SetSize(p, p + 1, dim);
+   tmp_dE_Q2_ijk.SetSize(p, p + 1, dim);
+   tmp_E_T_ijk.SetSize(p - 1, p, dim);
+   tmp_dE_T_ijk.SetSize(p - 1, p, dim);
+   tmp_phi_Q1_ij.SetSize(p + 1, p + 1);
+   tmp_dphi_Q1_ij.SetSize(p + 1, p + 1, dim);
+   tmp_phi_Q2_ij.SetSize(p + 1, p + 1);
+   tmp_dphi_Q2_ij.SetSize(p + 1, p + 1, dim);
+   tmp_phi_E_i.SetSize(p + 1);
+   tmp_dphi_E_i.SetSize(p + 1, dim);
+   u.SetSize(dof, dim);
+   curlu.SetSize(dof, dim);
+#else
+   DenseMatrix tmp_E_E_ij(p, dim);
+   DenseTensor tmp_E_Q1_ijk(p, p + 1, dim);
+   DenseTensor tmp_dE_Q1_ijk(p, p + 1, dim);
+   DenseTensor tmp_E_Q2_ijk(p, p + 1, dim);
+   DenseTensor tmp_dE_Q2_ijk(p, p + 1, dim);
+   DenseTensor tmp_E_T_ijk(p - 1, p, dim);
+   DenseTensor tmp_dE_T_ijk(p - 1, p, dim);
+   DenseMatrix tmp_phi_Q1_ij(p + 1, p + 1);
+   DenseTensor tmp_dphi_Q1_ij(p + 1, p + 1, dim);
+   DenseMatrix tmp_phi_Q2_ij(p + 1, p + 1);
+   Vector      tmp_phi_E_i(p + 1);
+   DenseMatrix tmp_dphi_E_i(p + 1, dim);
+   DenseMatrix u(dof, dim);
+#endif
+
+   int o = 0;
+
+   // edges
+   for (int i = 0; i < p; i++) // (0, 1)
+   {
+      Nodes.IntPoint(o).Set3(eop[i], 0., 0.);
+      dof2tk[o++] = 0;
+   }
+   for (int i = 0; i < p; i++) // (1, 2)
+   {
+      Nodes.IntPoint(o).Set3(1., eop[i], 0.);
+      dof2tk[o++] = 1;
+   }
+   for (int i = 0; i < p; i++) // (3, 2)
+   {
+      Nodes.IntPoint(o).Set3(eop[i], 1., 0.);
+      dof2tk[o++] = 0;
+   }
+   for (int i = 0; i < p; i++) // (0, 3)
+   {
+      Nodes.IntPoint(o).Set3(0., eop[i], 0.);
+      dof2tk[o++] = 1;
+   }
+   for (int i = 0; i < p; i++) // (0, 4)
+   {
+      Nodes.IntPoint(o).Set3(0., 0., eop[i]);
+      dof2tk[o++] = 2;
+   }
+   for (int i = 0; i < p; i++) // (1, 4)
+   {
+      Nodes.IntPoint(o).Set3(1. - eop[i], 0., eop[i]);
+      dof2tk[o++] = 3;
+   }
+   for (int i = 0; i < p; i++) // (2, 4)
+   {
+      Nodes.IntPoint(o).Set3(1. - eop[i], 1. - eop[i], eop[i]);
+      dof2tk[o++] = 4;
+   }
+   for (int i = 0; i < p; i++) // (3, 4)
+   {
+      Nodes.IntPoint(o).Set3(0., 1. - eop[i], eop[i]);
+      dof2tk[o++] = 5;
+   }
+
+   // quadrilateral face (3, 2, 1, 0)
+   // x-components
+   for (int j = 1; j < p; j++)
+      for (int i = 0; i < p; i++)
+      {
+         Nodes.IntPoint(o).Set3(qop[i], qcp[p-j], 0.);
+         dof2tk[o++] = 0; // (1 0 0)
+      }
+
+   // y-components
+   for (int j = 0; j < p; j++)
+      for (int i = 1; i < p; i++)
+      {
+         Nodes.IntPoint(o).Set3(qcp[i], qop[p-1-j], 0.);
+         dof2tk[o++] = 7; // (0 -1 0)
+      }
+
+   // triangular faces
+   for (int j = 0; j <= pm2; j++)  // (0, 1, 4)
+      for (int i = 0; i + j <= pm2; i++)
+      {
+         real_t w = top[i] + top[j] + top[pm2-i-j];
+         Nodes.IntPoint(o).Set3(top[i]/w, 0., top[j]/w);
+         dof2tk[o++] = 0;
+         Nodes.IntPoint(o).Set3(top[i]/w, 0., top[j]/w);
+         dof2tk[o++] = 2;
+      }
+   for (int j = 0; j <= pm2; j++)  // (1, 2, 4)
+      for (int i = 0; i + j <= pm2; i++)
+      {
+         real_t w = top[i] + top[j] + top[pm2-i-j];
+         Nodes.IntPoint(o).Set3((top[i] + top[pm2-i-j])/w, top[i]/w, top[j]/w);
+         dof2tk[o++] = 1;
+         Nodes.IntPoint(o).Set3((top[i] + top[pm2-i-j])/w, top[i]/w, top[j]/w);
+         dof2tk[o++] = 3;
+      }
+   for (int j = 0; j <= pm2; j++)  // (2, 3, 4)
+      for (int i = 0; i + j <= pm2; i++)
+      {
+         real_t w = top[i] + top[j] + top[pm2-i-j];
+         Nodes.IntPoint(o).Set3(top[pm2-i-j]/w, (top[i] + top[pm2-i-j])/w,
+                                top[j]/w);
+         dof2tk[o++] = 6;
+         Nodes.IntPoint(o).Set3(top[pm2-i-j]/w, (top[i] + top[pm2-i-j])/w,
+                                top[j]/w);
+         dof2tk[o++] = 4;
+      }
+   for (int j = 0; j <= pm2; j++)  // (3, 0, 4)
+      for (int i = 0; i + j <= pm2; i++)
+      {
+         real_t w = top[i] + top[j] + top[pm2-i-j];
+         Nodes.IntPoint(o).Set3(0., top[pm2-i-j]/w, top[j]/w);
+         dof2tk[o++] = 7;
+         Nodes.IntPoint(o).Set3(0., top[pm2-i-j]/w, top[j]/w);
+         dof2tk[o++] = 5;
+      }
+
+   // interior
+   // x-components
+   for (int k = 1; k < p; k++)
+      for (int j = 1; j < p; j++)
+         for (int i = 0; i < p; i++)
+         {
+            real_t w = 1.0 - qcp[k];
+            Nodes.IntPoint(o).Set3(qop[i]*w, qcp[j]*w, qcp[k]);
+            dof2tk[o++] = 0;
+         }
+   // y-components
+   for (int k = 1; k < p; k++)
+      for (int j = 0; j < p; j++)
+         for (int i = 1; i < p; i++)
+         {
+            real_t w = 1.0 - qcp[k];
+            Nodes.IntPoint(o).Set3(qcp[i]*w, qop[j]*w, qcp[k]);
+            dof2tk[o++] = 1;
+         }
+   // z-components
+   for (int k = 0; k < p; k++)
+      for (int j = 1; j < p; j++)
+         for (int i = 1; i < p; i++)
+         {
+            real_t w = 1.0 - qop[k];
+            Nodes.IntPoint(o).Set3(qcp[i]*w, qcp[j]*w, qop[k]);
+            dof2tk[o++] = 8;
+         }
+
+   DenseMatrix T(dof);
+
+   for (int m = 0; m < dof; m++)
+   {
+      const IntegrationPoint &ip = Nodes.IntPoint(m);
+      calcBasis(p, ip, tmp_E_E_ij, tmp_E_Q1_ijk, tmp_E_Q2_ijk, tmp_E_T_ijk,
+                tmp_phi_Q1_ij, tmp_dphi_Q1_ij, tmp_phi_Q2_ij,
+                tmp_phi_E_i, tmp_dphi_E_i, u);
+
+      const Vector tm({tk[3*dof2tk[m]], tk[3*dof2tk[m]+1], tk[3*dof2tk[m]+2]});
+      u.Mult(tm, T.GetColumn(m));
+   }
+
+   Ti.Factor(T);
+}
+
+void ND_FuentesPyramidElement::CalcVShape(const IntegrationPoint &ip,
+                                          DenseMatrix &shape) const
+{
+   const int p = order;
+
+#ifdef MFEM_THREAD_SAFE
+   DenseMatrix tmp_E_E_ij(p, dim);
+   DenseTensor tmp_E_Q1_ijk(p, p + 1, dim);
+   DenseTensor tmp_E_Q2_ijk(p, p + 1, dim);
+   DenseTensor tmp_E_T_ijk(p - 1, p, dim);
+   DenseMatrix tmp_phi_Q1_ij(p + 1, p + 1);
+   DenseTensor tmp_dphi_Q1_ij(p + 1, p + 1, dim);
+   DenseMatrix tmp_phi_Q2_ij(p + 1, p + 1);
+   Vector      tmp_phi_E_i(p + 1);
+   DenseMatrix tmp_dphi_E_i(p + 1, dim);
+   DenseMatrix u(dof, dim);
+#endif
+
+   calcBasis(p, ip, tmp_E_E_ij, tmp_E_Q1_ijk, tmp_E_Q2_ijk, tmp_E_T_ijk,
+             tmp_phi_Q1_ij, tmp_dphi_Q1_ij, tmp_phi_Q2_ij,
+             tmp_phi_E_i, tmp_dphi_E_i, u);
+
+   Ti.Mult(u, shape);
+}
+
+void ND_FuentesPyramidElement::CalcCurlShape(const IntegrationPoint &ip,
+                                             DenseMatrix &curl_shape) const
+{
+   const int p = order;
+
+#ifdef MFEM_THREAD_SAFE
+   DenseMatrix tmp_E_E_ij(p, dim);
+   DenseMatrix tmp_dE_E_ij(p, dim);
+   DenseTensor tmp_E_Q1_ijk(p, p + 1, dim);
+   DenseTensor tmp_dE_Q1_ijk(p, p + 1, dim);
+   DenseTensor tmp_E_Q2_ijk(p, p + 1, dim);
+   DenseTensor tmp_dE_Q2_ijk(p, p + 1, dim);
+   DenseTensor tmp_E_T_ijk(p - 1, p, dim);
+   DenseTensor tmp_dE_T_ijk(p - 1, p, dim);
+   DenseMatrix tmp_phi_Q2_ij(p + 1, p + 1);
+   DenseTensor tmp_dphi_Q2_ij(p + 1, p + 1, dim);
+   Vector      tmp_phi_E_i(p + 1);
+   DenseMatrix tmp_dphi_E_i(p + 1, dim);
+   DenseMatrix curlu(dof, dim);
+#endif
+
+   calcCurlBasis(p, ip, tmp_E_E_ij, tmp_dE_E_ij, tmp_E_Q1_ijk, tmp_dE_Q1_ijk,
+                 tmp_E_Q2_ijk, tmp_dE_Q2_ijk, tmp_E_T_ijk, tmp_dE_T_ijk,
+                 tmp_phi_Q2_ij, tmp_dphi_Q2_ij, tmp_phi_E_i, tmp_dphi_E_i,
+                 curlu);
+
+   Ti.Mult(curlu, curl_shape);
+}
+
+void ND_FuentesPyramidElement::CalcRawVShape(const IntegrationPoint &ip,
+                                             DenseMatrix &shape) const
+{
+   const int p = order;
+
+#ifdef MFEM_THREAD_SAFE
+   DenseMatrix tmp_E_E_ij(p, dim);
+   DenseTensor tmp_E_Q1_ijk(p, p + 1, dim);
+   DenseTensor tmp_E_Q2_ijk(p, p + 1, dim);
+   DenseTensor tmp_E_T_ijk(p - 1, p, dim);
+   DenseMatrix tmp_phi_Q1_ij(p + 1, p + 1);
+   DenseTensor tmp_dphi_Q1_ij(p + 1, p + 1, dim);
+   DenseMatrix tmp_phi_Q2_ij(p + 1, p + 1);
+   Vector      tmp_phi_E_i(p + 1);
+   DenseMatrix tmp_dphi_E_i(p + 1, dim);
+#endif
+
+   calcBasis(p, ip, tmp_E_E_ij, tmp_E_Q1_ijk, tmp_E_Q2_ijk, tmp_E_T_ijk,
+             tmp_phi_Q1_ij, tmp_dphi_Q1_ij, tmp_phi_Q2_ij,
+             tmp_phi_E_i, tmp_dphi_E_i, shape);
+}
+
+void ND_FuentesPyramidElement::CalcRawCurlShape(const IntegrationPoint &ip,
+                                                DenseMatrix &dshape) const
+{
+   const int p = order;
+
+#ifdef MFEM_THREAD_SAFE
+   DenseMatrix tmp_E_E_ij(p, dim);
+   DenseMatrix tmp_dE_E_ij(p, dim);
+   DenseTensor tmp_E_Q1_ijk(p, p + 1, dim);
+   DenseTensor tmp_dE_Q1_ijk(p, p + 1, dim);
+   DenseTensor tmp_E_Q2_ijk(p, p + 1, dim);
+   DenseTensor tmp_dE_Q2_ijk(p, p + 1, dim);
+   DenseTensor tmp_E_T_ijk(p - 1, p, dim);
+   DenseTensor tmp_dE_T_ijk(p - 1, p, dim);
+   DenseMatrix tmp_phi_Q2_ij(p + 1, p + 1);
+   DenseTensor tmp_dphi_Q2_ij(p + 1, p + 1, dim);
+   Vector      tmp_phi_E_i(p + 1);
+   DenseMatrix tmp_dphi_E_i(p + 1, dim);
+#endif
+
+   calcCurlBasis(p, ip, tmp_E_E_ij, tmp_dE_E_ij, tmp_E_Q1_ijk, tmp_dE_Q1_ijk,
+                 tmp_E_Q2_ijk, tmp_dE_Q2_ijk, tmp_E_T_ijk, tmp_dE_T_ijk,
+                 tmp_phi_Q2_ij, tmp_dphi_Q2_ij, tmp_phi_E_i, tmp_dphi_E_i,
+                 dshape);
+}
+
+void ND_FuentesPyramidElement::calcBasis(const int p,
+                                         const IntegrationPoint &ip,
+                                         DenseMatrix & E_E_ik,
+                                         DenseTensor & E_Q1_ijk,
+                                         DenseTensor & E_Q2_ijk,
+                                         DenseTensor & E_T_ijk,
+                                         DenseMatrix & phi_Q1_ij,
+                                         DenseTensor & dphi_Q1_ij,
+                                         DenseMatrix & phi_Q2_ij,
+                                         Vector      & phi_E_k,
+                                         DenseMatrix & dphi_E_k,
+                                         DenseMatrix &W) const
+{
+   real_t x = ip.x;
+   real_t y = ip.y;
+   real_t z = ip.z;
+   Vector xy({x,y}), dmu(3);
+   real_t mu, mu2;
+
+   if (std::fabs(1.0 - z) < apex_tol)
+   {
+      z = 1.0 - apex_tol;
+      y = 0.5 * (1.0 - z);
+      x = 0.5 * (1.0 - z);
+      xy(0) = x; xy(1) = y;
+   }
+   zmax = std::max(z, zmax);
+
+   W = 0.0;
+
+   int o = 0;
+
+   // Mixed Edges
+   if (z < 1.0)
+   {
+      // (a, b) = (1, 2), c = 0
+      mu = mu0(z, xy, 2);
+      E_E(p, nu01(z, xy, 1), nu01_grad_nu01(z, xy, 1), E_E_ik);
+      for (int i=0; i<p; i++, o++)
+         for (int k=0; k<3; k++)
+         {
+            W(o, k) = mu * E_E_ik(i, k);
+         }
+
+      // (a, b) = (1, 2), c = 1
+      mu = mu1(z, xy, 2);
+      for (int i=0; i<p; i++, o++)
+         for (int k=0; k<3; k++)
+         {
+            W(o, k) = mu * E_E_ik(i, k);
+         }
+
+      // (a, b) = (2, 1), c = 0
+      mu = mu0(z, xy, 1);
+      E_E(p, nu01(z, xy, 2), nu01_grad_nu01(z, xy, 2), E_E_ik);
+      for (int i=0; i<p; i++, o++)
+         for (int k=0; k<3; k++)
+         {
+            W(o, k) = mu * E_E_ik(i, k);
+         }
+
+      // (a, b) = (2, 1), c = 1
+      mu = mu1(z, xy, 1);
+      for (int i=0; i<p; i++, o++)
+         for (int k=0; k<3; k++)
+         {
+            W(o, k) = mu * E_E_ik(i, k);
+         }
+   }
+
+   // Triangle Edges
+   if (z < 1.0)
+   {
+      E_E(p, lam15(x, y, z), lam15_grad_lam15(x, y, z), E_E_ik);
+      for (int i=0; i<p; i++, o++)
+         for (int k=0; k<3; k++)
+         {
+            W(o, k) = E_E_ik(i, k);
+         }
+
+      E_E(p, lam25(x, y, z), lam25_grad_lam25(x, y, z), E_E_ik);
+      for (int i=0; i<p; i++, o++)
+         for (int k=0; k<3; k++)
+         {
+            W(o, k) = E_E_ik(i, k);
+         }
+
+      E_E(p, lam35(x, y, z), lam35_grad_lam35(x, y, z), E_E_ik);
+      for (int i=0; i<p; i++, o++)
+         for (int k=0; k<3; k++)
+         {
+            W(o, k) = E_E_ik(i, k);
+         }
+
+      E_E(p, lam45(x, y, z), lam45_grad_lam45(x, y, z), E_E_ik);
+      for (int i=0; i<p; i++, o++)
+         for (int k=0; k<3; k++)
+         {
+            W(o, k) = E_E_ik(i, k);
+         }
+   }
+
+   // Quadrilateral Face
+   if (z < 1.0 && p >= 2)
+   {
+      mu = mu0(z);
+      mu2 = mu * mu;
+
+      // Family I
+      E_Q(p, mu01(z, xy, 1), mu01_grad_mu01(z, xy, 1), mu01(z, xy, 2),
+          E_Q1_ijk);
+      for (int j=2; j<=p; j++)
+         for (int i=0; i<p; i++, o++)
+            for (int k=0; k<3; k++)
+            {
+               W(o, k) = mu2 * E_Q1_ijk(i, j, k);
+            }
+
+      // Family II
+      E_Q(p, mu01(z, xy, 2), mu01_grad_mu01(z, xy, 2), mu01(z, xy, 1),
+          E_Q2_ijk);
+      for (int j=2; j<=p; j++)
+         for (int i=0; i<p; i++, o++)
+            for (int k=0; k<3; k++)
+            {
+               W(o, k) = mu2 * E_Q2_ijk(i, j, k);
+            }
+   }
+
+   // Triangular Faces
+   if (z < 1.0 && p >= 2)
+   {
+      // Family I
+      // (a, b) = (1, 2), c = 0
+      mu = mu0(z, xy, 2);
+      E_T(p, nu012(z, xy, 1), nu01_grad_nu01(z, xy, 1), E_T_ijk);
+      for (int j=1; j<p; j++)
+         for (int i=0; i+j<p; i++, o++)
+            for (int k=0; k<3; k++)
+            {
+               W(o, k) = mu * E_T_ijk(i, j, k);
+            }
+
+      // (a, b) = (1, 2), c = 1
+      mu = mu1(z, xy, 2);
+      for (int j=1; j<p; j++)
+         for (int i=0; i+j<p; i++, o++)
+            for (int k=0; k<3; k++)
+            {
+               W(o, k) = mu * E_T_ijk(i, j, k);
+            }
+
+      // (a, b) = (2, 1), c = 0
+      mu = mu0(z, xy, 1);
+      E_T(p, nu012(z, xy, 2), nu01_grad_nu01(z, xy, 2), E_T_ijk);
+      for (int j=1; j<p; j++)
+         for (int i=0; i+j<p; i++, o++)
+            for (int k=0; k<3; k++)
+            {
+               W(o, k) = mu * E_T_ijk(i, j, k);
+            }
+
+      // (a, b) = (2, 1), c = 1
+      mu = mu1(z, xy, 1);
+      for (int j=1; j<p; j++)
+         for (int i=0; i+j<p; i++, o++)
+            for (int k=0; k<3; k++)
+            {
+               W(o, k) = mu * E_T_ijk(i, j, k);
+            }
+
+      // Family II
+      // (a, b) = (1, 2), c = 0
+      mu = mu0(z, xy, 2);
+      E_T(p, nu120(z, xy, 1), nu12_grad_nu12(z, xy, 1), E_T_ijk);
+      for (int j=1; j<p; j++)
+         for (int i=0; i+j<p; i++, o++)
+            for (int k=0; k<3; k++)
+            {
+               W(o, k) = mu * E_T_ijk(i, j, k);
+            }
+
+      // (a, b) = (1, 2), c = 1
+      mu = mu1(z, xy, 2);
+      for (int j=1; j<p; j++)
+         for (int i=0; i+j<p; i++, o++)
+            for (int k=0; k<3; k++)
+            {
+               W(o, k) = mu * E_T_ijk(i, j, k);
+            }
+
+      // (a, b) = (2, 1), c = 0
+      mu = mu0(z, xy, 1);
+      E_T(p, nu120(z, xy, 2), nu12_grad_nu12(z, xy, 2), E_T_ijk);
+      for (int j=1; j<p; j++)
+         for (int i=0; i+j<p; i++, o++)
+            for (int k=0; k<3; k++)
+            {
+               W(o, k) = mu * E_T_ijk(i, j, k);
+            }
+
+      // (a, b) = (2, 1), c = 1
+      mu = mu1(z, xy, 1);
+      for (int j=1; j<p; j++)
+         for (int i=0; i+j<p; i++, o++)
+            for (int k=0; k<3; k++)
+            {
+               W(o, k) = mu * E_T_ijk(i, j, k);
+            }
+   }
+
+   // Interior
+   if (z < 1.0 && p >= 2)
+   {
+      // Family I
+      phi_Q(p, mu01(z, xy, 1), grad_mu01(z, xy, 1), mu01(z, xy, 2),
+            grad_mu01(z, xy, 2), phi_Q1_ij, dphi_Q1_ij);
+      phi_E(p, mu01(z), grad_mu01(z), phi_E_k, dphi_E_k);
+      for (int k=2; k<=p; k++)
+         for (int j=2; j<=p; j++)
+            for (int i=2; i<=p; i++, o++)
+               for (int l=0; l<3; l++)
+                  W(o, l) = dphi_Q1_ij(i, j, l) * phi_E_k(k) +
+                            phi_Q1_ij(i, j) * dphi_E_k(k, l);
+
+      // Family II
+      mu = mu0(z);
+      for (int k=2; k<=p; k++)
+         for (int j=2; j<=p; j++)
+            for (int i=0; i<p; i++, o++)
+               for (int l=0; l<3; l++)
+               {
+                  W(o, l) = mu * E_Q1_ijk(i, j, l) * phi_E_k(k);
+               }
+
+      // Family III
+      for (int k=2; k<=p; k++)
+         for (int j=2; j<=p; j++)
+            for (int i=0; i<p; i++, o++)
+               for (int l=0; l<3; l++)
+               {
+                  W(o, l) = mu * E_Q2_ijk(i, j, l) * phi_E_k(k);
+               }
+
+      // Family IV
+      // Re-using mu from Family II
+      dmu = grad_mu0(z);
+      phi_Q(p, mu01(z, xy, 2), mu01(z, xy, 1), phi_Q2_ij);
+      for (int j=2; j<=p; j++)
+         for (int i=2; i<=p; i++, o++)
+         {
+            const int n = std::max(i,j);
+            const real_t nmu = n * pow(mu, n-1);
+            for (int l=0; l<3; l++)
+            {
+               W(o, l) = nmu * phi_Q2_ij(i, j) * dmu(l);
+            }
+         }
+   }
+}
+
+void ND_FuentesPyramidElement::calcCurlBasis(const int p,
+                                             const IntegrationPoint &ip,
+                                             DenseMatrix & E_E_ik,
+                                             DenseMatrix & dE_E_ik,
+                                             DenseTensor & E_Q1_ijk,
+                                             DenseTensor & dE_Q1_ijk,
+                                             DenseTensor & E_Q2_ijk,
+                                             DenseTensor & dE_Q2_ijk,
+                                             DenseTensor & E_T_ijk,
+                                             DenseTensor & dE_T_ijk,
+                                             DenseMatrix & phi_Q2_ij,
+                                             DenseTensor & dphi_Q2_ij,
+                                             Vector      & phi_E_k,
+                                             DenseMatrix & dphi_E_k,
+                                             DenseMatrix & dW) const
+{
+   real_t x = ip.x;
+   real_t y = ip.y;
+   real_t z = ip.z;
+   Vector xy({x,y}), dmu(3);
+   Vector dmuxE(3), E(3), dphi(3), muphi(3);
+
+   real_t mu, mu2;
+
+   if (std::fabs(1.0 - z) < apex_tol)
+   {
+      z = 1.0 - apex_tol;
+      y = 0.5 * (1.0 - z);
+      x = 0.5 * (1.0 - z);
+      xy(0) = x; xy(1) = y;
+   }
+   zmax = std::max(z, zmax);
+
+   dW = 0.0;
+
+   int o = 0;
+
+   // Mixed Edges
+   if (z < 1.0)
+   {
+      // (a, b) = (1, 2), c = 0
+      mu = mu0(z, xy, 2);
+      dmu = grad_mu0(z, xy, 2);
+      E_E(p, nu01(z, xy, 1), grad_nu01(z, xy, 1), E_E_ik, dE_E_ik);
+      for (int i=0; i<p; i++, o++)
+      {
+         E(0) = E_E_ik(i, 0); E(1) = E_E_ik(i, 1); E(2) = E_E_ik(i, 2);
+         dmu.cross3D(E, dmuxE);
+         for (int k=0; k<3; k++)
+         {
+            dW(o, k) = mu * dE_E_ik(i, k) + dmuxE(k);
+         }
+      }
+
+      // (a, b) = (1, 2), c = 1
+      mu = mu1(z, xy, 2);
+      dmu = grad_mu1(z, xy, 2);
+      for (int i=0; i<p; i++, o++)
+      {
+         E(0) = E_E_ik(i, 0); E(1) = E_E_ik(i, 1); E(2) = E_E_ik(i, 2);
+         dmu.cross3D(E, dmuxE);
+         for (int k=0; k<3; k++)
+         {
+            dW(o, k) = mu * dE_E_ik(i, k) + dmuxE(k);
+         }
+      }
+
+      // (a, b) = (2, 1), c = 0
+      mu = mu0(z, xy, 1);
+      dmu = grad_mu0(z, xy, 1);
+      E_E(p, nu01(z, xy, 2), grad_nu01(z, xy, 2), E_E_ik, dE_E_ik);
+      for (int i=0; i<p; i++, o++)
+      {
+         E(0) = E_E_ik(i, 0); E(1) = E_E_ik(i, 1); E(2) = E_E_ik(i, 2);
+         dmu.cross3D(E, dmuxE);
+         for (int k=0; k<3; k++)
+         {
+            dW(o, k) = mu * dE_E_ik(i, k) + dmuxE(k);
+         }
+      }
+
+      // (a, b) = (2, 1), c = 1
+      mu = mu1(z, xy, 1);
+      dmu = grad_mu1(z, xy, 1);
+      for (int i=0; i<p; i++, o++)
+      {
+         E(0) = E_E_ik(i, 0); E(1) = E_E_ik(i, 1); E(2) = E_E_ik(i, 2);
+         dmu.cross3D(E, dmuxE);
+         for (int k=0; k<3; k++)
+         {
+            dW(o, k) = mu * dE_E_ik(i, k) + dmuxE(k);
+         }
+      }
+   }
+
+   // Triangle Edges
+   if (z < 1.0)
+   {
+      E_E(p, lam15(x, y, z), grad_lam15(x, y, z), E_E_ik, dE_E_ik);
+      for (int i=0; i<p; i++, o++)
+         for (int k=0; k<3; k++)
+         {
+            dW(o, k) = dE_E_ik(i, k);
+         }
+
+      E_E(p, lam25(x, y, z), grad_lam25(x, y, z), E_E_ik, dE_E_ik);
+      for (int i=0; i<p; i++, o++)
+         for (int k=0; k<3; k++)
+         {
+            dW(o, k) = dE_E_ik(i, k);
+         }
+
+      E_E(p, lam35(x, y, z), grad_lam35(x, y, z), E_E_ik, dE_E_ik);
+      for (int i=0; i<p; i++, o++)
+         for (int k=0; k<3; k++)
+         {
+            dW(o, k) = dE_E_ik(i, k);
+         }
+
+      E_E(p, lam45(x, y, z), grad_lam45(x, y, z), E_E_ik, dE_E_ik);
+      for (int i=0; i<p; i++, o++)
+         for (int k=0; k<3; k++)
+         {
+            dW(o, k) = dE_E_ik(i, k);
+         }
+   }
+
+   // Quadrilateral Face
+   if (z < 1.0 && p >= 2)
+   {
+      mu = mu0(z);
+      mu2 = mu * mu;
+      dmu = grad_mu0(z);
+
+      // Family I
+      E_Q(p, mu01(z, xy, 1), grad_mu01(z, xy, 1),
+          mu01(z, xy, 2), grad_mu01(z, xy, 2), E_Q1_ijk, dE_Q1_ijk);
+      for (int j=2; j<=p; j++)
+         for (int i=0; i<p; i++, o++)
+         {
+            E(0) = E_Q1_ijk(i, j, 0);
+            E(1) = E_Q1_ijk(i, j, 1);
+            E(2) = E_Q1_ijk(i, j, 2);
+            dmu.cross3D(E, dmuxE);
+            for (int k=0; k<3; k++)
+            {
+               dW(o, k) = mu2 * dE_Q1_ijk(i, j, k) + 2.0 * mu * dmuxE(k);
+            }
+         }
+
+      // Family II
+      E_Q(p, mu01(z, xy, 2), grad_mu01(z, xy, 2),
+          mu01(z, xy, 1), grad_mu01(z, xy, 1), E_Q2_ijk, dE_Q2_ijk);
+      for (int j=2; j<=p; j++)
+         for (int i=0; i<p; i++, o++)
+         {
+            E(0) = E_Q2_ijk(i, j, 0);
+            E(1) = E_Q2_ijk(i, j, 1);
+            E(2) = E_Q2_ijk(i, j, 2);
+            dmu.cross3D(E, dmuxE);
+            for (int k=0; k<3; k++)
+            {
+               dW(o, k) = mu2 * dE_Q2_ijk(i, j, k) + 2.0 * mu * dmuxE(k);
+            }
+         }
+   }
+
+   // Triangular Faces
+   if (z < 1.0 && p >= 2)
+   {
+      // Family I
+      // (a, b) = (1, 2), c = 0
+      mu = mu0(z, xy, 2);
+      dmu = grad_mu0(z, xy, 2);
+      E_T(p, nu012(z, xy, 1), grad_nu012(z, xy, 1), E_T_ijk, dE_T_ijk);
+      for (int j=1; j<p; j++)
+         for (int i=0; i+j<p; i++, o++)
+         {
+            E(0) = E_T_ijk(i, j, 0);
+            E(1) = E_T_ijk(i, j, 1);
+            E(2) = E_T_ijk(i, j, 2);
+            dmu.cross3D(E, dmuxE);
+            for (int k=0; k<3; k++)
+            {
+               dW(o, k) = mu * dE_T_ijk(i, j, k) + dmuxE(k);
+            }
+         }
+
+      // (a, b) = (1, 2), c = 1
+      mu = mu1(z, xy, 2);
+      dmu = grad_mu1(z, xy, 2);
+      for (int j=1; j<p; j++)
+         for (int i=0; i+j<p; i++, o++)
+         {
+            E(0) = E_T_ijk(i, j, 0);
+            E(1) = E_T_ijk(i, j, 1);
+            E(2) = E_T_ijk(i, j, 2);
+            dmu.cross3D(E, dmuxE);
+            for (int k=0; k<3; k++)
+            {
+               dW(o, k) = mu * dE_T_ijk(i, j, k) + dmuxE(k);
+            }
+         }
+
+      // (a, b) = (2, 1), c = 0
+      mu = mu0(z, xy, 1);
+      dmu = grad_mu0(z, xy, 1);
+      E_T(p, nu012(z, xy, 2), grad_nu012(z, xy, 2), E_T_ijk, dE_T_ijk);
+      for (int j=1; j<p; j++)
+         for (int i=0; i+j<p; i++, o++)
+         {
+            E(0) = E_T_ijk(i, j, 0);
+            E(1) = E_T_ijk(i, j, 1);
+            E(2) = E_T_ijk(i, j, 2);
+            dmu.cross3D(E, dmuxE);
+            for (int k=0; k<3; k++)
+            {
+               dW(o, k) = mu * dE_T_ijk(i, j, k) + dmuxE(k);
+            }
+         }
+
+      // (a, b) = (2, 1), c = 1
+      mu = mu1(z, xy, 1);
+      dmu = grad_mu1(z, xy, 1);
+      for (int j=1; j<p; j++)
+         for (int i=0; i+j<p; i++, o++)
+         {
+            E(0) = E_T_ijk(i, j, 0);
+            E(1) = E_T_ijk(i, j, 1);
+            E(2) = E_T_ijk(i, j, 2);
+            dmu.cross3D(E, dmuxE);
+            for (int k=0; k<3; k++)
+            {
+               dW(o, k) = mu * dE_T_ijk(i, j, k) + dmuxE(k);
+            }
+         }
+
+      // Family II
+      // (a, b) = (1, 2), c = 0
+      mu = mu0(z, xy, 2);
+      dmu = grad_mu0(z, xy, 2);
+      E_T(p, nu120(z, xy, 1), grad_nu120(z, xy, 1), E_T_ijk, dE_T_ijk);
+      for (int j=1; j<p; j++)
+         for (int i=0; i+j<p; i++, o++)
+         {
+            E(0) = E_T_ijk(i, j, 0);
+            E(1) = E_T_ijk(i, j, 1);
+            E(2) = E_T_ijk(i, j, 2);
+            dmu.cross3D(E, dmuxE);
+            for (int k=0; k<3; k++)
+            {
+               dW(o, k) = mu * dE_T_ijk(i, j, k) + dmuxE(k);
+            }
+         }
+
+      // (a, b) = (1, 2), c = 1
+      mu = mu1(z, xy, 2);
+      dmu = grad_mu1(z, xy, 2);
+      for (int j=1; j<p; j++)
+         for (int i=0; i+j<p; i++, o++)
+         {
+            E(0) = E_T_ijk(i, j, 0);
+            E(1) = E_T_ijk(i, j, 1);
+            E(2) = E_T_ijk(i, j, 2);
+            dmu.cross3D(E, dmuxE);
+            for (int k=0; k<3; k++)
+            {
+               dW(o, k) = mu * dE_T_ijk(i, j, k) + dmuxE(k);
+            }
+         }
+
+      // (a, b) = (2, 1), c = 0
+      mu = mu0(z, xy, 1);
+      dmu = grad_mu0(z, xy, 1);
+      E_T(p, nu120(z, xy, 2), grad_nu120(z, xy, 2), E_T_ijk, dE_T_ijk);
+      for (int j=1; j<p; j++)
+         for (int i=0; i+j<p; i++, o++)
+         {
+            E(0) = E_T_ijk(i, j, 0);
+            E(1) = E_T_ijk(i, j, 1);
+            E(2) = E_T_ijk(i, j, 2);
+            dmu.cross3D(E, dmuxE);
+            for (int k=0; k<3; k++)
+            {
+               dW(o, k) = mu * dE_T_ijk(i, j, k) + dmuxE(k);
+            }
+         }
+
+      // (a, b) = (2, 1), c = 1
+      mu = mu1(z, xy, 1);
+      dmu = grad_mu1(z, xy, 1);
+      for (int j=1; j<p; j++)
+         for (int i=0; i+j<p; i++, o++)
+         {
+            E(0) = E_T_ijk(i, j, 0);
+            E(1) = E_T_ijk(i, j, 1);
+            E(2) = E_T_ijk(i, j, 2);
+            dmu.cross3D(E, dmuxE);
+            for (int k=0; k<3; k++)
+            {
+               dW(o, k) = mu * dE_T_ijk(i, j, k) + dmuxE(k);
+            }
+         }
+   }
+
+   // Interior
+   if (z < 1.0 && p >= 2)
+   {
+      // Family I
+      // Curl is zero so skip these functions
+      o += (p - 1) * (p - 1) * (p - 1);
+
+      // Family II
+      mu = mu0(z);
+      dmu = grad_mu0(z);
+      phi_E(p, mu01(z), grad_mu01(z), phi_E_k, dphi_E_k);
+      for (int k=2; k<=p; k++)
+      {
+         dphi(0) = dphi_E_k(k, 0);
+         dphi(1) = dphi_E_k(k, 1);
+         dphi(2) = dphi_E_k(k, 2);
+         add(mu, dphi, phi_E_k(k), dmu, muphi);
+
+         for (int j=2; j<=p; j++)
+            for (int i=0; i<p; i++, o++)
+            {
+               E(0) = E_Q1_ijk(i, j, 0);
+               E(1) = E_Q1_ijk(i, j, 1);
+               E(2) = E_Q1_ijk(i, j, 2);
+               muphi.cross3D(E, dmuxE);
+               for (int l=0; l<3; l++)
+               {
+                  dW(o, l) = mu * dE_Q1_ijk(i, j, l) * phi_E_k(k) + dmuxE(l);
+               }
+            }
+      }
+
+      // Family III
+      for (int k=2; k<=p; k++)
+      {
+         dphi(0) = dphi_E_k(k, 0);
+         dphi(1) = dphi_E_k(k, 1);
+         dphi(2) = dphi_E_k(k, 2);
+         add(mu, dphi, phi_E_k(k), dmu, muphi);
+
+         for (int j=2; j<=p; j++)
+            for (int i=0; i<p; i++, o++)
+            {
+               E(0) = E_Q2_ijk(i, j, 0);
+               E(1) = E_Q2_ijk(i, j, 1);
+               E(2) = E_Q2_ijk(i, j, 2);
+               muphi.cross3D(E, dmuxE);
+               for (int l=0; l<3; l++)
+               {
+                  dW(o, l) = mu * dE_Q2_ijk(i, j, l) * phi_E_k(k) + dmuxE(l);
+               }
+            }
+      }
+
+      // Family IV
+      // Re-using mu from Family II
+      dmu = grad_mu0(z);
+      phi_Q(p, mu01(z, xy, 2), grad_mu01(z, xy, 2), mu01(z, xy, 1),
+            grad_mu01(z, xy, 1), phi_Q2_ij, dphi_Q2_ij);
+      for (int j=2; j<=p; j++)
+         for (int i=2; i<=p; i++, o++)
+         {
+            const int n = std::max(i,j);
+            const real_t nmu = n * pow(mu, n-1);
+
+            dphi(0) = dphi_Q2_ij(i, j, 0);
+            dphi(1) = dphi_Q2_ij(i, j, 1);
+            dphi(2) = dphi_Q2_ij(i, j, 2);
+            dphi.cross3D(dmu, muphi);
+
+            for (int l=0; l<3; l++)
+            {
+               dW(o, l) = nmu * muphi(l);
+            }
+         }
+   }
+}
+
 ND_R1D_PointElement::ND_R1D_PointElement(int p)
    : VectorFiniteElement(1, Geometry::POINT, 2, p,
                          H_CURL, FunctionSpace::Pk)
@@ -1533,7 +2556,7 @@ void ND_R1D_PointElement::CalcVShape(ElementTransformation &Trans,
    CalcVShape(Trans.GetIntPoint(), shape);
 }
 
-const double ND_R1D_SegmentElement::tk[9] = { 1.,0.,0., 0.,1.,0., 0.,0.,1. };
+const real_t ND_R1D_SegmentElement::tk[9] = { 1.,0.,0., 0.,1.,0., 0.,0.,1. };
 
 ND_R1D_SegmentElement::ND_R1D_SegmentElement(const int p,
                                              const int cb_type,
@@ -1553,8 +2576,8 @@ ND_R1D_SegmentElement::ND_R1D_SegmentElement(const int p,
    vdim = 3;
    cdim = 3;
 
-   const double *cp = poly1d.ClosedPoints(p, cb_type);
-   const double *op = poly1d.OpenPoints(p - 1, ob_type);
+   const real_t *cp = poly1d.ClosedPoints(p, cb_type);
+   const real_t *op = poly1d.OpenPoints(p - 1, ob_type);
 
 #ifndef MFEM_THREAD_SAFE
    shape_cx.SetSize(p + 1);
@@ -1707,7 +2730,7 @@ void ND_R1D_SegmentElement::Project(VectorCoefficient &vc,
                                     ElementTransformation &Trans,
                                     Vector &dofs) const
 {
-   double data[3];
+   real_t data[3];
    Vector vk(data, 3);
 
    for (int k = 0; k < dof; k++)
@@ -1716,7 +2739,7 @@ void ND_R1D_SegmentElement::Project(VectorCoefficient &vc,
 
       vc.Eval(vk, Trans, Nodes.IntPoint(k));
       // dof_k = vk^t J tk
-      Vector t(const_cast<double*>(&tk[dof2tk[k] * 3]), 3);
+      Vector t(const_cast<real_t*>(&tk[dof2tk[k] * 3]), 3);
       dofs(k) = Trans.Jacobian()(0,0) * t(0) * vk(0) +
                 t(1) * vk(1) + t(2) * vk(2);
    }
@@ -1729,10 +2752,10 @@ void ND_R1D_SegmentElement::Project(const FiniteElement &fe,
 {
    if (fe.GetRangeType() == SCALAR)
    {
-      double vk[Geometry::MaxDim];
+      real_t vk[Geometry::MaxDim];
       Vector shape(fe.GetDof());
 
-      double * tk_ptr = const_cast<double*>(tk);
+      real_t * tk_ptr = const_cast<real_t*>(tk);
 
       I.SetSize(dof, vdim*fe.GetDof());
       for (int k = 0; k < dof; k++)
@@ -1751,7 +2774,7 @@ void ND_R1D_SegmentElement::Project(const FiniteElement &fe,
          vk[2] = t3[2];
          if (fe.GetMapType() == INTEGRAL)
          {
-            double w = 1.0/Trans.Weight();
+            real_t w = 1.0/Trans.Weight();
             for (int d = 0; d < vdim; d++)
             {
                vk[d] *= w;
@@ -1760,7 +2783,7 @@ void ND_R1D_SegmentElement::Project(const FiniteElement &fe,
 
          for (int j = 0; j < shape.Size(); j++)
          {
-            double s = shape(j);
+            real_t s = shape(j);
             if (fabs(s) < 1e-12)
             {
                s = 0.0;
@@ -1776,10 +2799,10 @@ void ND_R1D_SegmentElement::Project(const FiniteElement &fe,
    }
    else
    {
-      double vk[Geometry::MaxDim];
-      DenseMatrix vshape(fe.GetDof(), fe.GetVDim());
+      real_t vk[Geometry::MaxDim];
+      DenseMatrix vshape(fe.GetDof(), fe.GetRangeDim());
 
-      double * tk_ptr = const_cast<double*>(tk);
+      real_t * tk_ptr = const_cast<real_t*>(tk);
 
       I.SetSize(dof, fe.GetDof());
       for (int k = 0; k < dof; k++)
@@ -1810,7 +2833,7 @@ void ND_R1D_SegmentElement::Project(const FiniteElement &fe,
    }
 }
 
-const double ND_R2D_SegmentElement::tk[4] = { 1.,0., 0.,1. };
+const real_t ND_R2D_SegmentElement::tk[4] = { 1.,0., 0.,1. };
 
 ND_R2D_SegmentElement::ND_R2D_SegmentElement(const int p,
                                              const int cb_type,
@@ -1825,8 +2848,8 @@ ND_R2D_SegmentElement::ND_R2D_SegmentElement(const int p,
    vdim = 2;
    cdim = 1;
 
-   const double *cp = poly1d.ClosedPoints(p, cb_type);
-   const double *op = poly1d.OpenPoints(p - 1, ob_type);
+   const real_t *cp = poly1d.ClosedPoints(p, cb_type);
+   const real_t *op = poly1d.OpenPoints(p - 1, ob_type);
 
 #ifndef MFEM_THREAD_SAFE
    shape_cx.SetSize(p + 1);
@@ -1936,12 +2959,12 @@ void ND_R2D_SegmentElement::LocalInterpolation(const VectorFiniteElement &cfe,
                                                ElementTransformation &Trans,
                                                DenseMatrix &I) const
 {
-   double vk[Geometry::MaxDim]; vk[1] = 0.0; vk[2] = 0.0;
+   real_t vk[Geometry::MaxDim]; vk[1] = 0.0; vk[2] = 0.0;
    Vector xk(vk, dim);
    IntegrationPoint ip;
    DenseMatrix vshape(cfe.GetDof(), vdim);
 
-   double * tk_ptr = const_cast<double*>(tk);
+   real_t * tk_ptr = const_cast<real_t*>(tk);
 
    I.SetSize(dof, vshape.Height());
 
@@ -1961,7 +2984,7 @@ void ND_R2D_SegmentElement::LocalInterpolation(const VectorFiniteElement &cfe,
       // I_k = vshape_k.J.t_k, k=1,...,Dof
       for (int j = 0; j < vshape.Height(); j++)
       {
-         double Ikj = 0.;
+         real_t Ikj = 0.;
          for (int i = 0; i < dim; i++)
          {
             Ikj += vshape(j, i) * vk[i];
@@ -1976,12 +2999,12 @@ void ND_R2D_SegmentElement::Project(VectorCoefficient &vc,
                                     ElementTransformation &Trans,
                                     Vector &dofs) const
 {
-   double data[3];
+   real_t data[3];
    Vector vk1(data, 1);
    Vector vk2(data, 2);
    Vector vk3(data, 3);
 
-   double * tk_ptr = const_cast<double*>(tk);
+   real_t * tk_ptr = const_cast<real_t*>(tk);
 
    for (int k = 0; k < dof; k++)
    {
@@ -1998,7 +3021,7 @@ void ND_R2D_SegmentElement::Project(VectorCoefficient &vc,
 }
 
 ND_R2D_FiniteElement::ND_R2D_FiniteElement(int p, Geometry::Type G, int Do,
-                                           const double *tk_fe)
+                                           const real_t *tk_fe)
    : VectorFiniteElement(2, G, Do, p,
                          H_CURL, FunctionSpace::Pk),
      tk(tk_fe),
@@ -2025,8 +3048,8 @@ void ND_R2D_FiniteElement::CalcVShape(ElementTransformation &Trans,
                "3 dimensional spaces");
    for (int i=0; i<dof; i++)
    {
-      double sx = shape(i, 0);
-      double sy = shape(i, 1);
+      real_t sx = shape(i, 0);
+      real_t sy = shape(i, 1);
       shape(i, 0) = sx * JI(0, 0) + sy * JI(1, 0);
       shape(i, 1) = sx * JI(0, 1) + sy * JI(1, 1);
    }
@@ -2042,8 +3065,8 @@ void ND_R2D_FiniteElement::CalcPhysCurlShape(ElementTransformation &Trans,
                "3 dimensional spaces");
    for (int i=0; i<dof; i++)
    {
-      double sx = curl_shape(i, 0);
-      double sy = curl_shape(i, 1);
+      real_t sx = curl_shape(i, 0);
+      real_t sy = curl_shape(i, 1);
       curl_shape(i, 0) = sx * J(0, 0) + sy * J(0, 1);
       curl_shape(i, 1) = sx * J(1, 0) + sy * J(1, 1);
    }
@@ -2055,7 +3078,7 @@ void ND_R2D_FiniteElement::LocalInterpolation(
    ElementTransformation &Trans,
    DenseMatrix &I) const
 {
-   double vk[Geometry::MaxDim]; vk[2] = 0.0;
+   real_t vk[Geometry::MaxDim]; vk[2] = 0.0;
    Vector xk(vk, dim);
    IntegrationPoint ip;
 #ifdef MFEM_THREAD_SAFE
@@ -2064,7 +3087,7 @@ void ND_R2D_FiniteElement::LocalInterpolation(
    vshape.SetSize(cfe.GetDof(), vdim);
 #endif
 
-   double * tk_ptr = const_cast<double*>(tk);
+   real_t * tk_ptr = const_cast<real_t*>(tk);
 
    I.SetSize(dof, vshape.Height());
 
@@ -2084,7 +3107,7 @@ void ND_R2D_FiniteElement::LocalInterpolation(
       // I_k = vshape_k.J.t_k, k=1,...,Dof
       for (int j = 0; j < vshape.Height(); j++)
       {
-         double Ikj = 0.;
+         real_t Ikj = 0.;
          for (int i = 0; i < dim; i++)
          {
             Ikj += vshape(j, i) * vk[i];
@@ -2098,7 +3121,7 @@ void ND_R2D_FiniteElement::LocalInterpolation(
 void ND_R2D_FiniteElement::GetLocalRestriction(ElementTransformation &Trans,
                                                DenseMatrix &R) const
 {
-   double pt_data[Geometry::MaxDim];
+   real_t pt_data[Geometry::MaxDim];
    IntegrationPoint ip;
    Vector pt(pt_data, dim);
 
@@ -2106,7 +3129,7 @@ void ND_R2D_FiniteElement::GetLocalRestriction(ElementTransformation &Trans,
    DenseMatrix vshape(dof, vdim);
 #endif
 
-   double * tk_ptr = const_cast<double*>(tk);
+   real_t * tk_ptr = const_cast<real_t*>(tk);
 
    Trans.SetIntPoint(&Geometries.GetCenter(geom_type));
    const DenseMatrix &Jinv = Trans.InverseJacobian();
@@ -2123,7 +3146,7 @@ void ND_R2D_FiniteElement::GetLocalRestriction(ElementTransformation &Trans,
          Jinv.Mult(t2, pt_data);
          for (int k = 0; k < dof; k++)
          {
-            double R_jk = 0.0;
+            real_t R_jk = 0.0;
             for (int d = 0; d < dim; d++)
             {
                R_jk += vshape(k,d)*pt_data[d];
@@ -2145,11 +3168,11 @@ void ND_R2D_FiniteElement::Project(VectorCoefficient &vc,
                                    ElementTransformation &Trans,
                                    Vector &dofs) const
 {
-   double data[3];
+   real_t data[3];
    Vector vk2(data, 2);
    Vector vk3(data, 3);
 
-   double * tk_ptr = const_cast<double*>(tk);
+   real_t * tk_ptr = const_cast<real_t*>(tk);
 
    for (int k = 0; k < dof; k++)
    {
@@ -2171,10 +3194,10 @@ void ND_R2D_FiniteElement::Project(const FiniteElement &fe,
 {
    if (fe.GetRangeType() == SCALAR)
    {
-      double vk[Geometry::MaxDim];
+      real_t vk[Geometry::MaxDim];
       Vector shape(fe.GetDof());
 
-      double * tk_ptr = const_cast<double*>(tk);
+      real_t * tk_ptr = const_cast<real_t*>(tk);
 
       I.SetSize(dof, vdim*fe.GetDof());
       for (int k = 0; k < dof; k++)
@@ -2192,7 +3215,7 @@ void ND_R2D_FiniteElement::Project(const FiniteElement &fe,
          vk[2] = t3[2];
          if (fe.GetMapType() == INTEGRAL)
          {
-            double w = 1.0/Trans.Weight();
+            real_t w = 1.0/Trans.Weight();
             for (int d = 0; d < vdim; d++)
             {
                vk[d] *= w;
@@ -2201,7 +3224,7 @@ void ND_R2D_FiniteElement::Project(const FiniteElement &fe,
 
          for (int j = 0; j < shape.Size(); j++)
          {
-            double s = shape(j);
+            real_t s = shape(j);
             if (fabs(s) < 1e-12)
             {
                s = 0.0;
@@ -2217,10 +3240,10 @@ void ND_R2D_FiniteElement::Project(const FiniteElement &fe,
    }
    else
    {
-      double vk[Geometry::MaxDim];
-      DenseMatrix vshape(fe.GetDof(), fe.GetVDim());
+      real_t vk[Geometry::MaxDim];
+      DenseMatrix vshape(fe.GetDof(), fe.GetRangeDim());
 
-      double * tk_ptr = const_cast<double*>(tk);
+      real_t * tk_ptr = const_cast<real_t*>(tk);
 
       I.SetSize(dof, fe.GetDof());
       for (int k = 0; k < dof; k++)
@@ -2274,7 +3297,7 @@ void ND_R2D_FiniteElement::ProjectGrad(const FiniteElement &fe,
    }
 }
 
-const double ND_R2D_TriangleElement::tk_t[15] =
+const real_t ND_R2D_TriangleElement::tk_t[15] =
 { 1.,0.,0.,  -1.,1.,0.,  0.,-1.,0.,  0.,1.,0., 0.,0.,1. };
 
 ND_R2D_TriangleElement::ND_R2D_TriangleElement(const int p,
@@ -2415,7 +3438,7 @@ void ND_R2D_TriangleElement::CalcCurlShape(const IntegrationPoint &ip,
 }
 
 
-const double ND_R2D_QuadrilateralElement::tk_q[15] =
+const real_t ND_R2D_QuadrilateralElement::tk_q[15] =
 { 1.,0.,0.,  0.,1.,0., -1.,0.,0., 0.,-1.,0., 0.,0.,1. };
 
 ND_R2D_QuadrilateralElement::ND_R2D_QuadrilateralElement(const int p,
@@ -2425,8 +3448,8 @@ ND_R2D_QuadrilateralElement::ND_R2D_QuadrilateralElement(const int p,
      cbasis1d(poly1d.GetBasis(p, VerifyClosed(cb_type))),
      obasis1d(poly1d.GetBasis(p - 1, VerifyOpen(ob_type)))
 {
-   const double *cp = poly1d.ClosedPoints(p, cb_type);
-   const double *op = poly1d.OpenPoints(p - 1, ob_type);
+   const real_t *cp = poly1d.ClosedPoints(p, cb_type);
+   const real_t *op = poly1d.OpenPoints(p - 1, ob_type);
    const int dofx = p*(p+1);
    const int dofy = p*(p+1);
    const int dofxy = dofx+dofy;

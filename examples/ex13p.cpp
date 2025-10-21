@@ -5,6 +5,7 @@
 // Sample runs:  mpirun -np 4 ex13p -m ../data/star.mesh
 //               mpirun -np 4 ex13p -m ../data/square-disc.mesh -o 2 -n 4
 //               mpirun -np 4 ex13p -m ../data/beam-tet.mesh
+//               mpirun -np 4 ex13p -m ../data/beam-tet.mesh -nc -o 2 -rs 1
 //               mpirun -np 4 ex13p -m ../data/beam-hex.mesh
 //               mpirun -np 4 ex13p -m ../data/escher.mesh
 //               mpirun -np 4 ex13p -m ../data/fichera.mesh
@@ -42,11 +43,11 @@ using namespace mfem;
 
 int main(int argc, char *argv[])
 {
-   // 1. Initialize MPI.
-   int num_procs, myid;
-   MPI_Init(&argc, &argv);
-   MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
-   MPI_Comm_rank(MPI_COMM_WORLD, &myid);
+   // 1. Initialize MPI and HYPRE.
+   Mpi::Init(argc, argv);
+   int num_procs = Mpi::WorldSize();
+   int myid = Mpi::WorldRank();
+   Hypre::Init();
 
    // 2. Parse command-line options.
    const char *mesh_file = "../data/beam-tet.mesh";
@@ -54,6 +55,7 @@ int main(int argc, char *argv[])
    int par_ref_levels = 1;
    int order = 1;
    int nev = 5;
+   bool nc = false;
    bool visualization = 1;
    const char *device_config = "cpu";
 
@@ -69,6 +71,9 @@ int main(int argc, char *argv[])
                   " isoparametric space.");
    args.AddOption(&nev, "-n", "--num-eigs",
                   "Number of desired eigenmodes.");
+   args.AddOption(&nc, "-nc", "--non-conforming", "-c",
+                  "--conforming",
+                  "Mark the mesh as nonconforming before partitioning.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -81,7 +86,6 @@ int main(int argc, char *argv[])
       {
          args.PrintUsage(cout);
       }
-      MPI_Finalize();
       return 1;
    }
    if (myid == 0)
@@ -99,6 +103,10 @@ int main(int argc, char *argv[])
    //    and volume meshes with the same code.
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
    int dim = mesh->Dimension();
+   if (nc)
+   {
+      mesh->EnsureNCMesh(true);
+   }
 
    // 5. Refine the serial mesh on all processors to increase the resolution. In
    //    this example we do 'ref_levels' of uniform refinement (2 by default, or
@@ -162,7 +170,7 @@ int main(int argc, char *argv[])
    m->AddDomainIntegrator(new VectorFEMassIntegrator(one));
    m->Assemble();
    // shift the eigenvalue corresponding to eliminated dofs to a large value
-   m->EliminateEssentialBCDiag(ess_bdr, numeric_limits<double>::min());
+   m->EliminateEssentialBCDiag(ess_bdr, numeric_limits<real_t>::min());
    m->Finalize();
 
    HypreParMatrix *A = a->ParallelAssemble();
@@ -190,7 +198,7 @@ int main(int argc, char *argv[])
    // 10. Compute the eigenmodes and extract the array of eigenvalues. Define a
    //     parallel grid function to represent each of the eigenmodes returned by
    //     the solver.
-   Array<double> eigenvalues;
+   Array<real_t> eigenvalues;
    ame->Solve();
    ame->GetEigenvalues(eigenvalues);
    ParGridFunction x(fespace);
@@ -269,8 +277,6 @@ int main(int argc, char *argv[])
    delete fespace;
    delete fec;
    delete pmesh;
-
-   MPI_Finalize();
 
    return 0;
 }

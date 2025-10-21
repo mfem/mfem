@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -119,7 +119,7 @@ IrrotationalProjector
    ess_bdr_ = 1;
    H1FESpace_->GetEssentialTrueDofs(ess_bdr_, ess_bdr_tdofs_);
 
-   int geom = H1FESpace_->GetFE(0)->GetGeomType();
+   Geometry::Type geom = H1FESpace_->GetMesh()->GetTypicalElementGeometry();
    const IntegrationRule * ir = &IntRules.Get(geom, irOrder);
 
    if ( s0 == NULL )
@@ -263,7 +263,7 @@ DivergenceFreeProjector::Update()
 
 void VisualizeMesh(socketstream &sock, const char *vishost, int visport,
                    ParMesh &pmesh, const char *title,
-                   int x, int y, int w, int h, const char *keys, bool vec)
+                   int x, int y, int w, int h, const char *keys)
 {
    MPI_Comm comm = pmesh.GetComm();
 
@@ -284,7 +284,7 @@ void VisualizeMesh(socketstream &sock, const char *vishost, int visport,
             sock.precision(8);
             newly_opened = true;
          }
-         sock << "solution\n";
+         sock << "mesh\n";
       }
 
       pmesh.PrintAsOne(sock);
@@ -295,8 +295,6 @@ void VisualizeMesh(socketstream &sock, const char *vishost, int visport,
               << "window_geometry "
               << x << " " << y << " " << w << " " << h << "\n";
          if ( keys ) { sock << "keys " << keys << "\n"; }
-         else { sock << "keys maaAc"; }
-         if ( vec ) { sock << "vvv"; }
          sock << endl;
       }
 

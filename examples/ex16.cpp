@@ -5,10 +5,10 @@
 // Sample runs:  ex16
 //               ex16 -m ../data/inline-tri.mesh
 //               ex16 -m ../data/disc-nurbs.mesh -tf 2
-//               ex16 -s 1 -a 0.0 -k 1.0
-//               ex16 -s 2 -a 1.0 -k 0.0
-//               ex16 -s 3 -a 0.5 -k 0.5 -o 4
-//               ex16 -s 14 -dt 1.0e-4 -tf 4.0e-2 -vs 40
+//               ex16 -s 21 -a 0.0 -k 1.0
+//               ex16 -s 22 -a 1.0 -k 0.0
+//               ex16 -s 23 -a 0.5 -k 0.5 -o 4
+//               ex16 -s 4 -dt 1.0e-4 -tf 4.0e-2 -vs 40
 //               ex16 -m ../data/fichera-q2.mesh
 //               ex16 -m ../data/fichera-mixed.mesh
 //               ex16 -m ../data/escher.mesh
@@ -60,7 +60,7 @@ protected:
 
    SparseMatrix Mmat, Kmat;
    SparseMatrix *T; // T = M + dt K
-   double current_dt;
+   real_t current_dt;
 
    CGSolver M_solver; // Krylov solver for inverting the mass matrix M
    DSmoother M_prec;  // Preconditioner for the mass matrix M
@@ -68,26 +68,26 @@ protected:
    CGSolver T_solver; // Implicit solver for T = M + dt K
    DSmoother T_prec;  // Preconditioner for the implicit solver
 
-   double alpha, kappa;
+   real_t alpha, kappa;
 
    mutable Vector z; // auxiliary vector
 
 public:
-   ConductionOperator(FiniteElementSpace &f, double alpha, double kappa,
+   ConductionOperator(FiniteElementSpace &f, real_t alpha, real_t kappa,
                       const Vector &u);
 
-   virtual void Mult(const Vector &u, Vector &du_dt) const;
+   void Mult(const Vector &u, Vector &du_dt) const override;
    /** Solve the Backward-Euler equation: k = f(u + dt*k, t), for the unknown k.
        This is the only requirement for high-order SDIRK implicit integration.*/
-   virtual void ImplicitSolve(const double dt, const Vector &u, Vector &k);
+   void ImplicitSolve(const real_t dt, const Vector &u, Vector &k) override;
 
    /// Update the diffusion BilinearForm K using the given true-dof vector `u`.
    void SetParameters(const Vector &u);
 
-   virtual ~ConductionOperator();
+   ~ConductionOperator() override;
 };
 
-double InitialTemperature(const Vector &x);
+real_t InitialTemperature(const Vector &x);
 
 int main(int argc, char *argv[])
 {
@@ -95,11 +95,13 @@ int main(int argc, char *argv[])
    const char *mesh_file = "../data/star.mesh";
    int ref_levels = 2;
    int order = 2;
-   int ode_solver_type = 3;
-   double t_final = 0.5;
-   double dt = 1.0e-2;
-   double alpha = 1.0e-2;
-   double kappa = 0.5;
+
+   int ode_solver_type = 23;  // SDIRK33Solver
+   real_t t_final = 0.5;
+   real_t dt = 1.0e-2;
+   real_t alpha = 1.0e-2;
+   real_t kappa = 0.5;
+
    bool visualization = true;
    bool visit = false;
    int vis_steps = 5;
@@ -115,8 +117,7 @@ int main(int argc, char *argv[])
    args.AddOption(&order, "-o", "--order",
                   "Order (degree) of the finite elements.");
    args.AddOption(&ode_solver_type, "-s", "--ode-solver",
-                  "ODE solver: 1 - Backward Euler, 2 - SDIRK2, 3 - SDIRK3,\n\t"
-                  "\t   11 - Forward Euler, 12 - RK2, 13 - RK3 SSP, 14 - RK4.");
+                  ODESolver::Types.c_str());
    args.AddOption(&t_final, "-tf", "--t-final",
                   "Final time; start time is 0.");
    args.AddOption(&dt, "-dt", "--time-step",
@@ -149,28 +150,7 @@ int main(int argc, char *argv[])
    // 3. Define the ODE solver used for time integration. Several implicit
    //    singly diagonal implicit Runge-Kutta (SDIRK) methods, as well as
    //    explicit Runge-Kutta methods are available.
-   ODESolver *ode_solver;
-   switch (ode_solver_type)
-   {
-      // Implicit L-stable methods
-      case 1:  ode_solver = new BackwardEulerSolver; break;
-      case 2:  ode_solver = new SDIRK23Solver(2); break;
-      case 3:  ode_solver = new SDIRK33Solver; break;
-      // Explicit methods
-      case 11: ode_solver = new ForwardEulerSolver; break;
-      case 12: ode_solver = new RK2Solver(0.5); break; // midpoint method
-      case 13: ode_solver = new RK3SSPSolver; break;
-      case 14: ode_solver = new RK4Solver; break;
-      case 15: ode_solver = new GeneralizedAlphaSolver(0.5); break;
-      // Implicit A-stable methods (not L-stable)
-      case 22: ode_solver = new ImplicitMidpointSolver; break;
-      case 23: ode_solver = new SDIRK23Solver; break;
-      case 24: ode_solver = new SDIRK34Solver; break;
-      default:
-         cout << "Unknown ODE solver type: " << ode_solver_type << '\n';
-         delete mesh;
-         return 3;
-   }
+   unique_ptr<ODESolver> ode_solver = ODESolver::Select(ode_solver_type);
 
    // 4. Refine the mesh to increase the resolution. In this example we do
    //    'ref_levels' of uniform refinement, where 'ref_levels' is a
@@ -246,7 +226,7 @@ int main(int argc, char *argv[])
    // 8. Perform time-integration (looping over the time iterations, ti, with a
    //    time-step dt).
    ode_solver->Init(oper);
-   double t = 0.0;
+   real_t t = 0.0;
 
    bool last_step = false;
    for (int ti = 1; !last_step; ti++)
@@ -287,18 +267,17 @@ int main(int argc, char *argv[])
    }
 
    // 10. Free the used memory.
-   delete ode_solver;
    delete mesh;
 
    return 0;
 }
 
-ConductionOperator::ConductionOperator(FiniteElementSpace &f, double al,
-                                       double kap, const Vector &u)
-   : TimeDependentOperator(f.GetTrueVSize(), 0.0), fespace(f), M(NULL), K(NULL),
-     T(NULL), current_dt(0.0), z(height)
+ConductionOperator::ConductionOperator(FiniteElementSpace &f, real_t al,
+                                       real_t kap, const Vector &u)
+   : TimeDependentOperator(f.GetTrueVSize(), (real_t) 0.0), fespace(f),
+     M(NULL), K(NULL), T(NULL), current_dt(0.0), z(height)
 {
-   const double rel_tol = 1e-8;
+   const real_t rel_tol = 1e-8;
 
    M = new BilinearForm(&fespace);
    M->AddDomainIntegrator(new MassIntegrator());
@@ -336,7 +315,7 @@ void ConductionOperator::Mult(const Vector &u, Vector &du_dt) const
    M_solver.Mult(z, du_dt);
 }
 
-void ConductionOperator::ImplicitSolve(const double dt,
+void ConductionOperator::ImplicitSolve(const real_t dt,
                                        const Vector &u, Vector &du_dt)
 {
    // Solve the equation:
@@ -382,7 +361,7 @@ ConductionOperator::~ConductionOperator()
    delete K;
 }
 
-double InitialTemperature(const Vector &x)
+real_t InitialTemperature(const Vector &x)
 {
    if (x.Norml2() < 0.5)
    {

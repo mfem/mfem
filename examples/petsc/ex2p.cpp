@@ -50,14 +50,16 @@ using namespace mfem;
 
 int main(int argc, char *argv[])
 {
-   // 1. Initialize MPI.
-   int num_procs, myid;
-   MPI_Init(&argc, &argv);
-   MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
-   MPI_Comm_rank(MPI_COMM_WORLD, &myid);
+   // 1. Initialize MPI and HYPRE.
+   Mpi::Init(argc, argv);
+   int num_procs = Mpi::WorldSize();
+   int myid = Mpi::WorldRank();
+   Hypre::Init();
 
    // 2. Parse command-line options.
    const char *mesh_file = "../../data/beam-tri.mesh";
+   int ser_ref_levels = -1;
+   int par_ref_levels = 1;
    int order = 1;
    bool static_cond = false;
    bool visualization = 1;
@@ -65,7 +67,7 @@ int main(int argc, char *argv[])
    bool use_petsc = true;
    const char *petscrc_file = "";
    bool use_nonoverlapping = false;
-   int ser_ref_levels = -1, par_ref_levels = 1;
+   const char *device_config = "cpu";
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -94,6 +96,8 @@ int main(int argc, char *argv[])
                   "-no-nonoverlapping", "--no-nonoverlapping",
                   "Use or not the block diagonal PETSc's matrix format "
                   "for non-overlapping domain decomposition.");
+   args.AddOption(&device_config, "-d", "--device",
+                  "Device configuration string, see Device::Configure().");
    args.Parse();
    if (!args.Good())
    {
@@ -101,7 +105,6 @@ int main(int argc, char *argv[])
       {
          args.PrintUsage(cout);
       }
-      MPI_Finalize();
       return 1;
    }
    if (myid == 0)
@@ -109,7 +112,12 @@ int main(int argc, char *argv[])
       args.PrintOptions(cout);
    }
 
-   // 2b. We initialize PETSc
+   // 2b. Enable hardware devices such as GPUs, and programming models such as
+   //    CUDA, OCCA, RAJA and OpenMP based on command line options.
+   Device device(device_config);
+   if (myid == 0) { device.Print(); }
+
+   // 2c. We initialize PETSc
    if (use_petsc) { MFEMInitializePetsc(NULL,NULL,petscrc_file,NULL); }
 
    // 3. Read the (serial) mesh from the given mesh file on all processors.  We
@@ -124,7 +132,6 @@ int main(int argc, char *argv[])
          cerr << "\nInput mesh should have at least two materials and "
               << "two boundary attributes! (See schematic in ex2.cpp)\n"
               << endl;
-      MPI_Finalize();
       return 3;
    }
 
@@ -250,7 +257,10 @@ int main(int argc, char *argv[])
    //     constraints for non-conforming AMR, static condensation, etc.
    if (myid == 0) { cout << "matrix ... " << flush; }
    if (static_cond) { a->EnableStaticCondensation(); }
-   a->Assemble();
+   // Here we want to try out block-size aware AMG solver in PETSc.
+   // For that to work properly, we need a fully-compliant block-size
+   // structure and we do not skip zeros when assembling.
+   a->Assemble(use_petsc ? 0 : 1);
 
    Vector B, X;
    if (!use_petsc)
@@ -296,13 +306,14 @@ int main(int argc, char *argv[])
          cout << "done." << endl;
          cout << "Size of linear system: " << A.M() << endl;
       }
-      PetscPCGSolver *pcg = new PetscPCGSolver(A);
+      // Tell PETSc the matrix has a block structure
+      A.SetBlockSize(dim);
 
-      // The preconditioner for the PCG solver defined below is specified in the
-      // PETSc config file, rc_ex2p, since a Krylov solver in PETSc can also
-      // customize its preconditioner.
+      // The preconditioner for the PCG solver can be specified in the
+      // PETSc config file
+      PetscPCGSolver *pcg = new PetscPCGSolver(A);
       PetscPreconditioner *prec = NULL;
-      if (use_nonoverlapping)
+      if (use_nonoverlapping) // Specialized BDDC construction
       {
          // Compute dofs belonging to the natural boundary
          Array<int> nat_tdof_list, nat_bdr(pmesh->bdr_attributes.Max());
@@ -392,8 +403,6 @@ int main(int argc, char *argv[])
 
    // We finalize PETSc
    if (use_petsc) { MFEMFinalizePetsc(); }
-
-   MPI_Finalize();
 
    return 0;
 }

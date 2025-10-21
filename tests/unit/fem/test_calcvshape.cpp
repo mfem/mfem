@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -138,6 +138,25 @@ void GetReferenceTransformation(const Element::Type ElemType,
          T.GetPointMat()(2, 5) = 1.0;
          T.SetFE(&WedgeFE);
          break;
+      case Element::PYRAMID :
+         T.GetPointMat().SetSize(3, 5);
+         T.GetPointMat()(0, 0) = 0.0;
+         T.GetPointMat()(1, 0) = 0.0;
+         T.GetPointMat()(2, 0) = 0.0;
+         T.GetPointMat()(0, 1) = 1.0;
+         T.GetPointMat()(1, 1) = 0.0;
+         T.GetPointMat()(2, 1) = 0.0;
+         T.GetPointMat()(0, 2) = 1.0;
+         T.GetPointMat()(1, 2) = 1.0;
+         T.GetPointMat()(2, 2) = 0.0;
+         T.GetPointMat()(0, 3) = 0.0;
+         T.GetPointMat()(1, 3) = 1.0;
+         T.GetPointMat()(2, 3) = 0.0;
+         T.GetPointMat()(0, 4) = 0.0;
+         T.GetPointMat()(1, 4) = 0.0;
+         T.GetPointMat()(2, 4) = 1.0;
+         T.SetFE(&PyramidFE);
+         break;
       default:
          MFEM_ABORT("Unknown element type \"" << ElemType << "\"");
          break;
@@ -193,6 +212,14 @@ void TestCalcVShape(FiniteElement* fe, ElementTransformation * T, int res)
       for (int j=0; j < ipArr.Size(); ++j)
       {
          IntegrationPoint& ip = ipArr[j];
+
+         // Pyramid basis functions are poorly behaved outside the
+         // reference pyramid
+         if (fe->GetGeomType() == Geometry::PYRAMID &&
+             (ip.z >= 1.0 || ip.y > 1.0 - ip.z || ip.x > 1.0 - ip.z)) { continue; }
+
+         CAPTURE(ip.x, ip.y, ip.z);
+
          fe->CalcVShape(ip, weights);
 
          weights.MultTranspose(dofsx, v);
@@ -211,29 +238,28 @@ void TestCalcVShape(FiniteElement* fe, ElementTransformation * T, int res)
    }
 }
 
-TEST_CASE("CalcVShape for several ND FiniteElement instances",
+TEST_CASE("CalcVShape ND",
           "[ND_SegmentElement]"
           "[ND_TriangleElement]"
           "[ND_QuadrilateralElement]"
           "[ND_TetrahedronElement]"
           "[ND_WedgeElement]"
+          "[ND_FuentesPyramidElement]"
           "[ND_HexahedronElement]")
 {
-   int maxOrder = 5;
-   int resolution = 10;
+   const int maxOrder = 5;
+   const int resolution = 10;
+   auto order = GENERATE_COPY(range(1, maxOrder + 1));
+
+   CAPTURE(order);
 
    SECTION("ND_SegmentElement")
    {
       IsoparametricTransformation T;
       GetReferenceTransformation(Element::SEGMENT, T);
 
-      for (int order =1; order <= maxOrder; ++order)
-      {
-         std::cout << "Testing ND_SegmentElement::CalcVShape() "
-                   << "for order " << order << std::endl;
-         ND_SegmentElement fe(order);
-         TestCalcVShape(&fe, &T, resolution);
-      }
+      ND_SegmentElement fe(order);
+      TestCalcVShape(&fe, &T, resolution);
    }
 
    SECTION("ND_TriangleElement")
@@ -241,13 +267,8 @@ TEST_CASE("CalcVShape for several ND FiniteElement instances",
       IsoparametricTransformation T;
       GetReferenceTransformation(Element::TRIANGLE, T);
 
-      for (int order =1; order <= maxOrder; ++order)
-      {
-         std::cout << "Testing ND_TriangleElement::CalcVShape() "
-                   << "for order " << order << std::endl;
-         ND_TriangleElement fe(order);
-         TestCalcVShape(&fe, &T, resolution);
-      }
+      ND_TriangleElement fe(order);
+      TestCalcVShape(&fe, &T, resolution);
    }
 
    SECTION("ND_QuadrilateralElement")
@@ -255,13 +276,8 @@ TEST_CASE("CalcVShape for several ND FiniteElement instances",
       IsoparametricTransformation T;
       GetReferenceTransformation(Element::QUADRILATERAL, T);
 
-      for (int order =1; order <= maxOrder; ++order)
-      {
-         std::cout << "Testing ND_QuadrilateralElement::CalcVShape() "
-                   << "for order " << order << std::endl;
-         ND_QuadrilateralElement fe(order);
-         TestCalcVShape(&fe, &T, resolution);
-      }
+      ND_QuadrilateralElement fe(order);
+      TestCalcVShape(&fe, &T, resolution);
    }
 
    SECTION("ND_TetrahedronElement")
@@ -269,13 +285,8 @@ TEST_CASE("CalcVShape for several ND FiniteElement instances",
       IsoparametricTransformation T;
       GetReferenceTransformation(Element::TETRAHEDRON, T);
 
-      for (int order =1; order <= maxOrder; ++order)
-      {
-         std::cout << "Testing ND_TetrahedronElement::CalcVShape() "
-                   << "for order " << order << std::endl;
-         ND_TetrahedronElement fe(order);
-         TestCalcVShape(&fe, &T, resolution);
-      }
+      ND_TetrahedronElement fe(order);
+      TestCalcVShape(&fe, &T, resolution);
    }
 
    SECTION("ND_WedgeElement")
@@ -283,13 +294,17 @@ TEST_CASE("CalcVShape for several ND FiniteElement instances",
       IsoparametricTransformation T;
       GetReferenceTransformation(Element::WEDGE, T);
 
-      for (int order =1; order <= maxOrder; ++order)
-      {
-         std::cout << "Testing ND_WedgeElement::CalcVShape() "
-                   << "for order " << order << std::endl;
-         ND_WedgeElement fe(order);
-         TestCalcVShape(&fe, &T, resolution);
-      }
+      ND_WedgeElement fe(order);
+      TestCalcVShape(&fe, &T, resolution);
+   }
+
+   SECTION("ND_FuentesPyramidElement")
+   {
+      IsoparametricTransformation T;
+      GetReferenceTransformation(Element::PYRAMID, T);
+
+      ND_FuentesPyramidElement fe(order);
+      TestCalcVShape(&fe, &T, resolution);
    }
 
    SECTION("ND_HexahedronElement")
@@ -297,38 +312,32 @@ TEST_CASE("CalcVShape for several ND FiniteElement instances",
       IsoparametricTransformation T;
       GetReferenceTransformation(Element::HEXAHEDRON, T);
 
-      for (int order =1; order <= maxOrder; ++order)
-      {
-         std::cout << "Testing ND_HexahedronElement::CalcVShape() "
-                   << "for order " << order << std::endl;
-         ND_HexahedronElement fe(order);
-         TestCalcVShape(&fe, &T, resolution);
-      }
+      ND_HexahedronElement fe(order);
+      TestCalcVShape(&fe, &T, resolution);
    }
 }
 
-TEST_CASE("CalcVShape for several RT FiniteElement instances",
+TEST_CASE("CalcVShape RT",
           "[RT_TriangleElement]"
           "[RT_QuadrilateralElement]"
           "[RT_TetrahedronElement]"
           "[RT_WedgeElement]"
+          "[RT_FuentesPyramidElement]"
           "[RT_HexahedronElement]")
 {
-   int maxOrder = 5;
-   int resolution = 10;
+   const int maxOrder = 5;
+   const int resolution = 10;
+   auto order = GENERATE_COPY(range(1, maxOrder + 1));
+
+   CAPTURE(order);
 
    SECTION("RT_TriangleElement")
    {
       IsoparametricTransformation T;
       GetReferenceTransformation(Element::TRIANGLE, T);
 
-      for (int order =1; order <= maxOrder; ++order)
-      {
-         std::cout << "Testing RT_TriangleElement::CalcVShape() "
-                   << "for order " << order << std::endl;
-         RT_TriangleElement fe(order);
-         TestCalcVShape(&fe, &T, resolution);
-      }
+      RT_TriangleElement fe(order);
+      TestCalcVShape(&fe, &T, resolution);
    }
 
    SECTION("RT_QuadrilateralElement")
@@ -336,13 +345,8 @@ TEST_CASE("CalcVShape for several RT FiniteElement instances",
       IsoparametricTransformation T;
       GetReferenceTransformation(Element::QUADRILATERAL, T);
 
-      for (int order =1; order <= maxOrder; ++order)
-      {
-         std::cout << "Testing RT_QuadrilateralElement::CalcVShape() "
-                   << "for order " << order << std::endl;
-         RT_QuadrilateralElement fe(order);
-         TestCalcVShape(&fe, &T, resolution);
-      }
+      RT_QuadrilateralElement fe(order);
+      TestCalcVShape(&fe, &T, resolution);
    }
 
    SECTION("RT_TetrahedronElement")
@@ -350,13 +354,8 @@ TEST_CASE("CalcVShape for several RT FiniteElement instances",
       IsoparametricTransformation T;
       GetReferenceTransformation(Element::TETRAHEDRON, T);
 
-      for (int order =1; order <= maxOrder; ++order)
-      {
-         std::cout << "Testing RT_TetrahedronElement::CalcVShape() "
-                   << "for order " << order << std::endl;
-         RT_TetrahedronElement fe(order);
-         TestCalcVShape(&fe, &T, resolution);
-      }
+      RT_TetrahedronElement fe(order);
+      TestCalcVShape(&fe, &T, resolution);
    }
 
    SECTION("RT_WedgeElement")
@@ -364,13 +363,17 @@ TEST_CASE("CalcVShape for several RT FiniteElement instances",
       IsoparametricTransformation T;
       GetReferenceTransformation(Element::WEDGE, T);
 
-      for (int order =1; order <= maxOrder; ++order)
-      {
-         std::cout << "Testing RT_WedgeElement::CalcVShape() "
-                   << "for order " << order << std::endl;
-         RT_WedgeElement fe(order);
-         TestCalcVShape(&fe, &T, resolution);
-      }
+      RT_WedgeElement fe(order);
+      TestCalcVShape(&fe, &T, resolution);
+   }
+
+   SECTION("RT_FuentesElement")
+   {
+      IsoparametricTransformation T;
+      GetReferenceTransformation(Element::PYRAMID, T);
+
+      RT_FuentesPyramidElement fe(order);
+      TestCalcVShape(&fe, &T, resolution);
    }
 
    SECTION("RT_HexahedronElement")
@@ -378,12 +381,7 @@ TEST_CASE("CalcVShape for several RT FiniteElement instances",
       IsoparametricTransformation T;
       GetReferenceTransformation(Element::HEXAHEDRON, T);
 
-      for (int order =1; order <= maxOrder; ++order)
-      {
-         std::cout << "Testing RT_HexahedronElement::CalcVShape() "
-                   << "for order " << order << std::endl;
-         RT_HexahedronElement fe(order);
-         TestCalcVShape(&fe, &T, resolution);
-      }
+      RT_HexahedronElement fe(order);
+      TestCalcVShape(&fe, &T, resolution);
    }
 }

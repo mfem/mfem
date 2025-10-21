@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -21,30 +21,117 @@
 #include "sets.hpp"
 #include "globals.hpp"
 #include <mpi.h>
+#include <cstdint>
 
+// can't directly use MPI_CXX_BOOL because Microsoft's MPI implementation
+// doesn't include MPI_CXX_BOOL. Fallback to MPI_C_BOOL if unavailable.
+#ifdef MPI_CXX_BOOL
+#define MFEM_MPI_CXX_BOOL MPI_CXX_BOOL
+#else
+#define MFEM_MPI_CXX_BOOL MPI_C_BOOL
+#endif
 
 namespace mfem
 {
 
-/** @brief A simple convenience class that calls MPI_Init() at construction and
+/** @brief A simple singleton class that calls MPI_Init() at construction and
     MPI_Finalize() at destruction. It also provides easy access to
     MPI_COMM_WORLD's rank and size. */
+class Mpi
+{
+public:
+   /// Singleton creation with Mpi::Init(argc, argv).
+   static void Init(int &argc, char **&argv,
+                    int required = default_thread_required,
+                    int *provided = nullptr)
+   { Init(&argc, &argv, required, provided); }
+   /// Singleton creation with Mpi::Init().
+   static void Init(int *argc = nullptr, char ***argv = nullptr,
+                    int required = default_thread_required,
+                    int *provided = nullptr)
+   {
+      MFEM_VERIFY(!IsInitialized(), "MPI already initialized!");
+      if (required == MPI_THREAD_SINGLE)
+      {
+         int mpi_err = MPI_Init(argc, argv);
+         MFEM_VERIFY(!mpi_err, "error in MPI_Init()!");
+         if (provided) { *provided = MPI_THREAD_SINGLE; }
+      }
+      else
+      {
+         int mpi_provided;
+         int mpi_err = MPI_Init_thread(argc, argv, required, &mpi_provided);
+         MFEM_VERIFY(!mpi_err, "error in MPI_Init()!");
+         if (provided) { *provided = mpi_provided; }
+      }
+      // The Mpi singleton object below needs to be created after MPI_Init() for
+      // some MPI implementations.
+      Singleton();
+   }
+   /// Finalize MPI (if it has been initialized and not yet already finalized).
+   static void Finalize()
+   {
+      if (IsInitialized() && !IsFinalized()) { MPI_Finalize(); }
+   }
+   /// Return true if MPI has been initialized.
+   static bool IsInitialized()
+   {
+      int mpi_is_initialized;
+      int mpi_err = MPI_Initialized(&mpi_is_initialized);
+      return (mpi_err == MPI_SUCCESS) && mpi_is_initialized;
+   }
+   /// Return true if MPI has been finalized.
+   static bool IsFinalized()
+   {
+      int mpi_is_finalized;
+      int mpi_err = MPI_Finalized(&mpi_is_finalized);
+      return (mpi_err == MPI_SUCCESS) && mpi_is_finalized;
+   }
+   /// Return the MPI rank in MPI_COMM_WORLD.
+   static int WorldRank()
+   {
+      int world_rank;
+      MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
+      return world_rank;
+   }
+   /// Return the size of MPI_COMM_WORLD.
+   static int WorldSize()
+   {
+      int world_size;
+      MPI_Comm_size(MPI_COMM_WORLD, &world_size);
+      return world_size;
+   }
+   /// Return true if the rank in MPI_COMM_WORLD is zero.
+   static bool Root() { return WorldRank() == 0; }
+   /// Default level of thread support for MPI_Init_thread.
+   static MFEM_EXPORT int default_thread_required;
+private:
+   /// Initialize the Mpi singleton.
+   static Mpi &Singleton()
+   {
+      static Mpi mpi;
+      return mpi;
+   }
+   /// Finalize MPI.
+   ~Mpi() { Finalize(); }
+   /// Prevent direct construction of objects of this class.
+   Mpi() {}
+};
+
+/** @brief A simple convenience class based on the Mpi singleton class above.
+    Preserved for backward compatibility. New code should use Mpi::Init() and
+    other Mpi methods instead. */
 class MPI_Session
 {
-protected:
-   int world_rank, world_size;
-   void GetRankAndSize();
 public:
-   MPI_Session() { MPI_Init(NULL, NULL); GetRankAndSize(); }
-   MPI_Session(int &argc, char **&argv)
-   { MPI_Init(&argc, &argv); GetRankAndSize(); }
-   ~MPI_Session() { MPI_Finalize(); }
+   MPI_Session() { Mpi::Init(); }
+   MPI_Session(int &argc, char **&argv) { Mpi::Init(argc, argv); }
    /// Return MPI_COMM_WORLD's rank.
-   int WorldRank() const { return world_rank; }
+   int WorldRank() const { return Mpi::WorldRank(); }
    /// Return MPI_COMM_WORLD's size.
-   int WorldSize() const { return world_size; }
+   int WorldSize() const { return Mpi::WorldSize(); }
    /// Return true if WorldRank() == 0.
-   bool Root() const { return world_rank == 0; }
+   bool Root() const { return Mpi::Root(); }
 };
 
 
@@ -154,7 +241,7 @@ public:
    };
 
 protected:
-   GroupTopology &gtopo;
+   const GroupTopology &gtopo;
    Mode mode;
    Table group_ldof;
    Table group_ltdof; // only for groups for which this processor is master.
@@ -177,7 +264,7 @@ public:
        - initialize the Table reference returned by GroupLDofTable() and then
          call Finalize().
    */
-   GroupCommunicator(GroupTopology &gt, Mode m = byNeighbor);
+   GroupCommunicator(const GroupTopology &gt, Mode m = byNeighbor);
 
    /** @brief Initialize the communicator from a local-dof to group map.
        Finalize() is called internally. */
@@ -199,7 +286,7 @@ public:
    void SetLTDofTable(const Array<int> &ldof_ltdof);
 
    /// Get a reference to the associated GroupTopology object
-   GroupTopology &GetGroupTopology() { return gtopo; }
+   const GroupTopology &GetGroupTopology() { return gtopo; }
 
    /// Get a const reference to the associated GroupTopology object
    const GroupTopology &GetGroupTopology() const { return gtopo; }
@@ -338,6 +425,25 @@ public:
    ~GroupCommunicator();
 };
 
+/// General MPI message tags used by MFEM
+enum MessageTag
+{
+   DEREFINEMENT_MATRIX_CONSTRUCTION_DATA =
+      291, /// ParFiniteElementSpace ParallelDerefinementMatrix and
+   /// ParDerefineMatrixOp
+};
+
+enum VarMessageTag
+{
+   NEIGHBOR_ELEMENT_RANK_VM, ///< NeighborElementRankMessage
+   NEIGHBOR_ORDER_VM,        ///< NeighborOrderMessage
+   NEIGHBOR_DEREFINEMENT_VM, ///< NeighborDerefinementMessage
+   NEIGHBOR_REFINEMENT_VM,   ///< NeighborRefinementMessage
+   NEIGHBOR_PREFINEMENT_VM,  ///< NeighborPRefinementMessage
+   NEIGHBOR_ROW_VM,          ///< NeighborRowMessage
+   REBALANCE_VM,             ///< RebalanceMessage
+   REBALANCE_DOF_VM,         ///< RebalanceDofMessage
+};
 
 /// \brief Variable-length MPI message containing unspecific binary data.
 template<int Tag>
@@ -353,8 +459,8 @@ struct VarMessage
    void Isend(int rank, MPI_Comm comm)
    {
       Encode(rank);
-      MPI_Isend((void*) data.data(), data.length(), MPI_BYTE, rank, Tag, comm,
-                &send_request);
+      MPI_Isend((void*) data.data(), static_cast<int>(data.length()), MPI_BYTE, rank,
+                Tag, comm, &send_request);
    }
 
    /** @brief Non-blocking synchronous send to processor 'rank'.
@@ -363,8 +469,8 @@ struct VarMessage
    void Issend(int rank, MPI_Comm comm)
    {
       Encode(rank);
-      MPI_Issend((void*) data.data(), data.length(), MPI_BYTE, rank, Tag, comm,
-                 &send_request);
+      MPI_Issend((void*) data.data(), static_cast<int>(data.length()), MPI_BYTE, rank,
+                 Tag, comm, &send_request);
    }
 
    /// Helper to send all messages in a rank-to-message map container.
@@ -460,7 +566,7 @@ struct VarMessage
    template<typename MapT>
    static void RecvAll(MapT& rank_msg, MPI_Comm comm)
    {
-      int recv_left = rank_msg.size();
+      int recv_left = static_cast<int>(rank_msg.size());
       while (recv_left > 0)
       {
          int rank, size;
@@ -492,8 +598,8 @@ struct VarMessage
    }
 
 protected:
-   virtual void Encode(int rank) {}
-   virtual void Decode(int rank) {}
+   virtual void Encode(int rank) = 0;
+   virtual void Decode(int rank) = 0;
 };
 
 
@@ -501,9 +607,58 @@ protected:
 template <typename Type> struct MPITypeMap;
 
 // Specializations of MPITypeMap; mpi_type initialized in communication.cpp:
-template<> struct MPITypeMap<int>    { static const MPI_Datatype mpi_type; };
-template<> struct MPITypeMap<double> { static const MPI_Datatype mpi_type; };
-
+template<> struct MPITypeMap<bool>
+{
+   static MFEM_EXPORT const MPI_Datatype mpi_type;
+};
+template<> struct MPITypeMap<char>
+{
+   static MFEM_EXPORT const MPI_Datatype mpi_type;
+};
+template<> struct MPITypeMap<unsigned char>
+{
+   static MFEM_EXPORT const MPI_Datatype mpi_type;
+};
+template<> struct MPITypeMap<short>
+{
+   static MFEM_EXPORT const MPI_Datatype mpi_type;
+};
+template<> struct MPITypeMap<unsigned short>
+{
+   static MFEM_EXPORT const MPI_Datatype mpi_type;
+};
+template<> struct MPITypeMap<int>
+{
+   static MFEM_EXPORT const MPI_Datatype mpi_type;
+};
+template<> struct MPITypeMap<unsigned int>
+{
+   static MFEM_EXPORT const MPI_Datatype mpi_type;
+};
+template<> struct MPITypeMap<long>
+{
+   static MFEM_EXPORT const MPI_Datatype mpi_type;
+};
+template<> struct MPITypeMap<unsigned long>
+{
+   static MFEM_EXPORT const MPI_Datatype mpi_type;
+};
+template<> struct MPITypeMap<long long>
+{
+   static MFEM_EXPORT const MPI_Datatype mpi_type;
+};
+template<> struct MPITypeMap<unsigned long long>
+{
+   static MFEM_EXPORT const MPI_Datatype mpi_type;
+};
+template<> struct MPITypeMap<double>
+{
+   static MFEM_EXPORT const MPI_Datatype mpi_type;
+};
+template<> struct MPITypeMap<float>
+{
+   static MFEM_EXPORT const MPI_Datatype mpi_type;
+};
 
 /** Reorder MPI ranks to follow the Z-curve within the physical machine topology
     (provided that functions to query physical node coordinates are available).

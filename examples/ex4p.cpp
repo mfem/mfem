@@ -54,15 +54,15 @@ using namespace mfem;
 // Exact solution, F, and r.h.s., f. See below for implementation.
 void F_exact(const Vector &, Vector &);
 void f_exact(const Vector &, Vector &);
-double freq = 1.0, kappa;
+real_t freq = 1.0, kappa;
 
 int main(int argc, char *argv[])
 {
-   // 1. Initialize MPI.
-   int num_procs, myid;
-   MPI_Init(&argc, &argv);
-   MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
-   MPI_Comm_rank(MPI_COMM_WORLD, &myid);
+   // 1. Initialize MPI and HYPRE.
+   Mpi::Init(argc, argv);
+   int num_procs = Mpi::WorldSize();
+   int myid = Mpi::WorldRank();
+   Hypre::Init();
 
    // 2. Parse command-line options.
    const char *mesh_file = "../data/star.mesh";
@@ -71,6 +71,7 @@ int main(int argc, char *argv[])
    bool static_cond = false;
    bool hybridization = false;
    bool pa = false;
+   bool ea = false;
    const char *device_config = "cpu";
    bool visualization = 1;
 
@@ -89,25 +90,14 @@ int main(int argc, char *argv[])
                   "--no-hybridization", "Enable hybridization.");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
                   "--no-partial-assembly", "Enable Partial Assembly.");
+   args.AddOption(&ea, "-ea", "--element-assembly", "-no-ea",
+                  "--no-element-assembly", "Enable Element Assembly.");
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
-   args.Parse();
-   if (!args.Good())
-   {
-      if (myid == 0)
-      {
-         args.PrintUsage(cout);
-      }
-      MPI_Finalize();
-      return 1;
-   }
-   if (myid == 0)
-   {
-      args.PrintOptions(cout);
-   }
+   args.ParseCheck();
    kappa = freq * M_PI;
 
    // 3. Enable hardware devices such as GPUs, and programming models such as
@@ -195,6 +185,7 @@ int main(int argc, char *argv[])
    Coefficient *beta  = new ConstantCoefficient(1.0);
    ParBilinearForm *a = new ParBilinearForm(fespace);
    if (pa) { a->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
+   if (ea) { a->SetAssemblyLevel(AssemblyLevel::ELEMENT); }
    a->AddDomainIntegrator(new DivDivIntegrator(*alpha));
    a->AddDomainIntegrator(new VectorFEMassIntegrator(*beta));
 
@@ -256,7 +247,7 @@ int main(int argc, char *argv[])
 
    // 15. Compute and print the L^2 norm of the error.
    {
-      double error = x.ComputeL2Error(F);
+      real_t error = x.ComputeL2Error(F);
       if (myid == 0)
       {
          cout << "\n|| F_h - F ||_{L^2} = " << error << '\n' << endl;
@@ -303,8 +294,6 @@ int main(int argc, char *argv[])
    delete fec;
    delete pmesh;
 
-   MPI_Finalize();
-
    return 0;
 }
 
@@ -314,9 +303,9 @@ void F_exact(const Vector &p, Vector &F)
 {
    int dim = p.Size();
 
-   double x = p(0);
-   double y = p(1);
-   // double z = (dim == 3) ? p(2) : 0.0; // Uncomment if F is changed to depend on z
+   real_t x = p(0);
+   real_t y = p(1);
+   // real_t z = (dim == 3) ? p(2) : 0.0; // Uncomment if F is changed to depend on z
 
    F(0) = cos(kappa*x)*sin(kappa*y);
    F(1) = cos(kappa*y)*sin(kappa*x);
@@ -331,11 +320,11 @@ void f_exact(const Vector &p, Vector &f)
 {
    int dim = p.Size();
 
-   double x = p(0);
-   double y = p(1);
-   // double z = (dim == 3) ? p(2) : 0.0; // Uncomment if f is changed to depend on z
+   real_t x = p(0);
+   real_t y = p(1);
+   // real_t z = (dim == 3) ? p(2) : 0.0; // Uncomment if f is changed to depend on z
 
-   double temp = 1 + 2*kappa*kappa;
+   real_t temp = 1 + 2*kappa*kappa;
 
    f(0) = temp*cos(kappa*x)*sin(kappa*y);
    f(1) = temp*cos(kappa*y)*sin(kappa*x);

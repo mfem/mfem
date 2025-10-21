@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -11,6 +11,7 @@
 
 #include "optparser.hpp"
 #include "../linalg/vector.hpp"
+#include "../general/communication.hpp"
 #include <cctype>
 
 namespace mfem
@@ -127,7 +128,7 @@ void parseArray(char * str, Array<int> & var)
 void parseVector(char * str, Vector & var)
 {
    int nentries = 0;
-   double val;
+   real_t val;
    {
       std::stringstream input(str);
       while ( input >> val)
@@ -201,10 +202,13 @@ void OptionsParser::Parse()
                   break;
                case DOUBLE:
                   isValid = isValidAsDouble(argv[i]);
-                  *(double *)(options[j].var_ptr) = atof(argv[i++]);
+                  *(real_t *)(options[j].var_ptr) = atof(argv[i++]);
                   break;
                case STRING:
                   *(const char **)(options[j].var_ptr) = argv[i++];
+                  break;
+               case STD_STRING:
+                  *(std::string *)(options[j].var_ptr) = argv[i++];
                   break;
                case ENABLE:
                   *(bool *)(options[j].var_ptr) = true;
@@ -253,18 +257,14 @@ void OptionsParser::ParseCheck(std::ostream &os)
    Parse();
    int my_rank = 0;
 #ifdef MFEM_USE_MPI
-   int mpi_is_initialized;
-   int mpi_err = MPI_Initialized(&mpi_is_initialized);
-   if (mpi_err == MPI_SUCCESS && mpi_is_initialized)
-   {
-      MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
-   }
+   int mpi_is_initialized = Mpi::IsInitialized();
+   if (mpi_is_initialized) { my_rank = Mpi::WorldRank(); }
 #endif
    if (!Good())
    {
       if (my_rank == 0) { PrintUsage(os); }
 #ifdef MFEM_USE_MPI
-      if (mpi_is_initialized) { MPI_Finalize(); }
+      Mpi::Finalize();
 #endif
       std::exit(1);
    }
@@ -280,11 +280,15 @@ void OptionsParser::WriteValue(const Option &opt, std::ostream &os)
          break;
 
       case DOUBLE:
-         os << *(double *)(opt.var_ptr);
+         os << *(real_t *)(opt.var_ptr);
          break;
 
       case STRING:
          os << *(const char **)(opt.var_ptr);
+         break;
+
+      case STD_STRING:
+         out << *(std::string *)(opt.var_ptr);
          break;
 
       case ARRAY:
@@ -404,8 +408,9 @@ void OptionsParser::PrintHelp(ostream &os) const
    static const char *seprtr = ", ";
    static const char *descr_sep = "\n\t";
    static const char *line_sep = "";
-   static const char *types[] = { " <int>", " <double>", " <string>", "", "",
-                                  " '<int>...'", " '<double>...'"
+   static const char *types[] = { " <int>", " <double>", " <string>",
+                                  " <string>", "", "", " '<int>...'",
+                                  " '<double>...'"
                                 };
 
    os << indent << "-h" << seprtr << "--help" << descr_sep

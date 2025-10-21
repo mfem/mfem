@@ -14,9 +14,9 @@
 //               problem corresponding to the second order definite Maxwell
 //               equation curl curl E + sigma E = f with boundary condition
 //               E x n = <given tangential field>. In this example sigma is an
-//               anisotropic 3x3 tensor. Here, we use a given exact
-//               solution E and compute the corresponding r.h.s. f.
-//               We discretize with Nedelec finite elements in 1D, 2D, or 3D.
+//               anisotropic 3x3 tensor. Here, we use a given exact solution E
+//               and compute the corresponding r.h.s. f.  We discretize with
+//               Nedelec finite elements in 1D, 2D, or 3D.
 //
 //               The example demonstrates the use of restricted H(curl) finite
 //               element spaces with the curl-curl and the (vector finite
@@ -39,15 +39,16 @@ using namespace mfem;
 void E_exact(const Vector &, Vector &);
 void CurlE_exact(const Vector &, Vector &);
 void f_exact(const Vector &, Vector &);
-double freq = 1.0, kappa;
+real_t freq = 1.0, kappa;
 int dim;
 
 int main(int argc, char *argv[])
 {
    // 1. Initialize MPI.
-   MPI_Session mpi;
-   int num_procs = mpi.WorldSize();
-   int myid = mpi.WorldRank();
+   Mpi::Init(argc, argv);
+   int num_procs = Mpi::WorldSize();
+   int myid = Mpi::WorldRank();
+   Hypre::Init();
 
    // 2. Parse command-line options.
    const char *mesh_file = "../data/inline-quad.mesh";
@@ -119,7 +120,7 @@ int main(int argc, char *argv[])
    }
    ParFiniteElementSpace fespace(&pmesh, fec);
    HYPRE_Int size = fespace.GlobalTrueVSize();
-   if (mpi.Root()) { cout << "Number of H(Curl) unknowns: " << size << endl; }
+   if (Mpi::Root()) { cout << "Number of H(Curl) unknowns: " << size << endl; }
 
    // 7. Determine the list of true (i.e. parallel conforming) essential
    //    boundary dofs. In this example, the boundary conditions are defined
@@ -181,7 +182,7 @@ int main(int argc, char *argv[])
    // 12. Solve the system AX=B using PCG with the AMS preconditioner from hypre
    if (use_ams)
    {
-      if (mpi.Root())
+      if (Mpi::Root())
       {
          cout << "Size of linear system: "
               << A.As<HypreParMatrix>()->GetGlobalNumRows() << endl;
@@ -199,7 +200,7 @@ int main(int argc, char *argv[])
    else
 #ifdef MFEM_USE_SUPERLU
    {
-      if (mpi.Root())
+      if (Mpi::Root())
       {
          cout << "Size of linear system: "
               << A.As<HypreParMatrix>()->GetGlobalNumRows() << endl;
@@ -212,7 +213,7 @@ int main(int argc, char *argv[])
    }
 #else
    {
-      if (mpi.Root()) { cout << "No solvers available." << endl; }
+      if (Mpi::Root()) { cout << "No solvers available." << endl; }
       return 1;
    }
 #endif
@@ -223,8 +224,8 @@ int main(int argc, char *argv[])
 
    // 14. Compute and print the H(Curl) norm of the error.
    {
-      double error = sol.ComputeHCurlError(&E, &CurlE);
-      if (mpi.Root())
+      real_t error = sol.ComputeHCurlError(&E, &CurlE);
+      if (Mpi::Root())
       {
          cout << "\n|| E_h - E ||_{H(Curl)} = " << error << '\n' << endl;
       }
@@ -441,8 +442,8 @@ void CurlE_exact(const Vector &x, Vector &dE)
 {
    if (dim == 1)
    {
-      double c4 = cos(kappa * x(0) + 0.4 * M_PI);
-      double c9 = cos(kappa * x(0) + 0.9 * M_PI);
+      real_t c4 = cos(kappa * x(0) + 0.4 * M_PI);
+      real_t c9 = cos(kappa * x(0) + 0.9 * M_PI);
 
       dE(0) =  0.0;
       dE(1) = -1.3 * c9;
@@ -451,9 +452,9 @@ void CurlE_exact(const Vector &x, Vector &dE)
    }
    else if (dim == 2)
    {
-      double c0 = cos(kappa * M_SQRT1_2 * (x(0) + x(1)) + 0.0 * M_PI);
-      double c4 = cos(kappa * M_SQRT1_2 * (x(0) + x(1)) + 0.4 * M_PI);
-      double c9 = cos(kappa * M_SQRT1_2 * (x(0) + x(1)) + 0.9 * M_PI);
+      real_t c0 = cos(kappa * M_SQRT1_2 * (x(0) + x(1)) + 0.0 * M_PI);
+      real_t c4 = cos(kappa * M_SQRT1_2 * (x(0) + x(1)) + 0.4 * M_PI);
+      real_t c9 = cos(kappa * M_SQRT1_2 * (x(0) + x(1)) + 0.9 * M_PI);
 
       dE(0) =  1.3 * c9;
       dE(1) = -1.3 * c9;
@@ -462,13 +463,13 @@ void CurlE_exact(const Vector &x, Vector &dE)
    }
    else
    {
-      double s0 = sin(kappa * M_SQRT1_2 * (x(0) + x(1)) + 0.0 * M_PI);
-      double c0 = cos(kappa * M_SQRT1_2 * (x(0) + x(1)) + 0.0 * M_PI);
-      double s4 = sin(kappa * M_SQRT1_2 * (x(0) + x(1)) + 0.4 * M_PI);
-      double c4 = cos(kappa * M_SQRT1_2 * (x(0) + x(1)) + 0.4 * M_PI);
-      double c9 = cos(kappa * M_SQRT1_2 * (x(0) + x(1)) + 0.9 * M_PI);
-      double sk = sin(kappa * x(2));
-      double ck = cos(kappa * x(2));
+      real_t s0 = sin(kappa * M_SQRT1_2 * (x(0) + x(1)) + 0.0 * M_PI);
+      real_t c0 = cos(kappa * M_SQRT1_2 * (x(0) + x(1)) + 0.0 * M_PI);
+      real_t s4 = sin(kappa * M_SQRT1_2 * (x(0) + x(1)) + 0.4 * M_PI);
+      real_t c4 = cos(kappa * M_SQRT1_2 * (x(0) + x(1)) + 0.4 * M_PI);
+      real_t c9 = cos(kappa * M_SQRT1_2 * (x(0) + x(1)) + 0.9 * M_PI);
+      real_t sk = sin(kappa * x(2));
+      real_t ck = cos(kappa * x(2));
 
       dE(0) =  1.2 * s4 * sk + 1.3 * M_SQRT1_2 * c9 * ck;
       dE(1) = -1.1 * s0 * sk - 1.3 * M_SQRT1_2 * c9 * ck;
@@ -481,9 +482,9 @@ void f_exact(const Vector &x, Vector &f)
 {
    if (dim == 1)
    {
-      double s0 = sin(kappa * x(0) + 0.0 * M_PI);
-      double s4 = sin(kappa * x(0) + 0.4 * M_PI);
-      double s9 = sin(kappa * x(0) + 0.9 * M_PI);
+      real_t s0 = sin(kappa * x(0) + 0.0 * M_PI);
+      real_t s4 = sin(kappa * x(0) + 0.4 * M_PI);
+      real_t s9 = sin(kappa * x(0) + 0.9 * M_PI);
 
       f(0) = 2.2 * s0 + 1.2 * M_SQRT1_2 * s4;
       f(1) = 1.2 * (2.0 + kappa * kappa) * s4 +
@@ -492,9 +493,9 @@ void f_exact(const Vector &x, Vector &f)
    }
    else if (dim == 2)
    {
-      double s0 = sin(kappa * M_SQRT1_2 * (x(0) + x(1)) + 0.0 * M_PI);
-      double s4 = sin(kappa * M_SQRT1_2 * (x(0) + x(1)) + 0.4 * M_PI);
-      double s9 = sin(kappa * M_SQRT1_2 * (x(0) + x(1)) + 0.9 * M_PI);
+      real_t s0 = sin(kappa * M_SQRT1_2 * (x(0) + x(1)) + 0.0 * M_PI);
+      real_t s4 = sin(kappa * M_SQRT1_2 * (x(0) + x(1)) + 0.4 * M_PI);
+      real_t s9 = sin(kappa * M_SQRT1_2 * (x(0) + x(1)) + 0.9 * M_PI);
 
       f(0) = 0.55 * (4.0 + kappa * kappa) * s0 +
              0.6 * (M_SQRT2 - kappa * kappa) * s4;
@@ -505,14 +506,14 @@ void f_exact(const Vector &x, Vector &f)
    }
    else
    {
-      double s0 = sin(kappa * M_SQRT1_2 * (x(0) + x(1)) + 0.0 * M_PI);
-      double c0 = cos(kappa * M_SQRT1_2 * (x(0) + x(1)) + 0.0 * M_PI);
-      double s4 = sin(kappa * M_SQRT1_2 * (x(0) + x(1)) + 0.4 * M_PI);
-      double c4 = cos(kappa * M_SQRT1_2 * (x(0) + x(1)) + 0.4 * M_PI);
-      double s9 = sin(kappa * M_SQRT1_2 * (x(0) + x(1)) + 0.9 * M_PI);
-      double c9 = cos(kappa * M_SQRT1_2 * (x(0) + x(1)) + 0.9 * M_PI);
-      double sk = sin(kappa * x(2));
-      double ck = cos(kappa * x(2));
+      real_t s0 = sin(kappa * M_SQRT1_2 * (x(0) + x(1)) + 0.0 * M_PI);
+      real_t c0 = cos(kappa * M_SQRT1_2 * (x(0) + x(1)) + 0.0 * M_PI);
+      real_t s4 = sin(kappa * M_SQRT1_2 * (x(0) + x(1)) + 0.4 * M_PI);
+      real_t c4 = cos(kappa * M_SQRT1_2 * (x(0) + x(1)) + 0.4 * M_PI);
+      real_t s9 = sin(kappa * M_SQRT1_2 * (x(0) + x(1)) + 0.9 * M_PI);
+      real_t c9 = cos(kappa * M_SQRT1_2 * (x(0) + x(1)) + 0.9 * M_PI);
+      real_t sk = sin(kappa * x(2));
+      real_t ck = cos(kappa * x(2));
 
       f(0) = 0.55 * (4.0 + 3.0 * kappa * kappa) * s0 * ck +
              0.6 * (M_SQRT2 - kappa * kappa) * s4 * ck -
