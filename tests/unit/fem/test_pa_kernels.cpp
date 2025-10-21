@@ -730,7 +730,37 @@ template <> struct ParTypeHelper<ParFiniteElementSpace>
 #endif
 }
 
-template <typename FES>
+template <typename CoeffType>
+std::unique_ptr<CoeffType> MakeCoeff(int);
+
+template <>
+std::unique_ptr<ConstantCoefficient> MakeCoeff<ConstantCoefficient>(int)
+{
+   return std::make_unique<ConstantCoefficient>(3.14159);
+}
+
+template <>
+std::unique_ptr<MatrixConstantCoefficient> MakeCoeff<MatrixConstantCoefficient>
+(int dim)
+{
+   DenseMatrix A(dim);
+   for (int i = 0; i < dim*dim; ++i)
+   {
+      A.GetData()[i] = 1.0 / (i + 3.0);
+   }
+   for (int i = 0; i < dim; ++i)
+   {
+      for (int j = i+1; j < dim; ++j)
+      {
+         A(i,j) = A(j,i);
+      }
+      A(i,i) += 2.0 + i;
+   }
+   return std::make_unique<MatrixConstantCoefficient>(A);
+}
+
+template <typename CoeffType = ConstantCoefficient,
+          typename FES = FiniteElementSpace>
 void test_dg_diffusion(FES &fes)
 {
    using GF_t = typename ParTypeHelper<FES>::GF_t;
@@ -739,7 +769,8 @@ void test_dg_diffusion(FES &fes)
    GF_t x(&fes), y_fa(&fes), y_pa(&fes);
    x.Randomize(1);
 
-   ConstantCoefficient pi(3.14159);
+   const int dim = fes.GetMesh()->Dimension();
+   auto coeff = MakeCoeff<CoeffType>(dim);
 
    const real_t sigma = -1.0;
    const real_t kappa = 10.0;
@@ -749,8 +780,9 @@ void test_dg_diffusion(FES &fes)
                                        2*fes.GetMaxElementOrder());
 
    BLF_t blf_fa(&fes);
-   blf_fa.AddInteriorFaceIntegrator(new DGDiffusionIntegrator(pi, sigma, kappa));
-   blf_fa.AddBdrFaceIntegrator(new DGDiffusionIntegrator(pi, sigma, kappa));
+   blf_fa.AddInteriorFaceIntegrator(
+      new DGDiffusionIntegrator(*coeff, sigma, kappa));
+   blf_fa.AddBdrFaceIntegrator(new DGDiffusionIntegrator(*coeff, sigma, kappa));
    (*blf_fa.GetFBFI())[0]->SetIntegrationRule(ir);
    (*blf_fa.GetBFBFI())[0]->SetIntegrationRule(ir);
    blf_fa.Assemble();
@@ -762,8 +794,9 @@ void test_dg_diffusion(FES &fes)
 
    BLF_t blf_pa(&fes);
    blf_pa.SetAssemblyLevel(AssemblyLevel::PARTIAL);
-   blf_pa.AddInteriorFaceIntegrator(new DGDiffusionIntegrator(pi, sigma, kappa));
-   blf_pa.AddBdrFaceIntegrator(new DGDiffusionIntegrator(pi, sigma, kappa));
+   blf_pa.AddInteriorFaceIntegrator(
+      new DGDiffusionIntegrator(*coeff, sigma, kappa));
+   blf_pa.AddBdrFaceIntegrator(new DGDiffusionIntegrator(*coeff, sigma, kappa));
    (*blf_pa.GetFBFI())[0]->SetIntegrationRule(ir);
    (*blf_pa.GetBFBFI())[0]->SetIntegrationRule(ir);
    blf_pa.Assemble();
@@ -804,7 +837,8 @@ TEST_CASE("PA DG Diffusion", "[PartialAssembly], [GPU]")
    DG_FECollection fec(order, dim, BasisType::GaussLobatto);
    FiniteElementSpace fes(&mesh, &fec);
 
-   test_dg_diffusion(fes);
+   test_dg_diffusion<ConstantCoefficient>(fes);
+   test_dg_diffusion<MatrixConstantCoefficient>(fes);
 }
 
 #ifdef MFEM_USE_MPI
@@ -824,7 +858,8 @@ TEST_CASE("Parallel PA DG Diffusion", "[PartialAssembly][Parallel][GPU]")
    DG_FECollection fec(order, dim, BasisType::GaussLobatto);
    ParFiniteElementSpace fes(&mesh, &fec);
 
-   test_dg_diffusion(fes);
+   test_dg_diffusion<ConstantCoefficient>(fes);
+   test_dg_diffusion<MatrixConstantCoefficient>(fes);
 }
 
 #endif
