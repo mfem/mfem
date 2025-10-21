@@ -21,9 +21,9 @@ PartialQuadratureFunction &
 PartialQuadratureFunction::operator=(const QuadratureFunction &qf)
 {
    MFEM_ASSERT(qf.GetVDim() == vdim, "Vector dimensions don't match");
-   MFEM_ASSERT(qf.GetSpace()->GetSize() >= part_quad_space->GetSize(), 
+   MFEM_ASSERT(qf.GetSpace()->GetSize() >= part_quad_space->GetSize(),
                "QuadratureSpace sizes aren't of equivalent sizes");
-   
+
    if (qf.GetSpace()->GetSize() == part_quad_space->GetSize())
    {
       Vector::operator=(qf);
@@ -33,11 +33,12 @@ PartialQuadratureFunction::operator=(const QuadratureFunction &qf)
    {
       // Very basic check to see if the two spaces are roughly equivalent...
       // We would need to do a much more thorough job if we wanted to be 100% certain
-      MFEM_ASSERT(qf.GetSpace()->GetMesh()->GetNE() == part_quad_space->GetMesh()->GetNE(),
+      MFEM_ASSERT(qf.GetSpace()->GetMesh()->GetNE() ==
+                  part_quad_space->GetMesh()->GetNE(),
                   "QSpaces have meshes with different # of elements");
       MFEM_ASSERT(qf.GetSpace()->GetOrder() == part_quad_space->GetOrder(),
                   "QSpaces don't have the same integration order");
-      
+
       // We now need to copy all of the relevant data over that we'll need
       auto l2g = part_quad_space->local2global.Read();
       auto loc_offsets = part_quad_space->offsets.Read();
@@ -61,7 +62,7 @@ PartialQuadratureFunction::operator=(const QuadratureFunction &qf)
          const int npts = nqpts * vdim_;
          for (int jv = 0; jv < npts; jv++)
          {
-            loc_data[local_offset_idx * vdim_ + jv] = 
+            loc_data[local_offset_idx * vdim_ + jv] =
                qf_data[global_offset_idx * vdim_ + jv];
          }
       });
@@ -81,11 +82,12 @@ void PartialQuadratureFunction::FillQuadratureFunction(QuadratureFunction &qf,
       // Very basic check to see if the two spaces are roughly equivalent...
       // We would need to do a much more thorough job if we wanted to be 100% certain
       MFEM_ASSERT(qf.GetVDim() == vdim, "Vector dimensions don't match");
-      MFEM_ASSERT(qf.GetSpace()->GetMesh()->GetNE() == part_quad_space->GetMesh()->GetNE(),
+      MFEM_ASSERT(qf.GetSpace()->GetMesh()->GetNE() ==
+                  part_quad_space->GetMesh()->GetNE(),
                   "QSpaces have meshes with different # of elements");
       MFEM_ASSERT(qf.GetSpace()->GetOrder() == part_quad_space->GetOrder(),
                   "QSpaces don't have the same integration order");
-      
+
       // We now need to copy all of the relevant data over that we'll need
       auto l2g = part_quad_space->local2global.Read();
       auto offsets = part_quad_space->offsets.Read();
@@ -93,13 +95,13 @@ void PartialQuadratureFunction::FillQuadratureFunction(QuadratureFunction &qf,
                             part_quad_space->global_offsets.Read() : offsets;
       auto qf_data = qf.ReadWrite();
       auto loc_data = this->Read();
-      
+
       // First set all values to default
       if (fill)
       {
          qf = default_value;
       }
-      
+
       auto NE = part_quad_space->GetNE();
       // Then copy our partial values to their proper places
       const auto vdim_ = vdim;
@@ -112,7 +114,7 @@ void PartialQuadratureFunction::FillQuadratureFunction(QuadratureFunction &qf,
          const int npts = nqpts * vdim_;
          for (int jv = 0; jv < npts; jv++)
          {
-            qf_data[global_offset_idx * vdim_ + jv] = 
+            qf_data[global_offset_idx * vdim_ + jv] =
                loc_data[local_offset_idx * vdim_ + jv];
          }
       });

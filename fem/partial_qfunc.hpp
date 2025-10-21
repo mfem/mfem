@@ -26,7 +26,7 @@ namespace mfem
     manipulate quadrature point data for only a subset of mesh elements. This is essential
     for multi-material simulations where different constitutive models and state variables
     apply to different regions of the mesh.
-    
+
     The class maintains compatibility with MFEM's QuadratureFunction interface while
     providing optimized memory usage and performance for partial element sets. It handles
     the mapping between partial and full quadrature spaces automatically and provides
@@ -36,7 +36,7 @@ class PartialQuadratureFunction : public QuadratureFunction
 private:
    /// Reference to the specialized PartialQuadratureSpace.
    PartialQuadratureSpace *part_quad_space;
-   
+
    /// Default value for elements not in the partial set.
    real_t default_value;
 
@@ -200,17 +200,17 @@ public:
     PartialQuadratureFunction objects from a pre-allocated memory pool. This is useful
     for reducing memory allocation overhead when creating many quadrature functions,
     particularly in performance-critical contexts.
-    
+
     The factory does not own the memory pool - it is managed by an external entity.
     The memory pool must be large enough to accommodate all PartialQuadratureFunction
     data that will be created. If the memory pool is exhausted, undefined behavior will
     occur.
-    
+
     @warning The provided memory pool must be sufficiently large to hold all
     PartialQuadratureFunction data. Each PartialQuadratureFunction requires
     vdim * qspace->GetSize() * sizeof(real_t) bytes. Insufficient memory will
     result in undefined behavior (buffer overflow, data corruption, crashes).
-    
+
     @warning This class does NOT own the memory pool. The caller is responsible for
     managing the lifetime of the memory pool and ensuring it remains valid for the
     lifetime of all created PartialQuadratureFunction objects. */
@@ -219,7 +219,7 @@ class PartialQuadratureFunctionFactory
 private:
    /// Memory pool pointer (not owned by this class).
    real_t *memory_pool;
-   
+
    /// Current offset into the memory pool.
    int memory_offset;
 
@@ -231,7 +231,7 @@ public:
        @warning The memory pool must be large enough to accommodate all
                 PartialQuadratureFunction objects that will be created. */
    inline PartialQuadratureFunctionFactory(real_t *pool) :
-   memory_pool(pool), memory_offset(0)
+      memory_pool(pool), memory_offset(0)
    {
       MFEM_VERIFY(pool != nullptr, "Memory pool cannot be NULL");
    }
@@ -239,12 +239,12 @@ public:
    /// Create a PartialQuadratureFunction using the memory pool.
    /** This method creates a PartialQuadratureFunction that uses memory from the
        internal memory pool, advancing the pool offset by the required amount.
-       
+
        @param[in] qspace Pointer to the PartialQuadratureSpace (must not be NULL).
        @param[in] vdim Vector dimension (must be >= 1).
        @param[in] default_val Default value for elements not in the partial set.
        @return PartialQuadratureFunction using memory from the pool.
-       
+
        @warning The memory pool must have sufficient remaining space:
                 Required bytes = vdim * qspace->GetSize() * sizeof(real_t).
                 Insufficient space results in undefined behavior. */
@@ -270,11 +270,11 @@ public:
    /** This helper function computes the total number of real_t elements needed to
        store multiple PartialQuadratureFunction objects with potentially different
        vector dimensions.
-       
+
        @param[in] qspaces Vector of PartialQuadratureSpace pointers.
        @param[in] vdims Vector of vector dimensions (must be same size as qspaces).
        @return Total number of real_t elements required.
-       
+
        @note Each element in vdims corresponds to the vdim for the corresponding
              qspace at the same index. */
    static inline int CalculateMemorySize(
@@ -285,7 +285,7 @@ public:
    /** This helper function computes the total number of real_t elements needed to
        store multiple PartialQuadratureFunction objects, all with the same vector
        dimension.
-       
+
        @param[in] qspaces Vector of PartialQuadratureSpace pointers.
        @param[in] vdim Vector dimension to use for all spaces.
        @return Total number of real_t elements required. */
@@ -350,7 +350,7 @@ inline void PartialQuadratureFunction::GetValues(int idx, Vector &values) const
 }
 
 inline void PartialQuadratureFunction::GetValues(int idx, const int ip_num,
-                                                  Vector &values)
+                                                 Vector &values)
 {
    const int local_index = part_quad_space->GlobalToLocal(idx);
    // If global_offsets.Size() == 1 then we'll always go down this path
@@ -372,7 +372,7 @@ inline void PartialQuadratureFunction::GetValues(int idx, const int ip_num,
 }
 
 inline void PartialQuadratureFunction::GetValues(int idx, const int ip_num,
-                                                  Vector &values) const
+                                                 Vector &values) const
 {
    const int local_index = part_quad_space->GlobalToLocal(idx);
    // If global_offsets.Size() == 1 then we'll always go down this path
@@ -431,7 +431,7 @@ inline void PartialQuadratureFunction::GetValues(int idx, DenseMatrix &values)
 }
 
 inline void PartialQuadratureFunction::GetValues(int idx,
-                                                  DenseMatrix &values) const
+                                                 DenseMatrix &values) const
 {
    const int local_index = part_quad_space->GlobalToLocal(idx);
    // If global_offsets.Size() == 1 then we'll always go down this path
@@ -477,13 +477,13 @@ PartialQuadratureFunctionFactory::Create(PartialQuadratureSpace *qspace,
 
    // Calculate the size needed for this PartialQuadratureFunction
    const int size = vdim * qspace->GetSize();
-   
+
    // Get pointer to the current position in the memory pool
    real_t *qf_data = memory_pool + memory_offset;
-   
+
    // Advance the memory pool offset
    memory_offset += size;
-   
+
    // Create and return the PartialQuadratureFunction using external data
    return PartialQuadratureFunction(qspace, qf_data, vdim, default_val);
 }
@@ -494,7 +494,7 @@ inline int PartialQuadratureFunctionFactory::CalculateMemorySize(
 {
    MFEM_VERIFY(qspaces.size() == vdims.size(),
                "qspaces and vdims must have the same size");
-   
+
    int total_size = 0;
    for (size_t i = 0; i < qspaces.size(); i++)
    {
@@ -504,7 +504,7 @@ inline int PartialQuadratureFunctionFactory::CalculateMemorySize(
                   "Vector dimension at index " << i << " must be >= 1");
       total_size += vdims[i] * qspaces[i]->GetSize();
    }
-   
+
    return total_size;
 }
 
@@ -513,7 +513,7 @@ inline int PartialQuadratureFunctionFactory::CalculateMemorySize(
    int vdim)
 {
    MFEM_VERIFY(vdim >= 1, "Vector dimension must be >= 1");
-   
+
    int total_size = 0;
    for (size_t i = 0; i < qspaces.size(); i++)
    {
@@ -521,7 +521,7 @@ inline int PartialQuadratureFunctionFactory::CalculateMemorySize(
                   "PartialQuadratureSpace at index " << i << " cannot be NULL");
       total_size += vdim * qspaces[i]->GetSize();
    }
-   
+
    return total_size;
 }
 

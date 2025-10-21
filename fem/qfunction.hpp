@@ -106,7 +106,7 @@ public:
 
        The data array is replaced by calling Vector::NewDataAndSize(). */
    inline virtual void SetSpace(QuadratureSpaceBase *qspace_, real_t *qf_data,
-                        int vdim_ = -1);
+                                int vdim_ = -1);
 
    /// Get the QuadratureSpaceBase ownership flag.
    bool OwnsSpace() { return own_qspace; }
@@ -185,15 +185,16 @@ public:
    /// format is VTKFormat::ASCII. Otherwise, zlib compression will be used for
    /// binary data.
    virtual void SaveVTU(std::ostream &out, VTKFormat format=VTKFormat::ASCII,
-                int compression_level=0, const std::string &field_name="u") const;
+                        int compression_level=0, const std::string &field_name="u") const;
 
    /// @brief Save the QuadratureFunction to a VTU (ParaView) file.
    ///
    /// The extension ".vtu" will be appended to @a filename.
    /// @sa SaveVTU(std::ostream &out, VTKFormat format=VTKFormat::ASCII,
    ///             int compression_level=0)
-   virtual void SaveVTU(const std::string &filename, VTKFormat format=VTKFormat::ASCII,
-                int compression_level=0, const std::string &field_name="u") const;
+   virtual void SaveVTU(const std::string &filename,
+                        VTKFormat format=VTKFormat::ASCII,
+                        int compression_level=0, const std::string &field_name="u") const;
 
 
    /// Return the integral of the quadrature function (vdim = 1 only).

@@ -22,7 +22,7 @@ namespace mfem
     element operations on subsets of mesh elements. This is particularly useful for handling
     multi-material simulations where different constitutive models apply to different regions
     of the mesh.
-    
+
     The class maintains bidirectional mappings between local element indices (within the
     partial set) and global element indices (in the full mesh), enabling efficient data
     access and computation while maintaining compatibility with MFEM's finite element
@@ -61,7 +61,7 @@ public:
    /** @param[in] mesh_ Pointer to the mesh object.
        @param[in] order_ Integration order for automatic quadrature rule selection.
        @param[in] partial_index Boolean array indicating which elements to include. */
-   PartialQuadratureSpace(mfem::Mesh *mesh_, int order_, 
+   PartialQuadratureSpace(mfem::Mesh *mesh_, int order_,
                           mfem::Array<bool> &partial_index);
 
    /// Create a PartialQuadratureSpace with an IntegrationRule.
@@ -69,7 +69,7 @@ public:
        @param[in] mesh_ Pointer to the mesh object.
        @param[in] ir Integration rule to use for all elements.
        @param[in] partial_index Boolean array indicating which elements to include. */
-   PartialQuadratureSpace(mfem::Mesh *mesh_, const mfem::IntegrationRule &ir, 
+   PartialQuadratureSpace(mfem::Mesh *mesh_, const mfem::IntegrationRule &ir,
                           mfem::Array<bool> &partial_index);
 
    /// Read a PartialQuadratureSpace from the stream.
