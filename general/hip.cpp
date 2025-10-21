@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -9,7 +9,7 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#include "hip.hpp"
+#include "backends.hpp"
 #include "globals.hpp"
 
 namespace mfem
@@ -24,7 +24,7 @@ void mfem_hip_error(hipError_t err, const char *expr, const char *func,
                     const char *file, int line)
 {
    mfem::err << "\n\nHIP error: (" << expr << ") failed with error:\n --> "
-             << hipGetErrorString(err)
+             << hipGetErrorString(err) << " [code: " << (int)err << ']'
              << "\n ... in function: " << func
              << "\n ... in file: " << file << ':' << line << '\n';
    mfem_error();
@@ -61,6 +61,21 @@ void* HipMallocManaged(void** dptr, size_t bytes)
    return *dptr;
 }
 
+void* HipMemAllocHostPinned(void** ptr, size_t bytes)
+{
+#ifdef MFEM_USE_HIP
+#ifdef MFEM_TRACK_HIP_MEM
+   mfem::out << "HipMemAllocHostPinned(): allocating " << bytes << " bytes ... "
+             << std::flush;
+#endif
+   MFEM_GPU_CHECK(hipHostMalloc(ptr, bytes, hipHostMallocDefault));
+#ifdef MFEM_TRACK_HIP_MEM
+   mfem::out << "done: " << *ptr << std::endl;
+#endif
+#endif
+   return *ptr;
+}
+
 void* HipMemFree(void *dptr)
 {
 #ifdef MFEM_USE_HIP
@@ -74,6 +89,21 @@ void* HipMemFree(void *dptr)
 #endif
 #endif
    return dptr;
+}
+
+void* HipMemFreeHostPinned(void *ptr)
+{
+#ifdef MFEM_USE_HIP
+#ifdef MFEM_TRACK_HIP_MEM
+   mfem::out << "HipMemFreeHostPinned(): deallocating memory @ " << ptr << " ... "
+             << std::flush;
+#endif
+   MFEM_GPU_CHECK(hipHostFree(ptr));
+#ifdef MFEM_TRACK_HIP_MEM
+   mfem::out << "done." << std::endl;
+#endif
+#endif
+   return ptr;
 }
 
 void* HipMemcpyHtoD(void* dst, const void* src, size_t bytes)
@@ -125,7 +155,7 @@ void* HipMemcpyDtoDAsync(void* dst, const void *src, size_t bytes)
 void* HipMemcpyDtoH(void *dst, const void *src, size_t bytes)
 {
 #ifdef MFEM_USE_HIP
-#ifdef MFEM_TRACK_HPI_MEM
+#ifdef MFEM_TRACK_HIP_MEM
    mfem::out << "HipMemcpyDtoH(): copying " << bytes << " bytes from "
              << src << " to " << dst << " ... " << std::flush;
 #endif

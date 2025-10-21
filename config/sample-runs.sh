@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -32,7 +32,7 @@ groups_serial=(
 '"examples"
    "Examples:"
    "examples"
-   "ex{,1,2}[0-9].cpp"'
+   "ex{,[1-9]}[0-9].cpp"'
 #   "ex1.cpp"'
 '"sundials"
    "SUNDIALS examples:"
@@ -42,19 +42,82 @@ groups_serial=(
    "Performance miniapps:"
    "miniapps/performance"
    "ex1.cpp"'
+'"amgx"
+   "AmgX examples:"
+   "examples/amgx"
+   "ex1.cpp"'
+'"caliper"
+   "Caliper examples:"
+   "examples/caliper"
+   "ex1.cpp"'
+'"ginkgo"
+   "Ginkgo examples:"
+   "examples/ginkgo"
+   "ex1.cpp"'
+'"hiop"
+   "HiOp examples:"
+   "examples/hiop"
+   "ex9.cpp"'
+'"moonolith"
+   "Moonolith examples:"
+   "examples/moonolith"
+   "ex1.cpp"'
+'"pumi"
+   "PUMI examples:"
+   "examples/pumi"
+   "ex1.cpp ex2.cpp"'
 #   ""'
 '"meshing"
    "Meshing miniapps:"
    "miniapps/meshing"
-   "mobius-strip.cpp klein-bottle.cpp extruder.cpp toroid.cpp
+   "mobius-strip.cpp klein-bottle.cpp extruder.cpp toroid.cpp mesh-quality.cpp
+    polar-nc.cpp reflector.cpp shaper.cpp trimmer.cpp twist.cpp
     mesh-optimizer.cpp minimal-surface.cpp"'
+'"adjoint"
+   "Adjoint miniapps:"
+   "miniapps/adjoint"
+   "cvsRoberts_ASAi_dns.cpp"'
+'"autodiff"
+   "Autodiff miniapps:"
+   "miniapps/autodiff"
+   "seq_example.cpp seq_test.cpp"' # 'seq_test.cpp' has no sample runs
+'"dpg"
+   "DPG miniapps:"
+   "miniapps/dpg"
+   "{acoustics,convection-diffusion,diffusion,maxwell}.cpp"'
+'"gslib"
+   "GSLIB miniapps:"
+   "miniapps/gslib"
+   "field-diff.cpp field-interp.cpp findpts.cpp schwarz_ex1.cpp "'
+# todo: miniapps/mtop
+'"nurbs"
+   "NURBS miniapps:"
+   "miniapps/nurbs"
+   "nurbs_ex1.cpp"'
+# todo: add other nurbs miniapps
+# todo: miniapps/solvers (serial)
+'"tools"
+   "Tools miniapps:"
+   "miniapps/tools"
+   "convert-dc.cpp display-basis.cpp get-values.cpp load-dc.cpp
+    lor-transfer.cpp"'
+# todo: add other tools miniapps
+'"toys"
+   "Toys miniapps:"
+   "miniapps/toys"
+   "automata.cpp life.cpp lissajous.cpp mandel.cpp mondrian.cpp rubik.cpp
+    snake.cpp"'
+'"convergence"
+   "Convergence tests:"
+   "tests/convergence"
+   "rates.cpp"'
 )
 # Parallel groups
 groups_parallel=(
 '"examples"
    "Examples:"
    "examples"
-   "ex{,1,2}[0-9]p.cpp"'
+   "ex{,[1-9]}[0-9]p.cpp"'
 #   "ex1p.cpp"'
 '"sundials"
    "SUNDIALS examples:"
@@ -68,23 +131,104 @@ groups_parallel=(
    "Performance miniapps:"
    "miniapps/performance"
    "ex1p.cpp"'
+'"amgx"
+   "AmgX examples:"
+   "examples/amgx"
+   "ex1p.cpp"'
+'"caliper"
+   "Caliper examples:"
+   "examples/caliper"
+   "ex1p.cpp"'
+'"hiop"
+   "HiOp examples:"
+   "examples/hiop"
+   "ex9p.cpp"'
+'"moonolith"
+   "Moonolith examples:"
+   "examples/moonolith"
+   "ex{1,2}p.cpp"'
+'"pumi"
+   "PUMI examples:"
+   "examples/pumi"
+   "ex1p.cpp ex6p.cpp"'
+'"superlu"
+   "Superlu examples:"
+   "examples/superlu"
+   "ex1p.cpp"'
 #   ""'
 '"meshing"
    "Meshing miniapps:"
    "miniapps/meshing"
-   "pmesh-optimizer.cpp pminimal-surface.cpp"'
+   "pmesh-optimizer.cpp pmesh-fitting.cpp pminimal-surface.cpp
+    fit-node-position.cpp"'
 '"electromagnetics"
    "Electromagnetics miniapps:"
    "miniapps/electromagnetics"
    "joule.cpp"'
-#   "{volta,tesla,joule}.cpp"' # todo: multiline sample runs
+#   "{joule,maxwell,tesla,volta}.cpp"' # todo: multiline sample runs
+'"adjoint"
+   "Adjoint miniapps:"
+   "miniapps/adjoint"
+   "adjoint_advection_diffusion.cpp"'
+'"autodiff"
+   "Autodiff miniapps:"
+   "miniapps/autodiff"
+   "par_example.cpp"'
+'"dpg"
+   "DPG miniapps:"
+   "miniapps/dpg"
+   "p{acoustics,convection-diffusion,diffusion,maxwell}.cpp"'
+'"gslib"
+   "GSLIB miniapps:"
+   "miniapps/gslib"
+   "pfindpts.cpp schwarz_ex1p.cpp"'
+'"hdiv-linear-solver"
+   "H(div) linear solver miniapps:"
+   "miniapps/hdiv-linear-solver"
+   "grad_div.cpp darcy.cpp"'
+# 'miniapps/hooke/hooke.cpp' has no sample runs
+# todo: miniapps/mtop
+# todo: miniapps/multidomain
+'"navier"
+   "Navier miniapps:"
+   "miniapps/navier"
+   "navier_cht.cpp"'
+# todo: add other navier miniapps
+'"nurbs"
+   "NURBS miniapps:"
+   "miniapps/nurbs"
+   "nurbs_ex1p.cpp nurbs_ex11p.cpp"'
+'"shifted"
+   "Shifted miniapps:"
+   "miniapps/shifted"
+   "distance.cpp"'
+# todo: add other shifted miniapps
+'"solvers"
+   "Solvers miniapps:"
+   "miniapps/solvers"
+   "block-solvers.cpp"'
+# todo: add other solvers miniapps
+# todo: miniapps/spde
+'"tools"
+   "Tools miniapps:"
+   "miniapps/tools"
+   "convert-dc.cpp get-values.cpp load-dc.cpp"'
+# todo: add other tools miniapps
+'"convergence"
+   "Convergence tests:"
+   "tests/convergence"
+   "prates.cpp"'
+'"par-mesh-format"
+   "Parallel mesh tests:"
+   "tests/par-mesh-format"
+   "ex1p.cpp"'
 )
 # All groups serial + parallel runs mixed in the same group:
 groups_all=(
 '"examples"
    "Examples:"
    "examples"
-   "ex\"{,1,2}[0-9]\"{,p}.cpp"'
+   "ex\"{,[1-9]}[0-9]\"{,p}.cpp"'
 '"sundials"
    "SUNDIALS examples:"
    "examples/sundials"
@@ -97,16 +241,111 @@ groups_all=(
    "Performance miniapps:"
    "miniapps/performance"
    "ex1{,p}.cpp"'
+'"amgx"
+   "AmgX examples:"
+   "examples/amgx"
+   "ex1.cpp ex1p.cpp"'
+'"caliper"
+   "Caliper examples:"
+   "examples/caliper"
+   "ex1.cpp ex1p.cpp"'
+'"ginkgo"
+   "Ginkgo examples:"
+   "examples/ginkgo"
+   "ex1.cpp"'
+'"hiop"
+   "HiOp examples:"
+   "examples/hiop"
+   "ex9.cpp ex9p.cpp"'
+'"moonolith"
+   "Moonolith examples:"
+   "examples/moonolith"
+   "ex1.cpp ex{1,2}p.cpp"'
+'"pumi"
+   "PUMI examples:"
+   "examples/pumi"
+   "ex1.cpp ex2.cpp ex1p.cpp ex6p.cpp"'
+'"superlu"
+   "Superlu examples:"
+   "examples/superlu"
+   "ex1p.cpp"'
 '"meshing"
    "Meshing miniapps:"
    "miniapps/meshing"
-   "mobius-strip.cpp klein-bottle.cpp extruder.cpp toroid.cpp
-    {,p}mesh-optimizer.cpp {,p}minimal-surface.cpp"'
+   "mobius-strip.cpp klein-bottle.cpp extruder.cpp toroid.cpp mesh-quality.cpp
+    polar-nc.cpp reflector.cpp shaper.cpp trimmer.cpp twist.cpp
+    {,p}mesh-optimizer.cpp pmesh-fitting.cpp {,p}minimal-surface.cpp
+    fit-node-position.cpp"'
 '"electromagnetics"
    "Electromagnetics miniapps:"
    "miniapps/electromagnetics"
    "joule.cpp"'
-#   "{volta,tesla,joule}.cpp"' # todo: multiline sample runs
+#   "{joule,maxwell,tesla,volta}.cpp"' # todo: multiline sample runs
+'"adjoint"
+   "Adjoint miniapps:"
+   "miniapps/adjoint"
+   "cvsRoberts_ASAi_dns.cpp adjoint_advection_diffusion.cpp"'
+'"autodiff"
+   "Autodiff miniapps:"
+   "miniapps/autodiff"
+   "seq_example.cpp seq_test.cpp par_example.cpp"'
+# 'seq_test.cpp' has no sample runs
+'"dpg"
+   "DPG miniapps:"
+   "miniapps/dpg"
+   "{,p}{acoustics,convection-diffusion,diffusion,maxwell}.cpp"'
+'"gslib"
+   "GSLIB miniapps:"
+   "miniapps/gslib"
+   "field-diff.cpp field-interp.cpp findpts.cpp schwarz_ex1.cpp pfindpts.cpp
+    schwarz_ex1p.cpp"'
+'"hdiv-linear-solver"
+   "H(div) linear solver miniapps:"
+   "miniapps/hdiv-linear-solver"
+   "grad_div.cpp darcy.cpp"'
+# 'miniapps/hooke/hooke.cpp' has no sample runs
+# todo: miniapps/mtop
+# todo: miniapps/multidomain
+'"navier"
+   "Navier miniapps:"
+   "miniapps/navier"
+   "navier_cht.cpp"'
+# todo: add other navier miniapps
+'"nurbs"
+   "NURBS miniapps:"
+   "miniapps/nurbs"
+   "nurbs_ex1.cpp nurbs_ex1p.cpp nurbs_ex11p.cpp"'
+# todo: add other nurbs miniapps
+'"shifted"
+   "Shifted miniapps:"
+   "miniapps/shifted"
+   "distance.cpp"'
+# todo: add other shifted miniapps
+'"solvers"
+   "Solvers miniapps:"
+   "miniapps/solvers"
+   "block-solvers.cpp"'
+# todo: add other solvers miniapps
+# todo: miniapps/spde
+'"tools"
+   "Tools miniapps:"
+   "miniapps/tools"
+   "convert-dc.cpp display-basis.cpp get-values.cpp load-dc.cpp
+    lor-transfer.cpp"'
+# todo: add other tools miniapps
+'"toys"
+   "Toys miniapps:"
+   "miniapps/toys"
+   "automata.cpp life.cpp lissajous.cpp mandel.cpp mondrian.cpp rubik.cpp
+    snake.cpp"'
+'"convergence"
+   "Convergence tests:"
+   "tests/convergence"
+   "{,p}rates.cpp"'
+'"par-mesh-format"
+   "Parallel mesh tests:"
+   "tests/par-mesh-format"
+   "ex1p.cpp"'
 )
 make_all="all"
 base_timeformat=$'real: %3Rs  user: %3Us  sys: %3Ss  %%cpu: %P'
@@ -146,7 +385,7 @@ function extract_sample_runs()
    sruns=`grep -v "^//.*  mpirun .* ${app}" "${src}" |
           grep "^//.*  ${app}" |
           sed -e "s/.*  ${app}/${vg_app}/g"`
-   runs="${sruns}${pruns}"
+   runs="${sruns}"$'\n'"${pruns}"
    if [ "$skip_gen_meshes" == "yes" ]; then
       runs=`printf "%s" "$runs" | grep -v ".* -m .*\.gen"`
    fi
@@ -217,7 +456,7 @@ function help_message()
       mfem_config [${mfem_config}]
          Set MFEM configuration options
       make [${make}], mpiexec [${mpiexec}], mpiexec_np [${mpiexec_np}]
-         Their values can also set using the respective uppercase environment
+         Their values can also be set using the respective uppercase environment
          variable
       mfem_build_dir [${mfem_build_dir}]
          Same as '-d': set this variable to something different from <mfem_dir>
@@ -380,30 +619,34 @@ function timed_run()
 # This function is used to execute the sample runs
 function go()
 {
-   local cmd=("$@")
+   # Strip leading and trailing spaces from $1 and store the result in cmd_line
+   shopt -s extglob
+   local cmd_line="${1##+( )}"
+   cmd_line="${cmd_line%%+( )}"
+   shopt -u extglob
    local res=""
    echo $sep
-   echo "<${group}>" "${cmd[@]}"
+   echo "<${group}>" "${cmd_line}"
    echo $sep
    if [ "${timing}" == "yes" ]; then
-      timed_run "${cmd[@]}"
+      timed_run eval "${cmd_line}"
    else
-      "${cmd[@]}"
+      eval "${cmd_line}"
    fi
    if [ "$?" -eq 0 ]; then
       res="${green}  OK  ${none}"
    else
       res="${red}FAILED${none}"
    fi
-   printf "[${res}] <${group}> ${cmd[*]}\n"
+   printf "[${res}] <${group}> ${cmd_line}\n"
    if [ "${timing}" == "yes" ]; then
       printf "Run time: %s\n" "${timer}"
       timer=(${timer})
       timer="${timer[1]}"
-      printf -v line "[$res](%8s) ${cmd[*]}" "$timer"
+      printf -v line "[$res](%8s) ${cmd_line}" "$timer"
       summary=("${summary[@]}" "$line")
    else
-      summary=("${summary[@]}" "[${res}] ${cmd[*]}")
+      summary=("${summary[@]}" "[${res}] ${cmd_line}")
    fi
    echo $sep
 }
@@ -419,6 +662,8 @@ function go_group()
       mkdir -p "${group_output_dir}" || exit 1
    fi
    for src in "$@"; do
+      ex_run_suffix=${run_suffix} && [[ $src =~ ex0p?\.cpp ]] \
+         && ex_run_suffix=""
       cd "${mfem_dir}/${group_dir}" || exit 1
       extract_sample_runs "${src}" || continue
       [ "${#runs[@]}" -eq 0 ] && continue
@@ -438,7 +683,7 @@ function go_group()
       fi
       for run in "${runs[@]}"; do
          if [ "${run}" == "" ]; then continue; fi
-         eval go \${run_prefix} \${run} \${run_suffix} $output
+         eval go \"\${run_prefix} \${run} \${ex_run_suffix}\" $output
       done
    done
    ${make} clean-exec
@@ -504,7 +749,7 @@ function echo_run()
 {
    echo "   $@"
    { echo "   $@"; echo "$sep";
-     "$@"
+     eval "$@"
      echo "$sep"; } >> "$echo_log" 2>&1
 }
 
@@ -524,6 +769,28 @@ function build_all()
    echo_run ${make} config ${mfem_config} || exit 1
    echo_run ${make} ${make_j} || exit 1
    echo_run ${make} ${make_all} ${make_j} || exit 1
+   # Build groups in directories other than the directories built by 'make all':
+   for group_params in "${groups[@]}"; do
+      eval params=(${group_params})
+      group_dir="${params[2]}"
+      case "$group_dir" in
+         (examples*|miniapps*)
+            # Built by 'make all'
+            ;;
+         (*)
+            if [ "${mfem_dir}" != "${mfem_build_dir}" ]; then
+               echo_run mkdir -p "${group_dir}" || exit 1
+               echo_run cd "${group_dir}" || exit 1
+               echo_run cp -af "${mfem_dir}/${group_dir}/makefile" . || exit 1
+            else
+               echo_run cd "${group_dir}" || exit 1
+            fi
+            echo_run ${make} clean || exit 1
+            echo_run ${make} MFEM_DIR="${mfem_dir}" ${make_j} || exit 1
+            echo_run cd "${mfem_build_dir}" || exit 1
+            ;;
+      esac
+   done
 }
 
 # Function that runs all sample runs, given by the array variable "groups".

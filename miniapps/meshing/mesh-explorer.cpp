@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -32,6 +32,7 @@
 //               mesh-explorer -m ../../data/mobius-strip.mesh
 
 #include "mfem.hpp"
+#include "../common/mfem-common.hpp"
 #include <fstream>
 #include <limits>
 #include <cstdlib>
@@ -39,11 +40,11 @@
 using namespace mfem;
 using namespace std;
 
-// This tranformation can be applied to a mesh with the 't' menu option.
+// This transformation can be applied to a mesh with the 't' menu option.
 void transformation(const Vector &p, Vector &v)
 {
    // simple shear transformation
-   double s = 0.1;
+   real_t s = 0.1;
 
    if (p.Size() == 3)
    {
@@ -64,15 +65,38 @@ void transformation(const Vector &p, Vector &v)
 
 // This function is used with the 'r' menu option, sub-option 'l' to refine a
 // mesh locally in a region, defined by return values <= region_eps.
-double region_eps = 1e-8;
-double region(const Vector &p)
+real_t region_eps = 1e-8;
+real_t region(const Vector &p)
 {
-   const double x = p(0), y = p(1);
+   const real_t x = p(0), y = p(1);
    // here we describe the region: (x <= 1/4) && (y >= 0) && (y <= 1)
-   return std::max(std::max(x - 0.25, -y), y - 1.0);
+   return std::max(std::max(x - (real_t) 0.25, -y), y - (real_t) 1.0);
 }
 
-Mesh *read_par_mesh(int np, const char *mesh_prefix)
+// The projection of this function can be plotted with the 'l' menu option
+real_t f(const Vector &p)
+{
+   real_t x = p(0);
+   real_t y = p.Size() > 1 ? p(1) : 0.0;
+   real_t z = p.Size() > 2 ? p(2) : 0.0;
+
+   if (1)
+   {
+      // torus in the xy-plane
+      const real_t r_big = 2.0;
+      const real_t r_small = 1.0;
+      return hypot(r_big - hypot(x, y), z) - r_small;
+   }
+   if (0)
+   {
+      // sphere at the origin:
+      const real_t r = 1.0;
+      return hypot(hypot(x, y), z) - r;
+   }
+}
+
+Mesh *read_par_mesh(int np, const char *mesh_prefix, Array<int>& partitioning,
+                    Array<int>& bdr_partitioning)
 {
    Mesh *mesh;
    Array<Mesh *> mesh_array;
@@ -94,17 +118,14 @@ Mesh *read_par_mesh(int np, const char *mesh_prefix)
          return NULL;
       }
       mesh_array[p] = new Mesh(meshin, 1, 0);
-      // set element and boundary attributes to be the processor number + 1
-      if (1)
+      // Assign corresponding processor number to element + boundary partitions
+      for (int i = 0; i < mesh_array[p]->GetNE(); i++)
       {
-         for (int i = 0; i < mesh_array[p]->GetNE(); i++)
-         {
-            mesh_array[p]->GetElement(i)->SetAttribute(p+1);
-         }
-         for (int i = 0; i < mesh_array[p]->GetNBE(); i++)
-         {
-            mesh_array[p]->GetBdrElement(i)->SetAttribute(p+1);
-         }
+         partitioning.Append(p);
+      }
+      for (int i = 0; i < mesh_array[p]->GetNBE(); i++)
+      {
+         bdr_partitioning.Append(p);
       }
    }
    mesh = new Mesh(mesh_array, np);
@@ -119,6 +140,7 @@ Mesh *read_par_mesh(int np, const char *mesh_prefix)
 }
 
 // Given a 3D mesh, produce a 2D mesh consisting of its boundary elements.
+// We guarantee that the skin preserves the boundary index order.
 Mesh *skin_mesh(Mesh *mesh)
 {
    // Determine mapping from vertex to boundary vertex
@@ -153,7 +175,7 @@ Mesh *skin_mesh(Mesh *mesh)
    {
       if (v2v[i] >= 0)
       {
-         double *c = mesh->GetVertex(i);
+         real_t *c = mesh->GetVertex(i);
          bmesh->AddVertex(c);
          nbvt++;
       }
@@ -184,7 +206,7 @@ Mesh *skin_mesh(Mesh *mesh)
             bmesh->AddQuad(bv, el->GetAttribute());
             break;
          default:
-            break; /// This should not happen
+            break; // This should not happen
       }
 
    }
@@ -227,10 +249,23 @@ Mesh *skin_mesh(Mesh *mesh)
    return bmesh;
 }
 
+void recover_bdr_partitioning(const Mesh* mesh, const Array<int>& partitioning,
+                              Array<int>& bdr_partitioning)
+{
+   bdr_partitioning.SetSize(mesh->GetNBE());
+   int info, e;
+   for (int be = 0; be < mesh->GetNBE(); be++)
+   {
+      mesh->GetBdrElementAdjacentElement(be, e, info);
+      bdr_partitioning[be] = partitioning[e];
+   }
+}
+
 int main (int argc, char *argv[])
 {
    int np = 0;
    const char *mesh_file = "../../data/beam-hex.mesh";
+   int visport = 19916;
    bool refine = true;
 
    OptionsParser args(argc, argv);
@@ -240,6 +275,7 @@ int main (int argc, char *argv[])
                   "Load mesh from multiple processors.");
    args.AddOption(&refine, "-ref", "--refinement", "-no-ref", "--no-refinement",
                   "Prepare the mesh for refinement or not.");
+   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.Parse();
    if (!args.Good())
    {
@@ -260,13 +296,28 @@ int main (int argc, char *argv[])
 
    Mesh *mesh;
    Mesh *bdr_mesh = NULL;
-   if (np <= 0)
+
+   // Helper to distinguish whether we use a parallel or serial mesh.
+   const bool use_par_mesh = np > 0;
+
+   // Helper for visualizing the partitioning.
+   Array<int> partitioning;
+   Array<int> bdr_partitioning;
+   Array<int> elem_partitioning;
+   if (!use_par_mesh)
    {
       mesh = new Mesh(mesh_file, 1, refine);
+      partitioning.SetSize(mesh->GetNE());
+      partitioning = 0;
+      bdr_partitioning.SetSize(mesh->GetNBE());
+      bdr_partitioning = 0;
+      elem_partitioning.SetSize(mesh->GetNE());
+      elem_partitioning = 0;
+      np = 1;
    }
    else
    {
-      mesh = read_par_mesh(np, mesh_file);
+      mesh = read_par_mesh(np, mesh_file, partitioning, bdr_partitioning);
       if (mesh == NULL)
       {
          return 3;
@@ -320,21 +371,31 @@ int main (int argc, char *argv[])
       cout << "What would you like to do?\n"
            "r) Refine\n"
            "c) Change curvature\n"
+           "i) Increase space dimension\n"
            "s) Scale\n"
            "t) Transform\n"
            "j) Jitter\n"
-           "v) View\n"
+           "v) View mesh\n"
+           "P) View partitioning\n"
            "m) View materials\n"
            "b) View boundary\n"
+           "B) View boundary partitioning\n"
            "e) View elements\n"
            "h) View element sizes, h\n"
            "k) View element ratios, kappa\n"
+           "J) View scaled Jacobian\n"
+           "l) Plot a function\n"
            "x) Print sub-element stats\n"
            "f) Find physical point in reference space\n"
            "p) Generate a partitioning\n"
            "o) Reorder elements\n"
-           "S) Save in MFEM format\n"
+           "S) Save in MFEM serial format\n"
+           "T) Save in MFEM parallel format using the current partitioning\n"
            "V) Save in VTK format (only linear and quadratic meshes)\n"
+#ifdef MFEM_USE_NETCDF
+           "X) Save in Exodus II format (only linear and quadratic meshes)\n"
+#endif
+           "D) Save as a DataCollection\n"
            "q) Quit\n"
 #ifdef MFEM_USE_ZLIB
            "Z) Save in MFEM format with compression\n"
@@ -357,7 +418,11 @@ int main (int argc, char *argv[])
               "b) Mesh::UniformRefinement() (bisection for tet meshes)\n"
               "u) uniform refinement with a factor\n"
               "g) non-uniform refinement (Gauss-Lobatto) with a factor\n"
+              "n) NURBS refinement with factors\n"
+              "p) NURBS NC-patch refinement with factors\n"
+              "c) NURBS coarsening with a factor\n"
               "l) refine locally using the region() function\n"
+              "r) random refinement with a probability\n"
               "--> " << flush;
          char sk;
          cin >> sk;
@@ -380,9 +445,77 @@ int main (int argc, char *argv[])
                if (ref_factor <= 1 || ref_factor > 32) { break; }
                int ref_type = (sk == 'u') ? BasisType::ClosedUniform :
                               BasisType::GaussLobatto;
-               Mesh *rmesh = new Mesh(mesh, ref_factor, ref_type);
-               delete mesh;
-               mesh = rmesh;
+               *mesh = Mesh::MakeRefined(*mesh, ref_factor, ref_type);
+               break;
+            }
+            case 'n':
+            {
+               Array<int> ref_factors(dim);
+               cout << "enter refinement factor, 1st dimension --> " << flush;
+               cin >> ref_factors[0];
+               cout << "enter refinement factor, 2nd dimension --> " << flush;
+               cin >> ref_factors[1];
+               if (dim == 3)
+               {
+                  cout << "enter refinement factor, 3rd dimension --> "
+                       << flush;
+                  cin >> ref_factors[2];
+               }
+               for (auto ref_factor : ref_factors)
+                  if (ref_factor <= 1 || ref_factor > 32) { break; }
+
+               char input_tol = 'n';
+               cout << "enter NURBS tolerance? [y/n] --> " << flush;
+               cin >> input_tol;
+
+               real_t tol = 1.0e-12;  // Default value
+               if (input_tol == 'y')
+               {
+                  cout << "enter NURBS tolerance --> " << flush;
+                  cin >> tol;
+               }
+
+               mesh->NURBSUniformRefinement(ref_factors, tol);
+               break;
+            }
+            case 'p':
+            {
+               int ref_factor;
+               cout << "enter default refinement factor --> " << flush;
+               cin >> ref_factor;
+               if (ref_factor <= 1 || ref_factor > 32) { break; }
+
+               cout << "enter knot vector refinement factor filename? [y/n] ---> " << flush;
+               char input_kvf = 'n';
+               cin >> input_kvf;
+               std::string kvf;
+               if (input_kvf == 'y')
+               {
+                  cout << "enter filename ---> " << flush;
+                  cin >> kvf;
+               }
+               mesh->RefineNURBSWithKVFactors(ref_factor, kvf);
+               break;
+            }
+            case 'c':
+            {
+               cout << "enter coarsening factor --> " << flush;
+               int coarsen_factor;
+               cin >> coarsen_factor;
+               if (coarsen_factor <= 1 || coarsen_factor > 32) { break; }
+
+               char input_tol = 'n';
+               cout << "enter NURBS tolerance? [y/n] --> " << flush;
+               cin >> input_tol;
+
+               real_t tol = 1.0e-12;  // Default value
+               if (input_tol == 'y')
+               {
+                  cout << "enter NURBS tolerance --> " << flush;
+                  cin >> tol;
+               }
+
+               mesh->NURBSCoarsening(coarsen_factor, tol);
                break;
             }
             case 'l':
@@ -407,8 +540,50 @@ int main (int argc, char *argv[])
                mesh->GeneralRefinement(marked_elements);
                break;
             }
+            case 'r':
+            {
+               bool nc_simplices = true;
+               mesh->EnsureNCMesh(nc_simplices);
+               cout << "enter probability --> " << flush;
+               real_t probability;
+               cin >> probability;
+               if (probability < 0.0 || probability > 1.0) { break; }
+               mesh->RandomRefinement(probability);
+               break;
+            }
          }
          print_char = 1;
+      }
+
+      if (mk == 'i')
+      {
+         int curr_sdim = mesh->SpaceDimension();
+         cout << "Current space dimension is " << curr_sdim << "\n";
+         cout << "Enter new space dimension --> " << flush;
+         int new_sdim;
+         cin >> new_sdim;
+         if (new_sdim > curr_sdim && new_sdim <= 3)
+         {
+            if (mesh->GetNodes() == NULL)
+            {
+               mesh->SetCurvature(1, false, new_sdim); // Set Space Dimension
+               mesh->SetCurvature(-1); // Remove Nodes GridFunction created
+               //                      // by the previous line
+            }
+            else
+            {
+               const FiniteElementSpace *fes = mesh->GetNodalFESpace();
+               const int order = fes->GetMaxElementOrder();
+               const FiniteElementCollection *fec = fes->FEColl();
+               const bool discont = dynamic_cast<const L2_FECollection*>(fec);
+               mesh->SetCurvature(order, discont, new_sdim);
+            }
+         }
+         else
+         {
+            cout << "New space dimension must be greater than current space "
+                 << "dimension and less than 4." << endl;
+         }
       }
 
       if (mk == 'c')
@@ -422,7 +597,7 @@ int main (int argc, char *argv[])
 
       if (mk == 's')
       {
-         double factor;
+         real_t factor;
          cout << "scaling factor ---> " << flush;
          cin >> factor;
 
@@ -431,7 +606,7 @@ int main (int argc, char *argv[])
          {
             for (int i = 0; i < mesh->GetNV(); i++)
             {
-               double *v = mesh->GetVertex(i);
+               real_t *v = mesh->GetVertex(i);
                v[0] *= factor;
                v[1] *= factor;
                if (dim == 3)
@@ -450,13 +625,165 @@ int main (int argc, char *argv[])
 
       if (mk == 't')
       {
-         mesh->Transform(transformation);
+         char type;
+         cout << "Choose a transformation:\n"
+              "u) User-defined transform through mesh-explorer::transformation()\n"
+              "a) Affine transform\n"
+              "k) Kershaw transform\n"
+              "s) Spiral transform\n"<< "---> " << flush;
+         cin >> type;
+         if (type == 'u')
+         {
+            mesh->Transform(transformation);
+         }
+         else if (type == 'a')
+         {
+            DenseMatrix A(sdim);
+            Vector b(sdim);
+
+            char tmtype;
+            cout << "Type of transformation matrix:\n"
+                 "i) Identity\n"
+                 "r) Rotation\n"
+                 "s) Scale\n"
+                 "g) General\n" << " ---> " << flush;
+            cin >> tmtype;
+
+            if (tmtype == 'i')
+            {
+               A = 0.0;
+               A(0,0) = 1.0;
+               if (sdim > 1) { A(1,1) = 1.0; }
+               if (sdim > 2) { A(2,2) = 1.0; }
+            }
+            if (tmtype == 'r')
+            {
+               if (sdim == 2)
+               {
+                  real_t angle_deg;
+                  cout << "Rotation angle (degrees) --> " << flush;
+                  cin >> angle_deg;
+                  const real_t angle = angle_deg * M_PI / 180.0;
+                  A(0,0) = cos(angle);
+                  A(1,0) = sin(angle);
+                  A(0,1) = -A(1,0);
+                  A(1,1) =  A(0,0);
+               }
+               else
+               {
+                  real_t a_deg, b_deg, c_deg;
+                  cout << "Euler angles z-x-z (degrees) --> " << flush;
+                  cin >> a_deg >> b_deg >> c_deg;
+
+                  const real_t alpha = a_deg * M_PI / 180.0;
+                  const real_t beta  = b_deg * M_PI / 180.0;
+                  const real_t gamma = c_deg * M_PI / 180.0;
+
+                  const real_t ca = cos(alpha), sa = sin(alpha);
+                  const real_t cb = cos(beta ), sb = sin(beta );
+                  const real_t cc = cos(gamma), sc = sin(gamma);
+
+                  A(0,0) = ca * cc - cb * sa * sc;
+                  A(0,1) = -ca * sc - cb * cc * sa;
+                  A(0,2) = sa * sb;
+
+                  A(1,0) = cc * sa + ca * cb * sc;
+                  A(1,1) = ca * cb * cc - sa * sc;
+                  A(1,2) = -ca * sb;
+
+                  A(2,0) = sb * sc;
+                  A(2,1) = cc * sb;
+                  A(2,2) = cb;
+               }
+            }
+            if (tmtype == 's')
+            {
+               A = 0.0;
+               cout << "Scale factors for each cartesian direction --> "
+                    << flush;
+               cin >> A(0,0);
+               if (sdim > 1) { cin >> A(1,1); }
+               if (sdim > 2) { cin >> A(2,2); }
+            }
+            if (tmtype == 'g')
+            {
+               cout << "General matrix entries in column major order --> "
+                    << flush;
+               for (int j=0; j<sdim; j++)
+                  for (int i=0; i<sdim; i++)
+                  {
+                     cin >> A(i,j);
+                  }
+
+               const real_t detA = A.Det();
+               if (detA <= 0.0)
+               {
+                  cout << "Warning - transformation matrix has non-positive "
+                       << "determinant. Elements may be flattened or "
+                       << "inverted.\n";
+               }
+            }
+
+            cout << "Translation vector components --> " << flush;
+            cin >> b(0);
+            if (sdim > 1) { cin >> b(1); }
+            if (sdim > 2) { cin >> b(2); }
+
+            common::AffineTransformation affineT(sdim, A, b);
+            mesh->Transform(affineT);
+         }
+         else if (type == 'k')
+         {
+            cout << "Note: For Kershaw transformation, the input must be "
+                 "Cartesian aligned with nx multiple of 6 and "
+                 "both ny and nz multiples of 2."
+                 "Kershaw transform works for 2D meshes also.\n" << flush;
+
+            real_t epsy, epsz = 0.0;
+            cout << "Kershaw transform factor, epsy in (0, 1]) ---> " << flush;
+            cin >> epsy;
+            if (mesh->Dimension() == 3)
+            {
+               cout << "Kershaw transform factor, epsz in (0, 1]) ---> " << flush;
+               cin >> epsz;
+            }
+            common::KershawTransformation kershawT(mesh->Dimension(), epsy, epsz);
+            mesh->Transform(kershawT);
+         }
+         else if (type == 's')
+         {
+            MFEM_VERIFY(mesh->SpaceDimension() >= 2,
+                        "Mesh space dimension must be at least 2 "
+                        "for spiral transformation.\n");
+            cout << "Note: For Spiral transformation, the input mesh is "
+                 "assumed to be in [0,1]^D.\n" << flush;
+            real_t turns, width, gap, height = 1.0;
+            cout << "Number of turns: ---> " << flush;
+            cin >> turns;
+            cout << "Width of spiral arm (e.g. 0.1) ---> " << flush;
+            cin >> width;
+            cout << "Gap between adjacent spiral arms at the end of each turn (e.g. 0.05) ---> "
+                 << flush;
+            cin >> gap;
+            if (mesh->SpaceDimension() == 3)
+            {
+               cout << "Maximum spiral height ---> " << flush;
+               cin >> height;
+            }
+            common::SpiralTransformation spiralT(mesh->SpaceDimension(), turns,
+                                                 width, gap, height);
+            mesh->Transform(spiralT);
+         }
+         else
+         {
+            MFEM_ABORT("Transformation type not supported.");
+         }
          print_char = 1;
       }
 
       if (mk == 'j')
       {
-         double jitter;
+         real_t jitter;
          cout << "jitter factor ---> " << flush;
          cin >> jitter;
 
@@ -527,14 +854,16 @@ int main (int argc, char *argv[])
       {
          int sd, nz = 0;
          DenseMatrix J(dim);
-         double min_det_J, max_det_J, min_det_J_z, max_det_J_z;
-         double min_kappa, max_kappa, max_ratio_det_J_z;
+         real_t min_det_J, max_det_J, min_det_J_z, max_det_J_z;
+         real_t min_kappa, max_kappa, max_ratio_det_J_z;
          min_det_J = min_kappa = infinity();
          max_det_J = max_kappa = max_ratio_det_J_z = -infinity();
          cout << "subdivision factor ---> " << flush;
          cin >> sd;
          Array<int> bad_elems_by_geom(Geometry::NumGeom);
          bad_elems_by_geom = 0;
+         // Only print so many to keep output compact
+         const int max_to_print = 10;
          for (int i = 0; i < mesh->GetNE(); i++)
          {
             Geometry::Type geom = mesh->GetElementBaseGeometry(i);
@@ -550,25 +879,38 @@ int main (int argc, char *argv[])
                T->SetIntPoint(&ir.IntPoint(j));
                Geometries.JacToPerfJac(geom, T->Jacobian(), J);
 
-               double det_J = J.Det();
-               double kappa =
+               real_t det_J = J.Det();
+               real_t kappa =
                   J.CalcSingularvalue(0) / J.CalcSingularvalue(dim-1);
 
-               min_det_J_z = fmin(min_det_J_z, det_J);
-               max_det_J_z = fmax(max_det_J_z, det_J);
+               min_det_J_z = std::min(min_det_J_z, det_J);
+               max_det_J_z = std::max(max_det_J_z, det_J);
 
-               min_kappa = fmin(min_kappa, kappa);
-               max_kappa = fmax(max_kappa, kappa);
+               min_kappa = std::min(min_kappa, kappa);
+               max_kappa = std::max(max_kappa, kappa);
             }
             max_ratio_det_J_z =
-               fmax(max_ratio_det_J_z, max_det_J_z/min_det_J_z);
-            min_det_J = fmin(min_det_J, min_det_J_z);
-            max_det_J = fmax(max_det_J, max_det_J_z);
+               std::max(max_ratio_det_J_z, max_det_J_z/min_det_J_z);
+            min_det_J = std::min(min_det_J, min_det_J_z);
+            max_det_J = std::max(max_det_J, max_det_J_z);
             if (min_det_J_z <= 0.0)
             {
+               if (nz < max_to_print)
+               {
+                  Vector center;
+                  mesh->GetElementCenter(i, center);
+                  cout << "det(J) < 0 = " << min_det_J_z << " in element "
+                       << i << ", centered at: ";
+                  center.Print();
+               }
                nz++;
                bad_elems_by_geom[geom]++;
             }
+         }
+         if (nz >= max_to_print)
+         {
+            cout << "det(J) < 0 for " << nz - max_to_print << " more elements "
+                 << "not printed.\n";
          }
          cout << "\nbad elements = " << nz;
          if (nz)
@@ -648,11 +990,11 @@ int main (int argc, char *argv[])
                  << flush;
             cin >> period;
 
-            double best_cost = infinity();
+            real_t best_cost = infinity();
             for (int i = 0; i < outer; i++)
             {
                int seed = i+1;
-               double cost = mesh->GetGeckoElementOrdering(
+               real_t cost = mesh->GetGeckoElementOrdering(
                                 tentative, inner, window, period, seed, true);
 
                if (cost < best_cost)
@@ -667,12 +1009,10 @@ int main (int argc, char *argv[])
          }
       }
 
-      // These are the cases that open a new GLVis window
+      // These are most of the cases that open a new GLVis window
       if (mk == 'm' || mk == 'b' || mk == 'e' || mk == 'v' || mk == 'h' ||
-          mk == 'k' || mk == 'p')
+          mk == 'k' || mk == 'J' || mk == 'p' || mk == 'B' || mk == 'P')
       {
-         Array<int> bdr_part;
-         Array<int> part(mesh->GetNE());
          FiniteElementSpace *bdr_attr_fespace = NULL;
          FiniteElementSpace *attr_fespace =
             new FiniteElementSpace(mesh, attr_fec);
@@ -683,11 +1023,19 @@ int main (int argc, char *argv[])
          {
             for (int i = 0; i < mesh->GetNE(); i++)
             {
-               part[i] = (attr(i) = mesh->GetAttribute(i)) - 1;
+               attr(i) = mesh->GetAttribute(i);
             }
          }
 
-         if (mk == 'b')
+         if (mk == 'P')
+         {
+            for (int i = 0; i < mesh->GetNE(); i++)
+            {
+               attr(i) = partitioning[i] + 1;
+            }
+         }
+
+         if (mk == 'b' || mk == 'B')
          {
             if (dim == 3)
             {
@@ -695,15 +1043,29 @@ int main (int argc, char *argv[])
                bdr_mesh = skin_mesh(mesh);
                bdr_attr_fespace =
                   new FiniteElementSpace(bdr_mesh, bdr_attr_fec);
-               bdr_part.SetSize(bdr_mesh->GetNE());
                bdr_attr.SetSpace(bdr_attr_fespace);
-               for (int i = 0; i < bdr_mesh->GetNE(); i++)
+               if (mk == 'b')
                {
-                  bdr_part[i] = (bdr_attr(i) = bdr_mesh->GetAttribute(i)) - 1;
+                  for (int i = 0; i < bdr_mesh->GetNE(); i++)
+                  {
+                     bdr_attr(i) = bdr_mesh->GetAttribute(i);
+                  }
+               }
+               else if (mk == 'B')
+               {
+                  for (int i = 0; i < bdr_mesh->GetNE(); i++)
+                  {
+                     bdr_attr(i) = bdr_partitioning[i] + 1;
+                  }
+               }
+               else
+               {
+                  MFEM_WARNING("Unimplemented case.");
                }
             }
             else
             {
+               MFEM_WARNING("Unsupported mesh dimension.");
                attr = 1.0;
             }
          }
@@ -717,7 +1079,7 @@ int main (int argc, char *argv[])
          {
             Array<int> coloring;
             srand(time(0));
-            double a = double(rand()) / (double(RAND_MAX) + 1.);
+            real_t a = rand_real();
             int el0 = (int)floor(a * mesh->GetNE());
             cout << "Generating coloring starting with element " << el0+1
                  << " / " << mesh->GetNE() << endl;
@@ -729,20 +1091,24 @@ int main (int argc, char *argv[])
             cout << "Number of colors: " << attr.Max() + 1 << endl;
             for (int i = 0; i < mesh->GetNE(); i++)
             {
-               // part[i] = i; // checkerboard element coloring
-               attr(i) = part[i] = i; // coloring by element number
+               attr(i) = elem_partitioning[i] = i; // coloring by element number
             }
+            cout << "GLVis keystrokes for mesh element visualization:\n"
+                 << "- F3/F4      - Shrink/Zoom the elements\n"
+                 << "- Ctrl+F3/F4 - 3D: cut holes in element faces \n"
+                 << "- F8         - 3D: toggle visible elements\n"
+                 << "- F9/F10     - 3D: cycle through visible elements\n";
          }
 
          if (mk == 'h')
          {
             DenseMatrix J(dim);
-            double h_min, h_max;
+            real_t h_min, h_max;
             h_min = infinity();
             h_max = -h_min;
             for (int i = 0; i < mesh->GetNE(); i++)
             {
-               int geom = mesh->GetElementBaseGeometry(i);
+               Geometry::Type geom = mesh->GetElementBaseGeometry(i);
                ElementTransformation *T = mesh->GetElementTransformation(i);
                T->SetIntPoint(&Geometries.GetCenter(geom));
                Geometries.JacToPerfJac(geom, T->Jacobian(), J);
@@ -750,11 +1116,11 @@ int main (int argc, char *argv[])
                attr(i) = J.Det();
                if (attr(i) < 0.0)
                {
-                  attr(i) = -pow(-attr(i), 1.0/double(dim));
+                  attr(i) = -pow(-attr(i), 1.0/real_t(dim));
                }
                else
                {
-                  attr(i) = pow(attr(i), 1.0/double(dim));
+                  attr(i) = pow(attr(i), 1.0/real_t(dim));
                }
                h_min = min(h_min, attr(i));
                h_max = max(h_max, attr(i));
@@ -767,7 +1133,7 @@ int main (int argc, char *argv[])
             DenseMatrix J(dim);
             for (int i = 0; i < mesh->GetNE(); i++)
             {
-               int geom = mesh->GetElementBaseGeometry(i);
+               Geometry::Type geom = mesh->GetElementBaseGeometry(i);
                ElementTransformation *T = mesh->GetElementTransformation(i);
                T->SetIntPoint(&Geometries.GetCenter(geom));
                Geometries.JacToPerfJac(geom, T->Jacobian(), J);
@@ -775,9 +1141,50 @@ int main (int argc, char *argv[])
             }
          }
 
+         if (mk == 'J')
+         {
+            // The "scaled Jacobian" is the determinant of the Jacobian scaled
+            // by the l2 norms of its columns. It can be used to identify badly
+            // skewed elements, since it takes values between 0 and 1, with 0
+            // corresponding to a flat element, and 1 to orthogonal columns.
+            DenseMatrix J(dim);
+            int sd;
+            cout << "subdivision factor ---> " << flush;
+            cin >> sd;
+            for (int i = 0; i < mesh->GetNE(); i++)
+            {
+               Geometry::Type geom = mesh->GetElementBaseGeometry(i);
+               ElementTransformation *T = mesh->GetElementTransformation(i);
+
+               RefinedGeometry *RefG = GlobGeometryRefiner.Refine(geom, sd, 1);
+               IntegrationRule &ir = RefG->RefPts;
+
+               // For each element, find the minimal scaled Jacobian in a
+               // lattice of points with the given subdivision factor.
+               attr(i) = infinity();
+               for (int j = 0; j < ir.GetNPoints(); j++)
+               {
+                  T->SetIntPoint(&ir.IntPoint(j));
+                  Geometries.JacToPerfJac(geom, T->Jacobian(), J);
+
+                  // Jacobian determinant
+                  real_t sJ = J.Det();
+
+                  for (int k = 0; k < J.Width(); k++)
+                  {
+                     Vector col;
+                     J.GetColumnReference(k,col);
+                     // Scale by column norms
+                     sJ /= col.Norml2();
+                  }
+
+                  attr(i) = std::min(sJ, attr(i));
+               }
+            }
+         }
+
          if (mk == 'p')
          {
-            int *partitioning = NULL, np;
             cout << "What type of partitioning?\n"
                  "c) Cartesian\n"
                  "s) Simple 1D split of the element sequence\n"
@@ -806,18 +1213,22 @@ int main (int argc, char *argv[])
                      cin >> nxyz[2]; np *= nxyz[2];
                   }
                }
-               partitioning = mesh->CartesianPartitioning(nxyz);
+               int *part = mesh->CartesianPartitioning(nxyz);
+               partitioning = Array<int>(part, mesh->GetNE());
+               delete [] part;
+               recover_bdr_partitioning(mesh, partitioning, bdr_partitioning);
             }
             else if (pk == 's')
             {
                cout << "Enter number of processors: " << flush;
                cin >> np;
 
-               partitioning = new int[mesh->GetNE()];
+               partitioning.SetSize(mesh->GetNE());
                for (int i = 0; i < mesh->GetNE(); i++)
                {
-                  partitioning[i] = i * np / mesh->GetNE();
+                  partitioning[i] = (long long)i * np / mesh->GetNE();
                }
+               recover_bdr_partitioning(mesh, partitioning, bdr_partitioning);
             }
             else
             {
@@ -828,7 +1239,10 @@ int main (int argc, char *argv[])
                }
                cout << "Enter number of processors: " << flush;
                cin >> np;
-               partitioning = mesh->GeneratePartitioning(np, part_method);
+               int *part = mesh->GeneratePartitioning(np, part_method);
+               partitioning = Array<int>(part, mesh->GetNE());
+               delete [] part;
+               recover_bdr_partitioning(mesh, partitioning, bdr_partitioning);
             }
             if (partitioning)
             {
@@ -868,7 +1282,7 @@ int main (int argc, char *argv[])
                     << setw(12) << "total" << '\n';
                cout << " elements  "
                     << setw(12) << min_el
-                    << setw(12) << double(mesh->GetNE())/np
+                    << setw(12) << real_t(mesh->GetNE())/np
                     << setw(12) << max_el
                     << setw(12) << mesh->GetNE() << endl;
             }
@@ -879,13 +1293,11 @@ int main (int argc, char *argv[])
 
             for (int i = 0; i < mesh->GetNE(); i++)
             {
-               attr(i) = part[i] = partitioning[i];
+               attr(i) = partitioning[i] + 1;
             }
-            delete [] partitioning;
          }
 
          char vishost[] = "localhost";
-         int  visport   = 19916;
          socketstream sol_sock(vishost, visport);
          if (sol_sock.is_open())
          {
@@ -905,12 +1317,19 @@ int main (int argc, char *argv[])
                      mesh->Print(sol_sock);
                      for (int i = 0; i < mesh->GetNE(); i++)
                      {
-                        attr(i) = part[i];
+                        attr(i) = partitioning[i];
                      }
                   }
                   else
                   {
-                     mesh->PrintWithPartitioning(part, sol_sock, 1);
+                     if (mk == 'e')
+                     {
+                        mesh->PrintWithPartitioning(elem_partitioning, sol_sock, 1);
+                     }
+                     else
+                     {
+                        mesh->PrintWithPartitioning(partitioning, sol_sock, 1);
+                     }
                   }
                }
                attr.Save(sol_sock);
@@ -927,11 +1346,11 @@ int main (int argc, char *argv[])
             else
             {
                sol_sock << "fem3d_gf_data_keys\n";
-               if (mk == 'v' || mk == 'h' || mk == 'k')
+               if (mk == 'v' || mk == 'h' || mk == 'k' || mk == 'J')
                {
                   mesh->Print(sol_sock);
                }
-               else if (mk == 'b')
+               else if (mk == 'b' || mk == 'B')
                {
                   bdr_mesh->Print(sol_sock);
                   bdr_attr.Save(sol_sock);
@@ -947,15 +1366,22 @@ int main (int argc, char *argv[])
                      mesh->Print(sol_sock);
                      for (int i = 0; i < mesh->GetNE(); i++)
                      {
-                        attr(i) = part[i];
+                        attr(i) = partitioning[i];
                      }
                   }
                   else
                   {
-                     mesh->PrintWithPartitioning(part, sol_sock);
+                     if (mk == 'e')
+                     {
+                        mesh->PrintWithPartitioning(elem_partitioning, sol_sock, 1);
+                     }
+                     else
+                     {
+                        mesh->PrintWithPartitioning(partitioning, sol_sock, 1);
+                     }
                   }
                }
-               if (mk != 'b')
+               if (mk != 'b' && mk != 'B')
                {
                   attr.Save(sol_sock);
                   sol_sock << "maaA";
@@ -980,32 +1406,144 @@ int main (int argc, char *argv[])
          delete bdr_attr_fespace;
       }
 
+      if (mk == 'l')
+      {
+         // Project and plot the function 'f'
+         int p;
+         FiniteElementCollection *fec = NULL;
+         cout << "Enter projection space order: " << flush;
+         cin >> p;
+         if (p >= 1)
+         {
+            fec = new H1_FECollection(p, mesh->Dimension(),
+                                      BasisType::GaussLobatto);
+         }
+         else
+         {
+            fec = new DG_FECollection(-p, mesh->Dimension(),
+                                      BasisType::GaussLegendre);
+         }
+         FiniteElementSpace fes(mesh, fec);
+         GridFunction level(&fes);
+         FunctionCoefficient coeff(f);
+         level.ProjectCoefficient(coeff);
+         char vishost[] = "localhost";
+         socketstream sol_sock(vishost, visport);
+         if (sol_sock.is_open())
+         {
+            sol_sock.precision(14);
+            sol_sock << "solution\n" << *mesh << level << flush;
+         }
+         else
+         {
+            cout << "Unable to connect to "
+                 << vishost << ':' << visport << endl;
+         }
+         delete fec;
+      }
+
       if (mk == 'S')
       {
-         const char mesh_file[] = "mesh-explorer.mesh";
-         ofstream omesh(mesh_file);
+         const char omesh_file[] = "mesh-explorer.mesh";
+         ofstream omesh(omesh_file);
          omesh.precision(14);
          mesh->Print(omesh);
-         cout << "New mesh file: " << mesh_file << endl;
+         cout << "New mesh file: " << omesh_file << endl;
+      }
+
+      if (mk == 'T')
+      {
+         string mesh_prefix("mesh-explorer.mesh."), line;
+         MeshPartitioner partitioner(*mesh, np, partitioning);
+         MeshPart mesh_part;
+         cout << "Enter mesh file prefix or press <enter> to use \""
+              << mesh_prefix << "\": " << flush;
+         // extract and ignore all characters after 'T' up to and including the
+         // new line:
+         cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+         getline(cin, line);
+         if (!line.empty()) { mesh_prefix = line; }
+         int precision;
+         cout << "Enter floating point output precision (num. digits): "
+              << flush;
+         cin >> precision;
+         for (int i = 0; i < np; i++)
+         {
+            partitioner.ExtractPart(i, mesh_part);
+
+            ofstream omesh(MakeParFilename(mesh_prefix, i));
+            omesh.precision(precision);
+            mesh_part.Print(omesh);
+         }
+         cout << "New parallel mesh files: " << mesh_prefix << "<rank>" << endl;
       }
 
       if (mk == 'V')
       {
-         const char mesh_file[] = "mesh-explorer.vtk";
-         ofstream omesh(mesh_file);
+         const char omesh_file[] = "mesh-explorer.vtk";
+         ofstream omesh(omesh_file);
          omesh.precision(14);
          mesh->PrintVTK(omesh);
-         cout << "New VTK mesh file: " << mesh_file << endl;
+         cout << "New VTK mesh file: " << omesh_file << endl;
+      }
+
+#ifdef MFEM_USE_NETCDF
+      if (mk == 'X')
+      {
+         const char omesh_file[] = "mesh-explorer.e";
+         mesh->PrintExodusII(omesh_file);
+         cout << "New Exodus II mesh file: " << omesh_file << endl;
+      }
+#endif
+
+      if (mk == 'D')
+      {
+         cout << "What type of DataCollection?\n"
+              "p) ParaView Data Collection\n"
+              "v) VisIt Data Collection\n"
+              "--> " << flush;
+         char dk;
+         cin >> dk;
+         if (dk == 'p' || dk == 'P')
+         {
+            const char omesh_file[] = "mesh-explorer-paraview";
+            ParaViewDataCollection dc(omesh_file, mesh);
+            if (mesh->GetNodes())
+            {
+               int order = mesh->GetNodes()->FESpace()->GetMaxElementOrder();
+               if (order > 1)
+               {
+                  dc.SetHighOrderOutput(true);
+                  dc.SetLevelsOfDetail(order);
+               }
+            }
+            dc.Save();
+            cout << "New ParaView mesh file: " << omesh_file << endl;
+         }
+         else if (dk == 'v' || dk == 'V')
+         {
+            const char omesh_file[] = "mesh-explorer-visit";
+            VisItDataCollection dc(omesh_file, mesh);
+            dc.SetPrecision(14);
+            dc.Save();
+            cout << "New VisIt mesh file: " << omesh_file << "_000000.mfem_root"
+                 << endl;
+         }
+         else
+         {
+            cout << "Unrecognized DataCollection type: \"" << dk << "\""
+                 << endl;
+         }
       }
 
 #ifdef MFEM_USE_ZLIB
       if (mk == 'Z')
       {
-         const char mesh_file[] = "mesh-explorer.mesh.gz";
-         ofgzstream omesh(mesh_file, "zwb9");
+         const char omesh_file[] = "mesh-explorer.mesh.gz";
+         ofgzstream omesh(omesh_file, "zwb9");
          omesh.precision(14);
          mesh->Print(omesh);
-         cout << "New mesh file: " << mesh_file << endl;
+         cout << "New mesh file: " << omesh_file << endl;
       }
 #endif
 

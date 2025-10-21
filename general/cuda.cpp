@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -9,7 +9,7 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#include "cuda.hpp"
+#include "backends.hpp"
 #include "globals.hpp"
 
 namespace mfem
@@ -24,7 +24,7 @@ void mfem_cuda_error(cudaError_t err, const char *expr, const char *func,
                      const char *file, int line)
 {
    mfem::err << "\n\nCUDA error: (" << expr << ") failed with error:\n --> "
-             << cudaGetErrorString(err)
+             << cudaGetErrorString(err) << " [code: " << (int)err << ']'
              << "\n ... in function: " << func
              << "\n ... in file: " << file << ':' << line << '\n';
    mfem_error();
@@ -61,6 +61,21 @@ void* CuMallocManaged(void** dptr, size_t bytes)
    return *dptr;
 }
 
+void* CuMemAllocHostPinned(void** ptr, size_t bytes)
+{
+#ifdef MFEM_USE_CUDA
+#ifdef MFEM_TRACK_CUDA_MEM
+   mfem::out << "CuMemAllocHostPinned(): allocating " << bytes << " bytes ... "
+             << std::flush;
+#endif
+   MFEM_GPU_CHECK(cudaMallocHost(ptr, bytes));
+#ifdef MFEM_TRACK_CUDA_MEM
+   mfem::out << "done: " << *ptr << std::endl;
+#endif
+#endif
+   return *ptr;
+}
+
 void* CuMemFree(void *dptr)
 {
 #ifdef MFEM_USE_CUDA
@@ -74,6 +89,21 @@ void* CuMemFree(void *dptr)
 #endif
 #endif
    return dptr;
+}
+
+void* CuMemFreeHostPinned(void *ptr)
+{
+#ifdef MFEM_USE_CUDA
+#ifdef MFEM_TRACK_CUDA_MEM
+   mfem::out << "CuMemFreeHostPinned(): deallocating memory @ " << ptr << " ... "
+             << std::flush;
+#endif
+   MFEM_GPU_CHECK(cudaFreeHost(ptr));
+#ifdef MFEM_TRACK_CUDA_MEM
+   mfem::out << "done." << std::endl;
+#endif
+#endif
+   return ptr;
 }
 
 void* CuMemcpyHtoD(void* dst, const void* src, size_t bytes)

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -53,10 +53,18 @@ protected:
 
 public:
    /// Creates an empty table
-   Table() { size = -1; I.Reset(); J.Reset(); }
+   Table() { size = -1; }
 
    /// Copy constructor
    Table(const Table &);
+
+   /** Merge constructors
+       This is used to combine two or three tables into one table.*/
+   Table(const Table &table1,
+         const Table &table2, int offset2);
+   Table(const Table &table1,
+         const Table &table2, int offset2,
+         const Table &table3, int offset3);
 
    /// Assignment operator: deep copy
    Table& operator=(const Table &rhs);
@@ -66,7 +74,7 @@ public:
 
    /** Create a table from a list of connections, see MakeFromList(). */
    Table(int nrows, Array<Connection> &list) : size(-1)
-   { I.Reset(); J.Reset(); MakeFromList(nrows, list); }
+   { MakeFromList(nrows, list); }
 
    /** Create a table with one entry per row with column indices given
        by 'partitioning'. */
@@ -95,7 +103,7 @@ public:
        not called, it returns the number of possible connections established
        by the used constructor. Otherwise, it is exactly the number of
        established connections before calling Finalize(). */
-   inline int Size_of_connections() const { return I[size]; }
+   inline int Size_of_connections() const { HostReadI(); return I[size]; }
 
    /** Returns index of the connection between element i of TYPE I and
        element j of TYPE II. If there is no connection between element i
@@ -119,6 +127,32 @@ public:
    Memory<int> &GetJMemory() { return J; }
    const Memory<int> &GetIMemory() const { return I; }
    const Memory<int> &GetJMemory() const { return J; }
+
+   const int *ReadI(bool on_dev = true) const
+   { return mfem::Read(I, I.Capacity(), on_dev); }
+   int *WriteI(bool on_dev = true)
+   { return mfem::Write(I, I.Capacity(), on_dev); }
+   int *ReadWriteI(bool on_dev = true)
+   { return mfem::ReadWrite(I, I.Capacity(), on_dev); }
+   const int *HostReadI() const
+   { return mfem::Read(I, I.Capacity(), false); }
+   int *HostWriteI()
+   { return mfem::Write(I, I.Capacity(), false); }
+   int *HostReadWriteI()
+   { return mfem::ReadWrite(I, I.Capacity(), false); }
+
+   const int *ReadJ(bool on_dev = true) const
+   { return mfem::Read(J, J.Capacity(), on_dev); }
+   int *WriteJ(bool on_dev = true)
+   { return mfem::Write(J, J.Capacity(), on_dev); }
+   int *ReadWriteJ(bool on_dev = true)
+   { return mfem::ReadWrite(J, J.Capacity(), on_dev); }
+   const int *HostReadJ() const
+   { return mfem::Read(J, J.Capacity(), false); }
+   int *HostWriteJ()
+   { return mfem::Write(J, J.Capacity(), false); }
+   int *HostReadWriteJ()
+   { return mfem::ReadWrite(J, J.Capacity(), false); }
 
    /// @brief Sort the column (TYPE II) indices in each row.
    void SortRows();
@@ -165,7 +199,7 @@ public:
 
    void Clear();
 
-   long MemoryUsage() const;
+   std::size_t MemoryUsage() const;
 
    /// Destroys Table.
    ~Table();
@@ -178,11 +212,16 @@ template <> inline void Swap<Table>(Table &a, Table &b)
 }
 
 ///  Transpose a Table
-void Transpose (const Table &A, Table &At, int _ncols_A = -1);
+void Transpose (const Table &A, Table &At, int ncols_A_ = -1);
 Table * Transpose (const Table &A);
 
-///  Transpose an Array<int>
-void Transpose(const Array<int> &A, Table &At, int _ncols_A = -1);
+///  @brief Transpose an Array<int>.
+///
+/// The array @a A represents a table where each row @a i has exactly one
+/// connection to the column (TYPE II) index specified by @a A[i].
+///
+/// @note The column (TYPE II) indices in each row of @a At will be sorted.
+void Transpose(const Array<int> &A, Table &At, int ncols_A_ = -1);
 
 ///  C = A * B  (as boolean matrices)
 void Mult (const Table &A, const Table &B, Table &C);
@@ -192,7 +231,6 @@ Table * Mult (const Table &A, const Table &B);
 /** Data type STable. STable is similar to Table, but it's for symmetric
     connectivity, i.e. TYPE I is equivalent to TYPE II. In the first
     dimension we put the elements with smaller index. */
-
 class STable : public Table
 {
 public:

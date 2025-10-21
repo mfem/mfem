@@ -1,0 +1,6 @@
+# Options for the eigenvalue solver
+-eps_view
+-eps_converged_reason
+-eps_type gd
+# Options for the spectral transform
+-st_type precond

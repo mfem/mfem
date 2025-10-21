@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -11,29 +11,16 @@
 
 #define CATCH_CONFIG_RUNNER
 #include "mfem.hpp"
-#include "catch.hpp"
+#include "run_unit_tests.hpp"
 
 int main(int argc, char *argv[])
 {
-   // There must be exactly one instance.
-   Catch::Session session;
-
-   // Apply provided command line arguments.
-   int r = session.applyCommandLine(argc, argv);
-   if (r != 0)
-   {
-      return r;
-   }
-
-#ifdef MFEM_USE_MPI
-   // Exclude tests marked as Parallel in a serial run, even when compiled with
-   // MPI. This is done because there is no MPI session initialized.
-   auto cfg = session.configData();
-   cfg.testsOrTags.push_back("~[Parallel]");
-   session.useConfigData(cfg);
+#ifdef MFEM_USE_SINGLE
+   std::cout << "\nThe serial unit tests are not supported in single"
+             " precision.\n\n";
+   return MFEM_SKIP_RETURN_VALUE;
 #endif
 
-   int result = session.run();
-
-   return result;
+   // Exclude parallel tests.
+   return RunCatchSession(argc, argv, {"~[Parallel]"});
 }

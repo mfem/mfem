@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -15,41 +15,42 @@
 #include "../config/config.hpp"
 #include "error.hpp"
 
-#ifdef MFEM_USE_HIP
-#include <hip/hip_runtime.h>
-#endif
-
 // HIP block size used by MFEM.
 #define MFEM_HIP_BLOCKS 256
 
-#ifdef MFEM_USE_HIP
+#if defined(MFEM_USE_HIP) && defined(__HIP__)
+#define MFEM_USE_CUDA_OR_HIP
 #define MFEM_DEVICE __device__
-#define MFEM_HOST_DEVICE __host__ __device__
+#define MFEM_HOST __host__
+#define MFEM_LAMBDA __host__ __device__
+// #define MFEM_HOST_DEVICE __host__ __device__ // defined in config/config.hpp
+#define MFEM_DEVICE_SYNC MFEM_GPU_CHECK(hipDeviceSynchronize())
+#define MFEM_STREAM_SYNC MFEM_GPU_CHECK(hipStreamSynchronize(0))
 // Define a HIP error check macro, MFEM_GPU_CHECK(x), where x returns/is of
 // type 'hipError_t'. This macro evaluates 'x' and raises an error if the
 // result is not hipSuccess.
-#define MFEM_GPU_CHECK(x) \
-   do \
-   { \
-      hipError_t err = (x); \
-      if (err != hipSuccess) \
-      { \
-         mfem_hip_error(err, #x, _MFEM_FUNC_NAME, __FILE__, __LINE__); \
-      } \
-   } \
-   while (0)
-#define MFEM_DEVICE_SYNC MFEM_GPU_CHECK(hipDeviceSynchronize())
-#define MFEM_STREAM_SYNC MFEM_GPU_CHECK(hipStreamSynchronize(0))
-#endif // MFEM_USE_HIP
+#define MFEM_GPU_CHECK(x)                                                      \
+  do {                                                                         \
+    hipError_t mfem_err_internal_var_name = (x);                               \
+    if (mfem_err_internal_var_name != hipSuccess) {                            \
+      ::mfem::mfem_hip_error(mfem_err_internal_var_name, #x, _MFEM_FUNC_NAME,  \
+                             __FILE__, __LINE__);                              \
+    }                                                                          \
+  } while (0)
 
 // Define the MFEM inner threading macros
-#if defined(MFEM_USE_HIP) && defined(__ROCM_ARCH__)
+#if defined(__HIP_DEVICE_COMPILE__)
 #define MFEM_SHARED __shared__
 #define MFEM_SYNC_THREAD __syncthreads()
+#define MFEM_BLOCK_ID(k) hipBlockIdx_ ##k
 #define MFEM_THREAD_ID(k) hipThreadIdx_ ##k
 #define MFEM_THREAD_SIZE(k) hipBlockDim_ ##k
-#define MFEM_FOREACH_THREAD(i,k,N) for(int i=hipThreadIdx_ ##k; i<N; i+=hipBlockDim_ ##k)
-#endif
+#define MFEM_FOREACH_THREAD(i,k,N) \
+   for(int i=hipThreadIdx_ ##k; i<N; i+=hipBlockDim_ ##k)
+#define MFEM_FOREACH_THREAD_DIRECT(i,k,N) \
+   if(const int i=hipThreadIdx_ ##k; i<N)
+#endif // defined(__HIP_DEVICE_COMPILE__)
+#endif // defined(MFEM_USE_HIP) && defined(__HIP__)
 
 namespace mfem
 {
@@ -66,8 +67,14 @@ void* HipMemAlloc(void **d_ptr, size_t bytes);
 /// Allocates managed device memory
 void* HipMallocManaged(void **d_ptr, size_t bytes);
 
+/// Allocates page-locked (pinned) host memory
+void* HipMemAllocHostPinned(void **ptr, size_t bytes);
+
 /// Frees device memory
 void* HipMemFree(void *d_ptr);
+
+/// Frees page-locked (pinned) host memory and returns destination ptr.
+void* HipMemFreeHostPinned(void *ptr);
 
 /// Copies memory from Host to Device
 void* HipMemcpyHtoD(void *d_dst, const void *h_src, size_t bytes);

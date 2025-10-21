@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -9,39 +9,39 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#include "catch.hpp"
+#include "unit_tests.hpp"
 #include "mfem.hpp"
 
 namespace mfem
 {
 
-double f1(const Vector &x)
+real_t f1(const Vector &x)
 {
-   double r = cos(x(0)) + sin(x(1));
-   if (x.Size() == 3)
-   {
-      r += cos(x(2));
-   }
+   real_t r = pow(x(0),2);
+   if (x.Size() >= 2) { r += pow(x(1), 3); }
+   if (x.Size() >= 3) { r += pow(x(2), 4); }
    return r;
 }
 
 void gradf1(const Vector &x, Vector &u)
 {
-   u(0) = -sin(x(0));
-   u(1) = cos(x(1));
-   if (x.Size() == 3)
-   {
-      u(2) = -sin(x(2));
-   }
+   u(0) = 2*x(0);
+   if (x.Size() >= 2) { u(1) = 3*pow(x(1), 2); }
+   if (x.Size() >= 3) { u(2) = 4*pow(x(2), 3); }
 }
 
 TEST_CASE("FormRectangular", "[FormRectangularSystemMatrix]")
 {
+   enum FECType { H1, L2_VALUE, L2_INTEGRAL };
+   auto fec_type = GENERATE(FECType::H1, FECType::L2_VALUE,
+                            FECType::L2_INTEGRAL);
+
    SECTION("MixedBilinearForm::FormRectangularSystemMatrix")
    {
-      Mesh mesh(10, 10, Element::QUADRILATERAL, 0, 1.0, 1.0);
+      Mesh mesh = Mesh::MakeCartesian2D(
+                     10, 10, Element::QUADRILATERAL, 0, 1.0, 1.0);
       int dim = mesh.Dimension();
-      int order = 2;
+      int order = 4;
 
       int nattr = mesh.bdr_attributes.Max();
       Array<int> ess_trial_tdof_list, ess_test_tdof_list;
@@ -53,15 +53,28 @@ TEST_CASE("FormRectangular", "[FormRectangularSystemMatrix]")
       // Scalar
       H1_FECollection fec1(order, dim);
       FiniteElementSpace fes1(&mesh, &fec1);
+      fes1.GetEssentialTrueDofs(ess_bdr, ess_trial_tdof_list);
+      GridFunction field(&fes1);
 
       // Vector valued
-      H1_FECollection fec2(order, dim);
-      FiniteElementSpace fes2(&mesh, &fec2, dim);
-
-      fes1.GetEssentialTrueDofs(ess_bdr, ess_trial_tdof_list);
+      std::unique_ptr<FiniteElementCollection> fec2;
+      switch (fec_type)
+      {
+         case FECType::H1:
+            fec2.reset(new H1_FECollection(order, dim));
+            break;
+         case FECType::L2_VALUE:
+            fec2.reset(new L2_FECollection(order, dim, BasisType::GaussLegendre,
+                                           FiniteElement::VALUE));
+            break;
+         case FECType::L2_INTEGRAL:
+            fec2.reset(new L2_FECollection(order, dim, BasisType::GaussLegendre,
+                                           FiniteElement::INTEGRAL));
+            break;
+      }
+      FiniteElementSpace fes2(&mesh, fec2.get(), dim);
       fes2.GetEssentialTrueDofs(ess_bdr, ess_test_tdof_list);
-
-      GridFunction field(&fes1), field2(&fes2);
+      GridFunction field2(&fes2);
 
       MixedBilinearForm gform(&fes1, &fes2);
       gform.AddDomainIntegrator(new GradientIntegrator);
@@ -89,7 +102,7 @@ TEST_CASE("FormRectangular", "[FormRectangularSystemMatrix]")
       G->Mult(field, field2);
 
       subtract(B, field2, field2);
-      REQUIRE(field2.Norml2() == Approx(0.0));
+      REQUIRE(field2.Norml2() == MFEM_Approx(0.0));
    }
 }
 
@@ -100,9 +113,10 @@ TEST_CASE("ParallelFormRectangular",
 {
    SECTION("ParMixedBilinearForm::FormRectangularSystemMatrix")
    {
-      Mesh mesh(10, 10, Element::QUADRILATERAL, 0, 1.0, 1.0);
+      Mesh mesh = Mesh::MakeCartesian2D(
+                     10, 10, Element::QUADRILATERAL, 0, 1.0, 1.0);
       int dim = mesh.Dimension();
-      int order = 2;
+      int order = 4;
 
       int nattr = mesh.bdr_attributes.Max();
       Array<int> ess_trial_tdof_list, ess_test_tdof_list;
@@ -155,11 +169,14 @@ TEST_CASE("ParallelFormRectangular",
       G->Mult(*field_tdof, *field2_tdof);
 
       subtract(B, *field2_tdof, *field2_tdof);
-      REQUIRE(field2_tdof->Norml2() == Approx(0.0));
+      REQUIRE(field2_tdof->Norml2() == MFEM_Approx(0.0));
+
+      delete field2_tdof;
+      delete field_tdof;
    }
 }
 
-TEST_CASE("HypreParMatrixBlocks",
+TEST_CASE("HypreParMatrixBlocksRectangular",
           "[Parallel], [BlockMatrix]")
 {
    SECTION("HypreParMatrixFromBlocks")
@@ -167,7 +184,8 @@ TEST_CASE("HypreParMatrixBlocks",
       int rank;
       MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
-      Mesh mesh(10, 10, Element::QUADRILATERAL, 0, 1.0, 1.0);
+      Mesh mesh = Mesh::MakeCartesian2D(
+                     10, 10, Element::QUADRILATERAL, 0, 1.0, 1.0);
       int dim = mesh.Dimension();
       int order = 2;
 
@@ -230,7 +248,7 @@ TEST_CASE("HypreParMatrixBlocks",
       blockOper.SetBlock(0, 2, BT, 3.14);
       blockOper.SetBlock(1, 2, MW);
 
-      Array2D<HypreParMatrix*> hBlocks(2,3);
+      Array2D<const HypreParMatrix*> hBlocks(2,3);
       hBlocks = NULL;
       hBlocks(0, 0) = MR;
       hBlocks(0, 1) = BT;
@@ -238,7 +256,7 @@ TEST_CASE("HypreParMatrixBlocks",
       hBlocks(0, 2) = BT;
       hBlocks(1, 2) = MW;
 
-      Array2D<double> blockCoeff(2,3);
+      Array2D<real_t> blockCoeff(2,3);
       blockCoeff = 1.0;
       blockCoeff(0, 2) = 3.14;
       HypreParMatrix *H = HypreParMatrixFromBlocks(hBlocks, &blockCoeff);
@@ -255,12 +273,18 @@ TEST_CASE("HypreParMatrixBlocks",
       H->Mult(x, yH);
 
       yH -= yB;
-      double error = yH.Norml2();
-      std::cout << "  order: " << order
+      real_t error = yH.Norml2();
+      mfem::out << "  order: " << order
                 << ", block matrix error norm on rank " << rank << ": " << error << std::endl;
       REQUIRE(error < 1.e-12);
 
       delete H;
+      delete BT;
+      delete B;
+      delete MW;
+      delete MR;
+      delete l2_coll;
+      delete hdiv_coll;
    }
 }
 

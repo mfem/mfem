@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -10,7 +10,7 @@
 // CONTRIBUTING.md for details.
 
 #include "mfem.hpp"
-#include "catch.hpp"
+#include "unit_tests.hpp"
 
 using namespace mfem;
 
@@ -20,21 +20,20 @@ namespace face_elem_trans
 TEST_CASE("3D FaceElementTransformations",
           "[FaceElementTransformations]")
 {
-   int log = 0;
    int n = 1;
-   int dim = 3;
    int order = 1;
 
-   Mesh mesh(n, n, n, Element::TETRAHEDRON, 1, 2.0, 3.0, 5.0);
+   Mesh mesh = Mesh::MakeCartesian3D(
+                  n, n, n, Element::TETRAHEDRON, 2.0, 3.0, 5.0);
 
    SECTION("Transform")
    {
       int npts = 0;
       for (int f=0; f<mesh.GetNFaces(); f++)
       {
-         if (log > 0)
+         if (verbose_tests)
          {
-            std::cout << "Getting trans for face " << f << std::endl;
+            mfem::out << "Getting trans for face " << f << std::endl;
          }
          FaceElementTransformations *T =
             mesh.GetInteriorFaceTransformations(f);
@@ -43,15 +42,15 @@ TEST_CASE("3D FaceElementTransformations",
          {
             const IntegrationRule &ir = IntRules.Get(T->GetGeometryType(),
                                                      2*order + 2);
-            if (log > 0)
+            if (verbose_tests)
             {
-               std::cout << f << " " << T->Elem1No
+               mfem::out << f << " " << T->Elem1No
                          << " " << T->Elem2No << std::endl;
             }
 
-            double tip_data[3];
-            double tip1_data[3];
-            double tip2_data[3];
+            real_t tip_data[3];
+            real_t tip1_data[3];
+            real_t tip2_data[3];
             Vector tip(tip_data, 3);
             Vector tip1(tip1_data, 3);
             Vector tip2(tip2_data, 3);
@@ -70,7 +69,7 @@ TEST_CASE("3D FaceElementTransformations",
 
                tip1 -= tip;
 
-               REQUIRE(tip1.Norml2() == Approx(0.0));
+               REQUIRE(tip1.Norml2() == MFEM_Approx(0.0));
 
                if (T->Elem2)
                {
@@ -79,13 +78,13 @@ TEST_CASE("3D FaceElementTransformations",
 
                   tip2 -= tip;
 
-                  REQUIRE(tip2.Norml2() == Approx(0.0));
+                  REQUIRE(tip2.Norml2() == MFEM_Approx(0.0));
                }
             }
          }
-         if (log > 0)
+         if (verbose_tests)
          {
-            std::cout << "Checked " << npts << " points within face "
+            mfem::out << "Checked " << npts << " points within face "
                       << f << std::endl;
          }
       }

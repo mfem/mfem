@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -16,6 +16,10 @@
 #include "sparsemat.hpp"
 #ifdef MFEM_USE_MPI
 #include "hypre.hpp"
+#endif
+
+#ifdef MFEM_USE_SUITESPARSE
+#include <umfpack.h>
 #endif
 
 namespace mfem
@@ -96,7 +100,7 @@ public:
    /** @brief Real or imaginary part accessor methods
 
        The following accessor methods should only be called if the requested
-       part of the opertor is known to exist.  This can be checked with
+       part of the operator is known to exist. This can be checked with
        hasRealPart() or hasImagPart().
    */
    virtual Operator & real();
@@ -104,10 +108,15 @@ public:
    virtual const Operator & real() const;
    virtual const Operator & imag() const;
 
-   virtual void Mult(const Vector &x, Vector &y) const;
-   virtual void MultTranspose(const Vector &x, Vector &y) const;
+   void Mult(const Vector &x, Vector &y) const override;
+   void MultTranspose(const Vector &x, Vector &y) const override;
+
+   using Operator::Mult;
+   using Operator::MultTranspose;
 
    virtual Type GetType() const { return Complex_Operator; }
+
+   Convention GetConvention() const { return convention_; }
 
 protected:
    // Let this be hidden from the public interface since the implementation
@@ -151,22 +160,87 @@ public:
       : ComplexOperator(A_Real, A_Imag, ownReal, ownImag, convention)
    {}
 
-   virtual SparseMatrix & real();
-   virtual SparseMatrix & imag();
+   SparseMatrix & real() override;
+   SparseMatrix & imag() override;
 
-   virtual const SparseMatrix & real() const;
-   virtual const SparseMatrix & imag() const;
+   const SparseMatrix & real() const override;
+   const SparseMatrix & imag() const override;
 
    /** Combine the blocks making up this complex operator into a single
        SparseMatrix. The resulting matrix can be passed to solvers which require
        access to the matrix entries themselves, such as sparse direct solvers,
-       rather than simply the action of the opertor. Note that this combined
+       rather than simply the action of the operator. Note that this combined
        operator requires roughly twice the memory of the block structured
        operator. */
    SparseMatrix * GetSystemMatrix() const;
 
-   virtual Type GetType() const { return MFEM_ComplexSparseMat; }
+   Type GetType() const override { return MFEM_ComplexSparseMat; }
 };
+
+#ifdef MFEM_USE_SUITESPARSE
+/** @brief Interface with UMFPack solver specialized for ComplexSparseMatrix
+    This approach avoids forming a monolithic SparseMatrix which leads
+    to increased memory and flops
+ */
+class ComplexUMFPackSolver : public Solver
+{
+protected:
+   bool use_long_ints;
+   bool transa;
+   ComplexSparseMatrix *mat;
+
+   void *Numeric;
+   SuiteSparse_long *AI, *AJ;
+
+   void Init();
+
+public:
+   real_t Control[UMFPACK_CONTROL];
+   mutable real_t Info[UMFPACK_INFO];
+
+   /** @brief For larger matrices, if the solver fails, set the parameter @a
+       use_long_ints_ = true. */
+   ComplexUMFPackSolver(bool use_long_ints_ = false, bool transa_ = false)
+      : use_long_ints(use_long_ints_), transa(transa_) { Init(); }
+   /** @brief Factorize the given ComplexSparseMatrix using the defaults.
+       For larger matrices, if the solver fails, set the parameter
+       @a use_long_ints_ = true. */
+   ComplexUMFPackSolver(ComplexSparseMatrix &A, bool use_long_ints_ = false,
+                        bool transa_ = false)
+      : use_long_ints(use_long_ints_), transa(transa_) { Init(); SetOperator(A); }
+
+   /** @brief Factorize the given Operator @a op which must be
+       a ComplexSparseMatrix.
+
+       The factorization uses the parameters set in the #Control data member.
+       @note This method calls SparseMatrix::SortColumnIndices()
+       for real and imag parts of the ComplexSparseMatrix,
+       modifying the matrices if the column indices are not already sorted. */
+   void SetOperator(const Operator &op) override;
+
+   // Set the print level field in the #Control data member.
+   void SetPrintLevel(int print_lvl) { Control[UMFPACK_PRL] = print_lvl; }
+
+   // This determines the action of MultTranspose (see below for details)
+   void SetTransposeSolve(bool transa_) { transa = transa_; }
+
+   /** @brief This is solving the system A x = b */
+   void Mult(const Vector &b, Vector &x) const override;
+
+   /** @brief
+      This is solving the system:
+      A^H x = b (when transa = false)
+      This is equivalent to solving the transpose block system for the
+      case of Convention = HERMITIAN
+      A^T x = b (when transa = true)
+      This is equivalent to solving the transpose block system for the
+      case of Convention = BLOCK_SYMMETRIC */
+   void MultTranspose(const Vector &b, Vector &x) const override;
+
+   virtual ~ComplexUMFPackSolver();
+};
+
+#endif
 
 #ifdef MFEM_USE_MPI
 
@@ -188,27 +262,27 @@ public:
                          bool ownReal, bool ownImag,
                          Convention convention = HERMITIAN);
 
-   virtual HypreParMatrix & real();
-   virtual HypreParMatrix & imag();
+   HypreParMatrix & real() override;
+   HypreParMatrix & imag() override;
 
-   virtual const HypreParMatrix & real() const;
-   virtual const HypreParMatrix & imag() const;
+   const HypreParMatrix & real() const override;
+   const HypreParMatrix & imag() const override;
 
    /** Combine the blocks making up this complex operator into a single
        HypreParMatrix. The resulting matrix can be passed to solvers which
        require access to the matrix entries themselves, such as sparse direct
        solvers or Hypre preconditioners, rather than simply the action of the
-       opertor. Note that this combined operator requires roughly twice the
+       operator. Note that this combined operator requires roughly twice the
        memory of the block structured operator. */
    HypreParMatrix * GetSystemMatrix() const;
 
-   virtual Type GetType() const { return Complex_Hypre_ParCSR; }
+   Type GetType() const override { return Complex_Hypre_ParCSR; }
 
 private:
    void getColStartStop(const HypreParMatrix * A_r,
                         const HypreParMatrix * A_i,
                         int & num_recv_procs,
-                        HYPRE_Int *& offd_col_start_stop) const;
+                        HYPRE_BigInt *& offd_col_start_stop) const;
 
    MPI_Comm comm_;
    int myid_;

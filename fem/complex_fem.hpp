@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -38,14 +38,14 @@ protected:
    void Destroy() { delete gfr; delete gfi; }
 
 public:
-   /* @brief Construct a ComplexGridFunction associated with the
-      FiniteElementSpace @a *f. */
+   /** @brief Construct a ComplexGridFunction associated with the
+       FiniteElementSpace @a *f. */
    ComplexGridFunction(FiniteElementSpace *f);
 
    void Update();
 
    /// Assign constant values to the ComplexGridFunction data.
-   ComplexGridFunction &operator=(const std::complex<double> & value)
+   ComplexGridFunction &operator=(const std::complex<real_t> & value)
    { *gfr = value.real(); *gfi = value.imag(); return *this; }
 
    virtual void ProjectCoefficient(Coefficient &real_coeff,
@@ -70,6 +70,14 @@ public:
    GridFunction & imag() { return *gfi; }
    const GridFunction & real() const { return *gfr; }
    const GridFunction & imag() const { return *gfi; }
+
+   /// Update the memory location of the real and imaginary GridFunction @a gfr
+   /// and @a gfi to match the ComplexGridFunction.
+   void Sync() { gfr->SyncMemory(*this); gfi->SyncMemory(*this); }
+
+   /// Update the alias memory location of the real and imaginary GridFunction
+   /// @a gfr and @a gfi to match the ComplexGridFunction.
+   void SyncAlias() { gfr->SyncAliasMemory(*this); gfi->SyncAliasMemory(*this); }
 
    /// Destroys the grid function.
    virtual ~ComplexGridFunction() { Destroy(); }
@@ -99,8 +107,8 @@ public:
                      ComplexOperator::Convention
                      convention = ComplexOperator::HERMITIAN);
 
-   /** @brief Create a ComplexLinearForm on the FiniteElementSpace @a f, using
-       the same integrators as the LinearForms @a lfr (real) and @a lfi (imag) .
+   /** @brief Create a ComplexLinearForm on the FiniteElementSpace @a fes, using
+       the same integrators as the LinearForms @a lf_r (real) and @a lf_i (imag).
 
        The pointer @a fes is not owned by the newly constructed object.
 
@@ -112,6 +120,10 @@ public:
 
    virtual ~ComplexLinearForm();
 
+   /// Assign constant values to the ComplexLinearForm data.
+   ComplexLinearForm &operator=(const std::complex<real_t> & value)
+   { *lfr = value.real(); *lfi = value.imag(); return *this; }
+
    ComplexOperator::Convention GetConvention() const { return conv; }
    void SetConvention(const ComplexOperator::Convention &
                       convention) { conv = convention; }
@@ -119,6 +131,11 @@ public:
    /// Adds new Domain Integrator.
    void AddDomainIntegrator(LinearFormIntegrator *lfi_real,
                             LinearFormIntegrator *lfi_imag);
+
+   /// Adds new Domain Integrator, restricted to the given attributes.
+   void AddDomainIntegrator(LinearFormIntegrator *lfi_real,
+                            LinearFormIntegrator *lfi_imag,
+                            Array<int> &elem_attr_marker);
 
    /// Adds new Boundary Integrator.
    void AddBoundaryIntegrator(LinearFormIntegrator *lfi_real,
@@ -157,13 +174,21 @@ public:
    const LinearForm & real() const { return *lfr; }
    const LinearForm & imag() const { return *lfi; }
 
+   /// Update the memory location of the real and imaginary LinearForm @a lfr
+   /// and @a lfi to match the ComplexLinearForm.
+   void Sync() { lfr->SyncMemory(*this); lfi->SyncMemory(*this); }
+
+   /// Update the alias memory location of the real and imaginary LinearForm @a
+   /// lfr and @a lfi to match the ComplexLinearForm.
+   void SyncAlias() { lfr->SyncAliasMemory(*this); lfi->SyncAliasMemory(*this); }
+
    void Update();
    void Update(FiniteElementSpace *f);
 
    /// Assembles the linear form i.e. sums over all domain/bdr integrators.
    void Assemble();
 
-   std::complex<double> operator()(const ComplexGridFunction &gf) const;
+   std::complex<real_t> operator()(const ComplexGridFunction &gf) const;
 };
 
 
@@ -195,8 +220,8 @@ private:
    BilinearForm *blfr;
    BilinearForm *blfi;
 
-   /* These methods check if the real/imag parts of the sesqulinear form are not
-      empty */
+   /* These methods check if the real/imag parts of the sesquilinear form are
+      not empty */
    bool RealInteg();
    bool ImagInteg();
 
@@ -204,7 +229,7 @@ public:
    SesquilinearForm(FiniteElementSpace *fes,
                     ComplexOperator::Convention
                     convention = ComplexOperator::HERMITIAN);
-   /** @brief Create a SesquilinearForm on the FiniteElementSpace @a f, using
+   /** @brief Create a SesquilinearForm on the FiniteElementSpace @a fes, using
        the same integrators as the BilinearForms @a bfr and @a bfi .
 
        The pointer @a fes is not owned by the newly constructed object.
@@ -219,6 +244,22 @@ public:
    void SetConvention(const ComplexOperator::Convention &
                       convention) { conv = convention; }
 
+   /// Set the desired assembly level.
+   /** Valid choices are:
+
+       - AssemblyLevel::LEGACY (default)
+       - AssemblyLevel::FULL
+       - AssemblyLevel::PARTIAL
+       - AssemblyLevel::ELEMENT
+       - AssemblyLevel::NONE
+
+       This method must be called before assembly. */
+   void SetAssemblyLevel(AssemblyLevel assembly_level)
+   {
+      blfr->SetAssemblyLevel(assembly_level);
+      blfi->SetAssemblyLevel(assembly_level);
+   }
+
    BilinearForm & real() { return *blfr; }
    BilinearForm & imag() { return *blfi; }
    const BilinearForm & real() const { return *blfr; }
@@ -227,6 +268,11 @@ public:
    /// Adds new Domain Integrator.
    void AddDomainIntegrator(BilinearFormIntegrator *bfi_real,
                             BilinearFormIntegrator *bfi_imag);
+
+   /// Adds new Domain Integrator, restricted to the given attributes.
+   void AddDomainIntegrator(BilinearFormIntegrator *bfi_real,
+                            BilinearFormIntegrator *bfi_imag,
+                            Array<int> &elem_marker);
 
    /// Adds new Boundary Integrator.
    void AddBoundaryIntegrator(BilinearFormIntegrator *bfi_real,
@@ -308,14 +354,14 @@ protected:
 
 public:
 
-   /* @brief Construct a ParComplexGridFunction associated with the
-      ParFiniteElementSpace @a *f. */
+   /** @brief Construct a ParComplexGridFunction associated with the
+       ParFiniteElementSpace @a *pf. */
    ParComplexGridFunction(ParFiniteElementSpace *pf);
 
    void Update();
 
    /// Assign constant values to the ParComplexGridFunction data.
-   ParComplexGridFunction &operator=(const std::complex<double> & value)
+   ParComplexGridFunction &operator=(const std::complex<real_t> & value)
    { *pgfr = value.real(); *pgfi = value.imag(); return *this; }
 
    virtual void ProjectCoefficient(Coefficient &real_coeff,
@@ -350,21 +396,30 @@ public:
    const ParGridFunction & real() const { return *pgfr; }
    const ParGridFunction & imag() const { return *pgfi; }
 
-   virtual double ComputeL2Error(Coefficient &exsolr, Coefficient &exsoli,
+   /// Update the memory location of the real and imaginary ParGridFunction @a
+   /// pgfr and @a pgfi to match the ParComplexGridFunction.
+   void Sync() { pgfr->SyncMemory(*this); pgfi->SyncMemory(*this); }
+
+   /// Update the alias memory location of the real and imaginary
+   /// ParGridFunction @a pgfr and @a pgfi to match the ParComplexGridFunction.
+   void SyncAlias() { pgfr->SyncAliasMemory(*this); pgfi->SyncAliasMemory(*this); }
+
+
+   virtual real_t ComputeL2Error(Coefficient &exsolr, Coefficient &exsoli,
                                  const IntegrationRule *irs[] = NULL) const
    {
-      double err_r = pgfr->ComputeL2Error(exsolr, irs);
-      double err_i = pgfi->ComputeL2Error(exsoli, irs);
+      real_t err_r = pgfr->ComputeL2Error(exsolr, irs);
+      real_t err_i = pgfi->ComputeL2Error(exsoli, irs);
       return sqrt(err_r * err_r + err_i * err_i);
    }
 
-   virtual double ComputeL2Error(VectorCoefficient &exsolr,
+   virtual real_t ComputeL2Error(VectorCoefficient &exsolr,
                                  VectorCoefficient &exsoli,
                                  const IntegrationRule *irs[] = NULL,
                                  Array<int> *elems = NULL) const
    {
-      double err_r = pgfr->ComputeL2Error(exsolr, irs, elems);
-      double err_i = pgfi->ComputeL2Error(exsoli, irs, elems);
+      real_t err_r = pgfr->ComputeL2Error(exsolr, irs, elems);
+      real_t err_i = pgfi->ComputeL2Error(exsoli, irs, elems);
       return sqrt(err_r * err_r + err_i * err_i);
    }
 
@@ -392,7 +447,7 @@ protected:
    ParLinearForm * plfr;
    ParLinearForm * plfi;
 
-   HYPRE_Int * tdof_offsets;
+   HYPRE_BigInt * tdof_offsets;
 
 public:
 
@@ -401,8 +456,8 @@ public:
                         convention = ComplexOperator::HERMITIAN);
 
    /** @brief Create a ParComplexLinearForm on the ParFiniteElementSpace @a pf,
-       using the same integrators as the LinearForms @a plfr (real) and @a plfi
-       (imag) .
+       using the same integrators as the LinearForms @a plf_r (real) and
+       @a plf_i (imag).
 
       The pointer @a fes is not owned by the newly constructed object.
 
@@ -415,6 +470,10 @@ public:
 
    virtual ~ParComplexLinearForm();
 
+   /// Assign constant values to the ParComplexLinearForm data.
+   ParComplexLinearForm &operator=(const std::complex<real_t> & value)
+   { *plfr = value.real(); *plfi = value.imag(); return *this; }
+
    ComplexOperator::Convention GetConvention() const { return conv; }
    void SetConvention(const ComplexOperator::Convention &
                       convention) { conv = convention; }
@@ -422,6 +481,11 @@ public:
    /// Adds new Domain Integrator.
    void AddDomainIntegrator(LinearFormIntegrator *lfi_real,
                             LinearFormIntegrator *lfi_imag);
+
+   /// Adds new Domain Integrator, restricted to specific attributes.
+   void AddDomainIntegrator(LinearFormIntegrator *lfi_real,
+                            LinearFormIntegrator *lfi_imag,
+                            Array<int> &elem_attr_marker);
 
    /// Adds new Boundary Integrator.
    void AddBoundaryIntegrator(LinearFormIntegrator *lfi_real,
@@ -460,6 +524,14 @@ public:
    const ParLinearForm & real() const { return *plfr; }
    const ParLinearForm & imag() const { return *plfi; }
 
+   /// Update the memory location of the real and imaginary ParLinearForm @a lfr
+   /// and @a lfi to match the ParComplexLinearForm.
+   void Sync() { plfr->SyncMemory(*this); plfi->SyncMemory(*this); }
+
+   /// Update the alias memory location of the real and imaginary ParLinearForm
+   /// @a plfr and @a plfi to match the ParComplexLinearForm.
+   void SyncAlias() { plfr->SyncAliasMemory(*this); plfi->SyncAliasMemory(*this); }
+
    void Update(ParFiniteElementSpace *pf = NULL);
 
    /// Assembles the linear form i.e. sums over all domain/bdr integrators.
@@ -471,14 +543,14 @@ public:
    /// Returns the vector assembled on the true dofs, i.e. P^t v.
    HypreParVector *ParallelAssemble();
 
-   std::complex<double> operator()(const ParComplexGridFunction &gf) const;
+   std::complex<real_t> operator()(const ParComplexGridFunction &gf) const;
 
 };
 
 /** Class for a parallel sesquilinear form
 
     A sesquilinear form is a generalization of a bilinear form to complex-valued
-    fields. Sesquilinear forms are linear in the second argument but but the
+    fields. Sesquilinear forms are linear in the second argument but the
     first argument involves a complex conjugate in the sense that:
 
                 a(alpha u, beta v) = conj(alpha) beta a(u, v)
@@ -524,6 +596,22 @@ public:
    void SetConvention(const ComplexOperator::Convention &
                       convention) { conv = convention; }
 
+   /// Set the desired assembly level.
+   /** Valid choices are:
+
+       - AssemblyLevel::LEGACY (default)
+       - AssemblyLevel::FULL
+       - AssemblyLevel::PARTIAL
+       - AssemblyLevel::ELEMENT
+       - AssemblyLevel::NONE
+
+       This method must be called before assembly. */
+   void SetAssemblyLevel(AssemblyLevel assembly_level)
+   {
+      pblfr->SetAssemblyLevel(assembly_level);
+      pblfi->SetAssemblyLevel(assembly_level);
+   }
+
    ParBilinearForm & real() { return *pblfr; }
    ParBilinearForm & imag() { return *pblfi; }
    const ParBilinearForm & real() const { return *pblfr; }
@@ -532,6 +620,11 @@ public:
    /// Adds new Domain Integrator.
    void AddDomainIntegrator(BilinearFormIntegrator *bfi_real,
                             BilinearFormIntegrator *bfi_imag);
+
+   /// Adds new Domain Integrator, restricted to specific attributes.
+   void AddDomainIntegrator(BilinearFormIntegrator *bfi_real,
+                            BilinearFormIntegrator *bfi_imag,
+                            Array<int> &elem_marker);
 
    /// Adds new Boundary Integrator.
    void AddBoundaryIntegrator(BilinearFormIntegrator *bfi_real,

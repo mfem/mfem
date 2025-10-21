@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -109,6 +109,45 @@ ElementMeshStream::ElementMeshStream(Element::Type e)
                << "1 1 1" << endl
                << "0 1 1" << endl;
          break;
+      case Element::WEDGE:
+         *this << "dimension" << endl << 3 << endl
+               << "elements" << endl << 1 << endl
+               << "1 6 0 1 2 3 4 5" << endl
+               << "boundary" << endl << 5 << endl
+               << "1 2 2 1 0" << endl
+               << "1 2 3 4 5" << endl
+               << "1 3 0 1 4 3" << endl
+               << "1 3 1 2 5 4" << endl
+               << "1 3 2 0 3 5" << endl
+               << "vertices" << endl
+               << "6" << endl
+               << "3" << endl
+               << "0 0 0" << endl
+               << "1 0 0" << endl
+               << "0 1 0" << endl
+               << "0 0 1" << endl
+               << "1 0 1" << endl
+               << "0 1 1" << endl;
+         break;
+      case Element::PYRAMID:
+         *this << "dimension" << endl << 3 << endl
+               << "elements" << endl << 1 << endl
+               << "1 7 0 1 2 3 4" << endl
+               << "boundary" << endl << 5 << endl
+               << "1 3 3 2 1 0" << endl
+               << "1 2 0 1 4" << endl
+               << "1 2 1 2 4" << endl
+               << "1 2 3 4 2" << endl
+               << "1 2 0 4 3" << endl
+               << "vertices" << endl
+               << "5" << endl
+               << "3" << endl
+               << "0 0 0" << endl
+               << "1 0 0" << endl
+               << "1 1 0" << endl
+               << "0 1 0" << endl
+               << "0 0 1" << endl;
+         break;
       default:
          mfem_error("Invalid element type!");
          break;
@@ -122,11 +161,11 @@ MergeMeshNodes(Mesh * mesh, int logging)
    int dim  = mesh->Dimension();
    int sdim = mesh->SpaceDimension();
 
-   double h_min, h_max, k_min, k_max;
+   real_t h_min, h_max, k_min, k_max;
    mesh->GetCharacteristics(h_min, h_max, k_min, k_max);
 
    // Set tolerance for merging vertices
-   double tol = 1.0e-8 * h_min;
+   real_t tol = 1.0e-8 * h_min;
 
    if ( logging > 0 )
       cout << "Euler Number of Initial Mesh:  "
@@ -212,6 +251,86 @@ void AttrToMarker(int max_attr, const Array<int> &attrs, Array<int> &marker)
          marker[attr-1] = 1;
       }
    }
+}
+
+void AffineTransformation::Eval(Vector &V, ElementTransformation &T,
+                                const IntegrationPoint &ip)
+{
+   V = 0.0;
+   T.Transform(ip, x);
+
+   if (A.Height() == vdim)
+   {
+      A.Mult(x, V);
+   }
+
+   if (b.Size() == vdim)
+   {
+      V.Add(1.0, b);
+   }
+}
+
+void KershawTransformation::Eval(Vector &V, ElementTransformation &T,
+                                 const IntegrationPoint &ip)
+{
+   V = 0.0;
+   Vector pos(dim);
+   T.Transform(ip, pos);
+   real_t x = pos(0), y = pos(1), z = dim == 3 ? pos(2) : 0;
+   real_t X, Y, Z;
+
+   X = x;
+
+   int layer = x*6.0;
+   real_t lambda = (x-layer/6.0)*6;
+
+   // The x-range is split in 6 layers going from left-to-left, left-to-right,
+   // right-to-left (2 layers), left-to-right and right-to-right yz-faces.
+   switch (layer)
+   {
+      case 0:
+         Y = left(epsy, y);
+         Z = left(epsz, z);
+         break;
+      case 1:
+      case 4:
+         Y = step(left(epsy, y), right(epsy, y), lambda);
+         Z = step(left(epsz, z), right(epsz, z), lambda);
+         break;
+      case 2:
+         Y = step(right(epsy, y), left(epsy, y), lambda/2);
+         Z = step(right(epsz, z), left(epsz, z), lambda/2);
+         break;
+      case 3:
+         Y = step(right(epsy, y), left(epsy, y), (1+lambda)/2);
+         Z = step(right(epsz, z), left(epsz, z), (1+lambda)/2);
+         break;
+      default:
+         Y = right(epsy, y);
+         Z = right(epsz, z);
+         break;
+   }
+   V.SetSize(dim);
+   V(0) = X;
+   V(1) = Y;
+   if (dim == 3) { V(2) = Z; }
+}
+
+void SpiralTransformation::Eval(Vector &V, ElementTransformation &T,
+                                const IntegrationPoint &ip)
+{
+   Vector pos(dim);
+   T.Transform(ip, pos);
+   real_t x = pos(0), y = pos(1), z = dim == 3 ? pos(2) : 0;
+
+   real_t theta = 2.0*M_PI*turns*x;
+   real_t r_min = (0.5-0.5*width) + (gap+width)*turns*x;
+   real_t r_xyz = r_min + (width)*y;
+
+   V.SetSize(dim);
+   V(0) = r_xyz*std::cos(theta);
+   V(1) = r_xyz*std::sin(theta);
+   if (dim == 3) { V(2) = z*width + x*height; }
 }
 
 } // namespace common

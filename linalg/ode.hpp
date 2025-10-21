@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -12,11 +12,98 @@
 #ifndef MFEM_ODE
 #define MFEM_ODE
 
+#include "../general/communication.hpp"
 #include "../config/config.hpp"
 #include "operator.hpp"
+#include <vector>
+#include <memory>
 
 namespace mfem
 {
+
+/// An interface for storing state of previous timesteps
+class ODEStateData
+{
+public:
+   /// Get the maximum number of stored stages
+   virtual int MaxSize() const = 0;
+
+   /// Get the current number of stored stages
+   virtual int Size() const = 0;
+
+   /// Get the ith state vector
+   virtual const Vector &Get(int i) const = 0;
+
+   /// Get the ith state vector - non-const version
+   virtual Vector &Get(int i) = 0;
+
+   /// Get the ith state vector - with a copy
+   virtual void Get(int i, Vector &vec) const = 0;
+
+   /// Set the ith state vector
+   virtual void Set(int i, Vector &state) = 0;
+
+   /// Add state vector and increment state size
+   virtual void Append(Vector &state) = 0;
+
+   /// Virtual destructor
+   virtual ~ODEStateData() = default;
+};
+
+/// An implementation of ODEStateData that stores states in an std::vector<Vector>
+class ODEStateDataVector : public ODEStateData
+{
+private:
+   MemoryType mem_type;
+   int ss, smax;
+   std::vector<Vector> data;
+   Array<int> idx;
+
+public:
+   ODEStateDataVector (int smax): smax(smax)
+   {
+      data.resize(smax);
+      idx.SetSize(smax);
+      ss = 0;
+   };
+
+   /// Set the number of stages and the size of the vectors
+   void  SetSize(int vsize, MemoryType mem_type);
+
+   /// Shift the stage counter for the next timestep
+   inline void ShiftStages()
+   {
+      for (int i = 0; i < smax; i++) { idx[i] = (++idx[i])%smax; }
+   };
+
+   /// Increment the stage counter
+   void Increment() { ss++; ss = std::min(ss,smax); };
+
+   /// Reset the stage counter
+   void Reset() { ss = 0; };
+
+   /// Reference access to the ith vector.
+   inline Vector & operator[](int i) { return data[idx[i]]; };
+
+   /// Const reference access to the ith vector.
+   inline const Vector &operator[](int i) const { return data[idx[i]]; };
+
+   /// Print state data
+   void Print(std::ostream &os = mfem::out) const ;
+
+   int  MaxSize() const override { return smax; };
+
+   int  Size() const override { return ss; };
+
+   const Vector &Get(int i) const override;
+   Vector &Get(int i) override;
+   void Get(int i, Vector &vec) const override;
+
+   void Set(int i, Vector &state) override;
+
+   void Append(Vector &state) override;
+};
+
 
 /// Abstract class for solving systems of ODEs: dx/dt = f(x,t)
 class ODESolver
@@ -35,7 +122,7 @@ public:
        - When the dimensions of the associated TimeDependentOperator change.
        - When a time stepping sequence has to be restarted.
        - To change the associated TimeDependentOperator. */
-   virtual void Init(TimeDependentOperator &f);
+   virtual void Init(TimeDependentOperator &f_);
 
    /** @brief Perform a time step from time @a t [in] to time @a t [out] based
        on the requested step size @a dt [in]. */
@@ -68,7 +155,7 @@ public:
        - If the previous rule has to be broken, e.g. to restart a time stepping
          sequence, then the ODE solver must be re-initialized by calling Init()
          between the two Step() calls. */
-   virtual void Step(Vector &x, double &t, double &dt) = 0;
+   virtual void Step(Vector &x, real_t &t, real_t &dt) = 0;
 
    /// Perform time integration from time @a t [in] to time @a tf [in].
    /** @param[in,out] x   Approximate solution.
@@ -86,12 +173,51 @@ public:
          may be smaller or larger than the input @a dt [in] value, e.g. because
          of time step control.
        - The output value of @a t [out] is not smaller than @a tf [in]. */
-   virtual void Run(Vector &x, double &t, double &dt, double tf)
+   virtual void Run(Vector &x, real_t &t, real_t &dt, real_t tf)
    {
       while (t < tf) { Step(x, t, dt); }
    }
 
+   /// Returns how many State vectors the ODE requires
+   virtual int GetStateSize() { return 0; };
+
+   // Help info for ODESolver options
+   static MFEM_EXPORT std::string ExplicitTypes;
+   static MFEM_EXPORT std::string ImplicitTypes;
+   static MFEM_EXPORT std::string Types;
+
+   /// Function for selecting the desired ODESolver (Explicit and Implicit)
+   /// Returns an ODESolver pointer based on an type
+   /// Caller gets ownership of the object and is responsible for its deletion
+   static MFEM_EXPORT std::unique_ptr<ODESolver> Select(const int ode_solver_type);
+
+   /// Function for selecting the desired Explicit ODESolver
+   /// Returns an ODESolver pointer based on an type
+   /// Caller gets ownership of the object and is responsible for its deletion
+   static MFEM_EXPORT std::unique_ptr<ODESolver> SelectExplicit(
+      const int ode_solver_type);
+
+   /// Function for selecting the desired Implicit ODESolver
+   /// Returns an ODESolver pointer based on an type
+   /// Caller gets ownership of the object and is responsible for its deletion
+   static MFEM_EXPORT std::unique_ptr<ODESolver> SelectImplicit(
+      const int ode_solver_type);
+
    virtual ~ODESolver() { }
+};
+
+/// Abstract class for an ODESolver that has state history implemented as ODEStateData
+class ODESolverWithStates : public ODESolver
+{
+public:
+   /// Returns the StateData
+   virtual ODEStateData& GetState() = 0;
+
+   /// Returns the StateData
+   virtual const ODEStateData& GetState() const = 0;
+
+   /// Returns how many State vectors the ODE requires
+   virtual int GetStateSize() { return GetState().MaxSize(); };
 };
 
 
@@ -102,9 +228,9 @@ private:
    Vector dxdt;
 
 public:
-   virtual void Init(TimeDependentOperator &_f);
+   void Init(TimeDependentOperator &f_) override;
 
-   virtual void Step(Vector &x, double &t, double &dt);
+   void Step(Vector &x, real_t &t, real_t &dt) override;
 };
 
 
@@ -116,15 +242,15 @@ public:
 class RK2Solver : public ODESolver
 {
 private:
-   double a;
+   real_t a;
    Vector dxdt, x1;
 
 public:
-   RK2Solver(const double _a = 2./3.) : a(_a) { }
+   RK2Solver(const real_t a_ = 2./3.) : a(a_) { }
 
-   virtual void Init(TimeDependentOperator &_f);
+   void Init(TimeDependentOperator &f_) override;
 
-   virtual void Step(Vector &x, double &t, double &dt);
+   void Step(Vector &x, real_t &t, real_t &dt) override;
 };
 
 
@@ -135,9 +261,9 @@ private:
    Vector y, k;
 
 public:
-   virtual void Init(TimeDependentOperator &_f);
+   void Init(TimeDependentOperator &f_) override;
 
-   virtual void Step(Vector &x, double &t, double &dt);
+   void Step(Vector &x, real_t &t, real_t &dt) override;
 };
 
 
@@ -148,9 +274,9 @@ private:
    Vector y, k, z;
 
 public:
-   virtual void Init(TimeDependentOperator &_f);
+   void Init(TimeDependentOperator &f_) override;
 
-   virtual void Step(Vector &x, double &t, double &dt);
+   void Step(Vector &x, real_t &t, real_t &dt) override;
 };
 
 
@@ -167,16 +293,16 @@ class ExplicitRKSolver : public ODESolver
 {
 private:
    int s;
-   const double *a, *b, *c;
+   const real_t *a, *b, *c;
    Vector y, *k;
 
 public:
-   ExplicitRKSolver(int _s, const double *_a, const double *_b,
-                    const double *_c);
+   ExplicitRKSolver(int s_, const real_t *a_, const real_t *b_,
+                    const real_t *c_);
 
-   virtual void Init(TimeDependentOperator &_f);
+   void Init(TimeDependentOperator &f_) override;
 
-   virtual void Step(Vector &x, double &t, double &dt);
+   void Step(Vector &x, real_t &t, real_t &dt) override;
 
    virtual ~ExplicitRKSolver();
 };
@@ -187,7 +313,7 @@ public:
 class RK6Solver : public ExplicitRKSolver
 {
 private:
-   static const double a[28], b[8], c[7];
+   static MFEM_EXPORT const real_t a[28], b[8], c[7];
 
 public:
    RK6Solver() : ExplicitRKSolver(8, a, b, c) { }
@@ -199,160 +325,10 @@ public:
 class RK8Solver : public ExplicitRKSolver
 {
 private:
-   static const double a[66], b[12], c[11];
+   static MFEM_EXPORT const real_t a[66], b[12], c[11];
 
 public:
    RK8Solver() : ExplicitRKSolver(12, a, b, c) { }
-};
-
-
-/** An explicit Adams-Bashforth method. */
-class AdamsBashforthSolver : public ODESolver
-{
-private:
-   int s, smax;
-   const double *a;
-   Vector *k;
-   Array<int> idx;
-   ODESolver *RKsolver;
-
-public:
-   AdamsBashforthSolver(int _s, const double *_a);
-
-   virtual void Init(TimeDependentOperator &_f);
-
-   virtual void Step(Vector &x, double &t, double &dt);
-
-   ~AdamsBashforthSolver()
-   {
-      if (RKsolver) { delete RKsolver; }
-   }
-};
-
-
-/** A 1-stage, 1st order AB method.  */
-class AB1Solver : public AdamsBashforthSolver
-{
-private:
-   static const double a[1];
-
-public:
-   AB1Solver() : AdamsBashforthSolver(1, a) { }
-};
-
-/** A 2-stage, 2st order AB method.  */
-class AB2Solver : public AdamsBashforthSolver
-{
-private:
-   static const double a[2];
-
-public:
-   AB2Solver() : AdamsBashforthSolver(2, a) { }
-};
-
-/** A 3-stage, 3st order AB method.  */
-class AB3Solver : public AdamsBashforthSolver
-{
-private:
-   static const double a[3];
-
-public:
-   AB3Solver() : AdamsBashforthSolver(3, a) { }
-};
-
-/** A 4-stage, 4st order AB method.  */
-class AB4Solver : public AdamsBashforthSolver
-{
-private:
-   static const double a[4];
-
-public:
-   AB4Solver() : AdamsBashforthSolver(4, a) { }
-};
-
-/** A 5-stage, 5st order AB method.  */
-class AB5Solver : public AdamsBashforthSolver
-{
-private:
-   static const double a[5];
-
-public:
-   AB5Solver() : AdamsBashforthSolver(5, a) { }
-};
-
-
-/** An implicit Adams-Moulton method. */
-class AdamsMoultonSolver : public ODESolver
-{
-private:
-   int s, smax;
-   const double *a;
-   Vector *k;
-   Array<int> idx;
-   ODESolver *RKsolver;
-
-public:
-   AdamsMoultonSolver(int _s, const double *_a);
-
-   virtual void Init(TimeDependentOperator &_f);
-
-   virtual void Step(Vector &x, double &t, double &dt);
-
-   ~AdamsMoultonSolver()
-   {
-      if (RKsolver) { delete RKsolver; }
-   };
-};
-
-/** A 0-stage, 1st order AM method. */
-class AM0Solver : public AdamsMoultonSolver
-{
-private:
-   static const double a[1];
-
-public:
-   AM0Solver() : AdamsMoultonSolver(0, a) { }
-};
-
-
-/** A 1-stage, 2st order AM method. */
-class AM1Solver : public AdamsMoultonSolver
-{
-private:
-   static const double a[2];
-
-public:
-   AM1Solver() : AdamsMoultonSolver(1, a) { }
-};
-
-/** A 2-stage, 3st order AM method. */
-class AM2Solver : public AdamsMoultonSolver
-{
-private:
-   static const double a[3];
-
-public:
-   AM2Solver() : AdamsMoultonSolver(2, a) { }
-};
-
-/** A 3-stage, 4st order AM method. */
-class AM3Solver : public AdamsMoultonSolver
-{
-private:
-   static const double a[4];
-
-public:
-   AM3Solver() : AdamsMoultonSolver(3, a) { }
-};
-
-/** A 4-stage, 5st order AM method. */
-class AM4Solver : public AdamsMoultonSolver
-{
-private:
-   static const double a[5];
-
-public:
-   AM4Solver() : AdamsMoultonSolver(4, a) { }
 };
 
 
@@ -363,9 +339,9 @@ protected:
    Vector k;
 
 public:
-   virtual void Init(TimeDependentOperator &_f);
+   void Init(TimeDependentOperator &f_) override;
 
-   virtual void Step(Vector &x, double &t, double &dt);
+   void Step(Vector &x, real_t &t, real_t &dt) override;
 };
 
 
@@ -376,9 +352,9 @@ protected:
    Vector k;
 
 public:
-   virtual void Init(TimeDependentOperator &_f);
+   void Init(TimeDependentOperator &f_) override;
 
-   virtual void Step(Vector &x, double &t, double &dt);
+   void Step(Vector &x, real_t &t, real_t &dt) override;
 };
 
 
@@ -391,15 +367,15 @@ public:
 class SDIRK23Solver : public ODESolver
 {
 protected:
-   double gamma;
+   real_t gamma;
    Vector k, y;
 
 public:
    SDIRK23Solver(int gamma_opt = 1);
 
-   virtual void Init(TimeDependentOperator &_f);
+   void Init(TimeDependentOperator &f_) override;
 
-   virtual void Step(Vector &x, double &t, double &dt);
+   void Step(Vector &x, real_t &t, real_t &dt) override;
 };
 
 
@@ -411,9 +387,9 @@ protected:
    Vector k, y, z;
 
 public:
-   virtual void Init(TimeDependentOperator &_f);
+   void Init(TimeDependentOperator &f_) override;
 
-   virtual void Step(Vector &x, double &t, double &dt);
+   void Step(Vector &x, real_t &t, real_t &dt) override;
 };
 
 
@@ -425,33 +401,233 @@ protected:
    Vector k, y;
 
 public:
-   virtual void Init(TimeDependentOperator &_f);
+   void Init(TimeDependentOperator &f_) override;
 
-   virtual void Step(Vector &x, double &t, double &dt);
+   void Step(Vector &x, real_t &t, real_t &dt) override;
+};
+
+
+/** Two stage, explicit singly diagonal implicit Runge-Kutta (ESDIRK) method
+    of order 2. A-stable. */
+class TrapezoidalRuleSolver : public ODESolver
+{
+protected:
+   Vector k, y;
+
+public:
+   void Init(TimeDependentOperator &f_) override;
+
+   void Step(Vector &x, real_t &t, real_t &dt) override;
+};
+
+
+/** Three stage, explicit singly diagonal implicit Runge-Kutta (ESDIRK) method
+    of order 2. L-stable. */
+class ESDIRK32Solver : public ODESolver
+{
+protected:
+   Vector k, y, z;
+
+public:
+   void Init(TimeDependentOperator &f_) override;
+
+   void Step(Vector &x, real_t &t, real_t &dt) override;
+};
+
+
+/** Three stage, explicit singly diagonal implicit Runge-Kutta (ESDIRK) method
+    of order 3. A-stable. */
+class ESDIRK33Solver : public ODESolver
+{
+protected:
+   Vector k, y, z;
+
+public:
+   void Init(TimeDependentOperator &f_) override;
+
+   void Step(Vector &x, real_t &t, real_t &dt) override;
 };
 
 
 /// Generalized-alpha ODE solver from "A generalized-α method for integrating
-/// the filtered Navier–Stokes equations with a stabilized finite element
+/// the filtered Navier-Stokes equations with a stabilized finite element
 /// method" by K.E. Jansen, C.H. Whiting and G.M. Hulbert.
-class GeneralizedAlphaSolver : public ODESolver
+class GeneralizedAlphaSolver : public ODESolverWithStates
 {
-protected:
-   mutable Vector xdot,k,y;
-   double alpha_f, alpha_m, gamma;
-   bool first;
+   ODEStateDataVector state;
 
-   void SetRhoInf(double rho_inf);
-   void PrintProperties(std::ostream &out = mfem::out);
+protected:
+
+   mutable Vector k,y;
+   real_t alpha_f, alpha_m, gamma;
+
+   void SetRhoInf(real_t rho_inf);
+   void PrintProperties(std::ostream &os = mfem::out);
 public:
 
-   GeneralizedAlphaSolver(double rho = 1.0) { SetRhoInf(rho); };
+   GeneralizedAlphaSolver(real_t rho = 1.0) : state(1) { SetRhoInf(rho); };
+   void Init(TimeDependentOperator &f_) override;
+   void Step(Vector &x, real_t &t, real_t &dt) override;
 
-   virtual void Init(TimeDependentOperator &_f);
-
-   virtual void Step(Vector &x, double &t, double &dt);
+   ODEStateData& GetState() override { return state; }
+   const ODEStateData& GetState() const override { return state; }
 };
 
+
+/** An explicit Adams-Bashforth method. */
+class AdamsBashforthSolver : public ODESolverWithStates
+{
+private:
+   const real_t *a;
+   const int stages;
+   real_t dt_;
+   ODEStateDataVector state;
+
+protected:
+   std::unique_ptr<ODESolver> RKsolver;
+
+   inline bool print()
+   {
+#ifdef MFEM_USE_MPI
+      return Mpi::IsInitialized() ? Mpi::Root() : true;
+#else
+      return true;
+#endif
+   }
+
+   void CheckTimestep(real_t dt);
+
+public:
+   AdamsBashforthSolver(int s_, const real_t *a_);
+   void Init(TimeDependentOperator &f_) override;
+   void Step(Vector &x, real_t &t, real_t &dt) override;
+
+   ODEStateData& GetState() override { return state; }
+   const ODEStateData& GetState() const override { return state; }
+};
+
+/** A 1-stage, 1st order AB method.  */
+class AB1Solver : public AdamsBashforthSolver
+{
+private:
+   static MFEM_EXPORT const real_t a[1];
+
+public:
+   AB1Solver() : AdamsBashforthSolver(1, a) { }
+};
+
+/** A 2-stage, 2nd order AB method.  */
+class AB2Solver : public AdamsBashforthSolver
+{
+private:
+   static MFEM_EXPORT const real_t a[2];
+
+public:
+   AB2Solver() : AdamsBashforthSolver(2, a) { RKsolver.reset(new RK2Solver()); }
+};
+
+/** A 3-stage, 3rd order AB method.  */
+class AB3Solver : public AdamsBashforthSolver
+{
+private:
+   static MFEM_EXPORT const real_t a[3];
+
+public:
+   AB3Solver() : AdamsBashforthSolver(3, a) { RKsolver.reset(new RK3SSPSolver()); }
+};
+
+/** A 4-stage, 4th order AB method.  */
+class AB4Solver : public AdamsBashforthSolver
+{
+private:
+   static MFEM_EXPORT const real_t a[4];
+
+public:
+   AB4Solver() : AdamsBashforthSolver(4, a) { RKsolver.reset(new RK4Solver()); }
+};
+
+/** A 5-stage, 5th order AB method.  */
+class AB5Solver : public AdamsBashforthSolver
+{
+private:
+   static MFEM_EXPORT const real_t a[5];
+
+public:
+   AB5Solver() : AdamsBashforthSolver(5, a) { RKsolver.reset(new RK6Solver()); }
+};
+
+
+/** An implicit Adams-Moulton method. */
+class AdamsMoultonSolver : public ODESolverWithStates
+{
+private:
+   const real_t *a;
+   const int stages;
+   real_t dt_;
+   ODEStateDataVector state;
+
+protected:
+   std::unique_ptr<ODESolver> RKsolver;
+
+   inline bool print()
+   {
+#ifdef MFEM_USE_MPI
+      return Mpi::IsInitialized() ? Mpi::Root() : true;
+#else
+      return true;
+#endif
+   }
+
+   void CheckTimestep(real_t dt);
+
+public:
+   AdamsMoultonSolver(int s_, const real_t *a_);
+   void Init(TimeDependentOperator &f_) override;
+   void Step(Vector &x, real_t &t, real_t &dt) override;
+
+   ODEStateData& GetState() override { return state; }
+   const ODEStateData& GetState() const override { return state; }
+};
+
+/** A 1-stage, 2nd order AM method. */
+class AM1Solver : public AdamsMoultonSolver
+{
+private:
+   static MFEM_EXPORT const real_t a[2];
+
+public:
+   AM1Solver() : AdamsMoultonSolver(1, a) { RKsolver.reset(new SDIRK23Solver()); }
+};
+
+/** A 2-stage, 3rd order AM method. */
+class AM2Solver : public AdamsMoultonSolver
+{
+private:
+   static MFEM_EXPORT const real_t a[3];
+
+public:
+   AM2Solver() : AdamsMoultonSolver(2, a) { RKsolver.reset(new SDIRK23Solver()); }
+};
+
+/** A 3-stage, 4th order AM method. */
+class AM3Solver : public AdamsMoultonSolver
+{
+private:
+   static MFEM_EXPORT const real_t a[4];
+
+public:
+   AM3Solver() : AdamsMoultonSolver(3, a) { RKsolver.reset(new SDIRK23Solver()); }
+};
+
+/** A 4-stage, 5th order AM method. */
+class AM4Solver : public AdamsMoultonSolver
+{
+private:
+   static MFEM_EXPORT const real_t a[5];
+
+public:
+   AM4Solver() : AdamsMoultonSolver(4, a) { RKsolver.reset(new SDIRK34Solver()); }
+};
 
 /// The SIASolver class is based on the Symplectic Integration Algorithm
 /// described in "A Symplectic Integration Algorithm for Separable Hamiltonian
@@ -475,9 +651,9 @@ public:
 
    virtual void Init(Operator &P, TimeDependentOperator & F);
 
-   virtual void Step(Vector &q, Vector &p, double &t, double &dt) = 0;
+   virtual void Step(Vector &q, Vector &p, real_t &t, real_t &dt) = 0;
 
-   virtual void Run(Vector &q, Vector &p, double &t, double &dt, double tf)
+   virtual void Run(Vector &q, Vector &p, real_t &t, real_t &dt, real_t tf)
    {
       while (t < tf) { Step(q, p, t, dt); }
    }
@@ -492,34 +668,34 @@ protected:
    mutable Vector dq_;
 };
 
-// First Order Symplectic Integration Algorithm
+/// First Order Symplectic Integration Algorithm
 class SIA1Solver : public SIASolver
 {
 public:
    SIA1Solver() {}
-   void Step(Vector &q, Vector &p, double &t, double &dt);
+   void Step(Vector &q, Vector &p, real_t &t, real_t &dt) override;
 };
 
-// Second Order Symplectic Integration Algorithm
+/// Second Order Symplectic Integration Algorithm
 class SIA2Solver : public SIASolver
 {
 public:
    SIA2Solver() {}
-   void Step(Vector &q, Vector &p, double &t, double &dt);
+   void Step(Vector &q, Vector &p, real_t &t, real_t &dt) override;
 };
 
-// Variable order Symplectic Integration Algorithm (orders 1-4)
+/// Variable order Symplectic Integration Algorithm (orders 1-4)
 class SIAVSolver : public SIASolver
 {
 public:
    SIAVSolver(int order);
-   void Step(Vector &q, Vector &p, double &t, double &dt);
+   void Step(Vector &q, Vector &p, real_t &t, real_t &dt) override;
 
 private:
    int order_;
 
-   Array<double> a_;
-   Array<double> b_;
+   Array<real_t> a_;
+   Array<real_t> b_;
 };
 
 
@@ -531,9 +707,10 @@ protected:
    /// Pointer to the associated TimeDependentOperator.
    SecondOrderTimeDependentOperator *f;  // f(.,.,t) : R^n x R^n --> R^n
    MemoryType mem_type;
+   ODEStateDataVector state;
 
 public:
-   SecondOrderODESolver() : f(NULL) { mem_type = MemoryType::HOST; }
+   SecondOrderODESolver() : f(NULL), state(1) { mem_type = MemoryType::HOST; }
 
    /// Associate a TimeDependentOperator with the ODE solver.
    /** This method has to be called:
@@ -580,7 +757,9 @@ public:
        - If the previous rule has to be broken, e.g. to restart a time stepping
          sequence, then the ODE solver must be re-initialized by calling Init()
          between the two Step() calls. */
-   virtual void Step(Vector &x, Vector &dxdt, double &t, double &dt) = 0;
+   virtual void Step(Vector &x, Vector &dxdt, real_t &t, real_t &dt) = 0;
+   void EulerStep(Vector &x, Vector &dxdt, real_t &t, real_t &dt);
+   void MidPointStep(Vector &x, Vector &dxdt, real_t &t, real_t &dt);
 
    /// Perform time integration from time @a t [in] to time @a tf [in].
    /** @param[in,out] x    Approximate solution.
@@ -601,15 +780,26 @@ public:
          may be smaller or larger than the input @a dt [in] value, e.g. because
          of time step control.
        - The output value of @a t [out] is not smaller than @a tf [in]. */
-   virtual void Run(Vector &x, Vector &dxdt, double &t, double &dt, double tf)
+   virtual void Run(Vector &x, Vector &dxdt, real_t &t, real_t &dt, real_t tf)
    {
       while (t < tf) { Step(x, dxdt, t, dt); }
    }
 
+   /// Functions for getting the state vectors
+   ODEStateData&  GetState() { return state; }
+   const ODEStateData&  GetState() const { return state; }
+
+   /// Returns how many State vectors the ODE requires
+   int GetStateSize() { return GetState().MaxSize(); };
+
+   /// Help info for SecondOrderODESolver options
+   static MFEM_EXPORT std::string Types;
+
+   /// Function selecting the desired SecondOrderODESolver
+   static MFEM_EXPORT SecondOrderODESolver *Select(const int ode_solver_type);
+
    virtual ~SecondOrderODESolver() { }
 };
-
-
 
 /// The classical newmark method.
 /// Newmark, N. M. (1959) A method of computation for structural dynamics.
@@ -617,19 +807,20 @@ public:
 class NewmarkSolver : public SecondOrderODESolver
 {
 private:
-   Vector d2xdt2;
-
-   double beta, gamma;
-   bool first;
+   real_t beta, gamma;
+   bool no_mult;
 
 public:
-   NewmarkSolver(double beta_ = 0.25, double gamma_ = 0.5) { beta = beta_; gamma = gamma_; };
+   NewmarkSolver(real_t beta_ = 0.25, real_t gamma_ = 0.5, bool no_mult_ = false)
+   {
+      beta = beta_;
+      gamma = gamma_;
+      no_mult = no_mult_;
+   };
 
-   virtual void PrintProperties(std::ostream &out = mfem::out);
+   void PrintProperties(std::ostream &os = mfem::out);
 
-   virtual void Init(SecondOrderTimeDependentOperator &_f);
-
-   virtual void Step(Vector &x, Vector &dxdt, double &t, double &dt);
+   void Step(Vector &x, Vector &dxdt, real_t &t, real_t &dt) override;
 };
 
 class LinearAccelerationSolver : public NewmarkSolver
@@ -659,13 +850,14 @@ public:
 class GeneralizedAlpha2Solver : public SecondOrderODESolver
 {
 protected:
-   Vector xa,va,aa,d2xdt2;
-   double alpha_f, alpha_m, beta, gamma;
-   bool first;
+   Vector xa,va,aa;
+   real_t alpha_f, alpha_m, beta, gamma;
+   bool no_mult;
 
 public:
-   GeneralizedAlpha2Solver(double rho_inf = 1.0)
+   GeneralizedAlpha2Solver(real_t rho_inf = 1.0, bool no_mult_ = false)
    {
+      no_mult = no_mult_;
       rho_inf = (rho_inf > 1.0) ? 1.0 : rho_inf;
       rho_inf = (rho_inf < 0.0) ? 0.0 : rho_inf;
 
@@ -675,11 +867,12 @@ public:
       gamma   = 0.5 + alpha_m - alpha_f;
    };
 
-   virtual void PrintProperties(std::ostream &out = mfem::out);
+   void PrintProperties(std::ostream &os = mfem::out);
 
-   virtual void Init(SecondOrderTimeDependentOperator &_f);
+   void Init(SecondOrderTimeDependentOperator &f_) override;
 
-   virtual void Step(Vector &x, Vector &dxdt, double &t, double &dt);
+   void Step(Vector &x, Vector &dxdt, real_t &t, real_t &dt) override;
+
 };
 
 /// The classical midpoint method.
@@ -704,7 +897,7 @@ public:
 class HHTAlphaSolver : public GeneralizedAlpha2Solver
 {
 public:
-   HHTAlphaSolver(double alpha = 1.0)
+   HHTAlphaSolver(real_t alpha = 1.0)
    {
       alpha = (alpha > 1.0) ? 1.0 : alpha;
       alpha = (alpha < 2.0/3.0) ? 2.0/3.0 : alpha;
@@ -725,7 +918,7 @@ public:
 class WBZAlphaSolver : public GeneralizedAlpha2Solver
 {
 public:
-   WBZAlphaSolver(double rho_inf = 1.0)
+   WBZAlphaSolver(real_t rho_inf = 1.0)
    {
       rho_inf = (rho_inf > 1.0) ? 1.0 : rho_inf;
       rho_inf = (rho_inf < 0.0) ? 0.0 : rho_inf;

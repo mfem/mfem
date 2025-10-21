@@ -7,11 +7,20 @@
 //               mpirun -np 4 ex22p -m ../data/inline-quad.mesh -o 3
 //               mpirun -np 4 ex22p -m ../data/inline-quad.mesh -o 3 -p 1
 //               mpirun -np 4 ex22p -m ../data/inline-quad.mesh -o 3 -p 2
+//               mpirun -np 4 ex22p -m ../data/inline-quad.mesh -o 1 -p 1 -pa
 //               mpirun -np 4 ex22p -m ../data/inline-tet.mesh -o 2
 //               mpirun -np 4 ex22p -m ../data/inline-hex.mesh -o 2
 //               mpirun -np 4 ex22p -m ../data/inline-hex.mesh -o 2 -p 1
 //               mpirun -np 4 ex22p -m ../data/inline-hex.mesh -o 2 -p 2
+//               mpirun -np 4 ex22p -m ../data/inline-hex.mesh -o 1 -p 2 -pa
+//               mpirun -np 4 ex22p -m ../data/inline-wedge.mesh -o 1
+//               mpirun -np 4 ex22p -m ../data/inline-pyramid.mesh -o 1
 //               mpirun -np 4 ex22p -m ../data/star.mesh -o 2 -sigma 10.0
+//
+// Device sample runs:
+//               mpirun -np 4 ex22p -m ../data/inline-quad.mesh -o 1 -p 1 -pa -d cuda
+//               mpirun -np 4 ex22p -m ../data/inline-hex.mesh -o 1 -p 2 -pa -d cuda
+//               mpirun -np 4 ex22p -m ../data/star.mesh -o 2 -sigma 10.0 -pa -d cuda
 //
 // Description:  This example code demonstrates the use of MFEM to define and
 //               solve simple complex-valued linear systems. It implements three
@@ -41,7 +50,6 @@
 //               We recommend viewing examples 1, 3 and 4 before viewing this
 //               example.
 
-
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
@@ -49,13 +57,13 @@
 using namespace std;
 using namespace mfem;
 
-static double mu_ = 1.0;
-static double epsilon_ = 1.0;
-static double sigma_ = 20.0;
-static double omega_ = 10.0;
+static real_t mu_ = 1.0;
+static real_t epsilon_ = 1.0;
+static real_t sigma_ = 20.0;
+static real_t omega_ = 10.0;
 
-double u0_real_exact(const Vector &);
-double u0_imag_exact(const Vector &);
+real_t u0_real_exact(const Vector &);
+real_t u0_imag_exact(const Vector &);
 
 void u1_real_exact(const Vector &, Vector &);
 void u1_imag_exact(const Vector &, Vector &);
@@ -67,11 +75,11 @@ bool check_for_inline_mesh(const char * mesh_file);
 
 int main(int argc, char *argv[])
 {
-   // 1. Initialize MPI.
-   int num_procs, myid;
-   MPI_Init(&argc, &argv);
-   MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
-   MPI_Comm_rank(MPI_COMM_WORLD, &myid);
+   // 1. Initialize MPI and HYPRE.
+   Mpi::Init(argc, argv);
+   int num_procs = Mpi::WorldSize();
+   int myid = Mpi::WorldRank();
+   Hypre::Init();
 
    // 2. Parse command-line options.
    const char *mesh_file = "../data/inline-quad.mesh";
@@ -79,11 +87,13 @@ int main(int argc, char *argv[])
    int par_ref_levels = 1;
    int order = 1;
    int prob = 0;
-   double freq = -1.0;
-   double a_coef = 0.0;
+   real_t freq = -1.0;
+   real_t a_coef = 0.0;
    bool visualization = 1;
    bool herm_conv = true;
    bool exact_sol = true;
+   bool pa = false;
+   const char *device_config = "cpu";
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -116,6 +126,10 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
+                  "--no-partial-assembly", "Enable Partial Assembly.");
+   args.AddOption(&device_config, "-d", "--device",
+                  "Device configuration string, see Device::Configure().");
    args.Parse();
    if (!args.Good())
    {
@@ -123,7 +137,6 @@ int main(int argc, char *argv[])
       {
          args.PrintUsage(cout);
       }
-      MPI_Finalize();
       return 1;
    }
    if (myid == 0)
@@ -152,19 +165,24 @@ int main(int argc, char *argv[])
    ComplexOperator::Convention conv =
       herm_conv ? ComplexOperator::HERMITIAN : ComplexOperator::BLOCK_SYMMETRIC;
 
-   // 3. Read the (serial) mesh from the given mesh file on all processors. We
+   // 3. Enable hardware devices such as GPUs, and programming models such as
+   //    CUDA, OCCA, RAJA and OpenMP based on command line options.
+   Device device(device_config);
+   if (myid == 0) { device.Print(); }
+
+   // 4. Read the (serial) mesh from the given mesh file on all processors. We
    //    can handle triangular, quadrilateral, tetrahedral, hexahedral, surface
    //    and volume meshes with the same code.
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
    int dim = mesh->Dimension();
 
-   // 4. Refine the serial mesh on all processors to increase the resolution.
+   // 5. Refine the serial mesh on all processors to increase the resolution.
    for (int l = 0; l < ser_ref_levels; l++)
    {
       mesh->UniformRefinement();
    }
 
-   // 5. Define a parallel mesh by a partitioning of the serial mesh. Refine
+   // 6. Define a parallel mesh by a partitioning of the serial mesh. Refine
    //    this mesh further in parallel to increase the resolution. Once the
    //    parallel mesh is defined, the serial mesh can be deleted.
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
@@ -174,7 +192,7 @@ int main(int argc, char *argv[])
       pmesh->UniformRefinement();
    }
 
-   // 6. Define a parallel finite element space on the parallel mesh. Here we
+   // 7. Define a parallel finite element space on the parallel mesh. Here we
    //    use continuous Lagrange, Nedelec, or Raviart-Thomas finite elements of
    //    the specified order.
    if (dim == 1 && prob != 0 )
@@ -196,13 +214,13 @@ int main(int argc, char *argv[])
       default: break; // This should be unreachable
    }
    ParFiniteElementSpace *fespace = new ParFiniteElementSpace(pmesh, fec);
-   HYPRE_Int size = fespace->GlobalTrueVSize();
+   HYPRE_BigInt size = fespace->GlobalTrueVSize();
    if (myid == 0)
    {
       cout << "Number of finite element unknowns: " << size << endl;
    }
 
-   // 7. Determine the list of true (i.e. parallel conforming) essential
+   // 8. Determine the list of true (i.e. parallel conforming) essential
    //    boundary dofs. In this example, the boundary conditions are defined
    //    based on the type of mesh and the problem type.
    Array<int> ess_tdof_list;
@@ -214,14 +232,14 @@ int main(int argc, char *argv[])
       fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
    }
 
-   // 8. Set up the parallel linear form b(.) which corresponds to the
+   // 9. Set up the parallel linear form b(.) which corresponds to the
    //    right-hand side of the FEM linear system.
    ParComplexLinearForm b(fespace, conv);
-   b.Vector::operator=(0.0);
+   b = 0.0;
 
-   // 9. Define the solution vector u as a parallel complex finite element grid
-   //    function corresponding to fespace. Initialize u with initial guess of
-   //    1+0i or the exact solution if it is known.
+   // 10. Define the solution vector u as a parallel complex finite element grid
+   //     function corresponding to fespace. Initialize u with initial guess of
+   //     1+0i or the exact solution if it is known.
    ParComplexGridFunction u(fespace);
    ParComplexGridFunction * u_exact = NULL;
    if (exact_sol) { u_exact = new ParComplexGridFunction(fespace); }
@@ -241,7 +259,6 @@ int main(int argc, char *argv[])
    VectorConstantCoefficient zeroVecCoef(zeroVec);
    VectorConstantCoefficient oneVecCoef(oneVec);
 
-   u = 0.0;
    switch (prob)
    {
       case 0:
@@ -296,7 +313,7 @@ int main(int argc, char *argv[])
                  << "window_title 'Exact: Imaginary Part'" << flush;
    }
 
-   // 10. Set up the parallel sesquilinear form a(.,.) on the finite element
+   // 11. Set up the parallel sesquilinear form a(.,.) on the finite element
    //     space corresponding to the damped harmonic oscillator operator of the
    //     appropriate type:
    //
@@ -315,6 +332,7 @@ int main(int argc, char *argv[])
    ConstantCoefficient negMassCoef(omega_ * omega_ * epsilon_);
 
    ParSesquilinearForm *a = new ParSesquilinearForm(fespace, conv);
+   if (pa) { a->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
    switch (prob)
    {
       case 0:
@@ -338,7 +356,7 @@ int main(int argc, char *argv[])
       default: break; // This should be unreachable
    }
 
-   // 10a. Set up the parallel bilinear form for the preconditioner
+   // 11a. Set up the parallel bilinear form for the preconditioner
    //      corresponding to the appropriate operator
    //
    //      0) A scalar H1 field
@@ -351,6 +369,7 @@ int main(int argc, char *argv[])
    //         -Grad(a Div) - omega^2 b + omega c
    //
    ParBilinearForm *pcOp = new ParBilinearForm(fespace);
+   if (pa) { pcOp->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
    switch (prob)
    {
       case 0:
@@ -371,7 +390,7 @@ int main(int argc, char *argv[])
       default: break; // This should be unreachable
    }
 
-   // 11. Assemble the parallel bilinear form and the corresponding linear
+   // 12. Assemble the parallel bilinear form and the corresponding linear
    //     system, applying any necessary transformations such as: parallel
    //     assembly, eliminating boundary conditions, applying conforming
    //     constraints for non-conforming AMR, etc.
@@ -382,30 +401,22 @@ int main(int argc, char *argv[])
    Vector B, U;
 
    a->FormLinearSystem(ess_tdof_list, u, b, A, U, B);
-   u = 0.0;
-   U = 0.0;
-
-   OperatorHandle PCOp;
-   pcOp->FormSystemMatrix(ess_tdof_list, PCOp);
 
    if (myid == 0)
    {
-      ComplexHypreParMatrix * Ahyp =
-         dynamic_cast<ComplexHypreParMatrix*>(A.Ptr());
-
       cout << "Size of linear system: "
-           << 2 * Ahyp->real().GetGlobalNumRows() << endl << endl;
+           << 2 * fespace->GlobalTrueVSize() << endl << endl;
    }
 
-   // 12. Define and apply a parallel FGMRES solver for AU=B with a block
+   // 13. Define and apply a parallel FGMRES solver for AU=B with a block
    //     diagonal preconditioner based on the appropriate multigrid
    //     preconditioner from hypre.
    {
       Array<int> blockTrueOffsets;
       blockTrueOffsets.SetSize(3);
       blockTrueOffsets[0] = 0;
-      blockTrueOffsets[1] = PCOp.Ptr()->Height();
-      blockTrueOffsets[2] = PCOp.Ptr()->Height();
+      blockTrueOffsets[1] = A->Height() / 2;
+      blockTrueOffsets[2] = A->Height() / 2;
       blockTrueOffsets.PartialSum();
 
       BlockDiagonalPreconditioner BDP(blockTrueOffsets);
@@ -413,25 +424,34 @@ int main(int argc, char *argv[])
       Operator * pc_r = NULL;
       Operator * pc_i = NULL;
 
-      switch (prob)
+      if (pa)
       {
-         case 0:
-            pc_r = new HypreBoomerAMG(*PCOp.As<HypreParMatrix>());
-            break;
-         case 1:
-            pc_r = new HypreAMS(*PCOp.As<HypreParMatrix>(), fespace);
-            break;
-         case 2:
-            if (dim == 2 )
-            {
+         pc_r = new OperatorJacobiSmoother(*pcOp, ess_tdof_list);
+      }
+      else
+      {
+         OperatorHandle PCOp;
+         pcOp->FormSystemMatrix(ess_tdof_list, PCOp);
+         switch (prob)
+         {
+            case 0:
+               pc_r = new HypreBoomerAMG(*PCOp.As<HypreParMatrix>());
+               break;
+            case 1:
                pc_r = new HypreAMS(*PCOp.As<HypreParMatrix>(), fespace);
-            }
-            else
-            {
-               pc_r = new HypreADS(*PCOp.As<HypreParMatrix>(), fespace);
-            }
-            break;
-         default: break; // This should be unreachable
+               break;
+            case 2:
+               if (dim == 2 )
+               {
+                  pc_r = new HypreAMS(*PCOp.As<HypreParMatrix>(), fespace);
+               }
+               else
+               {
+                  pc_r = new HypreADS(*PCOp.As<HypreParMatrix>(), fespace);
+               }
+               break;
+            default: break; // This should be unreachable
+         }
       }
       pc_i = new ScaledOperator(pc_r,
                                 (conv == ComplexOperator::HERMITIAN) ?
@@ -449,14 +469,14 @@ int main(int argc, char *argv[])
       fgmres.SetPrintLevel(1);
       fgmres.Mult(B, U);
    }
-   // 13. Recover the parallel grid function corresponding to U. This is the
+   // 14. Recover the parallel grid function corresponding to U. This is the
    //     local finite element solution on each processor.
    a->RecoverFEMSolution(U, b, u);
 
    if (exact_sol)
    {
-      double err_r = -1.0;
-      double err_i = -1.0;
+      real_t err_r = -1.0;
+      real_t err_i = -1.0;
 
       switch (prob)
       {
@@ -484,7 +504,7 @@ int main(int argc, char *argv[])
       }
    }
 
-   // 14. Save the refined mesh and the solution in parallel. This output can be
+   // 15. Save the refined mesh and the solution in parallel. This output can be
    //     viewed later using GLVis: "glvis -np <np> -m mesh -g sol".
    {
       ostringstream mesh_name, sol_r_name, sol_i_name;
@@ -504,7 +524,7 @@ int main(int argc, char *argv[])
       u.imag().Save(sol_i_ofs);
    }
 
-   // 15. Send the solution by socket to a GLVis server.
+   // 16. Send the solution by socket to a GLVis server.
    if (visualization)
    {
       char vishost[] = "localhost";
@@ -556,7 +576,7 @@ int main(int argc, char *argv[])
       int i = 0;
       while (sol_sock)
       {
-         double t = (double)(i % num_frames) / num_frames;
+         real_t t = (real_t)(i % num_frames) / num_frames;
          ostringstream oss;
          oss << "Harmonic Solution (t = " << t << " T)";
 
@@ -569,15 +589,13 @@ int main(int argc, char *argv[])
       }
    }
 
-   // 16. Free the used memory.
+   // 17. Free the used memory.
    delete a;
    delete u_exact;
    delete pcOp;
    delete fespace;
    delete fec;
    delete pmesh;
-
-   MPI_Finalize();
 
    return 0;
 }
@@ -590,21 +608,21 @@ bool check_for_inline_mesh(const char * mesh_file)
    return s0 == "inline-";
 }
 
-complex<double> u0_exact(const Vector &x)
+complex<real_t> u0_exact(const Vector &x)
 {
    int dim = x.Size();
-   complex<double> i(0.0, 1.0);
-   complex<double> alpha = (epsilon_ * omega_ - i * sigma_);
-   complex<double> kappa = std::sqrt(mu_ * omega_* alpha);
+   complex<real_t> i(0.0, 1.0);
+   complex<real_t> alpha = (epsilon_ * omega_ - i * sigma_);
+   complex<real_t> kappa = std::sqrt(mu_ * omega_* alpha);
    return std::exp(-i * kappa * x[dim - 1]);
 }
 
-double u0_real_exact(const Vector &x)
+real_t u0_real_exact(const Vector &x)
 {
    return u0_exact(x).real();
 }
 
-double u0_imag_exact(const Vector &x)
+real_t u0_imag_exact(const Vector &x)
 {
    return u0_exact(x).imag();
 }

@@ -1,4 +1,4 @@
-//                               MFEM Example 24
+//                                MFEM Example 24
 //
 // Compile with: make ex24
 //
@@ -7,6 +7,7 @@
 //               ex24 -m ../data/beam-tet.mesh
 //               ex24 -m ../data/beam-hex.mesh -o 2 -pa
 //               ex24 -m ../data/beam-hex.mesh -o 2 -pa -p 1
+//               ex24 -m ../data/beam-hex.mesh -o 2 -pa -p 2
 //               ex24 -m ../data/escher.mesh
 //               ex24 -m ../data/escher.mesh -o 2
 //               ex24 -m ../data/fichera.mesh
@@ -24,12 +25,13 @@
 //               ex24 -m ../data/beam-hex.mesh -pa -d cuda
 //
 // Description:  This example code illustrates usage of mixed finite element
-//               spaces, with two variants:
+//               spaces, with three variants:
 //
 //               1) (grad p, u) for p in H^1 tested against u in H(curl)
-//               2) (div v, q) for v in H(div) tested against q in L_2
+//               2) (curl v, u) for v in H(curl) tested against u in H(div), 3D
+//               3) (div v, q) for v in H(div) tested against q in L_2
 //
-//               Using different approaches, we project the gradient or
+//               Using different approaches, we project the gradient, curl, or
 //               divergence to the appropriate space.
 //
 //               We recommend viewing examples 1, 3, and 5 before viewing this
@@ -42,11 +44,14 @@
 using namespace std;
 using namespace mfem;
 
-double p_exact(const Vector &x);
+real_t p_exact(const Vector &x);
 void gradp_exact(const Vector &, Vector &);
-double div_gradp_exact(const Vector &x);
+real_t div_gradp_exact(const Vector &x);
+void v_exact(const Vector &x, Vector &v);
+void curlv_exact(const Vector &x, Vector &cv);
 
 int dim;
+real_t freq = 1.0, kappa;
 
 int main(int argc, char *argv[])
 {
@@ -65,7 +70,7 @@ int main(int argc, char *argv[])
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree).");
    args.AddOption(&prob, "-p", "--problem-type",
-                  "Choose between 0: H(Curl) or 1: H(Div)");
+                  "Choose between 0: grad, 1: curl, 2: div");
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
                   "--no-static-condensation", "Enable static condensation.");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
@@ -83,6 +88,7 @@ int main(int argc, char *argv[])
       return 1;
    }
    args.PrintOptions(cout);
+   kappa = freq * M_PI;
 
    // 2. Enable hardware devices such as GPUs, and programming models such as
    //    CUDA, OCCA, RAJA and OpenMP based on command line options.
@@ -107,7 +113,6 @@ int main(int argc, char *argv[])
          mesh->UniformRefinement();
       }
    }
-   mesh->ReorientTetMesh();
 
    // 5. Define a finite element space on the mesh. Here we use Nedelec or
    //    Raviart-Thomas finite elements of the specified order.
@@ -119,10 +124,15 @@ int main(int argc, char *argv[])
       trial_fec = new H1_FECollection(order, dim);
       test_fec = new ND_FECollection(order, dim);
    }
+   else if (prob == 1)
+   {
+      trial_fec = new ND_FECollection(order, dim);
+      test_fec = new RT_FECollection(order-1, dim);
+   }
    else
    {
-      trial_fec = new RT_FECollection(order - 1, dim);
-      test_fec = new L2_FECollection(order - 1, dim);
+      trial_fec = new RT_FECollection(order-1, dim);
+      test_fec = new L2_FECollection(order-1, dim);
    }
 
    FiniteElementSpace trial_fes(mesh, trial_fec);
@@ -135,6 +145,12 @@ int main(int argc, char *argv[])
    {
       cout << "Number of Nedelec finite element unknowns: " << test_size << endl;
       cout << "Number of H1 finite element unknowns: " << trial_size << endl;
+   }
+   else if (prob == 1)
+   {
+      cout << "Number of Nedelec finite element unknowns: " << trial_size << endl;
+      cout << "Number of Raviart-Thomas finite element unknowns: " << test_size <<
+           endl;
    }
    else
    {
@@ -150,11 +166,17 @@ int main(int argc, char *argv[])
    GridFunction x(&test_fes);
    FunctionCoefficient p_coef(p_exact);
    VectorFunctionCoefficient gradp_coef(sdim, gradp_exact);
+   VectorFunctionCoefficient v_coef(sdim, v_exact);
+   VectorFunctionCoefficient curlv_coef(sdim, curlv_exact);
    FunctionCoefficient divgradp_coef(div_gradp_exact);
 
    if (prob == 0)
    {
       gftrial.ProjectCoefficient(p_coef);
+   }
+   else if (prob == 1)
+   {
+      gftrial.ProjectCoefficient(v_coef);
    }
    else
    {
@@ -178,6 +200,11 @@ int main(int argc, char *argv[])
    {
       a.AddDomainIntegrator(new VectorFEMassIntegrator(one));
       a_mixed.AddDomainIntegrator(new MixedVectorGradientIntegrator(one));
+   }
+   else if (prob == 1)
+   {
+      a.AddDomainIntegrator(new VectorFEMassIntegrator(one));
+      a_mixed.AddDomainIntegrator(new MixedVectorCurlIntegrator(one));
    }
    else
    {
@@ -244,6 +271,10 @@ int main(int argc, char *argv[])
    {
       dlo.AddDomainInterpolator(new GradientInterpolator());
    }
+   else if (prob == 1)
+   {
+      dlo.AddDomainInterpolator(new CurlInterpolator());
+   }
    else
    {
       dlo.AddDomainInterpolator(new DivergenceInterpolator());
@@ -258,6 +289,10 @@ int main(int argc, char *argv[])
    {
       exact_proj.ProjectCoefficient(gradp_coef);
    }
+   else if (prob == 1)
+   {
+      exact_proj.ProjectCoefficient(curlv_coef);
+   }
    else
    {
       exact_proj.ProjectCoefficient(divgradp_coef);
@@ -269,15 +304,28 @@ int main(int argc, char *argv[])
    // 12. Compute and print the L_2 norm of the error.
    if (prob == 0)
    {
-      double errSol = x.ComputeL2Error(gradp_coef);
-      double errInterp = discreteInterpolant.ComputeL2Error(gradp_coef);
-      double errProj = exact_proj.ComputeL2Error(gradp_coef);
+      real_t errSol = x.ComputeL2Error(gradp_coef);
+      real_t errInterp = discreteInterpolant.ComputeL2Error(gradp_coef);
+      real_t errProj = exact_proj.ComputeL2Error(gradp_coef);
 
       cout << "\n Solution of (E_h,v) = (grad p_h,v) for E_h and v in H(curl): "
            "|| E_h - grad p ||_{L_2} = " << errSol << '\n' << endl;
       cout << " Gradient interpolant E_h = grad p_h in H(curl): || E_h - grad p"
-           "||_{L_2} = " << errInterp << '\n' << endl;
+           " ||_{L_2} = " << errInterp << '\n' << endl;
       cout << " Projection E_h of exact grad p in H(curl): || E_h - grad p "
+           "||_{L_2} = " << errProj << '\n' << endl;
+   }
+   else if (prob == 1)
+   {
+      real_t errSol = x.ComputeL2Error(curlv_coef);
+      real_t errInterp = discreteInterpolant.ComputeL2Error(curlv_coef);
+      real_t errProj = exact_proj.ComputeL2Error(curlv_coef);
+
+      cout << "\n Solution of (E_h,w) = (curl v_h,w) for E_h and w in H(div): "
+           "|| E_h - curl v ||_{L_2} = " << errSol << '\n' << endl;
+      cout << " Curl interpolant E_h = curl v_h in H(div): || E_h - curl v "
+           "||_{L_2} = " << errInterp << '\n' << endl;
+      cout << " Projection E_h of exact curl v in H(div): || E_h - curl v "
            "||_{L_2} = " << errProj << '\n' << endl;
    }
    else
@@ -289,13 +337,13 @@ int main(int argc, char *argv[])
          irs[i] = &(IntRules.Get(i, order_quad));
       }
 
-      double errSol = x.ComputeL2Error(divgradp_coef, irs);
-      double errInterp = discreteInterpolant.ComputeL2Error(divgradp_coef, irs);
-      double errProj = exact_proj.ComputeL2Error(divgradp_coef, irs);
+      real_t errSol = x.ComputeL2Error(divgradp_coef, irs);
+      real_t errInterp = discreteInterpolant.ComputeL2Error(divgradp_coef, irs);
+      real_t errProj = exact_proj.ComputeL2Error(divgradp_coef, irs);
 
       cout << "\n Solution of (f_h,q) = (div v_h,q) for f_h and q in L_2: "
            "|| f_h - div v ||_{L_2} = " << errSol << '\n' << endl;
-      cout << " Divergence interpolant f_h = div v_h in L_2: || f_h - div v"
+      cout << " Divergence interpolant f_h = div v_h in L_2: || f_h - div v "
            "||_{L_2} = " << errInterp << '\n' << endl;
       cout << " Projection f_h of exact div v in L_2: || f_h - div v "
            "||_{L_2} = " << errProj << '\n' << endl;
@@ -328,7 +376,7 @@ int main(int argc, char *argv[])
    return 0;
 }
 
-double p_exact(const Vector &x)
+real_t p_exact(const Vector &x)
 {
    if (dim == 3)
    {
@@ -358,7 +406,7 @@ void gradp_exact(const Vector &x, Vector &f)
    }
 }
 
-double div_gradp_exact(const Vector &x)
+real_t div_gradp_exact(const Vector &x)
 {
    if (dim == 3)
    {
@@ -370,4 +418,34 @@ double div_gradp_exact(const Vector &x)
    }
 
    return 0.0;
+}
+
+void v_exact(const Vector &x, Vector &v)
+{
+   if (dim == 3)
+   {
+      v(0) = sin(kappa * x(1));
+      v(1) = sin(kappa * x(2));
+      v(2) = sin(kappa * x(0));
+   }
+   else
+   {
+      v(0) = sin(kappa * x(1));
+      v(1) = sin(kappa * x(0));
+      if (x.Size() == 3) { v(2) = 0.0; }
+   }
+}
+
+void curlv_exact(const Vector &x, Vector &cv)
+{
+   if (dim == 3)
+   {
+      cv(0) = -kappa * cos(kappa * x(2));
+      cv(1) = -kappa * cos(kappa * x(0));
+      cv(2) = -kappa * cos(kappa * x(1));
+   }
+   else
+   {
+      cv = 0.0;
+   }
 }

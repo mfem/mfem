@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -51,7 +51,7 @@ public:
        Vector constructors for externally allocated array, the pointer @a data
        can be NULL. The data array can be replaced later using the method
        SetData(). */
-   ParLinearForm(ParFiniteElementSpace *pf, double *data) :
+   ParLinearForm(ParFiniteElementSpace *pf, real_t *data) :
       LinearForm(pf, data), pfes(pf) { }
 
    /** @brief Create a ParLinearForm on the ParFiniteElementSpace @a *pf, using
@@ -92,6 +92,38 @@ public:
        @note This method does not perform assembly. */
    void Update(ParFiniteElementSpace *pf, Vector &v, int v_offset);
 
+
+   /** @brief Make the ParLinearForm reference external data on a new
+       FiniteElementSpace. */
+   /** This method changes the FiniteElementSpace associated with the
+       ParLinearForm to @a *f and sets the data of the Vector @a v (plus the @a
+       v_offset) as external data in the ParLinearForm.
+
+       @note This version of the method will also perform bounds checks when the
+       build option MFEM_DEBUG is enabled. */
+   void MakeRef(FiniteElementSpace *f, Vector &v, int v_offset) override;
+
+   /** @brief Make the ParLinearForm reference external data on a new
+       ParFiniteElementSpace. */
+   /** This method changes the ParFiniteElementSpace associated with the
+       ParLinearForm to @a *pf and sets the data of the Vector @a v (plus the @a
+       v_offset) as external data in the ParLinearForm.
+
+       @note This version of the method will also perform bounds checks when the
+       build option MFEM_DEBUG is enabled. */
+   void MakeRef(ParFiniteElementSpace *pf, Vector &v, int v_offset);
+
+   /// Assembles the ParLinearForm i.e. sums over all domain/bdr integrators.
+   /** When @ref LinearForm::UseFastAssembly "UseFastAssembly(true)" has been
+       called and the linear form assembly is compatible with device execution,
+       the assembly will be executed on the device. */
+   void Assemble();
+
+   /// Return true if assembly on device is supported, false otherwise.
+   bool SupportsDevice() const override;
+
+   void AssembleSharedFaces();
+
    /// Assemble the vector on the true dofs, i.e. P^t v.
    void ParallelAssemble(Vector &tv);
 
@@ -99,17 +131,17 @@ public:
    HypreParVector *ParallelAssemble();
 
    /// Return the action of the ParLinearForm as a linear mapping.
-   /** Linear forms are linear functionals which map ParGridFunction%s to
-       the real numbers.  This method performs this mapping which in
-       this case is equivalent as an inner product of the ParLinearForm
-       and ParGridFunction. */
-   double operator()(const ParGridFunction &gf) const
+   /** Linear forms are linear functionals which map ParGridFunction%s to the
+       real numbers. This method performs this mapping which in this case is
+       equivalent as an inner product of the ParLinearForm and
+       ParGridFunction. */
+   real_t operator()(const ParGridFunction &gf) const
    {
       return InnerProduct(pfes->GetComm(), *this, gf);
    }
 
    /// Assign constant values to the ParLinearForm data.
-   ParLinearForm &operator=(double value)
+   ParLinearForm &operator=(real_t value)
    { LinearForm::operator=(value); return *this; }
 
    /// Copy the data from a Vector to the ParLinearForm data.

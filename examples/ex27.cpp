@@ -1,4 +1,4 @@
-//                       MFEM Example 27 - Serial Version
+//                                MFEM Example 27
 //
 // Compile with: make ex27
 //
@@ -10,50 +10,50 @@
 // Description:  This example code demonstrates the use of MFEM to define a
 //               simple finite element discretization of the Laplace problem
 //               -Delta u = 0 with a variety of boundary conditions.
+//
 //               Specifically, we discretize using a FE space of the specified
-//               order using a continuous or discontinuous space.  We then
-//               apply Dirichlet, Neumann (both homogeneous and inhomogeneous),
-//               Robin, and Periodic boundary conditions on different portions
-//               of a predefined mesh.
+//               order using a continuous or discontinuous space. We then apply
+//               Dirichlet, Neumann (both homogeneous and inhomogeneous), Robin,
+//               and Periodic boundary conditions on different portions of a
+//               predefined mesh.
 //
-//               The predefined mesh consists of a rectangle with two
-//               holes removed (see below).  The narrow ends of the
-//               mesh are connected to form a Periodic boundary
-//               condition.  The lower edge (tagged with attribute 1)
-//               receives an inhomogeneous Neumann boundary condition.
-//               A Robin boundary condition is applied to upper edge
-//               (attribute 2).  The circular hole on the left
-//               (attribute 3) enforces a Dirichlet boundary
-//               condition.  Finally, a natural boundary condition, or
-//               homogeneous Neumann BC, is applied to the circular
-//               hole on the right (attribute 4).
+//               The predefined mesh consists of a rectangle with two holes
+//               removed (see below). The narrow ends of the mesh are connected
+//               to form a Periodic boundary condition. The lower edge (tagged
+//               with attribute 1) receives an inhomogeneous Neumann boundary
+//               condition. A Robin boundary condition is applied to upper edge
+//               (attribute 2). The circular hole on the left (attribute 3)
+//               enforces a Dirichlet boundary condition. Finally, a natural
+//               boundary condition, or homogeneous Neumann BC, is applied to
+//               the circular hole on the right (attribute 4).
 //
-//                  Attribute 3    ^ y  Attribute 2
-//                        \        |      /
-//                     +-----------+-----------+
-//                     |    \_     |     _     |
-//                     |    / \    |    / \    |
-//                  <--+---+---+---+---+---+---+--> x
-//                     |    \_/    |    \_/    |
-//                     |           |      \    |
-//                     +-----------+-----------+       (hole radii are
-//                          /      |        \            adjustable)
-//                  Attribute 1    v    Attribute 4
+//                    Attribute 3    ^ y  Attribute 2
+//                          \        |      /
+//                       +-----------+-----------+
+//                       |    \_     |     _     |
+//                       |    / \    |    / \    |
+//                    <--+---+---+---+---+---+---+--> x
+//                       |    \_/    |    \_/    |
+//                       |           |      \    |
+//                       +-----------+-----------+       (hole radii are
+//                            /      |        \            adjustable)
+//                    Attribute 1    v    Attribute 4
 //
-//               The boundary conditions are defined as (where u is
-//               the solution field):
+//               The boundary conditions are defined as (where u is the solution
+//               field):
+//
 //                  Dirichlet: u = d
 //                  Neumann:   n.Grad(u) = g
 //                  Robin:     n.Grad(u) + a u = b
 //
-//               The user can adjust the values of 'd', 'g', 'a', and
-//               'b' with command line options.
+//               The user can adjust the values of 'd', 'g', 'a', and 'b' with
+//               command line options.
 //
 //               This example highlights the differing implementations of
 //               boundary conditions with continuous and discontinuous Galerkin
 //               formulations of the Laplace problem.
 //
-//               We recommend viewing examples 1 and 14 before viewing this
+//               We recommend viewing Examples 1 and 14 before viewing this
 //               example.
 
 #include "mfem.hpp"
@@ -63,7 +63,7 @@
 using namespace std;
 using namespace mfem;
 
-static double a_ = 0.2;
+static real_t a_ = 0.2;
 
 // Normal to hole with boundary attribute 4
 void n4Vec(const Vector &x, Vector &n) { n = x; n[0] -= 0.5; n /= -n.Norml2(); }
@@ -71,27 +71,27 @@ void n4Vec(const Vector &x, Vector &n) { n = x; n[0] -= 0.5; n /= -n.Norml2(); }
 Mesh * GenerateSerialMesh(int ref);
 
 // Compute the average value of alpha*n.Grad(sol) + beta*sol over the boundary
-// attributes marked in bdr_marker.  Also computes the L2 norm of
-// alpha*n.Grad(sol) + beta*sol - gamma  over the same boundary.
-double IntegrateBC(const GridFunction &sol, const Array<int> &bdr_marker,
-                   double alpha, double beta, double gamma,
-                   double &err);
+// attributes marked in bdr_marker. Also computes the L2 norm of
+// alpha*n.Grad(sol) + beta*sol - gamma over the same boundary.
+real_t IntegrateBC(const GridFunction &sol, const Array<int> &bdr_marker,
+                   real_t alpha, real_t beta, real_t gamma,
+                   real_t &error);
 
 int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
    int ser_ref_levels = 2;
    int order = 1;
-   double sigma = -1.0;
-   double kappa = -1.0;
+   real_t sigma = -1.0;
+   real_t kappa = -1.0;
    bool h1 = true;
    bool visualization = true;
 
-   double mat_val = 1.0;
-   double dbc_val = 0.0;
-   double nbc_val = 1.0;
-   double rbc_a_val = 1.0; // du/dn + a * u = b
-   double rbc_b_val = 1.0;
+   real_t mat_val = 1.0;
+   real_t dbc_val = 0.0;
+   real_t nbc_val = 1.0;
+   real_t rbc_a_val = 1.0; // du/dn + a * u = b
+   real_t rbc_b_val = 1.0;
 
    OptionsParser args(argc, argv);
    args.AddOption(&h1, "-h1", "--continuous", "-dg", "--discontinuous",
@@ -152,9 +152,9 @@ int main(int argc, char *argv[])
    Mesh *mesh = GenerateSerialMesh(ser_ref_levels);
    int dim = mesh->Dimension();
 
-   // 3. Define a finite element space on the serial mesh.  Here we
-   //    use either continuous Lagrange finite elements or discontinuous
-   //    Galerkin finite elements of the specified order.
+   // 3. Define a finite element space on the serial mesh. Here we use either
+   //    continuous Lagrange finite elements or discontinuous Galerkin finite
+   //    elements of the specified order.
    FiniteElementCollection *fec =
       h1 ? (FiniteElementCollection*)new H1_FECollection(order, dim) :
       (FiniteElementCollection*)new DG_FECollection(order, dim);
@@ -162,11 +162,10 @@ int main(int argc, char *argv[])
    int size = fespace.GetTrueVSize();
    mfem::out << "Number of finite element unknowns: " << size << endl;
 
-   // 4. Create "marker arrays" to define the portions of the boundary
-   //    associated with each type of boundary condition.  These arrays
-   //    have an entry corresponding to each boundary attribute.
-   //    Placing a '1' in entry i marks attribute i+1 as being
-   //    active, '0' is inactive.
+   // 4. Create "marker arrays" to define the portions of boundary associated
+   //    with each type of boundary condition. These arrays have an entry
+   //    corresponding to each boundary attribute.  Placing a '1' in entry i
+   //    marks attribute i+1 as being active, '0' is inactive.
    Array<int> nbc_bdr(mesh->bdr_attributes.Max());
    Array<int> rbc_bdr(mesh->bdr_attributes.Max());
    Array<int> dbc_bdr(mesh->bdr_attributes.Max());
@@ -178,25 +177,25 @@ int main(int argc, char *argv[])
    Array<int> ess_tdof_list(0);
    if (h1 && mesh->bdr_attributes.Size())
    {
-      // For a continuous basis the linear system must be modifed to enforce
-      // an essential (Dirichlet) boundary condition.  In the DG case this is
-      // not necessary as the boundary condition will only be enforced weakly.
+      // For a continuous basis the linear system must be modified to enforce an
+      // essential (Dirichlet) boundary condition. In the DG case this is not
+      // necessary as the boundary condition will only be enforced weakly.
       fespace.GetEssentialTrueDofs(dbc_bdr, ess_tdof_list);
    }
 
-   // 5. Setup the various coefficients needed for the Laplace operator and
-   //    the various boundary conditions.  In general these coefficients could
-   //    be functions of position but here we use only constants.
+   // 5. Setup the various coefficients needed for the Laplace operator and the
+   //    various boundary conditions. In general these coefficients could be
+   //    functions of position but here we use only constants.
    ConstantCoefficient matCoef(mat_val);
    ConstantCoefficient dbcCoef(dbc_val);
    ConstantCoefficient nbcCoef(nbc_val);
    ConstantCoefficient rbcACoef(rbc_a_val);
    ConstantCoefficient rbcBCoef(rbc_b_val);
 
-   // Since the n.Grad(u) terms arise by integrating -Div(m Grad(u)) by parts
-   // we must introduce the coefficient 'm' into the boundary conditions.
-   // Therefore, in the case of the Neumann BC, we actually enforce
-   // m n.Grad(u) = m g rather than simply n.Grad(u) = g.
+   // Since the n.Grad(u) terms arise by integrating -Div(m Grad(u)) by parts we
+   // must introduce the coefficient 'm' into the boundary conditions.
+   // Therefore, in the case of the Neumann BC, we actually enforce m n.Grad(u)
+   // = m g rather than simply n.Grad(u) = g.
    ProductCoefficient m_nbcCoef(matCoef, nbcCoef);
    ProductCoefficient m_rbcACoef(matCoef, rbcACoef);
    ProductCoefficient m_rbcBCoef(matCoef, rbcBCoef);
@@ -218,7 +217,7 @@ int main(int argc, char *argv[])
    }
    else
    {
-      // Add the interfacial portion of the Lapalce operator
+      // Add the interfacial portion of the Laplace operator
       a.AddInteriorFaceIntegrator(new DGDiffusionIntegrator(matCoef,
                                                             sigma, kappa));
 
@@ -237,7 +236,7 @@ int main(int argc, char *argv[])
 
    if (h1)
    {
-      // Set the Dirchlet values in the solution vector
+      // Set the Dirichlet values in the solution vector
       u.ProjectBdrCoefficient(dbcCoef, dbc_bdr);
 
       // Add the desired value for n.Grad(u) on the Neumann boundary
@@ -248,7 +247,7 @@ int main(int argc, char *argv[])
    }
    else
    {
-      // Add the desired value for the Dirchlet boundary
+      // Add the desired value for the Dirichlet boundary
       b.AddBdrFaceIntegrator(new DGDirichletLFIntegrator(dbcCoef, matCoef,
                                                          sigma, kappa),
                              dbc_bdr);
@@ -292,77 +291,68 @@ int main(int argc, char *argv[])
    umf_solver.Mult(B, X);
 #endif
 
-   // 12. Recover the grid function corresponding to U. This is the
-   //     local finite element solution.
+   // 12. Recover the grid function corresponding to U. This is the local finite
+   //     element solution.
    a.RecoverFEMSolution(X, b, u);
 
-   // 13. Build a mass matrix to help solve for n.Grad(u) where 'n' is
-   //     a surface normal.
-   BilinearForm m(&fespace);
-   m.AddDomainIntegrator(new MassIntegrator);
-   m.Assemble();
-
-   ess_tdof_list.SetSize(0);
-   OperatorPtr M;
-   m.FormSystemMatrix(ess_tdof_list, M);
-
-   // 14. Compute the various boundary integrals.
+   // 13. Compute the various boundary integrals.
    mfem::out << endl
              << "Verifying boundary conditions" << endl
              << "=============================" << endl;
    {
-      // Integrate the solution on the Dirichlet boundary and compare
-      // to the expected value.
-      double err, avg = IntegrateBC(u, dbc_bdr, 0.0, 1.0, dbc_val, err);
+      // Integrate the solution on the Dirichlet boundary and compare to the
+      // expected value.
+      real_t error, avg = IntegrateBC(u, dbc_bdr, 0.0, 1.0, dbc_val, error);
 
       bool hom_dbc = (dbc_val == 0.0);
-      err /=  hom_dbc ? 1.0 : fabs(dbc_val);
+      error /=  hom_dbc ? 1.0 : fabs(dbc_val);
       mfem::out << "Average of solution on Gamma_dbc:\t"
                 << avg << ", \t"
                 << (hom_dbc ? "absolute" : "relative")
-                << " error " << err << endl;
+                << " error " << error << endl;
    }
    {
-      // Integrate n.Grad(u) on the inhomogeneous Neumann boundary and
-      // compare to the expected value.
-      double err, avg = IntegrateBC(u, nbc_bdr, 1.0, 0.0, nbc_val, err);
+      // Integrate n.Grad(u) on the inhomogeneous Neumann boundary and compare
+      // to the expected value.
+      real_t error, avg = IntegrateBC(u, nbc_bdr, 1.0, 0.0, nbc_val, error);
 
       bool hom_nbc = (nbc_val == 0.0);
-      err /=  hom_nbc ? 1.0 : fabs(nbc_val);
+      error /=  hom_nbc ? 1.0 : fabs(nbc_val);
       mfem::out << "Average of n.Grad(u) on Gamma_nbc:\t"
                 << avg << ", \t"
                 << (hom_nbc ? "absolute" : "relative")
-                << " error " << err << endl;
+                << " error " << error << endl;
    }
    {
-      // Integrate n.Grad(u) on the homogeneous Neumann boundary and compare
-      // to the expected value of zero.
+      // Integrate n.Grad(u) on the homogeneous Neumann boundary and compare to
+      // the expected value of zero.
       Array<int> nbc0_bdr(mesh->bdr_attributes.Max());
       nbc0_bdr = 0;
       nbc0_bdr[3] = 1;
 
-      double err, avg = IntegrateBC(u, nbc0_bdr, 1.0, 0.0, 0.0, err);
+      real_t error, avg = IntegrateBC(u, nbc0_bdr, 1.0, 0.0, 0.0, error);
 
       bool hom_nbc = true;
       mfem::out << "Average of n.Grad(u) on Gamma_nbc0:\t"
                 << avg << ", \t"
                 << (hom_nbc ? "absolute" : "relative")
-                << " error " << err << endl;
+                << " error " << error << endl;
    }
    {
-      // Integrate n.Grad(u) + a * u on the Robin boundary and compare to
-      // the expected value.
-      double err, avg = IntegrateBC(u, rbc_bdr, 1.0, rbc_a_val, rbc_b_val, err);
+      // Integrate n.Grad(u) + a * u on the Robin boundary and compare to the
+      // expected value.
+      real_t error;
+      real_t avg = IntegrateBC(u, rbc_bdr, 1.0, rbc_a_val, rbc_b_val, error);
 
       bool hom_rbc = (rbc_b_val == 0.0);
-      err /=  hom_rbc ? 1.0 : fabs(rbc_b_val);
+      error /=  hom_rbc ? 1.0 : fabs(rbc_b_val);
       mfem::out << "Average of n.Grad(u)+a*u on Gamma_rbc:\t"
                 << avg << ", \t"
                 << (hom_rbc ? "absolute" : "relative")
-                << " error " << err << endl;
+                << " error " << error << endl;
    }
 
-   // 15. Save the refined mesh and the solution. This output can be viewed
+   // 14. Save the refined mesh and the solution. This output can be viewed
    //     later using GLVis: "glvis -m refined.mesh -g sol.gf".
    {
       ofstream mesh_ofs("refined.mesh");
@@ -373,7 +363,7 @@ int main(int argc, char *argv[])
       u.Save(sol_ofs);
    }
 
-   // 16. Send the solution by socket to a GLVis server.
+   // 15. Send the solution by socket to a GLVis server.
    if (visualization)
    {
       string title_str = h1 ? "H1" : "DG";
@@ -386,29 +376,29 @@ int main(int argc, char *argv[])
                << " keys 'mmc'" << flush;
    }
 
-   // 17. Free the used memory.
+   // 16. Free the used memory.
    delete fec;
    delete mesh;
 
    return 0;
 }
 
-void quad_trans(double u, double v, double &x, double &y, bool log = false)
+void quad_trans(real_t u, real_t v, real_t &x, real_t &y, bool log = false)
 {
-   double a = a_; // Radius of disc
+   real_t a = a_; // Radius of disc
 
-   double d = 4.0 * a * (M_SQRT2 - 2.0 * a) * (1.0 - 2.0 * v);
+   real_t d = 4.0 * a * (M_SQRT2 - 2.0 * a) * (1.0 - 2.0 * v);
 
-   double v0 = (1.0 + M_SQRT2) * (M_SQRT2 * a - 2.0 * v) *
+   real_t v0 = (1.0 + M_SQRT2) * (M_SQRT2 * a - 2.0 * v) *
                ((4.0 - 3 * M_SQRT2) * a +
                 (8.0 * (M_SQRT2 - 1.0) * a - 2.0) * v) / d;
 
-   double r = 2.0 * ((M_SQRT2 - 1.0) * a * a * (1.0 - 4.0 *v) +
+   real_t r = 2.0 * ((M_SQRT2 - 1.0) * a * a * (1.0 - 4.0 *v) +
                      2.0 * (1.0 + M_SQRT2 *
                             (1.0 + 2.0 * (2.0 * a - M_SQRT2 - 1.0) * a)) * v * v
                     ) / d;
 
-   double t = asin(v / r) * u / v;
+   real_t t = asin(v / r) * u / v;
    if (log)
    {
       mfem::out << "u, v, r, v0, t "
@@ -421,7 +411,7 @@ void quad_trans(double u, double v, double &x, double &y, bool log = false)
 
 void trans(const Vector &u, Vector &x)
 {
-   double tol = 1e-4;
+   real_t tol = 1e-4;
 
    if (u[1] > 0.5 - tol || u[1] < -0.5 + tol)
    {
@@ -552,8 +542,8 @@ Mesh * GenerateSerialMesh(int ref)
       vi[0] = o +  3; vi[1] = o +  4; mesh->AddBdrSegment(vi, 3 + i);
    }
 
-   double d[2];
-   double a = a_ / M_SQRT2;
+   real_t d[2];
+   real_t a = a_ / M_SQRT2;
 
    d[0] = -1.0; d[1] = -0.5; mesh->AddVertex(d);
    d[0] = -1.0; d[1] =  0.0; mesh->AddVertex(d);
@@ -646,13 +636,13 @@ Mesh * GenerateSerialMesh(int ref)
    return mesh;
 }
 
-double IntegrateBC(const GridFunction &x, const Array<int> &bdr,
-                   double alpha, double beta, double gamma,
-                   double &err)
+real_t IntegrateBC(const GridFunction &x, const Array<int> &bdr,
+                   real_t alpha, real_t beta, real_t gamma,
+                   real_t &error)
 {
-   double nrm = 0.0;
-   double avg = 0.0;
-   err = 0.0;
+   real_t nrm = 0.0;
+   real_t avg = 0.0;
+   error = 0.0;
 
    const bool a_is_zero = alpha == 0.0;
    const bool b_is_zero = beta == 0.0;
@@ -693,8 +683,8 @@ double IntegrateBC(const GridFunction &x, const Array<int> &bdr,
          IntegrationPoint eip;
          FTr->Loc1.Transform(ip, eip);
          FTr->Face->SetIntPoint(&ip);
-         double face_weight = FTr->Face->Weight();
-         double val = 0.0;
+         real_t face_weight = FTr->Face->Weight();
+         real_t val = 0.0;
          if (!a_is_zero)
          {
             FTr->Elem1->SetIntPoint(&eip);
@@ -716,20 +706,20 @@ double IntegrateBC(const GridFunction &x, const Array<int> &bdr,
 
          // Integrate |alpha * n.Grad(x) + beta * x - gamma|^2
          val -= gamma;
-         err += (val*val) * ip.weight * face_weight;
+         error += (val*val) * ip.weight * face_weight;
       }
    }
 
    // Normalize by the length of the boundary
    if (std::abs(nrm) > 0.0)
    {
-      err /= nrm;
+      error /= nrm;
       avg /= nrm;
    }
 
-   // Compute l2 norm of the error in the boundary condition
-   // (negative quadrature weights may produce negative 'err')
-   err = (err >= 0.0) ? sqrt(err) : -sqrt(-err);
+   // Compute l2 norm of the error in the boundary condition (negative
+   // quadrature weights may produce negative 'error')
+   error = (error >= 0.0) ? sqrt(error) : -sqrt(-error);
 
    // Return the average value of alpha * n.Grad(x) + beta * x
    return avg;

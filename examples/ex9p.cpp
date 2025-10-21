@@ -9,19 +9,26 @@
 //    mpirun -np 4 ex9p -m ../data/periodic-square.mesh -p 1 -dt 0.005 -tf 9
 //    mpirun -np 4 ex9p -m ../data/periodic-hexagon.mesh -p 1 -dt 0.005 -tf 9
 //    mpirun -np 4 ex9p -m ../data/amr-quad.mesh -p 1 -rp 1 -dt 0.002 -tf 9
-//    mpirun -np 4 ex9p -m ../data/amr-quad.mesh -p 1 -rp 1 -dt 0.02 -s 13 -tf 9
+//    mpirun -np 4 ex9p -m ../data/amr-quad.mesh -p 1 -rp 1 -dt 0.02 -s 23 -tf 9
 //    mpirun -np 4 ex9p -m ../data/star-q3.mesh -p 1 -rp 1 -dt 0.004 -tf 9
 //    mpirun -np 4 ex9p -m ../data/star-mixed.mesh -p 1 -rp 1 -dt 0.004 -tf 9
 //    mpirun -np 4 ex9p -m ../data/disc-nurbs.mesh -p 1 -rp 1 -dt 0.005 -tf 9
 //    mpirun -np 4 ex9p -m ../data/disc-nurbs.mesh -p 2 -rp 1 -dt 0.005 -tf 9
 //    mpirun -np 4 ex9p -m ../data/periodic-square.mesh -p 3 -rp 2 -dt 0.0025 -tf 9 -vs 20
 //    mpirun -np 4 ex9p -m ../data/periodic-cube.mesh -p 0 -o 2 -rp 1 -dt 0.01 -tf 8
+//    mpirun -np 4 ex9p -m ../data/periodic-square.msh -p 0 -rs 2 -dt 0.005 -tf 2
+//    mpirun -np 4 ex9p -m ../data/periodic-cube.msh -p 0 -rs 1 -o 2 -tf 2
+//    mpirun -np 3 ex9p -m ../data/amr-hex.mesh -p 1 -rs 1 -rp 0 -dt 0.005 -tf 0.5
 //
 // Device sample runs:
 //    mpirun -np 4 ex9p -pa
 //    mpirun -np 4 ex9p -ea
+//    mpirun -np 4 ex9p -fa
 //    mpirun -np 4 ex9p -pa -m ../data/periodic-cube.mesh
 //    mpirun -np 4 ex9p -pa -m ../data/periodic-cube.mesh -d cuda
+//    mpirun -np 4 ex9p -ea -m ../data/periodic-cube.mesh -d cuda
+//    mpirun -np 4 ex9p -fa -m ../data/periodic-cube.mesh -d cuda
+//    mpirun -np 4 ex9p -pa -m ../data/amr-quad.mesh -p 1 -rp 1 -dt 0.002 -tf 9 -d cuda
 //
 // Description:  This example code solves the time-dependent advection equation
 //               du/dt + v.grad(u) = 0, where v is a given fluid velocity, and
@@ -52,13 +59,73 @@ int problem;
 void velocity_function(const Vector &x, Vector &v);
 
 // Initial condition
-double u0_function(const Vector &x);
+real_t u0_function(const Vector &x);
 
 // Inflow boundary condition
-double inflow_function(const Vector &x);
+real_t inflow_function(const Vector &x);
 
 // Mesh bounding box
 Vector bb_min, bb_max;
+
+// Type of preconditioner for implicit time integrator
+enum class PrecType : int
+{
+   ILU = 0,
+   AIR = 1
+};
+
+#if MFEM_HYPRE_VERSION >= 21800
+// Algebraic multigrid preconditioner for advective problems based on
+// approximate ideal restriction (AIR). Most effective when matrix is
+// first scaled by DG block inverse, and AIR applied to scaled matrix.
+// See https://doi.org/10.1137/17M1144350.
+class AIR_prec : public Solver
+{
+private:
+   const HypreParMatrix *A;
+   // Copy of A scaled by block-diagonal inverse
+   HypreParMatrix A_s;
+
+   HypreBoomerAMG *AIR_solver;
+   int blocksize;
+
+public:
+   AIR_prec(int blocksize_) : AIR_solver(NULL), blocksize(blocksize_) { }
+
+   void SetOperator(const Operator &op) override
+   {
+      width = op.Width();
+      height = op.Height();
+
+      A = dynamic_cast<const HypreParMatrix *>(&op);
+      MFEM_VERIFY(A != NULL, "AIR_prec requires a HypreParMatrix.")
+
+      // Scale A by block-diagonal inverse
+      BlockInverseScale(A, &A_s, NULL, NULL, blocksize,
+                        BlockInverseScaleJob::MATRIX_ONLY);
+      delete AIR_solver;
+      AIR_solver = new HypreBoomerAMG(A_s);
+      AIR_solver->SetAdvectiveOptions(1, "", "FA");
+      AIR_solver->SetPrintLevel(0);
+      AIR_solver->SetMaxLevels(50);
+   }
+
+   void Mult(const Vector &x, Vector &y) const override
+   {
+      // Scale the rhs by block inverse and solve system
+      HypreParVector z_s;
+      BlockInverseScale(A, NULL, &x, &z_s, blocksize,
+                        BlockInverseScaleJob::RHS_ONLY);
+      AIR_solver->Mult(z_s, y);
+   }
+
+   ~AIR_prec() override
+   {
+      delete AIR_solver;
+   }
+};
+#endif
+
 
 class DG_Solver : public Solver
 {
@@ -67,29 +134,42 @@ private:
    SparseMatrix M_diag;
    HypreParMatrix *A;
    GMRESSolver linear_solver;
-   BlockILU prec;
-   double dt;
+   Solver *prec;
+   real_t dt;
 public:
-   DG_Solver(HypreParMatrix &M_, HypreParMatrix &K_, const FiniteElementSpace &fes)
+   DG_Solver(HypreParMatrix &M_, HypreParMatrix &K_, const FiniteElementSpace &fes,
+             PrecType prec_type)
       : M(M_),
         K(K_),
         A(NULL),
         linear_solver(M.GetComm()),
-        prec(fes.GetFE(0)->GetDof(),
-             BlockILU::Reordering::MINIMUM_DISCARDED_FILL),
         dt(-1.0)
    {
+      int block_size = fes.GetTypicalFE()->GetDof();
+      if (prec_type == PrecType::ILU)
+      {
+         prec = new BlockILU(block_size,
+                             BlockILU::Reordering::MINIMUM_DISCARDED_FILL);
+      }
+      else if (prec_type == PrecType::AIR)
+      {
+#if MFEM_HYPRE_VERSION >= 21800
+         prec = new AIR_prec(block_size);
+#else
+         MFEM_ABORT("Must have MFEM_HYPRE_VERSION >= 21800 to use AIR.\n");
+#endif
+      }
       linear_solver.iterative_mode = false;
       linear_solver.SetRelTol(1e-9);
       linear_solver.SetAbsTol(0.0);
       linear_solver.SetMaxIter(100);
       linear_solver.SetPrintLevel(0);
-      linear_solver.SetPreconditioner(prec);
+      linear_solver.SetPreconditioner(*prec);
 
       M.GetDiag(M_diag);
    }
 
-   void SetTimeStep(double dt_)
+   void SetTimeStep(real_t dt_)
    {
       if (dt_ != dt)
       {
@@ -105,21 +185,23 @@ public:
       }
    }
 
-   void SetOperator(const Operator &op)
+   void SetOperator(const Operator &op) override
    {
       linear_solver.SetOperator(op);
    }
 
-   virtual void Mult(const Vector &x, Vector &y) const
+   void Mult(const Vector &x, Vector &y) const override
    {
       linear_solver.Mult(x, y);
    }
 
-   ~DG_Solver()
+   ~DG_Solver() override
    {
+      delete prec;
       delete A;
    }
 };
+
 
 /** A time-dependent operator for the right-hand side of the ODE. The DG weak
     form of du/dt = -v.grad(u) is M du/dt = K u + b, where M and K are the mass
@@ -138,22 +220,23 @@ private:
    mutable Vector z;
 
 public:
-   FE_Evolution(ParBilinearForm &_M, ParBilinearForm &_K, const Vector &_b);
+   FE_Evolution(ParBilinearForm &M_, ParBilinearForm &K_, const Vector &b_,
+                PrecType prec_type);
 
-   virtual void Mult(const Vector &x, Vector &y) const;
-   virtual void ImplicitSolve(const double dt, const Vector &x, Vector &k);
+   void Mult(const Vector &x, Vector &y) const override;
+   void ImplicitSolve(const real_t dt, const Vector &x, Vector &k) override;
 
-   virtual ~FE_Evolution();
+   ~FE_Evolution() override;
 };
 
 
 int main(int argc, char *argv[])
 {
-   // 1. Initialize MPI.
-   int num_procs, myid;
-   MPI_Init(&argc, &argv);
-   MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
-   MPI_Comm_rank(MPI_COMM_WORLD, &myid);
+   // 1. Initialize MPI and HYPRE.
+   Mpi::Init();
+   int num_procs = Mpi::WorldSize();
+   int myid = Mpi::WorldRank();
+   Hypre::Init();
 
    // 2. Parse command-line options.
    problem = 0;
@@ -163,17 +246,22 @@ int main(int argc, char *argv[])
    int order = 3;
    bool pa = false;
    bool ea = false;
+   bool fa = false;
    const char *device_config = "cpu";
    int ode_solver_type = 4;
-   double t_final = 10.0;
-   double dt = 0.01;
+   real_t t_final = 10.0;
+   real_t dt = 0.01;
    bool visualization = true;
    bool visit = false;
    bool paraview = false;
    bool adios2 = false;
    bool binary = false;
    int vis_steps = 5;
-
+#if MFEM_HYPRE_VERSION >= 21800
+   PrecType prec_type = PrecType::AIR;
+#else
+   PrecType prec_type = PrecType::ILU;
+#endif
    int precision = 8;
    cout.precision(precision);
 
@@ -192,19 +280,18 @@ int main(int argc, char *argv[])
                   "--no-partial-assembly", "Enable Partial Assembly.");
    args.AddOption(&ea, "-ea", "--element-assembly", "-no-ea",
                   "--no-element-assembly", "Enable Element Assembly.");
+   args.AddOption(&fa, "-fa", "--full-assembly", "-no-fa",
+                  "--no-full-assembly", "Enable Full Assembly.");
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
    args.AddOption(&ode_solver_type, "-s", "--ode-solver",
-                  "ODE solver: 1 - Forward Euler,\n\t"
-                  "            2 - RK2 SSP, 3 - RK3 SSP, 4 - RK4, 6 - RK6,\n\t"
-                  "            11 - Backward Euler,\n\t"
-                  "            12 - SDIRK23 (L-stable), 13 - SDIRK33,\n\t"
-                  "            22 - Implicit Midpoint Method,\n\t"
-                  "            23 - SDIRK23 (A-stable), 24 - SDIRK34");
+                  ODESolver::Types.c_str());
    args.AddOption(&t_final, "-tf", "--t-final",
                   "Final time; start time is 0.");
    args.AddOption(&dt, "-dt", "--time-step",
                   "Time step.");
+   args.AddOption((int *)&prec_type, "-pt", "--prec-type", "Preconditioner for "
+                  "implicit solves. 0 for ILU, 1 for pAIR-AMG.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -225,20 +312,19 @@ int main(int argc, char *argv[])
    args.Parse();
    if (!args.Good())
    {
-      if (myid == 0)
+      if (Mpi::Root())
       {
          args.PrintUsage(cout);
       }
-      MPI_Finalize();
       return 1;
    }
-   if (myid == 0)
+   if (Mpi::Root())
    {
       args.PrintOptions(cout);
    }
 
    Device device(device_config);
-   if (myid == 0) { device.Print(); }
+   if (Mpi::Root()) { device.Print(); }
 
    // 3. Read the serial mesh from the given mesh file on all processors. We can
    //    handle geometrically periodic meshes in this code.
@@ -247,32 +333,7 @@ int main(int argc, char *argv[])
 
    // 4. Define the ODE solver used for time integration. Several explicit
    //    Runge-Kutta methods are available.
-   ODESolver *ode_solver = NULL;
-   switch (ode_solver_type)
-   {
-      // Explicit methods
-      case 1: ode_solver = new ForwardEulerSolver; break;
-      case 2: ode_solver = new RK2Solver(1.0); break;
-      case 3: ode_solver = new RK3SSPSolver; break;
-      case 4: ode_solver = new RK4Solver; break;
-      case 6: ode_solver = new RK6Solver; break;
-      // Implicit (L-stable) methods
-      case 11: ode_solver = new BackwardEulerSolver; break;
-      case 12: ode_solver = new SDIRK23Solver(2); break;
-      case 13: ode_solver = new SDIRK33Solver; break;
-      // Implicit A-stable methods (not L-stable)
-      case 22: ode_solver = new ImplicitMidpointSolver; break;
-      case 23: ode_solver = new SDIRK23Solver; break;
-      case 24: ode_solver = new SDIRK34Solver; break;
-      default:
-         if (myid == 0)
-         {
-            cout << "Unknown ODE solver type: " << ode_solver_type << '\n';
-         }
-         delete mesh;
-         MPI_Finalize();
-         return 3;
-   }
+   unique_ptr<ODESolver> ode_solver = ODESolver::Select(ode_solver_type);
 
    // 5. Refine the mesh in serial to increase the resolution. In this example
    //    we do 'ser_ref_levels' of uniform refinement, where 'ser_ref_levels' is
@@ -303,8 +364,8 @@ int main(int argc, char *argv[])
    DG_FECollection fec(order, dim, BasisType::GaussLobatto);
    ParFiniteElementSpace *fes = new ParFiniteElementSpace(pmesh, &fec);
 
-   HYPRE_Int global_vSize = fes->GlobalTrueVSize();
-   if (myid == 0)
+   HYPRE_BigInt global_vSize = fes->GlobalTrueVSize();
+   if (Mpi::Root())
    {
       cout << "Number of unknowns: " << global_vSize << endl;
    }
@@ -328,16 +389,23 @@ int main(int argc, char *argv[])
       m->SetAssemblyLevel(AssemblyLevel::ELEMENT);
       k->SetAssemblyLevel(AssemblyLevel::ELEMENT);
    }
+   else if (fa)
+   {
+      m->SetAssemblyLevel(AssemblyLevel::FULL);
+      k->SetAssemblyLevel(AssemblyLevel::FULL);
+   }
+
    m->AddDomainIntegrator(new MassIntegrator);
-   k->AddDomainIntegrator(new ConvectionIntegrator(velocity, -1.0));
+   constexpr real_t alpha = -1.0;
+   k->AddDomainIntegrator(new ConvectionIntegrator(velocity, alpha));
    k->AddInteriorFaceIntegrator(
-      new TransposeIntegrator(new DGTraceIntegrator(velocity, 1.0, -0.5)));
+      new NonconservativeDGTraceIntegrator(velocity, alpha));
    k->AddBdrFaceIntegrator(
-      new TransposeIntegrator(new DGTraceIntegrator(velocity, 1.0, -0.5)));
+      new NonconservativeDGTraceIntegrator(velocity, alpha));
 
    ParLinearForm *b = new ParLinearForm(fes);
    b->AddBdrFaceIntegrator(
-      new BoundaryFlowIntegrator(inflow, velocity, -1.0, -0.5));
+      new BoundaryFlowIntegrator(inflow, velocity, alpha));
 
    int skip_zeros = 0;
    m->Assemble();
@@ -438,11 +506,13 @@ int main(int argc, char *argv[])
       sout.open(vishost, visport);
       if (!sout)
       {
-         if (myid == 0)
+         if (Mpi::Root())
+         {
             cout << "Unable to connect to GLVis server at "
                  << vishost << ':' << visport << endl;
+         }
          visualization = false;
-         if (myid == 0)
+         if (Mpi::Root())
          {
             cout << "GLVis visualization disabled.\n";
          }
@@ -454,25 +524,27 @@ int main(int argc, char *argv[])
          sout << "solution\n" << *pmesh << *u;
          sout << "pause\n";
          sout << flush;
-         if (myid == 0)
+         if (Mpi::Root())
+         {
             cout << "GLVis visualization paused."
                  << " Press space (in the GLVis window) to resume it.\n";
+         }
       }
    }
 
    // 10. Define the time-dependent evolution operator describing the ODE
    //     right-hand side, and perform time-integration (looping over the time
    //     iterations, ti, with a time-step dt).
-   FE_Evolution adv(*m, *k, *B);
+   FE_Evolution adv(*m, *k, *B, prec_type);
 
-   double t = 0.0;
+   real_t t = 0.0;
    adv.SetTime(t);
    ode_solver->Init(adv);
 
    bool done = false;
    for (int ti = 0; !done; )
    {
-      double dt_real = min(dt, t_final - t);
+      real_t dt_real = min(dt, t_final - t);
       ode_solver->Step(*U, t, dt_real);
       ti++;
 
@@ -480,7 +552,7 @@ int main(int argc, char *argv[])
 
       if (done || ti % vis_steps == 0)
       {
-         if (myid == 0)
+         if (Mpi::Root())
          {
             cout << "time step: " << ti << ", time: " << t << endl;
          }
@@ -541,7 +613,6 @@ int main(int argc, char *argv[])
    delete m;
    delete fes;
    delete pmesh;
-   delete ode_solver;
    delete pd;
 #ifdef MFEM_USE_ADIOS2
    if (adios2)
@@ -551,49 +622,44 @@ int main(int argc, char *argv[])
 #endif
    delete dc;
 
-   MPI_Finalize();
    return 0;
 }
 
 
 // Implementation of class FE_Evolution
-FE_Evolution::FE_Evolution(ParBilinearForm &_M, ParBilinearForm &_K,
-                           const Vector &_b)
-   : TimeDependentOperator(_M.Height()),
-     b(_b),
-     M_solver(_M.ParFESpace()->GetComm()),
-     z(_M.Height())
+FE_Evolution::FE_Evolution(ParBilinearForm &M_, ParBilinearForm &K_,
+                           const Vector &b_, PrecType prec_type)
+   : TimeDependentOperator(M_.ParFESpace()->GetTrueVSize()), b(b_),
+     M_solver(M_.ParFESpace()->GetComm()),
+     z(height)
 {
-   bool pa = _M.GetAssemblyLevel()==AssemblyLevel::PARTIAL;
-   bool ea = _M.GetAssemblyLevel()==AssemblyLevel::ELEMENT;
-
-   if (pa || ea)
+   if (M_.GetAssemblyLevel()==AssemblyLevel::LEGACY)
    {
-      M.Reset(&_M, false);
-      K.Reset(&_K, false);
+      M.Reset(M_.ParallelAssemble(), true);
+      K.Reset(K_.ParallelAssemble(), true);
    }
    else
    {
-      M.Reset(_M.ParallelAssemble(), true);
-      K.Reset(_K.ParallelAssemble(), true);
+      M.Reset(&M_, false);
+      K.Reset(&K_, false);
    }
 
    M_solver.SetOperator(*M);
 
    Array<int> ess_tdof_list;
-   if (pa || ea)
-   {
-      M_prec = new OperatorJacobiSmoother(_M, ess_tdof_list);
-      dg_solver = NULL;
-   }
-   else
+   if (M_.GetAssemblyLevel()==AssemblyLevel::LEGACY)
    {
       HypreParMatrix &M_mat = *M.As<HypreParMatrix>();
       HypreParMatrix &K_mat = *K.As<HypreParMatrix>();
       HypreSmoother *hypre_prec = new HypreSmoother(M_mat, HypreSmoother::Jacobi);
       M_prec = hypre_prec;
 
-      dg_solver = new DG_Solver(M_mat, K_mat, *_M.FESpace());
+      dg_solver = new DG_Solver(M_mat, K_mat, *M_.FESpace(), prec_type);
+   }
+   else
+   {
+      M_prec = new OperatorJacobiSmoother(M_, ess_tdof_list);
+      dg_solver = NULL;
    }
 
    M_solver.SetPreconditioner(*M_prec);
@@ -604,7 +670,11 @@ FE_Evolution::FE_Evolution(ParBilinearForm &_M, ParBilinearForm &_K,
    M_solver.SetPrintLevel(0);
 }
 
-void FE_Evolution::ImplicitSolve(const double dt, const Vector &x, Vector &k)
+// Solve the equation:
+//    u_t = M^{-1}(Ku + b),
+// by solving associated linear system
+//    (M - dt*K) d = K*u + b
+void FE_Evolution::ImplicitSolve(const real_t dt, const Vector &x, Vector &k)
 {
    K->Mult(x, z);
    z += b;
@@ -636,7 +706,7 @@ void velocity_function(const Vector &x, Vector &v)
    Vector X(dim);
    for (int i = 0; i < dim; i++)
    {
-      double center = (bb_min[i] + bb_max[i]) * 0.5;
+      real_t center = (bb_min[i] + bb_max[i]) * 0.5;
       X(i) = 2 * (x(i) - center) / (bb_max[i] - bb_min[i]);
    }
 
@@ -658,7 +728,7 @@ void velocity_function(const Vector &x, Vector &v)
       case 2:
       {
          // Clockwise rotation in 2D around the origin
-         const double w = M_PI/2;
+         const real_t w = M_PI/2;
          switch (dim)
          {
             case 1: v(0) = 1.0; break;
@@ -670,8 +740,8 @@ void velocity_function(const Vector &x, Vector &v)
       case 3:
       {
          // Clockwise twisting rotation in 2D around the origin
-         const double w = M_PI/2;
-         double d = max((X(0)+1.)*(1.-X(0)),0.) * max((X(1)+1.)*(1.-X(1)),0.);
+         const real_t w = M_PI/2;
+         real_t d = max((X(0)+1.)*(1.-X(0)),0.) * max((X(1)+1.)*(1.-X(1)),0.);
          d = d*d;
          switch (dim)
          {
@@ -685,7 +755,7 @@ void velocity_function(const Vector &x, Vector &v)
 }
 
 // Initial condition
-double u0_function(const Vector &x)
+real_t u0_function(const Vector &x)
 {
    int dim = x.Size();
 
@@ -693,7 +763,7 @@ double u0_function(const Vector &x)
    Vector X(dim);
    for (int i = 0; i < dim; i++)
    {
-      double center = (bb_min[i] + bb_max[i]) * 0.5;
+      real_t center = (bb_min[i] + bb_max[i]) * 0.5;
       X(i) = 2 * (x(i) - center) / (bb_max[i] - bb_min[i]);
    }
 
@@ -709,28 +779,28 @@ double u0_function(const Vector &x)
             case 2:
             case 3:
             {
-               double rx = 0.45, ry = 0.25, cx = 0., cy = -0.2, w = 10.;
+               real_t rx = 0.45, ry = 0.25, cx = 0., cy = -0.2, w = 10.;
                if (dim == 3)
                {
-                  const double s = (1. + 0.25*cos(2*M_PI*X(2)));
+                  const real_t s = (1. + 0.25*cos(2*M_PI*X(2)));
                   rx *= s;
                   ry *= s;
                }
-               return ( erfc(w*(X(0)-cx-rx))*erfc(-w*(X(0)-cx+rx)) *
-                        erfc(w*(X(1)-cy-ry))*erfc(-w*(X(1)-cy+ry)) )/16;
+               return ( std::erfc(w*(X(0)-cx-rx))*std::erfc(-w*(X(0)-cx+rx)) *
+                        std::erfc(w*(X(1)-cy-ry))*std::erfc(-w*(X(1)-cy+ry)) )/16;
             }
          }
       }
       case 2:
       {
-         double x_ = X(0), y_ = X(1), rho, phi;
-         rho = hypot(x_, y_);
+         real_t x_ = X(0), y_ = X(1), rho, phi;
+         rho = std::hypot(x_, y_);
          phi = atan2(y_, x_);
          return pow(sin(M_PI*rho),2)*sin(3*phi);
       }
       case 3:
       {
-         const double f = M_PI;
+         const real_t f = M_PI;
          return sin(f*X(0))*sin(f*X(1));
       }
    }
@@ -738,7 +808,7 @@ double u0_function(const Vector &x)
 }
 
 // Inflow boundary condition (zero for the problems considered in this example)
-double inflow_function(const Vector &x)
+real_t inflow_function(const Vector &x)
 {
    switch (problem)
    {

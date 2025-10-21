@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -43,7 +43,8 @@ int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
    int ns = 16;
-   int  r = 90;
+   int r = 90;
+   int visport = 19916;
    bool visualization = 1;
 
    OptionsParser args(argc, argv);
@@ -54,6 +55,7 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.Parse();
    if (!args.Good())
    {
@@ -64,14 +66,14 @@ int main(int argc, char *argv[])
 
    // 2. Build a rectangular mesh of quadrilateral elements nearly twice
    //    as wide as it is high.
-   Mesh *mesh = new Mesh(2 * ns - 1, ns, Element::QUADRILATERAL,
-                         0, 2 * ns - 1, ns, false);
+   Mesh mesh = Mesh::MakeCartesian2D(2 * ns - 1, ns, Element::QUADRILATERAL,
+                                     0, 2 * ns - 1, ns, false);
 
    // 3. Define a finite element space on the mesh. Here we use discontinuous
    //    Lagrange finite elements of order zero i.e. piecewise constant basis
    //    functions.
    FiniteElementCollection *fec = new L2_FECollection(0, 2);
-   FiniteElementSpace *fespace = new FiniteElementSpace(mesh, fec);
+   FiniteElementSpace *fespace = new FiniteElementSpace(&mesh, fec);
 
    // 4. Initialize a pair of bit arrays to store two rows in the evolution
    //    of our cellular automaton.
@@ -103,7 +105,6 @@ int main(int argc, char *argv[])
    if (visualization)
    {
       char vishost[] = "localhost";
-      int  visport   = 19916;
       sol_sock.open(vishost, visport);
    }
 
@@ -130,7 +131,7 @@ int main(int argc, char *argv[])
       // 9. Send the solution by socket to a GLVis server.
       if (visualization)
       {
-         sol_sock << "solution\n" << *mesh << x << flush;
+         sol_sock << "solution\n" << mesh << x << flush;
          {
             static int once = 1;
             if (once)
@@ -150,7 +151,7 @@ int main(int argc, char *argv[])
    //     viewed later using GLVis: "glvis -m automata.mesh -g automata.gf".
    ofstream mesh_ofs("automata.mesh");
    mesh_ofs.precision(8);
-   mesh->Print(mesh_ofs);
+   mesh.Print(mesh_ofs);
    ofstream sol_ofs("automata.gf");
    sol_ofs.precision(8);
    x.Save(sol_ofs);
@@ -158,7 +159,6 @@ int main(int argc, char *argv[])
    // 11. Free the used memory.
    delete fespace;
    delete fec;
-   delete mesh;
 
    return 0;
 }
@@ -197,6 +197,6 @@ void ProjectStep(const vector<bool> & b, GridFunction & x, int ns, int s)
 {
    for (int i=0; i<2*ns-1; i++)
    {
-      x[s*(2*ns-1)+i] = (double)b[i];
+      x[s*(2*ns-1)+i] = (real_t)b[i];
    }
 }

@@ -22,12 +22,14 @@
 //               mpirun -np 4 nurbs_ex1p -m ../../data/square-disc-nurbs.mesh -o -1
 //               mpirun -np 4 nurbs_ex1p -m ../../data/disc-nurbs.mesh -o -1
 //               mpirun -np 4 nurbs_ex1p -m ../../data/pipe-nurbs.mesh -o -1
-//               mpirun -np 4 nurbs_ex1p -m square-nurbs.mesh -o 2 -no-ibp
-//               mpirun -np 4 nurbs_ex1p -m cube-nurbs.mesh -o 2 -no-ibp
-//               mpirun -np 4 nurbs_ex1p -m pipe-nurbs-2d.mesh -o 2 -no-ibp
+//               mpirun -np 4 nurbs_ex1p -m ../../data/square-nurbs.mesh -o 2 -no-ibp
+//               mpirun -np 4 nurbs_ex1p -m ../../data/cube-nurbs.mesh -o 2 -no-ibp
+//               mpirun -np 4 nurbs_ex1p -m ../../data/pipe-nurbs-2d.mesh -o 2 -no-ibp
+//               mpirun -np 4 nurbs_ex1p -m meshes/square-nurbs.mesh -r 4 -pm "1" -ps "2"
+//
 
 // Description:  This example code demonstrates the use of MFEM to define a
-//               simple finite element discretization of the Laplace problem
+//               simple finite element discretization of the Poisson problem
 //               -Delta u = 1 with homogeneous Dirichlet boundary conditions.
 //               Specifically, we discretize using a FE space of the specified
 //               order, or if order < 1 using an isoparametric/isogeometric
@@ -66,13 +68,13 @@ public:
 
    /** Given a particular Finite Element
        computes the element stiffness matrix elmat. */
-   virtual void AssembleElementMatrix(const FiniteElement &el,
-                                      ElementTransformation &Trans,
-                                      DenseMatrix &elmat)
+   void AssembleElementMatrix(const FiniteElement &el,
+                              ElementTransformation &Trans,
+                              DenseMatrix &elmat) override
    {
       int nd = el.GetDof();
       int dim = el.GetDim();
-      double w;
+      real_t w;
 
 #ifdef MFEM_THREAD_SAFE
       Vector shape(nd);
@@ -121,11 +123,11 @@ public:
             w *= Q->Eval(Trans, ip);
          }
 
-         for (int j = 0; j < nd; j++)
+         for (int jj = 0; jj < nd; jj++)
          {
-            for (int i = 0; i < nd; i++)
+            for (int ii = 0; ii < nd; ii++)
             {
-               elmat(i, j) += w*shape(i)*laplace(j);
+               elmat(ii, jj) += w*shape(ii)*laplace(jj);
             }
          }
       }
@@ -135,34 +137,53 @@ public:
 
 int main(int argc, char *argv[])
 {
-   // 1. Initialize MPI.
-   int num_procs, myid;
-   MPI_Init(&argc, &argv);
-   MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
-   MPI_Comm_rank(MPI_COMM_WORLD, &myid);
+   // 1. Initialize MPI and HYPRE.
+   Mpi::Init(argc, argv);
+   int num_procs = Mpi::WorldSize();
+   int myid = Mpi::WorldRank();
+   Hypre::Init();
 
    // 2. Parse command-line options.
    const char *mesh_file = "../../data/star.mesh";
+   int ref_levels = -1;
    Array<int> order(1);
    order[0] = 1;
    bool static_cond = false;
    bool visualization = 1;
    bool ibp = 1;
+   bool strongBC = 1;
+   real_t kappa = -1;
+   Array<int> master(0);
+   int visport = 19916;
+   Array<int> slave(0);
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
+   args.AddOption(&ref_levels, "-r", "--refine",
+                  "Number of times to refine the mesh uniformly, -1 for auto.");
+   args.AddOption(&master, "-pm", "--master",
+                  "Master boundaries for periodic BCs");
+   args.AddOption(&slave, "-ps", "--slave",
+                  "Slave boundaries for periodic BCs");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree) or -1 for"
                   " isoparametric space.");
    args.AddOption(&ibp, "-ibp", "--ibp", "-no-ibp",
                   "--no-ibp",
                   "Selects the standard weak form (IBP) or the nonstandard (NO-IBP).");
+   args.AddOption(&strongBC, "-sbc", "--strong-bc", "-wbc",
+                  "--weak-bc",
+                  "Selects strong or weak enforcement of Dirichlet BCs.");
+   args.AddOption(&kappa, "-k", "--kappa",
+                  "Sets the SIPG penalty parameters, should be positive."
+                  " Negative values are replaced with (order+1)^2.");
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
                   "--no-static-condensation", "Enable static condensation.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.Parse();
    if (!args.Good())
    {
@@ -170,8 +191,11 @@ int main(int argc, char *argv[])
       {
          args.PrintUsage(cout);
       }
-      MPI_Finalize();
       return 1;
+   }
+   if (!strongBC & (kappa < 0))
+   {
+      kappa = 4*(order.Max()+1)*(order.Max()+1);
    }
    if (myid == 0)
    {
@@ -189,11 +213,19 @@ int main(int argc, char *argv[])
    //    'ref_levels' to be the largest number that gives a final mesh with no
    //    more than 10,000 elements.
    {
-      int ref_levels =
-         (int)floor(log(10000./mesh->GetNE())/log(2.)/dim);
+      if (ref_levels < 0)
+      {
+         ref_levels =
+            (int)floor(log(5000./mesh->GetNE())/log(2.)/dim);
+      }
+
       for (int l = 0; l < ref_levels; l++)
       {
          mesh->UniformRefinement();
+      }
+      if (myid == 0)
+      {
+         mesh->PrintInfo();
       }
    }
 
@@ -247,6 +279,19 @@ int main(int argc, char *argv[])
       }
       if (order.Size() != nkv ) { mfem_error("Wrong number of orders set."); }
       NURBSext = new NURBSExtension(pmesh->NURBSext, order);
+
+      // Enforce periodic BC's
+      if (master.Size() > 0)
+      {
+         if (myid == 0)
+         {
+            cout<<"Connecting boundaries"<<endl;
+            cout<<" - master : "; master.Print();
+            cout<<" - slave  : "; slave.Print();
+         }
+
+         NURBSext->ConnectBoundaries(master,slave);
+      }
    }
    else
    {
@@ -255,7 +300,7 @@ int main(int argc, char *argv[])
       own_fec = 1;
    }
    ParFiniteElementSpace *fespace = new ParFiniteElementSpace(pmesh,NURBSext,fec);
-   HYPRE_Int size = fespace->GlobalTrueVSize();
+   HYPRE_BigInt size = fespace->GlobalTrueVSize();
    if (myid == 0)
    {
       cout << "Number of finite element unknowns: " << size << endl;
@@ -292,16 +337,37 @@ int main(int argc, char *argv[])
    if (pmesh->bdr_attributes.Size())
    {
       Array<int> ess_bdr(pmesh->bdr_attributes.Max());
-      ess_bdr = 1;
+      if (strongBC)
+      {
+         ess_bdr = 1;
+      }
+      else
+      {
+         ess_bdr = 0;
+      }
+
+      // Remove periodic BCs from essential boundary list
+      for (int i = 0; i < master.Size(); i++)
+      {
+         ess_bdr[master[i]-1] = 0;
+         ess_bdr[slave[i]-1] = 0;
+      }
+
       fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
    }
 
    // 8. Set up the parallel linear form b(.) which corresponds to the
    //    right-hand side of the FEM linear system, which in this case is
    //    (1,phi_i) where phi_i are the basis functions in fespace.
-   ParLinearForm *b = new ParLinearForm(fespace);
    ConstantCoefficient one(1.0);
+   ConstantCoefficient zero(0.0);
+
+   ParLinearForm *b = new ParLinearForm(fespace);
    b->AddDomainIntegrator(new DomainLFIntegrator(one));
+
+   if (!strongBC)
+      b->AddBdrFaceIntegrator(
+         new DGDirichletLFIntegrator(zero, one, -1.0, kappa));
    b->Assemble();
 
    // 9. Define the solution vector x as a parallel finite element grid function
@@ -321,6 +387,10 @@ int main(int argc, char *argv[])
    else
    {
       a->AddDomainIntegrator(new Diffusion2Integrator(one));
+   }
+   if (!strongBC)
+   {
+      a->AddBdrFaceIntegrator(new DGDiffusionIntegrator(one, -1.0, kappa));
    }
 
    // 11. Assemble the parallel bilinear form and the corresponding linear
@@ -373,7 +443,6 @@ int main(int argc, char *argv[])
    if (visualization)
    {
       char vishost[] = "localhost";
-      int  visport   = 19916;
       socketstream sol_sock(vishost, visport);
       sol_sock << "parallel " << num_procs << " " << myid << "\n";
       sol_sock.precision(8);
@@ -393,8 +462,6 @@ int main(int argc, char *argv[])
    delete fespace;
    if (own_fec) { delete fec; }
    delete pmesh;
-
-   MPI_Finalize();
 
    return 0;
 }

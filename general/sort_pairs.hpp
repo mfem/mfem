@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -52,7 +52,7 @@ void SortPairs (Pair<A, B> *pairs, int size)
    std::sort(pairs, pairs + size);
 }
 
-
+/// A triple of objects
 template <class A, class B, class C>
 class Triple
 {
@@ -61,7 +61,7 @@ public:
    B two;
    C three;
 
-   Triple() { }
+   Triple() = default;
 
    Triple(const A &one, const B &two, const C &three)
       : one(one), two(two), three(three) { }

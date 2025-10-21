@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2020, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -9,44 +9,29 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
+#define CATCH_CONFIG_NOSTDOUT
 #define CATCH_CONFIG_RUNNER
 #include "mfem.hpp"
-#include "catch.hpp"
+#include "run_unit_tests.hpp"
 
-#ifdef MFEM_USE_MPI
-mfem::MPI_Session *GlobalMPISession;
+#ifndef MFEM_USE_MPI
+#error "This test should be disabled without MFEM_USE_MPI!"
 #endif
 
 int main(int argc, char *argv[])
 {
-   // There must be exactly one instance.
-   Catch::Session session;
-
-   // Apply provided command line arguments.
-   int r = session.applyCommandLine(argc, argv);
-   if (r != 0)
-   {
-      return r;
-   }
-
-#ifdef MFEM_USE_MPI
-   mfem::MPI_Session mpi;
-   GlobalMPISession = &mpi;
-
-   // Exclude all tests that are not labeled with Parallel.
-   auto cfg = session.configData();
-   cfg.testsOrTags.push_back("[Parallel]");
-   session.useConfigData(cfg);
-
-   if (mpi.Root())
-   {
-      mfem::out
-            << "WARNING: Only running the [Parallel] label."
-            << std::endl;
-   }
+#ifdef MFEM_USE_SINGLE
+   std::cout << "\nThe parallel unit tests are not supported in single"
+             " precision.\n\n";
+   return MFEM_SKIP_RETURN_VALUE;
 #endif
 
-   int result = session.run();
+#ifdef MFEM_USE_MPI
+   mfem::Mpi::Init();
+   mfem::Hypre::Init();
+#endif
+   mfem::Device device("cpu"); // make sure hypre runs on CPU, if possible
 
-   return result;
+   // Only run tests that are labeled with Parallel.
+   return RunCatchSession(argc, argv, {"[Parallel]"}, Root());
 }
