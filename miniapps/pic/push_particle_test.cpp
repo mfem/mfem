@@ -261,7 +261,6 @@ int main(int argc, char *argv[])
    ParMesh mesh(MPI_COMM_WORLD, serial_mesh);
    serial_mesh.Clear(); // the serial mesh is no longer needed
    // 3. Define a finite element space on the parallel mesh
-   // TODO: first make H1 space for V, then make H(curl) space for E, where E = \grad V
    H1_FECollection sca_fec(order, dim);
    ParFiniteElementSpace sca_fespace(&mesh, &sca_fec);
    ND_FECollection vec_fec(order, dim);
@@ -287,7 +286,10 @@ int main(int argc, char *argv[])
    }
 
    // 5. Compute E_gf = - \grad \phi_gf
-   GradientGridFunctionCoefficient E_coeff(&phi_gf);
+   ParGridFunction neg_phi_gf(&sca_fespace);
+   neg_phi_gf = 0.0;
+   neg_phi_gf -= phi_gf;
+   GradientGridFunctionCoefficient E_coeff(&neg_phi_gf);
    E_gf->ProjectCoefficient(E_coeff);
    if (ctx.visualization)
    {
