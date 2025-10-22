@@ -54,6 +54,30 @@ using namespace mfem;
 using namespace mfem::common;
 using namespace mfem::electromagnetics;
 
+/// @brief Return weighted harmonic function
+class PsiGridFunctionCoefficient : public Coefficient
+{
+private:
+   real_t k_x;
+   real_t k_y;
+
+   real_t Phi_0;
+
+public:
+   PsiGridFunctionCoefficient(real_t nl_x, real_t nl_y, real_t Phi_0)
+       : Coefficient(), nl_x(nl_x), nl_y(nl_y), Phi_0(Phi_0)
+   {
+   }
+   real_t Eval(ElementTransformation &T,
+               const IntegrationPoint &ip) override
+   {
+      // get r, z coordinates
+      Vector x;
+      T.Transform(ip, x);
+      real_t r = x(0), z = x(1);
+      return Phi_0 * cos(nl_x * r) * cos(nl_y * z);
+   }
+};
 struct LorentzContext
 {
    struct DColl
@@ -71,10 +95,10 @@ struct LorentzContext
    int npt = 1;
    real_t q = 1.0;
    real_t m = 1.0;
-   Vector x_min{-1.0,-1.0,-1.0};
-   Vector x_max{1.0,1.0,1.0};
-   Vector p_min{-1.0,-1.0,-1.0};
-   Vector p_max{1.0,1.0,1.0};
+   Vector x_min{-1.0, -1.0, -1.0};
+   Vector x_max{1.0, 1.0, 1.0};
+   Vector p_min{-1.0, -1.0, -1.0};
+   Vector p_max{1.0, 1.0, 1.0};
    real_t dt = 1e-2;
    real_t t0 = 0.0;
    int nt = 1000;
@@ -85,7 +109,7 @@ struct LorentzContext
    bool visualization = true;
    int visport = 19916;
    int vis_tail_size = 5;
-   int vis_freq = 5;
+   int vis_freq = 50;
 } ctx;
 
 /// This class implements the Boris algorithm as described in the
@@ -104,6 +128,7 @@ public:
       BFIELD, // vdim = dim
       SIZE
    };
+
 protected:
    GridFunction *E_gf;
    GridFunction *B_gf;
@@ -118,20 +143,19 @@ protected:
    static void GetValues(const MultiVector &coords, FindPointsGSLIB &finder,
                          GridFunction &gf, MultiVector &pv);
    void ParticleStep(Particle &part, real_t &dt);
-public:
 
+public:
    Boris(MPI_Comm comm, GridFunction *E_gf_, GridFunction *B_gf_,
          int num_particles, Ordering::Type pdata_ordering);
    void InterpolateEB();
    void Step(real_t &t, real_t &dt);
    void RemoveLostParticles();
    void Redistribute(int redist_mesh); // 0 = E field, 1 = B field
-   ParticleSet& GetParticles() { return *charged_particles; }
-
+   ParticleSet &GetParticles() { return *charged_particles; }
 };
 
 // Prints the program's logo to the given output stream
-void display_banner(ostream & os);
+void display_banner(ostream &os);
 
 // Open the named VisItDataCollection and read the named field.
 // Returns pointers to the two new objects.
@@ -151,9 +175,36 @@ int main(int argc, char *argv[])
    int rank = Mpi::WorldRank();
    Hypre::Init();
 
-   if ( Mpi::Root() ) { display_banner(cout); }
+   // Fields variables
+   int order = 1;
+   real_t nl_x = 1.0;
+   real_t nl_y = 1.0;
+   real_t Phi_0 = 1.0;
+
+   // Mesh parameters
+   int dim = 2;
+   int nx = 100, ny = 100;
+   double xmax = 1.0, ymax = 1.0;
+
+   if (Mpi::Root())
+   {
+      display_banner(cout);
+   }
 
    OptionsParser args(argc, argv);
+
+   // Field variables
+   args.AddOption(&order, "-O", "--order", "Finite element polynomial degree");
+   args.AddOption(&nl_x, "-nlx", "--nl-x", "Number of wavelengths in the x direction.");
+   args.AddOption(&nl_y, "-nly", "--nl-y", "Number of wavelengths in the y direction.");
+   args.AddOption(&Phi_0, "-phi0", "--phi-0", "Initial scalar potential.");
+
+   // Mesh parameters
+   args.AddOption(&nx, "-nx", "--num-x", "Number of elements in the x direction.");
+   args.AddOption(&ny, "-ny", "--num-y", "Number of elements in the y direction.");
+   args.AddOption(&xmax, "-mxmax", "--m-x-max", "Maximum x coordinate.");
+   args.AddOption(&ymax, "-mymax", "--m-y-max", "Maximum y coordinate.");
+
    args.AddOption(&ctx.redist_freq, "-rdf", "--redist-freq",
                   "Redistribution frequency.");
    args.AddOption(&ctx.redist_mesh, "-rdm", "--redistribution-mesh",
@@ -205,26 +256,56 @@ int main(int argc, char *argv[])
 
    // build up E_gf, B_gf can remain nullptr
    // 1. make a 2D Cartesian Mesh, 100x100
-   int dim = 2;
-   int nx = 100, ny = 100;
-   double xmax = 1.0, ymax = 1.0;
-   Mesh *serial_mesh = new Mesh(Mesh::MakeCartesian2D(nx, ny, Element::QUADRILATERAL, false, xmax, ymax));
+   Mesh serial_mesh(Mesh::MakeCartesian2D(nx, ny, Element::QUADRILATERAL, false, xmax, ymax));
    // 2. parallelize the mesh
-   ParMesh *parallel_mesh = new ParMesh(MPI_COMM_WORLD, *serial_mesh);
-   serial_mesh->Clear(); // the serial mesh is no longer needed
-   delete serial_mesh; serial_mesh = nullptr;
+   ParMesh mesh(MPI_COMM_WORLD, serial_mesh);
+   serial_mesh.Clear(); // the serial mesh is no longer needed
    // 3. Define a finite element space on the parallel mesh
-
    // TODO: first make H1 space for V, then make H(curl) space for E, where E = \grad V
-   FiniteElementCollection *fec = new H1_FECollection(0, dim);
-   ParFiniteElementSpace *fespace = new ParFiniteElementSpace(parallel_mesh, fec);
+   H1_FECollection sca_fec(order, dim);
+   ParFiniteElementSpace sca_fespace(&mesh, &sca_fec);
+   ND_FECollection vec_fec(order, dim);
+   ParFiniteElementSpace vec_fespace(&mesh, &vec_fec);
 
+   // 4. Define phi_gf as \phi(x, y) = \Phi_0 \cos(nl_x x)\cos(nl_y y)
+   ParGridFunction phi_gf(&sca_fespace);
+   E_gf = new ParGridFunction(&vec_fespace);
 
-   Ordering::Type ordering_type = ctx.ordering == 0 ? Ordering::byNODES :
-                                  Ordering::byVDIM;
+   PsiGridFunctionCoefficient phi_coeff(nl_x, nl_y, Phi_0);
+   phi_gf.ProjectCoefficient(phi_coeff);
+   if (ctx.visualization)
+   {
+      int num_procs = Mpi::WorldSize();
+      int myid = Mpi::WorldRank();
+      char vishost[] = "localhost";
+      int visport = 19916;
+      socketstream sol_sock(vishost, visport);
+      sol_sock << "parallel " << num_procs << " " << myid << "\n";
+      sol_sock.precision(8);
+      sol_sock << "solution\n"
+               << mesh << phi_gf << flush;
+   }
+
+   // 5. Compute E_gf = - \grad \phi_gf
+   GradientGridFunctionCoefficient E_coeff(&phi_gf);
+   E_gf->ProjectCoefficient(E_coeff);
+      if (ctx.visualization)
+   {
+      int num_procs = Mpi::WorldSize();
+      int myid = Mpi::WorldRank();
+      char vishost[] = "localhost";
+      int visport = 19916;
+      socketstream sol_sock(vishost, visport);
+      sol_sock << "parallel " << num_procs << " " << myid << "\n";
+      sol_sock.precision(8);
+      sol_sock << "solution\n"
+               << mesh << *E_gf << flush;
+   }
+
+   Ordering::Type ordering_type = ctx.ordering == 0 ? Ordering::byNODES : Ordering::byVDIM;
 
    // Initialize Boris
-   int num_particles = ctx.npt/size + (rank < (ctx.npt % size) ? 1 : 0);
+   int num_particles = ctx.npt / size + (rank < (ctx.npt % size) ? 1 : 0);
    Boris boris(MPI_COMM_WORLD, E_gf, B_gf, num_particles, ordering_type);
    InitializeChargedParticles(boris.GetParticles(), ctx.x_min, ctx.x_max,
                               ctx.p_min, ctx.p_max, ctx.m, ctx.q);
@@ -281,11 +362,11 @@ int main(int argc, char *argv[])
             VisualizeParticles(pre_redist_sock, vishost, ctx.visport, boris.GetParticles(),
                                rank_vector, 1e-2, "Particle Owning Rank (Pre-Redistribute)", 410, 0, 400, 400,
                                "bca");
-            char c;
             if (Mpi::Root())
             {
                cout << "Enter any key to redistribute: " << flush;
-               cin >> c;
+               cin.ignore();
+               cin.get();
             }
             MPI_Barrier(MPI_COMM_WORLD);
          }
@@ -301,11 +382,11 @@ int main(int argc, char *argv[])
             VisualizeParticles(post_redist_sock, vishost, ctx.visport, boris.GetParticles(),
                                rank_vector, 1e-2, "Particle Owning Rank (Post-Redistribute)", 820, 0, 400, 400,
                                "bca");
-            char c;
             if (Mpi::Root())
             {
                cout << "Enter any key to continue: " << flush;
-               cin >> c;
+               cin.ignore();
+               cin.get();
             }
             MPI_Barrier(MPI_COMM_WORLD);
             pre_redist_sock << "keys q" << flush;
@@ -340,42 +421,40 @@ void Boris::ParticleStep(Particle &part, real_t &dt)
    // Compute half of the contribution from q E
    add(p, 0.5 * dt * q, e, pm_);
 
-   // Compute the contribution from q p x B
-   const real_t B2 = b * b;
+   // --- Magnetic field contribution (q p x B) disabled ---
+   // const real_t B2 = b * b;
 
-   // ... along pm x B
-   const real_t a1 = 4.0 * dt * q * m;
-   pm_.cross3D(b, pxB_);
-   pp_.Set(a1, pxB_);
+   // const real_t a1 = 4.0 * dt * q * m;
+   // pm_.cross3D(b, pxB_);
+   // pp_.Set(a1, pxB_);
 
-   // ... along pm
-   const real_t a2 = 4.0 * m * m -
-                     dt * dt * q * q * B2;
-   pp_.Add(a2, pm_);
+   // const real_t a2 = 4.0 * m * m -
+   //                   dt * dt * q * q * B2;
+   // pp_.Add(a2, pm_);
 
-   // ... along B
-   const real_t a3 = 2.0 * dt * dt * q * q * (b * p);
-   pp_.Add(a3, b);
+   // const real_t a3 = 2.0 * dt * dt * q * q * (b * p);
+   // pp_.Add(a3, b);
 
-   // scale by common denominator
-   const real_t a4 = 4.0 * m * m +
-                     dt * dt * q * q * B2;
-   pp_ /= a4;
+   // const real_t a4 = 4.0 * m * m +
+   //                   dt * dt * q * q * B2;
+   // pp_ /= a4;
 
-   // Update the momentum
+   // --- Simplified update: no magnetic field ---
+   pp_ = pm_; // only include E contribution
+
+   // Update the momentum (full electric contribution)
    add(pp_, 0.5 * dt * q, e, p);
 
    // Update the position
    x.Add(dt / m, p);
 }
 
-
 Boris::Boris(MPI_Comm comm, GridFunction *E_gf_, GridFunction *B_gf_,
              int num_particles, Ordering::Type pdata_ordering)
-   : E_gf(E_gf_),
-     B_gf(B_gf_),
-     E_finder(comm),
-     B_finder(comm)
+    : E_gf(E_gf_),
+      B_gf(B_gf_),
+      E_finder(comm),
+      B_finder(comm)
 {
    MFEM_VERIFY(E_gf || B_gf, "Must pass an E field or B field to Boris.");
 
@@ -401,7 +480,9 @@ Boris::Boris(MPI_Comm comm, GridFunction *E_gf_, GridFunction *B_gf_,
 
    int dim = E_mesh ? E_mesh->SpaceDimension() : B_mesh->SpaceDimension();
 
-   pxB_.SetSize(dim); pm_.SetSize(dim); pp_.SetSize(dim);
+   pxB_.SetSize(dim);
+   pm_.SetSize(dim);
+   pp_.SetSize(dim);
 
    // Create particle set: 2 scalars of mass and charge, 3 vectors of size space dim for momentum, e field, and b field
    Array<int> field_vdims({1, 1, dim, dim, dim});
@@ -493,7 +574,7 @@ void Boris::Redistribute(int redist_mesh)
    }
 }
 
-void display_banner(ostream & os)
+void display_banner(ostream &os)
 {
    os << "   ____                                __          "
       << endl
@@ -506,7 +587,8 @@ void display_banner(ostream & os)
       << "  |_______ \\____/|__|    \\___  >___|  /__| /_____ \\"
       << endl
       << "          \\/                 \\/     \\/           \\/"
-      << endl << flush;
+      << endl
+      << flush;
 }
 
 int ReadGridFunction(std::string coll_name, std::string field_name,
@@ -540,7 +622,7 @@ void InitializeChargedParticles(ParticleSet &charged_particles,
    int rank;
    MPI_Comm_rank(charged_particles.GetComm(), &rank);
    std::mt19937 gen(rank);
-   std::uniform_real_distribution<> real_dist(0.0,1.0);
+   std::uniform_real_distribution<> real_dist(0.0, 1.0);
 
    int dim = charged_particles.Coords().GetVDim();
 
@@ -554,10 +636,10 @@ void InitializeChargedParticles(ParticleSet &charged_particles,
       for (int d = 0; d < dim; d++)
       {
          // Initialize coords
-         X(i, d) = x_min[d] + real_dist(gen)*(x_max[d] - x_min[d]);
+         X(i, d) = x_min[d] + real_dist(gen) * (x_max[d] - x_min[d]);
 
          // Initialize momentum
-         P(i, d) = p_min[d] + real_dist(gen)*(p_max[d] - p_min[d]);
+         P(i, d) = p_min[d] + real_dist(gen) * (p_max[d] - p_min[d]);
       }
       // Initialize mass + charge
       M(i) = m;
