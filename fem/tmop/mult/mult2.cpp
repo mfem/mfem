@@ -21,6 +21,7 @@ void TMOP_Integrator::AddMultPA_2D(const Vector &x, Vector &y) const
 
    TMOPAddMultPA2D ker(this, x, y);
 
+   // Calls TMOPAddMultPA2D::Mult for the given mid.
    if (mid == 1) { return tmop::Kernel<1>(ker); }
    if (mid == 2) { return tmop::Kernel<2>(ker); }
    if (mid == 7) { return tmop::Kernel<7>(ker); }

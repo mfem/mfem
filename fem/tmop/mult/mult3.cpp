@@ -21,6 +21,7 @@ void TMOP_Integrator::AddMultPA_3D(const Vector &x, Vector &y) const
 
    TMOPAddMultPA3D ker(this, x, y);
 
+   // Calls TMOPAddMultPA3D::Mult for the given mid.
    if (mid == 302) { return tmop::Kernel<302>(ker); }
    if (mid == 303) { return tmop::Kernel<303>(ker); }
    if (mid == 315) { return tmop::Kernel<315>(ker); }
