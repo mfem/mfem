@@ -194,6 +194,54 @@ public:
                                    FaceElementTransformations &Trans,
                                    DenseMatrix &elmat);
 
+   /* HDG */
+   /* For the case when there are 2 finite element spaces - such as LHDG */
+   virtual void AssembleElementMatrix2FES(const FiniteElement &fe_q,
+                                          const FiniteElement &fe_u,
+                                          ElementTransformation &Trans,
+                                          DenseMatrix &elmat1);
+
+   /* HDG */
+   /* For the optimized HDG calculations  */
+   /* 1 element based 1 face based FES */
+   virtual void AssembleFaceMatrixOneElement1and1FES(const FiniteElement &fe_u,
+                                                     const FiniteElement &face_fe,
+                                                     FaceElementTransformations &Trans,
+                                                     const int elem1or2,
+                                                     const bool onlyB,
+                                                     DenseMatrix &elmat1,
+                                                     DenseMatrix &elmat2,
+                                                     DenseMatrix &elmat3,
+                                                     DenseMatrix &elmat4);
+   /* 2 element based 1 face based FES */
+   virtual void AssembleFaceMatrixOneElement2and1FES(const FiniteElement &fe_q,
+                                                     const FiniteElement &fe_u,
+                                                     const FiniteElement &face_fe,
+                                                     FaceElementTransformations &Trans,
+                                                     const int elem1or2,
+                                                     const bool onlyB,
+                                                     DenseMatrix &elmat1,
+                                                     DenseMatrix &elmat2,
+                                                     DenseMatrix &elmat3,
+                                                     DenseMatrix &elmat4);
+   /* 2 element based 2 face based FES */
+   virtual void AssembleFaceMatrixOneElement2and2FES(const FiniteElement &fe_q,
+                                                     const FiniteElement &fe_u,
+                                                     const FiniteElement &face_fe,
+                                                     const FiniteElement &face_fe2,
+                                                     FaceElementTransformations &Trans,
+                                                     const int elem1or2,
+                                                     const bool onlyB,
+                                                     DenseMatrix &elmat1,
+                                                     DenseMatrix &elmat2,
+                                                     DenseMatrix &elmat3,
+                                                     DenseMatrix &elmat4);
+   // Assemble a local matrix over an edge, HDG skeleton integral
+   virtual void AssembleFaceMatrix(const FiniteElement &face_fe,
+                                   FaceElementTransformations &Trans,
+                                   DenseMatrix &elmat);
+   /* End of HDG integrators */
+
    /** Abstract method used for assembling TraceFaceIntegrators for
        DPG weak formulations. */
    virtual void AssembleTraceFaceMatrix(int elem,
