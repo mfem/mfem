@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -9,8 +9,8 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#ifndef MFEM_KERNELS_HPP
-#define MFEM_KERNELS_HPP
+#ifndef MFEM_LINALG_KERNELS_HPP
+#define MFEM_LINALG_KERNELS_HPP
 
 #include "../config/config.hpp"
 #include "../general/backends.hpp"
@@ -35,10 +35,102 @@ namespace mfem
 namespace kernels
 {
 
+/// Compute the square of the Euclidean distance to another vector
+template<int dim>
+MFEM_HOST_DEVICE inline real_t DistanceSquared(const real_t *x, const real_t *y)
+{
+   real_t d = 0.0;
+   for (int i = 0; i < dim; i++) { d += (x[i]-y[i])*(x[i]-y[i]); }
+   return d;
+}
+
+/// Creates n x n diagonal matrix with diagonal elements c
+template<int dim>
+MFEM_HOST_DEVICE inline void Diag(const real_t c, real_t *data)
+{
+   const int N = dim*dim;
+   for (int i = 0; i < N; i++) { data[i] = 0.0; }
+   for (int i = 0; i < dim; i++) { data[i*(dim+1)] = c; }
+}
+
+/// Vector subtraction operation: z = a * (x - y)
+template<int dim>
+MFEM_HOST_DEVICE inline void Subtract(const real_t a,
+                                      const real_t *x, const real_t *y,
+                                      real_t *z)
+{
+   for (int i = 0; i < dim; i++) { z[i] = a * (x[i] - y[i]); }
+}
+
+/// Dense matrix operation: VWt += v w^t
+template<int dim>
+MFEM_HOST_DEVICE inline void AddMultVWt(const real_t *v, const real_t *w,
+                                        real_t *VWt)
+{
+   for (int i = 0; i < dim; i++)
+   {
+      const real_t vi = v[i];
+      for (int j = 0; j < dim; j++) { VWt[i*dim+j] += vi * w[j]; }
+   }
+}
+
+template<int H, int W, typename T>
+MFEM_HOST_DEVICE inline
+void FNorm(real_t &scale_factor, real_t &scaled_fnorm2, const T *data)
+{
+   int i, hw = H * W;
+   T max_norm = 0.0, entry, fnorm2;
+
+   for (i = 0; i < hw; i++)
+   {
+      entry = fabs(data[i]);
+      if (entry > max_norm)
+      {
+         max_norm = entry;
+      }
+   }
+
+   if (max_norm == 0.0)
+   {
+      scale_factor = scaled_fnorm2 = 0.0;
+      return;
+   }
+
+   fnorm2 = 0.0;
+   for (i = 0; i < hw; i++)
+   {
+      entry = data[i] / max_norm;
+      fnorm2 += entry * entry;
+   }
+
+   scale_factor = max_norm;
+   scaled_fnorm2 = fnorm2;
+}
+
+/// Compute the Frobenius norm of the matrix
+template<int H, int W, typename T>
+MFEM_HOST_DEVICE inline
+real_t FNorm(const T *data)
+{
+   real_t s, n2;
+   kernels::FNorm<H,W>(s, n2, data);
+   return s*sqrt(n2);
+}
+
+/// Compute the square of the Frobenius norm of the matrix
+template<int H, int W, typename T>
+MFEM_HOST_DEVICE inline
+real_t FNorm2(const T *data)
+{
+   real_t s, n2;
+   kernels::FNorm<H,W>(s, n2, data);
+   return s*s*n2;
+}
+
 /// Returns the l2 norm of the Vector with given @a size and @a data.
 template<typename T>
 MFEM_HOST_DEVICE inline
-double Norml2(const int size, const T *data)
+real_t Norml2(const int size, const T *data)
 {
    if (0 == size) { return 0.0; }
    if (1 == size) { return std::abs(data[0]); }
@@ -68,7 +160,7 @@ double Norml2(const int size, const T *data)
     data of the input and output vectors. */
 template<typename TA, typename TX, typename TY>
 MFEM_HOST_DEVICE inline
-void Mult(const int height, const int width, TA *data, const TX *x, TY *y)
+void Mult(const int height, const int width, const TA *data, const TX *x, TY *y)
 {
    if (width == 0)
    {
@@ -78,7 +170,7 @@ void Mult(const int height, const int width, TA *data, const TX *x, TY *y)
       }
       return;
    }
-   TA *d_col = data;
+   const TA *d_col = data;
    TX x_col = x[0];
    for (int row = 0; row < height; row++)
    {
@@ -93,6 +185,98 @@ void Mult(const int height, const int width, TA *data, const TX *x, TY *y)
          y[row] += x_col*d_col[row];
       }
       d_col += height;
+   }
+}
+
+/** @brief Absolute-value matrix vector multiplication: y = |A| x, where the
+    matrix A is of size @a height x @a width with given @a data, while @a x and
+    @a y specify the data of the input and output vectors. */
+template<typename TA, typename TX, typename TY>
+MFEM_HOST_DEVICE inline
+void AbsMult(const int height, const int width, const TA *data,
+             const TX *x, TY *y)
+{
+   if (width == 0)
+   {
+      for (int row = 0; row < height; row++)
+      {
+         y[row] = 0.0;
+      }
+      return;
+   }
+   const TA *d_col = data;
+   TX x_col = x[0];
+   for (int row = 0; row < height; row++)
+   {
+      y[row] = x_col*std::fabs(d_col[row]);
+   }
+   d_col += height;
+   for (int col = 1; col < width; col++)
+   {
+      x_col = x[col];
+      for (int row = 0; row < height; row++)
+      {
+         y[row] += x_col*std::fabs(d_col[row]);
+      }
+      d_col += height;
+   }
+}
+
+/** @brief Matrix transpose vector multiplication: y = At x, where the matrix A
+    is of size @a height x @a width with given @a data, while @a x and @a y
+    specify the data of the input and output vectors. */
+template<typename TA, typename TX, typename TY>
+MFEM_HOST_DEVICE inline
+void MultTranspose(const int height, const int width, const TA *data,
+                   const TX *x, TY *y)
+{
+   if (height == 0)
+   {
+      for (int row = 0; row < width; row++)
+      {
+         y[row] = 0.0;
+      }
+      return;
+   }
+   TY *y_off = y;
+   for (int i = 0; i < width; ++i)
+   {
+      TY val = 0.0;
+      for (int j = 0; j < height; ++j)
+      {
+         val += x[j] * data[i * height + j];
+      }
+      *y_off = val;
+      y_off++;
+   }
+}
+
+/** @brief Absolute-value matrix transpose vector multiplication: y = |At| x,
+    where the matrix A is of size @a height x @a width with given @a data, while
+    @a x and @a y specify the data of the input and output vectors. */
+template<typename TA, typename TX, typename TY>
+MFEM_HOST_DEVICE inline
+void AbsMultTranspose(const int height, const int width, const TA *data,
+                      const TX *x, TY *y)
+{
+   if (height == 0)
+   {
+      for (int row = 0; row < width; row++)
+      {
+         y[row] = 0.0;
+      }
+      return;
+   }
+   TY *y_off = y;
+   for (int i = 0; i < width; ++i)
+   {
+      TY val = 0.0;
+      for (int j = 0; j < height; ++j)
+      {
+         val += x[j] * std::fabs(data[i * height + j]);
+      }
+      *y_off = val;
+      y_off++;
    }
 }
 
@@ -118,8 +302,8 @@ MFEM_HOST_DEVICE inline T Det(const T *data)
    return TDetHD<T>(ColumnMajorLayout2D<dim,dim>(), data);
 }
 
-/** @brief Return the inverse a matrix with given @a size and @a data into the
-    matrix with data @a inv_data. */
+/** @brief Return the inverse of a matrix with given @a size and @a data into
+   the matrix with data @a inv_data. */
 template<int dim, typename T>
 MFEM_HOST_DEVICE inline
 void CalcInverse(const T *data, T *inv_data)
@@ -127,6 +311,15 @@ void CalcInverse(const T *data, T *inv_data)
    typedef ColumnMajorLayout2D<dim,dim> layout_t;
    const T det = TAdjDetHD<T>(layout_t(), data, layout_t(), inv_data);
    TAssignHD<AssignOp::Mult>(layout_t(), inv_data, static_cast<T>(1.0)/det);
+}
+
+/** @brief Return the adjugate of a matrix */
+template<int dim, typename T>
+MFEM_HOST_DEVICE inline
+void CalcAdjugate(const T *data, T *adj_data)
+{
+   typedef ColumnMajorLayout2D<dim,dim> layout_t;
+   TAdjugateHD<T>(layout_t(), data, layout_t(), adj_data);
 }
 
 /** @brief Compute C = A + alpha*B, where the matrices A, B and C are of size @a
@@ -146,6 +339,94 @@ void Add(const int height, const int width, const TALPHA alpha,
    }
 }
 
+/** @brief Compute C = alpha*A + beta*B, where the matrices A, B and C are of
+    size @a height x @a width with data @a Adata, @a Bdata and @a Cdata. */
+template<typename TALPHA, typename TBETA, typename TA, typename TB, typename TC>
+MFEM_HOST_DEVICE inline
+void Add(const int height, const int width,
+         const TALPHA alpha, const TA *Adata,
+         const TBETA beta, const TB *Bdata,
+         TC *Cdata)
+{
+   const int m = height * width;
+   for (int i = 0; i < m; i++)
+   {
+      Cdata[i] = alpha * Adata[i] + beta * Bdata[i];
+   }
+}
+
+/** @brief Compute B += A, where the matrices A and B are of size
+    @a height x @a width with data @a Adata and @a Bdata. */
+template<typename TA, typename TB>
+MFEM_HOST_DEVICE inline
+void Add(const int height, const int width, const TA *Adata, TB *Bdata)
+{
+   const int m = height * width;
+   for (int i = 0; i < m; i++)
+   {
+      Bdata[i] += Adata[i];
+   }
+}
+
+/** @brief Compute B +=alpha*A, where the matrices A and B are of size
+    @a height x @a width with data @a Adata and @a Bdata. */
+template<typename TA, typename TB>
+MFEM_HOST_DEVICE inline
+void Add(const int height, const int width,
+         const real_t alpha, const TA *Adata, TB *Bdata)
+{
+   const int m = height * width;
+   for (int i = 0; i < m; i++)
+   {
+      Bdata[i] += alpha * Adata[i];
+   }
+}
+
+/** @brief Compute B = alpha*A, where the matrices A and B are of size
+    @a height x @a width with data @a Adata and @a Bdata. */
+template<typename TA, typename TB>
+MFEM_HOST_DEVICE inline
+void Set(const int height, const int width,
+         const real_t alpha, const TA *Adata, TB *Bdata)
+{
+   const int m = height * width;
+   for (int i = 0; i < m; i++)
+   {
+      Bdata[i] = alpha * Adata[i];
+   }
+}
+
+/** @brief Matrix-matrix multiplication: A = alpha * B * C + beta * A, where the
+    matrices A, B and C are of sizes @a Aheight x @a Awidth, @a Aheight x @a
+    Bwidth and @a Bwidth x @a Awidth, respectively. */
+template<typename TA, typename TB, typename TC>
+MFEM_HOST_DEVICE inline
+void AddMult(const int Aheight, const int Awidth, const int Bwidth,
+             const TB *Bdata, const TC *Cdata, TA *Adata, const TB alpha,
+             const TA beta)
+{
+   const int ah_x_aw = Aheight * Awidth;
+   if (beta == 0.0)
+   {
+      for (int i = 0; i < ah_x_aw; i++) { Adata[i] = 0.0; }
+   }
+   else if (beta != 1.0)
+   {
+      for (int i = 0; i < ah_x_aw; i++) { Adata[i] *= beta; }
+   }
+   for (int j = 0; j < Awidth; j++)
+   {
+      for (int k = 0; k < Bwidth; k++)
+      {
+         const real_t val = alpha * Cdata[k+j*Bwidth];
+         for (int i = 0; i < Aheight; i++)
+         {
+            Adata[i+j*Aheight] += val * Bdata[i+k*Aheight];
+         }
+      }
+   }
+}
+
 /** @brief Matrix-matrix multiplication: A = B * C, where the matrices A, B and
     C are of sizes @a Aheight x @a Awidth, @a Aheight x @a Bwidth and @a Bwidth
     x @a Awidth, respectively. */
@@ -154,18 +435,7 @@ MFEM_HOST_DEVICE inline
 void Mult(const int Aheight, const int Awidth, const int Bwidth,
           const TB *Bdata, const TC *Cdata, TA *Adata)
 {
-   const int ah_x_aw = Aheight * Awidth;
-   for (int i = 0; i < ah_x_aw; i++) { Adata[i] = 0.0; }
-   for (int j = 0; j < Awidth; j++)
-   {
-      for (int k = 0; k < Bwidth; k++)
-      {
-         for (int i = 0; i < Aheight; i++)
-         {
-            Adata[i+j*Aheight] += Bdata[i+k*Aheight] * Cdata[k+j*Bwidth];
-         }
-      }
-   }
+   AddMult(Aheight, Awidth, Bwidth, Bdata, Cdata, Adata, TB(1.0), TA(0.0));
 }
 
 /** @brief Multiply a matrix of size @a Aheight x @a Awidth and data @a Adata
@@ -183,7 +453,7 @@ void MultABt(const int Aheight, const int Awidth, const int Bheight,
       TC *c = ABtdata;
       for (int j = 0; j < Bheight; j++)
       {
-         const double bjk = Bdata[j];
+         const real_t bjk = Bdata[j];
          for (int i = 0; i < Aheight; i++)
          {
             c[i] += Adata[i] * bjk;
@@ -195,15 +465,91 @@ void MultABt(const int Aheight, const int Awidth, const int Bheight,
    }
 }
 
+/** @brief Compute C = alpha*At*B + beta*C.
+
+    Multiply the transpose of a matrix of size @a Aheight x @a Awidth and data
+    @a Adata with a matrix of size @a Aheight x @a Bwidth and data @a Bdata. */
+template<typename TA, typename TB, typename TC>
+MFEM_HOST_DEVICE inline
+void AddMultAtB(const int Aheight, const int Awidth, const int Bwidth,
+                const TA *Adata, const TB *Bdata, TC *Cdata, const TB alpha,
+                const TA beta)
+{
+   const int aw_x_bw = Awidth * Bwidth;
+
+   if (beta == 0.0)
+   {
+      for (int i = 0; i < aw_x_bw; i++) { Cdata[i] = 0.0; }
+   }
+   else if (beta != 1.0)
+   {
+      for (int i = 0; i < aw_x_bw; i++) { Cdata[i] *= beta; }
+   }
+
+   TC *c = Cdata;
+   for (int i = 0; i < Bwidth; ++i)
+   {
+      for (int j = 0; j < Awidth; ++j)
+      {
+         TC val = 0.0;
+         for (int k = 0; k < Aheight; ++k)
+         {
+            val += alpha * Adata[j * Aheight + k] * Bdata[i * Aheight + k];
+         }
+         *c += val;
+         c++;
+      }
+   }
+}
+
+/** @brief Multiply the transpose of a matrix of size @a Aheight x @a Awidth
+    and data @a Adata with a matrix of size @a Aheight x @a Bwidth and data @a
+    Bdata: At * B. Return the result in a matrix with data @a AtBdata. */
+template<typename TA, typename TB, typename TC>
+MFEM_HOST_DEVICE inline
+void MultAtB(const int Aheight, const int Awidth, const int Bwidth,
+             const TA *Adata, const TB *Bdata, TC *AtBdata)
+{
+   AddMultAtB(Aheight, Awidth, Bwidth, Adata, Bdata, AtBdata, TB(1.0), TA(0.0));
+}
+
+/** @brief Multiply the transpose of a matrix of size @a Aheight x @a Awidth
+    and data @a Adata with a matrix of size @a Aheight x @a Bwidth and data @a
+    Bdata: At * B. Add the result to the matrix with data @a AtBdata. */
+template<typename TA, typename TB, typename TC>
+MFEM_HOST_DEVICE inline
+void AddMultAtB(const int Aheight, const int Awidth, const int Bwidth,
+                const TA *Adata, const TB *Bdata, TC *AtBdata)
+{
+   TC *c = AtBdata;
+   for (int i = 0; i < Bwidth; ++i)
+   {
+      for (int j = 0; j < Awidth; ++j)
+      {
+         TC val = 0.0;
+         for (int k = 0; k < Aheight; ++k)
+         {
+            val += Adata[j * Aheight + k] * Bdata[i * Aheight + k];
+         }
+         *c += val;
+         c++;
+      }
+   }
+}
+
+/// Given a matrix of size 2x1, 3x1, or 3x2, compute the left inverse.
+template<int HEIGHT, int WIDTH> MFEM_HOST_DEVICE
+void CalcLeftInverse(const real_t *data, real_t *left_inv);
+
 /// Compute the spectrum of the matrix of size dim with given @a data, returning
 /// the eigenvalues in the array @a lambda and the eigenvectors in the array @a
 /// vec (listed consecutively).
 template<int dim> MFEM_HOST_DEVICE
-void CalcEigenvalues(const double *data, double *lambda, double *vec);
+void CalcEigenvalues(const real_t *data, real_t *lambda, real_t *vec);
 
 /// Return the i'th singular value of the matrix of size dim with given @a data.
 template<int dim> MFEM_HOST_DEVICE
-double CalcSingularvalue(const double *data, const int i);
+real_t CalcSingularvalue(const real_t *data, const int i);
 
 
 // Utility functions for CalcEigenvalues and CalcSingularvalue
@@ -220,18 +566,18 @@ void Swap(T &a, T &b)
    b = tmp;
 }
 
-const double Epsilon = std::numeric_limits<double>::epsilon();
+const real_t Epsilon = std::numeric_limits<real_t>::epsilon();
 
 /// Utility function used in CalcSingularvalue<3>.
 MFEM_HOST_DEVICE static inline
-void Eigenvalues2S(const double &d12, double &d1, double &d2)
+void Eigenvalues2S(const real_t &d12, real_t &d1, real_t &d2)
 {
-   const double sqrt_1_eps = sqrt(1./Epsilon);
+   const real_t sqrt_1_eps = sqrt(1./Epsilon);
    if (d12 != 0.)
    {
       // "The Symmetric Eigenvalue Problem", B. N. Parlett, pp.189-190
-      double t;
-      const double zeta = (d2 - d1)/(2*d12); // inf/inf from overflows?
+      real_t t;
+      const real_t zeta = (d2 - d1)/(2*d12); // inf/inf from overflows?
       if (fabs(zeta) < sqrt_1_eps)
       {
          t = d12*copysign(1./(fabs(zeta) + sqrt(1. + zeta*zeta)), zeta);
@@ -247,10 +593,10 @@ void Eigenvalues2S(const double &d12, double &d1, double &d2)
 
 /// Utility function used in CalcEigenvalues().
 MFEM_HOST_DEVICE static inline
-void Eigensystem2S(const double &d12, double &d1, double &d2,
-                   double &c, double &s)
+void Eigensystem2S(const real_t &d12, real_t &d1, real_t &d2,
+                   real_t &c, real_t &s)
 {
-   const double sqrt_1_eps = sqrt(1./Epsilon);
+   const real_t sqrt_1_eps = sqrt(1./Epsilon);
    if (d12 == 0.0)
    {
       c = 1.;
@@ -259,9 +605,9 @@ void Eigensystem2S(const double &d12, double &d1, double &d2,
    else
    {
       // "The Symmetric Eigenvalue Problem", B. N. Parlett, pp.189-190
-      double t;
-      const double zeta = (d2 - d1)/(2*d12);
-      const double azeta = fabs(zeta);
+      real_t t;
+      const real_t zeta = (d2 - d1)/(2*d12);
+      const real_t azeta = fabs(zeta);
       if (azeta < sqrt_1_eps)
       {
          t = copysign(1./(azeta + sqrt(1. + zeta*zeta)), zeta);
@@ -281,15 +627,15 @@ void Eigensystem2S(const double &d12, double &d1, double &d2,
 
 /// Utility function used in CalcEigenvalues<3>.
 MFEM_HOST_DEVICE static inline
-void GetScalingFactor(const double &d_max, double &mult)
+void GetScalingFactor(const real_t &d_max, real_t &mult)
 {
    int d_exp;
    if (d_max > 0.)
    {
       mult = frexp(d_max, &d_exp);
-      if (d_exp == std::numeric_limits<double>::max_exponent)
+      if (d_exp == std::numeric_limits<real_t>::max_exponent)
       {
-         mult *= std::numeric_limits<double>::radix;
+         mult *= std::numeric_limits<real_t>::radix;
       }
       mult = d_max/mult;
    }
@@ -304,7 +650,7 @@ void GetScalingFactor(const double &d_max, double &mult)
 /// Utility function used in CalcEigenvalues<3>.
 MFEM_HOST_DEVICE static inline
 bool KernelVector2G(const int &mode,
-                    double &d1, double &d12, double &d21, double &d2)
+                    real_t &d1, real_t &d12, real_t &d21, real_t &d2)
 {
    // Find a vector (z1,z2) in the "near"-kernel of the matrix
    // |  d1  d12 |
@@ -315,11 +661,11 @@ bool KernelVector2G(const int &mode,
    // Note: in the current implementation |z1| + |z2| = 1.
 
    // l1-norms of the columns
-   double n1 = fabs(d1) + fabs(d21);
-   double n2 = fabs(d2) + fabs(d12);
+   real_t n1 = fabs(d1) + fabs(d21);
+   real_t n2 = fabs(d2) + fabs(d12);
 
    bool swap_columns = (n2 > n1);
-   double mu;
+   real_t mu;
 
    if (!swap_columns)
    {
@@ -445,13 +791,13 @@ bool KernelVector2G(const int &mode,
 
 /// Utility function used in CalcEigenvalues<3>.
 MFEM_HOST_DEVICE static inline
-void Vec_normalize3_aux(const double &x1, const double &x2,
-                        const double &x3,
-                        double &n1, double &n2, double &n3)
+void Vec_normalize3_aux(const real_t &x1, const real_t &x2,
+                        const real_t &x3,
+                        real_t &n1, real_t &n2, real_t &n3)
 {
-   double t, r;
+   real_t t, r;
 
-   const double m = fabs(x1);
+   const real_t m = fabs(x1);
    r = x2/m;
    t = 1. + r*r;
    r = x3/m;
@@ -464,8 +810,8 @@ void Vec_normalize3_aux(const double &x1, const double &x2,
 
 /// Utility function used in CalcEigenvalues<3>.
 MFEM_HOST_DEVICE static inline
-void Vec_normalize3(const double &x1, const double &x2, const double &x3,
-                    double &n1, double &n2, double &n3)
+void Vec_normalize3(const real_t &x1, const real_t &x2, const real_t &x3,
+                    real_t &n1, real_t &n2, real_t &n3)
 {
    // should work ok when xk is the same as nk for some or all k
    if (fabs(x1) >= fabs(x2))
@@ -494,12 +840,12 @@ void Vec_normalize3(const double &x1, const double &x2, const double &x3,
 /// Utility function used in CalcEigenvalues<3>.
 MFEM_HOST_DEVICE static inline
 int KernelVector3G_aux(const int &mode,
-                       double &d1, double &d2, double &d3,
-                       double &c12, double &c13, double &c23,
-                       double &c21, double &c31, double &c32)
+                       real_t &d1, real_t &d2, real_t &d3,
+                       real_t &c12, real_t &c13, real_t &c23,
+                       real_t &c21, real_t &c31, real_t &c32)
 {
    int kdim;
-   double mu, n1, n2, n3, s1, s2, s3;
+   real_t mu, n1, n2, n3, s1, s2, s3;
 
    s1 = hypot(c21, c31);
    n1 = hypot(d1, s1);
@@ -600,9 +946,9 @@ done_column_1:
 
 /// Utility function used in CalcEigenvalues<3>.
 MFEM_HOST_DEVICE static inline
-int KernelVector3S(const int &mode, const double &d12,
-                   const double &d13, const double &d23,
-                   double &d1, double &d2, double &d3)
+int KernelVector3S(const int &mode, const real_t &d12,
+                   const real_t &d13, const real_t &d23,
+                   real_t &d1, real_t &d2, real_t &d3)
 {
    // Find a unit vector (z1,z2,z3) in the "near"-kernel of the matrix
    // |  d1  d12  d13 |
@@ -615,8 +961,8 @@ int KernelVector3S(const int &mode, const double &d12,
    // - if kdim == 2, then (d1,d2,d3) is a vector orthogonal to the kernel,
    // - otherwise kdim == 1 and (d1,d2,d3) is a vector in the "near"-kernel.
 
-   double c12 = d12, c13 = d13, c23 = d23;
-   double c21, c31, c32;
+   real_t c12 = d12, c13 = d13, c23 = d23;
+   real_t c21, c31, c32;
    int col, row;
 
    // l1-norms of the columns:
@@ -729,11 +1075,11 @@ int KernelVector3S(const int &mode, const double &d12,
 /// Utility function used in CalcEigenvalues<3>.
 MFEM_HOST_DEVICE static inline
 int Reduce3S(const int &mode,
-             double &d1, double &d2, double &d3,
-             double &d12, double &d13, double &d23,
-             double &z1, double &z2, double &z3,
-             double &v1, double &v2, double &v3,
-             double &g)
+             real_t &d1, real_t &d2, real_t &d3,
+             real_t &d12, real_t &d13, real_t &d23,
+             real_t &z1, real_t &z2, real_t &z3,
+             real_t &v1, real_t &v2, real_t &v3,
+             real_t &g)
 {
    // Given the matrix
    //     |  d1  d12  d13 |
@@ -752,7 +1098,7 @@ int Reduce3S(const int &mode,
    // return value of the function is k. The variable g = 2/(v1^2+v2^2+v3^3).
 
    int k;
-   double s, w1, w2, w3;
+   real_t s, w1, w2, w3;
 
    if (mode == 0)
    {
@@ -851,6 +1197,41 @@ int Reduce3S(const int &mode,
 
 } // namespace kernels::internal
 
+// Implementations of CalcLeftInverse for dim = 1, 2.
+
+template<> MFEM_HOST_DEVICE inline
+void CalcLeftInverse<2,1>(const real_t *d, real_t *left_inv)
+{
+   const real_t t = 1.0 / (d[0]*d[0] + d[1]*d[1]);
+   left_inv[0] = d[0] * t;
+   left_inv[1] = d[1] * t;
+}
+
+template<> MFEM_HOST_DEVICE inline
+void CalcLeftInverse<3,1>(const real_t *d, real_t *left_inv)
+{
+   const real_t t = 1.0 / (d[0]*d[0] + d[1]*d[1] + d[2]*d[2]);
+   left_inv[0] = d[0] * t;
+   left_inv[1] = d[1] * t;
+   left_inv[2] = d[2] * t;
+}
+
+template<> MFEM_HOST_DEVICE inline
+void CalcLeftInverse<3,2>(const real_t *d, real_t *left_inv)
+{
+   real_t e = d[0]*d[0] + d[1]*d[1] + d[2]*d[2];
+   real_t g = d[3]*d[3] + d[4]*d[4] + d[5]*d[5];
+   real_t f = d[0]*d[3] + d[1]*d[4] + d[2]*d[5];
+   const real_t t = 1.0 / (e*g - f*f);
+   e *= t; g *= t; f *= t;
+
+   left_inv[0] = d[0]*g - d[3]*f;
+   left_inv[1] = d[3]*e - d[0]*f;
+   left_inv[2] = d[1]*g - d[4]*f;
+   left_inv[3] = d[4]*e - d[1]*f;
+   left_inv[4] = d[2]*g - d[5]*f;
+   left_inv[5] = d[5]*e - d[2]*f;
+}
 
 // Implementations of CalcEigenvalues and CalcSingularvalue for dim = 2, 3.
 
@@ -858,12 +1239,12 @@ int Reduce3S(const int &mode,
 /// the eigenvalues in the array @a lambda and the eigenvectors in the array @a
 /// vec (listed consecutively).
 template<> MFEM_HOST_DEVICE inline
-void CalcEigenvalues<2>(const double *data, double *lambda, double *vec)
+void CalcEigenvalues<2>(const real_t *data, real_t *lambda, real_t *vec)
 {
-   double d0 = data[0];
-   double d2 = data[2]; // use the upper triangular entry
-   double d3 = data[3];
-   double c, s;
+   real_t d0 = data[0];
+   real_t d2 = data[2]; // use the upper triangular entry
+   real_t d3 = data[3];
+   real_t c, s;
    internal::Eigensystem2S(d2, d0, d3, c, s);
    if (d0 <= d3)
    {
@@ -889,18 +1270,18 @@ void CalcEigenvalues<2>(const double *data, double *lambda, double *vec)
 /// the eigenvalues in the array @a lambda and the eigenvectors in the array @a
 /// vec (listed consecutively).
 template<> MFEM_HOST_DEVICE inline
-void CalcEigenvalues<3>(const double *data, double *lambda, double *vec)
+void CalcEigenvalues<3>(const real_t *data, real_t *lambda, real_t *vec)
 {
-   double d11 = data[0];
-   double d12 = data[3]; // use the upper triangular entries
-   double d22 = data[4];
-   double d13 = data[6];
-   double d23 = data[7];
-   double d33 = data[8];
+   real_t d11 = data[0];
+   real_t d12 = data[3]; // use the upper triangular entries
+   real_t d22 = data[4];
+   real_t d13 = data[6];
+   real_t d23 = data[7];
+   real_t d33 = data[8];
 
-   double mult;
+   real_t mult;
    {
-      double d_max = fabs(d11);
+      real_t d_max = fabs(d11);
       if (d_max < fabs(d22)) { d_max = fabs(d22); }
       if (d_max < fabs(d33)) { d_max = fabs(d33); }
       if (d_max < fabs(d12)) { d_max = fabs(d12); }
@@ -913,12 +1294,12 @@ void CalcEigenvalues<3>(const double *data, double *lambda, double *vec)
    d11 /= mult;  d22 /= mult;  d33 /= mult;
    d12 /= mult;  d13 /= mult;  d23 /= mult;
 
-   double aa = (d11 + d22 + d33)/3;  // aa = tr(A)/3
-   double c1 = d11 - aa;
-   double c2 = d22 - aa;
-   double c3 = d33 - aa;
+   real_t aa = (d11 + d22 + d33)/3;  // aa = tr(A)/3
+   real_t c1 = d11 - aa;
+   real_t c2 = d22 - aa;
+   real_t c3 = d33 - aa;
 
-   double Q, R;
+   real_t Q, R;
 
    Q = (2*(d12*d12 + d13*d13 + d23*d23) + c1*c1 + c2*c2 + c3*c3)/6;
    R = (c1*(d23*d23 - c2*c3)+ d12*(d12*c3 - 2*d13*d23) + d13*d13*c2)/2;
@@ -932,11 +1313,11 @@ void CalcEigenvalues<3>(const double *data, double *lambda, double *vec)
    }
    else
    {
-      double sqrtQ = sqrt(Q);
-      double sqrtQ3 = Q*sqrtQ;
-      // double sqrtQ3 = sqrtQ*sqrtQ*sqrtQ;
-      // double sqrtQ3 = pow(Q, 1.5);
-      double r;
+      real_t sqrtQ = sqrt(Q);
+      real_t sqrtQ3 = Q*sqrtQ;
+      // real_t sqrtQ3 = sqrtQ*sqrtQ*sqrtQ;
+      // real_t sqrtQ3 = pow(Q, 1.5);
+      real_t r;
       if (fabs(R) >= sqrtQ3)
       {
          if (R < 0.)
@@ -1005,7 +1386,7 @@ void CalcEigenvalues<3>(const double *data, double *lambda, double *vec)
       //                   | d11   0   0 |
       // A <-- Q P A P Q = |  0  d22 d23 |
       //                   |  0  d23 d33 |
-      double v1, v2, v3, g;
+      real_t v1, v2, v3, g;
       int k = internal::Reduce3S(mode, d11, d22, d33, d12, d13, d23,
                                  c1, c2, c3, v1, v2, v3, g);
       // Q = I - 2 v v^t
@@ -1014,11 +1395,11 @@ void CalcEigenvalues<3>(const double *data, double *lambda, double *vec)
       // find the eigenvalues and eigenvectors for
       // | d22 d23 |
       // | d23 d33 |
-      double c, s;
+      real_t c, s;
       internal::Eigensystem2S(d23, d22, d33, c, s);
       // d22 <-> P Q (0, c, -s), d33 <-> P Q (0, s, c)
 
-      double *vec_1, *vec_2, *vec_3;
+      real_t *vec_1, *vec_2, *vec_3;
       if (d11 <= d22)
       {
          if (d22 <= d33)
@@ -1091,17 +1472,17 @@ done_3d:
 
 /// Return the i'th singular value of the matrix of size 2 with given @a data.
 template<> MFEM_HOST_DEVICE inline
-double CalcSingularvalue<2>(const double *data, const int i)
+real_t CalcSingularvalue<2>(const real_t *data, const int i)
 {
-   double d0, d1, d2, d3;
+   real_t d0, d1, d2, d3;
    d0 = data[0];
    d1 = data[1];
    d2 = data[2];
    d3 = data[3];
-   double mult;
+   real_t mult;
 
    {
-      double d_max = fabs(d0);
+      real_t d_max = fabs(d0);
       if (d_max < fabs(d1)) { d_max = fabs(d1); }
       if (d_max < fabs(d2)) { d_max = fabs(d2); }
       if (d_max < fabs(d3)) { d_max = fabs(d3); }
@@ -1113,8 +1494,8 @@ double CalcSingularvalue<2>(const double *data, const int i)
    d2 /= mult;
    d3 /= mult;
 
-   double t = 0.5*((d0+d2)*(d0-d2)+(d1-d3)*(d1+d3));
-   double s = d0*d2 + d1*d3;
+   real_t t = 0.5*((d0+d2)*(d0-d2)+(d1-d3)*(d1+d3));
+   real_t s = d0*d2 + d1*d3;
    s = sqrt(0.5*(d0*d0 + d1*d1 + d2*d2 + d3*d3) + sqrt(t*t + s*s));
 
    if (s == 0.0)
@@ -1139,15 +1520,15 @@ double CalcSingularvalue<2>(const double *data, const int i)
 
 /// Return the i'th singular value of the matrix of size 3 with given @a data.
 template<> MFEM_HOST_DEVICE inline
-double CalcSingularvalue<3>(const double *data, const int i)
+real_t CalcSingularvalue<3>(const real_t *data, const int i)
 {
-   double d0, d1, d2, d3, d4, d5, d6, d7, d8;
+   real_t d0, d1, d2, d3, d4, d5, d6, d7, d8;
    d0 = data[0];  d3 = data[3];  d6 = data[6];
    d1 = data[1];  d4 = data[4];  d7 = data[7];
    d2 = data[2];  d5 = data[5];  d8 = data[8];
-   double mult;
+   real_t mult;
    {
-      double d_max = fabs(d0);
+      real_t d_max = fabs(d0);
       if (d_max < fabs(d1)) { d_max = fabs(d1); }
       if (d_max < fabs(d2)) { d_max = fabs(d2); }
       if (d_max < fabs(d3)) { d_max = fabs(d3); }
@@ -1163,12 +1544,12 @@ double CalcSingularvalue<3>(const double *data, const int i)
    d3 /= mult;  d4 /= mult;  d5 /= mult;
    d6 /= mult;  d7 /= mult;  d8 /= mult;
 
-   double b11 = d0*d0 + d1*d1 + d2*d2;
-   double b12 = d0*d3 + d1*d4 + d2*d5;
-   double b13 = d0*d6 + d1*d7 + d2*d8;
-   double b22 = d3*d3 + d4*d4 + d5*d5;
-   double b23 = d3*d6 + d4*d7 + d5*d8;
-   double b33 = d6*d6 + d7*d7 + d8*d8;
+   real_t b11 = d0*d0 + d1*d1 + d2*d2;
+   real_t b12 = d0*d3 + d1*d4 + d2*d5;
+   real_t b13 = d0*d6 + d1*d7 + d2*d8;
+   real_t b22 = d3*d3 + d4*d4 + d5*d5;
+   real_t b23 = d3*d6 + d4*d7 + d5*d8;
+   real_t b33 = d6*d6 + d7*d7 + d8*d8;
 
    // double a, b, c;
    // a = -(b11 + b22 + b33);
@@ -1187,20 +1568,20 @@ double CalcSingularvalue<3>(const double *data, const int i)
    // Q >= 0 and
    // Q = 0  <==> B = scalar * I
    // double R = (2 * a * a * a - 9 * a * b + 27 * c) / 54;
-   double aa = (b11 + b22 + b33)/3;  // aa = tr(B)/3
-   double c1, c2, c3;
+   real_t aa = (b11 + b22 + b33)/3;  // aa = tr(B)/3
+   real_t c1, c2, c3;
    // c1 = b11 - aa; // ((b11 - b22) + (b11 - b33))/3
    // c2 = b22 - aa; // ((b22 - b11) + (b22 - b33))/3
    // c3 = b33 - aa; // ((b33 - b11) + (b33 - b22))/3
    {
-      double b11_b22 = ((d0-d3)*(d0+d3)+(d1-d4)*(d1+d4)+(d2-d5)*(d2+d5));
-      double b22_b33 = ((d3-d6)*(d3+d6)+(d4-d7)*(d4+d7)+(d5-d8)*(d5+d8));
-      double b33_b11 = ((d6-d0)*(d6+d0)+(d7-d1)*(d7+d1)+(d8-d2)*(d8+d2));
+      real_t b11_b22 = ((d0-d3)*(d0+d3)+(d1-d4)*(d1+d4)+(d2-d5)*(d2+d5));
+      real_t b22_b33 = ((d3-d6)*(d3+d6)+(d4-d7)*(d4+d7)+(d5-d8)*(d5+d8));
+      real_t b33_b11 = ((d6-d0)*(d6+d0)+(d7-d1)*(d7+d1)+(d8-d2)*(d8+d2));
       c1 = (b11_b22 - b33_b11)/3;
       c2 = (b22_b33 - b11_b22)/3;
       c3 = (b33_b11 - b22_b33)/3;
    }
-   double Q, R;
+   real_t Q, R;
    Q = (2*(b12*b12 + b13*b13 + b23*b23) + c1*c1 + c2*c2 + c3*c3)/6;
    R = (c1*(b23*b23 - c2*c3)+ b12*(b12*c3 - 2*b13*b23) +b13*b13*c2)/2;
    // R = (-1/2)*det(B-(tr(B)/3)*I)
@@ -1235,11 +1616,11 @@ double CalcSingularvalue<3>(const double *data, const int i)
 
    else
    {
-      double sqrtQ = sqrt(Q);
-      double sqrtQ3 = Q*sqrtQ;
+      real_t sqrtQ = sqrt(Q);
+      real_t sqrtQ3 = Q*sqrtQ;
       // double sqrtQ3 = sqrtQ*sqrtQ*sqrtQ;
       // double sqrtQ3 = pow(Q, 1.5);
-      double r;
+      real_t r;
 
       if (fabs(R) >= sqrtQ3)
       {
@@ -1334,7 +1715,7 @@ double CalcSingularvalue<3>(const double *data, const int i)
       //                   | b11   0   0 |
       // B <-- Q P B P Q = |  0  b22 b23 |
       //                   |  0  b23 b33 |
-      double v1, v2, v3, g;
+      real_t v1, v2, v3, g;
       internal::Reduce3S(mode, b11, b22, b33, b12, b13, b23,
                          c1, c2, c3, v1, v2, v3, g);
       // Q = I - g v v^t
@@ -1371,38 +1752,44 @@ have_aa:
    return sqrt(fabs(aa))*mult; // take abs before we sort?
 }
 
-
-/// Assuming L.U = P.A for a factored matrix (m x m),
-//  compute x <- A x
+/// @brief Assuming L.U = P.A factored matrix of size (m x m), compute
+/// X <- L^{-1} P X, for a vector X of length m.
 //
 // @param [in] data LU factorization of A
 // @param [in] m square matrix height
-// @param [in] ipiv array storing pivot information
+// @param [in] ipiv array storing pivots
 // @param [in, out] x vector storing right-hand side and then solution
 MFEM_HOST_DEVICE
-inline void LUSolve(const double *data, const int m, const int *ipiv,
-                    double *x)
+inline void LSolve(const real_t *data, const int m, const int *ipiv, real_t *x)
 {
    // X <- P X
    for (int i = 0; i < m; i++)
    {
-      internal::Swap<double>(x[i], x[ipiv[i]]);
+      internal::Swap<real_t>(x[i], x[ipiv[i]]);
    }
-
    // X <- L^{-1} X
    for (int j = 0; j < m; j++)
    {
-      const double x_j = x[j];
+      const real_t x_j = x[j];
       for (int i = j + 1; i < m; i++)
       {
          x[i] -= data[i + j * m] * x_j;
       }
    }
+}
 
-   // X <- U^{-1} X
+/// @brief Assuming L.U = P.A factored matrix of size (m x m), compute
+/// X <- U^{-1} X, for a vector X of length m.
+//
+// @param [in] data LU factorization of A
+// @param [in] m square matrix height
+// @param [in, out] x vector storing right-hand side and then solution
+MFEM_HOST_DEVICE
+inline void USolve(const real_t *data, const int m, real_t *x)
+{
    for (int j = m - 1; j >= 0; j--)
    {
-      const double x_j = (x[j] /= data[j + j * m]);
+      const real_t x_j = (x[j] /= data[j + j * m]);
       for (int i = 0; i < j; i++)
       {
          x[i] -= data[i + j * m] * x_j;
@@ -1410,8 +1797,150 @@ inline void LUSolve(const double *data, const int m, const int *ipiv,
    }
 }
 
+/// @brief Assuming L.U = P.A for a factored matrix (m x m),
+//  compute x <- A x
+//
+// @param [in] data LU factorization of A
+// @param [in] m square matrix height
+// @param [in] ipiv array storing pivot information
+// @param [in, out] x vector storing right-hand side and then solution
+MFEM_HOST_DEVICE
+inline void LUSolve(const real_t *data, const int m, const int *ipiv, real_t *x)
+{
+   LSolve(data, m, ipiv, x);
+   USolve(data, m, x);
+}
+
+
+/// @brief Given an (n x m) matrix A21, compute X2 <- X2 - A21 X1, for matrices
+/// X1, and X2 of size (m x r) and (n x r), respectively.
+MFEM_HOST_DEVICE
+inline void SubMult(const int m, const int n, const int r, const real_t *A21,
+                    const real_t *X1, real_t *X2)
+{
+   // X2 <- X2 - A21 X1
+   for (int k = 0; k < r; k++)
+   {
+      for (int j = 0; j < m; j++)
+      {
+         const real_t x1_jk = X1[j+k*m];
+         for (int i = 0; i < n; i++)
+         {
+            X2[i+k*n] -= A21[i+j*n] * x1_jk;
+         }
+      }
+   }
+}
+
+/// Assuming P.A = L.U factored data of size (m x m), compute the 2x2 block
+/// decomposition:
+///      | P 0 | |  A  A12 | = |  L  0 | | U U12 |
+///      | 0 I | | A21 A22 |   | L21 I | | 0 S22 |
+///   where A12, A21, and A22 are matrices of size (m x n), (n x m), and
+///   (n x n), respectively. The blocks are overwritten as follows:
+///      A12 <- U12 = L^{-1} P A12
+///      A21 <- L21 = A21 U^{-1}
+///      A22 <- S22 = A22 - L21 U12.
+///   The block S22 is the Schur complement.
+MFEM_HOST_DEVICE
+inline void BlockFactor(const real_t *data, int m, const int *ipiv,
+                        int n, real_t *A12, real_t *A21, real_t *A22)
+{
+   // A12 <- L^{-1} P A12
+   for (int i = 0; i < n; ++i)
+   {
+      LSolve(data, m, ipiv, A12 + i*m);
+   }
+   // A21 <- A21 U^{-1}
+   for (int j = 0; j < m; j++)
+   {
+      const real_t u_jj_inv = 1.0/data[j+j*m];
+      for (int i = 0; i < n; i++)
+      {
+         A21[i+j*n] *= u_jj_inv;
+      }
+      for (int k = j+1; k < m; k++)
+      {
+         const real_t u_jk = data[j+k*m];
+         for (int i = 0; i < n; i++)
+         {
+            A21[i+k*n] -= A21[i+j*n] * u_jk;
+         }
+      }
+   }
+   // A22 <- A22 - A21 A12
+   SubMult(m, n, n, A21, A12, A22);
+}
+
+/// @brief Compute the LU factorization of the m x m matrix @a A.
+///
+/// Factorize the matrix of size (m x m) overwriting it with the LU factors. The
+/// factorization is such that L.U = P.A, where A is the original matrix and P
+/// is a permutation matrix represented by ipiv.
+///
+/// @param [in, out] A matrix
+/// @param [in] m size of the square matrix
+/// @param [out] ipiv array of pivots (length m)
+/// @param [in] tol optional fuzzy comparison tolerance. Defaults to 0.0.
+///
+/// @return true if the factorization succeeds, false otherwise (zero pivot).
+MFEM_HOST_DEVICE
+inline bool LUFactor(real_t *A, const int m, int *ipiv, const real_t tol=0.0)
+{
+   bool pivot_flag = true;
+
+   for (int i = 0; i < m; i++)
+   {
+      // pivoting
+      {
+         int piv = i;
+         real_t a = fabs(A[piv + m*i]);
+         for (int j = i+1; j < m; j++)
+         {
+            const real_t b = fabs(A[j + m*i]);
+            if (b > a)
+            {
+               a = b;
+               piv = j;
+            }
+         }
+         ipiv[i] = piv;
+         if (piv != i)
+         {
+            // swap rows i and piv in both L and U parts
+            for (int j = 0; j < m; j++)
+            {
+               internal::Swap<real_t>(A[i + m*j], A[piv + m*j]);
+            }
+         }
+      } // pivot end
+
+      if (fabs(A[i + m*i]) <= tol)
+      {
+         pivot_flag = false;
+      }
+
+      const real_t a_ii_inv = 1.0 / A[i + m*i];
+      for (int j = i+1; j < m; j++)
+      {
+         A[j + m*i] *= a_ii_inv;
+      }
+
+      for (int k = i+1; k < m; k++)
+      {
+         const real_t a_ik = A[i + m*k];
+         for (int j = i+1; j < m; j++)
+         {
+            A[j + m*k] -= a_ik * A[j + m*i];
+         }
+      }
+   }
+
+   return pivot_flag;
+}
+
 } // namespace kernels
 
 } // namespace mfem
 
-#endif // MFEM_KERNELS_HPP
+#endif // MFEM_LINALG_KERNELS_HPP

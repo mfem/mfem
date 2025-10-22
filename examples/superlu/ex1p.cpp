@@ -26,7 +26,7 @@
 //               mpirun -np 4 ex1p -m ../../data/mobius-strip.mesh
 //
 // Description:  This example code demonstrates the use of MFEM to define a
-//               simple finite element discretization of the Laplace problem
+//               simple finite element discretization of the Poisson problem
 //               -Delta u = 1 with homogeneous Dirichlet boundary conditions.
 //               Specifically, we discretize using a FE space of the specified
 //               order, or if order < 1 using an isoparametric/isogeometric
@@ -53,11 +53,11 @@ using namespace mfem;
 
 int main(int argc, char *argv[])
 {
-   // 1. Initialize MPI.
-   int num_procs, myid;
-   MPI_Init(&argc, &argv);
-   MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
-   MPI_Comm_rank(MPI_COMM_WORLD, &myid);
+   // 1. Initialize MPI and HYPRE.
+   Mpi::Init(argc, argv);
+   int num_procs = Mpi::WorldSize();
+   int myid = Mpi::WorldRank();
+   Hypre::Init();
 
    // 2. Parse command-line options.
    const char *mesh_file = "../../data/star.mesh";
@@ -67,6 +67,7 @@ int main(int argc, char *argv[])
    int slu_colperm = 4;
    int slu_rowperm = 1;
    int slu_iterref = 2;
+   int slu_npdep = 1;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -85,9 +86,11 @@ int main(int argc, char *argv[])
                   "6-ZOLTAN");
    args.AddOption(&slu_rowperm, "-rp", "--rowperm",
                   "SuperLU Row Permutation Method:  0-NOROWPERM, 1-LargeDiag");
-   args.AddOption(&slu_iterref, "-rp", "--rowperm",
+   args.AddOption(&slu_iterref, "-ir", "--iterref",
                   "SuperLU Iterative Refinement:  0-NOREFINE, 1-Single, "
                   "2-Double, 3-Extra");
+   args.AddOption(&slu_npdep, "-npdep", "--npdepth",
+                  "Depth of 3D parition for SuperLU (>= 7.2.0)");
 
    args.Parse();
    if (!args.Good())
@@ -96,7 +99,6 @@ int main(int argc, char *argv[])
       {
          args.PrintUsage(cout);
       }
-      MPI_Finalize();
       return 1;
    }
    if (myid == 0)
@@ -215,7 +217,7 @@ int main(int argc, char *argv[])
    a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
 
    // 13. Solve the linear system A X = B utilizing SuperLU.
-   SuperLUSolver *superlu = new SuperLUSolver(MPI_COMM_WORLD);
+   SuperLUSolver *superlu = new SuperLUSolver(MPI_COMM_WORLD, slu_npdep);
    Operator *SLU_A = new SuperLURowLocMatrix(*A.As<HypreParMatrix>());
    superlu->SetPrintStatistics(true);
    superlu->SetSymmetricPattern(false);
@@ -283,6 +285,9 @@ int main(int argc, char *argv[])
    superlu->SetPrintStatistics(true);
    superlu->Mult(B, X);
 
+   delete superlu;
+   delete SLU_A;
+
    // 14. Recover the parallel grid function corresponding to X. This is the
    //     local finite element solution on each processor.
    a.RecoverFEMSolution(X, b, x);
@@ -319,7 +324,6 @@ int main(int argc, char *argv[])
    {
       delete fec;
    }
-   MPI_Finalize();
 
    return 0;
 }

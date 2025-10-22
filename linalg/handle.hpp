@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -69,6 +69,11 @@ public:
    template <typename OpType>
    explicit OperatorHandle(OpType *A, bool own_A = true) { pSet(A, own_A); }
 
+   /// Shallow copy. The ownership flag of the target is set to false.
+   OperatorHandle(const OperatorHandle &other) :
+      oper(other.oper), type_id(other.type_id), own_oper(false)
+   {  }
+
    ~OperatorHandle() { if (own_oper) { delete oper; } }
 
    /// Shallow copy. The ownership flag of the target is set to false.
@@ -86,6 +91,9 @@ public:
 
    /// Access the underlying Operator.
    Operator &operator*() { return *oper; }
+
+   /// Access the underlying Operator.
+   const Operator &operator*() const { return *oper; }
 
    /// Get the currently set operator type id.
    Operator::Type Type() const { return type_id; }

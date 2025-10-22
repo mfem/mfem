@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -54,6 +54,7 @@ TEST_CASE("ParMeshGlobalIndices",  "[Parallel], [ParMesh]")
             }
          }
 
+
          ParMesh pmesh(MPI_COMM_WORLD, mesh);
 
          int globalN = 0;
@@ -67,7 +68,7 @@ TEST_CASE("ParMeshGlobalIndices",  "[Parallel], [ParMesh]")
                continue;
             }
 
-            Array<HYPRE_Int> gi;
+            Array<HYPRE_BigInt> gi;
 
             switch (e)
             {
@@ -91,7 +92,7 @@ TEST_CASE("ParMeshGlobalIndices",  "[Parallel], [ParMesh]")
 
             // Verify that the local entities do not share a global index.
             {
-               std::set<HYPRE_Int> localGI;
+               std::set<HYPRE_BigInt> localGI;
                for (int i=0; i<gi.Size(); ++i)
                {
                   localGI.insert(gi[i]);
@@ -102,12 +103,16 @@ TEST_CASE("ParMeshGlobalIndices",  "[Parallel], [ParMesh]")
 
             // Verify that the global indices range from 0 to globalN-1.
             {
-               const HYPRE_Int localMin = gi.Min();
-               const HYPRE_Int localMax = gi.Max();
+               const HYPRE_BigInt localMin = gi.Size() > 0 ? gi.Min() :
+                                             std::numeric_limits<HYPRE_BigInt>::max();
+               const HYPRE_BigInt localMax = gi.Size() > 0 ? gi.Max() :
+                                             std::numeric_limits<HYPRE_BigInt>::min();
 
                HYPRE_BigInt globalMin, globalMax;
-               MPI_Allreduce(&localMin, &globalMin, 1, HYPRE_MPI_INT, MPI_MIN, MPI_COMM_WORLD);
-               MPI_Allreduce(&localMax, &globalMax, 1, HYPRE_MPI_INT, MPI_MAX, MPI_COMM_WORLD);
+               MPI_Allreduce(&localMin, &globalMin, 1, HYPRE_MPI_BIG_INT, MPI_MIN,
+                             MPI_COMM_WORLD);
+               MPI_Allreduce(&localMax, &globalMax, 1, HYPRE_MPI_BIG_INT, MPI_MAX,
+                             MPI_COMM_WORLD);
 
                REQUIRE((globalMin == 0 && globalMax == globalN-1));
             }
@@ -178,6 +183,10 @@ TEST_CASE("ParMeshMakeSimplicial", "[Parallel], [ParMesh]")
    // to solver tolerance.
 
    Mesh mesh = Mesh::MakeCartesian3D(3, 3, 3, Element::HEXAHEDRON);
+   if (GENERATE(false,true))
+   {
+      mesh.SetCurvature(2);
+   }
    ParMesh pmesh(MPI_COMM_WORLD, mesh);
    ParMesh pmesh_tet = ParMesh::MakeSimplicial(pmesh);
 

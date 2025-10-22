@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -31,7 +31,7 @@ class Vector;
 class OptionsParser
 {
 public:
-   enum OptionType { INT, DOUBLE, STRING, ENABLE, DISABLE, ARRAY, VECTOR };
+   enum OptionType { INT, DOUBLE, STRING, STD_STRING, ENABLE, DISABLE, ARRAY, VECTOR };
 
 private:
    struct Option
@@ -45,10 +45,10 @@ private:
 
       Option() = default;
 
-      Option(OptionType _type, void *_var_ptr, const char *_short_name,
-             const char *_long_name, const char *_description, bool req)
-         : type(_type), var_ptr(_var_ptr), short_name(_short_name),
-           long_name(_long_name), description(_description), required(req) { }
+      Option(OptionType type_, void *var_ptr_, const char *short_name_,
+             const char *long_name_, const char *description_, bool req)
+         : type(type_), var_ptr(var_ptr_), short_name(short_name_),
+           long_name(long_name_), description(description_), required(req) { }
    };
 
    int argc;
@@ -69,9 +69,9 @@ private:
 
 public:
 
-   /// Construct a command line option parser with '_argc' and '_argv'.
-   OptionsParser(int _argc, char *_argv[])
-      : argc(_argc), argv(_argv)
+   /// Construct a command line option parser with 'argc_' and 'argv_'.
+   OptionsParser(int argc_, char *argv_[])
+      : argc(argc_), argv(argv_)
    {
       error_type = error_idx = 0;
    }
@@ -99,7 +99,7 @@ public:
    }
 
    /// Add a double option and set 'var' to receive the value.
-   void AddOption(double *var, const char *short_name, const char *long_name,
+   void AddOption(real_t *var, const char *short_name, const char *long_name,
                   const char *description, bool required = false)
    {
       options.Append(Option(DOUBLE, var, short_name, long_name, description,
@@ -112,6 +112,15 @@ public:
                   bool required = false)
    {
       options.Append(Option(STRING, var, short_name, long_name, description,
+                            required));
+   }
+
+   /// Add a string (std::string) option and set 'var' to receive the value.
+   void AddOption(std::string *var, const char *short_name,
+                  const char *long_name, const char *description,
+                  bool required = false)
+   {
+      options.Append(Option(STD_STRING, var, short_name, long_name, description,
                             required));
    }
 

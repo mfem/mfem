@@ -3,6 +3,10 @@
 // Compile with: make ex20
 //
 // Sample runs:  ex20
+//               ex20 -p 1 -o 1 -n 120 -dt 0.1
+//               ex20 -p 1 -o 2 -n 60 -dt 0.2
+//               ex20 -p 1 -o 3 -n 40 -dt 0.3
+//               ex20 -p 1 -o 4 -n 30 -dt 0.4
 //
 // Description: This example demonstrates the use of the variable order,
 //              symplectic ODE integration algorithm.  Symplectic integration
@@ -65,24 +69,24 @@ using namespace mfem;
 
 // Constants used in the Hamiltonian
 static int prob_ = 0;
-static double m_ = 1.0;
-static double k_ = 1.0;
+static real_t m_ = 1.0;
+static real_t k_ = 1.0;
 
 // Hamiltonian functional, see below for implementation
-double hamiltonian(double q, double p, double t);
+real_t hamiltonian(real_t q, real_t p, real_t t);
 
 class GradT : public Operator
 {
 public:
    GradT() : Operator(1) {}
-   void Mult(const Vector &x, Vector &y) const { y.Set(1.0/m_, x); }
+   void Mult(const Vector &x, Vector &y) const override { y.Set(1.0/m_, x); }
 };
 
 class NegGradV : public TimeDependentOperator
 {
 public:
    NegGradV() : TimeDependentOperator(1) {}
-   void Mult(const Vector &x, Vector &y) const;
+   void Mult(const Vector &x, Vector &y) const override;
 };
 
 int main(int argc, char *argv[])
@@ -90,7 +94,7 @@ int main(int argc, char *argv[])
    // 1. Parse command-line options.
    int order  = 1;
    int nsteps = 100;
-   double dt  = 0.1;
+   real_t dt  = 0.1;
    bool visualization = true;
    bool gnuplot = false;
 
@@ -132,7 +136,7 @@ int main(int argc, char *argv[])
    siaSolver.Init(P,F);
 
    // 3. Set the initial conditions
-   double t = 0.0;
+   real_t t = 0.0;
    Vector q(1), p(1);
    Vector e(nsteps+1);
    q(0) = 0.0;
@@ -156,7 +160,7 @@ int main(int argc, char *argv[])
    Vector x1(3); x1 = 0.0;
 
    // 6. Perform time-stepping
-   double e_mean = 0.0;
+   real_t e_mean = 0.0;
 
    for (int i = 0; i < nsteps; i++)
    {
@@ -206,13 +210,13 @@ int main(int argc, char *argv[])
 
    // 7. Compute and display mean and standard deviation of the energy
    e_mean /= (nsteps + 1);
-   double e_var = 0.0;
+   real_t e_var = 0.0;
    for (int i=0; i<=nsteps; i++)
    {
       e_var += pow(e[i] - e_mean, 2);
    }
    e_var /= (nsteps + 1);
-   double e_sd = sqrt(e_var);
+   real_t e_sd = sqrt(e_var);
    cout << endl << "Mean and standard deviation of the energy" << endl;
    cout << e_mean << "\t" << e_sd << endl;
 
@@ -231,6 +235,7 @@ int main(int argc, char *argv[])
    // 9. Finalize the GLVis output
    if (visualization)
    {
+      mesh.FinalizeQuadMesh(1);
       H1_FECollection fec(order = 1, 2);
       FiniteElementSpace fespace(&mesh, &fec);
       GridFunction energy(&fespace);
@@ -251,9 +256,9 @@ int main(int argc, char *argv[])
    }
 }
 
-double hamiltonian(double q, double p, double t)
+real_t hamiltonian(real_t q, real_t p, real_t t)
 {
-   double h = 1.0 - 0.5 / m_ + 0.5 * p * p / m_;
+   real_t h = 1.0 - 0.5 / m_ + 0.5 * p * p / m_;
    switch (prob_)
    {
       case 1:

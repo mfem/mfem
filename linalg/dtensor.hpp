@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -13,6 +13,7 @@
 #define MFEM_DTENSOR
 
 #include "../general/backends.hpp"
+#include <array>
 
 namespace mfem
 {
@@ -28,8 +29,8 @@ public:
 #if !(defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))
       MFEM_ASSERT(first<sizes[N-1],"Trying to access out of boundary.");
 #endif
-      return first + sizes[N - 1] * TensorInd < N + 1, Dim, Args... >
-             ::result(sizes, args...);
+      return static_cast<int>(first + sizes[N - 1] * TensorInd < N + 1, Dim, Args... >
+                              ::result(sizes, args...));
    }
 };
 
@@ -42,9 +43,10 @@ public:
    static inline int result(const int* sizes, T first, Args... args)
    {
 #if !(defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))
-      MFEM_ASSERT(first<sizes[Dim-1],"Trying to access out of boundary.");
+      MFEM_ASSERT(first<static_cast<T>(sizes[Dim-1]),
+                  "Trying to access out of boundary.");
 #endif
-      return first;
+      return static_cast<int>(first);
    }
 };
 
@@ -77,7 +79,7 @@ public:
 
 
 /// A basic generic Tensor class, appropriate for use on the GPU
-template<int Dim, typename Scalar = double>
+template<int Dim, typename Scalar = real_t>
 class DeviceTensor
 {
 protected:
@@ -87,29 +89,26 @@ protected:
 
 public:
    /// Default constructor
-   DeviceTensor() = delete;
+   // DeviceTensor() = delete;
+   MFEM_HOST_DEVICE
+   DeviceTensor() {}
 
-   /// Constructor to initialize a tensor from the Scalar array _data
+   /// Constructor to initialize a tensor from the Scalar array data_
    template <typename... Args> MFEM_HOST_DEVICE
-   DeviceTensor(Scalar* _data, Args... args)
+   DeviceTensor(Scalar* data_, Args... args)
    {
       static_assert(sizeof...(args) == Dim, "Wrong number of arguments");
       // Initialize sizes, and compute the number of values
       const long int nb = Init<1, Dim, Args...>::result(sizes, args...);
       capacity = nb;
-      data = (capacity > 0) ? _data : NULL;
+      data = (capacity > 0) ? data_ : NULL;
    }
 
-   /// Copy constructor
-   MFEM_HOST_DEVICE DeviceTensor(const DeviceTensor& t)
-   {
-      capacity = t.capacity;
-      for (int i = 0; i < Dim; ++i)
-      {
-         sizes[i] = t.sizes[i];
-      }
-      data = t.data;
-   }
+   /// Copy constructor (default)
+   DeviceTensor(const DeviceTensor&) = default;
+
+   /// Copy assignment (default)
+   DeviceTensor& operator=(const DeviceTensor&) = default;
 
    /// Conversion to `Scalar *`.
    MFEM_HOST_DEVICE inline operator Scalar *() const { return data; }
@@ -127,12 +126,15 @@ public:
    {
       return data[i];
    }
+
+   /// Returns the shape of the tensor.
+   MFEM_HOST_DEVICE inline auto &GetShape() const { return sizes; }
 };
 
 
 /** @brief Wrap a pointer as a DeviceTensor with automatically deduced template
     parameters */
-template <typename T, typename... Dims>
+template <typename T, typename... Dims> MFEM_HOST_DEVICE
 inline DeviceTensor<sizeof...(Dims),T> Reshape(T *ptr, Dims... dims)
 {
    return DeviceTensor<sizeof...(Dims),T>(ptr, dims...);
@@ -140,9 +142,16 @@ inline DeviceTensor<sizeof...(Dims),T> Reshape(T *ptr, Dims... dims)
 
 
 typedef DeviceTensor<1,int> DeviceArray;
-typedef DeviceTensor<1,double> DeviceVector;
-typedef DeviceTensor<2,double> DeviceMatrix;
-typedef DeviceTensor<2,const double> ConstDeviceMatrix;
+typedef DeviceTensor<1,const int> ConstDeviceArray;
+
+typedef DeviceTensor<1,real_t> DeviceVector;
+typedef DeviceTensor<1,const real_t> ConstDeviceVector;
+
+typedef DeviceTensor<2,real_t> DeviceMatrix;
+typedef DeviceTensor<2,const real_t> ConstDeviceMatrix;
+
+typedef DeviceTensor<3,real_t> DeviceCube;
+typedef DeviceTensor<3,const real_t> ConstDeviceCube;
 
 } // mfem namespace
 

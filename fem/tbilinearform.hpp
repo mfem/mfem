@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -41,7 +41,7 @@ namespace mfem
 template <typename meshType, typename solFESpace,
           typename IR, typename IntegratorType,
           typename solVecLayout_t = ScalarLayout,
-          typename complex_t = double, typename real_t = double,
+          typename complex_t = real_t, typename real_t = real_t,
           typename impl_traits_t = AutoSIMDTraits<complex_t,real_t> >
 class TBilinearForm : public Operator
 {
@@ -151,13 +151,13 @@ public:
    }
 
    /// Get the input finite element space prolongation matrix
-   virtual const Operator *GetProlongation() const
+   const Operator *GetProlongation() const override
    { return ((FiniteElementSpace &)in_fes).GetProlongationMatrix(); }
    /// Get the input finite element space restriction matrix
-   virtual const Operator *GetRestriction() const
+   const Operator *GetRestriction() const override
    { return ((FiniteElementSpace &)in_fes).GetRestrictionMatrix(); }
 
-   virtual void Mult(const Vector &x, Vector &y) const
+   void Mult(const Vector &x, Vector &y) const override
    {
       if (!assembled_data.Empty())
       {
@@ -274,18 +274,18 @@ public:
    {
       y = 0.0;
 
-      solVecLayout_type solVecLayout(this->solVecLayout);
-      solFESpace solFES(this->solFES);
+      solVecLayout_type solVecLayoutLoc(this->solVecLayout);
+      solFESpace solFESLoc(this->solFES);
 
       TTensor3<dofs,vdim,BE,vcomplex_t> xy_dof;
 
       const int NE = mesh.GetNE();
       for (int el = 0; el < NE; el += TE)
       {
-         solFES.SetElement(el);
+         solFESLoc.SetElement(el);
 
-         solFES.VectorExtract(solVecLayout, x, xy_dof.layout, xy_dof);
-         solFES.VectorAssemble(xy_dof.layout, xy_dof, solVecLayout, y);
+         solFESLoc.VectorExtract(solVecLayoutLoc, x, xy_dof.layout, xy_dof);
+         solFESLoc.VectorAssemble(xy_dof.layout, xy_dof, solVecLayoutLoc, y);
       }
    }
 
@@ -346,8 +346,8 @@ public:
    {
       typedef TTensor3<dofs,vdim,BE,vcomplex_t> vdof_data_t;
 
-      solVecLayout_t solVecLayout(this->solVecLayout);
-      solFESpace solFES(this->solFES);
+      solVecLayout_t solVecLayoutLoc(this->solVecLayout);
+      solFESpace solFESLoc(this->solFES);
 
       const int NE = mesh.GetNE();
       // TODO: How do we make sure that this array is aligned properly, AND
@@ -358,8 +358,8 @@ public:
       sx.MakeDataOwner();
       for (int el = 0; el < NE; el += TE)
       {
-         solFES.SetElement(el);
-         solFES.VectorExtract(solVecLayout, x, vdof_data_t::layout, vsx);
+         solFESLoc.SetElement(el);
+         solFESLoc.VectorExtract(solVecLayoutLoc, x, vdof_data_t::layout, vsx);
          vsx += vdof_data_t::size;
       }
    }
@@ -397,9 +397,9 @@ public:
    void AssembleMatrix(SparseMatrix &M) const
    {
       Trans_t T(mesh, meshEval);
-      solFESpace solFES(this->solFES);
-      solShapeEval solEval(this->solEval);
-      solVecLayout_t solVecLayout(this->solVecLayout);
+      solFESpace solFESLoc(this->solFES);
+      solShapeEval solEvalLoc(this->solEval);
+      solVecLayout_t solVecLayoutLoc(this->solVecLayout);
       coeff_eval_t wQ(int_rule, coeff);
 
       const int NE = mesh.GetNE();
@@ -429,12 +429,12 @@ public:
             TMatrix<dofs,dofs,vcomplex_t> M_loc;
             S_spec::ElementMatrix::Compute(
                asm_qpt_data[k].layout, asm_qpt_data[k], M_loc.layout, M_loc,
-               solEval);
+               solEvalLoc);
 
-            solFES.SetElement(el_k);
+            solFESLoc.SetElement(el_k);
             for (int bi = 0; bi < vdim; bi++)
             {
-               solFES.AssembleBlock(bi, bi, solVecLayout, M_loc, M);
+               solFESLoc.AssembleBlock(bi, bi, solVecLayoutLoc, M_loc, M);
             }
          }
       }
@@ -445,7 +445,7 @@ public:
    void AssembleMatrix(DenseTensor &M) const
    {
       Trans_t T(mesh, meshEval);
-      solShapeEval solEval(this->solEval);
+      solShapeEval solEvalLoc(this->solEval);
       coeff_eval_t wQ(int_rule, coeff);
 
       const int NE = mesh.GetNE();
@@ -476,7 +476,7 @@ public:
             TMatrix<dofs,dofs,vcomplex_t> M_loc;
             S_spec::ElementMatrix::Compute(
                asm_qpt_data[k].layout, asm_qpt_data[k], M_loc.layout, M_loc,
-               solEval);
+               solEvalLoc);
 
             for (int s = 0; s < SS && el_k+s < NE; s++)
             {
@@ -498,12 +498,12 @@ public:
    void AssembleBilinearForm(BilinearForm &a) const
    {
       Trans_t T(mesh, meshEval);
-      solShapeEval solEval(this->solEval);
+      solShapeEval solEvalLoc(this->solEval);
       coeff_eval_t wQ(int_rule, coeff);
 
       Array<int> vdofs;
       const Array<int> *dof_map = sol_fe.GetDofMap();
-      const int *dof_map_ = dof_map->GetData();
+      const int *dof_map_ = (dof_map) ? dof_map->GetData() : NULL;
       DenseMatrix M_loc_perm(dofs*vdim,dofs*vdim); // initialized with zeros
 
       const int NE = mesh.GetNE();
@@ -533,7 +533,7 @@ public:
             TMatrix<dofs,dofs,vcomplex_t> M_loc;
             S_spec::ElementMatrix::Compute(
                asm_qpt_data[k].layout, asm_qpt_data[k], M_loc.layout, M_loc,
-               solEval);
+               solEvalLoc);
 
             if (dof_map) // switch from tensor-product ordering
             {
@@ -600,21 +600,22 @@ public:
       // For now, when vdim > 1, assume block-diagonal matrix with the same
       // diagonal block for all components.
       // M is assumed to be (dof x dof x NE).
-      solVecLayout_t solVecLayout(this->solVecLayout);
+      solVecLayout_t solVecLayoutLoc(this->solVecLayout);
       const int NE = mesh.GetNE();
       for (int el = 0; el < NE; el++)
       {
          TTensor3<dofs,vdim,1,AutoSIMD<complex_t,1,1> > x_dof, y_dof;
 
          solFES.SetElement(el);
-         solFES.VectorExtract(solVecLayout, x, x_dof.layout, x_dof);
+         solFES.VectorExtract(solVecLayoutLoc, x, x_dof.layout, x_dof);
          Mult_AB<false>(TMatrix<dofs,dofs>::layout,
                         M(el).Data(),
                         x_dof.layout.merge_23(), x_dof,
                         y_dof.layout.merge_23(), y_dof);
-         solFES.VectorAssemble(y_dof.layout, y_dof, solVecLayout, y);
+         solFES.VectorAssemble(y_dof.layout, y_dof, solVecLayoutLoc, y);
       }
    }
+   using Operator::AddMult;
 };
 
 } // namespace mfem

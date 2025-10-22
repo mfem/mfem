@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -13,9 +13,11 @@
 #define MFEM_FEM_HPP
 
 #include "intrules.hpp"
+#include "intrules_cut.hpp"
 #include "geom.hpp"
 #include "fe.hpp"
 #include "fe_coll.hpp"
+#include "doftrans.hpp"
 #include "eltrans.hpp"
 #include "coefficient.hpp"
 #include "complex_fem.hpp"
@@ -25,6 +27,7 @@
 #include "bilininteg.hpp"
 #include "fespace.hpp"
 #include "gridfunc.hpp"
+#include "kdtree.hpp"
 #include "linearform.hpp"
 #include "nonlinearform.hpp"
 #include "bilinearform.hpp"
@@ -34,6 +37,7 @@
 #include "staticcond.hpp"
 #include "tmop.hpp"
 #include "tmop_tools.hpp"
+#include "tmop_amr.hpp"
 #include "gslib.hpp"
 #include "restriction.hpp"
 #include "quadinterpolator.hpp"
@@ -41,7 +45,13 @@
 #include "transfer.hpp"
 #include "fespacehierarchy.hpp"
 #include "multigrid.hpp"
-#include "ceed/algebraic.hpp"
+#include "ceed/solvers/algebraic.hpp"
+#include "lor/lor.hpp"
+#include "dgmassinv.hpp"
+#include "hyperbolic.hpp"
+#include "bounds.hpp"
+
+#include "dfem/doperator.hpp"
 
 #ifdef MFEM_USE_MPI
 #include "pfespace.hpp"
@@ -61,6 +71,11 @@
 
 #ifdef MFEM_USE_ADIOS2
 #include "adios2datacollection.hpp"
+#endif
+
+#ifdef MFEM_USE_FMS
+#include "fmsconvert.hpp"
+#include "fmsdatacollection.hpp"
 #endif
 
 #endif
