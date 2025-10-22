@@ -58,14 +58,14 @@ using namespace mfem::electromagnetics;
 class PsiGridFunctionCoefficient : public Coefficient
 {
 private:
+   real_t Phi_0;
    real_t k_x;
    real_t k_y;
 
-   real_t Phi_0;
-
 public:
-   PsiGridFunctionCoefficient(real_t nl_x, real_t nl_y, real_t Phi_0)
-       : Coefficient(), nl_x(nl_x), nl_y(nl_y), Phi_0(Phi_0)
+   PsiGridFunctionCoefficient(real_t Phi_0, real_t nl_x, real_t nl_y, real_t xmax, real_t ymax)
+       // k = 2 pi n / L  where L is the domain length
+       : Coefficient(), Phi_0(Phi_0), k_x(2.0 * M_PI * nl_x / xmax), k_y(2.0 * M_PI * nl_y / ymax)
    {
    }
    real_t Eval(ElementTransformation &T,
@@ -75,7 +75,7 @@ public:
       Vector x;
       T.Transform(ip, x);
       real_t r = x(0), z = x(1);
-      return Phi_0 * cos(nl_x * r) * cos(nl_y * z);
+      return Phi_0 * cos(k_x * r) * cos(k_y * z);
    }
 };
 struct LorentzContext
@@ -271,7 +271,7 @@ int main(int argc, char *argv[])
    ParGridFunction phi_gf(&sca_fespace);
    E_gf = new ParGridFunction(&vec_fespace);
 
-   PsiGridFunctionCoefficient phi_coeff(nl_x, nl_y, Phi_0);
+   PsiGridFunctionCoefficient phi_coeff(Phi_0, nl_x, nl_y, xmax, ymax);
    phi_gf.ProjectCoefficient(phi_coeff);
    if (ctx.visualization)
    {
@@ -289,7 +289,7 @@ int main(int argc, char *argv[])
    // 5. Compute E_gf = - \grad \phi_gf
    GradientGridFunctionCoefficient E_coeff(&phi_gf);
    E_gf->ProjectCoefficient(E_coeff);
-      if (ctx.visualization)
+   if (ctx.visualization)
    {
       int num_procs = Mpi::WorldSize();
       int myid = Mpi::WorldRank();
