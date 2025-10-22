@@ -334,7 +334,9 @@ public:
    real_t InnerProduct(const Vector &x, const Vector &y) const
    { return mat->InnerProduct (x, y); }
 
-   /// Compute \f$ v_e = y_e^T M_e x_e\f$
+   /// @brief Compute \f$ v_e = y_e^T M_e x_e\f$
+   /// @note Recomputes element matrices with each invocation. This can
+   ///       be computationally expensive.
    void ElementWiseInnerProduct(const GridFunction &x, const GridFunction &y,
                                 Vector &v);
 
