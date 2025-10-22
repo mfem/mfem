@@ -776,9 +776,9 @@ public:
    NURBSExtension(NURBSExtension *parent, const Array<int> &newOrders,
                   Mode mode = Mode::H_1);
    /// Construct a NURBSExtension by merging a partitioned NURBS mesh.
-
    NURBSExtension(Mesh *mesh_array[], int num_pieces);
-
+   /** @brief Construct a NURBSExtension with given patch topology and patches,
+       which are deep-copied. */
    NURBSExtension(const Mesh *patch_topology,
                   const Array<const NURBSPatch*> &patches_);
 

@@ -3193,8 +3193,11 @@ public:
 Mesh *Extrude1D(Mesh *mesh, const int ny, const real_t sy,
                 const bool closed = false);
 
-/// Extrude a 2D mesh
+/// Extrude a 2D mesh, with given number of elements and length in z-direction.
 Mesh *Extrude2D(Mesh *mesh, const int nz, const real_t sz);
+
+/// Extrude a 2D mesh NC-patch NURBS mesh, with given degree in z-direction.
+Mesh *ExtrudeNURBS2D(Mesh &mesh, int degree, int nz, real_t sz);
 
 // shift cyclically 3 integers left-to-right
 inline void ShiftRight(int &a, int &b, int &c)

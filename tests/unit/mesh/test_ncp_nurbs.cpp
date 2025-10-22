@@ -27,8 +27,10 @@ void SetMinMax(real_t v, std::array<real_t, 2> &m)
 
 void CheckRadius(Mesh &mesh)
 {
+   const int dim = mesh.Dimension();
+
    IntegrationPoint ip;
-   Vector x;
+   Vector x(dim);
 
    // Define a grid of points at which to check the radius.
    constexpr int n = 4;
@@ -36,45 +38,97 @@ void CheckRadius(Mesh &mesh)
    constexpr real_t tol = 1.0e-2;
 
    // Radius min/max on each element side.
-   std::vector<std::array<real_t, 2>> side(4);
+   const int numSides = dim == 2 ? 4 : 6;
+   std::vector<std::array<real_t, 2>> side(numSides);
+
+   auto SetMinMax2D = [&side](real_t r, int i, int j)
+   {
+      if (i == 0)
+      {
+         SetMinMax(r, side[3]);
+      }
+      if (i == n)
+      {
+         SetMinMax(r, side[1]);
+      }
+      if (j == 0)
+      {
+         SetMinMax(r, side[0]);
+      }
+      if (j == n)
+      {
+         SetMinMax(r, side[2]);
+      }
+   };
+
+   auto SetMinMax3D = [&side](real_t r, int i, int j, int k)
+   {
+      if (i == 0)
+      {
+         SetMinMax(r, side[0]);
+      }
+      if (i == n)
+      {
+         SetMinMax(r, side[1]);
+      }
+      if (j == 0)
+      {
+         SetMinMax(r, side[2]);
+      }
+      if (j == n)
+      {
+         SetMinMax(r, side[3]);
+      }
+      if (k == 0)
+      {
+         SetMinMax(r, side[4]);
+      }
+      if (k == n)
+      {
+         SetMinMax(r, side[5]);
+      }
+   };
 
    real_t maxErr = 0.0;
    for (int e=0; e<mesh.GetNE(); ++e)
    {
       ElementTransformation *tr = mesh.GetElementTransformation(e);
 
-      for (int s=0; s<4; ++s)
+      for (int s=0; s<numSides; ++s)
       {
          side[s] = {-1.0, -1.0}; // Initialize radius min/max as negative
       }
 
+      const int nz = dim == 2 ? 0 : n;
+
       for (int i=0; i<=n; ++i)
          for (int j=0; j<=n; ++j)
-         {
-            ip.Set2(i*h, j*h);
-            tr->Transform(ip, x);
-            const real_t r = sqrt((x[0] * x[0]) + (x[1] * x[1]));
+            for (int k=0; k<=nz; ++k)
+            {
+               if (dim == 3)
+               {
+                  ip.Set3(i*h, j*h, k*h);
+               }
+               else
+               {
+                  ip.Set2(i*h, j*h);
+               }
 
-            if (i == 0)
-            {
-               SetMinMax(r, side[3]);
+               tr->Transform(ip, x);
+               const real_t r = sqrt((x[0] * x[0]) + (x[1] * x[1]));
+
+               if (dim == 3)
+               {
+                  SetMinMax3D(r, i, j, k);
+               }
+               else
+               {
+                  SetMinMax2D(r, i, j);
+               }
             }
-            if (i == n)
-            {
-               SetMinMax(r, side[1]);
-            }
-            if (j == 0)
-            {
-               SetMinMax(r, side[0]);
-            }
-            if (j == n)
-            {
-               SetMinMax(r, side[2]);
-            }
-         }
 
       int numCurved = 0;
-      for (int s=0; s<4; ++s)
+      for (int s=0; s<numSides; ++s)
       {
          if (side[s][1] - side[s][0] < tol) // If edge is curved
          {
@@ -383,15 +437,21 @@ Mesh* NCPatchCircles()
 TEST_CASE("NURBS NC-patch non-unit weights", "[NURBS]")
 {
    Mesh *mesh = NCPatchCircles();
-
    CheckRadius(*mesh);
 
+   Mesh *mesh3D = Extrude2D(mesh, 3, 1.0);
+
+   // Call UpdateNURBS(), enabling radius check.
+   mesh3D->NURBSUniformRefinement(1);
+   CheckRadius(*mesh3D);
+
    /*
-   mesh->NURBSext->ConvertToPatches(*mesh->GetNodes());
+   mesh3D->NURBSext->ConvertToPatches(*mesh3D->GetNodes());
    std::ofstream mesh_ofs("test.mesh");
    mesh_ofs.precision(8);
-   mesh->Print(mesh_ofs);
+   mesh3D->Print(mesh_ofs);
    */
 
+   delete mesh3D;
    delete mesh;
 }

@@ -15228,6 +15228,11 @@ Mesh *Extrude2D(Mesh *mesh, const int nz, const real_t sz)
       mfem_error();
    }
 
+   if (mesh->NURBSext && mesh->NURBSext->NonconformingPatches())
+   {
+      return ExtrudeNURBS2D(*mesh, mesh->NURBSext->GetOrder(), nz, sz);
+   }
+
    int nvz = nz + 1;
    int nvt = mesh->GetNV() * nvz;
 

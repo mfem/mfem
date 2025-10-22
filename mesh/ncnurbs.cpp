@@ -10,6 +10,7 @@
 // CONTRIBUTING.md for details.
 
 #include "ncnurbs.hpp"
+#include "../fem/gridfunc.hpp"
 
 namespace mfem
 {
@@ -530,7 +531,6 @@ void NCNURBSExtension::ProcessFacePairs(int start, int midStart,
 {
    const int nfpairs = facePairs.size();
    const bool is3D = Dimension() == 3;
-   MFEM_VERIFY(nfpairs > 0 || !is3D, "");
    int midPrev = -1;
    int orientation = 0;
    for (int q=start; q<nfpairs; ++q)
@@ -3866,6 +3866,140 @@ void NCNURBSExtension::GenerateOffsets()
    NumOfDofs     = spaceCounter;
 
    SetDofToPatch();
+}
+
+int FindExtrudedVertex(const Mesh &mesh2D, const Mesh &mesh3D, int v2D, int z,
+                       real_t tol = 1.0e-6)
+{
+   const real_t *vc2D = mesh2D.GetVertex(v2D);
+   Vector vc(3);
+   vc[0] = vc2D[0];
+   vc[1] = vc2D[1];
+   vc[2] = z;
+
+   Vector d(3);
+   for (int i=0; i<mesh3D.GetNV(); ++i)
+   {
+      const real_t *vci = mesh3D.GetVertex(i);
+      for (int j=0; j<3; ++j)
+      {
+         d[j] = vc[j] - vci[j];
+      }
+
+      if (d.Norml2() < tol)
+      {
+         return i;
+      }
+   }
+
+   return -1;
+}
+
+void ExtrudeV2K(const VertexToKnotSpan& v2k, int nz, const Mesh &mesh2D,
+                Mesh &mesh3D)
+{
+   const int nv2D = v2k.Size();
+   mesh3D.ncmesh->VertexToKnotSpanSetSize(3, 2 * nv2D);
+
+   for (int j=0; j<nv2D; ++j)
+   {
+      int v2D, ks2D;
+      std::array<int, 2> pv2D;
+
+      v2k.GetVertex2D(j, v2D, ks2D, pv2D);
+
+      std::array<int, 4> pv;
+      pv[0] = FindExtrudedVertex(mesh2D, mesh3D, pv2D[0], 0);
+      pv[1] = FindExtrudedVertex(mesh2D, mesh3D, pv2D[1], 0);
+      pv[2] = FindExtrudedVertex(mesh2D, mesh3D, pv2D[1], nz);
+      pv[3] = FindExtrudedVertex(mesh2D, mesh3D, pv2D[0], nz);
+
+      for (int i=0; i<2; ++i)
+      {
+         std::array<int, 2> ksi = {ks2D, i*nz};
+         const int vi = FindExtrudedVertex(mesh2D, mesh3D, v2D, i*nz);
+         mesh3D.ncmesh->AddVertexToKnotSpan3D((2*j) + i, vi, ksi, pv);
+      }
+   }
+}
+
+Mesh *ExtrudeNURBS2D(Mesh &mesh, int degree, int nz, real_t sz)
+{
+   MFEM_VERIFY(mesh.NURBSext && mesh.NURBSext->NonconformingPatches(),
+               "Only NC-patch NURBS meshes are supported");
+   MFEM_VERIFY(degree > 0, "Invalid NURBS degree for extrusion");
+
+   const VertexToKnotSpan& v2k2d =
+      mesh.NURBSext->GetNCMesh()->GetVertexToKnotSpan();
+   Mesh ptop = mesh.NURBSext->GetPatchTopology();
+
+   Mesh *ptop3D = Extrude2D(&ptop, 1, nz);
+   ptop3D->EnsureNCMesh();
+   ExtrudeV2K(v2k2d, nz, ptop, *ptop3D);
+
+   Array<NURBSPatch*> patches;
+   mesh.GetNURBSPatches(patches);
+
+   Array<NURBSPatch*> patches3D(patches.Size());
+
+   Vector spacing(nz);
+   spacing = 1.0 / ((real_t) nz);
+
+   // Set continuity to the minimal value of 0, since the use of higher
+   // continuity is complicated in NC-patch meshes.
+   Array<int> continuity(nz + 1);
+   continuity = 0;
+   continuity[0] = -1; // Endpoints are discontinuous
+   continuity[nz] = -1;
+
+   KnotVector kvz(degree, spacing, continuity); // Knots in z-direction
+
+   const int ncpz = kvz.GetNCP();
+
+   // Construct 3D patches.
+   for (int p=0; p<patches.Size(); ++p)
+   {
+      NURBSPatchMap p2g(mesh.NURBSext);
+      const KnotVector *kv[3];
+      p2g.SetPatchDofMap(p, kv);
+
+      KnotVector *kv0 = patches[p]->GetKV(0); // TODO: is this the same as kv[0]?
+      KnotVector *kv1 = patches[p]->GetKV(1);
+      patches3D[p] = new NURBSPatch(kv0, kv1, &kvz, 4);
+
+      const real_t hz = sz / ((real_t) (ncpz - 1));
+
+      for (int i=0; i<=p2g.nx(); ++i)
+      {
+         for (int j=0; j<=p2g.ny(); ++j)
+         {
+            for (int k=0; k<ncpz; ++k)
+            {
+               const real_t w = (*patches[p])(i,j,2);
+
+               for (int l=0; l<2; ++l)
+               {
+                  (*patches3D[p])(i,j,k,l) = (*patches[p])(i,j,l) / w;
+               }
+
+               (*patches3D[p])(i,j,k,2) = k * hz;
+               (*patches3D[p])(i,j,k,3) = w;
+            }
+         }
+      }
+   }
+
+   NURBSExtension nex(ptop3D, patches3D);
+   Mesh *mesh3D_ptr = new Mesh(nex);
+   Mesh &mesh3D = *mesh3D_ptr;
+
+   mesh3D.NURBSext->ConvertToPatches(*mesh3D.GetNodes());
+   for (int p=0; p<patches.Size(); ++p)
+   {
+      mesh3D.NURBSext->SetPatchControlPoints(p, *patches3D[p]);
+   }
+
+   return mesh3D_ptr;
 }
 
 } // namespace mfem

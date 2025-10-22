@@ -6628,15 +6628,6 @@ NCMesh::NCMesh(std::istream &input, int version, int &curved, int &is_nc)
       input >> ident;
    }
 
-   // load map from hanging patch vertices to patch edge knots
-   if (ident == "vertex_to_knotspan")
-   {
-      LoadVertexToKnotSpan(input);
-
-      skip_comment_lines(input, '#');
-      input >> ident;
-   }
-
    // load root states
    if (ident == "root_state")
    {
@@ -6646,6 +6637,15 @@ NCMesh::NCMesh(std::istream &input, int version, int &curved, int &is_nc)
       {
          input >> root_state[i];
       }
+
+      skip_comment_lines(input, '#');
+      input >> ident;
+   }
+
+   // load map from hanging patch vertices to patch edge knots
+   if (ident == "vertex_to_knotspan")
+   {
+      LoadVertexToKnotSpan(input);
 
       skip_comment_lines(input, '#');
       input >> ident;

@@ -2665,7 +2665,7 @@ NURBSExtension::NURBSExtension(const Mesh *patch_topology,
                "Number of patches must equal number of elements in patch_topology");
 
    // Copy patch_topology mesh and NURBSPatch(es)
-   patchTopo = new Mesh( *patch_topology );
+   patchTopo = new Mesh(*patch_topology);
    patches.SetSize(patches_.Size());
    for (int p = 0; p < patches.Size(); p++)
    {
