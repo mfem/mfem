@@ -334,6 +334,14 @@ public:
    real_t InnerProduct(const Vector &x, const Vector &y) const
    { return mat->InnerProduct (x, y); }
 
+   /// @brief Compute \f$ v_e = y_e^T M_e x_e\f$
+   ///
+   /// @note Recomputes element matrices with each invocation unless
+   ///       the AssemblyLevel is ELEMENT. This can be computationally
+   ///       expensive.
+   void ElementWiseInnerProduct(const GridFunction &x, const GridFunction &y,
+                                Vector &v);
+
    /** @brief Returns a pointer to (approximation) of the matrix inverse:
        $ M^{-1} $ (currently returns NULL) */
    MatrixInverse *Inverse() const override;
