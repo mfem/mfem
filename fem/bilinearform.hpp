@@ -335,8 +335,10 @@ public:
    { return mat->InnerProduct (x, y); }
 
    /// @brief Compute \f$ v_e = y_e^T M_e x_e\f$
-   /// @note Recomputes element matrices with each invocation. This can
-   ///       be computationally expensive.
+   ///
+   /// @note Recomputes element matrices with each invocation unless
+   ///       the AssemblyLevel is ELEMENT. This can be computationally
+   ///       expensive.
    void ElementWiseInnerProduct(const GridFunction &x, const GridFunction &y,
                                 Vector &v);
 
