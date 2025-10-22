@@ -3712,6 +3712,7 @@ protected:
    Vector nL1, nL2;  // nL1 = (lambda1 * ip.weight / detJ1) nor
    Vector nM1, nM2;  // nM1 = (mu1     * ip.weight / detJ1) nor
    Vector dshape1_dnM, dshape2_dnM; // dshape1_dnM = dshape1_ps . nM1
+   Vector dshape1_dw, dshape2_dw; // dshape1_dw = dshape1_ps . w1
    Vector w1, w2;
    // 'jmat' corresponds to the term: kappa <h⁻¹ u ⋅ w, v ⋅ w>
    DenseMatrix jmat;
@@ -3722,9 +3723,9 @@ protected:
       const int row_offset, const int col_offset,
       const real_t jmatcoef, const Vector &col_nL, const Vector &col_nM,
       const Vector &row_shape, const Vector &col_shape,
-      const Vector &col_dshape_dnM, const DenseMatrix &col_dshape,
-      const Vector &row_w, const Vector &col_w,
-      DenseMatrix &elmat, DenseMatrix &jmat);
+      const Vector &col_dshape_dnM, const Vector &col_dshape_dw,
+      const DenseMatrix &col_dshape, const Vector &row_w,
+      const Vector &col_w, DenseMatrix &elmat, DenseMatrix &jmat);
 };
 
 /** Integrator for the form:$ \langle v, [w \cdot n] \rangle $ over all faces (the interface) where

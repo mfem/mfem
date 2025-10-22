@@ -4308,23 +4308,24 @@ void NitscheElasticityIntegrator::AssembleBlock(
    const int row_offset, const int col_offset,
    const real_t jmatcoef, const Vector &col_nL, const Vector &col_nM,
    const Vector &row_shape, const Vector &col_shape,
-   const Vector &col_dshape_dnM, const DenseMatrix &col_dshape,
-   const Vector &row_w, const Vector &col_w,
-   DenseMatrix &elmat, DenseMatrix &jmat)
+   const Vector &col_dshape_dnM, const Vector &col_dshape_dw,
+   const DenseMatrix &col_dshape, const Vector &row_w,
+   const Vector &col_w, DenseMatrix &elmat, DenseMatrix &jmat)
 {
+   const real_t nL_dot_w = col_nL * col_w;
    for (int jm = 0, j = col_offset; jm < dim; ++jm)
    {
       for (int jdof = 0; jdof < col_ndofs; ++jdof, ++j)
       {
-         const real_t t2 = col_dshape_dnM(jdof);
+         const real_t t1 = col_dshape(jdof, jm) * nL_dot_w;
+         const real_t t2 = col_dshape_dnM(jdof) * col_w(jm);
+         const real_t t3 = col_dshape_dw(jdof) * col_nM(jm);
+         const real_t tt = t1 + t2 + t3;
          for (int im = 0, i = row_offset; im < dim; ++im)
          {
-            const real_t t1 = col_dshape(jdof, jm) * col_nL(im);
-            const real_t t3 = col_dshape(jdof, im) * col_nM(jm);
-            const real_t tt = (t1 + ((im == jm) ? t2 : 0.0) + t3) * row_w(im);
             for (int idof = 0; idof < row_ndofs; ++idof, ++i)
             {
-               elmat(i, j) += tt * row_shape(idof) * row_w(im);
+               elmat(i, j) += tt * row_shape(idof) * col_w(im);
             }
          }
       }
@@ -4332,16 +4333,17 @@ void NitscheElasticityIntegrator::AssembleBlock(
 
    if (jmatcoef == 0.0) { return; }
 
-   for (int d = 0; d < dim; ++d)
+   for (int jm = 0, j = col_offset; jm < dim; ++jm)
    {
-      const int jo = col_offset + d*col_ndofs;
-      const int io = row_offset + d*row_ndofs;
-      for (int jdof = 0, j = jo; jdof < col_ndofs; ++jdof, ++j)
+      for (int jdof = 0; jdof < col_ndofs; ++jdof, ++j)
       {
-         const real_t sj = jmatcoef * col_shape(jdof) * col_w(d);
-         for (int i = max(io,j), idof = i - io; idof < row_ndofs; ++idof, ++i)
+         const real_t sj = jmatcoef * col_shape(jdof) * col_w(jm);
+         for (int im = 0, i = row_offset; im < dim; ++im)
          {
-            jmat(i, j) += row_shape(idof) * sj * row_w(d);
+            for (int idof = 0; idof < row_ndofs; ++idof, ++i)
+            {
+               jmat(i, j) += row_shape(idof) * sj * col_w(im);
+            }
          }
       }
    }
@@ -4361,6 +4363,7 @@ void NitscheElasticityIntegrator::AssembleFaceMatrix(
    Vector nL1, nL2;
    Vector nM1, nM2;
    Vector dshape1_dnM, dshape2_dnM;
+   Vector dshape1_w, dshape2_w;
    DenseMatrix jmat;
    Vector w1, w2;
 #endif
@@ -4393,6 +4396,7 @@ void NitscheElasticityIntegrator::AssembleFaceMatrix(
    nL1.SetSize(dim);
    nM1.SetSize(dim);
    dshape1_dnM.SetSize(ndofs1);
+   dshape1_dw.SetSize(ndofs1);
    w1.SetSize(dim);
 
    if (ndofs2)
@@ -4403,6 +4407,7 @@ void NitscheElasticityIntegrator::AssembleFaceMatrix(
       nL2.SetSize(dim);
       nM2.SetSize(dim);
       dshape2_dnM.SetSize(ndofs2);
+      dshape2_dw.SetSize(ndofs2);
       w2.SetSize(dim);
    }
 
@@ -4476,6 +4481,7 @@ void NitscheElasticityIntegrator::AssembleFaceMatrix(
          nM2.Set(WM2, nor);
          WLM = (WL2 + 2.0*WM2);
          dshape2_ps.Mult(nM2, dshape2_dnM);
+         dshape2_ps.Mult(w2, dshape2_dw);
       }
       else
       {
@@ -4491,6 +4497,7 @@ void NitscheElasticityIntegrator::AssembleFaceMatrix(
          nM1.Set(WM1, nor);
          WLM += (WL1 + 2.0*WM1);
          dshape1_ps.Mult(nM1, dshape1_dnM);
+         dshape1_ps.Mult(w1, dshape1_dw);
       }
 
       const real_t jmatcoef = kappa * (nor*nor) * WLM;
@@ -4498,7 +4505,7 @@ void NitscheElasticityIntegrator::AssembleFaceMatrix(
       // (1,1) block
       AssembleBlock(
          dim, ndofs1, ndofs1, 0, 0, jmatcoef, nL1, nM1,
-         shape1, shape1, dshape1_dnM, dshape1_ps, w1, w1, elmat, jmat);
+         shape1, shape1, dshape1_dnM, dshape1_dw, dshape1_ps, w1, w1, elmat, jmat);
 
       if (ndofs2 == 0) { continue; }
 
@@ -4508,15 +4515,15 @@ void NitscheElasticityIntegrator::AssembleFaceMatrix(
       // (1,2) block
       AssembleBlock(
          dim, ndofs1, ndofs2, 0, dim*ndofs1, jmatcoef, nL2, nM2,
-         shape1, shape2, dshape2_dnM, dshape2_ps, w1, w2, elmat, jmat);
+         shape1, shape2, dshape2_dnM, dshape2_dw, dshape2_ps, w1, w2, elmat, jmat);
       // (2,1) block
       AssembleBlock(
          dim, ndofs2, ndofs1, dim*ndofs1, 0, jmatcoef, nL1, nM1,
-         shape2, shape1, dshape1_dnM, dshape1_ps, w2, w1, elmat, jmat);
+         shape2, shape1, dshape1_dnM, dshape1_dw, dshape1_ps, w2, w1, elmat, jmat);
       // (2,2) block
       AssembleBlock(
          dim, ndofs2, ndofs2, dim*ndofs1, dim*ndofs1, jmatcoef, nL2, nM2,
-         shape2, shape2, dshape2_dnM, dshape2_ps, w2, w2, elmat, jmat);
+         shape2, shape2, dshape2_dnM, dshape2_dw, dshape2_ps, w2, w2, elmat, jmat);
    }
 
    // elmat := -elmat + alpha*elmat^t + jmat
