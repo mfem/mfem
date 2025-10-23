@@ -86,6 +86,12 @@ function report ()
     cp ${rundir}/gitlab.err ${rundir}/autotest-email.html
   fi
 
+  # Note: in some cases, the content of AUTOTEST_COMMIT can be
+  # '${AUTOTEST_COMMIT}', so we need to treat that value as the default
+  # value of 'ON'.
+  if [[ "$AUTOTEST_COMMIT" == '${AUTOTEST_COMMIT}' ]]; then
+    AUTOTEST_COMMIT="ON"
+  fi
   if [[ "$AUTOTEST_COMMIT" == "ON" || "$AUTOTEST_COMMIT" == "YES" ]]; then
     git pull && \
     git add ${rundir} && \
@@ -106,5 +112,7 @@ function report ()
 export MACHINE_NAME=${CI_MACHINE}
 info_msg "MACHINE_NAME is ${MACHINE_NAME}"
 info_msg "AUTOTEST_ROOT is ${AUTOTEST_ROOT}"
+info_msg "AUTOTEST=$AUTOTEST"
+info_msg "AUTOTEST_COMMIT=$AUTOTEST_COMMIT"
 
 cd ${AUTOTEST_ROOT} && locked_report ${1} autotest

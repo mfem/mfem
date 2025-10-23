@@ -64,7 +64,7 @@ variables:
 
 # Matrix
 # Arguments for top level allocation
-  MATRIX_SHARED_ALLOC: "--exclusive --time=60 --nodes=1 -G 4"
+  MATRIX_SHARED_ALLOC: "-p pdebug --exclusive --time=45 --nodes=1 -G 4"
 # Arguments for job level allocation
 # Note: We repeat the reservation, necessary when jobs are manually re-triggered.
   MATRIX_JOB_ALLOC: "--overlap --nodes=1"
@@ -113,3 +113,20 @@ variables:
     - ${CI_PROJECT_DIR}/.gitlab/scripts/report_build_and_test FAILURE
   rules:
     - when: on_failure
+
+# Keep the following for debugging purposes: renaming this job from
+# '.show_variables' to 'show_variables' will insert this debug job at the
+# beginning of all child pipelines.
+.show_variables:
+  tags: [shell, oslic]
+  variables:
+    GIT_STRATEGY: none
+  stage: .pre
+  script:
+    - |
+      echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+      echo "AUTOTEST=${AUTOTEST}"
+      echo "AUTOTEST_COMMIT=${AUTOTEST_COMMIT}"
+      echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+      # Fail the job on purpose to prevent the rest of the pipeline from running
+      false
