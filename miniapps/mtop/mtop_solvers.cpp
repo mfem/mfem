@@ -15,18 +15,32 @@
 
 using namespace mfem;
 
-StokesSolver::StokesSolver(ParMesh* mesh, int order_, bool zero_mean_press_):
+StokesSolver::StokesSolver(ParMesh* mesh, int order_, int num_mesh_ref_):
    pmesh(mesh),
    order(order_),
-   dim(mesh->SpaceDimension()),
-   zero_mean_press(zero_mean_press_)
+   num_mesh_ref(num_mesh_ref_),
+   dim(mesh->SpaceDimension())
 {
    if (order_<2) { order=2;}
 
-   vfec=new H1_FECollection(order, pmesh->Dimension());
-   pfec=new H1_FECollection(order-1, pmesh->Dimension());
-   vfes=new ParFiniteElementSpace(pmesh, vfec, pmesh->Dimension());
-   pfes=new ParFiniteElementSpace(pmesh, pfec);
+   {
+       meshes.Append(pmesh);
+       // uniform refinement of the mesh
+       for(int i=0;i<num_mesh_ref;i++){
+           ParMesh* nmesh=new ParMesh(*(meshes.Last()));
+           nmesh->UniformRefinement();
+           meshes.Append(nmesh);
+       }
+
+       pmesh=meshes.Last();
+
+       vfec=new H1_FECollection(order, dim);
+       pfec=new H1_FECollection(order-1, dim);
+
+       //construct the FEM spaces
+       vfes= new ParFiniteElementSpace(pmesh, vfec, dim, Ordering::byNODES);
+       pfes=new ParFiniteElementSpace(pmesh, pfec);
+   }
 
    vel.SetSpace(vfes); vel=0.0;
    pre.SetSpace(pfes); pre=0.0;
@@ -64,14 +78,24 @@ StokesSolver::StokesSolver(ParMesh* mesh, int order_, bool zero_mean_press_):
    bf21.reset();
 
    SetLinearSolver();
+
+   MPI_Comm_rank(pmesh->GetComm(),&myrank);
+
+   sol_method=1;
 }
 
 StokesSolver::~StokesSolver()
 {
    delete pfes;
    delete vfes;
+
    delete pfec;
    delete vfec;
+
+   for(int i=1;i<meshes.Size();i++){
+       delete meshes[i];
+   }
+
 }
 
 void StokesSolver::SetEssTDofsV(mfem::Array<int>& ess_dofs)
@@ -174,12 +198,15 @@ void StokesSolver::Assemble()
    bf11->Finalize(0);
    A11.reset(bf11->ParallelAssemble());
 
+
+   ConstantCoefficient one(1.0);
+
    //assemble block 12
    bf12.reset(new ParMixedBilinearForm(pfes, vfes));
    //bf12->AddDomainIntegrator(new GradientIntegrator());
    bf12->AddDomainIntegrator(
                new TransposeIntegrator(
-                   new VectorDivergenceIntegrator()));
+                   new VectorDivergenceIntegrator(one)));
    bf12->Assemble(0);
    bf12->Finalize(0);
    A12.reset(bf12->ParallelAssemble());
@@ -187,7 +214,7 @@ void StokesSolver::Assemble()
    //assemble block 21
    bf21.reset(new ParMixedBilinearForm(vfes, pfes));
    bf21->AddDomainIntegrator(
-               new VectorDivergenceIntegrator());
+               new VectorDivergenceIntegrator(one));
    bf21->Assemble(0);
    bf21->Finalize(0);
    A21.reset(bf21->ParallelAssemble());
@@ -203,15 +230,7 @@ void StokesSolver::Assemble()
    bop->SetBlock(0,1,A12.get());
    bop->SetBlock(1,0,A21.get());
 
-   if (zero_mean_press)
-   {
-      V.SetSize(pfes->GetTrueVSize()); V=0.0;
-      ParLinearForm lf(pfes);
-      lf.AddDomainIntegrator(new DomainLFIntegrator(onecoeff));
-      lf.Assemble();
-      lf.ParallelAssemble(V);
-   }
-
+   /*
    //set the solver to GMRES
    {
       //GMRESSolver* gmres=new GMRESSolver(pmesh->GetComm());
@@ -228,7 +247,7 @@ void StokesSolver::Assemble()
       //prec.reset(new DLSCPrec(A11.get(),A21.get(),A12.get(), zero_mean_press));
 
       LSCStokesPrec* lsc=new LSCStokesPrec(vfes,pfes,visc,brink,ess_tdofv,
-                                           A11.get(),A12.get(),A21.get(),zero_mean_press);
+                                           A11.get(),A12.get(),A21.get(),gmres_press);
 
       prec.reset(lsc);
       prec->SetMaxIter(100);
@@ -237,11 +256,74 @@ void StokesSolver::Assemble()
       gmres->SetPreconditioner(*prec);
 
       ls.reset(gmres);
-   }
+   }*/
 
 }
 
+
 void StokesSolver::FSolve()
+{
+    if(2==sol_method){
+        FSolve1();
+    }else{
+        FSolve2();
+    }
+}
+
+
+void StokesSolver::FSolve2()
+{
+    Vector& vsol=sol.GetBlock(0);
+    Vector& psol=sol.GetBlock(1);
+
+    Vector& vrhs=rhs.GetBlock(0);
+    Vector& prhs=rhs.GetBlock(1);
+
+    //assemble the RHS
+    rhs=0.0;
+    if (nullptr!=vol_force.get())
+    {
+       ParLinearForm lf(vfes);
+       lf.AddDomainIntegrator(new VectorDomainLFIntegrator(*vol_force));
+       lf.Assemble();
+       lf.ParallelAssemble(vrhs);
+    }
+
+    //set the velocity BCs
+    SetEssTDofsV(vsol);
+
+    //modify the rhs
+    A21e->Mult(-1.0,vsol,1.0,prhs);
+    A11->EliminateBC(*A11e,ess_tdofv,vsol,vrhs);
+
+
+    // use FGMRES for the solver
+    std::unique_ptr<mfem::FGMRESSolver> gm;
+    gm.reset(new mfem::FGMRESSolver(pfes->GetComm()));
+    gm->SetKDim(100);
+    gm->SetRelTol(linear_rtol);
+    gm->SetAbsTol(linear_atol);
+    gm->SetMaxIter(linear_iter);
+    gm->SetOperator(*bop);
+    gm->SetPrintLevel(1);
+
+    std::unique_ptr<StokesLSCPrec> prec;
+    prec.reset(new StokesLSCPrec(vfes,pfes,visc,brink,ess_tdofv,
+                                 A11.get(),A12.get(),A21.get()));
+    prec->SetMaxIter(50);
+    prec->SetAbsTol(1e-15);
+    prec->SetRelTol(1e-12);
+    prec->iterative_mode=true;
+
+    gm->SetPreconditioner(*prec);
+
+    //solve the linear system
+    gm->Mult(rhs,sol);
+
+}
+
+
+void StokesSolver::FSolve1()
 {
    Vector& vsol=sol.GetBlock(0);
    Vector& psol=sol.GetBlock(1);
@@ -267,8 +349,141 @@ void StokesSolver::FSolve()
    A21e->Mult(-1.0,vsol,1.0,prhs);
    A11->EliminateBC(*A11e,ess_tdofv,vsol,vrhs);
 
-   //solve the linear system
-   ls->Mult(rhs,sol);
+   {
+
+       //Solve A11 z = f
+
+       //allocate the preconditioner
+       std::unique_ptr<VelocityPrec> prec;
+       prec.reset(new VelocityPrec(vfes,visc,brink,ess_tdofv,
+                                   A11.get(),A12.get(),A21.get()));
+
+       prec->SetMaxIter(6);
+       prec->SetRelTol(1e-12);
+       prec->SetAbsTol(1e-12);
+       prec->iterative_mode=true;
+
+       std::unique_ptr<mfem::FGMRESSolver> cg11;
+       cg11.reset(new mfem::FGMRESSolver(vfes->GetComm()));
+       cg11->SetOperator(*A11);
+       cg11->SetPreconditioner(*prec);
+       cg11->SetAbsTol(linear_atol);
+       cg11->SetMaxIter(linear_iter);
+       cg11->SetRelTol(linear_rtol);
+       cg11->SetPrintLevel(1);
+       cg11->iterative_mode=true;
+       cg11->Mult(vrhs,vsol);
+
+
+       // solve the Schur complement system for pressure
+       //modify the RHS for pressure
+       //prhs=prsh-A21*invA11*f
+       Vector tp; tp.SetSize(psol.Size());
+       A21->Mult(vsol,tp);
+       prhs.Add(-1.0,tp);
+
+       // set the A11 solver for the Schur complement
+       cg11->SetPrintLevel(0);
+       cg11->iterative_mode=false;
+       SchurComplement sc(cg11.get(),A12.get(),A21.get());
+
+       // set the preconditioner for the Schur complement
+       SchurComplementLSCPrec scp(vfes,pfes,visc,brink,ess_tdofv,
+                                  A11.get(),A12.get(),A21.get());
+
+       //SchurComplementPrec1 scp(vfes,pfes,visc,brink,ess_tdofv,
+       //                          A11.get(),A12.get(),A21.get());
+       scp.SetAbsTol(linear_atol);
+       scp.SetRelTol(linear_rtol);
+       scp.SetMaxIter(30);
+       scp.SetPrintLevel(-1);
+       scp.iterative_mode=true;
+
+       // use FGMRES for the solver
+       std::unique_ptr<mfem::FGMRESSolver> gm;
+       gm.reset(new mfem::FGMRESSolver(pfes->GetComm()));
+       gm->SetOperator(sc);
+       gm->SetPreconditioner(scp);
+       gm->SetAbsTol(linear_atol);
+       gm->SetMaxIter(linear_iter);
+       gm->SetRelTol(linear_rtol);
+       gm->SetPrintLevel(1);
+       gm->SetKDim(50); //Krylov space dimensions
+
+       gm->SetMaxIter(5);
+       gm->Mult(prhs,psol); psol.Neg();
+
+       //solve for the velocity with given pressure
+       //vrsh=vrsh+A12*psol
+       Vector tv; tv.SetSize(vsol.Size());
+       A12->Mult(psol,tv);
+       vrhs.Add(-1.0,tv);
+       cg11->SetPrintLevel(1);
+       cg11->iterative_mode=true;
+       cg11->Mult(vrhs,vsol);
+   }
+}
+
+void StokesSolver::FSolve3()
+{
+
+    Vector& vsol=sol.GetBlock(0);
+    Vector& psol=sol.GetBlock(1);
+
+    Vector& vrhs=rhs.GetBlock(0);
+    Vector& prhs=rhs.GetBlock(1);
+
+    //assemble the RHS
+    rhs=0.0;
+    if (nullptr!=vol_force.get())
+    {
+       ParLinearForm lf(vfes);
+       lf.AddDomainIntegrator(new VectorDomainLFIntegrator(*vol_force));
+       lf.Assemble();
+       lf.ParallelAssemble(vrhs);
+    }
+
+    //set the velocity BCs
+    SetEssTDofsV(vsol);
+
+
+    //modify the rhs
+    A21e->Mult(-1.0,vsol,1.0,prhs);
+    A11->EliminateBC(*A11e,ess_tdofv,vsol,vrhs);
+
+    {
+        //alocate MG solvers
+        for(int i=0;i<meshes.Size()-1;i++){
+            StokesSolver* ssolv=new StokesSolver(meshes[i],2);
+            for(auto it=vel_bcs.begin();it!=vel_bcs.end();it++){
+                ssolv->SetZeroVelocityBC(it->first);
+            }
+            //assemble the operators
+            ssolv->Assemble();
+            solvers.Append(ssolv);
+            operators.Append(ssolv->GetStokesOperator());
+        }
+        solvers.Appens(this);
+        operators.Append(this->GetStokesOperator());
+
+        //set the prolongations as diagonal block operators
+        for(int i=0;i<meshes.Size()-1;i++){
+            BlockOperator* pbop=
+                    new BlockOperator(solvers[i]->GetTrueBlockOffset(),
+                                      solvers[i+1]->GetTrueBlockOffset());
+            pbop->owns_blocks=true;
+            //set block 0
+            pbop->SetDiagonalBlock(0, new TransferOperator(solvers[i]->GetVelociySpace(),
+                                                           solvers[i+1]->GetVelocitySpace()));
+            pbop->SetDiagonalBlock(1, new TransferOperator(solvers[i]->GetPressureSpace(),
+                                                           solvers[i+1]->GetPressureSpace()));
+
+
+            prolongations.Append(pbop);
+        }
+
+
+    }
 
 }
 

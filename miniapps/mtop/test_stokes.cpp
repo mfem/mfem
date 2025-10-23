@@ -16,7 +16,7 @@ public:
     virtual real_t Eval(ElementTransformation &T,
                         const IntegrationPoint &ip) override
     {
-        real_t x[3];
+        real_t x[3]={0.0,0.0,0.0};
         Vector transip(x, 3);
         T.Transform(ip, transip);
 
@@ -155,8 +155,7 @@ int main(int argc, char *argv[])
    //solver->AddVelocityBC(5,zvci);
 
    std::shared_ptr<Coefficient> brink;
-   brink.reset(new BrinkCoeff(1000.0));
-
+   brink.reset(new BrinkCoeff(100000.0));
    solver->SetBrink(brink);
 
    ParGridFunction pg(solver->GetVelocitySpace()); pg=0.0;
@@ -169,8 +168,8 @@ int main(int argc, char *argv[])
 
    ng.SetFromTrueDofs(pgv);
 
-   //solver->SetZeroMeanPressure(true);
-   solver->SetLinearSolver(1e-8,1e-12,550);
+   solver->SetGMRESPressureSolver(true);
+   solver->SetLinearSolver(1e-12,1e-12,500);
 
    solver->Assemble();
    solver->FSolve();
