@@ -83,6 +83,16 @@ public:
 };
 struct LorentzContext
 {
+   // mesh related parameters
+   int order = 1;
+   real_t nl_x = 1.0;
+   real_t nl_y = 1.0;
+   real_t Phi_0 = 1.0;
+   int nx = 100;
+   int ny = 100;
+   real_t xmax = 1.0;
+   real_t ymax = 1.0;
+
    struct DColl
    {
       string coll_name;
@@ -178,16 +188,8 @@ int main(int argc, char *argv[])
    int rank = Mpi::WorldRank();
    Hypre::Init();
 
-   // Fields variables
-   int order = 1;
-   real_t nl_x = 1.0;
-   real_t nl_y = 1.0;
-   real_t Phi_0 = 1.0;
-
    // Mesh parameters
    int dim = 2;
-   int nx = 100, ny = 100;
-   double xmax = 1.0, ymax = 1.0;
 
    if (Mpi::Root())
    {
@@ -196,17 +198,17 @@ int main(int argc, char *argv[])
 
    OptionsParser args(argc, argv);
 
-   // Field variables
-   args.AddOption(&order, "-O", "--order", "Finite element polynomial degree");
-   args.AddOption(&nl_x, "-nlx", "--nl-x", "Number of wavelengths in the x direction.");
-   args.AddOption(&nl_y, "-nly", "--nl-y", "Number of wavelengths in the y direction.");
-   args.AddOption(&Phi_0, "-phi0", "--phi-0", "Initial scalar potential.");
+   // Field variables (moved into ctx)
+   args.AddOption(&ctx.order, "-O", "--order", "Finite element polynomial degree");
+   args.AddOption(&ctx.nl_x, "-nlx", "--nl-x", "Number of wavelengths in the x direction.");
+   args.AddOption(&ctx.nl_y, "-nly", "--nl-y", "Number of wavelengths in the y direction.");
+   args.AddOption(&ctx.Phi_0, "-phi0", "--phi-0", "Initial scalar potential.");
 
-   // Mesh parameters
-   args.AddOption(&nx, "-nx", "--num-x", "Number of elements in the x direction.");
-   args.AddOption(&ny, "-ny", "--num-y", "Number of elements in the y direction.");
-   args.AddOption(&xmax, "-mxmax", "--m-x-max", "Maximum x coordinate.");
-   args.AddOption(&ymax, "-mymax", "--m-y-max", "Maximum y coordinate.");
+   // Mesh parameters (moved into ctx)
+   args.AddOption(&ctx.nx, "-nx", "--num-x", "Number of elements in the x direction.");
+   args.AddOption(&ctx.ny, "-ny", "--num-y", "Number of elements in the y direction.");
+   args.AddOption(&ctx.xmax, "-mxmax", "--m-x-max", "Maximum x coordinate.");
+   args.AddOption(&ctx.ymax, "-mymax", "--m-y-max", "Maximum y coordinate.");
 
    args.AddOption(&ctx.redist_freq, "-rdf", "--redist-freq",
                   "Redistribution frequency.");
@@ -258,22 +260,22 @@ int main(int argc, char *argv[])
    ParGridFunction *E_gf = nullptr, *B_gf = nullptr;
 
    // build up E_gf, B_gf can remain nullptr
-   // 1. make a 2D Cartesian Mesh, 100x100
-   Mesh serial_mesh(Mesh::MakeCartesian2D(nx, ny, Element::QUADRILATERAL, false, xmax, ymax));
+   // 1. make a 2D Cartesian Mesh
+   Mesh serial_mesh(Mesh::MakeCartesian2D(ctx.nx, ctx.ny, Element::QUADRILATERAL, false, ctx.xmax, ctx.ymax));
    // 2. parallelize the mesh
    ParMesh mesh(MPI_COMM_WORLD, serial_mesh);
    serial_mesh.Clear(); // the serial mesh is no longer needed
    // 3. Define a finite element space on the parallel mesh
-   H1_FECollection sca_fec(order, dim);
+   H1_FECollection sca_fec(ctx.order, dim);
    ParFiniteElementSpace sca_fespace(&mesh, &sca_fec);
-   ND_FECollection vec_fec(order, dim);
+   ND_FECollection vec_fec(ctx.order, dim);
    ParFiniteElementSpace vec_fespace(&mesh, &vec_fec);
 
    // 4. Define phi_gf as \phi(x, y) = \Phi_0 \cos(nl_x x)\cos(nl_y y)
    ParGridFunction phi_gf(&sca_fespace);
    E_gf = new ParGridFunction(&vec_fespace);
 
-   PsiGridFunctionCoefficient phi_coeff(Phi_0, nl_x, nl_y, xmax, ymax);
+   PsiGridFunctionCoefficient phi_coeff(ctx.Phi_0, ctx.nl_x, ctx.nl_y, ctx.xmax, ctx.ymax);
    phi_gf.ProjectCoefficient(phi_coeff);
    if (ctx.visualization)
    {
@@ -461,6 +463,24 @@ void Boris::ParticleStep(Particle &part, real_t &dt)
 
    // Update the position
    x.Add(dt / m, p);
+
+   // periodic boundary: wrap around using ctx mesh extents
+   while (x(0) < 0.0)
+   {
+      x(0) += ctx.xmax;
+   }
+   while (x(0) > ctx.xmax)
+   {
+      x(0) -= ctx.xmax;
+   }
+   while (x(1) < 0.0)
+   {
+      x(1) += ctx.ymax;
+   }
+   while (x(1) > ctx.ymax)
+   {
+      x(1) -= ctx.ymax;
+   }
 }
 
 Boris::Boris(MPI_Comm comm, GridFunction *E_gf_, GridFunction *B_gf_,
