@@ -415,15 +415,15 @@ public:
 template <class T> class Resource
 {
    /// offset and size are in terms of number of entries of size T
-   size_t offset;
-   size_t size;
+   size_t offset_;
+   size_t size_;
    size_t segment;
    mutable bool use_device = false;
 
    friend class ResourceManager;
 
 public:
-   Resource() : offset(0), size(0), segment(0) {}
+   Resource() : offset_(0), size_(0), segment(0) {}
    /// @a loc only one of HOST, HOSTPINNED, MANAGED, or DEVICE
    Resource(T *ptr, size_t count, ResourceManager::ResourceLocation loc);
    /// @a loc only one of HOST, HOSTPINNED, MANAGED, or DEVICE
@@ -443,7 +443,7 @@ public:
 
    ~Resource();
 
-   size_t Capacity() const { return size; }
+   size_t Capacity() const { return size_; }
 
    bool OwnsHostPtr() const
    {
@@ -506,7 +506,7 @@ public:
 
    void Reset() { *this = Resource{}; }
 
-   bool Empty() const { return size == 0; }
+   bool Empty() const { return size_ == 0; }
 
    void New(size_t size, bool temporary = false)
    {
@@ -630,7 +630,7 @@ public:
    ResourceManager::ResourceLocation WhereValid() const
    {
       auto &inst = ResourceManager::instance();
-      return inst.where_valid(segment, offset * sizeof(T), size * sizeof(T));
+      return inst.where_valid(segment, offset_ * sizeof(T), size_ * sizeof(T));
    }
 
    /// Returns where the memory is currently valid
@@ -638,7 +638,7 @@ public:
    ResourceManager::ResourceLocation GetMemoryType() const
    {
       auto &inst = ResourceManager::instance();
-      return inst.where_valid(segment, offset * sizeof(T), size * sizeof(T));
+      return inst.where_valid(segment, offset_ * sizeof(T), size_ * sizeof(T));
    }
 
    ResourceManager::ResourceLocation GetHostMemoryType() const
@@ -664,14 +664,15 @@ public:
    bool HostIsValid() const
    {
       auto &inst = ResourceManager::instance();
-      return inst.is_valid(segment, offset * sizeof(T), size * sizeof(T),
+      return inst.is_valid(segment, offset_ * sizeof(T), size_ * sizeof(T),
                            false);
    }
 
    bool DeviceIsValid() const
    {
       auto &inst = ResourceManager::instance();
-      return inst.is_valid(segment, offset * sizeof(T), size * sizeof(T), true);
+      return inst.is_valid(segment, offset_ * sizeof(T), size_ * sizeof(T),
+                           true);
    }
    /// Pre-conditions:
    /// - size <= src.Capacity() and size <= this->Capacity()
@@ -694,7 +695,7 @@ public:
    int CompareHostAndDevice(int size) const
    {
       auto &inst = ResourceManager::instance();
-      return inst.compare_host_device(segment, offset * sizeof(T),
+      return inst.compare_host_device(segment, offset_ * sizeof(T),
                                       size * sizeof(T));
    }
 };
@@ -706,8 +707,8 @@ Resource<T>::Resource(T *ptr, size_t count,
    auto &inst = ResourceManager::instance();
    segment = inst.insert(reinterpret_cast<char *>(ptr), count * sizeof(T), loc,
                          false, false);
-   offset = 0;
-   size = count;
+   offset_ = 0;
+   size_ = count;
 }
 
 template <class T>
@@ -715,8 +716,8 @@ Resource<T>::Resource(size_t count, ResourceManager::ResourceLocation loc,
                       bool temporary)
 {
    auto &inst = ResourceManager::instance();
-   offset = 0;
-   size = count;
+   offset_ = 0;
+   size_ = count;
    segment = inst.insert(inst.Alloc(count * sizeof(T), loc, temporary),
                          count * sizeof(T), loc, true, temporary);
 }
@@ -726,8 +727,8 @@ Resource<T>::Resource(size_t count, ResourceManager::ResourceLocation hloc,
                       ResourceManager::ResourceLocation dloc, bool temporary)
 {
    auto &inst = ResourceManager::instance();
-   offset = 0;
-   size = count;
+   offset_ = 0;
+   size_ = count;
    if (hloc == dloc)
    {
       segment = inst.insert(inst.Alloc(count * sizeof(T), hloc, temporary),
@@ -744,7 +745,7 @@ Resource<T>::Resource(size_t count, ResourceManager::ResourceLocation hloc,
 
 template <class T>
 Resource<T>::Resource(const Resource &r)
-   : offset(r.offset), size(r.size), segment(r.segment)
+   : offset_(r.offset_), size_(r.size_), segment(r.segment)
 {
    auto &inst = ResourceManager::instance();
    if (inst.valid_segment(segment))
@@ -756,10 +757,10 @@ Resource<T>::Resource(const Resource &r)
 
 template <class T>
 Resource<T>::Resource(Resource &&r)
-   : offset(r.offset), size(r.size), segment(r.segment)
+   : offset_(r.offset_), size_(r.size_), segment(r.segment)
 {
-   r.offset = 0;
-   r.size = 0;
+   r.offset_ = 0;
+   r.size_ = 0;
    r.segment = 0;
 }
 
@@ -772,8 +773,8 @@ template <class T> Resource<T> &Resource<T>::operator=(const Resource &r)
       {
          inst.erase(segment);
       }
-      offset = r.offset;
-      size = r.size;
+      offset_ = r.offset_;
+      size_ = r.size_;
       segment = r.segment;
       if (inst.valid_segment(segment))
       {
@@ -793,11 +794,11 @@ template <class T> Resource<T> &Resource<T>::operator=(Resource &&r) noexcept
       {
          inst.erase(segment);
       }
-      offset = r.offset;
-      size = r.size;
+      offset_ = r.offset_;
+      size_ = r.size_;
       segment = r.segment;
-      r.offset = 0;
-      r.size = 0;
+      r.offset_ = 0;
+      r.size_ = 0;
       r.segment = 0;
    }
    return *this;
@@ -810,8 +811,8 @@ Resource<T> Resource<T>::CreateAlias(size_t offset, size_t count) const
    Resource<T> res = *this;
    if (inst.valid_segment(segment))
    {
-      res.offset += offset;
-      res.size = count;
+      res.offset_ += offset;
+      res.size_ = count;
    }
    return res;
 }
@@ -822,8 +823,8 @@ template <class T> Resource<T> Resource<T>::CreateAlias(size_t offset) const
    Resource<T> res = *this;
    if (inst.valid_segment(segment))
    {
-      res.offset += offset;
-      res.size -= offset;
+      res.offset_ += offset;
+      res.size_ -= offset;
    }
    return res;
 }
@@ -832,35 +833,35 @@ template <class T> T *Resource<T>::Write(bool on_device)
 {
    auto &inst = ResourceManager::instance();
    return reinterpret_cast<T *>(
-             inst.write(segment, offset * sizeof(T), size * sizeof(T), on_device));
+             inst.write(segment, offset_ * sizeof(T), size_ * sizeof(T), on_device));
 }
 
 template <class T> T *Resource<T>::ReadWrite(bool on_device)
 {
    auto &inst = ResourceManager::instance();
-   return reinterpret_cast<T *>(inst.read_write(segment, offset * sizeof(T),
-                                                size * sizeof(T), on_device));
+   return reinterpret_cast<T *>(inst.read_write(segment, offset_ * sizeof(T),
+                                                size_ * sizeof(T), on_device));
 }
 
 template <class T> const T *Resource<T>::Read(bool on_device) const
 {
    auto &inst = ResourceManager::instance();
    return reinterpret_cast<const T *>(
-             inst.read(segment, offset * sizeof(T), size * sizeof(T), on_device));
+             inst.read(segment, offset_ * sizeof(T), size_ * sizeof(T), on_device));
 }
 
 template <class T> T &Resource<T>::operator[](size_t idx)
 {
    auto &inst = ResourceManager::instance();
    return *reinterpret_cast<T *>(inst.fast_read_write(
-                                    segment, (offset + idx) * sizeof(T), sizeof(T), false));
+                                    segment, (offset_ + idx) * sizeof(T), sizeof(T), false));
 }
 
 template <class T> const T &Resource<T>::operator[](size_t idx) const
 {
    auto &inst = ResourceManager::instance();
    return *reinterpret_cast<const T *>(
-             inst.fast_read(segment, (offset + idx) * sizeof(T), sizeof(T), false));
+             inst.fast_read(segment, (offset_ + idx) * sizeof(T), sizeof(T), false));
 }
 
 template <class T> Resource<T>::~Resource()
@@ -875,14 +876,14 @@ template <class T> Resource<T>::~Resource()
 template <class T> void Resource<T>::CopyFrom(const Resource &src, int size)
 {
    auto &inst = ResourceManager::instance();
-   inst.Copy(segment, src.segment, offset * sizeof(T), src.offset * sizeof(T),
+   inst.Copy(segment, src.segment, offset_ * sizeof(T), src.offset_ * sizeof(T),
              sizeof(T) * size);
 }
 
 template <class T> void Resource<T>::CopyFromHost(const T *src, int size)
 {
    auto &inst = ResourceManager::instance();
-   inst.CopyFromHost(segment, offset * sizeof(T),
+   inst.CopyFromHost(segment, offset_ * sizeof(T),
                      reinterpret_cast<const char *>(src), size * sizeof(T));
 }
 
@@ -894,7 +895,7 @@ template <class T> void Resource<T>::CopyTo(Resource &dst, int size) const
 template <class T> void Resource<T>::CopyToHost(T *dst, int size) const
 {
    auto &inst = ResourceManager::instance();
-   inst.CopyToHost(segment, offset * sizeof(T), dst, size * sizeof(T));
+   inst.CopyToHost(segment, offset_ * sizeof(T), dst, size * sizeof(T));
 }
 } // namespace mfem
 
