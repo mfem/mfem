@@ -201,7 +201,8 @@ void ParticleTrajectories::SetSegmentEnd()
          real_t seg_length = 0.0;
          for (int d = 0; d < pset.GetDim(); d++)
          {
-            seg_length += (vtx_end_coords[d] - pcoords[d]) * (vtx_end_coords[d] - pcoords[d]);
+            seg_length += (vtx_end_coords[d] - pcoords[d]) * (vtx_end_coords[d] -
+                                                              pcoords[d]);
          }
          seg_length = sqrt(seg_length);
          if (seg_length > max_seg_length && max_seg_length > 0)
