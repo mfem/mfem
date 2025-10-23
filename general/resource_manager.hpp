@@ -307,6 +307,11 @@ private:
       AllocatorAdaptor<std::pair<ptrdiff_t, ptrdiff_t>>>
       &copy_segs);
 
+   void BatchMemCopy2(
+      char *dst, const char *src, ResourceLocation dst_loc,
+      ResourceLocation src_loc,
+      const std::vector<ptrdiff_t, AllocatorAdaptor<ptrdiff_t>> &copy_segs);
+
 public:
    ResourceManager(const ResourceManager &) = delete;
 

@@ -118,3 +118,46 @@ TEST_CASE("Resource Aliasing", "[Resource Manager][GPU]")
       }
    }
 }
+
+TEST_CASE("Resource Copy", "[Resource Manager][GPU]")
+{
+   auto &inst = ResourceManager::instance();
+   {
+      Resource<char> tmp0(100, ResourceManager::HOST, false);
+      Resource<char> tmp1(100, ResourceManager::HOST, false);
+
+      for (int i = 0; i < 100; ++i)
+      {
+         tmp0[i] = i;
+      }
+      // put a few parts of tmp0 onto device
+      // [5, 10)
+      {
+         auto dptr = tmp0.CreateAlias(5, 5).Write();
+         forall(5, [=] MFEM_HOST_DEVICE(int i) { dptr[i] = -2; });
+      }
+      // [15, 20)
+      {
+         auto dptr = tmp0.CreateAlias(15, 5).Write();
+         forall(5, [=] MFEM_HOST_DEVICE(int i) { dptr[i] = -3; });
+      }
+      tmp1.CopyFrom(tmp0, tmp0.Capacity());
+      MFEM_DEVICE_SYNC;
+      auto hptr = tmp1.HostRead();
+      for (int i = 0; i < 100; ++i)
+      {
+         if (i >= 5 && i < 10)
+         {
+            REQUIRE(hptr[i] == -2);
+         }
+         else if (i >= 15 && i < 20)
+         {
+            REQUIRE(hptr[i] == -3);
+         }
+         else
+         {
+            REQUIRE(hptr[i] == i);
+         }
+      }
+   }
+}

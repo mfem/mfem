@@ -1279,6 +1279,8 @@ char *ResourceManager::write(size_t segment, size_t offset, size_t nbytes,
          }
          seg.lowers[on_device] =
             Alloc(seg.nbytes, seg.locs[on_device], seg.is_temporary());
+         // initially all invalid
+         mark_invalid(segment, on_device, 0, seg.nbytes, [&](auto, auto) {});
       }
       mark_valid(segment, on_device, offset, offset + nbytes,
       [&](auto, auto) {});
@@ -1306,6 +1308,21 @@ struct BatchCopyKernel
       {
          dst[start + i] = src[start + i];
       }
+   }
+};
+
+struct BatchCopyKernel2
+{
+   char *dst;
+   const char *src;
+   const ptrdiff_t *segs;
+
+   void MFEM_HOST_DEVICE operator()(int seg) const
+   {
+      ptrdiff_t src_off = segs[3 * seg];
+      ptrdiff_t dst_off = segs[3 * seg + 1];
+      auto nbytes = segs[3 * seg + 2];
+      MFEM_FOREACH_THREAD(i, x, nbytes) { dst[dst_off + i] = src[src_off + i]; }
    }
 };
 
@@ -1399,6 +1416,94 @@ void ResourceManager::BatchMemCopy(
    }
 }
 
+void ResourceManager::BatchMemCopy2(
+   char *dst, const char *src, ResourceLocation dst_loc,
+   ResourceLocation src_loc,
+   const std::vector<ptrdiff_t, AllocatorAdaptor<ptrdiff_t>> &copy_segs)
+{
+   // copy_segs is assumed to be allocated in either HOSTPINNED or MANAGED
+   switch (copy_segs.size())
+   {
+      case 0:
+         return;
+      case 3:
+         MemCopy(dst + copy_segs[1], src + copy_segs[0], copy_segs[2], dst_loc,
+                 src_loc);
+         return;
+      default:
+         auto dloc = Device::QueryMemoryType(dst);
+         auto sloc = Device::QueryMemoryType(src);
+         if (sloc == MemoryType::HOST)
+         {
+            if (sloc == MemoryType::DEVICE)
+            {
+               // TODO: heuristic for when to to use a temporary buffer accessible
+               // on device
+               for (size_t i = 0; i < copy_segs.size(); i += 3)
+               {
+                  MemCopy(dst + copy_segs[i + 1], src + copy_segs[i],
+                          copy_segs[i + 2], dst_loc, src_loc);
+               }
+            }
+            else
+            {
+               // dst and src accessible from host
+               for (size_t i = 0; i < copy_segs.size(); i += 3)
+               {
+                  MemCopy(dst + copy_segs[i + 1], src + copy_segs[i],
+                          copy_segs[i + 2], dst_loc, src_loc);
+               }
+               MFEM_STREAM_SYNC;
+            }
+         }
+         else if (sloc == MemoryType::DEVICE)
+         {
+            if (dloc == MemoryType::HOST)
+            {
+               // TODO: heuristic for when to to use a temporary buffer accessible
+               // on device
+               for (size_t i = 0; i < copy_segs.size(); i += 3)
+               {
+                  MemCopy(dst + copy_segs[i + 1], src + copy_segs[i],
+                          copy_segs[i + 2], dst_loc, src_loc);
+               }
+            }
+            else
+            {
+               // dst and src accessible from device
+               BatchCopyKernel2 kernel;
+               kernel.dst = dst;
+               kernel.src = src;
+               kernel.segs = copy_segs.data();
+               forall_2D(copy_segs.size() / 3, 256, 1, kernel);
+            }
+         }
+         else
+         {
+            if (dloc == MemoryType::HOST)
+            {
+               // dst and src accessible from host
+               for (size_t i = 0; i < copy_segs.size(); i += 3)
+               {
+                  MemCopy(dst + copy_segs[i + 1], src + copy_segs[i],
+                          copy_segs[i + 2], dst_loc, src_loc);
+               }
+            }
+            else
+            {
+               // dst and src accessible from device
+               BatchCopyKernel2 kernel;
+               kernel.dst = dst;
+               kernel.src = src;
+               kernel.segs = copy_segs.data();
+               forall_2D(copy_segs.size() / 3, 256, 1, kernel);
+               MFEM_STREAM_SYNC;
+            }
+         }
+         return;
+   }
+}
+
 char *ResourceManager::read_write(size_t segment, size_t offset, size_t nbytes,
                                   bool on_device)
 {
@@ -1419,6 +1524,8 @@ char *ResourceManager::read_write(size_t segment, size_t offset, size_t nbytes,
          }
          seg.lowers[on_device] =
             Alloc(seg.nbytes, seg.locs[on_device], seg.is_temporary());
+         // initially all invalid
+         mark_invalid(segment, on_device, 0, seg.nbytes, [&](auto, auto) {});
       }
 
       bool need_sync = false;
@@ -1627,19 +1734,25 @@ void ResourceManager::CopyImpl(char *dst, ResourceLocation dloc,
    {
       if (valid)
       {
+         if (src0 == src1)
+         {
+            // ignore all markers
+            copy1.emplace_back(dst_start - dst_offset + src_offset);
+            copy1.emplace_back(dst_start);
+            copy1.emplace_back(dst_stop - dst_start);
+            return false;
+         }
          if (marker0)
          {
             auto start = dst_start - dst_offset;
             auto stop = dst_stop - dst_offset;
-            ptrdiff_t pos0 = storage.get_node(marker0).offset - src_offset;
+            auto pos0 = storage.get_node(marker0).offset - src_offset;
             // move marker until next(marker) is after start
             auto advance_marker =
-               [&](size_t &marker, size_t &next_marker, ptrdiff_t &pos)
+               [&](size_t &marker, size_t &next_marker)
             {
-               if (!marker)
-               {
-                  return;
-               }
+               // assume marker is always valid
+               MFEM_ASSERT(marker, "marker should always be valid");
                // assume pos(marker) <= start
                if (next_marker == marker)
                {
@@ -1649,13 +1762,12 @@ void ResourceManager::CopyImpl(char *dst, ResourceLocation dloc,
                {
                   if (next_marker)
                   {
-                     auto p2 =
+                     auto pos =
                         storage.get_node(next_marker).offset - src_offset;
-                     if (p2 > start)
+                     if (pos > start)
                      {
                         return;
                      }
-                     pos = p2;
                   }
                   else
                   {
@@ -1690,9 +1802,101 @@ void ResourceManager::CopyImpl(char *dst, ResourceLocation dloc,
             }
             while (true)
             {
-               advance_marker(marker0, next_m0, pos0);
-               advance_marker(marker1, next_m1, pos1);
-               // TODO
+               advance_marker(marker0, next_m0);
+               // can always call get_node(marker0)
+               // start <= marker0.offset
+               if (storage.get_node(marker0).is_valid())
+               {
+                  auto npos = stop;
+                  if (next_m0)
+                  {
+                     npos = storage.get_node(next_m0).offset - src_offset;
+                  }
+                  if (stop <= npos)
+                  {
+                     // copy up to stop
+                     copy0.emplace_back(src_offset + start);
+                     copy0.emplace_back(dst_offset + start);
+                     copy0.emplace_back(stop - start);
+                     return false;
+                  }
+                  else
+                  {
+                     // copy up to npos
+                     copy0.emplace_back(src_offset + start);
+                     copy0.emplace_back(dst_offset + start);
+                     copy0.emplace_back(npos - start);
+                     start = npos;
+                  }
+               }
+               else
+               {
+                  if (marker1)
+                  {
+                     advance_marker(marker1, next_m1);
+                     auto pos1 = storage.get_node(marker1).offset - src_offset;
+                     if (pos1 < start)
+                     {
+                        // marker1.is_valid() == false
+                        if (stop <= pos1)
+                        {
+                           // copy up to stop
+                           copy1.emplace_back(src_offset + start);
+                           copy1.emplace_back(dst_offset + start);
+                           copy1.emplace_back(stop - start);
+                           return false;
+                        }
+                        else
+                        {
+                           // copy up to pos1
+                           copy1.emplace_back(src_offset + start);
+                           copy1.emplace_back(dst_offset + start);
+                           copy1.emplace_back(pos1 - start);
+                           start = pos1;
+                        }
+                     }
+                     else
+                     {
+                        if (storage.get_node(marker1).is_valid())
+                        {
+                           auto npos = stop;
+                           if (next_m1)
+                           {
+                              npos =
+                                 storage.get_node(next_m1).offset - src_offset;
+                           }
+                           if (stop <= npos)
+                           {
+                              // copy up to stop
+                              copy1.emplace_back(src_offset + start);
+                              copy1.emplace_back(dst_offset + start);
+                              copy1.emplace_back(stop - start);
+                              return false;
+                           }
+                           else
+                           {
+                              // copy up to npos
+                              copy1.emplace_back(src_offset + start);
+                              copy1.emplace_back(dst_offset + start);
+                              copy1.emplace_back(npos - start);
+                              start = npos;
+                           }
+                        }
+                        else
+                        {
+                           throw std::runtime_error(
+                              "Copy source not valid on host or device");
+                        }
+                     }
+                  }
+                  else
+                  {
+                     copy1.emplace_back(src_offset + start);
+                     copy1.emplace_back(dst_offset + start);
+                     copy1.emplace_back(stop - start);
+                     return false;
+                  }
+               }
             }
          }
          else
@@ -1705,32 +1909,37 @@ void ResourceManager::CopyImpl(char *dst, ResourceLocation dloc,
       }
       return false;
    });
-   // TODO: dispatch copies
+   // dispatch copies
+   BatchMemCopy2(dst, src0, dloc, sloc0, copy0);
+   BatchMemCopy2(dst, src1, dloc, sloc1, copy1);
 }
 
 void ResourceManager::Copy(size_t dst_seg, size_t src_seg, size_t dst_offset,
                            size_t src_offset, size_t nbytes)
 {
-   auto &dseg = storage.get_segment(dst_seg);
-   auto &sseg = storage.get_segment(src_seg);
-   size_t currs[2] = {0, 0};
-   if (sseg.lowers[0])
+   if (dst_seg != src_seg)
    {
-      currs[0] = find_marker(src_seg, src_offset, false);
-   }
-   if (sseg.lowers[1])
-   {
-      currs[1] = find_marker(src_seg, src_offset, true);
-   }
-
-   for (int i = 0; i < 2; ++i)
-   {
-      if (dseg.lowers[i])
+      auto &dseg = storage.get_segment(dst_seg);
+      auto &sseg = storage.get_segment(src_seg);
+      size_t currs[2] = {0, 0};
+      if (sseg.lowers[0])
       {
-         size_t curr = find_marker(dst_seg, dst_offset, i);
-         CopyImpl(dseg.lowers[i], dseg.locs[i], dst_offset, curr, nbytes,
-                  sseg.lowers[i], sseg.lowers[1 - i], sseg.locs[i],
-                  sseg.locs[1 - i], src_offset, currs[i], currs[1 - i]);
+         currs[0] = find_marker(src_seg, src_offset, false);
+      }
+      if (sseg.lowers[1])
+      {
+         currs[1] = find_marker(src_seg, src_offset, true);
+      }
+
+      for (int i = 0; i < 2 - (dseg.lowers[1] == dseg.lowers[0]); ++i)
+      {
+         if (dseg.lowers[i])
+         {
+            size_t curr = find_marker(dst_seg, dst_offset, i);
+            CopyImpl(dseg.lowers[i], dseg.locs[i], dst_offset, curr, nbytes,
+                     sseg.lowers[i], sseg.lowers[1 - i], sseg.locs[i],
+                     sseg.locs[1 - i], src_offset, currs[i], currs[1 - i]);
+         }
       }
    }
 }
