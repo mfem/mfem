@@ -140,10 +140,10 @@ ParticleTrajectories::ParticleTrajectories(const ParticleSet &particles,
                                            int y_, int w_, int h_, const char *keys_, real_t max_seg_length_)
    : pset(particles),
      tail_size(tail_size_),
+     max_seg_length(max_seg_length_),
      x(x_), y(y_), w(w_), h(h_),
      title(title_),
-     keys(keys_),
-     max_seg_length(max_seg_length_)
+     keys(keys_)
 #ifdef MFEM_USE_MPI
    ,comm(particles.GetComm())
 #endif // MFEM_USE_MPI
