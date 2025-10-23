@@ -329,7 +329,7 @@ int main(int argc, char *argv[])
    {
       traj_vis = std::make_unique<ParticleTrajectories>(boris.GetParticles(),
                                                         ctx.vis_tail_size, vishost, ctx.visport, "Particle Trajectories", 0, 0, 800,
-                                                        800, "ba");
+                                                        800, "ba", 0.75 * max(ctx.xmax, ctx.ymax));
    }
 
    // set up timer

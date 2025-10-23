@@ -137,12 +137,13 @@ void VisualizeParticles(socketstream &sock, const char* vishost, int visport,
 
 ParticleTrajectories::ParticleTrajectories(const ParticleSet &particles,
                                            int tail_size_, const char *vishost, int visport, const char *title_, int x_,
-                                           int y_, int w_, int h_, const char *keys_)
+                                           int y_, int w_, int h_, const char *keys_, real_t max_seg_length_)
    : pset(particles),
      tail_size(tail_size_),
      x(x_), y(y_), w(w_), h(h_),
      title(title_),
-     keys(keys_)
+     keys(keys_),
+     max_seg_length(max_seg_length_)
 #ifdef MFEM_USE_MPI
    ,comm(particles.GetComm())
 #endif // MFEM_USE_MPI
@@ -194,7 +195,23 @@ void ParticleTrajectories::SetSegmentEnd()
       {
          Vector pcoords;
          pset.Coords().GetVectorValues(pidx, pcoords);
-         segment_meshes.front().AddVertex(pcoords);
+
+         // get segment length
+         real_t* vtx_end_coords = segment_meshes.front().GetVertex(i);
+         real_t seg_length = 0.0;
+         for (int d = 0; d < pset.GetDim(); d++)
+         {
+            seg_length += (vtx_end_coords[d] - pcoords[d]) * (vtx_end_coords[d] - pcoords[d]);
+         }
+         seg_length = sqrt(seg_length);
+         if (seg_length > max_seg_length && max_seg_length > 0)
+         {
+            segment_meshes.front().AddVertex(segment_meshes.front().GetVertex(i));
+         }
+         else
+         {
+            segment_meshes.front().AddVertex(pcoords);
+         }
       }
       else // Otherwise set its end vertex == start vertex
       {
