@@ -44,6 +44,7 @@ protected:
    std::vector<Mesh> segment_meshes; /// Each segment is stored as a Mesh snapshot
 
    int tail_size;
+   real_t max_seg_length;
    int x, y, w, h;
    const char *title, *keys;
 
@@ -60,7 +61,7 @@ public:
 
    ParticleTrajectories(const ParticleSet &particles, int tail_size_,
                         const char *vishost, int visport, const char *title_, int x_=0, int y_=0,
-                        int w_=400, int h_=400, const char *keys_=nullptr);
+                        int w_=400, int h_=400, const char *keys_=nullptr, real_t max_seg_length_=-1);
 
    void Visualize();
 
