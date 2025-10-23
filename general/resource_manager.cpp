@@ -1092,7 +1092,6 @@ template <class F>
 void ResourceManager::check_valid(size_t segment, bool on_device,
                                   ptrdiff_t start, ptrdiff_t stop, F &&func)
 {
-   auto &seg = storage.get_segment(segment);
    size_t curr = find_marker(segment, start, on_device);
    check_valid(curr, start, stop, func);
 }
