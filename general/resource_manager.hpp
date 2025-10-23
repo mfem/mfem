@@ -300,6 +300,7 @@ private:
 
    int compare_host_device(size_t segment, size_t offset, size_t nbytes);
 
+   /// @a copy_segs first is start offset, second is stop offset
    void BatchMemCopy(
       char *dst, const char *src, ResourceLocation dst_loc,
       ResourceLocation src_loc,
@@ -307,6 +308,8 @@ private:
       AllocatorAdaptor<std::pair<ptrdiff_t, ptrdiff_t>>>
       &copy_segs);
 
+   /// @a copy_segs is flattened of length 3 * num segments
+   /// order: src offset, dst offset, nbytes
    void BatchMemCopy2(
       char *dst, const char *src, ResourceLocation dst_loc,
       ResourceLocation src_loc,
