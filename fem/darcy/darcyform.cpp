@@ -1932,7 +1932,7 @@ void DarcyForm::AssemblePotHDGFaces(int skip_zeros)
 
       if (mesh->Nonconforming())
       {
-         hybridization->AssembleNCMasterFaceMatrices();
+         hybridization->AssembleNCMasterPotFaceMatrices();
       }
    }
 

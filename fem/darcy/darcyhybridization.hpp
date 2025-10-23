@@ -273,6 +273,9 @@ private:
    void AssembleCtFaceMatrix(int face, int el1, int el2, const DenseMatrix &elmat);
    void AssembleCtSubMatrix(int el, const DenseMatrix &elmat,
                             DenseMatrix &Ct, int ioff=0);
+   using face_getter = void (DarcyHybridization::*)(int, int, DenseMatrix &) const;
+   void AssembleNCMasterFaceMatrices(face_getter Ct, face_getter C = NULL);
+   void AssembleNCMasterCtFaceMatrices();
    void ConstructC();
    void AllocD() const;
    void AllocEG() const;
@@ -506,7 +509,7 @@ public:
    void ComputeAndAssemblePotBdrFaceMatrix(int bface, DenseMatrix & elmat,
                                            Array<int>& vdofs, int skip_zeros = 1);
 
-   void AssembleNCMasterFaceMatrices();
+   void AssembleNCMasterPotFaceMatrices();
 
    /// Assemble the boundary element matrix A into the hybridized system matrix.
    //void AssembleBdrMatrix(int bdr_el, const DenseMatrix &A);
