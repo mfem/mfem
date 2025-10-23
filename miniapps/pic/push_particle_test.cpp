@@ -336,17 +336,14 @@ int main(int argc, char *argv[])
    {
       // Step the Boris algorithm
       boris.Step(t, dt);
-      mfem::out << "Step: " << step << " | Time: " << t ;
       if (Mpi::Root())
       {
+         mfem::out << "Step: " << step << " | Time: " << t;
          // Print timing information every 100 steps
          if (step % 10 == 0)
          {
             std::chrono::duration<double> elapsed = std::chrono::high_resolution_clock::now() - start_time;
-            if (Mpi::Root())
-            {
-               mfem::out << " | Time per step: " << elapsed.count() / step;
-            }
+            mfem::out << " | Time per step: " << elapsed.count() / step;
          }
          mfem::out << endl;
       }
