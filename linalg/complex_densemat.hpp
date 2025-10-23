@@ -124,7 +124,7 @@ class ComplexLUFactors : public ComplexFactors
 {
 public:
    int *ipiv;
-   constexpr int ipiv_base = 1;
+   static constexpr int ipiv_base = 1;
 
    /** With this constructor, the (public) data and ipiv members should be set
        explicitly before calling class methods. */
