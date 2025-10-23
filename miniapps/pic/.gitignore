@@ -3,3 +3,4 @@ push_*
 !push_*.hpp
 *.csv
 *.gif
+*.mp4
