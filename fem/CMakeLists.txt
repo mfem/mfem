@@ -165,7 +165,10 @@ set(SRCS
   hyperbolic.cpp
   integrator.cpp
   bounds.cpp
+<<<<<<< HEAD
   particleset.cpp
+=======
+>>>>>>> master
   )
 
 set(HDRS
@@ -288,7 +291,10 @@ set(HDRS
   hyperbolic.hpp
   integrator.hpp
   bounds.hpp
+<<<<<<< HEAD
   particleset.hpp
+=======
+>>>>>>> master
   )
 
 if (MFEM_USE_SIDRE)

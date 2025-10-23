@@ -27,7 +27,96 @@ using namespace std;
 
 namespace mfem
 {
+<<<<<<< HEAD
 
+FiniteElementSpace::FiniteElementSpace()
+   : mesh(NULL), fec(NULL), vdim(0), ordering(Ordering::byNODES),
+     ndofs(0), nvdofs(0), nedofs(0), nfdofs(0), nbdofs(0),
+     bdofs(NULL),
+     elem_dof(NULL), elem_fos(NULL), bdr_elem_dof(NULL), bdr_elem_fos(NULL),
+     face_dof(NULL),
+     NURBSext(NULL), own_ext(false),
+     cP_is_set(false),
+     Th(Operator::ANY_TYPE),
+     sequence(0), mesh_sequence(0), orders_changed(false), relaxed_hp(false)
+{ }
+
+FiniteElementSpace::FiniteElementSpace(const FiniteElementSpace &orig,
+                                       Mesh *mesh_,
+                                       const FiniteElementCollection *fec_)
+=======
+template <>
+void Ordering::DofsToVDofs<Ordering::byNODES>(int ndofs, int vdim,
+                                              Array<int> &dofs)
+>>>>>>> master
+{
+   mesh_ = mesh_ ? mesh_ : orig.mesh;
+   fec_ = fec_ ? fec_ : orig.fec;
+
+   NURBSExtension *nurbs_ext = NULL;
+   if (orig.NURBSext && orig.NURBSext != orig.mesh->NURBSext)
+   {
+#ifdef MFEM_USE_MPI
+      ParNURBSExtension *pNURBSext =
+         dynamic_cast<ParNURBSExtension *>(orig.NURBSext);
+      if (pNURBSext)
+      {
+         nurbs_ext = new ParNURBSExtension(*pNURBSext);
+      }
+      else
+#endif
+      {
+         nurbs_ext = new NURBSExtension(*orig.NURBSext);
+      }
+   }
+
+   Constructor(mesh_, nurbs_ext, fec_, orig.vdim, orig.ordering);
+}
+
+<<<<<<< HEAD
+FiniteElementSpace::FiniteElementSpace(Mesh *mesh,
+                                       const FiniteElementCollection *fec,
+                                       int vdim, int ordering)
+{ Constructor(mesh, NULL, fec, vdim, ordering); }
+
+FiniteElementSpace::FiniteElementSpace(Mesh *mesh, NURBSExtension *ext,
+                                       const FiniteElementCollection *fec,
+                                       int vdim, int ordering)
+{ Constructor(mesh, ext, fec, vdim, ordering); }
+
+void FiniteElementSpace::CopyProlongationAndRestriction(
+   const FiniteElementSpace &fes, const Array<int> *perm)
+=======
+template <>
+void Ordering::DofsToVDofs<Ordering::byVDIM>(int ndofs, int vdim,
+                                             Array<int> &dofs)
+>>>>>>> master
+{
+   MFEM_VERIFY(cP == NULL, "");
+   MFEM_VERIFY(cR == NULL, "");
+
+   SparseMatrix *perm_mat = NULL, *perm_mat_tr = NULL;
+   if (perm)
+   {
+      // Note: although n and fes.GetVSize() are typically equal, in
+      // variable-order spaces they may differ, since nonconforming edges/faces
+      // my have fictitious DOFs.
+      int n = perm->Size();
+      perm_mat = new SparseMatrix(n, fes.GetVSize());
+      for (int i=0; i<n; ++i)
+      {
+         real_t s;
+         int j = DecodeDof((*perm)[i], s);
+         perm_mat->Set(i, j, s);
+      }
+      perm_mat->Finalize();
+      perm_mat_tr = Transpose(*perm_mat);
+   }
+
+<<<<<<< HEAD
+   if (fes.GetConformingProlongation() != NULL)
+   {
+=======
 FiniteElementSpace::FiniteElementSpace()
    : mesh(NULL), fec(NULL), vdim(0), ordering(Ordering::byNODES),
      ndofs(0), nvdofs(0), nedofs(0), nfdofs(0), nbdofs(0),
@@ -103,6 +192,7 @@ void FiniteElementSpace::CopyProlongationAndRestriction(
 
    if (fes.GetConformingProlongation() != NULL)
    {
+>>>>>>> master
       if (perm) { cP.reset(Mult(*perm_mat, *fes.GetConformingProlongation())); }
       else { cP.reset(new SparseMatrix(*fes.GetConformingProlongation())); }
       cP_is_set = true;

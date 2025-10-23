@@ -27,6 +27,20 @@ if (MFEM_USE_MPI)
    joule_solver.cpp
    EXTRA_HEADERS joule_solver.hpp ${MFEM_MINIAPPS_COMMON_HEADERS}
    LIBRARIES mfem-common)
+<<<<<<< HEAD
+=======
+
+ add_mfem_miniapp(maxwell
+   MAIN maxwell.cpp
+   maxwell_solver.cpp
+   EXTRA_HEADERS maxwell_solver.hpp ${MFEM_MINIAPPS_COMMON_HEADERS}
+   LIBRARIES mfem-common)
+
+ add_mfem_miniapp(lorentz
+   MAIN lorentz.cpp
+   EXTRA_HEADERS ${MFEM_MINIAPPS_COMMON_HEADERS}
+   LIBRARIES mfem-common)
+>>>>>>> master
 
  add_mfem_miniapp(maxwell
    MAIN maxwell.cpp

@@ -50,7 +50,10 @@
 #include "dgmassinv.hpp"
 #include "hyperbolic.hpp"
 #include "bounds.hpp"
+<<<<<<< HEAD
 #include "particleset.hpp"
+=======
+>>>>>>> master
 
 #include "dfem/doperator.hpp"
 

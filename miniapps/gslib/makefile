@@ -22,7 +22,11 @@ MFEM_LIB_FILE = mfem_is_not_built
 
 ifeq ($(MFEM_USE_GSLIB),YES)
    SEQ_MINIAPPS = findpts field-diff field-interp schwarz_ex1
+<<<<<<< HEAD
    PAR_MINIAPPS = pfindpts schwarz_ex1p particles_redist
+=======
+   PAR_MINIAPPS = pfindpts schwarz_ex1p
+>>>>>>> master
 else
    SEQ_MINIAPPS =
    PAR_MINIAPPS =

@@ -211,9 +211,12 @@ public:
    /// Delete the first entry with value == 'el'.
    inline void DeleteFirst(const T &el);
 
+<<<<<<< HEAD
    /// Delete entries at @a indices, and resize.
    inline void DeleteAt(const Array<int> &indices);
 
+=======
+>>>>>>> master
    /// Delete the whole array.
    inline void DeleteAll();
 
@@ -974,6 +977,7 @@ inline void Array<T>::DeleteFirst(const T &el)
 template <class T>
 inline void Array<T>::DeleteAt(const Array<int> &indices)
 {
+<<<<<<< HEAD
    // Make a copy of the indices, sorted.
    Array<int> sorted_indices(indices);
    sorted_indices.Sort();
@@ -1016,6 +1020,26 @@ inline void Array<T>::Copy(Array &copy) const
 template <class T>
 inline void Array<T>::MakeRef(T *data_, int size_, bool own_data)
 {
+=======
+   const bool use_dev = data.UseDevice();
+   data.Delete();
+   data.Reset();
+   size = 0;
+   data.UseDevice(use_dev);
+}
+
+template <typename T>
+inline void Array<T>::Copy(Array &copy) const
+{
+   copy.SetSize(Size(), data.GetMemoryType());
+   data.CopyTo(copy.data, Size());
+   copy.data.UseDevice(data.UseDevice());
+}
+
+template <class T>
+inline void Array<T>::MakeRef(T *data_, int size_, bool own_data)
+{
+>>>>>>> master
    data.Delete();
    data.Wrap(data_, size_, own_data);
    size = size_;

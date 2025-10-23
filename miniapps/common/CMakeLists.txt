@@ -17,7 +17,10 @@ list(APPEND SRCS
 list(APPEND HDRS
   mesh_extras.hpp
   fem_extras.hpp
+<<<<<<< HEAD
   particles_extras.hpp
+=======
+>>>>>>> master
   mfem-common.hpp
   )
 

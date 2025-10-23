@@ -23,6 +23,7 @@ MFEM_LIB_FILE = mfem_is_not_built
 NAVIER_COMMON_SRC = navier_solver.cpp
 NAVIER_COMMON_OBJ = $(NAVIER_COMMON_SRC:.cpp=.o)
 
+<<<<<<< HEAD
 ifeq ($(MFEM_USE_GSLIB), YES)
 	NAVIER_PARTICLE_COMMON_SRC = navier_particles.cpp
 	NAVIER_PARTICLE_COMMON_OBJ = $(NAVIER_PARTICLE_COMMON_SRC:.cpp=.o)
@@ -42,6 +43,12 @@ PAR_MINIAPPS = navier_mms navier_kovasznay navier_kovasznay_vs navier_tgv\
  navier_shear navier_3dfoc navier_turbchan
 ifeq ($(MFEM_USE_GSLIB),YES)
    PAR_MINIAPPS += navier_cht navier_bifurcation
+=======
+PAR_MINIAPPS = navier_mms navier_kovasznay navier_kovasznay_vs navier_tgv\
+ navier_shear navier_3dfoc navier_turbchan
+ifeq ($(MFEM_USE_GSLIB),YES)
+   PAR_MINIAPPS += navier_cht
+>>>>>>> master
 endif
 
 ifeq ($(MFEM_USE_MPI),NO)
@@ -52,6 +59,7 @@ endif
 
 .SUFFIXES:
 .SUFFIXES: .o .cpp .mk
+<<<<<<< HEAD
 .PHONY: all lib-common clean clean-build clean-exec
 .PRECIOUS: %.o
 
@@ -61,23 +69,35 @@ COMMON_LIB = -L$(MFEM_BUILD_DIR)/miniapps/common -lmfem-common
 COMMON_LIB += $(if $(MFEM_SHARED:YES=),,\
    $(if $(MFEM_USE_CUDA:YES=),$(CXX_XLINKER),$(CUDA_XLINKER))-rpath,$(abspath\
    $(MFEM_BUILD_DIR)/miniapps/common))
+=======
+.PHONY: all clean clean-build clean-exec
+>>>>>>> master
 
 # Remove built-in rules
 %: %.cpp
 %.o: %.cpp
 
 %: %.o $(NAVIER_COMMON_OBJ)
+<<<<<<< HEAD
 	$(MFEM_CXX) $(MFEM_LINK_FLAGS) $^ -o $@ $(MFEM_LIBS) $(COMMON_LIB)
 
 %.o: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK) | lib-common
+=======
+	$(MFEM_CXX) $(MFEM_LINK_FLAGS) $^ -o $@ $(MFEM_LIBS)
+
+%.o: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
+>>>>>>> master
 	$(MFEM_CXX) $(MFEM_FLAGS) -c $< -o $@
 
 all: $(MINIAPPS)
 
+<<<<<<< HEAD
 # Rule for building lib-common
 lib-common:
 	$(MAKE) -C $(MFEM_BUILD_DIR)/miniapps/common
 
+=======
+>>>>>>> master
 PAR_TEST_EXECS = navier_mms navier_kovasznay navier_tgv
 MFEM_TESTS = TEST_EXECS
 include $(MFEM_TEST_MK)
@@ -104,4 +124,8 @@ clean-build:
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:
+<<<<<<< HEAD
 	@rm -rf tgv_out*.txt *_output ParaView Navier_Bifurcation_*
+=======
+	@rm -rf tgv_out*.txt *_output
+>>>>>>> master

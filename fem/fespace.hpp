@@ -24,6 +24,45 @@
 namespace mfem
 {
 
+<<<<<<< HEAD
+/// @brief Type describing possible layouts for Q-vectors.
+/// @sa QuadratureInterpolator and FaceQuadratureInterpolator.
+enum class QVectorLayout
+{
+   /** Layout depending on the input space and the computed quantity:
+       - scalar H1/L2 spaces, values: NQPT x VDIM x NE,
+       - scalar H1/L2 spaces, gradients: NQPT x VDIM x DIM x NE,
+       - vector RT/ND spaces, values: NQPT x SDIM x NE (vdim = 1). */
+   byNODES,
+=======
+/** @brief The ordering method used when the number of unknowns per mesh node
+    (vector dimension) is bigger than 1. */
+class Ordering
+{
+public:
+   /// %Ordering methods:
+   enum Type
+   {
+      byNODES, /**< loop first over the nodes (inner loop) then over the vector
+                    dimension (outer loop); symbolically it can be represented
+                    as: XXX...,YYY...,ZZZ... */
+      byVDIM   /**< loop first over the vector dimension (inner loop) then over
+                    the nodes (outer loop); symbolically it can be represented
+                    as: XYZ,XYZ,XYZ,... */
+   };
+>>>>>>> master
+
+   /** Layout depending on the input space and the computed quantity:
+       - scalar H1/L2 spaces, values: VDIM x NQPT x NE,
+       - scalar H1/L2 spaces, gradients: VDIM x DIM x NQPT x NE,
+       - vector RT/ND spaces, values: SDIM x NQPT x NE (vdim = 1). */
+   byVDIM
+};
+
+<<<<<<< HEAD
+/// Constants describing the possible orderings of the DOFs in one element.
+enum class ElementDofOrdering
+=======
 /// @brief Type describing possible layouts for Q-vectors.
 /// @sa QuadratureInterpolator and FaceQuadratureInterpolator.
 enum class QVectorLayout
@@ -41,6 +80,33 @@ enum class QVectorLayout
    byVDIM
 };
 
+template <> inline int
+Ordering::Map<Ordering::byNODES>(int ndofs, int vdim, int dof, int vd)
+>>>>>>> master
+{
+   /// Native ordering as defined by the FiniteElement.
+   /** This ordering can be used by tensor-product elements when the
+       interpolation from the DOFs to quadrature points does not use the
+       tensor-product structure. */
+   NATIVE,
+   /// Lexicographic: DOFs are listed in order of increasing x-coordinate,
+   /// followed by increasing y-coordinate, and z-coordinate.
+   /** This ordering is usually used with tensor-product elements, but it is
+       also supported by some non-tensor elements. */
+   LEXICOGRAPHIC
+};
+
+/** Represents the index of an element to p-refine, plus a change to the order
+    of that element. */
+struct pRefinement
+{
+   int index; ///< Mesh element number
+   int delta; ///< Change to element order
+
+<<<<<<< HEAD
+   pRefinement() = default;
+
+=======
 /// Constants describing the possible orderings of the DOFs in one element.
 enum class ElementDofOrdering
 {
@@ -65,6 +131,7 @@ struct pRefinement
 
    pRefinement() = default;
 
+>>>>>>> master
    pRefinement(int element, int change)
       : index(element), delta(change) {}
 };

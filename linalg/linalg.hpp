@@ -37,7 +37,10 @@
 #include "batched/gpu_blas.hpp"
 #include "batched/solver.hpp"
 #include "tensor.hpp"
+<<<<<<< HEAD
 #include "multivector.hpp"
+=======
+>>>>>>> master
 
 #ifdef MFEM_USE_AMGX
 #include "amgxsolver.hpp"

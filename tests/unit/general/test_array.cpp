@@ -124,6 +124,7 @@ TEST_CASE("Array stl-interactions", "[Array]")
       CHECK(x[i] == y[i]);
    }
 }
+<<<<<<< HEAD
 
 TEST_CASE("Array delete at indices", "[Array]")
 {
@@ -140,3 +141,5 @@ TEST_CASE("Array delete at indices", "[Array]")
       CHECK(test[i] == result[i]);
    }
 }
+=======
+>>>>>>> master

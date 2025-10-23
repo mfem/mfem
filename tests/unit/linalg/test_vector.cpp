@@ -247,6 +247,7 @@ TEST_CASE("Vector Sum", "[Vector],[GPU]")
 
    REQUIRE(sum_1 == MFEM_Approx(sum_2));
 }
+<<<<<<< HEAD
 
 TEST_CASE("Vector delete at indices", "[Vector]")
 {
@@ -263,3 +264,5 @@ TEST_CASE("Vector delete at indices", "[Vector]")
       CHECK(test[i] == result[i]);
    }
 }
+=======
+>>>>>>> master

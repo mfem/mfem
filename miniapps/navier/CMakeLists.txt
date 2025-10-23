@@ -15,6 +15,7 @@ if (MFEM_USE_MPI)
   list(APPEND NAVIER_COMMON_HEADERS
       navier_solver.hpp)
 
+<<<<<<< HEAD
   if(MFEM_USE_GSLIB)
     list(APPEND NAVIER_COMMON_SOURCES
       navier_particles.cpp)
@@ -22,6 +23,8 @@ if (MFEM_USE_MPI)
       navier_particles.hpp)
   endif()
 
+=======
+>>>>>>> master
   convert_filenames_to_full_paths(NAVIER_COMMON_SOURCES)
   convert_filenames_to_full_paths(NAVIER_COMMON_HEADERS)
 
@@ -70,11 +73,14 @@ if (MFEM_USE_MPI)
       ${NAVIER_COMMON_FILES}
       LIBRARIES mfem)
 
+<<<<<<< HEAD
     add_mfem_miniapp(navier_bifurcation
       MAIN navier_bifurcation.cpp
       ${NAVIER_COMMON_FILES}
       LIBRARIES mfem-common)
 
+=======
+>>>>>>> master
     LIST(APPEND NAVIER_MESH_FILES
         fluid-cht.mesh
         solid-cht.mesh)

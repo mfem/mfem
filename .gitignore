@@ -223,7 +223,10 @@ miniapps/gslib/pfindpts
 miniapps/gslib/schwarz_ex1
 miniapps/gslib/schwarz_ex1p
 miniapps/gslib/interpolated.gf
+<<<<<<< HEAD
 miniapps/gslib/particles_redist
+=======
+>>>>>>> master
 
 miniapps/meshing/mobius-strip
 miniapps/meshing/klein-bottle
@@ -291,9 +294,12 @@ miniapps/navier/navier_shear
 miniapps/navier/navier_3dfoc
 miniapps/navier/navier_turbchan
 miniapps/navier/navier_cht
+<<<<<<< HEAD
 miniapps/navier/navier_bifurcation
 miniapps/navier/Navier_Bifurcation_[0-9]*
 miniapps/navier/ParaView
+=======
+>>>>>>> master
 miniapps/navier/tgv_out*.txt
 miniapps/navier/*_output
 

@@ -16,6 +16,9 @@
 #include "mesh_extras.hpp"
 #include "pfem_extras.hpp"
 #include "dist_solver.hpp"
+<<<<<<< HEAD
 #include "particles_extras.hpp"
+=======
+>>>>>>> master
 
 #endif
