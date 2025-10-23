@@ -8,7 +8,7 @@
 // Sample run:
 //   mpirun -np 10 ./navier_bifurcation -rs 3 -npt 10 -pt 100 -nt 4e5 -csv 50 -pv 50
 // mpirun -np 10 ./navier_bifurcation -rs 3 -npt 10 -pt 100 -nt 1e5 -csv 50
-// make navier_bifurcation -j4 && mpirun -np 10 ./navier_bifurcation -rs 3 -npt 5 -pt 100 -nt 1e5 -csv 20 -ipf 10
+// make navier_bifurcation -j4 && mpirun -np 10 ./navier_bifurcation -rs 3 -npt 5 -pt 1000 -nt 1e5 -csv 20 -ipf 10 -pv 20
 
 #include "navier_solver.hpp"
 #include "navier_particles.hpp"
@@ -201,7 +201,7 @@ int main(int argc, char *argv[])
          pstep++;
       }
 
-      if (ctx.print_csv_freq > 0 && step % ctx.print_csv_freq == 0 && step >= ctx.pnt_0)
+      if (ctx.print_csv_freq > 0 && step % ctx.print_csv_freq == 0)
       {
          vis_count++;
          // Output the particles

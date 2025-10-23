@@ -162,7 +162,7 @@ bool NavierParticles::Get2DSegmentIntersection(const Vector &s1_start, const Vec
 
    real_t t1 = ( (s2_start[0] - s1_start[0])*(s2_start[1]-s2_end[1]) - (s2_start[1] - s1_start[1])*(s2_start[0]-s2_end[0]) ) / denom;
    real_t t2 = ( (s1_end[0] - s1_start[0])*(s2_start[1] - s1_start[1]) - (s1_end[1] - s1_start[1])*(s2_start[0] - s1_start[0]) ) / denom;
-   
+
    // If intersection falls on line segment of s1_start to s1_end AND s2_start to s2_end, set x_int and return true
    if ((0 <= t1 && t1 <= 1) && (0 <= t2 && t2 <= 1))
    {
@@ -340,6 +340,9 @@ NavierParticles::NavierParticles(MPI_Comm comm, int num_particles, Mesh &m)
    // Initialize order (tag)
    fp_idx.tag.order = fluid_particles.AddTag("Order");
    fluid_particles.Tag(fp_idx.tag.order) = 0;
+
+   fp_idx.tag.color = fluid_particles.AddTag("Col");
+   fluid_particles.Tag(fp_idx.tag.color) = 1;
 
    // Reserve num_particles for inactive_fluid_particles
    inactive_fluid_particles.Reserve(num_particles);

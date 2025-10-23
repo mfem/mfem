@@ -24,14 +24,14 @@ namespace navier
 {
 
 /** @brief Transient Navier-Stokes fluid-particles solver
- * 
+ *
  *  @details TODO.
- * 
- * 
- * 
- * 
+ *
+ *
+ *
+ *
  *  [1] Dutta, Som (2017). Ph.D. Dissertation: Bulle-Effect and its implications for morphodynamics of river diversions. https://www.ideals.illinois.edu/items/102343.
- * 
+ *
  */
 class NavierParticles
 {
@@ -65,10 +65,11 @@ protected:
          int w[4];
          int x[3];
       } field;
-      
+
       struct TagIndices
       {
          int order;
+         int color;
       } tag;
 
    } fp_idx;
@@ -102,20 +103,20 @@ protected:
    void ParticleStep2D(const real_t &dt, int p);
 
    /** @brief Given two 2D points, get the unit normal to the line connecting them
-    * 
+    *
     *  For \p inv_normal *false*, the normal is +90 degrees from the line connecting \p p1 to \p p2 .
     *  For \p inv_normal *true*, the normal is -90 degrees from the line connecting \p p1 to \p p2 .
     */
    static void Get2DNormal(const Vector &p1, const Vector &p2, bool inv_normal, Vector &normal);
 
    /** @brief Given two 2D segments, get the intersection point if it exists.
-    * 
+    *
     *  Specifically this function solves the following system of equations:
     *       r_1 = s1_start + t1*[s1_end - s1_start]
     *       r_2 = s2_start + t2*[s2_end - s2_start]
-    * 
+    *
     *  and then checks if 0<=t1<=1 and 0<=t2<=1 .
-    * 
+    *
     *  @param[in] s1_start         First line segment start point.
     *  @param[in] s1_end           First line segment end point.
     *  @param[in] s2_start         Second line segment start point.
@@ -123,7 +124,7 @@ protected:
     *  @param[in] x_int            Computed intersection point (if it exists)
     *  @param[in] t1_ptr           (Optional) Computed t1
     *  @param[in] t2_ptr           (Optional) Computed t2
-    *  
+    *
     *  @return *true* if intersection point exists, *false* otherwise
     */
    static bool Get2DSegmentIntersection(const Vector &s1_start, const Vector &s1_end, const Vector &s2_start, const Vector &s2_end, Vector &x_int, real_t *t1_ptr=nullptr, real_t *t2_ptr=nullptr);
@@ -134,9 +135,9 @@ protected:
 
 
    /** @brief Move any particles that have left the domain to the inactive ParticleSet.
-    * 
+    *
     *  This method uses the FindPointsGSLIB object internal to the class to detect if particles are within the domain or not.
-    * 
+    *
     *  @param[in] findpts     If true, call FindPointsGSLIB::FindPoints prior to deactivation (if particle coordinates out of sync with FindPointsGSLIB)
     */
    void DeactivateLostParticles(bool findpts);
@@ -153,15 +154,15 @@ public:
    void Setup(const real_t &dt) { dthist[0] = dt; }
 
    /** @brief Step the particles in time.
-    * 
-    *  @param[in] dt       
+    *
+    *  @param[in] dt
     *  @param[in] u_gf     Fluid velocity on fluid mesh.
     *  @param[in] w_gf     Fluid vorticity on fluid mesh.
     */
    void Step(const real_t &dt, const ParGridFunction &u_gf, const ParGridFunction &w_gf);
 
    /** @brief Interpolate fluid velocity and vorticity onto current particles' location.
-    * 
+    *
     *  @param[in] u_gf     Fluid velocity on fluid mesh.
     *  @param[in] w_gf     Fluid vorticity on fluid mesh.
     */
@@ -196,43 +197,44 @@ public:
 
    /// Get reference to the order Array<int>.
    Array<int>& Order()      { return fluid_particles.Tag(fp_idx.tag.order); }
+   Array<int>& Color()      { return fluid_particles.Tag(fp_idx.tag.color); }
 
    /** @brief Add a 2D wall reflective boundary condition.
-    * 
+    *
     *  @warning The normal must be facing into the domain. See \ref Get2DNormal for details on the normal direction.
-    * 
+    *
     *  @param[in] line_start     Wall line segment start point.
     *  @param[in] line_end       Wall line segment end point.
     *  @param[in] e              Boundary collision reconstitution constant. 1 for elastic.
     *  @param[in] invert_normal  Invert direction of the normal.
-    * 
+    *
     */
    void Add2DReflectionBC(const Vector &line_start, const Vector &line_end, real_t e, bool invert_normal)
    { bcs.push_back(ReflectionBC_2D{line_start, line_end, e, invert_normal}); }
 
    /** @brief Add a 2D recirculation / one-way periodic boundary condition.
-    * 
+    *
     *  @warning *Both* normals must be facing into the domain. See \ref Get2DNormal for details on the normal direction.
-    * 
+    *
     *  @param[in] inlet_start             Inlet line segment start point.
     *  @param[in] inlet_end               Inlet line segment end point.
     *  @param[in] invert_inlet_normal     Invert direction of the inlet normal.
     *  @param[in] outlet_end              Outlet line segment end point.
     *  @param[in] outlet_end              Outlet line segment end point.
     *  @param[in] invert_outlet_normal    Invert direction of the outlet normal.
-    * 
+    *
     */
    void Add2DRecirculationBC(const Vector &inlet_start, const Vector &inlet_end, bool invert_inlet_normal, const Vector &outlet_start, const Vector &outlet_end, bool invert_outlet_normal)
-   { 
+   {
       MFEM_ASSERT([&]()
       {
          real_t inlet_dist = inlet_start.DistanceTo(inlet_end);
          real_t outlet_dist = outlet_start.DistanceTo(outlet_end);
 
          return abs(inlet_dist-outlet_dist)/inlet_dist < 1e-12;
-         
+
       }(), "Inlet + outlet must be same length.");
-      bcs.push_back(RecirculationBC_2D{inlet_start, inlet_end, invert_inlet_normal, outlet_start, outlet_end, invert_outlet_normal}); 
+      bcs.push_back(RecirculationBC_2D{inlet_start, inlet_end, invert_inlet_normal, outlet_start, outlet_end, invert_outlet_normal});
    }
 };
 

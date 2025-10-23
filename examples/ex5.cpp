@@ -101,7 +101,7 @@ int main(int argc, char *argv[])
          (int)floor(log(10000./mesh->GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
       {
-         mesh->UniformRefinement();
+//         mesh->UniformRefinement();
       }
    }
 
@@ -339,7 +339,7 @@ int main(int argc, char *argv[])
    }
 
    // 14. Save data in the VisIt format
-   VisItDataCollection visit_dc("Example5", mesh);
+   VisItDataCollection visit_dc("Example5b", mesh);
    visit_dc.RegisterField("velocity", &u);
    visit_dc.RegisterField("pressure", &p);
    visit_dc.Save();

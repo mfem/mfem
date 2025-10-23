@@ -299,6 +299,11 @@ int main(int argc, char *argv[])
       ls_coeff = new FunctionCoefficient(doughnut_cheese);
       smooth_steps = 0;
    }
+   if (problem == 5)
+   {
+      ls_coeff = new DeltaCoefficient(0.0, 0.0, 1000.0);
+      smooth_steps = 0;
+   }
    else { MFEM_ABORT("Unrecognized -problem option."); }
 
    const real_t dx = AvgElementSize(pmesh);
@@ -306,7 +311,7 @@ int main(int argc, char *argv[])
    if (solver_type == 0)
    {
       auto ds = new HeatDistanceSolver(t_param * dx * dx);
-      if (problem == 0)
+      if (problem == 0 || problem == 5)
       {
          ds->transform = false;
       }
@@ -334,7 +339,7 @@ int main(int argc, char *argv[])
    // Smooth-out Gibbs oscillations from the input level set. The smoothing
    // parameter here is specified to be mesh dependent with length scale dx.
    ParGridFunction filt_gf(&pfes_s);
-   if (problem != 0)
+   if (problem != 0 && problem != 5)
    {
       real_t filter_weight = dx;
       // The normalization-based solver needs a more diffused input.

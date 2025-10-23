@@ -45,22 +45,9 @@ void transformation(const Vector &p, Vector &v)
 {
    // simple shear transformation
    real_t s = 0.1;
-
-   if (p.Size() == 3)
-   {
-      v(0) = p(0) + s*p(1) + s*p(2);
-      v(1) = p(1) + s*p(2) + s*p(0);
-      v(2) = p(2);
-   }
-   else if (p.Size() == 2)
-   {
-      v(0) = p(0) + s*p(1);
-      v(1) = p(1) + s*p(0);
-   }
-   else
-   {
-      v = p;
-   }
+   v(0) = 2.0*p(0) - 1.0;
+   v(1) = 2.0*p(1) - 1.0;
+   v(2) = 2.0*p(2) - 1.0;
 }
 
 // This function is used with the 'r' menu option, sub-option 'l' to refine a
