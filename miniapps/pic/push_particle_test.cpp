@@ -371,21 +371,21 @@ int main(int argc, char *argv[])
           boris.GetParticles().GetGlobalNP() > 0)
       {
          // Visualize particles pre-redistribute
-         if (ctx.visualization)
-         {
-            Vector rank_vector(boris.GetParticles().GetNP());
-            rank_vector = Mpi::WorldRank();
-            VisualizeParticles(pre_redist_sock, vishost, ctx.visport, boris.GetParticles(),
-                               rank_vector, 1e-2, "Particle Owning Rank (Pre-Redistribute)", 410, 0, 400, 400,
-                               "bca");
-            if (Mpi::Root())
-            {
-               cout << "Enter any key to redistribute: " << flush;
-               cin.ignore();
-               cin.get();
-            }
-            MPI_Barrier(MPI_COMM_WORLD);
-         }
+         // if (ctx.visualization)
+         // {
+         //    Vector rank_vector(boris.GetParticles().GetNP());
+         //    rank_vector = Mpi::WorldRank();
+         //    VisualizeParticles(pre_redist_sock, vishost, ctx.visport, boris.GetParticles(),
+         //                       rank_vector, 1e-2, "Particle Owning Rank (Pre-Redistribute)", 410, 0, 400, 400,
+         //                       "bca");
+         //    if (Mpi::Root())
+         //    {
+         //       cout << "Enter any key to redistribute: " << flush;
+         //       cin.ignore();
+         //       cin.get();
+         //    }
+         //    MPI_Barrier(MPI_COMM_WORLD);
+         // }
 
          // Redistribute
          boris.Redistribute(ctx.redist_mesh);
