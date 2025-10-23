@@ -246,7 +246,7 @@ void TempAllocator<BaseAlloc, NeedsWait>::Alloc(void **ptr, size_t nbytes)
          ++std::get<2>(blocks.back());
          ++total_allocs;
          *ptr = res;
-         if constexpr(NeedsWait)
+         if constexpr (NeedsWait)
          {
             if (wait_next_alloc)
             {
@@ -896,6 +896,8 @@ size_t ResourceManager::insert(char *hptr, size_t nbytes, ResourceLocation loc,
          dptr = hptr;
          dloc = loc;
          break;
+      default:
+         MFEM_ABORT("Invalid loc");
    }
    return insert(hptr, dptr, nbytes, loc, dloc, own, false, temporary);
 }
@@ -1092,11 +1094,24 @@ void ResourceManager::check_valid(size_t segment, bool on_device,
 {
    auto &seg = storage.get_segment(segment);
    size_t curr = find_marker(segment, start, on_device);
+   check_valid(curr, start, stop, func);
+}
+
+template <class F>
+void ResourceManager::check_valid(size_t curr, ptrdiff_t start, ptrdiff_t stop,
+                                  F &&func)
+{
    if (!curr)
    {
+      func(start, stop, true);
       return;
    }
-   auto pos = std::max(start, storage.get_node(curr).offset);
+   auto pos = start;
+   if (pos < storage.get_node(curr).offset)
+   {
+      pos = storage.get_node(curr).offset;
+      func(start, std::min(pos, stop), true);
+   }
    while (pos < stop)
    {
       auto &n = storage.get_node(curr);
@@ -1170,7 +1185,7 @@ void ResourceManager::check_valid(size_t segment, bool on_device,
       }
       else
       {
-         pos = seg.nbytes;
+         throw std::runtime_error("shouldn't be here");
       }
       curr = next;
    }
@@ -1582,12 +1597,115 @@ int ResourceManager::compare_host_device(size_t segment, size_t offset,
 
 void ResourceManager::CopyImpl(char *dst, ResourceLocation dloc,
                                size_t dst_offset, size_t marker, size_t nbytes,
-                               const char *hsrc, const char *dsrc,
-                               ResourceLocation shloc, ResourceLocation sdloc,
-                               size_t src_offset, size_t hmarker,
-                               size_t dmarker)
+                               const char *src0, const char *src1,
+                               ResourceLocation sloc0, ResourceLocation sloc1,
+                               size_t src_offset, size_t marker0,
+                               size_t marker1)
 {
-   // TODO
+   if (!src0)
+   {
+      std::swap(src0, src1);
+      std::swap(sloc0, sloc1);
+      std::swap(marker0, marker1);
+   }
+   // heuristic: copy from src0 unless invalid, then copy from src1
+
+   // loc(marker0)/loc(marker1) are either <= dst_start, or everything before
+   // them is the same state (opposite of get_node(marker).is_valid())
+   // This should only occur if marker is the first marker, which is always
+   // invalid
+   size_t next_m0 = marker0;
+   size_t next_m1 = marker1;
+
+   // offset src, offset dst, nbytes
+   std::vector<ptrdiff_t, AllocatorAdaptor<ptrdiff_t>> copy0(
+                                                       AllocatorAdaptor<ptrdiff_t>(MANAGED, true));
+   std::vector<ptrdiff_t, AllocatorAdaptor<ptrdiff_t>> copy1(
+                                                       AllocatorAdaptor<ptrdiff_t>(MANAGED, true));
+   check_valid(marker, dst_offset, dst_offset + nbytes,
+               [&](auto dst_start, auto dst_stop, bool valid)
+   {
+      if (valid)
+      {
+         if (marker0)
+         {
+            auto start = dst_start - dst_offset;
+            auto stop = dst_stop - dst_offset;
+            ptrdiff_t pos0 = storage.get_node(marker0).offset - src_offset;
+            // move marker until next(marker) is after start
+            auto advance_marker =
+               [&](size_t &marker, size_t &next_marker, ptrdiff_t &pos)
+            {
+               if (!marker)
+               {
+                  return;
+               }
+               // assume pos(marker) <= start
+               if (next_marker == marker)
+               {
+                  next_marker = storage.successor(marker);
+               }
+               while (true)
+               {
+                  if (next_marker)
+                  {
+                     auto p2 =
+                        storage.get_node(next_marker).offset - src_offset;
+                     if (p2 > start)
+                     {
+                        return;
+                     }
+                     pos = p2;
+                  }
+                  else
+                  {
+                     return;
+                  }
+                  marker = next_marker;
+                  next_marker = storage.successor(marker);
+               }
+            };
+
+            if (start < pos0)
+            {
+               MFEM_ASSERT(!storage.get_node(marker0).is_valid(),
+                           "unexpected first marker0 is valid");
+               // start is before marker0, safe to copy up to marker0
+               if (stop <= pos0)
+               {
+                  // copy up to stop
+                  copy0.emplace_back(src_offset + start);
+                  copy0.emplace_back(dst_offset + start);
+                  copy0.emplace_back(stop - start);
+                  return false;
+               }
+               else
+               {
+                  // copy up to pos0
+                  copy0.emplace_back(src_offset + start);
+                  copy0.emplace_back(dst_offset + start);
+                  copy0.emplace_back(pos0 - start);
+                  start = pos0;
+               }
+            }
+            while (true)
+            {
+               advance_marker(marker0, next_m0, pos0);
+               advance_marker(marker1, next_m1, pos1);
+               // TODO
+            }
+         }
+         else
+         {
+            // no marker0, src0 is always valid
+            copy0.emplace_back(dst_start - dst_offset + src_offset);
+            copy0.emplace_back(dst_start);
+            copy0.emplace_back(dst_stop - dst_start);
+         }
+      }
+      return false;
+   });
+   // TODO: dispatch copies
 }
 
 void ResourceManager::Copy(size_t dst_seg, size_t src_seg, size_t dst_offset,
@@ -1595,15 +1713,14 @@ void ResourceManager::Copy(size_t dst_seg, size_t src_seg, size_t dst_offset,
 {
    auto &dseg = storage.get_segment(dst_seg);
    auto &sseg = storage.get_segment(src_seg);
-   size_t sh_curr = 0;
-   size_t sd_curr = 0;
+   size_t currs[2] = {0, 0};
    if (sseg.lowers[0])
    {
-      sh_curr = find_marker(src_seg, src_offset, false);
+      currs[0] = find_marker(src_seg, src_offset, false);
    }
    if (sseg.lowers[1])
    {
-      sd_curr = find_marker(src_seg, src_offset, true);
+      currs[1] = find_marker(src_seg, src_offset, true);
    }
 
    for (int i = 0; i < 2; ++i)
@@ -1612,8 +1729,8 @@ void ResourceManager::Copy(size_t dst_seg, size_t src_seg, size_t dst_offset,
       {
          size_t curr = find_marker(dst_seg, dst_offset, i);
          CopyImpl(dseg.lowers[i], dseg.locs[i], dst_offset, curr, nbytes,
-                  sseg.lowers[0], sseg.lowers[1], sseg.locs[0], sseg.locs[1],
-                  src_offset, sh_curr, sd_curr);
+                  sseg.lowers[i], sseg.lowers[1 - i], sseg.locs[i],
+                  sseg.locs[1 - i], src_offset, currs[i], currs[1 - i]);
       }
    }
 }

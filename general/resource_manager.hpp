@@ -235,6 +235,10 @@ private:
    void check_valid(size_t segment, bool on_device, ptrdiff_t start,
                     ptrdiff_t stop, F &&func);
 
+   /// @a curr is a marker node index
+   template <class F>
+   void check_valid(size_t curr, ptrdiff_t start, ptrdiff_t stop, F &&func);
+
    template <class F>
    void mark_valid(size_t segment, bool on_device, ptrdiff_t start,
                    ptrdiff_t stop, F &&func);
@@ -264,11 +268,12 @@ private:
    const char *read(size_t segment, size_t offset, size_t nbytes,
                     bool on_device);
 
+   /// src0 is the preferred copy-from location
    void CopyImpl(char *dst, ResourceLocation dloc, size_t dst_offset,
-                 size_t marker, size_t nbytes, const char *hsrc,
-                 const char *dsrc, ResourceLocation shloc,
-                 ResourceLocation sdloc, size_t src_offset, size_t hmarker,
-                 size_t dmarker);
+                 size_t marker, size_t nbytes, const char *src0,
+                 const char *src1, ResourceLocation sloc0,
+                 ResourceLocation sloc1, size_t src_offset, size_t marker0,
+                 size_t marker1);
 
    /// copies to the part of dst_seg which is valid
    void Copy(size_t dst_seg, size_t src_seg, size_t dst_offset,
@@ -336,6 +341,8 @@ template <class T> class AllocatorAdaptor
 {
    int idx = 0;
 
+   template <class U> friend class AllocatorAdaptor;
+
 public:
    using value_type = T;
    using size_type = size_t;
@@ -363,11 +370,19 @@ public:
       }
    }
 
+   AllocatorAdaptor(const AllocatorAdaptor &) = default;
+
    template <class U>
    AllocatorAdaptor(const AllocatorAdaptor<U> &o) : idx(o.idx)
    {}
 
-   template <class U> AllocatorAdaptor(AllocatorAdaptor<U> &&o) : idx(o.idx) {}
+   AllocatorAdaptor &operator=(const AllocatorAdaptor &) = default;
+
+   template <class U> AllocatorAdaptor &operator=(const AllocatorAdaptor<U> &o)
+   {
+      idx = o.idx;
+      return *this;
+   }
 
    T *allocate(size_t n)
    {
