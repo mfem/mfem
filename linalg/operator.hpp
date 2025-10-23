@@ -1158,7 +1158,7 @@ public:
 #endif
 protected:
    /// @brief Standard global/local l2 inner product.
-   real_t Dot(const Vector &x, const Vector &y) const;
+   virtual real_t Dot(const Vector &x, const Vector &y) const;
 
 public:
    /// Create an operator of size 1 (scalar).
