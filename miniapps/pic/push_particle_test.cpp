@@ -49,6 +49,9 @@
 #include <fstream>
 #include <iostream>
 
+// add timer
+#include <chrono>
+
 using namespace std;
 using namespace mfem;
 using namespace mfem::common;
@@ -327,13 +330,25 @@ int main(int argc, char *argv[])
                                                         800, "ba");
    }
 
+   // set up timer
+   auto start_time = std::chrono::high_resolution_clock::now();
    for (int step = 1; step <= ctx.nt; step++)
    {
       // Step the Boris algorithm
       boris.Step(t, dt);
+      mfem::out << "Step: " << step << " | Time: " << t ;
       if (Mpi::Root())
       {
-         mfem::out << "Step: " << step << " | Time: " << t << endl;
+         // Print timing information every 100 steps
+         if (step % 10 == 0)
+         {
+            std::chrono::duration<double> elapsed = std::chrono::high_resolution_clock::now() - start_time;
+            if (Mpi::Root())
+            {
+               mfem::out << " | Time per step: " << elapsed.count() / step;
+            }
+         }
+         mfem::out << endl;
       }
 
       // Visualize trajectories
@@ -353,7 +368,7 @@ int main(int argc, char *argv[])
       }
 
       // Redistribute
-      if (ctx.redist_freq > 0 && step % ctx.redist_freq == 0 &&
+      if (ctx.redist_freq > 0 && (step % ctx.redist_freq == 0 || step == 1) &&
           boris.GetParticles().GetGlobalNP() > 0)
       {
          // Visualize particles pre-redistribute
