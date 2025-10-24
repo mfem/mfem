@@ -432,7 +432,7 @@ void ConductionOperator::ImplicitSolve(const real_t dt,
    MFEM_VERIFY(dt == current_dt, ""); // SDIRK methods use the same dt
 
    // Construct current right-hand side for stage state vs. slope solve
-   if (ImplicitSolvesState())
+   if (ImplicitVarIsState())
    {
       // k, on return, is the stage value u
       Mmat.Mult(u, z);

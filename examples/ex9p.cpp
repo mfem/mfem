@@ -685,7 +685,7 @@ FE_Evolution::FE_Evolution(ParBilinearForm &M_, ParBilinearForm &K_,
 void FE_Evolution::ImplicitSolve(const real_t dt, const Vector &x, Vector &k)
 {
    // Construct current right-hand side for stage state vs. slope solve
-   if (ImplicitSolvesState())
+   if (ImplicitVarIsState())
    {
       // k, on return, is the stage value u
       M->Mult(x, z);
