@@ -39,6 +39,7 @@ list(APPEND HDRS
   arrays_by_name.hpp
   backends.hpp
   binaryio.hpp
+  complex_type.hpp
   cuda.hpp
   device.hpp
   error.hpp

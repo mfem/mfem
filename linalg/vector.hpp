@@ -80,6 +80,8 @@ inline real_t rand_real()
 /// Vector data type.
 class Vector
 {
+   friend class ComplexVector;
+
 protected:
 
    Memory<real_t> data;
