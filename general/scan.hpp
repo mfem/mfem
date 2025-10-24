@@ -13,6 +13,7 @@
 #define MFEM_SCAN_HPP
 
 #include "backends.hpp"
+#include "forall.hpp"
 
 #ifdef MFEM_USE_CUDA
 #include <cub/device/device_scan.cuh>
@@ -303,7 +304,6 @@ void CopyIf(bool use_dev, InputIt d_in, OutputIt d_out,
     (__CUDACC_VER_MAJOR__ < 12 ||                                              \
      (__CUDACC_VER_MAJOR__ == 12 && __CUDACC_VER_MINOR__ < 5))
       // bug in cuda < 12.5, work-around: use Flagged instead
-      // TODO
       Array<bool> flags(num_items);
       auto ptr = flags.Write();
       forall(num_items,
