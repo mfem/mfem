@@ -998,7 +998,6 @@ ParComplexGridFunction::ProjectBdrCoefficientTangent(VectorCoefficient
 void
 ParComplexGridFunction::Distribute(const Vector *tv)
 {
-   ParFiniteElementSpace *pfes = pgfr->ParFESpace();
    const int tvsize = pfes->GetTrueVSize();
 
    tv->Read();
@@ -1016,7 +1015,6 @@ ParComplexGridFunction::Distribute(const Vector *tv)
 void
 ParComplexGridFunction::ParallelProject(Vector &tv) const
 {
-   ParFiniteElementSpace *pfes = pgfr->ParFESpace();
    const int tvsize = pfes->GetTrueVSize();
 
    tv.Write();

@@ -427,7 +427,7 @@ public:
        check if it is up to date with the space. */
    long GetSequence() const { return fes_sequence; }
 
-   /// Make the ParComplexGridFunction the owner of #fec_owned and #fes.
+   /// Make the ParComplexGridFunction the owner of #fec_owned and #pfes.
    /** If the new FiniteElementCollection, @a fec_, is NULL, ownership
        of #fec_owned and #pfes is taken away. */
    void MakeOwner(FiniteElementCollection *fec_) { fec_owned = fec_; }
