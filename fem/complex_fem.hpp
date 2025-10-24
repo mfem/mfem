@@ -35,14 +35,48 @@ private:
    GridFunction * gfi;
 
 protected:
-   void Destroy() { delete gfr; delete gfi; }
+   /// FE space on which the grid function lives. Owned if #fec_owned
+   /// is not NULL.
+   FiniteElementSpace *fes;
+
+   /** @brief Used when the grid function is read from a file. It can also be
+       set explicitly, see MakeOwner().
+
+       If not NULL, this pointer is owned by the ComplexGridFunction. */
+   FiniteElementCollection *fec_owned;
+
+   long fes_sequence; // see FiniteElementSpace::sequence, Mesh::sequence
+
+   void Destroy();
 
 public:
    /** @brief Construct a ComplexGridFunction associated with the
        FiniteElementSpace @a *f. */
    ComplexGridFunction(FiniteElementSpace *f);
 
+   /// Construct a ComplexGridFunction on the given Mesh, using the data
+   /// from @a input.
+   /** The content of @a input should be in the format created by the method
+       Save(). The reconstructed FiniteElementSpace and FiniteElementCollection
+       are owned by the ComplexGridFunction. */
+   ComplexGridFunction(Mesh *m, std::istream &input);
+
    void Update();
+
+   /** Return update counter, similar to Mesh::GetSequence(). Used to
+       check if it is up to date with the space. */
+   long GetSequence() const { return fes_sequence; }
+
+   /// Make the ComplexGridFunction the owner of #fec_owned and #fes.
+   /** If the new FiniteElementCollection, @a fec_, is NULL, ownership
+       of #fec_owned and #fes is taken away. */
+   void MakeOwner(FiniteElementCollection *fec_) { fec_owned = fec_; }
+
+   FiniteElementCollection *OwnFEC() { return fec_owned; }
+
+   /// Shortcut for calling FiniteElementSpace::GetVectorDim() on the
+   /// underlying #fes
+   int VectorDim() const;
 
    /// Assign constant values to the ComplexGridFunction data.
    ComplexGridFunction &operator=(const std::complex<real_t> & value)
@@ -63,8 +97,8 @@ public:
                                              VectorCoefficient &imag_coeff,
                                              Array<int> &attr);
 
-   FiniteElementSpace *FESpace() { return gfr->FESpace(); }
-   const FiniteElementSpace *FESpace() const { return gfr->FESpace(); }
+   FiniteElementSpace *FESpace() { return fes; }
+   const FiniteElementSpace *FESpace() const { return fes; }
 
    GridFunction & real() { return *gfr; }
    GridFunction & imag() { return *gfi; }
@@ -79,10 +113,21 @@ public:
    /// @a gfr and @a gfi to match the ComplexGridFunction.
    void SyncAlias() { gfr->SyncAliasMemory(*this); gfi->SyncAliasMemory(*this); }
 
+   /// Save the ComplexGridFunction to an output stream.
+   virtual void Save(std::ostream &out) const;
+
+   /// Save the ComplexGridFunction to a file. The given @a precision will be
+   /// used for ASCII output.
+   virtual void Save(const char *fname, int precision=16) const;
+
    /// Destroys the grid function.
    virtual ~ComplexGridFunction() { Destroy(); }
 
 };
+
+/** Overload operator<< for std::ostream and ComplexGridFunction; not valid
+    for the class ParComplexGridFunction */
+std::ostream &operator<<(std::ostream &out, const ComplexGridFunction &sol);
 
 /** Class for a complex-valued linear form
 
@@ -345,12 +390,23 @@ public:
 class ParComplexGridFunction : public Vector
 {
 private:
-
    ParGridFunction * pgfr;
    ParGridFunction * pgfi;
 
 protected:
-   void Destroy() { delete pgfr; delete pgfi; }
+   /// FE space on which the grid function lives. Owned if #fec_owned
+   /// is not NULL.
+   ParFiniteElementSpace *pfes;
+
+   /** @brief Used when the grid function is read from a file. It can also be
+       set explicitly, see MakeOwner().
+
+       If not NULL, this pointer is owned by the ParComplexGridFunction. */
+   FiniteElementCollection *fec_owned;
+
+   long fes_sequence; // see FiniteElementSpace::sequence, Mesh::sequence
+
+   void Destroy();
 
 public:
 
@@ -358,7 +414,29 @@ public:
        ParFiniteElementSpace @a *pf. */
    ParComplexGridFunction(ParFiniteElementSpace *pf);
 
+   /** @brief Construct a ParComplexGridFunction on a given ParMesh,
+       @a pmesh, reading from an std::istream.
+
+       In the process, a ParFiniteElementSpace and a FiniteElementCollection are
+       constructed. The new ParComplexGridFunction assumes ownership of both. */
+   ParComplexGridFunction(ParMesh *pmesh, std::istream &input);
+
    void Update();
+
+   /** Return update counter, similar to Mesh::GetSequence(). Used to
+       check if it is up to date with the space. */
+   long GetSequence() const { return fes_sequence; }
+
+   /// Make the ParComplexGridFunction the owner of #fec_owned and #pfes.
+   /** If the new FiniteElementCollection, @a fec_, is NULL, ownership
+       of #fec_owned and #pfes is taken away. */
+   void MakeOwner(FiniteElementCollection *fec_) { fec_owned = fec_; }
+
+   FiniteElementCollection *OwnFEC() { return fec_owned; }
+
+   /// Shortcut for calling FiniteElementSpace::GetVectorDim() on the
+   /// underlying #pfes
+   int VectorDim() const;
 
    /// Assign constant values to the ParComplexGridFunction data.
    ParComplexGridFunction &operator=(const std::complex<real_t> & value)
@@ -385,11 +463,11 @@ public:
    /// Returns the vector restricted to the true dofs.
    void ParallelProject(Vector &tv) const;
 
-   FiniteElementSpace *FESpace() { return pgfr->FESpace(); }
-   const FiniteElementSpace *FESpace() const { return pgfr->FESpace(); }
+   FiniteElementSpace *FESpace() { return pfes; }
+   const FiniteElementSpace *FESpace() const { return pfes; }
 
-   ParFiniteElementSpace *ParFESpace() { return pgfr->ParFESpace(); }
-   const ParFiniteElementSpace *ParFESpace() const { return pgfr->ParFESpace(); }
+   ParFiniteElementSpace *ParFESpace() { return pfes; }
+   const ParFiniteElementSpace *ParFESpace() const { return pfes; }
 
    ParGridFunction & real() { return *pgfr; }
    ParGridFunction & imag() { return *pgfi; }
@@ -423,11 +501,23 @@ public:
       return sqrt(err_r * err_r + err_i * err_i);
    }
 
+   /** Save the local portion of the ParComplexGridFunction. This
+       differs from the serial ComplexGridFunction::Save in that it
+       takes into account the signs of the local dofs. */
+   void Save(std::ostream &out) const;
+
+   /// Save the ParComplexGridFunction to files (one for each MPI
+   /// rank). The files will be given suffixes according to the MPI
+   /// rank. The given @a precision will be used for ASCII output.
+   void Save(const char *fname, int precision=16) const;
 
    /// Destroys grid function.
    virtual ~ParComplexGridFunction() { Destroy(); }
 
 };
+
+/** Overload operator<< for std::ostream and ParComplexGridFunction */
+std::ostream &operator<<(std::ostream &out, const ParComplexGridFunction &sol);
 
 /** Class for a complex-valued, parallel linear form
 
