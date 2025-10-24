@@ -202,7 +202,6 @@ public:
                                         FaceElementTransformations &Trans,
                                         DenseMatrix &elmat);
 
-
    /// @brief Perform the local action of the BilinearFormIntegrator.
    /// Note that the default implementation in the base class is general but not
    /// efficient.
