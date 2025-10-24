@@ -678,11 +678,7 @@ class LUFactors : public Factors
 {
 public:
    int *ipiv;
-#ifdef MFEM_USE_LAPACK
-   static const int ipiv_base = 1;
-#else
-   static const int ipiv_base = 0;
-#endif
+   static constexpr int ipiv_base = 1;
 
    /** With this constructor, the (public) data and ipiv members should be set
        explicitly before calling class methods. */
