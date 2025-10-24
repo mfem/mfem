@@ -1174,7 +1174,7 @@ struct PhysDofFinder<Geometry::SEGMENT, SDim, max_team_x>
          }
       }
       // now do tree reduce
-      for (int i = (MFEM_THREAD_SIZE(x) >> 1); i > 0; i >>= 1)
+      for (auto i = (MFEM_THREAD_SIZE(x) >> 1); i > 0; i >>= 1)
       {
          MFEM_SYNC_THREAD;
          if (MFEM_THREAD_ID(x) < i)
@@ -1252,7 +1252,7 @@ struct PhysDofFinder<Geometry::SQUARE, SDim, max_team_x>
          }
       }
       // now do tree reduce
-      for (int i = (MFEM_THREAD_SIZE(x) >> 1); i > 0; i >>= 1)
+      for (auto i = (MFEM_THREAD_SIZE(x) >> 1); i > 0; i >>= 1)
       {
          MFEM_SYNC_THREAD;
          if (MFEM_THREAD_ID(x) < i)
@@ -1334,7 +1334,7 @@ struct PhysDofFinder<Geometry::CUBE, SDim, max_team_x>
          }
       }
       // now do tree reduce
-      for (int i = (MFEM_THREAD_SIZE(x) >> 1); i > 0; i >>= 1)
+      for (auto i = (MFEM_THREAD_SIZE(x) >> 1); i > 0; i >>= 1)
       {
          MFEM_SYNC_THREAD;
          if (MFEM_THREAD_ID(x) < i)
@@ -1434,7 +1434,7 @@ struct PhysNodeFinder<Geometry::SEGMENT, SDim, max_team_x, max_q1d>
          }
       }
       // now do tree reduce
-      for (int i = (MFEM_THREAD_SIZE(x) >> 1); i > 0; i >>= 1)
+      for (auto i = (MFEM_THREAD_SIZE(x) >> 1); i > 0; i >>= 1)
       {
          MFEM_SYNC_THREAD;
          if (MFEM_THREAD_ID(x) < i)
@@ -1532,7 +1532,7 @@ struct PhysNodeFinder<Geometry::SQUARE, SDim, max_team_x, max_q1d>
          }
       }
       // now do tree reduce
-      for (int i = (MFEM_THREAD_SIZE(x) >> 1); i > 0; i >>= 1)
+      for (auto i = (MFEM_THREAD_SIZE(x) >> 1); i > 0; i >>= 1)
       {
          MFEM_SYNC_THREAD;
          if (MFEM_THREAD_ID(x) < i)
@@ -1639,7 +1639,7 @@ struct PhysNodeFinder<Geometry::CUBE, SDim, max_team_x, max_q1d>
          }
       }
       // now do tree reduce
-      for (int i = (MFEM_THREAD_SIZE(x) >> 1); i > 0; i >>= 1)
+      for (auto i = (MFEM_THREAD_SIZE(x) >> 1); i > 0; i >>= 1)
       {
          MFEM_SYNC_THREAD;
          if (MFEM_THREAD_ID(x) < i)

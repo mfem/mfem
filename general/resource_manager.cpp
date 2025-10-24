@@ -482,7 +482,7 @@ void ResourceManager::Clear()
    storage.nodes.clear();
    storage.seg_offset += storage.segments.size();
    storage.segments.clear();
-   for (int i = 0; i < allocs.size(); ++i)
+   for (size_t i = 0; i < allocs.size(); ++i)
    {
       allocs[i]->Clear();
    }
@@ -1008,7 +1008,7 @@ void ResourceManager::erase(size_t segment)
    }
 }
 
-size_t ResourceManager::find_marker(size_t segment, size_t offset,
+size_t ResourceManager::find_marker(size_t segment, ptrdiff_t offset,
                                     bool on_device)
 {
    auto &seg = storage.get_segment(segment);

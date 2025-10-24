@@ -100,7 +100,7 @@ private:
       struct Segment
       {
          char *lowers[2] = {nullptr, nullptr};
-         size_t nbytes = 0;
+         ptrdiff_t nbytes = 0;
          size_t roots[2] = {0, 0};
          ResourceLocation locs[2] = {HOST, DEFAULT};
          size_t ref_count = 1;
@@ -229,7 +229,7 @@ private:
 
    void clear_segment(size_t segment, bool on_device);
 
-   size_t find_marker(size_t segment, size_t offset, bool on_device);
+   size_t find_marker(size_t segment, ptrdiff_t offset, bool on_device);
 
    template <class F>
    void check_valid(size_t segment, bool on_device, ptrdiff_t start,
