@@ -516,7 +516,7 @@ public:
           <td>$F(u,\dot{u},t) = M \dot{u}~$ and $~G(u,t) = g(u,t)$</td>
         </tr>
         <tr>
-          <td>$F(\widehat{u},\dot{u},t) = M \widehat{u} - \gamma g(u,t)~$ and $~G(u,t) = M u$</td>
+          <td>$F(\widehat{u},\dot{u},t) = M \widehat{u} - \gamma g(\widehat{u},t)~$ and $~G(u,t) = M u$</td>
           <td>$F(u,\dot{u},t) = M \dot{u} - g(u,t)~$ and $~G(u,t) = 0$</td>
         </tr>
         </table>
