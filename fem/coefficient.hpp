@@ -2511,7 +2511,7 @@ public:
    void SetConstant(const Vector &constant);
 
    /// Set this vector to the given constant matrix.
-   void SetConstant(const DenseMatrix &constant);
+   void SetConstant(const DenseMatrix &constant, bool transpose=false);
 
    /// Set this vector to the given constant symmetric matrix.
    void SetConstant(const DenseSymmetricMatrix &constant);
