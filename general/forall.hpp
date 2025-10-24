@@ -46,6 +46,7 @@ struct DofQuadLimits_CUDA
 {
    static constexpr int MAX_D1D = 14;
    static constexpr int MAX_Q1D = 14;
+   static constexpr int MAX_T1D = 32;
    static constexpr int HCURL_MAX_D1D = 5;
    static constexpr int HCURL_MAX_Q1D = 6;
    static constexpr int HDIV_MAX_D1D = 5;
@@ -58,6 +59,7 @@ struct DofQuadLimits_HIP
 {
    static constexpr int MAX_D1D = 10;
    static constexpr int MAX_Q1D = 10;
+   static constexpr int MAX_T1D = 32;
    static constexpr int HCURL_MAX_D1D = 5;
    static constexpr int HCURL_MAX_Q1D = 5;
    static constexpr int HDIV_MAX_D1D = 5;
@@ -75,6 +77,7 @@ struct DofQuadLimits_CPU
    static constexpr int MAX_D1D = 14;
    static constexpr int MAX_Q1D = 14;
 #endif
+   static constexpr int MAX_T1D = 32;
    static constexpr int HCURL_MAX_D1D = 10;
    static constexpr int HCURL_MAX_Q1D = 10;
    static constexpr int HDIV_MAX_D1D = 10;
