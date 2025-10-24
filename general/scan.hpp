@@ -13,6 +13,7 @@
 #define MFEM_SCAN_HPP
 
 #include "backends.hpp"
+#include "forall.hpp"
 
 #ifdef MFEM_USE_CUDA
 #include <cub/device/device_scan.cuh>
