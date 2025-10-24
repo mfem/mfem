@@ -109,9 +109,15 @@ public:
 class ODESolver
 {
 protected:
+   using ImplicitVariable = TimeDependentOperator::ImplicitVariable;
    /// Pointer to the associated TimeDependentOperator.
    TimeDependentOperator *f;  // f(.,t) : R^n --> R^n
    MemoryType mem_type;
+
+   /** @brief Compute the finite-difference stage slope, @a $\frac{du}{dt} = \frac{k-u}{\gamma}$,
+    * and store it in @a k. */
+   virtual void ComputeSlopeFromState(const real_t gamma, const Vector &u,
+                                      Vector &k);
 
 public:
    ODESolver() : f(NULL) { mem_type = Device::GetHostMemoryType(); }
@@ -178,15 +184,13 @@ public:
       while (t < tf) { Step(x, t, dt); }
    }
 
-   /** @brief Compute the finite-difference stage slope, @a k=dudt, from the previous
-    * stage, @a u_0, and current stage, @a u_i, stored in @a k, with @a k = du/dt = (u_i - u_0)/gamma
-    * @note This function is called when the ImplicitSolve() returns the stage value, u_i,
-    * instead of the stage slope, k=du/dt, and is used to toggle between the two representations. */
-   virtual void ComputeSlopeFromState(const real_t gamma, const Vector &u,
-                                      Vector &k);
-
    /// Returns how many State vectors the ODE requires
    virtual int GetStateSize() { return 0; };
+
+   ///@brief Returns whether the ODESolver supports the given #ImplicitVariable, @a var.
+   ///@note Should be overriden in ODESolver that calls TimeDependentOperator::ImplicitSolve().
+   virtual bool SupportsImplicitVariable(ImplicitVariable var) const
+   { return false; };
 
    // Help info for ODESolver options
    static MFEM_EXPORT std::string ExplicitTypes;
@@ -349,6 +353,12 @@ public:
    void Init(TimeDependentOperator &f_) override;
 
    void Step(Vector &x, real_t &t, real_t &dt) override;
+
+   bool SupportsImplicitVariable(ImplicitVariable var) const override
+   {
+      return (var == ImplicitVariable::STATE ||
+              var == ImplicitVariable::SLOPE);
+   }
 };
 
 
@@ -362,6 +372,12 @@ public:
    void Init(TimeDependentOperator &f_) override;
 
    void Step(Vector &x, real_t &t, real_t &dt) override;
+
+   bool SupportsImplicitVariable(ImplicitVariable var) const override
+   {
+      return (var == ImplicitVariable::STATE ||
+              var == ImplicitVariable::SLOPE);
+   }
 };
 
 
@@ -383,6 +399,12 @@ public:
    void Init(TimeDependentOperator &f_) override;
 
    void Step(Vector &x, real_t &t, real_t &dt) override;
+
+   bool SupportsImplicitVariable(ImplicitVariable var) const override
+   {
+      return (var == ImplicitVariable::STATE ||
+              var == ImplicitVariable::SLOPE);
+   }
 };
 
 
@@ -397,6 +419,12 @@ public:
    void Init(TimeDependentOperator &f_) override;
 
    void Step(Vector &x, real_t &t, real_t &dt) override;
+
+   bool SupportsImplicitVariable(ImplicitVariable var) const override
+   {
+      return (var == ImplicitVariable::STATE ||
+              var == ImplicitVariable::SLOPE);
+   }
 };
 
 
@@ -411,6 +439,12 @@ public:
    void Init(TimeDependentOperator &f_) override;
 
    void Step(Vector &x, real_t &t, real_t &dt) override;
+
+   bool SupportsImplicitVariable(ImplicitVariable var) const override
+   {
+      return (var == ImplicitVariable::STATE ||
+              var == ImplicitVariable::SLOPE);
+   }
 };
 
 
@@ -425,6 +459,12 @@ public:
    void Init(TimeDependentOperator &f_) override;
 
    void Step(Vector &x, real_t &t, real_t &dt) override;
+
+   bool SupportsImplicitVariable(ImplicitVariable var) const override
+   {
+      return (var == ImplicitVariable::STATE ||
+              var == ImplicitVariable::SLOPE);
+   }
 };
 
 
@@ -439,6 +479,12 @@ public:
    void Init(TimeDependentOperator &f_) override;
 
    void Step(Vector &x, real_t &t, real_t &dt) override;
+
+   bool SupportsImplicitVariable(ImplicitVariable var) const override
+   {
+      return (var == ImplicitVariable::STATE ||
+              var == ImplicitVariable::SLOPE);
+   }
 };
 
 
@@ -453,6 +499,12 @@ public:
    void Init(TimeDependentOperator &f_) override;
 
    void Step(Vector &x, real_t &t, real_t &dt) override;
+
+   bool SupportsImplicitVariable(ImplicitVariable var) const override
+   {
+      return (var == ImplicitVariable::STATE ||
+              var == ImplicitVariable::SLOPE);
+   }
 };
 
 
@@ -478,6 +530,12 @@ public:
 
    ODEStateData& GetState() override { return state; }
    const ODEStateData& GetState() const override { return state; }
+
+   bool SupportsImplicitVariable(ImplicitVariable var) const override
+   {
+      return (var == ImplicitVariable::STATE ||
+              var == ImplicitVariable::SLOPE);
+   }
 };
 
 
@@ -594,6 +652,11 @@ public:
 
    ODEStateData& GetState() override { return state; }
    const ODEStateData& GetState() const override { return state; }
+   bool SupportsImplicitVariable(ImplicitVariable var) const override
+   {
+      return (var == ImplicitVariable::STATE ||
+              var == ImplicitVariable::SLOPE);
+   }
 };
 
 /** A 1-stage, 2nd order AM method. */

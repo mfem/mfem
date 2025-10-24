@@ -338,7 +338,7 @@ public:
       3. F(u,k,t) = M k - g(u,t) and G(u,t) = 0.
 
     Note that depending on the ODE solver, some of the above choices may be
-    preferable to the others.
+    preferable to the others. See ImplicitSolve() documentation for more details.
 */
 class TimeDependentOperator : public Operator
 {
@@ -381,14 +381,23 @@ public:
       ADDITIVE_TERM_2
    };
 
+   /** Used to specify the variable being returned by ImplicitSolve(). This can
+    * be queried by ODESolver to identify the variable being solved for.
+    * @warning Not all ODESolver may support all options. See ODESolver::SupportsImplicitVariable() */
+   enum ImplicitVariable
+   {
+      SLOPE, ///< stage slope, $k = \frac{du}{dt}$.
+      STATE  ///< stage state, $k = \widehat{u}$.
+   };
+
 protected:
    real_t t;  ///< Current time.
    Type type; /**< @brief Describes the form of the TimeDependentOperator, see
                    the documentation of #Type. */
    EvalMode eval_mode; ///< Current evaluation mode.
-   bool implicit_solves_state = false; /**< @brief If true, the ImplicitSolve()
-                                             returns stage value, u, otherwise
-                                             it returns stage slope, k.*/
+   ImplicitVariable implicit_variable = ImplicitVariable::SLOPE; /**< @brief
+                                                        Return variable for
+                                                        ImplicitSolve()*/
 
 public:
    /** @brief Construct a "square" TimeDependentOperator (u,t) -> k(u,t), where
@@ -432,13 +441,23 @@ public:
    virtual void SetEvalMode(const EvalMode new_eval_mode)
    { eval_mode = new_eval_mode; }
 
-   /** @brief If state = true, the ImplicitSolve(dt,u,k) returns stage value,
-    * @a k = u_{i+1}, otherwise, it returns stage slope, @a k = du/dt. */
-   virtual void SetImplicitSolveVariable(const bool state)
-   { implicit_solves_state = state; }
+   /** @brief Sets the #ImplicitVariable for ImplicitSolve()*/
+   virtual void SetImplicitVariable(const ImplicitVariable variable)
+   { implicit_variable = variable; }
 
-   virtual bool ImplicitSolvesState() const
-   { return implicit_solves_state; }
+   /** @brief Returns the #ImplicitVariable for ImplicitSolve(). */
+   virtual ImplicitVariable GetImplicitVariable() const
+   { return implicit_variable; }
+
+   /** @brief Returns @a true if implicit variable is #STATE and @a false otherwise.
+    * Used by ODESolver to identify the stage variable returned by ImplicitSolve() */
+   virtual bool ImplicitVarIsState() const
+   { return (implicit_variable == ImplicitVariable::STATE); }
+
+   /** @brief Returns @a true if implicit variable is #SLOPE and @a false otherwise.
+    * Used by ODESolver to identify the stage variable returned by ImplicitSolve() */
+   virtual bool ImplicitVarIsSlope() const
+   { return (implicit_variable == ImplicitVariable::SLOPE); }
 
    /** @brief Perform the action of the explicit part of the operator, G:
        @a v = G(@a u, t) where t is the current time.
@@ -473,20 +492,40 @@ public:
 
    /** @brief Solve for the unknown @a k, at the current time t, the following
        equation:
-       F(@a u + @a gamma @a k, @a k, t) = G(@a u + @a gamma @a k, t).
+        1. $F( \widehat{u} , \dot{u}, t) = G( \widehat{u}, t)$, if solving for stage-state, $k = \widehat{u}$
+        2. $F( u + \gamma  \dot{u}, \dot{u}, t) = G( u +  \gamma \dot{u}, t)$, if solving for stage-slope, $ k = \dot{u} = \frac{du}{dt} $
+
+        where the stage state and slope follow the relation: $\dot{u} = \frac{du}{dt} = \frac{\widehat{u} - u}{\gamma}$.
 
        For solving an ordinary differential equation of the form
        $ M \frac{dy}{dt} = g(y,t) $, recall that F and G can be defined in
-       various ways, e.g.:
+       various ways, depending on the stage variable:
 
-         1. F(u,k,t) = k and G(u,t) = inv(M) g(u,t)
-         2. F(u,k,t) = M k and G(u,t) = g(u,t)
-         3. F(u,k,t) = M k - g(u,t) and G(u,t) = 0
+        <table>
+        <caption>Various definitions for $~F~$ and $~G~$</caption>
+        <tr>
+          <th>stage-state, $k = \widehat{u}$</th>
+          <th>stage-slope, $k = \dot{u} = \frac{du}{dt}$ </th>
+        </tr>
+        <tr>
+          <td>$F(\widehat{u},\dot{u},t) = \widehat{u}~$ and $~G(u,t) = \gamma M^{-1} g(u,t) + u$</td>
+          <td>$F(u,\dot{u},t) = \dot{u}~$ and $~G(u,t) = M^{-1} g(u,t)$</td>
+        </tr>
+        <tr>
+          <td>$F(\widehat{u},\dot{u},t) = M \widehat{u}~$ and $~G(u,t) = \gamma g(u,t) + M u$</td>
+          <td>$F(u,\dot{u},t) = M \dot{u}~$ and $~G(u,t) = g(u,t)$</td>
+        </tr>
+        <tr>
+          <td>$F(\widehat{u},\dot{u},t) = M \widehat{u} - \gamma g(u,t)~$ and $~G(u,t) = M u$</td>
+          <td>$F(u,\dot{u},t) = M \dot{u} - g(u,t)~$ and $~G(u,t) = 0$</td>
+        </tr>
+        </table>
 
-       Regardless of the choice of F and G, this function should solve for @a k
-       in M @a k = g(@a u + @a gamma @a k, t).
+        Regardless of the choice of F and G, this function should solve for:
+        - $~k=\widehat{u}~$ in $~M \widehat{u} = \gamma g(\widehat{u}, t) + M u~$, if solving for stage-state
+        - $k=\dot{u}$ in $~M \dot{u} = g( u + \gamma \dot{u}, t)~$, if solving for stage-slope.
 
-       To see how @a k can be useful, consider the backward Euler method defined
+       To see how solving for stage-slope, @a $k=\dot{u}$, can be useful, consider the backward Euler method defined
        by $ y(t + \Delta t) = y(t) + \Delta t k_0 $ where
        $ M k_0 = g \big( y(t) + \Delta t k_0, t + \Delta t \big) $. A backward
        Euler integrator can use @a k from this function for $k_0$, with the call
@@ -502,6 +541,7 @@ public:
        $ y(t) + \Delta t \sum_{j=1}^{i-1} a_{ij} k_j $ and @a gamma set to
        $ a_{ii} \Delta t $, for $ k_i $. For example, see class SDIRK33Solver.
 
+       See SetImplicitVariable() to switch between different variable modes.
        If not re-implemented, this method simply generates an error. */
    virtual void ImplicitSolve(const real_t gamma, const Vector &u, Vector &k);
 

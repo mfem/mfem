@@ -540,7 +540,10 @@ int main(int argc, char *argv[])
    //     right-hand side, and perform time-integration (looping over the time
    //     iterations, ti, with a time-step dt).
    FE_Evolution adv(*m, *k, *B, prec_type);
-   adv.SetImplicitSolveVariable(solve_implicit_state);
+   using ImplicitVariable = FE_Evolution::ImplicitVariable;
+   ImplicitVariable imp_var = solve_implicit_state ? ImplicitVariable::STATE
+                              : ImplicitVariable::SLOPE;
+   adv.SetImplicitVariable(imp_var);
 
    real_t t = 0.0;
    adv.SetTime(t);
