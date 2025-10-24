@@ -181,6 +181,9 @@ public:
    /// Returns how many State vectors the ODE requires
    virtual int GetStateSize() { return 0; };
 
+   /// Returns the associated TimeDependentOperator
+   TimeDependentOperator* GetTimeDependentOperator() { return f; }
+
    // Help info for ODESolver options
    static MFEM_EXPORT std::string ExplicitTypes;
    static MFEM_EXPORT std::string ImplicitTypes;
