@@ -5468,7 +5468,7 @@ BaseCenteredOrthorhombicLattice::BaseCenteredOrthorhombicLattice(double a,
       ws_vert_[19 + o] = -0.25 * (b_ * b_ - a_ * a_) / b_;
 
       double z = 0.5 * c_ * (-1.0 + i);
-      for (int i=0; i<7; i++) { ws_vert_[3 * i + 2 + o] = z; }
+      for (int j=0; j<7; j++) { ws_vert_[3 * j + 2 + o] = z; }
    }
 
    for (int i=0; i<2; i++)
@@ -5972,37 +5972,37 @@ RhombohedralLattice::RhombohedralLattice(double a, double alpha)
    }
    type_  = PRIMITIVE_RHOMBOHEDRAL;
 
-   double sinh = sin(0.5 * alpha_);
-   double cosh = cos(0.5 * alpha_);
-   double cosa = cos(alpha_);
+   double sinha = sin(0.5 * alpha_);
+   double cosha = cos(0.5 * alpha_);
+   double cosa  = cos(alpha_);
 
    // Set Lattice Vectors
-   lat_vecs_[0][0] =  a_ * cosh;
-   lat_vecs_[0][1] = -a_ * sinh;
+   lat_vecs_[0][0] =  a_ * cosha;
+   lat_vecs_[0][1] = -a_ * sinha;
    lat_vecs_[0][2] =  0.0;
 
-   lat_vecs_[1][0] =  a_ * cosh;
-   lat_vecs_[1][1] =  a_ * sinh;
+   lat_vecs_[1][0] =  a_ * cosha;
+   lat_vecs_[1][1] =  a_ * sinha;
    lat_vecs_[1][2] =  0.0;
 
-   lat_vecs_[2][0] =  a_ * cosa / cosh;
+   lat_vecs_[2][0] =  a_ * cosa / cosha;
    lat_vecs_[2][1] =  0.0;
-   lat_vecs_[2][2] =  a_ * sqrt(1.0 - cosa * cosa / (cosh * cosh));
+   lat_vecs_[2][2] =  a_ * sqrt(1.0 - cosa * cosa / (cosha * cosha));
 
    // Set Reciprocal Lattice Vectors
-   rec_vecs_[0][0] =  0.5 / (a_ * cosh);
-   rec_vecs_[0][1] = -0.5 / (a_ * sinh);
+   rec_vecs_[0][0] =  0.5 / (a_ * cosha);
+   rec_vecs_[0][1] = -0.5 / (a_ * sinha);
    rec_vecs_[0][2] = -0.5 * cosa
-                     / (a_ * cosh * sqrt(cosh * cosh - cosa * cosa));
+                     / (a_ * cosha * sqrt(cosha * cosha - cosa * cosa));
 
-   rec_vecs_[1][0] =  0.5 / (a_ * cosh);
-   rec_vecs_[1][1] =  0.5 / (a_ * sinh);
+   rec_vecs_[1][0] =  0.5 / (a_ * cosha);
+   rec_vecs_[1][1] =  0.5 / (a_ * sinha);
    rec_vecs_[1][2] = -0.5 * cosa
-                     / (a_ * cosh * sqrt(cosh * cosh - cosa * cosa));
+                     / (a_ * cosha * sqrt(cosha * cosha - cosa * cosa));
 
    rec_vecs_[2][0] =  0.0;
    rec_vecs_[2][1] =  0.0;
-   rec_vecs_[2][2] =  1.0 / (a_ * sqrt(1.0 - cosa * cosa / (cosh * cosh)));
+   rec_vecs_[2][2] =  1.0 / (a_ * sqrt(1.0 - cosa * cosa / (cosha * cosha)));
 
    // Set Translation Vectors
    trn_vecs_.resize((alpha_<0.5*M_PI)?6:7);
@@ -6013,44 +6013,45 @@ RhombohedralLattice::RhombohedralLattice(double a, double alpha)
    if ( alpha_ < 0.5 * M_PI )
    {
       // Wigner-Seitz cell is a rhombic dodecahedron
-      double sin3h = sin(1.5 * alpha_);
-      double sinh  = sin(0.5 * alpha_);
-      double cosh  = cos(0.5 * alpha_);
-      double tanh  = tan(0.5 * alpha_);
-      double sech  = 1.0 / cos(0.5 * alpha_);
-      double cosa  = cos(alpha_);
+      double sin3ha = sin(1.5 * alpha_);
+      // double sinh  = sin(0.5 * alpha_);
+      // double cosh  = cos(0.5 * alpha_);
+      double tanha = tan(0.5 * alpha_);
+      double secha = 1.0 / cos(0.5 * alpha_);
+      // double cosa  = cos(alpha_);
       double csca  = 1.0 / sin(alpha_);
       double seca  = 1.0 / cos(alpha_);
 
-      trn_vecs_[0][0] =  a_ * cosh;
-      trn_vecs_[0][1] =  a_ * sinh;
+      trn_vecs_[0][0] =  a_ * cosha;
+      trn_vecs_[0][1] =  a_ * sinha;
       trn_vecs_[0][2] =  0.0;
 
-      trn_vecs_[1][0] =  a_ * cosh;
-      trn_vecs_[1][1] = -a_ * sinh;
+      trn_vecs_[1][0] =  a_ * cosha;
+      trn_vecs_[1][1] = -a_ * sinha;
       trn_vecs_[1][2] =  0.0;
 
-      trn_vecs_[2][0] =  2.0 * a_ * csca * sinh * sinh * sinh;
-      trn_vecs_[2][1] =  a_ * sinh;
-      trn_vecs_[2][2] = -a_ * tanh * sqrt(1.0 + 2.0 * cosa);
+      trn_vecs_[2][0] =  2.0 * a_ * csca * sinha * sinha * sinha;
+      trn_vecs_[2][1] =  a_ * sinha;
+      trn_vecs_[2][2] = -a_ * tanha * sqrt(1.0 + 2.0 * cosa);
 
-      trn_vecs_[3][0] =  2.0 * a_ * csca * sinh * sinh * sinh;
-      trn_vecs_[3][1] = -a_ * sinh;
-      trn_vecs_[3][2] = -a_ * tanh * sqrt(1.0 + 2.0 * cosa);
+      trn_vecs_[3][0] =  2.0 * a_ * csca * sinha * sinha * sinha;
+      trn_vecs_[3][1] = -a_ * sinha;
+      trn_vecs_[3][2] = -a_ * tanha * sqrt(1.0 + 2.0 * cosa);
 
       trn_vecs_[4][0] =  0.0;
-      trn_vecs_[4][1] =  2.0 * a_ * sinh;
+      trn_vecs_[4][1] =  2.0 * a_ * sinha;
       trn_vecs_[4][2] =  0.0;
 
-      trn_vecs_[5][0] =  a_ * cosa * sech;
+      trn_vecs_[5][0] =  a_ * cosa * secha;
       trn_vecs_[5][1] =  0.0;
-      trn_vecs_[5][2] =  a_ * sech * sin3h / sqrt(1.0 + 2.0 * cosa);
+      trn_vecs_[5][2] =  a_ * secha * sin3ha / sqrt(1.0 + 2.0 * cosa);
 
       // Set the face radii
       face_radii_.resize(6);
-      face_radii_[0] = 0.5 * a_ * tanh;
+      face_radii_[0] = 0.5 * a_ * tanha;
       face_radii_[1] = face_radii_[0];
-      face_radii_[2] = 0.5 * a_ * (sin3h - sinh) * min(csca, seca / sqrt(3.0));
+      face_radii_[2] = 0.5 * a_ * (sin3ha - sinha) *
+	min(csca, seca / sqrt(3.0));
       face_radii_[3] = face_radii_[2];
       face_radii_[4] = face_radii_[2];
       face_radii_[5] = face_radii_[0];
@@ -6058,53 +6059,53 @@ RhombohedralLattice::RhombohedralLattice(double a, double alpha)
    else
    {
       // Wigner-Seitz cell is a truncated octahedron
-      double sinh  = sin(0.5 * alpha_);
-      double cosh  = cos(0.5 * alpha_);
-      double tanh  = tan(0.5 * alpha_);
-      double sech  = 1.0 / cosh;
-      double csch  = 1.0 / sinh;
-      double coth  = cosh / sinh;
+      // double sinha = sin(0.5 * alpha_);
+      // double cosha = cos(0.5 * alpha_);
+      double tanha = tan(0.5 * alpha_);
+      double secha = 1.0 / cosha;
+      double cscha = 1.0 / sinha;
+      double cotha = cosha / sinha;
       double sina  = sin(alpha_);
-      double cosa  = cos(alpha_);
+      // double cosa  = cos(alpha_);
 
-      trn_vecs_[0][0] =  a_ * cosh;
-      trn_vecs_[0][1] =  a_ * sinh;
+      trn_vecs_[0][0] =  a_ * cosha;
+      trn_vecs_[0][1] =  a_ * sinha;
       trn_vecs_[0][2] =  0.0;
 
-      trn_vecs_[1][0] =  a_ * cosh;
-      trn_vecs_[1][1] = -a_ * sinh;
+      trn_vecs_[1][0] =  a_ * cosha;
+      trn_vecs_[1][1] = -a_ * sinha;
       trn_vecs_[1][2] =  0.0;
 
-      trn_vecs_[2][0] =  2.0 * a_ * cosh;
+      trn_vecs_[2][0] =  2.0 * a_ * cosha;
       trn_vecs_[2][1] =  0.0;
       trn_vecs_[2][2] =  0.0;
 
-      trn_vecs_[3][0] =  a_ * cosa * sech;
+      trn_vecs_[3][0] =  a_ * cosa * secha;
       trn_vecs_[3][1] =  0.0;
-      trn_vecs_[3][2] =  a_ * tanh * sqrt(1.0 + 2.0 * cosa);
+      trn_vecs_[3][2] =  a_ * tanha * sqrt(1.0 + 2.0 * cosa);
 
-      trn_vecs_[4][0] =  a_ * (1.0 + 2.0 * cosa) * sech;
+      trn_vecs_[4][0] =  a_ * (1.0 + 2.0 * cosa) * secha;
       trn_vecs_[4][1] =  0.0;
-      trn_vecs_[4][2] =  a_ * tanh * sqrt(1.0 + 2.0 * cosa);
+      trn_vecs_[4][2] =  a_ * tanha * sqrt(1.0 + 2.0 * cosa);
 
-      trn_vecs_[5][0] =  0.5 * a_ * (1.0 + 3.0 * cosa) * sech;
-      trn_vecs_[5][1] =  a_ * sinh;
-      trn_vecs_[5][2] =  a_ * tanh * sqrt(1.0 + 2.0 * cosa);
+      trn_vecs_[5][0] =  0.5 * a_ * (1.0 + 3.0 * cosa) * secha;
+      trn_vecs_[5][1] =  a_ * sinha;
+      trn_vecs_[5][2] =  a_ * tanha * sqrt(1.0 + 2.0 * cosa);
 
-      trn_vecs_[6][0] =  0.5 * a_ * (1.0 + 3.0 * cosa) * sech;
-      trn_vecs_[6][1] = -a_ * sinh;
-      trn_vecs_[6][2] =  a_ * tanh * sqrt(1.0 + 2.0 * cosa);
+      trn_vecs_[6][0] =  0.5 * a_ * (1.0 + 3.0 * cosa) * secha;
+      trn_vecs_[6][1] = -a_ * sinha;
+      trn_vecs_[6][2] =  a_ * tanha * sqrt(1.0 + 2.0 * cosa);
 
       // Set the face radii
       face_radii_.resize(7);
-      face_radii_[0] = a_ * min(0.5 * coth,
+      face_radii_[0] = a_ * min(0.5 * cotha,
                                 sina * sqrt((1.0 + 2.0 * cosa) /
                                             (2.0*cosa+2.0) ) / (1.0 - cosa));
       face_radii_[1] = face_radii_[0];
-      face_radii_[2] = 0.5 * a_ * csch * min(-cosa,
-                                             cosh * sqrt(1.0 + 2.0 * cosa));
+      face_radii_[2] = 0.5 * a_ * cscha * min(-cosa,
+                                             cosha * sqrt(1.0 + 2.0 * cosa));
       face_radii_[3] = face_radii_[0];
-      face_radii_[4] = -0.5 * sqrt(3.0) * a_ * cosa * csch;
+      face_radii_[4] = -0.5 * sqrt(3.0) * a_ * cosa * cscha;
       face_radii_[5] = face_radii_[2];
       face_radii_[6] = face_radii_[2];
    }
@@ -8630,7 +8631,7 @@ VectorFourierSeries::GetCoefficient(HypreParVector & v,
 }
 */
 H1FourierSeries::H1FourierSeries(const BravaisLattice & bravais,
-                                 mfem::miniapps::H1_ParFESpace & fes)
+                                 mfem::common::H1_ParFESpace & fes)
    : ScalarFourierSeries(bravais, fes)
 {
    br_->AddDomainIntegrator(new DomainLFIntegrator(coefr_));
@@ -8638,7 +8639,7 @@ H1FourierSeries::H1FourierSeries(const BravaisLattice & bravais,
 }
 /*
 HCurlFourierSeries::HCurlFourierSeries(const BravaisLattice & bravais,
-                                       mfem::miniapps::ND_ParFESpace & fes)
+                                       mfem::common::ND_ParFESpace & fes)
    : VectorFourierSeries(bravais, fes)
 {
    br_->AddDomainIntegrator(new VectorFEDomainLFIntegrator(vecCoef_));
@@ -8646,7 +8647,7 @@ HCurlFourierSeries::HCurlFourierSeries(const BravaisLattice & bravais,
 }
 
 HDivFourierSeries::HDivFourierSeries(const BravaisLattice & bravais,
-                                     mfem::miniapps::RT_ParFESpace & fes)
+                                     mfem::common::RT_ParFESpace & fes)
    : VectorFourierSeries(bravais, fes)
 {
    br_->AddDomainIntegrator(new VectorFEDomainLFIntegrator(vecCoef_));
@@ -8654,7 +8655,7 @@ HDivFourierSeries::HDivFourierSeries(const BravaisLattice & bravais,
 }
 */
 L2FourierSeries::L2FourierSeries(const BravaisLattice & bravais,
-                                 mfem::miniapps::L2_ParFESpace & fes)
+                                 mfem::common::L2_ParFESpace & fes)
    : ScalarFourierSeries(bravais, fes)
 {
    br_->AddDomainIntegrator(new DomainLFIntegrator(coefr_));
@@ -8670,7 +8671,7 @@ double todouble(int d, int v)
 {
    return pow(10.0,-d)*v;
 }
-
+/*
 Mesh *
 OldMakePeriodicMesh(Mesh * mesh, const vector<Vector> & trans_vecs, int logging)
 {
@@ -8879,26 +8880,24 @@ OldMakePeriodicMesh(Mesh * mesh, const vector<Vector> & trans_vecs, int logging)
                      }
                      masters.erase(master_of_slave);
                   }
-                  /*
-                            if ( slaves[master] != slaves[slave] )
-                            {
-                     cout << "foo" << endl;
-                     masters[slaves[master]].insert(slaves[slave]);
-                               slaves[slaves[slave]] = slaves[master];
-                            }
-                            for (sit=masters[slaves[slave]].begin();
-                                 sit!=masters[slaves[slave]].end(); sit++)
-                            {
-                     // cout << "bar " << *sit << endl;
-                     masters[slaves[master]].insert(*sit);
-                               slaves[*sit] = slaves[master];
-                            }
-                            if ( slaves[master] != slaves[slave] )
-                            {
-                     cout << "foobar" << endl;
-                               masters.erase(slaves[slave]);
-                            }
-                  */
+                  // if ( slaves[master] != slaves[slave] )
+                  // {
+		  //    cout << "foo" << endl;
+                  //    masters[slaves[master]].insert(slaves[slave]);
+		  //    slaves[slaves[slave]] = slaves[master];
+		  // }
+		  // for (sit=masters[slaves[slave]].begin();
+		  //      sit!=masters[slaves[slave]].end(); sit++)
+		  // {
+		  //    // cout << "bar " << *sit << endl;
+                  //    masters[slaves[master]].insert(*sit);
+		  //    slaves[*sit] = slaves[master];
+		  // }
+		  // if ( slaves[master] != slaves[slave] )
+		  // {
+		  //    cout << "foobar" << endl;
+		  //    masters.erase(slaves[slave]);
+		  // }
                   if ( masters.find(0) != masters.end() ) { cout << "*** masters contains 0 ***" << endl; }
                }
                c++;
@@ -8969,7 +8968,7 @@ OldMakePeriodicMesh(Mesh * mesh, const vector<Vector> & trans_vecs, int logging)
    }
    return per_mesh;
 }
-
+*/
 void
 MergeMeshNodes(Mesh * mesh, int logging)
 {

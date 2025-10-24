@@ -29,15 +29,15 @@ extern "C"
 namespace mfem
 {
 
-using miniapps::H1_ParFESpace;
-using miniapps::ND_ParFESpace;
-using miniapps::RT_ParFESpace;
-using miniapps::L2_ParFESpace;
-using miniapps::ParDiscreteGradOperator;
-using miniapps::ParDiscreteCurlOperator;
-using miniapps::ParDiscreteInterpolationOperator;
-using miniapps::VisData;
-using  bravais::BravaisLattice;
+using common::H1_ParFESpace;
+using common::ND_ParFESpace;
+using common::RT_ParFESpace;
+using common::L2_ParFESpace;
+using common::ParDiscreteGradOperator;
+using common::ParDiscreteCurlOperator;
+using common::ParDiscreteInterpolationOperator;
+using common::VisData;
+using bravais::BravaisLattice;
 
 namespace meta_material
 {

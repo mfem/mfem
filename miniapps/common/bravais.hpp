@@ -320,13 +320,14 @@ private:
    int fd_elem_att_[1];  // Element Attributes
    int fd_be2v_[2];      // Boundary Element to vertex connectivity
    int fd_belem_att_[2]; // Boundary element Attributes
-
+   /*
    // Data for mesh of the corresponding Wigner-Setiz Cell
    double ws_vert_[6];   // Vertex coordinates
    int ws_e2v_[2];       // Element to vertex connectivity
    int ws_elem_att_[1];  // Element Attributes
    int ws_be2v_[2];      // Boundary Element to vertex connectivity
    int ws_belem_att_[2]; // Boundary element Attributes
+   */
 };
 
 class SquareLattice : public BravaisLattice2D
@@ -1311,7 +1312,7 @@ class H1FourierSeries : public ScalarFourierSeries
 {
 public:
    H1FourierSeries(const BravaisLattice & bravais,
-                   mfem::miniapps::H1_ParFESpace & fes);
+                   mfem::common::H1_ParFESpace & fes);
 private:
 };
 
@@ -1319,7 +1320,7 @@ class L2FourierSeries : public ScalarFourierSeries
 {
 public:
    L2FourierSeries(const BravaisLattice & bravais,
-                   mfem::miniapps::L2_ParFESpace & fes);
+                   mfem::common::L2_ParFESpace & fes);
 private:
 };
 
@@ -1327,14 +1328,14 @@ class HCurlFourierSeries : public VectorFourierSeries
 {
 public:
    HCurlFourierSeries(const BravaisLattice & bravais,
-                      mfem::miniapps::ND_ParFESpace & fes);
+                      mfem::common::ND_ParFESpace & fes);
 };
 
 class HDivFourierSeries : public VectorFourierSeries
 {
 public:
    HDivFourierSeries(const BravaisLattice & bravais,
-                     mfem::miniapps::RT_ParFESpace & fes);
+                     mfem::common::RT_ParFESpace & fes);
 };
 
 
