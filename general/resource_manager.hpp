@@ -315,6 +315,11 @@ private:
       ResourceLocation src_loc,
       const std::vector<ptrdiff_t, AllocatorAdaptor<ptrdiff_t>> &copy_segs);
 
+   void SetDeviceMemoryType(size_t segment,
+                            ResourceManager::ResourceLocation loc);
+
+   void SetValidity(size_t segment, bool host_valid, bool device_valid);
+
 public:
    ResourceManager(const ResourceManager &) = delete;
 
@@ -497,11 +502,7 @@ public:
    void SetDeviceMemoryType(ResourceManager::ResourceLocation loc)
    {
       auto &inst = ResourceManager::instance();
-      if (inst.valid_segment(segment))
-      {
-         auto &seg = inst.storage.get_segment(segment);
-         // TODO
-      }
+      inst.SetDeviceMemoryType(segment, loc);
    }
 
    void Reset() { *this = Resource{}; }
@@ -565,18 +566,7 @@ public:
       seg.lowers[1] = reinterpret_cast<char *>(d_ptr);
       seg.locs[1] = dloc;
       SetDevicePtrOwner(own);
-      // TODO: set initial validity
-      // if (!valid_host)
-      // {
-      //    // mark host as invalid
-      //    inst.mark_invalid(segment, 0, size * sizeof(T), [](size_t) {});
-      // }
-
-      // if (!valid_device)
-      // {
-      //    // mark device as invalid
-      //    inst.mark_invalid(seg.other, 0, size * sizeof(T), [](size_t) {});
-      // }
+      inst.SetValidity(segment, valid_host, valid_device);
    }
 
    T *Write(bool on_device = true);

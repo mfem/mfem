@@ -1282,11 +1282,11 @@ char *ResourceManager::write(size_t segment, size_t offset, size_t nbytes,
          mark_invalid(segment, on_device, 0, seg.nbytes, [&](auto, auto) {});
       }
       mark_valid(segment, on_device, offset, offset + nbytes,
-      [&](auto, auto) {});
+      [](auto, auto) {});
       if (seg.lowers[!on_device])
       {
          mark_invalid(segment, !on_device, offset, offset + nbytes,
-         [&](auto, auto) {});
+         [](auto, auto) {});
       }
       return seg.lowers[on_device] + offset;
    }
@@ -1747,8 +1747,7 @@ void ResourceManager::CopyImpl(char *dst, ResourceLocation dloc,
             auto stop = dst_stop - dst_offset;
             auto pos0 = storage.get_node(marker0).offset - src_offset;
             // move marker until next(marker) is after start
-            auto advance_marker =
-               [&](size_t &marker, size_t &next_marker)
+            auto advance_marker = [&](size_t &marker, size_t &next_marker)
             {
                // assume marker is always valid
                MFEM_ASSERT(marker, "marker should always be valid");
@@ -1989,6 +1988,51 @@ void ResourceManager::CopyToHost(size_t segment, size_t offset, char *dst,
    size_t curr = 0;
    CopyImpl(dst, HOST, 0, curr, nbytes, sseg.lowers[0], sseg.lowers[1],
             sseg.locs[0], sseg.locs[1], offset, sh_curr, sd_curr);
+}
+
+void ResourceManager::SetDeviceMemoryType(size_t segment,
+                                          ResourceManager::ResourceLocation loc)
+{
+   if (valid_segment(segment))
+   {
+      auto &seg = storage.get_segment(segment);
+      if (seg.lowers[1])
+      {
+         MFEM_VERIFY(seg.locs[1] == loc,
+                     "Cannot set the device memory type: device memory is "
+                     "allocated!");
+      }
+      else
+      {
+         seg.locs[1] = loc;
+         seg.lowers[1] = Alloc(seg.nbytes, seg.locs[1], seg.is_temporary());
+         // initially all invalid
+         mark_invalid(segment, 1, 0, seg.nbytes, [&](auto, auto) {});
+      }
+   }
+}
+
+void ResourceManager::SetValidity(size_t segment, bool host_valid,
+                                  bool device_valid)
+{
+   auto &seg = storage.get_segment(segment);
+   if (host_valid)
+   {
+      mark_valid(segment, false, 0, seg.nbytes, [](auto, auto) {});
+   }
+   else
+   {
+      mark_invalid(segment, false, 0, seg.nbytes, [](auto, auto) {});
+   }
+
+   if (device_valid)
+   {
+      mark_valid(segment, true, 0, seg.nbytes, [](auto, auto) {});
+   }
+   else
+   {
+      mark_invalid(segment, true, 0, seg.nbytes, [](auto, auto) {});
+   }
 }
 
 } // namespace mfem
