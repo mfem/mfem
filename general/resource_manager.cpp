@@ -27,10 +27,21 @@ struct StdAlignedAllocator : public Allocator
    size_t alignment = 64;
    void Alloc(void **ptr, size_t nbytes) override
    {
+#ifdef _WIN32
+      *ptr = _aligned_malloc(nbytes, alignment);
+#else
       *ptr = aligned_alloc(alignment, nbytes);
+#endif
    }
 
-   void Dealloc(void *ptr) override { free(ptr); }
+   void Dealloc(void *ptr) override
+   {
+#ifdef _WIN32
+      _aligned_free(ptr);
+#else
+      free(ptr);
+#endif
+   }
    virtual ~StdAlignedAllocator() = default;
 };
 
