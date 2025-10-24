@@ -11,14 +11,15 @@
 
 #include "complex_fem.hpp"
 #include "../general/forall.hpp"
+#include "../general/text.hpp"
 
 using namespace std;
 
 namespace mfem
 {
 
-ComplexGridFunction::ComplexGridFunction(FiniteElementSpace *fes)
-   : Vector(2*(fes->GetVSize()))
+ComplexGridFunction::ComplexGridFunction(FiniteElementSpace *f)
+   : Vector(2*(f->GetVSize())), fes(f), fec_owned(NULL)
 {
    UseDevice(true);
    this->Vector::operator=(0.0);
@@ -28,12 +29,83 @@ ComplexGridFunction::ComplexGridFunction(FiniteElementSpace *fes)
 
    gfi = new GridFunction();
    gfi->MakeRef(fes, *this, fes->GetVSize());
+
+   fes_sequence = fes->GetSequence();
+}
+
+ComplexGridFunction::ComplexGridFunction(Mesh *m, std::istream &input)
+   : Vector(), fes(NULL), fec_owned(NULL)
+{
+   string buff;
+
+   // Grid functions are stored on the device
+   UseDevice(true);
+
+   input >> std::ws;
+   getline(input, buff);  // 'ComplexGridFunction'
+
+   fes = new FiniteElementSpace;
+   fec_owned = fes->Load(m, input);
+
+   skip_comment_lines(input, '#');
+   istream::int_type next_char = input.peek();
+   if (next_char == 'N') // First letter of "NURBS_patches"
+   {
+      getline(input, buff);
+      filter_dos(buff);
+      if (buff == "NURBS_patches")
+      {
+         MFEM_ABORT("NURBS not yet supported with ComplexGridFunction objects");
+      }
+      else
+      {
+         MFEM_ABORT("unknown section: " << buff);
+      }
+   }
+   else
+   {
+      Vector::Load(input, 2*fes->GetVSize());
+
+      // if the mesh is a legacy (v1.1) NC mesh, it has old vertex ordering
+      if (fes->Nonconforming() &&
+          fes->GetMesh()->ncmesh->IsLegacyLoaded())
+      {
+         // LegacyNCReorder();
+         MFEM_ABORT("LegacyNCReorder not supported for "
+                    "ComplexGridFunction objects");
+      }
+   }
+
+   gfr = new GridFunction();
+   gfr->MakeRef(fes, *this, 0);
+
+   gfi = new GridFunction();
+   gfi->MakeRef(fes, *this, fes->GetVSize());
+
+   fes_sequence = fes->GetSequence();
+}
+
+void ComplexGridFunction::Destroy()
+{
+   delete gfr; delete gfi;
+
+   if (fec_owned)
+   {
+      delete fes;
+      delete fec_owned;
+      fec_owned = NULL;
+   }
 }
 
 void
 ComplexGridFunction::Update()
 {
-   FiniteElementSpace *fes = gfr->FESpace();
+   if (fes->GetSequence() == fes_sequence)
+   {
+      return; // space and grid function are in sync, no-op
+   }
+   fes_sequence = fes->GetSequence();
+
    const int vsize = fes->GetVSize();
 
    const Operator *T = fes->GetUpdateOperator();
@@ -82,6 +154,17 @@ ComplexGridFunction::Update()
       gfr->Update();
       gfi->Update();
    }
+}
+
+int ComplexGridFunction::VectorDim() const
+{
+   const FiniteElement *fe = fes->GetTypicalFE();
+   if (!fe || fe->GetRangeType() == FiniteElement::SCALAR)
+   {
+      return fes->GetVDim();
+   }
+   return fes->GetVDim()*std::max(fes->GetMesh()->SpaceDimension(),
+                                  fe->GetRangeDim());
 }
 
 void
@@ -147,6 +230,45 @@ ComplexGridFunction::ProjectBdrCoefficientTangent(VectorCoefficient
    gfi->ProjectBdrCoefficientTangent(imag_vcoeff, attr);
    gfr->SyncAliasMemory(*this);
    gfi->SyncAliasMemory(*this);
+}
+
+void ComplexGridFunction::Save(std::ostream &os) const
+{
+   os << "ComplexGridFunction\n";
+   fes->Save(os);
+   os << '\n';
+#if 0
+   // Testing: write NURBS GridFunctions using "NURBS_patches" format.
+   if (fes->GetNURBSext())
+   {
+      os << "NURBS_patches\n";
+      fes->GetNURBSext()->PrintSolution(*this, os);
+      os.flush();
+      return;
+   }
+#endif
+   if (fes->GetOrdering() == Ordering::byNODES)
+   {
+      Vector::Print(os, 1);
+   }
+   else
+   {
+      Vector::Print(os, fes->GetVDim());
+   }
+   os.flush();
+}
+
+void ComplexGridFunction::Save(const char *fname, int precision) const
+{
+   ofstream ofs(fname);
+   ofs.precision(precision);
+   Save(ofs);
+}
+
+std::ostream &operator<<(std::ostream &os, const ComplexGridFunction &sol)
+{
+   sol.Save(os);
+   return os;
 }
 
 
