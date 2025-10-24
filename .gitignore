@@ -85,6 +85,10 @@ examples/ex9.mesh
 examples/ex9-mesh.*
 examples/ex9-init.*
 examples/ex9-final.*
+examples/ex41.mesh
+examples/ex41-mesh.*
+examples/ex41-init.*
+examples/ex41-final.*
 examples/deformed.*
 examples/velocity.*
 examples/elastic_energy.*
