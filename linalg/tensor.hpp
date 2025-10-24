@@ -1246,6 +1246,8 @@ T norm(const tensor<T, n...>& A)
 template <typename T, int n, int m> MFEM_HOST_DEVICE
 T weight(const tensor<T, n, m>& A)
 {
+   static_assert((n == m) || ((n == 2) && (m == 1)) || ((n == 3) && (m == 1)) ||
+                 ((n == 3) && (m == 2)), "unsupported combination of n and m");
    if constexpr (n == m)
    {
       return det(A);
