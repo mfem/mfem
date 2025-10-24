@@ -1216,16 +1216,26 @@ public:
 
    DenseMatrix &operator()(int k)
    {
-      MFEM_ASSERT_INDEX_IN_RANGE(k, 0, SizeK());
-      Mk.data = Memory<real_t>(GetData(k), SizeI()*SizeJ(), false);
-      return Mk;
+      return operator()(k, Mk);
    }
    const DenseMatrix &operator()(int k) const
    {
+      return operator()(k, Mk);
+   }
+   DenseMatrix &operator()(int k, DenseMatrix& buff)
+   {
       MFEM_ASSERT_INDEX_IN_RANGE(k, 0, SizeK());
-      Mk.data = Memory<real_t>(const_cast<real_t*>(GetData(k)), SizeI()*SizeJ(),
-                               false);
-      return Mk;
+      buff.UseExternalData(nullptr, SizeI(), SizeJ());
+      buff.data = Memory<real_t>(GetData(k), SizeI()*SizeJ(), false);
+      return buff;
+   }
+   const DenseMatrix &operator()(int k, DenseMatrix& buff) const
+   {
+      MFEM_ASSERT_INDEX_IN_RANGE(k, 0, SizeK());
+      buff.UseExternalData(nullptr, SizeI(), SizeJ());
+      buff.data = Memory<real_t>(const_cast<real_t*>(GetData(k)), SizeI()*SizeJ(),
+                                 false);
+      return buff;
    }
 
    real_t &operator()(int i, int j, int k)
