@@ -119,7 +119,7 @@ public:
     and advection matrices, and b describes the flow on the boundary. This can
     be written as a general ODE, du/dt = M^{-1} (K u + b), and this class is
     used to evaluate the right-hand side. */
-class FE_Evolution : public TimeDependentOperator
+class FE_Evolution : public TimeDependentOperator, public ARKStepODE
 {
 private:
    BilinearForm &M, &K;
@@ -132,6 +132,8 @@ private:
 
 public:
    FE_Evolution(BilinearForm &M_, BilinearForm &K_, const Vector &b_);
+
+   virtual int Size() const override;
 
    virtual void Mult(const Vector &x, Vector &y) const;
    virtual void ImplicitSolve(const double dt, const Vector &x, Vector &k);
@@ -500,6 +502,11 @@ FE_Evolution::FE_Evolution(BilinearForm &M_, BilinearForm &K_, const Vector &b_)
    M_solver.SetAbsTol(0.0);
    M_solver.SetMaxIter(100);
    M_solver.SetPrintLevel(0);
+}
+
+int FE_Evolution::Size() const
+{
+   return z.Size();
 }
 
 void FE_Evolution::Mult(const Vector &x, Vector &y) const

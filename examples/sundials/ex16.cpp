@@ -59,7 +59,7 @@ using namespace mfem;
  *    2. F(u, du/dt, t) = M du/dt          (ODE is expressed in IMPLICIT form)
  *       G(u, t) = - K(u) u
  */
-class ConductionOperator : public TimeDependentOperator
+class ConductionOperator : public TimeDependentOperator, public ARKStepODE
 {
    FiniteElementSpace &fespace;
    Array<int> ess_tdof_list; // this list remains empty for pure Neumann b.c.
@@ -81,11 +81,17 @@ class ConductionOperator : public TimeDependentOperator
 
    mutable Vector z; // auxiliary vector
 
+   const bool use_explicit_form;
+
 public:
 
    ConductionOperator(FiniteElementSpace &f, const real_t alpha,
                       const real_t kappa, const Vector &u,
-                      const Type &ode_expression_type);
+                      const bool use_explicit_form);
+
+   int Size() const override;
+
+   bool inExplicitForm() const override;
 
    // Compute K(u_n) for use as an approximation in - K(u) u
    void SetConductionTensor(const Vector &u);
@@ -245,16 +251,8 @@ int main(int argc, char *argv[])
    u_gf.GetTrueDofs(u);
 
    // 6. Initialize the conduction ODE operator and the visualization.
-   ConductionOperator::Type ode_expression_type;
-   if (use_mass_solver)
-   {
-      ode_expression_type = ConductionOperator::Type::IMPLICIT;
-   }
-   else
-   {
-      ode_expression_type = ConductionOperator::Type::EXPLICIT;
-   }
-   ConductionOperator oper(fespace, alpha, kappa, u, ode_expression_type);
+   const bool use_explicit_form = use_mass_solver ? false : true;
+   ConductionOperator oper(fespace, alpha, kappa, u, use_explicit_form);
 
    u_gf.SetFromTrueDofs(u);
    {
@@ -445,9 +443,10 @@ int main(int argc, char *argv[])
 ConductionOperator::ConductionOperator(FiniteElementSpace &fes,
                                        const real_t alpha, const real_t kappa,
                                        const Vector &u,
-                                       const Type &ode_expression_type)
-   : TimeDependentOperator(fes.GetTrueVSize(), 0.0, ode_expression_type),
-     fespace(fes), M(&fespace), alpha(alpha), kappa(kappa), z(height)
+                                       const bool use_explicit_form)
+   : TimeDependentOperator(fes.GetTrueVSize(), 0.0),
+     fespace(fes), M(&fespace), alpha(alpha), kappa(kappa), z(height),
+     use_explicit_form(use_explicit_form)
 {
    // specify a relative tolerance for all solves with MFEM integrators
    const real_t rel_tol = 1e-8;
@@ -472,6 +471,16 @@ ConductionOperator::ConductionOperator(FiniteElementSpace &fes,
    T_solver.SetPreconditioner(T_prec);
 
    SetConductionTensor(u);
+}
+
+int ConductionOperator::Size() const
+{
+   return z.Size();
+}
+
+bool ConductionOperator::inExplicitForm() const
+{
+   return use_explicit_form;
 }
 
 void ConductionOperator::SetConductionTensor(const Vector &u)
@@ -533,7 +542,7 @@ int ConductionOperator::SUNImplicitSolve(const Vector &r, Vector &dk,
    //   EXPLICIT form: r = -inv(M) K(u_n) u - k
    //   IMPLICIT form: r = -K(u_n) u - M k
    T_solver.SetRelTol(tol);
-   if (isExplicit())
+   if (use_explicit_form)
    {
       Mmat.Mult(r, z);
       T_solver.Mult(z, dk);
