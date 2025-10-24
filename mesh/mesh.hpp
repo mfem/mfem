@@ -2595,7 +2595,7 @@ public:
                          VTKFormat format=VTKFormat::ASCII,
                          bool high_order_output=false,
                          int compression_level=0,
-                         bool bdr=false);
+                         bool bdr_elements=false);
    /** Print the boundary elements of the mesh in VTU format, and output the
        boundary attributes as a data array (useful for boundary conditions). */
    void PrintBdrVTU(std::string fname,
