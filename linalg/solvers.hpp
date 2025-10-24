@@ -184,6 +184,7 @@ protected:
 
    mutable int final_iter = -1;
    mutable bool converged = false;
+   mutable bool illegal_state = false;
    mutable real_t initial_norm = -1.0, final_norm = -1.0;
 
    ///@}

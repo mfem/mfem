@@ -1545,19 +1545,19 @@ typename std::enable_if<(n <= 2),
          std::tuple<tensor<T, n>, tensor<T, n, n>>>::type
          grad_eig(tensor<T, n, n> &A, tensor<T, n, n> &dA)
 {
-   printf("custom derivative called\n");
-
    auto [e, U] = eig(A);
 
    // initialize to zero
    tensor<T, n, n> F{};
 
+   T eps = 1e-8;
    // set off diagonal entries
    for (size_t i = 0; i < n; i++)
    {
       for (size_t j = 0; j < n; j++)
       {
-         F(i, j) = (i == j) ? 0.0 : 1.0 / (e[j] - e[i]);
+         T denom = e[j] - e[i];
+         F(i, j) = (i == j || std::abs(denom) < eps) ? 0.0 : 1.0 / (denom);
       }
    }
 

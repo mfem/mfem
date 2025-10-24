@@ -1925,6 +1925,11 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
 
    ProcessNewState(x);
 
+   if (illegal_state)
+   {
+      return;
+   }
+
    oper->Mult(x, r);
    if (have_b)
    {
@@ -1992,6 +1997,11 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
       add(x, -c_scale, c, x);
 
       ProcessNewState(x);
+
+      if (illegal_state)
+      {
+         break;
+      }
 
       oper->Mult(x, r);
       if (have_b)
