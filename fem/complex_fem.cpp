@@ -776,8 +776,8 @@ SesquilinearForm::Update(FiniteElementSpace *nfes)
 
 #ifdef MFEM_USE_MPI
 
-ParComplexGridFunction::ParComplexGridFunction(ParFiniteElementSpace *pfes)
-   : Vector(2*(pfes->GetVSize()))
+ParComplexGridFunction::ParComplexGridFunction(ParFiniteElementSpace *pf)
+   : Vector(2*(pf->GetVSize())), pfes(pf), fec_owned(NULL)
 {
    UseDevice(true);
    this->Vector::operator=(0.0);
@@ -787,12 +787,88 @@ ParComplexGridFunction::ParComplexGridFunction(ParFiniteElementSpace *pfes)
 
    pgfi = new ParGridFunction();
    pgfi->MakeRef(pfes, *this, pfes->GetVSize());
+
+   fes_sequence = pfes->GetSequence();
+}
+
+ParComplexGridFunction::ParComplexGridFunction(ParMesh *m, std::istream &input)
+   : Vector(), pfes(NULL), fec_owned(NULL)
+{
+   string buff;
+
+   // Grid functions are stored on the device
+   UseDevice(true);
+
+   input >> std::ws;
+   getline(input, buff);  // 'ParComplexGridFunction'
+
+   FiniteElementSpace *fes = new FiniteElementSpace;
+   fec_owned = fes->Load(m, input);
+
+   pfes = new ParFiniteElementSpace(m, fec_owned, fes->GetVDim(),
+                                    fes->GetOrdering());
+
+   delete fes;
+
+   skip_comment_lines(input, '#');
+   istream::int_type next_char = input.peek();
+   if (next_char == 'N') // First letter of "NURBS_patches"
+   {
+      getline(input, buff);
+      filter_dos(buff);
+      if (buff == "NURBS_patches")
+      {
+         MFEM_ABORT("NURBS not yet supported with ComplexGridFunction objects");
+      }
+      else
+      {
+         MFEM_ABORT("unknown section: " << buff);
+      }
+   }
+   else
+   {
+      Vector::Load(input, 2*pfes->GetVSize());
+
+      // if the mesh is a legacy (v1.1) NC mesh, it has old vertex ordering
+      if (pfes->Nonconforming() &&
+          pfes->GetMesh()->ncmesh->IsLegacyLoaded())
+      {
+         // LegacyNCReorder();
+         MFEM_ABORT("LegacyNCReorder not supported for "
+                    "ComplexGridFunction objects");
+      }
+   }
+
+   pgfr = new ParGridFunction();
+   pgfr->MakeRef(pfes, *this, 0);
+
+   pgfi = new ParGridFunction();
+   pgfi->MakeRef(pfes, *this, pfes->GetVSize());
+
+   fes_sequence = pfes->GetSequence();
+}
+
+void ParComplexGridFunction::Destroy()
+{
+   delete pgfr; delete pgfi;
+
+   if (fec_owned)
+   {
+      delete pfes;
+      delete fec_owned;
+      fec_owned = NULL;
+   }
 }
 
 void
 ParComplexGridFunction::Update()
 {
-   ParFiniteElementSpace *pfes = pgfr->ParFESpace();
+   if (pfes->GetSequence() == fes_sequence)
+   {
+      return; // space and grid function are in sync, no-op
+   }
+   fes_sequence = pfes->GetSequence();
+
    const int vsize = pfes->GetVSize();
 
    const Operator *T = pfes->GetUpdateOperator();
@@ -839,6 +915,17 @@ ParComplexGridFunction::Update()
       pgfr->Update();
       pgfi->Update();
    }
+}
+
+int ParComplexGridFunction::VectorDim() const
+{
+   const FiniteElement *fe = pfes->GetTypicalFE();
+   if (!fe || fe->GetRangeType() == FiniteElement::SCALAR)
+   {
+      return pfes->GetVDim();
+   }
+   return pfes->GetVDim()*std::max(pfes->GetMesh()->SpaceDimension(),
+                                   fe->GetRangeDim());
 }
 
 void
@@ -945,6 +1032,51 @@ ParComplexGridFunction::ParallelProject(Vector &tv) const
 
    tvr.SyncAliasMemory(tv);
    tvi.SyncAliasMemory(tv);
+}
+
+void ParComplexGridFunction::Save(std::ostream &os) const
+{
+   os << "ParComplexGridFunction\n";
+   pfes->Save(os);
+   os << '\n';
+
+   real_t *data_  = const_cast<real_t*>(HostRead());
+   for (int i = 0; i < size; i++)
+   {
+      if (pfes->GetDofSign(i) < 0) { data_[i] = -data_[i]; }
+   }
+
+   if (pfes->GetOrdering() == Ordering::byNODES)
+   {
+      Vector::Print(os, 1);
+   }
+   else
+   {
+      Vector::Print(os, pfes->GetVDim());
+   }
+
+   for (int i = 0; i < size; i++)
+   {
+      if (pfes->GetDofSign(i) < 0) { data_[i] = -data_[i]; }
+   }
+
+   os.flush();
+}
+
+void ParComplexGridFunction::Save(const char *fname, int precision) const
+{
+   int rank = pfes->GetMyRank();
+   ostringstream fname_with_suffix;
+   fname_with_suffix << fname << "." << setfill('0') << setw(6) << rank;
+   ofstream ofs(fname_with_suffix.str().c_str());
+   ofs.precision(precision);
+   Save(ofs);
+}
+
+std::ostream &operator<<(std::ostream &os, const ParComplexGridFunction &sol)
+{
+   sol.Save(os);
+   return os;
 }
 
 
