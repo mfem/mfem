@@ -1,0 +1,7 @@
+Discretization improvements
+---------------------------
+
+
+
+- Improved the gridfunction projection routines. Projections work for Scalar, Vector and VectorFE, also NURBS versions.
+  Optionally different types of projections can be selected, default behaviour has not changed.
