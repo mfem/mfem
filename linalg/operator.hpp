@@ -319,7 +319,6 @@ public:
    Type GetType() const { return ANY_TYPE; }
 };
 
-
 /// Base abstract class for first order time dependent operators.
 /** Operator of the form: (u,t) -> k(u,t), where k generally solves the
     algebraic equation F(u,k,t) = G(u,t). The functions F and G represent the
@@ -570,40 +569,6 @@ public:
        Presently, this method is used by SUNDIALS ODE solvers, for more
        details, see the SUNDIALS User Guides. */
    virtual int SUNImplicitSolve(const Vector &r, Vector &dk, real_t tol);
-
-   /** @brief Setup the mass matrix in the ODE system
-       $ M \frac{dy}{dt} = g(y,t) $ .
-
-       If not re-implemented, this method simply generates an error.
-
-       Presently, this method is used by SUNDIALS ARKStep integrator, for more
-       details, see the ARKode User Guide. */
-   virtual int SUNMassSetup();
-
-   /** @brief Solve the mass matrix linear system  M @a x = @a b, where M is
-       defined by the method SUNMassSetup().
-
-       @param[in]      b   The linear system right-hand side.
-       @param[in,out]  x   On input, the initial guess. On output, the solution.
-       @param[in]      tol Linear solve tolerance.
-
-       If not re-implemented, this method simply generates an error.
-
-       Presently, this method is used by SUNDIALS ARKStep integrator, for more
-       details, see the ARKode User Guide. */
-   virtual int SUNMassSolve(const Vector &b, Vector &x, real_t tol);
-
-   /** @brief Compute the mass matrix-vector product @a v = M @a x, where M is
-       defined by the method SUNMassSetup().
-
-       @param[in]   x The vector to multiply.
-       @param[out]  v The result of the matrix-vector product.
-
-       If not re-implemented, this method simply generates an error.
-
-       Presently, this method is used by SUNDIALS ARKStep integrator, for more
-       details, see the ARKode User Guide. */
-   virtual int SUNMassMult(const Vector &x, Vector &v);
 
    virtual ~TimeDependentOperator() { }
 };

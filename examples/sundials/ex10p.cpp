@@ -66,7 +66,7 @@ class ReducedSystemOperator;
  *
  *  Class HyperelasticOperator represents the right-hand side of the above
  *  system of ODEs. */
-class HyperelasticOperator : public TimeDependentOperator
+class HyperelasticOperator : public TimeDependentOperator, public ARKStepODE
 {
 protected:
    ParFiniteElementSpace &fespace;
@@ -106,6 +106,8 @@ public:
                         double visc, double mu, double K,
                         int kinsol_nls_type = -1, double kinsol_damping = 0.0,
                         int kinsol_aa_n = 0);
+
+   int Size() const override;
 
    /// Compute the right-hand side of the ODE system.
    virtual void Mult(const Vector &vx, Vector &dvx_dt) const;
@@ -806,6 +808,11 @@ HyperelasticOperator::HyperelasticOperator(ParFiniteElementSpace &f,
    }
    newton_solver->SetSolver(*J_solver);
    newton_solver->iterative_mode = false;
+}
+
+int HyperelasticOperator::Size() const
+{
+   return 2.0*z.Size();
 }
 
 void HyperelasticOperator::Mult(const Vector &vx, Vector &dvx_dt) const
