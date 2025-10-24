@@ -79,10 +79,6 @@ dane-up-check:
 dane-build-and-test:
   variables:
     CI_MACHINE: "dane"
-    # Explicitly pass down values that we want to be able to set when triggering
-    # pipelines manually or using scheduling
-    AUTOTEST: "${AUTOTEST}"
-    AUTOTEST_COMMIT: "${AUTOTEST_COMMIT}"
   needs: [dane-up-check, generate-job-lists]
   extends: [.build-and-test]
 
@@ -90,14 +86,21 @@ dane-build-and-test:
 dane-baseline:
   stage: test-pipelines
   variables:
-    # Explicitly pass down values that we want to be able to set when triggering
-    # pipelines manually or using scheduling
-    REBASELINE: "${REBASELINE}"
+    # Explicitly pass down values that are not always propagated to child
+    # pipelines, e.g. when a variable is set in the "Settings -> CI" web
+    # interface (project variables).
+    # Note: in some cases, this does not work as expected, e.g. when the
+    # variable is not re-defined in the web interface; in such cases, the child
+    # pipeline gets a definition like '${AUTOTEST}', i.e. it behaves as if
+    # AUTOTEST is undefined, even though there is a default value in
+    # .gitlab-ci.yml.
     AUTOTEST: "${AUTOTEST}"
     AUTOTEST_COMMIT: "${AUTOTEST_COMMIT}"
   trigger:
     include: .gitlab/dane-baseline.yml
     strategy: depend
+    forward:
+      pipeline_variables: true
   needs: [dane-up-check]
 
 
@@ -110,10 +113,6 @@ tioga-up-check:
 tioga-build-and-test:
   variables:
     CI_MACHINE: "tioga"
-    # Explicitly pass down values that we want to be able to set when triggering
-    # pipelines manually or using scheduling
-    AUTOTEST: "${AUTOTEST}"
-    AUTOTEST_COMMIT: "${AUTOTEST_COMMIT}"
   needs: [tioga-up-check, generate-job-lists]
   extends: [.build-and-test]
 
@@ -127,9 +126,5 @@ matrix-up-check:
 matrix-build-and-test:
   variables:
     CI_MACHINE: "matrix"
-    # Explicitly pass down values that we want to be able to set when triggering
-    # pipelines manually or using scheduling
-    AUTOTEST: "${AUTOTEST}"
-    AUTOTEST_COMMIT: "${AUTOTEST_COMMIT}"
   needs: [matrix-up-check, generate-job-lists]
   extends: [.build-and-test]
