@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -11,6 +11,9 @@
 
 #ifndef MFEM_VTK
 #define MFEM_VTK
+
+#include <cstdint>
+#include <string>
 
 #include "../fem/geom.hpp"
 #include "../general/binaryio.hpp"
@@ -37,6 +40,7 @@ struct VTKGeometry
    static const int TETRAHEDRON = 10;
    static const int CUBE = 12;
    static const int PRISM = 13;
+   static const int PYRAMID = 14;
    ///@}
 
    /// @name Legacy quadratic VTK geometric types
@@ -48,6 +52,7 @@ struct VTKGeometry
    static const int TRIQUADRATIC_CUBE = 29;
    static const int QUADRATIC_PRISM = 26;
    static const int BIQUADRATIC_QUADRATIC_PRISM = 32;
+   static const int QUADRATIC_PYRAMID = 27;
    ///@}
 
    /// @name Arbitrary-order VTK geometric types
@@ -58,6 +63,7 @@ struct VTKGeometry
    static const int LAGRANGE_TETRAHEDRON = 71;
    static const int LAGRANGE_CUBE = 72;
    static const int LAGRANGE_PRISM = 73;
+   static const int LAGRANGE_PYRAMID = 74;
    ///@}
    ///@}
 
@@ -95,10 +101,10 @@ enum class VTKFormat
    /// Data arrays will be written in ASCII format.
    ASCII,
    /// Data arrays will be written in binary format. Floating point numbers will
-   /// be be output with 64 bits of precision.
+   /// be output with 64 bits of precision.
    BINARY,
    /// Data arrays will be written in binary format. Floating point numbers will
-   /// be be output with 32 bits of precision.
+   /// be output with 32 bits of precision.
    BINARY32
 };
 
@@ -142,7 +148,7 @@ template <typename T>
 void WriteBinaryOrASCII(std::ostream &os, std::vector<char> &buf, const T &val,
                         const char *suffix, VTKFormat format)
 {
-   if (format == VTKFormat::ASCII) { out << val << suffix; }
+   if (format == VTKFormat::ASCII) { os << val << suffix; }
    else { bin_io::AppendBytes(buf, val); }
 }
 
@@ -179,6 +185,10 @@ void WriteBinaryOrASCII<float>(std::ostream &os, std::vector<char> &buf,
 /// @sa WriteVTKEncodedCompressed.
 void WriteBase64WithSizeAndClear(std::ostream &os, std::vector<char> &buf,
                                  int compression_level);
+
+/// @brief Returns a string defining the component labels for vector-valued data
+/// arrays for use in XML VTU files.
+std::string VTKComponentLabels(int vdim);
 
 } // namespace mfem
 

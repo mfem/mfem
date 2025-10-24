@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -63,12 +63,12 @@ public:
 /** @brief Global stream used by the library for standard output. Initially it
     uses the same std::streambuf as std::cout, however that can be changed.
     @sa OutStream. */
-extern OutStream out;
+extern MFEM_EXPORT OutStream out;
 /** @brief Global stream used by the library for standard error output.
     Initially it uses the same std::streambuf as std::cerr, however that can be
     changed.
     @sa OutStream. */
-extern OutStream err;
+extern MFEM_EXPORT OutStream err;
 
 
 /** @brief Construct a string of the form "<prefix><myid><suffix>" where the
@@ -107,22 +107,12 @@ void SetGlobalMPI_Comm(MPI_Comm comm);
 
 #endif
 
+/// @brief Wrapper for std::getenv.
+///
+/// @note Directly calling getenv causes a warning with MSVC. Use this wrapper
+/// to suppress the warning.
+const char* GetEnv(const char* name);
+
 } // namespace mfem
-
-
-// Request a global object to be instantiated for each thread in its TLS.
-#define MFEM_THREAD_LOCAL thread_local
-
-
-// MFEM_DEPRECATED macro to mark obsolete functions and methods
-// see https://stackoverflow.com/questions/295120/c-mark-as-deprecated
-#if defined(__GNUC__) || defined(__clang__)
-#define MFEM_DEPRECATED __attribute__((deprecated))
-#elif defined(_MSC_VER)
-#define MFEM_DEPRECATED __declspec(deprecated)
-#else
-#pragma message("WARNING: You need to implement MFEM_DEPRECATED for this compiler")
-#define MFEM_DEPRECATED
-#endif
 
 #endif

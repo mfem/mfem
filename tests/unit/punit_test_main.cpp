@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -9,12 +9,10 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
+#define CATCH_CONFIG_NOSTDOUT
 #define CATCH_CONFIG_RUNNER
 #include "mfem.hpp"
 #include "run_unit_tests.hpp"
-
-bool launch_all_non_regression_tests = false;
-std::string mfem_data_dir;
 
 #ifndef MFEM_USE_MPI
 #error "This test should be disabled without MFEM_USE_MPI!"
@@ -22,14 +20,18 @@ std::string mfem_data_dir;
 
 int main(int argc, char *argv[])
 {
-#ifdef MFEM_USE_MPI
-   mfem::Mpi::Init();
-   bool root = mfem::Mpi::Root();
-   mfem::Hypre::Init();
-#else
-   bool root = true;
+#ifdef MFEM_USE_SINGLE
+   std::cout << "\nThe parallel unit tests are not supported in single"
+             " precision.\n\n";
+   return MFEM_SKIP_RETURN_VALUE;
 #endif
 
+#ifdef MFEM_USE_MPI
+   mfem::Mpi::Init();
+   mfem::Hypre::Init();
+#endif
+   mfem::Device device("cpu"); // make sure hypre runs on CPU, if possible
+
    // Only run tests that are labeled with Parallel.
-   return RunCatchSession(argc, argv, {"[Parallel]"}, root);
+   return RunCatchSession(argc, argv, {"[Parallel]"}, Root());
 }

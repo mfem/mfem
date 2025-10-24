@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -12,15 +12,15 @@
 # Use the MFEM build directory
 MFEM_DIR ?= ../..
 MFEM_BUILD_DIR ?= ../..
+MFEM_INSTALL_DIR ?= ../../mfem
 SRC = $(if $(MFEM_DIR:../..=),$(MFEM_DIR)/miniapps/common/,)
-CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
-# Use the MFEM install directory
-# MFEM_INSTALL_DIR = ../../mfem
-# CONFIG_MK = $(MFEM_INSTALL_DIR)/share/mfem/config.mk
+CONFIG_MK = $(or $(wildcard $(MFEM_BUILD_DIR)/config/config.mk),\
+   $(wildcard $(MFEM_INSTALL_DIR)/share/mfem/config.mk))
 
 # Default target
 all: lib-common
 
+# Include defaults.mk to get the definition of BUILD_SOFLAGS
 DEFAULTS_MK = $(MFEM_DIR)/config/defaults.mk
 include $(DEFAULTS_MK)
 
@@ -31,11 +31,7 @@ MFEM_LIB_FILE = mfem_is_not_built
 ifneq (clean,$(MAKECMDGOALS))
    -include $(CONFIG_MK)
 
-   ifeq ($(MFEM_USE_CUDA)$(MFEM_USE_HIP),NONO)
-      XLINKER = $(CXX_XLINKER)
-   else ifeq ($(MFEM_USE_CUDA),YES)
-      XLINKER = $(CUDA_XLINKER)
-   endif
+   XLINKER = $(MFEM_XLINKER)
 
    BUILD_REAL_DIR = $(realpath .)
    BUILD_SOFLAGS := $(subst libmfem.,libmfem-common.,$(BUILD_SOFLAGS))
@@ -49,7 +45,7 @@ SEQ_MINIOBJS = mesh_extras.o fem_extras.o bravais.o
 ifeq ($(MFEM_USE_MPI),NO)
    MINIOBJS = $(SEQ_MINIOBJS)
 else
-   MINIOBJS = $(SEQ_MINIOBJS) pfem_extras.o
+   MINIOBJS = $(SEQ_MINIOBJS) pfem_extras.o dist_solver.o
 endif
 
 .SUFFIXES:

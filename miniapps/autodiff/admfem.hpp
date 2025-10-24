@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -13,7 +13,7 @@
 #define ADMFEM_HPP
 
 #include "mfem.hpp"
-#include "fdual.hpp"
+#include "../../linalg/dual.hpp"
 #include "tadvector.hpp"
 #include "taddensemat.hpp"
 
@@ -223,7 +223,7 @@ private:
    TFunctor<ad::ADFloatType, const Vector, ad::ADVectorType,
             vector_size, state_size, param_size> tf;
 
-   TFunctor<double,const mfem::Vector, mfem::Vector,
+   TFunctor<real_t,const mfem::Vector, mfem::Vector,
             vector_size, state_size, param_size> rf;
 
 };
@@ -245,7 +245,7 @@ public:
 
    /// Evaluates a function for arguments vparam and uu. The evaluation is
    /// based on the operator() in the user provided functor TFunctor.
-   double Eval(const mfem::Vector &vparam, mfem::Vector &uu)
+   real_t Eval(const mfem::Vector &vparam, mfem::Vector &uu)
    {
       return rf(vparam,uu);
    }
@@ -320,7 +320,7 @@ public:
 
 #ifdef MFEM_USE_ADFORWARD
    // use forward-forward mode
-   typedef codi::RealForwardGen<double>    ADFType;
+   typedef codi::RealForwardGen<real_t>    ADFType;
    typedef TAutoDiffVector<ADFType>        ADFVector;
    typedef TAutoDiffDenseMatrix<ADFType>   ADFDenseMatrix;
 
@@ -329,7 +329,7 @@ public:
    typedef TAutoDiffDenseMatrix<ADSType>   ADSDenseMatrix;
 #else
    //use mixed forward and reverse mode
-   typedef codi::RealForwardGen<double>    ADFType;
+   typedef codi::RealForwardGen<real_t>    ADFType;
    typedef TAutoDiffVector<ADFType>        ADFVector;
    typedef TAutoDiffDenseMatrix<ADFType>   ADFDenseMatrix;
 
@@ -418,7 +418,7 @@ public:
 #endif
    }
 private:
-   TFunctor<double, const mfem::Vector,
+   TFunctor<real_t, const mfem::Vector,
             mfem::Vector, state_size, param_size> rf;
 
    TFunctor<ad::ADFloatType, const mfem::Vector,
@@ -438,7 +438,7 @@ namespace mfem
 namespace ad
 {
 /// MFEM native forward AD-type
-typedef FDualNumber<double> ADFloatType;
+typedef future::dual<real_t, real_t> ADFloatType;
 /// Vector type for AD-type numbers
 typedef TAutoDiffVector<ADFloatType> ADVectorType;
 /// Matrix type for AD-type numbers
@@ -480,13 +480,13 @@ public:
 
          for (int ii = 0; ii < state_size; ii++)
          {
-            aduu[ii].dual(1.0);
+            aduu[ii].gradient = 1.0;
             F(vparam,aduu,rr);
             for (int jj = 0; jj < vector_size; jj++)
             {
-               jac(jj, ii) = rr[jj].dual();
+               jac(jj, ii) = rr[jj].gradient;
             }
-            aduu[ii].dual(0.0);
+            aduu[ii].gradient = 0.0;
          }
       }
    }
@@ -532,7 +532,7 @@ class QVectorFuncAutoDiff
 {
 private:
    /// MFEM native forward AD-type
-   typedef ad::FDualNumber<double> ADFType;
+   typedef future::dual<real_t, real_t> ADFType;
    /// Vector type for AD-type numbers
    typedef TAutoDiffVector<ADFType> ADFVector;
    /// Matrix type for AD-type numbers
@@ -561,13 +561,13 @@ public:
 
          for (int ii = 0; ii < state_size; ii++)
          {
-            aduu[ii].dual(1.0);
+            aduu[ii].gradient = 1.0;
             Eval(vparam, aduu, rr);
             for (int jj = 0; jj < vector_size; jj++)
             {
-               jac(jj, ii) = rr[jj].dual();
+               jac(jj, ii) = rr[jj].gradient;
             }
-            aduu[ii].dual(0.0);
+            aduu[ii].gradient = 0.0;
          }
       }
    }
@@ -580,7 +580,7 @@ private:
       tf(vparam, uu, rr);
    }
 
-   TFunctor<double, const Vector, Vector,
+   TFunctor<real_t, const Vector, Vector,
             vector_size, state_size, param_size> func;
 
    TFunctor<ADFType, const Vector, ADFVector,
@@ -617,13 +617,13 @@ class QFunctionAutoDiff
 {
 private:
    /// MFEM native AD-type for first derivatives
-   typedef ad::FDualNumber<double> ADFType;
+   typedef future::dual<real_t, real_t> ADFType;
    /// Vector type for AD-numbers(first derivatives)
    typedef TAutoDiffVector<ADFType> ADFVector;
    /// Matrix type for AD-numbers(first derivatives)
    typedef TAutoDiffDenseMatrix<ADFType> ADFDenseMatrix;
    /// MFEM native AD-type for second derivatives
-   typedef ad::FDualNumber<ADFType> ADSType;
+   typedef future::dual<ADFType, ADFType> ADSType;
    /// Vector type for AD-numbers (second derivatives)
    typedef TAutoDiffVector<ADSType> ADSVector;
    /// Vector type for AD-numbers (second derivatives)
@@ -632,7 +632,7 @@ private:
 public:
    /// Evaluates a function for arguments vparam and uu. The evaluation is
    /// based on the operator() in the user provided functor TFunctor.
-   double Eval(const Vector &vparam, Vector &uu)
+   real_t Eval(const Vector &vparam, Vector &uu)
    {
       return tf(vparam,uu);
    }
@@ -653,10 +653,10 @@ public:
       ADFType rez;
       for (int ii = 0; ii < n; ii++)
       {
-         aduu[ii].dual(1.0);
+         aduu[ii].gradient = 1.0;
          rez = ff(vparam, aduu);
-         rr[ii] = rez.dual();
-         aduu[ii].dual(0.0);
+         rr[ii] = rez.gradient;
+         aduu[ii].gradient = 0.0;
       }
    }
 
@@ -678,28 +678,28 @@ public:
          ADSVector aduu(n);
          for (int ii = 0; ii < n; ii++)
          {
-            aduu[ii].real(ADFType(uu[ii], 0.0));
-            aduu[ii].dual(ADFType(0.0, 0.0));
+            aduu[ii].value = ADFType{uu[ii], 0.0};
+            aduu[ii].gradient = ADFType{0.0, 0.0};
          }
 
          for (int ii = 0; ii < n; ii++)
          {
-            aduu[ii].real(ADFType(uu[ii], 1.0));
+            aduu[ii].value = ADFType{uu[ii], 1.0};
             for (int jj = 0; jj < (ii + 1); jj++)
             {
-               aduu[jj].dual(ADFType(1.0, 0.0));
+               aduu[jj].gradient = ADFType{1.0, 0.0};
                ADSType rez = sf(vparam, aduu);
-               jac(ii, jj) = rez.dual().dual();
-               jac(jj, ii) = rez.dual().dual();
-               aduu[jj].dual(ADFType(0.0, 0.0));
+               jac(ii, jj) = rez.gradient.gradient;
+               jac(jj, ii) = rez.gradient.gradient;
+               aduu[jj].gradient = ADFType{0.0, 0.0};
             }
-            aduu[ii].real(ADFType(uu[ii], 0.0));
+            aduu[ii].value = ADFType{uu[ii], 0.0};
          }
       }
    }
 
 private:
-   TFunctor<double, const Vector, Vector, state_size, param_size> tf;
+   TFunctor<real_t, const Vector, Vector, state_size, param_size> tf;
    TFunctor<ADFType, const Vector, ADFVector, state_size, param_size> ff;
    TFunctor<ADSType, const Vector, ADSVector, state_size, param_size> sf;
 

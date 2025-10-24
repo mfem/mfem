@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -59,17 +59,17 @@ ThresholdRefiner::ThresholdRefiner(ErrorEstimator &est)
    total_err_goal = 0.0;
    total_fraction = 0.5;
    local_err_goal = 0.0;
-   max_elements = std::numeric_limits<long>::max();
+   max_elements = std::numeric_limits<long long>::max();
 
    threshold = 0.0;
-   num_marked_elements = 0L;
+   num_marked_elements = 0LL;
    current_sequence = -1;
 
    non_conforming = -1;
    nc_limit = 0;
 }
 
-double ThresholdRefiner::GetNorm(const Vector &local_err, Mesh &mesh) const
+real_t ThresholdRefiner::GetNorm(const Vector &local_err, Mesh &mesh) const
 {
 #ifdef MFEM_USE_MPI
    ParMesh *pmesh = dynamic_cast<ParMesh*>(&mesh);
@@ -81,27 +81,28 @@ double ThresholdRefiner::GetNorm(const Vector &local_err, Mesh &mesh) const
    return local_err.Normlp(total_norm_p);
 }
 
-int ThresholdRefiner::ApplyImpl(Mesh &mesh)
+int ThresholdRefiner::MarkWithoutRefining(Mesh & mesh,
+                                          Array<Refinement> & refinements)
 {
    threshold = 0.0;
-   num_marked_elements = 0;
-   marked_elements.SetSize(0);
+   num_marked_elements = 0LL;
+   refinements.SetSize(0);
    current_sequence = mesh.GetSequence();
 
-   const long num_elements = mesh.GetGlobalNE();
+   const long long num_elements = mesh.GetGlobalNE();
    if (num_elements >= max_elements) { return STOP; }
 
    const int NE = mesh.GetNE();
    const Vector &local_err = estimator.GetLocalErrors();
    MFEM_ASSERT(local_err.Size() == NE, "invalid size of local_err");
 
-   const double total_err = GetNorm(local_err, mesh);
+   const real_t total_err = GetNorm(local_err, mesh);
    if (total_err <= total_err_goal) { return STOP; }
 
    if (total_norm_p < infinity())
    {
-      threshold = std::max(total_err * total_fraction *
-                           std::pow(num_elements, -1.0/total_norm_p),
+      threshold = std::max((real_t) (total_err * total_fraction *
+                                     std::pow(num_elements, -1.0/total_norm_p)),
                            local_err_goal);
    }
    else
@@ -113,7 +114,7 @@ int ThresholdRefiner::ApplyImpl(Mesh &mesh)
    {
       if (local_err(el) > threshold)
       {
-         marked_elements.Append(Refinement(el));
+         refinements.Append(Refinement(el));
       }
    }
 
@@ -122,16 +123,24 @@ int ThresholdRefiner::ApplyImpl(Mesh &mesh)
       const Array<int> &aniso_flags = aniso_estimator->GetAnisotropicFlags();
       if (aniso_flags.Size() > 0)
       {
-         for (int i = 0; i < marked_elements.Size(); i++)
+         for (int i = 0; i < refinements.Size(); i++)
          {
-            Refinement &ref = marked_elements[i];
-            ref.ref_type = aniso_flags[ref.index];
+            Refinement &ref = refinements[i];
+            ref.SetType(aniso_flags[ref.index]);
          }
       }
    }
 
+   return NONE;
+}
+
+int ThresholdRefiner::ApplyImpl(Mesh &mesh)
+{
+   const int action = MarkWithoutRefining(mesh, marked_elements);
+   if (action == STOP) { return STOP; }
+
    num_marked_elements = mesh.ReduceInt(marked_elements.Size());
-   if (num_marked_elements == 0) { return STOP; }
+   if (num_marked_elements == 0LL) { return STOP; }
 
    mesh.GeneralRefinement(marked_elements, non_conforming, nc_limit);
    return CONTINUE + REFINED;
@@ -141,7 +150,7 @@ void ThresholdRefiner::Reset()
 {
    estimator.Reset();
    current_sequence = -1;
-   num_marked_elements = 0;
+   num_marked_elements = 0LL;
    // marked_elements.SetSize(0); // not necessary
 }
 
@@ -207,7 +216,7 @@ int CoefficientRefiner::PreprocessMesh(Mesh &mesh, int max_it)
       // Compute number of elements and L2-norm of f.
       int NE = mesh.GetNE();
       int globalNE = 0;
-      double norm_of_coeff = 0.0;
+      real_t norm_of_coeff = 0.0;
       if (par)
       {
 #ifdef MFEM_USE_MPI
@@ -222,7 +231,7 @@ int CoefficientRefiner::PreprocessMesh(Mesh &mesh, int max_it)
       }
 
       // Compute average L2-norm of f
-      double av_norm_of_coeff = norm_of_coeff / sqrt(globalNE);
+      real_t av_norm_of_coeff = norm_of_coeff / sqrt(globalNE);
 
       // Compute element-wise L2-norms of (I - Π) f
       Vector element_norms_of_fine_scale(NE);
@@ -239,8 +248,8 @@ int CoefficientRefiner::PreprocessMesh(Mesh &mesh, int max_it)
       element_oscs = 0.0;
       for (int j = 0; j < NE; j++)
       {
-         double h = mesh.GetElementSize(j);
-         double element_osc = h * element_norms_of_fine_scale(j);
+         real_t h = mesh.GetElementSize(j);
+         real_t element_osc = h * element_norms_of_fine_scale(j);
          if ( element_osc > threshold * av_norm_of_coeff )
          {
             mesh_refinements.Append(j);
@@ -252,7 +261,8 @@ int CoefficientRefiner::PreprocessMesh(Mesh &mesh, int max_it)
       if (par)
       {
          MPI_Comm comm = pmesh->GetComm();
-         MPI_Allreduce(MPI_IN_PLACE, &global_osc, 1, MPI_DOUBLE, MPI_SUM, comm);
+         MPI_Allreduce(MPI_IN_PLACE, &global_osc, 1, MPITypeMap<real_t>::mpi_type,
+                       MPI_SUM, comm);
          MPI_Comm_rank(comm, &rank);
       }
 #endif

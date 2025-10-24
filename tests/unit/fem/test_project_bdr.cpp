@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -29,11 +29,9 @@ TEST_CASE("3D ProjectBdrCoefficientTangent",
           "[GridFunction]"
           "[VectorGridFunctionCoefficient]")
 {
-   int log = 1;
    int n = 1;
    int dim = 3;
    int order = 1;
-   int npts = 0;
 
    double tol = 1e-6;
 
@@ -85,7 +83,6 @@ TEST_CASE("3D ProjectBdrCoefficientTangent",
 
                for (int j=0; j<ir.GetNPoints(); j++)
                {
-                  npts++;
                   const IntegrationPoint &ip = ir.IntPoint(j);
                   T->SetIntPoint(&ip);
 
@@ -104,9 +101,9 @@ TEST_CASE("3D ProjectBdrCoefficientTangent",
 
                   nd_err += nd_dist;
 
-                  if (log > 0 && nd_dist > tol)
+                  if (verbose_tests && nd_dist > tol)
                   {
-                     std::cout << be << ":" << j << " nd ("
+                     mfem::out << be << ":" << j << " nd ("
                                << f_val[0] << "," << f_val[1] << "," << f_val[2]
                                << ") vs. ("
                                << nd_val[0] << "," << nd_val[1] << ","

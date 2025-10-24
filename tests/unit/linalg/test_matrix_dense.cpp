@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -17,7 +17,7 @@ using namespace mfem;
 
 TEST_CASE("DenseMatrix init-list construction", "[DenseMatrix]")
 {
-   double ContigData[6] = {6.0, 5.0, 4.0, 3.0, 2.0, 1.0};
+   real_t ContigData[6] = {6.0, 5.0, 4.0, 3.0, 2.0, 1.0};
    DenseMatrix Contiguous(ContigData, 2, 3);
 
    DenseMatrix Nested(
@@ -47,7 +47,7 @@ TEST_CASE("DenseMatrix LinearSolve methods",
       A.SetRow(1, 0.0);
       A.SetRow(2, 0.0);
 
-      double X[3];
+      real_t X[3];
 
       REQUIRE_FALSE(LinearSolve(A,X));
    }
@@ -58,7 +58,7 @@ TEST_CASE("DenseMatrix LinearSolve methods",
       DenseMatrix A(N);
       A(0,0) = 2;
 
-      double X[1] = { 12 };
+      real_t X[1] = { 12 };
 
       REQUIRE(LinearSolve(A,X));
       REQUIRE(X[0] == MFEM_Approx(6));
@@ -72,7 +72,7 @@ TEST_CASE("DenseMatrix LinearSolve methods",
       A(0,0) = 2.0; A(0,1) = 1.0;
       A(1,0) = 3.0; A(1,1) = 4.0;
 
-      double X[2] = { 1, 14 };
+      real_t X[2] = { 1, 14 };
 
       REQUIRE(LinearSolve(A,X));
       REQUIRE(X[0] == MFEM_Approx(-2));
@@ -88,7 +88,7 @@ TEST_CASE("DenseMatrix LinearSolve methods",
       A(1,0) = 7; A(1,1) = -1; A(1,2) =  2;
       A(2,0) = 3; A(2,1) =  1; A(2,2) =  4;
 
-      double X[3] = { -14, 42, 28 };
+      real_t X[3] = { -14, 42, 28 };
 
       REQUIRE(LinearSolve(A,X));
       REQUIRE(X[0] == MFEM_Approx(4));
@@ -101,13 +101,13 @@ TEST_CASE("DenseMatrix LinearSolve methods",
 TEST_CASE("DenseMatrix A*B^T methods",
           "[DenseMatrix]")
 {
-   double tol = 1e-12;
+   real_t tol = 1e-12;
 
-   double AtData[6] = {6.0, 5.0,
+   real_t AtData[6] = {6.0, 5.0,
                        4.0, 3.0,
                        2.0, 1.0
                       };
-   double BtData[12] = {1.0, 3.0, 5.0, 7.0,
+   real_t BtData[12] = {1.0, 3.0, 5.0, 7.0,
                         2.0, 4.0, 6.0, 8.0,
                         1.0, 2.0, 3.0, 5.0
                        };
@@ -118,14 +118,14 @@ TEST_CASE("DenseMatrix A*B^T methods",
 
    SECTION("MultABt")
    {
-      double BData[12] = {1.0, 2.0, 1.0,
+      real_t BData[12] = {1.0, 2.0, 1.0,
                           3.0, 4.0, 2.0,
                           5.0, 6.0, 3.0,
                           7.0, 8.0, 5.0
                          };
       DenseMatrix Bt(BData, 3, 4);
 
-      double CtData[8] = {16.0, 12.0,
+      real_t CtData[8] = {16.0, 12.0,
                           38.0, 29.0,
                           60.0, 46.0,
                           84.0, 64.0
@@ -145,10 +145,10 @@ TEST_CASE("DenseMatrix A*B^T methods",
    }
    SECTION("MultADBt")
    {
-      double DData[3] = {11.0, 7.0, 5.0};
+      real_t DData[3] = {11.0, 7.0, 5.0};
       Vector D(DData, 3);
 
-      double CtData[8] = {132.0, 102.0,
+      real_t CtData[8] = {132.0, 102.0,
                           330.0, 259.0,
                           528.0, 416.0,
                           736.0, 578.0
@@ -162,7 +162,7 @@ TEST_CASE("DenseMatrix A*B^T methods",
    }
    SECTION("AddMultABt")
    {
-      double CtData[8] = {17.0, 17.0,
+      real_t CtData[8] = {17.0, 17.0,
                           40.0, 35.0,
                           63.0, 53.0,
                           88.0, 72.0
@@ -184,10 +184,10 @@ TEST_CASE("DenseMatrix A*B^T methods",
    }
    SECTION("AddMultADBt")
    {
-      double DData[3] = {11.0, 7.0, 5.0};
+      real_t DData[3] = {11.0, 7.0, 5.0};
       Vector D(DData, 3);
 
-      double CtData[8] = {133.0, 107.0,
+      real_t CtData[8] = {133.0, 107.0,
                           332.0, 265.0,
                           531.0, 423.0,
                           740.0, 586.0
@@ -215,9 +215,9 @@ TEST_CASE("DenseMatrix A*B^T methods",
    }
    SECTION("AddMult_a_ABt")
    {
-      double a = 3.0;
+      real_t a = 3.0;
 
-      double CtData[8] = { 49.0,  41.0,
+      real_t CtData[8] = { 49.0,  41.0,
                            116.0,  93.0,
                            183.0, 145.0,
                            256.0, 200.0
@@ -239,14 +239,105 @@ TEST_CASE("DenseMatrix A*B^T methods",
    }
 }
 
+TEST_CASE("DenseMatrix A^T*B methods",
+          "[DenseMatrix]")
+{
+   real_t tol = 1e-12;
+
+   real_t AtData[6] = {6.0, 4.0, 2.0,
+                       5.0, 3.0, 1.0
+                      };
+   real_t BtData[12] = {1.0, 2.0, 1.0,
+                        3.0, 4.0, 2.0,
+                        5.0, 6.0, 3.0,
+                        7.0, 8.0, 5.0
+                       };
+
+   DenseMatrix A(AtData, 3, 2);
+   DenseMatrix B(BtData, 3, 4);
+   DenseMatrix C(2,4);
+
+   SECTION("MultAtB")
+   {
+      real_t AData[6] = {6.0, 5.0,
+                         4.0, 3.0,
+                         2.0, 1.0
+                        };
+      DenseMatrix At(AData, 2, 3);
+
+      real_t CtData[8] = {16.0, 12.0,
+                          38.0, 29.0,
+                          60.0, 46.0,
+                          84.0, 64.0
+                         };
+      DenseMatrix Cexact(CtData, 2, 4);
+
+      MultAtB(A, B, C);
+      C.Add(-1.0, Cexact);
+
+      REQUIRE(C.MaxMaxNorm() < tol);
+
+      Mult(At, B, Cexact);
+      MultAtB(A, B, C);
+      C.Add(-1.0, Cexact);
+
+      REQUIRE(C.MaxMaxNorm() < tol);
+   }
+   SECTION("AddMultAtB")
+   {
+      real_t CtData[8] = {17.0, 17.0,
+                          40.0, 35.0,
+                          63.0, 53.0,
+                          88.0, 72.0
+                         };
+      DenseMatrix Cexact(CtData, 2, 4);
+
+      C(0, 0) = 1.0; C(0, 1) = 2.0; C(0, 2) = 3.0; C(0, 3) = 4.0;
+      C(1, 0) = 5.0; C(1, 1) = 6.0; C(1, 2) = 7.0; C(1, 3) = 8.0;
+
+      AddMultAtB(A, B, C);
+      C.Add(-1.0, Cexact);
+
+      REQUIRE(C.MaxMaxNorm() < tol);
+
+      MultAtB(A, B, C);
+      C *= -1.0;
+      AddMultAtB(A, B, C);
+      REQUIRE(C.MaxMaxNorm() < tol);
+   }
+   SECTION("AddMult_a_AtB")
+   {
+      real_t a = 3.0;
+
+      real_t CtData[8] = { 49.0,  41.0,
+                           116.0,  93.0,
+                           183.0, 145.0,
+                           256.0, 200.0
+                         };
+      DenseMatrix Cexact(CtData, 2, 4);
+
+      C(0, 0) = 1.0; C(0, 1) = 2.0; C(0, 2) = 3.0; C(0, 3) = 4.0;
+      C(1, 0) = 5.0; C(1, 1) = 6.0; C(1, 2) = 7.0; C(1, 3) = 8.0;
+
+      AddMult_a_AtB(a, A, B, C);
+      C.Add(-1.0, Cexact);
+
+      REQUIRE(C.MaxMaxNorm() < tol);
+
+      MultAtB(A, B, C);
+      AddMult_a_AtB(-1.0, A, B, C);
+
+      REQUIRE(C.MaxMaxNorm() < tol);
+   }
+}
 
 TEST_CASE("LUFactors RightSolve", "[DenseMatrix]")
 {
-   double tol = 1e-12;
+   real_t tol = 1e-12;
 
    // Zero on diagonal forces non-trivial pivot
-   double AData[9] = { 0.0, 0.0, 3.0, 2.0, 2.0, 2.0, 2.0, 0.0, 4.0 };
-   double BData[6] = { 1.0, 2.0, 3.0, 4.0, 5.0, 6.0 };
+   real_t AData[9] = { 0.0, 0.0, 3.0, 2.0, 2.0, 2.0, 2.0, 0.0, 4.0 };
+   real_t BData[6] = { 1.0, 2.0, 3.0, 4.0, 5.0, 6.0 };
    int ipiv[3];
 
    DenseMatrix A(AData, 3, 3);
@@ -267,49 +358,138 @@ TEST_CASE("LUFactors RightSolve", "[DenseMatrix]")
    REQUIRE(C.MaxMaxNorm() < tol);
 }
 
-TEST_CASE("DenseTensor LinearSolve methods",
-          "[DenseMatrix]")
+TEST_CASE("Batched Linear Algebra",
+          "[DenseMatrix][GPU]")
 {
+   auto backend = GENERATE(BatchedLinAlg::NATIVE,
+                           BatchedLinAlg::GPU_BLAS,
+                           BatchedLinAlg::MAGMA);
+   // Skip unavailable backends
+   if (!BatchedLinAlg::IsAvailable(backend)) { return; }
+   CAPTURE(backend);
 
-   int N = 3;
-   DenseMatrix A(N);
-   A(0,0) = 4; A(0,1) =  5; A(0,2) = -2;
-   A(1,0) = 7; A(1,1) = -1; A(1,2) =  2;
-   A(2,0) = 3; A(2,1) =  1; A(2,2) =  4;
+   const int n = 3;
+   const int n_mat = 4;
+   const int n_rhs = 2;
 
-   double X[3] = { -14, 42, 28 };
+   DenseTensor A_batch(n, n, n_mat);
+   DenseTensor A_inv_batch(n, n, n_mat);
+   Vector x_batch(n * n_rhs * n_mat), y_batch(n * n_rhs * n_mat);
+   std::vector<DenseMatrix> As;
+   std::vector<DenseMatrix> xs, ys;
+   As.reserve(n_mat);
 
-   int NE = 10;
-   Vector X_batch(N*NE);
-   DenseTensor A_batch(N,N,NE);
-
-   auto a_batch = mfem::Reshape(A_batch.HostWrite(),N,N,NE);
-   auto x_batch = mfem::Reshape(X_batch.HostWrite(),N,NE);
-   // Column major
-   for (int e=0; e<NE; ++e)
+   int seed = 1;
+   for (int i = 0; i < n_mat; ++i)
    {
-
-      for (int r=0; r<N; ++r)
+      As.emplace_back(n, n);
+      xs.emplace_back(n, n_rhs);
+      for (int j = 0; j < n_rhs; ++j)
       {
-         for (int c=0; c<N; ++c)
+         Vector col;
+         xs.back().GetColumnReference(j, col);
+         col.Randomize(seed++);
+         for (int k = 0; k < n; ++k)
          {
-            a_batch(c, r, e) = A.GetData()[c+r*N];
+            x_batch[k + j*n + i*n*n_rhs] = xs.back()(k, j);
          }
-         x_batch(r,e) = X[r];
+      }
+      for (int j = 0; j < n; ++j)
+      {
+         Vector col;
+         As.back().GetColumnReference(j, col);
+         col.Randomize(seed++);
+         As.back()(j, j) += n + 1; // Ensure invertible
+      }
+      ys.emplace_back(n, n_rhs);
+      ys.back() = 0.0;
+      AddMult_a(1.5, As.back(), xs.back(), ys.back());
+      A_batch(i) = As.back();
+      A_inv_batch(i) = As.back();
+   }
+
+   // Test batched matrix-vector products
+   y_batch = 0.0;
+   BatchedLinAlg::Get(backend).AddMult(A_batch, x_batch, y_batch, 1.5, 1.0);
+   y_batch.HostReadWrite();
+   for (int i = 0; i < n_mat; ++i)
+   {
+      for (int j = 0; j < n_rhs; ++j)
+      {
+         for (int k = 0; k < n; ++k)
+         {
+            REQUIRE(y_batch[k + j*n + i*n*n_rhs] == MFEM_Approx(ys[i](k, j)));
+         }
       }
    }
 
-   Array<int> P;
-   BatchLUFactor(A_batch, P);
-   BatchLUSolve(A_batch, P, X_batch);
-
-   auto xans_batch = mfem::Reshape(X_batch.HostRead(),N,NE);
-   REQUIRE(LinearSolve(A,X));
-   for (int e=0; e<NE; ++e)
+   // Test batched transposed matrix-vector products
+   for (int i = 0; i < n_mat; ++i)
    {
-      for (int r=0; r<N; ++r)
+      ys[i] = 0.0;
+      // AddMult_a_AtB(1.5, As[i], xs[i], ys[i]);
+      AddMult_a_AtB(1.5, As[i], xs[i], ys[i]);
+   }
+   const BatchedLinAlg::Op op = BatchedLinAlg::Op::T;
+   y_batch = 0.0;
+   BatchedLinAlg::Get(backend).AddMult(A_batch, x_batch, y_batch, 1.5, 1.0, op);
+   y_batch.HostReadWrite();
+   for (int i = 0; i < n_mat; ++i)
+   {
+      for (int j = 0; j < n_rhs; ++j)
       {
-         REQUIRE(xans_batch(r,e) == MFEM_Approx(X[r]));
+         for (int k = 0; k < n; ++k)
+         {
+            REQUIRE(y_batch[k + j*n + i*n*n_rhs] == MFEM_Approx(ys[i](k, j)));
+         }
+      }
+   }
+
+   // Test batched LU factorization and solve
+   Array<int> P;
+   BatchedLinAlg::Get(backend).LUFactor(A_batch, P);
+   BatchedLinAlg::Get(backend).LUSolve(A_batch, P, x_batch);
+   for (int i = 0; i < n_mat; ++i)
+   {
+      DenseMatrixInverse Ai_inv(As[i]);
+      Ai_inv.Mult(xs[i]);
+   }
+   x_batch.HostReadWrite();
+   for (int i = 0; i < n_mat; ++i)
+   {
+      for (int j = 0; j < n_rhs; ++j)
+      {
+         for (int k = 0; k < n; ++k)
+         {
+            REQUIRE(x_batch[k + j*n + i*n*n_rhs] == MFEM_Approx(xs[i](k, j), 1e-10));
+         }
+      }
+   }
+
+   // Test batched matrix inverse
+   BatchedLinAlg::Get(backend).Invert(A_inv_batch);
+   A_inv_batch.HostReadWrite();
+   Vector output_col(n);
+   Vector col;
+   for (int i = 0; i < n_mat; ++i)
+   {
+      DenseMatrix Ai_inv(A_inv_batch(i));
+      for (int j = 0; j < n; ++j)
+      {
+         output_col = 0.0;
+         As[i].GetColumnReference(j, col);
+         Ai_inv.Mult(col, output_col);
+         for (int k = 0; k < n; ++k)
+         {
+            if (j == k)
+            {
+               REQUIRE(output_col(k) == MFEM_Approx(1.0));
+            }
+            else
+            {
+               REQUIRE(output_col(k) == MFEM_Approx(0.0));
+            }
+         }
       }
    }
 }
@@ -340,6 +520,257 @@ TEST_CASE("DenseTensor copy", "[DenseMatrix][DenseTensor]")
       REQUIRE(t2.Data()[i] == t1.Data()[i]);
       REQUIRE(t3.Data()[i] == t1.Data()[i]);
    }
+}
+
+TEST_CASE("MatrixInverse", "[DenseMatrix]")
+{
+   real_t tol = 1e-10;
+
+   // Matrix A (SPD)
+   DenseMatrix A(
+   {
+      {
+         1.559453389560368e+00, 5.965183717114262e-01,
+         1.903876670171460e+00, 1.384516640661015e+00
+      },
+      {
+         5.965183717114262e-01, 3.656585217096903e-01,
+         7.317620734480207e-01, 4.653402963736278e-01
+      },
+      {
+         1.903876670171460e+00, 7.317620734480207e-01,
+         2.706704015120572e+00, 1.697243809652791e+00
+      },
+      {
+         1.384516640661015e+00, 4.653402963736278e-01,
+         1.697243809652791e+00, 1.320372849564658e+00
+      }
+   });
+
+   // RHS matrix B
+   DenseMatrix B(
+   {
+      {
+         6.175090593002799e-01, 9.989213039418627e-01,
+         1.691674567847143e-01, 6.774773197526213e-01
+      },
+      {
+         7.162984888260597e-01, 4.577976465165907e-01,
+         8.477214625276694e-01, 3.907031906476549e-01
+      },
+      {
+         5.953027962207859e-01, 1.037064248746427e-02,
+         7.764894404084814e-01, 2.585226682834829e-01
+      },
+      {
+         3.675754332095076e-02, 9.507296088377276e-01,
+         3.587644396028470e-01, 5.723263850552165e-01
+      }
+   });
+
+   // RHS vector x
+   Vector x({1.920973609694743e-01,
+             2.483675821733969e-01,
+             2.753206172398688e-01,
+             2.497813883310917e-01});
+
+   SECTION("DenseMatrixInverse")
+   {
+      /** DenseMatrixInverse for an SPD matrix A
+          treated as a general matrix */
+      DenseMatrixInverse lu(A);
+      /** DenseMatrixInverse for an SPD matrix A
+          treated as an SPD matrix */
+      DenseMatrixInverse chol(A,true);
+
+      DenseMatrix invA1;
+      lu.GetInverseMatrix(invA1);
+      DenseMatrix invA2;
+      chol.GetInverseMatrix(invA2);
+
+      invA2-=invA1;
+      /** Verify that the inverse matrices match
+          i.e., (L L^t)^-1 = (L U)^-1  */
+      REQUIRE(invA2.MaxMaxNorm() == MFEM_Approx(0.,tol));
+
+      DenseMatrix B1(4), B2(4);
+      lu.Mult(B,B1);
+      chol.Mult(B,B2);
+      B1-=B2;
+      /** Verify that the linear solves match for a RHS matrix B
+          i.e., (L L^t)^-1 * B = (L U)^-1 * B  */
+      REQUIRE(B1.MaxMaxNorm() == MFEM_Approx(0.,tol));
+
+      Vector y1(4), y2(4);
+      lu.Mult(x,y1);
+      chol.Mult(x,y2);
+      y1-=y2;
+      /** Verify that the linear solves match for a RHS vector x
+          i.e., (L L^t)^-1 * x = (L U)^-1 * x  */
+      REQUIRE(y1.Norml2() == MFEM_Approx(0.,tol));
+   }
+
+   SECTION("CholeskyFactors")
+   {
+      DenseMatrix A1(A);
+      Array<int> ipiv(4);
+      LUFactors lu(A1.GetData(), ipiv.GetData());
+      lu.Factor(4);
+      DenseMatrix B1(B);
+      lu.RightSolve(4,4,B1.Data());
+
+      DenseMatrix A2(A);
+      CholeskyFactors chol(A2.GetData());
+      chol.Factor(4);
+      DenseMatrix B2(B);
+      chol.RightSolve(4,4,B2.Data());
+
+      B1-=B2;
+      /** Verify that the right solves match
+          i.e., B (L L^t)^-1 = B (L U)^-1  */
+      REQUIRE(B1.MaxMaxNorm() == MFEM_Approx(0.,tol));
+
+      // Exact L such that A = L L^t
+      DenseMatrix L_exact(
+      {
+         {
+            1.248780761206853e+00, 0.000000000000000e+00,
+            0.000000000000000e+00, 0.000000000000000e+00
+         },
+         {
+            4.776806227659496e-01, 3.707826106273389e-01,
+            0.000000000000000e+00, 0.000000000000000e+00
+         },
+         {
+            1.524588405999709e+00, 9.427988552156243e-03,
+            6.182599133404151e-01, 0.000000000000000e+00
+         },
+         {
+            1.108694723422055e+00, -1.733136552957947e-01,
+            1.386906623495105e-02,  2.468580274379029e-01
+         }
+      });
+
+      B2 = B;
+      chol.LMult(4,4,B2.GetData());
+      Mult(L_exact,B,B1);
+      B1-=B2;
+      /** Check the action of L to a RHS matrix B
+          i.e, L B = L_exact B */
+      REQUIRE(B1.MaxMaxNorm() == MFEM_Approx(0.,tol));
+      Vector y1(4);
+      Vector y2(x);
+
+      L_exact.Mult(x,y1);
+      chol.LMult(4,1,y2.GetData());
+      y1-=y2;
+      /** Check the action of L to a RHS vector x
+          i.e, L x = L_exact x */
+      REQUIRE(y1.Norml2() == MFEM_Approx(0.,tol));
+
+      y2 = x;
+      L_exact.MultTranspose(x,y1);
+      chol.UMult(4,1,y2.GetData());
+      y1-=y2;
+      /** Check the action of L to a RHS vector x
+          i.e, L x = L_exact x */
+      REQUIRE(y1.Norml2() == MFEM_Approx(0.,tol));
+
+      y2 = x;
+      L_exact.Invert();
+      L_exact.Mult(x,y1);
+      chol.LSolve(4,1,y2.GetData());
+      y1-=y2;
+      /** Verify lower triangular solve with a RHS vector x
+          i.e, L^-1 x = L_exact^-1 x */
+      REQUIRE(y1.Norml2() == MFEM_Approx(0.,tol));
+
+      y2 = x;
+
+      L_exact.MultTranspose(x,y1);
+      chol.USolve(4,1,y2.GetData());
+      y1-=y2;
+      /** Verify upper triangular solve with a RHS vector x
+          i.e, L^-t x = L_exact^-t x */
+      REQUIRE(y1.Norml2() == MFEM_Approx(0.,tol));
+
+      B2 = B;
+      chol.LSolve(4,4,B2.GetData());
+      Mult(L_exact,B,B1);
+      B1-=B2;
+      /** Verify lower triangular solve with a RHS matrix B
+          i.e, L^-1 B = L_exact^-1 B */
+      REQUIRE(B1.MaxMaxNorm() == MFEM_Approx(0.,tol));
+
+      B2 = B;
+      chol.USolve(4,4,B2.GetData());
+      MultAtB(L_exact,B,B1);
+      B1-=B2;
+      /** Verify upper triangular solve with a RHS matrix B
+          i.e, L^-t B = L_exact^-t B */
+      REQUIRE(B1.MaxMaxNorm() == MFEM_Approx(0.,tol));
+   }
+
+}
+
+TEST_CASE("Exponential", "[DenseMatrix]")
+{
+   // case 1
+   DenseMatrix A(2,2);
+   A(0,0) = 5.0;
+   A(0,1) = 3.0;
+   A(1,0) = 0.0;
+   A(1,1) = 5.0;
+   A.Exponential();
+
+   DenseMatrix expA(2,2);
+   expA(0,0) = std::exp(5.0);
+   expA(0,1) = 3.0 * std::exp(5.0);
+   expA(1,0) = 0.0;
+   expA(1,1) = std::exp(5.0);
+
+   A.Print();
+   expA.Print();
+   REQUIRE(A(0,0) == MFEM_Approx(expA(0,0)));
+   REQUIRE(A(0,1) == MFEM_Approx(expA(0,1)));
+   REQUIRE(A(1,0) == MFEM_Approx(expA(1,0)));
+   REQUIRE(A(1,1) == MFEM_Approx(expA(1,1)));
+
+   // case 2
+   A(0,0) = 3.0;
+   A(0,1) = 5.0;
+   A(1,0) = 4.0;
+   A(1,1) = 2.0;
+   A.Exponential();
+
+   expA(0,0) = 4.0 / (9.0 * std::exp(2.0)) + (5.0 * std::exp(7.0)) / 9.0;
+   expA(0,1) = (5.0 * std::exp(7.0)) / 9.0 - 5.0 / (9.0 * std::exp(2.0));
+   expA(1,0) = (4.0 * std::exp(7.0)) / 9.0 - 4.0 / (9.0 * std::exp(2.0));
+   expA(1,1) = 5.0 / (9.0 * std::exp(2.0)) + (4.0 * std::exp(7.0)) / 9.0;
+
+   REQUIRE(A(0,0) == MFEM_Approx(expA(0,0)));
+   REQUIRE(A(0,1) == MFEM_Approx(expA(0,1)));
+   REQUIRE(A(1,0) == MFEM_Approx(expA(1,0)));
+   REQUIRE(A(1,1) == MFEM_Approx(expA(1,1)));
+
+   // case 3
+   A(0,0) = 10.0;
+   A(0,1) = 2.0;
+   A(1,0) = -2.0;
+   A(1,1) = 8.0;
+   A.Exponential();
+
+   expA(0,0) = std::exp(9.0) * (std::sin(std::sqrt(3.0)) / std::sqrt(3.0)
+                                + std::cos(std::sqrt(3.0)));
+   expA(0,1) = 2.0 * std::exp(9.0) * std::sin(std::sqrt(3.0)) / std::sqrt(3.0);
+   expA(1,0) = - 2.0 * std::exp(9.0) * std::sin(std::sqrt(3.0)) / std::sqrt(3.0);
+   expA(1,1) = std::exp(9.0) * (std::cos(std::sqrt(3.0))
+                                - std::sin(std::sqrt(3.0)) / std::sqrt(3.0));
+
+   REQUIRE(A(0,0) == MFEM_Approx(expA(0,0)));
+   REQUIRE(A(0,1) == MFEM_Approx(expA(0,1)));
+   REQUIRE(A(1,0) == MFEM_Approx(expA(1,0)));
+   REQUIRE(A(1,1) == MFEM_Approx(expA(1,1)));
 }
 
 #ifdef MFEM_USE_LAPACK
@@ -484,7 +915,7 @@ TEST_CASE("Eigensystem Problems",
       break;
       case TestCase::SVD:
       {
-         DenseMatrixSVD svd(M,true,true);
+         DenseMatrixSVD svd(M,'A','A');
          svd.Eval(M);
          Vector &sigma = svd.Singularvalues();
          DenseMatrix &U = svd.LeftSingularvectors();
@@ -499,6 +930,34 @@ TEST_CASE("Eigensystem Problems",
       }
       break;
    }
+}
+
+TEST_CASE("NNLS", "[DenseMatrix]")
+{
+   const int m = 3;
+   const int n = 5;
+   DenseMatrix G(m,n);
+   G = 0.0;
+
+   for (int i=0; i<m; ++i)
+      for (int j=0; j<n; ++j)
+      {
+         G(i,j) = j;
+      }
+
+   Vector w(n);
+   w = 1.0;
+
+   Vector sol(n);
+
+   NNLSSolver nnls;
+   nnls.SetVerbosity(2);
+   nnls.SetOperator(G);
+
+   nnls.Mult(w, sol);
+
+   REQUIRE(sol.Norml2() == MFEM_Approx(2.5));
+   REQUIRE(sol[4] == MFEM_Approx(2.5));
 }
 
 #endif // if MFEM_USE_LAPACK

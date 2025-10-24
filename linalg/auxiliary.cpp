@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -55,7 +55,7 @@ void GeneralAMS::FormResidual(const Vector& rhs, const Vector& x,
   This implementation follows that in hypre, see hypre_ParCSRSubspacePrec()
   in hypre/src/parcsr_ls/ams.c and also hypre_AMSSolve() in the same file.
 
-  hypre's default cyle (cycle 1) is "01210", ie, smooth, correct in space
+  hypre's default cycle (cycle 1) is "01210", ie, smooth, correct in space
   1, correct in space 2, correct in space 1, smooth. Their space 1 is G and
   space 2 is Pi by default.
 
@@ -338,7 +338,7 @@ public:
       }
    }
 
-   void Mult(const Vector& x, Vector& y) const
+   void Mult(const Vector& x, Vector& y) const override
    {
       amg_->Mult(x, y);
 
@@ -349,9 +349,9 @@ public:
       }
    }
 
-   void SetOperator(const Operator&) { }
+   void SetOperator(const Operator&) override { }
 
-   ~ZeroWrapAMG()
+   ~ZeroWrapAMG() override
    {
       delete amg_;
    }
@@ -433,7 +433,7 @@ MatrixFreeAMS::MatrixFreeAMS(
    int inner_pi_iterations, int inner_g_iterations, Solver * nd_smoother) :
    Solver(oper.Height())
 {
-   int order = nd_fespace.GetFE(0)->GetOrder();
+   int order = nd_fespace.GetTypicalFE()->GetOrder();
    ParMesh *mesh = nd_fespace.GetParMesh();
    int dim = mesh->Dimension();
 

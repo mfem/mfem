@@ -8,7 +8,7 @@
 <a href="https://github.com/mfem/mfem/actions?query=workflow%3Abuild-analysis+branch%3Amaster"><img alt="Build Analysis" src="https://github.com/mfem/mfem/actions/workflows/mfem-analysis.yml/badge.svg?branch=master"></a>
 <a href="https://github.com/mfem/mfem/actions?query=workflow%3Abuilds-and-tests+branch%3Amaster"><img alt="Builds and Tests" src="https://github.com/mfem/mfem/actions/workflows/builds-and-tests.yml/badge.svg?branch=master"></a>
 <a href="https://ci.appveyor.com/project/mfem/mfem"><img alt="Build Status" src="https://ci.appveyor.com/api/projects/status/19non9sqm6msi2wy?svg=true"></a>
-<a href="https://mfem.github.io/doxygen/html/index.html"><img alt="Doxygen" src="https://img.shields.io/badge/code-documented-brightgreen.svg"></a>
+<a href="https://docs.mfem.org/html/index.html"><img alt="Doxygen" src="https://img.shields.io/badge/code-documented-brightgreen.svg"></a>
 </p>
 
 
@@ -102,7 +102,9 @@ The MFEM source code has the following structure:
   .
   ├── config
   │   ├── cmake
-  │   └── githooks
+  │   ├── docker
+  │   ├── githooks
+  │   └── vcpkg
   ├── data
   ├── doc
   ├── examples
@@ -111,36 +113,53 @@ The MFEM source code has the following structure:
   │   ├── ginkgo
   │   ├── hiop
   │   ├── jupyter
+  │   ├── moonolith
   │   ├── petsc
   │   ├── pumi
   │   ├── sundials
   |   └── superlu
   ├── fem
   │   ├── ceed
+  │   ├── dfem
+  │   ├── eltrans
   │   ├── fe
+  │   ├── gslib
+  │   ├── integ
+  │   ├── lor
+  │   ├── moonolith
   │   ├── qinterp
   │   └── tmop
   ├── general
   ├── linalg
+  │   ├── batched
   │   └── simd
   ├── mesh
+  │   └── submesh
   ├── miniapps
   │   ├── adjoint
   │   ├── autodiff
   │   ├── common
+  │   ├── dfem
+  │   ├── dpg
   │   ├── electromagnetics
   │   ├── gslib
+  │   ├── hdiv-linear-solver
+  │   ├── hooke
   │   ├── meshing
   │   ├── mtop
+  │   ├── multidomain
   │   ├── navier
   │   ├── nurbs
   │   ├── parelag
   │   ├── performance
   │   ├── shifted
   │   ├── solvers
+  │   ├── spde
   │   ├── tools
-  │   └── toys
+  │   ├── toys
+  │   └── tribol
   └── tests
+      ├── benchmarks
       ├── convergence
       ├── gitlab
       ├── mem_manager
@@ -156,24 +175,24 @@ classes implementing the finite element, mesh and linear algebra concepts
 respectively.
 
 - The main mesh classes are:
-  + [`Mesh`](https://mfem.github.io/doxygen/html/classmfem_1_1Mesh.html)
-  + [`NCMesh`](https://mfem.github.io/doxygen/html/classmfem_1_1NCMesh.html)
-  + [`Element`](https://mfem.github.io/doxygen/html/classmfem_1_1Element.html)
-  + [`ElementTransformation`](https://mfem.github.io/doxygen/html/classmfem_1_1ElementTransformation.html)
+  + [`Mesh`](https://docs.mfem.org/html/classmfem_1_1Mesh.html)
+  + [`NCMesh`](https://docs.mfem.org/html/classmfem_1_1NCMesh.html)
+  + [`Element`](https://docs.mfem.org/html/classmfem_1_1Element.html)
+  + [`ElementTransformation`](https://docs.mfem.org/html/classmfem_1_1ElementTransformation.html)
 
 - The main finite element classes are:
-  + [`FiniteElement`](https://mfem.github.io/doxygen/html/classmfem_1_1FiniteElement.html)
-  + [`FiniteElementCollection`](https://mfem.github.io/doxygen/html/classmfem_1_1FiniteElement.html)
-  + [`FiniteElementSpace`](https://mfem.github.io/doxygen/html/classmfem_1_1FiniteElementSpace.html)
-  + [`GridFunction`](https://mfem.github.io/doxygen/html/classmfem_1_1GridFunction.html)
-  + [`BilinearFormIntegrator`](https://mfem.github.io/doxygen/html/classmfem_1_1BilinearFormIntegrator.html) and [`LinearFormIntegrator`](https://mfem.github.io/doxygen/html/classmfem_1_1LinearFormIntegrator.html)
-  + [`LinearForm`](https://mfem.github.io/doxygen/html/classmfem_1_1LinearFormIntegrator.html), [`BilinearForm`](https://mfem.github.io/doxygen/html/classmfem_1_1BilinearForm.html) and [`MixedBilinearForm`](https://mfem.github.io/doxygen/html/classmfem_1_1MixedBilinearForm.html)
+  + [`FiniteElement`](https://docs.mfem.org/html/classmfem_1_1FiniteElement.html)
+  + [`FiniteElementCollection`](https://docs.mfem.org/html/classmfem_1_1FiniteElement.html)
+  + [`FiniteElementSpace`](https://docs.mfem.org/html/classmfem_1_1FiniteElementSpace.html)
+  + [`GridFunction`](https://docs.mfem.org/html/classmfem_1_1GridFunction.html)
+  + [`BilinearFormIntegrator`](https://docs.mfem.org/html/classmfem_1_1BilinearFormIntegrator.html) and [`LinearFormIntegrator`](https://docs.mfem.org/html/classmfem_1_1LinearFormIntegrator.html)
+  + [`LinearForm`](https://docs.mfem.org/html/classmfem_1_1LinearFormIntegrator.html), [`BilinearForm`](https://docs.mfem.org/html/classmfem_1_1BilinearForm.html) and [`MixedBilinearForm`](https://docs.mfem.org/html/classmfem_1_1MixedBilinearForm.html)
 
 - The main linear algebra classes and sources are
-  + [`Operator`](https://mfem.github.io/doxygen/html/classmfem_1_1Operator.html) and [`BilinearForm`](https://mfem.github.io/doxygen/html/classmfem_1_1BilinearForm.html)
-  + [`Vector`](https://mfem.github.io/doxygen/html/classmfem_1_1BilinearForm.html) and [`LinearForm`](https://mfem.github.io/doxygen/html/classmfem_1_1LinearForm.html)
-  + [`DenseMatrix`](https://mfem.github.io/doxygen/html/classmfem_1_1DenseMatrix.html) and [`SparseMatrix`](https://mfem.github.io/doxygen/html/classmfem_1_1SparseMatrix.html)
-  + Sparse [smoothers](https://mfem.github.io/doxygen/html/sparsesmoothers_8hpp.html) and linear [solvers](https://mfem.github.io/doxygen/html/solvers_8hpp.html)
+  + [`Operator`](https://docs.mfem.org/html/classmfem_1_1Operator.html) and [`BilinearForm`](https://docs.mfem.org/html/classmfem_1_1BilinearForm.html)
+  + [`Vector`](https://docs.mfem.org/html/classmfem_1_1BilinearForm.html) and [`LinearForm`](https://docs.mfem.org/html/classmfem_1_1LinearForm.html)
+  + [`DenseMatrix`](https://docs.mfem.org/html/classmfem_1_1DenseMatrix.html) and [`SparseMatrix`](https://docs.mfem.org/html/classmfem_1_1SparseMatrix.html)
+  + Sparse [smoothers](https://docs.mfem.org/html/sparsesmoothers_8hpp.html) and linear [solvers](https://docs.mfem.org/html/solvers_8hpp.html)
 
 #### Parallel implementation
 
@@ -183,13 +202,13 @@ shared geometric entities between different tasks. The parallel source files
 have a `p` prefix, e.g. `pmesh.cpp` vs. the serial `mesh.cpp`.
 
 - The main parallel classes are
-  + [`ParMesh`](https://mfem.github.io/doxygen/html/solvers_8hpp.html)
-  + [`ParNCMesh`](https://mfem.github.io/doxygen/html/classmfem_1_1ParMesh.html)
-  + [`ParFiniteElementSpace`](https://mfem.github.io/doxygen/html/classmfem_1_1ParFiniteElementSpace.html)
-  + [`ParGridFunction`](https://mfem.github.io/doxygen/html/classmfem_1_1ParGridFunction.html)
-  + [`ParBilinearForm`](https://mfem.github.io/doxygen/html/classmfem_1_1ParBilinearForm.html) and [`ParLinearForm`](https://mfem.github.io/doxygen/html/classmfem_1_1ParLinearForm.html)
-  + [`HypreParMatrix`](https://mfem.github.io/doxygen/html/classmfem_1_1HypreParMatrix.html) and [`HypreParVector`](https://mfem.github.io/doxygen/html/classmfem_1_1HypreParVector.html)
-  + [`HypreSolver`](https://mfem.github.io/doxygen/html/classmfem_1_1HypreSolver.html) and other [hypre classes](https://mfem.github.io/doxygen/html/hypre_8hpp.html)
+  + [`ParMesh`](https://docs.mfem.org/html/solvers_8hpp.html)
+  + [`ParNCMesh`](https://docs.mfem.org/html/classmfem_1_1ParMesh.html)
+  + [`ParFiniteElementSpace`](https://docs.mfem.org/html/classmfem_1_1ParFiniteElementSpace.html)
+  + [`ParGridFunction`](https://docs.mfem.org/html/classmfem_1_1ParGridFunction.html)
+  + [`ParBilinearForm`](https://docs.mfem.org/html/classmfem_1_1ParBilinearForm.html) and [`ParLinearForm`](https://docs.mfem.org/html/classmfem_1_1ParLinearForm.html)
+  + [`HypreParMatrix`](https://docs.mfem.org/html/classmfem_1_1HypreParMatrix.html) and [`HypreParVector`](https://docs.mfem.org/html/classmfem_1_1HypreParVector.html)
+  + [`HypreSolver`](https://docs.mfem.org/html/classmfem_1_1HypreSolver.html) and other [hypre classes](https://docs.mfem.org/html/hypre_8hpp.html)
 
 #### GPU and general device support
 
@@ -198,10 +217,10 @@ backends (CUDA, OCCA, RAJA, OpenMP, etc.) and an internal lightweight
 device/host memory manager.
 
 - The main device-relevant classes and sources are:
-  + [`Device`](https://mfem.github.io/doxygen/html/device_8hpp.html)
-  + [`MemoryManager`](https://mfem.github.io/doxygen/html/mem_manager_8hpp.html)
-  + the [`MFEM_FORALL`](https://mfem.github.io/doxygen/html/forall_8hpp.html) macro
-  + the [`cuda.hpp`](https://mfem.github.io/doxygen/html/cuda_8hpp.html) and [`occa.hpp`](https://mfem.github.io/doxygen/html/occa_8hpp.html) files
+  + [`Device`](https://docs.mfem.org/html/device_8hpp.html)
+  + [`MemoryManager`](https://docs.mfem.org/html/mem_manager_8hpp.html)
+  + the [`mfem::forall`](https://docs.mfem.org/html/forall_8hpp.html) function
+  + the [`cuda.hpp`](https://docs.mfem.org/html/cuda_8hpp.html) and [`occa.hpp`](https://docs.mfem.org/html/occa_8hpp.html) files
 
 #### Utilities, building and documentation
 - The `general/` directory contains C++ classes that serve as utilities for
@@ -209,8 +228,7 @@ device/host memory manager.
 - The `config/` directory contains build-related files, both for the plain
   Makefile and the CMake build options.
 - The `doc/` directory contains configuration for the Doxygen code documentation
-  that can either be built locally or browsed online at
-  https://mfem.github.io/doxygen/html/index.html.
+  that can either be built locally or browsed online at https://docs.mfem.org.
 
 #### Examples and tests
 - `examples` and `miniapps` respectively gather simple and more fully-featured
@@ -334,6 +352,9 @@ Before you can start, you need a GitHub account, here are a few suggestions:
 - Code specifics
   - All new public, protected, and private classes, methods, data members, and
     functions have Doxygen-style documentation in source comments.
+  - Math formulas can be included in the Doxygen comments either with standard
+    LaTeX (`$..$` and `$$..$$`) for portions that need detailed explanation, or with
+    [Unicode](https://www.unicodeit.net/) or plain text when short or readable description is preferable.
   - In addition to arguments and functionality, documentation should include the
     current limitations of the code, any background information that is
     implicitly assumed in the implementation, and the ownership and lifetime
@@ -347,6 +368,8 @@ Before you can start, you need a GitHub account, here are a few suggestions:
     conflicted files in the commit message.
   - All significant new features and changes should be documented in CHANGELOG.
   - New examples and miniapps should have documentation on the MFEM webpage.
+  - The general floating-point type `real_t` should be used, rather than
+    `float` or `double`, except in special cases where only one is possible.
 
 
 ### Pull Requests
@@ -430,10 +453,10 @@ The Pull Request (PR) approval process in MFEM is similar to the approval of pap
 
 The current list of MFEM editors is:
 
-- @v-dobrev (Veselin Dobrev)
-- @tzanio (Tzanio Kolev)
-- @pazner (Will Pazner)
-- @mlstowell (Mark Stowell)
+- [@v-dobrev](https://github.com/v-dobrev) (Veselin Dobrev)
+- [@tzanio](https://github.com/tzanio) (Tzanio Kolev)
+- [@pazner](https://github.com/pazner) (Will Pazner)
+- [@mlstowell](https://github.com/mlstowell) (Mark Stowell)
 
 **The responsibilities of the editors are:**
 
@@ -528,6 +551,8 @@ Before a PR can be merged, it should satisfy the following:
       - [ ] Add a short description of the example in the "Extensive Examples" section of `features.md`.
 - [ ] New miniapps:
    - [ ] All sample runs at the top of the miniapp source file work.
+   - [ ] Add to internal testing repo, if sample runs should be included in nightly tests [internally](#tests-at-llnl).
+   - [ ] Exclude long sample runs from automated testing, with `* ` (one space) before the command.
    - [ ] Update top-level `makefile` and `makefile` in corresponding miniapp directory.
    - [ ] Add the miniapp binary and any files generated by it to the top-level `.gitignore` file.
    - [ ] Update CMake build system:
@@ -639,7 +664,7 @@ MFEM uses a `master`/`next`-branch workflow as described below:
   ```
 - [ ] Create the release tarball and push to `mfem/releases`.
 - [ ] Recreate the `next` branch as described in previous section.
-- [ ] Update and push documentation  to `mfem/doxygen`.
+- [ ] Update and push documentation to `mfem/doxygen`. Update the `README.md` file and the `html` link in the `mfem/doxygen` repo.
 - [ ] Update URL shortlinks:
     - [ ] Create a shortlink at [http://bit.ly/](http://bit.ly/) for the release tarball, e.g. https://mfem.github.io/releases/mfem-3.1.tgz.
     - [ ] (LLNL only) Add and commit the new shortlink in the `links` and `links-mfem` files of the internal `mfem/downloads` repo.
@@ -722,7 +747,7 @@ and debug build is performed with a simple run of `ex1` to verify the executable
 - We mirror the `master` and `next` branches internally (to `gh-master` and
   `gh-next`) and run longer nightly tests via cron. On the weekends, a more
   extensive test is run which extracts and executes all the different sample
-  runs from each example.
+  runs from each example and most miniapps.
 
 - We also mirror PRs on the LLNL GitLab instance. PR mirroring can only be
   triggered by _LLNL developers_, but test status is publicly available. Only

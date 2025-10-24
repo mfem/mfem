@@ -1,3 +1,6 @@
+
+FIXME: this file needs to be updated
+
 # HowTo: Reproduce CI jobs interactively.
 
 We rely on Spack, driven by uberenv, to build MFEM dependencies automatically
@@ -26,6 +29,48 @@ Those modes are essentially the same, but we emphasize building the
 dependencies as a first isolated step because it makes it clear what is
 happening and how to use this workflow.
 
+## Shortcut:
+
+To help developers reproduce jobs from the CI, a reproducer script is printed
+in each job that will allow for fast and accurate reproduction of the same
+scenario as in the CI job. Below is an example extracted for a CI job log:
+
+```bash
+working_dir="/usr/workspace/${USER}/mfem/2405156-$(date +%s)"
+mkdir -p ${working_dir} && cd ${working_dir}
+git clone https://github.com/MFEM/mfem.git --single-branch --depth=1
+cd mfem
+git fetch origin --depth=1 4868222660f03e15ebf7a6daca90800b64baf69d
+git checkout 4868222660f03e15ebf7a6daca90800b64baf69d
+git submodule update --init --recursive
+
+# Variables
+export SPEC="%gcc@8.3.1 +mpi +cuda cuda_arch=70"
+
+# Directories
+export BUILD_ROOT="${working_dir}"
+export SHARED_REPOS_DIR="${BUILD_ROOT}/.."
+export MFEM_DATA_DIR="${SHARED_REPOS_DIR}/mfem-data"
+
+# Repositories
+export TPLS_REPO="ssh://git@mybitbucket.llnl.gov:7999/mfem/tpls.git"
+export TESTS_REPO="ssh://git@mybitbucket.llnl.gov:7999/mfem/tests.git"
+export AUTOTEST_REPO="ssh://git@mybitbucket.llnl.gov:7999/mfem/autotest.git"
+export MFEM_DATA_REPO="https://github.com/mfem/data.git"
+
+# Setup directories
+./tests/gitlab/build_and_test_setup
+
+# Using the CI build cache is optional and requires a token. Set it like so:
+# export REGISTRY_TOKEN="<your token here>"
+
+lalloc 1 -W 45 -q pci --atsdisable tests/gitlab/build_and_test --spec "%gcc@8.3.1 +mpi +cuda cuda_arch=70" --data-dir "/usr/workspace/mfem/gitlab-runner/bernede1/repos/mfem-data" --data
+```
+
+**NOTE**
+
+The REGISTRY_TOKEN can be set using a GitLab Personal Access Token (PAT) with read access to gitlab container registry. This allows to speed up the local builds by fetching the dependencies library instead of building them.
+
 ## Prerequisite: Retrieve Uberenv
 
 ```bash
@@ -42,7 +87,7 @@ patch.
 
 ## Install Dependencies
 
-### Option #1: Using the CI script
+### Option 1: Using the CI script
 
 ```bash
 ./tests/gitlab/build_and_test --deps-only --spec "%gcc@6.1.0 +sundials"
@@ -56,7 +101,7 @@ through the `--spec` option.
 
 Virtually any spec can be provided, but you should check which compilers are
 defined in the spack configuration
-(`tests/uberenv/spack-configs/<sys_type>/compilers.yaml).
+(`tests/uberenv/spack-configs/<sys_type>/compilers.yaml`).
 
 As a result, dependencies will be installed under `uberenv_libs`.  The
 configuration files `spack-config.mk` and `spack_config.hpp` will be generated
@@ -69,11 +114,11 @@ those files were generated, otherwise `make all` would just regenerate them.
 When `build_and_test` needs to build the dependencies, i.e. (a) `--deps-only` is
 used, or (b) none of the `--XXX-only` options is used, then the script behaves
 slightly differently. In case (b), it will build and install dependencies in
-`/dev/shm` for better performance. However, this is only valid if we don’t want
+`/dev/shm` for better performance. However, this is only valid if we don't want
 the installation to persist. Installation will happen locally to the uberenv
 directory in case (a), i.e. if `--deps-only` is used.
 
-### Option #2: Calling uberenv directly
+### Option 2: Calling uberenv directly
 
 ```bash
 python ./tests/uberenv/uberenv.py --spec="%gcc@6.1.0 +sundials"
@@ -88,7 +133,12 @@ but still ready to use.
 
 ## Build and test MFEM
 
-### Option #1: Without using scripts
+**NOTE**
+
+If you need mfem data and/or the autotest repo, you may clone them next to your
+mfem repository.
+
+### Option 1: Without using scripts
 
 ```bash
 \# optional: the spack config is saved in copies (in case you reconfigure MFEM
@@ -106,7 +156,7 @@ The key here is that the configuration files were generated during the spack
 run: they will point to the dependencies location, and apply any option
 selected with MFEM spec variants in Spack.
 
-### Option #2: Using the CI script
+### Option 2: Using the CI script
 
 ```bash
 ./tests/gitlab/build_and_test --build-only

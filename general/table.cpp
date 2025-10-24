@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -34,6 +34,78 @@ Table::Table(const Table &table)
       J.New(nnz, table.J.GetMemoryType());
       I.CopyFrom(table.I, size+1);
       J.CopyFrom(table.J, nnz);
+   }
+}
+
+Table::Table(const Table &table1,
+             const Table &table2, int offset)
+{
+   MFEM_ASSERT(table1.size == table2.size,
+               "Tables have different sizes can not merge.");
+   size = table1.size;
+
+   const int nnz = table1.I[size] + table2.I[size];
+   I.New(size+1, table1.I.GetMemoryType());
+   J.New(nnz, table1.J.GetMemoryType());
+
+   I[0] = 0;
+   Array<int> row;
+   for (int i = 0; i < size; i++)
+   {
+      I[i+1] = I[i];
+
+      table1.GetRow(i, row);
+      for (int r = 0; r < row.Size(); r++,  I[i+1] ++)
+      {
+         J[ I[i+1] ] = row[r];
+      }
+
+      table2.GetRow(i, row);
+      for (int r = 0; r < row.Size(); r++,  I[i+1] ++)
+      {
+         J[ I[i+1] ] = (row[r] < 0) ? row[r] - offset : row[r] + offset;
+      }
+
+   }
+}
+
+Table::Table(const Table &table1,
+             const Table &table2, int offset2,
+             const Table &table3, int offset3)
+{
+   MFEM_ASSERT(table1.size == table2.size,
+               "Tables have different sizes can not merge.");
+   MFEM_ASSERT(table1.size == table3.size,
+               "Tables have different sizes can not merge.");
+   size = table1.size;
+
+   const int nnz = table1.I[size] + table2.I[size] + table3.I[size];
+   I.New(size+1, table1.I.GetMemoryType());
+   J.New(nnz, table1.J.GetMemoryType());
+
+   I[0] = 0;
+   Array<int> row;
+   for (int i = 0; i < size; i++)
+   {
+      I[i+1] = I[i];
+
+      table1.GetRow(i, row);
+      for (int r = 0; r < row.Size(); r++,  I[i+1] ++)
+      {
+         J[ I[i+1] ] = row[r];
+      }
+
+      table2.GetRow(i, row);
+      for (int r = 0; r < row.Size(); r++,  I[i+1] ++)
+      {
+         J[ I[i+1] ] = (row[r] < 0) ? row[r] - offset2 : row[r] + offset2;
+      }
+
+      table3.GetRow(i, row);
+      for (int r = 0; r < row.Size(); r++,  I[i+1] ++)
+      {
+         J[ I[i+1] ] = (row[r] < 0) ? row[r] - offset3 : row[r] + offset3;
+      }
    }
 }
 
@@ -189,6 +261,9 @@ void Table::GetRow(int i, Array<int> &row) const
    MFEM_ASSERT(i >= 0 && i < size, "Row index " << i << " is out of range [0,"
                << size << ')');
 
+   HostReadJ();
+   HostReadI();
+
    row.SetSize(RowSize(i));
    row.Assign(GetRow(i));
 }
@@ -215,7 +290,8 @@ void Table::SetIJ(int *newI, int *newJ, int newsize)
 
 int Table::Push(int i, int j)
 {
-   MFEM_ASSERT( i >=0 && i<size, "Index out of bounds.  i = "<<i);
+   MFEM_ASSERT(i >=0 &&
+               i<size, "Index out of bounds.  i = " << i << " size " << size);
 
    for (int k = I[i], end = I[i+1]; k < end; k++)
    {
@@ -395,7 +471,7 @@ void Table::Swap(Table & other)
    mfem::Swap(J, other.J);
 }
 
-long Table::MemoryUsage() const
+std::size_t Table::MemoryUsage() const
 {
    if (size < 0 || I == NULL) { return 0; }
    return (size+1 + I[size]) * sizeof(int);

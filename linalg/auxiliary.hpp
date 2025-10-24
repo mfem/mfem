@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -16,7 +16,6 @@
 
 #ifdef MFEM_USE_MPI
 
-#include "../general/tic_toc.hpp"
 #include "solvers.hpp"
 
 namespace mfem
@@ -138,9 +137,9 @@ public:
    virtual ~GeneralAMS();
 
    /// in principle this should set A_ = op;
-   void SetOperator(const Operator &op) {}
+   void SetOperator(const Operator &op) override {}
 
-   virtual void Mult(const Vector& x, Vector& y) const;
+   void Mult(const Vector& x, Vector& y) const override;
 
 private:
    const Operator& curlcurl_op;

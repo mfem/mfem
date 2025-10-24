@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -8,7 +8,26 @@
 // MFEM is free software; you can redistribute it and/or modify it under the
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
-
+//
+//           ---------------------------------------------------
+//           ParELAG Miniapp: AMGe solver for H(curl) and H(div)
+//           ---------------------------------------------------
+//
+// This miniapp employs MFEM and ParELAG to solve H(curl)- and H(div)-elliptic
+// forms by an element based algebraic multigrid (AMGe). It uses: a multilevel
+// hierarchy of de Rham complexes of finite element spaces, built by ParELAG;
+// Hiptmair-type smoothers, implemented in ParELAG; and AMS (Auxiliary-space
+// Maxwell Solver) or ADS (Auxiliary-space Divergence Solver), from HYPRE, for
+// preconditioning or solving on the coarsest levels. See the README file in
+// this directory for more details.
+//
+// Compile with: see README
+//
+// Sample runs:  MultilevelHcurlHdivSolver -curl -f \
+//                  MultilevelHcurlSolver_pipe_example_parameters.xml
+//               MultilevelHcurlHdivSolver -div -f \
+//                  MultilevelHdivSolver_pipe_example_parameters.xml
+//
 // We recommend viewing MFEM's examples 3 and 4 before viewing this miniapp.
 
 #include <fstream>
@@ -52,7 +71,7 @@ int main(int argc, char *argv[])
    const char *xml_file_c = NULL;
    bool hcurl = true;
    bool visualize = false;
-   double tolSVD = 1e-3;
+   real_t tolSVD = 1e-3;
    OptionsParser args(argc, argv);
    args.AddOption(&xml_file_c, "-f", "--xml-file",
                   "XML parameter list (an XML file with detailed parameters).");
@@ -149,14 +168,14 @@ int main(int argc, char *argv[])
    // A list of (piecewise) constant values for the coefficient 'alpha', in
    // accordance with the mesh attributes. If only a single entry is given, it
    // is applied to the whole mesh/domain.
-   vector<double> alpha_vals = prob_list.Get("alpha values",
-                                             vector<double> {1.0});
+   vector<real_t> alpha_vals = prob_list.Get("alpha values",
+                                             vector<real_t> {1.0});
 
    // A list of (piecewise) constant values for the coefficient 'beta', in
    // accordance with the mesh attributes. If only a single entry is given, it
    // is applied to the whole mesh/domain.
-   vector<double> beta_vals = prob_list.Get("beta values",
-                                            vector<double> {1.0});
+   vector<real_t> beta_vals = prob_list.Get("beta values",
+                                            vector<real_t> {1.0});
 
    // The list of solvers to invoke.
    auto list_of_solvers = prob_list.Get<list<string>>("List of linear solvers");
@@ -694,9 +713,9 @@ int main(int argc, char *argv[])
          tmp *= -1.0;
          tmp += B;
 
-         double local_norm = tmp.Norml2();
+         real_t local_norm = tmp.Norml2();
          local_norm *= local_norm;
-         double global_norm;
+         real_t global_norm;
          MPI_Reduce(&local_norm, &global_norm, 1, GetMPIType(local_norm),
                     MPI_SUM, 0, MPI_COMM_WORLD);
          if (!myid)
@@ -722,9 +741,9 @@ int main(int argc, char *argv[])
          tmp *= -1.0;
          tmp += B;
 
-         double local_norm = tmp.Norml2();
+         real_t local_norm = tmp.Norml2();
          local_norm *= local_norm;
-         double global_norm;
+         real_t global_norm;
          MPI_Reduce(&local_norm, &global_norm, 1, GetMPIType(local_norm),
                     MPI_SUM, 0, MPI_COMM_WORLD);
          if (!myid)
