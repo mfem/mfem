@@ -542,7 +542,8 @@ public:
 */
 class ND_R1D_PointElement : public VectorFiniteElement
 {
-   static const real_t tk[9];
+   static const real_t tk[6];
+   Array<int> dof2tk;
 
 public:
    /** @brief Construct the ND_R1D_PointElement */
@@ -555,6 +556,10 @@ public:
 
    void CalcVShape(ElementTransformation &Trans,
                    DenseMatrix &shape) const override;
+
+   void Project(VectorCoefficient &vc,
+                ElementTransformation &Trans, Vector &dofs) const override;
+
 };
 
 /// Arbitrary order, three component, Nedelec elements in 1D on a segment
@@ -571,6 +576,11 @@ class ND_R1D_SegmentElement : public VectorFiniteElement
    Array<int> dof_map, dof2tk;
 
    Poly_1D::Basis &cbasis1d, &obasis1d;
+
+private:
+   void LocalInterpolation(const VectorFiniteElement &cfe,
+                           ElementTransformation &Trans,
+                           DenseMatrix &I) const;
 
 public:
    /** @brief Construct the ND_R1D_SegmentElement of order @a p and closed and
@@ -596,7 +606,7 @@ public:
 
    void GetLocalInterpolation(ElementTransformation &Trans,
                               DenseMatrix &I) const override
-   { LocalInterpolation_ND(*this, tk, dof2tk, Trans, I); }
+   { LocalInterpolation(*this, Trans, I); }
 
    void GetLocalRestriction(ElementTransformation &Trans,
                             DenseMatrix &R) const override
@@ -605,7 +615,7 @@ public:
    void GetTransferMatrix(const FiniteElement &fe,
                           ElementTransformation &Trans,
                           DenseMatrix &I) const override
-   { LocalInterpolation_ND(CheckVectorFE(fe), tk, dof2tk, Trans, I); }
+   { LocalInterpolation(CheckVectorFE(fe), Trans, I); }
 
    using FiniteElement::Project;
 

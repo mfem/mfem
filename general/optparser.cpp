@@ -19,6 +19,16 @@ namespace mfem
 
 using namespace std;
 
+int isValidAsChar(char * s)
+{
+   if ( s == NULL || *s == '\0' )
+   {
+      return 0;   // Empty string
+   }
+
+   return 1;
+}
+
 int isValidAsInt(char * s)
 {
    if ( s == NULL || *s == '\0' )
@@ -148,6 +158,20 @@ void parseVector(char * str, Vector & var)
    }
 }
 
+void parseArray(char * str, Array<char> & var)
+{
+   var.SetSize(0);
+   std::stringstream input(str);
+   char val;
+   while ( input >> val)
+   {
+      if (!std::isspace(val))
+      {
+         var.Append(val);
+      }
+   }
+}
+
 void OptionsParser::Parse()
 {
    option_check.SetSize(options.Size());
@@ -224,6 +248,13 @@ void OptionsParser::Parse()
                case VECTOR:
                   parseVector(argv[i++], *(Vector*)(options[j].var_ptr) );
                   break;
+               case CHAR:
+                  isValid = isValidAsChar(argv[i]);
+                  *(char *)(options[j].var_ptr) = *argv[i++];
+                  break;
+               case CHAR_ARRAY:
+                  parseArray(argv[i++], *(Array<char>*)(options[j].var_ptr) );
+                  break;
             }
 
             if (!isValid)
@@ -275,6 +306,10 @@ void OptionsParser::WriteValue(const Option &opt, std::ostream &os)
 {
    switch (opt.type)
    {
+      case CHAR:
+         os << *(char *)(opt.var_ptr);
+         break;
+
       case INT:
          os << *(int *)(opt.var_ptr);
          break;
@@ -318,6 +353,22 @@ void OptionsParser::WriteValue(const Option &opt, std::ostream &os)
          for (int i = 1; i < list.Size(); i++)
          {
             os << ' ' << list(i);
+         }
+         os << '\'';
+         break;
+      }
+
+      case CHAR_ARRAY:
+      {
+         Array<char> &list = *(Array<char>*)(opt.var_ptr);
+         os << '\'';
+         if (list.Size() > 0)
+         {
+            os << list[0];
+         }
+         for (int i = 1; i < list.Size(); i++)
+         {
+            os << ' ' << list[i];
          }
          os << '\'';
          break;
@@ -410,7 +461,7 @@ void OptionsParser::PrintHelp(ostream &os) const
    static const char *line_sep = "";
    static const char *types[] = { " <int>", " <double>", " <string>",
                                   " <string>", "", "", " '<int>...'",
-                                  " '<double>...'"
+                                  " '<double>...'", " '<char>...'"
                                 };
 
    os << indent << "-h" << seprtr << "--help" << descr_sep
