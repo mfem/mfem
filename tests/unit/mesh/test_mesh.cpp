@@ -149,6 +149,7 @@ TEST_CASE("Gecko integration in MFEM", "[Mesh]")
 TEST_CASE("MakeSimplicial", "[Mesh]")
 {
    auto mesh_fname = GENERATE("../../data/star.mesh",
+                              "../../data/star-surf.mesh",
                               "../../data/inline-tri.mesh",
                               "../../data/inline-quad.mesh",
                               "../../data/inline-hex.mesh",
@@ -248,6 +249,19 @@ TEST_CASE("MakeMixedSimplicial", "[Mesh]")
       for (int j = 0; j < simplex_mesh.GetNV(); j++)
       {
          CHECK(std::abs(orig_mesh.GetVertex(j)[i] - vert(j)) < tol);
+      }
+   }
+}
+
+TEST_CASE("MakeSimplicial Surface Mesh", "[Mesh]")
+{
+   Mesh orig_mesh("../../data/star-surf.mesh");
+   Mesh simplex_mesh = Mesh::MakeSimplicial(orig_mesh);
+   for (int i = 0; i < orig_mesh.GetNV(); ++i)
+   {
+      for (int j = 0; j < 3; ++j)
+      {
+         REQUIRE(simplex_mesh.GetVertex(i)[j] == orig_mesh.GetVertex(i)[j]);
       }
    }
 }
