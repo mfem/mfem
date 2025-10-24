@@ -208,4 +208,4 @@ __device__ void abort_msg(T & msg)
 #define MFEM_ASSERT_KERNEL(x,...)
 #endif
 
-#endif
+#endif // MFEM_ERROR_HPP
