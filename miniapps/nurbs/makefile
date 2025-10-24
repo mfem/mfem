@@ -20,7 +20,7 @@ CONFIG_MK = $(or $(wildcard $(MFEM_BUILD_DIR)/config/config.mk),\
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-SEQ_MINIAPPS = nurbs_ex1 nurbs_patch_ex1 nurbs_ex3 nurbs_ex5 nurbs_ex24 \
+SEQ_MINIAPPS = nurbs_ex1 nurbs_patch_ex1 nurbs_patch_ex2 nurbs_ex3 nurbs_ex5 nurbs_ex24 \
    nurbs_curveint nurbs_printfunc nurbs_solenoidal nurbs_naca_cmesh nurbs_surface
 PAR_MINIAPPS = nurbs_ex1p nurbs_ex11p
 ifeq ($(MFEM_USE_MPI),NO)
@@ -103,15 +103,21 @@ nurbs_ex1-test-seq: nurbs_ex1
 	@$(call mfem-test,$<,, NURBS miniapp,$(EX1_ARGS_17))
 	@$(call mfem-test,$<,, NURBS miniapp,$(EX1_ARGS_18))
 
-EX1PATCH_ARGS_1 := -incdeg 3 -ref 1 -iro 8 -patcha
-EX1PATCH_ARGS_2 := -incdeg 3 -ref 1 -iro 8 -patcha -pa
-EX1PATCH_ARGS_3 := -incdeg 3 -ref 1 -iro 8 -patcha -fint
+EX1PATCH_ARGS_1 := -incdeg 3 -rf 2 -iro 8 -patcha
+EX1PATCH_ARGS_2 := -incdeg 3 -rf 2 -iro 8 -patcha -pa
+EX1PATCH_ARGS_3 := -incdeg 3 -rf 2 -iro 8 -patcha -fint
 nurbs_patch_ex1-test-seq: nurbs_patch_ex1
 ifeq ($(MFEM_USE_LAPACK),YES)
 	@$(call mfem-test,$<,, NURBS miniapp,$(EX1PATCH_ARGS_1))
 endif
 	@$(call mfem-test,$<,, NURBS miniapp,$(EX1PATCH_ARGS_2))
 	@$(call mfem-test,$<,, NURBS miniapp,$(EX1PATCH_ARGS_3))
+
+EX2PATCH_ARGS_1 := -incdeg 2 -rf 4 -patcha -pa -int 0 -pc 1
+EX2PATCH_ARGS_2 := -incdeg 2 -rf 4 -patcha -pa -int 1 -pc 1
+nurbs_patch_ex2-test-seq: nurbs_patch_ex2
+	@$(call mfem-test,$<,, NURBS miniapp,$(EX2PATCH_ARGS_1))
+	@$(call mfem-test,$<,, NURBS miniapp,$(EX2PATCH_ARGS_2))
 
 EX3_ARGS_1 := -m $(MFEM_DIR)/data/square-nurbs.mesh -r 1 -o 2
 EX3_ARGS_2 := -m $(MFEM_DIR)/data/cube-nurbs.mesh -r 1 -o 2
@@ -202,3 +208,4 @@ clean-exec:
 	@rm -f naca-cmesh.mesh sol_?.gf *-Surface.mesh
 	@rm -rf Example1* Example3* Example5* Solenoidal_* ParaView
 	@rm -rf CurveInt Naca_cmesh glvis_naca-cmesh.mesh solution.dat
+	@rm -rf displaced.mesh *.csv

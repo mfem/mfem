@@ -85,14 +85,7 @@ KnotVector::KnotVector(int order, const Vector& intervals,
    MFEM_ASSERT(knot.Size() >= (2*(Order+1)),
                "Insufficient number of knots to define NURBS.");
    // Calculate the number of elements provided by the knot vector
-   NumOfElements = 0;
-   for (int i = 0; i < GetNKS(); ++i)
-   {
-      if (isElement(i))
-      {
-         ++NumOfElements;
-      }
-   }
+   GetElements();
    coarse = false;
 }
 
@@ -104,6 +97,7 @@ KnotVector &KnotVector::operator=(const KnotVector &kv)
    knot = kv.knot;
    coarse = kv.coarse;
    if (kv.spacing) { spacing = kv.spacing->Clone(); }
+   ComputeUniqueKnots();
 
    return *this;
 }
@@ -175,6 +169,72 @@ int KnotVector::GetCoarseningFactor() const
    {
       return 1;
    }
+}
+
+real_t KnotVector::GetUniqueKnot(int i) const
+{
+   return uknot[i];
+}
+
+void KnotVector::GetUniqueKnots(Vector &uknots) const
+{
+   // Get unique knots
+   const int NUK = NumOfElements + 1;
+   uknots.SetSize(NUK);
+   for (int i = 0; i < NUK; i++)
+   {
+      uknots(i) = GetUniqueKnot(i);
+   }
+}
+
+int KnotVector::GetKnotMult(int i) const
+{
+   return uknot_mult[i];
+}
+
+void KnotVector::GetKnotMults(Array<int> &mults) const
+{
+   // Get unique knots
+   const int NUK = NumOfElements + 1;
+   mults.SetSize(NUK);
+   for (int i = 0; i < NUK; i++)
+   {
+      mults[i] = GetKnotMult(i);
+   }
+}
+
+void KnotVector::ComputeUniqueKnots()
+{
+   if (NumOfElements <= 0)
+   {
+      return;
+   }
+   uknot.SetSize(NumOfElements+1);
+   uknot_mult.SetSize(NumOfElements+1);
+
+   real_t x0 = knot[0];
+   uknot[0] = x0;
+   int idx = 1;
+   int mult = 1;
+
+   for (int i=1; i<knot.Size(); ++i)
+   {
+      if (knot[i] != x0)
+      {
+         uknot[idx] = knot[i];
+         uknot_mult[idx-1] = mult;
+
+         // Reset
+         x0 = knot[i];
+         idx++;
+         mult = 1;
+      }
+      else
+      {
+         mult++;
+      }
+   }
+   uknot_mult[idx-1] = mult;
 }
 
 Vector KnotVector::GetFineKnots(const int cf) const
@@ -320,6 +380,7 @@ void KnotVector::GetElements()
          NumOfElements++;
       }
    }
+   ComputeUniqueKnots();
 }
 
 void KnotVector::Flip()
@@ -335,6 +396,7 @@ void KnotVector::Flip()
    }
 
    if (spacing) { spacing->Flip(); }
+   ComputeUniqueKnots();
 }
 
 void KnotVector::Print(std::ostream &os) const
