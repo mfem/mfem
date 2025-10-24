@@ -1,6 +1,7 @@
 #include "mfem.hpp"
 #include "unit_tests.hpp"
 
+#include "general/forall.hpp"
 #include "general/resource_manager.hpp"
 
 using namespace mfem;
