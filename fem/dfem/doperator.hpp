@@ -743,7 +743,7 @@ void DifferentiableOperator::AddIntegrator(
          test_vdim,             // int (= output_fop.vdim)
          test_op_dim,           // int (derived from output_fop)
          inputs,                // mfem::future::tuple
-         attributes,     // Array<int>
+         attributes,            // Array<int>
          ir_weights,            // DeviceTensor
          use_sum_factorization, // bool
          input_dtq_maps,        // std::array<DofToQuadMap, num_fields>
@@ -852,7 +852,7 @@ void DifferentiableOperator::AddIntegrator(
                test_vdim,             // int (= output_fop.vdim)
                test_op_dim,           // int (derived from output_fop)
                inputs,                // mfem::future::tuple
-               attributes,     // Array<int>
+               attributes,            // Array<int>
                ir_weights,            // DeviceTensor
                use_sum_factorization, // bool
                input_dtq_maps,        // std::array<DofToQuadMap, num_fields>

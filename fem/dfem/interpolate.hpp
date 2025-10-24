@@ -650,7 +650,6 @@ void map_direction_to_quadrature_data_conditional(
                map_field_to_quadrature_data_tensor_product_1d(
                   directions_qp[i], dtqmaps[i], direction_e, get<i>(fops),
                   integration_weights, scratch_mem);
-
             }
             else if (dimension == 2)
             {
