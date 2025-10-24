@@ -44,7 +44,7 @@ public:
       NumBasisTypes   = 9   /**< Keep track of maximum types to prevent
                                  hard-coding */
    };
-   /** @brief If the input does not represents a valid BasisType, abort with an
+   /** @brief If the input does not represent a valid BasisType, abort with an
        error; otherwise return the input. */
    static int Check(int b_type)
    {
@@ -52,7 +52,7 @@ public:
                   "unknown BasisType: " << b_type);
       return b_type;
    }
-   /** @brief If the input does not represents a valid nodal BasisType, abort
+   /** @brief If the input does not represent a valid nodal BasisType, abort
        with an error; otherwise return the input. */
    static int CheckNodal(int b_type)
    {
@@ -1120,7 +1120,7 @@ public:
       return GetPoints(p, btype, on_device);
    }
 
-   /// Get coordinates of a closed (GaussLegendre) set of points if degree @a p
+   /// Get coordinates of a closed (GaussLobatto) set of points if degree @a p
    const real_t *ClosedPoints(const int p,
                               const int btype = BasisType::GaussLobatto,
                               bool on_device = false)
