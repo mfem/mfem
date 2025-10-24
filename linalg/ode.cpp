@@ -46,10 +46,6 @@ std::unique_ptr<ODESolver> ODESolver::Select(int ode_solver_type)
    {
       return SelectImplicit(ode_solver_type);
    }
-   // else
-   // {
-   //    return SelectIMEX(ode_solver_type);
-   // }
 }
 
 std::unique_ptr<ODESolver> ODESolver::SelectExplicit(int ode_solver_type)
@@ -1301,13 +1297,13 @@ void GeneralizedAlpha2Solver::Step(Vector &x, Vector &dxdt,
 }
 
 
-void SplitODESolver::Init(SplitTimeDependentOperator &f_)
+void SplitODESolver::Init(TimeDependentOperator &f_)
 {
    this->f = &f_;
    mem_type = GetMemoryType(f_.GetMemoryClass());
 }
 
-void IMEXExpImplEuler::Init(SplitTimeDependentOperator &f_)
+void IMEXExpImplEuler::Init(TimeDependentOperator &f_)
 {
    SplitODESolver::Init(f_);
    int n = f->Width();
@@ -1318,16 +1314,20 @@ void IMEXExpImplEuler::Init(SplitTimeDependentOperator &f_)
 void IMEXExpImplEuler::Step(Vector &x, real_t &t, real_t &dt)
 {
    f->SetTime(t);
-   f->Mult1(x, k1);
+   f->SetEvalMode(TimeDependentOperator::ADDITIVE_TERM_1);
+   f->Mult(x, k1);
+
    f->SetTime(t+dt);
-   f->ImplicitSolve2(dt, x, k2);
+   f->SetEvalMode(TimeDependentOperator::ADDITIVE_TERM_2);
+   f->ImplicitSolve(dt, x, k2);
+
    f->SetTime(t);
    x.Add(dt, k1);
    x.Add(dt, k2);
    t += dt;
 }
 
-void IMEXRK2::Init(SplitTimeDependentOperator &f_)
+void IMEXRK2::Init(TimeDependentOperator &f_)
 {
    SplitODESolver::Init(f_);
    int n = f->Width();
@@ -1347,20 +1347,24 @@ void IMEXRK2::Step(Vector &x, real_t &t, real_t &dt)
    f->SetTime(t);
 
    //K1 exp is just f_1(t, x)
-   f->Mult1(x, k1_exp);
+   f->SetEvalMode(TimeDependentOperator::ADDITIVE_TERM_1);
+   f->Mult(x, k1_exp);
 
    //K2 exp is f_1(t + gamma dt, x + dt gamma K1)
    f->SetTime(t + gamma*dt);
    add(x, dt*gamma, k1_exp, y);
-   f->Mult1(y, k2_exp);
+   f->SetEvalMode(TimeDependentOperator::ADDITIVE_TERM_1);
+   f->Mult(y, k2_exp);
 
    //K2_imp = f_2(t + gamma dt, x + dt gamma K2_imp)
-   f->ImplicitSolve2(dt*gamma, x, k2_imp);
+   f->SetEvalMode(TimeDependentOperator::ADDITIVE_TERM_2);
+   f->ImplicitSolve(dt*gamma, x, k2_imp);
 
    //K3_imp = f_2(t+dt,x + dt(1-gamma)K2_imp + dt gamma K3_imp)
    f -> SetTime(t + dt);
    add(x, dt*(1-gamma), k2_imp, z);
-   f->ImplicitSolve2(dt*gamma, z, k3_imp);
+   f->SetEvalMode(TimeDependentOperator::ADDITIVE_TERM_2);
+   f->ImplicitSolve(dt*gamma, z, k3_imp);
 
    //add it all up
    x.Add(dt*delta, k1_exp);
@@ -1370,7 +1374,7 @@ void IMEXRK2::Step(Vector &x, real_t &t, real_t &dt)
    t += dt;
 }
 
-void IMEXRK2_3StageExplicit::Init(SplitTimeDependentOperator &f_)
+void IMEXRK2_3StageExplicit::Init(TimeDependentOperator &f_)
 {
    SplitODESolver::Init(f_);
    int n = f->Width();
@@ -1393,27 +1397,32 @@ void IMEXRK2_3StageExplicit::Step(Vector &x, real_t &t, real_t &dt)
    f->SetTime(t);
 
    //K1 exp is just f_1(t, x)
-   f->Mult1(x, k1_exp);
+   f->SetEvalMode(TimeDependentOperator::ADDITIVE_TERM_1);
+   f->Mult(x, k1_exp);
 
    //K2 exp is f_1(t + gamma dt, x + dt gamma K1)
    f->SetTime(t + gamma*dt);
    add(x, dt*gamma, k1_exp, y);
-   f->Mult1(y, k2_exp);
+   f->SetEvalMode(TimeDependentOperator::ADDITIVE_TERM_1);
+   f->Mult(y, k2_exp);
 
    //K3 Exp is f_1(t + dt, x + dt gamma K1_exp + dt (1-gamma) K2_exp)
    f->SetTime(t + dt);
    add(x, dt*delta, k1_exp, y);
    add(y, dt*(1-delta), k2_exp, w);
-   f->Mult1(w, k3_exp);
+   f->SetEvalMode(TimeDependentOperator::ADDITIVE_TERM_1);
+   f->Mult(w, k3_exp);
 
    //K2_imp = f_2(t + gamma dt, x + dt gamma K2_imp)
    f->SetTime(t + gamma*dt);
-   f->ImplicitSolve2(dt*gamma, x, k2_imp);
+   f->SetEvalMode(TimeDependentOperator::ADDITIVE_TERM_2);
+   f->ImplicitSolve(dt*gamma, x, k2_imp);
 
    //K3_imp = f_2(t+dt,x + dt(1-gamma)K2_imp + dt gamma K3_imp)
    f -> SetTime(t + dt);
    add(x, dt*(1-gamma), k2_imp, z);
-   f->ImplicitSolve2(dt*gamma, z, k3_imp);
+   f->SetEvalMode(TimeDependentOperator::ADDITIVE_TERM_2);
+   f->ImplicitSolve(dt*gamma, z, k3_imp);
 
    //add it all up
    x.Add(dt*delta, k2_exp);
@@ -1423,7 +1432,7 @@ void IMEXRK2_3StageExplicit::Step(Vector &x, real_t &t, real_t &dt)
    t += dt;
 }
 
-void IMEX_DIRK_RK3::Init(SplitTimeDependentOperator &f_)
+void IMEX_DIRK_RK3::Init(TimeDependentOperator &f_)
 {
    SplitODESolver::Init(f_);
    int n = f->Width();
@@ -1454,31 +1463,38 @@ void IMEX_DIRK_RK3::Step(Vector &x, real_t &t, real_t &dt)
 
    //K1_exp
    f->SetTime(t);
-   f->Mult1(x, k1_exp);
+   f->SetEvalMode(TimeDependentOperator::ADDITIVE_TERM_1);
+   f->Mult(x, k1_exp);
 
    //K2_imp, K2_exp
    f->SetTime(t + gamma*dt);
    add(x, dt*gamma, k1_exp, y);
-   f->Mult1(y, k2_exp);
-   f->ImplicitSolve2(dt*gamma, x, k2_imp);
+   f->SetEvalMode(TimeDependentOperator::ADDITIVE_TERM_1);
+   f->Mult(y, k2_exp);
+   f->SetEvalMode(TimeDependentOperator::ADDITIVE_TERM_2);
+   f->ImplicitSolve(dt*gamma, x, k2_imp);
 
    //K3_imp, K3_exp
    f->SetTime(t + (1+gamma)/2*dt);
    add(x, dt*a_31, k1_exp, y);
    add(y, dt*a_32, k2_exp, w);
-   f->Mult1(w, k3_exp);
+   f->SetEvalMode(TimeDependentOperator::ADDITIVE_TERM_1);
+   f->Mult(w, k3_exp);
    add(x, dt*(1-gamma)/2, k2_imp, z);
-   f->ImplicitSolve2(dt*gamma, z, k3_imp);
+   f->SetEvalMode(TimeDependentOperator::ADDITIVE_TERM_2);
+   f->ImplicitSolve(dt*gamma, z, k3_imp);
 
    //K4_imp, K4_exp
    f->SetTime(t+dt);
    add(x, dt*a_41, k1_exp, y);
    add(y, dt*a_42, k2_exp, w);
    add(w, dt*a_43, k3_exp, v);
-   f->Mult1(v, k4_exp);
+   f->SetEvalMode(TimeDependentOperator::ADDITIVE_TERM_1);
+   f->Mult(v, k4_exp);
    add(x, dt*b1, k2_imp, z);
    add(z, dt*b2, k3_imp, u);
-   f->ImplicitSolve2(dt*gamma, u, k4_imp);
+   f->SetEvalMode(TimeDependentOperator::ADDITIVE_TERM_2);
+   f->ImplicitSolve(dt*gamma, u, k4_imp);
 
    //add it all together
    x.Add(dt*b1, k2_exp);

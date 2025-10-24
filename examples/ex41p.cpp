@@ -210,7 +210,7 @@ public:
     form of the advection-diffusion equation is (M + dt S) du/dt = Su - K u + b, where M and K are the mass
     and advection matrices, and b describes the flow on the boundary. In the case of IMEX evolution, the diffusion term is treated
     implicitly, and the advection term is treated explicitly.  */
-class IMEX_Evolution : public SplitTimeDependentOperator
+class IMEX_Evolution : public TimeDependentOperator
 {
 private:
    OperatorHandle M, K, S, A;
@@ -235,11 +235,33 @@ public:
       delete M_prec;
    }
 
-   virtual
-   void Mult1(const Vector &x, Vector &y) const override;
+   void Mult1(const Vector &x, Vector &y) const;
 
-   virtual
-   void ImplicitSolve2(const real_t dt, const Vector &x, Vector &k) override;
+   void ImplicitSolve2(const real_t dt, const Vector &x, Vector &k);
+
+   void Mult(const Vector &x, Vector &y) const override
+   {
+      if (TimeDependentOperator::EvalMode::ADDITIVE_TERM_1==GetEvalMode())
+      {
+         Mult1(x,y);
+      }
+      else
+      {
+         mfem_error("TimeDependentOperator::Mult() is not overridden!");
+      }
+   }
+
+   void ImplicitSolve(const real_t dt, const Vector &x, Vector &k) override
+   {
+      if (TimeDependentOperator::EvalMode::ADDITIVE_TERM_2==GetEvalMode())
+      {
+         ImplicitSolve2(dt,x,k);
+      }
+      else
+      {
+         mfem_error("TimeDependentOperator::ImplicitSolve() is not overridden!");
+      }
+   }
 };
 
 
@@ -652,7 +674,7 @@ int main(int argc, char *argv[])
 // Implementation of class IMEX_Evolution
 IMEX_Evolution::IMEX_Evolution(ParBilinearForm &M_, ParBilinearForm &K_,
                                ParBilinearForm &S_, const Vector &b_, ParBilinearForm &A_)
-   : SplitTimeDependentOperator(M_.ParFESpace()->GetTrueVSize()), b(b_),
+   : TimeDependentOperator(M_.ParFESpace()->GetTrueVSize()), b(b_),
      M_solver(M_.ParFESpace()->GetComm()), z(height), w(height)
 {
    if (M_.GetAssemblyLevel()==AssemblyLevel::LEGACY)

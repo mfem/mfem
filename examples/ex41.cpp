@@ -198,10 +198,12 @@ public:
 };
 
 /** A time-dependent operator for the right-hand side of the ODE. The weak
-    form of the advection-diffusion equation is (M + dt S) du/dt = Su - K u + b, where M and K are the mass
-    and advection matrices, and b describes the flow on the boundary. In the case of IMEX evolution, the diffusion term is treated
-    implicitly, and the advection term is treated explicitly.  */
-class IMEX_Evolution : public SplitTimeDependentOperator
+    form of the advection-diffusion equation is M du/dt = K u - S u + b,
+    where M is the mass matrix, K and S are the advection and diffusion
+    matrices, and b describes the flow on the boundary. In the case of IMEX
+    evolution, the diffusion term is treated implicitly, and the advection
+    term is treated explicitly.  */
+class IMEX_Evolution : public TimeDependentOperator
 {
 private:
    BilinearForm &M, &K, &S;
@@ -216,8 +218,36 @@ public:
    IMEX_Evolution(BilinearForm &M_, BilinearForm &K_, BilinearForm &S_,
                   const Vector &b_);
 
-   void Mult1(const Vector &x, Vector &y) const override;
-   void ImplicitSolve2(const real_t dt, const Vector &x, Vector &k) override;
+   /// Evaluate k1=M^{-1}*G1(u,t); -> k1 = M^{-1}*(K*u + b)
+   void Mult1(const Vector &x, Vector &y) const ;
+
+   /// Evaluate k2: M*k2 = G2(u+k2*dt,t); -> (M+S*dt)*k2=-S*u
+   void ImplicitSolve2(const real_t dt, const Vector &x, Vector &k);
+
+   void Mult(const Vector &x, Vector &y) const override
+   {
+      if (TimeDependentOperator::EvalMode::ADDITIVE_TERM_1==GetEvalMode())
+      {
+         Mult1(x,y);
+      }
+      else
+      {
+         mfem_error("TimeDependentOperator::Mult() is not overridden!");
+      }
+   }
+
+   void ImplicitSolve(const real_t dt, const Vector &x, Vector &k) override
+   {
+      if (TimeDependentOperator::EvalMode::ADDITIVE_TERM_2==GetEvalMode())
+      {
+         ImplicitSolve2(dt,x,k);
+      }
+      else
+      {
+         mfem_error("TimeDependentOperator::ImplicitSolve() is not overridden!");
+      }
+   }
+
 };
 
 
@@ -502,7 +532,7 @@ int main(int argc, char *argv[])
 // Implementation of class IMEX_Evolution
 IMEX_Evolution::IMEX_Evolution(BilinearForm &M_, BilinearForm &K_,
                                BilinearForm &S_, const Vector &b_)
-   : SplitTimeDependentOperator(M_.FESpace()->GetTrueVSize()),
+   : TimeDependentOperator(M_.FESpace()->GetTrueVSize()),
      M(M_), K(K_), S(S_), b(b_), z(height)
 {
    Array<int> ess_tdof_list;

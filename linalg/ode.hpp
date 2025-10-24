@@ -938,16 +938,24 @@ public:
 
 };
 
-/// Class for solving systems of split ODEs: dx/dt = f_1(x,t) + f_2(x,t)
+/// Class for solving systems of split ODEs:
+/// M dx/dt = f_1(x,t) + f_2(x,t)
+/// where M^{-1}*f_1 and M^{-1}*f_2 are treated differently (e.g.,
+/// explicitly and implicitly).This is the abstract base class for
+/// such ODE solvers expecting a TimeDependentOperator with split
+/// functionality. Setting EvalMode=ADDITIVE_TERM_1 and calling
+/// Mult(...) should return k1=M^{-1}*f_1(x,t). Setting
+/// EvalMode=ADDITIVE_TERM_2 and calling ImplicitSolve(...) should
+/// solve M*k2 = f_2(x+gamma*k2,t).
 class SplitODESolver : public ODESolver
 {
 protected:
    /// Pointer to the associated SplitTimeDependentOperator.
-   SplitTimeDependentOperator *f;  // f(.,t) : R^n --> R^n
+   TimeDependentOperator *f;  // f(.,t) : R^n --> R^n
    MemoryType mem_type;
 
 public:
-   SplitODESolver() : f(NULL) { mem_type = Device::GetHostMemoryType(); }
+   SplitODESolver() : f(nullptr) { mem_type = Device::GetHostMemoryType(); }
 
    /// Associate a SplitTimeDependentOperator with the ODE solver. Overrides Init from ODESolver
    /** This method has to be called:
@@ -956,7 +964,7 @@ public:
        - When a time stepping sequence has to be restarted.
        - To change the associated SplitTimeDependentOperator. */
    using ODESolver::Init;
-   virtual void Init(SplitTimeDependentOperator &f);
+   virtual void Init(TimeDependentOperator &f);
 
    static MFEM_EXPORT std::unique_ptr<SplitODESolver> Select(
       const int ode_solver_type);
@@ -969,7 +977,7 @@ class IMEXExpImplEuler : public SplitODESolver
 private:
    Vector k1; Vector k2;
 public:
-   void Init(SplitTimeDependentOperator &f_) override;
+   void Init(TimeDependentOperator &f_) override;
 
    void Step(Vector &x, real_t &t, real_t &dt) override;
 };
@@ -986,7 +994,7 @@ private:
    //helper vectors
    Vector y; Vector z;
 public:
-   void Init(SplitTimeDependentOperator &f_) override;
+   void Init(TimeDependentOperator &f_) override;
 
    void Step(Vector &x, real_t &t, real_t &dt) override;
 };
@@ -1002,7 +1010,7 @@ private:
    //helper vectors
    Vector y; Vector z; Vector w;
 public:
-   void Init(SplitTimeDependentOperator &f_) override;
+   void Init(TimeDependentOperator &f_) override;
 
    void Step(Vector &x, real_t &t, real_t &dt) override;
 };
@@ -1018,7 +1026,7 @@ private:
    //helper vectors
    Vector y; Vector z; Vector w; Vector u; Vector v;
 public:
-   void Init(SplitTimeDependentOperator &f_) override;
+   void Init(TimeDependentOperator &f_) override;
 
    void Step(Vector &x, real_t &t, real_t &dt) override;
 };
