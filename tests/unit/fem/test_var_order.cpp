@@ -863,7 +863,7 @@ GridFunction *TestRandomPRefinement_serial(Mesh & mesh)
    fespace->Update(false);
 
    auto *sol = new GridFunction(fespace);
-   sol->MakeOwner(fec);
+   sol->MakeOwner();
    *sol = 0.0;  // Essential DOF value
    TestSolveSerial1(mesh, *sol);
    return sol;
@@ -886,7 +886,7 @@ ParGridFunction *TestRandomPRefinement_parallel(Mesh & mesh)
    pfes->Update(false);
 
    auto *sol = new ParGridFunction(pfes);
-   sol->MakeOwner(pfec);
+   sol->MakeOwner();
    *sol = 0.0;  // Essential DOF value
    TestSolveParallel1(*pmsh, *sol);
    return sol;
