@@ -561,7 +561,8 @@ void CopyMemory(Memory<T> &src, Memory<T> &dst, MemoryClass dst_mc,
     this function. In particular, @a dst should be empty or deleted before
     calling this function. */
 template <typename SrcT, typename DstT>
-void CopyConvertMemory(Memory<SrcT> &src, MemoryClass dst_mc, Memory<DstT> &dst)
+void CopyConvertMemory(const Memory<SrcT> &src, MemoryClass dst_mc,
+                       Memory<DstT> &dst)
 {
    auto capacity = src.Capacity();
    dst.New(capacity, GetMemoryType(dst_mc));
@@ -842,8 +843,8 @@ static int GetPartitioningArraySize(MPI_Comm comm)
 ///
 /// Both @a row and @a col are partitioning arrays, whose length is returned by
 /// GetPartitioningArraySize(), see @ref hypre_partitioning_descr.
-static bool RowAndColStartsAreEqual(MPI_Comm comm, HYPRE_BigInt *rows,
-                                    HYPRE_BigInt *cols)
+static bool RowAndColStartsAreEqual(MPI_Comm comm, const HYPRE_BigInt *rows,
+                                    const HYPRE_BigInt *cols)
 {
    const int part_size = GetPartitioningArraySize(comm);
    bool are_equal = true;
@@ -1131,7 +1132,7 @@ HypreParMatrix::HypreParMatrix(
 HypreParMatrix::HypreParMatrix(MPI_Comm comm,
                                HYPRE_BigInt *row_starts,
                                HYPRE_BigInt *col_starts,
-                               SparseMatrix *sm_a)
+                               const SparseMatrix *sm_a)
 {
    MFEM_ASSERT(sm_a != NULL, "invalid input");
    MFEM_VERIFY(!HYPRE_AssumedPartitionCheck(),
@@ -1145,7 +1146,7 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm,
 
    hypre_CSRMatrixSetDataOwner(csr_a,0);
    MemoryIJData mem_a;
-   CopyCSR(sm_a, mem_a, csr_a, false);
+   CopyCSR(const_cast<SparseMatrix*>(sm_a), mem_a, csr_a, false);
    hypre_CSRMatrixSetRownnz(csr_a);
 
    // NOTE: this call creates a matrix on host even when device support is
@@ -1307,10 +1308,11 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm, int id, int np,
 HypreParMatrix::HypreParMatrix(MPI_Comm comm, int nrows,
                                HYPRE_BigInt glob_nrows,
                                HYPRE_BigInt glob_ncols,
-                               int *I, HYPRE_BigInt *J,
-                               real_t *data,
-                               HYPRE_BigInt *rows,
-                               HYPRE_BigInt *cols)
+                               const int *I,
+                               const HYPRE_BigInt *J,
+                               const real_t *data,
+                               const HYPRE_BigInt *rows,
+                               const HYPRE_BigInt *cols)
 {
    Init();
 
