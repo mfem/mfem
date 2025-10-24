@@ -38,7 +38,9 @@ static void PAMassAssembleDiagonal1D(const int NE,
    auto B = Reshape(b.Read(), Q1D, D1D);
    auto D = Reshape(d.Read(), Q1D, NE);
    auto Y = Reshape(y.ReadWrite(), D1D, NE);
-   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
+   mfem::forall(NE, [=,
+         D1D = proteus::jit_variable(D1D),
+      Q1D = proteus::jit_variable(Q1D)] MFEM_HOST_DEVICE (int e)
    {
       for (int dx = 0; dx < D1D; ++dx)
       {
@@ -142,10 +144,11 @@ inline void PAMassAssembleDiagonal2D(const int NE,
    auto B = Reshape(b.Read(), Q1D, D1D);
    auto D = Reshape(d.Read(), Q1D, Q1D, NE);
    auto Y = Reshape(y.ReadWrite(), D1D, D1D, NE);
-   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
+   mfem::forall(NE, [=,D1D = proteus::jit_variable(D1D),
+      Q1D = proteus::jit_variable(Q1D)] MFEM_HOST_DEVICE (int e)
    {
-      const int D1D = T_D1D ? T_D1D : d1d;
-      const int Q1D = T_Q1D ? T_Q1D : q1d;
+      // const int D1D = T_D1D ? T_D1D : d1d;
+      // const int Q1D = T_Q1D ? T_Q1D : q1d;
       constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
       constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
       real_t QD[MQ1][MD1];
@@ -203,11 +206,13 @@ inline void SmemPAMassAssembleDiagonal2D(const int NE,
    auto b = Reshape(b_.Read(), Q1D, D1D);
    auto D = Reshape(d_.Read(), Q1D, Q1D, NE);
    auto Y = Reshape(y_.ReadWrite(), D1D, D1D, NE);
-   mfem::forall_2D_batch(NE, Q1D, Q1D, NBZ, [=] MFEM_HOST_DEVICE (int e)
+   mfem::forall_2D_batch(NE, Q1D, Q1D, NBZ, [=,
+         D1D = proteus::jit_variable(D1D),
+      Q1D = proteus::jit_variable(Q1D)] MFEM_HOST_DEVICE (int e)
    {
       const int tidz = MFEM_THREAD_ID(z);
-      const int D1D = T_D1D ? T_D1D : d1d;
-      const int Q1D = T_Q1D ? T_Q1D : q1d;
+      // const int D1D = T_D1D ? T_D1D : d1d;
+      // const int Q1D = T_Q1D ? T_Q1D : q1d;
       constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
       constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
       MFEM_SHARED real_t B[MQ1][MD1];
@@ -266,10 +271,11 @@ inline void PAMassAssembleDiagonal3D(const int NE,
    auto B = Reshape(b.Read(), Q1D, D1D);
    auto D = Reshape(d.Read(), Q1D, Q1D, Q1D, NE);
    auto Y = Reshape(y.ReadWrite(), D1D, D1D, D1D, NE);
-   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
+   mfem::forall(NE, [=,      D1D = proteus::jit_variable(D1D),
+      Q1D = proteus::jit_variable(Q1D)] MFEM_HOST_DEVICE (int e)
    {
-      const int D1D = T_D1D ? T_D1D : d1d;
-      const int Q1D = T_Q1D ? T_Q1D : q1d;
+      // const int D1D = T_D1D ? T_D1D : d1d;
+      // const int Q1D = T_Q1D ? T_Q1D : q1d;
       constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
       constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
       real_t QQD[MQ1][MQ1][MD1];
@@ -338,11 +344,14 @@ inline void SmemPAMassAssembleDiagonal3D(const int NE,
    auto b = Reshape(b_.Read(), Q1D, D1D);
    auto D = Reshape(d_.Read(), Q1D, Q1D, Q1D, NE);
    auto Y = Reshape(y_.ReadWrite(), D1D, D1D, D1D, NE);
-   mfem::forall_3D(NE, Q1D, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int e)
+   mfem::forall_3D(NE, Q1D, Q1D, Q1D, [=,
+      D1D = proteus::jit_variable(D1D),
+      Q1D = proteus::jit_variable(Q1D)
+   ] MFEM_HOST_DEVICE (int e)
    {
       const int tidz = MFEM_THREAD_ID(z);
-      const int D1D = T_D1D ? T_D1D : d1d;
-      const int Q1D = T_Q1D ? T_Q1D : q1d;
+      //const int D1D = T_D1D ? T_D1D : d1d;
+      //const int Q1D = T_Q1D ? T_Q1D : q1d;
       constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
       constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
       MFEM_SHARED real_t B[MQ1][MD1];
@@ -1208,7 +1217,7 @@ inline void EAMassAssemble2D(const int NE,
    auto D = Reshape(padata.Read(), Q1D, Q1D, NE);
    auto M = Reshape(add ? eadata.ReadWrite() : eadata.Write(), D1D, D1D, D1D, D1D,
                     NE);
-   mfem::forall_2D(NE, D1D, D1D, [=] MFEM_HOST_DEVICE (int e)
+   mfem::forall_2D(NE, D1D, D1D, [=, add = proteus::jit_variable(add)] MFEM_HOST_DEVICE (int e)
    {
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -1281,7 +1290,7 @@ inline void EAMassAssemble3D(const int NE,
    auto D = Reshape(padata.Read(), Q1D, Q1D, Q1D, NE);
    auto M = Reshape(add ? eadata.ReadWrite() : eadata.Write(), D1D, D1D, D1D, D1D,
                     D1D, D1D, NE);
-   mfem::forall_3D(NE, D1D, D1D, D1D, [=] MFEM_HOST_DEVICE (int e)
+   mfem::forall_3D(NE, D1D, D1D, D1D, [=, add = proteus::jit_variable(add)] MFEM_HOST_DEVICE (int e)
    {
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;

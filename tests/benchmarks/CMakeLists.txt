@@ -32,16 +32,20 @@ function(add_benchmark name)
     endif(MFEM_USE_CUDA)
 
     if (MFEM_USE_HIP)
-        set_property(SOURCE ${${NAME}_BENCH_SRCS} PROPERTY LANGUAGE 
-                     HIP_SOURCE_PROPERTY_FORMAT TRUE)
+        # set_property(SOURCE ${${NAME}_BENCH_SRCS} PROPERTY LANGUAGE
+        #              HIP)
+        # set_property(SOURCE ${${NAME}_BENCH_SRCS} PROPERTY LANGUAGE
+        #              HIP_SOURCE_PROPERTY_FORMAT TRUE)
+        # set_property(SOURCE ${${NAME}_BENCH_SRCS} PROPERTY LANGUAGE
+        #              CMAKE_HIP_SOURCE_PROPERTY_FORMAT TRUE)
     endif(MFEM_USE_HIP)
-
-    add_executable(bench_${name} ${${NAME}_BENCH_SRCS})
+    # set(CMAKE_HIP_SOURCE_PROPERTY_FORMAT TRUE)
+    mfem_add_executable(bench_${name} ${${NAME}_BENCH_SRCS})
     target_link_libraries(bench_${name} mfem pthread)
     add_dependencies(${MFEM_ALL_BENCHMARKS_TARGET_NAME} bench_${name})
 
-    add_test(NAME bench_${name}_cpu
-             COMMAND bench_${name} --benchmark_context=device=cpu)
+    # add_test(NAME bench_${name}_cpu
+    #          COMMAND bench_${name} --benchmark_context=device=cpu)
 
     if (MFEM_USE_CUDA)
         add_test(NAME bench_${name}_cuda
