@@ -211,8 +211,8 @@ private:
 ///
 /// The operator is constructed with solution fields that it will act on and
 /// parameter fields that define coefficients. Quadrature functions are added by
-/// e.g. using AddDomainIntegrator() which specify how the operator evaluates f
-/// those functionas and parameters at quadrature points.
+/// e.g. using AddDomainIntegrator() which specify how the operator evaluates
+/// those functions and parameters at quadrature points.
 ///
 /// Derivatives can be computed by obtaining a DerivativeOperator using
 /// GetDerivative().
