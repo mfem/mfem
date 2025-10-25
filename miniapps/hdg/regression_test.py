@@ -80,7 +80,10 @@ for i, filename in enumerate(filenames):
 	nx = int(get_ref_param(filename, '--ncells-x'))
 	ny = int(get_ref_param(filename, '--ncells-y'))
 	mesh = str(get_ref_param(filename, '--mesh'))
-	ref = int(get_ref_param(filename, "--ref-levels", "-1"))
+	if parallel:
+		ref = int(get_ref_param(filename, "--serial-ref-levels", "-1"))
+	else:
+		ref = int(get_ref_param(filename, "--ref-levels", "-1"))
 	kappa = float(get_ref_param(filename, '--kappa', "1"))
 	hdg = int(get_ref_param(filename, '--hdg_scheme', "1"))
 	nls = int(get_ref_param(filename, '--nonlinear-solver', "0"))
@@ -108,7 +111,10 @@ for i, filename in enumerate(filenames):
 		command_line += f" -ny {ny}"
 	else:
 		command_line += f" -m {mesh}"
-		command_line += f" -r {ref}"
+		if parallel:
+			command_line += f" -rs {ref}"
+		else:
+			command_line += f" -r {ref}"
 	command_line += f" -p {problem}"
 	command_line += f" -o {order}"
 	if dg:
