@@ -34,7 +34,7 @@ struct MFApply
 };
 }
 
-TEST_CASE("DFEM L-Vector interface", "[Parallel][DFEM]")
+TEST_CASE("DFEM L-Vector interface", "[Parallel][dFEM][GPU]")
 {
    constexpr int p = 2; // Polynomial order
    constexpr int r = 1;
