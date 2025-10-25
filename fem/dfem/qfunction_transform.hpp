@@ -181,6 +181,14 @@ void process_derivative_from_native_dual(
    }
 }
 
+template <typename T>
+MFEM_HOST_DEVICE inline
+void process_derivative_from_native_dual(
+   DeviceTensor<1, T> &r,
+   const dual<T, T> &x)
+{
+   r(0) = x.gradient;
+}
 
 template <typename T0, typename T1>
 MFEM_HOST_DEVICE inline
