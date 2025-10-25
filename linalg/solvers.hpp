@@ -400,7 +400,7 @@ public:
    void SetOperator(Operator *X, Operator *Y);
 
    /// @brief Set/update the same weighting operator (not owned) for both terms.
-   void SetOperator(Operator *X) { SetOperator(X, X); }
+   void SetOperator(Operator *XY) { SetOperator(XY, XY); }
 
    /** @brief Compute the inner product (Y(y),X(x)) of vectors x and y,
               weighted by the operators @a X and @a Y.
