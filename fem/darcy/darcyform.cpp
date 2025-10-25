@@ -1929,11 +1929,6 @@ void DarcyForm::AssemblePotHDGFaces(int skip_zeros)
          M_p->SpMat().AddSubMatrix(vdofs2, vdofs2, elmat2, skip_zeros);
 #endif //MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
       }
-
-      if (mesh->Nonconforming())
-      {
-         hybridization->AssembleNCMasterPotFaceMatrices();
-      }
    }
 
    const int num_boundary_face_integs =

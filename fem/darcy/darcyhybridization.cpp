@@ -344,15 +344,14 @@ void DarcyHybridization::ComputeAndAssemblePotFaceMatrix(
    Array<int> &vdofs2, int skip_zeros)
 {
    Mesh *mesh = fes_p.GetMesh();
+   const int num_faces = mesh->GetNumFaces();
    const FiniteElement *tr_fe, *fe1, *fe2;
-   DenseMatrix elmat, h_elmat;
+   DenseMatrix elmat;
    int ndof1, ndof2;
-   Array<int> c_dofs;
    bool save2 = false;
 
    tr_fe = c_fes.GetFaceElement(face);
-   c_fes.GetFaceVDofs(face, c_dofs);
-   const int c_dof = c_dofs.Size();
+   const int c_dof = tr_fe->GetDof() * c_fes.GetVDim();
 
    int el1, el2;
    mesh->GetFaceElements(face, &el1, &el2);
@@ -360,6 +359,18 @@ void DarcyHybridization::ComputeAndAssemblePotFaceMatrix(
    fe1 = fes_p.GetFE(el1);
    ndof1 = vdofs1.Size();
    FaceElementTransformations *ftr = NULL;
+
+   int inf1, inf2, nc;
+   if (mesh->Nonconforming())
+   {
+      mesh->GetFaceInfos(face, &inf1, &inf2, &nc);
+      MFEM_ASSERT(nc < 0 || el2 >= 0 ||
+                  inf2 >= 0, "Master face should not be integrated directly!");
+   }
+   else
+   {
+      inf1 = inf2 = nc = -1;
+   }
 
    if (el2 >= 0)
    {
@@ -405,35 +416,83 @@ void DarcyHybridization::ComputeAndAssemblePotFaceMatrix(
       AssemblePotMassMatrix(ftr->Elem2No, elmat2);
    }
 
-   // assemble E constraint
-   DenseMatrix E_f_1(&E_data[E_offsets[face]], ndof1, c_dof);
-   E_f_1.CopyMN(elmat, ndof1, c_dof, 0, ndof1+ndof2);
-   if (save2)
+   // assemble E and G constraints
+   if (nc >= 0 && face >= num_faces)
    {
-      DenseMatrix E_f_2(&E_data[E_offsets[face] + c_dof*ndof1], ndof2, c_dof);
-      E_f_2.CopyMN(elmat, ndof2, c_dof, ndof1, ndof1+ndof2);
+      DenseMatrix E_f_1, G_f_1;
+      E_f_1.CopyMN(elmat, ndof1, c_dof, 0, ndof1+ndof2);
+      G_f_1.CopyMN(elmat, c_dof, ndof1, ndof1+ndof2, 0);
+      AssembleNCSlaveEGFaceMatrix(face, E_f_1, G_f_1);
    }
-
-   // assemble G constraint
-   DenseMatrix G_f_1(&G_data[G_offsets[face]], c_dof, ndof1);
-   G_f_1.CopyMN(elmat, c_dof, ndof1, ndof1+ndof2, 0);
+   else
+   {
+      DenseMatrix E_f_1(&E_data[E_offsets[face]], ndof1, c_dof);
+      DenseMatrix G_f_1(&G_data[G_offsets[face]], c_dof, ndof1);
+      E_f_1.CopyMN(elmat, ndof1, c_dof, 0, ndof1+ndof2);
+      G_f_1.CopyMN(elmat, c_dof, ndof1, ndof1+ndof2, 0);
+   }
    if (save2)
    {
-      DenseMatrix G_f_2(&G_data[G_offsets[face] + c_dof*ndof1], c_dof, ndof2);
-      G_f_2.CopyMN(elmat, c_dof, ndof1, ndof1+ndof2, ndof1);
+      if (nc >= 0)
+      {
+         // interior slave face
+         DenseMatrix E_f_2, G_f_2;
+         E_f_2.CopyMN(elmat, ndof2, c_dof, ndof1, ndof1+ndof2);
+         G_f_2.CopyMN(elmat, c_dof, ndof2, ndof1+ndof2, ndof1);
+         AssembleNCSlaveEGFaceMatrix(face, E_f_2, G_f_2);
+      }
+      else
+      {
+         DenseMatrix E_f_2(&E_data[E_offsets[face] + c_dof*ndof1], ndof2, c_dof);
+         DenseMatrix G_f_2(&G_data[G_offsets[face] + c_dof*ndof1], c_dof, ndof2);
+         E_f_2.CopyMN(elmat, ndof2, c_dof, ndof1, ndof1+ndof2);
+         G_f_2.CopyMN(elmat, c_dof, ndof2, ndof1+ndof2, ndof1);
+      }
    }
 
    // assemble H matrix
    if (IsNonlinear())
    {
-      DenseMatrix H_f(&H_data[H_offsets[face]], c_dof, c_dof);
+      if (face < num_faces)
+      {
+         DenseMatrix H_f(&H_data[H_offsets[face]], c_dof, c_dof);
+         H_f.CopyMN(elmat, c_dof, c_dof, ndof1+ndof2, ndof1+ndof2);
+      }
+      else
+      {
+         DenseMatrix H_f;
+         H_f.CopyMN(elmat, c_dof, c_dof, ndof1+ndof2, ndof1+ndof2);
+         AssembleNCSlaveHFaceMatrix(face, H_f);
+      }
+   }
+   else if (face < num_faces)
+   {
+      Array<int> c_dofs;
+      c_fes.GetFaceVDofs(face, c_dofs);
+
+      if (!H) { H.reset(new SparseMatrix(c_fes.GetVSize())); }
+      DenseMatrix H_f;
       H_f.CopyMN(elmat, c_dof, c_dof, ndof1+ndof2, ndof1+ndof2);
+      H->AddSubMatrix(c_dofs, c_dofs, H_f, skip_zeros);
    }
    else
    {
-      if (!H) { H.reset(new SparseMatrix(c_fes.GetVSize())); }
-      h_elmat.CopyMN(elmat, c_dof, c_dof, ndof1+ndof2, ndof1+ndof2);
-      H->AddSubMatrix(c_dofs, c_dofs, h_elmat, skip_zeros);
+      int face_master;
+      DenseMatrix H_f, ItHI_f;
+      H_f.CopyMN(elmat, c_dof, c_dof, ndof1+ndof2, ndof1+ndof2);
+      face_getter fx([this, &ItHI_f, &face_master](int f, DenseMatrix &m)
+      {
+         const int c_dof = c_fes.GetFaceElement(f)->GetDof() * c_fes.GetVDim();
+         ItHI_f.SetSize(c_dof);
+         m.Reset(ItHI_f.GetData(), c_dof, c_dof);
+         face_master = f;
+      });
+      AssembleNCSlaveFaceMatrix(face, face_getter(), NULL, face_getter(), NULL,
+                                fx, &H_f);
+
+      Array<int> c_dofs;
+      c_fes.GetFaceVDofs(face_master, c_dofs);
+      H->AddSubMatrix(c_dofs, c_dofs, ItHI_f, skip_zeros);
    }
 }
 
@@ -505,12 +564,6 @@ void DarcyHybridization::ComputeAndAssemblePotBdrFaceMatrix(
    }
 }
 
-void DarcyHybridization::AssembleNCMasterPotFaceMatrices()
-{
-   AssembleNCMasterFaceMatrices(&DarcyHybridization::GetEFaceMatrix,
-                                &DarcyHybridization::GetGFaceMatrix);
-}
-
 void DarcyHybridization::GetFDofs(int el, Array<int> &fdofs) const
 {
    const int o = hat_offsets[el];
@@ -572,14 +625,39 @@ FaceElementTransformations *DarcyHybridization::GetFaceTransformation(
    return FTr;
 }
 
-void DarcyHybridization::AssembleCtFaceMatrix(int face, int el1, int el2,
+void DarcyHybridization::AssembleCtFaceMatrix(int face,
                                               const DenseMatrix &elmat)
 {
+   const Mesh *mesh = fes.GetMesh();
+   const int num_faces = mesh->GetNumFaces();
+   int el1, el2;
+   mesh->GetFaceElements(face, &el1, &el2);
+
    const int hat_size_1 = hat_offsets[el1+1] - hat_offsets[el1];
    const int f_size_1 = Af_f_offsets[el1+1] - Af_f_offsets[el1];
    const int c_size = c_fes.GetFaceElement(face)->GetDof() * c_fes.GetVDim();
 
+   int inf1, inf2, nc;
+   if (mesh->Nonconforming())
+   {
+      mesh->GetFaceInfos(face, &inf1, &inf2, &nc);
+      MFEM_ASSERT(nc < 0 || el2 >= 0 ||
+                  inf2 >= 0, "Master face should not be integrated directly!");
+   }
+   else
+   {
+      inf1 = inf2 = nc = -1;
+   }
+
    //el1
+   if (nc >= 0 && face >= num_faces)
+   {
+      // ghost slave
+      DenseMatrix Ct_face(f_size_1, c_size);
+      AssembleCtSubMatrix(el1, elmat, Ct_face);
+      AssembleNCSlaveCtFaceMatrix(face, Ct_face);
+      return;
+   }
    DenseMatrix Ct_face_1(&Ct_data[Ct_offsets[face]], f_size_1, c_size);
    AssembleCtSubMatrix(el1, elmat, Ct_face_1);
 
@@ -589,6 +667,14 @@ void DarcyHybridization::AssembleCtFaceMatrix(int face, int el1, int el2,
       //const int hat_size_2 = hat_offsets[el2+1] - hat_offsets[el2];
       const int f_size_2 = Af_f_offsets[el2+1] - Af_f_offsets[el2];
 
+      if (nc >= 0)
+      {
+         //interior slave
+         DenseMatrix Ct_face(f_size_2, c_size);
+         AssembleCtSubMatrix(el2, elmat, Ct_face, hat_size_1);
+         AssembleNCSlaveCtFaceMatrix(face, Ct_face);
+         return;
+      }
       DenseMatrix Ct_face_2(&Ct_data[Ct_offsets[face] + f_size_1*c_size],
                             f_size_2, c_size);
       AssembleCtSubMatrix(el2, elmat, Ct_face_2, hat_size_1);
@@ -623,92 +709,147 @@ void DarcyHybridization::AssembleCtSubMatrix(int el, const DenseMatrix &elmat,
    MFEM_ASSERT(row == Af_f_offsets[el+1] - Af_f_offsets[el], "Internal error.");
 }
 
-void DarcyHybridization::AssembleNCMasterFaceMatrices(face_getter fx_Ct,
-                                                      face_getter fx_C)
+void DarcyHybridization::AssembleNCSlaveFaceMatrix(int f,
+                                                   face_getter fx_Ct, const DenseMatrix *Ct,
+                                                   face_getter fx_C, const DenseMatrix *C,
+                                                   face_getter fx_H, const DenseMatrix *H)
 {
    const Mesh *mesh = fes.GetMesh();
-   if (!mesh->Nonconforming() || !c_bfi) { return; }
+#ifdef MFEM_DEBUG
+   int el1, el2, inf1, inf2, nc;
+   mesh->GetFaceElements(f, &el1, &el2);
+   mesh->GetFaceInfos(f, &inf1, &inf2, &nc);
+   MFEM_ASSERT(nc >= 0 && (el2 >= 0 || inf2 >= 0), "Not a slave face");
+#endif
 
    const int dim = mesh->Dimension();
+   const int num_faces = mesh->GetNumFaces();
    auto &nclist = mesh->ncmesh->GetNCList(dim-1);
    const FiniteElementCollection *c_fec = c_fes.FEColl();
+
+   auto find = nclist.GetMeshIdAndType(f);
+   MFEM_ASSERT(find.type == NCMesh::NCList::MeshIdType::SLAVE, "Not a slave face");
+   const NCMesh::Slave &slave = static_cast<const NCMesh::Slave&>(*find.id);
+
+   if (slave.master >= num_faces) { return; }
+
+#ifdef MFEM_DEBUG
+   mesh->GetFaceElements(slave.master, &el1, &el2);
+   mesh->GetFaceInfos(slave.master, &inf1, &inf2, &nc);
+   MFEM_ASSERT(nc >= 0 && el2 < 0, "Not a master face");
+#endif
+   Geometry::Type geom_m = mesh->GetFaceGeometry(slave.master);
+
    IsoparametricTransformation T;
-   DenseMatrix Ct_m, Ct_s, C_m, C_s, I, Io;
+   DenseMatrix Ct_m, C_m, H_m, I, Io;
    Array<int> edges_m, edges_s, oris_m, oris_s;
    const int *ord_m, *ord_s;
 
-   for (const auto &master : nclist.masters)
+   if (dim == 2)
    {
-      if (dim == 2)
+      // get edge/face ordering
+      mesh->GetFaceEdges(slave.master, edges_m, oris_m);
+      ord_m = c_fec->DofOrderForOrientation(geom_m, oris_m[0]);
+   }
+
+   // compound the master matrix from the slave ones
+   if (fx_Ct)
+   {
+      fx_Ct(slave.master, Ct_m);
+   }
+   if (fx_C)
+   {
+      fx_C(slave.master, C_m);
+   }
+   if (fx_H)
+   {
+      fx_H(slave.master, H_m);
+   }
+
+   const FiniteElement *fe_m = c_fes.GetFaceElement(slave.master);
+   switch (geom_m)
+   {
+      case Geometry::SQUARE:   T.SetFE(&QuadrilateralFE); break;
+      case Geometry::TRIANGLE: T.SetFE(&TriangleFE); break;
+      case Geometry::SEGMENT:  T.SetFE(&SegmentFE); break;
+      default: MFEM_ABORT("unsupported geometry");
+   }
+
+   nclist.OrientedPointMatrix(slave, T.GetPointMat());
+   const FiniteElement *fe_s = c_fes.GetFaceElement(slave.index);
+   fe_s->GetTransferMatrix(*fe_m, T, I);
+
+   if (dim == 2)
+   {
+      //get edge/face ordering
+      if (slave.index < num_faces)
       {
-         // get edge/face ordering
-         mesh->GetFaceEdges(master.index, edges_m, oris_m);
-         ord_m = c_fec->DofOrderForOrientation(master.Geom(), oris_m[0]);
+         mesh->GetFaceEdges(slave.index, edges_s, oris_s);
+      }
+      else
+      {
+         int verts[4], edges[4], oris[4];
+         mesh->ncmesh->GetFaceVerticesEdges(slave, verts, edges, oris);
+         oris_s.SetSize(1);
+         oris_s[0] = oris[0];
+         // check for inverted orientation
+         int inf1, inf2;
+         mesh->GetFaceInfos(slave.index, &inf1, &inf2);
+         if (Mesh::DecodeFaceInfoOrientation(inf2)) { oris_s[0] *= -1; }
       }
 
-      // compound the master matrix from the slave ones
-      (this->*fx_Ct)(master.index, 0, Ct_m);
-      Ct_m = 0.;
-      if (fx_C)
-      {
-         (this->*fx_C)(master.index, 0, C_m);
-         C_m = 0.;
-      }
+      ord_s = c_fec->DofOrderForOrientation(slave.Geom(), oris_s[0]);
 
-      const FiniteElement *fe_m = c_fes.GetFaceElement(master.index);
-      switch (master.Geom())
-      {
-         case Geometry::SQUARE:   T.SetFE(&QuadrilateralFE); break;
-         case Geometry::TRIANGLE: T.SetFE(&TriangleFE); break;
-         case Geometry::SEGMENT:  T.SetFE(&SegmentFE); break;
-         default: MFEM_ABORT("unsupported geometry");
-      }
-
-      for (int s = master.slaves_begin; s < master.slaves_end; s++)
-      {
-         const NCMesh::Slave &slave = nclist.slaves[s];
-         // master is always on side 1
-         (this->*fx_Ct)(slave.index, 1, Ct_s);
-         if (fx_C)
+      //reorder the interpolation matrix edge->face
+      Io.SetSize(I.Height(), I.Width());
+      for (int j = 0; j < I.Width(); j++)
+         for (int i = 0; i < I.Height(); i++)
          {
-            (this->*fx_C)(slave.index, 1, C_s);
+            Io(ord_s[i], ord_m[j]) = I(i,j);
          }
+   }
+   else
+   {
+      Io.Reset(I.GetData(), I.Height(), I.Width());
+   }
 
-         nclist.OrientedPointMatrix(slave, T.GetPointMat());
-         const FiniteElement *fe_s = c_fes.GetFaceElement(slave.index);
-         fe_s->GetTransferMatrix(*fe_m, T, I);
-
-         if (dim == 2)
-         {
-            //get edge/face ordering
-            mesh->GetFaceEdges(slave.index, edges_s, oris_s);
-            ord_s = c_fec->DofOrderForOrientation(slave.Geom(), oris_s[0]);
-
-            //reorder the interpolation matrix edge->face
-            Io.SetSize(I.Height(), I.Width());
-            for (int j = 0; j < I.Width(); j++)
-               for (int i = 0; i < I.Height(); i++)
-               {
-                  Io(ord_s[i], ord_m[j]) = I(i,j);
-               }
-         }
-         else
-         {
-            Io.Reset(I.GetData(), I.Height(), I.Width());
-         }
-
-         mfem::AddMult(Ct_s, Io, Ct_m);
-         if (fx_C)
-         {
-            mfem::AddMultAtB(Io, C_s, C_m);
-         }
-      }
+   if (fx_Ct)
+   {
+      mfem::AddMult(*Ct, Io, Ct_m);
+   }
+   if (fx_C)
+   {
+      mfem::AddMultAtB(Io, *C, C_m);
+   }
+   if (fx_H)
+   {
+      DenseMatrix H_ma(H_m.Height(), H_m.Width());
+      RAP(*H, Io, H_ma);
+      H_m += H_ma;
    }
 }
 
-void DarcyHybridization::AssembleNCMasterCtFaceMatrices()
+void DarcyHybridization::AssembleNCSlaveCtFaceMatrix(int f,
+                                                     const DenseMatrix &Ct)
 {
-   AssembleNCMasterFaceMatrices(&DarcyHybridization::GetCtFaceMatrix);
+   AssembleNCSlaveFaceMatrix(f,
+   [this](int f, DenseMatrix &m) { GetCtFaceMatrix(f, 0, m); }, &Ct);
+}
+
+void DarcyHybridization::AssembleNCSlaveEGFaceMatrix(int f,
+                                                     const DenseMatrix &E, const DenseMatrix &G)
+{
+   AssembleNCSlaveFaceMatrix(f,
+   [this](int f, DenseMatrix &m) { GetEFaceMatrix(f, 0, m); }, &E,
+   [this](int f, DenseMatrix &m) { GetGFaceMatrix(f, 0, m); }, &G);
+}
+
+void DarcyHybridization::AssembleNCSlaveHFaceMatrix(int f, const DenseMatrix &H)
+{
+   AssembleNCSlaveFaceMatrix(f,
+                             face_getter(), NULL,
+                             face_getter(), NULL,
+   [this](int f, DenseMatrix &m) { GetHFaceMatrix(f, m); }, &H);
 }
 
 void DarcyHybridization::ConstructC()
@@ -735,11 +876,15 @@ void DarcyHybridization::ConstructC()
    Ct_offsets[0] = 0;
    for (int f = 0; f < num_faces; f++)
    {
-      int el1, el2;
+      int el1, el2, inf1, inf2, nc = -1;
       mesh->GetFaceElements(f, &el1, &el2);
+      if (mesh->Nonconforming())
+      {
+         mesh->GetFaceInfos(f, &inf1, &inf2, &nc);
+      }
 
       int f_size = Af_f_offsets[el1+1] - Af_f_offsets[el1];
-      if (el2 >= 0)
+      if (el2 >= 0 && nc < 0)
       {
          f_size += Af_f_offsets[el2+1] - Af_f_offsets[el2];
       }
@@ -768,12 +913,7 @@ void DarcyHybridization::ConstructC()
          elmat.Threshold(mtol * elmat.MaxMaxNorm());
 
          // assemble the matrix
-         AssembleCtFaceMatrix(f, FTr->Elem1No, FTr->Elem2No, elmat);
-      }
-
-      if (mesh->Nonconforming())
-      {
-         AssembleNCMasterCtFaceMatrices();
+         AssembleCtFaceMatrix(f, elmat);
       }
 
 #ifdef MFEM_USE_MPI
@@ -801,7 +941,7 @@ void DarcyHybridization::ConstructC()
             elmat.Threshold(mtol * elmat.MaxMaxNorm());
 
             // assemble the matrix
-            AssembleCtFaceMatrix(f, FTr->Elem1No, -1, elmat);
+            AssembleCtFaceMatrix(f, elmat);
          }
       }
 #endif
@@ -858,7 +998,7 @@ void DarcyHybridization::ConstructC()
                elmat.Threshold(mtol * elmat.MaxMaxNorm());
 
                // assemble the matrix
-               AssembleCtFaceMatrix(iface, FTr->Elem1No, FTr->Elem2No, elmat);
+               AssembleCtFaceMatrix(iface, elmat);
             }
          }
       }
@@ -879,18 +1019,22 @@ void DarcyHybridization::AllocD() const
 void DarcyHybridization::AllocEG() const
 {
    Mesh *mesh = fes.GetMesh();
-   int num_faces = mesh->GetNumFaces();
+   const int num_faces = mesh->GetNumFaces();
 
    // Define E_offsets and allocate E_data and G_data
    E_offsets.SetSize(num_faces+1);
    E_offsets[0] = 0;
    for (int f = 0; f < num_faces; f++)
    {
-      int el1, el2;
+      int el1, el2, inf1, inf2, nc = -1;
       mesh->GetFaceElements(f, &el1, &el2);
+      if (mesh->Nonconforming())
+      {
+         mesh->GetFaceInfos(f, &inf1, &inf2, &nc);
+      }
 
       int d_size = Df_f_offsets[el1+1] - Df_f_offsets[el1];
-      if (el2 >= 0)
+      if (el2 >= 0 && nc < 0)
       {
          d_size += Df_f_offsets[el2+1] - Df_f_offsets[el2];
       }
@@ -898,8 +1042,8 @@ void DarcyHybridization::AllocEG() const
       E_offsets[f+1] = E_offsets[f] + c_size * d_size;
    }
 
-   E_data.SetSize(E_offsets[num_faces]); E_data = 0.;
-   G_data.SetSize(G_offsets[num_faces]); G_data = 0.;
+   E_data.SetSize(E_offsets.Last()); E_data = 0.;
+   G_data.SetSize(G_offsets.Last()); G_data = 0.;
 }
 
 void DarcyHybridization::AllocH() const

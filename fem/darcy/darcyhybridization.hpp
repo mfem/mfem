@@ -20,6 +20,8 @@
 #include "../pnonlinearform.hpp"
 #endif //MFEM_USE_MPI
 
+#include <functional>
+
 #define MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
 #define MFEM_DARCY_HYBRIDIZATION_GRAD_MAT
 
@@ -270,12 +272,18 @@ private:
    void GetFDofs(int el, Array<int> &fdofs) const;
    void GetEDofs(int el, Array<int> &edofs) const;
    FaceElementTransformations *GetFaceTransformation(int f) const;
-   void AssembleCtFaceMatrix(int face, int el1, int el2, const DenseMatrix &elmat);
+   void AssembleCtFaceMatrix(int face, const DenseMatrix &elmat);
    void AssembleCtSubMatrix(int el, const DenseMatrix &elmat,
                             DenseMatrix &Ct, int ioff=0);
-   using face_getter = void (DarcyHybridization::*)(int, int, DenseMatrix &) const;
-   void AssembleNCMasterFaceMatrices(face_getter Ct, face_getter C = NULL);
-   void AssembleNCMasterCtFaceMatrices();
+   using face_getter = std::function<void(int, DenseMatrix &)>;
+   void AssembleNCSlaveFaceMatrix(int f,
+                                  face_getter fx_Ct = face_getter(), const DenseMatrix *Ct = NULL,
+                                  face_getter fx_C = face_getter(), const DenseMatrix *C = NULL,
+                                  face_getter fx_H = face_getter(), const DenseMatrix *H = NULL);
+   void AssembleNCSlaveCtFaceMatrix(int f, const DenseMatrix &Ct);
+   void AssembleNCSlaveEGFaceMatrix(int f, const DenseMatrix &E,
+                                    const DenseMatrix &G);
+   void AssembleNCSlaveHFaceMatrix(int f, const DenseMatrix &H);
    void ConstructC();
    void AllocD() const;
    void AllocEG() const;
@@ -508,8 +516,6 @@ public:
 
    void ComputeAndAssemblePotBdrFaceMatrix(int bface, DenseMatrix & elmat,
                                            Array<int>& vdofs, int skip_zeros = 1);
-
-   void AssembleNCMasterPotFaceMatrices();
 
    /// Assemble the boundary element matrix A into the hybridized system matrix.
    //void AssembleBdrMatrix(int bdr_el, const DenseMatrix &A);
