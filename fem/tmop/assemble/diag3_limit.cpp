@@ -37,9 +37,9 @@ void TMOP_AssembleDiagPA_C0_3D(const int NE,
          // first tensor contraction, along z direction
          for (int dz = 0; dz < D1D; ++dz)
          {
-            MFEM_FOREACH_THREAD(qy, y, Q1D)
+            MFEM_FOREACH_THREAD_DIRECT(qy, y, Q1D)
             {
-               MFEM_FOREACH_THREAD(qx, x, Q1D)
+               MFEM_FOREACH_THREAD_DIRECT(qx, x, Q1D)
                {
                   real_t u = 0.0;
                   for (int qz = 0; qz < Q1D; ++qz)
@@ -56,18 +56,18 @@ void TMOP_AssembleDiagPA_C0_3D(const int NE,
          // second tensor contraction, along y direction
          for (int dz = 0; dz < D1D; ++dz)
          {
-            MFEM_FOREACH_THREAD(qy, y, Q1D)
+            MFEM_FOREACH_THREAD_DIRECT(qy, y, Q1D)
             {
-               MFEM_FOREACH_THREAD(qx, x, Q1D)
+               MFEM_FOREACH_THREAD_DIRECT(qx, x, Q1D)
                {
                   smem[qy][qx] = r0[dz][qy][qx];
                }
             }
             MFEM_SYNC_THREAD;
 
-            MFEM_FOREACH_THREAD(dy, y, D1D)
+            MFEM_FOREACH_THREAD_DIRECT(dy, y, D1D)
             {
-               MFEM_FOREACH_THREAD(qx, x, Q1D)
+               MFEM_FOREACH_THREAD_DIRECT(qx, x, Q1D)
                {
                   real_t u = 0.0;
                   for (int qy = 0; qy < Q1D; ++qy)
@@ -84,18 +84,18 @@ void TMOP_AssembleDiagPA_C0_3D(const int NE,
          // third tensor contraction, along x direction
          for (int dz = 0; dz < D1D; ++dz)
          {
-            MFEM_FOREACH_THREAD(dy, y, D1D)
+            MFEM_FOREACH_THREAD_DIRECT(dy, y, D1D)
             {
-               MFEM_FOREACH_THREAD(qx, x, Q1D)
+               MFEM_FOREACH_THREAD_DIRECT(qx, x, Q1D)
                {
                   smem[dy][qx] = r1[dz][dy][qx];
                }
             }
             MFEM_SYNC_THREAD;
 
-            MFEM_FOREACH_THREAD(dy, y, D1D)
+            MFEM_FOREACH_THREAD_DIRECT(dy, y, D1D)
             {
-               MFEM_FOREACH_THREAD(dx, x, D1D)
+               MFEM_FOREACH_THREAD_DIRECT(dx, x, D1D)
                {
                   real_t u = 0.0;
                   for (int qx = 0; qx < Q1D; ++qx)

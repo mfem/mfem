@@ -33,9 +33,9 @@ void TMOP_AssembleDiagPA_C0_2D(const int NE,
 
       for (int v = 0; v < 2; v++)
       {
-         MFEM_FOREACH_THREAD(qx, x, Q1D)
+         MFEM_FOREACH_THREAD_DIRECT(qx, x, Q1D)
          {
-            MFEM_FOREACH_THREAD(dy, y, D1D)
+            MFEM_FOREACH_THREAD_DIRECT(dy, y, D1D)
             {
                QD(qx, dy) = 0.0;
                for (int qy = 0; qy < Q1D; ++qy)
@@ -46,9 +46,9 @@ void TMOP_AssembleDiagPA_C0_2D(const int NE,
             }
          }
          MFEM_SYNC_THREAD;
-         MFEM_FOREACH_THREAD(dy, y, D1D)
+         MFEM_FOREACH_THREAD_DIRECT(dy, y, D1D)
          {
-            MFEM_FOREACH_THREAD(dx, x, D1D)
+            MFEM_FOREACH_THREAD_DIRECT(dx, x, D1D)
             {
                real_t d = 0.0;
                for (int qx = 0; qx < Q1D; ++qx)

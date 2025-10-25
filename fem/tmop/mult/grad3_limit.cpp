@@ -43,9 +43,9 @@ void TMOP_AddMultGradPA_C0_3D(const int NE,
 
       for (int qz = 0; qz < Q1D; ++qz)
       {
-         MFEM_FOREACH_THREAD(qy, y, Q1D)
+         MFEM_FOREACH_THREAD_DIRECT(qy, y, Q1D)
          {
-            MFEM_FOREACH_THREAD(qx, x, Q1D)
+            MFEM_FOREACH_THREAD_DIRECT(qx, x, Q1D)
             {
                // Xh = X^T . Sh
                const real_t Xh[3] =

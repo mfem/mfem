@@ -56,9 +56,9 @@ void TMOP_AssembleGradPA_C0_2D(const real_t lim_normal,
       kernels::internal::LoadDofs2d(e, D1D, X1, r10);
       kernels::internal::Eval2d(D1D, Q1D, smem, sB, r10, r11);
 
-      MFEM_FOREACH_THREAD(qy, y, Q1D)
+      MFEM_FOREACH_THREAD_DIRECT(qy, y, Q1D)
       {
-         MFEM_FOREACH_THREAD(qx, x, Q1D)
+         MFEM_FOREACH_THREAD_DIRECT(qx, x, Q1D)
          {
             const real_t *Jtr = &J(0, 0, qx, qy, e);
             const real_t detJtr = kernels::Det<2>(Jtr);

@@ -41,9 +41,9 @@ void TMOP_AssembleDiagPA_3D(const int NE,
          // Takes into account Jtr by replacing H with Href at all quad points.
          for (int qz = 0; qz < Q1D; ++qz)
          {
-            MFEM_FOREACH_THREAD(qy, y, Q1D)
+            MFEM_FOREACH_THREAD_DIRECT(qy, y, Q1D)
             {
-               MFEM_FOREACH_THREAD(qx, x, Q1D)
+               MFEM_FOREACH_THREAD_DIRECT(qx, x, Q1D)
                {
                   const real_t *Jtr = &J(0, 0, qx, qy, qz, e);
                   real_t Jrt_data[9];
@@ -83,9 +83,9 @@ void TMOP_AssembleDiagPA_3D(const int NE,
          // Contract in z.
          for (int dz = 0; dz < D1D; ++dz)
          {
-            MFEM_FOREACH_THREAD(qy, y, Q1D)
+            MFEM_FOREACH_THREAD_DIRECT(qy, y, Q1D)
             {
-               MFEM_FOREACH_THREAD(qx, x, Q1D)
+               MFEM_FOREACH_THREAD_DIRECT(qx, x, Q1D)
                {
                   for (int m = 0; m < 3; m++)
                   {
@@ -120,9 +120,9 @@ void TMOP_AssembleDiagPA_3D(const int NE,
             {
                for (int n = 0; n < 3; n++)
                {
-                  MFEM_FOREACH_THREAD(qy, y, Q1D)
+                  MFEM_FOREACH_THREAD_DIRECT(qy, y, Q1D)
                   {
-                     MFEM_FOREACH_THREAD(qx, x, Q1D)
+                     MFEM_FOREACH_THREAD_DIRECT(qx, x, Q1D)
                      {
                         smem[m][n][qy][qx] = r0(m, n, dz, qy, qx);
                      }
@@ -131,9 +131,9 @@ void TMOP_AssembleDiagPA_3D(const int NE,
             }
             MFEM_SYNC_THREAD;
 
-            MFEM_FOREACH_THREAD(dy, y, D1D)
+            MFEM_FOREACH_THREAD_DIRECT(dy, y, D1D)
             {
-               MFEM_FOREACH_THREAD(qx, x, Q1D)
+               MFEM_FOREACH_THREAD_DIRECT(qx, x, Q1D)
                {
                   for (int m = 0; m < 3; m++)
                   {
@@ -169,9 +169,9 @@ void TMOP_AssembleDiagPA_3D(const int NE,
             {
                for (int n = 0; n < 3; n++)
                {
-                  MFEM_FOREACH_THREAD(dy, y, D1D)
+                  MFEM_FOREACH_THREAD_DIRECT(dy, y, D1D)
                   {
-                     MFEM_FOREACH_THREAD(qx, x, Q1D)
+                     MFEM_FOREACH_THREAD_DIRECT(qx, x, Q1D)
                      {
                         smem[m][n][dy][qx] = r1(m, n, dz, dy, qx);
                      }
@@ -180,9 +180,9 @@ void TMOP_AssembleDiagPA_3D(const int NE,
             }
             MFEM_SYNC_THREAD;
 
-            MFEM_FOREACH_THREAD(dy, y, D1D)
+            MFEM_FOREACH_THREAD_DIRECT(dy, y, D1D)
             {
-               MFEM_FOREACH_THREAD(dx, x, D1D)
+               MFEM_FOREACH_THREAD_DIRECT(dx, x, D1D)
                {
                   real_t d = 0.0;
                   for (int qx = 0; qx < Q1D; ++qx)

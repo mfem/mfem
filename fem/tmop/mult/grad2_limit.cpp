@@ -40,9 +40,9 @@ void TMOP_AddMultGradPA_C0_2D(const int NE,
       kernels::internal::LoadDofs2d(e, D1D, X, r0);
       kernels::internal::Eval2d(D1D, Q1D, smem, sB, r0, r1);
 
-      MFEM_FOREACH_THREAD(qy, y, Q1D)
+      MFEM_FOREACH_THREAD_DIRECT(qy, y, Q1D)
       {
-         MFEM_FOREACH_THREAD(qx, x, Q1D)
+         MFEM_FOREACH_THREAD_DIRECT(qx, x, Q1D)
          {
             // Xh = X^T . Sh
             const real_t Xh[2] = { r1(0, qy, qx), r1(1, qy, qx) };

@@ -52,9 +52,9 @@ void TMOP_DatcSize_2D(const int NE,
       DeviceTensor<2, real_t> M((real_t *)(min_size), D1D, D1D);
       MFEM_FOREACH_THREAD(t, x, BLOCK_DIM) { min_size[t] = infinity; }
       MFEM_SYNC_THREAD;
-      MFEM_FOREACH_THREAD(dy, y, D1D)
+      MFEM_FOREACH_THREAD_DIRECT(dy, y, D1D)
       {
-         MFEM_FOREACH_THREAD(dx, x, D1D)
+         MFEM_FOREACH_THREAD_DIRECT(dx, x, D1D)
          {
             M(dy, dx) = r0(sizeidx, dy, dx);
          }
@@ -78,9 +78,9 @@ void TMOP_DatcSize_2D(const int NE,
       kernels::internal::LoadMatrix(D1D, Q1D, b, sB);
       kernels::internal::Eval2d(D1D, Q1D, smem, sB, r0, r1);
 
-      MFEM_FOREACH_THREAD(qy, y, Q1D)
+      MFEM_FOREACH_THREAD_DIRECT(qy, y, Q1D)
       {
-         MFEM_FOREACH_THREAD(qx, x, Q1D)
+         MFEM_FOREACH_THREAD_DIRECT(qx, x, Q1D)
          {
             const real_t T = r1(0, qy, qx);
 
@@ -138,9 +138,9 @@ void TMOP_DatcSize_3D(const int NE,
       MFEM_SYNC_THREAD;
       for (int dz = 0; dz < D1D; ++dz)
       {
-         MFEM_FOREACH_THREAD(dy, y, D1D)
+         MFEM_FOREACH_THREAD_DIRECT(dy, y, D1D)
          {
-            MFEM_FOREACH_THREAD(dx, x, D1D)
+            MFEM_FOREACH_THREAD_DIRECT(dx, x, D1D)
             {
                M(dz, dy, dx) = r0(sizeidx, dz, dy, dx);
             }
@@ -166,9 +166,9 @@ void TMOP_DatcSize_3D(const int NE,
 
       for (int qz = 0; qz < Q1D; ++qz)
       {
-         MFEM_FOREACH_THREAD(qy, y, Q1D)
+         MFEM_FOREACH_THREAD_DIRECT(qy, y, Q1D)
          {
-            MFEM_FOREACH_THREAD(qx, x, Q1D)
+            MFEM_FOREACH_THREAD_DIRECT(qx, x, Q1D)
             {
                const real_t T = r1(0, qz, qy, qx);
 

@@ -31,9 +31,9 @@ void TMOP_TcIdealShapeUnitSize_2D(const int NE,
    {
       constexpr int DIM = 2;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
-      MFEM_FOREACH_THREAD(qy, y, Q1D)
+      MFEM_FOREACH_THREAD_DIRECT(qy, y, Q1D)
       {
-         MFEM_FOREACH_THREAD(qx, x, Q1D)
+         MFEM_FOREACH_THREAD_DIRECT(qx, x, Q1D)
          {
             kernels::Set(DIM, DIM, 1.0, &W(0, 0), &J(0, 0, qx, qy, e));
          }
@@ -67,9 +67,9 @@ void TMOP_TcIdealShapeGivenSize_2D(const int NE,
       kernels::internal::LoadDofs2d(e, D1D, X, r0);
       kernels::internal::Grad2d(D1D, Q1D, smem, sB, sG, r0, r1);
 
-      MFEM_FOREACH_THREAD(qy, y, Q1D)
+      MFEM_FOREACH_THREAD_DIRECT(qy, y, Q1D)
       {
-         MFEM_FOREACH_THREAD(qx, x, Q1D)
+         MFEM_FOREACH_THREAD_DIRECT(qx, x, Q1D)
          {
             const real_t *Wid = &W(0, 0);
             const real_t Jtr[4] =

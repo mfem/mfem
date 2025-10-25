@@ -170,9 +170,9 @@ public:
 
          for (int qz = 0; qz < Q1D; ++qz)
          {
-            MFEM_FOREACH_THREAD(qy, y, Q1D)
+            MFEM_FOREACH_THREAD_DIRECT(qy, y, Q1D)
             {
-               MFEM_FOREACH_THREAD(qx, x, Q1D)
+               MFEM_FOREACH_THREAD_DIRECT(qx, x, Q1D)
                {
                   const real_t *Jtr = &J(0, 0, qx, qy, qz, e);
                   const real_t coeff = const_m0 ? MC(0, 0, 0, 0) : MC(qx, qy, qz, e);

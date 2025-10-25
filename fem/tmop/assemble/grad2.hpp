@@ -73,9 +73,9 @@ public:
          kernels::internal::LoadDofs2d(e, D1D, X, r0);
          kernels::internal::Grad2d(D1D, Q1D, smem, sB, sG, r0, r1);
 
-         MFEM_FOREACH_THREAD(qy, y, Q1D)
+         MFEM_FOREACH_THREAD_DIRECT(qy, y, Q1D)
          {
-            MFEM_FOREACH_THREAD(qx, x, Q1D)
+            MFEM_FOREACH_THREAD_DIRECT(qx, x, Q1D)
             {
                const real_t *Jtr = &J(0, 0, qx, qy, e);
                const real_t detJtr = kernels::Det<2>(Jtr);

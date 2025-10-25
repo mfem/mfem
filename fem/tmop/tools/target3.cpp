@@ -28,11 +28,11 @@ void TMOP_TcIdealShapeUnitSize_3D(const int NE, const ConstDeviceMatrix &W,
    mfem::forall_3D(NE, Q1D, Q1D, Q1D,
                    [=] MFEM_HOST_DEVICE(int e)
    {
-      MFEM_FOREACH_THREAD(qy, y, Q1D)
+      MFEM_FOREACH_THREAD_DIRECT(qy, y, Q1D)
       {
-         MFEM_FOREACH_THREAD(qx, x, Q1D)
+         MFEM_FOREACH_THREAD_DIRECT(qx, x, Q1D)
          {
-            MFEM_FOREACH_THREAD(qz, z, Q1D)
+            MFEM_FOREACH_THREAD_DIRECT(qz, z, Q1D)
             {
                kernels::Set(3, 3, 1.0, &W(0, 0), &J(0, 0, qx, qy, qz, e));
             }
@@ -72,9 +72,9 @@ void TMOP_TcIdealShapeGivenSize_3D(const int NE,
 
       for (int qz = 0; qz < Q1D; ++qz)
       {
-         MFEM_FOREACH_THREAD(qy, y, Q1D)
+         MFEM_FOREACH_THREAD_DIRECT(qy, y, Q1D)
          {
-            MFEM_FOREACH_THREAD(qx, x, Q1D)
+            MFEM_FOREACH_THREAD_DIRECT(qx, x, Q1D)
             {
                const real_t *Wid = &W(0, 0);
                const real_t Jtr[9] =
