@@ -463,6 +463,7 @@ void StokesSolver::FSolve3()
             solvers.Append(ssolv);
             operators.Append(ssolv->GetStokesOperator());
         }
+
         solvers.Appens(this);
         operators.Append(this->GetStokesOperator());
 
