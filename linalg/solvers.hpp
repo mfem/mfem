@@ -342,8 +342,7 @@ public:
 
 /** @brief Inner product operator constrained to a list of indices/dofs.
     The method Eval() computes the inner product of two vectors
-    only on the constrained entries specified in the constraint list.
-*/
+    only on the constrained entries specified in the constraint list. */
 class ConstrainedInnerProduct : public InnerProductOperator
 {
 protected:
@@ -376,6 +375,10 @@ public:
    virtual void Mult(const Vector &x, Vector &y) const override;
 };
 
+/** @brief Inner product weighted by operators, @a X and @a Y.
+    The method Eval() computes the inner product of two vectors,
+    @a x and @a y, weighted by the operators, @a X and @a Y,
+    as (Y(y),X(x)). */
 class WeightedInnerProduct : public InnerProductOperator
 {
 protected:
@@ -400,8 +403,10 @@ public:
    void SetOperator(Operator *X) { SetOperator(X, X); }
 
    /** @brief Compute the inner product (Y(y),X(x)) of vectors x and y,
-              weighted by the operator @a A.
-   */
+              weighted by the operators @a X and @a Y.
+       @note Either (but not both) operator, @a X or @a Y, can be set as null, in
+             which case the corresponding vector is unmodified (i.e. the operator
+             acts as an identity operator). */
    virtual real_t Eval(const Vector &x, const Vector &y) override;
 
    /// @brief Apply the weighting operator to vector @a x and return in @a y=Y(X(x)).

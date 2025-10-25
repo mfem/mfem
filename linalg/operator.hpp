@@ -1157,7 +1157,7 @@ public:
    { comm = comm_; dot_prod_type = 1; }
 #endif
 protected:
-   /// @brief Standard global/local l2 inner product.
+   /// @brief Standard global/local $\ell_2$ inner product.
    virtual real_t Dot(const Vector &x, const Vector &y) const;
 
 public:
@@ -1169,7 +1169,7 @@ public:
 #endif
    }
 
-   /// Operator application - not implemented/used but added
+   /// Operator application - not always needed/used but added
    /// to satisfy the abstract base class interface.
    virtual void Mult(const Vector &x, Vector &y) const override
    {
