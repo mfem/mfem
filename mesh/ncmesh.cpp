@@ -5620,10 +5620,26 @@ int NCMesh::GetFaceVerticesEdges(const MeshId &face_id,
                                  int vert_index[4], int edge_index[4],
                                  int edge_orientation[4]) const
 {
-   MFEM_ASSERT(Dim >= 3, "");
+   MFEM_ASSERT(Dim >= 2, "");
 
    const Element &el = elements[face_id.element];
    const GeomInfo& gi = GI[el.Geom()];
+
+   if (Dim == 2)
+   {
+      const int *ev = gi.edges[(int) face_id.local];
+      vert_index[0] = nodes[el.node[ev[0]]].vert_index;
+      vert_index[1] = nodes[el.node[ev[1]]].vert_index;
+      vert_index[2] = vert_index[3] = -1;
+
+      edge_index[0] = face_id.index;
+      edge_index[1] = edge_index[2] = edge_index[3] = -1;
+
+      edge_orientation[0] = (vert_index[0] < vert_index[1]) ? 1 : -1;
+      edge_orientation[1] = edge_orientation[2] = edge_orientation[3] = 0;
+
+      return 2;
+   }
 
    const int *fv = gi.faces[(int) face_id.local];
    const int nfv = gi.nfv[(int) face_id.local];
