@@ -452,6 +452,8 @@ public:
 
    void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                   const real_t weight, DenseMatrix &A) const override;
+
+   int Id() const override { return 9; }
 };
 
 /// 2D non-barrier Shape+Size+Orientation (VOS) metric (polyconvex).
@@ -502,6 +504,8 @@ public:
 
    void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                   const real_t weight, DenseMatrix &A) const override;
+
+   int Id() const override { return 22; }
 };
 
 /// 2D barrier shape metric (polyconvex).
@@ -522,6 +526,8 @@ public:
 
    void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                   const real_t weight, DenseMatrix &A) const override;
+
+   int Id() const override { return 50; }
 };
 
 /// 2D non-barrier size (V) metric (not polyconvex).
@@ -593,6 +599,8 @@ public:
 
    void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                   const real_t weight, DenseMatrix &A) const override;
+
+   int Id() const override { return 58; }
 };
 
 /// 2D non-barrier Shape+Size (VS) metric.
@@ -675,6 +683,8 @@ public:
 
    void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                   const real_t weight, DenseMatrix &A) const override;
+
+   int Id() const override { return 85; }
 };
 
 /// 2D compound barrier Shape+Size (VS) metric (balanced).
@@ -732,6 +742,8 @@ public:
 
    void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                   const real_t weight, DenseMatrix &A) const override;
+
+   int Id() const override { return 98; }
 };
 
 /// 2D untangling metric.
@@ -751,6 +763,8 @@ public:
 
    void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                   const real_t weight, DenseMatrix &A) const override;
+
+   int Id() const override { return 211; }
 };
 
 /// Shifted barrier form of metric 56 (area, ideal barrier metric), 2D
@@ -771,6 +785,8 @@ public:
 
    void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                   const real_t weight, DenseMatrix &A) const override;
+
+   int Id() const override { return 252; }
 };
 
 /// 3D barrier Shape (S) metric, well-posed (polyconvex & invex).
@@ -790,6 +806,8 @@ public:
 
    void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                   const real_t weight, DenseMatrix &A) const override;
+
+   int Id() const override { return 301; }
 };
 
 /// 3D barrier Shape (S) metric, well-posed (polyconvex & invex).
@@ -872,6 +890,8 @@ public:
 
    void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                   const real_t weight, DenseMatrix &A) const override;
+
+   int Id() const override { return 311; }
 };
 
 /// 3D Shape (S) metric, untangling version of 303.
@@ -930,6 +950,8 @@ public:
 
    void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                   const real_t weight, DenseMatrix &A) const override;
+
+   int Id() const override { return 316; }
 };
 
 /// 3D Size (V) metric.
@@ -1074,6 +1096,7 @@ public:
       AddQualityMetric(sz_metric, gamma);
    }
 
+   int Id() const override { return 333; }
    virtual ~TMOP_Metric_333() { delete sh_metric; delete sz_metric; }
 };
 
@@ -1136,6 +1159,8 @@ public:
 
    void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                   const real_t weight, DenseMatrix &A) const override;
+
+   int Id() const override { return 342; }
 };
 
 /// 3D barrier Shape+Size (VS) metric, well-posed (polyconvex).
@@ -1177,6 +1202,8 @@ public:
 
    void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                   const real_t weight, DenseMatrix &A) const override;
+
+   int Id() const override { return 352; }
 };
 
 /// 3D non-barrier Shape (S) metric.
