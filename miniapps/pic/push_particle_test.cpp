@@ -78,7 +78,7 @@ public:
       Vector x;
       T.Transform(ip, x);
       real_t r = x(0), z = x(1);
-      return Phi_0 * cos(k_x * r) * cos(k_y * z);
+      return Phi_0 * (cos(k_x * r) + cos(k_y * z));
    }
 };
 struct LorentzContext
@@ -155,13 +155,13 @@ protected:
 
    static void GetValues(const MultiVector &coords, FindPointsGSLIB &finder,
                          GridFunction &gf, MultiVector &pv);
-   void ParticleStep(Particle &part, real_t &dt);
+   void ParticleStep(Particle &part, real_t &dt, bool zeroth_step = false);
 
 public:
    Boris(MPI_Comm comm, GridFunction *E_gf_, GridFunction *B_gf_,
          int num_particles, Ordering::Type pdata_ordering);
    void InterpolateEB();
-   void Step(real_t &t, real_t &dt);
+   void Step(real_t &t, real_t &dt, bool zeroth_step = false);
    void RemoveLostParticles();
    void Redistribute(int redist_mesh); // 0 = E field, 1 = B field
    ParticleSet &GetParticles() { return *charged_particles; }
@@ -336,6 +336,12 @@ int main(int argc, char *argv[])
    auto start_time = std::chrono::high_resolution_clock::now();
    for (int step = 1; step <= ctx.nt; step++)
    {
+      if (step == 1)
+      {
+         real_t neg_half_dt = -dt / 2.0;
+         // Perform a "zeroth" step to move p half step backward
+         boris.Step(t, neg_half_dt, true);
+      }
       // Step the Boris algorithm
       boris.Step(t, dt);
       if (Mpi::Root())
@@ -425,7 +431,7 @@ void Boris::GetValues(const MultiVector &coords, FindPointsGSLIB &finder,
                      pv.GetOrdering());
 }
 
-void Boris::ParticleStep(Particle &part, real_t &dt)
+void Boris::ParticleStep(Particle &part, real_t &dt, bool zeroth_step)
 {
    Vector &x = part.Coords();
    real_t m = part.FieldValue(MASS);
@@ -460,6 +466,9 @@ void Boris::ParticleStep(Particle &part, real_t &dt)
 
    // Update the momentum (full electric contribution)
    add(pp_, 0.5 * dt * q, e, p);
+
+   if (zeroth_step)
+      return;
 
    // Update the position
    x.Add(dt / m, p);
@@ -549,7 +558,7 @@ void Boris::InterpolateEB()
    }
 }
 
-void Boris::Step(real_t &t, real_t &dt)
+void Boris::Step(real_t &t, real_t &dt, bool zeroth_step)
 {
    // Individually step each particle:
    if (charged_particles->ParticleRefValid())
@@ -557,7 +566,7 @@ void Boris::Step(real_t &t, real_t &dt)
       for (int i = 0; i < charged_particles->GetNP(); i++)
       {
          Particle p = charged_particles->GetParticleRef(i);
-         ParticleStep(p, dt);
+         ParticleStep(p, dt, zeroth_step);
       }
    }
    else
@@ -565,10 +574,12 @@ void Boris::Step(real_t &t, real_t &dt)
       for (int i = 0; i < charged_particles->GetNP(); i++)
       {
          Particle p = charged_particles->GetParticle(i);
-         ParticleStep(p, dt);
+         ParticleStep(p, dt, zeroth_step);
          charged_particles->SetParticle(i, p);
       }
    }
+   if (zeroth_step)
+      return;
 
    // Interpolate E and B field onto new locations of particles
    InterpolateEB();
