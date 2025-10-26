@@ -158,7 +158,7 @@ void dfem_mass(const char *filename, int p, const int r)
    }
 }
 
-TEST_CASE("DFEM Mass", "[Parallel][dFEM Mass]")
+TEST_CASE("dFEM Mass", "[Parallel][dFEM]")
 {
    const bool all_tests = launch_all_non_regression_tests;
 
