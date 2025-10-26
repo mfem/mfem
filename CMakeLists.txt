@@ -278,6 +278,11 @@ if (MFEM_USE_OPENMP OR MFEM_USE_LEGACY_OPENMP)
   endif()
 endif()
 
+# Umpire (must be included before hypre, so hypre can use it if needed)
+if (MFEM_USE_UMPIRE)
+   find_package(UMPIRE REQUIRED)
+endif()
+
 # MPI -> hypre; PETSc (optional)
 if (MFEM_USE_MPI)
   find_package(MPI REQUIRED)
@@ -495,12 +500,11 @@ endif()
 
 # RAJA
 if (MFEM_USE_RAJA)
+   # RAJA uses FindCUDA, which needs CMP0146=OLD in CMake >= 3.27
+   if(CMAKE_VERSION VERSION_GREATER_EQUAL 3.27.0)
+      cmake_policy(SET CMP0146 OLD)
+   endif()
    find_package(RAJA REQUIRED)
-endif()
-
-# UMPIRE
-if (MFEM_USE_UMPIRE)
-   find_package(UMPIRE REQUIRED)
 endif()
 
 # GOOGLE-BENCHMARK
@@ -596,7 +600,7 @@ set(MFEM_TPLS OPENMP HYPRE LAPACK BLAS SuperLUDist STRUMPACK METIS SuiteSparse
     NETCDF MPFR PUMI HIOP POSIXCLOCKS MFEMBacktrace ZLIB OCCA CEED RAJA UMPIRE
     ADIOS2 MKL_CPARDISO MKL_PARDISO AMGX MAGMA CUSPARSE CUBLAS CALIPER CODIPACK
     BENCHMARK PARELAG TRIBOL MPI_CXX HIP HIPBLAS HIPSPARSE MOONOLITH BLITZ
-    ALGOIM ENZYME)
+    ALGOIM ENZYME CUDA::cudart)
 
 # Add all created targets and *_FOUND libraries in the variables TPL_TARGETS and
 # TPL_LIBRARIES, respectively.
@@ -614,6 +618,7 @@ foreach(TPL IN LISTS MFEM_TPLS)
     endif()
   endif()
 endforeach(TPL)
+
 list(REVERSE TPL_LIBRARIES)
 list(REMOVE_DUPLICATES TPL_LIBRARIES)
 list(REVERSE TPL_LIBRARIES)
