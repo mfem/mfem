@@ -92,7 +92,7 @@ void diffusion(const char *filename, int p)
    ParFiniteElementSpace pfes(&pmesh, &fec);
    ParFiniteElementSpace *mfes = nodes->ParFESpace();
 
-   const int NE = pfes.GetNE(), d1d(p + 1), q = 2 * p;
+   const int NE = pfes.GetNE(), d1d(p + 1), q = 2 * p + 2;
    const auto *ir = &IntRules.Get(pmesh.GetTypicalElementGeometry(), q);
    const int q1d(IntRules.Get(Geometry::SEGMENT, ir->GetOrder()).GetNPoints());
    MFEM_VERIFY(d1d <= q1d, "q1d should be >= d1d");
@@ -305,6 +305,7 @@ TEST_CASE("dFEM Diffusion", "[Parallel][dFEM]")
          GENERATE(
             "../../data/star.mesh",
             "../../data/star-q3.mesh",
+            "../../data/rt-2d-q3.mesh",
             "../../data/inline-quad.mesh",
             "../../data/periodic-square.mesh"
          );
