@@ -2265,6 +2265,58 @@ static auto CreateLagrangianHydroOperator(
 }
 
 
+void VisualizeField(socketstream &sock, const char *vishost, int visport,
+                    ParGridFunction &gf, const char *title,
+                    int x, int y, int w, int h, bool vec = false)
+{
+   gf.HostRead();
+   ParMesh &pmesh = *gf.ParFESpace()->GetParMesh();
+   MPI_Comm comm = pmesh.GetComm();
+
+   int num_procs, myid;
+   MPI_Comm_size(comm, &num_procs);
+   MPI_Comm_rank(comm, &myid);
+
+   bool newly_opened = false;
+   int connection_failed;
+
+   do
+   {
+      if (myid == 0)
+      {
+         if (!sock.is_open() || !sock)
+         {
+            sock.open(vishost, visport);
+            sock.precision(8);
+            newly_opened = true;
+         }
+         sock << "solution\n";
+      }
+
+      pmesh.PrintAsOne(sock);
+      gf.SaveAsOne(sock);
+
+      if (myid == 0 && newly_opened)
+      {
+         const char* keys = (gf.FESpace()->GetMesh()->Dimension() == 2)
+         ? "mAcRjl" : "mmaaAcl";
+
+         sock << "window_title '" << title << "'\n"
+              << "window_geometry "
+              << x << " " << y << " " << w << " " << h << "\n"
+              << "keys " << keys;
+         if ( vec ) { sock << "vvv"; }
+         sock << std::endl;
+      }
+
+      if (myid == 0)
+      {
+         connection_failed = !sock && !newly_opened;
+      }
+      MPI_Bcast(&connection_failed, 1, MPI_INT, 0, comm);
+   }
+   while (connection_failed);
+}
 
 int main(int argc, char *argv[])
 {
@@ -2293,6 +2345,7 @@ int main(int argc, char *argv[])
    int krylov_maximum_iterations = 10;
    int preconditioner_lag = 0;
    int vis_steps = 1;
+   bool glvis = false;
    int viscosity_type = 2;
    int preconditioner_type =
       PRECONDITIONER_TYPE::BLOCK_DIAGONAL_AMG;
@@ -2332,6 +2385,7 @@ int main(int argc, char *argv[])
                   "Preconditioner type: 0 - SuperLU_DIST, 1 - Block Diagonal AMG");
    args.AddOption(&vis_steps, "-vis-steps", "--vis-steps",
                   "Number of visualization steps.");
+   args.AddOption(&glvis, "-glvis", "--glvis", "-no-glvis", "--no-glvis", "");
    args.AddOption(&viscosity_type, "-av-type", "--av-type", "");
    args.AddOption(&dump_jacobians, "-dump-jacobians", "--dump-jacobians", "");
    args.AddOption(&nretry, "-nretry", "--nretry", "");
@@ -2604,6 +2658,33 @@ int main(int argc, char *argv[])
    const real_t energy_init = hydro->InternalEnergy(e_gf) +
                               hydro->KineticEnergy(v_gf);
 
+   socketstream vis_rho, vis_v, vis_e;
+   char vishost[] = "localhost";
+   int  visport   = 19916;
+   if (glvis)
+   {
+      // Make sure all MPI ranks have sent their 'v' solution before initiating
+      // another set of GLVis connections (one from each rank):
+      MPI_Barrier(mesh.GetComm());
+      vis_rho.precision(8);
+      vis_v.precision(8);
+      vis_e.precision(8);
+      int Wx = 0, Wy = 0; // window position
+      const int Ww = 350, Wh = 350; // window size
+      int offx = Ww+10; // window offsets
+      if (problem != 0 && problem != 4)
+      {
+         VisualizeField(vis_rho, vishost, visport, rho_gf,
+                        "Density", Wx, Wy, Ww, Wh);
+      }
+      Wx += offx;
+      VisualizeField(vis_v, vishost, visport, v_gf,
+                     "Velocity", Wx, Wy, Ww, Wh);
+      Wx += offx;
+      VisualizeField(vis_e, vishost, visport, e_gf,
+                     "Specific Internal Energy", Wx, Wy, Ww, Wh);
+   }
+
    if (Mpi::Root())
    {
       out << "IE: " << energy_init << "\n";
@@ -2807,6 +2888,26 @@ int main(int argc, char *argv[])
       if (ti % vis_steps == 0 || last_step)
       {
          vizcb(ti, t);
+
+         if (glvis)
+         {
+            hydro->ComputeDensity(rho_gf);
+            int Wx = 0, Wy = 0; // window position
+            int Ww = 350, Wh = 350; // window size
+            int offx = Ww+10; // window offsets
+            if (problem != 0 && problem != 4)
+            {
+               VisualizeField(vis_rho, vishost, visport, rho_gf,
+                              "Density", Wx, Wy, Ww, Wh);
+            }
+            Wx += offx;
+            VisualizeField(vis_v, vishost, visport,
+                           v_gf, "Velocity", Wx, Wy, Ww, Wh);
+            Wx += offx;
+            VisualizeField(vis_e, vishost, visport, e_gf,
+                           "Specific Internal Energy", Wx, Wy, Ww,Wh);
+            Wx += offx;
+         }
       }
    }
 
