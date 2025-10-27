@@ -180,7 +180,7 @@ template <int DIM> void mass_mat_mixed(const char* filename, int p)
    }
 }
 
-
+// no GPU tag to avoid failing 'hypre parallel mat' section
 TEST_CASE("dFEM Mass", "[Parallel][dFEM]")
 {
    const bool all_tests = launch_all_non_regression_tests;
