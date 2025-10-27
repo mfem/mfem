@@ -1228,11 +1228,15 @@ public:
       return Mk;
    }
 
+   /// Allows the tensor data to be accessed as a Densematrix.
+   /// NOTE: The last two indices are flattened.
    void GetDenseMatrix(DenseMatrix &Mi_jk)
    {
       Mi_jk.UseExternalData(Data(), SizeI(), SizeJ()*SizeK());
    }
 
+   /// Allows the tensor data to be accessed as a Densematrix.
+   /// NOTE: The fist two indices are flattened.
    void GetDenseMatrix2(DenseMatrix &Mij_k)
    {
       Mij_k.UseExternalData(Data(), SizeI()*SizeJ(),SizeK());
