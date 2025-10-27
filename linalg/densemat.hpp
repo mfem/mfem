@@ -1258,20 +1258,6 @@ public:
       return tdata[i+SizeI()*(j+SizeJ()*k)];
    }
 
-   real_t *GetData(int j, int k)
-   {
-      MFEM_ASSERT_INDEX_IN_RANGE(k, 0, SizeK());
-      MFEM_ASSERT_INDEX_IN_RANGE(j, 0, SizeJ());
-      return tdata+k*Mk.Height()*Mk.Width() + j*Mk.Height();
-   }
-
-   const real_t *GetData(int j,int k) const
-   {
-      MFEM_ASSERT_INDEX_IN_RANGE(k, 0, SizeK());
-      MFEM_ASSERT_INDEX_IN_RANGE(j, 0, SizeJ());
-      return tdata+k*Mk.Height()*Mk.Width() + j*Mk.Height();;
-   }
-
    real_t *GetData(int k)
    {
       MFEM_ASSERT_INDEX_IN_RANGE(k, 0, SizeK());
