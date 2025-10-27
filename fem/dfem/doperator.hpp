@@ -280,6 +280,22 @@ public:
       }
    }
 
+   /// @brief Add an integrator to the operator.
+   /// Called only from AddDomainIntegrator() and AddBoundaryIntegrator().
+   template <
+      typename entity_t,
+      typename qfunc_t,
+      typename input_t,
+      typename output_t,
+      typename derivative_ids_t>
+   void AddIntegrator(
+      qfunc_t &qfunc,
+      input_t inputs,
+      output_t outputs,
+      const IntegrationRule &integration_rule,
+      const Array<int> &attributes,
+      derivative_ids_t derivative_ids);
+
    /// @brief Add a domain integrator to the operator.
    ///
    /// @param qfunc The quadrature function to be added.
@@ -399,22 +415,6 @@ public:
    }
 
 private:
-   /// @brief Add an integrator to the operator.
-   /// Called only from AddDomainIntegrator() and AddBoundaryIntegrator().
-   template <
-      typename entity_t,
-      typename qfunc_t,
-      typename input_t,
-      typename output_t,
-      typename derivative_ids_t>
-   void AddIntegrator(
-      qfunc_t &qfunc,
-      input_t inputs,
-      output_t outputs,
-      const IntegrationRule &integration_rule,
-      const Array<int> &attributes,
-      derivative_ids_t derivative_ids);
-
    const ParMesh &mesh;
 
    MultLevel mult_level = TVECTOR;
