@@ -11,8 +11,8 @@
 #include <mfem.hpp>
 
 // TODO: Do we want this to be included from mfem.hpp automatically now?
-#include "../fem/dfem/doperator.hpp"
-#include "../linalg/tensor.hpp"
+#include "fem/dfem/doperator.hpp"
+#include "linalg/tensor.hpp"
 
 #include <limits>
 #include <memory>
@@ -990,6 +990,7 @@ public:
 
          else if (hydro.preconditioner_type == PRECONDITIONER_TYPE::SUPERLU)
          {
+#ifdef MFEM_USE_SUPERLU
             // dRxdv = -h * I
             SparseMatrix dRxdv_diag(hydro.H1.GetTrueVSize());
             for (int i = 0; i < dRxdv_diag.Height(); i++)
@@ -1063,6 +1064,9 @@ public:
             superlu_solver->SetSymmetricPattern(false);
             superlu_solver->SetOperator(*superlu_mat);
             superlu_solver->SetPrintStatistics(false);
+#else
+            MFEM_ABORT("MFEM is not built with SuperLU");
+#endif
          }
 
          rebuild = false;
@@ -1089,7 +1093,11 @@ public:
          }
          else if (hydro.preconditioner_type == PRECONDITIONER_TYPE::SUPERLU)
          {
+#ifdef MFEM_USE_SUPERLU
             superlu_solver->Mult(x, y);
+#else
+            MFEM_ABORT("MFEM is not built with SuperLU");
+#endif
          }
       }
 
@@ -1102,8 +1110,10 @@ public:
       std::shared_ptr<HypreBoomerAMG> amg_v;
       std::shared_ptr<HypreParMatrix> ee_mat;
       std::shared_ptr<HypreBoomerAMG> amg_e;
+#ifdef MFEM_USE_SUPERLU
       std::shared_ptr<SuperLURowLocMatrix> superlu_mat;
       std::shared_ptr<SuperLUSolver> superlu_solver;
+#endif
    };
 
    class LagrangianHydroResidualOperator : public Operator
@@ -2265,8 +2275,7 @@ int main(int argc, char *argv[])
 
    const char *device_config = "cpu";
 
-   const char *mesh_file =
-      "/Users/andrej1/repos/Laghos/data/rectangle01_quad.mesh";
+   const char *mesh_file = "./rectangle01_quad.mesh";
 
    int refinements = 0;
    int order_v = 2;
