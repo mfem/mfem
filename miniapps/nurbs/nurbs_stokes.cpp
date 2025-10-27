@@ -467,8 +467,6 @@ int main(int argc, char *argv[])
 
    Array<int> ess_bdr(mesh->bdr_attributes.Max());
    ess_bdr = 1;
-   Array<int> ess_tdof_list;
-   u_space.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
 
    // Define the BlockStructure of the problem
    Array<int> bOffsets(3); // number of variables + 1
