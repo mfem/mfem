@@ -725,7 +725,9 @@ The specific libraries and their options are:
   URL: https://ginkgo-project.github.io
   Options: GINKGO_OPT, GINKGO_LIB, GINKGO_DIR, GINKGO_BUILD_TYPE (Release or
            Debug).
-  Versions: Ginkgo >= 1.9.0.
+  Versions: Ginkgo >= 1.9.0. When building Ginkgo with distributed support, a
+            recent version of the "develop" branch is required (1.11 as defined
+            in include/ginkgo/config.hpp).
 
 - AmgX (optional), used when MFEM_USE_AMGX = YES.
   URL: https://github.com/NVIDIA/AMGX
