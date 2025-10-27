@@ -30,7 +30,8 @@ int main(int argc, char *argv[])
    mfem::Mpi::Init();
    mfem::Hypre::Init();
 #endif
-   mfem::Device device("cpu"); // make sure hypre runs on CPU, if possible
+   // mfem::Device device("cpu"); // make sure hypre runs on CPU, if possible
+   mfem::Device("debug");
 
    // Only run tests that are labeled with Parallel.
    return RunCatchSession(argc, argv, {"[Parallel]"}, Root());

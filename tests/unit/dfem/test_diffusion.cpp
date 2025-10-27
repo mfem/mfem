@@ -10,6 +10,7 @@
 // CONTRIBUTING.md for details.
 
 #include "../unit_tests.hpp"
+#include "../linalg/test_same_matrices.hpp"
 #include "mfem.hpp"
 
 #include <utility>
@@ -282,14 +283,8 @@ void diffusion(const char *filename, int p)
 
       SparseMatrix *A;
       dRdU->Assemble(A);
-      auto C = Add(1.0, *A, -1.0, blf_fa.SpMat());
-
-      Vector cd(C->GetData(), C->NumNonZeroElems());
-      real_t norm_l = sqrt(InnerProduct(cd, cd));
-      REQUIRE(norm_l == MFEM_Approx(0.0));
-
+      TestSameMatrices(*A, blf_fa.SpMat());
       delete A;
-      delete C;
    }
 }
 
