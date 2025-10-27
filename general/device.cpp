@@ -731,8 +731,8 @@ std::string Device::GetUUID(const int device_id)
 #endif
    for (int i = 0; i < 16; ++i)
    {
-      res << std::setfill('0') << std::setw(2) << std::hex << static_cast<unsigned>
-          (uuid.bytes[i]);
+      res << std::setfill('0') << std::setw(2) << std::hex
+          << static_cast<unsigned>(uuid.bytes[i]);
    }
 #endif
    return res.str();
