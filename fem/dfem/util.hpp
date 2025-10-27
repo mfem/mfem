@@ -984,6 +984,8 @@ const Operator *get_face_restriction(const FieldDescriptor &f,
                        "can't use get_face_restriction on type");
       }
    }, f.data);
+   MFEM_ABORT("face restriction not implemented for Entity");
+   return nullptr;
 }
 
 /// @brief Get the restriction operator for a field descriptor.
