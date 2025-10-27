@@ -116,7 +116,7 @@ int main (int argc, char *argv[])
    int ncomp             = 1;
    bool search_on_rank_0 = false;
    bool hrefinement      = false;
-   int point_ordering    = 0;
+   int point_ordering    = 1;
    int gf_ordering       = 0;
    const char *devopt    = "cpu";
    int randomization     = 0;

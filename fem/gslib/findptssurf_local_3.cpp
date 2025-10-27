@@ -502,7 +502,6 @@ static MFEM_HOST_DEVICE void newton_face( findptsElementPoint_t *const out,
    double v, tv;
    int i;
    double A[3], y[2], r0[2];
-   // std::cout << p->x[0] << " " << p->x[1] << " " << p->x[2] << " " << (p->flags&FLAG_MASK) << " " << p->dist2 << " k10-newton-face1\n";
 
    /* A = J^T J - resid_d H_d
       Technically A has one more term, but it is same as A[1],
@@ -527,7 +526,6 @@ static MFEM_HOST_DEVICE void newton_face( findptsElementPoint_t *const out,
    // Example: r0 = [0.2, -0.3].. r0[0]-tr = 0.2-1 = -0.8.
    // In this case the bounding box will be set to -0.8 for r=-1 edge of the face
    // and the bit corresponding to rmin will be changed.
-   // std::cout << r0[0] << " " << r0[1] << " " << tr << " k10-newton-face1a\n";
 
    if (r0[0]-tr > -1)   // unconstrained at r=-1, mask's 1st bit is set to 0
    {
@@ -564,26 +562,21 @@ static MFEM_HOST_DEVICE void newton_face( findptsElementPoint_t *const out,
    // At this stage, mask has information on if the search space is constrained,
    // and the specific edge of the face it is constrained to.
    // bnd has the corresponding limits of the search space.
-   // std::cout << mask << " " << bnd[0] << " " << bnd[1] << " " << bnd[2] << " " << bnd[3] << " k10-here-1\n";
 
    if (A[0]+A[2]<=0 || A[0]*A[2]<=A[1]*A[1])
    {
-   // std::cout << " k10-here-2\n";
       goto newton_face_constrained;
    }
 
    lin_solve_sym_2(dr, A, y);
-   // std::cout << dr[0] << " " << dr[1] << " k10-here-2b\n";
 
 #define EVAL(r,s) -(y[0]*r + y[1]*s) + (r*A[0]*r + (2*r*A[1] + s*A[2])*s)/2
    if ((dr[0]-bnd[0])*(bnd[1]-dr[0])>=0 && (dr[1]-bnd[2])*(bnd[3]-dr[1])>=0)
    {
-      // std::cout << " k10-here-3\n";
       r[0] = r0[0] + dr[0], r[1] = r0[1] + dr[1];
       v = EVAL(dr[0], dr[1]);
       goto newton_face_fin;
    }
-   // std::cout << " k10-here-4\n";
 
 newton_face_constrained:
    v  = EVAL(bnd[0], bnd[2]); // bound at r=-1 and s=-1
@@ -640,7 +633,6 @@ newton_face_constrained:
    }
 #undef EVAL
 
-   // std::cout << " k10-here-5\n";
    {
       for (int d=0; d<rDIM; ++d)
       {
@@ -666,11 +658,9 @@ newton_face_constrained:
    }
 
 newton_face_fin:
-   // std::cout << " k10-here-6\n";
    out->dist2p = -2*v;
    dr[0] = r[0] - p->r[0];
    dr[1] = r[1] - p->r[1];
-   // std::cout << r[0] << " " << r[1] << " " << dr[0] << " " << dr[1] << " " << (new_flags&FLAG_MASK) << " k10-newton-face2\n";
    if ( fabs(dr[0])+fabs(dr[1]) < tol)
    {
       new_flags |= CONVERGED_FLAG;
@@ -840,7 +830,7 @@ static void FindPointsSurfLocal3D_Kernel(const int npt,
    {
       constexpr int size1 = 18*MD1 + 12;
       constexpr int size2 = 9*MD1;
-      constexpr int size3 = MD1*MD1*MD1*sDIM;  // local element coordinates
+      constexpr int size3 = MD1*MD1*sDIM;  // local element coordinates
 
       MFEM_SHARED double r_workspace[size1];
       MFEM_SHARED findptsElementPoint_t el_pts[2];
@@ -907,14 +897,11 @@ static void FindPointsSurfLocal3D_Kernel(const int npt,
                {
                   const int qp = j % D1D;
                   const int d = j / D1D;
-                  for (int l = 0; l < D1D; ++l)
+                  for (int k = 0; k < D1D; ++k)
                   {
-                     for (int k = 0; k < D1D; ++k)
-                     {
-                        const int jkl = qp+k*D1D+l*D1D*D1D;
-                        elem_coords[jkl+d*p_NE] =
-                           xElemCoord[jkl+el*p_NE+d*nel*p_NE];
-                     }
+                     const int jk = qp + k * D1D;
+                     elem_coords[jk + d*p_NE] =
+                        xElemCoord[jk + el*p_NE + d*p_NE*nel];
                   }
                }
                MFEM_SYNC_THREAD;
@@ -954,6 +941,10 @@ static void FindPointsSurfLocal3D_Kernel(const int npt,
                   }
                   MFEM_FOREACH_THREAD(j,x,D1D)
                   {
+                     // if (j == 0)
+                     // {
+                     //    printf("Found element %u %u\n", i, *elp);
+                     // }
                      seed_j(elx, x_i, gll1D, dist2_temp, r_temp, j, D1D);
                   }
                   MFEM_SYNC_THREAD;
@@ -963,6 +954,7 @@ static void FindPointsSurfLocal3D_Kernel(const int npt,
                      fpt->dist2 = HUGE_VAL;
                      for (int jj = 0; jj < D1D; ++jj)
                      {
+                        //  printf("%u %u %f dist2\n", i, jj, dist2_temp[jj]);
                         if (dist2_temp[jj] < fpt->dist2)
                         {
                            fpt->dist2 = dist2_temp[jj];
@@ -972,6 +964,7 @@ static void FindPointsSurfLocal3D_Kernel(const int npt,
                            }
                         }
                      }
+                     // printf("%u %f dist2\n", i, fpt->dist2);
                   }
                   MFEM_SYNC_THREAD;
                } //seed done

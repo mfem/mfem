@@ -729,7 +729,7 @@ static void FindPointsLocal2D_Kernel(const int npt,
       // 3D1D for seed, 10D1D+6 for area, 3D1D+9 for edge
       constexpr int size1 = 10*MD1 + 6;
       constexpr int size2 = MD1*4;            // edge constraints
-      constexpr int size3 = MD1*MD1*MD1*DIM;  // local element coordinates
+      constexpr int size3 = MD1*MD1*DIM;  // local element coordinates
 
       MFEM_SHARED double r_workspace[size1];
       MFEM_SHARED findptsElementPoint_t el_pts[2];
