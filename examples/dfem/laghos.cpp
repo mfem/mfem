@@ -8,6 +8,11 @@
 // MFEM is free software; you can redistribute it and/or modify it under the
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
+//
+// implicit 3point:
+//   ./laghos -p 3 -pt 1 -s 12 -tf 5.0 -rs 1 -cfl 16 -nmi 50 -dump-jacobians 0 -nretry 50000 -kmi 500 -av -av-type 7 -ov 2 -oe 1
+//
+
 #include <mfem.hpp>
 
 // TODO: Do we want this to be included from mfem.hpp automatically now?
@@ -336,7 +341,7 @@ matd qdata_setup(
             dt_visc_coeff += visc_coeff;
          }
       }
-      else if (viscosity_type == 666)
+      else if (viscosity_type == 7)
       {
          const auto delta = 0.2 * cs;
          const auto dvdx = dvdxi * inv(J);
