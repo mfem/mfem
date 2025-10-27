@@ -557,11 +557,6 @@ int main(int argc, char *argv[])
 
    VectorGridFunctionCoefficient uh_cf(&u_gf);
 
-   VisItDataCollection visit_dc0("Stokes_ic", mesh);
-   visit_dc0.RegisterField("velocity", &u_gf);
-   visit_dc0.RegisterField("pressure", &p_gf);
-   visit_dc0.Save();
-
    // Assemble the right hand side via the linear forms (fform, gform).
    BlockVector rhs(bOffsets, mt);
    LinearForm *fform(new LinearForm);
