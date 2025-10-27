@@ -783,7 +783,7 @@ void DifferentiableOperator::AddDomainIntegrator(
                   // TODO: BUG! Make this a general function that works for all kinds of inputs.
                   itod(idx) = input_size_on_qp[s] / get<s>(inputs).vdim;
                }
-               total_trial_op_dim += itod(idx);
+               total_trial_op_dim += static_cast<int>(itod(idx));
                idx++;
             });
          }
@@ -1003,7 +1003,7 @@ void DifferentiableOperator::AddDomainIntegrator(
                      int m_offset = 0;
                      for (size_t s = 0; s < num_inputs; s++)
                      {
-                        const int trial_op_dim = itod(s);
+                        const int trial_op_dim = static_cast<int>(itod(s));
                         if (trial_op_dim == 0)
                         {
                            continue;

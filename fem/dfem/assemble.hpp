@@ -70,7 +70,7 @@ MFEM_HOST_DEVICE void assemble_element_mat_t3d(
                {
                   using fop_t = std::decay_t<decltype(get<s>(inputs_ref))>;
 
-                  const int trial_op_dim = itod(static_cast<int>(s));
+                  const int trial_op_dim = static_cast<int>(itod(static_cast<int>(s)));
                   if (trial_op_dim == 0)
                   {
                      // This is inside a lambda so we have to return
@@ -212,7 +212,7 @@ MFEM_HOST_DEVICE void assemble_element_mat_t2d(
             {
                using fop_t = std::decay_t<decltype(get<s>(inputs_ref))>;
 
-               const int trial_op_dim = itod(static_cast<int>(s));
+               const int trial_op_dim = static_cast<int>(itod(static_cast<int>(s)));
                if (trial_op_dim == 0)
                {
                   // This is inside a lambda so we have to return
