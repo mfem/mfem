@@ -1,45 +1,28 @@
-//                                MFEM Example 5 -- modified for NURBS FE
+//           --------------------------------------------------------
+//           NURBS Stokes Miniapp
+//           Solve the stokes problem with H(div) conforming elements
+//           --------------------------------------------------------
 //
-// Compile with: make nurbs_ex5
+// Compile with: make nurbs_stokes
 //
-// Sample runs:  nurbs_ex5 -m ../../data/square-nurbs.mesh -o 3
-//               nurbs_ex5 -m ../../data/cube-nurbs.mesh -r 3
-//               nurbs_ex5 -m ../../data/pipe-nurbs-2d.mesh
-//               nurbs_ex5 -m ../../data/beam-tet.mesh
-//               nurbs_ex5 -m ../../data/beam-hex.mesh
-//               nurbs_ex5 -m ../../data/escher.mesh
-//               nurbs_ex5 -m ../../data/fichera.mesh
+// Sample runs:  nurbs_stokes -m ../../data/square-nurbs.mesh
+//               nurbs_stokes -m ../../data/square-nurbs.mesh -o 2
+//               nurbs_stokes -m ../../data/cube-nurbs.mesh
 //
-// Device sample runs -- do not work for NURBS:
-//               nurbs_ex5 -m ../../data/escher.mesh -pa -d cuda
-//               nurbs_ex5 -m ../../data/escher.mesh -pa -d raja-cuda
-//               nurbs_ex5 -m ../../data/escher.mesh -pa -d raja-omp
-//
-// Description:  This example code solves a simple 2D/3D mixed Darcy problem
+// Description:  This example code solves a simple 2D/3D mixed Stokes problem
 //               corresponding to the saddle point system
 //
-//                                 k*u + grad p = f
+//                        -k*laplace*u + grad p = f
 //                                 - div u      = g
 //
 //               with natural boundary condition -p = <given pressure>.
 //               Here, we use a given exact solution (u,p) and compute the
-//               corresponding r.h.s. (f,g).  We discretize with Raviart-Thomas
-//               finite elements (velocity u) and piecewise discontinuous
-//               polynomials (pressure p).
+//               corresponding r.h.s. (f,g).  We discretize with H(div) conforming
+//               finite elements (RT) for the velocity u and the corresponding
+//               scalar finite elements for the pressure p.
 //
 //               NURBS-based H(div) spaces only implemented for meshes
 //               consisting of a single patch.
-//
-//               The example demonstrates the use of the BlockOperator class, as
-//               well as the collective saving of several grid functions in
-//               VisIt (visit.llnl.gov) and ParaView (paraview.org) formats.
-//
-//               We recommend viewing examples 1-4 before viewing this example.
-
-// Sample runs:  nurbs_ex3 -m ../../data/square-nurbs.mesh
-//               nurbs_ex3 -m ../../data/square-nurbs.mesh -o 2
-//               nurbs_ex3 -m ../../data/cube-nurbs.mesh
-
 
 #include "mfem.hpp"
 #include <fstream>
