@@ -111,6 +111,25 @@ void Array<T>::PartialSum()
    }
 }
 
+template <typename U>
+MFEM_HOST_DEVICE inline U abs_signed(U v) { return (v < U(0)) ? -v : v; }
+
+template <typename U>
+void AbsImpl(std::true_type /*signed*/, U* y, int N, bool useDevice)
+{
+   mfem::forall_switch(useDevice, N, [=] MFEM_HOST_DEVICE (int i)
+   {
+      y[i] = abs_signed(y[i]);
+   });
+}
+
+template <typename U>
+void AbsImpl(std::false_type /*unsigned*/, U* /*y*/, int /*N*/,
+             bool /*useDevice*/)
+{
+   // no-op
+}
+
 template <class T>
 void Array<T>::Abs()
 {
@@ -118,10 +137,7 @@ void Array<T>::Abs()
    const bool useDevice = UseDevice();
    const int N = size;
    auto y = ReadWrite(useDevice);
-   mfem::forall_switch(useDevice, N, [=] MFEM_HOST_DEVICE (int i)
-   {
-      y[i] = std::abs(y[i]);
-   });
+   AbsImpl<T>(std::is_signed<T> {}, y, N, useDevice);
 }
 
 // Sum
@@ -192,6 +208,7 @@ void Array2D<T>::Print(std::ostream &os, int width_)
 template class Array<char>;
 template class Array<int>;
 template class Array<long long>;
+template class Array<unsigned int>;
 template class Array<real_t>;
 template class Array2D<int>;
 template class Array2D<real_t>;
