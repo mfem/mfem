@@ -79,6 +79,24 @@ void F_exact(const Vector &p, Vector &F)
    for (int i = 1; i < F.Size(); i++) { F(i) = (i+1)*F(0); }
 }
 
+std::string GetUUID(const int device_id)
+{
+  std::stringstream res;
+#if defined(MFEM_USE_CUDA) or defined(MFEM_USE_HIP)
+#if defined(MFEM_USE_CUDA)
+  CUuuid uuid;
+  MFEM_GPU_CHECK(cuDeviceGetUuid(&uuid, device_id));
+#elif defined(MFEM_USE_HIP)
+  hipUUID uuid;
+  MFEM_GPU_CHECK(hipDeviceGetUuid(&uuid, device_id));
+#endif
+  for (int i = 0; i < 16; ++i) {
+    res << std::setfill('0') << std::setw(2) << std::hex << static_cast<unsigned>(uuid.bytes[i]);
+  }
+#endif
+  return res.str();
+}
+
 int main (int argc, char *argv[])
 {
    // Initialize MPI and HYPRE.
@@ -104,6 +122,8 @@ int main (int argc, char *argv[])
    int randomization     = 0;
    int npt               = 100; //points per proc
    int visport           = 19916;
+   int jobid             = 0;
+
 
    // Parse command-line options.
    OptionsParser args(argc, argv);
@@ -145,6 +165,8 @@ int main (int argc, char *argv[])
    args.AddOption(&npt, "-npt", "--npt",
                   "# points / rank initialized on entire mesh (random = 0) or every element (random = 1).");
    args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
+   args.AddOption(&jobid, "-jid", "--jid",
+                  "job id used for visit  save files");
 
    args.Parse();
    if (!args.Good())
@@ -156,6 +178,10 @@ int main (int argc, char *argv[])
 
    bool cpu_mode = strcmp(devopt,"cpu")==0;
    Device device(devopt);
+   int num_gpus = Device::GetDeviceCount();
+#ifdef MFEM_USE_MPI
+   MPI_Allreduce(MPI_IN_PLACE, &num_gpus, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+#endif
    if (myid == 0) { device.Print();}
 
    func_order = std::min(order, 2);
@@ -545,6 +571,7 @@ int main (int argc, char *argv[])
       cout << setprecision(16)
            << "Total number of elements: " << nelemglob
            << "\nTotal number of procs: " << num_procs
+           << "\nTotal number of gpus : " << num_gpus
            << "\nSearched total points: " <<  (search_on_rank_0 ? pts_cnt :
                                                pts_cnt*num_procs)
            << "\nFound locally on ranks:  " << found_loc
@@ -554,6 +581,24 @@ int main (int argc, char *argv[])
            << "\nMax interp error:     " << max_error
            << "\nMax dist (of found):  " << max_dist
            << endl;
+   }
+   if (myid == 0)
+   {
+      cout << setprecision(16)
+           << "DebugInfo: " <<
+           "jobid,ncpus,ngpus,nelements,spoints,foundloc,foundaway,facepts,faceptsexact,notfound,maxinterp,maxdist\n"
+           << jobid << ","
+           << num_procs << ","
+           << num_gpus << ","
+           << nelemglob << ","
+           << (search_on_rank_0 ? pts_cnt : pts_cnt*num_procs) << ","
+           << found_loc << ","
+           << found_away << ","
+           << face_pts << ","
+           << npt_total_face << ","
+           << not_found << ","
+           << max_error << ","
+           << max_dist << endl;
    }
 
    // // Free the internal gslib data.
