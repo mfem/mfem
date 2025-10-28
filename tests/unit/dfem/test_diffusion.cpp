@@ -93,7 +93,7 @@ void diffusion(const char *filename, int p)
    ParFiniteElementSpace pfes(&pmesh, &fec);
    ParFiniteElementSpace *mfes = nodes->ParFESpace();
 
-   const int NE = pfes.GetNE(), d1d(p + 1), q = 2 * p + 2;
+   const int NE = pfes.GetNE(), d1d(p + 1), q = 2 * p;
    const auto *ir = &IntRules.Get(pmesh.GetTypicalElementGeometry(), q);
    const int q1d(IntRules.Get(Geometry::SEGMENT, ir->GetOrder()).GetNPoints());
    MFEM_VERIFY(d1d <= q1d, "q1d should be >= d1d");
@@ -281,7 +281,7 @@ void diffusion(const char *filename, int p)
       dop_mf.SetParameters({ &rho_coeff_cv, nodes });
       auto dRdU = dop_mf.GetDerivative(U, {&x}, {&rho_coeff_cv, nodes});
 
-      SparseMatrix *A;
+      SparseMatrix *A = nullptr;
       dRdU->Assemble(A);
       TestSameMatrices(*A, blf_fa.SpMat());
       delete A;
