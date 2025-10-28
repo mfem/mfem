@@ -5,7 +5,7 @@
 // Sample runs: mpirun -np 4 ex41p -r 3
 //              mpirun -np 4 ex41p -m ../data/hexagon.mesh -r 3 -o 3
 //              mpirun -np 4 ex41p -m ../data/square-mixed.mesh -r 2
-//              mpirun -np 4 ex41p -m ../data/l-shape.mesh -r 2 -eta 1e2
+//              mpirun -np 4 ex41p -m ../data/l-shape.mesh -r 3
 //
 // Description: This example solves the clamped biharmonic equation,
 //
