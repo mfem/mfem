@@ -1,6 +1,8 @@
 #ifndef RESOURCE_MANAGER_HPP
 #define RESOURCE_MANAGER_HPP
 
+#include "mem_manager.hpp"
+
 #include "rb_tree.hpp"
 
 #include <array>
@@ -26,24 +28,6 @@ struct Allocator
 
 /// Adapter to allow ResourceManager to be used in place of std::allocator
 template <class T> class AllocatorAdaptor;
-
-enum class AllocatorType
-{
-   HOST = 1,
-   HOSTPINNED = 1 << 1,
-   MANAGED = 1 << 2,
-   DEVICE = 1 << 3,
-   HOST_DEBUG,
-   HOST_UMPIRE,
-   HOST_32, // always align to 64-byte boundaries internally
-   HOST_64,
-   DEVICE_DEBUG,
-   DEVICE_UMPIRE,
-   DEVICE_UMPIRE_2,
-   // used for querying where a Resource object is currently valid
-   INDETERMINATE,
-   DEFAULT,
-};
 
 class ResourceManager
 {
@@ -213,11 +197,13 @@ private:
    ResourceManager();
 
    RBase storage;
-   std::array<std::unique_ptr<Allocator>, 8> allocs;
-   std::array<AllocatorType, 4> allocator_types =
+   std::array<std::unique_ptr<Allocator>, 2 * MemoryTypeSize> allocs_storage;
+   std::array<Allocator *, 2 * MemoryTypeSize> allocs = {nullptr};
+   // host, device, host-pinned, managed
+   std::array<MemoryType, 4> memory_types =
    {
-      AllocatorType::DEFAULT, AllocatorType::DEFAULT, AllocatorType::DEFAULT,
-      AllocatorType::DEFAULT
+      MemoryType::DEFAULT, MemoryType::DEFAULT, MemoryType::DEFAULT,
+      MemoryType::DEFAULT
    };
 
    bool ZeroCopy(size_t segment);
@@ -330,19 +316,24 @@ public:
 
    static ResourceManager &instance();
 
-   void Setup(AllocatorType host_loc = AllocatorType::DEFAULT,
-              AllocatorType hostpinned_loc = AllocatorType::DEFAULT,
-              AllocatorType managed_loc = AllocatorType::DEFAULT,
-              AllocatorType device_loc = AllocatorType::DEFAULT);
+   void Setup(MemoryType host_loc = MemoryType::DEFAULT,
+              MemoryType device_loc = MemoryType::DEFAULT,
+              MemoryType hostpinned_loc = MemoryType::DEFAULT,
+              MemoryType managed_loc = MemoryType::DEFAULT);
 
    /// How much resource is allocated of each resource type. Order:
-   /// - HOST, HOSTPINNED, MANAGED, DEVICE, TEMP HOST, TEMP HOSTPINNED, TEMP
-   /// MANAGED, TEMP DEVICE
+   /// - HOST, DEVICE, HOSTPINNED, MANAGED, TEMP HOST, TEMP DEVICE, TEMP
+   /// HOSTPINNED, TEMP MANAGED
    std::array<size_t, 8> Usage() const;
 
    /// same restrictions as std::memcpy: dst and src should not overlap
    void MemCopy(void *dst, const void *src, size_t nbytes,
                 ResourceLocation dst_loc, ResourceLocation src_loc);
+
+   /// raw deallocation of a buffer
+   void Dealloc(char *ptr, MemoryType type, bool temporary);
+   /// Raw unregistered allocation of a buffer
+   char *Alloc(size_t nbytes, MemoryType type, bool temporary);
 
    /// raw deallocation of a buffer
    void Dealloc(char *ptr, ResourceLocation loc, bool temporary);

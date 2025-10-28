@@ -21,13 +21,13 @@ TEST_CASE("Resource Creation", "[Resource Manager]")
       usage = inst.Usage();
       if (!tmp.ZeroCopy())
       {
-         expected[3] += expected[0];
+         expected[1] += expected[0];
       }
       REQUIRE(usage == expected);
       tmp = Resource<int>();
       usage = inst.Usage();
       expected[0] = init_usage[0];
-      expected[3] = init_usage[3];
+      expected[1] = init_usage[1];
       REQUIRE(usage == expected);
    }
    SECTION("Temporary Host")
@@ -40,13 +40,13 @@ TEST_CASE("Resource Creation", "[Resource Manager]")
       usage = inst.Usage();
       if (!tmp.ZeroCopy())
       {
-         expected[4 + 3] += 10 * sizeof(int);
+         expected[4 + 1] += 10 * sizeof(int);
       }
       REQUIRE(usage == expected);
       tmp = Resource<int>();
       usage = inst.Usage();
       expected[4] = init_usage[4];
-      expected[4 + 3] = init_usage[4 + 3];
+      expected[4 + 1] = init_usage[4 + 1];
       REQUIRE(usage == expected);
    }
 }

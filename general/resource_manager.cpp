@@ -25,6 +25,8 @@ struct StdAllocator : public Allocator
 struct StdAlignedAllocator : public Allocator
 {
    size_t alignment = 64;
+   StdAlignedAllocator() = default;
+   StdAlignedAllocator(size_t align) : alignment(align) {}
    void Alloc(void **ptr, size_t nbytes) override
    {
 #ifdef _WIN32
@@ -333,141 +335,188 @@ void ResourceManager::MemCopy(void *dst, const void *src, size_t nbytes,
 #endif
 }
 
-ResourceManager &ResourceManager::instance()
-{
-   static ResourceManager inst;
-   return inst;
-}
-
-ResourceManager::ResourceManager() { Setup(); }
-
-static Allocator *CreateAllocator(AllocatorType loc)
+static Allocator *CreateAllocator(MemoryType loc)
 {
    switch (loc)
    {
-      case AllocatorType::HOST:
-      case AllocatorType::HOST_DEBUG:
-      // case AllocatorType::HOST_UMPIRE:
-      // case AllocatorType::HOST_32:
-      case AllocatorType::DEVICE_DEBUG:
+      case MemoryType::HOST:
+      case MemoryType::HOST_DEBUG:
+      case MemoryType::DEVICE_DEBUG:
          return new StdAllocator;
-      case AllocatorType::HOST_64:
-         return new StdAlignedAllocator;
-      case AllocatorType::HOSTPINNED:
+      case MemoryType::HOST_UMPIRE:
+         throw std::runtime_error("Not implemented yet");
+      case MemoryType::HOST_32:
+         return new StdAlignedAllocator(32);
+      case MemoryType::HOST_64:
+         return new StdAlignedAllocator(64);
+      case MemoryType::HOST_PINNED:
          return new HostPinnedAllocator;
-      case AllocatorType::MANAGED:
+      case MemoryType::MANAGED:
          return new ManagedAllocator;
-      case AllocatorType::DEVICE:
-         // case AllocatorType::DEVICE_UMPIRE:
-         // case AllocatorType::DEVICE_UMPIRE_2:
+      case MemoryType::DEVICE:
          return new DeviceAllocator;
+      case MemoryType::DEVICE_UMPIRE:
+         throw std::runtime_error("Not implemented yet");
+      case MemoryType::DEVICE_UMPIRE_2:
+         throw std::runtime_error("Not implemented yet");
       default:
          throw std::runtime_error("Invalid allocator location");
    }
 }
 
-static Allocator *CreateTempAllocator(AllocatorType loc)
+static Allocator *CreateTempAllocator(MemoryType loc)
 {
    switch (loc)
    {
-      case AllocatorType::HOST:
-      case AllocatorType::HOST_DEBUG:
-      // case AllocatorType::HOST_UMPIRE:
-      case AllocatorType::DEVICE_DEBUG:
+      case MemoryType::HOST:
+      case MemoryType::HOST_DEBUG:
+      // case MemoryType::HOST_UMPIRE:
+      case MemoryType::DEVICE_DEBUG:
          return new TempAllocator<StdAllocator>;
-      // case AllocatorType::HOST_32:
-      case AllocatorType::HOST_64:
+      // case MemoryType::HOST_32:
+      case MemoryType::HOST_64:
          return new TempAllocator<StdAlignedAllocator>;
-      case AllocatorType::HOSTPINNED:
+      case MemoryType::HOST_PINNED:
          return new TempAllocator<HostPinnedAllocator, true>;
-      case AllocatorType::MANAGED:
+      case MemoryType::MANAGED:
          return new TempAllocator<ManagedAllocator, true>;
-      case AllocatorType::DEVICE:
-         // case AllocatorType::DEVICE_UMPIRE:
-         // case AllocatorType::DEVICE_UMPIRE_2:
+      case MemoryType::DEVICE:
+         // case MemoryType::DEVICE_UMPIRE:
+         // case MemoryType::DEVICE_UMPIRE_2:
          return new TempAllocator<DeviceAllocator>;
       default:
          throw std::runtime_error("Invalid temp allocator location");
    }
 }
 
-void ResourceManager::Setup(AllocatorType host_loc,
-                            AllocatorType hostpinned_loc,
-                            AllocatorType managed_loc, AllocatorType device_loc)
+ResourceManager &ResourceManager::instance()
 {
-   if (host_loc == AllocatorType::DEFAULT)
+   static ResourceManager inst;
+   return inst;
+}
+
+ResourceManager::ResourceManager()
+{
+   allocs_storage[0].reset(new StdAllocator);
+   allocs_storage[1].reset(new TempAllocator<StdAllocator>);
+
+   allocs_storage[2].reset(new StdAlignedAllocator(32));
+   allocs_storage[3].reset(new StdAlignedAllocator(64));
+
+   allocs[static_cast<int>(MemoryType::HOST)] = allocs_storage[0].get();
+   allocs[static_cast<int>(MemoryType::HOST) + MemoryTypeSize] =
+      allocs_storage[1].get();
+
+   allocs[static_cast<int>(MemoryType::HOST_32)] = allocs_storage[2].get();
+   // TODO: this is actually 128-byte aligned
+   allocs[static_cast<int>(MemoryType::HOST_32) + MemoryTypeSize] =
+      allocs_storage[1].get();
+
+   allocs[static_cast<int>(MemoryType::HOST_64)] = allocs_storage[3].get();
+   // TODO: this is actually 128-byte aligned
+   allocs[static_cast<int>(MemoryType::HOST_64) + MemoryTypeSize] =
+      allocs_storage[1].get();
+
+   allocs[static_cast<int>(MemoryType::HOST_DEBUG)] = allocs_storage[0].get();
+   allocs[static_cast<int>(MemoryType::HOST_DEBUG) + MemoryTypeSize] =
+      allocs_storage[1].get();
+
+   // TODO HOST_UMPIRE
+
+#if defined(MFEM_USE_CUDA) or defined(MFEM_USE_HIP)
+   allocs_storage[4].reset(new HostPinnedAllocator);
+   allocs_storage[5].reset(new TempAllocator<HostPinnedAllocator>);
+   allocs[static_cast<int>(MemoryType::HOST_PINNED)] = allocs_storage[4].get();
+   allocs[static_cast<int>(MemoryType::HOST_PINNED) + MemoryTypeSize] =
+      allocs_storage[4].get();
+
+   allocs_storage[6].reset(new ManagedAllocator);
+   allocs_storage[7].reset(new TempAllocator<ManagedAllocator>);
+   allocs[static_cast<int>(MemoryType::MANAGED)] = allocs_storage[6].get();
+   allocs[static_cast<int>(MemoryType::MANAGED) + MemoryTypeSize] =
+      allocs_storage[7].get();
+
+   allocs_storage[8].reset(new DeviceAllocator);
+   allocs_storage[9].reset(new TempAllocator<DeviceAllocator>);
+   allocs[static_cast<int>(MemoryType::DEVICE)] = allocs_storage[8].get();
+   allocs[static_cast<int>(MemoryType::DEVICE) + MemoryTypeSize] =
+      allocs_storage[9].get();
+#else
+   allocs[static_cast<int>(MemoryType::HOST_PINNED)] = allocs_storage[0].get();
+   allocs[static_cast<int>(MemoryType::HOST_PINNED) + MemoryTypeSize] =
+      allocs_storage[1].get();
+
+   allocs[static_cast<int>(MemoryType::MANAGED)] = allocs_storage[0].get();
+   allocs[static_cast<int>(MemoryType::MANAGED) + MemoryTypeSize] =
+      allocs_storage[1].get();
+
+   allocs[static_cast<int>(MemoryType::DEVICE)] = allocs_storage[0].get();
+   allocs[static_cast<int>(MemoryType::DEVICE) + MemoryTypeSize] =
+      allocs_storage[1].get();
+#endif
+
+   // TODO: UMPIRE
+   // TODO: UMPIRE_2
+
+   Setup();
+}
+
+void ResourceManager::Setup(MemoryType host_loc, MemoryType device_loc,
+                            MemoryType hostpinned_loc, MemoryType managed_loc)
+{
+   if (host_loc == MemoryType::DEFAULT)
    {
       if (Device::Allows(Backend::DEBUG_DEVICE))
       {
-         host_loc = AllocatorType::HOST_DEBUG;
+         host_loc = MemoryType::HOST_DEBUG;
       }
       else
       {
-         host_loc = AllocatorType::HOST;
+         host_loc = MemoryType::HOST;
       }
    }
-   if (hostpinned_loc == AllocatorType::DEFAULT)
+   if (hostpinned_loc == MemoryType::DEFAULT)
    {
       if (Device::Allows(Backend::CUDA_MASK | Backend::HIP_MASK))
       {
-         hostpinned_loc = AllocatorType::HOSTPINNED;
+         hostpinned_loc = MemoryType::HOST_PINNED;
       }
       else
       {
-         hostpinned_loc = AllocatorType::HOST;
+         hostpinned_loc = MemoryType::HOST;
       }
    }
-   if (managed_loc == AllocatorType::DEFAULT)
+   if (managed_loc == MemoryType::DEFAULT)
    {
       if (Device::Allows(Backend::CUDA_MASK | Backend::HIP_MASK))
       {
-         managed_loc = AllocatorType::MANAGED;
+         managed_loc = MemoryType::MANAGED;
       }
       else
       {
-         managed_loc = AllocatorType::HOST;
+         managed_loc = MemoryType::HOST;
       }
    }
 
-   if (device_loc == AllocatorType::DEFAULT)
+   if (device_loc == MemoryType::DEFAULT)
    {
       if (Device::Allows(Backend::DEBUG_DEVICE))
       {
-         device_loc = AllocatorType::DEVICE_DEBUG;
+         device_loc = MemoryType::DEVICE_DEBUG;
       }
       else if (Device::Allows(Backend::CUDA_MASK | Backend::HIP_MASK))
       {
-         device_loc = AllocatorType::DEVICE;
+         device_loc = MemoryType::DEVICE;
       }
       else
       {
-         device_loc = AllocatorType::HOST;
+         device_loc = MemoryType::HOST;
       }
    }
-   if (allocator_types[0] != host_loc)
-   {
-      allocs[0].reset(CreateAllocator(host_loc));
-      allocs[4].reset(CreateTempAllocator(host_loc));
-      allocator_types[0] = host_loc;
-   }
-   if (allocator_types[1] != hostpinned_loc)
-   {
-      allocs[1].reset(CreateAllocator(hostpinned_loc));
-      allocs[5].reset(CreateTempAllocator(hostpinned_loc));
-      allocator_types[1] = hostpinned_loc;
-   }
-   if (allocator_types[2] != managed_loc)
-   {
-      allocs[2].reset(CreateAllocator(managed_loc));
-      allocs[6].reset(CreateTempAllocator(managed_loc));
-      allocator_types[2] = managed_loc;
-   }
-   if (allocator_types[3] != device_loc)
-   {
-      allocs[3].reset(CreateAllocator(device_loc));
-      allocs[7].reset(CreateTempAllocator(device_loc));
-      allocator_types[3] = device_loc;
-   }
+   memory_types[0] = host_loc;
+   memory_types[1] = device_loc;
+   memory_types[2] = hostpinned_loc;
+   memory_types[3] = managed_loc;
 }
 
 ResourceManager::~ResourceManager() { Clear(); }
@@ -493,33 +542,44 @@ void ResourceManager::Clear()
    storage.nodes.clear();
    storage.seg_offset += storage.segments.size();
    storage.segments.clear();
-   for (size_t i = 0; i < allocs.size(); ++i)
+   for (size_t i = 0; i < allocs_storage.size(); ++i)
    {
-      allocs[i]->Clear();
+      if (allocs_storage[i])
+      {
+         allocs_storage[i]->Clear();
+      }
    }
 }
 
-void ResourceManager::Dealloc(char *ptr, ResourceLocation loc, bool temporary)
+void ResourceManager::Dealloc(char *ptr, MemoryType type, bool temporary)
 {
    size_t offset = 0;
    if (temporary)
    {
       offset = allocs.size() / 2;
    }
+   switch (type)
+   {
+      case MemoryType::PRESERVE:
+      case MemoryType::DEFAULT:
+         throw std::runtime_error("Invalid MemoryType");
+      default:
+         allocs[offset + static_cast<int>(type)]->Dealloc(ptr);
+   }
+}
+
+void ResourceManager::Dealloc(char *ptr, ResourceLocation loc, bool temporary)
+{
    switch (loc)
    {
       case HOST:
-         allocs[offset]->Dealloc(ptr);
-         break;
-      case HOSTPINNED:
-         allocs[offset + 1]->Dealloc(ptr);
-         break;
-      case MANAGED:
-         allocs[offset + 2]->Dealloc(ptr);
-         break;
+         return Dealloc(ptr, memory_types[0], temporary);
       case DEVICE:
-         allocs[offset + 3]->Dealloc(ptr);
-         break;
+         return Dealloc(ptr, memory_types[1], temporary);
+      case HOSTPINNED:
+         return Dealloc(ptr, memory_types[2], temporary);
+      case MANAGED:
+         return Dealloc(ptr, memory_types[3], temporary);
       default:
          throw std::runtime_error("Invalid ptr location");
    }
@@ -547,13 +607,13 @@ std::array<size_t, 8> ResourceManager::Usage() const
                      // count all host allocations the same
                      res[offset] += seg.nbytes;
                      break;
-                  case ResourceLocation::HOSTPINNED:
+                  case ResourceLocation::DEVICE:
                      res[offset + 1] += seg.nbytes;
                      break;
-                  case ResourceLocation::MANAGED:
+                  case ResourceLocation::HOSTPINNED:
                      res[offset + 2] += seg.nbytes;
                      break;
-                  case ResourceLocation::DEVICE:
+                  case ResourceLocation::MANAGED:
                      res[offset + 3] += seg.nbytes;
                      break;
                   default:
@@ -566,8 +626,7 @@ std::array<size_t, 8> ResourceManager::Usage() const
    return res;
 }
 
-char *ResourceManager::Alloc(size_t nbytes, ResourceLocation loc,
-                             bool temporary)
+char *ResourceManager::Alloc(size_t nbytes, MemoryType type, bool temporary)
 {
    size_t offset = 0;
    if (temporary)
@@ -575,24 +634,34 @@ char *ResourceManager::Alloc(size_t nbytes, ResourceLocation loc,
       offset = allocs.size() / 2;
    }
    void *res;
+
+   switch (type)
+   {
+      case MemoryType::PRESERVE:
+      case MemoryType::DEFAULT:
+         type = MemoryType::HOST;
+      default:
+         allocs[offset + static_cast<int>(type)]->Alloc(&res, nbytes);
+   }
+   return static_cast<char *>(res);
+}
+
+char *ResourceManager::Alloc(size_t nbytes, ResourceLocation loc,
+                             bool temporary)
+{
    switch (loc)
    {
       case HOST:
-         allocs[offset]->Alloc(&res, nbytes);
-         break;
-      case HOSTPINNED:
-         allocs[offset + 1]->Alloc(&res, nbytes);
-         break;
-      case MANAGED:
-         allocs[offset + 2]->Alloc(&res, nbytes);
-         break;
+         return Alloc(nbytes, memory_types[0], temporary);
       case DEVICE:
-         allocs[offset + 3]->Alloc(&res, nbytes);
-         break;
+         return Alloc(nbytes, memory_types[1], temporary);
+      case HOSTPINNED:
+         return Alloc(nbytes, memory_types[2], temporary);
+      case MANAGED:
+         return Alloc(nbytes, memory_types[3], temporary);
       default:
          throw std::runtime_error("Invalid ptr location");
    }
-   return static_cast<char *>(res);
 }
 
 void ResourceManager::RBase::cleanup_nodes()
@@ -893,7 +962,7 @@ size_t ResourceManager::insert(char *hptr, size_t nbytes, ResourceLocation loc,
       case DEFAULT:
          [[fallthrough]];
       case HOST:
-         if (allocator_types[0] == allocator_types[3])
+         if (memory_types[0] == memory_types[1])
          {
             // host and device memory space are the same, treat as a zero-copy
             // segment
