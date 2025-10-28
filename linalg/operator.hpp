@@ -578,7 +578,7 @@ public:
 
        Presently, this method is used by SUNDIALS ARKStep integrator, for more
        details, see the ARKode User Guide. */
-   virtual int SUNMassSetup();
+   MFEM_DEPRECATED virtual int SUNMassSetup();
 
    /** @brief Solve the mass matrix linear system  M @a x = @a b, where M is
        defined by the method SUNMassSetup().
@@ -591,7 +591,7 @@ public:
 
        Presently, this method is used by SUNDIALS ARKStep integrator, for more
        details, see the ARKode User Guide. */
-   virtual int SUNMassSolve(const Vector &b, Vector &x, real_t tol);
+   MFEM_DEPRECATED virtual int SUNMassSolve(const Vector &b, Vector &x, real_t tol);
 
    /** @brief Compute the mass matrix-vector product @a v = M @a x, where M is
        defined by the method SUNMassSetup().
@@ -603,7 +603,7 @@ public:
 
        Presently, this method is used by SUNDIALS ARKStep integrator, for more
        details, see the ARKode User Guide. */
-   virtual int SUNMassMult(const Vector &x, Vector &v);
+   MFEM_DEPRECATED virtual int SUNMassMult(const Vector &x, Vector &v);
 
    virtual ~TimeDependentOperator() { }
 };
