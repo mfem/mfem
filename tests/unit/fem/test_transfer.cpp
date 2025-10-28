@@ -460,6 +460,135 @@ TEST_CASE("Restriction Transpose Operator")
    REQUIRE(y3.Normlinf() == MFEM_Approx(0.0));
 }
 
+
+
+
+
+void TestGenericTransfer(Mesh *mesh, int order, int lor)
+{
+   // Define NURBS gridfunction
+   NURBSFECollection nurbs_coll(order);
+   FiniteElementSpace nurbs_fes(mesh, new NURBSExtension(mesh->NURBSext, order),
+                                &nurbs_coll);
+   GridFunction nurbs_gf(&nurbs_fes);
+
+   // Define H1 gridfunction on refined mesh
+   Mesh h1_mesh = Mesh::MakeRefined(*mesh, lor, BasisType::GaussLobatto);
+   H1_FECollection h1_coll(order, mesh->Dimension());
+   FiniteElementSpace h1_fes(mesh, &h1_coll);
+   GridFunction h1_gf(&h1_fes);
+
+   // Project coefficient of NURBS gridfunction
+   CartesianXCoefficient xcf;
+   CartesianYCoefficient ycf;
+   ProductCoefficient  cf(xcf, ycf);
+   nurbs_gf.ProjectCoefficient(cf);
+
+   // Transfer NURBS gridfunction to H1 grdifunction
+   OperatorHandle nurbs_to_h1;
+   h1_fes.GetTransferOperator(nurbs_fes, nurbs_to_h1);
+   nurbs_to_h1.Ptr()->Mult(nurbs_gf, h1_gf);
+
+   // Check
+   REQUIRE(h1_gf.ComputeL2Error(cf) == MFEM_Approx(0.0));
+}
+
+
+TEST_CASE("Generic Transfer Operator", "[Dimension][Order][LOR]")
+{
+   Mesh mesh2d("../../data/square-nurbs.mesh", 1, 1);
+   mesh2d.UniformRefinement();
+
+   Mesh mesh3d("../../data/cube-nurbs.mesh", 1, 1);
+   mesh3d.UniformRefinement();
+
+   dimension = GENERATE(2, 3);
+   int order = GENERATE(2, 3, 4);
+   int lor = GENERATE(2, 3, 4, 5);
+
+   if (dimension == 2)
+   {
+      TestGenericTransfer(&mesh2d, order, lor);
+   }
+   else
+   {
+      TestGenericTransfer(&mesh3d, order, lor);
+   }
+}
+
+
+TEST_CASE("Generic Transfer Operator -- Vector", "[Dimension][Order][LOR]")
+{
+   dimension = GENERATE(2, 3);
+   int order = GENERATE(2, 3, 4);
+   int lor = GENERATE(2, 3, 4, 5);
+   auto vectorspace = GENERATE(VecSpace::VectorH1, VecSpace::ND,
+                               VecSpace::RT);
+
+   Mesh mesh;
+   if (dimension == 2)
+   {
+      mesh = Mesh::LoadFromFile("../../data/square-nurbs.mesh");
+   }
+   else
+   {
+      mesh = Mesh::LoadFromFile("../../data/cube-nurbs.mesh");
+   }
+   for (int r = 0; r < 2; r++)
+   {
+      mesh.UniformRefinement();
+   }
+
+   FiniteElementCollection* h1_fec = new H1_FECollection(order, dimension);
+   FiniteElementCollection* nurbs_fec = nullptr;
+   int vdim = 1;
+   switch (vectorspace)
+   {
+      case VecSpace::VectorH1:
+         nurbs_fec = new NURBSFECollection(order);
+         vdim = dimension;
+         break;
+      case VecSpace::ND:
+         nurbs_fec = new NURBS_HCurlFECollection(order);
+         break;
+      case VecSpace::RT:
+         nurbs_fec = new NURBS_HDivFECollection(order);
+         break;
+      case VecSpace::H1:
+         mfem_error("Only for the vector case");
+   }
+
+   // Define NURBS gridfunction
+   FiniteElementSpace nurbs_fes(&mesh, new NURBSExtension(mesh.NURBSext, order),
+                                nurbs_fec, vdim);
+   GridFunction nurbs_gf(&nurbs_fes);
+
+   // Define H1 gridfunction on refined mesh
+   Mesh h1_mesh = Mesh::MakeRefined(mesh, lor, BasisType::GaussLobatto);
+   H1_FECollection h1_coll(order, mesh.Dimension());
+   FiniteElementSpace h1_fes(&mesh, h1_fec, dimension);
+   GridFunction h1_gf(&h1_fes);
+
+   // Project coefficient of NURBS gridfunction
+   CartesianXCoefficient xcf;
+   CartesianYCoefficient ycf;
+   ProductCoefficient  pcf(xcf, ycf);
+   VectorArrayCoefficient cf(dimension);
+   cf.Set(0, &pcf, false);
+   cf.Set(1, &pcf, false);
+   if ( dimension == 3 ) { cf.Set(2, &pcf, false); }
+   //nurbs_gf.ProjectCoefficient(cf);//???
+
+   // Transfer NURBS gridfunction to H1 gridfunction
+   OperatorHandle nurbs_to_h1;
+   h1_fes.GetTransferOperator(nurbs_fes, nurbs_to_h1);
+   nurbs_to_h1.Ptr()->Mult(nurbs_gf, h1_gf);
+
+   // Check
+   REQUIRE(h1_gf.ComputeL2Error(cf) == MFEM_Approx(0.0));
+}
+
+
 #ifdef MFEM_USE_MPI
 
 TEST_CASE("Parallel Transfer", "[Transfer][Parallel]")
