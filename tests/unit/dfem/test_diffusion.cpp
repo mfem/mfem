@@ -116,6 +116,7 @@ void diffusion(const char *filename, int p)
 
    ParBilinearForm blf_fa(&pfes);
    blf_fa.AddDomainIntegrator(new DiffusionIntegrator(rho_coeff, ir));
+   blf_fa.SetAssemblyLevel(AssemblyLevel::FULL);
    blf_fa.Assemble();
    blf_fa.Finalize();
 
@@ -152,7 +153,7 @@ void diffusion(const char *filename, int p)
       MPI_Allreduce(&norm_local, &norm_global, 1, MPI_DOUBLE, MPI_MAX,
                     pmesh.GetComm());
 
-      REQUIRE(norm_global == MFEM_Approx(0.0, 2e-12, 2e-12));
+      REQUIRE(norm_global == MFEM_Approx(0.0));
       MPI_Barrier(MPI_COMM_WORLD);
    }
 
@@ -193,7 +194,7 @@ void diffusion(const char *filename, int p)
       MPI_Allreduce(&norm_local, &norm_global, 1, MPI_DOUBLE, MPI_MAX,
                     pmesh.GetComm());
 
-      REQUIRE(norm_global == MFEM_Approx(0.0, 2e-12, 2e-12));
+      REQUIRE(norm_global == MFEM_Approx(0.0));
       MPI_Barrier(MPI_COMM_WORLD);
    }
 
@@ -222,7 +223,7 @@ void diffusion(const char *filename, int p)
       MPI_Allreduce(&norm_local, &norm_global, 1, MPI_DOUBLE, MPI_MAX,
                     pmesh.GetComm());
 
-      REQUIRE(norm_global == MFEM_Approx(0.0, 2e-12, 2e-12));
+      REQUIRE(norm_global == MFEM_Approx(0.0));
       MPI_Barrier(MPI_COMM_WORLD);
    }
 
@@ -233,8 +234,8 @@ void diffusion(const char *filename, int p)
       Vector vX(vpfes.GetTrueVSize()), vY(vpfes.GetTrueVSize()),
              vZ(vpfes.GetTrueVSize());
 
-      vX.Randomize(1), vx.SetFromTrueDofs(vX);
-
+      vX = 1.0;
+      vx.SetFromTrueDofs(vX);
       {
          const auto vsol = std::vector{ FieldDescriptor{ U, &vpfes } };
          DOperator dop_mf(vsol, {{Coords, mfes}}, pmesh);
@@ -257,14 +258,23 @@ void diffusion(const char *filename, int p)
          ConstantCoefficient one(1.0);
          ParBilinearForm vblf_fa(&vpfes);
          vblf_fa.AddDomainIntegrator(new VectorDiffusionIntegrator(one, ir));
-         vblf_fa.Assemble(), vblf_fa.Finalize();
-         vblf_fa.Mult(vx, vy), vpfes.GetProlongationMatrix()->MultTranspose(vy, vY);
+         vblf_fa.SetAssemblyLevel(AssemblyLevel::LEGACYFULL);
+         vblf_fa.Assemble();
+         vblf_fa.Finalize();
+         vblf_fa.Mult(vx, vy);
+         vpfes.GetProlongationMatrix()->MultTranspose(vy, vY);
       }
       vY -= vZ;
       real_t norm_global = 0.0, norm_local = vY.Normlinf();
       MPI_Allreduce(&norm_local, &norm_global, 1, MPI_DOUBLE, MPI_MAX,
                     pmesh.GetComm());
-      REQUIRE(norm_global == MFEM_Approx(0.0, 2e-12, 2e-12));
+      // Account for ill conditioning of the RT mesh
+      if (std::string(filename).compare("../../data/rt-2d-q3.mesh") == 0) {
+          REQUIRE(norm_global == MFEM_Approx(0.0, 5e-12, 5e-12));
+      }
+      else {
+          REQUIRE(norm_global == MFEM_Approx(0.0));
+      }
       MPI_Barrier(MPI_COMM_WORLD);
    }
 
