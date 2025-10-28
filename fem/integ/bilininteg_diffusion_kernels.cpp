@@ -19,6 +19,8 @@ namespace mfem
 DiffusionIntegrator::Kernels::Kernels()
 {
    // 2D
+   // Q = P+1
+   DiffusionIntegrator::AddSpecialization<2,1,1>();
    DiffusionIntegrator::AddSpecialization<2,2,2>();
    DiffusionIntegrator::AddSpecialization<2,3,3>();
    DiffusionIntegrator::AddSpecialization<2,4,4>();
@@ -27,17 +29,39 @@ DiffusionIntegrator::Kernels::Kernels()
    DiffusionIntegrator::AddSpecialization<2,7,7>();
    DiffusionIntegrator::AddSpecialization<2,8,8>();
    DiffusionIntegrator::AddSpecialization<2,9,9>();
+   // Q = P+2
+   DiffusionIntegrator::AddSpecialization<2,1,2>();
+   DiffusionIntegrator::AddSpecialization<2,2,3>();
+   DiffusionIntegrator::AddSpecialization<2,3,4>();
+   DiffusionIntegrator::AddSpecialization<2,4,5>();
+   DiffusionIntegrator::AddSpecialization<2,5,6>();
+   DiffusionIntegrator::AddSpecialization<2,6,7>();
+   DiffusionIntegrator::AddSpecialization<2,7,8>();
+   DiffusionIntegrator::AddSpecialization<2,8,9>();
+   DiffusionIntegrator::AddSpecialization<2,9,10>();
+   // others
    // 3D
+   // Q = P+1
+   DiffusionIntegrator::AddSpecialization<3,1,1>();
    DiffusionIntegrator::AddSpecialization<3,2,2>();
+   DiffusionIntegrator::AddSpecialization<3,3,3>();
+   DiffusionIntegrator::AddSpecialization<3,4,4>();
+   DiffusionIntegrator::AddSpecialization<3,5,5>();
+   DiffusionIntegrator::AddSpecialization<3,6,6>();
+   DiffusionIntegrator::AddSpecialization<3,7,7>();
+   DiffusionIntegrator::AddSpecialization<3,8,8>();
+   // Q = P+2
+   DiffusionIntegrator::AddSpecialization<3,1,2>();
    DiffusionIntegrator::AddSpecialization<3,2,3>();
    DiffusionIntegrator::AddSpecialization<3,3,4>();
    DiffusionIntegrator::AddSpecialization<3,4,5>();
-   DiffusionIntegrator::AddSpecialization<3,4,6>();
    DiffusionIntegrator::AddSpecialization<3,5,6>();
-   DiffusionIntegrator::AddSpecialization<3,5,8>();
    DiffusionIntegrator::AddSpecialization<3,6,7>();
    DiffusionIntegrator::AddSpecialization<3,7,8>();
    DiffusionIntegrator::AddSpecialization<3,8,9>();
+   // others
+   DiffusionIntegrator::AddSpecialization<3,4,6>();
+   DiffusionIntegrator::AddSpecialization<3,5,8>();
 }
 
 namespace internal
