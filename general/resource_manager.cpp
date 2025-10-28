@@ -335,60 +335,6 @@ void ResourceManager::MemCopy(void *dst, const void *src, size_t nbytes,
 #endif
 }
 
-static Allocator *CreateAllocator(MemoryType loc)
-{
-   switch (loc)
-   {
-      case MemoryType::HOST:
-      case MemoryType::HOST_DEBUG:
-      case MemoryType::DEVICE_DEBUG:
-         return new StdAllocator;
-      case MemoryType::HOST_UMPIRE:
-         throw std::runtime_error("Not implemented yet");
-      case MemoryType::HOST_32:
-         return new StdAlignedAllocator(32);
-      case MemoryType::HOST_64:
-         return new StdAlignedAllocator(64);
-      case MemoryType::HOST_PINNED:
-         return new HostPinnedAllocator;
-      case MemoryType::MANAGED:
-         return new ManagedAllocator;
-      case MemoryType::DEVICE:
-         return new DeviceAllocator;
-      case MemoryType::DEVICE_UMPIRE:
-         throw std::runtime_error("Not implemented yet");
-      case MemoryType::DEVICE_UMPIRE_2:
-         throw std::runtime_error("Not implemented yet");
-      default:
-         throw std::runtime_error("Invalid allocator location");
-   }
-}
-
-static Allocator *CreateTempAllocator(MemoryType loc)
-{
-   switch (loc)
-   {
-      case MemoryType::HOST:
-      case MemoryType::HOST_DEBUG:
-      // case MemoryType::HOST_UMPIRE:
-      case MemoryType::DEVICE_DEBUG:
-         return new TempAllocator<StdAllocator>;
-      // case MemoryType::HOST_32:
-      case MemoryType::HOST_64:
-         return new TempAllocator<StdAlignedAllocator>;
-      case MemoryType::HOST_PINNED:
-         return new TempAllocator<HostPinnedAllocator, true>;
-      case MemoryType::MANAGED:
-         return new TempAllocator<ManagedAllocator, true>;
-      case MemoryType::DEVICE:
-         // case MemoryType::DEVICE_UMPIRE:
-         // case MemoryType::DEVICE_UMPIRE_2:
-         return new TempAllocator<DeviceAllocator>;
-      default:
-         throw std::runtime_error("Invalid temp allocator location");
-   }
-}
-
 ResourceManager &ResourceManager::instance()
 {
    static ResourceManager inst;
