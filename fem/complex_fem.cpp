@@ -43,6 +43,11 @@ ComplexGridFunction::ComplexGridFunction(Mesh *m, std::istream &input)
 
    input >> std::ws;
    getline(input, buff);  // 'ComplexGridFunction'
+   filter_dos(buff);
+   if (buff != "ComplexGridFunction")
+   {
+      MFEM_ABORT("unrecognized file header: " << buff);
+   }
 
    fes = new FiniteElementSpace;
    fec_owned = fes->Load(m, input);
@@ -237,16 +242,6 @@ void ComplexGridFunction::Save(std::ostream &os) const
    os << "ComplexGridFunction\n";
    fes->Save(os);
    os << '\n';
-#if 0
-   // Testing: write NURBS GridFunctions using "NURBS_patches" format.
-   if (fes->GetNURBSext())
-   {
-      os << "NURBS_patches\n";
-      fes->GetNURBSext()->PrintSolution(*this, os);
-      os.flush();
-      return;
-   }
-#endif
    if (fes->GetOrdering() == Ordering::byNODES)
    {
       Vector::Print(os, 1);
@@ -801,6 +796,11 @@ ParComplexGridFunction::ParComplexGridFunction(ParMesh *m, std::istream &input)
 
    input >> std::ws;
    getline(input, buff);  // 'ParComplexGridFunction'
+   filter_dos(buff);
+   if (buff != "ParComplexGridFunction")
+   {
+      MFEM_ABORT("unrecognized file header: " << buff);
+   }
 
    FiniteElementSpace *fes = new FiniteElementSpace;
    fec_owned = fes->Load(m, input);

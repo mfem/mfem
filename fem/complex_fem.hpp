@@ -54,9 +54,10 @@ public:
        FiniteElementSpace @a *f. */
    ComplexGridFunction(FiniteElementSpace *f);
 
-   /// Construct a ComplexGridFunction on the given Mesh, using the data
-   /// from @a input.
-   /** The content of @a input should be in the format created by the method
+   /** @brief Construct a ComplexGridFunction on the given Mesh, using the data
+       from @a input.
+
+       The content of @a input should be in the format created by the method
        Save(). The reconstructed FiniteElementSpace and FiniteElementCollection
        are owned by the ComplexGridFunction. */
    ComplexGridFunction(Mesh *m, std::istream &input);
@@ -72,6 +73,9 @@ public:
        of #fec_owned and #fes is taken away. */
    void MakeOwner(FiniteElementCollection *fec_) { fec_owned = fec_; }
 
+   /// Returns a pointer to the FiniteElementCollection used to
+   /// construct this ComplexGridFunction if this class owns that
+   /// object. Otherwise this function will return NULL.
    FiniteElementCollection *OwnFEC() { return fec_owned; }
 
    /// Shortcut for calling FiniteElementSpace::GetVectorDim() on the
@@ -134,8 +138,8 @@ public:
    /// Save the ComplexGridFunction to an output stream.
    virtual void Save(std::ostream &out) const;
 
-   /// Save the ComplexGridFunction to a file. The given @a precision will be
-   /// used for ASCII output.
+   /// Save the ComplexGridFunction to a file
+   /** The given @a precision will be used for ASCII output. */
    virtual void Save(const char *fname, int precision=16) const;
 
    /// Destroys the grid function.
@@ -450,6 +454,9 @@ public:
        of #fec_owned and #pfes is taken away. */
    void MakeOwner(FiniteElementCollection *fec_) { fec_owned = fec_; }
 
+   /// Returns a pointer to the FiniteElementCollection used to
+   /// construct this ParComplexGridFunction if this class owns that
+   /// object. Otherwise this function will return NULL.
    FiniteElementCollection *OwnFEC() { return fec_owned; }
 
    /// Shortcut for calling FiniteElementSpace::GetVectorDim() on the
@@ -498,7 +505,8 @@ public:
 
    /// Update the alias memory location of the real and imaginary
    /// ParGridFunction @a pgfr and @a pgfi to match the ParComplexGridFunction.
-   void SyncAlias() { pgfr->SyncAliasMemory(*this); pgfi->SyncAliasMemory(*this); }
+   void SyncAlias()
+   { pgfr->SyncAliasMemory(*this); pgfi->SyncAliasMemory(*this); }
 
 
    virtual real_t ComputeL2Error(Coefficient &exsolr, Coefficient &exsoli,
@@ -519,14 +527,15 @@ public:
       return sqrt(err_r * err_r + err_i * err_i);
    }
 
-   /** Save the local portion of the ParComplexGridFunction. This
-       differs from the serial ComplexGridFunction::Save in that it
+   /// Save the local portion of the ParComplexGridFunction
+   /** This differs from the serial ComplexGridFunction::Save in that it
        takes into account the signs of the local dofs. */
    void Save(std::ostream &out) const;
 
-   /// Save the ParComplexGridFunction to files (one for each MPI
-   /// rank). The files will be given suffixes according to the MPI
-   /// rank. The given @a precision will be used for ASCII output.
+   /// Save the ParComplexGridFunction to files
+   /** Saves one file for each MPI rank. The files will be given suffixes
+       according to the MPI rank. The given @a precision will be used for ASCII
+       output. */
    void Save(const char *fname, int precision=16) const;
 
    /// Destroys grid function.
