@@ -708,8 +708,8 @@ public:
 
 // Interface for defining ODE systems to be evolved using ARKStepSolver:
 //
-//  1)   du/dt = inv(M) f(u,t) ("explicit" form)
-//  2) M dy/dt = f(u,t)        ("implicit" form)
+//  1)   du/dt = inv(M) f(u,t) ("MFEM" form)
+//  2) M dy/dt = f(u,t)        ("mass" form)
 //
 // where f(u,t) might be additively split, i.e., f(u,t) = f1(u,t) + f2(u,t)
 class ARKStepODE
@@ -743,7 +743,7 @@ public:
       which is necessary for solving ODEs with DIRK or IMEX methods
       @param[in]  u     The state at which A(@a u,t) should be evaluated.
       @param[in]  t     The time at which A(u,@a t) should be evaluated.
-      @param[in]  v     The value of inv(M) f(u,t) for implicit or f(u,t) for explicit
+      @param[in]  v     The value of inv(M) f(u,t) or f(u,t) for depending on form.
       @param[in]  jok   Flag indicating if the Jacobian should be updated.
       @param[out] jcur  Flag to signal if the Jacobian was updated.
       @param[in]  gamma The scaled time step value.    */
