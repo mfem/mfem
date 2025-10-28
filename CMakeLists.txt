@@ -133,33 +133,49 @@ if (MFEM_USE_CUDA)
    if (NOT CMAKE_CUDA_HOST_COMPILER)
       set(CMAKE_CUDA_HOST_COMPILER ${CMAKE_CXX_COMPILER})
    endif()
-   if (CMAKE_VERSION VERSION_LESS 3.18.0)
-      set(CUDA_FLAGS "-arch=${CUDA_ARCH} ${CUDA_FLAGS}")
-   elseif (NOT CMAKE_CUDA_ARCHITECTURES)
-      string(REGEX REPLACE "^sm_" "" ARCH_NUMBER "${CUDA_ARCH}")
-      if ("${CUDA_ARCH}" STREQUAL "sm_${ARCH_NUMBER}")
-         set(CMAKE_CUDA_ARCHITECTURES "${ARCH_NUMBER}")
-      else()
-         message(FATAL_ERROR "Unknown CUDA_ARCH: ${CUDA_ARCH}")
-      endif()
+   if (NOT CMAKE_CUDA_ARCHITECTURES)
+      # make CUDA_ARCH resemble the same form as CMAKE_CUDA_ARCHITECTURES
+      string(REPLACE "sm_" "" CUDA_ARCH_TMP "${CUDA_ARCH}")
+      string(REPLACE "," ";" CUDA_ARCH "${CUDA_ARCH_TMP}")
+      set(CMAKE_CUDA_ARCHITECTURES "${CUDA_ARCH}")
    else()
       set(CUDA_ARCH "CMAKE_CUDA_ARCHITECTURES: ${CMAKE_CUDA_ARCHITECTURES}")
    endif()
    message(STATUS "Using CUDA architecture: ${CUDA_ARCH}")
    enable_language(CUDA)
    if (CMAKE_VERSION VERSION_LESS 3.18.0)
-     # backup try to detect if this is clang or nvcc
-     if(CMAKE_CUDA_COMPILER MATCHES "nvcc$")
-       # nvcc
-       set(MFEM_CUDA_COMPILER_IS_NVCC ON)
-       set(CUDA_FLAGS "${CUDA_FLAGS} --expt-extended-lambda --expt-relaxed-constexpr")
-     endif()
+      # backup try to detect if this is clang or nvcc
+      if(CMAKE_CUDA_COMPILER MATCHES "nvcc$")
+         # nvcc
+         set(MFEM_CUDA_COMPILER_IS_NVCC ON)
+         set(CUDA_FLAGS "${CUDA_FLAGS} --expt-extended-lambda --expt-relaxed-constexpr")
+         if ("all" STREQUAL "${CMAKE_CUDA_ARCHITECTURES}"
+             OR "native" STREQUAL "${CMAKE_CUDA_ARCHITECTURES}"
+             OR "all-major" STREQUAL "${CMAKE_CUDA_ARCHITECTURES}")
+            set(CUDA_FLAGS "-arch=${CMAKE_CUDA_ARCHITECTURES} ${CUDA_FLAGS}")
+         else()
+            # build -gencode sequence for multiple architectures
+            foreach(ENTRY IN LISTS CMAKE_CUDA_ARCHITECTURES)
+               set(CUDA_FLAGS
+                   "-gencode arch=compute_${ENTRY},code=sm_${ENTRY} ${CUDA_FLAGS}")
+            endforeach()
+         endif()
+      else()
+         # build cuda-gpu-arch sequence for multiple architectures
+         # does not support all/all-major/native
+         foreach(ENTRY IN LISTS CMAKE_CUDA_ARCHITECTURES)
+            set(CUDA_FLAGS "-cuda-gpu-arch=sm_${ENTRY} ${CUDA_FLAGS}")
+         endforeach()
+      endif()
    else()
-     if (CMAKE_CUDA_COMPILER_ID STREQUAL "NVIDIA")
-       # nvcc
-       set(MFEM_CUDA_COMPILER_IS_NVCC ON)
-       set(CUDA_FLAGS "${CUDA_FLAGS} --expt-extended-lambda --expt-relaxed-constexpr")
-     endif()
+      # TODO: all, native, all-major require CMake 3.24+
+      # backport support for CMake 3.18 to 3.24
+      if (CMAKE_CUDA_COMPILER_ID STREQUAL "NVIDIA")
+         # nvcc
+         set(MFEM_CUDA_COMPILER_IS_NVCC ON)
+         set(CUDA_FLAGS
+             "${CUDA_FLAGS} --expt-extended-lambda --expt-relaxed-constexpr")
+      endif()
    endif()
    set(CMAKE_CUDA_STANDARD ${CMAKE_CXX_STANDARD} CACHE STRING
       "CUDA standard to use.")
@@ -242,10 +258,16 @@ endif()
 
 # AMD HIP
 if (MFEM_USE_HIP)
-  if (HIP_ARCH)
-    message(STATUS "Using HIP architecture: ${HIP_ARCH}")
-    set(GPU_TARGETS "${HIP_ARCH}" CACHE STRING "HIP targets to compile for")
+  if (NOT CMAKE_HIP_ARCHITECTURES)
+    if (HIP_ARCH)
+      set(CMAKE_HIP_ARCHITECTURES CACHE STRING "HIP targets to compile for" "${HIP_ARCH}")
+      set(GPU_TARGETS "${HIP_ARCH}" CACHE STRING "HIP targets to compile for" FORCE)
+    endif()
+  else()
+    set(HIP_ARCH CACHE STRING "HIP targets to compile for" "${CMAKE_HIP_ARCHITECTURES}")
+    set(GPU_TARGETS "${CMAKE_HIP_ARCHITECTURES}" CACHE STRING "HIP targets to compile for" FORCE)
   endif()
+  message(STATUS "Using HIP architecture: ${CMAKE_HIP_ARCHITECTURES}")
   if (ROCM_PATH)
     list(INSERT CMAKE_PREFIX_PATH 0 ${ROCM_PATH})
   endif()
@@ -280,6 +302,10 @@ endif()
 
 # Umpire (must be included before hypre, so hypre can use it if needed)
 if (MFEM_USE_UMPIRE)
+   # umpire uses FindCUDA, which needs CMP0146=OLD in CMake >= 3.27
+   if (CMAKE_VERSION VERSION_GREATER_EQUAL 3.27.0)
+      cmake_policy(SET CMP0146 OLD)
+   endif()
    find_package(UMPIRE REQUIRED)
 endif()
 
