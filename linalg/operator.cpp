@@ -330,6 +330,25 @@ int TimeDependentOperator::SUNImplicitSolve(const Vector &, Vector &, real_t)
    return (-1);
 }
 
+int TimeDependentOperator::SUNMassSetup()
+{
+   mfem_error("TimeDependentOperator::SUNMassSetup() is not overridden!");
+   return (-1);
+}
+
+int TimeDependentOperator::SUNMassSolve(const Vector &, Vector &, real_t)
+{
+   mfem_error("TimeDependentOperator::SUNMassSolve() is not overridden!");
+   return (-1);
+}
+
+int TimeDependentOperator::SUNMassMult(const Vector &, Vector &)
+{
+   mfem_error("TimeDependentOperator::SUNMassMult() is not overridden!");
+   return (-1);
+}
+
+
 void SecondOrderTimeDependentOperator::Mult(const Vector &x,
                                             const Vector &dxdt,
                                             Vector &y) const
