@@ -17,11 +17,20 @@
 #   - GSLIB (imported library target)
 
 if (MFEM_FETCH_GSLIB OR MFEM_FETCH_TPLS)
+  enable_language(C)
+  string(TOUPPER "${CMAKE_BUILD_TYPE}" BUILD_TYPE)
   set(GSLIB_FETCH_VERSION 1.0.9)
+  set(GSLIB_C_FLAGS ${CMAKE_C_FLAGS_${BUILD_TYPE}})
+  if (CMAKE_C_FLAGS)
+    set(GSLIB_C_FLAGS "${CMAKE_C_FLAGS} ${CMAKE_C_FLAGS_${BUILD_TYPE}}")
+  endif()
+  if (BUILD_SHARED_LIBS)
+    set(GSLIB_C_FLAGS "${GSLIB_C_FLAGS} -fPIC")
+  endif()
   add_library(GSLIB STATIC IMPORTED)
   # define external project and create future include directory so it is present
   # to pass CMake checks at end of MFEM configuration step
-  message(STATUS "Will fetch GSLIB ${GSLIB_FETCH_VERSION} to be built with default options")
+  message(STATUS "Will fetch GSLIB ${GSLIB_FETCH_VERSION} to be built with ${GSLIB_C_FLAGS}")
   set(PREFIX ${CMAKE_BINARY_DIR}/fetch/gslib)
   include(ExternalProject)
   ExternalProject_Add(gslib
@@ -31,7 +40,7 @@ if (MFEM_FETCH_GSLIB OR MFEM_FETCH_TPLS)
     UPDATE_DISCONNECTED TRUE
     PREFIX ${PREFIX}
     CONFIGURE_COMMAND ""
-    BUILD_COMMAND cd ${PREFIX}/src/gslib && make clean && make DESTDIR=${PREFIX} MPI=$<BOOL:${MFEM_USE_MPI}> "$<$<BOOL:${BUILD_SHARED_LIBS}>:CFLAGS=-O2 -fPIC>"
+    BUILD_COMMAND cd ${PREFIX}/src/gslib && $(MAKE) clean && $(MAKE) DESTDIR=${PREFIX} MPI=$<BOOL:${MFEM_USE_MPI}> "CFLAGS= ${GSLIB_C_FLAGS}"
     INSTALL_COMMAND "")
   file(MAKE_DIRECTORY ${PREFIX}/include)
   # set imported library target properties
