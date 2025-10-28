@@ -2,9 +2,9 @@
 //
 // Compile with: make ex41p
 //
-// Sample runs: mpirun -np 4 ex41p -r 3 -eta 1e2
-//              mpirun -np 4 ex41p -m ../data/square-mixed.mesh -r 2 -eta 5
-//              mpirun -np 4 ex41p -m ../data/square-disc.mesh -r 3 -eta 1 -mi 5000
+// Sample runs: mpirun -np 4 ex41p -r 3
+//              mpirun -np 4 ex41p -m ../data/hexagon.mesh -r 3 -o 3
+//              mpirun -np 4 ex41p -m ../data/square-mixed.mesh -r 2
 //              mpirun -np 4 ex41p -m ../data/l-shape.mesh -r 2 -eta 1e2
 //
 // Description: This example solves the clamped biharmonic equation,
@@ -16,8 +16,8 @@
 //              PDEs in MFEM and implementation of custom domain and face integrators to solve the
 //              weak form
 //
-//                      (H(u), H(v))_D + <{{n^T⋅H(u)⋅n}}, [[∇v⋅n]]>_F
-//                                     + <{{n^T⋅H(v)⋅n}}, [[∇u⋅n]]>_F
+//                      (H(u), H(v))_D - <{{n^T⋅H(u)⋅n}}, [[∇v⋅n]]>_F
+//                                     - <{{n^T⋅H(v)⋅n}}, [[∇u⋅n]]>_F
 //                                     + (η/h_e)<[[∇u⋅n]], [[∇v⋅n]]>_F = (f,v)_D ,
 //
 //               where (⋅,⋅)_D is domain integration, <⋅,⋅>_F is face
@@ -49,22 +49,14 @@ public:
 
 class C0InteriorPenaltyIntegrator : public BilinearFormIntegrator
 {
-   const real_t eta;
+private:
+   const double eta;
 
-   // AssembleBlock Helpers:
-   mutable Vector dnshape_a, dnshape_b, nd2nshape_b, nv;
-
-   // AssembleFaceMatrix Helpers:
-   mutable Vector normal_1, normal_2;
-   mutable DenseMatrix dshape_1, dshape_2, hessian_1, hessian_2, block11, block12,
-           block21, block22, elmat_p;
-
+   mutable Vector normal[2], dnshape[2], nv[2], nd2nshape[2];
+   mutable DenseMatrix dshape[2], hessian[2], blockJ[2][2], blockC[2][2], elmatJ_p,
+           elmatC_p;
 public:
-   C0InteriorPenaltyIntegrator(real_t eta_) : eta(eta_) {};
-
-   void AssembleBlock(const DenseMatrix &dshape_a, const DenseMatrix &dshape_b,
-                      const DenseMatrix &hessian_b, const Vector &n_a, const Vector &n_b, real_t h_e,
-                      DenseMatrix &elmat_ab);
+   C0InteriorPenaltyIntegrator(double eta_) : eta(eta_) {};
 
    void AssembleFaceMatrix(const FiniteElement &el1, const FiniteElement &el2,
                            FaceElementTransformations &Trans, DenseMatrix &elmat) override;
@@ -78,13 +70,12 @@ int main(int argc, char *argv[])
    int rank = Mpi::WorldRank();
    Hypre::Init();
 
-
    // Parse command line args
    const char *mesh_file = "../data/star.mesh";
    int order = 2;
    int ref_levels = 0;
-   real_t eta = 1e2;
-   int max_it = 2000;
+   real_t eta = 10;
+   int max_it = 10000;
    bool visualization = true;
 
    OptionsParser args(argc, argv);
@@ -204,7 +195,7 @@ void BiharmonicIntegrator::AssembleElementMatrix(const FiniteElement &el,
    const IntegrationRule *ir = GetIntegrationRule(el, Trans);
    if (ir == NULL)
    {
-      int order = 2*el.GetOrder() + Trans.OrderW();
+      int order = 2*el.GetOrder();
       ir = &IntRules.Get(el.GetGeomType(), order);
    }
 
@@ -222,138 +213,120 @@ void BiharmonicIntegrator::AssembleElementMatrix(const FiniteElement &el,
    }
 }
 
-/** Compute: q^(a,b) + p^(a,b)
-
-         q^(a,b) = [d\phi^(a)/dn^(a)][d^2\phi^b/dn^(a)^2], or
-         q^(a,b) = [(grad \phi^a) dot n^(a)]*[n^(b)^T dot hess(\phi)^b dot n^(b)]
-
-         and
-
-         p^(a,b) = (eta/h_e)[d\phi^(a)/dn^(a)][d\phi^(b)/dn^(b)] or
-                 = (eta/h_e)[(grad \phi^a) dot n^(a)][(grad \phi^b) dot n^(b)]
-*/
-void C0InteriorPenaltyIntegrator::AssembleBlock(const DenseMatrix &dshape_a,
-                                                const DenseMatrix &dshape_b, const DenseMatrix &hessian_b, const Vector &n_a,
-                                                const Vector &n_b, real_t h_e, DenseMatrix &elmat_ab)
-{
-   elmat_ab = 0.0;
-
-   dnshape_a.SetSize(dshape_a.NumRows()); // ndofs_a
-   dnshape_b.SetSize(dshape_b.NumRows()); // ndofs_b
-   nd2nshape_b.SetSize(hessian_b.NumRows()); // ndofs_b
-   nv.SetSize(hessian_b.NumCols());
-
-   // dshape_a = (dof, dim)
-   dshape_a.Mult(n_a, dnshape_a);
-
-   // dshape_b = (dof, dim)
-   dshape_b.Mult(n_b, dnshape_b);
-
-   // hessian_b = (dof, [3 in 2D])
-   nv[0] = pow(n_b[0],2);
-   nv[1] = 2*n_b[0]*n_b[1];
-   nv[2] = n_b[1]*n_b[1];
-
-   hessian_b.Mult(nv, nd2nshape_b);
-
-   // Consistency term:
-   AddMult_a_VWt(1.0, dnshape_a, nd2nshape_b, elmat_ab);
-
-   // Penalty term (symmetric):
-   AddMult_a_VWt(eta/h_e, dnshape_a, dnshape_b, elmat_ab);
-}
-
 void C0InteriorPenaltyIntegrator::AssembleFaceMatrix(const FiniteElement &el1,
                                                      const FiniteElement &el2, FaceElementTransformations &Trans, DenseMatrix &elmat)
 {
    int dim = el1.GetDim();
-   int ndof1 = el1.GetDof();
-   int ndof2 = 0;
    MFEM_ASSERT(dim == 2, "Dimension must be 2.");
 
-   // For boundary face integration:
+   int ndof[2] = {el1.GetDof(), 0};
+   int num_elems = 1;
    if (Trans.Elem2No >= 0)
    {
-      ndof2 = el2.GetDof();
+      ndof[1] = el2.GetDof();
+      num_elems++;
    }
 
-   normal_1.SetSize(dim);
-   dshape_1.SetSize(ndof1, dim);
-   hessian_1.SetSize(ndof1, dim * (dim + 1) / 2);
-   block11.SetSize(ndof1, ndof1);
-   if (ndof2 > 0)
+   for (int i = 0; i < num_elems; i++)
    {
-      dshape_2.SetSize(ndof2, dim);
-      normal_2.SetSize(dim);
-      hessian_2.SetSize(ndof2, dim * (dim + 1) / 2);
-      block12.SetSize(ndof1, ndof2);
-      block21.SetSize(ndof2, ndof1);
-      block22.SetSize(ndof2, ndof2);
+      normal[i].SetSize(dim);
+      dshape[i].SetSize(ndof[i], dim);
+      hessian[i].SetSize(ndof[i], dim * (dim + 1) / 2);
+      nv[i].SetSize(dim * (dim + 1) / 2);
+      dnshape[i].SetSize(ndof[i]);
+      nd2nshape[i].SetSize(ndof[i]);
    }
-   elmat.SetSize(ndof1 + ndof2);
-   elmat_p.SetSize(ndof1 + ndof2);
+
+   for (int i = 0; i < num_elems; i++)
+   {
+      for (int j = 0; j < num_elems; j++)
+      {
+         blockJ[i][j].SetSize(ndof[i], ndof[j]);
+         blockC[i][j].SetSize(ndof[i], ndof[j]);
+      }
+   }
+
+   elmatJ_p.SetSize(ndof[0] + ndof[1]);
+   elmatC_p.SetSize(ndof[0] + ndof[1]);
+   elmat.SetSize(ndof[0] + ndof[1]);
    elmat = 0.0;
 
    const IntegrationRule *ir = IntRule;
    if (ir == NULL)
    {
-      int order = 2 * max(el1.GetOrder(), ndof2 ? el2.GetOrder() : 0);
-      ir = &IntRules.Get(el1.GetGeomType(), order);
+      int order = 2 * max(el1.GetOrder(), ndof[1] ? el2.GetOrder() : 0);
+      ir = &IntRules.Get(Trans.GetGeometryType(), order);
    }
 
-
    // Compute edge length
-   real_t h_e  = 0.0;
+   double h_e  = 0.0;
    for (int p = 0; p < ir->GetNPoints(); p++)
    {
       const IntegrationPoint &ip = ir->IntPoint(p);
       Trans.SetAllIntPoints(&ip);
-      h_e += ip.weight * Trans.Face->Weight();
+      h_e += ip.weight * Trans.Weight();
    }
+
+   const FiniteElement *els[2] = {&el1, &el2};
+   ElementTransformation *el_trans[2] = {Trans.Elem1, Trans.Elem2};
 
    for (int p = 0; p < ir->GetNPoints(); p++)
    {
+      elmatJ_p = 0.0;
+      elmatC_p = 0.0;
+
       const IntegrationPoint &ip = ir->IntPoint(p);
 
       // Set the integration point in the face and the neighboring elements
       Trans.SetAllIntPoints(&ip);
 
-      // Compute normals, derivatives, and hessians
-      CalcOrtho(Trans.Face->Jacobian(), normal_1);
-      normal_1 /= normal_1.Norml2();
-      el1.CalcPhysDShape(*Trans.Elem1, dshape_1);
-      el1.CalcPhysHessian(*Trans.Elem1, hessian_1);
-      if (ndof2)
+      // Compute normal gradients + Hessians
+      for (int i = 0; i < num_elems; i++)
       {
-         normal_2 = normal_1;
-         normal_2 *= -1.0;
-         el2.CalcPhysDShape(*Trans.Elem2, dshape_2);
-         el2.CalcPhysHessian(*Trans.Elem2, hessian_2);
+         if (i == 0)
+         {
+            CalcOrtho(Trans.Jacobian(), normal[i]);
+            normal[i] /= normal[i].Norml2();
+         }
+         else
+         {
+            normal[i] = normal[0];
+            normal[i] *= -1;
+         }
+         els[i]->CalcPhysDShape(*el_trans[i], dshape[i]);
+         els[i]->CalcPhysHessian(*el_trans[i], hessian[i]);
+         dshape[i].Mult(normal[i], dnshape[i]);
+         nv[i][0] = normal[i][0]*normal[i][0];
+         nv[i][1] = 2*normal[i][0]*normal[i][1];
+         nv[i][2] = normal[i][1]*normal[i][1];
+         hessian[i].Mult(nv[i], nd2nshape[i]);
       }
 
-      // (1,1) block
-      AssembleBlock(dshape_1, dshape_1, hessian_1, normal_1, normal_1, h_e, block11);
-      elmat_p.SetSubMatrix(0, 0, block11);
-      if (ndof2 > 0)
+      // Compute blocks
+      for (int i = 0; i < num_elems; i++)
       {
-         // (1,2) block
-         AssembleBlock(dshape_1, dshape_2, hessian_2, normal_1, normal_2, h_e, block12);
-         elmat_p.SetSubMatrix(0, ndof1, block12);
+         for (int j = 0; j < num_elems; j++)
+         {
+            blockJ[i][j] = 0.0;
+            blockC[i][j] = 0.0;
+            AddMult_a_VWt(-1.0, dnshape[i], nd2nshape[j], blockJ[i][j]);
+            elmatJ_p.SetSubMatrix(i*ndof[0], j*ndof[0], blockJ[i][j]);
 
-         // (2,1) block
-         AssembleBlock(dshape_2, dshape_1, hessian_1, normal_2, normal_1, h_e, block21);
-         elmat_p.SetSubMatrix(ndof1, 0, block21);
-
-         // (2,2) block
-         AssembleBlock(dshape_2, dshape_2, hessian_2, normal_2, normal_2, h_e, block22);
-         elmat_p.SetSubMatrix(ndof1, ndof1, block22);
+            AddMult_a_VWt(eta/h_e, dnshape[i], dnshape[j], blockC[i][j]);
+            elmatC_p.SetSubMatrix(i*ndof[0], j*ndof[0], blockC[i][j]);
+         }
       }
 
-      // Apply 1/2 factor and symmetry term
-      elmat_p.Symmetrize();
+      // Symmetrize the jump term
+      elmatJ_p.Symmetrize();
+      if (!ndof[1])
+      {
+         elmatJ_p *= 2;
+      }
 
-      elmat_p *= ip.weight * Trans.Face->Weight();
-
-      elmat += elmat_p;
+      // Add penalty term
+      elmatJ_p += elmatC_p;
+      elmatJ_p *= ip.weight * Trans.Weight();
+      elmat += elmatJ_p;
    }
 }
