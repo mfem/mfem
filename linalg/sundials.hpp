@@ -765,12 +765,12 @@ public:
       mfem_error("This function must be specified for DIRK or IMEX methods.");
    }
 
-  /** For implicit form ODEs using an MFEM nass solver, setup the mass linear
+  /** for mass form ODEs using an MFEM mass solver, setup the mass linear
       system M(t) x = b
       @param[in]  t  The time at which M(@a t) should be evaluated. */
    virtual int ARKMassSetup(const real_t t)
    {
-      mfem_error("This function must be specified to use MFEM mass linear solvers for ODEs in implicit form.");
+      mfem_error("This function must be specified to use MFEM mass solvers for mass form ODEs.");
    }
 
   /** for mass form ODEs using an MFEM mass solver, solve for x in M(t) x = b
@@ -779,7 +779,7 @@ public:
       @param[in]      tol Linear solve tolerance. */
    virtual int ARKMassSolve(const Vector &b, Vector &x, real_t tol)
    {
-      mfem_error("This function must be specified to use MFEM mass solver for ODEs in implicit form.");
+      mfem_error("This function must be specified to use MFEM mass solver for mass form ODEs.");
    }
 
   /**  for mass form ODEs using an MFEM mass solver, evaluate M(t) x
@@ -787,7 +787,7 @@ public:
        @param[out]  v The result of the matrix-vector product. */
    virtual int ARKMassMult(const Vector &x, Vector &v)
    {
-      mfem_error("This function must be specified to use MFEM mass solver for ODEs in implicit form.");
+      mfem_error("This function must be specified to use MFEM mass solver for mass form ODEs.");
    }
 
   /**  for mass form ODEs using a SUNDIALS mass solver, evaluate M(t) x
@@ -796,7 +796,7 @@ public:
        @param[out]  v The result of the matrix-vector product. */
    virtual int ARKMassMult(const Vector &x, const real_t t, Vector &v)
    {
-      mfem_error("This function must be specified to use SUNDIALS mass solver for ODEs in implicit form.");
+      mfem_error("This function must be specified to use SUNDIALS mass solver for mass form ODEs.");
    }
 
 };
