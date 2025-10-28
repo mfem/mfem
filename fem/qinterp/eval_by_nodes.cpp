@@ -28,6 +28,7 @@ void InitEvalByNodesKernels()
    k::Specialization<2,QVectorLayout::byNODES,1,2,4>::Opt<1>::Add();
    k::Specialization<2,QVectorLayout::byNODES,1,3,2>::Opt<1>::Add();
    k::Specialization<2,QVectorLayout::byNODES,1,3,4>::Opt<1>::Add();
+   k::Specialization<2,QVectorLayout::byNODES,1,3,6>::Opt<1>::Add();
    k::Specialization<2,QVectorLayout::byNODES,1,4,3>::Opt<1>::Add();
    k::Specialization<2,QVectorLayout::byNODES,1,4,4>::Opt<1>::Add();
 
