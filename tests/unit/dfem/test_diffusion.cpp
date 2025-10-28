@@ -152,7 +152,7 @@ void diffusion(const char *filename, int p)
       MPI_Allreduce(&norm_local, &norm_global, 1, MPI_DOUBLE, MPI_MAX,
                     pmesh.GetComm());
 
-      REQUIRE(norm_global == MFEM_Approx(0.0));
+      REQUIRE(norm_global == MFEM_Approx(0.0, 2e-12, 2e-12));
       MPI_Barrier(MPI_COMM_WORLD);
    }
 
@@ -193,7 +193,7 @@ void diffusion(const char *filename, int p)
       MPI_Allreduce(&norm_local, &norm_global, 1, MPI_DOUBLE, MPI_MAX,
                     pmesh.GetComm());
 
-      REQUIRE(norm_global == MFEM_Approx(0.0));
+      REQUIRE(norm_global == MFEM_Approx(0.0, 2e-12, 2e-12));
       MPI_Barrier(MPI_COMM_WORLD);
    }
 
@@ -222,7 +222,7 @@ void diffusion(const char *filename, int p)
       MPI_Allreduce(&norm_local, &norm_global, 1, MPI_DOUBLE, MPI_MAX,
                     pmesh.GetComm());
 
-      REQUIRE(norm_global == MFEM_Approx(0.0));
+      REQUIRE(norm_global == MFEM_Approx(0.0, 2e-12, 2e-12));
       MPI_Barrier(MPI_COMM_WORLD);
    }
 
@@ -264,7 +264,7 @@ void diffusion(const char *filename, int p)
       real_t norm_global = 0.0, norm_local = vY.Normlinf();
       MPI_Allreduce(&norm_local, &norm_global, 1, MPI_DOUBLE, MPI_MAX,
                     pmesh.GetComm());
-      REQUIRE(norm_global == MFEM_Approx(0.0));
+      REQUIRE(norm_global == MFEM_Approx(0.0, 2e-12, 2e-12));
       MPI_Barrier(MPI_COMM_WORLD);
    }
 

@@ -451,8 +451,9 @@ public:
       amg.Mult(x, y);
    }
 
-   ~AMGPC() {
-       delete A;
+   ~AMGPC()
+   {
+      delete A;
    }
 
 private:
