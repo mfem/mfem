@@ -127,8 +127,8 @@ protected:
    OperatorHandle B; ///< Backward, fine-to-coarse, operator
 
 public:
-  GenericGridTransfer(FiniteElementSpace &dom_fes,
-                      FiniteElementSpace &ran_fes)
+   GenericGridTransfer(FiniteElementSpace &dom_fes,
+                       FiniteElementSpace &ran_fes)
       : GridTransfer(dom_fes, ran_fes)
    { }
 
@@ -578,6 +578,11 @@ public:
        connection between the meshes.*/
    GenericTransferOperator(FiniteElementSpace& dom_fes,
                            FiniteElementSpace& ran_fes);
+
+   GenericTransferOperator(const FiniteElementSpace& dom_fes,
+                           const FiniteElementSpace& ran_fes)
+      :GenericTransferOperator(const_cast<FiniteElementSpace&>(dom_fes),
+                               const_cast<FiniteElementSpace&>(ran_fes)) {};
 
    /// Destructor
    virtual ~GenericTransferOperator();

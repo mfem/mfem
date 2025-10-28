@@ -2080,10 +2080,10 @@ GenericTransferOperator::~GenericTransferOperator()
 {
    delete dom_gf;
    delete ran_gf;
-   if (dom_cf) delete dom_cf;
-   if (ran_cf) delete ran_cf;
-   if (dom_vcf) delete dom_vcf;
-   if (ran_vcf) delete ran_vcf;
+   if (dom_cf) { delete dom_cf; }
+   if (ran_cf) { delete ran_cf; }
+   if (dom_vcf) { delete dom_vcf; }
+   if (ran_vcf) { delete ran_vcf; }
 }
 
 void GenericTransferOperator::Mult(const Vector& x, Vector& y) const
