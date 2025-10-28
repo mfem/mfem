@@ -1367,6 +1367,84 @@ CVODESSolver::~CVODESSolver()
 // ARKStep interface
 // ---------------------------------------------------------------------------
 
+ARKStepSolver::TimeDependentOperatorWrapper::TimeDependentOperatorWrapper(
+   TimeDependentOperator *f)
+{
+   tdo = f;
+}
+
+int ARKStepSolver::TimeDependentOperatorWrapper::ARKSize() const
+{
+   return tdo->Height();
+}
+
+bool ARKStepSolver::TimeDependentOperatorWrapper::ARKInMassForm() const
+{
+   return (tdo->isExplicit() == false);
+}
+
+void ARKStepSolver::TimeDependentOperatorWrapper::ARKSetEvalMode(
+   const ARKEvalMode new_eval_mode)
+{
+   if (new_eval_mode == NORMAL)
+      tdo->SetEvalMode(tdo->NORMAL);
+   else if (new_eval_mode == ADDITIVE_TERM_1)
+      tdo->SetEvalMode(tdo->ADDITIVE_TERM_1);
+   else if (new_eval_mode == ADDITIVE_TERM_2)
+      tdo->SetEvalMode(tdo->ADDITIVE_TERM_2);
+   else
+      mfem_error("Unrecognized evaluation mode.");
+}
+
+void ARKStepSolver::TimeDependentOperatorWrapper::ARKEvaluateRHS(
+   const Vector &u, const real_t t, Vector &result) const
+{
+   tdo->SetTime(t);
+   if (ARKInMassForm())
+      tdo->Mult(u, result);
+   else
+      tdo->ExplicitMult(u, result);
+}
+
+int ARKStepSolver::TimeDependentOperatorWrapper::ARKImplicitSetup(
+   const Vector &u, const real_t t, const Vector &v, int jok, int *jcur,
+   real_t gamma)
+{
+   tdo->SetTime(t);
+   return tdo->SUNImplicitSetup(u, v, jok, jcur, gamma);
+}
+
+int ARKStepSolver::TimeDependentOperatorWrapper::ARKImplicitSolve(
+   const Vector &r, Vector &dk, real_t tol)
+{
+   return tdo->SUNImplicitSolve(r, dk, tol);
+}
+
+int ARKStepSolver::TimeDependentOperatorWrapper::ARKMassSetup(const real_t t)
+{
+   tdo->SetTime(t);
+   return tdo->SUNMassSetup();
+}
+
+int ARKStepSolver::TimeDependentOperatorWrapper::ARKMassSolve(const Vector &b,
+   Vector &x, real_t tol)
+{
+   return tdo->SUNMassSolve(b, x, tol);
+}
+
+int ARKStepSolver::TimeDependentOperatorWrapper::ARKMassMult(const Vector &x,
+   const real_t t, Vector &v)
+{
+   tdo->SetTime(t);
+   return tdo->SUNMassMult(x, v);
+}
+
+int ARKStepSolver::TimeDependentOperatorWrapper::ARKMassMult(const Vector &x,
+   Vector &v)
+{
+   return tdo->SUNMassMult(x, v);
+}
+
 int ARKStepSolver::RHS1(sunrealtype t, const N_Vector y, N_Vector result,
                         void *user_data)
 {
@@ -1381,20 +1459,11 @@ int ARKStepSolver::RHS1(sunrealtype t, const N_Vector y, N_Vector result,
    // or fe(t, y) in one of
    //   1. y' = fe(t, y) + fi(t, y)
    //   2. M y' = fe(t, y) + fi(t, y)
-   if (self->f)
-      self->f->SetTime(t);
    if (self->rk_type == IMEX)
    {
-      self->f_arkstep->SetEvalMode(ARKStepODE::ADDITIVE_TERM_1);
+      self->f_arkstep->ARKSetEvalMode(ARKStepODE::ADDITIVE_TERM_1);
    }
-   if (self->f_arkstep->inExplicitForm()) // ODE is in form 1
-   {
-      self->f_arkstep->Mult(mfem_y, mfem_result);
-   }
-   else // ODE is in form 2
-   {
-      self->f_arkstep->ExplicitMult(mfem_y, mfem_result);
-   }
+   self->f_arkstep->ARKEvaluateRHS(mfem_y, t, mfem_result);
 
    // Return success
    return (0);
@@ -1411,17 +1480,8 @@ int ARKStepSolver::RHS2(sunrealtype t, const N_Vector y, N_Vector result,
    // Compute fi(t, y) in one of
    //   1. y' = fe(t, y) + fi(t, y)       (ODE is expressed in EXPLICIT form)
    //   2. M y' = fe(t, y) + fi(y, t)     (ODE is expressed in IMPLICIT form)
-   if (self->f)
-      self->f->SetTime(t);
-   self->f_arkstep->SetEvalMode(ARKStepODE::ADDITIVE_TERM_2);
-   if (self->f_arkstep->inExplicitForm())
-   {
-      self->f_arkstep->Mult(mfem_y, mfem_result);
-   }
-   else
-   {
-      self->f_arkstep->ExplicitMult(mfem_y, mfem_result);
-   }
+   self->f_arkstep->ARKSetEvalMode(ARKStepODE::ADDITIVE_TERM_2);
+   self->f_arkstep->ARKEvaluateRHS(mfem_y, t, mfem_result);
 
    // Return success
    return (0);
@@ -1438,13 +1498,11 @@ int ARKStepSolver::LinSysSetup(sunrealtype t, N_Vector y, N_Vector fy,
    ARKStepSolver *self = static_cast<ARKStepSolver*>(GET_CONTENT(A));
 
    // Compute the linear system
-   if (self->f)
-      self->f->SetTime(t);
    if (self->rk_type == IMEX)
    {
-      self->f_arkstep->SetEvalMode(ARKStepODE::ADDITIVE_TERM_2);
+      self->f_arkstep->ARKSetEvalMode(ARKStepODE::ADDITIVE_TERM_2);
    }
-   return (self->f_arkstep->SUNImplicitSetup(mfem_y, mfem_fy, jok, jcur, gamma));
+   return (self->f_arkstep->ARKImplicitSetup(mfem_y, t, mfem_fy, jok, jcur, gamma));
 }
 
 int ARKStepSolver::LinSysSolve(SUNLinearSolver LS, SUNMatrix, N_Vector x,
@@ -1457,9 +1515,9 @@ int ARKStepSolver::LinSysSolve(SUNLinearSolver LS, SUNMatrix, N_Vector x,
    // Solve the linear system
    if (self->rk_type == IMEX)
    {
-      self->f_arkstep->SetEvalMode(ARKStepODE::ADDITIVE_TERM_2);
+      self->f_arkstep->ARKSetEvalMode(ARKStepODE::ADDITIVE_TERM_2);
    }
-   return (self->f_arkstep->SUNImplicitSolve(mfem_b, mfem_x, tol));
+   return (self->f_arkstep->ARKImplicitSolve(mfem_b, mfem_x, tol));
 }
 
 int ARKStepSolver::MassSysSetup(sunrealtype t, SUNMatrix M,
@@ -1468,9 +1526,7 @@ int ARKStepSolver::MassSysSetup(sunrealtype t, SUNMatrix M,
    ARKStepSolver *self = static_cast<ARKStepSolver*>(GET_CONTENT(M));
 
    // Compute the mass matrix system
-   if (self->f)
-      self->f->SetTime(t);
-   return (self->f_arkstep->SUNMassSetup());
+   return (self->f_arkstep->ARKMassSetup(t));
 }
 
 int ARKStepSolver::MassSysSolve(SUNLinearSolver LS, SUNMatrix, N_Vector x,
@@ -1481,7 +1537,7 @@ int ARKStepSolver::MassSysSolve(SUNLinearSolver LS, SUNMatrix, N_Vector x,
    ARKStepSolver *self = static_cast<ARKStepSolver*>(GET_CONTENT(LS));
 
    // Solve the mass matrix system
-   return (self->f_arkstep->SUNMassSolve(mfem_b, mfem_x, tol));
+   return (self->f_arkstep->ARKMassSolve(mfem_b, mfem_x, tol));
 }
 
 int ARKStepSolver::MassMult1(SUNMatrix M, N_Vector x, N_Vector v)
@@ -1491,7 +1547,7 @@ int ARKStepSolver::MassMult1(SUNMatrix M, N_Vector x, N_Vector v)
    ARKStepSolver *self = static_cast<ARKStepSolver*>(GET_CONTENT(M));
 
    // Compute the mass matrix-vector product
-   return (self->f_arkstep->SUNMassMult(mfem_x, mfem_v));
+   return (self->f_arkstep->ARKMassMult(mfem_x, mfem_v));
 }
 
 int ARKStepSolver::MassMult2(N_Vector x, N_Vector v, sunrealtype t,
@@ -1502,9 +1558,7 @@ int ARKStepSolver::MassMult2(N_Vector x, N_Vector v, sunrealtype t,
    ARKStepSolver *self = static_cast<ARKStepSolver*>(mtimes_data);
 
    // Compute the mass matrix-vector product
-   if (self->f)
-      self->f->SetTime(t);
-   return (self->f_arkstep->SUNMassMult(mfem_x, mfem_v));
+   return (self->f_arkstep->ARKMassMult(mfem_x, t, mfem_v));
 }
 
 ARKStepSolver::ARKStepSolver(Type type)
@@ -1523,14 +1577,12 @@ ARKStepSolver::ARKStepSolver(MPI_Comm comm, Type type)
 }
 #endif
 
-void ARKStepSolver::Init(ARKStepODE &f_ark_)
+void ARKStepSolver::Init(ARKStepODE *f_ark_)
 {
-   this->f_arkstep = &f_ark_;
-
-   this->f = dynamic_cast<TimeDependentOperator*>(&f_ark_);
+   f_arkstep = f_ark_;
 
    // Get the vector length
-   long local_size = f_arkstep->Size();
+   long local_size = f_arkstep->ARKSize();
 #ifdef MFEM_USE_MPI
    long global_size;
 #endif
@@ -1621,6 +1673,12 @@ void ARKStepSolver::Init(ARKStepODE &f_ark_)
 
    // Set the reinit flag to call ARKStepReInit() in the next Step() call.
    reinit = true;
+}
+
+void ARKStepSolver::Init(TimeDependentOperator &f_)
+{
+   f_tdo = std::make_unique<TimeDependentOperatorWrapper>(&f_);
+   Init(f_tdo.get());
 }
 
 void ARKStepSolver::Step(Vector &x, real_t &t, real_t &dt)
@@ -1715,6 +1773,9 @@ void ARKStepSolver::UseSundialsLinearSolver()
 
 void ARKStepSolver::UseMFEMMassLinearSolver(int tdep)
 {
+   // Check that the ODE is expressed in mass form
+   MFEM_VERIFY(f_arkstep->ARKInMassForm(), "ODE operator is not in mass form.")
+
    // Free any existing matrix and linear solver
    if (M != NULL)   { SUNMatDestroy(M); M = NULL; }
    if (LSM != NULL) { SUNLinSolFree(LSM); LSM = NULL; }
@@ -1745,13 +1806,13 @@ void ARKStepSolver::UseMFEMMassLinearSolver(int tdep)
    flag = MFEM_ARKode(SetMassFn)(sundials_mem, ARKStepSolver::MassSysSetup);
    MFEM_VERIFY(flag == ARK_SUCCESS,
                "error in " STR(MFEM_ARKode(SetMassFn)) "()");
-
-   // Check that the ODE is not expressed in EXPLICIT form
-   MFEM_VERIFY(!f_arkstep->inExplicitForm(), "ODE operator is expressed in EXPLICIT form")
 }
 
 void ARKStepSolver::UseSundialsMassLinearSolver(int tdep)
 {
+   // Check that the ODE is expressed in mass form
+   MFEM_VERIFY(f_arkstep->ARKInMassForm(), "ODE operator is not in mass form.")
+
    // Free any existing matrix and linear solver
    if (M != NULL)   { SUNMatDestroy(A); M = NULL; }
    if (LSM != NULL) { SUNLinSolFree(LSM); LSM = NULL; }
@@ -1770,9 +1831,6 @@ void ARKStepSolver::UseSundialsMassLinearSolver(int tdep)
                                     ARKStepSolver::MassMult2, this);
    MFEM_VERIFY(flag == ARK_SUCCESS,
                "error in " STR(MFEM_ARKode(SetMassTimes)) "()");
-
-   // Check that the ODE is not expressed in EXPLICIT form
-   MFEM_VERIFY(!f_arkstep->inExplicitForm(), "ODE operator is expressed in EXPLICIT form")
 }
 
 void ARKStepSolver::SetStepMode(int itask)

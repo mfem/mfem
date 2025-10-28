@@ -133,10 +133,13 @@ private:
 public:
    FE_Evolution(BilinearForm &M_, BilinearForm &K_, const Vector &b_);
 
-   virtual int Size() const override;
-
+   // TimeDependentOperator methods for MFEM native and CVODE time integrators
    virtual void Mult(const Vector &x, Vector &y) const;
    virtual void ImplicitSolve(const double dt, const Vector &x, Vector &k);
+
+   // ARKStepODE methods for ARKODE time integrators
+   int ARKSize() const override;
+   void ARKEvaluateRHS(const Vector &u, const real_t t, Vector& result) const override;
 
    virtual ~FE_Evolution();
 };
@@ -406,14 +409,14 @@ int main(int argc, char *argv[])
          ode_solver = cvode; break;
       case 8:
          arkode = new ARKStepSolver(ARKStepSolver::EXPLICIT);
-         arkode->Init(adv);
+         arkode->Init(&adv);
          arkode->SetSStolerances(reltol, abstol);
          arkode->SetMaxStep(dt);
          arkode->SetOrder(4);
          ode_solver = arkode; break;
       case 9:
          arkode = new ARKStepSolver(ARKStepSolver::EXPLICIT);
-         arkode->Init(adv);
+         arkode->Init(&adv);
          arkode->SetSStolerances(reltol, abstol);
          arkode->SetMaxStep(dt);
          arkode->SetERKTableNum(ARKODE_FEHLBERG_13_7_8);
@@ -504,11 +507,6 @@ FE_Evolution::FE_Evolution(BilinearForm &M_, BilinearForm &K_, const Vector &b_)
    M_solver.SetPrintLevel(0);
 }
 
-int FE_Evolution::Size() const
-{
-   return z.Size();
-}
-
 void FE_Evolution::Mult(const Vector &x, Vector &y) const
 {
    // y = M^{-1} (K x + b)
@@ -525,6 +523,19 @@ void FE_Evolution::ImplicitSolve(const double dt, const Vector &x, Vector &k)
    z += b;
    dg_solver->SetTimeStep(dt);
    dg_solver->Mult(z, k);
+}
+
+int FE_Evolution::ARKSize() const
+{
+   return z.Size();
+}
+
+void FE_Evolution::ARKEvaluateRHS(const Vector &u, const real_t t, Vector &result) const
+{
+   // y = M^{-1} (K x + b)
+   K.Mult(u, z);
+   z += b;
+   M_solver.Mult(z, result);
 }
 
 FE_Evolution::~FE_Evolution()

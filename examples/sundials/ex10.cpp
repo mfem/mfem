@@ -66,7 +66,7 @@ class ReducedSystemOperator;
  *
  *  Class HyperelasticOperator represents the right-hand side of the above
  *  system of ODEs. */
-class HyperelasticOperator : public TimeDependentOperator, public ARKStepODE
+class HyperelasticOperator : public TimeDependentOperator
 {
 protected:
    FiniteElementSpace &fespace;
@@ -112,7 +112,6 @@ public:
        This is the only requirement for high-order SDIRK implicit integration.*/
    virtual void ImplicitSolve(const double dt, const Vector &x, Vector &k);
 
-   int Size() const override;
 
    /// Custom Jacobian system solver for the SUNDIALS time integrators.
    /** For the ODE system represented by HyperelasticOperator
@@ -734,11 +733,6 @@ HyperelasticOperator::HyperelasticOperator(FiniteElementSpace &f,
    }
    newton_solver->SetSolver(*J_solver);
    newton_solver->iterative_mode = false;
-}
-
-int HyperelasticOperator::Size() const
-{
-   return 2.0*z.Size();
 }
 
 void HyperelasticOperator::Mult(const Vector &vx, Vector &dvx_dt) const

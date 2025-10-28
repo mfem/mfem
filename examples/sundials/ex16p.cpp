@@ -29,10 +29,8 @@
 //
 //               The example demonstrates the use of nonlinear operators (the
 //               class ConductionOperator defining C(u)), as well as their
-//               implicit time integration. Note that implementing the method
-//               ConductionOperator::ImplicitSolve is the only requirement for
-//               high-order implicit (SDIRK) time integration. By default, this
-//               example uses the SUNDIALS ODE solvers from CVODE and ARKODE.
+//               implicit time integration. By default, this example uses the
+//               SUNDIALS ODE solvers from CVODE and ARKODE.
 //
 //               We recommend viewing examples 2, 9 and 10 before viewing this
 //               example.
@@ -52,13 +50,14 @@ using namespace mfem;
  *  and K(u) is the diffusion operator with diffusivity depending on u:
  *  (\kappa + \alpha u).
  *
- *  Class ConductionOperatorOperator represents the above ODE operator in the
- *  general form F(u, k, t) = G(u, t) where either
+ *  Class ConductionOperator represents the above ODE operator as a
+ *  TimeDependentOperator for use with native MFEM integrators and CVODE
+ *  integrators, i.e., F(u, k, t) = G(u, t) with F(u, du/dt, t) = du/dt and
+ *  G(u, t) = -K(u) u
  *
- *    1. F(u, du/dt, t) = du/dt            (ODE is expressed in EXPLICIT form)
- *       G(u, t) = - inv(M) K(u) u
- *    2. F(u, du/dt, t) = M du/dt          (ODE is expressed in IMPLICIT form)
- *       G(u, t) = - K(u) u
+ *  Class ConductionOperator represents the above ODE operator as an
+ *  ARKStepODE for use with ARKODE integrators, i.e., either M du/dt = -K(u) u
+ *  (mass form) or du/dt = -inv(M) K(u) u (MFEM form)
  */
 class ConductionOperator : public TimeDependentOperator, public ARKStepODE
 {
@@ -82,56 +81,90 @@ class ConductionOperator : public TimeDependentOperator, public ARKStepODE
 
    mutable Vector z; // auxiliary vector
 
-   const bool use_explicit_form;
+   const bool use_mass_form;
 
 public:
 
    ConductionOperator(ParFiniteElementSpace &f, const real_t alpha,
                       const real_t kappa, const Vector &u,
-                      const bool use_explicit_form);
-
-   int Size() const override;
-
-   bool inExplicitForm() const override;
+                      const bool use_mass_form);
 
    // Compute K(u_n) for use as an approximation in - K(u) u
    void SetConductionTensor(const Vector &u);
 
-   /** Compute G(u, t) as defined in the IMPLICIT expression form of the ODE
-       operator, i.e., @a v = - K(u_n) @a u. Note that K(u_n) is an
-       approximation to K(u). */
-   void ExplicitMult(const Vector &u, Vector &v) const override;
+   // ********* methods for MFEM native time integrators *********
 
-   /** Solve for k in F(u, k, t) = G(u, t) for either EXPLICIT or IMPLICIT
-       expression forms of the ODE operator, i.e., @a k = - inv(M) K(u_n) @a u.
+   /** Solve for k in F(u, k, t) = G(u, t), i.e., @a k = - inv(M) K(u_n) @a u.
        Note that K(u_n) is an approximation to K(u). */
    void Mult(const Vector &u, Vector &k) const override;
 
-   /** Solve for k in F(u + gam*k, k, t) = G(u + gam*k, t) for either EXPLICIT
-       or IMPLICIT expression forms of the ODE operator, i.e.,
-       [ M + @a gam K(u_n) ] @a k = - K(u_n) @a u . Note that K(u_n) is an
-       approximation to K(u). */
+   /** Solve for k in F(u + gam*k, k, t) = G(u + gam*k, t), i.e.,
+       [ M + @a gam K(u_n) ] @a k = - K(u_n) @a u .
+       Note that K(u_n) is an approximation to K(u). */
    void ImplicitSolve(const real_t gam, const Vector &u, Vector &k) override;
 
-   /** Setup to solve for dk in [dF/dk + gam*dF/du - gam*dG/du] dk = G - F for
-       either EXPLICIT or IMPLICIT expression forms of the ODE operator, i.e.,
-       [M - @a gam Jf(u)] dk = G - F, where Jf(u) is an approximation of the
-       Jacobian of -K(u) u. The approximation chosen here is Jf(u) = -K(u_n). */
-   int SUNImplicitSetup(const Vector &u, const Vector &fu, int jok, int *jcur,
-                        real_t gam) override;
+   // ********* methods for ARKODE time integrators *********
+
+   // TODO: add comments
+   int ARKSize() const override;
+
+   // TODO: add comments
+   bool ARKInMassForm() const override;
+
+   // TODO: add comments
+   void ARKEvaluateRHS(const Vector &u, const real_t t, Vector &result) const override;
+
+   // TODO: add comments
+   int ARKImplicitSetup(const Vector &u, const real_t t, const Vector &fu,
+                        int jok, int *jcur, real_t gam) override;
 
    /** Solve for @a dk in the system in SUNImplicitSetup to the given tolerance,
        with the residual @a r providing either
-        1. @a r = G - F = inv(M) f(u) - k       (EXPLICIT expression form)
-        1. @a r = G - F = f(u) - M k            (IMPLICIT expression form)
+        1. @a r = G - F = inv(M) f(u) - k       (MFEM form)
+        1. @a r = G - F = f(u) - M k            (mass form)
        */
-   int SUNImplicitSolve(const Vector &r, Vector &dk, real_t tol) override;
+   int ARKImplicitSolve(const Vector &r, Vector &dk, real_t tol) override;
 
-   int SUNMassSetup() override;
+   int ARKMassSetup(const real_t t) override;
 
-   int SUNMassSolve(const Vector &b, Vector &x, real_t tol) override;
+   int ARKMassSolve(const Vector &b, Vector &x, real_t tol) override;
 
-   int SUNMassMult(const Vector &x, Vector &v) override;
+   int ARKMassMult(const Vector &x, Vector &v) override;
+
+   // ********* methods for CVODE time integrators *********
+   // note these methods merely call the corresponding ARKStepODE methods until
+   // the CVODESolver is refactored to use specialized interface like ARKStepODE
+
+   /** Setup to solve for dk in [dF/dk + gam*dF/du - gam*dG/du] dk = G - F, i.e.,
+       [M - @a gam Jf(u)] dk = G - F, where Jf(u) is an approximation of the
+       Jacobian of -K(u) u. The approximation chosen here is Jf(u) = -K(u_n). */
+   int SUNImplicitSetup(const Vector &u, const Vector &fu, int jok, int *jcur,
+                        real_t gam) override
+   {
+      return ARKImplicitSetup(u, 0.0, fu, jok, jcur, gam); // the ODE is autonomous
+   }
+
+   /** Solve for @a dk in the system in SUNImplicitSetup to the given tolerance,
+       with the residual @a r providing @a r = G - F = inv(M) f(u) - k. */
+   int SUNImplicitSolve(const Vector &r, Vector &dk, real_t tol) override
+   {
+      return ARKImplicitSolve(r, dk, tol);
+   }
+
+   int SUNMassSetup() override
+   {
+      return ARKMassSetup(0.0); // the ODE is autonomous
+   }
+
+   int SUNMassSolve(const Vector &b, Vector &x, real_t tol) override
+   {
+      return ARKMassSolve(b, x, tol);
+   }
+
+   int SUNMassMult(const Vector &x, Vector &v) override
+   {
+      return ARKMassMult(x, v);
+   }
 };
 
 real_t InitialTemperature(const Vector &x)
@@ -279,16 +312,7 @@ int main(int argc, char *argv[])
    u_gf.GetTrueDofs(u);
 
    // 8. Initialize the conduction ODE operator and the visualization.
-   ConductionOperator::Type ode_expression_type;
-   if (use_mass_solver)
-   {
-      ode_expression_type = ConductionOperator::Type::IMPLICIT;
-   }
-   else
-   {
-      ode_expression_type = ConductionOperator::Type::EXPLICIT;
-   }
-   ConductionOperator oper(fespace, alpha, kappa, u, ode_expression_type);
+   ConductionOperator oper(fespace, alpha, kappa, u, use_mass_solver);
 
    u_gf.SetFromTrueDofs(u);
    {
@@ -400,7 +424,7 @@ int main(int argc, char *argv[])
          }
          std::unique_ptr<ARKStepSolver> arkode(
             new ARKStepSolver(MPI_COMM_WORLD, arkode_solver_type));
-         arkode->Init(oper);
+         arkode->Init(&oper);
          arkode->SetSStolerances(reltol, abstol);
          arkode->SetMaxStep(dt);
          if (ode_solver_type == 11 || ode_solver_type == 14)
@@ -503,11 +527,11 @@ int main(int argc, char *argv[])
 ConductionOperator::ConductionOperator(ParFiniteElementSpace &fes,
                                        const real_t alpha, const real_t kappa,
                                        const Vector &u,
-                                       const bool use_explicit_form)
+                                       const bool use_mass_form)
    : TimeDependentOperator(fes.GetTrueVSize(), 0.0),
      fespace(fes), M(&fespace), alpha(alpha), kappa(kappa),
      M_solver(fes.GetComm()), T_solver(fes.GetComm()), z(height),
-     use_explicit_form(use_explicit_form)
+     use_mass_form(use_mass_form)
 {
    // specify a relative tolerance for all solves with MFEM integrators
    const real_t rel_tol = 1e-8;
@@ -535,14 +559,14 @@ ConductionOperator::ConductionOperator(ParFiniteElementSpace &fes,
    SetConductionTensor(u);
 }
 
-int ConductionOperator::Size() const
+int ConductionOperator::ARKSize() const
 {
    return z.Size();
 }
 
-bool ConductionOperator::inExplicitForm() const
+bool ConductionOperator::ARKInMassForm() const
 {
-   return use_explicit_form;
+   return use_mass_form;
 }
 
 void ConductionOperator::SetConductionTensor(const Vector &u)
@@ -562,17 +586,27 @@ void ConductionOperator::SetConductionTensor(const Vector &u)
    K->FormSystemMatrix(ess_tdof_list, Kmat);
 }
 
-void ConductionOperator::ExplicitMult(const Vector &u, Vector &v) const
+void ConductionOperator::ARKEvaluateRHS(const Vector &u, const real_t t,
+                                        Vector &result) const
 {
-   // Compute - K(u_n) u.
-   Kmat.Mult(u, v);
-   v.Neg();
+   if (use_mass_form) // compute -K(u_n) u.
+   {
+      Kmat.Mult(u, result);
+      result.Neg();
+   }
+   else // compute -inv(M) K(u_n) u
+   {
+      Kmat.Mult(u, z);
+      z.Neg();
+      M_solver.Mult(z, result);
+   }
 }
 
 void ConductionOperator::Mult(const Vector &u, Vector &k) const
 {
    // Compute - inv(M) K(u_n) u.
-   ExplicitMult(u, z);
+   Kmat.Mult(u, z);
+   z.Neg();
    M_solver.Mult(z, k);
 }
 
@@ -580,14 +614,16 @@ void ConductionOperator::ImplicitSolve(const real_t gam, const Vector &u,
                                        Vector &k)
 {
    // Solve for k in M k = - K(u_n) [u + gam*k].
-   ExplicitMult(u, z);
+   Kmat.Mult(u, z);
+   z.Neg();
    T = std::unique_ptr<HypreParMatrix>(Add(1.0, Mmat, gam, Kmat));
    T_solver.SetOperator(*T);
    T_solver.Mult(z, k);
 }
 
-int ConductionOperator::SUNImplicitSetup(const Vector &u, const Vector &fu,
-                                         int jok, int *jcur, real_t gam)
+int ConductionOperator::ARKImplicitSetup(const Vector &u, const real_t t,
+                                         const Vector &fu, int jok, int *jcur,
+                                         real_t gam)
 {
    // Compute T = M + gamma K(u_n).
    T = std::unique_ptr<HypreParMatrix>(Add(1.0, Mmat, gam, Kmat));
@@ -596,22 +632,22 @@ int ConductionOperator::SUNImplicitSetup(const Vector &u, const Vector &fu,
    return SUN_SUCCESS;
 }
 
-int ConductionOperator::SUNImplicitSolve(const Vector &r, Vector &dk,
+int ConductionOperator::ARKImplicitSolve(const Vector &r, Vector &dk,
                                          real_t tol)
 {
    // Solve the system [M + gamma K(u_n)] dk = - K(u_n) u - M k.
    // What value r is providing depends on the ODE expression form:
-   //   EXPLICIT form: r = -inv(M) K(u_n) u - k
-   //   IMPLICIT form: r = -K(u_n) u - M k
+   //   MFEM form: r = -inv(M) K(u_n) u - k
+   //   mass form: r = -K(u_n) u - M k
    T_solver.SetRelTol(tol);
-   if (use_explicit_form)
+   if (use_mass_form)
    {
-      Mmat.Mult(r, z);
-      T_solver.Mult(z, dk);
+      T_solver.Mult(r, dk);
    }
    else
    {
-      T_solver.Mult(r, dk);
+      Mmat.Mult(r, z);
+      T_solver.Mult(z, dk);
    }
    if (T_solver.GetConverged())
    {
@@ -623,13 +659,13 @@ int ConductionOperator::SUNImplicitSolve(const Vector &r, Vector &dk,
    }
 }
 
-int ConductionOperator::SUNMassSetup()
+int ConductionOperator::ARKMassSetup(const real_t t)
 {
    // Do nothing b/c mass solver was setup in constructor.
    return SUN_SUCCESS;
 }
 
-int ConductionOperator::SUNMassSolve(const Vector &b, Vector &x, real_t tol)
+int ConductionOperator::ARKMassSolve(const Vector &b, Vector &x, real_t tol)
 {
    // Solve the system M x = b.
    M_solver.SetRelTol(tol);
@@ -644,7 +680,7 @@ int ConductionOperator::SUNMassSolve(const Vector &b, Vector &x, real_t tol)
    }
 }
 
-int ConductionOperator::SUNMassMult(const Vector &x, Vector &v)
+int ConductionOperator::ARKMassMult(const Vector &x, Vector &v)
 {
    // Compute M x.
    Mmat.Mult(x, v);
