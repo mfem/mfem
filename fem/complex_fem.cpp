@@ -829,6 +829,17 @@ ParComplexGridFunction::ParComplexGridFunction(ParMesh *m, std::istream &input)
    {
       Vector::Load(input, 2*pfes->GetVSize());
 
+      real_t *data_  = const_cast<real_t*>(HostRead());
+      for (int i = 0; i < size; i++)
+      {
+         if (pfes->GetDofSign(i) < 0)
+         {
+            data_[i] = -data_[i];
+            data_[i+size] = -data_[i+size];
+         }
+      }
+
+
       // if the mesh is a legacy (v1.1) NC mesh, it has old vertex ordering
       if (pfes->Nonconforming() &&
           pfes->GetMesh()->ncmesh->IsLegacyLoaded())
@@ -1041,7 +1052,11 @@ void ParComplexGridFunction::Save(std::ostream &os) const
    real_t *data_  = const_cast<real_t*>(HostRead());
    for (int i = 0; i < size; i++)
    {
-      if (pfes->GetDofSign(i) < 0) { data_[i] = -data_[i]; }
+      if (pfes->GetDofSign(i) < 0)
+      {
+         data_[i] = -data_[i];
+         data_[i+size] = -data_[i+size];
+      }
    }
 
    if (pfes->GetOrdering() == Ordering::byNODES)
@@ -1055,7 +1070,11 @@ void ParComplexGridFunction::Save(std::ostream &os) const
 
    for (int i = 0; i < size; i++)
    {
-      if (pfes->GetDofSign(i) < 0) { data_[i] = -data_[i]; }
+      if (pfes->GetDofSign(i) < 0)
+      {
+         data_[i] = -data_[i];
+         data_[i+size] = -data_[i+size];
+      }
    }
 
    os.flush();

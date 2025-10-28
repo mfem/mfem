@@ -113,6 +113,24 @@ public:
    /// @a gfr and @a gfi to match the ComplexGridFunction.
    void SyncAlias() { gfr->SyncAliasMemory(*this); gfi->SyncAliasMemory(*this); }
 
+   virtual real_t ComputeL2Error(Coefficient &exsolr, Coefficient &exsoli,
+                                 const IntegrationRule *irs[] = NULL) const
+   {
+      real_t err_r = gfr->ComputeL2Error(exsolr, irs);
+      real_t err_i = gfi->ComputeL2Error(exsoli, irs);
+      return sqrt(err_r * err_r + err_i * err_i);
+   }
+
+   virtual real_t ComputeL2Error(VectorCoefficient &exsolr,
+                                 VectorCoefficient &exsoli,
+                                 const IntegrationRule *irs[] = NULL,
+                                 Array<int> *elems = NULL) const
+   {
+      real_t err_r = gfr->ComputeL2Error(exsolr, irs, elems);
+      real_t err_i = gfi->ComputeL2Error(exsoli, irs, elems);
+      return sqrt(err_r * err_r + err_i * err_i);
+   }
+
    /// Save the ComplexGridFunction to an output stream.
    virtual void Save(std::ostream &out) const;
 
