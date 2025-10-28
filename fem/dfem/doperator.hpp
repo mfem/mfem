@@ -1151,7 +1151,7 @@ void DifferentiableOperator::AddDomainIntegrator(
                &fields = fields_ref
             ](std::vector<Vector> &f_e, HypreParMatrix *&A) mutable
          {
-            SparseMatrix *spmat;
+            SparseMatrix *spmat = nullptr;
             for (const auto &f : spmatcb)
             {
                f(f_e, spmat);

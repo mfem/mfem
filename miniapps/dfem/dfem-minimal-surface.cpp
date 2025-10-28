@@ -435,10 +435,10 @@ public:
    void SetOperator(const Operator &) override
    {
       auto minsurface = static_cast<MinimalSurface<dscalar_t, dim>&>(op);
-      delete A;
-
       // We leverage dFEM to assemble the Jacobian of the minimal surface
       // operator into a HypreParMatrix.
+      delete A;
+      A = nullptr;
       minsurface.GetJacobian()->dres_du->Assemble(A);
       auto Ae = A->EliminateRowsCols(minsurface.GetEssentialTrueDofs());
       delete Ae;
@@ -449,6 +449,10 @@ public:
    void Mult(const Vector &x, Vector &y) const override
    {
       amg.Mult(x, y);
+   }
+
+   ~AMGPC() {
+       delete A;
    }
 
 private:
