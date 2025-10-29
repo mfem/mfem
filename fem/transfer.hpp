@@ -116,10 +116,8 @@ public:
 };
 
 
-/** @brief Transfer data between a two generic FiniteElementSpace%s. */
-/** Bla
-
-*/
+/** @brief Transfer data between two FiniteElementSpace% based on embedded
+    refined meshes but using arbitrary FiniteElementCollections. */
 class GenericGridTransfer : public GridTransfer
 {
 protected:
