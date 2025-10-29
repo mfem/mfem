@@ -165,13 +165,38 @@ public:
    const Array<NonlinearFormIntegrator*> &GetBdrFaceIntegrators() const
    { return bfnfi; }
 
-   /// Specify essential boundary conditions.
-   /** This method calls FiniteElementSpace::GetEssentialTrueDofs() and stores
+   /** @brief Specify essential boundary conditions.
+
+       This method calls FiniteElementSpace::GetEssentialTrueDofs() and stores
        the result internally for use by other methods. If the @a rhs pointer is
        not NULL, its essential true dofs will be set to zero. This makes it
        "compatible" with the output vectors from the Mult() method which also
-       have zero entries at the essential true dofs. */
+       have zero entries at the essential true dofs.
+
+       @note The values in the essential vdofs have to come from the initial guess.
+       */
    void SetEssentialBC(const Array<int> &bdr_attr_is_ess, Vector *rhs = NULL);
+
+   /** @brief Specify essential boundary conditions.
+
+       For spaces with 'vdim' > 1, the 'bdr_component' array can be used
+       to restricts the marked tDOFs per boundary to the specified components.
+       If vdim > 1 then one can specify per boundary attribute which components
+       on a boundary are essential by assigning a value of true to its location
+       in the bdr_component array.
+       The bdr_component has dimensions number of boundary attributes x vdim
+
+       This method calls FiniteElementSpace::GetEssentialTrueDofs() and stores
+       the result internally for use by other methods. If the @a rhs pointer is
+       not NULL, its essential true dofs will be set to zero. This makes it
+       "compatible" with the output vectors from the Mult() method which also
+       have zero entries at the essential true dofs.
+
+       @note The values in the essential vdofs have to come from the initial guess.
+       */
+   void SetEssentialBC(const Array<int> &bdr_attr_is_ess,
+                       const Array2D<bool> &bdr_component,
+                       Vector *rhs);
 
    /// Specify essential boundary conditions.
    /** Use either SetEssentialBC() or SetEssentialTrueDofs() if possible. */
