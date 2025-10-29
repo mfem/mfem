@@ -64,6 +64,7 @@ set(SRCS
   datacollection.cpp
   dgmassinv.cpp
   doftrans.cpp
+  dfem/doperator.cpp
   eltrans.cpp
   batchitrans.cpp
   estimators.cpp
@@ -81,6 +82,8 @@ set(SRCS
   fe/fe_ser.cpp
   fe_coll.cpp
   fespace.cpp
+  derefmat_op.cpp
+  pderefmat_op.cpp
   geom.cpp
   gridfunc.cpp
   hybridization.cpp
@@ -167,12 +170,18 @@ set(SRCS
   darcy/darcyreduction.cpp
   darcy/pdarcyform.cpp
   integrator.cpp
+  bounds.cpp
   )
 
 set(HDRS
   bilinearform.hpp
   bilinearform_ext.hpp
   bilininteg.hpp
+  integ/lininteg_domain_kernels.hpp
+  integ/bilininteg_dgdiffusion_kernels.hpp
+  integ/bilininteg_dgtrace_kernels.hpp
+  integ/bilininteg_vecdiffusion_kernels.hpp
+  integ/bilininteg_convection_kernels.hpp
   integ/bilininteg_diffusion_kernels.hpp
   integ/bilininteg_elasticity_kernels.hpp
   integ/bilininteg_hcurl_kernels.hpp
@@ -186,6 +195,14 @@ set(HDRS
   dgmassinv.hpp
   dgmassinv_kernels.hpp
   doftrans.hpp
+  dfem/doperator.hpp
+  dfem/fieldoperator.hpp
+  dfem/integrate.hpp
+  dfem/parameterspace.hpp
+  dfem/qfunction_apply.hpp
+  dfem/qfunction_transform.hpp
+  dfem/tuple.hpp
+  dfem/util.hpp
   eltrans.hpp
   estimators.hpp
   fe.hpp
@@ -235,8 +252,13 @@ set(HDRS
   lor/lor_ams.hpp
   lor/lor_batched.hpp
   lor/lor_h1.hpp
+  lor/lor_dg.hpp
   lor/lor_nd.hpp
   lor/lor_rt.hpp
+  lor/lor_h1_impl.hpp
+  lor/lor_dg_impl.hpp
+  lor/lor_nd_impl.hpp
+  lor/lor_rt_impl.hpp
   lor/lor_util.hpp
   multigrid.hpp
   nonlinearform.hpp
@@ -244,6 +266,7 @@ set(HDRS
   nonlininteg.hpp
   nonlininteg_mixed.hpp
   qfunction.hpp
+  qinterp/det.hpp
   qinterp/eval.hpp
   qinterp/eval_hdiv.hpp
   qinterp/grad.hpp
@@ -276,6 +299,7 @@ set(HDRS
   darcy/darcyreduction.hpp
   darcy/pdarcyform.hpp
   integrator.hpp
+  bounds.hpp
   )
 
 if (MFEM_USE_SIDRE)

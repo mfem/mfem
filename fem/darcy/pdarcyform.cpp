@@ -242,9 +242,9 @@ void ParDarcyForm::Finalize(int skip_zeros)
 
 void ParDarcyForm::ParallelAssembleInternal()
 {
-   if (pM_u) { pM_u->ParallelAssembleInternal(); }
-   if (pM_p) { pM_p->ParallelAssembleInternal(); }
-   if (pB) { pB->ParallelAssembleInternal(); }
+   if (pM_u) { pM_u->ParallelAssembleInternalMatrix(); }
+   if (pM_p) { pM_p->ParallelAssembleInternalMatrix(); }
+   if (pB) { pB->ParallelAssembleInternalMatrix(); }
 }
 
 void ParDarcyForm::FormLinearSystem(
@@ -561,7 +561,7 @@ Operator &ParDarcyForm::ParOperator::GetGradient(const Vector &x) const
       }
       else if (darcy.pM_u)
       {
-         block_grad->SetDiagonalBlock(0, darcy.pM_u->ParallelAssembleInternal());
+         block_grad->SetDiagonalBlock(0, darcy.pM_u->ParallelAssembleInternalMatrix());
       }
       else if (darcy.pMnl_u)
       {
@@ -574,7 +574,7 @@ Operator &ParDarcyForm::ParOperator::GetGradient(const Vector &x) const
       }
       else if (darcy.pM_p)
       {
-         block_grad->SetDiagonalBlock(1, darcy.pM_p->ParallelAssembleInternal(),
+         block_grad->SetDiagonalBlock(1, darcy.pM_p->ParallelAssembleInternalMatrix(),
                                       (darcy.bsym)?(-1.):(+1.));
       }
       else if (darcy.pMnl_p)
@@ -587,7 +587,7 @@ Operator &ParDarcyForm::ParOperator::GetGradient(const Vector &x) const
       {
          if (!darcy.opB.Ptr() || !darcy.opBt.Ptr())
          {
-            HypreParMatrix *hB = darcy.pB->ParallelAssembleInternal();
+            HypreParMatrix *hB = darcy.pB->ParallelAssembleInternalMatrix();
             darcy.opB.Reset(hB, false);
             darcy.ConstructBT(darcy.opB);
          }

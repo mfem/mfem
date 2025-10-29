@@ -73,7 +73,7 @@ public:
    /** When set to true and the ParBilinearForm has interior face integrators,
        the local SparseMatrix will include the rows (in addition to the columns)
        corresponding to face-neighbor dofs. The default behavior is to disregard
-       those rows. Must be called before the first Assemble call. */
+       those rows. Must be called before the first Assemble() call. */
    void KeepNbrBlock(bool knb = true) { keep_nbr_block = knb; }
 
    /** @brief Set the operator type id for the parallel matrix/operator when
@@ -102,8 +102,12 @@ public:
    void AssembleDiagonal(Vector &diag) const override;
 
    /// Returns the matrix assembled on the true dofs, i.e. P^t A P.
-   /** The returned matrix is owned by the form. */
-   HypreParMatrix *ParallelAssembleInternal();
+   /** The returned matrix is the internal one, owned by the form. It is not
+       reassembled if it has been already constructed. If FormSystemMatrix()
+       has been called before, it is the system matrix with eliminated
+       essential DOFs, otherwise the parallel matrix is assembled here without
+       the elimination process. */
+   HypreParMatrix *ParallelAssembleInternalMatrix();
 
    /// Returns the matrix assembled on the true dofs, i.e. P^t A P.
    /** The returned matrix has to be deleted by the caller. */
@@ -345,18 +349,23 @@ public:
       keep_nbr_block = false;
    }
 
-   /** When set to true and the ParBilinearForm has interior face integrators,
-       the local SparseMatrix will include the rows (in addition to the columns)
-       corresponding to face-neighbor dofs. The default behavior is to disregard
-       those rows. Must be called before the first Assemble call. */
+   /** When set to true and the ParMixedBilinearForm has interior face
+       integrators, the local SparseMatrix will include the rows (in addition
+       to the columns) corresponding to face-neighbor dofs. The default
+       behavior is to disregard those rows. Must be called before the first
+       Assemble() call. */
    void KeepNbrBlock(bool knb = true) { keep_nbr_block = knb; }
 
    /// Assemble the local matrix
    void Assemble(int skip_zeros = 1);
 
    /// Returns the matrix assembled on the true dofs, i.e. P_test^t A P_trial.
-   /** The returned matrix is owned by the form. */
-   HypreParMatrix *ParallelAssembleInternal();
+   /** The returned matrix is the internal one, owned by the form. It is not
+       reassembled if it has been already constructed. If
+       FormRectangularSystemMatrix() has been called before, it is the system
+       matrix with eliminated essential DOFs, otherwise the parallel matrix is
+       assembled here without the elimination process. */
+   HypreParMatrix *ParallelAssembleInternalMatrix();
 
    /// Returns the matrix assembled on the true dofs, i.e. P_test^t A P_trial.
    /** The returned matrix has to be deleted by the caller. */

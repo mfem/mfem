@@ -87,7 +87,7 @@ enum class discret_type
 };
 
 prob_type prob;
-Vector beta;
+Vector beta_;
 real_t epsilon;
 
 real_t exact_u(const Vector & X);
@@ -134,7 +134,7 @@ int main(int argc, char *argv[])
                   " 0: manufactured, 1: Erickson-Johnson ");
    args.AddOption(&idisc, "-disc", "--discretization", "Discretization"
                   " 0: DPG, 1: RTDG, 2: BRTDG, 3: LDG");
-   args.AddOption(&beta, "-beta", "--beta",
+   args.AddOption(&beta_, "-beta", "--beta",
                   "Vector Coefficient beta");
    args.AddOption(&upwinded, "-up", "--upwinded", "-ce", "--centered",
                   "Switches between upwinded (1) and centered (0=default) stabilization.");
@@ -175,11 +175,11 @@ int main(int argc, char *argv[])
    int dim = mesh.Dimension();
    MFEM_VERIFY(dim > 1, "Dimension = 1 is not supported in this example");
 
-   if (beta.Size() == 0)
+   if (beta_.Size() == 0)
    {
-      beta.SetSize(dim);
-      beta = 0.0;
-      beta[0] = 1.;
+      beta_.SetSize(dim);
+      beta_ = 0.0;
+      beta_[0] = 1.;
    }
 
    args.PrintOptions(std::cout);
@@ -272,11 +272,11 @@ int main(int argc, char *argv[])
    ConstantCoefficient eps2(1/(epsilon*epsilon));
 
    ConstantCoefficient negeps(-epsilon);
-   VectorConstantCoefficient betacoeff(beta);
+   VectorConstantCoefficient betacoeff(beta_);
    NormalizedVectorCoefficient nbetacoeff(betacoeff); //normalized velocity
-   Vector negbeta = beta; negbeta.Neg();
-   DenseMatrix bbt(beta.Size());
-   MultVVt(beta, bbt);
+   Vector negbeta = beta_; negbeta.Neg();
+   DenseMatrix bbt(beta_.Size());
+   MultVVt(beta_, bbt);
    MatrixConstantCoefficient bbtcoeff(bbt);
    VectorConstantCoefficient negbetacoeff(negbeta);
 
@@ -968,7 +968,7 @@ void exact_hatf(const Vector & X, Vector & hatf)
    hatf.SetSize(X.Size());
    for (int i = 0; i<hatf.Size(); i++)
    {
-      hatf[i] = beta[i] * u - sigma[i];
+      hatf[i] = beta_[i] * u - sigma[i];
    }
 }
 
@@ -982,7 +982,7 @@ real_t f_exact(const Vector & X)
    real_t s = 0;
    for (int i = 0; i<du.Size(); i++)
    {
-      s += beta[i] * du[i];
+      s += beta_[i] * du[i];
    }
    return -epsilon * d2u + s;
 }
@@ -998,7 +998,7 @@ void setup_test_norm_coeffs(GridFunction & c1_gf, GridFunction & c2_gf)
       real_t c1 = std::min(epsilon/volume, (real_t) 1.);
       real_t c2 = std::min(1./epsilon, 1./volume);
       fes->GetElementDofs(i,vdofs);
-      c1_gf.SetSubVector(vdofs,c1);
-      c2_gf.SetSubVector(vdofs,c2);
+      c1_gf.SetSubVectorHost(vdofs,c1);
+      c2_gf.SetSubVectorHost(vdofs,c2);
    }
 }

@@ -18,8 +18,8 @@ message(STATUS "CMake version: ${CMAKE_VERSION}")
 set(USER_CONFIG "${CMAKE_CURRENT_SOURCE_DIR}/config/user.cmake" CACHE PATH
   "Path to optional user configuration file.")
 
-# Require C++11 and disable compiler-specific extensions
-set(CMAKE_CXX_STANDARD 11 CACHE STRING "C++ standard to use.")
+# Require C++17 and disable compiler-specific extensions
+set(CMAKE_CXX_STANDARD 17 CACHE STRING "C++ standard to use.")
 set(CMAKE_CXX_STANDARD_REQUIRED ON CACHE BOOL
   "Force the use of the chosen C++ standard.")
 set(CMAKE_CXX_EXTENSIONS OFF CACHE BOOL "Enable C++ standard extensions.")
@@ -59,7 +59,7 @@ project(mfem NONE)
 # Current version of MFEM, see also `makefile`.
 #   mfem_VERSION = (string)
 #   MFEM_VERSION = (int)   [automatically derived from mfem_VERSION]
-set(${PROJECT_NAME}_VERSION 4.8.0)
+set(${PROJECT_NAME}_VERSION 4.8.1)
 
 # Prohibit in-source build
 if (${PROJECT_SOURCE_DIR} STREQUAL ${PROJECT_BINARY_DIR})
@@ -133,21 +133,50 @@ if (MFEM_USE_CUDA)
    if (NOT CMAKE_CUDA_HOST_COMPILER)
       set(CMAKE_CUDA_HOST_COMPILER ${CMAKE_CXX_COMPILER})
    endif()
-   set(CUDA_FLAGS "--expt-extended-lambda")
-   if (CMAKE_VERSION VERSION_LESS 3.18.0)
-      set(CUDA_FLAGS "-arch=${CUDA_ARCH} ${CUDA_FLAGS}")
-   elseif (NOT CMAKE_CUDA_ARCHITECTURES)
-      string(REGEX REPLACE "^sm_" "" ARCH_NUMBER "${CUDA_ARCH}")
-      if ("${CUDA_ARCH}" STREQUAL "sm_${ARCH_NUMBER}")
-         set(CMAKE_CUDA_ARCHITECTURES "${ARCH_NUMBER}")
-      else()
-         message(FATAL_ERROR "Unknown CUDA_ARCH: ${CUDA_ARCH}")
-      endif()
+   if (NOT CMAKE_CUDA_ARCHITECTURES)
+      # make CUDA_ARCH resemble the same form as CMAKE_CUDA_ARCHITECTURES
+      string(REPLACE "sm_" "" CUDA_ARCH_TMP "${CUDA_ARCH}")
+      string(REPLACE "," ";" CUDA_ARCH "${CUDA_ARCH_TMP}")
+      set(CMAKE_CUDA_ARCHITECTURES "${CUDA_ARCH}")
    else()
       set(CUDA_ARCH "CMAKE_CUDA_ARCHITECTURES: ${CMAKE_CUDA_ARCHITECTURES}")
    endif()
    message(STATUS "Using CUDA architecture: ${CUDA_ARCH}")
    enable_language(CUDA)
+   if (CMAKE_VERSION VERSION_LESS 3.18.0)
+      # backup try to detect if this is clang or nvcc
+      if(CMAKE_CUDA_COMPILER MATCHES "nvcc$")
+         # nvcc
+         set(MFEM_CUDA_COMPILER_IS_NVCC ON)
+         set(CUDA_FLAGS "${CUDA_FLAGS} --expt-extended-lambda --expt-relaxed-constexpr")
+         if ("all" STREQUAL "${CMAKE_CUDA_ARCHITECTURES}"
+             OR "native" STREQUAL "${CMAKE_CUDA_ARCHITECTURES}"
+             OR "all-major" STREQUAL "${CMAKE_CUDA_ARCHITECTURES}")
+            set(CUDA_FLAGS "-arch=${CMAKE_CUDA_ARCHITECTURES} ${CUDA_FLAGS}")
+         else()
+            # build -gencode sequence for multiple architectures
+            foreach(ENTRY IN LISTS CMAKE_CUDA_ARCHITECTURES)
+               set(CUDA_FLAGS
+                   "-gencode arch=compute_${ENTRY},code=sm_${ENTRY} ${CUDA_FLAGS}")
+            endforeach()
+         endif()
+      else()
+         # build cuda-gpu-arch sequence for multiple architectures
+         # does not support all/all-major/native
+         foreach(ENTRY IN LISTS CMAKE_CUDA_ARCHITECTURES)
+            set(CUDA_FLAGS "-cuda-gpu-arch=sm_${ENTRY} ${CUDA_FLAGS}")
+         endforeach()
+      endif()
+   else()
+      # TODO: all, native, all-major require CMake 3.24+
+      # backport support for CMake 3.18 to 3.24
+      if (CMAKE_CUDA_COMPILER_ID STREQUAL "NVIDIA")
+         # nvcc
+         set(MFEM_CUDA_COMPILER_IS_NVCC ON)
+         set(CUDA_FLAGS
+             "${CUDA_FLAGS} --expt-extended-lambda --expt-relaxed-constexpr")
+      endif()
+   endif()
    set(CMAKE_CUDA_STANDARD ${CMAKE_CXX_STANDARD} CACHE STRING
       "CUDA standard to use.")
    set(CMAKE_CUDA_STANDARD_REQUIRED ON CACHE BOOL
@@ -229,10 +258,16 @@ endif()
 
 # AMD HIP
 if (MFEM_USE_HIP)
-  if (HIP_ARCH)
-    message(STATUS "Using HIP architecture: ${HIP_ARCH}")
-    set(GPU_TARGETS "${HIP_ARCH}" CACHE STRING "HIP targets to compile for")
+  if (NOT CMAKE_HIP_ARCHITECTURES)
+    if (HIP_ARCH)
+      set(CMAKE_HIP_ARCHITECTURES CACHE STRING "HIP targets to compile for" "${HIP_ARCH}")
+      set(GPU_TARGETS "${HIP_ARCH}" CACHE STRING "HIP targets to compile for" FORCE)
+    endif()
+  else()
+    set(HIP_ARCH CACHE STRING "HIP targets to compile for" "${CMAKE_HIP_ARCHITECTURES}")
+    set(GPU_TARGETS "${CMAKE_HIP_ARCHITECTURES}" CACHE STRING "HIP targets to compile for" FORCE)
   endif()
+  message(STATUS "Using HIP architecture: ${CMAKE_HIP_ARCHITECTURES}")
   if (ROCM_PATH)
     list(INSERT CMAKE_PREFIX_PATH 0 ${ROCM_PATH})
   endif()
@@ -256,9 +291,22 @@ if (MFEM_USE_OPENMP OR MFEM_USE_LEGACY_OPENMP)
   if (OPENMP_FOUND)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
     if (MFEM_USE_CUDA)
-      set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -Xcompiler=${OpenMP_CXX_FLAGS}")
+      if(MFEM_CUDA_COMPILER_IS_NVCC)
+        set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -Xcompiler=${OpenMP_CXX_FLAGS}")
+      else()
+        set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} ${OpenMP_CXX_FLAGS}")
+      endif()
     endif()
   endif()
+endif()
+
+# Umpire (must be included before hypre, so hypre can use it if needed)
+if (MFEM_USE_UMPIRE)
+   # umpire uses FindCUDA, which needs CMP0146=OLD in CMake >= 3.27
+   if (CMAKE_VERSION VERSION_GREATER_EQUAL 3.27.0)
+      cmake_policy(SET CMP0146 OLD)
+   endif()
+   find_package(UMPIRE REQUIRED)
 endif()
 
 # MPI -> hypre; PETSc (optional)
@@ -388,6 +436,11 @@ if (MFEM_USE_GSLIB)
   find_package(GSLIB REQUIRED)
 endif()
 
+# HDF5
+if (MFEM_USE_HDF5)
+  find_package(HDF5 REQUIRED)
+endif()
+
 # NetCDF
 if (MFEM_USE_NETCDF)
   find_package(NetCDF REQUIRED)
@@ -473,12 +526,11 @@ endif()
 
 # RAJA
 if (MFEM_USE_RAJA)
+   # RAJA uses FindCUDA, which needs CMP0146=OLD in CMake >= 3.27
+   if(CMAKE_VERSION VERSION_GREATER_EQUAL 3.27.0)
+      cmake_policy(SET CMP0146 OLD)
+   endif()
    find_package(RAJA REQUIRED)
-endif()
-
-# UMPIRE
-if (MFEM_USE_UMPIRE)
-   find_package(UMPIRE REQUIRED)
 endif()
 
 # GOOGLE-BENCHMARK
@@ -527,9 +579,10 @@ if (MFEM_USE_TRIBOL)
   endif()
 endif()
 
-# Enzyme
 if (MFEM_USE_ENZYME)
-   find_package(ENZYME REQUIRED)
+    find_package(Enzyme REQUIRED HINTS ${ENZYME_DIR})
+    message(STATUS "Enzyme found in ${ENZYME_DIR}.")
+    set(ENZYME_INCLUDE_DIRS ${ENZYME_DIR}/include)
 endif()
 
 # MFEM_TIMER_TYPE
@@ -569,22 +622,29 @@ find_package(Threads REQUIRED)
 #    integers, the METIS header (with 32-bit indices, as used by mfem) needs to
 #    be before SuiteSparse.
 set(MFEM_TPLS OPENMP HYPRE LAPACK BLAS SuperLUDist STRUMPACK METIS SuiteSparse
-    SUNDIALS PETSC SLEPC MUMPS AXOM FMS CONDUIT Ginkgo GNUTLS GSLIB
+    SUNDIALS PETSC SLEPC MUMPS AXOM FMS CONDUIT Ginkgo GNUTLS GSLIB HDF5
     NETCDF MPFR PUMI HIOP POSIXCLOCKS MFEMBacktrace ZLIB OCCA CEED RAJA UMPIRE
     ADIOS2 MKL_CPARDISO MKL_PARDISO AMGX MAGMA CUSPARSE CUBLAS CALIPER CODIPACK
     BENCHMARK PARELAG TRIBOL MPI_CXX HIP HIPBLAS HIPSPARSE MOONOLITH BLITZ
-    ALGOIM ENZYME)
+    ALGOIM ENZYME CUDA::cudart)
 
-# Add all *_FOUND libraries in the variable TPL_LIBRARIES.
+# Add all created targets and *_FOUND libraries in the variables TPL_TARGETS and
+# TPL_LIBRARIES, respectively.
+set(TPL_TARGETS)
 set(TPL_LIBRARIES "")
 set(TPL_INCLUDE_DIRS "")
 foreach(TPL IN LISTS MFEM_TPLS)
-  if (${TPL}_FOUND)
+  if (${TPL}_FOUND OR TARGET ${TPL})
     message(STATUS "MFEM: using package ${TPL}")
-    list(APPEND TPL_LIBRARIES ${${TPL}_LIBRARIES})
-    list(APPEND TPL_INCLUDE_DIRS ${${TPL}_INCLUDE_DIRS})
+    if (TARGET ${TPL})
+      list(APPEND TPL_TARGETS ${TPL})
+    else()
+      list(APPEND TPL_LIBRARIES ${${TPL}_LIBRARIES})
+      list(APPEND TPL_INCLUDE_DIRS ${${TPL}_INCLUDE_DIRS})
+    endif()
   endif()
 endforeach(TPL)
+
 list(REVERSE TPL_LIBRARIES)
 list(REMOVE_DUPLICATES TPL_LIBRARIES)
 list(REVERSE TPL_LIBRARIES)
@@ -657,7 +717,10 @@ set(MFEM_INSTALL_DIR ${CMAKE_INSTALL_PREFIX})
 # Declaring the library
 mfem_add_library(mfem ${SOURCES} ${HEADERS} ${MASTER_HEADERS})
 # message(STATUS "TPL_LIBRARIES = ${TPL_LIBRARIES}")
-target_link_libraries(mfem PUBLIC ${TPL_LIBRARIES})
+target_link_libraries(mfem PUBLIC ${TPL_LIBRARIES} ${TPL_TARGETS})
+if (TPL_TARGETS)
+  add_dependencies(mfem ${TPL_TARGETS})
+endif()
 if (MINGW)
   target_link_libraries(mfem PRIVATE ws2_32)
 endif()
@@ -680,6 +743,9 @@ if (MFEM_USE_MPI)
   if (MPI_CXX_LINK_FLAGS)
     target_link_libraries(mfem PUBLIC ${MPI_CXX_LINK_FLAGS})
   endif()
+endif()
+if (MFEM_USE_ENZYME)
+  target_link_libraries(mfem PUBLIC ClangEnzymeFlags)
 endif()
 
 set_target_properties(mfem PROPERTIES VERSION "${mfem_VERSION}")

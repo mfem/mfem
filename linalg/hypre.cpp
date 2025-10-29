@@ -1146,7 +1146,7 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm,
 
    hypre_CSRMatrixSetDataOwner(csr_a,0);
    MemoryIJData mem_a;
-   CopyCSR(sm_a, mem_a, csr_a, false);
+   CopyCSR(const_cast<SparseMatrix*>(sm_a), mem_a, csr_a, false);
    hypre_CSRMatrixSetRownnz(csr_a);
 
    // NOTE: this call creates a matrix on host even when device support is
@@ -2329,8 +2329,8 @@ void HypreParMatrix::Threshold(real_t threshold)
    /* TODO: GenerateDiagAndOffd() uses an int array of size equal to the number
       of columns in csr_A_wo_z which is the global number of columns in A. This
       does not scale well. */
-   ierr += GenerateDiagAndOffd(csr_A_wo_z,parcsr_A_ptr,
-                               col_start,col_end);
+   ierr += hypre_GenerateDiagAndOffd(csr_A_wo_z,parcsr_A_ptr,
+                                     col_start,col_end);
 
    ierr += hypre_CSRMatrixDestroy(csr_A_wo_z);
 
@@ -2576,6 +2576,18 @@ void HypreParMatrix::EliminateBC(const Array<int> &ess_dofs,
 #if defined(HYPRE_USING_GPU)
       if (HypreUsingGPU())
       {
+#if defined(HYPRE_WITH_GPU_AWARE_MPI) || defined(HYPRE_USING_GPU_AWARE_MPI)
+         // hypre_GetGpuAwareMPI() was introduced in v2.31.0, however, its value
+         // is not checked in hypre_ParCSRCommHandleCreate_v2() before v2.33.0,
+         // instead only HYPRE_WITH_GPU_AWARE_MPI is checked.
+#if MFEM_HYPRE_VERSION >= 23300
+         if (hypre_GetGpuAwareMPI())
+#endif
+         {
+            // ensure int_buf_data has been computed before sending it
+            MFEM_STREAM_SYNC;
+         }
+#endif
          // Try to use device-aware MPI for the communication if available
          comm_handle = hypre_ParCSRCommHandleCreate_v2(
                           11, comm_pkg, HYPRE_MEMORY_DEVICE, int_buf_data,

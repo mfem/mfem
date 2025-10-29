@@ -434,14 +434,15 @@ public:
  * numerical flux F̂ at the boundary faces. The flux F is obtained from the
  * FluxFunction assigned to the aforementioned NumericalFlux with the given
  * boundary coefficient for the state u_b.
+ *
+ * Note the class can be used for imposing conditions on interior interfaces.
  */
-class BdrHyperbolicFormIntegrator : public NonlinearFormIntegrator
+class BdrHyperbolicDirichletIntegrator : public NonlinearFormIntegrator
 {
 private:
    const NumericalFlux &numFlux;    // Numerical flux that maps F to F̂
    const FluxFunction &fluxFunction;
-   Coefficient *u_coeff;            // Boundary state coefficient
-   VectorCoefficient *u_vcoeff;     // Boundary state vector coefficient
+   VectorCoefficient &u_vcoeff;     // Boundary state vector coefficient
    const int IntOrderOffset; // integration order offset, 2*p + IntOrderOffset.
    const real_t sign;
 
@@ -462,28 +463,14 @@ public:
    const int num_equations;  // the number of equations
 
    /**
-    * @brief Construct a new BdrHyperbolicFormIntegrator object
+    * @brief Construct a new BdrHyperbolicDirichletIntegrator object
     *
     * @param[in] numFlux numerical flux
     * @param[in] bdrState boundary state coefficient
     * @param[in] IntOrderOffset integration order offset
     * @param[in] sign sign of the convection term
     */
-   BdrHyperbolicFormIntegrator(
-      const NumericalFlux &numFlux,
-      Coefficient &bdrState,
-      const int IntOrderOffset = 0,
-      const real_t sign = 1.);
-
-   /**
-    * @brief Construct a new BdrHyperbolicFormIntegrator object
-    *
-    * @param[in] numFlux numerical flux
-    * @param[in] bdrState boundary state coefficient
-    * @param[in] IntOrderOffset integration order offset
-    * @param[in] sign sign of the convection term
-    */
-   BdrHyperbolicFormIntegrator(
+   BdrHyperbolicDirichletIntegrator(
       const NumericalFlux &numFlux,
       VectorCoefficient &bdrState,
       const int IntOrderOffset = 0,
@@ -531,18 +518,20 @@ public:
 
 /**
  * @brief Abstract boundary hyperbolic linear form integrator, assembling
- * <-F(u,x) n, v> terms for scalar finite elements.
+ * <ɑ/2 F(u,x) n - β |F(u,x) n|, v> terms for scalar finite elements.
  *
  * This form integrator is coupled with a FluxFunction that evaluates the
- * flux F at the faces.
+ * flux F at the boundary.
+ *
+ * Note the upwinding is performed component-wise. For general boundary
+ * integration with a numerical flux, see BdrHyperbolicDirichletIntegrator.
  */
-class BoundaryHyperbolicLFIntegrator : public LinearFormIntegrator
+class BoundaryHyperbolicFlowIntegrator : public LinearFormIntegrator
 {
    const FluxFunction &fluxFunction;
-   Coefficient *u_coeff;
-   VectorCoefficient *u_vcoeff;
+   VectorCoefficient &u_vcoeff;
+   const real_t alpha, beta;
    const int IntOrderOffset; // integration order offset, 2*p + IntOrderOffset.
-   const real_t sign;
 
    // The maximum characteristic speed, updated during face vector assembly
    real_t max_char_speed;
@@ -557,26 +546,28 @@ class BoundaryHyperbolicLFIntegrator : public LinearFormIntegrator
 
 public:
    /**
-    * @brief Construct a new BoundaryHyperbolicLFIntegrator object
-    *
-    * @param[in] flux flux function
-    * @param[in] u scalar state coefficient
-    * @param[in] IntOrderOffset integration order offset
-    * @param[in] sign sign of the convection term
-    */
-   BoundaryHyperbolicLFIntegrator(const FluxFunction &flux, Coefficient &u,
-                                  const int IntOrderOffset = 0, const real_t sign = 1.);
-
-   /**
-    * @brief Construct a new BoundaryHyperbolicLFIntegrator object
+    * @brief Construct a new BoundaryHyperbolicFlowIntegrator object
     *
     * @param[in] flux flux function
     * @param[in] u vector state coefficient
+    * @param[in] alpha ɑ coefficient (β = ɑ/2)
     * @param[in] IntOrderOffset integration order offset
-    * @param[in] sign sign of the convection term
     */
-   BoundaryHyperbolicLFIntegrator(const FluxFunction &flux, VectorCoefficient &u,
-                                  const int IntOrderOffset = 0, const real_t sign = 1.);
+   BoundaryHyperbolicFlowIntegrator(const FluxFunction &flux, VectorCoefficient &u,
+                                    real_t alpha = -1., int IntOrderOffset = 0)
+      : BoundaryHyperbolicFlowIntegrator(flux, u, alpha, alpha/2., IntOrderOffset) { }
+
+   /**
+    * @brief Construct a new BoundaryHyperbolicFlowIntegrator object
+    *
+    * @param[in] flux flux function
+    * @param[in] u vector state coefficient
+    * @param[in] alpha ɑ coefficient
+    * @param[in] beta β coefficient
+    * @param[in] IntOrderOffset integration order offset
+    */
+   BoundaryHyperbolicFlowIntegrator(const FluxFunction &flux, VectorCoefficient &u,
+                                    real_t alpha, real_t beta, int IntOrderOffset = 0);
 
    /// Reset the maximum characteristic speed to zero
    void ResetMaxCharSpeed() { max_char_speed = 0.0; }
@@ -586,6 +577,8 @@ public:
 
    /// Get the associated flux function
    const FluxFunction &GetFluxFunction() const { return fluxFunction; }
+
+   using LinearFormIntegrator::AssembleRHSElementVect;
 
    /**
     * @warning Boundary element integration not implemented, use

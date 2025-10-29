@@ -151,7 +151,7 @@ void ParBilinearForm::ParallelRAP(SparseMatrix &loc_A, OperatorHandle &A,
    }
 }
 
-HypreParMatrix *ParBilinearForm::ParallelAssembleInternal()
+HypreParMatrix *ParBilinearForm::ParallelAssembleInternalMatrix()
 {
    if (p_mat.Ptr() == NULL)
    {
@@ -784,7 +784,7 @@ void ParMixedBilinearForm::Assemble(int skip_zeros)
    }
 }
 
-HypreParMatrix *ParMixedBilinearForm::ParallelAssembleInternal()
+HypreParMatrix *ParMixedBilinearForm::ParallelAssembleInternalMatrix()
 {
    if (p_mat.Ptr() == NULL)
    {

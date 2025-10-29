@@ -954,7 +954,7 @@ void DarcyOperator::SchurPreconditioner::ConstructPar(const Vector &x_v) const
       }
       else if (Mq)
       {
-         Mqm = const_cast<ParBilinearForm*>(Mq)->ParallelAssembleInternal();
+         Mqm = const_cast<ParBilinearForm*>(Mq)->ParallelAssembleInternalMatrix();
       }
       else if (Mqnl)
       {
@@ -982,7 +982,7 @@ void DarcyOperator::SchurPreconditioner::ConstructPar(const Vector &x_v) const
       }
       else if (B)
       {
-         Bm = const_cast<ParMixedBilinearForm*>(B)->ParallelAssembleInternal();
+         Bm = const_cast<ParMixedBilinearForm*>(B)->ParallelAssembleInternalMatrix();
       }
       else
       {
@@ -1001,7 +1001,7 @@ void DarcyOperator::SchurPreconditioner::ConstructPar(const Vector &x_v) const
       }
       else if (Mt)
       {
-         Mtm = const_cast<ParBilinearForm*>(Mt)->ParallelAssembleInternal();
+         Mtm = const_cast<ParBilinearForm*>(Mt)->ParallelAssembleInternalMatrix();
       }
       else if (Mtnl)
       {
