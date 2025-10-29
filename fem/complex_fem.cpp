@@ -827,15 +827,16 @@ ParComplexGridFunction::ParComplexGridFunction(ParMesh *m, std::istream &input)
    }
    else
    {
-      Vector::Load(input, 2*pfes->GetVSize());
+      int vsize = pfes->GetVSize();
+      Vector::Load(input, 2*vsize);
 
       real_t *data_  = const_cast<real_t*>(HostRead());
-      for (int i = 0; i < size; i++)
+      for (int i = 0; i < vsize; i++)
       {
          if (pfes->GetDofSign(i) < 0)
          {
             data_[i] = -data_[i];
-            data_[i+size] = -data_[i+size];
+            data_[i+vsize] = -data_[i+vsize];
          }
       }
 
@@ -1049,13 +1050,14 @@ void ParComplexGridFunction::Save(std::ostream &os) const
    pfes->Save(os);
    os << '\n';
 
+   int vsize = pfes->GetVSize();
    real_t *data_  = const_cast<real_t*>(HostRead());
-   for (int i = 0; i < size; i++)
+   for (int i = 0; i < vsize; i++)
    {
       if (pfes->GetDofSign(i) < 0)
       {
          data_[i] = -data_[i];
-         data_[i+size] = -data_[i+size];
+         data_[i+vsize] = -data_[i+vsize];
       }
    }
 
@@ -1068,12 +1070,12 @@ void ParComplexGridFunction::Save(std::ostream &os) const
       Vector::Print(os, pfes->GetVDim());
    }
 
-   for (int i = 0; i < size; i++)
+   for (int i = 0; i < vsize; i++)
    {
       if (pfes->GetDofSign(i) < 0)
       {
          data_[i] = -data_[i];
-         data_[i+size] = -data_[i+size];
+         data_[i+vsize] = -data_[i+vsize];
       }
    }
 
