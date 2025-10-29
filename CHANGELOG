@@ -40,6 +40,8 @@ Discretization improvements
   provided that neighboring hexahedra are not refined in conflicting directions.
   A new ParMesh method is added to check for such conflicts, before refinement.
 
+- Renamed the default GitHub branch from "master" to "main".
+
 Meshing improvements
 --------------------
 
