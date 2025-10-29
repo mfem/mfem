@@ -4050,11 +4050,9 @@ void FiniteElementSpace::DestroyDoFTransArray()
 void FiniteElementSpace::GetTransferOperator(
    const FiniteElementSpace &coarse_fes, OperatorHandle &T) const
 {
-   std::cout<<"GetTransferOperator\n";
    // Assumptions: see the declaration of the method.
    if (coarse_fes.FEColl()->Name() != fec->Name())
    {
-      std::cout<<"GenericTransferOperator\n";
       T.Reset(new GenericTransferOperator(coarse_fes, *this));
    }
    else if (T.Type() == Operator::MFEM_SPARSEMAT)
