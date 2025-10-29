@@ -950,6 +950,7 @@ HypreParMatrix* ParDiscreteLinearOperator::ParallelAssemble() const
    return RAP;
 }
 
+
 void ParDiscreteLinearOperator::ParallelAssemble(OperatorHandle &A)
 {
    // construct the rectangular block-diagonal matrix dA
