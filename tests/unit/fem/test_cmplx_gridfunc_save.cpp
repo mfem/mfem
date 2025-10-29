@@ -159,22 +159,20 @@ TEST_CASE("ParComplexGridFunction Save", "[ParComplexGridFunction][Parallel]")
    std::ofstream ofs_rt(name_rt.str().c_str()); ofs_rt.precision(8);
    std::ofstream ofs_l2(name_l2.str().c_str()); ofs_l2.precision(8);
 
-   pgf_h1.Save(ofs_h1);
-   pgf_nd.Save(ofs_nd);
-   pgf_rt.Save(ofs_rt);
-   pgf_l2.Save(ofs_l2);
-
-   MPI_Barrier(MPI_COMM_WORLD);
+   pgf_h1.Save(ofs_h1); ofs_h1.close();
+   pgf_nd.Save(ofs_nd); ofs_nd.close();
+   pgf_rt.Save(ofs_rt); ofs_rt.close();
+   pgf_l2.Save(ofs_l2); ofs_l2.close();
 
    std::ifstream ifs_h1(name_h1.str().c_str());
    std::ifstream ifs_nd(name_nd.str().c_str());
    std::ifstream ifs_rt(name_rt.str().c_str());
    std::ifstream ifs_l2(name_l2.str().c_str());
 
-   ParComplexGridFunction pgf_h1_read(&pmesh, ifs_h1);
-   ParComplexGridFunction pgf_nd_read(&pmesh, ifs_nd);
-   ParComplexGridFunction pgf_rt_read(&pmesh, ifs_rt);
-   ParComplexGridFunction pgf_l2_read(&pmesh, ifs_l2);
+   ParComplexGridFunction pgf_h1_read(&pmesh, ifs_h1); ifs_h1.close();
+   ParComplexGridFunction pgf_nd_read(&pmesh, ifs_nd); ifs_nd.close();
+   ParComplexGridFunction pgf_rt_read(&pmesh, ifs_rt); ifs_rt.close();
+   ParComplexGridFunction pgf_l2_read(&pmesh, ifs_l2); ifs_l2.close();
 
    pgf_h1_read -= pgf_h1;
    pgf_nd_read -= pgf_nd;
