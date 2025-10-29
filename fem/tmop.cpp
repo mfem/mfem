@@ -5368,6 +5368,15 @@ void TMOP_Integrator::ParEnableNormalization(const ParGridFunction &x)
 }
 #endif
 
+void TMOP_Integrator::GetNormalizationFactors(real_t &m_normal,
+                                              real_t &l_normal,
+                                              real_t &s_normal)
+{
+   m_normal = this->metric_normal;
+   l_normal = this->lim_normal;
+   s_normal = this->surf_fit_normal;
+}
+
 void TMOP_Integrator::ComputeNormalizationEnergies(const GridFunction &x,
                                                    real_t &metric_energy,
                                                    real_t &lim_energy)

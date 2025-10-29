@@ -129,7 +129,8 @@ public:
    /// Create a vector using a braced initializer list
    template <typename CT, typename std::enable_if<
                 std::is_convertible<CT,real_t>::value,bool>::type = true>
-   explicit Vector(std::initializer_list<CT> values) : Vector(values.size())
+   explicit Vector(std::initializer_list<CT> values) :
+      Vector(static_cast<int> (values.size()))
    { std::copy(values.begin(), values.end(), begin()); }
 
    /// Enable execution of Vector operations using the mfem::Device.
