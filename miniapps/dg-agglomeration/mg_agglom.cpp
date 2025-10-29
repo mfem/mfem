@@ -20,7 +20,7 @@ namespace mfem
 std::vector<std::vector<int>> Agglomerate(Mesh &mesh)
 {
    const int ne = mesh.GetNE();
-   const int ncoarse = 4;
+   const int ncoarse = ne;
 
    const int num_partitions = std::ceil(std::log(ne)/std::log(ncoarse));
 
@@ -142,15 +142,24 @@ AgglomerationMultigrid::AgglomerationMultigrid(
    auto E = Agglomerate(*fes.GetMesh());
    int num_levels = E.size()+1;
 
+   std::cout << "num levels: " << num_levels << std::endl;
+
    // Populate the arrays: operators, smoothers, ownedOperators, ownedSmoothers
    // from the MultigridBase class. (All smoothers are owned, all operators
    // except the finest are owned).
+
    operators.SetSize(num_levels);
    smoothers.SetSize(num_levels);
    ownedOperators.SetSize(num_levels);
    ownedSmoothers.SetSize(num_levels);
    prolongations.SetSize(num_levels-1);
    ownedProlongations.SetSize(num_levels-1);
+
+   //Used for making the smoother
+   real_t alpha = 2.0;
+   Array<Operator*> sm_operators;
+   sm_operators.SetSize(num_levels);
+
    //Set the ownership
    for (int l = 0; l < num_levels-1; ++l)
    {
@@ -162,6 +171,7 @@ AgglomerationMultigrid::AgglomerationMultigrid(
    ownedSmoothers[num_levels-1] = true;
 
    operators[num_levels - 1] = &Af;
+   sm_operators[num_levels - 1] = &(Af *= alpha);
 
    // Populate the arrays: prolongations, ownedProlongations from the Multigrid
    // class. All prolongations are owned.
@@ -184,13 +194,14 @@ AgglomerationMultigrid::AgglomerationMultigrid(
       unique_ptr<SparseMatrix> AP(mfem::Mult(A_prev, *P));
       unique_ptr<SparseMatrix> Pt(Transpose(*P));
       operators[l] = mfem::Mult(*Pt, *AP);
+      sm_operators[l] = &(*(mfem::Mult(*Pt, *AP))*=alpha);
       prolongations[l] = P;
    }
 
    // Create the smoothers (using BlockILU for now) remember block size is num degrees of freedom per element
    for (int l=0; l < num_levels; ++l)
    {
-      smoothers[l] = new BlockILU(*operators[l], 4);
+      smoothers[l] = new BlockILU(*sm_operators[l], 4);
 
    }
 }
