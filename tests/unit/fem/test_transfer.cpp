@@ -478,19 +478,23 @@ void TestGenericTransfer(Mesh *mesh, int order, int lor)
    FiniteElementSpace h1_fes(mesh, &h1_coll);
    GridFunction h1_gf(&h1_fes);
 
+   // Get Transfer Operator
+   OperatorHandle nurbs_to_h1;
+   h1_fes.GetTransferOperator(nurbs_fes, nurbs_to_h1);
+
    // Project coefficient of NURBS gridfunction
    CartesianXCoefficient xcf;
    CartesianYCoefficient ycf;
    ProductCoefficient  cf(xcf, ycf);
    nurbs_gf.ProjectCoefficient(cf);
 
-   // Transfer NURBS gridfunction to H1 grdifunction
-   OperatorHandle nurbs_to_h1;
-   h1_fes.GetTransferOperator(nurbs_fes, nurbs_to_h1);
+   // Transfer NURBS gridfunction to H1 gridfunction
    nurbs_to_h1.Ptr()->Mult(nurbs_gf, h1_gf);
-
-   // Check
    REQUIRE(h1_gf.ComputeL2Error(cf) == MFEM_Approx(0.0));
+
+   // Transfer H1 gridfunction to NURBS gridfunction
+   nurbs_to_h1.Ptr()->MultTranspose(h1_gf, nurbs_gf);
+   REQUIRE(nurbs_gf.ComputeL2Error(cf) == MFEM_Approx(0.0));
 }
 
 
@@ -516,7 +520,7 @@ TEST_CASE("Generic Transfer Operator", "[Dimension][Order][LOR]")
    }
 }
 
-
+/* This test requires PR #4326
 TEST_CASE("Generic Transfer Operator -- Vector", "[Dimension][Order][LOR]")
 {
    dimension = GENERATE(2, 3);
@@ -577,7 +581,7 @@ TEST_CASE("Generic Transfer Operator -- Vector", "[Dimension][Order][LOR]")
    cf.Set(0, &pcf, false);
    cf.Set(1, &pcf, false);
    if ( dimension == 3 ) { cf.Set(2, &pcf, false); }
-   //nurbs_gf.ProjectCoefficient(cf);//???
+   nurbs_gf.ProjectCoefficient(cf);
 
    // Transfer NURBS gridfunction to H1 gridfunction
    OperatorHandle nurbs_to_h1;
@@ -586,7 +590,14 @@ TEST_CASE("Generic Transfer Operator -- Vector", "[Dimension][Order][LOR]")
 
    // Check
    REQUIRE(h1_gf.ComputeL2Error(cf) == MFEM_Approx(0.0));
-}
+
+   // Transfer NURBS gridfunction to H1 gridfunction
+   nurbs_gf = 0.0;
+   nurbs_to_h1.Ptr()->MultTranspose(h1_gf, nurbs_gf);
+
+   // Check
+   REQUIRE(nurbs_gf).ComputeL2Error(cf) == MFEM_Approx(0.0));
+}*/
 
 
 #ifdef MFEM_USE_MPI
