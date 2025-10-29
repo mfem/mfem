@@ -353,7 +353,8 @@ void ParDarcyForm::FormSystemMatrix(const Array<int> &ess_flux_tdof_list,
             const_cast<Array<int>*>(&ess_flux_tdof_list),
             const_cast<Array<int>*>(&ess_pot_tdof_list)
          };
-         pMnl->SetEssentialTrueDofs(ess_tdof_lists);
+         Array<Vector*> rhss(2); rhss = NULL;
+         pMnl->SetEssentialTrueDofs(ess_tdof_lists, rhss);
       }
 
       if (pM_p)

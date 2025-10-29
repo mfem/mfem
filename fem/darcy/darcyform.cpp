@@ -620,8 +620,12 @@ void DarcyForm::FormLinearSystem(const Array<int> &ess_flux_tdof_list,
                const_cast<Array<int>*>(&ess_flux_tdof_list),
                const_cast<Array<int>*>(&ess_pot_tdof_list)
             };
-            Mnl->SetEssentialTrueDofs(ess_tdof_lists);
-            B_b.GetBlock(0).SetSubVector(ess_flux_tdof_list, 0.);
+            Array<Vector*> rhss
+            {
+               &B_b.GetBlock(0),
+               &B_b.GetBlock(1)
+            };
+            Mnl->SetEssentialTrueDofs(ess_tdof_lists, rhss);
          }
 
          if (P)
@@ -832,7 +836,8 @@ void DarcyForm::FormSystemMatrix(const Array<int> &ess_flux_tdof_list,
             const_cast<Array<int>*>(&ess_flux_tdof_list),
             const_cast<Array<int>*>(&ess_pot_tdof_list)
          };
-         Mnl->SetEssentialTrueDofs(ess_tdof_lists);
+         Array<Vector*> rhss(2); rhss = NULL;
+         Mnl->SetEssentialTrueDofs(ess_tdof_lists, rhss);
       }
 
       if (M_p)
