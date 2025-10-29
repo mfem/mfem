@@ -86,6 +86,18 @@ public:
                    DenseMatrix &dshape) const override;
    void CalcHessian (const IntegrationPoint &ip,
                      DenseMatrix &hessian) const override;
+
+   using FiniteElement::Project;
+
+   /** Evaluate the dofs that are defined on this element.
+       Dofs that can not be evaluated will remain unmodified. */
+   void Project(Coefficient &coeff,
+                ElementTransformation &Trans, Vector &dofs) const override;
+
+   /** Evaluate the dofs that are defined on this element.
+       Dofs that can not be evaluated will remain unmodified. */
+   void Project(VectorCoefficient &vcoeff,
+                ElementTransformation &Trans, Vector &dofs) const override;
 };
 
 /// An arbitrary order 2D NURBS element on a square
@@ -121,6 +133,18 @@ public:
                    DenseMatrix &dshape) const override;
    void CalcHessian (const IntegrationPoint &ip,
                      DenseMatrix &hessian) const override;
+
+   using FiniteElement::Project;
+
+   /** Evaluate the dofs that are defined on this element.
+       Dofs that can not be evaluated will remain unmodified. */
+   void Project(Coefficient &coeff,
+                ElementTransformation &Trans, Vector &dofs) const override;
+
+   /** Evaluate the dofs that are defined on this element.
+       Dofs that can not be evaluated will remain unmodified. */
+   void Project(VectorCoefficient &vcoeff,
+                ElementTransformation &Trans, Vector &dofs) const override;
 };
 
 /// An arbitrary order 3D NURBS element on a cube
@@ -161,6 +185,18 @@ public:
                    DenseMatrix &dshape) const override;
    void CalcHessian (const IntegrationPoint &ip,
                      DenseMatrix &hessian) const override;
+
+   using FiniteElement::Project;
+
+   /** Evaluate the dofs that are defined on this element.
+       Dofs that can not be evaluated will remain unmodified. */
+   void Project(Coefficient &coeff,
+                ElementTransformation &Trans, Vector &dofs) const override;
+
+   /** Evaluate the dofs that are defined on this element.
+       Dofs that can not be evaluated will remain unmodified. */
+   void Project(VectorCoefficient &vcoeff,
+                ElementTransformation &Trans, Vector &dofs) const override;
 };
 
 
@@ -241,6 +277,13 @@ public:
     */
    void CalcDivShape(const IntegrationPoint &ip,
                      Vector &divshape) const override;
+
+   using FiniteElement::Project;
+
+   /** Evaluate the dofs that are defined on this element.
+       Dofs that can not be evaluated will remain unmodified. */
+   void Project(VectorCoefficient &vcoeff,
+                ElementTransformation &Trans, Vector &dofs) const override;
 
    ~NURBS_HDiv2DFiniteElement();
 };
@@ -336,6 +379,13 @@ public:
    void CalcDivShape(const IntegrationPoint &ip,
                      Vector &divshape) const override;
 
+   using FiniteElement::Project;
+
+   /** Evaluate the dofs that are defined on this element.
+       Dofs that can not be evaluated will remain unmodified. */
+   void Project(VectorCoefficient &vcoeff,
+                ElementTransformation &Trans, Vector &dofs) const override;
+
    ~NURBS_HDiv3DFiniteElement();
 };
 
@@ -414,6 +464,13 @@ public:
        CDim = 1 for #dim = 2. */
    void CalcCurlShape(const IntegrationPoint &ip,
                       DenseMatrix &curl_shape) const override;
+
+   using FiniteElement::Project;
+
+   /** Evaluate the dofs that are defined on this element.
+       Dofs that can not be evaluated will remain unmodified. */
+   void Project(VectorCoefficient &vcoeff,
+                ElementTransformation &Trans, Vector &dofs) const override;
 
    ~NURBS_HCurl2DFiniteElement();
 };
@@ -505,6 +562,13 @@ public:
        CDim = 1 for #dim = 2. */
    void CalcCurlShape(const IntegrationPoint &ip,
                       DenseMatrix &curl_shape) const override;
+
+   using FiniteElement::Project;
+
+   /** Evaluate the dofs that are defined on this element.
+       Dofs that can not be evaluated will remain unmodified. */
+   void Project(VectorCoefficient &vcoeff,
+                ElementTransformation &Trans, Vector &dofs) const override;
 
    ~NURBS_HCurl3DFiniteElement();
 };
