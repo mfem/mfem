@@ -55,20 +55,20 @@ TEST_CASE("GridFunction Save", "[GridFunction]")
    std::ofstream ofs_rt("real_rt.gf"); ofs_rt.precision(8);
    std::ofstream ofs_l2("real_l2.gf"); ofs_l2.precision(8);
 
-   gf_h1.Save(ofs_h1);
-   gf_nd.Save(ofs_nd);
-   gf_rt.Save(ofs_rt);
-   gf_l2.Save(ofs_l2);
+   gf_h1.Save(ofs_h1); ofs_h1.close();
+   gf_nd.Save(ofs_nd); ofs_nd.close();
+   gf_rt.Save(ofs_rt); ofs_rt.close();
+   gf_l2.Save(ofs_l2); ofs_l2.close();
 
    std::ifstream ifs_h1("real_h1.gf");
    std::ifstream ifs_nd("real_nd.gf");
    std::ifstream ifs_rt("real_rt.gf");
    std::ifstream ifs_l2("real_l2.gf");
 
-   GridFunction gf_h1_read(&mesh, ifs_h1);
-   GridFunction gf_nd_read(&mesh, ifs_nd);
-   GridFunction gf_rt_read(&mesh, ifs_rt);
-   GridFunction gf_l2_read(&mesh, ifs_l2);
+   GridFunction gf_h1_read(&mesh, ifs_h1); ifs_h1.close();
+   GridFunction gf_nd_read(&mesh, ifs_nd); ifs_nd.close();
+   GridFunction gf_rt_read(&mesh, ifs_rt); ifs_rt.close();
+   GridFunction gf_l2_read(&mesh, ifs_l2); ifs_l2.close();
 
    gf_h1_read -= gf_h1;
    gf_nd_read -= gf_nd;
