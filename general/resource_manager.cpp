@@ -319,8 +319,7 @@ void TempAllocator<BaseAlloc, NeedsWait>::Dealloc(void *ptr)
 }
 
 void ResourceManager::MemCopy(void *dst, const void *src, size_t nbytes,
-                              ResourceLocation dst_loc,
-                              ResourceLocation src_loc)
+                              MemoryType dst_loc, MemoryType src_loc)
 {
    if (dst == src)
    {
@@ -475,12 +474,12 @@ void ResourceManager::Clear()
       {
          if (seg.flag & RBase::Segment::Flags::OWN_HOST)
          {
-            Dealloc(seg.lowers[0], seg.locs[0],
+            Dealloc(seg.lowers[0], seg.mtypes[0],
                     seg.flag & RBase::Segment::Flags::TEMPORARY);
          }
          if (seg.flag & RBase::Segment::Flags::OWN_DEVICE)
          {
-            Dealloc(seg.lowers[1], seg.locs[1],
+            Dealloc(seg.lowers[1], seg.mtypes[1],
                     seg.flag & RBase::Segment::Flags::TEMPORARY);
          }
       }
@@ -514,56 +513,33 @@ void ResourceManager::Dealloc(char *ptr, MemoryType type, bool temporary)
    }
 }
 
-void ResourceManager::Dealloc(char *ptr, ResourceLocation loc, bool temporary)
-{
-   switch (loc)
-   {
-      case HOST:
-         return Dealloc(ptr, memory_types[0], temporary);
-      case DEVICE:
-         return Dealloc(ptr, memory_types[1], temporary);
-      case HOSTPINNED:
-         return Dealloc(ptr, memory_types[2], temporary);
-      case MANAGED:
-         return Dealloc(ptr, memory_types[3], temporary);
-      default:
-         throw std::runtime_error("Invalid ptr location");
-   }
-}
-
-std::array<size_t, 8> ResourceManager::Usage() const
+std::array<size_t, 4> ResourceManager::Usage() const
 {
    MFEM_ASSERT(static_cast<int>(RBase::Segment::Flags::OWN_HOST) == (1 << 0),
                "unexpected value for Segment::Flags::OWN_HOST");
    MFEM_ASSERT(static_cast<int>(RBase::Segment::Flags::OWN_DEVICE) == (1 << 1),
                "unexpected value for Segment::Flags::OWN_DEVICE");
-   std::array<size_t, 8> res = {0};
+   std::array<size_t, 4> res = {0};
    for (auto &seg : storage.segments)
    {
       if (seg.ref_count)
       {
-         size_t offset = (seg.flag & RBase::Segment::Flags::TEMPORARY) ? 4 : 0;
+         size_t offset = (seg.flag & RBase::Segment::Flags::TEMPORARY) ? 2 : 0;
          for (int i = 0; i < 2; ++i)
          {
             if (seg.flag & (1 << i))
             {
-               switch (seg.locs[i])
+               if (IsHostMemory(seg.mtypes[i]))
                {
-                  case ResourceLocation::HOST:
-                     // count all host allocations the same
-                     res[offset] += seg.nbytes;
-                     break;
-                  case ResourceLocation::DEVICE:
-                     res[offset + 1] += seg.nbytes;
-                     break;
-                  case ResourceLocation::HOSTPINNED:
-                     res[offset + 2] += seg.nbytes;
-                     break;
-                  case ResourceLocation::MANAGED:
-                     res[offset + 3] += seg.nbytes;
-                     break;
-                  default:
-                     throw std::runtime_error("Invalid location");
+                  res[offset] += seg.nbytes;
+               }
+               else if (IsDeviceMemory(seg.mtypes[i]))
+               {
+                  res[offset + 1] += seg.nbytes;
+               }
+               else
+               {
+                  throw std::runtime_error("Invalid location");
                }
             }
          }
@@ -590,24 +566,6 @@ char *ResourceManager::Alloc(size_t nbytes, MemoryType type, bool temporary)
          allocs[offset + static_cast<int>(type)]->Alloc(&res, nbytes);
    }
    return static_cast<char *>(res);
-}
-
-char *ResourceManager::Alloc(size_t nbytes, ResourceLocation loc,
-                             bool temporary)
-{
-   switch (loc)
-   {
-      case HOST:
-         return Alloc(nbytes, memory_types[0], temporary);
-      case DEVICE:
-         return Alloc(nbytes, memory_types[1], temporary);
-      case HOSTPINNED:
-         return Alloc(nbytes, memory_types[2], temporary);
-      case MANAGED:
-         return Alloc(nbytes, memory_types[3], temporary);
-      default:
-         throw std::runtime_error("Invalid ptr location");
-   }
 }
 
 void ResourceManager::RBase::cleanup_nodes()
@@ -692,10 +650,9 @@ void ResourceManager::mark_valid(size_t segment, bool on_device,
                }
                else
                {
-                  storage.insert(
-                     segment,
-                     storage.insert(segment, curr, pos, on_device, true), stop,
-                     on_device, false);
+                  storage.insert(segment,
+                                 storage.insert(segment, curr, pos, on_device, true),
+                                 stop, on_device, false);
                }
                break;
             }
@@ -791,9 +748,9 @@ void ResourceManager::mark_invalid(size_t segment, bool on_device,
          {
             func(start, stop);
             // need new start and stop markers
-            storage.insert(
-               segment, storage.insert(segment, curr, start, on_device, false),
-               stop, on_device, true);
+            storage.insert(segment,
+                           storage.insert(segment, curr, start, on_device, false),
+                           stop, on_device, true);
             return;
          }
       }
@@ -846,10 +803,9 @@ void ResourceManager::mark_invalid(size_t segment, bool on_device,
                }
                else
                {
-                  storage.insert(
-                     segment,
-                     storage.insert(segment, curr, pos, on_device, false), stop,
-                     on_device, true);
+                  storage.insert(segment,
+                                 storage.insert(segment, curr, pos, on_device, false),
+                                 stop, on_device, true);
                }
                break;
             }
@@ -893,21 +849,35 @@ void ResourceManager::mark_invalid(size_t segment, bool on_device,
    }
 }
 
-size_t ResourceManager::insert(char *hptr, size_t nbytes, ResourceLocation loc,
+size_t ResourceManager::insert(char *hptr, size_t nbytes, MemoryType loc,
                                bool own, bool temporary)
 {
    char *dptr = nullptr;
-   ResourceLocation dloc = DEFAULT;
+   MemoryType dloc = MemoryType::DEFAULT;
    switch (loc)
    {
-      case DEVICE:
+      case MemoryType::DEVICE:
+         [[fallthrough]];
+      case MemoryType::DEVICE_DEBUG:
+         [[fallthrough]];
+      case MemoryType::DEVICE_UMPIRE:
+         [[fallthrough]];
+      case MemoryType::DEVICE_UMPIRE_2:
          // actually given a device ptr
          std::swap(hptr, dptr);
          std::swap(dloc, loc);
          [[fallthrough]];
-      case DEFAULT:
+      case MemoryType::DEFAULT:
          [[fallthrough]];
-      case HOST:
+      case MemoryType::HOST:
+         [[fallthrough]];
+      case MemoryType::HOST_32:
+         [[fallthrough]];
+      case MemoryType::HOST_64:
+         [[fallthrough]];
+      case MemoryType::HOST_DEBUG:
+         [[fallthrough]];
+      case MemoryType::HOST_UMPIRE:
          if (memory_types[0] == memory_types[1])
          {
             // host and device memory space are the same, treat as a zero-copy
@@ -916,9 +886,9 @@ size_t ResourceManager::insert(char *hptr, size_t nbytes, ResourceLocation loc,
             dloc = loc;
          }
          break;
-      case HOSTPINNED:
+      case MemoryType::HOST_PINNED:
          [[fallthrough]];
-      case MANAGED:
+      case MemoryType::MANAGED:
          dptr = hptr;
          dloc = loc;
          break;
@@ -929,16 +899,16 @@ size_t ResourceManager::insert(char *hptr, size_t nbytes, ResourceLocation loc,
 }
 
 size_t ResourceManager::insert(char *hptr, char *dptr, size_t nbytes,
-                               ResourceLocation hloc, ResourceLocation dloc,
-                               bool own_host, bool own_device, bool temporary)
+                               MemoryType hloc, MemoryType dloc, bool own_host,
+                               bool own_device, bool temporary)
 {
    storage.segments.emplace_back();
    auto &seg = storage.segments.back();
    seg.lowers[0] = hptr;
    seg.lowers[1] = dptr;
    seg.nbytes = nbytes;
-   seg.locs[0] = hloc;
-   seg.locs[1] = dloc;
+   seg.mtypes[0] = hloc;
+   seg.mtypes[1] = dloc;
    if (hptr && own_host)
    {
       seg.flag = static_cast<RBase::Segment::Flags>(
@@ -975,8 +945,9 @@ void ResourceManager::clear_segment(size_t segment)
    // cleanup nodes
    for (int i = 0; i < 2; ++i)
    {
-      storage.visit(seg.roots[i], [](size_t) { return true; },
-      [](size_t) { return true; }, [&](size_t idx)
+      storage.visit(
+      seg.roots[i], [](size_t) { return true; }, [](size_t) { return true; },
+      [&](size_t idx)
       {
          storage.get_node(idx).flag = static_cast<RBase::Node::Flags>(0);
          return false;
@@ -989,8 +960,10 @@ void ResourceManager::clear_segment(size_t segment, bool on_device)
 {
    auto &seg = storage.get_segment(segment);
    // cleanup nodes
-   storage.visit(seg.roots[on_device], [](size_t) { return true; },
-   [](size_t) { return true; }, [&](size_t idx)
+   storage.visit(
+   seg.roots[on_device], [](size_t) { return true; },
+   [](size_t) { return true; },
+   [&](size_t idx)
    {
       storage.get_node(idx).flag = static_cast<RBase::Node::Flags>(0);
       return false;
@@ -1014,7 +987,7 @@ void ResourceManager::erase(size_t segment)
                if ((seg.flag & RBase::Segment::OWN_DEVICE) &&
                    seg.lowers[1] != seg.lowers[0])
                {
-                  Dealloc(seg.lowers[1], seg.locs[1],
+                  Dealloc(seg.lowers[1], seg.mtypes[1],
                           seg.flag & RBase::Segment::TEMPORARY);
                }
             }
@@ -1022,7 +995,7 @@ void ResourceManager::erase(size_t segment)
             {
                if (seg.flag & RBase::Segment::OWN_HOST)
                {
-                  Dealloc(seg.lowers[0], seg.locs[0],
+                  Dealloc(seg.lowers[0], seg.mtypes[0],
                           seg.flag & RBase::Segment::TEMPORARY);
                }
             }
@@ -1041,8 +1014,9 @@ size_t ResourceManager::find_marker(size_t segment, ptrdiff_t offset,
 
    // mark valid
    size_t start = seg.roots[on_device];
-   storage.visit(seg.roots[on_device],
-                 [&](size_t idx)
+   storage.visit(
+      seg.roots[on_device],
+      [&](size_t idx)
    {
       // if idx <= lower, then everything to the left is too small
       return storage.get_node(idx).offset > offset;
@@ -1051,7 +1025,8 @@ size_t ResourceManager::find_marker(size_t segment, ptrdiff_t offset,
    {
       // if idx >= lower, then everything to the right is too large
       return storage.get_node(idx).offset < offset;
-   }, [&](size_t idx)
+   },
+   [&](size_t idx)
    {
       if (storage.get_node(start).offset < offset)
       {
@@ -1092,8 +1067,8 @@ void ResourceManager::print_segment(size_t segment)
          {
             mfem::out << "device";
          }
-         mfem::out << " seg " << segment << ", " << seg.locs[i] << ": "
-                   << (uint64_t)seg.lowers[i] << ", "
+         mfem::out << " seg " << segment << ", " << static_cast<int>(seg.mtypes[i])
+                   << ": " << (uint64_t)seg.lowers[i] << ", "
                    << (uint64_t)seg.lowers[i] + seg.nbytes << std::endl;
          auto curr = storage.first(seg.roots[i]);
          while (curr)
@@ -1216,32 +1191,12 @@ void ResourceManager::check_valid(size_t curr, ptrdiff_t start, ptrdiff_t stop,
    }
 }
 
-ResourceManager::ResourceLocation
-ResourceManager::where_valid(size_t segment, size_t offset, size_t nbytes)
+MemoryType ResourceManager::GetMemoryType(size_t segment, size_t offset,
+                                          size_t nbytes)
 {
-   MFEM_ASSERT(static_cast<int>(INDETERMINATE) == 0, "INDETERMINATE != 0");
-   ResourceLocation loc = INDETERMINATE;
    if (valid_segment(segment))
    {
       auto &seg = storage.get_segment(segment);
-      if (seg.lowers[0])
-      {
-         bool any_invalid = false;
-         check_valid(segment, false, offset, offset + nbytes,
-                     [&](auto, auto, bool valid)
-         {
-            if (valid)
-            {
-               return false;
-            }
-            any_invalid = true;
-            return true;
-         });
-         if (!any_invalid)
-         {
-            loc = seg.locs[0];
-         }
-      }
       if (seg.lowers[1])
       {
          bool any_invalid = false;
@@ -1257,11 +1212,29 @@ ResourceManager::where_valid(size_t segment, size_t offset, size_t nbytes)
          });
          if (!any_invalid)
          {
-            loc = static_cast<ResourceLocation>(loc | seg.locs[1]);
+            return seg.mtypes[1];
+         }
+      }
+      if (seg.lowers[0])
+      {
+         bool any_invalid = false;
+         check_valid(segment, false, offset, offset + nbytes,
+                     [&](auto, auto, bool valid)
+         {
+            if (valid)
+            {
+               return false;
+            }
+            any_invalid = true;
+            return true;
+         });
+         if (!any_invalid)
+         {
+            return seg.mtypes[0];
          }
       }
    }
-   return loc;
+   return MemoryType::DEFAULT;
 }
 
 bool ResourceManager::is_valid(size_t segment, size_t offset, size_t nbytes,
@@ -1298,17 +1271,16 @@ char *ResourceManager::write(size_t segment, size_t offset, size_t nbytes,
       if (!seg.lowers[on_device])
       {
          // need to allocate
-         if (seg.locs[on_device] == DEFAULT)
+         if (seg.mtypes[on_device] == MemoryType::DEFAULT)
          {
-            seg.locs[on_device] = on_device ? DEVICE : HOST;
+            seg.mtypes[on_device] = on_device ? memory_types[1] : memory_types[0];
          }
          seg.lowers[on_device] =
-            Alloc(seg.nbytes, seg.locs[on_device], seg.is_temporary());
+            Alloc(seg.nbytes, seg.mtypes[on_device], seg.is_temporary());
          // initially all invalid
          mark_invalid(segment, on_device, 0, seg.nbytes, [&](auto, auto) {});
       }
-      mark_valid(segment, on_device, offset, offset + nbytes,
-      [](auto, auto) {});
+      mark_valid(segment, on_device, offset, offset + nbytes, [](auto, auto) {});
       if (seg.lowers[!on_device])
       {
          mark_invalid(segment, !on_device, offset, offset + nbytes,
@@ -1329,10 +1301,7 @@ struct BatchCopyKernel
    {
       ptrdiff_t start = segs[seg].first;
       ptrdiff_t stop = segs[seg].second;
-      MFEM_FOREACH_THREAD(i, x, stop - start)
-      {
-         dst[start + i] = src[start + i];
-      }
+      MFEM_FOREACH_THREAD(i, x, stop - start) { dst[start + i] = src[start + i]; }
    }
 };
 
@@ -1352,8 +1321,7 @@ struct BatchCopyKernel2
 };
 
 void ResourceManager::BatchMemCopy(
-   char *dst, const char *src, ResourceLocation dst_loc,
-   ResourceLocation src_loc,
+   char *dst, const char *src, MemoryType dst_loc, MemoryType src_loc,
    const std::vector<std::pair<ptrdiff_t, ptrdiff_t>,
    AllocatorAdaptor<std::pair<ptrdiff_t, ptrdiff_t>>>
    &copy_segs)
@@ -1442,8 +1410,7 @@ void ResourceManager::BatchMemCopy(
 }
 
 void ResourceManager::BatchMemCopy2(
-   char *dst, const char *src, ResourceLocation dst_loc,
-   ResourceLocation src_loc,
+   char *dst, const char *src, MemoryType dst_loc, MemoryType src_loc,
    const std::vector<ptrdiff_t, AllocatorAdaptor<ptrdiff_t>> &copy_segs)
 {
    // copy_segs is assumed to be allocated in either HOSTPINNED or MANAGED
@@ -1466,8 +1433,8 @@ void ResourceManager::BatchMemCopy2(
                // on device
                for (size_t i = 0; i < copy_segs.size(); i += 3)
                {
-                  MemCopy(dst + copy_segs[i + 1], src + copy_segs[i],
-                          copy_segs[i + 2], dst_loc, src_loc);
+                  MemCopy(dst + copy_segs[i + 1], src + copy_segs[i], copy_segs[i + 2],
+                          dst_loc, src_loc);
                }
             }
             else
@@ -1475,8 +1442,8 @@ void ResourceManager::BatchMemCopy2(
                // dst and src accessible from host
                for (size_t i = 0; i < copy_segs.size(); i += 3)
                {
-                  MemCopy(dst + copy_segs[i + 1], src + copy_segs[i],
-                          copy_segs[i + 2], dst_loc, src_loc);
+                  MemCopy(dst + copy_segs[i + 1], src + copy_segs[i], copy_segs[i + 2],
+                          dst_loc, src_loc);
                }
                MFEM_STREAM_SYNC;
             }
@@ -1489,8 +1456,8 @@ void ResourceManager::BatchMemCopy2(
                // on device
                for (size_t i = 0; i < copy_segs.size(); i += 3)
                {
-                  MemCopy(dst + copy_segs[i + 1], src + copy_segs[i],
-                          copy_segs[i + 2], dst_loc, src_loc);
+                  MemCopy(dst + copy_segs[i + 1], src + copy_segs[i], copy_segs[i + 2],
+                          dst_loc, src_loc);
                }
             }
             else
@@ -1510,8 +1477,8 @@ void ResourceManager::BatchMemCopy2(
                // dst and src accessible from host
                for (size_t i = 0; i < copy_segs.size(); i += 3)
                {
-                  MemCopy(dst + copy_segs[i + 1], src + copy_segs[i],
-                          copy_segs[i + 2], dst_loc, src_loc);
+                  MemCopy(dst + copy_segs[i + 1], src + copy_segs[i], copy_segs[i + 2],
+                          dst_loc, src_loc);
                }
             }
             else
@@ -1536,19 +1503,19 @@ char *ResourceManager::read_write(size_t segment, size_t offset, size_t nbytes,
    {
       std::vector<std::pair<ptrdiff_t, ptrdiff_t>,
           AllocatorAdaptor<std::pair<ptrdiff_t, ptrdiff_t>>>
-          copy_segs(
-             AllocatorAdaptor<std::pair<ptrdiff_t, ptrdiff_t>>(MANAGED, true));
+          copy_segs(AllocatorAdaptor<std::pair<ptrdiff_t, ptrdiff_t>>(
+                       MemoryType::MANAGED, true));
 
       auto &seg = storage.get_segment(segment);
       if (!seg.lowers[on_device])
       {
          // need to allocate
-         if (seg.locs[on_device] == DEFAULT)
+         if (seg.mtypes[on_device] == MemoryType::DEFAULT)
          {
-            seg.locs[on_device] = on_device ? DEVICE : HOST;
+            seg.mtypes[on_device] = on_device ? memory_types[1] : memory_types[0];
          }
          seg.lowers[on_device] =
-            Alloc(seg.nbytes, seg.locs[on_device], seg.is_temporary());
+            Alloc(seg.nbytes, seg.mtypes[on_device], seg.is_temporary());
          // initially all invalid
          mark_invalid(segment, on_device, 0, seg.nbytes, [&](auto, auto) {});
       }
@@ -1561,9 +1528,9 @@ char *ResourceManager::read_write(size_t segment, size_t offset, size_t nbytes,
       }
       else
       {
-         mark_valid(segment, on_device, offset, offset + nbytes,
-                    [&](auto start, auto stop)
-         { copy_segs.emplace_back(start, stop); });
+         mark_valid(
+            segment, on_device, offset, offset + nbytes,
+         [&](auto start, auto stop) { copy_segs.emplace_back(start, stop); });
       }
       if (copy_segs.size())
       {
@@ -1572,7 +1539,7 @@ char *ResourceManager::read_write(size_t segment, size_t offset, size_t nbytes,
             throw std::runtime_error("no other to read from");
          }
          BatchMemCopy(seg.lowers[on_device], seg.lowers[!on_device],
-                      seg.locs[on_device], seg.locs[!on_device], copy_segs);
+                      seg.mtypes[on_device], seg.mtypes[!on_device], copy_segs);
       }
 
       if (seg.lowers[!on_device])
@@ -1611,19 +1578,19 @@ const char *ResourceManager::read(size_t segment, size_t offset, size_t nbytes,
    {
       std::vector<std::pair<ptrdiff_t, ptrdiff_t>,
           AllocatorAdaptor<std::pair<ptrdiff_t, ptrdiff_t>>>
-          copy_segs(
-             AllocatorAdaptor<std::pair<ptrdiff_t, ptrdiff_t>>(MANAGED, true));
+          copy_segs(AllocatorAdaptor<std::pair<ptrdiff_t, ptrdiff_t>>(
+                       MemoryType::MANAGED, true));
 
       auto &seg = storage.get_segment(segment);
       if (!seg.lowers[on_device])
       {
          // need to allocate
-         if (seg.locs[on_device] == DEFAULT)
+         if (seg.mtypes[on_device] == MemoryType::DEFAULT)
          {
-            seg.locs[on_device] = on_device ? DEVICE : HOST;
+            seg.mtypes[on_device] = on_device ? memory_types[1] : memory_types[0];
          }
          seg.lowers[on_device] =
-            Alloc(seg.nbytes, seg.locs[on_device], seg.is_temporary());
+            Alloc(seg.nbytes, seg.mtypes[on_device], seg.is_temporary());
       }
 
       bool need_sync = false;
@@ -1634,9 +1601,9 @@ const char *ResourceManager::read(size_t segment, size_t offset, size_t nbytes,
       }
       else
       {
-         mark_valid(segment, on_device, offset, offset + nbytes,
-                    [&](auto start, auto stop)
-         { copy_segs.emplace_back(start, stop); });
+         mark_valid(
+            segment, on_device, offset, offset + nbytes,
+         [&](auto start, auto stop) { copy_segs.emplace_back(start, stop); });
       }
       if (copy_segs.size())
       {
@@ -1645,7 +1612,7 @@ const char *ResourceManager::read(size_t segment, size_t offset, size_t nbytes,
             throw std::runtime_error("no other to read from");
          }
          BatchMemCopy(seg.lowers[on_device], seg.lowers[!on_device],
-                      seg.locs[on_device], seg.locs[!on_device], copy_segs);
+                      seg.mtypes[on_device], seg.mtypes[!on_device], copy_segs);
       }
 
       if (!on_device && need_sync)
@@ -1711,7 +1678,9 @@ int ResourceManager::compare_host_device(size_t segment, size_t offset,
       if (seg.lowers[0] && seg.lowers[1] && seg.lowers[0] != seg.lowers[1])
       {
          Resource<char> tmp;
-         MFEM_ASSERT(seg.locs[0] != DEVICE,
+         // TODO: fix
+#if 0
+         MFEM_ASSERT(seg.mtypes[0] != DEVICE,
                      "host memory space cannot be DEVICE");
          char *ptr0 = seg.lowers[0] + offset;
          char *ptr1 = seg.lowers[1] + offset;
@@ -1722,17 +1691,17 @@ int ResourceManager::compare_host_device(size_t segment, size_t offset,
             MemCopy(ptr1, seg.lowers[1] + offset, nbytes, HOST, seg.locs[1]);
          }
          return std::memcmp(ptr0, ptr1, nbytes);
+#endif
       }
    }
    return 0;
 }
 
-void ResourceManager::CopyImpl(char *dst, ResourceLocation dloc,
-                               size_t dst_offset, size_t marker, size_t nbytes,
-                               const char *src0, const char *src1,
-                               ResourceLocation sloc0, ResourceLocation sloc1,
-                               size_t src_offset, size_t marker0,
-                               size_t marker1)
+void ResourceManager::CopyImpl(char *dst, MemoryType dloc, size_t dst_offset,
+                               size_t marker, size_t nbytes, const char *src0,
+                               const char *src1, MemoryType sloc0,
+                               MemoryType sloc1, size_t src_offset,
+                               size_t marker0, size_t marker1)
 {
    if (!src0)
    {
@@ -1751,11 +1720,12 @@ void ResourceManager::CopyImpl(char *dst, ResourceLocation dloc,
 
    // offset src, offset dst, nbytes
    std::vector<ptrdiff_t, AllocatorAdaptor<ptrdiff_t>> copy0(
-                                                       AllocatorAdaptor<ptrdiff_t>(MANAGED, true));
+                                                       AllocatorAdaptor<ptrdiff_t>(MemoryType::MANAGED, true));
    std::vector<ptrdiff_t, AllocatorAdaptor<ptrdiff_t>> copy1(
-                                                       AllocatorAdaptor<ptrdiff_t>(MANAGED, true));
-   check_valid(marker, dst_offset, dst_offset + nbytes,
-               [&](auto dst_start, auto dst_stop, bool valid)
+                                                       AllocatorAdaptor<ptrdiff_t>(MemoryType::MANAGED, true));
+   check_valid(
+      marker, dst_offset, dst_offset + nbytes,
+      [&](auto dst_start, auto dst_stop, bool valid)
    {
       if (valid)
       {
@@ -1786,8 +1756,7 @@ void ResourceManager::CopyImpl(char *dst, ResourceLocation dloc,
                {
                   if (next_marker)
                   {
-                     auto pos =
-                        storage.get_node(next_marker).offset - src_offset;
+                     auto pos = storage.get_node(next_marker).offset - src_offset;
                      if (pos > start)
                      {
                         return;
@@ -1886,8 +1855,7 @@ void ResourceManager::CopyImpl(char *dst, ResourceLocation dloc,
                            auto npos = stop;
                            if (next_m1)
                            {
-                              npos =
-                                 storage.get_node(next_m1).offset - src_offset;
+                              npos = storage.get_node(next_m1).offset - src_offset;
                            }
                            if (stop <= npos)
                            {
@@ -1960,9 +1928,9 @@ void ResourceManager::Copy(size_t dst_seg, size_t src_seg, size_t dst_offset,
          if (dseg.lowers[i])
          {
             size_t curr = find_marker(dst_seg, dst_offset, i);
-            CopyImpl(dseg.lowers[i], dseg.locs[i], dst_offset, curr, nbytes,
-                     sseg.lowers[i], sseg.lowers[1 - i], sseg.locs[i],
-                     sseg.locs[1 - i], src_offset, currs[i], currs[1 - i]);
+            CopyImpl(dseg.lowers[i], dseg.mtypes[i], dst_offset, curr, nbytes,
+                     sseg.lowers[i], sseg.lowers[1 - i], sseg.mtypes[i],
+                     sseg.mtypes[1 - i], src_offset, currs[i], currs[1 - i]);
          }
       }
    }
@@ -1979,8 +1947,8 @@ void ResourceManager::CopyFromHost(size_t segment, size_t offset,
       {
          std::vector<std::pair<ptrdiff_t, ptrdiff_t>,
              AllocatorAdaptor<std::pair<ptrdiff_t, ptrdiff_t>>>
-             copy_segs(AllocatorAdaptor<std::pair<ptrdiff_t, ptrdiff_t>>(MANAGED,
-                                                                         true));
+             copy_segs(AllocatorAdaptor<std::pair<ptrdiff_t, ptrdiff_t>>(
+                          MemoryType::MANAGED, true));
          check_valid(segment, i, offset, offset + nbytes,
                      [&](auto start, auto stop, bool valid)
          {
@@ -1990,8 +1958,8 @@ void ResourceManager::CopyFromHost(size_t segment, size_t offset,
             }
             return false;
          });
-         BatchMemCopy(dseg.lowers[i], src - offset, dseg.locs[i], HOST,
-                      copy_segs);
+         BatchMemCopy(dseg.lowers[i], src - offset, dseg.mtypes[i],
+                      MemoryType::HOST, copy_segs);
       }
    }
 }
@@ -2012,26 +1980,26 @@ void ResourceManager::CopyToHost(size_t segment, size_t offset, char *dst,
    }
 
    size_t curr = 0;
-   CopyImpl(dst, HOST, 0, curr, nbytes, sseg.lowers[0], sseg.lowers[1],
-            sseg.locs[0], sseg.locs[1], offset, sh_curr, sd_curr);
+   CopyImpl(dst, MemoryType::HOST, 0, curr, nbytes, sseg.lowers[0],
+            sseg.lowers[1], sseg.mtypes[0], sseg.mtypes[1], offset, sh_curr,
+            sd_curr);
 }
 
-void ResourceManager::SetDeviceMemoryType(size_t segment,
-                                          ResourceManager::ResourceLocation loc)
+void ResourceManager::SetDeviceMemoryType(size_t segment, MemoryType loc)
 {
    if (valid_segment(segment))
    {
       auto &seg = storage.get_segment(segment);
       if (seg.lowers[1])
       {
-         MFEM_VERIFY(seg.locs[1] == loc,
+         MFEM_VERIFY(seg.mtypes[1] == loc,
                      "Cannot set the device memory type: device memory is "
                      "allocated!");
       }
       else
       {
-         seg.locs[1] = loc;
-         seg.lowers[1] = Alloc(seg.nbytes, seg.locs[1], seg.is_temporary());
+         seg.mtypes[1] = loc;
+         seg.lowers[1] = Alloc(seg.nbytes, seg.mtypes[1], seg.is_temporary());
          // initially all invalid
          mark_invalid(segment, 1, 0, seg.nbytes, [&](auto, auto) {});
       }

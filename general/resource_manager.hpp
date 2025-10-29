@@ -31,23 +31,6 @@ template <class T> class AllocatorAdaptor;
 
 class ResourceManager
 {
-public:
-   enum ResourceLocation
-   {
-      HOST = 1,
-      HOSTPINNED = 1 << 1,
-      MANAGED = 1 << 2,
-      DEVICE = 1 << 3,
-      // used for querying where a Resource object is currently valid
-      INDETERMINATE = 0,
-      PRESERVE = 0, // TODO: need to handle
-      DEFAULT = 0,  // TODO: need to handle
-      // for requesting any buffer which is accessible on host
-      ANY_HOST = HOST | HOSTPINNED | MANAGED,
-      // for requesting any buffer which is accessible on device
-      ANY_DEVICE = HOSTPINNED | MANAGED | DEVICE
-   };
-
 private:
    // used to only track when invalid
    struct RBase : RBTree<RBase>
@@ -86,7 +69,7 @@ private:
          char *lowers[2] = {nullptr, nullptr};
          ptrdiff_t nbytes = 0;
          size_t roots[2] = {0, 0};
-         ResourceLocation locs[2] = {HOST, DEFAULT};
+         MemoryType mtypes[2] = {MemoryType::DEFAULT, MemoryType::DEFAULT};
          size_t ref_count = 1;
          enum Flags
          {
@@ -173,8 +156,8 @@ private:
       }
 
       /// Insert a validity transition marker for a given @a segment
-      size_t insert(size_t segment, size_t node, ptrdiff_t offset,
-                    bool on_device, bool valid)
+      size_t insert(size_t segment, size_t node, ptrdiff_t offset, bool on_device,
+                    bool valid)
       {
          nodes.emplace_back();
          nodes.back().offset = offset;
@@ -183,8 +166,7 @@ private:
          {
             nodes.back().set_valid();
          }
-         return insert(get_segment(segment).roots[on_device], node,
-                       nodes.size());
+         return insert(get_segment(segment).roots[on_device], node, nodes.size());
       }
    };
 
@@ -198,7 +180,7 @@ private:
 
    RBase storage;
    std::array<std::unique_ptr<Allocator>, 2 * MemoryTypeSize> allocs_storage;
-   std::array<Allocator *, 2 * MemoryTypeSize> allocs = {nullptr};
+   std::array<Allocator *, 2 *MemoryTypeSize> allocs = {nullptr};
    // host, device, host-pinned, managed
    std::array<MemoryType, 4> memory_types =
    {
@@ -233,17 +215,17 @@ private:
    void mark_invalid(size_t segment, bool on_device, ptrdiff_t start,
                      ptrdiff_t stop, F &&func);
 
-   size_t insert(char *hptr, size_t nbytes, ResourceLocation loc, bool own,
+   size_t insert(char *hptr, size_t nbytes, MemoryType loc, bool own,
                  bool temporary);
 
-   size_t insert(char *hptr, char *dptr, size_t nbytes, ResourceLocation hloc,
-                 ResourceLocation dloc, bool own_host, bool own_device,
+   size_t insert(char *hptr, char *dptr, size_t nbytes, MemoryType hloc,
+                 MemoryType dloc, bool own_host, bool own_device,
                  bool temporary);
 
    /// Decreases reference count on @a segment
    void erase(size_t segment);
 
-   ResourceLocation where_valid(size_t segment, size_t offset, size_t nbytes);
+   MemoryType GetMemoryType(size_t segment, size_t offset, size_t nbytes);
 
    bool is_valid(size_t segment, size_t offset, size_t nbytes, bool on_device);
 
@@ -255,11 +237,10 @@ private:
                     bool on_device);
 
    /// src0 is the preferred copy-from location
-   void CopyImpl(char *dst, ResourceLocation dloc, size_t dst_offset,
-                 size_t marker, size_t nbytes, const char *src0,
-                 const char *src1, ResourceLocation sloc0,
-                 ResourceLocation sloc1, size_t src_offset, size_t marker0,
-                 size_t marker1);
+   void CopyImpl(char *dst, MemoryType dloc, size_t dst_offset, size_t marker,
+                 size_t nbytes, const char *src0, const char *src1,
+                 MemoryType sloc0, MemoryType sloc1, size_t src_offset,
+                 size_t marker0, size_t marker1);
 
    /// copies to the part of dst_seg which is valid
    void Copy(size_t dst_seg, size_t src_seg, size_t dst_offset,
@@ -288,8 +269,7 @@ private:
 
    /// @a copy_segs first is start offset, second is stop offset
    void BatchMemCopy(
-      char *dst, const char *src, ResourceLocation dst_loc,
-      ResourceLocation src_loc,
+      char *dst, const char *src, MemoryType dst_loc, MemoryType src_loc,
       const std::vector<std::pair<ptrdiff_t, ptrdiff_t>,
       AllocatorAdaptor<std::pair<ptrdiff_t, ptrdiff_t>>>
       &copy_segs);
@@ -297,12 +277,10 @@ private:
    /// @a copy_segs is flattened of length 3 * num segments
    /// order: src offset, dst offset, nbytes
    void BatchMemCopy2(
-      char *dst, const char *src, ResourceLocation dst_loc,
-      ResourceLocation src_loc,
+      char *dst, const char *src, MemoryType dst_loc, MemoryType src_loc,
       const std::vector<ptrdiff_t, AllocatorAdaptor<ptrdiff_t>> &copy_segs);
 
-   void SetDeviceMemoryType(size_t segment,
-                            ResourceManager::ResourceLocation loc);
+   void SetDeviceMemoryType(size_t segment, MemoryType loc);
 
    void SetValidity(size_t segment, bool host_valid, bool device_valid);
 
@@ -322,23 +300,17 @@ public:
               MemoryType managed_loc = MemoryType::DEFAULT);
 
    /// How much resource is allocated of each resource type. Order:
-   /// - HOST, DEVICE, HOSTPINNED, MANAGED, TEMP HOST, TEMP DEVICE, TEMP
-   /// HOSTPINNED, TEMP MANAGED
-   std::array<size_t, 8> Usage() const;
+   /// - HOST, DEVICE, TEMP HOST, TEMP DEVICE
+   std::array<size_t, 4> Usage() const;
 
    /// same restrictions as std::memcpy: dst and src should not overlap
    void MemCopy(void *dst, const void *src, size_t nbytes,
-                ResourceLocation dst_loc, ResourceLocation src_loc);
+                MemoryType dst_loc, MemoryType src_loc);
 
    /// raw deallocation of a buffer
    void Dealloc(char *ptr, MemoryType type, bool temporary);
    /// Raw unregistered allocation of a buffer
    char *Alloc(size_t nbytes, MemoryType type, bool temporary);
-
-   /// raw deallocation of a buffer
-   void Dealloc(char *ptr, ResourceLocation loc, bool temporary);
-   /// Raw unregistered allocation of a buffer
-   char *Alloc(size_t nbytes, ResourceLocation loc, bool temporary);
 };
 
 template <class T> class AllocatorAdaptor
@@ -353,32 +325,16 @@ public:
    using difference_type = ptrdiff_t;
    using propagate_on_container_move_assignment = std::true_type;
 
-   AllocatorAdaptor(
-      ResourceManager::ResourceLocation loc = ResourceManager::HOST,
-      bool temporary = false)
+   AllocatorAdaptor(MemoryType loc = MemoryType::HOST, bool temporary = false)
    {
-      idx = temporary ? 4 : 0;
-      switch (loc)
-      {
-         case ResourceManager::HOST:
-            break;
-         case ResourceManager::HOSTPINNED:
-            idx += 1;
-            break;
-         case ResourceManager::MANAGED:
-            idx += 2;
-            break;
-         default:
-            // can't do device-only location
-            throw std::runtime_error("Unsupported location");
-      }
+      idx = temporary ? MemoryTypeSize : 0;
+      idx += static_cast<int>(loc);
    }
 
    AllocatorAdaptor(const AllocatorAdaptor &) = default;
 
    template <class U>
-   AllocatorAdaptor(const AllocatorAdaptor<U> &o) : idx(o.idx)
-   {}
+   AllocatorAdaptor(const AllocatorAdaptor<U> &o) : idx(o.idx) {}
 
    AllocatorAdaptor &operator=(const AllocatorAdaptor &) = default;
 
@@ -420,16 +376,11 @@ template <class T> class Resource
 
 public:
    Resource() : offset_(0), size_(0), segment(0) {}
-   /// @a loc only one of HOST, HOSTPINNED, MANAGED, or DEVICE
-   Resource(T *ptr, size_t count, ResourceManager::ResourceLocation loc);
-   /// @a loc only one of HOST, HOSTPINNED, MANAGED, or DEVICE
-   Resource(size_t count, ResourceManager::ResourceLocation loc,
-            bool temporary = false);
+   Resource(T *ptr, size_t count, MemoryType loc);
+   Resource(size_t count, MemoryType loc, bool temporary = false);
 
-   /// @a hloc only one of HOST, HOSTPINNED, MANAGED, or DEVICE
-   /// @a dloc only one of HOST, HOSTPINNED, MANAGED, or DEVICE
-   Resource(size_t count, ResourceManager::ResourceLocation hloc,
-            ResourceManager::ResourceLocation dloc, bool temporary = false);
+   Resource(size_t count, MemoryType hloc, MemoryType dloc,
+            bool temporary = false);
 
    Resource(const Resource &r);
    Resource(Resource &&r);
@@ -489,8 +440,7 @@ public:
       *this = base.CreateAlias(offset, size);
    }
 
-   /// @a loc only one of HOST, HOSTPINNED, MANAGED, or DEVICE
-   void SetDeviceMemoryType(ResourceManager::ResourceLocation loc)
+   void SetDeviceMemoryType(MemoryType loc)
    {
       auto &inst = ResourceManager::instance();
       inst.SetDeviceMemoryType(segment, loc);
@@ -502,20 +452,17 @@ public:
 
    void New(size_t size, bool temporary = false)
    {
-      *this = Resource(size, ResourceManager::HOST, temporary);
+      auto &inst = ResourceManager::instance();
+      *this = Resource(size, inst.memory_types[0], temporary);
    }
 
-   /// @a loc only one of HOST, HOSTPINNED, MANAGED, or DEVICE
-   void New(size_t size, ResourceManager::ResourceLocation loc,
-            bool temporary = false)
+   void New(size_t size, MemoryType loc, bool temporary = false)
    {
       *this = Resource(size, loc, temporary);
    }
 
-   /// @a hloc only one of HOST, HOSTPINNED, MANAGED, or DEVICE
-   /// @a dloc only one of HOST, HOSTPINNED, MANAGED, or DEVICE
-   void New(size_t size, ResourceManager::ResourceLocation hloc,
-            ResourceManager::ResourceLocation dloc, bool temporary = false)
+   void New(size_t size, MemoryType hloc, MemoryType dloc,
+            bool temporary = false)
    {
       *this = Resource(size, hloc, dloc, temporary);
    }
@@ -524,38 +471,25 @@ public:
 
    void Wrap(T *ptr, size_t size, bool own)
    {
-      *this = Resource(ptr, size, ResourceManager::HOST);
+      *this = Resource(ptr, size, MemoryType::HOST);
       SetHostPtrOwner(own);
    }
 
-   /// @a loc_a only one of HOST, HOSTPINNED, MANAGED, or DEVICE
-   void Wrap(T *ptr, size_t size, ResourceManager::ResourceLocation loc,
-             bool own)
+   void Wrap(T *ptr, size_t size, MemoryType loc, bool own)
    {
       *this = Resource(ptr, size, loc);
-      if (loc == ResourceManager::DEVICE)
-      {
-         SetDevicePtrOwner(own);
-      }
-      else
-      {
-         SetHostPtrOwner(own);
-      }
+      // TODO: set ownership
    }
 
-   /// @a hloc one of HOST, HOSTPINNED, or MANAGED
-   /// @a dloc one of HOST, HOSTPINNED, MANAGED, or DEVICE
-   void Wrap(T *h_ptr, T *d_ptr, size_t size,
-             ResourceManager::ResourceLocation hloc,
-             ResourceManager::ResourceLocation dloc, bool own,
-             bool valid_host = false, bool valid_device = true)
+   void Wrap(T *h_ptr, T *d_ptr, size_t size, MemoryType hloc, MemoryType dloc,
+             bool own, bool valid_host = false, bool valid_device = true)
    {
       *this = Resource(h_ptr, size, hloc);
       SetHostPtrOwner(own);
       auto &inst = ResourceManager::instance();
       auto &seg = inst.storage.get_segment(segment);
       seg.lowers[1] = reinterpret_cast<char *>(d_ptr);
-      seg.locs[1] = dloc;
+      seg.mtypes[1] = dloc;
       SetDevicePtrOwner(own);
       inst.SetValidity(segment, valid_host, valid_device);
    }
@@ -568,11 +502,9 @@ public:
    T *HostReadWrite() { return ReadWrite(false); }
    const T *HostRead() const { return Read(false); }
 
-   /// note: these do not check or update validity flags! Allows read/write on
-   /// ANY_HOST.
+   /// note: these do not check or update validity flags!
    T &operator[](size_t idx);
-   /// note: these do not check or update validity flags! Allows read on
-   /// ANY_HOST.
+   /// note: these do not check or update validity flags!
    const T &operator[](size_t idx) const;
 
    void DeleteDevice(bool copy_to_host = true)
@@ -589,57 +521,53 @@ public:
          {
             if (OwnsDevicePtr())
             {
-               inst.Dealloc(seg.lowers[1], seg.locs[1], seg.is_temporary());
+               inst.Dealloc(seg.lowers[1], seg.mtypes[1], seg.is_temporary());
             }
             inst.clear_segment(segment, true);
             seg.lowers[1] = nullptr;
-            seg.locs[1] = ResourceManager::DEFAULT;
+            seg.mtypes[1] = MemoryType::DEFAULT;
          }
       }
    }
 
    /// @deprecated This is a no-op
-   [[deprecated]]
-   void Sync(const Resource &other) const
-   {}
+   [[deprecated]] void Sync(const Resource &other) const {}
    /// @deprecated This is a no-op
-   [[deprecated]]
-   void SyncAlias(const Resource &other) const
-   {}
+   [[deprecated]] void SyncAlias(const Resource &other) const {}
 
+#if 0
    /// Returns where the memory is currently valid
-   ResourceManager::ResourceLocation WhereValid() const
+   MemoryType WhereValid() const
    {
       auto &inst = ResourceManager::instance();
       return inst.where_valid(segment, offset_ * sizeof(T), size_ * sizeof(T));
    }
+#endif
 
-   /// Returns where the memory is currently valid
-   [[deprecated("Use Resource::WhereValid() instead.")]]
-   ResourceManager::ResourceLocation GetMemoryType() const
+   MemoryType GetMemoryType() const
    {
       auto &inst = ResourceManager::instance();
-      return inst.where_valid(segment, offset_ * sizeof(T), size_ * sizeof(T));
+      return inst.GetMemoryType(segment, offset_ * sizeof(T), size_ * sizeof(T));
    }
 
-   ResourceManager::ResourceLocation GetHostMemoryType() const
+   MemoryType GetHostMemoryType() const
    {
       auto &inst = ResourceManager::instance();
       if (inst.valid_segment(segment))
       {
-         return inst.storage.get_segment(segment).locs[0];
+         return inst.storage.get_segment(segment).mtypes[0];
       }
-      return ResourceManager::INDETERMINATE;
+      return MemoryType::DEFAULT;
    }
 
-   ResourceManager::ResourceLocation GetDeviceMemoryType() const
+   MemoryType GetDeviceMemoryType() const
    {
       auto &inst = ResourceManager::instance();
       if (inst.valid_segment(segment))
       {
-         return inst.storage.get_segment(segment).locs[1];
+         return inst.storage.get_segment(segment).mtypes[1];
       }
-      return ResourceManager::INDETERMINATE;
+      return MemoryType::DEFAULT;
    }
 
    bool HostIsValid() const
@@ -652,8 +580,7 @@ public:
    bool DeviceIsValid() const
    {
       auto &inst = ResourceManager::instance();
-      return inst.is_valid(segment, offset_ * sizeof(T), size_ * sizeof(T),
-                           true);
+      return inst.is_valid(segment, offset_ * sizeof(T), size_ * sizeof(T), true);
    }
    /// Pre-conditions:
    /// - size <= src.Capacity() and size <= this->Capacity()
@@ -669,9 +596,7 @@ public:
    void CopyToHost(T *dst, int size) const;
 
    /// no-op
-   [[deprecated]]
-   void PrintFlags() const
-   {}
+   [[deprecated]] void PrintFlags() const {}
 
    int CompareHostAndDevice(int size) const
    {
@@ -681,9 +606,7 @@ public:
    }
 };
 
-template <class T>
-Resource<T>::Resource(T *ptr, size_t count,
-                      ResourceManager::ResourceLocation loc)
+template <class T> Resource<T>::Resource(T *ptr, size_t count, MemoryType loc)
 {
    auto &inst = ResourceManager::instance();
    segment = inst.insert(reinterpret_cast<char *>(ptr), count * sizeof(T), loc,
@@ -693,8 +616,7 @@ Resource<T>::Resource(T *ptr, size_t count,
 }
 
 template <class T>
-Resource<T>::Resource(size_t count, ResourceManager::ResourceLocation loc,
-                      bool temporary)
+Resource<T>::Resource(size_t count, MemoryType loc, bool temporary)
 {
    auto &inst = ResourceManager::instance();
    offset_ = 0;
@@ -704,8 +626,8 @@ Resource<T>::Resource(size_t count, ResourceManager::ResourceLocation loc,
 }
 
 template <class T>
-Resource<T>::Resource(size_t count, ResourceManager::ResourceLocation hloc,
-                      ResourceManager::ResourceLocation dloc, bool temporary)
+Resource<T>::Resource(size_t count, MemoryType hloc, MemoryType dloc,
+                      bool temporary)
 {
    auto &inst = ResourceManager::instance();
    offset_ = 0;
@@ -717,10 +639,9 @@ Resource<T>::Resource(size_t count, ResourceManager::ResourceLocation hloc,
    }
    else
    {
-      segment =
-         inst.insert(inst.Alloc(count * sizeof(T), hloc, temporary),
-                     inst.Alloc(count * sizeof(T), dloc, temporary),
-                     count * sizeof(T), hloc, dloc, true, true, temporary);
+      segment = inst.insert(inst.Alloc(count * sizeof(T), hloc, temporary),
+                            inst.Alloc(count * sizeof(T), dloc, temporary),
+                            count * sizeof(T), hloc, dloc, true, true, temporary);
    }
 }
 

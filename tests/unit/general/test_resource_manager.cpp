@@ -10,10 +10,10 @@ TEST_CASE("Resource Creation", "[Resource Manager]")
 {
    auto &inst = ResourceManager::instance();
    auto init_usage = inst.Usage();
-   std::array<size_t, 8> expected = init_usage;
+   std::array<size_t, 4> expected = init_usage;
    SECTION("Non-Temporary Host")
    {
-      Resource<int> tmp(10, ResourceManager::HOST, false);
+      Resource<int> tmp(10, MemoryType::HOST, false);
       auto usage = inst.Usage();
       expected[0] += 10 * sizeof(int);
       REQUIRE(usage == expected);
@@ -32,28 +32,28 @@ TEST_CASE("Resource Creation", "[Resource Manager]")
    }
    SECTION("Temporary Host")
    {
-      Resource<int> tmp(10, ResourceManager::HOST, true);
+      Resource<int> tmp(10, MemoryType::HOST, true);
       auto usage = inst.Usage();
-      expected[4] += 10 * sizeof(int);
+      expected[2] += 10 * sizeof(int);
       REQUIRE(usage == expected);
       tmp.Write(true);
       usage = inst.Usage();
       if (!tmp.ZeroCopy())
       {
-         expected[4 + 1] += 10 * sizeof(int);
+         expected[2 + 1] += 10 * sizeof(int);
       }
       REQUIRE(usage == expected);
       tmp = Resource<int>();
       usage = inst.Usage();
-      expected[4] = init_usage[4];
-      expected[4 + 1] = init_usage[4 + 1];
+      expected[2] = init_usage[2];
+      expected[2 + 1] = init_usage[2 + 1];
       REQUIRE(usage == expected);
    }
 }
 
 TEST_CASE("Resource Aliasing", "[Resource Manager][GPU]")
 {
-   Resource<int> tmp(100, ResourceManager::HOST, false);
+   Resource<int> tmp(100, MemoryType::HOST, false);
    auto hptr = tmp.HostWrite();
    REQUIRE(hptr != nullptr);
    for (int i = 0; i < 100; ++i)
@@ -119,8 +119,8 @@ TEST_CASE("Resource Aliasing", "[Resource Manager][GPU]")
 
 TEST_CASE("Resource Copy", "[Resource Manager][GPU]")
 {
-   Resource<char> tmp0(100, ResourceManager::HOST, false);
-   Resource<char> tmp1(100, ResourceManager::HOST, false);
+   Resource<char> tmp0(100, MemoryType::HOST, false);
+   Resource<char> tmp1(100, MemoryType::HOST, false);
 
    for (int i = 0; i < 100; ++i)
    {
