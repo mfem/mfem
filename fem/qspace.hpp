@@ -220,6 +220,9 @@ class FaceQuadratureSpace : public QuadratureSpaceBase
    /// Inverse of the map @a face_indices.
    const std::unordered_map<int,int> &face_indices_inv;
 
+   /// Integration weights (used only in the non-tensor case).
+   mutable Vector non_tensor_weights;
+
    const Vector &GetGeometricFactorWeights() const override;
    void ConstructOffsets();
    void Construct();
