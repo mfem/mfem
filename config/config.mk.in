@@ -12,7 +12,7 @@
 # Variables corresponding to defines in config.hpp (YES, NO, or value)
 MFEM_VERSION           = @MFEM_VERSION@
 MFEM_VERSION_STRING    = @MFEM_VERSION_STRING@
-MFEM_SOURCE_DIR        = @MFEM_SOURCE_DIR@
+MFEM_SOURCE_DIR        = @MFEM_SOURCE_DIR_INSTALLED@
 MFEM_INSTALL_DIR       = @MFEM_INSTALL_DIR@
 MFEM_GIT_STRING        = @MFEM_GIT_STRING@
 MFEM_USE_MPI           = @MFEM_USE_MPI@
