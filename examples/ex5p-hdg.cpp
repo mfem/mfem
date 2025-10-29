@@ -418,19 +418,19 @@ int main(int argc, char *argv[])
       }
       else
       {
-         HypreParMatrix &M = *mVarf->ParallelAssembleInternal();
+         HypreParMatrix &M = *mVarf->ParallelAssembleInternalMatrix();
          Md = new HypreParVector(MPI_COMM_WORLD, M.GetGlobalNumRows(),
                                  M.GetRowStarts());
          M.GetDiag(*Md);
 
-         HypreParMatrix &B = *bVarf->ParallelAssembleInternal();
+         HypreParMatrix &B = *bVarf->ParallelAssembleInternalMatrix();
          MinvBt = B.Transpose();
          MinvBt->InvScaleRows(*Md);
          S = ParMult(&B, MinvBt);
 
          if (mtVarf)
          {
-            HypreParMatrix &Mt = *mtVarf->ParallelAssembleInternal();
+            HypreParMatrix &Mt = *mtVarf->ParallelAssembleInternalMatrix();
             HypreParMatrix *Snew = ParAdd(&Mt, S);
             delete S;
             S = Snew;
