@@ -123,7 +123,7 @@ Parallel build:
 
 Parallel build with fetching of hypre and METIS:
    mkdir <mfem-buil-dir> ; cd <mfem-build-dir>
-   cmake <mfem-source-dir> -DMFEM_USE_MPI=YES -DFETCH_TPLS=YES
+   cmake <mfem-source-dir> -DMFEM_USE_MPI=YES -DMFEM_FETCH_TPLS=YES
    make -j 4
 
 CUDA build:
@@ -1081,9 +1081,10 @@ The following options are CMake specific:
 MFEM_ENABLE_TESTING  - Enable the ctest framework for testing.
 MFEM_ENABLE_EXAMPLES - Build all of the examples by default.
 MFEM_ENABLE_MINIAPPS - Build all of the miniapps by default.
-FETCH_TPLS           - Enable fetching of all supported third-party libraries.
-HYPRE_FETCH          - Enable fetching of hypre.
-METIS_FETCH          - Enable fetching of metis.
+MFEM_FETCH_TPLS      - Enable fetching of all supported third-party libraries.
+MFEM_FETCH_GSLIB     - Enable fetching of gslib.
+MFEM_FETCH_HYPRE     - Enable fetching of hypre.
+MFEM_FETCH_METIS     - Enable fetching of metis.
 
 External libraries (CMake):
 ---------------------------
@@ -1149,6 +1150,7 @@ The MFEM CMake build system also provides fetching (automated building) for the
 packages/libraries listed below. Note that when fetching is enabled, any related
 auto-detection functionality is disabled.
 
+ - GSLIB
  - HYPRE
  - METIS
 
