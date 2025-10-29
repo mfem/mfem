@@ -117,6 +117,12 @@ public:
    /// @a gfr and @a gfi to match the ComplexGridFunction.
    void SyncAlias() { gfr->SyncAliasMemory(*this); gfi->SyncAliasMemory(*this); }
 
+   /// @brief Returns ||u_ex - u_h||_L2 for complex-valued scalar fields
+   ///
+   /// @see GridFunction::ComputeL2Error(Coefficient &exsol,
+   ///                                   const IntegrationRule *irs[],
+   ///                                   const Array<int> *elems) const
+   ///      for more detailed documentation.
    virtual real_t ComputeL2Error(Coefficient &exsolr, Coefficient &exsoli,
                                  const IntegrationRule *irs[] = NULL) const
    {
@@ -125,6 +131,12 @@ public:
       return sqrt(err_r * err_r + err_i * err_i);
    }
 
+   /// @brief Returns ||u_ex - u_h||_L2 for complex-valued vector fields
+   ///
+   /// @see GridFunction::ComputeL2Error(VectorCoefficient &exsol,
+   ///                                   const IntegrationRule *irs[],
+   ///                                   const Array<int> *elems) const
+   ///      for more detailed documentation.
    virtual real_t ComputeL2Error(VectorCoefficient &exsolr,
                                  VectorCoefficient &exsoli,
                                  const IntegrationRule *irs[] = NULL,
@@ -508,15 +520,29 @@ public:
    void SyncAlias()
    { pgfr->SyncAliasMemory(*this); pgfi->SyncAliasMemory(*this); }
 
-
+   /// @brief Returns ||u_ex - u_h||_L2 in parallel for complex-valued
+   ///        scalar fields
+   ///
+   /// @see GridFunction::ComputeL2Error(Coefficient &exsol,
+   ///                                   const IntegrationRule *irs[],
+   ///                                   const Array<int> *elems) const
+   ///      for more detailed documentation.
    virtual real_t ComputeL2Error(Coefficient &exsolr, Coefficient &exsoli,
-                                 const IntegrationRule *irs[] = NULL) const
+                                 const IntegrationRule *irs[] = NULL,
+                                 Array<int> *elems = NULL) const
    {
-      real_t err_r = pgfr->ComputeL2Error(exsolr, irs);
-      real_t err_i = pgfi->ComputeL2Error(exsoli, irs);
-      return sqrt(err_r * err_r + err_i * err_i);
+      real_t err_r = pgfr->ComputeL2Error(exsolr, irs, elems);
+      real_t err_i = pgfi->ComputeL2Error(exsoli, irs, elems);
+      return hypot(err_r, err_i);
    }
 
+   /// @brief Returns ||u_ex - u_h||_L2 in parallel for complex-valued
+   ///        vector fields
+   ///
+   /// @see GridFunction::ComputeL2Error(VectorCoefficient &exsol,
+   ///                                   const IntegrationRule *irs[],
+   ///                                   const Array<int> *elems) const
+   ///      for more detailed documentation.
    virtual real_t ComputeL2Error(VectorCoefficient &exsolr,
                                  VectorCoefficient &exsoli,
                                  const IntegrationRule *irs[] = NULL,
@@ -524,7 +550,7 @@ public:
    {
       real_t err_r = pgfr->ComputeL2Error(exsolr, irs, elems);
       real_t err_i = pgfi->ComputeL2Error(exsoli, irs, elems);
-      return sqrt(err_r * err_r + err_i * err_i);
+      return hypot(err_r, err_i);
    }
 
    /// Save the local portion of the ParComplexGridFunction
