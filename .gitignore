@@ -122,6 +122,10 @@ examples/cond_j.*
 examples/cond_mesh.*
 examples/port_mesh.*
 examples/port_mode.*
+examples/ex41.mesh
+examples/ex41-mesh.*
+examples/ex41-init.*
+examples/ex41-final.*
 
 examples/euler-*
 
