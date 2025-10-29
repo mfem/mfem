@@ -55,20 +55,20 @@ TEST_CASE("ComplexGridFunction Save", "[ComplexGridFunction]")
    std::ofstream ofs_rt("cmplx_rt.gf"); ofs_rt.precision(8);
    std::ofstream ofs_l2("cmplx_l2.gf"); ofs_l2.precision(8);
 
-   gf_h1.Save(ofs_h1);
-   gf_nd.Save(ofs_nd);
-   gf_rt.Save(ofs_rt);
-   gf_l2.Save(ofs_l2);
+   gf_h1.Save(ofs_h1); ofs_h1.close();
+   gf_nd.Save(ofs_nd); ofs_nd.close();
+   gf_rt.Save(ofs_rt); ofs_rt.close();
+   gf_l2.Save(ofs_l2); ofs_l2.close();
 
    std::ifstream ifs_h1("cmplx_h1.gf");
    std::ifstream ifs_nd("cmplx_nd.gf");
    std::ifstream ifs_rt("cmplx_rt.gf");
    std::ifstream ifs_l2("cmplx_l2.gf");
 
-   ComplexGridFunction gf_h1_read(&mesh, ifs_h1);
-   ComplexGridFunction gf_nd_read(&mesh, ifs_nd);
-   ComplexGridFunction gf_rt_read(&mesh, ifs_rt);
-   ComplexGridFunction gf_l2_read(&mesh, ifs_l2);
+   ComplexGridFunction gf_h1_read(&mesh, ifs_h1); ifs_h1.close();
+   ComplexGridFunction gf_nd_read(&mesh, ifs_nd); ifs_nd.close();
+   ComplexGridFunction gf_rt_read(&mesh, ifs_rt); ifs_rt.close();
+   ComplexGridFunction gf_l2_read(&mesh, ifs_l2); ifs_l2.close();
 
    gf_h1_read -= gf_h1;
    gf_nd_read -= gf_nd;
