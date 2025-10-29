@@ -32,6 +32,7 @@ BramblePasciakSolver::BramblePasciakSolver(ParBilinearForm &mVarf,
    std::unique_ptr<HypreParMatrix> invDBt(B_->Transpose());
    invDBt->InvScaleRows(diagM);
    S_.reset(ParMult(B_.get(), invDBt.get(), true));
+   invDBt.reset();
    M0_.Reset(new HypreDiagScale(*M_));
    M1_.Reset(new HypreBoomerAMG(*S_));
    M1_.As<HypreBoomerAMG>()->SetPrintLevel(0);

@@ -20,13 +20,13 @@
 #define MFEM_CU_or_HIP(stub) HIP##stub
 #endif
 
-#define MFEM_CONCAT(x, y, z) MFEM_CONCAT_(x, y, z)
-#define MFEM_CONCAT_(x, y, z) x ## y ## z
+#define MFEM_CONCAT3(x, y, z) MFEM_CONCAT3_(x, y, z)
+#define MFEM_CONCAT3_(x, y, z) x ## y ## z
 
 #ifdef MFEM_USE_SINGLE
-#define MFEM_GPUBLAS_PREFIX(stub) MFEM_CONCAT(MFEM_cu_or_hip(blas), S, stub)
+#define MFEM_GPUBLAS_PREFIX(stub) MFEM_CONCAT3(MFEM_cu_or_hip(blas), S, stub)
 #elif defined(MFEM_USE_DOUBLE)
-#define MFEM_GPUBLAS_PREFIX(stub) MFEM_CONCAT(MFEM_cu_or_hip(blas), D, stub)
+#define MFEM_GPUBLAS_PREFIX(stub) MFEM_CONCAT3(MFEM_cu_or_hip(blas), D, stub)
 #endif
 
 #define MFEM_BLAS_SUCCESS MFEM_CU_or_HIP(BLAS_STATUS_SUCCESS)

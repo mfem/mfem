@@ -161,7 +161,8 @@ static void EADiffusionAssemble3D(const int NE,
    auto B = Reshape(b.Read(), Q1D, D1D);
    auto G = Reshape(g.Read(), Q1D, D1D);
    auto D = Reshape(padata.Read(), Q1D, Q1D, Q1D, 6, NE);
-   auto A = Reshape(eadata.ReadWrite(), D1D, D1D, D1D, D1D, D1D, D1D, NE);
+   auto A = Reshape(add ? eadata.ReadWrite() : eadata.Write(),
+                    D1D, D1D, D1D, D1D, D1D, D1D, NE);
    mfem::forall_3D(NE, D1D, D1D, D1D, [=] MFEM_HOST_DEVICE (int e)
    {
       const int D1D = T_D1D ? T_D1D : d1d;
@@ -246,58 +247,60 @@ void DiffusionIntegrator::AssembleEA(const FiniteElementSpace &fes,
                                      Vector &ea_data,
                                      const bool add)
 {
+   MFEM_PERF_FUNCTION;
    AssemblePA(fes);
    ne = fes.GetMesh()->GetNE();
    const Array<real_t> &B = maps->B;
    const Array<real_t> &G = maps->G;
+   decltype(&EADiffusionAssemble1D<>) kernel = nullptr;
    if (dim == 1)
    {
       switch ((dofs1D << 4 ) | quad1D)
       {
-         case 0x22: return EADiffusionAssemble1D<2,2>(ne,B,G,pa_data,ea_data,add);
-         case 0x33: return EADiffusionAssemble1D<3,3>(ne,B,G,pa_data,ea_data,add);
-         case 0x44: return EADiffusionAssemble1D<4,4>(ne,B,G,pa_data,ea_data,add);
-         case 0x55: return EADiffusionAssemble1D<5,5>(ne,B,G,pa_data,ea_data,add);
-         case 0x66: return EADiffusionAssemble1D<6,6>(ne,B,G,pa_data,ea_data,add);
-         case 0x77: return EADiffusionAssemble1D<7,7>(ne,B,G,pa_data,ea_data,add);
-         case 0x88: return EADiffusionAssemble1D<8,8>(ne,B,G,pa_data,ea_data,add);
-         case 0x99: return EADiffusionAssemble1D<9,9>(ne,B,G,pa_data,ea_data,add);
-         default:   return EADiffusionAssemble1D(ne,B,G,pa_data,ea_data,add,
-                                                    dofs1D,quad1D);
+         case 0x22: kernel = EADiffusionAssemble1D<2,2>;
+         case 0x33: kernel = EADiffusionAssemble1D<3,3>;
+         case 0x44: kernel = EADiffusionAssemble1D<4,4>;
+         case 0x55: kernel = EADiffusionAssemble1D<5,5>;
+         case 0x66: kernel = EADiffusionAssemble1D<6,6>;
+         case 0x77: kernel = EADiffusionAssemble1D<7,7>;
+         case 0x88: kernel = EADiffusionAssemble1D<8,8>;
+         case 0x99: kernel = EADiffusionAssemble1D<9,9>;
+         default:   kernel = EADiffusionAssemble1D<>;
       }
    }
    else if (dim == 2)
    {
       switch ((dofs1D << 4 ) | quad1D)
       {
-         case 0x22: return EADiffusionAssemble2D<2,2>(ne,B,G,pa_data,ea_data,add);
-         case 0x33: return EADiffusionAssemble2D<3,3>(ne,B,G,pa_data,ea_data,add);
-         case 0x44: return EADiffusionAssemble2D<4,4>(ne,B,G,pa_data,ea_data,add);
-         case 0x55: return EADiffusionAssemble2D<5,5>(ne,B,G,pa_data,ea_data,add);
-         case 0x66: return EADiffusionAssemble2D<6,6>(ne,B,G,pa_data,ea_data,add);
-         case 0x77: return EADiffusionAssemble2D<7,7>(ne,B,G,pa_data,ea_data,add);
-         case 0x88: return EADiffusionAssemble2D<8,8>(ne,B,G,pa_data,ea_data,add);
-         case 0x99: return EADiffusionAssemble2D<9,9>(ne,B,G,pa_data,ea_data,add);
-         default:   return EADiffusionAssemble2D(ne,B,G,pa_data,ea_data,add,
-                                                    dofs1D,quad1D);
+         case 0x22: kernel = EADiffusionAssemble2D<2,2>;
+         case 0x33: kernel = EADiffusionAssemble2D<3,3>;
+         case 0x44: kernel = EADiffusionAssemble2D<4,4>;
+         case 0x55: kernel = EADiffusionAssemble2D<5,5>;
+         case 0x66: kernel = EADiffusionAssemble2D<6,6>;
+         case 0x77: kernel = EADiffusionAssemble2D<7,7>;
+         case 0x88: kernel = EADiffusionAssemble2D<8,8>;
+         case 0x99: kernel = EADiffusionAssemble2D<9,9>;
+         default:   kernel = EADiffusionAssemble2D<>;
       }
    }
    else if (dim == 3)
    {
       switch ((dofs1D << 4 ) | quad1D)
       {
-         case 0x23: return EADiffusionAssemble3D<2,3>(ne,B,G,pa_data,ea_data,add);
-         case 0x34: return EADiffusionAssemble3D<3,4>(ne,B,G,pa_data,ea_data,add);
-         case 0x45: return EADiffusionAssemble3D<4,5>(ne,B,G,pa_data,ea_data,add);
-         case 0x56: return EADiffusionAssemble3D<5,6>(ne,B,G,pa_data,ea_data,add);
-         case 0x67: return EADiffusionAssemble3D<6,7>(ne,B,G,pa_data,ea_data,add);
-         case 0x78: return EADiffusionAssemble3D<7,8>(ne,B,G,pa_data,ea_data,add);
-         case 0x89: return EADiffusionAssemble3D<8,9>(ne,B,G,pa_data,ea_data,add);
-         default:   return EADiffusionAssemble3D(ne,B,G,pa_data,ea_data,add,
-                                                    dofs1D,quad1D);
+         case 0x23: kernel = EADiffusionAssemble3D<2,3>;
+         case 0x34: kernel = EADiffusionAssemble3D<3,4>;
+         case 0x45: kernel = EADiffusionAssemble3D<4,5>;
+         case 0x56: kernel = EADiffusionAssemble3D<5,6>;
+         case 0x67: kernel = EADiffusionAssemble3D<6,7>;
+         case 0x78: kernel = EADiffusionAssemble3D<7,8>;
+         case 0x89: kernel = EADiffusionAssemble3D<8,9>;
+         default:   kernel = EADiffusionAssemble3D<>;
       }
    }
-   MFEM_ABORT("Unknown kernel.");
+   MFEM_VERIFY(kernel != nullptr, "Unknown kernel.");
+   kernel(ne,B,G,pa_data,ea_data,add,dofs1D,quad1D);
+   // Free the PA data:
+   pa_data.Destroy();
 }
 
 }

@@ -36,7 +36,6 @@ struct DFSParameters : IterSolveParameters
 struct DFSData
 {
    using UniqueOperatorPtr = std::unique_ptr<OperatorPtr>;
-   using UniqueHypreParMatrix = std::unique_ptr<HypreParMatrix>;
 
    std::vector<OperatorPtr> agg_hdivdof; // agglomerates to H(div) dofs table
    std::vector<OperatorPtr> agg_l2dof; // agglomerates to L2 dofs table
@@ -46,7 +45,6 @@ struct DFSData
    std::vector<OperatorPtr> Q_l2; // Q_l2[l] = (W_{l+1})^{-1} P_l2[l]^T W_l
    Array<int> coarsest_ess_hdivdofs; // coarsest level essential H(div) dofs
    std::vector<OperatorPtr> C; // discrete curl: ND -> RT, map to Null(B)
-   std::vector<UniqueHypreParMatrix> Ae;
    DFSParameters param;
 };
 
