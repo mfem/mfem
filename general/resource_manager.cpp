@@ -51,9 +51,9 @@ struct HostPinnedAllocator : public Allocator
 {
    void Alloc(void **ptr, size_t nbytes) override
    {
-#ifdef MFEM_USE_CUDA
+#if defined(MFEM_USE_CUDA)
       *ptr = mfem::CuMemAllocHostPinned(ptr, nbytes);
-#elif MFEM_USE_HIP
+#elif defined(MFEM_USE_HIP)
       *ptr = mfem::HipMemAllocHostPinned(ptr, nbytes);
 #else
       *ptr = new char[nbytes];
@@ -62,9 +62,9 @@ struct HostPinnedAllocator : public Allocator
 
    void Dealloc(void *ptr) override
    {
-#ifdef MFEM_USE_CUDA
+#if defined(MFEM_USE_CUDA)
       mfem::CuMemFreeHostPinned(ptr);
-#elif MFEM_USE_HIP
+#elif defined(MFEM_USE_HIP)
       mfem::HipMemFreeHostPinned(ptr);
 #else
       delete[] reinterpret_cast<char *>(ptr);
@@ -77,9 +77,9 @@ struct ManagedAllocator : public Allocator
 {
    void Alloc(void **ptr, size_t nbytes) override
    {
-#ifdef MFEM_USE_CUDA
+#if defined(MFEM_USE_CUDA)
       *ptr = mfem::CuMallocManaged(ptr, nbytes);
-#elif MFEM_USE_HIP
+#elif defined(MFEM_USE_HIP)
       *ptr = mfem::HipMallocManaged(ptr, nbytes);
 #else
       *ptr = new char[nbytes];
@@ -88,9 +88,9 @@ struct ManagedAllocator : public Allocator
 
    void Dealloc(void *ptr) override
    {
-#ifdef MFEM_USE_CUDA
+#if defined(MFEM_USE_CUDA)
       mfem::CuMemFree(ptr);
-#elif MFEM_USE_HIP
+#elif defined(MFEM_USE_HIP)
       mfem::HipMemFree(ptr);
 #else
       delete[] reinterpret_cast<char *>(ptr);
@@ -103,9 +103,9 @@ struct DeviceAllocator : public Allocator
 {
    void Alloc(void **ptr, size_t nbytes) override
    {
-#ifdef MFEM_USE_CUDA
+#if defined(MFEM_USE_CUDA)
       *ptr = mfem::CuMemAlloc(ptr, nbytes);
-#elif MFEM_USE_HIP
+#elif defined(MFEM_USE_HIP)
       *ptr = mfem::HipMemAlloc(ptr, nbytes);
 #else
       *ptr = new char[nbytes];
@@ -114,9 +114,9 @@ struct DeviceAllocator : public Allocator
 
    void Dealloc(void *ptr) override
    {
-#ifdef MFEM_USE_CUDA
+#if defined(MFEM_USE_CUDA)
       mfem::CuMemFree(ptr);
-#elif MFEM_USE_HIP
+#elif defined(MFEM_USE_HIP)
       mfem::HipMemFree(ptr);
 #else
       delete[] reinterpret_cast<char *>(ptr);
@@ -326,9 +326,9 @@ void ResourceManager::MemCopy(void *dst, const void *src, size_t nbytes,
    {
       return;
    }
-#ifdef MFEM_USE_CUDA
+#if defined(MFEM_USE_CUDA)
    MFEM_GPU_CHECK(cudaMemcpy(dst, src, nbytes, cudaMemcpyDefault));
-#elif MFEM_USE_HIP
+#elif defined(MFEM_USE_HIP)
    MFEM_GPU_CHECK(hipMemcpy(dst, src, nbytes, hipMemcpyDefault));
 #else
    std::memcpy(dst, src, nbytes);
