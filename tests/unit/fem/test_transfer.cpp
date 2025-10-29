@@ -460,10 +460,6 @@ TEST_CASE("Restriction Transpose Operator")
    REQUIRE(y3.Normlinf() == MFEM_Approx(0.0));
 }
 
-
-
-
-
 void TestGenericTransfer(Mesh *mesh, int order, int lor)
 {
    // Define NURBS gridfunction
@@ -496,7 +492,6 @@ void TestGenericTransfer(Mesh *mesh, int order, int lor)
    nurbs_to_h1.Ptr()->MultTranspose(h1_gf, nurbs_gf);
    REQUIRE(nurbs_gf.ComputeL2Error(cf) == MFEM_Approx(0.0));
 }
-
 
 TEST_CASE("Generic Transfer Operator", "[Dimension][Order][LOR]")
 {

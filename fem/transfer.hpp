@@ -626,7 +626,6 @@ public:
    void MultTranspose(const Vector& x, Vector& y) const override;
 };
 
-
 /// Matrix-free transfer operator between finite element spaces on the same mesh
 class PRefinementTransferOperator : public Operator
 {
