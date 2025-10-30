@@ -1263,6 +1263,45 @@ bool ResourceManager::is_valid(size_t segment, size_t offset, size_t nbytes,
 }
 
 char *ResourceManager::write(size_t segment, size_t offset, size_t nbytes,
+                             MemoryClass mc)
+{
+   if (IsHostMemory(::mfem::GetMemoryType(mc)))
+   {
+      return write(segment, offset, nbytes, false);
+   }
+   else
+   {
+      return write(segment, offset, nbytes, true);
+   }
+}
+
+char *ResourceManager::read_write(size_t segment, size_t offset, size_t nbytes,
+                                  MemoryClass mc)
+{
+   if (IsHostMemory(::mfem::GetMemoryType(mc)))
+   {
+      return read_write(segment, offset, nbytes, false);
+   }
+   else
+   {
+      return read_write(segment, offset, nbytes, true);
+   }
+}
+
+const char *ResourceManager::read(size_t segment, size_t offset, size_t nbytes,
+                                  MemoryClass mc)
+{
+   if (IsHostMemory(::mfem::GetMemoryType(mc)))
+   {
+      return read(segment, offset, nbytes, false);
+   }
+   else
+   {
+      return read(segment, offset, nbytes, true);
+   }
+}
+
+char *ResourceManager::write(size_t segment, size_t offset, size_t nbytes,
                              bool on_device)
 {
    if (valid_segment(segment))

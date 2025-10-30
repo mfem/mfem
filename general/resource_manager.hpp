@@ -236,6 +236,14 @@ private:
    const char *read(size_t segment, size_t offset, size_t nbytes,
                     bool on_device);
 
+   char *write(size_t segment, size_t offset, size_t nbytes, MemoryClass mc);
+   char *read_write(size_t segment, size_t offset, size_t nbytes,
+                    MemoryClass mc);
+
+   const char *read(size_t segment, size_t offset, size_t nbytes,
+                    MemoryClass mc);
+
+
    /// src0 is the preferred copy-from location
    void CopyImpl(char *dst, MemoryType dloc, size_t dst_offset, size_t marker,
                  size_t nbytes, const char *src0, const char *src1,
@@ -502,6 +510,15 @@ public:
    T *HostReadWrite() { return ReadWrite(false); }
    const T *HostRead() const { return Read(false); }
 
+   operator T *();
+   operator const T *() const;
+   template <class U> explicit operator U *();
+   template <class U> explicit operator const U *() const;
+
+   T *ReadWrite(MemoryClass mc, int size);
+   const T *Read(MemoryClass mc, int size) const;
+   T *Write(MemoryClass mc, int size);
+
    /// note: these do not check or update validity flags!
    T &operator[](size_t idx);
    /// note: these do not check or update validity flags!
@@ -534,15 +551,6 @@ public:
    [[deprecated]] void Sync(const Resource &other) const {}
    /// @deprecated This is a no-op
    [[deprecated]] void SyncAlias(const Resource &other) const {}
-
-#if 0
-   /// Returns where the memory is currently valid
-   MemoryType WhereValid() const
-   {
-      auto &inst = ResourceManager::instance();
-      return inst.where_valid(segment, offset_ * sizeof(T), size_ * sizeof(T));
-   }
-#endif
 
    MemoryType GetMemoryType() const
    {
@@ -752,6 +760,27 @@ template <class T> const T *Resource<T>::Read(bool on_device) const
              inst.read(segment, offset_ * sizeof(T), size_ * sizeof(T), on_device));
 }
 
+template <class T> T *Resource<T>::Write(MemoryClass mc, int size)
+{
+   auto &inst = ResourceManager::instance();
+   return reinterpret_cast<T *>(
+             inst.write(segment, offset_ * sizeof(T), size * sizeof(T), mc));
+}
+
+template <class T> T *Resource<T>::ReadWrite(MemoryClass mc, int size)
+{
+   auto &inst = ResourceManager::instance();
+   return reinterpret_cast<T *>(inst.read_write(segment, offset_ * sizeof(T),
+                                                size * sizeof(T), mc));
+}
+
+template <class T> const T *Resource<T>::Read(MemoryClass mc, int size) const
+{
+   auto &inst = ResourceManager::instance();
+   return reinterpret_cast<const T *>(
+             inst.read(segment, offset_ * sizeof(T), size * sizeof(T), mc));
+}
+
 template <class T> T &Resource<T>::operator[](size_t idx)
 {
    auto &inst = ResourceManager::instance();
@@ -799,6 +828,36 @@ template <class T> void Resource<T>::CopyToHost(T *dst, int size) const
    auto &inst = ResourceManager::instance();
    inst.CopyToHost(segment, offset_ * sizeof(T), dst, size * sizeof(T));
 }
+
+template <class T>
+Resource<T>::operator T*()
+{
+   auto &inst = ResourceManager::instance();
+   return reinterpret_cast<T *>(inst.fast_read_write(
+                                   segment, offset_ * sizeof(T), size_ * sizeof(T), false));
+}
+
+template <class T> Resource<T>::operator const T *() const
+{
+   auto &inst = ResourceManager::instance();
+   return reinterpret_cast<T *>(inst.fast_read(
+                                   segment, offset_ * sizeof(T), size_ * sizeof(T), false));
+}
+
+template <class T> template <class U> Resource<T>::operator U *()
+{
+   auto &inst = ResourceManager::instance();
+   return reinterpret_cast<U *>(inst.fast_read_write(
+                                   segment, offset_ * sizeof(T), size_ * sizeof(T), false));
+}
+
+template <class T> template <class U> Resource<T>::operator const U *() const
+{
+   auto &inst = ResourceManager::instance();
+   return reinterpret_cast<U *>(
+             inst.fast_read(segment, offset_ * sizeof(T), size_ * sizeof(T), false));
+}
+
 } // namespace mfem
 
 #endif
