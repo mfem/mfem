@@ -234,7 +234,7 @@ void diffusion(const char *filename, int p)
       Vector vX(vpfes.GetTrueVSize()), vY(vpfes.GetTrueVSize()),
              vZ(vpfes.GetTrueVSize());
 
-      vX = 1.0;
+      vX.Randomize(1);
       vx.SetFromTrueDofs(vX);
       {
          const auto vsol = std::vector{ FieldDescriptor{ U, &vpfes } };
