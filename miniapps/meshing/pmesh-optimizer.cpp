@@ -113,7 +113,7 @@
 //   Shape optimization for a Kershaw transformed mesh using partial assembly:
 //   Mesh for Kershaw transformation must be a Cartesian mesh with nx % 6 = ny % 2 = nz % 2 = 0.
 //   Kershaw transformation can be imposed using the transformation ('t') feature in the mesh-explorer miniapp.
-//   * mpirun - np 6 pmesh-optimizer -m kershaw-24x24x24.mesh -mid 303 -tid 1 -bnd -ni 100 -art 1 -ls 3 -qo 8 -li 40 -o 2 -qo 8 -ker -pa
+//   * mpirun - np 6 pmesh-optimizer -m kershaw-24x24x24.mesh -mid 303 -tid 1 -bnd -ni 100 -art 1 -ls 3 -qo 8 -li 40 -o 2 -pa
 
 #include "mfem.hpp"
 #include "../common/mfem-common.hpp"

@@ -43,6 +43,13 @@ Discretization improvements
 Meshing improvements
 --------------------
 
+- The TMOP kernel hierarchy has been restructured to reduce compilation time.
+  Most large kernels have been split into smaller, specific ones, with kernels
+  for each metric. The directory structure has been updated with assemble,
+  metrics, mult and tools subdirectories. The new kernel dispatch and
+  specialization system has also been integrated.
+  Unit tests have been revised to ensure --all tests pass.
+
 - Introduced NC-patch NURBS meshes, which are conforming element-wise but allow
   for nonconforming patch topology. This new mesh format supports element
   spacing formulas for refinement, as well as local refinement factors for a

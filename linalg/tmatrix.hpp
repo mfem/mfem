@@ -14,7 +14,6 @@
 
 #include "../config/tconfig.hpp"
 #include "../general/tassign.hpp"
-#include "../general/backends.hpp"
 
 namespace mfem
 {
