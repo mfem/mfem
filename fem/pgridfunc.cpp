@@ -80,6 +80,12 @@ ParGridFunction::ParGridFunction(ParMesh *pmesh, std::istream &input)
                                     fes->GetOrdering());
    delete fes;
    fes = pfes;
+
+   real_t *data_  = const_cast<real_t*>(HostRead());
+   for (int i = 0; i < size; i++)
+   {
+      if (pfes->GetDofSign(i) < 0) { data_[i] = -data_[i]; }
+   }
 }
 
 void ParGridFunction::Update()
