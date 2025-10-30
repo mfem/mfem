@@ -15,6 +15,26 @@
 namespace mfem::future
 {
 
+/// @brief Assemble element matrix for three dimensional data.
+///
+/// Note: In the below layouts, total_trial_op_dim is > 1 if
+/// there are more than one inputs dependent on the derivative variable.
+///
+/// @param A Memory for one element matrix with layout
+/// [test_ndof, test_vdim, trial_ndof, trial_vdim].
+/// @param fhat Memory to hold the residual computation with layout
+/// [test_vdim, test_op_dim, nqp].
+/// @param qpdc The quadrature point data cache with data layout
+/// [test_vdim, test_op_dim, trial_vdim, total_trial_op_dim, nqp].
+/// @param itod Input Trial Operator Dimension array. If the trial
+/// operator is not dependent, the dimension is 0 to indicate that.
+/// @param inputs The input field operator types.
+/// @param outputs The output field operator types.
+/// @param input_dtqmaps The input DofToQuad maps.
+/// @param ouptut_dtqmaps The output DofToQuad maps.
+/// @param scratch_shmem Scratch shared memory for computations.
+/// @param q1d The number of quadrature points in one dimension.
+/// @param td1d The number of trial dofs in one dimension.
 template <typename input_fop_ts, size_t num_inputs, typename output_fop_t>
 MFEM_HOST_DEVICE void assemble_element_mat_t3d(
    const DeviceTensor<4, real_t>& A,
@@ -23,8 +43,7 @@ MFEM_HOST_DEVICE void assemble_element_mat_t3d(
    const DeviceTensor<1, real_t>& itod,
    const input_fop_ts& inputs,
    const output_fop_t& output,
-   const std::array<DofToQuadMap,
-   num_inputs>& input_dtqmaps,
+   const std::array<DofToQuadMap, num_inputs>& input_dtqmaps,
    const DofToQuadMap& output_dtqmap,
    std::array<DeviceTensor<1>, 6>& scratch_shmem,
    const int& q1d,
@@ -160,6 +179,26 @@ MFEM_HOST_DEVICE void assemble_element_mat_t3d(
    }
 }
 
+/// @brief Assemble element matrix for two dimensional data.
+///
+/// Note: In the below layouts, total_trial_op_dim is > 1 if
+/// there are more than one inputs dependent on the derivative variable.
+///
+/// @param A Memory for one element matrix with layout
+/// [test_ndof, test_vdim, trial_ndof, trial_vdim].
+/// @param fhat Memory to hold the residual computation with layout
+/// [test_vdim, test_op_dim, nqp].
+/// @param qpdc The quadrature point data cache with data layout
+/// [test_vdim, test_op_dim, trial_vdim, total_trial_op_dim, nqp].
+/// @param itod Input Trial Operator Dimension array. If the trial
+/// operator is not dependent, the dimension is 0 to indicate that.
+/// @param inputs The input field operator types.
+/// @param outputs The output field operator types.
+/// @param input_dtqmaps The input DofToQuad maps.
+/// @param ouptut_dtqmaps The output DofToQuad maps.
+/// @param scratch_shmem Scratch shared memory for computations.
+/// @param q1d The number of quadrature points in one dimension.
+/// @param td1d The number of trial dofs in one dimension.
 template <typename input_fop_ts, size_t num_inputs, typename output_fop_t>
 MFEM_HOST_DEVICE void assemble_element_mat_t2d(
    const DeviceTensor<4, real_t>& A,
@@ -290,10 +329,30 @@ MFEM_HOST_DEVICE void assemble_element_mat_t2d(
    }
 }
 
+/// @brief Assemble element matrix for two or three dimensional data.
+///
+/// Note: In the below layouts, total_trial_op_dim is > 1 if
+/// there are more than one inputs dependent on the derivative variable.
+///
+/// @param A Memory for one element matrix with layout
+/// [test_ndof, test_vdim, trial_ndof, trial_vdim].
+/// @param fhat Memory to hold the residual computation with layout
+/// [test_vdim, test_op_dim, nqp].
+/// @param qpdc The quadrature point data cache with data layout
+/// [test_vdim, test_op_dim, trial_vdim, total_trial_op_dim, nqp].
+/// @param itod Input Trial Operator Dimension array. If the trial
+/// operator is not dependent, the dimension is 0 to indicate that.
+/// @param inputs The input field operator types.
+/// @param outputs The output field operator types.
+/// @param input_dtqmaps The input DofToQuad maps.
+/// @param ouptut_dtqmaps The output DofToQuad maps.
+/// @param scratch_shmem Scratch shared memory for computations.
+/// @param q1d The number of quadrature points in one dimension.
+/// @param td1d The number of trial dofs in one dimension.
 template <typename input_fop_ts, size_t num_inputs, typename output_fop_t>
 MFEM_HOST_DEVICE void assemble_element_mat_naive(
    const DeviceTensor<4, real_t>& A,
-   const DeviceTensor<3, real_t>& f,
+   const DeviceTensor<3, real_t>& fhat,
    const DeviceTensor<5, real_t>& qpdc,
    const DeviceTensor<1, real_t>& itod,
    const input_fop_ts& inputs,
@@ -310,12 +369,12 @@ MFEM_HOST_DEVICE void assemble_element_mat_naive(
    {
       if (dimension == 2)
       {
-         assemble_element_mat_t2d(A, f, qpdc, itod, inputs, output,
+         assemble_element_mat_t2d(A, fhat, qpdc, itod, inputs, output,
                                   input_dtqmaps, output_dtqmap, scratch_shmem, q1d, td1d);
       }
       else if (dimension == 3)
       {
-         assemble_element_mat_t3d(A, f, qpdc, itod, inputs, output,
+         assemble_element_mat_t3d(A, fhat, qpdc, itod, inputs, output,
                                   input_dtqmaps, output_dtqmap, scratch_shmem, q1d, td1d);
       }
    }
