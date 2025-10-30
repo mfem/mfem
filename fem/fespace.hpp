@@ -661,7 +661,21 @@ public:
    FiniteElementSpace(const FiniteElementSpace &orig, Mesh *mesh = NULL,
                       const FiniteElementCollection *fec = NULL);
 
+   /** Construct a FiniteElementSpace based on the given
+       FiniteElementCollection, @a fec.*/
+   /** @note If FiniteElementCollection, @a fec is a NURBS FE the required
+       NURBSExtension will be generated.*/
    FiniteElementSpace(Mesh *mesh,
+                      const FiniteElementCollection *fec,
+                      int vdim = 1, int ordering = Ordering::byNODES);
+
+   /** Construct a FiniteElementSpace based on the given
+       FiniteElementCollection, @a fec.*/
+   /** @note Periodic boundary conditions can be provided via @a masterBdr and
+       @a slaveBdr, this only works for NURBS FE at this point.
+       If FiniteElementCollection, @a fec is a NURBS FE the required
+       NURBSExtension will be generated.*/
+   FiniteElementSpace(Mesh *mesh, Array<int> &masterBdr, Array<int> &slaveBdr,
                       const FiniteElementCollection *fec,
                       int vdim = 1, int ordering = Ordering::byNODES);
 
@@ -679,8 +693,17 @@ public:
    /// Returns the mesh
    inline Mesh *GetMesh() const { return mesh; }
 
+   /// Checks if the fespace is a NURBS fespace
+   bool IsNURBS() const { return NURBSext != NULL; }
+
+   /// Returns the NURBSExtension
    const NURBSExtension *GetNURBSext() const { return NURBSext; }
+
+   /// Returns the NURBSExtension
    NURBSExtension *GetNURBSext() { return NURBSext; }
+
+   /** Returns the owned NURBSExtension, and disowns NURBSExtension.
+       Throws an error if NURBSExtension is not owned.*/
    NURBSExtension *StealNURBSext();
 
    bool Conforming() const
