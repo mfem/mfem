@@ -184,6 +184,7 @@ public:
    // Help info for ODESolver options
    static MFEM_EXPORT std::string ExplicitTypes;
    static MFEM_EXPORT std::string ImplicitTypes;
+   static MFEM_EXPORT std::string IMEXTypes;
    static MFEM_EXPORT std::string Types;
 
    /// Function for selecting the desired ODESolver (Explicit and Implicit)
@@ -202,6 +203,12 @@ public:
    /// Caller gets ownership of the object and is responsible for its deletion
    static MFEM_EXPORT std::unique_ptr<ODESolver> SelectImplicit(
       const int ode_solver_type);
+
+
+   /// Function for selecting the desired IMEX ODESolver
+   /// Returns an ODESolver pointer based on an type
+   /// Caller gets ownership of the object and is responsible for its deletion
+   //static MFEM_EXPORT std::unique_ptr<SplitODESolver> SelectIMEX(const int ode_solver_type);
 
    virtual ~ODESolver() { }
 };
@@ -930,6 +937,100 @@ public:
    };
 
 };
+
+/// Class for solving systems of split ODEs:
+/// M dx/dt = f_1(x,t) + f_2(x,t)
+/// where M^{-1}*f_1 and M^{-1}*f_2 are treated differently (e.g.,
+/// explicitly and implicitly).This is the abstract base class for
+/// such ODE solvers expecting a TimeDependentOperator with split
+/// functionality. Setting EvalMode=ADDITIVE_TERM_1 and calling
+/// Mult(...) should return k1=M^{-1}*f_1(x,t). Setting
+/// EvalMode=ADDITIVE_TERM_2 and calling ImplicitSolve(...) should
+/// solve M*k2 = f_2(x+gamma*k2,t).
+class SplitODESolver : public ODESolver
+{
+protected:
+   /// Pointer to the associated SplitTimeDependentOperator.
+   TimeDependentOperator *f;  // f(.,t) : R^n --> R^n
+   MemoryType mem_type;
+
+public:
+   SplitODESolver() : f(nullptr) { mem_type = Device::GetHostMemoryType(); }
+
+   /// Associate a SplitTimeDependentOperator with the ODE solver. Overrides Init from ODESolver
+   /** This method has to be called:
+       - Before the first call to Step().
+       - When the dimensions of the associated SplitTimeDependentOperator change.
+       - When a time stepping sequence has to be restarted.
+       - To change the associated SplitTimeDependentOperator. */
+   using ODESolver::Init;
+   virtual void Init(TimeDependentOperator &f);
+
+   static MFEM_EXPORT std::unique_ptr<SplitODESolver> Select(
+      const int ode_solver_type);
+
+   virtual ~SplitODESolver() { }
+};
+
+class IMEXExpImplEuler : public SplitODESolver
+{
+private:
+   Vector k1; Vector k2;
+public:
+   void Init(TimeDependentOperator &f_) override;
+
+   void Step(Vector &x, real_t &t, real_t &dt) override;
+};
+
+
+/**IMEX RK2 Method from "On the Stability of IMEX Upwind gSBP Schemes for 1D Linear Advection‑Difusion Equations" by Sigrun Ortleb.
+ * Same as (2,2,2) from "Implicit-explicit Runge-Kutta
+    methods for time-dependent partial differential equations" by Ascher, Ruuth
+    and Spiteri, Applied Numerical Mathematics (1997).**/
+class IMEXRK2 : public SplitODESolver
+{
+private:
+   Vector k1_exp; Vector k2_exp; Vector k2_imp; Vector k3_imp;
+   //helper vectors
+   Vector y; Vector z;
+public:
+   void Init(TimeDependentOperator &f_) override;
+
+   void Step(Vector &x, real_t &t, real_t &dt) override;
+};
+
+
+/**(2,3,2) from "Implicit-explicit Runge-Kutta
+    methods for time-dependent partial differential equations" by Ascher, Ruuth
+    and Spiteri, Applied Numerical Mathematics (1997).**/
+class IMEXRK2_3StageExplicit : public SplitODESolver
+{
+private:
+   Vector k1_exp; Vector k2_exp; Vector k3_exp; Vector k2_imp; Vector k3_imp;
+   //helper vectors
+   Vector y; Vector z; Vector w;
+public:
+   void Init(TimeDependentOperator &f_) override;
+
+   void Step(Vector &x, real_t &t, real_t &dt) override;
+};
+
+/**(3,4,3) from "Implicit-explicit Runge-Kutta
+    methods for time-dependent partial differential equations" by Ascher, Ruuth
+    and Spiteri, Applied Numerical Mathematics (1997).**/
+class IMEX_DIRK_RK3 : public SplitODESolver
+{
+private:
+   Vector k1_exp; Vector k2_exp; Vector k3_exp; Vector k4_exp;
+   Vector k2_imp; Vector k3_imp; Vector k4_imp;
+   //helper vectors
+   Vector y; Vector z; Vector w; Vector u; Vector v;
+public:
+   void Init(TimeDependentOperator &f_) override;
+
+   void Step(Vector &x, real_t &t, real_t &dt) override;
+};
+
 
 }
 
