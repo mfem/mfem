@@ -425,7 +425,7 @@ void map_fields_to_quadrature_data(
    std::array<DeviceTensor<2>, num_inputs> &fields_qp,
    const std::array<DeviceTensor<1>, num_fields> &fields_e,
    const std::array<DofToQuadMap, num_inputs> &dtqmaps,
-   const std::array<int, num_inputs> &input_to_field,
+   const std::array<size_t, num_inputs> &input_to_field,
    const field_operator_ts &fops,
    const DeviceTensor<1, const real_t> &integration_weights,
    const std::array<DeviceTensor<1>, 6> &scratch_mem,
@@ -440,7 +440,8 @@ void map_fields_to_quadrature_data(
    for_constexpr<num_inputs>([&](auto i)
    {
       const DeviceTensor<1> &field_e =
-         (input_to_field[i] == -1) ? dummy_field_weight : fields_e[input_to_field[i]];
+         (input_to_field[i] == SIZE_MAX) ? dummy_field_weight :
+         fields_e[input_to_field[i]];
 
       if (use_sum_factorization)
       {
@@ -539,7 +540,7 @@ void map_direction_to_quadrature_data_conditional(
    const std::array<DeviceTensor<1>, 6> &scratch_mem,
    const std::array<bool, num_inputs> &conditions,
    const int &dimension,
-   const bool &use_sum_factorization = false)
+   const bool &use_sum_factorization)
 {
    for_constexpr<num_inputs>([&](auto i)
    {

@@ -25,11 +25,8 @@ using mfem::future::dual;
 using dscalar_t = dual<real_t, real_t>;
 #endif
 
-namespace dfem_pa_kernels
-{
-
 template <int DIM>
-void dFemVectorDivergence(const char *filename, int p)
+void vectordivergence(const char *filename, int p)
 {
    CAPTURE(filename, DIM, p);
 
@@ -123,7 +120,7 @@ void dFemVectorDivergence(const char *filename, int p)
    }
 }
 
-TEST_CASE("dFEM VectorDivergence", "[Parallel][DFEM][VectorDivergence]")
+TEST_CASE("dFEM VectorDivergence", "[Parallel][dFEM][GPU]")
 {
    const bool all_tests = launch_all_non_regression_tests;
 
@@ -137,7 +134,7 @@ TEST_CASE("dFEM VectorDivergence", "[Parallel][DFEM][VectorDivergence]")
                   "../../data/rt-2d-q3.mesh",
                   "../../data/inline-quad.mesh",
                   "../../data/periodic-square.mesh");
-      dFemVectorDivergence<2>(filename, p);
+      vectordivergence<2>(filename, p);
    }
 
    SECTION("3D p=" + std::to_string(p))
@@ -148,10 +145,8 @@ TEST_CASE("dFEM VectorDivergence", "[Parallel][DFEM][VectorDivergence]")
                   "../../data/inline-hex.mesh",
                   "../../data/toroid-hex.mesh",
                   "../../data/periodic-cube.mesh");
-      dFemVectorDivergence<3>(filename, p);
+      vectordivergence<3>(filename, p);
    }
 }
-
-} // namespace dfem_pa_kernels
 
 #endif // MFEM_USE_MPI

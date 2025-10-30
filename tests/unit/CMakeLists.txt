@@ -19,8 +19,8 @@ include_directories(BEFORE ${CMAKE_CURRENT_SOURCE_DIR})
 set(UNIT_TESTS_SRCS
   dfem/test_diffusion.cpp
   dfem/test_divergence.cpp
-  dfem/test_mass.cpp
   dfem/test_lvector_interface.cpp
+  dfem/test_mass.cpp
   general/test_array.cpp
   general/test_scan.cpp
   general/test_arrays_by_name.cpp
