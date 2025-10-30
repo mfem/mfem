@@ -29,9 +29,9 @@ namespace mfem::future
 /// @param itod Input Trial Operator Dimension array. If the trial
 /// operator is not dependent, the dimension is 0 to indicate that.
 /// @param inputs The input field operator types.
-/// @param outputs The output field operator types.
+/// @param output The output field operator types.
 /// @param input_dtqmaps The input DofToQuad maps.
-/// @param ouptut_dtqmaps The output DofToQuad maps.
+/// @param output_dtqmap The output DofToQuad maps.
 /// @param scratch_shmem Scratch shared memory for computations.
 /// @param q1d The number of quadrature points in one dimension.
 /// @param td1d The number of trial dofs in one dimension.
@@ -193,9 +193,9 @@ MFEM_HOST_DEVICE void assemble_element_mat_t3d(
 /// @param itod Input Trial Operator Dimension array. If the trial
 /// operator is not dependent, the dimension is 0 to indicate that.
 /// @param inputs The input field operator types.
-/// @param outputs The output field operator types.
+/// @param output The output field operator types.
 /// @param input_dtqmaps The input DofToQuad maps.
-/// @param ouptut_dtqmaps The output DofToQuad maps.
+/// @param output_dtqmap The output DofToQuad maps.
 /// @param scratch_shmem Scratch shared memory for computations.
 /// @param q1d The number of quadrature points in one dimension.
 /// @param td1d The number of trial dofs in one dimension.
@@ -343,12 +343,14 @@ MFEM_HOST_DEVICE void assemble_element_mat_t2d(
 /// @param itod Input Trial Operator Dimension array. If the trial
 /// operator is not dependent, the dimension is 0 to indicate that.
 /// @param inputs The input field operator types.
-/// @param outputs The output field operator types.
+/// @param output The output field operator types.
 /// @param input_dtqmaps The input DofToQuad maps.
-/// @param ouptut_dtqmaps The output DofToQuad maps.
+/// @param output_dtqmap The output DofToQuad maps.
 /// @param scratch_shmem Scratch shared memory for computations.
+/// @param dimension The spatial dimension.
 /// @param q1d The number of quadrature points in one dimension.
 /// @param td1d The number of trial dofs in one dimension.
+/// @param use_sum_factorization Indicator if sum factorization is used.
 template <typename input_fop_ts, size_t num_inputs, typename output_fop_t>
 MFEM_HOST_DEVICE void assemble_element_mat_naive(
    const DeviceTensor<4, real_t>& A,
