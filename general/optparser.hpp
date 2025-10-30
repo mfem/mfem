@@ -31,7 +31,9 @@ class Vector;
 class OptionsParser
 {
 public:
-   enum OptionType { INT, DOUBLE, STRING, STD_STRING, ENABLE, DISABLE, ARRAY, VECTOR };
+   enum OptionType { INT, DOUBLE, STRING, STD_STRING, ENABLE, DISABLE, ARRAY,
+                     VECTOR, CHAR, CHAR_ARRAY
+                   };
 
 private:
    struct Option
@@ -98,6 +100,14 @@ public:
                             required));
    }
 
+   /// Add a character option and set 'var' to receive the value.
+   void AddOption(char *var, const char *short_name, const char *long_name,
+                  const char *description, bool required = false)
+   {
+      options.Append(Option(CHAR, var, short_name, long_name, description,
+                            required));
+   }
+
    /// Add a double option and set 'var' to receive the value.
    void AddOption(real_t *var, const char *short_name, const char *long_name,
                   const char *description, bool required = false)
@@ -131,6 +141,16 @@ public:
                   bool required = false)
    {
       options.Append(Option(ARRAY, var, short_name, long_name, description,
+                            required));
+   }
+
+   /** Add a character array (separated by spaces) option and set 'var' to
+       receive the values. */
+   void AddOption(Array<char> * var, const char *short_name,
+                  const char *long_name, const char *description,
+                  bool required = false)
+   {
+      options.Append(Option(CHAR_ARRAY, var, short_name, long_name, description,
                             required));
    }
 
