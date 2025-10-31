@@ -1263,7 +1263,7 @@ void Vector::DeleteAt(const Array<int> &indices)
       Array<int> workspace(size + 1);
       const auto d_flag = workspace.Write(use_dev);
       mfem::forall_switch(use_dev, size,
-                          [=] MFEM_HOST_DEVICE(int i) { d_flag[i] = true; });
+      [=] MFEM_HOST_DEVICE(int i) { d_flag[i] = true; });
       const auto d_indices = indices.Read(use_dev);
       mfem::forall_switch(use_dev, indices.Size(), [=] MFEM_HOST_DEVICE(int i)
       {
