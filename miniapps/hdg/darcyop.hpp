@@ -229,8 +229,18 @@ void RandomizeMesh(Mesh &mesh, real_t dr);
 
 class DarcyErrorEstimator : public ErrorEstimator
 {
+public:
+   enum class Type
+   {
+      Residual,
+      Energy,
+   };
+
+private:
    BilinearFormIntegrator &bfi;
    const GridFunction &sol_tr, &sol_p;
+   Type type;
+
    long current_sequence{-1};
    Vector error_estimates;
    real_t total_error{};
@@ -248,8 +258,8 @@ class DarcyErrorEstimator : public ErrorEstimator
 
 public:
    DarcyErrorEstimator(BilinearFormIntegrator &integ, const GridFunction &solr,
-                       const GridFunction &solp)
-      : bfi(integ), sol_tr(solr), sol_p(solp) { }
+                       const GridFunction &solp, Type type_ = Type::Energy)
+      : bfi(integ), sol_tr(solr), sol_p(solp), type(type_) { }
 
    real_t GetTotalError() const override { return total_error; }
 

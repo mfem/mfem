@@ -1369,21 +1369,46 @@ void DarcyErrorEstimator::ComputeEstimates()
       sol_p.GetSubVector(vdofs2, p2);
       sol_tr.GetSubVector(vdofs_tr, tr);
 
-      constexpr int type = NonlinearFormIntegrator::HDGFaceType::CONSTR
-                           | NonlinearFormIntegrator::HDGFaceType::FACE;
-
       const FiniteElement &fe_tr = *fes_tr->GetFaceElement(f);
       const FiniteElement &fe1 = *fes_p->GetFE(ftr->Elem1No);
       const FiniteElement &fe2 = *fes_p->GetFE(ftr->Elem2No);
 
-      bfi.AssembleHDGFaceVector(type, fe_tr, fe1, *ftr, tr, p1, btr1);
-      error_estimates(ftr->Elem1No) += fabs(btr1.Sum());
+      switch (type)
+      {
+         case Type::Residual:
+         {
+            constexpr int type = NonlinearFormIntegrator::HDGFaceType::CONSTR
+                                 | NonlinearFormIntegrator::HDGFaceType::FACE;
 
-      bfi.AssembleHDGFaceVector(type | 1, fe_tr, fe2, *ftr, tr, p2, btr2);
-      error_estimates(ftr->Elem2No) += fabs(btr2.Sum());
+            bfi.AssembleHDGFaceVector(type, fe_tr, fe1, *ftr, tr, p1, btr1);
+            error_estimates(ftr->Elem1No) += fabs(btr1.Sum());
+
+            bfi.AssembleHDGFaceVector(type | 1, fe_tr, fe2, *ftr, tr, p2, btr2);
+            error_estimates(ftr->Elem2No) += fabs(btr2.Sum());
+         }
+         break;
+         case Type::Energy:
+         {
+            error_estimates(ftr->Elem1No) += bfi.ComputeHDGFaceEnergy(0, fe_tr, fe1, *ftr,
+                                                                      tr, p1);
+
+            error_estimates(ftr->Elem2No) += bfi.ComputeHDGFaceEnergy(1, fe_tr, fe2, *ftr,
+                                                                      tr, p2);
+         }
+         break;
+      }
    }
 
    total_error = error_estimates.Sum();
+
+   if (type == Type::Energy)
+   {
+      for (int i = 0; i < error_estimates.Size(); i++)
+      {
+         error_estimates(i) = std::sqrt(error_estimates(i));
+      }
+      total_error = std::sqrt(total_error);
+   }
 }
 
 } // namespace hdg

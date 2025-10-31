@@ -347,6 +347,14 @@ public:
                                     Vector &flux, Vector *d_energy = NULL)
    { return 0.0; }
 
+   virtual real_t ComputeHDGFaceEnergy(int side,
+                                       const FiniteElement &trace_face_fe,
+                                       const FiniteElement &fe,
+                                       FaceElementTransformations &Tr,
+                                       const Vector &trfun, const Vector &elfun,
+                                       Vector *d_energy = NULL)
+   { return 0.0; }
+
    /** @brief For bilinear forms on element faces, specifies if the normal
               derivatives are needed on the faces or just the face restriction.
 
