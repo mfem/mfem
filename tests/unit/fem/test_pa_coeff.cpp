@@ -182,7 +182,7 @@ TEST_CASE("H1 PA Coefficient", "[PartialAssembly][Coefficient]")
                }
                else if (coeffType == 6)
                {
-                  DenseMatrix mat(dimension, dimension);
+                  DenseMatrix mat(dimension);
                   for (int i = 0; i < dimension*dimension; ++i)
                   {
                      mat.GetData()[i] = rand_real();

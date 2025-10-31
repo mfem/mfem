@@ -750,10 +750,6 @@ std::unique_ptr<MatrixConstantCoefficient> MakeCoeff<MatrixConstantCoefficient>
    }
    for (int i = 0; i < dim; ++i)
    {
-      for (int j = i+1; j < dim; ++j)
-      {
-         A(i,j) = A(j,i);
-      }
       A(i,i) += 2.0 + i;
    }
    return std::make_unique<MatrixConstantCoefficient>(A);

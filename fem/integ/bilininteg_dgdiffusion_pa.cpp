@@ -540,7 +540,7 @@ void DGDiffusionIntegrator::SetupPA(const FiniteElementSpace &fes,
 
    // Evaluate the coefficient at the face quadrature points.
    FaceQuadratureSpace fqs(mesh, ir, type);
-   CoefficientVector q(fqs, CoefficientStorage::COMPRESSED);
+   CoefficientVector q(fqs, CoefficientStorage::CONSTANTS);
    if (Q) { q.Project(*Q); }
    else if (MQ) { q.Project(*MQ); }
    else { q.SetConstant(1.0); }
