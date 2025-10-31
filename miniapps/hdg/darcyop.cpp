@@ -675,6 +675,16 @@ void DarcyOperator::ImplicitSolve(const real_t dt, const Vector &x_v,
    dx_v *= idt;
 }
 
+void DarcyOperator::Update()
+{
+   offsets = ConstructOffsets(*darcy);
+   width = height = offsets.Last();
+
+   if (Mt0) { Mt0->Update(); }
+   if (Mq0) { Mq0->Update(); }
+
+   idt = 0.;
+}
 
 DarcyOperator::SchurPreconditioner::SchurPreconditioner(const DarcyForm *darcy_,
                                                         bool nonlinear_)

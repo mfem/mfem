@@ -221,6 +221,8 @@ public:
    inline const DarcyForm& GetDarcyForm() const { return *darcy; }
 
    void ImplicitSolve(const real_t dt, const Vector &x, Vector &k) override;
+
+   void Update();
 };
 
 void RandomizeMesh(Mesh &mesh, real_t dr);
