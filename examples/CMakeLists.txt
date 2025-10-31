@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -45,6 +45,7 @@ list(APPEND ALL_EXE_SRCS
   ex37.cpp
   ex38.cpp
   ex39.cpp
+  ex40.cpp
   )
 
 if (MFEM_USE_MPI)
@@ -87,6 +88,7 @@ if (MFEM_USE_MPI)
     ex36p.cpp
     ex37p.cpp
     ex39p.cpp
+    ex40p.cpp
   )
 endif()
 
@@ -201,6 +203,15 @@ if (MFEM_ENABLE_TESTING)
       COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
       ${MPIEXEC_PREFLAGS}
       $<TARGET_FILE:ex25p> "-no-vis" "--mumps-solver"
+      ${MPIEXEC_POSTFLAGS})
+  endif()
+
+  # Parallel libCEED example
+  if (MFEM_USE_CEED AND MFEM_USE_MPI)
+    add_test(NAME ex1p_ceed_np=${MFEM_MPI_NP}
+      COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
+      ${MPIEXEC_PREFLAGS}
+      $<TARGET_FILE:ex1p> "-no-vis" "-d ceed-cpu" "-pa" "-a"
       ${MPIEXEC_POSTFLAGS})
   endif()
 endif()

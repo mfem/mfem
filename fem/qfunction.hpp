@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -41,12 +41,22 @@ public:
         qspace(&qspace_), own_qspace(false), vdim(vdim_)
    { UseDevice(true); }
 
+   /// Same as above but specify the device memory type
+   QuadratureFunction(QuadratureSpaceBase &qspace_,  MemoryType mt, int vdim_ = 1)
+      : Vector(vdim_*qspace_.GetSize(), mt),
+        qspace(&qspace_), own_qspace(false), vdim(vdim_)
+   { UseDevice(true); }
+
    /// Create a QuadratureFunction based on the given QuadratureSpaceBase.
    /** The QuadratureFunction does not assume ownership of the
        QuadratureSpaceBase.
        @warning @a qspace_ may not be NULL. */
    QuadratureFunction(QuadratureSpaceBase *qspace_, int vdim_ = 1)
       : QuadratureFunction(*qspace_, vdim_) { }
+
+   /// Same as above but specify the device memory type
+   QuadratureFunction(QuadratureSpaceBase *qspace_, MemoryType mt, int vdim_ = 1)
+      : QuadratureFunction(*qspace_, mt, vdim_) { }
 
    /** @brief Create a QuadratureFunction based on the given QuadratureSpaceBase,
        using the external (host) data, @a qf_data. */
@@ -214,16 +224,16 @@ public:
 inline void QuadratureFunction::GetValues(
    int idx, Vector &values)
 {
-   const int s_offset = qspace->offsets[idx];
-   const int sl_size = qspace->offsets[idx+1] - s_offset;
+   const int s_offset = qspace->Offset(idx);
+   const int sl_size = qspace->Offset(idx + 1) - s_offset;
    values.MakeRef(*this, vdim*s_offset, vdim*sl_size);
 }
 
 inline void QuadratureFunction::GetValues(
    int idx, Vector &values) const
 {
-   const int s_offset = qspace->offsets[idx];
-   const int sl_size = qspace->offsets[idx+1] - s_offset;
+   const int s_offset = qspace->Offset(idx);
+   const int sl_size = qspace->Offset(idx + 1) - s_offset;
    values.SetSize(vdim*sl_size);
    values.HostWrite();
    const real_t *q = HostRead() + vdim*s_offset;
@@ -236,14 +246,14 @@ inline void QuadratureFunction::GetValues(
 inline void QuadratureFunction::GetValues(
    int idx, const int ip_num, Vector &values)
 {
-   const int s_offset = qspace->offsets[idx] * vdim + ip_num * vdim;
+   const int s_offset = qspace->Offset(idx) * vdim + ip_num * vdim;
    values.MakeRef(*this, s_offset, vdim);
 }
 
 inline void QuadratureFunction::GetValues(
    int idx, const int ip_num, Vector &values) const
 {
-   const int s_offset = qspace->offsets[idx] * vdim + ip_num * vdim;
+   const int s_offset = qspace->Offset(idx) * vdim + ip_num * vdim;
    values.SetSize(vdim);
    values.HostWrite();
    const real_t *q = HostRead() + s_offset;
@@ -256,8 +266,8 @@ inline void QuadratureFunction::GetValues(
 inline void QuadratureFunction::GetValues(
    int idx, DenseMatrix &values)
 {
-   const int s_offset = qspace->offsets[idx];
-   const int sl_size = qspace->offsets[idx+1] - s_offset;
+   const int s_offset = qspace->Offset(idx);
+   const int sl_size = qspace->Offset(idx + 1) - s_offset;
    // Make the values matrix memory an alias of the quadrature function memory
    Memory<real_t> &values_mem = values.GetMemory();
    values_mem.Delete();
@@ -268,8 +278,8 @@ inline void QuadratureFunction::GetValues(
 inline void QuadratureFunction::GetValues(
    int idx, DenseMatrix &values) const
 {
-   const int s_offset = qspace->offsets[idx];
-   const int sl_size = qspace->offsets[idx+1] - s_offset;
+   const int s_offset = qspace->Offset(idx);
+   const int sl_size = qspace->Offset(idx + 1) - s_offset;
    values.SetSize(vdim, sl_size);
    values.HostWrite();
    const real_t *q = HostRead() + vdim*s_offset;

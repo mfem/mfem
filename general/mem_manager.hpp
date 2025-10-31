@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -237,6 +237,9 @@ public:
    /** The allocation uses the current host memory type returned by
        MemoryManager::GetHostMemoryType(). */
    explicit Memory(int size) { New(size); }
+
+   /// Creates a new empty Memory object with host MemoryType @a mt.
+   explicit Memory(MemoryType mt) { Reset(mt); }
 
    /** @brief Allocate memory for @a size entries with the given MemoryType
        @a mt. */
@@ -893,6 +896,7 @@ inline HYPRE_MemoryLocation GetHypreMemoryLocation()
 #elif MFEM_HYPRE_VERSION < 23100
    return HYPRE_MEMORY_DEVICE;
 #else // HYPRE_USING_GPU is defined and MFEM_HYPRE_VERSION >= 23100
+   if (!HYPRE_Initialized()) { return HYPRE_MEMORY_HOST; }
    HYPRE_MemoryLocation loc;
    HYPRE_GetMemoryLocation(&loc);
    return loc;
@@ -1054,7 +1058,8 @@ inline void Memory<T>::MakeAlias(const Memory &base, int offset, int size)
          // register the 'base' if the MemoryManager::Exists():
          MemoryManager::Exists()
 #else // HYPRE_USING_GPU is defined and MFEM_HYPRE_VERSION >= 23100
-         MemoryManager::Exists() && HypreUsingGPU()
+         IsDeviceMemory(MemoryManager::GetDeviceMemoryType()) ||
+         (MemoryManager::Exists() && HypreUsingGPU())
 #endif
       )
       {

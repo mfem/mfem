@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -172,10 +172,10 @@ public:
    void SetFluxAveraging(int fa) { flux_averaging = fa; }
 
    /// Return the total error from the last error estimate.
-   virtual real_t GetTotalError() const override { return total_error; }
+   real_t GetTotalError() const override { return total_error; }
 
    /// Get a Vector with all element errors.
-   virtual const Vector &GetLocalErrors() override
+   const Vector &GetLocalErrors() override
    {
       if (MeshIsModified()) { ComputeEstimates(); }
       return error_estimates;
@@ -184,14 +184,14 @@ public:
    /** @brief Get an Array<int> with anisotropic flags for all mesh elements.
        Return an empty array when anisotropic estimates are not available or
        enabled. */
-   virtual const Array<int> &GetAnisotropicFlags() override
+   const Array<int> &GetAnisotropicFlags() override
    {
       if (MeshIsModified()) { ComputeEstimates(); }
       return aniso_flags;
    }
 
    /// Reset the error estimator.
-   virtual void Reset() override { current_sequence = -1; }
+   void Reset() override { current_sequence = -1; }
 
    /** @brief Destroy a ZienkiewiczZhuEstimator object. Destroys, if owned, the
        FiniteElementSpace, flux_space. */
@@ -298,17 +298,17 @@ public:
    }
 
    /// Return the total error from the last error estimate.
-   virtual real_t GetTotalError() const override { return total_error; }
+   real_t GetTotalError() const override { return total_error; }
 
    /// Get a Vector with all element errors.
-   virtual const Vector &GetLocalErrors() override
+   const Vector &GetLocalErrors() override
    {
       if (MeshIsModified()) { ComputeEstimates(); }
       return error_estimates;
    }
 
    /// Reset the error estimator.
-   virtual void Reset() override { current_sequence = -1; }
+   void Reset() override { current_sequence = -1; }
 
    virtual ~LSZienkiewiczZhuEstimator() { }
 };
@@ -411,17 +411,17 @@ public:
    void SetLocalErrorNormP(int p) { local_norm_p = p; }
 
    /// Return the total error from the last error estimate.
-   virtual real_t GetTotalError() const override { return total_error; }
+   real_t GetTotalError() const override { return total_error; }
 
    /// Get a Vector with all element errors.
-   virtual const Vector &GetLocalErrors() override
+   const Vector &GetLocalErrors() override
    {
       if (MeshIsModified()) { ComputeEstimates(); }
       return error_estimates;
    }
 
    /// Reset the error estimator.
-   virtual void Reset() override { current_sequence = -1; }
+   void Reset() override { current_sequence = -1; }
 
    /** @brief Destroy a L2ZienkiewiczZhuEstimator object. Destroys, if owned,
        the FiniteElementSpace, flux_space. */
@@ -505,10 +505,10 @@ public:
    void SetCoef(VectorCoefficient &A) { vcoef = &A; }
 
    /// Reset the error estimator.
-   virtual void Reset() override { current_sequence = -1; }
+   void Reset() override { current_sequence = -1; }
 
    /// Get a Vector with all element errors.
-   virtual const Vector &GetLocalErrors() override
+   const Vector &GetLocalErrors() override
    {
       if (MeshIsModified()) { ComputeEstimates(); }
       return error_estimates;
@@ -623,7 +623,7 @@ private:
 
 public:
    /** @brief Construct a new KellyErrorEstimator object for a scalar field.
-       @param di_         The bilinearform to compute the interface flux.
+       @param di_         The bilinear form to compute the interface flux.
        @param sol_        The solution field whose error is to be estimated.
        @param flux_fes_   The finite element space for the interface flux.
        @param attributes_ The attributes of the subdomain(s) for which the
@@ -635,7 +635,7 @@ public:
                        const Array<int> &attributes_ = Array<int>());
 
    /** @brief Construct a new KellyErrorEstimator object for a scalar field.
-       @param di_         The bilinearform to compute the interface flux.
+       @param di_         The bilinear form to compute the interface flux.
        @param sol_        The solution field whose error is to be estimated.
        @param flux_fes_   The finite element space for the interface flux.
        @param attributes_ The attributes of the subdomain(s) for which the
@@ -661,7 +661,7 @@ public:
    /// Reset the error estimator.
    void Reset() override { current_sequence = -1; };
 
-   virtual real_t GetTotalError() const override { return total_error; }
+   real_t GetTotalError() const override { return total_error; }
 
    /** @brief Change the method to compute hₑ on a per-element basis.
        @param compute_element_coefficient_

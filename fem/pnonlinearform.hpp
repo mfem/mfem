@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -29,6 +29,8 @@ protected:
    mutable ParGridFunction X, Y;
    mutable OperatorHandle pGrad;
 
+   void GradientSharedFaces(const Vector &x, int skip_zeros = 1) const;
+
 public:
    ParNonlinearForm(ParFiniteElementSpace *pf);
 
@@ -46,16 +48,16 @@ public:
    real_t GetEnergy(const ParGridFunction &x) const
    { return GetParGridFunctionEnergy(x); }
 
-   virtual real_t GetEnergy(const Vector &x) const
+   real_t GetEnergy(const Vector &x) const override
    { return GetParGridFunctionEnergy(Prolongate(x)); }
 
-   virtual void Mult(const Vector &x, Vector &y) const;
+   void Mult(const Vector &x, Vector &y) const override;
 
    /// Return the local gradient matrix for the given true-dof vector x.
    /** The returned matrix does NOT have any boundary conditions imposed. */
    const SparseMatrix &GetLocalGradient(const Vector &x) const;
 
-   virtual Operator &GetGradient(const Vector &x) const;
+   Operator &GetGradient(const Vector &x) const override;
 
    /// Set the operator type id for the parallel gradient matrix/operator.
    void SetGradientType(Operator::Type tid) { pGrad.SetType(tid); }
@@ -64,7 +66,7 @@ public:
        parallel FE space. */
    /** After calling this method, the essential boundary conditions need to be
        set again. */
-   virtual void Update();
+   void Update() override;
 
    virtual ~ParNonlinearForm() { }
 };
@@ -81,9 +83,11 @@ protected:
    mutable Array2D<OperatorHandle *> phBlockGrad;
    mutable BlockOperator *pBlockGrad;
 
+   void GradientSharedFaces(const BlockVector &xs, int skip_zeros) const;
+
 public:
    /// Computes the energy of the system
-   virtual real_t GetEnergy(const Vector &x) const;
+   real_t GetEnergy(const Vector &x) const override;
 
    /// Construct an empty ParBlockNonlinearForm. Initialize with SetParSpaces().
    ParBlockNonlinearForm() : pBlockGrad(NULL) { }
@@ -102,17 +106,47 @@ public:
        gradient-type (if different from the default) must be set again. */
    void SetParSpaces(Array<ParFiniteElementSpace *> &pf);
 
-   // Here, rhs is a true dof vector
-   virtual void SetEssentialBC(const Array<Array<int> *>&bdr_attr_is_ess,
-                               Array<Vector *> &rhs);
+   /** @brief Set essential boundary conditions to each finite element space
+       using boundary attribute markers.
+
+       This method calls `FiniteElementSpace::GetEssentialTrueDofs()` for each
+       space and stores ess_tdof_lists internally.
+
+       If `rhs` vectors are non-null, the entries corresponding to these
+       essential DoFs are set to zero. This ensures compatibility with the
+       output of the `Mult()` method, which also zeroes out these entries.
+
+       @param[in] bdr_attr_is_ess A list of boundary attribute markers for each
+       space.
+       @param[in,out] rhs         An array of optional right-hand side vectors.
+       If a vector at `rhs[i]` is non-null, its essential DoFs will be set
+       to zero. */
+   virtual void SetEssentialBC(const Array<Array<int>*> &bdr_attr_is_ess,
+                               Array<Vector*> &rhs) override;
+
+   /** @brief Set essential boundary conditions to each finite element space
+       using essential true dof lists.
+
+       This method stores a copy of the provided essential true dof lists.
+
+       If `rhs` vectors are non-null, the entries corresponding to these
+       essential DoFs are set to zero. This ensures compatibility with the
+       output of the `Mult()` method, which also zeroes out these entries.
+
+       @param[in] ess_tdof_list A list of essential true dofs for each space.
+       @param[in,out] rhs       An array of optional right-hand side vectors.
+       If a vector at `rhs[i]` is non-null, its essential DoFs will be set
+       to zero. */
+   virtual void SetEssentialTrueDofs(const Array<Array<int>*> &ess_tdof_list,
+                                     Array<Vector*> &rhs) override;
 
    /// Block T-Vector to Block T-Vector
-   virtual void Mult(const Vector &x, Vector &y) const;
+   void Mult(const Vector &x, Vector &y) const override;
 
    /// Return the local block gradient matrix for the given true-dof vector x
    const BlockOperator &GetLocalGradient(const Vector &x) const;
 
-   virtual BlockOperator &GetGradient(const Vector &x) const;
+   BlockOperator &GetGradient(const Vector &x) const override;
 
    /** @brief Set the operator type id for the blocks of the parallel gradient
        matrix/operator. The default type is Operator::Hypre_ParCSR. */
