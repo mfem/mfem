@@ -1264,6 +1264,8 @@ T weight(const tensor<T, n, m>& A)
       T F = A[0][0] * A[0][1] + A[1][0] * A[1][1] + A[2][0] * A[2][1];
       return std::sqrt(E * G - F * F);
    }
+   // Never reached because of the static_assert, but avoids compiler warning.
+   return T{};
 }
 
 /**
