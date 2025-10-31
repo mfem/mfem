@@ -137,9 +137,6 @@ int main(int argc, char *argv[])
    bool brt = false;
    bool upwinded = false;
    int iproblem = Problem::SteadyDiffusion;
-   real_t tf = 1.;
-   int nt = 0;
-   int ode = 1;
    ProblemParams pars;
    pars.nx = 0;
    pars.ny = 0;
@@ -209,12 +206,6 @@ int main(int argc, char *argv[])
                   "8=steady varying angle\n\t\t"
                   "9=Sovinec\n\t\t"
                   "10=Umansky\n\t\t");
-   args.AddOption(&tf, "-tf", "--time-final",
-                  "Final time.");
-   args.AddOption(&nt, "-nt", "--ntimesteps",
-                  "Number of time steps.");
-   args.AddOption(&ode, "-ode", "--ode-solver",
-                  "ODE time solver (1=Bacward Euler, 2=RK23L, 3=RK23A, 4=RK34).");
    args.AddOption(&pars.k, "-k", "--kappa",
                   "Heat conductivity");
    args.AddOption(&pars.ks, "-ks", "--kappa_sym",
@@ -281,7 +272,7 @@ int main(int argc, char *argv[])
    // Set the problem options
    pars.prob = (Problem)iproblem;
    const Problem &problem = pars.prob;
-   bool bconv = false, bnlconv = false, bnldiff = nonlinear_diff, btime = false;
+   bool bconv = false, bnlconv = false, bnldiff = nonlinear_diff;
    switch (problem)
    {
       case Problem::SteadyDiffusion:
@@ -323,13 +314,6 @@ int main(int argc, char *argv[])
    if (nonlinear && !hybridization)
    {
       cerr << "Warning: A linear solver is used" << endl;
-   }
-
-   if (btime && nt <= 0)
-   {
-      cerr << "You must specify the number of time steps for time evolving problems"
-           << endl;
-      return 1;
    }
 
    // 2. Enable hardware devices such as GPUs, and programming models such as
@@ -491,11 +475,10 @@ int main(int argc, char *argv[])
                          (darcy->GetFluxMassNonlinearForm()):(NULL);
    BlockNonlinearForm *Mnl = (bnldiff)?(darcy->GetBlockNonlinearForm()):(NULL);
    MixedBilinearForm *B = darcy->GetFluxDivForm();
-   BilinearForm *Mt = (!nonlinear && ((dg && td > 0.) || bconv || btime ||
-                                      pars.a > 0.))?
+   BilinearForm *Mt = (!nonlinear && ((dg && td > 0.) || bconv || pars.a > 0.))?
                       (darcy->GetPotentialMassForm()):(NULL);
    NonlinearForm *Mtnl = (nonlinear && ((dg && td > 0.) || bconv || bnlconv ||
-                                        pars.a > 0. || btime))?
+                                        pars.a > 0.))?
                          (darcy->GetPotentialMassNonlinearForm()):(NULL);
    FluxFunction *FluxFun = NULL;
    NumericalFlux *FluxSolver = NULL;
@@ -794,11 +777,6 @@ int main(int argc, char *argv[])
    q_h.MakeRef(V_space, x.GetBlock(0), 0);
    t_h.MakeRef(W_space, x.GetBlock(1), 0);
 
-   if (btime)
-   {
-      t_h.ProjectCoefficient(tcoeff); //initial condition
-   }
-
    if (!dg && !brt)
    {
       q_h.ProjectBdrCoefficientNormal(qcoeff,
@@ -874,7 +852,7 @@ int main(int argc, char *argv[])
                                (Coefficient*)&qtcoeff});
 
    DarcyOperator op(ess_flux_tdofs_list, darcy, gform, fform, hform, coeffs,
-                    (DarcyOperator::SolverType) solver_type, false, btime);
+                    (DarcyOperator::SolverType) solver_type);
 
    op.EnableSolutionController(
       (DarcyOperator::SolutionController::Type) isol_ctrl);
@@ -884,225 +862,185 @@ int main(int argc, char *argv[])
       op.EnableIterationsVisualization(vis_iters);
    }
 
-   //construct the time solver
 
-   ODESolver *ode_solver;
+   // solve the steady/asymptotic problem
 
-   switch (ode)
+   Vector dx(x.Size()); dx = 0.;
+   op.ImplicitSolve(1., x, dx);
+   x += dx;
+
+   const int ti = 0;
+
+   // 12. Compute the L2 error norms.
+
+   int order_quad = max(2, 2*order+1);
+   const IntegrationRule *irs[Geometry::NumGeom];
+   for (int i=0; i < Geometry::NumGeom; ++i)
    {
-      case 1: ode_solver = new BackwardEulerSolver(); break;
-      case 2: ode_solver = new SDIRK23Solver(2); break;
-      case 3: ode_solver = new SDIRK23Solver(); break;
-      case 4: ode_solver = new SDIRK34Solver(); break;
-      default:
-         MFEM_ABORT("Unknown solver");
-         return 1;
+      irs[i] = &(IntRules.Get(i, order_quad));
    }
 
-   ode_solver->Init(op);
+   real_t err_q  = q_h.ComputeL2Error(qcoeff, irs);
+   real_t norm_q = ComputeLpNorm(2., qcoeff, *mesh, irs);
+   real_t err_t  = t_h.ComputeL2Error(tcoeff, irs);
+   real_t norm_t = ComputeLpNorm(2., tcoeff, *mesh, irs);
 
-   //iterate in time
-
-   if (!btime) { nt = 1; }
-
-   const real_t dt = tf / nt; //time step
-
-   for (int ti = 0; ti < nt; ti++)
+   if (problem == Problem::Umansky)
    {
-      //set current time
+      const real_t w = UmanskyTestWidth(t_h);
+      cout << "Umansky width: " << w << "\n";
+   }
+   cout << "|| q_h - q_ex || / || q_ex || = " << err_q / norm_q << "\n";
+   cout << "|| t_h - t_ex || / || t_ex || = " << err_t / norm_t << "\n";
 
-      real_t t = tf * ti / nt;
+   if (reconstruct)
+   {
+      darcy->Reconstruct(x, x.GetBlock(2), qt_h, q_hs, t_hs, tr_hs);
+      real_t err_qt = qt_h.ComputeL2Error(qtcoeff, irs);
+      real_t norm_qt = ComputeLpNorm(2., qtcoeff, *mesh, irs);
+      cout << "|| qt_h - qt_ex || / || qt_ex || = " << err_qt / norm_qt << "\n";
+      real_t err_qs = q_hs.ComputeL2Error(qcoeff, irs);
+      cout << "|| q_hs - q_ex || / || q_ex || = " << err_qs / norm_q << "\n";
+      real_t err_ts = t_hs.ComputeL2Error(tcoeff, irs);
+      cout << "|| t_hs - t_ex || / || t_ex || = " << err_ts / norm_t << "\n";
+   }
 
-      //perform time step
+   // Project the fluxes
 
-      real_t dt_ = dt;//<---ignore time step changes
-      ode_solver->Step(x, t, dt_);
+   GridFunction q_vh;
 
-      // 12. Compute the L2 error norms.
+   if (V_space_dg)
+   {
+      VectorGridFunctionCoefficient coeff(&q_h);
+      q_vh.SetSpace(V_space_dg);
+      q_vh.ProjectCoefficient(coeff);
+   }
+   else
+   {
+      q_vh.MakeRef(V_space, q_h, 0);
+   }
 
-      int order_quad = max(2, 2*order+1);
-      const IntegrationRule *irs[Geometry::NumGeom];
-      for (int i=0; i < Geometry::NumGeom; ++i)
+   // Project the analytic solution
+
+   static GridFunction q_a, qt_a, t_a, c_gf;
+
+   q_a.SetSpace((V_space_dg)?(V_space_dg):(V_space));
+   q_a.ProjectCoefficient(qcoeff);
+
+   qt_a.SetSpace((V_space_dg)?(V_space_dg):(V_space));
+   qt_a.ProjectCoefficient(qtcoeff);
+
+   t_a.SetSpace(W_space);
+   t_a.ProjectCoefficient(tcoeff);
+
+   if (bconv)
+   {
+      c_gf.SetSpace((V_space_dg)?(V_space_dg):(V_space));
+      c_gf.ProjectCoefficient(ccoeff);
+   }
+
+   // 13. Save the mesh and the solution. This output can be viewed later using
+   //     GLVis: "glvis -m ex5.mesh -g sol_q.gf" or "glvis -m ex5.mesh -g
+   //     sol_t.gf".
+   if (mfem)
+   {
+      stringstream ss;
+      ss.str("");
+      ss << "ex5";
+      //if (btime) { ss << "_" << ti; }
+      ss << ".mesh";
+      ofstream mesh_ofs(ss.str());
+      mesh_ofs.precision(8);
+      mesh->Print(mesh_ofs);
+
+      ss.str("");
+      ss << "sol_q";
+      //if (btime) { ss << "_" << ti; }
+      ss << ".gf";
+      ofstream q_ofs(ss.str());
+      q_ofs.precision(8);
+      q_vh.Save(q_ofs);
+
+      ss.str("");
+      ss << "sol_t";
+      //if (btime) { ss << "_" << ti; }
+      ss << ".gf";
+      ofstream t_ofs(ss.str());
+      t_ofs.precision(8);
+      t_h.Save(t_ofs);
+   }
+
+   // 14. Save data in the VisIt format
+   if (visit)
+   {
+      static VisItDataCollection visit_dc("Example5", mesh);
+      if (ti == 0)
       {
-         irs[i] = &(IntRules.Get(i, order_quad));
-      }
-
-      real_t err_q  = q_h.ComputeL2Error(qcoeff, irs);
-      real_t norm_q = ComputeLpNorm(2., qcoeff, *mesh, irs);
-      real_t err_t  = t_h.ComputeL2Error(tcoeff, irs);
-      real_t norm_t = ComputeLpNorm(2., tcoeff, *mesh, irs);
-
-      if (btime)
-      {
-         cout << "iter:\t" << ti
-              << "\ttime:\t" << t
-              << "\tq_err:\t" << err_q / norm_q
-              << "\tt_err:\t" << err_t / norm_t
-              << endl;
-      }
-      else
-      {
-         if (problem == Problem::Umansky)
-         {
-            const real_t w = UmanskyTestWidth(t_h);
-            cout << "Umansky width: " << w << "\n";
-         }
-         cout << "|| q_h - q_ex || / || q_ex || = " << err_q / norm_q << "\n";
-         cout << "|| t_h - t_ex || / || t_ex || = " << err_t / norm_t << "\n";
-      }
-
-      if (reconstruct)
-      {
-         darcy->Reconstruct(x, x.GetBlock(2), qt_h, q_hs, t_hs, tr_hs);
-         real_t err_qt = qt_h.ComputeL2Error(qtcoeff, irs);
-         real_t norm_qt = ComputeLpNorm(2., qtcoeff, *mesh, irs);
-         cout << "|| qt_h - qt_ex || / || qt_ex || = " << err_qt / norm_qt << "\n";
-         real_t err_qs = q_hs.ComputeL2Error(qcoeff, irs);
-         cout << "|| q_hs - q_ex || / || q_ex || = " << err_qs / norm_q << "\n";
-         real_t err_ts = t_hs.ComputeL2Error(tcoeff, irs);
-         cout << "|| t_hs - t_ex || / || t_ex || = " << err_ts / norm_t << "\n";
-      }
-
-      // Project the fluxes
-
-      GridFunction q_vh;
-
-      if (V_space_dg)
-      {
-         VectorGridFunctionCoefficient coeff(&q_h);
-         q_vh.SetSpace(V_space_dg);
-         q_vh.ProjectCoefficient(coeff);
-      }
-      else
-      {
-         q_vh.MakeRef(V_space, q_h, 0);
-      }
-
-      // Project the analytic solution
-
-      static GridFunction q_a, qt_a, t_a, c_gf;
-
-      q_a.SetSpace((V_space_dg)?(V_space_dg):(V_space));
-      q_a.ProjectCoefficient(qcoeff);
-
-      qt_a.SetSpace((V_space_dg)?(V_space_dg):(V_space));
-      qt_a.ProjectCoefficient(qtcoeff);
-
-      t_a.SetSpace(W_space);
-      t_a.ProjectCoefficient(tcoeff);
-
-      if (bconv)
-      {
-         c_gf.SetSpace((V_space_dg)?(V_space_dg):(V_space));
-         c_gf.ProjectCoefficient(ccoeff);
-      }
-
-      // 13. Save the mesh and the solution. This output can be viewed later using
-      //     GLVis: "glvis -m ex5.mesh -g sol_q.gf" or "glvis -m ex5.mesh -g
-      //     sol_t.gf".
-      if (mfem)
-      {
-         stringstream ss;
-         ss.str("");
-         ss << "ex5";
-         if (btime) { ss << "_" << ti; }
-         ss << ".mesh";
-         ofstream mesh_ofs(ss.str());
-         mesh_ofs.precision(8);
-         mesh->Print(mesh_ofs);
-
-         ss.str("");
-         ss << "sol_q";
-         if (btime) { ss << "_" << ti; }
-         ss << ".gf";
-         ofstream q_ofs(ss.str());
-         q_ofs.precision(8);
-         q_vh.Save(q_ofs);
-
-         ss.str("");
-         ss << "sol_t";
-         if (btime) { ss << "_" << ti; }
-         ss << ".gf";
-         ofstream t_ofs(ss.str());
-         t_ofs.precision(8);
-         t_h.Save(t_ofs);
-      }
-
-      // 14. Save data in the VisIt format
-      if (visit)
-      {
-         static VisItDataCollection visit_dc("Example5", mesh);
-         if (ti == 0)
-         {
-            visit_dc.RegisterField("heat flux", &q_vh);
-            visit_dc.RegisterField("temperature", &t_h);
-            if (analytic)
-            {
-               visit_dc.RegisterField("heat flux analytic", &q_a);
-               visit_dc.RegisterField("temperature analytic", &t_a);
-            }
-         }
-         visit_dc.SetCycle(ti);
-         visit_dc.SetTime(t); // set the time
-         visit_dc.Save();
-      }
-
-      // 15. Save data in the ParaView format
-      if (paraview)
-      {
-         static ParaViewDataCollection paraview_dc("Example5", mesh);
-         if (ti == 0)
-         {
-            paraview_dc.SetPrefixPath("ParaView");
-            paraview_dc.SetLevelsOfDetail(order);
-            paraview_dc.SetDataFormat(VTKFormat::BINARY);
-            paraview_dc.SetHighOrderOutput(true);
-            paraview_dc.RegisterField("heat flux",&q_vh);
-            paraview_dc.RegisterField("temperature",&t_h);
-            if (analytic)
-            {
-               paraview_dc.RegisterField("heat flux analytic", &q_a);
-               paraview_dc.RegisterField("temperature analytic", &t_a);
-            }
-         }
-         paraview_dc.SetCycle(ti);
-         paraview_dc.SetTime(t); // set the time
-         paraview_dc.Save();
-      }
-
-      // 16. Send the solution by socket to a GLVis server.
-      if (visualization)
-      {
-         static socketstream q_sock, t_sock;
-         VisualizeField(q_sock, q_vh, "Heat flux", ti);
-         VisualizeField(t_sock, t_h, "Temperature", ti);
-         if (reconstruct)
-         {
-            static socketstream qt_sock, qs_sock, ts_sock;
-            VisualizeField(qt_sock, qt_h, "Total flux", ti);
-            VisualizeField(qs_sock, q_hs, "Recon. flux", ti);
-            VisualizeField(ts_sock, t_hs, "Recon. temperature", ti);
-         }
+         visit_dc.RegisterField("heat flux", &q_vh);
+         visit_dc.RegisterField("temperature", &t_h);
          if (analytic)
          {
-            static socketstream qa_sock, qta_sock, ta_sock, c_sock;
-            VisualizeField(qa_sock, q_a, "Heat flux analytic", ti);
-            if (bconv || bnlconv)
-            {
-               VisualizeField(qta_sock, qt_a, "Total flux analytic", ti);
-            }
-            VisualizeField(ta_sock, t_a, "Temperature analytic", ti);
-            if (bconv)
-            {
-               VisualizeField(c_sock, c_gf, "Velocity", ti);
-            }
+            visit_dc.RegisterField("heat flux analytic", &q_a);
+            visit_dc.RegisterField("temperature analytic", &t_a);
+         }
+      }
+      visit_dc.SetCycle(ti);
+      visit_dc.Save();
+   }
+
+   // 15. Save data in the ParaView format
+   if (paraview)
+   {
+      static ParaViewDataCollection paraview_dc("Example5", mesh);
+      if (ti == 0)
+      {
+         paraview_dc.SetPrefixPath("ParaView");
+         paraview_dc.SetLevelsOfDetail(order);
+         paraview_dc.SetDataFormat(VTKFormat::BINARY);
+         paraview_dc.SetHighOrderOutput(true);
+         paraview_dc.RegisterField("heat flux",&q_vh);
+         paraview_dc.RegisterField("temperature",&t_h);
+         if (analytic)
+         {
+            paraview_dc.RegisterField("heat flux analytic", &q_a);
+            paraview_dc.RegisterField("temperature analytic", &t_a);
+         }
+      }
+      paraview_dc.SetCycle(ti);
+      paraview_dc.Save();
+   }
+
+   // 16. Send the solution by socket to a GLVis server.
+   if (visualization)
+   {
+      static socketstream q_sock, t_sock;
+      VisualizeField(q_sock, q_vh, "Heat flux", ti);
+      VisualizeField(t_sock, t_h, "Temperature", ti);
+      if (reconstruct)
+      {
+         static socketstream qt_sock, qs_sock, ts_sock;
+         VisualizeField(qt_sock, qt_h, "Total flux", ti);
+         VisualizeField(qs_sock, q_hs, "Recon. flux", ti);
+         VisualizeField(ts_sock, t_hs, "Recon. temperature", ti);
+      }
+      if (analytic)
+      {
+         static socketstream qa_sock, qta_sock, ta_sock, c_sock;
+         VisualizeField(qa_sock, q_a, "Heat flux analytic", ti);
+         if (bconv || bnlconv)
+         {
+            VisualizeField(qta_sock, qt_a, "Total flux analytic", ti);
+         }
+         VisualizeField(ta_sock, t_a, "Temperature analytic", ti);
+         if (bconv)
+         {
+            VisualizeField(c_sock, c_gf, "Velocity", ti);
          }
       }
    }
 
    // 17. Free the used memory.
 
-   delete ode_solver;
    delete HeatFluxFun;
    delete FluxFun;
    delete FluxSolver;
