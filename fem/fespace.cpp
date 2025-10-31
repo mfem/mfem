@@ -1769,6 +1769,7 @@ void FiniteElementSpace::GetLocalRefinementMatrices(
    Geometry::Type geom, DenseTensor &localP) const
 {
    const FiniteElement *fe = fec->FiniteElementForGeometry(geom);
+   if (!fe) { return; } // for trace spaces, the FiniteElement might not exist
 
    const CoarseFineTransformations &rtrans = mesh->GetRefinementTransforms();
    const DenseTensor &pmats = rtrans.point_matrices[geom];
