@@ -307,7 +307,7 @@ DarcyOperator::DarcyOperator(const Array<int> &ess_flux_tdofs_list_,
       }
       else
       {
-         MFEM_VERIFY(vdim == dim, "Unsupported case");
+         MFEM_VERIFY(vdim == 1, "Unsupported case");
          auto *bfi = new VectorFEMassIntegrator(*idtcoeff);
          if (Mq) { Mq->AddDomainIntegrator(bfi); }
          else if (Mqnl) { Mqnl->AddDomainIntegrator(bfi); }
@@ -333,7 +333,7 @@ DarcyOperator::DarcyOperator(const Array<int> &ess_flux_tdofs_list_,
       }
       else
       {
-         MFEM_VERIFY(vdim == dim, "Unsupported case");
+         MFEM_VERIFY(vdim == 1, "Unsupported case");
          Mq0->AddDomainIntegrator(new VectorFEMassIntegrator(*idtcoeff));
       }
    }
