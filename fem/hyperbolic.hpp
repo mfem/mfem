@@ -410,6 +410,20 @@ public:
                          const FiniteElement &el2,
                          FaceElementTransformations &Tr,
                          const Vector &elfun, DenseMatrix &elmat) override;
+
+   void AssembleHDGFaceVector(int type,
+                              const FiniteElement &trace_face_fe,
+                              const FiniteElement &fe,
+                              FaceElementTransformations &Tr,
+                              const Vector &trfun, const Vector &elfun,
+                              Vector &elvect) override;
+
+   void AssembleHDGFaceGrad(int type,
+                            const FiniteElement &trace_face_fe,
+                            const FiniteElement &fe,
+                            FaceElementTransformations &Tr,
+                            const Vector &trfun, const Vector &elfun,
+                            DenseMatrix &elmat) override;
 };
 
 /**
@@ -808,6 +822,33 @@ protected:
 #endif
 };
 
+class HDGFlux : public RusanovFlux
+{
+public:
+   enum class HDGScheme
+   {
+      HDG_1,
+      HDG_2,
+   };
+
+private:
+   HDGScheme scheme;
+   real_t Ctau;
+
+public:
+   HDGFlux(const FluxFunction &fluxFunction,
+           HDGScheme scheme, real_t Ctau=1.)
+      : RusanovFlux(fluxFunction), scheme(scheme), Ctau(Ctau) { }
+
+   real_t Average(const Vector &state1, const Vector &state2,
+                  const Vector &nor, FaceElementTransformations &Tr,
+                  Vector &flux) const override;
+
+   void AverageGrad(int side, const Vector &state1, const Vector &state2,
+                    const Vector &nor, FaceElementTransformations &Tr,
+                    DenseMatrix &grad) const override;
+};
+
 /// Advection flux
 class AdvectionFlux : public FluxFunction
 {
@@ -1048,6 +1089,13 @@ private:
    const real_t specific_heat_ratio;  // specific heat ratio, γ
    // const real_t gas_constant;         // gas constant
 
+   static real_t CalcAvgKineticEnergy(real_t den1, real_t den2, const Vector &mom1,
+                                      const Vector &mom2);
+   static void CalcAvgFlux(real_t den1, real_t den2, const Vector &mom1,
+                           const Vector &mom2, real_t vel1, real_t vel2, Vector &flux);
+   static real_t CalcAvgFlux(real_t den1, real_t den2, real_t mom1, real_t mom2,
+                             real_t vel1, real_t vel2);
+
 public:
    /**
     * @brief Construct a new EulerFlux FluxFunction with given spatial
@@ -1074,15 +1122,86 @@ public:
    /**
     * @brief Compute normal flux, F(ρ, ρu, E)n
     *
-    * @param x x (ρ, ρu, E) at current integration point
+    * @param state state (ρ, ρu, E) at the current integration point
     * @param normal normal vector, usually not a unit vector
     * @param Tr current element transformation with the integration point
     * @param fluxN F(ρ, ρu, E)n = [ρu⋅n; ρu(u⋅n) + pn; (u⋅n)(E + p)]
     * @return real_t maximum characteristic speed, |u| + √(γp/ρ)
     */
-   real_t ComputeFluxDotN(const Vector &x, const Vector &normal,
+   real_t ComputeFluxDotN(const Vector &state, const Vector &normal,
                           FaceElementTransformations &Tr,
                           Vector &fluxN) const override;
+
+   /**
+    * @brief Compute F̄(ρ1, ρu1, E1, ρ2, ρu2, E2)
+    *
+    * @param state1 first state (ρ1, ρu1, E1) at current integration point
+    * @param state2 first state (ρ2, ρu2, E2) at current integration point
+    * @param Tr current element transformation with the integration point
+    * @param flux F̄(ρ1, ρu1, E1, ρ2, ρu2, E2)
+    * @return real_t maximum characteristic speed, |u| + √(γp/ρ)
+    */
+   real_t ComputeAvgFlux(const Vector &state1, const Vector &state2,
+                         ElementTransformation &Tr,
+                         DenseMatrix &flux) const override;
+
+   /**
+    * @brief Compute F̄(ρ1, ρu1, E1, ρ2, ρu2, E2)n
+    *
+    * @param state1 first state (ρ1, ρu1, E1) at current integration point
+    * @param state2 first state (ρ2, ρu2, E2) at current integration point
+    * @param normal normal vector, usually not a unit vector
+    * @param Tr current element transformation with the integration point
+    * @param flux F̄(ρ1, ρu1, E1, ρ2, ρu2, E2)n
+    * @return real_t maximum characteristic speed, |u| + √(γp/ρ)
+    */
+   real_t ComputeAvgFluxDotN(const Vector &state1, const Vector &state2,
+                             const Vector &normal, FaceElementTransformations &Tr,
+                             Vector &fluxN) const override;
+
+   /**
+    * @brief Compute J(ρ, ρu, E)
+    *
+    * @param state state (ρ, ρu, E) at current integration point
+    * @param Tr current element transformation with the integration point
+    * @param J J(ρ, ρu, E)
+    */
+   void ComputeFluxJacobian(const Vector &state,
+                            ElementTransformation &Tr,
+                            DenseTensor &J) const override;
+};
+
+class CompoundFlux : public FluxFunction
+{
+   const FluxFunction &flux;
+
+public:
+   CompoundFlux(int vdim, const FluxFunction &flux_)
+      : FluxFunction(vdim, flux_.dim), flux(flux_) { }
+
+   real_t ComputeFlux(const Vector &state, ElementTransformation &Tr,
+                      DenseMatrix &flux) const override;
+
+   real_t ComputeFluxDotN(const Vector &state, const Vector &normal,
+                          FaceElementTransformations &Tr,
+                          Vector &fluxN) const override;
+
+   real_t ComputeAvgFlux(const Vector &state1, const Vector &state2,
+                         ElementTransformation &Tr,
+                         DenseMatrix &flux) const override;
+
+   real_t ComputeAvgFluxDotN(const Vector &state1, const Vector &state2,
+                             const Vector &normal, FaceElementTransformations &Tr,
+                             Vector &fluxN) const override;
+
+   void ComputeFluxJacobian(const Vector &state,
+                            ElementTransformation &Tr,
+                            DenseTensor &J) const override;
+
+   void ComputeFluxJacobianDotN(const Vector &state,
+                                const Vector &normal,
+                                ElementTransformation &Tr,
+                                DenseMatrix &JDotN) const override;
 };
 
 } // namespace mfem

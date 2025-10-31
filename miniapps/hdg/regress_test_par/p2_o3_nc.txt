@@ -1,0 +1,75 @@
+Options used:
+   --mesh ../../data/amr-quad.mesh
+   --ncells-x 0
+   --ncells-y 0
+   --size-x 1
+   --size-y 1
+   --serial-ref-levels 1
+   --parallel-ref-levels 0
+   --order 3
+   --no-discontinuous
+   --no-broken-RT
+   --centered
+   --problem 2
+   --time-final 1
+   --ntimesteps 0
+   --ode-solver 1
+   --kappa 1
+   --velocity 1
+   --stab_diff 0.5
+   --bc-neumann
+   --no-reduction
+   --no-hybridization
+   --no-nonlinear
+   --no-nonlinear-flux
+   --no-nonlinear-pot
+   --no-nonlinear-convection
+   --no-nonlinear-diffusion
+   --hdg_scheme 1
+   --nonlinear-solver 0
+   --no-partial-assembly
+   --device cpu
+   --no-reconstruct
+   --no-mfem
+   --no-visit
+   --no-paraview
+   --no-visualization
+   --no-analytic
+   --serial-format
+Device configuration: cpu
+Memory configuration: host-std
+***********************************************************
+dim(V) = 1896
+dim(W) = 896
+dim(V+W) = 2792
+***********************************************************
+Assembly took 0.146437s.
+Preconditioner took 0.0032078s.
+   Pass :  1   Iteration :   0  ||B r|| = 2.40573
+   Pass :  1   Iteration :   1  ||B r|| = 2.29341
+   Pass :  1   Iteration :   2  ||B r|| = 0.246936
+   Pass :  1   Iteration :   3  ||B r|| = 0.2467
+   Pass :  1   Iteration :   4  ||B r|| = 0.0357426
+   Pass :  1   Iteration :   5  ||B r|| = 0.0236596
+   Pass :  1   Iteration :   6  ||B r|| = 0.00611729
+   Pass :  1   Iteration :   7  ||B r|| = 0.00480338
+   Pass :  1   Iteration :   8  ||B r|| = 0.00228796
+   Pass :  1   Iteration :   9  ||B r|| = 0.001001
+   Pass :  1   Iteration :  10  ||B r|| = 0.000969006
+   Pass :  1   Iteration :  11  ||B r|| = 0.000390253
+   Pass :  1   Iteration :  12  ||B r|| = 0.000253631
+   Pass :  1   Iteration :  13  ||B r|| = 0.000215825
+   Pass :  1   Iteration :  14  ||B r|| = 9.47991e-05
+   Pass :  1   Iteration :  15  ||B r|| = 7.64637e-05
+   Pass :  1   Iteration :  16  ||B r|| = 5.38498e-05
+   Pass :  1   Iteration :  17  ||B r|| = 2.51742e-05
+   Pass :  1   Iteration :  18  ||B r|| = 2.37623e-05
+   Pass :  1   Iteration :  19  ||B r|| = 1.02727e-05
+   Pass :  1   Iteration :  20  ||B r|| = 5.18998e-06
+   Pass :  1   Iteration :  21  ||B r|| = 5.18846e-06
+   Pass :  1   Iteration :  22  ||B r|| = 2.45844e-06
+   Pass :  1   Iteration :  23  ||B r|| = 1.46349e-06
+GMRES+HypreAMG converged in 23 iterations with a residual norm of 1.46349e-06.
+solver took 0.186947s.
+|| q_h - q_ex || / || q_ex || = 1.61084e-06
+|| t_h - t_ex || / || t_ex || = 1.44893e-06
