@@ -161,6 +161,7 @@ int main(int argc, char *argv[])
    int hdg_scheme = 1;
    int solver_type = (int)DarcyOperator::SolverType::LBFGS;
    int isol_ctrl = (int)DarcyOperator::SolutionController::Type::Native;
+   int amr_nrefs = 0;
    bool pa = false;
    const char *device_config = "cpu";
    bool reconstruct = false;
@@ -236,6 +237,8 @@ int main(int argc, char *argv[])
                   "Nonlinear solver type (1=LBFGS, 2=LBB, 3=Newton).");
    args.AddOption(&isol_ctrl, "-sn", "--solution-norm",
                   "Solution norm (0=native, 1=flux, 2=potential).");
+   args.AddOption(&amr_nrefs, "-amr", "--amr-ref-levels",
+                  "AMR refinement levels");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
                   "--no-partial-assembly", "Enable Partial Assembly.");
    args.AddOption(&device_config, "-d", "--device",
@@ -739,7 +742,7 @@ int main(int argc, char *argv[])
    // 8. Define the BlockStructure of the problem, i.e. define the array of
    //    offsets for each variable. The last component of the Array is the sum
    //    of the dimensions of each block.
-   const Array<int> block_offsets(DarcyOperator::ConstructOffsets(*darcy));
+   Array<int> block_offsets(DarcyOperator::ConstructOffsets(*darcy));
 
    std::cout << "***********************************************************\n";
    if (!reduction || (reduction && !dg && !brt))
@@ -773,9 +776,13 @@ int main(int argc, char *argv[])
    BlockVector x(block_offsets, mt), rhs(block_offsets, mt);
 
    x = 0.;
-   GridFunction q_h, t_h, qt_h, q_hs, t_hs, tr_hs;
+   GridFunction q_h, t_h, tr_h, qt_h, q_hs, t_hs, tr_hs;
    q_h.MakeRef(V_space, x.GetBlock(0), 0);
    t_h.MakeRef(W_space, x.GetBlock(1), 0);
+   if (hybridization)
+   {
+      tr_h.MakeRef(trace_space, x.GetBlock(2), 0);
+   }
 
    if (!dg && !brt)
    {
@@ -862,179 +869,261 @@ int main(int argc, char *argv[])
       op.EnableIterationsVisualization(vis_iters);
    }
 
+   //construct the AMR refiner
 
-   // solve the steady/asymptotic problem
+   std::unique_ptr<BilinearFormIntegrator> amr_bfi;
+   std::unique_ptr<ErrorEstimator> amr_err;
+   std::unique_ptr<ThresholdRefiner> amr_ref;
 
-   Vector dx(x.Size()); dx = 0.;
-   op.ImplicitSolve(1., x, dx);
-   x += dx;
-
-   const int ti = 0;
-
-   // 12. Compute the L2 error norms.
-
-   int order_quad = max(2, 2*order+1);
-   const IntegrationRule *irs[Geometry::NumGeom];
-   for (int i=0; i < Geometry::NumGeom; ++i)
+   if (amr_nrefs > 0 && hybridization)
    {
-      irs[i] = &(IntRules.Get(i, order_quad));
-   }
-
-   real_t err_q  = q_h.ComputeL2Error(qcoeff, irs);
-   real_t norm_q = ComputeLpNorm(2., qcoeff, *mesh, irs);
-   real_t err_t  = t_h.ComputeL2Error(tcoeff, irs);
-   real_t norm_t = ComputeLpNorm(2., tcoeff, *mesh, irs);
-
-   if (problem == Problem::Umansky)
-   {
-      const real_t w = UmanskyTestWidth(t_h);
-      cout << "Umansky width: " << w << "\n";
-   }
-   cout << "|| q_h - q_ex || / || q_ex || = " << err_q / norm_q << "\n";
-   cout << "|| t_h - t_ex || / || t_ex || = " << err_t / norm_t << "\n";
-
-   if (reconstruct)
-   {
-      darcy->Reconstruct(x, x.GetBlock(2), qt_h, q_hs, t_hs, tr_hs);
-      real_t err_qt = qt_h.ComputeL2Error(qtcoeff, irs);
-      real_t norm_qt = ComputeLpNorm(2., qtcoeff, *mesh, irs);
-      cout << "|| qt_h - qt_ex || / || qt_ex || = " << err_qt / norm_qt << "\n";
-      real_t err_qs = q_hs.ComputeL2Error(qcoeff, irs);
-      cout << "|| q_hs - q_ex || / || q_ex || = " << err_qs / norm_q << "\n";
-      real_t err_ts = t_hs.ComputeL2Error(tcoeff, irs);
-      cout << "|| t_hs - t_ex || / || t_ex || = " << err_ts / norm_t << "\n";
-   }
-
-   // Project the fluxes
-
-   GridFunction q_vh;
-
-   if (V_space_dg)
-   {
-      VectorGridFunctionCoefficient coeff(&q_h);
-      q_vh.SetSpace(V_space_dg);
-      q_vh.ProjectCoefficient(coeff);
+      MFEM_ASSERT(!bconv, "Not implemented");
+      amr_bfi.reset(new HDGDiffusionIntegrator(kcoeff, td));
+      amr_err.reset(new DarcyErrorEstimator(*amr_bfi, tr_h, t_h));
+      amr_ref.reset(new ThresholdRefiner(*amr_err));
+      amr_ref->SetTotalErrorFraction(0.7);
    }
    else
    {
-      q_vh.MakeRef(V_space, q_h, 0);
+      amr_nrefs = 0;
    }
 
-   // Project the analytic solution
-
-   static GridFunction q_a, qt_a, t_a, c_gf;
-
-   q_a.SetSpace((V_space_dg)?(V_space_dg):(V_space));
-   q_a.ProjectCoefficient(qcoeff);
-
-   qt_a.SetSpace((V_space_dg)?(V_space_dg):(V_space));
-   qt_a.ProjectCoefficient(qtcoeff);
-
-   t_a.SetSpace(W_space);
-   t_a.ProjectCoefficient(tcoeff);
-
-   if (bconv)
+   for (int amr_it = 0; amr_it <= amr_nrefs; amr_it++)
    {
-      c_gf.SetSpace((V_space_dg)?(V_space_dg):(V_space));
-      c_gf.ProjectCoefficient(ccoeff);
-   }
 
-   // 13. Save the mesh and the solution. This output can be viewed later using
-   //     GLVis: "glvis -m ex5.mesh -g sol_q.gf" or "glvis -m ex5.mesh -g
-   //     sol_t.gf".
-   if (mfem)
-   {
-      stringstream ss;
-      ss.str("");
-      ss << "ex5";
-      //if (btime) { ss << "_" << ti; }
-      ss << ".mesh";
-      ofstream mesh_ofs(ss.str());
-      mesh_ofs.precision(8);
-      mesh->Print(mesh_ofs);
+      // solve the steady/asymptotic problem
 
-      ss.str("");
-      ss << "sol_q";
-      //if (btime) { ss << "_" << ti; }
-      ss << ".gf";
-      ofstream q_ofs(ss.str());
-      q_ofs.precision(8);
-      q_vh.Save(q_ofs);
+      Vector dx(x.Size()); dx = 0.;
+      op.ImplicitSolve(1., x, dx);
+      x += dx;
 
-      ss.str("");
-      ss << "sol_t";
-      //if (btime) { ss << "_" << ti; }
-      ss << ".gf";
-      ofstream t_ofs(ss.str());
-      t_ofs.precision(8);
-      t_h.Save(t_ofs);
-   }
+      // 12. Compute the L2 error norms.
 
-   // 14. Save data in the VisIt format
-   if (visit)
-   {
-      static VisItDataCollection visit_dc("Example5", mesh);
-      if (ti == 0)
+      int order_quad = max(2, 2*order+1);
+      const IntegrationRule *irs[Geometry::NumGeom];
+      for (int i=0; i < Geometry::NumGeom; ++i)
       {
-         visit_dc.RegisterField("heat flux", &q_vh);
-         visit_dc.RegisterField("temperature", &t_h);
-         if (analytic)
-         {
-            visit_dc.RegisterField("heat flux analytic", &q_a);
-            visit_dc.RegisterField("temperature analytic", &t_a);
-         }
+         irs[i] = &(IntRules.Get(i, order_quad));
       }
-      visit_dc.SetCycle(ti);
-      visit_dc.Save();
-   }
 
-   // 15. Save data in the ParaView format
-   if (paraview)
-   {
-      static ParaViewDataCollection paraview_dc("Example5", mesh);
-      if (ti == 0)
+      real_t err_q  = q_h.ComputeL2Error(qcoeff, irs);
+      real_t norm_q = ComputeLpNorm(2., qcoeff, *mesh, irs);
+      real_t err_t  = t_h.ComputeL2Error(tcoeff, irs);
+      real_t norm_t = ComputeLpNorm(2., tcoeff, *mesh, irs);
+
+      if (amr_nrefs > 0)
       {
-         paraview_dc.SetPrefixPath("ParaView");
-         paraview_dc.SetLevelsOfDetail(order);
-         paraview_dc.SetDataFormat(VTKFormat::BINARY);
-         paraview_dc.SetHighOrderOutput(true);
-         paraview_dc.RegisterField("heat flux",&q_vh);
-         paraview_dc.RegisterField("temperature",&t_h);
-         if (analytic)
-         {
-            paraview_dc.RegisterField("heat flux analytic", &q_a);
-            paraview_dc.RegisterField("temperature analytic", &t_a);
-         }
+         cout << "iter:\t" << amr_it
+              << "\tq_err:\t" << err_q / norm_q
+              << "\tt_err:\t" << err_t / norm_t
+              << endl;
       }
-      paraview_dc.SetCycle(ti);
-      paraview_dc.Save();
-   }
+      else
+      {
+         if (problem == Problem::Umansky)
+         {
+            const real_t w = UmanskyTestWidth(t_h);
+            cout << "Umansky width: " << w << "\n";
+         }
+         cout << "|| q_h - q_ex || / || q_ex || = " << err_q / norm_q << "\n";
+         cout << "|| t_h - t_ex || / || t_ex || = " << err_t / norm_t << "\n";
+      }
 
-   // 16. Send the solution by socket to a GLVis server.
-   if (visualization)
-   {
-      static socketstream q_sock, t_sock;
-      VisualizeField(q_sock, q_vh, "Heat flux", ti);
-      VisualizeField(t_sock, t_h, "Temperature", ti);
       if (reconstruct)
       {
-         static socketstream qt_sock, qs_sock, ts_sock;
-         VisualizeField(qt_sock, qt_h, "Total flux", ti);
-         VisualizeField(qs_sock, q_hs, "Recon. flux", ti);
-         VisualizeField(ts_sock, t_hs, "Recon. temperature", ti);
+         darcy->Reconstruct(x, x.GetBlock(2), qt_h, q_hs, t_hs, tr_hs);
+         real_t err_qt = qt_h.ComputeL2Error(qtcoeff, irs);
+         real_t norm_qt = ComputeLpNorm(2., qtcoeff, *mesh, irs);
+         cout << "|| qt_h - qt_ex || / || qt_ex || = " << err_qt / norm_qt << "\n";
+         real_t err_qs = q_hs.ComputeL2Error(qcoeff, irs);
+         cout << "|| q_hs - q_ex || / || q_ex || = " << err_qs / norm_q << "\n";
+         real_t err_ts = t_hs.ComputeL2Error(tcoeff, irs);
+         cout << "|| t_hs - t_ex || / || t_ex || = " << err_ts / norm_t << "\n";
       }
-      if (analytic)
+
+      // Project the fluxes
+
+      GridFunction q_vh;
+
+      if (V_space_dg)
       {
-         static socketstream qa_sock, qta_sock, ta_sock, c_sock;
-         VisualizeField(qa_sock, q_a, "Heat flux analytic", ti);
-         if (bconv || bnlconv)
+         VectorGridFunctionCoefficient coeff(&q_h);
+         q_vh.SetSpace(V_space_dg);
+         q_vh.ProjectCoefficient(coeff);
+      }
+      else
+      {
+         q_vh.MakeRef(V_space, q_h, 0);
+      }
+
+      // Project the analytic solution
+
+      static GridFunction q_a, qt_a, t_a, c_gf;
+
+      q_a.SetSpace((V_space_dg)?(V_space_dg):(V_space));
+      q_a.ProjectCoefficient(qcoeff);
+
+      qt_a.SetSpace((V_space_dg)?(V_space_dg):(V_space));
+      qt_a.ProjectCoefficient(qtcoeff);
+
+      t_a.SetSpace(W_space);
+      t_a.ProjectCoefficient(tcoeff);
+
+      if (bconv)
+      {
+         c_gf.SetSpace((V_space_dg)?(V_space_dg):(V_space));
+         c_gf.ProjectCoefficient(ccoeff);
+      }
+
+      // 13. Save the mesh and the solution. This output can be viewed later using
+      //     GLVis: "glvis -m ex5.mesh -g sol_q.gf" or "glvis -m ex5.mesh -g
+      //     sol_t.gf".
+      if (mfem)
+      {
+         stringstream ss;
+         ss.str("");
+         ss << "ex5";
+         if (amr_nrefs > 0) { ss << "_" << amr_it; }
+         ss << ".mesh";
+         ofstream mesh_ofs(ss.str());
+         mesh_ofs.precision(8);
+         mesh->Print(mesh_ofs);
+
+         ss.str("");
+         ss << "sol_q";
+         if (amr_nrefs > 0) { ss << "_" << amr_it; }
+         ss << ".gf";
+         ofstream q_ofs(ss.str());
+         q_ofs.precision(8);
+         q_vh.Save(q_ofs);
+
+         ss.str("");
+         ss << "sol_t";
+         if (amr_nrefs > 0) { ss << "_" << amr_it; }
+         ss << ".gf";
+         ofstream t_ofs(ss.str());
+         t_ofs.precision(8);
+         t_h.Save(t_ofs);
+      }
+
+      // 14. Save data in the VisIt format
+      if (visit)
+      {
+         static VisItDataCollection visit_dc("Example5", mesh);
+         if (amr_it == 0)
          {
-            VisualizeField(qta_sock, qt_a, "Total flux analytic", ti);
+            visit_dc.RegisterField("heat flux", &q_vh);
+            visit_dc.RegisterField("temperature", &t_h);
+            if (analytic)
+            {
+               visit_dc.RegisterField("heat flux analytic", &q_a);
+               visit_dc.RegisterField("temperature analytic", &t_a);
+            }
          }
-         VisualizeField(ta_sock, t_a, "Temperature analytic", ti);
-         if (bconv)
+         visit_dc.SetCycle(amr_it);
+         visit_dc.Save();
+      }
+
+      // 15. Save data in the ParaView format
+      if (paraview)
+      {
+         static ParaViewDataCollection paraview_dc("Example5", mesh);
+         if (amr_it == 0)
          {
-            VisualizeField(c_sock, c_gf, "Velocity", ti);
+            paraview_dc.SetPrefixPath("ParaView");
+            paraview_dc.SetLevelsOfDetail(order);
+            paraview_dc.SetDataFormat(VTKFormat::BINARY);
+            paraview_dc.SetHighOrderOutput(true);
+            paraview_dc.RegisterField("heat flux",&q_vh);
+            paraview_dc.RegisterField("temperature",&t_h);
+            if (analytic)
+            {
+               paraview_dc.RegisterField("heat flux analytic", &q_a);
+               paraview_dc.RegisterField("temperature analytic", &t_a);
+            }
+         }
+         paraview_dc.SetCycle(amr_it);
+         paraview_dc.Save();
+      }
+
+      // 16. Send the solution by socket to a GLVis server.
+      if (visualization)
+      {
+         static socketstream q_sock, t_sock;
+         VisualizeField(q_sock, q_vh, "Heat flux", amr_it);
+         VisualizeField(t_sock, t_h, "Temperature", amr_it);
+         if (reconstruct)
+         {
+            static socketstream qt_sock, qs_sock, ts_sock;
+            VisualizeField(qt_sock, qt_h, "Total flux", amr_it);
+            VisualizeField(qs_sock, q_hs, "Recon. flux", amr_it);
+            VisualizeField(ts_sock, t_hs, "Recon. temperature", amr_it);
+         }
+         if (analytic)
+         {
+            static socketstream qa_sock, qta_sock, ta_sock, c_sock;
+            VisualizeField(qa_sock, q_a, "Heat flux analytic", amr_it);
+            if (bconv || bnlconv)
+            {
+               VisualizeField(qta_sock, qt_a, "Total flux analytic", amr_it);
+            }
+            VisualizeField(ta_sock, t_a, "Temperature analytic", amr_it);
+            if (bconv)
+            {
+               VisualizeField(c_sock, c_gf, "Velocity", amr_it);
+            }
+         }
+
+         // refine the mesh
+
+         if (amr_it < amr_nrefs)
+         {
+            amr_ref->Apply(*mesh);
+            if (amr_ref->Stop()) { break; }
+
+            V_space->Update();
+            if (V_space_dg) { V_space_dg->Update(); }
+            W_space->Update();
+            if (hybridization)
+            {
+               trace_space->Update();
+               //tr_h.Update();
+            }
+
+            block_offsets = std::move(DarcyOperator::ConstructOffsets(*darcy));
+            x.Update(block_offsets, mt);
+            rhs.Update(block_offsets, mt);
+
+            x = 0.;
+            q_h.MakeRef(V_space, x.GetBlock(0), 0);
+            t_h.MakeRef(W_space, x.GetBlock(1), 0);
+
+            gform->Update(V_space, rhs.GetBlock(0), 0);
+            fform->Update(W_space, rhs.GetBlock(1), 0);
+
+            if (hybridization)
+            {
+               //x.GetBlock(2) = tr_h;
+               tr_h.MakeRef(trace_space, x.GetBlock(2), 0);
+               hform->Update(trace_space, rhs.GetBlock(2), 0);
+            }
+
+            if (!dg && !brt)
+            {
+               V_space->GetEssentialTrueDofs(bdr_is_neumann, ess_flux_tdofs_list);
+               q_h.ProjectBdrCoefficientNormal(qcoeff,
+                                               bdr_is_neumann);   //essential Neumann BC
+            }
+
+            darcy->Update();
+            if (hybridization)
+            {
+               darcy->EnableHybridization(trace_space,
+                                          new NormalTraceJumpIntegrator(),
+                                          ess_flux_tdofs_list);
+            }
+
+            op.Update();
          }
       }
    }
