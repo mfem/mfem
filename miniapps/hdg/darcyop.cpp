@@ -1348,11 +1348,20 @@ void DarcyErrorEstimator::ComputeEstimates()
    const FiniteElementSpace *fes_tr = sol_tr.FESpace();
    const FiniteElementSpace *fes_p = sol_p.FESpace();
    Mesh *mesh = fes_tr->GetMesh();
+   const int dim = mesh->Dimension();
+   const int NE = mesh->GetNE();
    Array<int> vdofs1, vdofs2, vdofs_tr;
    Vector p1, p2, tr, btr1, btr2;
 
-   error_estimates.SetSize(mesh->GetNE());
+   error_estimates.SetSize(NE);
    error_estimates = 0.;
+
+   Vector d_error_estimates;
+   if (anisotropic && type == Type::Energy)
+   {
+      d_error_estimates.SetSize(NE * dim);
+      d_error_estimates = 0.;
+   }
 
    const int num_faces = mesh->GetNumFaces();
 
@@ -1389,11 +1398,22 @@ void DarcyErrorEstimator::ComputeEstimates()
          break;
          case Type::Energy:
          {
+            Vector d_en1, d_en2;
+
             error_estimates(ftr->Elem1No) += bfi.ComputeHDGFaceEnergy(0, fe_tr, fe1, *ftr,
-                                                                      tr, p1);
+                                                                      tr, p1, (anisotropic)?(&d_en1):(NULL));
 
             error_estimates(ftr->Elem2No) += bfi.ComputeHDGFaceEnergy(1, fe_tr, fe2, *ftr,
-                                                                      tr, p2);
+                                                                      tr, p2, (anisotropic)?(&d_en2):(NULL));
+
+            if (anisotropic)
+            {
+               for (int k = 0; k < dim; k++)
+               {
+                  d_error_estimates(ftr->Elem1No * dim + k) += d_en1(k);
+                  d_error_estimates(ftr->Elem2No * dim + k) += d_en2(k);
+               }
+            }
          }
          break;
       }
@@ -1403,11 +1423,34 @@ void DarcyErrorEstimator::ComputeEstimates()
 
    if (type == Type::Energy)
    {
-      for (int i = 0; i < error_estimates.Size(); i++)
+      for (int i = 0; i < NE; i++)
       {
          error_estimates(i) = std::sqrt(error_estimates(i));
       }
       total_error = std::sqrt(total_error);
+
+      if (anisotropic)
+      {
+         aniso_flags.SetSize(NE);
+
+         for (int i = 0; i < NE; i++)
+         {
+            const Vector d_en(d_error_estimates, i*dim, dim);
+            const real_t en = d_en.Sum();
+
+            // Note the flags are used to set the refinement type, which
+            // assumes the element to be aligned with the coordinate axes
+            // TODO: reorientation with the element
+            const real_t thresh = 0.15 * 3.0/dim;
+            int flag = 0;
+            for (int k = 0; k < dim; k++)
+            {
+               if (d_en[k] > thresh * en) { flag |= (1 << k); }
+            }
+
+            aniso_flags[i] = flag;
+         }
+      }
    }
 }
 

@@ -227,7 +227,7 @@ public:
 
 void RandomizeMesh(Mesh &mesh, real_t dr);
 
-class DarcyErrorEstimator : public ErrorEstimator
+class DarcyErrorEstimator : public AnisotropicErrorEstimator
 {
 public:
    enum class Type
@@ -244,6 +244,8 @@ private:
    long current_sequence{-1};
    Vector error_estimates;
    real_t total_error{};
+   bool anisotropic{};
+   Array<int> aniso_flags;
 
    /// Check if the mesh of the solution was modified.
    bool MeshIsModified()
@@ -261,14 +263,31 @@ public:
                        const GridFunction &solp, Type type_ = Type::Energy)
       : bfi(integ), sol_tr(solr), sol_p(solp), type(type_) { }
 
+   /// Enable/disable anisotropic estimates.
+   /** To enable this option, the BilinearFormIntegrator must support the
+       'd_energy' parameter in its ComputeHDGFaceEnergy() method. */
+   void SetAnisotropic(bool aniso = true) { anisotropic = aniso; }
+
+   /// Return the total error from the last error estimate.
    real_t GetTotalError() const override { return total_error; }
 
+   /// Get a Vector with all element errors.
    const Vector &GetLocalErrors() override
    {
       if (MeshIsModified()) { ComputeEstimates(); }
       return error_estimates;
    }
 
+   /// Get an Array<int> with anisotropic flags for all mesh elements.
+   /** Return an empty array when anisotropic estimates are not available or
+       enabled. */
+   const Array<int> &GetAnisotropicFlags()
+   {
+      if (MeshIsModified()) { ComputeEstimates(); }
+      return aniso_flags;
+   }
+
+   /// Reset the error estimator.
    void Reset() override { current_sequence = -1; }
 };
 
