@@ -1255,42 +1255,31 @@ real_t Vector::Sum() const
 
 void Vector::DeleteAt(const Array<int> &indices)
 {
-   const bool use_dev = UseDevice();
-
-   Array<int> flag(size);
-   const auto d_flag = flag.Write(use_dev);
-   mfem::forall_switch(use_dev, size, [=] MFEM_HOST_DEVICE (int i)
+   if (indices.Size())
    {
-      d_flag[i] = true;
-   });
-   const auto d_indices = indices.Read(use_dev);
-   mfem::forall_switch(use_dev, indices.Size(), [=] MFEM_HOST_DEVICE (int i)
-   {
-      d_flag[d_indices[i]] = false;
-   });
+      const bool use_dev = UseDevice();
 
-   Array<int> out_idx(size);
-   auto d_out_idx = out_idx.Write(use_dev);
-
-   // Perform inclusive scan so that the last entry is the new size.
-   InclusiveScan(use_dev, d_flag, d_out_idx, size);
-
-   Vector copy(*this);
-   auto d_in = copy.Read(use_dev);
-   auto d_out = Write(use_dev);
-   mfem::forall_switch(use_dev, size, [=] MFEM_HOST_DEVICE (int i)
-   {
-      if (d_flag[i])
+      // extra entry for number of selected out
+      Array<int> workspace(size + 1);
+      const auto d_flag = workspace.Write(use_dev);
+      mfem::forall_switch(use_dev, size,
+                          [=] MFEM_HOST_DEVICE(int i) { d_flag[i] = true; });
+      const auto d_indices = indices.Read(use_dev);
+      mfem::forall_switch(use_dev, indices.Size(), [=] MFEM_HOST_DEVICE(int i)
       {
-         // Transform inclusive scan to exclusive by shifting.
-         const int j = (i > 0) ? d_out_idx[i - 1] : 0;
-         d_out[j] = d_in[i];
-      }
-   });
+         // fine as long as indices are unique; to support non-unique indices
+         // assignment to d_flag must be atomic
+         d_flag[d_indices[i]] = false;
+      });
 
-   // Get the new size of the vector. Copy only the last entry.
-   Memory<int> submem(out_idx.GetMemory(), out_idx.Size() - 1, 1);
-   size = submem.Read(MemoryClass::HOST, 1)[0];
+      Vector copy(*this);
+      auto d_in = copy.Read(use_dev);
+      auto d_out = Write(use_dev);
+      CopyFlagged(use_dev, d_in, d_flag, d_out, d_flag + size, size);
+
+      // assumes indices are unique
+      size -= indices.Size();
+   }
 }
 
 } // namespace mfem
