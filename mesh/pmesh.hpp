@@ -166,6 +166,10 @@ protected:
    /// Update the groups after tetrahedron refinement
    void RefineGroups(int old_nv, const HashTable<Hashed2> &v_to_v);
 
+   /// Refine groups after conforming tet refinement
+   void RefineGroupsAfterConformingTet(std::map<std::array<int, 3>,
+                                       std::tuple<bool, int>> &face_marker);
+
    void UniformRefineGroups2D(int old_nv);
 
    // f2qf can be NULL if all faces are quads or there are no quad faces

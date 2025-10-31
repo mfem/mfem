@@ -427,7 +427,7 @@ int main(int argc, char *argv[])
    x0 = x;
 
    // 11. Form the integrator that uses the chosen metric and target.
-   real_t min_detJ = -0.1;
+   real_t min_detJ = -0.5;
    TMOP_QualityMetric *metric = NULL;
    switch (metric_id)
    {
@@ -456,7 +456,7 @@ int main(int argc, char *argv[])
       case 302: metric = new TMOP_Metric_302; break;
       case 303: metric = new TMOP_Metric_303; break;
       case 304: metric = new TMOP_Metric_304; break;
-      // case 311: metric = new TMOP_Metric_311; break;
+      case 311: metric = new TMOP_Metric_311; break;
       case 313: metric = new TMOP_Metric_313(min_detJ); break;
       case 315: metric = new TMOP_Metric_315; break;
       case 316: metric = new TMOP_Metric_316; break;

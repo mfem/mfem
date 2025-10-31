@@ -45,10 +45,47 @@
 //  * mpirun -np 6 pmesh-fitting -m ../../data/inline-tri.mesh -o 2 -rs 4 -mid 2 -tid 1 -vl 2 -sfc 100 -rtol 1e-12 -li 20 -ae 1 -bnd -sbgmesh -slstype 2 -smtype 0 -sfa 10.0 -sft 1e-4 -no-resid -bgamriter 5 -dist -mod-bndr-attr
 //  * mpirun -np 6 pmesh-fitting -m ../../data/inline-quad.mesh -o 2 -rs 4 -mid 2 -tid 1 -vl 2 -sfc 50 -rtol 1e-12 -li 20 -ae 1 -bnd -sbgmesh -slstype 2 -smtype 0 -sfa 5.0 -sft 1e-4 -no-resid -bgamriter 5 -dist -mod-bndr-attr -ni 100 -vis
 
+// make pmesh-fitting -j && mpirun -np 8 pmesh-fitting -m ../../data/inline-tet.mesh -o 1 -rs 2  -mid 328 -tid 4 -vl 2 -sfc 10 -rtol 1e-5 -sfa 5 -sft 1e-10 -ni 100 -sbgmesh -bgamriter 4 -slstype 1 -ae 1 -fix-bnd
+// make pmesh-fitting -j && mpirun -np 8 pmesh-fitting -m ../../data/inline-tet.mesh -o 1 -rs 2  -mid 328 -tid 4 -vl 2 -sfc 10 -rtol 1e-5 -sfa 5 -sft 1e-10 -ni 100 -sbgmesh -bgamriter 4 -slstype 1 -ae 1 -fix-bnd -vis -marking
+
+// Test hex mesh - inclined plane
+// make pmesh-fitting -j4 && mpirun -np 6 pmesh-fitting -m ../../data/inline-hex.mesh -o 2 -rs 2 -mid 303 -tid 1 -vl 2 -sfc 100 -rtol 1e-12 -li 20 -ae 1 -bnd -slstype 7 -smtype 0 -sfa 10.0 -sft 1e-8 -no-resid -mod-bndr-attr -vis -ni 100
+
+// Test hex mesh - sphere
+// make pmesh-fitting -j4 && mpirun -np 6 pmesh-fitting -m ../../data/inline-hex.mesh -o 2 -rs 2 -mid 303 -tid 1 -vl 2 -sfc 100 -rtol 1e-12 -li 20 -ae 1 -bnd -slstype 1 -smtype 0 -sfa 10.0 -sft 1e-8 -no-resid -mod-bndr-attr -vis -ni 100
+
 #include "mesh-fitting.hpp"
 
 using namespace mfem;
 using namespace std;
+
+double inclined_plane(const Vector &x)
+{
+   double val = x(1) - (0.23 + 0.5*(x(0)));
+   return val;
+}
+
+void GetMarkedFaceStatistics(ParGridFunction &numfaces,
+                             Array<int> &num_face_count,
+                            int myid, bool print)
+{
+      num_face_count = 0;
+      for (int i = 0; i < numfaces.Size(); i++)
+      {
+         int nf = (int)numfaces(i);
+         MFEM_VERIFY(nf >= 0 && nf < num_face_count.Size(),
+                     "Number of faces on interface out of range.");
+         num_face_count[nf]++;
+      }
+      MPI_Allreduce(MPI_IN_PLACE, num_face_count.GetData(),
+                    num_face_count.Size(), MPI_INT, MPI_SUM,
+                    numfaces.ParFESpace()->GetParMesh()->GetComm());
+      if (myid == 0)
+      {
+         cout << "Number of elements with given number of faces on the interface: " << endl;
+         num_face_count.Print(cout, 7);
+      }
+}
 
 
 int main (int argc, char *argv[])
@@ -223,6 +260,10 @@ int main (int argc, char *argv[])
    {
       ls_coeff = new FunctionCoefficient(csg_cubecylsph);
    }
+   else if (surf_ls_type == 7) // 3D shape
+   {
+      ls_coeff = new FunctionCoefficient(inclined_plane);
+   }
    else
    {
       MFEM_ABORT("Surface fitting level set type not implemented yet.")
@@ -372,6 +413,7 @@ int main (int argc, char *argv[])
    ParFiniteElementSpace surf_fit_fes(pmesh, &surf_fit_fec);
    ParFiniteElementSpace mat_fes(pmesh, &mat_coll);
    ParGridFunction mat(&mat_fes);
+   ParGridFunction infogf(&mat_fes);
    ParGridFunction surf_fit_mat_gf(&surf_fit_fes);
    ParGridFunction surf_fit_gf0(&surf_fit_fes);
    ParGridFunction numfaces(&mat_fes);
@@ -418,6 +460,38 @@ int main (int argc, char *argv[])
       surf_fit_bg_fec = new H1_FECollection(mesh_poly_deg+1, dim);
       surf_fit_bg_fes = new ParFiniteElementSpace(pmesh_surf_fit_bg, surf_fit_bg_fec);
       surf_fit_bg_gf0 = new ParGridFunction(surf_fit_bg_fes);
+   }
+
+   bool tensor_product_elements = (pmesh->GetNE() == 0 ||
+                                 pmesh->GetElementBaseGeometry(0) == Geometry::CUBE ||
+                                 pmesh->GetElementBaseGeometry(0) == Geometry::SQUARE);
+   bool mixed_mesh = (pmesh->GetNumGeometries(dim) > 1);
+   MPI_Allreduce(MPI_IN_PLACE, &mixed_mesh, 1,
+                  MPI_C_BOOL, MPI_LAND, pmesh->GetComm());
+   MPI_Allreduce(MPI_IN_PLACE, &tensor_product_elements, 1,
+                  MPI_C_BOOL, MPI_LAND, pmesh->GetComm());
+
+   MFEM_VERIFY(!mixed_mesh, "Mixed meshes not supported for conforming refinement yet.");
+
+   bool hex_mesh = dim == 3 && tensor_product_elements && !mixed_mesh;
+   bool quad_mesh = dim == 2 && tensor_product_elements && !mixed_mesh;
+   bool tri_mesh = dim == 2 && !tensor_product_elements && !mixed_mesh;
+   bool tet_mesh = dim == 3 && !tensor_product_elements && !mixed_mesh;
+
+   Array<int> num_face_count; // number of elements that have 0-6 faces on the interface
+   // triangle has 3 face, quad has 4 faces, tet has 4 faces, hex has 6 faces
+   // we add 1 to its length to account for 0 face case
+   if (tri_mesh)
+   {
+      num_face_count.SetSize(3+1);
+   }
+   else if (quad_mesh || tet_mesh)
+   {
+      num_face_count.SetSize(4+1);
+   }
+   else if (hex_mesh)
+   {
+      num_face_count.SetSize(6+1);
    }
 
    Array<int> vdofs;
@@ -506,42 +580,74 @@ int main (int argc, char *argv[])
       // are marked, the element attribute is switched.
       if (adapt_marking)
       {
+         MakeGridFunctionWithNumberOfInterfaceFaces(pmesh, mat, numfaces);
+         GetMarkedFaceStatistics(numfaces, num_face_count, myid, true);
+         ModifyAttributeForMarkingDOFS(pmesh, mat, 0);
+         ModifyAttributeForMarkingDOFS(pmesh, mat, 1);
          ModifyAttributeForMarkingDOFS(pmesh, mat, 0);
          ModifyAttributeForMarkingDOFS(pmesh, mat, 1);
       }
+      MakeGridFunctionWithNumberOfInterfaceFaces(pmesh, mat, numfaces);
+      GetMarkedFaceStatistics(numfaces, num_face_count, myid, true);
       pmesh->SetAttributes();
 
       bool conforming_ref = true;
-      if (conforming_ref && dim == 2)
+      num_face_count = 0;
+      GetMarkedFaceStatistics(numfaces, num_face_count, myid, true);
+      // VisItDataCollection visit_dc("fitting", pmesh);
+      // visit_dc.RegisterField("numfaces", &numfaces);
+      // visit_dc.SetFormat(DataCollection::SERIAL_FORMAT);
+      // visit_dc.Save();
+      // MFEM_ABORT(" ");
+
+      if (conforming_ref)
       {
-         numfaces = 0.0;
+         if (myid == 0)
+         {
+            cout << "Performing conforming refinement for surface fitting..."
+                 << endl;
+         }
+         if (hex_mesh)
+         {
+            Array<int> els_to_refine, intfaces;
+            std::set<std::array<int, 4>> intfaces_verts;
+            GetHexConformingRefinementInfo(pmesh, mat, els_to_refine, intfaces, intfaces_verts);
+            infogf = 0.0;
+            for (int e = 0; e < els_to_refine.Size(); e++)
+            {
+               infogf(els_to_refine[e]) = 1.0;
+            }
+         }
+         else
+         {
+            Array<int> refs;
+            for (int i = 0; i < pmesh->GetNE(); i++)
+            {
+               if (numfaces(i) > 1)
+               {
+                  refs.Append(i);
+               }
+            }
+            {
+               pmesh->ConformingRefinement(refs);
+               surf_fit_fes.Update();
+               mat_fes.Update();
+               surf_fit_gf0.Update();
+               mat.Update();
+               surf_fit_mat_gf.Update();
+               numfaces.Update();
+               surf_fit_marker.SetSize(surf_fit_gf0.Size());
+               x0.Update();
+               if (surf_fit_grad_fes)
+               {
+                  surf_fit_grad_fes->Update();
+                  surf_fit_grad->Update();
+                  surf_fit_hess_fes->Update();
+                  surf_fit_hess->Update();
+               }
+            }
+         }
          MakeGridFunctionWithNumberOfInterfaceFaces(pmesh, mat, numfaces);
-         Array<int> refs;
-         for (int i = 0; i < pmesh->GetNE(); i++)
-         {
-            if (numfaces(i) > 1)
-            {
-               refs.Append(i);
-            }
-         }
-         {
-            pmesh->ConformingRefinement(refs);
-            surf_fit_fes.Update();
-            mat_fes.Update();
-            surf_fit_gf0.Update();
-            mat.Update();
-            surf_fit_mat_gf.Update();
-            numfaces.Update();
-            surf_fit_marker.SetSize(surf_fit_gf0.Size());
-            x0.Update();
-            if (surf_fit_grad_fes)
-            {
-               surf_fit_grad_fes->Update();
-               surf_fit_grad->Update();
-               surf_fit_hess_fes->Update();
-               surf_fit_hess->Update();
-            }
-         }
       }
 
       GridFunctionCoefficient coeff_mat(&mat);
@@ -680,6 +786,11 @@ int main (int argc, char *argv[])
             common::VisualizeField(vis4, "localhost", 19916, *surf_fit_bg_gf0,
                                    "Level Set - Background",
                                    0, 400, 300, 300);
+         }
+         if (hex_mesh)
+         {
+            common::VisualizeField(vis5, "localhost", 19916, infogf,
+                                   "Marked Els", 1200, 0, 300, 300);
          }
       }
    }

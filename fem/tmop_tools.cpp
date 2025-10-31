@@ -624,6 +624,10 @@ real_t TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
 
    if (surf_fit_scale_factor > 0.0) { surf_fit_coeff_update = true; }
    compute_metric_quantile_flag = true;
+   if (print_options.iterations && fitting)
+   {
+      mfem::out << "Min det post line search: " << min_detT_out << "\n";
+   }
 
    return scale;
 }

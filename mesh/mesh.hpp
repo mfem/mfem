@@ -408,6 +408,7 @@ protected:
 
    void ConformingTriangleRefinement(int i, Array<int> &vertices);
    void ConformingQuadrilateralRefinement(int i, Array<int> &vertices);
+   void ConformingHexRefinement(int i, Array<int> &vertices);
 
    /** Green refinement. Element with index i is refined. The default
        refinement for now is Bisection. */
@@ -421,16 +422,14 @@ protected:
    /// Bisect a tetrahedron: element with index @a i is bisected.
    void Bisection(int i, HashTable<Hashed2> &);
 
-   /// Split a tet by cutting each face (as indicated by the first four bits of mask)
-   /// into three triangles and joining them to tet cetner
    void TetFaceSplitRefinement(int i,
-                               std::map<std::array<int, 3>, int> &tet_face_verts,
-                               int split_mask = -1);
-
-   void TetFaceSplitRefinement2(int i,
                                std::map<std::array<int, 3>,
-                                              std::tuple<bool, int>> &face_marker,
+                               std::tuple<bool, int>> &face_marker,
                                int split_mask);
+    void HexFaceSplitRefinement(int e,
+                                std::map<std::array<int, 4>,
+                                         std::tuple<int, std::array<int, 4>>> &face_marker,
+                                int face_to_split);
 
    /// Bisect a boundary triangle: boundary element with index @a i is bisected.
    void BdrBisection(int i, const HashTable<Hashed2> &);
@@ -461,11 +460,16 @@ protected:
    void UniformRefinement2D_base(bool update_nodes = true);
 
    void ConformingRefinement_base(const Array<int> &el_to_refine);
+   void ConformingHexRefinement_base(const Array<int> &el_to_refine);
+   void ConformingHexRefinement2_base(
+        std::set<std::array<int, 4>> &face_verts);
 
    void CollectTetFaceConformingRefinementFlags(Array<int> el_to_refine,
-                                      std::map<std::array<int, 3>,
-                                              std::tuple<bool, int>> &face_marker,
-                                      Array<int> &el_mask);
+                                                std::map<std::array<int, 3>,
+                                                std::tuple<bool, int>> &face_marker,
+                                                Array<int> &el_mask);
+
+   void GetTetConformingRefinementCoordinates(Vector &tet_conf_children);
 
    /// Refine a mixed 2D mesh uniformly.
    virtual void UniformRefinement2D() { UniformRefinement2D_base(); }
@@ -2255,8 +2259,38 @@ public:
       ConformingRefinement_base(el_to_refine);
       last_operation = Mesh::REFINE;
       sequence++;
-      std::cout << "ConformingRefinement" << std::endl;
       UpdateNodes();
+#ifdef MFEM_DEBUG
+      CheckElementOrientation(true);
+      CheckBdrElementOrientation(true);
+#endif
+   }
+
+    virtual void ConformingHexRefinement(const Array<int> &el_to_refine)
+   {
+      ConformingHexRefinement_base(el_to_refine);
+      last_operation = Mesh::REFINE;
+      sequence++;
+      UpdateNodes();
+#ifdef MFEM_DEBUG
+      CheckElementOrientation(true);
+      CheckBdrElementOrientation(true);
+#endif
+   }
+
+    virtual void ConformingHexRefinement2(
+        std::set<std::array<int, 4>> &face_verts)
+   {
+      ConformingHexRefinement2_base(face_verts);
+      last_operation = Mesh::REFINE;
+      sequence++;
+      UpdateNodes();
+      CheckElementOrientation(true);
+      CheckBdrElementOrientation(true);
+#ifdef MFEM_DEBUG
+      CheckElementOrientation(true);
+      CheckBdrElementOrientation(true);
+#endif
    }
 
    /// Refine each element with given probability. Uses GeneralRefinement.

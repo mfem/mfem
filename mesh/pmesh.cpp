@@ -917,6 +917,7 @@ void ParMesh::FinalizeParTopo()
    if (sface_lface.Size())
    {
       auto faces_tbl = std::unique_ptr<STable3D>(GetFacesTable());
+      // faces_tbl->Print();
       for (int st = 0; st < nst; st++)
       {
          const int *v = shared_trias[st].v;
@@ -928,6 +929,7 @@ void ParMesh::FinalizeParTopo()
          sface_lface[nst+sq] = (*faces_tbl)(v[0], v[1], v[2], v[3]);
       }
    }
+   MPI_Barrier(GetComm());
 }
 
 ParMesh::ParMesh(MPI_Comm comm, istream &input, bool refine, int generate_edges,
@@ -4314,6 +4316,101 @@ void ParMesh::RefineGroups(int old_nv, const HashTable<Hashed2> &v_to_v)
    I_group_stria.LoseData(); J_group_stria.LoseData();
 }
 
+void ParMesh::RefineGroupsAfterConformingTet(std::map<std::array<int, 3>,
+                                             std::tuple<bool, int>> &face_marker)
+{
+   auto get3arraysorted = [](Array<int> v)
+   {
+      v.Sort();
+      return std::array<int, 3> {v[0], v[1], v[2]};
+   };
+   Array<int> group_verts, group_edges, group_trias;
+   Array<int> I_group_svert, J_group_svert;
+   Array<int> I_group_sedge, J_group_sedge;
+   Array<int> I_group_stria, J_group_stria;
+
+   I_group_svert.SetSize(GetNGroups());
+   I_group_sedge.SetSize(GetNGroups());
+   I_group_stria.SetSize(GetNGroups());
+
+   I_group_svert[0] = 0;
+   I_group_sedge[0] = 0;
+   I_group_stria[0] = 0;
+
+   const int edge_attr = 1;
+
+   for (int group = 0; group < GetNGroups()-1; group++)
+   {
+      // Get the group shared objects
+      group_svert.GetRow(group, group_verts);
+      group_sedge.GetRow(group, group_edges);
+      group_stria.GetRow(group, group_trias);
+
+      // Check which triangles have been refined
+      for (int i = 0; i < group_stria.RowSize(group); i++)
+      {
+         int *v = shared_trias[group_trias[i]].v;
+         Array<int> fva(3);
+         fva[0] = v[0]; fva[1] = v[1]; fva[2] = v[2];
+         auto t = get3arraysorted(fva);
+         auto it = face_marker.find(t);
+         if (it != face_marker.end())
+         {
+            fva.Append(std::get<1>(it->second));
+
+            Array<int> face2(3), face3(3), edge1(2), edge2(3), edge3(3);
+
+            // faces
+            // 1
+            v[0] = fva[0];
+            v[1] = fva[1];
+            v[2] = fva[3];
+
+            // 2
+            // Vert3 face2(fvl[1], fvl[2], face_center_vert_id);
+            shared_trias.Append(Vert3(fva[1], fva[2], fva[3]));
+            group_trias.Append(sface_lface.Append(-1)-1);
+
+            // 3
+            // Vert3 face3(fal[0], fvl[2], face_center_vert_id);
+            shared_trias.Append(Vert3(fva[0], fva[2], fva[3]));
+            group_trias.Append(sface_lface.Append(-1)-1);
+
+            // edge 1, 2, and 3
+            // Segment edge1(fva[0], face_center_vert_id, edge_attr);
+            shared_edges.Append(new Segment(fva[0], fva[3], edge_attr));
+            group_edges.Append(sedge_ledge.Append(-1)-1);
+
+            // Segment edge2(fva[1], face_center_vert_id, edge_attr);
+            shared_edges.Append(new Segment(fva[1], fva[3], edge_attr));
+            group_edges.Append(sedge_ledge.Append(-1)-1);
+
+            // Segment edge3(fva[2], face_center_vert_id, edge_attr);
+            shared_edges.Append(new Segment(fva[2], fva[3], edge_attr));
+            group_edges.Append(sedge_ledge.Append(-1)-1);
+
+            group_verts.Append(svert_lvert.Append(fva[3])-1);
+         }
+      }
+
+      I_group_svert[group+1] = I_group_svert[group] + group_verts.Size();
+      I_group_sedge[group+1] = I_group_sedge[group] + group_edges.Size();
+      I_group_stria[group+1] = I_group_stria[group] + group_trias.Size();
+
+      J_group_svert.Append(group_verts);
+      J_group_sedge.Append(group_edges);
+      J_group_stria.Append(group_trias);
+   }
+
+   FinalizeParTopo();
+   group_svert.SetIJ(I_group_svert, J_group_svert);
+   group_sedge.SetIJ(I_group_sedge, J_group_sedge);
+   group_stria.SetIJ(I_group_stria, J_group_stria);
+   I_group_svert.LoseData(); J_group_svert.LoseData();
+   I_group_sedge.LoseData(); J_group_sedge.LoseData();
+   I_group_stria.LoseData(); J_group_stria.LoseData();
+}
+
 void ParMesh::UniformRefineGroups2D(int old_nv)
 {
    Array<int> sverts, sedges;
@@ -4617,9 +4714,206 @@ void ParMesh::ConformingRefinement(const Array<int> &el_to_refine)
          }
       }
    }
-   else
+   else if (Dim == 3)
    {
-      MFEM_ABORT("ConformingRefinement is only supported for 2D meshes.");
+      InitRefinementTransforms();
+      // Set coarse fine transformations
+      static Vector tet_conf_children((1+4+4*3)*4*3); //3 dim x 4 vert x 17 tets
+      GetTetConformingRefinementCoordinates(tet_conf_children);
+
+      CoarseFineTr.point_matrices[Geometry::TETRAHEDRON]
+      .UseExternalData(tet_conf_children.GetData(), 3, 4, 17);
+
+      int nref = el_to_refine.Size();
+      MPI_Allreduce(MPI_IN_PLACE, &nref, 1, MPI_INT, MPI_SUM, MyComm);
+
+      if (nref == 0) { return; }
+      ResetLazyData();
+
+      std::map<std::array<int, 3>, std::tuple<bool, int>> face_marker;
+      Array<int> elflags(NumOfElements);
+      elflags = 0;
+
+      CollectTetFaceConformingRefinementFlags(el_to_refine,
+                                              face_marker,
+                                              elflags);
+
+      auto get3arraysorted = [](Array<int> v)
+      {
+         v.Sort();
+         return std::array<int, 3> {v[0], v[1], v[2]};
+      };
+
+      // Now check which of the faces on shared boundaries have been
+      // marked and send them to neighbors
+      const int tag = 294;
+      int req_count = 0;
+
+      // some preprocessing first
+      int max_faces_in_group = 0;
+      for (int i = 0; i < GetNGroups()-1; i++)
+      {
+         const int faces_in_group = GroupNTriangles(i+1);
+         if (faces_in_group > max_faces_in_group)
+         {
+            max_faces_in_group = faces_in_group;
+         }
+      }
+      int neighbor;
+      Array<int> iBuf(max_faces_in_group);
+      MPI_Request *requests = new MPI_Request[GetNGroups()-1];
+      MPI_Status  status;
+
+      for (int i = 0; i < GetNGroups()-1; i++)
+      {
+         const int *group_faces = group_stria.GetRow(i);
+         const int faces_in_group = group_stria.RowSize(i);
+         // it is enough to communicate through the faces
+         if (faces_in_group == 0) { continue; }
+
+         // int group_size = gtopo.GetGroupSize(i);
+         // if (group_size != 2) { continue; }
+
+         Array<int> shared_face_inds;
+
+         for (int j = 0; j < faces_in_group; j++)
+         {
+            int *fv = shared_trias[group_faces[j]].v;
+            Array<int> fva(3);
+            fva[0] = fv[0]; fva[1] = fv[1]; fva[2] = fv[2];
+            auto t = get3arraysorted(fva);
+            auto it = face_marker.find(t);
+            if (it != face_marker.end())
+            {
+               shared_face_inds.Append(j);
+            }
+         }
+         const int *nbs = gtopo.GetGroup(i+1);
+         neighbor = gtopo.GetNeighborRank(nbs[0] ? nbs[0] : nbs[1]);
+         MPI_Isend(shared_face_inds.GetData(), shared_face_inds.Size(),
+                   MPI_INT, neighbor, tag, MyComm,
+                   &requests[req_count++]);
+      }
+
+      MPI_Barrier(GetComm());
+
+      // receive.
+      for (int i = 0; i < GetNGroups()-1; i++)
+      {
+         const int *group_faces = group_stria.GetRow(i);
+         const int faces_in_group = group_stria.RowSize(i);
+         if (faces_in_group == 0) { continue; }
+
+         const int *nbs = gtopo.GetGroup(i+1);
+         neighbor = gtopo.GetNeighborRank(nbs[0] ? nbs[0] : nbs[1]);
+         MPI_Probe(neighbor, tag, MyComm, &status);
+         int count;
+         MPI_Get_count(&status, MPI_INT, &count);
+         iBuf.SetSize(count);
+         MPI_Recv(iBuf, count, MPI_INT, neighbor, tag, MyComm,
+                  MPI_STATUS_IGNORE);
+
+         // now check if these faces are already marked or not. If they are not, we mark
+         // them here.
+         for (int j = 0; j < count; j++)
+         {
+            int *fv = shared_trias[group_faces[iBuf[j]]].v;
+            Array<int> fva(3);
+            fva[0] = fv[0]; fva[1] = fv[1]; fva[2] = fv[2];
+            auto t = get3arraysorted(fva);
+            auto it = face_marker.find(t);
+            if (it == face_marker.end())
+            {
+               face_marker.insert({t,std::make_tuple(true, -1)});
+            }
+         }
+      }
+      delete [] requests;
+      iBuf.DeleteAll();
+
+      // Mark element flags
+      int *vert;
+      Array<int> fvl(3);
+      for (int e = 0; e < NumOfElements; e++)
+      {
+         Element *el = elements[e];
+         vert = el->GetVertices();
+         if (elflags[e] == 1+2+4+8) { continue; }
+         // ignore elements already marked
+         for (int f = 0; f < 4; f++) // loop over all faces
+         {
+            fvl[0] = vert[tet_t::FaceVert[f][0]];
+            fvl[1] = vert[tet_t::FaceVert[f][1]];
+            fvl[2] = vert[tet_t::FaceVert[f][2]];
+            auto it = face_marker.find(get3arraysorted(fvl));
+            if (it != face_marker.end())
+               // this face should be split for this element
+            {
+               elflags[e] |= (1 << f);
+            }
+         }
+      }
+
+      for (int e = 0; e < elflags.Size(); e++)
+      {
+         if (elflags[e] == 0) { continue; }
+         TetFaceSplitRefinement(e, face_marker, elflags[e]);
+      }
+
+      int temp = NumOfBdrElements;
+      for (int i = 0; i < temp; i++)
+      {
+         int *v;
+         Element *bdr_el = boundary[i];
+         v = bdr_el->GetVertices();
+         Array<int> bvl(3);
+         bvl[0] = v[0]; bvl[1] = v[1]; bvl[2] = v[2];
+         auto t = get3arraysorted(bvl);
+         auto it = face_marker.find(t);
+         if (it != face_marker.end())
+         {
+            int new_v = std::get<1>(it->second);
+            auto t = bdr_el->GetType();
+            auto attr = bdr_el->GetAttribute();
+            if (t == Element::TRIANGLE)
+            {
+               int vv[3];
+               vv[0] = bvl[0]; vv[1] = bvl[1]; vv[2] = new_v;
+               bdr_el->SetVertices(vv);
+
+               vv[0] = bvl[1]; vv[1] = bvl[2]; vv[2] = new_v;
+               boundary.Append(new Triangle(vv, attr));
+
+               vv[0] = bvl[2]; vv[1] = bvl[0]; vv[2] = new_v;
+               boundary.Append(new Triangle(vv, attr));
+               NumOfBdrElements += 2;
+            }
+            else
+            {
+               MFEM_ABORT("Only triangles are supported for boundary elements.");
+            }
+         }
+      }
+
+      // Refine groups
+      // each group will have 3 new shared triangles but
+      // 1 will replace original and we will add 2 more to the list.
+      // 1 new shared vertex
+      // 3 new shared edges
+      RefineGroupsAfterConformingTet(face_marker);
+
+      // 5. Update the groups after refinement.
+      if (el_to_face != NULL)
+      {
+         GetElementToFaceTable();
+         GenerateFaces();
+      }
+
+      // 6. Update element-to-edge relations.
+      if (el_to_edge != NULL)
+      {
+         NumOfEdges = GetElementToEdgeTable(*el_to_edge);
+      }
    }
 
    last_operation = Mesh::REFINE;
@@ -4627,9 +4921,8 @@ void ParMesh::ConformingRefinement(const Array<int> &el_to_refine)
    UpdateNodes();
 
 #ifdef MFEM_DEBUG
-   // If there are no Nodes, the orientation is checked in the call to
-   // UniformRefinement2D_base() above.
-   // if (Nodes) { CheckElementOrientation(false); }
+   CheckElementOrientation(true);
+   CheckBdrElementOrientation(true);
 #endif
 }
 
@@ -6376,90 +6669,6 @@ void ParMesh::ParPrint(ostream &os, const std::string &comments) const
       Printer(os, "", comments);
       return;
    }
-
-
-   // Write out parallel mesh information.
-   // for (int i = 0; i < NRanks; i++)
-   // {
-   //    if (i == MyRank)
-   //    {
-   //       std::cout << "Printing from Rank: " << MyRank << std::endl;
-   //       std::cout << "group id, # number of entities in each group, followed by ranks in group\n";
-   //       for (int group_id = 0; group_id < gtopo.NGroups(); ++group_id)
-   //       {
-   //          int group_size = gtopo.GetGroupSize(group_id);
-   //          const int * group_ptr = gtopo.GetGroup(group_id);
-   //          std::cout << group_id << " " << group_size;
-   //          for ( int group_member_index = 0; group_member_index < group_size;
-   //                ++group_member_index)
-   //          {
-   //             std::cout << " " << gtopo.GetNeighborRank( group_ptr[group_member_index] );
-   //          }
-   //          std::cout << "\n";
-   //       }
-
-   //       // Print group entities
-   //       std::cout << "\ntotal_shared_vertices " << svert_lvert.Size() << '\n';
-   //       if (Dim >= 2)
-   //       {
-   //          std::cout << "total_shared_edges " << shared_edges.Size() << '\n';
-   //       }
-   //       if (Dim >= 3)
-   //       {
-   //          std::cout << "total_shared_faces " << sface_lface.Size() << '\n';
-   //       }
-   //       for (int gr = 1; gr < GetNGroups(); gr++)
-   //       {
-   //          std::cout << "\n# group " << gr << std::endl;
-   //          // {
-   //          //    const int  nv = group_svert.RowSize(gr-1);
-   //          //    const int *sv = group_svert.GetRow(gr-1);
-   //          //    std::cout << "\n# group " << gr << "\nshared_vertices " << nv << '\n';
-   //          //    for (int i = 0; i < nv; i++)
-   //          //    {
-   //          //       int vertid = svert_lvert[sv[i]];
-   //          //       std::cout << vertid << " " << vertices[vertid](0) << " " <<
-   //          //                    vertices[vertid](1) << " " << vertices[vertid](2) <<
-   //          //                      '\n';
-   //          //    }
-   //          // }
-   //          // if (Dim >= 2)
-   //          // {
-   //          //    const int  ne = group_sedge.RowSize(gr-1);
-   //          //    const int *se = group_sedge.GetRow(gr-1);
-   //          //    std::cout << "\nshared_edges " << ne << '\n';
-   //          //    for (int i = 0; i < ne; i++)
-   //          //    {
-   //          //       const int *v = shared_edges[se[i]]->GetVertices();
-   //          //       std::cout << v[0] << ' ' << v[1] << '\n';
-   //          //    }
-   //          // }
-   //          if (Dim >= 3)
-   //          {
-   //             const int  nt = group_stria.RowSize(gr-1);
-   //             const int *st = group_stria.GetRow(gr-1);
-   //             const int  nq = group_squad.RowSize(gr-1);
-   //             const int *sq = group_squad.GetRow(gr-1);
-   //             std::cout << "\nshared_faces " << nt+nq << '\n';
-   //             for (int i = 0; i < nt; i++)
-   //             {
-   //                std::cout << Geometry::TRIANGLE;
-   //                const int *v = shared_trias[st[i]].v;
-   //                for (int j = 0; j < 3; j++) { std::cout << ' ' << v[j]; }
-   //                std::cout << '\n';
-   //             }
-   //             for (int i = 0; i < nq; i++)
-   //             {
-   //                std::cout << Geometry::SQUARE;
-   //                const int *v = shared_quads[sq[i]].v;
-   //                for (int j = 0; j < 4; j++) { std::cout << ' ' << v[j]; }
-   //                std::cout << '\n';
-   //             }
-   //          }
-   //       }
-   //    }
-   //    MPI_Barrier(MyComm);
-   // }
 
    // Write out serial mesh.  Tell serial mesh to delineate the end of its
    // output with 'mfem_serial_mesh_end' instead of 'mfem_mesh_end', as we will

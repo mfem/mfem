@@ -7958,6 +7958,8 @@ STable3D *Mesh::GetElementToFaceTable(int ret_ftbl)
             for (int j = 0; j < 6; j++)
             {
                const int *fv = hex_t::FaceVert[j];
+               // std::cout << j << " Push: " <<
+               // v[fv[0]] << " " << v[fv[1]] << " " << v[fv[2]] << " " << v[fv[3]] << "\n";
                el_to_face->Push(
                   i, faces_tbl->Push4(v[fv[0]], v[fv[1]], v[fv[2]], v[fv[3]]));
             }
@@ -10651,6 +10653,106 @@ void Mesh::GeneralRefinement(const Array<Refinement> &refinements,
    }
 }
 
+void Mesh::GetTetConformingRefinementCoordinates(Vector &tet_conf_children)
+{
+   real_t tv[4][3] = {{0, 0, 0}, {1, 0, 0}, {0, 1, 0}, {0,0, 1}};
+   tet_conf_children.SetSize((1+4+4*3)*4*3); //3 dim x 4 vert x 17 tets
+
+      // original element
+   for (int i = 0; i < 4; i++)
+   {
+      for (int d = 0; d < 3; d++)
+      {
+         tet_conf_children(i*3+d) = tv[i][d];
+      }
+   }
+
+   // each face to center vertex
+   for (int f = 0; f < 4; f++)
+   {
+      int v1 = tet_t::FaceVert[f][0];
+      int v2 = tet_t::FaceVert[f][1];
+      int v3 = tet_t::FaceVert[f][2];
+      Vector fccord(3);
+      fccord(0) = (1.0/3.0) * (tv[v1][0] + tv[v2][0] + tv[v3][0]);
+      fccord(1) = (1.0/3.0) * (tv[v1][1] + tv[v2][1] + tv[v3][1]);
+      fccord(2) = (1.0/3.0) * (tv[v1][2] + tv[v2][2] + tv[v3][2]);
+
+      // tet 0
+      for (int d = 0; d < 3; d++)
+      {
+         tet_conf_children(12 + 48*f + d) = tv[v1][d]; // vertex 1
+      }
+      for (int d = 0; d < 3; d++)
+      {
+         tet_conf_children(12 + 48*f + 3 + d) = tv[v3][d]; // vertex 3
+      }
+      for (int d = 0; d < 3; d++)
+      {
+         tet_conf_children(12 + 48*f + 6 + d) = tv[v2][d]; // vertex 2
+      }
+      for (int d = 0; d < 3; d++)
+      {
+         tet_conf_children(12 + 48*f + 9 + d) = 0.25;   // tet center
+      }
+
+      // tet1 - 1,0,fc,tc
+      for (int d = 0; d < 3; d++)
+      {
+         tet_conf_children(12 + 48*f + 12 + d) = tv[v2][d]; // vertex 2
+      }
+      for (int d = 0; d < 3; d++)
+      {
+         tet_conf_children(12 + 48*f + 12 + 3 + d) = tv[v1][d]; // vertex 1
+      }
+      for (int d = 0; d < 3; d++)
+      {
+         tet_conf_children(12 + 48*f + 12 + 6 + d) = fccord(d); // face center
+      }
+      for (int d = 0; d < 3; d++)
+      {
+         tet_conf_children(12 + 48*f + 12 + 9 + d) = 0.25;   // tet center
+      }
+
+      // tet2 - 2,1,fc,tc
+      for (int d = 0; d < 3; d++)
+      {
+         tet_conf_children(12 + 48*f + 24 + d) = tv[v3][d]; // vertex 2
+      }
+      for (int d = 0; d < 3; d++)
+      {
+         tet_conf_children(12 + 48*f + 24 + 3 + d) = tv[v2][d]; // vertex 1
+      }
+      for (int d = 0; d < 3; d++)
+      {
+         tet_conf_children(12 + 48*f + 24 + 6 + d) = fccord(d); // face center
+      }
+      for (int d = 0; d < 3; d++)
+      {
+         tet_conf_children(12 + 48*f + 24 + 9 + d) = 0.25;   // tet center
+      }
+
+      // tet3 - 0,2,fc,tc
+      for (int d = 0; d < 3; d++)
+      {
+         tet_conf_children(12 + 48*f + 36 + d) = tv[v1][d]; // vertex 2
+      }
+      for (int d = 0; d < 3; d++)
+      {
+         tet_conf_children(12 + 48*f + 36 + 3 + d) = tv[v3][d]; // vertex 1
+      }
+      for (int d = 0; d < 3; d++)
+      {
+         tet_conf_children(12 + 48*f + 36 + 6 + d) = fccord(d); // face center
+      }
+      for (int d = 0; d < 3; d++)
+      {
+         tet_conf_children(12 + 48*f + 36 + 9 + d) = 0.25;   // tet center
+      }
+   }
+
+}
+
 void Mesh::ConformingRefinement_base(const Array<int> &el_to_refine)
 {
    if (ncmesh)
@@ -10726,102 +10828,9 @@ void Mesh::ConformingRefinement_base(const Array<int> &el_to_refine)
       InitRefinementTransforms();
       // Setup point matrices
       // tet vertices location
-      real_t tv[4][3] = {{0, 0, 0}, {1, 0, 0}, {0, 1, 0}, {0,0, 1}};
-      int tfc[4][3] = {{1, 2, 3}, {0, 3, 2}, {0, 1, 3}, {0, 2, 1}};
+      // real_t tv[4][3] = {{0, 0, 0}, {1, 0, 0}, {0, 1, 0}, {0,0, 1}};
       static Vector tet_conf_children((1+4+4*3)*4*3); //3 dim x 4 vert x 17 tets
-
-      // original element
-      for (int i = 0; i < 4; i++)
-      {
-         for (int d = 0; d < 3; d++)
-         {
-            tet_conf_children(i*3+d) = tv[i][d];
-         }
-      }
-
-      // each face to center vertex
-      for (int f = 0; f < 4; f++)
-      {
-         int v1 = tfc[f][0];
-         int v2 = tfc[f][1];
-         int v3 = tfc[f][2];
-         Vector fccord(3);
-         fccord(0) = (1.0/3.0) * (tv[v1][0] + tv[v2][0] + tv[v3][0]);
-         fccord(1) = (1.0/3.0) * (tv[v1][1] + tv[v2][1] + tv[v3][1]);
-         fccord(2) = (1.0/3.0) * (tv[v1][2] + tv[v2][2] + tv[v3][2]);
-
-         // tet 0
-         for (int d = 0; d < 3; d++)
-         {
-            tet_conf_children(12 + 48*f + d) = tv[v1][d]; // vertex 1
-         }
-         for (int d = 0; d < 3; d++)
-         {
-            tet_conf_children(12 + 48*f + 3 + d) = tv[v3][d]; // vertex 3
-         }
-         for (int d = 0; d < 3; d++)
-         {
-            tet_conf_children(12 + 48*f + 6 + d) = tv[v2][d]; // vertex 2
-         }
-         for (int d = 0; d < 3; d++)
-         {
-            tet_conf_children(12 + 48*f + 9 + d) = 0.25;   // tet center
-         }
-
-         // tet1 - 1,0,fc,tc
-         for (int d = 0; d < 3; d++)
-         {
-            tet_conf_children(12 + 48*f + 12 + d) = tv[v2][d]; // vertex 2
-         }
-         for (int d = 0; d < 3; d++)
-         {
-            tet_conf_children(12 + 48*f + 12 + 3 + d) = tv[v1][d]; // vertex 1
-         }
-         for (int d = 0; d < 3; d++)
-         {
-            tet_conf_children(12 + 48*f + 12 + 6 + d) = fccord(d); // face center
-         }
-         for (int d = 0; d < 3; d++)
-         {
-            tet_conf_children(12 + 48*f + 12 + 9 + d) = 0.25;   // tet center
-         }
-
-         // tet2 - 2,1,fc,tc
-         for (int d = 0; d < 3; d++)
-         {
-            tet_conf_children(12 + 48*f + 24 + d) = tv[v3][d]; // vertex 2
-         }
-         for (int d = 0; d < 3; d++)
-         {
-            tet_conf_children(12 + 48*f + 24 + 3 + d) = tv[v2][d]; // vertex 1
-         }
-         for (int d = 0; d < 3; d++)
-         {
-            tet_conf_children(12 + 48*f + 24 + 6 + d) = fccord(d); // face center
-         }
-         for (int d = 0; d < 3; d++)
-         {
-            tet_conf_children(12 + 48*f + 24 + 9 + d) = 0.25;   // tet center
-         }
-
-         // tet3 - 0,2,fc,tc
-         for (int d = 0; d < 3; d++)
-         {
-            tet_conf_children(12 + 48*f + 36 + d) = tv[v1][d]; // vertex 2
-         }
-         for (int d = 0; d < 3; d++)
-         {
-            tet_conf_children(12 + 48*f + 36 + 3 + d) = tv[v3][d]; // vertex 1
-         }
-         for (int d = 0; d < 3; d++)
-         {
-            tet_conf_children(12 + 48*f + 36 + 6 + d) = fccord(d); // face center
-         }
-         for (int d = 0; d < 3; d++)
-         {
-            tet_conf_children(12 + 48*f + 36 + 9 + d) = 0.25;   // tet center
-         }
-      }
+      GetTetConformingRefinementCoordinates(tet_conf_children);
 
       CoarseFineTr.point_matrices[Geometry::TETRAHEDRON]
       .UseExternalData(tet_conf_children.GetData(), 3, 4, 17);
@@ -10840,34 +10849,8 @@ void Mesh::ConformingRefinement_base(const Array<int> &el_to_refine)
       for (int e = 0; e < elflags.Size(); e++)
       {
          if (elflags[e] == 0) { continue; }
-         TetFaceSplitRefinement2(e, face_marker, elflags[e]);
+         TetFaceSplitRefinement(e, face_marker, elflags[e]);
       }
-
-      // std::map<std::array<int, 3>, int> tet_face_verts;
-
-      // // Do the red refinement - each face is split into three triangles by
-      // // joining vertices to the face center. and then these triangles are joined
-      // // to tet center
-      // Array<bool> el_red_refinement(NumOfElements);
-      // el_red_refinement = false;
-      // for (int i = 0; i < el_to_refine.Size(); i++)
-      // {
-      //    int nel = NumOfElements;
-      //    TetFaceSplitRefinement(el_to_refine[i], tet_face_verts);
-      //    if (NumOfElements > nel)
-      //    {
-      //       el_red_refinement[el_to_refine[i]] = true;
-      //    }
-      // }
-
-      // // Split remaining elements.
-      // for (int i = 0; i < el_red_refinement.Size(); i++)
-      // {
-      //    if (!el_red_refinement[i])
-      //    {
-      //       TetFaceSplitRefinement(i, tet_face_verts, 0);
-      //    }
-      // }
 
       // Update boundary elements
       auto get3arraysorted = [](Array<int> v)
@@ -10885,9 +10868,7 @@ void Mesh::ConformingRefinement_base(const Array<int> &el_to_refine)
          Array<int> bvl(3);
          bvl[0] = v[0]; bvl[1] = v[1]; bvl[2] = v[2];
          auto t = get3arraysorted(bvl);
-         // auto it = tet_face_verts.find(t);
          auto it = face_marker.find(t);
-         // if (it != tet_face_verts.end()) // this face was split
          if (it != face_marker.end())
          {
             // int new_v = it->second;
@@ -10903,7 +10884,7 @@ void Mesh::ConformingRefinement_base(const Array<int> &el_to_refine)
                vv[0] = bvl[1]; vv[1] = bvl[2]; vv[2] = new_v;
                boundary.Append(new Triangle(vv, attr));
 
-               vv[0] = bvl[0]; vv[1] = bvl[2]; vv[2] = new_v;
+               vv[0] = bvl[2]; vv[1] = bvl[0]; vv[2] = new_v;
                boundary.Append(new Triangle(vv, attr));
                NumOfBdrElements += 2;
             }
@@ -10924,6 +10905,426 @@ void Mesh::ConformingRefinement_base(const Array<int> &el_to_refine)
          GenerateFaces();
       }
    }
+}
+
+
+void Mesh::ConformingHexRefinement_base(const Array<int> &el_to_refine)
+{
+   if (ncmesh)
+   {
+      MFEM_ABORT("Nonconforming meshes not currently supported.");
+   }
+   MFEM_VERIFY(Dim == 3, "ConformingHexRefinement_base is only for 3D meshes.");
+
+   InitRefinementTransforms();
+   const real_t A = 0.0, B = 1.0;
+   const real_t D = 0.25, E = 0.75;
+   real_t x[16][3];
+   x[0][0] = A; x[0][1] = A; x[0][2] = A;
+   x[1][0] = B; x[1][1] = A; x[1][2] = A;
+   x[2][0] = B; x[2][1] = B; x[2][2] = A;
+   x[3][0] = A; x[3][1] = B; x[3][2] = A;
+   x[4][0] = A; x[4][1] = A; x[4][2] = B;
+   x[5][0] = B; x[5][1] = A; x[5][2] = B;
+   x[6][0] = B; x[6][1] = B; x[6][2] = B;
+   x[7][0] = A; x[7][1] = B; x[7][2] = B;
+   x[8][0] = D; x[8][1] = D; x[8][2] = D;
+   x[9][0] = E; x[9][1] = D; x[9][2] = D;
+   x[10][0] = E; x[10][1] = E; x[10][2] = D;
+   x[11][0] = D; x[11][1] = E; x[11][2] = D;
+   x[12][0] = D; x[12][1] = D; x[12][2] = E;
+   x[13][0] = E; x[13][1] = D; x[13][2] = E;
+   x[14][0] = E; x[14][1] = E; x[14][2] = E;
+   x[15][0] = D; x[15][1] = E; x[15][2] = E;
+   const int hex_idx[64] = {0,1,2,3,4,5,6,7, // original element
+                           0,1,2,3,8,9,10,11, // z=0 to z=0.25
+                           12,13,14,15,4,5,6,7, // z=1 to z=0.75
+                           8,9,13,12,0,1,5,4, // y=0 to y=0.25
+                           3,2,6,7,11,10,14,15, // y=1 to y=0.75
+                           0,3,7,4,8,11,15,12, // x=0 to x=0.25
+                           9,10,14,13,1,2,6,5, // x=1 to x=0.75
+                           8,9,10,11,12,13,14,15}; // new inner hex
+
+
+   constexpr int dim = 3;
+   constexpr int verts = 8;
+   constexpr int hexes = 8;
+   static real_t hex_conf_children[dim*verts*hexes];
+   for (int h = 0; h < hexes; ++h) {
+      for (int v = 0; v < verts; ++v) {
+         int vidx = hex_idx[h*verts + v];
+         for (int d = 0; d < dim; ++d) {
+            hex_conf_children[(h*verts + v)*dim + d] = x[vidx][d];
+         }
+      }
+   }
+
+   // static real_t hex_conf_children[3*8*8] = //3dim x 8vert x 8hexes
+   // {
+   //    // project hex element inwards. connect each original face to new hex.
+   //    //x,y,z for vertices 0,1,2,3,4,5,6,7
+   //    A,A,A, B,A,A, B,B,A, A,B,A, A,A,B, B,A,B, B,B,B, A,B,B, // original
+   //    //x,y,z for hex with vertices 0,1,2,3,8,9,10,11
+   //    A,A,A, B,A,A, B,B,A, A,B,A, D,D,D, E,D,D, E,E,D, D,E,D, // z=0 to z=0.25
+   //    //x,y,z for hex with vertices 4,5,6,7,12,13,14,15
+   //    A,A,B, B,A,B, B,B,B, A,B,B, D,D,E, E,D,E, E,E,E, D,E,E, // z=1 to z=0.75
+   //    //x,y,z for hex with vertices 0,1,5,4,8,9,13,12
+   //    A,A,A, B,A,A, B,A,B, A,A,B, D,D,D, E,D,D, E,D,E, D,D,E, // y=0 to y=0.25
+   //    //x,y,z for hex with vertices 3,2,6,7,11,10,14,15
+   //    A,B,A, B,B,A, B,B,B, A,B,B, D,E,D, E,E,D, E,E,E, D,E,E, // y=1 to y=0.75
+   //    //x,y,z for hex with vertices 0,3,7,4,8,11,15,12
+   //    A,A,A, A,B,A, A,B,B, A,A,B, D,D,D, D,E,D, D,E,E, D,D,E, // x=0 to x=0.25
+   //    //x,y,z for hex with vertices 1,2,6,5,9,10,14,13
+   //    B,A,A, B,B,A, B,B,B, B,A,B, E,D,D, E,E,D, E,E,E, E,D,E, // x=1 to x=0.75
+   //    //x,y,z for vertices 8-15
+   //    D,D,D, E,D,D, E,E,D, D,E,D, D,D,E, E,D,E, E,E,E, D,E,E  // [0.25,0.75]^3
+   // };
+
+   // for (int i = 0; i < 3*8*8; ++i) {
+   //    std::cout << i << " " <<  hex_conf_children[i]-hex_conf_children2[i] << endl;
+   // }
+
+   CoarseFineTr.point_matrices[Geometry::CUBE]
+   .UseExternalData(hex_conf_children, 3, 8, 8);
+   if (el_to_refine.Size() == 0) { return; }
+   ResetLazyData();
+   int i;
+
+   DSTable v_to_v(NumOfVertices);
+   GetVertexToVertexTable(v_to_v);
+   Array<int> v;
+
+   for (i = 0; i < el_to_refine.Size(); i++)
+   {
+      int el = el_to_refine[i];
+      int eltype = elements[el]->GetType();
+      elements[el]->GetVertices(v);
+      MFEM_VERIFY(eltype == Element::HEXAHEDRON,
+                  "ConformingHexRefinement_base only supports hexahedra.");
+      ConformingHexRefinement(el, v);
+   }
+
+   // Boundary elements stay the same because those vertices are untouched
+   // CheckElementOrientation(true);
+   if (el_to_edge != NULL)
+   {
+      NumOfEdges = GetElementToEdgeTable(*el_to_edge);
+   }
+   if (el_to_face != NULL)
+   {
+      GetElementToFaceTable();
+      GenerateFaces();
+   }
+}
+
+void Mesh::ConformingHexRefinement2_base(
+        std::set<std::array<int, 4>> &face_verts)
+{
+   if (ncmesh)
+   {
+      MFEM_ABORT("Nonconforming meshes not currently supported.");
+   }
+   MFEM_VERIFY(Dim == 3, "ConformingHexRefinement_base is only for 3D meshes.");
+
+   InitRefinementTransforms();
+   const real_t A = 0.0, B = 1.0;
+   const real_t D = 0.25, E = 0.75;
+   constexpr int dim = 3;
+   constexpr int verts = 8;
+   constexpr int hexes = 1+6*6;
+   real_t x[16][dim];
+   const int hex_idx[hexes*verts] = {0,1,2,3,4,5,6,7, // original element
+                                     // face 0
+                                     /* ignore z = 0 to z = 0.25 */
+                                     12,13,14,15,4,5,6,7, // z=1 to z=0.75
+                                     8,9,13,12,0,1,5,4, // y=0 to y=0.25
+                                     3,2,6,7,11,10,14,15, // y=1 to y=0.75
+                                     0,3,7,4,8,11,15,12, // x=0 to x=0.25
+                                     9,10,14,13,1,2,6,5, // x=1 to x=0.75
+                                     8,9,10,11,12,13,14,15, // new inner hex
+
+                                     // face 1
+                                     0,1,2,3,8,9,10,11, // z=0 to z=0.25
+                                     12,13,14,15,4,5,6,7, // z=1 to z=0.75
+                                     /* ignore y min projection */
+                                     3,2,6,7,11,10,14,15, // y=1 to y=0.75
+                                     0,3,7,4,8,11,15,12, // x=0 to x=0.25
+                                     9,10,14,13,1,2,6,5, // x=1 to x=0.75
+                                     8,9,10,11,12,13,14,15,
+
+                                     // face 2
+                                     0,1,2,3,8,9,10,11, // z=0 to z=0.25
+                                     12,13,14,15,4,5,6,7, // z=1 to z=0.75
+                                     8,9,13,12,0,1,5,4, // y=0 to y=0.25
+                                     3,2,6,7,11,10,14,15, // y=1 to y=0.75
+                                     /* ignore x min projection */
+                                     9,10,14,13,1,2,6,5, // x=1 to x=0.75
+                                     8,9,10,11,12,13,14,15,
+
+                                     // face 3
+                                     0,1,2,3,8,9,10,11, // z=0 to z=0.25
+                                     12,13,14,15,4,5,6,7, // z=1 to z=0.75
+                                     8,9,13,12,0,1,5,4, // y=0 to y=0.25
+                                     /* ignore ymax projection */
+                                     0,3,7,4,8,11,15,12, // x=0 to x=0.25
+                                     9,10,14,13,1,2,6,5, // x=1 to x=0.75
+                                     8,9,10,11,12,13,14,15,
+
+                                     // face 4
+                                     0,1,2,3,8,9,10,11, // z=0 to z=0.25
+                                     12,13,14,15,4,5,6,7, // z=1 to z=0.75
+                                     8,9,13,12,0,1,5,4, // y=0 to y=0.25
+                                     3,2,6,7,11,10,14,15, // y=1 to y=0.75
+                                     0,3,7,4,8,11,15,12, // x=0 to x=0.25
+                                     /*ignore xmax projection*/
+                                     8,9,10,11,12,13,14,15,
+
+                                     // face 5
+                                     0,1,2,3,8,9,10,11, // z=0 to z=0.25
+                                     /*ignore zmax projection*/
+                                     8,9,13,12,0,1,5,4, // y=0 to y=0.25
+                                     3,2,6,7,11,10,14,15, // y=1 to y=0.75
+                                     0,3,7,4,8,11,15,12, // x=0 to x=0.25
+                                     9,10,14,13,1,2,6,5, // x=1 to x=0.75
+                                     8,9,10,11,12,13,14,15
+                                    };
+   auto xFill = [&](const int f)
+   {
+      x[0][0] = A; x[0][1] = A; x[0][2] = A;
+      x[1][0] = B; x[1][1] = A; x[1][2] = A;
+      x[2][0] = B; x[2][1] = B; x[2][2] = A;
+      x[3][0] = A; x[3][1] = B; x[3][2] = A;
+      x[4][0] = A; x[4][1] = A; x[4][2] = B;
+      x[5][0] = B; x[5][1] = A; x[5][2] = B;
+      x[6][0] = B; x[6][1] = B; x[6][2] = B;
+      x[7][0] = A; x[7][1] = B; x[7][2] = B;
+
+      x[8][0] = f==3?A:D;   x[8][1] = f == 2 ? A : D; x[8][2] = f == 1 ? A : D;
+      x[9][0] = f==5?B:E;   x[9][1] = f == 2 ? A : D; x[9][2] = f == 1 ? A : D;
+      x[10][0] = f==5?B:E; x[10][1] = f == 4 ? B : E; x[10][2] = f == 1 ? A : D;
+      x[11][0] = f==3?A:D; x[11][1] = f == 4 ? B : E; x[11][2] = f == 1 ? A : D;
+      x[12][0] = f==3?A:D; x[12][1] = f == 2 ? A : D; x[12][2] = f == 6 ? B : E;
+      x[13][0] = f==5?B:E; x[13][1] = f == 2 ? A : D; x[13][2] = f == 6 ? B : E;
+      x[14][0] = f==5?B:E; x[14][1] = f == 4 ? B : E; x[14][2] = f == 6 ? B : E;
+      x[15][0] = f==3?A:D; x[15][1] = f == 4 ? B : E; x[15][2] = f == 6 ? B : E;
+   };
+
+
+   static real_t hex_conf_children[dim*verts*hexes];
+   for (int h = 0; h < hexes; ++h) {
+      int flag = h == 0 ? 0 : floor((h-1)/6) + 1;
+      xFill(flag);
+      for (int v = 0; v < verts; ++v) {
+         int vidx = hex_idx[h*verts + v];
+         for (int d = 0; d < dim; ++d) {
+            hex_conf_children[(h*verts + v)*dim + d] = x[vidx][d];
+         }
+      }
+   }
+
+   CoarseFineTr.point_matrices[Geometry::CUBE]
+   .UseExternalData(hex_conf_children, 3, 8, 8);
+   // if (el_to_refine.Size() == 0) { return; }
+   ResetLazyData();
+
+   typedef std::array<int, 4> id4;
+   std::map<id4, std::tuple<int, id4>> face_marker;
+   Array<int> elflags(NumOfElements);
+   elflags = -1;
+
+   // Mark faces for refinement
+   {
+      for (int e = 0; e < GetNE(); e++)
+      {
+         Array<int> faces, ori;
+         Array<int> face_dofs, dofs_copy;
+         GetElementFaces(e, faces, ori);
+         for (int f = 0; f < faces.Size(); f++)
+         {
+            int face = faces[f];
+            GetFaceVertices(face, face_dofs);
+            face_dofs.Sort();
+            auto t = std::array<int, 4> {face_dofs[0], face_dofs[1],
+                                         face_dofs[2], face_dofs[3]};
+            auto it = face_verts.find(t);
+            if (it != face_verts.end())
+            {
+               MFEM_VERIFY(elflags[e] == -1,
+               "We only accept one face per element marked for refinement.");
+               elflags[e] = f;
+               face_marker.insert({t,std::make_tuple(-1, id4{-1,-1,-1,-1})} );
+               // std::cout << " Element " << e << " face " << f << "\n";
+            }
+         }
+      }
+   }
+
+   for (int e = 0; e < elflags.Size(); e++)
+   {
+      if (elflags[e] == -1) { continue; }
+      HexFaceSplitRefinement(e, face_marker, elflags[e]);
+   }
+
+   auto get4arraysorted = [](Array<int> v)
+   {
+      v.Sort();
+      return std::array<int, 4> {v[0], v[1], v[2], v[3]};
+   };
+
+   //todo:
+   real_t r[4], s[4];
+   r[0] = D; s[0] = D;
+   r[1] = E; s[1] = D;
+   r[2] = E; s[2] = E;
+   r[3] = D; s[3] = E;
+   DenseMatrix xyz(4, spaceDim);
+   Vertex V;
+
+   int temp = NumOfBdrElements;
+   for (int i = 0; i < temp; i++)
+   {
+      int *v;
+      Element *bdr_el = boundary[i];
+      v = bdr_el->GetVertices();
+      Array<int> bvl(4);
+      Array<int> bvnew(4);
+      bvl[0] = v[0]; bvl[1] = v[1]; bvl[2] = v[2]; bvl[3] = v[3];
+      // std::cout << " print bvl pre-sort\n";
+      // bvl.Print();
+      auto t = get4arraysorted(bvl);
+      // std::cout << " print bvl post-sort\n";
+      // bvl.Print();
+      auto it = face_marker.find(t);
+      if (it != face_marker.end())
+      {
+         // int new_v = it->second;
+         std::array<int, 4> new_verts = std::get<1>(it->second);
+         auto t = bdr_el->GetType();
+         auto attr = bdr_el->GetAttribute();
+
+         // get coordinate of face vertices
+         for (int i = 0; i < 4; i++)
+         {
+            real_t *vp = vertices[v[i]]();
+            for (int d = 0; d < spaceDim; d++)
+            {
+               xyz(i, d) = vp[d];
+            }
+         }
+         MFEM_VERIFY(t == Element::QUADRILATERAL,
+                     "Only quadrilateral boundary elements are supported.");
+
+         // find matching new vertices
+         for (int i = 0; i < 4; i++)
+         {
+            // for each vertex, first find the coordinates
+            for (int d = 0; d < spaceDim; d++)
+            {
+               V(d) = xyz(0,d)*(1-r[i])*(1-s[i]) +
+                      xyz(1,d)*(r[i])*(1-s[i]) +
+                      xyz(2, d)*r[i]*s[i] +
+                      xyz(3,d)*(1-r[i])*s[i];
+            }
+            int vert_match = -1;
+            real_t dx = 0.0;
+            for (int j = 0; j < 4; j++)
+            {
+               // std::cout << v[i] << " " << new_verts[j] << " k10compvert\n";
+               int vert_id = new_verts[j];
+               real_t *vp = vertices[vert_id]();
+               dx = std::abs(V(0) - vp[0]) +
+                    std::abs(V(1) - vp[1]) + std::abs(V(2) - vp[2]);
+               if (std::abs(dx) < 1e-12)
+               {
+                  // std::cout << V(0) << " " << vp[0] << " "
+                  //           << V(1) << " " << vp[1] << " "
+                  //           << V(2) << " " << vp[2] << " k10match\n";
+                  vert_match = vert_id;
+                  break;
+               }
+            }
+            bvnew[i] = vert_match;
+         }
+         // bvnew.Print();
+         bdr_el->SetVertices(bvnew.GetData());
+
+         {
+            int vv[4];
+            vv[0] = bvl[0]; vv[1] = bvl[1]; vv[2] = bvnew[1]; vv[3] = bvnew[0];
+            boundary.Append(new Quadrilateral(vv, attr));
+
+            vv[0] = bvl[1]; vv[1] = bvl[2]; vv[2] = bvnew[2]; vv[3] = bvnew[1];
+            boundary.Append(new Quadrilateral(vv, attr));
+
+            vv[0] = bvl[2]; vv[1] = bvl[3]; vv[2] = bvnew[3]; vv[3] = bvnew[2];
+            boundary.Append(new Quadrilateral(vv, attr));
+
+            vv[0] = bvl[3]; vv[1] = bvl[0]; vv[2] = bvnew[0]; vv[3] = bvnew[3];
+            boundary.Append(new Quadrilateral(vv, attr));
+            NumOfBdrElements += 4;
+         }
+
+         // if (t == Element::QUADRILATERAL)
+         // {
+
+         //    int vv[3];
+         //    vv[0] = bvl[0]; vv[1] = bvl[1]; vv[2] = new_v;
+         //    bdr_el->SetVertices(vv);
+
+         //    vv[0] = bvl[1]; vv[1] = bvl[2]; vv[2] = new_v;
+         //    boundary.Append(new Triangle(vv, attr));
+
+         //    vv[0] = bvl[2]; vv[1] = bvl[0]; vv[2] = new_v;
+         //    boundary.Append(new Triangle(vv, attr));
+         //    NumOfBdrElements += 2;
+         // }
+         // else
+         // {
+         //    MFEM_ABORT("Only triangles are supported for boundary elements.");
+         // }
+      }
+   }
+
+   // Boundary elements stay the same because those vertices are untouched
+   // CheckElementOrientation(true);
+   // std::cout << " k10-get-edge-table\n";
+   if (el_to_edge != NULL)
+   {
+      NumOfEdges = GetElementToEdgeTable(*el_to_edge);
+   }
+   // std::cout << " k10-get-face-table\n";
+   if (el_to_face != NULL)
+   {
+      GetElementToFaceTable();
+      // std::cout << " k10-get-faces\n";
+      GenerateFaces();
+   }
+   // std::cout << NumOfElements << " done refinement\n";
+
+
+   // Array<int> v;
+
+   // for (i = 0; i < el_to_refine.Size(); i++)
+   // {
+   //    int el = el_to_refine[i];
+   //    int eltype = elements[el]->GetType();
+   //    elements[el]->GetVertices(v);
+   //    MFEM_VERIFY(eltype == Element::HEXAHEDRON,
+   //                "ConformingHexRefinement_base only supports hexahedra.");
+   //    ConformingHexRefinement(el, v);
+   // }
+
+   // // Boundary elements stay the same because those vertices are untouched
+   // // CheckElementOrientation(true);
+   // if (el_to_edge != NULL)
+   // {
+   //    NumOfEdges = GetElementToEdgeTable(*el_to_edge);
+   // }
+   // if (el_to_face != NULL)
+   // {
+   //    GetElementToFaceTable();
+   //    GenerateFaces();
+   // }
 }
 
 void Mesh::GeneralRefinement(const Array<int> &el_to_refine, int nonconforming,
@@ -11338,230 +11739,6 @@ void Mesh::CollectTetFaceConformingRefinementFlags(Array<int> el_to_refine,
 }
 
 void Mesh::TetFaceSplitRefinement(int i,
-                                  std::map<std::array<int, 3>, int> &tet_face_verts,
-                                  int split_mask)
-{
-   auto get3arraysorted = [](Array<int> v)
-   {
-      v.Sort();
-      return std::array<int, 3> {v[0], v[1], v[2]};
-   };
-
-   int *vert;
-
-   Element *el = elements[i];
-   Vertex V;
-   Vertex VTC;
-   Array<int> verts(4);
-
-   int t = el->GetType();
-   MFEM_VERIFY(t == Element::TETRAHEDRON, "TetFaceSplitRefinement for now "
-               "works only for tetrahedra.");
-               Tetrahedron *tet = (Tetrahedron *) el;
-
-   vert = tet->GetVertices();
-   for (int i = 0; i < 4; i++)
-   {
-      verts[i] = vert[i];
-   }
-   int attr = tet->GetAttribute();
-   int transform = tet->GetTransform();
-
-   int tfc[4][3] = {{1, 2, 3}, {0, 3, 2}, {0, 1, 3}, {0, 2, 1}};
-   Array<int> fvl(3);
-
-   // split all faces if mask is negative
-   if (split_mask < 0)
-   {
-      split_mask = 0x0F;
-   }
-   else if (split_mask == 0)
-   // figure out split mask based on faces of this element that have been split
-   {
-      // figure out split mask
-      for (int f = 0; f < 4; f++) // loop over all faces
-      {
-         fvl[0] = verts[tfc[f][0]];
-         fvl[1] = verts[tfc[f][1]];
-         fvl[2] = verts[tfc[f][2]];
-         auto it = tet_face_verts.find(get3arraysorted(fvl));
-         if (it != tet_face_verts.end()) // this face was split
-         {
-            split_mask |= (1 << f);
-         }
-      }
-   }
-
-   // define mask whose first four bits are 1.
-   int split_all_mask = 0x0F; // 1111
-
-   if ((split_mask & split_all_mask) == 0)
-   {
-      return; // nothing to split
-   }
-
-   auto countfirstfourbits = [=](int n)
-   {
-      return (n & 1) + ((n >> 1) & 1) + ((n >> 2) & 1) + ((n >> 3) & 1);
-   };
-
-   int nface_split = countfirstfourbits(split_mask & split_all_mask);
-   int nface_not_split = countfirstfourbits(split_all_mask & ~split_mask);
-   int nel_post_split = nface_split*3+nface_not_split;
-
-   Array<int> tet_split_vert_ids(4); // 4 vertices per tet
-
-   // first create element center location
-   int tet_center_vert_id = NumOfVertices;
-   for (int j = 0; j < 3; j++)
-   {
-      V(j) = 0.25 * (vertices[verts[0]](j) +
-                     vertices[verts[1]](j) +
-                     vertices[verts[2]](j) +
-                     vertices[verts[3]](j));
-   }
-   VTC = V;
-   vertices.Append(V);
-   NumOfVertices++;
-
-   int el_count = 0;
-   int face_center_vert_id;
-
-   // set parent indices
-   int coarse = FindCoarseElement(i);
-
-   for (int f = 0; f < 4; f++) // loop over all faces
-   {
-      fvl[0] = verts[tfc[f][0]];
-      fvl[1] = verts[tfc[f][1]];
-      fvl[2] = verts[tfc[f][2]];
-      if (split_mask & (1 << f))
-      {
-         auto t = get3arraysorted(fvl);
-         auto it = tet_face_verts.find(t);
-         if (it == tet_face_verts.end())
-         {
-               int newid = NumOfVertices++;
-               face_center_vert_id = newid;
-               for (int j = 0; j < 3; j++)
-               {
-                  V(j) = (1.0/3.0) * (vertices[fvl[0]](j) +
-                                      vertices[fvl[1]](j) +
-                                      vertices[fvl[2]](j));
-               }
-               vertices.Append(V);
-               tet_face_verts.insert({t, newid});
-         }
-         else
-         {
-            face_center_vert_id = it->second;
-         }
-
-         // store the indices in a a new array
-         tet_split_vert_ids[0] = fvl[1];
-         tet_split_vert_ids[1] = fvl[0];
-         tet_split_vert_ids[2] = face_center_vert_id;
-         tet_split_vert_ids[3] = tet_center_vert_id;
-         // tet_split_vert_ids.Print();
-         if (el_count == 0)
-         {
-            tet->SetVertices(tet_split_vert_ids);
-            tet->PushTransform(1+4*f+1);
-            CoarseFineTr.embeddings[i] = Embedding(coarse, Geometry::TETRAHEDRON,
-                                                   1+4*f+1);
-         }
-         else
-         {
-#ifdef MFEM_USE_MEMALLOC
-            Tetrahedron *tet1 = TetMemory.Alloc();
-            tet1->SetVertices(tet_split_vert_ids);
-            tet1->SetAttribute(attr);
-#else
-            Tetrahedron *tet1 = new Tetrahedron(tet_split_vert_ids, attr);
-#endif
-            tet1->ResetTransform(transform);
-            tet1->PushTransform(1+4*f+1);
-            elements.Append(tet1);
-            CoarseFineTr.embeddings.Append(Embedding(coarse, Geometry::TETRAHEDRON,
-             1+4*f+1));
-
-         }
-         el_count++;
-
-         tet_split_vert_ids[0] = fvl[2];
-         tet_split_vert_ids[1] = fvl[1];
-         tet_split_vert_ids[2] = face_center_vert_id;
-         tet_split_vert_ids[3] = tet_center_vert_id;
-         // tet_split_vert_ids.Print();
-         el_count++;
-#ifdef MFEM_USE_MEMALLOC
-         Tetrahedron *tet2 = TetMemory.Alloc();
-         tet2->SetVertices(tet_split_vert_ids);
-         tet2->SetAttribute(attr);
-#else
-         Tetrahedron *tet2 = new Tetrahedron(tet_split_vert_ids, attr);
-#endif
-         tet2->ResetTransform(transform);
-         elements.Append(tet2);
-         tet2->PushTransform(1+4*f+2);
-            CoarseFineTr.embeddings.Append(Embedding(coarse, Geometry::TETRAHEDRON,
-             1+4*f+2));
-
-         tet_split_vert_ids[0] = fvl[0];
-         tet_split_vert_ids[1] = fvl[2];
-         tet_split_vert_ids[2] = face_center_vert_id;
-         tet_split_vert_ids[3] = tet_center_vert_id;
-         // tet_split_vert_ids.Print();
-         el_count++;
-#ifdef MFEM_USE_MEMALLOC
-         Tetrahedron *tet3 = TetMemory.Alloc();
-         tet3->SetVertices(tet_split_vert_ids);
-         tet3->SetAttribute(attr);
-#else
-         Tetrahedron *tet3 = new Tetrahedron(tet_split_vert_ids, attr);
-#endif
-         tet3->ResetTransform(transform);
-         elements.Append(tet3);
-         tet3->PushTransform(1+4*f+3);
-            CoarseFineTr.embeddings.Append(Embedding(coarse, Geometry::TETRAHEDRON,
-             1+4*f+3));
-      }
-      else // face will not be split - connect vertices to center
-      {
-         tet_split_vert_ids[0] = fvl[0];
-         tet_split_vert_ids[1] = fvl[2];
-         tet_split_vert_ids[2] = fvl[1];
-         tet_split_vert_ids[3] = tet_center_vert_id;
-         // tet_split_vert_ids.Print();
-         if (el_count == 0)
-         {
-            tet->SetVertices(tet_split_vert_ids);
-            tet->PushTransform(1+4*f);
-            CoarseFineTr.embeddings[i] = Embedding(coarse, Geometry::TETRAHEDRON,
-                                                   1+4*f);
-         }
-         else
-         {
-#ifdef MFEM_USE_MEMALLOC
-            Tetrahedron *tet4 = TetMemory.Alloc();
-            tet4->SetVertices(tet_split_vert_ids);
-            tet4->SetAttribute(attr);
-#else
-            Tetrahedron *tet4 = new Tetrahedron(tet_split_vert_ids, attr);
-#endif
-            tet4->ResetTransform(transform);
-            tet4->PushTransform(1+4*f);
-            elements.Append(tet4);
-            CoarseFineTr.embeddings.Append(Embedding(coarse, Geometry::TETRAHEDRON, 1+4*f));
-         }
-         el_count++;
-      }
-   }
-
-   NumOfElements += (nel_post_split-1);
-}
-
-void Mesh::TetFaceSplitRefinement2(int i,
                                   std::map<std::array<int, 3>,
                                            std::tuple<bool, int>> &face_marker,
                                   int split_mask)
@@ -12005,6 +12182,464 @@ void Mesh::ConformingQuadrilateralRefinement(int i, Array<int> &v)
    {
       MFEM_ABORT("Uniform refinement for now works only for triangles.");
    }
+}
+
+// input:
+// e: element index
+// v: vertex indices
+void Mesh::ConformingHexRefinement(int e, Array<int> &v)
+{
+   // used to store vertex indices of the 6 new hexes obtained after splitting
+   int v1[8], v2[8], v3[8], v4[8], v5[8], v6[8];
+   // used to store indices of the 8 new vertices and also the 7th hex in the center
+   int vnew[8];
+   // empty vertex - will be modified later
+   Vertex V;
+
+   // get the input element
+   Hexahedron *hex0 = (Hexahedron*) elements[e];
+
+   // get the vertices of the hex element
+   DenseMatrix xyz(8, spaceDim);
+   for (int i = 0; i < 8; i++)
+   {
+      real_t *vp = vertices[v[i]]();
+      for (int d = 0; d < spaceDim; d++)
+      {
+         xyz(i, d) = vp[d];
+      }
+   }
+
+   // project each of the 8 vertices into the hex.
+   // 1st vertex
+   real_t r = 0.25, s = 0.25, t = 0.25;
+   for (int d = 0; d < spaceDim; d++)
+   {
+      V(d) = xyz(0,d)*(1-r)*(1-s)*(1-t) + xyz(1,d)*(r)*(1-s)*(1-t) +
+               xyz(2, d)*r*s*(1-t) + xyz(3,d)*(1-r)*s*(1-t) +
+               xyz(4,d)*(1-r)*(1-s)*t + xyz(5,d)*(r)*(1-s)*t +
+               xyz(6, d)*r*s*t + xyz(7,d)*(1-r)*s*t;
+   }
+   vertices.Append(V);
+   vnew[0] = NumOfVertices++;
+
+   // 2nd vertex
+   r = 0.75, s = 0.25, t = 0.25;
+   for (int d = 0; d < spaceDim; d++)
+   {
+      V(d) = xyz(0,d)*(1-r)*(1-s)*(1-t) + xyz(1,d)*(r)*(1-s)*(1-t) +
+               xyz(2, d)*r*s*(1-t) + xyz(3,d)*(1-r)*s*(1-t) +
+               xyz(4,d)*(1-r)*(1-s)*t + xyz(5,d)*(r)*(1-s)*t +
+               xyz(6, d)*r*s*t + xyz(7,d)*(1-r)*s*t;
+   }
+   vertices.Append(V);
+   vnew[1] = NumOfVertices++;
+
+   // 3rd vertex
+   r = 0.75, s = 0.75, t = 0.25;
+   for (int d = 0; d < spaceDim; d++)
+   {
+      V(d) = xyz(0,d)*(1-r)*(1-s)*(1-t) + xyz(1,d)*(r)*(1-s)*(1-t) +
+               xyz(2, d)*r*s*(1-t) + xyz(3,d)*(1-r)*s*(1-t) +
+               xyz(4,d)*(1-r)*(1-s)*t + xyz(5,d)*(r)*(1-s)*t +
+               xyz(6, d)*r*s*t + xyz(7,d)*(1-r)*s*t;
+   }
+   vertices.Append(V);
+   vnew[2] = NumOfVertices++;
+
+   // 4th vertex
+   r = 0.25, s = 0.75, t = 0.25;
+   for (int d = 0; d < spaceDim; d++)
+   {
+      V(d) = xyz(0,d)*(1-r)*(1-s)*(1-t) + xyz(1,d)*(r)*(1-s)*(1-t) +
+               xyz(2, d)*r*s*(1-t) + xyz(3,d)*(1-r)*s*(1-t) +
+               xyz(4,d)*(1-r)*(1-s)*t + xyz(5,d)*(r)*(1-s)*t +
+               xyz(6, d)*r*s*t + xyz(7,d)*(1-r)*s*t;
+   }
+   vertices.Append(V);
+   vnew[3] = NumOfVertices++;
+
+   // 5th vertex
+   r = 0.25, s = 0.25, t = 0.75;
+   for (int d = 0; d < spaceDim; d++)
+   {
+      V(d) = xyz(0,d)*(1-r)*(1-s)*(1-t) + xyz(1,d)*(r)*(1-s)*(1-t) +
+               xyz(2, d)*r*s*(1-t) + xyz(3,d)*(1-r)*s*(1-t) +
+               xyz(4,d)*(1-r)*(1-s)*t + xyz(5,d)*(r)*(1-s)*t +
+               xyz(6, d)*r*s*t + xyz(7,d)*(1-r)*s*t;
+   }
+   vertices.Append(V);
+   vnew[4] = NumOfVertices++;
+
+   // 6th vertex
+   r = 0.75, s = 0.25, t = 0.75;
+   for (int d = 0; d < spaceDim; d++)
+   {
+      V(d) = xyz(0,d)*(1-r)*(1-s)*(1-t) + xyz(1,d)*(r)*(1-s)*(1-t) +
+               xyz(2, d)*r*s*(1-t) + xyz(3,d)*(1-r)*s*(1-t) +
+               xyz(4,d)*(1-r)*(1-s)*t + xyz(5,d)*(r)*(1-s)*t +
+               xyz(6, d)*r*s*t + xyz(7,d)*(1-r)*s*t;
+   }
+   vertices.Append(V);
+   vnew[5] = NumOfVertices++;
+
+   // 7th vertex
+   r = 0.75, s = 0.75, t = 0.75;
+   for (int d = 0; d < spaceDim; d++)
+   {
+      V(d) = xyz(0,d)*(1-r)*(1-s)*(1-t) + xyz(1,d)*(r)*(1-s)*(1-t) +
+               xyz(2, d)*r*s*(1-t) + xyz(3,d)*(1-r)*s*(1-t) +
+               xyz(4,d)*(1-r)*(1-s)*t + xyz(5,d)*(r)*(1-s)*t +
+               xyz(6, d)*r*s*t + xyz(7,d)*(1-r)*s*t;
+   }
+   vertices.Append(V);
+   vnew[6] = NumOfVertices++;
+
+   // 8th vertex
+   r = 0.25, s = 0.75, t = 0.75;
+   for (int d = 0; d < spaceDim; d++)
+   {
+      V(d) = xyz(0,d)*(1-r)*(1-s)*(1-t) + xyz(1,d)*(r)*(1-s)*(1-t) +
+               xyz(2, d)*r*s*(1-t) + xyz(3,d)*(1-r)*s*(1-t) +
+               xyz(4,d)*(1-r)*(1-s)*t + xyz(5,d)*(r)*(1-s)*t +
+               xyz(6, d)*r*s*t + xyz(7,d)*(1-r)*s*t;
+   }
+   vertices.Append(V);
+   vnew[7] = NumOfVertices++;
+
+   // now create the 6 new hexahedra
+   // t=0
+   v1[0] = v[0]; v1[1] = v[1]; v1[2] = v[2], v1[3] = v[3];
+   v1[4] = vnew[0]; v1[5] = vnew[1]; v1[6] = vnew[2]; v1[7] = vnew[3];
+
+   // t=1
+   // v2[0] = v[4]; v2[1] = v[5]; v2[2] = v[6], v2[3] = v[7];
+   // v2[4] = vnew[4]; v2[5] = vnew[5]; v2[6] = vnew[6]; v2[7] = vnew[7];
+   v2[0] = vnew[4]; v2[1] = vnew[5]; v2[2] = vnew[6], v2[3] = vnew[7];
+   v2[4] = v[4]; v2[5] = v[5]; v2[6] = v[6]; v2[7] = v[7];
+
+   // s=0
+   // v3[0] = v[0]; v3[1] = v[1]; v3[2] = v[5], v3[3] = v[4];
+   // v3[4] = vnew[0]; v3[5] = vnew[1]; v3[6] = vnew[5]; v3[7] = vnew[4];
+   v3[0] = vnew[0]; v3[1] = vnew[1]; v3[2] = vnew[5], v3[3] = vnew[4];
+   v3[4] = v[0]; v3[5] = v[1]; v3[6] = v[5]; v3[7] = v[4];
+
+   // s=1
+   v4[0] = v[3]; v4[1] = v[2]; v4[2] = v[6], v4[3] = v[7];
+   v4[4] = vnew[3]; v4[5] = vnew[2]; v4[6] = vnew[6]; v4[7] = vnew[7];
+
+   // r=0
+   v5[0] = v[0]; v5[1] = v[3]; v5[2] = v[7], v5[3] = v[4];
+   v5[4] = vnew[0]; v5[5] = vnew[3]; v5[6] = vnew[7]; v5[7] = vnew[4];
+
+   // r=1
+   // v6[0] = v[1]; v6[1] = v[2]; v6[2] = v[6], v6[3] = v[5];
+   // v6[4] = vnew[1]; v6[5] = vnew[2]; v6[6] = vnew[6]; v6[7] = vnew[5];
+   v6[0] = vnew[1]; v6[1] = vnew[2]; v6[2] = vnew[6], v6[3] = vnew[5];
+   v6[4] = v[1]; v6[5] = v[2]; v6[6] = v[6]; v6[7] = v[5];
+
+
+   // generate new elements
+   Hexahedron* hex1 = new Hexahedron(v1, hex0->GetAttribute());
+   Hexahedron* hex2 = new Hexahedron(v2, hex0->GetAttribute());
+   Hexahedron* hex3 = new Hexahedron(v3, hex0->GetAttribute());
+   Hexahedron* hex4 = new Hexahedron(v4, hex0->GetAttribute());
+   Hexahedron* hex5 = new Hexahedron(v5, hex0->GetAttribute());
+   Hexahedron* hex6 = new Hexahedron(v6, hex0->GetAttribute());
+
+   // add to element array
+   elements.Append(hex1);
+   elements.Append(hex2);
+   elements.Append(hex3);
+   elements.Append(hex4);
+   elements.Append(hex5);
+   elements.Append(hex6);
+
+   // replace vertices of the original array to be the new ones
+   hex0->SetVertices(vnew);
+
+   // record the sequence of refinements
+   unsigned code = hex0->GetTransform();
+   hex1->ResetTransform(code);
+   hex2->ResetTransform(code);
+   hex3->ResetTransform(code);
+   hex4->ResetTransform(code);
+   hex5->ResetTransform(code);
+   hex6->ResetTransform(code);
+
+   // the transform code matches the ordering in hex_conf_children
+   hex0->PushTransform(7);
+   hex1->PushTransform(1);
+   hex2->PushTransform(2);
+   hex3->PushTransform(3);
+   hex4->PushTransform(4);
+   hex5->PushTransform(5);
+   hex6->PushTransform(6);
+
+   // set parent indices. again needs to be consistent with hex_conf_children
+   int coarse = FindCoarseElement(e);
+   CoarseFineTr.embeddings[e] = Embedding(coarse, Geometry::CUBE, 7);
+   CoarseFineTr.embeddings.Append(Embedding(coarse, Geometry::CUBE, 1));
+   CoarseFineTr.embeddings.Append(Embedding(coarse, Geometry::CUBE, 2));
+   CoarseFineTr.embeddings.Append(Embedding(coarse, Geometry::CUBE, 3));
+   CoarseFineTr.embeddings.Append(Embedding(coarse, Geometry::CUBE, 4));
+   CoarseFineTr.embeddings.Append(Embedding(coarse, Geometry::CUBE, 5));
+   CoarseFineTr.embeddings.Append(Embedding(coarse, Geometry::CUBE, 6));
+
+   NumOfElements += 6;
+}
+
+void Mesh::HexFaceSplitRefinement(int e,
+                                  std::map<std::array<int, 4>,
+                                           std::tuple<int, std::array<int, 4>>> &face_marker,
+                                  int face_to_split)
+{
+   int FV[6][4] =
+   {
+      {3, 2, 1, 0}, {0, 1, 5, 4}, {1, 2, 6, 5},
+      {2, 3, 7, 6}, {3, 0, 4, 7}, {4, 5, 6, 7}
+   };
+
+   // std::cout << "Splitting face " << face_to_split << " of element " << e << "\n";
+   Array<int> v;
+   GetElementVertices(e, v);
+   // std::cout << "Print element vertices prior to split\n";
+   // v.Print();
+
+   Array<int> faces, ori;
+   GetElementFaces(e, faces, ori);
+   int fnum = faces[face_to_split];
+   Array<int> fverts;
+   // Array<int> lfi(4);
+   // Array<int> lvi(4);
+   GetFaceVertices(fnum, fverts);
+   fverts.Sort();
+   // lvi[0] = FV[face_to_split][0];
+   // lvi[1] = FV[face_to_split][1];
+   // lvi[2] = FV[face_to_split][2];
+   // lvi[3] = FV[face_to_split][3];
+   // lfi[0] = v[lvi[0]];
+   // lfi[1] = v[lvi[1]];
+   // lfi[2] = v[lvi[2]];
+   // lfi[3] = v[lvi[3]];
+
+   // get the vertices of the hex element
+   DenseMatrix xyz(8, spaceDim);
+   for (int i = 0; i < 8; i++)
+   {
+      real_t *vp = vertices[v[i]]();
+      for (int d = 0; d < spaceDim; d++)
+      {
+         xyz(i, d) = vp[d];
+      }
+   }
+
+   // used to store vertex indices of the 5 new hexes obtained after splitting
+   int v1[8], v2[8], v3[8], v4[8], v5[8];
+   // used to store indices of the 8 new vertices and hex in the center
+   int vnew[8];
+   // empty vertex - will be modified later
+   Vertex V;
+
+   real_t r[8], s[8], t[8];
+   const real_t A = 0.0, B = 1.0;
+   const real_t D = 0.25, E = 0.75;
+   auto rstFill = [&](const int f)
+   {
+      r[0] = f==3?A:D;   s[0] = f == 2 ? A : D; t[0] = f == 1 ? A : D;
+      r[1] = f==5?B:E;   s[1] = f == 2 ? A : D; t[1] = f == 1 ? A : D;
+      r[2] = f==5?B:E; s[2] = f == 4 ? B : E; t[2] = f == 1 ? A : D;
+      r[3] = f==3?A:D; s[3] = f == 4 ? B : E; t[3] = f == 1 ? A : D;
+      r[4] = f==3?A:D; s[4] = f == 2 ? A : D; t[4] = f == 6 ? B : E;
+      r[5] = f==5?B:E; s[5] = f == 2 ? A : D; t[5] = f == 6 ? B : E;
+      r[6] = f==5?B:E; s[6] = f == 4 ? B : E; t[6] = f == 6 ? B : E;
+      r[7] = f==3?A:D; s[7] = f == 4 ? B : E; t[7] = f == 6 ? B : E;
+   };
+
+   // get the input element
+   Hexahedron *hex0 = (Hexahedron*) elements[e];
+
+   // we try the four permuations of the face vertices to find the matching face
+   std::array<int, 4> face_split_verts;
+   int split_flag = -1; // is the face already split
+   auto it = face_marker.find({fverts[0],fverts[1],fverts[2],fverts[3]});
+   if (it != face_marker.end())
+   {
+      split_flag = std::get<0>(it->second);
+      face_split_verts = std::get<1>(it->second);
+      // std::cout << face_split_verts[0] << " "
+      //           << face_split_verts[1] << " "
+      //           << face_split_verts[2] << " "
+      //           << face_split_verts[3] << " K1001-vidx\n";
+   }
+   else {
+      MFEM_ABORT("Face to split not found in face marker map.");
+   }
+
+   rstFill(face_to_split+1);
+   for (int i = 0; i < 8; i++)
+   {
+      // project each of the 8 vertices into the hex.
+      for (int d = 0; d < spaceDim; d++)
+      {
+         V(d) = xyz(0,d)*(1-r[i])*(1-s[i])*(1-t[i]) + xyz(1,d)*(r[i])*(1-s[i])*(1-t[i]) +
+                  xyz(2, d)*r[i]*s[i]*(1-t[i]) + xyz(3,d)*(1-r[i])*s[i]*(1-t[i]) +
+                  xyz(4,d)*(1-r[i])*(1-s[i])*t[i] + xyz(5,d)*(r[i])*(1-s[i])*t[i] +
+                  xyz(6, d)*r[i]*s[i]*t[i] + xyz(7,d)*(1-r[i])*s[i]*t[i];
+      }
+      if (split_flag != -1)
+      {
+         // check if this vertex matches one of the new vertices.
+         double dx;
+         for (int j = 0; j < 4; j++)
+         {
+            dx = 0.0;
+            for (int d = 0; d < spaceDim; d++)
+            {
+               dx += std::abs(V(d) - vertices[face_split_verts[j]](d));
+            }
+            if (dx < 1e-12)
+            {
+               vnew[i] = face_split_verts[j];
+               break;
+            }
+         }
+      }
+      else
+      {
+         vertices.Append(V);
+         vnew[i] = NumOfVertices++;
+      }
+   }
+
+   if (split_flag == -1)
+   {
+      face_marker[{fverts[0],fverts[1],fverts[2],fverts[3]}] =
+         {1,
+            {vnew[FV[face_to_split][0]],
+               vnew[FV[face_to_split][1]],
+               vnew[FV[face_to_split][2]],
+               vnew[FV[face_to_split][3]]}
+            };
+   }
+   Array<int> vnewprint(vnew, 8);
+   // std::cout << "Print new vertices after face split K1000\n";
+   // vnewprint.Print(mfem::out, 8);
+
+   constexpr int hexes = 1 + 6*6;
+   constexpr int verts = 8;
+   const int hex_idx[hexes*verts] = {0,1,2,3,4,5,6,7, // original element
+                                    // face 0
+                                    /* ignore z = 0 to z = 0.25 */
+                                    12,13,14,15,4,5,6,7, // z=1 to z=0.75
+                                    8,9,13,12,0,1,5,4, // y=0 to y=0.25
+                                    3,2,6,7,11,10,14,15, // y=1 to y=0.75
+                                    0,3,7,4,8,11,15,12, // x=0 to x=0.25
+                                    9,10,14,13,1,2,6,5, // x=1 to x=0.75
+                                    8,9,10,11,12,13,14,15, // new inner hex
+
+                                    // face 1
+                                    0,1,2,3,8,9,10,11, // z=0 to z=0.25
+                                    12,13,14,15,4,5,6,7, // z=1 to z=0.75
+                                    /* ignore y min projection */
+                                    3,2,6,7,11,10,14,15, // y=1 to y=0.75
+                                    0,3,7,4,8,11,15,12, // x=0 to x=0.25
+                                    9,10,14,13,1,2,6,5, // x=1 to x=0.75
+                                    8,9,10,11,12,13,14,15,
+
+                                    // face 2
+                                    0,1,2,3,8,9,10,11, // z=0 to z=0.25
+                                    12,13,14,15,4,5,6,7, // z=1 to z=0.75
+                                    8,9,13,12,0,1,5,4, // y=0 to y=0.25
+                                    3,2,6,7,11,10,14,15, // y=1 to y=0.75
+                                    /* ignore x min projection */
+                                    9,10,14,13,1,2,6,5, // x=1 to x=0.75
+                                    8,9,10,11,12,13,14,15,
+
+                                    // face 3
+                                    0,1,2,3,8,9,10,11, // z=0 to z=0.25
+                                    12,13,14,15,4,5,6,7, // z=1 to z=0.75
+                                    8,9,13,12,0,1,5,4, // y=0 to y=0.25
+                                    /* ignore ymax projection */
+                                    0,3,7,4,8,11,15,12, // x=0 to x=0.25
+                                    9,10,14,13,1,2,6,5, // x=1 to x=0.75
+                                    8,9,10,11,12,13,14,15,
+
+                                    // face 4
+                                    0,1,2,3,8,9,10,11, // z=0 to z=0.25
+                                    12,13,14,15,4,5,6,7, // z=1 to z=0.75
+                                    8,9,13,12,0,1,5,4, // y=0 to y=0.25
+                                    3,2,6,7,11,10,14,15, // y=1 to y=0.75
+                                    0,3,7,4,8,11,15,12, // x=0 to x=0.25
+                                    /*ignore xmax projection*/
+                                    8,9,10,11,12,13,14,15,
+
+                                    // face 5
+                                    0,1,2,3,8,9,10,11, // z=0 to z=0.25
+                                    /*ignore zmax projection*/
+                                    8,9,13,12,0,1,5,4, // y=0 to y=0.25
+                                    3,2,6,7,11,10,14,15, // y=1 to y=0.75
+                                    0,3,7,4,8,11,15,12, // x=0 to x=0.25
+                                    9,10,14,13,1,2,6,5, // x=1 to x=0.75
+                                    8,9,10,11,12,13,14,15
+                                 };
+
+   unsigned code = hex0->GetTransform();
+   hex0->SetVertices(vnew);
+   //  Now we create the nex hexahedras
+   for (int i = 0; i < 5; i++)
+   {
+      int o = (1 + face_to_split*6 + i)*8; // offset in hex_idx
+      int co = 1 + face_to_split*6 + i; // child ordinal
+      // std::cout << face_to_split << " " << i << " " << o << " k10check\n";
+      for (int j = 0; j < 8; j++)
+      {
+         if (hex_idx[o+j] >= 8) {
+            v1[j] = vnew[hex_idx[o+j]-8];
+         }
+         else {
+            v1[j] = v[hex_idx[o+j]];
+         }
+      }
+      // v1[0] = v[hex_idx[o+0]];
+      // v1[1] = v[hex_idx[o+1]];
+      // v1[2] = v[hex_idx[o+2]];
+      // v1[3] = v[hex_idx[o+3]];
+      // v1[4] = vnew[hex_idx[o+4]-8];
+      // v1[5] = vnew[hex_idx[o+5]-8];
+      // v1[6] = vnew[hex_idx[o+6]-8];
+      // v1[7] = vnew[hex_idx[o+7]-8];
+      // std::cout << "Creating hex with vertices: ";
+      // std::cout << v1[0] << " " << v1[1] << " " << v1[2] << " " << v1[3]
+      //           << " " << v1[4] << " " << v1[5] << " " << v1[6] << " " << v1[7]
+      //           << "\n";
+      // std::cout << code << " " << face_to_split << " " << co << " k10codeinfo\n";
+      Hexahedron* hex = new Hexahedron(v1, hex0->GetAttribute());
+      elements.Append(hex);
+      hex->ResetTransform(code);
+      if (i == 0)
+      {
+         hex0->PushTransform(face_to_split*6 + 6);
+      }
+      hex->PushTransform(co);
+   }
+
+   // set parent indices. again needs to be consistent with hex_conf_children
+   int coarse = FindCoarseElement(e);
+   // std::cout << "Setting parent coarse index: " << coarse << " " <<
+   // face_to_split*6 + 6 << "\n";
+   for (int i = 0; i < 5; i++)
+   {
+      int co = 1 + face_to_split*6 + i; // child ordinal
+      if (i == 0)
+      {
+         CoarseFineTr.embeddings[e] = Embedding(coarse, Geometry::CUBE, face_to_split*6 + 6);
+      }
+      // std::cout << "Setting embedding for child " << i << " with coarse "
+               //  << coarse << " and ordinal " << co << "\n";
+      CoarseFineTr.embeddings.Append(Embedding(coarse, Geometry::CUBE, co));
+   }
+   NumOfElements += 5;
 }
 
 void Mesh::InitRefinementTransforms()
