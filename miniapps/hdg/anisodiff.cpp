@@ -121,6 +121,10 @@ MixedFluxFunction* GetHeatFluxFun(const ProblemParams &params, int dim);
 
 real_t UmanskyTestWidth(const GridFunction &u);
 
+// Visualize the grid function in GLVis
+bool VisualizeField(socketstream &sout, const GridFunction &gf,
+                    const char *name, int iter = 0);
+
 int main(int argc, char *argv[])
 {
    StopWatch chrono;
@@ -1069,90 +1073,28 @@ int main(int argc, char *argv[])
       // 16. Send the solution by socket to a GLVis server.
       if (visualization)
       {
-         const char vishost[] = "localhost";
-         const int  visport   = 19916;
-         static socketstream q_sock(vishost, visport);
-         q_sock.precision(8);
-         q_sock << "solution\n" << *mesh << q_vh << endl;
-         if (ti == 0)
-         {
-            q_sock << "window_title 'Heat flux'" << endl;
-            q_sock << "keys Rljvvvvvmmc" << endl;
-         }
-         static socketstream t_sock(vishost, visport);
-         t_sock.precision(8);
-         t_sock << "solution\n" << *mesh << t_h << endl;
-         if (ti == 0)
-         {
-            t_sock << "window_title 'Temperature'" << endl;
-            t_sock << "keys Rljmmc" << endl;
-         }
+         static socketstream q_sock, t_sock;
+         VisualizeField(q_sock, q_vh, "Heat flux", ti);
+         VisualizeField(t_sock, t_h, "Temperature", ti);
          if (reconstruct)
          {
-            static socketstream qt_sock(vishost, visport);
-            qt_sock.precision(8);
-            qt_sock << "solution\n" << *mesh << qt_h << endl;
-            if (ti == 0)
-            {
-               qt_sock << "window_title 'Total flux'" << endl;
-               qt_sock << "keys Rljvvvvvmmc" << endl;
-            }
-            static socketstream qs_sock(vishost, visport);
-            qs_sock.precision(8);
-            qs_sock << "solution\n" << *mesh << q_hs << endl;
-            if (ti == 0)
-            {
-               qs_sock << "window_title 'Recon. flux'" << endl;
-               qs_sock << "keys Rljvvvvvmmc" << endl;
-            }
-            static socketstream ts_sock(vishost, visport);
-            ts_sock.precision(8);
-            ts_sock << "solution\n" << *mesh << t_hs << endl;
-            if (ti == 0)
-            {
-               ts_sock << "window_title 'Recon. temperature'" << endl;
-               ts_sock << "keys Rljmmc" << endl;
-            }
+            static socketstream qt_sock, qs_sock, ts_sock;
+            VisualizeField(qt_sock, qt_h, "Total flux", ti);
+            VisualizeField(qs_sock, q_hs, "Recon. flux", ti);
+            VisualizeField(ts_sock, t_hs, "Recon. temperature", ti);
          }
          if (analytic)
          {
-            static socketstream qa_sock(vishost, visport);
-            qa_sock.precision(8);
-            qa_sock << "solution\n" << *mesh << q_a << endl;
-            if (ti == 0)
-            {
-               qa_sock << "window_title 'Heat flux analytic'" << endl;
-               qa_sock << "keys Rljvvvvvmmc" << endl;
-            }
+            static socketstream qa_sock, qta_sock, ta_sock, c_sock;
+            VisualizeField(qa_sock, q_a, "Heat flux analytic", ti);
             if (bconv || bnlconv)
             {
-               static socketstream qta_sock(vishost, visport);
-               qta_sock.precision(8);
-               qta_sock << "solution\n" << *mesh << qt_a << endl;
-               if (ti == 0)
-               {
-                  qta_sock << "window_title 'Total flux analytic'" << endl;
-                  qta_sock << "keys Rljvvvvvmmc" << endl;
-               }
+               VisualizeField(qta_sock, qt_a, "Total flux analytic", ti);
             }
-            static socketstream ta_sock(vishost, visport);
-            ta_sock.precision(8);
-            ta_sock << "solution\n" << *mesh << t_a << endl;
-            if (ti == 0)
-            {
-               ta_sock << "window_title 'Temperature analytic'" << endl;
-               ta_sock << "keys Rljmmc" << endl;
-            }
+            VisualizeField(ta_sock, t_a, "Temperature analytic", ti);
             if (bconv)
             {
-               static socketstream c_sock(vishost, visport);
-               c_sock.precision(8);
-               c_sock << "solution\n" << *mesh << c_gf << endl;
-               if (ti == 0)
-               {
-                  c_sock << "window_title 'Velocity'" << endl;
-                  c_sock << "keys Rljvvvvvmmc" << endl;
-               }
+               VisualizeField(c_sock, c_gf, "Velocity", ti);
             }
          }
       }
@@ -1976,4 +1918,42 @@ real_t UmanskyTestWidth(const GridFunction &u)
    double y75 = FindYVal(u, 0.75, xMid, y0, y1);
 
    return y25 - y75;
+}
+
+bool VisualizeField(socketstream &sout, const GridFunction &gf,
+                    const char *name, int iter)
+{
+   const char vishost[] = "localhost";
+   const int visport = 19916;
+   if (!sout.is_open())
+   {
+      sout.open(vishost, visport);
+   }
+   if (!sout)
+   {
+      cout << "Unable to connect to GLVis server at " << vishost << ':'
+           << visport << endl;
+      cout << "GLVis visualization disabled.\n";
+      return false;
+   }
+   else
+   {
+      constexpr int precision = 8;
+      sout.precision(precision);
+      sout << "solution\n" << *gf.FESpace()->GetMesh() << gf;
+      if (iter == 0)
+      {
+         sout << "window_title '" << name << "'\n";
+         if (gf.VectorDim() > 1)
+         {
+            sout << "keys Rljvvvvvmmc" << endl;
+         }
+         else
+         {
+            sout << "keys Rljmmc" << endl;
+         }
+      }
+      sout << flush;
+   }
+   return true;
 }
