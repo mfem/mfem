@@ -1333,5 +1333,48 @@ void RandomizeMesh(Mesh &mesh, real_t dr)
    }
 }
 
+void DarcyErrorEstimator::ComputeEstimates()
+{
+   const FiniteElementSpace *fes_tr = sol_tr.FESpace();
+   const FiniteElementSpace *fes_p = sol_p.FESpace();
+   Mesh *mesh = fes_tr->GetMesh();
+   Array<int> vdofs1, vdofs2, vdofs_tr;
+   Vector p1, p2, tr, btr1, btr2;
+
+   error_estimates.SetSize(mesh->GetNE());
+   error_estimates = 0.;
+
+   const int num_faces = mesh->GetNumFaces();
+
+   for (int f = 0; f < num_faces; f++)
+   {
+      FaceElementTransformations *ftr = mesh->GetInteriorFaceTransformations(f);
+      if (!ftr) { continue; }
+
+      fes_p->GetElementVDofs(ftr->Elem1No, vdofs1);
+      fes_p->GetElementVDofs(ftr->Elem2No, vdofs2);
+      fes_tr->GetFaceVDofs(f, vdofs_tr);
+
+      sol_p.GetSubVector(vdofs1, p1);
+      sol_p.GetSubVector(vdofs2, p2);
+      sol_tr.GetSubVector(vdofs_tr, tr);
+
+      constexpr int type = NonlinearFormIntegrator::HDGFaceType::CONSTR
+                           | NonlinearFormIntegrator::HDGFaceType::FACE;
+
+      const FiniteElement &fe_tr = *fes_tr->GetFaceElement(f);
+      const FiniteElement &fe1 = *fes_p->GetFE(ftr->Elem1No);
+      const FiniteElement &fe2 = *fes_p->GetFE(ftr->Elem2No);
+
+      bfi.AssembleHDGFaceVector(type, fe_tr, fe1, *ftr, tr, p1, btr1);
+      error_estimates(ftr->Elem1No) += fabs(btr1.Sum());
+
+      bfi.AssembleHDGFaceVector(type | 1, fe_tr, fe2, *ftr, tr, p2, btr2);
+      error_estimates(ftr->Elem2No) += fabs(btr2.Sum());
+   }
+
+   total_error = error_estimates.Sum();
+}
+
 } // namespace hdg
 } // namespace mfem

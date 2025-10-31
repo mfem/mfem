@@ -225,6 +225,41 @@ public:
 
 void RandomizeMesh(Mesh &mesh, real_t dr);
 
+class DarcyErrorEstimator : public ErrorEstimator
+{
+   BilinearFormIntegrator &bfi;
+   const GridFunction &sol_tr, &sol_p;
+   long current_sequence{-1};
+   Vector error_estimates;
+   real_t total_error{};
+
+   /// Check if the mesh of the solution was modified.
+   bool MeshIsModified()
+   {
+      long mesh_sequence = sol_tr.FESpace()->GetMesh()->GetSequence();
+      MFEM_ASSERT(mesh_sequence >= current_sequence, "");
+      return (mesh_sequence > current_sequence);
+   }
+
+   /// Compute the element error estimates.
+   void ComputeEstimates();
+
+public:
+   DarcyErrorEstimator(BilinearFormIntegrator &integ, const GridFunction &solr,
+                       const GridFunction &solp)
+      : bfi(integ), sol_tr(solr), sol_p(solp) { }
+
+   real_t GetTotalError() const override { return total_error; }
+
+   const Vector &GetLocalErrors() override
+   {
+      if (MeshIsModified()) { ComputeEstimates(); }
+      return error_estimates;
+   }
+
+   void Reset() override { current_sequence = -1; }
+};
+
 class VectorBlockDiagonalIntegrator : public BilinearFormIntegrator
 {
    int numIntegs;
