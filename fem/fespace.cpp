@@ -3861,7 +3861,7 @@ const FiniteElement *FiniteElementSpace::GetFE(int i) const
 #ifdef MFEM_DEBUG
       // consistency check: fec->GetOrder() and FE->GetOrder() should return
       // the same value (for standard, constant-order spaces)
-      if (!IsVariableOrder() && FE->GetDim() > 0)
+      if (!IsVariableOrder() && FE && FE->GetDim() > 0)
       {
          MFEM_ASSERT(FE->GetOrder() == fec->GetOrder(),
                      "internal error: " <<
