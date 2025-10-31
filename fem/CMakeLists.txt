@@ -293,6 +293,7 @@ set(HDRS
   transfer.hpp
   hyperbolic.hpp
   darcy/bilininteg_hdg.hpp
+  darcy/estimators_hdg.hpp
   darcy/darcy.hpp
   darcy/darcyform.hpp
   darcy/darcyhybridization.hpp

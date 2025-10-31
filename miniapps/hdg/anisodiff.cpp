@@ -872,15 +872,15 @@ int main(int argc, char *argv[])
    //construct the AMR refiner
 
    std::unique_ptr<BilinearFormIntegrator> amr_bfi;
-   std::unique_ptr<DarcyErrorEstimator> amr_err;
+   std::unique_ptr<ErrorEstimator> amr_err;
    std::unique_ptr<ThresholdRefiner> amr_ref;
 
    if (amr_nrefs > 0 && hybridization)
    {
       MFEM_ASSERT(!bconv, "Not implemented");
       amr_bfi.reset(new HDGDiffusionIntegrator(kcoeff, td));
-      amr_err.reset(new DarcyErrorEstimator(*amr_bfi, tr_h, t_h));
-      amr_err->SetAnisotropic();
+      amr_err.reset(new HDGErrorEstimator(*amr_bfi, tr_h, t_h));
+      static_cast<HDGErrorEstimator*>(amr_err.get())->SetAnisotropic();
       amr_ref.reset(new ThresholdRefiner(*amr_err));
       amr_ref->SetTotalErrorFraction(0.7);
    }
