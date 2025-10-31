@@ -5,6 +5,7 @@
 #include <iostream>
 #include <vector>
 #include <utility> 
+#include <bitset>
 
 //@Will I would to copy only the functions you need
 #include "ex37_copy.hpp"
