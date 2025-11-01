@@ -18,12 +18,20 @@ using namespace mfem;
 using namespace mfem::future;
 using mfem::future::tensor;
 
+#ifdef MFEM_USE_ENZYME
+using dscalar_t = real_t;
+#else
+using mfem::future::dual;
+using dscalar_t = dual<real_t, real_t>;
+#endif
+
 namespace dfem_pa_kernels
 {
 
 template <int DIM>
-void DFemMass(const char *filename, int p, const int r)
+void dfem_mass(const char *filename, int p, const int r)
 {
+   constexpr int BDIM = DIM - 1;
    CAPTURE(filename, DIM, p, r);
 
    Mesh smesh(filename);
@@ -33,16 +41,8 @@ void DFemMass(const char *filename, int p, const int r)
    p = std::max(p, pmesh.GetNodalFESpace()->GetMaxElementOrder());
    smesh.Clear();
 
-   Array<int> all_domain_attr;
-   if (pmesh.attributes.Size() > 0)
-   {
-      all_domain_attr.SetSize(pmesh.attributes.Max());
-      all_domain_attr = 1;
-   }
-
    H1_FECollection fec(p, DIM);
    ParFiniteElementSpace fes(&pmesh, &fec);
-   const auto *ir = &IntRules.Get(pmesh.GetTypicalElementGeometry(), 2 * p + r);
 
    ParGridFunction x(&fes), y(&fes), z(&fes);
    Vector X(fes.GetTrueVSize()), Y(fes.GetTrueVSize()), Z(fes.GetTrueVSize());
@@ -51,37 +51,114 @@ void DFemMass(const char *filename, int p, const int r)
    x.SetFromTrueDofs(X);
 
    ConstantCoefficient one(1.0);
-   ParBilinearForm blf(&fes);
-   blf.AddDomainIntegrator(new MassIntegrator(one, ir));
-   blf.SetAssemblyLevel(AssemblyLevel::PARTIAL);
-   blf.Assemble();
-   blf.Mult(x, y);
-   fes.GetProlongationMatrix()->MultTranspose(y, Y);
 
-   static constexpr int U = 0, Coords = 1;
-   const auto sol = std::vector{ FieldDescriptor{ U, &fes } };
-   DifferentiableOperator dop(sol, {{Coords, nodes->ParFESpace()}}, pmesh);
-   const auto mf_mass_qf =
-      [] MFEM_HOST_DEVICE(const real_t &dudxi,
-                          const tensor<real_t, DIM, DIM> &J, const real_t &w)
-   { return tuple{dudxi * w * det(J)}; };
-   dop.AddDomainIntegrator(mf_mass_qf,
-                           tuple{ Value<U>{}, Gradient<Coords>{}, Weight{} },
-                           tuple{ Value<U>{} },
-                           *ir, all_domain_attr);
-   dop.SetParameters({ nodes });
+   // Test domain
 
-   fes.GetRestrictionMatrix()->Mult(x, X);
-   dop.Mult(X, Z);
-   Y -= Z;
+   SECTION("domain")
+   {
+      const auto *ir = &IntRules.Get(pmesh.GetTypicalElementGeometry(), 2 * p + r);
 
-   real_t norm_g, norm_l = Y.Normlinf();
-   MPI_Allreduce(&norm_l, &norm_g, 1, MPI_DOUBLE, MPI_MAX, pmesh.GetComm());
-   REQUIRE(norm_g == MFEM_Approx(0.0));
-   MPI_Barrier(MPI_COMM_WORLD);
+      Array<int> all_domain_attr;
+      if (pmesh.attributes.Size() > 0)
+      {
+         all_domain_attr.SetSize(pmesh.attributes.Max());
+         all_domain_attr = 1;
+      }
+
+      ParBilinearForm blf(&fes);
+      blf.AddDomainIntegrator(new MassIntegrator(one, ir));
+      blf.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+      blf.Assemble();
+      blf.Mult(x, y);
+      fes.GetProlongationMatrix()->MultTranspose(y, Y);
+
+      static constexpr int U = 0, Coords = 1;
+      const auto sol = std::vector{ FieldDescriptor{ U, &fes } };
+      DifferentiableOperator dop(sol, {{Coords, nodes->ParFESpace()}}, pmesh);
+      const auto mf_mass_qf =
+         [] MFEM_HOST_DEVICE(const real_t &u,
+                             const tensor<real_t, DIM, DIM> &J, const real_t &w)
+      { return tuple{u * w * det(J)}; };
+      dop.AddDomainIntegrator(mf_mass_qf,
+                              tuple{ Value<U>{}, Gradient<Coords>{}, Weight{} },
+                              tuple{ Value<U>{} },
+                              *ir, all_domain_attr);
+      dop.SetParameters({ nodes });
+
+      fes.GetRestrictionMatrix()->Mult(x, X);
+      dop.Mult(X, Z);
+      Y -= Z;
+
+      real_t norm_g, norm_l = Y.Normlinf();
+      MPI_Allreduce(&norm_l, &norm_g, 1, MPI_DOUBLE, MPI_MAX, pmesh.GetComm());
+      REQUIRE(norm_g == MFEM_Approx(0.0));
+      MPI_Barrier(MPI_COMM_WORLD);
+   }
+
+   // Test boundary
+   // This ensures that we're not trying to test on fully periodic meshes
+   if (!((std::string("../../data/periodic-square.mesh").compare(filename) == 0) ||
+         (std::string("../../data/periodic-cube.mesh").compare(filename) == 0)))
+   {
+      SECTION("boundary")
+      {
+         const auto *ir = &IntRules.Get(pmesh.GetTypicalFaceGeometry(), 2 * p + r);
+
+         Array<int> all_bdr_attr;
+         if (pmesh.bdr_attributes.Size() > 0)
+         {
+            all_bdr_attr.SetSize(pmesh.bdr_attributes.Max());
+            all_bdr_attr = 1;
+         }
+
+         ParBilinearForm blf(&fes);
+         blf.AddBoundaryIntegrator(new MassIntegrator(one, ir));
+         blf.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+         blf.Assemble();
+         blf.Mult(x, y);
+         fes.GetProlongationMatrix()->MultTranspose(y, Y);
+
+         static constexpr int U = 0, Coords = 1;
+         const auto sol = std::vector{FieldDescriptor{U, &fes}};
+         DifferentiableOperator dop(sol, {{Coords, nodes->ParFESpace()}}, pmesh);
+
+         const auto mf_mass_qf =
+            [] MFEM_HOST_DEVICE(const dscalar_t &u,
+                                const tensor<real_t, DIM, BDIM> &J,
+                                const real_t &w)
+         {
+            return tuple{u * weight(J) * w};
+         };
+
+         auto derivatives = std::integer_sequence<size_t, U> {};
+         dop.AddBoundaryIntegrator(mf_mass_qf,
+                                   tuple{ Value<U>{}, Gradient<Coords>{}, Weight{} },
+                                   tuple{ Value<U>{} },
+                                   *ir, all_bdr_attr, derivatives);
+         dop.SetParameters({nodes});
+
+         fes.GetRestrictionMatrix()->Mult(x, X);
+         dop.Mult(X, Z);
+
+         Y -= Z;
+         real_t norm_g, norm_l = Y.Normlinf();
+         MPI_Allreduce(&norm_l, &norm_g, 1, MPI_DOUBLE, MPI_MAX, pmesh.GetComm());
+         REQUIRE(norm_g == MFEM_Approx(0.0));
+
+         auto dRdU = dop.GetDerivative(U, {&x}, {nodes});
+         dRdU->Mult(X, Z);
+
+         fes.GetProlongationMatrix()->MultTranspose(y, Y);
+         Y -= Z;
+         norm_l = Y.Normlinf();
+         MPI_Allreduce(&norm_l, &norm_g, 1, MPI_DOUBLE, MPI_MAX, pmesh.GetComm());
+         REQUIRE(norm_g == MFEM_Approx(0.0));
+         MPI_Barrier(MPI_COMM_WORLD);
+      }
+   }
 }
 
-TEST_CASE("DFEM Mass", "[Parallel][DFEM]")
+TEST_CASE("dFEM Mass", "[Parallel][dFEM]")
 {
    const bool all_tests = launch_all_non_regression_tests;
 
@@ -96,7 +173,7 @@ TEST_CASE("DFEM Mass", "[Parallel][DFEM]")
                   "../../data/rt-2d-q3.mesh",
                   "../../data/inline-quad.mesh",
                   "../../data/periodic-square.mesh");
-      DFemMass<2>(filename, p, r);
+      dfem_mass<2>(filename, p, r);
    }
 
    SECTION("3D p=" + std::to_string(p) + " r=" + std::to_string(r))
@@ -107,7 +184,7 @@ TEST_CASE("DFEM Mass", "[Parallel][DFEM]")
                   "../../data/inline-hex.mesh",
                   "../../data/toroid-hex.mesh",
                   "../../data/periodic-cube.mesh");
-      DFemMass<3>(filename, p, r);
+      dfem_mass<3>(filename, p, r);
    }
 }
 

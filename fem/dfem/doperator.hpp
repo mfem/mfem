@@ -211,8 +211,8 @@ private:
 ///
 /// The operator is constructed with solution fields that it will act on and
 /// parameter fields that define coefficients. Quadrature functions are added by
-/// e.g. using AddDomainIntegrator() which specify how the operator evaluates f
-/// those functionas and parameters at quadrature points.
+/// e.g. using AddDomainIntegrator() which specify how the operator evaluates
+/// those functions and parameters at quadrature points.
 ///
 /// Derivatives can be computed by obtaining a DerivativeOperator using
 /// GetDerivative().
@@ -280,6 +280,22 @@ public:
       }
    }
 
+   /// @brief Add an integrator to the operator.
+   /// Called only from AddDomainIntegrator() and AddBoundaryIntegrator().
+   template <
+      typename entity_t,
+      typename qfunc_t,
+      typename input_t,
+      typename output_t,
+      typename derivative_ids_t>
+   void AddIntegrator(
+      qfunc_t &qfunc,
+      input_t inputs,
+      output_t outputs,
+      const IntegrationRule &integration_rule,
+      const Array<int> &attributes,
+      derivative_ids_t derivative_ids);
+
    /// @brief Add a domain integrator to the operator.
    ///
    /// @param qfunc The quadrature function to be added.
@@ -303,6 +319,31 @@ public:
       output_t outputs,
       const IntegrationRule &integration_rule,
       const Array<int> &domain_attributes,
+      derivative_ids_t derivative_ids = std::make_index_sequence<0> {});
+
+   /// @brief Add a boundary integrator to the operator.
+   ///
+   /// @param qfunc The quadrature function to be added.
+   /// @param inputs Tuple of FieldOperators for the inputs of the quadrature
+   /// function.
+   /// @param outputs Tuple of FieldOperators for the outputs of the quadrature
+   /// function.
+   /// @param integration_rule IntegrationRule to use with this integrator.
+   /// @param boundary_attributes Boundary attributes marker array indicating over
+   /// which attributes this integrator will integrate over.
+   /// @param derivative_ids Derivatives to be made available for this
+   /// integrator.
+   template <
+      typename qfunc_t,
+      typename input_t,
+      typename output_t,
+      typename derivative_ids_t = decltype(std::make_index_sequence<0> {})>
+   void AddBoundaryIntegrator(
+      qfunc_t &qfunc,
+      input_t inputs,
+      output_t outputs,
+      const IntegrationRule &integration_rule,
+      const Array<int> &boundary_attributes,
       derivative_ids_t derivative_ids = std::make_index_sequence<0> {});
 
    /// @brief Set the parameters for the operator.
@@ -423,7 +464,52 @@ void DifferentiableOperator::AddDomainIntegrator(
    const Array<int> &domain_attributes,
    derivative_ids_t derivative_ids)
 {
-   using entity_t = Entity::Element;
+   AddIntegrator<Entity::Element>(
+      qfunc, inputs, outputs, integration_rule, domain_attributes, derivative_ids);
+}
+
+template <
+   typename qfunc_t,
+   typename input_t,
+   typename output_t,
+   typename derivative_ids_t>
+void DifferentiableOperator::AddBoundaryIntegrator(
+   qfunc_t &qfunc,
+   input_t inputs,
+   output_t outputs,
+   const IntegrationRule &integration_rule,
+   const Array<int> &boundary_attributes,
+   derivative_ids_t derivative_ids)
+{
+
+   if (mesh.GetNFbyType(FaceType::Boundary) != mesh.GetNBE())
+   {
+      MFEM_ABORT("AddBoundaryIntegrator on meshes with interior boundaries is not supported.");
+   }
+   AddIntegrator<Entity::BoundaryElement>(
+      qfunc, inputs, outputs, integration_rule, boundary_attributes, derivative_ids);
+}
+
+template <
+   typename entity_t,
+   typename qfunc_t,
+   typename input_t,
+   typename output_t,
+   typename derivative_ids_t>
+void DifferentiableOperator::AddIntegrator(
+   qfunc_t &qfunc,
+   input_t inputs,
+   output_t outputs,
+   const IntegrationRule &integration_rule,
+   const Array<int> &attributes,
+   derivative_ids_t derivative_ids)
+{
+   if constexpr (!(std::is_same_v<entity_t, Entity::Element> ||
+                   std::is_same_v<entity_t, Entity::BoundaryElement>))
+   {
+      static_assert(dfem::always_false<entity_t>,
+                    "entity type not supported in AddIntegrator");
+   }
 
    static constexpr size_t num_inputs =
       tuple_size<decltype(inputs)>::value;
@@ -477,32 +563,44 @@ void DifferentiableOperator::AddDomainIntegrator(
    auto output_to_field =
       create_descriptors_to_fields_map<entity_t>(fields, outputs);
 
-   // TODO: factor out
-   std::vector<int> inputs_vdim(num_inputs);
-   for_constexpr<num_inputs>([&](auto i)
+   const Array<int> *elem_attributes = nullptr;
+   if constexpr (std::is_same_v<entity_t, Entity::Element>)
    {
-      inputs_vdim[i] = get<i>(inputs).vdim;
-   });
-
-
-   Array<int> elem_attributes;
-   elem_attributes.SetSize(mesh.GetNE());
-   for (int i = 0; i < mesh.GetNE(); ++i)
+      elem_attributes = &mesh.GetElementAttributes();
+   }
+   else if constexpr (std::is_same_v<entity_t, Entity::BoundaryElement>)
    {
-      elem_attributes[i] = mesh.GetAttribute(i);
+      elem_attributes = &mesh.GetBdrFaceAttributes();
    }
 
    const auto output_fop = get<0>(outputs);
    test_space_field_idx = FindIdx(output_fop.GetFieldId(), fields);
 
    bool use_sum_factorization = false;
-   auto entity_element_type =
-      Element::TypeFromGeometry(mesh.GetTypicalElementGeometry());
-   if ((entity_element_type == Element::QUADRILATERAL ||
-        entity_element_type == Element::HEXAHEDRON) &&
-       use_tensor_product_structure == true)
+   Element::Type entity_element_type;
+   if constexpr (std::is_same_v<entity_t, Entity::Element>)
    {
-      use_sum_factorization = true;
+      entity_element_type =
+         Element::TypeFromGeometry(mesh.GetTypicalElementGeometry());
+
+      if ((entity_element_type == Element::QUADRILATERAL ||
+           entity_element_type == Element::HEXAHEDRON) &&
+          use_tensor_product_structure == true)
+      {
+         use_sum_factorization = true;
+      }
+   }
+   else if constexpr (std::is_same_v<entity_t, Entity::BoundaryElement>)
+   {
+      entity_element_type =
+         Element::TypeFromGeometry(mesh.GetTypicalFaceGeometry());
+
+      if ((entity_element_type == Element::SEGMENT ||
+           entity_element_type == Element::QUADRILATERAL) &&
+          use_tensor_product_structure == true)
+      {
+         use_sum_factorization = true;
+      }
    }
 
    ElementDofOrdering element_dof_ordering = ElementDofOrdering::NATIVE;
@@ -540,8 +638,17 @@ void DifferentiableOperator::AddDomainIntegrator(
    prolongation_transpose = get_prolongation_transpose(
                                fields[test_space_field_idx], output_fop, mesh.GetComm());
 
-   const int dimension = mesh.Dimension();
-   [[maybe_unused]] const int num_elements = GetNumEntities<Entity::Element>(mesh);
+   int dimension;
+   if constexpr (std::is_same_v<entity_t, Entity::Element>)
+   {
+      dimension = mesh.Dimension();
+   }
+   else if constexpr (std::is_same_v<entity_t, Entity::BoundaryElement>)
+   {
+      dimension = mesh.Dimension() - 1;
+   }
+
+   [[maybe_unused]] const int num_elements = GetNumEntities<entity_t>(mesh);
    const int num_entities = GetNumEntities<entity_t>(mesh);
    const int num_qp = integration_rule.GetNPoints();
 
@@ -615,6 +722,12 @@ void DifferentiableOperator::AddDomainIntegrator(
          thread_blocks.z = 1;
       }
    }
+   else if (dimension == 1)
+   {
+      thread_blocks.x = q1d;
+      thread_blocks.y = 1;
+      thread_blocks.z = 1;
+   }
 
    action_callbacks.push_back(
       // Explicitly capture everything we need, so we can make explicit choice
@@ -630,7 +743,7 @@ void DifferentiableOperator::AddDomainIntegrator(
          test_vdim,             // int (= output_fop.vdim)
          test_op_dim,           // int (derived from output_fop)
          inputs,                // mfem::future::tuple
-         domain_attributes,     // Array<int>
+         attributes,            // Array<int>
          ir_weights,            // DeviceTensor
          use_sum_factorization, // bool
          input_dtq_maps,        // std::array<DofToQuadMap, num_fields>
@@ -663,13 +776,13 @@ void DifferentiableOperator::AddDomainIntegrator(
                                           action_shmem_info.field_sizes,
                                           num_entities);
 
-      const bool has_attr = domain_attributes.Size() > 0;
-      const auto d_domain_attr = domain_attributes.Read();
-      const auto d_elem_attr = elem_attributes.Read();
+      const bool has_attr = attributes.Size() > 0;
+      const auto d_attr = attributes.Read();
+      const auto d_elem_attr = elem_attributes->Read();
 
       forall([=] MFEM_HOST_DEVICE (int e, void *shmem)
       {
-         if (has_attr && !d_domain_attr[d_elem_attr[e] - 1]) { return; }
+         if (has_attr && !d_attr[d_elem_attr[e] - 1]) { return; }
 
          auto [input_dtq_shmem, output_dtq_shmem, fields_shmem, input_shmem,
                                 residual_shmem, scratch_shmem] =
@@ -739,7 +852,7 @@ void DifferentiableOperator::AddDomainIntegrator(
                test_vdim,             // int (= output_fop.vdim)
                test_op_dim,           // int (derived from output_fop)
                inputs,                // mfem::future::tuple
-               domain_attributes,     // Array<int>
+               attributes,            // Array<int>
                ir_weights,            // DeviceTensor
                use_sum_factorization, // bool
                input_dtq_maps,        // std::array<DofToQuadMap, num_fields>
@@ -777,14 +890,14 @@ void DifferentiableOperator::AddDomainIntegrator(
                                                shmem_info.direction_size,
                                                num_entities);
 
-            const auto d_elem_attr = elem_attributes.Read();
-            const bool has_attr = domain_attributes.Size() > 0;
-            const auto d_domain_attr = domain_attributes.Read();
+            const bool has_attr = attributes.Size() > 0;
+            const auto d_attr = attributes.Read();
+            const auto d_elem_attr = elem_attributes->Read();
 
             derivative_action_e = 0.0;
             forall([=] MFEM_HOST_DEVICE (int e, real_t *shmem)
             {
-               if (has_attr && !d_domain_attr[d_elem_attr[e] - 1]) { return; }
+               if (has_attr && !d_attr[d_elem_attr[e] - 1]) { return; }
 
                auto [input_dtq_shmem, output_dtq_shmem, fields_shmem,
                                       direction_shmem, input_shmem,
