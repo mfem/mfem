@@ -114,6 +114,8 @@ set(SRCS
   nonlinearform_ext.cpp
   nonlininteg.cpp
   fespacehierarchy.cpp
+  partial_qfunc.cpp
+  partial_qspace.cpp
   qfunction.cpp
   qinterp/det.cpp
   qinterp/eval_by_nodes.cpp
@@ -258,6 +260,8 @@ set(HDRS
   nonlinearform.hpp
   nonlinearform_ext.hpp
   nonlininteg.hpp
+  partial_qfunc.hpp
+  partial_qspace.hpp
   qfunction.hpp
   qinterp/det.hpp
   qinterp/eval.hpp
