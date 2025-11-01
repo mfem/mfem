@@ -755,6 +755,23 @@ std::unique_ptr<MatrixConstantCoefficient> MakeCoeff<MatrixConstantCoefficient>
    return std::make_unique<MatrixConstantCoefficient>(A);
 }
 
+template <>
+std::unique_ptr<SymmetricMatrixConstantCoefficient>
+MakeCoeff<SymmetricMatrixConstantCoefficient>
+(int dim)
+{
+   DenseSymmetricMatrix A(dim);
+   for (int i = 0; i < A.GetStoredSize(); ++i)
+   {
+      A.GetData()[i] = 1.0 / (i + 3.0);
+   }
+   for (int i = 0; i < dim; ++i)
+   {
+      A(i,i) += 2.0 + i;
+   }
+   return std::make_unique<SymmetricMatrixConstantCoefficient>(A);
+}
+
 template <typename CoeffType = ConstantCoefficient,
           typename FES = FiniteElementSpace>
 void test_dg_diffusion(FES &fes)
@@ -835,6 +852,7 @@ TEST_CASE("PA DG Diffusion", "[PartialAssembly], [GPU]")
 
    test_dg_diffusion<ConstantCoefficient>(fes);
    test_dg_diffusion<MatrixConstantCoefficient>(fes);
+   test_dg_diffusion<SymmetricMatrixConstantCoefficient>(fes);
 }
 
 #ifdef MFEM_USE_MPI
