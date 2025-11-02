@@ -430,3 +430,70 @@ TEST_CASE("Piecewise Constant Coefficient", "[Coefficient]")
       }
    }
 }
+
+TEST_CASE("Project Sum/Product/Ratio Coefficients", "[Coefficient][GPU]")
+{
+   // Small mesh with a few elements
+   Mesh mesh = Mesh::MakeCartesian2D(2, 2, Element::QUADRILATERAL);
+
+   // Use low-order quadrature space so qf has a few points
+   QuadratureSpace qs(&mesh, 2);
+
+   QuadratureFunction qf1(qs);
+   qf1.Randomize();
+   QuadratureFunctionCoefficient qf_coeff_1(qf1);
+
+   QuadratureFunction qf2(qs);
+   qf2.Randomize();
+   QuadratureFunctionCoefficient qf_coeff_2(qf2);
+
+   auto check_coeff = [&](Coefficient &coeff)
+   {
+      QuadratureFunction qf(qs);
+      coeff.Project(qf);
+      Vector vals;
+      for (int e = 0; e < qs.GetNE(); ++e)
+      {
+         const IntegrationRule &ir = qs.GetIntRule(e);
+         ElementTransformation &T = *qs.GetTransformation(e);
+         qf.GetValues(e, vals);
+         for (int iq = 0; iq < ir.Size(); ++iq)
+         {
+            const real_t val = coeff.Eval(T, ir[iq]);
+            REQUIRE(val == MFEM_Approx(vals[iq]));
+         }
+      }
+   };
+
+   SECTION("SumCoefficient")
+   {
+      SumCoefficient s1(2.2, qf_coeff_2, 3.3, 4.4);
+      SumCoefficient s2(qf_coeff_1, qf_coeff_2, 3.3, 4.4);
+
+      check_coeff(s1);
+      check_coeff(s2);
+   }
+
+   SECTION("ProductCoefficient")
+   {
+      ProductCoefficient p1(2.2, qf_coeff_2);
+      ProductCoefficient p2(qf_coeff_1, qf_coeff_2);
+
+      check_coeff(p1);
+      check_coeff(p2);
+   }
+
+   SECTION("RatioCoefficient")
+   {
+      RatioCoefficient r1(1.1, qf_coeff_2);
+      RatioCoefficient r2(qf_coeff_1, 2.2);
+      RatioCoefficient r3(qf_coeff_1, qf_coeff_2);
+
+      check_coeff(r1);
+      check_coeff(r2);
+      check_coeff(r3);
+
+      r1.SetBConst(2.2);
+      check_coeff(r1);
+   }
+}
