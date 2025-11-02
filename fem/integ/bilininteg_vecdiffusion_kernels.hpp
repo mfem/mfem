@@ -17,11 +17,9 @@
 #include "../ceed/integrators/diffusion/diffusion.hpp"
 #include "../gridfunc.hpp"
 #include "../qfunction.hpp"
-/// \cond DO_NOT_DOCUMENT
-namespace mfem
-{
 
-namespace internal
+/// \cond DO_NOT_DOCUMENT
+namespace mfem::internal
 {
 
 // PA Diffusion Apply 2D kernel
@@ -333,23 +331,8 @@ PAVectorDiffusionApply3D(const int NE, const Array<real_t> &b,
       }
    });
 }
-} // namespace internal
+} // namespace mfem::internal
 
-template <int DIM, int VDIM, int T_D1D, int T_Q1D>
-VectorDiffusionIntegrator::ApplyKernelType
-VectorDiffusionIntegrator::ApplyPAKernels::Kernel()
-{
-   if constexpr (DIM == 2)
-   {
-      return internal::PAVectorDiffusionApply2D<T_D1D, T_Q1D, VDIM>;
-   }
-   else if constexpr (DIM == 3)
-   {
-      return internal::PAVectorDiffusionApply3D;
-   }
-   MFEM_ABORT("");
-}
-
-} // namespace mfem
 /// \endcond DO_NOT_DOCUMENT
-#endif
+
+#endif // MFEM_BILININTEG_VECDIFFUSION_KERNELS_HPP
