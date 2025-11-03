@@ -862,11 +862,12 @@ add_dependencies(exec
 #  - https://cmake.org/Bug/view.php?id=8438
 
 # Add a target to copy the mfem data directory to the build directory
-add_custom_command(OUTPUT data_is_copied
-  COMMAND ${CMAKE_COMMAND} -E copy_directory ${PROJECT_SOURCE_DIR}/data data
-  COMMAND ${CMAKE_COMMAND} -E touch data_is_copied
-  COMMENT "Copying the data directory ...")
-add_custom_target(copy_data DEPENDS data_is_copied)
+# Implementable as a single copy_directory_if_different command w/ CMake >= 3.26
+file(GLOB DATA_FILES CONFIGURE_DEPENDS ${PROJECT_SOURCE_DIR}/data/*)
+add_custom_target(copy_data
+  COMMAND ${CMAKE_COMMAND} -E make_directory data
+  COMMAND ${CMAKE_COMMAND} -E copy_if_different ${DATA_FILES} data
+  COMMENT "Syncing the data directory ...")
 # Add 'copy_data' as a prerequisite for all executables, if the source and the
 # build directories are not the same.
 if (NOT ("${PROJECT_SOURCE_DIR}" STREQUAL "${PROJECT_BINARY_DIR}"))
@@ -997,6 +998,10 @@ install(FILES
 # Install the export set for use with the install-tree
 install(EXPORT ${PROJECT_NAME_UC}Targets
     DESTINATION ${INSTALL_CMAKE_DIR})
+
+# Install the data directory if present, i.e. if the copy_data target is built
+install(DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/data
+  DESTINATION ${MFEM_INSTALL_DIR} OPTIONAL)
 
 #-------------------------------------------------------------------------------
 # Create 'config.mk' from 'config.mk.in' for the build and install locations and
