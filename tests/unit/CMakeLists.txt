@@ -11,6 +11,23 @@
 
 project(mfem-unit-tests NONE)
 
+# Define a target that all examples and miniapps will depend on.
+set(MFEM_TEST_EXEC_PREREQUISITES_TARGET_NAME test_exec_prerequisites)
+add_custom_target(${MFEM_TEST_EXEC_PREREQUISITES_TARGET_NAME})
+
+# Add a target to copy the mfem data directory to the build directory
+# Implementable as a single copy_directory_if_different command w/ CMake >= 3.26
+file(GLOB DATA_FILES CONFIGURE_DEPENDS ${PROJECT_SOURCE_DIR}/data/*)
+add_custom_target(copy_test_data
+  COMMAND ${CMAKE_COMMAND} -E make_directory data
+  COMMAND ${CMAKE_COMMAND} -E copy_if_different ${DATA_FILES} data
+  COMMENT "Syncing the test data directory ...")
+# Add 'copy_test_data' as a prerequisite for test executables, if the source and the
+# build directories are not the same.
+if (NOT ("${PROJECT_SOURCE_DIR}" STREQUAL "${PROJECT_BINARY_DIR}"))
+  add_dependencies(${MFEM_TEST_EXEC_PREREQUISITES_TARGET_NAME} copy_test_data)
+endif()
+
 # Include the source directory for the unit tests - catch.hpp is there.
 include_directories(BEFORE ${CMAKE_CURRENT_SOURCE_DIR})
 
@@ -164,24 +181,18 @@ endif()
 
 add_library(unit_tests_srcs OBJECT ${UNIT_TESTS_SRCS})
 target_link_libraries(unit_tests_srcs PUBLIC mfem)
+add_dependencies(unit_tests_srcs
+      ${MFEM_TEST_EXEC_PREREQUISITES_TARGET_NAME})
 
 # All serial non-device unit tests are built into a single executable,
 # 'unit_tests'.
 mfem_add_executable(unit_tests unit_test_main.cpp)
 target_link_libraries(unit_tests unit_tests_srcs)
 add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} unit_tests)
-# Unit tests need the ../../data directory.
-add_dependencies(unit_tests copy_data)
 # ParSubMesh tests need meshes in ../../miniapps/multidomain
 add_dependencies(unit_tests copy_miniapps_multidomain_data)
 # NURBS tests need meshes in ../../miniapps/nurbs
 add_dependencies(unit_tests copy_miniapps_nurbs_data)
-
-# Copy data to the build directory.
-add_custom_command(TARGET unit_tests POST_BUILD
-COMMAND ${CMAKE_COMMAND} -E copy_directory
-        ${CMAKE_CURRENT_SOURCE_DIR}/data data
-        COMMENT "Copying the unit tests data directory ...")
 
 # Create a test called 'unit_tests' that runs the 'unit_tests' executable.
 # The unit tests can be built and run separately from the rest of the tests:
@@ -201,7 +212,6 @@ if (MFEM_USE_CUDA)
     set_property(SOURCE ${GPU_UNIT_TESTS_SRCS} PROPERTY LANGUAGE CUDA)
     mfem_add_executable(gpu_unit_tests ${GPU_UNIT_TESTS_SRCS})
     target_link_libraries(gpu_unit_tests unit_tests_srcs)
-    add_dependencies(gpu_unit_tests copy_data)
     add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} gpu_unit_tests)
     if (MFEM_USE_DOUBLE) # otherwise returns MFEM_SKIP_RETURN_VALUE
         add_test(NAME gpu_unit_tests COMMAND gpu_unit_tests)
@@ -217,7 +227,6 @@ if (MFEM_USE_HIP)
     set(GPU_UNIT_TESTS_SRCS gpu_unit_test_main.cpp)
     mfem_add_executable(gpu_unit_tests ${GPU_UNIT_TESTS_SRCS})
     target_link_libraries(gpu_unit_tests unit_tests_srcs)
-    add_dependencies(gpu_unit_tests copy_data)
     add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} gpu_unit_tests)
     if (MFEM_USE_DOUBLE) # otherwise returns MFEM_SKIP_RETURN_VALUE
         add_test(NAME gpu_unit_tests COMMAND gpu_unit_tests)
@@ -336,7 +345,6 @@ if (MFEM_USE_MPI)
         set(PGPU_UNIT_TESTS_SRCS pgpu_unit_test_main.cpp)
         set_property(SOURCE ${PGPU_UNIT_TESTS_SRCS} PROPERTY LANGUAGE CUDA)
         mfem_add_executable(pgpu_unit_tests ${PGPU_UNIT_TESTS_SRCS})
-        add_dependencies(pgpu_unit_tests copy_data)
         target_link_libraries(pgpu_unit_tests unit_tests_srcs)
         add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} pgpu_unit_tests)
         foreach(np 1 ${MFEM_MPI_NP})
@@ -352,7 +360,6 @@ if (MFEM_USE_MPI)
         # pgpu_unit_tests
         set(PGPU_UNIT_TESTS_SRCS pgpu_unit_test_main.cpp)
         mfem_add_executable(pgpu_unit_tests ${PGPU_UNIT_TESTS_SRCS})
-        add_dependencies(pgpu_unit_tests copy_data)
         target_link_libraries(pgpu_unit_tests unit_tests_srcs)
         add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} pgpu_unit_tests)
         foreach(np 1 ${MFEM_MPI_NP})

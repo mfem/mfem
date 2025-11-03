@@ -15,16 +15,14 @@ set(MESH_GF_FILES
     triple-pt-1.gf
     triple-pt-2.gf
 )
-
+# add target which keeps required mesh files in sync
 set(SRC_MESH_GF_FILES)
 foreach(MESH_GF_FILE ${MESH_GF_FILES})
   list(APPEND SRC_MESH_GF_FILES ${CMAKE_CURRENT_SOURCE_DIR}/${MESH_GF_FILE})
 endforeach()
-add_custom_command(OUTPUT data_is_copied
+add_custom_target(copy_miniapps_gslib_data
   COMMAND ${CMAKE_COMMAND} -E copy_if_different ${SRC_MESH_GF_FILES} .
-  COMMAND ${CMAKE_COMMAND} -E touch data_is_copied
-  COMMENT "Copying gslib miniapps data files ...")
-add_custom_target(copy_miniapps_gslib_data DEPENDS data_is_copied)
+  COMMENT "Syncing gslib miniapps data files ...")
 
 if (MFEM_USE_GSLIB)
   add_mfem_miniapp(schwarz_ex1

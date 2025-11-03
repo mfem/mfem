@@ -9,31 +9,12 @@
 # terms of the BSD-3 license. We welcome feedback and contributions, see file
 # CONTRIBUTING.md for details.
 
-set(MESH_FILES
-  cube-nurbs.mesh
-  ijk-hex-nurbs.mesh
-  plus-nurbs-permuted.mesh
-  plus-nurbs.mesh
-  square-nurbs.mesh
-  two-cubes-nurbs-autoedge.mesh
-  two-cubes-nurbs-rot.mesh
-  two-cubes-nurbs.mesh
-  two-squares-nurbs-autoedge.mesh
-  two-squares-nurbs-rot.mesh
-  two-squares-nurbs.mesh
-)
-# Add a target to copy the mesh files from the source directory; used by sample
-# runs.
-set(SRC_MESH_FILES)
-foreach(MESH_FILE ${MESH_FILES})
-  list(APPEND SRC_MESH_FILES ${CMAKE_CURRENT_SOURCE_DIR}/meshes/${MESH_FILE})
-endforeach()
-add_custom_command(OUTPUT data_is_copied
+# add target which keeps required mesh files in sync
+file(GLOB SRC_MESH_FILES CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/meshes/*)
+add_custom_target(copy_miniapps_nurbs_data
   COMMAND ${CMAKE_COMMAND} -E make_directory meshes
-  COMMAND ${CMAKE_COMMAND} -E copy_if_different ${SRC_MESH_FILES} meshes/
-  COMMAND ${CMAKE_COMMAND} -E touch data_is_copied
-  COMMENT "Copying nurbs miniapps data files ...")
-add_custom_target(copy_miniapps_nurbs_data DEPENDS data_is_copied)
+  COMMAND ${CMAKE_COMMAND} -E copy_if_different ${SRC_MESH_FILES} meshes
+  COMMENT "Syncing nurbs miniapps data directory ...")
 
 add_mfem_miniapp(nurbs_ex1
   MAIN nurbs_ex1.cpp
