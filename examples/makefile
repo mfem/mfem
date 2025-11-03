@@ -20,7 +20,7 @@ CONFIG_MK = $(or $(wildcard $(MFEM_BUILD_DIR)/config/config.mk),\
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-SEQ_EXAMPLES = ex0 ex1 ex1-aniso ex2 ex3 ex4 ex5 ex5-max ex5-hdg ex5-heat ex6 ex7 ex8 ex9 ex10 ex14 ex15 ex16 \
+SEQ_EXAMPLES = ex0 ex1 ex1-aniso ex2 ex3 ex4 ex5 ex5-max ex5-hdg ex6 ex7 ex8 ex9 ex10 ex14 ex15 ex16 \
    ex17 ex18 ex18-hdg ex19 ex20 ex21 ex22 ex23 ex24 ex25 ex26 ex27 ex28 ex29 ex30 \
    ex31 ex33 ex34 ex36 ex37 ex38 ex39 ex40
 PAR_EXAMPLES = ex0p ex1p ex2p ex3p ex4p ex5p ex5p-hdg ex6p ex7p ex8p ex9p ex10p ex11p \
