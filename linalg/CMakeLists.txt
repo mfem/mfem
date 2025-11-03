@@ -27,6 +27,7 @@ list(APPEND SRCS
   handle.cpp
   matrix.cpp
   mma.cpp
+  multivector.cpp
   ode.cpp
   operator.cpp
   solvers.cpp
@@ -59,6 +60,7 @@ list(APPEND HDRS
   linalg.hpp
   matrix.hpp
   mma.hpp
+  multivector.hpp
   ode.hpp
   operator.hpp
   solvers.hpp
