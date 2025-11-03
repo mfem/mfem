@@ -26,6 +26,7 @@ add_custom_target(copy_test_data
 # build directories are not the same.
 if (NOT ("${PROJECT_SOURCE_DIR}" STREQUAL "${PROJECT_BINARY_DIR}"))
   add_dependencies(${MFEM_TEST_EXEC_PREREQUISITES_TARGET_NAME} copy_test_data)
+  add_dependencies(${MFEM_TEST_EXEC_PREREQUISITES_TARGET_NAME} copy_data)
 endif()
 
 # Include the source directory for the unit tests - catch.hpp is there.
@@ -250,6 +251,8 @@ function(add_serial_miniapp_test name test_uvm)
     endif(MFEM_USE_CUDA)
 
     mfem_add_executable(${name}_tests_cpu ${${NAME}_TESTS_SRCS})
+    add_dependencies(${name}_tests_cpu copy_miniapps_meshing_data)
+    add_dependencies(${name}_tests_cpu ${MFEM_TEST_EXEC_PREREQUISITES_TARGET_NAME})
     target_compile_definitions(${name}_tests_cpu PUBLIC MFEM_${NAME}_DEVICE="cpu")
     target_link_libraries(${name}_tests_cpu mfem)
     add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} ${name}_tests_cpu)
@@ -258,6 +261,8 @@ function(add_serial_miniapp_test name test_uvm)
     endif()
 
     mfem_add_executable(${name}_tests_debug ${${NAME}_TESTS_SRCS})
+    add_dependencies(${name}_tests_debug copy_miniapps_meshing_data)
+    add_dependencies(${name}_tests_debug ${MFEM_TEST_EXEC_PREREQUISITES_TARGET_NAME})
     target_compile_definitions(${name}_tests_debug PUBLIC MFEM_${NAME}_DEVICE="debug")
     target_link_libraries(${name}_tests_debug mfem)
     add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} ${name}_tests_debug)
@@ -267,6 +272,8 @@ function(add_serial_miniapp_test name test_uvm)
 
     if (MFEM_USE_CUDA OR MFEM_USE_HIP)
         mfem_add_executable(${name}_tests_gpu ${${NAME}_TESTS_SRCS})
+        add_dependencies(${name}_tests_gpu copy_miniapps_meshing_data)
+        add_dependencies(${name}_tests_gpu ${MFEM_TEST_EXEC_PREREQUISITES_TARGET_NAME})
         target_compile_definitions(${name}_tests_gpu PUBLIC MFEM_${NAME}_DEVICE="gpu")
         target_link_libraries(${name}_tests_gpu mfem)
         add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} ${name}_tests_gpu)
@@ -276,6 +283,8 @@ function(add_serial_miniapp_test name test_uvm)
 
         if (test_uvm)
             mfem_add_executable(${name}_tests_gpu_uvm ${${NAME}_TESTS_SRCS})
+            add_dependencies(${name}_tests_gpu_uvm copy_miniapps_meshing_data)
+            add_dependencies(${name}_tests_gpu_uvm ${MFEM_TEST_EXEC_PREREQUISITES_TARGET_NAME})
             target_compile_definitions(${name}_tests_gpu_uvm PUBLIC
                MFEM_${NAME}_DEVICE="gpu:uvm")
             target_link_libraries(${name}_tests_gpu_uvm mfem)
@@ -291,7 +300,6 @@ endfunction(add_serial_miniapp_test)
 add_serial_miniapp_test(sedov ON)  # UVM ON
 add_serial_miniapp_test(tmop_pa OFF)  # UVM OFF
 # TMOP tests need meshes in ../../miniapps/meshing
-add_dependencies(tmop_pa_tests_cpu copy_miniapps_meshing_data)
 
 #-----------------------------------------------------------
 # SERIAL CEED TESTS:
