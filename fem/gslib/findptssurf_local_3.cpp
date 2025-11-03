@@ -697,7 +697,6 @@ static void FindPointsSurfLocal3D_Kernel(const int npt,
                                           double *const dist2_base,
                                           const double *gll1D,
                                           const double *lagcoeff,
-                                          double *infok,
                                           const int pN = 0)
 {
 #define MAXC(a, b) (((a) > (b)) ? (a) : (b))
@@ -1219,26 +1218,22 @@ void FindPointsGSLIB::FindPointsSurfLocal3(const Vector &point_pos,
          return FindPointsSurfLocal3D_Kernel<2>(
             npt, DEV.tol, dist2tol, pp, point_pos_ordering, pgslm,
             NE_split_total, pwt, pbb, DEV.lh_nx, plhm, plhf,
-            plho, pcode, pelem, pref, pdist, pgll1d, plc,
-            DEV.info.ReadWrite());
+            plho, pcode, pelem, pref, pdist, pgll1d, plc);
       case 3:
          return FindPointsSurfLocal3D_Kernel<3>(
             npt, DEV.tol, dist2tol, pp, point_pos_ordering, pgslm,
             NE_split_total, pwt, pbb, DEV.lh_nx, plhm, plhf,
-            plho, pcode, pelem, pref, pdist, pgll1d, plc,
-            DEV.info.ReadWrite());
+            plho, pcode, pelem, pref, pdist, pgll1d, plc);
       case 4:
          return FindPointsSurfLocal3D_Kernel<4>(
             npt, DEV.tol, dist2tol, pp, point_pos_ordering, pgslm,
             NE_split_total, pwt, pbb, DEV.lh_nx, plhm, plhf,
-            plho, pcode, pelem, pref, pdist, pgll1d, plc,
-            DEV.info.ReadWrite());
+            plho, pcode, pelem, pref, pdist, pgll1d, plc);
       default:
          return FindPointsSurfLocal3D_Kernel(
             npt, DEV.tol, dist2tol, pp, point_pos_ordering, pgslm,
             NE_split_total, pwt, pbb, DEV.lh_nx, plhm, plhf,
-            plho, pcode, pelem, pref, pdist, pgll1d, plc,
-            DEV.info.ReadWrite(), DEV.dof1d);
+            plho, pcode, pelem, pref, pdist, pgll1d, plc, DEV.dof1d);
    }
 }
 

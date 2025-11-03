@@ -674,7 +674,6 @@ void obboxedge_calc_3( Vector &bb,
    unsigned wsize = 4*nr+2*mr;
    DO_MAX(wsize,gslib::gll_lag_size(nr));
 
-   // A big vector that stores all data related to bounds and all the work arrays
    Vector datavec(2*nr + lbsize0 + wsize);
    double *data = datavec.GetData();
 
@@ -693,10 +692,8 @@ void obboxedge_calc_3( Vector &bb,
 #undef SETUP_DIR
 
       // Loop over all elements; note the decrementing nel
-      for (int ie = 0; ie < nel; ie++,x+=nr,y+=nr)
+      for (int ie = 0; ie < nel; ie++,x+=nr,y+=nr,z+=nr)
       {
-      // for ( ; nel; --nel,x+=nr,y+=nr,z+=nr,++out)
-      // {
          double x0[3], A[9], Ai[9];
          struct gslib::dbl_range ab[3], tb[3];
 

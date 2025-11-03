@@ -40,8 +40,6 @@ namespace mfem
 #define rDIM 1
 #define sDIM2 (sDIM*sDIM)
 #define rDIM2 (rDIM*rDIM)
-#define pMax 20
-#define nThreads 32
 
 struct findptsElementPoint_t
 {
@@ -78,22 +76,10 @@ struct findptsLocalHashData_t
    unsigned int *offset;
 };
 
-/* p0 is the pointer where the value of the Lagrange polynomial is stored.
-   p1 is the pointer where the value of the first derivative of the Lagrange polynomial is stored.
-   p2 is the pointer where the value of the second derivative of the Lagrange polynomial is stored.
-   x is the point (reference coords here!) at which the derivatives are evaluated.
-   i is the index of the Lagrange polynomial.
-   z is the array of GLL points.
-   lagrangeCoeff: the denominator term in the Lagrange polynomial.
-   pN is the number of GLL points, i.e., the number of Lagrange polynomials.
-*/
-static MFEM_HOST_DEVICE inline void lagrange_eval_second_derivative(
-   double *p0,                  // 0 to pN-1: p0, pN to 2*pN-1: p1, 2*pN to 3*pN-1: p2
-   double x,                    // ref. coords of the point of interest
-   int i,                       // index of the Lagrange polynomial
-   const double *z,             // GLL points
-   const double *lagrangeCoeff, // Lagrange polynomial denominator term
-   int pN)                      // number of GLL points
+static MFEM_HOST_DEVICE inline void lag_eval_second_der(double *p0, double x,
+                                                        int i, const double *z,
+                                                        const double *lCoeff,
+                                                        int pN)
 {
    double u0 = 1, u1 = 0, u2 = 0;
    for (int j=0; j<pN; ++j)
@@ -107,9 +93,9 @@ static MFEM_HOST_DEVICE inline void lagrange_eval_second_derivative(
       }
    }
    double *p1 = p0 + pN, *p2 = p0 + 2 * pN;
-   p0[i] = lagrangeCoeff[i] * u0;
-   p1[i] = 2.0 * lagrangeCoeff[i] * u1;
-   p2[i] = 8.0 * lagrangeCoeff[i] * u2;
+   p0[i] = lCoeff[i] * u0;
+   p1[i] = 2.0 * lCoeff[i] * u1;
+   p2[i] = 8.0 * lCoeff[i] * u2;
 }
 
 /* positive when possibly inside */
@@ -389,32 +375,31 @@ static void FindPointsEdgeLocal3D_Kernel(const int npt,
                                           double *const dist2_base,
                                           const double *gll1D,
                                           const double *lagcoeff,
-                                          //   int *newton,
-                                          double *infok,
                                           const int pN = 0)
 {
 #define MAX_CONST(a, b) (((a) > (b)) ? (a) : (b))
-   const int MD1   = T_D1D ? T_D1D : pMax;
+   const int MD1   = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
    const int D1D   = T_D1D ? T_D1D : pN;
-   const int p_NE  = D1D;  // total nos. points in an element
-   const int p_NEL = p_NE*nel; // total nos. points in all elements
-   MFEM_VERIFY(MD1<=pMax, "Increase Max allowable polynomial order.");
-   MFEM_VERIFY(D1D<=pMax, "Increase Max allowable polynomial order.");
+   const int p_NEL = nel*D1D;
+   MFEM_VERIFY(MD1<=DofQuadLimits::MAX_D1D,
+              "Increase Max allowable polynomial order.");
+   MFEM_VERIFY(pN<=DofQuadLimits::MAX_D1D,
+              "Increase Max allowable polynomial order.");
    MFEM_VERIFY(D1D!=0, "Polynomial order not specified.");
+   const int nThreads = D1D*sDIM;
 
    mfem::forall_2D(npt, nThreads, 1, [=] MFEM_HOST_DEVICE (int i)
    {
-      // adi: understand the sizes! and how that changes when 1 ref dim is removed.
-      //size depends on max of info for faces and edges
-      constexpr int size1 = MAX_CONST(4,MD1+1) * (3*3 + 2*3) + 3*2*MD1 + 5;
-      constexpr int size2 = MAX_CONST(MD1*MD1*6,
-                                      3*sDIM*MD1); // 2nd 3 for storing x, dxdn, d2xdn
+      constexpr int size1 = 3*MD1 + 13;
+      constexpr int size2 = 3*MD1;
+      constexpr int size3 = MD1*sDIM;
 
+      MFEM_SHARED findptsElementPoint_t el_pts[2];
       MFEM_SHARED double r_workspace[size1];
-      MFEM_SHARED findptsElementPoint_t
-      el_pts[2];  // two pts structs for saving previous iteration pts data
+
       MFEM_SHARED double constraint_workspace[size2];
-      MFEM_SHARED int constraint_init_t[nThreads];
+
+      MFEM_SHARED double elem_coords[MD1 <= 6 ? size3 : 1];
 
       double *r_workspace_ptr = r_workspace;
       findptsElementPoint_t *fpt, *tmp;
@@ -427,10 +412,7 @@ static void FindPointsEdgeLocal3D_Kernel(const int npt,
       double x_i[3] = {x[id_x], x[id_y], x[id_z]};
 
       unsigned int *code_i = code_base  + i;
-      unsigned int *el_i   = el_base    + i;
-      double *r_i          = r_base     + i*rDIM;
       double *dist2_i      = dist2_base + i;
-      // int *newton_i = newton + i;
 
       //// map_points_to_els ////
       findptsLocalHashData_t hash;
@@ -441,18 +423,17 @@ static void FindPointsEdgeLocal3D_Kernel(const int npt,
       }
       hash.hash_n = hash_n;
       hash.offset = hashOffset;
+
       const unsigned int hi   = hash_index(&hash, x_i);
-      const unsigned int *elp = hash.offset + hash.offset[hi],
-                          *const ele = hash.offset + hash.offset[hi+1];
+      const unsigned int *elp       = hash.offset + hash.offset[hi];
+      const unsigned int *const ele = hash.offset + hash.offset[hi+1];
       *code_i  = CODE_NOT_FOUND;
       *dist2_i = DBL_MAX;
 
-      for (; elp!=ele; ++elp)   // note we are incrementing pointers here!!
+      for (; elp!=ele; ++elp)
       {
-         const unsigned int el = *elp;   // element ID in the hash
+         const unsigned int el = *elp;
          obbox_t box;
-         // construct obbox_t on the fly from data
-
          int n_box_ents = 3*sDIM + sDIM2;
 
          for (int idx = 0; idx < sDIM; ++idx)
@@ -470,40 +451,43 @@ static void FindPointsEdgeLocal3D_Kernel(const int npt,
          {
             //// findpts_local ////
             {
+               if (MD1 <= 6)
+               {
+                  MFEM_FOREACH_THREAD(j,x,D1D*sDIM)
+                  {
+                     const int qp = j % D1D;
+                     const int d = j / D1D;
+                     elem_coords[qp + d*D1D] =
+                           xElemCoord[qp + el*D1D + d*p_NEL];
+                  }
+                  MFEM_SYNC_THREAD;
+               }
+
                const double *elx[sDIM];
                for (int d=0; d<sDIM; d++)
                {
-                  elx[d] = xElemCoord + d*p_NEL + el*p_NE;
+                  elx[d] = MD1<= 6 ? &elem_coords[d*D1D] :
+                           xElemCoord + d*p_NEL + el*D1D;
                }
-
                MFEM_SYNC_THREAD;
                //// findpts_el ////
                {
-                  MFEM_FOREACH_THREAD(j,x,nThreads)
+                  MFEM_FOREACH_THREAD(j,x,1)
                   {
-                     if (j==0)
-                     {
-                        fpt->dist2 = DBL_MAX;
-                        fpt->dist2p = 0;
-                        fpt->tr = 1.0;
-                     }
-                     if (j<sDIM)
-                     {
-                        fpt->x[j] = x_i[j];
-                     }
-                     constraint_init_t[j] = 0;
+                     fpt->dist2 = DBL_MAX;
+                     fpt->dist2p = 0;
+                     fpt->tr = 1.0;
+                  }
+                  MFEM_FOREACH_THREAD(j,x,sDIM)
+                  {
+                     fpt->x[j] = x_i[j];
                   }
                   MFEM_SYNC_THREAD;
 
                   //// seed ////
                   {
-                     double *dist2_temp = r_workspace_ptr; // size: D1D
+                     double *dist2_temp = r_workspace_ptr;
                      double *r_temp = dist2_temp + D1D;
-
-                     // look for the node closest to x_i in the element among
-                     // all nodes with r-coord = ir-th GLL point.
-                     // r_temp stores the r,s coords of the closest node.
-                     // dist2_temp stores the distance^2 of the closest node.
                      MFEM_FOREACH_THREAD(j,x,nThreads)
                      {
                         seed_j(elx, x_i, gll1D, dist2_temp, r_temp, j, D1D);
@@ -511,38 +495,32 @@ static void FindPointsEdgeLocal3D_Kernel(const int npt,
                      MFEM_SYNC_THREAD;
 
                      // The closest node (smallest dist2_temp) found across all threads is stored in fpt.
-                     MFEM_FOREACH_THREAD(j,x,nThreads)
+                     MFEM_FOREACH_THREAD(j,x,1)
                      {
-                        if (j==0)
+                        fpt->dist2 = DBL_MAX;
+                        for (int ir=0; ir<D1D; ++ir)
                         {
-                           fpt->dist2 = DBL_MAX;
-                           for (int ir=0; ir<D1D; ++ir)
+                           if (dist2_temp[ir] < fpt->dist2)
                            {
-                              if (dist2_temp[ir] < fpt->dist2)
-                              {
-                                 fpt->dist2 = dist2_temp[ir];
-                                 fpt->r = r_temp[ir];
-                              }
+                              fpt->dist2 = dist2_temp[ir];
+                              fpt->r = r_temp[ir];
                            }
                         }
                      }
                      MFEM_SYNC_THREAD;
-                  }
+                  } //seed done
 
-                  MFEM_FOREACH_THREAD(j,x,nThreads)
+                  MFEM_FOREACH_THREAD(j,x,1)
                   {
-                     if (j<sDIM)
-                     {
-                        tmp->x[j] = fpt->x[j];
-                     }
-                     else if (j==sDIM)
-                     {
-                        tmp->dist2  = DBL_MAX;
-                        tmp->dist2p = 0;
-                        tmp->tr     = 1.0;
-                        tmp->flags   = 0;
-                        tmp->r   = fpt->r;
-                     }
+                     tmp->dist2 = HUGE_VAL;
+                     tmp->dist2p = 0;
+                     tmp->tr = 1;
+                     tmp->flags = 0;
+                     tmp->r = fpt->r;
+                  }
+                  MFEM_FOREACH_THREAD(j,x,sDIM)
+                  {
+                     tmp->x[j] = fpt->x[j];
                   }
                   MFEM_SYNC_THREAD;
 
@@ -550,7 +528,7 @@ static void FindPointsEdgeLocal3D_Kernel(const int npt,
                   {
                      switch (num_constrained(tmp->flags & FLAG_MASK))
                      {
-                        case 0:    // findpt_edge
+                        case 0:
                         {
                            double *wt = r_workspace_ptr;
                            double *resid = wt + 3*D1D;
@@ -558,121 +536,99 @@ static void FindPointsEdgeLocal3D_Kernel(const int npt,
                            double *hess = jac + sDIM*rDIM;
 
                            findptsElementGEdge_t edge;
-                           MFEM_FOREACH_THREAD(j,x,nThreads)
+                           MFEM_FOREACH_THREAD(j,x,D1D)
                            {
-                              // pointers to memory where to store the x & y coordinates of DOFS along the edge
                               for (int d=0; d<sDIM; ++d)
                               {
                                  edge.x[d] = constraint_workspace + d*D1D;
-                              }
-                              if (j<D1D)
-                              {
-                                 for (int d=0; d<sDIM; ++d)
-                                 {
-                                    edge.x[d][j] = elx[d][j];  // copy nodal coordinates along the constrained edge
-                                 }
+                                 edge.x[d][j] = elx[d][j];
                               }
                            }
                            MFEM_SYNC_THREAD;
 
-                           // compute basis function info upto 2nd derivative for tangential components
-                           MFEM_FOREACH_THREAD(j,x,nThreads)
+                           MFEM_FOREACH_THREAD(j,x,D1D)
                            {
-                              if (j<D1D)
+                              lag_eval_second_der(wt, tmp->r, j, gll1D,
+                                                  lagcoeff, D1D);
+                           }
+                           MFEM_SYNC_THREAD;
+
+                           MFEM_FOREACH_THREAD(j,x,sDIM)
+                           {
+                              resid[j] = tmp->x[j];
+                              jac[j] = 0.0;
+                              hess[j] = 0.0;
+                              for (int k=0; k<D1D; ++k)
                               {
-                                 lagrange_eval_second_derivative(wt, tmp->r, j, gll1D, lagcoeff, D1D);
+                                 resid[j] -= wt[      k]*edge.x[j][k];
+                                 jac[j]   += wt[D1D+k]*edge.x[j][k];
+                                 hess[j]  += wt[2*D1D+k]*edge.x[j][k];
                               }
                            }
                            MFEM_SYNC_THREAD;
 
-                           MFEM_FOREACH_THREAD(j,x,nThreads)
+                           MFEM_FOREACH_THREAD(j,x,1)
                            {
-                              if (j<sDIM)
-                              {
-                                 resid[j] = tmp->x[j];
-                                 jac[j] = 0.0;
-                                 hess[j] = 0.0;
-                                 for (int k=0; k<D1D; ++k)
-                                 {
-                                    resid[j] -= wt[      k]*edge.x[j][k];
-                                    // wt[k] = value of the basis function
-                                    jac[j]   += wt[D1D+k]*edge.x[j][k];
-                                    // wt[k+D1D] = derivative of the basis in r
-                                    hess[j]  += wt[2*D1D+k]*edge.x[j][k];
-                                    // wt[k+2*D1D] = 2nd derivative of the basis function
-                                 }
-                              }
-                           }
-                           MFEM_SYNC_THREAD;
-
-                           MFEM_FOREACH_THREAD(j,x,nThreads)
-                           {
-                              if (j==0)
-                              {
-                                 hess[3] = resid[0]*hess[0] + resid[1]*hess[1] +
-                                           resid[2]*hess[2];
-                              }
+                              hess[3] = resid[0]*hess[0] + resid[1]*hess[1] +
+                                        resid[2]*hess[2];
                            }
 
-                           MFEM_FOREACH_THREAD(l,x,nThreads)
+                           MFEM_FOREACH_THREAD(l,x,1)
                            {
-                              if (l==0)   // check prior step
+                             if (!reject_prior_step_q(fpt,resid,tmp,tol))
                               {
-                                 if ( !reject_prior_step_q(fpt,resid,tmp,tol) )   // check constraint
-                                 {
-                                    newton_edge(fpt,jac,hess[3],resid,tmp->flags&FLAG_MASK,tmp,tol);
-                                 }
+                                    newton_edge(fpt,jac,hess[3],resid,
+                                                tmp->flags&FLAG_MASK,tmp,tol);
                               }
                            }
                            MFEM_SYNC_THREAD;
                            break;
                         }
-                        case 1:   // findpts_pt
+                        case 1:
                         {
-                           MFEM_FOREACH_THREAD(j,x,nThreads)
+                           MFEM_FOREACH_THREAD(j,x,1)
                            {
-                              if (j==0)
+                              const int pi = point_index(tmp->flags &
+                                                         FLAG_MASK);
+                              const double *wt = wtend + pi*3*D1D;
+                              findptsElementGPT_t gpt;
+                              for (int d=0; d<sDIM; ++d)
                               {
-                                 const int pi = point_index(tmp->flags & FLAG_MASK);
-                                 const double *wt   = wtend +
-                                                      pi*3*D1D;  // 3*D1D: basis function values, their derivatives and 2nd derivatives
-                                 findptsElementGPT_t gpt;
-                                 for (int d=0; d<sDIM; ++d)
+                                 gpt.x[d] = elx[d][pi*(D1D-1)];
+                                 gpt.jac[d] = 0.0;
+                                 gpt.hes[d] = 0.0;
+                                 for (int k=0; k<D1D; ++k)
                                  {
-                                    gpt.x[d] = elx[d][pi*(D1D-1)];
-                                    gpt.jac[d] = 0.0;
-                                    gpt.hes[d] = 0.0;
-                                    for (int k=0; k<D1D; ++k)
-                                    {
-                                       gpt.jac[d] += wt[D1D  +k]*elx[d][k];  // dx_d/dr
-                                       gpt.hes[d] += wt[2*D1D+k]*elx[d][k];  // d2x_d/dr2
-                                    }
+                                    gpt.jac[d] += wt[D1D  +k]*elx[d][k];
+                                    gpt.hes[d] += wt[2*D1D+k]*elx[d][k];
                                  }
+                              }
 
-                                 const double *const pt_x = gpt.x,
-                                                     *const jac = gpt.jac,
-                                                            *const hes = gpt.hes;
-                                 double resid[sDIM], steep, sr;
-                                 resid[0] = fpt->x[0] - pt_x[0];
-                                 resid[1] = fpt->x[1] - pt_x[1];
-                                 resid[2] = fpt->x[2] - pt_x[2];
-                                 steep = jac[0]*resid[0] + jac[1]*resid[1] + jac[2]*resid[2];
-                                 sr = steep*tmp->r;
-                                 if ( !reject_prior_step_q(fpt, resid, tmp, tol) )
+                              const double *const pt_x = gpt.x;
+                              const double *const jac = gpt.jac;
+                              const double *const hes = gpt.hes;
+                              double resid[sDIM], steep, sr;
+                              resid[0] = fpt->x[0] - pt_x[0];
+                              resid[1] = fpt->x[1] - pt_x[1];
+                              resid[2] = fpt->x[2] - pt_x[2];
+                              steep = jac[0]*resid[0] + jac[1]*resid[1] +
+                                      jac[2]*resid[2];
+                              sr = steep*tmp->r;
+                              if (!reject_prior_step_q(fpt, resid, tmp, tol))
+                              {
+                                 if (sr<0)
                                  {
-                                    if (sr<0)
-                                    {
-                                       // adi: hessian 4 or 3 size? compare to case 0
-                                       const double rhess = resid[0]*hes[0] + resid[1]*hes[1] + resid[2]*hes[2];
-                                       newton_edge( fpt, jac, rhess, resid, 0, tmp, tol );
-                                    }
-                                    else   // sr==0
-                                    {
-                                       fpt->r = tmp->r;
-                                       fpt->dist2p = 0;
-                                       // Bitwise OR is important to retain the setting of 1st or 2nd bit!
-                                       fpt->flags = tmp->flags | CONVERGED_FLAG;
-                                    }
+                                    const double rhess = resid[0]*hes[0] +
+                                                         resid[1]*hes[1] +
+                                                         resid[2]*hes[2];
+                                    newton_edge(fpt, jac, rhess,
+                                                resid, 0, tmp, tol);
+                                 }
+                                 else   // sr==0
+                                 {
+                                    fpt->r = tmp->r;
+                                    fpt->dist2p = 0;
+                                    fpt->flags = tmp->flags | CONVERGED_FLAG;
                                  }
                               }
                            }
@@ -680,38 +636,32 @@ static void FindPointsEdgeLocal3D_Kernel(const int npt,
                            break;
                         } // case 1
                      } //switch
-
                      if (fpt->flags & CONVERGED_FLAG)
                      {
-                        // *newton_i = step+1;
                         break;
                      }
                      MFEM_SYNC_THREAD;
 
-                     MFEM_FOREACH_THREAD(j,x,nThreads)
+                     MFEM_FOREACH_THREAD(j,x,1)
                      {
-                        if (j==0)
-                        {
-                           *tmp = *fpt;
-                        }
+                        *tmp = *fpt;
                      }
                      MFEM_SYNC_THREAD;
                   } // for step<50
                } // findpts_el
 
-               bool converged_internal = ( (fpt->flags&FLAG_MASK)==CONVERGED_FLAG ) &&
-                                         fpt->dist2<dist2tol;
-               if (*code_i==CODE_NOT_FOUND || converged_internal || fpt->dist2<*dist2_i)
+               bool converged_internal =
+                                 ((fpt->flags&FLAG_MASK) == CONVERGED_FLAG) &&
+                                  (fpt->dist2<dist2tol);
+               if (*code_i==CODE_NOT_FOUND || converged_internal ||
+                   fpt->dist2<*dist2_i)
                {
-                  MFEM_FOREACH_THREAD(j,x,nThreads)
+                  MFEM_FOREACH_THREAD(j,x,1)
                   {
-                     if (j==0)
-                     {
-                        *el_i    = el;
-                        *code_i  = converged_internal ? CODE_INTERNAL : CODE_BORDER;
-                        *dist2_i = fpt->dist2;
-                     }
-                     r_i[0] = fpt->r;
+                     *(el_base+i) = el;
+                     *code_i  = converged_internal?CODE_INTERNAL:CODE_BORDER;
+                     *dist2_i = fpt->dist2;
+                     *(r_base+i) = fpt->r;
                   }
                   MFEM_SYNC_THREAD;
                   if (converged_internal)
@@ -734,175 +684,53 @@ void FindPointsGSLIB::FindPointsEdgeLocal3(const Vector &point_pos,
                                             Array<int> &newton,
                                             int npt)
 {
-   double dist_tol = 1e-14;
-
    if (npt == 0)
    {
       return;
    }
-   MFEM_VERIFY(spacedim==3 && dim == 1,"Function for 3D only");
+   MFEM_VERIFY(spacedim==3 && dim == 1,"Function for 3D edges only");
+   auto pp = point_pos.Read();
+   auto pgslm = gsl_mesh.Read();
+   auto pwt = DEV.wtend.Read();
+   auto pbb = DEV.bb.Read();
+   auto plhm = DEV.lh_min.Read();
+   auto plhf = DEV.lh_fac.Read();
+   auto plho = DEV.lh_offset.ReadWrite();
+   auto pcode = code.Write();
+   auto pelem = elem.Write();
+   auto pref = ref.Write();
+   auto pdist = dist.Write();
+   auto pgll1d = DEV.gll1d.ReadWrite();
+   auto plc = DEV.lagcoeff.Read();
+   double dist2tol = DEV.surf_dist_tol;
    switch (DEV.dof1d)
    {
-      case 1: FindPointsEdgeLocal3D_Kernel<1>(npt,
-                                                  DEV.tol,
-                                                  dist_tol,
-                                                  point_pos.Read(),
-                                                  point_pos_ordering,
-                                                  gsl_mesh.Read(),
-                                                  NE_split_total,
-                                                  DEV.wtend.Read(),
-                                                  DEV.bb.Read(),
-                                                  DEV.lh_nx,
-                                                  DEV.lh_min.Read(),
-                                                  DEV.lh_fac.Read(),
-                                                  DEV.lh_offset.ReadWrite(),
-                                                  code.Write(), elem.Write(),
-                                                  ref.Write(), dist.Write(),
-                                                  DEV.gll1d.Read(),
-                                                  DEV.lagcoeff.Read(),
-                                                  //   newton.ReadWrite(),
-                                                  DEV.info.ReadWrite());
-         break;
-      case 2: FindPointsEdgeLocal3D_Kernel<2>(npt,
-                                                  DEV.tol,
-                                                  dist_tol,
-                                                  point_pos.Read(),
-                                                  point_pos_ordering,
-                                                  gsl_mesh.Read(),
-                                                  NE_split_total,
-                                                  DEV.wtend.Read(),
-                                                  DEV.bb.Read(),
-                                                  DEV.lh_nx, DEV.lh_min.Read(),
-                                                  DEV.lh_fac.Read(),
-                                                  DEV.lh_offset.ReadWrite(),
-                                                  code.Write(),
-                                                  elem.Write(),
-                                                  ref.Write(),
-                                                  dist.Write(),
-                                                  DEV.gll1d.Read(),
-                                                  DEV.lagcoeff.Read(),
-                                                  //   newton.ReadWrite(),
-                                                  DEV.info.ReadWrite());
-         break;
-      case 3: FindPointsEdgeLocal3D_Kernel<3>(npt,
-                                                  DEV.tol,
-                                                  dist_tol,
-                                                  point_pos.Read(),
-                                                  point_pos_ordering,
-                                                  gsl_mesh.Read(),
-                                                  NE_split_total,
-                                                  DEV.wtend.Read(),
-                                                  DEV.bb.Read(),
-                                                  DEV.lh_nx, DEV.lh_min.Read(),
-                                                  DEV.lh_fac.Read(),
-                                                  DEV.lh_offset.ReadWrite(),
-                                                  code.Write(),
-                                                  elem.Write(),
-                                                  ref.Write(),
-                                                  dist.Write(),
-                                                  DEV.gll1d.Read(),
-                                                  DEV.lagcoeff.Read(),
-                                                  //   newton.ReadWrite(),
-                                                  DEV.info.ReadWrite());
-         break;
-      case 4: FindPointsEdgeLocal3D_Kernel<4>(npt,
-                                                  DEV.tol,
-                                                  dist_tol,
-                                                  point_pos.Read(),
-                                                  point_pos_ordering,
-                                                  gsl_mesh.Read(),
-                                                  NE_split_total,
-                                                  DEV.wtend.Read(),
-                                                  DEV.bb.Read(),
-                                                  DEV.lh_nx,
-                                                  DEV.lh_min.Read(),
-                                                  DEV.lh_fac.Read(),
-                                                  DEV.lh_offset.ReadWrite(),
-                                                  code.Write(),
-                                                  elem.Write(),
-                                                  ref.Write(),
-                                                  dist.Write(),
-                                                  DEV.gll1d.Read(),
-                                                  DEV.lagcoeff.Read(),
-                                                  //   newton.ReadWrite(),
-                                                  DEV.info.ReadWrite());
-         break;
-      case 5: FindPointsEdgeLocal3D_Kernel<5>(npt,
-                                                  DEV.tol,
-                                                  dist_tol,
-                                                  point_pos.Read(),
-                                                  point_pos_ordering,
-                                                  gsl_mesh.Read(),
-                                                  NE_split_total,
-                                                  DEV.wtend.Read(),
-                                                  DEV.bb.Read(),
-                                                  DEV.lh_nx,
-                                                  DEV.lh_min.Read(),
-                                                  DEV.lh_fac.Read(),
-                                                  DEV.lh_offset.ReadWrite(),
-                                                  code.Write(),
-                                                  elem.Write(),
-                                                  ref.Write(),
-                                                  dist.Write(),
-                                                  DEV.gll1d.Read(),
-                                                  DEV.lagcoeff.Read(),
-                                                  //   newton.ReadWrite(),
-                                                  DEV.info.ReadWrite());
-         break;
-      case 6: FindPointsEdgeLocal3D_Kernel<6>(npt,
-                                                  DEV.tol,
-                                                  dist_tol,
-                                                  point_pos.Read(),
-                                                  point_pos_ordering,
-                                                  gsl_mesh.Read(),
-                                                  NE_split_total,
-                                                  DEV.wtend.Read(),
-                                                  DEV.bb.Read(),
-                                                  DEV.lh_nx,
-                                                  DEV.lh_min.Read(),
-                                                  DEV.lh_fac.Read(),
-                                                  DEV.lh_offset.ReadWrite(),
-                                                  code.Write(),
-                                                  elem.Write(),
-                                                  ref.Write(),
-                                                  dist.Write(),
-                                                  DEV.gll1d.Read(),
-                                                  DEV.lagcoeff.Read(),
-                                                  // newton.ReadWrite(),
-                                                  DEV.info.ReadWrite());
-         break;
-      default: FindPointsEdgeLocal3D_Kernel(npt,
-                                                DEV.tol,
-                                                DEV.tol,
-                                                point_pos.Read(),
-                                                point_pos_ordering,
-                                                gsl_mesh.Read(),
-                                                NE_split_total,
-                                                DEV.wtend.Read(),
-                                                DEV.bb.Read(),
-                                                DEV.lh_nx,
-                                                DEV.lh_min.Read(),
-                                                DEV.lh_fac.Read(),
-                                                DEV.lh_offset.ReadWrite(),
-                                                code.Write(),
-                                                elem.Write(),
-                                                ref.Write(),
-                                                dist.Write(),
-                                                DEV.gll1d.Read(),
-                                                DEV.lagcoeff.Read(),
-                                                // newton.ReadWrite(),
-                                                DEV.info.ReadWrite(),
-                                                DEV.dof1d);
+      case 2:
+         return FindPointsEdgeLocal3D_Kernel<2>(
+            npt, DEV.tol, dist2tol, pp, point_pos_ordering, pgslm,
+            NE_split_total, pwt, pbb, DEV.lh_nx, plhm, plhf,
+            plho, pcode, pelem, pref, pdist, pgll1d, plc);
+      case 3:
+         return FindPointsEdgeLocal3D_Kernel<3>(
+            npt, DEV.tol, dist2tol, pp, point_pos_ordering, pgslm,
+            NE_split_total, pwt, pbb, DEV.lh_nx, plhm, plhf,
+            plho, pcode, pelem, pref, pdist, pgll1d, plc);
+      case 4:
+         return FindPointsEdgeLocal3D_Kernel<4>(
+            npt, DEV.tol, dist2tol, pp, point_pos_ordering, pgslm,
+            NE_split_total, pwt, pbb, DEV.lh_nx, plhm, plhf,
+            plho, pcode, pelem, pref, pdist, pgll1d, plc);
+      default:
+         return FindPointsEdgeLocal3D_Kernel(
+            npt, DEV.tol, dist2tol, pp, point_pos_ordering, pgslm,
+            NE_split_total, pwt, pbb, DEV.lh_nx, plhm, plhf,
+            plho, pcode, pelem, pref, pdist, pgll1d, plc, DEV.dof1d);
    }
 }
-
-#undef nThreads
-#undef pMax
 #undef rDIM2
 #undef sDIM2
 #undef rDIM
 #undef sDIM
-
 #undef CODE_INTERNAL
 #undef CODE_BORDER
 #undef CODE_NOT_FOUND

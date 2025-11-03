@@ -355,7 +355,6 @@ static void FindPointsEdgeLocal2D_Kernel( const int     npt,
                                           double *const dist2_base,
                                           const double  *gll1D,
                                           const double  *lagcoeff,
-                                          double        *infok,
                                           const int     pN = 0 )
 {
 #define MAXC(a, b) (((a) > (b)) ? (a) : (b))
@@ -367,7 +366,7 @@ static void FindPointsEdgeLocal2D_Kernel( const int     npt,
    MFEM_VERIFY(pN<=DofQuadLimits::MAX_D1D,
               "Increase Max allowable polynomial order.");
    MFEM_VERIFY(D1D!=0, "Polynomial order not specified.");
-   const int nThreads = MAXC(D1D*sDIM, 32);
+   const int nThreads = D1D*sDIM;
 
    mfem::forall_2D(npt, nThreads, 1, [=] MFEM_HOST_DEVICE (int i)
    {
@@ -400,7 +399,7 @@ static void FindPointsEdgeLocal2D_Kernel( const int     npt,
 
       //---------------- map_points_to_els --------------------
       findptsLocalHashData_t hash;
-      for (int d=0; d<sDIM; ++d)   // hash data is spacedim dimensional
+      for (int d=0; d<sDIM; ++d)
       {
          hash.bnd[d].min = hashMin[d];
          hash.fac[d] = hashFac[d];
@@ -409,20 +408,15 @@ static void FindPointsEdgeLocal2D_Kernel( const int     npt,
       hash.offset = hashOffset;
 
       const int hi                  = hash_index(&hash, x_i);
-      const unsigned int *elp       = hash.offset +
-                                      hash.offset[hi];    // start of possible elements containing x_i
-      const unsigned int *const ele = hash.offset + hash.offset[hi
-                                                                +1];  // end of possible elements containing x_i
+      const unsigned int *elp       = hash.offset + hash.offset[hi];
+      const unsigned int *const ele = hash.offset + hash.offset[hi+1];
       *code_i  = CODE_NOT_FOUND;
       *dist2_i = DBL_MAX;
 
-      // Search through all elements that could contain x_i
       for (; elp!=ele; ++elp)
       {
-         // NOTE: the pointer elp is being incremented, to the next index
          const unsigned int el = *elp;
 
-         // construct obbox_t on the fly for element el
          obbox_t box;
          int n_box_ents = 3*sDIM + sDIM2;
 
@@ -460,7 +454,6 @@ static void FindPointsEdgeLocal2D_Kernel( const int     npt,
                   elx[d] = MD1<= 6 ? &elem_coords[d*D1D] :
                            xElemCoord + d*p_NEL + el*D1D;
                }
-
                MFEM_SYNC_THREAD;
                //// findpts_el ////
                {
@@ -479,10 +472,6 @@ static void FindPointsEdgeLocal2D_Kernel( const int     npt,
                   {
                      double *dist2_temp = r_workspace_ptr;
                      double *r_temp = dist2_temp + D1D;
-
-                     // Each thread finds the closest point in the element for a
-                     // specific r value.
-                     // Then we minimize the distance across all threads.
                      MFEM_FOREACH_THREAD(j,x,D1D)
                      {
                         seed_j(elx, x_i, gll1D, dist2_temp, r_temp, j, D1D);
@@ -524,7 +513,7 @@ static void FindPointsEdgeLocal2D_Kernel( const int     npt,
                      int nc = num_constrained(tmp->flags & FLAG_MASK);
                      switch (nc)
                      {
-                        case 0:   // r is unconstrained
+                        case 0:
                         {
                            double *wt = r_workspace_ptr;
                            double *resid = wt + 3*D1D;
@@ -696,8 +685,6 @@ void FindPointsGSLIB::FindPointsEdgeLocal2( const Vector &point_pos,
    auto pdist = dist.Write();
    auto pgll1d = DEV.gll1d.ReadWrite();
    auto plc = DEV.lagcoeff.Read();
-   // be careful with disttol for now.
-   // double dist2tol = 1e-12;
    double dist2tol = DEV.surf_dist_tol;
    switch (DEV.dof1d)
    {
@@ -705,26 +692,22 @@ void FindPointsGSLIB::FindPointsEdgeLocal2( const Vector &point_pos,
          return FindPointsEdgeLocal2D_Kernel<2>(
             npt, DEV.tol, dist2tol, pp, point_pos_ordering, pgslm,
             NE_split_total, pwt, pbb, DEV.lh_nx, plhm, plhf,
-            plho, pcode, pelem, pref, pdist, pgll1d, plc,
-            DEV.info.ReadWrite());
+            plho, pcode, pelem, pref, pdist, pgll1d, plc);
       case 3:
          return FindPointsEdgeLocal2D_Kernel<3>(
             npt, DEV.tol, dist2tol, pp, point_pos_ordering, pgslm,
             NE_split_total, pwt, pbb, DEV.lh_nx, plhm, plhf,
-            plho, pcode, pelem, pref, pdist, pgll1d, plc,
-            DEV.info.ReadWrite());
+            plho, pcode, pelem, pref, pdist, pgll1d, plc);
       case 4:
          return FindPointsEdgeLocal2D_Kernel<4>(
             npt, DEV.tol, dist2tol, pp, point_pos_ordering, pgslm,
             NE_split_total, pwt, pbb, DEV.lh_nx, plhm, plhf,
-            plho, pcode, pelem, pref, pdist, pgll1d, plc,
-            DEV.info.ReadWrite());
+            plho, pcode, pelem, pref, pdist, pgll1d, plc);
       default:
          return FindPointsEdgeLocal2D_Kernel(
             npt, DEV.tol, dist2tol, pp, point_pos_ordering, pgslm,
             NE_split_total, pwt, pbb, DEV.lh_nx, plhm, plhf,
-            plho, pcode, pelem, pref, pdist, pgll1d, plc,
-            DEV.info.ReadWrite(), DEV.dof1d);
+            plho, pcode, pelem, pref, pdist, pgll1d, plc, DEV.dof1d);
    }
 }
 #undef sDIM

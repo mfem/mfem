@@ -54,6 +54,7 @@
 // make pfindpts -j4 && mpirun -np 1 ./pfindpts -m bladesurf.mesh -o 4 -mo 4 -vis -random 1
 // make pfindpts -j4 && mpirun -np 2 ./pfindpts -m 3dsurftriplept.mesh -o 3 -mo 3 -vis -random 1
 // make pfindpts -j4 && mpirun -np 11 ./pfindpts -m ../../data/klein-bottle.mesh -o 3 -mo 3 -vis -random 1 -rs 2
+// make pfindpts -j4 && mpirun -np 1 ./pfindpts -m 3dedge.mesh -o 2 -mo 2 -vis -random 1 -npt 10
 
 #include "mfem.hpp"
 #include "general/forall.hpp"
@@ -408,6 +409,14 @@ int main (int argc, char *argv[])
    }
    // pts_cnt = 1;
    // vxyz.SetSize(pts_cnt * sdim);
+   // 1.27624 0.444592 0
+   // vxyz(0) = 1.27624;
+   if (sdim ==2 )
+   {
+      // vxyz(1) = 0.444592;
+   }
+   // if (sdim == 3) { vxyz(2) = 0; }
+   // -0.689847 0.195519
    // 0.811114 0.128025
    // vxyz(0) = 0.811114;
    // vxyz(1) = 0.128025;
