@@ -94,6 +94,8 @@ enum Problem
    SteadyVaryingAngle,
    Sovinec,
    Umansky,
+   SingleNull,
+   DoubleNull,
 };
 
 constexpr real_t epsilon = numeric_limits<real_t>::epsilon();
@@ -206,7 +208,9 @@ int main(int argc, char *argv[])
                   "7=steady peak\n\t\t"
                   "8=steady varying angle\n\t\t"
                   "9=Sovinec\n\t\t"
-                  "10=Umansky\n\t\t");
+                  "10=Umansky\n\t\t"
+                  "11=Single null\n\t\t"
+                  "12=Double null\n\t\t");
    args.AddOption(&pars.k, "-k", "--kappa",
                   "Heat conductivity");
    args.AddOption(&pars.ks, "-ks", "--kappa_sym",
@@ -287,6 +291,8 @@ int main(int argc, char *argv[])
       case Problem::SteadyVaryingAngle:
       case Problem::Sovinec:
       case Problem::Umansky:
+      case Problem::SingleNull:
+      case Problem::DoubleNull:
          break;
       case Problem::MFEMLogo:
          bconv = true;
@@ -368,6 +374,8 @@ int main(int argc, char *argv[])
       case Problem::DiffusionRingSine:
       case Problem::SteadyPeak:
       case Problem::Sovinec:
+      case Problem::SingleNull:
+      case Problem::DoubleNull:
          //free (zero Dirichlet)
          if (bc_neumann)
          {
@@ -1295,6 +1303,70 @@ MatFunc GetKFun(const ProblemParams &params)
                AddMult_a_VVt((1. - ks) * k, b, kappa);
             }
          };
+      case Problem::SingleNull:
+         // C. Vogl, I. Joseph and M. Holec, Mesh refinement for anisotropic
+         // diffusion in magnetized plasmas, Computers and Mathematics with
+         // Applications, 145, pp. 159-174 (2023).
+         return [=](const Vector &x, DenseMatrix &kappa)
+         {
+            const int ndim = x.Size();
+            Vector b(ndim);
+
+            constexpr real_t x1 = 0.5;
+            constexpr real_t y1 = -0.25;
+            constexpr real_t x2 = 0.5;
+            constexpr real_t y2 = 0.75;
+            const real_t dx1 = x(0) - x1;
+            const real_t dy1 = x(1) - y1;
+            const real_t dx2 = x(0) - x2;
+            const real_t dy2 = x(1) - y2;
+            const real_t rr1 = dx1*dx1 + dy1*dy1;
+            const real_t rr2 = dx2*dx2 + dy2*dy2;
+            constexpr real_t Bt = 1.;
+            // Bp = curl log(sqrt(rr1) * sqrt(rr2) * z)
+            const real_t Bp_x = + ((rr1 > 0.)?(dy1 / rr1):(0.))
+                                + ((rr2 > 0.)?(dy2 / rr2):(0.));
+            const real_t Bp_y = - ((rr1 > 0.)?(dx1 / rr1):(0.))
+                                - ((rr2 > 0.)?(dx2 / rr2):(0.));
+
+            const real_t B = sqrt(Bp_x*Bp_x + Bp_y*Bp_y + Bt*Bt);
+            b(0) = +Bp_x / B;
+            b(1) = +Bp_y / B;
+
+            kappa.Diag(ks * k, ndim);
+            if (ks != 1.)
+            {
+               AddMult_a_VVt((1. - ks) * k, b, kappa);
+            }
+         };
+      case Problem::DoubleNull:
+         // C. Vogl, I. Joseph and M. Holec, Mesh refinement for anisotropic
+         // diffusion in magnetized plasmas, Computers and Mathematics with
+         // Applications, 145, pp. 159-174 (2023).
+         return [=](const Vector &x, DenseMatrix &kappa)
+         {
+            const int ndim = x.Size();
+            Vector b(ndim);
+
+            constexpr real_t xc = 0.5;
+            constexpr real_t yc = 0.5;
+            const real_t dx = x(0) - xc;
+            const real_t dy = x(1) - yc;
+            constexpr real_t Bt = 1.;
+            // Bp = curl ((1/2*(x-xc)**2 + 1/2*(1/4*sin(2pi*(y-yc)))**2) * z)
+            const real_t Bp_x = +1./16.*M_PI * sin(4.*M_PI * dy);
+            const real_t Bp_y = -dx;
+
+            const real_t B = sqrt(Bp_x*Bp_x + Bp_y*Bp_y + Bt*Bt);
+            b(0) = +Bp_x / B;
+            b(1) = +Bp_y / B;
+
+            kappa.Diag(ks * k, ndim);
+            if (ks != 1.)
+            {
+               AddMult_a_VVt((1. - ks) * k, b, kappa);
+            }
+         };
    }
    return MatFunc();
 }
@@ -1548,6 +1620,20 @@ TFunc GetTFun(const ProblemParams &params)
                return 0.5 * (1.0 + std::tanh(M_LN10 * (x(0) / hx - x(1) / hy)));
             }
          };
+      case Problem::SingleNull:
+      case Problem::DoubleNull:
+         // C. Vogl, I. Joseph and M. Holec, Mesh refinement for anisotropic
+         // diffusion in magnetized plasmas, Computers and Mathematics with
+         // Applications, 145, pp. 159-174 (2023).
+         return [=](const Vector &x, real_t t) -> real_t
+         {
+            constexpr real_t xc = 0.5;
+            constexpr real_t yc = 0.5;
+            constexpr real_t wc = 1./8.;
+            const real_t dx = (x(0) - xc) / wc;
+            const real_t dy = (x(1) - yc) / wc;
+            return t_0 * exp(-0.5 * (dx*dx + dy*dy));
+         };
    }
    return TFunc();
 }
@@ -1603,6 +1689,8 @@ VecTFunc GetQFun(const ProblemParams &params)
       case Problem::DiffusionRing:
       case Problem::DiffusionRingGauss:
       case Problem::Umansky:
+      case Problem::SingleNull:
+      case Problem::DoubleNull:
          return [=](const Vector &x, real_t, Vector &v)
          {
             const int vdim = x.Size();
@@ -1713,6 +1801,8 @@ VecFunc GetCFun(const ProblemParams &params)
       case Problem::SteadyVaryingAngle:
       case Problem::Sovinec:
       case Problem::Umansky:
+      case Problem::SingleNull:
+      case Problem::DoubleNull:
          // null
          break;
       case Problem::MFEMLogo:
@@ -1771,6 +1861,8 @@ TFunc GetFFun(const ProblemParams &params)
       case Problem::DiffusionRing:
       case Problem::DiffusionRingGauss:
       case Problem::DiffusionRingSine:
+      case Problem::SingleNull:
+      case Problem::DoubleNull:
          return [=](const Vector &x, real_t) -> real_t
          {
             const real_t T = TFun(x, 0);
@@ -1835,6 +1927,8 @@ FluxFunction* GetFluxFun(const ProblemParams &params, VectorCoefficient &ccoef)
       case Problem::SteadyVaryingAngle:
       case Problem::Sovinec:
       case Problem::Umansky:
+      case Problem::SingleNull:
+      case Problem::DoubleNull:
          //null
          break;
    }
@@ -1858,6 +1952,8 @@ MixedFluxFunction* GetHeatFluxFun(const ProblemParams &params, int dim)
       case Problem::SteadyVaryingAngle:
       case Problem::Sovinec:
       case Problem::Umansky:
+      case Problem::SingleNull:
+      case Problem::DoubleNull:
          static MatrixFunctionCoefficient kappa(dim, KFun);
          static InverseMatrixCoefficient ikappa(kappa);
          return new LinearDiffusionFlux(ikappa);
