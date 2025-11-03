@@ -201,11 +201,11 @@ void BoundingBoxTensorGridMap::Setup(Vector &elmin, Vector &elmax,
       int ilim = (elmax_h[0*nel+e]-elmin_h[0*nel+e]);
       for (int k = 0; k < klim; k++)
       {
-         int kidx = dim < 3 ? 0 : elmin_h[2*nel + e] + k;
+         // int kidx = dim < 3 ? 0 : elmin_h[2*nel + e] + k;
          int koff = dim < 3 ? 0 : (elmin_h[2*nel + e] + k)* lmap_n[0] * lmap_n[1];
          for (int j = 0; j < jlim; j++)
          {
-            int jidx = dim < 2 ? 0 : elmin_h[1*nel + e] + j;
+            // int jidx = dim < 2 ? 0 : elmin_h[1*nel + e] + j;
             int joff = dim < 2 ? 0 : (elmin_h[1*nel + e] + j) * lmap_n[0];
             for (int i = 0; i < ilim; i++)
             {
@@ -229,11 +229,11 @@ void BoundingBoxTensorGridMap::Setup(Vector &elmin, Vector &elmax,
       int ilim = (elmax_h[0*nel+e]-elmin_h[0*nel+e]);
       for (int k = 0; k < klim; k++)
       {
-         int kidx = dim < 3 ? 0 : elmin_h[2*nel + e] + k;
+         // int kidx = dim < 3 ? 0 : elmin_h[2*nel + e] + k;
          int koff = dim < 3 ? 0 : (elmin_h[2*nel + e] + k)* lmap_n[0] * lmap_n[1];
          for (int j = 0; j < jlim; j++)
          {
-            int jidx = dim < 2 ? 0 : elmin_h[1*nel + e] + j;
+            // int jidx = dim < 2 ? 0 : elmin_h[1*nel + e] + j;
             int joff = dim < 2 ? 0 : (elmin_h[1*nel + e] + j) * lmap_n[0];
             for (int i = 0; i < ilim; i++)
             {

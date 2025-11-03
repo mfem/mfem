@@ -998,11 +998,18 @@ void FindPointsGSLIB::SetupSurf(Mesh &m, const double bb_t,
                            mesh_points_cnt, dim);
    }
 
-   DEV.surf_el_size.SetSize(NE_split_total);
+   DEV.surf_dist_tol = 0.0;
    for (int e = 0; e < mesh->GetNE(); e++)
    {
-      DEV.surf_el_size[e] = mesh->GetElementVolume(e);
+      DEV.surf_dist_tol += mesh->GetElementVolume(e);
    }
+   int nelem = NE_split_total;
+#ifdef MFEM_USE_MPI
+   MPI_Allreduce(MPI_IN_PLACE, &DEV.surf_dist_tol, 1, MPI_DOUBLE, MPI_SUM, gsl_comm->c);
+   MPI_Allreduce(MPI_IN_PLACE, &nelem, 1, MPI_INT, MPI_SUM, gsl_comm->c);
+#endif
+   DEV.surf_dist_tol /= nelem;
+   DEV.surf_dist_tol *= 1e-10;
    setupflag = true;
 }
 
@@ -1607,7 +1614,6 @@ void FindPointsGSLIB::SetupSurfDevice()
    DEV.gh_min.UseDevice(true);
    DEV.gh_fac.UseDevice(true);
    DEV.cr = cr;
-   DEV.surf_el_size.UseDevice(true);
 
    Vector gll1dtemp(DEV.dof1d),
           lagcoefftemp(DEV.dof1d),

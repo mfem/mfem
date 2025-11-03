@@ -170,7 +170,7 @@ static MFEM_HOST_DEVICE inline void lin_solve_sym_2(double x[2],
 
 static MFEM_HOST_DEVICE inline double l2norm2(const double x[sDIM])
 {
-   return ( x[0]*x[0] + x[1]*x[1] + x[2]*x[2] );
+   return ( x[0]*x[0] + x[1]*x[1] + x[2]*x[2]);
 }
 
 /* the bit structure of flags is CSSRR
@@ -222,105 +222,8 @@ static MFEM_HOST_DEVICE inline int point_index(const int x)
    return ((x>>1)&1u) | ((x>>2)&2u);
 }
 
-/* Compute (x,y) and (dxdn, dydn) data for all DOFs along the edge based on
- * edge index. ei=0..3 corresponding to rmin, rmax, smin, smax.
- */
 static MFEM_HOST_DEVICE inline findptsElementGEdge_t
 get_edge(const double *elx[3], const double *wtend, int ei,
-               double *workspace, int &side_init, int j, int pN)
-{
-   findptsElementGEdge_t edge;
-
-   if (j >= pN) { return edge; }
-
-   const int jidx = ei >= 2 ? j : ei*(pN-1);
-   const int kidx = ei >= 2 ? (ei-2)*(pN-1) : j;
-
-   // location of derivatives based on whether we want at r/s=-1 or r/s=+1
-   // ei == 0 and 2 are constrained at -1, 1 and 3 are constrained at +1.
-   const double *wt1 = wtend + (ei%2==0 ? 0 : 1)* pN * 3 + pN;
-
-   for (int d=0; d<sDIM; ++d)
-   {
-      edge.x[d]     = workspace             + d*pN; //x,y,z
-      edge.dxdn[d]  = workspace +   sDIM*pN + d*pN; //dxdn,dydn,dzdn
-      edge.d2xdn[d] = workspace + 2*sDIM*pN + d*pN; //d2xdn2,d2ydn2,d2zdn2
-   }
-
-   if (side_init != (1u << ei))
-   {
-#define ELX(d, j, k) elx[d][j + k * pN] // assumes lexicographic ordering
-      for (int d = 0; d < sDIM; ++d)
-      {
-         // copy nodal coordinates along the constrained edge
-         edge.x[d][j] = ELX(d, jidx, kidx);
-
-         // compute derivatives in normal direction.
-         double sums_k = 0.0,
-                sums2_k = 0.0;
-         for (int k = 0; k < pN; ++k)
-         {
-            if (ei >= 2)
-            {
-               sums_k += wt1[k] * ELX(d, j, k);
-               sums2_k += wt1[k + pN] * ELX(d, j, k);
-            }
-            else
-            {
-               sums_k += wt1[k] * ELX(d, k, j);
-               sums2_k += wt1[k + pN] * ELX(d, k, j);
-            }
-         }
-         edge.dxdn[d][j] = sums_k;
-         edge.d2xdn[d][j] = sums2_k;
-      }
-   }
-#undef ELX
-   return edge;
-}
-
-static MFEM_HOST_DEVICE inline findptsElementGEdge_t
-get_edge2(const double *elx[3], const double *wtend, int ei,
-                 double *workspace, int &side_init, int jidx, int pN)
-{
-   findptsElementGEdge_t edge;
-   for (int d=0; d<sDIM; ++d)
-   {
-      edge.x[d]     = workspace             + d*pN;
-      edge.dxdn[d]  = workspace +   sDIM*pN + d*pN;
-      edge.d2xdn[d] = workspace + 2*sDIM*pN + d*pN;
-   }
-
-   // given edge index, compute normal and tangential directions
-   const int dn = ei>>1, //0 for rmin/rmax, 1 for smin/smax
-             de = plus_1_mod_2(dn); // 1 for rmin/rmax, 0 for smin/smax
-   const int side_n        = ei&1,          // 0 for rmin/smin, 1 for rmax/smax
-             side_n_offset = side_n*(pN-1); // 0 from rmin/smin, pN-1 for rmax/smax
-   const double *wt1       = wtend + 3*pN*side_n;
-
-   const int jj = jidx%pN;
-   const int dd = jidx/pN;
-   if (side_init != (1u << ei))
-   {
-         const int elx_stride[2] = {1,pN};
-#define ELX(d,j,k) elx[d][j*elx_stride[de] + k*elx_stride[dn]]
-
-         edge.x[dd][jj] = ELX(dd, jj, side_n_offset);
-         double sums_k[2] = {0,0};
-         for (int k=0; k<pN; ++k)
-         {
-            sums_k[0] += wt1[pN+k]   * ELX(dd,jj,k);
-            sums_k[1] += wt1[2*pN+k] * ELX(dd,jj,k);
-         }
-         edge.dxdn[dd][jj]  = sums_k[0];
-         edge.d2xdn[dd][jj] = sums_k[1];
-#undef ELX
-   }
-   return edge;
-}
-
-static MFEM_HOST_DEVICE inline findptsElementGEdge_t
-get_edge_old(const double *elx[3], const double *wtend, int ei,
          double *workspace, int &side_init, int jidx, int pN)
 {
    findptsElementGEdge_t edge;
@@ -337,32 +240,16 @@ get_edge_old(const double *elx[3], const double *wtend, int ei,
    const int side_n        = ei&1,          // 0 for rmin/smin, 1 for rmax/smax
              side_n_offset = side_n*(pN-1); // 0 from rmin/smin, pN-1 for rmax/smax
    const double *wt1       = wtend + 3*pN*side_n;
-   // First 3*pN entries in wtend for rmin/smin, next 3*pN entries for rmax/smax.
-   // stores lagfunc and its 1st and 2nd derivatives values
 
    const int jj = jidx%pN;
    const int dd = jidx/pN;
    if (side_init != (1u << ei))
    {
-      /* As j runs from 0 to 3*pN - 1
-         jj = 0,1,...,pN-1, 0,1,...,pN-1, 0,1,......,pN-1
-         dd = 0,0,......,0, 1,1,......,1, 1,1,......,1
-         Essentially, first everything for dd=0 is computed, then for dd=1, and
-         so on. dd here means the spatial dimension and is used to access
-         corresponding memory in elx, x, dxdn.
-      */
-      if (jidx<3*pN)
-      {
-         // If de=0, then nodes along the edge follow contiguously and hence are strided by 1.
-         // If de=1, then nodes along the edge are separated by pN nodes, and hence are strided by pN.
          const int elx_stride[2] = {1,pN};
-
 #define ELX(d,j,k) elx[d][j*elx_stride[de] + k*elx_stride[dn]]
 
          edge.x[dd][jj] = ELX(dd, jj, side_n_offset);
-
          double sums_k[2] = {0,0};
-
          for (int k=0; k<pN; ++k)
          {
             sums_k[0] += wt1[pN+k]   * ELX(dd,jj,k);
@@ -371,8 +258,6 @@ get_edge_old(const double *elx[3], const double *wtend, int ei,
          edge.dxdn[dd][jj]  = sums_k[0];
          edge.d2xdn[dd][jj] = sums_k[1];
 #undef ELX
-      }
-      // side_init = (1u << ei);
    }
    return edge;
 }
@@ -941,10 +826,6 @@ static void FindPointsSurfLocal3D_Kernel(const int npt,
                   }
                   MFEM_FOREACH_THREAD(j,x,D1D)
                   {
-                     // if (j == 0)
-                     // {
-                     //    printf("Found element %u %u\n", i, *elp);
-                     // }
                      seed_j(elx, x_i, gll1D, dist2_temp, r_temp, j, D1D);
                   }
                   MFEM_SYNC_THREAD;
@@ -954,7 +835,6 @@ static void FindPointsSurfLocal3D_Kernel(const int npt,
                      fpt->dist2 = HUGE_VAL;
                      for (int jj = 0; jj < D1D; ++jj)
                      {
-                        //  printf("%u %u %f dist2\n", i, jj, dist2_temp[jj]);
                         if (dist2_temp[jj] < fpt->dist2)
                         {
                            fpt->dist2 = dist2_temp[jj];
@@ -964,7 +844,6 @@ static void FindPointsSurfLocal3D_Kernel(const int npt,
                            }
                         }
                      }
-                     // printf("%u %f dist2\n", i, fpt->dist2);
                   }
                   MFEM_SYNC_THREAD;
                } //seed done
@@ -1042,7 +921,7 @@ static void FindPointsSurfLocal3D_Kernel(const int npt,
 
                         MFEM_FOREACH_THREAD(l,x,sDIM)
                         {
-                           resid[l] = fpt->x[l];
+                           resid[l] = tmp->x[l];
                            for (int j=0; j<D1D; ++j)
                            {
                               resid[l] -= resid_temp[l + j*sDIM];
@@ -1095,7 +974,7 @@ static void FindPointsSurfLocal3D_Kernel(const int npt,
                         MFEM_FOREACH_THREAD(j,x,D1D*sDIM)
                         {
                            // utilized first D1D threads
-                           edge = get_edge2(elx, wtend, ei,
+                           edge = get_edge(elx, wtend, ei,
                                            constraint_workspace, edge_init, j,
                                            D1D);
                         }
@@ -1314,164 +1193,52 @@ void FindPointsGSLIB::FindPointsSurfLocal3(const Vector &point_pos,
                                             Array<int> &newton,
                                             int npt)
 {
-   double dist_tol = 1e-10;
-
    if (npt == 0)
    {
       return;
    }
-   MFEM_VERIFY(spacedim==3,"Function for 3D only");
+   MFEM_VERIFY(dim == 2 && spacedim==3,"Function for 3D surfaces only");
+   auto pp = point_pos.Read();
+   auto pgslm = gsl_mesh.Read();
+   auto pwt = DEV.wtend.Read();
+   auto pbb = DEV.bb.Read();
+   auto plhm = DEV.lh_min.Read();
+   auto plhf = DEV.lh_fac.Read();
+   auto plho = DEV.lh_offset.ReadWrite();
+   auto pcode = code.Write();
+   auto pelem = elem.Write();
+   auto pref = ref.Write();
+   auto pdist = dist.Write();
+   auto pgll1d = DEV.gll1d.ReadWrite();
+   auto plc = DEV.lagcoeff.Read();
+   double dist2tol = DEV.surf_dist_tol;
+
    switch (DEV.dof1d)
    {
-      case 1: FindPointsSurfLocal3D_Kernel<1>(npt,
-                                                  DEV.tol,
-                                                  dist_tol,
-                                                  point_pos.Read(),
-                                                  point_pos_ordering,
-                                                  gsl_mesh.Read(),
-                                                  NE_split_total,
-                                                  DEV.wtend.Read(),
-                                                  DEV.bb.Read(),
-                                                  DEV.lh_nx,
-                                                  DEV.lh_min.Read(),
-                                                  DEV.lh_fac.Read(),
-                                                  DEV.lh_offset.ReadWrite(),
-                                                  code.Write(), elem.Write(),
-                                                  ref.Write(), dist.Write(),
-                                                  DEV.gll1d.Read(),
-                                                  DEV.lagcoeff.Read(),
-                                                  DEV.info.ReadWrite());
-         break;
-      case 2: FindPointsSurfLocal3D_Kernel<2>(npt,
-                                                  DEV.tol,
-                                                  dist_tol,
-                                                  point_pos.Read(),
-                                                  point_pos_ordering,
-                                                  gsl_mesh.Read(),
-                                                  NE_split_total,
-                                                  DEV.wtend.Read(),
-                                                  DEV.bb.Read(),
-                                                  DEV.lh_nx, DEV.lh_min.Read(),
-                                                  DEV.lh_fac.Read(),
-                                                  DEV.lh_offset.ReadWrite(),
-                                                  code.Write(),
-                                                  elem.Write(),
-                                                  ref.Write(),
-                                                  dist.Write(),
-                                                  DEV.gll1d.Read(),
-                                                  DEV.lagcoeff.Read(),
-                                                  //   newton.ReadWrite(),
-                                                  DEV.info.ReadWrite());
-         break;
-      case 3: FindPointsSurfLocal3D_Kernel<3>(npt,
-                                                  DEV.tol,
-                                                  dist_tol,
-                                                  point_pos.Read(),
-                                                  point_pos_ordering,
-                                                  gsl_mesh.Read(),
-                                                  NE_split_total,
-                                                  DEV.wtend.Read(),
-                                                  DEV.bb.Read(),
-                                                  DEV.lh_nx, DEV.lh_min.Read(),
-                                                  DEV.lh_fac.Read(),
-                                                  DEV.lh_offset.ReadWrite(),
-                                                  code.Write(),
-                                                  elem.Write(),
-                                                  ref.Write(),
-                                                  dist.Write(),
-                                                  DEV.gll1d.Read(),
-                                                  DEV.lagcoeff.Read(),
-                                                  //   newton.ReadWrite(),
-                                                  DEV.info.ReadWrite());
-         break;
-      case 4: FindPointsSurfLocal3D_Kernel<4>(npt,
-                                                  DEV.tol,
-                                                  dist_tol,
-                                                  point_pos.Read(),
-                                                  point_pos_ordering,
-                                                  gsl_mesh.Read(),
-                                                  NE_split_total,
-                                                  DEV.wtend.Read(),
-                                                  DEV.bb.Read(),
-                                                  DEV.lh_nx,
-                                                  DEV.lh_min.Read(),
-                                                  DEV.lh_fac.Read(),
-                                                  DEV.lh_offset.ReadWrite(),
-                                                  code.Write(),
-                                                  elem.Write(),
-                                                  ref.Write(),
-                                                  dist.Write(),
-                                                  DEV.gll1d.Read(),
-                                                  DEV.lagcoeff.Read(),
-                                                  //   newton.ReadWrite(),
-                                                  DEV.info.ReadWrite());
-         break;
-      case 5: FindPointsSurfLocal3D_Kernel<5>(npt,
-                                                  DEV.tol,
-                                                  dist_tol,
-                                                  point_pos.Read(),
-                                                  point_pos_ordering,
-                                                  gsl_mesh.Read(),
-                                                  NE_split_total,
-                                                  DEV.wtend.Read(),
-                                                  DEV.bb.Read(),
-                                                  DEV.lh_nx,
-                                                  DEV.lh_min.Read(),
-                                                  DEV.lh_fac.Read(),
-                                                  DEV.lh_offset.ReadWrite(),
-                                                  code.Write(),
-                                                  elem.Write(),
-                                                  ref.Write(),
-                                                  dist.Write(),
-                                                  DEV.gll1d.Read(),
-                                                  DEV.lagcoeff.Read(),
-                                                  //   newton.ReadWrite(),
-                                                  DEV.info.ReadWrite());
-         break;
-      case 6: FindPointsSurfLocal3D_Kernel<6>(npt,
-                                                  DEV.tol,
-                                                  dist_tol,
-                                                  point_pos.Read(),
-                                                  point_pos_ordering,
-                                                  gsl_mesh.Read(),
-                                                  NE_split_total,
-                                                  DEV.wtend.Read(),
-                                                  DEV.bb.Read(),
-                                                  DEV.lh_nx,
-                                                  DEV.lh_min.Read(),
-                                                  DEV.lh_fac.Read(),
-                                                  DEV.lh_offset.ReadWrite(),
-                                                  code.Write(),
-                                                  elem.Write(),
-                                                  ref.Write(),
-                                                  dist.Write(),
-                                                  DEV.gll1d.Read(),
-                                                  DEV.lagcoeff.Read(),
-                                                  // newton.ReadWrite(),
-                                                  DEV.info.ReadWrite());
-         break;
-      default: FindPointsSurfLocal3D_Kernel(npt,
-                                                DEV.tol,
-                                                DEV.tol,
-                                                point_pos.Read(),
-                                                point_pos_ordering,
-                                                gsl_mesh.Read(),
-                                                NE_split_total,
-                                                DEV.wtend.Read(),
-                                                DEV.bb.Read(),
-                                                DEV.lh_nx,
-                                                DEV.lh_min.Read(),
-                                                DEV.lh_fac.Read(),
-                                                DEV.lh_offset.ReadWrite(),
-                                                code.Write(),
-                                                elem.Write(),
-                                                ref.Write(),
-                                                dist.Write(),
-                                                DEV.gll1d.Read(),
-                                                DEV.lagcoeff.Read(),
-                                                // newton.ReadWrite(),
-                                                DEV.info.ReadWrite(),
-                                                DEV.dof1d);
+      case 2:
+         return FindPointsSurfLocal3D_Kernel<2>(
+            npt, DEV.tol, dist2tol, pp, point_pos_ordering, pgslm,
+            NE_split_total, pwt, pbb, DEV.lh_nx, plhm, plhf,
+            plho, pcode, pelem, pref, pdist, pgll1d, plc,
+            DEV.info.ReadWrite());
+      case 3:
+         return FindPointsSurfLocal3D_Kernel<3>(
+            npt, DEV.tol, dist2tol, pp, point_pos_ordering, pgslm,
+            NE_split_total, pwt, pbb, DEV.lh_nx, plhm, plhf,
+            plho, pcode, pelem, pref, pdist, pgll1d, plc,
+            DEV.info.ReadWrite());
+      case 4:
+         return FindPointsSurfLocal3D_Kernel<4>(
+            npt, DEV.tol, dist2tol, pp, point_pos_ordering, pgslm,
+            NE_split_total, pwt, pbb, DEV.lh_nx, plhm, plhf,
+            plho, pcode, pelem, pref, pdist, pgll1d, plc,
+            DEV.info.ReadWrite());
+      default:
+         return FindPointsSurfLocal3D_Kernel(
+            npt, DEV.tol, dist2tol, pp, point_pos_ordering, pgslm,
+            NE_split_total, pwt, pbb, DEV.lh_nx, plhm, plhf,
+            plho, pcode, pelem, pref, pdist, pgll1d, plc,
+            DEV.info.ReadWrite(), DEV.dof1d);
    }
 }
 

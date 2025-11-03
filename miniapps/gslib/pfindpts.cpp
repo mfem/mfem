@@ -408,6 +408,9 @@ int main (int argc, char *argv[])
    }
    // pts_cnt = 1;
    // vxyz.SetSize(pts_cnt * sdim);
+   // 0.811114 0.128025
+   // vxyz(0) = 0.811114;
+   // vxyz(1) = 0.128025;
    // 0 0.174319 0
    // vxyz(0) = 0;
    // vxyz(1) = 0.174319;
@@ -534,7 +537,8 @@ int main (int argc, char *argv[])
             //     " " << rst(i*dim + 0) << " " << rst(i*dim + 1) << " k101\n";
             // }
          }
-         else { if (j == 0)
+         else {
+            if (j == 0)
             {
                for (int d = 0; d < sdim; d++)
                {
@@ -543,11 +547,18 @@ int main (int argc, char *argv[])
                            vxyz(i*sdim + d);
                }
                not_found++;
-               // pos.Print();
-               // std::cout << code_out[i] << " " << dist_p_out(i) <<
-               //  " " << rst(i*dim + 0) << " " << rst(i*dim + 1) << " k101\n";
+               pos.Print();
+               if (dim == 1)
+               {
+                  std::cout << code_out[i] << " " << dist_p_out(i) <<
+                  " " << rst(i*dim + 0) << " k101\n";
+               }
+               else if (dim == 2)
+               {
+                  std::cout << code_out[i] << " " << dist_p_out(i) <<
+                   " " << rst(i*dim + 0) << " " << rst(i*dim + 1) << " k101\n";
+               }
             }
-
          }
       }
    }

@@ -116,7 +116,7 @@ protected:
       mutable Vector lh_min, lh_fac, gh_min, gh_fac;
       double tol;
       mutable Vector info;
-      mutable Vector surf_el_size;
+      mutable double surf_dist_tol;
    } DEV;
 
    /// Use GSLIB for communication and interpolation
