@@ -449,7 +449,7 @@ void VisItDataCollection::RegisterQField(const std::string& name,
    }
 
    DataCollection::RegisterQField(name, qf);
-   field_info_map[name] = VisItFieldInfo("elements", 1, LOD);
+   field_info_map[name] = VisItFieldInfo("quadrature", qf->GetVDim(), LOD);
    visit_levels_of_detail = std::max(visit_levels_of_detail, LOD);
 }
 
@@ -623,7 +623,8 @@ void VisItDataCollection::LoadFields()
          {
             field_map.Register(it->first, new GridFunction(mesh, file), own_data);
          }
-         else if ((it->second).association == "elements")
+         else if ((it->second).association == "elements" || // old style
+                  (it->second).association == "quadrature") // new style
          {
             q_field_map.Register(it->first, new QuadratureFunction(mesh, file), own_data);
          }
@@ -637,7 +638,8 @@ void VisItDataCollection::LoadFields()
                it->first,
                new ParGridFunction(dynamic_cast<ParMesh*>(mesh), file), own_data);
          }
-         else if ((it->second).association == "elements")
+         else if ((it->second).association == "elements" || // old style
+                  (it->second).association == "quadrature") // new style
          {
             q_field_map.Register(it->first, new QuadratureFunction(mesh, file), own_data);
          }
